@@ -6,16 +6,23 @@ executable("llc") {
     "//llvm/lib/CodeGen/MIRParser",
     "//llvm/lib/CodeGen/SelectionDAG",
     "//llvm/lib/IR",
+    "//llvm/lib/IRPrinter",
     "//llvm/lib/IRReader",
     "//llvm/lib/MC",
+    "//llvm/lib/Passes",
+    "//llvm/lib/Plugins",
     "//llvm/lib/Support",
     "//llvm/lib/Target",
     "//llvm/lib/Target:TargetsToBuild",
+    "//llvm/lib/TargetParser",
     "//llvm/lib/Transforms/Scalar",
     "//llvm/lib/Transforms/Utils",
     "//llvm/lib/Transforms/Vectorize",
   ]
-  sources = [ "llc.cpp" ]
+  sources = [
+    "NewPMDriver.cpp",
+    "llc.cpp",
+  ]
 
   # Support plugins.
   # FIXME: Disable dead stripping once other binaries are dead-stripped.

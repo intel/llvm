@@ -22,6 +22,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Debuginfod/Debuginfod.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/Magic.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
@@ -34,18 +35,28 @@
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileUtilities.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/ThreadPool.h"
 #include "llvm/Support/xxhash.h"
 
 #include <atomic>
+#include <optional>
 #include <thread>
 
 namespace llvm {
 
 using llvm::object::BuildIDRef;
 
-static std::string uniqueKey(llvm::StringRef S) { return utostr(xxHash64(S)); }
+namespace {
+std::optional<SmallVector<StringRef>> DebuginfodUrls;
+// Many Readers/Single Writer lock protecting the global debuginfod URL list.
+llvm::sys::RWMutex UrlsMutex;
+} // namespace
+
+std::string getDebuginfodCacheKey(llvm::StringRef S) {
+  return utostr(xxh3_64bits(S));
+}
 
 // Returns a binary BuildID as a normalized hex string.
 // Uses lowercase for compatibility with common debuginfod servers.
@@ -53,14 +64,32 @@ static std::string buildIDToString(BuildIDRef ID) {
   return llvm::toHex(ID, /*LowerCase=*/true);
 }
 
-Expected<SmallVector<StringRef>> getDefaultDebuginfodUrls() {
-  const char *DebuginfodUrlsEnv = std::getenv("DEBUGINFOD_URLS");
-  if (DebuginfodUrlsEnv == nullptr)
-    return SmallVector<StringRef>();
+bool canUseDebuginfod() {
+  return HTTPClient::isAvailable() && !getDefaultDebuginfodUrls().empty();
+}
 
-  SmallVector<StringRef> DebuginfodUrls;
-  StringRef(DebuginfodUrlsEnv).split(DebuginfodUrls, " ");
-  return DebuginfodUrls;
+SmallVector<StringRef> getDefaultDebuginfodUrls() {
+  std::shared_lock<llvm::sys::RWMutex> ReadGuard(UrlsMutex);
+  if (!DebuginfodUrls) {
+    // Only read from the environment variable if the user hasn't already
+    // set the value.
+    ReadGuard.unlock();
+    std::unique_lock<llvm::sys::RWMutex> WriteGuard(UrlsMutex);
+    DebuginfodUrls = SmallVector<StringRef>();
+    if (const char *DebuginfodUrlsEnv = std::getenv("DEBUGINFOD_URLS")) {
+      StringRef(DebuginfodUrlsEnv)
+          .split(DebuginfodUrls.value(), " ", -1, false);
+    }
+    WriteGuard.unlock();
+    ReadGuard.lock();
+  }
+  return DebuginfodUrls.value();
+}
+
+// Set the default debuginfod URL list, override the environment variable.
+void setDefaultDebuginfodUrls(const SmallVector<StringRef> &URLs) {
+  std::unique_lock<llvm::sys::RWMutex> WriteGuard(UrlsMutex);
+  DebuginfodUrls = URLs;
 }
 
 /// Finds a default local file caching directory for the debuginfod client,
@@ -91,27 +120,43 @@ std::chrono::milliseconds getDefaultDebuginfodTimeout() {
 /// cache and return the cached file path. They first search the local cache,
 /// followed by the debuginfod servers.
 
-Expected<std::string> getCachedOrDownloadSource(BuildIDRef ID,
-                                                StringRef SourceFilePath) {
+std::string getDebuginfodSourceUrlPath(BuildIDRef ID,
+                                       StringRef SourceFilePath) {
   SmallString<64> UrlPath;
   sys::path::append(UrlPath, sys::path::Style::posix, "buildid",
                     buildIDToString(ID), "source",
                     sys::path::convert_to_slash(SourceFilePath));
-  return getCachedOrDownloadArtifact(uniqueKey(UrlPath), UrlPath);
+  return std::string(UrlPath);
 }
 
-Expected<std::string> getCachedOrDownloadExecutable(BuildIDRef ID) {
+Expected<std::string> getCachedOrDownloadSource(BuildIDRef ID,
+                                                StringRef SourceFilePath) {
+  std::string UrlPath = getDebuginfodSourceUrlPath(ID, SourceFilePath);
+  return getCachedOrDownloadArtifact(getDebuginfodCacheKey(UrlPath), UrlPath);
+}
+
+std::string getDebuginfodExecutableUrlPath(BuildIDRef ID) {
   SmallString<64> UrlPath;
   sys::path::append(UrlPath, sys::path::Style::posix, "buildid",
                     buildIDToString(ID), "executable");
-  return getCachedOrDownloadArtifact(uniqueKey(UrlPath), UrlPath);
+  return std::string(UrlPath);
 }
 
-Expected<std::string> getCachedOrDownloadDebuginfo(BuildIDRef ID) {
+Expected<std::string> getCachedOrDownloadExecutable(BuildIDRef ID) {
+  std::string UrlPath = getDebuginfodExecutableUrlPath(ID);
+  return getCachedOrDownloadArtifact(getDebuginfodCacheKey(UrlPath), UrlPath);
+}
+
+std::string getDebuginfodDebuginfoUrlPath(BuildIDRef ID) {
   SmallString<64> UrlPath;
   sys::path::append(UrlPath, sys::path::Style::posix, "buildid",
                     buildIDToString(ID), "debuginfo");
-  return getCachedOrDownloadArtifact(uniqueKey(UrlPath), UrlPath);
+  return std::string(UrlPath);
+}
+
+Expected<std::string> getCachedOrDownloadDebuginfo(BuildIDRef ID) {
+  std::string UrlPath = getDebuginfodDebuginfoUrlPath(ID);
+  return getCachedOrDownloadArtifact(getDebuginfodCacheKey(UrlPath), UrlPath);
 }
 
 // General fetching function.
@@ -124,13 +169,8 @@ Expected<std::string> getCachedOrDownloadArtifact(StringRef UniqueKey,
     return CacheDirOrErr.takeError();
   CacheDir = *CacheDirOrErr;
 
-  Expected<SmallVector<StringRef>> DebuginfodUrlsOrErr =
-      getDefaultDebuginfodUrls();
-  if (!DebuginfodUrlsOrErr)
-    return DebuginfodUrlsOrErr.takeError();
-  SmallVector<StringRef> &DebuginfodUrls = *DebuginfodUrlsOrErr;
   return getCachedOrDownloadArtifact(UniqueKey, UrlPath, CacheDir,
-                                     DebuginfodUrls,
+                                     getDefaultDebuginfodUrls(),
                                      getDefaultDebuginfodTimeout());
 }
 
@@ -148,6 +188,11 @@ class StreamedHTTPResponseHandler : public HTTPResponseHandler {
 public:
   StreamedHTTPResponseHandler(CreateStreamFn CreateStream, HTTPClient &Client)
       : CreateStream(CreateStream), Client(Client) {}
+
+  /// Must be called exactly once after the writes have been completed
+  /// but before the StreamedHTTPResponseHandler object is destroyed.
+  Error commit();
+
   virtual ~StreamedHTTPResponseHandler() = default;
 
   Error handleBodyChunk(StringRef BodyChunk) override;
@@ -157,7 +202,8 @@ public:
 
 Error StreamedHTTPResponseHandler::handleBodyChunk(StringRef BodyChunk) {
   if (!FileStream) {
-    if (Client.responseCode() != 200)
+    unsigned Code = Client.responseCode();
+    if (Code && Code != 200)
       return Error::success();
     Expected<std::unique_ptr<CachedFileStream>> FileStreamOrError =
         CreateStream();
@@ -167,6 +213,49 @@ Error StreamedHTTPResponseHandler::handleBodyChunk(StringRef BodyChunk) {
   }
   *FileStream->OS << BodyChunk;
   return Error::success();
+}
+
+Error StreamedHTTPResponseHandler::commit() {
+  if (FileStream)
+    return FileStream->commit();
+  return Error::success();
+}
+
+// An over-accepting simplification of the HTTP RFC 7230 spec.
+static bool isHeader(StringRef S) {
+  StringRef Name;
+  StringRef Value;
+  std::tie(Name, Value) = S.split(':');
+  if (Name.empty() || Value.empty())
+    return false;
+  return all_of(Name, [](char C) { return llvm::isPrint(C) && C != ' '; }) &&
+         all_of(Value, [](char C) { return llvm::isPrint(C) || C == '\t'; });
+}
+
+static SmallVector<std::string, 0> getHeaders() {
+  const char *Filename = getenv("DEBUGINFOD_HEADERS_FILE");
+  if (!Filename)
+    return {};
+  ErrorOr<std::unique_ptr<MemoryBuffer>> HeadersFile =
+      MemoryBuffer::getFile(Filename, /*IsText=*/true);
+  if (!HeadersFile)
+    return {};
+
+  SmallVector<std::string, 0> Headers;
+  uint64_t LineNumber = 0;
+  for (StringRef Line : llvm::split((*HeadersFile)->getBuffer(), '\n')) {
+    LineNumber++;
+    Line.consume_back("\r");
+    if (!isHeader(Line)) {
+      if (!all_of(Line, llvm::isSpace))
+        WithColor::warning()
+            << "could not parse debuginfod header: " << Filename << ':'
+            << LineNumber << '\n';
+      continue;
+    }
+    Headers.emplace_back(Line);
+  }
+  return Headers;
 }
 
 Expected<std::string> getCachedOrDownloadArtifact(
@@ -184,7 +273,7 @@ Expected<std::string> getCachedOrDownloadArtifact(
   FileCache Cache = *CacheOrErr;
   // We choose an arbitrary Task parameter as we do not make use of it.
   unsigned Task = 0;
-  Expected<AddStreamFn> CacheAddStreamOrErr = Cache(Task, UniqueKey);
+  Expected<AddStreamFn> CacheAddStreamOrErr = Cache(Task, UniqueKey, "");
   if (!CacheAddStreamOrErr)
     return CacheAddStreamOrErr.takeError();
   AddStreamFn &CacheAddStream = *CacheAddStreamOrErr;
@@ -211,15 +300,27 @@ Expected<std::string> getCachedOrDownloadArtifact(
 
     // Perform the HTTP request and if successful, write the response body to
     // the cache.
-    StreamedHTTPResponseHandler Handler([&]() { return CacheAddStream(Task); },
-                                        Client);
-    HTTPRequest Request(ArtifactUrl);
-    Error Err = Client.perform(Request, Handler);
-    if (Err)
-      return std::move(Err);
+    {
+      StreamedHTTPResponseHandler Handler(
+          [&]() { return CacheAddStream(Task, ""); }, Client);
+      HTTPRequest Request(ArtifactUrl);
+      Request.Headers = getHeaders();
+      Error Err = Client.perform(Request, Handler);
+      if (Err)
+        return std::move(Err);
+      if ((Err = Handler.commit()))
+        return std::move(Err);
 
-    if (Client.responseCode() != 200)
-      continue;
+      unsigned Code = Client.responseCode();
+      if (Code && Code != 200)
+        continue;
+    }
+
+    Expected<CachePruningPolicy> PruningPolicyOrErr =
+        parseCachePruningPolicy(std::getenv("DEBUGINFOD_CACHE_POLICY"));
+    if (!PruningPolicyOrErr)
+      return PruningPolicyOrErr.takeError();
+    pruneCache(CacheDirectoryPath, *PruningPolicyOrErr);
 
     // Return the path to the artifact on disk.
     return std::string(AbsCachedArtifactPath);
@@ -259,7 +360,8 @@ DebuginfodLogEntry DebuginfodLog::pop() {
 }
 
 DebuginfodCollection::DebuginfodCollection(ArrayRef<StringRef> PathsRef,
-                                           DebuginfodLog &Log, ThreadPool &Pool,
+                                           DebuginfodLog &Log,
+                                           ThreadPoolInterface &Pool,
                                            double MinInterval)
     : Log(Log), Pool(Pool), MinInterval(MinInterval) {
   for (StringRef Path : PathsRef)
@@ -325,7 +427,7 @@ Error DebuginfodCollection::findBinaries(StringRef Path) {
   sys::fs::recursive_directory_iterator I(Twine(Path), EC), E;
   std::mutex IteratorMutex;
   ThreadPoolTaskGroup IteratorGroup(Pool);
-  for (unsigned WorkerIndex = 0; WorkerIndex < Pool.getThreadCount();
+  for (unsigned WorkerIndex = 0; WorkerIndex < Pool.getMaxConcurrency();
        WorkerIndex++) {
     IteratorGroup.async([&, this]() -> void {
       std::string FilePath;
@@ -362,17 +464,17 @@ Error DebuginfodCollection::findBinaries(StringRef Path) {
         if (!Object)
           continue;
 
-        Optional<BuildIDRef> ID = getBuildID(Object);
-        if (!ID)
+        BuildIDRef ID = getBuildID(Object);
+        if (ID.empty())
           continue;
 
-        std::string IDString = buildIDToString(ID.value());
+        std::string IDString = buildIDToString(ID);
         if (Object->hasDebugInfo()) {
           std::lock_guard<sys::RWMutex> DebugBinariesGuard(DebugBinariesMutex);
-          DebugBinaries[IDString] = FilePath;
+          (void)DebugBinaries.try_emplace(IDString, std::move(FilePath));
         } else {
           std::lock_guard<sys::RWMutex> BinariesGuard(BinariesMutex);
-          Binaries[IDString] = FilePath;
+          (void)Binaries.try_emplace(IDString, std::move(FilePath));
         }
       }
     });
@@ -384,7 +486,7 @@ Error DebuginfodCollection::findBinaries(StringRef Path) {
   return Error::success();
 }
 
-Expected<Optional<std::string>>
+Expected<std::optional<std::string>>
 DebuginfodCollection::getBinaryPath(BuildIDRef ID) {
   Log.push("getting binary path of ID " + buildIDToString(ID));
   std::shared_lock<sys::RWMutex> Guard(BinariesMutex);
@@ -393,10 +495,10 @@ DebuginfodCollection::getBinaryPath(BuildIDRef ID) {
     std::string Path = Loc->getValue();
     return Path;
   }
-  return None;
+  return std::nullopt;
 }
 
-Expected<Optional<std::string>>
+Expected<std::optional<std::string>>
 DebuginfodCollection::getDebugBinaryPath(BuildIDRef ID) {
   Log.push("getting debug binary path of ID " + buildIDToString(ID));
   std::shared_lock<sys::RWMutex> Guard(DebugBinariesMutex);
@@ -405,16 +507,16 @@ DebuginfodCollection::getDebugBinaryPath(BuildIDRef ID) {
     std::string Path = Loc->getValue();
     return Path;
   }
-  return None;
+  return std::nullopt;
 }
 
 Expected<std::string> DebuginfodCollection::findBinaryPath(BuildIDRef ID) {
   {
     // Check collection; perform on-demand update if stale.
-    Expected<Optional<std::string>> PathOrErr = getBinaryPath(ID);
+    Expected<std::optional<std::string>> PathOrErr = getBinaryPath(ID);
     if (!PathOrErr)
       return PathOrErr.takeError();
-    Optional<std::string> Path = *PathOrErr;
+    std::optional<std::string> Path = *PathOrErr;
     if (!Path) {
       Expected<bool> UpdatedOrErr = updateIfStale();
       if (!UpdatedOrErr)
@@ -428,7 +530,7 @@ Expected<std::string> DebuginfodCollection::findBinaryPath(BuildIDRef ID) {
       }
     }
     if (Path)
-      return Path.value();
+      return *Path;
   }
 
   // Try federation.
@@ -442,10 +544,10 @@ Expected<std::string> DebuginfodCollection::findBinaryPath(BuildIDRef ID) {
 
 Expected<std::string> DebuginfodCollection::findDebugBinaryPath(BuildIDRef ID) {
   // Check collection; perform on-demand update if stale.
-  Expected<Optional<std::string>> PathOrErr = getDebugBinaryPath(ID);
+  Expected<std::optional<std::string>> PathOrErr = getDebugBinaryPath(ID);
   if (!PathOrErr)
     return PathOrErr.takeError();
-  Optional<std::string> Path = *PathOrErr;
+  std::optional<std::string> Path = *PathOrErr;
   if (!Path) {
     Expected<bool> UpdatedOrErr = updateIfStale();
     if (!UpdatedOrErr)
@@ -459,7 +561,7 @@ Expected<std::string> DebuginfodCollection::findDebugBinaryPath(BuildIDRef ID) {
     }
   }
   if (Path)
-    return Path.value();
+    return *Path;
 
   // Try federation.
   return getCachedOrDownloadDebuginfo(ID);

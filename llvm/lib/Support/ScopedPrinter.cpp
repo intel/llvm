@@ -1,12 +1,17 @@
-#include "llvm/Support/ScopedPrinter.h"
+//===----------------------------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
 
+#include "llvm/Support/ScopedPrinter.h"
 #include "llvm/Support/Format.h"
 
-using namespace llvm::support;
+using namespace llvm;
 
-namespace llvm {
-
-raw_ostream &operator<<(raw_ostream &OS, const HexNumber &Value) {
+raw_ostream &llvm::operator<<(raw_ostream &OS, const HexNumber &Value) {
   OS << "0x" << utohexstr(Value.Value);
   return OS;
 }
@@ -31,7 +36,8 @@ void ScopedPrinter::printBinaryImpl(StringRef Label, StringRef Str,
     startLine() << Label << ":";
     if (!Str.empty())
       OS << " " << Str;
-    OS << " (" << format_bytes(Data, None, Data.size(), 1, 0, true) << ")\n";
+    OS << " (" << format_bytes(Data, std::nullopt, Data.size(), 1, 0, true)
+       << ")\n";
   }
 }
 
@@ -44,5 +50,3 @@ JSONScopedPrinter::JSONScopedPrinter(
   if (this->OuterScope)
     this->OuterScope->setPrinter(*this);
 }
-
-} // namespace llvm

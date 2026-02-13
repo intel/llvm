@@ -5,7 +5,9 @@ static_library("X86") {
     "//lldb/source/Core",
     "//lldb/source/Symbol",
     "//lldb/source/Target",
+    "//lldb/source/ValueObject",
     "//llvm/lib/Support",
+    "//llvm/lib/TargetParser",
   ]
 
   # Uses source-relative paths for own includes.

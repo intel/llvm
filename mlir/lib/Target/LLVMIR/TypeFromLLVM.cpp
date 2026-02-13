@@ -12,7 +12,6 @@
 #include "mlir/IR/MLIRContext.h"
 
 #include "llvm/ADT/TypeSwitch.h"
-#include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Type.h"
 
@@ -25,7 +24,9 @@ namespace detail {
 class TypeFromLLVMIRTranslatorImpl {
 public:
   /// Constructs a class creating types in the given MLIR context.
-  TypeFromLLVMIRTranslatorImpl(MLIRContext &context) : context(context) {}
+  TypeFromLLVMIRTranslatorImpl(MLIRContext &context,
+                               bool importStructsAsLiterals)
+      : context(context), importStructsAsLiterals(importStructsAsLiterals) {}
 
   /// Translates the given type.
   Type translateType(llvm::Type *type) {
@@ -36,7 +37,7 @@ public:
         llvm::TypeSwitch<llvm::Type *, Type>(type)
             .Case<llvm::ArrayType, llvm::FunctionType, llvm::IntegerType,
                   llvm::PointerType, llvm::StructType, llvm::FixedVectorType,
-                  llvm::ScalableVectorType>(
+                  llvm::ScalableVectorType, llvm::TargetExtType>(
                 [this](auto *type) { return this->translate(type); })
             .Default([this](llvm::Type *type) {
               return translatePrimitiveType(type);
@@ -63,10 +64,10 @@ private:
       return Float128Type::get(&context);
     if (type->isX86_FP80Ty())
       return Float80Type::get(&context);
+    if (type->isX86_AMXTy())
+      return LLVM::LLVMX86AMXType::get(&context);
     if (type->isPPC_FP128Ty())
       return LLVM::LLVMPPCFP128Type::get(&context);
-    if (type->isX86_MMXTy())
-      return LLVM::LLVMX86MMXType::get(&context);
     if (type->isLabelTy())
       return LLVM::LLVMLabelType::get(&context);
     if (type->isMetadataTy())
@@ -97,18 +98,13 @@ private:
 
   /// Translates the given pointer type.
   Type translate(llvm::PointerType *type) {
-    if (type->isOpaque())
-      return LLVM::LLVMPointerType::get(&context, type->getAddressSpace());
-
-    return LLVM::LLVMPointerType::get(
-        translateType(type->getNonOpaquePointerElementType()),
-        type->getAddressSpace());
+    return LLVM::LLVMPointerType::get(&context, type->getAddressSpace());
   }
 
   /// Translates the given structure type.
   Type translate(llvm::StructType *type) {
     SmallVector<Type, 8> subtypes;
-    if (type->isLiteral()) {
+    if (type->isLiteral() || importStructsAsLiterals) {
       translateTypes(type->subtypes(), subtypes);
       return LLVM::LLVMStructType::getLiteral(&context, subtypes,
                                               type->isPacked());
@@ -117,27 +113,36 @@ private:
     if (type->isOpaque())
       return LLVM::LLVMStructType::getOpaque(type->getName(), &context);
 
-    LLVM::LLVMStructType translated =
-        LLVM::LLVMStructType::getIdentified(&context, type->getName());
-    knownTranslations.try_emplace(type, translated);
+    // With opaque pointers, types in LLVM can't be recursive anymore. Note that
+    // using getIdentified is not possible, as type names in LLVM are not
+    // guaranteed to be unique.
     translateTypes(type->subtypes(), subtypes);
-    LogicalResult bodySet = translated.setBody(subtypes, type->isPacked());
-    assert(succeeded(bodySet) &&
-           "could not set the body of an identified struct");
-    (void)bodySet;
+    LLVM::LLVMStructType translated = LLVM::LLVMStructType::getNewIdentified(
+        &context, type->getName(), subtypes, type->isPacked());
+    knownTranslations.try_emplace(type, translated);
     return translated;
   }
 
   /// Translates the given fixed-vector type.
   Type translate(llvm::FixedVectorType *type) {
-    return LLVM::getFixedVectorType(translateType(type->getElementType()),
-                                    type->getNumElements());
+    return VectorType::get(type->getNumElements(),
+                           translateType(type->getElementType()));
   }
 
   /// Translates the given scalable-vector type.
   Type translate(llvm::ScalableVectorType *type) {
-    return LLVM::LLVMScalableVectorType::get(
-        translateType(type->getElementType()), type->getMinNumElements());
+    return VectorType::get(type->getMinNumElements(),
+                           translateType(type->getElementType()),
+                           /*scalableDims=*/true);
+  }
+
+  /// Translates the given target extension type.
+  Type translate(llvm::TargetExtType *type) {
+    SmallVector<Type> typeParams;
+    translateTypes(type->type_params(), typeParams);
+
+    return LLVM::LLVMTargetExtType::get(&context, type->getName(), typeParams,
+                                        type->int_params());
   }
 
   /// Translates a list of types.
@@ -154,14 +159,20 @@ private:
 
   /// The context in which MLIR types are created.
   MLIRContext &context;
+
+  /// Controls if structs should be imported as literal structs, i.e., nameless
+  /// structs.
+  bool importStructsAsLiterals;
 };
 
 } // namespace detail
 } // namespace LLVM
 } // namespace mlir
 
-LLVM::TypeFromLLVMIRTranslator::TypeFromLLVMIRTranslator(MLIRContext &context)
-    : impl(new detail::TypeFromLLVMIRTranslatorImpl(context)) {}
+LLVM::TypeFromLLVMIRTranslator::TypeFromLLVMIRTranslator(
+    MLIRContext &context, bool importStructsAsLiterals)
+    : impl(std::make_unique<detail::TypeFromLLVMIRTranslatorImpl>(
+          context, importStructsAsLiterals)) {}
 
 LLVM::TypeFromLLVMIRTranslator::~TypeFromLLVMIRTranslator() = default;
 

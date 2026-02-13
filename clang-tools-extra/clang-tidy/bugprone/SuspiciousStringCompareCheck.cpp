@@ -1,4 +1,4 @@
-//===--- SuspiciousStringCompareCheck.cpp - clang-tidy---------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "SuspiciousStringCompareCheck.h"
-#include "../utils/Matchers.h"
 #include "../utils/OptionsUtils.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
@@ -15,9 +14,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 // Semicolon separated list of known string compare-like functions. The list
 // must ends with a semicolon.
@@ -91,7 +88,7 @@ void SuspiciousStringCompareCheck::registerMatchers(MatchFinder *Finder) {
 
   // Add the list of known string compare-like functions and add user-defined
   // functions.
-  std::vector<StringRef> FunctionNames = utils::options::parseListPair(
+  const std::vector<StringRef> FunctionNames = utils::options::parseListPair(
       KnownStringCompareFunctions, StringCompareLikeFunctions);
 
   // Match a call to a string compare functions.
@@ -166,7 +163,7 @@ void SuspiciousStringCompareCheck::check(
   assert(Decl != nullptr && Call != nullptr);
 
   if (Result.Nodes.getNodeAs<Stmt>("missing-comparison")) {
-    SourceLocation EndLoc = Lexer::getLocForEndOfToken(
+    const SourceLocation EndLoc = Lexer::getLocForEndOfToken(
         Call->getRParenLoc(), 0, Result.Context->getSourceManager(),
         getLangOpts());
 
@@ -176,10 +173,10 @@ void SuspiciousStringCompareCheck::check(
   }
 
   if (const auto *E = Result.Nodes.getNodeAs<Expr>("logical-not-comparison")) {
-    SourceLocation EndLoc = Lexer::getLocForEndOfToken(
+    const SourceLocation EndLoc = Lexer::getLocForEndOfToken(
         Call->getRParenLoc(), 0, Result.Context->getSourceManager(),
         getLangOpts());
-    SourceLocation NotLoc = E->getBeginLoc();
+    const SourceLocation NotLoc = E->getBeginLoc();
 
     diag(Call->getBeginLoc(),
          "function %0 is compared using logical not operator")
@@ -207,6 +204,4 @@ void SuspiciousStringCompareCheck::check(
   }
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

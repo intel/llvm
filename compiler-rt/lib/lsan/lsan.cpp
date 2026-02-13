@@ -36,7 +36,7 @@ void __sanitizer::BufferedStackTrace::UnwindImpl(
     uptr pc, uptr bp, void *context, bool request_fast, u32 max_depth) {
   using namespace __lsan;
   uptr stack_top = 0, stack_bottom = 0;
-  if (ThreadContext *t = CurrentThreadContext()) {
+  if (ThreadContextLsanBase *t = GetCurrentThread()) {
     stack_top = t->stack_end();
     stack_bottom = t->stack_begin();
   }
@@ -92,15 +92,16 @@ extern "C" void __lsan_init() {
   CacheBinaryName();
   AvoidCVE_2016_2143();
   InitializeFlags();
+  InitializePlatformEarly();
   InitCommonLsan();
   InitializeAllocator();
   ReplaceSystemMalloc();
-  InitTlsSize();
   InitializeInterceptors();
-  InitializeThreadRegistry();
+  InitializeThreads();
   InstallDeadlySignalHandlers(LsanOnDeadlySignal);
   InitializeMainThread();
   InstallAtExitCheckLeaks();
+  InstallAtForkHandler();
 
   InitializeCoverage(common_flags()->coverage, common_flags()->coverage_dir);
 

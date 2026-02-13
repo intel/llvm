@@ -50,12 +50,13 @@ Older swig versions will simply ignore this setting.
     import $module
 except ImportError:
     # Relative import should work if we are being loaded by Python.
-    from . import $module"
+    # The cpython module built by swig is pushed one level down into
+    # the native submodule, because at this point the interpreter
+    # is still constructing the lldb module itself.
+    # Simply importing anything using `from . import` constitutes
+    # a cyclic importing.
+    from .native import $module"
 %enddef
-// These versions will not generate working python modules, so error out early.
-#if SWIG_VERSION >= 0x030009 && SWIG_VERSION < 0x030011
-#error Swig versions 3.0.9 and 3.0.10 are incompatible with lldb.
-#endif
 
 // The name of the module to be created.
 %module(docstring=DOCSTRING, moduleimport=MODULEIMPORT) lldb
@@ -63,22 +64,10 @@ except ImportError:
 // Parameter types will be used in the autodoc string.
 %feature("autodoc", "1");
 
-%define ARRAYHELPER(type,name)
-%inline %{
-type *new_ ## name (int nitems) {
-   return (type *) malloc(sizeof(type)*nitems);
-}
-void delete_ ## name(type *t) {
-   free(t);
-}
-type name ## _get(type *t, int index) {
-   return t[index];
-}
-void name ## _set(type *t, int index, type val) {
-   t[index] = val;
-}
+// Include lldb-python first as it sets Py_LIMITED_API.
+%begin %{
+#include "../source/Plugins/ScriptInterpreter/Python/lldb-python.h"
 %}
-%enddef
 
 %pythoncode%{
 import uuid

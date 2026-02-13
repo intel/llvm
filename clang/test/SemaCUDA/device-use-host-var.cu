@@ -111,7 +111,8 @@ __device__ void dev_fun(int *out) {
   // Check ODR-use of host variables in namespace is not allowed.
   *out = X::host_var; // dev-error {{reference to __host__ variable 'host_var' in __device__ function}}
 
-  // Check ODR-use of static host varables in class or file scope is not allowed.
+  // Check ODR-use of static host variables in class or file scope is not
+  // allowed.
   *out = A::host_var; // dev-error {{reference to __host__ variable 'host_var' in __device__ function}}
   *out = static_host_var; // dev-error {{reference to __host__ variable 'static_host_var' in __device__ function}}
 
@@ -272,7 +273,7 @@ not_a_texture<int> not_a_texture<int>::ref; // dev-note {{host variable declared
 
 __device__ void test_not_a_texture() {
   not_a_texture<int> inst;
-  inst.c(); // dev-note {{in instantiation of member function 'not_a_texture<int, 1, 1>::c' requested here}}
+  inst.c(); // dev-note {{in instantiation of member function 'not_a_texture<int>::c' requested here}}
 }
 
 // Test static variable in host function used by device function.

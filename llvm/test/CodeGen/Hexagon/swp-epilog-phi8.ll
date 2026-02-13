@@ -1,4 +1,4 @@
-; RUN: llc -march=hexagon -mno-pairing -mno-compound -hexagon-initial-cfg-cleanup=0 < %s -pipeliner-experimental-cg=true | FileCheck %s
+; RUN: llc -mtriple=hexagon -mno-pairing -mno-compound -hexagon-initial-cfg-cleanup=0 < %s -pipeliner-experimental-cg=true | FileCheck %s
 ; XFAIL: *
 
 ; Test that we generate the correct phi names in the epilog when the pipeliner
@@ -25,13 +25,13 @@ b3:                                               ; preds = %b3, %b2
   %v0 = phi i32 [ %v8, %b3 ], [ 7, %b2 ]
   %v1 = phi i32 [ %v6, %b3 ], [ undef, %b2 ]
   %v2 = phi i32 [ %v1, %b3 ], [ undef, %b2 ]
-  %v3 = getelementptr inbounds [9 x i32], [9 x i32]* undef, i32 0, i32 %v0
+  %v3 = getelementptr inbounds [9 x i32], ptr undef, i32 0, i32 %v0
   %v4 = add nsw i32 %v0, -2
-  %v5 = getelementptr inbounds [9 x i32], [9 x i32]* undef, i32 0, i32 %v4
-  %v6 = load i32, i32* %v5, align 4
+  %v5 = getelementptr inbounds [9 x i32], ptr undef, i32 0, i32 %v4
+  %v6 = load i32, ptr %v5, align 4
   %v7 = tail call i32 @llvm.hexagon.A2.subsat(i32 %v2, i32 %v6)
-  store i32 %v7, i32* %v3, align 4
-  %v8 = add i32 %v0, -1
+  store i32 %v7, ptr %v3, align 4
+  %v8 = add i32 %v0, 1
   %v9 = icmp sgt i32 %v8, 1
   br i1 %v9, label %b3, label %b4
 

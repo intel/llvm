@@ -22,6 +22,7 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 
 namespace llvm {
 template <typename T>
@@ -46,6 +47,9 @@ public:
   /// Dump cached object to output file `filename`.
   void dumpToObjectFile(StringRef filename);
 
+  /// Returns `true` if cache hasn't been populated yet.
+  bool isEmpty();
+
 private:
   llvm::StringMap<std::unique_ptr<llvm::MemoryBuffer>> cachedObjects;
 };
@@ -64,10 +68,18 @@ struct ExecutionEngineOptions {
 
   /// `jitCodeGenOptLevel`, when provided, is used as the optimization level for
   /// target code generation.
-  Optional<llvm::CodeGenOpt::Level> jitCodeGenOptLevel = llvm::None;
+  std::optional<llvm::CodeGenOptLevel> jitCodeGenOptLevel;
 
   /// If `sharedLibPaths` are provided, the underlying JIT-compilation will
-  /// open and link the shared libraries for symbol resolution.
+  /// open and link the shared libraries for symbol resolution. Libraries that
+  /// are designed to be used with the `ExecutionEngine` may implement a
+  /// loading and unloading protocol: if they implement the two functions with
+  /// the names defined in `kLibraryInitFnName` and `kLibraryDestroyFnName`,
+  /// these functions will be called upon loading the library and upon
+  /// destruction of the `ExecutionEngine`. In the init function, the library
+  /// may provide a list of symbols that it wants to make available to code
+  /// run by the `ExecutionEngine`. If the two functions are not defined, only
+  /// symbols with public visibility are available to the executed code.
   ArrayRef<StringRef> sharedLibPaths = {};
 
   /// Specifies an existing `sectionMemoryMapper` to be associated with the
@@ -77,8 +89,8 @@ struct ExecutionEngineOptions {
 
   /// If `enableObjectCache` is set, the JIT compiler will create one to store
   /// the object generated for the given module. The contents of the cache can
-  /// be dumped to a file via the `dumpToObjectfile` method.
-  bool enableObjectCache = false;
+  /// be dumped to a file via the `dumpToObjectFile` method.
+  bool enableObjectDump = false;
 
   /// If enable `enableGDBNotificationListener` is set, the JIT compiler will
   /// notify the llvm's global GDB notification listener.
@@ -101,12 +113,38 @@ struct ExecutionEngineOptions {
 /// be used to invoke the JIT-compiled function.
 class ExecutionEngine {
 public:
-  ExecutionEngine(bool enableObjectCache, bool enableGDBNotificationListener,
+  /// Name of init functions of shared libraries. If a library provides a
+  /// function with this name and the one of the destroy function, this function
+  /// is called upon loading the library.
+  static constexpr const char *const kLibraryInitFnName =
+      "__mlir_execution_engine_init";
+
+  /// Name of destroy functions of shared libraries. If a library provides a
+  /// function with this name and the one of the init function, this function is
+  /// called upon destructing the `ExecutionEngine`.
+  static constexpr const char *const kLibraryDestroyFnName =
+      "__mlir_execution_engine_destroy";
+
+  /// Function type for init functions of shared libraries. The library may
+  /// provide a list of symbols that it wants to make available to code run by
+  /// the `ExecutionEngine`. If the two functions are not defined, only symbols
+  /// with public visibility are available to the executed code.
+  using LibraryInitFn = void (*)(llvm::StringMap<void *> &);
+
+  /// Function type for destroy functions of shared libraries.
+  using LibraryDestroyFn = void (*)();
+
+  ExecutionEngine(bool enableObjectDump, bool enableGDBNotificationListener,
                   bool enablePerfNotificationListener);
 
-  /// Creates an execution engine for the given MLIR IR.
+  ~ExecutionEngine();
+
+  /// Creates an execution engine for the given MLIR IR. If TargetMachine is
+  /// not provided, default TM is created (i.e. ignoring any command line flags
+  /// that could affect the set-up).
   static llvm::Expected<std::unique_ptr<ExecutionEngine>>
-  create(Operation *op, const ExecutionEngineOptions &options = {});
+  create(Operation *op, const ExecutionEngineOptions &options = {},
+         std::unique_ptr<llvm::TargetMachine> tm = nullptr);
 
   /// Looks up a packed-argument function wrapping the function with the given
   /// name and returns a pointer to it. Propagates errors in case of failure.
@@ -119,8 +157,7 @@ public:
 
   /// Invokes the function with the given name passing it the list of opaque
   /// pointers to the actual arguments.
-  llvm::Error invokePacked(StringRef name,
-                           MutableArrayRef<void *> args = llvm::None);
+  llvm::Error invokePacked(StringRef name, MutableArrayRef<void *> args = {});
 
   /// Trait that defines how a given type is passed to the JIT code. This
   /// defaults to passing the address but can be specialized.
@@ -176,9 +213,11 @@ public:
     return invokePacked(adapterName, argsArray);
   }
 
-  /// Set the target triple on the module. This is implicitly done when creating
-  /// the engine.
-  static bool setupTargetTriple(llvm::Module *llvmModule);
+  /// Set the target triple and the data layout for the input module based on
+  /// the input TargetMachine. This is implicitly done when creating the
+  /// engine.
+  static void setupTargetTripleAndDataLayout(llvm::Module *llvmModule,
+                                             llvm::TargetMachine *tm);
 
   /// Dump object code to output file `filename`.
   void dumpToObjectFile(StringRef filename);
@@ -187,6 +226,13 @@ public:
   void registerSymbols(
       llvm::function_ref<llvm::orc::SymbolMap(llvm::orc::MangleAndInterner)>
           symbolMap);
+
+  /// Initialize the ExecutionEngine. Global constructors specified by
+  /// `llvm.mlir.global_ctors` will be run. One common scenario is that kernel
+  /// binary compiled from `gpu.module` gets loaded during initialization. Make
+  /// sure all symbols are resolvable before initialization by calling
+  /// `registerSymbols` or including shared libraries.
+  void initialize();
 
 private:
   /// Ordering of llvmContext and jit is important for destruction purposes: the
@@ -199,11 +245,20 @@ private:
   /// Underlying cache.
   std::unique_ptr<SimpleObjectCache> cache;
 
+  /// Names of functions that may be looked up.
+  std::vector<std::string> functionNames;
+
   /// GDB notification listener.
   llvm::JITEventListener *gdbListener;
 
   /// Perf notification listener.
   llvm::JITEventListener *perfListener;
+
+  /// Destroy functions in the libraries loaded by the ExecutionEngine that are
+  /// called when this ExecutionEngine is destructed.
+  SmallVector<LibraryDestroyFn> destroyFns;
+
+  bool isInitialized = false;
 };
 
 } // namespace mlir

@@ -1,7 +1,7 @@
 ; RUN: llc < %s -mtriple=arm64-apple-ios7.0 | FileCheck %s
 ; RUN: llc -global-isel < %s -mtriple=arm64-apple-ios7.0 | FileCheck %s
 
-@t = weak global i32 ()* null
+@t = weak global ptr null
 @x = external global i32, align 4
 
 define void @t2() {
@@ -10,7 +10,7 @@ define void @t2() {
 ; CHECK: ldr	x[[ADDR:[0-9]+]], [x[[GOTADDR]], _t@GOTPAGEOFF]
 ; CHECK: ldr	x[[DEST:[0-9]+]], [x[[ADDR]]]
 ; CHECK: br	x[[DEST]]
-  %tmp = load i32 ()*, i32 ()** @t
+  %tmp = load ptr, ptr @t
   %tmp.upgrd.2 = tail call i32 %tmp()
   ret void
 }
@@ -36,12 +36,12 @@ define float @t5(float %a) nounwind readonly ssp {
   ret float %tmp
 }
 
-define void @t7() nounwind {
+define void @t7(i1 %arg) nounwind {
 ; CHECK-LABEL: t7:
 ; CHECK: b	_foo
 ; CHECK: b	_bar
 
-  br i1 undef, label %bb, label %bb1.lr.ph
+  br i1 %arg, label %bb, label %bb1.lr.ph
 
 bb1.lr.ph:                                        ; preds = %entry
   tail call void @bar() nounwind

@@ -97,27 +97,34 @@ namespace non_template
   static_assert(is_same_v<decltype(baz<int>()), int>); // expected-error {{call to 'baz' is ambiguous}}
   static_assert(is_same_v<decltype(bar<int>()), void>); // expected-error {{call to 'bar' is ambiguous}}
 
+  // Top-level cv-qualifiers are ignored in template partial ordering per [dcl.fct]/p5.
+  //   After producing the list of parameter types, any top-level cv-qualifiers modifying
+  //   a parameter type are deleted when forming the function type.
   template<typename T>
-  constexpr int goo(int a) requires AtLeast2<int> && true {
+  constexpr int goo(T a) requires AtLeast2<T> && true {
     return 1;
   }
 
   template<typename T>
-  constexpr int goo(const int b) requires AtLeast2<int> {
+  constexpr int goo(const T b) requires AtLeast2<T> {
     return 2;
   }
 
-  // Only trailing requires clauses of redeclarations are compared for overload resolution.
+  // [temp.func.order] p5
+  //   Since, in a call context, such type deduction considers only parameters
+  //   for which there are explicit call arguments, some parameters are ignored
+  //   (namely, function parameter packs, parameters with default arguments, and
+  //   ellipsis parameters).
   template<typename T>
-  constexpr int doo(int a, ...) requires AtLeast2<int> && true { // expected-note {{candidate function}}
+  constexpr int doo(int a, ...) requires AtLeast2<int> && true {
     return 1;
   }
 
   template<typename T>
-  constexpr int doo(int b) requires AtLeast2<int> { // expected-note {{candidate function}}
+  constexpr int doo(int b) requires AtLeast2<int> {
     return 2;
   }
 
   static_assert(goo<int>(1) == 1);
-  static_assert(doo<int>(2) == 1); // expected-error {{call to 'doo' is ambiguous}}
+  static_assert(doo<int>(2) == 1);
 }

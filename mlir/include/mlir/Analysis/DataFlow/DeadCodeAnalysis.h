@@ -17,7 +17,9 @@
 
 #include "mlir/Analysis/DataFlowFramework.h"
 #include "mlir/IR/SymbolTable.h"
+#include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include <optional>
 
 namespace mlir {
 
@@ -25,6 +27,7 @@ class CallOpInterface;
 class CallableOpInterface;
 class BranchOpInterface;
 class RegionBranchOpInterface;
+class RegionBranchTerminatorOpInterface;
 
 namespace dataflow {
 
@@ -33,21 +36,21 @@ namespace dataflow {
 //===----------------------------------------------------------------------===//
 
 /// This is a simple analysis state that represents whether the associated
-/// program point (either a block or a control-flow edge) is live.
+/// lattice anchor (either a block or a control-flow edge) is live.
 class Executable : public AnalysisState {
 public:
   using AnalysisState::AnalysisState;
 
-  /// Set the state of the program point to live.
+  /// Set the state of the lattice anchor to live.
   ChangeResult setToLive();
 
-  /// Get whether the program point is live.
+  /// Get whether the lattice anchor is live.
   bool isLive() const { return live; }
 
   /// Print the liveness.
   void print(raw_ostream &os) const override;
 
-  /// When the state of the program point is changed to live, re-invoke
+  /// When the state of the lattice anchor is changed to live, re-invoke
   /// subscribed analyses on the operations in the block and on the block
   /// itself.
   void onUpdate(DataFlowSolver *solver) const override;
@@ -58,8 +61,8 @@ public:
   }
 
 private:
-  /// Whether the program point is live. Optimistically assume that the program
-  /// point is dead.
+  /// Whether the lattice anchor is live. Optimistically assume that the lattice
+  /// anchor is dead.
   bool live = false;
 
   /// A set of analyses that should be updated when this state changes.
@@ -138,10 +141,10 @@ private:
 // CFGEdge
 //===----------------------------------------------------------------------===//
 
-/// This program point represents a control-flow edge between a block and one
+/// This lattice anchor represents a control-flow edge between a block and one
 /// of its successors.
 class CFGEdge
-    : public GenericProgramPointBase<CFGEdge, std::pair<Block *, Block *>> {
+    : public GenericLatticeAnchorBase<CFGEdge, std::pair<Block *, Block *>> {
 public:
   using Base::Base;
 
@@ -180,7 +183,7 @@ public:
 
   /// Visit an operation with control-flow semantics and deduce which of its
   /// successors are live.
-  LogicalResult visit(ProgramPoint point) override;
+  LogicalResult visit(ProgramPoint *point) override;
 
 private:
   /// Find and mark symbol callables with potentially unknown callsites as
@@ -197,6 +200,13 @@ private:
   /// Visit the given branch operation with successors and try to determine
   /// which are live from the current block.
   void visitBranchOperation(BranchOpInterface branch);
+
+  /// Visit region branch edges from `predecessorOp` to a list of successors.
+  /// For each edge, mark the successor program point as executable, and record
+  /// the predecessor information in its `PredecessorState`.
+  void visitRegionBranchEdges(RegionBranchOpInterface regionBranchOp,
+                              Operation *predecessorOp,
+                              const SmallVector<RegionSuccessor> &successors);
 
   /// Visit the given region branch operation, which defines regions, and
   /// compute any necessary lattice state. This also resolves the lattice state
@@ -218,14 +228,21 @@ private:
   /// Mark the entry blocks of the operation as executable.
   void markEntryBlocksLive(Operation *op);
 
-  /// Get the constant values of the operands of the operation. Returns none if
-  /// any of the operand lattices are uninitialized.
-  Optional<SmallVector<Attribute>> getOperandValues(Operation *op);
+  /// Get the constant values of the operands of the operation. Returns
+  /// std::nullopt if any of the operand lattices are uninitialized.
+  std::optional<SmallVector<Attribute>> getOperandValues(Operation *op);
 
   /// The top-level operation the analysis is running on. This is used to detect
   /// if a callable is outside the scope of the analysis and thus must be
   /// considered an external callable.
   Operation *analysisScope;
+
+  /// Whether the analysis scope has a symbol table. This is used to avoid
+  /// resolving callables outside the analysis scope.
+  /// It is updated when recursing into a region in case where the top-level
+  /// operation does not have a symbol table, but one is encountered in a nested
+  /// region.
+  bool hasSymbolTable = false;
 
   /// A symbol table used for O(1) symbol lookups during simplification.
   SymbolTableCollection symbolTable;

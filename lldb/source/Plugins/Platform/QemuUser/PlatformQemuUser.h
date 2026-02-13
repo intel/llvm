@@ -6,6 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifndef LLDB_SOURCE_PLUGINS_PLATFORM_QEMUUSER_PLATFORMQEMUUSER_H
+#define LLDB_SOURCE_PLUGINS_PLATFORM_QEMUUSER_PLATFORMQEMUUSER_H
+
 #include "lldb/Host/Host.h"
 #include "lldb/Host/HostInfo.h"
 #include "lldb/Target/Platform.h"
@@ -38,8 +41,18 @@ public:
 
   lldb::ProcessSP Attach(ProcessAttachInfo &attach_info, Debugger &debugger,
                          Target *target, Status &status) override {
-    status.SetErrorString("Not supported");
+    status = Status::FromErrorString("Not supported");
     return nullptr;
+  }
+
+  uint32_t FindProcesses(const ProcessInstanceInfoMatch &match_info,
+                         ProcessInstanceInfoList &proc_infos) override {
+    return 0;
+  }
+
+  bool GetProcessInfo(lldb::pid_t pid,
+                      ProcessInstanceInfo &proc_info) override {
+    return false;
   }
 
   bool IsConnected() const override { return true; }
@@ -64,3 +77,5 @@ private:
 };
 
 } // namespace lldb_private
+
+#endif // LLDB_SOURCE_PLUGINS_PLATFORM_QEMUUSER_PLATFORMQEMUUSER_H

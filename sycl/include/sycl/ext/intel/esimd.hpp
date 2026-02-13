@@ -15,7 +15,7 @@
 /// @defgroup sycl_esimd DPC++ Explicit SIMD API
 /// This is a low-level API providing direct access to Intel GPU hardware
 /// features. ESIMD overview can be found
-/// [here](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_intel_esimd/sycl_ext_intel_esimd.md).
+/// [here](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/supported/sycl_ext_intel_esimd/sycl_ext_intel_esimd.md).
 /// Some terminology used in the API documentation:
 /// - *lane* -
 ///       (or "vector lane") Individual "lane" of input and output elements
@@ -65,7 +65,7 @@
 /// @defgroup sycl_esimd_raw_send Raw send APIs.
 /// Implements the \c send instruction to send messages to variaous components
 /// of the Intel(R) processor graphics, as defined in the documentation at
-/// https://01.org/sites/default/files/documentation/intel-gfx-prm-osrc-icllp-vol02a-commandreference-instructions_2.pdf
+/// https://www.intel.com/content/www/us/en/docs/graphics-for-linux/developer-reference/1-0/hardware-specs.html
 
 /// @defgroup sycl_esimd_misc Miscellaneous ESIMD convenience functions.
 
@@ -79,11 +79,13 @@
 #pragma clang diagnostic ignored "-Wpsabi"
 #endif // !defined(__SYCL_DEVICE_ONLY__) && defined(__clang__)
 
+#include <sycl/detail/type_traits.hpp>
 #include <sycl/ext/intel/esimd/alt_ui.hpp>
 #include <sycl/ext/intel/esimd/common.hpp>
 #include <sycl/ext/intel/esimd/detail/bfloat16_type_traits.hpp>
 #include <sycl/ext/intel/esimd/detail/half_type_traits.hpp>
 #include <sycl/ext/intel/esimd/detail/tfloat32_type_traits.hpp>
+#include <sycl/ext/intel/esimd/memory_properties.hpp>
 #include <sycl/ext/intel/esimd/simd.hpp>
 #include <sycl/ext/intel/esimd/simd_view.hpp>
 #include <sycl/ext/intel/esimd/xmx/dpas.hpp>

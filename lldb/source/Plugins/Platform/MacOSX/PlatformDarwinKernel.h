@@ -60,7 +60,6 @@ public:
 
   Status GetSharedModule(const ModuleSpec &module_spec, Process *process,
                          lldb::ModuleSP &module_sp,
-                         const FileSpecList *module_search_paths_ptr,
                          llvm::SmallVectorImpl<lldb::ModuleSP> *old_modules,
                          bool *did_create_ptr) override;
 
@@ -137,18 +136,19 @@ protected:
   // with the binary inside it ('.../foo.dSYM/Contents/Resources/DWARF/foo').
   // A dSYM bundle may have multiple DWARF binaries in them, so a vector
   // of matches is returned.
-  static std::vector<FileSpec> GetDWARFBinaryInDSYMBundle(FileSpec dsym_bundle);
+  static std::vector<FileSpec>
+  GetDWARFBinaryInDSYMBundle(const FileSpec &dsym_bundle);
 
   Status GetSharedModuleKext(const ModuleSpec &module_spec, Process *process,
                              lldb::ModuleSP &module_sp,
-                             const FileSpecList *module_search_paths_ptr,
                              llvm::SmallVectorImpl<lldb::ModuleSP> *old_modules,
                              bool *did_create_ptr);
 
-  Status GetSharedModuleKernel(
-      const ModuleSpec &module_spec, Process *process,
-      lldb::ModuleSP &module_sp, const FileSpecList *module_search_paths_ptr,
-      llvm::SmallVectorImpl<lldb::ModuleSP> *old_modules, bool *did_create_ptr);
+  Status
+  GetSharedModuleKernel(const ModuleSpec &module_spec, Process *process,
+                        lldb::ModuleSP &module_sp,
+                        llvm::SmallVectorImpl<lldb::ModuleSP> *old_modules,
+                        bool *did_create_ptr);
 
   Status ExamineKextForMatchingUUID(const FileSpec &kext_bundle_path,
                                     const UUID &uuid, const ArchSpec &arch,
@@ -156,6 +156,8 @@ protected:
 
   bool LoadPlatformBinaryAndSetup(Process *process, lldb::addr_t addr,
                                   bool notify) override;
+
+  void UpdateKextandKernelsLocalScan();
 
   // Most of the ivars are assembled under FileSystem::EnumerateDirectory calls
   // where the function being called for each file/directory must be static.
@@ -192,6 +194,8 @@ public:
   KernelBinaryCollection m_kernel_dsyms_yaas;
 
   LazyBool m_ios_debug_session;
+
+  std::once_flag m_kext_scan_flag;
 
   PlatformDarwinKernel(const PlatformDarwinKernel &) = delete;
   const PlatformDarwinKernel &operator=(const PlatformDarwinKernel &) = delete;

@@ -1,6 +1,5 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/SmallString.h"
@@ -9,6 +8,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/ADT/ilist.h"
 #include "llvm/Support/Error.h"
+#include <optional>
 
 int Array[] = {1, 2, 3};
 auto IntPtr = reinterpret_cast<int *>(0xabc);
@@ -18,9 +18,7 @@ llvm::MutableArrayRef<int> MutableArrayRef(Array);
 llvm::DenseMap<int, int> DenseMap = {{4, 5}, {6, 7}};
 llvm::StringMap<int> StringMap = {{"foo", 123}, {"bar", 456}};
 llvm::Expected<int> ExpectedValue(8);
-llvm::Expected<int> ExpectedError(llvm::createStringError({}, ""));
-llvm::Optional<int> OptionalValue(9);
-llvm::Optional<int> OptionalNone(llvm::None);
+llvm::Expected<int> ExpectedError(llvm::createStringError(""));
 llvm::SmallVector<int, 5> SmallVector = {10, 11, 12};
 llvm::SmallString<5> SmallString("foo");
 llvm::StringRef StringRef = "bar";
@@ -69,7 +67,5 @@ int main() {
   dont_strip(MutableArrayRef);
   dont_strip(ExpectedValue);
   dont_strip(ExpectedError);
-  dont_strip(OptionalValue);
-  dont_strip(OptionalNone);
   return result; // Non-zero return value is OK.
 }

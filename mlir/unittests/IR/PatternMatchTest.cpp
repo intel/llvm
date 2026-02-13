@@ -10,6 +10,7 @@
 #include "gtest/gtest.h"
 
 #include "../../test/lib/Dialect/Test/TestDialect.h"
+#include "../../test/lib/Dialect/Test/TestOps.h"
 
 using namespace mlir;
 
@@ -18,6 +19,11 @@ struct AnOpRewritePattern : OpRewritePattern<test::OpA> {
   AnOpRewritePattern(MLIRContext *context)
       : OpRewritePattern(context, /*benefit=*/1,
                          /*generatedNames=*/{test::OpB::getOperationName()}) {}
+
+  LogicalResult matchAndRewrite(test::OpA op,
+                                PatternRewriter &rewriter) const override {
+    return failure();
+  }
 };
 TEST(OpRewritePatternTest, GetGeneratedNames) {
   MLIRContext context;
@@ -26,5 +32,24 @@ TEST(OpRewritePatternTest, GetGeneratedNames) {
 
   ASSERT_EQ(ops.size(), 1u);
   ASSERT_EQ(ops.front().getStringRef(), test::OpB::getOperationName());
+}
+} // end anonymous namespace
+
+namespace {
+LogicalResult anOpRewritePatternFunc(test::OpA op, PatternRewriter &rewriter) {
+  return failure();
+}
+TEST(AnOpRewritePatternTest, PatternFuncAttributes) {
+  MLIRContext context;
+  RewritePatternSet patterns(&context);
+
+  patterns.add(anOpRewritePatternFunc, /*benefit=*/3,
+               /*generatedNames=*/{test::OpB::getOperationName()});
+  ASSERT_EQ(patterns.getNativePatterns().size(), 1U);
+  auto &pattern = patterns.getNativePatterns().front();
+  ASSERT_EQ(pattern->getBenefit(), 3);
+  ASSERT_EQ(pattern->getGeneratedOps().size(), 1U);
+  ASSERT_EQ(pattern->getGeneratedOps().front().getStringRef(),
+            test::OpB::getOperationName());
 }
 } // end anonymous namespace

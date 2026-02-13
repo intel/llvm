@@ -16,7 +16,7 @@
 
 #include "test_iterators.h"
 
-#include "../types.h"
+#include "../../range_adaptor_types.h"
 
 template <class T>
 struct ForwardView : std::ranges::view_base {
@@ -65,7 +65,7 @@ struct ConstVeryDifferentRange {
 void test() {
   int buffer[] = {1, 2, 3, 4};
   {
-    // 2 views should have pair value_type
+    // 2 views should have 2-tuple value_type
     // random_access_iterator_tag
     std::ranges::zip_view v(buffer, buffer);
     using Iter = decltype(v.begin());
@@ -73,7 +73,7 @@ void test() {
     static_assert(std::is_same_v<Iter::iterator_concept, std::random_access_iterator_tag>);
     static_assert(std::is_same_v<Iter::iterator_category, std::input_iterator_tag>);
     static_assert(std::is_same_v<Iter::difference_type, std::ptrdiff_t>);
-    static_assert(std::is_same_v<Iter::value_type, std::pair<int, int>>);
+    static_assert(std::is_same_v<Iter::value_type, std::tuple<int, int>>);
     static_assert(HasIterCategory<Iter>);
   }
 
@@ -120,7 +120,7 @@ void test() {
     static_assert(std::is_same_v<Iter::iterator_concept, std::random_access_iterator_tag>);
     static_assert(std::is_same_v<Iter::iterator_category, std::input_iterator_tag>);
     static_assert(std::is_same_v<Iter::difference_type, std::ptrdiff_t>);
-    static_assert(std::is_same_v<Iter::value_type, std::pair<int, std::pair<int, int>>>);
+    static_assert(std::is_same_v<Iter::value_type, std::tuple<int, std::tuple<int, int>>>);
     static_assert(HasIterCategory<Iter>);
   }
 
@@ -136,16 +136,16 @@ void test() {
 
   {
     // difference_type of single view
-    std::ranges::zip_view v{DiffTypeRange<intptr_t>{}};
+    std::ranges::zip_view v{DiffTypeRange<std::intptr_t>{}};
     using Iter = decltype(v.begin());
-    static_assert(std::is_same_v<Iter::difference_type, intptr_t>);
+    static_assert(std::is_same_v<Iter::difference_type, std::intptr_t>);
   }
 
   {
     // difference_type of multiple views should be the common type
-    std::ranges::zip_view v{DiffTypeRange<intptr_t>{}, DiffTypeRange<std::ptrdiff_t>{}};
+    std::ranges::zip_view v{DiffTypeRange<std::intptr_t>{}, DiffTypeRange<std::ptrdiff_t>{}};
     using Iter = decltype(v.begin());
-    static_assert(std::is_same_v<Iter::difference_type, std::common_type_t<intptr_t, std::ptrdiff_t>>);
+    static_assert(std::is_same_v<Iter::difference_type, std::common_type_t<std::intptr_t, std::ptrdiff_t>>);
   }
 
   const std::array foos{Foo{}};
@@ -161,7 +161,7 @@ void test() {
     // value_type of multiple views with different value_type
     std::ranges::zip_view v{foos, bars};
     using Iter = decltype(v.begin());
-    static_assert(std::is_same_v<Iter::value_type, std::pair<Foo, Bar>>);
+    static_assert(std::is_same_v<Iter::value_type, std::tuple<Foo, Bar>>);
   }
 
   {

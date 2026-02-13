@@ -16,6 +16,7 @@
 #include "llvm/Support/SMLoc.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/TrailingObjects.h"
+#include <optional>
 
 namespace mlir {
 namespace pdll {
@@ -182,10 +183,10 @@ public:
 
   /// Return the children of this compound statement.
   MutableArrayRef<Stmt *> getChildren() {
-    return {getTrailingObjects<Stmt *>(), numChildren};
+    return getTrailingObjects(numChildren);
   }
   ArrayRef<Stmt *> getChildren() const {
-    return const_cast<CompoundStmt *>(this)->getChildren();
+    return getTrailingObjects(numChildren);
   }
   ArrayRef<Stmt *>::iterator begin() const { return getChildren().begin(); }
   ArrayRef<Stmt *>::iterator end() const { return getChildren().end(); }
@@ -246,6 +247,7 @@ protected:
 
 //===----------------------------------------------------------------------===//
 // EraseStmt
+//===----------------------------------------------------------------------===//
 
 /// This statement represents the `erase` statement in PDLL. This statement
 /// erases the given root operation, corresponding roughly to the
@@ -260,6 +262,7 @@ private:
 
 //===----------------------------------------------------------------------===//
 // ReplaceStmt
+//===----------------------------------------------------------------------===//
 
 /// This statement represents the `replace` statement in PDLL. This statement
 /// replace the given root operation with a set of values, corresponding roughly
@@ -272,10 +275,10 @@ public:
 
   /// Return the replacement values of this statement.
   MutableArrayRef<Expr *> getReplExprs() {
-    return {getTrailingObjects<Expr *>(), numReplExprs};
+    return getTrailingObjects(numReplExprs);
   }
   ArrayRef<Expr *> getReplExprs() const {
-    return const_cast<ReplaceStmt *>(this)->getReplExprs();
+    return getTrailingObjects(numReplExprs);
   }
 
 private:
@@ -291,6 +294,7 @@ private:
 
 //===----------------------------------------------------------------------===//
 // RewriteStmt
+//===----------------------------------------------------------------------===//
 
 /// This statement represents an operation rewrite that contains a block of
 /// nested rewrite commands. This allows for building more complex operation
@@ -389,22 +393,24 @@ class CallExpr final : public Node::NodeBase<CallExpr, Expr>,
                        private llvm::TrailingObjects<CallExpr, Expr *> {
 public:
   static CallExpr *create(Context &ctx, SMRange loc, Expr *callable,
-                          ArrayRef<Expr *> arguments, Type resultType);
+                          ArrayRef<Expr *> arguments, Type resultType,
+                          bool isNegated = false);
 
   /// Return the callable of this call.
   Expr *getCallableExpr() const { return callable; }
 
   /// Return the arguments of this call.
-  MutableArrayRef<Expr *> getArguments() {
-    return {getTrailingObjects<Expr *>(), numArgs};
-  }
-  ArrayRef<Expr *> getArguments() const {
-    return const_cast<CallExpr *>(this)->getArguments();
-  }
+  MutableArrayRef<Expr *> getArguments() { return getTrailingObjects(numArgs); }
+  ArrayRef<Expr *> getArguments() const { return getTrailingObjects(numArgs); }
+
+  /// Returns whether the result of this call is to be negated.
+  bool getIsNegated() const { return isNegated; }
 
 private:
-  CallExpr(SMRange loc, Type type, Expr *callable, unsigned numArgs)
-      : Base(loc, type), callable(callable), numArgs(numArgs) {}
+  CallExpr(SMRange loc, Type type, Expr *callable, unsigned numArgs,
+           bool isNegated)
+      : Base(loc, type), callable(callable), numArgs(numArgs),
+        isNegated(isNegated) {}
 
   /// The callable of this call.
   Expr *callable;
@@ -414,6 +420,9 @@ private:
 
   /// TrailingObject utilities.
   friend llvm::TrailingObjects<CallExpr, Expr *>;
+
+  // Is the result of this call to be negated.
+  bool isNegated;
 };
 
 //===----------------------------------------------------------------------===//
@@ -468,6 +477,7 @@ private:
 
 //===----------------------------------------------------------------------===//
 // AllResultsMemberAccessExpr
+//===----------------------------------------------------------------------===//
 
 /// This class represents an instance of MemberAccessExpr that references all
 /// results of an operation.
@@ -508,8 +518,8 @@ public:
                                ArrayRef<Expr *> resultTypes,
                                ArrayRef<NamedAttributeDecl *> attributes);
 
-  /// Return the name of the operation, or None if there isn't one.
-  Optional<StringRef> getName() const;
+  /// Return the name of the operation, or std::nullopt if there isn't one.
+  std::optional<StringRef> getName() const;
 
   /// Return the declaration of the operation name.
   const OpNameDecl *getNameDecl() const { return nameDecl; }
@@ -520,10 +530,10 @@ public:
 
   /// Return the operands of this operation.
   MutableArrayRef<Expr *> getOperands() {
-    return {getTrailingObjects<Expr *>(), numOperands};
+    return getTrailingObjects<Expr *>(numOperands);
   }
   ArrayRef<Expr *> getOperands() const {
-    return const_cast<OperationExpr *>(this)->getOperands();
+    return getTrailingObjects<Expr *>(numOperands);
   }
 
   /// Return the result types of this operation.
@@ -536,10 +546,10 @@ public:
 
   /// Return the attributes of this operation.
   MutableArrayRef<NamedAttributeDecl *> getAttributes() {
-    return {getTrailingObjects<NamedAttributeDecl *>(), numAttributes};
+    return getTrailingObjects<NamedAttributeDecl *>(numAttributes);
   }
-  MutableArrayRef<NamedAttributeDecl *> getAttributes() const {
-    return const_cast<OperationExpr *>(this)->getAttributes();
+  ArrayRef<NamedAttributeDecl *> getAttributes() const {
+    return getTrailingObjects<NamedAttributeDecl *>(numAttributes);
   }
 
 private:
@@ -567,6 +577,40 @@ private:
 };
 
 //===----------------------------------------------------------------------===//
+// RangeExpr
+//===----------------------------------------------------------------------===//
+
+/// This expression builds a range from a set of element values (which may be
+/// ranges themselves).
+class RangeExpr final : public Node::NodeBase<RangeExpr, Expr>,
+                        private llvm::TrailingObjects<RangeExpr, Expr *> {
+public:
+  static RangeExpr *create(Context &ctx, SMRange loc, ArrayRef<Expr *> elements,
+                           RangeType type);
+
+  /// Return the element expressions of this range.
+  MutableArrayRef<Expr *> getElements() {
+    return getTrailingObjects(numElements);
+  }
+  ArrayRef<Expr *> getElements() const {
+    return getTrailingObjects(numElements);
+  }
+
+  /// Return the range result type of this expression.
+  RangeType getType() const { return mlir::cast<RangeType>(Base::getType()); }
+
+private:
+  RangeExpr(SMRange loc, RangeType type, unsigned numElements)
+      : Base(loc, type), numElements(numElements) {}
+
+  /// The number of element values for this range.
+  unsigned numElements;
+
+  /// TrailingObject utilities.
+  friend class llvm::TrailingObjects<RangeExpr, Expr *>;
+};
+
+//===----------------------------------------------------------------------===//
 // TupleExpr
 //===----------------------------------------------------------------------===//
 
@@ -579,14 +623,14 @@ public:
 
   /// Return the element expressions of this tuple.
   MutableArrayRef<Expr *> getElements() {
-    return {getTrailingObjects<Expr *>(), getType().size()};
+    return getTrailingObjects(getType().size());
   }
   ArrayRef<Expr *> getElements() const {
-    return const_cast<TupleExpr *>(this)->getElements();
+    return getTrailingObjects(getType().size());
   }
 
   /// Return the tuple result type of this expression.
-  TupleType getType() const { return Base::getType().cast<TupleType>(); }
+  TupleType getType() const { return mlir::cast<TupleType>(Base::getType()); }
 
 private:
   TupleExpr(SMRange loc, TupleType type) : Base(loc, type) {}
@@ -634,8 +678,8 @@ public:
   void setDocComment(Context &ctx, StringRef comment);
 
   /// Return the documentation comment attached to this decl if it has been set.
-  /// Otherwise, returns None.
-  Optional<StringRef> getDocComment() const { return docComment; }
+  /// Otherwise, returns std::nullopt.
+  std::optional<StringRef> getDocComment() const { return docComment; }
 
 protected:
   Decl(TypeID typeID, SMRange loc, const Name *name = nullptr)
@@ -646,9 +690,9 @@ private:
   /// PatternDecl.
   const Name *name;
 
-  /// The documentation comment attached to this decl. Defaults to None if
-  /// the comment is unset/unknown.
-  Optional<StringRef> docComment;
+  /// The documentation comment attached to this decl. Defaults to std::nullopt
+  /// if the comment is unset/unknown.
+  std::optional<StringRef> docComment;
 };
 
 //===----------------------------------------------------------------------===//
@@ -698,6 +742,7 @@ protected:
 
 //===----------------------------------------------------------------------===//
 // AttrConstraintDecl
+//===----------------------------------------------------------------------===//
 
 /// The class represents an Attribute constraint, and constrains a variable to
 /// be an Attribute.
@@ -721,6 +766,7 @@ protected:
 
 //===----------------------------------------------------------------------===//
 // OpConstraintDecl
+//===----------------------------------------------------------------------===//
 
 /// The class represents an Operation constraint, and constrains a variable to
 /// be an Operation.
@@ -730,8 +776,8 @@ public:
   static OpConstraintDecl *create(Context &ctx, SMRange loc,
                                   const OpNameDecl *nameDecl = nullptr);
 
-  /// Return the name of the operation, or None if there isn't one.
-  Optional<StringRef> getName() const;
+  /// Return the name of the operation, or std::nullopt if there isn't one.
+  std::optional<StringRef> getName() const;
 
   /// Return the declaration of the operation name.
   const OpNameDecl *getNameDecl() const { return nameDecl; }
@@ -746,6 +792,7 @@ protected:
 
 //===----------------------------------------------------------------------===//
 // TypeConstraintDecl
+//===----------------------------------------------------------------------===//
 
 /// The class represents a Type constraint, and constrains a variable to be a
 /// Type.
@@ -760,6 +807,7 @@ protected:
 
 //===----------------------------------------------------------------------===//
 // TypeRangeConstraintDecl
+//===----------------------------------------------------------------------===//
 
 /// The class represents a TypeRange constraint, and constrains a variable to be
 /// a TypeRange.
@@ -774,6 +822,7 @@ protected:
 
 //===----------------------------------------------------------------------===//
 // ValueConstraintDecl
+//===----------------------------------------------------------------------===//
 
 /// The class represents a Value constraint, and constrains a variable to be a
 /// Value.
@@ -796,6 +845,7 @@ protected:
 
 //===----------------------------------------------------------------------===//
 // ValueRangeConstraintDecl
+//===----------------------------------------------------------------------===//
 
 /// The class represents a ValueRange constraint, and constrains a variable to
 /// be a ValueRange.
@@ -840,8 +890,9 @@ public:
   /// Create a native constraint with the given optional code block.
   static UserConstraintDecl *
   createNative(Context &ctx, const Name &name, ArrayRef<VariableDecl *> inputs,
-               ArrayRef<VariableDecl *> results, Optional<StringRef> codeBlock,
-               Type resultType, ArrayRef<StringRef> nativeInputTypes = {}) {
+               ArrayRef<VariableDecl *> results,
+               std::optional<StringRef> codeBlock, Type resultType,
+               ArrayRef<StringRef> nativeInputTypes = {}) {
     return createImpl(ctx, name, inputs, nativeInputTypes, results, codeBlock,
                       /*body=*/nullptr, resultType);
   }
@@ -852,8 +903,8 @@ public:
                                         ArrayRef<VariableDecl *> results,
                                         const CompoundStmt *body,
                                         Type resultType) {
-    return createImpl(ctx, name, inputs, /*nativeInputTypes=*/llvm::None,
-                      results, /*codeBlock=*/llvm::None, body, resultType);
+    return createImpl(ctx, name, inputs, /*nativeInputTypes=*/{}, results,
+                      /*codeBlock=*/std::nullopt, body, resultType);
   }
 
   /// Return the name of the constraint.
@@ -861,15 +912,15 @@ public:
 
   /// Return the input arguments of this constraint.
   MutableArrayRef<VariableDecl *> getInputs() {
-    return {getTrailingObjects<VariableDecl *>(), numInputs};
+    return getTrailingObjects<VariableDecl *>(numInputs);
   }
   ArrayRef<VariableDecl *> getInputs() const {
-    return const_cast<UserConstraintDecl *>(this)->getInputs();
+    return getTrailingObjects<VariableDecl *>(numInputs);
   }
 
-  /// Return the explicit native type to use for the given input. Returns None
-  /// if no explicit type was set.
-  Optional<StringRef> getNativeInputType(unsigned index) const;
+  /// Return the explicit native type to use for the given input. Returns
+  /// std::nullopt if no explicit type was set.
+  std::optional<StringRef> getNativeInputType(unsigned index) const;
 
   /// Return the explicit results of the constraint declaration. May be empty,
   /// even if the constraint has results (e.g. in the case of inferred results).
@@ -882,7 +933,7 @@ public:
 
   /// Return the optional code block of this constraint, if this is a native
   /// constraint with a provided implementation.
-  Optional<StringRef> getCodeBlock() const { return codeBlock; }
+  std::optional<StringRef> getCodeBlock() const { return codeBlock; }
 
   /// Return the body of this constraint if this constraint is a PDLL
   /// constraint, otherwise returns nullptr.
@@ -897,19 +948,21 @@ public:
 private:
   /// Create either a PDLL constraint or a native constraint with the given
   /// components.
-  static UserConstraintDecl *
-  createImpl(Context &ctx, const Name &name, ArrayRef<VariableDecl *> inputs,
-             ArrayRef<StringRef> nativeInputTypes,
-             ArrayRef<VariableDecl *> results, Optional<StringRef> codeBlock,
-             const CompoundStmt *body, Type resultType);
+  static UserConstraintDecl *createImpl(Context &ctx, const Name &name,
+                                        ArrayRef<VariableDecl *> inputs,
+                                        ArrayRef<StringRef> nativeInputTypes,
+                                        ArrayRef<VariableDecl *> results,
+                                        std::optional<StringRef> codeBlock,
+                                        const CompoundStmt *body,
+                                        Type resultType);
 
   UserConstraintDecl(const Name &name, unsigned numInputs,
                      bool hasNativeInputTypes, unsigned numResults,
-                     Optional<StringRef> codeBlock, const CompoundStmt *body,
-                     Type resultType)
+                     std::optional<StringRef> codeBlock,
+                     const CompoundStmt *body, Type resultType)
       : Base(name.getLoc(), &name), numInputs(numInputs),
         numResults(numResults), codeBlock(codeBlock), constraintBody(body),
-        resultType(resultType) {}
+        resultType(resultType), hasNativeInputTypes(hasNativeInputTypes) {}
 
   /// The number of inputs to this constraint.
   unsigned numInputs;
@@ -918,7 +971,7 @@ private:
   unsigned numResults;
 
   /// The optional code block of this constraint.
-  Optional<StringRef> codeBlock;
+  std::optional<StringRef> codeBlock;
 
   /// The optional body of this constraint.
   const CompoundStmt *constraintBody;
@@ -971,10 +1024,10 @@ public:
   static OpNameDecl *create(Context &ctx, const Name &name);
   static OpNameDecl *create(Context &ctx, SMRange loc);
 
-  /// Return the name of this operation, or none if the name is unknown.
-  Optional<StringRef> getName() const {
+  /// Return the name of this operation, or std::nullopt if the name is unknown.
+  std::optional<StringRef> getName() const {
     const Name *name = Decl::getName();
-    return name ? Optional<StringRef>(name->getName()) : llvm::None;
+    return name ? std::optional<StringRef>(name->getName()) : std::nullopt;
   }
 
 private:
@@ -990,12 +1043,12 @@ private:
 class PatternDecl : public Node::NodeBase<PatternDecl, Decl> {
 public:
   static PatternDecl *create(Context &ctx, SMRange location, const Name *name,
-                             Optional<uint16_t> benefit,
+                             std::optional<uint16_t> benefit,
                              bool hasBoundedRecursion,
                              const CompoundStmt *body);
 
-  /// Return the benefit of this pattern if specified, or None.
-  Optional<uint16_t> getBenefit() const { return benefit; }
+  /// Return the benefit of this pattern if specified, or std::nullopt.
+  std::optional<uint16_t> getBenefit() const { return benefit; }
 
   /// Return if this pattern has bounded rewrite recursion.
   bool hasBoundedRewriteRecursion() const { return hasBoundedRecursion; }
@@ -1009,13 +1062,14 @@ public:
   }
 
 private:
-  PatternDecl(SMRange loc, const Name *name, Optional<uint16_t> benefit,
+  PatternDecl(SMRange loc, const Name *name, std::optional<uint16_t> benefit,
               bool hasBoundedRecursion, const CompoundStmt *body)
       : Base(loc, name), benefit(benefit),
         hasBoundedRecursion(hasBoundedRecursion), patternBody(body) {}
 
-  /// The benefit of the pattern if it was explicitly specified, None otherwise.
-  Optional<uint16_t> benefit;
+  /// The benefit of the pattern if it was explicitly specified, std::nullopt
+  /// otherwise.
+  std::optional<uint16_t> benefit;
 
   /// If the pattern has properly bounded rewrite recursion or not.
   bool hasBoundedRecursion;
@@ -1047,7 +1101,7 @@ public:
   static UserRewriteDecl *createNative(Context &ctx, const Name &name,
                                        ArrayRef<VariableDecl *> inputs,
                                        ArrayRef<VariableDecl *> results,
-                                       Optional<StringRef> codeBlock,
+                                       std::optional<StringRef> codeBlock,
                                        Type resultType) {
     return createImpl(ctx, name, inputs, results, codeBlock, /*body=*/nullptr,
                       resultType);
@@ -1059,7 +1113,7 @@ public:
                                      ArrayRef<VariableDecl *> results,
                                      const CompoundStmt *body,
                                      Type resultType) {
-    return createImpl(ctx, name, inputs, results, /*codeBlock=*/llvm::None,
+    return createImpl(ctx, name, inputs, results, /*codeBlock=*/std::nullopt,
                       body, resultType);
   }
 
@@ -1068,16 +1122,16 @@ public:
 
   /// Return the input arguments of this rewrite.
   MutableArrayRef<VariableDecl *> getInputs() {
-    return {getTrailingObjects<VariableDecl *>(), numInputs};
+    return getTrailingObjects(numInputs);
   }
   ArrayRef<VariableDecl *> getInputs() const {
-    return const_cast<UserRewriteDecl *>(this)->getInputs();
+    return getTrailingObjects(numInputs);
   }
 
   /// Return the explicit results of the rewrite declaration. May be empty,
   /// even if the rewrite has results (e.g. in the case of inferred results).
   MutableArrayRef<VariableDecl *> getResults() {
-    return {getTrailingObjects<VariableDecl *>() + numInputs, numResults};
+    return {getTrailingObjects() + numInputs, numResults};
   }
   ArrayRef<VariableDecl *> getResults() const {
     return const_cast<UserRewriteDecl *>(this)->getResults();
@@ -1085,7 +1139,7 @@ public:
 
   /// Return the optional code block of this rewrite, if this is a native
   /// rewrite with a provided implementation.
-  Optional<StringRef> getCodeBlock() const { return codeBlock; }
+  std::optional<StringRef> getCodeBlock() const { return codeBlock; }
 
   /// Return the body of this rewrite if this rewrite is a PDLL rewrite,
   /// otherwise returns nullptr.
@@ -1103,11 +1157,11 @@ private:
   static UserRewriteDecl *createImpl(Context &ctx, const Name &name,
                                      ArrayRef<VariableDecl *> inputs,
                                      ArrayRef<VariableDecl *> results,
-                                     Optional<StringRef> codeBlock,
+                                     std::optional<StringRef> codeBlock,
                                      const CompoundStmt *body, Type resultType);
 
   UserRewriteDecl(const Name &name, unsigned numInputs, unsigned numResults,
-                  Optional<StringRef> codeBlock, const CompoundStmt *body,
+                  std::optional<StringRef> codeBlock, const CompoundStmt *body,
                   Type resultType)
       : Base(name.getLoc(), &name), numInputs(numInputs),
         numResults(numResults), codeBlock(codeBlock), rewriteBody(body),
@@ -1120,7 +1174,7 @@ private:
   unsigned numResults;
 
   /// The optional code block of this rewrite.
-  Optional<StringRef> codeBlock;
+  std::optional<StringRef> codeBlock;
 
   /// The optional body of this rewrite.
   const CompoundStmt *rewriteBody;
@@ -1172,7 +1226,7 @@ public:
 
   /// Return the optional code block of this callable, if this is a native
   /// callable with a provided implementation.
-  Optional<StringRef> getCodeBlock() const {
+  std::optional<StringRef> getCodeBlock() const {
     if (const auto *cst = dyn_cast<UserConstraintDecl>(this))
       return cst->getCodeBlock();
     return cast<UserRewriteDecl>(this)->getCodeBlock();
@@ -1199,10 +1253,10 @@ public:
 
   /// Return the constraints of this variable.
   MutableArrayRef<ConstraintRef> getConstraints() {
-    return {getTrailingObjects<ConstraintRef>(), numConstraints};
+    return getTrailingObjects(numConstraints);
   }
   ArrayRef<ConstraintRef> getConstraints() const {
-    return const_cast<VariableDecl *>(this)->getConstraints();
+    return getTrailingObjects(numConstraints);
   }
 
   /// Return the initializer expression of this statement, or nullptr if there
@@ -1246,10 +1300,10 @@ public:
 
   /// Return the children of this module.
   MutableArrayRef<Decl *> getChildren() {
-    return {getTrailingObjects<Decl *>(), numChildren};
+    return getTrailingObjects(numChildren);
   }
   ArrayRef<Decl *> getChildren() const {
-    return const_cast<Module *>(this)->getChildren();
+    return getTrailingObjects(numChildren);
   }
 
 private:
@@ -1284,7 +1338,7 @@ inline bool CoreConstraintDecl::classof(const Node *node) {
 
 inline bool Expr::classof(const Node *node) {
   return isa<AttributeExpr, CallExpr, DeclRefExpr, MemberAccessExpr,
-             OperationExpr, TupleExpr, TypeExpr>(node);
+             OperationExpr, RangeExpr, TupleExpr, TypeExpr>(node);
 }
 
 inline bool OpRewriteStmt::classof(const Node *node) {

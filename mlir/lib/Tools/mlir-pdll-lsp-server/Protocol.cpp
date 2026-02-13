@@ -11,14 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "Protocol.h"
-#include "llvm/ADT/Hashing.h"
-#include "llvm/ADT/SmallString.h"
+#include "mlir/Support/LLVM.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/Format.h"
-#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/JSON.h"
-#include "llvm/Support/Path.h"
-#include "llvm/Support/raw_ostream.h"
 
 using namespace mlir;
 using namespace mlir::lsp;
@@ -44,7 +39,7 @@ static bool mapOptOrNull(const llvm::json::Value &params,
 
 bool mlir::lsp::fromJSON(const llvm::json::Value &value,
                          PDLLViewOutputKind &result, llvm::json::Path path) {
-  if (Optional<StringRef> str = value.getAsString()) {
+  if (std::optional<StringRef> str = value.getAsString()) {
     if (*str == "ast") {
       result = PDLLViewOutputKind::AST;
       return true;

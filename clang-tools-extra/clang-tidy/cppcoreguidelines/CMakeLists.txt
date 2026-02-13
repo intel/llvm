@@ -3,19 +3,25 @@ set(LLVM_LINK_COMPONENTS
   Support
   )
 
-add_clang_library(clangTidyCppCoreGuidelinesModule
+add_clang_library(clangTidyCppCoreGuidelinesModule STATIC
+  AvoidCapturingLambdaCoroutinesCheck.cpp
   AvoidConstOrRefDataMembersCheck.cpp
+  AvoidDoWhileCheck.cpp
   AvoidGotoCheck.cpp
   AvoidNonConstGlobalVariablesCheck.cpp
+  AvoidReferenceCoroutineParametersCheck.cpp
   CppCoreGuidelinesTidyModule.cpp
   InitVariablesCheck.cpp
   InterfacesGlobalInitCheck.cpp
   MacroUsageCheck.cpp
-  NarrowingConversionsCheck.cpp
+  MisleadingCaptureDefaultByValueCheck.cpp
+  MissingStdForwardCheck.cpp
   NoMallocCheck.cpp
+  NoSuspendWithLockCheck.cpp
   OwningMemoryCheck.cpp
   PreferMemberInitializerCheck.cpp
   ProBoundsArrayToPointerDecayCheck.cpp
+  ProBoundsAvoidUncheckedContainerAccessCheck.cpp
   ProBoundsConstantArrayIndexCheck.cpp
   ProBoundsPointerArithmeticCheck.cpp
   ProTypeConstCastCheck.cpp
@@ -25,23 +31,29 @@ add_clang_library(clangTidyCppCoreGuidelinesModule
   ProTypeStaticCastDowncastCheck.cpp
   ProTypeUnionAccessCheck.cpp
   ProTypeVarargCheck.cpp
+  RvalueReferenceParamNotMovedCheck.cpp
   SlicingCheck.cpp
   SpecialMemberFunctionsCheck.cpp
+  UseEnumClassCheck.cpp
   VirtualClassDestructorCheck.cpp
 
   LINK_LIBS
   clangTidy
+  clangTidyBugproneModule
   clangTidyMiscModule
   clangTidyModernizeModule
+  clangTidyPerformanceModule
   clangTidyReadabilityModule
   clangTidyUtils
 
   DEPENDS
   omp_gen
+  ClangDriverOptions
   )
 
 clang_target_link_libraries(clangTidyCppCoreGuidelinesModule
   PRIVATE
+  clangAnalysis
   clangAST
   clangASTMatchers
   clangBasic

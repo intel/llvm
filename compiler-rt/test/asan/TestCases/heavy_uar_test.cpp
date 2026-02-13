@@ -1,8 +1,11 @@
-// RUN: %clangxx_asan -O0 %s -o %t && %env_asan_opts=detect_stack_use_after_return=1 not %run %t 2>&1 | FileCheck %s
-// RUN: %clangxx_asan -O2 %s -o %t && %env_asan_opts=detect_stack_use_after_return=1 not %run %t 2>&1 | FileCheck %s
-// RUN: %clangxx_asan -O0 %s -o %t -fsanitize-address-use-after-return=always && not %run %t 2>&1 | FileCheck %s
-// RUN: %clangxx_asan -O2 %s -o %t -fsanitize-address-use-after-return=always && not %run %t 2>&1 | FileCheck %s
-// XFAIL: windows-msvc
+// Most Windows linkers set stack size default to 1 MB. Bump it up to 8 MB.
+// DEFINE: %{stack} = %if target={{.*-windows-gnu}} %{ -Wl,--stack,8388608 %} \
+// DEFINE:            %if target={{.*-windows-msvc.*}} %{ -Wl,/STACK:8388608 %}
+
+// RUN: %clangxx_asan %{stack} -O0 %s -o %t && %env_asan_opts=detect_stack_use_after_return=1 not %run %t 2>&1 | FileCheck %s
+// RUN: %clangxx_asan %{stack} -O2 %s -o %t && %env_asan_opts=detect_stack_use_after_return=1 not %run %t 2>&1 | FileCheck %s
+// RUN: %clangxx_asan %{stack} -O0 %s -o %t -fsanitize-address-use-after-return=always && not %run %t 2>&1 | FileCheck %s
+// RUN: %clangxx_asan %{stack} -O2 %s -o %t -fsanitize-address-use-after-return=always && not %run %t 2>&1 | FileCheck %s
 
 // FIXME: Fix this test under GCC.
 // REQUIRES: Clang
@@ -12,26 +15,29 @@
 
 // UNSUPPORTED: ios
 
+#include "defines.h"
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
+#ifdef _WIN32
+#  include <windows.h>
+#endif
 
-__attribute__((noinline))
+ATTRIBUTE_NOINLINE
 char *pretend_to_do_something(char *x) {
   __asm__ __volatile__("" : : "r" (x) : "memory");
   return x;
 }
 
-__attribute__((noinline))
+ATTRIBUTE_NOINLINE
 char *LeakStack() {
   char x[1024];
   memset(x, 0, sizeof(x));
   return pretend_to_do_something(x);
 }
 
-template<size_t kFrameSize>
-__attribute__((noinline))
-void RecursiveFunctionWithStackFrame(int depth) {
+template <size_t kFrameSize>
+ATTRIBUTE_NOINLINE void RecursiveFunctionWithStackFrame(int depth) {
   if (depth <= 0) return;
   char x[kFrameSize];
   x[0] = depth;
@@ -40,10 +46,10 @@ void RecursiveFunctionWithStackFrame(int depth) {
 }
 
 int main(int argc, char **argv) {
-#ifdef _MSC_VER
-  // FIXME: This test crashes on Windows and raises a dialog. Avoid running it
-  // in addition to XFAILing it.
-  return 42;
+#ifdef _WIN32
+  // Prevent the crash dialog from showing in case something bad like a stack
+  // overflow happens.
+  SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
 #endif
 
   int n_iter = argc >= 2 ? atoi(argv[1]) : 1000;

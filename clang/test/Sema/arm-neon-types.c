@@ -5,7 +5,7 @@
 
 #include <arm_neon.h>
 
-// Radar 8228022: Should not report incompatible vector types.
+// Should not report incompatible vector types.
 int32x2_t test(int32x2_t x) {
   return vshr_n_s32(x, 31);
 }
@@ -15,7 +15,7 @@ float32x2_t test2(uint32x2_t x) {
   return vcvt_n_f32_s32(x, 9); // expected-warning {{incompatible vector types}}
 }
 
-// Check immediate range for vcvt_n intrinsics is 1 to 32.  Radar 9558930.
+// Check immediate range for vcvt_n intrinsics is 1 to 32.
 float32x2_t test3(uint32x2_t x) {
   // FIXME: The "incompatible result type" error is due to pr10112 and should be
   // removed when that is fixed.
@@ -31,10 +31,10 @@ int32x4_t test4(int32x4_t a, vSInt32 b) {
 
 // Warn for incompatible pointer types used with vld/vst intrinsics.
 int16x8_t test5(int *p) {
-  return vld1q_s16(p); // expected-warning {{incompatible pointer types}}
+  return vld1q_s16(p); // expected-error {{incompatible pointer types}}
 }
 void test6(float *p, int32x2_t v) {
-  return vst1_s32(p, v); // expected-warning {{incompatible pointer types}}
+  return vst1_s32(p, v); // expected-error {{incompatible pointer types}}
 }
 
 #define INCLUDE

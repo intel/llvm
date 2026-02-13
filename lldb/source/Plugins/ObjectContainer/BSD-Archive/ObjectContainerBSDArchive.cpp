@@ -8,9 +8,8 @@
 
 #include "ObjectContainerBSDArchive.h"
 
-#if defined(_WIN32) || defined(__ANDROID__)
+#if defined(_WIN32) || defined(_AIX)
 // Defines from ar, missing on Windows
-#define ARMAG "!<arch>\n"
 #define SARMAG 8
 #define ARFMAG "`\n"
 
@@ -32,9 +31,11 @@ typedef struct ar_hdr {
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Utility/ArchSpec.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Stream.h"
 #include "lldb/Utility/Timer.h"
 
+#include "llvm/Object/Archive.h"
 #include "llvm/Support/MemoryBuffer.h"
 
 using namespace lldb;
@@ -49,234 +50,102 @@ ObjectContainerBSDArchive::Object::Object() : ar_name() {}
 void ObjectContainerBSDArchive::Object::Clear() {
   ar_name.Clear();
   modification_time = 0;
-  uid = 0;
-  gid = 0;
-  mode = 0;
   size = 0;
   file_offset = 0;
   file_size = 0;
 }
 
-lldb::offset_t ObjectContainerBSDArchive::Object::ExtractFromThin(
-    const DataExtractor &data, lldb::offset_t offset,
-    llvm::StringRef stringTable) {
-  size_t ar_name_len = 0;
-  std::string str;
-  char *err;
-
-  // File header
-  //
-  // The common format is as follows.
-  //
-  //  Offset  Length	Name            Format
-  //  0       16      File name       ASCII right padded with spaces (no spaces
-  //  allowed in file name)
-  //  16      12      File mod        Decimal as cstring right padded with
-  //  spaces
-  //  28      6       Owner ID        Decimal as cstring right padded with
-  //  spaces
-  //  34      6       Group ID        Decimal as cstring right padded with
-  //  spaces
-  //  40      8       File mode       Octal   as cstring right padded with
-  //  spaces
-  //  48      10      File byte size  Decimal as cstring right padded with
-  //  spaces
-  //  58      2       File magic      0x60 0x0A
-
-  // Make sure there is enough data for the file header and bail if not
-  if (!data.ValidOffsetForDataOfSize(offset, 60))
-    return LLDB_INVALID_OFFSET;
-
-  str.assign((const char *)data.GetData(&offset, 16), 16);
-  if (!(llvm::StringRef(str).startswith("//") || stringTable.empty())) {
-    // Strip off any trailing spaces.
-    const size_t last_pos = str.find_last_not_of(' ');
-    if (last_pos != std::string::npos) {
-      if (last_pos + 1 < 16)
-        str.erase(last_pos + 1);
-    }
-    int start = strtoul(str.c_str() + 1, &err, 10);
-    int end = stringTable.find('\n', start);
-    str.assign(stringTable.data() + start, end - start - 1);
-    ar_name.SetCString(str.c_str());
-  }
-
-  str.assign((const char *)data.GetData(&offset, 12), 12);
-  modification_time = strtoul(str.c_str(), &err, 10);
-
-  str.assign((const char *)data.GetData(&offset, 6), 6);
-  uid = strtoul(str.c_str(), &err, 10);
-
-  str.assign((const char *)data.GetData(&offset, 6), 6);
-  gid = strtoul(str.c_str(), &err, 10);
-
-  str.assign((const char *)data.GetData(&offset, 8), 8);
-  mode = strtoul(str.c_str(), &err, 8);
-
-  str.assign((const char *)data.GetData(&offset, 10), 10);
-  size = strtoul(str.c_str(), &err, 10);
-
-  str.assign((const char *)data.GetData(&offset, 2), 2);
-  if (str == ARFMAG) {
-    file_offset = offset;
-    file_size = size - ar_name_len;
-    return offset;
-  }
-  return LLDB_INVALID_OFFSET;
-}
-
-lldb::offset_t
-ObjectContainerBSDArchive::Object::Extract(const DataExtractor &data,
-                                           lldb::offset_t offset) {
-  size_t ar_name_len = 0;
-  std::string str;
-  char *err;
-
-  // File header
-  //
-  // The common format is as follows.
-  //
-  //  Offset  Length	Name            Format
-  //  0       16      File name       ASCII right padded with spaces (no spaces
-  //  allowed in file name)
-  //  16      12      File mod        Decimal as cstring right padded with
-  //  spaces
-  //  28      6       Owner ID        Decimal as cstring right padded with
-  //  spaces
-  //  34      6       Group ID        Decimal as cstring right padded with
-  //  spaces
-  //  40      8       File mode       Octal   as cstring right padded with
-  //  spaces
-  //  48      10      File byte size  Decimal as cstring right padded with
-  //  spaces
-  //  58      2       File magic      0x60 0x0A
-
-  // Make sure there is enough data for the file header and bail if not
-  if (!data.ValidOffsetForDataOfSize(offset, 60))
-    return LLDB_INVALID_OFFSET;
-
-  str.assign((const char *)data.GetData(&offset, 16), 16);
-  if (llvm::StringRef(str).startswith("#1/")) {
-    // If the name is longer than 16 bytes, or contains an embedded space then
-    // it will use this format where the length of the name is here and the
-    // name characters are after this header.
-    ar_name_len = strtoul(str.c_str() + 3, &err, 10);
-  } else {
-    // Strip off any trailing spaces.
-    const size_t last_pos = str.find_last_not_of(' ');
-    if (last_pos != std::string::npos) {
-      if (last_pos + 1 < 16)
-        str.erase(last_pos + 1);
-    }
-    ar_name.SetCString(str.c_str());
-  }
-
-  str.assign((const char *)data.GetData(&offset, 12), 12);
-  modification_time = strtoul(str.c_str(), &err, 10);
-
-  str.assign((const char *)data.GetData(&offset, 6), 6);
-  uid = strtoul(str.c_str(), &err, 10);
-
-  str.assign((const char *)data.GetData(&offset, 6), 6);
-  gid = strtoul(str.c_str(), &err, 10);
-
-  str.assign((const char *)data.GetData(&offset, 8), 8);
-  mode = strtoul(str.c_str(), &err, 8);
-
-  str.assign((const char *)data.GetData(&offset, 10), 10);
-  size = strtoul(str.c_str(), &err, 10);
-
-  str.assign((const char *)data.GetData(&offset, 2), 2);
-  if (str == ARFMAG) {
-    if (ar_name_len > 0) {
-      const void *ar_name_ptr = data.GetData(&offset, ar_name_len);
-      // Make sure there was enough data for the string value and bail if not
-      if (ar_name_ptr == nullptr)
-        return LLDB_INVALID_OFFSET;
-      str.assign((const char *)ar_name_ptr, ar_name_len);
-      ar_name.SetCString(str.c_str());
-    }
-    file_offset = offset;
-    file_size = size - ar_name_len;
-    return offset;
-  }
-  return LLDB_INVALID_OFFSET;
+void ObjectContainerBSDArchive::Object::Dump() const {
+  printf("name        = \"%s\"\n", ar_name.GetCString());
+  printf("mtime       = 0x%8.8" PRIx32 "\n", modification_time);
+  printf("size        = 0x%8.8" PRIx32 " (%" PRIu32 ")\n", size, size);
+  printf("file_offset = 0x%16.16" PRIx64 " (%" PRIu64 ")\n", file_offset,
+         file_offset);
+  printf("file_size   = 0x%16.16" PRIx64 " (%" PRIu64 ")\n\n", file_size,
+         file_size);
 }
 
 ObjectContainerBSDArchive::Archive::Archive(const lldb_private::ArchSpec &arch,
                                             const llvm::sys::TimePoint<> &time,
                                             lldb::offset_t file_offset,
-                                            lldb_private::DataExtractor &data,
+                                            lldb::DataExtractorSP extractor_sp,
                                             ArchiveType archive_type)
     : m_arch(arch), m_modification_time(time), m_file_offset(file_offset),
-      m_objects(), m_data(data), m_archive_type(archive_type) {}
+      m_objects(), m_extractor_sp(extractor_sp), m_archive_type(archive_type) {}
 
+Log *l = GetLog(LLDBLog::Object);
 ObjectContainerBSDArchive::Archive::~Archive() = default;
 
 size_t ObjectContainerBSDArchive::Archive::ParseObjects() {
-  DataExtractor &data = m_data;
-  std::string str;
-  lldb::offset_t offset = 0;
-  str.assign((const char *)data.GetData(&offset, SARMAG), SARMAG);
-  if (str == ARMAG) {
-    Object obj;
-    do {
-      offset = obj.Extract(data, offset);
-      if (offset == LLDB_INVALID_OFFSET)
-        break;
-      size_t obj_idx = m_objects.size();
-      m_objects.push_back(obj);
-      // Insert all of the C strings out of order for now...
-      m_object_name_to_index_map.Append(obj.ar_name, obj_idx);
-      offset += obj.file_size;
-      obj.Clear();
-    } while (data.ValidOffset(offset));
+  std::unique_ptr<llvm::MemoryBuffer> mem_buffer =
+      llvm::MemoryBuffer::getMemBuffer(
+          llvm::StringRef((const char *)m_extractor_sp->GetDataStart(),
+                          m_extractor_sp->GetByteSize()),
+          llvm::StringRef(),
+          /*RequiresNullTerminator=*/false);
 
-    // Now sort all of the object name pointers
-    m_object_name_to_index_map.Sort();
-  } else if (str == ThinArchiveMagic) {
-    Object obj;
-    size_t obj_idx;
-
-    // Retrieve symbol table
-    offset = obj.ExtractFromThin(data, offset, "");
-    if (offset == LLDB_INVALID_OFFSET)
-      return m_objects.size();
-    obj_idx = m_objects.size();
-    m_objects.push_back(obj);
-    // Insert all of the C strings out of order for now...
-    m_object_name_to_index_map.Append(obj.ar_name, obj_idx);
-    offset += obj.file_size;
-    obj.Clear();
-
-    // Retrieve string table
-    offset = obj.ExtractFromThin(data, offset, "");
-    if (offset == LLDB_INVALID_OFFSET)
-      return m_objects.size();
-    obj_idx = m_objects.size();
-    m_objects.push_back(obj);
-    // Insert all of the C strings out of order for now...
-    m_object_name_to_index_map.Append(obj.ar_name, obj_idx);
-    // Extract string table
-    llvm::StringRef strtab((const char *)data.GetData(&offset, obj.size),
-                           obj.size);
-    obj.Clear();
-
-    // Retrieve object files
-    do {
-      offset = obj.ExtractFromThin(data, offset, strtab);
-      if (offset == LLDB_INVALID_OFFSET)
-        break;
-      obj_idx = m_objects.size();
-      m_objects.push_back(obj);
-      // Insert all of the C strings out of order for now...
-      m_object_name_to_index_map.Append(obj.ar_name, obj_idx);
-      obj.Clear();
-    } while (data.ValidOffset(offset));
-
-    // Now sort all of the object name pointers
-    m_object_name_to_index_map.Sort();
+  auto exp_ar = llvm::object::Archive::create(mem_buffer->getMemBufferRef());
+  if (!exp_ar) {
+    LLDB_LOG_ERROR(l, exp_ar.takeError(), "failed to create archive: {0}");
+    return 0;
   }
+  auto llvm_archive = std::move(exp_ar.get());
+
+  llvm::Error iter_err = llvm::Error::success();
+  Object obj;
+  for (const auto &child : llvm_archive->children(iter_err)) {
+    obj.Clear();
+    auto exp_name = child.getName();
+    if (exp_name) {
+      obj.ar_name = ConstString(exp_name.get());
+    } else {
+      LLDB_LOG_ERROR(l, exp_name.takeError(),
+                     "failed to get archive object name: {0}");
+      continue;
+    }
+
+    auto exp_mtime = child.getLastModified();
+    if (exp_mtime) {
+      obj.modification_time =
+          std::chrono::duration_cast<std::chrono::seconds>(
+              std::chrono::time_point_cast<std::chrono::seconds>(
+                  exp_mtime.get())
+                  .time_since_epoch())
+              .count();
+    } else {
+      LLDB_LOG_ERROR(l, exp_mtime.takeError(),
+                     "failed to get archive object time: {0}");
+      continue;
+    }
+
+    auto exp_size = child.getRawSize();
+    if (exp_size) {
+      obj.size = exp_size.get();
+    } else {
+      LLDB_LOG_ERROR(l, exp_size.takeError(),
+                     "failed to get archive object size: {0}");
+      continue;
+    }
+
+    obj.file_offset = child.getDataOffset();
+
+    auto exp_file_size = child.getSize();
+    if (exp_file_size) {
+      obj.file_size = exp_file_size.get();
+    } else {
+      LLDB_LOG_ERROR(l, exp_file_size.takeError(),
+                     "failed to get archive object file size: {0}");
+      continue;
+    }
+    m_object_name_to_index_map.Append(obj.ar_name, m_objects.size());
+    m_objects.push_back(obj);
+  }
+  if (iter_err) {
+    LLDB_LOG_ERROR(l, std::move(iter_err),
+                   "failed to iterate over archive objects: {0}");
+  }
+  // Now sort all of the object name pointers
+  m_object_name_to_index_map.Sort();
   return m_objects.size();
 }
 
@@ -350,9 +219,9 @@ ObjectContainerBSDArchive::Archive::shared_ptr
 ObjectContainerBSDArchive::Archive::ParseAndCacheArchiveForFile(
     const FileSpec &file, const ArchSpec &arch,
     const llvm::sys::TimePoint<> &time, lldb::offset_t file_offset,
-    DataExtractor &data, ArchiveType archive_type) {
+    DataExtractorSP extractor_sp, ArchiveType archive_type) {
   shared_ptr archive_sp(
-      new Archive(arch, time, file_offset, data, archive_type));
+      new Archive(arch, time, file_offset, extractor_sp, archive_type));
   if (archive_sp) {
     const size_t num_objects = archive_sp->ParseObjects();
     if (num_objects > 0) {
@@ -462,20 +331,21 @@ ObjectContainer *ObjectContainerBSDArchive::CreateInstance(
 ArchiveType
 ObjectContainerBSDArchive::MagicBytesMatch(const DataExtractor &data) {
   uint32_t offset = 0;
-  const char *armag = (const char *)data.PeekData(offset, sizeof(ar_hdr));
+  const char *armag =
+      (const char *)data.PeekData(offset, sizeof(ar_hdr) + SARMAG);
   if (armag == nullptr)
     return ArchiveType::Invalid;
-  if (::strncmp(armag, ARMAG, SARMAG) == 0) {
-    armag += offsetof(struct ar_hdr, ar_fmag) + SARMAG;
-    if (strncmp(armag, ARFMAG, 2) == 0)
-      return ArchiveType::Archive;
-  } else if (::strncmp(armag, ThinArchiveMagic, strlen(ThinArchiveMagic)) ==
-             0) {
-    armag += offsetof(struct ar_hdr, ar_fmag) + strlen(ThinArchiveMagic);
-    if (strncmp(armag, ARFMAG, 2) == 0) {
-      return ArchiveType::ThinArchive;
-    }
-  }
+  ArchiveType result = ArchiveType::Invalid;
+  if (strncmp(armag, ArchiveMagic, SARMAG) == 0)
+    result = ArchiveType::Archive;
+  else if (strncmp(armag, ThinArchiveMagic, SARMAG) == 0)
+    result = ArchiveType::ThinArchive;
+  else
+    return ArchiveType::Invalid;
+
+  armag += offsetof(struct ar_hdr, ar_fmag) + SARMAG;
+  if (strncmp(armag, ARFMAG, 2) == 0)
+    return result;
   return ArchiveType::Invalid;
 }
 
@@ -496,16 +366,17 @@ ObjectContainerBSDArchive::~ObjectContainerBSDArchive() = default;
 
 bool ObjectContainerBSDArchive::ParseHeader() {
   if (m_archive_sp.get() == nullptr) {
-    if (m_data.GetByteSize() > 0) {
+    if (m_extractor_sp->GetByteSize() > 0) {
       ModuleSP module_sp(GetModule());
       if (module_sp) {
         m_archive_sp = Archive::ParseAndCacheArchiveForFile(
             m_file, module_sp->GetArchitecture(),
-            module_sp->GetModificationTime(), m_offset, m_data, m_archive_type);
+            module_sp->GetModificationTime(), m_offset, m_extractor_sp,
+            m_archive_type);
       }
-      // Clear the m_data that contains the entire archive data and let our
-      // m_archive_sp hold onto the data.
-      m_data.Clear();
+      // Clear the m_extractor_sp that contains the entire archive data and let
+      // our m_archive_sp hold onto the data.
+      m_extractor_sp = std::make_shared<DataExtractor>();
     }
   }
   return m_archive_sp.get() != nullptr;
@@ -540,17 +411,22 @@ ObjectFileSP ObjectContainerBSDArchive::GetObjectFile(const FileSpec *file) {
           std::shared_ptr<DataBuffer> child_data_sp =
               FileSystem::Instance().CreateDataBuffer(child, file_size,
                                                       file_offset);
-          if (child_data_sp->GetByteSize() != object->file_size)
+          if (!child_data_sp ||
+              child_data_sp->GetByteSize() != object->file_size)
             return ObjectFileSP();
           lldb::offset_t data_offset = 0;
+          DataExtractorSP extractor_sp =
+              std::make_shared<DataExtractor>(child_data_sp);
           return ObjectFile::FindPlugin(
               module_sp, &child, m_offset + object->file_offset,
-              object->file_size, child_data_sp, data_offset);
+              object->file_size, extractor_sp, data_offset);
         }
         lldb::offset_t data_offset = object->file_offset;
+        DataExtractorSP extractor_sp =
+            std::make_shared<DataExtractor>(m_archive_sp->GetData());
         return ObjectFile::FindPlugin(
             module_sp, file, m_offset + object->file_offset, object->file_size,
-            m_archive_sp->GetData().GetSharedDataBuffer(), data_offset);
+            extractor_sp, data_offset);
       }
     }
   }
@@ -565,14 +441,16 @@ size_t ObjectContainerBSDArchive::GetModuleSpecifications(
   // We have data, which means this is the first 512 bytes of the file Check to
   // see if the magic bytes match and if they do, read the entire table of
   // contents for the archive and cache it
-  DataExtractor data;
-  data.SetData(data_sp, data_offset, data_sp->GetByteSize());
-  ArchiveType archive_type = ObjectContainerBSDArchive::MagicBytesMatch(data);
+  DataExtractorSP extractor_sp = std::make_shared<DataExtractor>();
+  extractor_sp->SetData(data_sp, data_offset, data_sp->GetByteSize());
+  ArchiveType archive_type =
+      ObjectContainerBSDArchive::MagicBytesMatch(*extractor_sp.get());
   if (!file || !data_sp || archive_type == ArchiveType::Invalid)
     return 0;
 
   const size_t initial_count = specs.GetSize();
-  llvm::sys::TimePoint<> file_mod_time = FileSystem::Instance().GetModificationTime(file);
+  llvm::sys::TimePoint<> file_mod_time =
+      FileSystem::Instance().GetModificationTime(file);
   Archive::shared_ptr archive_sp(
       Archive::FindCachedArchive(file, ArchSpec(), file_mod_time, file_offset));
   bool set_archive_arch = false;
@@ -581,9 +459,10 @@ size_t ObjectContainerBSDArchive::GetModuleSpecifications(
     data_sp =
         FileSystem::Instance().CreateDataBuffer(file, file_size, file_offset);
     if (data_sp) {
-      data.SetData(data_sp, 0, data_sp->GetByteSize());
+      extractor_sp->SetData(data_sp);
       archive_sp = Archive::ParseAndCacheArchiveForFile(
-          file, ArchSpec(), file_mod_time, file_offset, data, archive_type);
+          file, ArchSpec(), file_mod_time, file_offset, extractor_sp,
+          archive_type);
     }
   }
 
@@ -622,7 +501,7 @@ size_t ObjectContainerBSDArchive::GetModuleSpecifications(
                 std::chrono::seconds(object->modification_time));
             spec.GetObjectName() = object->ar_name;
             spec.SetObjectOffset(object_file_offset);
-            spec.SetObjectSize(file_size - object_file_offset);
+            spec.SetObjectSize(object->file_size);
             spec.GetObjectModificationTime() = object_mod_time;
           }
         }

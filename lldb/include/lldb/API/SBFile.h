@@ -11,6 +11,8 @@
 
 #include "lldb/API/SBDefines.h"
 
+#include <cstdio>
+
 namespace lldb {
 
 class LLDB_API SBFile {
@@ -23,21 +25,28 @@ class LLDB_API SBFile {
 public:
   SBFile();
   SBFile(FileSP file_sp);
+#ifndef SWIG
   SBFile(const SBFile &rhs);
+  LLDB_DEPRECATED_FIXME("Use the constructor that specifies mode instead",
+                        "SBFile(FILE*, const char*, bool)")
   SBFile(FILE *file, bool transfer_ownership);
+  SBFile(FILE *file, const char *mode, bool transfer_ownership);
+#endif
   SBFile(int fd, const char *mode, bool transfer_ownership);
   ~SBFile();
 
   SBFile &operator=(const SBFile &rhs);
 
-  SBError Read(uint8_t *buf, size_t num_bytes, size_t *bytes_read);
-  SBError Write(const uint8_t *buf, size_t num_bytes, size_t *bytes_written);
+  SBError Read(uint8_t *buf, size_t num_bytes, size_t *OUTPUT);
+  SBError Write(const uint8_t *buf, size_t num_bytes, size_t *OUTPUT);
   SBError Flush();
   bool IsValid() const;
   SBError Close();
 
   operator bool() const;
+#ifndef SWIG
   bool operator!() const;
+#endif
 
   FileSP GetFile() const;
 

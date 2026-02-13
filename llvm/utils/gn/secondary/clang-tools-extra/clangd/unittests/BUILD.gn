@@ -1,5 +1,5 @@
 import("//clang-tools-extra/clangd/quality/gen_decision_forest.gni")
-import("//llvm/utils/unittest/unittest.gni")
+import("//third-party/unittest/unittest.gni")
 
 gen_decision_forest("DecisionForestRuntimeTest") {
   model = "decision_forest_model"
@@ -23,17 +23,22 @@ unittest("ClangdTests") {
     "//clang/lib/Lex",
     "//clang/lib/Sema",
     "//clang/lib/Serialization",
+    "//clang/lib/Testing",
     "//clang/lib/Tooling",
     "//clang/lib/Tooling/Core",
     "//clang/lib/Tooling/Inclusions",
     "//clang/lib/Tooling/Syntax",
     "//llvm/include/llvm/Config:llvm-config",
     "//llvm/lib/Support",
+    "//llvm/lib/Testing/Annotations",
     "//llvm/lib/Testing/Support",
   ]
   include_dirs = [
     ".",
     "//clang-tools-extra/clangd",
+
+    # For "clang-include-cleaner/..." includes.
+    "//clang-tools-extra/include-cleaner/include",
 
     # To pick up the generated inc files.
     "$target_gen_dir/../../clangd/tool",
@@ -65,6 +70,7 @@ unittest("ClangdTests") {
     "DumpASTTests.cpp",
     "ExpectedTypeTest.cpp",
     "FSTests.cpp",
+    "FeatureModulesRegistryTests.cpp",
     "FeatureModulesTests.cpp",
     "FileDistanceTests.cpp",
     "FileIndexTests.cpp",
@@ -89,11 +95,13 @@ unittest("ClangdTests") {
     "ParsedASTTests.cpp",
     "PathMappingTests.cpp",
     "PreambleTests.cpp",
+    "PrerequisiteModulesTest.cpp",
     "PrintASTTests.cpp",
     "ProjectAwareIndexTests.cpp",
     "QualityTests.cpp",
     "RIFFTests.cpp",
     "RenameTests.cpp",
+    "ReplayPeambleTests.cpp",
     "SelectionTests.cpp",
     "SemanticHighlightingTests.cpp",
     "SemanticSelectionTests.cpp",
@@ -101,6 +109,7 @@ unittest("ClangdTests") {
     "SourceCodeTests.cpp",
     "StdLibTests.cpp",
     "SymbolCollectorTests.cpp",
+    "SymbolDocumentationTests.cpp",
     "SymbolInfoTests.cpp",
     "SyncAPI.cpp",
     "TUSchedulerTests.cpp",
@@ -115,6 +124,7 @@ unittest("ClangdTests") {
     "XRefsTests.cpp",
     "support/CancellationTests.cpp",
     "support/ContextTests.cpp",
+    "support/FileCacheTests.cpp",
     "support/FunctionTests.cpp",
     "support/MarkupTests.cpp",
     "support/MemoryTreeTests.cpp",
@@ -129,17 +139,21 @@ unittest("ClangdTests") {
     "tweaks/DumpASTTests.cpp",
     "tweaks/DumpRecordLayoutTests.cpp",
     "tweaks/DumpSymbolTests.cpp",
-    "tweaks/ExpandAutoTypeTests.cpp",
+    "tweaks/ExpandDeducedTypeTests.cpp",
     "tweaks/ExpandMacroTests.cpp",
     "tweaks/ExtractFunctionTests.cpp",
     "tweaks/ExtractVariableTests.cpp",
     "tweaks/MemberwiseConstructorTests.cpp",
     "tweaks/ObjCLocalizeStringLiteralTests.cpp",
     "tweaks/ObjCMemberwiseInitializerTests.cpp",
+    "tweaks/OverridePureVirtualsTests.cpp",
     "tweaks/PopulateSwitchTests.cpp",
     "tweaks/RawStringLiteralTests.cpp",
     "tweaks/RemoveUsingNamespaceTests.cpp",
+    "tweaks/ScopifyEnumTests.cpp",
     "tweaks/ShowSelectionTreeTests.cpp",
+    "tweaks/SpecialMembersTests.cpp",
+    "tweaks/SwapBinaryOperandsTests.cpp",
     "tweaks/SwapIfBranchesTests.cpp",
     "tweaks/TweakTesting.cpp",
     "tweaks/TweakTests.cpp",

@@ -9,7 +9,7 @@
 // RUN: %env_asan_opts=symbolize=0 not %run %t 2>&1 | %asan_symbolize | FileCheck %s
 // REQUIRES: stable-runtime
 
-// UNSUPPORTED: ios
+// UNSUPPORTED: darwin-remote
 
 #if !defined(SHARED_LIB)
 #include <dlfcn.h>
@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
   // CHECK: #0 {{.*}} in inc2 {{.*}}asan-symbolize-sanity-test.cpp:[[@LINE+21]]
   // CHECK: #1 {{.*}} in main {{.*}}asan-symbolize-sanity-test.cpp:[[@LINE-4]]
   // CHECK: allocated by thread T{{.*}} here:
-  // CHECK: #{{.*}} in {{(wrap_|__interceptor_)?}}malloc
+  // CHECK: #{{.*}} in {{(wrap_|_?__interceptor_)?}}malloc
   // CHECK: #{{.*}} in main {{.*}}asan-symbolize-sanity-test.cpp:[[@LINE-9]]
   return 0;
 }

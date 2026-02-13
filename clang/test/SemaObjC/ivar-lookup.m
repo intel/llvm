@@ -29,7 +29,7 @@ extern struct foo x;
 
 @implementation A
 - (int*)method {
-  int *ip = [Ivar method]; // expected-warning{{incompatible pointer types initializing 'int *' with an expression of type 'float *'}}
+  int *ip = [Ivar method]; // expected-error{{incompatible pointer types initializing 'int *' with an expression of type 'float *'}}
                            // Note that there is no warning in Objective-C++
   return 0;
 }
@@ -48,7 +48,6 @@ extern struct foo x;
 }
 @end
 
-// rdar://10309454
 @interface Radar10309454
 {
   int IVAR; // expected-note 4 {{previous definition is here}}
@@ -82,7 +81,6 @@ extern struct foo x;
 @end
 
 // PR5984
-// rdar://14037151
 @interface Radar14037151 {
   int myStatus;
 }
@@ -97,11 +95,11 @@ extern struct foo x;
   union U {
     __typeof(myStatus) __in;  // fails.
   };
-  struct S {
+  struct S { // expected-note{{previous definition is here}}
     __typeof(myStatus) __in;  // fails.
     struct S1 { // expected-warning {{declaration does not declare anything}}
       __typeof(myStatus) __in;  // fails.
-      struct S { // expected-warning {{declaration does not declare anything}}
+      struct S { // expected-error {{nested redefinition of 'S'}}
         __typeof(myStatus) __in;  // fails.
       };
     };
@@ -111,7 +109,6 @@ extern struct foo x;
 }
 @end
 
-// rdar://14278560
 @class NSString, NSData, NSNumber;
 
 @interface NSObject

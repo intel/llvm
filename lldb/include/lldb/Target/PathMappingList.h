@@ -11,8 +11,11 @@
 
 #include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/Status.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/JSON.h"
 #include <map>
+#include <mutex>
+#include <optional>
 #include <vector>
 
 namespace lldb_private {
@@ -22,7 +25,6 @@ public:
   typedef void (*ChangedCallback)(const PathMappingList &path_list,
                                   void *baton);
 
-  // Constructors and Destructors
   PathMappingList();
 
   PathMappingList(ChangedCallback callback, void *callback_baton);
@@ -47,11 +49,17 @@ public:
   // By default, dump all pairs.
   void Dump(Stream *s, int pair_index = -1);
 
-  llvm::json::Value ToJSON();
+  llvm::json::Value ToJSON() const;
 
-  bool IsEmpty() const { return m_pairs.empty(); }
+  bool IsEmpty() const {
+    std::lock_guard<std::mutex> lock(m_pairs_mutex);
+    return m_pairs.empty();
+  }
 
-  size_t GetSize() const { return m_pairs.size(); }
+  size_t GetSize() const {
+    std::lock_guard<std::mutex> lock(m_pairs_mutex);
+    return m_pairs.size();
+  }
 
   bool GetPathsAtIndex(uint32_t idx, ConstString &path,
                        ConstString &new_path) const;
@@ -81,16 +89,16 @@ public:
   /// \param[in] only_if_exists
   ///     If \b true, besides matching \p path with the remapping rules, this
   ///     tries to check with the filesystem that the remapped file exists. If
-  ///     no valid file is found, \b None is returned. This might be expensive,
-  ///     specially on a network.
+  ///     no valid file is found, \b std::nullopt is returned. This might be
+  ///     expensive, specially on a network.
   ///
   ///     If \b false, then the existence of the returned remapping is not
   ///     checked.
   ///
   /// \return
   ///     The remapped filespec that may or may not exist on disk.
-  llvm::Optional<FileSpec> RemapPath(llvm::StringRef path,
-                                     bool only_if_exists = false) const;
+  std::optional<FileSpec> RemapPath(llvm::StringRef path,
+                                    bool only_if_exists = false) const;
   bool RemapPath(const char *, std::string &) const = delete;
 
   /// Perform reverse source path remap for input \a file.
@@ -104,11 +112,11 @@ public:
   ///     The reversed mapped new path.
   ///
   /// \return
-  ///     llvm::None if no remapping happens, otherwise, the matching source map
-  ///     entry's ""to_new_pathto"" part (which is the prefix of \a file) is
+  ///     std::nullopt if no remapping happens, otherwise, the matching source
+  ///     map entry's ""to_new_pathto"" part (which is the prefix of \a file) is
   ///     returned.
-  llvm::Optional<llvm::StringRef> ReverseRemapPath(const FileSpec &file,
-                                                   FileSpec &fixed) const;
+  std::optional<llvm::StringRef> ReverseRemapPath(const FileSpec &file,
+                                                  FileSpec &fixed) const;
 
   /// Finds a source file given a file spec using the path remappings.
   ///
@@ -123,11 +131,12 @@ public:
   ///
   /// \return
   ///     The newly remapped filespec that is guaranteed to exist.
-  llvm::Optional<FileSpec> FindFile(const FileSpec &orig_spec) const;
+  std::optional<FileSpec> FindFile(const FileSpec &orig_spec) const;
 
-  uint32_t FindIndexForPath(llvm::StringRef path) const;
-
-  uint32_t GetModificationID() const { return m_mod_id; }
+  uint32_t GetModificationID() const {
+    std::lock_guard<std::mutex> lock(m_pairs_mutex);
+    return m_mod_id;
+  }
 
 protected:
   typedef std::pair<ConstString, ConstString> pair;
@@ -135,14 +144,24 @@ protected:
   typedef collection::iterator iterator;
   typedef collection::const_iterator const_iterator;
 
+  void AppendNoLock(llvm::StringRef path, llvm::StringRef replacement);
+  uint32_t FindIndexForPathNoLock(llvm::StringRef path) const;
+  void Notify(bool notify) const;
+
   iterator FindIteratorForPath(ConstString path);
 
   const_iterator FindIteratorForPath(ConstString path) const;
 
   collection m_pairs;
+  mutable std::mutex m_pairs_mutex;
+
   ChangedCallback m_callback = nullptr;
   void *m_callback_baton = nullptr;
-  uint32_t m_mod_id = 0; // Incremented anytime anything is added or removed.
+  mutable std::mutex m_callback_mutex;
+
+  /// Incremented anytime anything is added to or removed from m_pairs. Also
+  /// protected by m_pairs_mutex.
+  uint32_t m_mod_id = 0;
 };
 
 } // namespace lldb_private

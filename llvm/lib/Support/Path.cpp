@@ -13,12 +13,13 @@
 #include "llvm/Support/Path.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/ScopeExit.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/Config/config.h"
 #include "llvm/Config/llvm-config.h"
-#include "llvm/Support/Endian.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/IOSandbox.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Signals.h"
 #include <cctype>
@@ -102,7 +103,7 @@ namespace {
 
     if (is_style_windows(style)) {
       if (pos == StringRef::npos)
-        pos = str.find_last_of(':', str.size() - 2);
+        pos = str.find_last_of(':', str.size() - 1);
     }
 
     if (pos == StringRef::npos || (pos == 1 && is_separator(str[0], style)))
@@ -261,7 +262,7 @@ const_iterator &const_iterator::operator++() {
     // Root dir.
     if (was_net ||
         // c:/
-        (is_style_windows(S) && Component.endswith(":"))) {
+        (is_style_windows(S) && Component.ends_with(":"))) {
       Component = Path.substr(Position, 1);
       return *this;
     }
@@ -350,7 +351,7 @@ StringRef root_path(StringRef path, Style style) {
   if (b != e) {
     bool has_net =
         b->size() > 2 && is_separator((*b)[0], style) && (*b)[1] == (*b)[0];
-    bool has_drive = is_style_windows(style) && b->endswith(":");
+    bool has_drive = is_style_windows(style) && b->ends_with(":");
 
     if (has_net || has_drive) {
       if ((++pos != e) && is_separator((*pos)[0], style)) {
@@ -375,7 +376,7 @@ StringRef root_name(StringRef path, Style style) {
   if (b != e) {
     bool has_net =
         b->size() > 2 && is_separator((*b)[0], style) && (*b)[1] == (*b)[0];
-    bool has_drive = is_style_windows(style) && b->endswith(":");
+    bool has_drive = is_style_windows(style) && b->ends_with(":");
 
     if (has_net || has_drive) {
       // just {C:,//net}, return the first component.
@@ -392,7 +393,7 @@ StringRef root_directory(StringRef path, Style style) {
   if (b != e) {
     bool has_net =
         b->size() > 2 && is_separator((*b)[0], style) && (*b)[1] == (*b)[0];
-    bool has_drive = is_style_windows(style) && b->endswith(":");
+    bool has_drive = is_style_windows(style) && b->ends_with(":");
 
     if ((has_net || has_drive) &&
         // {C:,//net}, skip to the next component.
@@ -512,7 +513,7 @@ static bool starts_with(StringRef Path, StringRef Prefix,
     }
     return true;
   }
-  return Path.startswith(Prefix);
+  return Path.starts_with(Prefix);
 }
 
 bool replace_path_prefix(SmallVectorImpl<char> &Path, StringRef OldPrefix,
@@ -561,7 +562,7 @@ void native(SmallVectorImpl<char> &Path, Style style) {
       Path = PathHome;
     }
   } else {
-    std::replace(Path.begin(), Path.end(), '\\', '/');
+    llvm::replace(Path, '\\', '/');
   }
 }
 
@@ -570,7 +571,7 @@ std::string convert_to_slash(StringRef path, Style style) {
     return std::string(path);
 
   std::string s = path.str();
-  std::replace(s.begin(), s.end(), '\\', '/');
+  llvm::replace(s, '\\', '/');
   return s;
 }
 
@@ -700,6 +701,55 @@ bool is_relative(const Twine &path, Style style) {
   return !is_absolute(path, style);
 }
 
+void make_absolute(const Twine &current_directory,
+                   SmallVectorImpl<char> &path) {
+  StringRef p(path.data(), path.size());
+
+  bool rootDirectory = has_root_directory(p);
+  bool rootName = has_root_name(p);
+
+  // Already absolute.
+  if ((rootName || is_style_posix(Style::native)) && rootDirectory)
+    return;
+
+  // All the following conditions will need the current directory.
+  SmallString<128> current_dir;
+  current_directory.toVector(current_dir);
+
+  // Relative path. Prepend the current directory.
+  if (!rootName && !rootDirectory) {
+    // Append path to the current directory.
+    append(current_dir, p);
+    // Set path to the result.
+    path.swap(current_dir);
+    return;
+  }
+
+  if (!rootName && rootDirectory) {
+    StringRef cdrn = root_name(current_dir);
+    SmallString<128> curDirRootName(cdrn.begin(), cdrn.end());
+    append(curDirRootName, p);
+    // Set path to the result.
+    path.swap(curDirRootName);
+    return;
+  }
+
+  if (rootName && !rootDirectory) {
+    StringRef pRootName = root_name(p);
+    StringRef bRootDirectory = root_directory(current_dir);
+    StringRef bRelativePath = relative_path(current_dir);
+    StringRef pRelativePath = relative_path(p);
+
+    SmallString<128> res;
+    append(res, pRootName, bRootDirectory, bRelativePath, pRelativePath);
+    path.swap(res);
+    return;
+  }
+
+  llvm_unreachable("All rootName and rootDirectory combinations should have "
+                   "occurred above!");
+}
+
 StringRef remove_leading_dotslash(StringRef Path, Style style) {
   // Remove leading "./" (or ".//" or "././" etc.)
   while (Path.size() > 2 && Path[0] == '.' && is_separator(Path[1], style)) {
@@ -707,6 +757,13 @@ StringRef remove_leading_dotslash(StringRef Path, Style style) {
     while (Path.size() > 0 && is_separator(Path[0], style))
       Path = Path.substr(1);
   }
+  return Path;
+}
+
+StringRef remove_leading_dotbackslash_only(StringRef Path) {
+  // Remove leading ".\\".
+  if (Path.size() > 2 && Path[0] == '.' && Path[1] == '\\')
+    Path = Path.substr(2);
   return Path;
 }
 
@@ -771,7 +828,7 @@ bool remove_dots(SmallVectorImpl<char> &the_path, bool remove_dot_dot,
 
   if (!components.empty()) {
     buffer += components[0];
-    for (StringRef C : makeArrayRef(components).drop_front()) {
+    for (StringRef C : ArrayRef(components).drop_front()) {
       buffer += preferred_separator(style);
       buffer += C;
     }
@@ -785,6 +842,8 @@ bool remove_dots(SmallVectorImpl<char> &the_path, bool remove_dot_dot,
 namespace fs {
 
 std::error_code getUniqueID(const Twine Path, UniqueID &Result) {
+  sandbox::violationIfEnabled();
+
   file_status Status;
   std::error_code EC = status(Path, Status);
   if (EC)
@@ -842,13 +901,17 @@ static std::error_code
 createTemporaryFile(const Twine &Model, int &ResultFD,
                     llvm::SmallVectorImpl<char> &ResultPath, FSEntity Type,
                     sys::fs::OpenFlags Flags = sys::fs::OF_None) {
+  // Any *temporary* file is assumed to be a compiler-internal output, not
+  // a formal one.
+  auto BypassSandbox = sys::sandbox::scopedDisable();
+
   SmallString<128> Storage;
   StringRef P = Model.toNullTerminatedStringRef(Storage);
   assert(P.find_first_of(separators(Style::native)) == StringRef::npos &&
          "Model must be a simple filename.");
   // Use P.begin() so that createUniqueEntity doesn't need to recreate Storage.
   return createUniqueEntity(P.begin(), ResultFD, ResultPath, true, Type, Flags,
-                            owner_read | owner_write);
+                            all_read | all_write);
 }
 
 static std::error_code
@@ -903,56 +966,9 @@ getPotentiallyUniqueTempFileName(const Twine &Prefix, StringRef Suffix,
   return createTemporaryFile(Prefix, Suffix, Dummy, ResultPath, FS_Name);
 }
 
-void make_absolute(const Twine &current_directory,
-                   SmallVectorImpl<char> &path) {
-  StringRef p(path.data(), path.size());
-
-  bool rootDirectory = path::has_root_directory(p);
-  bool rootName = path::has_root_name(p);
-
-  // Already absolute.
-  if ((rootName || is_style_posix(Style::native)) && rootDirectory)
-    return;
-
-  // All of the following conditions will need the current directory.
-  SmallString<128> current_dir;
-  current_directory.toVector(current_dir);
-
-  // Relative path. Prepend the current directory.
-  if (!rootName && !rootDirectory) {
-    // Append path to the current directory.
-    path::append(current_dir, p);
-    // Set path to the result.
-    path.swap(current_dir);
-    return;
-  }
-
-  if (!rootName && rootDirectory) {
-    StringRef cdrn = path::root_name(current_dir);
-    SmallString<128> curDirRootName(cdrn.begin(), cdrn.end());
-    path::append(curDirRootName, p);
-    // Set path to the result.
-    path.swap(curDirRootName);
-    return;
-  }
-
-  if (rootName && !rootDirectory) {
-    StringRef pRootName      = path::root_name(p);
-    StringRef bRootDirectory = path::root_directory(current_dir);
-    StringRef bRelativePath  = path::relative_path(current_dir);
-    StringRef pRelativePath  = path::relative_path(p);
-
-    SmallString<128> res;
-    path::append(res, pRootName, bRootDirectory, bRelativePath, pRelativePath);
-    path.swap(res);
-    return;
-  }
-
-  llvm_unreachable("All rootName and rootDirectory combinations should have "
-                   "occurred above!");
-}
-
 std::error_code make_absolute(SmallVectorImpl<char> &path) {
+  sandbox::violationIfEnabled();
+
   if (path::is_absolute(path))
     return {};
 
@@ -960,7 +976,7 @@ std::error_code make_absolute(SmallVectorImpl<char> &path) {
   if (std::error_code ec = current_path(current_dir))
     return ec;
 
-  make_absolute(current_dir, path);
+  path::make_absolute(current_dir, path);
   return {};
 }
 
@@ -1008,7 +1024,7 @@ static std::error_code copy_file_internal(int ReadFD, int WriteFD) {
   delete[] Buf;
 
   if (BytesRead < 0 || BytesWritten < 0)
-    return std::error_code(errno, std::generic_category());
+    return errnoAsErrorCode();
   return std::error_code();
 }
 
@@ -1045,6 +1061,8 @@ std::error_code copy_file(const Twine &From, int ToFD) {
 }
 
 ErrorOr<MD5::MD5Result> md5_contents(int FD) {
+  sandbox::violationIfEnabled();
+
   MD5 Hash;
 
   constexpr size_t BufSize = 4096;
@@ -1054,17 +1072,19 @@ ErrorOr<MD5::MD5Result> md5_contents(int FD) {
     BytesRead = read(FD, Buf.data(), BufSize);
     if (BytesRead <= 0)
       break;
-    Hash.update(makeArrayRef(Buf.data(), BytesRead));
+    Hash.update(ArrayRef(Buf.data(), BytesRead));
   }
 
   if (BytesRead < 0)
-    return std::error_code(errno, std::generic_category());
+    return errnoAsErrorCode();
   MD5::MD5Result Result;
   Hash.final(Result);
   return Result;
 }
 
 ErrorOr<MD5::MD5Result> md5_contents(const Twine &Path) {
+  sandbox::violationIfEnabled();
+
   int FD;
   if (auto EC = openFileForRead(Path, FD, OF_None))
     return EC;
@@ -1094,6 +1114,8 @@ bool is_directory(const basic_file_status &status) {
 }
 
 std::error_code is_directory(const Twine &path, bool &result) {
+  sandbox::violationIfEnabled();
+
   file_status st;
   if (std::error_code ec = status(path, st))
     return ec;
@@ -1106,6 +1128,8 @@ bool is_regular_file(const basic_file_status &status) {
 }
 
 std::error_code is_regular_file(const Twine &path, bool &result) {
+  sandbox::violationIfEnabled();
+
   file_status st;
   if (std::error_code ec = status(path, st))
     return ec;
@@ -1118,6 +1142,8 @@ bool is_symlink_file(const basic_file_status &status) {
 }
 
 std::error_code is_symlink_file(const Twine &path, bool &result) {
+  sandbox::violationIfEnabled();
+
   file_status st;
   if (std::error_code ec = status(path, st, false))
     return ec;
@@ -1132,6 +1158,8 @@ bool is_other(const basic_file_status &status) {
 }
 
 std::error_code is_other(const Twine &Path, bool &Result) {
+  sandbox::violationIfEnabled();
+
   file_status FileStatus;
   if (std::error_code EC = status(Path, FileStatus))
     return EC;
@@ -1143,12 +1171,14 @@ void directory_entry::replace_filename(const Twine &Filename, file_type Type,
                                        basic_file_status Status) {
   SmallString<128> PathStr = path::parent_path(Path);
   path::append(PathStr, Filename);
-  this->Path = std::string(PathStr.str());
+  this->Path = std::string(PathStr);
   this->Type = Type;
   this->Status = Status;
 }
 
 ErrorOr<perms> getPermissions(const Twine &Path) {
+  sandbox::violationIfEnabled();
+
   file_status Status;
   if (std::error_code EC = status(Path, Status))
     return EC;
@@ -1173,15 +1203,17 @@ const char *mapped_file_region::const_data() const {
 
 Error readNativeFileToEOF(file_t FileHandle, SmallVectorImpl<char> &Buffer,
                           ssize_t ChunkSize) {
+  sandbox::violationIfEnabled();
+
   // Install a handler to truncate the buffer to the correct size on exit.
   size_t Size = Buffer.size();
-  auto TruncateOnExit = make_scope_exit([&]() { Buffer.truncate(Size); });
+  llvm::scope_exit TruncateOnExit([&]() { Buffer.truncate(Size); });
 
   // Read into Buffer until we hit EOF.
   for (;;) {
     Buffer.resize_for_overwrite(Size + ChunkSize);
     Expected<size_t> ReadBytes = readNativeFile(
-        FileHandle, makeMutableArrayRef(Buffer.begin() + Size, ChunkSize));
+        FileHandle, MutableArrayRef(Buffer.begin() + Size, ChunkSize));
     if (!ReadBytes)
       return ReadBytes.takeError();
     if (*ReadBytes == 0)
@@ -1202,17 +1234,9 @@ Error readNativeFileToEOF(file_t FileHandle, SmallVectorImpl<char> &Buffer,
 #include "Windows/Path.inc"
 #endif
 
-bool IsLLVMDriver = false;
-
 namespace llvm {
 namespace sys {
 namespace fs {
-
-std::string getMainExecutable(const char *Argv0, void *MainAddr) {
-  if (IsLLVMDriver)
-    return sys::path::stem(Argv0).str();
-  return getMainExecutableImpl(Argv0, MainAddr);
-}
 
 TempFile::TempFile(StringRef Name, int FD)
     : TmpName(std::string(Name)), FD(FD) {}
@@ -1234,7 +1258,7 @@ TempFile::~TempFile() { assert(Done); }
 Error TempFile::discard() {
   Done = true;
   if (FD != -1 && close(FD) == -1) {
-    std::error_code EC = std::error_code(errno, std::generic_category());
+    std::error_code EC = errnoAsErrorCode();
     return errorCodeToError(EC);
   }
   FD = -1;
@@ -1303,10 +1327,8 @@ Error TempFile::keep(const Twine &Name) {
   if (!RenameEC)
     TmpName = "";
 
-  if (close(FD) == -1) {
-    std::error_code EC(errno, std::generic_category());
-    return errorCodeToError(EC);
-  }
+  if (close(FD) == -1)
+    return errorCodeToError(errnoAsErrorCode());
   FD = -1;
 
   return errorCodeToError(RenameEC);
@@ -1325,10 +1347,8 @@ Error TempFile::keep() {
 
   TmpName = "";
 
-  if (close(FD) == -1) {
-    std::error_code EC(errno, std::generic_category());
-    return errorCodeToError(EC);
-  }
+  if (close(FD) == -1)
+    return errorCodeToError(errnoAsErrorCode());
   FD = -1;
 
   return Error::success();

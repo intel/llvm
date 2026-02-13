@@ -68,7 +68,7 @@ spirv.module Logical GLSL450 {
   }
 
   spirv.func @cond_branch_with_weights(%cond: i1) -> () "None" {
-    // CHECK: llvm.cond_br %{{.*}} weights(dense<[1, 2]> : vector<2xi32>), ^bb1, ^bb2
+    // CHECK: llvm.cond_br %{{.*}} weights([1, 2]), ^bb1, ^bb2
     spirv.BranchConditional %cond [1, 2], ^true, ^false
   // CHECK: ^bb1:
   ^true:
@@ -86,6 +86,14 @@ spirv.module Logical GLSL450 {
 //===----------------------------------------------------------------------===//
 
 spirv.module Logical GLSL450 {
+  // CHECK-LABEL: @empty_loop
+  spirv.func @empty_loop() "None" {
+    // CHECK: llvm.return
+    spirv.mlir.loop {
+    }
+    spirv.Return
+  }
+
   // CHECK-LABEL: @infinite_loop
   spirv.func @infinite_loop(%count : i32) -> () "None" {
     // CHECK:   llvm.br ^[[BB1:.*]]

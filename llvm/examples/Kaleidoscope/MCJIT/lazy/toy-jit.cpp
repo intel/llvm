@@ -549,7 +549,7 @@ static PrototypeAST *ParsePrototype() {
     // Read the precedence if present.
     if (CurTok == tok_number) {
       if (NumVal < 1 || NumVal > 100)
-        return ErrorP("Invalid precedecnce: must be 1..100");
+        return ErrorP("Invalid precedence: must be 1..100");
       BinaryPrecedence = (unsigned)NumVal;
       getNextToken();
     }
@@ -745,7 +745,7 @@ Value *IfExprAST::Codegen() {
   ThenBB = Builder.GetInsertBlock();
   
   // Emit else block.
-  TheFunction->getBasicBlockList().push_back(ElseBB);
+  TheFunction->insert(TheFunction->end(), ElseBB);
   Builder.SetInsertPoint(ElseBB);
   
   Value *ElseV = Else->Codegen();
@@ -756,7 +756,7 @@ Value *IfExprAST::Codegen() {
   ElseBB = Builder.GetInsertBlock();
   
   // Emit merge block.
-  TheFunction->getBasicBlockList().push_back(MergeBB);
+  TheFunction->insert(TheFunction->end(), MergeBB);
   Builder.SetInsertPoint(MergeBB);
   PHINode *PN = Builder.CreatePHI(Type::getDoubleTy(TheContext), 2, "iftmp");
 

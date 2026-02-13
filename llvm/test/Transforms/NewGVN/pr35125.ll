@@ -6,7 +6,7 @@
 define i32 @main() #0 {
 ; CHECK-LABEL: @main(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[TMP0:%.*]] = load i32, i32* @a, align 4
+; CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr @a, align 4
 ; CHECK-NEXT:    [[NEG:%.*]] = xor i32 [[TMP0]], -1
 ; CHECK-NEXT:    [[CMP:%.*]] = icmp sgt i32 [[TMP0]], -1
 ; CHECK-NEXT:    br i1 [[CMP]], label [[IF_THEN:%.*]], label [[IF_END:%.*]]
@@ -18,23 +18,20 @@ define i32 @main() #0 {
 ; CHECK-NEXT:    [[CMP2:%.*]] = icmp ult i32 [[STOREMERGE]], [[PHIOFOPS]]
 ; CHECK-NEXT:    br i1 [[CMP2]], label [[IF_THEN3:%.*]], label [[IF_END6:%.*]]
 ; CHECK:       if.then3:
-; CHECK-NEXT:    [[TOBOOL:%.*]] = icmp eq i32 [[STOREMERGE]], -1
-; CHECK-NEXT:    br i1 [[TOBOOL]], label [[LOR_RHS:%.*]], label [[LOR_END:%.*]]
+; CHECK-NEXT:    br i1 false, label [[LOR_RHS:%.*]], label [[LOR_END:%.*]]
 ; CHECK:       lor.rhs:
-; CHECK-NEXT:    [[TOBOOL5:%.*]] = icmp ne i32 [[TMP0]], 0
-; CHECK-NEXT:    [[PHITMP:%.*]] = zext i1 [[TOBOOL5]] to i32
+; CHECK-NEXT:    store i8 poison, ptr null, align 1
 ; CHECK-NEXT:    br label [[LOR_END]]
 ; CHECK:       lor.end:
-; CHECK-NEXT:    [[TMP1:%.*]] = phi i32 [ 1, [[IF_THEN3]] ], [ [[PHITMP]], [[LOR_RHS]] ]
-; CHECK-NEXT:    store i32 [[TMP1]], i32* @a, align 4
+; CHECK-NEXT:    store i32 1, ptr @a, align 4
 ; CHECK-NEXT:    br label [[IF_END6]]
 ; CHECK:       if.end6:
-; CHECK-NEXT:    [[TMP2:%.*]] = load i32, i32* @a, align 4
-; CHECK-NEXT:    [[CALL:%.*]] = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str, i64 0, i64 0), i32 [[TMP2]])
+; CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr @a, align 4
+; CHECK-NEXT:    [[CALL:%.*]] = call i32 (ptr, ...) @printf(ptr @.str, i32 [[TMP2]])
 ; CHECK-NEXT:    ret i32 0
 ;
 entry:
-  %0 = load i32, i32* @a, align 4
+  %0 = load i32, ptr @a, align 4
   %neg = xor i32 %0, -1
   %cmp = icmp sgt i32 %0, -1
   br i1 %cmp, label %if.then, label %if.end
@@ -59,12 +56,12 @@ lor.rhs:
 
 lor.end:
   %1 = phi i32 [ 1, %if.then3 ], [ %phitmp, %lor.rhs ]
-  store i32 %1, i32* @a, align 4
+  store i32 %1, ptr @a, align 4
   br label %if.end6
 
 if.end6:
-  %2 = load i32, i32* @a, align 4
-  %call = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str, i64 0, i64 0), i32 %2) #3
+  %2 = load i32, ptr @a, align 4
+  %call = call i32 (ptr, ...) @printf(ptr @.str, i32 %2) #3
   ret i32 0
 }
-declare i32 @printf(i8*, ...) #2
+declare i32 @printf(ptr, ...) #2

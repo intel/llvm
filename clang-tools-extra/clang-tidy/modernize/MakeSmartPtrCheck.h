@@ -1,4 +1,4 @@
-//===--- MakeSmartPtrCheck.h - clang-tidy------------------------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MODERNIZE_MAKE_SMART_PTR_H
-#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MODERNIZE_MAKE_SMART_PTR_H
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MODERNIZE_MAKESMARTPTRCHECK_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MODERNIZE_MAKESMARTPTRCHECK_H
 
 #include "../ClangTidyCheck.h"
 #include "../utils/IncludeInserter.h"
@@ -16,9 +16,7 @@
 #include "llvm/ADT/StringRef.h"
 #include <string>
 
-namespace clang {
-namespace tidy {
-namespace modernize {
+namespace clang::tidy::modernize {
 
 /// Base class for MakeSharedCheck and MakeUniqueCheck.
 class MakeSmartPtrCheck : public ClangTidyCheck {
@@ -43,7 +41,7 @@ protected:
   /// Returns whether the C++ version is compatible with current check.
   bool isLanguageVersionSupported(const LangOptions &LangOpts) const override;
 
-  static const char PointerType[];
+  static constexpr char PointerType[] = "pointerType";
 
 private:
   utils::IncludeInserter Inserter;
@@ -53,10 +51,10 @@ private:
   const bool IgnoreDefaultInitialization;
 
   void checkConstruct(SourceManager &SM, ASTContext *Ctx,
-                      const CXXConstructExpr *Construct, const QualType *Type,
-                      const CXXNewExpr *New);
+                      const CXXConstructExpr *Construct, const VarDecl *DVar,
+                      const QualType *Type, const CXXNewExpr *New);
   void checkReset(SourceManager &SM, ASTContext *Ctx,
-                  const CXXMemberCallExpr *Member, const CXXNewExpr *New);
+                  const CXXMemberCallExpr *Reset, const CXXNewExpr *New);
 
   /// Returns true when the fixes for replacing CXXNewExpr are generated.
   bool replaceNew(DiagnosticBuilder &Diag, const CXXNewExpr *New,
@@ -64,8 +62,6 @@ private:
   void insertHeader(DiagnosticBuilder &Diag, FileID FD);
 };
 
-} // namespace modernize
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::modernize
 
-#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MODERNIZE_MAKE_SMART_PTR_H
+#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MODERNIZE_MAKESMARTPTRCHECK_H

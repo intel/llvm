@@ -8,9 +8,11 @@
 
 // The test checks that the types can be used to pass kernel parameters by value
 // RUN: %clangxx -fsycl -fsyntax-only %s -Wno-sycl-strict -Xclang -verify-ignore-unexpected=note,warning
+// RUN: %clangxx -D__SYCL_USE_LIBSYCL8_VEC_IMPL=1 -fsycl -fsyntax-only %s -Wno-sycl-strict -Xclang -verify-ignore-unexpected=note,warning
 
 // Check that the test can be compiled with device compiler as well.
 // RUN: %clangxx -fsycl-device-only -fsyntax-only %s -Wno-sycl-strict
+// RUN: %clangxx -D__SYCL_USE_LIBSYCL8_VEC_IMPL=1 -fsycl-device-only -fsyntax-only %s -Wno-sycl-strict
 
 #include <sycl/sycl.hpp>
 
@@ -27,15 +29,19 @@ struct SomeMarrayStructure {
   sycl::marray<double, 5> points;
 };
 
-#define CHECK_PASSING_TO_KERNEL_BY_VALUE(Type)                                 \
-  static_assert(std::is_standard_layout<Type>::value,                          \
-                "Is not standard layouti type.");                              \
-  static_assert(std::is_trivially_copyable<Type>::value,                       \
+template <typename T> void check() {
+  static_assert(std::is_standard_layout<T>::value,
+                "Is not standard layouti type.");
+  static_assert(std::is_trivially_copyable<T>::value,
                 "Is not trivially copyable type.");
+}
 
-#ifdef __SYCL_DEVICE_ONLY__
-CHECK_PASSING_TO_KERNEL_BY_VALUE(int)
-CHECK_PASSING_TO_KERNEL_BY_VALUE(sycl::cl_uchar4)
-CHECK_PASSING_TO_KERNEL_BY_VALUE(SomeStructure)
-#endif
-CHECK_PASSING_TO_KERNEL_BY_VALUE(SomeMarrayStructure)
+SYCL_EXTERNAL void foo() {
+  check<int>();
+  check<sycl::vec<sycl::opencl::cl_uchar, 4>>();
+  check<SomeStructure>();
+  check<sycl::int4>();
+  check<sycl::long16>();
+
+  check<SomeMarrayStructure>();
+}

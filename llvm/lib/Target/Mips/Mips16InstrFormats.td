@@ -62,7 +62,6 @@ class MipsInst16<dag outs, dag ins, string asmstr, list<dag> pattern,
   let Inst{15-11} = Opcode;
 
   let Size=2;
-  field bits<16> SoftFail = 0;
 }
 
 //
@@ -75,7 +74,6 @@ class MipsInst16_32<dag outs, dag ins, string asmstr, list<dag> pattern,
   field bits<32> Inst;
 
   let Size=4;
-  field bits<32> SoftFail = 0;
 }
 
 class MipsInst16_EXTEND<dag outs, dag ins, string asmstr, list<dag> pattern,
@@ -336,7 +334,7 @@ class FI8_MOVR3216<dag outs, dag ins, string asmstr,
                    list<dag> pattern, InstrItinClass itin>:
   MipsInst16<outs, ins, asmstr, pattern, itin>
 {
-
+  // FIXME: this seems wrong? 'ry' should be 3 bits, and 'r32' 5?
   bits<4> ry;
   bits<4> r32;
 

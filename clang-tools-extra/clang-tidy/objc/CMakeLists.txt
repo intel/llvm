@@ -3,8 +3,8 @@ set(LLVM_LINK_COMPONENTS
   Support
   )
 
-add_clang_library(clangTidyObjCModule
-  AssertEquals.cpp
+add_clang_library(clangTidyObjCModule STATIC
+  AssertEqualsCheck.cpp
   AvoidNSErrorInitCheck.cpp
   DeallocInCategoryCheck.cpp
   ForbiddenSubclassingCheck.cpp
@@ -21,6 +21,7 @@ add_clang_library(clangTidyObjCModule
 
   DEPENDS
   omp_gen
+  ClangDriverOptions
   )
 
 clang_target_link_libraries(clangTidyObjCModule

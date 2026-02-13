@@ -1,4 +1,4 @@
-//===--- AvoidGotoCheck.cpp - clang-tidy-----------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,20 +7,29 @@
 //===----------------------------------------------------------------------===//
 
 #include "AvoidGotoCheck.h"
-#include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace cppcoreguidelines {
+namespace clang::tidy::cppcoreguidelines {
 
 namespace {
 AST_MATCHER(GotoStmt, isForwardJumping) {
   return Node.getBeginLoc() < Node.getLabel()->getBeginLoc();
 }
+
+AST_MATCHER(GotoStmt, isInMacro) {
+  return Node.getBeginLoc().isMacroID() && Node.getEndLoc().isMacroID();
+}
 } // namespace
+
+AvoidGotoCheck::AvoidGotoCheck(StringRef Name, ClangTidyContext *Context)
+    : ClangTidyCheck(Name, Context),
+      IgnoreMacros(Options.get("IgnoreMacros", false)) {}
+
+void AvoidGotoCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
+  Options.store(Opts, "IgnoreMacros", IgnoreMacros);
+}
 
 void AvoidGotoCheck::registerMatchers(MatchFinder *Finder) {
   // TODO: This check does not recognize `IndirectGotoStmt` which is a
@@ -32,7 +41,10 @@ void AvoidGotoCheck::registerMatchers(MatchFinder *Finder) {
   auto Loop = mapAnyOf(forStmt, cxxForRangeStmt, whileStmt, doStmt);
   auto NestedLoop = Loop.with(hasAncestor(Loop));
 
-  Finder->addMatcher(gotoStmt(anyOf(unless(hasAncestor(NestedLoop)),
+  const ast_matchers::internal::Matcher<GotoStmt> Anything = anything();
+
+  Finder->addMatcher(gotoStmt(IgnoreMacros ? unless(isInMacro()) : Anything,
+                              anyOf(unless(hasAncestor(NestedLoop)),
                                     unless(isForwardJumping())))
                          .bind("goto"),
                      this);
@@ -46,6 +58,4 @@ void AvoidGotoCheck::check(const MatchFinder::MatchResult &Result) {
   diag(Goto->getLabel()->getBeginLoc(), "label defined here",
        DiagnosticIDs::Note);
 }
-} // namespace cppcoreguidelines
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::cppcoreguidelines

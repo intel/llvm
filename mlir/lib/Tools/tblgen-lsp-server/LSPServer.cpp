@@ -8,15 +8,33 @@
 
 #include "LSPServer.h"
 
-#include "../lsp-server-support/Logging.h"
-#include "../lsp-server-support/Protocol.h"
-#include "../lsp-server-support/Transport.h"
 #include "TableGenServer.h"
-#include "llvm/ADT/FunctionExtras.h"
-#include "llvm/ADT/StringMap.h"
+#include "llvm/Support/LSP/Logging.h"
+#include "llvm/Support/LSP/Protocol.h"
+#include "llvm/Support/LSP/Transport.h"
+#include <optional>
 
 using namespace mlir;
 using namespace mlir::lsp;
+
+using llvm::lsp::Callback;
+using llvm::lsp::DidChangeTextDocumentParams;
+using llvm::lsp::DidCloseTextDocumentParams;
+using llvm::lsp::DidOpenTextDocumentParams;
+using llvm::lsp::DocumentLinkParams;
+using llvm::lsp::Hover;
+using llvm::lsp::InitializedParams;
+using llvm::lsp::InitializeParams;
+using llvm::lsp::JSONTransport;
+using llvm::lsp::Location;
+using llvm::lsp::Logger;
+using llvm::lsp::MessageHandler;
+using llvm::lsp::NoParams;
+using llvm::lsp::OutgoingNotification;
+using llvm::lsp::PublishDiagnosticsParams;
+using llvm::lsp::ReferenceParams;
+using llvm::lsp::TextDocumentPositionParams;
+using llvm::lsp::TextDocumentSyncKind;
 
 //===----------------------------------------------------------------------===//
 // LSPServer
@@ -60,7 +78,7 @@ struct LSPServer {
   // Hover
 
   void onHover(const TextDocumentPositionParams &params,
-               Callback<Optional<Hover>> reply);
+               Callback<std::optional<Hover>> reply);
 
   //===--------------------------------------------------------------------===//
   // Fields
@@ -81,6 +99,7 @@ struct LSPServer {
 
 //===----------------------------------------------------------------------===//
 // Initialization
+//===----------------------------------------------------------------------===//
 
 void LSPServer::onInitialize(const InitializeParams &params,
                              Callback<llvm::json::Value> reply) {
@@ -115,6 +134,7 @@ void LSPServer::onShutdown(const NoParams &, Callback<std::nullptr_t> reply) {
 
 //===----------------------------------------------------------------------===//
 // Document Change
+//===----------------------------------------------------------------------===//
 
 void LSPServer::onDocumentDidOpen(const DidOpenTextDocumentParams &params) {
   PublishDiagnosticsParams diagParams(params.textDocument.uri,
@@ -126,7 +146,8 @@ void LSPServer::onDocumentDidOpen(const DidOpenTextDocumentParams &params) {
   publishDiagnostics(diagParams);
 }
 void LSPServer::onDocumentDidClose(const DidCloseTextDocumentParams &params) {
-  Optional<int64_t> version = server.removeDocument(params.textDocument.uri);
+  std::optional<int64_t> version =
+      server.removeDocument(params.textDocument.uri);
   if (!version)
     return;
 
@@ -148,6 +169,7 @@ void LSPServer::onDocumentDidChange(const DidChangeTextDocumentParams &params) {
 
 //===----------------------------------------------------------------------===//
 // Definitions and References
+//===----------------------------------------------------------------------===//
 
 void LSPServer::onGoToDefinition(const TextDocumentPositionParams &params,
                                  Callback<std::vector<Location>> reply) {
@@ -165,6 +187,7 @@ void LSPServer::onReference(const ReferenceParams &params,
 
 //===----------------------------------------------------------------------===//
 // DocumentLink
+//===----------------------------------------------------------------------===//
 
 void LSPServer::onDocumentLink(const DocumentLinkParams &params,
                                Callback<std::vector<DocumentLink>> reply) {
@@ -175,9 +198,10 @@ void LSPServer::onDocumentLink(const DocumentLinkParams &params,
 
 //===----------------------------------------------------------------------===//
 // Hover
+//===----------------------------------------------------------------------===//
 
 void LSPServer::onHover(const TextDocumentPositionParams &params,
-                        Callback<Optional<Hover>> reply) {
+                        Callback<std::optional<Hover>> reply) {
   reply(server.findHover(params.textDocument.uri, params.position));
 }
 

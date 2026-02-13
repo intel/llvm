@@ -11,6 +11,7 @@
 
 #include "lldb/Interpreter/CommandObject.h"
 #include "lldb/Utility/CompletionRequest.h"
+#include <optional>
 
 namespace lldb_private {
 
@@ -55,10 +56,10 @@ public:
 
   void HandleCompletion(CompletionRequest &request) override;
 
-  llvm::Optional<std::string> GetRepeatCommand(Args &current_command_args,
-                                               uint32_t index) override;
+  std::optional<std::string> GetRepeatCommand(Args &current_command_args,
+                                              uint32_t index) override;
 
-  bool Execute(const char *args_string, CommandReturnObject &result) override;
+  void Execute(const char *args_string, CommandReturnObject &result) override;
 
   bool IsRemovable() const override { return m_can_be_removed; }
 
@@ -68,6 +69,8 @@ protected:
   CommandObject::CommandMap &GetSubcommandDictionary() {
     return m_subcommand_dict;
   }
+
+  std::string GetSubcommandsHintText();
 
   CommandObject::CommandMap m_subcommand_dict;
   bool m_can_be_removed;
@@ -120,15 +123,15 @@ public:
   HandleArgumentCompletion(CompletionRequest &request,
                            OptionElementVector &opt_element_vector) override;
 
-  llvm::Optional<std::string> GetRepeatCommand(Args &current_command_args,
-                                               uint32_t index) override;
+  std::optional<std::string> GetRepeatCommand(Args &current_command_args,
+                                              uint32_t index) override;
 
   /// \return
   ///     An error message to be displayed when the command is executed (i.e.
   ///     Execute is called) and \a GetProxyCommandObject returned null.
   virtual llvm::StringRef GetUnsupportedError();
 
-  bool Execute(const char *args_string, CommandReturnObject &result) override;
+  void Execute(const char *args_string, CommandReturnObject &result) override;
 
 protected:
   // These two want to iterate over the subcommand dictionary.

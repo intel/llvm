@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -std=c++17 -fopenmp -fopenmp-version=51 -fsyntax-only -Wuninitialized -verify %s
+// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -std=c++17 -fopenmp -fsyntax-only -Wuninitialized -verify %s
 
 void func(int n) {
   // expected-error@+2 {{statement after '#pragma omp unroll' must be a for loop}}
@@ -127,4 +127,13 @@ void templated_func(int n) {
 void template_inst(int n) {
   // expected-note@+1 {{in instantiation of function template specialization 'templated_func<int, -1>' requested here}}
   templated_func<int, -1>(n);
+}
+
+namespace GH139267 {
+void f(void) {
+  // This would previously crash with follow-on recovery after issuing the error.
+#pragma omp unroll partial(a) // expected-error {{use of undeclared identifier 'a'}}
+  for (int i = 0; i < 10; i++)
+    ;
+}
 }

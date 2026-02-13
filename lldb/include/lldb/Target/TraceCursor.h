@@ -12,6 +12,7 @@
 #include "lldb/lldb-private.h"
 
 #include "lldb/Target/ExecutionContext.h"
+#include <optional>
 
 namespace lldb_private {
 
@@ -216,7 +217,7 @@ public:
 
   /// \return
   ///     The error message the cursor is pointing at.
-  virtual const char *GetError() const = 0;
+  virtual llvm::StringRef GetError() const = 0;
 
   /// \return
   ///     Whether the cursor points to an event or not.
@@ -259,18 +260,18 @@ public:
   /// whenever an eTraceEventHWClockTick event is fired.
   ///
   /// \return
-  ///     The requested HW clock value, or \a llvm::None if this information is
-  ///     not available for the current item.
-  virtual llvm::Optional<uint64_t> GetHWClock() const = 0;
+  ///     The requested HW clock value, or \a std::nullopt if this information
+  ///     is not available for the current item.
+  virtual std::optional<uint64_t> GetHWClock() const = 0;
 
   /// Get the approximate wall clock time in nanoseconds at which the current
   /// trace item was executed. Each trace plug-in has a different definition for
   /// what time 0 means.
   ///
   /// \return
-  ///     The approximate wall clock time for the trace item, or \a llvm::None
+  ///     The approximate wall clock time for the trace item, or \a std::nullopt
   ///     if not available.
-  virtual llvm::Optional<double> GetWallClockTime() const = 0;
+  virtual std::optional<double> GetWallClockTime() const = 0;
 
   /// Get some metadata associated with a synchronization point event. As
   /// different trace technologies might have different values for this,
@@ -278,8 +279,9 @@ public:
   ///
   /// \return
   ///     A string representing some metadata associated with a
-  ///     \a eTraceEventSyncPoint event. \b None if no metadata is available.
-  virtual llvm::Optional<std::string> GetSyncPointMetadata() const = 0;
+  ///     \a eTraceEventSyncPoint event. \b std::nullopt if no metadata is
+  ///     available.
+  virtual std::optional<std::string> GetSyncPointMetadata() const = 0;
   /// \}
 
 protected:

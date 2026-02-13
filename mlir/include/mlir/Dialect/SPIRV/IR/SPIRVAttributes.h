@@ -17,6 +17,12 @@
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/Support/LLVM.h"
 
+namespace mlir {
+namespace spirv {
+class VerCapExtAttr;
+}
+} // namespace mlir
+
 // Pull in TableGen'erated SPIR-V attribute definitions for target and ABI.
 #define GET_ATTRDEF_CLASSES
 #include "mlir/Dialect/SPIRV/IR/SPIRVAttributes.h.inc"
@@ -53,7 +59,7 @@ public:
 
   /// Gets a InterfaceVarABIAttr.
   static InterfaceVarABIAttr get(uint32_t descriptorSet, uint32_t binding,
-                                 Optional<StorageClass> storageClass,
+                                 std::optional<StorageClass> storageClass,
                                  MLIRContext *context);
   static InterfaceVarABIAttr get(IntegerAttr descriptorSet, IntegerAttr binding,
                                  IntegerAttr storageClass);
@@ -68,11 +74,14 @@ public:
   uint32_t getBinding();
 
   /// Returns `spirv::StorageClass`.
-  Optional<StorageClass> getStorageClass();
+  std::optional<StorageClass> getStorageClass();
 
-  static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
-                              IntegerAttr descriptorSet, IntegerAttr binding,
-                              IntegerAttr storageClass);
+  static LogicalResult
+  verifyInvariants(function_ref<InFlightDiagnostic()> emitError,
+                   IntegerAttr descriptorSet, IntegerAttr binding,
+                   IntegerAttr storageClass);
+
+  static constexpr StringLiteral name = "spirv.interface_var_abi";
 };
 
 /// An attribute that specifies the SPIR-V (version, capabilities, extensions)
@@ -120,9 +129,12 @@ public:
   /// Returns the capabilities as an integer array attribute.
   ArrayAttr getCapabilitiesAttr();
 
-  static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
-                              IntegerAttr version, ArrayAttr capabilities,
-                              ArrayAttr extensions);
+  static LogicalResult
+  verifyInvariants(function_ref<InFlightDiagnostic()> emitError,
+                   IntegerAttr version, ArrayAttr capabilities,
+                   ArrayAttr extensions);
+
+  static constexpr StringLiteral name = "spirv.ver_cap_ext";
 };
 
 /// An attribute that specifies the target version, allowed extensions and
@@ -138,9 +150,11 @@ public:
   using Base::Base;
 
   /// Gets a TargetEnvAttr instance.
-  static TargetEnvAttr get(VerCapExtAttr triple, Vendor vendorID,
-                           DeviceType deviceType, uint32_t deviceId,
-                           ResourceLimitsAttr limits);
+  static TargetEnvAttr get(VerCapExtAttr triple, ResourceLimitsAttr limits,
+                           ClientAPI clientAPI = ClientAPI::Unknown,
+                           Vendor vendorID = Vendor::Unknown,
+                           DeviceType deviceType = DeviceType::Unknown,
+                           uint32_t deviceId = kUnknownDeviceID);
 
   /// Returns the attribute kind's name (without the 'spirv.' prefix).
   static StringRef getKindName();
@@ -161,6 +175,9 @@ public:
   /// Returns the target capabilities as an integer array attribute.
   ArrayAttr getCapabilitiesAttr();
 
+  /// Returns the client API.
+  ClientAPI getClientAPI() const;
+
   /// Returns the vendor ID.
   Vendor getVendorID() const;
 
@@ -172,6 +189,8 @@ public:
 
   /// Returns the target resource limits.
   ResourceLimitsAttr getResourceLimits() const;
+
+  static constexpr StringLiteral name = "spirv.target_env";
 };
 } // namespace spirv
 } // namespace mlir

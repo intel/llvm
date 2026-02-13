@@ -15,16 +15,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "MCTargetDesc/WebAssemblyMCTargetDesc.h"
-#include "Utils/WebAssemblyUtilities.h"
 #include "WebAssembly.h"
 #include "WebAssemblyMachineFunctionInfo.h"
 #include "WebAssemblySubtarget.h"
-#include "llvm/ADT/SCCIterator.h"
+#include "WebAssemblyUtilities.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
-#include "llvm/CodeGen/MachineLoopInfo.h"
-#include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
@@ -59,6 +56,24 @@ FunctionPass *llvm::createWebAssemblyDebugFixup() {
   return new WebAssemblyDebugFixup();
 }
 
+// At this very end of the compilation pipeline, if any DBG_VALUEs with
+// registers remain, it means they are dangling info which we failed to update
+// when their corresponding def instruction was transformed/moved/splitted etc.
+// Because Wasm cannot access values in LLVM virtual registers in the debugger,
+// these dangling DBG_VALUEs in effect kill the effect of any previous DBG_VALUE
+// associated with the variable, which will appear as "optimized out".
+static void setDanglingDebugValuesUndef(MachineBasicBlock &MBB,
+                                        const TargetInstrInfo *TII) {
+  for (auto &MI : llvm::make_early_inc_range(MBB)) {
+    if (MI.isDebugValue() && MI.getDebugOperand(0).isReg() &&
+        !MI.isUndefDebugValue()) {
+      LLVM_DEBUG(dbgs() << "Warning: dangling DBG_VALUE set to undef: " << MI
+                        << "\n");
+      MI.setDebugValueUndef();
+    }
+  }
+}
+
 bool WebAssemblyDebugFixup::runOnMachineFunction(MachineFunction &MF) {
   LLVM_DEBUG(dbgs() << "********** Debug Fixup **********\n"
                        "********** Function: "
@@ -89,7 +104,7 @@ bool WebAssemblyDebugFixup::runOnMachineFunction(MachineFunction &MF) {
           for (auto &Elem : reverse(Stack)) {
             if (MO.getReg() == Elem.Reg) {
               auto Depth = static_cast<unsigned>(&Elem - &Stack[0]);
-              LLVM_DEBUG(dbgs() << "Debug Value VReg " << MO.getReg()
+              LLVM_DEBUG(dbgs() << "Debug Value VReg " << printReg(MO.getReg())
                                 << " -> Stack Relative " << Depth << "\n");
               MO.ChangeToTargetIndex(WebAssembly::TI_OPERAND_STACK, Depth);
               // Save the DBG_VALUE instruction that defined this stackified
@@ -135,6 +150,8 @@ bool WebAssemblyDebugFixup::runOnMachineFunction(MachineFunction &MF) {
     }
     assert(Stack.empty() &&
            "WebAssemblyDebugFixup: Stack not empty at end of basic block!");
+
+    setDanglingDebugValuesUndef(MBB, TII);
   }
 
   return true;

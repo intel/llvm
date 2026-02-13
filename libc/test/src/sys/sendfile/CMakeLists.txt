@@ -1,4 +1,4 @@
-add_libc_testsuite(libc_sys_sendfile_unittests)
+add_custom_target(libc_sys_sendfile_unittests)
 
 add_subdirectory(testdata)
 
@@ -9,13 +9,15 @@ add_libc_unittest(
   SRCS
     sendfile_test.cpp
   DEPENDS
-    libc.include.errno
-    libc.include.fcntl
+    libc.hdr.fcntl_macros
     libc.include.sys_stat
+    libc.src.errno.errno
     libc.src.fcntl.open
     libc.src.sys.sendfile.sendfile
     libc.src.unistd.close
     libc.src.unistd.read
     libc.src.unistd.unlink
     libc.src.unistd.write
+    libc.test.UnitTest.ErrnoCheckingTest
+    libc.test.UnitTest.ErrnoSetterMatcher
 )

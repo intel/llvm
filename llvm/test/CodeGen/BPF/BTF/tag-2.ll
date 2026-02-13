@@ -1,5 +1,5 @@
-; RUN: llc -march=bpfel -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
-; RUN: llc -march=bpfeb -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
+; RUN: llc -mtriple=bpfel -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
+; RUN: llc -mtriple=bpfeb -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
 
 ; Source code:
 ;   #define __tag1 __attribute__((btf_decl_tag("tag1")))
@@ -12,11 +12,11 @@
 ;   clang -target bpf -O2 -g -S -emit-llvm t.c
 
 ; Function Attrs: nounwind
-define dso_local i32 @foo(i32 %arg1, i32* nocapture readonly %arg2) local_unnamed_addr #0 !dbg !8 {
+define dso_local i32 @foo(i32 %arg1, ptr nocapture readonly %arg2) local_unnamed_addr #0 !dbg !8 {
 entry:
   call void @llvm.dbg.value(metadata i32 %arg1, metadata !14, metadata !DIExpression()), !dbg !18
-  call void @llvm.dbg.value(metadata i32* %arg2, metadata !15, metadata !DIExpression()), !dbg !18
-  %0 = load i32, i32* %arg2, align 4, !dbg !19, !tbaa !20
+  call void @llvm.dbg.value(metadata ptr %arg2, metadata !15, metadata !DIExpression()), !dbg !18
+  %0 = load i32, ptr %arg2, align 4, !dbg !19, !tbaa !20
   %add = add nsw i32 %0, %arg1, !dbg !24
   %add1 = add nsw i32 %arg1, 1, !dbg !25
   %call = tail call i32 @bar(i32 %arg1, i32 %add1) #3, !dbg !26

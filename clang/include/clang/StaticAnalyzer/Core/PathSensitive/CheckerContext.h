@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 //  This file defines CheckerContext that provides contextual info for
-// path-sensitive checkers.
+//  path-sensitive checkers.
 //
 //===----------------------------------------------------------------------===//
 
@@ -16,6 +16,7 @@
 
 #include "clang/StaticAnalyzer/Core/PathSensitive/ExprEngine.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ProgramStateTrait.h"
+#include <optional>
 
 namespace clang {
 namespace ento {
@@ -50,29 +51,41 @@ public:
       wasInlined(wasInlined) {
     assert(Pred->getState() &&
            "We should not call the checkers on an empty state.");
+    assert(loc.getTag() && "The ProgramPoint associated with CheckerContext "
+                           "must be tagged with the active checker.");
   }
 
   AnalysisManager &getAnalysisManager() {
+    return Eng.getAnalysisManager();
+  }
+  const AnalysisManager &getAnalysisManager() const {
     return Eng.getAnalysisManager();
   }
 
   ConstraintManager &getConstraintManager() {
     return Eng.getConstraintManager();
   }
+  const ConstraintManager &getConstraintManager() const {
+    return Eng.getConstraintManager();
+  }
 
   StoreManager &getStoreManager() {
     return Eng.getStoreManager();
   }
+  const StoreManager &getStoreManager() const { return Eng.getStoreManager(); }
 
   /// Returns the previous node in the exploded graph, which includes
   /// the state of the program before the checker ran. Note, checkers should
   /// not retain the node in their state since the nodes might get invalidated.
   ExplodedNode *getPredecessor() { return Pred; }
+  const ExplodedNode *getPredecessor() const { return Pred; }
+  const ProgramPoint getLocation() const { return Location; }
   const ProgramStateRef &getState() const { return Pred->getState(); }
 
   /// Check if the checker changed the state of the execution; ex: added
   /// a new transition or a bug report.
   bool isDifferent() { return Changed; }
+  bool isDifferent() const { return Changed; }
 
   /// Returns the number of times the current block has been visited
   /// along the analyzed path.
@@ -104,22 +117,36 @@ public:
   BugReporter &getBugReporter() {
     return Eng.getBugReporter();
   }
+  const BugReporter &getBugReporter() const { return Eng.getBugReporter(); }
 
   const SourceManager &getSourceManager() {
     return getBugReporter().getSourceManager();
   }
+  const SourceManager &getSourceManager() const {
+    return getBugReporter().getSourceManager();
+  }
 
   Preprocessor &getPreprocessor() { return getBugReporter().getPreprocessor(); }
+  const Preprocessor &getPreprocessor() const {
+    return getBugReporter().getPreprocessor();
+  }
 
   SValBuilder &getSValBuilder() {
     return Eng.getSValBuilder();
   }
+  const SValBuilder &getSValBuilder() const { return Eng.getSValBuilder(); }
 
   SymbolManager &getSymbolManager() {
     return getSValBuilder().getSymbolManager();
   }
+  const SymbolManager &getSymbolManager() const {
+    return getSValBuilder().getSymbolManager();
+  }
 
   ProgramStateManager &getStateManager() {
+    return Eng.getStateManager();
+  }
+  const ProgramStateManager &getStateManager() const {
     return Eng.getStateManager();
   }
 
@@ -139,7 +166,7 @@ public:
   /// example, for finding variables that the given symbol was assigned to.
   static const MemRegion *getLocationRegionIfPostStore(const ExplodedNode *N) {
     ProgramPoint L = N->getLocation();
-    if (Optional<PostStore> PSL = L.getAs<PostStore>())
+    if (std::optional<PostStore> PSL = L.getAs<PostStore>())
       return reinterpret_cast<const MemRegion*>(PSL->getLocationValue());
     return nullptr;
   }
@@ -149,8 +176,10 @@ public:
     return Pred->getSVal(S);
   }
 
+  ConstCFGElementRef getCFGElementRef() const { return Eng.getCFGElementRef(); }
+
   /// Returns true if the value of \p E is greater than or equal to \p
-  /// Val under unsigned comparison
+  /// Val under unsigned comparison.
   bool isGreaterOrEqual(const Expr *E, unsigned long long Val);
 
   /// Returns true if the value of \p E is negative.
@@ -165,6 +194,9 @@ public:
   ///        tag is specified, a default tag, unique to the given checker,
   ///        will be used. Tags are used to prevent states generated at
   ///        different sites from caching out.
+  /// NOTE: If the State is unchanged and the Tag is nullptr, this may return a
+  /// node which is not tagged (instead of using the default tag corresponding
+  /// to the active checker). This is arguably a bug and should be fixed.
   ExplodedNode *addTransition(ProgramStateRef State = nullptr,
                               const ProgramPointTag *Tag = nullptr) {
     return addTransitionImpl(State ? State : getState(), false, nullptr, Tag);
@@ -177,6 +209,9 @@ public:
   /// @param Pred The transition will be generated from the specified Pred node
   ///             to the newly generated node.
   /// @param Tag The tag to uniquely identify the creation site.
+  /// NOTE: If the State is unchanged and the Tag is nullptr, this may return a
+  /// node which is not tagged (instead of using the default tag corresponding
+  /// to the active checker). This is arguably a bug and should be fixed.
   ExplodedNode *addTransition(ProgramStateRef State, ExplodedNode *Pred,
                               const ProgramPointTag *Tag = nullptr) {
     return addTransitionImpl(State, false, Pred, Tag);
@@ -206,6 +241,22 @@ public:
   /// @param Tag The tag to uniquely identify the creation site. If null,
   ///        the default tag for the checker will be used.
   ExplodedNode *generateErrorNode(ProgramStateRef State = nullptr,
+                                  const ProgramPointTag *Tag = nullptr) {
+    return generateSink(State, Pred,
+                       (Tag ? Tag : Location.getTag()));
+  }
+
+  /// Generate a transition to a node that will be used to report
+  /// an error. This node will be a sink. That is, it will stop exploration of
+  /// the given path.
+  ///
+  /// @param State The state of the generated node.
+  /// @param Pred The transition will be generated from the specified Pred node
+  ///             to the newly generated node.
+  /// @param Tag The tag to uniquely identify the creation site. If null,
+  ///        the default tag for the checker will be used.
+  ExplodedNode *generateErrorNode(ProgramStateRef State,
+                                  ExplodedNode *Pred,
                                   const ProgramPointTag *Tag = nullptr) {
     return generateSink(State, Pred,
                        (Tag ? Tag : Location.getTag()));
@@ -299,8 +350,8 @@ public:
   ///        bug path significantly shorter.
   const NoteTag *getNoteTag(StringRef Note, bool IsPrunable = false) {
     return getNoteTag(
-        [Note](BugReporterContext &,
-               PathSensitiveBugReport &) { return std::string(Note); },
+        [Note = std::string(Note)](BugReporterContext &,
+               PathSensitiveBugReport &) { return Note; },
         IsPrunable);
   }
 
@@ -349,20 +400,32 @@ public:
     return getCalleeName(FunDecl);
   }
 
-  /// Returns true if the callee is an externally-visible function in the
-  /// top-level namespace, such as \c malloc.
+  /// Returns true if the given function is an externally-visible function in
+  /// the top-level namespace, such as \c malloc.
   ///
   /// If a name is provided, the function must additionally match the given
   /// name.
   ///
-  /// Note that this deliberately excludes C++ library functions in the \c std
-  /// namespace, but will include C library functions accessed through the
-  /// \c std namespace. This also does not check if the function is declared
-  /// as 'extern "C"', or if it uses C++ name mangling.
+  /// Note that this also accepts functions from the \c std namespace (because
+  /// headers like <cstdlib> declare them there) and does not check if the
+  /// function is declared as 'extern "C"' or if it uses C++ name mangling.
   static bool isCLibraryFunction(const FunctionDecl *FD,
                                  StringRef Name = StringRef());
 
-  /// Depending on wither the location corresponds to a macro, return
+  /// In builds that use source hardening (-D_FORTIFY_SOURCE), many standard
+  /// functions are implemented as macros that expand to calls of hardened
+  /// functions that take additional arguments compared to the "usual"
+  /// variant and perform additional input validation. For example, a `memcpy`
+  /// call may expand to `__memcpy_chk()` or `__builtin___memcpy_chk()`.
+  ///
+  /// This method returns true if `FD` declares a fortified variant of the
+  /// standard library function `Name`.
+  ///
+  /// NOTE: This method relies on heuristics; extend it if you need to handle a
+  /// hardened variant that's not yet covered by it.
+  static bool isHardenedVariantOf(const FunctionDecl *FD, StringRef Name);
+
+  /// Depending on whether the location corresponds to a macro, return
   /// either the macro name or the token spelling.
   ///
   /// This could be useful when checkers' logic depends on whether a function

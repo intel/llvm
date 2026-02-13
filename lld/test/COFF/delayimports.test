@@ -3,13 +3,14 @@
 # RUN:   /alternatename:__delayLoadHelper2=main
 # RUN: llvm-readobj --coff-imports %t.exe | FileCheck -check-prefix=IMPORT %s
 # RUN: llvm-readobj --coff-basereloc %t.exe | FileCheck -check-prefix=BASEREL %s
+# RUN: llvm-readobj --unwind %t.exe | FileCheck -check-prefix=UNWIND %s
 
 IMPORT:      DelayImport {
 IMPORT-NEXT:   Name: std64.dll
 IMPORT-NEXT:   Attributes: 0x1
 IMPORT-NEXT:   ModuleHandle: 0x3018
 IMPORT-NEXT:   ImportAddressTable: 0x3020
-IMPORT-NEXT:   ImportNameTable: 0x2040
+IMPORT-NEXT:   ImportNameTable: 0x2048
 IMPORT-NEXT:   BoundDelayImportTable: 0x0
 IMPORT-NEXT:   UnloadDelayImportTable: 0x0
 IMPORT-NEXT:   Import {
@@ -39,3 +40,23 @@ BASEREL-NEXT:   Entry {
 BASEREL-NEXT:     Type: DIR64
 BASEREL-NEXT:     Address: 0x3030
 BASEREL-NEXT:   }
+
+UNWIND:      UnwindInformation [
+UNWIND-NEXT:   RuntimeFunction {
+UNWIND-NEXT:     StartAddress: (0x14000108A)
+UNWIND-NEXT:     EndAddress: (0x140001101)
+UNWIND-NEXT:     UnwindInfoAddress: (0x140002000)
+UNWIND-NEXT:     UnwindInfo {
+UNWIND-NEXT:       Version: 1
+UNWIND-NEXT:       Flags [ (0x0)
+UNWIND-NEXT:       ]
+UNWIND-NEXT:       PrologSize: 24
+UNWIND-NEXT:       FrameRegister: -
+UNWIND-NEXT:       FrameOffset: -
+UNWIND-NEXT:       UnwindCodeCount: 1
+UNWIND-NEXT:       UnwindCodes [
+UNWIND-NEXT:         0x18: ALLOC_SMALL size=104
+UNWIND-NEXT:       ]
+UNWIND-NEXT:     }
+UNWIND-NEXT:   }
+UNWIND-NEXT: ]

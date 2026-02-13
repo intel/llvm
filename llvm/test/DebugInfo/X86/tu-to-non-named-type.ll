@@ -33,18 +33,16 @@ define dso_local void @_Z1f3foo3bar(i32 %.coerce) #0 !dbg !7 {
 entry:
   %0 = alloca %struct.foo, align 4
   %1 = alloca %struct.bar, align 1
-  %coerce.dive = getelementptr inbounds %struct.foo, %struct.foo* %0, i32 0, i32 0
-  %2 = bitcast [1 x i32]* %coerce.dive to i32*
-  store i32 %.coerce, i32* %2, align 4
-  call void @llvm.dbg.declare(metadata %struct.foo* %0, metadata !19, metadata !DIExpression()), !dbg !20
-  call void @llvm.dbg.declare(metadata %struct.bar* %1, metadata !21, metadata !DIExpression()), !dbg !22
+  store i32 %.coerce, ptr %0, align 4
+  call void @llvm.dbg.declare(metadata ptr %0, metadata !19, metadata !DIExpression()), !dbg !20
+  call void @llvm.dbg.declare(metadata ptr %1, metadata !21, metadata !DIExpression()), !dbg !22
   ret void, !dbg !23
 }
 
 ; Function Attrs: nounwind readnone speculatable
 declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
 
-attributes #0 = { noinline nounwind optnone uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "frame-pointer"="all" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { noinline nounwind optnone uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "frame-pointer"="all" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone speculatable }
 
 !llvm.dbg.cu = !{!0}

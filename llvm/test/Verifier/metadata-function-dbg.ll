@@ -1,4 +1,4 @@
-; RUN: llvm-as -opaque-pointers %s -disable-output 2>&1 | FileCheck %s
+; RUN: llvm-as %s -disable-output 2>&1 | FileCheck %s
 
 ; CHECK:      function declaration may only have a unique !dbg attachment
 declare !dbg !4 void @f1()

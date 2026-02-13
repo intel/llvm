@@ -9,7 +9,7 @@ target triple = "powerpc--netbsd"
 ; Function Attrs: nounwind uwtable
 define i32 @fn1() #0 {
 entry:
-  %.promoted = load i72, i72* inttoptr (i32 1 to i72*), align 4
+  %.promoted = load i72, ptr inttoptr (i32 1 to ptr), align 4
   br label %while.cond
 
 while.cond:                                       ; preds = %while.cond, %entry
@@ -28,11 +28,11 @@ while.cond:                                       ; preds = %while.cond, %entry
 
 while.end:                                        ; preds = %while.cond
   %bf.set.lcssa = phi i72 [ %bf.set, %while.cond ]
-  store i72 %bf.set.lcssa, i72* inttoptr (i32 1 to i72*), align 4
+  store i72 %bf.set.lcssa, ptr inttoptr (i32 1 to ptr), align 4
   ret i32 undef
 }
 
-attributes #0 = { nounwind uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "use-soft-float"="false" }
 
 !llvm.ident = !{!0}
 

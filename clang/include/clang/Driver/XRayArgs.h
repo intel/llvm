@@ -25,15 +25,9 @@ class XRayArgs {
   std::vector<std::string> ExtraDeps;
   std::vector<std::string> Modes;
   XRayInstrSet InstrumentationBundle;
-  bool XRayInstrument = false;
-  int InstructionThreshold = 200;
-  bool XRayAlwaysEmitCustomEvents = false;
-  bool XRayAlwaysEmitTypedEvents = false;
+  llvm::opt::Arg *XRayInstrument = nullptr;
   bool XRayRT = true;
-  bool XRayIgnoreLoops = false;
-  bool XRayFunctionIndex;
-  int XRayFunctionGroups = 1;
-  int XRaySelectedFunctionGroup = 0;
+  bool XRayShared = false;
 
 public:
   /// Parses the XRay arguments from an argument list.
@@ -42,6 +36,7 @@ public:
                llvm::opt::ArgStringList &CmdArgs, types::ID InputType) const;
 
   bool needsXRayRt() const { return XRayInstrument && XRayRT; }
+  bool needsXRayDSORt() const { return XRayInstrument && XRayRT && XRayShared; }
   llvm::ArrayRef<std::string> modeList() const { return Modes; }
   XRayInstrSet instrumentationBundle() const { return InstrumentationBundle; }
 };

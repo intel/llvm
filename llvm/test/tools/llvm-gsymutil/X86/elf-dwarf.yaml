@@ -5,7 +5,7 @@
 # RUN: yaml2obj %s -o %t
 # RUN: llvm-gsymutil --convert %t -o %t.gsym 2>&1 | FileCheck %s --check-prefix=CONVERT
 # RUN: llvm-gsymutil --address=0x400391 --address=0x4004cd %t.gsym 2>&1 | FileCheck %s --check-prefix=ADDR
-# RUN: echo -e "0x400391 %/t.gsym\n0x4004cd %/t.gsym" | llvm-gsymutil --addresses-from-stdin  2>&1 | FileCheck %s --check-prefix=ADDRI --dump-input=always
+# RUN: printf "0x400391 %/t.gsym\n0x4004cd %/t.gsym" | llvm-gsymutil --addresses-from-stdin  2>&1 | FileCheck %s --check-prefix=ADDRI --dump-input=always
 # RUN: llvm-gsymutil --address=0x400391 --address=0x4004cd --verbose %t.gsym 2>&1 | FileCheck %s --check-prefix=ADDRV --dump-input=always
 # RUN: llvm-gsymutil --address=0x400391 --address=0x4004cd --verbose %t.gsym 2>&1 | FileCheck %s --check-prefix=ADDRV --dump-input=always
 # RUN: llvm-gsymutil %t.gsym 2>&1 | FileCheck %s --check-prefix=DUMP
@@ -36,8 +36,8 @@
 # CONVERT: Input file: {{.*\.yaml\.tmp}}
 # CONVERT: Output file (x86_64): {{.*\.yaml\.tmp\.gsym}}
 # CONVERT: Loaded 1 functions from DWARF.
-# CONVERT: Loaded 9 functions from symbol table.
-# CONVERT: Pruned 0 functions, ended with 10 total
+# CONVERT: Loaded 10 functions from symbol table.
+# CONVERT: Pruned 1 functions, ended with 10 total
 
 # DUMP:      Header:
 # DUMP-NEXT:   Magic        = 0x4753594d

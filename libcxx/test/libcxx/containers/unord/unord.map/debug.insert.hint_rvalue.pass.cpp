@@ -13,7 +13,7 @@
 //     iterator insert(const_iterator p, P&& x);
 
 // REQUIRES: has-unix-headers
-// UNSUPPORTED: !libcpp-has-debug-mode, c++03
+// UNSUPPORTED: !libcpp-has-legacy-debug-mode, c++03
 
 #include <unordered_map>
 
@@ -21,14 +21,15 @@
 #include "test_macros.h"
 
 int main(int, char**) {
-    typedef std::unordered_map<double, int> C;
-    typedef C::value_type P;
-    C c;
-    C c2;
-    C::const_iterator e = c2.end();
-    TEST_LIBCPP_ASSERT_FAILURE(
-        c.insert(e, P(3.5, 3)),
-        "unordered_map::insert(const_iterator, const value_type&) called with an iterator not referring to this unordered_map");
+  typedef std::unordered_map<double, int> C;
+  typedef C::value_type P;
+  C c;
+  C c2;
+  C::const_iterator e = c2.end();
+  TEST_LIBCPP_ASSERT_FAILURE(
+      c.insert(e, P(3.5, 3)),
+      "unordered_map::insert(const_iterator, const value_type&) called with an iterator not "
+      "referring to this unordered_map");
 
-    return 0;
+  return 0;
 }

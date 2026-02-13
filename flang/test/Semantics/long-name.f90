@@ -1,14 +1,14 @@
-! RUN: %python %S/test_errors.py %s %flang_fc1
+! RUN: %python %S/test_errors.py %s %flang_fc1 -Werror -pedantic -Wno-unused-variable
 
-!WARNING: aaaaaaaaaabbbbbbbbbbccccccccccddddddddddeeeeeeeeeeffffffffffggg1 has length 64, which is greater than the maximum name length 63
+!PORTABILITY: AAAAAAAAAABBBBBBBBBBCCCCCCCCCCDDDDDDDDDDEEEEEEEEEEFFFFFFFFFFGGG1 has length 64, which is greater than the maximum name length 63 [-Wlong-names]
 program aaaaaaaaaabbbbbbbbbbccccccccccddddddddddeeeeeeeeeeffffffffffggg1
 
-  !WARNING: aaaaaaaaaabbbbbbbbbbccccccccccddddddddddeeeeeeeeeeffffffffffggg2 has length 64, which is greater than the maximum name length 63
+  !PORTABILITY: aaaaaaaaaabbbbbbbbbbccccccccccddddddddddeeeeeeeeeeffffffffffggg2 has length 64, which is greater than the maximum name length 63 [-Wlong-names]
   integer :: aaaaaaaaaabbbbbbbbbbccccccccccddddddddddeeeeeeeeeeffffffffffggg2
 
   integer :: aaaaaaaaaabbbbbbbbbbccccccccccddddddddddeeeeeeeeeeffffffffffggg
 
-  !WARNING: aaaaaaaaaabbbbbbbbbbccccccccccddddddddddeeeeeeeeeeffffffffffggg3 has length 64, which is greater than the maximum name length 63
+  !PORTABILITY: aaaaaaaaaabbbbbbbbbbccccccccccddddddddddeeeeeeeeeeffffffffffggg3 has length 64, which is greater than the maximum name length 63 [-Wlong-names]
   call aaaaaaaaaabbbbbbbbbbccccccccccddddddddddeeeeeeeeeeffffffffffggg3
 
 end

@@ -1,5 +1,5 @@
 // RUN: %check_clang_tidy %s modernize-use-override %t -- \
-// RUN:   -config="{CheckOptions: [{key: modernize-use-override.IgnoreDestructors, value: true}]}"
+// RUN:   -config="{CheckOptions: {modernize-use-override.IgnoreDestructors: true}}"
 
 struct Base {
   virtual ~Base();
@@ -11,5 +11,5 @@ struct Simple : public Base {
   // CHECK-MESSAGES-NOT: warning:
   virtual void f();
   // CHECK-MESSAGES: :[[@LINE-1]]:16: warning: prefer using
-  // CHECK-FIXES: {{^}}  void f() override;
+  // CHECK-FIXES: void f() override;
 };

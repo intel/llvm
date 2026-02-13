@@ -77,18 +77,13 @@
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Value.h"
-#include "llvm/InitializePasses.h"
-#include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Transforms/Scalar.h"
-#include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Utils/LoopUtils.h"
 #include "llvm/Transforms/Utils/LoopVersioning.h"
 #include <cassert>
-#include <memory>
 
 using namespace llvm;
 
@@ -100,7 +95,7 @@ static const char *LICMVersioningMetaData = "llvm.loop.licm_versioning.disable";
 /// invariant instructions in a loop.
 static cl::opt<float>
     LVInvarThreshold("licm-versioning-invariant-threshold",
-                     cl::desc("LoopVersioningLICM's minimum allowed percentage"
+                     cl::desc("LoopVersioningLICM's minimum allowed percentage "
                               "of possible invariant instructions per loop"),
                      cl::init(25), cl::Hidden);
 
@@ -113,33 +108,6 @@ static cl::opt<unsigned> LVLoopDepthThreshold(
 
 namespace {
 
-struct LoopVersioningLICMLegacyPass : public LoopPass {
-  static char ID;
-
-  LoopVersioningLICMLegacyPass() : LoopPass(ID) {
-    initializeLoopVersioningLICMLegacyPassPass(
-        *PassRegistry::getPassRegistry());
-  }
-
-  bool runOnLoop(Loop *L, LPPassManager &LPM) override;
-
-  StringRef getPassName() const override { return "Loop Versioning for LICM"; }
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.setPreservesCFG();
-    AU.addRequired<AAResultsWrapperPass>();
-    AU.addRequired<DominatorTreeWrapperPass>();
-    AU.addRequiredID(LCSSAID);
-    AU.addRequired<LoopAccessLegacyAnalysis>();
-    AU.addRequired<LoopInfoWrapperPass>();
-    AU.addRequiredID(LoopSimplifyID);
-    AU.addRequired<ScalarEvolutionWrapperPass>();
-    AU.addPreserved<AAResultsWrapperPass>();
-    AU.addPreserved<GlobalsAAWrapperPass>();
-    AU.addRequired<OptimizationRemarkEmitterWrapperPass>();
-  }
-};
-
 struct LoopVersioningLICM {
   // We don't explicitly pass in LoopAccessInfo to the constructor since the
   // loop versioning might return early due to instructions that are not safe
@@ -147,38 +115,20 @@ struct LoopVersioningLICM {
   // LoopAccessInfo will take place only when it's necessary.
   LoopVersioningLICM(AliasAnalysis *AA, ScalarEvolution *SE,
                      OptimizationRemarkEmitter *ORE,
-                     LoopAccessInfoManager &LAIs)
-      : AA(AA), SE(SE), LAIs(LAIs), LoopDepthThreshold(LVLoopDepthThreshold),
+                     LoopAccessInfoManager &LAIs, LoopInfo &LI,
+                     Loop *CurLoop)
+      : AA(AA), SE(SE), LAIs(LAIs), LI(LI), CurLoop(CurLoop),
+        LoopDepthThreshold(LVLoopDepthThreshold),
         InvariantThreshold(LVInvarThreshold), ORE(ORE) {}
 
-  bool runOnLoop(Loop *L, LoopInfo *LI, DominatorTree *DT);
-
-  void reset() {
-    AA = nullptr;
-    SE = nullptr;
-    CurLoop = nullptr;
-    LoadAndStoreCounter = 0;
-    InvariantCounter = 0;
-    IsReadOnlyLoop = true;
-    ORE = nullptr;
-    CurAST.reset();
-  }
-
-  class AutoResetter {
-  public:
-    AutoResetter(LoopVersioningLICM &LVLICM) : LVLICM(LVLICM) {}
-    ~AutoResetter() { LVLICM.reset(); }
-
-  private:
-    LoopVersioningLICM &LVLICM;
-  };
+  bool run(DominatorTree *DT);
 
 private:
   // Current AliasAnalysis information
-  AliasAnalysis *AA = nullptr;
+  AliasAnalysis *AA;
 
   // Current ScalarEvolution
-  ScalarEvolution *SE = nullptr;
+  ScalarEvolution *SE;
 
   // Current Loop's LoopAccessInfo
   const LoopAccessInfo *LAI = nullptr;
@@ -186,11 +136,10 @@ private:
   // Proxy for retrieving LoopAccessInfo.
   LoopAccessInfoManager &LAIs;
 
-  // The current loop we are working on.
-  Loop *CurLoop = nullptr;
+  LoopInfo &LI;
 
-  // AliasSet information for the current loop.
-  std::unique_ptr<AliasSetTracker> CurAST;
+  // The current loop we are working on.
+  Loop *CurLoop;
 
   // Maximum loop nest threshold
   unsigned LoopDepthThreshold;
@@ -215,7 +164,6 @@ private:
   bool legalLoopInstructions();
   bool legalLoopMemoryAccesses();
   bool isLoopAlreadyVisited();
-  void setNoAliasToLoop(Loop *VerLoop);
   bool instructionSafeForVersioning(Instruction *I);
 };
 
@@ -258,14 +206,14 @@ bool LoopVersioningLICM::legalLoopStructure() {
   }
   // Loop depth more then LoopDepthThreshold are not allowed
   if (CurLoop->getLoopDepth() > LoopDepthThreshold) {
-    LLVM_DEBUG(dbgs() << "    loop depth is more then threshold\n");
+    LLVM_DEBUG(dbgs() << "    loop depth is more than threshold\n");
     return false;
   }
   // We need to be able to compute the loop trip count in order
   // to generate the bound checks.
   const SCEV *ExitCount = SE->getBackedgeTakenCount(CurLoop);
   if (isa<SCEVCouldNotCompute>(ExitCount)) {
-    LLVM_DEBUG(dbgs() << "    loop does not has trip count\n");
+    LLVM_DEBUG(dbgs() << "    loop does not have trip count\n");
     return false;
   }
   return true;
@@ -274,9 +222,15 @@ bool LoopVersioningLICM::legalLoopStructure() {
 /// Check memory accesses in loop and confirms it's good for
 /// LoopVersioningLICM.
 bool LoopVersioningLICM::legalLoopMemoryAccesses() {
-  bool HasMayAlias = false;
-  bool TypeSafety = false;
-  bool HasMod = false;
+  // Loop over the body of this loop, construct AST.
+  BatchAAResults BAA(*AA);
+  AliasSetTracker AST(BAA);
+  for (auto *Block : CurLoop->getBlocks()) {
+    // Ignore blocks in subloops.
+    if (LI.getLoopFor(Block) == CurLoop)
+      AST.add(*Block);
+  }
+
   // Memory check:
   // Transform phase will generate a versioned loop and also a runtime check to
   // ensure the pointers are independent and they don’t alias.
@@ -289,7 +243,10 @@ bool LoopVersioningLICM::legalLoopMemoryAccesses() {
   //
   // Iterate over alias tracker sets, and confirm AliasSets doesn't have any
   // must alias set.
-  for (const auto &I : *CurAST) {
+  bool HasMayAlias = false;
+  bool TypeSafety = false;
+  bool HasMod = false;
+  for (const auto &I : AST) {
     const AliasSet &AS = I;
     // Skip Forward Alias Sets, as this should be ignored as part of
     // the AliasSetTracker object.
@@ -298,14 +255,19 @@ bool LoopVersioningLICM::legalLoopMemoryAccesses() {
     // With MustAlias its not worth adding runtime bound check.
     if (AS.isMustAlias())
       return false;
-    Value *SomePtr = AS.begin()->getValue();
+    const Value *SomePtr = AS.begin()->Ptr;
     bool TypeCheck = true;
     // Check for Mod & MayAlias
     HasMayAlias |= AS.isMayAlias();
     HasMod |= AS.isMod();
-    for (const auto &A : AS) {
-      Value *Ptr = A.getValue();
+    for (const auto &MemLoc : AS) {
+      const Value *Ptr = MemLoc.Ptr;
       // Alias tracker should have pointers of same data type.
+      //
+      // FIXME: check no longer effective since opaque pointers?
+      // If the intent is to check that the memory accesses use the
+      // same data type (such that LICM can promote them), then we
+      // can no longer see this from the pointer value types.
       TypeCheck = (TypeCheck && (SomePtr->getType() == Ptr->getType()));
     }
     // At least one alias tracker should have pointers of same data type.
@@ -381,6 +343,13 @@ bool LoopVersioningLICM::instructionSafeForVersioning(Instruction *I) {
     }
     LoadAndStoreCounter++;
     Value *Ptr = St->getPointerOperand();
+    // Don't allow stores that we don't have runtime checks for, as we won't be
+    // able to mark them noalias meaning they would prevent any code motion.
+    auto &Pointers = LAI->getRuntimePointerChecking()->Pointers;
+    if (!any_of(Pointers, [&](auto &P) { return P.PointerValue == Ptr; })) {
+      LLVM_DEBUG(dbgs() << "    Found a store without a runtime check.\n");
+      return false;
+    }
     // Check loop invariant.
     if (SE->isLoopInvariant(SE->getSCEV(Ptr), CurLoop))
       InvariantCounter++;
@@ -398,6 +367,13 @@ bool LoopVersioningLICM::legalLoopInstructions() {
   InvariantCounter = 0;
   IsReadOnlyLoop = true;
   using namespace ore;
+  // Get LoopAccessInfo from current loop via the proxy.
+  LAI = &LAIs.getInfo(*CurLoop, /*AllowPartial=*/true);
+  // Check LoopAccessInfo for need of runtime check.
+  if (LAI->getRuntimePointerChecking()->getChecks().empty()) {
+    LLVM_DEBUG(dbgs() << "    LAA: Runtime check not found !!\n");
+    return false;
+  }
   // Iterate over loop blocks and instructions of each block and check
   // instruction safety.
   for (auto *Block : CurLoop->getBlocks())
@@ -411,13 +387,6 @@ bool LoopVersioningLICM::legalLoopInstructions() {
         return false;
       }
     }
-  // Get LoopAccessInfo from current loop via the proxy.
-  LAI = &LAIs.getInfo(*CurLoop);
-  // Check LoopAccessInfo for need of runtime check.
-  if (LAI->getRuntimePointerChecking()->getChecks().empty()) {
-    LLVM_DEBUG(dbgs() << "    LAA: Runtime check not found !!\n");
-    return false;
-  }
   // Number of runtime-checks should be less then RuntimeMemoryCheckThreshold
   if (LAI->getNumRuntimePointerChecks() >
       VectorizerParams::RuntimeMemoryCheckThreshold) {
@@ -444,7 +413,7 @@ bool LoopVersioningLICM::legalLoopInstructions() {
     LLVM_DEBUG(dbgs() << "    Found a read-only loop!\n");
     return false;
   }
-  // Profitablity check:
+  // Profitability check:
   // Check invariant threshold, should be in limit.
   if (InvariantCounter * 100 < InvariantThreshold * LoadAndStoreCounter) {
     LLVM_DEBUG(
@@ -538,74 +507,10 @@ bool LoopVersioningLICM::isLegalForVersioning() {
   return true;
 }
 
-/// Update loop with aggressive aliasing assumptions.
-/// It marks no-alias to any pairs of memory operations by assuming
-/// loop should not have any must-alias memory accesses pairs.
-/// During LoopVersioningLICM legality we ignore loops having must
-/// aliasing memory accesses.
-void LoopVersioningLICM::setNoAliasToLoop(Loop *VerLoop) {
-  // Get latch terminator instruction.
-  Instruction *I = VerLoop->getLoopLatch()->getTerminator();
-  // Create alias scope domain.
-  MDBuilder MDB(I->getContext());
-  MDNode *NewDomain = MDB.createAnonymousAliasScopeDomain("LVDomain");
-  StringRef Name = "LVAliasScope";
-  MDNode *NewScope = MDB.createAnonymousAliasScope(NewDomain, Name);
-  SmallVector<Metadata *, 4> Scopes{NewScope}, NoAliases{NewScope};
-  // Iterate over each instruction of loop.
-  // set no-alias for all load & store instructions.
-  for (auto *Block : CurLoop->getBlocks()) {
-    for (auto &Inst : *Block) {
-      // Only interested in instruction that may modify or read memory.
-      if (!Inst.mayReadFromMemory() && !Inst.mayWriteToMemory())
-        continue;
-      // Set no-alias for current instruction.
-      Inst.setMetadata(
-          LLVMContext::MD_noalias,
-          MDNode::concatenate(Inst.getMetadata(LLVMContext::MD_noalias),
-                              MDNode::get(Inst.getContext(), NoAliases)));
-      // set alias-scope for current instruction.
-      Inst.setMetadata(
-          LLVMContext::MD_alias_scope,
-          MDNode::concatenate(Inst.getMetadata(LLVMContext::MD_alias_scope),
-                              MDNode::get(Inst.getContext(), Scopes)));
-    }
-  }
-}
-
-bool LoopVersioningLICMLegacyPass::runOnLoop(Loop *L, LPPassManager &LPM) {
-  if (skipLoop(L))
-    return false;
-
-  AliasAnalysis *AA = &getAnalysis<AAResultsWrapperPass>().getAAResults();
-  ScalarEvolution *SE = &getAnalysis<ScalarEvolutionWrapperPass>().getSE();
-  OptimizationRemarkEmitter *ORE =
-      &getAnalysis<OptimizationRemarkEmitterWrapperPass>().getORE();
-  LoopInfo *LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
-  DominatorTree *DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
-  auto &LAIs = getAnalysis<LoopAccessLegacyAnalysis>().getLAIs();
-
-  return LoopVersioningLICM(AA, SE, ORE, LAIs).runOnLoop(L, LI, DT);
-}
-
-bool LoopVersioningLICM::runOnLoop(Loop *L, LoopInfo *LI, DominatorTree *DT) {
-  // This will automatically release all resources hold by the current
-  // LoopVersioningLICM object.
-  AutoResetter Resetter(*this);
-
+bool LoopVersioningLICM::run(DominatorTree *DT) {
   // Do not do the transformation if disabled by metadata.
-  if (hasLICMVersioningTransformation(L) & TM_Disable)
+  if (hasLICMVersioningTransformation(CurLoop) & TM_Disable)
     return false;
-
-  // Set Current Loop
-  CurLoop = L;
-  CurAST.reset(new AliasSetTracker(*AA));
-
-  // Loop over the body of this loop, construct AST.
-  for (auto *Block : L->getBlocks()) {
-    if (LI->getLoopFor(Block) == L) // Ignore blocks in subloop.
-      CurAST->add(*Block);          // Incorporate the specified basic block
-  }
 
   bool Changed = false;
 
@@ -617,7 +522,7 @@ bool LoopVersioningLICM::runOnLoop(Loop *L, LoopInfo *LI, DominatorTree *DT) {
     // Create memcheck for memory accessed inside loop.
     // Clone original loop, and set blocks properly.
     LoopVersioning LVer(*LAI, LAI->getRuntimePointerChecking()->getChecks(),
-                        CurLoop, LI, DT, SE);
+                        CurLoop, &LI, DT, SE);
     LVer.versionLoop();
     // Set Loop Versioning metaData for original loop.
     addStringMetadataToLoop(LVer.getNonVersionedLoop(), LICMVersioningMetaData);
@@ -629,33 +534,11 @@ bool LoopVersioningLICM::runOnLoop(Loop *L, LoopInfo *LI, DominatorTree *DT) {
     addStringMetadataToLoop(LVer.getVersionedLoop(),
                             "llvm.mem.parallel_loop_access");
     // Update version loop with aggressive aliasing assumption.
-    setNoAliasToLoop(LVer.getVersionedLoop());
+    LVer.annotateLoopWithNoAlias();
     Changed = true;
   }
   return Changed;
 }
-
-char LoopVersioningLICMLegacyPass::ID = 0;
-
-INITIALIZE_PASS_BEGIN(LoopVersioningLICMLegacyPass, "loop-versioning-licm",
-                      "Loop Versioning For LICM", false, false)
-INITIALIZE_PASS_DEPENDENCY(AAResultsWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(GlobalsAAWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(LCSSAWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(LoopAccessLegacyAnalysis)
-INITIALIZE_PASS_DEPENDENCY(LoopInfoWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(LoopSimplify)
-INITIALIZE_PASS_DEPENDENCY(ScalarEvolutionWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(OptimizationRemarkEmitterWrapperPass)
-INITIALIZE_PASS_END(LoopVersioningLICMLegacyPass, "loop-versioning-licm",
-                    "Loop Versioning For LICM", false, false)
-
-Pass *llvm::createLoopVersioningLICMPass() {
-  return new LoopVersioningLICMLegacyPass();
-}
-
-namespace llvm {
 
 PreservedAnalyses LoopVersioningLICMPass::run(Loop &L, LoopAnalysisManager &AM,
                                               LoopStandardAnalysisResults &LAR,
@@ -663,13 +546,11 @@ PreservedAnalyses LoopVersioningLICMPass::run(Loop &L, LoopAnalysisManager &AM,
   AliasAnalysis *AA = &LAR.AA;
   ScalarEvolution *SE = &LAR.SE;
   DominatorTree *DT = &LAR.DT;
-  LoopInfo *LI = &LAR.LI;
   const Function *F = L.getHeader()->getParent();
   OptimizationRemarkEmitter ORE(F);
 
-  LoopAccessInfoManager LAIs(*SE, *AA, *DT, *LI, nullptr);
-  if (!LoopVersioningLICM(AA, SE, &ORE, LAIs).runOnLoop(&L, LI, DT))
+  LoopAccessInfoManager LAIs(*SE, *AA, *DT, LAR.LI, nullptr, nullptr, &LAR.AC);
+  if (!LoopVersioningLICM(AA, SE, &ORE, LAIs, LAR.LI, &L).run(DT))
     return PreservedAnalyses::all();
   return getLoopPassPreservedAnalyses();
 }
-} // namespace llvm

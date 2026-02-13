@@ -62,10 +62,13 @@ public:
 
   CompilerType GetSiginfoType(const llvm::Triple &triple) override;
 
+  lldb::StopInfoSP GetStopInfoFromSiginfo(Thread &thread) override;
+
   std::vector<ArchSpec> m_supported_architectures;
 
 private:
-  std::unique_ptr<TypeSystemClang> m_type_system_up;
+  std::mutex m_mutex;
+  std::shared_ptr<TypeSystemClang> m_type_system;
 };
 
 } // namespace platform_linux

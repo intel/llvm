@@ -32,6 +32,7 @@
 #include "clang/AST/ASTConsumer.h"
 #include "clang/Basic/FileManager.h"
 #include "clang/Basic/LLVM.h"
+#include "clang/Frontend/ASTUnit.h"
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Frontend/PCHContainerOperations.h"
 #include "clang/Tooling/ArgumentsAdjusters.h"
@@ -223,7 +224,11 @@ buildASTFromCode(StringRef Code, StringRef FileName = "input.cc",
 /// \param PCHContainerOps The PCHContainerOperations for loading and creating
 /// clang modules.
 ///
-/// \param Adjuster A function to filter the command line arguments as specified.
+/// \param Adjuster A function to filter the command line arguments as
+/// specified.
+///
+/// \param BaseFS FileSystem for managing and looking up files.
+/// VirtualMappedFiles takes precedence.
 ///
 /// \return The resulting AST or null if an error occurred.
 std::unique_ptr<ASTUnit> buildASTFromCodeWithArgs(
@@ -233,7 +238,10 @@ std::unique_ptr<ASTUnit> buildASTFromCodeWithArgs(
         std::make_shared<PCHContainerOperations>(),
     ArgumentsAdjuster Adjuster = getClangStripDependencyFileAdjuster(),
     const FileContentMappings &VirtualMappedFiles = FileContentMappings(),
-    DiagnosticConsumer *DiagConsumer = nullptr);
+    DiagnosticConsumer *DiagConsumer = nullptr,
+    IntrusiveRefCntPtr<llvm::vfs::FileSystem> BaseFS =
+        llvm::vfs::getRealFileSystem(),
+    CaptureDiagsKind CaptureKind = CaptureDiagsKind::None);
 
 /// Utility to run a FrontendAction in a single clang invocation.
 class ToolInvocation {
@@ -266,6 +274,9 @@ public:
                  std::shared_ptr<PCHContainerOperations> PCHContainerOps);
 
   ~ToolInvocation();
+
+  ToolInvocation(const ToolInvocation &) = delete;
+  ToolInvocation &operator=(const ToolInvocation &) = delete;
 
   /// Set a \c DiagnosticConsumer to use during driver command-line parsing and
   /// the action invocation itself.
@@ -361,11 +372,6 @@ public:
   /// append them to ASTs.
   int buildASTs(std::vector<std::unique_ptr<ASTUnit>> &ASTs);
 
-  /// Sets whether working directory should be restored after calling run(). By
-  /// default, working directory is restored. However, it could be useful to
-  /// turn this off when running on multiple threads to avoid the raciness.
-  void setRestoreWorkingDir(bool RestoreCWD);
-
   /// Sets whether an error message should be printed out if an action fails. By
   /// default, if an action fails, a message is printed out to stderr.
   void setPrintErrorMessage(bool PrintErrorMessage);
@@ -395,7 +401,6 @@ private:
 
   DiagnosticConsumer *DiagConsumer = nullptr;
 
-  bool RestoreCWD = true;
   bool PrintErrorMessage = true;
 };
 
@@ -505,6 +510,12 @@ llvm::Expected<std::string> getAbsolutePath(llvm::vfs::FileSystem &FS,
 /// the builtin headers can be found.
 void addTargetAndModeForProgramName(std::vector<std::string> &CommandLine,
                                     StringRef InvokedAs);
+
+/// Helper function that expands response files in command line.
+void addExpandedResponseFiles(std::vector<std::string> &CommandLine,
+                              llvm::StringRef WorkingDir,
+                              llvm::cl::TokenizerCallback Tokenizer,
+                              llvm::vfs::FileSystem &FS);
 
 /// Creates a \c CompilerInvocation.
 CompilerInvocation *newInvocation(DiagnosticsEngine *Diagnostics,

@@ -1,8 +1,9 @@
-// RUN: mlir-opt %s -arith-bufferize -linalg-bufferize \
-// RUN: -tensor-bufferize -func-bufferize -finalizing-bufferize -buffer-deallocation -convert-linalg-to-loops \
-// RUN: -convert-linalg-to-llvm --convert-memref-to-llvm -convert-func-to-llvm -reconcile-unrealized-casts | \
-// RUN: mlir-cpu-runner -e main -entry-point-result=void \
-// RUN:   -shared-libs=%mlir_lib_dir/libmlir_runner_utils%shlibext \
+// RUN: mlir-opt %s \
+// RUN: -one-shot-bufferize="bufferize-function-boundaries" \
+// RUN: -buffer-deallocation-pipeline -convert-bufferization-to-memref -convert-linalg-to-loops \
+// RUN: -convert-arith-to-llvm -convert-scf-to-cf -convert-cf-to-llvm --finalize-memref-to-llvm -convert-func-to-llvm -reconcile-unrealized-casts | \
+// RUN: mlir-runner -e main -entry-point-result=void \
+// RUN:   -shared-libs=%mlir_runner_utils \
 // RUN: | FileCheck %s
 
 func.func @foo() -> tensor<4xf32> {

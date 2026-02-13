@@ -13,8 +13,8 @@
 #ifndef SANITIZER_SYMBOLIZER_INTERNAL_H
 #define SANITIZER_SYMBOLIZER_INTERNAL_H
 
-#include "sanitizer_symbolizer.h"
 #include "sanitizer_file.h"
+#include "sanitizer_symbolizer.h"
 #include "sanitizer_vector.h"
 
 namespace __sanitizer {
@@ -83,7 +83,7 @@ class SymbolizerProcess {
   const char *SendCommand(const char *command);
 
  protected:
-  ~SymbolizerProcess() {}
+  ~SymbolizerProcess();
 
   /// The maximum number of arguments required to invoke a tool process.
   static const unsigned kArgVMax = 16;
@@ -113,6 +113,10 @@ class SymbolizerProcess {
   const char *path_;
   fd_t input_fd_;
   fd_t output_fd_;
+
+  // We hold on to the child's stdin fd (the read end of the pipe)
+  // so that when we write to it, we don't get a SIGPIPE
+  fd_t child_stdin_fd_;
 
   InternalMmapVector<char> buffer_;
 
@@ -159,6 +163,15 @@ void ParseSymbolizePCOutput(const char *str, SymbolizedStack *res);
 //   <start_address> <size>
 // Used by LLVMSymbolizer and InternalSymbolizer.
 void ParseSymbolizeDataOutput(const char *str, DataInfo *info);
+
+// Parses repeated strings in the following format:
+//   <function_name>
+//   <var_name>
+//   <file_name>:<line_number>[:<column_number>]
+//   [<frame_offset>|??] [<size>|??] [<tag_offset>|??]
+// Used by LLVMSymbolizer and InternalSymbolizer.
+void ParseSymbolizeFrameOutput(const char *str,
+                               InternalMmapVector<LocalInfo> *locals);
 
 }  // namespace __sanitizer
 

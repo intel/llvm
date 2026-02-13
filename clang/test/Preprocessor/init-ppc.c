@@ -41,26 +41,31 @@
 // PPC603E:#define __FLT_MIN_EXP__ (-125)
 // PPC603E:#define __FLT_MIN__ 1.17549435e-38F
 // PPC603E:#define __FLT_RADIX__ 2
+// PPC603E:#define __INT16_C(c) c
 // PPC603E:#define __INT16_C_SUFFIX__
 // PPC603E:#define __INT16_FMTd__ "hd"
 // PPC603E:#define __INT16_FMTi__ "hi"
 // PPC603E:#define __INT16_MAX__ 32767
 // PPC603E:#define __INT16_TYPE__ short
+// PPC603E:#define __INT32_C(c) c
 // PPC603E:#define __INT32_C_SUFFIX__
 // PPC603E:#define __INT32_FMTd__ "d"
 // PPC603E:#define __INT32_FMTi__ "i"
 // PPC603E:#define __INT32_MAX__ 2147483647
 // PPC603E:#define __INT32_TYPE__ int
+// PPC603E:#define __INT64_C(c) c##LL
 // PPC603E:#define __INT64_C_SUFFIX__ LL
 // PPC603E:#define __INT64_FMTd__ "lld"
 // PPC603E:#define __INT64_FMTi__ "lli"
 // PPC603E:#define __INT64_MAX__ 9223372036854775807LL
 // PPC603E:#define __INT64_TYPE__ long long int
+// PPC603E:#define __INT8_C(c) c
 // PPC603E:#define __INT8_C_SUFFIX__
 // PPC603E:#define __INT8_FMTd__ "hhd"
 // PPC603E:#define __INT8_FMTi__ "hhi"
 // PPC603E:#define __INT8_MAX__ 127
 // PPC603E:#define __INT8_TYPE__ signed char
+// PPC603E:#define __INTMAX_C(c) c##LL
 // PPC603E:#define __INTMAX_C_SUFFIX__ LL
 // PPC603E:#define __INTMAX_FMTd__ "lld"
 // PPC603E:#define __INTMAX_FMTi__ "lli"
@@ -150,18 +155,23 @@
 // PPC603E:#define __SIZE_TYPE__ long unsigned int
 // PPC603E:#define __SIZE_WIDTH__ 32
 // PPC603E-CXX:#define __STDCPP_DEFAULT_NEW_ALIGNMENT__ 16UL
+// PPC603E:#define __UINT16_C(c) c
 // PPC603E:#define __UINT16_C_SUFFIX__
 // PPC603E:#define __UINT16_MAX__ 65535
 // PPC603E:#define __UINT16_TYPE__ unsigned short
+// PPC603E:#define __UINT32_C(c) c##U
 // PPC603E:#define __UINT32_C_SUFFIX__ U
 // PPC603E:#define __UINT32_MAX__ 4294967295U
 // PPC603E:#define __UINT32_TYPE__ unsigned int
+// PPC603E:#define __UINT64_C(c) c##ULL
 // PPC603E:#define __UINT64_C_SUFFIX__ ULL
 // PPC603E:#define __UINT64_MAX__ 18446744073709551615ULL
 // PPC603E:#define __UINT64_TYPE__ long long unsigned int
+// PPC603E:#define __UINT8_C(c) c
 // PPC603E:#define __UINT8_C_SUFFIX__
 // PPC603E:#define __UINT8_MAX__ 255
 // PPC603E:#define __UINT8_TYPE__ unsigned char
+// PPC603E:#define __UINTMAX_C(c) c##ULL
 // PPC603E:#define __UINTMAX_C_SUFFIX__ ULL
 // PPC603E:#define __UINTMAX_MAX__ 18446744073709551615ULL
 // PPC603E:#define __UINTMAX_TYPE__ long long unsigned int
@@ -235,26 +245,31 @@
 // PPC:#define __FLT_MIN__ 1.17549435e-38F
 // PPC:#define __FLT_RADIX__ 2
 // PPC:#define __HAVE_BSWAP__ 1
+// PPC:#define __INT16_C(c) c
 // PPC:#define __INT16_C_SUFFIX__
 // PPC:#define __INT16_FMTd__ "hd"
 // PPC:#define __INT16_FMTi__ "hi"
 // PPC:#define __INT16_MAX__ 32767
 // PPC:#define __INT16_TYPE__ short
+// PPC:#define __INT32_C(c) c
 // PPC:#define __INT32_C_SUFFIX__
 // PPC:#define __INT32_FMTd__ "d"
 // PPC:#define __INT32_FMTi__ "i"
 // PPC:#define __INT32_MAX__ 2147483647
 // PPC:#define __INT32_TYPE__ int
+// PPC:#define __INT64_C(c) c##LL
 // PPC:#define __INT64_C_SUFFIX__ LL
 // PPC:#define __INT64_FMTd__ "lld"
 // PPC:#define __INT64_FMTi__ "lli"
 // PPC:#define __INT64_MAX__ 9223372036854775807LL
 // PPC:#define __INT64_TYPE__ long long int
+// PPC:#define __INT8_C(c) c
 // PPC:#define __INT8_C_SUFFIX__
 // PPC:#define __INT8_FMTd__ "hhd"
 // PPC:#define __INT8_FMTi__ "hhi"
 // PPC:#define __INT8_MAX__ 127
 // PPC:#define __INT8_TYPE__ signed char
+// PPC:#define __INTMAX_C(c) c##LL
 // PPC:#define __INTMAX_C_SUFFIX__ LL
 // PPC:#define __INTMAX_FMTd__ "lld"
 // PPC:#define __INTMAX_FMTi__ "lli"
@@ -344,18 +359,23 @@
 // PPC:#define __SIZE_MAX__ 4294967295UL
 // PPC:#define __SIZE_TYPE__ long unsigned int
 // PPC:#define __SIZE_WIDTH__ 32
+// PPC:#define __UINT16_C(c) c
 // PPC:#define __UINT16_C_SUFFIX__
 // PPC:#define __UINT16_MAX__ 65535
 // PPC:#define __UINT16_TYPE__ unsigned short
+// PPC:#define __UINT32_C(c) c##U
 // PPC:#define __UINT32_C_SUFFIX__ U
 // PPC:#define __UINT32_MAX__ 4294967295U
 // PPC:#define __UINT32_TYPE__ unsigned int
+// PPC:#define __UINT64_C(c) c##ULL
 // PPC:#define __UINT64_C_SUFFIX__ ULL
 // PPC:#define __UINT64_MAX__ 18446744073709551615ULL
 // PPC:#define __UINT64_TYPE__ long long unsigned int
+// PPC:#define __UINT8_C(c) c
 // PPC:#define __UINT8_C_SUFFIX__
 // PPC:#define __UINT8_MAX__ 255
 // PPC:#define __UINT8_TYPE__ unsigned char
+// PPC:#define __UINTMAX_C(c) c##ULL
 // PPC:#define __UINTMAX_C_SUFFIX__ ULL
 // PPC:#define __UINTMAX_MAX__ 18446744073709551615ULL
 // PPC:#define __UINTMAX_TYPE__ long long unsigned int
@@ -435,26 +455,31 @@
 // PPC-AIX:#define __FLT_MIN__ 1.17549435e-38F
 // PPC-AIX:#define __FLT_RADIX__ 2
 // PPC-AIX:#define __HOS_AIX__ 1
+// PPC-AIX:#define __INT16_C(c) c
 // PPC-AIX:#define __INT16_C_SUFFIX__
 // PPC-AIX:#define __INT16_FMTd__ "hd"
 // PPC-AIX:#define __INT16_FMTi__ "hi"
 // PPC-AIX:#define __INT16_MAX__ 32767
 // PPC-AIX:#define __INT16_TYPE__ short
+// PPC-AIX:#define __INT32_C(c) c
 // PPC-AIX:#define __INT32_C_SUFFIX__
 // PPC-AIX:#define __INT32_FMTd__ "d"
 // PPC-AIX:#define __INT32_FMTi__ "i"
 // PPC-AIX:#define __INT32_MAX__ 2147483647
 // PPC-AIX:#define __INT32_TYPE__ int
+// PPC-AIX:#define __INT64_C(c) c##LL
 // PPC-AIX:#define __INT64_C_SUFFIX__ LL
 // PPC-AIX:#define __INT64_FMTd__ "lld"
 // PPC-AIX:#define __INT64_FMTi__ "lli"
 // PPC-AIX:#define __INT64_MAX__ 9223372036854775807LL
 // PPC-AIX:#define __INT64_TYPE__ long long int
+// PPC-AIX:#define __INT8_C(c) c
 // PPC-AIX:#define __INT8_C_SUFFIX__
 // PPC-AIX:#define __INT8_FMTd__ "hhd"
 // PPC-AIX:#define __INT8_FMTi__ "hhi"
 // PPC-AIX:#define __INT8_MAX__ 127
 // PPC-AIX:#define __INT8_TYPE__ signed char
+// PPC-AIX:#define __INTMAX_C(c) c##LL
 // PPC-AIX:#define __INTMAX_C_SUFFIX__ LL
 // PPC-AIX:#define __INTMAX_FMTd__ "lld"
 // PPC-AIX:#define __INTMAX_FMTi__ "lli"
@@ -546,18 +571,23 @@
 // PPC-AIX:#define __THW_BIG_ENDIAN__ 1
 // PPC-AIX:#define __THW_PPC__ 1
 // PPC-AIX:#define __TOS_AIX__ 1
+// PPC-AIX:#define __UINT16_C(c) c
 // PPC-AIX:#define __UINT16_C_SUFFIX__
 // PPC-AIX:#define __UINT16_MAX__ 65535
 // PPC-AIX:#define __UINT16_TYPE__ unsigned short
+// PPC-AIX:#define __UINT32_C(c) c##U
 // PPC-AIX:#define __UINT32_C_SUFFIX__ U
 // PPC-AIX:#define __UINT32_MAX__ 4294967295U
 // PPC-AIX:#define __UINT32_TYPE__ unsigned int
+// PPC-AIX:#define __UINT64_C(c) c##ULL
 // PPC-AIX:#define __UINT64_C_SUFFIX__ ULL
 // PPC-AIX:#define __UINT64_MAX__ 18446744073709551615ULL
 // PPC-AIX:#define __UINT64_TYPE__ long long unsigned int
+// PPC-AIX:#define __UINT8_C(c) c
 // PPC-AIX:#define __UINT8_C_SUFFIX__
 // PPC-AIX:#define __UINT8_MAX__ 255
 // PPC-AIX:#define __UINT8_TYPE__ unsigned char
+// PPC-AIX:#define __UINTMAX_C(c) c##ULL
 // PPC-AIX:#define __UINTMAX_C_SUFFIX__ ULL
 // PPC-AIX:#define __UINTMAX_MAX__ 18446744073709551615ULL
 // PPC-AIX:#define __UINTMAX_TYPE__ long long unsigned int
@@ -807,26 +837,31 @@
 // PPC-LINUX:#define __FLT_MIN__ 1.17549435e-38F
 // PPC-LINUX:#define __FLT_RADIX__ 2
 // PPC-LINUX:#define __HAVE_BSWAP__ 1
+// PPC-LINUX:#define __INT16_C(c) c
 // PPC-LINUX:#define __INT16_C_SUFFIX__
 // PPC-LINUX:#define __INT16_FMTd__ "hd"
 // PPC-LINUX:#define __INT16_FMTi__ "hi"
 // PPC-LINUX:#define __INT16_MAX__ 32767
 // PPC-LINUX:#define __INT16_TYPE__ short
+// PPC-LINUX:#define __INT32_C(c) c
 // PPC-LINUX:#define __INT32_C_SUFFIX__
 // PPC-LINUX:#define __INT32_FMTd__ "d"
 // PPC-LINUX:#define __INT32_FMTi__ "i"
 // PPC-LINUX:#define __INT32_MAX__ 2147483647
 // PPC-LINUX:#define __INT32_TYPE__ int
+// PPC-LINUX:#define __INT64_C(c) c##LL
 // PPC-LINUX:#define __INT64_C_SUFFIX__ LL
 // PPC-LINUX:#define __INT64_FMTd__ "lld"
 // PPC-LINUX:#define __INT64_FMTi__ "lli"
 // PPC-LINUX:#define __INT64_MAX__ 9223372036854775807LL
 // PPC-LINUX:#define __INT64_TYPE__ long long int
+// PPC-LINUX:#define __INT8_C(c) c
 // PPC-LINUX:#define __INT8_C_SUFFIX__
 // PPC-LINUX:#define __INT8_FMTd__ "hhd"
 // PPC-LINUX:#define __INT8_FMTi__ "hhi"
 // PPC-LINUX:#define __INT8_MAX__ 127
 // PPC-LINUX:#define __INT8_TYPE__ signed char
+// PPC-LINUX:#define __INTMAX_C(c) c##LL
 // PPC-LINUX:#define __INTMAX_C_SUFFIX__ LL
 // PPC-LINUX:#define __INTMAX_FMTd__ "lld"
 // PPC-LINUX:#define __INTMAX_FMTi__ "lli"
@@ -915,18 +950,23 @@
 // PPC-LINUX:#define __SIZE_MAX__ 4294967295U
 // PPC-LINUX:#define __SIZE_TYPE__ unsigned int
 // PPC-LINUX:#define __SIZE_WIDTH__ 32
+// PPC-LINUX:#define __UINT16_C(c) c
 // PPC-LINUX:#define __UINT16_C_SUFFIX__
 // PPC-LINUX:#define __UINT16_MAX__ 65535
 // PPC-LINUX:#define __UINT16_TYPE__ unsigned short
+// PPC-LINUX:#define __UINT32_C(c) c##U
 // PPC-LINUX:#define __UINT32_C_SUFFIX__ U
 // PPC-LINUX:#define __UINT32_MAX__ 4294967295U
 // PPC-LINUX:#define __UINT32_TYPE__ unsigned int
+// PPC-LINUX:#define __UINT64_C(c) c##ULL
 // PPC-LINUX:#define __UINT64_C_SUFFIX__ ULL
 // PPC-LINUX:#define __UINT64_MAX__ 18446744073709551615ULL
 // PPC-LINUX:#define __UINT64_TYPE__ long long unsigned int
+// PPC-LINUX:#define __UINT8_C(c) c
 // PPC-LINUX:#define __UINT8_C_SUFFIX__
 // PPC-LINUX:#define __UINT8_MAX__ 255
 // PPC-LINUX:#define __UINT8_TYPE__ unsigned char
+// PPC-LINUX:#define __UINTMAX_C(c) c##ULL
 // PPC-LINUX:#define __UINTMAX_C_SUFFIX__ ULL
 // PPC-LINUX:#define __UINTMAX_MAX__ 18446744073709551615ULL
 // PPC-LINUX:#define __UINTMAX_TYPE__ long long unsigned int
@@ -975,202 +1015,23 @@
 // PPC8548:#define __NO_LWSYNC__ 1
 // PPC8548:#define __SPE__ 1
 
-// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc-apple-darwin8 < /dev/null | FileCheck -match-full-lines -check-prefix PPC-DARWIN %s
-//
-// PPC-DARWIN:#define _ARCH_PPC 1
-// PPC-DARWIN:#define _BIG_ENDIAN 1
-// PPC-DARWIN:#define __BIGGEST_ALIGNMENT__ 16
-// PPC-DARWIN:#define __BIG_ENDIAN__ 1
-// PPC-DARWIN:#define __BYTE_ORDER__ __ORDER_BIG_ENDIAN__
-// PPC-DARWIN:#define __CHAR16_TYPE__ unsigned short
-// PPC-DARWIN:#define __CHAR32_TYPE__ unsigned int
-// PPC-DARWIN:#define __CHAR_BIT__ 8
-// PPC-DARWIN:#define __DBL_DENORM_MIN__ 4.9406564584124654e-324
-// PPC-DARWIN:#define __DBL_DIG__ 15
-// PPC-DARWIN:#define __DBL_EPSILON__ 2.2204460492503131e-16
-// PPC-DARWIN:#define __DBL_HAS_DENORM__ 1
-// PPC-DARWIN:#define __DBL_HAS_INFINITY__ 1
-// PPC-DARWIN:#define __DBL_HAS_QUIET_NAN__ 1
-// PPC-DARWIN:#define __DBL_MANT_DIG__ 53
-// PPC-DARWIN:#define __DBL_MAX_10_EXP__ 308
-// PPC-DARWIN:#define __DBL_MAX_EXP__ 1024
-// PPC-DARWIN:#define __DBL_MAX__ 1.7976931348623157e+308
-// PPC-DARWIN:#define __DBL_MIN_10_EXP__ (-307)
-// PPC-DARWIN:#define __DBL_MIN_EXP__ (-1021)
-// PPC-DARWIN:#define __DBL_MIN__ 2.2250738585072014e-308
-// PPC-DARWIN:#define __DECIMAL_DIG__ __LDBL_DECIMAL_DIG__
-// PPC-DARWIN:#define __FLT_DENORM_MIN__ 1.40129846e-45F
-// PPC-DARWIN:#define __FLT_DIG__ 6
-// PPC-DARWIN:#define __FLT_EPSILON__ 1.19209290e-7F
-// PPC-DARWIN:#define __FLT_HAS_DENORM__ 1
-// PPC-DARWIN:#define __FLT_HAS_INFINITY__ 1
-// PPC-DARWIN:#define __FLT_HAS_QUIET_NAN__ 1
-// PPC-DARWIN:#define __FLT_MANT_DIG__ 24
-// PPC-DARWIN:#define __FLT_MAX_10_EXP__ 38
-// PPC-DARWIN:#define __FLT_MAX_EXP__ 128
-// PPC-DARWIN:#define __FLT_MAX__ 3.40282347e+38F
-// PPC-DARWIN:#define __FLT_MIN_10_EXP__ (-37)
-// PPC-DARWIN:#define __FLT_MIN_EXP__ (-125)
-// PPC-DARWIN:#define __FLT_MIN__ 1.17549435e-38F
-// PPC-DARWIN:#define __FLT_RADIX__ 2
-// PPC-DARWIN:#define __HAVE_BSWAP__ 1
-// PPC-DARWIN:#define __INT16_C_SUFFIX__
-// PPC-DARWIN:#define __INT16_FMTd__ "hd"
-// PPC-DARWIN:#define __INT16_FMTi__ "hi"
-// PPC-DARWIN:#define __INT16_MAX__ 32767
-// PPC-DARWIN:#define __INT16_TYPE__ short
-// PPC-DARWIN:#define __INT32_C_SUFFIX__
-// PPC-DARWIN:#define __INT32_FMTd__ "d"
-// PPC-DARWIN:#define __INT32_FMTi__ "i"
-// PPC-DARWIN:#define __INT32_MAX__ 2147483647
-// PPC-DARWIN:#define __INT32_TYPE__ int
-// PPC-DARWIN:#define __INT64_C_SUFFIX__ LL
-// PPC-DARWIN:#define __INT64_FMTd__ "lld"
-// PPC-DARWIN:#define __INT64_FMTi__ "lli"
-// PPC-DARWIN:#define __INT64_MAX__ 9223372036854775807LL
-// PPC-DARWIN:#define __INT64_TYPE__ long long int
-// PPC-DARWIN:#define __INT8_C_SUFFIX__
-// PPC-DARWIN:#define __INT8_FMTd__ "hhd"
-// PPC-DARWIN:#define __INT8_FMTi__ "hhi"
-// PPC-DARWIN:#define __INT8_MAX__ 127
-// PPC-DARWIN:#define __INT8_TYPE__ signed char
-// PPC-DARWIN:#define __INTMAX_C_SUFFIX__ LL
-// PPC-DARWIN:#define __INTMAX_FMTd__ "lld"
-// PPC-DARWIN:#define __INTMAX_FMTi__ "lli"
-// PPC-DARWIN:#define __INTMAX_MAX__ 9223372036854775807LL
-// PPC-DARWIN:#define __INTMAX_TYPE__ long long int
-// PPC-DARWIN:#define __INTMAX_WIDTH__ 64
-// PPC-DARWIN:#define __INTPTR_FMTd__ "ld"
-// PPC-DARWIN:#define __INTPTR_FMTi__ "li"
-// PPC-DARWIN:#define __INTPTR_MAX__ 2147483647L
-// PPC-DARWIN:#define __INTPTR_TYPE__ long int
-// PPC-DARWIN:#define __INTPTR_WIDTH__ 32
-// PPC-DARWIN:#define __INT_FAST16_FMTd__ "hd"
-// PPC-DARWIN:#define __INT_FAST16_FMTi__ "hi"
-// PPC-DARWIN:#define __INT_FAST16_MAX__ 32767
-// PPC-DARWIN:#define __INT_FAST16_TYPE__ short
-// PPC-DARWIN:#define __INT_FAST32_FMTd__ "d"
-// PPC-DARWIN:#define __INT_FAST32_FMTi__ "i"
-// PPC-DARWIN:#define __INT_FAST32_MAX__ 2147483647
-// PPC-DARWIN:#define __INT_FAST32_TYPE__ int
-// PPC-DARWIN:#define __INT_FAST64_FMTd__ "lld"
-// PPC-DARWIN:#define __INT_FAST64_FMTi__ "lli"
-// PPC-DARWIN:#define __INT_FAST64_MAX__ 9223372036854775807LL
-// PPC-DARWIN:#define __INT_FAST64_TYPE__ long long int
-// PPC-DARWIN:#define __INT_FAST8_FMTd__ "hhd"
-// PPC-DARWIN:#define __INT_FAST8_FMTi__ "hhi"
-// PPC-DARWIN:#define __INT_FAST8_MAX__ 127
-// PPC-DARWIN:#define __INT_FAST8_TYPE__ signed char
-// PPC-DARWIN:#define __INT_LEAST16_FMTd__ "hd"
-// PPC-DARWIN:#define __INT_LEAST16_FMTi__ "hi"
-// PPC-DARWIN:#define __INT_LEAST16_MAX__ 32767
-// PPC-DARWIN:#define __INT_LEAST16_TYPE__ short
-// PPC-DARWIN:#define __INT_LEAST32_FMTd__ "d"
-// PPC-DARWIN:#define __INT_LEAST32_FMTi__ "i"
-// PPC-DARWIN:#define __INT_LEAST32_MAX__ 2147483647
-// PPC-DARWIN:#define __INT_LEAST32_TYPE__ int
-// PPC-DARWIN:#define __INT_LEAST64_FMTd__ "lld"
-// PPC-DARWIN:#define __INT_LEAST64_FMTi__ "lli"
-// PPC-DARWIN:#define __INT_LEAST64_MAX__ 9223372036854775807LL
-// PPC-DARWIN:#define __INT_LEAST64_TYPE__ long long int
-// PPC-DARWIN:#define __INT_LEAST8_FMTd__ "hhd"
-// PPC-DARWIN:#define __INT_LEAST8_FMTi__ "hhi"
-// PPC-DARWIN:#define __INT_LEAST8_MAX__ 127
-// PPC-DARWIN:#define __INT_LEAST8_TYPE__ signed char
-// PPC-DARWIN:#define __INT_MAX__ 2147483647
-// PPC-DARWIN:#define __LDBL_DENORM_MIN__ 4.94065645841246544176568792868221e-324L
-// PPC-DARWIN:#define __LDBL_DIG__ 31
-// PPC-DARWIN:#define __LDBL_EPSILON__ 4.94065645841246544176568792868221e-324L
-// PPC-DARWIN:#define __LDBL_HAS_DENORM__ 1
-// PPC-DARWIN:#define __LDBL_HAS_INFINITY__ 1
-// PPC-DARWIN:#define __LDBL_HAS_QUIET_NAN__ 1
-// PPC-DARWIN:#define __LDBL_MANT_DIG__ 106
-// PPC-DARWIN:#define __LDBL_MAX_10_EXP__ 308
-// PPC-DARWIN:#define __LDBL_MAX_EXP__ 1024
-// PPC-DARWIN:#define __LDBL_MAX__ 1.79769313486231580793728971405301e+308L
-// PPC-DARWIN:#define __LDBL_MIN_10_EXP__ (-291)
-// PPC-DARWIN:#define __LDBL_MIN_EXP__ (-968)
-// PPC-DARWIN:#define __LDBL_MIN__ 2.00416836000897277799610805135016e-292L
-// PPC-DARWIN:#define __LONGDOUBLE128 1
-// PPC-DARWIN:#define __LONG_DOUBLE_128__ 1
-// PPC-DARWIN:#define __LONG_LONG_MAX__ 9223372036854775807LL
-// PPC-DARWIN:#define __LONG_MAX__ 2147483647L
-// PPC-DARWIN:#define __MACH__ 1
-// PPC-DARWIN:#define __NATURAL_ALIGNMENT__ 1
-// PPC-DARWIN:#define __ORDER_BIG_ENDIAN__ 4321
-// PPC-DARWIN:#define __ORDER_LITTLE_ENDIAN__ 1234
-// PPC-DARWIN:#define __ORDER_PDP_ENDIAN__ 3412
-// PPC-DARWIN:#define __POINTER_WIDTH__ 32
-// PPC-DARWIN:#define __POWERPC__ 1
-// PPC-DARWIN:#define __PPC__ 1
-// PPC-DARWIN:#define __PTRDIFF_TYPE__ int
-// PPC-DARWIN:#define __PTRDIFF_WIDTH__ 32
-// PPC-DARWIN:#define __REGISTER_PREFIX__
-// PPC-DARWIN:#define __SCHAR_MAX__ 127
-// PPC-DARWIN:#define __SHRT_MAX__ 32767
-// PPC-DARWIN:#define __SIG_ATOMIC_MAX__ 2147483647
-// PPC-DARWIN:#define __SIG_ATOMIC_WIDTH__ 32
-// PPC-DARWIN:#define __SIZEOF_DOUBLE__ 8
-// PPC-DARWIN:#define __SIZEOF_FLOAT__ 4
-// PPC-DARWIN:#define __SIZEOF_INT__ 4
-// PPC-DARWIN:#define __SIZEOF_LONG_DOUBLE__ 16
-// PPC-DARWIN:#define __SIZEOF_LONG_LONG__ 8
-// PPC-DARWIN:#define __SIZEOF_LONG__ 4
-// PPC-DARWIN:#define __SIZEOF_POINTER__ 4
-// PPC-DARWIN:#define __SIZEOF_PTRDIFF_T__ 4
-// PPC-DARWIN:#define __SIZEOF_SHORT__ 2
-// PPC-DARWIN:#define __SIZEOF_SIZE_T__ 4
-// PPC-DARWIN:#define __SIZEOF_WCHAR_T__ 4
-// PPC-DARWIN:#define __SIZEOF_WINT_T__ 4
-// PPC-DARWIN:#define __SIZE_MAX__ 4294967295UL
-// PPC-DARWIN:#define __SIZE_TYPE__ long unsigned int
-// PPC-DARWIN:#define __SIZE_WIDTH__ 32
-// PPC-DARWIN:#define __STDC_HOSTED__ 0
-// PPC-DARWIN:#define __STDC_VERSION__ 201710L
-// PPC-DARWIN:#define __STDC__ 1
-// PPC-DARWIN:#define __UINT16_C_SUFFIX__
-// PPC-DARWIN:#define __UINT16_MAX__ 65535
-// PPC-DARWIN:#define __UINT16_TYPE__ unsigned short
-// PPC-DARWIN:#define __UINT32_C_SUFFIX__ U
-// PPC-DARWIN:#define __UINT32_MAX__ 4294967295U
-// PPC-DARWIN:#define __UINT32_TYPE__ unsigned int
-// PPC-DARWIN:#define __UINT64_C_SUFFIX__ ULL
-// PPC-DARWIN:#define __UINT64_MAX__ 18446744073709551615ULL
-// PPC-DARWIN:#define __UINT64_TYPE__ long long unsigned int
-// PPC-DARWIN:#define __UINT8_C_SUFFIX__
-// PPC-DARWIN:#define __UINT8_MAX__ 255
-// PPC-DARWIN:#define __UINT8_TYPE__ unsigned char
-// PPC-DARWIN:#define __UINTMAX_C_SUFFIX__ ULL
-// PPC-DARWIN:#define __UINTMAX_MAX__ 18446744073709551615ULL
-// PPC-DARWIN:#define __UINTMAX_TYPE__ long long unsigned int
-// PPC-DARWIN:#define __UINTMAX_WIDTH__ 64
-// PPC-DARWIN:#define __UINTPTR_MAX__ 4294967295UL
-// PPC-DARWIN:#define __UINTPTR_TYPE__ long unsigned int
-// PPC-DARWIN:#define __UINTPTR_WIDTH__ 32
-// PPC-DARWIN:#define __UINT_FAST16_MAX__ 65535
-// PPC-DARWIN:#define __UINT_FAST16_TYPE__ unsigned short
-// PPC-DARWIN:#define __UINT_FAST32_MAX__ 4294967295U
-// PPC-DARWIN:#define __UINT_FAST32_TYPE__ unsigned int
-// PPC-DARWIN:#define __UINT_FAST64_MAX__ 18446744073709551615ULL
-// PPC-DARWIN:#define __UINT_FAST64_TYPE__ long long unsigned int
-// PPC-DARWIN:#define __UINT_FAST8_MAX__ 255
-// PPC-DARWIN:#define __UINT_FAST8_TYPE__ unsigned char
-// PPC-DARWIN:#define __UINT_LEAST16_MAX__ 65535
-// PPC-DARWIN:#define __UINT_LEAST16_TYPE__ unsigned short
-// PPC-DARWIN:#define __UINT_LEAST32_MAX__ 4294967295U
-// PPC-DARWIN:#define __UINT_LEAST32_TYPE__ unsigned int
-// PPC-DARWIN:#define __UINT_LEAST64_MAX__ 18446744073709551615ULL
-// PPC-DARWIN:#define __UINT_LEAST64_TYPE__ long long unsigned int
-// PPC-DARWIN:#define __UINT_LEAST8_MAX__ 255
-// PPC-DARWIN:#define __UINT_LEAST8_TYPE__ unsigned char
-// PPC-DARWIN:#define __USER_LABEL_PREFIX__ _
-// PPC-DARWIN:#define __WCHAR_MAX__ 2147483647
-// PPC-DARWIN:#define __WCHAR_TYPE__ int
-// PPC-DARWIN:#define __WCHAR_WIDTH__ 32
-// PPC-DARWIN:#define __WINT_TYPE__ int
-// PPC-DARWIN:#define __WINT_WIDTH__ 32
-// PPC-DARWIN:#define __powerpc__ 1
-// PPC-DARWIN:#define __ppc__ 1
-
 // RUN: %clang_cc1 -E -dM -triple=powerpc-unknown-openbsd -x c++ < /dev/null | FileCheck -match-full-lines -check-prefix PPC-OPENBSD-CXX %s
 // PPC-OPENBSD-CXX: #define __STDCPP_DEFAULT_NEW_ALIGNMENT__ 16UL
+
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc-none-none < /dev/null | FileCheck -match-full-lines -check-prefix PPCPWR4-RSQRT %s
+//
+// PPCPWR4-RSQRT-NOT:#define __RSQRTEF__ 1
+// PPCPWR4-RSQRT-NOT:#define __RSQRTE__ 1
+//
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc-none-none -target-feature +frsqrte -target-feature +frsqrtes < /dev/null | FileCheck -match-full-lines -check-prefix PPCPWR5-RSQRT %s
+//
+// PPCPWR5-RSQRT:#define __RSQRTEF__ 1
+// PPCPWR5-RSQRT:#define __RSQRTE__ 1
+
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc-unknown-linux-gnu -target-feature -hard-float < /dev/null | FileCheck -match-full-lines -check-prefix PPC-SOFTFLT %s
+//
+// PPC-SOFTFLT:#define _SOFT_DOUBLE 1
+// PPC-SOFTFLT:#define _SOFT_FLOAT 1
+// PPC-SOFTFLT:#define __NO_FPRS__ 1
+// PPC-SOFTFLT-NOT:#define __RSQRTE__ 1
+// PPC-SOFTFLT-NOT:#define __RSQRTEF__ 1

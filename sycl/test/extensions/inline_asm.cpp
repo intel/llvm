@@ -1,6 +1,6 @@
 // This is a basic acceptance test for inline ASM feature. More tests can be
-// found in https://github.com/intel/llvm-test-suite/tree/intel/SYCL/InlineAsm
-// RUN: %clangxx -fsycl %s -o %t.out
+// found in https://github.com/intel/llvm/tree/sycl/sycl/test-e2e/InlineAsm
+// RUN: %clangxx -fsycl -fsyntax-only %s
 
 #include <cmath>
 #include <iostream>
@@ -9,7 +9,7 @@
 
 constexpr const size_t DEFAULT_PROBLEM_SIZE = 16;
 
-using DataType = sycl::cl_int;
+using DataType = sycl::opencl::cl_int;
 
 int main() {
   DataType DataA[DEFAULT_PROBLEM_SIZE], DataB[DEFAULT_PROBLEM_SIZE],
@@ -38,8 +38,8 @@ int main() {
       auto B = BufB.get_access<sycl::access::mode::read>(cgh);
       auto C = BufC.get_access<sycl::access::mode::write>(cgh);
       cgh.parallel_for<class FillBuffer>(
-          sycl::range<1>{DEFAULT_PROBLEM_SIZE}, [=
-      ](sycl::id<1> wiID) [[intel::reqd_sub_group_size(8)]] {
+          sycl::range<1>{DEFAULT_PROBLEM_SIZE},
+          [=](sycl::id<1> wiID) [[sycl::reqd_sub_group_size(8)]] {
 #if defined(__SYCL_DEVICE_ONLY__)
             asm volatile(
                 ".decl P1 v_type=P num_elts=8\n"
@@ -58,10 +58,10 @@ int main() {
                 : "+rw"(C[wiID])
                 : "rw"(A[wiID]), "rw"(B[wiID]));
 #else
-          C[wiID] = 0;
-          for (int i = 0; i < A[wiID]; ++i) {
-            C[wiID] = C[wiID] + B[wiID];
-          }
+            C[wiID] = 0;
+            for (int i = 0; i < A[wiID]; ++i) {
+              C[wiID] = C[wiID] + B[wiID];
+            }
 #endif
           });
     });

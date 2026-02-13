@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++03
+// UNSUPPORTED: c++03, c++11, c++14
 
 // These tests require locale for non-char paths
 // UNSUPPORTED: no-localization
@@ -20,16 +20,16 @@
 // basic_string<ECharT, Traits, Allocator>
 // string(const Allocator& a = Allocator()) const;
 
-#include "filesystem_include.h"
+#include <filesystem>
 #include <type_traits>
 #include <cassert>
 
-#include "test_macros.h"
-#include "test_iterators.h"
 #include "count_new.h"
+#include "make_string.h"
 #include "min_allocator.h"
-#include "filesystem_test_helper.h"
-
+#include "test_iterators.h"
+#include "test_macros.h"
+namespace fs = std::filesystem;
 
 // the SSO is always triggered for strings of size 2.
 MultiStringType shortString = MKSTR("a");

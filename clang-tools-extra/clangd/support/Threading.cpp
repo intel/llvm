@@ -12,6 +12,7 @@
 #include "llvm/Support/Threading.h"
 #include "llvm/Support/thread.h"
 #include <atomic>
+#include <optional>
 #include <thread>
 #ifdef __USE_POSIX
 #include <pthread.h>
@@ -84,7 +85,7 @@ void AsyncTaskRunner::runAsync(const llvm::Twine &Name,
     ++InFlightTasks;
   }
 
-  auto CleanupTask = llvm::make_scope_exit([this]() {
+  llvm::scope_exit CleanupTask([this]() {
     std::lock_guard<std::mutex> Lock(Mutex);
     int NewTasksCnt = --InFlightTasks;
     if (NewTasksCnt == 0) {
@@ -104,12 +105,12 @@ void AsyncTaskRunner::runAsync(const llvm::Twine &Name,
 
   // Ensure our worker threads have big enough stacks to run clang.
   llvm::thread Thread(
-      /*clang::DesiredStackSize*/ llvm::Optional<unsigned>(8 << 20),
+      /*clang::DesiredStackSize*/ std::optional<unsigned>(8 << 20),
       std::move(Task));
   Thread.detach();
 }
 
-Deadline timeoutSeconds(llvm::Optional<double> Seconds) {
+Deadline timeoutSeconds(std::optional<double> Seconds) {
   using namespace std::chrono;
   if (!Seconds)
     return Deadline::infinity();

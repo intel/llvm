@@ -3,17 +3,14 @@
 //
 // RUN: %clangxx_xray -std=c++11 %s -o %t
 // RUN: rm -f arg1-logger-*
-// RUN: XRAY_OPTIONS="patch_premain=true verbosity=1 xray_mode=xray-basic \
+// RUN: env XRAY_OPTIONS="patch_premain=true verbosity=1 xray_mode=xray-basic \
 // RUN:    xray_logfile_base=arg1-logger-" %run %t 2>&1 | FileCheck %s
 //
 // After all that, clean up the XRay log file.
 //
 // RUN: rm -f arg1-logger-*
-//
-// At the time of writing, the ARM trampolines weren't written yet.
-// XFAIL: arm || aarch64 || mips
-// See the mailing list discussion of r296998.
-// UNSUPPORTED: powerpc64le
+
+// REQUIRES: target={{(aarch64|x86_64)-.*}}
 
 #include "xray/xray_interface.h"
 

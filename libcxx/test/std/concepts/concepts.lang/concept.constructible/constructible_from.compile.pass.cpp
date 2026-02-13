@@ -14,6 +14,7 @@
 
 #include <array>
 #include <concepts>
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <type_traits>
@@ -148,5 +149,3 @@ void test() {
   test<std::array<int, 1>, int>();
   test<std::array<int, 1>, int, int>();
 }
-
-int main(int, char**) { return 0; }

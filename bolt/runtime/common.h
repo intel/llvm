@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if !defined(__APPLE__)
+#if defined(__linux__)
 
 #include <cstddef>
 #include <cstdint>
@@ -17,7 +17,7 @@
 #include <elf.h>
 #endif
 
-#else
+#elif defined(__APPLE__)
 
 typedef __SIZE_TYPE__ size_t;
 #define __SSIZE_TYPE__                                                         \
@@ -36,45 +36,44 @@ typedef unsigned char uint8_t;
 typedef long long int64_t;
 typedef int int32_t;
 
+#else
+#error "For Linux or MacOS only"
 #endif
 
-// Save all registers while keeping 16B stack alignment
-#define SAVE_ALL                                                               \
-  "push %%rax\n"                                                               \
-  "push %%rbx\n"                                                               \
-  "push %%rcx\n"                                                               \
-  "push %%rdx\n"                                                               \
-  "push %%rdi\n"                                                               \
-  "push %%rsi\n"                                                               \
-  "push %%rbp\n"                                                               \
-  "push %%r8\n"                                                                \
-  "push %%r9\n"                                                                \
-  "push %%r10\n"                                                               \
-  "push %%r11\n"                                                               \
-  "push %%r12\n"                                                               \
-  "push %%r13\n"                                                               \
-  "push %%r14\n"                                                               \
-  "push %%r15\n"                                                               \
-  "sub $8, %%rsp\n"
+#define PROT_READ 0x1  /* Page can be read.  */
+#define PROT_WRITE 0x2 /* Page can be written.  */
+#define PROT_EXEC 0x4  /* Page can be executed.  */
+#define PROT_NONE 0x0  /* Page can not be accessed.  */
+#define PROT_GROWSDOWN                                                         \
+  0x01000000 /* Extend change to start of                                      \
+                growsdown vma (mprotect only).  */
+#define PROT_GROWSUP                                                           \
+  0x02000000 /* Extend change to start of                                      \
+                growsup vma (mprotect only).  */
 
-// Mirrors SAVE_ALL
-#define RESTORE_ALL                                                            \
-  "add $8, %%rsp\n"                                                            \
-  "pop %%r15\n"                                                                \
-  "pop %%r14\n"                                                                \
-  "pop %%r13\n"                                                                \
-  "pop %%r12\n"                                                                \
-  "pop %%r11\n"                                                                \
-  "pop %%r10\n"                                                                \
-  "pop %%r9\n"                                                                 \
-  "pop %%r8\n"                                                                 \
-  "pop %%rbp\n"                                                                \
-  "pop %%rsi\n"                                                                \
-  "pop %%rdi\n"                                                                \
-  "pop %%rdx\n"                                                                \
-  "pop %%rcx\n"                                                                \
-  "pop %%rbx\n"                                                                \
-  "pop %%rax\n"
+/* Sharing types (must choose one and only one of these).  */
+#define MAP_SHARED 0x01  /* Share changes.  */
+#define MAP_PRIVATE 0x02 /* Changes are private.  */
+#define MAP_FIXED 0x10   /* Interpret addr exactly.  */
+
+#if defined(__APPLE__)
+#define MAP_ANONYMOUS 0x1000
+#else
+#define MAP_ANONYMOUS 0x20
+#endif
+
+#define MAP_FAILED ((void *)-1)
+
+#define SEEK_SET 0 /* Seek from beginning of file.  */
+#define SEEK_CUR 1 /* Seek from current position.  */
+#define SEEK_END 2 /* Seek from end of file.  */
+
+#define O_RDONLY 0
+#define O_WRONLY 1
+#define O_RDWR 2
+#define O_CREAT 64
+#define O_TRUNC 512
+#define O_APPEND 1024
 
 // Functions that are required by freestanding environment. Compiler may
 // generate calls to these implicitly.
@@ -124,112 +123,45 @@ int memcmp(const void *s1, const void *s2, size_t n) {
 // Anonymous namespace covering everything but our library entry point
 namespace {
 
+struct dirent64 {
+  uint64_t d_ino;          /* Inode number */
+  int64_t d_off;           /* Offset to next linux_dirent */
+  unsigned short d_reclen; /* Length of this linux_dirent */
+  unsigned char d_type;
+  char d_name[]; /* Filename (null-terminated) */
+                 /* length is actually (d_reclen - 2 -
+                   offsetof(struct linux_dirent, d_name)) */
+};
+
+/* Length of the entries in `struct utsname' is 65.  */
+#define _UTSNAME_LENGTH 65
+
+struct UtsNameTy {
+  char sysname[_UTSNAME_LENGTH];  /* Operating system name (e.g., "Linux") */
+  char nodename[_UTSNAME_LENGTH]; /* Name within "some implementation-defined
+                      network" */
+  char release[_UTSNAME_LENGTH]; /* Operating system release (e.g., "2.6.28") */
+  char version[_UTSNAME_LENGTH]; /* Operating system version */
+  char machine[_UTSNAME_LENGTH]; /* Hardware identifier */
+  char domainname[_UTSNAME_LENGTH]; /* NIS or YP domain name */
+};
+
+struct timespec {
+  uint64_t tv_sec;  /* seconds */
+  uint64_t tv_nsec; /* nanoseconds */
+};
+
+#if defined(__aarch64__) || defined(__arm64__)
+#include "sys_aarch64.h"
+#elif defined(__riscv)
+#include "sys_riscv64.h"
+#elif defined(__x86_64__)
+#include "sys_x86_64.h"
+#else
+#error "For AArch64/ARM64,X86_64 AND RISCV64 only."
+#endif
+
 constexpr uint32_t BufSize = 10240;
-
-#define _STRINGIFY(x) #x
-#define STRINGIFY(x) _STRINGIFY(x)
-
-uint64_t __read(uint64_t fd, const void *buf, uint64_t count) {
-  uint64_t ret;
-#if defined(__APPLE__)
-#define READ_SYSCALL 0x2000003
-#else
-#define READ_SYSCALL 0
-#endif
-  __asm__ __volatile__("movq $" STRINGIFY(READ_SYSCALL) ", %%rax\n"
-                       "syscall\n"
-                       : "=a"(ret)
-                       : "D"(fd), "S"(buf), "d"(count)
-                       : "cc", "rcx", "r11", "memory");
-  return ret;
-}
-
-uint64_t __write(uint64_t fd, const void *buf, uint64_t count) {
-  uint64_t ret;
-#if defined(__APPLE__)
-#define WRITE_SYSCALL 0x2000004
-#else
-#define WRITE_SYSCALL 1
-#endif
-  __asm__ __volatile__("movq $" STRINGIFY(WRITE_SYSCALL) ", %%rax\n"
-                       "syscall\n"
-                       : "=a"(ret)
-                       : "D"(fd), "S"(buf), "d"(count)
-                       : "cc", "rcx", "r11", "memory");
-  return ret;
-}
-
-void *__mmap(uint64_t addr, uint64_t size, uint64_t prot, uint64_t flags,
-             uint64_t fd, uint64_t offset) {
-#if defined(__APPLE__)
-#define MMAP_SYSCALL 0x20000c5
-#else
-#define MMAP_SYSCALL 9
-#endif
-  void *ret;
-  register uint64_t r8 asm("r8") = fd;
-  register uint64_t r9 asm("r9") = offset;
-  register uint64_t r10 asm("r10") = flags;
-  __asm__ __volatile__("movq $" STRINGIFY(MMAP_SYSCALL) ", %%rax\n"
-                       "syscall\n"
-                       : "=a"(ret)
-                       : "D"(addr), "S"(size), "d"(prot), "r"(r10), "r"(r8),
-                         "r"(r9)
-                       : "cc", "rcx", "r11", "memory");
-  return ret;
-}
-
-uint64_t __munmap(void *addr, uint64_t size) {
-#if defined(__APPLE__)
-#define MUNMAP_SYSCALL 0x2000049
-#else
-#define MUNMAP_SYSCALL 11
-#endif
-  uint64_t ret;
-  __asm__ __volatile__("movq $" STRINGIFY(MUNMAP_SYSCALL) ", %%rax\n"
-                       "syscall\n"
-                       : "=a"(ret)
-                       : "D"(addr), "S"(size)
-                       : "cc", "rcx", "r11", "memory");
-  return ret;
-}
-
-#define SIG_BLOCK 0
-#define SIG_UNBLOCK 1
-#define SIG_SETMASK 2
-
-static const uint64_t MaskAllSignals[] = {-1ULL};
-
-uint64_t __sigprocmask(int how, const void *set, void *oldset) {
-#if defined(__APPLE__)
-#define SIGPROCMASK_SYSCALL 0x2000030
-#else
-#define SIGPROCMASK_SYSCALL 14
-#endif
-  uint64_t ret;
-  register long r10 asm("r10") = sizeof(uint64_t);
-  __asm__ __volatile__("movq $" STRINGIFY(SIGPROCMASK_SYSCALL) ", %%rax\n"
-                                                               "syscall\n"
-                       : "=a"(ret)
-                       : "D"(how), "S"(set), "d"(oldset), "r"(r10)
-                       : "cc", "rcx", "r11", "memory");
-  return ret;
-}
-
-uint64_t __exit(uint64_t code) {
-#if defined(__APPLE__)
-#define EXIT_SYSCALL 0x2000001
-#else
-#define EXIT_SYSCALL 231
-#endif
-  uint64_t ret;
-  __asm__ __volatile__("movq $" STRINGIFY(EXIT_SYSCALL) ", %%rax\n"
-                       "syscall\n"
-                       : "=a"(ret)
-                       : "D"(code)
-                       : "cc", "rcx", "r11", "memory");
-  return ret;
-}
 
 // Helper functions for writing strings to the .fdata file. We intentionally
 // avoid using libc names to make it clear it is our impl.
@@ -283,6 +215,22 @@ uint32_t strLen(const char *Str) {
   return Size;
 }
 
+void *strStr(const char *const Haystack, const char *const Needle) {
+  int j = 0;
+
+  for (int i = 0; i < strLen(Haystack); i++) {
+    if (Haystack[i] == Needle[0]) {
+      for (j = 1; j < strLen(Needle); j++) {
+        if (Haystack[i + j] != Needle[j])
+          break;
+      }
+      if (j == strLen(Needle))
+        return (void *)&Haystack[i];
+    }
+  }
+  return nullptr;
+}
+
 void reportNumber(const char *Msg, uint64_t Num, uint32_t Base) {
   char Buf[BufSize];
   char *Ptr = Buf;
@@ -310,179 +258,24 @@ unsigned long hexToLong(const char *Str, char Terminator = '\0') {
   return Res;
 }
 
-#if !defined(__APPLE__)
-// We use a stack-allocated buffer for string manipulation in many pieces of
-// this code, including the code that prints each line of the fdata file. This
-// buffer needs to accomodate large function names, but shouldn't be arbitrarily
-// large (dynamically allocated) for simplicity of our memory space usage.
-
-// Declare some syscall wrappers we use throughout this code to avoid linking
-// against system libc.
-uint64_t __open(const char *pathname, uint64_t flags, uint64_t mode) {
-  uint64_t ret;
-  __asm__ __volatile__("movq $2, %%rax\n"
-                       "syscall"
-                       : "=a"(ret)
-                       : "D"(pathname), "S"(flags), "d"(mode)
-                       : "cc", "rcx", "r11", "memory");
-  return ret;
+/// Starting from character at \p buf, find the longest consecutive sequence
+/// of digits (0-9) and convert it to uint32_t. The converted value
+/// is put into \p ret. \p end marks the end of the buffer to avoid buffer
+/// overflow. The function \returns whether a valid uint32_t value is found.
+/// \p buf will be updated to the next character right after the digits.
+static bool scanUInt32(const char *&Buf, const char *End, uint32_t &Ret) {
+  uint64_t Result = 0;
+  const char *OldBuf = Buf;
+  while (Buf < End && ((*Buf) >= '0' && (*Buf) <= '9')) {
+    Result = Result * 10 + (*Buf) - '0';
+    ++Buf;
+  }
+  if (OldBuf != Buf && Result <= 0xFFFFFFFFu) {
+    Ret = static_cast<uint32_t>(Result);
+    return true;
+  }
+  return false;
 }
-
-struct dirent {
-  unsigned long d_ino;     /* Inode number */
-  unsigned long d_off;     /* Offset to next linux_dirent */
-  unsigned short d_reclen; /* Length of this linux_dirent */
-  char d_name[];           /* Filename (null-terminated) */
-                           /* length is actually (d_reclen - 2 -
-                             offsetof(struct linux_dirent, d_name)) */
-};
-
-long __getdents(unsigned int fd, dirent *dirp, size_t count) {
-  long ret;
-  __asm__ __volatile__("movq $78, %%rax\n"
-                       "syscall"
-                       : "=a"(ret)
-                       : "D"(fd), "S"(dirp), "d"(count)
-                       : "cc", "rcx", "r11", "memory");
-  return ret;
-}
-
-uint64_t __readlink(const char *pathname, char *buf, size_t bufsize) {
-  uint64_t ret;
-  __asm__ __volatile__("movq $89, %%rax\n"
-                       "syscall"
-                       : "=a"(ret)
-                       : "D"(pathname), "S"(buf), "d"(bufsize)
-                       : "cc", "rcx", "r11", "memory");
-  return ret;
-}
-
-uint64_t __lseek(uint64_t fd, uint64_t pos, uint64_t whence) {
-  uint64_t ret;
-  __asm__ __volatile__("movq $8, %%rax\n"
-                       "syscall\n"
-                       : "=a"(ret)
-                       : "D"(fd), "S"(pos), "d"(whence)
-                       : "cc", "rcx", "r11", "memory");
-  return ret;
-}
-
-int __close(uint64_t fd) {
-  uint64_t ret;
-  __asm__ __volatile__("movq $3, %%rax\n"
-                       "syscall\n"
-                       : "=a"(ret)
-                       : "D"(fd)
-                       : "cc", "rcx", "r11", "memory");
-  return ret;
-}
-
-int __madvise(void *addr, size_t length, int advice) {
-  int ret;
-  __asm__ __volatile__("movq $28, %%rax\n"
-                       "syscall\n"
-                       : "=a"(ret)
-                       : "D"(addr), "S"(length), "d"(advice)
-                       : "cc", "rcx", "r11", "memory");
-  return ret;
-}
-
-struct timespec {
-  uint64_t tv_sec;  /* seconds */
-  uint64_t tv_nsec; /* nanoseconds */
-};
-
-uint64_t __nanosleep(const timespec *req, timespec *rem) {
-  uint64_t ret;
-  __asm__ __volatile__("movq $35, %%rax\n"
-                       "syscall\n"
-                       : "=a"(ret)
-                       : "D"(req), "S"(rem)
-                       : "cc", "rcx", "r11", "memory");
-  return ret;
-}
-
-int64_t __fork() {
-  uint64_t ret;
-  __asm__ __volatile__("movq $57, %%rax\n"
-                       "syscall\n"
-                       : "=a"(ret)
-                       :
-                       : "cc", "rcx", "r11", "memory");
-  return ret;
-}
-
-int __mprotect(void *addr, size_t len, int prot) {
-  int ret;
-  __asm__ __volatile__("movq $10, %%rax\n"
-                       "syscall\n"
-                       : "=a"(ret)
-                       : "D"(addr), "S"(len), "d"(prot)
-                       : "cc", "rcx", "r11", "memory");
-  return ret;
-}
-
-uint64_t __getpid() {
-  uint64_t ret;
-  __asm__ __volatile__("movq $39, %%rax\n"
-                       "syscall\n"
-                       : "=a"(ret)
-                       :
-                       : "cc", "rcx", "r11", "memory");
-  return ret;
-}
-
-uint64_t __getppid() {
-  uint64_t ret;
-  __asm__ __volatile__("movq $110, %%rax\n"
-                       "syscall\n"
-                       : "=a"(ret)
-                       :
-                       : "cc", "rcx", "r11", "memory");
-  return ret;
-}
-
-int __setpgid(uint64_t pid, uint64_t pgid) {
-  int ret;
-  __asm__ __volatile__("movq $109, %%rax\n"
-                       "syscall\n"
-                       : "=a"(ret)
-                       : "D"(pid), "S"(pgid)
-                       : "cc", "rcx", "r11", "memory");
-  return ret;
-}
-
-uint64_t __getpgid(uint64_t pid) {
-  uint64_t ret;
-  __asm__ __volatile__("movq $121, %%rax\n"
-                       "syscall\n"
-                       : "=a"(ret)
-                       : "D"(pid)
-                       : "cc", "rcx", "r11", "memory");
-  return ret;
-}
-
-int __kill(uint64_t pid, int sig) {
-  int ret;
-  __asm__ __volatile__("movq $62, %%rax\n"
-                       "syscall\n"
-                       : "=a"(ret)
-                       : "D"(pid), "S"(sig)
-                       : "cc", "rcx", "r11", "memory");
-  return ret;
-}
-
-int __fsync(int fd) {
-  int ret;
-  __asm__ __volatile__("movq $74, %%rax\n"
-                       "syscall\n"
-                       : "=a"(ret)
-                       : "D"(fd)
-                       : "cc", "rcx", "r11", "memory");
-  return ret;
-}
-
-#endif
 
 void reportError(const char *Msg, uint64_t Size) {
   __write(2, Msg, Size);
@@ -499,6 +292,12 @@ void assert(bool Assertion, const char *Msg) {
   Ptr = strCopy(Ptr, "\n");
   reportError(Buf, Ptr - Buf);
 }
+
+#define SIG_BLOCK 0
+#define SIG_UNBLOCK 1
+#define SIG_SETMASK 2
+
+static const uint64_t MaskAllSignals[] = {-1ULL};
 
 class Mutex {
   volatile bool InUse{false};

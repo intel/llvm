@@ -118,7 +118,7 @@ be reduced to ``N`` via:
   ``-Wl,-plugin-opt,jobs=N``
 - ld64:
   ``-Wl,-mllvm,-threads=N``
-- lld:
+- ld.lld, ld64.lld:
   ``-Wl,--thinlto-jobs=N``
 - lld-link:
   ``/opt:lldltojobs=N``
@@ -141,9 +141,10 @@ which currently must be enabled through a linker option.
 
 - gold (as of LLVM 4.0):
   ``-Wl,-plugin-opt,cache-dir=/path/to/cache``
-- ld64 (support in clang 3.9 and Xcode 8):
+- ld64 (supported since clang 3.9 and Xcode 8) and Mach-O ld64.lld (as of LLVM
+  15.0):
   ``-Wl,-cache_path_lto,/path/to/cache``
-- ELF lld (as of LLVM 5.0):
+- ELF ld.lld (as of LLVM 5.0):
   ``-Wl,--thinlto-cache-dir=/path/to/cache``
 - COFF lld-link (as of LLVM 6.0):
   ``/lldltocache:/path/to/cache``
@@ -152,14 +153,14 @@ Cache Pruning
 -------------
 
 To help keep the size of the cache under control, ThinLTO supports cache
-pruning. Cache pruning is supported with gold, ld64 and ELF and COFF lld, but
-currently only gold, ELF and COFF lld allow you to control the policy with a
-policy string. The cache policy must be specified with a linker option.
+pruning. Cache pruning is supported with gold, ld64, and lld, but currently only
+gold and lld allow you to control the policy with a policy string. The cache
+policy must be specified with a linker option.
 
 - gold (as of LLVM 6.0):
   ``-Wl,-plugin-opt,cache-policy=POLICY``
-- ELF lld (as of LLVM 5.0):
-  ``-Wl,--thinlto-cache-policy,POLICY``
+- ELF ld.lld (as of LLVM 5.0), Mach-O ld64.lld (as of LLVM 15.0):
+  ``-Wl,--thinlto-cache-policy=POLICY``
 - COFF lld-link (as of LLVM 6.0):
   ``/lldltocachepolicy:POLICY``
 
@@ -238,6 +239,53 @@ with ThinLTO, follow these steps:
 The ``BOOTSTRAP_LLVM_ENABLE_LTO=Thin`` will enable ThinLTO for stage 2 and
 stage 3 in case the compiler used for stage 1 does not support the ThinLTO
 option.
+
+Integrated Distributed ThinLTO (DTLTO)
+--------------------------------------
+
+Integrated Distributed ThinLTO (DTLTO) enables the distribution of backend
+ThinLTO compilations via external distribution systems, such as Incredibuild,
+during the traditional link step.
+
+The implementation is documented here: https://llvm.org/docs/DTLTO.html.
+
+Command-Line Options
+^^^^^^^^^^^^^^^^^^^^
+
+DTLTO requires the LLD linker (``-fuse-ld=lld``).
+
+``-fthinlto-distributor=<path>``
+   - Specifies the ``<path>`` to the distributor process executable for DTLTO.
+   - If specified, ThinLTO backend compilations will be distributed by LLD.
+
+``-Xthinlto-distributor=<arg>``
+   - Passes ``<arg>`` to the distributor process (see ``-fthinlto-distributor=``).
+   - Can be specified multiple times to pass multiple options.
+   - Multiple options can also be specified by separating them with commas.
+
+If ``-fthinlto-distributor=`` is specified, Clang supplies the path to a
+compiler to be executed remotely to perform the ThinLTO backend
+compilations. Currently, this is Clang itself.
+
+Usage
+^^^^^
+
+Compilation is unchanged from ThinLTO. DTLTO options need to supplied for the link step:
+
+.. code-block:: console
+
+  % clang -flto=thin -fthinlto-distributor=distribute.sh -Xthinlto-distributor=--verbose,--j10 -fuse-ld=lld file1.o file2.o
+  % clang -flto=thin -fthinlto-distributor=$(which python) -Xthinlto-distributor=distribute.py -fuse-ld=lld file1.o file2.o
+
+When using lld-link:
+
+.. code-block:: console
+
+  % lld-link /out:a.exe file1.obj file2.obj /thinlto-distributor:distribute.exe /thinlto-remote-compiler:${LLVM}\bin\clang.exe /thinlto-distributor-arg:--verbose
+
+Note that currently, DTLTO is only supported in some LLD flavors. Support can
+be added to other LLD flavours in the future.
+See `DTLTO <https://lld.llvm.org/DTLTO.html>`_ for more information.
 
 More Information
 ================

@@ -42,6 +42,18 @@ union NU {
   NE Field;
 };
 
+// Skip unions with out-of-line constructor/destructor.
+union NUO {
+  NUO();
+  ~NUO();
+  NE Field;
+};
+
+NUO::NUO() {}
+// CHECK-FIXES: NUO::NUO() {}
+NUO::~NUO() {}
+// CHECK-FIXES: NUO::~NUO() {}
+
 // Skip structs/classes containing anonymous unions.
 struct SU {
   SU() {}
@@ -56,6 +68,18 @@ struct SU {
 // Skip variadic constructors.
 struct VA {
   VA(...) {}
+};
+
+// Skip template constructors.
+struct TC {
+  template <unsigned U>
+  TC() {}
+
+  template <unsigned U>
+  TC(const TC &) {}
+
+  template <unsigned U>
+  TC& operator = (const TC &) { return *this; }
 };
 
 // Initializer or arguments.
@@ -90,13 +114,29 @@ public:
 
 // Private constructor/destructor.
 class Priv {
-  Priv() {}
-  // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: use '= default'
-  // CHECK-FIXES: Priv() = default;
-  ~Priv() {};
+  Priv();
+  ~Priv() {}
   // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: use '= default'
   // CHECK-FIXES: ~Priv() = default;
 };
+
+Priv::Priv() {}
+// CHECK-MESSAGES: :[[@LINE-1]]:7: warning: use '= default'
+// CHECK-FIXES: Priv::Priv() = default;
+
+struct SemiColon {
+  SemiColon() {};
+  // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: use '= default'
+  // CHECK-FIXES: SemiColon() = default;
+};
+
+struct SemiColonOutOfLine {
+  SemiColonOutOfLine();
+};
+
+SemiColonOutOfLine::SemiColonOutOfLine() {};
+// CHECK-MESSAGES: :[[@LINE-1]]:21: warning: use '= default'
+// CHECK-FIXES: SemiColonOutOfLine::SemiColonOutOfLine() = default;
 
 // struct.
 struct ST {
@@ -105,7 +145,7 @@ struct ST {
   // CHECK-FIXES: ST() = default;
   ~ST() {}
   // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: use '= default'
-  // CHECK-FIXES: ST() = default;
+  // CHECK-FIXES: ~ST() = default;
 };
 
 // Deleted constructor/destructor.
@@ -201,6 +241,12 @@ struct DC : KW {
   // CHECK-FIXES: ~DC() override = default;
 };
 
+struct OverrideWithSemiColon : KW {
+  ~OverrideWithSemiColon() override {};
+  // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: use '= default'
+  // CHECK-FIXES: ~OverrideWithSemiColon() override = default;
+};
+
 struct Comments {
   Comments() {
     // Don't erase comments inside the body.
@@ -232,3 +278,21 @@ OTC::~OTC() try {} catch(...) {}
   };
 
 STRUCT_WITH_DEFAULT(unsigned char, InMacro)
+
+#define ZERO_VALUE 0
+struct PreprocesorDependentTest
+{
+  void something();
+
+  PreprocesorDependentTest() {
+#if ZERO_VALUE
+    something();
+#endif
+  }
+
+  ~PreprocesorDependentTest() {
+#if ZERO_VALUE
+    something();
+#endif
+  }
+};

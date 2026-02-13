@@ -107,6 +107,8 @@ class Decoder {
                         unsigned Length, bool Prologue);
   bool opcode_save_freg_x(const uint8_t *Opcodes, unsigned &Offset,
                           unsigned Length, bool Prologue);
+  bool opcode_alloc_z(const uint8_t *Opcodes, unsigned &Offset, unsigned Length,
+                      bool Prologue);
   bool opcode_alloc_l(const uint8_t *Opcodes, unsigned &Offset, unsigned Length,
                       bool Prologue);
   bool opcode_setfp(const uint8_t *Opcodes, unsigned &Offset, unsigned Length,
@@ -121,14 +123,26 @@ class Decoder {
                     bool Prologue);
   bool opcode_save_next(const uint8_t *Opcodes, unsigned &Offset,
                         unsigned Length, bool Prologue);
+  bool opcode_e7(const uint8_t *Opcodes, unsigned &Offset, unsigned Length,
+                 bool Prologue);
+  bool opcode_save_zreg(const uint8_t *Opcodes, unsigned &Offset,
+                        unsigned Length, bool Prologue);
+  bool opcode_save_preg(const uint8_t *Opcodes, unsigned &Offset,
+                        unsigned Length, bool Prologue);
+  bool opcode_save_any_reg(const uint8_t *Opcodes, unsigned &Offset,
+                           unsigned Length, bool Prologue);
   bool opcode_trap_frame(const uint8_t *Opcodes, unsigned &Offset,
                          unsigned Length, bool Prologue);
   bool opcode_machine_frame(const uint8_t *Opcodes, unsigned &Offset,
                             unsigned Length, bool Prologue);
   bool opcode_context(const uint8_t *Opcodes, unsigned &Offset, unsigned Length,
                       bool Prologue);
+  bool opcode_ec_context(const uint8_t *Opcodes, unsigned &Offset,
+                         unsigned Length, bool Prologue);
   bool opcode_clear_unwound_to_call(const uint8_t *Opcodes, unsigned &Offset,
                                     unsigned Length, bool Prologue);
+  bool opcode_pac_sign_lr(const uint8_t *Opcodes, unsigned &Offset,
+                          unsigned Length, bool Prologue);
 
   void decodeOpcodes(ArrayRef<uint8_t> Opcodes, unsigned Offset,
                      bool Prologue);

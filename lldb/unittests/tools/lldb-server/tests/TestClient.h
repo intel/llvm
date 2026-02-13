@@ -14,11 +14,15 @@
 #include "lldb/Host/ProcessLaunchInfo.h"
 #include "lldb/Utility/ArchSpec.h"
 #include "lldb/Utility/Connection.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/FormatVariadic.h"
 #include <memory>
+#include <optional>
 #include <string>
+
+#ifdef SendMessage
+#undef SendMessage
+#endif
 
 #if LLDB_SERVER_IS_DEBUGSERVER
 #define LLGS_TEST(x) DISABLED_ ## x
@@ -48,8 +52,9 @@ public:
   /// using this for generic tests, as the two stubs have different
   /// command-line interfaces.
   static llvm::Expected<std::unique_ptr<TestClient>>
-  launchCustom(llvm::StringRef Log, llvm::ArrayRef<llvm::StringRef> ServerArgs, llvm::ArrayRef<llvm::StringRef> InferiorArgs);
-
+  launchCustom(llvm::StringRef Log, bool disable_stdio,
+               llvm::ArrayRef<llvm::StringRef> ServerArgs,
+               llvm::ArrayRef<llvm::StringRef> InferiorArgs);
 
   ~TestClient() override;
   llvm::Error SetInferior(llvm::ArrayRef<std::string> inferior_args);
@@ -92,7 +97,7 @@ private:
       lldb_private::process_gdb_remote::GDBRemoteCommunication::PacketResult
           result);
 
-  llvm::Optional<ProcessInfo> m_process_info;
+  std::optional<ProcessInfo> m_process_info;
   std::unique_ptr<StopReply> m_stop_reply;
   std::vector<lldb_private::RegisterInfo> m_register_infos;
   unsigned int m_pc_register = LLDB_INVALID_REGNUM;

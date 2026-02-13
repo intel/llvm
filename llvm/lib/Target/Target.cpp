@@ -12,19 +12,16 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm-c/Target.h"
-#include "llvm-c/Initialization.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManager.h"
+#include "llvm/IR/Module.h"
 #include "llvm/IR/Value.h"
 #include "llvm/InitializePasses.h"
 #include <cstring>
 
 using namespace llvm;
-
-// Avoid including "llvm-c/Core.h" for compile time, fwd-declare this instead.
-extern "C" LLVMContextRef LLVMGetGlobalContext(void);
 
 inline TargetLibraryInfoImpl *unwrap(LLVMTargetLibraryInfoRef P) {
   return reinterpret_cast<TargetLibraryInfoImpl*>(P);
@@ -37,11 +34,8 @@ inline LLVMTargetLibraryInfoRef wrap(const TargetLibraryInfoImpl *P) {
 
 void llvm::initializeTarget(PassRegistry &Registry) {
   initializeTargetLibraryInfoWrapperPassPass(Registry);
+  initializeRuntimeLibraryInfoWrapperPass(Registry);
   initializeTargetTransformInfoWrapperPassPass(Registry);
-}
-
-void LLVMInitializeTarget(LLVMPassRegistryRef R) {
-  initializeTarget(*unwrap(R));
 }
 
 LLVMTargetDataRef LLVMGetModuleDataLayout(LLVMModuleRef M) {
@@ -83,11 +77,12 @@ unsigned LLVMPointerSizeForAS(LLVMTargetDataRef TD, unsigned AS) {
 }
 
 LLVMTypeRef LLVMIntPtrType(LLVMTargetDataRef TD) {
-  return wrap(unwrap(TD)->getIntPtrType(*unwrap(LLVMGetGlobalContext())));
+  return wrap(unwrap(TD)->getIntPtrType(*unwrap(getGlobalContextForCAPI())));
 }
 
 LLVMTypeRef LLVMIntPtrTypeForAS(LLVMTargetDataRef TD, unsigned AS) {
-  return wrap(unwrap(TD)->getIntPtrType(*unwrap(LLVMGetGlobalContext()), AS));
+  return wrap(
+      unwrap(TD)->getIntPtrType(*unwrap(getGlobalContextForCAPI()), AS));
 }
 
 LLVMTypeRef LLVMIntPtrTypeInContext(LLVMContextRef C, LLVMTargetDataRef TD) {
@@ -119,7 +114,7 @@ unsigned LLVMCallFrameAlignmentOfType(LLVMTargetDataRef TD, LLVMTypeRef Ty) {
 }
 
 unsigned LLVMPreferredAlignmentOfType(LLVMTargetDataRef TD, LLVMTypeRef Ty) {
-  return unwrap(TD)->getPrefTypeAlignment(unwrap(Ty));
+  return unwrap(TD)->getPrefTypeAlign(unwrap(Ty)).value();
 }
 
 unsigned LLVMPreferredAlignmentOfGlobal(LLVMTargetDataRef TD,

@@ -12,20 +12,26 @@
 // GCC does not support the -fexperimental-library flag
 // UNSUPPORTED: gcc
 
-// Clang does not support the -fexperimental-library flag before LLVM 15.0
-// UNSUPPORTED: clang-14
-
-// AppleClang does not support the -fexperimental-library flag yet
-// UNSUPPORTED: apple-clang-13, apple-clang-14.0
-
-// Clang on AIX currently pretends that it is Clang 15, even though it is not (as of writing
-// this, LLVM 15 hasn't even been branched yet).
-// UNSUPPORTED: clang-15 && buildhost=aix
-
 // ADDITIONAL_COMPILE_FLAGS: -fexperimental-library
 
 #include <version>
 
-#ifdef _LIBCPP_HAS_NO_INCOMPLETE_FORMAT
-#   error "-fexperimental-library should enable <format>"
+#if !_LIBCPP_HAS_EXPERIMENTAL_OPTIONAL_ITERATOR
+#  error "-fexperimental-library should enable optional::iterator"
+#endif
+
+#if !_LIBCPP_HAS_EXPERIMENTAL_PSTL
+#  error "-fexperimental-library should enable the PSTL"
+#endif
+
+#if !_LIBCPP_HAS_EXPERIMENTAL_TZDB
+#  error "-fexperimental-library should enable the chrono TZDB"
+#endif
+
+#if !_LIBCPP_HAS_EXPERIMENTAL_SYNCSTREAM
+#  error "-fexperimental-library should enable the syncstream header"
+#endif
+
+#if !_LIBCPP_HAS_EXPERIMENTAL_HARDENING_OBSERVE_SEMANTIC
+#  error "-fexperimental-library should allow using the Hardening observe semantic"
 #endif

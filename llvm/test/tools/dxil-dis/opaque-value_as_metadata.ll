@@ -1,14 +1,17 @@
 ; RUN: llc --filetype=obj %s -o - 2>&1 | dxil-dis -o - | FileCheck %s
-target datalayout = "e-m:e-p:32:32-i1:32-i8:32-i16:32-i32:32-i64:64-f16:32-f32:32-f64:64-n8:16:32:64"
+target datalayout = "e-m:e-p:32:32-i1:32-i8:8-i16:16-i32:32-i64:64-f16:16-f32:32-f64:64-n8:16:32:64"
 target triple = "dxil-unknown-shadermodel6.7-library"
 
 %"$Globals" = type { float }
 
 @CBV = external constant %"$Globals"
 
-define void @main() {
+define void @main() #0 {
+  %1 = load float, ptr @CBV, align 4
   ret void
 }
+
+attributes #0 = { "hlsl.export" }
 
 !llvm.ident = !{!0}
 !dx.version = !{!1}
@@ -19,7 +22,7 @@ define void @main() {
 !0 = !{!"clang version 15.0.0"}
 !1 = !{i32 1, i32 0}
 !2 = !{i32 1, i32 7}
-!3 = !{!"ps", i32 6, i32 0}
+!3 = !{!"lib", i32 6, i32 7}
 !4 = !{null, null, !5, null}
 !5 = !{!6}
 ; CHECK-DAG:!{{[0-9]+}} = !{i32 0, %"$Globals"* @CBV

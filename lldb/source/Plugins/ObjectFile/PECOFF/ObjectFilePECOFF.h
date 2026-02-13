@@ -9,9 +9,11 @@
 #ifndef LLDB_SOURCE_PLUGINS_OBJECTFILE_PECOFF_OBJECTFILEPECOFF_H
 #define LLDB_SOURCE_PLUGINS_OBJECTFILE_PECOFF_OBJECTFILEPECOFF_H
 
+#include <optional>
 #include <vector>
 
 #include "lldb/Symbol/ObjectFile.h"
+#include "lldb/Symbol/SaveCoreOptions.h"
 #include "llvm/Object/COFF.h"
 
 class ObjectFilePECOFF : public lldb_private::ObjectFile {
@@ -23,6 +25,7 @@ public:
     MachineArm = 0x1c0,
     MachineArmNt = 0x1c4,
     MachineArm64 = 0xaa64,
+    MachineArm64X = 0xa64e,
     MachineEbc = 0xebc,
     MachineX86 = 0x14c,
     MachineIA64 = 0x200,
@@ -41,7 +44,8 @@ public:
     MachineWcemIpsv2 = 0x169
   };
 
-  ObjectFilePECOFF(const lldb::ModuleSP &module_sp, lldb::DataBufferSP data_sp,
+  ObjectFilePECOFF(const lldb::ModuleSP &module_sp,
+                   lldb::DataExtractorSP extractor_sp,
                    lldb::offset_t data_offset,
                    const lldb_private::FileSpec *file,
                    lldb::offset_t file_offset, lldb::offset_t length);
@@ -63,10 +67,12 @@ public:
 
   static llvm::StringRef GetPluginDescriptionStatic();
 
-  static ObjectFile *
-  CreateInstance(const lldb::ModuleSP &module_sp, lldb::DataBufferSP data_sp,
-                 lldb::offset_t data_offset, const lldb_private::FileSpec *file,
-                 lldb::offset_t offset, lldb::offset_t length);
+  static ObjectFile *CreateInstance(const lldb::ModuleSP &module_sp,
+                                    lldb::DataExtractorSP extractor_sp,
+                                    lldb::offset_t data_offset,
+                                    const lldb_private::FileSpec *file,
+                                    lldb::offset_t offset,
+                                    lldb::offset_t length);
 
   static lldb_private::ObjectFile *CreateMemoryInstance(
       const lldb::ModuleSP &module_sp, lldb::WritableDataBufferSP data_sp,
@@ -80,8 +86,7 @@ public:
                                         lldb_private::ModuleSpecList &specs);
 
   static bool SaveCore(const lldb::ProcessSP &process_sp,
-                       const lldb_private::FileSpec &outfile,
-                       lldb::SaveCoreStyle &core_style,
+                       lldb_private::SaveCoreOptions &options,
                        lldb_private::Status &error);
 
   static bool MagicBytesMatch(lldb::DataBufferSP data_sp);
@@ -123,7 +128,7 @@ public:
 
   /// Return the contents of the .gnu_debuglink section, if the object file
   /// contains it.
-  llvm::Optional<lldb_private::FileSpec> GetDebugLink();
+  std::optional<lldb_private::FileSpec> GetDebugLink();
 
   uint32_t GetDependentModules(lldb_private::FileSpecList &files) override;
 
@@ -261,6 +266,7 @@ protected:
   llvm::StringRef GetSectionName(const section_header_t &sect);
   static lldb::SectionType GetSectionType(llvm::StringRef sect_name,
                                           const section_header_t &sect);
+  size_t GetSectionDataSize(lldb_private::Section *section) override;
 
   typedef std::vector<section_header_t> SectionHeaderColl;
   typedef SectionHeaderColl::iterator SectionHeaderCollIter;
@@ -281,7 +287,7 @@ private:
   SectionHeaderColl m_sect_headers;
   lldb::addr_t m_image_base;
   lldb_private::Address m_entry_point_address;
-  llvm::Optional<lldb_private::FileSpecList> m_deps_filespec;
+  std::optional<lldb_private::FileSpecList> m_deps_filespec;
   std::unique_ptr<llvm::object::COFFObjectFile> m_binary;
   lldb_private::UUID m_uuid;
 };

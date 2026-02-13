@@ -1,4 +1,4 @@
-//===--- UnaryStaticAssertCheck.cpp - clang-tidy---------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,14 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "UnaryStaticAssertCheck.h"
-#include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace modernize {
+namespace clang::tidy::modernize {
 
 void UnaryStaticAssertCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(staticAssertDecl().bind("static_assert"), this);
@@ -23,9 +20,10 @@ void UnaryStaticAssertCheck::registerMatchers(MatchFinder *Finder) {
 void UnaryStaticAssertCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *MatchedDecl =
       Result.Nodes.getNodeAs<StaticAssertDecl>("static_assert");
-  const StringLiteral *AssertMessage = MatchedDecl->getMessage();
+  const auto *AssertMessage =
+      dyn_cast_if_present<StringLiteral>(MatchedDecl->getMessage());
 
-  SourceLocation Loc = MatchedDecl->getLocation();
+  const SourceLocation Loc = MatchedDecl->getLocation();
 
   if (!AssertMessage || AssertMessage->getLength() ||
       AssertMessage->getBeginLoc().isMacroID() || Loc.isMacroID())
@@ -36,6 +34,4 @@ void UnaryStaticAssertCheck::check(const MatchFinder::MatchResult &Result) {
       << FixItHint::CreateRemoval(AssertMessage->getSourceRange());
 }
 
-} // namespace modernize
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::modernize

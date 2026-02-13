@@ -22,7 +22,7 @@ using namespace llvm;
 
 #define DEBUG_TYPE "inline-order"
 
-enum class InlinePriorityMode : int { Size, Cost, CostBenefit };
+enum class InlinePriorityMode : int { Size, Cost, CostBenefit, ML };
 
 static cl::opt<InlinePriorityMode> UseInlinePriority(
     "inline-priority-mode", cl::init(InlinePriorityMode::Size), cl::Hidden,
@@ -32,10 +32,11 @@ static cl::opt<InlinePriorityMode> UseInlinePriority(
                clEnumValN(InlinePriorityMode::Cost, "cost",
                           "Use inline cost priority."),
                clEnumValN(InlinePriorityMode::CostBenefit, "cost-benefit",
-                          "Use cost-benefit ratio.")));
+                          "Use cost-benefit ratio."),
+               clEnumValN(InlinePriorityMode::ML, "ml", "Use ML.")));
 
 static cl::opt<int> ModuleInlinerTopPriorityThreshold(
-    "moudle-inliner-top-priority-threshold", cl::Hidden, cl::init(0),
+    "module-inliner-top-priority-threshold", cl::Hidden, cl::init(0),
     cl::desc("The cost threshold for call sites that get inlined without the "
              "cost-benefit analysis"));
 
@@ -84,7 +85,7 @@ public:
   }
 
 private:
-  unsigned Size;
+  unsigned Size = UINT_MAX;
 };
 
 class CostPriority {
@@ -104,7 +105,7 @@ public:
   }
 
 private:
-  int Cost;
+  int Cost = INT_MAX;
 };
 
 class CostBenefitPriority {
@@ -113,7 +114,10 @@ public:
   CostBenefitPriority(const CallBase *CB, FunctionAnalysisManager &FAM,
                       const InlineParams &Params) {
     auto IC = getInlineCostWrapper(const_cast<CallBase &>(*CB), FAM, Params);
-    Cost = IC.getCost();
+    if (IC.isVariable())
+      Cost = IC.getCost();
+    else
+      Cost = IC.isNever() ? INT_MAX : INT_MIN;
     StaticBonusApplied = IC.getStaticBonusApplied();
     CostBenefit = IC.getCostBenefit();
   }
@@ -170,9 +174,29 @@ public:
   }
 
 private:
-  int Cost;
-  int StaticBonusApplied;
-  Optional<CostBenefitPair> CostBenefit;
+  int Cost = INT_MAX;
+  int StaticBonusApplied = 0;
+  std::optional<CostBenefitPair> CostBenefit;
+};
+
+class MLPriority {
+public:
+  MLPriority() = default;
+  MLPriority(const CallBase *CB, FunctionAnalysisManager &FAM,
+             const InlineParams &Params) {
+    auto IC = getInlineCostWrapper(const_cast<CallBase &>(*CB), FAM, Params);
+    if (IC.isVariable())
+      Cost = IC.getCost();
+    else
+      Cost = IC.isNever() ? INT_MAX : INT_MIN;
+  }
+
+  static bool isMoreDesirable(const MLPriority &P1, const MLPriority &P2) {
+    return P1.Cost < P2.Cost;
+  }
+
+private:
+  int Cost = INT_MAX;
 };
 
 template <typename PriorityT>
@@ -197,14 +221,15 @@ class PriorityInlineOrder : public InlineOrder<std::pair<CallBase *, int>> {
   // A call site could become less desirable for inlining because of the size
   // growth from prior inlining into the callee. This method is used to lazily
   // update the desirability of a call site if it's decreasing. It is only
-  // called on pop() or front(), not every time the desirability changes. When
-  // the desirability of the front call site decreases, an updated one would be
-  // pushed right back into the heap. For simplicity, those cases where
-  // the desirability of a call site increases are ignored here.
-  void adjust() {
-    while (updateAndCheckDecreased(Heap.front())) {
-      std::pop_heap(Heap.begin(), Heap.end(), isLess);
+  // called on pop(), not every time the desirability changes. When the
+  // desirability of the front call site decreases, an updated one would be
+  // pushed right back into the heap. For simplicity, those cases where the
+  // desirability of a call site increases are ignored here.
+  void pop_heap_adjust() {
+    std::pop_heap(Heap.begin(), Heap.end(), isLess);
+    while (updateAndCheckDecreased(Heap.back())) {
       std::push_heap(Heap.begin(), Heap.end(), isLess);
+      std::pop_heap(Heap.begin(), Heap.end(), isLess);
     }
   }
 
@@ -230,19 +255,17 @@ public:
 
   T pop() override {
     assert(size() > 0);
-    adjust();
+    pop_heap_adjust();
 
-    CallBase *CB = Heap.front();
+    CallBase *CB = Heap.pop_back_val();
     T Result = std::make_pair(CB, InlineHistoryMap[CB]);
     InlineHistoryMap.erase(CB);
-    std::pop_heap(Heap.begin(), Heap.end(), isLess);
-    Heap.pop_back();
     return Result;
   }
 
   void erase_if(function_ref<bool(T)> Pred) override {
     auto PredWrapper = [=](CallBase *CB) -> bool {
-      return Pred(std::make_pair(CB, 0));
+      return Pred(std::make_pair(CB, InlineHistoryMap[CB]));
     };
     llvm::erase_if(Heap, PredWrapper);
     std::make_heap(Heap.begin(), Heap.end(), isLess);
@@ -259,8 +282,12 @@ private:
 
 } // namespace
 
+AnalysisKey llvm::PluginInlineOrderAnalysis::Key;
+
 std::unique_ptr<InlineOrder<std::pair<CallBase *, int>>>
-llvm::getInlineOrder(FunctionAnalysisManager &FAM, const InlineParams &Params) {
+llvm::getDefaultInlineOrder(FunctionAnalysisManager &FAM,
+                            const InlineParams &Params,
+                            ModuleAnalysisManager &MAM, Module &M) {
   switch (UseInlinePriority) {
   case InlinePriorityMode::Size:
     LLVM_DEBUG(dbgs() << "    Current used priority: Size priority ---- \n");
@@ -273,7 +300,22 @@ llvm::getInlineOrder(FunctionAnalysisManager &FAM, const InlineParams &Params) {
   case InlinePriorityMode::CostBenefit:
     LLVM_DEBUG(
         dbgs() << "    Current used priority: cost-benefit priority ---- \n");
-    return std::make_unique<PriorityInlineOrder<CostBenefitPriority>>(FAM, Params);
+    return std::make_unique<PriorityInlineOrder<CostBenefitPriority>>(FAM,
+                                                                      Params);
+  case InlinePriorityMode::ML:
+    LLVM_DEBUG(dbgs() << "    Current used priority: ML priority ---- \n");
+    return std::make_unique<PriorityInlineOrder<MLPriority>>(FAM, Params);
   }
   return nullptr;
+}
+
+std::unique_ptr<InlineOrder<std::pair<CallBase *, int>>>
+llvm::getInlineOrder(FunctionAnalysisManager &FAM, const InlineParams &Params,
+                     ModuleAnalysisManager &MAM, Module &M) {
+  if (MAM.isPassRegistered<PluginInlineOrderAnalysis>()) {
+    LLVM_DEBUG(dbgs() << "    Current used priority: plugin ---- \n");
+    return MAM.getResult<PluginInlineOrderAnalysis>(M).Factory(FAM, Params, MAM,
+                                                               M);
+  }
+  return getDefaultInlineOrder(FAM, Params, MAM, M);
 }

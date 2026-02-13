@@ -16,11 +16,11 @@
 #ifndef LLVM_TOOLS_BUGPOINT_TOOLRUNNER_H
 #define LLVM_TOOLS_BUGPOINT_TOOLRUNNER_H
 
-#include "llvm/ADT/Triple.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/SystemUtils.h"
+#include "llvm/TargetParser/Triple.h"
 #include <exception>
 #include <vector>
 
@@ -105,7 +105,7 @@ public:
   createCustomExecutor(const char *Argv0, std::string &Message,
                        const std::string &ExecCommandLine);
 
-  virtual ~AbstractInterpreter() {}
+  virtual ~AbstractInterpreter() = default;
 
   /// compileProgram - Compile the specified program from bitcode to executable
   /// code.  This does not produce any output, it is only used when debugging

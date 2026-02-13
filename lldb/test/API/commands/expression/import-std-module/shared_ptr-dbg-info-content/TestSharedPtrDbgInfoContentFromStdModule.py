@@ -8,21 +8,23 @@ from lldbsuite.test import lldbutil
 
 
 class TestSharedPtrDbgInfoContent(TestBase):
-
     @add_test_categories(["libc++"])
     @skipIf(compiler=no_match("clang"))
+    @skipIf(macos_version=["<", "15.0"])
     def test(self):
         self.build()
 
-        lldbutil.run_to_source_breakpoint(self,
-                                          "// Set break point at this line.",
-                                          lldb.SBFileSpec("main.cpp"))
+        lldbutil.run_to_source_breakpoint(
+            self, "// Set break point at this line.", lldb.SBFileSpec("main.cpp")
+        )
 
         self.runCmd("settings set target.import-std-module true")
 
-        self.expect_expr("s",
-                         result_type="std::shared_ptr<Foo>",
-                         result_children=[ValueCheck(name="__ptr_")])
+        self.expect_expr(
+            "s",
+            result_type="std::shared_ptr<Foo>",
+            result_children=[ValueCheck(name="pointer")],
+        )
         self.expect_expr("s->a", result_type="int", result_value="3")
         self.expect_expr("s->a = 5", result_type="int", result_value="5")
         self.expect_expr("s->a", result_type="int", result_value="5")

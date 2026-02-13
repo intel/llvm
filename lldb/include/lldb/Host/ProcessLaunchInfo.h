@@ -17,12 +17,21 @@
 
 #include "lldb/Host/FileAction.h"
 #include "lldb/Host/Host.h"
+#ifdef _WIN32
+#include "lldb/Host/windows/PseudoConsole.h"
+#else
 #include "lldb/Host/PseudoTerminal.h"
+#endif
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/ProcessInfo.h"
-#include "lldb/Utility/StructuredData.h"
 
 namespace lldb_private {
+
+#if defined(_WIN32)
+using PTY = PseudoConsole;
+#else
+using PTY = PseudoTerminal;
+#endif
 
 // ProcessLaunchInfo
 //
@@ -69,7 +78,7 @@ public:
 
   void SetWorkingDirectory(const FileSpec &working_dir);
 
-  const char *GetProcessPluginName() const;
+  llvm::StringRef GetProcessPluginName() const;
 
   void SetProcessPluginName(llvm::StringRef plugin);
 
@@ -119,20 +128,9 @@ public:
 
   bool MonitorProcess() const;
 
-  PseudoTerminal &GetPTY() { return *m_pty; }
+  PTY &GetPTY() const { return *m_pty; }
 
-  // Get and set the actual listener that will be used for the process events
-  lldb::ListenerSP GetListener() const { return m_listener_sp; }
-
-  void SetListener(const lldb::ListenerSP &listener_sp) {
-    m_listener_sp = listener_sp;
-  }
-
-  lldb::ListenerSP GetHijackListener() const { return m_hijack_listener_sp; }
-
-  void SetHijackListener(const lldb::ListenerSP &listener_sp) {
-    m_hijack_listener_sp = listener_sp;
-  }
+  std::shared_ptr<PTY> GetPTYSP() const { return m_pty; }
 
   void SetLaunchEventData(const char *data) { m_event_data.assign(data); }
 
@@ -144,46 +142,17 @@ public:
     return m_flags.Test(lldb::eLaunchFlagDetachOnError);
   }
 
-  bool IsScriptedProcess() const {
-    return !m_scripted_process_class_name.empty();
-  }
-
-  std::string GetScriptedProcessClassName() const {
-    return m_scripted_process_class_name;
-  }
-
-  void SetScriptedProcessClassName(std::string name) {
-    m_scripted_process_class_name = name;
-  }
-
-  lldb_private::StructuredData::DictionarySP
-  GetScriptedProcessDictionarySP() const {
-    return m_scripted_process_dictionary_sp;
-  }
-
-  void SetScriptedProcessDictionarySP(
-      lldb_private::StructuredData::DictionarySP dictionary_sp) {
-    m_scripted_process_dictionary_sp = dictionary_sp;
-  }
-
 protected:
   FileSpec m_working_dir;
   std::string m_plugin_name;
   FileSpec m_shell;
   Flags m_flags; // Bitwise OR of bits from lldb::LaunchFlags
   std::vector<FileAction> m_file_actions; // File actions for any other files
-  std::shared_ptr<PseudoTerminal> m_pty;
+  std::shared_ptr<PTY> m_pty;
   uint32_t m_resume_count = 0; // How many times do we resume after launching
   Host::MonitorChildProcessCallback m_monitor_callback;
   std::string m_event_data; // A string passed to the plugin launch, having no
                             // meaning to the upper levels of lldb.
-  lldb::ListenerSP m_listener_sp;
-  lldb::ListenerSP m_hijack_listener_sp;
-  std::string m_scripted_process_class_name; // The name of the class that will
-                                             // manage a scripted process.
-  StructuredData::DictionarySP
-      m_scripted_process_dictionary_sp; // A dictionary that holds key/value
-                                        // pairs passed to the scripted process.
 };
 }
 

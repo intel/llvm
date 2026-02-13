@@ -1,5 +1,5 @@
-; RUN: llc -march=bpfel -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
-; RUN: llc -march=bpfeb -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
+; RUN: llc -mtriple=bpfel -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
+; RUN: llc -mtriple=bpfeb -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
 
 ; Source code:
 ;   int foo(char a) { volatile short b = 0;  return b; }
@@ -7,17 +7,16 @@
 ;   clang -target bpf -O2 -g -S -emit-llvm test.c
 
 ; Function Attrs: nounwind
-define dso_local i32 @foo(i8 signext) local_unnamed_addr #0 !dbg !7 {
+define dso_local i32 @foo(i8 signext) local_unnamed_addr !dbg !7 {
   %2 = alloca i16, align 2
   call void @llvm.dbg.value(metadata i8 %0, metadata !13, metadata !DIExpression()), !dbg !17
-  %3 = bitcast i16* %2 to i8*, !dbg !18
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* nonnull %3), !dbg !18
-  call void @llvm.dbg.declare(metadata i16* %2, metadata !14, metadata !DIExpression()), !dbg !19
-  store volatile i16 0, i16* %2, align 2, !dbg !19, !tbaa !20
-  %4 = load volatile i16, i16* %2, align 2, !dbg !24, !tbaa !20
-  %5 = sext i16 %4 to i32, !dbg !24
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* nonnull %3), !dbg !25
-  ret i32 %5, !dbg !26
+  call void @llvm.lifetime.start.p0(i64 2, ptr nonnull %2), !dbg !18
+  call void @llvm.dbg.declare(metadata ptr %2, metadata !14, metadata !DIExpression()), !dbg !19
+  store volatile i16 0, ptr %2, align 2, !dbg !19, !tbaa !20
+  %3 = load volatile i16, ptr %2, align 2, !dbg !24, !tbaa !20
+  %4 = sext i16 %3 to i32, !dbg !24
+  call void @llvm.lifetime.end.p0(i64 2, ptr nonnull %2), !dbg !25
+  ret i32 %4, !dbg !26
 }
 
 ; CHECK:             .section        .BTF,"",@progbits
@@ -60,20 +59,16 @@ define dso_local i32 @foo(i8 signext) local_unnamed_addr #0 !dbg !7 {
 ; CHECK-NEXT:        .byte   0
 
 ; Function Attrs: nounwind readnone speculatable
-declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
+declare void @llvm.dbg.declare(metadata, metadata, metadata)
 
 ; Function Attrs: argmemonly nounwind
-declare void @llvm.lifetime.start.p0i8(i64, i8* nocapture) #2
+declare void @llvm.lifetime.start.p0(i64, ptr nocapture)
 
 ; Function Attrs: argmemonly nounwind
-declare void @llvm.lifetime.end.p0i8(i64, i8* nocapture) #2
+declare void @llvm.lifetime.end.p0(i64, ptr nocapture)
 
 ; Function Attrs: nounwind readnone speculatable
-declare void @llvm.dbg.value(metadata, metadata, metadata) #1
-
-attributes #0 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { nounwind readnone speculatable }
-attributes #2 = { argmemonly nounwind }
+declare void @llvm.dbg.value(metadata, metadata, metadata)
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!3, !4, !5}

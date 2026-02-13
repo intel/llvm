@@ -6,10 +6,9 @@ define i32 @func_f(i32 %X) {
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %eax
 ; CHECK-NEXT:    incl %eax
-; CHECK-NEXT:    jns .LBB0_2
+; CHECK-NEXT:    jns baz@PLT # TAILCALL
 ; CHECK-NEXT:  # %bb.1: # %cond_true
 ; CHECK-NEXT:    calll bar@PLT
-; CHECK-NEXT:  .LBB0_2: # %cond_next
 ; CHECK-NEXT:    jmp baz@PLT # TAILCALL
 entry:
 	%tmp1 = add i32 %X, 1
@@ -135,10 +134,9 @@ define i32 @func_m(i32 %a, i32 %b) nounwind {
 define i32 @func_l2(i32 %a, i32 %b) nounwind {
 ; CHECK-LABEL: func_l2:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %edx
 ; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %eax
 ; CHECK-NEXT:    movl %eax, %ecx
-; CHECK-NEXT:    subl %edx, %ecx
+; CHECK-NEXT:    subl {{[0-9]+}}(%esp), %ecx
 ; CHECK-NEXT:    jne .LBB8_2
 ; CHECK-NEXT:  # %bb.1: # %if.then
 ; CHECK-NEXT:    cmovll %ecx, %eax
@@ -217,15 +215,12 @@ define i32 @func_n(i32 %x, i32 %y) nounwind {
 define void @func_o() nounwind uwtable {
 ; CHECK-LABEL: func_o:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    xorl %eax, %eax
 ; CHECK-NEXT:    testb %al, %al
 ; CHECK-NEXT:    je .LBB12_1
 ; CHECK-NEXT:  # %bb.2: # %if.end.i
-; CHECK-NEXT:    xorl %eax, %eax
 ; CHECK-NEXT:    testb %al, %al
 ; CHECK-NEXT:    jne .LBB12_5
 ; CHECK-NEXT:  # %bb.3: # %sw.bb
-; CHECK-NEXT:    xorl %eax, %eax
 ; CHECK-NEXT:    testb %al, %al
 ; CHECK-NEXT:    jne .LBB12_8
 ; CHECK-NEXT:  # %bb.4: # %if.end29
@@ -236,13 +231,11 @@ define void @func_o() nounwind uwtable {
 ; CHECK-NEXT:    cmpl $6554, %eax # imm = 0x199A
 ; CHECK-NEXT:    jae .LBB12_5
 ; CHECK-NEXT:  .LBB12_8: # %if.then44
-; CHECK-NEXT:    xorl %eax, %eax
 ; CHECK-NEXT:    testb %al, %al
 ; CHECK-NEXT:    je .LBB12_9
 ; CHECK-NEXT:  # %bb.10: # %if.else.i104
 ; CHECK-NEXT:    retl
 ; CHECK-NEXT:  .LBB12_5: # %sw.default
-; CHECK-NEXT:    xorl %eax, %eax
 ; CHECK-NEXT:    testb %al, %al
 ; CHECK-NEXT:    jne .LBB12_7
 ; CHECK-NEXT:  # %bb.6: # %if.then.i96
@@ -251,16 +244,16 @@ define void @func_o() nounwind uwtable {
 ; CHECK-NEXT:  .LBB12_7: # %if.else.i97
 entry:
   %0 = load i16, ptr undef, align 2
-  br i1 undef, label %if.then.i, label %if.end.i
+  br i1 poison, label %if.then.i, label %if.end.i
 
 if.then.i:                                        ; preds = %entry
   unreachable
 
 if.end.i:                                         ; preds = %entry
-  br i1 undef, label %sw.bb, label %sw.default
+  br i1 poison, label %sw.bb, label %sw.default
 
 sw.bb:                                            ; preds = %if.end.i
-  br i1 undef, label %if.then44, label %if.end29
+  br i1 poison, label %if.then44, label %if.end29
 
 if.end29:                                         ; preds = %sw.bb
   %1 = urem i16 %0, 10
@@ -269,7 +262,7 @@ if.end29:                                         ; preds = %sw.bb
   br i1 %cmp25, label %if.then44, label %sw.default
 
 sw.default:                                       ; preds = %if.end29, %if.end.i
-  br i1 undef, label %if.then.i96, label %if.else.i97
+  br i1 poison, label %if.then.i96, label %if.else.i97
 
 if.then.i96:                                      ; preds = %sw.default
   unreachable
@@ -279,7 +272,7 @@ if.else.i97:                                      ; preds = %sw.default
 
 if.then44:                                        ; preds = %if.end29, %sw.bb
   %aModeRefSel.1.ph = phi i16 [ %., %if.end29 ], [ 3, %sw.bb ]
-  br i1 undef, label %if.then.i103, label %if.else.i104
+  br i1 poison, label %if.then.i103, label %if.else.i104
 
 if.then.i103:                                     ; preds = %if.then44
   unreachable
@@ -422,4 +415,3 @@ if.end:
 }
 
 !1 = !{!"branch_weights", i32 2, i32 1}
-

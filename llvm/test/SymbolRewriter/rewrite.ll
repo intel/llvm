@@ -1,5 +1,3 @@
-; RUN: opt -mtriple i686-win32 -rewrite-symbols -rewrite-map-file %p/rewrite.map \
-; RUN:   %s -o - | llvm-dis | FileCheck %s
 ; RUN: opt -mtriple i686-win32 -passes='rewrite-symbols' -rewrite-map-file %p/rewrite.map \
 ; RUN:   %s -o - | llvm-dis | FileCheck %s
 
@@ -22,11 +20,11 @@ define i32 @caller() {
 }
 
 %struct.S = type { i8 }
-@_ZN1SC1Ev = alias void (%struct.S*), void (%struct.S*)* @_ZN1SC2Ev
-define void @_ZN1SC2Ev(%struct.S* %this) unnamed_addr align 2 {
+@_ZN1SC1Ev = alias void (ptr), ptr @_ZN1SC2Ev
+define void @_ZN1SC2Ev(ptr %this) unnamed_addr align 2 {
 entry:
-  %this.addr = alloca %struct.S*, align 4
-  store %struct.S* %this, %struct.S** %this.addr, align 4
+  %this.addr = alloca ptr, align 4
+  store ptr %this, ptr %this.addr, align 4
   ret void
 }
 
@@ -48,6 +46,12 @@ $source_comdat_variable = comdat largest
 $source_comdat_variable_1 = comdat nodeduplicate
 @source_comdat_variable_1 = global i32 64, comdat($source_comdat_variable_1)
 
+declare void @"?source_bad_regex_function"()
+
+@"?source_bad_regex_variable" = external global i32
+
+@"?source_bad_regex_alias" = alias void (ptr), ptr @_ZN1SC2Ev
+
 ; CHECK: $target_comdat_function = comdat any
 ; CHECK: $target_comdat_function_1 = comdat exactmatch
 ; CHECK: $target_comdat_variable = comdat largest
@@ -63,6 +67,12 @@ $source_comdat_variable_1 = comdat nodeduplicate
 ; CHECK-NOT: @source_comdat_variable = global i32 32, comdat
 ; CHECK: @target_comdat_variable_1 = global i32 64, comdat
 ; CHECK-NOT: @source_comdat_variable_1 = global i32 64, comdat
+
+; CHECK: @target_bad_regex_variable = external global i32
+; CHECK-NOT: @"?source_bad_regex_variable" = external global i32
+
+; CHECK: @target_bad_regex_alias = alias void (ptr), ptr @_ZN1SC2Ev
+; CHECK-NOT: @"?source_bad_regex_alias" = alias void (ptr), ptr @_ZN1SC2Ev
 
 ; CHECK: declare void @target_function()
 ; CHECK-NOT: declare void @source_function()
@@ -92,3 +102,5 @@ $source_comdat_variable_1 = comdat nodeduplicate
 ; CHECK: define dllexport void @target_comdat_function_1() comdat
 ; CHECK-NOT: define dllexport void @source_comdat_function_1() comdat
 
+; CHECK: declare void @target_bad_regex_function()
+; CHECK-NOT: declare void @"?source_bad_regex_function"()

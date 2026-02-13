@@ -19,15 +19,11 @@
 #include <vector>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
-class __SYCL_EXPORT stream_impl {
+class stream_impl {
 public:
-  // TODO: This constructor is unused.
-  // To be removed when API/ABI changes are allowed.
-  stream_impl(size_t BufferSize, size_t MaxStatementSize, handler &CGH);
-
   stream_impl(size_t BufferSize, size_t MaxStatementSize,
               const property_list &PropList);
 
@@ -41,20 +37,13 @@ public:
   // buffer and offset in the flush buffer
   GlobalOffsetAccessorT accessGlobalOffset(handler &CGH);
 
-  // Enqueue task to copy stream buffer to the host and print the contents
-  void flush();
+  size_t size() const noexcept;
 
-  size_t get_size() const;
+  size_t get_work_item_buffer_size() const;
 
-  size_t get_max_statement_size() const;
+  void generateFlushCommand(handler &cgh);
 
-  template <typename propertyT> bool has_property() const noexcept {
-    return PropList_.has_property<propertyT>();
-  }
-
-  template <typename propertyT> propertyT get_property() const {
-    return PropList_.get_property<propertyT>();
-  }
+  const property_list &getPropList() const { return PropList_; }
 
 private:
   // Size of the stream buffer
@@ -67,11 +56,21 @@ private:
   // Property list
   property_list PropList_;
 
+  // It's fine to store the buffers in the stream_impl itself since the
+  // underlying buffer_impls are relased in a deferred manner by scheduler.
+  // Stream buffer
+  buffer<char, 1> Buf_;
+
+  // Global flush buffer
+  buffer<char, 1> FlushBuf_;
+
   // Additinonal memory is allocated in the beginning of the stream buffer for
   // 2 variables: offset in the stream buffer and offset in the flush buffer.
   static const size_t OffsetSize = 2 * sizeof(unsigned);
+
+  void verifyProps(const property_list &Props) const;
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

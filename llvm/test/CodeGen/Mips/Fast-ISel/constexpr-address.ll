@@ -1,6 +1,6 @@
-; RUN: llc -march=mipsel -mcpu=mips32 -relocation-model=pic \
+; RUN: llc -mtriple=mipsel -mcpu=mips32 -relocation-model=pic \
 ; RUN:     -fast-isel=true -fast-isel-abort=3 < %s | FileCheck %s
-; RUN: llc -march=mipsel -mcpu=mips32r2 -relocation-model=pic \
+; RUN: llc -mtriple=mipsel -mcpu=mips32r2 -relocation-model=pic \
 ; RUN:     -fast-isel=true -fast-isel-abort=3 < %s | FileCheck %s
 
 @ARR = external global [10 x i32], align 4
@@ -13,6 +13,6 @@ define void @foo() {
 ; CHECK:        sw      $[[T0]], 8($[[ARR]])
 
 entry:
-  store i32 12345, i32* getelementptr inbounds ([10 x i32], [10 x i32]* @ARR, i32 0, i32 2), align 4
+  store i32 12345, ptr getelementptr inbounds ([10 x i32], ptr @ARR, i32 0, i32 2), align 4
   ret void
 }

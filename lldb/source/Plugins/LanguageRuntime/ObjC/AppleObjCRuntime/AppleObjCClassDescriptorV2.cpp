@@ -10,8 +10,11 @@
 
 #include "lldb/Expression/FunctionCaller.h"
 #include "lldb/Target/ABI.h"
+#include "lldb/Target/Language.h"
 #include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
+#include "lldb/lldb-enumerations.h"
+#include "llvm/ADT/Sequence.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -108,7 +111,6 @@ bool ClassDescriptorV2::class_rw_t::Read(Process *process, lldb::addr_t addr) {
                           process->GetAddressByteSize());
 
   lldb::offset_t cursor = 0;
-
   m_flags = extractor.GetU32_unchecked(&cursor);
   m_version = extractor.GetU32_unchecked(&cursor);
   m_ro_ptr = extractor.GetAddress_unchecked(&cursor);
@@ -116,18 +118,16 @@ bool ClassDescriptorV2::class_rw_t::Read(Process *process, lldb::addr_t addr) {
     m_ro_ptr = abi_sp->FixCodeAddress(m_ro_ptr);
   m_method_list_ptr = extractor.GetAddress_unchecked(&cursor);
   m_properties_ptr = extractor.GetAddress_unchecked(&cursor);
-  m_firstSubclass = extractor.GetAddress_unchecked(&cursor);
-  m_nextSiblingClass = extractor.GetAddress_unchecked(&cursor);
 
   if (m_ro_ptr & 1) {
     DataBufferHeap buffer(ptr_size, '\0');
     process->ReadMemory(m_ro_ptr ^ 1, buffer.GetBytes(), ptr_size, error);
     if (error.Fail())
       return false;
-    cursor = 0;
     DataExtractor extractor(buffer.GetBytes(), ptr_size,
                             process->GetByteOrder(),
                             process->GetAddressByteSize());
+    lldb::offset_t cursor = 0;
     m_ro_ptr = extractor.GetAddress_unchecked(&cursor);
     if (ABISP abi_sp = process->GetABI())
       m_ro_ptr = abi_sp->FixCodeAddress(m_ro_ptr);
@@ -257,6 +257,7 @@ bool ClassDescriptorV2::method_list_t::Read(Process *process,
   uint32_t entsize = extractor.GetU32_unchecked(&cursor);
   m_is_small = (entsize & 0x80000000) != 0;
   m_has_direct_selector = (entsize & 0x40000000) != 0;
+  m_has_relative_types = (entsize & 0x20000000) != 0;
   m_entsize = entsize & 0xfffc;
   m_count = extractor.GetU32_unchecked(&cursor);
   m_first_ptr = addr + cursor;
@@ -264,22 +265,73 @@ bool ClassDescriptorV2::method_list_t::Read(Process *process,
   return true;
 }
 
-bool ClassDescriptorV2::method_t::Read(Process *process, lldb::addr_t addr,
-                                       lldb::addr_t relative_selector_base_addr,
-                                       bool is_small, bool has_direct_sel) {
-  size_t ptr_size = process->GetAddressByteSize();
-  size_t size = GetSize(process, is_small);
+void ClassDescriptorV2::method_t::ReadNames(
+    llvm::MutableArrayRef<method_t> methods, Process &process) {
+  std::vector<lldb::addr_t> str_addresses;
+  str_addresses.reserve(2 * methods.size());
+  for (auto &method : methods)
+    str_addresses.push_back(method.m_name_ptr);
+  for (auto &method : methods)
+    str_addresses.push_back(method.m_types_ptr);
 
-  DataBufferHeap buffer(size, '\0');
-  Status error;
+  llvm::SmallVector<std::optional<std::string>> read_result =
+      process.ReadCStringsFromMemory(str_addresses);
+  auto names = llvm::MutableArrayRef(read_result).take_front(methods.size());
+  auto types = llvm::MutableArrayRef(read_result).take_back(methods.size());
 
-  process->ReadMemory(addr, buffer.GetBytes(), size, error);
-  if (error.Fail()) {
-    return false;
+  for (auto [name_str, type_str, method] : llvm::zip(names, types, methods)) {
+    if (name_str)
+      method.m_name = std::move(*name_str);
+    if (type_str)
+      method.m_types = std::move(*type_str);
+  }
+}
+
+llvm::SmallVector<ClassDescriptorV2::method_t, 0>
+ClassDescriptorV2::ReadMethods(llvm::ArrayRef<lldb::addr_t> addresses,
+                               lldb::addr_t relative_string_base_addr,
+                               bool is_small, bool has_direct_sel,
+                               bool has_relative_types) const {
+  lldb_private::Process *process = m_runtime.GetProcess();
+  if (!process)
+    return {};
+
+  const size_t size = method_t::GetSize(process, is_small);
+  const size_t num_methods = addresses.size();
+
+  llvm::SmallVector<uint8_t, 0> buffer(num_methods * size, 0);
+
+  llvm::SmallVector<Range<addr_t, size_t>> mem_ranges =
+      llvm::to_vector(llvm::map_range(llvm::seq(num_methods), [&](size_t idx) {
+        return Range<addr_t, size_t>(addresses[idx], size);
+      }));
+
+  llvm::SmallVector<llvm::MutableArrayRef<uint8_t>> read_results =
+      process->ReadMemoryRanges(mem_ranges, buffer);
+
+  llvm::SmallVector<method_t, 0> methods;
+  methods.reserve(num_methods);
+  for (auto [addr, memory] : llvm::zip(addresses, read_results)) {
+    // Ignore partial reads.
+    if (memory.size() != size)
+      continue;
+
+    DataExtractor extractor(memory.data(), size, process->GetByteOrder(),
+                            process->GetAddressByteSize());
+    methods.push_back(method_t());
+    methods.back().Read(extractor, process, addr, relative_string_base_addr,
+                        is_small, has_direct_sel, has_relative_types);
   }
 
-  DataExtractor extractor(buffer.GetBytes(), size, process->GetByteOrder(),
-                          ptr_size);
+  method_t::ReadNames(methods, *process);
+  return methods;
+}
+
+bool ClassDescriptorV2::method_t::Read(DataExtractor &extractor,
+                                       Process *process, lldb::addr_t addr,
+                                       lldb::addr_t relative_string_base_addr,
+                                       bool is_small, bool has_direct_sel,
+                                       bool has_relative_types) {
   lldb::offset_t cursor = 0;
 
   if (is_small) {
@@ -289,16 +341,19 @@ bool ClassDescriptorV2::method_t::Read(Process *process, lldb::addr_t addr,
 
     m_name_ptr = addr + nameref_offset;
 
+    Status error;
     if (!has_direct_sel) {
       // The SEL offset points to a SELRef. We need to dereference twice.
-      m_name_ptr = process->ReadUnsignedIntegerFromMemory(m_name_ptr, ptr_size,
-                                                          0, error);
-      if (!error.Success())
+      m_name_ptr = process->ReadPointerFromMemory(m_name_ptr, error);
+      if (error.Fail())
         return false;
-    } else if (relative_selector_base_addr != LLDB_INVALID_ADDRESS) {
-      m_name_ptr = relative_selector_base_addr + nameref_offset;
+    } else if (relative_string_base_addr != LLDB_INVALID_ADDRESS) {
+      m_name_ptr = relative_string_base_addr + nameref_offset;
     }
-    m_types_ptr = addr + 4 + types_offset;
+    if (has_relative_types)
+      m_types_ptr = relative_string_base_addr + types_offset;
+    else
+      m_types_ptr = addr + 4 + types_offset;
     m_imp_ptr = addr + 8 + imp_offset;
   } else {
     m_name_ptr = extractor.GetAddress_unchecked(&cursor);
@@ -306,13 +361,7 @@ bool ClassDescriptorV2::method_t::Read(Process *process, lldb::addr_t addr,
     m_imp_ptr = extractor.GetAddress_unchecked(&cursor);
   }
 
-  process->ReadCStringFromMemory(m_name_ptr, m_name, error);
-  if (error.Fail()) {
-    return false;
-  }
-
-  process->ReadCStringFromMemory(m_types_ptr, m_types, error);
-  return !error.Fail();
+  return true;
 }
 
 bool ClassDescriptorV2::ivar_list_t::Read(Process *process, lldb::addr_t addr) {
@@ -370,6 +419,158 @@ bool ClassDescriptorV2::ivar_t::Read(Process *process, lldb::addr_t addr) {
   return !error.Fail();
 }
 
+bool ClassDescriptorV2::relative_list_entry_t::Read(Process *process,
+                                                    lldb::addr_t addr) {
+  Log *log = GetLog(LLDBLog::Types);
+  size_t size = sizeof(uint64_t); // m_image_index : 16
+                                  // m_list_offset : 48
+
+  DataBufferHeap buffer(size, '\0');
+  Status error;
+
+  process->ReadMemory(addr, buffer.GetBytes(), size, error);
+  // FIXME: Propagate this error up
+  if (error.Fail()) {
+    LLDB_LOG(log, "Failed to read relative_list_entry_t at address {0:x}",
+             addr);
+    return false;
+  }
+
+  DataExtractor extractor(buffer.GetBytes(), size, process->GetByteOrder(),
+                          process->GetAddressByteSize());
+  lldb::offset_t cursor = 0;
+  uint64_t raw_entry = extractor.GetU64_unchecked(&cursor);
+  m_image_index = raw_entry & 0xFFFF;
+  m_list_offset = llvm::SignExtend64<48>(raw_entry >> 16);
+  return true;
+}
+
+bool ClassDescriptorV2::relative_list_list_t::Read(Process *process,
+                                                   lldb::addr_t addr) {
+  Log *log = GetLog(LLDBLog::Types);
+  size_t size = sizeof(uint32_t)    // m_entsize
+                + sizeof(uint32_t); // m_count
+
+  DataBufferHeap buffer(size, '\0');
+  Status error;
+
+  // FIXME: Propagate this error up
+  process->ReadMemory(addr, buffer.GetBytes(), size, error);
+  if (error.Fail()) {
+    LLDB_LOG(log, "Failed to read relative_list_list_t at address 0x" PRIx64,
+             addr);
+    return false;
+  }
+
+  DataExtractor extractor(buffer.GetBytes(), size, process->GetByteOrder(),
+                          process->GetAddressByteSize());
+  lldb::offset_t cursor = 0;
+  m_entsize = extractor.GetU32_unchecked(&cursor);
+  m_count = extractor.GetU32_unchecked(&cursor);
+  m_first_ptr = addr + cursor;
+  return true;
+}
+
+std::optional<ClassDescriptorV2::method_list_t>
+ClassDescriptorV2::GetMethodList(Process *process,
+                                 lldb::addr_t method_list_ptr) const {
+  Log *log = GetLog(LLDBLog::Types);
+  ClassDescriptorV2::method_list_t method_list;
+  if (!method_list.Read(process, method_list_ptr))
+    return std::nullopt;
+
+  const size_t method_size = method_t::GetSize(process, method_list.m_is_small);
+  if (method_list.m_entsize != method_size) {
+    LLDB_LOG(log,
+             "method_list_t at address 0x" PRIx64 " has an entsize of " PRIu16
+             " but method size should be " PRIu64,
+             method_list_ptr, method_list.m_entsize, method_size);
+    return std::nullopt;
+  }
+
+  return method_list;
+}
+
+bool ClassDescriptorV2::ProcessMethodList(
+    std::function<bool(const char *, const char *)> const &instance_method_func,
+    ClassDescriptorV2::method_list_t &method_list) const {
+  auto idx_to_method_addr = [&](uint32_t idx) {
+    return method_list.m_first_ptr + (idx * method_list.m_entsize);
+  };
+  llvm::SmallVector<addr_t> addresses = llvm::to_vector(llvm::map_range(
+      llvm::seq<uint32_t>(method_list.m_count), idx_to_method_addr));
+
+  llvm::SmallVector<method_t, 0> methods =
+      ReadMethods(addresses, m_runtime.GetRelativeSelectorBaseAddr(),
+                  method_list.m_is_small, method_list.m_has_direct_selector,
+                  method_list.m_has_relative_types);
+
+  for (const auto &method : methods)
+    if (instance_method_func(method.m_name.c_str(), method.m_types.c_str()))
+      break;
+  return true;
+}
+
+// The relevant data structures:
+//  - relative_list_list_t
+//    - uint32_t count
+//    - uint32_t entsize
+//    - Followed by <count> number of relative_list_entry_t of size <entsize>
+//
+//  - relative_list_entry_t
+//    - uint64_t image_index : 16
+//    - int64_t list_offset : 48
+//    - Note: The above 2 fit into 8 bytes always
+//
+//    image_index corresponds to an image in the shared cache
+//    list_offset is used to calculate the address of the method_list_t we want
+bool ClassDescriptorV2::ProcessRelativeMethodLists(
+    std::function<bool(const char *, const char *)> const &instance_method_func,
+    lldb::addr_t relative_method_list_ptr) const {
+  lldb_private::Process *process = m_runtime.GetProcess();
+  auto relative_method_lists = std::make_unique<relative_list_list_t>();
+
+  // 1. Process the count and entsize of the relative_list_list_t
+  if (!relative_method_lists->Read(process, relative_method_list_ptr))
+    return false;
+
+  auto entry = std::make_unique<relative_list_entry_t>();
+  for (uint32_t i = 0; i < relative_method_lists->m_count; i++) {
+    // 2. Extract the image index and the list offset from the
+    // relative_list_entry_t
+    const lldb::addr_t entry_addr = relative_method_lists->m_first_ptr +
+                                    (i * relative_method_lists->m_entsize);
+    if (!entry->Read(process, entry_addr))
+      return false;
+
+    // 3. Calculate the pointer to the method_list_t from the
+    // relative_list_entry_t
+    const lldb::addr_t method_list_addr = entry_addr + entry->m_list_offset;
+
+    // 4. Get the method_list_t from the pointer
+    std::optional<method_list_t> method_list =
+        GetMethodList(process, method_list_addr);
+    if (!method_list)
+      return false;
+
+    // 5. Cache the result so we don't need to reconstruct it later.
+    m_image_to_method_lists[entry->m_image_index].emplace_back(*method_list);
+
+    // 6. If the relevant image is loaded, add the methods to the Decl
+    if (!m_runtime.IsSharedCacheImageLoaded(entry->m_image_index))
+      continue;
+
+    if (!ProcessMethodList(instance_method_func, *method_list))
+      return false;
+  }
+
+  // We need to keep track of the last time we updated so we can re-update the
+  // type information in the future
+  m_last_version_updated = m_runtime.GetSharedCacheImageHeaderVersion();
+
+  return true;
+}
+
 bool ClassDescriptorV2::Describe(
     std::function<void(ObjCLanguageRuntime::ObjCISA)> const &superclass_func,
     std::function<bool(const char *, const char *)> const &instance_method_func,
@@ -393,29 +594,17 @@ bool ClassDescriptorV2::Describe(
     superclass_func(objc_class->m_superclass);
 
   if (instance_method_func) {
-    std::unique_ptr<method_list_t> base_method_list;
-
-    base_method_list = std::make_unique<method_list_t>();
-    if (!base_method_list->Read(process, class_ro->m_baseMethods_ptr))
-      return false;
-
-    bool is_small = base_method_list->m_is_small;
-    bool has_direct_selector = base_method_list->m_has_direct_selector;
-
-    if (base_method_list->m_entsize != method_t::GetSize(process, is_small))
-      return false;
-
-    std::unique_ptr<method_t> method = std::make_unique<method_t>();
-    lldb::addr_t relative_selector_base_addr =
-        m_runtime.GetRelativeSelectorBaseAddr();
-    for (uint32_t i = 0, e = base_method_list->m_count; i < e; ++i) {
-      method->Read(process,
-                   base_method_list->m_first_ptr +
-                       (i * base_method_list->m_entsize),
-                   relative_selector_base_addr, is_small, has_direct_selector);
-
-      if (instance_method_func(method->m_name.c_str(), method->m_types.c_str()))
-        break;
+    // This is a relative list of lists
+    if (class_ro->m_baseMethods_ptr & 1) {
+      if (!ProcessRelativeMethodLists(instance_method_func,
+                                      class_ro->m_baseMethods_ptr ^ 1))
+        return false;
+    } else {
+      std::optional<method_list_t> base_method_list =
+          GetMethodList(process, class_ro->m_baseMethods_ptr);
+      if (base_method_list &&
+          !ProcessMethodList(instance_method_func, *base_method_list))
+        return false;
     }
   }
 
@@ -530,6 +719,19 @@ uint64_t ClassDescriptorV2::GetInstanceSize() {
   return 0;
 }
 
+// From the ObjC runtime.
+static uint8_t IS_SWIFT_STABLE = 1U << 1;
+
+LanguageType ClassDescriptorV2::GetImplementationLanguage() const {
+  std::unique_ptr<objc_class_t> objc_class;
+  if (auto *process = m_runtime.GetProcess())
+    if (Read_objc_class(process, objc_class))
+      if (objc_class->m_flags & IS_SWIFT_STABLE)
+        return lldb::eLanguageTypeSwift;
+
+  return lldb::eLanguageTypeObjC;
+}
+
 ClassDescriptorV2::iVarsStorage::iVarsStorage() : m_ivars(), m_mutex() {}
 
 size_t ClassDescriptorV2::iVarsStorage::size() { return m_ivars.size(); }
@@ -569,7 +771,7 @@ void ClassDescriptorV2::iVarsStorage::fill(AppleObjCRuntimeV2 &runtime,
                 "name = {0}, encoding = {1}, offset_ptr = {2:x}, size = "
                 "{3}, type_size = {4}",
                 name, type, offset_ptr, size,
-                ivar_type.GetByteSize(nullptr).value_or(0));
+                expectedToOptional(ivar_type.GetByteSize(nullptr)).value_or(0));
       Scalar offset_scalar;
       Status error;
       const int offset_ptr_size = 4;

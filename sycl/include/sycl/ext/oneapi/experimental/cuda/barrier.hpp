@@ -8,13 +8,15 @@
 
 #pragma once
 
+#include <sycl/__spirv/spirv_ops.hpp> // for __clc_BarrierInitialize
+#include <sycl/exception.hpp>
+
+#include <stdint.h> // for int32_t, int64_t, uint32_t, uint64_t
+
 #define SYCL_EXT_ONEAPI_CUDA_ASYNC_BARRIER 1
 
-#include <CL/__spirv/spirv_ops.hpp>
-#include <cstddef>
-
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext {
 namespace oneapi {
 namespace experimental {
@@ -31,6 +33,7 @@ public:
   barrier(barrier &&other) noexcept = delete;
   barrier &operator=(const barrier &other) = delete;
   barrier &operator=(barrier &&other) noexcept = delete;
+  ~barrier() = default;
 
   void initialize(uint32_t expected_count) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -38,8 +41,8 @@ public:
 #else
     (void)state;
     (void)expected_count;
-    throw runtime_error("Barrier is not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Barrier is not supported on host.");
 #endif
   }
 
@@ -47,8 +50,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     __clc_BarrierInvalidate(&state);
 #else
-    throw runtime_error("Barrier is not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Barrier is not supported on host.");
 #endif
   }
 
@@ -56,8 +59,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __clc_BarrierArrive(&state);
 #else
-    throw runtime_error("Barrier is not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Barrier is not supported on host.");
 #endif
   }
 
@@ -65,8 +68,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __clc_BarrierArriveAndDrop(&state);
 #else
-    throw runtime_error("Barrier is not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Barrier is not supported on host.");
 #endif
   }
 
@@ -75,8 +78,8 @@ public:
     return __clc_BarrierArriveNoComplete(&state, count);
 #else
     (void)count;
-    throw runtime_error("Barrier is not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Barrier is not supported on host.");
 #endif
   }
 
@@ -85,8 +88,8 @@ public:
     return __clc_BarrierArriveAndDropNoComplete(&state, count);
 #else
     (void)count;
-    throw runtime_error("Barrier is not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Barrier is not supported on host.");
 #endif
   }
 
@@ -94,8 +97,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     __clc_BarrierCopyAsyncArrive(&state);
 #else
-    throw runtime_error("Barrier is not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Barrier is not supported on host.");
 #endif
   }
 
@@ -103,8 +106,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     __clc_BarrierCopyAsyncArriveNoInc(&state);
 #else
-    throw runtime_error("Barrier is not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Barrier is not supported on host.");
 #endif
   }
 
@@ -113,8 +116,8 @@ public:
     __clc_BarrierWait(&state, arrival);
 #else
     (void)arrival;
-    throw runtime_error("Barrier is not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Barrier is not supported on host.");
 #endif
   }
 
@@ -123,8 +126,8 @@ public:
     return __clc_BarrierTestWait(&state, arrival);
 #else
     (void)arrival;
-    throw runtime_error("Barrier is not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Barrier is not supported on host.");
 #endif
   }
 
@@ -132,8 +135,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     __clc_BarrierArriveAndWait(&state);
 #else
-    throw runtime_error("Barrier is not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Barrier is not supported on host.");
 #endif
   }
 
@@ -149,5 +152,5 @@ public:
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

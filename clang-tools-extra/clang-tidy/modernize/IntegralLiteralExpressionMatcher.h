@@ -1,4 +1,4 @@
-//===--- IntegralLiteralExpressionMatcher.h - clang-tidy ------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,15 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MODERNIZE_INTEGRAL_LITERAL_EXPRESSION_MATCHER_H
-#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MODERNIZE_INTEGRAL_LITERAL_EXPRESSION_MATCHER_H
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MODERNIZE_INTEGRALLITERALEXPRESSIONMATCHER_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MODERNIZE_INTEGRALLITERALEXPRESSIONMATCHER_H
 
 #include <clang/Lex/Token.h>
 #include <llvm/ADT/ArrayRef.h>
 
-namespace clang {
-namespace tidy {
-namespace modernize {
+namespace clang::tidy::modernize {
 
 enum class LiteralSize {
   Unknown = 0,
@@ -41,21 +39,14 @@ public:
 private:
   bool advance();
   bool consume(tok::TokenKind Kind);
-  bool nonTerminalChainedExpr(
-      bool (IntegralLiteralExpressionMatcher::*NonTerminal)(),
-      const std::function<bool(Token)> &IsKind);
-  template <tok::TokenKind Kind>
-  bool nonTerminalChainedExpr(
-      bool (IntegralLiteralExpressionMatcher::*NonTerminal)()) {
-    return nonTerminalChainedExpr(NonTerminal,
-                                  [](Token Tok) { return Tok.is(Kind); });
-  }
-  template <tok::TokenKind K1, tok::TokenKind K2, tok::TokenKind... Ks>
-  bool nonTerminalChainedExpr(
-      bool (IntegralLiteralExpressionMatcher::*NonTerminal)()) {
-    return nonTerminalChainedExpr(
-        NonTerminal, [](Token Tok) { return Tok.isOneOf(K1, K2, Ks...); });
-  }
+  template <typename NonTerminalFunctor, typename IsKindFunctor>
+  bool nonTerminalChainedExpr(const NonTerminalFunctor &NonTerminal,
+                              const IsKindFunctor &IsKind);
+  template <tok::TokenKind Kind, typename NonTerminalFunctor>
+  bool nonTerminalChainedExpr(const NonTerminalFunctor &NonTerminal);
+  template <tok::TokenKind K1, tok::TokenKind K2, tok::TokenKind... Ks,
+            typename NonTerminalFunctor>
+  bool nonTerminalChainedExpr(const NonTerminalFunctor &NonTerminal);
 
   bool unaryOperator();
   bool unaryExpr();
@@ -80,8 +71,6 @@ private:
   bool CommaAllowed;
 };
 
-} // namespace modernize
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::modernize
 
-#endif
+#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MODERNIZE_INTEGRALLITERALEXPRESSIONMATCHER_H

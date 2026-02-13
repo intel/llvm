@@ -74,16 +74,16 @@
 #define LLVM_USE_PERF 0
 
 /* Major version of the LLVM API */
-#define LLVM_VERSION_MAJOR 16
+/* #undef LLVM_VERSION_MAJOR */
 
 /* Minor version of the LLVM API */
-#define LLVM_VERSION_MINOR 0
+/* #undef LLVM_VERSION_MINOR */
 
 /* Patch version of the LLVM API */
-#define LLVM_VERSION_PATCH 0
+/* #undef LLVM_VERSION_PATCH */
 
 /* LLVM version string */
-#define LLVM_VERSION_STRING "16.0.0git"
+/* #undef LLVM_VERSION_STRING */
 
 /* Whether LLVM records statistics for use with GetStatistics(),
  * PrintStatistics() or PrintStatisticsJSON()
@@ -98,9 +98,6 @@
 
 /* Define if we have cpp-httplib and want to use it */
 /* #undef LLVM_ENABLE_HTTPLIB */
-
-/* Define if LLVM was built with a dependency to the libtensorflow dynamic library */
-/* #undef LLVM_HAVE_TF_API */
 
 /* Define if LLVM was built with a dependency to the tensorflow compiler */
 /* #undef LLVM_HAVE_TF_AOT */
@@ -117,6 +114,12 @@
 /* Define if building LLVM with BUILD_SHARED_LIBS */
 /* #undef LLVM_BUILD_SHARED_LIBS */
 
+/* Define if exporting LLVM public interface for shared library */
+/* LLVM_ENABLE_LLVM_EXPORT_ANNOTATIONS defined in Bazel */
+
+/* Define if exporting LLVM-C public interface for shared library */
+/* LLVM_ENABLE_LLVM_C_EXPORT_ANNOTATIONS */
+
 /* Define if building LLVM with LLVM_FORCE_USE_OLD_TOOLCHAIN_LIBS */
 /* #undef LLVM_FORCE_USE_OLD_TOOLCHAIN ${LLVM_FORCE_USE_OLD_TOOLCHAIN} */
 
@@ -124,7 +127,24 @@
  * in non assert builds */
 #define LLVM_UNREACHABLE_OPTIMIZE 1
 
+/* Define if building LLVM with LLVM_ENABLE_IO_SANDBOX */
+/* LLVM_ENABLE_IO_SANDBOX */
+
 /* Define to 1 if you have the DIA SDK installed, and to 0 if you don't. */
 #define LLVM_ENABLE_DIA_SDK 0
+
+/* Define if plugins enabled */
+/* LLVM_ENABLE_PLUGINS defined in Bazel */
+
+/* Define if building LLVM with LLVM_ENABLE_TELEMETRY */
+#define LLVM_ENABLE_TELEMETRY 1
+
+/* Define to 1 to enable expensive checks for debug location coverage checking,
+   and to 0 otherwise. */
+#define LLVM_ENABLE_DEBUGLOC_TRACKING_COVERAGE 0
+
+/* Define to 1 to enable expensive tracking of the origin of debug location
+   coverage bugs, and to 0 otherwise. */
+#define LLVM_ENABLE_DEBUGLOC_TRACKING_ORIGIN 0
 
 #endif

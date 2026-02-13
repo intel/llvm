@@ -1,4 +1,5 @@
 // RUN: %clang_cc1 -std=c++11 -fsyntax-only -verify %s
+// RUN: %clang_cc1 -std=c++11 -fsyntax-only -verify %s -fexperimental-new-constant-interpreter
 
 struct one { char c; };
 struct two { char c[2]; };
@@ -139,4 +140,22 @@ namespace PR20844 {
 
 namespace PR21834 {
 const int &a = (const int &){0}; // expected-error {{cannot bind to an initializer list}}
+}
+
+namespace GH59100 {
+class v {};
+
+template <typename T>
+class V : public v {};
+
+using T = const V<int> &;
+
+template <class D>
+void f() {
+  auto t = T{};
+}
+
+void z()  {
+    f<int>();
+}
 }

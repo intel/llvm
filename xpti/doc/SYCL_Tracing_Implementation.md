@@ -63,11 +63,11 @@ and all kernel executions in the applications are added as nodes in this
 global graph. In the SYCL runtime, there is no obvious location where the
 creation of the global graph can be inserted as many objects are
 instantiated statically. Currently, we embed the graph creation in the
-plugin interface (PI) layer `initialize()` call. In this call, we will
+Unified Runtime (UR) layer `initializeAdapters()` call. In this call, we will
 perform two operations:
 
 1. Initialize all listeners and create a trace event to represent the graph.
-This is done in `sycl/include/sycl/detail/pi.cpp`.
+This is done in `sycl/include/sycl/detail/ur.cpp`.
 2. Send a `graph_create` event to all subscribers. This notification
 will only be sent once.
 

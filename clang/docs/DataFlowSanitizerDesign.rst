@@ -51,7 +51,7 @@ file ``sanitizer/dfsan_interface.h``.
   /// Retrieves the label associated with the data at the given address.
   dfsan_label dfsan_read_label(const void *addr, size_t size);
 
-  /// Returns whether the given label label contains the label elem.
+  /// Returns whether the given label contains the label elem.
   int dfsan_has_label(dfsan_label label, dfsan_label elem);
 
   /// Computes the union of \c l1 and \c l2, resulting in a union label.
@@ -160,8 +160,8 @@ instructions, glibc memcpy and memmove. When ``-dfsan-track-origins`` is 2, a
 new chain is also appended at loads.
 
 Other instructions do not create new chains, but simply propagate origin trace
-IDs. If an instruction has more than one operands with non-zero labels, the origin
-treace ID of the last operand with non-zero label is propagated to the result of
+IDs. If an instruction has more than one operand with non-zero labels, the origin
+trace ID of the last operand with non-zero label is propagated to the result of
 the instruction.
 
 Memory layout and label management

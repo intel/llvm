@@ -1,4 +1,4 @@
-//===-- RISCVMCObjectFileInfo.cpp - RISCV object file properties ----------===//
+//===-- RISCVMCObjectFileInfo.cpp - RISC-V object file properties ---------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -17,7 +17,11 @@
 
 using namespace llvm;
 
+unsigned
+RISCVMCObjectFileInfo::getTextSectionAlignment(const MCSubtargetInfo &STI) {
+  return STI.hasFeature(RISCV::FeatureStdExtZca) ? 2 : 4;
+}
+
 unsigned RISCVMCObjectFileInfo::getTextSectionAlignment() const {
-  const MCSubtargetInfo *STI = getContext().getSubtargetInfo();
-  return STI->hasFeature(RISCV::FeatureStdExtC) ? 2 : 4;
+  return getTextSectionAlignment(*getContext().getSubtargetInfo());
 }

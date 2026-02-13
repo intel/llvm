@@ -1,4 +1,4 @@
-//===--- MisplacedConstCheck.cpp - clang-tidy------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,22 +12,20 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace misc {
+namespace clang::tidy::misc {
 
 void MisplacedConstCheck::registerMatchers(MatchFinder *Finder) {
   auto NonConstAndNonFunctionPointerType = hasType(pointerType(unless(
       pointee(anyOf(isConstQualified(), ignoringParens(functionType()))))));
 
   Finder->addMatcher(
-      valueDecl(hasType(qualType(
-                    isConstQualified(),
-                    elaboratedType(namesType(typedefType(hasDeclaration(
-                        anyOf(typedefDecl(NonConstAndNonFunctionPointerType)
-                                  .bind("typedef"),
-                              typeAliasDecl(NonConstAndNonFunctionPointerType)
-                                  .bind("typeAlias")))))))))
+      valueDecl(
+          hasType(qualType(isConstQualified(),
+                           typedefType(hasDeclaration(anyOf(
+                               typedefDecl(NonConstAndNonFunctionPointerType)
+                                   .bind("typedef"),
+                               typeAliasDecl(NonConstAndNonFunctionPointerType)
+                                   .bind("typeAlias")))))))
           .bind("decl"),
       this);
 }
@@ -42,7 +40,7 @@ static QualType guessAlternateQualification(ASTContext &Context, QualType QT) {
   Qualifiers Quals = QT.getLocalQualifiers();
   Quals.removeConst();
 
-  QualType NewQT = Context.getPointerType(
+  const QualType NewQT = Context.getPointerType(
       QualType(QT->getPointeeType().getTypePtr(), Qualifiers::Const));
   return NewQT.withCVRQualifiers(Quals.getCVRQualifiers());
 }
@@ -50,10 +48,10 @@ static QualType guessAlternateQualification(ASTContext &Context, QualType QT) {
 void MisplacedConstCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *Var = Result.Nodes.getNodeAs<ValueDecl>("decl");
   ASTContext &Ctx = *Result.Context;
-  QualType CanQT = Var->getType().getCanonicalType();
+  const QualType CanQT = Var->getType().getCanonicalType();
 
   SourceLocation AliasLoc;
-  const char *AliasType;
+  const char *AliasType = nullptr;
   if (const auto *Typedef = Result.Nodes.getNodeAs<TypedefDecl>("typedef")) {
     AliasLoc = Typedef->getLocation();
     AliasType = "typedef";
@@ -74,6 +72,4 @@ void MisplacedConstCheck::check(const MatchFinder::MatchResult &Result) {
   diag(AliasLoc, "%0 declared here", DiagnosticIDs::Note) << AliasType;
 }
 
-} // namespace misc
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::misc

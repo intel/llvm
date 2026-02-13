@@ -146,13 +146,17 @@ macro(test_target_arch arch def)
 endmacro()
 
 macro(detect_target_arch)
+  check_symbol_exists(__AMDGPU__ "" __AMDGPU)
   check_symbol_exists(__arm__ "" __ARM)
   check_symbol_exists(__AVR__ "" __AVR)
   check_symbol_exists(__aarch64__ "" __AARCH64)
   check_symbol_exists(__x86_64__ "" __X86_64)
   check_symbol_exists(__i386__ "" __I386)
+  check_symbol_exists(__hexagon__ "" __HEXAGON)
+  check_symbol_exists(__loongarch__ "" __LOONGARCH)
   check_symbol_exists(__mips__ "" __MIPS)
   check_symbol_exists(__mips64__ "" __MIPS64)
+  check_symbol_exists(__NVPTX__ "" __NVPTX)
   check_symbol_exists(__powerpc__ "" __PPC)
   check_symbol_exists(__powerpc64__ "" __PPC64)
   check_symbol_exists(__powerpc64le__ "" __PPC64LE)
@@ -163,7 +167,9 @@ macro(detect_target_arch)
   check_symbol_exists(__wasm32__ "" __WEBASSEMBLY32)
   check_symbol_exists(__wasm64__ "" __WEBASSEMBLY64)
   check_symbol_exists(__ve__ "" __VE)
-  if(__ARM)
+  if(__AMDGPU)
+    add_default_target_arch(amdgcn)
+  elseif(__ARM)
     add_default_target_arch(arm)
   elseif(__AVR)
     add_default_target_arch(avr)
@@ -177,12 +183,24 @@ macro(detect_target_arch)
     else()
       message(FATAL_ERROR "Unsupported pointer size for X86_64")
     endif()
+  elseif(__HEXAGON)
+    add_default_target_arch(hexagon)
   elseif(__I386)
     add_default_target_arch(i386)
+  elseif(__LOONGARCH)
+    if(CMAKE_SIZEOF_VOID_P EQUAL "4")
+      add_default_target_arch(loongarch32)
+    elseif(CMAKE_SIZEOF_VOID_P EQUAL "8")
+      add_default_target_arch(loongarch64)
+    else()
+      message(FATAL_ERROR "Unsupported pointer size for LoongArch")
+    endif()
   elseif(__MIPS64) # must be checked before __MIPS
     add_default_target_arch(mips64)
   elseif(__MIPS)
     add_default_target_arch(mips)
+  elseif(__NVPTX)
+    add_default_target_arch(nvptx64)
   elseif(__PPC64) # must be checked before __PPC
     add_default_target_arch(powerpc64)
   elseif(__PPC64LE)
@@ -195,7 +213,7 @@ macro(detect_target_arch)
     elseif(CMAKE_SIZEOF_VOID_P EQUAL "8")
       add_default_target_arch(riscv64)
     else()
-      message(FATAL_ERROR "Unsupport XLEN for RISC-V")
+      message(FATAL_ERROR "Unsupported XLEN for RISC-V")
     endif()
   elseif(__S390X)
     add_default_target_arch(s390x)
@@ -268,14 +286,15 @@ function(get_compiler_rt_root_source_dir ROOT_DIR_VAR)
 endfunction()
 
 macro(load_llvm_config)
-  if (NOT LLVM_CONFIG_PATH)
-    find_program(LLVM_CONFIG_PATH "llvm-config"
-                 DOC "Path to llvm-config binary")
-    if (NOT LLVM_CONFIG_PATH)
-      message(WARNING "UNSUPPORTED COMPILER-RT CONFIGURATION DETECTED: "
-                      "llvm-config not found.\n"
-                      "Reconfigure with -DLLVM_CONFIG_PATH=path/to/llvm-config.")
-    endif()
+  if (LLVM_CONFIG_PATH AND NOT LLVM_CMAKE_DIR)
+    message(WARNING
+      "LLVM_CONFIG_PATH is deprecated, please use LLVM_CMAKE_DIR instead")
+    # Compute the path to the LLVM install prefix and pass it as LLVM_CMAKE_DIR,
+    # CMake will locate the appropriate lib*/cmake subdirectory from there.
+    # For example. for -DLLVM_CONFIG_PATH=/usr/lib/llvm/16/bin/llvm-config
+    # this will yield LLVM_CMAKE_DIR=/usr/lib/llvm/16.
+    get_filename_component(LLVM_CMAKE_DIR "${LLVM_CONFIG_PATH}" DIRECTORY)
+    get_filename_component(LLVM_CMAKE_DIR "${LLVM_CMAKE_DIR}" DIRECTORY)
   endif()
 
   # Compute path to LLVM sources assuming the monorepo layout.
@@ -290,114 +309,37 @@ macro(load_llvm_config)
       "You are not using the monorepo layout. This configuration is DEPRECATED.")
   endif()
 
-  set(FOUND_LLVM_CMAKE_DIR FALSE)
-  if (LLVM_CONFIG_PATH)
-    execute_process(
-      COMMAND ${LLVM_CONFIG_PATH} "--obj-root" "--bindir" "--libdir" "--src-root" "--includedir"
-      RESULT_VARIABLE HAD_ERROR
-      OUTPUT_VARIABLE CONFIG_OUTPUT)
-    if (HAD_ERROR)
-      message(FATAL_ERROR "llvm-config failed with status ${HAD_ERROR}")
-    endif()
-    string(REGEX REPLACE "[ \t]*[\r\n]+[ \t]*" ";" CONFIG_OUTPUT ${CONFIG_OUTPUT})
-    list(GET CONFIG_OUTPUT 0 BINARY_DIR)
-    list(GET CONFIG_OUTPUT 1 TOOLS_BINARY_DIR)
-    list(GET CONFIG_OUTPUT 2 LIBRARY_DIR)
-    list(GET CONFIG_OUTPUT 3 MAIN_SRC_DIR)
-    list(GET CONFIG_OUTPUT 4 INCLUDE_DIR)
+  find_package(LLVM HINTS "${LLVM_CMAKE_DIR}")
+  if (NOT LLVM_FOUND)
+     message(WARNING "UNSUPPORTED COMPILER-RT CONFIGURATION DETECTED: "
+                     "LLVM cmake package not found.\n"
+                     "Reconfigure with -DLLVM_CMAKE_DIR=/path/to/llvm.")
+  else()
+    list(APPEND CMAKE_MODULE_PATH "${LLVM_DIR}")
+    # Turn into CACHE PATHs for overwritting
+    set(LLVM_BINARY_DIR "${LLVM_BINARY_DIR}" CACHE PATH "Path to LLVM build tree")
+    set(LLVM_LIBRARY_DIR "${LLVM_LIBRARY_DIR}" CACHE PATH "Path to llvm/lib")
+    set(LLVM_TOOLS_BINARY_DIR "${LLVM_TOOLS_BINARY_DIR}" CACHE PATH "Path to llvm/bin")
+    set(LLVM_INCLUDE_DIR ${LLVM_INCLUDE_DIRS} CACHE PATH "Path to llvm/include and any other header dirs needed")
 
-    set(LLVM_BINARY_DIR ${BINARY_DIR} CACHE PATH "Path to LLVM build tree")
-    set(LLVM_LIBRARY_DIR ${LIBRARY_DIR} CACHE PATH "Path to llvm/lib")
-    set(LLVM_TOOLS_BINARY_DIR ${TOOLS_BINARY_DIR} CACHE PATH "Path to llvm/bin")
-    set(LLVM_INCLUDE_DIR ${INCLUDE_DIR} CACHE PATH "Paths to LLVM headers")
-
-    if (NOT EXISTS "${LLVM_MAIN_SRC_DIR_DEFAULT}")
-      # TODO(dliew): Remove this legacy fallback path.
-      message(WARNING
-        "Consulting llvm-config for the LLVM source path "
-        "as a fallback. This behavior will be removed in the future.")
-      # We don't set `LLVM_MAIN_SRC_DIR` directly to avoid overriding a user
-      # provided CMake cache value.
-      set(LLVM_MAIN_SRC_DIR_DEFAULT "${MAIN_SRC_DIR}")
-      message(STATUS "Using LLVM source path (${LLVM_MAIN_SRC_DIR_DEFAULT}) from llvm-config")
-    endif()
-
-    # Detect if we have the LLVMXRay and TestingSupport library installed and
-    # available from llvm-config.
-    execute_process(
-      COMMAND ${LLVM_CONFIG_PATH} "--ldflags" "--libs" "xray"
-      RESULT_VARIABLE HAD_ERROR
-      OUTPUT_VARIABLE CONFIG_OUTPUT
-      ERROR_QUIET)
-    if (HAD_ERROR)
-      message(WARNING "llvm-config finding xray failed with status ${HAD_ERROR}")
+    list(FIND LLVM_AVAILABLE_LIBS LLVMXRay XRAY_INDEX)
+    set(COMPILER_RT_HAS_LLVMXRAY TRUE)
+    if (XRAY_INDEX EQUAL -1)
+      message(WARNING "LLVMXRay not found in LLVM_AVAILABLE_LIBS")
       set(COMPILER_RT_HAS_LLVMXRAY FALSE)
-    else()
-      string(REGEX REPLACE "[ \t]*[\r\n]+[ \t]*" ";" CONFIG_OUTPUT ${CONFIG_OUTPUT})
-      list(GET CONFIG_OUTPUT 0 LDFLAGS)
-      list(GET CONFIG_OUTPUT 1 LIBLIST)
-      file(TO_CMAKE_PATH "${LDFLAGS}" LDFLAGS)
-      file(TO_CMAKE_PATH "${LIBLIST}" LIBLIST)
-      set(LLVM_XRAY_LDFLAGS ${LDFLAGS} CACHE STRING "Linker flags for LLVMXRay library")
-      set(LLVM_XRAY_LIBLIST ${LIBLIST} CACHE STRING "Library list for LLVMXRay")
-      set(COMPILER_RT_HAS_LLVMXRAY TRUE)
     endif()
 
-    set(COMPILER_RT_HAS_LLVMTESTINGSUPPORT FALSE)
-    execute_process(
-      COMMAND ${LLVM_CONFIG_PATH} "--ldflags" "--libs" "testingsupport"
-      RESULT_VARIABLE HAD_ERROR
-      OUTPUT_VARIABLE CONFIG_OUTPUT
-      ERROR_QUIET)
-    if (HAD_ERROR)
-      message(WARNING "llvm-config finding testingsupport failed with status ${HAD_ERROR}")
-    elseif(COMPILER_RT_INCLUDE_TESTS)
-      string(REGEX REPLACE "[ \t]*[\r\n]+[ \t]*" ";" CONFIG_OUTPUT ${CONFIG_OUTPUT})
-      list(GET CONFIG_OUTPUT 0 LDFLAGS)
-      list(GET CONFIG_OUTPUT 1 LIBLIST)
-      if (LIBLIST STREQUAL "")
-        message(WARNING "testingsupport library not installed, some tests will be skipped")
-      else()
-        file(TO_CMAKE_PATH "${LDFLAGS}" LDFLAGS)
-        file(TO_CMAKE_PATH "${LIBLIST}" LIBLIST)
-        set(LLVM_TESTINGSUPPORT_LDFLAGS ${LDFLAGS} CACHE STRING "Linker flags for LLVMTestingSupport library")
-        set(LLVM_TESTINGSUPPORT_LIBLIST ${LIBLIST} CACHE STRING "Library list for LLVMTestingSupport")
-        set(COMPILER_RT_HAS_LLVMTESTINGSUPPORT TRUE)
-      endif()
+    list(FIND LLVM_AVAILABLE_LIBS LLVMTestingSupport TESTINGSUPPORT_INDEX)
+    set(COMPILER_RT_HAS_LLVMTESTINGSUPPORT TRUE)
+    if (TESTINGSUPPORT_INDEX EQUAL -1)
+      message(WARNING "LLVMTestingSupport not found in LLVM_AVAILABLE_LIBS")
+      set(COMPILER_RT_HAS_LLVMTESTINGSUPPORT FALSE)
     endif()
-
-    # Make use of LLVM CMake modules.
-    # --cmakedir is supported since llvm r291218 (4.0 release)
-    execute_process(
-      COMMAND ${LLVM_CONFIG_PATH} --cmakedir
-      RESULT_VARIABLE HAD_ERROR
-      OUTPUT_VARIABLE CONFIG_OUTPUT)
-    if(NOT HAD_ERROR)
-      string(STRIP "${CONFIG_OUTPUT}" LLVM_CMAKE_DIR_FROM_LLVM_CONFIG)
-      file(TO_CMAKE_PATH ${LLVM_CMAKE_DIR_FROM_LLVM_CONFIG} LLVM_CMAKE_DIR)
-    else()
-      file(TO_CMAKE_PATH ${LLVM_BINARY_DIR} LLVM_BINARY_DIR_CMAKE_STYLE)
-      set(LLVM_CMAKE_DIR "${LLVM_BINARY_DIR_CMAKE_STYLE}/lib${LLVM_LIBDIR_SUFFIX}/cmake/llvm")
-    endif()
-
-    set(LLVM_CMAKE_INCLUDE_FILE "${LLVM_CMAKE_DIR}/LLVMConfig.cmake")
-    if (EXISTS "${LLVM_CMAKE_INCLUDE_FILE}")
-      list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
-      # Get some LLVM variables from LLVMConfig.
-      include("${LLVM_CMAKE_INCLUDE_FILE}")
-      set(FOUND_LLVM_CMAKE_DIR TRUE)
-    else()
-      set(FOUND_LLVM_CMAKE_DIR FALSE)
-      message(WARNING "LLVM CMake path (${LLVM_CMAKE_INCLUDE_FILE}) reported by llvm-config does not exist")
-    endif()
-    unset(LLVM_CMAKE_INCLUDE_FILE)
-
-    set(LLVM_LIBRARY_OUTPUT_INTDIR
-      ${LLVM_BINARY_DIR}/${CMAKE_CFG_INTDIR}/lib${LLVM_LIBDIR_SUFFIX})
   endif()
 
-  # Finally set the cache variable now that `llvm-config` has also had a chance
-  # to set `LLVM_MAIN_SRC_DIR_DEFAULT`.
+  set(LLVM_LIBRARY_OUTPUT_INTDIR
+    ${LLVM_BINARY_DIR}/${CMAKE_CFG_INTDIR}/lib${LLVM_LIBDIR_SUFFIX})
+
   set(LLVM_MAIN_SRC_DIR "${LLVM_MAIN_SRC_DIR_DEFAULT}" CACHE PATH "Path to LLVM source tree")
   message(STATUS "LLVM_MAIN_SRC_DIR: \"${LLVM_MAIN_SRC_DIR}\"")
   if (NOT EXISTS "${LLVM_MAIN_SRC_DIR}")
@@ -410,7 +352,7 @@ macro(load_llvm_config)
                     "This will be treated as error in the future.")
   endif()
 
-  if (NOT FOUND_LLVM_CMAKE_DIR)
+  if (NOT LLVM_FOUND)
     # This configuration tries to configure without the prescence of `LLVMConfig.cmake`. It is
     # intended for testing purposes (generating the lit test suites) and will likely not support
     # a build of the runtimes in compiler-rt.
@@ -425,10 +367,38 @@ macro(construct_compiler_rt_default_triple)
     if(DEFINED COMPILER_RT_DEFAULT_TARGET_TRIPLE)
       message(FATAL_ERROR "COMPILER_RT_DEFAULT_TARGET_TRIPLE isn't supported when building for default target only")
     endif()
+    if ("${CMAKE_C_COMPILER_TARGET}" STREQUAL "")
+      message(FATAL_ERROR "CMAKE_C_COMPILER_TARGET must also be set when COMPILER_RT_DEFAULT_TARGET_ONLY is ON")
+    endif()
+    message(STATUS "cmake c compiler target: ${CMAKE_C_COMPILER_TARGET}")
     set(COMPILER_RT_DEFAULT_TARGET_TRIPLE ${CMAKE_C_COMPILER_TARGET})
   else()
-    set(COMPILER_RT_DEFAULT_TARGET_TRIPLE ${LLVM_TARGET_TRIPLE} CACHE STRING
+    set(target_triple ${LLVM_TARGET_TRIPLE})
+    # AIX triples can have OS version numbers we don't want for the compiler-rt target.
+    if (target_triple MATCHES "aix")
+      string(REGEX REPLACE "[0-9.]+$" "" target_triple "${target_triple}")
+    endif()
+    set(COMPILER_RT_DEFAULT_TARGET_TRIPLE ${target_triple} CACHE STRING
           "Default triple for which compiler-rt runtimes will be built.")
+  endif()
+
+  if(CMAKE_C_COMPILER_ID MATCHES "Clang")
+    set(option_prefix "")
+    if (CMAKE_C_SIMULATE_ID MATCHES "MSVC")
+      set(option_prefix "/clang:")
+    endif()
+    set(print_target_triple ${CMAKE_C_COMPILER} ${option_prefix}--target=${COMPILER_RT_DEFAULT_TARGET_TRIPLE} ${option_prefix}-print-target-triple)
+    execute_process(COMMAND ${print_target_triple}
+      RESULT_VARIABLE result
+      OUTPUT_VARIABLE output
+      OUTPUT_STRIP_TRAILING_WHITESPACE)
+    if(result EQUAL 0)
+      set(COMPILER_RT_DEFAULT_TARGET_TRIPLE ${output})
+    else()
+      string(REPLACE ";" " " print_target_triple "${print_target_triple}")
+      # TODO(#97876): Report an error.
+      message(WARNING "Failed to execute `${print_target_triple}` to normalize target triple.")
+    endif()
   endif()
 
   string(REPLACE "-" ";" LLVM_TARGET_TRIPLE_LIST ${COMPILER_RT_DEFAULT_TARGET_TRIPLE})
@@ -439,6 +409,19 @@ macro(construct_compiler_rt_default_triple)
   if("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "^i.86$")
     # Android uses i686, but that's remapped at a later stage.
     set(COMPILER_RT_DEFAULT_TARGET_ARCH "i386")
+  endif()
+
+  # If we are directly targeting a GPU we need to check that the compiler is
+  # compatible and pass some default arguments.
+  if(COMPILER_RT_DEFAULT_TARGET_ONLY)
+
+    # Pass the necessary flags to make flag detection work.
+    if("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "amdgcn")
+      set(COMPILER_RT_GPU_BUILD ON)
+    elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "nvptx")
+      set(COMPILER_RT_GPU_BUILD ON)
+      set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -flto -c")
+    endif()
   endif()
 
   # Determine if test target triple is specified explicitly, and doesn't match the
@@ -479,6 +462,7 @@ endfunction()
 function(get_compiler_rt_target arch variable)
   string(FIND ${COMPILER_RT_DEFAULT_TARGET_TRIPLE} "-" dash_index)
   string(SUBSTRING ${COMPILER_RT_DEFAULT_TARGET_TRIPLE} ${dash_index} -1 triple_suffix)
+  string(SUBSTRING ${COMPILER_RT_DEFAULT_TARGET_TRIPLE} 0 ${dash_index} triple_cpu)
   if(COMPILER_RT_DEFAULT_TARGET_ONLY)
     # Use exact spelling when building only for the target specified to CMake.
     set(target "${COMPILER_RT_DEFAULT_TARGET_TRIPLE}")
@@ -488,6 +472,40 @@ function(get_compiler_rt_target arch variable)
     set(target "x86_64${triple_suffix}")
   elseif(${arch} STREQUAL "sparc64")
     set(target "sparcv9${triple_suffix}")
+  elseif("${arch}" MATCHES "mips64|mips64el")
+    string(REGEX REPLACE "-gnu.*" "-gnuabi64" triple_suffix_gnu "${triple_suffix}")
+    string(REGEX REPLACE "mipsisa32" "mipsisa64" triple_cpu_mips "${triple_cpu}")
+    string(REGEX REPLACE "^mips$" "mips64" triple_cpu_mips "${triple_cpu_mips}")
+    string(REGEX REPLACE "^mipsel$" "mips64el" triple_cpu_mips "${triple_cpu_mips}")
+    set(target "${triple_cpu_mips}${triple_suffix_gnu}")
+  elseif("${arch}" MATCHES "mips|mipsel")
+    string(REGEX REPLACE "-gnuabi.*" "-gnu" triple_suffix_gnu "${triple_suffix}")
+    string(REGEX REPLACE "mipsisa64" "mipsisa32" triple_cpu_mips "${triple_cpu}")
+    string(REGEX REPLACE "mips64" "mips" triple_cpu_mips "${triple_cpu_mips}")
+    set(target "${triple_cpu_mips}${triple_suffix_gnu}")
+  elseif("${arch}" MATCHES "^arm")
+    # Arch is arm, armhf, armv6m (anything else would come from using
+    # COMPILER_RT_DEFAULT_TARGET_ONLY, which is checked above).
+    if (${arch} STREQUAL "armhf")
+      # If we are building for hard float but our ABI is soft float.
+      if ("${triple_suffix}" MATCHES ".*eabi$")
+        # Change "eabi" -> "eabihf"
+        set(triple_suffix "${triple_suffix}hf")
+      endif()
+      # ABI is already set in the triple, don't repeat it in the architecture.
+      set(arch "arm")
+    else ()
+      # If we are building for soft float, but the triple's ABI is hard float.
+      if ("${triple_suffix}" MATCHES ".*eabihf$")
+        # Change "eabihf" -> "eabi"
+        string(REGEX REPLACE "hf$" "" triple_suffix "${triple_suffix}")
+      endif()
+    endif()
+    set(target "${arch}${triple_suffix}")
+  elseif("${arch}" MATCHES "^amdgcn")
+    set(target "amdgcn-amd-amdhsa")
+  elseif("${arch}" MATCHES "^nvptx")
+    set(target "nvptx64-nvidia-cuda")
   else()
     set(target "${arch}${triple_suffix}")
   endif()
@@ -568,9 +586,9 @@ function(add_compiler_rt_install_targets name)
                               -DCMAKE_INSTALL_DO_STRIP=1
                               -P "${CMAKE_BINARY_DIR}/cmake_install.cmake")
     set_target_properties(install-${ARG_PARENT_TARGET} PROPERTIES
-                          FOLDER "Compiler-RT Misc")
+                          FOLDER "Compiler-RT/Installation")
     set_target_properties(install-${ARG_PARENT_TARGET}-stripped PROPERTIES
-                          FOLDER "Compiler-RT Misc")
+                          FOLDER "Compiler-RT/Installation")
     add_dependencies(install-compiler-rt install-${ARG_PARENT_TARGET})
     add_dependencies(install-compiler-rt-stripped install-${ARG_PARENT_TARGET}-stripped)
   endif()
@@ -615,7 +633,8 @@ function(add_security_warnings out_flags macosx_sdk_version)
   append_list_if(COMPILER_RT_HAS_RETURN_STACK_ADDRESS_FLAG -Werror=return-stack-address flags)
   append_list_if(COMPILER_RT_HAS_SIZEOF_ARRAY_DECAY_FLAG -Werror=sizeof-array-decay flags)
   append_list_if(COMPILER_RT_HAS_FORMAT_INSUFFICIENT_ARGS_FLAG -Werror=format-insufficient-args flags)
-  append_list_if(COMPILER_RT_HAS_BUILTIN_FORMAL_SECURITY_FLAG -Werror=format-security flags)
+  # GCC complains if we pass -Werror=format-security without -Wformat
+  append_list_if(COMPILER_RT_HAS_BUILTIN_FORMAL_SECURITY_FLAG -Wformat -Werror=format-security flags)
   append_list_if(COMPILER_RT_HAS_SIZEOF_ARRAY_DIV_FLAG -Werror=sizeof-array-div)
   append_list_if(COMPILER_RT_HAS_SIZEOF_POINTER_DIV_FLAG -Werror=sizeof-pointer-div)
 

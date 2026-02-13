@@ -1,9 +1,5 @@
-; RUN: opt %loadPolly -polly-analyze-read-only-scalars=false -polly-codegen \
-; RUN:     \
-; RUN:     -S < %s | FileCheck %s
-; RUN: opt %loadPolly -polly-analyze-read-only-scalars=true -polly-codegen \
-; RUN:     \
-; RUN:     -S < %s | FileCheck %s -check-prefix=SCALAR
+; RUN: opt %loadNPMPolly -polly-analyze-read-only-scalars=false '-passes=polly<no-default-opts>' -S < %s | FileCheck %s
+; RUN: opt %loadNPMPolly -polly-analyze-read-only-scalars=true '-passes=polly<no-default-opts>' -S < %s | FileCheck %s -check-prefix=SCALAR
 
 ; CHECK-NOT: alloca
 
@@ -11,14 +7,14 @@
 ; SCALAR-NEXT: %scalar.s2a = alloca float
 
 ; SCALAR-LABEL: polly.start:
-; SCALAR-NEXT:  store float %scalar, float* %scalar.s2a
+; SCALAR-NEXT:  store float %scalar, ptr %scalar.s2a
 
 ; SCALAR-LABEL: polly.stmt.stmt1:
-; SCALAR-NEXT:  %scalar.s2a.reload = load float, float* %scalar.s2a
-; SCALAR-NEXT:  %val_p_scalar_ = load float, float* %A,
+; SCALAR-NEXT:  %scalar.s2a.reload = load float, ptr %scalar.s2a
+; SCALAR-NEXT:  %val_p_scalar_ = load float, ptr %A,
 ; SCALAR-NEXT:  %p_sum = fadd float %val_p_scalar_, %scalar.s2a.reload
 
-define void @foo(float* noalias %A, float %scalar) {
+define void @foo(ptr noalias %A, float %scalar) {
 entry:
   br label %loop
 
@@ -27,9 +23,9 @@ loop:
   br label %stmt1
 
 stmt1:
-  %val = load float, float* %A
+  %val = load float, ptr %A
   %sum = fadd float %val, %scalar
-  store float %sum, float* %A
+  store float %sum, ptr %A
   br label %loop.backedge
 
 loop.backedge:

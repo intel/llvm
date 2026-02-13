@@ -16,8 +16,10 @@
 
 #include "clang/Basic/JsonSupport.h"
 #include "clang/Basic/TargetInfo.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/BasicValueFactory.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/RangedConstraintManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/SMTConv.h"
+#include <optional>
 
 typedef llvm::ImmutableSet<
     std::pair<clang::ento::SymbolRef, const llvm::SMTExpr *>>
@@ -33,7 +35,10 @@ class SMTConstraintManager : public clang::ento::SimpleConstraintManager {
 public:
   SMTConstraintManager(clang::ento::ExprEngine *EE,
                        clang::ento::SValBuilder &SB)
-      : SimpleConstraintManager(EE, SB) {}
+      : SimpleConstraintManager(EE, SB) {
+    Solver->setBoolParam("model", true); // Enable model finding
+    Solver->setUnsignedParam("timeout", 15000 /*milliseconds*/);
+  }
   virtual ~SMTConstraintManager() = default;
 
   //===------------------------------------------------------------------===//
@@ -128,7 +133,7 @@ public:
       addStateConstraints(State);
 
       // Constraints are unsatisfiable
-      Optional<bool> isSat = Solver->check();
+      std::optional<bool> isSat = Solver->check();
       if (!isSat || !*isSat)
         return nullptr;
 
@@ -145,12 +150,12 @@ public:
 
       Solver->addConstraint(NotExp);
 
-      Optional<bool> isNotSat = Solver->check();
+      std::optional<bool> isNotSat = Solver->check();
       if (!isNotSat || *isNotSat)
         return nullptr;
 
       // This is the only solution, store it
-      return &BVF.getValue(Value);
+      return BVF.getValue(Value).get();
     }
 
     if (const SymbolCast *SC = dyn_cast<SymbolCast>(Sym)) {
@@ -163,16 +168,16 @@ public:
       const llvm::APSInt *Value;
       if (!(Value = getSymVal(State, CastSym)))
         return nullptr;
-      return &BVF.Convert(SC->getType(), *Value);
+      return BVF.Convert(SC->getType(), *Value).get();
     }
 
     if (const BinarySymExpr *BSE = dyn_cast<BinarySymExpr>(Sym)) {
       const llvm::APSInt *LHS, *RHS;
       if (const SymIntExpr *SIE = dyn_cast<SymIntExpr>(BSE)) {
         LHS = getSymVal(State, SIE->getLHS());
-        RHS = &SIE->getRHS();
+        RHS = SIE->getRHS().get();
       } else if (const IntSymExpr *ISE = dyn_cast<IntSymExpr>(BSE)) {
-        LHS = &ISE->getLHS();
+        LHS = ISE->getLHS().get();
         RHS = getSymVal(State, ISE->getRHS());
       } else if (const SymSymExpr *SSM = dyn_cast<SymSymExpr>(BSE)) {
         // Early termination to avoid expensive call
@@ -191,7 +196,9 @@ public:
       std::tie(ConvertedRHS, RTy) = SMTConv::fixAPSInt(Ctx, *RHS);
       SMTConv::doIntTypeConversion<llvm::APSInt, &SMTConv::castAPSInt>(
           Solver, Ctx, ConvertedLHS, LTy, ConvertedRHS, RTy);
-      return BVF.evalAPSInt(BSE->getOpcode(), ConvertedLHS, ConvertedRHS);
+      std::optional<APSIntPtr> Res =
+          BVF.evalAPSInt(BSE->getOpcode(), ConvertedLHS, ConvertedRHS);
+      return Res ? Res.value().get() : nullptr;
     }
 
     llvm_unreachable("Unsupported expression to get symbol value!");
@@ -202,9 +209,9 @@ public:
     auto CZ = State->get<ConstraintSMT>();
     auto &CZFactory = State->get_context<ConstraintSMT>();
 
-    for (auto I = CZ.begin(), E = CZ.end(); I != E; ++I) {
-      if (SymReaper.isDead(I->first))
-        CZ = CZFactory.remove(CZ, *I);
+    for (const auto &Entry : CZ) {
+      if (SymReaper.isDead(Entry.first))
+        CZ = CZFactory.remove(CZ, Entry);
     }
 
     return State->set<ConstraintSMT>(CZ);
@@ -246,7 +253,7 @@ public:
   bool canReasonAbout(SVal X) const override {
     const TargetInfo &TI = getBasicVals().getContext().getTargetInfo();
 
-    Optional<nonloc::SymbolVal> SymVal = X.getAs<nonloc::SymbolVal>();
+    std::optional<nonloc::SymbolVal> SymVal = X.getAs<nonloc::SymbolVal>();
     if (!SymVal)
       return true;
 
@@ -274,6 +281,11 @@ public:
     if (const SymbolCast *SC = dyn_cast<SymbolCast>(Sym))
       return canReasonAbout(SVB.makeSymbolVal(SC->getOperand()));
 
+    // UnarySymExpr support is not yet implemented in the Z3 wrapper.
+    if (isa<UnarySymExpr>(Sym)) {
+      return false;
+    }
+
     if (const BinarySymExpr *BSE = dyn_cast<BinarySymExpr>(Sym)) {
       if (const SymIntExpr *SIE = dyn_cast<SymIntExpr>(BSE))
         return canReasonAbout(SVB.makeSymbolVal(SIE->getLHS()));
@@ -289,8 +301,10 @@ public:
     llvm_unreachable("Unsupported expression to reason about!");
   }
 
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
   /// Dumps SMT formula
   LLVM_DUMP_METHOD void dump() const { Solver->dump(); }
+#endif
 
 protected:
   // Check whether a new model is satisfiable, and update the program state.
@@ -312,8 +326,6 @@ protected:
 
     // Construct the logical AND of all the constraints
     if (I != IE) {
-      std::vector<llvm::SMTExprRef> ASTs;
-
       llvm::SMTExprRef Constraint = I++->second;
       while (I != IE) {
         Constraint = Solver->mkAnd(Constraint, I++->second);
@@ -340,13 +352,8 @@ protected:
     Solver->reset();
     addStateConstraints(NewState);
 
-    Optional<bool> res = Solver->check();
-    if (!res)
-      Cached[hash] = ConditionTruthVal();
-    else
-      Cached[hash] = ConditionTruthVal(res.value());
-
-    return Cached[hash];
+    std::optional<bool> res = Solver->check();
+    return Cached[hash] = res ? ConditionTruthVal(*res) : ConditionTruthVal();
   }
 
   // Cache the result of an SMT query (true, false, unknown). The key is the

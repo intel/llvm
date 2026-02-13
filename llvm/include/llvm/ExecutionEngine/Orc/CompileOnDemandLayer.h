@@ -15,15 +15,14 @@
 #define LLVM_EXECUTIONENGINE_ORC_COMPILEONDEMANDLAYER_H
 
 #include "llvm/ADT/APInt.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ExecutionEngine/JITSymbol.h"
 #include "llvm/ExecutionEngine/Orc/IndirectionUtils.h"
 #include "llvm/ExecutionEngine/Orc/Layer.h"
 #include "llvm/ExecutionEngine/Orc/LazyReexports.h"
-#include "llvm/ExecutionEngine/Orc/Speculation.h"
 #include "llvm/ExecutionEngine/Orc/Shared/OrcError.h"
+#include "llvm/ExecutionEngine/Orc/Speculation.h"
 #include "llvm/ExecutionEngine/RuntimeDyld.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/Constant.h"
@@ -38,51 +37,28 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 #include <algorithm>
 #include <cassert>
 #include <functional>
-#include <iterator>
-#include <list>
 #include <memory>
-#include <set>
 #include <utility>
-#include <vector>
 
 namespace llvm {
 namespace orc {
 
-class CompileOnDemandLayer : public IRLayer {
-  friend class PartitioningIRMaterializationUnit;
-
+class LLVM_ABI CompileOnDemandLayer : public IRLayer {
 public:
   /// Builder for IndirectStubsManagers.
   using IndirectStubsManagerBuilder =
       std::function<std::unique_ptr<IndirectStubsManager>()>;
 
-  using GlobalValueSet = std::set<const GlobalValue *>;
-
-  /// Partitioning function.
-  using PartitionFunction =
-      std::function<Optional<GlobalValueSet>(GlobalValueSet Requested)>;
-
-  /// Off-the-shelf partitioning which compiles all requested symbols (usually
-  /// a single function at a time).
-  static Optional<GlobalValueSet> compileRequested(GlobalValueSet Requested);
-
-  /// Off-the-shelf partitioning which compiles whole modules whenever any
-  /// symbol in them is requested.
-  static Optional<GlobalValueSet> compileWholeModule(GlobalValueSet Requested);
-
   /// Construct a CompileOnDemandLayer.
   CompileOnDemandLayer(ExecutionSession &ES, IRLayer &BaseLayer,
-                        LazyCallThroughManager &LCTMgr,
-                        IndirectStubsManagerBuilder BuildIndirectStubsManager);
-
-  /// Sets the partition function.
-  void setPartitionFunction(PartitionFunction Partition);
-
+                       LazyCallThroughManager &LCTMgr,
+                       IndirectStubsManagerBuilder BuildIndirectStubsManager);
   /// Sets the ImplSymbolMap
   void setImplMap(ImplSymbolMap *Imp);
 
@@ -109,22 +85,12 @@ private:
 
   PerDylibResources &getPerDylibResources(JITDylib &TargetD);
 
-  void cleanUpModule(Module &M);
-
-  void expandPartition(GlobalValueSet &Partition);
-
-  void emitPartition(std::unique_ptr<MaterializationResponsibility> R,
-                     ThreadSafeModule TSM,
-                     IRMaterializationUnit::SymbolNameToDefinitionMap Defs);
-
   mutable std::mutex CODLayerMutex;
 
   IRLayer &BaseLayer;
   LazyCallThroughManager &LCTMgr;
   IndirectStubsManagerBuilder BuildIndirectStubsManager;
   PerDylibResourcesMap DylibResources;
-  PartitionFunction Partition = compileRequested;
-  SymbolLinkagePromoter PromoteSymbols;
   ImplSymbolMap *AliaseeImpls = nullptr;
 };
 

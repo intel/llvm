@@ -134,7 +134,6 @@ namespace test4 {
   typedef A<i> Ai; // ok
 }
 
-// rdar://16064952
 namespace rdar16064952 {
   template < typename T > void fn1() {
    T b;
@@ -150,7 +149,12 @@ namespace PR31701 {
   };
   template <int M> class D;
   template <int M>
-  template<int i> void D<M>::set() { // expected-error {{from class 'D<M>' without definition}}
+  template<int i> void D<M>::set() { // expected-error {{from class 'PR31701::D<M>' without definition}}
     const C c = C::n<i>;
   }
 }
+
+struct PR65784s{
+  int *ptr;
+} const PR65784[] = {(int *)""};
+PR65784s PR65784f() { return *PR65784; }

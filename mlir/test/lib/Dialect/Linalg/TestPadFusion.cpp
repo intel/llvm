@@ -25,8 +25,8 @@ struct TestPadFusionPass
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestPadFusionPass)
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry
-        .insert<AffineDialect, linalg::LinalgDialect, tensor::TensorDialect>();
+    registry.insert<affine::AffineDialect, linalg::LinalgDialect,
+                    tensor::TensorDialect>();
   }
 
   StringRef getArgument() const final { return "test-linalg-pad-fusion"; }
@@ -36,8 +36,7 @@ struct TestPadFusionPass
     MLIRContext *context = &getContext();
     RewritePatternSet patterns(context);
     linalg::populateFuseTensorPadWithProducerLinalgOpPatterns(patterns);
-    if (failed(
-            applyPatternsAndFoldGreedily(getOperation(), std::move(patterns))))
+    if (failed(applyPatternsGreedily(getOperation(), std::move(patterns))))
       return signalPassFailure();
   }
 };

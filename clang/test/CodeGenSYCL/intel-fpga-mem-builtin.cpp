@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-linux -std=c++11 -disable-llvm-passes -S -opaque-pointers -emit-llvm -x c++ %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-linux -std=c++11 -disable-llvm-passes -emit-llvm -x c++ %s -o - | FileCheck %s
 
 #define PARAM_1 1U << 7
 #define PARAM_2 1U << 8
@@ -97,7 +97,7 @@ void foo(float *A, int *B, State *C, State &D) {
   z = __builtin_intel_fpga_mem(&D, PARAM_1 | PARAM_2, 128, 4, TestVal1, TestVal2);
 }
 
-// CHECK-DAG: attributes [[ATT]] = { readnone }
+// CHECK-DAG: attributes [[ATT]] = { memory(none) }
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {

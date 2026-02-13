@@ -18,6 +18,7 @@
 #include "mlir/IR/Value.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/Sequence.h"
+#include <optional>
 
 namespace mlir {
 class ValueRange;
@@ -35,6 +36,7 @@ class MutableOperandRangeRange;
 
 //===----------------------------------------------------------------------===//
 // OperandRange
+//===----------------------------------------------------------------------===//
 
 /// This class implements the operand iterators for the Operation class.
 class OperandRange final : public llvm::detail::indexed_accessor_range_base<
@@ -72,6 +74,7 @@ private:
 
 //===----------------------------------------------------------------------===//
 // OperandRangeRange
+//===----------------------------------------------------------------------===//
 
 /// This class represents a contiguous range of operand ranges, e.g. from a
 /// VariadicOfVariadic operand group.
@@ -108,6 +111,7 @@ private:
 
 //===----------------------------------------------------------------------===//
 // MutableOperandRange
+//===----------------------------------------------------------------------===//
 
 /// This class provides a mutable adaptor for a range of operands. It allows for
 /// setting, inserting, and erasing operands from the given range.
@@ -122,13 +126,16 @@ public:
   /// and range length. `operandSegments` is an optional set of operand segments
   /// to be updated when mutating the operand list.
   MutableOperandRange(Operation *owner, unsigned start, unsigned length,
-                      ArrayRef<OperandSegment> operandSegments = llvm::None);
+                      ArrayRef<OperandSegment> operandSegments = {});
   MutableOperandRange(Operation *owner);
+
+  /// Construct a new mutable range for the given OpOperand.
+  MutableOperandRange(OpOperand &opOperand);
 
   /// Slice this range into a sub range, with the additional operand segment.
   MutableOperandRange
   slice(unsigned subStart, unsigned subLen,
-        Optional<OperandSegment> segment = llvm::None) const;
+        std::optional<OperandSegment> segment = std::nullopt) const;
 
   /// Append the given values to the range.
   void append(ValueRange values);
@@ -151,8 +158,14 @@ public:
   /// Returns if the current range is empty.
   bool empty() const { return size() == 0; }
 
+  /// Explicit conversion to an OperandRange.
+  OperandRange getAsOperandRange() const;
+
   /// Allow implicit conversion to an OperandRange.
   operator OperandRange() const;
+
+  /// Allow implicit conversion to a MutableArrayRef.
+  operator MutableArrayRef<OpOperand>() const;
 
   /// Returns the owning operation.
   Operation *getOwner() const { return owner; }
@@ -161,10 +174,12 @@ public:
   /// elements attribute, which contains the sizes of the sub ranges.
   MutableOperandRangeRange split(NamedAttribute segmentSizes) const;
 
-  /// Returns the value at the given index.
-  Value operator[](unsigned index) const {
-    return operator OperandRange()[index];
-  }
+  /// Returns the OpOperand at the given index.
+  OpOperand &operator[](unsigned index) const;
+
+  /// Iterators enumerate OpOperands.
+  MutableArrayRef<OpOperand>::iterator begin() const;
+  MutableArrayRef<OpOperand>::iterator end() const;
 
 private:
   /// Update the length of this range to the one provided.
@@ -184,6 +199,7 @@ private:
 
 //===----------------------------------------------------------------------===//
 // MutableOperandRangeRange
+//===----------------------------------------------------------------------===//
 
 /// This class represents a contiguous range of mutable operand ranges, e.g.
 /// from a VariadicOfVariadic operand group.
@@ -223,6 +239,7 @@ private:
 
 //===----------------------------------------------------------------------===//
 // ResultRange
+//===----------------------------------------------------------------------===//
 
 /// This class implements the result iterators for the Operation class.
 class ResultRange final
@@ -277,6 +294,26 @@ public:
 
   /// Replace all uses of results of this range with results of 'op'.
   void replaceAllUsesWith(Operation *op);
+
+  /// Replace uses of results of this range with the provided 'values' if the
+  /// given callback returns true. The size of `values` must match the size of
+  /// this range.
+  template <typename ValuesT>
+  std::enable_if_t<!std::is_convertible<ValuesT, Operation *>::value>
+  replaceUsesWithIf(ValuesT &&values,
+                    function_ref<bool(OpOperand &)> shouldReplace) {
+    assert(static_cast<size_t>(std::distance(values.begin(), values.end())) ==
+               size() &&
+           "expected 'values' to correspond 1-1 with the number of results");
+
+    for (auto it : llvm::zip(*this, values))
+      std::get<0>(it).replaceUsesWithIf(std::get<1>(it), shouldReplace);
+  }
+
+  /// Replace uses of results of this range with results of `op` if the given
+  /// callback returns true.
+  void replaceUsesWithIf(Operation *op,
+                         function_ref<bool(OpOperand &)> shouldReplace);
 
   //===--------------------------------------------------------------------===//
   // Users
@@ -336,6 +373,7 @@ private:
 
 //===----------------------------------------------------------------------===//
 // ValueRange
+//===----------------------------------------------------------------------===//
 
 /// This class provides an abstraction over the different types of ranges over
 /// Values. In many cases, this prevents the need to explicitly materialize a
@@ -356,12 +394,14 @@ public:
   using RangeBaseT::RangeBaseT;
 
   template <typename Arg,
-            typename = typename std::enable_if_t<
+            typename = std::enable_if_t<
                 std::is_constructible<ArrayRef<Value>, Arg>::value &&
                 !std::is_convertible<Arg, Value>::value>>
-  ValueRange(Arg &&arg) : ValueRange(ArrayRef<Value>(std::forward<Arg>(arg))) {}
-  ValueRange(const Value &value) : ValueRange(&value, /*count=*/1) {}
-  ValueRange(const std::initializer_list<Value> &values)
+  ValueRange(Arg &&arg LLVM_LIFETIME_BOUND)
+      : ValueRange(ArrayRef<Value>(std::forward<Arg>(arg))) {}
+  ValueRange(const Value &value LLVM_LIFETIME_BOUND)
+      : ValueRange(&value, /*count=*/1) {}
+  ValueRange(const std::initializer_list<Value> &values LLVM_LIFETIME_BOUND)
       : ValueRange(ArrayRef<Value>(values)) {}
   ValueRange(iterator_range<OperandRange::iterator> values)
       : ValueRange(OperandRange(values)) {}
@@ -369,7 +409,7 @@ public:
       : ValueRange(ResultRange(values)) {}
   ValueRange(ArrayRef<BlockArgument> values)
       : ValueRange(ArrayRef<Value>(values.data(), values.size())) {}
-  ValueRange(ArrayRef<Value> values = llvm::None);
+  ValueRange(ArrayRef<Value> values = {});
   ValueRange(OperandRange values);
   ValueRange(ResultRange values);
 

@@ -3,13 +3,11 @@
 // RUN: %run %t >%t.out 2>&1
 // RUN: FileCheck %s < %t.out
 //
-// RUN: DFSAN_OPTIONS=origin_history_size=2 %run %t >%t.out 2>&1
+// RUN: env DFSAN_OPTIONS=origin_history_size=2 %run %t >%t.out 2>&1
 // RUN: FileCheck %s --check-prefix=CHECK2 < %t.out
 //
-// RUN: DFSAN_OPTIONS=origin_history_size=0 %run %t >%t.out 2>&1
+// RUN: env DFSAN_OPTIONS=origin_history_size=0 %run %t >%t.out 2>&1
 // RUN: FileCheck %s --check-prefix=CHECK0 < %t.out
-//
-// REQUIRES: x86_64-target-arch
 
 #include <sanitizer/dfsan_interface.h>
 

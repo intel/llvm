@@ -34,13 +34,7 @@ public:
     return false;
   }
   void emitCommonSymbol(MCSymbol *Symbol, uint64_t Size,
-                        unsigned ByteAlignment) override {}
-  void emitZerofill(MCSection *Section, MCSymbol *Symbol = nullptr,
-                    uint64_t Size = 0, unsigned ByteAlignment = 0,
-                    SMLoc Loc = SMLoc()) override {}
-
-private:
-  void emitInstToData(const MCInst &Inst, const MCSubtargetInfo &) override;
+                        Align ByteAlignment) override {}
 };
 
 } // end namespace llvm

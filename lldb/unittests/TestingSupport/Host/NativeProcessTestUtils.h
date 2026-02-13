@@ -75,7 +75,7 @@ public:
     auto ExpectedMemory = this->ReadMemory(Addr, Size);
     if (!ExpectedMemory) {
       BytesRead = 0;
-      return Status(ExpectedMemory.takeError());
+      return Status::FromError(ExpectedMemory.takeError());
     }
     BytesRead = ExpectedMemory->size();
     assert(BytesRead <= Size);
@@ -86,10 +86,10 @@ public:
   Status WriteMemory(addr_t Addr, const void *Buf, size_t Size,
                      size_t &BytesWritten) /*override*/ {
     auto ExpectedBytes = this->WriteMemory(
-        Addr, llvm::makeArrayRef(static_cast<const uint8_t *>(Buf), Size));
+        Addr, llvm::ArrayRef(static_cast<const uint8_t *>(Buf), Size));
     if (!ExpectedBytes) {
       BytesWritten = 0;
-      return Status(ExpectedBytes.takeError());
+      return Status::FromError(ExpectedBytes.takeError());
     }
     BytesWritten = *ExpectedBytes;
     return Status();

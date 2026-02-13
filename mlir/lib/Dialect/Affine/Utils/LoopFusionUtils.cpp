@@ -12,27 +12,24 @@
 
 #include "mlir/Dialect/Affine/LoopFusionUtils.h"
 #include "mlir/Analysis/SliceAnalysis.h"
+#include "mlir/Analysis/TopologicalSortUtils.h"
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
-#include "mlir/Dialect/Affine/Analysis/AffineStructures.h"
 #include "mlir/Dialect/Affine/Analysis/LoopAnalysis.h"
 #include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/LoopUtils.h"
-#include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/IR/AffineExpr.h"
-#include "mlir/IR/AffineMap.h"
-#include "mlir/IR/BlockAndValueMapping.h"
-#include "mlir/IR/Builders.h"
-#include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/Operation.h"
-#include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/SmallVector.h"
+#include "mlir/IR/PatternMatch.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/DebugLog.h"
 #include "llvm/Support/raw_ostream.h"
+#include <optional>
 
-#define DEBUG_TYPE "loop-fusion-utils"
+#define DEBUG_TYPE "affine-fusion-utils"
 
 using namespace mlir;
+using namespace mlir::affine;
 
 // Gathers all load and store memref accesses in 'opA' into 'values', where
 // 'values[memref] == true' for each store operation.
@@ -53,12 +50,10 @@ static void getLoadAndStoreMemRefAccesses(Operation *opA,
 /// Returns false otherwise.
 static bool isDependentLoadOrStoreOp(Operation *op,
                                      DenseMap<Value, bool> &values) {
-  if (auto loadOp = dyn_cast<AffineReadOpInterface>(op)) {
+  if (auto loadOp = dyn_cast<AffineReadOpInterface>(op))
     return values.count(loadOp.getMemRef()) > 0 && values[loadOp.getMemRef()];
-  }
-  if (auto storeOp = dyn_cast<AffineWriteOpInterface>(op)) {
+  if (auto storeOp = dyn_cast<AffineWriteOpInterface>(op))
     return values.count(storeOp.getMemRef()) > 0;
-  }
   return false;
 }
 
@@ -113,11 +108,11 @@ static Operation *getLastDependentOpInRange(Operation *opA, Operation *opB) {
         }
         return WalkResult::advance();
       }
-      for (auto value : op->getResults()) {
+      for (Value value : op->getResults()) {
         for (Operation *user : value.getUsers()) {
           SmallVector<AffineForOp, 4> loops;
           // Check if any loop in loop nest surrounding 'user' is 'opB'.
-          getLoopIVs(*user, &loops);
+          getAffineForIVs(*user, &loops);
           if (llvm::is_contained(loops, cast<AffineForOp>(opB))) {
             lastDepOp = opX;
             return WalkResult::interrupt();
@@ -137,15 +132,12 @@ static Operation *getLastDependentOpInRange(Operation *opA, Operation *opB) {
 // dependences. Returns nullptr if no such insertion point is found.
 static Operation *getFusedLoopNestInsertionPoint(AffineForOp srcForOp,
                                                  AffineForOp dstForOp) {
-  bool isSrcForOpBeforeDstForOp =
-      srcForOp->isBeforeInBlock(dstForOp.getOperation());
+  bool isSrcForOpBeforeDstForOp = srcForOp->isBeforeInBlock(dstForOp);
   auto forOpA = isSrcForOpBeforeDstForOp ? srcForOp : dstForOp;
   auto forOpB = isSrcForOpBeforeDstForOp ? dstForOp : srcForOp;
 
-  auto *firstDepOpA =
-      getFirstDependentOpInRange(forOpA.getOperation(), forOpB.getOperation());
-  auto *lastDepOpB =
-      getLastDependentOpInRange(forOpA.getOperation(), forOpB.getOperation());
+  Operation *firstDepOpA = getFirstDependentOpInRange(forOpA, forOpB);
+  Operation *lastDepOpB = getLastDependentOpInRange(forOpA, forOpB);
   // Block:
   //      ...
   //  |-- opA
@@ -158,8 +150,8 @@ static Operation *getFusedLoopNestInsertionPoint(AffineForOp srcForOp,
   //
   // Valid insertion point range: (lastDepOpB, firstDepOpA)
   //
-  if (firstDepOpA != nullptr) {
-    if (lastDepOpB != nullptr) {
+  if (firstDepOpA) {
+    if (lastDepOpB) {
       if (firstDepOpA->isBeforeInBlock(lastDepOpB) || firstDepOpA == lastDepOpB)
         // No valid insertion point exists which preserves dependences.
         return nullptr;
@@ -170,7 +162,7 @@ static Operation *getFusedLoopNestInsertionPoint(AffineForOp srcForOp,
   }
   // No dependences from 'opA' to operation in range ('opA', 'opB'), return
   // 'opB' insertion point.
-  return forOpB.getOperation();
+  return forOpB;
 }
 
 // Gathers all load and store ops in loop nest rooted at 'forOp' into
@@ -219,14 +211,13 @@ static unsigned getMaxLoopDepth(ArrayRef<Operation *> srcOps,
   unsigned loopDepth = getInnermostCommonLoopDepth(targetDstOps);
 
   // Return common loop depth for loads if there are no store ops.
-  if (all_of(targetDstOps,
-             [&](Operation *op) { return isa<AffineReadOpInterface>(op); }))
+  if (all_of(targetDstOps, llvm::IsaPred<AffineReadOpInterface>))
     return loopDepth;
 
   // Check dependences on all pairs of ops in 'targetDstOps' and store the
   // minimum loop depth at which a dependence is satisfied.
   for (unsigned i = 0, e = targetDstOps.size(); i < e; ++i) {
-    auto *srcOpInst = targetDstOps[i];
+    Operation *srcOpInst = targetDstOps[i];
     MemRefAccess srcAccess(srcOpInst);
     for (unsigned j = 0; j < e; ++j) {
       auto *dstOpInst = targetDstOps[j];
@@ -235,11 +226,9 @@ static unsigned getMaxLoopDepth(ArrayRef<Operation *> srcOps,
       unsigned numCommonLoops =
           getNumCommonSurroundingLoops(*srcOpInst, *dstOpInst);
       for (unsigned d = 1; d <= numCommonLoops + 1; ++d) {
-        FlatAffineValueConstraints dependenceConstraints;
         // TODO: Cache dependence analysis results, check cache here.
-        DependenceResult result = checkMemrefAccessDependence(
-            srcAccess, dstAccess, d, &dependenceConstraints,
-            /*dependenceComponents=*/nullptr);
+        DependenceResult result =
+            checkMemrefAccessDependence(srcAccess, dstAccess, d);
         if (hasDependence(result)) {
           // Store minimum loop depth and break because we want the min 'd' at
           // which there is a dependence.
@@ -253,36 +242,35 @@ static unsigned getMaxLoopDepth(ArrayRef<Operation *> srcOps,
   return loopDepth;
 }
 
-// TODO: Prevent fusion of loop nests with side-effecting operations.
 // TODO: This pass performs some computation that is the same for all the depths
 // (e.g., getMaxLoopDepth). Implement a version of this utility that processes
 // all the depths at once or only the legal maximal depth for maximal fusion.
-FusionResult mlir::canFuseLoops(AffineForOp srcForOp, AffineForOp dstForOp,
-                                unsigned dstLoopDepth,
-                                ComputationSliceState *srcSlice,
-                                FusionStrategy fusionStrategy) {
+FusionResult mlir::affine::canFuseLoops(AffineForOp srcForOp,
+                                        AffineForOp dstForOp,
+                                        unsigned dstLoopDepth,
+                                        ComputationSliceState *srcSlice,
+                                        FusionStrategy fusionStrategy) {
   // Return 'failure' if 'dstLoopDepth == 0'.
   if (dstLoopDepth == 0) {
-    LLVM_DEBUG(llvm::dbgs() << "Cannot fuse loop nests at depth 0\n");
+    LDBG() << "Cannot fuse loop nests at depth 0";
     return FusionResult::FailPrecondition;
   }
   // Return 'failure' if 'srcForOp' and 'dstForOp' are not in the same block.
   auto *block = srcForOp->getBlock();
   if (block != dstForOp->getBlock()) {
-    LLVM_DEBUG(llvm::dbgs() << "Cannot fuse loop nests in different blocks\n");
+    LDBG() << "Cannot fuse loop nests in different blocks";
     return FusionResult::FailPrecondition;
   }
 
   // Return 'failure' if no valid insertion point for fused loop nest in 'block'
   // exists which would preserve dependences.
   if (!getFusedLoopNestInsertionPoint(srcForOp, dstForOp)) {
-    LLVM_DEBUG(llvm::dbgs() << "Fusion would violate dependences in block\n");
+    LDBG() << "Fusion would violate dependences in block";
     return FusionResult::FailBlockDependence;
   }
 
   // Check if 'srcForOp' precedes 'dstForOp' in 'block'.
-  bool isSrcForOpBeforeDstForOp =
-      srcForOp->isBeforeInBlock(dstForOp.getOperation());
+  bool isSrcForOpBeforeDstForOp = srcForOp->isBeforeInBlock(dstForOp);
   // 'forOpA' executes before 'forOpB' in 'block'.
   auto forOpA = isSrcForOpBeforeDstForOp ? srcForOp : dstForOp;
   auto forOpB = isSrcForOpBeforeDstForOp ? dstForOp : srcForOp;
@@ -290,14 +278,14 @@ FusionResult mlir::canFuseLoops(AffineForOp srcForOp, AffineForOp dstForOp,
   // Gather all load and store from 'forOpA' which precedes 'forOpB' in 'block'.
   SmallVector<Operation *, 4> opsA;
   if (!gatherLoadsAndStores(forOpA, opsA)) {
-    LLVM_DEBUG(llvm::dbgs() << "Fusing loops with affine.if unsupported\n");
+    LDBG() << "Fusing loops with affine.if unsupported";
     return FusionResult::FailPrecondition;
   }
 
   // Gather all load and store from 'forOpB' which succeeds 'forOpA' in 'block'.
   SmallVector<Operation *, 4> opsB;
   if (!gatherLoadsAndStores(forOpB, opsB)) {
-    LLVM_DEBUG(llvm::dbgs() << "Fusing loops with affine.if unsupported\n");
+    LDBG() << "Fusing loops with affine.if unsupported";
     return FusionResult::FailPrecondition;
   }
 
@@ -309,14 +297,14 @@ FusionResult mlir::canFuseLoops(AffineForOp srcForOp, AffineForOp dstForOp,
     // TODO: 'getMaxLoopDepth' does not support forward slice fusion.
     assert(isSrcForOpBeforeDstForOp && "Unexpected forward slice fusion");
     if (getMaxLoopDepth(opsA, opsB) < dstLoopDepth) {
-      LLVM_DEBUG(llvm::dbgs() << "Fusion would violate loop dependences\n");
+      LDBG() << "Fusion would violate loop dependences";
       return FusionResult::FailFusionDependence;
     }
   }
 
   // Calculate the number of common loops surrounding 'srcForOp' and 'dstForOp'.
-  unsigned numCommonLoops = mlir::getNumCommonSurroundingLoops(
-      *srcForOp.getOperation(), *dstForOp.getOperation());
+  unsigned numCommonLoops =
+      affine::getNumCommonSurroundingLoops(*srcForOp, *dstForOp);
 
   // Filter out ops in 'opsA' to compute the slice union based on the
   // assumptions made by the fusion strategy.
@@ -348,16 +336,16 @@ FusionResult mlir::canFuseLoops(AffineForOp srcForOp, AffineForOp dstForOp,
 
   // Compute union of computation slices computed between all pairs of ops
   // from 'forOpA' and 'forOpB'.
-  SliceComputationResult sliceComputationResult =
-      mlir::computeSliceUnion(strategyOpsA, opsB, dstLoopDepth, numCommonLoops,
-                              isSrcForOpBeforeDstForOp, srcSlice);
+  SliceComputationResult sliceComputationResult = affine::computeSliceUnion(
+      strategyOpsA, opsB, dstLoopDepth, numCommonLoops,
+      isSrcForOpBeforeDstForOp, srcSlice);
   if (sliceComputationResult.value == SliceComputationResult::GenericFailure) {
-    LLVM_DEBUG(llvm::dbgs() << "computeSliceUnion failed\n");
+    LDBG() << "computeSliceUnion failed";
     return FusionResult::FailPrecondition;
   }
   if (sliceComputationResult.value ==
       SliceComputationResult::IncorrectSliceFailure) {
-    LLVM_DEBUG(llvm::dbgs() << "Incorrect slice computation\n");
+    LDBG() << "Incorrect slice computation";
     return FusionResult::FailIncorrectSlice;
   }
 
@@ -366,22 +354,28 @@ FusionResult mlir::canFuseLoops(AffineForOp srcForOp, AffineForOp dstForOp,
 
 /// Patch the loop body of a forOp that is a single iteration reduction loop
 /// into its containing block.
-LogicalResult promoteSingleIterReductionLoop(AffineForOp forOp,
-                                             bool siblingFusionUser) {
+static LogicalResult promoteSingleIterReductionLoop(AffineForOp forOp,
+                                                    bool siblingFusionUser) {
   // Check if the reduction loop is a single iteration loop.
-  Optional<uint64_t> tripCount = getConstantTripCount(forOp);
+  std::optional<uint64_t> tripCount = getConstantTripCount(forOp);
   if (!tripCount || *tripCount != 1)
     return failure();
-  auto iterOperands = forOp.getIterOperands();
   auto *parentOp = forOp->getParentOp();
   if (!isa<AffineForOp>(parentOp))
     return failure();
-  auto newOperands = forOp.getBody()->getTerminator()->getOperands();
-  OpBuilder b(parentOp);
+  SmallVector<Value> newOperands;
+  llvm::append_range(newOperands,
+                     forOp.getBody()->getTerminator()->getOperands());
+  IRRewriter rewriter(parentOp->getContext());
+  int64_t parentOpNumResults = parentOp->getNumResults();
   // Replace the parent loop and add iteroperands and results from the `forOp`.
   AffineForOp parentForOp = forOp->getParentOfType<AffineForOp>();
-  AffineForOp newLoop = replaceForOpWithNewYields(
-      b, parentForOp, iterOperands, newOperands, forOp.getRegionIterArgs());
+  AffineForOp newLoop =
+      cast<AffineForOp>(*parentForOp.replaceWithAdditionalYields(
+          rewriter, forOp.getInits(), /*replaceInitOperandUsesInLoop=*/false,
+          [&](OpBuilder &b, Location loc, ArrayRef<BlockArgument> newBbArgs) {
+            return newOperands;
+          }));
 
   // For sibling-fusion users, collect operations that use the results of the
   // `forOp` outside the new parent loop that has absorbed all its iter args
@@ -398,7 +392,7 @@ LogicalResult promoteSingleIterReductionLoop(AffineForOp forOp,
   // Update the results of the `forOp` in the new loop.
   for (unsigned i = 0, e = forOp.getNumResults(); i != e; ++i) {
     forOp.getResult(i).replaceAllUsesWith(
-        newLoop.getResult(i + parentOp->getNumResults()));
+        newLoop.getResult(i + parentOpNumResults));
   }
   // For sibling-fusion users, move operations that use the results of the
   // `forOp` outside the new parent loop
@@ -423,18 +417,17 @@ LogicalResult promoteSingleIterReductionLoop(AffineForOp forOp,
   parentBlock->getOperations().splice(Block::iterator(forOp),
                                       forOp.getBody()->getOperations());
   forOp.erase();
-  parentForOp.erase();
   return success();
 }
 
 /// Fuses 'srcForOp' into 'dstForOp' with destination loop block insertion point
 /// and source slice loop bounds specified in 'srcSlice'.
-void mlir::fuseLoops(AffineForOp srcForOp, AffineForOp dstForOp,
-                     const ComputationSliceState &srcSlice,
-                     bool isInnermostSiblingInsertion) {
+void mlir::affine::fuseLoops(AffineForOp srcForOp, AffineForOp dstForOp,
+                             const ComputationSliceState &srcSlice,
+                             bool isInnermostSiblingInsertion) {
   // Clone 'srcForOp' into 'dstForOp' at 'srcSlice->insertPoint'.
   OpBuilder b(srcSlice.insertPoint->getBlock(), srcSlice.insertPoint);
-  BlockAndValueMapping mapper;
+  IRMapping mapper;
   b.clone(*srcForOp, mapper);
 
   // Update 'sliceLoopNest' upper and lower bounds from computed 'srcSlice'.
@@ -478,13 +471,14 @@ void mlir::fuseLoops(AffineForOp srcForOp, AffineForOp dstForOp,
 /// Collect loop nest statistics (eg. loop trip count and operation count)
 /// in 'stats' for loop nest rooted at 'forOp'. Returns true on success,
 /// returns false otherwise.
-bool mlir::getLoopNestStats(AffineForOp forOpRoot, LoopNestStats *stats) {
+bool mlir::affine::getLoopNestStats(AffineForOp forOpRoot,
+                                    LoopNestStats *stats) {
   auto walkResult = forOpRoot.walk([&](AffineForOp forOp) {
     auto *childForOp = forOp.getOperation();
     auto *parentForOp = forOp->getParentOp();
-    if (!llvm::isa<func::FuncOp>(parentForOp)) {
+    if (forOp != forOpRoot) {
       if (!isa<AffineForOp>(parentForOp)) {
-        LLVM_DEBUG(llvm::dbgs() << "Expected parent AffineForOp\n");
+        LDBG() << "Expected parent AffineForOp";
         return WalkResult::interrupt();
       }
       // Add mapping to 'forOp' from its parent AffineForOp.
@@ -502,10 +496,10 @@ bool mlir::getLoopNestStats(AffineForOp forOpRoot, LoopNestStats *stats) {
 
     // Record trip count for 'forOp'. Set flag if trip count is not
     // constant.
-    Optional<uint64_t> maybeConstTripCount = getConstantTripCount(forOp);
+    std::optional<uint64_t> maybeConstTripCount = getConstantTripCount(forOp);
     if (!maybeConstTripCount) {
       // Currently only constant trip count loop nests are supported.
-      LLVM_DEBUG(llvm::dbgs() << "Non-constant trip count unsupported\n");
+      LDBG() << "Non-constant trip count unsupported";
       return WalkResult::interrupt();
     }
 
@@ -539,12 +533,12 @@ static int64_t getComputeCostHelper(
   int64_t opCount = stats.opCountMap[forOp] - 1;
   if (stats.loopMap.count(forOp) > 0) {
     for (auto childForOp : stats.loopMap[forOp]) {
-      opCount += getComputeCostHelper(childForOp.getOperation(), stats,
-                                      tripCountOverrideMap, computeCostMap);
+      opCount += getComputeCostHelper(childForOp, stats, tripCountOverrideMap,
+                                      computeCostMap);
     }
   }
   // Add in additional op instances from slice (if specified in map).
-  if (computeCostMap != nullptr) {
+  if (computeCostMap) {
     auto it = computeCostMap->find(forOp);
     if (it != computeCostMap->end()) {
       opCount += it->second;
@@ -552,7 +546,7 @@ static int64_t getComputeCostHelper(
   }
   // Override trip count (if specified in map).
   int64_t tripCount = stats.tripCountMap[forOp];
-  if (tripCountOverrideMap != nullptr) {
+  if (tripCountOverrideMap) {
     auto it = tripCountOverrideMap->find(forOp);
     if (it != tripCountOverrideMap->end()) {
       tripCount = it->second;
@@ -566,8 +560,8 @@ static int64_t getComputeCostHelper(
 /// Currently, the total cost is computed by counting the total operation
 /// instance count (i.e. total number of operations in the loop body * loop
 /// trip count) for the entire loop nest.
-int64_t mlir::getComputeCost(AffineForOp forOp, LoopNestStats &stats) {
-  return getComputeCostHelper(forOp.getOperation(), stats,
+int64_t mlir::affine::getComputeCost(AffineForOp forOp, LoopNestStats &stats) {
+  return getComputeCostHelper(forOp, stats,
                               /*tripCountOverrideMap=*/nullptr,
                               /*computeCostMap=*/nullptr);
 }
@@ -577,10 +571,12 @@ int64_t mlir::getComputeCost(AffineForOp forOp, LoopNestStats &stats) {
 /// the total cost is computed by counting the total operation instance count
 /// (i.e. total number of operations in the loop body * loop trip count) for
 /// the entire loop nest.
-bool mlir::getFusionComputeCost(AffineForOp srcForOp, LoopNestStats &srcStats,
-                                AffineForOp dstForOp, LoopNestStats &dstStats,
-                                const ComputationSliceState &slice,
-                                int64_t *computeCost) {
+bool mlir::affine::getFusionComputeCost(AffineForOp srcForOp,
+                                        LoopNestStats &srcStats,
+                                        AffineForOp dstForOp,
+                                        LoopNestStats &dstStats,
+                                        const ComputationSliceState &slice,
+                                        int64_t *computeCost) {
   llvm::SmallDenseMap<Operation *, uint64_t, 8> sliceTripCountMap;
   DenseMap<Operation *, int64_t> computeCostMap;
 
@@ -594,38 +590,31 @@ bool mlir::getFusionComputeCost(AffineForOp srcForOp, LoopNestStats &srcStats,
   auto *insertPointParent = slice.insertPoint->getParentOp();
 
   // The store and loads to this memref will disappear.
-  // TODO: Add load coalescing to memref data flow opt pass.
   if (storeLoadFwdGuaranteed) {
     // Subtract from operation count the loads/store we expect load/store
     // forwarding to remove.
     unsigned storeCount = 0;
     llvm::SmallDenseSet<Value, 4> storeMemrefs;
-    srcForOp.walk([&](Operation *op) {
-      if (auto storeOp = dyn_cast<AffineWriteOpInterface>(op)) {
-        storeMemrefs.insert(storeOp.getMemRef());
-        ++storeCount;
-      }
+    srcForOp.walk([&](AffineWriteOpInterface storeOp) {
+      storeMemrefs.insert(storeOp.getMemRef());
+      ++storeCount;
     });
     // Subtract out any store ops in single-iteration src slice loop nest.
     if (storeCount > 0)
       computeCostMap[insertPointParent] = -storeCount;
     // Subtract out any load users of 'storeMemrefs' nested below
     // 'insertPointParent'.
-    for (auto value : storeMemrefs) {
-      for (auto *user : value.getUsers()) {
-        if (auto loadOp = dyn_cast<AffineReadOpInterface>(user)) {
-          SmallVector<AffineForOp, 4> loops;
-          // Check if any loop in loop nest surrounding 'user' is
-          // 'insertPointParent'.
-          getLoopIVs(*user, &loops);
-          if (llvm::is_contained(loops, cast<AffineForOp>(insertPointParent))) {
-            if (auto forOp =
-                    dyn_cast_or_null<AffineForOp>(user->getParentOp())) {
-              if (computeCostMap.count(forOp) == 0)
-                computeCostMap[forOp] = 0;
-              computeCostMap[forOp] -= 1;
-            }
-          }
+    for (Value memref : storeMemrefs) {
+      for (Operation *user : memref.getUsers()) {
+        if (!isa<AffineReadOpInterface>(user))
+          continue;
+        SmallVector<AffineForOp, 4> loops;
+        // Check if any loop in loop nest surrounding 'user' is
+        // 'insertPointParent'.
+        getAffineForIVs(*user, &loops);
+        if (llvm::is_contained(loops, cast<AffineForOp>(insertPointParent))) {
+          if (auto forOp = dyn_cast_or_null<AffineForOp>(user->getParentOp()))
+            --computeCostMap[forOp];
         }
       }
     }
@@ -633,13 +622,13 @@ bool mlir::getFusionComputeCost(AffineForOp srcForOp, LoopNestStats &srcStats,
 
   // Compute op instance count for the src loop nest with iteration slicing.
   int64_t sliceComputeCost = getComputeCostHelper(
-      srcForOp.getOperation(), srcStats, &sliceTripCountMap, &computeCostMap);
+      srcForOp, srcStats, &sliceTripCountMap, &computeCostMap);
 
   // Compute cost of fusion for this depth.
   computeCostMap[insertPointParent] = sliceComputeCost;
 
   *computeCost =
-      getComputeCostHelper(dstForOp.getOperation(), dstStats,
+      getComputeCostHelper(dstForOp, dstStats,
                            /*tripCountOverrideMap=*/nullptr, &computeCostMap);
   return true;
 }
@@ -647,7 +636,7 @@ bool mlir::getFusionComputeCost(AffineForOp srcForOp, LoopNestStats &srcStats,
 /// Returns in 'producerConsumerMemrefs' the memrefs involved in a
 /// producer-consumer dependence between write ops in 'srcOps' and read ops in
 /// 'dstOps'.
-void mlir::gatherProducerConsumerMemrefs(
+void mlir::affine::gatherProducerConsumerMemrefs(
     ArrayRef<Operation *> srcOps, ArrayRef<Operation *> dstOps,
     DenseSet<Value> &producerConsumerMemrefs) {
   // Gather memrefs from stores in 'srcOps'.

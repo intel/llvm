@@ -1,7 +1,7 @@
 // REQUIRES: arm
 // RUN: llvm-mc -arm-add-build-attributes -filetype=obj -triple=thumbv7a-none-linux-gnueabi %s -o %t
 // RUN: ld.lld %t --shared -o %t.so
-// RUN: llvm-objdump -d --no-show-raw-insn %t.so | FileCheck %s
+// RUN: llvm-objdump --no-print-imm-hex -d --no-show-raw-insn %t.so | FileCheck %s
  .syntax unified
  .global sym1
  .global elsewhere
@@ -36,25 +36,24 @@ sym1:
 
 // CHECK: Disassembly of section .plt:
 // CHECK-EMPTY:
-// CHECK-NEXT: <$a>:
+// CHECK-NEXT: <.plt>:
 // CHECK-NEXT:     10210: str     lr, [sp, #-4]!
 // CHECK-NEXT:           add     lr, pc, #0, #12
 // CHECK-NEXT:           add     lr, lr, #32
 // CHECK-NEXT:           ldr     pc, [lr, #148]!
-// CHECK: <$d>:
 // CHECK-NEXT:     10220: d4 d4 d4 d4 .word   0xd4d4d4d4
 // CHECK-NEXT:           .word   0xd4d4d4d4
 // CHECK-NEXT:           .word   0xd4d4d4d4
 // CHECK-NEXT:           .word   0xd4d4d4d4
-// CHECK: <$a>:
+// CHECK-EMPTY:
+// CHECK-NEXT: <elsewhere@plt>:
 // CHECK-NEXT:     10230: add     r12, pc, #0, #12
 // CHECK-NEXT:           add     r12, r12, #32
 // CHECK-NEXT:           ldr     pc, [r12, #124]!
-// CHECK: <$d>:
 // CHECK-NEXT:     1023c: d4 d4 d4 d4 .word   0xd4d4d4d4
-// CHECK: <$a>:
+// CHECK-EMPTY:
+// CHECK-NEXT: <weakref@plt>:
 // CHECK-NEXT:     10240: add     r12, pc, #0, #12
 // CHECK-NEXT:           add     r12, r12, #32
 // CHECK-NEXT:           ldr     pc, [r12, #112]!
-// CHECK: <$d>:
 // CHECK-NEXT:     1024c: d4 d4 d4 d4 .word   0xd4d4d4d4

@@ -8,8 +8,14 @@
 
 #pragma once
 
+#include <sycl/kernel_bundle.hpp>
+
+#include <cstring>
+#include <string>
+#include <string_view>
+
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 // Used for sorting vector of kernel_id's
@@ -31,16 +37,14 @@ struct EqualByNameComp {
 // identificator
 class kernel_id_impl {
 public:
-  kernel_id_impl(std::string Name) : MName(std::move(Name)) {}
+  kernel_id_impl(std::string_view Name) : MName(std::move(Name)) {}
   kernel_id_impl(){};
   const char *get_name() { return MName.data(); }
-
-  const std::string &get_name_string() { return MName; }
 
 private:
   std::string MName;
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

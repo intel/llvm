@@ -2,7 +2,9 @@ set(LLVM_LINK_COMPONENTS
   BinaryFormat
   Core
   FrontendOpenMP
+  FrontendHLSL
   Support
+  TargetParser
   )
 
 # FIXME: the entry points to the interpreter should be moved out of clangAST
@@ -10,7 +12,7 @@ set(LLVM_LINK_COMPONENTS
 # another library which depends on clangAST.
 clang_tablegen(Opcodes.inc
   -gen-clang-opcodes
-  SOURCE Interp/Opcodes.td
+  SOURCE ByteCode/Opcodes.td
   TARGET Opcodes)
 
 clang_tablegen(AttrDocTable.inc -gen-clang-attr-doc-table
@@ -31,6 +33,7 @@ add_clang_library(clangAST
   ASTTypeTraits.cpp
   AttrDocTable.cpp
   AttrImpl.cpp
+  Availability.cpp
   Comment.cpp
   CommentBriefParser.cpp
   CommentCommandTraits.cpp
@@ -48,9 +51,11 @@ add_clang_library(clangAST
   DeclFriend.cpp
   DeclGroup.cpp
   DeclObjC.cpp
+  DeclOpenACC.cpp
   DeclOpenMP.cpp
   DeclPrinter.cpp
   DeclTemplate.cpp
+  DynamicRecursiveASTVisitor.cpp
   ParentMapContext.cpp
   Expr.cpp
   ExprClassification.cpp
@@ -61,28 +66,36 @@ add_clang_library(clangAST
   ExternalASTMerger.cpp
   ExternalASTSource.cpp
   FormatString.cpp
+  InferAlloc.cpp
   InheritViz.cpp
-  Interp/ByteCodeEmitter.cpp
-  Interp/ByteCodeExprGen.cpp
-  Interp/ByteCodeGenError.cpp
-  Interp/ByteCodeStmtGen.cpp
-  Interp/Context.cpp
-  Interp/Descriptor.cpp
-  Interp/Disasm.cpp
-  Interp/EvalEmitter.cpp
-  Interp/Frame.cpp
-  Interp/Function.cpp
-  Interp/Interp.cpp
-  Interp/InterpBlock.cpp
-  Interp/InterpFrame.cpp
-  Interp/InterpStack.cpp
-  Interp/InterpState.cpp
-  Interp/Pointer.cpp
-  Interp/PrimType.cpp
-  Interp/Program.cpp
-  Interp/Record.cpp
-  Interp/Source.cpp
-  Interp/State.cpp
+  ByteCode/BitcastBuffer.cpp
+  ByteCode/ByteCodeEmitter.cpp
+  ByteCode/Compiler.cpp
+  ByteCode/Context.cpp
+  ByteCode/Descriptor.cpp
+  ByteCode/Disasm.cpp
+  ByteCode/EvalEmitter.cpp
+  ByteCode/Function.cpp
+  ByteCode/FunctionPointer.cpp
+  ByteCode/InterpBuiltin.cpp
+  ByteCode/InterpBuiltinBitCast.cpp
+  ByteCode/Floating.cpp
+  ByteCode/EvaluationResult.cpp
+  ByteCode/DynamicAllocator.cpp
+  ByteCode/InitMap.cpp
+  ByteCode/Interp.cpp
+  ByteCode/InterpBlock.cpp
+  ByteCode/InterpFrame.cpp
+  ByteCode/InterpStack.cpp
+  ByteCode/InterpState.cpp
+  ByteCode/Pointer.cpp
+  ByteCode/PrimType.cpp
+  ByteCode/Program.cpp
+  ByteCode/Record.cpp
+  ByteCode/Source.cpp
+  ByteCode/State.cpp
+  ByteCode/MemberPointer.cpp
+  ByteCode/InterpShared.cpp
   ItaniumCXXABI.cpp
   ItaniumMangle.cpp
   JSONNodeDumper.cpp
@@ -93,6 +106,7 @@ add_clang_library(clangAST
   NSAPI.cpp
   ODRDiagsEmitter.cpp
   ODRHash.cpp
+  OpenACCClause.cpp
   OpenMPClause.cpp
   OSLog.cpp
   ParentMap.cpp
@@ -108,6 +122,7 @@ add_clang_library(clangAST
   StmtCXX.cpp
   StmtIterator.cpp
   StmtObjC.cpp
+  StmtOpenACC.cpp
   StmtOpenMP.cpp
   StmtPrinter.cpp
   StmtProfile.cpp
@@ -129,4 +144,8 @@ add_clang_library(clangAST
   ClangAttrDocTable
   Opcodes
   omp_gen
+  ClangDriverOptions
+  intrinsics_gen
+  # These generated headers are included transitively.
+  target_parser_gen
   )

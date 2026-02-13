@@ -15,20 +15,25 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/Analysis/BlockFrequencyInfoImpl.h"
+#include "llvm/CodeGen/MIRFSDiscriminatorOptions.h"
 #include "llvm/CodeGen/MachineBlockFrequencyInfo.h"
 #include "llvm/CodeGen/MachineBranchProbabilityInfo.h"
 #include "llvm/CodeGen/MachineDominators.h"
+#include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineLoopInfo.h"
 #include "llvm/CodeGen/MachineOptimizationRemarkEmitter.h"
 #include "llvm/CodeGen/MachinePostDominators.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/PseudoProbe.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/SampleProfileLoaderBaseImpl.h"
 #include "llvm/Transforms/Utils/SampleProfileLoaderBaseUtil.h"
+#include <optional>
 
 using namespace llvm;
 using namespace sampleprof;
@@ -42,8 +47,9 @@ static cl::opt<bool> ShowFSBranchProb(
     cl::desc("Print setting flow sensitive branch probabilities"));
 static cl::opt<unsigned> FSProfileDebugProbDiffThreshold(
     "fs-profile-debug-prob-diff-threshold", cl::init(10),
-    cl::desc("Only show debug message if the branch probility is greater than "
-             "this value (in percentage)."));
+    cl::desc(
+        "Only show debug message if the branch probability is greater than "
+        "this value (in percentage)."));
 
 static cl::opt<unsigned> FSProfileDebugBWThreshold(
     "fs-profile-debug-bw-threshold", cl::init(10000),
@@ -62,20 +68,21 @@ char MIRProfileLoaderPass::ID = 0;
 INITIALIZE_PASS_BEGIN(MIRProfileLoaderPass, DEBUG_TYPE,
                       "Load MIR Sample Profile",
                       /* cfg = */ false, /* is_analysis = */ false)
-INITIALIZE_PASS_DEPENDENCY(MachineBlockFrequencyInfo)
-INITIALIZE_PASS_DEPENDENCY(MachineDominatorTree)
-INITIALIZE_PASS_DEPENDENCY(MachinePostDominatorTree)
-INITIALIZE_PASS_DEPENDENCY(MachineLoopInfo)
+INITIALIZE_PASS_DEPENDENCY(MachineBlockFrequencyInfoWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(MachineDominatorTreeWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(MachinePostDominatorTreeWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(MachineLoopInfoWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(MachineOptimizationRemarkEmitterPass)
 INITIALIZE_PASS_END(MIRProfileLoaderPass, DEBUG_TYPE, "Load MIR Sample Profile",
                     /* cfg = */ false, /* is_analysis = */ false)
 
 char &llvm::MIRProfileLoaderPassID = MIRProfileLoaderPass::ID;
 
-FunctionPass *llvm::createMIRProfileLoaderPass(std::string File,
-                                               std::string RemappingFile,
-                                               FSDiscriminatorPass P) {
-  return new MIRProfileLoaderPass(File, RemappingFile, P);
+FunctionPass *
+llvm::createMIRProfileLoaderPass(std::string File, std::string RemappingFile,
+                                 FSDiscriminatorPass P,
+                                 IntrusiveRefCntPtr<vfs::FileSystem> FS) {
+  return new MIRProfileLoaderPass(File, RemappingFile, P, std::move(FS));
 }
 
 namespace llvm {
@@ -88,6 +95,22 @@ extern cl::opt<GVDAGType> ViewBlockLayoutWithBFI;
 // Command line option to specify the name of the function for CFG dump
 // Defined in Analysis/BlockFrequencyInfo.cpp:  -view-bfi-func-name=
 extern cl::opt<std::string> ViewBlockFreqFuncName;
+
+std::optional<PseudoProbe> extractProbe(const MachineInstr &MI) {
+  if (MI.isPseudoProbe()) {
+    PseudoProbe Probe;
+    Probe.Id = MI.getOperand(1).getImm();
+    Probe.Type = MI.getOperand(2).getImm();
+    Probe.Attr = MI.getOperand(3).getImm();
+    Probe.Factor = 1;
+    DILocation *DebugLoc = MI.getDebugLoc();
+    Probe.Discriminator = DebugLoc ? DebugLoc->getDiscriminator() : 0;
+    return Probe;
+  }
+
+  // Ignore callsite probes since they do not have FS discriminators.
+  return std::nullopt;
+}
 
 namespace afdo_detail {
 template <> struct IRTraits<MachineBasicBlock> {
@@ -102,8 +125,10 @@ template <> struct IRTraits<MachineBasicBlock> {
   using PostDominatorTreeT = MachinePostDominatorTree;
   using OptRemarkEmitterT = MachineOptimizationRemarkEmitter;
   using OptRemarkAnalysisT = MachineOptimizationRemarkAnalysis;
-  using PredRangeT = iterator_range<std::vector<MachineBasicBlock *>::iterator>;
-  using SuccRangeT = iterator_range<std::vector<MachineBasicBlock *>::iterator>;
+  using PredRangeT =
+      iterator_range<SmallVectorImpl<MachineBasicBlock *>::iterator>;
+  using SuccRangeT =
+      iterator_range<SmallVectorImpl<MachineBasicBlock *>::iterator>;
   static Function &getFunction(MachineFunction &F) { return F.getFunction(); }
   static const MachineBasicBlock *getEntryBB(const MachineFunction *F) {
     return GraphTraits<const MachineFunction *>::getEntryNode(F);
@@ -118,7 +143,7 @@ template <> struct IRTraits<MachineBasicBlock> {
 } // namespace afdo_detail
 
 class MIRProfileLoader final
-    : public SampleProfileLoaderBaseImpl<MachineBasicBlock> {
+    : public SampleProfileLoaderBaseImpl<MachineFunction> {
 public:
   void setInitVals(MachineDominatorTree *MDT, MachinePostDominatorTree *MPDT,
                    MachineLoopInfo *MLI, MachineBlockFrequencyInfo *MBFI,
@@ -136,9 +161,10 @@ public:
     assert(LowBit < HighBit && "HighBit needs to be greater than Lowbit");
   }
 
-  MIRProfileLoader(StringRef Name, StringRef RemapName)
-      : SampleProfileLoaderBaseImpl(std::string(Name), std::string(RemapName)) {
-  }
+  MIRProfileLoader(StringRef Name, StringRef RemapName,
+                   IntrusiveRefCntPtr<vfs::FileSystem> FS)
+      : SampleProfileLoaderBaseImpl(std::string(Name), std::string(RemapName),
+                                    std::move(FS)) {}
 
   void setBranchProbs(MachineFunction &F);
   bool runOnFunction(MachineFunction &F);
@@ -162,11 +188,18 @@ protected:
   unsigned HighBit;
 
   bool ProfileIsValid = true;
+  ErrorOr<uint64_t> getInstWeight(const MachineInstr &MI) override {
+    if (FunctionSamples::ProfileIsProbeBased)
+      return getProbeWeight(MI);
+    if (ImprovedFSDiscriminator && MI.isMetaInstruction())
+      return std::error_code();
+    return getInstWeightImpl(MI);
+  }
 };
 
 template <>
-void SampleProfileLoaderBaseImpl<
-    MachineBasicBlock>::computeDominanceAndLoopInfo(MachineFunction &F) {}
+void SampleProfileLoaderBaseImpl<MachineFunction>::computeDominanceAndLoopInfo(
+    MachineFunction &F) {}
 
 void MIRProfileLoader::setBranchProbs(MachineFunction &F) {
   LLVM_DEBUG(dbgs() << "\nPropagation complete. Setting branch probs\n");
@@ -254,8 +287,8 @@ void MIRProfileLoader::setBranchProbs(MachineFunction &F) {
 bool MIRProfileLoader::doInitialization(Module &M) {
   auto &Ctx = M.getContext();
 
-  auto ReaderOrErr = sampleprof::SampleProfileReader::create(Filename, Ctx, P,
-                                                             RemappingFilename);
+  auto ReaderOrErr = sampleprof::SampleProfileReader::create(
+      Filename, Ctx, *FS, P, RemappingFilename);
   if (std::error_code EC = ReaderOrErr.getError()) {
     std::string Msg = "Could not open profile: " + EC.message();
     Ctx.diagnose(DiagnosticInfoSampleProfile(Filename, Msg));
@@ -265,20 +298,41 @@ bool MIRProfileLoader::doInitialization(Module &M) {
   Reader = std::move(ReaderOrErr.get());
   Reader->setModule(&M);
   ProfileIsValid = (Reader->read() == sampleprof_error::success);
-  Reader->getSummary();
+
+  // Load pseudo probe descriptors for probe-based function samples.
+  if (Reader->profileIsProbeBased()) {
+    ProbeManager = std::make_unique<PseudoProbeManager>(M);
+    if (!ProbeManager->moduleIsProbed(M)) {
+      return false;
+    }
+  }
 
   return true;
 }
 
 bool MIRProfileLoader::runOnFunction(MachineFunction &MF) {
+  // Do not load non-FS profiles. A line or probe can get a zero-valued
+  // discriminator at certain pass which could result in accidentally loading
+  // the corresponding base counter in the non-FS profile, while a non-zero
+  // discriminator would end up getting zero samples. This could in turn undo
+  // the sample distribution effort done by previous BFI maintenance and the
+  // probe distribution factor work for pseudo probes.
+  if (!Reader->profileIsFS())
+    return false;
+
   Function &Func = MF.getFunction();
   clearFunctionData(false);
   Samples = Reader->getSamplesFor(Func);
   if (!Samples || Samples->empty())
     return false;
 
-  if (getFunctionLoc(MF) == 0)
-    return false;
+  if (FunctionSamples::ProfileIsProbeBased) {
+    if (!ProbeManager->profileIsValid(MF.getFunction(), *Samples))
+      return false;
+  } else {
+    if (getFunctionLoc(MF) == 0)
+      return false;
+  }
 
   DenseSet<GlobalValue::GUID> InlinedGUIDs;
   bool Changed = computeAndPropagateWeights(MF, InlinedGUIDs);
@@ -291,14 +345,16 @@ bool MIRProfileLoader::runOnFunction(MachineFunction &MF) {
 
 } // namespace llvm
 
-MIRProfileLoaderPass::MIRProfileLoaderPass(std::string FileName,
-                                           std::string RemappingFileName,
-                                           FSDiscriminatorPass P)
-    : MachineFunctionPass(ID), ProfileFileName(FileName), P(P),
-      MIRSampleLoader(
-          std::make_unique<MIRProfileLoader>(FileName, RemappingFileName)) {
+MIRProfileLoaderPass::MIRProfileLoaderPass(
+    std::string FileName, std::string RemappingFileName, FSDiscriminatorPass P,
+    IntrusiveRefCntPtr<vfs::FileSystem> FS)
+    : MachineFunctionPass(ID), ProfileFileName(FileName), P(P) {
   LowBit = getFSPassBitBegin(P);
   HighBit = getFSPassBitEnd(P);
+
+  auto VFS = FS ? std::move(FS) : vfs::getRealFileSystem();
+  MIRSampleLoader = std::make_unique<MIRProfileLoader>(
+      FileName, RemappingFileName, std::move(VFS));
   assert(LowBit < HighBit && "HighBit needs to be greater than Lowbit");
 }
 
@@ -308,26 +364,33 @@ bool MIRProfileLoaderPass::runOnMachineFunction(MachineFunction &MF) {
 
   LLVM_DEBUG(dbgs() << "MIRProfileLoader pass working on Func: "
                     << MF.getFunction().getName() << "\n");
-  MBFI = &getAnalysis<MachineBlockFrequencyInfo>();
-  MIRSampleLoader->setInitVals(
-      &getAnalysis<MachineDominatorTree>(),
-      &getAnalysis<MachinePostDominatorTree>(), &getAnalysis<MachineLoopInfo>(),
-      MBFI, &getAnalysis<MachineOptimizationRemarkEmitterPass>().getORE());
+  MBFI = &getAnalysis<MachineBlockFrequencyInfoWrapperPass>().getMBFI();
+  auto *MDT = &getAnalysis<MachineDominatorTreeWrapperPass>().getDomTree();
+  auto *MPDT =
+      &getAnalysis<MachinePostDominatorTreeWrapperPass>().getPostDomTree();
 
   MF.RenumberBlocks();
+  MDT->updateBlockNumbers();
+  MPDT->updateBlockNumbers();
+
+  MIRSampleLoader->setInitVals(
+      MDT, MPDT, &getAnalysis<MachineLoopInfoWrapperPass>().getLI(), MBFI,
+      &getAnalysis<MachineOptimizationRemarkEmitterPass>().getORE());
+
   if (ViewBFIBefore && ViewBlockLayoutWithBFI != GVDT_None &&
       (ViewBlockFreqFuncName.empty() ||
-       MF.getFunction().getName().equals(ViewBlockFreqFuncName))) {
+       MF.getFunction().getName() == ViewBlockFreqFuncName)) {
     MBFI->view("MIR_Prof_loader_b." + MF.getName(), false);
   }
 
   bool Changed = MIRSampleLoader->runOnFunction(MF);
   if (Changed)
-    MBFI->calculate(MF, *MBFI->getMBPI(), *&getAnalysis<MachineLoopInfo>());
+    MBFI->calculate(MF, *MBFI->getMBPI(),
+                    *&getAnalysis<MachineLoopInfoWrapperPass>().getLI());
 
   if (ViewBFIAfter && ViewBlockLayoutWithBFI != GVDT_None &&
       (ViewBlockFreqFuncName.empty() ||
-       MF.getFunction().getName().equals(ViewBlockFreqFuncName))) {
+       MF.getFunction().getName() == ViewBlockFreqFuncName)) {
     MBFI->view("MIR_prof_loader_a." + MF.getName(), false);
   }
 
@@ -344,10 +407,10 @@ bool MIRProfileLoaderPass::doInitialization(Module &M) {
 
 void MIRProfileLoaderPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
-  AU.addRequired<MachineBlockFrequencyInfo>();
-  AU.addRequired<MachineDominatorTree>();
-  AU.addRequired<MachinePostDominatorTree>();
-  AU.addRequiredTransitive<MachineLoopInfo>();
+  AU.addRequired<MachineBlockFrequencyInfoWrapperPass>();
+  AU.addRequired<MachineDominatorTreeWrapperPass>();
+  AU.addRequired<MachinePostDominatorTreeWrapperPass>();
+  AU.addRequiredTransitive<MachineLoopInfoWrapperPass>();
   AU.addRequired<MachineOptimizationRemarkEmitterPass>();
   MachineFunctionPass::getAnalysisUsage(AU);
 }

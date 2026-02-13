@@ -14,20 +14,22 @@
 #define LLVM_LIB_TARGET_CSKY_CSKYTARGETMACHINE_H
 
 #include "CSKYSubtarget.h"
+#include "llvm/CodeGen/CodeGenTargetMachineImpl.h"
 #include "llvm/IR/DataLayout.h"
-#include "llvm/Target/TargetMachine.h"
+#include <optional>
 
 namespace llvm {
 
-class CSKYTargetMachine : public LLVMTargetMachine {
+class CSKYTargetMachine : public CodeGenTargetMachineImpl {
   std::unique_ptr<TargetLoweringObjectFile> TLOF;
   mutable StringMap<std::unique_ptr<CSKYSubtarget>> SubtargetMap;
 
 public:
   CSKYTargetMachine(const Target &T, const Triple &TT, StringRef CPU,
                     StringRef FS, const TargetOptions &Options,
-                    Optional<Reloc::Model> RM, Optional<CodeModel::Model> CM,
-                    CodeGenOpt::Level OL, bool JIT);
+                    std::optional<Reloc::Model> RM,
+                    std::optional<CodeModel::Model> CM, CodeGenOptLevel OL,
+                    bool JIT);
 
   TargetPassConfig *createPassConfig(PassManagerBase &PM) override;
 
@@ -40,6 +42,10 @@ public:
   TargetLoweringObjectFile *getObjFileLowering() const override {
     return TLOF.get();
   }
+
+  MachineFunctionInfo *
+  createMachineFunctionInfo(BumpPtrAllocator &Allocator, const Function &F,
+                            const TargetSubtargetInfo *STI) const override;
 };
 } // namespace llvm
 

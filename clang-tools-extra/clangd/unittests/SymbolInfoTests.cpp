@@ -11,6 +11,7 @@
 #include "XRefs.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include <optional>
 
 namespace clang {
 namespace clangd {
@@ -35,6 +36,7 @@ TEST(SymbolInfoTests, All) {
           void $decl[[foo]]();
           int bar() {
             fo^o();
+            return 0;
           }
         )cpp",
               {ExpectedSymbolDetails{"foo", "", "c:@F@foo#", "decl"}}},
@@ -43,6 +45,7 @@ TEST(SymbolInfoTests, All) {
           void $def[[foo]]() {}
           int bar() {
             fo^o();
+            return 0;
           }
         )cpp",
               {ExpectedSymbolDetails{"foo", "", "c:@F@foo#", "def", "def"}}},
@@ -52,6 +55,7 @@ TEST(SymbolInfoTests, All) {
           void $def[[foo]]() {}
           int bar() {
             fo^o();
+            return 0;
           }
         )cpp",
               {ExpectedSymbolDetails{"foo", "", "c:@F@foo#", "decl", "def"}}},
@@ -82,6 +86,7 @@ TEST(SymbolInfoTests, All) {
             void $decl[[foo]]();
             int baz() {
               fo^o();
+              return 0;
             }
           }
         )cpp",
@@ -95,6 +100,7 @@ TEST(SymbolInfoTests, All) {
           namespace barbar {
             int baz() {
               bar::fo^o();
+              return 0;
             }
           }
         )cpp",
@@ -107,6 +113,7 @@ TEST(SymbolInfoTests, All) {
             namespace Nbaz {
               int baz() {
                 ::fo^o();
+              return 0;
               }
             }
           }
@@ -120,6 +127,7 @@ TEST(SymbolInfoTests, All) {
           namespace barbar {
             int baz() {
               fo^o();
+              return 0;
             }
           }
         )cpp",
@@ -135,6 +143,7 @@ TEST(SymbolInfoTests, All) {
             int baz() {
               bar::BarType b;
               fo^o(b);
+              return 0;
             }
           }
         )cpp",
@@ -376,7 +385,7 @@ TEST(SymbolInfoTests, All) {
 
     std::vector<SymbolDetails> Expected;
     for (const auto &Sym : T.second) {
-      llvm::Optional<Location> Decl, Def;
+      std::optional<Location> Decl, Def;
       if (Sym.DeclMarker)
         Decl = Location{URIForFile::canonicalize(testPath(TU.Filename), ""),
                         TestInput.range(Sym.DeclMarker)};

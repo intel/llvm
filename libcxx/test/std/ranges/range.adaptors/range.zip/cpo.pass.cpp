@@ -18,7 +18,7 @@
 #include <type_traits>
 #include <utility>
 
-#include "types.h"
+#include "../range_adaptor_types.h"
 
 static_assert(std::is_invocable_v<decltype((std::views::zip))>);
 static_assert(!std::is_invocable_v<decltype((std::views::zip)), int>);
@@ -63,7 +63,7 @@ constexpr bool test() {
         std::ranges::zip_view<std::ranges::zip_view<SizedRandomAccessView, SizedRandomAccessView>>> decltype(auto) v2 =
         std::views::zip(v);
 
-    static_assert(std::is_same_v<std::ranges::range_reference_t<decltype(v2)>, std::tuple<std::pair<int&, int&>>>);
+    static_assert(std::is_same_v<std::ranges::range_reference_t<decltype(v2)>, std::tuple<std::tuple<int&, int&>>>);
   }
   return true;
 }

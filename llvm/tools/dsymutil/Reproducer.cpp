@@ -8,6 +8,7 @@
 
 #include "Reproducer.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/Process.h"
 
 using namespace llvm;
 using namespace llvm::dsymutil;
@@ -16,10 +17,16 @@ static std::string createReproducerDir(std::error_code &EC) {
   SmallString<128> Root;
   if (const char *Path = getenv("DSYMUTIL_REPRODUCER_PATH")) {
     Root.assign(Path);
-    EC = sys::fs::create_directory(Root);
+    EC = sys::fs::create_directories(Root);
+  } else if (const char *Path = getenv("LLVM_DIAGNOSTIC_DIR")) {
+    Root.assign(Path);
+    llvm::sys::path::append(
+        Root, "dsymutil-" + llvm::Twine(llvm::sys::Process::getProcessId()));
+    EC = sys::fs::create_directories(Root);
   } else {
     EC = sys::fs::createUniqueDirectory("dsymutil", Root);
   }
+  sys::fs::make_absolute(Root);
   return EC ? "" : std::string(Root);
 }
 
@@ -29,16 +36,18 @@ Reproducer::~Reproducer() = default;
 ReproducerGenerate::ReproducerGenerate(std::error_code &EC, int Argc,
                                        char **Argv, bool GenerateOnExit)
     : Root(createReproducerDir(EC)), GenerateOnExit(GenerateOnExit) {
-  for (int I = 0; I < Argc; ++I)
-    Args.push_back(Argv[I]);
+  llvm::append_range(Args, ArrayRef(Argv, Argc));
+  auto RealFS = vfs::getRealFileSystem();
   if (!Root.empty())
-    FC = std::make_shared<FileCollector>(Root, Root);
-  VFS = FileCollector::createCollectorVFS(vfs::getRealFileSystem(), FC);
+    FC = std::make_shared<FileCollector>(Root, Root, RealFS);
+  VFS = FileCollector::createCollectorVFS(std::move(RealFS), FC);
 }
 
 ReproducerGenerate::~ReproducerGenerate() {
   if (GenerateOnExit && !Generated)
     generate();
+  else if (!Generated && !Root.empty())
+    sys::fs::remove_directories(Root, /* IgnoreErrors */ true);
 }
 
 void ReproducerGenerate::generate() {

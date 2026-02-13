@@ -24,16 +24,17 @@ static_library("Clang") {
     #"//lldb/source/Plugins/Language/CPlusPlus", # 3-hop dependency cycle
     "//lldb/source/Plugins/LanguageRuntime/CPlusPlus",
     "//lldb/source/Plugins/LanguageRuntime/ObjC",
-    "//lldb/source/Plugins/LanguageRuntime/RenderScript/RenderScriptRuntime",
     "//lldb/source/Symbol",
     "//lldb/source/Target",
     "//lldb/source/Utility",
+    "//lldb/source/ValueObject",
     "//llvm/lib/ExecutionEngine",
     "//llvm/lib/ExecutionEngine/MCJIT",
 
     #"//lldb/source/Plugins/TypeSystem/Clang", # Dependency cycle
     "//llvm/lib/IR",
     "//llvm/lib/Support",
+    "//llvm/lib/TargetParser",
     "//llvm/lib/Transforms/IPO",
   ]
 
@@ -46,8 +47,8 @@ static_library("Clang") {
     "ClangASTImporter.cpp",
     "ClangASTMetadata.cpp",
     "ClangASTSource.cpp",
-    "ClangDeclVendor.cpp",
     "ClangExpressionDeclMap.cpp",
+    "ClangExpressionHelper.cpp",
     "ClangExpressionParser.cpp",
     "ClangExpressionSourceCode.cpp",
     "ClangExpressionUtil.cpp",

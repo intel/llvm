@@ -20,6 +20,7 @@
 #include "polly/Support/ISLTools.h"
 #include "polly/Support/ScopHelper.h"
 #include "polly/Support/VirtualInstruction.h"
+#include "llvm/Analysis/DomTreeUpdater.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/RegionInfo.h"
 #include "llvm/Analysis/ScalarEvolution.h"
@@ -56,8 +57,8 @@ BlockGenerator::BlockGenerator(
     PollyIRBuilder &B, LoopInfo &LI, ScalarEvolution &SE, DominatorTree &DT,
     AllocaMapTy &ScalarMap, EscapeUsersAllocaMapTy &EscapeMap,
     ValueMapT &GlobalMap, IslExprBuilder *ExprBuilder, BasicBlock *StartBlock)
-    : Builder(B), LI(LI), SE(SE), ExprBuilder(ExprBuilder), DT(DT),
-      EntryBB(nullptr), ScalarMap(ScalarMap), EscapeMap(EscapeMap),
+    : Builder(B), LI(LI), SE(SE), ExprBuilder(ExprBuilder), DT(DT), GenDT(&DT),
+      GenLI(&LI), GenSE(&SE), ScalarMap(ScalarMap), EscapeMap(EscapeMap),
       GlobalMap(GlobalMap), StartBlock(StartBlock) {}
 
 Value *BlockGenerator::trySynthesizeNewValue(ScopStmt &Stmt, Value *Old,
@@ -74,20 +75,19 @@ Value *BlockGenerator::trySynthesizeNewValue(ScopStmt &Stmt, Value *Old,
   if (isa<SCEVCouldNotCompute>(Scev))
     return nullptr;
 
-  const SCEV *NewScev = SCEVLoopAddRecRewriter::rewrite(Scev, LTS, SE);
   ValueMapT VTV;
-  VTV.insert(BBMap.begin(), BBMap.end());
-  VTV.insert(GlobalMap.begin(), GlobalMap.end());
+  VTV.insert_range(BBMap);
+  VTV.insert_range(GlobalMap);
 
   Scop &S = *Stmt.getParent();
-  const DataLayout &DL = S.getFunction().getParent()->getDataLayout();
+  const DataLayout &DL = S.getFunction().getDataLayout();
   auto IP = Builder.GetInsertPoint();
 
   assert(IP != Builder.GetInsertBlock()->end() &&
          "Only instructions can be insert points for SCEVExpander");
-  Value *Expanded =
-      expandCodeFor(S, SE, DL, "polly", NewScev, Old->getType(), &*IP, &VTV,
-                    StartBlock->getSinglePredecessor());
+  Value *Expanded = expandCodeFor(
+      S, SE, Builder.GetInsertBlock()->getParent(), *GenSE, DL, "polly", Scev,
+      Old->getType(), IP, &VTV, &LTS, StartBlock->getSinglePredecessor());
 
   BBMap[Old] = Expanded;
   return Expanded;
@@ -232,20 +232,16 @@ void BlockGenerator::copyInstScalar(ScopStmt &Stmt, Instruction *Inst,
       return;
     }
 
+    // FIXME: We will encounter "NewOperand" again if used twice. getNewValue()
+    // is meant to be called on old values only.
     NewInst->replaceUsesOfWith(OldOperand, NewOperand);
   }
 
   Builder.Insert(NewInst);
   BBMap[Inst] = NewInst;
 
-  // When copying the instruction onto the Module meant for the GPU,
-  // debug metadata attached to an instruction causes all related
-  // metadata to be pulled into the Module. This includes the DICompileUnit,
-  // which will not be listed in llvm.dbg.cu of the Module since the Module
-  // doesn't contain one. This fails the verification of the Module and the
-  // subsequent generation of the ASM string.
-  if (NewInst->getModule() != Inst->getModule())
-    NewInst->setDebugLoc(llvm::DebugLoc());
+  assert(NewInst->getModule() == Inst->getModule() &&
+         "Expecting instructions to be in the same module");
 
   if (!NewInst->getType()->isVoidTy())
     NewInst->setName("p_" + Inst->getName());
@@ -270,19 +266,7 @@ Value *BlockGenerator::generateLocationAccessed(
 
   if (AccessExpr) {
     AccessExpr = isl_ast_expr_address_of(AccessExpr);
-    auto Address = ExprBuilder->create(AccessExpr);
-
-    // Cast the address of this memory access to a pointer type that has the
-    // same element type as the original access, but uses the address space of
-    // the newly generated pointer.
-    auto OldPtrTy = ExpectedType->getPointerTo();
-    auto NewPtrTy = Address->getType();
-    OldPtrTy = PointerType::getWithSamePointeeType(
-        OldPtrTy, NewPtrTy->getPointerAddressSpace());
-
-    if (OldPtrTy != NewPtrTy)
-      Address = Builder.CreateBitOrPointerCast(Address, OldPtrTy);
-    return Address;
+    return ExprBuilder->create(AccessExpr);
   }
   assert(
       Pointer &&
@@ -427,7 +411,7 @@ void BlockGenerator::copyStmt(ScopStmt &Stmt, LoopToScevMapT &LTS,
 
 BasicBlock *BlockGenerator::splitBB(BasicBlock *BB) {
   BasicBlock *CopyBB = SplitBlock(Builder.GetInsertBlock(),
-                                  &*Builder.GetInsertPoint(), &DT, &LI);
+                                  Builder.GetInsertPoint(), GenDT, GenLI);
   CopyBB->setName("polly.stmt." + BB->getName());
   return CopyBB;
 }
@@ -436,7 +420,7 @@ BasicBlock *BlockGenerator::copyBB(ScopStmt &Stmt, BasicBlock *BB,
                                    ValueMapT &BBMap, LoopToScevMapT &LTS,
                                    isl_id_to_ast_expr *NewAccesses) {
   BasicBlock *CopyBB = splitBB(BB);
-  Builder.SetInsertPoint(&CopyBB->front());
+  Builder.SetInsertPoint(CopyBB, CopyBB->begin());
   generateScalarLoads(Stmt, LTS, BBMap, NewAccesses);
   generateBeginStmtTrace(Stmt, LTS, BBMap);
 
@@ -448,11 +432,20 @@ BasicBlock *BlockGenerator::copyBB(ScopStmt &Stmt, BasicBlock *BB,
   return CopyBB;
 }
 
+void BlockGenerator::switchGeneratedFunc(Function *GenFn, DominatorTree *GenDT,
+                                         LoopInfo *GenLI,
+                                         ScalarEvolution *GenSE) {
+  assert(GenFn == GenDT->getRoot()->getParent());
+  assert(GenLI->getTopLevelLoops().empty() ||
+         GenFn == GenLI->getTopLevelLoops().front()->getHeader()->getParent());
+  this->GenDT = GenDT;
+  this->GenLI = GenLI;
+  this->GenSE = GenSE;
+}
+
 void BlockGenerator::copyBB(ScopStmt &Stmt, BasicBlock *BB, BasicBlock *CopyBB,
                             ValueMapT &BBMap, LoopToScevMapT &LTS,
                             isl_id_to_ast_expr *NewAccesses) {
-  EntryBB = &CopyBB->getParent()->getEntryBlock();
-
   // Block statements and the entry blocks of region statement are code
   // generated from instruction lists. This allow us to optimize the
   // instructions that belong to a certain scop statement. As the code
@@ -509,13 +502,13 @@ Value *BlockGenerator::getOrCreateAlloca(const ScopArrayInfo *Array) {
   else
     NameExt = ".s2a";
 
-  const DataLayout &DL = Builder.GetInsertBlock()->getModule()->getDataLayout();
+  const DataLayout &DL = Builder.GetInsertBlock()->getDataLayout();
 
   Addr =
       new AllocaInst(Ty, DL.getAllocaAddrSpace(), nullptr,
                      DL.getPrefTypeAlign(Ty), ScalarBase->getName() + NameExt);
-  EntryBB = &Builder.GetInsertBlock()->getParent()->getEntryBlock();
-  Addr->insertBefore(&*EntryBB->getFirstInsertionPt());
+  BasicBlock *EntryBB = &Builder.GetInsertBlock()->getParent()->getEntryBlock();
+  Addr->insertBefore(EntryBB->getFirstInsertionPt());
 
   return Addr;
 }
@@ -571,10 +564,6 @@ void BlockGenerator::generateScalarLoads(
 
     auto *Address =
         getImplicitAddress(*MA, getLoopForStmt(Stmt), LTS, BBMap, NewAccesses);
-    assert((!isa<Instruction>(Address) ||
-            DT.dominates(cast<Instruction>(Address)->getParent(),
-                         Builder.GetInsertBlock())) &&
-           "Domination violation");
     BBMap[MA->getAccessValue()] = Builder.CreateLoad(
         MA->getElementType(), Address, Address->getName() + ".reload");
   }
@@ -632,8 +621,9 @@ void BlockGenerator::generateConditionalExecution(
   StringRef BlockName = HeadBlock->getName();
 
   // Generate the conditional block.
-  SplitBlockAndInsertIfThen(Cond, &*Builder.GetInsertPoint(), false, nullptr,
-                            &DT, &LI);
+  DomTreeUpdater DTU(GenDT, DomTreeUpdater::UpdateStrategy::Eager);
+  SplitBlockAndInsertIfThen(Cond, Builder.GetInsertPoint(), false, nullptr,
+                            &DTU, GenLI);
   BranchInst *Branch = cast<BranchInst>(HeadBlock->getTerminator());
   BasicBlock *ThenBlock = Branch->getSuccessor(0);
   BasicBlock *TailBlock = Branch->getSuccessor(1);
@@ -655,7 +645,7 @@ static std::string getInstName(Value *Val) {
   std::string Result;
   raw_string_ostream OS(Result);
   Val->printAsOperand(OS, false);
-  return OS.str();
+  return Result;
 }
 
 void BlockGenerator::generateBeginStmtTrace(ScopStmt &Stmt, LoopToScevMapT &LTS,
@@ -796,12 +786,6 @@ void BlockGenerator::generateScalarStores(
                                Builder.GetInsertBlock())) &&
                  "Domination violation");
 
-          // The new Val might have a different type than the old Val due to
-          // ScalarEvolution looking through bitcasts.
-          Address = Builder.CreateBitOrPointerCast(
-              Address, Val->getType()->getPointerTo(
-                           Address->getType()->getPointerAddressSpace()));
-
           Builder.CreateStore(Val, Address);
         });
   }
@@ -811,7 +795,7 @@ void BlockGenerator::createScalarInitialization(Scop &S) {
   BasicBlock *ExitBB = S.getExit();
   BasicBlock *PreEntryBB = S.getEnteringBlock();
 
-  Builder.SetInsertPoint(&*StartBlock->begin());
+  Builder.SetInsertPoint(StartBlock, StartBlock->begin());
 
   for (auto &Array : S.arrays()) {
     if (Array->getNumberOfDimensions() != 0)
@@ -866,7 +850,7 @@ void BlockGenerator::createScalarFinalization(Scop &S) {
   if (OptExitBB == ExitBB)
     OptExitBB = *(++pred_begin(MergeBB));
 
-  Builder.SetInsertPoint(OptExitBB->getTerminator());
+  Builder.SetInsertPoint(OptExitBB, OptExitBB->getTerminator()->getIterator());
   for (const auto &EscapeMapping : EscapeMap) {
     // Extract the escaping instruction and the escaping users as well as the
     // alloca the instruction was demoted to.
@@ -885,7 +869,7 @@ void BlockGenerator::createScalarFinalization(Scop &S) {
     // Create the merge PHI that merges the optimized and unoptimized version.
     PHINode *MergePHI = PHINode::Create(EscapeInst->getType(), 2,
                                         EscapeInst->getName() + ".merge");
-    MergePHI->insertBefore(&*MergeBB->getFirstInsertionPt());
+    MergePHI->insertBefore(MergeBB->getFirstInsertionPt());
 
     // Add the respective values to the merge PHI.
     MergePHI->addIncoming(EscapeInstReload, OptExitBB);
@@ -937,7 +921,7 @@ void BlockGenerator::createExitPHINodeMerges(Scop &S) {
   if (OptExitBB == ExitBB)
     OptExitBB = *(++pred_begin(MergeBB));
 
-  Builder.SetInsertPoint(OptExitBB->getTerminator());
+  Builder.SetInsertPoint(OptExitBB, OptExitBB->getTerminator()->getIterator());
 
   for (auto &SAI : S.arrays()) {
     auto *Val = SAI->getBasePtr();
@@ -966,7 +950,7 @@ void BlockGenerator::createExitPHINodeMerges(Scop &S) {
             cast<Instruction>(OriginalValue)->getParent() != MergeBB) &&
            "Original value must no be one we just generated.");
     auto *MergePHI = PHINode::Create(PHI->getType(), 2, Name + ".ph.merge");
-    MergePHI->insertBefore(&*MergeBB->getFirstInsertionPt());
+    MergePHI->insertBefore(MergeBB->getFirstInsertionPt());
     MergePHI->addIncoming(Reload, OptExitBB);
     MergePHI->addIncoming(OriginalValue, ExitBB);
     int Idx = PHI->getBasicBlockIndex(MergeBB);
@@ -1009,391 +993,6 @@ void BlockGenerator::finalizeSCoP(Scop &S) {
   invalidateScalarEvolution(S);
 }
 
-VectorBlockGenerator::VectorBlockGenerator(BlockGenerator &BlockGen,
-                                           std::vector<LoopToScevMapT> &VLTS,
-                                           isl_map *Schedule)
-    : BlockGenerator(BlockGen), VLTS(VLTS), Schedule(Schedule) {
-  assert(Schedule && "No statement domain provided");
-}
-
-Value *VectorBlockGenerator::getVectorValue(ScopStmt &Stmt, Value *Old,
-                                            ValueMapT &VectorMap,
-                                            VectorValueMapT &ScalarMaps,
-                                            Loop *L) {
-  if (Value *NewValue = VectorMap.lookup(Old))
-    return NewValue;
-
-  int Width = getVectorWidth();
-
-  Value *Vector = UndefValue::get(FixedVectorType::get(Old->getType(), Width));
-
-  for (int Lane = 0; Lane < Width; Lane++)
-    Vector = Builder.CreateInsertElement(
-        Vector, getNewValue(Stmt, Old, ScalarMaps[Lane], VLTS[Lane], L),
-        Builder.getInt32(Lane));
-
-  VectorMap[Old] = Vector;
-
-  return Vector;
-}
-
-Value *VectorBlockGenerator::generateStrideOneLoad(
-    ScopStmt &Stmt, LoadInst *Load, VectorValueMapT &ScalarMaps,
-    __isl_keep isl_id_to_ast_expr *NewAccesses, bool NegativeStride = false) {
-  unsigned VectorWidth = getVectorWidth();
-  Type *VectorType = FixedVectorType::get(Load->getType(), VectorWidth);
-  Type *VectorPtrType =
-      PointerType::get(VectorType, Load->getPointerAddressSpace());
-  unsigned Offset = NegativeStride ? VectorWidth - 1 : 0;
-
-  Value *NewPointer = generateLocationAccessed(Stmt, Load, ScalarMaps[Offset],
-                                               VLTS[Offset], NewAccesses);
-  Value *VectorPtr =
-      Builder.CreateBitCast(NewPointer, VectorPtrType, "vector_ptr");
-  LoadInst *VecLoad = Builder.CreateLoad(VectorType, VectorPtr,
-                                         Load->getName() + "_p_vec_full");
-  if (!Aligned)
-    VecLoad->setAlignment(Align(8));
-
-  if (NegativeStride) {
-    SmallVector<Constant *, 16> Indices;
-    for (int i = VectorWidth - 1; i >= 0; i--)
-      Indices.push_back(ConstantInt::get(Builder.getInt32Ty(), i));
-    Constant *SV = llvm::ConstantVector::get(Indices);
-    Value *RevVecLoad = Builder.CreateShuffleVector(
-        VecLoad, VecLoad, SV, Load->getName() + "_reverse");
-    return RevVecLoad;
-  }
-
-  return VecLoad;
-}
-
-Value *VectorBlockGenerator::generateStrideZeroLoad(
-    ScopStmt &Stmt, LoadInst *Load, ValueMapT &BBMap,
-    __isl_keep isl_id_to_ast_expr *NewAccesses) {
-  Type *VectorType = FixedVectorType::get(Load->getType(), 1);
-  Type *VectorPtrType =
-      PointerType::get(VectorType, Load->getPointerAddressSpace());
-  Value *NewPointer =
-      generateLocationAccessed(Stmt, Load, BBMap, VLTS[0], NewAccesses);
-  Value *VectorPtr = Builder.CreateBitCast(NewPointer, VectorPtrType,
-                                           Load->getName() + "_p_vec_p");
-  LoadInst *ScalarLoad = Builder.CreateLoad(VectorType, VectorPtr,
-                                            Load->getName() + "_p_splat_one");
-
-  if (!Aligned)
-    ScalarLoad->setAlignment(Align(8));
-
-  Constant *SplatVector = Constant::getNullValue(
-      FixedVectorType::get(Builder.getInt32Ty(), getVectorWidth()));
-
-  Value *VectorLoad = Builder.CreateShuffleVector(
-      ScalarLoad, ScalarLoad, SplatVector, Load->getName() + "_p_splat");
-  return VectorLoad;
-}
-
-Value *VectorBlockGenerator::generateUnknownStrideLoad(
-    ScopStmt &Stmt, LoadInst *Load, VectorValueMapT &ScalarMaps,
-    __isl_keep isl_id_to_ast_expr *NewAccesses) {
-  int VectorWidth = getVectorWidth();
-  Type *ElemTy = Load->getType();
-  auto *FVTy = FixedVectorType::get(ElemTy, VectorWidth);
-
-  Value *Vector = UndefValue::get(FVTy);
-
-  for (int i = 0; i < VectorWidth; i++) {
-    Value *NewPointer = generateLocationAccessed(Stmt, Load, ScalarMaps[i],
-                                                 VLTS[i], NewAccesses);
-    Value *ScalarLoad =
-        Builder.CreateLoad(ElemTy, NewPointer, Load->getName() + "_p_scalar_");
-    Vector = Builder.CreateInsertElement(
-        Vector, ScalarLoad, Builder.getInt32(i), Load->getName() + "_p_vec_");
-  }
-
-  return Vector;
-}
-
-void VectorBlockGenerator::generateLoad(
-    ScopStmt &Stmt, LoadInst *Load, ValueMapT &VectorMap,
-    VectorValueMapT &ScalarMaps, __isl_keep isl_id_to_ast_expr *NewAccesses) {
-  if (Value *PreloadLoad = GlobalMap.lookup(Load)) {
-    VectorMap[Load] = Builder.CreateVectorSplat(getVectorWidth(), PreloadLoad,
-                                                Load->getName() + "_p");
-    return;
-  }
-
-  if (!VectorType::isValidElementType(Load->getType())) {
-    for (int i = 0; i < getVectorWidth(); i++)
-      ScalarMaps[i][Load] =
-          generateArrayLoad(Stmt, Load, ScalarMaps[i], VLTS[i], NewAccesses);
-    return;
-  }
-
-  const MemoryAccess &Access = Stmt.getArrayAccessFor(Load);
-
-  // Make sure we have scalar values available to access the pointer to
-  // the data location.
-  extractScalarValues(Load, VectorMap, ScalarMaps);
-
-  Value *NewLoad;
-  if (Access.isStrideZero(isl::manage_copy(Schedule)))
-    NewLoad = generateStrideZeroLoad(Stmt, Load, ScalarMaps[0], NewAccesses);
-  else if (Access.isStrideOne(isl::manage_copy(Schedule)))
-    NewLoad = generateStrideOneLoad(Stmt, Load, ScalarMaps, NewAccesses);
-  else if (Access.isStrideX(isl::manage_copy(Schedule), -1))
-    NewLoad = generateStrideOneLoad(Stmt, Load, ScalarMaps, NewAccesses, true);
-  else
-    NewLoad = generateUnknownStrideLoad(Stmt, Load, ScalarMaps, NewAccesses);
-
-  VectorMap[Load] = NewLoad;
-}
-
-void VectorBlockGenerator::copyUnaryInst(ScopStmt &Stmt, UnaryInstruction *Inst,
-                                         ValueMapT &VectorMap,
-                                         VectorValueMapT &ScalarMaps) {
-  int VectorWidth = getVectorWidth();
-  Value *NewOperand = getVectorValue(Stmt, Inst->getOperand(0), VectorMap,
-                                     ScalarMaps, getLoopForStmt(Stmt));
-
-  assert(isa<CastInst>(Inst) && "Can not generate vector code for instruction");
-
-  const CastInst *Cast = dyn_cast<CastInst>(Inst);
-  auto *DestType = FixedVectorType::get(Inst->getType(), VectorWidth);
-  VectorMap[Inst] = Builder.CreateCast(Cast->getOpcode(), NewOperand, DestType);
-}
-
-void VectorBlockGenerator::copyBinaryInst(ScopStmt &Stmt, BinaryOperator *Inst,
-                                          ValueMapT &VectorMap,
-                                          VectorValueMapT &ScalarMaps) {
-  Loop *L = getLoopForStmt(Stmt);
-  Value *OpZero = Inst->getOperand(0);
-  Value *OpOne = Inst->getOperand(1);
-
-  Value *NewOpZero, *NewOpOne;
-  NewOpZero = getVectorValue(Stmt, OpZero, VectorMap, ScalarMaps, L);
-  NewOpOne = getVectorValue(Stmt, OpOne, VectorMap, ScalarMaps, L);
-
-  Value *NewInst = Builder.CreateBinOp(Inst->getOpcode(), NewOpZero, NewOpOne,
-                                       Inst->getName() + "p_vec");
-  VectorMap[Inst] = NewInst;
-}
-
-void VectorBlockGenerator::copyStore(
-    ScopStmt &Stmt, StoreInst *Store, ValueMapT &VectorMap,
-    VectorValueMapT &ScalarMaps, __isl_keep isl_id_to_ast_expr *NewAccesses) {
-  const MemoryAccess &Access = Stmt.getArrayAccessFor(Store);
-
-  Value *Vector = getVectorValue(Stmt, Store->getValueOperand(), VectorMap,
-                                 ScalarMaps, getLoopForStmt(Stmt));
-
-  // Make sure we have scalar values available to access the pointer to
-  // the data location.
-  extractScalarValues(Store, VectorMap, ScalarMaps);
-
-  if (Access.isStrideOne(isl::manage_copy(Schedule))) {
-    Type *VectorType = FixedVectorType::get(Store->getValueOperand()->getType(),
-                                            getVectorWidth());
-    Type *VectorPtrType =
-        PointerType::get(VectorType, Store->getPointerAddressSpace());
-    Value *NewPointer = generateLocationAccessed(Stmt, Store, ScalarMaps[0],
-                                                 VLTS[0], NewAccesses);
-
-    Value *VectorPtr =
-        Builder.CreateBitCast(NewPointer, VectorPtrType, "vector_ptr");
-    StoreInst *Store = Builder.CreateStore(Vector, VectorPtr);
-
-    if (!Aligned)
-      Store->setAlignment(Align(8));
-  } else {
-    for (unsigned i = 0; i < ScalarMaps.size(); i++) {
-      Value *Scalar = Builder.CreateExtractElement(Vector, Builder.getInt32(i));
-      Value *NewPointer = generateLocationAccessed(Stmt, Store, ScalarMaps[i],
-                                                   VLTS[i], NewAccesses);
-      Builder.CreateStore(Scalar, NewPointer);
-    }
-  }
-}
-
-bool VectorBlockGenerator::hasVectorOperands(const Instruction *Inst,
-                                             ValueMapT &VectorMap) {
-  for (Value *Operand : Inst->operands())
-    if (VectorMap.count(Operand))
-      return true;
-  return false;
-}
-
-bool VectorBlockGenerator::extractScalarValues(const Instruction *Inst,
-                                               ValueMapT &VectorMap,
-                                               VectorValueMapT &ScalarMaps) {
-  bool HasVectorOperand = false;
-  int VectorWidth = getVectorWidth();
-
-  for (Value *Operand : Inst->operands()) {
-    ValueMapT::iterator VecOp = VectorMap.find(Operand);
-
-    if (VecOp == VectorMap.end())
-      continue;
-
-    HasVectorOperand = true;
-    Value *NewVector = VecOp->second;
-
-    for (int i = 0; i < VectorWidth; ++i) {
-      ValueMapT &SM = ScalarMaps[i];
-
-      // If there is one scalar extracted, all scalar elements should have
-      // already been extracted by the code here. So no need to check for the
-      // existence of all of them.
-      if (SM.count(Operand))
-        break;
-
-      SM[Operand] =
-          Builder.CreateExtractElement(NewVector, Builder.getInt32(i));
-    }
-  }
-
-  return HasVectorOperand;
-}
-
-void VectorBlockGenerator::copyInstScalarized(
-    ScopStmt &Stmt, Instruction *Inst, ValueMapT &VectorMap,
-    VectorValueMapT &ScalarMaps, __isl_keep isl_id_to_ast_expr *NewAccesses) {
-  bool HasVectorOperand;
-  int VectorWidth = getVectorWidth();
-
-  HasVectorOperand = extractScalarValues(Inst, VectorMap, ScalarMaps);
-
-  for (int VectorLane = 0; VectorLane < getVectorWidth(); VectorLane++)
-    BlockGenerator::copyInstruction(Stmt, Inst, ScalarMaps[VectorLane],
-                                    VLTS[VectorLane], NewAccesses);
-
-  if (!VectorType::isValidElementType(Inst->getType()) || !HasVectorOperand)
-    return;
-
-  // Make the result available as vector value.
-  auto *FVTy = FixedVectorType::get(Inst->getType(), VectorWidth);
-  Value *Vector = UndefValue::get(FVTy);
-
-  for (int i = 0; i < VectorWidth; i++)
-    Vector = Builder.CreateInsertElement(Vector, ScalarMaps[i][Inst],
-                                         Builder.getInt32(i));
-
-  VectorMap[Inst] = Vector;
-}
-
-int VectorBlockGenerator::getVectorWidth() { return VLTS.size(); }
-
-void VectorBlockGenerator::copyInstruction(
-    ScopStmt &Stmt, Instruction *Inst, ValueMapT &VectorMap,
-    VectorValueMapT &ScalarMaps, __isl_keep isl_id_to_ast_expr *NewAccesses) {
-  // Terminator instructions control the control flow. They are explicitly
-  // expressed in the clast and do not need to be copied.
-  if (Inst->isTerminator())
-    return;
-
-  if (canSyntheziseInStmt(Stmt, Inst))
-    return;
-
-  if (auto *Load = dyn_cast<LoadInst>(Inst)) {
-    generateLoad(Stmt, Load, VectorMap, ScalarMaps, NewAccesses);
-    return;
-  }
-
-  if (hasVectorOperands(Inst, VectorMap)) {
-    if (auto *Store = dyn_cast<StoreInst>(Inst)) {
-      // Identified as redundant by -polly-simplify.
-      if (!Stmt.getArrayAccessOrNULLFor(Store))
-        return;
-
-      copyStore(Stmt, Store, VectorMap, ScalarMaps, NewAccesses);
-      return;
-    }
-
-    if (auto *Unary = dyn_cast<UnaryInstruction>(Inst)) {
-      copyUnaryInst(Stmt, Unary, VectorMap, ScalarMaps);
-      return;
-    }
-
-    if (auto *Binary = dyn_cast<BinaryOperator>(Inst)) {
-      copyBinaryInst(Stmt, Binary, VectorMap, ScalarMaps);
-      return;
-    }
-
-    // Fallthrough: We generate scalar instructions, if we don't know how to
-    // generate vector code.
-  }
-
-  copyInstScalarized(Stmt, Inst, VectorMap, ScalarMaps, NewAccesses);
-}
-
-void VectorBlockGenerator::generateScalarVectorLoads(
-    ScopStmt &Stmt, ValueMapT &VectorBlockMap) {
-  for (MemoryAccess *MA : Stmt) {
-    if (MA->isArrayKind() || MA->isWrite())
-      continue;
-
-    auto *Address = getOrCreateAlloca(*MA);
-    Type *VectorType = FixedVectorType::get(MA->getElementType(), 1);
-    Type *VectorPtrType = PointerType::get(
-        VectorType, Address->getType()->getPointerAddressSpace());
-    Value *VectorPtr = Builder.CreateBitCast(Address, VectorPtrType,
-                                             Address->getName() + "_p_vec_p");
-    auto *Val = Builder.CreateLoad(VectorType, VectorPtr,
-                                   Address->getName() + ".reload");
-    Constant *SplatVector = Constant::getNullValue(
-        FixedVectorType::get(Builder.getInt32Ty(), getVectorWidth()));
-
-    Value *VectorVal = Builder.CreateShuffleVector(
-        Val, Val, SplatVector, Address->getName() + "_p_splat");
-    VectorBlockMap[MA->getAccessValue()] = VectorVal;
-  }
-}
-
-void VectorBlockGenerator::verifyNoScalarStores(ScopStmt &Stmt) {
-  for (MemoryAccess *MA : Stmt) {
-    if (MA->isArrayKind() || MA->isRead())
-      continue;
-
-    llvm_unreachable("Scalar stores not expected in vector loop");
-  }
-}
-
-void VectorBlockGenerator::copyStmt(
-    ScopStmt &Stmt, __isl_keep isl_id_to_ast_expr *NewAccesses) {
-  assert(Stmt.isBlockStmt() &&
-         "TODO: Only block statements can be copied by the vector block "
-         "generator");
-
-  BasicBlock *BB = Stmt.getBasicBlock();
-  BasicBlock *CopyBB = SplitBlock(Builder.GetInsertBlock(),
-                                  &*Builder.GetInsertPoint(), &DT, &LI);
-  CopyBB->setName("polly.stmt." + BB->getName());
-  Builder.SetInsertPoint(&CopyBB->front());
-
-  // Create two maps that store the mapping from the original instructions of
-  // the old basic block to their copies in the new basic block. Those maps
-  // are basic block local.
-  //
-  // As vector code generation is supported there is one map for scalar values
-  // and one for vector values.
-  //
-  // In case we just do scalar code generation, the vectorMap is not used and
-  // the scalarMap has just one dimension, which contains the mapping.
-  //
-  // In case vector code generation is done, an instruction may either appear
-  // in the vector map once (as it is calculating >vectorwidth< values at a
-  // time. Or (if the values are calculated using scalar operations), it
-  // appears once in every dimension of the scalarMap.
-  VectorValueMapT ScalarBlockMap(getVectorWidth());
-  ValueMapT VectorBlockMap;
-
-  generateScalarVectorLoads(Stmt, VectorBlockMap);
-
-  for (Instruction *Inst : Stmt.getInstructions())
-    copyInstruction(Stmt, Inst, VectorBlockMap, ScalarBlockMap, NewAccesses);
-
-  verifyNoScalarStores(Stmt);
-}
-
 BasicBlock *RegionGenerator::repairDominance(BasicBlock *BB,
                                              BasicBlock *BBCopy) {
 
@@ -1401,7 +1000,7 @@ BasicBlock *RegionGenerator::repairDominance(BasicBlock *BB,
   BasicBlock *BBCopyIDom = EndBlockMap.lookup(BBIDom);
 
   if (BBCopyIDom)
-    DT.changeImmediateDominator(BBCopy, BBCopyIDom);
+    GenDT->changeImmediateDominator(BBCopy, BBCopyIDom);
 
   return StartBlockMap.lookup(BBIDom);
 }
@@ -1471,9 +1070,9 @@ void RegionGenerator::copyStmt(ScopStmt &Stmt, LoopToScevMapT &LTS,
   // inputs.
   BasicBlock *EntryBB = R->getEntry();
   BasicBlock *EntryBBCopy = SplitBlock(Builder.GetInsertBlock(),
-                                       &*Builder.GetInsertPoint(), &DT, &LI);
+                                       Builder.GetInsertPoint(), GenDT, GenLI);
   EntryBBCopy->setName("polly.stmt." + EntryBB->getName() + ".entry");
-  Builder.SetInsertPoint(&EntryBBCopy->front());
+  Builder.SetInsertPoint(EntryBBCopy, EntryBBCopy->begin());
 
   ValueMapT &EntryBBMap = RegionMaps[EntryBBCopy];
   generateScalarLoads(Stmt, LTS, EntryBBMap, IdToAstExp);
@@ -1513,7 +1112,7 @@ void RegionGenerator::copyStmt(ScopStmt &Stmt, LoopToScevMapT &LTS,
     ValueMapT &RegionMap = Inserted.first->second;
 
     // Copy the block with the BlockGenerator.
-    Builder.SetInsertPoint(&BBCopy->front());
+    Builder.SetInsertPoint(BBCopy, BBCopy->begin());
     copyBB(Stmt, BB, BBCopy, RegionMap, LTS, IdToAstExp);
 
     // In order to remap PHI nodes we store also basic block mappings.
@@ -1532,12 +1131,12 @@ void RegionGenerator::copyStmt(ScopStmt &Stmt, LoopToScevMapT &LTS,
 
     // Remember value in case it is visible after this subregion.
     if (isDominatingSubregionExit(DT, R, BB))
-      ValueMap.insert(RegionMap.begin(), RegionMap.end());
+      ValueMap.insert_range(RegionMap);
   }
 
   // Now create a new dedicated region exit block and add it to the region map.
   BasicBlock *ExitBBCopy = SplitBlock(Builder.GetInsertBlock(),
-                                      &*Builder.GetInsertPoint(), &DT, &LI);
+                                      Builder.GetInsertPoint(), GenDT, GenLI);
   ExitBBCopy->setName("polly.stmt." + R->getExit()->getName() + ".exit");
   StartBlockMap[R->getExit()] = ExitBBCopy;
   EndBlockMap[R->getExit()] = ExitBBCopy;
@@ -1546,7 +1145,7 @@ void RegionGenerator::copyStmt(ScopStmt &Stmt, LoopToScevMapT &LTS,
   assert(ExitDomBBCopy &&
          "Common exit dominator must be within region; at least the entry node "
          "must match");
-  DT.changeImmediateDominator(ExitBBCopy, ExitDomBBCopy);
+  GenDT->changeImmediateDominator(ExitBBCopy, ExitDomBBCopy);
 
   // As the block generator doesn't handle control flow we need to add the
   // region control flow by hand after all blocks have been copied.
@@ -1565,9 +1164,9 @@ void RegionGenerator::copyStmt(ScopStmt &Stmt, LoopToScevMapT &LTS,
     Instruction *BICopy = BBCopyEnd->getTerminator();
 
     ValueMapT &RegionMap = RegionMaps[BBCopyStart];
-    RegionMap.insert(StartBlockMap.begin(), StartBlockMap.end());
+    RegionMap.insert_range(StartBlockMap);
 
-    Builder.SetInsertPoint(BICopy);
+    Builder.SetInsertPoint(BBCopyEnd, BICopy->getIterator());
     copyInstScalar(Stmt, TI, RegionMap, LTS);
     BICopy->eraseFromParent();
   }
@@ -1585,8 +1184,8 @@ void RegionGenerator::copyStmt(ScopStmt &Stmt, LoopToScevMapT &LTS,
         PHINode::Create(Builder.getInt32Ty(), 2, "polly.subregion.iv");
     Instruction *LoopPHIInc = BinaryOperator::CreateAdd(
         LoopPHI, Builder.getInt32(1), "polly.subregion.iv.inc");
-    LoopPHI->insertBefore(&BBCopy->front());
-    LoopPHIInc->insertBefore(BBCopy->getTerminator());
+    LoopPHI->insertBefore(BBCopy->begin());
+    LoopPHIInc->insertBefore(BBCopy->getTerminator()->getIterator());
 
     for (auto *PredBB : predecessors(BB)) {
       if (!R->contains(PredBB))
@@ -1605,7 +1204,7 @@ void RegionGenerator::copyStmt(ScopStmt &Stmt, LoopToScevMapT &LTS,
   }
 
   // Continue generating code in the exit block.
-  Builder.SetInsertPoint(&*ExitBBCopy->getFirstInsertionPt());
+  Builder.SetInsertPoint(ExitBBCopy, ExitBBCopy->getFirstInsertionPt());
 
   // Write values visible to other statements.
   generateScalarStores(Stmt, LTS, ValueMap, IdToAstExp);
@@ -1635,14 +1234,15 @@ PHINode *RegionGenerator::buildExitPHI(MemoryAccess *MA, LoopToScevMapT &LTS,
 
   PHINode *NewPHI = PHINode::Create(OrigPHI->getType(), Incoming.size(),
                                     "polly." + OrigPHI->getName(),
-                                    NewSubregionExit->getFirstNonPHI());
+                                    NewSubregionExit->getFirstNonPHIIt());
 
   // Add the incoming values to the PHI.
   for (auto &Pair : Incoming) {
     BasicBlock *OrigIncomingBlock = Pair.first;
     BasicBlock *NewIncomingBlockStart = StartBlockMap.lookup(OrigIncomingBlock);
     BasicBlock *NewIncomingBlockEnd = EndBlockMap.lookup(OrigIncomingBlock);
-    Builder.SetInsertPoint(NewIncomingBlockEnd->getTerminator());
+    Builder.SetInsertPoint(NewIncomingBlockEnd,
+                           NewIncomingBlockEnd->getTerminator()->getIterator());
     assert(RegionMaps.count(NewIncomingBlockStart));
     assert(RegionMaps.count(NewIncomingBlockEnd));
     ValueMapT *LocalBBMap = &RegionMaps[NewIncomingBlockStart];
@@ -1759,10 +1359,11 @@ void RegionGenerator::addOperandToPHI(ScopStmt &Stmt, PHINode *PHI,
     // change it, otherwise do not.
     auto IP = Builder.GetInsertPoint();
     if (IP->getParent() != BBCopyEnd)
-      Builder.SetInsertPoint(BBCopyEnd->getTerminator());
+      Builder.SetInsertPoint(BBCopyEnd,
+                             BBCopyEnd->getTerminator()->getIterator());
     OpCopy = getNewValue(Stmt, Op, BBCopyMap, LTS, getLoopForStmt(Stmt));
     if (IP->getParent() != BBCopyEnd)
-      Builder.SetInsertPoint(&*IP);
+      Builder.SetInsertPoint(IP);
   } else {
     // All edges from outside the non-affine region become a single edge
     // in the new copy of the non-affine region. Make sure to only add the
@@ -1785,7 +1386,7 @@ void RegionGenerator::copyPHIInstruction(ScopStmt &Stmt, PHINode *PHI,
   unsigned NumIncoming = PHI->getNumIncomingValues();
   PHINode *PHICopy =
       Builder.CreatePHI(PHI->getType(), NumIncoming, "polly." + PHI->getName());
-  PHICopy->moveBefore(PHICopy->getParent()->getFirstNonPHI());
+  PHICopy->moveBefore(PHICopy->getParent()->getFirstNonPHIIt());
   BBMap[PHI] = PHICopy;
 
   for (BasicBlock *IncomingBB : PHI->blocks())

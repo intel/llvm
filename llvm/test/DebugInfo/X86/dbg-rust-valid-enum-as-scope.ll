@@ -3,6 +3,7 @@
 ; CHECK:   DW_AT_language	(DW_LANG_Rust)
 ; CHECK:   DW_TAG_namespace
 ; CHECK:     DW_TAG_enumeration_type
+; CHECK:     DW_AT_type (0x{{[0-9A-Fa-f]+}} "u8")
 ; CHECK:     DW_AT_name	("E")
 ; CHECK:       DW_TAG_enumerator
 ; CHECK:       DW_TAG_enumerator
@@ -12,6 +13,8 @@
 ; CHECK:         NULL
 ; CHECK:       NULL
 ; CHECK:     NULL
+; CHECK:   DW_TAG_base_type
+; CHECK:     DW_AT_name ("u8")
 ; CHECK:   DW_TAG_pointer_type
 ; CHECK:   NULL
 
@@ -32,11 +35,11 @@ target triple = "x86_64-apple-macosx10.7.0"
 
 ; a::E::f
 ; Function Attrs: uwtable
-define void @_ZN1a1E1f17h4fcb50ce732fb2a7E(i8* align 1 dereferenceable(1) %self) unnamed_addr #0 !dbg !13 {
+define void @_ZN1a1E1f17h4fcb50ce732fb2a7E(ptr align 1 dereferenceable(1) %self) unnamed_addr #0 !dbg !13 {
 start:
-  %self.dbg.spill = alloca i8*, align 8
-  store i8* %self, i8** %self.dbg.spill, align 8
-  call void @llvm.dbg.declare(metadata i8** %self.dbg.spill, metadata !19, metadata !DIExpression()), !dbg !21
+  %self.dbg.spill = alloca ptr, align 8
+  store ptr %self, ptr %self.dbg.spill, align 8
+  call void @llvm.dbg.declare(metadata ptr %self.dbg.spill, metadata !19, metadata !DIExpression()), !dbg !21
   ret void, !dbg !22
 }
 

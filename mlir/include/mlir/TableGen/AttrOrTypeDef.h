@@ -16,6 +16,7 @@
 
 #include "mlir/Support/LLVM.h"
 #include "mlir/TableGen/Builder.h"
+#include "mlir/TableGen/Constraint.h"
 #include "mlir/TableGen/Trait.h"
 
 namespace llvm {
@@ -38,7 +39,7 @@ public:
   using Builder::Builder;
 
   /// Returns an optional builder return type.
-  Optional<StringRef> getReturnType() const;
+  std::optional<StringRef> getReturnType() const;
 
   /// Returns true if this builder is able to infer the MLIRContext parameter.
   bool hasInferredContextParameter() const;
@@ -65,9 +66,13 @@ public:
   std::string getAccessorName() const;
 
   /// If specified, get the custom allocator code for this parameter.
-  Optional<StringRef> getAllocator() const;
+  std::optional<StringRef> getAllocator() const;
 
-  /// If specified, get the custom comparator code for this parameter.
+  /// Return true if user defined comparator is specified.
+  bool hasCustomComparator() const;
+
+  /// Get the custom comparator code for this parameter or fallback to the
+  /// default.
   StringRef getComparator() const;
 
   /// Get the C++ type of this parameter.
@@ -83,13 +88,16 @@ public:
   StringRef getConvertFromStorage() const;
 
   /// Get an optional C++ parameter parser.
-  Optional<StringRef> getParser() const;
+  std::optional<StringRef> getParser() const;
+
+  /// If this is a type constraint, return it.
+  std::optional<Constraint> getConstraint() const;
 
   /// Get an optional C++ parameter printer.
-  Optional<StringRef> getPrinter() const;
+  std::optional<StringRef> getPrinter() const;
 
   /// Get a description of this parameter for documentation purposes.
-  Optional<StringRef> getSummary() const;
+  std::optional<StringRef> getSummary() const;
 
   /// Get the assembly syntax documentation.
   StringRef getSyntax() const;
@@ -98,10 +106,10 @@ public:
   bool isOptional() const;
 
   /// Get the default value of the parameter if it has one.
-  Optional<StringRef> getDefaultValue() const;
+  std::optional<StringRef> getDefaultValue() const;
 
   /// Return the underlying def of this parameter.
-  llvm::Init *getDef() const;
+  const llvm::Init *getDef() const;
 
   /// The parameter is pointer-comparable.
   bool operator==(const AttrOrTypeParameter &other) const {
@@ -182,14 +190,14 @@ public:
 
   /// Return the keyword/mnemonic to use in the printer/parser methods if we are
   /// supposed to auto-generate them.
-  Optional<StringRef> getMnemonic() const;
+  std::optional<StringRef> getMnemonic() const;
 
   /// Returns if the attribute or type has a custom assembly format implemented
   /// in C++. Corresponds to the `hasCustomAssemblyFormat` field.
   bool hasCustomAssemblyFormat() const;
 
   /// Returns the custom assembly format, if one was specified.
-  Optional<StringRef> getAssemblyFormat() const;
+  std::optional<StringRef> getAssemblyFormat() const;
 
   /// Returns true if the accessors based on the parameters should be generated.
   bool genAccessors() const;
@@ -198,11 +206,19 @@ public:
   /// method.
   bool genVerifyDecl() const;
 
+  /// Return true if we need to generate any type constraint verification and
+  /// the getChecked method.
+  bool genVerifyInvariantsImpl() const;
+
   /// Returns the def's extra class declaration code.
-  Optional<StringRef> getExtraDecls() const;
+  std::optional<StringRef> getExtraDecls() const;
 
   /// Returns the def's extra class definition code.
-  Optional<StringRef> getExtraDefs() const;
+  std::optional<StringRef> getExtraDefs() const;
+
+  /// Returns true if we need to generate a default 'getAlias' implementation
+  /// using the mnemonic.
+  bool genMnemonicAlias() const;
 
   /// Get the code location (for error printing).
   ArrayRef<SMLoc> getLoc() const;
@@ -252,11 +268,14 @@ class AttrDef : public AttrOrTypeDef {
 public:
   using AttrOrTypeDef::AttrOrTypeDef;
 
-  /// Returns the attributes value type builder code block, or None if it
-  /// doesn't have one.
-  Optional<StringRef> getTypeBuilder() const;
+  /// Returns the attributes value type builder code block, or std::nullopt if
+  /// it doesn't have one.
+  std::optional<StringRef> getTypeBuilder() const;
 
   static bool classof(const AttrOrTypeDef *def);
+
+  /// Get the unique attribute name "dialect.attrname".
+  StringRef getAttrName() const;
 };
 
 //===----------------------------------------------------------------------===//
@@ -267,6 +286,11 @@ public:
 class TypeDef : public AttrOrTypeDef {
 public:
   using AttrOrTypeDef::AttrOrTypeDef;
+
+  static bool classof(const AttrOrTypeDef *def);
+
+  /// Get the unique type name "dialect.typename".
+  StringRef getTypeName() const;
 };
 
 } // namespace tblgen

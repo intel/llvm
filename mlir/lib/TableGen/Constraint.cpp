@@ -26,12 +26,15 @@ Constraint::Constraint(const llvm::Record *record)
     kind = CK_Type;
   } else if (def->isSubClassOf("AttrConstraint")) {
     kind = CK_Attr;
+  } else if (def->isSubClassOf("PropConstraint")) {
+    kind = CK_Prop;
   } else if (def->isSubClassOf("RegionConstraint")) {
     kind = CK_Region;
   } else if (def->isSubClassOf("SuccessorConstraint")) {
     kind = CK_Successor;
-  } else {
-    assert(def->isSubClassOf("Constraint"));
+  } else if (!def->isSubClassOf("Constraint")) {
+    llvm::errs() << "Expected a constraint but got: \n" << *def << "\n";
+    llvm::report_fatal_error("Abort");
   }
 }
 
@@ -52,7 +55,8 @@ std::string Constraint::getConditionTemplate() const {
 }
 
 StringRef Constraint::getSummary() const {
-  if (Optional<StringRef> summary = def->getValueAsOptionalString("summary"))
+  if (std::optional<StringRef> summary =
+          def->getValueAsOptionalString("summary"))
     return *summary;
   return def->getName();
 }
@@ -62,7 +66,7 @@ StringRef Constraint::getDescription() const {
 }
 
 StringRef Constraint::getDefName() const {
-  if (Optional<StringRef> baseDefName = getBaseDefName())
+  if (std::optional<StringRef> baseDefName = getBaseDefName())
     return *baseDefName;
   return def->getName();
 }
@@ -77,34 +81,42 @@ std::string Constraint::getUniqueDefName() const {
   // Otherwise, this is an anonymous class. In these cases we still use the def
   // name, but we also try attach the name of the base def when present to make
   // the name more obvious.
-  if (Optional<StringRef> baseDefName = getBaseDefName())
+  if (std::optional<StringRef> baseDefName = getBaseDefName())
     return (*baseDefName + "(" + defName + ")").str();
   return defName;
 }
 
-Optional<StringRef> Constraint::getBaseDefName() const {
+std::optional<StringRef> Constraint::getBaseDefName() const {
   // Functor used to check a base def in the case where the current def is
   // anonymous.
-  auto checkBaseDefFn = [&](StringRef baseName) -> Optional<StringRef> {
+  auto checkBaseDefFn = [&](StringRef baseName) -> std::optional<StringRef> {
     if (const auto *defValue = def->getValue(baseName)) {
       if (const auto *defInit = dyn_cast<llvm::DefInit>(defValue->getValue()))
         return Constraint(defInit->getDef(), kind).getDefName();
     }
-    return llvm::None;
+    return std::nullopt;
   };
 
   switch (kind) {
   case CK_Attr:
     if (def->isAnonymous())
       return checkBaseDefFn("baseAttr");
-    return llvm::None;
+    return std::nullopt;
   case CK_Type:
     if (def->isAnonymous())
       return checkBaseDefFn("baseType");
-    return llvm::None;
+    return std::nullopt;
   default:
-    return llvm::None;
+    return std::nullopt;
   }
+}
+
+std::optional<StringRef> Constraint::getCppFunctionName() const {
+  std::optional<StringRef> name =
+      def->getValueAsOptionalString("cppFunctionName");
+  if (!name || *name == "")
+    return std::nullopt;
+  return name;
 }
 
 AppliedConstraint::AppliedConstraint(Constraint &&constraint,

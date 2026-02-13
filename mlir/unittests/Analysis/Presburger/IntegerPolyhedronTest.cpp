@@ -16,6 +16,7 @@
 #include <gtest/gtest.h>
 
 #include <numeric>
+#include <optional>
 
 using namespace mlir;
 using namespace presburger;
@@ -40,8 +41,8 @@ makeSetFromConstraints(unsigned ids, ArrayRef<SmallVector<int64_t, 4>> ineqs,
   return set;
 }
 
-static void dump(ArrayRef<MPInt> vec) {
-  for (const MPInt &x : vec)
+static void dump(ArrayRef<DynamicAPInt> vec) {
+  for (const DynamicAPInt &x : vec)
     llvm::errs() << x << ' ';
   llvm::errs() << '\n';
 }
@@ -52,15 +53,15 @@ static void dump(ArrayRef<MPInt> vec) {
 ///   for the IntegerPolyhedron poly. Also check that getIntegerLexmin finds a
 ///   non-empty lexmin.
 ///
-///   If hasSample is false, check that findIntegerSample returns None and
-///   findIntegerLexMin returns Empty.
+///   If hasSample is false, check that findIntegerSample returns std::nullopt
+///   and findIntegerLexMin returns Empty.
 ///
 /// If fn is TestFunction::Empty, check that isIntegerEmpty returns the
 /// opposite of hasSample.
 static void checkSample(bool hasSample, const IntegerPolyhedron &poly,
                         TestFunction fn = TestFunction::Sample) {
-  Optional<SmallVector<MPInt, 8>> maybeSample;
-  MaybeOptimum<SmallVector<MPInt, 8>> maybeLexMin;
+  std::optional<SmallVector<DynamicAPInt, 8>> maybeSample;
+  MaybeOptimum<SmallVector<DynamicAPInt, 8>> maybeLexMin;
   switch (fn) {
   case TestFunction::Sample:
     maybeSample = poly.findIntegerSample();
@@ -584,21 +585,23 @@ TEST(IntegerPolyhedronTest, removeRedundantConstraintsTest) {
   // y >= 128x >= 0.
   poly5.removeRedundantConstraints();
   EXPECT_EQ(poly5.getNumInequalities(), 3u);
-  SmallVector<MPInt, 8> redundantConstraint = getMPIntVec({0, 1, 0});
+  SmallVector<DynamicAPInt, 8> redundantConstraint =
+      getDynamicAPIntVec({0, 1, 0});
   for (unsigned i = 0; i < 3; ++i) {
     // Ensure that the removed constraint was the redundant constraint [3].
-    EXPECT_NE(poly5.getInequality(i), ArrayRef<MPInt>(redundantConstraint));
+    EXPECT_NE(poly5.getInequality(i),
+              ArrayRef<DynamicAPInt>(redundantConstraint));
   }
 }
 
 TEST(IntegerPolyhedronTest, addConstantUpperBound) {
   IntegerPolyhedron poly(PresburgerSpace::getSetSpace(2));
-  poly.addBound(IntegerPolyhedron::UB, 0, 1);
+  poly.addBound(BoundType::UB, 0, 1);
   EXPECT_EQ(poly.atIneq(0, 0), -1);
   EXPECT_EQ(poly.atIneq(0, 1), 0);
   EXPECT_EQ(poly.atIneq(0, 2), 1);
 
-  poly.addBound(IntegerPolyhedron::UB, {1, 2, 3}, 1);
+  poly.addBound(BoundType::UB, {1, 2, 3}, 1);
   EXPECT_EQ(poly.atIneq(1, 0), -1);
   EXPECT_EQ(poly.atIneq(1, 1), -2);
   EXPECT_EQ(poly.atIneq(1, 2), -2);
@@ -606,12 +609,12 @@ TEST(IntegerPolyhedronTest, addConstantUpperBound) {
 
 TEST(IntegerPolyhedronTest, addConstantLowerBound) {
   IntegerPolyhedron poly(PresburgerSpace::getSetSpace(2));
-  poly.addBound(IntegerPolyhedron::LB, 0, 1);
+  poly.addBound(BoundType::LB, 0, 1);
   EXPECT_EQ(poly.atIneq(0, 0), 1);
   EXPECT_EQ(poly.atIneq(0, 1), 0);
   EXPECT_EQ(poly.atIneq(0, 2), -1);
 
-  poly.addBound(IntegerPolyhedron::LB, {1, 2, 3}, 1);
+  poly.addBound(BoundType::LB, {1, 2, 3}, 1);
   EXPECT_EQ(poly.atIneq(1, 0), 1);
   EXPECT_EQ(poly.atIneq(1, 1), 2);
   EXPECT_EQ(poly.atIneq(1, 2), 2);
@@ -630,7 +633,7 @@ static void checkDivisionRepresentation(
   DivisionRepr divs = poly.getLocalReprs();
 
   // Check that the `denominators` and `expectedDenominators` match.
-  EXPECT_EQ(ArrayRef<MPInt>(getMPIntVec(expectedDenominators)),
+  EXPECT_EQ(ArrayRef<DynamicAPInt>(getDynamicAPIntVec(expectedDenominators)),
             divs.getDenoms());
 
   // Check that the `dividends` and `expectedDividends` match. If the
@@ -1084,14 +1087,15 @@ TEST(IntegerPolyhedronTest, negativeDividends) {
   checkDivisionRepresentation(poly1, divisions, denoms);
 }
 
-void expectRationalLexMin(const IntegerPolyhedron &poly,
-                          ArrayRef<Fraction> min) {
+static void expectRationalLexMin(const IntegerPolyhedron &poly,
+                                 ArrayRef<Fraction> min) {
   auto lexMin = poly.findRationalLexMin();
   ASSERT_TRUE(lexMin.isBounded());
   EXPECT_EQ(ArrayRef<Fraction>(*lexMin), min);
 }
 
-void expectNoRationalLexMin(OptimumKind kind, const IntegerPolyhedron &poly) {
+static void expectNoRationalLexMin(OptimumKind kind,
+                                   const IntegerPolyhedron &poly) {
   ASSERT_NE(kind, OptimumKind::Bounded)
       << "Use expectRationalLexMin for bounded min";
   EXPECT_EQ(poly.findRationalLexMin().getKind(), kind);
@@ -1164,13 +1168,15 @@ TEST(IntegerPolyhedronTest, findRationalLexMin) {
       parseIntegerPolyhedron("(x) : (2*x >= 0, -x - 1 >= 0)"));
 }
 
-void expectIntegerLexMin(const IntegerPolyhedron &poly, ArrayRef<int64_t> min) {
-  MaybeOptimum<SmallVector<MPInt, 8>> lexMin = poly.findIntegerLexMin();
+static void expectIntegerLexMin(const IntegerPolyhedron &poly,
+                                ArrayRef<int64_t> min) {
+  MaybeOptimum<SmallVector<DynamicAPInt, 8>> lexMin = poly.findIntegerLexMin();
   ASSERT_TRUE(lexMin.isBounded());
-  EXPECT_EQ(*lexMin, getMPIntVec(min));
+  EXPECT_EQ(*lexMin, getDynamicAPIntVec(min));
 }
 
-void expectNoIntegerLexMin(OptimumKind kind, const IntegerPolyhedron &poly) {
+static void expectNoIntegerLexMin(OptimumKind kind,
+                                  const IntegerPolyhedron &poly) {
   ASSERT_NE(kind, OptimumKind::Bounded)
       << "Use expectRationalLexMin for bounded min";
   EXPECT_EQ(poly.findRationalLexMin().getKind(), kind);
@@ -1188,7 +1194,7 @@ TEST(IntegerPolyhedronTest, findIntegerLexMin) {
                              ">= 0, -11*z + 5*y - 3*x + 7 >= 0)"));
 }
 
-void expectSymbolicIntegerLexMin(
+static void expectSymbolicIntegerLexMin(
     StringRef polyStr,
     ArrayRef<std::pair<StringRef, StringRef>> expectedLexminRepr,
     ArrayRef<StringRef> expectedUnboundedDomainRepr) {
@@ -1197,13 +1203,13 @@ void expectSymbolicIntegerLexMin(
   ASSERT_NE(poly.getNumDimVars(), 0u);
   ASSERT_NE(poly.getNumSymbolVars(), 0u);
 
-  SymbolicLexMin result = poly.findSymbolicIntegerLexMin();
+  SymbolicLexOpt result = poly.findSymbolicIntegerLexMin();
 
   if (expectedLexminRepr.empty()) {
-    EXPECT_TRUE(result.lexmin.getDomain().isIntegerEmpty());
+    EXPECT_TRUE(result.lexopt.getDomain().isIntegerEmpty());
   } else {
     PWMAFunction expectedLexmin = parsePWMAF(expectedLexminRepr);
-    EXPECT_TRUE(result.lexmin.isEqual(expectedLexmin));
+    EXPECT_TRUE(result.lexopt.isEqual(expectedLexmin));
   }
 
   if (expectedUnboundedDomainRepr.empty()) {
@@ -1215,8 +1221,9 @@ void expectSymbolicIntegerLexMin(
   }
 }
 
-void expectSymbolicIntegerLexMin(
-    StringRef polyStr, ArrayRef<std::pair<StringRef, StringRef>> result) {
+static void
+expectSymbolicIntegerLexMin(StringRef polyStr,
+                            ArrayRef<std::pair<StringRef, StringRef>> result) {
   expectSymbolicIntegerLexMin(polyStr, result, {});
 }
 
@@ -1403,8 +1410,8 @@ TEST(IntegerPolyhedronTest, findSymbolicIntegerLexMin) {
 
 static void
 expectComputedVolumeIsValidOverapprox(const IntegerPolyhedron &poly,
-                                      Optional<int64_t> trueVolume,
-                                      Optional<int64_t> resultBound) {
+                                      std::optional<int64_t> trueVolume,
+                                      std::optional<int64_t> resultBound) {
   expectComputedVolumeIsValidOverapprox(poly.computeVolume(), trueVolume,
                                         resultBound);
 }
@@ -1460,9 +1467,9 @@ TEST(IntegerPolyhedronTest, computeVolume) {
       /*trueVolume=*/{}, /*resultBound=*/{});
 }
 
-bool containsPointNoLocal(const IntegerPolyhedron &poly,
-                          ArrayRef<int64_t> point) {
-  return poly.containsPointNoLocal(getMPIntVec(point)).has_value();
+static bool containsPointNoLocal(const IntegerPolyhedron &poly,
+                                 ArrayRef<int64_t> point) {
+  return poly.containsPointNoLocal(getDynamicAPIntVec(point)).has_value();
 }
 
 TEST(IntegerPolyhedronTest, containsPointNoLocal) {
@@ -1479,9 +1486,7 @@ TEST(IntegerPolyhedronTest, containsPointNoLocal) {
   IntegerPolyhedron poly3 =
       parseIntegerPolyhedron("(x, y) : (2*x - y >= 0, y - 3*x >= 0)");
 
-  // -0 instead of 0 to prevent unwanted conversion to pointer types,
-  // which would lead to ambiguity in overload resolution.
-  EXPECT_TRUE(poly3.containsPointNoLocal({-0, 0}));
+  EXPECT_TRUE(poly3.containsPointNoLocal(ArrayRef<int64_t>({0, 0})));
   EXPECT_FALSE(poly3.containsPointNoLocal({1, 0}));
 }
 

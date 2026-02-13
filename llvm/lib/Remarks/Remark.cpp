@@ -11,8 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Remarks/Remark.h"
+#include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/Support/raw_ostream.h"
+#include "llvm/ADT/STLExtras.h"
+#include <optional>
 
 using namespace llvm;
 using namespace llvm::remarks;
@@ -22,7 +24,41 @@ std::string Remark::getArgsAsMsg() const {
   raw_string_ostream OS(Str);
   for (const Argument &Arg : Args)
     OS << Arg.Val;
-  return OS.str();
+  return Str;
+}
+
+Argument *Remark::getArgByKey(StringRef Key) {
+  auto *It = find_if(Args, [&](auto &Arg) { return Arg.Key == Key; });
+  if (It == Args.end())
+    return nullptr;
+  return &*It;
+}
+
+void RemarkLocation::print(raw_ostream &OS) const {
+  OS << "{ "
+     << "File: " << SourceFilePath << ", Line: " << SourceLine
+     << " Column:" << SourceColumn << " }\n";
+}
+
+void Argument::print(raw_ostream &OS) const {
+  OS << Key << ": " << Val << "\n";
+}
+
+void Remark::print(raw_ostream &OS) const {
+  OS << "Name: ";
+  OS << RemarkName << "\n";
+  OS << "Type: " << typeToStr(RemarkType) << "\n";
+  OS << "FunctionName: " << FunctionName << "\n";
+  OS << "PassName: " << PassName << "\n";
+  if (Loc)
+    OS << "Loc: " << Loc.value();
+  if (Hotness)
+    OS << "Hotness: " << Hotness;
+  if (!Args.empty()) {
+    OS << "Args:\n";
+    for (auto Arg : Args)
+      OS << "\t" << Arg;
+  }
 }
 
 // Create wrappers for C Binding types (see CBindingWrapping.h).
@@ -60,7 +96,7 @@ extern "C" LLVMRemarkStringRef LLVMRemarkArgGetValue(LLVMRemarkArgRef Arg) {
 
 extern "C" LLVMRemarkDebugLocRef
 LLVMRemarkArgGetDebugLoc(LLVMRemarkArgRef Arg) {
-  if (const Optional<RemarkLocation> &Loc = unwrap(Arg)->Loc)
+  if (const std::optional<RemarkLocation> &Loc = unwrap(Arg)->Loc)
     return wrap(&*Loc);
   return nullptr;
 }
@@ -91,13 +127,13 @@ LLVMRemarkEntryGetFunctionName(LLVMRemarkEntryRef Remark) {
 
 extern "C" LLVMRemarkDebugLocRef
 LLVMRemarkEntryGetDebugLoc(LLVMRemarkEntryRef Remark) {
-  if (const Optional<RemarkLocation> &Loc = unwrap(Remark)->Loc)
+  if (const std::optional<RemarkLocation> &Loc = unwrap(Remark)->Loc)
     return wrap(&*Loc);
   return nullptr;
 }
 
 extern "C" uint64_t LLVMRemarkEntryGetHotness(LLVMRemarkEntryRef Remark) {
-  if (const Optional<uint64_t> &Hotness = unwrap(Remark)->Hotness)
+  if (const std::optional<uint64_t> &Hotness = unwrap(Remark)->Hotness)
     return *Hotness;
   return 0;
 }

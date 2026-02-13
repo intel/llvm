@@ -56,7 +56,7 @@ define dso_local signext i32 @AsmClobberX2WithTOC(i32 signext %a, i32 signext %b
 entry:
   %add = add nsw i32 %b, %a
   tail call void asm sideeffect "li 2, 0", "~{r2}"()
-  %0 = load i32, i32* @global_int, align 4
+  %0 = load i32, ptr @global_int, align 4
   %add1 = add nsw i32 %add, %0
   ret i32 %add1
 }
@@ -162,7 +162,7 @@ define dso_local signext i32 @UsesX2AsTOC() local_unnamed_addr {
 ; CHECK-LARGE:     add r2, r2, r12
 ; CHECK-ALL:       # %bb.0: # %entry
 entry:
-  %0 = load i32, i32* @global_int, align 4
+  %0 = load i32, ptr @global_int, align 4
   ret i32 %0
 }
 
@@ -175,7 +175,6 @@ define dso_local double @UsesX2AsConstPoolTOC() local_unnamed_addr {
 ; CHECK-ALL:       # %bb.0: # %entry
 ; CHECK-S-NEXT:    xxsplti32dx vs1, 0, 1078011044
 ; CHECK-S-NEXT:    xxsplti32dx vs1, 1, -337824948
-; CHECK-S-NEXT:    # kill: def $f1 killed $f1 killed $vsl1
 ; CHECK-S-NEXT:    blr
 entry:
   ret double 0x404124A4EBDD334C

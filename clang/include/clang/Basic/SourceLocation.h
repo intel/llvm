@@ -14,6 +14,7 @@
 #ifndef LLVM_CLANG_BASIC_SOURCELOCATION_H
 #define LLVM_CLANG_BASIC_SOURCELOCATION_H
 
+#include "clang/Basic/FileEntry.h"
 #include "clang/Basic/LLVM.h"
 #include "llvm/ADT/StringRef.h"
 #include <cassert>
@@ -58,6 +59,7 @@ private:
   friend class ASTWriter;
   friend class ASTReader;
   friend class SourceManager;
+  friend class SourceManagerTestHelper;
 
   static FileID get(int V) {
     FileID F;
@@ -67,6 +69,8 @@ private:
 
   int getOpaqueValue() const { return ID; }
 };
+
+using FileIDAndOffset = std::pair<FileID, unsigned>;
 
 /// Encodes a location in the source. The SourceManager can decode this
 /// to get at the full include stack, line and column information.
@@ -88,6 +92,7 @@ class SourceLocation {
   friend class ASTWriter;
   friend class SourceManager;
   friend struct llvm::FoldingSetTrait<SourceLocation, void>;
+  friend class SourceLocationEncoding;
 
 public:
   using UIntTy = uint32_t;
@@ -356,8 +361,6 @@ public:
   }
 };
 
-class FileEntry;
-
 /// A SourceLocation and its associated SourceManager.
 ///
 /// This is useful for argument passing to functions that expect both objects.
@@ -398,6 +401,12 @@ public:
   unsigned getExpansionLineNumber(bool *Invalid = nullptr) const;
   unsigned getExpansionColumnNumber(bool *Invalid = nullptr) const;
 
+  /// Decompose the underlying \c SourceLocation into a raw (FileID + Offset)
+  /// pair, after walking through all expansion records.
+  ///
+  /// \see SourceManager::getDecomposedExpansionLoc
+  FileIDAndOffset getDecomposedExpansionLoc() const;
+
   unsigned getSpellingLineNumber(bool *Invalid = nullptr) const;
   unsigned getSpellingColumnNumber(bool *Invalid = nullptr) const;
 
@@ -407,6 +416,7 @@ public:
   unsigned getColumnNumber(bool *Invalid = nullptr) const;
 
   const FileEntry *getFileEntry() const;
+  OptionalFileEntryRef getFileEntryRef() const;
 
   /// Return a StringRef to the source buffer data for the
   /// specified FileID.
@@ -416,7 +426,7 @@ public:
   ///
   /// The first element is the FileID, the second is the offset from the
   /// start of the buffer of the location.
-  std::pair<FileID, unsigned> getDecomposedLoc() const;
+  FileIDAndOffset getDecomposedLoc() const;
 
   bool isInSystemHeader() const;
 
@@ -509,6 +519,25 @@ namespace llvm {
   // Allow calling FoldingSetNodeID::Add with SourceLocation object as parameter
   template <> struct FoldingSetTrait<clang::SourceLocation, void> {
     static void Profile(const clang::SourceLocation &X, FoldingSetNodeID &ID);
+  };
+
+  template <> struct DenseMapInfo<clang::SourceRange> {
+    static clang::SourceRange getEmptyKey() {
+      return DenseMapInfo<clang::SourceLocation>::getEmptyKey();
+    }
+
+    static clang::SourceRange getTombstoneKey() {
+      return DenseMapInfo<clang::SourceLocation>::getTombstoneKey();
+    }
+
+    static unsigned getHashValue(clang::SourceRange Range) {
+      return detail::combineHashValue(Range.getBegin().getHashValue(),
+                                      Range.getEnd().getHashValue());
+    }
+
+    static bool isEqual(clang::SourceRange LHS, clang::SourceRange RHS) {
+      return LHS == RHS;
+    }
   };
 
 } // namespace llvm

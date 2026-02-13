@@ -118,11 +118,14 @@ class GenerateModuleAction : public ASTFrontendAction {
   CreateOutputFile(CompilerInstance &CI, StringRef InFile) = 0;
 
 protected:
+  std::vector<std::unique_ptr<ASTConsumer>>
+  CreateMultiplexConsumer(CompilerInstance &CI, StringRef InFile);
+
   std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
                                                  StringRef InFile) override;
 
   TranslationUnitKind getTranslationUnitKind() override {
-    return TU_Module;
+    return TU_ClangModule;
   }
 
   bool hasASTFileSupport() const override { return false; }
@@ -135,7 +138,9 @@ protected:
   std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
                                                  StringRef InFile) override;
 
-  TranslationUnitKind getTranslationUnitKind() override { return TU_Module; }
+  TranslationUnitKind getTranslationUnitKind() override {
+    return TU_ClangModule;
+  }
   bool hasASTFileSupport() const override { return false; }
 };
 
@@ -147,25 +152,28 @@ private:
   CreateOutputFile(CompilerInstance &CI, StringRef InFile) override;
 };
 
+/// Generates full BMI (which contains full information to generate the object
+/// files) for C++20 Named Modules.
 class GenerateModuleInterfaceAction : public GenerateModuleAction {
-private:
+protected:
+  bool PrepareToExecuteAction(CompilerInstance &CI) override;
   bool BeginSourceFileAction(CompilerInstance &CI) override;
+
+  std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
+                                                 StringRef InFile) override;
+
+  TranslationUnitKind getTranslationUnitKind() override { return TU_Complete; }
 
   std::unique_ptr<raw_pwrite_stream>
   CreateOutputFile(CompilerInstance &CI, StringRef InFile) override;
 };
 
-class GenerateHeaderModuleAction : public GenerateModuleAction {
-  /// The synthesized module input buffer for the current compilation.
-  std::unique_ptr<llvm::MemoryBuffer> Buffer;
-  std::vector<std::string> ModuleHeaders;
-
+/// Only generates the reduced BMI. This action is mainly used by tests.
+class GenerateReducedModuleInterfaceAction
+    : public GenerateModuleInterfaceAction {
 private:
-  bool PrepareToExecuteAction(CompilerInstance &CI) override;
-  bool BeginSourceFileAction(CompilerInstance &CI) override;
-
-  std::unique_ptr<raw_pwrite_stream>
-  CreateOutputFile(CompilerInstance &CI, StringRef InFile) override;
+  std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
+                                                 StringRef InFile) override;
 };
 
 class GenerateHeaderUnitAction : public GenerateModuleAction {
@@ -190,9 +198,8 @@ public:
 /// Dump information about the given module file, to be used for
 /// basic debugging and discovery.
 class DumpModuleInfoAction : public ASTFrontendAction {
-public:
   // Allow other tools (ex lldb) to direct output for their use.
-  llvm::raw_ostream *OutputStream = nullptr;
+  std::shared_ptr<llvm::raw_ostream> OutputStream;
 
 protected:
   std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
@@ -201,6 +208,9 @@ protected:
   void ExecuteAction() override;
 
 public:
+  DumpModuleInfoAction() = default;
+  explicit DumpModuleInfoAction(std::shared_ptr<llvm::raw_ostream> Out)
+      : OutputStream(Out) {}
   bool hasPCHSupport() const override { return false; }
   bool hasASTFileSupport() const override { return true; }
   bool hasIRSupport() const override { return false; }
@@ -310,13 +320,16 @@ protected:
   bool hasPCHSupport() const override { return true; }
 };
 
-class GetDependenciesByModuleNameAction : public PreprocessOnlyAction {
-  StringRef ModuleName;
+//===----------------------------------------------------------------------===//
+// HLSL Specific Actions
+//===----------------------------------------------------------------------===//
+
+class HLSLFrontendAction : public WrapperFrontendAction {
+protected:
   void ExecuteAction() override;
 
 public:
-  GetDependenciesByModuleNameAction(StringRef ModuleName)
-      : ModuleName(ModuleName) {}
+  HLSLFrontendAction(std::unique_ptr<FrontendAction> WrappedAction);
 };
 
 }  // end namespace clang

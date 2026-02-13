@@ -18,10 +18,10 @@
 #include "llvm/IR/IRPrintingPasses.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IRPrinter/IRPrintingPasses.h"
 #include "llvm/IRReader/IRReader.h"
-#include "llvm/Pass.h"
+#include "llvm/Passes/PassBuilder.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
@@ -31,11 +31,17 @@
 #include "llvm/Support/SystemUtils.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Transforms/IPO.h"
+#include "llvm/Transforms/IPO/BlockExtractor.h"
+#include "llvm/Transforms/IPO/ExtractGV.h"
+#include "llvm/Transforms/IPO/GlobalDCE.h"
+#include "llvm/Transforms/IPO/StripDeadPrototypes.h"
+#include "llvm/Transforms/IPO/StripSymbols.h"
 #include <memory>
 #include <utility>
+
 using namespace llvm;
 
-cl::OptionCategory ExtractCat("llvm-extract Options");
+static cl::OptionCategory ExtractCat("llvm-extract Options");
 
 // InputFilename - The filename to read from.
 static cl::opt<std::string> InputFilename(cl::Positional,
@@ -84,10 +90,13 @@ static cl::list<std::string> ExtractBlocks(
         "Each pair will create a function.\n"
         "If multiple basic blocks are specified in one pair,\n"
         "the first block in the sequence should dominate the rest.\n"
+        "If an unnamed basic block is to be extracted,\n"
+        "'%' should be added before the basic block variable names.\n"
         "eg:\n"
         "  --bb=f:bb1;bb2 will extract one function with both bb1 and bb2;\n"
         "  --bb=f:bb1 --bb=f:bb2 will extract two functions, one with bb1, one "
-        "with bb2."),
+        "with bb2.\n"
+        "  --bb=f:%1 will extract one function with basic block 1;"),
     cl::value_desc("function:bb1[;bb2...]"), cl::cat(ExtractCat));
 
 // ExtractAlias - The alias to extract from the module.
@@ -120,16 +129,6 @@ static cl::opt<bool> OutputAssembly("S",
                                     cl::desc("Write output as LLVM assembly"),
                                     cl::Hidden, cl::cat(ExtractCat));
 
-static cl::opt<bool> PreserveBitcodeUseListOrder(
-    "preserve-bc-uselistorder",
-    cl::desc("Preserve use-list order when writing LLVM bitcode."),
-    cl::init(true), cl::Hidden, cl::cat(ExtractCat));
-
-static cl::opt<bool> PreserveAssemblyUseListOrder(
-    "preserve-ll-uselistorder",
-    cl::desc("Preserve use-list order when writing LLVM assembly."),
-    cl::init(false), cl::Hidden, cl::cat(ExtractCat));
-
 int main(int argc, char **argv) {
   InitLLVM X(argc, argv);
 
@@ -141,7 +140,7 @@ int main(int argc, char **argv) {
   SMDiagnostic Err;
   std::unique_ptr<Module> M = getLazyIRFileModule(InputFilename, Err, Context);
 
-  if (!M.get()) {
+  if (!M) {
     Err.print(argv[0], errs());
     return 1;
   }
@@ -291,9 +290,8 @@ int main(int argc, char **argv) {
           Function *CF = CB->getCalledFunction();
           if (!CF)
             continue;
-          if (CF->isDeclaration() || GVs.count(CF))
+          if (CF->isDeclaration() || !GVs.insert(CF))
             continue;
-          GVs.insert(CF);
           Workqueue.push_back(CF);
         }
       }
@@ -308,7 +306,7 @@ int main(int argc, char **argv) {
       Materialize(*GVs[i]);
   } else {
     // Deleting. Materialize every GV that's *not* in GVs.
-    SmallPtrSet<GlobalValue *, 8> GVSet(GVs.begin(), GVs.end());
+    SmallPtrSet<GlobalValue *, 8> GVSet(llvm::from_range, GVs);
     for (auto &F : *M) {
       if (!GVSet.count(&F))
         Materialize(F);
@@ -317,9 +315,22 @@ int main(int argc, char **argv) {
 
   {
     std::vector<GlobalValue *> Gvs(GVs.begin(), GVs.end());
-    legacy::PassManager Extract;
-    Extract.add(createGVExtractionPass(Gvs, DeleteFn, KeepConstInit));
-    Extract.run(*M);
+    LoopAnalysisManager LAM;
+    FunctionAnalysisManager FAM;
+    CGSCCAnalysisManager CGAM;
+    ModuleAnalysisManager MAM;
+
+    PassBuilder PB;
+
+    PB.registerModuleAnalyses(MAM);
+    PB.registerCGSCCAnalyses(CGAM);
+    PB.registerFunctionAnalyses(FAM);
+    PB.registerLoopAnalyses(LAM);
+    PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+
+    ModulePassManager PM;
+    PM.addPass(ExtractGVPass(Gvs, DeleteFn, KeepConstInit));
+    PM.run(*M, MAM);
 
     // Now that we have all the GVs we want, mark the module as fully
     // materialized.
@@ -331,14 +342,14 @@ int main(int argc, char **argv) {
   // functions.
   if (!ExtractBlocks.empty()) {
     // Figure out which BasicBlocks we should extract.
-    SmallVector<SmallVector<BasicBlock *, 16>, 4> GroupOfBBs;
+    std::vector<std::vector<BasicBlock *>> GroupOfBBs;
     for (auto &P : BBMap) {
-      SmallVector<BasicBlock *, 16> BBs;
+      std::vector<BasicBlock *> BBs;
       for (StringRef BBName : P.second) {
         // The function has been materialized, so add its matching basic blocks
         // to the block extractor list, or fail if a name is not found.
         auto Res = llvm::find_if(*P.first, [&](const BasicBlock &BB) {
-          return BB.getName().equals(BBName);
+          return BB.getNameOrAsOperand() == BBName;
         });
         if (Res == P.first->end()) {
           errs() << argv[0] << ": function " << P.first->getName()
@@ -351,19 +362,46 @@ int main(int argc, char **argv) {
       GroupOfBBs.push_back(BBs);
     }
 
-    legacy::PassManager PM;
-    PM.add(createBlockExtractorPass(GroupOfBBs, true));
-    PM.run(*M);
+    LoopAnalysisManager LAM;
+    FunctionAnalysisManager FAM;
+    CGSCCAnalysisManager CGAM;
+    ModuleAnalysisManager MAM;
+
+    PassBuilder PB;
+
+    PB.registerModuleAnalyses(MAM);
+    PB.registerCGSCCAnalyses(CGAM);
+    PB.registerFunctionAnalyses(FAM);
+    PB.registerLoopAnalyses(LAM);
+    PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+
+    ModulePassManager PM;
+    PM.addPass(BlockExtractorPass(std::move(GroupOfBBs), true));
+    PM.run(*M, MAM);
   }
 
   // In addition to deleting all other functions, we also want to spiff it
   // up a little bit.  Do this now.
-  legacy::PassManager Passes;
 
+  LoopAnalysisManager LAM;
+  FunctionAnalysisManager FAM;
+  CGSCCAnalysisManager CGAM;
+  ModuleAnalysisManager MAM;
+
+  PassBuilder PB;
+
+  PB.registerModuleAnalyses(MAM);
+  PB.registerCGSCCAnalyses(CGAM);
+  PB.registerFunctionAnalyses(FAM);
+  PB.registerLoopAnalyses(LAM);
+  PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+
+  ModulePassManager PM;
   if (!DeleteFn)
-    Passes.add(createGlobalDCEPass());           // Delete unreachable globals
-  Passes.add(createStripDeadDebugInfoPass());    // Remove dead debug info
-  Passes.add(createStripDeadPrototypesPass());   // Remove dead func decls
+    PM.addPass(GlobalDCEPass());
+  PM.addPass(StripDeadDebugInfoPass());
+  PM.addPass(StripDeadPrototypesPass());
+  PM.addPass(StripDeadCGProfilePass());
 
   std::error_code EC;
   ToolOutputFile Out(OutputFilename, EC, sys::fs::OF_None);
@@ -373,12 +411,13 @@ int main(int argc, char **argv) {
   }
 
   if (OutputAssembly)
-    Passes.add(
-        createPrintModulePass(Out.os(), "", PreserveAssemblyUseListOrder));
+    PM.addPass(
+        PrintModulePass(Out.os(), "", /* ShouldPreserveUseListOrder */ false));
   else if (Force || !CheckBitcodeOutputToConsole(Out.os()))
-    Passes.add(createBitcodeWriterPass(Out.os(), PreserveBitcodeUseListOrder));
+    PM.addPass(
+        BitcodeWriterPass(Out.os(), /* ShouldPreserveUseListOrder */ true));
 
-  Passes.run(*M.get());
+  PM.run(*M, MAM);
 
   // Declare success.
   Out.keep();

@@ -7,11 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "CrossWindows.h"
-#include "CommonArgs.h"
+#include "clang/Driver/CommonArgs.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
-#include "clang/Driver/Options.h"
 #include "clang/Driver/SanitizerArgs.h"
+#include "clang/Options/Options.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/Path.h"
 
@@ -94,7 +94,8 @@ void tools::CrossWindows::Linker::ConstructJob(
   CmdArgs.push_back("-m");
   switch (TC.getArch()) {
   default:
-    llvm_unreachable("unsupported architecture");
+    D.Diag(diag::err_target_unknown_triple) << TC.getEffectiveTriple().str();
+    break;
   case llvm::Triple::arm:
   case llvm::Triple::thumb:
     // FIXME: this is incorrect for WinCE

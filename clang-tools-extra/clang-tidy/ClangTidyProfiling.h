@@ -1,4 +1,4 @@
-//===--- ClangTidyProfiling.h - clang-tidy ----------------------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,18 +9,17 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_CLANGTIDYPROFILING_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_CLANGTIDYPROFILING_H
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/Chrono.h"
 #include "llvm/Support/Timer.h"
+#include <optional>
 #include <string>
 
 namespace llvm {
 class raw_ostream;
 } // namespace llvm
 
-namespace clang {
-namespace tidy {
+namespace clang::tidy {
 
 class ClangTidyProfiling {
 public:
@@ -35,26 +34,22 @@ public:
   };
 
 private:
-  llvm::Optional<llvm::TimerGroup> TG;
+  std::optional<StorageParams> Storage;
 
-  llvm::Optional<StorageParams> Storage;
-
-  void printUserFriendlyTable(llvm::raw_ostream &OS);
-  void printAsJSON(llvm::raw_ostream &OS);
-
-  void storeProfileData();
+  void printUserFriendlyTable(llvm::raw_ostream &OS, llvm::TimerGroup &TG);
+  void printAsJSON(llvm::raw_ostream &OS, llvm::TimerGroup &TG);
+  void storeProfileData(llvm::TimerGroup &TG);
 
 public:
   llvm::StringMap<llvm::TimeRecord> Records;
 
   ClangTidyProfiling() = default;
 
-  ClangTidyProfiling(llvm::Optional<StorageParams> Storage);
+  ClangTidyProfiling(std::optional<StorageParams> Storage);
 
   ~ClangTidyProfiling();
 };
 
-} // end namespace tidy
-} // end namespace clang
+} // namespace clang::tidy
 
 #endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_CLANGTIDYPROFILING_H

@@ -515,7 +515,7 @@ ompd_rc_t _print(const char *str, int category) {
   return ompd_rc_ok;
 }
 
-void _printf(char *format, ...) {
+void _printf(const char *format, ...) {
   va_list args;
   va_start(args, format);
   char output[1024];
@@ -783,11 +783,11 @@ _thread_context(ompd_address_space_context_t *context, /* IN */
     return ompd_rc_unsupported;
   long int tid;
   if (sizeof(long int) >= 8 && sizeof_thread_id == 8)
-    tid = *(uint64_t *)thread_id;
+    tid = *(const uint64_t *)thread_id;
   else if (sizeof(long int) >= 4 && sizeof_thread_id == 4)
-    tid = *(uint32_t *)thread_id;
+    tid = *(const uint32_t *)thread_id;
   else if (sizeof(long int) >= 2 && sizeof_thread_id == 2)
-    tid = *(uint16_t *)thread_id;
+    tid = *(const uint16_t *)thread_id;
   else
     return ompd_rc_bad_input;
   PyObject *pFunc = PyObject_GetAttrString(pModule, "_thread_context");
@@ -943,7 +943,8 @@ static PyObject *call_ompd_get_enclosing_parallel_handle(PyObject *self,
 
   if (retVal != ompd_rc_ok) {
     _printf("An error occurred when calling "
-            "ompd_get_enclosing_parallel_handle! Error code: %d",
+            "ompd_get_enclosing_parallel_handle!"
+            "Error code: %d",
             retVal);
     return Py_BuildValue("l", retVal);
   }
@@ -967,7 +968,7 @@ static PyObject *call_ompd_get_task_parallel_handle(PyObject *self,
 
   if (retVal != ompd_rc_ok) {
     _printf("An error occurred when calling ompd_get_task_parallel_handle! "
-            "Error code: %d");
+            "Error code: %d", retVal);
     return Py_BuildValue("l", retVal);
   }
   return PyCapsule_New(taskParallelHandle, "ParallelHandle",
@@ -1180,9 +1181,10 @@ static PyObject *call_ompd_get_icv_from_scope(PyObject *self, PyObject *args) {
 
   if (retVal != ompd_rc_ok) {
     if (retVal != ompd_rc_incomplete) {
-      _printf("An error occurred when calling ompd_get_icv_from_scope(%i, %i): "
-              "Error code: %d",
-              scope, icvId, retVal);
+      _printf(
+          "An error occurred when calling ompd_get_icv_from_scope(%i, %" PRIu64
+          "): Error code: %d",
+          scope, icvId, retVal);
     }
     return Py_None;
   }

@@ -1,4 +1,4 @@
-//===--- TrailingReturnCheck.cpp - clang-tidy------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,15 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "TrailingReturnCheck.h"
-#include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/ASTMatchers/ASTMatchersInternal.h"
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace fuchsia {
+namespace clang::tidy::fuchsia {
 
 void TrailingReturnCheck::registerMatchers(MatchFinder *Finder) {
   // Functions that have trailing returns are disallowed, except for those
@@ -36,6 +33,4 @@ void TrailingReturnCheck::check(const MatchFinder::MatchResult &Result) {
          "a trailing return type is disallowed for this function declaration");
 }
 
-} // namespace fuchsia
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::fuchsia

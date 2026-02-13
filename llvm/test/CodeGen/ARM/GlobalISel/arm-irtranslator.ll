@@ -1,5 +1,5 @@
 ; RUN: llc -mtriple arm-unknown -mattr=+vfp2,+v4t -global-isel -stop-after=irtranslator -verify-machineinstrs %s -o - | FileCheck %s -check-prefix=CHECK -check-prefix=LITTLE
-; RUN: llc -mtriple armeb-unknown -mattr=+vfp2,+v4t -global-isel -global-isel-abort=0 -stop-after=irtranslator -verify-machineinstrs %s -o - | FileCheck %s -check-prefix=CHECK -check-prefix=BIG
+; RUN: llc -mtriple armeb-unknown -mattr=+vfp2,+v4t -global-isel -global-isel-abort=0 -enable-arm-gisel-bigendian -stop-after=irtranslator -verify-machineinstrs %s -o - | FileCheck %s -check-prefix=CHECK -check-prefix=BIG
 
 define void @test_void_return() {
 ; CHECK-LABEL: name: test_void_return
@@ -238,17 +238,17 @@ entry:
   ret i16 %p5
 }
 
-define i16 @test_ptr_arg(i16* %p) {
+define i16 @test_ptr_arg(ptr %p) {
 ; CHECK-LABEL: name: test_ptr_arg
 ; CHECK: liveins: $r0
 ; CHECK: [[VREGP:%[0-9]+]]:_(p0) = COPY $r0
 ; CHECK: [[VREGV:%[0-9]+]]:_(s16) = G_LOAD [[VREGP]](p0){{.*}}load (s16)
 entry:
-  %v = load i16, i16* %p
+  %v = load i16, ptr %p
   ret i16 %v
 }
 
-define i32* @test_ptr_ret(i32** %p) {
+define ptr @test_ptr_ret(ptr %p) {
 ; Test pointer returns and pointer-to-pointer arguments
 ; CHECK-LABEL: name: test_ptr_ret
 ; CHECK: liveins: $r0
@@ -257,11 +257,11 @@ define i32* @test_ptr_ret(i32** %p) {
 ; CHECK: $r0 = COPY [[VREGV]]
 ; CHECK: BX_RET 14 /* CC::al */, $noreg, implicit $r0
 entry:
-  %v = load i32*, i32** %p
-  ret i32* %v
+  %v = load ptr, ptr %p
+  ret ptr %v
 }
 
-define i32 @test_ptr_arg_on_stack(i32 %a0, i32 %a1, i32 %a2, i32 %a3, i32* %p) {
+define i32 @test_ptr_arg_on_stack(i32 %a0, i32 %a1, i32 %a2, i32 %a3, ptr %p) {
 ; CHECK-LABEL: name: test_ptr_arg_on_stack
 ; CHECK: fixedStack:
 ; CHECK: id: [[P:[0-9]+]]{{.*}}offset: 0{{.*}}size: 4
@@ -272,7 +272,7 @@ define i32 @test_ptr_arg_on_stack(i32 %a0, i32 %a1, i32 %a2, i32 %a3, i32* %p) {
 ; CHECK: $r0 = COPY [[VREGV]]
 ; CHECK: BX_RET 14 /* CC::al */, $noreg, implicit $r0
 entry:
-  %v = load i32, i32* %p
+  %v = load i32, ptr %p
   ret i32 %v
 }
 
@@ -441,8 +441,7 @@ entry:
 define i32 @test_shufflevector_s32_v2s32(i32 %arg) {
 ; CHECK-LABEL: name: test_shufflevector_s32_v2s32
 ; CHECK: [[ARG:%[0-9]+]]:_(s32) = COPY $r0
-; CHECK-DAG: [[UNDEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
-; CHECK: [[VEC:%[0-9]+]]:_(<2 x s32>) = G_SHUFFLE_VECTOR [[ARG]](s32), [[UNDEF]], shufflemask(0, 0)
+; CHECK: [[VEC:%[0-9]+]]:_(<2 x s32>) = G_BUILD_VECTOR [[ARG]](s32), [[ARG]](s32)
 ; CHECK: G_EXTRACT_VECTOR_ELT [[VEC]](<2 x s32>)
   %vec = insertelement <1 x i32> undef, i32 %arg, i32 0
   %shuffle = shufflevector <1 x i32> %vec, <1 x i32> undef, <2 x i32> zeroinitializer
@@ -453,8 +452,7 @@ define i32 @test_shufflevector_s32_v2s32(i32 %arg) {
 define i32 @test_shufflevector_s32_s32_s32(i32 %arg) {
 ; CHECK-LABEL: name: test_shufflevector_s32_s32_s32
 ; CHECK: [[ARG:%[0-9]+]]:_(s32) = COPY $r0
-; CHECK-DAG: [[UNDEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
-; CHECK: [[VEC:%[0-9]+]]:_(s32) = G_SHUFFLE_VECTOR [[ARG]](s32), [[UNDEF]], shufflemask(0)
+; CHECK: r0 = COPY [[ARG]](s32)
   %vec = insertelement <1 x i32> undef, i32 %arg, i32 0
   %shuffle = shufflevector <1 x i32> %vec, <1 x i32> undef, <1 x i32> zeroinitializer
   %res = extractelement <1 x i32> %shuffle, i32 0
@@ -554,19 +552,19 @@ define i32 @test_constantstruct_v2s32_s32_s32() {
   ret i32 %elt
 }
 
-define void @test_load_store_struct({i32, i32} *%addr) {
+define void @test_load_store_struct(ptr %addr) {
 ; Make sure the IRTranslator doesn't use an unnecessarily large GEP index type
 ; when breaking up loads and stores of aggregates.
 ; CHECK-LABEL: name: test_load_store_struct
 ; CHECK: [[ADDR1:%[0-9]+]]:_(p0) = COPY $r0
 ; CHECK-DAG: [[VAL1:%[0-9]+]]:_(s32) = G_LOAD [[ADDR1]](p0) :: (load (s32) from %ir.addr)
 ; CHECK-DAG: [[OFFSET:%[0-9]+]]:_(s32) = G_CONSTANT i32 4
-; CHECK-DAG: [[ADDR2:%[0-9]+]]:_(p0) = G_PTR_ADD [[ADDR1]], [[OFFSET]](s32)
+; CHECK-DAG: [[ADDR2:%[0-9]+]]:_(p0) = nuw inbounds G_PTR_ADD [[ADDR1]], [[OFFSET]](s32)
 ; CHECK-DAG: [[VAL2:%[0-9]+]]:_(s32) = G_LOAD [[ADDR2]](p0) :: (load (s32) from %ir.addr + 4)
 ; CHECK-DAG: G_STORE [[VAL1]](s32), [[ADDR1]](p0) :: (store (s32) into %ir.addr)
 ; CHECK-DAG: [[ADDR3:%[0-9]+]]:_(p0) = COPY [[ADDR2]]
 ; CHECK-DAG: G_STORE [[VAL2]](s32), [[ADDR3]](p0) :: (store (s32) into %ir.addr + 4)
-  %val = load {i32, i32}, {i32, i32} *%addr, align 4
-  store {i32, i32} %val, {i32, i32} *%addr, align 4
+  %val = load {i32, i32}, ptr %addr, align 4
+  store {i32, i32} %val, ptr %addr, align 4
   ret void
 }

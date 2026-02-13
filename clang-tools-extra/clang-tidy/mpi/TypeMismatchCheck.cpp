@@ -1,4 +1,4 @@
-//===--- TypeMismatchCheck.cpp - clang-tidy--------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,9 +14,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace mpi {
+namespace clang::tidy::mpi {
 
 /// Check if a BuiltinType::Kind matches the MPI datatype.
 ///
@@ -43,41 +41,41 @@ isMPITypeMatching(const std::multimap<BuiltinType::Kind, StringRef> &MultiMap,
 ///
 /// \returns true if the type is a standard type
 static bool isStandardMPIDatatype(StringRef MPIDatatype) {
-  static llvm::StringSet<> AllTypes = {"MPI_C_BOOL",
-                                       "MPI_CHAR",
-                                       "MPI_SIGNED_CHAR",
-                                       "MPI_UNSIGNED_CHAR",
-                                       "MPI_WCHAR",
-                                       "MPI_INT",
-                                       "MPI_LONG",
-                                       "MPI_SHORT",
-                                       "MPI_LONG_LONG",
-                                       "MPI_LONG_LONG_INT",
-                                       "MPI_UNSIGNED",
-                                       "MPI_UNSIGNED_SHORT",
-                                       "MPI_UNSIGNED_LONG",
-                                       "MPI_UNSIGNED_LONG_LONG",
-                                       "MPI_FLOAT",
-                                       "MPI_DOUBLE",
-                                       "MPI_LONG_DOUBLE",
-                                       "MPI_C_COMPLEX",
-                                       "MPI_C_FLOAT_COMPLEX",
-                                       "MPI_C_DOUBLE_COMPLEX",
-                                       "MPI_C_LONG_DOUBLE_COMPLEX",
-                                       "MPI_INT8_T",
-                                       "MPI_INT16_T",
-                                       "MPI_INT32_T",
-                                       "MPI_INT64_T",
-                                       "MPI_UINT8_T",
-                                       "MPI_UINT16_T",
-                                       "MPI_UINT32_T",
-                                       "MPI_UINT64_T",
-                                       "MPI_CXX_BOOL",
-                                       "MPI_CXX_FLOAT_COMPLEX",
-                                       "MPI_CXX_DOUBLE_COMPLEX",
-                                       "MPI_CXX_LONG_DOUBLE_COMPLEX"};
+  static const llvm::StringSet<> AllTypes = {"MPI_C_BOOL",
+                                             "MPI_CHAR",
+                                             "MPI_SIGNED_CHAR",
+                                             "MPI_UNSIGNED_CHAR",
+                                             "MPI_WCHAR",
+                                             "MPI_INT",
+                                             "MPI_LONG",
+                                             "MPI_SHORT",
+                                             "MPI_LONG_LONG",
+                                             "MPI_LONG_LONG_INT",
+                                             "MPI_UNSIGNED",
+                                             "MPI_UNSIGNED_SHORT",
+                                             "MPI_UNSIGNED_LONG",
+                                             "MPI_UNSIGNED_LONG_LONG",
+                                             "MPI_FLOAT",
+                                             "MPI_DOUBLE",
+                                             "MPI_LONG_DOUBLE",
+                                             "MPI_C_COMPLEX",
+                                             "MPI_C_FLOAT_COMPLEX",
+                                             "MPI_C_DOUBLE_COMPLEX",
+                                             "MPI_C_LONG_DOUBLE_COMPLEX",
+                                             "MPI_INT8_T",
+                                             "MPI_INT16_T",
+                                             "MPI_INT32_T",
+                                             "MPI_INT64_T",
+                                             "MPI_UINT8_T",
+                                             "MPI_UINT16_T",
+                                             "MPI_UINT32_T",
+                                             "MPI_UINT64_T",
+                                             "MPI_CXX_BOOL",
+                                             "MPI_CXX_FLOAT_COMPLEX",
+                                             "MPI_CXX_DOUBLE_COMPLEX",
+                                             "MPI_CXX_LONG_DOUBLE_COMPLEX"};
 
-  return AllTypes.find(MPIDatatype) != AllTypes.end();
+  return AllTypes.contains(MPIDatatype);
 }
 
 /// Check if a BuiltinType matches the MPI datatype.
@@ -92,7 +90,7 @@ static bool isBuiltinTypeMatching(const BuiltinType *Builtin,
                                   std::string &BufferTypeName,
                                   StringRef MPIDatatype,
                                   const LangOptions &LO) {
-  static std::multimap<BuiltinType::Kind, StringRef> BuiltinMatches = {
+  static const std::multimap<BuiltinType::Kind, StringRef> BuiltinMatches = {
       // On some systems like PPC or ARM, 'char' is unsigned by default which is
       // why distinct signedness for the buffer and MPI type is tolerated.
       {BuiltinType::SChar, "MPI_CHAR"},
@@ -145,7 +143,7 @@ static bool isCComplexTypeMatching(const ComplexType *const Complex,
                                    std::string &BufferTypeName,
                                    StringRef MPIDatatype,
                                    const LangOptions &LO) {
-  static std::multimap<BuiltinType::Kind, StringRef> ComplexCMatches = {
+  static const std::multimap<BuiltinType::Kind, StringRef> ComplexCMatches = {
       {BuiltinType::Float, "MPI_C_COMPLEX"},
       {BuiltinType::Float, "MPI_C_FLOAT_COMPLEX"},
       {BuiltinType::Double, "MPI_C_DOUBLE_COMPLEX"},
@@ -175,7 +173,7 @@ static bool
 isCXXComplexTypeMatching(const TemplateSpecializationType *const Template,
                          std::string &BufferTypeName, StringRef MPIDatatype,
                          const LangOptions &LO) {
-  static std::multimap<BuiltinType::Kind, StringRef> ComplexCXXMatches = {
+  static const std::multimap<BuiltinType::Kind, StringRef> ComplexCXXMatches = {
       {BuiltinType::Float, "MPI_CXX_FLOAT_COMPLEX"},
       {BuiltinType::Double, "MPI_CXX_DOUBLE_COMPLEX"},
       {BuiltinType::LongDouble, "MPI_CXX_LONG_DOUBLE_COMPLEX"}};
@@ -183,8 +181,10 @@ isCXXComplexTypeMatching(const TemplateSpecializationType *const Template,
   if (Template->getAsCXXRecordDecl()->getName() != "complex")
     return true;
 
-  const auto *Builtin =
-      Template->getArg(0).getAsType().getTypePtr()->getAs<BuiltinType>();
+  const auto *Builtin = Template->template_arguments()[0]
+                            .getAsType()
+                            .getTypePtr()
+                            ->getAs<BuiltinType>();
 
   if (Builtin &&
       !isMPITypeMatching(ComplexCXXMatches, Builtin->getKind(), MPIDatatype)) {
@@ -264,7 +264,7 @@ void TypeMismatchCheck::check(const MatchFinder::MatchResult &Result) {
             "MPI_IN_PLACE")
       return;
 
-    StringRef MPIDatatype =
+    const StringRef MPIDatatype =
         tooling::fixit::getText(*CE->getArg(DatatypeIdx), *Result.Context);
 
     const Type *ArgType = argumentType(CE, BufferIdx);
@@ -328,6 +328,4 @@ void TypeMismatchCheck::checkArguments(ArrayRef<const Type *> BufferTypes,
 }
 
 void TypeMismatchCheck::onEndOfTranslationUnit() { FuncClassifier.reset(); }
-} // namespace mpi
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::mpi

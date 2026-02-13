@@ -17,7 +17,6 @@
 #include "MSP430ISelLowering.h"
 #include "MSP430InstrInfo.h"
 #include "MSP430RegisterInfo.h"
-#include "llvm/CodeGen/SelectionDAGTargetInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/DataLayout.h"
 #include <string>
@@ -38,10 +37,10 @@ private:
   virtual void anchor();
   bool ExtendedInsts = false;
   HWMultEnum HWMultMode = NoHWMult;
-  MSP430FrameLowering FrameLowering;
   MSP430InstrInfo InstrInfo;
   MSP430TargetLowering TLInfo;
-  SelectionDAGTargetInfo TSInfo;
+  std::unique_ptr<const SelectionDAGTargetInfo> TSInfo;
+  MSP430FrameLowering FrameLowering;
 
 public:
   /// This constructor initializes the data members to match that
@@ -49,6 +48,8 @@ public:
   ///
   MSP430Subtarget(const Triple &TT, const std::string &CPU,
                   const std::string &FS, const TargetMachine &TM);
+
+  ~MSP430Subtarget() override;
 
   MSP430Subtarget &initializeSubtargetDependencies(StringRef CPU, StringRef FS);
 
@@ -64,15 +65,17 @@ public:
     return &FrameLowering;
   }
   const MSP430InstrInfo *getInstrInfo() const override { return &InstrInfo; }
-  const TargetRegisterInfo *getRegisterInfo() const override {
-    return &InstrInfo.getRegisterInfo();
+  const MSP430RegisterInfo *getRegisterInfo() const override {
+    return &getInstrInfo()->getRegisterInfo();
   }
+
   const MSP430TargetLowering *getTargetLowering() const override {
     return &TLInfo;
   }
-  const SelectionDAGTargetInfo *getSelectionDAGInfo() const override {
-    return &TSInfo;
-  }
+
+  const SelectionDAGTargetInfo *getSelectionDAGInfo() const override;
+
+  void initLibcallLoweringInfo(LibcallLoweringInfo &Info) const override;
 };
 } // End llvm namespace
 

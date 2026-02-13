@@ -1,5 +1,5 @@
-; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck -check-prefix=SI %s
-; RUN: llc -march=amdgcn -mcpu=tonga -verify-machineinstrs < %s | FileCheck -check-prefix=SI %s
+; RUN: llc -mtriple=amdgcn < %s | FileCheck -check-prefix=SI %s
+; RUN: llc -mtriple=amdgcn -mcpu=tonga < %s | FileCheck -check-prefix=SI %s
 
 ; SI-LABEL: {{^}}br_i1_phi:
 
@@ -26,7 +26,7 @@ bb3:                                              ; preds = %bb2, %bb
   br i1 %tmp, label %bb4, label %bb6
 
 bb4:                                              ; preds = %bb3
-  %val = load volatile i32, i32 addrspace(1)* undef
+  %val = load volatile i32, ptr addrspace(1) poison
   %tmp5 = mul i32 %val, %arg
   br label %bb6
 
@@ -42,17 +42,17 @@ attributes #0 = { nounwind readnone }
 ; SI-LABEL: {{^}}vcopy_i1_undef
 ; SI: v_cndmask_b32_e64
 ; SI: v_cndmask_b32_e64
-define <2 x float> @vcopy_i1_undef(<2 x float> addrspace(1)* %p) {
+define <2 x float> @vcopy_i1_undef(ptr addrspace(1) %p, i1 %c0) {
 entry:
-  br i1 undef, label %exit, label %false
+  br i1 %c0, label %exit, label %false
 
 false:
-  %x = load <2 x float>, <2 x float> addrspace(1)* %p
+  %x = load <2 x float>, ptr addrspace(1) %p
   %cmp = fcmp one <2 x float> %x, zeroinitializer
   br label %exit
 
 exit:
-  %c = phi <2 x i1> [ undef, %entry ], [ %cmp, %false ]
+  %c = phi <2 x i1> [ poison, %entry ], [ %cmp, %false ]
   %ret = select <2 x i1> %c, <2 x float> <float 2.0, float 2.0>, <2 x float> <float 4.0, float 4.0>
   ret <2 x float> %ret
 }

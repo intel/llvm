@@ -8,85 +8,98 @@
 
 #include "TableGenServer.h"
 
-#include "../lsp-server-support/CompilationDatabase.h"
-#include "../lsp-server-support/Logging.h"
-#include "../lsp-server-support/Protocol.h"
-#include "../lsp-server-support/SourceMgrUtils.h"
 #include "mlir/Support/IndentedOstream.h"
-#include "mlir/Support/LogicalResult.h"
+#include "mlir/Tools/lsp-server-support/CompilationDatabase.h"
+#include "mlir/Tools/lsp-server-support/SourceMgrUtils.h"
 #include "llvm/ADT/IntervalMap.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/StringMap.h"
-#include "llvm/ADT/StringSet.h"
-#include "llvm/ADT/TypeSwitch.h"
-#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/LSP/Logging.h"
+#include "llvm/Support/LSP/Protocol.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/TableGen/Parser.h"
 #include "llvm/TableGen/Record.h"
+#include <optional>
 
 using namespace mlir;
+using llvm::Record;
+using llvm::RecordKeeper;
+using llvm::RecordVal;
+using llvm::SourceMgr;
+
+/// Returns the range of a lexical token given a SMLoc corresponding to the
+/// start of an token location. The range is computed heuristically, and
+/// supports identifier-like tokens, strings, etc.
+static SMRange convertTokenLocToRange(SMLoc loc) {
+  return lsp::convertTokenLocToRange(loc, "$");
+}
 
 /// Returns a language server uri for the given source location. `mainFileURI`
 /// corresponds to the uri for the main file of the source manager.
-static lsp::URIForFile getURIFromLoc(const llvm::SourceMgr &mgr, SMLoc loc,
-                                     const lsp::URIForFile &mainFileURI) {
+static llvm::lsp::URIForFile
+getURIFromLoc(const SourceMgr &mgr, SMLoc loc,
+              const llvm::lsp::URIForFile &mainFileURI) {
   int bufferId = mgr.FindBufferContainingLoc(loc);
   if (bufferId == 0 || bufferId == static_cast<int>(mgr.getMainFileID()))
     return mainFileURI;
-  llvm::Expected<lsp::URIForFile> fileForLoc = lsp::URIForFile::fromFile(
-      mgr.getBufferInfo(bufferId).Buffer->getBufferIdentifier());
+  llvm::Expected<llvm::lsp::URIForFile> fileForLoc =
+      llvm::lsp::URIForFile::fromFile(
+          mgr.getBufferInfo(bufferId).Buffer->getBufferIdentifier());
   if (fileForLoc)
     return *fileForLoc;
-  lsp::Logger::error("Failed to create URI for include file: {0}",
-                     llvm::toString(fileForLoc.takeError()));
+  llvm::lsp::Logger::error("Failed to create URI for include file: {0}",
+                           llvm::toString(fileForLoc.takeError()));
   return mainFileURI;
 }
 
 /// Returns a language server location from the given source range.
-static lsp::Location getLocationFromLoc(llvm::SourceMgr &mgr, SMRange loc,
-                                        const lsp::URIForFile &uri) {
-  return lsp::Location(getURIFromLoc(mgr, loc.Start, uri),
-                       lsp::Range(mgr, loc));
+static llvm::lsp::Location
+getLocationFromLoc(SourceMgr &mgr, SMRange loc,
+                   const llvm::lsp::URIForFile &uri) {
+  return llvm::lsp::Location(getURIFromLoc(mgr, loc.Start, uri),
+                             llvm::lsp::Range(mgr, loc));
 }
-static lsp::Location getLocationFromLoc(llvm::SourceMgr &mgr, SMLoc loc,
-                                        const lsp::URIForFile &uri) {
-  return getLocationFromLoc(mgr, lsp::convertTokenLocToRange(loc), uri);
+static llvm::lsp::Location
+getLocationFromLoc(SourceMgr &mgr, SMLoc loc,
+                   const llvm::lsp::URIForFile &uri) {
+  return getLocationFromLoc(mgr, convertTokenLocToRange(loc), uri);
 }
 
 /// Convert the given TableGen diagnostic to the LSP form.
-static Optional<lsp::Diagnostic>
+static std::optional<llvm::lsp::Diagnostic>
 getLspDiagnoticFromDiag(const llvm::SMDiagnostic &diag,
-                        const lsp::URIForFile &uri) {
-  auto *sourceMgr = const_cast<llvm::SourceMgr *>(diag.getSourceMgr());
+                        const llvm::lsp::URIForFile &uri) {
+  auto *sourceMgr = const_cast<SourceMgr *>(diag.getSourceMgr());
   if (!sourceMgr || !diag.getLoc().isValid())
-    return llvm::None;
+    return std::nullopt;
 
-  lsp::Diagnostic lspDiag;
+  llvm::lsp::Diagnostic lspDiag;
   lspDiag.source = "tablegen";
   lspDiag.category = "Parse Error";
 
   // Try to grab a file location for this diagnostic.
-  lsp::Location loc = getLocationFromLoc(*sourceMgr, diag.getLoc(), uri);
+  llvm::lsp::Location loc = getLocationFromLoc(*sourceMgr, diag.getLoc(), uri);
   lspDiag.range = loc.range;
 
   // Skip diagnostics that weren't emitted within the main file.
   if (loc.uri != uri)
-    return llvm::None;
+    return std::nullopt;
 
   // Convert the severity for the diagnostic.
   switch (diag.getKind()) {
-  case llvm::SourceMgr::DK_Warning:
-    lspDiag.severity = lsp::DiagnosticSeverity::Warning;
+  case SourceMgr::DK_Warning:
+    lspDiag.severity = llvm::lsp::DiagnosticSeverity::Warning;
     break;
-  case llvm::SourceMgr::DK_Error:
-    lspDiag.severity = lsp::DiagnosticSeverity::Error;
+  case SourceMgr::DK_Error:
+    lspDiag.severity = llvm::lsp::DiagnosticSeverity::Error;
     break;
-  case llvm::SourceMgr::DK_Note:
+  case SourceMgr::DK_Note:
     // Notes are emitted separately from the main diagnostic, so we just treat
     // them as remarks given that we can't determine the diagnostic to relate
     // them to.
-  case llvm::SourceMgr::DK_Remark:
-    lspDiag.severity = lsp::DiagnosticSeverity::Information;
+  case SourceMgr::DK_Remark:
+    lspDiag.severity = llvm::lsp::DiagnosticSeverity::Information;
     break;
   }
   lspDiag.message = diag.getMessage().str();
@@ -96,17 +109,16 @@ getLspDiagnoticFromDiag(const llvm::SMDiagnostic &diag,
 
 /// Get the base definition of the given record value, or nullptr if one
 /// couldn't be found.
-static std::pair<const llvm::Record *, const llvm::RecordVal *>
-getBaseValue(const llvm::Record *record, const llvm::RecordVal *value) {
+static std::pair<const Record *, const RecordVal *>
+getBaseValue(const Record *record, const RecordVal *value) {
   if (value->isTemplateArg())
     return {nullptr, nullptr};
 
   // Find a base value for the field in the super classes of the given record.
   // On success, `record` is updated to the new parent record.
   StringRef valueName = value->getName();
-  auto findValueInSupers =
-      [&](const llvm::Record *&record) -> llvm::RecordVal * {
-    for (auto [parentRecord, loc] : record->getSuperClasses()) {
+  auto findValueInSupers = [&](const Record *&record) -> const RecordVal * {
+    for (const Record *parentRecord : record->getSuperClasses()) {
       if (auto *newBase = parentRecord->getValue(valueName)) {
         record = parentRecord;
         return newBase;
@@ -116,8 +128,8 @@ getBaseValue(const llvm::Record *record, const llvm::RecordVal *value) {
   };
 
   // Try to find the lowest definition of the record value.
-  std::pair<const llvm::Record *, const llvm::RecordVal *> baseValue = {};
-  while (const llvm::RecordVal *newBase = findValueInSupers(record))
+  std::pair<const Record *, const RecordVal *> baseValue = {};
+  while (const RecordVal *newBase = findValueInSupers(record))
     baseValue = {record, newBase};
 
   // Check that the base isn't the same as the current value (e.g. if the value
@@ -136,15 +148,15 @@ namespace {
 /// contains the definition of the symbol, the location of the symbol, and any
 /// recorded references.
 struct TableGenIndexSymbol {
-  TableGenIndexSymbol(const llvm::Record *record)
+  TableGenIndexSymbol(const Record *record)
       : definition(record),
-        defLoc(lsp::convertTokenLocToRange(record->getLoc().front())) {}
-  TableGenIndexSymbol(const llvm::RecordVal *value)
-      : definition(value),
-        defLoc(lsp::convertTokenLocToRange(value->getLoc())) {}
+        defLoc(convertTokenLocToRange(record->getLoc().front())) {}
+  TableGenIndexSymbol(const RecordVal *value)
+      : definition(value), defLoc(convertTokenLocToRange(value->getLoc())) {}
+  virtual ~TableGenIndexSymbol() = default;
 
   // The main definition of the symbol.
-  PointerUnion<const llvm::Record *, const llvm::RecordVal *> definition;
+  PointerUnion<const Record *, const RecordVal *> definition;
 
   /// The source location of the definition.
   SMRange defLoc;
@@ -154,35 +166,33 @@ struct TableGenIndexSymbol {
 };
 /// This class represents a single record symbol.
 struct TableGenRecordSymbol : public TableGenIndexSymbol {
-  TableGenRecordSymbol(const llvm::Record *record)
-      : TableGenIndexSymbol(record) {}
+  TableGenRecordSymbol(const Record *record) : TableGenIndexSymbol(record) {}
+  ~TableGenRecordSymbol() override = default;
 
   static bool classof(const TableGenIndexSymbol *symbol) {
-    return symbol->definition.is<const llvm::Record *>();
+    return isa<const Record *>(symbol->definition);
   }
 
   /// Return the value of this symbol.
-  const llvm::Record *getValue() const {
-    return definition.get<const llvm::Record *>();
-  }
+  const Record *getValue() const { return cast<const Record *>(definition); }
 };
 /// This class represents a single record value symbol.
 struct TableGenRecordValSymbol : public TableGenIndexSymbol {
-  TableGenRecordValSymbol(const llvm::Record *record,
-                          const llvm::RecordVal *value)
+  TableGenRecordValSymbol(const Record *record, const RecordVal *value)
       : TableGenIndexSymbol(value), record(record) {}
+  ~TableGenRecordValSymbol() override = default;
 
   static bool classof(const TableGenIndexSymbol *symbol) {
-    return symbol->definition.is<const llvm::RecordVal *>();
+    return isa<const RecordVal *>(symbol->definition);
   }
 
   /// Return the value of this symbol.
-  const llvm::RecordVal *getValue() const {
-    return definition.get<const llvm::RecordVal *>();
+  const RecordVal *getValue() const {
+    return cast<const RecordVal *>(definition);
   }
 
   /// The parent record of this symbol.
-  const llvm::Record *record;
+  const Record *record;
 };
 
 /// This class provides an index for definitions/uses within a TableGen
@@ -193,7 +203,7 @@ public:
   TableGenIndex() : intervalMap(allocator) {}
 
   /// Initialize the index with the given RecordKeeper.
-  void initialize(const llvm::RecordKeeper &records);
+  void initialize(const RecordKeeper &records);
 
   /// Lookup a symbol for the given location. Returns nullptr if no symbol could
   /// be found. If provided, `overlappedRange` is set to the range that the
@@ -211,15 +221,15 @@ private:
       llvm::IntervalMapHalfOpenInfo<const char *>>;
 
   /// Get or insert a symbol for the given record.
-  TableGenIndexSymbol *getOrInsertDef(const llvm::Record *record) {
+  TableGenIndexSymbol *getOrInsertDef(const Record *record) {
     auto it = defToSymbol.try_emplace(record, nullptr);
     if (it.second)
       it.first->second = std::make_unique<TableGenRecordSymbol>(record);
     return &*it.first->second;
   }
   /// Get or insert a symbol for the given record value.
-  TableGenIndexSymbol *getOrInsertDef(const llvm::Record *record,
-                                      const llvm::RecordVal *value) {
+  TableGenIndexSymbol *getOrInsertDef(const Record *record,
+                                      const RecordVal *value) {
     auto it = defToSymbol.try_emplace(value, nullptr);
     if (it.second) {
       it.first->second =
@@ -240,7 +250,10 @@ private:
 };
 } // namespace
 
-void TableGenIndex::initialize(const llvm::RecordKeeper &records) {
+void TableGenIndex::initialize(const RecordKeeper &records) {
+  intervalMap.clear();
+  defToSymbol.clear();
+
   auto insertRef = [&](TableGenIndexSymbol *sym, SMRange refLoc,
                        bool isDef = false) {
     const char *startLoc = refLoc.Start.getPointer();
@@ -249,7 +262,7 @@ void TableGenIndex::initialize(const llvm::RecordKeeper &records) {
     // If the location we got was empty, try to lex a token from the start
     // location.
     if (startLoc == endLoc) {
-      refLoc = lsp::convertTokenLocToRange(SMLoc::getFromPointer(startLoc));
+      refLoc = convertTokenLocToRange(SMLoc::getFromPointer(startLoc));
       startLoc = refLoc.Start.getPointer();
       endLoc = refLoc.End.getPointer();
 
@@ -273,18 +286,18 @@ void TableGenIndex::initialize(const llvm::RecordKeeper &records) {
       llvm::make_pointee_range(llvm::make_second_range(records.getClasses()));
   auto defs =
       llvm::make_pointee_range(llvm::make_second_range(records.getDefs()));
-  for (const llvm::Record &def : llvm::concat<llvm::Record>(classes, defs)) {
+  for (const Record &def : llvm::concat<Record>(classes, defs)) {
     auto *sym = getOrInsertDef(&def);
     insertRef(sym, sym->defLoc, /*isDef=*/true);
 
     // Add references to the definition.
     for (SMLoc loc : def.getLoc().drop_front())
-      insertRef(sym, lsp::convertTokenLocToRange(loc));
+      insertRef(sym, convertTokenLocToRange(loc));
     for (SMRange loc : def.getReferenceLocs())
       insertRef(sym, loc);
 
     // Add definitions for any values.
-    for (const llvm::RecordVal &value : def.getValues()) {
+    for (const RecordVal &value : def.getValues()) {
       auto *sym = getOrInsertDef(&def, &value);
       insertRef(sym, sym->defLoc, /*isDef=*/true);
       for (SMRange refLoc : value.getReferenceLocs())
@@ -314,55 +327,59 @@ namespace {
 /// This class represents a text file containing one or more TableGen documents.
 class TableGenTextFile {
 public:
-  TableGenTextFile(const lsp::URIForFile &uri, StringRef fileContents,
+  TableGenTextFile(const llvm::lsp::URIForFile &uri, StringRef fileContents,
                    int64_t version,
                    const std::vector<std::string> &extraIncludeDirs,
-                   std::vector<lsp::Diagnostic> &diagnostics);
+                   std::vector<llvm::lsp::Diagnostic> &diagnostics);
 
   /// Return the current version of this text file.
   int64_t getVersion() const { return version; }
 
   /// Update the file to the new version using the provided set of content
   /// changes. Returns failure if the update was unsuccessful.
-  LogicalResult update(const lsp::URIForFile &uri, int64_t newVersion,
-                       ArrayRef<lsp::TextDocumentContentChangeEvent> changes,
-                       std::vector<lsp::Diagnostic> &diagnostics);
+  LogicalResult
+  update(const llvm::lsp::URIForFile &uri, int64_t newVersion,
+         ArrayRef<llvm::lsp::TextDocumentContentChangeEvent> changes,
+         std::vector<llvm::lsp::Diagnostic> &diagnostics);
 
   //===--------------------------------------------------------------------===//
   // Definitions and References
   //===--------------------------------------------------------------------===//
 
-  void getLocationsOf(const lsp::URIForFile &uri, const lsp::Position &defPos,
-                      std::vector<lsp::Location> &locations);
-  void findReferencesOf(const lsp::URIForFile &uri, const lsp::Position &pos,
-                        std::vector<lsp::Location> &references);
+  void getLocationsOf(const llvm::lsp::URIForFile &uri,
+                      const llvm::lsp::Position &defPos,
+                      std::vector<llvm::lsp::Location> &locations);
+  void findReferencesOf(const llvm::lsp::URIForFile &uri,
+                        const llvm::lsp::Position &pos,
+                        std::vector<llvm::lsp::Location> &references);
 
   //===--------------------------------------------------------------------===//
   // Document Links
   //===--------------------------------------------------------------------===//
 
-  void getDocumentLinks(const lsp::URIForFile &uri,
-                        std::vector<lsp::DocumentLink> &links);
+  void getDocumentLinks(const llvm::lsp::URIForFile &uri,
+                        std::vector<llvm::lsp::DocumentLink> &links);
 
   //===--------------------------------------------------------------------===//
   // Hover
   //===--------------------------------------------------------------------===//
 
-  Optional<lsp::Hover> findHover(const lsp::URIForFile &uri,
-                                 const lsp::Position &hoverPos);
-  lsp::Hover buildHoverForRecord(const llvm::Record *record,
-                                 const SMRange &hoverRange);
-  lsp::Hover buildHoverForTemplateArg(const llvm::Record *record,
-                                      const llvm::RecordVal *value,
+  std::optional<llvm::lsp::Hover>
+  findHover(const llvm::lsp::URIForFile &uri,
+            const llvm::lsp::Position &hoverPos);
+  llvm::lsp::Hover buildHoverForRecord(const Record *record,
+                                       const SMRange &hoverRange);
+  llvm::lsp::Hover buildHoverForTemplateArg(const Record *record,
+                                            const RecordVal *value,
+                                            const SMRange &hoverRange);
+  llvm::lsp::Hover buildHoverForField(const Record *record,
+                                      const RecordVal *value,
                                       const SMRange &hoverRange);
-  lsp::Hover buildHoverForField(const llvm::Record *record,
-                                const llvm::RecordVal *value,
-                                const SMRange &hoverRange);
 
 private:
   /// Initialize the text file from the given file contents.
-  void initialize(const lsp::URIForFile &uri, int64_t newVersion,
-                  std::vector<lsp::Diagnostic> &diagnostics);
+  void initialize(const llvm::lsp::URIForFile &uri, int64_t newVersion,
+                  std::vector<llvm::lsp::Diagnostic> &diagnostics);
 
   /// The full string contents of the file.
   std::string contents;
@@ -374,10 +391,10 @@ private:
   std::vector<std::string> includeDirs;
 
   /// The source manager containing the contents of the input file.
-  llvm::SourceMgr sourceMgr;
+  SourceMgr sourceMgr;
 
   /// The record keeper containing the parsed tablegen constructs.
-  std::unique_ptr<llvm::RecordKeeper> recordKeeper;
+  std::unique_ptr<RecordKeeper> recordKeeper;
 
   /// The index of the parsed file.
   TableGenIndex index;
@@ -388,27 +405,27 @@ private:
 } // namespace
 
 TableGenTextFile::TableGenTextFile(
-    const lsp::URIForFile &uri, StringRef fileContents, int64_t version,
+    const llvm::lsp::URIForFile &uri, StringRef fileContents, int64_t version,
     const std::vector<std::string> &extraIncludeDirs,
-    std::vector<lsp::Diagnostic> &diagnostics)
+    std::vector<llvm::lsp::Diagnostic> &diagnostics)
     : contents(fileContents.str()), version(version) {
   // Build the set of include directories for this file.
   llvm::SmallString<32> uriDirectory(uri.file());
   llvm::sys::path::remove_filename(uriDirectory);
   includeDirs.push_back(uriDirectory.str().str());
-  includeDirs.insert(includeDirs.end(), extraIncludeDirs.begin(),
-                     extraIncludeDirs.end());
+  llvm::append_range(includeDirs, extraIncludeDirs);
 
   // Initialize the file.
   initialize(uri, version, diagnostics);
 }
 
-LogicalResult
-TableGenTextFile::update(const lsp::URIForFile &uri, int64_t newVersion,
-                         ArrayRef<lsp::TextDocumentContentChangeEvent> changes,
-                         std::vector<lsp::Diagnostic> &diagnostics) {
-  if (failed(lsp::TextDocumentContentChangeEvent::applyTo(changes, contents))) {
-    lsp::Logger::error("Failed to update contents of {0}", uri.file());
+LogicalResult TableGenTextFile::update(
+    const llvm::lsp::URIForFile &uri, int64_t newVersion,
+    ArrayRef<llvm::lsp::TextDocumentContentChangeEvent> changes,
+    std::vector<llvm::lsp::Diagnostic> &diagnostics) {
+  if (failed(llvm::lsp::TextDocumentContentChangeEvent::applyTo(changes,
+                                                                contents))) {
+    llvm::lsp::Logger::error("Failed to update contents of {0}", uri.file());
     return failure();
   }
 
@@ -417,27 +434,29 @@ TableGenTextFile::update(const lsp::URIForFile &uri, int64_t newVersion,
   return success();
 }
 
-void TableGenTextFile::initialize(const lsp::URIForFile &uri,
-                                  int64_t newVersion,
-                                  std::vector<lsp::Diagnostic> &diagnostics) {
+void TableGenTextFile::initialize(
+    const llvm::lsp::URIForFile &uri, int64_t newVersion,
+    std::vector<llvm::lsp::Diagnostic> &diagnostics) {
   version = newVersion;
-  sourceMgr = llvm::SourceMgr();
-  recordKeeper = std::make_unique<llvm::RecordKeeper>();
+  sourceMgr = SourceMgr();
+  recordKeeper = std::make_unique<RecordKeeper>();
 
   // Build a buffer for this file.
   auto memBuffer = llvm::MemoryBuffer::getMemBuffer(contents, uri.file());
   if (!memBuffer) {
-    lsp::Logger::error("Failed to create memory buffer for file", uri.file());
+    llvm::lsp::Logger::error("Failed to create memory buffer for file",
+                             uri.file());
     return;
   }
   sourceMgr.setIncludeDirs(includeDirs);
+  sourceMgr.setVirtualFileSystem(llvm::vfs::getRealFileSystem());
   sourceMgr.AddNewSourceBuffer(std::move(memBuffer), SMLoc());
 
-  // This class provides a context argument for the llvm::SourceMgr diagnostic
+  // This class provides a context argument for the SourceMgr diagnostic
   // handler.
   struct DiagHandlerContext {
-    std::vector<lsp::Diagnostic> &diagnostics;
-    const lsp::URIForFile &uri;
+    std::vector<llvm::lsp::Diagnostic> &diagnostics;
+    const llvm::lsp::URIForFile &uri;
   } handlerContext{diagnostics, uri};
 
   // Set the diagnostic handler for the tablegen source manager.
@@ -463,9 +482,9 @@ void TableGenTextFile::initialize(const lsp::URIForFile &uri,
 // TableGenTextFile: Definitions and References
 //===----------------------------------------------------------------------===//
 
-void TableGenTextFile::getLocationsOf(const lsp::URIForFile &uri,
-                                      const lsp::Position &defPos,
-                                      std::vector<lsp::Location> &locations) {
+void TableGenTextFile::getLocationsOf(
+    const llvm::lsp::URIForFile &uri, const llvm::lsp::Position &defPos,
+    std::vector<llvm::lsp::Location> &locations) {
   SMLoc posLoc = defPos.getAsSMLoc(sourceMgr);
   const TableGenIndexSymbol *symbol = index.lookup(posLoc);
   if (!symbol)
@@ -486,8 +505,8 @@ void TableGenTextFile::getLocationsOf(const lsp::URIForFile &uri,
 }
 
 void TableGenTextFile::findReferencesOf(
-    const lsp::URIForFile &uri, const lsp::Position &pos,
-    std::vector<lsp::Location> &references) {
+    const llvm::lsp::URIForFile &uri, const llvm::lsp::Position &pos,
+    std::vector<llvm::lsp::Location> &references) {
   SMLoc posLoc = pos.getAsSMLoc(sourceMgr);
   const TableGenIndexSymbol *symbol = index.lookup(posLoc);
   if (!symbol)
@@ -502,8 +521,9 @@ void TableGenTextFile::findReferencesOf(
 // TableGenTextFile: Document Links
 //===--------------------------------------------------------------------===//
 
-void TableGenTextFile::getDocumentLinks(const lsp::URIForFile &uri,
-                                        std::vector<lsp::DocumentLink> &links) {
+void TableGenTextFile::getDocumentLinks(
+    const llvm::lsp::URIForFile &uri,
+    std::vector<llvm::lsp::DocumentLink> &links) {
   for (const lsp::SourceMgrInclude &include : parsedIncludes)
     links.emplace_back(include.range, include.uri);
 }
@@ -512,9 +532,9 @@ void TableGenTextFile::getDocumentLinks(const lsp::URIForFile &uri,
 // TableGenTextFile: Hover
 //===----------------------------------------------------------------------===//
 
-Optional<lsp::Hover>
-TableGenTextFile::findHover(const lsp::URIForFile &uri,
-                            const lsp::Position &hoverPos) {
+std::optional<llvm::lsp::Hover>
+TableGenTextFile::findHover(const llvm::lsp::URIForFile &uri,
+                            const llvm::lsp::Position &hoverPos) {
   // Check for a reference to an include.
   for (const lsp::SourceMgrInclude &include : parsedIncludes)
     if (include.range.contains(hoverPos))
@@ -525,7 +545,7 @@ TableGenTextFile::findHover(const lsp::URIForFile &uri,
   SMLoc posLoc = hoverPos.getAsSMLoc(sourceMgr);
   const TableGenIndexSymbol *symbol = index.lookup(posLoc, &hoverRange);
   if (!symbol)
-    return llvm::None;
+    return std::nullopt;
 
   // Build hover for a Record.
   if (auto *record = dyn_cast<TableGenRecordSymbol>(symbol))
@@ -534,15 +554,16 @@ TableGenTextFile::findHover(const lsp::URIForFile &uri,
   // Build hover for a RecordVal, which is either a template argument or a
   // field.
   auto *recordVal = cast<TableGenRecordValSymbol>(symbol);
-  const llvm::RecordVal *value = recordVal->getValue();
+  const RecordVal *value = recordVal->getValue();
   if (value->isTemplateArg())
     return buildHoverForTemplateArg(recordVal->record, value, hoverRange);
   return buildHoverForField(recordVal->record, value, hoverRange);
 }
 
-lsp::Hover TableGenTextFile::buildHoverForRecord(const llvm::Record *record,
-                                                 const SMRange &hoverRange) {
-  lsp::Hover hover(lsp::Range(sourceMgr, hoverRange));
+llvm::lsp::Hover
+TableGenTextFile::buildHoverForRecord(const Record *record,
+                                      const SMRange &hoverRange) {
+  llvm::lsp::Hover hover(llvm::lsp::Range(sourceMgr, hoverRange));
   {
     llvm::raw_string_ostream hoverOS(hover.contents.value);
 
@@ -561,7 +582,7 @@ lsp::Hover TableGenTextFile::buildHoverForRecord(const llvm::Record *record,
     auto printAndFormatField = [&](StringRef fieldName) {
       // Check that the record actually has the given field, and that it's a
       // string.
-      const llvm::RecordVal *value = record->getValue(fieldName);
+      const RecordVal *value = record->getValue(fieldName);
       if (!value || !value->getValue())
         return;
       auto *stringValue = dyn_cast<llvm::StringInit>(value->getValue());
@@ -576,7 +597,7 @@ lsp::Hover TableGenTextFile::buildHoverForRecord(const llvm::Record *record,
     printAndFormatField("description");
 
     // Check for documentation in the source file.
-    if (Optional<std::string> doc =
+    if (std::optional<std::string> doc =
             lsp::extractSourceDocComment(sourceMgr, record->getLoc().front())) {
       hoverOS << "\n" << *doc << "\n";
     }
@@ -584,11 +605,9 @@ lsp::Hover TableGenTextFile::buildHoverForRecord(const llvm::Record *record,
   return hover;
 }
 
-lsp::Hover
-TableGenTextFile::buildHoverForTemplateArg(const llvm::Record *record,
-                                           const llvm::RecordVal *value,
-                                           const SMRange &hoverRange) {
-  lsp::Hover hover(lsp::Range(sourceMgr, hoverRange));
+llvm::lsp::Hover TableGenTextFile::buildHoverForTemplateArg(
+    const Record *record, const RecordVal *value, const SMRange &hoverRange) {
+  llvm::lsp::Hover hover(llvm::lsp::Range(sourceMgr, hoverRange));
   {
     llvm::raw_string_ostream hoverOS(hover.contents.value);
     StringRef name = value->getName().rsplit(':').second;
@@ -600,10 +619,9 @@ TableGenTextFile::buildHoverForTemplateArg(const llvm::Record *record,
   return hover;
 }
 
-lsp::Hover TableGenTextFile::buildHoverForField(const llvm::Record *record,
-                                                const llvm::RecordVal *value,
-                                                const SMRange &hoverRange) {
-  lsp::Hover hover(lsp::Range(sourceMgr, hoverRange));
+llvm::lsp::Hover TableGenTextFile::buildHoverForField(
+    const Record *record, const RecordVal *value, const SMRange &hoverRange) {
+  llvm::lsp::Hover hover(llvm::lsp::Range(sourceMgr, hoverRange));
   {
     llvm::raw_string_ostream hoverOS(hover.contents.value);
     hoverOS << "**field** `" << value->getName() << "`\n***\nType: `";
@@ -611,7 +629,7 @@ lsp::Hover TableGenTextFile::buildHoverForField(const llvm::Record *record,
     hoverOS << "`\n***\n";
 
     // Check for documentation in the source file.
-    if (Optional<std::string> doc =
+    if (std::optional<std::string> doc =
             lsp::extractSourceDocComment(sourceMgr, value->getLoc())) {
       hoverOS << "\n" << *doc << "\n";
       hoverOS << "\n***\n";
@@ -621,7 +639,7 @@ lsp::Hover TableGenTextFile::buildHoverForField(const llvm::Record *record,
     // documentation.
     auto [baseRecord, baseValue] = getBaseValue(record, value);
     if (baseValue) {
-      if (Optional<std::string> doc =
+      if (std::optional<std::string> doc =
               lsp::extractSourceDocComment(sourceMgr, baseValue->getLoc())) {
         hoverOS << "\n *From `" << baseRecord->getName() << "`*:\n\n"
                 << *doc << "\n";
@@ -684,10 +702,11 @@ void lsp::TableGenServer::updateDocument(
     impl->files.erase(it);
 }
 
-Optional<int64_t> lsp::TableGenServer::removeDocument(const URIForFile &uri) {
+std::optional<int64_t>
+lsp::TableGenServer::removeDocument(const URIForFile &uri) {
   auto it = impl->files.find(uri.file());
   if (it == impl->files.end())
-    return llvm::None;
+    return std::nullopt;
 
   int64_t version = it->second->getVersion();
   impl->files.erase(it);
@@ -717,10 +736,11 @@ void lsp::TableGenServer::getDocumentLinks(
     return fileIt->second->getDocumentLinks(uri, documentLinks);
 }
 
-Optional<lsp::Hover> lsp::TableGenServer::findHover(const URIForFile &uri,
-                                                    const Position &hoverPos) {
+std::optional<llvm::lsp::Hover>
+lsp::TableGenServer::findHover(const URIForFile &uri,
+                               const Position &hoverPos) {
   auto fileIt = impl->files.find(uri.file());
   if (fileIt != impl->files.end())
     return fileIt->second->findHover(uri, hoverPos);
-  return llvm::None;
+  return std::nullopt;
 }

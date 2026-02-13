@@ -1,6 +1,6 @@
 const core   = require('@actions/core');
 const github = require('@actions/github');
-const AWS    = require('aws-sdk');
+const { EC2, waitUntilInstanceRunning } = require("@aws-sdk/client-ec2");
 
 // shortcut to reference current repo
 const repo = `${github.context.repo.owner}/${github.context.repo.repo}`;
@@ -35,16 +35,23 @@ let reg_token;
 
 // starts AWS EC2 instance that will spawn Github runner for a given label
 async function start(param_type, param_label, param_ami, param_spot, param_disk, param_timebomb, param_onejob) {
-  const ec2 = new AWS.EC2();
+  const ec2 = new EC2({
+    credentials: {
+      accessKeyId:     core.getInput("AWS_ACCESS_KEY"),
+      secretAccessKey: core.getInput("AWS_SECRET_KEY")
+    },
+
+    region:          core.getInput("aws-region")
+  });
 
   reg_token = reg_token ? reg_token : await getGithubRegToken();
   const ec2types     = typeof param_type     === 'string' ? [ param_type ] : param_type;
   const label        = typeof param_label    === 'string' ? param_label : param_label[0];
   const ec2ami       = typeof param_ami      !== 'undefined' ? param_ami : "ami-0966bccbb521ccb24";
-  const ec2spot      = typeof param_spot     !== 'undefined' ? param_spot : true;
+  const ec2spot      = typeof param_spot     !== 'undefined' ? (param_spot === "false" ? false : true) : true;
   const ec2disk      = typeof param_disk     !== 'undefined' ? param_disk : "/dev/sda1:16";
   const timebomb     = typeof param_timebomb !== 'undefined' ? param_timebomb : "1h";
-  const onejob       = typeof param_onejob   !== 'undefined' ? param_onejob : true;
+  const onejob       = typeof param_onejob   !== 'undefined' ? (param_onejob === "false" ? false : true) : true;
   // ephemeral runner will exit after one job so we will terminate instance sooner
   const ephemeral_str = onejob ? "--ephemeral" : "";
 
@@ -87,7 +94,7 @@ async function start(param_type, param_label, param_ami, param_spot, param_disk,
           const items = ec2disk.split(':');
           params.BlockDeviceMappings = [ {DeviceName: items[0], Ebs: {VolumeSize: items[1]}} ];
         }
-        const result = await ec2.runInstances(params).promise();
+        const result = await ec2.runInstances(params);
         ec2id = result.Instances[0].InstanceId;
         core.info(`Created AWS EC2 ${spot_str} instance ${ec2id} of ${ec2type} type with ${label} label`);
         break;
@@ -107,9 +114,12 @@ async function start(param_type, param_label, param_ami, param_spot, param_disk,
   // wait untill instance will be found running before continuing (spot instance
   // can be created but never run and will be in pending state untill
   // termination)
-  let p = ec2.waitFor("instanceRunning", {
+  let p = waitUntilInstanceRunning({
+    client: ec2,
+    maxWaitTime: 200
+  }, {
     Filters: [ { Name: "tag:Label", Values: [ label ] } ]
-  }).promise();
+  });
   for (let i = 0; i < 2; i++) {
     p = p.catch(function() {
       core.warning(`Error searching for running AWS EC2 instance ${ec2id} with ${label} label. Will retry.`);
@@ -129,7 +139,14 @@ async function start(param_type, param_label, param_ami, param_spot, param_disk,
 async function stop(param_label) {
   // last error that will be thrown in case something will break here
   let last_error;
-  const ec2 = new AWS.EC2();
+  const ec2 = new EC2({
+    credentials: {
+      accessKeyId:     core.getInput("AWS_ACCESS_KEY"),
+      secretAccessKey: core.getInput("AWS_SECRET_KEY")
+    },
+
+    region:          core.getInput("aws-region")
+  });
 
   const label = typeof param_label === 'string' ? param_label : param_label[0];
 
@@ -138,7 +155,7 @@ async function stop(param_label) {
   try {
     instances = await ec2.describeInstances({
       Filters: [ { Name: "tag:Label", Values: [ label ] } ]
-    }).promise();
+    });
     core.info(`Searched for AWS EC2 instance with label ${label}`);
   } catch (error) {
     core.error(`Error searching for AWS EC2 instance with label ${label}: ${error}`);
@@ -150,7 +167,7 @@ async function stop(param_label) {
     for (const reservation of instances.Reservations) {
       for (const instance of reservation.Instances) {
         try {
-          await ec2.terminateInstances({ InstanceIds: [ instance.InstanceId ] }).promise();
+          await ec2.terminateInstances({ InstanceIds: [ instance.InstanceId ] });
           core.info(`Terminated AWS EC2 instance ${instance.InstanceId} with label ${label}`);
         } catch (error) {
           core.error(`Error terminating AWS EC2 instance ${instance.InstanceId} with label ${label}: ${error}`);
@@ -202,12 +219,6 @@ async function stop(param_label) {
 
 (async function() {
   try {
-    // provide AWS credentials
-    AWS.config.update({
-      accessKeyId:     core.getInput("AWS_ACCESS_KEY"),
-      secretAccessKey: core.getInput("AWS_SECRET_KEY"),
-      region:          core.getInput("aws-region")
-    });
     // mode is start or stop
     const mode = core.getInput("mode");
     const runs_on_list = core.getInput("runs-on-list") ? JSON.parse(core.getInput("runs-on-list")) : [];

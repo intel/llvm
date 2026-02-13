@@ -47,7 +47,8 @@ public:
                            const LoadScriptOptions &options,
                            lldb_private::Status &error,
                            StructuredData::ObjectSP *module_sp = nullptr,
-                           FileSpec extra_search_dir = {}) override;
+                           FileSpec extra_search_dir = {},
+                           lldb::TargetSP loaded_into_target_sp = {}) override;
 
   StructuredData::DictionarySP GetInterpreterInfo() override;
 
@@ -88,10 +89,12 @@ public:
                                           CommandReturnObject &result) override;
 
   Status SetBreakpointCommandCallback(BreakpointOptions &bp_options,
-                                      const char *command_body_text) override;
+                                      const char *command_body_text,
+                                      bool is_callback) override;
 
   void SetWatchpointCommandCallback(WatchpointOptions *wp_options,
-                                    const char *command_body_text) override;
+                                    const char *command_body_text,
+                                    bool is_callback) override;
 
   Status SetBreakpointCommandCallbackFunction(
       BreakpointOptions &bp_options, const char *function_name,

@@ -1,29 +1,29 @@
 ; Test the 'call' instruction and the tailcall variant.
 
-; RUN: llc -march=mips   -mcpu=mips32   -relocation-model=pic  -mips-tail-calls=1 < %s | FileCheck %s -check-prefixes=ALL,O32,NOT-R6C
-; RUN: llc -march=mips   -mcpu=mips32r2 -relocation-model=pic  -mips-tail-calls=1 < %s | FileCheck %s -check-prefixes=ALL,O32,NOT-R6C
-; RUN: llc -march=mips   -mcpu=mips32r3 -relocation-model=pic  -mips-tail-calls=1 < %s | FileCheck %s -check-prefixes=ALL,O32,NOT-R6C
-; RUN: llc -march=mips   -mcpu=mips32r5 -relocation-model=pic  -mips-tail-calls=1 < %s | FileCheck %s -check-prefixes=ALL,O32,NOT-R6C
-; RUN: llc -march=mips   -mcpu=mips32r6 -relocation-model=pic -disable-mips-delay-filler  -mips-tail-calls=1 < %s | FileCheck %s -check-prefixes=ALL,O32,R6C
-; RUN: llc -march=mips   -mcpu=mips32r6 -relocation-model=pic -mattr=+fp64,+nooddspreg -disable-mips-delay-filler  -mips-tail-calls=1 < %s | FileCheck %s -check-prefixes=ALL,O32,R6C
-; RUN: llc -march=mips64 -mcpu=mips4    -relocation-model=pic   -mips-tail-calls=1 < %s | FileCheck %s -check-prefixes=ALL,N64,NOT-R6C
-; RUN: llc -march=mips64 -mcpu=mips64   -relocation-model=pic   -mips-tail-calls=1 < %s | FileCheck %s -check-prefixes=ALL,N64,NOT-R6C
-; RUN: llc -march=mips64 -mcpu=mips64r2 -relocation-model=pic   -mips-tail-calls=1 < %s | FileCheck %s -check-prefixes=ALL,N64,NOT-R6C
-; RUN: llc -march=mips64 -mcpu=mips64r3 -relocation-model=pic   -mips-tail-calls=1 < %s | FileCheck %s -check-prefixes=ALL,N64,NOT-R6C
-; RUN: llc -march=mips64 -mcpu=mips64r5 -relocation-model=pic   -mips-tail-calls=1 < %s | FileCheck %s -check-prefixes=ALL,N64,NOT-R6C
-; RUN: llc -march=mips64 -mcpu=mips64r6 -relocation-model=pic  -disable-mips-delay-filler  -mips-tail-calls=1 < %s | FileCheck %s -check-prefixes=ALL,N64,R6C
-; RUN: llc -march=mips   -mcpu=mips32   -relocation-model=pic  -mips-tail-calls=1 < %s | FileCheck %s -check-prefix=ALL -check-prefix=O32 -check-prefix=NOT-R6C
-; RUN: llc -march=mips   -mcpu=mips32r2 -relocation-model=pic  -mips-tail-calls=1 < %s | FileCheck %s -check-prefix=ALL -check-prefix=O32 -check-prefix=NOT-R6C
-; RUN: llc -march=mips   -mcpu=mips32r3 -relocation-model=pic  -mips-tail-calls=1 < %s | FileCheck %s -check-prefix=ALL -check-prefix=O32 -check-prefix=NOT-R6C
-; RUN: llc -march=mips   -mcpu=mips32r5 -relocation-model=pic  -mips-tail-calls=1 < %s | FileCheck %s -check-prefix=ALL -check-prefix=O32 -check-prefix=NOT-R6C
-; RUN: llc -march=mips   -mcpu=mips32r6 -relocation-model=pic -disable-mips-delay-filler  -mips-tail-calls=1 < %s | FileCheck %s -check-prefix=ALL -check-prefix=O32 -check-prefix=R6C
-; RUN: llc -march=mips   -mcpu=mips32r6 -relocation-model=pic -mattr=+fp64,+nooddspreg -disable-mips-delay-filler  -mips-tail-calls=1 < %s | FileCheck %s -check-prefix=ALL -check-prefix=O32 -check-prefix=R6C
-; RUN: llc -march=mips64 -mcpu=mips4    -relocation-model=pic   -mips-tail-calls=1 < %s | FileCheck %s -check-prefix=ALL -check-prefix=N64 -check-prefix=NOT-R6C
-; RUN: llc -march=mips64 -mcpu=mips64   -relocation-model=pic   -mips-tail-calls=1 < %s | FileCheck %s -check-prefix=ALL -check-prefix=N64 -check-prefix=NOT-R6C
-; RUN: llc -march=mips64 -mcpu=mips64r2 -relocation-model=pic   -mips-tail-calls=1 < %s | FileCheck %s -check-prefix=ALL -check-prefix=N64 -check-prefix=NOT-R6C
-; RUN: llc -march=mips64 -mcpu=mips64r3 -relocation-model=pic   -mips-tail-calls=1 < %s | FileCheck %s -check-prefix=ALL -check-prefix=N64 -check-prefix=NOT-R6C
-; RUN: llc -march=mips64 -mcpu=mips64r5 -relocation-model=pic   -mips-tail-calls=1 < %s | FileCheck %s -check-prefix=ALL -check-prefix=N64 -check-prefix=NOT-R6C
-; RUN: llc -march=mips64 -mcpu=mips64r6 -relocation-model=pic  -disable-mips-delay-filler  -mips-tail-calls=1 < %s | FileCheck %s -check-prefix=ALL -check-prefix=N64 -check-prefix=R6C
+; RUN: llc -mtriple=mips   -mcpu=mips32   -relocation-model=pic  -mips-tail-calls=1 < %s | FileCheck %s -check-prefixes=ALL,O32,NOT-R6C
+; RUN: llc -mtriple=mips   -mcpu=mips32r2 -relocation-model=pic  -mips-tail-calls=1 < %s | FileCheck %s -check-prefixes=ALL,O32,NOT-R6C
+; RUN: llc -mtriple=mips   -mcpu=mips32r3 -relocation-model=pic  -mips-tail-calls=1 < %s | FileCheck %s -check-prefixes=ALL,O32,NOT-R6C
+; RUN: llc -mtriple=mips   -mcpu=mips32r5 -relocation-model=pic  -mips-tail-calls=1 < %s | FileCheck %s -check-prefixes=ALL,O32,NOT-R6C
+; RUN: llc -mtriple=mips   -mcpu=mips32r6 -relocation-model=pic -disable-mips-delay-filler  -mips-tail-calls=1 < %s | FileCheck %s -check-prefixes=ALL,O32,R6C
+; RUN: llc -mtriple=mips   -mcpu=mips32r6 -relocation-model=pic -mattr=+fp64,+nooddspreg -disable-mips-delay-filler  -mips-tail-calls=1 < %s | FileCheck %s -check-prefixes=ALL,O32,R6C
+; RUN: llc -mtriple=mips64 -mcpu=mips4    -relocation-model=pic   -mips-tail-calls=1 < %s | FileCheck %s -check-prefixes=ALL,N64,NOT-R6C
+; RUN: llc -mtriple=mips64 -mcpu=mips64   -relocation-model=pic   -mips-tail-calls=1 < %s | FileCheck %s -check-prefixes=ALL,N64,NOT-R6C
+; RUN: llc -mtriple=mips64 -mcpu=mips64r2 -relocation-model=pic   -mips-tail-calls=1 < %s | FileCheck %s -check-prefixes=ALL,N64,NOT-R6C
+; RUN: llc -mtriple=mips64 -mcpu=mips64r3 -relocation-model=pic   -mips-tail-calls=1 < %s | FileCheck %s -check-prefixes=ALL,N64,NOT-R6C
+; RUN: llc -mtriple=mips64 -mcpu=mips64r5 -relocation-model=pic   -mips-tail-calls=1 < %s | FileCheck %s -check-prefixes=ALL,N64,NOT-R6C
+; RUN: llc -mtriple=mips64 -mcpu=mips64r6 -relocation-model=pic  -disable-mips-delay-filler  -mips-tail-calls=1 < %s | FileCheck %s -check-prefixes=ALL,N64,R6C
+; RUN: llc -mtriple=mips   -mcpu=mips32   -relocation-model=pic  -mips-tail-calls=1 < %s | FileCheck %s -check-prefix=ALL -check-prefix=O32 -check-prefix=NOT-R6C
+; RUN: llc -mtriple=mips   -mcpu=mips32r2 -relocation-model=pic  -mips-tail-calls=1 < %s | FileCheck %s -check-prefix=ALL -check-prefix=O32 -check-prefix=NOT-R6C
+; RUN: llc -mtriple=mips   -mcpu=mips32r3 -relocation-model=pic  -mips-tail-calls=1 < %s | FileCheck %s -check-prefix=ALL -check-prefix=O32 -check-prefix=NOT-R6C
+; RUN: llc -mtriple=mips   -mcpu=mips32r5 -relocation-model=pic  -mips-tail-calls=1 < %s | FileCheck %s -check-prefix=ALL -check-prefix=O32 -check-prefix=NOT-R6C
+; RUN: llc -mtriple=mips   -mcpu=mips32r6 -relocation-model=pic -disable-mips-delay-filler  -mips-tail-calls=1 < %s | FileCheck %s -check-prefix=ALL -check-prefix=O32 -check-prefix=R6C
+; RUN: llc -mtriple=mips   -mcpu=mips32r6 -relocation-model=pic -mattr=+fp64,+nooddspreg -disable-mips-delay-filler  -mips-tail-calls=1 < %s | FileCheck %s -check-prefix=ALL -check-prefix=O32 -check-prefix=R6C
+; RUN: llc -mtriple=mips64 -mcpu=mips4    -relocation-model=pic   -mips-tail-calls=1 < %s | FileCheck %s -check-prefix=ALL -check-prefix=N64 -check-prefix=NOT-R6C
+; RUN: llc -mtriple=mips64 -mcpu=mips64   -relocation-model=pic   -mips-tail-calls=1 < %s | FileCheck %s -check-prefix=ALL -check-prefix=N64 -check-prefix=NOT-R6C
+; RUN: llc -mtriple=mips64 -mcpu=mips64r2 -relocation-model=pic   -mips-tail-calls=1 < %s | FileCheck %s -check-prefix=ALL -check-prefix=N64 -check-prefix=NOT-R6C
+; RUN: llc -mtriple=mips64 -mcpu=mips64r3 -relocation-model=pic   -mips-tail-calls=1 < %s | FileCheck %s -check-prefix=ALL -check-prefix=N64 -check-prefix=NOT-R6C
+; RUN: llc -mtriple=mips64 -mcpu=mips64r5 -relocation-model=pic   -mips-tail-calls=1 < %s | FileCheck %s -check-prefix=ALL -check-prefix=N64 -check-prefix=NOT-R6C
+; RUN: llc -mtriple=mips64 -mcpu=mips64r6 -relocation-model=pic  -disable-mips-delay-filler  -mips-tail-calls=1 < %s | FileCheck %s -check-prefix=ALL -check-prefix=N64 -check-prefix=R6C
 
 declare void @extern_void_void()
 declare i32 @extern_i32_void()
@@ -80,7 +80,7 @@ define float @call_float_void() {
   ret float %2
 }
 
-define i32 @indirect_call_void_void(void ()* %addr) {
+define i32 @indirect_call_void_void(ptr %addr) {
 ; ALL-LABEL: indirect_call_void_void:
 
 ; ALL:           move $25, $4
@@ -92,7 +92,7 @@ define i32 @indirect_call_void_void(void ()* %addr) {
   ret i32 0
 }
 
-define i32 @indirect_call_i32_void(i32 ()* %addr) {
+define i32 @indirect_call_i32_void(ptr %addr) {
 ; ALL-LABEL: indirect_call_i32_void:
 
 ; ALL:           move $25, $4
@@ -106,7 +106,7 @@ define i32 @indirect_call_i32_void(i32 ()* %addr) {
   ret i32 %2
 }
 
-define float @indirect_call_float_void(float ()* %addr) {
+define float @indirect_call_float_void(ptr %addr) {
 ; ALL-LABEL: indirect_call_float_void:
 
 ; ALL:           move $25, $4
@@ -122,7 +122,7 @@ define float @indirect_call_float_void(float ()* %addr) {
 
 ; We can't use 'musttail' here because the verifier is too conservative and
 ; prohibits any prototype difference.
-define void @tail_indirect_call_void_void(void ()* %addr) {
+define void @tail_indirect_call_void_void(ptr %addr) {
 ; ALL-LABEL: tail_indirect_call_void_void:
 
 ; ALL:           move $25, $4
@@ -133,7 +133,7 @@ define void @tail_indirect_call_void_void(void ()* %addr) {
   ret void
 }
 
-define i32 @tail_indirect_call_i32_void(i32 ()* %addr) {
+define i32 @tail_indirect_call_i32_void(ptr %addr) {
 ; ALL-LABEL: tail_indirect_call_i32_void:
 
 ; ALL:           move $25, $4
@@ -144,7 +144,7 @@ define i32 @tail_indirect_call_i32_void(i32 ()* %addr) {
   ret i32 %1
 }
 
-define float @tail_indirect_call_float_void(float ()* %addr) {
+define float @tail_indirect_call_float_void(ptr %addr) {
 ; ALL-LABEL: tail_indirect_call_float_void:
 
 ; ALL:           move $25, $4
@@ -181,7 +181,7 @@ define i32 @jal_only_allows_symbols() {
 ; R6C:           jalrc $[[TGT]]
 ; ALL-NOT:       {{jal }}
 
-  call void () inttoptr (i32 1234 to void ()*)()
+  call void () inttoptr (i32 1234 to ptr)()
 ; R6C:           jrc $ra
   ret i32 0
 }

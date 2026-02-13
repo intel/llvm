@@ -7,6 +7,7 @@ static_library("SelectionDAG") {
     "//llvm/lib/MC",
     "//llvm/lib/Support",
     "//llvm/lib/Target",
+    "//llvm/lib/TargetParser",
     "//llvm/lib/Transforms/Utils",
   ]
   sources = [
@@ -22,6 +23,7 @@ static_library("SelectionDAG") {
     "LegalizeVectorOps.cpp",
     "LegalizeVectorTypes.cpp",
     "ResourcePriorityQueue.cpp",
+    "SDNodeInfo.cpp",
     "ScheduleDAGFast.cpp",
     "ScheduleDAGRRList.cpp",
     "ScheduleDAGSDNodes.cpp",

@@ -10,23 +10,22 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/NVGPU/Passes.h"
+#include "mlir/Dialect/NVGPU/Transforms/Passes.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
-#include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/NVGPU/IR/NVGPUDialect.h"
 #include "mlir/Dialect/NVGPU/Transforms/Transforms.h"
+#include "mlir/Dialect/NVGPU/Transforms/Utils.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
-#include "mlir/Support/LogicalResult.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/MathExtras.h"
 
 namespace mlir {
 namespace nvgpu {
 #define GEN_PASS_DEF_OPTIMIZESHAREDMEMORY
-#include "mlir/Dialect/NVGPU/Passes.h.inc"
+#include "mlir/Dialect/NVGPU/Transforms/Passes.h.inc"
 } // namespace nvgpu
 } // namespace mlir
 
@@ -75,27 +74,28 @@ static Value permuteVectorOffset(OpBuilder &b, Location loc,
   int64_t mask = (1LL << (m - n)) - 1;
   if (permuteEveryN > 1)
     mask = mask << llvm::Log2_64(permuteEveryN);
-  Value srcBits = b.create<arith::ConstantIndexOp>(loc, mask);
-  srcBits = b.create<arith::AndIOp>(loc, src, srcBits);
+  Value srcBits = arith::ConstantIndexOp::create(b, loc, mask);
+  srcBits = arith::AndIOp::create(b, loc, src, srcBits);
 
   // Use the src bits to permute the target bits b[N:M] containing the
   // vector offset.
   if (permuteEveryN > 1) {
     int64_t shlBits = n - llvm::Log2_64(permuteEveryN);
     if (shlBits > 0) {
-      Value finalShiftVal = b.create<arith::ConstantIndexOp>(loc, shlBits);
+      Value finalShiftVal = arith::ConstantIndexOp::create(b, loc, shlBits);
       srcBits = b.createOrFold<arith::ShLIOp>(loc, srcBits, finalShiftVal);
     } else if (shlBits < 0) {
-      Value finalShiftVal = b.create<arith::ConstantIndexOp>(loc, -1 * shlBits);
+      Value finalShiftVal =
+          arith::ConstantIndexOp::create(b, loc, -1 * shlBits);
       srcBits = b.createOrFold<arith::ShRUIOp>(loc, srcBits, finalShiftVal);
     }
   } else {
-    Value finalShiftVal = b.create<arith::ConstantIndexOp>(loc, n);
+    Value finalShiftVal = arith::ConstantIndexOp::create(b, loc, n);
     srcBits = b.createOrFold<arith::ShLIOp>(loc, srcBits, finalShiftVal);
   }
 
   Value permutedVectorIdx =
-      b.create<arith::XOrIOp>(loc, indices[tgtDim], srcBits);
+      arith::XOrIOp::create(b, loc, indices[tgtDim], srcBits);
   return permutedVectorIdx;
 }
 
@@ -105,38 +105,6 @@ static void transformIndices(OpBuilder &builder, Location loc,
                              int64_t tgtDim) {
   indices[tgtDim] =
       permuteVectorOffset(builder, loc, indices, memrefTy, srcDim, tgtDim);
-}
-
-Operation::operand_range getIndices(Operation *op) {
-  if (auto ldmatrixOp = dyn_cast<LdMatrixOp>(op))
-    return ldmatrixOp.getIndices();
-  if (auto copyOp = dyn_cast<DeviceAsyncCopyOp>(op))
-    return copyOp.getDstIndices();
-  if (auto loadOp = dyn_cast<memref::LoadOp>(op))
-    return loadOp.getIndices();
-  if (auto storeOp = dyn_cast<memref::StoreOp>(op))
-    return storeOp.getIndices();
-  if (auto vectorReadOp = dyn_cast<vector::LoadOp>(op))
-    return vectorReadOp.getIndices();
-  if (auto vectorStoreOp = dyn_cast<vector::StoreOp>(op))
-    return vectorStoreOp.getIndices();
-  llvm_unreachable("unsupported op type");
-}
-
-void setIndices(Operation *op, ArrayRef<Value> indices) {
-  if (auto ldmatrixOp = dyn_cast<LdMatrixOp>(op))
-    return ldmatrixOp.getIndicesMutable().assign(indices);
-  if (auto copyOp = dyn_cast<DeviceAsyncCopyOp>(op))
-    return copyOp.getDstIndicesMutable().assign(indices);
-  if (auto loadOp = dyn_cast<memref::LoadOp>(op))
-    return loadOp.getIndicesMutable().assign(indices);
-  if (auto storeOp = dyn_cast<memref::StoreOp>(op))
-    return storeOp.getIndicesMutable().assign(indices);
-  if (auto vectorReadOp = dyn_cast<vector::LoadOp>(op))
-    return vectorReadOp.getIndicesMutable().assign(indices);
-  if (auto vectorStoreOp = dyn_cast<vector::StoreOp>(op))
-    return vectorStoreOp.getIndicesMutable().assign(indices);
-  llvm_unreachable("unsupported op type");
 }
 
 /// Return all operations within `parentOp` that read from or write to
@@ -149,7 +117,7 @@ getShmReadAndWriteOps(Operation *parentOp, Value shmMemRef,
     MemoryEffectOpInterface iface = dyn_cast<MemoryEffectOpInterface>(op);
     if (!iface)
       return;
-    Optional<MemoryEffects::EffectInstance> effect =
+    std::optional<MemoryEffects::EffectInstance> effect =
         iface.getEffectOnValue<MemoryEffects::Read>(shmMemRef);
     if (effect) {
       readOps.push_back(op);
@@ -177,12 +145,15 @@ getShmReadAndWriteOps(Operation *parentOp, Value shmMemRef,
   return success();
 }
 
-mlir::LogicalResult
+llvm::LogicalResult
 mlir::nvgpu::optimizeSharedMemoryReadsAndWrites(Operation *parentOp,
                                                 Value memrefValue) {
-  auto memRefType = memrefValue.getType().dyn_cast<MemRefType>();
-  if (!memRefType || memRefType.getMemorySpaceAsInt() !=
-                         gpu::GPUDialect::getWorkgroupAddressSpace())
+  auto memRefType = dyn_cast<MemRefType>(memrefValue.getType());
+  if (!memRefType || !NVGPUDialect::hasSharedMemoryAddressSpace(memRefType))
+    return failure();
+
+  // Not support 0D MemRefs.
+  if (memRefType.getRank() == 0)
     return failure();
 
   // Abort if the given value has any sub-views; we do not do any alias
@@ -258,11 +229,7 @@ public:
     Operation *op = getOperation();
     SmallVector<memref::AllocOp> shmAllocOps;
     op->walk([&](memref::AllocOp allocOp) {
-      if (allocOp.getMemref()
-              .getType()
-              .cast<MemRefType>()
-              .getMemorySpaceAsInt() !=
-          gpu::GPUDialect::getWorkgroupAddressSpace())
+      if (!NVGPUDialect::hasSharedMemoryAddressSpace(allocOp.getType()))
         return;
       shmAllocOps.push_back(allocOp);
     });

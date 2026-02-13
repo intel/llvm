@@ -15,6 +15,7 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
@@ -23,6 +24,7 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/SMLoc.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
@@ -36,6 +38,22 @@
 using namespace llvm;
 
 static const size_t TabStop = 8;
+
+// Out of line to avoid needing definition of vfs::FileSystem in header.
+SourceMgr::SourceMgr() = default;
+SourceMgr::SourceMgr(IntrusiveRefCntPtr<vfs::FileSystem> FS)
+    : FS(std::move(FS)) {}
+SourceMgr::SourceMgr(SourceMgr &&) = default;
+SourceMgr &SourceMgr::operator=(SourceMgr &&) = default;
+SourceMgr::~SourceMgr() = default;
+
+IntrusiveRefCntPtr<vfs::FileSystem> SourceMgr::getVirtualFileSystem() const {
+  return FS;
+}
+
+void SourceMgr::setVirtualFileSystem(IntrusiveRefCntPtr<vfs::FileSystem> FS) {
+  this->FS = std::move(FS);
+}
 
 unsigned SourceMgr::AddIncludeFile(const std::string &Filename,
                                    SMLoc IncludeLoc,
@@ -51,17 +69,23 @@ unsigned SourceMgr::AddIncludeFile(const std::string &Filename,
 ErrorOr<std::unique_ptr<MemoryBuffer>>
 SourceMgr::OpenIncludeFile(const std::string &Filename,
                            std::string &IncludedFile) {
-  IncludedFile = Filename;
-  ErrorOr<std::unique_ptr<MemoryBuffer>> NewBufOrErr =
-      MemoryBuffer::getFile(IncludedFile);
+  auto GetFile = [this](StringRef Path) {
+    return FS ? FS->getBufferForFile(Path) : MemoryBuffer::getFile(Path);
+  };
 
+  ErrorOr<std::unique_ptr<MemoryBuffer>> NewBufOrErr = GetFile(Filename);
+
+  SmallString<64> Buffer(Filename);
   // If the file didn't exist directly, see if it's in an include path.
   for (unsigned i = 0, e = IncludeDirectories.size(); i != e && !NewBufOrErr;
        ++i) {
-    IncludedFile =
-        IncludeDirectories[i] + sys::path::get_separator().data() + Filename;
-    NewBufOrErr = MemoryBuffer::getFile(IncludedFile);
+    Buffer = IncludeDirectories[i];
+    sys::path::append(Buffer, Filename);
+    NewBufOrErr = GetFile(Buffer);
   }
+
+  if (NewBufOrErr)
+    IncludedFile = static_cast<std::string>(Buffer);
 
   return NewBufOrErr;
 }
@@ -113,7 +137,7 @@ unsigned SourceMgr::SrcBuffer::getLineNumberSpecialized(const char *Ptr) const {
   return llvm::lower_bound(Offsets, PtrOffset) - Offsets.begin() + 1;
 }
 
-/// Look up a given \p Ptr in in the buffer, determining which line it came
+/// Look up a given \p Ptr in the buffer, determining which line it came
 /// from.
 unsigned SourceMgr::SrcBuffer::getLineNumber(const char *Ptr) const {
   size_t Sz = Buffer->getBufferSize();
@@ -198,7 +222,7 @@ SourceMgr::getLineAndColumn(SMLoc Loc, unsigned BufferID) const {
   size_t NewlineOffs = StringRef(BufStart, Ptr - BufStart).find_last_of("\n\r");
   if (NewlineOffs == StringRef::npos)
     NewlineOffs = ~(size_t)0;
-  return std::make_pair(LineNo, Ptr - BufStart - NewlineOffs);
+  return {LineNo, Ptr - BufStart - NewlineOffs};
 }
 
 // FIXME: Note that the formatting of source locations is spread between
@@ -378,7 +402,7 @@ SMDiagnostic::SMDiagnostic(const SourceMgr &sm, SMLoc L, StringRef FN, int Line,
                            ArrayRef<SMFixIt> Hints)
     : SM(&sm), Loc(L), Filename(std::string(FN)), LineNo(Line), ColumnNo(Col),
       Kind(Kind), Message(Msg), LineContents(LineStr), Ranges(Ranges.vec()),
-      FixIts(Hints.begin(), Hints.end()) {
+      FixIts(Hints) {
   llvm::sort(FixIts);
 }
 
@@ -478,7 +502,7 @@ static void printSourceLine(raw_ostream &S, StringRef LineContents) {
 static bool isNonASCII(char c) { return c & 0x80; }
 
 void SMDiagnostic::print(const char *ProgName, raw_ostream &OS, bool ShowColors,
-                         bool ShowKindLabel) const {
+                         bool ShowKindLabel, bool ShowLocation) const {
   ColorMode Mode = ShowColors ? ColorMode::Auto : ColorMode::Disable;
 
   {
@@ -487,7 +511,7 @@ void SMDiagnostic::print(const char *ProgName, raw_ostream &OS, bool ShowColors,
     if (ProgName && ProgName[0])
       S << ProgName << ": ";
 
-    if (!Filename.empty()) {
+    if (ShowLocation && !Filename.empty()) {
       if (Filename == "-")
         S << "<stdin>";
       else
@@ -546,9 +570,8 @@ void SMDiagnostic::print(const char *ProgName, raw_ostream &OS, bool ShowColors,
   // Add any fix-its.
   // FIXME: Find the beginning of the line properly for multibyte characters.
   std::string FixItInsertionLine;
-  buildFixItLine(
-      CaretLine, FixItInsertionLine, FixIts,
-      makeArrayRef(Loc.getPointer() - ColumnNo, LineContents.size()));
+  buildFixItLine(CaretLine, FixItInsertionLine, FixIts,
+                 ArrayRef(Loc.getPointer() - ColumnNo, LineContents.size()));
 
   // Finally, plop on the caret.
   if (unsigned(ColumnNo) <= NumColumns)

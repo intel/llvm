@@ -2,7 +2,7 @@
 // RUN: cp %s %t
 // RUN: not %clang_cc1 -fixit %t -x c++ -DFIXIT
 // RUN: %clang_cc1 -fsyntax-only %t -x c++ -DFIXIT
-// RUN: not %clang_cc1 -fsyntax-only -fdiagnostics-parseable-fixits %s 2>&1 | FileCheck %s -strict-whitespace
+// RUN: not %clang_cc1 -fsyntax-only -fdiagnostics-parseable-fixits -fno-diagnostics-show-line-numbers %s 2>&1 | FileCheck %s -strict-whitespace
 
 void test1() {
   int a[] = {0,1,1,2,3};
@@ -33,7 +33,7 @@ void test2() {
   int [3] (*a) = 0;
   // expected-error@-1{{brackets are not allowed here; to declare an array, place the brackets after the name}}
   // CHECK: {{^}}  int [3] (*a) = 0;
-  // CHECK: {{^}}      ~~~~    ^
+  // CHECK: {{^}}      ~~~     ^
   // CHECK: {{^}}              [3]
   // CHECK: fix-it:{{.*}}:{[[@LINE-5]]:7-[[@LINE-5]]:11}:""
   // CHECK: fix-it:{{.*}}:{[[@LINE-6]]:15-[[@LINE-6]]:15}:"[3]"
@@ -67,7 +67,7 @@ struct B { static int (*x)[5]; };
 int [5] *B::x = 0;
 // expected-error@-1{{brackets are not allowed here; to declare an array, place the brackets after the name}}
 // CHECK: {{^}}int [5] *B::x = 0;
-// CHECK: {{^}}    ~~~~     ^
+// CHECK: {{^}}    ~~~      ^
 // CHECK: {{^}}        (    )[5]
 // CHECK: fix-it:{{.*}}:{[[@LINE-5]]:5-[[@LINE-5]]:9}:""
 // CHECK: fix-it:{{.*}}:{[[@LINE-6]]:9-[[@LINE-6]]:9}:"("
@@ -77,7 +77,7 @@ void test3() {
   int [3] *a;
   // expected-error@-1{{brackets are not allowed here; to declare an array, place the brackets after the name}}
   // CHECK: {{^}}  int [3] *a;
-  // CHECK: {{^}}      ~~~~  ^
+  // CHECK: {{^}}      ~~~   ^
   // CHECK: {{^}}          ( )[3]
   // CHECK: fix-it:{{.*}}:{[[@LINE-5]]:7-[[@LINE-5]]:11}:""
   // CHECK: fix-it:{{.*}}:{[[@LINE-6]]:11-[[@LINE-6]]:11}:"("
@@ -90,7 +90,7 @@ void test4() {
   int [2] a;
   // expected-error@-1{{brackets are not allowed here; to declare an array, place the brackets after the name}}
   // CHECK: {{^}}  int [2] a;
-  // CHECK: {{^}}      ~~~~ ^
+  // CHECK: {{^}}      ~~~  ^
   // CHECK: {{^}}           [2]
   // CHECK: fix-it:{{.*}}:{[[@LINE-5]]:7-[[@LINE-5]]:11}:""
   // CHECK: fix-it:{{.*}}:{[[@LINE-6]]:12-[[@LINE-6]]:12}:"[2]"
@@ -98,7 +98,7 @@ void test4() {
   int [2] &b = a;
   // expected-error@-1{{brackets are not allowed here; to declare an array, place the brackets after the name}}
   // CHECK: {{^}}  int [2] &b = a;
-  // CHECK: {{^}}      ~~~~  ^
+  // CHECK: {{^}}      ~~~   ^
   // CHECK: {{^}}          ( )[2]
   // CHECK: fix-it:{{.*}}:{[[@LINE-5]]:7-[[@LINE-5]]:11}:""
   // CHECK: fix-it:{{.*}}:{[[@LINE-6]]:11-[[@LINE-6]]:11}:"("
@@ -130,7 +130,7 @@ struct A {
 int [3] ::test6::A::arr = {1,2,3};
 // expected-error@-1{{brackets are not allowed here; to declare an array, place the brackets after the name}}
 // CHECK: {{^}}int [3] ::test6::A::arr = {1,2,3};
-// CHECK: {{^}}    ~~~~               ^
+// CHECK: {{^}}    ~~~                ^
 // CHECK: {{^}}                       [3]
 // CHECK: fix-it:{{.*}}:{[[@LINE-5]]:5-[[@LINE-5]]:9}:""
 // CHECK: fix-it:{{.*}}:{[[@LINE-6]]:24-[[@LINE-6]]:24}:"[3]"
@@ -143,7 +143,7 @@ void test() {
   int [3] A::*a;
   // expected-error@-1{{brackets are not allowed here; to declare an array, place the brackets after the name}}
   // CHECK: {{^}}  int [3] A::*a;
-  // CHECK: {{^}}      ~~~~     ^
+  // CHECK: {{^}}      ~~~      ^
   // CHECK: {{^}}          (    )[3]
   // CHECK: fix-it:{{.*}}:{[[@LINE-5]]:7-[[@LINE-5]]:11}:""
   // CHECK: fix-it:{{.*}}:{[[@LINE-6]]:11-[[@LINE-6]]:11}:"("
@@ -158,4 +158,53 @@ struct A {
 const char[] A::f = "f";
 // expected-error@-1{{brackets are not allowed here; to declare an array, place the brackets after the name}}
 }
-// CHECK: 15 errors generated.
+
+namespace gh147333 {
+    template<class T, char fmt>
+    constexpr inline auto& to_print_fmt = "";
+    template<> constexpr inline char[] to_print_fmt<unsigned, 'x'> = "0x%x";
+    // expected-error@-1{{brackets are not allowed here; to declare an array, place the brackets after the name}}
+
+#ifndef FIXIT
+    // Further related test cases.
+
+    int[1] operator+();
+    // expected-error@-1{{brackets are not allowed here; to declare an array, place the brackets after the name}}
+    // expected-error@-2{{function cannot return array type}}
+    
+    int[1] operator ""_x(unsigned long long);
+    // expected-error@-1{{brackets are not allowed here; to declare an array, place the brackets after the name}}
+    // expected-error@-2{{function cannot return array type}}
+       
+    struct A {
+        int[1] operator int();
+        // expected-error@-1{{brackets are not allowed here; to declare an array, place the brackets after the name}}
+        // TODO: The following is too noisy and redundant.
+        // expected-error@-3{{conversion function cannot have a return type}}
+        // expected-error@-4{{cannot specify any part of a return type in the declaration of a conversion function}}
+        // expected-error@-5{{conversion function cannot convert to an array type}}
+
+        int[1] A();
+        // expected-error@-1{{brackets are not allowed here; to declare an array, place the brackets after the name}}
+        // TODO: The following is too noisy and redundant.
+        // expected-error@-3{{function cannot return array type}}
+        // expected-error@-4{{constructor cannot have a return type}}
+        
+        int[1] ~A();
+        // expected-error@-1{{brackets are not allowed here; to declare an array, place the brackets after the name}}
+        // TODO: This isn't helpful.
+        // expected-error@-3{{array has incomplete element type 'void'}}
+    };
+    
+    template<typename T>
+    struct B {
+        int[1] B<T>();
+        // expected-error@-1{{brackets are not allowed here; to declare an array, place the brackets after the name}}
+        // TODO: The following is too noisy and redundant.
+        // expected-error@-3{{function cannot return array type}}
+        // expected-error@-4{{constructor cannot have a return type}}
+    };
+#endif
+}
+
+// CHECK: 32 errors generated.

@@ -1,8 +1,9 @@
 set(LLVM_LINK_COMPONENTS
   MC
   MCA
-  Object
+  Passes
   Support
+  TargetParser
   )
 
 set(mca_root ${LLVM_MAIN_SRC_DIR}/tools/llvm-mca)
@@ -48,5 +49,3 @@ include_directories(${mca_includes})
 add_llvm_target_unittest(LLVMMCATests
   ${mca_sources}
   )
-
-set_property(TARGET LLVMMCATests PROPERTY FOLDER "Tests/UnitTests/ToolTests")

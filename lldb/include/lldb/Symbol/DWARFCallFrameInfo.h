@@ -11,6 +11,7 @@
 
 #include <map>
 #include <mutex>
+#include <optional>
 
 #include "lldb/Core/AddressRange.h"
 #include "lldb/Core/dwarf.h"
@@ -46,12 +47,15 @@ public:
   /// Return an UnwindPlan based on the call frame information encoded in the
   /// FDE of this DWARFCallFrameInfo section. The returned plan will be valid
   /// (at least) for the given address.
-  bool GetUnwindPlan(const Address &addr, UnwindPlan &unwind_plan);
+  std::unique_ptr<UnwindPlan> GetUnwindPlan(const Address &addr);
 
   /// Return an UnwindPlan based on the call frame information encoded in the
   /// FDE of this DWARFCallFrameInfo section. The returned plan will be valid
-  /// (at least) for some address in the given range.
-  bool GetUnwindPlan(const AddressRange &range, UnwindPlan &unwind_plan);
+  /// (at least) for some address in the given ranges. If no unwind information
+  /// is found, nullptr is returned. \a addr represents the entry point of the
+  /// function. It corresponds to the offset zero in the returned UnwindPlan.
+  std::unique_ptr<UnwindPlan> GetUnwindPlan(llvm::ArrayRef<AddressRange> ranges,
+                                            const Address &addr);
 
   typedef RangeVector<lldb::addr_t, uint32_t> FunctionAddressAndSizeVector;
 
@@ -122,13 +126,19 @@ private:
 
   bool IsEHFrame() const;
 
-  llvm::Optional<FDEEntryMap::Entry>
+  std::optional<FDEEntryMap::Entry>
   GetFirstFDEEntryInRange(const AddressRange &range);
 
   void GetFDEIndex();
 
-  bool FDEToUnwindPlan(uint32_t offset, Address startaddr,
-                       UnwindPlan &unwind_plan);
+  /// Parsed representation of a Frame Descriptor Entry.
+  struct FDE {
+    AddressRange range;
+    bool for_signal_trap = false;
+    uint32_t return_addr_reg_num = LLDB_INVALID_REGNUM;
+    std::vector<UnwindPlan::Row> rows;
+  };
+  std::optional<FDE> ParseFDE(dw_offset_t offset, const Address &startaddr);
 
   const CIE *GetCIE(dw_offset_t cie_offset);
 
@@ -158,7 +168,7 @@ private:
   Type m_type;
 
   CIESP
-  ParseCIE(const uint32_t cie_offset);
+  ParseCIE(const dw_offset_t cie_offset);
 
   lldb::RegisterKind GetRegisterKind() const {
     return m_type == EH ? lldb::eRegisterKindEHFrame : lldb::eRegisterKindDWARF;

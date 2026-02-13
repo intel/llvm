@@ -1,8 +1,9 @@
-; RUN: llvm-as < %s | llvm-dis | grep "align 1024"
+; RUN: llvm-as < %s | llvm-dis | FileCheck %s
 ; RUN: verify-uselistorder %s
 
-define void @test(i32* %arg) {
+; CHECK: align 1024
+define void @test(ptr %arg) {
 entry:
-        store i32 0, i32* %arg, align 1024
+        store i32 0, ptr %arg, align 1024
         ret void
 }

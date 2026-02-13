@@ -8,39 +8,36 @@
 
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
-#include <helpers/PiMock.hpp>
+#include "ur_mock_helpers.hpp"
+#include <helpers/UrMock.hpp>
 
 #include <iostream>
 
 using namespace sycl;
 
-pi_result redefinePiEnqueueEventsWaitWithBarrier(pi_queue Queue,
-                                                 pi_uint32 NumEventsInWaitList,
-                                                 const pi_event *EventWaitList,
-                                                 pi_event *Event) {
+ur_result_t redefineEnqueueEventsWaitWithBarrierExt(void *pParams) {
+  auto params =
+      *static_cast<ur_enqueue_events_wait_with_barrier_ext_params_t *>(pParams);
 
-  for (pi_uint32 i = 0; i != NumEventsInWaitList; ++i)
-    EXPECT_NE(EventWaitList[i], nullptr);
+  for (uint32_t i = 0; i != *params.pnumEventsInWaitList; ++i)
+    EXPECT_NE((*params.pphEventWaitList)[i], nullptr);
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 // Hack that allows to return a context in redefinePiEventGetInfo
-RT::PiContext queue_global_context = nullptr;
+ur_context_handle_t queue_global_context = nullptr;
 
-pi_result redefinePiEventGetInfo(pi_event, pi_event_info, size_t,
-                                 void *param_value, size_t *) {
-  *reinterpret_cast<RT::PiContext *>(param_value) = queue_global_context;
-  return PI_SUCCESS;
+ur_result_t redefineUrEventGetInfo(void *pParams) {
+  auto params = *static_cast<ur_event_get_info_params_t *>(pParams);
+  *reinterpret_cast<ur_context_handle_t *>(*params.ppPropValue) =
+      queue_global_context;
+  return UR_RESULT_SUCCESS;
 }
-
-pi_result redefinePiEventRetain(pi_event) { return PI_SUCCESS; }
-
-pi_result redefinePiEventRelease(pi_event) { return PI_SUCCESS; }
 
 //
 // This test checks a handling of empty events in WaitWithBarrier command.
-// Original reproducer for l0 plugin led to segfault(nullptr dereference):
+// Original reproducer for l0 adapter led to segfault(nullptr dereference):
 //
 // #include <sycl/sycl.hpp>
 // int main() {
@@ -50,25 +47,28 @@ pi_result redefinePiEventRelease(pi_event) { return PI_SUCCESS; }
 // }
 //
 TEST_F(SchedulerTest, WaitEmptyEventWithBarrier) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
 
-  Mock.redefine<detail::PiApiKind::piEnqueueEventsWaitWithBarrier>(
-      redefinePiEnqueueEventsWaitWithBarrier);
+  mock::getCallbacks().set_before_callback(
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefineEnqueueEventsWaitWithBarrierExt);
 
   queue Queue{Plt.get_devices()[0]};
-  sycl::detail::QueueImplPtr QueueImpl = detail::getSyclObjImpl(Queue);
+  detail::queue_impl &QueueImpl = *detail::getSyclObjImpl(Queue);
 
   queue_global_context =
       detail::getSyclObjImpl(Queue.get_context())->getHandleRef();
 
-  Mock.redefine<detail::PiApiKind::piEventGetInfo>(redefinePiEventGetInfo);
-  Mock.redefine<detail::PiApiKind::piEventRetain>(redefinePiEventRetain);
-  Mock.redefine<detail::PiApiKind::piEventRelease>(redefinePiEventRelease);
+  mock::getCallbacks().set_before_callback("urEventGetInfo",
+                                           &redefineUrEventGetInfo);
 
-  auto EmptyEvent = std::make_shared<detail::event_impl>();
-  auto Event = std::make_shared<detail::event_impl>(
-      reinterpret_cast<RT::PiEvent>(0x01), Queue.get_context());
+  auto EmptyEvent = detail::event_impl::create_completed_host_event();
+
+  ur_event_handle_t UREvent = mock::createDummyHandle<ur_event_handle_t>();
+
+  auto Event =
+      detail::event_impl::create_from_handle(UREvent, Queue.get_context());
 
   using EventList = std::vector<detail::EventImplPtr>;
   std::vector<EventList> InputEventWaitLists = {
@@ -77,9 +77,11 @@ TEST_F(SchedulerTest, WaitEmptyEventWithBarrier) {
   MockScheduler MS;
 
   for (auto &Arg : InputEventWaitLists) {
-    std::unique_ptr<detail::CG> CommandGroup(
-        new detail::CGBarrier(std::move(Arg), {}, {}, {}, {}, {},
-                              detail::CG::CGTYPE::BarrierWaitlist, {}));
-    MS.Scheduler::addCG(std::move(CommandGroup), QueueImpl);
+    std::unique_ptr<detail::CG> CommandGroup(new detail::CGBarrier(
+        std::move(Arg), ext::oneapi::experimental::event_mode_enum::none,
+        detail::CG::StorageInitHelper({}, {}, {}, {}, {}),
+        detail::CGType::BarrierWaitlist, {}));
+    MS.Scheduler::addCG(std::move(CommandGroup), QueueImpl,
+                        /*EventNeeded=*/true);
   }
 }

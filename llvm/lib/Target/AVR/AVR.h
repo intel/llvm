@@ -23,16 +23,18 @@ namespace llvm {
 
 class AVRTargetMachine;
 class FunctionPass;
+class PassRegistry;
 
 Pass *createAVRShiftExpandPass();
-FunctionPass *createAVRISelDag(AVRTargetMachine &TM,
-                               CodeGenOpt::Level OptLevel);
+FunctionPass *createAVRISelDag(AVRTargetMachine &TM, CodeGenOptLevel OptLevel);
 FunctionPass *createAVRExpandPseudoPass();
 FunctionPass *createAVRFrameAnalyzerPass();
 FunctionPass *createAVRBranchSelectionPass();
 
-void initializeAVRShiftExpandPass(PassRegistry &);
+void initializeAVRAsmPrinterPass(PassRegistry &);
+void initializeAVRDAGToDAGISelLegacyPass(PassRegistry &);
 void initializeAVRExpandPseudoPass(PassRegistry &);
+void initializeAVRShiftExpandPass(PassRegistry &);
 
 /// Contains the AVR backend.
 namespace AVR {

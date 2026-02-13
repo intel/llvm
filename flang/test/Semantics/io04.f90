@@ -2,7 +2,8 @@
   character(kind=1,len=50) internal_file
   character(kind=1,len=100) msg
   character(20) sign
-  character, parameter :: const_internal_file = "(I6)"
+  character, parameter :: const_internal_file*(*) = "(I6)"
+  character(kind=1,len=50) internal_fileA(20)
   integer*1 stat1, id1
   integer*2 stat2
   integer*4 stat4
@@ -12,6 +13,8 @@
   integer, pointer :: a(:)
   integer, parameter :: const_id = 66666
   procedure(), pointer :: procptr
+  external external
+  intrinsic acos
 
   namelist /nnn/ nn1, nn2
 
@@ -32,6 +35,7 @@
   write(unit=10) 'Ok'
   write(*, nnn)
   write(10, nnn)
+  !ERROR: If UNIT=internal-file appears, FMT or NML must also appear
   write(internal_file)
   write(internal_file, *)
   write(internal_file, fmt=*)
@@ -53,7 +57,7 @@
   allocate(a(8), stat=stat8)
 
   !ERROR: Duplicate UNIT specifier
-  write(internal_file, unit=*)
+  write(internal_file, unit=*, fmt=*)
 
   !ERROR: WRITE statement must have a UNIT specifier
   write(nml=nnn)
@@ -69,7 +73,8 @@
   !ERROR: If NML appears, a data list must not appear
   write(10, nnn, rec=40, fmt=1) 'Ok'
 
-  !ERROR: Internal file variable 'const_internal_file' must be definable
+  !ERROR: Internal file variable 'const_internal_file' is not definable
+  !BECAUSE: '"(I6)"' is not a variable or pointer
   write(const_internal_file, fmt=*)
 
   !ERROR: If UNIT=* appears, POS must not appear
@@ -81,13 +86,14 @@
   !ERROR: If UNIT=internal-file appears, POS must not appear
   write(internal_file, err=9, pos=n, nml=nnn)
 
+  !ERROR: If UNIT=internal-file appears, FMT or NML must also appear
   !ERROR: If UNIT=internal-file appears, REC must not appear
   write(internal_file, rec=n, err=9)
 
   !ERROR: If UNIT=* appears, REC must not appear
   write(*, rec=13) 'Ok'
 
-  !ERROR: Must have INTEGER type, but is REAL(4)
+  !ERROR: I/O unit must be a character variable or a scalar integer expression
   write(unit, *) 'Ok'
 
   !ERROR: If ADVANCE appears, UNIT=internal-file must not appear
@@ -103,7 +109,7 @@
   write(*, asynchronous='yes')
 
   !ERROR: If ASYNCHRONOUS='YES' appears, UNIT=number must also appear
-  write(internal_file, asynchronous='yes')
+  write(internal_file, *, asynchronous='yes')
 
   !ERROR: If ID appears, ASYNCHRONOUS='YES' must also appear
   write(10, *, id=id) "Ok"
@@ -127,13 +133,35 @@
   !ERROR: ID kind (1) is smaller than default INTEGER kind (4)
   write(id=id1, unit=10, asynchronous='Yes') 'Ok'
 
-  !ERROR: ID variable 'const_id' must be definable
+  !ERROR: ID variable 'const_id' is not definable
+  !BECAUSE: '66666_4' is not a variable or pointer
   write(10, *, asynchronous='yes', id=const_id, iostat=stat2) 'Ok'
 
   write(*, '(X)')
 
-  !ERROR: Output item must not be a procedure pointer
-  print*, n1, procptr, n2
+  !ERROR: I/O unit must be a character variable or a scalar integer expression, but is an expression of type CHARACTER(1)
+  write((msg), *)
+  !ERROR: I/O unit must be a character variable or a scalar integer expression, but is an expression of type CHARACTER(KIND=1,LEN=8_8)
+  write("a string", *)
+  !ERROR: I/O unit must be a character variable or a scalar integer expression, but is an expression of type CHARACTER(1)
+  write(msg//msg, *)
+  !ERROR: I/O unit must be a character variable or a scalar integer expression, but is an expression of type LOGICAL(4)
+  write(.true., *)
+  !ERROR: I/O unit must be a character variable or a scalar integer expression, but is an expression of type REAL(4)
+  write(1.0, *)
+  write(internal_fileA, *)
+  !ERROR: I/O unit must be a character variable or a scalar integer expression, but is an expression of type CHARACTER(1)
+  write((internal_fileA), *)
+  !ERROR: I/O unit number must be scalar
+  write([1,2,3], *)
+
+
+  !ERROR: Output item must not be a procedure
+  print*, procptr
+  !ERROR: Output item must not be a procedure
+  print*, acos
+  !ERROR: Output item must not be a procedure
+  print*, external
 
 1 format (A)
 9 continue

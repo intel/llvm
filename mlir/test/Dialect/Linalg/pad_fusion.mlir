@@ -9,7 +9,7 @@ func.func @dynamic_pad_fusion(%arg0 : tensor<?x?xf32>, %arg1 : index, %arg2 : in
   %init = tensor.empty(%d0, %d1) : tensor<?x?xf32>
   %0 = linalg.generic {
     indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>],
-    iterator_types = ["parallel", "parallel"]} 
+    iterator_types = ["parallel", "parallel"]}
     ins(%arg0 : tensor<?x?xf32>) outs(%init : tensor<?x?xf32>) {
     ^bb0(%arg6 : f32, %arg7 : f32):
       %1 = arith.mulf %arg6, %arg6 : f32
@@ -22,7 +22,7 @@ func.func @dynamic_pad_fusion(%arg0 : tensor<?x?xf32>, %arg1 : index, %arg2 : in
   return %1 : tensor<?x?xf32>
 }
 
-//  CHECK-DAG: #[[MAP:.+]] = affine_map<()[s0, s1, s2] -> (s2 + s0 + s1)>
+//  CHECK-DAG: #[[MAP:.+]] = affine_map<()[s0, s1, s2] -> (s0 + s1 + s2)>
 //      CHECK: func @dynamic_pad_fusion
 // CHECK-SAME:     %[[ARG0:.+]]: tensor<?x?xf32>
 // CHECK-SAME:     %[[ARG1:[a-zA-Z0-9]+]]: index
@@ -34,10 +34,10 @@ func.func @dynamic_pad_fusion(%arg0 : tensor<?x?xf32>, %arg1 : index, %arg2 : in
 //  CHECK-DAG:   %[[C1:.+]] = arith.constant 1 : index
 //  CHECK-DAG:   %[[SOURCE:.+]] = linalg.generic
 //  CHECK-DAG:   %[[SOURCE_D0:.+]] = tensor.dim %[[SOURCE]], %[[C0]]
-//  CHECK-DAG:   %[[TARGET_D0:.+]] = affine.apply #[[MAP]]()[%[[ARG1]], %[[ARG3]], %[[SOURCE_D0]]]
+//  CHECK-DAG:   %[[TARGET_D0:.+]] = affine.apply #[[MAP]]()[%[[SOURCE_D0]], %[[ARG1]], %[[ARG3]]]
 //  CHECK-DAG:   %[[SOURCE_D1:.+]] = tensor.dim %[[SOURCE]], %[[C1]]
-//  CHECK-DAG:   %[[TARGET_D1:.+]] = affine.apply #[[MAP]]()[%[[ARG2]], %[[ARG4]], %[[SOURCE_D1]]]
-//      CHECK:   %[[INIT:.+]] = tensor.empty(%[[TARGET_D0]], %[[TARGET_D1]]) 
+//  CHECK-DAG:   %[[TARGET_D1:.+]] = affine.apply #[[MAP]]()[%[[SOURCE_D1]], %[[ARG2]], %[[ARG4]]]
+//      CHECK:   %[[INIT:.+]] = tensor.empty(%[[TARGET_D0]], %[[TARGET_D1]])
 //      CHECK:   %[[FILL:.+]] = linalg.fill ins(%[[ARG5]]{{.*}}outs(%[[INIT]]
 //  CHECK-DAG:   %[[SIZE_D0:.+]] = tensor.dim %[[SOURCE]], %[[C0]]
 //  CHECK-DAG:   %[[SIZE_D1:.+]] = tensor.dim %[[SOURCE]], %[[C1]]
@@ -58,7 +58,7 @@ func.func @mixed_pad_fusion(%arg0 : tensor<?x42xf32>, %arg1 : index, %arg2 : ind
   %init = tensor.empty(%d0) : tensor<42x?xf32>
   %0 = linalg.generic {
     indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d1, d0)>],
-    iterator_types = ["parallel", "parallel"]} 
+    iterator_types = ["parallel", "parallel"]}
     ins(%arg0 : tensor<?x42xf32>) outs(%init : tensor<42x?xf32>) {
     ^bb0(%arg4 : f32, %arg5 : f32):
       %1 = arith.mulf %arg4, %arg4 : f32
@@ -70,7 +70,7 @@ func.func @mixed_pad_fusion(%arg0 : tensor<?x42xf32>, %arg1 : index, %arg2 : ind
     } : tensor<42x?xf32> to tensor<49x?xf32>
   return %1 : tensor<49x?xf32>
 }
-//  CHECK-DAG: #[[MAP:.+]] = affine_map<()[s0, s1, s2] -> (s2 + s0 + s1)>
+//  CHECK-DAG: #[[MAP:.+]] = affine_map<()[s0, s1, s2] -> (s0 + s1 + s2)>
 //      CHECK: func @mixed_pad_fusion
 // CHECK-SAME:     %[[ARG0:.+]]: tensor<?x42xf32>
 // CHECK-SAME:     %[[ARG1:[a-zA-Z0-9]+]]: index
@@ -80,7 +80,7 @@ func.func @mixed_pad_fusion(%arg0 : tensor<?x42xf32>, %arg1 : index, %arg2 : ind
 //  CHECK-DAG:   %[[C1:.+]] = arith.constant 1 : index
 //  CHECK-DAG:   %[[SOURCE:.+]] = linalg.generic
 //  CHECK-DAG:   %[[SOURCE_D1:.+]] = tensor.dim %[[SOURCE]], %[[C1]]
-//  CHECK-DAG:   %[[TARGET_D1:.+]] = affine.apply #[[MAP]]()[%[[ARG1]], %[[ARG2]], %[[SOURCE_D1]]]
+//  CHECK-DAG:   %[[TARGET_D1:.+]] = affine.apply #[[MAP]]()[%[[SOURCE_D1]], %[[ARG1]], %[[ARG2]]]
 //      CHECK:   %[[INIT:.+]] = tensor.empty(%[[TARGET_D1]])
 //      CHECK:   %[[FILL:.+]] = linalg.fill ins(%[[ARG3]]{{.*}}outs(%[[INIT]]
 //  CHECK-DAG:   %[[SIZE_D1:.+]] = tensor.dim %[[SOURCE]], %[[C1]]

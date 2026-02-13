@@ -1,12 +1,12 @@
-;RUN: llc < %s -march=r600 -mcpu=cayman -stress-sched -verify-misched -verify-machineinstrs
+;RUN: llc < %s -march=r600 -mcpu=cayman -stress-sched -verify-misched
 ;REQUIRES: asserts
 
 define amdgpu_kernel void @main() {
 main_body:
-  %0 = load <4 x float>, <4 x float> addrspace(8)* getelementptr ([1024 x <4 x float>], [1024 x <4 x float>] addrspace(8)* null, i64 0, i32 2)
+  %0 = load <4 x float>, ptr addrspace(8) getelementptr ([1024 x <4 x float>], ptr addrspace(8) null, i64 0, i32 2)
   %1 = extractelement <4 x float> %0, i32 0
   %2 = fadd float 1.000000e+03, %1
-  %3 = load <4 x float>, <4 x float> addrspace(8)* getelementptr ([1024 x <4 x float>], [1024 x <4 x float>] addrspace(8)* null, i64 0, i32 1)
+  %3 = load <4 x float>, ptr addrspace(8) getelementptr ([1024 x <4 x float>], ptr addrspace(8) null, i64 0, i32 1)
   %4 = extractelement <4 x float> %3, i32 0
   %5 = bitcast float %4 to i32
   %6 = icmp eq i32 %5, 0
@@ -47,7 +47,7 @@ IF:                                               ; preds = %main_body
   br label %ENDIF
 
 ELSE:                                             ; preds = %main_body
-  %36 = load <4 x float>, <4 x float> addrspace(8)* getelementptr ([1024 x <4 x float>], [1024 x <4 x float>] addrspace(8)* null, i64 0, i32 1)
+  %36 = load <4 x float>, ptr addrspace(8) getelementptr ([1024 x <4 x float>], ptr addrspace(8) null, i64 0, i32 1)
   %37 = extractelement <4 x float> %36, i32 0
   %38 = bitcast float %37 to i32
   %39 = icmp eq i32 %38, 1
@@ -62,7 +62,7 @@ ENDIF:                                            ; preds = %IF23, %ELSE, %IF
   %temp5.0 = phi float [ %27, %IF ], [ %60, %IF23 ], [ 0.000000e+00, %ELSE ]
   %temp6.0 = phi float [ %29, %IF ], [ 0.000000e+00, %ELSE ], [ 0.000000e+00, %IF23 ]
   %temp7.0 = phi float [ %35, %IF ], [ 0.000000e+00, %ELSE ], [ 0.000000e+00, %IF23 ]
-  %44 = insertelement <4 x float> undef, float %temp4.0, i32 0
+  %44 = insertelement <4 x float> poison, float %temp4.0, i32 0
   %45 = insertelement <4 x float> %44, float %temp5.0, i32 1
   %46 = insertelement <4 x float> %45, float %temp6.0, i32 2
   %47 = insertelement <4 x float> %46, float %temp7.0, i32 3
@@ -80,7 +80,7 @@ IF23:                                             ; preds = %ELSE
   %.28 = select i1 %54, float 0x36A0000000000000, float 0.000000e+00
   %55 = bitcast float %.28 to i32
   %56 = sitofp i32 %55 to float
-  %57 = load <4 x float>, <4 x float> addrspace(8)* null
+  %57 = load <4 x float>, ptr addrspace(8) null
   %58 = extractelement <4 x float> %57, i32 0
   %59 = fsub float -0.000000e+00, %58
   %60 = fadd float %2, %59

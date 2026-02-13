@@ -1,4 +1,4 @@
-; RUN: llc -march=hexagon -mcpu=hexagonv5 -hexagon-eif=0 -stop-after=if-converter < %s | FileCheck %s
+; RUN: llc -mtriple=hexagon -mcpu=hexagonv5 -hexagon-eif=0 -stop-after=if-converter < %s | FileCheck %s
 ; Check that the edge weights are updated correctly after if-conversion.
 
 ; CHECK: bb.3.if{{[0-9a-zA-Z.]*}}:
@@ -32,8 +32,8 @@ if.end2:
 
 if.end:
   %storemerge = phi i32 [ %and, %if.else ], [ %shl, %if.then ]
-  store i32 %storemerge, i32* @a, align 4
-  %0 = load i32, i32* @d, align 4
+  store i32 %storemerge, ptr @a, align 4
+  %0 = load i32, ptr @d, align 4
   %cmp2 = call i1 @pred()
   br i1 %cmp2, label %if.end2, label %if.else2, !prof !2
 

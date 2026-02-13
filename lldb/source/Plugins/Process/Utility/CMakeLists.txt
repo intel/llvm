@@ -1,3 +1,6 @@
+# TODO: Clean up this directory and its dependencies
+set_property(DIRECTORY PROPERTY LLDB_PLUGIN_KIND ProcessUtility)
+
 add_lldb_library(lldbPluginProcessUtility
   AuxVector.cpp
   FreeBSDSignals.cpp
@@ -8,16 +11,19 @@ add_lldb_library(lldbPluginProcessUtility
   LinuxProcMaps.cpp
   LinuxSignals.cpp
   MemoryTagManagerAArch64MTE.cpp
-  MipsLinuxSignals.cpp
   NativeProcessSoftwareSingleStep.cpp
+  NativeRegisterContextDBReg.cpp
+  NativeRegisterContextDBReg_arm.cpp
   NativeRegisterContextDBReg_arm64.cpp
+  NativeRegisterContextDBReg_loongarch.cpp
   NativeRegisterContextDBReg_x86.cpp
   NativeRegisterContextRegisterInfo.cpp
   NetBSDSignals.cpp
+  OpenBSDSignals.cpp
   RegisterContext_x86.cpp
   RegisterContextDarwin_arm.cpp
   RegisterContextDarwin_arm64.cpp
-  RegisterContextDarwin_i386.cpp
+  RegisterContextDarwin_riscv32.cpp
   RegisterContextDarwin_x86_64.cpp
   RegisterContextDummy.cpp
   RegisterContextFreeBSD_i386.cpp
@@ -29,7 +35,6 @@ add_lldb_library(lldbPluginProcessUtility
   RegisterContextLinux_x86_64.cpp
   RegisterContextLinux_s390x.cpp
   RegisterContextMach_arm.cpp
-  RegisterContextMach_i386.cpp
   RegisterContextMach_x86_64.cpp
   RegisterContextMemory.cpp
   RegisterContextNetBSD_i386.cpp
@@ -38,7 +43,9 @@ add_lldb_library(lldbPluginProcessUtility
   RegisterContextOpenBSD_x86_64.cpp
   RegisterContextPOSIX_arm.cpp
   RegisterContextPOSIX_arm64.cpp
+  RegisterContextPOSIX_loongarch64.cpp
   RegisterContextPOSIX_mips64.cpp
+  RegisterContextPOSIX_riscv32.cpp
   RegisterContextPOSIX_powerpc.cpp
   RegisterContextPOSIX_ppc64le.cpp
   RegisterContextPOSIX_riscv64.cpp
@@ -47,13 +54,20 @@ add_lldb_library(lldbPluginProcessUtility
   RegisterContextThreadMemory.cpp
   RegisterContextWindows_i386.cpp
   RegisterContextWindows_x86_64.cpp
+  RegisterFlagsDetector_arm64.cpp
+  RegisterInfos_x86_64_with_base_shared.cpp
   RegisterInfoPOSIX_arm.cpp
   RegisterInfoPOSIX_arm64.cpp
+  RegisterInfoPOSIX_loongarch64.cpp
   RegisterInfoPOSIX_ppc64le.cpp
+  RegisterInfoPOSIX_riscv32.cpp
   RegisterInfoPOSIX_riscv64.cpp
   StopInfoMachException.cpp
   ThreadMemory.cpp
 
+  LINK_COMPONENTS
+    Support
+    TargetParser
   LINK_LIBS
     lldbBreakpoint
     lldbCore
@@ -63,6 +77,5 @@ add_lldb_library(lldbPluginProcessUtility
     lldbSymbol
     lldbTarget
     lldbUtility
-  LINK_COMPONENTS
-    Support
+    lldbValueObject
   )

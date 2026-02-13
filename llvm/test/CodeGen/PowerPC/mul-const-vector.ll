@@ -252,32 +252,26 @@ define <4 x i32> @test7_v4i32(<4 x i32> %a) {
         ret <4 x i32> %tmp.1
 }
 ; CHECK-LABEL: test7_v4i32:
-; CHECK-DAG: vspltisw v[[REG2:[0-9]+]], -16
-; CHECK-DAG: vspltisw v[[REG3:[0-9]+]], 15
-; CHECK-NEXT: vsubuwm v[[REG4:[0-9]+]], v[[REG3]], v[[REG2]]
+; CHECK: xxleqv v[[REG1:[0-9]+]], v[[REG2:[0-9]+]], v[[REG2]]
 ; CHECK-NOT: vmul
-; CHECK-NEXT: vslw v[[REG5:[0-9]+]], v2, v[[REG4]]
+; CHECK-NEXT: vslw v[[REG3:[0-9]+]], v2, v[[REG1]]
 
 define <4 x i32> @test8_v4i32(<4 x i32> %a) {
         %tmp.1 = mul nsw <4 x i32> %a, <i32 2147483647, i32 2147483647, i32 2147483647, i32 2147483647> ; <<4 x i32>> [#uses=1]
         ret <4 x i32> %tmp.1
 }
 ; CHECK-LABEL: test8_v4i32:
-; CHECK-DAG: vspltisw v[[REG2:[0-9]+]], -16
-; CHECK-DAG: vspltisw v[[REG3:[0-9]+]], 15
-; CHECK-NEXT: vsubuwm v[[REG4:[0-9]+]], v[[REG3]], v[[REG2]]
+; CHECK: xxleqv v[[REG1:[0-9]+]], v[[REG2:[0-9]+]], v[[REG2]]
 ; CHECK-NOT: vmul
-; CHECK-NEXT: vslw v[[REG5:[0-9]+]], v2, v[[REG4]]
-; CHECK-NEXT: vsubuwm v[[REG6:[0-9]+]], v[[REG5]], v2
+; CHECK-NEXT: vslw v[[REG3:[0-9]+]], v2, v[[REG1]]
+; CHECK-NEXT: vsubuwm v[[REG4:[0-9]+]], v[[REG3]], v2
 
 define <2 x i64> @test1_v2i64(<2 x i64> %a) {
         %tmp.1 = mul nsw <2 x i64> %a, <i64 16, i64 16>         ; <<2 x i64>> [#uses=1]
         ret <2 x i64> %tmp.1
 }
 ; CHECK-LABEL: test1_v2i64:
-; CHECK-P8: lxvd2x vs[[REG1:[0-9]+]], 0, r{{[0-9]+}}
-; CHECK-P8-NEXT: xxswapd v[[REG2:[0-9]+]], vs[[REG1]]
-; CHECK-P9: lxv v[[REG2:[0-9]+]], 0(r{{[0-9]+}})
+; CHECK: vupklsw v[[REG1:[0-9]+]], v{{[0-9]+}}
 ; CHECK-NOT: vmul
 ; CHECK-NEXT: vsld v{{[0-9]+}}, v2, v[[REG2]]
 
@@ -287,9 +281,7 @@ define <2 x i64> @test2_v2i64(<2 x i64> %a) {
 }
 
 ; CHECK-LABEL: test2_v2i64:
-; CHECK-P8: lxvd2x vs[[REG1:[0-9]+]], 0, r{{[0-9]+}}
-; CHECK-P8-NEXT: xxswapd v[[REG2:[0-9]+]], vs[[REG1]]
-; CHECK-P9: lxv v[[REG2:[0-9]+]], 0(r{{[0-9]+}})
+; CHECK: vupklsw v[[REG1:[0-9]+]], v{{[0-9]+}}
 ; CHECK-NOT: vmul
 ; CHECK-NEXT: vsld v[[REG3:[0-9]+]], v2, v[[REG2]]
 ; CHECK-NEXT: vaddudm v{{[0-9]+}}, v2, v[[REG3]]
@@ -300,9 +292,7 @@ define <2 x i64> @test3_v2i64(<2 x i64> %a) {
 }
 
 ; CHECK-LABEL: test3_v2i64:
-; CHECK-P8: lxvd2x vs[[REG1:[0-9]+]], 0, r{{[0-9]+}}
-; CHECK-P8-NEXT: xxswapd v[[REG2:[0-9]+]], vs[[REG1]]
-; CHECK-P9: lxv v[[REG2:[0-9]+]], 0(r{{[0-9]+}})
+; CHECK: vupklsw v[[REG1:[0-9]+]], v{{[0-9]+}}
 ; CHECK-NOT: vmul
 ; CHECK-NEXT: vsld v[[REG3:[0-9]+]], v2, v[[REG2]]
 ; CHECK-NEXT: vsubudm v{{[0-9]+}}, v[[REG3]], v2
@@ -315,9 +305,7 @@ define <2 x i64> @test4_v2i64(<2 x i64> %a) {
 }
 
 ; CHECK-LABEL: test4_v2i64:
-; CHECK-P8: lxvd2x vs[[REG1:[0-9]+]], 0, r{{[0-9]+}}
-; CHECK-P8-NEXT: xxswapd v[[REG2:[0-9]+]], vs[[REG1]]
-; CHECK-P9: lxv v[[REG2:[0-9]+]], 0(r{{[0-9]+}})
+; CHECK: vupklsw v[[REG1:[0-9]+]], v{{[0-9]+}}
 ; CHECK-NOT: vmul
 ; CHECK-NEXT: vsld v[[REG3:[0-9]+]], v2, v[[REG2]]
 ; CHECK-P8-NEXT: xxlxor v[[REG4:[0-9]+]],
@@ -330,9 +318,7 @@ define <2 x i64> @test5_v2i64(<2 x i64> %a) {
 }
 
 ; CHECK-LABEL: test5_v2i64:
-; CHECK-P8: lxvd2x vs[[REG1:[0-9]+]], 0, r{{[0-9]+}}
-; CHECK-P8-NEXT: xxswapd v[[REG2:[0-9]+]], vs[[REG1]]
-; CHECK-P9: lxv v[[REG2:[0-9]+]], 0(r{{[0-9]+}})
+; CHECK: vupklsw v[[REG1:[0-9]+]], v{{[0-9]+}}
 ; CHECK-NOT: vmul
 ; CHECK-NEXT: vsld v[[REG3:[0-9]+]], v2, v[[REG2]]
 ; CHECK-NEXT: vaddudm v[[REG4:[0-9]+]], v2, v[[REG3]]
@@ -346,9 +332,7 @@ define <2 x i64> @test6_v2i64(<2 x i64> %a) {
 }
 
 ; CHECK-LABEL: test6_v2i64:
-; CHECK-P8: lxvd2x vs[[REG1:[0-9]+]], 0, r{{[0-9]+}}
-; CHECK-P8-NEXT: xxswapd v[[REG2:[0-9]+]], vs[[REG1]]
-; CHECK-P9: lxv v[[REG2:[0-9]+]], 0(r{{[0-9]+}})
+; CHECK: vupklsw v[[REG1:[0-9]+]], v{{[0-9]+}}
 ; CHECK-NOT: vmul
 ; CHECK-NEXT: vsld v[[REG3:[0-9]+]], v2, v[[REG2]]
 ; CHECK-NEXT: vsubudm v{{[0-9]+}}, v2, v[[REG3]]
@@ -362,9 +346,7 @@ define <2 x i64> @test7_v2i64(<2 x i64> %a) {
 }
 
 ; CHECK-LABEL: test7_v2i64:
-; CHECK-P8: lxvd2x vs[[REG1:[0-9]+]], 0, r{{[0-9]+}}
-; CHECK-P8-NEXT: xxswapd v[[REG2:[0-9]+]], vs[[REG1]]
-; CHECK-P9: lxv v[[REG2:[0-9]+]], 0(r{{[0-9]+}})
+; CHECK: xxleqv v[[REG2:[0-9]+]], v[[REG1:[0-9]+]], v[[REG1]]
 ; CHECK-NOT: vmul
 ; CHECK-NEXT: vsld v[[REG4:[0-9]+]], v2, v[[REG2]]
 
@@ -374,9 +356,7 @@ define <2 x i64> @test8_v2i64(<2 x i64> %a) {
 }
 
 ; CHECK-LABEL: test8_v2i64:
-; CHECK-P8: lxvd2x vs[[REG1:[0-9]+]], 0, r{{[0-9]+}}
-; CHECK-P8-NEXT: xxswapd v[[REG2:[0-9]+]], vs[[REG1]]
-; CHECK-P9: lxv v[[REG2:[0-9]+]], 0(r{{[0-9]+}})
+; CHECK: xxleqv v[[REG2:[0-9]+]], v[[REG1:[0-9]+]], v[[REG1]]
 ; CHECK-NOT: vmul
 ; CHECK-NEXT: vsld v[[REG3:[0-9]+]], v2, v[[REG2]]
 ; CHECK-NEXT: vsubudm v{{[0-9]+}}, v[[REG3]], v2

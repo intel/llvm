@@ -1,7 +1,7 @@
 include_directories(..)
 
 add_custom_target(XRayUnitTests)
-set_target_properties(XRayUnitTests PROPERTIES FOLDER "XRay unittests")
+set_target_properties(XRayUnitTests PROPERTIES FOLDER "Compiler-RT/Tests")
 
 # Sanity check XRAY_ALL_SOURCE_FILES_ABS_PATHS
 list(LENGTH XRAY_ALL_SOURCE_FILES_ABS_PATHS XASFAP_LENGTH)
@@ -34,7 +34,7 @@ function(add_xray_lib library)
   add_library(${library} STATIC ${ARGN})
   set_target_properties(${library} PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    FOLDER "Compiler-RT Runtime tests")
+    FOLDER "Compiler-RT/Tests/Runtime")
 endfunction()
 
 function(get_xray_lib_for_arch arch lib)
@@ -54,24 +54,26 @@ set(XRAY_UNITTEST_LINK_FLAGS
   ${COMPILER_RT_CXX_LINK_LIBS})
 
 if (NOT APPLE)
-  # Needed by LLVMSupport.
-  append_list_if(
-    LLVM_ENABLE_TERMINFO
-    -l${COMPILER_RT_TERMINFO_LIB} XRAY_UNITTEST_LINK_FLAGS)
+  # We add the library directories one at a time in our CFLAGS.
+  foreach (DIR ${LLVM_LIBRARY_DIR})
+    list(APPEND XRAY_UNITTEST_LINK_FLAGS -L${DIR})
+  endforeach()
 
   if (COMPILER_RT_STANDALONE_BUILD)
-    append_list_if(COMPILER_RT_HAS_LLVMXRAY ${LLVM_XRAY_LDFLAGS} XRAY_UNITTEST_LINK_FLAGS)
-    append_list_if(COMPILER_RT_HAS_LLVMXRAY ${LLVM_XRAY_LIBLIST} XRAY_UNITTEST_LINK_FLAGS)
-    append_list_if(COMPILER_RT_HAS_LLVMTESTINGSUPPORT
-      ${LLVM_TESTINGSUPPORT_LDFLAGS} XRAY_UNITTEST_LINK_FLAGS)
-    append_list_if(COMPILER_RT_HAS_LLVMTESTINGSUPPORT
-      ${LLVM_TESTINGSUPPORT_LIBLIST} XRAY_UNITTEST_LINK_FLAGS)
+    if (COMPILER_RT_HAS_LLVMXRAY OR COMPILER_RT_HAS_LLVMTESTINGSUPPORT)
+      if (LLVM_LINK_LLVM_DYLIB)
+        list(APPEND XRAY_UNITTEST_LINK_FLAGS -lLLVM)
+      endif()
+    else()
+      if (COMPILER_RT_HAS_LLVMXRAY)
+        list(APPEND XRAY_UNITTEST_LINK_FLAGS -lLLVMXRay)
+      endif()
+      if (COMPILER_RT_HAS_TESTINGSUPPORT)
+        list(APPEND XRAY_UNITTEST_LINK_FLAGS -lLLVMTestingSupport)
+      endif()
+      list(APPEND XRAY_UNITTEST_LINK_FLAGS -lLLVMSupport -lLLVMDemangle)
+    endif()
   else()
-    # We add the library directories one at a time in our CFLAGS.
-    foreach (DIR ${LLVM_LIBRARY_DIR})
-      list(APPEND XRAY_UNITTEST_LINK_FLAGS -L${DIR})
-    endforeach()
-
     # We also add the actual libraries to link as dependencies.
     list(APPEND XRAY_UNITTEST_LINK_FLAGS -lLLVMXRay -lLLVMSupport -lLLVMDemangle -lLLVMTestingSupport)
   endif()
@@ -102,7 +104,7 @@ macro(add_xray_unittest testname)
         ${XRAY_HEADERS} ${XRAY_ALL_SOURCE_FILES_ABS_PATHS}
         "test_helpers.h"
         RUNTIME "${XRAY_RUNTIME_LIBS}"
-        DEPS llvm_gtest xray llvm-xray LLVMXRay LLVMTestingSupport
+        DEPS xray llvm-xray LLVMXRay LLVMTestingSupport
         CFLAGS ${XRAY_UNITTEST_CFLAGS}
         LINK_FLAGS ${TARGET_LINK_FLAGS} ${XRAY_UNITTEST_LINK_FLAGS}
         )

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 %s -x cl -fdeclare-spirv-builtins -fsyntax-only -emit-llvm -o - -O0 | FileCheck %s
+// RUN: %clang_cc1 %s -x cl -fdeclare-spirv-builtins -emit-llvm -o - -O0 | FileCheck %s
 //
 // Check that SPIR-V builtins are declared with OpenCL address spaces rather
 // than SYCL address spaces when using them with OpenCL. OpenCL address spaces

@@ -14,19 +14,23 @@
 
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/BinaryFormat/MachO.h"
+#include "llvm/Support/Compiler.h"
+#include "llvm/Support/VersionTuple.h"
 
 namespace llvm {
 namespace MachO {
 
 using PlatformSet = SmallSet<PlatformType, 3>;
+using PlatformVersionSet = SmallSet<std::pair<PlatformType, VersionTuple>, 3>;
 
-PlatformType mapToPlatformType(PlatformType Platform, bool WantSim);
-PlatformType mapToPlatformType(const Triple &Target);
-PlatformSet mapToPlatformSet(ArrayRef<Triple> Targets);
-StringRef getPlatformName(PlatformType Platform);
-PlatformType getPlatformFromName(StringRef Name);
-std::string getOSAndEnvironmentName(PlatformType Platform,
-                                    std::string Version = "");
+LLVM_ABI PlatformType mapToPlatformType(PlatformType Platform, bool WantSim);
+LLVM_ABI PlatformType mapToPlatformType(const Triple &Target);
+LLVM_ABI PlatformSet mapToPlatformSet(ArrayRef<Triple> Targets);
+LLVM_ABI StringRef getPlatformName(PlatformType Platform);
+LLVM_ABI PlatformType getPlatformFromName(StringRef Name);
+LLVM_ABI std::string getOSAndEnvironmentName(PlatformType Platform,
+                                             std::string Version = "");
+LLVM_ABI VersionTuple mapToSupportedOSVersion(const Triple &Triple);
 
 } // end namespace MachO.
 } // end namespace llvm.

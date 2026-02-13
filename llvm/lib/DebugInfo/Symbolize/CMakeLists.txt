@@ -10,8 +10,11 @@ add_llvm_component_library(LLVMSymbolize
 
   LINK_COMPONENTS
   DebugInfoDWARF
+  DebugInfoGSYM
   DebugInfoPDB
+  DebugInfoBTF
   Object
   Support
   Demangle
+  TargetParser
   )

@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -no-opaque-pointers -triple arm64-unknown-linux -disable-O0-optnone -emit-llvm -o - %s | opt -S -mem2reg | FileCheck %s --check-prefix=CHECK --check-prefix=CHECK-LINUX
-// RUN: %clang_cc1 -no-opaque-pointers -triple aarch64-windows -disable-O0-optnone -S -emit-llvm -o - %s | opt -S -mem2reg | FileCheck %s --check-prefix=CHECK --check-prefix=CHECK-WIN
-// RUN: %clang_cc1 -no-opaque-pointers -triple arm64_32-apple-ios13 -disable-O0-optnone -emit-llvm -o - %s | opt -S -mem2reg | FileCheck %s
+// RUN: %clang_cc1 -triple arm64-unknown-linux -disable-O0-optnone -emit-llvm -o - %s | opt -S -passes=mem2reg | FileCheck %s --check-prefix=CHECK --check-prefix=CHECK-LINUX
+// RUN: %clang_cc1 -triple aarch64-windows -disable-O0-optnone -emit-llvm -o - %s | opt -S -passes=mem2reg | FileCheck %s --check-prefix=CHECK --check-prefix=CHECK-WIN
+// RUN: %clang_cc1 -triple arm64_32-apple-ios13 -disable-O0-optnone -emit-llvm -o - %s | opt -S -passes=mem2reg | FileCheck %s
 #include <stdint.h>
 
 void f0(void *a, void *b) {
@@ -10,7 +10,7 @@ void f0(void *a, void *b) {
 
 void *tp (void) {
   return __builtin_thread_pointer ();
-// CHECK-LINUX: call {{.*}} @llvm.thread.pointer()
+// CHECK-LINUX: call {{.*}} @llvm.thread.pointer.p0()
 }
 
 // CHECK: call {{.*}} @llvm.bitreverse.i32(i32 %a)
@@ -47,18 +47,71 @@ void barriers(void) {
 
 void prefetch(void) {
   __builtin_arm_prefetch(0, 1, 2, 0, 1); // pstl3keep
-  // CHECK: call {{.*}} @llvm.prefetch.p0i8(i8* null, i32 1, i32 1, i32 1)
+  // CHECK: call {{.*}} @llvm.aarch64.prefetch(ptr null, i32 1, i32 2, i32 0, i32 1)
 
   __builtin_arm_prefetch(0, 0, 0, 1, 1); // pldl1keep
-  // CHECK: call {{.*}} @llvm.prefetch.p0i8(i8* null, i32 0, i32 0, i32 1)
+  // CHECK: call {{.*}} @llvm.aarch64.prefetch(ptr null, i32 0, i32 0, i32 1, i32 1)
 
   __builtin_arm_prefetch(0, 0, 0, 1, 1); // pldl1strm
-  // CHECK: call {{.*}} @llvm.prefetch.p0i8(i8* null, i32 0, i32 0, i32 1)
+  // CHECK: call {{.*}} @llvm.aarch64.prefetch(ptr null, i32 0, i32 0, i32 1, i32 1)
 
   __builtin_arm_prefetch(0, 0, 0, 0, 0); // plil1keep
-  // CHECK: call {{.*}} @llvm.prefetch.p0i8(i8* null, i32 0, i32 3, i32 0)
+  // CHECK: call {{.*}} @llvm.aarch64.prefetch(ptr null, i32 0, i32 0, i32 0, i32 0)
+
+  __builtin_arm_prefetch(0, 0, 3, 0, 1); // pldslckeep
+  // CHECK: call {{.*}} @llvm.aarch64.prefetch(ptr null, i32 0, i32 3, i32 0, i32 1)
 }
 
+void range_prefetch(void) {
+  __builtin_arm_range_prefetch(0, 0, 0, 0); // pldkeep
+  // CHECK: call {{.*}} @llvm.aarch64.range.prefetch(ptr null, i32 0, i32 0, i64 0)
+
+  __builtin_arm_range_prefetch(0, 0, 1, 0); // pldstrm
+  // CHECK: call {{.*}} @llvm.aarch64.range.prefetch(ptr null, i32 0, i32 1, i64 0)
+
+  __builtin_arm_range_prefetch(0, 1, 0, 0); // pstkeep
+  // CHECK: call {{.*}} @llvm.aarch64.range.prefetch(ptr null, i32 1, i32 0, i64 0)
+
+  __builtin_arm_range_prefetch(0, 1, 1, 0); // pststrm
+  // CHECK: call {{.*}} @llvm.aarch64.range.prefetch(ptr null, i32 1, i32 1, i64 0)
+}
+
+void range_prefetch_x(void) {
+  __builtin_arm_range_prefetch_x(0, 0, 0, 0, 1, 0, 0); // pldkeep
+  // CHECK: call {{.*}} @llvm.aarch64.range.prefetch(ptr null, i32 0, i32 0, i64 0)
+  __builtin_arm_range_prefetch_x(0, 0, 1, 0, 1, 0, 0); // pldstrm
+  // CHECK: call {{.*}} @llvm.aarch64.range.prefetch(ptr null, i32 0, i32 1, i64 0)
+  __builtin_arm_range_prefetch_x(0, 1, 0, 0, 1, 0, 0); // pstkeep
+  // CHECK: call {{.*}} @llvm.aarch64.range.prefetch(ptr null, i32 1, i32 0, i64 0)
+  __builtin_arm_range_prefetch_x(0, 1, 1, 0, 1, 0, 0); // pststrm
+  // CHECK: call {{.*}} @llvm.aarch64.range.prefetch(ptr null, i32 1, i32 1, i64 0)
+
+  // Lower limits (length, count & stride)
+  __builtin_arm_range_prefetch_x(0, 0, 0, -2097152, 1, -2097152, 0);
+  // CHECK: call {{.*}} @llvm.aarch64.range.prefetch(ptr null, i32 0, i32 0, i64 576460752305520640)
+
+  // Upper limits (length, count & stride)
+  __builtin_arm_range_prefetch_x(0, 0, 0, 2097151, 65536, 2097151, 0);
+  // CHECK: call {{.*}} @llvm.aarch64.range.prefetch(ptr null, i32 0, i32 0, i64 576460752301326335)
+
+  // Distance less than minumum, round up to first power of two (1111)
+  __builtin_arm_range_prefetch_x(0, 0, 0, 0, 1, 0, 1);
+  // CHECK: call {{.*}} @llvm.aarch64.range.prefetch(ptr null, i32 0, i32 0, i64 -1152921504606846976)
+
+  // Distance 1 over minimum, round up to next power of 2 (1110)
+  __builtin_arm_range_prefetch_x(0, 0, 0, 0, 1, 0, 32769);
+  // CHECK: call {{.*}} @llvm.aarch64.range.prefetch(ptr null, i32 0, i32 0, i64 -2305843009213693952)
+
+  // Distance is a power of two in range (1010)
+  __builtin_arm_range_prefetch_x(0, 0, 0, 0, 1, 0, 1048576);
+  // CHECK: call {{.*}} @llvm.aarch64.range.prefetch(ptr null, i32 0, i32 0, i64 -6917529027641081856)
+
+  // Distance is out of range, set to 0 (0000)
+  __builtin_arm_range_prefetch_x(0, 0, 0, 0, 1, 0, 536870913);
+  // CHECK: call {{.*}} @llvm.aarch64.range.prefetch(ptr null, i32 0, i32 0, i64 0)
+}
+
+__attribute__((target("v8.5a")))
 int32_t jcvt(double v) {
   //CHECK-LABEL: @jcvt(
   //CHECK: call i32 @llvm.aarch64.fjcvtzs
@@ -82,7 +135,7 @@ uint64_t rsr64(void) {
 
 void *rsrp(void) {
   // CHECK: [[V0:[%A-Za-z0-9.]+]] = call i64 @llvm.read_volatile_register.i64(metadata ![[M0:[0-9]]])
-  // CHECK-NEXT: inttoptr i64 [[V0]] to i8*
+  // CHECK-NEXT: inttoptr i64 [[V0]] to ptr
   return __builtin_arm_rsrp("1:2:3:4:5");
 }
 
@@ -102,7 +155,7 @@ void wsr64(uint64_t v) {
 }
 
 void wsrp(void *v) {
-  // CHECK: [[V0:[%A-Za-z0-9.]+]] = ptrtoint i8* %v to i64
+  // CHECK: [[V0:[%A-Za-z0-9.]+]] = ptrtoint ptr %v to i64
   // CHECK-NEXT: call void @llvm.write_register.i64(metadata ![[M0:[0-9]]], i64 [[V0]])
   __builtin_arm_wsrp("1:2:3:4:5", v);
 }
@@ -129,10 +182,11 @@ unsigned int clsll(uint64_t v) {
 // CHECK-NEXT:    [[TMP0:%.*]] = call { i64, i1 } @llvm.aarch64.rndr()
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { i64, i1 } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = extractvalue { i64, i1 } [[TMP0]], 1
-// CHECK-NEXT:    store i64 [[TMP1]], i64* [[__ADDR:%.*]], align 8
+// CHECK-NEXT:    store i64 [[TMP1]], ptr [[__ADDR:%.*]], align 8
 // CHECK-NEXT:    [[TMP3:%.*]] = zext i1 [[TMP2]] to i32
 // CHECK-NEXT:    ret i32 [[TMP3]]
 //
+__attribute__((target("rand")))
 int rndr(uint64_t *__addr) {
   return __builtin_arm_rndr(__addr);
 }
@@ -142,12 +196,19 @@ int rndr(uint64_t *__addr) {
 // CHECK-NEXT:    [[TMP0:%.*]] = call { i64, i1 } @llvm.aarch64.rndrrs()
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { i64, i1 } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = extractvalue { i64, i1 } [[TMP0]], 1
-// CHECK-NEXT:    store i64 [[TMP1]], i64* [[__ADDR:%.*]], align 8
+// CHECK-NEXT:    store i64 [[TMP1]], ptr [[__ADDR:%.*]], align 8
 // CHECK-NEXT:    [[TMP3:%.*]] = zext i1 [[TMP2]] to i32
 // CHECK-NEXT:    ret i32 [[TMP3]]
 //
+__attribute__((target("rand")))
 int rndrrs(uint64_t *__addr) {
   return __builtin_arm_rndrrs(__addr);
+}
+
+// CHECK-LABEL: @trap(
+// CHECK: call void @llvm.aarch64.break(i32 42)
+void trap() {
+  __builtin_arm_trap(42);
 }
 
 // CHECK: ![[M0]] = !{!"1:2:3:4:5"}

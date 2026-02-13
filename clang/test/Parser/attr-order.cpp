@@ -13,12 +13,34 @@ struct [[]] __attribute__((lockable)) [[]] __declspec(dllexport) H {}; // ok
 [[noreturn]] __declspec(dllexport) __attribute__((cdecl)) void b(); // ok
 [[]] [[noreturn]] __attribute__((cdecl)) __declspec(dllexport) void c(); // ok
 
-// [[]] attributes before a declaration must be at the start of the line.
 __declspec(dllexport) [[noreturn]] __attribute__((cdecl)) void d(); // expected-error {{an attribute list cannot appear here}}
 __declspec(dllexport) __attribute__((cdecl)) [[noreturn]] void e(); // expected-error {{an attribute list cannot appear here}}
 __attribute__((cdecl)) __declspec(dllexport) [[noreturn]] void f(); // expected-error {{an attribute list cannot appear here}}
-__attribute__((cdecl)) [[noreturn]] __declspec(dllexport) void g(); // expected-error {{an attribute list cannot appear here}}
+
+__attribute__((cdecl)) [[noreturn]] __declspec(dllexport) void g(); // ok
 
 [[noreturn]] __attribute__((cdecl))
-[[]] // expected-error {{an attribute list cannot appear here}}
+[[]]
 __declspec(dllexport) void h();
+
+template <int a>
+__attribute__((cdecl)) [[noreturn]] __declspec(dllexport) void i(); // ok
+
+template <int a>
+[[]] [[noreturn]] __attribute__((cdecl)) __declspec(dllexport) void j(); // ok
+
+template <int a>
+[[noreturn]] __declspec(dllexport) __attribute__((cdecl)) void k(); // ok
+
+extern "C" {
+  __attribute__ ((__warn_unused_result__)) [[__maybe_unused__]] int l(int); // ok
+  [[__maybe_unused__]] __attribute__ ((__warn_unused_result__)) int m(int); // ok
+}
+
+extern "C" {
+  __attribute__ ((__warn_unused_result__)) [[__maybe_unused__]] int n (int); // ok
+  __attribute__ ((__warn_unused_result__)) [[__maybe_unused__]] static int o (int x) { return x; }; // ok
+}
+
+extern "C" __attribute__ ((__warn_unused_result__)) [[__maybe_unused__]] int p(int); // ok
+extern "C" [[__maybe_unused__]] __attribute__ ((__warn_unused_result__)) int q(int); // ok

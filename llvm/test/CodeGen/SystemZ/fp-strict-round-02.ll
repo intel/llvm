@@ -34,16 +34,16 @@ define double @f2(double %f) #0 {
 
 ; Test rint for f128.
 declare fp128 @llvm.experimental.constrained.rint.f128(fp128, metadata, metadata)
-define void @f3(fp128 *%ptr) #0 {
+define void @f3(ptr %ptr) #0 {
 ; CHECK-LABEL: f3:
 ; CHECK: fixbr %f0, 0, %f0
 ; CHECK: br %r14
-  %src = load fp128, fp128 *%ptr
+  %src = load fp128, ptr %ptr
   %res = call fp128 @llvm.experimental.constrained.rint.f128(
                         fp128 %src,
                         metadata !"round.dynamic",
                         metadata !"fpexcept.strict") #0
-  store fp128 %res, fp128 *%ptr
+  store fp128 %res, ptr %ptr
   ret void
 }
 
@@ -75,16 +75,16 @@ define double @f5(double %f) #0 {
 
 ; Test nearbyint for f128.
 declare fp128 @llvm.experimental.constrained.nearbyint.f128(fp128, metadata, metadata)
-define void @f6(fp128 *%ptr) #0 {
+define void @f6(ptr %ptr) #0 {
 ; CHECK-LABEL: f6:
 ; CHECK: fixbra %f0, 0, %f0, 4
 ; CHECK: br %r14
-  %src = load fp128, fp128 *%ptr
+  %src = load fp128, ptr %ptr
   %res = call fp128 @llvm.experimental.constrained.nearbyint.f128(
                         fp128 %src,
                         metadata !"round.dynamic",
                         metadata !"fpexcept.strict") #0
-  store fp128 %res, fp128 *%ptr
+  store fp128 %res, ptr %ptr
   ret void
 }
 
@@ -114,15 +114,15 @@ define double @f8(double %f) #0 {
 
 ; Test floor for f128.
 declare fp128 @llvm.experimental.constrained.floor.f128(fp128, metadata)
-define void @f9(fp128 *%ptr) #0 {
+define void @f9(ptr %ptr) #0 {
 ; CHECK-LABEL: f9:
 ; CHECK: fixbra %f0, 7, %f0, 4
 ; CHECK: br %r14
-  %src = load fp128, fp128 *%ptr
+  %src = load fp128, ptr %ptr
   %res = call fp128 @llvm.experimental.constrained.floor.f128(
                         fp128 %src,
                         metadata !"fpexcept.strict") #0
-  store fp128 %res, fp128 *%ptr
+  store fp128 %res, ptr %ptr
   ret void
 }
 
@@ -152,16 +152,30 @@ define double @f11(double %f) #0 {
 
 ; Test ceil for f128.
 declare fp128 @llvm.experimental.constrained.ceil.f128(fp128, metadata)
-define void @f12(fp128 *%ptr) #0 {
+define void @f12(ptr %ptr) #0 {
 ; CHECK-LABEL: f12:
 ; CHECK: fixbra %f0, 6, %f0, 4
 ; CHECK: br %r14
-  %src = load fp128, fp128 *%ptr
+  %src = load fp128, ptr %ptr
   %res = call fp128 @llvm.experimental.constrained.ceil.f128(
                         fp128 %src,
                         metadata !"fpexcept.strict") #0
-  store fp128 %res, fp128 *%ptr
+  store fp128 %res, ptr %ptr
   ret void
+}
+
+; Test trunc for f16.
+declare half @llvm.experimental.constrained.trunc.f16(half, metadata)
+define half @f13_half(half %f) #0 {
+; CHECK-LABEL: f13_half:
+; CHECK: brasl %r14, __extendhfsf2@PLT
+; CHECK: fiebra %f0, 5, %f0, 4
+; CHECK: brasl %r14, __truncsfhf2@PLT
+; CHECK: br %r14
+  %res = call half @llvm.experimental.constrained.trunc.f16(
+                        half %f,
+                        metadata !"fpexcept.strict") #0
+  ret half %res
 }
 
 ; Test trunc for f32.
@@ -190,16 +204,30 @@ define double @f14(double %f) #0 {
 
 ; Test trunc for f128.
 declare fp128 @llvm.experimental.constrained.trunc.f128(fp128, metadata)
-define void @f15(fp128 *%ptr) #0 {
+define void @f15(ptr %ptr) #0 {
 ; CHECK-LABEL: f15:
 ; CHECK: fixbra %f0, 5, %f0, 4
 ; CHECK: br %r14
-  %src = load fp128, fp128 *%ptr
+  %src = load fp128, ptr %ptr
   %res = call fp128 @llvm.experimental.constrained.trunc.f128(
                         fp128 %src,
                         metadata !"fpexcept.strict") #0
-  store fp128 %res, fp128 *%ptr
+  store fp128 %res, ptr %ptr
   ret void
+}
+
+; Test round for f16.
+declare half @llvm.experimental.constrained.round.f16(half, metadata)
+define half @f16_half(half %f) #0 {
+; CHECK-LABEL: f16_half:
+; CHECK: brasl %r14, __extendhfsf2@PLT
+; CHECK: fiebra %f0, 1, %f0, 4
+; CHECK: brasl %r14, __truncsfhf2@PLT
+; CHECK: br %r14
+  %res = call half @llvm.experimental.constrained.round.f16(
+                        half %f,
+                        metadata !"fpexcept.strict") #0
+  ret half %res
 }
 
 ; Test round for f32.
@@ -228,15 +256,67 @@ define double @f17(double %f) #0 {
 
 ; Test round for f128.
 declare fp128 @llvm.experimental.constrained.round.f128(fp128, metadata)
-define void @f18(fp128 *%ptr) #0 {
+define void @f18(ptr %ptr) #0 {
 ; CHECK-LABEL: f18:
 ; CHECK: fixbra %f0, 1, %f0, 4
 ; CHECK: br %r14
-  %src = load fp128, fp128 *%ptr
+  %src = load fp128, ptr %ptr
   %res = call fp128 @llvm.experimental.constrained.round.f128(
                         fp128 %src,
                         metadata !"fpexcept.strict") #0
-  store fp128 %res, fp128 *%ptr
+  store fp128 %res, ptr %ptr
+  ret void
+}
+
+; Test roundeven for f16.
+declare half @llvm.experimental.constrained.roundeven.f16(half, metadata)
+define half @f19_half(half %f) #0 {
+; CHECK-LABEL: f19_half:
+; CHECK: brasl %r14, __extendhfsf2@PLT
+; CHECK: fiebra %f0, 4, %f0, 4
+; CHECK: brasl %r14, __truncsfhf2@PLT
+; CHECK: br %r14
+  %res = call half @llvm.experimental.constrained.roundeven.f16(
+                        half %f,
+                        metadata !"fpexcept.strict") #0
+  ret half %res
+}
+
+; Test roundeven for f32.
+declare float @llvm.experimental.constrained.roundeven.f32(float, metadata)
+define float @f19(float %f) #0 {
+; CHECK-LABEL: f19:
+; CHECK: fiebra %f0, 4, %f0, 4
+; CHECK: br %r14
+  %res = call float @llvm.experimental.constrained.roundeven.f32(
+                        float %f,
+                        metadata !"fpexcept.strict") #0
+  ret float %res
+}
+
+; Test roundeven for f64.
+declare double @llvm.experimental.constrained.roundeven.f64(double, metadata)
+define double @f20(double %f) #0 {
+; CHECK-LABEL: f20:
+; CHECK: fidbra %f0, 4, %f0, 4
+; CHECK: br %r14
+  %res = call double @llvm.experimental.constrained.roundeven.f64(
+                        double %f,
+                        metadata !"fpexcept.strict") #0
+  ret double %res
+}
+
+; Test roundeven for f128.
+declare fp128 @llvm.experimental.constrained.roundeven.f128(fp128, metadata)
+define void @f21(ptr %ptr) #0 {
+; CHECK-LABEL: f21:
+; CHECK: fixbra %f0, 4, %f0, 4
+; CHECK: br %r14
+  %src = load fp128, ptr %ptr
+  %res = call fp128 @llvm.experimental.constrained.roundeven.f128(
+                        fp128 %src,
+                        metadata !"fpexcept.strict") #0
+  store fp128 %res, ptr %ptr
   ret void
 }
 

@@ -7,7 +7,10 @@
 # libMLIR.so in some contexts (see unittests/Tablegen, for instance, which
 # has a dependence on MLIRIR, which must depend on libLLVM.so).  This works
 # in this special case because this library is static.
-
+#
+# In order for this arrangement to be sound, it must not depend on libraries
+# that may be transitively included in libMLIR.so or libLLVM.so. Specifically,
+# this means that MLIRSupport (outside of header-only access) cannot be used.
 llvm_add_library(MLIRTableGen STATIC
   Argument.cpp
   Attribute.cpp
@@ -17,6 +20,7 @@ llvm_add_library(MLIRTableGen STATIC
   CodeGenHelpers.cpp
   Constraint.cpp
   Dialect.cpp
+  EnumInfo.cpp
   Format.cpp
   GenInfo.cpp
   Interfaces.cpp
@@ -24,6 +28,7 @@ llvm_add_library(MLIRTableGen STATIC
   Pass.cpp
   Pattern.cpp
   Predicate.cpp
+  Property.cpp
   Region.cpp
   SideEffects.cpp
   Successor.cpp
@@ -34,7 +39,9 @@ llvm_add_library(MLIRTableGen STATIC
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/TableGen
+  ${MLIR_MAIN_INCLUDE_DIR}/mlir/Support
 )
+set_target_properties(MLIRTableGen PROPERTIES FOLDER "MLIR/Tablegenning")
 
 mlir_check_all_link_libraries(MLIRTableGen)
 

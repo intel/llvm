@@ -70,7 +70,7 @@ struct rect windows[] = {
 int windows_size[((sizeof(windows) / sizeof(struct rect)) == 6)? 1 : -1];
 
 struct rect windows_bad[3] = {
-  [2].top_left = { { .x = 1.1 } }, // expected-error{{designator in initializer for scalar type}}
+  [2].top_left = { { .x = 1.1 } }, // expected-error{{initialization of non-aggregate type 'double' with a designated initializer list}}
   [1].top_left = { .x = 1.1 }
 };
 
@@ -368,3 +368,10 @@ struct {
     .b = 0, // expected-warning {{initializer overrides prior initialization of this subobject}}
   },
 };
+
+void gh154046(void) {
+  (void)(const char[]) {
+    [0] = "", // expected-error {{incompatible pointer to integer conversion initializing 'const char' with an expression of type 'char[1]'}}
+    [1] = ""  // expected-error {{incompatible pointer to integer conversion initializing 'const char' with an expression of type 'char[1]'}}
+  }[1];
+}

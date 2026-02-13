@@ -5,12 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
-#define SYCL2020_DISABLE_DEPRECATION_WARNINGS
-
 #include <detail/context_impl.hpp>
 #include <gtest/gtest.h>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
@@ -26,86 +23,40 @@ struct TestCtx {
 
 static std::unique_ptr<TestCtx> TestContext;
 
-static pi_result redefinedKernelGetGroupInfo(pi_kernel kernel, pi_device device,
-                                             pi_kernel_group_info param_name,
-                                             size_t param_value_size,
-                                             void *param_value,
-                                             size_t *param_value_size_ret) {
-  if (param_name == PI_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE) {
+static ur_result_t redefinedKernelGetGroupInfo(void *pParams) {
+  auto params = *static_cast<ur_kernel_get_group_info_params_t *>(pParams);
+  if (*params.ppropName == UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE) {
     TestContext->PrivateMemSizeCalled = true;
   }
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-static pi_result redefinedProgramCreateWithSource(pi_context context,
-                                                  pi_uint32 count,
-                                                  const char **strings,
-                                                  const size_t *lengths,
-                                                  pi_program *ret_program) {
-  return PI_SUCCESS;
-}
-
-static pi_result
-redefinedProgramBuild(pi_program program, pi_uint32 num_devices,
-                      const pi_device *device_list, const char *options,
-                      void (*pfn_notify)(pi_program program, void *user_data),
-                      void *user_data) {
-  return PI_SUCCESS;
-}
-
-static pi_result redefinedKernelCreate(pi_program program,
-                                       const char *kernel_name,
-                                       pi_kernel *ret_kernel) {
-  return PI_SUCCESS;
-}
-
-static pi_result redefinedKernelRetain(pi_kernel kernel) { return PI_SUCCESS; }
-
-static pi_result redefinedKernelRelease(pi_kernel kernel) { return PI_SUCCESS; }
-
-static pi_result redefinedKernelGetInfo(pi_kernel kernel,
-                                        pi_kernel_info param_name,
-                                        size_t param_value_size,
-                                        void *param_value,
-                                        size_t *param_value_size_ret) {
-  EXPECT_EQ(param_name, PI_KERNEL_INFO_CONTEXT)
+static ur_result_t redefinedKernelGetInfo(void *pParams) {
+  auto params = *static_cast<ur_kernel_get_info_params_t *>(pParams);
+  EXPECT_EQ(*params.ppropName, UR_KERNEL_INFO_CONTEXT)
       << "Unexpected kernel info requested";
-  auto *Result = reinterpret_cast<RT::PiContext *>(param_value);
-  RT::PiContext PiCtx =
+  auto *Result = reinterpret_cast<ur_context_handle_t *>(*params.ppPropValue);
+  ur_context_handle_t UrContext =
       detail::getSyclObjImpl(TestContext->Ctx)->getHandleRef();
-  *Result = PiCtx;
-  return PI_SUCCESS;
-}
-
-static pi_result redefinedKernelSetExecInfo(pi_kernel kernel,
-                                            pi_kernel_exec_info param_name,
-                                            size_t param_value_size,
-                                            const void *param_value) {
-  return PI_SUCCESS;
+  *Result = UrContext;
+  return UR_RESULT_SUCCESS;
 }
 
 class KernelInfoTest : public ::testing::Test {
 public:
-  KernelInfoTest() : Mock{}, Plt{Mock.getPlatform()} {}
+  KernelInfoTest() : Mock{}, Plt{sycl::platform()} {}
 
 protected:
   void SetUp() override {
-    Mock.redefine<detail::PiApiKind::piKernelGetGroupInfo>(
-        redefinedKernelGetGroupInfo);
-    Mock.redefine<detail::PiApiKind::piclProgramCreateWithSource>(
-        redefinedProgramCreateWithSource);
-    Mock.redefine<detail::PiApiKind::piProgramBuild>(redefinedProgramBuild);
-    Mock.redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
-    Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
-    Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
-    Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
-    Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
-        redefinedKernelSetExecInfo);
+    mock::getCallbacks().set_before_callback("urKernelGetGroupInfo",
+                                             &redefinedKernelGetGroupInfo);
+    mock::getCallbacks().set_before_callback("urKernelGetInfo",
+                                             &redefinedKernelGetInfo);
   }
 
 protected:
-  unittest::PiMock Mock;
+  unittest::UrMock<> Mock;
   sycl::platform Plt;
 };
 
@@ -122,5 +73,5 @@ TEST_F(KernelInfoTest, DISABLED_GetPrivateMemUsage) {
   //     Ctx.get_devices()[0]);
   EXPECT_EQ(TestContext->PrivateMemSizeCalled, true)
       << "Expect piKernelGetGroupInfo to be "
-      << "called with PI_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE";
+      << "called with UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE";
 }

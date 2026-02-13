@@ -1,4 +1,4 @@
-//===--- NoIntToPtrCheck.cpp - clang-tidy ---------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,14 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "NoIntToPtrCheck.h"
-#include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace performance {
+namespace clang::tidy::performance {
 
 void NoIntToPtrCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(castExpr(hasCastKind(CK_IntegralToPointer),
@@ -29,6 +26,4 @@ void NoIntToPtrCheck::check(const MatchFinder::MatchResult &Result) {
        "integer to pointer cast pessimizes optimization opportunities");
 }
 
-} // namespace performance
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::performance

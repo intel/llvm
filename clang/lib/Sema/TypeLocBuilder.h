@@ -20,7 +20,7 @@
 namespace clang {
 
 class TypeLocBuilder {
-  enum { InlineCapacity = 8 * sizeof(SourceLocation) };
+  static constexpr int InlineCapacity = 8 * sizeof(SourceLocation);
 
   /// The underlying location-data buffer.  Data grows from the end
   /// of the buffer backwards.
@@ -38,7 +38,7 @@ class TypeLocBuilder {
 #endif
 
   /// The inline buffer.
-  enum { BufferMaxAlignment = alignof(void *) };
+  static constexpr int BufferMaxAlignment = alignof(void *);
   alignas(BufferMaxAlignment) char InlineBuffer[InlineCapacity];
   unsigned NumBytesAtAlign4;
   bool AtAlign8;
@@ -53,6 +53,9 @@ public:
       delete[] Buffer;
   }
 
+  TypeLocBuilder(const TypeLocBuilder &) = delete;
+  TypeLocBuilder &operator=(const TypeLocBuilder &) = delete;
+
   /// Ensures that this buffer has at least as much capacity as described.
   void reserve(size_t Requested) {
     if (Requested > Capacity)
@@ -63,6 +66,10 @@ public:
   /// Pushes a copy of the given TypeLoc onto this builder.  The builder
   /// must be empty for this to work.
   void pushFullCopy(TypeLoc L);
+
+  /// Pushes 'T' with all locations pointing to 'Loc'.
+  /// The builder must be empty for this to work.
+  void pushTrivial(ASTContext &Context, QualType T, SourceLocation Loc);
 
   /// Pushes space for a typespec TypeLoc.  Invalidates any TypeLocs
   /// previously retrieved from this builder.
@@ -106,9 +113,9 @@ public:
 #endif
 
     size_t FullDataSize = Capacity - Index;
-    TypeSourceInfo *DI = Context.CreateTypeSourceInfo(T, FullDataSize);
-    memcpy(DI->getTypeLoc().getOpaqueData(), &Buffer[Index], FullDataSize);
-    return DI;
+    TypeSourceInfo *TSI = Context.CreateTypeSourceInfo(T, FullDataSize);
+    memcpy(TSI->getTypeLoc().getOpaqueData(), &Buffer[Index], FullDataSize);
+    return TSI;
   }
 
   /// Copies the type-location information to the given AST context and

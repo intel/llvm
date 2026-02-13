@@ -11,9 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "simple_packed_serialization.h"
+#include "simple_packed_serialization_utils.h"
 #include "gtest/gtest.h"
 
-using namespace __orc_rt;
+using namespace orc_rt;
 
 TEST(SimplePackedSerializationTest, SPSOutputBuffer) {
   constexpr unsigned NumBytes = 8;
@@ -46,25 +47,6 @@ TEST(SimplePackedSerializationTest, SPSInputBuffer) {
   }
 
   EXPECT_FALSE(IB.read(&C, 1));
-}
-
-template <typename SPSTagT, typename T>
-static void blobSerializationRoundTrip(const T &Value) {
-  using BST = SPSSerializationTraits<SPSTagT, T>;
-
-  size_t Size = BST::size(Value);
-  auto Buffer = std::make_unique<char[]>(Size);
-  SPSOutputBuffer OB(Buffer.get(), Size);
-
-  EXPECT_TRUE(BST::serialize(OB, Value));
-
-  SPSInputBuffer IB(Buffer.get(), Size);
-
-  T DSValue;
-  EXPECT_TRUE(BST::deserialize(IB, DSValue));
-
-  EXPECT_EQ(Value, DSValue)
-      << "Incorrect value after serialization/deserialization round-trip";
 }
 
 template <typename T> static void testFixedIntegralTypeSerialization() {
@@ -154,10 +136,25 @@ TEST(SimplePackedSerializationTest, SpanSerialization) {
   EXPECT_EQ(InS.data(), Buffer.get() + sizeof(uint64_t));
 }
 
+TEST(SimplePackedSerializationTest, StdTupleSerialization) {
+  std::tuple<int32_t, std::string, bool> P(42, "foo", true);
+  blobSerializationRoundTrip<SPSTuple<int32_t, SPSString, bool>>(P);
+}
+
 TEST(SimplePackedSerializationTest, StdPairSerialization) {
   std::pair<int32_t, std::string> P(42, "foo");
   blobSerializationRoundTrip<SPSTuple<int32_t, SPSString>,
                              std::pair<int32_t, std::string>>(P);
+}
+
+TEST(SimplePackedSerializationTest, StdOptionalNoValueSerialization) {
+  std::optional<int64_t> NoValue;
+  blobSerializationRoundTrip<SPSOptional<int64_t>>(NoValue);
+}
+
+TEST(SimplePackedSerializationTest, StdOptionalValueSerialization) {
+  std::optional<int64_t> Value(42);
+  blobSerializationRoundTrip<SPSOptional<int64_t>>(Value);
 }
 
 TEST(SimplePackedSerializationTest, ArgListSerialization) {

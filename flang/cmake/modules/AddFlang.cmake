@@ -7,7 +7,7 @@ macro(set_flang_windows_version_resource_properties name)
       VERSION_MAJOR ${FLANG_VERSION_MAJOR}
       VERSION_MINOR ${FLANG_VERSION_MINOR}
       VERSION_PATCHLEVEL ${FLANG_VERSION_PATCHLEVEL}
-      VERSION_STRING "${FLANG_VERSION} (${BACKEND_PACKAGE_STRING})"
+      VERSION_STRING "${FLANG_VERSION}"
       PRODUCT_NAME "flang")
   endif()
 endmacro()
@@ -16,12 +16,15 @@ macro(add_flang_subdirectory name)
   add_llvm_subdirectory(FLANG TOOL ${name})
 endmacro()
 
-macro(add_flang_library name)
+function(add_flang_library name)
+  set(options SHARED STATIC INSTALL_WITH_TOOLCHAIN)
+  set(multiValueArgs ADDITIONAL_HEADERS CLANG_LIBS MLIR_LIBS MLIR_DEPS)
   cmake_parse_arguments(ARG
-    "SHARED;STATIC;INSTALL_WITH_TOOLCHAIN"
+    "${options}"
     ""
-    "ADDITIONAL_HEADERS"
+    "${multiValueArgs}"
     ${ARGN})
+
   set(srcs)
   if (MSVC_IDE OR XCODE)
     # Add public headers
@@ -48,20 +51,27 @@ macro(add_flang_library name)
       
   endif()
 
-  if (ARG_SHARED)
+  if(ARG_SHARED AND ARG_STATIC)
+    set(LIBTYPE SHARED STATIC)
+  elseif(ARG_SHARED)
     set(LIBTYPE SHARED)
+  elseif(ARG_STATIC)
+    # If BUILD_SHARED_LIBS and ARG_STATIC are both set, llvm_add_library prioritizes STATIC.
+    # This is required behavior for libflang_rt.quadmath.
+    set(LIBTYPE STATIC)
   else()
-    # llvm_add_library ignores BUILD_SHARED_LIBS if STATIC is explicitly set,
-    # so we need to handle it here.
-    if (BUILD_SHARED_LIBS AND NOT ARG_STATIC)
-      set(LIBTYPE SHARED OBJECT)
-    else()
-      set(LIBTYPE STATIC OBJECT)
-    endif()
-    set_property(GLOBAL APPEND PROPERTY FLANG_STATIC_LIBS ${name})
+    # Let llvm_add_library decide, taking BUILD_SHARED_LIBS into account.
+    set(LIBTYPE)
   endif()
-
   llvm_add_library(${name} ${LIBTYPE} ${ARG_UNPARSED_ARGUMENTS} ${srcs})
+
+  clang_target_link_libraries(${name} PRIVATE ${ARG_CLANG_LIBS})
+  if (ARG_MLIR_LIBS)
+    mlir_target_link_libraries(${name} PRIVATE ${ARG_MLIR_LIBS})
+  endif()
+  if (ARG_MLIR_DEPS AND NOT FLANG_STANDALONE_BUILD)
+    add_dependencies(${name} ${ARG_MLIR_DEPS})
+  endif()
 
   if (TARGET ${name})
 
@@ -84,18 +94,20 @@ macro(add_flang_library name)
       set_property(GLOBAL APPEND PROPERTY FLANG_LIBS ${name})
     endif()
     set_property(GLOBAL APPEND PROPERTY FLANG_EXPORTS ${name})
+    if (FLANG_PARALLEL_COMPILE_JOBS)
+      set_property(TARGET ${name} PROPERTY JOB_POOL_COMPILE flang_compile_job_pool)
+    endif()
   else()
     # Add empty "phony" target
     add_custom_target(${name})
   endif()
 
-  set_target_properties(${name} PROPERTIES FOLDER "Flang libraries")
+  set_target_properties(${name} PROPERTIES FOLDER "Flang/Libraries")
   set_flang_windows_version_resource_properties(${name})
-endmacro(add_flang_library)
+endfunction(add_flang_library)
 
 macro(add_flang_executable name)
   add_llvm_executable(${name} ${ARGN})
-  set_target_properties(${name} PROPERTIES FOLDER "Flang executables")
   set_flang_windows_version_resource_properties(${name})
 endmacro(add_flang_executable)
 
@@ -127,4 +139,3 @@ macro(add_flang_symlink name dest)
   # Always generate install targets
   llvm_install_symlink(FLANG ${name} ${dest} ALWAYS_GENERATE)
 endmacro()
-

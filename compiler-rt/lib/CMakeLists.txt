@@ -9,7 +9,7 @@ include(SanitizerUtils)
 #
 #TODO: Refactor sanitizer_common into smaller pieces (e.g. flag parsing, utils).
 if (COMPILER_RT_HAS_SANITIZER_COMMON AND
-    (COMPILER_RT_BUILD_SANITIZERS OR COMPILER_RT_BUILD_XRAY OR COMPILER_RT_BUILD_MEMPROF))
+    (COMPILER_RT_BUILD_SANITIZERS OR COMPILER_RT_BUILD_XRAY OR COMPILER_RT_BUILD_MEMPROF OR COMPILER_RT_BUILD_CTX_PROFILE))
   add_subdirectory(sanitizer_common)
 endif()
 
@@ -17,19 +17,16 @@ if(COMPILER_RT_BUILD_BUILTINS)
   add_subdirectory(builtins)
 endif()
 
-if(COMPILER_RT_BUILD_CRT)
-  add_subdirectory(crt)
-endif()
-
 function(compiler_rt_build_runtime runtime)
   string(TOUPPER ${runtime} runtime_uppercase)
   if(COMPILER_RT_HAS_${runtime_uppercase})
-    add_subdirectory(${runtime})
     if(${runtime} STREQUAL tsan)
       add_subdirectory(tsan/dd)
     endif()
-    if(${runtime} STREQUAL scudo)
+    if(${runtime} STREQUAL scudo_standalone)
       add_subdirectory(scudo/standalone)
+    else()
+      add_subdirectory(${runtime})
     endif()
   endif()
 endfunction()
@@ -41,7 +38,9 @@ endif()
 if(COMPILER_RT_BUILD_SANITIZERS)
   if(COMPILER_RT_HAS_SANITIZER_COMMON)
     add_subdirectory(stats)
+    # Contains RTLSanCommon used even without COMPILER_RT_HAS_LSAN.
     add_subdirectory(lsan)
+    # Contains RTUbsan used even without COMPILER_RT_HAS_UBSAN.
     add_subdirectory(ubsan)
   endif()
 
@@ -50,8 +49,12 @@ if(COMPILER_RT_BUILD_SANITIZERS)
   endforeach()
 endif()
 
-if(COMPILER_RT_BUILD_PROFILE AND COMPILER_RT_HAS_PROFILE)
+if(COMPILER_RT_BUILD_PROFILE)
   compiler_rt_build_runtime(profile)
+endif()
+
+if(COMPILER_RT_BUILD_CTX_PROFILE)
+  compiler_rt_build_runtime(ctx_profile)
 endif()
 
 if(COMPILER_RT_BUILD_XRAY)

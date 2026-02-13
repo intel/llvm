@@ -9,6 +9,7 @@
 #include "lld/Common/Strings.h"
 #include "lld/Common/ErrorHandler.h"
 #include "lld/Common/LLVM.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/GlobPattern.h"
 #include <algorithm>
@@ -18,18 +19,21 @@
 using namespace llvm;
 using namespace lld;
 
-SingleStringMatcher::SingleStringMatcher(StringRef Pattern) {
-  if (Pattern.size() > 2 && Pattern.startswith("\"") &&
-      Pattern.endswith("\"")) {
-    ExactMatch = true;
+static bool isExact(StringRef Pattern) {
+  return Pattern.size() > 2 && Pattern.starts_with("\"") &&
+         Pattern.ends_with("\"");
+}
+
+SingleStringMatcher::SingleStringMatcher(StringRef Pattern)
+    : ExactMatch(isExact(Pattern)) {
+  if (ExactMatch) {
     ExactPattern = Pattern.substr(1, Pattern.size() - 2);
   } else {
     Expected<GlobPattern> Glob = GlobPattern::create(Pattern);
     if (!Glob) {
-      error(toString(Glob.takeError()));
+      error(toString(Glob.takeError()) + ": " + Pattern);
       return;
     }
-    ExactMatch = false;
     GlobPatternMatcher = *Glob;
   }
 }

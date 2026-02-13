@@ -1,0 +1,55 @@
+; It's possible that access to builtin variable is represented by
+; GetElementPtrConstantExpr rather than GetElementPtrInst. This
+; test case presents a pattern that results into a ConstantExpr.
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r -o - %t.spv | llvm-dis | FileCheck %s
+
+                                OpCapability Kernel
+                                OpCapability Addresses
+                                OpCapability Int64
+                                OpCapability Int8
+                                OpCapability GenericPointer
+                                OpCapability Linkage
+                                OpMemoryModel Physical64 OpenCL
+                                OpEntryPoint Kernel %foo "test"
+                                OpDecorate %__spirv_BuiltInWorkgroupSize Constant
+                                OpDecorate %__spirv_BuiltInWorkgroupSize Alignment 32
+                                OpDecorate %__spirv_BuiltInWorkgroupSize LinkageAttributes "__spirv_BuiltInWorkgroupSize" Import
+                                OpDecorate %__spirv_BuiltInWorkgroupSize BuiltIn WorkgroupSize
+                        %void = OpTypeVoid
+                       %ulong = OpTypeInt 64 0
+                        %uint = OpTypeInt 32 0
+                       %uchar = OpTypeInt 8 0
+                     %v3ulong = OpTypeVector %ulong 3
+               %_ptr_CW_uchar = OpTypePointer CrossWorkgroup %uchar
+             %_ptr_CW_v3ulong = OpTypePointer CrossWorkgroup %v3ulong
+               %_ptr_CW_ulong = OpTypePointer CrossWorkgroup %ulong
+                    %foo_type = OpTypeFunction %void
+                      %uint_0 = OpConstant %uint 0
+                     %ulong_8 = OpConstant %ulong 8
+                    %ulong_16 = OpConstant %ulong 16
+%__spirv_BuiltInWorkgroupSize = OpVariable %_ptr_CW_v3ulong CrossWorkgroup
+                          %c1 = OpSpecConstantOp %_ptr_CW_uchar InBoundsPtrAccessChain %__spirv_BuiltInWorkgroupSize %uint_0 %ulong_8
+                          %c2 = OpSpecConstantOp %_ptr_CW_uchar InBoundsPtrAccessChain %__spirv_BuiltInWorkgroupSize %uint_0 %ulong_16
+                         %foo = OpFunction %void None %foo_type
+                       %entry = OpLabel
+                         %pv0 = OpBitcast %_ptr_CW_ulong %__spirv_BuiltInWorkgroupSize
+                          %v0 = OpLoad %ulong %pv0 Aligned 32
+                         %pv1 = OpBitcast %_ptr_CW_ulong %c1
+                          %v1 = OpLoad %ulong %pv1 Aligned 8
+                        %idx1 = OpIMul %ulong %v0 %v1
+                         %pv2 = OpBitcast %_ptr_CW_ulong %c2
+                          %v2 = OpLoad %ulong %pv2 Aligned 16
+                        %idx2 = OpIMul %ulong %idx1 %v2
+                                OpReturn
+                                OpFunctionEnd
+
+; CHECK-NOT: getelementptr
+; CHECK-NOT: load
+; CHECK: %[[#V0:]] = call spir_func i64 @_Z14get_local_sizej(i32 0)
+; CHECK: %[[#V1:]] = call spir_func i64 @_Z14get_local_sizej(i32 8)
+; CHECK: %[[#Idx1:]] = mul i64 %[[#V0]], %[[#V1]]
+; CHECK: %[[#V2:]] = call spir_func i64 @_Z14get_local_sizej(i32 16)
+; CHECK: %[[#Idx2:]] = mul i64 %[[#Idx1]], %[[#V2]]

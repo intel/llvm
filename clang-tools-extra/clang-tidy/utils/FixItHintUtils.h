@@ -1,4 +1,4 @@
-//===--- FixItHintUtils.h - clang-tidy---------------------------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,12 +11,10 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
-#include "clang/Sema/DeclSpec.h"
+#include "clang/AST/Type.h"
+#include <optional>
 
-namespace clang {
-namespace tidy {
-namespace utils {
-namespace fixit {
+namespace clang::tidy::utils::fixit {
 
 /// Creates fix to make ``VarDecl`` a reference by adding ``&``.
 FixItHint changeVarDeclToReference(const VarDecl &Var, ASTContext &Context);
@@ -41,14 +39,19 @@ enum class QualifierTarget {
 
 /// \brief Creates fix to qualify ``VarDecl`` with the specified \c Qualifier.
 /// Requires that `Var` is isolated in written code like in `int foo = 42;`.
-Optional<FixItHint>
+std::optional<FixItHint>
 addQualifierToVarDecl(const VarDecl &Var, const ASTContext &Context,
-                      DeclSpec::TQ Qualifier,
-                      QualifierTarget CT = QualifierTarget::Pointee,
-                      QualifierPolicy CP = QualifierPolicy::Left);
-} // namespace fixit
-} // namespace utils
-} // namespace tidy
-} // namespace clang
+                      Qualifiers::TQ Qualifier,
+                      QualifierTarget QualTarget = QualifierTarget::Pointee,
+                      QualifierPolicy QualPolicy = QualifierPolicy::Left);
+
+// \brief Format a pointer to an expression
+std::string formatDereference(const Expr &ExprNode, const ASTContext &Context);
+
+// \brief Checks whatever a expression require extra () to be always used in
+// safe way in any other expression.
+bool areParensNeededForStatement(const Stmt &Node);
+
+} // namespace clang::tidy::utils::fixit
 
 #endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_UTILS_FIXITHINTUTILS_H

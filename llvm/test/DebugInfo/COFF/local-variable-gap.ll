@@ -94,14 +94,14 @@ target triple = "x86_64-pc-windows-msvc19.0.24210"
 ; Function Attrs: nounwind uwtable
 define i32 @f() local_unnamed_addr #0 !dbg !7 {
 entry:
-  %call = tail call i32 bitcast (i32 (...)* @barrier to i32 ()*)() #4, !dbg !15
+  %call = tail call i32 @barrier() #4, !dbg !15
   %tobool = icmp eq i32 %call, 0, !dbg !15
   br i1 %tobool, label %if.else, label %if.then, !dbg !16
 
 if.then:                                          ; preds = %entry
-  %call1 = tail call i32 bitcast (i32 (...)* @vardef to i32 ()*)() #4, !dbg !17
+  %call1 = tail call i32 @vardef() #4, !dbg !17
   tail call void @llvm.dbg.value(metadata i32 %call1, metadata !12, metadata !18), !dbg !19
-  %call2 = tail call i32 bitcast (i32 (...)* @barrier to i32 ()*)() #4, !dbg !20
+  %call2 = tail call i32 @barrier() #4, !dbg !20
   %tobool3 = icmp eq i32 %call2, 0, !dbg !20
   br i1 %tobool3, label %if.end, label %if.then4, !dbg !22
 
@@ -114,7 +114,7 @@ if.end:                                           ; preds = %if.then
   br label %if.end6, !dbg !25
 
 if.else:                                          ; preds = %entry
-  %call5 = tail call i32 bitcast (i32 (...)* @barrier to i32 ()*)() #4, !dbg !26
+  %call5 = tail call i32 @barrier() #4, !dbg !26
   br label %if.end6
 
 if.end6:                                          ; preds = %if.else, %if.end
@@ -133,9 +133,9 @@ declare void @use(i32) local_unnamed_addr #1
 ; Function Attrs: nounwind readnone
 declare void @llvm.dbg.value(metadata, metadata, metadata) #3
 
-attributes #0 = { nounwind uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #2 = { noreturn "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "use-soft-float"="false" }
+attributes #1 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "use-soft-float"="false" }
+attributes #2 = { noreturn "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "use-soft-float"="false" }
 attributes #3 = { nounwind readnone }
 attributes #4 = { nounwind }
 attributes #5 = { noreturn nounwind }

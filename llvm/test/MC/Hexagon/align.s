@@ -1,4 +1,4 @@
-# RUN: llvm-mc -triple=hexagon -filetype=obj -mhvx %s | llvm-objdump --mattr=+hvx -d - | FileCheck %s
+# RUN: llvm-mc -triple=hexagon -filetype=obj -mhvx %s | llvm-objdump --no-print-imm-hex --mattr=+hvx -d - | FileCheck %s
 
 # Verify that the .align directive emits the proper insn packets.
 
@@ -58,3 +58,16 @@ r0 = vextract(v0, r0)
   r1 = sub (##1, r1) }
 .align 16
 { r0 = sub (#1, r0) }
+
+# Don't search backwards to pad packets beyond a label:
+{ r1 = add(r1, r0) }
+# CHECK-NEXT: { r1 = add(r1,r0)
+# CHECK-NOT:  nop
+
+post_label:
+.align 16
+# CHECK-LABEL: post_label
+# CHECK-NEXT: { nop
+# CHECK-NEXT:   nop }
+# CHECK-NEXT: { r1 = sub(#1,r1) }
+{ r1 = sub(#1, r1) }

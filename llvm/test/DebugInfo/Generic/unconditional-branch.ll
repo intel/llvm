@@ -3,9 +3,9 @@
 ; RUN: %llc_dwarf -fast-isel=false -O0 -filetype=obj %s -o %t
 ; RUN: llvm-dwarfdump -a %t | FileCheck %s
 
-; CHECK: {{0x[0-9a-f]+}}      1      0      1   0             0  is_stmt
-; CHECK: {{0x[0-9a-f]+}}      2      0      1   0             0  is_stmt
-; CHECK: {{0x[0-9a-f]+}}      4      0      1   0             0  is_stmt
+; CHECK: {{0x[0-9a-f]+}}      1      0      1   0             0       0  is_stmt
+; CHECK: {{0x[0-9a-f]+}}      2      0      1   0             0       0  is_stmt
+; CHECK: {{0x[0-9a-f]+}}      4      0      1   0             0       0  is_stmt
 
 ; IR generated from clang -O0 -g with the following source:
 ;void foo(int i){
@@ -20,9 +20,9 @@
 define void @foo(i32 %i) #0 !dbg !4 {
 entry:
   %i.addr = alloca i32, align 4
-  store i32 %i, i32* %i.addr, align 4
-  call void @llvm.dbg.declare(metadata i32* %i.addr, metadata !12, metadata !DIExpression()), !dbg !13
-  %0 = load i32, i32* %i.addr, align 4, !dbg !14
+  store i32 %i, ptr %i.addr, align 4
+  call void @llvm.dbg.declare(metadata ptr %i.addr, metadata !12, metadata !DIExpression()), !dbg !13
+  %0 = load i32, ptr %i.addr, align 4, !dbg !14
   switch i32 %0, label %sw.default [
   ], !dbg !14
 
@@ -37,7 +37,7 @@ sw.default:                                       ; preds = %entry
 ; Function Attrs: nounwind readnone
 declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
 
-attributes #0 = { nounwind "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone }
 
 !llvm.dbg.cu = !{!0}

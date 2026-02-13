@@ -17,6 +17,7 @@
 
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <iterator>
 #include <memory>
@@ -26,6 +27,8 @@
 
 #include "../buffer.h"
 #include "../counted.h"
+#include "../overload_compare_iterator.h"
+#include "MoveOnly.h"
 #include "test_macros.h"
 #include "test_iterators.h"
 
@@ -279,39 +282,6 @@ int main(int, char**) {
   Counted::reset();
 #endif // TEST_HAS_NO_EXCEPTIONS
 
-  // Works with const iterators, (iter, sentinel) overload.
-  {
-    constexpr int N = 5;
-    Counted in[N] = {Counted(1), Counted(2), Counted(3), Counted(4), Counted(5)};
-    Buffer<Counted, N> out;
-    Counted::reset();
-
-    std::ranges::uninitialized_move(in, in + N, out.cbegin(), out.cend());
-    assert(Counted::current_objects == N);
-    assert(Counted::total_objects == N);
-    assert(std::equal(in, in + N, out.begin(), out.end()));
-
-    std::destroy(out.begin(), out.end());
-  }
-  Counted::reset();
-
-  // Works with const iterators, (range) overload.
-  {
-    constexpr int N = 5;
-    Counted in[N] = {Counted(1), Counted(2), Counted(3), Counted(4), Counted(5)};
-    Buffer<Counted, N> out;
-    Counted::reset();
-
-    std::ranges::subrange out_range (out.cbegin(), out.cend());
-    std::ranges::uninitialized_move(in, out_range);
-    assert(Counted::current_objects == N);
-    assert(Counted::total_objects == N);
-    assert(std::equal(in, in + N, out.begin(), out.end()));
-
-    std::destroy(out.begin(), out.end());
-  }
-  Counted::reset();
-
   // Conversions, (iter, sentinel) overload.
   {
     constexpr int N = 3;
@@ -414,6 +384,53 @@ int main(int, char**) {
     {
       Buffer<int, N> out;
       std::ranges::uninitialized_move(in, out);
+    }
+  }
+
+  // MoveOnly types are supported
+  {
+    {
+      MoveOnly a[] = {1, 2, 3, 4};
+      Buffer<MoveOnly, 4> out;
+      std::ranges::uninitialized_move(std::begin(a), std::end(a), std::begin(out), std::end(out));
+      assert(std::ranges::equal(out, std::array<MoveOnly, 4>{1, 2, 3, 4}));
+    }
+    {
+      MoveOnly a[] = {1, 2, 3, 4};
+      Buffer<MoveOnly, 4> out;
+      std::ranges::uninitialized_move(a, out);
+      assert(std::ranges::equal(out, std::array<MoveOnly, 4>{1, 2, 3, 4}));
+    }
+  }
+
+  // Test with an iterator that overloads operator== and operator!= as the input and output iterators
+  {
+    using T        = int;
+    using Iterator = overload_compare_iterator<T*>;
+    const int N    = 5;
+
+    // input
+    {
+      char pool[sizeof(T) * N] = {0};
+      T* p                     = reinterpret_cast<T*>(pool);
+      T* p_end                 = reinterpret_cast<T*>(pool) + N;
+      T array[N]               = {1, 2, 3, 4, 5};
+      std::ranges::uninitialized_move(Iterator(array), Iterator(array + N), p, p_end);
+      for (int i = 0; i != N; ++i) {
+        assert(array[i] == p[i]);
+      }
+    }
+
+    // output
+    {
+      char pool[sizeof(T) * N] = {0};
+      T* p                     = reinterpret_cast<T*>(pool);
+      T* p_end                 = reinterpret_cast<T*>(pool) + N;
+      T array[N]               = {1, 2, 3, 4, 5};
+      std::ranges::uninitialized_move(array, array + N, Iterator(p), Iterator(p_end));
+      for (int i = 0; i != N; ++i) {
+        assert(array[i] == p[i]);
+      }
     }
   }
 

@@ -43,13 +43,14 @@
 
 #include <iterator>
 #include <cassert>
+#include <cstddef>
 
 #include "test_macros.h"
 
 struct IterBase {
   using iterator_category = std::bidirectional_iterator_tag;
   using value_type = int;
-  using difference_type = ptrdiff_t;
+  using difference_type = std::ptrdiff_t;
   using pointer = int*;
   using reference = int&;
 

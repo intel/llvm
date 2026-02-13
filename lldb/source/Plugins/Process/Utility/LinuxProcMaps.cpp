@@ -11,6 +11,7 @@
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/StringExtractor.h"
 #include "llvm/ADT/StringRef.h"
+#include <optional>
 
 using namespace lldb_private;
 
@@ -146,7 +147,7 @@ void lldb_private::ParseLinuxSMapRegions(llvm::StringRef linux_smap,
 
   llvm::StringRef lines(linux_smap);
   llvm::StringRef line;
-  llvm::Optional<MemoryRegionInfo> region;
+  std::optional<MemoryRegionInfo> region;
 
   while (lines.size()) {
     std::tie(line, lines) = lines.split('\n');
@@ -163,12 +164,17 @@ void lldb_private::ParseLinuxSMapRegions(llvm::StringRef linux_smap,
     if (!name.contains(' ')) {
       if (region) {
         if (name == "VmFlags") {
-          if (value.contains("mt"))
-            region->SetMemoryTagged(MemoryRegionInfo::eYes);
-          else
-            region->SetMemoryTagged(MemoryRegionInfo::eNo);
+          region->SetMemoryTagged(MemoryRegionInfo::eNo);
+          region->SetIsShadowStack(MemoryRegionInfo::eNo);
+
+          llvm::SmallVector<llvm::StringRef> flags;
+          value.split(flags, ' ', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+          for (llvm::StringRef flag : flags)
+            if (flag == "mt")
+              region->SetMemoryTagged(MemoryRegionInfo::eYes);
+            else if (flag == "ss")
+              region->SetIsShadowStack(MemoryRegionInfo::eYes);
         }
-        // Ignore anything else
       } else {
         // Orphaned settings line
         callback(ProcMapError(

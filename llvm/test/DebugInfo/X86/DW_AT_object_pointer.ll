@@ -1,14 +1,30 @@
-; RUN: llc -mtriple=x86_64-apple-darwin %s -o %t -filetype=obj
-; RUN: llvm-dwarfdump -v -debug-info %t | FileCheck %s
+; RUN: llc -mtriple=x86_64-apple-darwin -debugger-tune=gdb -dwarf-version=5 -filetype=obj < %s | \
+; RUN:      llvm-dwarfdump -v -debug-info - | FileCheck %s --check-prefixes=CHECK,CHECK-GDB
+
+; RUN: llc -mtriple=x86_64-apple-darwin -debugger-tune=lldb -dwarf-version=4 -filetype=obj < %s | \
+; RUN:      llvm-dwarfdump -v -debug-info - | FileCheck %s --check-prefixes=CHECK,CHECK-LLDB-DWARF4
+
+; RUN: llc -mtriple=x86_64-apple-darwin -debugger-tune=lldb -dwarf-version=5 -filetype=obj < %s | \
+; RUN:      llvm-dwarfdump -v -debug-info - | FileCheck %s --check-prefixes=CHECK,CHECK-LLDB-DWARF5
 
 ; CHECK: DW_TAG_formal_parameter [
 ; CHECK-NOT: ""
 ; CHECK: DW_TAG
 ; CHECK: DW_TAG_class_type
-; CHECK: DW_AT_object_pointer [DW_FORM_ref4]     (cu + 0x{{[0-9a-f]*}} => {[[PARAM:0x[0-9a-f]*]]})
+; CHECK: [[DECL:0x[0-9a-f]+]]: DW_TAG_subprogram
+; CHECK:                         DW_AT_name {{.*}} "A"
+; CHECK-LLDB-DWARF5:             DW_AT_object_pointer [DW_FORM_implicit_const] (0)
+; CHECK-GDB-NOT:                 DW_AT_object_pointer
+; CHECK-LLDB-DWARF4-NOT:         DW_AT_object_pointer
+; CHECK: DW_TAG_formal_parameter
+;
+; CHECK: DW_TAG_subprogram
+; CHECK:   DW_AT_object_pointer [DW_FORM_ref4]     (cu + 0x{{[0-9a-f]*}} => {[[PARAM:0x[0-9a-f]*]]})
+; CHECK:   DW_AT_specification [DW_FORM_ref4] (cu + {{.*}} => {[[DECL]]}
 ; CHECK: [[PARAM]]:     DW_TAG_formal_parameter
 ; CHECK-NOT: DW_TAG
-; CHECK: DW_AT_name [DW_FORM_strp]     ( .debug_str[0x{{[0-9a-f]*}}] = "this")
+; CHECK: DW_AT_name
+; CHECK-SAME        = "this")
 
 %class.A = type { i32 }
 
@@ -16,35 +32,33 @@ define i32 @_Z3fooi(i32) nounwind uwtable ssp !dbg !5 {
 entry:
   %.addr = alloca i32, align 4
   %a = alloca %class.A, align 4
-  store i32 %0, i32* %.addr, align 4
-  call void @llvm.dbg.declare(metadata i32* %.addr, metadata !36, metadata !DIExpression()), !dbg !35
-  call void @llvm.dbg.declare(metadata %class.A* %a, metadata !21, metadata !DIExpression()), !dbg !23
-  call void @_ZN1AC1Ev(%class.A* %a), !dbg !24
-  %m_a = getelementptr inbounds %class.A, %class.A* %a, i32 0, i32 0, !dbg !25
-  %1 = load i32, i32* %m_a, align 4, !dbg !25
+  store i32 %0, ptr %.addr, align 4
+  call void @llvm.dbg.declare(metadata ptr %.addr, metadata !36, metadata !DIExpression()), !dbg !35
+  call void @llvm.dbg.declare(metadata ptr %a, metadata !21, metadata !DIExpression()), !dbg !23
+  call void @_ZN1AC1Ev(ptr %a), !dbg !24
+  %1 = load i32, ptr %a, align 4, !dbg !25
   ret i32 %1, !dbg !25
 }
 
 declare void @llvm.dbg.declare(metadata, metadata, metadata) nounwind readnone
 
-define linkonce_odr void @_ZN1AC1Ev(%class.A* %this) unnamed_addr nounwind uwtable ssp align 2 !dbg !10 {
+define linkonce_odr void @_ZN1AC1Ev(ptr %this) unnamed_addr nounwind uwtable ssp align 2 !dbg !10 {
 entry:
-  %this.addr = alloca %class.A*, align 8
-  store %class.A* %this, %class.A** %this.addr, align 8
-  call void @llvm.dbg.declare(metadata %class.A** %this.addr, metadata !26, metadata !DIExpression()), !dbg !28
-  %this1 = load %class.A*, %class.A** %this.addr
-  call void @_ZN1AC2Ev(%class.A* %this1), !dbg !29
+  %this.addr = alloca ptr, align 8
+  store ptr %this, ptr %this.addr, align 8
+  call void @llvm.dbg.declare(metadata ptr %this.addr, metadata !26, metadata !DIExpression()), !dbg !28
+  %this1 = load ptr, ptr %this.addr
+  call void @_ZN1AC2Ev(ptr %this1), !dbg !29
   ret void, !dbg !29
 }
 
-define linkonce_odr void @_ZN1AC2Ev(%class.A* %this) unnamed_addr nounwind uwtable ssp align 2 !dbg !20 {
+define linkonce_odr void @_ZN1AC2Ev(ptr %this) unnamed_addr nounwind uwtable ssp align 2 !dbg !20 {
 entry:
-  %this.addr = alloca %class.A*, align 8
-  store %class.A* %this, %class.A** %this.addr, align 8
-  call void @llvm.dbg.declare(metadata %class.A** %this.addr, metadata !30, metadata !DIExpression()), !dbg !31
-  %this1 = load %class.A*, %class.A** %this.addr
-  %m_a = getelementptr inbounds %class.A, %class.A* %this1, i32 0, i32 0, !dbg !32
-  store i32 0, i32* %m_a, align 4, !dbg !32
+  %this.addr = alloca ptr, align 8
+  store ptr %this, ptr %this.addr, align 8
+  call void @llvm.dbg.declare(metadata ptr %this.addr, metadata !30, metadata !DIExpression()), !dbg !31
+  %this1 = load ptr, ptr %this.addr
+  store i32 0, ptr %this1, align 4, !dbg !32
   ret void, !dbg !34
 }
 

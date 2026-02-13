@@ -11,16 +11,13 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/Basic/SourceManager.h"
-#include "clang/Basic/Specifiers.h"
 #include "clang/Lex/Lexer.h"
-#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/LineIterator.h"
 #include "llvm/Support/MD5.h"
-#include "llvm/Support/Path.h"
 
-#include <functional>
+#include <optional>
 #include <sstream>
 #include <string>
 
@@ -121,7 +118,7 @@ static std::string GetEnclosingDeclContextSignature(const Decl *D) {
   return "";
 }
 
-static StringRef GetNthLineOfFile(llvm::Optional<llvm::MemoryBufferRef> Buffer,
+static StringRef GetNthLineOfFile(std::optional<llvm::MemoryBufferRef> Buffer,
                                   int Line) {
   if (!Buffer)
     return "";
@@ -146,7 +143,7 @@ static std::string NormalizeLine(const SourceManager &SM, const FullSourceLoc &L
     col++;
   SourceLocation StartOfLine =
       SM.translateLineCol(SM.getFileID(L), L.getExpansionLineNumber(), col);
-  Optional<llvm::MemoryBufferRef> Buffer =
+  std::optional<llvm::MemoryBufferRef> Buffer =
       SM.getBufferOrNone(SM.getFileID(StartOfLine), StartOfLine);
   if (!Buffer)
     return {};

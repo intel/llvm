@@ -38,7 +38,7 @@ public:
     if (EntryI == Entries.end()) {
       auto &Entry = impl().createEntry(G, Target);
       DEBUG_WITH_TYPE("jitlink", {
-        dbgs() << "    Created " << impl().getSectionName() << "entry for "
+        dbgs() << "    Created " << impl().getSectionName() << " entry for "
                << Target.getName() << ": " << Entry << "\n";
       });
       EntryI = Entries.insert(std::make_pair(Target.getName(), &Entry)).first;
@@ -52,9 +52,24 @@ public:
     return *EntryI->second;
   }
 
+  /// Register a pre-existing entry.
+  ///
+  /// Objects may include pre-existing table entries (e.g. for GOTs).
+  /// This method can be used to register those entries so that they will not
+  /// be duplicated by createEntry  the first time that getEntryForTarget is
+  /// called.
+  bool registerPreExistingEntry(Symbol &Target, Symbol &Entry) {
+    assert(Target.hasName() && "Edge cannot point to anonymous target");
+    auto Res = Entries.insert({
+        Target.getName(),
+        &Entry,
+    });
+    return Res.second;
+  }
+
 private:
   TableManagerImplT &impl() { return static_cast<TableManagerImplT &>(*this); }
-  DenseMap<StringRef, Symbol *> Entries;
+  DenseMap<orc::SymbolStringPtr, Symbol *> Entries;
 };
 
 } // namespace jitlink

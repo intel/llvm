@@ -1,4 +1,4 @@
-//===--- ProTypeCstyleCastCheck.cpp - clang-tidy---------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,9 +13,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace cppcoreguidelines {
+namespace clang::tidy::cppcoreguidelines {
 
 static bool needsConstCast(QualType SourceType, QualType DestType) {
   SourceType = SourceType.getNonReferenceType();
@@ -47,7 +45,7 @@ void ProTypeCstyleCastCheck::check(const MatchFinder::MatchResult &Result) {
     return;
   }
 
-  QualType SourceType = MatchedCast->getSubExpr()->getType();
+  const QualType SourceType = MatchedCast->getSubExpr()->getType();
 
   if (MatchedCast->getCastKind() == CK_BaseToDerived) {
     const auto *SourceDecl = SourceType->getPointeeCXXRecordDecl();
@@ -60,7 +58,7 @@ void ProTypeCstyleCastCheck::check(const MatchFinder::MatchResult &Result) {
       // Leave type spelling exactly as it was (unlike
       // getTypeAsWritten().getAsString() which would spell enum types 'enum
       // X').
-      StringRef DestTypeString = Lexer::getSourceText(
+      const StringRef DestTypeString = Lexer::getSourceText(
           CharSourceRange::getTokenRange(
               MatchedCast->getLParenLoc().getLocWithOffset(1),
               MatchedCast->getRParenLoc().getLocWithOffset(-1)),
@@ -99,6 +97,4 @@ void ProTypeCstyleCastCheck::check(const MatchFinder::MatchResult &Result) {
   }
 }
 
-} // namespace cppcoreguidelines
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::cppcoreguidelines

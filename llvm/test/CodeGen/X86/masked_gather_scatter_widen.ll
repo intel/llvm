@@ -164,8 +164,7 @@ define <2 x i32> @test_gather_v2i32_data(<2 x ptr> %ptr, <2 x i1> %mask, <2 x i3
 ; WIDEN_SKX-LABEL: test_gather_v2i32_data:
 ; WIDEN_SKX:       # %bb.0:
 ; WIDEN_SKX-NEXT:    vpsllq $63, %xmm1, %xmm1
-; WIDEN_SKX-NEXT:    vpmovq2m %xmm1, %k0
-; WIDEN_SKX-NEXT:    kmovw %k0, %eax
+; WIDEN_SKX-NEXT:    vmovmskpd %xmm1, %eax
 ; WIDEN_SKX-NEXT:    testb $1, %al
 ; WIDEN_SKX-NEXT:    jne .LBB2_1
 ; WIDEN_SKX-NEXT:  # %bb.2: # %else
@@ -226,8 +225,7 @@ define void @test_scatter_v2i32_data(<2 x i32>%a1, <2 x ptr> %ptr, <2 x i1>%mask
 ; WIDEN_SKX-LABEL: test_scatter_v2i32_data:
 ; WIDEN_SKX:       # %bb.0:
 ; WIDEN_SKX-NEXT:    vpsllq $63, %xmm2, %xmm2
-; WIDEN_SKX-NEXT:    vpmovq2m %xmm2, %k0
-; WIDEN_SKX-NEXT:    kmovw %k0, %eax
+; WIDEN_SKX-NEXT:    vmovmskpd %xmm2, %eax
 ; WIDEN_SKX-NEXT:    testb $1, %al
 ; WIDEN_SKX-NEXT:    jne .LBB3_1
 ; WIDEN_SKX-NEXT:  # %bb.2: # %else
@@ -739,7 +737,7 @@ define <17 x float> @test_mgather_v17f32(ptr %base, <17 x i32> %index)
 ; WIDEN_AVX2-NEXT:    vgatherdps %ymm5, (%rsi,%ymm1,4), %ymm6
 ; WIDEN_AVX2-NEXT:    vxorps %xmm1, %xmm1, %xmm1
 ; WIDEN_AVX2-NEXT:    vgatherdps %ymm3, (%rsi,%ymm0,4), %ymm1
-; WIDEN_AVX2-NEXT:    vmovaps {{.*#+}} xmm0 = [4294967295,0,0,0]
+; WIDEN_AVX2-NEXT:    vmovss {{.*#+}} xmm0 = [4294967295,0,0,0]
 ; WIDEN_AVX2-NEXT:    vgatherdps %ymm0, (%rsi,%ymm2,4), %ymm4
 ; WIDEN_AVX2-NEXT:    vmovss %xmm4, 64(%rdi)
 ; WIDEN_AVX2-NEXT:    vmovaps %ymm1, 32(%rdi)

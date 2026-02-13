@@ -24,8 +24,6 @@
 #include "clang/Analysis/FlowSensitive/DataflowEnvironment.h"
 #include "clang/Analysis/FlowSensitive/DataflowLattice.h"
 #include "clang/Analysis/FlowSensitive/MapLattice.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Error.h"
@@ -35,6 +33,7 @@
 #include "gtest/gtest.h"
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <utility>
@@ -58,12 +57,14 @@ struct ValueLattice {
   //  * `Defined` -> top.
   ValueState State;
 
-  // When `None`, the lattice is either at top or bottom, based on `State`.
-  llvm::Optional<int64_t> Value;
+  // When `std::nullopt`, the lattice is either at top or bottom, based on
+  // `State`.
+  std::optional<int64_t> Value;
 
-  constexpr ValueLattice() : State(ValueState::Undefined), Value(llvm::None) {}
+  constexpr ValueLattice()
+      : State(ValueState::Undefined), Value(std::nullopt) {}
   constexpr ValueLattice(int64_t V) : State(ValueState::Defined), Value(V) {}
-  constexpr ValueLattice(ValueState S) : State(S), Value(llvm::None) {}
+  constexpr ValueLattice(ValueState S) : State(S), Value(std::nullopt) {}
 
   static constexpr ValueLattice bottom() {
     return ValueLattice(ValueState::Undefined);
@@ -133,9 +134,9 @@ public:
     return ConstantPropagationLattice::bottom();
   }
 
-  void transfer(const CFGElement *E, ConstantPropagationLattice &Vars,
+  void transfer(const CFGElement &E, ConstantPropagationLattice &Vars,
                 Environment &Env) {
-    auto CS = E->getAs<CFGStmt>();
+    auto CS = E.getAs<CFGStmt>();
     if (!CS)
       return;
     auto S = CS->getStmt();
@@ -166,8 +167,8 @@ public:
                         ? ValueLattice(R.Val.getInt().getExtValue())
                         : ValueLattice::top();
       } else {
-        // An unitialized variable holds *some* value, but we don't know what it
-        // is (it is implementation defined), so we set it to top.
+        // An uninitialized variable holds *some* value, but we don't know what
+        // it is (it is implementation defined), so we set it to top.
         Vars[Var] = ValueLattice::top();
       }
     } else if (Nodes.getNodeAs<clang::Expr>(kJustAssignment)) {

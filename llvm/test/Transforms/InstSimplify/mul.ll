@@ -34,11 +34,11 @@ define <16 x i8> @mul_by_0_vec(<16 x i8> %a) {
   ret <16 x i8> %b
 }
 
-define <2 x i8> @mul_by_0_vec_undef_elt(<2 x i8> %a) {
-; CHECK-LABEL: @mul_by_0_vec_undef_elt(
+define <2 x i8> @mul_by_0_vec_poison_elt(<2 x i8> %a) {
+; CHECK-LABEL: @mul_by_0_vec_poison_elt(
 ; CHECK-NEXT:    ret <2 x i8> zeroinitializer
 ;
-  %b = mul <2 x i8> %a, <i8 undef, i8 0>
+  %b = mul <2 x i8> %a, <i8 poison, i8 0>
   ret <2 x i8> %b
 }
 
@@ -48,4 +48,54 @@ define i32 @poison(i32 %x) {
 ;
   %v = mul i32 %x, poison
   ret i32 %v
+}
+
+define i1 @mul_i1(i1 %x, i1 %y) {
+; CHECK-LABEL: @mul_i1(
+; CHECK-NEXT:    [[R:%.*]] = mul i1 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %r = mul i1 %x, %y
+  ret i1 %r
+}
+
+define i1 @mul_i1_nsw(i1 %x, i1 %y) {
+; CHECK-LABEL: @mul_i1_nsw(
+; CHECK-NEXT:    ret i1 false
+;
+  %r = mul nsw i1 %x, %y
+  ret i1 %r
+}
+
+define i1 @mul_i1_nuw(i1 %x, i1 %y) {
+; CHECK-LABEL: @mul_i1_nuw(
+; CHECK-NEXT:    [[R:%.*]] = mul nuw i1 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %r = mul nuw i1 %x, %y
+  ret i1 %r
+}
+
+define i1 @square_i1(i1 %x) {
+; CHECK-LABEL: @square_i1(
+; CHECK-NEXT:    ret i1 [[X:%.*]]
+;
+  %r = mul i1 %x, %x
+  ret i1 %r
+}
+
+define i1 @square_i1_nsw(i1 %x) {
+; CHECK-LABEL: @square_i1_nsw(
+; CHECK-NEXT:    ret i1 false
+;
+  %r = mul nsw i1 %x, %x
+  ret i1 %r
+}
+
+define i1 @square_i1_nuw(i1 %x) {
+; CHECK-LABEL: @square_i1_nuw(
+; CHECK-NEXT:    ret i1 [[X:%.*]]
+;
+  %r = mul nuw i1 %x, %x
+  ret i1 %r
 }

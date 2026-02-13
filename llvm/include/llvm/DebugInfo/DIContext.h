@@ -21,6 +21,7 @@
 #include <cassert>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -29,6 +30,7 @@ namespace llvm {
 
 /// A format-neutral container for source line information.
 struct DILineInfo {
+  static constexpr const char *const ApproxString = "(approximate)";
   // DILineInfo contains "<invalid>" for function/filename it cannot fetch.
   static constexpr const char *const BadString = "<invalid>";
   // Use "??" instead of "<invalid>" to make our output closer to addr2line.
@@ -36,15 +38,20 @@ struct DILineInfo {
   std::string FileName;
   std::string FunctionName;
   std::string StartFileName;
-  Optional<StringRef> Source;
+  // Full source corresponding to `FileName`
+  std::optional<StringRef> Source;
+  // Source code for this particular line
+  // (in case if `Source` is not available)
+  std::optional<StringRef> LineSource;
   uint32_t Line = 0;
   uint32_t Column = 0;
   uint32_t StartLine = 0;
-  Optional<uint64_t> StartAddress;
+  std::optional<uint64_t> StartAddress;
 
   // DWARF-specific.
   uint32_t Discriminator = 0;
 
+  bool IsApproximateLine = false;
   DILineInfo()
       : FileName(BadString), FunctionName(BadString), StartFileName(BadString) {
   }
@@ -125,9 +132,9 @@ struct DILocal {
   std::string Name;
   std::string DeclFile;
   uint64_t DeclLine = 0;
-  Optional<int64_t> FrameOffset;
-  Optional<uint64_t> Size;
-  Optional<uint64_t> TagOffset;
+  std::optional<int64_t> FrameOffset;
+  std::optional<uint64_t> Size;
+  std::optional<uint64_t> TagOffset;
 };
 
 /// A DINameKind is passed to name search methods to specify a
@@ -148,13 +155,14 @@ struct DILineInfoSpecifier {
     AbsoluteFilePath
   };
   using FunctionNameKind = DINameKind;
-
   FileLineInfoKind FLIKind;
   FunctionNameKind FNKind;
+  bool ApproximateLine;
 
   DILineInfoSpecifier(FileLineInfoKind FLIKind = FileLineInfoKind::RawValue,
-                      FunctionNameKind FNKind = FunctionNameKind::None)
-      : FLIKind(FLIKind), FNKind(FNKind) {}
+                      FunctionNameKind FNKind = FunctionNameKind::None,
+                      bool ApproximateLine = false)
+      : FLIKind(FLIKind), FNKind(FNKind), ApproximateLine(ApproximateLine) {}
 
   inline bool operator==(const DILineInfoSpecifier &RHS) const {
     return FLIKind == RHS.FLIKind && FNKind == RHS.FNKind;
@@ -198,6 +206,15 @@ struct DIDumpOptions {
   bool SummarizeTypes = false;
   bool Verbose = false;
   bool DisplayRawContents = false;
+  bool IsEH = false;
+  bool DumpNonSkeleton = false;
+  bool ShowAggregateErrors = false;
+  bool PrintRegisterOnly = false;
+  std::string JsonErrSummaryFile;
+  /// List of DWARF tags to filter children by.
+  llvm::SmallVector<unsigned, 0> FilterChildTag;
+  std::function<llvm::StringRef(uint64_t DwarfRegNum, bool IsEH)>
+      GetNameForDWARFReg;
 
   /// Return default option set for printing a single DIE without children.
   static DIDumpOptions getForSingleDIE() {
@@ -224,7 +241,7 @@ struct DIDumpOptions {
 
 class DIContext {
 public:
-  enum DIContextKind { CK_DWARF, CK_PDB };
+  enum DIContextKind { CK_DWARF, CK_PDB, CK_BTF, CK_GSYM };
 
   DIContext(DIContextKind K) : Kind(K) {}
   virtual ~DIContext() = default;
@@ -238,10 +255,12 @@ public:
     return true;
   }
 
-  virtual DILineInfo getLineInfoForAddress(
+  // For getLineInfoForAddress and getLineInfoForDataAddress, std::nullopt is
+  // returned when debug info is missing for the given address.
+  virtual std::optional<DILineInfo> getLineInfoForAddress(
       object::SectionedAddress Address,
       DILineInfoSpecifier Specifier = DILineInfoSpecifier()) = 0;
-  virtual DILineInfo
+  virtual std::optional<DILineInfo>
   getLineInfoForDataAddress(object::SectionedAddress Address) = 0;
   virtual DILineInfoTable getLineInfoForAddressRange(
       object::SectionedAddress Address, uint64_t Size,

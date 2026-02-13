@@ -2,7 +2,6 @@ import lldb
 
 
 class jasSynthProvider:
-
     def __init__(self, valobj, dict):
         self.valobj = valobj
 
@@ -12,15 +11,15 @@ class jasSynthProvider:
     def get_child_at_index(self, index):
         child = None
         if index == 0:
-            child = self.valobj.GetChildMemberWithName('A')
+            child = self.valobj.GetChildMemberWithName("A")
         if index == 1:
-            child = self.valobj.CreateValueFromExpression('X', '(int)1')
+            child = self.valobj.CreateValueFromExpression("X", "(int)1")
         return child
 
     def get_child_index(self, name):
-        if name == 'A':
+        if name == "A":
             return 0
-        if name == 'X':
+        if name == "X":
             return 1
         return None
 
@@ -30,14 +29,29 @@ def ccc_summary(sbvalue, internal_dict):
     # This tests that the SBValue.GetNonSyntheticValue() actually returns a
     # non-synthetic value. If it does not, then sbvalue.GetChildMemberWithName("a")
     # in the following statement will call the 'get_child_index' method of the
-    # synthetic child provider CCCSynthProvider below (which raises an
-    # exception).
-    return "CCC object with leading value " + \
-        str(sbvalue.GetChildMemberWithName("a"))
+    # synthetic child provider CCCSynthProvider below (which return the "b" field").
+    return "CCC object with leading value " + str(sbvalue.GetChildMemberWithName("a"))
+
+
+def ccc_synthetic(sbvalue, internal_dict):
+    sbvalue = sbvalue.GetSyntheticValue()
+    # This tests that the SBValue.GetSyntheticValue() actually returns a
+    # synthetic value. If it does, then sbvalue.GetChildMemberWithName("a")
+    # in the following statement will call the 'get_child_index' method of the
+    # synthetic child provider CCCSynthProvider below (which return the "b" field").
+    return "CCC object with leading synthetic value " + str(
+        sbvalue.GetChildMemberWithName("a")
+    )
+
+
+def bar_int_synthetic(sbvalue, internal_dict):
+    sbvalue = sbvalue.GetSyntheticValue()
+    # This tests that the SBValue.GetSyntheticValue() actually returns no
+    # value when the value has no synthetic representation.
+    return "bar_int synthetic: " + str(sbvalue)
 
 
 class CCCSynthProvider(object):
-
     def __init__(self, sbvalue, internal_dict):
         self._sbvalue = sbvalue
 
@@ -45,6 +59,9 @@ class CCCSynthProvider(object):
         return 3
 
     def get_child_index(self, name):
+        if name == "a":
+            # Return b for test.
+            return 1
         raise RuntimeError("I don't want to be called!")
 
     def get_child_at_index(self, index):
@@ -61,7 +78,6 @@ def empty1_summary(sbvalue, internal_dict):
 
 
 class Empty1SynthProvider(object):
-
     def __init__(self, sbvalue, internal_dict):
         self._sbvalue = sbvalue
 
@@ -77,7 +93,6 @@ def empty2_summary(sbvalue, internal_dict):
 
 
 class Empty2SynthProvider(object):
-
     def __init__(self, sbvalue, internal_dict):
         self._sbvalue = sbvalue
 
@@ -91,27 +106,56 @@ class Empty2SynthProvider(object):
 def __lldb_init_module(debugger, dict):
     debugger.CreateCategory("JASSynth").AddTypeSynthetic(
         lldb.SBTypeNameSpecifier("JustAStruct"),
-        lldb.SBTypeSynthetic.CreateWithClassName("synth.jasSynthProvider"))
+        lldb.SBTypeSynthetic.CreateWithClassName("synth.jasSynthProvider"),
+    )
     cat = debugger.CreateCategory("CCCSynth")
     cat.AddTypeSynthetic(
         lldb.SBTypeNameSpecifier("CCC"),
-        lldb.SBTypeSynthetic.CreateWithClassName("synth.CCCSynthProvider",
-                                                 lldb.eTypeOptionCascade))
+        lldb.SBTypeSynthetic.CreateWithClassName(
+            "synth.CCCSynthProvider", lldb.eTypeOptionCascade
+        ),
+    )
     cat.AddTypeSummary(
         lldb.SBTypeNameSpecifier("CCC"),
-        lldb.SBTypeSummary.CreateWithFunctionName("synth.ccc_summary",
-                                                  lldb.eTypeOptionCascade))
+        lldb.SBTypeSummary.CreateWithFunctionName(
+            "synth.ccc_summary", lldb.eTypeOptionCascade
+        ),
+    )
     cat.AddTypeSynthetic(
         lldb.SBTypeNameSpecifier("Empty1"),
-        lldb.SBTypeSynthetic.CreateWithClassName("synth.Empty1SynthProvider"))
+        lldb.SBTypeSynthetic.CreateWithClassName("synth.Empty1SynthProvider"),
+    )
     cat.AddTypeSummary(
         lldb.SBTypeNameSpecifier("Empty1"),
-        lldb.SBTypeSummary.CreateWithFunctionName("synth.empty1_summary"))
+        lldb.SBTypeSummary.CreateWithFunctionName("synth.empty1_summary"),
+    )
     cat.AddTypeSynthetic(
         lldb.SBTypeNameSpecifier("Empty2"),
-        lldb.SBTypeSynthetic.CreateWithClassName("synth.Empty2SynthProvider"))
+        lldb.SBTypeSynthetic.CreateWithClassName("synth.Empty2SynthProvider"),
+    )
     cat.AddTypeSummary(
         lldb.SBTypeNameSpecifier("Empty2"),
         lldb.SBTypeSummary.CreateWithFunctionName(
-            "synth.empty2_summary",
-            lldb.eTypeOptionHideEmptyAggregates))
+            "synth.empty2_summary", lldb.eTypeOptionHideEmptyAggregates
+        ),
+    )
+    cat2 = debugger.CreateCategory("CCCSynth2")
+    cat2.AddTypeSynthetic(
+        lldb.SBTypeNameSpecifier("CCC"),
+        lldb.SBTypeSynthetic.CreateWithClassName(
+            "synth.CCCSynthProvider", lldb.eTypeOptionCascade
+        ),
+    )
+    cat2.AddTypeSummary(
+        lldb.SBTypeNameSpecifier("CCC"),
+        lldb.SBTypeSummary.CreateWithFunctionName(
+            "synth.ccc_synthetic", lldb.eTypeOptionCascade
+        ),
+    )
+    cat3 = debugger.CreateCategory("BarIntSynth")
+    cat3.AddTypeSummary(
+        lldb.SBTypeNameSpecifier("int"),
+        lldb.SBTypeSummary.CreateWithFunctionName(
+            "synth.bar_int_synthetic", lldb.eTypeOptionCascade
+        ),
+    )

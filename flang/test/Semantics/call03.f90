@@ -1,4 +1,4 @@
-! RUN: %python %S/test_errors.py %s %flang_fc1
+! RUN: %python %S/test_errors.py %s %flang_fc1 -pedantic -Wno-portability
 ! Test 15.5.2.4 constraints and restrictions for non-POINTER non-ALLOCATABLE
 ! dummy arguments.
 
@@ -163,17 +163,21 @@ module m01
     type(pdtWithDefault(3)) :: defaultVar3
     type(pdtWithDefault(4)) :: defaultVar4
     character :: ch1
-    !ERROR: Actual argument variable length '1' is less than expected length '2'
+    !ERROR: Actual argument variable length '1' is less than expected length '2' [-Wshort-character-actual]
     call ch2(ch1)
-    !WARNING: Actual argument expression length '0' is less than expected length '2'
+    !WARNING: Actual argument expression length '0' is less than expected length '2' [-Wshort-character-actual]
     call ch2("")
     call pdtdefault(vardefault)
+    !ERROR: Actual argument type 'pdt(n=3_4)' is not compatible with dummy argument type 'pdt'
     call pdtdefault(var3)
+    !ERROR: Actual argument type 'pdt(n=4_4)' is not compatible with dummy argument type 'pdt'
     call pdtdefault(var4) ! error
-    call pdt3(vardefault) ! error
+    !ERROR: Actual argument type 'pdt' is not compatible with dummy argument type 'pdt(n=4_4)'
+    call pdt3(vardefault)
     !ERROR: Actual argument type 'pdt(n=3_4)' is not compatible with dummy argument type 'pdt(n=4_4)'
-    call pdt3(var3) ! error
+    call pdt3(var3)
     call pdt3(var4)
+    !ERROR: Actual argument type 'pdt' is not compatible with dummy argument type 'pdt(n=*)'
     call pdt4(vardefault)
     call pdt4(var3)
     call pdt4(var4)
@@ -252,27 +256,37 @@ module m01
     real, intent(in) :: in
     real :: x
     x = 0.
-    !ERROR: Actual argument associated with INTENT(OUT) dummy argument 'x=' must be definable
+    !ERROR: Actual argument associated with INTENT(OUT) dummy argument 'x=' is not definable
+    !BECAUSE: 'in' is an INTENT(IN) dummy argument
     call intentout(in)
-    !ERROR: Actual argument associated with INTENT(OUT) dummy argument 'x=' must be definable
+    !ERROR: Actual argument associated with INTENT(OUT) dummy argument 'x=' is not definable
+    !BECAUSE: '3.141590118408203125_4' is not a variable or pointer
     call intentout(3.14159)
-    !ERROR: Actual argument associated with INTENT(OUT) dummy argument 'x=' must be definable
+    !ERROR: Actual argument associated with INTENT(OUT) dummy argument 'x=' is not definable
+    !BECAUSE: 'in+1._4' is not a variable or pointer
     call intentout(in + 1.)
     call intentout(x) ! ok
-    !ERROR: Actual argument associated with INTENT(OUT) dummy argument 'x=' must be definable
+    !ERROR: Actual argument associated with INTENT(OUT) dummy argument 'x=' is not definable
+    !BECAUSE: '(x)' is not a variable or pointer
     call intentout((x))
-    !ERROR: Actual argument associated with INTENT(OUT) dummy argument 'count=' must be definable
+    !ERROR: Actual argument associated with INTENT(OUT) dummy argument 'count=' is not definable
+    !BECAUSE: '2_4' is not a variable or pointer
     call system_clock(count=2)
-    !ERROR: Actual argument associated with INTENT(IN OUT) dummy argument 'x=' must be definable
+    !ERROR: Actual argument associated with INTENT(IN OUT) dummy argument 'x=' is not definable
+    !BECAUSE: 'in' is an INTENT(IN) dummy argument
     call intentinout(in)
-    !ERROR: Actual argument associated with INTENT(IN OUT) dummy argument 'x=' must be definable
+    !ERROR: Actual argument associated with INTENT(IN OUT) dummy argument 'x=' is not definable
+    !BECAUSE: '3.141590118408203125_4' is not a variable or pointer
     call intentinout(3.14159)
-    !ERROR: Actual argument associated with INTENT(IN OUT) dummy argument 'x=' must be definable
+    !ERROR: Actual argument associated with INTENT(IN OUT) dummy argument 'x=' is not definable
+    !BECAUSE: 'in+1._4' is not a variable or pointer
     call intentinout(in + 1.)
     call intentinout(x) ! ok
-    !ERROR: Actual argument associated with INTENT(IN OUT) dummy argument 'x=' must be definable
+    !ERROR: Actual argument associated with INTENT(IN OUT) dummy argument 'x=' is not definable
+    !BECAUSE: '(x)' is not a variable or pointer
     call intentinout((x))
-    !ERROR: Actual argument associated with INTENT(IN OUT) dummy argument 'exitstat=' must be definable
+    !ERROR: Actual argument associated with INTENT(IN OUT) dummy argument 'exitstat=' is not definable
+    !BECAUSE: '0_4' is not a variable or pointer
     call execute_command_line(command="echo hello", exitstat=0)
   end subroutine
 
@@ -280,12 +294,18 @@ module m01
     real :: a(1)
     integer :: j(1)
     j(1) = 1
-    !ERROR: Actual argument associated with INTENT(OUT) dummy argument 'x=' must be definable
+    !ERROR: Actual argument associated with INTENT(OUT) dummy argument 'x=' is not definable
+    !BECAUSE: Variable 'a(int(j,kind=8))' has a vector subscript
     call intentout_arr(a(j))
-    !ERROR: Actual argument associated with INTENT(IN OUT) dummy argument 'x=' must be definable
+    !ERROR: Actual argument associated with INTENT(IN OUT) dummy argument 'x=' is not definable
+    !BECAUSE: Variable 'a(int(j,kind=8))' has a vector subscript
     call intentinout_arr(a(j))
-    call asynchronous_arr(a(j)) ! ok
-    call volatile_arr(a(j)) ! ok
+    !WARNING: Actual argument associated with ASYNCHRONOUS dummy argument 'x=' is not definable [-Wundefinable-asynchronous-or-volatile-actual]
+    !BECAUSE: Variable 'a(int(j,kind=8))' has a vector subscript
+    call asynchronous_arr(a(j))
+    !WARNING: Actual argument associated with VOLATILE dummy argument 'x=' is not definable [-Wundefinable-asynchronous-or-volatile-actual]
+    !BECAUSE: Variable 'a(int(j,kind=8))' has a vector subscript
+    call volatile_arr(a(j))
   end subroutine
 
   subroutine coarr(x)
@@ -329,29 +349,32 @@ module m01
     call volatile(d[1])
   end subroutine
 
-  subroutine test15() ! C1539
+  subroutine test15(assumedrank) ! C1539
     real, pointer :: a(:)
     real, asynchronous :: b(10)
     real, volatile :: c(10)
     real, asynchronous, volatile :: d(10)
+    real, asynchronous, volatile :: assumedrank(..)
     call assumedsize(a(::2)) ! ok
     call contiguous(a(::2)) ! ok
     call valueassumedsize(a(::2)) ! ok
     call valueassumedsize(b(::2)) ! ok
     call valueassumedsize(c(::2)) ! ok
     call valueassumedsize(d(::2)) ! ok
-    !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous dummy argument 'x='
+    !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous ASYNCHRONOUS or VOLATILE dummy argument 'x='
     call volatileassumedsize(b(::2))
-    !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous dummy argument 'x='
+    !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous ASYNCHRONOUS or VOLATILE dummy argument 'x='
     call volatilecontiguous(b(::2))
-    !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous dummy argument 'x='
+    !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous ASYNCHRONOUS or VOLATILE dummy argument 'x='
     call volatileassumedsize(c(::2))
-    !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous dummy argument 'x='
+    !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous ASYNCHRONOUS or VOLATILE dummy argument 'x='
     call volatilecontiguous(c(::2))
-    !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous dummy argument 'x='
+    !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous ASYNCHRONOUS or VOLATILE dummy argument 'x='
     call volatileassumedsize(d(::2))
-    !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous dummy argument 'x='
+    !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous ASYNCHRONOUS or VOLATILE dummy argument 'x='
     call volatilecontiguous(d(::2))
+    !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous ASYNCHRONOUS or VOLATILE dummy argument 'x='
+    call volatilecontiguous(assumedrank)
   end subroutine
 
   subroutine test16() ! C1540
@@ -363,24 +386,74 @@ module m01
     call contiguous(a) ! ok
     call pointer(a) ! ok
     call pointer(b) ! ok
+    !ERROR: VOLATILE target associated with non-VOLATILE pointer [-Wnon-volatile-pointer-to-volatile]
     call pointer(c) ! ok
+    !ERROR: VOLATILE target associated with non-VOLATILE pointer [-Wnon-volatile-pointer-to-volatile]
     call pointer(d) ! ok
     call valueassumedsize(a) ! ok
     call valueassumedsize(b) ! ok
     call valueassumedsize(c) ! ok
     call valueassumedsize(d) ! ok
-    !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous dummy argument 'x='
+    !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous ASYNCHRONOUS or VOLATILE dummy argument 'x='
     call volatileassumedsize(b)
-    !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous dummy argument 'x='
+    !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous ASYNCHRONOUS or VOLATILE dummy argument 'x='
     call volatilecontiguous(b)
-    !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous dummy argument 'x='
+    !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous ASYNCHRONOUS or VOLATILE dummy argument 'x='
     call volatileassumedsize(c)
-    !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous dummy argument 'x='
+    !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous ASYNCHRONOUS or VOLATILE dummy argument 'x='
     call volatilecontiguous(c)
-    !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous dummy argument 'x='
+    !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous ASYNCHRONOUS or VOLATILE dummy argument 'x='
     call volatileassumedsize(d)
-    !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous dummy argument 'x='
+    !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous ASYNCHRONOUS or VOLATILE dummy argument 'x='
     call volatilecontiguous(d)
   end subroutine
+
+  subroutine explicitAsyncContig(x)
+    real, asynchronous, intent(in out), contiguous :: x(:)
+  end
+  subroutine implicitAsyncContig(x)
+    real, intent(in out), contiguous :: x(:)
+    read(1,id=id,asynchronous="yes") x
+  end
+  subroutine test17explicit(x)
+    real, asynchronous, intent(in out) :: x(:)
+    !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous ASYNCHRONOUS or VOLATILE dummy argument 'x='
+    call explicitAsyncContig(x)
+    !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous ASYNCHRONOUS or VOLATILE dummy argument 'x='
+    call implicitAsyncContig(x)
+  end
+  subroutine test17implicit(x)
+    real, intent(in out) :: x(:)
+    read(1,id=id,asynchronous="yes") x
+    !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous ASYNCHRONOUS or VOLATILE dummy argument 'x='
+    call explicitAsyncContig(x)
+    !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous ASYNCHRONOUS or VOLATILE dummy argument 'x='
+    call implicitAsyncContig(x)
+  end
+  subroutine test17block(x)
+    real, intent(in out) :: x(:)
+    call explicitAsyncContig(x) ! ok
+    call implicitAsyncContig(x) ! ok
+    block
+      read(1,id=id,asynchronous="yes") x
+      !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous ASYNCHRONOUS or VOLATILE dummy argument 'x='
+      call explicitAsyncContig(x)
+      !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous ASYNCHRONOUS or VOLATILE dummy argument 'x='
+      call implicitAsyncContig(x)
+    end block
+  end
+  subroutine test17internal(x)
+    real, intent(in out) :: x(:)
+    call explicitAsyncContig(x) ! ok
+    call implicitAsyncContig(x) ! ok
+   contains
+    subroutine internal
+      read(1,id=id,asynchronous="yes") x
+      !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous ASYNCHRONOUS or VOLATILE dummy argument 'x='
+      call explicitAsyncContig(x)
+      !ERROR: ASYNCHRONOUS or VOLATILE actual argument that is not simply contiguous may not be associated with a contiguous ASYNCHRONOUS or VOLATILE dummy argument 'x='
+      call implicitAsyncContig(x)
+    end
+  end
 
 end module

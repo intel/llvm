@@ -4,7 +4,7 @@
 ; intrinsics.  Unfortunately, I was not able to reduce this file
 ; further while still keeping the debug info well formed.
 
-define void @foo(i32 %n, i32* %arr) !dbg !7 {
+define void @foo(i32 %n, ptr %arr) !dbg !7 {
 ; CHECK-LABEL: Classifying expressions for: @foo
 entry:
   %cmp1 = icmp slt i32 0, %n, !dbg !12
@@ -16,14 +16,14 @@ for.body.lr.ph:                                   ; preds = %entry
 for.body:                                         ; preds = %for.inc, %for.body.lr.ph
   %i.02 = phi i32 [ 0, %for.body.lr.ph ], [ %inc, %for.inc ]
   %add = add nsw i32 %i.02, 50, !dbg !16
-  call void @llvm.dbg.value(metadata i32 %add, i64 0, metadata !18, metadata !19), !dbg !20
+  tail call void @llvm.dbg.value(metadata i32 %add, i64 0, metadata !18, metadata !19), !dbg !20
   %idxprom = sext i32 %add to i64, !dbg !21
 
 ; CHECK:  %idxprom = sext i32 %add to i64
 ; CHECK-NEXT:  -->  {50,+,1}<nuw><nsw><%for.body>
 
-  %arrayidx = getelementptr inbounds i32, i32* %arr, i64 %idxprom, !dbg !21
-  store i32 100, i32* %arrayidx, align 4, !dbg !22
+  %arrayidx = getelementptr inbounds i32, ptr %arr, i64 %idxprom, !dbg !21
+  store i32 100, ptr %arrayidx, align 4, !dbg !22
   br label %for.inc, !dbg !23
 
 for.inc:                                          ; preds = %for.body

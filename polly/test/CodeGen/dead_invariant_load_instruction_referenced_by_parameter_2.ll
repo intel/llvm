@@ -1,4 +1,4 @@
-; RUN: opt %loadPolly -polly-codegen < %s
+; RUN: opt %loadNPMPolly '-passes=polly<no-default-opts>' < %s
 ;
 ; Check we do not crash even though there is a dead load that is referenced by
 ; a parameter and we do not pre-load it (as it is dead).
@@ -8,29 +8,29 @@ target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 @REGISTER = external global [10 x i32], align 16
 
 ; Function Attrs: nounwind uwtable
-define void @FORMAT3_4() #0 {
+define void @FORMAT3_4() {
 entry:
   %INSTR = alloca [32 x i32], align 16
   br label %entry.split
 
 entry.split:                                      ; preds = %entry
-  %0 = load i32, i32* getelementptr inbounds ([10 x i32], [10 x i32]* @REGISTER, i64 0, i64 8), align 16
+  %0 = load i32, ptr getelementptr inbounds ([10 x i32], ptr @REGISTER, i64 0, i64 8), align 16
   %add = add nsw i32 %0, 2
   %cmp = icmp sgt i32 %add, 1048575
   br i1 %cmp, label %if.end.36, label %if.else
 
 if.else:                                          ; preds = %entry.split
-  call void (i32, i32, i32*, ...) bitcast (void (...)* @BYTES_TO_BITS to void (i32, i32, i32*, ...)*)(i32 undef, i32 1, i32* undef) #2
-  %1 = load i32, i32* undef, align 4
+  call void (i32, i32, ptr, ...) @BYTES_TO_BITS(i32 undef, i32 1, ptr undef)
+  %1 = load i32, ptr undef, align 4
   %cmp14 = icmp eq i32 %1, 1
   br i1 %cmp14, label %land.lhs.true, label %if.end.36
 
 land.lhs.true:                                    ; preds = %if.else
-  %arrayidx16 = getelementptr inbounds [32 x i32], [32 x i32]* %INSTR, i64 0, i64 6
+  %arrayidx16 = getelementptr inbounds [32 x i32], ptr %INSTR, i64 0, i64 6
   br i1 false, label %land.lhs.true.19, label %if.then.23
 
 land.lhs.true.19:                                 ; preds = %land.lhs.true
-  %arrayidx20 = getelementptr inbounds [32 x i32], [32 x i32]* %INSTR, i64 0, i64 7
+  %arrayidx20 = getelementptr inbounds [32 x i32], ptr %INSTR, i64 0, i64 7
   br i1 false, label %if.end.36, label %if.then.23
 
 if.then.23:                                       ; preds = %land.lhs.true.19, %land.lhs.true
@@ -179,8 +179,4 @@ return:                                           ; preds = %if.then.219, %if.th
   ret void
 }
 
-declare void @BYTES_TO_BITS(...) #1
-
-attributes #0 = { nounwind uwtable "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="haswell" "target-features"="+aes,+avx,+avx2,+bmi,+bmi2,+cmov,+cx16,+f16c,+fma,+fsgsbase,+fxsr,+hle,+lzcnt,+mmx,+movbe,+pclmul,+popcnt,+rdrnd,+rtm,+sse,+sse2,+sse3,+sse4.1,+sse4.2,+ssse3,+xsave,+xsaveopt,-adx,-avx512bw,-avx512cd,-avx512dq,-avx512er,-avx512f,-avx512pf,-avx512vl,-fma4,-prfchw,-rdseed,-sha,-sse4a,-tbm,-xop,-xsavec,-xsaves" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="haswell" "target-features"="+aes,+avx,+avx2,+bmi,+bmi2,+cmov,+cx16,+f16c,+fma,+fsgsbase,+fxsr,+hle,+lzcnt,+mmx,+movbe,+pclmul,+popcnt,+rdrnd,+rtm,+sse,+sse2,+sse3,+sse4.1,+sse4.2,+ssse3,+xsave,+xsaveopt,-adx,-avx512bw,-avx512cd,-avx512dq,-avx512er,-avx512f,-avx512pf,-avx512vl,-fma4,-prfchw,-rdseed,-sha,-sse4a,-tbm,-xop,-xsavec,-xsaves" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #2 = { nounwind }
+declare void @BYTES_TO_BITS(...)

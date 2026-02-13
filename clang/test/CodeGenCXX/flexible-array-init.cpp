@@ -2,6 +2,7 @@
 // RUN: %clang_cc1 -triple i386-unknown-unknown -emit-llvm-only -verify -DFAIL1 %s
 // RUN: %clang_cc1 -triple i386-unknown-unknown -emit-llvm-only -verify -DFAIL2 %s
 // RUN: %clang_cc1 -triple i386-unknown-unknown -emit-llvm-only -verify -DFAIL3 %s
+// RUN: %clang_cc1 -triple i386-unknown-unknown -emit-llvm-only -verify -DFAIL4 %s
 
 struct A { int x; int y[]; };
 A a = { 1, 7, 11 };
@@ -23,3 +24,19 @@ void g() {
 struct B { int x; char y; char z[]; };
 B e = {f(), f(), f(), f()}; // expected-error {{cannot compile this flexible array initializer yet}}
 #endif
+#ifdef FAIL4
+union { char a[]; } z = {};
+union { char a[]; } z0 = {z.a[0]}; // expected-error {{cannot compile this flexible array initializer yet}}
+char keep() {	return z0.a[0]; }
+#endif
+
+namespace zero_initializer {
+A a0{0, 0}, a1{0, {0, 0}};
+// CHECK: @_ZN16zero_initializer2a0E = global { i32, [1 x i32] } zeroinitializer,
+// CHECK: @_ZN16zero_initializer2a1E = global { i32, [2 x i32] } zeroinitializer,
+
+struct S { int x[]; };
+
+S s{0};
+// CHECK: @_ZN16zero_initializer1sE = global { [1 x i32] } zeroinitializer,
+}

@@ -28,27 +28,30 @@
 #include "X86Subtarget.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
+#include "llvm/IR/Module.h"
 #include "llvm/MC/MCInstrDesc.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/TargetParser/Triple.h"
 
 using namespace llvm;
 
 #define PASS_KEY "x86-return-thunks"
 #define DEBUG_TYPE PASS_KEY
 
+namespace {
 struct X86ReturnThunks final : public MachineFunctionPass {
   static char ID;
   X86ReturnThunks() : MachineFunctionPass(ID) {}
   StringRef getPassName() const override { return "X86 Return Thunks"; }
   bool runOnMachineFunction(MachineFunction &MF) override;
 };
+} // namespace
 
 char X86ReturnThunks::ID = 0;
 
@@ -65,7 +68,7 @@ bool X86ReturnThunks::runOnMachineFunction(MachineFunction &MF) {
     return Modified;
 
   const auto &ST = MF.getSubtarget<X86Subtarget>();
-  const bool Is64Bit = ST.getTargetTriple().getArch() == Triple::x86_64;
+  const bool Is64Bit = ST.getTargetTriple().isX86_64();
   const unsigned RetOpc = Is64Bit ? X86::RET64 : X86::RET32;
   SmallVector<MachineInstr *, 16> Rets;
 
@@ -75,7 +78,7 @@ bool X86ReturnThunks::runOnMachineFunction(MachineFunction &MF) {
         Rets.push_back(&Term);
 
   bool IndCS =
-      MF.getMMI().getModule()->getModuleFlag("indirect_branch_cs_prefix");
+      MF.getFunction().getParent()->getModuleFlag("indirect_branch_cs_prefix");
   const MCInstrDesc &CS = ST.getInstrInfo()->get(X86::CS_PREFIX);
   const MCInstrDesc &JMP = ST.getInstrInfo()->get(X86::TAILJMPd);
 

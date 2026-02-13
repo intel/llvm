@@ -44,7 +44,7 @@
 // RUN: %clang -### --target=avr --sysroot=%S/Inputs/basic_avr_tree -S %s 2>&1 | FileCheck --check-prefixes=NOMCU,LINKA %s
 // RUN: %clang -### --target=avr --sysroot=%S/Inputs/ -S %s 2>&1 | FileCheck --check-prefixes=NOMCU,LINKA %s
 // RUN: %clang -### --target=avr --sysroot=%S/Inputs/basic_avr_tree %s 2>&1 | FileCheck --check-prefixes=NOMCU,LINKB %s
-// NOMCU: warning: no target microcontroller specified on command line, cannot link standard libraries, please pass -mmcu=<mcu name>
+// NOMCU: warning: no target microcontroller specified, please pass -mmcu=<mcu name>
 // LINKB: warning: standard library not linked and so no interrupt vector table or compiler runtime routines will be linked
 // LINKB: warning: support for passing the data section address to the linker for microcontroller '' is not implemented
 // NOMCU-NOT: warning: {{.*}} avr-gcc
@@ -58,7 +58,7 @@
 // NOGCC-NOT: warning: {{.*}} avr-libc
 // NOGCC-NOT: warning: {{.*}} data section address
 
-// RUN: %clang -### --target=avr --sysroot=%S/Inputs/basic_avr_tree -mmcu=atmega328 %s -fuse-ld=avrld 2>&1 | FileCheck --check-prefix=NOLD %s
+// RUN: not %clang -### --target=avr --sysroot=%S/Inputs/basic_avr_tree -mmcu=atmega328 %s -fuse-ld=avrld 2>&1 | FileCheck --check-prefix=NOLD %s
 // NOLD: error: invalid linker
 
 // RUN: %clang -### --target=avr --sysroot=%S/Inputs/basic_avr_tree -mmcu=atmega328 %s -fuse-ld=%S/Inputs/basic_avr_tree/usr/bin/ld.lld 2>&1 | FileCheck --check-prefix=LLD %s
@@ -67,7 +67,7 @@
 // LLD-NOT: "-mavr5"
 
 // RUN: %clang -### --target=avr --sysroot=%S/Inputs/basic_avr_tree -mmcu=atmega328 %s -T avr.lds 2>&1 | FileCheck --check-prefix=LDS0 %s
-// LDS0: "-T" "avr.lds" "-mavr5"
+// LDS0: "-T" "avr.lds" "--relax" "-mavr5"
 
 // RUN: %clang -### --target=avr --sysroot=%S/Inputs/basic_avr_tree -mmcu=atmega328 %s -fuse-ld=%S/Inputs/basic_avr_tree/usr/bin/ld.lld -T avr.lds 2>&1 | FileCheck --check-prefix=LDS1 %s
 // LDS1: "-T" "avr.lds"

@@ -7,50 +7,154 @@
 @c = external global i32
 @d = external global i32
 
+
+; Test intra-block CSINC optimization with (a > 10) and (a >= 10)
+; Two CSINC instructions should share a single CMP after optimization
+define void @intra_block_csinc(i32 %x, i32 %y, ptr %out1, ptr %out2) #0 {
+; CHECK-LABEL: intra_block_csinc:
+; CHECK:       // %bb.0: // %entry
+; CHECK-NEXT:    adrp x8, :got:a
+; CHECK-NEXT:    ldr x8, [x8, :got_lo12:a]
+; CHECK-NEXT:    ldr w8, [x8]
+; CHECK-NEXT:    cmp w8, #10
+; CHECK-NEXT:    csinc w8, w0, w1, gt
+; CHECK-NEXT:    csinc w9, w0, w1, ge
+; CHECK-NEXT:    str w8, [x2]
+; CHECK-NEXT:    str w9, [x3]
+; CHECK-NEXT:    ret
+entry:
+  %val = load i32, ptr @a, align 4
+
+  ; First: result1 = (a > 10) ? x : (y + 1)
+  %cond1 = icmp sgt i32 %val, 10
+  %y_inc1 = add i32 %y, 1
+  %result1 = select i1 %cond1, i32 %x, i32 %y_inc1
+  store i32 %result1, ptr %out1
+
+  ; Second: result2 = (a >= 10) ? x : (y + 1)
+  ; Canonicalizes to (a > 9), then optimizes to reuse first CMP with adjusted condition
+  %cond2 = icmp sge i32 %val, 10
+  %y_inc2 = add i32 %y, 1
+  %result2 = select i1 %cond2, i32 %x, i32 %y_inc2
+  store i32 %result2, ptr %out2
+
+  ret void
+}
+
+; Negative test: different registers should not be optimized
+define void @intra_block_csinc_different_regs(i32 %x, i32 %y, ptr %out1, ptr %out2) #0 {
+; CHECK-LABEL: intra_block_csinc_different_regs:
+; CHECK:       // %bb.0: // %entry
+; CHECK-NEXT:    adrp x8, :got:a
+; CHECK-NEXT:    adrp x9, :got:b
+; CHECK-NEXT:    ldr x8, [x8, :got_lo12:a]
+; CHECK-NEXT:    ldr x9, [x9, :got_lo12:b]
+; CHECK-NEXT:    ldr w8, [x8]
+; CHECK-NEXT:    ldr w9, [x9]
+; CHECK-NEXT:    cmp w8, #10
+; CHECK-NEXT:    csinc w8, w0, w1, gt
+; CHECK-NEXT:    cmp w9, #9
+; CHECK-NEXT:    str w8, [x2]
+; CHECK-NEXT:    csinc w8, w0, w1, gt
+; CHECK-NEXT:    str w8, [x3]
+; CHECK-NEXT:    ret
+entry:
+  %val1 = load i32, ptr @a, align 4
+  %val2 = load i32, ptr @b, align 4
+
+  ; First: result1 = (a > 10) ? x : (y + 1)
+  %cond1 = icmp sgt i32 %val1, 10
+  %y_inc1 = add i32 %y, 1
+  %result1 = select i1 %cond1, i32 %x, i32 %y_inc1
+  store i32 %result1, ptr %out1
+
+  ; Second: result2 = (b > 9) ? x : (y + 1) - compares DIFFERENT register
+  ; Should NOT optimize - need both CMPs
+  %cond2 = icmp sgt i32 %val2, 9
+  %y_inc2 = add i32 %y, 1
+  %result2 = select i1 %cond2, i32 %x, i32 %y_inc2
+  store i32 %result2, ptr %out2
+
+  ret void
+}
+
+; Test intra-block CSINC optimization with (a < 5) and (a < 6)
+; LT/LT pattern - symmetric to GT/GT case
+define void @intra_block_csinc_lt(i32 %x, i32 %y, ptr %out1, ptr %out2) #0 {
+; CHECK-LABEL: intra_block_csinc_lt:
+; CHECK:       // %bb.0: // %entry
+; CHECK-NEXT:    adrp x8, :got:a
+; CHECK-NEXT:    ldr x8, [x8, :got_lo12:a]
+; CHECK-NEXT:    ldr w8, [x8]
+; CHECK-NEXT:    cmp w8, #5
+; CHECK-NEXT:    csinc w8, w0, w1, lt
+; CHECK-NEXT:    csinc w9, w0, w1, le
+; CHECK-NEXT:    str w8, [x2]
+; CHECK-NEXT:    str w9, [x3]
+; CHECK-NEXT:    ret
+entry:
+  %val = load i32, ptr @a, align 4
+
+  ; First: result1 = (a < 5) ? x : (y + 1)
+  %cond1 = icmp slt i32 %val, 5
+  %y_inc1 = add i32 %y, 1
+  %result1 = select i1 %cond1, i32 %x, i32 %y_inc1
+  store i32 %result1, ptr %out1
+
+  ; Second: result2 = (a < 6) ? x : (y + 1)
+  ; Optimizes to reuse first CMP (#5) with adjusted condition (le)
+  %cond2 = icmp slt i32 %val, 6
+  %y_inc2 = add i32 %y, 1
+  %result2 = select i1 %cond2, i32 %x, i32 %y_inc2
+  store i32 %result2, ptr %out2
+
+  ret void
+}
+
 ; (a > 10 && b == c) || (a >= 10 && b == d)
 define i32 @combine_gt_ge_10() #0 {
 ; CHECK-LABEL: combine_gt_ge_10:
 ; CHECK:       // %bb.0: // %entry
 ; CHECK-NEXT:    adrp x8, :got:a
 ; CHECK-NEXT:    ldr x8, [x8, :got_lo12:a]
-; CHECK-NEXT:    ldr w9, [x8]
+; CHECK-NEXT:    ldr w8, [x8]
+; CHECK-NEXT:    cmp w8, #10
 ; CHECK-NEXT:    adrp x8, :got:b
 ; CHECK-NEXT:    ldr x8, [x8, :got_lo12:b]
-; CHECK-NEXT:    cmp w9, #10
-; CHECK-NEXT:    b.le .LBB0_3
+; CHECK-NEXT:    b.le .LBB3_3
 ; CHECK-NEXT:  // %bb.1: // %land.lhs.true
 ; CHECK-NEXT:    adrp x9, :got:c
 ; CHECK-NEXT:    ldr x9, [x9, :got_lo12:c]
 ; CHECK-NEXT:    ldr w10, [x8]
 ; CHECK-NEXT:    ldr w9, [x9]
 ; CHECK-NEXT:    cmp w10, w9
-; CHECK-NEXT:    b.ne .LBB0_4
+; CHECK-NEXT:    b.ne .LBB3_4
 ; CHECK-NEXT:  // %bb.2:
-; CHECK-NEXT:    mov w0, #1
+; CHECK-NEXT:    mov w0, #1 // =0x1
 ; CHECK-NEXT:    ret
-; CHECK-NEXT:  .LBB0_3: // %lor.lhs.false
-; CHECK-NEXT:    b.lt .LBB0_6
-; CHECK-NEXT:  .LBB0_4: // %land.lhs.true3
+; CHECK-NEXT:  .LBB3_3: // %lor.lhs.false
+; CHECK-NEXT:    b.lt .LBB3_6
+; CHECK-NEXT:  .LBB3_4: // %land.lhs.true3
 ; CHECK-NEXT:    adrp x9, :got:d
 ; CHECK-NEXT:    ldr x9, [x9, :got_lo12:d]
 ; CHECK-NEXT:    ldr w8, [x8]
 ; CHECK-NEXT:    ldr w9, [x9]
 ; CHECK-NEXT:    cmp w8, w9
-; CHECK-NEXT:    b.ne .LBB0_6
+; CHECK-NEXT:    b.ne .LBB3_6
 ; CHECK-NEXT:  // %bb.5:
-; CHECK-NEXT:    mov w0, #1
+; CHECK-NEXT:    mov w0, #1 // =0x1
 ; CHECK-NEXT:    ret
-; CHECK-NEXT:  .LBB0_6: // %if.end
+; CHECK-NEXT:  .LBB3_6: // %if.end
 ; CHECK-NEXT:    mov w0, wzr
 ; CHECK-NEXT:    ret
 entry:
-  %0 = load i32, i32* @a, align 4
+  %0 = load i32, ptr @a, align 4
   %cmp = icmp sgt i32 %0, 10
   br i1 %cmp, label %land.lhs.true, label %lor.lhs.false
 
 land.lhs.true:                                    ; preds = %entry
-  %1 = load i32, i32* @b, align 4
-  %2 = load i32, i32* @c, align 4
+  %1 = load i32, ptr @b, align 4
+  %2 = load i32, ptr @c, align 4
   %cmp1 = icmp eq i32 %1, %2
   br i1 %cmp1, label %return, label %land.lhs.true3
 
@@ -59,8 +163,8 @@ lor.lhs.false:                                    ; preds = %entry
   br i1 %cmp2, label %land.lhs.true3, label %if.end
 
 land.lhs.true3:                                   ; preds = %lor.lhs.false, %land.lhs.true
-  %3 = load i32, i32* @b, align 4
-  %4 = load i32, i32* @d, align 4
+  %3 = load i32, ptr @b, align 4
+  %4 = load i32, ptr @d, align 4
   %cmp4 = icmp eq i32 %3, %4
   br i1 %cmp4, label %return, label %if.end
 
@@ -80,7 +184,7 @@ define i32 @combine_gt_lt_5() #0 {
 ; CHECK-NEXT:    ldr x8, [x8, :got_lo12:a]
 ; CHECK-NEXT:    ldr w8, [x8]
 ; CHECK-NEXT:    cmp w8, #5
-; CHECK-NEXT:    b.le .LBB1_3
+; CHECK-NEXT:    b.le .LBB4_3
 ; CHECK-NEXT:  // %bb.1: // %land.lhs.true
 ; CHECK-NEXT:    adrp x8, :got:b
 ; CHECK-NEXT:    adrp x9, :got:c
@@ -89,12 +193,12 @@ define i32 @combine_gt_lt_5() #0 {
 ; CHECK-NEXT:    ldr w8, [x8]
 ; CHECK-NEXT:    ldr w9, [x9]
 ; CHECK-NEXT:    cmp w8, w9
-; CHECK-NEXT:    b.ne .LBB1_6
+; CHECK-NEXT:    b.ne .LBB4_6
 ; CHECK-NEXT:  // %bb.2:
-; CHECK-NEXT:    mov w0, #1
+; CHECK-NEXT:    mov w0, #1 // =0x1
 ; CHECK-NEXT:    ret
-; CHECK-NEXT:  .LBB1_3: // %lor.lhs.false
-; CHECK-NEXT:    b.ge .LBB1_6
+; CHECK-NEXT:  .LBB4_3: // %lor.lhs.false
+; CHECK-NEXT:    b.ge .LBB4_6
 ; CHECK-NEXT:  // %bb.4: // %land.lhs.true3
 ; CHECK-NEXT:    adrp x8, :got:b
 ; CHECK-NEXT:    adrp x9, :got:d
@@ -103,21 +207,21 @@ define i32 @combine_gt_lt_5() #0 {
 ; CHECK-NEXT:    ldr w8, [x8]
 ; CHECK-NEXT:    ldr w9, [x9]
 ; CHECK-NEXT:    cmp w8, w9
-; CHECK-NEXT:    b.ne .LBB1_6
+; CHECK-NEXT:    b.ne .LBB4_6
 ; CHECK-NEXT:  // %bb.5:
-; CHECK-NEXT:    mov w0, #1
+; CHECK-NEXT:    mov w0, #1 // =0x1
 ; CHECK-NEXT:    ret
-; CHECK-NEXT:  .LBB1_6: // %if.end
+; CHECK-NEXT:  .LBB4_6: // %if.end
 ; CHECK-NEXT:    mov w0, wzr
 ; CHECK-NEXT:    ret
 entry:
-  %0 = load i32, i32* @a, align 4
+  %0 = load i32, ptr @a, align 4
   %cmp = icmp sgt i32 %0, 5
   br i1 %cmp, label %land.lhs.true, label %lor.lhs.false
 
 land.lhs.true:                                    ; preds = %entry
-  %1 = load i32, i32* @b, align 4
-  %2 = load i32, i32* @c, align 4
+  %1 = load i32, ptr @b, align 4
+  %2 = load i32, ptr @c, align 4
   %cmp1 = icmp eq i32 %1, %2
   br i1 %cmp1, label %return, label %if.end
 
@@ -126,8 +230,8 @@ lor.lhs.false:                                    ; preds = %entry
   br i1 %cmp2, label %land.lhs.true3, label %if.end
 
 land.lhs.true3:                                   ; preds = %lor.lhs.false
-  %3 = load i32, i32* @b, align 4
-  %4 = load i32, i32* @d, align 4
+  %3 = load i32, ptr @b, align 4
+  %4 = load i32, ptr @d, align 4
   %cmp4 = icmp eq i32 %3, %4
   br i1 %cmp4, label %return, label %if.end
 
@@ -145,44 +249,44 @@ define i32 @combine_lt_ge_5() #0 {
 ; CHECK:       // %bb.0: // %entry
 ; CHECK-NEXT:    adrp x8, :got:a
 ; CHECK-NEXT:    ldr x8, [x8, :got_lo12:a]
-; CHECK-NEXT:    ldr w9, [x8]
+; CHECK-NEXT:    ldr w8, [x8]
+; CHECK-NEXT:    cmp w8, #5
 ; CHECK-NEXT:    adrp x8, :got:b
 ; CHECK-NEXT:    ldr x8, [x8, :got_lo12:b]
-; CHECK-NEXT:    cmp w9, #5
-; CHECK-NEXT:    b.ge .LBB2_3
+; CHECK-NEXT:    b.ge .LBB5_3
 ; CHECK-NEXT:  // %bb.1: // %land.lhs.true
 ; CHECK-NEXT:    adrp x9, :got:c
 ; CHECK-NEXT:    ldr x9, [x9, :got_lo12:c]
 ; CHECK-NEXT:    ldr w10, [x8]
 ; CHECK-NEXT:    ldr w9, [x9]
 ; CHECK-NEXT:    cmp w10, w9
-; CHECK-NEXT:    b.ne .LBB2_4
+; CHECK-NEXT:    b.ne .LBB5_4
 ; CHECK-NEXT:  // %bb.2:
-; CHECK-NEXT:    mov w0, #1
+; CHECK-NEXT:    mov w0, #1 // =0x1
 ; CHECK-NEXT:    ret
-; CHECK-NEXT:  .LBB2_3: // %lor.lhs.false
-; CHECK-NEXT:    b.gt .LBB2_6
-; CHECK-NEXT:  .LBB2_4: // %land.lhs.true3
+; CHECK-NEXT:  .LBB5_3: // %lor.lhs.false
+; CHECK-NEXT:    b.gt .LBB5_6
+; CHECK-NEXT:  .LBB5_4: // %land.lhs.true3
 ; CHECK-NEXT:    adrp x9, :got:d
 ; CHECK-NEXT:    ldr x9, [x9, :got_lo12:d]
 ; CHECK-NEXT:    ldr w8, [x8]
 ; CHECK-NEXT:    ldr w9, [x9]
 ; CHECK-NEXT:    cmp w8, w9
-; CHECK-NEXT:    b.ne .LBB2_6
+; CHECK-NEXT:    b.ne .LBB5_6
 ; CHECK-NEXT:  // %bb.5:
-; CHECK-NEXT:    mov w0, #1
+; CHECK-NEXT:    mov w0, #1 // =0x1
 ; CHECK-NEXT:    ret
-; CHECK-NEXT:  .LBB2_6: // %if.end
+; CHECK-NEXT:  .LBB5_6: // %if.end
 ; CHECK-NEXT:    mov w0, wzr
 ; CHECK-NEXT:    ret
 entry:
-  %0 = load i32, i32* @a, align 4
+  %0 = load i32, ptr @a, align 4
   %cmp = icmp slt i32 %0, 5
   br i1 %cmp, label %land.lhs.true, label %lor.lhs.false
 
 land.lhs.true:                                    ; preds = %entry
-  %1 = load i32, i32* @b, align 4
-  %2 = load i32, i32* @c, align 4
+  %1 = load i32, ptr @b, align 4
+  %2 = load i32, ptr @c, align 4
   %cmp1 = icmp eq i32 %1, %2
   br i1 %cmp1, label %return, label %land.lhs.true3
 
@@ -191,8 +295,8 @@ lor.lhs.false:                                    ; preds = %entry
   br i1 %cmp2, label %land.lhs.true3, label %if.end
 
 land.lhs.true3:                                   ; preds = %lor.lhs.false, %land.lhs.true
-  %3 = load i32, i32* @b, align 4
-  %4 = load i32, i32* @d, align 4
+  %3 = load i32, ptr @b, align 4
+  %4 = load i32, ptr @d, align 4
   %cmp4 = icmp eq i32 %3, %4
   br i1 %cmp4, label %return, label %if.end
 
@@ -212,7 +316,7 @@ define i32 @combine_lt_gt_5() #0 {
 ; CHECK-NEXT:    ldr x8, [x8, :got_lo12:a]
 ; CHECK-NEXT:    ldr w8, [x8]
 ; CHECK-NEXT:    cmp w8, #5
-; CHECK-NEXT:    b.ge .LBB3_3
+; CHECK-NEXT:    b.ge .LBB6_3
 ; CHECK-NEXT:  // %bb.1: // %land.lhs.true
 ; CHECK-NEXT:    adrp x8, :got:b
 ; CHECK-NEXT:    adrp x9, :got:c
@@ -221,12 +325,12 @@ define i32 @combine_lt_gt_5() #0 {
 ; CHECK-NEXT:    ldr w8, [x8]
 ; CHECK-NEXT:    ldr w9, [x9]
 ; CHECK-NEXT:    cmp w8, w9
-; CHECK-NEXT:    b.ne .LBB3_6
+; CHECK-NEXT:    b.ne .LBB6_6
 ; CHECK-NEXT:  // %bb.2:
-; CHECK-NEXT:    mov w0, #1
+; CHECK-NEXT:    mov w0, #1 // =0x1
 ; CHECK-NEXT:    ret
-; CHECK-NEXT:  .LBB3_3: // %lor.lhs.false
-; CHECK-NEXT:    b.le .LBB3_6
+; CHECK-NEXT:  .LBB6_3: // %lor.lhs.false
+; CHECK-NEXT:    b.le .LBB6_6
 ; CHECK-NEXT:  // %bb.4: // %land.lhs.true3
 ; CHECK-NEXT:    adrp x8, :got:b
 ; CHECK-NEXT:    adrp x9, :got:d
@@ -235,21 +339,21 @@ define i32 @combine_lt_gt_5() #0 {
 ; CHECK-NEXT:    ldr w8, [x8]
 ; CHECK-NEXT:    ldr w9, [x9]
 ; CHECK-NEXT:    cmp w8, w9
-; CHECK-NEXT:    b.ne .LBB3_6
+; CHECK-NEXT:    b.ne .LBB6_6
 ; CHECK-NEXT:  // %bb.5:
-; CHECK-NEXT:    mov w0, #1
+; CHECK-NEXT:    mov w0, #1 // =0x1
 ; CHECK-NEXT:    ret
-; CHECK-NEXT:  .LBB3_6: // %if.end
+; CHECK-NEXT:  .LBB6_6: // %if.end
 ; CHECK-NEXT:    mov w0, wzr
 ; CHECK-NEXT:    ret
 entry:
-  %0 = load i32, i32* @a, align 4
+  %0 = load i32, ptr @a, align 4
   %cmp = icmp slt i32 %0, 5
   br i1 %cmp, label %land.lhs.true, label %lor.lhs.false
 
 land.lhs.true:                                    ; preds = %entry
-  %1 = load i32, i32* @b, align 4
-  %2 = load i32, i32* @c, align 4
+  %1 = load i32, ptr @b, align 4
+  %2 = load i32, ptr @c, align 4
   %cmp1 = icmp eq i32 %1, %2
   br i1 %cmp1, label %return, label %if.end
 
@@ -258,8 +362,8 @@ lor.lhs.false:                                    ; preds = %entry
   br i1 %cmp2, label %land.lhs.true3, label %if.end
 
 land.lhs.true3:                                   ; preds = %lor.lhs.false
-  %3 = load i32, i32* @b, align 4
-  %4 = load i32, i32* @d, align 4
+  %3 = load i32, ptr @b, align 4
+  %4 = load i32, ptr @d, align 4
   %cmp4 = icmp eq i32 %3, %4
   br i1 %cmp4, label %return, label %if.end
 
@@ -279,7 +383,7 @@ define i32 @combine_gt_lt_n5() #0 {
 ; CHECK-NEXT:    ldr x8, [x8, :got_lo12:a]
 ; CHECK-NEXT:    ldr w8, [x8]
 ; CHECK-NEXT:    cmn w8, #5
-; CHECK-NEXT:    b.le .LBB4_3
+; CHECK-NEXT:    b.le .LBB7_3
 ; CHECK-NEXT:  // %bb.1: // %land.lhs.true
 ; CHECK-NEXT:    adrp x8, :got:b
 ; CHECK-NEXT:    adrp x9, :got:c
@@ -288,12 +392,12 @@ define i32 @combine_gt_lt_n5() #0 {
 ; CHECK-NEXT:    ldr w8, [x8]
 ; CHECK-NEXT:    ldr w9, [x9]
 ; CHECK-NEXT:    cmp w8, w9
-; CHECK-NEXT:    b.ne .LBB4_6
+; CHECK-NEXT:    b.ne .LBB7_6
 ; CHECK-NEXT:  // %bb.2:
-; CHECK-NEXT:    mov w0, #1
+; CHECK-NEXT:    mov w0, #1 // =0x1
 ; CHECK-NEXT:    ret
-; CHECK-NEXT:  .LBB4_3: // %lor.lhs.false
-; CHECK-NEXT:    b.ge .LBB4_6
+; CHECK-NEXT:  .LBB7_3: // %lor.lhs.false
+; CHECK-NEXT:    b.ge .LBB7_6
 ; CHECK-NEXT:  // %bb.4: // %land.lhs.true3
 ; CHECK-NEXT:    adrp x8, :got:b
 ; CHECK-NEXT:    adrp x9, :got:d
@@ -302,21 +406,21 @@ define i32 @combine_gt_lt_n5() #0 {
 ; CHECK-NEXT:    ldr w8, [x8]
 ; CHECK-NEXT:    ldr w9, [x9]
 ; CHECK-NEXT:    cmp w8, w9
-; CHECK-NEXT:    b.ne .LBB4_6
+; CHECK-NEXT:    b.ne .LBB7_6
 ; CHECK-NEXT:  // %bb.5:
-; CHECK-NEXT:    mov w0, #1
+; CHECK-NEXT:    mov w0, #1 // =0x1
 ; CHECK-NEXT:    ret
-; CHECK-NEXT:  .LBB4_6: // %if.end
+; CHECK-NEXT:  .LBB7_6: // %if.end
 ; CHECK-NEXT:    mov w0, wzr
 ; CHECK-NEXT:    ret
 entry:
-  %0 = load i32, i32* @a, align 4
+  %0 = load i32, ptr @a, align 4
   %cmp = icmp sgt i32 %0, -5
   br i1 %cmp, label %land.lhs.true, label %lor.lhs.false
 
 land.lhs.true:                                    ; preds = %entry
-  %1 = load i32, i32* @b, align 4
-  %2 = load i32, i32* @c, align 4
+  %1 = load i32, ptr @b, align 4
+  %2 = load i32, ptr @c, align 4
   %cmp1 = icmp eq i32 %1, %2
   br i1 %cmp1, label %return, label %if.end
 
@@ -325,8 +429,8 @@ lor.lhs.false:                                    ; preds = %entry
   br i1 %cmp2, label %land.lhs.true3, label %if.end
 
 land.lhs.true3:                                   ; preds = %lor.lhs.false
-  %3 = load i32, i32* @b, align 4
-  %4 = load i32, i32* @d, align 4
+  %3 = load i32, ptr @b, align 4
+  %4 = load i32, ptr @d, align 4
   %cmp4 = icmp eq i32 %3, %4
   br i1 %cmp4, label %return, label %if.end
 
@@ -346,7 +450,7 @@ define i32 @combine_lt_gt_n5() #0 {
 ; CHECK-NEXT:    ldr x8, [x8, :got_lo12:a]
 ; CHECK-NEXT:    ldr w8, [x8]
 ; CHECK-NEXT:    cmn w8, #5
-; CHECK-NEXT:    b.ge .LBB5_3
+; CHECK-NEXT:    b.ge .LBB8_3
 ; CHECK-NEXT:  // %bb.1: // %land.lhs.true
 ; CHECK-NEXT:    adrp x8, :got:b
 ; CHECK-NEXT:    adrp x9, :got:c
@@ -355,12 +459,12 @@ define i32 @combine_lt_gt_n5() #0 {
 ; CHECK-NEXT:    ldr w8, [x8]
 ; CHECK-NEXT:    ldr w9, [x9]
 ; CHECK-NEXT:    cmp w8, w9
-; CHECK-NEXT:    b.ne .LBB5_6
+; CHECK-NEXT:    b.ne .LBB8_6
 ; CHECK-NEXT:  // %bb.2:
-; CHECK-NEXT:    mov w0, #1
+; CHECK-NEXT:    mov w0, #1 // =0x1
 ; CHECK-NEXT:    ret
-; CHECK-NEXT:  .LBB5_3: // %lor.lhs.false
-; CHECK-NEXT:    b.le .LBB5_6
+; CHECK-NEXT:  .LBB8_3: // %lor.lhs.false
+; CHECK-NEXT:    b.le .LBB8_6
 ; CHECK-NEXT:  // %bb.4: // %land.lhs.true3
 ; CHECK-NEXT:    adrp x8, :got:b
 ; CHECK-NEXT:    adrp x9, :got:d
@@ -369,21 +473,21 @@ define i32 @combine_lt_gt_n5() #0 {
 ; CHECK-NEXT:    ldr w8, [x8]
 ; CHECK-NEXT:    ldr w9, [x9]
 ; CHECK-NEXT:    cmp w8, w9
-; CHECK-NEXT:    b.ne .LBB5_6
+; CHECK-NEXT:    b.ne .LBB8_6
 ; CHECK-NEXT:  // %bb.5:
-; CHECK-NEXT:    mov w0, #1
+; CHECK-NEXT:    mov w0, #1 // =0x1
 ; CHECK-NEXT:    ret
-; CHECK-NEXT:  .LBB5_6: // %if.end
+; CHECK-NEXT:  .LBB8_6: // %if.end
 ; CHECK-NEXT:    mov w0, wzr
 ; CHECK-NEXT:    ret
 entry:
-  %0 = load i32, i32* @a, align 4
+  %0 = load i32, ptr @a, align 4
   %cmp = icmp slt i32 %0, -5
   br i1 %cmp, label %land.lhs.true, label %lor.lhs.false
 
 land.lhs.true:                                    ; preds = %entry
-  %1 = load i32, i32* @b, align 4
-  %2 = load i32, i32* @c, align 4
+  %1 = load i32, ptr @b, align 4
+  %2 = load i32, ptr @c, align 4
   %cmp1 = icmp eq i32 %1, %2
   br i1 %cmp1, label %return, label %if.end
 
@@ -392,8 +496,8 @@ lor.lhs.false:                                    ; preds = %entry
   br i1 %cmp2, label %land.lhs.true3, label %if.end
 
 land.lhs.true3:                                   ; preds = %lor.lhs.false
-  %3 = load i32, i32* @b, align 4
-  %4 = load i32, i32* @d, align 4
+  %3 = load i32, ptr @b, align 4
+  %4 = load i32, ptr @d, align 4
   %cmp4 = icmp eq i32 %3, %4
   br i1 %cmp4, label %return, label %if.end
 
@@ -407,12 +511,12 @@ return:                                           ; preds = %if.end, %land.lhs.t
 
 %struct.Struct = type { i64, i64 }
 
-@glob = internal unnamed_addr global %struct.Struct* null, align 8
+@glob = internal unnamed_addr global ptr null, align 8
 
-declare %struct.Struct* @Update(%struct.Struct*) #1
+declare ptr @Update(ptr) #1
 
 ; no checks for this case, it just should be processed without errors
-define void @combine_non_adjacent_cmp_br(%struct.Struct* nocapture readonly %hdCall) #0 {
+define void @combine_non_adjacent_cmp_br(ptr nocapture readonly %hdCall) #0 {
 ; CHECK-LABEL: combine_non_adjacent_cmp_br:
 ; CHECK:       // %bb.0: // %entry
 ; CHECK-NEXT:    str x30, [sp, #-48]! // 8-byte Folded Spill
@@ -425,22 +529,22 @@ define void @combine_non_adjacent_cmp_br(%struct.Struct* nocapture readonly %hdC
 ; CHECK-NEXT:    .cfi_offset w22, -32
 ; CHECK-NEXT:    .cfi_offset w30, -48
 ; CHECK-NEXT:    ldr x20, [x0]
-; CHECK-NEXT:    mov w19, #24
+; CHECK-NEXT:    mov w19, #24 // =0x18
 ; CHECK-NEXT:    adrp x22, glob
 ; CHECK-NEXT:    add x21, x20, #2
-; CHECK-NEXT:  .LBB6_1: // %land.rhs
+; CHECK-NEXT:  .LBB9_1: // %land.rhs
 ; CHECK-NEXT:    // =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    ldr x8, [x19]
 ; CHECK-NEXT:    cmp x8, #1
-; CHECK-NEXT:    b.lt .LBB6_3
+; CHECK-NEXT:    b.lt .LBB9_3
 ; CHECK-NEXT:  // %bb.2: // %while.body
-; CHECK-NEXT:    // in Loop: Header=BB6_1 Depth=1
+; CHECK-NEXT:    // in Loop: Header=BB9_1 Depth=1
 ; CHECK-NEXT:    ldr x0, [x22, :lo12:glob]
 ; CHECK-NEXT:    bl Update
 ; CHECK-NEXT:    sub x21, x21, #2
 ; CHECK-NEXT:    cmp x20, x21
-; CHECK-NEXT:    b.lt .LBB6_1
-; CHECK-NEXT:  .LBB6_3: // %while.end
+; CHECK-NEXT:    b.lt .LBB9_1
+; CHECK-NEXT:  .LBB9_3: // %while.end
 ; CHECK-NEXT:    ldp x20, x19, [sp, #32] // 16-byte Folded Reload
 ; CHECK-NEXT:    ldp x22, x21, [sp, #16] // 16-byte Folded Reload
 ; CHECK-NEXT:    ldr x30, [sp], #48 // 8-byte Folded Reload
@@ -452,19 +556,18 @@ define void @combine_non_adjacent_cmp_br(%struct.Struct* nocapture readonly %hdC
 ; CHECK-NEXT:    .cfi_restore w30
 ; CHECK-NEXT:    ret
 entry:
-  %size = getelementptr inbounds %struct.Struct, %struct.Struct* %hdCall, i64 0, i32 0
-  %0 = load i64, i64* %size, align 8
+  %0 = load i64, ptr %hdCall, align 8
   br label %land.rhs
 
 land.rhs:
   %rp.06 = phi i64 [ %0, %entry ], [ %sub, %while.body ]
-  %1 = load i64, i64* inttoptr (i64 24 to i64*), align 8
+  %1 = load i64, ptr inttoptr (i64 24 to ptr), align 8
   %cmp2 = icmp sgt i64 %1, 0
   br i1 %cmp2, label %while.body, label %while.end
 
 while.body:
-  %2 = load %struct.Struct*, %struct.Struct** @glob, align 8
-  %call = tail call %struct.Struct* @Update(%struct.Struct* %2) #2
+  %2 = load ptr, ptr @glob, align 8
+  %call = tail call ptr @Update(ptr %2) #2
   %sub = add nsw i64 %rp.06, -2
   %cmp = icmp slt i64 %0, %rp.06
   br i1 %cmp, label %land.rhs, label %while.end
@@ -489,19 +592,19 @@ define i32 @do_nothing_if_resultant_opcodes_would_differ() #0 {
 ; CHECK-NEXT:    ldr x19, [x19, :got_lo12:a]
 ; CHECK-NEXT:    ldr w8, [x19]
 ; CHECK-NEXT:    cmn w8, #2
-; CHECK-NEXT:    b.gt .LBB7_4
+; CHECK-NEXT:    b.gt .LBB10_4
 ; CHECK-NEXT:  // %bb.1: // %while.body.preheader
 ; CHECK-NEXT:    sub w20, w8, #1
-; CHECK-NEXT:  .LBB7_2: // %while.body
+; CHECK-NEXT:  .LBB10_2: // %while.body
 ; CHECK-NEXT:    // =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    bl do_something
 ; CHECK-NEXT:    adds w20, w20, #1
-; CHECK-NEXT:    b.mi .LBB7_2
+; CHECK-NEXT:    b.mi .LBB10_2
 ; CHECK-NEXT:  // %bb.3: // %while.cond.while.end_crit_edge
 ; CHECK-NEXT:    ldr w8, [x19]
-; CHECK-NEXT:  .LBB7_4: // %while.end
+; CHECK-NEXT:  .LBB10_4: // %while.end
 ; CHECK-NEXT:    cmp w8, #1
-; CHECK-NEXT:    b.gt .LBB7_7
+; CHECK-NEXT:    b.gt .LBB10_7
 ; CHECK-NEXT:  // %bb.5: // %land.lhs.true
 ; CHECK-NEXT:    adrp x8, :got:b
 ; CHECK-NEXT:    adrp x9, :got:d
@@ -510,13 +613,13 @@ define i32 @do_nothing_if_resultant_opcodes_would_differ() #0 {
 ; CHECK-NEXT:    ldr w8, [x8]
 ; CHECK-NEXT:    ldr w9, [x9]
 ; CHECK-NEXT:    cmp w8, w9
-; CHECK-NEXT:    b.ne .LBB7_7
+; CHECK-NEXT:    b.ne .LBB10_7
 ; CHECK-NEXT:  // %bb.6:
-; CHECK-NEXT:    mov w0, #123
-; CHECK-NEXT:    b .LBB7_8
-; CHECK-NEXT:  .LBB7_7: // %if.end
+; CHECK-NEXT:    mov w0, #123 // =0x7b
+; CHECK-NEXT:    b .LBB10_8
+; CHECK-NEXT:  .LBB10_7: // %if.end
 ; CHECK-NEXT:    mov w0, wzr
-; CHECK-NEXT:  .LBB7_8: // %return
+; CHECK-NEXT:  .LBB10_8: // %return
 ; CHECK-NEXT:    ldp x20, x19, [sp, #16] // 16-byte Folded Reload
 ; CHECK-NEXT:    ldr x30, [sp], #32 // 8-byte Folded Reload
 ; CHECK-NEXT:    .cfi_def_cfa_offset 0
@@ -525,7 +628,7 @@ define i32 @do_nothing_if_resultant_opcodes_would_differ() #0 {
 ; CHECK-NEXT:    .cfi_restore w30
 ; CHECK-NEXT:    ret
 entry:
-  %0 = load i32, i32* @a, align 4
+  %0 = load i32, ptr @a, align 4
   %cmp4 = icmp slt i32 %0, -1
   br i1 %cmp4, label %while.body.preheader, label %while.end
 
@@ -540,7 +643,7 @@ while.body:                                       ; preds = %while.body, %while.
   br i1 %cmp, label %while.body, label %while.cond.while.end_crit_edge
 
 while.cond.while.end_crit_edge:                   ; preds = %while.body
-  %.pre = load i32, i32* @a, align 4
+  %.pre = load i32, ptr @a, align 4
   br label %while.end
 
 while.end:                                        ; preds = %while.cond.while.end_crit_edge, %entry
@@ -549,8 +652,8 @@ while.end:                                        ; preds = %while.cond.while.en
   br i1 %cmp1, label %land.lhs.true, label %if.end
 
 land.lhs.true:                                    ; preds = %while.end
-  %2 = load i32, i32* @b, align 4
-  %3 = load i32, i32* @d, align 4
+  %2 = load i32, ptr @b, align 4
+  %3 = load i32, ptr @d, align 4
   %cmp2 = icmp eq i32 %2, %3
   br i1 %cmp2, label %return, label %if.end
 
@@ -574,20 +677,20 @@ define i32 @do_nothing_if_compares_can_not_be_adjusted_to_each_other() #0 {
 ; CHECK-NEXT:    ldr x8, [x8, :got_lo12:a]
 ; CHECK-NEXT:    ldr w8, [x8]
 ; CHECK-NEXT:    cmp w8, #0
-; CHECK-NEXT:    b.gt .LBB8_3
+; CHECK-NEXT:    b.gt .LBB11_3
 ; CHECK-NEXT:  // %bb.1: // %while.body.preheader
 ; CHECK-NEXT:    sub w19, w8, #1
-; CHECK-NEXT:  .LBB8_2: // %while.body
+; CHECK-NEXT:  .LBB11_2: // %while.body
 ; CHECK-NEXT:    // =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    bl do_something
 ; CHECK-NEXT:    adds w19, w19, #1
-; CHECK-NEXT:    b.mi .LBB8_2
-; CHECK-NEXT:  .LBB8_3: // %while.end
+; CHECK-NEXT:    b.mi .LBB11_2
+; CHECK-NEXT:  .LBB11_3: // %while.end
 ; CHECK-NEXT:    adrp x8, :got:c
 ; CHECK-NEXT:    ldr x8, [x8, :got_lo12:c]
 ; CHECK-NEXT:    ldr w8, [x8]
 ; CHECK-NEXT:    cmn w8, #2
-; CHECK-NEXT:    b.lt .LBB8_6
+; CHECK-NEXT:    b.lt .LBB11_6
 ; CHECK-NEXT:  // %bb.4: // %land.lhs.true
 ; CHECK-NEXT:    adrp x8, :got:b
 ; CHECK-NEXT:    adrp x9, :got:d
@@ -596,15 +699,15 @@ define i32 @do_nothing_if_compares_can_not_be_adjusted_to_each_other() #0 {
 ; CHECK-NEXT:    ldr w8, [x8]
 ; CHECK-NEXT:    ldr w9, [x9]
 ; CHECK-NEXT:    cmp w8, w9
-; CHECK-NEXT:    b.ne .LBB8_6
+; CHECK-NEXT:    b.ne .LBB11_6
 ; CHECK-NEXT:  // %bb.5:
-; CHECK-NEXT:    mov w0, #123
+; CHECK-NEXT:    mov w0, #123 // =0x7b
 ; CHECK-NEXT:    ldp x30, x19, [sp], #16 // 16-byte Folded Reload
 ; CHECK-NEXT:    .cfi_def_cfa_offset 0
 ; CHECK-NEXT:    .cfi_restore w19
 ; CHECK-NEXT:    .cfi_restore w30
 ; CHECK-NEXT:    ret
-; CHECK-NEXT:  .LBB8_6: // %if.end
+; CHECK-NEXT:  .LBB11_6: // %if.end
 ; CHECK-NEXT:    .cfi_restore_state
 ; CHECK-NEXT:    mov w0, wzr
 ; CHECK-NEXT:    ldp x30, x19, [sp], #16 // 16-byte Folded Reload
@@ -613,7 +716,7 @@ define i32 @do_nothing_if_compares_can_not_be_adjusted_to_each_other() #0 {
 ; CHECK-NEXT:    .cfi_restore w30
 ; CHECK-NEXT:    ret
 entry:
-  %0 = load i32, i32* @a, align 4
+  %0 = load i32, ptr @a, align 4
   %cmp4 = icmp slt i32 %0, 1
   br i1 %cmp4, label %while.body.preheader, label %while.end
 
@@ -631,13 +734,13 @@ while.end.loopexit:                               ; preds = %while.body
   br label %while.end
 
 while.end:                                        ; preds = %while.end.loopexit, %entry
-  %1 = load i32, i32* @c, align 4
+  %1 = load i32, ptr @c, align 4
   %cmp1 = icmp sgt i32 %1, -3
   br i1 %cmp1, label %land.lhs.true, label %if.end
 
 land.lhs.true:                                    ; preds = %while.end
-  %2 = load i32, i32* @b, align 4
-  %3 = load i32, i32* @d, align 4
+  %2 = load i32, ptr @b, align 4
+  %3 = load i32, ptr @d, align 4
   %cmp2 = icmp eq i32 %2, %3
   br i1 %cmp2, label %return, label %if.end
 
@@ -656,33 +759,33 @@ return:                                           ; preds = %if.end, %land.lhs.t
 ; fcmp d8, #0.0
 ; b.gt .LBB0_5
 
-define i32 @fcmpri(i32 %argc, i8** nocapture readonly %argv) #0 {
+define i32 @fcmpri(i32 %argc, ptr nocapture readonly %argv) #0 {
 ; CHECK-LABEL: fcmpri:
 ; CHECK:       // %bb.0: // %entry
+; CHECK-NEXT:    cmp w0, #2
+; CHECK-NEXT:    b.lt .LBB12_3
+; CHECK-NEXT:  // %bb.1: // %land.lhs.true
+; CHECK-NEXT:    ldr x8, [x1, #8]
+; CHECK-NEXT:    cbz x8, .LBB12_3
+; CHECK-NEXT:  // %bb.2:
+; CHECK-NEXT:    mov w0, #3 // =0x3
+; CHECK-NEXT:    ret
+; CHECK-NEXT:  .LBB12_3: // %if.end
 ; CHECK-NEXT:    str d8, [sp, #-32]! // 8-byte Folded Spill
 ; CHECK-NEXT:    .cfi_def_cfa_offset 32
 ; CHECK-NEXT:    stp x30, x19, [sp, #16] // 16-byte Folded Spill
 ; CHECK-NEXT:    .cfi_offset w19, -8
 ; CHECK-NEXT:    .cfi_offset w30, -16
 ; CHECK-NEXT:    .cfi_offset b8, -32
-; CHECK-NEXT:    cmp w0, #2
-; CHECK-NEXT:    b.lt .LBB9_3
-; CHECK-NEXT:  // %bb.1: // %land.lhs.true
-; CHECK-NEXT:    ldr x8, [x1, #8]
-; CHECK-NEXT:    cbz x8, .LBB9_3
-; CHECK-NEXT:  // %bb.2:
-; CHECK-NEXT:    mov w0, #3
-; CHECK-NEXT:    b .LBB9_4
-; CHECK-NEXT:  .LBB9_3: // %if.end
-; CHECK-NEXT:    mov w0, #1
+; CHECK-NEXT:    mov w0, #1 // =0x1
 ; CHECK-NEXT:    bl zoo
 ; CHECK-NEXT:    mov w19, w0
-; CHECK-NEXT:    mov w0, #-1
+; CHECK-NEXT:    mov w0, #-1 // =0xffffffff
 ; CHECK-NEXT:    bl yoo
 ; CHECK-NEXT:    cmp w19, #0
-; CHECK-NEXT:    mov w1, #2
-; CHECK-NEXT:    cinc w0, w19, gt
+; CHECK-NEXT:    mov w1, #2 // =0x2
 ; CHECK-NEXT:    fmov d8, d0
+; CHECK-NEXT:    cinc w0, w19, gt
 ; CHECK-NEXT:    bl xoo
 ; CHECK-NEXT:    fmov d0, #-1.00000000
 ; CHECK-NEXT:    fcmp d8, #0.0
@@ -690,9 +793,8 @@ define i32 @fcmpri(i32 %argc, i8** nocapture readonly %argv) #0 {
 ; CHECK-NEXT:    fadd d0, d8, d0
 ; CHECK-NEXT:    fcsel d0, d8, d0, gt
 ; CHECK-NEXT:    bl woo
-; CHECK-NEXT:    mov w0, #4
-; CHECK-NEXT:  .LBB9_4: // %return
 ; CHECK-NEXT:    ldp x30, x19, [sp, #16] // 16-byte Folded Reload
+; CHECK-NEXT:    mov w0, #4 // =0x4
 ; CHECK-NEXT:    ldr d8, [sp], #32 // 8-byte Folded Reload
 ; CHECK-NEXT:    .cfi_def_cfa_offset 0
 ; CHECK-NEXT:    .cfi_restore w19
@@ -707,9 +809,9 @@ entry:
   br i1 %cmp, label %land.lhs.true, label %if.end
 
 land.lhs.true:                                    ; preds = %entry
-  %arrayidx = getelementptr inbounds i8*, i8** %argv, i64 1
-  %0 = load i8*, i8** %arrayidx, align 8
-  %cmp1 = icmp eq i8* %0, null
+  %arrayidx = getelementptr inbounds ptr, ptr %argv, i64 1
+  %0 = load ptr, ptr %arrayidx, align 8
+  %cmp1 = icmp eq ptr %0, null
   br i1 %cmp1, label %if.end, label %return
 
 if.end:                                           ; preds = %land.lhs.true, %entry
@@ -742,11 +844,11 @@ define void @cmp_shifted(i32 %in, i32 %lhs, i32 %rhs) #0 {
 ; CHECK-NEXT:    str x30, [sp, #-16]! // 8-byte Folded Spill
 ; CHECK-NEXT:    .cfi_def_cfa_offset 16
 ; CHECK-NEXT:    .cfi_offset w30, -16
-; CHECK-NEXT:    mov w8, #42
+; CHECK-NEXT:    mov w8, #42 // =0x2a
 ; CHECK-NEXT:    cmp w0, #0
+; CHECK-NEXT:    mov w9, #128 // =0x80
 ; CHECK-NEXT:    csinc w8, w8, wzr, gt
 ; CHECK-NEXT:    cmp w0, #2, lsl #12 // =8192
-; CHECK-NEXT:    mov w9, #128
 ; CHECK-NEXT:    csel w0, w9, w8, ge
 ; CHECK-NEXT:    bl zoo
 ; CHECK-NEXT:    ldr x30, [sp], #16 // 8-byte Folded Reload
@@ -775,7 +877,7 @@ falser:
   ret void
 }
 
-define i32 @combine_gt_ge_sel(i64 %v, i64* %p) #0 {
+define i32 @combine_gt_ge_sel(i64 %v, ptr %p) #0 {
 ; CHECK-LABEL: combine_gt_ge_sel:
 ; CHECK:       // %bb.0: // %entry
 ; CHECK-NEXT:    adrp x8, :got:a
@@ -784,12 +886,12 @@ define i32 @combine_gt_ge_sel(i64 %v, i64* %p) #0 {
 ; CHECK-NEXT:    cmp w8, #0
 ; CHECK-NEXT:    csel x9, x0, xzr, gt
 ; CHECK-NEXT:    str x9, [x1]
-; CHECK-NEXT:    b.le .LBB11_2
+; CHECK-NEXT:    b.le .LBB14_2
 ; CHECK-NEXT:  // %bb.1: // %lor.lhs.false
 ; CHECK-NEXT:    cmp w8, #2
-; CHECK-NEXT:    b.ge .LBB11_4
-; CHECK-NEXT:    b .LBB11_6
-; CHECK-NEXT:  .LBB11_2: // %land.lhs.true
+; CHECK-NEXT:    b.ge .LBB14_4
+; CHECK-NEXT:    b .LBB14_6
+; CHECK-NEXT:  .LBB14_2: // %land.lhs.true
 ; CHECK-NEXT:    adrp x8, :got:b
 ; CHECK-NEXT:    adrp x9, :got:c
 ; CHECK-NEXT:    ldr x8, [x8, :got_lo12:b]
@@ -797,11 +899,11 @@ define i32 @combine_gt_ge_sel(i64 %v, i64* %p) #0 {
 ; CHECK-NEXT:    ldr w8, [x8]
 ; CHECK-NEXT:    ldr w9, [x9]
 ; CHECK-NEXT:    cmp w8, w9
-; CHECK-NEXT:    b.ne .LBB11_4
+; CHECK-NEXT:    b.ne .LBB14_4
 ; CHECK-NEXT:  // %bb.3:
-; CHECK-NEXT:    mov w0, #1
+; CHECK-NEXT:    mov w0, #1 // =0x1
 ; CHECK-NEXT:    ret
-; CHECK-NEXT:  .LBB11_4: // %land.lhs.true3
+; CHECK-NEXT:  .LBB14_4: // %land.lhs.true3
 ; CHECK-NEXT:    adrp x8, :got:b
 ; CHECK-NEXT:    adrp x9, :got:d
 ; CHECK-NEXT:    ldr x8, [x8, :got_lo12:b]
@@ -809,23 +911,23 @@ define i32 @combine_gt_ge_sel(i64 %v, i64* %p) #0 {
 ; CHECK-NEXT:    ldr w8, [x8]
 ; CHECK-NEXT:    ldr w9, [x9]
 ; CHECK-NEXT:    cmp w8, w9
-; CHECK-NEXT:    b.ne .LBB11_6
+; CHECK-NEXT:    b.ne .LBB14_6
 ; CHECK-NEXT:  // %bb.5:
-; CHECK-NEXT:    mov w0, #1
+; CHECK-NEXT:    mov w0, #1 // =0x1
 ; CHECK-NEXT:    ret
-; CHECK-NEXT:  .LBB11_6: // %if.end
+; CHECK-NEXT:  .LBB14_6: // %if.end
 ; CHECK-NEXT:    mov w0, wzr
 ; CHECK-NEXT:    ret
 entry:
-  %0 = load i32, i32* @a, align 4
+  %0 = load i32, ptr @a, align 4
   %cmp = icmp sgt i32 %0, 0
   %m = select i1 %cmp, i64 %v, i64 0
-  store i64 %m, i64* %p
+  store i64 %m, ptr %p
   br i1 %cmp, label %lor.lhs.false, label %land.lhs.true
 
 land.lhs.true:                                    ; preds = %entry
-  %1 = load i32, i32* @b, align 4
-  %2 = load i32, i32* @c, align 4
+  %1 = load i32, ptr @b, align 4
+  %2 = load i32, ptr @c, align 4
   %cmp1 = icmp eq i32 %1, %2
   br i1 %cmp1, label %return, label %land.lhs.true3
 
@@ -834,8 +936,8 @@ lor.lhs.false:                                    ; preds = %entry
   br i1 %cmp2, label %land.lhs.true3, label %if.end
 
 land.lhs.true3:                                   ; preds = %lor.lhs.false, %land.lhs.true
-  %3 = load i32, i32* @b, align 4
-  %4 = load i32, i32* @d, align 4
+  %3 = load i32, ptr @b, align 4
+  %4 = load i32, ptr @d, align 4
   %cmp4 = icmp eq i32 %3, %4
   br i1 %cmp4, label %return, label %if.end
 

@@ -14,7 +14,6 @@
 #include "DirectXMCTargetDesc.h"
 #include "DirectXContainerObjectWriter.h"
 #include "TargetInfo/DirectXTargetInfo.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/MC/LaneBitmask.h"
 #include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCAsmInfo.h"
@@ -27,6 +26,7 @@
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/Compiler.h"
+#include "llvm/TargetParser/Triple.h"
 #include <memory>
 
 using namespace llvm;
@@ -53,7 +53,8 @@ public:
   void printInst(const MCInst *MI, uint64_t Address, StringRef Annot,
                  const MCSubtargetInfo &STI, raw_ostream &O) override {}
 
-  std::pair<const char *, uint64_t> getMnemonic(const MCInst *MI) override {
+  std::pair<const char *, uint64_t>
+  getMnemonic(const MCInst &MI) const override {
     return std::make_pair<const char *, uint64_t>("", 0ull);
   }
 
@@ -64,7 +65,7 @@ class DXILMCCodeEmitter : public MCCodeEmitter {
 public:
   DXILMCCodeEmitter() {}
 
-  void encodeInstruction(const MCInst &MI, raw_ostream &OS,
+  void encodeInstruction(const MCInst &Inst, SmallVectorImpl<char> &CB,
                          SmallVectorImpl<MCFixup> &Fixups,
                          const MCSubtargetInfo &STI) const override {}
 };
@@ -72,29 +73,20 @@ public:
 class DXILAsmBackend : public MCAsmBackend {
 
 public:
-  DXILAsmBackend(const MCSubtargetInfo &STI) : MCAsmBackend(support::little) {}
+  DXILAsmBackend(const MCSubtargetInfo &STI)
+      : MCAsmBackend(llvm::endianness::little) {}
   ~DXILAsmBackend() override = default;
 
-  void applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
-                  const MCValue &Target, MutableArrayRef<char> Data,
-                  uint64_t Value, bool IsResolved,
-                  const MCSubtargetInfo *STI) const override {}
+  void applyFixup(const MCFragment &, const MCFixup &, const MCValue &Target,
+                  uint8_t *Data, uint64_t Value, bool IsResolved) override {}
 
   std::unique_ptr<MCObjectTargetWriter>
   createObjectTargetWriter() const override {
     return createDXContainerTargetObjectWriter();
   }
 
-  unsigned getNumFixupKinds() const override { return 0; }
-
   bool writeNopData(raw_ostream &OS, uint64_t Count,
                     const MCSubtargetInfo *STI) const override {
-    return true;
-  }
-
-  bool fixupNeedsRelaxation(const MCFixup &Fixup, uint64_t Value,
-                            const MCRelaxableFragment *DF,
-                            const MCAsmLayout &Layout) const override {
     return true;
   }
 };
@@ -140,7 +132,8 @@ static MCRegisterInfo *createDirectXMCRegisterInfo(const Triple &Triple) {
 
 static MCInstrInfo *createDirectXMCInstrInfo() { return new MCInstrInfo(); }
 
-extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeDirectXTargetMC() {
+extern "C" LLVM_ABI LLVM_EXTERNAL_VISIBILITY void
+LLVMInitializeDirectXTargetMC() {
   Target &T = getTheDirectXTarget();
   RegisterMCAsmInfo<DirectXMCAsmInfo> X(T);
   TargetRegistry::RegisterMCInstrInfo(T, createDirectXMCInstrInfo);

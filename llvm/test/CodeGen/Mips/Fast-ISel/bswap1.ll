@@ -21,14 +21,14 @@ define void @b16() {
 
   ; 32R1:           sll   $[[TMP1:[0-9]+]], $[[A_VAL]], 8
   ; 32R1:           srl   $[[TMP2:[0-9]+]], $[[A_VAL]], 8
-  ; 32R1:           or    $[[TMP3:[0-9]+]], $[[TMP1]], $[[TMP2]]
-  ; 32R1:           andi  $[[TMP4:[0-9]+]], $[[TMP3]], 65535
+  ; 32R1:           andi  $[[TMP3:[0-9]+]], $[[TMP2]], 255
+  ; 32R1:           or    $[[RESULT:[0-9]+]], $[[TMP1]], $[[TMP3]]
 
   ; 32R2:           wsbh  $[[RESULT:[0-9]+]], $[[A_VAL]]
 
-  %1 = load i16, i16* @a, align 2
+  %1 = load i16, ptr @a, align 2
   %2 = call i16 @llvm.bswap.i16(i16 %1)
-  store i16 %2, i16* @a1, align 2
+  store i16 %2, ptr @a1, align 2
   ret void
 }
 
@@ -51,8 +51,8 @@ define void @b32() {
   ; 32R2:           wsbh  $[[TMP:[0-9]+]], $[[B_VAL]]
   ; 32R2:           rotr  $[[RESULT:[0-9]+]], $[[TMP]], 16
 
-  %1 = load i32, i32* @b, align 4
+  %1 = load i32, ptr @b, align 4
   %2 = call i32 @llvm.bswap.i32(i32 %1)
-  store i32 %2, i32* @b1, align 4
+  store i32 %2, ptr @b1, align 4
   ret void
 }

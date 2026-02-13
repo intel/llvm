@@ -5,7 +5,7 @@
 ; RUN: llc < %s -mtriple=x86_64-unknown-unknown -mattr=+avx | FileCheck %s --check-prefixes=AVX
 ; RUN: llc < %s -mtriple=x86_64-unknown-unknown -mattr=+avx2 | FileCheck %s --check-prefixes=AVX
 
-; Partial laod dot product patterns based off PR51075
+; Partial load dot product patterns based off PR51075
 
 ;
 ; dot3(ptr x, ptr y) - ((xptr y[0])+(xptr y[1])+(xptr y[2]))
@@ -51,7 +51,7 @@ define float @dot3_float4(ptr dereferenceable(16) %a0, ptr dereferenceable(16) %
 ; AVX-NEXT:    vmovups (%rdi), %xmm0
 ; AVX-NEXT:    vmulps (%rsi), %xmm0, %xmm0
 ; AVX-NEXT:    vmovshdup {{.*#+}} xmm1 = xmm0[1,1,3,3]
-; AVX-NEXT:    vpermilpd {{.*#+}} xmm2 = xmm0[1,0]
+; AVX-NEXT:    vshufpd {{.*#+}} xmm2 = xmm0[1,0]
 ; AVX-NEXT:    vaddss %xmm1, %xmm0, %xmm0
 ; AVX-NEXT:    vaddss %xmm2, %xmm0, %xmm0
 ; AVX-NEXT:    retq
@@ -106,7 +106,7 @@ define float @dot3_float4_as_float3(ptr dereferenceable(16) %a0, ptr dereference
 ; AVX-NEXT:    vmovups (%rdi), %xmm0
 ; AVX-NEXT:    vmulps (%rsi), %xmm0, %xmm0
 ; AVX-NEXT:    vmovshdup {{.*#+}} xmm1 = xmm0[1,1,3,3]
-; AVX-NEXT:    vpermilpd {{.*#+}} xmm2 = xmm0[1,0]
+; AVX-NEXT:    vshufpd {{.*#+}} xmm2 = xmm0[1,0]
 ; AVX-NEXT:    vaddss %xmm1, %xmm0, %xmm0
 ; AVX-NEXT:    vaddss %xmm2, %xmm0, %xmm0
 ; AVX-NEXT:    retq
@@ -180,7 +180,7 @@ define float @dot3_float3(ptr dereferenceable(16) %a0, ptr dereferenceable(16) %
 ; AVX-NEXT:    vinsertps {{.*#+}} xmm1 = xmm1[0,1],mem[0],xmm1[3]
 ; AVX-NEXT:    vmulps %xmm1, %xmm0, %xmm0
 ; AVX-NEXT:    vmovshdup {{.*#+}} xmm1 = xmm0[1,1,3,3]
-; AVX-NEXT:    vpermilpd {{.*#+}} xmm2 = xmm0[1,0]
+; AVX-NEXT:    vshufpd {{.*#+}} xmm2 = xmm0[1,0]
 ; AVX-NEXT:    vaddss %xmm1, %xmm0, %xmm0
 ; AVX-NEXT:    vaddss %xmm2, %xmm0, %xmm0
 ; AVX-NEXT:    retq

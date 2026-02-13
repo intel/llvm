@@ -1,8 +1,8 @@
-// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -std=c++11 -fsanitize=signed-integer-overflow,integer-divide-by-zero,float-divide-by-zero,shift-base,shift-exponent,unreachable,return,vla-bound,alignment,null,vptr,object-size,float-cast-overflow,bool,enum,array-bounds,function -fsanitize-recover=signed-integer-overflow,integer-divide-by-zero,float-divide-by-zero,shift-base,shift-exponent,vla-bound,alignment,null,vptr,object-size,float-cast-overflow,bool,enum,array-bounds,function -emit-llvm %s -o - -triple x86_64-linux-gnu | opt -instnamer -S | FileCheck %s --check-prefixes=CHECK,CHECK-FUNCSAN
-// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -std=c++11 -fsanitize=vptr,address -fsanitize-recover=vptr,address -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s --check-prefix=CHECK-ASAN
-// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -std=c++11 -fsanitize=vptr -fsanitize-recover=vptr -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s --check-prefix=DOWNCAST-NULL
-// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -std=c++11 -fsanitize=function -emit-llvm %s -o - -triple x86_64-linux-gnux32 | FileCheck %s --check-prefix=CHECK-FUNCSAN
-// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -std=c++11 -fsanitize=function -emit-llvm %s -o - -triple i386-linux-gnu | FileCheck %s --check-prefix=CHECK-FUNCSAN
+// RUN: %clang_cc1 -no-enable-noundef-analysis -std=c++11 -Wno-error=return-type -fsanitize=signed-integer-overflow,integer-divide-by-zero,float-divide-by-zero,shift-base,shift-exponent,unreachable,return,vla-bound,alignment,null,vptr,object-size,float-cast-overflow,bool,enum,array-bounds,function -fsanitize-recover=signed-integer-overflow,integer-divide-by-zero,float-divide-by-zero,shift-base,shift-exponent,vla-bound,alignment,null,vptr,object-size,float-cast-overflow,bool,enum,array-bounds,function -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s --check-prefixes=CHECK,CHECK-FUNCSAN
+// RUN: %clang_cc1 -no-enable-noundef-analysis -std=c++11 -Wno-error=return-type -fsanitize=vptr,address -fsanitize-recover=vptr,address -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s --check-prefix=CHECK-ASAN
+// RUN: %clang_cc1 -no-enable-noundef-analysis -std=c++11 -Wno-error=return-type -fsanitize=vptr -fsanitize-recover=vptr -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s --check-prefix=DOWNCAST-NULL
+// RUN: %clang_cc1 -no-enable-noundef-analysis -std=c++11 -Wno-error=return-type -fsanitize=function -emit-llvm %s -o - -triple x86_64-linux-gnux32 | FileCheck %s --check-prefix=CHECK-FUNCSAN
+// RUN: %clang_cc1 -no-enable-noundef-analysis -std=c++11 -Wno-error=return-type -fsanitize=function -emit-llvm %s -o - -triple i386-linux-gnu | FileCheck %s --check-prefix=CHECK-FUNCSAN
 
 struct S {
   double d;
@@ -14,9 +14,7 @@ struct S {
 // CHECK-ASAN: [[TYPE_DESCR:@[0-9]+]] = private unnamed_addr constant { i16, i16, [4 x i8] } { i16 -1, i16 0, [4 x i8] c"'S'\00" }
 
 // Check that type mismatch handler is not modified by ASan.
-// CHECK-ASAN: private unnamed_addr global { { [{{.*}} x i8]*, i32, i32 }, { i16, i16, [4 x i8] }*, i8*, i8 } { {{.*}}, { i16, i16, [4 x i8] }* [[TYPE_DESCR]], {{.*}} }
-
-// CHECK-FUNCSAN: [[PROXY:@.+]] = private unnamed_addr constant i8* bitcast ({ i8*, i8* }* @_ZTIFvPFviEE to i8*)
+// CHECK-ASAN: private unnamed_addr global { { ptr, i32, i32 }, ptr, ptr, i8 } { {{.*}}, ptr [[TYPE_DESCR]], {{.*}} }
 
 struct T : S {};
 
@@ -58,9 +56,8 @@ void member_access(S *p) {
 
   // (1b) Check that 'p' actually points to an 'S'.
 
-  // CHECK: %[[VPTRADDR:.*]] = bitcast {{.*}} to i64*
-  // CHECK-NEXT: %[[VPTR:.*]] = load i64, i64* %[[VPTRADDR]]
-  //
+  // CHECK: %[[VTABLE:.*]] = load ptr, ptr %0
+  // CHECK: %[[VPTR:.*]] = ptrtoint ptr %[[VTABLE]] to i64
   // hash_16_bytes:
   //
   // If this number changes, it indicates that either the mangled name of ::S
@@ -70,21 +67,16 @@ void member_access(S *p) {
   // The two hash values are for 64- and 32-bit Clang binaries, respectively.
   // FIXME: We should produce a 64-bit value either way.
   //
-  // CHECK-NEXT: xor i64 {{-4030275160588942838|1107558922}}, %[[VPTR]]
-  // CHECK-NEXT: mul i64 {{.*}}, -7070675565921424023
-  // CHECK-NEXT: lshr i64 {{.*}}, 47
-  // CHECK-NEXT: xor i64
-  // CHECK-NEXT: xor i64 %[[VPTR]]
-  // CHECK-NEXT: mul i64 {{.*}}, -7070675565921424023
-  // CHECK-NEXT: lshr i64 {{.*}}, 47
-  // CHECK-NEXT: xor i64
-  // CHECK-NEXT: %[[HASH:.*]] = mul i64 {{.*}}, -7070675565921424023
+  // CHECK-NEXT: mul i64 %[[VPTR]], -4658895280553007687, !nosanitize
+  // CHECK-NEXT: lshr i64 {{.*}}, 31
+  // CHECK-NEXT: xor i64 %[[#]], %[[#]]
+  // CHECK-NEXT: %[[HASH:.*]] = xor i64 4589795628539611399, %[[#]], !nosanitize
   //
   // Check the hash against the table:
   //
   // CHECK-NEXT: %[[IDX:.*]] = and i64 %{{.*}}, 127
-  // CHECK-NEXT: getelementptr inbounds [128 x i64], [128 x i64]* @__ubsan_vptr_type_cache, i32 0, i64 %[[IDX]]
-  // CHECK-NEXT: %[[CACHEVAL:.*]] = load i64, i64*
+  // CHECK-NEXT: getelementptr inbounds [128 x i64], ptr @__ubsan_vptr_type_cache, i32 0, i64 %[[IDX]]
+  // CHECK-NEXT: %[[CACHEVAL:.*]] = load i64, ptr
   // CHECK-NEXT: icmp eq i64 %[[CACHEVAL]], %[[HASH]]
   // CHECK-NEXT: br i1
 
@@ -118,10 +110,11 @@ void member_access(S *p) {
 
   // (3b) Check that 'p' actually points to an 'S'
 
-  // CHECK: load i64, i64*
-  // CHECK-NEXT: xor i64 {{-4030275160588942838|1107558922}},
+  // CHECK: [[VTABLE2:%.*]] = load ptr, ptr
+  // CHECK: ptrtoint ptr [[VTABLE2]] to i64
+  // CHECK-NEXT: mul i64 %[[#]], -4658895280553007687, !nosanitize
   // [...]
-  // CHECK: getelementptr inbounds [128 x i64], [128 x i64]* @__ubsan_vptr_type_cache, i32 0, i64 %
+  // CHECK: getelementptr inbounds [128 x i64], ptr @__ubsan_vptr_type_cache, i32 0, i64 %
   // CHECK: br i1
   // CHECK: call void @__ubsan_handle_dynamic_type_cache_miss({{.*}}, i64 %{{.*}}, i64 %{{.*}})
   // CHECK-NOT: unreachable
@@ -132,8 +125,8 @@ void member_access(S *p) {
 
 // CHECK-LABEL: @_Z12lsh_overflow
 int lsh_overflow(int a, int b) {
-  // CHECK: %[[RHS_INBOUNDS:.*]] = icmp ule i32 %[[RHS:.*]], 31
-  // CHECK-NEXT: br i1 %[[RHS_INBOUNDS]], label %[[CHECK_BB:.*]], label %[[CONT_BB:.*]],
+  // CHECK: %[[RHS_inbounds:.*]] = icmp ule i32 %[[RHS:.*]], 31
+  // CHECK-NEXT: br i1 %[[RHS_inbounds]], label %[[CHECK_BB:.*]], label %[[CONT_BB:.*]],
 
   // CHECK:      [[CHECK_BB]]:
   // CHECK-NEXT: %[[SHIFTED_OUT_WIDTH:.*]] = sub nuw nsw i32 31, %[[RHS]]
@@ -148,7 +141,7 @@ int lsh_overflow(int a, int b) {
 
   // CHECK:      [[CONT_BB]]:
   // CHECK-NEXT: %[[VALID_BASE:.*]] = phi i1 [ true, {{.*}} ], [ %[[NO_OVERFLOW]], %[[CHECK_BB]] ]
-  // CHECK-NEXT: %[[VALID:.*]] = and i1 %[[RHS_INBOUNDS]], %[[VALID_BASE]]
+  // CHECK-NEXT: %[[VALID:.*]] = and i1 %[[RHS_inbounds]], %[[VALID_BASE]]
   // CHECK-NEXT: br i1 %[[VALID]]
 
   // CHECK: call void @__ubsan_handle_shift_out_of_bounds
@@ -161,7 +154,7 @@ int lsh_overflow(int a, int b) {
 
 // CHECK-LABEL: @_Z9no_return
 int no_return() {
-  // CHECK:      call void @__ubsan_handle_missing_return(i8* bitcast ({{.*}}* @{{.*}} to i8*)) [[NR_NUW:#[0-9]+]]
+  // CHECK:      call void @__ubsan_handle_missing_return(ptr @{{.*}}) [[NR_NUW:#[0-9]+]]
   // CHECK-NEXT: unreachable
 }
 
@@ -169,7 +162,7 @@ int no_return() {
 bool sour_bool(bool *p) {
   // CHECK: %[[OK:.*]] = icmp ule i8 {{.*}}, 1
   // CHECK: br i1 %[[OK]]
-  // CHECK: call void @__ubsan_handle_load_invalid_value(i8* bitcast ({{.*}}), i64 {{.*}})
+  // CHECK: call void @__ubsan_handle_load_invalid_value(ptr @{{.*}}, i64 {{.*}})
   return *p;
 }
 
@@ -208,7 +201,7 @@ void bad_downcast_pointer(S *p) {
   // DOWNCAST-NULL: %[[NONNULL:.*]] = icmp ne {{.*}}, null
   // DOWNCAST-NULL: br i1 %[[NONNULL]],
 
-  // CHECK: %[[SIZE:.*]] = call i64 @llvm.objectsize.i64.p0i8(
+  // CHECK: %[[SIZE:.*]] = call i64 @llvm.objectsize.i64.p0(
   // CHECK: %[[E1:.*]] = icmp uge i64 %[[SIZE]], 24
   // CHECK: %[[MISALIGN:.*]] = and i64 %{{.*}}, 7
   // CHECK: %[[E2:.*]] = icmp eq i64 %[[MISALIGN]], 0
@@ -230,7 +223,7 @@ void bad_downcast_reference(S &p) {
   // CHECK: %[[E1:.*]] = icmp ne {{.*}}, null
   // CHECK-NOT: br i1
 
-  // CHECK: %[[SIZE:.*]] = call i64 @llvm.objectsize.i64.p0i8(
+  // CHECK: %[[SIZE:.*]] = call i64 @llvm.objectsize.i64.p0(
   // CHECK: %[[E2:.*]] = icmp uge i64 %[[SIZE]], 24
 
   // CHECK: %[[MISALIGN:.*]] = and i64 %{{.*}}, 7
@@ -365,16 +358,15 @@ class C : public A, public B // align=16
 // offset. The pointer before subtraction doesn't need to be aligned for
 // the destination type.
 
-// CHECK-LABEL: define{{.*}} void @_Z16downcast_pointerP1B(%class.B* %b)
+// CHECK-LABEL: define{{.*}} void @_Z16downcast_pointerP1B(ptr %b)
 void downcast_pointer(B *b) {
   (void) static_cast<C*>(b);
   // Alignment check from EmitTypeCheck(TCK_DowncastPointer, ...)
-  // CHECK: [[SUB:%[.a-z0-9]*]] = getelementptr inbounds i8, i8* {{.*}}, i64 -16
-  // CHECK-NEXT: [[C:%.+]] = bitcast i8* [[SUB]] to %class.C*
+  // CHECK: [[SUB:%[.a-z0-9]*]] = getelementptr inbounds i8, ptr {{.*}}, i64 -16
   // null check goes here
-  // CHECK: [[FROM_PHI:%.+]] = phi %class.C* [ [[C]], {{.*}} ], {{.*}}
+  // CHECK: [[FROM_PHI:%.+]] = phi ptr [ [[SUB]], {{.*}} ], {{.*}}
   // Objectsize check goes here
-  // CHECK: [[C_INT:%.+]] = ptrtoint %class.C* [[FROM_PHI]] to i64
+  // CHECK: [[C_INT:%.+]] = ptrtoint ptr [[FROM_PHI]] to i64
   // CHECK-NEXT: [[MASKED:%.+]] = and i64 [[C_INT]], 15
   // CHECK-NEXT: [[TEST:%.+]] = icmp eq i64 [[MASKED]], 0
   // AND the alignment test with the objectsize test.
@@ -382,14 +374,13 @@ void downcast_pointer(B *b) {
   // CHECK-NEXT: br i1 [[AND]]
 }
 
-// CHECK-LABEL: define{{.*}} void @_Z18downcast_referenceR1B(%class.B* nonnull align {{[0-9]+}} dereferenceable({{[0-9]+}}) %b)
+// CHECK-LABEL: define{{.*}} void @_Z18downcast_referenceR1B(ptr nonnull align {{[0-9]+}} dereferenceable({{[0-9]+}}) %b)
 void downcast_reference(B &b) {
   (void) static_cast<C&>(b);
   // Alignment check from EmitTypeCheck(TCK_DowncastReference, ...)
-  // CHECK:      [[SUB:%[.a-z0-9]*]] = getelementptr inbounds i8, i8* {{.*}}, i64 -16
-  // CHECK-NEXT: [[C:%.+]] = bitcast i8* [[SUB]] to %class.C*
+  // CHECK:      [[SUB:%[.a-z0-9]*]] = getelementptr inbounds i8, ptr {{.*}}, i64 -16
   // Objectsize check goes here
-  // CHECK:      [[C_INT:%.+]] = ptrtoint %class.C* [[C]] to i64
+  // CHECK:      [[C_INT:%.+]] = ptrtoint ptr [[SUB]] to i64
   // CHECK-NEXT: [[MASKED:%.+]] = and i64 [[C_INT]], 15
   // CHECK-NEXT: [[TEST:%.+]] = icmp eq i64 [[MASKED]], 0
   // AND the alignment test with the objectsize test.
@@ -399,24 +390,19 @@ void downcast_reference(B &b) {
 
 // CHECK-FUNCSAN: @_Z22indirect_function_callPFviE({{.*}} !func_sanitize ![[FUNCSAN:.*]] {
 void indirect_function_call(void (*p)(int)) {
-  // CHECK: [[PTR:%.+]] = bitcast void (i32)* {{.*}} to <{ i32, i32 }>*
+  // CHECK: [[PTR:%.+]] = load ptr, ptr
 
   // Signature check
-  // CHECK-NEXT: [[SIGPTR:%.+]] = getelementptr <{ i32, i32 }>, <{ i32, i32 }>* [[PTR]], i32 0, i32 0
-  // CHECK-NEXT: [[SIG:%.+]] = load i32, i32* [[SIGPTR]]
-  // CHECK-NEXT: [[SIGCMP:%.+]] = icmp eq i32 [[SIG]], 846595819
+  // CHECK-NEXT: [[SIGPTR:%.+]] = getelementptr <{ i32, i32 }>, ptr [[PTR]], i32 -1, i32 0
+  // CHECK-NEXT: [[SIG:%.+]] = load i32, ptr [[SIGPTR]]
+  // CHECK-NEXT: [[SIGCMP:%.+]] = icmp eq i32 [[SIG]], -1056584962
   // CHECK-NEXT: br i1 [[SIGCMP]]
 
-  // RTTI pointer check
-  // CHECK: [[RTTIPTR:%.+]] = getelementptr <{ i32, i32 }>, <{ i32, i32 }>* [[PTR]], i32 0, i32 1
-  // CHECK-NEXT: [[RTTIEncIntTrunc:%.+]] = load i32, i32* [[RTTIPTR]]
-  // CHECK-NEXT: [[RTTIEncInt:%.+]] = sext i32 [[RTTIEncIntTrunc]] to i64
-  // CHECK-NEXT: [[FuncAddrInt:%.+]] = ptrtoint void (i32)* {{.*}} to i64
-  // CHECK-NEXT: [[IndirectGVInt:%.+]] = add i64 [[RTTIEncInt]], [[FuncAddrInt]]
-  // CHECK-NEXT: [[IndirectGV:%.+]] = inttoptr i64 [[IndirectGVInt]] to i8**
-  // CHECK-NEXT: [[RTTI:%.+]] = load i8*, i8** [[IndirectGV]], align 8
-  // CHECK-NEXT: [[RTTICMP:%.+]] = icmp eq i8* [[RTTI]], bitcast ({ i8*, i8* }* @_ZTIFviE to i8*)
-  // CHECK-NEXT: br i1 [[RTTICMP]]
+  // CalleeTypeHash check
+  // CHECK: [[CalleeTypeHashPtr:%.+]] = getelementptr <{ i32, i32 }>, ptr [[PTR]], i32 -1, i32 1
+  // CHECK-NEXT: [[CalleeTypeHash:%.+]] = load i32, ptr [[CalleeTypeHashPtr]]
+  // CHECK-NEXT: [[CalleeTypeHashMatch:%.+]] = icmp eq i32 [[CalleeTypeHash]], -1988405058
+  // CHECK-NEXT: br i1 [[CalleeTypeHashMatch]]
 
   p(42);
 }
@@ -430,7 +416,7 @@ namespace VBaseObjectSize {
   // CHECK-LABEL: define {{.*}} @_ZN15VBaseObjectSize1fERNS_1BE(
   B &f(B &b) {
     // Size check: check for nvsize(B) == 16 (do not require size(B) == 32)
-    // CHECK: [[SIZE:%.+]] = call i{{32|64}} @llvm.objectsize.i64.p0i8(
+    // CHECK: [[SIZE:%.+]] = call i{{32|64}} @llvm.objectsize.i64.p0(
     // CHECK: icmp uge i{{32|64}} [[SIZE]], 16,
 
     // Alignment check: check for nvalign(B) == 8 (do not require align(B) == 16)
@@ -551,7 +537,7 @@ namespace NothrowNew {
 
   // CHECK-LABEL: define{{.*}}nothrow_new_trivial
   void *nothrow_new_trivial() {
-    // CHECK: %[[is_null:.*]] = icmp eq i8*{{.*}}, null
+    // CHECK: %[[is_null:.*]] = icmp eq ptr{{.*}}, null
     // CHECK: br i1 %[[is_null]], label %[[null:.*]], label %[[nonnull:.*]]
 
     // CHECK: [[nonnull]]:
@@ -569,7 +555,7 @@ namespace NothrowNew {
 
   // CHECK-LABEL: define{{.*}}nothrow_new_nontrivial
   void *nothrow_new_nontrivial() {
-    // CHECK: %[[is_null:.*]] = icmp eq i8*{{.*}}, null
+    // CHECK: %[[is_null:.*]] = icmp eq ptr{{.*}}, null
     // CHECK: br i1 %[[is_null]], label %[[null:.*]], label %[[nonnull:.*]]
 
     // CHECK: [[nonnull]]:
@@ -589,7 +575,7 @@ namespace NothrowNew {
 
   // CHECK-LABEL: define{{.*}}throwing_new
   void *throwing_new(int size) {
-    // CHECK: icmp ne i8*{{.*}}, null
+    // CHECK: icmp ne ptr{{.*}}, null
     // CHECK: %[[size:.*]] = mul
     // CHECK: llvm.objectsize
     // CHECK: icmp uge i64 {{.*}}, %[[size]],
@@ -607,7 +593,7 @@ namespace NothrowNew {
 
   // CHECK-LABEL: define{{.*}}nothrow_new_zero_size
   void *nothrow_new_zero_size() {
-    // CHECK: %[[nonnull:.*]] = icmp ne i8*{{.*}}, null
+    // CHECK: %[[nonnull:.*]] = icmp ne ptr{{.*}}, null
     // CHECK-NOT: llvm.objectsize
     // CHECK: br i1 %[[nonnull]], label %[[good:.*]], label %[[bad:[^,]*]]
     //
@@ -634,16 +620,16 @@ struct ThisAlign {
   void this_align_lambda_2();
 };
 void ThisAlign::this_align_lambda() {
-  // CHECK-LABEL: define internal %struct.ThisAlign* @"_ZZN9ThisAlign17this_align_lambdaEvENK3$_0clEv"
-  // CHECK-SAME: (%{{.*}}* {{[^,]*}} %[[this:[^)]*]])
+  // CHECK-LABEL: define internal ptr @"_ZZN9ThisAlign17this_align_lambdaEvENK3$_0clEv"
+  // CHECK-SAME: (ptr {{[^,]*}} %[[this:[^)]*]])
   // CHECK: %[[this_addr:.*]] = alloca
-  // CHECK: store %{{.*}}* %[[this]], %{{.*}}** %[[this_addr]],
-  // CHECK: %[[this_inner:.*]] = load %{{.*}}*, %{{.*}}** %[[this_addr]],
-  // CHECK: %[[this_outer_addr:.*]] = getelementptr inbounds %{{.*}}, %{{.*}}* %[[this_inner]], i32 0, i32 0
-  // CHECK: %[[this_outer:.*]] = load %{{.*}}*, %{{.*}}** %[[this_outer_addr]],
+  // CHECK: store ptr %[[this]], ptr %[[this_addr]],
+  // CHECK: %[[this_inner:.*]] = load ptr, ptr %[[this_addr]],
+  // CHECK: %[[this_outer_addr:.*]] = getelementptr inbounds nuw %{{.*}}, ptr %[[this_inner]], i32 0, i32 0
+  // CHECK: %[[this_outer:.*]] = load ptr, ptr %[[this_outer_addr]],
   //
-  // CHECK: %[[this_inner_isnonnull:.*]] = icmp ne %{{.*}}* %[[this_inner]], null
-  // CHECK: %[[this_inner_asint:.*]] = ptrtoint %{{.*}}* %[[this_inner]] to i
+  // CHECK: %[[this_inner_isnonnull:.*]] = icmp ne ptr %[[this_inner]], null
+  // CHECK: %[[this_inner_asint:.*]] = ptrtoint ptr %[[this_inner]] to i
   // CHECK: %[[this_inner_misalignment:.*]] = and i{{32|64}} %[[this_inner_asint]], {{3|7}},
   // CHECK: %[[this_inner_isaligned:.*]] = icmp eq i{{32|64}} %[[this_inner_misalignment]], 0
   // CHECK: %[[this_inner_valid:.*]] = and i1 %[[this_inner_isnonnull]], %[[this_inner_isaligned]],
@@ -735,19 +721,19 @@ namespace CopyValueRepresentation {
 }
 
 void ThisAlign::this_align_lambda_2() {
-  // CHECK-LABEL: define internal void @"_ZZN9ThisAlign19this_align_lambda_2EvENK3$_1clEv"
-  // CHECK-SAME: (%{{.*}}* {{[^,]*}} %[[this:[^)]*]])
+  // CHECK-LABEL: define internal void @"_ZZN9ThisAlign19this_align_lambda_2EvENK3$_0clEv"
+  // CHECK-SAME: (ptr {{[^,]*}} %[[this:[^)]*]])
   // CHECK: %[[this_addr:.*]] = alloca
-  // CHECK: store %{{.*}}* %[[this]], %{{.*}}** %[[this_addr]],
-  // CHECK: %[[this_inner:.*]] = load %{{.*}}*, %{{.*}}** %[[this_addr]],
+  // CHECK: store ptr %[[this]], ptr %[[this_addr]],
+  // CHECK: %[[this_inner:.*]] = load ptr, ptr %[[this_addr]],
   //
   // Do not perform a null check on the 'this' pointer if the function might be
   // called from a static invoker.
-  // CHECK-NOT: icmp ne %{{.*}}* %[[this_inner]], null
+  // CHECK-NOT: icmp ne ptr %[[this_inner]], null
   auto *p = +[] {};
   p();
 }
 
-// CHECK: attributes [[NR_NUW]] = { noreturn nounwind }
+// CHECK: attributes [[NR_NUW]] = { nomerge noreturn nounwind }
 
-// CHECK-FUNCSAN: ![[FUNCSAN]] = !{i32 846595819, i8** [[PROXY]]}
+// CHECK-FUNCSAN: ![[FUNCSAN]] = !{i32 -1056584962, i32 -1000226989}

@@ -1,5 +1,4 @@
-// RUN: %clang_cc1 -no-opaque-pointers -triple x86_64-apple-macosx10.7.2 %s -emit-llvm -o - | FileCheck %s
-// <rdar://problem/10551376>
+// RUN: %clang_cc1 -triple x86_64-apple-macosx10.7.2 %s -emit-llvm -o - | FileCheck %s
 
 struct FOO {
 	unsigned int x;
@@ -14,4 +13,6 @@ struct BAR : FOO {
 
 #pragma pack(pop)
 
-BAR* x = 0;
+BAR f(BAR x) {
+  return x;
+}

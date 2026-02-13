@@ -1,4 +1,4 @@
-//===--- GlobList.h ---------------------------------------------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -15,8 +15,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Regex.h"
 
-namespace clang {
-namespace tidy {
+namespace clang::tidy {
 
 /// Read-only set of strings represented as a list of positive and negative
 /// globs.
@@ -45,8 +44,12 @@ private:
   struct GlobListItem {
     bool IsPositive;
     llvm::Regex Regex;
+    llvm::StringRef Text;
   };
   SmallVector<GlobListItem, 0> Items;
+
+public:
+  const SmallVectorImpl<GlobListItem> &getItems() const { return Items; };
 };
 
 /// A \p GlobList that caches search results, so that search is performed only
@@ -62,7 +65,6 @@ private:
   mutable llvm::StringMap<bool> Cache;
 };
 
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy
 
 #endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_GLOBLIST_H

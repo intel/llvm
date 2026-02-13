@@ -45,8 +45,7 @@ extern "C" int LLVMFuzzerTestOneInput(const char *Data, size_t Size) {
     return 0;
 
   // Fuzz RewriteInstance.
-  auto RIOrErr =
-      RewriteInstance::createRewriteInstance(E, argc, argv, "llvm-bolt");
+  auto RIOrErr = RewriteInstance::create(E, argc, argv, "llvm-bolt");
   if (Error E = RIOrErr.takeError()) {
     consumeError(std::move(E));
     return 0;
@@ -59,13 +58,16 @@ extern "C" int LLVMFuzzerTestOneInput(const char *Data, size_t Size) {
 
 extern "C" LLVM_ATTRIBUTE_USED int LLVMFuzzerInitialize(int *argc,
                                                         char ***argv) {
-  llvm::InitializeAllTargetInfos();
-  llvm::InitializeAllTargetMCs();
-  llvm::InitializeAllAsmParsers();
-  llvm::InitializeAllDisassemblers();
+  // Initialize targets and assembly printers/parsers.
+#define BOLT_TARGET(target)                                                    \
+  LLVMInitialize##target##TargetInfo();                                        \
+  LLVMInitialize##target##TargetMC();                                          \
+  LLVMInitialize##target##AsmParser();                                         \
+  LLVMInitialize##target##Disassembler();                                      \
+  LLVMInitialize##target##Target();                                            \
+  LLVMInitialize##target##AsmPrinter();
 
-  llvm::InitializeAllTargets();
-  llvm::InitializeAllAsmPrinters();
+#include "bolt/Core/TargetConfig.def"
 
   return 0;
 }

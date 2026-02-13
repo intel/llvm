@@ -15,29 +15,27 @@
 //===----------------------------------------------------------------------===//
 
 #include "X86.h"
-#include "X86InstrBuilder.h"
 #include "X86InstrInfo.h"
 #include "X86MachineFunctionInfo.h"
 #include "X86Subtarget.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/CodeGen/MachineFunctionAnalysisManager.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
+#include "llvm/IR/Analysis.h"
 #include "llvm/IR/Function.h"
-#include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
 
 namespace {
 
-class X86DynAllocaExpander : public MachineFunctionPass {
+class X86DynAllocaExpander {
 public:
-  X86DynAllocaExpander() : MachineFunctionPass(ID) {}
-
-  bool runOnMachineFunction(MachineFunction &MF) override;
+  bool run(MachineFunction &MF);
 
 private:
   /// Strategies for lowering a DynAlloca.
@@ -59,21 +57,34 @@ private:
   const X86Subtarget *STI = nullptr;
   const TargetInstrInfo *TII = nullptr;
   const X86RegisterInfo *TRI = nullptr;
-  unsigned StackPtr = 0;
+  Register StackPtr;
   unsigned SlotSize = 0;
   int64_t StackProbeSize = 0;
   bool NoStackArgProbe = false;
+};
 
+class X86DynAllocaExpanderLegacy : public MachineFunctionPass {
+public:
+  X86DynAllocaExpanderLegacy() : MachineFunctionPass(ID) {}
+
+  bool runOnMachineFunction(MachineFunction &MF) override;
+
+private:
   StringRef getPassName() const override { return "X86 DynAlloca Expander"; }
+
+public:
   static char ID;
 };
 
-char X86DynAllocaExpander::ID = 0;
+char X86DynAllocaExpanderLegacy::ID = 0;
 
 } // end anonymous namespace
 
-FunctionPass *llvm::createX86DynAllocaExpander() {
-  return new X86DynAllocaExpander();
+INITIALIZE_PASS(X86DynAllocaExpanderLegacy, "x86-dyn-alloca-expander",
+                "X86 DynAlloca Expander", false, false)
+
+FunctionPass *llvm::createX86DynAllocaExpanderLegacyPass() {
+  return new X86DynAllocaExpanderLegacy();
 }
 
 /// Return the allocation amount for a DynAlloca instruction, or -1 if unknown.
@@ -110,12 +121,10 @@ X86DynAllocaExpander::getLowering(int64_t CurrentOffset,
 
 static bool isPushPop(const MachineInstr &MI) {
   switch (MI.getOpcode()) {
-  case X86::PUSH32i8:
   case X86::PUSH32r:
   case X86::PUSH32rmm:
   case X86::PUSH32rmr:
-  case X86::PUSHi32:
-  case X86::PUSH64i8:
+  case X86::PUSH32i:
   case X86::PUSH64r:
   case X86::PUSH64rmm:
   case X86::PUSH64rmr:
@@ -189,10 +198,10 @@ void X86DynAllocaExpander::computeLowerings(MachineFunction &MF,
   }
 }
 
-static unsigned getSubOpcode(bool Is64Bit, int64_t Amount) {
+static unsigned getSubOpcode(bool Is64Bit) {
   if (Is64Bit)
-    return isInt<8>(Amount) ? X86::SUB64ri8 : X86::SUB64ri32;
-  return isInt<8>(Amount) ? X86::SUB32ri8 : X86::SUB32ri;
+    return X86::SUB64ri32;
+  return X86::SUB32ri;
 }
 
 void X86DynAllocaExpander::lower(MachineInstr *MI, Lowering L) {
@@ -212,7 +221,7 @@ void X86DynAllocaExpander::lower(MachineInstr *MI, Lowering L) {
   bool Is64BitAlloca = MI->getOpcode() == X86::DYN_ALLOCA_64;
   assert(SlotSize == 4 || SlotSize == 8);
 
-  Optional<MachineFunction::DebugInstrOperandPair> InstrNum;
+  std::optional<MachineFunction::DebugInstrOperandPair> InstrNum;
   if (unsigned Num = MI->peekDebugInstrNum()) {
     // Operand 2 of DYN_ALLOCAs contains the stack def.
     InstrNum = {Num, 2};
@@ -242,8 +251,7 @@ void X86DynAllocaExpander::lower(MachineInstr *MI, Lowering L) {
           .addReg(RegA, RegState::Undef);
     } else {
       // Sub.
-      BuildMI(*MBB, I, DL,
-              TII->get(getSubOpcode(Is64BitAlloca, Amount)), StackPtr)
+      BuildMI(*MBB, I, DL, TII->get(getSubOpcode(Is64BitAlloca)), StackPtr)
           .addReg(StackPtr)
           .addImm(Amount);
     }
@@ -277,7 +285,7 @@ void X86DynAllocaExpander::lower(MachineInstr *MI, Lowering L) {
       AmountDef->eraseFromParent();
 }
 
-bool X86DynAllocaExpander::runOnMachineFunction(MachineFunction &MF) {
+bool X86DynAllocaExpander::run(MachineFunction &MF) {
   if (!MF.getInfo<X86MachineFunctionInfo>()->hasDynAlloca())
     return false;
 
@@ -287,14 +295,7 @@ bool X86DynAllocaExpander::runOnMachineFunction(MachineFunction &MF) {
   TRI = STI->getRegisterInfo();
   StackPtr = TRI->getStackRegister();
   SlotSize = TRI->getSlotSize();
-
-  StackProbeSize = 4096;
-  if (MF.getFunction().hasFnAttribute("stack-probe-size")) {
-    MF.getFunction()
-        .getFnAttribute("stack-probe-size")
-        .getValueAsString()
-        .getAsInteger(0, StackProbeSize);
-  }
+  StackProbeSize = STI->getTargetLowering()->getStackProbeSize(MF);
   NoStackArgProbe = MF.getFunction().hasFnAttribute("no-stack-arg-probe");
   if (NoStackArgProbe)
     StackProbeSize = INT64_MAX;
@@ -305,4 +306,18 @@ bool X86DynAllocaExpander::runOnMachineFunction(MachineFunction &MF) {
     lower(P.first, P.second);
 
   return true;
+}
+
+bool X86DynAllocaExpanderLegacy::runOnMachineFunction(MachineFunction &MF) {
+  return X86DynAllocaExpander().run(MF);
+}
+
+PreservedAnalyses
+X86DynAllocaExpanderPass::run(MachineFunction &MF,
+                              MachineFunctionAnalysisManager &MFAM) {
+  bool Changed = X86DynAllocaExpander().run(MF);
+  if (!Changed)
+    return PreservedAnalyses::all();
+
+  return getMachineFunctionPassPreservedAnalyses().preserveSet<CFGAnalyses>();
 }

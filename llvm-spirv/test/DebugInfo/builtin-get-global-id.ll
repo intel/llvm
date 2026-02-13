@@ -12,7 +12,7 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s --check-prefix CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o - | FileCheck %s
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64"
@@ -28,13 +28,14 @@ entry:
   %gid = alloca i64, align 8
   %call = call spir_func i64 @_Z13get_global_idj(i32 0) #2, !dbg !10
 ; CHECK: [[I0:%[0-9]]] = call spir_func i64 @_Z13get_global_idj(i32 0) #1, !dbg [[DBG:![0-9]+]]
-; CHECK-NEXT: [[I1:%[0-9]]] = insertelement <3 x i64> undef, i64 [[I0]], i32 0, !dbg [[DBG]]
+; CHECK-NEXT: [[I1:%[0-9]]] = insertelement <3 x i64> poison, i64 [[I0]], i32 0, !dbg [[DBG]]
 ; CHECK-NEXT: [[I2:%[0-9]]] = call spir_func i64 @_Z13get_global_idj(i32 1) #1, !dbg [[DBG]]
 ; CHECK-NEXT: [[I3:%[0-9]]] = insertelement <3 x i64> [[I1]], i64 [[I2]], i32 1, !dbg [[DBG]]
 ; CHECK-NEXT: [[I4:%[0-9]]] = call spir_func i64 @_Z13get_global_idj(i32 2) #1, !dbg [[DBG]]
 ; CHECK-NEXT: [[I5:%[0-9]]] = insertelement <3 x i64> [[I3]], i64 [[I4]], i32 2, !dbg [[DBG]]
-; CHECK-NEXT: %call = extractelement <3 x i64> [[I5]], i32 0, !dbg [[DBG]]
-  store i64 %call, i64* %gid, align 8, !dbg !11
+; CHECK-NEXT: [[I6:%[0-9]]] = extractelement <3 x i64> [[I5]], i32 0, !dbg [[DBG]]
+; CHECK-NEXT: %call = select i1 true, i64 [[I6]], i64 0, !dbg [[DBG]]
+  store i64 %call, ptr %gid, align 8, !dbg !11
   ret void, !dbg !12
 }
 

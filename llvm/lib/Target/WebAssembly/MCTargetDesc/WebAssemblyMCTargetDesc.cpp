@@ -20,6 +20,7 @@
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
 using namespace llvm;
 
@@ -64,7 +65,7 @@ static MCInstPrinter *createMCInstPrinter(const Triple & /*T*/,
 
 static MCCodeEmitter *createCodeEmitter(const MCInstrInfo &MCII,
                                         MCContext &Ctx) {
-  return createWebAssemblyMCCodeEmitter(MCII);
+  return createWebAssemblyMCCodeEmitter(MCII, Ctx);
 }
 
 static MCAsmBackend *createAsmBackend(const Target & /*T*/,
@@ -84,10 +85,9 @@ createObjectTargetStreamer(MCStreamer &S, const MCSubtargetInfo &STI) {
   return new WebAssemblyTargetWasmStreamer(S);
 }
 
-static MCTargetStreamer *createAsmTargetStreamer(MCStreamer &S,
-                                                 formatted_raw_ostream &OS,
-                                                 MCInstPrinter * /*InstPrint*/,
-                                                 bool /*isVerboseAsm*/) {
+static MCTargetStreamer *
+createAsmTargetStreamer(MCStreamer &S, formatted_raw_ostream &OS,
+                        MCInstPrinter * /*InstPrint*/) {
   return new WebAssemblyTargetAsmStreamer(S, OS);
 }
 
@@ -96,7 +96,8 @@ static MCTargetStreamer *createNullTargetStreamer(MCStreamer &S) {
 }
 
 // Force static initialization.
-extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeWebAssemblyTargetMC() {
+extern "C" LLVM_ABI LLVM_EXTERNAL_VISIBILITY void
+LLVMInitializeWebAssemblyTargetMC() {
   for (Target *T :
        {&getTheWebAssemblyTarget32(), &getTheWebAssemblyTarget64()}) {
     // Register the MC asm info.

@@ -98,7 +98,7 @@ tls3:
 # CHECK-NEXT:       Mutable:         true
 # CHECK-NEXT:       InitExpr:
 # CHECK-NEXT:         Opcode:          I32_CONST
-# CHECK-NEXT:         Value:           66592
+# CHECK-NEXT:         Value:           65536
 
 # __tls_base
 # CHECK-NEXT:     - Index:           1
@@ -133,7 +133,7 @@ tls3:
 # ASM-NEXT:   i32.const 0
 # ASM-NEXT:   i32.const 12
 # ASM-NEXT:   memory.init 0, 0
-# call to __wasm_apply_global_tls_relocs>
+# call to __wasm_apply_global_tls_relocs
 # ASM-NEXT:   call 3
 # ASM-NEXT:   end
 

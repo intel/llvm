@@ -1,4 +1,4 @@
-//===-- RISCVSubtarget.cpp - RISCV Subtarget Information ------------------===//
+//===-- RISCVSubtarget.cpp - RISC-V Subtarget Information -----------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,17 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements the RISCV specific subclass of TargetSubtargetInfo.
+// This file implements the RISC-V specific subclass of TargetSubtargetInfo.
 //
 //===----------------------------------------------------------------------===//
 
 #include "RISCVSubtarget.h"
+#include "GISel/RISCVCallLowering.h"
+#include "GISel/RISCVLegalizerInfo.h"
 #include "RISCV.h"
-#include "RISCVCallLowering.h"
 #include "RISCVFrameLowering.h"
-#include "RISCVLegalizerInfo.h"
-#include "RISCVMacroFusion.h"
-#include "RISCVRegisterBankInfo.h"
+#include "RISCVSelectionDAGInfo.h"
 #include "RISCVTargetMachine.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -29,22 +28,14 @@ using namespace llvm;
 #define GET_SUBTARGETINFO_CTOR
 #include "RISCVGenSubtargetInfo.inc"
 
-static cl::opt<bool> EnableSubRegLiveness("riscv-enable-subreg-liveness",
-                                          cl::init(false), cl::Hidden);
+#define GET_RISCV_MACRO_FUSION_PRED_IMPL
+#include "RISCVGenMacroFusion.inc"
 
-static cl::opt<int> RVVVectorBitsMax(
-    "riscv-v-vector-bits-max",
-    cl::desc("Assume V extension vector registers are at most this big, "
-             "with zero meaning no maximum size is assumed."),
-    cl::init(0), cl::Hidden);
+namespace llvm::RISCVTuneInfoTable {
 
-static cl::opt<int> RVVVectorBitsMin(
-    "riscv-v-vector-bits-min",
-    cl::desc("Assume V extension vector registers are at least this big, "
-             "with zero meaning no minimum size is assumed. A value of -1 "
-             "means use Zvl*b extension. This is primarily used to enable "
-             "autovectorization with fixed width vectors."),
-    cl::init(-1), cl::Hidden);
+#define GET_RISCVTuneInfoTable_IMPL
+#include "RISCVGenSearchableTables.inc"
+} // namespace llvm::RISCVTuneInfoTable
 
 static cl::opt<unsigned> RVVVectorLMULMax(
     "riscv-v-fixed-length-vector-lmul-max",
@@ -62,6 +53,28 @@ static cl::opt<unsigned> RISCVMaxBuildIntsCost(
     cl::desc("The maximum cost used for building integers."), cl::init(0),
     cl::Hidden);
 
+static cl::opt<bool> UseAA("riscv-use-aa", cl::init(true),
+                           cl::desc("Enable the use of AA during codegen."));
+
+static cl::opt<unsigned> RISCVMinimumJumpTableEntries(
+    "riscv-min-jump-table-entries", cl::Hidden,
+    cl::desc("Set minimum number of entries to use a jump table on RISCV"));
+
+static cl::opt<bool> UseMIPSLoadStorePairsOpt(
+    "use-riscv-mips-load-store-pairs",
+    cl::desc("Enable the load/store pair optimization pass"), cl::init(false),
+    cl::Hidden);
+
+static cl::opt<bool> UseMIPSCCMovInsn("use-riscv-mips-ccmov",
+                                      cl::desc("Use 'mips.ccmov' instruction"),
+                                      cl::init(true), cl::Hidden);
+
+static cl::opt<bool> EnablePExtSIMDCodeGen(
+    "riscv-enable-p-ext-simd-codegen",
+    cl::desc("Turn on P Extension SIMD codegen(This is a temporary switch "
+             "where only partial codegen is currently supported)"),
+    cl::init(false), cl::Hidden);
+
 void RISCVSubtarget::anchor() {}
 
 RISCVSubtarget &
@@ -75,13 +88,16 @@ RISCVSubtarget::initializeSubtargetDependencies(const Triple &TT, StringRef CPU,
 
   if (TuneCPU.empty())
     TuneCPU = CPU;
+  if (TuneCPU == "generic")
+    TuneCPU = Is64Bit ? "generic-rv64" : "generic-rv32";
+
+  TuneInfo = RISCVTuneInfoTable::getRISCVTuneInfo(TuneCPU);
+  // If there is no TuneInfo for this CPU, we fail back to generic.
+  if (!TuneInfo)
+    TuneInfo = RISCVTuneInfoTable::getRISCVTuneInfo("generic");
+  assert(TuneInfo && "TuneInfo shouldn't be nullptr!");
 
   ParseSubtargetFeatures(CPU, TuneCPU, FS);
-  if (Is64Bit) {
-    XLenVT = MVT::i64;
-    XLen = 64;
-  }
-
   TargetABI = RISCVABI::computeTargetABI(TT, getFeatureBits(), ABIName);
   RISCVFeatures::validate(TT, getFeatureBits());
   return *this;
@@ -89,38 +105,57 @@ RISCVSubtarget::initializeSubtargetDependencies(const Triple &TT, StringRef CPU,
 
 RISCVSubtarget::RISCVSubtarget(const Triple &TT, StringRef CPU,
                                StringRef TuneCPU, StringRef FS,
-                               StringRef ABIName, const TargetMachine &TM)
+                               StringRef ABIName, unsigned RVVVectorBitsMin,
+                               unsigned RVVVectorBitsMax,
+                               const TargetMachine &TM)
     : RISCVGenSubtargetInfo(TT, CPU, TuneCPU, FS),
+      IsLittleEndian(TT.isLittleEndian()), RVVVectorBitsMin(RVVVectorBitsMin),
+      RVVVectorBitsMax(RVVVectorBitsMax),
       FrameLowering(
           initializeSubtargetDependencies(TT, CPU, TuneCPU, FS, ABIName)),
-      InstrInfo(*this), RegInfo(getHwMode()), TLInfo(TM, *this) {
-  CallLoweringInfo.reset(new RISCVCallLowering(*getTargetLowering()));
-  Legalizer.reset(new RISCVLegalizerInfo(*this));
+      InstrInfo(*this), TLInfo(TM, *this) {
+  TSInfo = std::make_unique<RISCVSelectionDAGInfo>();
+}
 
-  auto *RBI = new RISCVRegisterBankInfo(*getRegisterInfo());
-  RegBankInfo.reset(RBI);
-  InstSelector.reset(createRISCVInstructionSelector(
-      *static_cast<const RISCVTargetMachine *>(&TM), *this, *RBI));
+RISCVSubtarget::~RISCVSubtarget() = default;
+
+const SelectionDAGTargetInfo *RISCVSubtarget::getSelectionDAGInfo() const {
+  return TSInfo.get();
 }
 
 const CallLowering *RISCVSubtarget::getCallLowering() const {
+  if (!CallLoweringInfo)
+    CallLoweringInfo.reset(new RISCVCallLowering(*getTargetLowering()));
   return CallLoweringInfo.get();
 }
 
 InstructionSelector *RISCVSubtarget::getInstructionSelector() const {
+  if (!InstSelector) {
+    InstSelector.reset(createRISCVInstructionSelector(
+        *static_cast<const RISCVTargetMachine *>(&TLInfo.getTargetMachine()),
+        *this, *getRegBankInfo()));
+  }
   return InstSelector.get();
 }
 
 const LegalizerInfo *RISCVSubtarget::getLegalizerInfo() const {
+  if (!Legalizer)
+    Legalizer.reset(new RISCVLegalizerInfo(*this));
   return Legalizer.get();
 }
 
-const RegisterBankInfo *RISCVSubtarget::getRegBankInfo() const {
+const RISCVRegisterBankInfo *RISCVSubtarget::getRegBankInfo() const {
+  if (!RegBankInfo)
+    RegBankInfo.reset(new RISCVRegisterBankInfo(getHwMode()));
   return RegBankInfo.get();
 }
 
 bool RISCVSubtarget::useConstantPoolForLargeInts() const {
   return !RISCVDisableUsingConstantPoolForLargeInts;
+}
+
+bool RISCVSubtarget::enablePExtSIMDCodeGen() const {
+  return HasStdExtP && EnablePExtSIMDCodeGen;
 }
 
 unsigned RISCVSubtarget::getMaxBuildIntsCost() const {
@@ -137,77 +172,97 @@ unsigned RISCVSubtarget::getMaxBuildIntsCost() const {
 unsigned RISCVSubtarget::getMaxRVVVectorSizeInBits() const {
   assert(hasVInstructions() &&
          "Tried to get vector length without Zve or V extension support!");
-  if (RVVVectorBitsMax == 0)
-    return 0;
 
   // ZvlLen specifies the minimum required vlen. The upper bound provided by
   // riscv-v-vector-bits-max should be no less than it.
-  if (RVVVectorBitsMax < (int)ZvlLen)
+  if (RVVVectorBitsMax != 0 && RVVVectorBitsMax < ZvlLen)
     report_fatal_error("riscv-v-vector-bits-max specified is lower "
                        "than the Zvl*b limitation");
 
-  // FIXME: Change to >= 32 when VLEN = 32 is supported
-  assert(
-      RVVVectorBitsMax >= 64 && RVVVectorBitsMax <= 65536 &&
-      isPowerOf2_32(RVVVectorBitsMax) &&
-      "V or Zve* extension requires vector length to be in the range of 64 to "
-      "65536 and a power of 2!");
-  assert(RVVVectorBitsMax >= RVVVectorBitsMin &&
-         "Minimum V extension vector length should not be larger than its "
-         "maximum!");
-  unsigned Max = std::max(RVVVectorBitsMin, RVVVectorBitsMax);
-  return PowerOf2Floor((Max < 64 || Max > 65536) ? 0 : Max);
+  return RVVVectorBitsMax;
 }
 
 unsigned RISCVSubtarget::getMinRVVVectorSizeInBits() const {
   assert(hasVInstructions() &&
          "Tried to get vector length without Zve or V extension support!");
 
-  if (RVVVectorBitsMin == -1)
+  if (RVVVectorBitsMin == -1U)
     return ZvlLen;
 
   // ZvlLen specifies the minimum required vlen. The lower bound provided by
   // riscv-v-vector-bits-min should be no less than it.
-  if (RVVVectorBitsMin != 0 && RVVVectorBitsMin < (int)ZvlLen)
+  if (RVVVectorBitsMin != 0 && RVVVectorBitsMin < ZvlLen)
     report_fatal_error("riscv-v-vector-bits-min specified is lower "
                        "than the Zvl*b limitation");
 
-  // FIXME: Change to >= 32 when VLEN = 32 is supported
-  assert(
-      (RVVVectorBitsMin == 0 ||
-       (RVVVectorBitsMin >= 64 && RVVVectorBitsMin <= 65536 &&
-        isPowerOf2_32(RVVVectorBitsMin))) &&
-      "V or Zve* extension requires vector length to be in the range of 64 to "
-      "65536 and a power of 2!");
-  assert((RVVVectorBitsMax >= RVVVectorBitsMin || RVVVectorBitsMax == 0) &&
-         "Minimum V extension vector length should not be larger than its "
-         "maximum!");
-  unsigned Min = RVVVectorBitsMin;
-  if (RVVVectorBitsMax != 0)
-    Min = std::min(RVVVectorBitsMin, RVVVectorBitsMax);
-  return PowerOf2Floor((Min < 64 || Min > 65536) ? 0 : Min);
+  return RVVVectorBitsMin;
 }
 
 unsigned RISCVSubtarget::getMaxLMULForFixedLengthVectors() const {
   assert(hasVInstructions() &&
          "Tried to get vector length without Zve or V extension support!");
-  assert(RVVVectorLMULMax <= 8 && isPowerOf2_32(RVVVectorLMULMax) &&
+  assert(RVVVectorLMULMax <= 8 &&
+         llvm::has_single_bit<uint32_t>(RVVVectorLMULMax) &&
          "V extension requires a LMUL to be at most 8 and a power of 2!");
-  return PowerOf2Floor(
-      std::max<unsigned>(std::min<unsigned>(RVVVectorLMULMax, 8), 1));
+  return llvm::bit_floor(std::clamp<unsigned>(RVVVectorLMULMax, 1, 8));
 }
 
 bool RISCVSubtarget::useRVVForFixedLengthVectors() const {
-  return hasVInstructions() && getMinRVVVectorSizeInBits() != 0;
+  return hasVInstructions() &&
+         getMinRVVVectorSizeInBits() >= RISCV::RVVBitsPerBlock;
 }
 
-bool RISCVSubtarget::enableSubRegLiveness() const {
-  // FIXME: Enable subregister liveness by default for RVV to better handle
-  // LMUL>1 and segment load/store.
-  return EnableSubRegLiveness;
+bool RISCVSubtarget::enableSubRegLiveness() const { return true; }
+
+bool RISCVSubtarget::enableMachinePipeliner() const {
+  return getSchedModel().hasInstrSchedModel();
 }
 
-void RISCVSubtarget::getPostRAMutations(
-    std::vector<std::unique_ptr<ScheduleDAGMutation>> &Mutations) const {
-  Mutations.push_back(createRISCVMacroFusionDAGMutation());
+  /// Enable use of alias analysis during code generation (during MI
+  /// scheduling, DAGCombine, etc.).
+bool RISCVSubtarget::useAA() const { return UseAA; }
+
+unsigned RISCVSubtarget::getMinimumJumpTableEntries() const {
+  return RISCVMinimumJumpTableEntries.getNumOccurrences() > 0
+             ? RISCVMinimumJumpTableEntries
+             : TuneInfo->MinimumJumpTableEntries;
+}
+
+void RISCVSubtarget::overrideSchedPolicy(MachineSchedPolicy &Policy,
+                                         const SchedRegion &Region) const {
+  // Do bidirectional scheduling since it provides a more balanced scheduling
+  // leading to better performance. This will increase compile time.
+  Policy.OnlyTopDown = false;
+  Policy.OnlyBottomUp = false;
+
+  // Disabling the latency heuristic can reduce the number of spills/reloads but
+  // will cause some regressions on some cores.
+  Policy.DisableLatencyHeuristic = DisableLatencySchedHeuristic;
+
+  // Spilling is generally expensive on all RISC-V cores, so always enable
+  // register-pressure tracking. This will increase compile time.
+  Policy.ShouldTrackPressure = true;
+}
+
+void RISCVSubtarget::overridePostRASchedPolicy(
+    MachineSchedPolicy &Policy, const SchedRegion &Region) const {
+  MISched::Direction PostRASchedDirection = getPostRASchedDirection();
+  if (PostRASchedDirection == MISched::TopDown) {
+    Policy.OnlyTopDown = true;
+    Policy.OnlyBottomUp = false;
+  } else if (PostRASchedDirection == MISched::BottomUp) {
+    Policy.OnlyTopDown = false;
+    Policy.OnlyBottomUp = true;
+  } else if (PostRASchedDirection == MISched::Bidirectional) {
+    Policy.OnlyTopDown = false;
+    Policy.OnlyBottomUp = false;
+  }
+}
+
+bool RISCVSubtarget::useMIPSLoadStorePairs() const {
+  return UseMIPSLoadStorePairsOpt && HasVendorXMIPSLSP;
+}
+
+bool RISCVSubtarget::useMIPSCCMovInsn() const {
+  return UseMIPSCCMovInsn && HasVendorXMIPSCMov;
 }

@@ -1,4 +1,4 @@
-; RUN: opt < %s -S -loop-vectorize -force-vector-interleave=1 -force-vector-width=4 -dce -instcombine | FileCheck %s
+; RUN: opt < %s -S -passes=loop-vectorize,dce,instcombine -force-vector-interleave=1 -force-vector-width=4 | FileCheck %s
 ; Make sure we vectorize with debugging turned on.
 
 source_filename = "test/Transforms/LoopVectorize/dbg.value.ll"
@@ -18,13 +18,13 @@ entry:
 for.body:                                         ; preds = %for.body, %entry
   ;CHECK: load <4 x i32>
   %indvars.iv = phi i64 [ 0, %entry ], [ %indvars.iv.next, %for.body ]
-  %arrayidx = getelementptr inbounds [1024 x i32], [1024 x i32]* @B, i64 0, i64 %indvars.iv, !dbg !23
-  %0 = load i32, i32* %arrayidx, align 4, !dbg !23
-  %arrayidx2 = getelementptr inbounds [1024 x i32], [1024 x i32]* @C, i64 0, i64 %indvars.iv, !dbg !23
-  %1 = load i32, i32* %arrayidx2, align 4, !dbg !23
+  %arrayidx = getelementptr inbounds [1024 x i32], ptr @B, i64 0, i64 %indvars.iv, !dbg !23
+  %0 = load i32, ptr %arrayidx, align 4, !dbg !23
+  %arrayidx2 = getelementptr inbounds [1024 x i32], ptr @C, i64 0, i64 %indvars.iv, !dbg !23
+  %1 = load i32, ptr %arrayidx2, align 4, !dbg !23
   %add = add nsw i32 %1, %0, !dbg !23
-  %arrayidx4 = getelementptr inbounds [1024 x i32], [1024 x i32]* @A, i64 0, i64 %indvars.iv, !dbg !23
-  store i32 %add, i32* %arrayidx4, align 4, !dbg !23
+  %arrayidx4 = getelementptr inbounds [1024 x i32], ptr @A, i64 0, i64 %indvars.iv, !dbg !23
+  store i32 %add, ptr %arrayidx4, align 4, !dbg !23
   %indvars.iv.next = add i64 %indvars.iv, 1, !dbg !22
   tail call void @llvm.dbg.value(metadata !12, metadata !19, metadata !21), !dbg !22
   %lftr.wideiv = trunc i64 %indvars.iv.next to i32, !dbg !22
@@ -51,10 +51,8 @@ attributes #1 = { nounwind readnone }
 !0 = !DIGlobalVariableExpression(var: !1, expr: !DIExpression())
 !1 = !DIGlobalVariable(name: "A", scope: null, file: !2, line: 1, type: !3, isLocal: false, isDefinition: true)
 !2 = !DIFile(filename: "test", directory: "/path/to/somewhere")
-!3 = !DICompositeType(tag: DW_TAG_array_type, baseType: !4, size: 32768, align: 32, elements: !5)
+!3 = !DICompositeType(tag: DW_TAG_array_type, baseType: !4, size: 32768, align: 32)
 !4 = !DIBasicType(name: "int", size: 32, align: 32, encoding: DW_ATE_signed)
-!5 = !{!6}
-!6 = !{i32 786465, i64 0, i64 1024}
 !7 = !DIGlobalVariableExpression(var: !8, expr: !DIExpression())
 !8 = !DIGlobalVariable(name: "B", scope: null, file: !2, line: 2, type: !3, isLocal: false, isDefinition: true)
 !9 = !DIGlobalVariableExpression(var: !10, expr: !DIExpression())

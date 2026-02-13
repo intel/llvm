@@ -8,19 +8,22 @@ define i32 @foo(i1 %which) {
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    br i1 [[WHICH:%.*]], label [[FINAL:%.*]], label [[DELAY:%.*]]
 ; CHECK:       delay:
+; CHECK-NEXT:    [[CMP:%.*]] = icmp eq ptr @A, @B
+; CHECK-NEXT:    [[TMP0:%.*]] = select i1 [[CMP]], i32 2, i32 1
 ; CHECK-NEXT:    br label [[FINAL]]
 ; CHECK:       final:
-; CHECK-NEXT:    [[USE2:%.*]] = phi i32 [ 1, [[ENTRY:%.*]] ], [ select (i1 icmp eq (ptr @A, ptr @B), i32 2, i32 1), [[DELAY]] ]
+; CHECK-NEXT:    [[USE2:%.*]] = phi i32 [ 1, [[ENTRY:%.*]] ], [ [[TMP0]], [[DELAY]] ]
 ; CHECK-NEXT:    ret i32 [[USE2]]
 ;
 entry:
   br i1 %which, label %final, label %delay
 
 delay:
+  %cmp = icmp eq ptr @A, @B
   br label %final
 
 final:
-  %use2 = phi i1 [ false, %entry ], [ icmp eq (ptr @A, ptr @B), %delay ]
+  %use2 = phi i1 [ false, %entry ], [ %cmp, %delay ]
   %value = select i1 %use2, i32 2, i32 1
   ret i32 %value
 }
@@ -77,17 +80,15 @@ final:
 define <2 x i8> @vec3(i1 %cond1, i1 %cond2, <2 x i1> %x, <2 x i8> %y, <2 x i8> %z) {
 ; CHECK-LABEL: @vec3(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[PHI_SEL1:%.*]] = shufflevector <2 x i8> [[Z:%.*]], <2 x i8> [[Y:%.*]], <2 x i32> <i32 0, i32 3>
 ; CHECK-NEXT:    br i1 [[COND1:%.*]], label [[IF1:%.*]], label [[ELSE:%.*]]
 ; CHECK:       if1:
-; CHECK-NEXT:    [[PHI_SEL2:%.*]] = shufflevector <2 x i8> [[Y]], <2 x i8> [[Z]], <2 x i32> <i32 0, i32 3>
 ; CHECK-NEXT:    br i1 [[COND2:%.*]], label [[IF2:%.*]], label [[ELSE]]
 ; CHECK:       if2:
-; CHECK-NEXT:    [[PHI_SEL:%.*]] = select <2 x i1> [[X:%.*]], <2 x i8> [[Y]], <2 x i8> [[Z]]
 ; CHECK-NEXT:    br label [[ELSE]]
 ; CHECK:       else:
-; CHECK-NEXT:    [[PHI:%.*]] = phi <2 x i8> [ [[PHI_SEL]], [[IF2]] ], [ [[PHI_SEL1]], [[ENTRY:%.*]] ], [ [[PHI_SEL2]], [[IF1]] ]
-; CHECK-NEXT:    ret <2 x i8> [[PHI]]
+; CHECK-NEXT:    [[PHI:%.*]] = phi <2 x i1> [ [[X:%.*]], [[IF2]] ], [ <i1 false, i1 true>, [[ENTRY:%.*]] ], [ <i1 true, i1 false>, [[IF1]] ]
+; CHECK-NEXT:    [[SEL:%.*]] = select <2 x i1> [[PHI]], <2 x i8> [[Y:%.*]], <2 x i8> [[Z:%.*]]
+; CHECK-NEXT:    ret <2 x i8> [[SEL]]
 ;
 entry:
   br i1 %cond1, label %if1, label %else
@@ -141,12 +142,11 @@ end:
 define i16 @sink_to_unreachable_crash(i1 %a)  {
 ; CHECK-LABEL: @sink_to_unreachable_crash(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[S:%.*]] = select i1 [[A:%.*]], i16 0, i16 5
 ; CHECK-NEXT:    br label [[INF_LOOP:%.*]]
 ; CHECK:       inf_loop:
 ; CHECK-NEXT:    br label [[INF_LOOP]]
 ; CHECK:       unreachable:
-; CHECK-NEXT:    ret i16 [[S]]
+; CHECK-NEXT:    ret i16 poison
 ;
 entry:
   %s = select i1 %a, i16 0, i16 5
@@ -169,10 +169,10 @@ define i32 @phi_trans(i1 %c, i1 %c2, i32 %v) {
 ; CHECK:       else:
 ; CHECK-NEXT:    [[V3:%.*]] = mul i32 [[V]], 3
 ; CHECK-NEXT:    [[V5:%.*]] = lshr i32 [[V]], 1
-; CHECK-NEXT:    [[PHI_SEL:%.*]] = select i1 [[C2:%.*]], i32 [[V3]], i32 [[V5]]
+; CHECK-NEXT:    [[TMP0:%.*]] = select i1 [[C2:%.*]], i32 [[V3]], i32 [[V5]]
 ; CHECK-NEXT:    br label [[JOIN]]
 ; CHECK:       join:
-; CHECK-NEXT:    [[PHI1:%.*]] = phi i32 [ [[V2]], [[IF]] ], [ [[PHI_SEL]], [[ELSE]] ]
+; CHECK-NEXT:    [[PHI1:%.*]] = phi i32 [ [[V2]], [[IF]] ], [ [[TMP0]], [[ELSE]] ]
 ; CHECK-NEXT:    ret i32 [[PHI1]]
 ;
 entry:
@@ -194,4 +194,90 @@ join:
   %phi3 = phi i32 [ %v4, %if ], [ %v5, %else ]
   %sel = select i1 %phi1, i32 %phi2, i32 %phi3
   ret i32 %sel
+}
+
+define i32 @dominating_values_select_same_block(i1 %c1, i1 %c2, ptr %p, ptr %p2) {
+; CHECK-LABEL: @dominating_values_select_same_block(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[B:%.*]] = load i32, ptr [[P2:%.*]], align 4
+; CHECK-NEXT:    br i1 [[C1:%.*]], label [[FINAL:%.*]], label [[DELAY:%.*]]
+; CHECK:       delay:
+; CHECK-NEXT:    [[A:%.*]] = load i32, ptr [[P:%.*]], align 4
+; CHECK-NEXT:    [[TMP0:%.*]] = select i1 [[C2:%.*]], i32 [[A]], i32 [[B]]
+; CHECK-NEXT:    br label [[FINAL]]
+; CHECK:       final:
+; CHECK-NEXT:    [[USE2:%.*]] = phi i32 [ [[B]], [[ENTRY:%.*]] ], [ [[TMP0]], [[DELAY]] ]
+; CHECK-NEXT:    ret i32 [[USE2]]
+;
+entry:
+  %a = load i32, ptr %p
+  %b = load i32, ptr %p2
+  br i1 %c1, label %final, label %delay
+
+delay:
+  br label %final
+
+final:
+  %use2 = phi i1 [ false, %entry ], [ %c2, %delay ]
+  %value = select i1 %use2, i32 %a, i32 %b
+  ret i32 %value
+}
+
+define i32 @dominating_values_select_not_same_block(i1 %c1, i1 %c2, ptr %p, ptr %p2) {
+; CHECK-LABEL: @dominating_values_select_not_same_block(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[B:%.*]] = load i32, ptr [[P2:%.*]], align 4
+; CHECK-NEXT:    br i1 [[C1:%.*]], label [[FINAL:%.*]], label [[DELAY:%.*]]
+; CHECK:       delay:
+; CHECK-NEXT:    [[A:%.*]] = load i32, ptr [[P:%.*]], align 4
+; CHECK-NEXT:    [[TMP0:%.*]] = select i1 [[C2:%.*]], i32 [[A]], i32 [[B]]
+; CHECK-NEXT:    br label [[FINAL]]
+; CHECK:       final:
+; CHECK-NEXT:    [[USE2:%.*]] = phi i32 [ [[B]], [[ENTRY:%.*]] ], [ [[TMP0]], [[DELAY]] ]
+; CHECK-NEXT:    br label [[SPLIT:%.*]]
+; CHECK:       split:
+; CHECK-NEXT:    ret i32 [[USE2]]
+;
+entry:
+  %a = load i32, ptr %p
+  %b = load i32, ptr %p2
+  br i1 %c1, label %final, label %delay
+
+delay:
+  br label %final
+
+final:
+  %use2 = phi i1 [ false, %entry ], [ %c2, %delay ]
+  br label %split
+
+split:
+  %value = select i1 %use2, i32 %a, i32 %b
+  ret i32 %value
+}
+
+define i32 @not_dominating_values(i1 %c1, i1 %c2, ptr %p, ptr %p2) {
+; CHECK-LABEL: @not_dominating_values(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[A:%.*]] = load i32, ptr [[P:%.*]], align 4
+; CHECK-NEXT:    br i1 [[C1:%.*]], label [[FINAL:%.*]], label [[DELAY:%.*]]
+; CHECK:       delay:
+; CHECK-NEXT:    br label [[FINAL]]
+; CHECK:       final:
+; CHECK-NEXT:    [[USE2:%.*]] = phi i1 [ false, [[ENTRY:%.*]] ], [ [[C2:%.*]], [[DELAY]] ]
+; CHECK-NEXT:    [[B:%.*]] = load i32, ptr [[P2:%.*]], align 4
+; CHECK-NEXT:    [[VALUE:%.*]] = select i1 [[USE2]], i32 [[A]], i32 [[B]]
+; CHECK-NEXT:    ret i32 [[VALUE]]
+;
+entry:
+  %a = load i32, ptr %p
+  br i1 %c1, label %final, label %delay
+
+delay:
+  br label %final
+
+final:
+  %use2 = phi i1 [ false, %entry ], [ %c2, %delay ]
+  %b = load i32, ptr %p2
+  %value = select i1 %use2, i32 %a, i32 %b
+  ret i32 %value
 }

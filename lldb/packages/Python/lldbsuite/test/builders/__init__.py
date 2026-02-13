@@ -7,10 +7,20 @@ factory method below hands out builders based on the given platform.
 
 
 def get_builder(platform):
-  """Returns a Builder instance for the given platform."""
-  if platform == 'darwin':
-    from .darwin import BuilderDarwin
-    return BuilderDarwin()
+    """Returns a Builder instance for the given platform."""
+    if platform in [
+        "bridgeos",
+        "darwin",
+        "ios",
+        "macosx",
+        "tvos",
+        "watchos",
+        "xros",
+    ]:
+        from .darwin import BuilderDarwin
 
-  from .builder import Builder
-  return Builder()
+        return BuilderDarwin()
+
+    from .builder import Builder
+
+    return Builder()

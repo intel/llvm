@@ -1083,13 +1083,13 @@ define dso_local signext i32 @v16i8tov16i32_sign(<16 x i8> %a) local_unnamed_add
 ; PWR10BE-NEXT:    addi r3, r3, .LCPI17_1@toc@l
 ; PWR10BE-NEXT:    lxv v4, 0(r3)
 ; PWR10BE-NEXT:    addis r3, r2, .LCPI17_2@toc@ha
-; PWR10BE-NEXT:    addi r3, r3, .LCPI17_2@toc@l
 ; PWR10BE-NEXT:    vperm v3, v2, v2, v3
+; PWR10BE-NEXT:    addi r3, r3, .LCPI17_2@toc@l
 ; PWR10BE-NEXT:    lxv v5, 0(r3)
 ; PWR10BE-NEXT:    addis r3, r2, .LCPI17_3@toc@ha
 ; PWR10BE-NEXT:    vextsb2w v3, v3
-; PWR10BE-NEXT:    addi r3, r3, .LCPI17_3@toc@l
 ; PWR10BE-NEXT:    vperm v4, v2, v2, v4
+; PWR10BE-NEXT:    addi r3, r3, .LCPI17_3@toc@l
 ; PWR10BE-NEXT:    lxv v0, 0(r3)
 ; PWR10BE-NEXT:    li r3, 0
 ; PWR10BE-NEXT:    vextsb2w v4, v4
@@ -1206,12 +1206,12 @@ define dso_local zeroext i32 @v16i8tov16i32_zero(<16 x i8> %a) local_unnamed_add
 ; PWR10BE-NEXT:    addi r3, r3, .LCPI18_1@toc@l
 ; PWR10BE-NEXT:    lxv v5, 0(r3)
 ; PWR10BE-NEXT:    addis r3, r2, .LCPI18_2@toc@ha
-; PWR10BE-NEXT:    addi r3, r3, .LCPI18_2@toc@l
 ; PWR10BE-NEXT:    vperm v3, v4, v2, v3
+; PWR10BE-NEXT:    addi r3, r3, .LCPI18_2@toc@l
 ; PWR10BE-NEXT:    lxv v0, 0(r3)
 ; PWR10BE-NEXT:    addis r3, r2, .LCPI18_3@toc@ha
-; PWR10BE-NEXT:    addi r3, r3, .LCPI18_3@toc@l
 ; PWR10BE-NEXT:    vperm v5, v4, v2, v5
+; PWR10BE-NEXT:    addi r3, r3, .LCPI18_3@toc@l
 ; PWR10BE-NEXT:    lxv v1, 0(r3)
 ; PWR10BE-NEXT:    li r3, 0
 ; PWR10BE-NEXT:    vadduwm v3, v5, v3
@@ -1566,42 +1566,41 @@ define dso_local i64 @v16i8tov16i64_sign(<16 x i8> %a) local_unnamed_addr #0 {
 ; PWR10BE-LABEL: v16i8tov16i64_sign:
 ; PWR10BE:       # %bb.0: # %entry
 ; PWR10BE-NEXT:    addis r3, r2, .LCPI23_0@toc@ha
+; PWR10BE-NEXT:    xxspltib v1, 255
 ; PWR10BE-NEXT:    addi r3, r3, .LCPI23_0@toc@l
 ; PWR10BE-NEXT:    lxv v3, 0(r3)
 ; PWR10BE-NEXT:    addis r3, r2, .LCPI23_1@toc@ha
+; PWR10BE-NEXT:    vsrq v1, v1, v1
 ; PWR10BE-NEXT:    addi r3, r3, .LCPI23_1@toc@l
+; PWR10BE-NEXT:    vperm v1, v2, v2, v1
 ; PWR10BE-NEXT:    lxv v4, 0(r3)
 ; PWR10BE-NEXT:    addis r3, r2, .LCPI23_2@toc@ha
-; PWR10BE-NEXT:    addi r3, r3, .LCPI23_2@toc@l
 ; PWR10BE-NEXT:    vperm v3, v2, v2, v3
+; PWR10BE-NEXT:    vextsb2d v1, v1
+; PWR10BE-NEXT:    addi r3, r3, .LCPI23_2@toc@l
 ; PWR10BE-NEXT:    lxv v5, 0(r3)
 ; PWR10BE-NEXT:    addis r3, r2, .LCPI23_3@toc@ha
 ; PWR10BE-NEXT:    vextsb2d v3, v3
-; PWR10BE-NEXT:    addi r3, r3, .LCPI23_3@toc@l
 ; PWR10BE-NEXT:    vperm v4, v2, v2, v4
+; PWR10BE-NEXT:    addi r3, r3, .LCPI23_3@toc@l
 ; PWR10BE-NEXT:    lxv v0, 0(r3)
 ; PWR10BE-NEXT:    addis r3, r2, .LCPI23_4@toc@ha
 ; PWR10BE-NEXT:    vextsb2d v4, v4
-; PWR10BE-NEXT:    addi r3, r3, .LCPI23_4@toc@l
 ; PWR10BE-NEXT:    vperm v5, v2, v2, v5
-; PWR10BE-NEXT:    lxv v1, 0(r3)
+; PWR10BE-NEXT:    addi r3, r3, .LCPI23_4@toc@l
+; PWR10BE-NEXT:    lxv v6, 0(r3)
 ; PWR10BE-NEXT:    addis r3, r2, .LCPI23_5@toc@ha
 ; PWR10BE-NEXT:    vextsb2d v5, v5
-; PWR10BE-NEXT:    addi r3, r3, .LCPI23_5@toc@l
 ; PWR10BE-NEXT:    vperm v0, v2, v2, v0
-; PWR10BE-NEXT:    lxv v6, 0(r3)
+; PWR10BE-NEXT:    addi r3, r3, .LCPI23_5@toc@l
+; PWR10BE-NEXT:    lxv v7, 0(r3)
 ; PWR10BE-NEXT:    addis r3, r2, .LCPI23_6@toc@ha
 ; PWR10BE-NEXT:    vextsb2d v0, v0
+; PWR10BE-NEXT:    vperm v6, v2, v2, v6
 ; PWR10BE-NEXT:    addi r3, r3, .LCPI23_6@toc@l
-; PWR10BE-NEXT:    vperm v1, v2, v2, v1
 ; PWR10BE-NEXT:    vaddudm v5, v0, v5
 ; PWR10BE-NEXT:    vaddudm v3, v4, v3
 ; PWR10BE-NEXT:    vaddudm v3, v3, v5
-; PWR10BE-NEXT:    lxv v7, 0(r3)
-; PWR10BE-NEXT:    addis r3, r2, .LCPI23_7@toc@ha
-; PWR10BE-NEXT:    vextsb2d v1, v1
-; PWR10BE-NEXT:    addi r3, r3, .LCPI23_7@toc@l
-; PWR10BE-NEXT:    vperm v6, v2, v2, v6
 ; PWR10BE-NEXT:    lxv v8, 0(r3)
 ; PWR10BE-NEXT:    vextsb2d v6, v6
 ; PWR10BE-NEXT:    vperm v7, v2, v2, v7
@@ -1609,7 +1608,7 @@ define dso_local i64 @v16i8tov16i64_sign(<16 x i8> %a) local_unnamed_addr #0 {
 ; PWR10BE-NEXT:    vperm v2, v2, v2, v8
 ; PWR10BE-NEXT:    vextsb2d v2, v2
 ; PWR10BE-NEXT:    vaddudm v2, v2, v7
-; PWR10BE-NEXT:    vaddudm v4, v6, v1
+; PWR10BE-NEXT:    vaddudm v4, v1, v6
 ; PWR10BE-NEXT:    vaddudm v2, v4, v2
 ; PWR10BE-NEXT:    vaddudm v2, v2, v3
 ; PWR10BE-NEXT:    xxswapd v3, v2
@@ -1758,28 +1757,28 @@ define dso_local i64 @v16i8tov16i64_zero(<16 x i8> %a) local_unnamed_addr #0 {
 ; PWR10BE-NEXT:    addi r3, r3, .LCPI24_1@toc@l
 ; PWR10BE-NEXT:    lxv v5, 0(r3)
 ; PWR10BE-NEXT:    addis r3, r2, .LCPI24_2@toc@ha
-; PWR10BE-NEXT:    addi r3, r3, .LCPI24_2@toc@l
 ; PWR10BE-NEXT:    vperm v3, v4, v2, v3
+; PWR10BE-NEXT:    addi r3, r3, .LCPI24_2@toc@l
 ; PWR10BE-NEXT:    lxv v0, 0(r3)
 ; PWR10BE-NEXT:    addis r3, r2, .LCPI24_3@toc@ha
-; PWR10BE-NEXT:    addi r3, r3, .LCPI24_3@toc@l
 ; PWR10BE-NEXT:    vperm v5, v4, v2, v5
+; PWR10BE-NEXT:    addi r3, r3, .LCPI24_3@toc@l
 ; PWR10BE-NEXT:    lxv v1, 0(r3)
 ; PWR10BE-NEXT:    addis r3, r2, .LCPI24_4@toc@ha
-; PWR10BE-NEXT:    addi r3, r3, .LCPI24_4@toc@l
 ; PWR10BE-NEXT:    vperm v0, v4, v2, v0
+; PWR10BE-NEXT:    addi r3, r3, .LCPI24_4@toc@l
 ; PWR10BE-NEXT:    lxv v6, 0(r3)
 ; PWR10BE-NEXT:    addis r3, r2, .LCPI24_5@toc@ha
-; PWR10BE-NEXT:    addi r3, r3, .LCPI24_5@toc@l
 ; PWR10BE-NEXT:    vperm v1, v4, v2, v1
+; PWR10BE-NEXT:    addi r3, r3, .LCPI24_5@toc@l
 ; PWR10BE-NEXT:    lxv v7, 0(r3)
 ; PWR10BE-NEXT:    addis r3, r2, .LCPI24_6@toc@ha
-; PWR10BE-NEXT:    addi r3, r3, .LCPI24_6@toc@l
 ; PWR10BE-NEXT:    vperm v6, v4, v2, v6
+; PWR10BE-NEXT:    addi r3, r3, .LCPI24_6@toc@l
 ; PWR10BE-NEXT:    lxv v8, 0(r3)
 ; PWR10BE-NEXT:    addis r3, r2, .LCPI24_7@toc@ha
-; PWR10BE-NEXT:    addi r3, r3, .LCPI24_7@toc@l
 ; PWR10BE-NEXT:    vperm v7, v4, v2, v7
+; PWR10BE-NEXT:    addi r3, r3, .LCPI24_7@toc@l
 ; PWR10BE-NEXT:    lxv v9, 0(r3)
 ; PWR10BE-NEXT:    vperm v8, v4, v2, v8
 ; PWR10BE-NEXT:    vperm v2, v4, v2, v9

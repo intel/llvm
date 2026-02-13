@@ -1,9 +1,18 @@
+# Test that undefined weak externals (global_var) and (foo) don't cause
+# link failures and resolve to zero.
+
 # RUN: llvm-mc -filetype=obj -triple=wasm32-unknown-unknown -o %t.o %s
 # RUN: wasm-ld -strip-all %t.o -o %t.wasm
 # RUN: obj2yaml %t.wasm | FileCheck %s
 
-# Test that undefined weak externals (global_var) and (foo) don't cause
-# link failures and resolve to zero.
+# Also verify test that strong references in another file do cause link
+# failure (See https://github.com/llvm/llvm-project/issues/60806)
+
+# RUN: llvm-mc -filetype=obj -triple=wasm32-unknown-unknown %p/Inputs/strong-refs.s -o %t-strong.o
+# RUN: not wasm-ld -strip-all %t.o %t-strong.o -o %t.wasm 2>&1 | FileCheck --check-prefix=ERROR %s
+# RUN: not wasm-ld -strip-all %t-strong.o %t.o -o %t.wasm 2>&1 | FileCheck --check-prefix=ERROR %s
+
+# ERROR: undefined symbol: global_var
 
 .functype foo () -> (i32)
 
@@ -33,7 +42,6 @@ _start:
 .weak foo
 .weak global_var
 
-
 # CHECK:      --- !WASM
 # CHECK-NEXT: FileHeader:
 # CHECK-NEXT:   Version:         0x1
@@ -59,7 +67,7 @@ _start:
 # CHECK-NEXT:           Maximum:         0x1
 # CHECK-NEXT:   - Type:            MEMORY
 # CHECK-NEXT:     Memories:
-# CHECK-NEXT:       - Minimum:         0x2
+# CHECK-NEXT:       - Minimum:         0x1
 # CHECK-NEXT:   - Type:            GLOBAL
 # CHECK-NEXT:     Globals:
 # CHECK-NEXT:       - Index:           0
@@ -67,7 +75,7 @@ _start:
 # CHECK-NEXT:         Mutable:         true
 # CHECK-NEXT:         InitExpr:
 # CHECK-NEXT:           Opcode:          I32_CONST
-# CHECK-NEXT:           Value:           66560
+# CHECK-NEXT:           Value:           65536
 # CHECK-NEXT:   - Type:            EXPORT
 # CHECK-NEXT:     Exports:
 # CHECK-NEXT:       - Name:            memory

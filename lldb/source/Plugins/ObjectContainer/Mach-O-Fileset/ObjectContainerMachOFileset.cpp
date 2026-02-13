@@ -15,6 +15,7 @@
 #include "lldb/Utility/ArchSpec.h"
 #include "lldb/Utility/DataBuffer.h"
 #include "lldb/Utility/Stream.h"
+#include <optional>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -53,9 +54,9 @@ ObjectContainer *ObjectContainerMachOFileset::CreateInstance(
   if (!data_sp)
     return {};
 
-  DataExtractor data;
-  data.SetData(data_sp, data_offset, length);
-  if (!MagicBytesMatch(data))
+  DataExtractor extractor;
+  extractor.SetData(data_sp, data_offset, length);
+  if (!MagicBytesMatch(extractor))
     return {};
 
   auto container_up = std::make_unique<ObjectContainerMachOFileset>(
@@ -95,60 +96,61 @@ static uint32_t MachHeaderSizeFromMagic(uint32_t magic) {
   }
 }
 
-static llvm::Optional<mach_header> ParseMachOHeader(DataExtractor &data) {
+static std::optional<mach_header> ParseMachOHeader(DataExtractor &extractor) {
   lldb::offset_t offset = 0;
   mach_header header;
-  header.magic = data.GetU32(&offset);
+  header.magic = extractor.GetU32(&offset);
   switch (header.magic) {
   case MH_MAGIC:
-    data.SetByteOrder(endian::InlHostByteOrder());
-    data.SetAddressByteSize(4);
+    extractor.SetByteOrder(endian::InlHostByteOrder());
+    extractor.SetAddressByteSize(4);
     break;
   case MH_MAGIC_64:
-    data.SetByteOrder(endian::InlHostByteOrder());
-    data.SetAddressByteSize(8);
+    extractor.SetByteOrder(endian::InlHostByteOrder());
+    extractor.SetAddressByteSize(8);
     break;
   case MH_CIGAM:
-    data.SetByteOrder(endian::InlHostByteOrder() == eByteOrderBig
-                          ? eByteOrderLittle
-                          : eByteOrderBig);
-    data.SetAddressByteSize(4);
+    extractor.SetByteOrder(endian::InlHostByteOrder() == eByteOrderBig
+                               ? eByteOrderLittle
+                               : eByteOrderBig);
+    extractor.SetAddressByteSize(4);
     break;
   case MH_CIGAM_64:
-    data.SetByteOrder(endian::InlHostByteOrder() == eByteOrderBig
-                          ? eByteOrderLittle
-                          : eByteOrderBig);
-    data.SetAddressByteSize(8);
+    extractor.SetByteOrder(endian::InlHostByteOrder() == eByteOrderBig
+                               ? eByteOrderLittle
+                               : eByteOrderBig);
+    extractor.SetAddressByteSize(8);
     break;
   default:
     return {};
   }
 
-  header.cputype = data.GetU32(&offset);
-  header.cpusubtype = data.GetU32(&offset);
-  header.filetype = data.GetU32(&offset);
-  header.ncmds = data.GetU32(&offset);
-  header.sizeofcmds = data.GetU32(&offset);
+  header.cputype = extractor.GetU32(&offset);
+  header.cpusubtype = extractor.GetU32(&offset);
+  header.filetype = extractor.GetU32(&offset);
+  header.ncmds = extractor.GetU32(&offset);
+  header.sizeofcmds = extractor.GetU32(&offset);
   return header;
 }
 
 static bool
-ParseFileset(DataExtractor &data, mach_header header,
+ParseFileset(DataExtractor &extractor, mach_header header,
              std::vector<ObjectContainerMachOFileset::Entry> &entries,
-             llvm::Optional<lldb::addr_t> load_addr = llvm::None) {
+             std::optional<lldb::addr_t> load_addr = std::nullopt) {
   lldb::offset_t offset = MachHeaderSizeFromMagic(header.magic);
   lldb::offset_t slide = 0;
   for (uint32_t i = 0; i < header.ncmds; ++i) {
     const lldb::offset_t load_cmd_offset = offset;
     load_command lc = {};
-    if (data.GetU32(&offset, &lc.cmd, 2) == nullptr)
+    if (extractor.GetU32(&offset, &lc.cmd, 2) == nullptr)
       break;
 
     // If we know the load address we can compute the slide.
     if (load_addr) {
       if (lc.cmd == llvm::MachO::LC_SEGMENT_64) {
         segment_command_64 segment;
-        data.CopyData(load_cmd_offset, sizeof(segment_command_64), &segment);
+        extractor.CopyData(load_cmd_offset, sizeof(segment_command_64),
+                           &segment);
         if (llvm::StringRef(segment.segname) == "__TEXT")
           slide = *load_addr - segment.vmaddr;
       }
@@ -156,11 +158,12 @@ ParseFileset(DataExtractor &data, mach_header header,
 
     if (lc.cmd == LC_FILESET_ENTRY) {
       fileset_entry_command entry;
-      data.CopyData(load_cmd_offset, sizeof(fileset_entry_command), &entry);
-      lldb::offset_t entry_id_offset = load_cmd_offset + entry.entry_id;
-      const char *id = data.GetCStr(&entry_id_offset);
-      entries.emplace_back(entry.vmaddr + slide, entry.fileoff,
-                           std::string(id));
+      extractor.CopyData(load_cmd_offset, sizeof(fileset_entry_command),
+                         &entry);
+      lldb::offset_t entry_id_offset = load_cmd_offset + entry.entry_id.offset;
+      if (const char *id = extractor.GetCStr(&entry_id_offset))
+        entries.emplace_back(entry.vmaddr + slide, entry.fileoff,
+                             std::string(id));
     }
 
     offset = load_cmd_offset + lc.cmdsize;
@@ -170,9 +173,9 @@ ParseFileset(DataExtractor &data, mach_header header,
 }
 
 bool ObjectContainerMachOFileset::ParseHeader(
-    DataExtractor &data, const lldb_private::FileSpec &file,
+    DataExtractor &extractor, const lldb_private::FileSpec &file,
     lldb::offset_t file_offset, std::vector<Entry> &entries) {
-  llvm::Optional<mach_header> header = ParseMachOHeader(data);
+  std::optional<mach_header> header = ParseMachOHeader(extractor);
 
   if (!header)
     return false;
@@ -180,13 +183,13 @@ bool ObjectContainerMachOFileset::ParseHeader(
   const size_t header_size = MachHeaderSizeFromMagic(header->magic);
   const size_t header_and_lc_size = header_size + header->sizeofcmds;
 
-  if (data.GetByteSize() < header_and_lc_size) {
+  if (extractor.GetByteSize() < header_and_lc_size) {
     DataBufferSP data_sp =
         ObjectFile::MapFileData(file, header_and_lc_size, file_offset);
-    data.SetData(data_sp);
+    extractor.SetData(data_sp);
   }
 
-  return ParseFileset(data, *header, entries);
+  return ParseFileset(extractor, *header, entries);
 }
 
 bool ObjectContainerMachOFileset::ParseHeader() {
@@ -196,24 +199,24 @@ bool ObjectContainerMachOFileset::ParseHeader() {
 
   std::lock_guard<std::recursive_mutex> guard(module_sp->GetMutex());
 
-  llvm::Optional<mach_header> header = ParseMachOHeader(m_data);
+  std::optional<mach_header> header = ParseMachOHeader(*m_extractor_sp.get());
   if (!header)
     return false;
 
   const size_t header_size = MachHeaderSizeFromMagic(header->magic);
   const size_t header_and_lc_size = header_size + header->sizeofcmds;
 
-  if (m_data.GetByteSize() < header_and_lc_size) {
+  if (m_extractor_sp->GetByteSize() < header_and_lc_size) {
     ProcessSP process_sp(m_process_wp.lock());
     DataBufferSP data_sp =
         process_sp
             ? ObjectFile::ReadMemory(process_sp, m_memory_addr,
                                      header_and_lc_size)
             : ObjectFile::MapFileData(m_file, header_and_lc_size, m_offset);
-    m_data.SetData(data_sp);
+    m_extractor_sp->SetData(data_sp);
   }
 
-  return ParseFileset(m_data, *header, m_entries, m_memory_addr);
+  return ParseFileset(*m_extractor_sp.get(), *header, m_entries, m_memory_addr);
 }
 
 size_t ObjectContainerMachOFileset::GetModuleSpecifications(
@@ -222,12 +225,12 @@ size_t ObjectContainerMachOFileset::GetModuleSpecifications(
     lldb::offset_t file_size, lldb_private::ModuleSpecList &specs) {
   const size_t initial_count = specs.GetSize();
 
-  DataExtractor data;
-  data.SetData(data_sp, data_offset, data_sp->GetByteSize());
+  DataExtractor extractor;
+  extractor.SetData(data_sp, data_offset, data_sp->GetByteSize());
 
-  if (MagicBytesMatch(data)) {
+  if (MagicBytesMatch(extractor)) {
     std::vector<Entry> entries;
-    if (ParseHeader(data, file, file_offset, entries)) {
+    if (ParseHeader(extractor, file, file_offset, entries)) {
       for (const Entry &entry : entries) {
         const lldb::offset_t entry_offset = entry.fileoff + file_offset;
         if (ObjectFile::GetModuleSpecifications(
@@ -244,14 +247,15 @@ size_t ObjectContainerMachOFileset::GetModuleSpecifications(
 bool ObjectContainerMachOFileset::MagicBytesMatch(DataBufferSP data_sp,
                                                   lldb::addr_t data_offset,
                                                   lldb::addr_t data_length) {
-  DataExtractor data;
-  data.SetData(data_sp, data_offset, data_length);
-  return MagicBytesMatch(data);
+  DataExtractor extractor;
+  extractor.SetData(data_sp, data_offset, data_length);
+  return MagicBytesMatch(extractor);
 }
 
-bool ObjectContainerMachOFileset::MagicBytesMatch(const DataExtractor &data) {
+bool ObjectContainerMachOFileset::MagicBytesMatch(
+    const DataExtractor &extractor) {
   lldb::offset_t offset = 0;
-  uint32_t magic = data.GetU32(&offset);
+  uint32_t magic = extractor.GetU32(&offset);
   switch (magic) {
   case MH_MAGIC:
   case MH_CIGAM:
@@ -263,7 +267,7 @@ bool ObjectContainerMachOFileset::MagicBytesMatch(const DataExtractor &data) {
   }
   offset += 4; // cputype
   offset += 4; // cpusubtype
-  uint32_t filetype = data.GetU32(&offset);
+  uint32_t filetype = extractor.GetU32(&offset);
   return filetype == MH_FILESET;
 }
 
@@ -281,11 +285,11 @@ ObjectContainerMachOFileset::GetObjectFile(const lldb_private::FileSpec *file) {
   if (!entry)
     return {};
 
-  DataBufferSP data_sp;
+  DataExtractorSP extractor_sp;
   lldb::offset_t data_offset = 0;
   return ObjectFile::FindPlugin(module_sp, file, m_offset + entry->fileoff,
-                                m_data.GetByteSize() - entry->fileoff, data_sp,
-                                data_offset);
+                                m_extractor_sp->GetByteSize() - entry->fileoff,
+                                extractor_sp, data_offset);
 }
 
 ObjectContainerMachOFileset::Entry *

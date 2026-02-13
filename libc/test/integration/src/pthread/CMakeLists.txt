@@ -6,9 +6,8 @@ add_integration_test(
     libc-pthread-integration-tests
   SRCS
     pthread_mutex_test.cpp
-  LOADER
-    libc.loader.linux.crt1
   DEPENDS
+    libc.hdr.stdint_proxy
     libc.include.pthread
     libc.src.errno.errno
     libc.src.pthread.pthread_mutex_destroy
@@ -20,14 +19,90 @@ add_integration_test(
 )
 
 add_integration_test(
+  pthread_barrier_test
+  SUITE
+    libc-pthread-integration-tests
+  SRCS
+    pthread_barrier_test.cpp
+  DEPENDS
+    libc.include.pthread
+    libc.src.errno.errno
+    libc.src.pthread.pthread_barrier_destroy
+    libc.src.pthread.pthread_barrier_wait
+    libc.src.pthread.pthread_barrier_init
+    libc.src.pthread.pthread_create
+    libc.src.pthread.pthread_join
+    libc.src.stdio.printf
+)
+
+add_integration_test(
+  pthread_rwlock_test
+  SUITE
+    libc-pthread-integration-tests
+  SRCS
+    pthread_rwlock_test.cpp
+  DEPENDS
+    libc.hdr.time_macros
+    libc.hdr.errno_macros
+    libc.include.pthread
+    libc.src.pthread.pthread_rwlock_destroy
+    libc.src.pthread.pthread_rwlock_init
+    libc.src.pthread.pthread_rwlock_rdlock
+    libc.src.pthread.pthread_rwlock_tryrdlock
+    libc.src.pthread.pthread_rwlock_timedrdlock
+    libc.src.pthread.pthread_rwlock_clockrdlock
+    libc.src.pthread.pthread_rwlock_wrlock
+    libc.src.pthread.pthread_rwlock_trywrlock
+    libc.src.pthread.pthread_rwlock_timedwrlock
+    libc.src.pthread.pthread_rwlock_clockwrlock
+    libc.src.pthread.pthread_rwlock_unlock
+    libc.src.pthread.pthread_create
+    libc.src.pthread.pthread_join
+    libc.src.pthread.pthread_rwlockattr_init
+    libc.src.pthread.pthread_rwlockattr_destroy
+    libc.src.pthread.pthread_rwlockattr_setpshared
+    libc.src.pthread.pthread_rwlockattr_setkind_np
+    libc.src.__support.threads.raw_mutex
+    libc.src.stdio.printf
+    libc.src.stdlib.getenv
+    libc.src.sys.mman.mmap
+    libc.src.sys.mman.munmap
+    libc.src.time.clock_gettime
+    libc.src.sys.random.getrandom
+    libc.src.unistd.fork
+    libc.src.sys.wait.waitpid
+    libc.src.stdlib.exit
+    libc.src.__support.CPP.atomic
+    libc.src.__support.CPP.new
+    libc.src.__support.threads.sleep
+)
+
+add_integration_test(
+  pthread_spinlock_test
+  SUITE
+    libc-pthread-integration-tests
+  SRCS
+    pthread_spinlock_test.cpp
+  DEPENDS
+    libc.hdr.errno_macros
+    libc.include.pthread
+    libc.src.pthread.pthread_spin_init
+    libc.src.pthread.pthread_spin_destroy
+    libc.src.pthread.pthread_spin_lock
+    libc.src.pthread.pthread_spin_trylock
+    libc.src.pthread.pthread_spin_unlock
+    libc.src.pthread.pthread_create
+    libc.src.pthread.pthread_join
+)
+
+add_integration_test(
   pthread_test
   SUITE
     libc-pthread-integration-tests
   SRCS
     pthread_test.cpp
-  LOADER
-    libc.loader.linux.crt1
   DEPENDS
+    libc.hdr.stdint_proxy
     libc.include.pthread
     libc.src.pthread.pthread_create
     libc.src.pthread.pthread_join
@@ -39,9 +114,8 @@ add_integration_test(
     libc-pthread-integration-tests
   SRCS
     pthread_equal_test.cpp
-  LOADER
-    libc.loader.linux.crt1
   DEPENDS
+    libc.hdr.stdint_proxy
     libc.include.pthread
     libc.src.errno.errno
     libc.src.pthread.pthread_mutex_destroy
@@ -60,10 +134,8 @@ add_integration_test(
     libc-pthread-integration-tests
   SRCS
     pthread_name_test.cpp
-  LOADER
-    libc.loader.linux.crt1
   DEPENDS
-    libc.include.errno
+    libc.hdr.stdint_proxy
     libc.include.pthread
     libc.src.errno.errno
     libc.src.pthread.pthread_create
@@ -83,8 +155,6 @@ add_integration_test(
     libc-pthread-integration-tests
   SRCS
     pthread_exit_test.cpp
-  LOADER
-    libc.loader.linux.crt1
   DEPENDS
     libc.include.pthread
     libc.src.pthread.pthread_create
@@ -98,8 +168,6 @@ add_integration_test(
     libc-pthread-integration-tests
   SRCS
     pthread_tss_test.cpp
-  LOADER
-    libc.loader.linux.crt1
   DEPENDS
     libc.include.pthread
     libc.src.pthread.pthread_create
@@ -117,9 +185,8 @@ add_integration_test(
     libc-pthread-integration-tests
   SRCS
     pthread_once_test.cpp
-  LOADER
-    libc.loader.linux.crt1
   DEPENDS
+    libc.hdr.stdint_proxy
     libc.include.pthread
     libc.src.pthread.pthread_once
     libc.src.pthread.pthread_mutex_destroy
@@ -129,4 +196,49 @@ add_integration_test(
     libc.src.pthread.pthread_create
     libc.src.pthread.pthread_join
     libc.src.__support.CPP.atomic
+)
+
+add_integration_test(
+  pthread_join_test
+  SUITE
+    libc-pthread-integration-tests
+  SRCS
+    pthread_join_test.cpp
+  DEPENDS
+    libc.include.pthread
+    libc.include.stdio
+    libc.src.errno.errno
+    libc.src.pthread.pthread_create
+    libc.src.pthread.pthread_join
+)
+
+add_integration_test(
+  pthread_create_test
+  SUITE
+    libc-pthread-integration-tests
+  SRCS
+    pthread_create_test.cpp
+  DEPENDS
+    libc.include.pthread
+    libc.src.errno.errno
+    libc.src.pthread.pthread_create
+    libc.src.pthread.pthread_join
+    libc.src.pthread.pthread_attr_getdetachstate
+    libc.src.pthread.pthread_attr_getguardsize
+    libc.src.pthread.pthread_attr_getstack
+    libc.src.pthread.pthread_attr_getstacksize
+    libc.src.pthread.pthread_attr_setdetachstate
+    libc.src.pthread.pthread_attr_setguardsize
+    libc.src.pthread.pthread_attr_setstack
+    libc.src.pthread.pthread_attr_setstacksize
+    libc.src.pthread.pthread_attr_init
+    libc.src.pthread.pthread_attr_destroy
+    libc.src.pthread.pthread_self
+    libc.src.sys.mman.mmap
+    libc.src.sys.mman.munmap
+    libc.src.sys.random.getrandom
+    libc.src.__support.threads.thread
+    libc.src.__support.CPP.atomic
+    libc.src.__support.CPP.array
+    libc.src.__support.CPP.new
 )

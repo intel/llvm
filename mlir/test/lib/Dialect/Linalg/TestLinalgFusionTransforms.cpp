@@ -12,9 +12,8 @@
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/Linalg/Analysis/DependenceAnalysis.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
-#include "mlir/Dialect/SCF/Transforms/Transforms.h"
+#include "mlir/Dialect/SCF/Transforms/Patterns.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -25,7 +24,6 @@ using namespace mlir::linalg;
 
 static LogicalResult fuseLinalgOpsGreedily(func::FuncOp f) {
   OpBuilder b(f);
-  DenseSet<Operation *> eraseSet;
 
   // Save original Linalg ops, we only want to make a pass over those.
   SmallVector<LinalgOp, 8> linalgOps;
@@ -38,45 +36,24 @@ static LogicalResult fuseLinalgOpsGreedily(func::FuncOp f) {
   // Tile and Fuse for tensors inputs (TODO: all tensor operands).
   bool changed = false;
   for (LinalgOp linalgOp : llvm::reverse(linalgOps)) {
-    for (OpOperand *opOperand : linalgOp.getInputAndOutputOperands()) {
-      if (opOperand->get().getType().isa<MemRefType>()) {
-        // TODO: LinalgDependenceGraph should be able to update itself.
-        // The current naive and expensive reconstruction of the graph should be
-        // removed.
-        linalg::Aliases aliases;
-        linalg::LinalgDependenceGraph graph(aliases, linalgOps);
-        auto info = fuseProducerOfBuffer(b, *opOperand, graph);
-        if (failed(info))
-          continue;
-        auto *originalOp = info->originalProducer.getOperation();
-        eraseSet.insert(originalOp);
-        auto *originalOpInLinalgOpsVector =
-            std::find(linalgOps.begin(), linalgOps.end(), originalOp);
-        *originalOpInLinalgOpsVector = info->fusedProducer.getOperation();
-        changed = true;
-      } else if (opOperand->get().getType().isa<RankedTensorType>()) {
+    for (OpOperand &opOperand : linalgOp->getOpOperands()) {
+      if (isa<MemRefType>(opOperand.get().getType()))
+        continue;
+      if (isa<RankedTensorType>(opOperand.get().getType())) {
         // Tile and Fuse tensor input.
-        if (opOperand->getOperandNumber() >= linalgOp.getNumInputs())
+        if (opOperand.getOperandNumber() >= linalgOp.getNumDpsInputs())
           continue;
-        auto info = fuseProducerOfTensor(b, *opOperand);
+        auto info = fuseProducerOfTensor(b, opOperand);
         if (failed(info))
           continue;
         auto *originalOp = info->originalProducer.getOperation();
-        auto *originalOpInLinalgOpsVector =
-            std::find(linalgOps.begin(), linalgOps.end(), originalOp);
-        *originalOpInLinalgOpsVector = info->fusedProducer.getOperation();
+        auto *originalOpInLinalgOpsVector = llvm::find(linalgOps, originalOp);
+        *originalOpInLinalgOpsVector = info->fusedProducer;
         // Don't mark for erasure in the tensor case, let DCE handle this.
         changed = true;
       }
     }
   }
-  // The `fuseProducerOfBuffer` function performs structural checks and in
-  // particular that no covering read or write exist between the consumer and
-  // the producer. As a consequence, the only fusions that may occur preserve
-  // subsequent dependences and are guaranteed by construction to produce the
-  // whole view. We may thus erase the producer once it is fused.
-  for (auto *e : eraseSet)
-    e->erase();
 
   return changed ? success() : failure();
 }
@@ -87,8 +64,8 @@ struct TestLinalgGreedyFusion
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestLinalgGreedyFusion)
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<AffineDialect, linalg::LinalgDialect, memref::MemRefDialect,
-                    scf::SCFDialect>();
+    registry.insert<affine::AffineDialect, linalg::LinalgDialect,
+                    memref::MemRefDialect, scf::SCFDialect>();
   }
   StringRef getArgument() const final { return "test-linalg-greedy-fusion"; }
   StringRef getDescription() const final {
@@ -106,7 +83,7 @@ struct TestLinalgGreedyFusion
     pm.addPass(createCanonicalizerPass());
     pm.addPass(createCSEPass());
     do {
-      (void)applyPatternsAndFoldGreedily(getOperation(), frozenPatterns);
+      (void)applyPatternsGreedily(getOperation(), frozenPatterns);
       if (failed(runPipeline(pm, getOperation())))
         this->signalPassFailure();
     } while (succeeded(fuseLinalgOpsGreedily(getOperation())));

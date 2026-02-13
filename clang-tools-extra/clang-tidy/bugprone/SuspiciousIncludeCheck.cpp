@@ -1,4 +1,4 @@
-//===--- SuspiciousIncludeCheck.cpp - clang-tidy --------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,12 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "SuspiciousIncludeCheck.h"
+#include "../utils/FileExtensionsUtils.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/Lex/Preprocessor.h"
+#include <optional>
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 namespace {
 class SuspiciousIncludePPCallbacks : public PPCallbacks {
@@ -25,8 +25,9 @@ public:
   void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
                           StringRef FileName, bool IsAngled,
                           CharSourceRange FilenameRange,
-                          Optional<FileEntryRef> File, StringRef SearchPath,
-                          StringRef RelativePath, const Module *Imported,
+                          OptionalFileEntryRef File, StringRef SearchPath,
+                          StringRef RelativePath, const Module *SuggestedModule,
+                          bool ModuleImported,
                           SrcMgr::CharacteristicKind FileType) override;
 
 private:
@@ -38,31 +39,10 @@ private:
 SuspiciousIncludeCheck::SuspiciousIncludeCheck(StringRef Name,
                                                ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
-      RawStringHeaderFileExtensions(Options.getLocalOrGlobal(
-          "HeaderFileExtensions", utils::defaultHeaderFileExtensions())),
-      RawStringImplementationFileExtensions(Options.getLocalOrGlobal(
-          "ImplementationFileExtensions",
-          utils::defaultImplementationFileExtensions())) {
-  if (!utils::parseFileExtensions(RawStringImplementationFileExtensions,
-                                  ImplementationFileExtensions,
-                                  utils::defaultFileExtensionDelimiters())) {
-    this->configurationDiag("Invalid implementation file extension: '%0'")
-        << RawStringImplementationFileExtensions;
-  }
-
-  if (!utils::parseFileExtensions(RawStringHeaderFileExtensions,
-                                  HeaderFileExtensions,
-                                  utils::defaultFileExtensionDelimiters())) {
-    this->configurationDiag("Invalid header file extension: '%0'")
-        << RawStringHeaderFileExtensions;
-  }
-}
-
-void SuspiciousIncludeCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
-  Options.store(Opts, "ImplementationFileExtensions",
-                RawStringImplementationFileExtensions);
-  Options.store(Opts, "HeaderFileExtensions", RawStringHeaderFileExtensions);
-}
+      HeaderFileExtensions(Context->getHeaderFileExtensions()),
+      ImplementationFileExtensions(Context->getImplementationFileExtensions()),
+      IgnoredRegexString(Options.get("IgnoredRegex").value_or(StringRef{})),
+      IgnoredRegex(IgnoredRegexString) {}
 
 void SuspiciousIncludeCheck::registerPPCallbacks(
     const SourceManager &SM, Preprocessor *PP, Preprocessor *ModuleExpanderPP) {
@@ -70,17 +50,25 @@ void SuspiciousIncludeCheck::registerPPCallbacks(
       ::std::make_unique<SuspiciousIncludePPCallbacks>(*this, SM, PP));
 }
 
+void SuspiciousIncludeCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
+  if (!IgnoredRegexString.empty())
+    Options.store(Opts, "IgnoredRegex", IgnoredRegexString);
+}
+
 void SuspiciousIncludePPCallbacks::InclusionDirective(
     SourceLocation HashLoc, const Token &IncludeTok, StringRef FileName,
-    bool IsAngled, CharSourceRange FilenameRange, Optional<FileEntryRef> File,
-    StringRef SearchPath, StringRef RelativePath, const Module *Imported,
-    SrcMgr::CharacteristicKind FileType) {
+    bool IsAngled, CharSourceRange FilenameRange, OptionalFileEntryRef File,
+    StringRef SearchPath, StringRef RelativePath, const Module *SuggestedModule,
+    bool ModuleImported, SrcMgr::CharacteristicKind FileType) {
   if (IncludeTok.getIdentifierInfo()->getPPKeywordID() == tok::pp_import)
     return;
 
-  SourceLocation DiagLoc = FilenameRange.getBegin().getLocWithOffset(1);
+  if (!Check.IgnoredRegexString.empty() && Check.IgnoredRegex.match(FileName))
+    return;
 
-  const Optional<StringRef> IFE =
+  const SourceLocation DiagLoc = FilenameRange.getBegin().getLocWithOffset(1);
+
+  const std::optional<StringRef> IFE =
       utils::getFileExtension(FileName, Check.ImplementationFileExtensions);
   if (!IFE)
     return;
@@ -91,9 +79,9 @@ void SuspiciousIncludePPCallbacks::InclusionDirective(
   for (const auto &HFE : Check.HeaderFileExtensions) {
     SmallString<128> GuessedFileName(FileName);
     llvm::sys::path::replace_extension(GuessedFileName,
-                                       (HFE.size() ? "." : "") + HFE);
+                                       (!HFE.empty() ? "." : "") + HFE);
 
-    Optional<FileEntryRef> File =
+    const OptionalFileEntryRef File =
         PP->LookupFile(DiagLoc, GuessedFileName, IsAngled, nullptr, nullptr,
                        nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
     if (File) {
@@ -103,6 +91,4 @@ void SuspiciousIncludePPCallbacks::InclusionDirective(
   }
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

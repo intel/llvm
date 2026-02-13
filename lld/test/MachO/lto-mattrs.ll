@@ -4,10 +4,10 @@
 ;; Verify that LTO behavior can be tweaked using -mattr.
 
 ; RUN: %lld -mcpu haswell -mllvm -mattr=+fma %t.o -o %t.dylib -dylib
-; RUN: llvm-objdump -d --section="__text" --no-leading-addr --no-show-raw-insn %t.dylib | FileCheck %s --check-prefix=FMA
+; RUN: llvm-objdump --no-print-imm-hex -d --section="__text" --no-leading-addr --no-show-raw-insn %t.dylib | FileCheck %s --check-prefix=FMA
 
 ; RUN: %lld -mcpu haswell -mllvm -mattr=-fma %t.o -o %t.dylib -dylib
-; RUN: llvm-objdump -d --section="__text" --no-leading-addr --no-show-raw-insn %t.dylib | FileCheck %s --check-prefix=NO-FMA
+; RUN: llvm-objdump --no-print-imm-hex -d --section="__text" --no-leading-addr --no-show-raw-insn %t.dylib | FileCheck %s --check-prefix=NO-FMA
 
 ; FMA:      <_foo>:
 ; FMA-NEXT: vrcpss       %xmm0, %xmm0, %xmm1
@@ -19,8 +19,7 @@
 ; NO-FMA:      <_foo>:
 ; NO-FMA-NEXT: vrcpss %xmm0, %xmm0, %xmm1
 ; NO-FMA-NEXT: vmulss %xmm1, %xmm0, %xmm0
-; NO-FMA-NEXT: vmovss [[#]](%rip), %xmm2  ## xmm2 =
-; NO-FMA-NEXT:                            ## 0x
+; NO-FMA-NEXT: vmovss [[#]](%rip), %xmm2  ## 0x
 ; NO-FMA-NEXT: vsubss %xmm0, %xmm2, %xmm0
 ; NO-FMA-NEXT: vmulss %xmm0, %xmm1, %xmm0
 ; NO-FMA-NEXT: vaddss %xmm0, %xmm1, %xmm0
@@ -34,4 +33,4 @@ define float @foo(float %x) #0 {
   ret float %div
 }
 
-attributes #0 = { "unsafe-fp-math"="true" "reciprocal-estimates"="divf,vec-divf" }
+attributes #0 = { "reciprocal-estimates"="divf,vec-divf" }

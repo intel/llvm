@@ -1,6 +1,12 @@
-// RUN: mlir-translate -test-spirv-roundtrip %s | FileCheck %s
+// RUN: mlir-translate --no-implicit-module --test-spirv-roundtrip %s | FileCheck %s
+// RUN: %if spirv-tools %{ mlir-translate --no-implicit-module --serialize-spirv %s | spirv-val %}
 
-spirv.module Logical GLSL450 requires #spirv.vce<v1.0, [Shader], []> {
+// Note: Since the output of this test (optionally) gets validated by spirv-val,
+// we cannot use splits.
+
+spirv.module Logical Vulkan requires #spirv.vce<v1.3,
+             [VulkanMemoryModel, Shader, Int64, Int16, Int8, Float64, Float16, CooperativeMatrixKHR, TensorsARM, Linkage],
+             [SPV_KHR_vulkan_memory_model, SPV_KHR_cooperative_matrix, SPV_ARM_tensors]> {
   // CHECK-LABEL: @bool_const
   spirv.func @bool_const() -> () "None" {
     // CHECK: spirv.Constant true
@@ -264,4 +270,47 @@ spirv.module Logical GLSL450 requires #spirv.vce<v1.0, [Shader], []> {
     %0 = spirv.Constant dense<1> : tensor<2x2x3xi32> : !spirv.array<2 x !spirv.array<2 x !spirv.array<3 x i32, stride=4>, stride=12>, stride=24>
     spirv.ReturnValue %0 : !spirv.array<2 x !spirv.array<2 x !spirv.array<3 x i32, stride=4>, stride=12>, stride=24>
   }
+
+  // CHECK-LABEL: @signless_int_const_bit_extension
+  spirv.func @signless_int_const_bit_extension() -> (i16) "None" {
+    // CHECK: spirv.Constant -1 : i16
+    %signless_minus_one = spirv.Constant -1 : i16
+    spirv.ReturnValue %signless_minus_one : i16
+  }
+  // CHECK-LABEL: @signed_int_const_bit_extension
+  spirv.func @signed_int_const_bit_extension() -> (si16) "None" {
+    // CHECK: spirv.Constant -1 : si16
+    %signed_minus_one = spirv.Constant -1 : si16
+    spirv.ReturnValue %signed_minus_one : si16
+  }
+
+  // CHECK-LABEL: @coop_matrix_const_zero_f32
+  spirv.func @coop_matrix_const_zero_f32() -> (!spirv.coopmatrix<16x16xf32, Subgroup, MatrixAcc>) "None" {
+    // CHECK: {{%.*}} = spirv.Constant dense<0.000000e+00> : !spirv.coopmatrix<16x16xf32, Subgroup, MatrixAcc>
+    %coop = spirv.Constant dense<0.000000e+00> : !spirv.coopmatrix<16x16xf32, Subgroup, MatrixAcc>
+    spirv.ReturnValue %coop : !spirv.coopmatrix<16x16xf32, Subgroup, MatrixAcc>
+  }
+
+  // CHECK-LABEL: @coop_matrix_const_non_zero_f32
+  spirv.func @coop_matrix_const_non_zero_f32() -> (!spirv.coopmatrix<16x16xf32, Subgroup, MatrixAcc>) "None" {
+    // CHECK: {{%.*}} = spirv.Constant dense<4.200000e+00> : !spirv.coopmatrix<16x16xf32, Subgroup, MatrixAcc>
+    %coop = spirv.Constant dense<4.200000e+00> : !spirv.coopmatrix<16x16xf32, Subgroup, MatrixAcc>
+    spirv.ReturnValue %coop : !spirv.coopmatrix<16x16xf32, Subgroup, MatrixAcc>
+  }
+
+  // CHECK-LABEL: @coop_matrix_const_zero_i8
+  spirv.func @coop_matrix_const_zero_i8() -> (!spirv.coopmatrix<16x16xi8, Subgroup, MatrixAcc>) "None" {
+    // CHECK: {{%.*}} = spirv.Constant dense<0> : !spirv.coopmatrix<16x16xi8, Subgroup, MatrixAcc>
+    %coop = spirv.Constant dense<0> : !spirv.coopmatrix<16x16xi8, Subgroup, MatrixAcc>
+    spirv.ReturnValue %coop : !spirv.coopmatrix<16x16xi8, Subgroup, MatrixAcc>
+  }
+
+  // CHECK-LABEL: @coop_matrix_const_non_zero_i8
+  spirv.func @coop_matrix_const_non_zero_i8() -> (!spirv.coopmatrix<16x16xi8, Subgroup, MatrixAcc>) "None" {
+    // CHECK: {{%.*}} = spirv.Constant dense<4> : !spirv.coopmatrix<16x16xi8, Subgroup, MatrixAcc>
+    %coop = spirv.Constant dense<4> : !spirv.coopmatrix<16x16xi8, Subgroup, MatrixAcc>
+    spirv.ReturnValue %coop : !spirv.coopmatrix<16x16xi8, Subgroup, MatrixAcc>
+  }
+
+  spirv.EntryPoint "GLCompute" @bool_const
 }

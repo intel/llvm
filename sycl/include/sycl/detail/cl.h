@@ -9,9 +9,14 @@
 #pragma once
 
 // Suppress a compiler message about undefined CL_TARGET_OPENCL_VERSION
-// and define all symbols up to OpenCL 2.2
+// and define all symbols up to OpenCL 3.0
 #ifndef CL_TARGET_OPENCL_VERSION
-#define CL_TARGET_OPENCL_VERSION 220
+#define CL_TARGET_OPENCL_VERSION 300
+#endif
+
+// Include symbols for beta extensions
+#ifndef CL_ENABLE_BETA_EXTENSIONS
+#define CL_ENABLE_BETA_EXTENSIONS
 #endif
 
 #include <CL/cl.h>

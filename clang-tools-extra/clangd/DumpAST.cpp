@@ -23,6 +23,7 @@
 #include "clang/Tooling/Syntax/Tokens.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/raw_ostream.h"
+#include <optional>
 
 namespace clang {
 namespace clangd {
@@ -87,11 +88,11 @@ class DumpVisitor : public RecursiveASTVisitor<DumpVisitor> {
   // Range: most nodes have getSourceRange(), with a couple of exceptions.
   // We only return it if it's valid at both ends and there are no macros.
 
-  template <typename T> llvm::Optional<Range> getRange(const T &Node) {
+  template <typename T> std::optional<Range> getRange(const T &Node) {
     SourceRange SR = getSourceRange(Node);
     auto Spelled = Tokens.spelledForExpanded(Tokens.expandedTokens(SR));
     if (!Spelled)
-      return llvm::None;
+      return std::nullopt;
     return halfOpenToRange(
         Tokens.sourceManager(),
         CharSourceRange::getCharRange(Spelled->front().location(),
@@ -117,13 +118,12 @@ class DumpVisitor : public RecursiveASTVisitor<DumpVisitor> {
   std::string getKind(const Decl *D) { return D->getDeclKindName(); }
   std::string getKind(const Stmt *S) {
     std::string Result = S->getStmtClassName();
-    if (llvm::StringRef(Result).endswith("Stmt") ||
-        llvm::StringRef(Result).endswith("Expr"))
+    if (llvm::StringRef(Result).ends_with("Stmt") ||
+        llvm::StringRef(Result).ends_with("Expr"))
       Result.resize(Result.size() - 4);
     return Result;
   }
   std::string getKind(const TypeLoc &TL) {
-    std::string Result;
     if (TL.getTypeLocClass() == TypeLoc::Qualified)
       return "Qualified";
     return TL.getType()->getTypeClassName();
@@ -142,23 +142,22 @@ class DumpVisitor : public RecursiveASTVisitor<DumpVisitor> {
       TEMPLATE_ARGUMENT_KIND(Declaration);
       TEMPLATE_ARGUMENT_KIND(Template);
       TEMPLATE_ARGUMENT_KIND(TemplateExpansion);
+      TEMPLATE_ARGUMENT_KIND(StructuralValue);
 #undef TEMPLATE_ARGUMENT_KIND
     }
     llvm_unreachable("Unhandled ArgKind enum");
   }
-  std::string getKind(const NestedNameSpecifierLoc &NNSL) {
-    assert(NNSL.getNestedNameSpecifier());
-    switch (NNSL.getNestedNameSpecifier()->getKind()) {
+  std::string getKind(NestedNameSpecifierLoc NNSL) {
+    switch (NNSL.getNestedNameSpecifier().getKind()) {
+    case NestedNameSpecifier::Kind::Null:
+      llvm_unreachable("unexpected null nested name specifier");
 #define NNS_KIND(X)                                                            \
-  case NestedNameSpecifier::X:                                                 \
+  case NestedNameSpecifier::Kind::X:                                           \
     return #X
-      NNS_KIND(Identifier);
       NNS_KIND(Namespace);
-      NNS_KIND(TypeSpec);
-      NNS_KIND(TypeSpecWithTemplate);
+      NNS_KIND(Type);
       NNS_KIND(Global);
-      NNS_KIND(Super);
-      NNS_KIND(NamespaceAlias);
+      NNS_KIND(MicrosoftSuper);
 #undef NNS_KIND
     }
     llvm_unreachable("Unhandled SpecifierKind enum");
@@ -185,6 +184,7 @@ class DumpVisitor : public RecursiveASTVisitor<DumpVisitor> {
       TEMPLATE_KIND(SubstTemplateTemplateParm);
       TEMPLATE_KIND(SubstTemplateTemplateParmPack);
       TEMPLATE_KIND(UsingTemplate);
+      TEMPLATE_KIND(DeducedTemplate);
 #undef TEMPLATE_KIND
     }
     llvm_unreachable("Unhandled NameKind enum");
@@ -203,6 +203,11 @@ class DumpVisitor : public RecursiveASTVisitor<DumpVisitor> {
     // There aren't really any variants of CXXBaseSpecifier.
     // To avoid special cases in the API/UI, use public/private as the kind.
     return getAccessSpelling(CBS.getAccessSpecifier()).str();
+  }
+  std::string getKind(const ConceptReference *CR) {
+    // Again there are no variants here.
+    // Kind is "Concept", role is "reference"
+    return "Concept";
   }
 
   // Detail is the single most important fact about the node.
@@ -268,18 +273,11 @@ class DumpVisitor : public RecursiveASTVisitor<DumpVisitor> {
       return getDetail(TT->getDecl());
     return "";
   }
-  std::string getDetail(const NestedNameSpecifierLoc &NNSL) {
-    const auto &NNS = *NNSL.getNestedNameSpecifier();
-    switch (NNS.getKind()) {
-    case NestedNameSpecifier::Identifier:
-      return NNS.getAsIdentifier()->getName().str() + "::";
-    case NestedNameSpecifier::Namespace:
-      return NNS.getAsNamespace()->getNameAsString() + "::";
-    case NestedNameSpecifier::NamespaceAlias:
-      return NNS.getAsNamespaceAlias()->getNameAsString() + "::";
-    default:
+  std::string getDetail(NestedNameSpecifierLoc NNSL) {
+    NestedNameSpecifier NNS = NNSL.getNestedNameSpecifier();
+    if (NNS.getKind() != NestedNameSpecifier::Kind::Namespace)
       return "";
-    }
+    return NNS.getAsNamespaceAndPrefix().Namespace->getNameAsString() + "::";
   }
   std::string getDetail(const CXXCtorInitializer *CCI) {
     if (FieldDecl *FD = CCI->getAnyMember())
@@ -303,6 +301,9 @@ class DumpVisitor : public RecursiveASTVisitor<DumpVisitor> {
   }
   std::string getDetail(const CXXBaseSpecifier &CBS) {
     return CBS.isVirtual() ? "virtual" : "";
+  }
+  std::string getDetail(const ConceptReference *CR) {
+    return CR->getNamedConcept()->getNameAsString();
   }
 
   /// Arcana is produced by TextNodeDumper, for the types it supports.
@@ -340,8 +341,10 @@ public:
     return !D || isInjectedClassName(D) ||
            traverseNode("declaration", D, [&] { Base::TraverseDecl(D); });
   }
-  bool TraverseTypeLoc(TypeLoc TL) {
-    return !TL || traverseNode("type", TL, [&] { Base::TraverseTypeLoc(TL); });
+  bool TraverseTypeLoc(TypeLoc TL, bool TraverseQualifier = true) {
+    return !TL || traverseNode("type", TL, [&] {
+      Base::TraverseTypeLoc(TL, TraverseQualifier);
+    });
   }
   bool TraverseTemplateName(const TemplateName &TN) {
     return traverseNode("template name", TN,
@@ -364,6 +367,10 @@ public:
   bool TraverseAttr(Attr *A) {
     return !A || traverseNode("attribute", A, [&] { Base::TraverseAttr(A); });
   }
+  bool TraverseConceptReference(ConceptReference *C) {
+    return !C || traverseNode("reference", C,
+                              [&] { Base::TraverseConceptReference(C); });
+  }
   bool TraverseCXXBaseSpecifier(const CXXBaseSpecifier &CBS) {
     return traverseNode("base", CBS,
                         [&] { Base::TraverseCXXBaseSpecifier(CBS); });
@@ -379,11 +386,11 @@ public:
   // This means we'd never see 'int' in 'const int'! Work around that here.
   // (The reason for the behavior is to avoid traversing the nested Type twice,
   // but we ignore TraverseType anyway).
-  bool TraverseQualifiedTypeLoc(QualifiedTypeLoc QTL) {
+  bool TraverseQualifiedTypeLoc(QualifiedTypeLoc QTL, bool TraverseQualifier) {
     return TraverseTypeLoc(QTL.getUnqualifiedLoc());
   }
   // Uninteresting parts of the AST that don't have locations within them.
-  bool TraverseNestedNameSpecifier(NestedNameSpecifier *) { return true; }
+  bool TraverseNestedNameSpecifier(NestedNameSpecifier) { return true; }
   bool TraverseType(QualType) { return true; }
 
   // OpaqueValueExpr blocks traversal, we must explicitly traverse it.
@@ -410,7 +417,7 @@ ASTNode dumpAST(const DynTypedNode &N, const syntax::TokenBuffer &Tokens,
     V.TraverseNestedNameSpecifierLoc(
         *const_cast<NestedNameSpecifierLoc *>(NNSL));
   else if (const auto *NNS = N.get<NestedNameSpecifier>())
-    V.TraverseNestedNameSpecifier(const_cast<NestedNameSpecifier *>(NNS));
+    V.TraverseNestedNameSpecifier(*NNS);
   else if (const auto *TL = N.get<TypeLoc>())
     V.TraverseTypeLoc(*const_cast<TypeLoc *>(TL));
   else if (const auto *QT = N.get<QualType>())
@@ -421,6 +428,8 @@ ASTNode dumpAST(const DynTypedNode &N, const syntax::TokenBuffer &Tokens,
     V.TraverseTemplateArgumentLoc(*const_cast<TemplateArgumentLoc *>(TAL));
   else if (const auto *CBS = N.get<CXXBaseSpecifier>())
     V.TraverseCXXBaseSpecifier(*const_cast<CXXBaseSpecifier *>(CBS));
+  else if (const auto *CR = N.get<ConceptReference>())
+    V.TraverseConceptReference(const_cast<ConceptReference *>(CR));
   else
     elog("dumpAST: unhandled DynTypedNode kind {0}",
          N.getNodeKind().asStringRef());

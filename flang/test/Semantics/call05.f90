@@ -1,4 +1,4 @@
-! RUN: %python %S/test_errors.py %s %flang_fc1
+! RUN: %python %S/test_errors.py %s %flang_fc1 -pedantic
 ! Test 15.5.2.5 constraints and restrictions for POINTER & ALLOCATABLE
 ! arguments when both sides of the call have the same attributes.
 
@@ -20,9 +20,9 @@ module m
   class(t2), allocatable :: pa2(:)
   class(*), pointer :: up(:)
   class(*), allocatable :: ua(:)
-  !ERROR: An assumed (*) type parameter may be used only for a (non-statement function) dummy argument, associate name, named constant, or external function result
+  !ERROR: An assumed (*) type parameter may be used only for a (non-statement function) dummy argument, associate name, character named constant, or external function result
   type(pdt(*)), pointer :: amp(:)
-  !ERROR: An assumed (*) type parameter may be used only for a (non-statement function) dummy argument, associate name, named constant, or external function result
+  !ERROR: An assumed (*) type parameter may be used only for a (non-statement function) dummy argument, associate name, character named constant, or external function result
   type(pdt(*)), allocatable :: ama(:)
   type(pdt(:)), pointer :: dmp(:)
   type(pdt(:)), allocatable :: dma(:)
@@ -73,9 +73,9 @@ module m
     call sma(ma) ! ok
     call spp(pp) ! ok
     call spa(pa) ! ok
-    !ERROR: If a POINTER or ALLOCATABLE dummy or actual argument is polymorphic, both must be so
+    !PORTABILITY: If a POINTER or ALLOCATABLE actual argument is polymorphic, the corresponding dummy argument should also be so [-Wpolymorphic-actual-allocatable-or-pointer-to-monomorphic-dummy]
     call smp(pp)
-    !ERROR: If a POINTER or ALLOCATABLE dummy or actual argument is polymorphic, both must be so
+    !PORTABILITY: If a POINTER or ALLOCATABLE actual argument is polymorphic, the corresponding dummy argument should also be so [-Wpolymorphic-actual-allocatable-or-pointer-to-monomorphic-dummy]
     call sma(pa)
     !ERROR: If a POINTER or ALLOCATABLE dummy or actual argument is polymorphic, both must be so
     call spp(mp)
@@ -85,15 +85,17 @@ module m
     call sup(pp)
     !ERROR: If a POINTER or ALLOCATABLE dummy or actual argument is unlimited polymorphic, both must be so
     call sua(pa)
-    !ERROR: Actual argument type 'CLASS(*)' is not compatible with dummy argument type 't'
+    !ERROR: Actual argument type 'CLASS(*)' is not compatible with dummy argument type 'CLASS(t)'
+    !ERROR: Pointer type must be unlimited polymorphic or non-extensible derived type when target is unlimited polymorphic
     call spp(up)
-    !ERROR: Actual argument type 'CLASS(*)' is not compatible with dummy argument type 't'
+    !ERROR: Actual argument type 'CLASS(*)' is not compatible with dummy argument type 'CLASS(t)'
     call spa(ua)
     !ERROR: POINTER or ALLOCATABLE dummy and actual arguments must have the same declared type and kind
     call spp(pp2)
     !ERROR: POINTER or ALLOCATABLE dummy and actual arguments must have the same declared type and kind
     call spa(pa2)
     !ERROR: Rank of dummy argument is 1, but actual argument has rank 2
+    !ERROR: Pointer has rank 1 but target has rank 2
     call smp(mpmat)
     !ERROR: Rank of dummy argument is 1, but actual argument has rank 2
     call sma(mamat)
@@ -151,6 +153,17 @@ module m2
     integer, allocatable, intent(in) :: b(:)
   end
 
+  function return_deferred_length_ptr()
+    character(len=:), pointer :: return_deferred_length_ptr
+    return_deferred_length_ptr => p2
+  end function
+
+  function return_explicit_length_ptr(n)
+    integer :: n
+    character(len=n), pointer :: return_explicit_length_ptr
+    return_explicit_length_ptr => p2(1:n)
+  end function
+
   subroutine test()
 
     !ERROR: Dummy and actual arguments must defer the same type parameters when POINTER or ALLOCATABLE
@@ -163,10 +176,20 @@ module m2
 
     call smp2(p1) ! ok
 
+    call smp(return_deferred_length_ptr()) ! ok
+
+    !ERROR: Dummy and actual arguments must defer the same type parameters when POINTER or ALLOCATABLE
+    call smp2(return_deferred_length_ptr())
+
+    !ERROR: Dummy and actual arguments must defer the same type parameters when POINTER or ALLOCATABLE
+    call smp(return_explicit_length_ptr(10))
+
+    call smp2(return_explicit_length_ptr(10)) ! ok
+
     !ERROR: ALLOCATABLE dummy argument 'a=' must be associated with an ALLOCATABLE actual argument
     call sma(t2(:))
 
-    !ERROR: ALLOCATABLE dummy argument 'a=' must be associated with an ALLOCATABLE actual argument
+    !ERROR: 't3' is not a callable procedure
     call sma(t3(1))
 
     !ERROR: ALLOCATABLE dummy argument 'a=' must be associated with an ALLOCATABLE actual argument
@@ -185,7 +208,7 @@ module m2
     !ERROR: ALLOCATABLE dummy argument 'a=' must be associated with an ALLOCATABLE actual argument
     call sma(t5(:))
 
-    !ERROR: ALLOCATABLE dummy argument 'a=' must be associated with an ALLOCATABLE actual argument
+    !ERROR: 't6' is not a callable procedure
     call sma(t6(1))
 
     !ERROR: ALLOCATABLE dummy argument 'a=' must be associated with an ALLOCATABLE actual argument
@@ -197,6 +220,7 @@ module m2
     !ERROR: ALLOCATABLE dummy argument 'b=' must be associated with an ALLOCATABLE actual argument
     call smb(x(:))
 
+    !ERROR: Rank of dummy argument is 1, but actual argument has rank 0
     !ERROR: ALLOCATABLE dummy argument 'b=' must be associated with an ALLOCATABLE actual argument
     call smb(x(2))
 

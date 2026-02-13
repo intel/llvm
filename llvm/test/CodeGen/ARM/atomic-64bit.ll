@@ -5,7 +5,7 @@
 ; RUN: llc < %s -mtriple=armv7m--none-eabi | FileCheck %s --check-prefix=CHECK-M
 ; RUN: llc < %s -mtriple=armv8m--none-eabi | FileCheck %s --check-prefix=CHECK-M
 
-define i64 @test1(i64* %ptr, i64 %val) {
+define i64 @test1(ptr %ptr, i64 %val) {
 ; CHECK-LABEL: test1:
 ; CHECK: dmb {{ish$}}
 ; CHECK: ldrexd [[REG1:(r[0-9]?[02468])]], [[REG2:(r[0-9]?[13579])]]
@@ -32,11 +32,11 @@ define i64 @test1(i64* %ptr, i64 %val) {
 
 ; CHECK-M: __atomic_fetch_add_8
 
-  %r = atomicrmw add i64* %ptr, i64 %val seq_cst
+  %r = atomicrmw add ptr %ptr, i64 %val seq_cst
   ret i64 %r
 }
 
-define i64 @test2(i64* %ptr, i64 %val) {
+define i64 @test2(ptr %ptr, i64 %val) {
 ; CHECK-LABEL: test2:
 ; CHECK: dmb {{ish$}}
 ; CHECK: ldrexd [[REG1:(r[0-9]?[02468])]], [[REG2:(r[0-9]?[13579])]]
@@ -63,18 +63,18 @@ define i64 @test2(i64* %ptr, i64 %val) {
 
 ; CHECK-M: __atomic_fetch_sub_8
 
-  %r = atomicrmw sub i64* %ptr, i64 %val seq_cst
+  %r = atomicrmw sub ptr %ptr, i64 %val seq_cst
   ret i64 %r
 }
 
-define i64 @test3(i64* %ptr, i64 %val) {
+define i64 @test3(ptr %ptr, i64 %val) {
 ; CHECK-LABEL: test3:
 ; CHECK: dmb {{ish$}}
 ; CHECK: ldrexd [[REG1:(r[0-9]?[02468])]], [[REG2:(r[0-9]?[13579])]]
-; CHECK-LE-DAG: and [[REG3:(r[0-9]?[02468])]], [[REG1]]
-; CHECK-LE-DAG: and [[REG4:(r[0-9]?[13579])]], [[REG2]]
-; CHECK-BE-DAG: and [[REG4:(r[0-9]?[13579])]], [[REG2]]
-; CHECK-BE-DAG: and [[REG3:(r[0-9]?[02468])]], [[REG1]]
+; CHECK-LE-DAG: and [[REG3:(r[0-9]?[02468])]], [[REG1]],
+; CHECK-LE-DAG: and [[REG4:(r[0-9]?[13579])]], [[REG2]],
+; CHECK-BE-DAG: and [[REG4:(r[0-9]?[13579])]], [[REG2]],
+; CHECK-BE-DAG: and [[REG3:(r[0-9]?[02468])]], [[REG1]],
 ; CHECK: strexd {{[a-z0-9]+}}, [[REG3]], [[REG4]]
 ; CHECK: cmp
 ; CHECK: bne
@@ -83,10 +83,10 @@ define i64 @test3(i64* %ptr, i64 %val) {
 ; CHECK-THUMB-LABEL: test3:
 ; CHECK-THUMB: dmb {{ish$}}
 ; CHECK-THUMB: ldrexd [[REG1:[a-z0-9]+]], [[REG2:[a-z0-9]+]]
-; CHECK-THUMB-LE-DAG: and.w [[REG3:[a-z0-9]+]], [[REG1]]
-; CHECK-THUMB-LE-DAG: and.w [[REG4:[a-z0-9]+]], [[REG2]]
-; CHECK-THUMB-BE-DAG: and.w [[REG4:[a-z0-9]+]], [[REG2]]
-; CHECK-THUMB-BE-DAG: and.w [[REG3:[a-z0-9]+]], [[REG1]]
+; CHECK-THUMB-LE-DAG: and.w [[REG3:[a-z0-9]+]], [[REG1]],
+; CHECK-THUMB-LE-DAG: and.w [[REG4:[a-z0-9]+]], [[REG2]],
+; CHECK-THUMB-BE-DAG: and.w [[REG4:[a-z0-9]+]], [[REG2]],
+; CHECK-THUMB-BE-DAG: and.w [[REG3:[a-z0-9]+]], [[REG1]],
 ; CHECK-THUMB: strexd {{[a-z0-9]+}}, [[REG3]], [[REG4]]
 ; CHECK-THUMB: cmp
 ; CHECK-THUMB: bne
@@ -94,18 +94,18 @@ define i64 @test3(i64* %ptr, i64 %val) {
 
 ; CHECK-M: _atomic_fetch_and_8
 
-  %r = atomicrmw and i64* %ptr, i64 %val seq_cst
+  %r = atomicrmw and ptr %ptr, i64 %val seq_cst
   ret i64 %r
 }
 
-define i64 @test4(i64* %ptr, i64 %val) {
+define i64 @test4(ptr %ptr, i64 %val) {
 ; CHECK-LABEL: test4:
 ; CHECK: dmb {{ish$}}
 ; CHECK: ldrexd [[REG1:(r[0-9]?[02468])]], [[REG2:(r[0-9]?[13579])]]
-; CHECK-LE-DAG: orr [[REG3:(r[0-9]?[02468])]], [[REG1]]
-; CHECK-LE-DAG: orr [[REG4:(r[0-9]?[13579])]], [[REG2]]
-; CHECK-BE-DAG: orr [[REG4:(r[0-9]?[13579])]], [[REG2]]
-; CHECK-BE-DAG: orr [[REG3:(r[0-9]?[02468])]], [[REG1]]
+; CHECK-LE-DAG: orr [[REG3:(r[0-9]?[02468])]], [[REG1]],
+; CHECK-LE-DAG: orr [[REG4:(r[0-9]?[13579])]], [[REG2]],
+; CHECK-BE-DAG: orr [[REG4:(r[0-9]?[13579])]], [[REG2]],
+; CHECK-BE-DAG: orr [[REG3:(r[0-9]?[02468])]], [[REG1]],
 ; CHECK: strexd {{[a-z0-9]+}}, [[REG3]], [[REG4]]
 ; CHECK: cmp
 ; CHECK: bne
@@ -114,10 +114,10 @@ define i64 @test4(i64* %ptr, i64 %val) {
 ; CHECK-THUMB-LABEL: test4:
 ; CHECK-THUMB: dmb {{ish$}}
 ; CHECK-THUMB: ldrexd [[REG1:[a-z0-9]+]], [[REG2:[a-z0-9]+]]
-; CHECK-THUMB-LE-DAG: orr.w [[REG3:[a-z0-9]+]], [[REG1]]
-; CHECK-THUMB-LE-DAG: orr.w [[REG4:[a-z0-9]+]], [[REG2]]
-; CHECK-THUMB-BE-DAG: orr.w [[REG4:[a-z0-9]+]], [[REG2]]
-; CHECK-THUMB-BE-DAG: orr.w [[REG3:[a-z0-9]+]], [[REG1]]
+; CHECK-THUMB-LE-DAG: orr.w [[REG3:[a-z0-9]+]], [[REG1]],
+; CHECK-THUMB-LE-DAG: orr.w [[REG4:[a-z0-9]+]], [[REG2]],
+; CHECK-THUMB-BE-DAG: orr.w [[REG4:[a-z0-9]+]], [[REG2]],
+; CHECK-THUMB-BE-DAG: orr.w [[REG3:[a-z0-9]+]], [[REG1]],
 ; CHECK-THUMB: strexd {{[a-z0-9]+}}, [[REG3]], [[REG4]]
 ; CHECK-THUMB: cmp
 ; CHECK-THUMB: bne
@@ -125,18 +125,18 @@ define i64 @test4(i64* %ptr, i64 %val) {
 
 ; CHECK-M: __atomic_fetch_or_8
 
-  %r = atomicrmw or i64* %ptr, i64 %val seq_cst
+  %r = atomicrmw or ptr %ptr, i64 %val seq_cst
   ret i64 %r
 }
 
-define i64 @test5(i64* %ptr, i64 %val) {
+define i64 @test5(ptr %ptr, i64 %val) {
 ; CHECK-LABEL: test5:
 ; CHECK: dmb {{ish$}}
 ; CHECK: ldrexd [[REG1:(r[0-9]?[02468])]], [[REG2:(r[0-9]?[13579])]]
-; CHECK-LE-DAG: eor [[REG3:(r[0-9]?[02468])]], [[REG1]]
-; CHECK-LE-DAG: eor [[REG4:(r[0-9]?[13579])]], [[REG2]]
-; CHECK-BE-DAG: eor [[REG4:(r[0-9]?[13579])]], [[REG2]]
-; CHECK-BE-DAG: eor [[REG3:(r[0-9]?[02468])]], [[REG1]]
+; CHECK-LE-DAG: eor [[REG3:(r[0-9]?[02468])]], [[REG1]],
+; CHECK-LE-DAG: eor [[REG4:(r[0-9]?[13579])]], [[REG2]],
+; CHECK-BE-DAG: eor [[REG4:(r[0-9]?[13579])]], [[REG2]],
+; CHECK-BE-DAG: eor [[REG3:(r[0-9]?[02468])]], [[REG1]],
 ; CHECK: strexd {{[a-z0-9]+}}, [[REG3]], [[REG4]]
 ; CHECK: cmp
 ; CHECK: bne
@@ -145,10 +145,10 @@ define i64 @test5(i64* %ptr, i64 %val) {
 ; CHECK-THUMB-LABEL: test5:
 ; CHECK-THUMB: dmb {{ish$}}
 ; CHECK-THUMB: ldrexd [[REG1:[a-z0-9]+]], [[REG2:[a-z0-9]+]]
-; CHECK-THUMB-LE-DAG: eor.w [[REG3:[a-z0-9]+]], [[REG1]]
-; CHECK-THUMB-LE-DAG: eor.w [[REG4:[a-z0-9]+]], [[REG2]]
-; CHECK-THUMB-BE-DAG: eor.w [[REG4:[a-z0-9]+]], [[REG2]]
-; CHECK-THUMB-BE-DAG: eor.w [[REG3:[a-z0-9]+]], [[REG1]]
+; CHECK-THUMB-LE-DAG: eor.w [[REG3:[a-z0-9]+]], [[REG1]],
+; CHECK-THUMB-LE-DAG: eor.w [[REG4:[a-z0-9]+]], [[REG2]],
+; CHECK-THUMB-BE-DAG: eor.w [[REG4:[a-z0-9]+]], [[REG2]],
+; CHECK-THUMB-BE-DAG: eor.w [[REG3:[a-z0-9]+]], [[REG1]],
 ; CHECK-THUMB: strexd {{[a-z0-9]+}}, [[REG3]], [[REG4]]
 ; CHECK-THUMB: cmp
 ; CHECK-THUMB: bne
@@ -156,11 +156,11 @@ define i64 @test5(i64* %ptr, i64 %val) {
 
 ; CHECK-M: __atomic_fetch_xor_8
 
-  %r = atomicrmw xor i64* %ptr, i64 %val seq_cst
+  %r = atomicrmw xor ptr %ptr, i64 %val seq_cst
   ret i64 %r
 }
 
-define i64 @test6(i64* %ptr, i64 %val) {
+define i64 @test6(ptr %ptr, i64 %val) {
 ; CHECK-LABEL: test6:
 ; CHECK: dmb {{ish$}}
 ; CHECK: ldrexd [[REG1:(r[0-9]?[02468])]], [[REG2:(r[0-9]?[13579])]]
@@ -179,11 +179,11 @@ define i64 @test6(i64* %ptr, i64 %val) {
 
 ; CHECK-M: __atomic_exchange_8
 
-  %r = atomicrmw xchg i64* %ptr, i64 %val seq_cst
+  %r = atomicrmw xchg ptr %ptr, i64 %val seq_cst
   ret i64 %r
 }
 
-define i64 @test7(i64* %ptr, i64 %val1, i64 %val2) {
+define i64 @test7(ptr %ptr, i64 %val1, i64 %val2) {
 ; CHECK-LABEL: test7:
 ; CHECK-DAG: mov [[VAL1LO:r[0-9]+]], r1
 ; CHECK: ldrexd [[REG1:(r[0-9]?[02468])]], [[REG2:(r[0-9]?[13579])]]
@@ -215,14 +215,14 @@ define i64 @test7(i64* %ptr, i64 %val1, i64 %val2) {
 
 ; CHECK-M: __atomic_compare_exchange_8
 
-  %pair = cmpxchg i64* %ptr, i64 %val1, i64 %val2 seq_cst seq_cst
+  %pair = cmpxchg ptr %ptr, i64 %val1, i64 %val2 seq_cst seq_cst
   %r = extractvalue { i64, i1 } %pair, 0
   ret i64 %r
 }
 
 ; Compiles down to a single ldrexd, except on M class devices where ldrexd
 ; isn't supported.
-define i64 @test8(i64* %ptr) {
+define i64 @test8(ptr %ptr) {
 ; CHECK-LABEL: test8:
 ; CHECK: ldrexd [[REG1:(r[0-9]?[02468])]], [[REG2:(r[0-9]?[13579])]]
 ; CHECK-NOT: strexd
@@ -239,14 +239,14 @@ define i64 @test8(i64* %ptr) {
 
 ; CHECK-M: __atomic_load_8
 
-  %r = load atomic i64, i64* %ptr seq_cst, align 8
+  %r = load atomic i64, ptr %ptr seq_cst, align 8
   ret i64 %r
 }
 
 ; Compiles down to atomicrmw xchg; there really isn't any more efficient
 ; way to write it. Except on M class devices, where ldrexd/strexd aren't
 ; supported.
-define void @test9(i64* %ptr, i64 %val) {
+define void @test9(ptr %ptr, i64 %val) {
 ; CHECK-LABEL: test9:
 ; CHECK: dmb {{ish$}}
 ; CHECK: ldrexd [[REG1:(r[0-9]?[02468])]], [[REG2:(r[0-9]?[13579])]]
@@ -265,11 +265,11 @@ define void @test9(i64* %ptr, i64 %val) {
 
 ; CHECK-M: __atomic_store_8
 
-  store atomic i64 %val, i64* %ptr seq_cst, align 8
+  store atomic i64 %val, ptr %ptr seq_cst, align 8
   ret void
 }
 
-define i64 @test10(i64* %ptr, i64 %val) {
+define i64 @test10(ptr %ptr, i64 %val) {
 ; CHECK-LABEL: test10:
 ; CHECK: dmb {{ish$}}
 ; CHECK: ldrexd [[REG1:(r[0-9]?[02468])]], [[REG2:(r[0-9]?[13579])]]
@@ -278,12 +278,9 @@ define i64 @test10(i64* %ptr, i64 %val) {
 ; CHECK-BE: subs {{[^,]+}}, r2, [[REG2]]
 ; CHECK-LE: sbcs {{[^,]+}}, r2, [[REG2]]
 ; CHECK-BE: sbcs {{[^,]+}}, r1, [[REG1]]
-; CHECK: mov     [[CMP:[a-z0-9]+]], #0
-; CHECK: movwge  [[CMP]], #1
-; CHECK: cmp     [[CMP]], #0
-; CHECK: movne   [[OUT_HI]], [[REG2]]
+; CHECK: movge   [[OUT_HI]], [[REG2]]
 ; CHECK: mov     [[OUT_LO:[a-z0-9]+]], r1
-; CHECK: movne   [[OUT_LO]], [[REG1]]
+; CHECK: movge   [[OUT_LO]], [[REG1]]
 ; CHECK: strexd {{[a-z0-9]+}}, [[OUT_LO]], [[OUT_HI]]
 ; CHECK: cmp
 ; CHECK: bne
@@ -297,12 +294,10 @@ define i64 @test10(i64* %ptr, i64 %val) {
 ; CHECK-THUMB-BE: subs.w {{[^,]+}}, r3, [[REG2]]
 ; CHECK-THUMB-LE: sbcs.w {{[^,]+}}, r3, [[REG2]]
 ; CHECK-THUMB-BE: sbcs.w {{[^,]+}}, r2, [[REG1]]
-; CHECK-THUMB: mov.w     [[CMP:[a-z0-9]+]], #0
-; CHECK-THUMB: movge.w   [[CMP]], #1
-; CHECK-THUMB: cmp.w     [[CMP]], #0
 ; CHECK-THUMB: mov       [[OUT_HI:[a-z0-9]+]], r3
-; CHECK-THUMB: movne   [[OUT_HI]], [[REG2]]
-; CHECK-THUMB: movne   [[OUT_LO]], [[REG1]]
+; CHECK-THUMB: itt     ge
+; CHECK-THUMB: movge   [[OUT_HI]], [[REG2]]
+; CHECK-THUMB: movge   [[OUT_LO]], [[REG1]]
 ; CHECK-THUMB: strexd {{[a-z0-9]+}}, [[OUT_LO]], [[OUT_HI]]
 ; CHECK-THUMB: cmp
 ; CHECK-THUMB: bne
@@ -310,11 +305,11 @@ define i64 @test10(i64* %ptr, i64 %val) {
 
 ; CHECK-M: __atomic_compare_exchange_8
 
-  %r = atomicrmw min i64* %ptr, i64 %val seq_cst
+  %r = atomicrmw min ptr %ptr, i64 %val seq_cst
   ret i64 %r
 }
 
-define i64 @test11(i64* %ptr, i64 %val) {
+define i64 @test11(ptr %ptr, i64 %val) {
 ; CHECK-LABEL: test11:
 ; CHECK: dmb {{ish$}}
 ; CHECK: ldrexd [[REG1:(r[0-9]?[02468])]], [[REG2:(r[0-9]?[13579])]]
@@ -323,12 +318,9 @@ define i64 @test11(i64* %ptr, i64 %val) {
 ; CHECK-BE: subs    {{[^,]+}}, r2, [[REG2]]
 ; CHECK-LE: sbcs    {{[^,]+}}, r2, [[REG2]]
 ; CHECK-BE: sbcs    {{[^,]+}}, r1, [[REG1]]
-; CHECK: mov     [[CMP:[a-z0-9]+]], #0
-; CHECK: movwhs  [[CMP]], #1
-; CHECK: cmp     [[CMP]], #0
-; CHECK: movne   [[OUT_HI]], [[REG2]]
+; CHECK: movhs   [[OUT_HI]], [[REG2]]
 ; CHECK: mov     [[OUT_LO:[a-z0-9]+]], r1
-; CHECK: movne   [[OUT_LO]], [[REG1]]
+; CHECK: movhs   [[OUT_LO]], [[REG1]]
 ; CHECK: strexd {{[a-z0-9]+}}, [[OUT_LO]], [[OUT_HI]]
 ; CHECK: cmp
 ; CHECK: bne
@@ -342,12 +334,10 @@ define i64 @test11(i64* %ptr, i64 %val) {
 ; CHECK-THUMB-BE: subs.w {{[^,]+}}, r3, [[REG2]]
 ; CHECK-THUMB-LE: sbcs.w {{[^,]+}}, r3, [[REG2]]
 ; CHECK-THUMB-BE: sbcs.w {{[^,]+}}, r2, [[REG1]]
-; CHECK-THUMB: mov.w     [[CMP:[a-z0-9]+]], #0
-; CHECK-THUMB: movhs.w   [[CMP]], #1
-; CHECK-THUMB: cmp.w     [[CMP]], #0
 ; CHECK-THUMB: mov       [[OUT_HI:[a-z0-9]+]], r3
-; CHECK-THUMB: movne   [[OUT_HI]], [[REG2]]
-; CHECK-THUMB: movne   [[OUT_LO]], [[REG1]]
+; CHECK-THUMB: itt     hs
+; CHECK-THUMB: movhs   [[OUT_HI]], [[REG2]]
+; CHECK-THUMB: movhs   [[OUT_LO]], [[REG1]]
 ; CHECK-THUMB: strexd {{[a-z0-9]+}}, [[OUT_LO]], [[OUT_HI]]
 ; CHECK-THUMB: cmp
 ; CHECK-THUMB: bne
@@ -355,11 +345,11 @@ define i64 @test11(i64* %ptr, i64 %val) {
 
 ; CHECK-M: __atomic_compare_exchange_8
 
-  %r = atomicrmw umin i64* %ptr, i64 %val seq_cst
+  %r = atomicrmw umin ptr %ptr, i64 %val seq_cst
   ret i64 %r
 }
 
-define i64 @test12(i64* %ptr, i64 %val) {
+define i64 @test12(ptr %ptr, i64 %val) {
 ; CHECK-LABEL: test12:
 ; CHECK: dmb {{ish$}}
 ; CHECK: ldrexd [[REG1:(r[0-9]?[02468])]], [[REG2:(r[0-9]?[13579])]]
@@ -368,12 +358,9 @@ define i64 @test12(i64* %ptr, i64 %val) {
 ; CHECK-BE: subs    {{[^,]+}}, r2, [[REG2]]
 ; CHECK-LE: sbcs    {{[^,]+}}, r2, [[REG2]]
 ; CHECK-BE: sbcs    {{[^,]+}}, r1, [[REG1]]
-; CHECK: mov     [[CMP:[a-z0-9]+]], #0
-; CHECK: movwlt  [[CMP]], #1
-; CHECK: cmp     [[CMP]], #0
-; CHECK: movne   [[OUT_HI]], [[REG2]]
+; CHECK: movlt   [[OUT_HI]], [[REG2]]
 ; CHECK: mov     [[OUT_LO:[a-z0-9]+]], r1
-; CHECK: movne   [[OUT_LO]], [[REG1]]
+; CHECK: movlt   [[OUT_LO]], [[REG1]]
 ; CHECK: strexd {{[a-z0-9]+}}, [[OUT_LO]], [[OUT_HI]]
 ; CHECK: cmp
 ; CHECK: bne
@@ -387,12 +374,10 @@ define i64 @test12(i64* %ptr, i64 %val) {
 ; CHECK-THUMB-BE: subs.w {{[^,]+}}, r3, [[REG2]]
 ; CHECK-THUMB-LE: sbcs.w {{[^,]+}}, r3, [[REG2]]
 ; CHECK-THUMB-BE: sbcs.w {{[^,]+}}, r2, [[REG1]]
-; CHECK-THUMB: mov.w     [[CMP:[a-z0-9]+]], #0
-; CHECK-THUMB: movlt.w   [[CMP]], #1
-; CHECK-THUMB: cmp.w     [[CMP]], #0
 ; CHECK-THUMB: mov       [[OUT_HI:[a-z0-9]+]], r3
-; CHECK-THUMB: movne   [[OUT_HI]], [[REG2]]
-; CHECK-THUMB: movne   [[OUT_LO]], [[REG1]]
+; CHECK-THUMB: itt     lt
+; CHECK-THUMB: movlt   [[OUT_HI]], [[REG2]]
+; CHECK-THUMB: movlt   [[OUT_LO]], [[REG1]]
 ; CHECK-THUMB: strexd {{[a-z0-9]+}}, [[OUT_LO]], [[OUT_HI]]
 ; CHECK-THUMB: cmp
 ; CHECK-THUMB: bne
@@ -400,11 +385,11 @@ define i64 @test12(i64* %ptr, i64 %val) {
 
 ; CHECK-M: __atomic_compare_exchange_8
 
-  %r = atomicrmw max i64* %ptr, i64 %val seq_cst
+  %r = atomicrmw max ptr %ptr, i64 %val seq_cst
   ret i64 %r
 }
 
-define i64 @test13(i64* %ptr, i64 %val) {
+define i64 @test13(ptr %ptr, i64 %val) {
 ; CHECK-LABEL: test13:
 ; CHECK: dmb {{ish$}}
 ; CHECK: ldrexd [[REG1:(r[0-9]?[02468])]], [[REG2:(r[0-9]?[13579])]]
@@ -413,12 +398,9 @@ define i64 @test13(i64* %ptr, i64 %val) {
 ; CHECK-BE: subs    {{[^,]+}}, r2, [[REG2]]
 ; CHECK-LE: sbcs    {{[^,]+}}, r2, [[REG2]]
 ; CHECK-BE: sbcs    {{[^,]+}}, r1, [[REG1]]
-; CHECK: mov     [[CMP:[a-z0-9]+]], #0
-; CHECK: movwlo  [[CMP]], #1
-; CHECK: cmp     [[CMP]], #0
-; CHECK: movne   [[OUT_HI]], [[REG2]]
+; CHECK: movlo   [[OUT_HI]], [[REG2]]
 ; CHECK: mov     [[OUT_LO:[a-z0-9]+]], r1
-; CHECK: movne   [[OUT_LO]], [[REG1]]
+; CHECK: movlo   [[OUT_LO]], [[REG1]]
 ; CHECK: strexd {{[a-z0-9]+}}, [[OUT_LO]], [[OUT_HI]]
 ; CHECK: cmp
 ; CHECK: bne
@@ -432,12 +414,10 @@ define i64 @test13(i64* %ptr, i64 %val) {
 ; CHECK-THUMB-BE: subs.w {{[^,]+}}, r3, [[REG2]]
 ; CHECK-THUMB-LE: sbcs.w {{[^,]+}}, r3, [[REG2]]
 ; CHECK-THUMB-BE: sbcs.w {{[^,]+}}, r2, [[REG1]]
-; CHECK-THUMB: mov.w     [[CMP:[a-z0-9]+]], #0
-; CHECK-THUMB: movlo.w   [[CMP]], #1
-; CHECK-THUMB: cmp.w     [[CMP]], #0
 ; CHECK-THUMB: mov       [[OUT_HI:[a-z0-9]+]], r3
-; CHECK-THUMB: movne   [[OUT_HI]], [[REG2]]
-; CHECK-THUMB: movne   [[OUT_LO]], [[REG1]]
+; CHECK-THUMB: itt     lo
+; CHECK-THUMB: movlo   [[OUT_HI]], [[REG2]]
+; CHECK-THUMB: movlo   [[OUT_LO]], [[REG1]]
 ; CHECK-THUMB: strexd {{[a-z0-9]+}}, [[OUT_LO]], [[OUT_HI]]
 ; CHECK-THUMB: cmp
 ; CHECK-THUMB: bne
@@ -445,7 +425,7 @@ define i64 @test13(i64* %ptr, i64 %val) {
 
 ; CHECK-M: __atomic_compare_exchange_8
 
-  %r = atomicrmw umax i64* %ptr, i64 %val seq_cst
+  %r = atomicrmw umax ptr %ptr, i64 %val seq_cst
   ret i64 %r
 }
 

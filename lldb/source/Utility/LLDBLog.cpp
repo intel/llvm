@@ -63,6 +63,13 @@ static constexpr Log::Category g_categories[] = {
     {{"on-demand"},
      {"log symbol on-demand related activities"},
      LLDBLog::OnDemand},
+    {{"source"}, {"log source related activities"}, LLDBLog::Source},
+    {{"disassembler"},
+     {"log disassembler related activities"},
+     LLDBLog::Disassembler},
+    {{"instrumentation-runtime"},
+     {"log instrumentation runtime plugin related activities"},
+     LLDBLog::InstrumentationRuntime},
 };
 
 static Log::Channel g_log_channel(g_categories,

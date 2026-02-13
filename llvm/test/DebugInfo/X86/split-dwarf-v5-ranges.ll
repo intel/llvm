@@ -1,16 +1,22 @@
 ; RUN: llc -split-dwarf-file=foo.dwo -mtriple=x86_64-unknown-linux-gnu -filetype=obj %s -o %t32
 ; RUN: llvm-dwarfdump -v -debug-info -debug-rnglists %t32 | \
-; RUN:   FileCheck %s --check-prefixes=CHECK,DWARF32
+; RUN:   FileCheck %s --check-prefixes=CHECK,DWARF32,CHECK-ELF
+
+; RUN: llc -split-dwarf-file=foo.dwo -mtriple=x86_64-unknown-win32-gnu -filetype=obj %s -o %t32
+; RUN: llvm-dwarfdump -v -debug-info -debug-rnglists %t32 | \
+; RUN:   FileCheck %s --check-prefixes=CHECK,DWARF32,CHECK-COFF
 
 ; RUN: llc -dwarf64 -split-dwarf-file=foo.dwo -mtriple=x86_64-unknown-linux-gnu -filetype=obj %s -o %t64
 ; RUN: llvm-dwarfdump -v -debug-info -debug-rnglists %t64 | \
-; RUN:   FileCheck %s --check-prefixes=CHECK,DWARF64
+; RUN:   FileCheck %s --check-prefixes=CHECK,DWARF64,CHECK-ELF
 
 ; CHECK:   .debug_info contents:
 ; CHECK:   .debug_info.dwo contents:
 ; CHECK:   DW_AT_ranges [DW_FORM_rnglistx] (indexed (0x0) rangelist = 0x[[#%.8x,RNG_OFF:]]
-; CHECK:      [0x0000000000000001, 0x000000000000000c) ".text"
-; CHECK:      [0x000000000000000e, 0x0000000000000013) ".text")
+; CHECK-ELF:  [0x[[#%.16x,BEGIN1:0x01]], 0x[[#%.16x,END1:0x0c]]) ".text"
+; CHECK-ELF:  [0x[[#%.16x,BEGIN2:0x0e]], 0x[[#%.16x,END2:0x13]]) ".text")
+; CHECK-COFF: [0x[[#%.16x,BEGIN1:0x04]], 0x[[#%.16x,END1:0x0f]]) ".text"
+; CHECK-COFF: [0x[[#%.16x,BEGIN2:0x11]], 0x[[#%.16x,END2:0x17]]) ".text")
 
 ; CHECK:   .debug_rnglists.dwo contents:
 ; DWARF32: 0x00000000: range list header: length = 0x00000015, format = DWARF32, version = 0x0005, addr_size = 0x08, seg_size = 0x00, offset_entry_count = 0x00000001
@@ -21,18 +27,18 @@
 ; CHECK:   ]
 ; CHECK:   ranges:
 ; CHECK:   0x[[#RNG_OFF]]:   [DW_RLE_base_addressx]:  0x0000000000000000
-; CHECK:   0x[[#RNG_OFF+2]]: [DW_RLE_offset_pair  ]:  0x0000000000000001, 0x000000000000000c => [0x0000000000000001, 0x000000000000000c)
-; CHECK:   0x[[#RNG_OFF+5]]: [DW_RLE_offset_pair  ]:  0x000000000000000e, 0x0000000000000013 => [0x000000000000000e, 0x0000000000000013)
+; CHECK:   0x[[#RNG_OFF+2]]: [DW_RLE_offset_pair  ]:  0x[[#%.16x,BEGIN1]], 0x[[#%.16x,END1]] => [0x[[#%.16x,BEGIN1]], 0x[[#%.16x,END1]])
+; CHECK:   0x[[#RNG_OFF+5]]: [DW_RLE_offset_pair  ]:  0x[[#%.16x,BEGIN2]], 0x[[#%.16x,END2]] => [0x[[#%.16x,BEGIN2]], 0x[[#%.16x,END2]])
 ; CHECK:   0x[[#RNG_OFF+8]]: [DW_RLE_end_of_list  ]
 
 ; Function Attrs: noinline optnone uwtable
 define dso_local void @_Z2f3v() !dbg !7 {
 entry:
   %x = alloca i32, align 4
-  call void @llvm.dbg.declare(metadata i32* %x, metadata !10, metadata !DIExpression()), !dbg !13
+  call void @llvm.dbg.declare(metadata ptr %x, metadata !10, metadata !DIExpression()), !dbg !13
   %call = call i32 @_Z2f2v(), !dbg !14
-  store i32 %call, i32* %x, align 4, !dbg !13
-  %0 = load i32, i32* %x, align 4, !dbg !13
+  store i32 %call, ptr %x, align 4, !dbg !13
+  %0 = load i32, ptr %x, align 4, !dbg !13
   %tobool = icmp ne i32 %0, 0, !dbg !13
   br i1 %tobool, label %if.then, label %if.end, !dbg !15
 

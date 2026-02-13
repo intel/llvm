@@ -48,7 +48,7 @@ TEST(TypePrinter, TemplateId) {
   std::string Code = R"cpp(
     namespace N {
       template <typename> struct Type {};
-      
+
       template <typename T>
       void Foo(const Type<T> &Param);
     }
@@ -60,7 +60,7 @@ TEST(TypePrinter, TemplateId) {
       [](PrintingPolicy &Policy) { Policy.FullyQualifiedName = false; }));
 
   ASSERT_TRUE(PrintedTypeMatches(
-      Code, {}, Matcher, "const Type<T> &",
+      Code, {}, Matcher, "const N::Type<T> &",
       [](PrintingPolicy &Policy) { Policy.FullyQualifiedName = true; }));
 }
 
@@ -76,7 +76,7 @@ TEST(TypePrinter, TemplateId2) {
   ASSERT_TRUE(PrintedTypeMatches(Code, {}, Matcher, "<int>",
                                  [](PrintingPolicy &Policy) {
                                    Policy.FullyQualifiedName = true;
-                                   Policy.PrintCanonicalTypes = true;
+                                   Policy.PrintAsCanonical = true;
                                  }));
 }
 
@@ -97,6 +97,30 @@ TEST(TypePrinter, ParamsUglified) {
                                  "const f<Tp &> *", Clean));
 }
 
+TEST(TypePrinter, TemplateSpecializationFullyQualified) {
+  llvm::StringLiteral Code = R"cpp(
+    namespace shared {
+    namespace a {
+    template <typename T>
+    struct S {};
+    }  // namespace a
+    namespace b {
+    struct Foo {};
+    }  // namespace b
+    using Alias = a::S<b::Foo>;
+    }  // namespace shared
+  )cpp";
+
+  auto Matcher = typedefNameDecl(hasName("::shared::Alias"),
+                                 hasType(qualType().bind("id")));
+  ASSERT_TRUE(PrintedTypeMatches(
+      Code, {}, Matcher, "a::S<b::Foo>",
+      [](PrintingPolicy &Policy) { Policy.FullyQualifiedName = false; }));
+  ASSERT_TRUE(PrintedTypeMatches(
+      Code, {}, Matcher, "shared::a::S<shared::b::Foo>",
+      [](PrintingPolicy &Policy) { Policy.FullyQualifiedName = true; }));
+}
+
 TEST(TypePrinter, TemplateIdWithNTTP) {
   constexpr char Code[] = R"cpp(
     template <int N>
@@ -115,15 +139,224 @@ TEST(TypePrinter, TemplateIdWithNTTP) {
 
   ASSERT_TRUE(PrintedTypeMatches(
       Code, {"-std=c++20"}, Matcher,
-      R"(ASCII<{"this nontype template argument is [...]"}> &&)",
+      R"(ASCII<Str<52>{"this nontype template argument is [...]"}> &&)",
       [](PrintingPolicy &Policy) {
         Policy.EntireContentsOfLargeArray = false;
       }));
 
   ASSERT_TRUE(PrintedTypeMatches(
       Code, {"-std=c++20"}, Matcher,
-      R"(ASCII<{"this nontype template argument is too long to print"}> &&)",
+      R"(ASCII<Str<52>{"this nontype template argument is too long to print"}> &&)",
       [](PrintingPolicy &Policy) {
         Policy.EntireContentsOfLargeArray = true;
+      }));
+}
+
+TEST(TypePrinter, TemplateArgumentsSubstitution) {
+  constexpr char Code[] = R"cpp(
+       template <typename Y> class X {};
+       typedef X<int> A;
+       int foo() {
+          return sizeof(A);
+       }
+  )cpp";
+  auto Matcher = typedefNameDecl(hasName("A"), hasType(qualType().bind("id")));
+  ASSERT_TRUE(PrintedTypeMatches(Code, {}, Matcher, "X<int>",
+                                 [](PrintingPolicy &Policy) {
+                                   Policy.SuppressTagKeyword = false;
+                                   Policy.SuppressScope = true;
+                                 }));
+}
+
+TEST(TypePrinter, TemplateArgumentsSubstitution_Expressions) {
+  /// Tests clang::isSubstitutedDefaultArgument on TemplateArguments
+  /// that are of kind TemplateArgument::Expression
+  constexpr char Code[] = R"cpp(
+    constexpr bool func() { return true; }
+
+    template <typename T1 = int,
+              int      T2 = 42,
+              T1       T3 = 43,
+              int      T4 = sizeof(T1),
+              bool     T5 = func()
+              >
+    struct Foo {
+    };
+
+    Foo<int, 40 + 2> X;
+  )cpp";
+
+  auto AST = tooling::buildASTFromCodeWithArgs(Code, /*Args=*/{"-std=c++20"});
+  ASTContext &Ctx = AST->getASTContext();
+
+  auto const *CTD = selectFirst<ClassTemplateDecl>(
+      "id", match(classTemplateDecl(hasName("Foo")).bind("id"), Ctx));
+  ASSERT_NE(CTD, nullptr);
+  auto const *CTSD = *CTD->specializations().begin();
+  ASSERT_NE(CTSD, nullptr);
+  auto const *Params = CTD->getTemplateParameters();
+  ASSERT_NE(Params, nullptr);
+  auto const &ArgList = CTSD->getTemplateArgs();
+
+  auto createBinOpExpr = [&](uint32_t LHS, uint32_t RHS,
+                             uint32_t Result) -> ConstantExpr * {
+    const int numBits = 32;
+    clang::APValue ResultVal{llvm::APSInt(llvm::APInt(numBits, Result))};
+    auto *LHSInt = IntegerLiteral::Create(Ctx, llvm::APInt(numBits, LHS),
+                                          Ctx.UnsignedIntTy, {});
+    auto *RHSInt = IntegerLiteral::Create(Ctx, llvm::APInt(numBits, RHS),
+                                          Ctx.UnsignedIntTy, {});
+    auto *BinOp = BinaryOperator::Create(
+        Ctx, LHSInt, RHSInt, BinaryOperatorKind::BO_Add, Ctx.UnsignedIntTy,
+        ExprValueKind::VK_PRValue, ExprObjectKind::OK_Ordinary, {}, {});
+    return ConstantExpr::Create(Ctx, dyn_cast<Expr>(BinOp), ResultVal);
+  };
+
+  {
+    // Arg is an integral '42'
+    auto const &Arg = ArgList.get(1);
+    ASSERT_EQ(Arg.getKind(), TemplateArgument::Integral);
+
+    // Param has default expr which evaluates to '42'
+    auto const *Param = Params->getParam(1);
+
+    EXPECT_TRUE(clang::isSubstitutedDefaultArgument(
+        Ctx, Arg, Param, ArgList.asArray(), Params->getDepth()));
+  }
+
+  {
+    // Arg is an integral '41'
+    llvm::APInt Int(32, 41);
+    TemplateArgument Arg(Ctx, llvm::APSInt(Int), Ctx.UnsignedIntTy);
+
+    // Param has default expr which evaluates to '42'
+    auto const *Param = Params->getParam(1);
+
+    EXPECT_FALSE(clang::isSubstitutedDefaultArgument(
+        Ctx, Arg, Param, ArgList.asArray(), Params->getDepth()));
+  }
+
+  {
+    // Arg is an integral '4'
+    llvm::APInt Int(32, 4);
+    TemplateArgument Arg(Ctx, llvm::APSInt(Int), Ctx.UnsignedIntTy);
+
+    // Param has is value-dependent expression (i.e., sizeof(T))
+    auto const *Param = Params->getParam(3);
+
+    EXPECT_FALSE(clang::isSubstitutedDefaultArgument(
+        Ctx, Arg, Param, ArgList.asArray(), Params->getDepth()));
+  }
+
+  {
+    const int LHS = 40;
+    const int RHS = 2;
+    const int Result = 42;
+    auto *ConstExpr = createBinOpExpr(LHS, RHS, Result);
+    // Arg is instantiated with '40 + 2'
+    TemplateArgument Arg(ConstExpr, /*IsCanonical=*/false);
+
+    // Param has default expr of '42'
+    auto const *Param = Params->getParam(1);
+
+    EXPECT_TRUE(clang::isSubstitutedDefaultArgument(
+        Ctx, Arg, Param, ArgList.asArray(), Params->getDepth()));
+  }
+
+  {
+    const int LHS = 40;
+    const int RHS = 1;
+    const int Result = 41;
+    auto *ConstExpr = createBinOpExpr(LHS, RHS, Result);
+
+    // Arg is instantiated with '40 + 1'
+    TemplateArgument Arg(ConstExpr, /*IsCanonical=*/false);
+
+    // Param has default expr of '42'
+    auto const *Param = Params->getParam(1);
+
+    EXPECT_FALSE(clang::isSubstitutedDefaultArgument(
+        Ctx, Arg, Param, ArgList.asArray(), Params->getDepth()));
+  }
+
+  {
+    const int LHS = 4;
+    const int RHS = 0;
+    const int Result = 4;
+    auto *ConstExpr = createBinOpExpr(LHS, RHS, Result);
+
+    // Arg is instantiated with '4 + 0'
+    TemplateArgument Arg(ConstExpr, /*IsCanonical=*/false);
+
+    // Param has is value-dependent expression (i.e., sizeof(T))
+    auto const *Param = Params->getParam(3);
+
+    EXPECT_FALSE(clang::isSubstitutedDefaultArgument(
+        Ctx, Arg, Param, ArgList.asArray(), Params->getDepth()));
+  }
+}
+
+TEST(TypePrinter, NestedNameSpecifiers) {
+  constexpr char Code[] = R"cpp(
+    void level1() {
+      struct Inner {
+        Inner(int) {
+          struct {
+            union {} u;
+          } imem;
+        }
+      };
+    }
+  )cpp";
+
+  // Types scoped immediately inside a function don't print the function name in
+  // their scope.
+  ASSERT_TRUE(PrintedTypeMatches(
+      Code, {}, varDecl(hasName("imem"), hasType(qualType().bind("id"))),
+      "struct (unnamed)", [](PrintingPolicy &Policy) {
+        Policy.FullyQualifiedName = true;
+        Policy.AnonymousTagLocations = false;
+      }));
+
+  ASSERT_TRUE(PrintedTypeMatches(
+      Code, {}, varDecl(hasName("imem"), hasType(qualType().bind("id"))),
+      "struct (unnamed)", [](PrintingPolicy &Policy) {
+        Policy.FullyQualifiedName = false;
+        Policy.AnonymousTagLocations = false;
+      }));
+
+  // Further levels of nesting print the entire scope.
+  ASSERT_TRUE(PrintedTypeMatches(
+      Code, {}, fieldDecl(hasName("u"), hasType(qualType().bind("id"))),
+      "union level1()::Inner::Inner(int)::(unnamed struct)::(unnamed)",
+      [](PrintingPolicy &Policy) {
+        Policy.FullyQualifiedName = true;
+        Policy.AnonymousTagLocations = false;
+      }));
+
+  ASSERT_TRUE(PrintedTypeMatches(
+      Code, {}, fieldDecl(hasName("u"), hasType(qualType().bind("id"))),
+      "union (unnamed)", [](PrintingPolicy &Policy) {
+        Policy.FullyQualifiedName = false;
+        Policy.AnonymousTagLocations = false;
+      }));
+}
+
+TEST(TypePrinter, NestedNameSpecifiersTypedef) {
+  constexpr char Code[] = R"cpp(
+    typedef union {
+      struct {
+        struct {
+          unsigned int baz;
+        } bar;
+      };
+    } foo;
+  )cpp";
+
+  ASSERT_TRUE(PrintedTypeMatches(
+      Code, {}, fieldDecl(hasName("bar"), hasType(qualType().bind("id"))),
+      "struct foo::(anonymous struct)::(unnamed)", [](PrintingPolicy &Policy) {
+        Policy.FullyQualifiedName = true;
+        Policy.AnonymousTagLocations = false;
       }));
 }

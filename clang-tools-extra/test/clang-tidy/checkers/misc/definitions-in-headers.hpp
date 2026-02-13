@@ -2,7 +2,7 @@
 
 int f() {
 // CHECK-MESSAGES: :[[@LINE-1]]:5: warning: function 'f' defined in a header file; function definitions in header files can lead to ODR violations [misc-definitions-in-headers]
-// CHECK-MESSAGES: :[[@LINE-2]]:5: note: make as 'inline'
+// CHECK-MESSAGES: :[[@LINE-2]]:5: note: mark the definition as 'inline'
 // CHECK-FIXES: inline int f() {
   return 1;
 }
@@ -25,7 +25,7 @@ class CA {
 
 void CA::f2() { }
 // CHECK-MESSAGES: :[[@LINE-1]]:10: warning: function 'f2' defined in a header file;
-// CHECK-FIXES: inline void CA::f2() {
+// CHECK-FIXES: inline void CA::f2() { }
 
 template <>
 int CA::f3() {
@@ -108,8 +108,7 @@ int f3() {
 int f5(); // OK: function declaration.
 inline int f6() { return 1; } // OK: inline function definition.
 namespace {
-  int f7() { return 1; }
-// CHECK-MESSAGES: :[[@LINE-1]]:7: warning: function 'f7' defined in a header file;
+  int f7() { return 1; }  // OK: each TU defines the function in a unique namespace.
 }
 
 int f8() = delete; // OK: the function being marked delete is not callable.
@@ -142,8 +141,7 @@ const char* ca = "foo";
 // CHECK-MESSAGES: :[[@LINE-1]]:13: warning: variable 'ca' defined in a header file;
 
 namespace {
-  int e = 2;
-// CHECK-MESSAGES: :[[@LINE-1]]:7: warning: variable 'e' defined in a header file;
+  int e = 2;  // OK: each TU defines the variable in a unique namespace.
 }
 
 const char* const g = "foo"; // OK: internal linkage variable definition.
@@ -205,4 +203,4 @@ constexpr bool f13<void, int> = false;
 
 int main() {}
 // CHECK-MESSAGES: :[[@LINE-1]]:5: warning: function 'main' defined in a header file;
-// CHECK-FIXES: {{^}}int main() {
+// CHECK-FIXES: int main() {}

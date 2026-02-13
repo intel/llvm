@@ -1,9 +1,9 @@
-/* RUN: %clang_cc1 -std=c89 -fsyntax-only -verify=expected,c89only -pedantic -Wno-declaration-after-statement -Wno-c11-extensions %s
-   RUN: %clang_cc1 -std=c89 -fsyntax-only -verify=expected,c89only -pedantic -Wno-declaration-after-statement -Wno-c11-extensions -fno-signed-char %s
-   RUN: %clang_cc1 -std=c99 -fsyntax-only -verify=expected,c99untilc2x -pedantic -Wno-c11-extensions %s
-   RUN: %clang_cc1 -std=c11 -fsyntax-only -verify=expected,c99untilc2x -pedantic %s
-   RUN: %clang_cc1 -std=c17 -fsyntax-only -verify=expected,c99untilc2x -pedantic %s
-   RUN: %clang_cc1 -std=c2x -fsyntax-only -verify=expected,c2xandup -pedantic %s
+/* RUN: %clang_cc1 -std=c89 -fsyntax-only -verify=expected,c89only,c17andearlier -pedantic -Wno-declaration-after-statement -Wno-c11-extensions %s
+   RUN: %clang_cc1 -std=c89 -fsyntax-only -verify=expected,c89only,c17andearlier -pedantic -Wno-declaration-after-statement -Wno-c11-extensions -fno-signed-char %s
+   RUN: %clang_cc1 -std=c99 -fsyntax-only -verify=expected,c99untilc2x,c17andearlier -pedantic -Wno-c11-extensions %s
+   RUN: %clang_cc1 -std=c11 -fsyntax-only -verify=expected,c99untilc2x,c17andearlier -pedantic %s
+   RUN: %clang_cc1 -std=c17 -fsyntax-only -verify=expected,c99untilc2x,c17andearlier -pedantic %s
+   RUN: %clang_cc1 -std=c23 -fsyntax-only -verify=expected,c2xandup -pedantic %s
  */
 
 /* The following are DRs which do not require tests to demonstrate
@@ -70,6 +70,13 @@
  * WG14 DR080: yes
  * Merging of string constants
  *
+ * WG14 DR085: yes
+ * Returning from main
+ *
+ * WG14 DR087: yes
+ * Order of evaluation
+ * Note: this DR is covered by C/C11/n1282.c
+ *
  * WG14 DR086: yes
  * Object-like macros in system headers
  *
@@ -132,7 +139,9 @@ int dr010_c = sizeof(dr010_t); /* expected-error {{invalid application of 'sizeo
  * Note: DR034 has a question resolved by DR011 and another question where the
  * result is UB.
  */
-static int dr011_a[]; /* expected-warning {{tentative array definition assumed to have one element}} */
+static int dr011_a[]; /* expected-warning {{tentative array definition assumed to have one element}}
+                         expected-warning {{tentative definition of variable with internal linkage has incomplete array type 'int[]'}}
+                       */
 void dr011(void) {
   extern int i[];
   {
@@ -211,7 +220,7 @@ _Static_assert(__builtin_types_compatible_p(struct S { int a; }, union U { int a
  */
 void dr031(int i) {
   switch (i) {
-  case __INT_MAX__ + 1: break; /* expected-warning {{overflow in expression; result is -2147483648 with type 'int'}} */
+  case __INT_MAX__ + 1: break; /* expected-warning {{overflow in expression; result is -2'147'483'648 with type 'int'}} */
   #pragma clang diagnostic push
   #pragma clang diagnostic ignored "-Wswitch"
   /* Silence the targets which issue:
@@ -231,24 +240,24 @@ void dr031(int i) {
  */
 int dr032 = (1, 2); /* expected-warning {{left operand of comma operator has no effect}} */
 
-#if __STDC_VERSION__ < 202000L
+#if __STDC_VERSION__ < 202311L
 /* WG14 DR035: partial
  * Questions about definition of functions without a prototype
  */
-void dr035_1(a, b) /* expected-warning {{a function definition without a prototype is deprecated in all versions of C and is not supported in C2x}} */
-  int a(enum b {x, y}); /* expected-warning {{declaration of 'enum b' will not be visible outside of this function}} */
+void dr035_1(a, b) /* expected-warning {{a function definition without a prototype is deprecated in all versions of C and is not supported in C23}} */
+  int a(enum b {x, y}); /* c17andearlier-warning {{declaration of 'enum b' will not be visible outside of this function}} */
   int b; {
   int test = x; /* expected-error {{use of undeclared identifier 'x'}} */
 }
 
-void dr035_2(c) /* expected-warning {{a function definition without a prototype is deprecated in all versions of C and is not supported in C2x}} */
-  enum m{q, r} c; { /* expected-warning {{declaration of 'enum m' will not be visible outside of this function}} */
+void dr035_2(c) /* expected-warning {{a function definition without a prototype is deprecated in all versions of C and is not supported in C23}} */
+  enum m{q, r} c; { /* c17andearlier-warning {{declaration of 'enum m' will not be visible outside of this function}} */
   /* FIXME: This should be accepted because the scope of m, q, and r ends at
    * the closing brace of the function per C89 6.1.2.1.
    */
   int test = q; /* expected-error {{use of undeclared identifier 'q'}} */
 }
-#endif /* __STDC_VERSION__ < 202000L */
+#endif /* __STDC_VERSION__ < 202311L */
 
 /* WG14 DR038: yes
  * Questions about argument substitution during macro expansion
@@ -336,7 +345,7 @@ void dr050(void) {
   (void)NULL; /* expected-error {{use of undeclared identifier 'NULL'}} */
 }
 
-#if __STDC_VERSION__ < 202000L
+#if __STDC_VERSION__ < 202311L
 /* WG14 DR053: yes
  * Accessing a pointer to a function with a prototype through a pointer to
  * pointer to function without a prototype
@@ -349,11 +358,11 @@ void dr053(void) {
 
   fp1 = f;
   fp2 = fp1;
-  (*fp2)(3);  /* expected-warning {{passing arguments to a function without a prototype is deprecated in all versions of C and is not supported in C2x}} */
+  (*fp2)(3);  /* expected-warning {{passing arguments to a function without a prototype is deprecated in all versions of C and is not supported in C23}} */
   fpp = &fp1;
-  (**fpp)(3); /* expected-warning {{passing arguments to a function without a prototype is deprecated in all versions of C and is not supported in C2x}} */
+  (**fpp)(3); /* expected-warning {{passing arguments to a function without a prototype is deprecated in all versions of C and is not supported in C23}} */
 }
-#endif /* __STDC_VERSION__ < 202000L */
+#endif /* __STDC_VERSION__ < 202311L */
 
 /* WG14 DR064: yes
  * Null pointer constants
@@ -382,7 +391,7 @@ void dr068(void) {
 #endif
 }
 
-#if __STDC_VERSION__ < 202000L
+#if __STDC_VERSION__ < 202311L
 /* WG14: DR070: yes
  * Interchangeability of function arguments
  *
@@ -395,7 +404,7 @@ void dr068(void) {
  * a prototype causes implicit conversions rather than relying on default
  * argument promotion and warm thoughts.
  */
-void dr070_1(c) /* expected-warning {{a function definition without a prototype is deprecated in all versions of C and is not supported in C2x}} */
+void dr070_1(c) /* expected-warning {{a function definition without a prototype is deprecated in all versions of C and is not supported in C23}} */
   int c; {
 }
 
@@ -403,7 +412,7 @@ void dr070_2(void) {
   dr070_1(6);
   dr070_1(6U); /* Pedantically UB */
 }
-#endif /* __STDC_VERSION__ < 202000L */
+#endif /* __STDC_VERSION__ < 202311L */
 
 /* WG14 DR071: yes
  * Enumerated types
@@ -423,7 +432,8 @@ void dr081(void) {
   /* Demonstrate that we don't crash when left shifting a signed value; that's
    * implementation defined behavior.
    */
- _Static_assert(-1 << 1 == -2, "fail"); /* Didn't shift a zero into the "sign bit". */
+ _Static_assert(-1 << 1 == -2, "fail"); /* expected-warning {{expression is not an integer constant expression; folding it to a constant is a GNU extension}}
+                                           expected-note {{left shift of negative value -1}} */
  _Static_assert(1 << 3 == 1u << 3u, "fail"); /* Shift of a positive signed value does sensible things. */
 }
 
@@ -449,7 +459,7 @@ void dr088_1(void) {
   /* Distinct type from the file scope forward declaration. */
   struct dr088_t_1;
   /* FIXME: this diagnostic could be improved to not be utterly baffling. */
-  dr088_f((struct dr088_t_1 *)0); /* expected-warning {{incompatible pointer types passing 'struct dr088_t_1 *' to parameter of type 'struct dr088_t_1 *'}} */
+  dr088_f((struct dr088_t_1 *)0); /* expected-error {{incompatible pointer types passing 'struct dr088_t_1 *' to parameter of type 'struct dr088_t_1 *'}} */
 }
 
 void dr088_2(struct dr088_t_1 *p) { /* Pointer to incomplete type. */ }

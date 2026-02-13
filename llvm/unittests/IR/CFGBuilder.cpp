@@ -11,6 +11,7 @@
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "gtest/gtest.h"
@@ -126,15 +127,15 @@ void CFGBuilder::buildCFG(const std::vector<Arc> &NewArcs) {
   }
 }
 
-Optional<CFGBuilder::Update> CFGBuilder::getNextUpdate() const {
+std::optional<CFGBuilder::Update> CFGBuilder::getNextUpdate() const {
   if (UpdateIdx == Updates.size())
-    return None;
+    return std::nullopt;
   return Updates[UpdateIdx];
 }
 
-Optional<CFGBuilder::Update> CFGBuilder::applyUpdate() {
+std::optional<CFGBuilder::Update> CFGBuilder::applyUpdate() {
   if (UpdateIdx == Updates.size())
-    return None;
+    return std::nullopt;
   Update NextUpdate = Updates[UpdateIdx++];
   if (NextUpdate.Action == ActionKind::Insert)
     connect(NextUpdate.Edge);
@@ -267,11 +268,10 @@ TEST(CFGBuilder, Rebuild) {
   EXPECT_TRUE(isa<SwitchInst>(B.getOrAddBlock("d")->getTerminator()));
 }
 
-static_assert(std::is_trivially_copyable<succ_iterator>::value,
+static_assert(std::is_trivially_copyable_v<succ_iterator>,
               "trivially copyable");
-static_assert(std::is_trivially_copyable<const_succ_iterator>::value,
+static_assert(std::is_trivially_copyable_v<const_succ_iterator>,
               "trivially copyable");
-static_assert(std::is_trivially_copyable<succ_range>::value,
-              "trivially copyable");
-static_assert(std::is_trivially_copyable<const_succ_range>::value,
+static_assert(std::is_trivially_copyable_v<succ_range>, "trivially copyable");
+static_assert(std::is_trivially_copyable_v<const_succ_range>,
               "trivially copyable");

@@ -7,16 +7,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ExecutionEngine/Orc/IndirectionUtils.h"
-#include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/ExecutionEngine/JITLink/x86_64.h"
 #include "llvm/ExecutionEngine/Orc/OrcABISupport.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Module.h"
 #include "llvm/MC/MCDisassembler/MCDisassembler.h"
 #include "llvm/MC/MCInstrAnalysis.h"
-#include "llvm/Support/Format.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Utils/Cloning.h"
-#include <sstream>
 
 #define DEBUG_TYPE "orc"
 
@@ -40,10 +38,10 @@ public:
 private:
   void materialize(std::unique_ptr<MaterializationResponsibility> R) override {
     SymbolMap Result;
-    Result[Name] = JITEvaluatedSymbol(Compile(), JITSymbolFlags::Exported);
+    Result[Name] = {Compile(), JITSymbolFlags::Exported};
     // No dependencies, so these calls cannot fail.
     cantFail(R->notifyResolved(Result));
-    cantFail(R->notifyEmitted());
+    cantFail(R->notifyEmitted({}));
   }
 
   void discard(const JITDylib &JD, const SymbolStringPtr &Name) override {
@@ -62,7 +60,7 @@ namespace orc {
 TrampolinePool::~TrampolinePool() = default;
 void IndirectStubsManager::anchor() {}
 
-Expected<JITTargetAddress>
+Expected<ExecutorAddr>
 JITCompileCallbackManager::getCompileCallback(CompileFunction Compile) {
   if (auto TrampolineAddr = TP->getTrampoline()) {
     auto CallbackName =
@@ -78,8 +76,8 @@ JITCompileCallbackManager::getCompileCallback(CompileFunction Compile) {
     return TrampolineAddr.takeError();
 }
 
-JITTargetAddress JITCompileCallbackManager::executeCompileCallback(
-    JITTargetAddress TrampolineAddr) {
+ExecutorAddr
+JITCompileCallbackManager::executeCompileCallback(ExecutorAddr TrampolineAddr) {
   SymbolStringPtr Name;
 
   {
@@ -91,14 +89,10 @@ JITTargetAddress JITCompileCallbackManager::executeCompileCallback(
     // callee.
     if (I == AddrToSymbol.end()) {
       Lock.unlock();
-      std::string ErrMsg;
-      {
-        raw_string_ostream ErrMsgStream(ErrMsg);
-        ErrMsgStream << "No compile callback for trampoline at "
-                     << format("0x%016" PRIx64, TrampolineAddr);
-      }
       ES.reportError(
-          make_error<StringError>(std::move(ErrMsg), inconvertibleErrorCode()));
+          make_error<StringError>("No compile callback for trampoline at " +
+                                      formatv("{0:x}", TrampolineAddr),
+                                  inconvertibleErrorCode()));
       return ErrorHandlerAddress;
     } else
       Name = I->second;
@@ -118,9 +112,41 @@ JITTargetAddress JITCompileCallbackManager::executeCompileCallback(
   }
 }
 
+Error IndirectStubsManager::redirect(JITDylib &JD, const SymbolMap &NewDests) {
+  for (auto &[Name, Dest] : NewDests)
+    if (auto Err = updatePointer(*Name, Dest.getAddress()))
+      return Err;
+  return Error::success();
+}
+
+void IndirectStubsManager::emitRedirectableSymbols(
+    std::unique_ptr<MaterializationResponsibility> MR, SymbolMap InitialDests) {
+  StubInitsMap StubInits;
+  for (auto &[Name, Dest] : InitialDests)
+    StubInits[*Name] = {Dest.getAddress(), Dest.getFlags()};
+  if (auto Err = createStubs(StubInits)) {
+    MR->getExecutionSession().reportError(std::move(Err));
+    return MR->failMaterialization();
+  }
+  SymbolMap Stubs;
+  for (auto &[Name, Dest] : InitialDests) {
+    auto StubSym = findStub(*Name, false);
+    assert(StubSym.getAddress() && "Stub symbol should be present");
+    Stubs[Name] = StubSym;
+  }
+  if (auto Err = MR->notifyResolved(Stubs)) {
+    MR->getExecutionSession().reportError(std::move(Err));
+    return MR->failMaterialization();
+  }
+  if (auto Err = MR->notifyEmitted({})) {
+    MR->getExecutionSession().reportError(std::move(Err));
+    return MR->failMaterialization();
+  }
+}
+
 Expected<std::unique_ptr<JITCompileCallbackManager>>
 createLocalCompileCallbackManager(const Triple &T, ExecutionSession &ES,
-                                  JITTargetAddress ErrorHandlerAddress) {
+                                  ExecutorAddr ErrorHandlerAddress) {
   switch (T.getArch()) {
   default:
     return make_error<StringError>(
@@ -134,6 +160,11 @@ createLocalCompileCallbackManager(const Triple &T, ExecutionSession &ES,
 
     case Triple::x86: {
       typedef orc::LocalJITCompileCallbackManager<orc::OrcI386> CCMgrT;
+      return CCMgrT::Create(ES, ErrorHandlerAddress);
+    }
+
+    case Triple::loongarch64: {
+      typedef orc::LocalJITCompileCallbackManager<orc::OrcLoongArch64> CCMgrT;
       return CCMgrT::Create(ES, ErrorHandlerAddress);
     }
 
@@ -192,6 +223,12 @@ createLocalIndirectStubsManagerBuilder(const Triple &T) {
                        orc::LocalIndirectStubsManager<orc::OrcI386>>();
       };
 
+    case Triple::loongarch64:
+      return []() {
+        return std::make_unique<
+            orc::LocalIndirectStubsManager<orc::OrcLoongArch64>>();
+      };
+
     case Triple::mips:
       return [](){
           return std::make_unique<
@@ -233,12 +270,11 @@ createLocalIndirectStubsManagerBuilder(const Triple &T) {
   }
 }
 
-Constant* createIRTypedAddress(FunctionType &FT, JITTargetAddress Addr) {
+Constant* createIRTypedAddress(FunctionType &FT, ExecutorAddr Addr) {
   Constant *AddrIntVal =
-    ConstantInt::get(Type::getInt64Ty(FT.getContext()), Addr);
-  Constant *AddrPtrVal =
-    ConstantExpr::getCast(Instruction::IntToPtr, AddrIntVal,
-                          PointerType::get(&FT, 0));
+    ConstantInt::get(Type::getInt64Ty(FT.getContext()), Addr.getValue());
+  Constant *AddrPtrVal = ConstantExpr::getIntToPtr(
+      AddrIntVal, PointerType::get(FT.getContext(), 0));
   return AddrPtrVal;
 }
 
@@ -279,7 +315,7 @@ std::vector<GlobalValue *> SymbolLinkagePromoter::operator()(Module &M) {
     // Rename if necessary.
     if (!GV.hasName())
       GV.setName("__orc_anon." + Twine(NextId++));
-    else if (GV.getName().startswith("\01L"))
+    else if (GV.getName().starts_with("\01L"))
       GV.setName("__" + GV.getName().substr(1) + "." + Twine(NextId++));
     else if (GV.hasLocalLinkage())
       GV.setName("__orc_lcl." + GV.getName() + "." + Twine(NextId++));
@@ -318,26 +354,6 @@ Function* cloneFunctionDecl(Module &Dst, const Function &F,
   return NewF;
 }
 
-void moveFunctionBody(Function &OrigF, ValueToValueMapTy &VMap,
-                      ValueMaterializer *Materializer,
-                      Function *NewF) {
-  assert(!OrigF.isDeclaration() && "Nothing to move");
-  if (!NewF)
-    NewF = cast<Function>(VMap[&OrigF]);
-  else
-    assert(VMap[&OrigF] == NewF && "Incorrect function mapping in VMap.");
-  assert(NewF && "Function mapping missing from VMap.");
-  assert(NewF->getParent() != OrigF.getParent() &&
-         "moveFunctionBody should only be used to move bodies between "
-         "modules.");
-
-  SmallVector<ReturnInst *, 8> Returns; // Ignore returns cloned.
-  CloneFunctionInto(NewF, &OrigF, VMap,
-                    CloneFunctionChangeType::DifferentModule, Returns, "",
-                    nullptr, nullptr, Materializer);
-  OrigF.deleteBody();
-}
-
 GlobalVariable* cloneGlobalVariableDecl(Module &Dst, const GlobalVariable &GV,
                                         ValueToValueMapTy *VMap) {
   GlobalVariable *NewGV = new GlobalVariable(
@@ -350,24 +366,6 @@ GlobalVariable* cloneGlobalVariableDecl(Module &Dst, const GlobalVariable &GV,
   return NewGV;
 }
 
-void moveGlobalVariableInitializer(GlobalVariable &OrigGV,
-                                   ValueToValueMapTy &VMap,
-                                   ValueMaterializer *Materializer,
-                                   GlobalVariable *NewGV) {
-  assert(OrigGV.hasInitializer() && "Nothing to move");
-  if (!NewGV)
-    NewGV = cast<GlobalVariable>(VMap[&OrigGV]);
-  else
-    assert(VMap[&OrigGV] == NewGV &&
-           "Incorrect global variable mapping in VMap.");
-  assert(NewGV->getParent() != OrigGV.getParent() &&
-         "moveGlobalVariableInitializer should only be used to move "
-         "initializers between modules");
-
-  NewGV->setInitializer(MapValue(OrigGV.getInitializer(), VMap, RF_None,
-                                 nullptr, Materializer));
-}
-
 GlobalAlias* cloneGlobalAliasDecl(Module &Dst, const GlobalAlias &OrigA,
                                   ValueToValueMapTy &VMap) {
   assert(OrigA.getAliasee() && "Original alias doesn't have an aliasee?");
@@ -377,15 +375,6 @@ GlobalAlias* cloneGlobalAliasDecl(Module &Dst, const GlobalAlias &OrigA,
   NewA->copyAttributesFrom(&OrigA);
   VMap[&OrigA] = NewA;
   return NewA;
-}
-
-void cloneModuleFlagsMetadata(Module &Dst, const Module &Src,
-                              ValueToValueMapTy &VMap) {
-  auto *MFs = Src.getModuleFlagsMetadata();
-  if (!MFs)
-    return;
-  for (auto *MF : MFs->operands())
-    Dst.addModuleFlag(MapMetadata(MF, VMap));
 }
 
 Error addFunctionPointerRelocationsToCurrentSymbol(jitlink::Symbol &Sym,
@@ -407,7 +396,7 @@ Error addFunctionPointerRelocationsToCurrentSymbol(jitlink::Symbol &Sym,
   auto SymStartInBlock =
       (const uint8_t *)B.getContent().data() + Sym.getOffset();
   auto SymSize = Sym.getSize() ? Sym.getSize() : B.getSize() - Sym.getOffset();
-  auto Content = makeArrayRef(SymStartInBlock, SymSize);
+  auto Content = ArrayRef(SymStartInBlock, SymSize);
 
   LLVM_DEBUG(dbgs() << "Adding self-relocations to " << Sym.getName() << "\n");
 

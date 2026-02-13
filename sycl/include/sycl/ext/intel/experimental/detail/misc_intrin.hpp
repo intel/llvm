@@ -13,7 +13,8 @@
 /// @cond SYCL_DETAIL
 
 #ifdef __SYCL_DEVICE_ONLY__
-#define __SYCL_INTRIN SYCL_EXTERNAL
+#include <sycl/detail/defines_elementary.hpp>
+#define __SYCL_INTRIN __DPCPP_SYCL_EXTERNAL
 #else
 #define __SYCL_INTRIN inline
 #endif // __SYCL_DEVICE_ONLY__

@@ -1,9 +1,12 @@
 // RUN: %clangxx -fsycl -O2 %s -o %t.out
+
+// XFAIL: libcxx
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19616
 #include <iostream>
 #include <sycl/sycl.hpp>
 
 using namespace sycl::ext::oneapi::experimental::matrix;
-using bfloat16 = sycl::ext::oneapi::experimental::bfloat16;
+using bfloat16 = sycl::ext::oneapi::bfloat16;
 
 static constexpr auto TILE_SZ = 16;
 static constexpr auto TM = TILE_SZ - 1;
@@ -59,36 +62,43 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            const auto sg_startx = global_idx - spmd_item.get_local_id(0);
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
-           sycl::ext::oneapi::sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<bfloat16, TM, TK> sub_a(sg);
+           joint_matrix<sycl::sub_group, bfloat16, use::a, TM, TK,
+                        layout::row_major>
+               sub_a;
            // For B, since current implementation does not support non-packed
            // layout, users need to specify the updated VNNI sizes along with
            // the packed_b layout. By default, the layout is row_major and size
            // is (TK, TN).
-           joint_matrix<bfloat16, TK, TN, matrix_layout::packed_b> sub_b(sg);
-           joint_matrix<float, TM, TN> sub_c(sg);
+           joint_matrix<sycl::sub_group, bfloat16, use::b, TK, TN,
+                        layout::ext_intel_packed>
+               sub_b;
+           joint_matrix<sycl::sub_group, float, use::accumulator, TM, TN> sub_c;
 
-           // AMX: 8 register tiles : 1k byte size, SMmaxxSKmax =16x64
-           // strideX = X's cols, so strideC = N, strideA = K, strideB = N*4
-           joint_matrix_load(sg, sub_c,
-                             accC.get_pointer() + (sg_startx * TM) * N +
-                                 sg_starty / SG_SZ * TN,
-                             N, matrix_layout::row_major);
+           joint_matrix_load(
+               spmd_item.get_sub_group(), sub_c,
+               accC.template get_multi_ptr<sycl::access::decorated::no>() +
+                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+               N, layout::row_major);
            for (int k = 0; k < K / TK; k += 1) { //
              joint_matrix_load(
-                 sg, sub_a, accA.get_pointer() + (sg_startx * TM) * K + k * TK,
-                 K, matrix_layout::row_major);
+                 spmd_item.get_sub_group(), sub_a,
+                 accA.template get_multi_ptr<sycl::access::decorated::no>() +
+                     (sg_startx * TM) * K + k * TK,
+                 K);
              // Assuming B data is already in VNNI format.
-             joint_matrix_load(sg, sub_b,
-                               accB.get_pointer() + (k * TK / 2) * (N * 2) +
-                                   sg_starty / SG_SZ * TN * 2,
-                               N * 2, matrix_layout::packed_b);
-             sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+             joint_matrix_load(
+                 spmd_item.get_sub_group(), sub_b,
+                 accB.template get_multi_ptr<sycl::access::decorated::no>() +
+                     (k * TK / 2) * (N * 2) + sg_starty / SG_SZ * TN * 2,
+                 N * 2);
+             joint_matrix_mad(spmd_item.get_sub_group(), sub_c, sub_a, sub_b,
+                              sub_c);
            }
-           joint_matrix_store(sg, sub_c,
-                              accC.get_pointer() + (sg_startx * TM) * N +
-                                  sg_starty / SG_SZ * TN,
-                              N, matrix_layout::row_major);
+           joint_matrix_store(
+               spmd_item.get_sub_group(), sub_c,
+               accC.template get_multi_ptr<sycl::access::decorated::no>() +
+                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+               N, layout::row_major);
          }); // parallel for
    }).wait();
 }
@@ -139,13 +149,13 @@ int main() {
     for (int j = 0; j < MATRIX_K; j++) {
       // Ee create bfloat16 from unsigned short since float-to-bfloat's
       // conversion is not allowed.
-      A[i][j] = bfloat16::from_bits(make_bf16(1.0f * (i + j)));
+      A[i][j] = bfloat16(1.0f * (i + j));
       Aref[i][j] = make_bf16(1.0f * (i + j));
     }
   }
   for (int i = 0; i < MATRIX_K / 2; i++) {
     for (int j = 0; j < MATRIX_N * 2; j++) {
-      B[i][j] = bfloat16::from_bits((make_bf16(2.0f * i + 3.0f * j)));
+      B[i][j] = bfloat16(2.0f * i + 3.0f * j);
       Bref[i][j] = make_bf16(2.0f * i + 3.0f * j);
     }
   }

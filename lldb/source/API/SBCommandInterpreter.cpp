@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "lldb/Utility/StructuredData.h"
 #include "lldb/lldb-types.h"
 
 #include "lldb/Interpreter/CommandInterpreter.h"
@@ -28,10 +29,12 @@
 #include "lldb/API/SBTarget.h"
 
 #include <memory>
+#include <optional>
 
 using namespace lldb;
 using namespace lldb_private;
 
+namespace lldb_private {
 class CommandPluginInterfaceImplementation : public CommandObjectParsed {
 public:
   CommandPluginInterfaceImplementation(CommandInterpreter &interpreter,
@@ -45,8 +48,8 @@ public:
         m_backend(backend) {
     m_auto_repeat_command =
         auto_repeat_command == nullptr
-            ? llvm::None
-            : llvm::Optional<std::string>(auto_repeat_command);
+            ? std::nullopt
+            : std::optional<std::string>(auto_repeat_command);
     // We don't know whether any given command coming from this interface takes
     // arguments or not so here we're just disabling the basic args check.
     CommandArgumentData none_arg{eArgTypeNone, eArgRepeatStar};
@@ -56,29 +59,32 @@ public:
   bool IsRemovable() const override { return true; }
 
   /// More documentation is available in lldb::CommandObject::GetRepeatCommand,
-  /// but in short, if llvm::None is returned, the previous command will be
+  /// but in short, if std::nullopt is returned, the previous command will be
   /// repeated, and if an empty string is returned, no commands will be
   /// executed.
-  llvm::Optional<std::string> GetRepeatCommand(Args &current_command_args,
-                                               uint32_t index) override {
+  std::optional<std::string> GetRepeatCommand(Args &current_command_args,
+                                              uint32_t index) override {
     if (!m_auto_repeat_command)
-      return llvm::None;
+      return std::nullopt;
     else
       return m_auto_repeat_command;
   }
 
 protected:
-  bool DoExecute(Args &command, CommandReturnObject &result) override {
+  void DoExecute(Args &command, CommandReturnObject &result) override {
     SBCommandReturnObject sb_return(result);
     SBCommandInterpreter sb_interpreter(&m_interpreter);
     SBDebugger debugger_sb(m_interpreter.GetDebugger().shared_from_this());
-    bool ret = m_backend->DoExecute(
-        debugger_sb, command.GetArgumentVector(), sb_return);
-    return ret;
+    m_backend->DoExecute(debugger_sb, command.GetArgumentVector(), sb_return);
   }
-  std::shared_ptr<lldb::SBCommandPluginInterface> m_backend;
-  llvm::Optional<std::string> m_auto_repeat_command;
+  lldb::SBCommandPluginInterface *m_backend;
+  std::optional<std::string> m_auto_repeat_command;
 };
+} // namespace lldb_private
+
+SBCommandInterpreter::SBCommandInterpreter() : m_opaque_ptr() {
+  LLDB_INSTRUMENT_VA(this);
+}
 
 SBCommandInterpreter::SBCommandInterpreter(CommandInterpreter *interpreter)
     : m_opaque_ptr(interpreter) {
@@ -92,8 +98,8 @@ SBCommandInterpreter::SBCommandInterpreter(const SBCommandInterpreter &rhs)
 
 SBCommandInterpreter::~SBCommandInterpreter() = default;
 
-const SBCommandInterpreter &SBCommandInterpreter::
-operator=(const SBCommandInterpreter &rhs) {
+const SBCommandInterpreter &
+SBCommandInterpreter::operator=(const SBCommandInterpreter &rhs) {
   LLDB_INSTRUMENT_VA(this, rhs);
 
   m_opaque_ptr = rhs.m_opaque_ptr;
@@ -117,6 +123,13 @@ bool SBCommandInterpreter::CommandExists(const char *cmd) {
                                           : false);
 }
 
+bool SBCommandInterpreter::UserCommandExists(const char *cmd) {
+  LLDB_INSTRUMENT_VA(this, cmd);
+
+  return (((cmd != nullptr) && IsValid()) ? m_opaque_ptr->UserCommandExists(cmd)
+                                          : false);
+}
+
 bool SBCommandInterpreter::AliasExists(const char *cmd) {
   LLDB_INSTRUMENT_VA(this, cmd);
 
@@ -133,17 +146,24 @@ bool SBCommandInterpreter::IsActive() {
 bool SBCommandInterpreter::WasInterrupted() const {
   LLDB_INSTRUMENT_VA(this);
 
-  return (IsValid() ? m_opaque_ptr->WasInterrupted() : false);
+  return (IsValid() ? m_opaque_ptr->GetDebugger().InterruptRequested() : false);
+}
+
+bool SBCommandInterpreter::InterruptCommand() {
+  LLDB_INSTRUMENT_VA(this);
+
+  return (IsValid() ? m_opaque_ptr->InterruptCommand() : false);
 }
 
 const char *SBCommandInterpreter::GetIOHandlerControlSequence(char ch) {
   LLDB_INSTRUMENT_VA(this, ch);
 
-  return (IsValid()
-              ? m_opaque_ptr->GetDebugger()
-                    .GetTopIOHandlerControlSequence(ch)
-                    .GetCString()
-              : nullptr);
+  if (!IsValid())
+    return nullptr;
+
+  return ConstString(
+             m_opaque_ptr->GetDebugger().GetTopIOHandlerControlSequence(ch))
+      .GetCString();
 }
 
 lldb::ReturnStatus
@@ -188,7 +208,7 @@ void SBCommandInterpreter::HandleCommandsFromFile(
   LLDB_INSTRUMENT_VA(this, file, override_context, options, result);
 
   if (!IsValid()) {
-    result->AppendError("SBCommandInterpreter is not valid.");
+    result->AppendError("SBCommandInterpreter is not valid");
     return;
   }
 
@@ -202,8 +222,7 @@ void SBCommandInterpreter::HandleCommandsFromFile(
   if (override_context.get())
     m_opaque_ptr->HandleCommandsFromFile(tmp_spec,
                                          override_context.get()->Lock(true),
-                                         options.ref(),
-                                         result.ref());
+                                         options.ref(), result.ref());
 
   else
     m_opaque_ptr->HandleCommandsFromFile(tmp_spec, options.ref(), result.ref());
@@ -244,12 +263,25 @@ int SBCommandInterpreter::HandleCompletionWithDescriptions(
   if (!IsValid())
     return 0;
 
+  if (max_return_elements == 0)
+    return 0;
+
   lldb_private::StringList lldb_matches, lldb_descriptions;
   CompletionResult result;
   CompletionRequest request(current_line, cursor - current_line, result);
+  if (max_return_elements > 0)
+    request.SetMaxReturnElements(max_return_elements);
   m_opaque_ptr->HandleCompletion(request);
   result.GetMatches(lldb_matches);
   result.GetDescriptions(lldb_descriptions);
+
+  // limit the matches to the max_return_elements if necessary
+  if (max_return_elements > 0 &&
+      lldb_matches.GetSize() > static_cast<size_t>(max_return_elements)) {
+    lldb_matches.SetSize(max_return_elements);
+    lldb_descriptions.SetSize(max_return_elements);
+  }
+  int number_of_matches = lldb_matches.GetSize();
 
   // Make the result array indexed from 1 again by adding the 'common prefix'
   // of all completions as element 0. This is done to emulate the old API.
@@ -284,7 +316,7 @@ int SBCommandInterpreter::HandleCompletionWithDescriptions(
   matches.AppendList(temp_matches_list);
   SBStringList temp_descriptions_list(&lldb_descriptions);
   descriptions.AppendList(temp_descriptions_list);
-  return result.GetNumberOfResults();
+  return number_of_matches;
 }
 
 int SBCommandInterpreter::HandleCompletionWithDescriptions(
@@ -493,21 +525,24 @@ SBBroadcaster SBCommandInterpreter::GetBroadcaster() {
 const char *SBCommandInterpreter::GetBroadcasterClass() {
   LLDB_INSTRUMENT();
 
-  return CommandInterpreter::GetStaticBroadcasterClass().AsCString();
+  return ConstString(CommandInterpreter::GetStaticBroadcasterClass())
+      .AsCString();
 }
 
 const char *SBCommandInterpreter::GetArgumentTypeAsCString(
     const lldb::CommandArgumentType arg_type) {
   LLDB_INSTRUMENT_VA(arg_type);
 
-  return CommandObject::GetArgumentTypeAsCString(arg_type);
+  return ConstString(CommandObject::GetArgumentTypeAsCString(arg_type))
+      .GetCString();
 }
 
 const char *SBCommandInterpreter::GetArgumentDescriptionAsCString(
     const lldb::CommandArgumentType arg_type) {
   LLDB_INSTRUMENT_VA(arg_type);
 
-  return CommandObject::GetArgumentDescriptionAsCString(arg_type);
+  return ConstString(CommandObject::GetArgumentDescriptionAsCString(arg_type))
+      .GetCString();
 }
 
 bool SBCommandInterpreter::EventIsCommandInterpreterEvent(
@@ -534,6 +569,34 @@ bool SBCommandInterpreter::SetCommandOverrideCallback(
     }
   }
   return false;
+}
+
+SBStructuredData SBCommandInterpreter::GetStatistics() {
+  LLDB_INSTRUMENT_VA(this);
+
+  SBStructuredData data;
+  if (!IsValid())
+    return data;
+
+  std::string json_str =
+      llvm::formatv("{0:2}", m_opaque_ptr->GetStatistics()).str();
+  data.m_impl_up->SetObjectSP(StructuredData::ParseJSON(json_str));
+  return data;
+}
+
+SBStructuredData SBCommandInterpreter::GetTranscript() {
+  LLDB_INSTRUMENT_VA(this);
+
+  SBStructuredData data;
+  if (IsValid())
+    // A deep copy is performed by `std::make_shared` on the
+    // `StructuredData::Array`, via its implicitly-declared copy constructor.
+    // This ensures thread-safety between the user changing the returned
+    // `SBStructuredData` and the `CommandInterpreter` changing its internal
+    // `m_transcript`.
+    data.m_impl_up->SetObjectSP(
+        std::make_shared<StructuredData::Array>(m_opaque_ptr->GetTranscript()));
+  return data;
 }
 
 lldb::SBCommand SBCommandInterpreter::AddMultiwordCommand(const char *name,
@@ -598,7 +661,8 @@ SBCommand::operator bool() const {
 const char *SBCommand::GetName() {
   LLDB_INSTRUMENT_VA(this);
 
-  return (IsValid() ? ConstString(m_opaque_sp->GetCommandName()).AsCString() : nullptr);
+  return (IsValid() ? ConstString(m_opaque_sp->GetCommandName()).AsCString()
+                    : nullptr);
 }
 
 const char *SBCommand::GetHelp() {
@@ -691,4 +755,16 @@ void SBCommand::SetFlags(uint32_t flags) {
 
   if (IsValid())
     m_opaque_sp->GetFlags().Set(flags);
+}
+
+void SBCommandInterpreter::SetPrintCallback(
+    lldb::SBCommandPrintCallback callback, void *baton) {
+  LLDB_INSTRUMENT_VA(this, callback, baton);
+
+  if (m_opaque_ptr)
+    m_opaque_ptr->SetPrintCallback(
+        [callback, baton](lldb_private::CommandReturnObject &result) {
+          SBCommandReturnObject sb_result(result);
+          return callback(sb_result, baton);
+        });
 }

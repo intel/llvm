@@ -1,6 +1,6 @@
 ; Test to make sure that the 'private' is used correctly.
 ;
-; RUN: llc < %s -march=xcore | FileCheck %s
+; RUN: llc < %s -mtriple=xcore | FileCheck %s
 
 define private void @foo() {
 ; CHECK: .Lfoo:
@@ -14,7 +14,7 @@ define i32 @bar() {
 ; CHECK: bl .Lfoo
 ; CHECK: ldw r0, dp[.Lbaz]
         call void @foo()
-	%1 = load i32, i32* @baz, align 4
+	%1 = load i32, ptr @baz, align 4
         ret i32 %1
 }
 

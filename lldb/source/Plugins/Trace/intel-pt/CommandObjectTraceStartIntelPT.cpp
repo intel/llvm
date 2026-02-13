@@ -13,6 +13,7 @@
 #include "lldb/Interpreter/CommandOptionArgumentTable.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Trace.h"
+#include <optional>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -32,12 +33,12 @@ Status CommandObjectThreadTraceStartIntelPT::CommandOptions::SetOptionValue(
 
   switch (short_option) {
   case 's': {
-    if (Optional<uint64_t> bytes =
+    if (std::optional<uint64_t> bytes =
             ParsingUtils::ParseUserFriendlySizeExpression(option_arg))
       m_ipt_trace_size = *bytes;
     else
-      error.SetErrorStringWithFormat("invalid bytes expression for '%s'",
-                                     option_arg.str().c_str());
+      error = Status::FromErrorStringWithFormat(
+          "invalid bytes expression for '%s'", option_arg.str().c_str());
     break;
   }
   case 't': {
@@ -48,8 +49,8 @@ Status CommandObjectThreadTraceStartIntelPT::CommandOptions::SetOptionValue(
     int64_t psb_period;
     if (option_arg.empty() || option_arg.getAsInteger(0, psb_period) ||
         psb_period < 0)
-      error.SetErrorStringWithFormat("invalid integer value for option '%s'",
-                                     option_arg.str().c_str());
+      error = Status::FromErrorStringWithFormat(
+          "invalid integer value for option '%s'", option_arg.str().c_str());
     else
       m_psb_period = psb_period;
     break;
@@ -69,7 +70,7 @@ void CommandObjectThreadTraceStartIntelPT::CommandOptions::
 
 llvm::ArrayRef<OptionDefinition>
 CommandObjectThreadTraceStartIntelPT::CommandOptions::GetDefinitions() {
-  return llvm::makeArrayRef(g_thread_trace_start_intel_pt_options);
+  return llvm::ArrayRef(g_thread_trace_start_intel_pt_options);
 }
 
 bool CommandObjectThreadTraceStartIntelPT::DoExecuteOnThreads(
@@ -77,7 +78,7 @@ bool CommandObjectThreadTraceStartIntelPT::DoExecuteOnThreads(
     llvm::ArrayRef<lldb::tid_t> tids) {
   if (Error err = m_trace.Start(tids, m_options.m_ipt_trace_size,
                                 m_options.m_enable_tsc, m_options.m_psb_period))
-    result.SetError(Status(std::move(err)));
+    result.SetError(std::move(err));
   else
     result.SetStatus(eReturnStatusSuccessFinishResult);
 
@@ -97,21 +98,21 @@ Status CommandObjectProcessTraceStartIntelPT::CommandOptions::SetOptionValue(
 
   switch (short_option) {
   case 's': {
-    if (Optional<uint64_t> bytes =
+    if (std::optional<uint64_t> bytes =
             ParsingUtils::ParseUserFriendlySizeExpression(option_arg))
       m_ipt_trace_size = *bytes;
     else
-      error.SetErrorStringWithFormat("invalid bytes expression for '%s'",
-                                     option_arg.str().c_str());
+      error = Status::FromErrorStringWithFormat(
+          "invalid bytes expression for '%s'", option_arg.str().c_str());
     break;
   }
   case 'l': {
-    if (Optional<uint64_t> bytes =
+    if (std::optional<uint64_t> bytes =
             ParsingUtils::ParseUserFriendlySizeExpression(option_arg))
       m_process_buffer_size_limit = *bytes;
     else
-      error.SetErrorStringWithFormat("invalid bytes expression for '%s'",
-                                     option_arg.str().c_str());
+      error = Status::FromErrorStringWithFormat(
+          "invalid bytes expression for '%s'", option_arg.str().c_str());
     break;
   }
   case 't': {
@@ -130,8 +131,8 @@ Status CommandObjectProcessTraceStartIntelPT::CommandOptions::SetOptionValue(
     int64_t psb_period;
     if (option_arg.empty() || option_arg.getAsInteger(0, psb_period) ||
         psb_period < 0)
-      error.SetErrorStringWithFormat("invalid integer value for option '%s'",
-                                     option_arg.str().c_str());
+      error = Status::FromErrorStringWithFormat(
+          "invalid integer value for option '%s'", option_arg.str().c_str());
     else
       m_psb_period = psb_period;
     break;
@@ -154,26 +155,24 @@ void CommandObjectProcessTraceStartIntelPT::CommandOptions::
 
 llvm::ArrayRef<OptionDefinition>
 CommandObjectProcessTraceStartIntelPT::CommandOptions::GetDefinitions() {
-  return llvm::makeArrayRef(g_process_trace_start_intel_pt_options);
+  return llvm::ArrayRef(g_process_trace_start_intel_pt_options);
 }
 
-bool CommandObjectProcessTraceStartIntelPT::DoExecute(
+void CommandObjectProcessTraceStartIntelPT::DoExecute(
     Args &command, CommandReturnObject &result) {
   if (Error err = m_trace.Start(
           m_options.m_ipt_trace_size, m_options.m_process_buffer_size_limit,
           m_options.m_enable_tsc, m_options.m_psb_period,
           m_options.m_per_cpu_tracing, m_options.m_disable_cgroup_filtering))
-    result.SetError(Status(std::move(err)));
+    result.SetError(std::move(err));
   else
     result.SetStatus(eReturnStatusSuccessFinishResult);
-
-  return result.Succeeded();
 }
 
-Optional<uint64_t>
+std::optional<uint64_t>
 ParsingUtils::ParseUserFriendlySizeExpression(llvm::StringRef size_expression) {
   if (size_expression.empty()) {
-    return llvm::None;
+    return std::nullopt;
   }
   const uint64_t kBytesMultiplier = 1;
   const uint64_t kKibiBytesMultiplier = 1024;
@@ -187,7 +186,7 @@ ParsingUtils::ParseUserFriendlySizeExpression(llvm::StringRef size_expression) {
 
   const auto non_digit_index = size_expression.find_first_not_of("0123456789");
   if (non_digit_index == 0) { // expression starts from from non-digit char.
-    return llvm::None;
+    return std::nullopt;
   }
 
   const llvm::StringRef number_part =
@@ -196,7 +195,7 @@ ParsingUtils::ParseUserFriendlySizeExpression(llvm::StringRef size_expression) {
           : size_expression.substr(0, non_digit_index);
   uint64_t parsed_number;
   if (number_part.getAsInteger(10, parsed_number)) {
-    return llvm::None;
+    return std::nullopt;
   }
 
   if (non_digit_index != llvm::StringRef::npos) { // if expression has units.
@@ -204,7 +203,7 @@ ParsingUtils::ParseUserFriendlySizeExpression(llvm::StringRef size_expression) {
 
     auto it = multipliers.find(multiplier);
     if (it == multipliers.end())
-      return llvm::None;
+      return std::nullopt;
 
     return parsed_number * it->second;
   } else {

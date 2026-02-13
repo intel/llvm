@@ -16,7 +16,6 @@
 #include "llvm/ExecutionEngine/JITLink/TableManager.h"
 #include "llvm/ExecutionEngine/JITLink/x86_64.h"
 #include "llvm/Object/ELFObjectFile.h"
-#include "llvm/Support/Endian.h"
 
 #include "DefineExternalSectionStartAndEndSymbols.h"
 #include "EHFrameSupportImpl.h"
@@ -89,8 +88,8 @@ const uint8_t TLSInfoTableManager_ELF_x86_64::TLSInfoEntryContent[16] = {
 Error buildTables_ELF_x86_64(LinkGraph &G) {
   LLVM_DEBUG(dbgs() << "Visiting edges in graph:\n");
 
-  x86_64::GOTTableManager GOT;
-  x86_64::PLTTableManager PLT(GOT);
+  x86_64::GOTTableManager GOT(G);
+  x86_64::PLTTableManager PLT(G, GOT);
   TLSInfoTableManager_ELF_x86_64 TLSInfo;
   visitExistingEdges(G, GOT, PLT, TLSInfo);
   return Error::success();
@@ -100,59 +99,9 @@ Error buildTables_ELF_x86_64(LinkGraph &G) {
 namespace llvm {
 namespace jitlink {
 
-// This should become a template as the ELFFile is so a lot of this could become
-// generic
 class ELFLinkGraphBuilder_x86_64 : public ELFLinkGraphBuilder<object::ELF64LE> {
 private:
   using ELFT = object::ELF64LE;
-
-  enum ELFX86RelocationKind : Edge::Kind {
-    Branch32 = Edge::FirstRelocation,
-    Pointer32Signed,
-    Pointer64,
-    PCRel32,
-    PCRel32GOTLoad,
-    PCRel32GOTLoadRelaxable,
-    PCRel32REXGOTLoadRelaxable,
-    PCRel32TLV,
-    PCRel64GOT,
-    GOTOFF64,
-    GOT64,
-    Delta64,
-  };
-
-  static Expected<ELFX86RelocationKind> getRelocationKind(const uint32_t Type) {
-    switch (Type) {
-    case ELF::R_X86_64_32S:
-      return ELFX86RelocationKind::Pointer32Signed;
-    case ELF::R_X86_64_PC32:
-      return ELFX86RelocationKind::PCRel32;
-    case ELF::R_X86_64_PC64:
-    case ELF::R_X86_64_GOTPC64:
-      return ELFX86RelocationKind::Delta64;
-    case ELF::R_X86_64_64:
-      return ELFX86RelocationKind::Pointer64;
-    case ELF::R_X86_64_GOTPCREL:
-      return ELFX86RelocationKind::PCRel32GOTLoad;
-    case ELF::R_X86_64_GOTPCRELX:
-      return ELFX86RelocationKind::PCRel32GOTLoadRelaxable;
-    case ELF::R_X86_64_REX_GOTPCRELX:
-      return ELFX86RelocationKind::PCRel32REXGOTLoadRelaxable;
-    case ELF::R_X86_64_GOTPCREL64:
-      return ELFX86RelocationKind::PCRel64GOT;
-    case ELF::R_X86_64_GOT64:
-      return ELFX86RelocationKind::GOT64;
-    case ELF::R_X86_64_GOTOFF64:
-      return ELFX86RelocationKind::GOTOFF64;
-    case ELF::R_X86_64_PLT32:
-      return ELFX86RelocationKind::Branch32;
-    case ELF::R_X86_64_TLSGD:
-      return ELFX86RelocationKind::PCRel32TLV;
-    }
-    return make_error<JITLinkError>(
-        "Unsupported x86-64 relocation type " + formatv("{0:d}: ", Type) +
-        object::getELFRelocationTypeName(ELF::EM_X86_64, Type));
-  }
 
   Error addRelocations() override {
     LLVM_DEBUG(dbgs() << "Processing relocations:\n");
@@ -166,8 +115,8 @@ private:
             "No SHT_REL in valid x64 ELF object files",
             inconvertibleErrorCode());
 
-      if (Error Err = Base::forEachRelocation(RelSect, this,
-                                              &Self::addSingleRelocation))
+      if (Error Err = Base::forEachRelaRelocation(RelSect, this,
+                                                  &Self::addSingleRelocation))
         return Err;
     }
 
@@ -178,6 +127,12 @@ private:
                             const typename ELFT::Shdr &FixupSection,
                             Block &BlockToFix) {
     using Base = ELFLinkGraphBuilder<ELFT>;
+
+    auto ELFReloc = Rel.getType(false);
+
+    // R_X86_64_NONE is a no-op.
+    if (LLVM_UNLIKELY(ELFReloc == ELF::R_X86_64_NONE))
+      return Error::success();
 
     uint32_t SymbolIndex = Rel.getSymbol(false);
     auto ObjSymbol = Base::Obj.getRelocationSymbol(Rel, Base::SymTabSec);
@@ -194,62 +149,78 @@ private:
           inconvertibleErrorCode());
 
     // Validate the relocation kind.
-    auto ELFRelocKind = getRelocationKind(Rel.getType(false));
-    if (!ELFRelocKind)
-      return ELFRelocKind.takeError();
-
     int64_t Addend = Rel.r_addend;
     Edge::Kind Kind = Edge::Invalid;
-    switch (*ELFRelocKind) {
-    case PCRel32:
+
+    switch (ELFReloc) {
+    case ELF::R_X86_64_PC8:
+      Kind = x86_64::Delta8;
+      break;
+    case ELF::R_X86_64_PC16:
+      Kind = x86_64::Delta16;
+      break;
+    case ELF::R_X86_64_PC32:
+    case ELF::R_X86_64_GOTPC32:
       Kind = x86_64::Delta32;
       break;
-    case Delta64:
+    case ELF::R_X86_64_PC64:
+    case ELF::R_X86_64_GOTPC64:
       Kind = x86_64::Delta64;
       break;
-    case Pointer32Signed:
+    case ELF::R_X86_64_32:
+      Kind = x86_64::Pointer32;
+      break;
+    case ELF::R_X86_64_16:
+      Kind = x86_64::Pointer16;
+      break;
+    case ELF::R_X86_64_8:
+      Kind = x86_64::Pointer8;
+      break;
+    case ELF::R_X86_64_32S:
       Kind = x86_64::Pointer32Signed;
       break;
-    case Pointer64:
+    case ELF::R_X86_64_64:
       Kind = x86_64::Pointer64;
       break;
-    case PCRel32GOTLoad: {
+    case ELF::R_X86_64_SIZE32:
+      Kind = x86_64::Size32;
+      break;
+    case ELF::R_X86_64_SIZE64:
+      Kind = x86_64::Size64;
+      break;
+    case ELF::R_X86_64_GOTPCREL:
       Kind = x86_64::RequestGOTAndTransformToDelta32;
       break;
-    }
-    case PCRel32REXGOTLoadRelaxable: {
+    case ELF::R_X86_64_REX_GOTPCRELX:
       Kind = x86_64::RequestGOTAndTransformToPCRel32GOTLoadREXRelaxable;
       Addend = 0;
       break;
-    }
-    case PCRel32TLV: {
+    case ELF::R_X86_64_TLSGD:
       Kind = x86_64::RequestTLSDescInGOTAndTransformToDelta32;
       break;
-    }
-    case PCRel32GOTLoadRelaxable: {
+    case ELF::R_X86_64_GOTPCRELX:
       Kind = x86_64::RequestGOTAndTransformToPCRel32GOTLoadRelaxable;
       Addend = 0;
       break;
-    }
-    case PCRel64GOT: {
+    case ELF::R_X86_64_GOTPCREL64:
       Kind = x86_64::RequestGOTAndTransformToDelta64;
       break;
-    }
-    case GOT64: {
+    case ELF::R_X86_64_GOT64:
       Kind = x86_64::RequestGOTAndTransformToDelta64FromGOT;
       break;
-    }
-    case GOTOFF64: {
+    case ELF::R_X86_64_GOTOFF64:
       Kind = x86_64::Delta64FromGOT;
       break;
-    }
-    case Branch32: {
+    case ELF::R_X86_64_PLT32:
       Kind = x86_64::BranchPCRel32;
       // BranchPCRel32 implicitly handles the '-4' PC adjustment, so we have to
       // adjust the addend by '+4' to compensate.
       Addend += 4;
       break;
-    }
+    default:
+      return make_error<JITLinkError>(
+          "In " + G->getName() + ": Unsupported x86-64 relocation type " +
+          object::getELFRelocationTypeName(ELF::EM_X86_64, ELFReloc));
     }
 
     auto FixupAddress = orc::ExecutorAddr(FixupSection.sh_addr) + Rel.r_offset;
@@ -267,8 +238,12 @@ private:
 
 public:
   ELFLinkGraphBuilder_x86_64(StringRef FileName,
-                             const object::ELFFile<object::ELF64LE> &Obj)
-      : ELFLinkGraphBuilder(Obj, Triple("x86_64-unknown-linux"), FileName,
+                             std::shared_ptr<orc::SymbolStringPool> SSP,
+                             llvm::Triple Triple,
+                             const object::ELFFile<object::ELF64LE> &Obj,
+                             SubtargetFeatures Features)
+      : ELFLinkGraphBuilder(Obj, std::move(SSP), std::move(Triple),
+                            std::move(Features), FileName,
                             x86_64::getEdgeKindName) {}
 };
 
@@ -280,18 +255,20 @@ public:
                       std::unique_ptr<LinkGraph> G,
                       PassConfiguration PassConfig)
       : JITLinker(std::move(Ctx), std::move(G), std::move(PassConfig)) {
-    getPassConfig().PostAllocationPasses.push_back(
-        [this](LinkGraph &G) { return getOrCreateGOTSymbol(G); });
+
+    if (shouldAddDefaultTargetPasses(getGraph().getTargetTriple()))
+      getPassConfig().PostAllocationPasses.push_back(
+          [this](LinkGraph &G) { return getOrCreateGOTSymbol(G); });
   }
 
 private:
   Symbol *GOTSymbol = nullptr;
-
   Error getOrCreateGOTSymbol(LinkGraph &G) {
     auto DefineExternalGOTSymbolIfPresent =
         createDefineExternalSectionStartAndEndSymbolsPass(
             [&](LinkGraph &LG, Symbol &Sym) -> SectionRangeSymbolDesc {
-              if (Sym.getName() == ELFGOTSymbolName)
+              if (Sym.getName() != nullptr &&
+                  *Sym.getName() == ELFGOTSymbolName)
                 if (auto *GOTSection = G.findSectionByName(
                         x86_64::GOTTableManager::getSectionName())) {
                   GOTSymbol = &Sym;
@@ -317,7 +294,7 @@ private:
 
       // Check for an existing defined symbol.
       for (auto *Sym : GOTSection->symbols())
-        if (Sym->getName() == ELFGOTSymbolName) {
+        if (Sym->getName() != nullptr && *Sym->getName() == ELFGOTSymbolName) {
           GOTSymbol = Sym;
           return Error::success();
         }
@@ -334,6 +311,22 @@ private:
                                 Linkage::Strong, Scope::Local, false, true);
     }
 
+    // If we still haven't found a GOT symbol then double check the externals.
+    // We may have a GOT-relative reference but no GOT section, in which case
+    // we just need to point the GOT symbol at some address in this graph.
+    if (!GOTSymbol) {
+      for (auto *Sym : G.external_symbols()) {
+        if (*Sym->getName() == ELFGOTSymbolName) {
+          auto Blocks = G.blocks();
+          if (!Blocks.empty()) {
+            G.makeAbsolute(*Sym, (*Blocks.begin())->getAddress());
+            GOTSymbol = Sym;
+            break;
+          }
+        }
+      }
+    }
+
     return Error::success();
   }
 
@@ -342,8 +335,8 @@ private:
   }
 };
 
-Expected<std::unique_ptr<LinkGraph>>
-createLinkGraphFromELFObject_x86_64(MemoryBufferRef ObjectBuffer) {
+Expected<std::unique_ptr<LinkGraph>> createLinkGraphFromELFObject_x86_64(
+    MemoryBufferRef ObjectBuffer, std::shared_ptr<orc::SymbolStringPool> SSP) {
   LLVM_DEBUG({
     dbgs() << "Building jitlink graph for new input "
            << ObjectBuffer.getBufferIdentifier() << "...\n";
@@ -353,28 +346,15 @@ createLinkGraphFromELFObject_x86_64(MemoryBufferRef ObjectBuffer) {
   if (!ELFObj)
     return ELFObj.takeError();
 
+  auto Features = (*ELFObj)->getFeatures();
+  if (!Features)
+    return Features.takeError();
+
   auto &ELFObjFile = cast<object::ELFObjectFile<object::ELF64LE>>(**ELFObj);
-  return ELFLinkGraphBuilder_x86_64((*ELFObj)->getFileName(),
-                                    ELFObjFile.getELFFile())
+  return ELFLinkGraphBuilder_x86_64(
+             (*ELFObj)->getFileName(), std::move(SSP), (*ELFObj)->makeTriple(),
+             ELFObjFile.getELFFile(), std::move(*Features))
       .buildGraph();
-}
-
-static SectionRangeSymbolDesc
-identifyELFSectionStartAndEndSymbols(LinkGraph &G, Symbol &Sym) {
-  constexpr StringRef StartSymbolPrefix = "__start";
-  constexpr StringRef EndSymbolPrefix = "__end";
-
-  auto SymName = Sym.getName();
-  if (SymName.startswith(StartSymbolPrefix)) {
-    if (auto *Sec =
-            G.findSectionByName(SymName.drop_front(StartSymbolPrefix.size())))
-      return {*Sec, true};
-  } else if (SymName.startswith(EndSymbolPrefix)) {
-    if (auto *Sec =
-            G.findSectionByName(SymName.drop_front(EndSymbolPrefix.size())))
-      return {*Sec, false};
-  }
-  return {};
 }
 
 void link_ELF_x86_64(std::unique_ptr<LinkGraph> G,

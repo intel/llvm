@@ -14,6 +14,7 @@
 #include "WriterUtils.h"
 #include "lld/Common/LLVM.h"
 #include "llvm/Object/Wasm.h"
+#include <optional>
 
 namespace lld {
 namespace wasm {
@@ -23,11 +24,11 @@ namespace wasm {
 class InputElement {
 protected:
   InputElement(StringRef name, ObjFile *f)
-      : file(f), live(!config->gcSections), name(name) {}
+      : file(f), live(!ctx.arg.gcSections), name(name) {}
 
 public:
   StringRef getName() const { return name; }
-  uint32_t getAssignedIndex() const { return assignedIndex.value(); }
+  uint32_t getAssignedIndex() const { return *assignedIndex; }
   bool hasAssignedIndex() const { return assignedIndex.has_value(); }
   void assignIndex(uint32_t index) {
     assert(!hasAssignedIndex());
@@ -39,7 +40,7 @@ public:
 
 protected:
   StringRef name;
-  llvm::Optional<uint32_t> assignedIndex;
+  std::optional<uint32_t> assignedIndex;
 };
 
 inline WasmInitExpr intConst(uint64_t value, bool is64) {
@@ -64,7 +65,7 @@ public:
   const WasmInitExpr &getInitExpr() const { return initExpr; }
 
   void setPointerValue(uint64_t value) {
-    initExpr = intConst(value, config->is64.value_or(false));
+    initExpr = intConst(value, ctx.arg.is64.value_or(false));
   }
 
 private:
@@ -75,7 +76,9 @@ private:
 class InputTag : public InputElement {
 public:
   InputTag(const WasmSignature &s, const WasmTag &t, ObjFile *f)
-      : InputElement(t.SymbolName, f), signature(s) {}
+      : InputElement(t.SymbolName, f), signature(s) {
+    assert(s.Kind == WasmSignature::Tag);
+  }
 
   const WasmSignature &signature;
 };

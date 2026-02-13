@@ -1,4 +1,4 @@
-//===--- StaticallyConstructedObjectsCheck.cpp - clang-tidy----------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,9 +10,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace fuchsia {
+namespace clang::tidy::fuchsia {
 
 namespace {
 AST_MATCHER(Expr, isConstantInitializer) {
@@ -50,6 +48,4 @@ void StaticallyConstructedObjectsCheck::check(
                            "constexpr constructor instead");
 }
 
-} // namespace fuchsia
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::fuchsia

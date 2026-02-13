@@ -9,7 +9,6 @@
 #include "Perf.h"
 
 #include "Plugins/Process/POSIX/ProcessPOSIXLog.h"
-#include "lldb/Host/linux/Support.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -76,9 +75,9 @@ void resource_handle::FileDescriptorDeleter::operator()(long *ptr) {
 }
 
 llvm::Expected<PerfEvent> PerfEvent::Init(perf_event_attr &attr,
-                                          Optional<lldb::pid_t> pid,
-                                          Optional<lldb::cpu_id_t> cpu,
-                                          Optional<long> group_fd,
+                                          std::optional<lldb::pid_t> pid,
+                                          std::optional<lldb::cpu_id_t> cpu,
+                                          std::optional<long> group_fd,
                                           unsigned long flags) {
   errno = 0;
   long fd = syscall(SYS_perf_event_open, &attr, pid.value_or(-1),
@@ -92,8 +91,8 @@ llvm::Expected<PerfEvent> PerfEvent::Init(perf_event_attr &attr,
 }
 
 llvm::Expected<PerfEvent> PerfEvent::Init(perf_event_attr &attr,
-                                          Optional<lldb::pid_t> pid,
-                                          Optional<lldb::cpu_id_t> cpu) {
+                                          std::optional<lldb::pid_t> pid,
+                                          std::optional<lldb::cpu_id_t> cpu) {
   return Init(attr, pid, cpu, -1, 0);
 }
 
@@ -125,6 +124,10 @@ llvm::Error PerfEvent::MmapMetadataAndDataBuffer(size_t num_data_pages,
 }
 
 llvm::Error PerfEvent::MmapAuxBuffer(size_t num_aux_pages) {
+#ifndef PERF_ATTR_SIZE_VER5
+  return createStringError(inconvertibleErrorCode(),
+                           "Intel PT Linux perf event not supported");
+#else
   if (num_aux_pages == 0)
     return Error::success();
 
@@ -141,6 +144,7 @@ llvm::Error PerfEvent::MmapAuxBuffer(size_t num_aux_pages) {
     return Error::success();
   } else
     return mmap_aux.takeError();
+#endif
 }
 
 llvm::Error PerfEvent::MmapMetadataAndBuffers(size_t num_data_pages,
@@ -170,16 +174,24 @@ perf_event_mmap_page &PerfEvent::GetMetadataPage() const {
 }
 
 ArrayRef<uint8_t> PerfEvent::GetDataBuffer() const {
+#ifndef PERF_ATTR_SIZE_VER5
+  llvm_unreachable("Intel PT Linux perf event not supported");
+#else
   perf_event_mmap_page &mmap_metadata = GetMetadataPage();
   return {reinterpret_cast<uint8_t *>(m_metadata_data_base.get()) +
               mmap_metadata.data_offset,
           static_cast<size_t>(mmap_metadata.data_size)};
+#endif
 }
 
 ArrayRef<uint8_t> PerfEvent::GetAuxBuffer() const {
+#ifndef PERF_ATTR_SIZE_VER5
+  llvm_unreachable("Intel PT Linux perf event not supported");
+#else
   perf_event_mmap_page &mmap_metadata = GetMetadataPage();
   return {reinterpret_cast<uint8_t *>(m_aux_base.get()),
           static_cast<size_t>(mmap_metadata.aux_size)};
+#endif
 }
 
 Expected<std::vector<uint8_t>> PerfEvent::GetReadOnlyDataBuffer() {
@@ -188,6 +200,10 @@ Expected<std::vector<uint8_t>> PerfEvent::GetReadOnlyDataBuffer() {
   // this piece of code updates some pointers. See more about data_tail
   // in https://man7.org/linux/man-pages/man2/perf_event_open.2.html.
 
+#ifndef PERF_ATTR_SIZE_VER5
+  return createStringError(inconvertibleErrorCode(),
+                           "Intel PT Linux perf event not supported");
+#else
   bool was_enabled = m_enabled;
   if (Error err = DisableWithIoctl())
     return std::move(err);
@@ -211,7 +227,7 @@ Expected<std::vector<uint8_t>> PerfEvent::GetReadOnlyDataBuffer() {
     uint64_t actual_data_head = data_head % data_size;
     // The buffer has wrapped, so we first the oldest chunk of data
     output.insert(output.end(), data.begin() + actual_data_head, data.end());
-    // And we we read the most recent chunk of data
+    // And we read the most recent chunk of data
     output.insert(output.end(), data.begin(), data.begin() + actual_data_head);
   } else {
     // There's been no wrapping, so we just read linearly
@@ -224,6 +240,7 @@ Expected<std::vector<uint8_t>> PerfEvent::GetReadOnlyDataBuffer() {
   }
 
   return output;
+#endif
 }
 
 Expected<std::vector<uint8_t>> PerfEvent::GetReadOnlyAuxBuffer() {
@@ -232,6 +249,10 @@ Expected<std::vector<uint8_t>> PerfEvent::GetReadOnlyAuxBuffer() {
   // this piece of code updates some pointers. See more about aux_tail
   // in https://man7.org/linux/man-pages/man2/perf_event_open.2.html.
 
+#ifndef PERF_ATTR_SIZE_VER5
+  return createStringError(inconvertibleErrorCode(),
+                           "Intel PT Linux perf event not supported");
+#else
   bool was_enabled = m_enabled;
   if (Error err = DisableWithIoctl())
     return std::move(err);
@@ -264,6 +285,7 @@ Expected<std::vector<uint8_t>> PerfEvent::GetReadOnlyAuxBuffer() {
   }
 
   return output;
+#endif
 }
 
 Error PerfEvent::DisableWithIoctl() {
@@ -295,11 +317,15 @@ Error PerfEvent::EnableWithIoctl() {
 }
 
 size_t PerfEvent::GetEffectiveDataBufferSize() const {
+#ifndef PERF_ATTR_SIZE_VER5
+  llvm_unreachable("Intel PT Linux perf event not supported");
+#else
   perf_event_mmap_page &mmap_metadata = GetMetadataPage();
   if (mmap_metadata.data_head < mmap_metadata.data_size)
     return mmap_metadata.data_head;
   else
     return mmap_metadata.data_size; // The buffer has wrapped.
+#endif
 }
 
 Expected<PerfEvent>
@@ -335,12 +361,12 @@ lldb_private::process_linux::CreateContextSwitchTracePerfEvent(
   LLDB_LOG(log, "Will create context switch trace buffer of size {0}",
            data_buffer_size);
 
-  Optional<long> group_fd;
+  std::optional<long> group_fd;
   if (parent_perf_event)
     group_fd = parent_perf_event->GetFd();
 
-  if (Expected<PerfEvent> perf_event =
-          PerfEvent::Init(attr, /*pid=*/None, cpu_id, group_fd, /*flags=*/0)) {
+  if (Expected<PerfEvent> perf_event = PerfEvent::Init(
+          attr, /*pid=*/std::nullopt, cpu_id, group_fd, /*flags=*/0)) {
     if (Error mmap_err = perf_event->MmapMetadataAndBuffers(
             data_buffer_numpages, 0, /*data_buffer_write=*/false)) {
       return std::move(mmap_err);

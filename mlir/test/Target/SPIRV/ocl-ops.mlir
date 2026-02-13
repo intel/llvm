@@ -1,6 +1,11 @@
-// RUN: mlir-translate -test-spirv-roundtrip %s | FileCheck %s
+// RUN: mlir-translate -no-implicit-module -test-spirv-roundtrip %s | FileCheck %s
 
-spirv.module Physical64 OpenCL requires #spirv.vce<v1.0, [Kernel, Addresses], []> {
+// RUN: %if spirv-tools %{ rm -rf %t %}
+// RUN: %if spirv-tools %{ mkdir %t %}
+// RUN: %if spirv-tools %{ mlir-translate --no-implicit-module --serialize-spirv --split-input-file --spirv-save-validation-files-with-prefix=%t/module %s %}
+// RUN: %if spirv-tools %{ spirv-val %t %}
+
+spirv.module Physical64 OpenCL requires #spirv.vce<v1.0, [Kernel, Addresses, Vector16, Linkage], []> {
   spirv.func @float_insts(%arg0 : f32) "None" {
     // CHECK: {{%.*}} = spirv.CL.exp {{%.*}} : f32
     %0 = spirv.CL.exp %arg0 : f32
@@ -32,7 +37,7 @@ spirv.module Physical64 OpenCL requires #spirv.vce<v1.0, [Kernel, Addresses], []
     %0 = spirv.CL.s_abs %arg0 : i32
     spirv.Return
   }
-  
+
   spirv.func @vector_size16(%arg0 : vector<16xf32>) "None" {
     // CHECK: {{%.*}} = spirv.CL.fabs {{%.*}} : vector<16xf32>
     %0 = spirv.CL.fabs %arg0 : vector<16xf32>

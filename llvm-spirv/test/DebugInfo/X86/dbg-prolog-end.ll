@@ -1,8 +1,16 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -O0 < %t.ll | FileCheck %s
 
-; RUN: llc -mtriple=%triple -O0 < %t.ll | FileCheck %s
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -O0 < %t.ll | FileCheck %s
+
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -O0 < %t.ll | FileCheck %s
+
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
 
@@ -12,18 +20,18 @@ define i32 @foo(i32 %i) nounwind ssp !dbg !1 {
 entry:
   %i.addr = alloca i32, align 4
   %j = alloca i32, align 4
-  store i32 %i, i32* %i.addr, align 4
-  call void @llvm.dbg.declare(metadata i32* %i.addr, metadata !7, metadata !DIExpression()), !dbg !8
-  call void @llvm.dbg.declare(metadata i32* %j, metadata !9, metadata !DIExpression()), !dbg !11
-  store i32 2, i32* %j, align 4, !dbg !12
-  %tmp = load i32, i32* %j, align 4, !dbg !13
+  store i32 %i, ptr %i.addr, align 4
+  call void @llvm.dbg.declare(metadata ptr %i.addr, metadata !7, metadata !DIExpression()), !dbg !8
+  call void @llvm.dbg.declare(metadata ptr %j, metadata !9, metadata !DIExpression()), !dbg !11
+  store i32 2, ptr %j, align 4, !dbg !12
+  %tmp = load i32, ptr %j, align 4, !dbg !13
   %inc = add nsw i32 %tmp, 1, !dbg !13
-  store i32 %inc, i32* %j, align 4, !dbg !13
-  %tmp1 = load i32, i32* %j, align 4, !dbg !14
-  %tmp2 = load i32, i32* %i.addr, align 4, !dbg !14
+  store i32 %inc, ptr %j, align 4, !dbg !13
+  %tmp1 = load i32, ptr %j, align 4, !dbg !14
+  %tmp2 = load i32, ptr %i.addr, align 4, !dbg !14
   %add = add nsw i32 %tmp1, %tmp2, !dbg !14
-  store i32 %add, i32* %j, align 4, !dbg !14
-  %tmp3 = load i32, i32* %j, align 4, !dbg !15
+  store i32 %add, ptr %j, align 4, !dbg !14
+  %tmp3 = load i32, ptr %j, align 4, !dbg !15
   ret i32 %tmp3, !dbg !15
 }
 
@@ -35,7 +43,7 @@ declare void @llvm.dbg.declare(metadata, metadata, metadata) nounwind readnone
 define i32 @main() nounwind ssp !dbg !6 {
 entry:
   %retval = alloca i32, align 4
-  store i32 0, i32* %retval, !dbg !22
+  store i32 0, ptr %retval, !dbg !22
   %call = call i32 @foo(i32 21), !dbg !16
   ret i32 %call, !dbg !16
 }

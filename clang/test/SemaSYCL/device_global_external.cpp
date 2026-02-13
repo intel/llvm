@@ -5,7 +5,7 @@
 using namespace sycl::ext::oneapi;
 
 SYCL_EXTERNAL device_global<int> glob;
-// expected-error@+1{{'sycl_device' attribute cannot be applied to a static variable or variable in an anonymous namespace}}
+// expected-error@+1{{'sycl_device' attribute cannot be applied to a variable without external linkage}}
 SYCL_EXTERNAL static device_global<float> static_glob;
 
 namespace foo {
@@ -20,9 +20,14 @@ struct RandomStruct {
 SYCL_EXTERNAL RandomStruct S;
 
 namespace {
-// expected-error@+1{{'sycl_device' attribute cannot be applied to a static variable or variable in an anonymous namespace}}
+// expected-error@+1{{'sycl_device' attribute cannot be applied to a variable without external linkage}}
 SYCL_EXTERNAL device_global<int> same_name;
+
+struct UnnX {};
 } // namespace
+
+// expected-error@+1{{'sycl_device' attribute cannot be applied to a variable without external linkage}}
+SYCL_EXTERNAL device_global<UnnX> dg_x;
 
 // expected-error@+1{{'sycl_device' attribute can only be applied to 'device_global' variables}}
 SYCL_EXTERNAL int AAA;

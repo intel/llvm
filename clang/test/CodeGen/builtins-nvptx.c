@@ -1,27 +1,62 @@
 // REQUIRES: nvptx-registered-target
-// RUN: %clang_cc1 -no-opaque-pointers -ffp-contract=off -triple nvptx-unknown-unknown -target-cpu sm_80 -target-feature +ptx70 \
-// RUN:            -fcuda-is-device -S -emit-llvm -o - -x cuda %s \
+// RUN: %clang_cc1 -ffp-contract=off -triple nvptx64-unknown-unknown -target-cpu sm_70 -target-feature +ptx63 \
+// RUN:            -disable-llvm-optzns -fcuda-is-device -emit-llvm -o - -x cuda %s \
+// RUN:   | FileCheck -check-prefix=CHECK -check-prefix=CHECK_PTX63_SM70 -check-prefix=LP64 %s
+// RUN: %clang_cc1 -ffp-contract=off -triple nvptx-unknown-unknown -target-cpu sm_80 -target-feature +ptx70 \
+// RUN:            -disable-llvm-optzns -fcuda-is-device -emit-llvm -o - -x cuda %s \
 // RUN:   | FileCheck -check-prefix=CHECK -check-prefix=CHECK_PTX70_SM80 -check-prefix=LP32 %s
-// RUN: %clang_cc1 -no-opaque-pointers -ffp-contract=off -triple nvptx64-unknown-unknown -target-cpu sm_80 -target-feature +ptx70 \
-// RUN:            -fcuda-is-device -S -emit-llvm -o - -x cuda %s \
+// RUN: %clang_cc1 -ffp-contract=off -triple nvptx64-unknown-unknown -target-cpu sm_80 -target-feature +ptx70 \
+// RUN:            -disable-llvm-optzns -fcuda-is-device -emit-llvm -o - -x cuda %s \
 // RUN:   | FileCheck -check-prefix=CHECK -check-prefix=CHECK_PTX70_SM80 -check-prefix=LP64 %s
-// RUN: %clang_cc1 -no-opaque-pointers -ffp-contract=off -triple nvptx-unknown-unknown -target-cpu sm_60 \
-// RUN:            -fcuda-is-device -S -emit-llvm -o - -x cuda %s \
+// RUN: %clang_cc1 -ffp-contract=off -triple nvptx-unknown-unknown -target-cpu sm_60 -target-feature +ptx62 \
+// RUN:            -disable-llvm-optzns -fcuda-is-device -emit-llvm -o - -x cuda %s \
 // RUN:   | FileCheck -check-prefix=CHECK -check-prefix=LP32 %s
-// RUN: %clang_cc1 -no-opaque-pointers -ffp-contract=off -triple nvptx64-unknown-unknown -target-cpu sm_60 \
-// RUN:            -fcuda-is-device -S -emit-llvm -o - -x cuda %s \
+// RUN: %clang_cc1 -ffp-contract=off -triple nvptx64-unknown-unknown -target-cpu sm_60 -target-feature +ptx62 \
+// RUN:            -disable-llvm-optzns -fcuda-is-device -emit-llvm -o - -x cuda %s \
 // RUN:   | FileCheck -check-prefix=CHECK -check-prefix=LP64 %s
-// RUN: %clang_cc1 -no-opaque-pointers -ffp-contract=off -triple nvptx64-unknown-unknown -target-cpu sm_61 \
-// RUN:            -fcuda-is-device -S -emit-llvm -o - -x cuda %s \
+// RUN: %clang_cc1 -ffp-contract=off -triple nvptx64-unknown-unknown -target-cpu sm_61 -target-feature +ptx62 \
+// RUN:            -disable-llvm-optzns -fcuda-is-device -emit-llvm -o - -x cuda %s \
 // RUN:   | FileCheck -check-prefix=CHECK -check-prefix=LP64 %s
-// RUN: %clang_cc1 -no-opaque-pointers -triple nvptx-unknown-unknown -target-cpu sm_53 \
+// RUN: %clang_cc1 -triple nvptx-unknown-unknown -target-cpu sm_53 -target-feature +ptx62 \
 // RUN:   -DERROR_CHECK -fcuda-is-device -S -o /dev/null -x cuda -verify %s
-// RUN: %clang_cc1 -no-opaque-pointers -ffp-contract=off -triple nvptx-unknown-unknown -target-cpu sm_86 -target-feature +ptx72 \
-// RUN:            -fcuda-is-device -S -emit-llvm -o - -x cuda %s \
+// RUN: %clang_cc1 -ffp-contract=off -triple nvptx-unknown-unknown -target-cpu sm_86 -target-feature +ptx72 \
+// RUN:            -disable-llvm-optzns -fcuda-is-device -emit-llvm -o - -x cuda %s \
 // RUN:   | FileCheck -check-prefix=CHECK -check-prefix=CHECK_PTX72_SM86 -check-prefix=LP32 %s
-// RUN: %clang_cc1 -no-opaque-pointers -ffp-contract=off -triple nvptx64-unknown-unknown -target-cpu sm_86 -target-feature +ptx72 \
-// RUN:            -fcuda-is-device -S -emit-llvm -o - -x cuda %s \
+// RUN: %clang_cc1 -ffp-contract=off -triple nvptx64-unknown-unknown -target-cpu sm_86 -target-feature +ptx72 \
+// RUN:            -disable-llvm-optzns -fcuda-is-device -emit-llvm -o - -x cuda %s \
 // RUN:   | FileCheck -check-prefix=CHECK -check-prefix=CHECK_PTX72_SM86 -check-prefix=LP64 %s
+// RUN: %clang_cc1 -ffp-contract=off -triple nvptx64-unknown-unknown -target-cpu sm_89 -target-feature +ptx81 -DPTX=81\
+// RUN:            -disable-llvm-optzns -fcuda-is-device -emit-llvm -o - -x cuda %s \
+// RUN:   | FileCheck -check-prefix=CHECK -check-prefix=CHECK_PTX81_SM89 %s
+// RUN: %clang_cc1 -ffp-contract=off -triple nvptx64-unknown-unknown -target-cpu sm_80 -target-feature +ptx81 -DPTX=81 \
+// RUN:            -disable-llvm-optzns -fcuda-is-device -emit-llvm -o - -x cuda %s \
+// RUN:   | FileCheck -check-prefix=CHECK -check-prefix=CHECK_PTX81_SM80 %s
+// RUN: %clang_cc1 -ffp-contract=off -triple nvptx64-unknown-unknown -target-cpu sm_90 -target-feature +ptx78 -DPTX=78 \
+// RUN:            -disable-llvm-optzns -fcuda-is-device -emit-llvm -o - -x cuda %s \
+// RUN:   | FileCheck -check-prefix=CHECK -check-prefix=CHECK_PTX78_SM90 %s
+// RUN: %clang_cc1 -ffp-contract=off -triple nvptx64-unknown-unknown -target-cpu sm_100 -target-feature +ptx86 -DPTX=86 \
+// RUN:            -disable-llvm-optzns -fcuda-is-device -emit-llvm -o - -x cuda %s \
+// RUN:   | FileCheck -check-prefix=CHECK -check-prefix=CHECK_PTX86_SM100 %s
+// RUN: %clang_cc1 -ffp-contract=off -triple nvptx64-unknown-unknown -target-cpu sm_100a -target-feature +ptx86 -DPTX=86 \
+// RUN:            -disable-llvm-optzns -fcuda-is-device -emit-llvm -o - -x cuda %s \
+// RUN:   | FileCheck -check-prefix=CHECK -check-prefix=CHECK_PTX86_SM100a %s
+// RUN: %clang_cc1 -ffp-contract=off -triple nvptx64-unknown-unknown -target-cpu sm_101a -target-feature +ptx86 -DPTX=86 \
+// RUN:            -disable-llvm-optzns -fcuda-is-device -emit-llvm -o - -x cuda %s \
+// RUN:   | FileCheck -check-prefix=CHECK -check-prefix=CHECK_PTX86_SM101a %s
+// RUN: %clang_cc1 -ffp-contract=off -triple nvptx64-unknown-unknown -target-cpu sm_120a -target-feature +ptx86 -DPTX=86 \
+// RUN:            -disable-llvm-optzns -fcuda-is-device -emit-llvm -o - -x cuda %s \
+// RUN:   | FileCheck -check-prefix=CHECK -check-prefix=CHECK_PTX86_SM120a %s
+// RUN: %clang_cc1 -ffp-contract=off -triple nvptx64-unknown-unknown -target-cpu sm_103a -target-feature +ptx87 -DPTX=87 \
+// RUN:            -disable-llvm-optzns -fcuda-is-device -emit-llvm -o - -x cuda %s \
+// RUN:   | FileCheck -check-prefix=CHECK -check-prefix=CHECK_PTX87_SM103a %s
+// RUN: %clang_cc1 -ffp-contract=off -triple nvptx64-unknown-unknown -target-cpu sm_100a -target-feature +ptx87 -DPTX=87 \
+// RUN:            -disable-llvm-optzns -fcuda-is-device -emit-llvm -o - -x cuda %s \
+// RUN:   | FileCheck -check-prefix=CHECK -check-prefix=CHECK_PTX87_SM100a %s
+// ###  The last run to check with the highest SM and PTX version available
+// ###  to make sure target builtins are still accepted.
+// RUN: %clang_cc1 -ffp-contract=off -triple nvptx64-unknown-unknown -target-cpu sm_120a -target-feature +ptx87 -DPTX=87 \
+// RUN:            -disable-llvm-optzns -fcuda-is-device -emit-llvm -o - -x cuda %s \
+// RUN:   | FileCheck -check-prefix=CHECK -check-prefix=CHECK_PTX86_SM120a %s
 
 #define __device__ __attribute__((device))
 #define __global__ __attribute__((global))
@@ -41,6 +76,15 @@ __device__ int read_tid() {
   int w = __nvvm_read_ptx_sreg_tid_w();
 
   return x + y + z + w;
+
+}
+
+__device__ bool reflect() {
+
+// CHECK: call i32 @llvm.nvvm.reflect(ptr {{.*}})
+
+  unsigned x = __nvvm_reflect("__CUDA_ARCH");
+  return x >= 700;
 
 }
 
@@ -100,6 +144,7 @@ __device__ int read_ids() {
 // CHECK: call i32 @llvm.nvvm.read.ptx.sreg.smid()
 // CHECK: call i32 @llvm.nvvm.read.ptx.sreg.nsmid()
 // CHECK: call i32 @llvm.nvvm.read.ptx.sreg.gridid()
+// CHECK: call i32 @llvm.nvvm.read.ptx.sreg.warpsize()
 
   int a = __nvvm_read_ptx_sreg_laneid();
   int b = __nvvm_read_ptx_sreg_warpid();
@@ -107,8 +152,9 @@ __device__ int read_ids() {
   int d = __nvvm_read_ptx_sreg_smid();
   int e = __nvvm_read_ptx_sreg_nsmid();
   int f = __nvvm_read_ptx_sreg_gridid();
+  int g = __nvvm_read_ptx_sreg_warpsize();
 
-  return a + b + c + d + e + f;
+  return a + b + c + d + e + f + g;
 
 }
 
@@ -134,11 +180,13 @@ __device__ long long read_clocks() {
 
 // CHECK: call i32 @llvm.nvvm.read.ptx.sreg.clock()
 // CHECK: call i64 @llvm.nvvm.read.ptx.sreg.clock64()
+// CHECK: call i64 @llvm.nvvm.read.ptx.sreg.globaltimer()
 
   int a = __nvvm_read_ptx_sreg_clock();
   long long b = __nvvm_read_ptx_sreg_clock64();
+  long long c = __nvvm_read_ptx_sreg_globaltimer();
 
-  return a + b;
+  return a + b + c;
 }
 
 __device__ int read_pms() {
@@ -159,17 +207,32 @@ __device__ int read_pms() {
 
 __device__ void sync() {
 
-// CHECK: call void @llvm.nvvm.bar.sync(i32 0)
+// CHECK: call void @llvm.nvvm.barrier.cta.sync.aligned.all(i32 0)
 
   __nvvm_bar_sync(0);
 
 }
 
+__device__ void activemask() {
+
+// CHECK: call i32 @llvm.nvvm.activemask()
+
+  __nvvm_activemask();
+
+}
+
+__device__ void exit() {
+
+// CHECK: call void @llvm.nvvm.exit()
+
+  __nvvm_exit();
+
+}
 
 // NVVM intrinsics
 
 // The idea is not to test all intrinsics, just that Clang is recognizing the
-// builtins defined in BuiltinsNVPTX.def
+// builtins defined in BuiltinsNVPTX.td
 __device__ void nvvm_math(float f1, float f2, double d1, double d2) {
 // CHECK: call float @llvm.nvvm.fmax.f
   float t1 = __nvvm_fmax_f(f1, f2);
@@ -191,14 +254,43 @@ __device__ void nvvm_math(float f1, float f2, double d1, double d2) {
 // CHECK: call double @llvm.nvvm.rcp.rn.d
   double td4 = __nvvm_rcp_rn_d(d2);
 
+// CHECK: call float @llvm.nvvm.fabs.f32
+  float t6 = __nvvm_fabs_f(f1);
+// CHECK: call float @llvm.nvvm.fabs.ftz.f32
+  float t7 = __nvvm_fabs_ftz_f(f2);
+
+// CHECK: call double @llvm.fabs.f64
+  double td5 = __nvvm_fabs_d(d1);
+
 // CHECK: call void @llvm.nvvm.membar.cta()
   __nvvm_membar_cta();
 // CHECK: call void @llvm.nvvm.membar.gl()
   __nvvm_membar_gl();
 // CHECK: call void @llvm.nvvm.membar.sys()
   __nvvm_membar_sys();
-// CHECK: call void @llvm.nvvm.barrier0()
+// CHECK: call void @llvm.nvvm.barrier.cta.sync.aligned.all(i32 0)
   __syncthreads();
+}
+
+__device__ int nvvm_bar0_reductions(int i) {
+  // CHECK-LABEL: nvvm_bar0_reductions
+
+  int ret = 0;
+  // CHECK: %[[NE:[0-9]+]] = icmp ne i32 %{{[0-9]+}}, 0
+  // CHECK: %[[AND:[0-9]+]] = call i1 @llvm.nvvm.barrier.cta.red.and.aligned.all(i32 0, i1 %[[NE]])
+  // CHECK: zext i1 %[[AND]] to i32
+  ret += __nvvm_bar0_and(i);
+
+  // CHECK: %[[NE:[0-9]+]] = icmp ne i32 %{{[0-9]+}}, 0
+  // CHECK: %[[OR:[0-9]+]] = call i1 @llvm.nvvm.barrier.cta.red.or.aligned.all(i32 0, i1 %[[NE]])
+  // CHECK: zext i1 %[[OR]] to i32
+  ret += __nvvm_bar0_or(i);
+
+  // CHECK: %[[NE:[0-9]+]] = icmp ne i32 %{{[0-9]+}}, 0
+  // CHECK: %[[POPC:[0-9]+]] = call i32 @llvm.nvvm.barrier.cta.red.popc.aligned.all(i32 0, i1 %[[NE]])
+  ret += __nvvm_bar0_popc(i);
+
+  return ret;
 }
 
 __device__ int di;
@@ -210,178 +302,179 @@ __shared__ long long sll;
 
 // Check for atomic intrinsics
 // CHECK-LABEL: nvvm_atom
-__device__ void nvvm_atom(float *fp, float f, double *dfp, double df, int *ip,
+__device__ void nvvm_atom(float *fp, float f, double *dfp, double df,
+                          unsigned short *usp, unsigned short us, int *ip,
                           int i, unsigned int *uip, unsigned ui, long *lp,
                           long l, long long *llp, long long ll) {
-  // CHECK: atomicrmw add i32* {{.*}} seq_cst, align 4
+  // CHECK: atomicrmw add ptr {{.*}} seq_cst, align 4
   __nvvm_atom_add_gen_i(ip, i);
-  // CHECK: atomicrmw add i{{32|64}}* {{.*}} seq_cst, align {{4|8}}
+  // CHECK: atomicrmw add ptr {{.*}} seq_cst, align {{4|8}}
   __nvvm_atom_add_gen_l(&dl, l);
-  // CHECK: atomicrmw add i64* {{.*}} seq_cst, align 8
+  // CHECK: atomicrmw add ptr {{.*}} seq_cst, align 8
   __nvvm_atom_add_gen_ll(&sll, ll);
 
-  // CHECK: atomicrmw sub i32* {{.*}} seq_cst, align 4
+  // CHECK: atomicrmw sub ptr {{.*}} seq_cst, align 4
   __nvvm_atom_sub_gen_i(ip, i);
-  // CHECK: atomicrmw sub i{{32|64}}* {{.*}} seq_cst, align {{4|8}}
+  // CHECK: atomicrmw sub ptr {{.*}} seq_cst, align {{4|8}}
   __nvvm_atom_sub_gen_l(&dl, l);
-  // CHECK: atomicrmw sub i64* {{.*}} seq_cst, align 8
+  // CHECK: atomicrmw sub ptr {{.*}} seq_cst, align 8
   __nvvm_atom_sub_gen_ll(&sll, ll);
 
-  // CHECK: atomicrmw and i32* {{.*}} seq_cst, align 4
+  // CHECK: atomicrmw and ptr {{.*}} seq_cst, align 4
   __nvvm_atom_and_gen_i(ip, i);
-  // CHECK: atomicrmw and i{{32|64}}* {{.*}} seq_cst, align {{4|8}}
+  // CHECK: atomicrmw and ptr {{.*}} seq_cst, align {{4|8}}
   __nvvm_atom_and_gen_l(&dl, l);
-  // CHECK: atomicrmw and i64* {{.*}} seq_cst, align 8
+  // CHECK: atomicrmw and ptr {{.*}} seq_cst, align 8
   __nvvm_atom_and_gen_ll(&sll, ll);
 
-  // CHECK: atomicrmw or i32* {{.*}} seq_cst, align 4
+  // CHECK: atomicrmw or ptr {{.*}} seq_cst, align 4
   __nvvm_atom_or_gen_i(ip, i);
-  // CHECK: atomicrmw or i{{32|64}}* {{.*}} seq_cst, align {{4|8}}
+  // CHECK: atomicrmw or ptr {{.*}} seq_cst, align {{4|8}}
   __nvvm_atom_or_gen_l(&dl, l);
-  // CHECK: atomicrmw or i64* {{.*}} seq_cst, align 8
+  // CHECK: atomicrmw or ptr {{.*}} seq_cst, align 8
   __nvvm_atom_or_gen_ll(&sll, ll);
 
-  // CHECK: atomicrmw xor i32* {{.*}} seq_cst, align 4
+  // CHECK: atomicrmw xor ptr {{.*}} seq_cst, align 4
   __nvvm_atom_xor_gen_i(ip, i);
-  // CHECK: atomicrmw xor i{{32|64}}* {{.*}} seq_cst, align {{4|8}}
+  // CHECK: atomicrmw xor ptr {{.*}} seq_cst, align {{4|8}}
   __nvvm_atom_xor_gen_l(&dl, l);
-  // CHECK: atomicrmw xor i64* {{.*}} seq_cst, align 8
+  // CHECK: atomicrmw xor ptr {{.*}} seq_cst, align 8
   __nvvm_atom_xor_gen_ll(&sll, ll);
 
-  // CHECK: atomicrmw xchg i32* {{.*}} seq_cst, align 4
+  // CHECK: atomicrmw xchg ptr {{.*}} seq_cst, align 4
   __nvvm_atom_xchg_gen_i(ip, i);
-  // CHECK: atomicrmw xchg i{{32|64}}* {{.*}} seq_cst, align {{4|8}}
+  // CHECK: atomicrmw xchg ptr {{.*}} seq_cst, align {{4|8}}
   __nvvm_atom_xchg_gen_l(&dl, l);
-  // CHECK: atomicrmw xchg i64* {{.*}} seq_cst, align 8
+  // CHECK: atomicrmw xchg ptr {{.*}} seq_cst, align 8
   __nvvm_atom_xchg_gen_ll(&sll, ll);
-  // CHECK: call float @llvm.nvvm.atomic.exch.gen.f.f32.p0f32
+  // CHECK: call float @llvm.nvvm.atomic.exch.gen.f.f32.p0
   __nvvm_atom_xchg_gen_f(fp, f);
-  // CHECK: call double @llvm.nvvm.atomic.exch.gen.f.f64.p0f64
+  // CHECK: call double @llvm.nvvm.atomic.exch.gen.f.f64.p0
   __nvvm_atom_xchg_gen_d(dfp, df);
 
-  // CHECK: atomicrmw max i32* {{.*}} seq_cst, align 4
+  // CHECK: atomicrmw max ptr {{.*}} seq_cst, align 4
   __nvvm_atom_max_gen_i(ip, i);
-  // CHECK: atomicrmw umax i32* {{.*}} seq_cst, align 4
+  // CHECK: atomicrmw umax ptr {{.*}} seq_cst, align 4
   __nvvm_atom_max_gen_ui((unsigned int *)ip, i);
-  // CHECK: atomicrmw max i{{32|64}}* {{.*}} seq_cst, align {{4|8}}
+  // CHECK: atomicrmw max ptr {{.*}} seq_cst, align {{4|8}}
   __nvvm_atom_max_gen_l(&dl, l);
-  // CHECK: atomicrmw umax i{{32|64}}* {{.*}} seq_cst, align {{4|8}}
+  // CHECK: atomicrmw umax ptr {{.*}} seq_cst, align {{4|8}}
   __nvvm_atom_max_gen_ul((unsigned long *)&dl, l);
-  // CHECK: atomicrmw max i64* {{.*}} seq_cst, align 8
+  // CHECK: atomicrmw max ptr {{.*}} seq_cst, align 8
   __nvvm_atom_max_gen_ll(&sll, ll);
-  // CHECK: atomicrmw umax i64* {{.*}} seq_cst, align 8
+  // CHECK: atomicrmw umax ptr {{.*}} seq_cst, align 8
   __nvvm_atom_max_gen_ull((unsigned long long *)&sll, ll);
 
-  // CHECK: atomicrmw min i32* {{.*}} seq_cst, align 4
+  // CHECK: atomicrmw min ptr {{.*}} seq_cst, align 4
   __nvvm_atom_min_gen_i(ip, i);
-  // CHECK: atomicrmw umin i32* {{.*}} seq_cst, align 4
+  // CHECK: atomicrmw umin ptr {{.*}} seq_cst, align 4
   __nvvm_atom_min_gen_ui((unsigned int *)ip, i);
-  // CHECK: atomicrmw min i{{32|64}}* {{.*}} seq_cst, align {{4|8}}
+  // CHECK: atomicrmw min ptr {{.*}} seq_cst, align {{4|8}}
   __nvvm_atom_min_gen_l(&dl, l);
-  // CHECK: atomicrmw umin i{{32|64}}* {{.*}} seq_cst, align {{4|8}}
+  // CHECK: atomicrmw umin ptr {{.*}} seq_cst, align {{4|8}}
   __nvvm_atom_min_gen_ul((unsigned long *)&dl, l);
-  // CHECK: atomicrmw min i64* {{.*}} seq_cst, align 8
+  // CHECK: atomicrmw min ptr {{.*}} seq_cst, align 8
   __nvvm_atom_min_gen_ll(&sll, ll);
-  // CHECK: atomicrmw umin i64* {{.*}} seq_cst, align 8
+  // CHECK: atomicrmw umin ptr {{.*}} seq_cst, align 8
   __nvvm_atom_min_gen_ull((unsigned long long *)&sll, ll);
 
-  // CHECK: cmpxchg i32* {{.*}} seq_cst seq_cst, align 4
+  // CHECK: cmpxchg ptr {{.*}} seq_cst seq_cst, align 4
   // CHECK-NEXT: extractvalue { i32, i1 } {{%[0-9]+}}, 0
   __nvvm_atom_cas_gen_i(ip, 0, i);
-  // CHECK: cmpxchg i{{32|64}}* {{.*}} seq_cst seq_cst, align {{4|8}}
+  // CHECK: cmpxchg ptr {{.*}} seq_cst seq_cst, align {{4|8}}
   // CHECK-NEXT: extractvalue { {{i32|i64}}, i1 } {{%[0-9]+}}, 0
   __nvvm_atom_cas_gen_l(&dl, 0, l);
-  // CHECK: cmpxchg i64* {{.*}} seq_cst seq_cst, align 8
+  // CHECK: cmpxchg ptr {{.*}} seq_cst seq_cst, align 8
   // CHECK-NEXT: extractvalue { i64, i1 } {{%[0-9]+}}, 0
   __nvvm_atom_cas_gen_ll(&sll, 0, ll);
-  // CHECK: call float @llvm.nvvm.atomic.cas.gen.f.f32.p0f32
+  // CHECK: call float @llvm.nvvm.atomic.cas.gen.f.f32.p0
   __nvvm_atom_cas_gen_f(fp, 0, f);
-  // CHECK: call double @llvm.nvvm.atomic.cas.gen.f.f64.p0f64
+  // CHECK: call double @llvm.nvvm.atomic.cas.gen.f.f64.p0
   __nvvm_atom_cas_gen_d(dfp, 0, df);
 
-  // CHECK: atomicrmw fadd float* {{.*}} seq_cst, align 4
+  // CHECK: atomicrmw fadd ptr {{.*}} seq_cst, align 4
   __nvvm_atom_add_gen_f(fp, f);
 
-  // CHECK: call i32 @llvm.nvvm.atomic.load.inc.32.p0i32
+  // CHECK: atomicrmw uinc_wrap ptr {{.*}} seq_cst, align 4
   __nvvm_atom_inc_gen_ui(uip, ui);
 
-  // CHECK: call i32 @llvm.nvvm.atomic.load.dec.32.p0i32
+  // CHECK: atomicrmw udec_wrap ptr {{.*}} seq_cst, align 4
   __nvvm_atom_dec_gen_ui(uip, ui);
 
-  // CHECK: call i32 @llvm.nvvm.ld.gen.i.volatile.i32.p0i32
+  // CHECK: call i32 @llvm.nvvm.ld.gen.i.volatile.i32.p0
   __nvvm_volatile_ld_gen_i(ip);
-  // CHECK: call i32 @llvm.nvvm.ld.global.i.volatile.i32.p1i32
+  // CHECK: call i32 @llvm.nvvm.ld.global.i.volatile.i32.p1
   __nvvm_volatile_ld_global_i((__attribute__((address_space(1))) int *)ip);
-  // CHECK: call i32 @llvm.nvvm.ld.shared.i.volatile.i32.p3i32
+  // CHECK: call i32 @llvm.nvvm.ld.shared.i.volatile.i32.p3
   __nvvm_volatile_ld_shared_i((__attribute__((address_space(3))) int *)ip);
 
-  // CHECK: call void @llvm.nvvm.st.gen.i.volatile.p0i32.i32
+  // CHECK: call void @llvm.nvvm.st.gen.i.volatile.p0.i32
   __nvvm_volatile_st_gen_i(ip, i);
-  // CHECK: call void @llvm.nvvm.st.global.i.volatile.p1i32.i32
+  // CHECK: call void @llvm.nvvm.st.global.i.volatile.p1.i32
   __nvvm_volatile_st_global_i((__attribute__((address_space(1))) int *)ip, i);
-  // CHECK: call void @llvm.nvvm.st.shared.i.volatile.p3i32.i32
+  // CHECK: call void @llvm.nvvm.st.shared.i.volatile.p3.i32
   __nvvm_volatile_st_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // LP32: call i32 @llvm.nvvm.ld.gen.i.volatile.i32.p0i32
-  // LP64: call i64 @llvm.nvvm.ld.gen.i.volatile.i64.p0i64
+  // LP32: call i32 @llvm.nvvm.ld.gen.i.volatile.i32.p0
+  // LP64: call i64 @llvm.nvvm.ld.gen.i.volatile.i64.p0
   __nvvm_volatile_ld_gen_l(&dl);
-  // LP32: call i32 @llvm.nvvm.ld.global.i.volatile.i32.p1i32
-  // LP64: call i64 @llvm.nvvm.ld.global.i.volatile.i64.p1i64
+  // LP32: call i32 @llvm.nvvm.ld.global.i.volatile.i32.p1
+  // LP64: call i64 @llvm.nvvm.ld.global.i.volatile.i64.p1
   __nvvm_volatile_ld_global_l((__attribute__((address_space(1))) long *)&dl);
-  // LP32: call i32 @llvm.nvvm.ld.shared.i.volatile.i32.p3i32
-  // LP64: call i64 @llvm.nvvm.ld.shared.i.volatile.i64.p3i64
+  // LP32: call i32 @llvm.nvvm.ld.shared.i.volatile.i32.p3
+  // LP64: call i64 @llvm.nvvm.ld.shared.i.volatile.i64.p3
   __nvvm_volatile_ld_shared_l((__attribute__((address_space(3))) long *)&dl);
 
-  // LP32: call void @llvm.nvvm.st.gen.i.volatile.p0i32.i32
-  // LP64: call void @llvm.nvvm.st.gen.i.volatile.p0i64.i64
+  // LP32: call void @llvm.nvvm.st.gen.i.volatile.p0.i32
+  // LP64: call void @llvm.nvvm.st.gen.i.volatile.p0.i64
   __nvvm_volatile_st_gen_l(&dl, l);
-  // LP32: call void @llvm.nvvm.st.global.i.volatile.p1i32.i32
-  // LP64: call void @llvm.nvvm.st.global.i.volatile.p1i64.i64
+  // LP32: call void @llvm.nvvm.st.global.i.volatile.p1.i32
+  // LP64: call void @llvm.nvvm.st.global.i.volatile.p1.i64
   __nvvm_volatile_st_global_l((__attribute__((address_space(1))) long *)&dl, l);
-  // LP32: call void @llvm.nvvm.st.shared.i.volatile.p3i32.i32
-  // LP64: call void @llvm.nvvm.st.shared.i.volatile.p3i64.i64
+  // LP32: call void @llvm.nvvm.st.shared.i.volatile.p3.i32
+  // LP64: call void @llvm.nvvm.st.shared.i.volatile.p3.i64
   __nvvm_volatile_st_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK: call i64 @llvm.nvvm.ld.gen.i.volatile.i64.p0i64
+  // CHECK: call i64 @llvm.nvvm.ld.gen.i.volatile.i64.p0
   __nvvm_volatile_ld_gen_ll(&dll);
-  // CHECK: call i64 @llvm.nvvm.ld.global.i.volatile.i64.p1i64
+  // CHECK: call i64 @llvm.nvvm.ld.global.i.volatile.i64.p1
   __nvvm_volatile_ld_global_ll((__attribute__((address_space(1))) long long *)&dll);
-  // CHECK: call i64 @llvm.nvvm.ld.shared.i.volatile.i64.p3i64
+  // CHECK: call i64 @llvm.nvvm.ld.shared.i.volatile.i64.p3
   __nvvm_volatile_ld_shared_ll((__attribute__((address_space(3))) long long *)&dll);
 
-  // CHECK: call void @llvm.nvvm.st.gen.i.volatile.p0i64.i64
+  // CHECK: call void @llvm.nvvm.st.gen.i.volatile.p0.i64
   __nvvm_volatile_st_gen_ll(&dll, ll);
-  // CHECK: call void @llvm.nvvm.st.global.i.volatile.p1i64.i64
+  // CHECK: call void @llvm.nvvm.st.global.i.volatile.p1.i64
   __nvvm_volatile_st_global_ll((__attribute__((address_space(1))) long long *)&dll, ll);
-  // CHECK: call void @llvm.nvvm.st.shared.i.volatile.p3i64.i64
+  // CHECK: call void @llvm.nvvm.st.shared.i.volatile.p3.i64
   __nvvm_volatile_st_shared_ll((__attribute__((address_space(3))) long long *)&dll, ll);
 
-  // CHECK: call float @llvm.nvvm.ld.gen.f.volatile.f32.p0f32
+  // CHECK: call float @llvm.nvvm.ld.gen.f.volatile.f32.p0
   __nvvm_volatile_ld_gen_f(fp);
-  // CHECK: call float @llvm.nvvm.ld.global.f.volatile.f32.p1f32
+  // CHECK: call float @llvm.nvvm.ld.global.f.volatile.f32.p1
   __nvvm_volatile_ld_global_f((__attribute__((address_space(1))) float *)fp);
-  // CHECK: call float @llvm.nvvm.ld.shared.f.volatile.f32.p3f32
+  // CHECK: call float @llvm.nvvm.ld.shared.f.volatile.f32.p3
   __nvvm_volatile_ld_shared_f((__attribute__((address_space(3))) float *)fp);
 
-  // CHECK: call void @llvm.nvvm.st.gen.f.volatile.p0f32.f32
+  // CHECK: call void @llvm.nvvm.st.gen.f.volatile.p0.f32
   __nvvm_volatile_st_gen_f(fp, f);
-  // CHECK: call void @llvm.nvvm.st.global.f.volatile.p1f32.f32
+  // CHECK: call void @llvm.nvvm.st.global.f.volatile.p1.f32
   __nvvm_volatile_st_global_f((__attribute__((address_space(1))) float *)fp, f);
-  // CHECK: call void @llvm.nvvm.st.shared.f.volatile.p3f32.f32
+  // CHECK: call void @llvm.nvvm.st.shared.f.volatile.p3.f32
   __nvvm_volatile_st_shared_f((__attribute__((address_space(3))) float *)fp, f);
 
-  // CHECK: call double @llvm.nvvm.ld.gen.f.volatile.f64.p0f64
+  // CHECK: call double @llvm.nvvm.ld.gen.f.volatile.f64.p0
   __nvvm_volatile_ld_gen_d(dfp);
-  // CHECK: call double @llvm.nvvm.ld.global.f.volatile.f64.p1f64
+  // CHECK: call double @llvm.nvvm.ld.global.f.volatile.f64.p1
   __nvvm_volatile_ld_global_d((__attribute__((address_space(1))) double *)dfp);
-  // CHECK: call double @llvm.nvvm.ld.shared.f.volatile.f64.p3f64
+  // CHECK: call double @llvm.nvvm.ld.shared.f.volatile.f64.p3
   __nvvm_volatile_ld_shared_d((__attribute__((address_space(3))) double *)dfp);
 
-  // CHECK: call void @llvm.nvvm.st.gen.f.volatile.p0f64.f64
+  // CHECK: call void @llvm.nvvm.st.gen.f.volatile.p0.f64
   __nvvm_volatile_st_gen_d(dfp, df);
-  // CHECK: call void @llvm.nvvm.st.global.f.volatile.p1f64.f64
+  // CHECK: call void @llvm.nvvm.st.global.f.volatile.p1.f64
   __nvvm_volatile_st_global_d((__attribute__((address_space(1))) double *)dfp, df);
-  // CHECK: call void @llvm.nvvm.st.shared.f.volatile.p3f64.f64
+  // CHECK: call void @llvm.nvvm.st.shared.f.volatile.p3.f64
   __nvvm_volatile_st_shared_d((__attribute__((address_space(3))) double *)dfp, df);
 
   //////////////////////////////////////////////////////////////////
@@ -389,257 +482,257 @@ __device__ void nvvm_atom(float *fp, float f, double *dfp, double df, int *ip,
 
 #if ERROR_CHECK || __CUDA_ARCH__ >= 600
 
-  // CHECK: call i32 @llvm.nvvm.atomic.add.gen.i.cta.i32.p0i32
+  // CHECK: call i32 @llvm.nvvm.atomic.add.gen.i.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_cta_add_gen_i' needs target feature sm_60}}
   __nvvm_atom_cta_add_gen_i(ip, i);
-  // LP32: call i32 @llvm.nvvm.atomic.add.gen.i.cta.i32.p0i32
-  // LP64: call i64 @llvm.nvvm.atomic.add.gen.i.cta.i64.p0i64
+  // LP32: call i32 @llvm.nvvm.atomic.add.gen.i.cta.i32.p0
+  // LP64: call i64 @llvm.nvvm.atomic.add.gen.i.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_cta_add_gen_l' needs target feature sm_60}}
   __nvvm_atom_cta_add_gen_l(&dl, l);
-  // CHECK: call i64 @llvm.nvvm.atomic.add.gen.i.cta.i64.p0i64
+  // CHECK: call i64 @llvm.nvvm.atomic.add.gen.i.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_cta_add_gen_ll' needs target feature sm_60}}
   __nvvm_atom_cta_add_gen_ll(&sll, ll);
-  // CHECK: call i32 @llvm.nvvm.atomic.add.gen.i.sys.i32.p0i32
+  // CHECK: call i32 @llvm.nvvm.atomic.add.gen.i.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_sys_add_gen_i' needs target feature sm_60}}
   __nvvm_atom_sys_add_gen_i(ip, i);
-  // LP32: call i32 @llvm.nvvm.atomic.add.gen.i.sys.i32.p0i32
-  // LP64: call i64 @llvm.nvvm.atomic.add.gen.i.sys.i64.p0i64
+  // LP32: call i32 @llvm.nvvm.atomic.add.gen.i.sys.i32.p0
+  // LP64: call i64 @llvm.nvvm.atomic.add.gen.i.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_sys_add_gen_l' needs target feature sm_60}}
   __nvvm_atom_sys_add_gen_l(&dl, l);
-  // CHECK: call i64 @llvm.nvvm.atomic.add.gen.i.sys.i64.p0i64
+  // CHECK: call i64 @llvm.nvvm.atomic.add.gen.i.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_sys_add_gen_ll' needs target feature sm_60}}
   __nvvm_atom_sys_add_gen_ll(&sll, ll);
 
-  // CHECK: call float @llvm.nvvm.atomic.add.gen.f.cta.f32.p0f32
+  // CHECK: call float @llvm.nvvm.atomic.add.gen.f.cta.f32.p0
   // expected-error@+1 {{'__nvvm_atom_cta_add_gen_f' needs target feature sm_60}}
   __nvvm_atom_cta_add_gen_f(fp, f);
-  // CHECK: call double @llvm.nvvm.atomic.add.gen.f.cta.f64.p0f64
+  // CHECK: call double @llvm.nvvm.atomic.add.gen.f.cta.f64.p0
   // expected-error@+1 {{'__nvvm_atom_cta_add_gen_d' needs target feature sm_60}}
   __nvvm_atom_cta_add_gen_d(dfp, df);
-  // CHECK: call float @llvm.nvvm.atomic.add.gen.f.sys.f32.p0f32
+  // CHECK: call float @llvm.nvvm.atomic.add.gen.f.sys.f32.p0
   // expected-error@+1 {{'__nvvm_atom_sys_add_gen_f' needs target feature sm_60}}
   __nvvm_atom_sys_add_gen_f(fp, f);
-  // CHECK: call double @llvm.nvvm.atomic.add.gen.f.sys.f64.p0f64
+  // CHECK: call double @llvm.nvvm.atomic.add.gen.f.sys.f64.p0
   // expected-error@+1 {{'__nvvm_atom_sys_add_gen_d' needs target feature sm_60}}
   __nvvm_atom_sys_add_gen_d(dfp, df);
 
-  // CHECK: call i32 @llvm.nvvm.atomic.exch.gen.i.cta.i32.p0i32
+  // CHECK: call i32 @llvm.nvvm.atomic.exch.gen.i.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_cta_xchg_gen_i' needs target feature sm_60}}
   __nvvm_atom_cta_xchg_gen_i(ip, i);
-  // LP32: call i32 @llvm.nvvm.atomic.exch.gen.i.cta.i32.p0i32
-  // LP64: call i64 @llvm.nvvm.atomic.exch.gen.i.cta.i64.p0i64
+  // LP32: call i32 @llvm.nvvm.atomic.exch.gen.i.cta.i32.p0
+  // LP64: call i64 @llvm.nvvm.atomic.exch.gen.i.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_cta_xchg_gen_l' needs target feature sm_60}}
   __nvvm_atom_cta_xchg_gen_l(&dl, l);
-  // CHECK: call i64 @llvm.nvvm.atomic.exch.gen.i.cta.i64.p0i64
+  // CHECK: call i64 @llvm.nvvm.atomic.exch.gen.i.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_cta_xchg_gen_ll' needs target feature sm_60}}
   __nvvm_atom_cta_xchg_gen_ll(&sll, ll);
-  // CHECK: call float @llvm.nvvm.atomic.exch.gen.f.cta.f32.p0f32
+  // CHECK: call float @llvm.nvvm.atomic.exch.gen.f.cta.f32.p0
   // expected-error@+1 {{'__nvvm_atom_cta_xchg_gen_f' needs target feature sm_60}}
   __nvvm_atom_cta_xchg_gen_f(fp, f);
-  // CHECK: call double @llvm.nvvm.atomic.exch.gen.f.cta.f64.p0f64
+  // CHECK: call double @llvm.nvvm.atomic.exch.gen.f.cta.f64.p0
   // expected-error@+1 {{'__nvvm_atom_cta_xchg_gen_d' needs target feature sm_60}}
   __nvvm_atom_cta_xchg_gen_d(dfp, df);
 
-  // CHECK: call i32 @llvm.nvvm.atomic.exch.gen.i.sys.i32.p0i32
+  // CHECK: call i32 @llvm.nvvm.atomic.exch.gen.i.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_sys_xchg_gen_i' needs target feature sm_60}}
   __nvvm_atom_sys_xchg_gen_i(ip, i);
-  // LP32: call i32 @llvm.nvvm.atomic.exch.gen.i.sys.i32.p0i32
-  // LP64: call i64 @llvm.nvvm.atomic.exch.gen.i.sys.i64.p0i64
+  // LP32: call i32 @llvm.nvvm.atomic.exch.gen.i.sys.i32.p0
+  // LP64: call i64 @llvm.nvvm.atomic.exch.gen.i.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_sys_xchg_gen_l' needs target feature sm_60}}
   __nvvm_atom_sys_xchg_gen_l(&dl, l);
-  // CHECK: call i64 @llvm.nvvm.atomic.exch.gen.i.sys.i64.p0i64
+  // CHECK: call i64 @llvm.nvvm.atomic.exch.gen.i.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_sys_xchg_gen_ll' needs target feature sm_60}}
   __nvvm_atom_sys_xchg_gen_ll(&sll, ll);
-  // CHECK: call float @llvm.nvvm.atomic.exch.gen.f.sys.f32.p0f32
+  // CHECK: call float @llvm.nvvm.atomic.exch.gen.f.sys.f32.p0
   // expected-error@+1 {{'__nvvm_atom_sys_xchg_gen_f' needs target feature sm_60}}
   __nvvm_atom_sys_xchg_gen_f(fp, f);
-  // CHECK: call double @llvm.nvvm.atomic.exch.gen.f.sys.f64.p0f64
+  // CHECK: call double @llvm.nvvm.atomic.exch.gen.f.sys.f64.p0
   // expected-error@+1 {{'__nvvm_atom_sys_xchg_gen_d' needs target feature sm_60}}
   __nvvm_atom_sys_xchg_gen_d(dfp, df);
 
-  // CHECK: call i32 @llvm.nvvm.atomic.max.gen.i.cta.i32.p0i32
+  // CHECK: call i32 @llvm.nvvm.atomic.max.gen.i.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_cta_max_gen_i' needs target feature sm_60}}
   __nvvm_atom_cta_max_gen_i(ip, i);
-  // CHECK: call i32 @llvm.nvvm.atomic.max.gen.ui.cta.i32.p0i32
+  // CHECK: call i32 @llvm.nvvm.atomic.max.gen.ui.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_cta_max_gen_ui' needs target feature sm_60}}
   __nvvm_atom_cta_max_gen_ui((unsigned int *)ip, i);
-  // LP32: call i32 @llvm.nvvm.atomic.max.gen.i.cta.i32.p0i32
-  // LP64: call i64 @llvm.nvvm.atomic.max.gen.i.cta.i64.p0i64
+  // LP32: call i32 @llvm.nvvm.atomic.max.gen.i.cta.i32.p0
+  // LP64: call i64 @llvm.nvvm.atomic.max.gen.i.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_cta_max_gen_l' needs target feature sm_60}}
   __nvvm_atom_cta_max_gen_l(&dl, l);
-  // LP32: call i32 @llvm.nvvm.atomic.max.gen.ui.cta.i32.p0i32
-  // LP64: call i64 @llvm.nvvm.atomic.max.gen.ui.cta.i64.p0i64
+  // LP32: call i32 @llvm.nvvm.atomic.max.gen.ui.cta.i32.p0
+  // LP64: call i64 @llvm.nvvm.atomic.max.gen.ui.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_cta_max_gen_ul' needs target feature sm_60}}
   __nvvm_atom_cta_max_gen_ul((unsigned long *)lp, l);
-  // CHECK: call i64 @llvm.nvvm.atomic.max.gen.i.cta.i64.p0i64
+  // CHECK: call i64 @llvm.nvvm.atomic.max.gen.i.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_cta_max_gen_ll' needs target feature sm_60}}
   __nvvm_atom_cta_max_gen_ll(&sll, ll);
-  // CHECK: call i64 @llvm.nvvm.atomic.max.gen.ui.cta.i64.p0i64
+  // CHECK: call i64 @llvm.nvvm.atomic.max.gen.ui.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_cta_max_gen_ull' needs target feature sm_60}}
   __nvvm_atom_cta_max_gen_ull((unsigned long long *)llp, ll);
 
-  // CHECK: call i32 @llvm.nvvm.atomic.max.gen.i.sys.i32.p0i32
+  // CHECK: call i32 @llvm.nvvm.atomic.max.gen.i.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_sys_max_gen_i' needs target feature sm_60}}
   __nvvm_atom_sys_max_gen_i(ip, i);
-  // CHECK: call i32 @llvm.nvvm.atomic.max.gen.ui.sys.i32.p0i32
+  // CHECK: call i32 @llvm.nvvm.atomic.max.gen.ui.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_sys_max_gen_ui' needs target feature sm_60}}
   __nvvm_atom_sys_max_gen_ui((unsigned int *)ip, i);
-  // LP32: call i32 @llvm.nvvm.atomic.max.gen.i.sys.i32.p0i32
-  // LP64: call i64 @llvm.nvvm.atomic.max.gen.i.sys.i64.p0i64
+  // LP32: call i32 @llvm.nvvm.atomic.max.gen.i.sys.i32.p0
+  // LP64: call i64 @llvm.nvvm.atomic.max.gen.i.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_sys_max_gen_l' needs target feature sm_60}}
   __nvvm_atom_sys_max_gen_l(&dl, l);
-  // LP32: call i32 @llvm.nvvm.atomic.max.gen.ui.sys.i32.p0i32
-  // LP64: call i64 @llvm.nvvm.atomic.max.gen.ui.sys.i64.p0i64
+  // LP32: call i32 @llvm.nvvm.atomic.max.gen.ui.sys.i32.p0
+  // LP64: call i64 @llvm.nvvm.atomic.max.gen.ui.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_sys_max_gen_ul' needs target feature sm_60}}
   __nvvm_atom_sys_max_gen_ul((unsigned long *)lp, l);
-  // CHECK: call i64 @llvm.nvvm.atomic.max.gen.i.sys.i64.p0i64
+  // CHECK: call i64 @llvm.nvvm.atomic.max.gen.i.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_sys_max_gen_ll' needs target feature sm_60}}
   __nvvm_atom_sys_max_gen_ll(&sll, ll);
-  // CHECK: call i64 @llvm.nvvm.atomic.max.gen.ui.sys.i64.p0i64
+  // CHECK: call i64 @llvm.nvvm.atomic.max.gen.ui.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_sys_max_gen_ull' needs target feature sm_60}}
   __nvvm_atom_sys_max_gen_ull((unsigned long long *)llp, ll);
 
-  // CHECK: call i32 @llvm.nvvm.atomic.min.gen.i.cta.i32.p0i32
+  // CHECK: call i32 @llvm.nvvm.atomic.min.gen.i.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_cta_min_gen_i' needs target feature sm_60}}
   __nvvm_atom_cta_min_gen_i(ip, i);
-  // CHECK: call i32 @llvm.nvvm.atomic.min.gen.ui.cta.i32.p0i32
+  // CHECK: call i32 @llvm.nvvm.atomic.min.gen.ui.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_cta_min_gen_ui' needs target feature sm_60}}
   __nvvm_atom_cta_min_gen_ui((unsigned int *)ip, i);
-  // LP32: call i32 @llvm.nvvm.atomic.min.gen.i.cta.i32.p0i32
-  // LP64: call i64 @llvm.nvvm.atomic.min.gen.i.cta.i64.p0i64
+  // LP32: call i32 @llvm.nvvm.atomic.min.gen.i.cta.i32.p0
+  // LP64: call i64 @llvm.nvvm.atomic.min.gen.i.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_cta_min_gen_l' needs target feature sm_60}}
   __nvvm_atom_cta_min_gen_l(&dl, l);
-  // LP32: call i32 @llvm.nvvm.atomic.min.gen.ui.cta.i32.p0i32
-  // LP64: call i64 @llvm.nvvm.atomic.min.gen.ui.cta.i64.p0i64
+  // LP32: call i32 @llvm.nvvm.atomic.min.gen.ui.cta.i32.p0
+  // LP64: call i64 @llvm.nvvm.atomic.min.gen.ui.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_cta_min_gen_ul' needs target feature sm_60}}
   __nvvm_atom_cta_min_gen_ul((unsigned long *)lp, l);
-  // CHECK: call i64 @llvm.nvvm.atomic.min.gen.i.cta.i64.p0i64
+  // CHECK: call i64 @llvm.nvvm.atomic.min.gen.i.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_cta_min_gen_ll' needs target feature sm_60}}
   __nvvm_atom_cta_min_gen_ll(&sll, ll);
-  // CHECK: call i64 @llvm.nvvm.atomic.min.gen.ui.cta.i64.p0i64
+  // CHECK: call i64 @llvm.nvvm.atomic.min.gen.ui.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_cta_min_gen_ull' needs target feature sm_60}}
   __nvvm_atom_cta_min_gen_ull((unsigned long long *)llp, ll);
 
-  // CHECK: call i32 @llvm.nvvm.atomic.min.gen.i.sys.i32.p0i32
+  // CHECK: call i32 @llvm.nvvm.atomic.min.gen.i.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_sys_min_gen_i' needs target feature sm_60}}
   __nvvm_atom_sys_min_gen_i(ip, i);
-  // CHECK: call i32 @llvm.nvvm.atomic.min.gen.ui.sys.i32.p0i32
+  // CHECK: call i32 @llvm.nvvm.atomic.min.gen.ui.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_sys_min_gen_ui' needs target feature sm_60}}
   __nvvm_atom_sys_min_gen_ui((unsigned int *)ip, i);
-  // LP32: call i32 @llvm.nvvm.atomic.min.gen.i.sys.i32.p0i32
-  // LP64: call i64 @llvm.nvvm.atomic.min.gen.i.sys.i64.p0i64
+  // LP32: call i32 @llvm.nvvm.atomic.min.gen.i.sys.i32.p0
+  // LP64: call i64 @llvm.nvvm.atomic.min.gen.i.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_sys_min_gen_l' needs target feature sm_60}}
   __nvvm_atom_sys_min_gen_l(&dl, l);
-  // LP32: call i32 @llvm.nvvm.atomic.min.gen.ui.sys.i32.p0i32
-  // LP64: call i64 @llvm.nvvm.atomic.min.gen.ui.sys.i64.p0i64
+  // LP32: call i32 @llvm.nvvm.atomic.min.gen.ui.sys.i32.p0
+  // LP64: call i64 @llvm.nvvm.atomic.min.gen.ui.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_sys_min_gen_ul' needs target feature sm_60}}
   __nvvm_atom_sys_min_gen_ul((unsigned long *)lp, l);
-  // CHECK: call i64 @llvm.nvvm.atomic.min.gen.i.sys.i64.p0i64
+  // CHECK: call i64 @llvm.nvvm.atomic.min.gen.i.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_sys_min_gen_ll' needs target feature sm_60}}
   __nvvm_atom_sys_min_gen_ll(&sll, ll);
-  // CHECK: call i64 @llvm.nvvm.atomic.min.gen.ui.sys.i64.p0i64
+  // CHECK: call i64 @llvm.nvvm.atomic.min.gen.ui.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_sys_min_gen_ull' needs target feature sm_60}}
   __nvvm_atom_sys_min_gen_ull((unsigned long long *)llp, ll);
 
-  // CHECK: call i32 @llvm.nvvm.atomic.inc.gen.i.cta.i32.p0i32
+  // CHECK: call i32 @llvm.nvvm.atomic.inc.gen.i.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_cta_inc_gen_ui' needs target feature sm_60}}
   __nvvm_atom_cta_inc_gen_ui((unsigned int *)ip, i);
-  // CHECK: call i32 @llvm.nvvm.atomic.inc.gen.i.sys.i32.p0i32
+  // CHECK: call i32 @llvm.nvvm.atomic.inc.gen.i.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_sys_inc_gen_ui' needs target feature sm_60}}
   __nvvm_atom_sys_inc_gen_ui((unsigned int *)ip, i);
 
-  // CHECK: call i32 @llvm.nvvm.atomic.dec.gen.i.cta.i32.p0i32
+  // CHECK: call i32 @llvm.nvvm.atomic.dec.gen.i.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_cta_dec_gen_ui' needs target feature sm_60}}
   __nvvm_atom_cta_dec_gen_ui((unsigned int *)ip, i);
-  // CHECK: call i32 @llvm.nvvm.atomic.dec.gen.i.sys.i32.p0i32
+  // CHECK: call i32 @llvm.nvvm.atomic.dec.gen.i.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_sys_dec_gen_ui' needs target feature sm_60}}
   __nvvm_atom_sys_dec_gen_ui((unsigned int *)ip, i);
 
-  // CHECK: call i32 @llvm.nvvm.atomic.and.gen.i.cta.i32.p0i32
+  // CHECK: call i32 @llvm.nvvm.atomic.and.gen.i.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_cta_and_gen_i' needs target feature sm_60}}
   __nvvm_atom_cta_and_gen_i(ip, i);
-  // LP32: call i32 @llvm.nvvm.atomic.and.gen.i.cta.i32.p0i32
-  // LP64: call i64 @llvm.nvvm.atomic.and.gen.i.cta.i64.p0i64
+  // LP32: call i32 @llvm.nvvm.atomic.and.gen.i.cta.i32.p0
+  // LP64: call i64 @llvm.nvvm.atomic.and.gen.i.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_cta_and_gen_l' needs target feature sm_60}}
   __nvvm_atom_cta_and_gen_l(&dl, l);
-  // CHECK: call i64 @llvm.nvvm.atomic.and.gen.i.cta.i64.p0i64
+  // CHECK: call i64 @llvm.nvvm.atomic.and.gen.i.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_cta_and_gen_ll' needs target feature sm_60}}
   __nvvm_atom_cta_and_gen_ll(&sll, ll);
 
-  // CHECK: call i32 @llvm.nvvm.atomic.and.gen.i.sys.i32.p0i32
+  // CHECK: call i32 @llvm.nvvm.atomic.and.gen.i.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_sys_and_gen_i' needs target feature sm_60}}
   __nvvm_atom_sys_and_gen_i(ip, i);
-  // LP32: call i32 @llvm.nvvm.atomic.and.gen.i.sys.i32.p0i32
-  // LP64: call i64 @llvm.nvvm.atomic.and.gen.i.sys.i64.p0i64
+  // LP32: call i32 @llvm.nvvm.atomic.and.gen.i.sys.i32.p0
+  // LP64: call i64 @llvm.nvvm.atomic.and.gen.i.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_sys_and_gen_l' needs target feature sm_60}}
   __nvvm_atom_sys_and_gen_l(&dl, l);
-  // CHECK: call i64 @llvm.nvvm.atomic.and.gen.i.sys.i64.p0i64
+  // CHECK: call i64 @llvm.nvvm.atomic.and.gen.i.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_sys_and_gen_ll' needs target feature sm_60}}
   __nvvm_atom_sys_and_gen_ll(&sll, ll);
 
-  // CHECK: call i32 @llvm.nvvm.atomic.or.gen.i.cta.i32.p0i32
+  // CHECK: call i32 @llvm.nvvm.atomic.or.gen.i.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_cta_or_gen_i' needs target feature sm_60}}
   __nvvm_atom_cta_or_gen_i(ip, i);
-  // LP32: call i32 @llvm.nvvm.atomic.or.gen.i.cta.i32.p0i32
-  // LP64: call i64 @llvm.nvvm.atomic.or.gen.i.cta.i64.p0i64
+  // LP32: call i32 @llvm.nvvm.atomic.or.gen.i.cta.i32.p0
+  // LP64: call i64 @llvm.nvvm.atomic.or.gen.i.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_cta_or_gen_l' needs target feature sm_60}}
   __nvvm_atom_cta_or_gen_l(&dl, l);
-  // CHECK: call i64 @llvm.nvvm.atomic.or.gen.i.cta.i64.p0i64
+  // CHECK: call i64 @llvm.nvvm.atomic.or.gen.i.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_cta_or_gen_ll' needs target feature sm_60}}
   __nvvm_atom_cta_or_gen_ll(&sll, ll);
 
-  // CHECK: call i32 @llvm.nvvm.atomic.or.gen.i.sys.i32.p0i32
+  // CHECK: call i32 @llvm.nvvm.atomic.or.gen.i.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_sys_or_gen_i' needs target feature sm_60}}
   __nvvm_atom_sys_or_gen_i(ip, i);
-  // LP32: call i32 @llvm.nvvm.atomic.or.gen.i.sys.i32.p0i32
-  // LP64: call i64 @llvm.nvvm.atomic.or.gen.i.sys.i64.p0i64
+  // LP32: call i32 @llvm.nvvm.atomic.or.gen.i.sys.i32.p0
+  // LP64: call i64 @llvm.nvvm.atomic.or.gen.i.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_sys_or_gen_l' needs target feature sm_60}}
   __nvvm_atom_sys_or_gen_l(&dl, l);
-  // CHECK: call i64 @llvm.nvvm.atomic.or.gen.i.sys.i64.p0i64
+  // CHECK: call i64 @llvm.nvvm.atomic.or.gen.i.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_sys_or_gen_ll' needs target feature sm_60}}
   __nvvm_atom_sys_or_gen_ll(&sll, ll);
 
-  // CHECK: call i32 @llvm.nvvm.atomic.xor.gen.i.cta.i32.p0i32
+  // CHECK: call i32 @llvm.nvvm.atomic.xor.gen.i.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_cta_xor_gen_i' needs target feature sm_60}}
   __nvvm_atom_cta_xor_gen_i(ip, i);
-  // LP32: call i32 @llvm.nvvm.atomic.xor.gen.i.cta.i32.p0i32
-  // LP64: call i64 @llvm.nvvm.atomic.xor.gen.i.cta.i64.p0i64
+  // LP32: call i32 @llvm.nvvm.atomic.xor.gen.i.cta.i32.p0
+  // LP64: call i64 @llvm.nvvm.atomic.xor.gen.i.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_cta_xor_gen_l' needs target feature sm_60}}
   __nvvm_atom_cta_xor_gen_l(&dl, l);
-  // CHECK: call i64 @llvm.nvvm.atomic.xor.gen.i.cta.i64.p0i64
+  // CHECK: call i64 @llvm.nvvm.atomic.xor.gen.i.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_cta_xor_gen_ll' needs target feature sm_60}}
   __nvvm_atom_cta_xor_gen_ll(&sll, ll);
 
-  // CHECK: call i32 @llvm.nvvm.atomic.xor.gen.i.sys.i32.p0i32
+  // CHECK: call i32 @llvm.nvvm.atomic.xor.gen.i.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_sys_xor_gen_i' needs target feature sm_60}}
   __nvvm_atom_sys_xor_gen_i(ip, i);
-  // LP32: call i32 @llvm.nvvm.atomic.xor.gen.i.sys.i32.p0i32
-  // LP64: call i64 @llvm.nvvm.atomic.xor.gen.i.sys.i64.p0i64
+  // LP32: call i32 @llvm.nvvm.atomic.xor.gen.i.sys.i32.p0
+  // LP64: call i64 @llvm.nvvm.atomic.xor.gen.i.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_sys_xor_gen_l' needs target feature sm_60}}
   __nvvm_atom_sys_xor_gen_l(&dl, l);
-  // CHECK: call i64 @llvm.nvvm.atomic.xor.gen.i.sys.i64.p0i64
+  // CHECK: call i64 @llvm.nvvm.atomic.xor.gen.i.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_sys_xor_gen_ll' needs target feature sm_60}}
   __nvvm_atom_sys_xor_gen_ll(&sll, ll);
 
-  // CHECK: call i32 @llvm.nvvm.atomic.cas.gen.i.cta.i32.p0i32
+  // CHECK: call i32 @llvm.nvvm.atomic.cas.gen.i.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_cta_cas_gen_i' needs target feature sm_60}}
   __nvvm_atom_cta_cas_gen_i(ip, i, 0);
-  // LP32: call i32 @llvm.nvvm.atomic.cas.gen.i.cta.i32.p0i32
-  // LP64: call i64 @llvm.nvvm.atomic.cas.gen.i.cta.i64.p0i64
+  // LP32: call i32 @llvm.nvvm.atomic.cas.gen.i.cta.i32.p0
+  // LP64: call i64 @llvm.nvvm.atomic.cas.gen.i.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_cta_cas_gen_l' needs target feature sm_60}}
   __nvvm_atom_cta_cas_gen_l(&dl, l, 0);
-  // CHECK: call i64 @llvm.nvvm.atomic.cas.gen.i.cta.i64.p0i64
+  // CHECK: call i64 @llvm.nvvm.atomic.cas.gen.i.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_cta_cas_gen_ll' needs target feature sm_60}}
   __nvvm_atom_cta_cas_gen_ll(&sll, ll, 0);
 
-  // CHECK: call i32 @llvm.nvvm.atomic.cas.gen.i.sys.i32.p0i32
+  // CHECK: call i32 @llvm.nvvm.atomic.cas.gen.i.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_sys_cas_gen_i' needs target feature sm_60}}
   __nvvm_atom_sys_cas_gen_i(ip, i, 0);
-  // LP32: call i32 @llvm.nvvm.atomic.cas.gen.i.sys.i32.p0i32
-  // LP64: call i64 @llvm.nvvm.atomic.cas.gen.i.sys.i64.p0i64
+  // LP32: call i32 @llvm.nvvm.atomic.cas.gen.i.sys.i32.p0
+  // LP64: call i64 @llvm.nvvm.atomic.cas.gen.i.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_sys_cas_gen_l' needs target feature sm_60}}
   __nvvm_atom_sys_cas_gen_l(&dl, l, 0);
-  // CHECK: call i64 @llvm.nvvm.atomic.cas.gen.i.sys.i64.p0i64
+  // CHECK: call i64 @llvm.nvvm.atomic.cas.gen.i.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_sys_cas_gen_ll' needs target feature sm_60}}
   __nvvm_atom_sys_cas_gen_ll(&sll, ll, 0);
 #endif
@@ -649,3580 +742,3589 @@ __device__ void nvvm_atom(float *fp, float f, double *dfp, double df, int *ip,
 
 #if ERROR_CHECK || __CUDA_ARCH__ >= 700
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.gen.i.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.gen.i.i32.p0
   // expected-error@+1 {{'__nvvm_ld_gen_i' needs target feature sm_70}}
   __nvvm_ld_gen_i(ip);
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.global.i.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.global.i.i32.p1
   // expected-error@+1 {{'__nvvm_ld_global_i' needs target feature sm_70}}
   __nvvm_ld_global_i((__attribute__((address_space(1))) int *)ip);
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.shared.i.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.shared.i.i32.p3
   // expected-error@+1 {{'__nvvm_ld_shared_i' needs target feature sm_70}}
   __nvvm_ld_shared_i((__attribute__((address_space(3))) int *)ip);
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.gen.i.acquire.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.gen.i.acquire.i32.p0
   // expected-error@+1 {{'__nvvm_acquire_ld_gen_i' needs target feature sm_70}}
   __nvvm_acquire_ld_gen_i(ip);
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.global.i.acquire.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.global.i.acquire.i32.p1
   // expected-error@+1 {{'__nvvm_acquire_ld_global_i' needs target feature sm_70}}
   __nvvm_acquire_ld_global_i((__attribute__((address_space(1))) int *)ip);
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.shared.i.acquire.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.shared.i.acquire.i32.p3
   // expected-error@+1 {{'__nvvm_acquire_ld_shared_i' needs target feature sm_70}}
   __nvvm_acquire_ld_shared_i((__attribute__((address_space(3))) int *)ip);
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.gen.i.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.gen.i.sys.i32.p0
   // expected-error@+1 {{'__nvvm_sys_ld_gen_i' needs target feature sm_70}}
   __nvvm_sys_ld_gen_i(ip);
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.global.i.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.global.i.sys.i32.p1
   // expected-error@+1 {{'__nvvm_sys_ld_global_i' needs target feature sm_70}}
   __nvvm_sys_ld_global_i((__attribute__((address_space(1))) int *)ip);
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.shared.i.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.shared.i.sys.i32.p3
   // expected-error@+1 {{'__nvvm_sys_ld_shared_i' needs target feature sm_70}}
   __nvvm_sys_ld_shared_i((__attribute__((address_space(3))) int *)ip);
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.gen.i.acquire.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.gen.i.acquire.sys.i32.p0
   // expected-error@+1 {{'__nvvm_acquire_sys_ld_gen_i' needs target feature sm_70}}
   __nvvm_acquire_sys_ld_gen_i(ip);
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.global.i.acquire.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.global.i.acquire.sys.i32.p1
   // expected-error@+1 {{'__nvvm_acquire_sys_ld_global_i' needs target feature sm_70}}
   __nvvm_acquire_sys_ld_global_i((__attribute__((address_space(1))) int *)ip);
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.shared.i.acquire.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.shared.i.acquire.sys.i32.p3
   // expected-error@+1 {{'__nvvm_acquire_sys_ld_shared_i' needs target feature sm_70}}
   __nvvm_acquire_sys_ld_shared_i((__attribute__((address_space(3))) int *)ip);
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.gen.i.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.gen.i.cta.i32.p0
   // expected-error@+1 {{'__nvvm_cta_ld_gen_i' needs target feature sm_70}}
   __nvvm_cta_ld_gen_i(ip);
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.global.i.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.global.i.cta.i32.p1
   // expected-error@+1 {{'__nvvm_cta_ld_global_i' needs target feature sm_70}}
   __nvvm_cta_ld_global_i((__attribute__((address_space(1))) int *)ip);
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.shared.i.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.shared.i.cta.i32.p3
   // expected-error@+1 {{'__nvvm_cta_ld_shared_i' needs target feature sm_70}}
   __nvvm_cta_ld_shared_i((__attribute__((address_space(3))) int *)ip);
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.gen.i.acquire.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.gen.i.acquire.cta.i32.p0
   // expected-error@+1 {{'__nvvm_acquire_cta_ld_gen_i' needs target feature sm_70}}
   __nvvm_acquire_cta_ld_gen_i(ip);
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.global.i.acquire.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.global.i.acquire.cta.i32.p1
   // expected-error@+1 {{'__nvvm_acquire_cta_ld_global_i' needs target feature sm_70}}
   __nvvm_acquire_cta_ld_global_i((__attribute__((address_space(1))) int *)ip);
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.shared.i.acquire.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.ld.shared.i.acquire.cta.i32.p3
   // expected-error@+1 {{'__nvvm_acquire_cta_ld_shared_i' needs target feature sm_70}}
   __nvvm_acquire_cta_ld_shared_i((__attribute__((address_space(3))) int *)ip);
 
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.p0i32.i32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.p0.i32
   // expected-error@+1 {{'__nvvm_st_gen_i' needs target feature sm_70}}
   __nvvm_st_gen_i(ip, i);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.p1i32.i32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.p1.i32
   // expected-error@+1 {{'__nvvm_st_global_i' needs target feature sm_70}}
   __nvvm_st_global_i((__attribute__((address_space(1))) int *)ip, i);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.p3i32.i32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.p3.i32
   // expected-error@+1 {{'__nvvm_st_shared_i' needs target feature sm_70}}
   __nvvm_st_shared_i((__attribute__((address_space(3))) int *)ip, i);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.release.p0i32.i32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.release.p0.i32
   // expected-error@+1 {{'__nvvm_release_st_gen_i' needs target feature sm_70}}
   __nvvm_release_st_gen_i(ip, i);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.release.p1i32.i32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.release.p1.i32
   // expected-error@+1 {{'__nvvm_release_st_global_i' needs target feature sm_70}}
   __nvvm_release_st_global_i((__attribute__((address_space(1))) int *)ip, i);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.release.p3i32.i32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.release.p3.i32
   // expected-error@+1 {{'__nvvm_release_st_shared_i' needs target feature sm_70}}
   __nvvm_release_st_shared_i((__attribute__((address_space(3))) int *)ip, i);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.sys.p0i32.i32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.sys.p0.i32
   // expected-error@+1 {{'__nvvm_sys_st_gen_i' needs target feature sm_70}}
   __nvvm_sys_st_gen_i(ip, i);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.sys.p1i32.i32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.sys.p1.i32
   // expected-error@+1 {{'__nvvm_sys_st_global_i' needs target feature sm_70}}
   __nvvm_sys_st_global_i((__attribute__((address_space(1))) int *)ip, i);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.sys.p3i32.i32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.sys.p3.i32
   // expected-error@+1 {{'__nvvm_sys_st_shared_i' needs target feature sm_70}}
   __nvvm_sys_st_shared_i((__attribute__((address_space(3))) int *)ip, i);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.release.sys.p0i32.i32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.release.sys.p0.i32
   // expected-error@+1 {{'__nvvm_release_sys_st_gen_i' needs target feature sm_70}}
   __nvvm_release_sys_st_gen_i(ip, i);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.release.sys.p1i32.i32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.release.sys.p1.i32
   // expected-error@+1 {{'__nvvm_release_sys_st_global_i' needs target feature sm_70}}
   __nvvm_release_sys_st_global_i((__attribute__((address_space(1))) int *)ip, i);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.release.sys.p3i32.i32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.release.sys.p3.i32
   // expected-error@+1 {{'__nvvm_release_sys_st_shared_i' needs target feature sm_70}}
   __nvvm_release_sys_st_shared_i((__attribute__((address_space(3))) int *)ip, i);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.cta.p0i32.i32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.cta.p0.i32
   // expected-error@+1 {{'__nvvm_cta_st_gen_i' needs target feature sm_70}}
   __nvvm_cta_st_gen_i(ip, i);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.cta.p1i32.i32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.cta.p1.i32
   // expected-error@+1 {{'__nvvm_cta_st_global_i' needs target feature sm_70}}
   __nvvm_cta_st_global_i((__attribute__((address_space(1))) int *)ip, i);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.cta.p3i32.i32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.cta.p3.i32
   // expected-error@+1 {{'__nvvm_cta_st_shared_i' needs target feature sm_70}}
   __nvvm_cta_st_shared_i((__attribute__((address_space(3))) int *)ip, i);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.release.cta.p0i32.i32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.release.cta.p0.i32
   // expected-error@+1 {{'__nvvm_release_cta_st_gen_i' needs target feature sm_70}}
   __nvvm_release_cta_st_gen_i(ip, i);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.release.cta.p1i32.i32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.release.cta.p1.i32
   // expected-error@+1 {{'__nvvm_release_cta_st_global_i' needs target feature sm_70}}
   __nvvm_release_cta_st_global_i((__attribute__((address_space(1))) int *)ip, i);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.release.cta.p3i32.i32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.release.cta.p3.i32
   // expected-error@+1 {{'__nvvm_release_cta_st_shared_i' needs target feature sm_70}}
   __nvvm_release_cta_st_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.gen.i.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.gen.i.i64.p0
   // expected-error@+1 {{'__nvvm_ld_gen_l' needs target feature sm_70}}
   __nvvm_ld_gen_l(&dl);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.global.i.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.global.i.i64.p1
   // expected-error@+1 {{'__nvvm_ld_global_l' needs target feature sm_70}}
   __nvvm_ld_global_l((__attribute__((address_space(1))) long *)&dl);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.shared.i.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.shared.i.i64.p3
   // expected-error@+1 {{'__nvvm_ld_shared_l' needs target feature sm_70}}
   __nvvm_ld_shared_l((__attribute__((address_space(3))) long *)&dl);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.gen.i.acquire.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.gen.i.acquire.i64.p0
   // expected-error@+1 {{'__nvvm_acquire_ld_gen_l' needs target feature sm_70}}
   __nvvm_acquire_ld_gen_l(&dl);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.global.i.acquire.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.global.i.acquire.i64.p1
   // expected-error@+1 {{'__nvvm_acquire_ld_global_l' needs target feature sm_70}}
   __nvvm_acquire_ld_global_l((__attribute__((address_space(1))) long *)&dl);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.shared.i.acquire.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.shared.i.acquire.i64.p3
   // expected-error@+1 {{'__nvvm_acquire_ld_shared_l' needs target feature sm_70}}
   __nvvm_acquire_ld_shared_l((__attribute__((address_space(3))) long *)&dl);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.gen.i.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.gen.i.sys.i64.p0
   // expected-error@+1 {{'__nvvm_sys_ld_gen_l' needs target feature sm_70}}
   __nvvm_sys_ld_gen_l(&dl);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.global.i.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.global.i.sys.i64.p1
   // expected-error@+1 {{'__nvvm_sys_ld_global_l' needs target feature sm_70}}
   __nvvm_sys_ld_global_l((__attribute__((address_space(1))) long *)&dl);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.shared.i.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.shared.i.sys.i64.p3
   // expected-error@+1 {{'__nvvm_sys_ld_shared_l' needs target feature sm_70}}
   __nvvm_sys_ld_shared_l((__attribute__((address_space(3))) long *)&dl);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.gen.i.acquire.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.gen.i.acquire.sys.i64.p0
   // expected-error@+1 {{'__nvvm_acquire_sys_ld_gen_l' needs target feature sm_70}}
   __nvvm_acquire_sys_ld_gen_l(&dl);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.global.i.acquire.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.global.i.acquire.sys.i64.p1
   // expected-error@+1 {{'__nvvm_acquire_sys_ld_global_l' needs target feature sm_70}}
   __nvvm_acquire_sys_ld_global_l((__attribute__((address_space(1))) long *)&dl);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.shared.i.acquire.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.shared.i.acquire.sys.i64.p3
   // expected-error@+1 {{'__nvvm_acquire_sys_ld_shared_l' needs target feature sm_70}}
   __nvvm_acquire_sys_ld_shared_l((__attribute__((address_space(3))) long *)&dl);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.gen.i.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.gen.i.cta.i64.p0
   // expected-error@+1 {{'__nvvm_cta_ld_gen_l' needs target feature sm_70}}
   __nvvm_cta_ld_gen_l(&dl);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.global.i.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.global.i.cta.i64.p1
   // expected-error@+1 {{'__nvvm_cta_ld_global_l' needs target feature sm_70}}
   __nvvm_cta_ld_global_l((__attribute__((address_space(1))) long *)&dl);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.shared.i.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.shared.i.cta.i64.p3
   // expected-error@+1 {{'__nvvm_cta_ld_shared_l' needs target feature sm_70}}
   __nvvm_cta_ld_shared_l((__attribute__((address_space(3))) long *)&dl);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.gen.i.acquire.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.gen.i.acquire.cta.i64.p0
   // expected-error@+1 {{'__nvvm_acquire_cta_ld_gen_l' needs target feature sm_70}}
   __nvvm_acquire_cta_ld_gen_l(&dl);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.global.i.acquire.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.global.i.acquire.cta.i64.p1
   // expected-error@+1 {{'__nvvm_acquire_cta_ld_global_l' needs target feature sm_70}}
   __nvvm_acquire_cta_ld_global_l((__attribute__((address_space(1))) long *)&dl);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.shared.i.acquire.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.shared.i.acquire.cta.i64.p3
   // expected-error@+1 {{'__nvvm_acquire_cta_ld_shared_l' needs target feature sm_70}}
   __nvvm_acquire_cta_ld_shared_l((__attribute__((address_space(3))) long *)&dl);
 
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.p0i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.p0.i64
   // expected-error@+1 {{'__nvvm_st_gen_l' needs target feature sm_70}}
   __nvvm_st_gen_l(&dl, l);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.p1i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.p1.i64
   // expected-error@+1 {{'__nvvm_st_global_l' needs target feature sm_70}}
   __nvvm_st_global_l((__attribute__((address_space(1))) long *)&dl, l);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.p3i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.p3.i64
   // expected-error@+1 {{'__nvvm_st_shared_l' needs target feature sm_70}}
   __nvvm_st_shared_l((__attribute__((address_space(3))) long *)&dl, l);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.release.p0i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.release.p0.i64
   // expected-error@+1 {{'__nvvm_release_st_gen_l' needs target feature sm_70}}
   __nvvm_release_st_gen_l(&dl, l);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.release.p1i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.release.p1.i64
   // expected-error@+1 {{'__nvvm_release_st_global_l' needs target feature sm_70}}
   __nvvm_release_st_global_l((__attribute__((address_space(1))) long *)&dl, l);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.release.p3i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.release.p3.i64
   // expected-error@+1 {{'__nvvm_release_st_shared_l' needs target feature sm_70}}
   __nvvm_release_st_shared_l((__attribute__((address_space(3))) long *)&dl, l);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.sys.p0i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.sys.p0.i64
   // expected-error@+1 {{'__nvvm_sys_st_gen_l' needs target feature sm_70}}
   __nvvm_sys_st_gen_l(&dl, l);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.sys.p1i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.sys.p1.i64
   // expected-error@+1 {{'__nvvm_sys_st_global_l' needs target feature sm_70}}
   __nvvm_sys_st_global_l((__attribute__((address_space(1))) long *)&dl, l);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.sys.p3i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.sys.p3.i64
   // expected-error@+1 {{'__nvvm_sys_st_shared_l' needs target feature sm_70}}
   __nvvm_sys_st_shared_l((__attribute__((address_space(3))) long *)&dl, l);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.release.sys.p0i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.release.sys.p0.i64
   // expected-error@+1 {{'__nvvm_release_sys_st_gen_l' needs target feature sm_70}}
   __nvvm_release_sys_st_gen_l(&dl, l);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.release.sys.p1i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.release.sys.p1.i64
   // expected-error@+1 {{'__nvvm_release_sys_st_global_l' needs target feature sm_70}}
   __nvvm_release_sys_st_global_l((__attribute__((address_space(1))) long *)&dl, l);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.release.sys.p3i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.release.sys.p3.i64
   // expected-error@+1 {{'__nvvm_release_sys_st_shared_l' needs target feature sm_70}}
   __nvvm_release_sys_st_shared_l((__attribute__((address_space(3))) long *)&dl, l);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.cta.p0i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.cta.p0.i64
   // expected-error@+1 {{'__nvvm_cta_st_gen_l' needs target feature sm_70}}
   __nvvm_cta_st_gen_l(&dl, l);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.cta.p1i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.cta.p1.i64
   // expected-error@+1 {{'__nvvm_cta_st_global_l' needs target feature sm_70}}
   __nvvm_cta_st_global_l((__attribute__((address_space(1))) long *)&dl, l);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.cta.p3i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.cta.p3.i64
   // expected-error@+1 {{'__nvvm_cta_st_shared_l' needs target feature sm_70}}
   __nvvm_cta_st_shared_l((__attribute__((address_space(3))) long *)&dl, l);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.release.cta.p0i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.release.cta.p0.i64
   // expected-error@+1 {{'__nvvm_release_cta_st_gen_l' needs target feature sm_70}}
   __nvvm_release_cta_st_gen_l(&dl, l);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.release.cta.p1i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.release.cta.p1.i64
   // expected-error@+1 {{'__nvvm_release_cta_st_global_l' needs target feature sm_70}}
   __nvvm_release_cta_st_global_l((__attribute__((address_space(1))) long *)&dl, l);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.release.cta.p3i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.release.cta.p3.i64
   // expected-error@+1 {{'__nvvm_release_cta_st_shared_l' needs target feature sm_70}}
   __nvvm_release_cta_st_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.gen.i.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.gen.i.i64.p0
   // expected-error@+1 {{'__nvvm_ld_gen_ll' needs target feature sm_70}}
   __nvvm_ld_gen_ll(&dll);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.global.i.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.global.i.i64.p1
   // expected-error@+1 {{'__nvvm_ld_global_ll' needs target feature sm_70}}
   __nvvm_ld_global_ll((__attribute__((address_space(1))) long long *)&dll);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.shared.i.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.shared.i.i64.p3
   // expected-error@+1 {{'__nvvm_ld_shared_ll' needs target feature sm_70}}
   __nvvm_ld_shared_ll((__attribute__((address_space(3))) long long *)&dll);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.gen.i.acquire.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.gen.i.acquire.i64.p0
   // expected-error@+1 {{'__nvvm_acquire_ld_gen_ll' needs target feature sm_70}}
   __nvvm_acquire_ld_gen_ll(&dll);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.global.i.acquire.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.global.i.acquire.i64.p1
   // expected-error@+1 {{'__nvvm_acquire_ld_global_ll' needs target feature sm_70}}
   __nvvm_acquire_ld_global_ll((__attribute__((address_space(1))) long long *)&dll);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.shared.i.acquire.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.shared.i.acquire.i64.p3
   // expected-error@+1 {{'__nvvm_acquire_ld_shared_ll' needs target feature sm_70}}
   __nvvm_acquire_ld_shared_ll((__attribute__((address_space(3))) long long *)&dll);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.gen.i.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.gen.i.sys.i64.p0
   // expected-error@+1 {{'__nvvm_sys_ld_gen_ll' needs target feature sm_70}}
   __nvvm_sys_ld_gen_ll(&dll);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.global.i.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.global.i.sys.i64.p1
   // expected-error@+1 {{'__nvvm_sys_ld_global_ll' needs target feature sm_70}}
   __nvvm_sys_ld_global_ll((__attribute__((address_space(1))) long long *)&dll);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.shared.i.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.shared.i.sys.i64.p3
   // expected-error@+1 {{'__nvvm_sys_ld_shared_ll' needs target feature sm_70}}
   __nvvm_sys_ld_shared_ll((__attribute__((address_space(3))) long long *)&dll);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.gen.i.acquire.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.gen.i.acquire.sys.i64.p0
   // expected-error@+1 {{'__nvvm_acquire_sys_ld_gen_ll' needs target feature sm_70}}
   __nvvm_acquire_sys_ld_gen_ll(&dll);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.global.i.acquire.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.global.i.acquire.sys.i64.p1
   // expected-error@+1 {{'__nvvm_acquire_sys_ld_global_ll' needs target feature sm_70}}
   __nvvm_acquire_sys_ld_global_ll((__attribute__((address_space(1))) long long *)&dll);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.shared.i.acquire.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.shared.i.acquire.sys.i64.p3
   // expected-error@+1 {{'__nvvm_acquire_sys_ld_shared_ll' needs target feature sm_70}}
   __nvvm_acquire_sys_ld_shared_ll((__attribute__((address_space(3))) long long *)&dll);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.gen.i.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.gen.i.cta.i64.p0
   // expected-error@+1 {{'__nvvm_cta_ld_gen_ll' needs target feature sm_70}}
   __nvvm_cta_ld_gen_ll(&dll);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.global.i.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.global.i.cta.i64.p1
   // expected-error@+1 {{'__nvvm_cta_ld_global_ll' needs target feature sm_70}}
   __nvvm_cta_ld_global_ll((__attribute__((address_space(1))) long long *)&dll);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.shared.i.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.shared.i.cta.i64.p3
   // expected-error@+1 {{'__nvvm_cta_ld_shared_ll' needs target feature sm_70}}
   __nvvm_cta_ld_shared_ll((__attribute__((address_space(3))) long long *)&dll);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.gen.i.acquire.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.gen.i.acquire.cta.i64.p0
   // expected-error@+1 {{'__nvvm_acquire_cta_ld_gen_ll' needs target feature sm_70}}
   __nvvm_acquire_cta_ld_gen_ll(&dll);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.global.i.acquire.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.global.i.acquire.cta.i64.p1
   // expected-error@+1 {{'__nvvm_acquire_cta_ld_global_ll' needs target feature sm_70}}
   __nvvm_acquire_cta_ld_global_ll((__attribute__((address_space(1))) long long *)&dll);
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.shared.i.acquire.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.ld.shared.i.acquire.cta.i64.p3
   // expected-error@+1 {{'__nvvm_acquire_cta_ld_shared_ll' needs target feature sm_70}}
   __nvvm_acquire_cta_ld_shared_ll((__attribute__((address_space(3))) long long *)&dll);
 
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.p0i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.p0.i64
   // expected-error@+1 {{'__nvvm_st_gen_ll' needs target feature sm_70}}
   __nvvm_st_gen_ll(&dll, ll);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.p1i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.p1.i64
   // expected-error@+1 {{'__nvvm_st_global_ll' needs target feature sm_70}}
   __nvvm_st_global_ll((__attribute__((address_space(1))) long long *)&dll, ll);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.p3i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.p3.i64
   // expected-error@+1 {{'__nvvm_st_shared_ll' needs target feature sm_70}}
   __nvvm_st_shared_ll((__attribute__((address_space(3))) long long *)&dll, ll);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.release.p0i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.release.p0.i64
   // expected-error@+1 {{'__nvvm_release_st_gen_ll' needs target feature sm_70}}
   __nvvm_release_st_gen_ll(&dll, ll);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.release.p1i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.release.p1.i64
   // expected-error@+1 {{'__nvvm_release_st_global_ll' needs target feature sm_70}}
   __nvvm_release_st_global_ll((__attribute__((address_space(1))) long long *)&dll, ll);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.release.p3i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.release.p3.i64
   // expected-error@+1 {{'__nvvm_release_st_shared_ll' needs target feature sm_70}}
   __nvvm_release_st_shared_ll((__attribute__((address_space(3))) long long *)&dll, ll);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.sys.p0i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.sys.p0.i64
   // expected-error@+1 {{'__nvvm_sys_st_gen_ll' needs target feature sm_70}}
   __nvvm_sys_st_gen_ll(&dll, ll);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.sys.p1i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.sys.p1.i64
   // expected-error@+1 {{'__nvvm_sys_st_global_ll' needs target feature sm_70}}
   __nvvm_sys_st_global_ll((__attribute__((address_space(1))) long long *)&dll, ll);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.sys.p3i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.sys.p3.i64
   // expected-error@+1 {{'__nvvm_sys_st_shared_ll' needs target feature sm_70}}
   __nvvm_sys_st_shared_ll((__attribute__((address_space(3))) long long *)&dll, ll);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.release.sys.p0i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.release.sys.p0.i64
   // expected-error@+1 {{'__nvvm_release_sys_st_gen_ll' needs target feature sm_70}}
   __nvvm_release_sys_st_gen_ll(&dll, ll);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.release.sys.p1i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.release.sys.p1.i64
   // expected-error@+1 {{'__nvvm_release_sys_st_global_ll' needs target feature sm_70}}
   __nvvm_release_sys_st_global_ll((__attribute__((address_space(1))) long long *)&dll, ll);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.release.sys.p3i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.release.sys.p3.i64
   // expected-error@+1 {{'__nvvm_release_sys_st_shared_ll' needs target feature sm_70}}
   __nvvm_release_sys_st_shared_ll((__attribute__((address_space(3))) long long *)&dll, ll);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.cta.p0i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.cta.p0.i64
   // expected-error@+1 {{'__nvvm_cta_st_gen_ll' needs target feature sm_70}}
   __nvvm_cta_st_gen_ll(&dll, ll);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.cta.p1i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.cta.p1.i64
   // expected-error@+1 {{'__nvvm_cta_st_global_ll' needs target feature sm_70}}
   __nvvm_cta_st_global_ll((__attribute__((address_space(1))) long long *)&dll, ll);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.cta.p3i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.cta.p3.i64
   // expected-error@+1 {{'__nvvm_cta_st_shared_ll' needs target feature sm_70}}
   __nvvm_cta_st_shared_ll((__attribute__((address_space(3))) long long *)&dll, ll);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.release.cta.p0i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.i.release.cta.p0.i64
   // expected-error@+1 {{'__nvvm_release_cta_st_gen_ll' needs target feature sm_70}}
   __nvvm_release_cta_st_gen_ll(&dll, ll);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.release.cta.p1i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.i.release.cta.p1.i64
   // expected-error@+1 {{'__nvvm_release_cta_st_global_ll' needs target feature sm_70}}
   __nvvm_release_cta_st_global_ll((__attribute__((address_space(1))) long long *)&dll, ll);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.release.cta.p3i64.i64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.i.release.cta.p3.i64
   // expected-error@+1 {{'__nvvm_release_cta_st_shared_ll' needs target feature sm_70}}
   __nvvm_release_cta_st_shared_ll((__attribute__((address_space(3))) long long *)&dll, ll);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.gen.f.f32.p0f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.gen.f.f32.p0
   // expected-error@+1 {{'__nvvm_ld_gen_f' needs target feature sm_70}}
   __nvvm_ld_gen_f(fp);
-  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.global.f.f32.p1f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.global.f.f32.p1
   // expected-error@+1 {{'__nvvm_ld_global_f' needs target feature sm_70}}
   __nvvm_ld_global_f((__attribute__((address_space(1))) float *)fp);
-  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.shared.f.f32.p3f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.shared.f.f32.p3
   // expected-error@+1 {{'__nvvm_ld_shared_f' needs target feature sm_70}}
   __nvvm_ld_shared_f((__attribute__((address_space(3))) float *)fp);
-  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.gen.f.acquire.f32.p0f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.gen.f.acquire.f32.p0
   // expected-error@+1 {{'__nvvm_acquire_ld_gen_f' needs target feature sm_70}}
   __nvvm_acquire_ld_gen_f(fp);
-  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.global.f.acquire.f32.p1f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.global.f.acquire.f32.p1
   // expected-error@+1 {{'__nvvm_acquire_ld_global_f' needs target feature sm_70}}
   __nvvm_acquire_ld_global_f((__attribute__((address_space(1))) float *)fp);
-  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.shared.f.acquire.f32.p3f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.shared.f.acquire.f32.p3
   // expected-error@+1 {{'__nvvm_acquire_ld_shared_f' needs target feature sm_70}}
   __nvvm_acquire_ld_shared_f((__attribute__((address_space(3))) float *)fp);
-  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.gen.f.sys.f32.p0f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.gen.f.sys.f32.p0
   // expected-error@+1 {{'__nvvm_sys_ld_gen_f' needs target feature sm_70}}
   __nvvm_sys_ld_gen_f(fp);
-  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.global.f.sys.f32.p1f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.global.f.sys.f32.p1
   // expected-error@+1 {{'__nvvm_sys_ld_global_f' needs target feature sm_70}}
   __nvvm_sys_ld_global_f((__attribute__((address_space(1))) float *)fp);
-  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.shared.f.sys.f32.p3f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.shared.f.sys.f32.p3
   // expected-error@+1 {{'__nvvm_sys_ld_shared_f' needs target feature sm_70}}
   __nvvm_sys_ld_shared_f((__attribute__((address_space(3))) float *)fp);
-  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.gen.f.acquire.sys.f32.p0f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.gen.f.acquire.sys.f32.p0
   // expected-error@+1 {{'__nvvm_acquire_sys_ld_gen_f' needs target feature sm_70}}
   __nvvm_acquire_sys_ld_gen_f(fp);
-  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.global.f.acquire.sys.f32.p1f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.global.f.acquire.sys.f32.p1
   // expected-error@+1 {{'__nvvm_acquire_sys_ld_global_f' needs target feature sm_70}}
   __nvvm_acquire_sys_ld_global_f((__attribute__((address_space(1))) float *)fp);
-  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.shared.f.acquire.sys.f32.p3f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.shared.f.acquire.sys.f32.p3
   // expected-error@+1 {{'__nvvm_acquire_sys_ld_shared_f' needs target feature sm_70}}
   __nvvm_acquire_sys_ld_shared_f((__attribute__((address_space(3))) float *)fp);
-  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.gen.f.cta.f32.p0f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.gen.f.cta.f32.p0
   // expected-error@+1 {{'__nvvm_cta_ld_gen_f' needs target feature sm_70}}
   __nvvm_cta_ld_gen_f(fp);
-  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.global.f.cta.f32.p1f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.global.f.cta.f32.p1
   // expected-error@+1 {{'__nvvm_cta_ld_global_f' needs target feature sm_70}}
   __nvvm_cta_ld_global_f((__attribute__((address_space(1))) float *)fp);
-  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.shared.f.cta.f32.p3f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.shared.f.cta.f32.p3
   // expected-error@+1 {{'__nvvm_cta_ld_shared_f' needs target feature sm_70}}
   __nvvm_cta_ld_shared_f((__attribute__((address_space(3))) float *)fp);
-  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.gen.f.acquire.cta.f32.p0f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.gen.f.acquire.cta.f32.p0
   // expected-error@+1 {{'__nvvm_acquire_cta_ld_gen_f' needs target feature sm_70}}
   __nvvm_acquire_cta_ld_gen_f(fp);
-  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.global.f.acquire.cta.f32.p1f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.global.f.acquire.cta.f32.p1
   // expected-error@+1 {{'__nvvm_acquire_cta_ld_global_f' needs target feature sm_70}}
   __nvvm_acquire_cta_ld_global_f((__attribute__((address_space(1))) float *)fp);
-  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.shared.f.acquire.cta.f32.p3f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.ld.shared.f.acquire.cta.f32.p3
   // expected-error@+1 {{'__nvvm_acquire_cta_ld_shared_f' needs target feature sm_70}}
   __nvvm_acquire_cta_ld_shared_f((__attribute__((address_space(3))) float *)fp);
 
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.f.p0f32.f32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.f.p0.f32
   // expected-error@+1 {{'__nvvm_st_gen_f' needs target feature sm_70}}
   __nvvm_st_gen_f(fp, f);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.f.p1f32.f32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.f.p1.f32
   // expected-error@+1 {{'__nvvm_st_global_f' needs target feature sm_70}}
   __nvvm_st_global_f((__attribute__((address_space(1))) float *)fp, f);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.f.p3f32.f32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.f.p3.f32
   // expected-error@+1 {{'__nvvm_st_shared_f' needs target feature sm_70}}
   __nvvm_st_shared_f((__attribute__((address_space(3))) float *)fp, f);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.f.release.p0f32.f32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.f.release.p0.f32
   // expected-error@+1 {{'__nvvm_release_st_gen_f' needs target feature sm_70}}
   __nvvm_release_st_gen_f(fp, f);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.f.release.p1f32.f32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.f.release.p1.f32
   // expected-error@+1 {{'__nvvm_release_st_global_f' needs target feature sm_70}}
   __nvvm_release_st_global_f((__attribute__((address_space(1))) float *)fp, f);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.f.release.p3f32.f32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.f.release.p3.f32
   // expected-error@+1 {{'__nvvm_release_st_shared_f' needs target feature sm_70}}
   __nvvm_release_st_shared_f((__attribute__((address_space(3))) float *)fp, f);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.f.sys.p0f32.f32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.f.sys.p0.f32
   // expected-error@+1 {{'__nvvm_sys_st_gen_f' needs target feature sm_70}}
   __nvvm_sys_st_gen_f(fp, f);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.f.sys.p1f32.f32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.f.sys.p1.f32
   // expected-error@+1 {{'__nvvm_sys_st_global_f' needs target feature sm_70}}
   __nvvm_sys_st_global_f((__attribute__((address_space(1))) float *)fp, f);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.f.sys.p3f32.f32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.f.sys.p3.f32
   // expected-error@+1 {{'__nvvm_sys_st_shared_f' needs target feature sm_70}}
   __nvvm_sys_st_shared_f((__attribute__((address_space(3))) float *)fp, f);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.f.release.sys.p0f32.f32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.f.release.sys.p0.f32
   // expected-error@+1 {{'__nvvm_release_sys_st_gen_f' needs target feature sm_70}}
   __nvvm_release_sys_st_gen_f(fp, f);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.f.release.sys.p1f32.f32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.f.release.sys.p1.f32
   // expected-error@+1 {{'__nvvm_release_sys_st_global_f' needs target feature sm_70}}
   __nvvm_release_sys_st_global_f((__attribute__((address_space(1))) float *)fp, f);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.f.release.sys.p3f32.f32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.f.release.sys.p3.f32
   // expected-error@+1 {{'__nvvm_release_sys_st_shared_f' needs target feature sm_70}}
   __nvvm_release_sys_st_shared_f((__attribute__((address_space(3))) float *)fp, f);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.f.cta.p0f32.f32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.f.cta.p0.f32
   // expected-error@+1 {{'__nvvm_cta_st_gen_f' needs target feature sm_70}}
   __nvvm_cta_st_gen_f(fp, f);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.f.cta.p1f32.f32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.f.cta.p1.f32
   // expected-error@+1 {{'__nvvm_cta_st_global_f' needs target feature sm_70}}
   __nvvm_cta_st_global_f((__attribute__((address_space(1))) float *)fp, f);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.f.cta.p3f32.f32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.f.cta.p3.f32
   // expected-error@+1 {{'__nvvm_cta_st_shared_f' needs target feature sm_70}}
   __nvvm_cta_st_shared_f((__attribute__((address_space(3))) float *)fp, f);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.f.release.cta.p0f32.f32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.f.release.cta.p0.f32
   // expected-error@+1 {{'__nvvm_release_cta_st_gen_f' needs target feature sm_70}}
   __nvvm_release_cta_st_gen_f(fp, f);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.f.release.cta.p1f32.f32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.f.release.cta.p1.f32
   // expected-error@+1 {{'__nvvm_release_cta_st_global_f' needs target feature sm_70}}
   __nvvm_release_cta_st_global_f((__attribute__((address_space(1))) float *)fp, f);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.f.release.cta.p3f32.f32
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.f.release.cta.p3.f32
   // expected-error@+1 {{'__nvvm_release_cta_st_shared_f' needs target feature sm_70}}
   __nvvm_release_cta_st_shared_f((__attribute__((address_space(3))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.gen.f.f64.p0f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.gen.f.f64.p0
   // expected-error@+1 {{'__nvvm_ld_gen_d' needs target feature sm_70}}
   __nvvm_ld_gen_d(dfp);
-  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.global.f.f64.p1f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.global.f.f64.p1
   // expected-error@+1 {{'__nvvm_ld_global_d' needs target feature sm_70}}
   __nvvm_ld_global_d((__attribute__((address_space(1))) double *)dfp);
-  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.shared.f.f64.p3f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.shared.f.f64.p3
   // expected-error@+1 {{'__nvvm_ld_shared_d' needs target feature sm_70}}
   __nvvm_ld_shared_d((__attribute__((address_space(3))) double *)dfp);
-  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.gen.f.acquire.f64.p0f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.gen.f.acquire.f64.p0
   // expected-error@+1 {{'__nvvm_acquire_ld_gen_d' needs target feature sm_70}}
   __nvvm_acquire_ld_gen_d(dfp);
-  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.global.f.acquire.f64.p1f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.global.f.acquire.f64.p1
   // expected-error@+1 {{'__nvvm_acquire_ld_global_d' needs target feature sm_70}}
   __nvvm_acquire_ld_global_d((__attribute__((address_space(1))) double *)dfp);
-  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.shared.f.acquire.f64.p3f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.shared.f.acquire.f64.p3
   // expected-error@+1 {{'__nvvm_acquire_ld_shared_d' needs target feature sm_70}}
   __nvvm_acquire_ld_shared_d((__attribute__((address_space(3))) double *)dfp);
-  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.gen.f.sys.f64.p0f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.gen.f.sys.f64.p0
   // expected-error@+1 {{'__nvvm_sys_ld_gen_d' needs target feature sm_70}}
   __nvvm_sys_ld_gen_d(dfp);
-  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.global.f.sys.f64.p1f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.global.f.sys.f64.p1
   // expected-error@+1 {{'__nvvm_sys_ld_global_d' needs target feature sm_70}}
   __nvvm_sys_ld_global_d((__attribute__((address_space(1))) double *)dfp);
-  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.shared.f.sys.f64.p3f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.shared.f.sys.f64.p3
   // expected-error@+1 {{'__nvvm_sys_ld_shared_d' needs target feature sm_70}}
   __nvvm_sys_ld_shared_d((__attribute__((address_space(3))) double *)dfp);
-  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.gen.f.acquire.sys.f64.p0f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.gen.f.acquire.sys.f64.p0
   // expected-error@+1 {{'__nvvm_acquire_sys_ld_gen_d' needs target feature sm_70}}
   __nvvm_acquire_sys_ld_gen_d(dfp);
-  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.global.f.acquire.sys.f64.p1f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.global.f.acquire.sys.f64.p1
   // expected-error@+1 {{'__nvvm_acquire_sys_ld_global_d' needs target feature sm_70}}
   __nvvm_acquire_sys_ld_global_d((__attribute__((address_space(1))) double *)dfp);
-  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.shared.f.acquire.sys.f64.p3f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.shared.f.acquire.sys.f64.p3
   // expected-error@+1 {{'__nvvm_acquire_sys_ld_shared_d' needs target feature sm_70}}
   __nvvm_acquire_sys_ld_shared_d((__attribute__((address_space(3))) double *)dfp);
-  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.gen.f.cta.f64.p0f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.gen.f.cta.f64.p0
   // expected-error@+1 {{'__nvvm_cta_ld_gen_d' needs target feature sm_70}}
   __nvvm_cta_ld_gen_d(dfp);
-  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.global.f.cta.f64.p1f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.global.f.cta.f64.p1
   // expected-error@+1 {{'__nvvm_cta_ld_global_d' needs target feature sm_70}}
   __nvvm_cta_ld_global_d((__attribute__((address_space(1))) double *)dfp);
-  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.shared.f.cta.f64.p3f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.shared.f.cta.f64.p3
   // expected-error@+1 {{'__nvvm_cta_ld_shared_d' needs target feature sm_70}}
   __nvvm_cta_ld_shared_d((__attribute__((address_space(3))) double *)dfp);
-  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.gen.f.acquire.cta.f64.p0f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.gen.f.acquire.cta.f64.p0
   // expected-error@+1 {{'__nvvm_acquire_cta_ld_gen_d' needs target feature sm_70}}
   __nvvm_acquire_cta_ld_gen_d(dfp);
-  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.global.f.acquire.cta.f64.p1f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.global.f.acquire.cta.f64.p1
   // expected-error@+1 {{'__nvvm_acquire_cta_ld_global_d' needs target feature sm_70}}
   __nvvm_acquire_cta_ld_global_d((__attribute__((address_space(1))) double *)dfp);
-  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.shared.f.acquire.cta.f64.p3f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.ld.shared.f.acquire.cta.f64.p3
   // expected-error@+1 {{'__nvvm_acquire_cta_ld_shared_d' needs target feature sm_70}}
   __nvvm_acquire_cta_ld_shared_d((__attribute__((address_space(3))) double *)dfp);
 
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.f.p0f64.f64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.f.p0.f64
   // expected-error@+1 {{'__nvvm_st_gen_d' needs target feature sm_70}}
   __nvvm_st_gen_d(dfp, df);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.f.p1f64.f64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.f.p1.f64
   // expected-error@+1 {{'__nvvm_st_global_d' needs target feature sm_70}}
   __nvvm_st_global_d((__attribute__((address_space(1))) double *)dfp, df);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.f.p3f64.f64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.f.p3.f64
   // expected-error@+1 {{'__nvvm_st_shared_d' needs target feature sm_70}}
   __nvvm_st_shared_d((__attribute__((address_space(3))) double *)dfp, df);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.f.release.p0f64.f64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.f.release.p0.f64
   // expected-error@+1 {{'__nvvm_release_st_gen_d' needs target feature sm_70}}
   __nvvm_release_st_gen_d(dfp, df);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.f.release.p1f64.f64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.f.release.p1.f64
   // expected-error@+1 {{'__nvvm_release_st_global_d' needs target feature sm_70}}
   __nvvm_release_st_global_d((__attribute__((address_space(1))) double *)dfp, df);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.f.release.p3f64.f64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.f.release.p3.f64
   // expected-error@+1 {{'__nvvm_release_st_shared_d' needs target feature sm_70}}
   __nvvm_release_st_shared_d((__attribute__((address_space(3))) double *)dfp, df);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.f.sys.p0f64.f64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.f.sys.p0.f64
   // expected-error@+1 {{'__nvvm_sys_st_gen_d' needs target feature sm_70}}
   __nvvm_sys_st_gen_d(dfp, df);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.f.sys.p1f64.f64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.f.sys.p1.f64
   // expected-error@+1 {{'__nvvm_sys_st_global_d' needs target feature sm_70}}
   __nvvm_sys_st_global_d((__attribute__((address_space(1))) double *)dfp, df);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.f.sys.p3f64.f64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.f.sys.p3.f64
   // expected-error@+1 {{'__nvvm_sys_st_shared_d' needs target feature sm_70}}
   __nvvm_sys_st_shared_d((__attribute__((address_space(3))) double *)dfp, df);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.f.release.sys.p0f64.f64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.f.release.sys.p0.f64
   // expected-error@+1 {{'__nvvm_release_sys_st_gen_d' needs target feature sm_70}}
   __nvvm_release_sys_st_gen_d(dfp, df);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.f.release.sys.p1f64.f64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.f.release.sys.p1.f64
   // expected-error@+1 {{'__nvvm_release_sys_st_global_d' needs target feature sm_70}}
   __nvvm_release_sys_st_global_d((__attribute__((address_space(1))) double *)dfp, df);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.f.release.sys.p3f64.f64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.f.release.sys.p3.f64
   // expected-error@+1 {{'__nvvm_release_sys_st_shared_d' needs target feature sm_70}}
   __nvvm_release_sys_st_shared_d((__attribute__((address_space(3))) double *)dfp, df);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.f.cta.p0f64.f64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.f.cta.p0.f64
   // expected-error@+1 {{'__nvvm_cta_st_gen_d' needs target feature sm_70}}
   __nvvm_cta_st_gen_d(dfp, df);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.f.cta.p1f64.f64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.f.cta.p1.f64
   // expected-error@+1 {{'__nvvm_cta_st_global_d' needs target feature sm_70}}
   __nvvm_cta_st_global_d((__attribute__((address_space(1))) double *)dfp, df);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.f.cta.p3f64.f64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.f.cta.p3.f64
   // expected-error@+1 {{'__nvvm_cta_st_shared_d' needs target feature sm_70}}
   __nvvm_cta_st_shared_d((__attribute__((address_space(3))) double *)dfp, df);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.f.release.cta.p0f64.f64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.gen.f.release.cta.p0.f64
   // expected-error@+1 {{'__nvvm_release_cta_st_gen_d' needs target feature sm_70}}
   __nvvm_release_cta_st_gen_d(dfp, df);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.f.release.cta.p1f64.f64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.global.f.release.cta.p1.f64
   // expected-error@+1 {{'__nvvm_release_cta_st_global_d' needs target feature sm_70}}
   __nvvm_release_cta_st_global_d((__attribute__((address_space(1))) double *)dfp, df);
-  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.f.release.cta.p3f64.f64
+  // CHECK_SM70_LP64: call void @llvm.nvvm.st.shared.f.release.cta.p3.f64
   // expected-error@+1 {{'__nvvm_release_cta_st_shared_d' needs target feature sm_70}}
   __nvvm_release_cta_st_shared_d((__attribute__((address_space(3))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.gen.i.acquire.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.gen.i.acquire.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_add_gen_i' needs target feature sm_70}}
   __nvvm_atom_acquire_add_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.global.i.acquire.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.global.i.acquire.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_add_global_i' needs target feature sm_70}}
   __nvvm_atom_acquire_add_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.shared.i.acquire.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.shared.i.acquire.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_add_shared_i' needs target feature sm_70}}
   __nvvm_atom_acquire_add_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.gen.i.release.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.gen.i.release.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_add_gen_i' needs target feature sm_70}}
   __nvvm_atom_release_add_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.global.i.release.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.global.i.release.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_add_global_i' needs target feature sm_70}}
   __nvvm_atom_release_add_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.shared.i.release.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.shared.i.release.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_add_shared_i' needs target feature sm_70}}
   __nvvm_atom_release_add_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.gen.i.acq.rel.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.gen.i.acq.rel.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_add_gen_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_add_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.global.i.acq.rel.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.global.i.acq.rel.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_add_global_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_add_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.shared.i.acq.rel.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.shared.i.acq.rel.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_add_shared_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_add_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.gen.i.acquire.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.gen.i.acquire.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_add_gen_i' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_add_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.global.i.acquire.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.global.i.acquire.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_add_global_i' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_add_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.shared.i.acquire.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.shared.i.acquire.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_add_shared_i' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_add_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.gen.i.release.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.gen.i.release.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_sys_add_gen_i' needs target feature sm_70}}
   __nvvm_atom_release_sys_add_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.global.i.release.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.global.i.release.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_sys_add_global_i' needs target feature sm_70}}
   __nvvm_atom_release_sys_add_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.shared.i.release.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.shared.i.release.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_sys_add_shared_i' needs target feature sm_70}}
   __nvvm_atom_release_sys_add_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.gen.i.acq.rel.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.gen.i.acq.rel.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_add_gen_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_add_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.global.i.acq.rel.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.global.i.acq.rel.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_add_global_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_add_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.shared.i.acq.rel.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.shared.i.acq.rel.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_add_shared_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_add_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.gen.i.acquire.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.gen.i.acquire.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_add_gen_i' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_add_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.global.i.acquire.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.global.i.acquire.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_add_global_i' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_add_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.shared.i.acquire.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.shared.i.acquire.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_add_shared_i' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_add_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.gen.i.release.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.gen.i.release.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_cta_add_gen_i' needs target feature sm_70}}
   __nvvm_atom_release_cta_add_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.global.i.release.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.global.i.release.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_cta_add_global_i' needs target feature sm_70}}
   __nvvm_atom_release_cta_add_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.shared.i.release.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.shared.i.release.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_cta_add_shared_i' needs target feature sm_70}}
   __nvvm_atom_release_cta_add_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.gen.i.acq.rel.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.gen.i.acq.rel.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_add_gen_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_add_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.global.i.acq.rel.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.global.i.acq.rel.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_add_global_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_add_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.shared.i.acq.rel.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.add.shared.i.acq.rel.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_add_shared_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_add_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.gen.i.acquire.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.gen.i.acquire.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_add_gen_l' needs target feature sm_70}}
   __nvvm_atom_acquire_add_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.global.i.acquire.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.global.i.acquire.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_add_global_l' needs target feature sm_70}}
   __nvvm_atom_acquire_add_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.shared.i.acquire.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.shared.i.acquire.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_add_shared_l' needs target feature sm_70}}
   __nvvm_atom_acquire_add_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.gen.i.release.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.gen.i.release.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_add_gen_l' needs target feature sm_70}}
   __nvvm_atom_release_add_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.global.i.release.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.global.i.release.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_add_global_l' needs target feature sm_70}}
   __nvvm_atom_release_add_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.shared.i.release.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.shared.i.release.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_add_shared_l' needs target feature sm_70}}
   __nvvm_atom_release_add_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.gen.i.acq.rel.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.gen.i.acq.rel.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_add_gen_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_add_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.global.i.acq.rel.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.global.i.acq.rel.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_add_global_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_add_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.shared.i.acq.rel.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.shared.i.acq.rel.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_add_shared_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_add_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.gen.i.acquire.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.gen.i.acquire.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_add_gen_l' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_add_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.global.i.acquire.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.global.i.acquire.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_add_global_l' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_add_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.shared.i.acquire.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.shared.i.acquire.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_add_shared_l' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_add_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.gen.i.release.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.gen.i.release.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_sys_add_gen_l' needs target feature sm_70}}
   __nvvm_atom_release_sys_add_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.global.i.release.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.global.i.release.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_sys_add_global_l' needs target feature sm_70}}
   __nvvm_atom_release_sys_add_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.shared.i.release.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.shared.i.release.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_sys_add_shared_l' needs target feature sm_70}}
   __nvvm_atom_release_sys_add_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.gen.i.acq.rel.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.gen.i.acq.rel.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_add_gen_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_add_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.global.i.acq.rel.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.global.i.acq.rel.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_add_global_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_add_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.shared.i.acq.rel.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.shared.i.acq.rel.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_add_shared_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_add_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.gen.i.acquire.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.gen.i.acquire.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_add_gen_l' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_add_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.global.i.acquire.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.global.i.acquire.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_add_global_l' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_add_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.shared.i.acquire.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.shared.i.acquire.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_add_shared_l' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_add_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.gen.i.release.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.gen.i.release.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_cta_add_gen_l' needs target feature sm_70}}
   __nvvm_atom_release_cta_add_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.global.i.release.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.global.i.release.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_cta_add_global_l' needs target feature sm_70}}
   __nvvm_atom_release_cta_add_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.shared.i.release.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.shared.i.release.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_cta_add_shared_l' needs target feature sm_70}}
   __nvvm_atom_release_cta_add_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.gen.i.acq.rel.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.gen.i.acq.rel.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_add_gen_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_add_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.global.i.acq.rel.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.global.i.acq.rel.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_add_global_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_add_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.shared.i.acq.rel.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.add.shared.i.acq.rel.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_add_shared_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_add_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.gen.f.acquire.f32.p0f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.gen.f.acquire.f32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_add_gen_f' needs target feature sm_70}}
   __nvvm_atom_acquire_add_gen_f(fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.global.f.acquire.f32.p1f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.global.f.acquire.f32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_add_global_f' needs target feature sm_70}}
   __nvvm_atom_acquire_add_global_f((__attribute__((address_space(1))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.shared.f.acquire.f32.p3f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.shared.f.acquire.f32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_add_shared_f' needs target feature sm_70}}
   __nvvm_atom_acquire_add_shared_f((__attribute__((address_space(3))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.gen.f.release.f32.p0f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.gen.f.release.f32.p0
   // expected-error@+1 {{'__nvvm_atom_release_add_gen_f' needs target feature sm_70}}
   __nvvm_atom_release_add_gen_f(fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.global.f.release.f32.p1f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.global.f.release.f32.p1
   // expected-error@+1 {{'__nvvm_atom_release_add_global_f' needs target feature sm_70}}
   __nvvm_atom_release_add_global_f((__attribute__((address_space(1))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.shared.f.release.f32.p3f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.shared.f.release.f32.p3
   // expected-error@+1 {{'__nvvm_atom_release_add_shared_f' needs target feature sm_70}}
   __nvvm_atom_release_add_shared_f((__attribute__((address_space(3))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.gen.f.acq.rel.f32.p0f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.gen.f.acq.rel.f32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_add_gen_f' needs target feature sm_70}}
   __nvvm_atom_acq_rel_add_gen_f(fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.global.f.acq.rel.f32.p1f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.global.f.acq.rel.f32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_add_global_f' needs target feature sm_70}}
   __nvvm_atom_acq_rel_add_global_f((__attribute__((address_space(1))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.shared.f.acq.rel.f32.p3f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.shared.f.acq.rel.f32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_add_shared_f' needs target feature sm_70}}
   __nvvm_atom_acq_rel_add_shared_f((__attribute__((address_space(3))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.gen.f.acquire.sys.f32.p0f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.gen.f.acquire.sys.f32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_add_gen_f' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_add_gen_f(fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.global.f.acquire.sys.f32.p1f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.global.f.acquire.sys.f32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_add_global_f' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_add_global_f((__attribute__((address_space(1))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.shared.f.acquire.sys.f32.p3f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.shared.f.acquire.sys.f32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_add_shared_f' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_add_shared_f((__attribute__((address_space(3))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.gen.f.release.sys.f32.p0f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.gen.f.release.sys.f32.p0
   // expected-error@+1 {{'__nvvm_atom_release_sys_add_gen_f' needs target feature sm_70}}
   __nvvm_atom_release_sys_add_gen_f(fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.global.f.release.sys.f32.p1f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.global.f.release.sys.f32.p1
   // expected-error@+1 {{'__nvvm_atom_release_sys_add_global_f' needs target feature sm_70}}
   __nvvm_atom_release_sys_add_global_f((__attribute__((address_space(1))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.shared.f.release.sys.f32.p3f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.shared.f.release.sys.f32.p3
   // expected-error@+1 {{'__nvvm_atom_release_sys_add_shared_f' needs target feature sm_70}}
   __nvvm_atom_release_sys_add_shared_f((__attribute__((address_space(3))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.gen.f.acq.rel.sys.f32.p0f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.gen.f.acq.rel.sys.f32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_add_gen_f' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_add_gen_f(fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.global.f.acq.rel.sys.f32.p1f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.global.f.acq.rel.sys.f32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_add_global_f' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_add_global_f((__attribute__((address_space(1))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.shared.f.acq.rel.sys.f32.p3f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.shared.f.acq.rel.sys.f32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_add_shared_f' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_add_shared_f((__attribute__((address_space(3))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.gen.f.acquire.cta.f32.p0f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.gen.f.acquire.cta.f32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_add_gen_f' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_add_gen_f(fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.global.f.acquire.cta.f32.p1f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.global.f.acquire.cta.f32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_add_global_f' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_add_global_f((__attribute__((address_space(1))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.shared.f.acquire.cta.f32.p3f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.shared.f.acquire.cta.f32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_add_shared_f' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_add_shared_f((__attribute__((address_space(3))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.gen.f.release.cta.f32.p0f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.gen.f.release.cta.f32.p0
   // expected-error@+1 {{'__nvvm_atom_release_cta_add_gen_f' needs target feature sm_70}}
   __nvvm_atom_release_cta_add_gen_f(fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.global.f.release.cta.f32.p1f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.global.f.release.cta.f32.p1
   // expected-error@+1 {{'__nvvm_atom_release_cta_add_global_f' needs target feature sm_70}}
   __nvvm_atom_release_cta_add_global_f((__attribute__((address_space(1))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.shared.f.release.cta.f32.p3f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.shared.f.release.cta.f32.p3
   // expected-error@+1 {{'__nvvm_atom_release_cta_add_shared_f' needs target feature sm_70}}
   __nvvm_atom_release_cta_add_shared_f((__attribute__((address_space(3))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.gen.f.acq.rel.cta.f32.p0f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.gen.f.acq.rel.cta.f32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_add_gen_f' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_add_gen_f(fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.global.f.acq.rel.cta.f32.p1f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.global.f.acq.rel.cta.f32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_add_global_f' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_add_global_f((__attribute__((address_space(1))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.shared.f.acq.rel.cta.f32.p3f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.add.shared.f.acq.rel.cta.f32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_add_shared_f' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_add_shared_f((__attribute__((address_space(3))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.gen.f.acquire.f64.p0f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.gen.f.acquire.f64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_add_gen_d' needs target feature sm_70}}
   __nvvm_atom_acquire_add_gen_d(dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.global.f.acquire.f64.p1f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.global.f.acquire.f64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_add_global_d' needs target feature sm_70}}
   __nvvm_atom_acquire_add_global_d((__attribute__((address_space(1))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.shared.f.acquire.f64.p3f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.shared.f.acquire.f64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_add_shared_d' needs target feature sm_70}}
   __nvvm_atom_acquire_add_shared_d((__attribute__((address_space(3))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.gen.f.release.f64.p0f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.gen.f.release.f64.p0
   // expected-error@+1 {{'__nvvm_atom_release_add_gen_d' needs target feature sm_70}}
   __nvvm_atom_release_add_gen_d(dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.global.f.release.f64.p1f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.global.f.release.f64.p1
   // expected-error@+1 {{'__nvvm_atom_release_add_global_d' needs target feature sm_70}}
   __nvvm_atom_release_add_global_d((__attribute__((address_space(1))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.shared.f.release.f64.p3f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.shared.f.release.f64.p3
   // expected-error@+1 {{'__nvvm_atom_release_add_shared_d' needs target feature sm_70}}
   __nvvm_atom_release_add_shared_d((__attribute__((address_space(3))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.gen.f.acq.rel.f64.p0f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.gen.f.acq.rel.f64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_add_gen_d' needs target feature sm_70}}
   __nvvm_atom_acq_rel_add_gen_d(dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.global.f.acq.rel.f64.p1f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.global.f.acq.rel.f64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_add_global_d' needs target feature sm_70}}
   __nvvm_atom_acq_rel_add_global_d((__attribute__((address_space(1))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.shared.f.acq.rel.f64.p3f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.shared.f.acq.rel.f64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_add_shared_d' needs target feature sm_70}}
   __nvvm_atom_acq_rel_add_shared_d((__attribute__((address_space(3))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.gen.f.acquire.sys.f64.p0f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.gen.f.acquire.sys.f64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_add_gen_d' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_add_gen_d(dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.global.f.acquire.sys.f64.p1f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.global.f.acquire.sys.f64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_add_global_d' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_add_global_d((__attribute__((address_space(1))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.shared.f.acquire.sys.f64.p3f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.shared.f.acquire.sys.f64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_add_shared_d' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_add_shared_d((__attribute__((address_space(3))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.gen.f.release.sys.f64.p0f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.gen.f.release.sys.f64.p0
   // expected-error@+1 {{'__nvvm_atom_release_sys_add_gen_d' needs target feature sm_70}}
   __nvvm_atom_release_sys_add_gen_d(dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.global.f.release.sys.f64.p1f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.global.f.release.sys.f64.p1
   // expected-error@+1 {{'__nvvm_atom_release_sys_add_global_d' needs target feature sm_70}}
   __nvvm_atom_release_sys_add_global_d((__attribute__((address_space(1))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.shared.f.release.sys.f64.p3f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.shared.f.release.sys.f64.p3
   // expected-error@+1 {{'__nvvm_atom_release_sys_add_shared_d' needs target feature sm_70}}
   __nvvm_atom_release_sys_add_shared_d((__attribute__((address_space(3))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.gen.f.acq.rel.sys.f64.p0f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.gen.f.acq.rel.sys.f64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_add_gen_d' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_add_gen_d(dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.global.f.acq.rel.sys.f64.p1f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.global.f.acq.rel.sys.f64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_add_global_d' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_add_global_d((__attribute__((address_space(1))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.shared.f.acq.rel.sys.f64.p3f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.shared.f.acq.rel.sys.f64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_add_shared_d' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_add_shared_d((__attribute__((address_space(3))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.gen.f.acquire.cta.f64.p0f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.gen.f.acquire.cta.f64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_add_gen_d' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_add_gen_d(dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.global.f.acquire.cta.f64.p1f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.global.f.acquire.cta.f64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_add_global_d' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_add_global_d((__attribute__((address_space(1))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.shared.f.acquire.cta.f64.p3f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.shared.f.acquire.cta.f64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_add_shared_d' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_add_shared_d((__attribute__((address_space(3))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.gen.f.release.cta.f64.p0f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.gen.f.release.cta.f64.p0
   // expected-error@+1 {{'__nvvm_atom_release_cta_add_gen_d' needs target feature sm_70}}
   __nvvm_atom_release_cta_add_gen_d(dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.global.f.release.cta.f64.p1f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.global.f.release.cta.f64.p1
   // expected-error@+1 {{'__nvvm_atom_release_cta_add_global_d' needs target feature sm_70}}
   __nvvm_atom_release_cta_add_global_d((__attribute__((address_space(1))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.shared.f.release.cta.f64.p3f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.shared.f.release.cta.f64.p3
   // expected-error@+1 {{'__nvvm_atom_release_cta_add_shared_d' needs target feature sm_70}}
   __nvvm_atom_release_cta_add_shared_d((__attribute__((address_space(3))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.gen.f.acq.rel.cta.f64.p0f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.gen.f.acq.rel.cta.f64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_add_gen_d' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_add_gen_d(dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.global.f.acq.rel.cta.f64.p1f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.global.f.acq.rel.cta.f64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_add_global_d' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_add_global_d((__attribute__((address_space(1))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.shared.f.acq.rel.cta.f64.p3f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.add.shared.f.acq.rel.cta.f64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_add_shared_d' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_add_shared_d((__attribute__((address_space(3))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.gen.i.acquire.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.gen.i.acquire.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_xchg_gen_i' needs target feature sm_70}}
   __nvvm_atom_acquire_xchg_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.global.i.acquire.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.global.i.acquire.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_xchg_global_i' needs target feature sm_70}}
   __nvvm_atom_acquire_xchg_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.shared.i.acquire.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.shared.i.acquire.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_xchg_shared_i' needs target feature sm_70}}
   __nvvm_atom_acquire_xchg_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.gen.i.release.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.gen.i.release.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_xchg_gen_i' needs target feature sm_70}}
   __nvvm_atom_release_xchg_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.global.i.release.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.global.i.release.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_xchg_global_i' needs target feature sm_70}}
   __nvvm_atom_release_xchg_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.shared.i.release.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.shared.i.release.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_xchg_shared_i' needs target feature sm_70}}
   __nvvm_atom_release_xchg_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.gen.i.acq.rel.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.gen.i.acq.rel.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_xchg_gen_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_xchg_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.global.i.acq.rel.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.global.i.acq.rel.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_xchg_global_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_xchg_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.shared.i.acq.rel.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.shared.i.acq.rel.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_xchg_shared_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_xchg_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.gen.i.acquire.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.gen.i.acquire.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_xchg_gen_i' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_xchg_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.global.i.acquire.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.global.i.acquire.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_xchg_global_i' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_xchg_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.shared.i.acquire.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.shared.i.acquire.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_xchg_shared_i' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_xchg_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.gen.i.release.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.gen.i.release.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_sys_xchg_gen_i' needs target feature sm_70}}
   __nvvm_atom_release_sys_xchg_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.global.i.release.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.global.i.release.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_sys_xchg_global_i' needs target feature sm_70}}
   __nvvm_atom_release_sys_xchg_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.shared.i.release.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.shared.i.release.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_sys_xchg_shared_i' needs target feature sm_70}}
   __nvvm_atom_release_sys_xchg_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.gen.i.acq.rel.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.gen.i.acq.rel.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_xchg_gen_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_xchg_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.global.i.acq.rel.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.global.i.acq.rel.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_xchg_global_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_xchg_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.shared.i.acq.rel.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.shared.i.acq.rel.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_xchg_shared_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_xchg_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.gen.i.acquire.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.gen.i.acquire.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_xchg_gen_i' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_xchg_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.global.i.acquire.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.global.i.acquire.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_xchg_global_i' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_xchg_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.shared.i.acquire.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.shared.i.acquire.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_xchg_shared_i' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_xchg_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.gen.i.release.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.gen.i.release.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_cta_xchg_gen_i' needs target feature sm_70}}
   __nvvm_atom_release_cta_xchg_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.global.i.release.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.global.i.release.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_cta_xchg_global_i' needs target feature sm_70}}
   __nvvm_atom_release_cta_xchg_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.shared.i.release.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.shared.i.release.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_cta_xchg_shared_i' needs target feature sm_70}}
   __nvvm_atom_release_cta_xchg_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.gen.i.acq.rel.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.gen.i.acq.rel.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_xchg_gen_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_xchg_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.global.i.acq.rel.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.global.i.acq.rel.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_xchg_global_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_xchg_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.shared.i.acq.rel.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.exch.shared.i.acq.rel.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_xchg_shared_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_xchg_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.gen.i.acquire.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.gen.i.acquire.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_xchg_gen_l' needs target feature sm_70}}
   __nvvm_atom_acquire_xchg_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.global.i.acquire.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.global.i.acquire.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_xchg_global_l' needs target feature sm_70}}
   __nvvm_atom_acquire_xchg_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.shared.i.acquire.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.shared.i.acquire.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_xchg_shared_l' needs target feature sm_70}}
   __nvvm_atom_acquire_xchg_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.gen.i.release.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.gen.i.release.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_xchg_gen_l' needs target feature sm_70}}
   __nvvm_atom_release_xchg_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.global.i.release.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.global.i.release.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_xchg_global_l' needs target feature sm_70}}
   __nvvm_atom_release_xchg_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.shared.i.release.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.shared.i.release.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_xchg_shared_l' needs target feature sm_70}}
   __nvvm_atom_release_xchg_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.gen.i.acq.rel.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.gen.i.acq.rel.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_xchg_gen_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_xchg_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.global.i.acq.rel.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.global.i.acq.rel.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_xchg_global_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_xchg_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.shared.i.acq.rel.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.shared.i.acq.rel.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_xchg_shared_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_xchg_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.gen.i.acquire.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.gen.i.acquire.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_xchg_gen_l' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_xchg_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.global.i.acquire.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.global.i.acquire.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_xchg_global_l' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_xchg_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.shared.i.acquire.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.shared.i.acquire.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_xchg_shared_l' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_xchg_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.gen.i.release.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.gen.i.release.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_sys_xchg_gen_l' needs target feature sm_70}}
   __nvvm_atom_release_sys_xchg_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.global.i.release.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.global.i.release.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_sys_xchg_global_l' needs target feature sm_70}}
   __nvvm_atom_release_sys_xchg_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.shared.i.release.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.shared.i.release.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_sys_xchg_shared_l' needs target feature sm_70}}
   __nvvm_atom_release_sys_xchg_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.gen.i.acq.rel.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.gen.i.acq.rel.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_xchg_gen_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_xchg_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.global.i.acq.rel.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.global.i.acq.rel.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_xchg_global_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_xchg_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.shared.i.acq.rel.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.shared.i.acq.rel.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_xchg_shared_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_xchg_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.gen.i.acquire.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.gen.i.acquire.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_xchg_gen_l' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_xchg_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.global.i.acquire.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.global.i.acquire.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_xchg_global_l' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_xchg_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.shared.i.acquire.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.shared.i.acquire.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_xchg_shared_l' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_xchg_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.gen.i.release.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.gen.i.release.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_cta_xchg_gen_l' needs target feature sm_70}}
   __nvvm_atom_release_cta_xchg_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.global.i.release.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.global.i.release.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_cta_xchg_global_l' needs target feature sm_70}}
   __nvvm_atom_release_cta_xchg_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.shared.i.release.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.shared.i.release.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_cta_xchg_shared_l' needs target feature sm_70}}
   __nvvm_atom_release_cta_xchg_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.gen.i.acq.rel.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.gen.i.acq.rel.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_xchg_gen_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_xchg_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.global.i.acq.rel.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.global.i.acq.rel.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_xchg_global_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_xchg_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.shared.i.acq.rel.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.exch.shared.i.acq.rel.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_xchg_shared_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_xchg_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.gen.f.acquire.f32.p0f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.gen.f.acquire.f32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_xchg_gen_f' needs target feature sm_70}}
   __nvvm_atom_acquire_xchg_gen_f(fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.global.f.acquire.f32.p1f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.global.f.acquire.f32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_xchg_global_f' needs target feature sm_70}}
   __nvvm_atom_acquire_xchg_global_f((__attribute__((address_space(1))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.shared.f.acquire.f32.p3f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.shared.f.acquire.f32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_xchg_shared_f' needs target feature sm_70}}
   __nvvm_atom_acquire_xchg_shared_f((__attribute__((address_space(3))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.gen.f.release.f32.p0f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.gen.f.release.f32.p0
   // expected-error@+1 {{'__nvvm_atom_release_xchg_gen_f' needs target feature sm_70}}
   __nvvm_atom_release_xchg_gen_f(fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.global.f.release.f32.p1f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.global.f.release.f32.p1
   // expected-error@+1 {{'__nvvm_atom_release_xchg_global_f' needs target feature sm_70}}
   __nvvm_atom_release_xchg_global_f((__attribute__((address_space(1))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.shared.f.release.f32.p3f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.shared.f.release.f32.p3
   // expected-error@+1 {{'__nvvm_atom_release_xchg_shared_f' needs target feature sm_70}}
   __nvvm_atom_release_xchg_shared_f((__attribute__((address_space(3))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.gen.f.acq.rel.f32.p0f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.gen.f.acq.rel.f32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_xchg_gen_f' needs target feature sm_70}}
   __nvvm_atom_acq_rel_xchg_gen_f(fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.global.f.acq.rel.f32.p1f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.global.f.acq.rel.f32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_xchg_global_f' needs target feature sm_70}}
   __nvvm_atom_acq_rel_xchg_global_f((__attribute__((address_space(1))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.shared.f.acq.rel.f32.p3f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.shared.f.acq.rel.f32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_xchg_shared_f' needs target feature sm_70}}
   __nvvm_atom_acq_rel_xchg_shared_f((__attribute__((address_space(3))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.gen.f.acquire.sys.f32.p0f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.gen.f.acquire.sys.f32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_xchg_gen_f' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_xchg_gen_f(fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.global.f.acquire.sys.f32.p1f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.global.f.acquire.sys.f32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_xchg_global_f' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_xchg_global_f((__attribute__((address_space(1))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.shared.f.acquire.sys.f32.p3f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.shared.f.acquire.sys.f32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_xchg_shared_f' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_xchg_shared_f((__attribute__((address_space(3))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.gen.f.release.sys.f32.p0f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.gen.f.release.sys.f32.p0
   // expected-error@+1 {{'__nvvm_atom_release_sys_xchg_gen_f' needs target feature sm_70}}
   __nvvm_atom_release_sys_xchg_gen_f(fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.global.f.release.sys.f32.p1f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.global.f.release.sys.f32.p1
   // expected-error@+1 {{'__nvvm_atom_release_sys_xchg_global_f' needs target feature sm_70}}
   __nvvm_atom_release_sys_xchg_global_f((__attribute__((address_space(1))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.shared.f.release.sys.f32.p3f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.shared.f.release.sys.f32.p3
   // expected-error@+1 {{'__nvvm_atom_release_sys_xchg_shared_f' needs target feature sm_70}}
   __nvvm_atom_release_sys_xchg_shared_f((__attribute__((address_space(3))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.gen.f.acq.rel.sys.f32.p0f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.gen.f.acq.rel.sys.f32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_xchg_gen_f' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_xchg_gen_f(fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.global.f.acq.rel.sys.f32.p1f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.global.f.acq.rel.sys.f32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_xchg_global_f' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_xchg_global_f((__attribute__((address_space(1))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.shared.f.acq.rel.sys.f32.p3f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.shared.f.acq.rel.sys.f32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_xchg_shared_f' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_xchg_shared_f((__attribute__((address_space(3))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.gen.f.acquire.cta.f32.p0f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.gen.f.acquire.cta.f32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_xchg_gen_f' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_xchg_gen_f(fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.global.f.acquire.cta.f32.p1f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.global.f.acquire.cta.f32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_xchg_global_f' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_xchg_global_f((__attribute__((address_space(1))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.shared.f.acquire.cta.f32.p3f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.shared.f.acquire.cta.f32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_xchg_shared_f' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_xchg_shared_f((__attribute__((address_space(3))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.gen.f.release.cta.f32.p0f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.gen.f.release.cta.f32.p0
   // expected-error@+1 {{'__nvvm_atom_release_cta_xchg_gen_f' needs target feature sm_70}}
   __nvvm_atom_release_cta_xchg_gen_f(fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.global.f.release.cta.f32.p1f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.global.f.release.cta.f32.p1
   // expected-error@+1 {{'__nvvm_atom_release_cta_xchg_global_f' needs target feature sm_70}}
   __nvvm_atom_release_cta_xchg_global_f((__attribute__((address_space(1))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.shared.f.release.cta.f32.p3f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.shared.f.release.cta.f32.p3
   // expected-error@+1 {{'__nvvm_atom_release_cta_xchg_shared_f' needs target feature sm_70}}
   __nvvm_atom_release_cta_xchg_shared_f((__attribute__((address_space(3))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.gen.f.acq.rel.cta.f32.p0f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.gen.f.acq.rel.cta.f32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_xchg_gen_f' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_xchg_gen_f(fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.global.f.acq.rel.cta.f32.p1f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.global.f.acq.rel.cta.f32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_xchg_global_f' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_xchg_global_f((__attribute__((address_space(1))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.shared.f.acq.rel.cta.f32.p3f32
+  // CHECK_SM70_LP64: call float @llvm.nvvm.atomic.exch.shared.f.acq.rel.cta.f32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_xchg_shared_f' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_xchg_shared_f((__attribute__((address_space(3))) float *)fp, f);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.gen.f.acquire.f64.p0f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.gen.f.acquire.f64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_xchg_gen_d' needs target feature sm_70}}
   __nvvm_atom_acquire_xchg_gen_d(dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.global.f.acquire.f64.p1f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.global.f.acquire.f64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_xchg_global_d' needs target feature sm_70}}
   __nvvm_atom_acquire_xchg_global_d((__attribute__((address_space(1))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.shared.f.acquire.f64.p3f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.shared.f.acquire.f64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_xchg_shared_d' needs target feature sm_70}}
   __nvvm_atom_acquire_xchg_shared_d((__attribute__((address_space(3))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.gen.f.release.f64.p0f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.gen.f.release.f64.p0
   // expected-error@+1 {{'__nvvm_atom_release_xchg_gen_d' needs target feature sm_70}}
   __nvvm_atom_release_xchg_gen_d(dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.global.f.release.f64.p1f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.global.f.release.f64.p1
   // expected-error@+1 {{'__nvvm_atom_release_xchg_global_d' needs target feature sm_70}}
   __nvvm_atom_release_xchg_global_d((__attribute__((address_space(1))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.shared.f.release.f64.p3f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.shared.f.release.f64.p3
   // expected-error@+1 {{'__nvvm_atom_release_xchg_shared_d' needs target feature sm_70}}
   __nvvm_atom_release_xchg_shared_d((__attribute__((address_space(3))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.gen.f.acq.rel.f64.p0f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.gen.f.acq.rel.f64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_xchg_gen_d' needs target feature sm_70}}
   __nvvm_atom_acq_rel_xchg_gen_d(dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.global.f.acq.rel.f64.p1f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.global.f.acq.rel.f64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_xchg_global_d' needs target feature sm_70}}
   __nvvm_atom_acq_rel_xchg_global_d((__attribute__((address_space(1))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.shared.f.acq.rel.f64.p3f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.shared.f.acq.rel.f64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_xchg_shared_d' needs target feature sm_70}}
   __nvvm_atom_acq_rel_xchg_shared_d((__attribute__((address_space(3))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.gen.f.acquire.sys.f64.p0f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.gen.f.acquire.sys.f64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_xchg_gen_d' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_xchg_gen_d(dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.global.f.acquire.sys.f64.p1f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.global.f.acquire.sys.f64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_xchg_global_d' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_xchg_global_d((__attribute__((address_space(1))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.shared.f.acquire.sys.f64.p3f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.shared.f.acquire.sys.f64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_xchg_shared_d' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_xchg_shared_d((__attribute__((address_space(3))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.gen.f.release.sys.f64.p0f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.gen.f.release.sys.f64.p0
   // expected-error@+1 {{'__nvvm_atom_release_sys_xchg_gen_d' needs target feature sm_70}}
   __nvvm_atom_release_sys_xchg_gen_d(dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.global.f.release.sys.f64.p1f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.global.f.release.sys.f64.p1
   // expected-error@+1 {{'__nvvm_atom_release_sys_xchg_global_d' needs target feature sm_70}}
   __nvvm_atom_release_sys_xchg_global_d((__attribute__((address_space(1))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.shared.f.release.sys.f64.p3f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.shared.f.release.sys.f64.p3
   // expected-error@+1 {{'__nvvm_atom_release_sys_xchg_shared_d' needs target feature sm_70}}
   __nvvm_atom_release_sys_xchg_shared_d((__attribute__((address_space(3))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.gen.f.acq.rel.sys.f64.p0f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.gen.f.acq.rel.sys.f64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_xchg_gen_d' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_xchg_gen_d(dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.global.f.acq.rel.sys.f64.p1f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.global.f.acq.rel.sys.f64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_xchg_global_d' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_xchg_global_d((__attribute__((address_space(1))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.shared.f.acq.rel.sys.f64.p3f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.shared.f.acq.rel.sys.f64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_xchg_shared_d' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_xchg_shared_d((__attribute__((address_space(3))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.gen.f.acquire.cta.f64.p0f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.gen.f.acquire.cta.f64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_xchg_gen_d' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_xchg_gen_d(dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.global.f.acquire.cta.f64.p1f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.global.f.acquire.cta.f64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_xchg_global_d' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_xchg_global_d((__attribute__((address_space(1))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.shared.f.acquire.cta.f64.p3f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.shared.f.acquire.cta.f64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_xchg_shared_d' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_xchg_shared_d((__attribute__((address_space(3))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.gen.f.release.cta.f64.p0f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.gen.f.release.cta.f64.p0
   // expected-error@+1 {{'__nvvm_atom_release_cta_xchg_gen_d' needs target feature sm_70}}
   __nvvm_atom_release_cta_xchg_gen_d(dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.global.f.release.cta.f64.p1f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.global.f.release.cta.f64.p1
   // expected-error@+1 {{'__nvvm_atom_release_cta_xchg_global_d' needs target feature sm_70}}
   __nvvm_atom_release_cta_xchg_global_d((__attribute__((address_space(1))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.shared.f.release.cta.f64.p3f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.shared.f.release.cta.f64.p3
   // expected-error@+1 {{'__nvvm_atom_release_cta_xchg_shared_d' needs target feature sm_70}}
   __nvvm_atom_release_cta_xchg_shared_d((__attribute__((address_space(3))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.gen.f.acq.rel.cta.f64.p0f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.gen.f.acq.rel.cta.f64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_xchg_gen_d' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_xchg_gen_d(dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.global.f.acq.rel.cta.f64.p1f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.global.f.acq.rel.cta.f64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_xchg_global_d' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_xchg_global_d((__attribute__((address_space(1))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.shared.f.acq.rel.cta.f64.p3f64
+  // CHECK_SM70_LP64: call double @llvm.nvvm.atomic.exch.shared.f.acq.rel.cta.f64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_xchg_shared_d' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_xchg_shared_d((__attribute__((address_space(3))) double *)dfp, df);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.i.acquire.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.i.acquire.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_max_gen_i' needs target feature sm_70}}
   __nvvm_atom_acquire_max_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.i.acquire.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.i.acquire.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_max_global_i' needs target feature sm_70}}
   __nvvm_atom_acquire_max_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.i.acquire.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.i.acquire.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_max_shared_i' needs target feature sm_70}}
   __nvvm_atom_acquire_max_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.i.release.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.i.release.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_max_gen_i' needs target feature sm_70}}
   __nvvm_atom_release_max_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.i.release.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.i.release.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_max_global_i' needs target feature sm_70}}
   __nvvm_atom_release_max_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.i.release.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.i.release.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_max_shared_i' needs target feature sm_70}}
   __nvvm_atom_release_max_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.i.acq.rel.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.i.acq.rel.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_max_gen_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_max_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.i.acq.rel.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.i.acq.rel.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_max_global_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_max_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.i.acq.rel.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.i.acq.rel.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_max_shared_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_max_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.i.acquire.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.i.acquire.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_max_gen_i' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_max_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.i.acquire.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.i.acquire.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_max_global_i' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_max_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.i.acquire.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.i.acquire.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_max_shared_i' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_max_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.i.release.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.i.release.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_sys_max_gen_i' needs target feature sm_70}}
   __nvvm_atom_release_sys_max_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.i.release.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.i.release.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_sys_max_global_i' needs target feature sm_70}}
   __nvvm_atom_release_sys_max_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.i.release.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.i.release.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_sys_max_shared_i' needs target feature sm_70}}
   __nvvm_atom_release_sys_max_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.i.acq.rel.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.i.acq.rel.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_max_gen_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_max_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.i.acq.rel.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.i.acq.rel.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_max_global_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_max_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.i.acq.rel.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.i.acq.rel.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_max_shared_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_max_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.i.acquire.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.i.acquire.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_max_gen_i' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_max_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.i.acquire.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.i.acquire.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_max_global_i' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_max_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.i.acquire.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.i.acquire.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_max_shared_i' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_max_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.i.release.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.i.release.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_cta_max_gen_i' needs target feature sm_70}}
   __nvvm_atom_release_cta_max_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.i.release.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.i.release.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_cta_max_global_i' needs target feature sm_70}}
   __nvvm_atom_release_cta_max_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.i.release.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.i.release.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_cta_max_shared_i' needs target feature sm_70}}
   __nvvm_atom_release_cta_max_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.i.acq.rel.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.i.acq.rel.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_max_gen_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_max_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.i.acq.rel.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.i.acq.rel.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_max_global_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_max_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.i.acq.rel.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.i.acq.rel.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_max_shared_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_max_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.i.acquire.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.i.acquire.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_max_gen_l' needs target feature sm_70}}
   __nvvm_atom_acquire_max_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.i.acquire.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.i.acquire.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_max_global_l' needs target feature sm_70}}
   __nvvm_atom_acquire_max_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.i.acquire.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.i.acquire.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_max_shared_l' needs target feature sm_70}}
   __nvvm_atom_acquire_max_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.i.release.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.i.release.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_max_gen_l' needs target feature sm_70}}
   __nvvm_atom_release_max_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.i.release.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.i.release.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_max_global_l' needs target feature sm_70}}
   __nvvm_atom_release_max_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.i.release.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.i.release.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_max_shared_l' needs target feature sm_70}}
   __nvvm_atom_release_max_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.i.acq.rel.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.i.acq.rel.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_max_gen_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_max_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.i.acq.rel.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.i.acq.rel.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_max_global_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_max_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.i.acq.rel.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.i.acq.rel.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_max_shared_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_max_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.i.acquire.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.i.acquire.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_max_gen_l' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_max_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.i.acquire.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.i.acquire.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_max_global_l' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_max_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.i.acquire.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.i.acquire.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_max_shared_l' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_max_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.i.release.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.i.release.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_sys_max_gen_l' needs target feature sm_70}}
   __nvvm_atom_release_sys_max_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.i.release.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.i.release.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_sys_max_global_l' needs target feature sm_70}}
   __nvvm_atom_release_sys_max_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.i.release.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.i.release.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_sys_max_shared_l' needs target feature sm_70}}
   __nvvm_atom_release_sys_max_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.i.acq.rel.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.i.acq.rel.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_max_gen_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_max_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.i.acq.rel.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.i.acq.rel.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_max_global_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_max_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.i.acq.rel.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.i.acq.rel.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_max_shared_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_max_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.i.acquire.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.i.acquire.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_max_gen_l' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_max_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.i.acquire.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.i.acquire.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_max_global_l' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_max_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.i.acquire.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.i.acquire.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_max_shared_l' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_max_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.i.release.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.i.release.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_cta_max_gen_l' needs target feature sm_70}}
   __nvvm_atom_release_cta_max_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.i.release.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.i.release.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_cta_max_global_l' needs target feature sm_70}}
   __nvvm_atom_release_cta_max_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.i.release.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.i.release.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_cta_max_shared_l' needs target feature sm_70}}
   __nvvm_atom_release_cta_max_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.i.acq.rel.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.i.acq.rel.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_max_gen_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_max_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.i.acq.rel.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.i.acq.rel.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_max_global_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_max_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.i.acq.rel.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.i.acq.rel.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_max_shared_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_max_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.ui.acquire.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.ui.acquire.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_max_gen_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_max_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.ui.acquire.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.ui.acquire.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_max_global_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_max_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.ui.acquire.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.ui.acquire.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_max_shared_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_max_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.ui.release.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.ui.release.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_max_gen_ui' needs target feature sm_70}}
   __nvvm_atom_release_max_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.ui.release.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.ui.release.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_max_global_ui' needs target feature sm_70}}
   __nvvm_atom_release_max_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.ui.release.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.ui.release.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_max_shared_ui' needs target feature sm_70}}
   __nvvm_atom_release_max_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.ui.acq.rel.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.ui.acq.rel.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_max_gen_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_max_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.ui.acq.rel.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.ui.acq.rel.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_max_global_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_max_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.ui.acq.rel.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.ui.acq.rel.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_max_shared_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_max_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.ui.acquire.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.ui.acquire.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_max_gen_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_max_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.ui.acquire.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.ui.acquire.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_max_global_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_max_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.ui.acquire.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.ui.acquire.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_max_shared_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_max_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.ui.release.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.ui.release.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_sys_max_gen_ui' needs target feature sm_70}}
   __nvvm_atom_release_sys_max_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.ui.release.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.ui.release.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_sys_max_global_ui' needs target feature sm_70}}
   __nvvm_atom_release_sys_max_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.ui.release.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.ui.release.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_sys_max_shared_ui' needs target feature sm_70}}
   __nvvm_atom_release_sys_max_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.ui.acq.rel.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.ui.acq.rel.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_max_gen_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_max_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.ui.acq.rel.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.ui.acq.rel.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_max_global_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_max_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.ui.acq.rel.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.ui.acq.rel.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_max_shared_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_max_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.ui.acquire.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.ui.acquire.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_max_gen_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_max_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.ui.acquire.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.ui.acquire.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_max_global_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_max_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.ui.acquire.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.ui.acquire.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_max_shared_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_max_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.ui.release.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.ui.release.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_cta_max_gen_ui' needs target feature sm_70}}
   __nvvm_atom_release_cta_max_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.ui.release.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.ui.release.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_cta_max_global_ui' needs target feature sm_70}}
   __nvvm_atom_release_cta_max_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.ui.release.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.ui.release.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_cta_max_shared_ui' needs target feature sm_70}}
   __nvvm_atom_release_cta_max_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.ui.acq.rel.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.gen.ui.acq.rel.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_max_gen_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_max_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.ui.acq.rel.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.global.ui.acq.rel.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_max_global_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_max_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.ui.acq.rel.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.max.shared.ui.acq.rel.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_max_shared_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_max_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.ui.acquire.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.ui.acquire.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_max_gen_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_max_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.ui.acquire.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.ui.acquire.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_max_global_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_max_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.ui.acquire.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.ui.acquire.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_max_shared_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_max_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.ui.release.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.ui.release.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_max_gen_ul' needs target feature sm_70}}
   __nvvm_atom_release_max_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.ui.release.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.ui.release.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_max_global_ul' needs target feature sm_70}}
   __nvvm_atom_release_max_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.ui.release.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.ui.release.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_max_shared_ul' needs target feature sm_70}}
   __nvvm_atom_release_max_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.ui.acq.rel.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.ui.acq.rel.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_max_gen_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_max_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.ui.acq.rel.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.ui.acq.rel.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_max_global_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_max_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.ui.acq.rel.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.ui.acq.rel.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_max_shared_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_max_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.ui.acquire.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.ui.acquire.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_max_gen_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_max_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.ui.acquire.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.ui.acquire.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_max_global_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_max_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.ui.acquire.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.ui.acquire.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_max_shared_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_max_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.ui.release.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.ui.release.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_sys_max_gen_ul' needs target feature sm_70}}
   __nvvm_atom_release_sys_max_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.ui.release.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.ui.release.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_sys_max_global_ul' needs target feature sm_70}}
   __nvvm_atom_release_sys_max_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.ui.release.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.ui.release.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_sys_max_shared_ul' needs target feature sm_70}}
   __nvvm_atom_release_sys_max_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.ui.acq.rel.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.ui.acq.rel.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_max_gen_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_max_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.ui.acq.rel.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.ui.acq.rel.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_max_global_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_max_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.ui.acq.rel.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.ui.acq.rel.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_max_shared_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_max_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.ui.acquire.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.ui.acquire.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_max_gen_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_max_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.ui.acquire.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.ui.acquire.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_max_global_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_max_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.ui.acquire.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.ui.acquire.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_max_shared_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_max_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.ui.release.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.ui.release.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_cta_max_gen_ul' needs target feature sm_70}}
   __nvvm_atom_release_cta_max_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.ui.release.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.ui.release.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_cta_max_global_ul' needs target feature sm_70}}
   __nvvm_atom_release_cta_max_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.ui.release.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.ui.release.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_cta_max_shared_ul' needs target feature sm_70}}
   __nvvm_atom_release_cta_max_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.ui.acq.rel.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.gen.ui.acq.rel.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_max_gen_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_max_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.ui.acq.rel.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.global.ui.acq.rel.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_max_global_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_max_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.ui.acq.rel.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.max.shared.ui.acq.rel.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_max_shared_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_max_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.i.acquire.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.i.acquire.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_min_gen_i' needs target feature sm_70}}
   __nvvm_atom_acquire_min_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.i.acquire.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.i.acquire.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_min_global_i' needs target feature sm_70}}
   __nvvm_atom_acquire_min_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.i.acquire.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.i.acquire.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_min_shared_i' needs target feature sm_70}}
   __nvvm_atom_acquire_min_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.i.release.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.i.release.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_min_gen_i' needs target feature sm_70}}
   __nvvm_atom_release_min_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.i.release.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.i.release.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_min_global_i' needs target feature sm_70}}
   __nvvm_atom_release_min_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.i.release.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.i.release.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_min_shared_i' needs target feature sm_70}}
   __nvvm_atom_release_min_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.i.acq.rel.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.i.acq.rel.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_min_gen_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_min_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.i.acq.rel.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.i.acq.rel.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_min_global_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_min_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.i.acq.rel.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.i.acq.rel.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_min_shared_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_min_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.i.acquire.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.i.acquire.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_min_gen_i' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_min_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.i.acquire.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.i.acquire.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_min_global_i' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_min_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.i.acquire.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.i.acquire.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_min_shared_i' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_min_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.i.release.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.i.release.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_sys_min_gen_i' needs target feature sm_70}}
   __nvvm_atom_release_sys_min_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.i.release.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.i.release.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_sys_min_global_i' needs target feature sm_70}}
   __nvvm_atom_release_sys_min_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.i.release.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.i.release.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_sys_min_shared_i' needs target feature sm_70}}
   __nvvm_atom_release_sys_min_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.i.acq.rel.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.i.acq.rel.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_min_gen_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_min_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.i.acq.rel.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.i.acq.rel.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_min_global_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_min_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.i.acq.rel.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.i.acq.rel.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_min_shared_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_min_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.i.acquire.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.i.acquire.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_min_gen_i' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_min_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.i.acquire.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.i.acquire.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_min_global_i' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_min_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.i.acquire.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.i.acquire.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_min_shared_i' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_min_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.i.release.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.i.release.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_cta_min_gen_i' needs target feature sm_70}}
   __nvvm_atom_release_cta_min_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.i.release.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.i.release.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_cta_min_global_i' needs target feature sm_70}}
   __nvvm_atom_release_cta_min_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.i.release.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.i.release.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_cta_min_shared_i' needs target feature sm_70}}
   __nvvm_atom_release_cta_min_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.i.acq.rel.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.i.acq.rel.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_min_gen_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_min_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.i.acq.rel.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.i.acq.rel.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_min_global_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_min_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.i.acq.rel.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.i.acq.rel.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_min_shared_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_min_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.i.acquire.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.i.acquire.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_min_gen_l' needs target feature sm_70}}
   __nvvm_atom_acquire_min_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.i.acquire.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.i.acquire.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_min_global_l' needs target feature sm_70}}
   __nvvm_atom_acquire_min_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.i.acquire.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.i.acquire.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_min_shared_l' needs target feature sm_70}}
   __nvvm_atom_acquire_min_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.i.release.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.i.release.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_min_gen_l' needs target feature sm_70}}
   __nvvm_atom_release_min_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.i.release.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.i.release.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_min_global_l' needs target feature sm_70}}
   __nvvm_atom_release_min_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.i.release.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.i.release.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_min_shared_l' needs target feature sm_70}}
   __nvvm_atom_release_min_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.i.acq.rel.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.i.acq.rel.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_min_gen_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_min_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.i.acq.rel.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.i.acq.rel.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_min_global_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_min_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.i.acq.rel.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.i.acq.rel.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_min_shared_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_min_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.i.acquire.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.i.acquire.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_min_gen_l' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_min_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.i.acquire.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.i.acquire.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_min_global_l' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_min_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.i.acquire.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.i.acquire.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_min_shared_l' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_min_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.i.release.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.i.release.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_sys_min_gen_l' needs target feature sm_70}}
   __nvvm_atom_release_sys_min_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.i.release.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.i.release.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_sys_min_global_l' needs target feature sm_70}}
   __nvvm_atom_release_sys_min_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.i.release.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.i.release.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_sys_min_shared_l' needs target feature sm_70}}
   __nvvm_atom_release_sys_min_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.i.acq.rel.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.i.acq.rel.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_min_gen_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_min_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.i.acq.rel.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.i.acq.rel.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_min_global_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_min_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.i.acq.rel.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.i.acq.rel.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_min_shared_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_min_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.i.acquire.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.i.acquire.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_min_gen_l' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_min_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.i.acquire.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.i.acquire.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_min_global_l' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_min_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.i.acquire.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.i.acquire.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_min_shared_l' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_min_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.i.release.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.i.release.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_cta_min_gen_l' needs target feature sm_70}}
   __nvvm_atom_release_cta_min_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.i.release.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.i.release.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_cta_min_global_l' needs target feature sm_70}}
   __nvvm_atom_release_cta_min_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.i.release.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.i.release.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_cta_min_shared_l' needs target feature sm_70}}
   __nvvm_atom_release_cta_min_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.i.acq.rel.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.i.acq.rel.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_min_gen_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_min_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.i.acq.rel.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.i.acq.rel.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_min_global_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_min_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.i.acq.rel.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.i.acq.rel.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_min_shared_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_min_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.ui.acquire.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.ui.acquire.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_min_gen_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_min_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.ui.acquire.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.ui.acquire.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_min_global_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_min_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.ui.acquire.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.ui.acquire.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_min_shared_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_min_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.ui.release.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.ui.release.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_min_gen_ui' needs target feature sm_70}}
   __nvvm_atom_release_min_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.ui.release.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.ui.release.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_min_global_ui' needs target feature sm_70}}
   __nvvm_atom_release_min_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.ui.release.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.ui.release.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_min_shared_ui' needs target feature sm_70}}
   __nvvm_atom_release_min_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.ui.acq.rel.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.ui.acq.rel.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_min_gen_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_min_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.ui.acq.rel.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.ui.acq.rel.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_min_global_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_min_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.ui.acq.rel.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.ui.acq.rel.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_min_shared_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_min_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.ui.acquire.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.ui.acquire.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_min_gen_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_min_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.ui.acquire.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.ui.acquire.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_min_global_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_min_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.ui.acquire.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.ui.acquire.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_min_shared_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_min_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.ui.release.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.ui.release.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_sys_min_gen_ui' needs target feature sm_70}}
   __nvvm_atom_release_sys_min_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.ui.release.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.ui.release.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_sys_min_global_ui' needs target feature sm_70}}
   __nvvm_atom_release_sys_min_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.ui.release.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.ui.release.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_sys_min_shared_ui' needs target feature sm_70}}
   __nvvm_atom_release_sys_min_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.ui.acq.rel.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.ui.acq.rel.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_min_gen_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_min_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.ui.acq.rel.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.ui.acq.rel.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_min_global_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_min_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.ui.acq.rel.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.ui.acq.rel.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_min_shared_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_min_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.ui.acquire.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.ui.acquire.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_min_gen_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_min_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.ui.acquire.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.ui.acquire.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_min_global_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_min_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.ui.acquire.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.ui.acquire.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_min_shared_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_min_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.ui.release.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.ui.release.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_cta_min_gen_ui' needs target feature sm_70}}
   __nvvm_atom_release_cta_min_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.ui.release.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.ui.release.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_cta_min_global_ui' needs target feature sm_70}}
   __nvvm_atom_release_cta_min_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.ui.release.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.ui.release.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_cta_min_shared_ui' needs target feature sm_70}}
   __nvvm_atom_release_cta_min_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.ui.acq.rel.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.gen.ui.acq.rel.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_min_gen_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_min_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.ui.acq.rel.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.global.ui.acq.rel.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_min_global_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_min_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.ui.acq.rel.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.min.shared.ui.acq.rel.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_min_shared_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_min_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.ui.acquire.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.ui.acquire.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_min_gen_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_min_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.ui.acquire.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.ui.acquire.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_min_global_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_min_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.ui.acquire.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.ui.acquire.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_min_shared_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_min_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.ui.release.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.ui.release.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_min_gen_ul' needs target feature sm_70}}
   __nvvm_atom_release_min_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.ui.release.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.ui.release.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_min_global_ul' needs target feature sm_70}}
   __nvvm_atom_release_min_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.ui.release.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.ui.release.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_min_shared_ul' needs target feature sm_70}}
   __nvvm_atom_release_min_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.ui.acq.rel.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.ui.acq.rel.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_min_gen_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_min_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.ui.acq.rel.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.ui.acq.rel.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_min_global_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_min_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.ui.acq.rel.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.ui.acq.rel.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_min_shared_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_min_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.ui.acquire.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.ui.acquire.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_min_gen_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_min_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.ui.acquire.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.ui.acquire.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_min_global_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_min_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.ui.acquire.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.ui.acquire.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_min_shared_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_min_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.ui.release.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.ui.release.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_sys_min_gen_ul' needs target feature sm_70}}
   __nvvm_atom_release_sys_min_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.ui.release.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.ui.release.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_sys_min_global_ul' needs target feature sm_70}}
   __nvvm_atom_release_sys_min_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.ui.release.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.ui.release.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_sys_min_shared_ul' needs target feature sm_70}}
   __nvvm_atom_release_sys_min_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.ui.acq.rel.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.ui.acq.rel.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_min_gen_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_min_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.ui.acq.rel.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.ui.acq.rel.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_min_global_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_min_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.ui.acq.rel.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.ui.acq.rel.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_min_shared_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_min_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.ui.acquire.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.ui.acquire.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_min_gen_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_min_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.ui.acquire.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.ui.acquire.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_min_global_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_min_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.ui.acquire.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.ui.acquire.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_min_shared_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_min_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.ui.release.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.ui.release.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_cta_min_gen_ul' needs target feature sm_70}}
   __nvvm_atom_release_cta_min_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.ui.release.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.ui.release.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_cta_min_global_ul' needs target feature sm_70}}
   __nvvm_atom_release_cta_min_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.ui.release.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.ui.release.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_cta_min_shared_ul' needs target feature sm_70}}
   __nvvm_atom_release_cta_min_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.ui.acq.rel.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.gen.ui.acq.rel.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_min_gen_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_min_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.ui.acq.rel.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.global.ui.acq.rel.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_min_global_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_min_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.ui.acq.rel.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.min.shared.ui.acq.rel.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_min_shared_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_min_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.gen.i.acquire.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.gen.i.acquire.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_inc_gen_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_inc_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.global.i.acquire.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.global.i.acquire.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_inc_global_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_inc_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.shared.i.acquire.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.shared.i.acquire.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_inc_shared_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_inc_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.gen.i.release.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.gen.i.release.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_inc_gen_ui' needs target feature sm_70}}
   __nvvm_atom_release_inc_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.global.i.release.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.global.i.release.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_inc_global_ui' needs target feature sm_70}}
   __nvvm_atom_release_inc_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.shared.i.release.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.shared.i.release.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_inc_shared_ui' needs target feature sm_70}}
   __nvvm_atom_release_inc_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.gen.i.acq.rel.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.gen.i.acq.rel.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_inc_gen_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_inc_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.global.i.acq.rel.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.global.i.acq.rel.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_inc_global_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_inc_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.shared.i.acq.rel.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.shared.i.acq.rel.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_inc_shared_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_inc_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.gen.i.acquire.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.gen.i.acquire.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_inc_gen_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_inc_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.global.i.acquire.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.global.i.acquire.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_inc_global_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_inc_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.shared.i.acquire.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.shared.i.acquire.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_inc_shared_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_inc_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.gen.i.release.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.gen.i.release.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_sys_inc_gen_ui' needs target feature sm_70}}
   __nvvm_atom_release_sys_inc_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.global.i.release.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.global.i.release.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_sys_inc_global_ui' needs target feature sm_70}}
   __nvvm_atom_release_sys_inc_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.shared.i.release.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.shared.i.release.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_sys_inc_shared_ui' needs target feature sm_70}}
   __nvvm_atom_release_sys_inc_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.gen.i.acq.rel.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.gen.i.acq.rel.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_inc_gen_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_inc_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.global.i.acq.rel.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.global.i.acq.rel.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_inc_global_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_inc_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.shared.i.acq.rel.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.shared.i.acq.rel.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_inc_shared_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_inc_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.gen.i.acquire.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.gen.i.acquire.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_inc_gen_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_inc_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.global.i.acquire.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.global.i.acquire.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_inc_global_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_inc_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.shared.i.acquire.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.shared.i.acquire.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_inc_shared_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_inc_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.gen.i.release.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.gen.i.release.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_cta_inc_gen_ui' needs target feature sm_70}}
   __nvvm_atom_release_cta_inc_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.global.i.release.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.global.i.release.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_cta_inc_global_ui' needs target feature sm_70}}
   __nvvm_atom_release_cta_inc_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.shared.i.release.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.shared.i.release.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_cta_inc_shared_ui' needs target feature sm_70}}
   __nvvm_atom_release_cta_inc_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.gen.i.acq.rel.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.gen.i.acq.rel.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_inc_gen_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_inc_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.global.i.acq.rel.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.global.i.acq.rel.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_inc_global_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_inc_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.shared.i.acq.rel.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.inc.shared.i.acq.rel.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_inc_shared_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_inc_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.gen.i.acquire.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.gen.i.acquire.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_inc_gen_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_inc_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.global.i.acquire.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.global.i.acquire.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_inc_global_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_inc_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.shared.i.acquire.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.shared.i.acquire.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_inc_shared_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_inc_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.gen.i.release.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.gen.i.release.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_inc_gen_ul' needs target feature sm_70}}
   __nvvm_atom_release_inc_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.global.i.release.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.global.i.release.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_inc_global_ul' needs target feature sm_70}}
   __nvvm_atom_release_inc_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.shared.i.release.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.shared.i.release.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_inc_shared_ul' needs target feature sm_70}}
   __nvvm_atom_release_inc_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.gen.i.acq.rel.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.gen.i.acq.rel.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_inc_gen_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_inc_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.global.i.acq.rel.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.global.i.acq.rel.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_inc_global_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_inc_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.shared.i.acq.rel.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.shared.i.acq.rel.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_inc_shared_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_inc_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.gen.i.acquire.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.gen.i.acquire.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_inc_gen_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_inc_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.global.i.acquire.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.global.i.acquire.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_inc_global_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_inc_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.shared.i.acquire.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.shared.i.acquire.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_inc_shared_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_inc_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.gen.i.release.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.gen.i.release.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_sys_inc_gen_ul' needs target feature sm_70}}
   __nvvm_atom_release_sys_inc_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.global.i.release.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.global.i.release.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_sys_inc_global_ul' needs target feature sm_70}}
   __nvvm_atom_release_sys_inc_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.shared.i.release.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.shared.i.release.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_sys_inc_shared_ul' needs target feature sm_70}}
   __nvvm_atom_release_sys_inc_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.gen.i.acq.rel.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.gen.i.acq.rel.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_inc_gen_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_inc_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.global.i.acq.rel.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.global.i.acq.rel.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_inc_global_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_inc_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.shared.i.acq.rel.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.shared.i.acq.rel.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_inc_shared_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_inc_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.gen.i.acquire.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.gen.i.acquire.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_inc_gen_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_inc_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.global.i.acquire.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.global.i.acquire.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_inc_global_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_inc_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.shared.i.acquire.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.shared.i.acquire.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_inc_shared_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_inc_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.gen.i.release.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.gen.i.release.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_cta_inc_gen_ul' needs target feature sm_70}}
   __nvvm_atom_release_cta_inc_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.global.i.release.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.global.i.release.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_cta_inc_global_ul' needs target feature sm_70}}
   __nvvm_atom_release_cta_inc_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.shared.i.release.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.shared.i.release.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_cta_inc_shared_ul' needs target feature sm_70}}
   __nvvm_atom_release_cta_inc_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.gen.i.acq.rel.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.gen.i.acq.rel.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_inc_gen_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_inc_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.global.i.acq.rel.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.global.i.acq.rel.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_inc_global_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_inc_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.shared.i.acq.rel.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.inc.shared.i.acq.rel.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_inc_shared_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_inc_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.gen.i.acquire.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.gen.i.acquire.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_dec_gen_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_dec_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.global.i.acquire.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.global.i.acquire.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_dec_global_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_dec_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.shared.i.acquire.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.shared.i.acquire.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_dec_shared_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_dec_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.gen.i.release.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.gen.i.release.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_dec_gen_ui' needs target feature sm_70}}
   __nvvm_atom_release_dec_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.global.i.release.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.global.i.release.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_dec_global_ui' needs target feature sm_70}}
   __nvvm_atom_release_dec_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.shared.i.release.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.shared.i.release.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_dec_shared_ui' needs target feature sm_70}}
   __nvvm_atom_release_dec_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.gen.i.acq.rel.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.gen.i.acq.rel.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_dec_gen_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_dec_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.global.i.acq.rel.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.global.i.acq.rel.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_dec_global_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_dec_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.shared.i.acq.rel.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.shared.i.acq.rel.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_dec_shared_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_dec_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.gen.i.acquire.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.gen.i.acquire.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_dec_gen_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_dec_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.global.i.acquire.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.global.i.acquire.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_dec_global_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_dec_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.shared.i.acquire.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.shared.i.acquire.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_dec_shared_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_dec_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.gen.i.release.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.gen.i.release.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_sys_dec_gen_ui' needs target feature sm_70}}
   __nvvm_atom_release_sys_dec_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.global.i.release.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.global.i.release.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_sys_dec_global_ui' needs target feature sm_70}}
   __nvvm_atom_release_sys_dec_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.shared.i.release.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.shared.i.release.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_sys_dec_shared_ui' needs target feature sm_70}}
   __nvvm_atom_release_sys_dec_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.gen.i.acq.rel.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.gen.i.acq.rel.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_dec_gen_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_dec_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.global.i.acq.rel.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.global.i.acq.rel.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_dec_global_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_dec_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.shared.i.acq.rel.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.shared.i.acq.rel.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_dec_shared_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_dec_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.gen.i.acquire.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.gen.i.acquire.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_dec_gen_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_dec_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.global.i.acquire.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.global.i.acquire.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_dec_global_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_dec_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.shared.i.acquire.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.shared.i.acquire.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_dec_shared_ui' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_dec_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.gen.i.release.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.gen.i.release.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_cta_dec_gen_ui' needs target feature sm_70}}
   __nvvm_atom_release_cta_dec_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.global.i.release.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.global.i.release.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_cta_dec_global_ui' needs target feature sm_70}}
   __nvvm_atom_release_cta_dec_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.shared.i.release.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.shared.i.release.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_cta_dec_shared_ui' needs target feature sm_70}}
   __nvvm_atom_release_cta_dec_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.gen.i.acq.rel.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.gen.i.acq.rel.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_dec_gen_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_dec_gen_ui((unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.global.i.acq.rel.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.global.i.acq.rel.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_dec_global_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_dec_global_ui((__attribute__((address_space(1))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.shared.i.acq.rel.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.dec.shared.i.acq.rel.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_dec_shared_ui' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_dec_shared_ui((__attribute__((address_space(3))) unsigned int *)(unsigned int *)ip, i);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.gen.i.acquire.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.gen.i.acquire.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_dec_gen_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_dec_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.global.i.acquire.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.global.i.acquire.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_dec_global_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_dec_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.shared.i.acquire.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.shared.i.acquire.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_dec_shared_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_dec_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.gen.i.release.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.gen.i.release.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_dec_gen_ul' needs target feature sm_70}}
   __nvvm_atom_release_dec_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.global.i.release.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.global.i.release.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_dec_global_ul' needs target feature sm_70}}
   __nvvm_atom_release_dec_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.shared.i.release.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.shared.i.release.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_dec_shared_ul' needs target feature sm_70}}
   __nvvm_atom_release_dec_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.gen.i.acq.rel.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.gen.i.acq.rel.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_dec_gen_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_dec_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.global.i.acq.rel.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.global.i.acq.rel.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_dec_global_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_dec_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.shared.i.acq.rel.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.shared.i.acq.rel.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_dec_shared_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_dec_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.gen.i.acquire.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.gen.i.acquire.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_dec_gen_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_dec_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.global.i.acquire.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.global.i.acquire.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_dec_global_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_dec_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.shared.i.acquire.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.shared.i.acquire.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_dec_shared_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_dec_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.gen.i.release.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.gen.i.release.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_sys_dec_gen_ul' needs target feature sm_70}}
   __nvvm_atom_release_sys_dec_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.global.i.release.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.global.i.release.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_sys_dec_global_ul' needs target feature sm_70}}
   __nvvm_atom_release_sys_dec_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.shared.i.release.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.shared.i.release.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_sys_dec_shared_ul' needs target feature sm_70}}
   __nvvm_atom_release_sys_dec_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.gen.i.acq.rel.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.gen.i.acq.rel.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_dec_gen_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_dec_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.global.i.acq.rel.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.global.i.acq.rel.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_dec_global_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_dec_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.shared.i.acq.rel.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.shared.i.acq.rel.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_dec_shared_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_dec_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.gen.i.acquire.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.gen.i.acquire.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_dec_gen_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_dec_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.global.i.acquire.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.global.i.acquire.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_dec_global_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_dec_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.shared.i.acquire.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.shared.i.acquire.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_dec_shared_ul' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_dec_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.gen.i.release.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.gen.i.release.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_cta_dec_gen_ul' needs target feature sm_70}}
   __nvvm_atom_release_cta_dec_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.global.i.release.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.global.i.release.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_cta_dec_global_ul' needs target feature sm_70}}
   __nvvm_atom_release_cta_dec_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.shared.i.release.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.shared.i.release.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_cta_dec_shared_ul' needs target feature sm_70}}
   __nvvm_atom_release_cta_dec_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.gen.i.acq.rel.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.gen.i.acq.rel.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_dec_gen_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_dec_gen_ul((unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.global.i.acq.rel.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.global.i.acq.rel.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_dec_global_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_dec_global_ul((__attribute__((address_space(1))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.shared.i.acq.rel.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.dec.shared.i.acq.rel.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_dec_shared_ul' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_dec_shared_ul((__attribute__((address_space(3))) unsigned long *)(unsigned long *)lp, l);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.gen.i.acquire.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.gen.i.acquire.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_and_gen_i' needs target feature sm_70}}
   __nvvm_atom_acquire_and_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.global.i.acquire.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.global.i.acquire.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_and_global_i' needs target feature sm_70}}
   __nvvm_atom_acquire_and_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.shared.i.acquire.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.shared.i.acquire.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_and_shared_i' needs target feature sm_70}}
   __nvvm_atom_acquire_and_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.gen.i.release.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.gen.i.release.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_and_gen_i' needs target feature sm_70}}
   __nvvm_atom_release_and_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.global.i.release.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.global.i.release.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_and_global_i' needs target feature sm_70}}
   __nvvm_atom_release_and_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.shared.i.release.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.shared.i.release.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_and_shared_i' needs target feature sm_70}}
   __nvvm_atom_release_and_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.gen.i.acq.rel.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.gen.i.acq.rel.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_and_gen_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_and_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.global.i.acq.rel.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.global.i.acq.rel.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_and_global_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_and_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.shared.i.acq.rel.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.shared.i.acq.rel.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_and_shared_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_and_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.gen.i.acquire.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.gen.i.acquire.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_and_gen_i' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_and_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.global.i.acquire.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.global.i.acquire.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_and_global_i' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_and_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.shared.i.acquire.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.shared.i.acquire.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_and_shared_i' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_and_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.gen.i.release.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.gen.i.release.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_sys_and_gen_i' needs target feature sm_70}}
   __nvvm_atom_release_sys_and_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.global.i.release.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.global.i.release.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_sys_and_global_i' needs target feature sm_70}}
   __nvvm_atom_release_sys_and_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.shared.i.release.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.shared.i.release.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_sys_and_shared_i' needs target feature sm_70}}
   __nvvm_atom_release_sys_and_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.gen.i.acq.rel.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.gen.i.acq.rel.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_and_gen_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_and_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.global.i.acq.rel.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.global.i.acq.rel.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_and_global_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_and_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.shared.i.acq.rel.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.shared.i.acq.rel.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_and_shared_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_and_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.gen.i.acquire.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.gen.i.acquire.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_and_gen_i' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_and_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.global.i.acquire.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.global.i.acquire.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_and_global_i' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_and_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.shared.i.acquire.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.shared.i.acquire.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_and_shared_i' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_and_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.gen.i.release.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.gen.i.release.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_cta_and_gen_i' needs target feature sm_70}}
   __nvvm_atom_release_cta_and_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.global.i.release.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.global.i.release.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_cta_and_global_i' needs target feature sm_70}}
   __nvvm_atom_release_cta_and_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.shared.i.release.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.shared.i.release.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_cta_and_shared_i' needs target feature sm_70}}
   __nvvm_atom_release_cta_and_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.gen.i.acq.rel.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.gen.i.acq.rel.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_and_gen_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_and_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.global.i.acq.rel.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.global.i.acq.rel.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_and_global_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_and_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.shared.i.acq.rel.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.and.shared.i.acq.rel.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_and_shared_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_and_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.gen.i.acquire.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.gen.i.acquire.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_and_gen_l' needs target feature sm_70}}
   __nvvm_atom_acquire_and_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.global.i.acquire.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.global.i.acquire.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_and_global_l' needs target feature sm_70}}
   __nvvm_atom_acquire_and_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.shared.i.acquire.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.shared.i.acquire.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_and_shared_l' needs target feature sm_70}}
   __nvvm_atom_acquire_and_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.gen.i.release.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.gen.i.release.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_and_gen_l' needs target feature sm_70}}
   __nvvm_atom_release_and_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.global.i.release.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.global.i.release.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_and_global_l' needs target feature sm_70}}
   __nvvm_atom_release_and_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.shared.i.release.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.shared.i.release.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_and_shared_l' needs target feature sm_70}}
   __nvvm_atom_release_and_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.gen.i.acq.rel.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.gen.i.acq.rel.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_and_gen_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_and_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.global.i.acq.rel.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.global.i.acq.rel.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_and_global_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_and_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.shared.i.acq.rel.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.shared.i.acq.rel.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_and_shared_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_and_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.gen.i.acquire.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.gen.i.acquire.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_and_gen_l' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_and_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.global.i.acquire.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.global.i.acquire.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_and_global_l' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_and_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.shared.i.acquire.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.shared.i.acquire.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_and_shared_l' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_and_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.gen.i.release.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.gen.i.release.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_sys_and_gen_l' needs target feature sm_70}}
   __nvvm_atom_release_sys_and_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.global.i.release.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.global.i.release.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_sys_and_global_l' needs target feature sm_70}}
   __nvvm_atom_release_sys_and_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.shared.i.release.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.shared.i.release.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_sys_and_shared_l' needs target feature sm_70}}
   __nvvm_atom_release_sys_and_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.gen.i.acq.rel.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.gen.i.acq.rel.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_and_gen_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_and_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.global.i.acq.rel.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.global.i.acq.rel.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_and_global_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_and_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.shared.i.acq.rel.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.shared.i.acq.rel.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_and_shared_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_and_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.gen.i.acquire.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.gen.i.acquire.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_and_gen_l' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_and_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.global.i.acquire.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.global.i.acquire.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_and_global_l' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_and_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.shared.i.acquire.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.shared.i.acquire.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_and_shared_l' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_and_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.gen.i.release.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.gen.i.release.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_cta_and_gen_l' needs target feature sm_70}}
   __nvvm_atom_release_cta_and_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.global.i.release.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.global.i.release.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_cta_and_global_l' needs target feature sm_70}}
   __nvvm_atom_release_cta_and_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.shared.i.release.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.shared.i.release.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_cta_and_shared_l' needs target feature sm_70}}
   __nvvm_atom_release_cta_and_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.gen.i.acq.rel.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.gen.i.acq.rel.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_and_gen_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_and_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.global.i.acq.rel.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.global.i.acq.rel.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_and_global_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_and_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.shared.i.acq.rel.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.and.shared.i.acq.rel.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_and_shared_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_and_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.gen.i.acquire.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.gen.i.acquire.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_or_gen_i' needs target feature sm_70}}
   __nvvm_atom_acquire_or_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.global.i.acquire.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.global.i.acquire.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_or_global_i' needs target feature sm_70}}
   __nvvm_atom_acquire_or_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.shared.i.acquire.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.shared.i.acquire.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_or_shared_i' needs target feature sm_70}}
   __nvvm_atom_acquire_or_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.gen.i.release.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.gen.i.release.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_or_gen_i' needs target feature sm_70}}
   __nvvm_atom_release_or_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.global.i.release.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.global.i.release.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_or_global_i' needs target feature sm_70}}
   __nvvm_atom_release_or_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.shared.i.release.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.shared.i.release.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_or_shared_i' needs target feature sm_70}}
   __nvvm_atom_release_or_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.gen.i.acq.rel.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.gen.i.acq.rel.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_or_gen_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_or_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.global.i.acq.rel.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.global.i.acq.rel.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_or_global_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_or_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.shared.i.acq.rel.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.shared.i.acq.rel.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_or_shared_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_or_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.gen.i.acquire.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.gen.i.acquire.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_or_gen_i' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_or_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.global.i.acquire.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.global.i.acquire.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_or_global_i' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_or_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.shared.i.acquire.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.shared.i.acquire.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_or_shared_i' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_or_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.gen.i.release.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.gen.i.release.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_sys_or_gen_i' needs target feature sm_70}}
   __nvvm_atom_release_sys_or_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.global.i.release.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.global.i.release.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_sys_or_global_i' needs target feature sm_70}}
   __nvvm_atom_release_sys_or_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.shared.i.release.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.shared.i.release.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_sys_or_shared_i' needs target feature sm_70}}
   __nvvm_atom_release_sys_or_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.gen.i.acq.rel.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.gen.i.acq.rel.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_or_gen_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_or_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.global.i.acq.rel.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.global.i.acq.rel.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_or_global_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_or_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.shared.i.acq.rel.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.shared.i.acq.rel.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_or_shared_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_or_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.gen.i.acquire.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.gen.i.acquire.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_or_gen_i' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_or_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.global.i.acquire.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.global.i.acquire.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_or_global_i' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_or_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.shared.i.acquire.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.shared.i.acquire.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_or_shared_i' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_or_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.gen.i.release.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.gen.i.release.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_cta_or_gen_i' needs target feature sm_70}}
   __nvvm_atom_release_cta_or_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.global.i.release.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.global.i.release.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_cta_or_global_i' needs target feature sm_70}}
   __nvvm_atom_release_cta_or_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.shared.i.release.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.shared.i.release.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_cta_or_shared_i' needs target feature sm_70}}
   __nvvm_atom_release_cta_or_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.gen.i.acq.rel.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.gen.i.acq.rel.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_or_gen_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_or_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.global.i.acq.rel.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.global.i.acq.rel.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_or_global_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_or_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.shared.i.acq.rel.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.or.shared.i.acq.rel.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_or_shared_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_or_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.gen.i.acquire.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.gen.i.acquire.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_or_gen_l' needs target feature sm_70}}
   __nvvm_atom_acquire_or_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.global.i.acquire.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.global.i.acquire.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_or_global_l' needs target feature sm_70}}
   __nvvm_atom_acquire_or_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.shared.i.acquire.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.shared.i.acquire.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_or_shared_l' needs target feature sm_70}}
   __nvvm_atom_acquire_or_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.gen.i.release.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.gen.i.release.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_or_gen_l' needs target feature sm_70}}
   __nvvm_atom_release_or_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.global.i.release.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.global.i.release.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_or_global_l' needs target feature sm_70}}
   __nvvm_atom_release_or_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.shared.i.release.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.shared.i.release.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_or_shared_l' needs target feature sm_70}}
   __nvvm_atom_release_or_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.gen.i.acq.rel.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.gen.i.acq.rel.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_or_gen_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_or_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.global.i.acq.rel.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.global.i.acq.rel.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_or_global_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_or_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.shared.i.acq.rel.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.shared.i.acq.rel.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_or_shared_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_or_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.gen.i.acquire.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.gen.i.acquire.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_or_gen_l' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_or_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.global.i.acquire.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.global.i.acquire.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_or_global_l' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_or_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.shared.i.acquire.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.shared.i.acquire.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_or_shared_l' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_or_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.gen.i.release.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.gen.i.release.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_sys_or_gen_l' needs target feature sm_70}}
   __nvvm_atom_release_sys_or_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.global.i.release.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.global.i.release.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_sys_or_global_l' needs target feature sm_70}}
   __nvvm_atom_release_sys_or_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.shared.i.release.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.shared.i.release.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_sys_or_shared_l' needs target feature sm_70}}
   __nvvm_atom_release_sys_or_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.gen.i.acq.rel.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.gen.i.acq.rel.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_or_gen_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_or_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.global.i.acq.rel.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.global.i.acq.rel.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_or_global_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_or_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.shared.i.acq.rel.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.shared.i.acq.rel.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_or_shared_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_or_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.gen.i.acquire.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.gen.i.acquire.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_or_gen_l' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_or_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.global.i.acquire.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.global.i.acquire.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_or_global_l' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_or_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.shared.i.acquire.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.shared.i.acquire.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_or_shared_l' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_or_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.gen.i.release.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.gen.i.release.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_cta_or_gen_l' needs target feature sm_70}}
   __nvvm_atom_release_cta_or_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.global.i.release.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.global.i.release.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_cta_or_global_l' needs target feature sm_70}}
   __nvvm_atom_release_cta_or_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.shared.i.release.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.shared.i.release.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_cta_or_shared_l' needs target feature sm_70}}
   __nvvm_atom_release_cta_or_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.gen.i.acq.rel.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.gen.i.acq.rel.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_or_gen_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_or_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.global.i.acq.rel.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.global.i.acq.rel.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_or_global_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_or_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.shared.i.acq.rel.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.or.shared.i.acq.rel.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_or_shared_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_or_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.gen.i.acquire.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.gen.i.acquire.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_xor_gen_i' needs target feature sm_70}}
   __nvvm_atom_acquire_xor_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.global.i.acquire.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.global.i.acquire.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_xor_global_i' needs target feature sm_70}}
   __nvvm_atom_acquire_xor_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.shared.i.acquire.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.shared.i.acquire.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_xor_shared_i' needs target feature sm_70}}
   __nvvm_atom_acquire_xor_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.gen.i.release.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.gen.i.release.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_xor_gen_i' needs target feature sm_70}}
   __nvvm_atom_release_xor_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.global.i.release.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.global.i.release.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_xor_global_i' needs target feature sm_70}}
   __nvvm_atom_release_xor_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.shared.i.release.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.shared.i.release.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_xor_shared_i' needs target feature sm_70}}
   __nvvm_atom_release_xor_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.gen.i.acq.rel.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.gen.i.acq.rel.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_xor_gen_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_xor_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.global.i.acq.rel.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.global.i.acq.rel.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_xor_global_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_xor_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.shared.i.acq.rel.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.shared.i.acq.rel.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_xor_shared_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_xor_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.gen.i.acquire.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.gen.i.acquire.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_xor_gen_i' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_xor_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.global.i.acquire.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.global.i.acquire.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_xor_global_i' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_xor_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.shared.i.acquire.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.shared.i.acquire.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_xor_shared_i' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_xor_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.gen.i.release.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.gen.i.release.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_sys_xor_gen_i' needs target feature sm_70}}
   __nvvm_atom_release_sys_xor_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.global.i.release.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.global.i.release.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_sys_xor_global_i' needs target feature sm_70}}
   __nvvm_atom_release_sys_xor_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.shared.i.release.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.shared.i.release.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_sys_xor_shared_i' needs target feature sm_70}}
   __nvvm_atom_release_sys_xor_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.gen.i.acq.rel.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.gen.i.acq.rel.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_xor_gen_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_xor_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.global.i.acq.rel.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.global.i.acq.rel.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_xor_global_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_xor_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.shared.i.acq.rel.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.shared.i.acq.rel.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_xor_shared_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_xor_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.gen.i.acquire.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.gen.i.acquire.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_xor_gen_i' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_xor_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.global.i.acquire.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.global.i.acquire.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_xor_global_i' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_xor_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.shared.i.acquire.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.shared.i.acquire.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_xor_shared_i' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_xor_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.gen.i.release.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.gen.i.release.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_cta_xor_gen_i' needs target feature sm_70}}
   __nvvm_atom_release_cta_xor_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.global.i.release.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.global.i.release.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_cta_xor_global_i' needs target feature sm_70}}
   __nvvm_atom_release_cta_xor_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.shared.i.release.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.shared.i.release.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_cta_xor_shared_i' needs target feature sm_70}}
   __nvvm_atom_release_cta_xor_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.gen.i.acq.rel.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.gen.i.acq.rel.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_xor_gen_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_xor_gen_i(ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.global.i.acq.rel.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.global.i.acq.rel.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_xor_global_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_xor_global_i((__attribute__((address_space(1))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.shared.i.acq.rel.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.xor.shared.i.acq.rel.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_xor_shared_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_xor_shared_i((__attribute__((address_space(3))) int *)ip, i);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.gen.i.acquire.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.gen.i.acquire.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_xor_gen_l' needs target feature sm_70}}
   __nvvm_atom_acquire_xor_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.global.i.acquire.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.global.i.acquire.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_xor_global_l' needs target feature sm_70}}
   __nvvm_atom_acquire_xor_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.shared.i.acquire.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.shared.i.acquire.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_xor_shared_l' needs target feature sm_70}}
   __nvvm_atom_acquire_xor_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.gen.i.release.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.gen.i.release.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_xor_gen_l' needs target feature sm_70}}
   __nvvm_atom_release_xor_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.global.i.release.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.global.i.release.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_xor_global_l' needs target feature sm_70}}
   __nvvm_atom_release_xor_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.shared.i.release.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.shared.i.release.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_xor_shared_l' needs target feature sm_70}}
   __nvvm_atom_release_xor_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.gen.i.acq.rel.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.gen.i.acq.rel.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_xor_gen_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_xor_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.global.i.acq.rel.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.global.i.acq.rel.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_xor_global_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_xor_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.shared.i.acq.rel.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.shared.i.acq.rel.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_xor_shared_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_xor_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.gen.i.acquire.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.gen.i.acquire.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_xor_gen_l' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_xor_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.global.i.acquire.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.global.i.acquire.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_xor_global_l' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_xor_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.shared.i.acquire.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.shared.i.acquire.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_xor_shared_l' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_xor_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.gen.i.release.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.gen.i.release.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_sys_xor_gen_l' needs target feature sm_70}}
   __nvvm_atom_release_sys_xor_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.global.i.release.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.global.i.release.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_sys_xor_global_l' needs target feature sm_70}}
   __nvvm_atom_release_sys_xor_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.shared.i.release.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.shared.i.release.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_sys_xor_shared_l' needs target feature sm_70}}
   __nvvm_atom_release_sys_xor_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.gen.i.acq.rel.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.gen.i.acq.rel.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_xor_gen_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_xor_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.global.i.acq.rel.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.global.i.acq.rel.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_xor_global_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_xor_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.shared.i.acq.rel.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.shared.i.acq.rel.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_xor_shared_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_xor_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.gen.i.acquire.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.gen.i.acquire.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_xor_gen_l' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_xor_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.global.i.acquire.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.global.i.acquire.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_xor_global_l' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_xor_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.shared.i.acquire.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.shared.i.acquire.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_xor_shared_l' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_xor_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.gen.i.release.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.gen.i.release.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_cta_xor_gen_l' needs target feature sm_70}}
   __nvvm_atom_release_cta_xor_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.global.i.release.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.global.i.release.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_cta_xor_global_l' needs target feature sm_70}}
   __nvvm_atom_release_cta_xor_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.shared.i.release.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.shared.i.release.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_cta_xor_shared_l' needs target feature sm_70}}
   __nvvm_atom_release_cta_xor_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.gen.i.acq.rel.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.gen.i.acq.rel.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_xor_gen_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_xor_gen_l(&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.global.i.acq.rel.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.global.i.acq.rel.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_xor_global_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_xor_global_l((__attribute__((address_space(1))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.shared.i.acq.rel.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.xor.shared.i.acq.rel.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_xor_shared_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_xor_shared_l((__attribute__((address_space(3))) long *)&dl, l);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.gen.i.acquire.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.gen.i.acquire.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_cas_gen_i' needs target feature sm_70}}
   __nvvm_atom_acquire_cas_gen_i(ip, i, 0);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.global.i.acquire.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.global.i.acquire.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_cas_global_i' needs target feature sm_70}}
   __nvvm_atom_acquire_cas_global_i((__attribute__((address_space(1))) int *)ip, i, 0);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.shared.i.acquire.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.shared.i.acquire.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_cas_shared_i' needs target feature sm_70}}
   __nvvm_atom_acquire_cas_shared_i((__attribute__((address_space(3))) int *)ip, i, 0);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.gen.i.release.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.gen.i.release.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_cas_gen_i' needs target feature sm_70}}
   __nvvm_atom_release_cas_gen_i(ip, i, 0);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.global.i.release.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.global.i.release.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_cas_global_i' needs target feature sm_70}}
   __nvvm_atom_release_cas_global_i((__attribute__((address_space(1))) int *)ip, i, 0);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.shared.i.release.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.shared.i.release.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_cas_shared_i' needs target feature sm_70}}
   __nvvm_atom_release_cas_shared_i((__attribute__((address_space(3))) int *)ip, i, 0);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.gen.i.acq.rel.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.gen.i.acq.rel.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cas_gen_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cas_gen_i(ip, i, 0);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.global.i.acq.rel.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.global.i.acq.rel.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cas_global_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cas_global_i((__attribute__((address_space(1))) int *)ip, i, 0);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.shared.i.acq.rel.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.shared.i.acq.rel.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cas_shared_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cas_shared_i((__attribute__((address_space(3))) int *)ip, i, 0);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.gen.i.acquire.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.gen.i.acquire.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_cas_gen_i' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_cas_gen_i(ip, i, 0);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.global.i.acquire.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.global.i.acquire.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_cas_global_i' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_cas_global_i((__attribute__((address_space(1))) int *)ip, i, 0);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.shared.i.acquire.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.shared.i.acquire.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_cas_shared_i' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_cas_shared_i((__attribute__((address_space(3))) int *)ip, i, 0);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.gen.i.release.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.gen.i.release.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_sys_cas_gen_i' needs target feature sm_70}}
   __nvvm_atom_release_sys_cas_gen_i(ip, i, 0);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.global.i.release.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.global.i.release.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_sys_cas_global_i' needs target feature sm_70}}
   __nvvm_atom_release_sys_cas_global_i((__attribute__((address_space(1))) int *)ip, i, 0);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.shared.i.release.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.shared.i.release.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_sys_cas_shared_i' needs target feature sm_70}}
   __nvvm_atom_release_sys_cas_shared_i((__attribute__((address_space(3))) int *)ip, i, 0);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.gen.i.acq.rel.sys.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.gen.i.acq.rel.sys.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_cas_gen_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_cas_gen_i(ip, i, 0);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.global.i.acq.rel.sys.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.global.i.acq.rel.sys.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_cas_global_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_cas_global_i((__attribute__((address_space(1))) int *)ip, i, 0);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.shared.i.acq.rel.sys.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.shared.i.acq.rel.sys.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_cas_shared_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_cas_shared_i((__attribute__((address_space(3))) int *)ip, i, 0);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.gen.i.acquire.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.gen.i.acquire.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_cas_gen_i' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_cas_gen_i(ip, i, 0);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.global.i.acquire.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.global.i.acquire.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_cas_global_i' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_cas_global_i((__attribute__((address_space(1))) int *)ip, i, 0);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.shared.i.acquire.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.shared.i.acquire.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_cas_shared_i' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_cas_shared_i((__attribute__((address_space(3))) int *)ip, i, 0);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.gen.i.release.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.gen.i.release.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_release_cta_cas_gen_i' needs target feature sm_70}}
   __nvvm_atom_release_cta_cas_gen_i(ip, i, 0);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.global.i.release.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.global.i.release.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_release_cta_cas_global_i' needs target feature sm_70}}
   __nvvm_atom_release_cta_cas_global_i((__attribute__((address_space(1))) int *)ip, i, 0);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.shared.i.release.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.shared.i.release.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_release_cta_cas_shared_i' needs target feature sm_70}}
   __nvvm_atom_release_cta_cas_shared_i((__attribute__((address_space(3))) int *)ip, i, 0);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.gen.i.acq.rel.cta.i32.p0i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.gen.i.acq.rel.cta.i32.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_cas_gen_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_cas_gen_i(ip, i, 0);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.global.i.acq.rel.cta.i32.p1i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.global.i.acq.rel.cta.i32.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_cas_global_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_cas_global_i((__attribute__((address_space(1))) int *)ip, i, 0);
 
-  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.shared.i.acq.rel.cta.i32.p3i32
+  // CHECK_SM70_LP64: call i32 @llvm.nvvm.atomic.cas.shared.i.acq.rel.cta.i32.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_cas_shared_i' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_cas_shared_i((__attribute__((address_space(3))) int *)ip, i, 0);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.gen.i.acquire.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.gen.i.acquire.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_cas_gen_l' needs target feature sm_70}}
   __nvvm_atom_acquire_cas_gen_l(&dl, l, 0);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.global.i.acquire.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.global.i.acquire.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_cas_global_l' needs target feature sm_70}}
   __nvvm_atom_acquire_cas_global_l((__attribute__((address_space(1))) long *)&dl, l, 0);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.shared.i.acquire.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.shared.i.acquire.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_cas_shared_l' needs target feature sm_70}}
   __nvvm_atom_acquire_cas_shared_l((__attribute__((address_space(3))) long *)&dl, l, 0);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.gen.i.release.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.gen.i.release.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_cas_gen_l' needs target feature sm_70}}
   __nvvm_atom_release_cas_gen_l(&dl, l, 0);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.global.i.release.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.global.i.release.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_cas_global_l' needs target feature sm_70}}
   __nvvm_atom_release_cas_global_l((__attribute__((address_space(1))) long *)&dl, l, 0);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.shared.i.release.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.shared.i.release.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_cas_shared_l' needs target feature sm_70}}
   __nvvm_atom_release_cas_shared_l((__attribute__((address_space(3))) long *)&dl, l, 0);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.gen.i.acq.rel.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.gen.i.acq.rel.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cas_gen_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cas_gen_l(&dl, l, 0);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.global.i.acq.rel.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.global.i.acq.rel.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cas_global_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cas_global_l((__attribute__((address_space(1))) long *)&dl, l, 0);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.shared.i.acq.rel.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.shared.i.acq.rel.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cas_shared_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cas_shared_l((__attribute__((address_space(3))) long *)&dl, l, 0);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.gen.i.acquire.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.gen.i.acquire.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_cas_gen_l' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_cas_gen_l(&dl, l, 0);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.global.i.acquire.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.global.i.acquire.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_cas_global_l' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_cas_global_l((__attribute__((address_space(1))) long *)&dl, l, 0);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.shared.i.acquire.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.shared.i.acquire.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_sys_cas_shared_l' needs target feature sm_70}}
   __nvvm_atom_acquire_sys_cas_shared_l((__attribute__((address_space(3))) long *)&dl, l, 0);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.gen.i.release.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.gen.i.release.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_sys_cas_gen_l' needs target feature sm_70}}
   __nvvm_atom_release_sys_cas_gen_l(&dl, l, 0);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.global.i.release.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.global.i.release.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_sys_cas_global_l' needs target feature sm_70}}
   __nvvm_atom_release_sys_cas_global_l((__attribute__((address_space(1))) long *)&dl, l, 0);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.shared.i.release.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.shared.i.release.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_sys_cas_shared_l' needs target feature sm_70}}
   __nvvm_atom_release_sys_cas_shared_l((__attribute__((address_space(3))) long *)&dl, l, 0);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.gen.i.acq.rel.sys.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.gen.i.acq.rel.sys.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_cas_gen_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_cas_gen_l(&dl, l, 0);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.global.i.acq.rel.sys.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.global.i.acq.rel.sys.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_cas_global_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_cas_global_l((__attribute__((address_space(1))) long *)&dl, l, 0);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.shared.i.acq.rel.sys.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.shared.i.acq.rel.sys.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_sys_cas_shared_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_sys_cas_shared_l((__attribute__((address_space(3))) long *)&dl, l, 0);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.gen.i.acquire.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.gen.i.acquire.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_cas_gen_l' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_cas_gen_l(&dl, l, 0);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.global.i.acquire.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.global.i.acquire.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_cas_global_l' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_cas_global_l((__attribute__((address_space(1))) long *)&dl, l, 0);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.shared.i.acquire.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.shared.i.acquire.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acquire_cta_cas_shared_l' needs target feature sm_70}}
   __nvvm_atom_acquire_cta_cas_shared_l((__attribute__((address_space(3))) long *)&dl, l, 0);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.gen.i.release.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.gen.i.release.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_release_cta_cas_gen_l' needs target feature sm_70}}
   __nvvm_atom_release_cta_cas_gen_l(&dl, l, 0);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.global.i.release.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.global.i.release.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_release_cta_cas_global_l' needs target feature sm_70}}
   __nvvm_atom_release_cta_cas_global_l((__attribute__((address_space(1))) long *)&dl, l, 0);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.shared.i.release.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.shared.i.release.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_release_cta_cas_shared_l' needs target feature sm_70}}
   __nvvm_atom_release_cta_cas_shared_l((__attribute__((address_space(3))) long *)&dl, l, 0);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.gen.i.acq.rel.cta.i64.p0i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.gen.i.acq.rel.cta.i64.p0
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_cas_gen_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_cas_gen_l(&dl, l, 0);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.global.i.acq.rel.cta.i64.p1i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.global.i.acq.rel.cta.i64.p1
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_cas_global_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_cas_global_l((__attribute__((address_space(1))) long *)&dl, l, 0);
 
-  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.shared.i.acq.rel.cta.i64.p3i64
+  // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.shared.i.acq.rel.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_cas_shared_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_cas_shared_l((__attribute__((address_space(3))) long *)&dl, l, 0);
+#endif
 
+#if __CUDA_ARCH__ >= 700
+  // CHECK_PTX63_SM70: cmpxchg ptr {{.*}} seq_cst seq_cst, align 2
+  // CHECK_PTX63_SM70-NEXT: extractvalue { i16, i1 } {{%[0-9]+}}, 0
+  __nvvm_atom_cas_gen_us(usp, 0, us);
+  // CHECK_PTX63_SM70: call i16 @llvm.nvvm.atomic.cas.gen.i.cta.i16.p0
+  __nvvm_atom_cta_cas_gen_us(usp, 0, us);
+  // CHECK_PTX63_SM70: call i16 @llvm.nvvm.atomic.cas.gen.i.sys.i16.p0
+  __nvvm_atom_sys_cas_gen_us(usp, 0, us);
 #endif
 
   // CHECK: ret
@@ -4230,31 +4332,33 @@ __device__ void nvvm_atom(float *fp, float f, double *dfp, double df, int *ip,
 
 // CHECK-LABEL: nvvm_ldg
 __device__ void nvvm_ldg(const void *p) {
-  // CHECK: call i8 @llvm.nvvm.ldg.global.i.i8.p0i8(i8* {{%[0-9]+}}, i32 1)
-  // CHECK: call i8 @llvm.nvvm.ldg.global.i.i8.p0i8(i8* {{%[0-9]+}}, i32 1)
+  // CHECK: load i8, ptr addrspace(1) {{%[0-9]+}}, align 1, !invariant.load
+  // CHECK: load i8, ptr addrspace(1) {{%[0-9]+}}, align 1, !invariant.load
+  // CHECK: load i8, ptr addrspace(1) {{%[0-9]+}}, align 1, !invariant.load
   __nvvm_ldg_c((const char *)p);
   __nvvm_ldg_uc((const unsigned char *)p);
+  __nvvm_ldg_sc((const signed char *)p);
 
-  // CHECK: call i16 @llvm.nvvm.ldg.global.i.i16.p0i16(i16* {{%[0-9]+}}, i32 2)
-  // CHECK: call i16 @llvm.nvvm.ldg.global.i.i16.p0i16(i16* {{%[0-9]+}}, i32 2)
+  // CHECK: load i16, ptr addrspace(1) {{%[0-9]+}}, align 2, !invariant.load
+  // CHECK: load i16, ptr addrspace(1) {{%[0-9]+}}, align 2, !invariant.load
   __nvvm_ldg_s((const short *)p);
   __nvvm_ldg_us((const unsigned short *)p);
 
-  // CHECK: call i32 @llvm.nvvm.ldg.global.i.i32.p0i32(i32* {{%[0-9]+}}, i32 4)
-  // CHECK: call i32 @llvm.nvvm.ldg.global.i.i32.p0i32(i32* {{%[0-9]+}}, i32 4)
+  // CHECK: load i32, ptr addrspace(1) {{%[0-9]+}}, align 4, !invariant.load
+  // CHECK: load i32, ptr addrspace(1) {{%[0-9]+}}, align 4, !invariant.load
   __nvvm_ldg_i((const int *)p);
   __nvvm_ldg_ui((const unsigned int *)p);
 
-  // LP32: call i32 @llvm.nvvm.ldg.global.i.i32.p0i32(i32* {{%[0-9]+}}, i32 4)
-  // LP32: call i32 @llvm.nvvm.ldg.global.i.i32.p0i32(i32* {{%[0-9]+}}, i32 4)
-  // LP64: call i64 @llvm.nvvm.ldg.global.i.i64.p0i64(i64* {{%[0-9]+}}, i32 8)
-  // LP64: call i64 @llvm.nvvm.ldg.global.i.i64.p0i64(i64* {{%[0-9]+}}, i32 8)
+  // LP32: load i32, ptr addrspace(1) {{%[0-9]+}}, align 4, !invariant.load
+  // LP32: load i32, ptr addrspace(1) {{%[0-9]+}}, align 4, !invariant.load
+  // LP64: load i64, ptr addrspace(1) {{%[0-9]+}}, align 8, !invariant.load
+  // LP64: load i64, ptr addrspace(1) {{%[0-9]+}}, align 8, !invariant.load
   __nvvm_ldg_l((const long *)p);
   __nvvm_ldg_ul((const unsigned long *)p);
 
-  // CHECK: call float @llvm.nvvm.ldg.global.f.f32.p0f32(float* {{%[0-9]+}}, i32 4)
+  // CHECK: load float, ptr addrspace(1) {{%[0-9]+}}, align 4, !invariant.load
   __nvvm_ldg_f((const float *)p);
-  // CHECK: call double @llvm.nvvm.ldg.global.f.f64.p0f64(double* {{%[0-9]+}}, i32 8)
+  // CHECK: load double, ptr addrspace(1) {{%[0-9]+}}, align 8, !invariant.load
   __nvvm_ldg_d((const double *)p);
 
   // In practice, the pointers we pass to __ldg will be aligned as appropriate
@@ -4266,66 +4370,189 @@ __device__ void nvvm_ldg(const void *p) {
   // elements, its alignment is set to number of elements times the alignment of
   // its member: n*alignof(t)."
 
-  // CHECK: call <2 x i8> @llvm.nvvm.ldg.global.i.v2i8.p0v2i8(<2 x i8>* {{%[0-9]+}}, i32 2)
-  // CHECK: call <2 x i8> @llvm.nvvm.ldg.global.i.v2i8.p0v2i8(<2 x i8>* {{%[0-9]+}}, i32 2)
+  // CHECK: load <2 x i8>, ptr addrspace(1) {{%[0-9]+}}, align 2, !invariant.load
+  // CHECK: load <2 x i8>, ptr addrspace(1) {{%[0-9]+}}, align 2, !invariant.load
+  // CHECK: load <2 x i8>, ptr addrspace(1) {{%[0-9]+}}, align 2, !invariant.load
   typedef char char2 __attribute__((ext_vector_type(2)));
   typedef unsigned char uchar2 __attribute__((ext_vector_type(2)));
+  typedef signed char schar2 __attribute__((ext_vector_type(2)));
   __nvvm_ldg_c2((const char2 *)p);
   __nvvm_ldg_uc2((const uchar2 *)p);
+  __nvvm_ldg_sc2((const schar2 *)p);
 
-  // CHECK: call <4 x i8> @llvm.nvvm.ldg.global.i.v4i8.p0v4i8(<4 x i8>* {{%[0-9]+}}, i32 4)
-  // CHECK: call <4 x i8> @llvm.nvvm.ldg.global.i.v4i8.p0v4i8(<4 x i8>* {{%[0-9]+}}, i32 4)
+  // CHECK: load <4 x i8>, ptr addrspace(1) {{%[0-9]+}}, align 4, !invariant.load
+  // CHECK: load <4 x i8>, ptr addrspace(1) {{%[0-9]+}}, align 4, !invariant.load
+  // CHECK: load <4 x i8>, ptr addrspace(1) {{%[0-9]+}}, align 4, !invariant.load
   typedef char char4 __attribute__((ext_vector_type(4)));
   typedef unsigned char uchar4 __attribute__((ext_vector_type(4)));
+  typedef signed char schar4 __attribute__((ext_vector_type(4)));
   __nvvm_ldg_c4((const char4 *)p);
   __nvvm_ldg_uc4((const uchar4 *)p);
+  __nvvm_ldg_sc4((const schar4 *)p);
 
-  // CHECK: call <2 x i16> @llvm.nvvm.ldg.global.i.v2i16.p0v2i16(<2 x i16>* {{%[0-9]+}}, i32 4)
-  // CHECK: call <2 x i16> @llvm.nvvm.ldg.global.i.v2i16.p0v2i16(<2 x i16>* {{%[0-9]+}}, i32 4)
+  // CHECK: load <2 x i16>, ptr addrspace(1) {{%[0-9]+}}, align 4, !invariant.load
+  // CHECK: load <2 x i16>, ptr addrspace(1) {{%[0-9]+}}, align 4, !invariant.load
   typedef short short2 __attribute__((ext_vector_type(2)));
   typedef unsigned short ushort2 __attribute__((ext_vector_type(2)));
   __nvvm_ldg_s2((const short2 *)p);
   __nvvm_ldg_us2((const ushort2 *)p);
 
-  // CHECK: call <4 x i16> @llvm.nvvm.ldg.global.i.v4i16.p0v4i16(<4 x i16>* {{%[0-9]+}}, i32 8)
-  // CHECK: call <4 x i16> @llvm.nvvm.ldg.global.i.v4i16.p0v4i16(<4 x i16>* {{%[0-9]+}}, i32 8)
+  // CHECK: load <4 x i16>, ptr addrspace(1) {{%[0-9]+}}, align 8, !invariant.load
+  // CHECK: load <4 x i16>, ptr addrspace(1) {{%[0-9]+}}, align 8, !invariant.load
   typedef short short4 __attribute__((ext_vector_type(4)));
   typedef unsigned short ushort4 __attribute__((ext_vector_type(4)));
   __nvvm_ldg_s4((const short4 *)p);
   __nvvm_ldg_us4((const ushort4 *)p);
 
-  // CHECK: call <2 x i32> @llvm.nvvm.ldg.global.i.v2i32.p0v2i32(<2 x i32>* {{%[0-9]+}}, i32 8)
-  // CHECK: call <2 x i32> @llvm.nvvm.ldg.global.i.v2i32.p0v2i32(<2 x i32>* {{%[0-9]+}}, i32 8)
+  // CHECK: load <2 x i32>, ptr addrspace(1) {{%[0-9]+}}, align 8, !invariant.load
+  // CHECK: load <2 x i32>, ptr addrspace(1) {{%[0-9]+}}, align 8, !invariant.load
   typedef int int2 __attribute__((ext_vector_type(2)));
   typedef unsigned int uint2 __attribute__((ext_vector_type(2)));
   __nvvm_ldg_i2((const int2 *)p);
   __nvvm_ldg_ui2((const uint2 *)p);
 
-  // CHECK: call <4 x i32> @llvm.nvvm.ldg.global.i.v4i32.p0v4i32(<4 x i32>* {{%[0-9]+}}, i32 16)
-  // CHECK: call <4 x i32> @llvm.nvvm.ldg.global.i.v4i32.p0v4i32(<4 x i32>* {{%[0-9]+}}, i32 16)
+  // CHECK: load <4 x i32>, ptr addrspace(1) {{%[0-9]+}}, align 16, !invariant.load
+  // CHECK: load <4 x i32>, ptr addrspace(1) {{%[0-9]+}}, align 16, !invariant.load
   typedef int int4 __attribute__((ext_vector_type(4)));
   typedef unsigned int uint4 __attribute__((ext_vector_type(4)));
   __nvvm_ldg_i4((const int4 *)p);
   __nvvm_ldg_ui4((const uint4 *)p);
 
-  // CHECK: call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0v2i64(<2 x i64>* {{%[0-9]+}}, i32 16)
-  // CHECK: call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0v2i64(<2 x i64>* {{%[0-9]+}}, i32 16)
+  // LP32: load <2 x i32>, ptr addrspace(1) {{%[0-9]+}}, align 8, !invariant.load
+  // LP32: load <2 x i32>, ptr addrspace(1) {{%[0-9]+}}, align 8, !invariant.load
+  // LP64: load <2 x i64>, ptr addrspace(1) {{%[0-9]+}}, align 16, !invariant.load
+  // LP64: load <2 x i64>, ptr addrspace(1) {{%[0-9]+}}, align 16, !invariant.load
+  typedef long long2 __attribute__((ext_vector_type(2)));
+  typedef unsigned long ulong2 __attribute__((ext_vector_type(2)));
+  __nvvm_ldg_l2((const long2 *)p);
+  __nvvm_ldg_ul2((const ulong2 *)p);
+
+  // CHECK: load <2 x i64>, ptr addrspace(1) {{%[0-9]+}}, align 16, !invariant.load
+  // CHECK: load <2 x i64>, ptr addrspace(1) {{%[0-9]+}}, align 16, !invariant.load
   typedef long long longlong2 __attribute__((ext_vector_type(2)));
   typedef unsigned long long ulonglong2 __attribute__((ext_vector_type(2)));
   __nvvm_ldg_ll2((const longlong2 *)p);
   __nvvm_ldg_ull2((const ulonglong2 *)p);
 
-  // CHECK: call <2 x float> @llvm.nvvm.ldg.global.f.v2f32.p0v2f32(<2 x float>* {{%[0-9]+}}, i32 8)
+  // CHECK: load <2 x float>, ptr addrspace(1) {{%[0-9]+}}, align 8, !invariant.load
   typedef float float2 __attribute__((ext_vector_type(2)));
   __nvvm_ldg_f2((const float2 *)p);
 
-  // CHECK: call <4 x float> @llvm.nvvm.ldg.global.f.v4f32.p0v4f32(<4 x float>* {{%[0-9]+}}, i32 16)
+  // CHECK: load <4 x float>, ptr addrspace(1) {{%[0-9]+}}, align 16, !invariant.load
   typedef float float4 __attribute__((ext_vector_type(4)));
   __nvvm_ldg_f4((const float4 *)p);
 
-  // CHECK: call <2 x double> @llvm.nvvm.ldg.global.f.v2f64.p0v2f64(<2 x double>* {{%[0-9]+}}, i32 16)
+  // CHECK: load <2 x double>, ptr addrspace(1) {{%[0-9]+}}, align 16, !invariant.load
   typedef double double2 __attribute__((ext_vector_type(2)));
   __nvvm_ldg_d2((const double2 *)p);
+}
+
+// CHECK-LABEL: nvvm_ldu
+__device__ void nvvm_ldu(const void *p) {
+  // CHECK: call i8 @llvm.nvvm.ldu.global.i.i8.p0(ptr {{%[0-9]+}}, i32 1)
+  // CHECK: call i8 @llvm.nvvm.ldu.global.i.i8.p0(ptr {{%[0-9]+}}, i32 1)
+  // CHECK: call i8 @llvm.nvvm.ldu.global.i.i8.p0(ptr {{%[0-9]+}}, i32 1)
+  __nvvm_ldu_c((const char *)p);
+  __nvvm_ldu_uc((const unsigned char *)p);
+  __nvvm_ldu_sc((const signed char *)p);
+
+  // CHECK: call i16 @llvm.nvvm.ldu.global.i.i16.p0(ptr {{%[0-9]+}}, i32 2)
+  // CHECK: call i16 @llvm.nvvm.ldu.global.i.i16.p0(ptr {{%[0-9]+}}, i32 2)
+  __nvvm_ldu_s((const short *)p);
+  __nvvm_ldu_us((const unsigned short *)p);
+
+  // CHECK: call i32 @llvm.nvvm.ldu.global.i.i32.p0(ptr {{%[0-9]+}}, i32 4)
+  // CHECK: call i32 @llvm.nvvm.ldu.global.i.i32.p0(ptr {{%[0-9]+}}, i32 4)
+  __nvvm_ldu_i((const int *)p);
+  __nvvm_ldu_ui((const unsigned int *)p);
+
+  // LP32: call i32 @llvm.nvvm.ldu.global.i.i32.p0(ptr {{%[0-9]+}}, i32 4)
+  // LP32: call i32 @llvm.nvvm.ldu.global.i.i32.p0(ptr {{%[0-9]+}}, i32 4)
+  // LP64: call i64 @llvm.nvvm.ldu.global.i.i64.p0(ptr {{%[0-9]+}}, i32 8)
+  // LP64: call i64 @llvm.nvvm.ldu.global.i.i64.p0(ptr {{%[0-9]+}}, i32 8)
+  __nvvm_ldu_l((const long *)p);
+  __nvvm_ldu_ul((const unsigned long *)p);
+
+  // CHECK: call float @llvm.nvvm.ldu.global.f.f32.p0(ptr {{%[0-9]+}}, i32 4)
+  __nvvm_ldu_f((const float *)p);
+  // CHECK: call double @llvm.nvvm.ldu.global.f.f64.p0(ptr {{%[0-9]+}}, i32 8)
+  __nvvm_ldu_d((const double *)p);
+
+  // CHECK: call <2 x i8> @llvm.nvvm.ldu.global.i.v2i8.p0(ptr {{%[0-9]+}}, i32 2)
+  // CHECK: call <2 x i8> @llvm.nvvm.ldu.global.i.v2i8.p0(ptr {{%[0-9]+}}, i32 2)
+  // CHECK: call <2 x i8> @llvm.nvvm.ldu.global.i.v2i8.p0(ptr {{%[0-9]+}}, i32 2)
+  typedef char char2 __attribute__((ext_vector_type(2)));
+  typedef unsigned char uchar2 __attribute__((ext_vector_type(2)));
+  typedef signed char schar2 __attribute__((ext_vector_type(2)));
+  __nvvm_ldu_c2((const char2 *)p);
+  __nvvm_ldu_uc2((const uchar2 *)p);
+  __nvvm_ldu_sc2((const schar2 *)p);
+
+  // CHECK: call <4 x i8> @llvm.nvvm.ldu.global.i.v4i8.p0(ptr {{%[0-9]+}}, i32 4)
+  // CHECK: call <4 x i8> @llvm.nvvm.ldu.global.i.v4i8.p0(ptr {{%[0-9]+}}, i32 4)
+  // CHECK: call <4 x i8> @llvm.nvvm.ldu.global.i.v4i8.p0(ptr {{%[0-9]+}}, i32 4)
+  typedef char char4 __attribute__((ext_vector_type(4)));
+  typedef unsigned char uchar4 __attribute__((ext_vector_type(4)));
+  typedef signed char schar4 __attribute__((ext_vector_type(4)));
+  __nvvm_ldu_c4((const char4 *)p);
+  __nvvm_ldu_uc4((const uchar4 *)p);
+  __nvvm_ldu_sc4((const schar4 *)p);
+
+  // CHECK: call <2 x i16> @llvm.nvvm.ldu.global.i.v2i16.p0(ptr {{%[0-9]+}}, i32 4)
+  // CHECK: call <2 x i16> @llvm.nvvm.ldu.global.i.v2i16.p0(ptr {{%[0-9]+}}, i32 4)
+  typedef short short2 __attribute__((ext_vector_type(2)));
+  typedef unsigned short ushort2 __attribute__((ext_vector_type(2)));
+  __nvvm_ldu_s2((const short2 *)p);
+  __nvvm_ldu_us2((const ushort2 *)p);
+
+  // CHECK: call <4 x i16> @llvm.nvvm.ldu.global.i.v4i16.p0(ptr {{%[0-9]+}}, i32 8)
+  // CHECK: call <4 x i16> @llvm.nvvm.ldu.global.i.v4i16.p0(ptr {{%[0-9]+}}, i32 8)
+  typedef short short4 __attribute__((ext_vector_type(4)));
+  typedef unsigned short ushort4 __attribute__((ext_vector_type(4)));
+  __nvvm_ldu_s4((const short4 *)p);
+  __nvvm_ldu_us4((const ushort4 *)p);
+
+  // CHECK: call <2 x i32> @llvm.nvvm.ldu.global.i.v2i32.p0(ptr {{%[0-9]+}}, i32 8)
+  // CHECK: call <2 x i32> @llvm.nvvm.ldu.global.i.v2i32.p0(ptr {{%[0-9]+}}, i32 8)
+  typedef int int2 __attribute__((ext_vector_type(2)));
+  typedef unsigned int uint2 __attribute__((ext_vector_type(2)));
+  __nvvm_ldu_i2((const int2 *)p);
+  __nvvm_ldu_ui2((const uint2 *)p);
+
+  // CHECK: call <4 x i32> @llvm.nvvm.ldu.global.i.v4i32.p0(ptr {{%[0-9]+}}, i32 16)
+  // CHECK: call <4 x i32> @llvm.nvvm.ldu.global.i.v4i32.p0(ptr {{%[0-9]+}}, i32 16)
+  typedef int int4 __attribute__((ext_vector_type(4)));
+  typedef unsigned int uint4 __attribute__((ext_vector_type(4)));
+  __nvvm_ldu_i4((const int4 *)p);
+  __nvvm_ldu_ui4((const uint4 *)p);
+
+  // LP32: call <2 x i32> @llvm.nvvm.ldu.global.i.v2i32.p0(ptr {{%[0-9]+}}, i32 8)
+  // LP32: call <2 x i32> @llvm.nvvm.ldu.global.i.v2i32.p0(ptr {{%[0-9]+}}, i32 8)
+  // LP64: call <2 x i64> @llvm.nvvm.ldu.global.i.v2i64.p0(ptr {{%[0-9]+}}, i32 16)
+  // LP64: call <2 x i64> @llvm.nvvm.ldu.global.i.v2i64.p0(ptr {{%[0-9]+}}, i32 16)
+  typedef long long2 __attribute__((ext_vector_type(2)));
+  typedef unsigned long ulong2 __attribute__((ext_vector_type(2)));
+  __nvvm_ldu_l2((const long2 *)p);
+  __nvvm_ldu_ul2((const ulong2 *)p);
+
+  // CHECK: call <2 x i64> @llvm.nvvm.ldu.global.i.v2i64.p0(ptr {{%[0-9]+}}, i32 16)
+  // CHECK: call <2 x i64> @llvm.nvvm.ldu.global.i.v2i64.p0(ptr {{%[0-9]+}}, i32 16)
+  typedef long long longlong2 __attribute__((ext_vector_type(2)));
+  typedef unsigned long long ulonglong2 __attribute__((ext_vector_type(2)));
+  __nvvm_ldu_ll2((const longlong2 *)p);
+  __nvvm_ldu_ull2((const ulonglong2 *)p);
+
+  // CHECK: call <2 x float> @llvm.nvvm.ldu.global.f.v2f32.p0(ptr {{%[0-9]+}}, i32 8)
+  typedef float float2 __attribute__((ext_vector_type(2)));
+  __nvvm_ldu_f2((const float2 *)p);
+
+  // CHECK: call <4 x float> @llvm.nvvm.ldu.global.f.v4f32.p0(ptr {{%[0-9]+}}, i32 16)
+  typedef float float4 __attribute__((ext_vector_type(4)));
+  __nvvm_ldu_f4((const float4 *)p);
+
+  // CHECK: call <2 x double> @llvm.nvvm.ldu.global.f.v2f64.p0(ptr {{%[0-9]+}}, i32 16)
+  typedef double double2 __attribute__((ext_vector_type(2)));
+  __nvvm_ldu_d2((const double2 *)p);
 }
 
 // CHECK-LABEL: nvvm_shfl
@@ -4359,6 +4586,24 @@ __device__ void nvvm_vote(int pred) {
   // CHECK: call i32 @llvm.nvvm.vote.ballot(i1
   __nvvm_vote_ballot(pred);
   // CHECK: ret void
+}
+
+// CHECK-LABEL: nvvm_pm_event_mask
+__device__ void nvvm_pm_event_mask() {
+  // CHECK: call void @llvm.nvvm.pm.event.mask(i16 255)
+  __nvvm_pm_event_mask(255);
+  // CHECK: ret void
+}
+
+// CHECK-LABEL: nvvm_nanosleep
+__device__ void nvvm_nanosleep(int d) {
+#if __CUDA_ARCH__ >= 700
+  // CHECK_PTX70_SM80: call void @llvm.nvvm.nanosleep
+  __nvvm_nanosleep(d);
+
+  // CHECK_PTX70_SM80: call void @llvm.nvvm.nanosleep
+  __nvvm_nanosleep(1);
+#endif
 }
 
 // CHECK-LABEL: nvvm_mbarrier
@@ -4415,15 +4660,24 @@ __device__ void nvvm_async_copy(__attribute__((address_space(3))) void* dst, __a
   // CHECK_PTX70_SM80: call void @llvm.nvvm.cp.async.mbarrier.arrive.noinc.shared
   __nvvm_cp_async_mbarrier_arrive_noinc_shared(sharedAddr);
 
-  // CHECK_PTX70_SM80: call void @llvm.nvvm.cp.async.ca.shared.global.4
+  // CHECK_PTX70_SM80: call void @llvm.nvvm.cp.async.ca.shared.global.4(
   __nvvm_cp_async_ca_shared_global_4(dst, src);
-  // CHECK_PTX70_SM80: call void @llvm.nvvm.cp.async.ca.shared.global.8
+  // CHECK_PTX70_SM80: call void @llvm.nvvm.cp.async.ca.shared.global.8(
   __nvvm_cp_async_ca_shared_global_8(dst, src);
-  // CHECK_PTX70_SM80: call void @llvm.nvvm.cp.async.ca.shared.global.16
+  // CHECK_PTX70_SM80: call void @llvm.nvvm.cp.async.ca.shared.global.16(
   __nvvm_cp_async_ca_shared_global_16(dst, src);
-  // CHECK_PTX70_SM80: call void @llvm.nvvm.cp.async.cg.shared.global.16
+  // CHECK_PTX70_SM80: call void @llvm.nvvm.cp.async.cg.shared.global.16(
   __nvvm_cp_async_cg_shared_global_16(dst, src);
 
+  // CHECK_PTX70_SM80: call void @llvm.nvvm.cp.async.ca.shared.global.4.s({{.*}}, i32 2)
+  __nvvm_cp_async_ca_shared_global_4(dst, src, 2);
+  // CHECK_PTX70_SM80: call void @llvm.nvvm.cp.async.ca.shared.global.8.s({{.*}}, i32 2)
+  __nvvm_cp_async_ca_shared_global_8(dst, src, 2);
+  // CHECK_PTX70_SM80: call void @llvm.nvvm.cp.async.ca.shared.global.16.s({{.*}}, i32 2)
+  __nvvm_cp_async_ca_shared_global_16(dst, src, 2);
+  // CHECK_PTX70_SM80: call void @llvm.nvvm.cp.async.cg.shared.global.16.s({{.*}}, i32 2)
+  __nvvm_cp_async_cg_shared_global_16(dst, src, 2);
+  
   // CHECK_PTX70_SM80: call void @llvm.nvvm.cp.async.commit.group
   __nvvm_cp_async_commit_group();
   // CHECK_PTX70_SM80: call void @llvm.nvvm.cp.async.wait.group(i32 0)
@@ -4441,14 +4695,24 @@ __device__ void nvvm_async_copy(__attribute__((address_space(3))) void* dst, __a
 // CHECK-LABEL: nvvm_cvt_sm80
 __device__ void nvvm_cvt_sm80() {
 #if __CUDA_ARCH__ >= 800
-  // CHECK_PTX70_SM80: call i32 @llvm.nvvm.ff2bf16x2.rn(float 1.000000e+00, float 1.000000e+00)
+  // CHECK_PTX70_SM80: call <2 x bfloat> @llvm.nvvm.ff2bf16x2.rn(float 1.000000e+00, float 1.000000e+00)
   __nvvm_ff2bf16x2_rn(1, 1);
-  // CHECK_PTX70_SM80: call i32 @llvm.nvvm.ff2bf16x2.rn.relu(float 1.000000e+00, float 1.000000e+00)
+  // CHECK_PTX70_SM80: call <2 x bfloat> @llvm.nvvm.ff2bf16x2.rn.relu(float 1.000000e+00, float 1.000000e+00)
   __nvvm_ff2bf16x2_rn_relu(1, 1);
-  // CHECK_PTX70_SM80: call i32 @llvm.nvvm.ff2bf16x2.rz(float 1.000000e+00, float 1.000000e+00)
+  // CHECK_PTX70_SM80: call <2 x bfloat> @llvm.nvvm.ff2bf16x2.rz(float 1.000000e+00, float 1.000000e+00)
   __nvvm_ff2bf16x2_rz(1, 1);
-  // CHECK_PTX70_SM80: call i32 @llvm.nvvm.ff2bf16x2.rz.relu(float 1.000000e+00, float 1.000000e+00)
+  // CHECK_PTX70_SM80: call <2 x bfloat> @llvm.nvvm.ff2bf16x2.rz.relu(float 1.000000e+00, float 1.000000e+00)
   __nvvm_ff2bf16x2_rz_relu(1, 1);
+  #if PTX >= 81
+  // CHECK_PTX81_SM80: call <2 x bfloat> @llvm.nvvm.ff2bf16x2.rn.satfinite(float 1.000000e+00, float 1.000000e+00)
+  __nvvm_ff2bf16x2_rn_satfinite(1, 1);
+  // CHECK_PTX81_SM80: call <2 x bfloat> @llvm.nvvm.ff2bf16x2.rn.relu.satfinite(float 1.000000e+00, float 1.000000e+00)
+  __nvvm_ff2bf16x2_rn_relu_satfinite(1, 1);
+  // CHECK_PTX81_SM80: call <2 x bfloat> @llvm.nvvm.ff2bf16x2.rz.satfinite(float 1.000000e+00, float 1.000000e+00)
+  __nvvm_ff2bf16x2_rz_satfinite(1, 1);
+  // CHECK_PTX81_SM80: call <2 x bfloat> @llvm.nvvm.ff2bf16x2.rz.relu.satfinite(float 1.000000e+00, float 1.000000e+00)
+  __nvvm_ff2bf16x2_rz_relu_satfinite(1, 1);
+  #endif
 
   // CHECK_PTX70_SM80: call <2 x half> @llvm.nvvm.ff2f16x2.rn(float 1.000000e+00, float 1.000000e+00)
   __nvvm_ff2f16x2_rn(1, 1);
@@ -4458,47 +4722,384 @@ __device__ void nvvm_cvt_sm80() {
   __nvvm_ff2f16x2_rz(1, 1);
   // CHECK_PTX70_SM80: call <2 x half> @llvm.nvvm.ff2f16x2.rz.relu(float 1.000000e+00, float 1.000000e+00)
   __nvvm_ff2f16x2_rz_relu(1, 1);
+  #if PTX >= 81
+  // CHECK_PTX81_SM80: call <2 x half> @llvm.nvvm.ff2f16x2.rn.satfinite(float 1.000000e+00, float 1.000000e+00)
+  __nvvm_ff2f16x2_rn_satfinite(1, 1);
+  // CHECK_PTX81_SM80: call <2 x half> @llvm.nvvm.ff2f16x2.rn.relu.satfinite(float 1.000000e+00, float 1.000000e+00)
+  __nvvm_ff2f16x2_rn_relu_satfinite(1, 1);
+  // CHECK_PTX81_SM80: call <2 x half> @llvm.nvvm.ff2f16x2.rz.satfinite(float 1.000000e+00, float 1.000000e+00)
+  __nvvm_ff2f16x2_rz_satfinite(1, 1);
+  // CHECK_PTX81_SM80: call <2 x half> @llvm.nvvm.ff2f16x2.rz.relu.satfinite(float 1.000000e+00, float 1.000000e+00)
+  __nvvm_ff2f16x2_rz_relu_satfinite(1, 1);
+  #endif
 
-  // CHECK_PTX70_SM80: call i16 @llvm.nvvm.f2bf16.rn(float 1.000000e+00)
+  // CHECK_PTX70_SM80: call bfloat @llvm.nvvm.f2bf16.rn(float 1.000000e+00)
   __nvvm_f2bf16_rn(1);
-  // CHECK_PTX70_SM80: call i16 @llvm.nvvm.f2bf16.rn.relu(float 1.000000e+00)
+  // CHECK_PTX70_SM80: call bfloat @llvm.nvvm.f2bf16.rn.relu(float 1.000000e+00)
   __nvvm_f2bf16_rn_relu(1);
-  // CHECK_PTX70_SM80: call i16 @llvm.nvvm.f2bf16.rz(float 1.000000e+00)
+  // CHECK_PTX70_SM80: call bfloat @llvm.nvvm.f2bf16.rz(float 1.000000e+00)
   __nvvm_f2bf16_rz(1);
-  // CHECK_PTX70_SM80: call i16 @llvm.nvvm.f2bf16.rz.relu(float 1.000000e+00)
+  // CHECK_PTX70_SM80: call bfloat @llvm.nvvm.f2bf16.rz.relu(float 1.000000e+00)
   __nvvm_f2bf16_rz_relu(1);
+  #if PTX >= 81
+  // CHECK_PTX81_SM80: call bfloat @llvm.nvvm.f2bf16.rn.satfinite(float 1.000000e+00)
+  __nvvm_f2bf16_rn_satfinite(1);
+  // CHECK_PTX81_SM80: call bfloat @llvm.nvvm.f2bf16.rn.relu.satfinite(float 1.000000e+00)
+  __nvvm_f2bf16_rn_relu_satfinite(1);
+  // CHECK_PTX81_SM80: call bfloat @llvm.nvvm.f2bf16.rz.satfinite(float 1.000000e+00)
+  __nvvm_f2bf16_rz_satfinite(1);
+  // CHECK_PTX81_SM80: call bfloat @llvm.nvvm.f2bf16.rz.relu.satfinite(float 1.000000e+00)
+  __nvvm_f2bf16_rz_relu_satfinite(1);
+  #endif
+
+  // CHECK_PTX70_SM80: call half @llvm.nvvm.f2f16.rn(float 1.000000e+00)
+  __nvvm_f2f16_rn(1);
+  // CHECK_PTX70_SM80: call half @llvm.nvvm.f2f16.rn.relu(float 1.000000e+00)
+  __nvvm_f2f16_rn_relu(1);
+  // CHECK_PTX70_SM80: call half @llvm.nvvm.f2f16.rz(float 1.000000e+00)
+  __nvvm_f2f16_rz(1);
+  // CHECK_PTX70_SM80: call half @llvm.nvvm.f2f16.rz.relu(float 1.000000e+00)
+  __nvvm_f2f16_rz_relu(1);
+  #if PTX >= 81
+  // CHECK_PTX81_SM80: call half @llvm.nvvm.f2f16.rn.satfinite(float 1.000000e+00)
+  __nvvm_f2f16_rn_satfinite(1);
+  // CHECK_PTX81_SM80: call half @llvm.nvvm.f2f16.rn.relu.satfinite(float 1.000000e+00)
+  __nvvm_f2f16_rn_relu_satfinite(1);
+  // CHECK_PTX81_SM80: call half @llvm.nvvm.f2f16.rz.satfinite(float 1.000000e+00)
+  __nvvm_f2f16_rz_satfinite(1);
+  // CHECK_PTX81_SM80: call half @llvm.nvvm.f2f16.rz.relu.satfinite(float 1.000000e+00)
+  __nvvm_f2f16_rz_relu_satfinite(1);
+  #endif
 
   // CHECK_PTX70_SM80: call i32 @llvm.nvvm.f2tf32.rna(float 1.000000e+00)
   __nvvm_f2tf32_rna(1);
+  #if PTX >= 81
+  // CHECK_PTX81_SM80: call i32 @llvm.nvvm.f2tf32.rna.satfinite(float 1.000000e+00)
+  __nvvm_f2tf32_rna_satfinite(1.0f);
+  #endif
 #endif
   // CHECK: ret void
 }
+
+// CHECK-LABEL: nvvm_cvt_sm89
+__device__ void nvvm_cvt_sm89() {
+#if (PTX >= 81) && (__CUDA_ARCH__ >= 890)
+  // CHECK_PTX81_SM89: call i16 @llvm.nvvm.ff.to.e4m3x2.rn(float 1.000000e+00, float 1.000000e+00)
+  __nvvm_ff_to_e4m3x2_rn(1.0f, 1.0f);
+  // CHECK_PTX81_SM89: call i16 @llvm.nvvm.ff.to.e4m3x2.rn.relu(float 1.000000e+00, float 1.000000e+00)
+  __nvvm_ff_to_e4m3x2_rn_relu(1.0f, 1.0f);
+  // CHECK_PTX81_SM89: call i16 @llvm.nvvm.ff.to.e5m2x2.rn(float 1.000000e+00, float 1.000000e+00)
+  __nvvm_ff_to_e5m2x2_rn(1.0f, 1.0f);
+  // CHECK_PTX81_SM89: call i16 @llvm.nvvm.ff.to.e5m2x2.rn.relu(float 1.000000e+00, float 1.000000e+00)
+  __nvvm_ff_to_e5m2x2_rn_relu(1.0f, 1.0f);
+
+  // CHECK_PTX81_SM89: call i16 @llvm.nvvm.f16x2.to.e4m3x2.rn(<2 x half> splat (half 0xH3C00))
+  __nvvm_f16x2_to_e4m3x2_rn({1.0f16, 1.0f16});
+  // CHECK_PTX81_SM89: call i16 @llvm.nvvm.f16x2.to.e4m3x2.rn.relu(<2 x half> splat (half 0xH3C00))
+  __nvvm_f16x2_to_e4m3x2_rn_relu({1.0f16, 1.0f16});
+  // CHECK_PTX81_SM89: call i16 @llvm.nvvm.f16x2.to.e5m2x2.rn(<2 x half> splat (half 0xH3C00))
+  __nvvm_f16x2_to_e5m2x2_rn({1.0f16, 1.0f16});
+  // CHECK_PTX81_SM89: call i16 @llvm.nvvm.f16x2.to.e5m2x2.rn.relu(<2 x half> splat (half 0xH3C00))
+  __nvvm_f16x2_to_e5m2x2_rn_relu({1.0f16, 1.0f16});
+
+  // CHECK_PTX81_SM89: call <2 x half> @llvm.nvvm.e4m3x2.to.f16x2.rn(i16 18504)
+  __nvvm_e4m3x2_to_f16x2_rn(0x4848);
+  // CHECK_PTX81_SM89: call <2 x half> @llvm.nvvm.e4m3x2.to.f16x2.rn.relu(i16 18504)
+  __nvvm_e4m3x2_to_f16x2_rn_relu(0x4848);
+  // CHECK_PTX81_SM89: call <2 x half> @llvm.nvvm.e5m2x2.to.f16x2.rn(i16 19532)
+  __nvvm_e5m2x2_to_f16x2_rn(0x4c4c);
+  // CHECK_PTX81_SM89: call <2 x half> @llvm.nvvm.e5m2x2.to.f16x2.rn.relu(i16 19532)
+  __nvvm_e5m2x2_to_f16x2_rn_relu(0x4c4c);
+#endif
+  // CHECK: ret void
+}
+
+// CHECK-LABEL: nvvm_cvt_sm90
+__device__ void nvvm_cvt_sm90() {
+#if (PTX >= 78) && (__CUDA_ARCH__ >= 900)
+  // CHECK_PTX78_SM90: call i32 @llvm.nvvm.f2tf32.rn(float 1.000000e+00)
+  __nvvm_f2tf32_rn(1.0f); 
+  // CHECK_PTX78_SM90: call i32 @llvm.nvvm.f2tf32.rn.relu(float 1.000000e+00)
+  __nvvm_f2tf32_rn_relu(1.0f); 
+  // CHECK_PTX78_SM90: call i32 @llvm.nvvm.f2tf32.rz(float 1.000000e+00)
+  __nvvm_f2tf32_rz(1.0f); 
+  // CHECK_PTX78_SM90: call i32 @llvm.nvvm.f2tf32.rz.relu(float 1.000000e+00)
+  __nvvm_f2tf32_rz_relu(1.0f); 
+#endif
+  // CHECK: ret void
+}
+
+// CHECK-LABEL: nvvm_cvt_sm100
+__device__ void nvvm_cvt_sm100() {
+#if (PTX >= 86) && (__CUDA_ARCH__ >= 1000)
+  // CHECK_PTX86_SM100: call i32 @llvm.nvvm.f2tf32.rn.satfinite(float 1.000000e+00)
+  __nvvm_f2tf32_rn_satfinite(1.0f); 
+  // CHECK_PTX86_SM100: call i32 @llvm.nvvm.f2tf32.rn.relu.satfinite(float 1.000000e+00)
+  __nvvm_f2tf32_rn_relu_satfinite(1.0f); 
+  // CHECK_PTX86_SM100: call i32 @llvm.nvvm.f2tf32.rz.satfinite(float 1.000000e+00)
+  __nvvm_f2tf32_rz_satfinite(1.0f); 
+  // CHECK_PTX86_SM100: call i32 @llvm.nvvm.f2tf32.rz.relu.satfinite(float 1.000000e+00)
+  __nvvm_f2tf32_rz_relu_satfinite(1.0f); 
+#endif
+  // CHECK: ret void
+}
+
+// CHECK-LABEL: nvvm_cvt_sm100a_sm101a_sm120a
+__device__ void nvvm_cvt_sm100a_sm101a_sm120a() {
+#if (PTX >= 86) && \
+    (__CUDA_ARCH_FEAT_SM100_ALL || __CUDA_ARCH_FEAT_SM101_ALL || \
+     __CUDA_ARCH_FEAT_SM120_ALL)
+  // CHECK_PTX86_SM100a: call i16 @llvm.nvvm.ff.to.e2m3x2.rn.satfinite(float 1.000000e+00, float 1.000000e+00)
+  // CHECK_PTX86_SM101a: call i16 @llvm.nvvm.ff.to.e2m3x2.rn.satfinite(float 1.000000e+00, float 1.000000e+00)
+  // CHECK_PTX86_SM120a: call i16 @llvm.nvvm.ff.to.e2m3x2.rn.satfinite(float 1.000000e+00, float 1.000000e+00)
+  __nvvm_ff_to_e2m3x2_rn_satfinite(1.0f, 1.0f);
+
+  // CHECK_PTX86_SM100a: call i16 @llvm.nvvm.ff.to.e2m3x2.rn.relu.satfinite(float 1.000000e+00, float 1.000000e+00)
+  // CHECK_PTX86_SM101a: call i16 @llvm.nvvm.ff.to.e2m3x2.rn.relu.satfinite(float 1.000000e+00, float 1.000000e+00)
+  // CHECK_PTX86_SM120a: call i16 @llvm.nvvm.ff.to.e2m3x2.rn.relu.satfinite(float 1.000000e+00, float 1.000000e+00)
+  __nvvm_ff_to_e2m3x2_rn_relu_satfinite(1.0f, 1.0f);
+
+  // CHECK_PTX86_SM100a: call i16 @llvm.nvvm.ff.to.e3m2x2.rn.satfinite(float 1.000000e+00, float 1.000000e+00)
+  // CHECK_PTX86_SM101a: call i16 @llvm.nvvm.ff.to.e3m2x2.rn.satfinite(float 1.000000e+00, float 1.000000e+00)
+  // CHECK_PTX86_SM120a: call i16 @llvm.nvvm.ff.to.e3m2x2.rn.satfinite(float 1.000000e+00, float 1.000000e+00)
+  __nvvm_ff_to_e3m2x2_rn_satfinite(1.0f, 1.0f);
+
+  // CHECK_PTX86_SM100a: call i16 @llvm.nvvm.ff.to.e3m2x2.rn.relu.satfinite(float 1.000000e+00, float 1.000000e+00)
+  // CHECK_PTX86_SM101a: call i16 @llvm.nvvm.ff.to.e3m2x2.rn.relu.satfinite(float 1.000000e+00, float 1.000000e+00)
+  // CHECK_PTX86_SM120a: call i16 @llvm.nvvm.ff.to.e3m2x2.rn.relu.satfinite(float 1.000000e+00, float 1.000000e+00)
+  __nvvm_ff_to_e3m2x2_rn_relu_satfinite(1.0f, 1.0f);
+
+  // CHECK_PTX86_SM100a: call <2 x half> @llvm.nvvm.e2m3x2.to.f16x2.rn(i16 19532)
+  // CHECK_PTX86_SM101a: call <2 x half> @llvm.nvvm.e2m3x2.to.f16x2.rn(i16 19532)
+  // CHECK_PTX86_SM120a: call <2 x half> @llvm.nvvm.e2m3x2.to.f16x2.rn(i16 19532)
+  __nvvm_e2m3x2_to_f16x2_rn(0x4C4C);
+
+  // CHECK_PTX86_SM100a: call <2 x half> @llvm.nvvm.e2m3x2.to.f16x2.rn.relu(i16 18504)
+  // CHECK_PTX86_SM101a: call <2 x half> @llvm.nvvm.e2m3x2.to.f16x2.rn.relu(i16 18504)
+  // CHECK_PTX86_SM120a: call <2 x half> @llvm.nvvm.e2m3x2.to.f16x2.rn.relu(i16 18504)
+  __nvvm_e2m3x2_to_f16x2_rn_relu(0x4848);
+
+  // CHECK_PTX86_SM100a: call <2 x half> @llvm.nvvm.e3m2x2.to.f16x2.rn(i16 18504)
+  // CHECK_PTX86_SM101a: call <2 x half> @llvm.nvvm.e3m2x2.to.f16x2.rn(i16 18504)
+  // CHECK_PTX86_SM120a: call <2 x half> @llvm.nvvm.e3m2x2.to.f16x2.rn(i16 18504)
+  __nvvm_e3m2x2_to_f16x2_rn(0x4848);
+
+  // CHECK_PTX86_SM100a: call <2 x half> @llvm.nvvm.e3m2x2.to.f16x2.rn.relu(i16 19532)
+  // CHECK_PTX86_SM101a: call <2 x half> @llvm.nvvm.e3m2x2.to.f16x2.rn.relu(i16 19532)
+  // CHECK_PTX86_SM120a: call <2 x half> @llvm.nvvm.e3m2x2.to.f16x2.rn.relu(i16 19532)
+  __nvvm_e3m2x2_to_f16x2_rn_relu(0x4C4C);
+
+  // CHECK_PTX86_SM100a: call i16 @llvm.nvvm.ff.to.e2m1x2.rn.satfinite(float 1.000000e+00, float 1.000000e+00)
+  // CHECK_PTX86_SM101a: call i16 @llvm.nvvm.ff.to.e2m1x2.rn.satfinite(float 1.000000e+00, float 1.000000e+00)
+  // CHECK_PTX86_SM120a: call i16 @llvm.nvvm.ff.to.e2m1x2.rn.satfinite(float 1.000000e+00, float 1.000000e+00)
+  __nvvm_ff_to_e2m1x2_rn_satfinite(1.0f, 1.0f);
+
+  // CHECK_PTX86_SM100a: call i16 @llvm.nvvm.ff.to.e2m1x2.rn.relu.satfinite(float 1.000000e+00, float 1.000000e+00)
+  // CHECK_PTX86_SM101a: call i16 @llvm.nvvm.ff.to.e2m1x2.rn.relu.satfinite(float 1.000000e+00, float 1.000000e+00)
+  // CHECK_PTX86_SM120a: call i16 @llvm.nvvm.ff.to.e2m1x2.rn.relu.satfinite(float 1.000000e+00, float 1.000000e+00)
+  __nvvm_ff_to_e2m1x2_rn_relu_satfinite(1.0f, 1.0f);
+  
+  // CHECK_PTX86_SM100a: call <2 x half> @llvm.nvvm.e2m1x2.to.f16x2.rn(i16 76)
+  // CHECK_PTX86_SM101a: call <2 x half> @llvm.nvvm.e2m1x2.to.f16x2.rn(i16 76)
+  // CHECK_PTX86_SM120a: call <2 x half> @llvm.nvvm.e2m1x2.to.f16x2.rn(i16 76)
+  __nvvm_e2m1x2_to_f16x2_rn(0x004C);
+  
+  // CHECK_PTX86_SM100a: call <2 x half> @llvm.nvvm.e2m1x2.to.f16x2.rn.relu(i16 76)
+  // CHECK_PTX86_SM101a: call <2 x half> @llvm.nvvm.e2m1x2.to.f16x2.rn.relu(i16 76)
+  // CHECK_PTX86_SM120a: call <2 x half> @llvm.nvvm.e2m1x2.to.f16x2.rn.relu(i16 76)
+  __nvvm_e2m1x2_to_f16x2_rn_relu(0x004C);
+
+  // CHECK_PTX86_SM100a: call i16 @llvm.nvvm.ff.to.ue8m0x2.rz(float 1.000000e+00, float 1.000000e+00)
+  // CHECK_PTX86_SM101a: call i16 @llvm.nvvm.ff.to.ue8m0x2.rz(float 1.000000e+00, float 1.000000e+00)
+  // CHECK_PTX86_SM120a: call i16 @llvm.nvvm.ff.to.ue8m0x2.rz(float 1.000000e+00, float 1.000000e+00)
+  __nvvm_ff_to_ue8m0x2_rz(1.0f, 1.0f);
+
+  // CHECK_PTX86_SM100a: call i16 @llvm.nvvm.ff.to.ue8m0x2.rz.satfinite(float 1.000000e+00, float 1.000000e+00)
+  // CHECK_PTX86_SM101a: call i16 @llvm.nvvm.ff.to.ue8m0x2.rz.satfinite(float 1.000000e+00, float 1.000000e+00)
+  // CHECK_PTX86_SM120a: call i16 @llvm.nvvm.ff.to.ue8m0x2.rz.satfinite(float 1.000000e+00, float 1.000000e+00)
+  __nvvm_ff_to_ue8m0x2_rz_satfinite(1.0f, 1.0f);
+
+  // CHECK_PTX86_SM100a: call i16 @llvm.nvvm.ff.to.ue8m0x2.rp(float 1.000000e+00, float 1.000000e+00)
+  // CHECK_PTX86_SM101a: call i16 @llvm.nvvm.ff.to.ue8m0x2.rp(float 1.000000e+00, float 1.000000e+00)
+  // CHECK_PTX86_SM120a: call i16 @llvm.nvvm.ff.to.ue8m0x2.rp(float 1.000000e+00, float 1.000000e+00)
+  __nvvm_ff_to_ue8m0x2_rp(1.0f, 1.0f);
+
+  // CHECK_PTX86_SM100a: call i16 @llvm.nvvm.ff.to.ue8m0x2.rp.satfinite(float 1.000000e+00, float 1.000000e+00)
+  // CHECK_PTX86_SM101a: call i16 @llvm.nvvm.ff.to.ue8m0x2.rp.satfinite(float 1.000000e+00, float 1.000000e+00)
+  // CHECK_PTX86_SM120a: call i16 @llvm.nvvm.ff.to.ue8m0x2.rp.satfinite(float 1.000000e+00, float 1.000000e+00)
+  __nvvm_ff_to_ue8m0x2_rp_satfinite(1.0f, 1.0f);
+
+  // CHECK_PTX86_SM100a: call i16 @llvm.nvvm.bf16x2.to.ue8m0x2.rz(<2 x bfloat> splat (bfloat 0xR3DCD)
+  // CHECK_PTX86_SM101a: call i16 @llvm.nvvm.bf16x2.to.ue8m0x2.rz(<2 x bfloat> splat (bfloat 0xR3DCD)
+  // CHECK_PTX86_SM120a: call i16 @llvm.nvvm.bf16x2.to.ue8m0x2.rz(<2 x bfloat> splat (bfloat 0xR3DCD)
+  __nvvm_bf16x2_to_ue8m0x2_rz({(__bf16)0.1f, (__bf16)0.1f});
+
+  // CHECK_PTX86_SM100a: call i16 @llvm.nvvm.bf16x2.to.ue8m0x2.rz.satfinite(<2 x bfloat> splat (bfloat 0xR3DCD)
+  // CHECK_PTX86_SM101a: call i16 @llvm.nvvm.bf16x2.to.ue8m0x2.rz.satfinite(<2 x bfloat> splat (bfloat 0xR3DCD)
+  // CHECK_PTX86_SM120a: call i16 @llvm.nvvm.bf16x2.to.ue8m0x2.rz.satfinite(<2 x bfloat> splat (bfloat 0xR3DCD)
+  __nvvm_bf16x2_to_ue8m0x2_rz_satfinite({(__bf16)0.1f, (__bf16)0.1f});
+
+  // CHECK_PTX86_SM100a: call i16 @llvm.nvvm.bf16x2.to.ue8m0x2.rp(<2 x bfloat> splat (bfloat 0xR3DCD)
+  // CHECK_PTX86_SM101a: call i16 @llvm.nvvm.bf16x2.to.ue8m0x2.rp(<2 x bfloat> splat (bfloat 0xR3DCD)
+  // CHECK_PTX86_SM120a: call i16 @llvm.nvvm.bf16x2.to.ue8m0x2.rp(<2 x bfloat> splat (bfloat 0xR3DCD)
+  __nvvm_bf16x2_to_ue8m0x2_rp({(__bf16)0.1f, (__bf16)0.1f});
+
+  // CHECK_PTX86_SM100a: call i16 @llvm.nvvm.bf16x2.to.ue8m0x2.rp.satfinite(<2 x bfloat> splat (bfloat 0xR3DCD)
+  // CHECK_PTX86_SM101a: call i16 @llvm.nvvm.bf16x2.to.ue8m0x2.rp.satfinite(<2 x bfloat> splat (bfloat 0xR3DCD)
+  // CHECK_PTX86_SM120a: call i16 @llvm.nvvm.bf16x2.to.ue8m0x2.rp.satfinite(<2 x bfloat> splat (bfloat 0xR3DCD)
+  __nvvm_bf16x2_to_ue8m0x2_rp_satfinite({(__bf16)0.1f, (__bf16)0.1f});
+
+  // CHECK_PTX86_SM100a: call <2 x bfloat> @llvm.nvvm.ue8m0x2.to.bf16x2(i16 19532)
+  // CHECK_PTX86_SM101a: call <2 x bfloat> @llvm.nvvm.ue8m0x2.to.bf16x2(i16 19532)
+  // CHECK_PTX86_SM120a: call <2 x bfloat> @llvm.nvvm.ue8m0x2.to.bf16x2(i16 19532)
+  __nvvm_ue8m0x2_to_bf16x2(0x4C4C);
+  
+#endif
+  // CHECK: ret void
+}
+
+__device__ void nvvm_cvt_sm100a_sm103a() {
+#if (PTX >= 87) && (__CUDA_ARCH_FEAT_SM100_ALL || __CUDA_ARCH_FEAT_SM103_ALL)
+  
+  typedef __fp16 f16x2 __attribute__((ext_vector_type(2)));
+  typedef __bf16 bf16x2 __attribute__((ext_vector_type(2)));
+  typedef char uint8x4 __attribute__((ext_vector_type(4)));
+
+// CHECK_PTX87_SM100a: %[[R1:.*]] = call <2 x half> @llvm.nvvm.ff2f16x2.rs(float 1.000000e+00, float 1.000000e+00, i32 0)
+// CHECK_PTX87_SM100a: store <2 x half> %[[R1]], ptr %r1
+// CHECK_PTX87_SM103a: %[[R1:.*]] = call <2 x half> @llvm.nvvm.ff2f16x2.rs(float 1.000000e+00, float 1.000000e+00, i32 0)
+// CHECK_PTX87_SM103a: store <2 x half> %[[R1]], ptr %r1
+  f16x2 r1 =  __nvvm_ff2f16x2_rs(1.0f, 1.0f, 0);
+  
+// CHECK_PTX87_SM100a: %[[R2:.*]] = call <2 x half> @llvm.nvvm.ff2f16x2.rs.relu(float 1.000000e+00, float 1.000000e+00, i32 0)
+// CHECK_PTX87_SM100a: store <2 x half> %[[R2]], ptr %r2
+// CHECK_PTX87_SM103a: %[[R2:.*]] = call <2 x half> @llvm.nvvm.ff2f16x2.rs.relu(float 1.000000e+00, float 1.000000e+00, i32 0)
+// CHECK_PTX87_SM103a: store <2 x half> %[[R2]], ptr %r2
+  f16x2 r2 =  __nvvm_ff2f16x2_rs_relu(1.0f, 1.0f, 0);
+  
+// CHECK_PTX87_SM100a: %[[R3:.*]] = call <2 x half> @llvm.nvvm.ff2f16x2.rs.satfinite(float 1.000000e+00, float 1.000000e+00, i32 0)
+// CHECK_PTX87_SM100a: store <2 x half> %[[R3]], ptr %r3
+// CHECK_PTX87_SM103a: %[[R3:.*]] = call <2 x half> @llvm.nvvm.ff2f16x2.rs.satfinite(float 1.000000e+00, float 1.000000e+00, i32 0)
+// CHECK_PTX87_SM103a: store <2 x half> %[[R3]], ptr %r3
+  f16x2 r3 =  __nvvm_ff2f16x2_rs_satfinite(1.0f, 1.0f, 0);
+
+// CHECK_PTX87_SM100a: %[[R4:.*]] = call <2 x half> @llvm.nvvm.ff2f16x2.rs.relu.satfinite(float 1.000000e+00, float 1.000000e+00, i32 0)
+// CHECK_PTX87_SM100a: store <2 x half> %[[R4]], ptr %r4
+// CHECK_PTX87_SM103a: %[[R4:.*]] = call <2 x half> @llvm.nvvm.ff2f16x2.rs.relu.satfinite(float 1.000000e+00, float 1.000000e+00, i32 0)
+// CHECK_PTX87_SM103a: store <2 x half> %[[R4]], ptr %r4
+  f16x2 r4 =  __nvvm_ff2f16x2_rs_relu_satfinite(1.0f, 1.0f, 0);
+
+// CHECK_PTX87_SM100a: %[[R5:.*]] = call <2 x bfloat> @llvm.nvvm.ff2bf16x2.rs(float 1.000000e+00, float 1.000000e+00, i32 0)
+// CHECK_PTX87_SM100a: store <2 x bfloat> %[[R5]], ptr %r5
+// CHECK_PTX87_SM103a: %[[R5:.*]] = call <2 x bfloat> @llvm.nvvm.ff2bf16x2.rs(float 1.000000e+00, float 1.000000e+00, i32 0)
+// CHECK_PTX87_SM103a: store <2 x bfloat> %[[R5]], ptr %r5
+  bf16x2 r5 =  __nvvm_ff2bf16x2_rs(1.0f, 1.0f, 0);
+
+// CHECK_PTX87_SM100a: %[[R6:.*]] = call <2 x bfloat> @llvm.nvvm.ff2bf16x2.rs.relu(float 1.000000e+00, float 1.000000e+00, i32 0)
+// CHECK_PTX87_SM100a: store <2 x bfloat> %[[R6]], ptr %r6
+// CHECK_PTX87_SM103a: %[[R6:.*]] = call <2 x bfloat> @llvm.nvvm.ff2bf16x2.rs.relu(float 1.000000e+00, float 1.000000e+00, i32 0)
+// CHECK_PTX87_SM103a: store <2 x bfloat> %[[R6]], ptr %r6
+  bf16x2 r6 =  __nvvm_ff2bf16x2_rs_relu(1.0f, 1.0f, 0);
+
+// CHECK_PTX87_SM100a: %[[R7:.*]] = call <2 x bfloat> @llvm.nvvm.ff2bf16x2.rs.satfinite(float 1.000000e+00, float 1.000000e+00, i32 0)
+// CHECK_PTX87_SM100a: store <2 x bfloat> %[[R7]], ptr %r7
+// CHECK_PTX87_SM103a: %[[R7:.*]] = call <2 x bfloat> @llvm.nvvm.ff2bf16x2.rs.satfinite(float 1.000000e+00, float 1.000000e+00, i32 0)
+// CHECK_PTX87_SM103a: store <2 x bfloat> %[[R7]], ptr %r7
+  bf16x2 r7 =  __nvvm_ff2bf16x2_rs_satfinite(1.0f, 1.0f, 0);
+
+// CHECK_PTX87_SM100a: %[[R8:.*]] = call <2 x bfloat> @llvm.nvvm.ff2bf16x2.rs.relu.satfinite(float 1.000000e+00, float 1.000000e+00, i32 0)
+// CHECK_PTX87_SM100a: store <2 x bfloat> %[[R8]], ptr %r8
+// CHECK_PTX87_SM103a: %[[R8:.*]] = call <2 x bfloat> @llvm.nvvm.ff2bf16x2.rs.relu.satfinite(float 1.000000e+00, float 1.000000e+00, i32 0)
+// CHECK_PTX87_SM103a: store <2 x bfloat> %[[R8]], ptr %r8
+  bf16x2 r8 =  __nvvm_ff2bf16x2_rs_relu_satfinite(1.0f, 1.0f, 0);
+
+// CHECK_PTX87_SM100a: %[[R9:.*]] = call <4 x i8> @llvm.nvvm.f32x4.to.e4m3x4.rs.satfinite(<4 x float> splat (float 1.000000e+00), i32 0)
+// CHECK_PTX87_SM100a: store <4 x i8> %[[R9]], ptr %r9
+// CHECK_PTX87_SM103a: %[[R9:.*]] = call <4 x i8> @llvm.nvvm.f32x4.to.e4m3x4.rs.satfinite(<4 x float> splat (float 1.000000e+00), i32 0)
+// CHECK_PTX87_SM103a: store <4 x i8> %[[R9]], ptr %r9
+  uint8x4 r9 =  __nvvm_f32x4_to_e4m3x4_rs_satfinite({1.0f, 1.0f, 1.0f, 1.0f}, 0);
+
+// CHECK_PTX87_SM100a: %[[R10:.*]] = call <4 x i8> @llvm.nvvm.f32x4.to.e4m3x4.rs.relu.satfinite(<4 x float> splat (float 1.000000e+00), i32 0)
+// CHECK_PTX87_SM100a: store <4 x i8> %[[R10]], ptr %r10
+// CHECK_PTX87_SM103a: %[[R10:.*]] = call <4 x i8> @llvm.nvvm.f32x4.to.e4m3x4.rs.relu.satfinite(<4 x float> splat (float 1.000000e+00), i32 0)
+// CHECK_PTX87_SM103a: store <4 x i8> %[[R10]], ptr %r10
+  uint8x4 r10 =  __nvvm_f32x4_to_e4m3x4_rs_relu_satfinite({1.0f, 1.0f, 1.0f, 1.0f}, 0);
+
+// CHECK_PTX87_SM100a: %[[R11:.*]] = call <4 x i8> @llvm.nvvm.f32x4.to.e5m2x4.rs.satfinite(<4 x float> splat (float 1.000000e+00), i32 0)
+// CHECK_PTX87_SM100a: store <4 x i8> %[[R11]], ptr %r11
+// CHECK_PTX87_SM103a: %[[R11:.*]] = call <4 x i8> @llvm.nvvm.f32x4.to.e5m2x4.rs.satfinite(<4 x float> splat (float 1.000000e+00), i32 0)
+// CHECK_PTX87_SM103a: store <4 x i8> %[[R11]], ptr %r11
+  uint8x4 r11 =  __nvvm_f32x4_to_e5m2x4_rs_satfinite({1.0f, 1.0f, 1.0f, 1.0f}, 0);
+
+// CHECK_PTX87_SM100a: %[[R12:.*]] = call <4 x i8> @llvm.nvvm.f32x4.to.e5m2x4.rs.relu.satfinite(<4 x float> splat (float 1.000000e+00), i32 0)
+// CHECK_PTX87_SM100a: store <4 x i8> %[[R12]], ptr %r12
+// CHECK_PTX87_SM103a: %[[R12:.*]] = call <4 x i8> @llvm.nvvm.f32x4.to.e5m2x4.rs.relu.satfinite(<4 x float> splat (float 1.000000e+00), i32 0)
+// CHECK_PTX87_SM103a: store <4 x i8> %[[R12]], ptr %r12
+  uint8x4 r12 =  __nvvm_f32x4_to_e5m2x4_rs_relu_satfinite({1.0f, 1.0f, 1.0f, 1.0f}, 0);
+
+// CHECK_PTX87_SM100a: %[[R13:.*]] = call <4 x i8> @llvm.nvvm.f32x4.to.e2m3x4.rs.satfinite(<4 x float> splat (float 1.000000e+00), i32 0)
+// CHECK_PTX87_SM100a: store <4 x i8> %[[R13]], ptr %r13
+// CHECK_PTX87_SM103a: %[[R13:.*]] = call <4 x i8> @llvm.nvvm.f32x4.to.e2m3x4.rs.satfinite(<4 x float> splat (float 1.000000e+00), i32 0)
+// CHECK_PTX87_SM103a: store <4 x i8> %[[R13]], ptr %r13
+  uint8x4 r13 = __nvvm_f32x4_to_e2m3x4_rs_satfinite({1.0f, 1.0f, 1.0f, 1.0f}, 0);  
+
+// CHECK_PTX87_SM100a: %[[R14:.*]] = call <4 x i8> @llvm.nvvm.f32x4.to.e2m3x4.rs.relu.satfinite(<4 x float> splat (float 1.000000e+00), i32 0)
+// CHECK_PTX87_SM100a: store <4 x i8> %[[R14]], ptr %r14
+// CHECK_PTX87_SM103a: %[[R14:.*]] = call <4 x i8> @llvm.nvvm.f32x4.to.e2m3x4.rs.relu.satfinite(<4 x float> splat (float 1.000000e+00), i32 0)
+// CHECK_PTX87_SM103a: store <4 x i8> %[[R14]], ptr %r14
+  uint8x4 r14 = __nvvm_f32x4_to_e2m3x4_rs_relu_satfinite({1.0f, 1.0f, 1.0f, 1.0f}, 0);
+
+// CHECK_PTX87_SM100a: %[[R15:.*]] = call <4 x i8> @llvm.nvvm.f32x4.to.e3m2x4.rs.satfinite(<4 x float> splat (float 1.000000e+00), i32 0)
+// CHECK_PTX87_SM100a: store <4 x i8> %[[R15]], ptr %r15
+// CHECK_PTX87_SM103a: %[[R15:.*]] = call <4 x i8> @llvm.nvvm.f32x4.to.e3m2x4.rs.satfinite(<4 x float> splat (float 1.000000e+00), i32 0)
+// CHECK_PTX87_SM103a: store <4 x i8> %[[R15]], ptr %r15
+  uint8x4 r15 = __nvvm_f32x4_to_e3m2x4_rs_satfinite({1.0f, 1.0f, 1.0f, 1.0f}, 0);
+
+// CHECK_PTX87_SM100a: %[[R16:.*]] = call <4 x i8> @llvm.nvvm.f32x4.to.e3m2x4.rs.relu.satfinite(<4 x float> splat (float 1.000000e+00), i32 0)
+// CHECK_PTX87_SM100a: store <4 x i8> %[[R16]], ptr %r16
+// CHECK_PTX87_SM103a: %[[R16:.*]] = call <4 x i8> @llvm.nvvm.f32x4.to.e3m2x4.rs.relu.satfinite(<4 x float> splat (float 1.000000e+00), i32 0)
+// CHECK_PTX87_SM103a: store <4 x i8> %[[R16]], ptr %r16
+  uint8x4 r16 = __nvvm_f32x4_to_e3m2x4_rs_relu_satfinite({1.0f, 1.0f, 1.0f, 1.0f}, 0);
+
+// CHECK_PTX87_SM100a: %[[R17:.*]] = call i16 @llvm.nvvm.f32x4.to.e2m1x4.rs.satfinite(<4 x float> splat (float 1.000000e+00), i32 0)
+// CHECK_PTX87_SM100a: store i16 %[[R17]], ptr %r17
+// CHECK_PTX87_SM103a: %[[R17:.*]] = call i16 @llvm.nvvm.f32x4.to.e2m1x4.rs.satfinite(<4 x float> splat (float 1.000000e+00), i32 0)
+// CHECK_PTX87_SM103a: store i16 %[[R17]], ptr %r17
+  short r17 = __nvvm_f32x4_to_e2m1x4_rs_satfinite({1.0f, 1.0f, 1.0f, 1.0f}, 0);
+
+// CHECK_PTX87_SM100a: %[[R18:.*]] = call i16 @llvm.nvvm.f32x4.to.e2m1x4.rs.relu.satfinite(<4 x float> splat (float 1.000000e+00), i32 0)
+// CHECK_PTX87_SM100a: store i16 %[[R18]], ptr %r18
+// CHECK_PTX87_SM103a: %[[R18:.*]] = call i16 @llvm.nvvm.f32x4.to.e2m1x4.rs.relu.satfinite(<4 x float> splat (float 1.000000e+00), i32 0)
+// CHECK_PTX87_SM103a: store i16 %[[R18]], ptr %r18
+  short r18 = __nvvm_f32x4_to_e2m1x4_rs_relu_satfinite({1.0f, 1.0f, 1.0f, 1.0f}, 0);
+#endif
+}
+
+#define NAN32 0x7FBFFFFF
+#define NAN16 (__bf16)0x7FBF
+#define BF16 (__bf16)0.1f
+#define BF16_2 (__bf16)0.2f
+#define NANBF16 (__bf16)0xFFC1
+#define BF16X2 {(__bf16)0.1f, (__bf16)0.1f}
+#define BF16X2_2 {(__bf16)0.2f, (__bf16)0.2f}
+#define NANBF16X2 {NANBF16, NANBF16}
 
 // CHECK-LABEL: nvvm_abs_neg_bf16_bf16x2_sm80
 __device__ void nvvm_abs_neg_bf16_bf16x2_sm80() {
 #if __CUDA_ARCH__ >= 800
 
-  // CHECK_PTX70_SM80: call i16 @llvm.nvvm.abs.bf16(i16 -1)
-  __nvvm_abs_bf16(0xFFFF);
-  // CHECK_PTX70_SM80: call i32 @llvm.nvvm.abs.bf16x2(i32 -1)
-  __nvvm_abs_bf16x2(0xFFFFFFFF);
+  // CHECK_PTX70_SM80: call bfloat @llvm.nvvm.fabs.bf16(bfloat 0xR3DCD)
+  __nvvm_abs_bf16(BF16);
+  // CHECK_PTX70_SM80: call <2 x bfloat> @llvm.nvvm.fabs.v2bf16(<2 x bfloat> splat (bfloat 0xR3DCD))
+  __nvvm_abs_bf16x2(BF16X2);
 
-  // CHECK_PTX70_SM80: call i16 @llvm.nvvm.neg.bf16(i16 -1)
-  __nvvm_neg_bf16(0xFFFF);
-  // CHECK_PTX70_SM80: call i32 @llvm.nvvm.neg.bf16x2(i32 -1)
-  __nvvm_neg_bf16x2(0xFFFFFFFF);
+  // CHECK_PTX70_SM80: call bfloat @llvm.nvvm.neg.bf16(bfloat 0xR3DCD)
+  __nvvm_neg_bf16(BF16);
+  // CHECK_PTX70_SM80: call <2 x bfloat> @llvm.nvvm.neg.bf16x2(<2 x bfloat> splat (bfloat 0xR3DCD))
+  __nvvm_neg_bf16x2(BF16X2);
 #endif
   // CHECK: ret void
 }
-
-#define NAN32 0x7FBFFFFF
-#define NAN16 0x7FBF
-#define BF16 0x1234
-#define BF16_2 0x4321
-#define NANBF16 0xFFC1
-#define BF16X2 0x12341234
-#define BF16X2_2 0x32343234
-#define NANBF16X2 0xFFC1FFC1
 
 // CHECK-LABEL: nvvm_min_max_sm80
 __device__ void nvvm_min_max_sm80() {
@@ -4509,14 +5110,22 @@ __device__ void nvvm_min_max_sm80() {
   // CHECK_PTX70_SM80: call float @llvm.nvvm.fmin.ftz.nan.f
   __nvvm_fmin_ftz_nan_f(0.1f, (float)NAN32);
 
-  // CHECK_PTX70_SM80: call i16 @llvm.nvvm.fmin.bf16
+  // CHECK_PTX70_SM80: call bfloat @llvm.nvvm.fmin.bf16
   __nvvm_fmin_bf16(BF16, BF16_2);
-  // CHECK_PTX70_SM80: call i16 @llvm.nvvm.fmin.nan.bf16
+  // CHECK_PTX70_SM80: call bfloat @llvm.nvvm.fmin.ftz.bf16
+  __nvvm_fmin_ftz_bf16(BF16, BF16_2);
+  // CHECK_PTX70_SM80: call bfloat @llvm.nvvm.fmin.nan.bf16
   __nvvm_fmin_nan_bf16(BF16, NANBF16);
-  // CHECK_PTX70_SM80: call i32 @llvm.nvvm.fmin.bf16x2
+  // CHECK_PTX70_SM80: call bfloat @llvm.nvvm.fmin.ftz.nan.bf16
+  __nvvm_fmin_ftz_nan_bf16(BF16, NANBF16);
+  // CHECK_PTX70_SM80: call <2 x bfloat> @llvm.nvvm.fmin.bf16x2
   __nvvm_fmin_bf16x2(BF16X2, BF16X2_2);
-  // CHECK_PTX70_SM80: call i32 @llvm.nvvm.fmin.nan.bf16x2
+  // CHECK_PTX70_SM80: call <2 x bfloat> @llvm.nvvm.fmin.ftz.bf16x2
+  __nvvm_fmin_ftz_bf16x2(BF16X2, BF16X2_2);
+  // CHECK_PTX70_SM80: call <2 x bfloat> @llvm.nvvm.fmin.nan.bf16x2
   __nvvm_fmin_nan_bf16x2(BF16X2, NANBF16X2);
+  // CHECK_PTX70_SM80: call <2 x bfloat> @llvm.nvvm.fmin.ftz.nan.bf16x2
+  __nvvm_fmin_ftz_nan_bf16x2(BF16X2, NANBF16X2);
   // CHECK_PTX70_SM80: call float @llvm.nvvm.fmax.nan.f
   __nvvm_fmax_nan_f(0.1f, 0.11f);
   // CHECK_PTX70_SM80: call float @llvm.nvvm.fmax.ftz.nan.f
@@ -4526,14 +5135,22 @@ __device__ void nvvm_min_max_sm80() {
   __nvvm_fmax_nan_f(0.1f, (float)NAN32);
   // CHECK_PTX70_SM80: call float @llvm.nvvm.fmax.ftz.nan.f
   __nvvm_fmax_ftz_nan_f(0.1f, (float)NAN32);
-  // CHECK_PTX70_SM80: call i16 @llvm.nvvm.fmax.bf16
+  // CHECK_PTX70_SM80: call bfloat @llvm.nvvm.fmax.bf16
   __nvvm_fmax_bf16(BF16, BF16_2);
-  // CHECK_PTX70_SM80: call i16 @llvm.nvvm.fmax.nan.bf16
+  // CHECK_PTX70_SM80: call bfloat @llvm.nvvm.fmax.ftz.bf16
+  __nvvm_fmax_ftz_bf16(BF16, BF16_2);
+  // CHECK_PTX70_SM80: call bfloat @llvm.nvvm.fmax.nan.bf16
   __nvvm_fmax_nan_bf16(BF16, NANBF16);
-  // CHECK_PTX70_SM80: call i32 @llvm.nvvm.fmax.bf16x2
+  // CHECK_PTX70_SM80: call bfloat @llvm.nvvm.fmax.ftz.nan.bf16
+  __nvvm_fmax_ftz_nan_bf16(BF16, NANBF16);
+  // CHECK_PTX70_SM80: call <2 x bfloat> @llvm.nvvm.fmax.bf16x2
   __nvvm_fmax_bf16x2(BF16X2, BF16X2_2);
-  // CHECK_PTX70_SM80: call i32 @llvm.nvvm.fmax.nan.bf16x2
+  // CHECK_PTX70_SM80: call <2 x bfloat> @llvm.nvvm.fmax.ftz.bf16x2
+  __nvvm_fmax_ftz_bf16x2(BF16X2, BF16X2_2);
+  // CHECK_PTX70_SM80: call <2 x bfloat> @llvm.nvvm.fmax.nan.bf16x2
   __nvvm_fmax_nan_bf16x2(NANBF16X2, BF16X2);
+  // CHECK_PTX70_SM80: call <2 x bfloat> @llvm.nvvm.fmax.ftz.nan.bf16x2
+  __nvvm_fmax_ftz_nan_bf16x2(NANBF16X2, BF16X2);
   // CHECK_PTX70_SM80: call float @llvm.nvvm.fmax.nan.f
   __nvvm_fmax_nan_f(0.1f, (float)NAN32);
   // CHECK_PTX70_SM80: call float @llvm.nvvm.fmax.ftz.nan.f
@@ -4546,14 +5163,14 @@ __device__ void nvvm_min_max_sm80() {
 // CHECK-LABEL: nvvm_fma_bf16_bf16x2_sm80
 __device__ void nvvm_fma_bf16_bf16x2_sm80() {
 #if __CUDA_ARCH__ >= 800
-  // CHECK_PTX70_SM80: call i16 @llvm.nvvm.fma.rn.bf16
-  __nvvm_fma_rn_bf16(0x1234, 0x7FBF, 0x1234);
-  // CHECK_PTX70_SM80: call i16 @llvm.nvvm.fma.rn.relu.bf16
-  __nvvm_fma_rn_relu_bf16(0x1234, 0x7FBF, 0x1234);
-  // CHECK_PTX70_SM80: call i32 @llvm.nvvm.fma.rn.bf16x2
-  __nvvm_fma_rn_bf16x2(0x7FBFFFFF, 0xFFFFFFFF, 0x7FBFFFFF);
-  // CHECK_PTX70_SM80: call i32 @llvm.nvvm.fma.rn.relu.bf16x2
-  __nvvm_fma_rn_relu_bf16x2(0x7FBFFFFF, 0xFFFFFFFF, 0x7FBFFFFF);
+  // CHECK_PTX70_SM80: call bfloat @llvm.nvvm.fma.rn.bf16
+  __nvvm_fma_rn_bf16(BF16, BF16_2, BF16_2);
+  // CHECK_PTX70_SM80: call bfloat @llvm.nvvm.fma.rn.relu.bf16
+  __nvvm_fma_rn_relu_bf16(BF16, BF16_2, BF16_2);
+  // CHECK_PTX70_SM80: call <2 x bfloat> @llvm.nvvm.fma.rn.bf16x2
+  __nvvm_fma_rn_bf16x2(BF16X2, BF16X2_2, BF16X2_2);
+  // CHECK_PTX70_SM80: call <2 x bfloat> @llvm.nvvm.fma.rn.relu.bf16x2
+  __nvvm_fma_rn_relu_bf16x2(BF16X2, BF16X2_2, BF16X2_2);
 #endif
   // CHECK: ret void
 }
@@ -4562,13 +5179,13 @@ __device__ void nvvm_fma_bf16_bf16x2_sm80() {
 __device__ void nvvm_min_max_sm86() {
 #if __CUDA_ARCH__ >= 860
 
-  // CHECK_PTX72_SM86: call i16 @llvm.nvvm.fmin.xorsign.abs.bf16
+  // CHECK_PTX72_SM86: call bfloat @llvm.nvvm.fmin.xorsign.abs.bf16
   __nvvm_fmin_xorsign_abs_bf16(BF16, BF16_2);
-  // CHECK_PTX72_SM86: call i16 @llvm.nvvm.fmin.nan.xorsign.abs.bf16
+  // CHECK_PTX72_SM86: call bfloat @llvm.nvvm.fmin.nan.xorsign.abs.bf16
   __nvvm_fmin_nan_xorsign_abs_bf16(BF16, NANBF16);
-  // CHECK_PTX72_SM86: call i32 @llvm.nvvm.fmin.xorsign.abs.bf16x2
+  // CHECK_PTX72_SM86: call <2 x bfloat> @llvm.nvvm.fmin.xorsign.abs.bf16x2
   __nvvm_fmin_xorsign_abs_bf16x2(BF16X2, BF16X2_2);
-  // CHECK_PTX72_SM86: call i32 @llvm.nvvm.fmin.nan.xorsign.abs.bf16x2
+  // CHECK_PTX72_SM86: call <2 x bfloat> @llvm.nvvm.fmin.nan.xorsign.abs.bf16x2
   __nvvm_fmin_nan_xorsign_abs_bf16x2(BF16X2, NANBF16X2);
   // CHECK_PTX72_SM86: call float @llvm.nvvm.fmin.xorsign.abs.f
   __nvvm_fmin_xorsign_abs_f(-0.1f, 0.1f);
@@ -4579,13 +5196,13 @@ __device__ void nvvm_min_max_sm86() {
   // CHECK_PTX72_SM86: call float @llvm.nvvm.fmin.ftz.nan.xorsign.abs.f
   __nvvm_fmin_ftz_nan_xorsign_abs_f(-0.1f, (float)NAN32);
 
-  // CHECK_PTX72_SM86: call i16 @llvm.nvvm.fmax.xorsign.abs.bf16
+  // CHECK_PTX72_SM86: call bfloat @llvm.nvvm.fmax.xorsign.abs.bf16
   __nvvm_fmax_xorsign_abs_bf16(BF16, BF16_2);
-  // CHECK_PTX72_SM86: call i16 @llvm.nvvm.fmax.nan.xorsign.abs.bf16
+  // CHECK_PTX72_SM86: call bfloat @llvm.nvvm.fmax.nan.xorsign.abs.bf16
   __nvvm_fmax_nan_xorsign_abs_bf16(BF16, NANBF16);
-  // CHECK_PTX72_SM86: call i32 @llvm.nvvm.fmax.xorsign.abs.bf16x2
+  // CHECK_PTX72_SM86: call <2 x bfloat> @llvm.nvvm.fmax.xorsign.abs.bf16x2
   __nvvm_fmax_xorsign_abs_bf16x2(BF16X2, BF16X2_2);
-  // CHECK_PTX72_SM86: call i32 @llvm.nvvm.fmax.nan.xorsign.abs.bf16x2
+  // CHECK_PTX72_SM86: call <2 x bfloat> @llvm.nvvm.fmax.nan.xorsign.abs.bf16x2
   __nvvm_fmax_nan_xorsign_abs_bf16x2(BF16X2, NANBF16X2);
   // CHECK_PTX72_SM86: call float @llvm.nvvm.fmax.xorsign.abs.f
   __nvvm_fmax_xorsign_abs_f(-0.1f, 0.1f);
@@ -4596,5 +5213,44 @@ __device__ void nvvm_min_max_sm86() {
   // CHECK_PTX72_SM86: call float @llvm.nvvm.fmax.ftz.nan.xorsign.abs.f
   __nvvm_fmax_ftz_nan_xorsign_abs_f(-0.1f, (float)NAN32);
 #endif
+  // CHECK: ret void
+}
+
+// CHECK-LABEL: nvvm_add_fma_f32_sat
+__device__ void nvvm_add_fma_f32_sat() {
+  // CHECK: call float @llvm.nvvm.add.rn.sat.f
+  __nvvm_add_rn_sat_f(1.0f, 2.0f);
+  // CHECK: call float @llvm.nvvm.add.rn.ftz.sat.f
+  __nvvm_add_rn_ftz_sat_f(1.0f, 2.0f);
+  // CHECK: call float @llvm.nvvm.add.rz.sat.f
+  __nvvm_add_rz_sat_f(1.0f, 2.0f);
+  // CHECK: call float @llvm.nvvm.add.rz.ftz.sat.f
+  __nvvm_add_rz_ftz_sat_f(1.0f, 2.0f);
+  // CHECK: call float @llvm.nvvm.add.rm.sat.f
+  __nvvm_add_rm_sat_f(1.0f, 2.0f);
+  // CHECK: call float @llvm.nvvm.add.rm.ftz.sat.f
+  __nvvm_add_rm_ftz_sat_f(1.0f, 2.0f);
+  // CHECK: call float @llvm.nvvm.add.rp.sat.f
+  __nvvm_add_rp_sat_f(1.0f, 2.0f);
+  // CHECK: call float @llvm.nvvm.add.rp.ftz.sat.f
+  __nvvm_add_rp_ftz_sat_f(1.0f, 2.0f);
+
+  // CHECK: call float @llvm.nvvm.fma.rn.sat.f
+  __nvvm_fma_rn_sat_f(1.0f, 2.0f, 3.0f);
+  // CHECK: call float @llvm.nvvm.fma.rn.ftz.sat.f
+  __nvvm_fma_rn_ftz_sat_f(1.0f, 2.0f, 3.0f);
+  // CHECK: call float @llvm.nvvm.fma.rz.sat.f
+  __nvvm_fma_rz_sat_f(1.0f, 2.0f, 3.0f);
+  // CHECK: call float @llvm.nvvm.fma.rz.ftz.sat.f
+  __nvvm_fma_rz_ftz_sat_f(1.0f, 2.0f, 3.0f);
+  // CHECK: call float @llvm.nvvm.fma.rm.sat.f
+  __nvvm_fma_rm_sat_f(1.0f, 2.0f, 3.0f);
+  // CHECK: call float @llvm.nvvm.fma.rm.ftz.sat.f
+  __nvvm_fma_rm_ftz_sat_f(1.0f, 2.0f, 3.0f);
+  // CHECK: call float @llvm.nvvm.fma.rp.sat.f
+  __nvvm_fma_rp_sat_f(1.0f, 2.0f, 3.0f);
+  // CHECK: call float @llvm.nvvm.fma.rp.ftz.sat.f
+  __nvvm_fma_rp_ftz_sat_f(1.0f, 2.0f, 3.0f);
+
   // CHECK: ret void
 }

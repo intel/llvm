@@ -1,4 +1,4 @@
-//===--- MacroUsageCheck.h - clang-tidy--------------------------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -15,14 +15,13 @@
 
 namespace clang {
 class MacroDirective;
-namespace tidy {
-namespace cppcoreguidelines {
+namespace tidy::cppcoreguidelines {
 
 /// Find macro usage that is considered problematic because better language
 /// constructs exist for the task.
 ///
 /// For the user-facing documentation see:
-/// http://clang.llvm.org/extra/clang-tidy/checks/cppcoreguidelines/macro-usage.html
+/// https://clang.llvm.org/extra/clang-tidy/checks/cppcoreguidelines/macro-usage.html
 class MacroUsageCheck : public ClangTidyCheck {
 public:
   MacroUsageCheck(StringRef Name, ClangTidyContext *Context)
@@ -48,8 +47,7 @@ private:
   bool IgnoreCommandLineMacros;
 };
 
-} // namespace cppcoreguidelines
-} // namespace tidy
+} // namespace tidy::cppcoreguidelines
 } // namespace clang
 
 #endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_CPPCOREGUIDELINES_MACROUSAGECHECK_H

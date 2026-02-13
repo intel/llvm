@@ -1,9 +1,6 @@
 Tracing with Intel Processor Trace
 ==================================
 
-.. contents::
-  :local:
-
 Intel PT is a technology available in modern Intel CPUs that allows efficient
 tracing of all the instructions executed by a process.
 LLDB can collect traces and dump them using its symbolication stack.
@@ -30,7 +27,7 @@ Build Instructions
 ------------------
 
 Clone and build the low level Intel PT
-decoder library [LibIPT library](https://github.com/intel/libipt).
+decoder library `LibIPT library <https://github.com/intel/libipt>`_.
 ::
 
   $ git clone git@github.com:intel/libipt.git
@@ -39,8 +36,8 @@ decoder library [LibIPT library](https://github.com/intel/libipt).
   $ cd libipt-build
   $ make
 
-This will generate a few files in the `<libipt-build>/lib`
-and `<libipt-build>/libipt/include` directories.
+This will generate a few files in the ``<libipt-build>/lib``
+and ``<libipt-build>/libipt/include`` directories.
 
 Configure and build LLDB with Intel PT support
 

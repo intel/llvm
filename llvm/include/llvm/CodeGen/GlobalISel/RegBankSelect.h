@@ -190,7 +190,7 @@ public:
     /// Frequency of the insertion point.
     /// \p P is used to access the various analysis that will help to
     /// get that information, like MachineBlockFrequencyInfo.  If \p P
-    /// does not contain enough enough to return the actual frequency,
+    /// does not contain enough to return the actual frequency,
     /// this returns 1.
     virtual uint64_t frequency(const Pass &P) const { return 1; }
 
@@ -407,7 +407,7 @@ public:
     }
   };
 
-private:
+protected:
   /// Helper class used to represent the cost for mapping an instruction.
   /// When mapping an instruction, we may introduce some repairing code.
   /// In most cases, the repairing code is local to the instruction,
@@ -440,7 +440,7 @@ private:
   public:
     /// Create a MappingCost assuming that most of the instructions
     /// will occur in a basic block with \p LocalFreq frequency.
-    MappingCost(const BlockFrequency &LocalFreq);
+    MappingCost(BlockFrequency LocalFreq);
 
     /// Add \p Cost to the local cost.
     /// \return true if this cost is saturated, false otherwise.
@@ -509,9 +509,6 @@ private:
 
   /// Optimization mode of the pass.
   Mode OptMode;
-
-  /// Current target configuration. Controls how the pass handles errors.
-  const TargetPassConfig *TPC;
 
   /// Assign the register bank of each operand of \p MI.
   /// \return True on success, false otherwise.
@@ -624,20 +621,22 @@ public:
   void getAnalysisUsage(AnalysisUsage &AU) const override;
 
   MachineFunctionProperties getRequiredProperties() const override {
-    return MachineFunctionProperties()
-        .set(MachineFunctionProperties::Property::IsSSA)
-        .set(MachineFunctionProperties::Property::Legalized);
+    return MachineFunctionProperties().setIsSSA().setLegalized();
   }
 
   MachineFunctionProperties getSetProperties() const override {
-    return MachineFunctionProperties().set(
-        MachineFunctionProperties::Property::RegBankSelected);
+    return MachineFunctionProperties().setRegBankSelected();
   }
 
   MachineFunctionProperties getClearedProperties() const override {
-    return MachineFunctionProperties()
-      .set(MachineFunctionProperties::Property::NoPHIs);
+    return MachineFunctionProperties().setNoPHIs();
   }
+
+  /// Check that our input is fully legal: we require the function to have the
+  /// Legalized property, so it should be.
+  ///
+  /// FIXME: This should be in the MachineVerifier.
+  bool checkFunctionIsLegal(MachineFunction &MF) const;
 
   /// Walk through \p MF and assign a register bank to every virtual register
   /// that are still mapped to nothing.
@@ -662,6 +661,8 @@ public:
   ///           MIRBuilder.buildInstr(COPY, Tmp, ArgReg)
   ///           inst.getOperand(argument.getOperandNo()).setReg(Tmp)
   /// \endcode
+  bool assignRegisterBanks(MachineFunction &MF);
+
   bool runOnMachineFunction(MachineFunction &MF) override;
 };
 

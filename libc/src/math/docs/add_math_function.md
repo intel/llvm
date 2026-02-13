@@ -18,23 +18,31 @@ together with its specifications:
 ```
 - Add function specs to the file:
 ```
-  libc/spec/stdc.td
+  libc/include/math.yaml
 ```
 
 ## Implementation
 
-The function's actual implementation and its corresponding header should be
+The function's actual implementation is defined in an internal header, while the public entry point is a thin wrapper 
 added to the following locations:
 
+- Add the core math logic (under `LIBC_NAMESPACE::math` namespace) to:
+```
+  libc/src/__support/math/<func>.h
+```
+- Add the corresponding `add_header_library` to:
+```
+  libc/src/__support/math/CMakeLists.txt
+```
 - Add `add_math_entrypoint_object(<func>)` to:
 ```
   libc/src/math/CMakeLists.txt
 ```
-- Add function declaration (under `__llvm_libc` namespace) to:
+- Add function declaration (under `LIBC_NAMESPACE` namespace) to:
 ```
   libc/src/math/<func>.h
 ```
-- Add function definition to:
+- Add function definition (calling the __support implementation) to:
 ```
   libc/src/math/generic/<func>.cpp
 ```
@@ -47,6 +55,27 @@ added to the following locations:
   libc/src/math/<arch>/<func>.cpp
 ```
 
+### Shared Math Library
+
+If the function should be available to internal LLVM projects:
+
+- Include the support header in:
+```
+  libc/shared/math.h
+```
+- Add a header that exports the function via using in:
+```
+  libc/shared/math/<func>.h
+```
+- add a simple test case to
+```
+ libc/test/shared/shared_math_test.cpp
+```
+- add the corresponding `libc_support_library` and `libc_math_function` to:
+```
+utils/bazel/llvm-project-overlay/libc/BUILD.bazel
+```
+
 ### Floating point utility
 
 - Floating point utilities and math functions that are also used internally are
@@ -56,7 +85,7 @@ located at:
 ```
 - These are preferred to be included as header-only.
 - To manipulate bits of floating point numbers, use the template class
-`__llvm_libc::fputil::FPBits<>` in the header file:
+`LIBC_NAMESPACE::fputil::FPBits<>` in the header file:
 ```
   libc/src/__support/FPUtils/FPBits.h
 ```
@@ -71,7 +100,7 @@ compare your outputs with the corresponding MPFR function.  In
 order for your new function to be supported by these two macros,
 the following files will need to be updated:
 
-- Add the function enum to `__llvm_libc::testing::mpfr::Operation` in the
+- Add the function enum to `LIBC_NAMESPACE::testing::mpfr::Operation` in the
 header file:
 ```
   libc/utils/MPFRWrapper/MPFRUtils.h
@@ -88,12 +117,17 @@ Besides the usual testing macros like `EXPECT_EQ, ASSERT_TRUE, ...` there are
 testing macros specifically used for floating point values, such as
 `EXPECT_FP_EQ, ASSERT_FP_LE, ...`
 
-- Add unit test to:
+- Add smoke tests (simple cases and zeros / inf / nan inputs or outputs) to:
+```
+  libc/test/src/math/smoke/<func>_test.cpp
+```
+- Add unit test that might require MPFR to:
 ```
   libc/test/src/math/<func>_test.cpp
 ```
-- Add the corresponding entry point to:
+- Add the corresponding entry points to:
 ```
+  libc/test/src/math/smoke/CMakeLists.txt
   libc/test/src/math/CMakeLists.txt
 ```
 
@@ -111,11 +145,11 @@ order to find exceptional cases for your function's implementation.
 ```
   libc/test/src/math/exhaustive/CMakeLists.txt
 ```
-- The template class `LlvmLibcExhaustiveTest` located at:
+- The template class `LlvmLibcExhaustiveMathTest` located at:
 ```
   libc/test/src/math/exhaustive/exhaustive_test.h
 ```
-can be inherited for conveniently parallelizing the exhaustive tests.
+can be used for conveniently parallelizing the exhaustive tests.
 
 ### Performance tests
 
@@ -124,11 +158,11 @@ implementation (which is very often glibc).
 
 - Add a performance test to:
 ```
-  libc/test/src/math/differential_testing/<func>_perf.cpp
+  libc/test/src/math/performance_testing/<func>_perf.cpp
 ```
 - Add the corresponding entry point to:
 ```
-  libc/test/src/math/differential_testing/CMakeLists.txt
+  libc/test/src/math/performance_testing/CMakeLists.txt
 ```
 
 ## Build and Run
@@ -138,21 +172,24 @@ implementation (which is very often glibc).
   $ git clone https://github.com/llvm/llvm-project.git
 ```
 
+- Compiler Requirements: The libc implementation should support compiling with both Clang and GCC (12.2).
+
 - Setup projects with CMake:
 ```
   $ cd llvm-project
   $ mkdir build
   $ cd build
   $ cmake ../llvm -G Ninja \
-  -DLLVM_ENABLE_PROJECTS="llvm;libc" \
+  -DLLVM_ENABLE_RUNTIMES="libc" \
   -DCMAKE_BUILD_TYPE=Debug \
   -DCMAKE_C_COMPILER=clang \
   -DCMAKE_CXX_COMPILER=clang++
+  $ cd runtimes/runtimes-bins/
 ```
 
 - Build the whole `libc`:
 ```
-  $ ninja llvmlibc
+  $ ninja libc
 ```
 
 - Run all unit tests:
@@ -160,28 +197,39 @@ implementation (which is very often glibc).
   $ ninja check-libc
 ```
 
+- Run math smoke tests only:
+```
+  $ ninja libc-math-smoke-tests
+```
+
+- Run math smoke and unit tests:
+```
+  $ ninja libc-math-unittests
+```
+
 - Build and Run a specific unit test:
 ```
-  $ ninja libc.test.src.math.<func>_test
+  $ ninja libc.test.src.math.<func>_test.__unit__
   $ projects/libc/test/src/math/libc.test.src.math.<func>_test
 ```
 
 - Build and Run exhaustive test (might take hours to run):
 ```
-  $ ninja libc.test.src.math.exhaustive.<func>_test
-  $ projects/libc/test/src/math/exhaustive/libc.test.src.math.exhaustive.<func>_test
+  $ ninja libc.test.src.math.exhaustive.<func>_test.__unit__
+  $ projects/libc/test/src/math/exhaustive/libc.test.src.math.exhaustive.<func>_test.__unit__
 ```
 
 - Build and Run performance test:
 ```
-  $ ninja libc.test.src.math.differential_testing.<func>_perf
-  $ projects/libc/test/src/math/differential_testing/libc.test.src.math.differential_testing.<func>_perf
+  $ ninja libc.test.src.math.performance_testing.<func>_perf
+  $ projects/libc/test/src/math/performance_testing/libc.test.src.math.performance_testing.<func>_perf
   $ cat <func>_perf.log
 ```
 
 ## Code reviews
 
-We follow the code review process of LLVM with Phabricator:
+We use GitHub's inbuilt pull request system for code review:
 ```
-  https://llvm.org/docs/Phabricator.html
+  https://docs.github.com/articles/about-collaborative-development-models
+  https://docs.github.com/articles/about-pull-requests
 ```

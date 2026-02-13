@@ -12,7 +12,6 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Format.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
@@ -138,10 +137,6 @@ struct PrintSymbolMapElemsMatchingCLOpts {
 namespace llvm {
 namespace orc {
 
-raw_ostream &operator<<(raw_ostream &OS, const SymbolStringPtr &Sym) {
-  return OS << *Sym;
-}
-
 raw_ostream &operator<<(raw_ostream &OS, const SymbolNameSet &Symbols) {
   return OS << printSequence(Symbols, '{', '}', PrintAll<SymbolStringPtr>());
 }
@@ -172,9 +167,8 @@ raw_ostream &operator<<(raw_ostream &OS, const JITSymbolFlags &Flags) {
   return OS;
 }
 
-raw_ostream &operator<<(raw_ostream &OS, const JITEvaluatedSymbol &Sym) {
-  return OS << format("0x%016" PRIx64, Sym.getAddress()) << " "
-            << Sym.getFlags();
+raw_ostream &operator<<(raw_ostream &OS, const ExecutorSymbolDef &Sym) {
+  return OS << Sym.getAddress() << " " << Sym.getFlags();
 }
 
 raw_ostream &operator<<(raw_ostream &OS, const SymbolFlagsMap::value_type &KV) {
@@ -299,8 +293,12 @@ raw_ostream &operator<<(raw_ostream &OS, const SymbolState &S) {
 
 raw_ostream &operator<<(raw_ostream &OS, const SymbolStringPool &SSP) {
   std::lock_guard<std::mutex> Lock(SSP.PoolMutex);
+  SmallVector<std::pair<StringRef, int>, 0> Vec;
   for (auto &KV : SSP.Pool)
-    OS << KV.first() << ": " << KV.second << "\n";
+    Vec.emplace_back(KV.first(), KV.second);
+  llvm::sort(Vec, less_first());
+  for (auto &[K, V] : Vec)
+    OS << K << ": " << V << "\n";
   return OS;
 }
 

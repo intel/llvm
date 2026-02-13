@@ -8,24 +8,45 @@
 
 #include "PythonTestCAPI.h"
 #include "PythonTestDialect.h"
+#include "mlir-c/BuiltinTypes.h"
 #include "mlir/CAPI/Registration.h"
 #include "mlir/CAPI/Wrap.h"
+#include "mlir/IR/Diagnostics.h"
+#include "mlir/IR/Location.h"
 
 MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(PythonTest, python_test,
                                       python_test::PythonTestDialect)
 
 bool mlirAttributeIsAPythonTestTestAttribute(MlirAttribute attr) {
-  return unwrap(attr).isa<python_test::TestAttrAttr>();
+  return llvm::isa<python_test::TestAttrAttr>(unwrap(attr));
 }
 
 MlirAttribute mlirPythonTestTestAttributeGet(MlirContext context) {
   return wrap(python_test::TestAttrAttr::get(unwrap(context)));
 }
 
+MlirTypeID mlirPythonTestTestAttributeGetTypeID(void) {
+  return wrap(python_test::TestAttrAttr::getTypeID());
+}
+
 bool mlirTypeIsAPythonTestTestType(MlirType type) {
-  return unwrap(type).isa<python_test::TestTypeType>();
+  return llvm::isa<python_test::TestTypeType>(unwrap(type));
 }
 
 MlirType mlirPythonTestTestTypeGet(MlirContext context) {
   return wrap(python_test::TestTypeType::get(unwrap(context)));
+}
+
+MlirTypeID mlirPythonTestTestTypeGetTypeID(void) {
+  return wrap(python_test::TestTypeType::getTypeID());
+}
+
+bool mlirTypeIsAPythonTestTestTensorValue(MlirValue value) {
+  return mlirTypeIsATensor(wrap(unwrap(value).getType()));
+}
+
+void mlirPythonTestEmitDiagnosticWithNote(MlirContext ctx) {
+  auto diag =
+      mlir::emitError(unwrap(mlirLocationUnknownGet(ctx)), "created error");
+  diag.attachNote() << "attached note";
 }

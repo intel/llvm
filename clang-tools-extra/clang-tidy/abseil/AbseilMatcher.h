@@ -1,4 +1,4 @@
-//===- AbseilMatcher.h - clang-tidy ---------------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,12 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_ABSEIL_ABSEILMATCHER_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_ABSEIL_ABSEILMATCHER_H
+
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include <algorithm>
 
-namespace clang {
-namespace ast_matchers {
+namespace clang::ast_matchers {
 
 /// Matches AST nodes that were found within Abseil files.
 ///
@@ -32,30 +34,31 @@ AST_POLYMORPHIC_MATCHER(
     isInAbseilFile, AST_POLYMORPHIC_SUPPORTED_TYPES(Decl, Stmt, TypeLoc,
                                                     NestedNameSpecifierLoc)) {
   auto &SourceManager = Finder->getASTContext().getSourceManager();
-  SourceLocation Loc = SourceManager.getSpellingLoc(Node.getBeginLoc());
+  const SourceLocation Loc = SourceManager.getSpellingLoc(Node.getBeginLoc());
   if (Loc.isInvalid())
     return false;
-  const FileEntry *FileEntry =
-      SourceManager.getFileEntryForID(SourceManager.getFileID(Loc));
+  OptionalFileEntryRef FileEntry =
+      SourceManager.getFileEntryRefForID(SourceManager.getFileID(Loc));
   if (!FileEntry)
     return false;
   // Determine whether filepath contains "absl/[absl-library]" substring, where
   // [absl-library] is AbseilLibraries list entry.
   StringRef Path = FileEntry->getName();
-  static constexpr llvm::StringLiteral AbslPrefix("absl/");
-  size_t PrefixPosition = Path.find(AbslPrefix);
+  static constexpr StringRef AbslPrefix("absl/");
+  const size_t PrefixPosition = Path.find(AbslPrefix);
   if (PrefixPosition == StringRef::npos)
     return false;
   Path = Path.drop_front(PrefixPosition + AbslPrefix.size());
-  static const char *AbseilLibraries[] = {
+  static constexpr StringRef AbseilLibraries[] = {
       "algorithm", "base",     "container", "debugging", "flags",
       "hash",      "iterator", "memory",    "meta",      "numeric",
       "profiling", "random",   "status",    "strings",   "synchronization",
       "time",      "types",    "utility"};
-  return llvm::any_of(AbseilLibraries, [&](const char *Library) {
-    return Path.startswith(Library);
+  return llvm::any_of(AbseilLibraries, [&](StringRef Library) {
+    return Path.starts_with(Library);
   });
 }
 
-} // namespace ast_matchers
-} // namespace clang
+} // namespace clang::ast_matchers
+
+#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_ABSEIL_ABSEILMATCHER_H

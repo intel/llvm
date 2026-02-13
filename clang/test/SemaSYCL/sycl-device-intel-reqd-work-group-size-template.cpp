@@ -40,7 +40,7 @@ int main() {
 // CHECK: ClassTemplateDecl {{.*}} {{.*}} KernelFunctor
 // CHECK: ClassTemplateSpecializationDecl {{.*}} {{.*}} class KernelFunctor definition
 // CHECK: CXXRecordDecl {{.*}} {{.*}} implicit class KernelFunctor
-// CHECK: ReqdWorkGroupSizeAttr {{.*}}
+// CHECK: SYCLReqdWorkGroupSizeAttr {{.*}}
 // CHECK-NEXT: ConstantExpr{{.*}}'int'
 // CHECK-NEXT: value: Int 16
 // CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}}
@@ -58,6 +58,7 @@ int main() {
 // CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
 
 // Test that checks template parameter support on function.
+// expected-warning@+2 {{'sycl::reqd_work_group_size' attribute can only be applied to a SYCL kernel function}}
 template <int N, int N1, int N2>
 [[sycl::reqd_work_group_size(N, N1, N2)]] void func3() {}
 
@@ -68,7 +69,7 @@ int check() {
 
 // CHECK: FunctionTemplateDecl {{.*}} {{.*}} func3
 // CHECK: FunctionDecl {{.*}} {{.*}} used func3 'void ()'
-// CHECK: ReqdWorkGroupSizeAttr {{.*}}
+// CHECK: SYCLReqdWorkGroupSizeAttr {{.*}}
 // CHECK-NEXT: ConstantExpr{{.*}}'int'
 // CHECK-NEXT: value: Int 8
 // CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}}
@@ -86,9 +87,10 @@ int check() {
 // CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
 
 // No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
+// expected-warning@+1 {{'sycl::reqd_work_group_size' attribute can only be applied to a SYCL kernel function}}
 [[sycl::reqd_work_group_size(4, 4, 4)]] [[sycl::reqd_work_group_size(4, 4, 4)]] void func4() {}
 // CHECK: FunctionDecl {{.*}} {{.*}} func4 'void ()'
-// CHECK:       ReqdWorkGroupSizeAttr
+// CHECK:       SYCLReqdWorkGroupSizeAttr
 // CHECK-NEXT:  ConstantExpr{{.*}}'int'
 // CHECK-NEXT:  value: Int 4
 // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
@@ -98,4 +100,4 @@ int check() {
 // CHECK-NEXT:  ConstantExpr{{.*}}'int'
 // CHECK-NEXT:  value: Int 4
 // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-// CHECK-NOT:   ReqdWorkGroupSizeAttr
+// CHECK-NOT:   SYCLReqdWorkGroupSizeAttr

@@ -1,8 +1,8 @@
 if (CLANGD_ENABLE_REMOTE)
-  generate_protos(clangdRemoteIndexProto "Index.proto")
-  generate_protos(clangdMonitoringServiceProto "MonitoringService.proto"
+  generate_clang_protos_library(clangdRemoteIndexProto "Index.proto")
+  generate_clang_protos_library(clangdMonitoringServiceProto "MonitoringService.proto"
     GRPC)
-  generate_protos(clangdRemoteIndexServiceProto "Service.proto"
+  generate_clang_protos_library(clangdRemoteIndexServiceProto "Service.proto"
     DEPENDS "Index.proto"
     GRPC)
   # FIXME: Move this into generate_protos. Currently we only mention proto
@@ -19,20 +19,24 @@ if (CLANGD_ENABLE_REMOTE)
   # target-local?
   add_definitions(-DGOOGLE_PROTOBUF_NO_RTTI=1)
 
-  add_clang_library(clangdRemoteIndex
+  add_clang_library(clangdRemoteIndex STATIC
     Client.cpp
 
     LINK_LIBS
     clangdRemoteIndexProto
     clangdRemoteIndexServiceProto
     clangdRemoteMarshalling
-    clangBasic
     clangDaemon
     clangdSupport
 
     DEPENDS
     clangdRemoteIndexProto
     clangdRemoteIndexServiceProto
+    )
+
+  clang_target_link_libraries(clangdRemoteIndex
+    PRIVATE
+    clangBasic
     )
 
   add_subdirectory(marshalling)

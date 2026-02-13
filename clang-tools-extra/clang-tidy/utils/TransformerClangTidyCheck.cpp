@@ -1,4 +1,4 @@
-//===---------- TransformerClangTidyCheck.cpp - clang-tidy ----------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,11 +9,9 @@
 #include "TransformerClangTidyCheck.h"
 #include "clang/Basic/DiagnosticIDs.h"
 #include "clang/Lex/Preprocessor.h"
-#include "llvm/ADT/STLExtras.h"
+#include <optional>
 
-namespace clang {
-namespace tidy {
-namespace utils {
+namespace clang::tidy::utils {
 using transformer::RewriteRuleWith;
 
 #ifndef NDEBUG
@@ -31,11 +29,11 @@ static void verifyRule(const RewriteRuleWith<std::string> &Rule) {
 // If a string unintentionally containing '%' is passed as a diagnostic, Clang
 // will claim the string is ill-formed and assert-fail. This function escapes
 // such strings so they can be safely used in diagnostics.
-std::string escapeForDiagnostic(std::string ToEscape) {
+static std::string escapeForDiagnostic(std::string ToEscape) {
   // Optimize for the common case that the string does not contain `%` at the
   // cost of an extra scan over the string in the slow case.
   auto Pos = ToEscape.find('%');
-  if (Pos == ToEscape.npos)
+  if (Pos == std::string::npos)
     return ToEscape;
 
   std::string Result;
@@ -67,12 +65,12 @@ TransformerClangTidyCheck::TransformerClangTidyCheck(StringRef Name,
 // we would be accessing `getLangOpts` and `Options` before the underlying
 // `ClangTidyCheck` instance was properly initialized.
 TransformerClangTidyCheck::TransformerClangTidyCheck(
-    std::function<Optional<RewriteRuleWith<std::string>>(const LangOptions &,
-                                                         const OptionsView &)>
+    llvm::function_ref<std::optional<RewriteRuleWith<std::string>>(
+        const LangOptions &, const OptionsView &)>
         MakeRule,
     StringRef Name, ClangTidyContext *Context)
     : TransformerClangTidyCheck(Name, Context) {
-  if (Optional<RewriteRuleWith<std::string>> R =
+  if (std::optional<RewriteRuleWith<std::string>> R =
           MakeRule(getLangOpts(), Options))
     setRule(std::move(*R));
 }
@@ -106,7 +104,7 @@ void TransformerClangTidyCheck::check(
   if (Result.Context->getDiagnostics().hasErrorOccurred())
     return;
 
-  size_t I = transformer::detail::findSelectedCase(Result, Rule);
+  const size_t I = transformer::detail::findSelectedCase(Result, Rule);
   Expected<SmallVector<transformer::Edit, 1>> Edits =
       Rule.Cases[I].Edits(Result);
   if (!Edits) {
@@ -128,7 +126,7 @@ void TransformerClangTidyCheck::check(
 
   // Associate the diagnostic with the location of the first change.
   {
-    DiagnosticBuilder Diag =
+    const DiagnosticBuilder Diag =
         diag((*Edits)[0].Range.getBegin(), escapeForDiagnostic(*Explanation));
     for (const auto &T : *Edits) {
       switch (T.Kind) {
@@ -156,6 +154,4 @@ void TransformerClangTidyCheck::storeOptions(
   Options.store(Opts, "IncludeStyle", Inserter.getStyle());
 }
 
-} // namespace utils
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::utils

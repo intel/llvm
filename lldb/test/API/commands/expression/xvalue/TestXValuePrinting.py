@@ -3,11 +3,12 @@ from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
-class ExprXValuePrintingTestCase(TestBase):
 
-    @expectedFailureAll(oslist=["windows"], archs=["i[3-6]86", "x86_64"], bugnumber="llvm.org/pr21765")
+class ExprXValuePrintingTestCase(TestBase):
     def test(self):
         """Printing an xvalue should work."""
         self.build()
-        lldbutil.run_to_source_breakpoint(self, '// Break here', lldb.SBFileSpec("main.cpp"))
+        lldbutil.run_to_source_breakpoint(
+            self, "// Break here", lldb.SBFileSpec("main.cpp")
+        )
         self.expect_expr("foo().data", result_value="1234")

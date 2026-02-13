@@ -147,7 +147,7 @@ void ContinuationRecordBuilder::insertSegmentEnd(uint32_t Offset) {
 }
 
 CVType ContinuationRecordBuilder::createSegmentRecord(
-    uint32_t OffBegin, uint32_t OffEnd, Optional<TypeIndex> RefersTo) {
+    uint32_t OffBegin, uint32_t OffEnd, std::optional<TypeIndex> RefersTo) {
   assert(OffEnd - OffBegin <= USHRT_MAX);
 
   MutableArrayRef<uint8_t> Data = Buffer.data();
@@ -224,11 +224,11 @@ std::vector<CVType> ContinuationRecordBuilder::end(TypeIndex Index) {
   std::vector<CVType> Types;
   Types.reserve(SegmentOffsets.size());
 
-  auto SO = makeArrayRef(SegmentOffsets);
+  ArrayRef SO = SegmentOffsets;
 
   uint32_t End = SegmentWriter.getOffset();
 
-  Optional<TypeIndex> RefersTo;
+  std::optional<TypeIndex> RefersTo;
   for (uint32_t Offset : reverse(SO)) {
     Types.push_back(createSegmentRecord(Offset, End, RefersTo));
 
@@ -245,7 +245,8 @@ std::vector<CVType> ContinuationRecordBuilder::end(TypeIndex Index) {
 #define TYPE_RECORD(EnumName, EnumVal, Name)
 #define TYPE_RECORD_ALIAS(EnumName, EnumVal, Name, AliasName)
 #define MEMBER_RECORD(EnumName, EnumVal, Name)                                 \
-  template void llvm::codeview::ContinuationRecordBuilder::writeMemberType(    \
+  template LLVM_ABI void                                                       \
+  llvm::codeview::ContinuationRecordBuilder::writeMemberType(                  \
       Name##Record &Record);
 #define MEMBER_RECORD_ALIAS(EnumName, EnumVal, Name, AliasName)
 #include "llvm/DebugInfo/CodeView/CodeViewTypes.def"

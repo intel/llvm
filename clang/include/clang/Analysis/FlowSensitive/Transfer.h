@@ -15,35 +15,37 @@
 #define LLVM_CLANG_ANALYSIS_FLOWSENSITIVE_TRANSFER_H
 
 #include "clang/AST/Stmt.h"
+#include "clang/Analysis/FlowSensitive/DataflowAnalysisContext.h"
 #include "clang/Analysis/FlowSensitive/DataflowEnvironment.h"
-#include "llvm/ADT/Optional.h"
+#include "clang/Analysis/FlowSensitive/TypeErasedDataflowAnalysis.h"
 
 namespace clang {
 namespace dataflow {
 
-struct ContextSensitiveOptions {
-  /// The maximum depth to analyze. A value of zero is equivalent to disabling
-  /// context-sensitive analysis entirely.
-  unsigned Depth = 2;
-};
-
-struct TransferOptions {
-  /// Options for analyzing function bodies when present in the translation
-  /// unit, or empty to disable context-sensitive analysis. Note that this is
-  /// fundamentally limited: some constructs, such as recursion, are explicitly
-  /// unsupported.
-  llvm::Optional<ContextSensitiveOptions> ContextSensitiveOpts;
-};
-
 /// Maps statements to the environments of basic blocks that contain them.
 class StmtToEnvMap {
 public:
-  virtual ~StmtToEnvMap() = default;
+  // `CurBlockID` is the ID of the block currently being processed, and
+  // `CurState` is the pending state currently associated with this block. These
+  // are supplied separately as the pending state for the current block may not
+  // yet be represented in `BlockToState`.
+  StmtToEnvMap(const AdornedCFG &ACFG,
+               llvm::ArrayRef<std::optional<TypeErasedDataflowAnalysisState>>
+                   BlockToState,
+               unsigned CurBlockID,
+               const TypeErasedDataflowAnalysisState &CurState)
+      : ACFG(ACFG), BlockToState(BlockToState), CurBlockID(CurBlockID),
+        CurState(CurState) {}
 
-  /// Returns the environment of the basic block that contains `S` or nullptr if
-  /// there isn't one.
-  /// FIXME: Ensure that the result can't be null and return a const reference.
-  virtual const Environment *getEnvironment(const Stmt &S) const = 0;
+  /// Returns the environment of the basic block that contains `S`.
+  /// The result is guaranteed never to be null.
+  const Environment *getEnvironment(const Stmt &S) const;
+
+private:
+  const AdornedCFG &ACFG;
+  llvm::ArrayRef<std::optional<TypeErasedDataflowAnalysisState>> BlockToState;
+  unsigned CurBlockID;
+  const TypeErasedDataflowAnalysisState &CurState;
 };
 
 /// Evaluates `S` and updates `Env` accordingly.
@@ -52,7 +54,7 @@ public:
 ///
 ///  `S` must not be `ParenExpr` or `ExprWithCleanups`.
 void transfer(const StmtToEnvMap &StmtToEnv, const Stmt &S, Environment &Env,
-              TransferOptions Options);
+              Environment::ValueModel &Model);
 
 } // namespace dataflow
 } // namespace clang

@@ -8,20 +8,23 @@
 
 #include "mlir/Conversion/ComplexToLLVM/ComplexToLLVM.h"
 
+#include "mlir/Conversion/ArithCommon/AttrToLLVMConverter.h"
+#include "mlir/Conversion/ComplexCommon/DivisionConverter.h"
+#include "mlir/Conversion/ConvertToLLVM/ToLLVMInterface.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Pass/Pass.h"
 
 namespace mlir {
-#define GEN_PASS_DEF_CONVERTCOMPLEXTOLLVM
+#define GEN_PASS_DEF_CONVERTCOMPLEXTOLLVMPASS
 #include "mlir/Conversion/Passes.h.inc"
 } // namespace mlir
 
 using namespace mlir;
 using namespace mlir::LLVM;
+using namespace mlir::arith;
 
 //===----------------------------------------------------------------------===//
 // ComplexStructBuilder implementation.
@@ -30,9 +33,9 @@ using namespace mlir::LLVM;
 static constexpr unsigned kRealPosInComplexNumberStruct = 0;
 static constexpr unsigned kImaginaryPosInComplexNumberStruct = 1;
 
-ComplexStructBuilder ComplexStructBuilder::undef(OpBuilder &builder,
-                                                 Location loc, Type type) {
-  Value val = builder.create<LLVM::UndefOp>(loc, type);
+ComplexStructBuilder ComplexStructBuilder::poison(OpBuilder &builder,
+                                                  Location loc, Type type) {
+  Value val = LLVM::PoisonOp::create(builder, loc, type);
   return ComplexStructBuilder(val);
 }
 
@@ -72,10 +75,13 @@ struct AbsOpConversion : public ConvertOpToLLVMPattern<complex::AbsOp> {
     Value real = complexStruct.real(rewriter, op.getLoc());
     Value imag = complexStruct.imaginary(rewriter, op.getLoc());
 
-    auto fmf = LLVM::FMFAttr::get(op.getContext(), {});
-    Value sqNorm = rewriter.create<LLVM::FAddOp>(
-        loc, rewriter.create<LLVM::FMulOp>(loc, real, real, fmf),
-        rewriter.create<LLVM::FMulOp>(loc, imag, imag, fmf), fmf);
+    arith::FastMathFlagsAttr complexFMFAttr = op.getFastMathFlagsAttr();
+    LLVM::FastmathFlagsAttr fmf = LLVM::FastmathFlagsAttr::get(
+        op.getContext(),
+        convertArithFastMathFlagsToLLVM(complexFMFAttr.getValue()));
+    Value sqNorm = LLVM::FAddOp::create(
+        rewriter, loc, LLVM::FMulOp::create(rewriter, loc, real, real, fmf),
+        LLVM::FMulOp::create(rewriter, loc, imag, imag, fmf), fmf);
 
     rewriter.replaceOpWithNewOp<LLVM::SqrtOp>(op, sqNorm);
     return success();
@@ -90,7 +96,8 @@ struct ConstantOpLowering : public ConvertOpToLLVMPattern<complex::ConstantOp> {
                   ConversionPatternRewriter &rewriter) const override {
     return LLVM::detail::oneToOneRewrite(
         op, LLVM::ConstantOp::getOperationName(), adaptor.getOperands(),
-        *getTypeConverter(), rewriter);
+        op->getAttrs(), /*propAttr=*/Attribute{}, *getTypeConverter(),
+        rewriter);
   }
 };
 
@@ -103,7 +110,8 @@ struct CreateOpConversion : public ConvertOpToLLVMPattern<complex::CreateOp> {
     // Pack real and imaginary part in a complex number struct.
     auto loc = complexOp.getLoc();
     auto structType = typeConverter->convertType(complexOp.getType());
-    auto complexStruct = ComplexStructBuilder::undef(rewriter, loc, structType);
+    auto complexStruct =
+        ComplexStructBuilder::poison(rewriter, loc, structType);
     complexStruct.setReal(rewriter, loc, adaptor.getReal());
     complexStruct.setImaginary(rewriter, loc, adaptor.getImaginary());
 
@@ -177,14 +185,17 @@ struct AddOpConversion : public ConvertOpToLLVMPattern<complex::AddOp> {
 
     // Initialize complex number struct for result.
     auto structType = typeConverter->convertType(op.getType());
-    auto result = ComplexStructBuilder::undef(rewriter, loc, structType);
+    auto result = ComplexStructBuilder::poison(rewriter, loc, structType);
 
     // Emit IR to add complex numbers.
-    auto fmf = LLVM::FMFAttr::get(op.getContext(), {});
-    Value real =
-        rewriter.create<LLVM::FAddOp>(loc, arg.lhs.real(), arg.rhs.real(), fmf);
-    Value imag =
-        rewriter.create<LLVM::FAddOp>(loc, arg.lhs.imag(), arg.rhs.imag(), fmf);
+    arith::FastMathFlagsAttr complexFMFAttr = op.getFastMathFlagsAttr();
+    LLVM::FastmathFlagsAttr fmf = LLVM::FastmathFlagsAttr::get(
+        op.getContext(),
+        convertArithFastMathFlagsToLLVM(complexFMFAttr.getValue()));
+    Value real = LLVM::FAddOp::create(rewriter, loc, arg.lhs.real(),
+                                      arg.rhs.real(), fmf);
+    Value imag = LLVM::FAddOp::create(rewriter, loc, arg.lhs.imag(),
+                                      arg.rhs.imag(), fmf);
     result.setReal(rewriter, loc, real);
     result.setImaginary(rewriter, loc, imag);
 
@@ -194,6 +205,11 @@ struct AddOpConversion : public ConvertOpToLLVMPattern<complex::AddOp> {
 };
 
 struct DivOpConversion : public ConvertOpToLLVMPattern<complex::DivOp> {
+  DivOpConversion(const LLVMTypeConverter &converter,
+                  complex::ComplexRangeFlags target)
+      : ConvertOpToLLVMPattern<complex::DivOp>(converter),
+        complexRange(target) {}
+
   using ConvertOpToLLVMPattern<complex::DivOp>::ConvertOpToLLVMPattern;
 
   LogicalResult
@@ -205,37 +221,38 @@ struct DivOpConversion : public ConvertOpToLLVMPattern<complex::DivOp> {
 
     // Initialize complex number struct for result.
     auto structType = typeConverter->convertType(op.getType());
-    auto result = ComplexStructBuilder::undef(rewriter, loc, structType);
+    auto result = ComplexStructBuilder::poison(rewriter, loc, structType);
 
     // Emit IR to add complex numbers.
-    auto fmf = LLVM::FMFAttr::get(op.getContext(), {});
+    arith::FastMathFlagsAttr complexFMFAttr = op.getFastMathFlagsAttr();
+    LLVM::FastmathFlagsAttr fmf = LLVM::FastmathFlagsAttr::get(
+        op.getContext(),
+        convertArithFastMathFlagsToLLVM(complexFMFAttr.getValue()));
     Value rhsRe = arg.rhs.real();
     Value rhsIm = arg.rhs.imag();
     Value lhsRe = arg.lhs.real();
     Value lhsIm = arg.lhs.imag();
 
-    Value rhsSqNorm = rewriter.create<LLVM::FAddOp>(
-        loc, rewriter.create<LLVM::FMulOp>(loc, rhsRe, rhsRe, fmf),
-        rewriter.create<LLVM::FMulOp>(loc, rhsIm, rhsIm, fmf), fmf);
+    Value resultRe, resultIm;
 
-    Value resultReal = rewriter.create<LLVM::FAddOp>(
-        loc, rewriter.create<LLVM::FMulOp>(loc, lhsRe, rhsRe, fmf),
-        rewriter.create<LLVM::FMulOp>(loc, lhsIm, rhsIm, fmf), fmf);
+    if (complexRange == complex::ComplexRangeFlags::basic ||
+        complexRange == complex::ComplexRangeFlags::none) {
+      mlir::complex::convertDivToLLVMUsingAlgebraic(
+          rewriter, loc, lhsRe, lhsIm, rhsRe, rhsIm, fmf, &resultRe, &resultIm);
+    } else if (complexRange == complex::ComplexRangeFlags::improved) {
+      mlir::complex::convertDivToLLVMUsingRangeReduction(
+          rewriter, loc, lhsRe, lhsIm, rhsRe, rhsIm, fmf, &resultRe, &resultIm);
+    }
 
-    Value resultImag = rewriter.create<LLVM::FSubOp>(
-        loc, rewriter.create<LLVM::FMulOp>(loc, lhsIm, rhsRe, fmf),
-        rewriter.create<LLVM::FMulOp>(loc, lhsRe, rhsIm, fmf), fmf);
-
-    result.setReal(
-        rewriter, loc,
-        rewriter.create<LLVM::FDivOp>(loc, resultReal, rhsSqNorm, fmf));
-    result.setImaginary(
-        rewriter, loc,
-        rewriter.create<LLVM::FDivOp>(loc, resultImag, rhsSqNorm, fmf));
+    result.setReal(rewriter, loc, resultRe);
+    result.setImaginary(rewriter, loc, resultIm);
 
     rewriter.replaceOp(op, {result});
     return success();
   }
+
+private:
+  complex::ComplexRangeFlags complexRange;
 };
 
 struct MulOpConversion : public ConvertOpToLLVMPattern<complex::MulOp> {
@@ -250,22 +267,25 @@ struct MulOpConversion : public ConvertOpToLLVMPattern<complex::MulOp> {
 
     // Initialize complex number struct for result.
     auto structType = typeConverter->convertType(op.getType());
-    auto result = ComplexStructBuilder::undef(rewriter, loc, structType);
+    auto result = ComplexStructBuilder::poison(rewriter, loc, structType);
 
     // Emit IR to add complex numbers.
-    auto fmf = LLVM::FMFAttr::get(op.getContext(), {});
+    arith::FastMathFlagsAttr complexFMFAttr = op.getFastMathFlagsAttr();
+    LLVM::FastmathFlagsAttr fmf = LLVM::FastmathFlagsAttr::get(
+        op.getContext(),
+        convertArithFastMathFlagsToLLVM(complexFMFAttr.getValue()));
     Value rhsRe = arg.rhs.real();
     Value rhsIm = arg.rhs.imag();
     Value lhsRe = arg.lhs.real();
     Value lhsIm = arg.lhs.imag();
 
-    Value real = rewriter.create<LLVM::FSubOp>(
-        loc, rewriter.create<LLVM::FMulOp>(loc, rhsRe, lhsRe, fmf),
-        rewriter.create<LLVM::FMulOp>(loc, rhsIm, lhsIm, fmf), fmf);
+    Value real = LLVM::FSubOp::create(
+        rewriter, loc, LLVM::FMulOp::create(rewriter, loc, rhsRe, lhsRe, fmf),
+        LLVM::FMulOp::create(rewriter, loc, rhsIm, lhsIm, fmf), fmf);
 
-    Value imag = rewriter.create<LLVM::FAddOp>(
-        loc, rewriter.create<LLVM::FMulOp>(loc, lhsIm, rhsRe, fmf),
-        rewriter.create<LLVM::FMulOp>(loc, lhsRe, rhsIm, fmf), fmf);
+    Value imag = LLVM::FAddOp::create(
+        rewriter, loc, LLVM::FMulOp::create(rewriter, loc, lhsIm, rhsRe, fmf),
+        LLVM::FMulOp::create(rewriter, loc, lhsRe, rhsIm, fmf), fmf);
 
     result.setReal(rewriter, loc, real);
     result.setImaginary(rewriter, loc, imag);
@@ -287,14 +307,17 @@ struct SubOpConversion : public ConvertOpToLLVMPattern<complex::SubOp> {
 
     // Initialize complex number struct for result.
     auto structType = typeConverter->convertType(op.getType());
-    auto result = ComplexStructBuilder::undef(rewriter, loc, structType);
+    auto result = ComplexStructBuilder::poison(rewriter, loc, structType);
 
     // Emit IR to substract complex numbers.
-    auto fmf = LLVM::FMFAttr::get(op.getContext(), {});
-    Value real =
-        rewriter.create<LLVM::FSubOp>(loc, arg.lhs.real(), arg.rhs.real(), fmf);
-    Value imag =
-        rewriter.create<LLVM::FSubOp>(loc, arg.lhs.imag(), arg.rhs.imag(), fmf);
+    arith::FastMathFlagsAttr complexFMFAttr = op.getFastMathFlagsAttr();
+    LLVM::FastmathFlagsAttr fmf = LLVM::FastmathFlagsAttr::get(
+        op.getContext(),
+        convertArithFastMathFlagsToLLVM(complexFMFAttr.getValue()));
+    Value real = LLVM::FSubOp::create(rewriter, loc, arg.lhs.real(),
+                                      arg.rhs.real(), fmf);
+    Value imag = LLVM::FSubOp::create(rewriter, loc, arg.lhs.imag(),
+                                      arg.rhs.imag(), fmf);
     result.setReal(rewriter, loc, real);
     result.setImaginary(rewriter, loc, imag);
 
@@ -305,25 +328,29 @@ struct SubOpConversion : public ConvertOpToLLVMPattern<complex::SubOp> {
 } // namespace
 
 void mlir::populateComplexToLLVMConversionPatterns(
-    LLVMTypeConverter &converter, RewritePatternSet &patterns) {
+    const LLVMTypeConverter &converter, RewritePatternSet &patterns,
+    complex::ComplexRangeFlags complexRange) {
   // clang-format off
   patterns.add<
       AbsOpConversion,
       AddOpConversion,
       ConstantOpLowering,
       CreateOpConversion,
-      DivOpConversion,
       ImOpConversion,
       MulOpConversion,
       ReOpConversion,
       SubOpConversion
     >(converter);
+
+  patterns.add<DivOpConversion>(converter, complexRange);
   // clang-format on
 }
 
 namespace {
 struct ConvertComplexToLLVMPass
-    : public impl::ConvertComplexToLLVMBase<ConvertComplexToLLVMPass> {
+    : public impl::ConvertComplexToLLVMPassBase<ConvertComplexToLLVMPass> {
+  using Base::Base;
+
   void runOnOperation() override;
 };
 } // namespace
@@ -332,7 +359,7 @@ void ConvertComplexToLLVMPass::runOnOperation() {
   // Convert to the LLVM IR dialect using the converter defined above.
   RewritePatternSet patterns(&getContext());
   LLVMTypeConverter converter(&getContext());
-  populateComplexToLLVMConversionPatterns(converter, patterns);
+  populateComplexToLLVMConversionPatterns(converter, patterns, complexRange);
 
   LLVMConversionTarget target(getContext());
   target.addIllegalDialect<complex::ComplexDialect>();
@@ -341,6 +368,31 @@ void ConvertComplexToLLVMPass::runOnOperation() {
     signalPassFailure();
 }
 
-std::unique_ptr<Pass> mlir::createConvertComplexToLLVMPass() {
-  return std::make_unique<ConvertComplexToLLVMPass>();
+//===----------------------------------------------------------------------===//
+// ConvertToLLVMPatternInterface implementation
+//===----------------------------------------------------------------------===//
+
+namespace {
+/// Implement the interface to convert MemRef to LLVM.
+struct ComplexToLLVMDialectInterface : public ConvertToLLVMPatternInterface {
+  using ConvertToLLVMPatternInterface::ConvertToLLVMPatternInterface;
+  void loadDependentDialects(MLIRContext *context) const final {
+    context->loadDialect<LLVM::LLVMDialect>();
+  }
+
+  /// Hook for derived dialect interface to provide conversion patterns
+  /// and mark dialect legal for the conversion target.
+  void populateConvertToLLVMConversionPatterns(
+      ConversionTarget &target, LLVMTypeConverter &typeConverter,
+      RewritePatternSet &patterns) const final {
+    populateComplexToLLVMConversionPatterns(typeConverter, patterns);
+  }
+};
+} // namespace
+
+void mlir::registerConvertComplexToLLVMInterface(DialectRegistry &registry) {
+  registry.addExtension(
+      +[](MLIRContext *ctx, complex::ComplexDialect *dialect) {
+        dialect->addInterfaces<ComplexToLLVMDialectInterface>();
+      });
 }

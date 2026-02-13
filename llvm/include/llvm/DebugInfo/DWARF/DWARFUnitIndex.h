@@ -11,6 +11,7 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Compiler.h"
 #include <cstdint>
 #include <memory>
 
@@ -88,13 +89,15 @@ inline const char *toString(DWARFSectionKind Kind) {
 /// The conversion depends on the version of the index section.
 /// IndexVersion is expected to be either 2 for pre-standard GNU proposal
 /// or 5 for DWARFv5 package file.
-uint32_t serializeSectionKind(DWARFSectionKind Kind, unsigned IndexVersion);
+LLVM_ABI uint32_t serializeSectionKind(DWARFSectionKind Kind,
+                                       unsigned IndexVersion);
 
 /// Convert a value read from an index section to the internal representation.
 ///
 /// The conversion depends on the index section version, which is expected
 /// to be either 2 for pre-standard GNU proposal or 5 for DWARFv5 package file.
-DWARFSectionKind deserializeSectionKind(uint32_t Value, unsigned IndexVersion);
+LLVM_ABI DWARFSectionKind deserializeSectionKind(uint32_t Value,
+                                                 unsigned IndexVersion);
 
 class DWARFUnitIndex {
   struct Header {
@@ -103,16 +106,29 @@ class DWARFUnitIndex {
     uint32_t NumUnits;
     uint32_t NumBuckets = 0;
 
-    bool parse(DataExtractor IndexData, uint64_t *OffsetPtr);
-    void dump(raw_ostream &OS) const;
+    LLVM_ABI bool parse(DataExtractor IndexData, uint64_t *OffsetPtr);
+    LLVM_ABI void dump(raw_ostream &OS) const;
   };
 
 public:
   class Entry {
   public:
-    struct SectionContribution {
-      uint32_t Offset;
-      uint32_t Length;
+    class SectionContribution {
+    private:
+      uint64_t Offset;
+      uint64_t Length;
+
+    public:
+      SectionContribution() : Offset(0), Length(0) {}
+      SectionContribution(uint64_t Offset, uint64_t Length)
+          : Offset(Offset), Length(Length) {}
+
+      void setOffset(uint64_t Value) { Offset = Value; }
+      void setLength(uint64_t Value) { Length = Value; }
+      uint64_t getOffset() const { return Offset; }
+      uint64_t getLength() const { return Length; }
+      uint32_t getOffset32() const { return (uint32_t)Offset; }
+      uint32_t getLength32() const { return (uint32_t)Length; }
     };
 
   private:
@@ -122,14 +138,17 @@ public:
     friend class DWARFUnitIndex;
 
   public:
-    const SectionContribution *getContribution(DWARFSectionKind Sec) const;
-    const SectionContribution *getContribution() const;
+    LLVM_ABI const SectionContribution *
+    getContribution(DWARFSectionKind Sec) const;
+    LLVM_ABI const SectionContribution *getContribution() const;
+    LLVM_ABI SectionContribution &getContribution();
 
     const SectionContribution *getContributions() const {
       return Contributions.get();
     }
 
     uint64_t getSignature() const { return Signature; }
+    bool isValid() { return Index; }
   };
 
 private:
@@ -155,20 +174,24 @@ public:
 
   explicit operator bool() const { return Header.NumBuckets; }
 
-  bool parse(DataExtractor IndexData);
-  void dump(raw_ostream &OS) const;
+  LLVM_ABI bool parse(DataExtractor IndexData);
+  LLVM_ABI void dump(raw_ostream &OS) const;
 
   uint32_t getVersion() const { return Header.Version; }
 
-  const Entry *getFromOffset(uint32_t Offset) const;
-  const Entry *getFromHash(uint64_t Offset) const;
+  LLVM_ABI const Entry *getFromOffset(uint64_t Offset) const;
+  LLVM_ABI const Entry *getFromHash(uint64_t Offset) const;
 
   ArrayRef<DWARFSectionKind> getColumnKinds() const {
-    return makeArrayRef(ColumnKinds.get(), Header.NumColumns);
+    return ArrayRef(ColumnKinds.get(), Header.NumColumns);
   }
 
   ArrayRef<Entry> getRows() const {
-    return makeArrayRef(Rows.get(), Header.NumBuckets);
+    return ArrayRef(Rows.get(), Header.NumBuckets);
+  }
+
+  MutableArrayRef<Entry> getMutableRows() {
+    return MutableArrayRef(Rows.get(), Header.NumBuckets);
   }
 };
 

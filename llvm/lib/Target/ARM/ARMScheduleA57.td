@@ -119,8 +119,7 @@ def : InstRW<[WriteNoop], (instregex "(t)?BKPT$", "(t2)?CDP(2)?$",
   "(t2|t)?HINT$", "(t)?HLT$", "(t2)?HVC$", "(t2)?ISB$", "ITasm$",
   "(t2)?RFE(DA|DB|IA|IB)", "(t)?SETEND", "(t2)?SETPAN", "(t2)?SMC", "SPACE",
   "(t2)?SRS(DA|DB|IA|IB)", "SWP(B)?", "t?TRAP", "(t2|t)?UDF$", "t2DCPS", "t2SG",
-  "t2TT", "tCPS", "CMP_SWAP", "t?SVC", "t2IT", "CompilerBarrier",
-  "t__brkdiv0")>;
+  "t2TT", "tCPS", "CMP_SWAP", "t?SVC", "t2IT", "t__brkdiv0")>;
 
 def : InstRW<[WriteNoop], (instregex "VMRS", "VMSR", "FMSTAT")>;
 
@@ -138,9 +137,8 @@ def : InstRW<[WriteNoop, WriteNoop], (instregex
 def : InstRW<[WriteNoop], (instregex "FLDM", "FSTM")>;
 
 // Pseudos
-def : InstRW<[WriteNoop], (instregex "(t2)?ABS$",
-  "(t)?ADJCALLSTACKDOWN$", "(t)?ADJCALLSTACKUP$", "(t2|t)?Int_eh_sjlj",
-  "tLDRpci_pic", "(t2)?SUBS_PC_LR",
+def : InstRW<[WriteNoop], (instregex "(t)?ADJCALLSTACKDOWN$", "(t)?ADJCALLSTACKUP$",
+  "(t2|t)?Int_eh_sjlj", "tLDRpci_pic", "(t2)?SUBS_PC_LR",
   "JUMPTABLE", "tInt_WIN_eh_sjlj_longjmp",
   "VLD(1|2)LN(d|q)(WB_fixed_|WB_register_)?Asm",
   "VLD(3|4)(DUP|LN)?(d|q)(WB_fixed_|WB_register_)?Asm",

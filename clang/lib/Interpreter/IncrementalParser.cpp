@@ -11,156 +11,56 @@
 //===----------------------------------------------------------------------===//
 
 #include "IncrementalParser.h"
+#include "IncrementalAction.h"
 
 #include "clang/AST/DeclContextInternals.h"
-#include "clang/CodeGen/BackendUtil.h"
-#include "clang/CodeGen/CodeGenAction.h"
-#include "clang/CodeGen/ModuleBuilder.h"
 #include "clang/Frontend/CompilerInstance.h"
-#include "clang/Frontend/FrontendAction.h"
-#include "clang/FrontendTool/Utils.h"
+#include "clang/Interpreter/PartialTranslationUnit.h"
 #include "clang/Parse/Parser.h"
 #include "clang/Sema/Sema.h"
-
-#include "llvm/Option/ArgList.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Support/CrashRecoveryContext.h"
 #include "llvm/Support/Error.h"
-#include "llvm/Support/Timer.h"
 
 #include <sstream>
 
+#define DEBUG_TYPE "clang-repl"
+
 namespace clang {
 
-/// A custom action enabling the incremental processing functionality.
-///
-/// The usual \p FrontendAction expects one call to ExecuteAction and once it
-/// sees a call to \p EndSourceFile it deletes some of the important objects
-/// such as \p Preprocessor and \p Sema assuming no further input will come.
-///
-/// \p IncrementalAction ensures it keep its underlying action's objects alive
-/// as long as the \p IncrementalParser needs them.
-///
-class IncrementalAction : public WrapperFrontendAction {
-private:
-  bool IsTerminating = false;
+// IncrementalParser::IncrementalParser() {}
 
-public:
-  IncrementalAction(CompilerInstance &CI, llvm::LLVMContext &LLVMCtx,
-                    llvm::Error &Err)
-      : WrapperFrontendAction([&]() {
-          llvm::ErrorAsOutParameter EAO(&Err);
-          std::unique_ptr<FrontendAction> Act;
-          switch (CI.getFrontendOpts().ProgramAction) {
-          default:
-            Err = llvm::createStringError(
-                std::errc::state_not_recoverable,
-                "Driver initialization failed. "
-                "Incremental mode for action %d is not supported",
-                CI.getFrontendOpts().ProgramAction);
-            return Act;
-          case frontend::ASTDump:
-            [[fallthrough]];
-          case frontend::ASTPrint:
-            [[fallthrough]];
-          case frontend::ParseSyntaxOnly:
-            Act = CreateFrontendAction(CI);
-            break;
-          case frontend::PluginAction:
-            [[fallthrough]];
-          case frontend::EmitAssembly:
-            [[fallthrough]];
-          case frontend::EmitBC:
-            [[fallthrough]];
-          case frontend::EmitObj:
-            [[fallthrough]];
-          case frontend::PrintPreprocessedInput:
-            [[fallthrough]];
-          case frontend::EmitLLVMOnly:
-            Act.reset(new EmitLLVMOnlyAction(&LLVMCtx));
-            break;
-          }
-          return Act;
-        }()) {}
-  FrontendAction *getWrapped() const { return WrappedAction.get(); }
-  TranslationUnitKind getTranslationUnitKind() override {
-    return TU_Incremental;
-  }
-  void ExecuteAction() override {
-    CompilerInstance &CI = getCompilerInstance();
-    assert(CI.hasPreprocessor() && "No PP!");
-
-    // FIXME: Move the truncation aspect of this into Sema, we delayed this till
-    // here so the source manager would be initialized.
-    if (hasCodeCompletionSupport() &&
-        !CI.getFrontendOpts().CodeCompletionAt.FileName.empty())
-      CI.createCodeCompletionConsumer();
-
-    // Use a code completion consumer?
-    CodeCompleteConsumer *CompletionConsumer = nullptr;
-    if (CI.hasCodeCompletionConsumer())
-      CompletionConsumer = &CI.getCodeCompletionConsumer();
-
-    Preprocessor &PP = CI.getPreprocessor();
-    PP.enableIncrementalProcessing();
-    PP.EnterMainSourceFile();
-
-    if (!CI.hasSema())
-      CI.createSema(getTranslationUnitKind(), CompletionConsumer);
-  }
-
-  // Do not terminate after processing the input. This allows us to keep various
-  // clang objects alive and to incrementally grow the current TU.
-  void EndSourceFile() override {
-    // The WrappedAction can be nullptr if we issued an error in the ctor.
-    if (IsTerminating && getWrapped())
-      WrapperFrontendAction::EndSourceFile();
-  }
-
-  void FinalizeAction() {
-    assert(!IsTerminating && "Already finalized!");
-    IsTerminating = true;
-    EndSourceFile();
-  }
-};
-
-IncrementalParser::IncrementalParser(std::unique_ptr<CompilerInstance> Instance,
-                                     llvm::LLVMContext &LLVMCtx,
-                                     llvm::Error &Err)
-    : CI(std::move(Instance)) {
+IncrementalParser::IncrementalParser(CompilerInstance &Instance,
+                                     IncrementalAction *Act, llvm::Error &Err,
+                                     std::list<PartialTranslationUnit> &PTUs)
+    : S(Instance.getSema()), Act(Act), PTUs(PTUs) {
   llvm::ErrorAsOutParameter EAO(&Err);
-  Act = std::make_unique<IncrementalAction>(*CI, LLVMCtx, Err);
-  if (Err)
-    return;
-  CI->ExecuteAction(*Act);
-  Consumer = &CI->getASTConsumer();
-  P.reset(
-      new Parser(CI->getPreprocessor(), CI->getSema(), /*SkipBodies=*/false));
+  Consumer = &S.getASTConsumer();
+  P.reset(new Parser(S.getPreprocessor(), S, /*SkipBodies=*/false));
+
+  if (ExternalASTSource *External = S.getASTContext().getExternalSource())
+    External->StartTranslationUnit(Consumer);
+
   P->Initialize();
 }
 
-IncrementalParser::~IncrementalParser() {
-  P.reset();
-  Act->FinalizeAction();
-}
+IncrementalParser::~IncrementalParser() { P.reset(); }
 
-llvm::Expected<PartialTranslationUnit &>
+llvm::Expected<TranslationUnitDecl *>
 IncrementalParser::ParseOrWrapTopLevelDecl() {
   // Recover resources if we crash before exiting this method.
-  Sema &S = CI->getSema();
   llvm::CrashRecoveryContextCleanupRegistrar<Sema> CleanupSema(&S);
-  Sema::GlobalEagerInstantiationScope GlobalInstantiations(S, /*Enabled=*/true);
-  Sema::LocalEagerInstantiationScope LocalInstantiations(S);
+  Sema::GlobalEagerInstantiationScope GlobalInstantiations(S, /*Enabled=*/true,
+                                                           /*AtEndOfTU=*/true);
+  Sema::LocalEagerInstantiationScope LocalInstantiations(S, /*AtEndOfTU=*/true);
 
-  PTUs.emplace_back(PartialTranslationUnit());
-  PartialTranslationUnit &LastPTU = PTUs.back();
   // Add a new PTU.
   ASTContext &C = S.getASTContext();
   C.addTranslationUnitDecl();
-  LastPTU.TUPart = C.getTranslationUnitDecl();
 
   // Skip previous eof due to last incremental input.
-  if (P->getCurToken().is(tok::eof)) {
-    P->ConsumeToken();
+  if (P->getCurToken().is(tok::annot_repl_input_end)) {
+    P->ConsumeAnyToken();
     // FIXME: Clang does not call ExitScope on finalizing the regular TU, we
     // might want to do that around HandleEndOfTranslationUnit.
     P->ExitScope();
@@ -174,20 +74,15 @@ IncrementalParser::ParseOrWrapTopLevelDecl() {
   Sema::ModuleImportState ImportState;
   for (bool AtEOF = P->ParseFirstTopLevelDecl(ADecl, ImportState); !AtEOF;
        AtEOF = P->ParseTopLevelDecl(ADecl, ImportState)) {
-    // If we got a null return and something *was* parsed, ignore it.  This
-    // is due to a top-level semicolon, an action override, or a parse error
-    // skipping something.
     if (ADecl && !Consumer->HandleTopLevelDecl(ADecl.get()))
       return llvm::make_error<llvm::StringError>("Parsing failed. "
                                                  "The consumer rejected a decl",
                                                  std::error_code());
   }
 
-  DiagnosticsEngine &Diags = getCI()->getDiagnostics();
+  DiagnosticsEngine &Diags = S.getDiagnostics();
   if (Diags.hasErrorOccurred()) {
-    PartialTranslationUnit MostRecentPTU = {C.getTranslationUnitDecl(),
-                                            nullptr};
-    CleanUpPTU(MostRecentPTU);
+    CleanUpPTU(C.getTranslationUnitDecl());
 
     Diags.Reset(/*soft=*/true);
     Diags.getClient()->clear();
@@ -206,20 +101,12 @@ IncrementalParser::ParseOrWrapTopLevelDecl() {
 
   Consumer->HandleTranslationUnit(C);
 
-  return LastPTU;
+  return C.getTranslationUnitDecl();
 }
 
-static CodeGenerator *getCodeGen(FrontendAction *Act) {
-  IncrementalAction *IncrAct = static_cast<IncrementalAction *>(Act);
-  FrontendAction *WrappedAct = IncrAct->getWrapped();
-  if (!WrappedAct->hasIRSupport())
-    return nullptr;
-  return static_cast<CodeGenAction *>(WrappedAct)->getCodeGenerator();
-}
-
-llvm::Expected<PartialTranslationUnit &>
+llvm::Expected<TranslationUnitDecl *>
 IncrementalParser::Parse(llvm::StringRef input) {
-  Preprocessor &PP = CI->getPreprocessor();
+  Preprocessor &PP = S.getPreprocessor();
   assert(PP.isIncrementalProcessingEnabled() && "Not in incremental mode!?");
 
   std::ostringstream SourceName;
@@ -235,7 +122,7 @@ IncrementalParser::Parse(llvm::StringRef input) {
   memcpy(MBStart, input.data(), InputSize);
   MBStart[InputSize] = '\n';
 
-  SourceManager &SM = CI->getSourceManager();
+  SourceManager &SM = S.getSourceManager();
 
   // FIXME: Create SourceLocation, which will allow clang to order the overload
   // candidates for example
@@ -263,47 +150,69 @@ IncrementalParser::Parse(llvm::StringRef input) {
     Token Tok;
     do {
       PP.Lex(Tok);
-    } while (Tok.isNot(tok::eof));
-  }
-
-  Token AssertTok;
-  PP.Lex(AssertTok);
-  assert(AssertTok.is(tok::eof) &&
-         "Lexer must be EOF when starting incremental parse!");
-
-  if (CodeGenerator *CG = getCodeGen(Act.get())) {
-    std::unique_ptr<llvm::Module> M(CG->ReleaseModule());
-    CG->StartModule("incr_module_" + std::to_string(PTUs.size()),
-                    M->getContext());
-
-    PTU->TheModule = std::move(M);
+    } while (Tok.isNot(tok::annot_repl_input_end));
+  } else {
+    Token AssertTok;
+    PP.Lex(AssertTok);
+    assert(AssertTok.is(tok::annot_repl_input_end) &&
+           "Lexer must be EOF when starting incremental parse!");
   }
 
   return PTU;
 }
 
-void IncrementalParser::CleanUpPTU(PartialTranslationUnit &PTU) {
-  TranslationUnitDecl *MostRecentTU = PTU.TUPart;
-  TranslationUnitDecl *FirstTU = MostRecentTU->getFirstDecl();
-  if (StoredDeclsMap *Map = FirstTU->getPrimaryContext()->getLookupPtr()) {
-    for (auto I = Map->begin(); I != Map->end(); ++I) {
-      StoredDeclsList &List = I->second;
+void IncrementalParser::CleanUpPTU(TranslationUnitDecl *MostRecentTU) {
+  if (StoredDeclsMap *Map = MostRecentTU->getPrimaryContext()->getLookupPtr()) {
+    for (auto &&[Key, List] : *Map) {
       DeclContextLookupResult R = List.getLookupResult();
+      std::vector<NamedDecl *> NamedDeclsToRemove;
+      bool RemoveAll = true;
       for (NamedDecl *D : R) {
-        if (D->getTranslationUnitDecl() == MostRecentTU) {
-          List.remove(D);
-        }
+        if (D->getTranslationUnitDecl() == MostRecentTU)
+          NamedDeclsToRemove.push_back(D);
+        else
+          RemoveAll = false;
       }
-      if (List.isNull())
-        Map->erase(I);
+      if (LLVM_LIKELY(RemoveAll)) {
+        Map->erase(Key);
+      } else {
+        for (NamedDecl *D : NamedDeclsToRemove)
+          List.remove(D);
+      }
     }
+  }
+
+  // FIXME: We should de-allocate MostRecentTU
+  for (Decl *D : MostRecentTU->decls()) {
+    auto *ND = dyn_cast<NamedDecl>(D);
+    if (!ND || ND->getDeclName().isEmpty())
+      continue;
+    // Check if we need to clean up the IdResolver chain.
+    if (ND->getDeclName().getFETokenInfo() && !D->getLangOpts().ObjC &&
+        !D->getLangOpts().CPlusPlus)
+      S.IdResolver.RemoveDecl(ND);
   }
 }
 
-llvm::StringRef IncrementalParser::GetMangledName(GlobalDecl GD) const {
-  CodeGenerator *CG = getCodeGen(Act.get());
-  assert(CG);
-  return CG->GetMangledName(GD);
-}
+PartialTranslationUnit &
+IncrementalParser::RegisterPTU(TranslationUnitDecl *TU,
+                               std::unique_ptr<llvm::Module> M /*={}*/) {
+  PTUs.emplace_back(PartialTranslationUnit());
+  PartialTranslationUnit &LastPTU = PTUs.back();
+  LastPTU.TUPart = TU;
 
+  if (!M)
+    M = Act->GenModule();
+
+  assert((!Act->getCodeGen() || M) && "Must have a llvm::Module at this point");
+
+  LastPTU.TheModule = std::move(M);
+  LLVM_DEBUG(llvm::dbgs() << "compile-ptu " << PTUs.size() - 1
+                          << ": [TU=" << LastPTU.TUPart);
+  if (LastPTU.TheModule)
+    LLVM_DEBUG(llvm::dbgs() << ", M=" << LastPTU.TheModule.get() << " ("
+                            << LastPTU.TheModule->getName() << ")");
+  LLVM_DEBUG(llvm::dbgs() << "]\n");
+  return LastPTU;
+}
 } // end namespace clang

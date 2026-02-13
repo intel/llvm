@@ -31,19 +31,19 @@ target triple = "x86_64-pc-windows-msvc19.0.24210"
 %struct.anon = type { i8 }
 
 ; Function Attrs: noinline nounwind uwtable
-define void @"\01?anchor@named_struct@@QEAAXXZ"(%struct.named_struct* %this) #0 align 2 !dbg !7 {
+define void @"\01?anchor@named_struct@@QEAAXXZ"(ptr %this) #0 align 2 !dbg !7 {
 entry:
-  %this.addr = alloca %struct.named_struct*, align 8
-  store %struct.named_struct* %this, %struct.named_struct** %this.addr, align 8
-  call void @llvm.dbg.declare(metadata %struct.named_struct** %this.addr, metadata !21, metadata !23), !dbg !24
-  %this1 = load %struct.named_struct*, %struct.named_struct** %this.addr, align 8
+  %this.addr = alloca ptr, align 8
+  store ptr %this, ptr %this.addr, align 8
+  call void @llvm.dbg.declare(metadata ptr %this.addr, metadata !21, metadata !23), !dbg !24
+  %this1 = load ptr, ptr %this.addr, align 8
   ret void, !dbg !25
 }
 
 ; Function Attrs: nounwind readnone
 declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
 
-attributes #0 = { noinline nounwind uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { noinline nounwind uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone }
 
 !llvm.dbg.cu = !{!0}

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -no-opaque-pointers -triple x86_64-unknown-linux-gnu -std=c++20 %s -emit-llvm -o - | FileCheck %s
+// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -std=c++20 %s -emit-llvm -o - | FileCheck %s
 // RUN: %clang_cc1 -emit-obj -debug-info-kind=constructor -std=c++20 %s -o -
 
 namespace PR50787 {
@@ -9,7 +9,7 @@ constexpr auto& x1 = X();
 auto x2 = X();
 
 // CHECK: @_ZN7PR507872x_E = external global i32, align 4
-// CHECK-NEXT: @_ZN7PR507872x1E = constant i32* @_ZN7PR507872x_E, align 8
+// CHECK-NEXT: @_ZN7PR507872x1E = constant ptr @_ZN7PR507872x_E, align 8
 // CHECK-NEXT: @_ZN7PR507872x2E = global i32 0, align 4
 }
 
@@ -92,3 +92,51 @@ int foo() {
 }
 } // namespace Issue55065
 
+namespace GH60166 {
+
+struct Base {
+   void* one = nullptr;
+   void* two = nullptr;
+};
+
+struct Derived : Base {
+   void* three = nullptr;
+   consteval Derived() = default;
+};
+
+void method() {
+  // CHECK: %agg.tmp.ensured = alloca %"struct.GH60166::Derived"
+  // CHECK: %0 = getelementptr inbounds nuw { ptr, ptr, ptr }, ptr %agg.tmp.ensured, i32 0, i32 0
+  // CHECK: store ptr null, ptr %0, align 8
+  // CHECK: %1 = getelementptr inbounds nuw { ptr, ptr, ptr }, ptr %agg.tmp.ensured, i32 0, i32 1
+  // CHECK: store ptr null, ptr %1, align 8
+  // CHECK: %2 = getelementptr inbounds nuw { ptr, ptr, ptr }, ptr %agg.tmp.ensured, i32 0, i32 2
+  // CHECK: store ptr null, ptr %2, align 8
+   (void)Derived();
+}
+
+} // namespace GH60166
+
+namespace GH61142 {
+
+template <typename T>
+struct Test {
+  constexpr static void bar() {
+    foo();
+  }
+  consteval static void foo() {};
+};
+
+consteval void a() {
+  Test<int>::bar();
+}
+
+void b() {
+  Test<int>::bar();
+}
+
+// Make sure consteval function is not emitted.
+// CHECK-NOT: call {{.*}}foo{{.*}}()
+// CHECK-NOT: define {{.*}}foo{{.*}}()
+
+} // namespace GH61142

@@ -22,12 +22,12 @@ target triple = "armv7--linux-gnueabihf"
 ; Function Attrs: nounwind
 define void @proc() #0 !dbg !13 {
 entry:
-  store i8 65, i8* @ch, align 1, !dbg !17
-  store i32 0, i32* @b, align 4, !dbg !18
+  store i8 65, ptr @ch, align 1, !dbg !17
+  store i32 0, ptr @b, align 4, !dbg !18
   ret void, !dbg !19
 }
 
-attributes #0 = { nounwind "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="cortex-a8" "target-features"="+neon,+vfp3" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="cortex-a8" "target-features"="+neon,+vfp3" "use-soft-float"="false" }
 
 !llvm.dbg.cu = !{!2}
 !llvm.module.flags = !{!8, !9, !10, !11}

@@ -13,18 +13,21 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_DEMANGLE_UTILITY_H
-#define LLVM_DEMANGLE_UTILITY_H
+#ifndef DEMANGLE_UTILITY_H
+#define DEMANGLE_UTILITY_H
 
-#include "StringView.h"
+#include "DemangleConfig.h"
+
 #include <array>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <exception>
 #include <limits>
+#include <string_view>
 
 DEMANGLE_NAMESPACE_BEGIN
+
+class Node;
 
 // Stream that AST nodes write their string representation into after the AST
 // has been parsed.
@@ -46,7 +49,7 @@ class OutputBuffer {
         BufferCapacity = Need;
       Buffer = static_cast<char *>(std::realloc(Buffer, BufferCapacity));
       if (Buffer == nullptr)
-        std::terminate();
+        std::abort();
     }
   }
 
@@ -64,49 +67,76 @@ class OutputBuffer {
     if (isNeg)
       *--TempPtr = '-';
 
-    return operator+=(StringView(TempPtr, Temp.data() + Temp.size()));
+    return operator+=(
+        std::string_view(TempPtr, Temp.data() + Temp.size() - TempPtr));
   }
 
 public:
   OutputBuffer(char *StartBuf, size_t Size)
-      : Buffer(StartBuf), CurrentPosition(0), BufferCapacity(Size) {}
+      : Buffer(StartBuf), BufferCapacity(Size) {}
+  OutputBuffer(char *StartBuf, size_t *SizePtr)
+      : OutputBuffer(StartBuf, StartBuf ? *SizePtr : 0) {}
   OutputBuffer() = default;
   // Non-copyable
   OutputBuffer(const OutputBuffer &) = delete;
   OutputBuffer &operator=(const OutputBuffer &) = delete;
 
-  operator StringView() const { return StringView(Buffer, CurrentPosition); }
+  virtual ~OutputBuffer() = default;
 
-  void reset(char *Buffer_, size_t BufferCapacity_) {
-    CurrentPosition = 0;
-    Buffer = Buffer_;
-    BufferCapacity = BufferCapacity_;
+  operator std::string_view() const {
+    return std::string_view(Buffer, CurrentPosition);
   }
+
+  /// Called by the demangler when printing the demangle tree. By
+  /// default calls into \c Node::print{Left|Right} but can be overriden
+  /// by clients to track additional state when printing the demangled name.
+  virtual void printLeft(const Node &N);
+  virtual void printRight(const Node &N);
+
+  /// Called when we write to this object anywhere other than the end.
+  virtual void notifyInsertion(size_t /*Position*/, size_t /*Count*/) {}
+
+  /// Called when we make the \c CurrentPosition of this object smaller.
+  virtual void notifyDeletion(size_t /*OldPos*/, size_t /*NewPos*/) {}
 
   /// If a ParameterPackExpansion (or similar type) is encountered, the offset
   /// into the pack that we're currently printing.
   unsigned CurrentPackIndex = std::numeric_limits<unsigned>::max();
   unsigned CurrentPackMax = std::numeric_limits<unsigned>::max();
 
-  /// When zero, we're printing template args and '>' needs to be parenthesized.
-  /// Use a counter so we can simply increment inside parentheses.
-  unsigned GtIsGt = 1;
+  struct {
+    /// The depth of '(' and ')' inside the currently printed template
+    /// arguments.
+    unsigned ParenDepth = 0;
 
-  bool isGtInsideTemplateArgs() const { return GtIsGt == 0; }
+    /// True if we're currently printing a template argument.
+    bool InsideTemplate = false;
+  } TemplateTracker;
+
+  /// Returns true if we're currently between a '(' and ')' when printing
+  /// template args.
+  bool isInParensInTemplateArgs() const {
+    return TemplateTracker.ParenDepth > 0;
+  }
+
+  /// Returns true if we're printing template args.
+  bool isInsideTemplateArgs() const { return TemplateTracker.InsideTemplate; }
 
   void printOpen(char Open = '(') {
-    GtIsGt++;
+    if (isInsideTemplateArgs())
+      TemplateTracker.ParenDepth++;
     *this += Open;
   }
   void printClose(char Close = ')') {
-    GtIsGt--;
+    if (isInsideTemplateArgs())
+      TemplateTracker.ParenDepth--;
     *this += Close;
   }
 
-  OutputBuffer &operator+=(StringView R) {
+  OutputBuffer &operator+=(std::string_view R) {
     if (size_t Size = R.size()) {
       grow(Size);
-      std::memcpy(Buffer + CurrentPosition, R.begin(), Size);
+      std::memcpy(Buffer + CurrentPosition, &*R.begin(), Size);
       CurrentPosition += Size;
     }
     return *this;
@@ -118,18 +148,22 @@ public:
     return *this;
   }
 
-  OutputBuffer &prepend(StringView R) {
+  OutputBuffer &prepend(std::string_view R) {
     size_t Size = R.size();
+    if (!Size)
+      return *this;
 
     grow(Size);
     std::memmove(Buffer + Size, Buffer, CurrentPosition);
-    std::memcpy(Buffer, R.begin(), Size);
+    std::memcpy(Buffer, &*R.begin(), Size);
     CurrentPosition += Size;
+
+    notifyInsertion(/*Position=*/0, /*Count=*/Size);
 
     return *this;
   }
 
-  OutputBuffer &operator<<(StringView R) { return (*this += R); }
+  OutputBuffer &operator<<(std::string_view R) { return (*this += R); }
 
   OutputBuffer &operator<<(char C) { return (*this += C); }
 
@@ -158,20 +192,26 @@ public:
   }
 
   void insert(size_t Pos, const char *S, size_t N) {
-    assert(Pos <= CurrentPosition);
+    DEMANGLE_ASSERT(Pos <= CurrentPosition, "");
     if (N == 0)
       return;
+
     grow(N);
     std::memmove(Buffer + Pos + N, Buffer + Pos, CurrentPosition - Pos);
     std::memcpy(Buffer + Pos, S, N);
     CurrentPosition += N;
+
+    notifyInsertion(Pos, N);
   }
 
   size_t getCurrentPosition() const { return CurrentPosition; }
-  void setCurrentPosition(size_t NewPos) { CurrentPosition = NewPos; }
+  void setCurrentPosition(size_t NewPos) {
+    notifyDeletion(CurrentPosition, NewPos);
+    CurrentPosition = NewPos;
+  }
 
   char back() const {
-    assert(CurrentPosition);
+    DEMANGLE_ASSERT(CurrentPosition, "");
     return Buffer[CurrentPosition - 1];
   }
 
@@ -197,21 +237,6 @@ public:
   ScopedOverride(const ScopedOverride &) = delete;
   ScopedOverride &operator=(const ScopedOverride &) = delete;
 };
-
-inline bool initializeOutputBuffer(char *Buf, size_t *N, OutputBuffer &OB,
-                                   size_t InitSize) {
-  size_t BufferSize;
-  if (Buf == nullptr) {
-    Buf = static_cast<char *>(std::malloc(InitSize));
-    if (Buf == nullptr)
-      return false;
-    BufferSize = InitSize;
-  } else
-    BufferSize = *N;
-
-  OB.reset(Buf, BufferSize);
-  return true;
-}
 
 DEMANGLE_NAMESPACE_END
 

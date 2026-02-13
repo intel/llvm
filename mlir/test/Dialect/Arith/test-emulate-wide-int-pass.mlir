@@ -17,13 +17,13 @@ func.func @entry() {
 // CHECK-LABEL: func.func @emulate_me_please
 // CHECK-SAME:    ([[ARG:%.+]]: i64) -> i64 {
 // CHECK-NEXT:    [[BCAST0:%.+]]   = llvm.bitcast [[ARG]] : i64 to vector<2xi32>
-// CHECK-NEXT:    [[LOW0:%.+]]     = vector.extract [[BCAST0]][0] : vector<2xi32>
-// CHECK-NEXT:    [[HIGH0:%.+]]    = vector.extract [[BCAST0]][1] : vector<2xi32>
-// CHECK-NEXT:    [[LOW1:%.+]]     = vector.extract [[BCAST0]][0] : vector<2xi32>
-// CHECK-NEXT:    [[HIGH1:%.+]]    = vector.extract [[BCAST0]][1] : vector<2xi32>
-// CHECK-NEXT:    {{%.+}}, {{%.+}} = arith.addui_carry [[LOW0]], [[LOW1]] : i32, i1
+// CHECK-NEXT:    [[LOW0:%.+]]     = vector.extract [[BCAST0]][0] : i32 from vector<2xi32>
+// CHECK-NEXT:    [[HIGH0:%.+]]    = vector.extract [[BCAST0]][1] : i32 from vector<2xi32>
+// CHECK-NEXT:    [[LOW1:%.+]]     = vector.extract [[BCAST0]][0] : i32 from vector<2xi32>
+// CHECK-NEXT:    [[HIGH1:%.+]]    = vector.extract [[BCAST0]][1] : i32 from vector<2xi32>
+// CHECK-NEXT:    {{%.+}}, {{%.+}} = arith.addui_extended [[LOW0]], [[LOW1]] : i32, i1
 // CHECK:         [[RES:%.+]]      = llvm.bitcast {{%.+}} : vector<2xi32> to i64
-// CHECK-NEXt:    return [[RES]] : i64
+// CHECK-NEXT:    return [[RES]] : i64
 func.func @emulate_me_please(%x : i64) -> i64 {
   %r = arith.addi %x, %x : i64
   return %r : i64

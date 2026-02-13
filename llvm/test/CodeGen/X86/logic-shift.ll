@@ -129,10 +129,10 @@ define <16 x i8> @or_ashr_commute3(<16 x i8> %x0, <16 x i8> %x1, <16 x i8> %y, <
 ; CHECK-NEXT:    vpsraw $4, %xmm1, %xmm5
 ; CHECK-NEXT:    vpblendvb %xmm4, %xmm5, %xmm1, %xmm1
 ; CHECK-NEXT:    vpsraw $2, %xmm1, %xmm5
-; CHECK-NEXT:    vpaddw %xmm4, %xmm4, %xmm4
-; CHECK-NEXT:    vpblendvb %xmm4, %xmm5, %xmm1, %xmm1
+; CHECK-NEXT:    vpaddw %xmm4, %xmm4, %xmm6
+; CHECK-NEXT:    vpblendvb %xmm6, %xmm5, %xmm1, %xmm1
 ; CHECK-NEXT:    vpsraw $1, %xmm1, %xmm5
-; CHECK-NEXT:    vpaddw %xmm4, %xmm4, %xmm4
+; CHECK-NEXT:    vpsllw $2, %xmm4, %xmm4
 ; CHECK-NEXT:    vpblendvb %xmm4, %xmm5, %xmm1, %xmm1
 ; CHECK-NEXT:    vpsrlw $8, %xmm1, %xmm1
 ; CHECK-NEXT:    vpunpcklbw {{.*#+}} xmm2 = xmm2[0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7]
@@ -140,10 +140,10 @@ define <16 x i8> @or_ashr_commute3(<16 x i8> %x0, <16 x i8> %x1, <16 x i8> %y, <
 ; CHECK-NEXT:    vpsraw $4, %xmm0, %xmm4
 ; CHECK-NEXT:    vpblendvb %xmm2, %xmm4, %xmm0, %xmm0
 ; CHECK-NEXT:    vpsraw $2, %xmm0, %xmm4
-; CHECK-NEXT:    vpaddw %xmm2, %xmm2, %xmm2
-; CHECK-NEXT:    vpblendvb %xmm2, %xmm4, %xmm0, %xmm0
+; CHECK-NEXT:    vpaddw %xmm2, %xmm2, %xmm5
+; CHECK-NEXT:    vpblendvb %xmm5, %xmm4, %xmm0, %xmm0
 ; CHECK-NEXT:    vpsraw $1, %xmm0, %xmm4
-; CHECK-NEXT:    vpaddw %xmm2, %xmm2, %xmm2
+; CHECK-NEXT:    vpsllw $2, %xmm2, %xmm2
 ; CHECK-NEXT:    vpblendvb %xmm2, %xmm4, %xmm0, %xmm0
 ; CHECK-NEXT:    vpsrlw $8, %xmm0, %xmm0
 ; CHECK-NEXT:    vpackuswb %xmm1, %xmm0, %xmm0
@@ -234,8 +234,8 @@ define i64 @or_mix_shr(i64 %x0, i64 %x1, i64 %y, i64 %z) {
 ; CHECK-NEXT:    sarq %cl, %rdi
 ; CHECK-NEXT:    # kill: def $cl killed $cl killed $rcx
 ; CHECK-NEXT:    shrq %cl, %rsi
-; CHECK-NEXT:    orq %rsi, %rax
 ; CHECK-NEXT:    orq %rdi, %rax
+; CHECK-NEXT:    orq %rsi, %rax
 ; CHECK-NEXT:    retq
   %sh1 = ashr i64 %x0, %y
   %sh2 = lshr i64 %x1, %y
@@ -255,8 +255,8 @@ define i64 @or_lshr_mix_shift_amount(i64 %x0, i64 %x1, i64 %y, i64 %z, i64 %w) {
 ; CHECK-NEXT:    shrq %cl, %rdi
 ; CHECK-NEXT:    movl %r8d, %ecx
 ; CHECK-NEXT:    shrq %cl, %rsi
-; CHECK-NEXT:    orq %rsi, %rax
 ; CHECK-NEXT:    orq %rdi, %rax
+; CHECK-NEXT:    orq %rsi, %rax
 ; CHECK-NEXT:    retq
   %sh1 = lshr i64 %x0, %y
   %sh2 = lshr i64 %x1, %w
@@ -413,10 +413,10 @@ define <16 x i8> @xor_ashr_commute3(<16 x i8> %x0, <16 x i8> %x1, <16 x i8> %y, 
 ; CHECK-NEXT:    vpsraw $4, %xmm1, %xmm5
 ; CHECK-NEXT:    vpblendvb %xmm4, %xmm5, %xmm1, %xmm1
 ; CHECK-NEXT:    vpsraw $2, %xmm1, %xmm5
-; CHECK-NEXT:    vpaddw %xmm4, %xmm4, %xmm4
-; CHECK-NEXT:    vpblendvb %xmm4, %xmm5, %xmm1, %xmm1
+; CHECK-NEXT:    vpaddw %xmm4, %xmm4, %xmm6
+; CHECK-NEXT:    vpblendvb %xmm6, %xmm5, %xmm1, %xmm1
 ; CHECK-NEXT:    vpsraw $1, %xmm1, %xmm5
-; CHECK-NEXT:    vpaddw %xmm4, %xmm4, %xmm4
+; CHECK-NEXT:    vpsllw $2, %xmm4, %xmm4
 ; CHECK-NEXT:    vpblendvb %xmm4, %xmm5, %xmm1, %xmm1
 ; CHECK-NEXT:    vpsrlw $8, %xmm1, %xmm1
 ; CHECK-NEXT:    vpunpcklbw {{.*#+}} xmm2 = xmm2[0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7]
@@ -424,10 +424,10 @@ define <16 x i8> @xor_ashr_commute3(<16 x i8> %x0, <16 x i8> %x1, <16 x i8> %y, 
 ; CHECK-NEXT:    vpsraw $4, %xmm0, %xmm4
 ; CHECK-NEXT:    vpblendvb %xmm2, %xmm4, %xmm0, %xmm0
 ; CHECK-NEXT:    vpsraw $2, %xmm0, %xmm4
-; CHECK-NEXT:    vpaddw %xmm2, %xmm2, %xmm2
-; CHECK-NEXT:    vpblendvb %xmm2, %xmm4, %xmm0, %xmm0
+; CHECK-NEXT:    vpaddw %xmm2, %xmm2, %xmm5
+; CHECK-NEXT:    vpblendvb %xmm5, %xmm4, %xmm0, %xmm0
 ; CHECK-NEXT:    vpsraw $1, %xmm0, %xmm4
-; CHECK-NEXT:    vpaddw %xmm2, %xmm2, %xmm2
+; CHECK-NEXT:    vpsllw $2, %xmm2, %xmm2
 ; CHECK-NEXT:    vpblendvb %xmm2, %xmm4, %xmm0, %xmm0
 ; CHECK-NEXT:    vpsrlw $8, %xmm0, %xmm0
 ; CHECK-NEXT:    vpackuswb %xmm1, %xmm0, %xmm0
@@ -518,8 +518,8 @@ define i64 @xor_mix_shr(i64 %x0, i64 %x1, i64 %y, i64 %z) {
 ; CHECK-NEXT:    sarq %cl, %rdi
 ; CHECK-NEXT:    # kill: def $cl killed $cl killed $rcx
 ; CHECK-NEXT:    shrq %cl, %rsi
-; CHECK-NEXT:    xorq %rsi, %rax
 ; CHECK-NEXT:    xorq %rdi, %rax
+; CHECK-NEXT:    xorq %rsi, %rax
 ; CHECK-NEXT:    retq
   %sh1 = ashr i64 %x0, %y
   %sh2 = lshr i64 %x1, %y
@@ -539,8 +539,8 @@ define i64 @xor_lshr_mix_shift_amount(i64 %x0, i64 %x1, i64 %y, i64 %z, i64 %w) 
 ; CHECK-NEXT:    shrq %cl, %rdi
 ; CHECK-NEXT:    movl %r8d, %ecx
 ; CHECK-NEXT:    shrq %cl, %rsi
-; CHECK-NEXT:    xorq %rsi, %rax
 ; CHECK-NEXT:    xorq %rdi, %rax
+; CHECK-NEXT:    xorq %rsi, %rax
 ; CHECK-NEXT:    retq
   %sh1 = lshr i64 %x0, %y
   %sh2 = lshr i64 %x1, %w
@@ -697,10 +697,10 @@ define <16 x i8> @and_ashr_commute3(<16 x i8> %x0, <16 x i8> %x1, <16 x i8> %y, 
 ; CHECK-NEXT:    vpsraw $4, %xmm1, %xmm5
 ; CHECK-NEXT:    vpblendvb %xmm4, %xmm5, %xmm1, %xmm1
 ; CHECK-NEXT:    vpsraw $2, %xmm1, %xmm5
-; CHECK-NEXT:    vpaddw %xmm4, %xmm4, %xmm4
-; CHECK-NEXT:    vpblendvb %xmm4, %xmm5, %xmm1, %xmm1
+; CHECK-NEXT:    vpaddw %xmm4, %xmm4, %xmm6
+; CHECK-NEXT:    vpblendvb %xmm6, %xmm5, %xmm1, %xmm1
 ; CHECK-NEXT:    vpsraw $1, %xmm1, %xmm5
-; CHECK-NEXT:    vpaddw %xmm4, %xmm4, %xmm4
+; CHECK-NEXT:    vpsllw $2, %xmm4, %xmm4
 ; CHECK-NEXT:    vpblendvb %xmm4, %xmm5, %xmm1, %xmm1
 ; CHECK-NEXT:    vpsrlw $8, %xmm1, %xmm1
 ; CHECK-NEXT:    vpunpcklbw {{.*#+}} xmm2 = xmm2[0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7]
@@ -708,10 +708,10 @@ define <16 x i8> @and_ashr_commute3(<16 x i8> %x0, <16 x i8> %x1, <16 x i8> %y, 
 ; CHECK-NEXT:    vpsraw $4, %xmm0, %xmm4
 ; CHECK-NEXT:    vpblendvb %xmm2, %xmm4, %xmm0, %xmm0
 ; CHECK-NEXT:    vpsraw $2, %xmm0, %xmm4
-; CHECK-NEXT:    vpaddw %xmm2, %xmm2, %xmm2
-; CHECK-NEXT:    vpblendvb %xmm2, %xmm4, %xmm0, %xmm0
+; CHECK-NEXT:    vpaddw %xmm2, %xmm2, %xmm5
+; CHECK-NEXT:    vpblendvb %xmm5, %xmm4, %xmm0, %xmm0
 ; CHECK-NEXT:    vpsraw $1, %xmm0, %xmm4
-; CHECK-NEXT:    vpaddw %xmm2, %xmm2, %xmm2
+; CHECK-NEXT:    vpsllw $2, %xmm2, %xmm2
 ; CHECK-NEXT:    vpblendvb %xmm2, %xmm4, %xmm0, %xmm0
 ; CHECK-NEXT:    vpsrlw $8, %xmm0, %xmm0
 ; CHECK-NEXT:    vpackuswb %xmm1, %xmm0, %xmm0
@@ -802,8 +802,8 @@ define i64 @and_mix_shr(i64 %x0, i64 %x1, i64 %y, i64 %z) {
 ; CHECK-NEXT:    shrq %cl, %rdi
 ; CHECK-NEXT:    # kill: def $cl killed $cl killed $rcx
 ; CHECK-NEXT:    sarq %cl, %rsi
-; CHECK-NEXT:    andq %rsi, %rax
 ; CHECK-NEXT:    andq %rdi, %rax
+; CHECK-NEXT:    andq %rsi, %rax
 ; CHECK-NEXT:    retq
   %sh1 = lshr i64 %x0, %y
   %sh2 = ashr i64 %x1, %y
@@ -823,8 +823,8 @@ define i64 @and_lshr_mix_shift_amount(i64 %x0, i64 %x1, i64 %y, i64 %z, i64 %w) 
 ; CHECK-NEXT:    shrq %cl, %rdi
 ; CHECK-NEXT:    movl %r8d, %ecx
 ; CHECK-NEXT:    shrq %cl, %rsi
-; CHECK-NEXT:    andq %rsi, %rax
 ; CHECK-NEXT:    andq %rdi, %rax
+; CHECK-NEXT:    andq %rsi, %rax
 ; CHECK-NEXT:    retq
   %sh1 = lshr i64 %x0, %y
   %sh2 = lshr i64 %x1, %w

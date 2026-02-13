@@ -8,8 +8,8 @@
 
 #include "mlir/Transforms/Passes.h"
 
+#include "mlir/Analysis/TopologicalSortUtils.h"
 #include "mlir/IR/RegionKindInterface.h"
-#include "mlir/Transforms/TopologicalSortUtils.h"
 
 namespace mlir {
 #define GEN_PASS_DEF_TOPOLOGICALSORT
@@ -24,7 +24,7 @@ struct TopologicalSortPass
   void runOnOperation() override {
     // Topologically sort the regions of the operation without SSA dominance.
     getOperation()->walk([](RegionKindInterface op) {
-      for (auto &it : llvm::enumerate(op->getRegions())) {
+      for (auto it : llvm::enumerate(op->getRegions())) {
         if (op.hasSSADominance(it.index()))
           continue;
         for (Block &block : it.value())

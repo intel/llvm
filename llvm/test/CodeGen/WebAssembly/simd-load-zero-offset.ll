@@ -9,47 +9,47 @@ target triple = "wasm32-unknown-unknown"
 ; v128.load32_zero
 ;===----------------------------------------------------------------------------
 
-define <4 x i32> @load_zero_i32_no_offset(i32* %p) {
+define <4 x i32> @load_zero_i32_no_offset(ptr %p) {
 ; CHECK-LABEL: load_zero_i32_no_offset:
 ; CHECK:         .functype load_zero_i32_no_offset (i32) -> (v128)
 ; CHECK-NEXT:  # %bb.0:
 ; CHECK-NEXT:    local.get 0
 ; CHECK-NEXT:    v128.load32_zero 0
 ; CHECK-NEXT:    # fallthrough-return
-  %x = load i32, i32* %p
+  %x = load i32, ptr %p
   %v = insertelement <4 x i32> zeroinitializer, i32 %x, i32 0
   ret <4 x i32> %v
 }
 
-define <4 x i32> @load_zero_i32_with_folded_offset(i32* %p) {
+define <4 x i32> @load_zero_i32_with_folded_offset(ptr %p) {
 ; CHECK-LABEL: load_zero_i32_with_folded_offset:
 ; CHECK:         .functype load_zero_i32_with_folded_offset (i32) -> (v128)
 ; CHECK-NEXT:  # %bb.0:
 ; CHECK-NEXT:    local.get 0
 ; CHECK-NEXT:    v128.load32_zero 24
 ; CHECK-NEXT:    # fallthrough-return
-  %q = ptrtoint i32* %p to i32
+  %q = ptrtoint ptr %p to i32
   %r = add nuw i32 %q, 24
-  %s = inttoptr i32 %r to i32*
-  %x = load i32, i32* %s
+  %s = inttoptr i32 %r to ptr
+  %x = load i32, ptr %s
   %t = insertelement <4 x i32> zeroinitializer, i32 %x, i32 0
   ret <4 x i32> %t
 }
 
-define <4 x i32> @load_zero_i32_with_folded_gep_offset(i32* %p) {
+define <4 x i32> @load_zero_i32_with_folded_gep_offset(ptr %p) {
 ; CHECK-LABEL: load_zero_i32_with_folded_gep_offset:
 ; CHECK:         .functype load_zero_i32_with_folded_gep_offset (i32) -> (v128)
 ; CHECK-NEXT:  # %bb.0:
 ; CHECK-NEXT:    local.get 0
 ; CHECK-NEXT:    v128.load32_zero 24
 ; CHECK-NEXT:    # fallthrough-return
-  %s = getelementptr inbounds i32, i32* %p, i32 6
-  %x = load i32, i32* %s
+  %s = getelementptr inbounds i32, ptr %p, i32 6
+  %x = load i32, ptr %s
   %t = insertelement <4 x i32> zeroinitializer, i32 %x, i32 0
   ret <4 x i32> %t
 }
 
-define <4 x i32> @load_zero_i32_with_unfolded_gep_negative_offset(i32* %p) {
+define <4 x i32> @load_zero_i32_with_unfolded_gep_negative_offset(ptr %p) {
 ; CHECK-LABEL: load_zero_i32_with_unfolded_gep_negative_offset:
 ; CHECK:         .functype load_zero_i32_with_unfolded_gep_negative_offset (i32) -> (v128)
 ; CHECK-NEXT:  # %bb.0:
@@ -58,13 +58,13 @@ define <4 x i32> @load_zero_i32_with_unfolded_gep_negative_offset(i32* %p) {
 ; CHECK-NEXT:    i32.add
 ; CHECK-NEXT:    v128.load32_zero 0
 ; CHECK-NEXT:    # fallthrough-return
-  %s = getelementptr inbounds i32, i32* %p, i32 -6
-  %x = load i32, i32* %s
+  %s = getelementptr inbounds i32, ptr %p, i32 -6
+  %x = load i32, ptr %s
   %t = insertelement <4 x i32> zeroinitializer, i32 %x, i32 0
   ret <4 x i32> %t
 }
 
-define <4 x i32> @load_zero_i32_with_unfolded_offset(i32* %p) {
+define <4 x i32> @load_zero_i32_with_unfolded_offset(ptr %p) {
 ; CHECK-LABEL: load_zero_i32_with_unfolded_offset:
 ; CHECK:         .functype load_zero_i32_with_unfolded_offset (i32) -> (v128)
 ; CHECK-NEXT:  # %bb.0:
@@ -73,15 +73,15 @@ define <4 x i32> @load_zero_i32_with_unfolded_offset(i32* %p) {
 ; CHECK-NEXT:    i32.add
 ; CHECK-NEXT:    v128.load32_zero 0
 ; CHECK-NEXT:    # fallthrough-return
-  %q = ptrtoint i32* %p to i32
+  %q = ptrtoint ptr %p to i32
   %r = add nsw i32 %q, 24
-  %s = inttoptr i32 %r to i32*
-  %x = load i32, i32* %s
+  %s = inttoptr i32 %r to ptr
+  %x = load i32, ptr %s
   %t = insertelement <4 x i32> zeroinitializer, i32 %x, i32 0
   ret <4 x i32> %t
 }
 
-define <4 x i32> @load_zero_i32_with_unfolded_gep_offset(i32* %p) {
+define <4 x i32> @load_zero_i32_with_unfolded_gep_offset(ptr %p) {
 ; CHECK-LABEL: load_zero_i32_with_unfolded_gep_offset:
 ; CHECK:         .functype load_zero_i32_with_unfolded_gep_offset (i32) -> (v128)
 ; CHECK-NEXT:  # %bb.0:
@@ -90,8 +90,8 @@ define <4 x i32> @load_zero_i32_with_unfolded_gep_offset(i32* %p) {
 ; CHECK-NEXT:    i32.add
 ; CHECK-NEXT:    v128.load32_zero 0
 ; CHECK-NEXT:    # fallthrough-return
-  %s = getelementptr i32, i32* %p, i32 6
-  %x = load i32, i32* %s
+  %s = getelementptr i32, ptr %p, i32 6
+  %x = load i32, ptr %s
   %t = insertelement <4 x i32> zeroinitializer, i32 %x, i32 0
   ret <4 x i32> %t
 }
@@ -103,8 +103,8 @@ define <4 x i32> @load_zero_i32_from_numeric_address() {
 ; CHECK-NEXT:    i32.const 0
 ; CHECK-NEXT:    v128.load32_zero 42
 ; CHECK-NEXT:    # fallthrough-return
-  %s = inttoptr i32 42 to i32*
-  %x = load i32, i32* %s
+  %s = inttoptr i32 42 to ptr
+  %x = load i32, ptr %s
   %t = insertelement <4 x i32> zeroinitializer, i32 %x, i32 0
   ret <4 x i32> %t
 }
@@ -117,56 +117,169 @@ define <4 x i32> @load_zero_i32_from_global_address() {
 ; CHECK-NEXT:    i32.const 0
 ; CHECK-NEXT:    v128.load32_zero gv_i32
 ; CHECK-NEXT:    # fallthrough-return
-  %x = load i32, i32* @gv_i32
+  %x = load i32, ptr @gv_i32
   %t = insertelement <4 x i32> zeroinitializer, i32 %x, i32 0
   ret <4 x i32> %t
+}
+
+define <4 x float> @load_zero_float_no_offset(ptr %p) {
+; CHECK-LABEL: load_zero_float_no_offset:
+; CHECK:         .functype load_zero_float_no_offset (i32) -> (v128)
+; CHECK-NEXT:  # %bb.0:
+; CHECK-NEXT:    local.get 0
+; CHECK-NEXT:    v128.load32_zero 0
+; CHECK-NEXT:    # fallthrough-return
+  %x = load float, ptr %p
+  %v = insertelement <4 x float> zeroinitializer, float %x, i32 0
+  ret <4 x float> %v
+}
+
+define <4 x float> @load_zero_float_with_folded_offset(ptr %p) {
+; CHECK-LABEL: load_zero_float_with_folded_offset:
+; CHECK:         .functype load_zero_float_with_folded_offset (i32) -> (v128)
+; CHECK-NEXT:  # %bb.0:
+; CHECK-NEXT:    local.get 0
+; CHECK-NEXT:    v128.load32_zero 24
+; CHECK-NEXT:    # fallthrough-return
+  %q = ptrtoint ptr %p to i32
+  %r = add nuw i32 %q, 24
+  %s = inttoptr i32 %r to ptr
+  %x = load float, ptr %s
+  %t = insertelement <4 x float> zeroinitializer, float %x, i32 0
+  ret <4 x float> %t
+}
+
+define <4 x float> @load_zero_float_with_folded_gep_offset(ptr %p) {
+; CHECK-LABEL: load_zero_float_with_folded_gep_offset:
+; CHECK:         .functype load_zero_float_with_folded_gep_offset (i32) -> (v128)
+; CHECK-NEXT:  # %bb.0:
+; CHECK-NEXT:    local.get 0
+; CHECK-NEXT:    v128.load32_zero 24
+; CHECK-NEXT:    # fallthrough-return
+  %s = getelementptr inbounds float, ptr %p, i32 6
+  %x = load float, ptr %s
+  %t = insertelement <4 x float> zeroinitializer, float %x, i32 0
+  ret <4 x float> %t
+}
+
+define <4 x float> @load_zero_float_with_unfolded_gep_negative_offset(ptr %p) {
+; CHECK-LABEL: load_zero_float_with_unfolded_gep_negative_offset:
+; CHECK:         .functype load_zero_float_with_unfolded_gep_negative_offset (i32) -> (v128)
+; CHECK-NEXT:  # %bb.0:
+; CHECK-NEXT:    local.get 0
+; CHECK-NEXT:    i32.const -24
+; CHECK-NEXT:    i32.add
+; CHECK-NEXT:    v128.load32_zero 0
+; CHECK-NEXT:    # fallthrough-return
+  %s = getelementptr inbounds float, ptr %p, i32 -6
+  %x = load float, ptr %s
+  %t = insertelement <4 x float> zeroinitializer, float %x, i32 0
+  ret <4 x float> %t
+}
+
+define <4 x float> @load_zero_float_with_unfolded_offset(ptr %p) {
+; CHECK-LABEL: load_zero_float_with_unfolded_offset:
+; CHECK:         .functype load_zero_float_with_unfolded_offset (i32) -> (v128)
+; CHECK-NEXT:  # %bb.0:
+; CHECK-NEXT:    local.get 0
+; CHECK-NEXT:    i32.const 24
+; CHECK-NEXT:    i32.add
+; CHECK-NEXT:    v128.load32_zero 0
+; CHECK-NEXT:    # fallthrough-return
+  %q = ptrtoint ptr %p to i32
+  %r = add nsw i32 %q, 24
+  %s = inttoptr i32 %r to ptr
+  %x = load float, ptr %s
+  %t = insertelement <4 x float> zeroinitializer, float %x, i32 0
+  ret <4 x float> %t
+}
+
+define <4 x float> @load_zero_float_with_unfolded_gep_offset(ptr %p) {
+; CHECK-LABEL: load_zero_float_with_unfolded_gep_offset:
+; CHECK:         .functype load_zero_float_with_unfolded_gep_offset (i32) -> (v128)
+; CHECK-NEXT:  # %bb.0:
+; CHECK-NEXT:    local.get 0
+; CHECK-NEXT:    i32.const 24
+; CHECK-NEXT:    i32.add
+; CHECK-NEXT:    v128.load32_zero 0
+; CHECK-NEXT:    # fallthrough-return
+  %s = getelementptr float, ptr %p, i32 6
+  %x = load float, ptr %s
+  %t = insertelement <4 x float> zeroinitializer, float %x, i32 0
+  ret <4 x float> %t
+}
+
+define <4 x float> @load_zero_float_from_numeric_address() {
+; CHECK-LABEL: load_zero_float_from_numeric_address:
+; CHECK:         .functype load_zero_float_from_numeric_address () -> (v128)
+; CHECK-NEXT:  # %bb.0:
+; CHECK-NEXT:    i32.const 0
+; CHECK-NEXT:    v128.load32_zero 42
+; CHECK-NEXT:    # fallthrough-return
+  %s = inttoptr i32 42 to ptr
+  %x = load float, ptr %s
+  %t = insertelement <4 x float> zeroinitializer, float %x, i32 0
+  ret <4 x float> %t
+}
+
+@gv_float = global i32 0
+define <4 x float> @load_zero_float_from_global_address() {
+; CHECK-LABEL: load_zero_float_from_global_address:
+; CHECK:         .functype load_zero_float_from_global_address () -> (v128)
+; CHECK-NEXT:  # %bb.0:
+; CHECK-NEXT:    i32.const 0
+; CHECK-NEXT:    v128.load32_zero gv_float
+; CHECK-NEXT:    # fallthrough-return
+  %x = load float, ptr @gv_float
+  %t = insertelement <4 x float> zeroinitializer, float %x, i32 0
+  ret <4 x float> %t
 }
 
 ;===----------------------------------------------------------------------------
 ; v128.load64_zero
 ;===----------------------------------------------------------------------------
 
-define <2 x i64> @load_zero_i64_no_offset(i64* %p) {
+define <2 x i64> @load_zero_i64_no_offset(ptr %p) {
 ; CHECK-LABEL: load_zero_i64_no_offset:
 ; CHECK:         .functype load_zero_i64_no_offset (i32) -> (v128)
 ; CHECK-NEXT:  # %bb.0:
 ; CHECK-NEXT:    local.get 0
 ; CHECK-NEXT:    v128.load64_zero 0
 ; CHECK-NEXT:    # fallthrough-return
-  %x = load i64, i64* %p
+  %x = load i64, ptr %p
   %v = insertelement <2 x i64> zeroinitializer, i64 %x, i32 0
   ret <2 x i64> %v
 }
 
-define <2 x i64> @load_zero_i64_with_folded_offset(i64* %p) {
+define <2 x i64> @load_zero_i64_with_folded_offset(ptr %p) {
 ; CHECK-LABEL: load_zero_i64_with_folded_offset:
 ; CHECK:         .functype load_zero_i64_with_folded_offset (i32) -> (v128)
 ; CHECK-NEXT:  # %bb.0:
 ; CHECK-NEXT:    local.get 0
 ; CHECK-NEXT:    v128.load64_zero 24
 ; CHECK-NEXT:    # fallthrough-return
-  %q = ptrtoint i64* %p to i32
+  %q = ptrtoint ptr %p to i32
   %r = add nuw i32 %q, 24
-  %s = inttoptr i32 %r to i64*
-  %x = load i64, i64* %s
+  %s = inttoptr i32 %r to ptr
+  %x = load i64, ptr %s
   %t = insertelement <2 x i64> zeroinitializer, i64 %x, i32 0
   ret <2 x i64> %t
 }
 
-define <2 x i64> @load_zero_i64_with_folded_gep_offset(i64* %p) {
+define <2 x i64> @load_zero_i64_with_folded_gep_offset(ptr %p) {
 ; CHECK-LABEL: load_zero_i64_with_folded_gep_offset:
 ; CHECK:         .functype load_zero_i64_with_folded_gep_offset (i32) -> (v128)
 ; CHECK-NEXT:  # %bb.0:
 ; CHECK-NEXT:    local.get 0
 ; CHECK-NEXT:    v128.load64_zero 48
 ; CHECK-NEXT:    # fallthrough-return
-  %s = getelementptr inbounds i64, i64* %p, i64 6
-  %x = load i64, i64* %s
+  %s = getelementptr inbounds i64, ptr %p, i64 6
+  %x = load i64, ptr %s
   %t = insertelement <2 x i64> zeroinitializer, i64 %x, i32 0
   ret <2 x i64> %t
 }
 
-define <2 x i64> @load_zero_i64_with_unfolded_gep_negative_offset(i64* %p) {
+define <2 x i64> @load_zero_i64_with_unfolded_gep_negative_offset(ptr %p) {
 ; CHECK-LABEL: load_zero_i64_with_unfolded_gep_negative_offset:
 ; CHECK:         .functype load_zero_i64_with_unfolded_gep_negative_offset (i32) -> (v128)
 ; CHECK-NEXT:  # %bb.0:
@@ -175,13 +288,13 @@ define <2 x i64> @load_zero_i64_with_unfolded_gep_negative_offset(i64* %p) {
 ; CHECK-NEXT:    i32.add
 ; CHECK-NEXT:    v128.load64_zero 0
 ; CHECK-NEXT:    # fallthrough-return
-  %s = getelementptr inbounds i64, i64* %p, i64 -6
-  %x = load i64, i64* %s
+  %s = getelementptr inbounds i64, ptr %p, i64 -6
+  %x = load i64, ptr %s
   %t = insertelement <2 x i64> zeroinitializer, i64 %x, i32 0
   ret <2 x i64> %t
 }
 
-define <2 x i64> @load_zero_i64_with_unfolded_offset(i64* %p) {
+define <2 x i64> @load_zero_i64_with_unfolded_offset(ptr %p) {
 ; CHECK-LABEL: load_zero_i64_with_unfolded_offset:
 ; CHECK:         .functype load_zero_i64_with_unfolded_offset (i32) -> (v128)
 ; CHECK-NEXT:  # %bb.0:
@@ -190,15 +303,15 @@ define <2 x i64> @load_zero_i64_with_unfolded_offset(i64* %p) {
 ; CHECK-NEXT:    i32.add
 ; CHECK-NEXT:    v128.load64_zero 0
 ; CHECK-NEXT:    # fallthrough-return
-  %q = ptrtoint i64* %p to i32
+  %q = ptrtoint ptr %p to i32
   %r = add nsw i32 %q, 24
-  %s = inttoptr i32 %r to i64*
-  %x = load i64, i64* %s
+  %s = inttoptr i32 %r to ptr
+  %x = load i64, ptr %s
   %t = insertelement <2 x i64> zeroinitializer, i64 %x, i32 0
   ret <2 x i64> %t
 }
 
-define <2 x i64> @load_zero_i64_with_unfolded_gep_offset(i64* %p) {
+define <2 x i64> @load_zero_i64_with_unfolded_gep_offset(ptr %p) {
 ; CHECK-LABEL: load_zero_i64_with_unfolded_gep_offset:
 ; CHECK:         .functype load_zero_i64_with_unfolded_gep_offset (i32) -> (v128)
 ; CHECK-NEXT:  # %bb.0:
@@ -207,8 +320,8 @@ define <2 x i64> @load_zero_i64_with_unfolded_gep_offset(i64* %p) {
 ; CHECK-NEXT:    i32.add
 ; CHECK-NEXT:    v128.load64_zero 0
 ; CHECK-NEXT:    # fallthrough-return
-  %s = getelementptr i64, i64* %p, i64 6
-  %x = load i64, i64* %s
+  %s = getelementptr i64, ptr %p, i64 6
+  %x = load i64, ptr %s
   %t = insertelement <2 x i64> zeroinitializer, i64 %x, i32 0
   ret <2 x i64> %t
 }
@@ -220,8 +333,8 @@ define <2 x i64> @load_zero_i64_from_numeric_address() {
 ; CHECK-NEXT:    i32.const 0
 ; CHECK-NEXT:    v128.load64_zero 42
 ; CHECK-NEXT:    # fallthrough-return
-  %s = inttoptr i32 42 to i64*
-  %x = load i64, i64* %s
+  %s = inttoptr i32 42 to ptr
+  %x = load i64, ptr %s
   %t = insertelement <2 x i64> zeroinitializer, i64 %x, i32 0
   ret <2 x i64> %t
 }
@@ -234,7 +347,121 @@ define <2 x i64> @load_zero_i64_from_global_address() {
 ; CHECK-NEXT:    i32.const 0
 ; CHECK-NEXT:    v128.load64_zero gv_i64
 ; CHECK-NEXT:    # fallthrough-return
-  %x = load i64, i64* @gv_i64
+  %x = load i64, ptr @gv_i64
   %t = insertelement <2 x i64> zeroinitializer, i64 %x, i32 0
   ret <2 x i64> %t
+}
+
+
+define <2 x double> @load_zero_double_no_offset(ptr %p) {
+; CHECK-LABEL: load_zero_double_no_offset:
+; CHECK:         .functype load_zero_double_no_offset (i32) -> (v128)
+; CHECK-NEXT:  # %bb.0:
+; CHECK-NEXT:    local.get 0
+; CHECK-NEXT:    v128.load64_zero 0
+; CHECK-NEXT:    # fallthrough-return
+  %x = load double, ptr %p
+  %v = insertelement <2 x double> zeroinitializer, double %x, i32 0
+  ret <2 x double> %v
+}
+
+define <2 x double> @load_zero_double_with_folded_offset(ptr %p) {
+; CHECK-LABEL: load_zero_double_with_folded_offset:
+; CHECK:         .functype load_zero_double_with_folded_offset (i32) -> (v128)
+; CHECK-NEXT:  # %bb.0:
+; CHECK-NEXT:    local.get 0
+; CHECK-NEXT:    v128.load64_zero 24
+; CHECK-NEXT:    # fallthrough-return
+  %q = ptrtoint ptr %p to i32
+  %r = add nuw i32 %q, 24
+  %s = inttoptr i32 %r to ptr
+  %x = load double, ptr %s
+  %t = insertelement <2 x double> zeroinitializer, double %x, i32 0
+  ret <2 x double> %t
+}
+
+define <2 x double> @load_zero_double_with_folded_gep_offset(ptr %p) {
+; CHECK-LABEL: load_zero_double_with_folded_gep_offset:
+; CHECK:         .functype load_zero_double_with_folded_gep_offset (i32) -> (v128)
+; CHECK-NEXT:  # %bb.0:
+; CHECK-NEXT:    local.get 0
+; CHECK-NEXT:    v128.load64_zero 48
+; CHECK-NEXT:    # fallthrough-return
+  %s = getelementptr inbounds double, ptr %p, i32 6
+  %x = load double, ptr %s
+  %t = insertelement <2 x double> zeroinitializer, double %x, i32 0
+  ret <2 x double> %t
+}
+
+define <2 x double> @load_zero_double_with_unfolded_gep_negative_offset(ptr %p) {
+; CHECK-LABEL: load_zero_double_with_unfolded_gep_negative_offset:
+; CHECK:         .functype load_zero_double_with_unfolded_gep_negative_offset (i32) -> (v128)
+; CHECK-NEXT:  # %bb.0:
+; CHECK-NEXT:    local.get 0
+; CHECK-NEXT:    i32.const -48
+; CHECK-NEXT:    i32.add
+; CHECK-NEXT:    v128.load64_zero 0
+; CHECK-NEXT:    # fallthrough-return
+  %s = getelementptr inbounds double, ptr %p, i32 -6
+  %x = load double, ptr %s
+  %t = insertelement <2 x double> zeroinitializer, double %x, i32 0
+  ret <2 x double> %t
+}
+
+define <2 x double> @load_zero_double_with_unfolded_offset(ptr %p) {
+; CHECK-LABEL: load_zero_double_with_unfolded_offset:
+; CHECK:         .functype load_zero_double_with_unfolded_offset (i32) -> (v128)
+; CHECK-NEXT:  # %bb.0:
+; CHECK-NEXT:    local.get 0
+; CHECK-NEXT:    i32.const 24
+; CHECK-NEXT:    i32.add
+; CHECK-NEXT:    v128.load64_zero 0
+; CHECK-NEXT:    # fallthrough-return
+  %q = ptrtoint ptr %p to i32
+  %r = add nsw i32 %q, 24
+  %s = inttoptr i32 %r to ptr
+  %x = load double, ptr %s
+  %t = insertelement <2 x double> zeroinitializer, double %x, i32 0
+  ret <2 x double> %t
+}
+
+define <2 x double> @load_zero_double_with_unfolded_gep_offset(ptr %p) {
+; CHECK-LABEL: load_zero_double_with_unfolded_gep_offset:
+; CHECK:         .functype load_zero_double_with_unfolded_gep_offset (i32) -> (v128)
+; CHECK-NEXT:  # %bb.0:
+; CHECK-NEXT:    local.get 0
+; CHECK-NEXT:    i32.const 48
+; CHECK-NEXT:    i32.add
+; CHECK-NEXT:    v128.load64_zero 0
+; CHECK-NEXT:    # fallthrough-return
+  %s = getelementptr double, ptr %p, i32 6
+  %x = load double, ptr %s
+  %t = insertelement <2 x double> zeroinitializer, double %x, i32 0
+  ret <2 x double> %t
+}
+
+define <2 x double> @load_zero_double_from_numeric_address() {
+; CHECK-LABEL: load_zero_double_from_numeric_address:
+; CHECK:         .functype load_zero_double_from_numeric_address () -> (v128)
+; CHECK-NEXT:  # %bb.0:
+; CHECK-NEXT:    i32.const 0
+; CHECK-NEXT:    v128.load64_zero 42
+; CHECK-NEXT:    # fallthrough-return
+  %s = inttoptr i32 42 to ptr
+  %x = load double, ptr %s
+  %t = insertelement <2 x double> zeroinitializer, double %x, i32 0
+  ret <2 x double> %t
+}
+
+@gv_double = global i32 0
+define <2 x double> @load_zero_double_from_global_address() {
+; CHECK-LABEL: load_zero_double_from_global_address:
+; CHECK:         .functype load_zero_double_from_global_address () -> (v128)
+; CHECK-NEXT:  # %bb.0:
+; CHECK-NEXT:    i32.const 0
+; CHECK-NEXT:    v128.load64_zero gv_double
+; CHECK-NEXT:    # fallthrough-return
+  %x = load double, ptr @gv_double
+  %t = insertelement <2 x double> zeroinitializer, double %x, i32 0
+  ret <2 x double> %t
 }

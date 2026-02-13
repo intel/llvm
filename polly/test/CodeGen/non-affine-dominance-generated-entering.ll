@@ -1,4 +1,4 @@
-; RUN: opt %loadPolly -polly-codegen -S < %s | FileCheck %s
+; RUN: opt %loadNPMPolly '-passes=polly<no-default-opts>' -S < %s | FileCheck %s
 ;
 ; llvm.org/PR25439
 ; Scalar reloads in the generated entering block were not recognized as
@@ -7,15 +7,15 @@
 ; being copied. We check whether it is reusing the reloaded scalar.
 ;
 ; CHECK-LABEL: polly.stmt.subregionB_entry.exit:
-; CHECK:         store i1 %polly.cond, i1* %cond.s2a
+; CHECK:         store i1 %polly.cond, ptr %cond.s2a
 ;
 ; CHECK-LABEL: polly.stmt.subregionB_entry.entry:
-; CHECK:         %cond.s2a.reload = load i1, i1* %cond.s2a
+; CHECK:         %cond.s2a.reload = load i1, ptr %cond.s2a
 ;
 ; CHECK-LABEL: polly.stmt.subregionB_entry:
 ; CHECK:         br i1 %cond.s2a.reload
 
-define void @func(i32* %A) {
+define void @func(ptr %A) {
 entry:
   br label %subregionA_entry
 
@@ -30,7 +30,7 @@ subregionA_else:
   br label %subregionB_entry
 
 subregionB_entry:
-  store i32 0, i32* %A
+  store i32 0, ptr %A
   br i1 %cond, label %subregionB_if, label %subregionB_exit
 
 subregionB_if:

@@ -8,6 +8,7 @@
 
 #include "support/FileCache.h"
 #include "llvm/ADT/ScopeExit.h"
+#include <optional>
 
 namespace clang {
 namespace clangd {
@@ -29,12 +30,12 @@ FileCache::FileCache(llvm::StringRef Path)
 
 void FileCache::read(
     const ThreadsafeFS &TFS, std::chrono::steady_clock::time_point FreshTime,
-    llvm::function_ref<void(llvm::Optional<llvm::StringRef>)> Parse,
+    llvm::function_ref<void(std::optional<llvm::StringRef>)> Parse,
     llvm::function_ref<void()> Read) const {
 
   std::lock_guard<std::mutex> Lock(Mu);
   // We're going to update the cache and return whatever's in it.
-  auto Return = llvm::make_scope_exit(Read);
+  llvm::scope_exit Return(Read);
 
   // Return any sufficiently recent result without doing any further work.
   if (ValidTime > FreshTime)
@@ -42,16 +43,16 @@ void FileCache::read(
 
   // Ensure we always bump ValidTime, so that FreshTime imposes a hard limit on
   // how often we do IO.
-  auto BumpValidTime = llvm::make_scope_exit(
+  llvm::scope_exit BumpValidTime(
       [&] { ValidTime = std::chrono::steady_clock::now(); });
 
   // stat is cheaper than opening the file. It's usually unchanged.
   assert(llvm::sys::path::is_absolute(Path));
-  auto FS = TFS.view(/*CWD=*/llvm::None);
+  auto FS = TFS.view(/*CWD=*/std::nullopt);
   auto Stat = FS->status(Path);
   if (!Stat || !Stat->isRegularFile()) {
     if (Size != FileNotFound) // Allow "not found" value to be cached.
-      Parse(llvm::None);
+      Parse(std::nullopt);
     // Ensure the cache key won't match any future stat().
     Size = FileNotFound;
     return;

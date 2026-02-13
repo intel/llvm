@@ -1,4 +1,4 @@
-//===--- UseEqualsDefaultCheck.cpp - clang-tidy----------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,22 +12,21 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Lex/Lexer.h"
+#include <optional>
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace modernize {
+namespace clang::tidy::modernize {
 
-static const char SpecialFunction[] = "SpecialFunction";
+static constexpr char SpecialFunction[] = "SpecialFunction";
 
 /// Finds all the named non-static fields of \p Record.
-static std::set<const FieldDecl *>
+static llvm::SmallPtrSet<const FieldDecl *, 0>
 getAllNamedFields(const CXXRecordDecl *Record) {
-  std::set<const FieldDecl *> Result;
+  llvm::SmallPtrSet<const FieldDecl *, 0> Result;
   for (const auto *Field : Record->fields()) {
     // Static data members are not in this range.
-    if (Field->isUnnamedBitfield())
+    if (Field->isUnnamedBitField())
       continue;
     Result.insert(Field);
   }
@@ -36,8 +35,9 @@ getAllNamedFields(const CXXRecordDecl *Record) {
 
 /// Returns the names of the direct bases of \p Record, both virtual and
 /// non-virtual.
-static std::set<const Type *> getAllDirectBases(const CXXRecordDecl *Record) {
-  std::set<const Type *> Result;
+static llvm::SmallPtrSet<const Type *, 0>
+getAllDirectBases(const CXXRecordDecl *Record) {
+  llvm::SmallPtrSet<const Type *, 0> Result;
   for (auto Base : Record->bases()) {
     // CXXBaseSpecifier.
     const auto *BaseType = Base.getTypeSourceInfo()->getType().getTypePtr();
@@ -49,8 +49,8 @@ static std::set<const Type *> getAllDirectBases(const CXXRecordDecl *Record) {
 /// Returns a matcher that matches member expressions where the base is
 /// the variable declared as \p Var and the accessed member is the one declared
 /// as \p Field.
-internal::Matcher<Expr> accessToFieldInVar(const FieldDecl *Field,
-                                           const ValueDecl *Var) {
+static internal::Matcher<Expr> accessToFieldInVar(const FieldDecl *Field,
+                                                  const ValueDecl *Var) {
   return ignoringImpCasts(
       memberExpr(hasObjectExpression(declRefExpr(to(varDecl(equalsNode(Var))))),
                  member(fieldDecl(equalsNode(Field)))));
@@ -201,21 +201,25 @@ static bool isCopyAssignmentAndCanBeDefaulted(ASTContext *Context,
 /// Returns false if the body has any non-whitespace character.
 static bool bodyEmpty(const ASTContext *Context, const CompoundStmt *Body) {
   bool Invalid = false;
-  StringRef Text = Lexer::getSourceText(
+  const StringRef Text = Lexer::getSourceText(
       CharSourceRange::getCharRange(Body->getLBracLoc().getLocWithOffset(1),
                                     Body->getRBracLoc()),
       Context->getSourceManager(), Context->getLangOpts(), &Invalid);
-  return !Invalid && std::strspn(Text.data(), " \t\r\n") == Text.size();
+  return !Invalid && Text.ltrim(" \t\r\n").empty();
 }
 
 UseEqualsDefaultCheck::UseEqualsDefaultCheck(StringRef Name,
                                              ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
-      IgnoreMacros(Options.getLocalOrGlobal("IgnoreMacros", true)) {}
+      IgnoreMacros(Options.get("IgnoreMacros", true)) {}
 
 void UseEqualsDefaultCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
   Options.store(Opts, "IgnoreMacros", IgnoreMacros);
 }
+
+namespace {
+AST_MATCHER(CXXMethodDecl, isOutOfLine) { return Node.isOutOfLine(); }
+} // namespace
 
 void UseEqualsDefaultCheck::registerMatchers(MatchFinder *Finder) {
   // Skip unions/union-like classes since their constructors behave differently
@@ -224,18 +228,27 @@ void UseEqualsDefaultCheck::registerMatchers(MatchFinder *Finder) {
       anyOf(isUnion(),
             has(fieldDecl(isImplicit(), hasType(cxxRecordDecl(isUnion()))))));
 
+  const LangOptions &LangOpts = getLangOpts();
+  auto IsPublicOrOutOfLineUntilCPP20 =
+      LangOpts.CPlusPlus20
+          ? cxxConstructorDecl()
+          : cxxConstructorDecl(anyOf(isOutOfLine(), isPublic()));
+
   // Destructor.
   Finder->addMatcher(
-      cxxDestructorDecl(unless(hasParent(IsUnionLikeClass)), isDefinition())
+      cxxDestructorDecl(isDefinition(), unless(ofClass(IsUnionLikeClass)))
           .bind(SpecialFunction),
       this);
+  // Constructor.
   Finder->addMatcher(
       cxxConstructorDecl(
-          unless(hasParent(IsUnionLikeClass)), isDefinition(),
+          isDefinition(), unless(ofClass(IsUnionLikeClass)),
+          unless(hasParent(functionTemplateDecl())),
           anyOf(
               // Default constructor.
-              allOf(unless(hasAnyConstructorInitializer(isWritten())),
-                    unless(isVariadic()), parameterCountIs(0)),
+              allOf(parameterCountIs(0),
+                    unless(hasAnyConstructorInitializer(isWritten())),
+                    unless(isVariadic()), IsPublicOrOutOfLineUntilCPP20),
               // Copy constructor.
               allOf(isCopyConstructor(),
                     // Discard constructors that can be used as a copy
@@ -246,8 +259,9 @@ void UseEqualsDefaultCheck::registerMatchers(MatchFinder *Finder) {
       this);
   // Copy-assignment operator.
   Finder->addMatcher(
-      cxxMethodDecl(unless(hasParent(IsUnionLikeClass)), isDefinition(),
-                    isCopyAssignmentOperator(),
+      cxxMethodDecl(isDefinition(), isCopyAssignmentOperator(),
+                    unless(ofClass(IsUnionLikeClass)),
+                    unless(hasParent(functionTemplateDecl())),
                     // isCopyAssignmentOperator() allows the parameter to be
                     // passed by value, and in this case it cannot be
                     // defaulted.
@@ -286,12 +300,18 @@ void UseEqualsDefaultCheck::check(const MatchFinder::MatchResult &Result) {
   if (!SpecialFunctionDecl->isCopyAssignmentOperator() && !Body->body_empty())
     return;
 
+  // If body contain any preprocesor derictives, don't warn.
+  if (IgnoreMacros && utils::lexer::rangeContainsExpansionsOrDirectives(
+                          Body->getSourceRange(), *Result.SourceManager,
+                          Result.Context->getLangOpts()))
+    return;
+
   // If there are comments inside the body, don't do the change.
-  bool ApplyFix = SpecialFunctionDecl->isCopyAssignmentOperator() ||
-                  bodyEmpty(Result.Context, Body);
+  const bool ApplyFix = SpecialFunctionDecl->isCopyAssignmentOperator() ||
+                        bodyEmpty(Result.Context, Body);
 
   std::vector<FixItHint> RemoveInitializers;
-  unsigned MemberType;
+  unsigned MemberType = 0;
   if (const auto *Ctor = dyn_cast<CXXConstructorDecl>(SpecialFunctionDecl)) {
     if (Ctor->getNumParams() == 0) {
       MemberType = 0;
@@ -326,17 +346,18 @@ void UseEqualsDefaultCheck::check(const MatchFinder::MatchResult &Result) {
   Diag << MemberType;
 
   if (ApplyFix) {
+    const SourceLocation UnifiedEnd = utils::lexer::getUnifiedEndLoc(
+        *Body, Result.Context->getSourceManager(),
+        Result.Context->getLangOpts());
     // Skipping comments, check for a semicolon after Body->getSourceRange()
-    Optional<Token> Token = utils::lexer::findNextTokenSkippingComments(
-        Body->getSourceRange().getEnd().getLocWithOffset(1),
-        Result.Context->getSourceManager(), Result.Context->getLangOpts());
-    StringRef Replacement =
+    std::optional<Token> Token = utils::lexer::findNextTokenSkippingComments(
+        UnifiedEnd, Result.Context->getSourceManager(),
+        Result.Context->getLangOpts());
+    const StringRef Replacement =
         Token && Token->is(tok::semi) ? "= default" : "= default;";
     Diag << FixItHint::CreateReplacement(Body->getSourceRange(), Replacement)
          << RemoveInitializers;
   }
 }
 
-} // namespace modernize
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::modernize

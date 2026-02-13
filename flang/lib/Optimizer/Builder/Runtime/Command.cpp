@@ -10,6 +10,7 @@
 #include "flang/Optimizer/Builder/FIRBuilder.h"
 #include "flang/Optimizer/Builder/Runtime/RTBuilder.h"
 #include "flang/Runtime/command.h"
+#include "flang/Runtime/extensions.h"
 
 using namespace Fortran::runtime;
 
@@ -29,7 +30,31 @@ mlir::Value fir::runtime::genCommandArgumentCount(fir::FirOpBuilder &builder,
                                                   mlir::Location loc) {
   auto argumentCountFunc =
       fir::runtime::getRuntimeFunc<mkRTKey(ArgumentCount)>(loc, builder);
-  return builder.create<fir::CallOp>(loc, argumentCountFunc).getResult(0);
+  return fir::CallOp::create(builder, loc, argumentCountFunc).getResult(0);
+}
+
+mlir::Value fir::runtime::genGetCommand(fir::FirOpBuilder &builder,
+                                        mlir::Location loc, mlir::Value command,
+                                        mlir::Value length,
+                                        mlir::Value errmsg) {
+  auto runtimeFunc =
+      fir::runtime::getRuntimeFunc<mkRTKey(GetCommand)>(loc, builder);
+  mlir::FunctionType runtimeFuncTy = runtimeFunc.getFunctionType();
+  mlir::Value sourceFile = fir::factory::locationToFilename(builder, loc);
+  mlir::Value sourceLine =
+      fir::factory::locationToLineNo(builder, loc, runtimeFuncTy.getInput(4));
+  llvm::SmallVector<mlir::Value> args =
+      fir::runtime::createArguments(builder, loc, runtimeFuncTy, command,
+                                    length, errmsg, sourceFile, sourceLine);
+  return fir::CallOp::create(builder, loc, runtimeFunc, args).getResult(0);
+}
+
+mlir::Value fir::runtime::genGetPID(fir::FirOpBuilder &builder,
+                                    mlir::Location loc) {
+  auto runtimeFunc =
+      fir::runtime::getRuntimeFunc<mkRTKey(GetPID)>(loc, builder);
+
+  return fir::CallOp::create(builder, loc, runtimeFunc).getResult(0);
 }
 
 mlir::Value fir::runtime::genGetCommandArgument(
@@ -44,35 +69,87 @@ mlir::Value fir::runtime::genGetCommandArgument(
   llvm::SmallVector<mlir::Value> args =
       fir::runtime::createArguments(builder, loc, runtimeFuncTy, number, value,
                                     length, errmsg, sourceFile, sourceLine);
-  return builder.create<fir::CallOp>(loc, runtimeFunc, args).getResult(0);
+  return fir::CallOp::create(builder, loc, runtimeFunc, args).getResult(0);
 }
 
-mlir::Value fir::runtime::genEnvVariableValue(
-    fir::FirOpBuilder &builder, mlir::Location loc, mlir::Value name,
-    mlir::Value value, mlir::Value trimName, mlir::Value errmsg) {
-  auto valueFunc =
-      fir::runtime::getRuntimeFunc<mkRTKey(EnvVariableValue)>(loc, builder);
-  mlir::FunctionType valueFuncTy = valueFunc.getFunctionType();
+mlir::Value fir::runtime::genGetEnvVariable(fir::FirOpBuilder &builder,
+                                            mlir::Location loc,
+                                            mlir::Value name, mlir::Value value,
+                                            mlir::Value length,
+                                            mlir::Value trimName,
+                                            mlir::Value errmsg) {
+  auto runtimeFunc =
+      fir::runtime::getRuntimeFunc<mkRTKey(GetEnvVariable)>(loc, builder);
+  mlir::FunctionType runtimeFuncTy = runtimeFunc.getFunctionType();
   mlir::Value sourceFile = fir::factory::locationToFilename(builder, loc);
   mlir::Value sourceLine =
-      fir::factory::locationToLineNo(builder, loc, valueFuncTy.getInput(5));
-  llvm::SmallVector<mlir::Value> args =
-      fir::runtime::createArguments(builder, loc, valueFuncTy, name, value,
-                                    trimName, errmsg, sourceFile, sourceLine);
-  return builder.create<fir::CallOp>(loc, valueFunc, args).getResult(0);
-}
-
-mlir::Value fir::runtime::genEnvVariableLength(fir::FirOpBuilder &builder,
-                                               mlir::Location loc,
-                                               mlir::Value name,
-                                               mlir::Value trimName) {
-  auto lengthFunc =
-      fir::runtime::getRuntimeFunc<mkRTKey(EnvVariableLength)>(loc, builder);
-  mlir::FunctionType lengthFuncTy = lengthFunc.getFunctionType();
-  mlir::Value sourceFile = fir::factory::locationToFilename(builder, loc);
-  mlir::Value sourceLine =
-      fir::factory::locationToLineNo(builder, loc, lengthFuncTy.getInput(3));
+      fir::factory::locationToLineNo(builder, loc, runtimeFuncTy.getInput(6));
   llvm::SmallVector<mlir::Value> args = fir::runtime::createArguments(
-      builder, loc, lengthFuncTy, name, trimName, sourceFile, sourceLine);
-  return builder.create<fir::CallOp>(loc, lengthFunc, args).getResult(0);
+      builder, loc, runtimeFuncTy, name, value, length, trimName, errmsg,
+      sourceFile, sourceLine);
+  return fir::CallOp::create(builder, loc, runtimeFunc, args).getResult(0);
+}
+
+mlir::Value fir::runtime::genGetCwd(fir::FirOpBuilder &builder,
+                                    mlir::Location loc, mlir::Value cwd) {
+  mlir::func::FuncOp func =
+      fir::runtime::getRuntimeFunc<mkRTKey(GetCwd)>(loc, builder);
+  auto runtimeFuncTy = func.getFunctionType();
+  mlir::Value sourceFile = fir::factory::locationToFilename(builder, loc);
+  mlir::Value sourceLine =
+      fir::factory::locationToLineNo(builder, loc, runtimeFuncTy.getInput(2));
+  llvm::SmallVector<mlir::Value> args = fir::runtime::createArguments(
+      builder, loc, runtimeFuncTy, cwd, sourceFile, sourceLine);
+  return fir::CallOp::create(builder, loc, func, args).getResult(0);
+}
+
+mlir::Value fir::runtime::genHostnm(fir::FirOpBuilder &builder,
+                                    mlir::Location loc, mlir::Value res) {
+  mlir::func::FuncOp func =
+      fir::runtime::getRuntimeFunc<mkRTKey(Hostnm)>(loc, builder);
+  auto runtimeFuncTy = func.getFunctionType();
+  mlir::Value sourceFile = fir::factory::locationToFilename(builder, loc);
+  mlir::Value sourceLine =
+      fir::factory::locationToLineNo(builder, loc, runtimeFuncTy.getInput(2));
+  llvm::SmallVector<mlir::Value> args = fir::runtime::createArguments(
+      builder, loc, runtimeFuncTy, res, sourceFile, sourceLine);
+  return fir::CallOp::create(builder, loc, func, args).getResult(0);
+}
+
+void fir::runtime::genPerror(fir::FirOpBuilder &builder, mlir::Location loc,
+                             mlir::Value string) {
+  auto runtimeFunc =
+      fir::runtime::getRuntimeFunc<mkRTKey(Perror)>(loc, builder);
+  mlir::FunctionType runtimeFuncTy = runtimeFunc.getFunctionType();
+  llvm::SmallVector<mlir::Value> args =
+      fir::runtime::createArguments(builder, loc, runtimeFuncTy, string);
+  fir::CallOp::create(builder, loc, runtimeFunc, args);
+}
+
+mlir::Value fir::runtime::genPutEnv(fir::FirOpBuilder &builder,
+                                    mlir::Location loc, mlir::Value str,
+                                    mlir::Value strLength) {
+  mlir::func::FuncOp func =
+      fir::runtime::getRuntimeFunc<mkRTKey(PutEnv)>(loc, builder);
+  auto runtimeFuncTy = func.getFunctionType();
+  mlir::Value sourceFile = fir::factory::locationToFilename(builder, loc);
+  mlir::Value sourceLine =
+      fir::factory::locationToLineNo(builder, loc, runtimeFuncTy.getInput(1));
+  llvm::SmallVector<mlir::Value> args = fir::runtime::createArguments(
+      builder, loc, runtimeFuncTy, str, strLength, sourceFile, sourceLine);
+  return fir::CallOp::create(builder, loc, func, args).getResult(0);
+}
+
+mlir::Value fir::runtime::genUnlink(fir::FirOpBuilder &builder,
+                                    mlir::Location loc, mlir::Value path,
+                                    mlir::Value pathLength) {
+  mlir::func::FuncOp func =
+      fir::runtime::getRuntimeFunc<mkRTKey(Unlink)>(loc, builder);
+  auto runtimeFuncTy = func.getFunctionType();
+  mlir::Value sourceFile = fir::factory::locationToFilename(builder, loc);
+  mlir::Value sourceLine =
+      fir::factory::locationToLineNo(builder, loc, runtimeFuncTy.getInput(1));
+  llvm::SmallVector<mlir::Value> args = fir::runtime::createArguments(
+      builder, loc, runtimeFuncTy, path, pathLength, sourceFile, sourceLine);
+  return fir::CallOp::create(builder, loc, func, args).getResult(0);
 }

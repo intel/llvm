@@ -1,8 +1,7 @@
-// RUN: %clang -mmmx -target i386-unknown-unknown -emit-llvm -S %s -o - | FileCheck %s
-// <rdar://problem/9091220>
+// RUN: %clang_cc1 -emit-llvm -triple i386 -target-feature +mmx -target-feature +sse2 %s -o - | FileCheck %s
 #include <mmintrin.h>
 
-// CHECK: { x86_mmx, x86_mmx, x86_mmx, x86_mmx, x86_mmx, x86_mmx, x86_mmx }
+// CHECK: { <1 x i64>, <1 x i64>, <1 x i64>, <1 x i64>, <1 x i64>, <1 x i64>, <1 x i64> }
 
 void foo(long long fill) {
   __m64 vfill = _mm_cvtsi64_m64(fill);

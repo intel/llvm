@@ -25,7 +25,6 @@
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
-#include <algorithm>
 #include <cassert>
 #include <functional>
 #include <string>
@@ -34,8 +33,9 @@
 
 using namespace clang;
 
-Module::Module(StringRef Name, SourceLocation DefinitionLoc, Module *Parent,
-               bool IsFramework, bool IsExplicit, unsigned VisibilityID)
+Module::Module(ModuleConstructorTag, StringRef Name,
+               SourceLocation DefinitionLoc, Module *Parent, bool IsFramework,
+               bool IsExplicit, unsigned VisibilityID)
     : Name(Name), DefinitionLoc(DefinitionLoc), Parent(Parent),
       VisibilityID(VisibilityID), IsUnimportable(false),
       HasIncompatibleModuleFile(false), IsAvailable(true),
@@ -44,7 +44,7 @@ Module::Module(StringRef Name, SourceLocation DefinitionLoc, Module *Parent,
       InferSubmodules(false), InferExplicitSubmodules(false),
       InferExportWildcard(false), ConfigMacrosExhaustive(false),
       NoUndeclaredIncludes(false), ModuleMapIsPrivate(false),
-      NameVisibility(Hidden) {
+      NamedModuleHasInit(true), NameVisibility(Hidden) {
   if (Parent) {
     IsAvailable = Parent->isAvailable();
     IsUnimportable = Parent->isUnimportable();
@@ -53,17 +53,11 @@ Module::Module(StringRef Name, SourceLocation DefinitionLoc, Module *Parent,
     NoUndeclaredIncludes = Parent->NoUndeclaredIncludes;
     ModuleMapIsPrivate = Parent->ModuleMapIsPrivate;
 
-    Parent->SubModuleIndex[Name] = Parent->SubModules.size();
     Parent->SubModules.push_back(this);
   }
 }
 
-Module::~Module() {
-  for (submodule_iterator I = submodule_begin(), IEnd = submodule_end();
-       I != IEnd; ++I) {
-    delete *I;
-  }
-}
+Module::~Module() = default;
 
 static bool isPlatformEnvironment(const TargetInfo &Target, StringRef Feature) {
   StringRef Platform = Target.getPlatformName();
@@ -90,7 +84,7 @@ static bool isPlatformEnvironment(const TargetInfo &Target, StringRef Feature) {
   // where both are valid examples of the same platform+environment but in the
   // variant (2) the simulator is hardcoded as part of the platform name. Both
   // forms above should match for "iossimulator" requirement.
-  if (Target.getTriple().isOSDarwin() && PlatformEnv.endswith("simulator"))
+  if (Target.getTriple().isOSDarwin() && PlatformEnv.ends_with("simulator"))
     return PlatformEnv == Feature || CmpPlatformEnv(PlatformEnv, Feature);
 
   return PlatformEnv == Feature;
@@ -108,9 +102,13 @@ static bool hasFeature(StringRef Feature, const LangOptions &LangOpts,
                         .Case("cplusplus11", LangOpts.CPlusPlus11)
                         .Case("cplusplus14", LangOpts.CPlusPlus14)
                         .Case("cplusplus17", LangOpts.CPlusPlus17)
+                        .Case("cplusplus20", LangOpts.CPlusPlus20)
+                        .Case("cplusplus23", LangOpts.CPlusPlus23)
+                        .Case("cplusplus26", LangOpts.CPlusPlus26)
                         .Case("c99", LangOpts.C99)
                         .Case("c11", LangOpts.C11)
                         .Case("c17", LangOpts.C17)
+                        .Case("c23", LangOpts.C23)
                         .Case("freestanding", LangOpts.Freestanding)
                         .Case("gnuinlineasm", LangOpts.GNUAsm)
                         .Case("objc", LangOpts.ObjC)
@@ -137,8 +135,8 @@ bool Module::isUnimportable(const LangOptions &LangOpts,
       return true;
     }
     for (unsigned I = 0, N = Current->Requirements.size(); I != N; ++I) {
-      if (hasFeature(Current->Requirements[I].first, LangOpts, Target) !=
-              Current->Requirements[I].second) {
+      if (hasFeature(Current->Requirements[I].FeatureName, LangOpts, Target) !=
+          Current->Requirements[I].RequiredState) {
         Req = Current->Requirements[I];
         return true;
       }
@@ -146,6 +144,28 @@ bool Module::isUnimportable(const LangOptions &LangOpts,
   }
 
   llvm_unreachable("could not find a reason why module is unimportable");
+}
+
+// The -fmodule-name option tells the compiler to textually include headers in
+// the specified module, meaning Clang won't build the specified module. This
+// is useful in a number of situations, for instance, when building a library
+// that vends a module map, one might want to avoid hitting intermediate build
+// products containing the module map or avoid finding the system installed
+// modulemap for that library.
+bool Module::isForBuilding(const LangOptions &LangOpts) const {
+  StringRef TopLevelName = getTopLevelModuleName();
+  StringRef CurrentModule = LangOpts.CurrentModule;
+
+  // When building the implementation of framework Foo, we want to make sure
+  // that Foo *and* Foo_Private are textually included and no modules are built
+  // for either.
+  if (!LangOpts.isCompilingModule() && getTopLevelModule()->IsFramework &&
+      CurrentModule == LangOpts.ModuleName &&
+      !CurrentModule.ends_with("_Private") &&
+      TopLevelName.ends_with("_Private"))
+    TopLevelName = TopLevelName.drop_back(8);
+
+  return TopLevelName == CurrentModule;
 }
 
 bool Module::isAvailable(const LangOptions &LangOpts, const TargetInfo &Target,
@@ -227,7 +247,6 @@ std::string Module::getFullModuleName(bool AllowStringLiterals) const {
 
   llvm::raw_string_ostream Out(Result);
   printModuleId(Out, Names.rbegin(), Names.rend(), AllowStringLiterals);
-  Out.flush();
 
   return Result;
 }
@@ -241,30 +260,28 @@ bool Module::fullModuleNameIs(ArrayRef<StringRef> nameParts) const {
   return nameParts.empty();
 }
 
-Module::DirectoryName Module::getUmbrellaDir() const {
-  if (Header U = getUmbrellaHeader())
-    return {"", "", U.Entry->getDir()};
-
-  return {UmbrellaAsWritten, UmbrellaRelativeToRootModuleDirectory,
-          Umbrella.dyn_cast<const DirectoryEntry *>()};
+OptionalDirectoryEntryRef Module::getEffectiveUmbrellaDir() const {
+  if (const auto *Hdr = std::get_if<FileEntryRef>(&Umbrella))
+    return Hdr->getDir();
+  if (const auto *Dir = std::get_if<DirectoryEntryRef>(&Umbrella))
+    return *Dir;
+  return std::nullopt;
 }
 
-void Module::addTopHeader(const FileEntry *File) {
+void Module::addTopHeader(FileEntryRef File) {
   assert(File);
   TopHeaders.insert(File);
 }
 
-ArrayRef<const FileEntry *> Module::getTopHeaders(FileManager &FileMgr) {
+ArrayRef<FileEntryRef> Module::getTopHeaders(FileManager &FileMgr) {
   if (!TopHeaderNames.empty()) {
-    for (std::vector<std::string>::iterator
-           I = TopHeaderNames.begin(), E = TopHeaderNames.end(); I != E; ++I) {
-      if (auto FE = FileMgr.getFile(*I))
+    for (StringRef TopHeaderName : TopHeaderNames)
+      if (auto FE = FileMgr.getOptionalFileRef(TopHeaderName))
         TopHeaders.insert(*FE);
-    }
     TopHeaderNames.clear();
   }
 
-  return llvm::makeArrayRef(TopHeaders.begin(), TopHeaders.end());
+  return llvm::ArrayRef(TopHeaders.begin(), TopHeaders.end());
 }
 
 bool Module::directlyUses(const Module *Requested) {
@@ -278,8 +295,13 @@ bool Module::directlyUses(const Module *Requested) {
     if (Requested->isSubModuleOf(Use))
       return true;
 
-  // Anyone is allowed to use our builtin stddef.h and its accompanying module.
-  if (!Requested->Parent && Requested->Name == "_Builtin_stddef_max_align_t")
+  // Anyone is allowed to use our builtin stddef.h and its accompanying modules.
+  if (Requested->fullModuleNameIs({"_Builtin_stddef", "max_align_t"}) ||
+      Requested->fullModuleNameIs({"_Builtin_stddef_wint_t"}))
+    return true;
+  // Darwin is allowed is to use our builtin 'ptrauth.h' and its accompanying
+  // module.
+  if (!Requested->Parent && Requested->Name == "ptrauth")
     return true;
 
   if (NoUndeclaredIncludes)
@@ -291,7 +313,7 @@ bool Module::directlyUses(const Module *Requested) {
 void Module::addRequirement(StringRef Feature, bool RequiredState,
                             const LangOptions &LangOpts,
                             const TargetInfo &Target) {
-  Requirements.push_back(Requirement(std::string(Feature), RequiredState));
+  Requirements.push_back(Requirement{std::string(Feature), RequiredState});
 
   // If this feature is currently available, we're done.
   if (hasFeature(Feature, LangOpts, Target) == RequiredState)
@@ -311,44 +333,51 @@ void Module::markUnavailable(bool Unimportable) {
   SmallVector<Module *, 2> Stack;
   Stack.push_back(this);
   while (!Stack.empty()) {
-    Module *Current = Stack.back();
-    Stack.pop_back();
+    Module *Current = Stack.pop_back_val();
 
     if (!needUpdate(Current))
       continue;
 
     Current->IsAvailable = false;
     Current->IsUnimportable |= Unimportable;
-    for (submodule_iterator Sub = Current->submodule_begin(),
-                         SubEnd = Current->submodule_end();
-         Sub != SubEnd; ++Sub) {
-      if (needUpdate(*Sub))
-        Stack.push_back(*Sub);
+    for (auto *Submodule : Current->submodules()) {
+      if (needUpdate(Submodule))
+        Stack.push_back(Submodule);
     }
   }
 }
 
 Module *Module::findSubmodule(StringRef Name) const {
-  llvm::StringMap<unsigned>::const_iterator Pos = SubModuleIndex.find(Name);
-  if (Pos == SubModuleIndex.end())
-    return nullptr;
+  // Add new submodules into the index.
+  for (unsigned I = SubModuleIndex.size(), E = SubModules.size(); I != E; ++I)
+    SubModuleIndex[SubModules[I]->Name] = I;
 
-  return SubModules[Pos->getValue()];
+  if (auto It = SubModuleIndex.find(Name); It != SubModuleIndex.end())
+    return SubModules[It->second];
+
+  return nullptr;
 }
 
-Module *Module::findOrInferSubmodule(StringRef Name) {
-  llvm::StringMap<unsigned>::const_iterator Pos = SubModuleIndex.find(Name);
-  if (Pos != SubModuleIndex.end())
-    return SubModules[Pos->getValue()];
-  if (!InferSubmodules)
-    return nullptr;
-  Module *Result = new Module(Name, SourceLocation(), this, false, InferExplicitSubmodules, 0);
-  Result->InferExplicitSubmodules = InferExplicitSubmodules;
-  Result->InferSubmodules = InferSubmodules;
-  Result->InferExportWildcard = InferExportWildcard;
-  if (Result->InferExportWildcard)
-    Result->Exports.push_back(Module::ExportDecl(nullptr, true));
-  return Result;
+Module *Module::getGlobalModuleFragment() const {
+  assert(isNamedModuleUnit() && "We should only query the global module "
+                                "fragment from the C++20 Named modules");
+
+  for (auto *SubModule : SubModules)
+    if (SubModule->isExplicitGlobalModule())
+      return SubModule;
+
+  return nullptr;
+}
+
+Module *Module::getPrivateModuleFragment() const {
+  assert(isNamedModuleUnit() && "We should only query the private module "
+                                "fragment from the C++20 Named modules");
+
+  for (auto *SubModule : SubModules)
+    if (SubModule->isPrivateModule())
+      return SubModule;
+
+  return nullptr;
 }
 
 void Module::getExportedModules(SmallVectorImpl<Module *> &Exported) const {
@@ -456,22 +485,22 @@ void Module::print(raw_ostream &OS, unsigned Indent, bool Dump) const {
     for (unsigned I = 0, N = Requirements.size(); I != N; ++I) {
       if (I)
         OS << ", ";
-      if (!Requirements[I].second)
+      if (!Requirements[I].RequiredState)
         OS << "!";
-      OS << Requirements[I].first;
+      OS << Requirements[I].FeatureName;
     }
     OS << "\n";
   }
 
-  if (Header H = getUmbrellaHeader()) {
+  if (std::optional<Header> H = getUmbrellaHeaderAsWritten()) {
     OS.indent(Indent + 2);
     OS << "umbrella header \"";
-    OS.write_escaped(H.NameAsWritten);
+    OS.write_escaped(H->NameAsWritten);
     OS << "\"\n";
-  } else if (DirectoryName D = getUmbrellaDir()) {
+  } else if (std::optional<DirectoryName> D = getUmbrellaDirAsWritten()) {
     OS.indent(Indent + 2);
     OS << "umbrella \"";
-    OS.write_escaped(D.NameAsWritten);
+    OS.write_escaped(D->NameAsWritten);
     OS << "\"\n";
   }
 
@@ -499,12 +528,12 @@ void Module::print(raw_ostream &OS, unsigned Indent, bool Dump) const {
 
   for (auto &K : Kinds) {
     assert(&K == &Kinds[K.Kind] && "kinds in wrong order");
-    for (auto &H : Headers[K.Kind]) {
+    for (auto &H : getHeaders(K.Kind)) {
       OS.indent(Indent + 2);
       OS << K.Prefix << "header \"";
       OS.write_escaped(H.NameAsWritten);
-      OS << "\" { size " << H.Entry->getSize()
-         << " mtime " << H.Entry->getModificationTime() << " }\n";
+      OS << "\" { size " << H.Entry.getSize()
+         << " mtime " << H.Entry.getModificationTime() << " }\n";
     }
   }
   for (auto *Unresolved : {&UnresolvedHeaders, &MissingHeaders}) {
@@ -530,14 +559,13 @@ void Module::print(raw_ostream &OS, unsigned Indent, bool Dump) const {
     OS << "export_as" << ExportAsModule << "\n";
   }
 
-  for (submodule_const_iterator MI = submodule_begin(), MIEnd = submodule_end();
-       MI != MIEnd; ++MI)
+  for (auto *Submodule : submodules())
     // Print inferred subframework modules so that we don't need to re-infer
     // them (requires expensive directory iteration + stat calls) when we build
     // the module. Regular inferred submodules are OK, as we need to look at all
     // those header files anyway.
-    if (!(*MI)->IsInferred || (*MI)->IsFramework)
-      (*MI)->print(OS, Indent + 2, Dump);
+    if (!Submodule->IsInferred || Submodule->IsFramework)
+      Submodule->print(OS, Indent + 2, Dump);
 
   for (unsigned I = 0, N = Exports.size(); I != N; ++I) {
     OS.indent(Indent + 2);
@@ -632,8 +660,11 @@ LLVM_DUMP_METHOD void Module::dump() const {
 }
 
 void VisibleModuleSet::setVisible(Module *M, SourceLocation Loc,
-                                  VisibleCallback Vis, ConflictCallback Cb) {
-  assert(Loc.isValid() && "setVisible expects a valid import location");
+                                  bool IncludeExports, VisibleCallback Vis,
+                                  ConflictCallback Cb) {
+  // We can't import a global module fragment so the location can be invalid.
+  assert((M->isGlobalModule() || Loc.isValid()) &&
+         "setVisible expects a valid import location");
   if (isVisible(M))
     return;
 
@@ -653,15 +684,17 @@ void VisibleModuleSet::setVisible(Module *M, SourceLocation Loc,
       return;
 
     ImportLocs[ID] = Loc;
-    Vis(M);
+    Vis(V.M);
 
     // Make any exported modules visible.
-    SmallVector<Module *, 16> Exports;
-    V.M->getExportedModules(Exports);
-    for (Module *E : Exports) {
-      // Don't import non-importable modules.
-      if (!E->isUnimportable())
-        VisitModule({E, &V});
+    if (IncludeExports) {
+      SmallVector<Module *, 16> Exports;
+      V.M->getExportedModules(Exports);
+      for (Module *E : Exports) {
+        // Don't import non-importable modules.
+        if (!E->isUnimportable())
+          VisitModule({E, &V});
+      }
     }
 
     for (auto &C : V.M->Conflicts) {
@@ -674,19 +707,4 @@ void VisibleModuleSet::setVisible(Module *M, SourceLocation Loc,
     }
   };
   VisitModule({M, nullptr});
-}
-
-ASTSourceDescriptor::ASTSourceDescriptor(Module &M)
-    : Signature(M.Signature), ClangModule(&M) {
-  if (M.Directory)
-    Path = M.Directory->getName();
-  if (auto File = M.getASTFile())
-    ASTFile = File->getName();
-}
-
-std::string ASTSourceDescriptor::getModuleName() const {
-  if (ClangModule)
-    return ClangModule->Name;
-  else
-    return std::string(PCHModuleName);
 }

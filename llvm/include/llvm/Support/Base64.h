@@ -13,6 +13,7 @@
 #ifndef LLVM_SUPPORT_BASE64_H
 #define LLVM_SUPPORT_BASE64_H
 
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -57,6 +58,9 @@ template <class InputBytes> std::string encodeBase64(InputBytes const &Bytes) {
   return Buffer;
 }
 
+LLVM_ABI llvm::Error decodeBase64(llvm::StringRef Input,
+                                  std::vector<char> &Output);
+
 // General-purpose Base64 encoder/decoder.
 // TODO update WinCOFFObjectWriter.cpp to use this library.
 class Base64 {
@@ -80,8 +84,8 @@ public:
   // Allocate minimum required amount of memory and decode a sequence of given
   // size into it.
   // Returns the decoded result. The size can be obtained via getDecodedSize.
-  static Expected<std::unique_ptr<byte>> decode(const char *Src,
-                                                size_t SrcSize);
+  static Expected<std::unique_ptr<byte[]>> decode(const char *Src,
+                                                  size_t SrcSize);
 };
 
 } // end namespace llvm

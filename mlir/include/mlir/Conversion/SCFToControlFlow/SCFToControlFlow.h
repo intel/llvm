@@ -1,4 +1,4 @@
-//===- ConvertSCFToControlFlow.h - Pass entrypoint --------------*- C++ -*-===//
+//===- SCFToControlFlow.h - SCF to ControlFlow Pass entrypoint --*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -15,16 +15,12 @@ namespace mlir {
 class Pass;
 class RewritePatternSet;
 
-#define GEN_PASS_DECL_SCFTOCONTROLFLOW
+#define GEN_PASS_DECL_SCFTOCONTROLFLOWPASS
 #include "mlir/Conversion/Passes.h.inc"
 
 /// Collect a set of patterns to convert SCF operations to CFG branch-based
 /// operations within the ControlFlow dialect.
 void populateSCFToControlFlowConversionPatterns(RewritePatternSet &patterns);
-
-/// Creates a pass to convert SCF operations to CFG branch-based operation in
-/// the ControlFlow dialect.
-std::unique_ptr<Pass> createConvertSCFToCFPass();
 
 } // namespace mlir
 

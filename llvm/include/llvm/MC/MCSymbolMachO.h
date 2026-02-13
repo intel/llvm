@@ -10,6 +10,7 @@
 
 #include "llvm/ADT/Twine.h"
 #include "llvm/MC/MCSymbol.h"
+#include "llvm/MC/MCSymbolTableEntry.h"
 
 namespace llvm {
 class MCSymbolMachO : public MCSymbol {
@@ -42,8 +43,13 @@ class MCSymbolMachO : public MCSymbol {
   };
 
 public:
-  MCSymbolMachO(const StringMapEntry<bool> *Name, bool isTemporary)
-      : MCSymbol(SymbolKindMachO, Name, isTemporary) {}
+  MCSymbolMachO(const MCSymbolTableEntry *Name, bool isTemporary)
+      : MCSymbol(Name, isTemporary) {}
+
+  bool isExternal() const { return IsExternal; }
+  void setExternal(bool Value) const { IsExternal = Value; }
+  bool isPrivateExtern() const { return IsPrivateExtern; }
+  void setPrivateExtern(bool Value) { IsPrivateExtern = Value; }
 
   // Reference type methods.
 
@@ -108,6 +114,18 @@ public:
     setFlags(Value & SF_DescFlagsMask);
   }
 
+  // Check whether a particular symbol is visible to the linker and is required
+  // in the symbol table, or whether it can be discarded by the assembler. This
+  // also effects whether the assembler treats the label as potentially defining
+  // a separate atom.
+  bool isSymbolLinkerVisible() const {
+    // Non-temporary labels should always be visible to the linker.
+    if (!isTemporary())
+      return true;
+
+    return isUsedInReloc();
+  }
+
   /// Get the encoded value of the flags as they will be emitted in to
   /// the MachO binary
   uint16_t getEncodedFlags(bool EncodeAsAltEntry) const {
@@ -115,12 +133,13 @@ public:
 
     // Common alignment is packed into the 'desc' bits.
     if (isCommon()) {
-      if (unsigned Align = getCommonAlignment()) {
-        unsigned Log2Size = Log2_32(Align);
-        assert((1U << Log2Size) == Align && "Invalid 'common' alignment!");
+      if (MaybeAlign MaybeAlignment = getCommonAlignment()) {
+        Align Alignment = *MaybeAlignment;
+        unsigned Log2Size = Log2(Alignment);
         if (Log2Size > 15)
           report_fatal_error("invalid 'common' alignment '" +
-                             Twine(Align) + "' for '" + getName() + "'",
+                                 Twine(Alignment.value()) + "' for '" +
+                                 getName() + "'",
                              false);
         Flags = (Flags & SF_CommonAlignmentMask) |
                 (Log2Size << SF_CommonAlignmentShift);
@@ -132,8 +151,6 @@ public:
 
     return Flags;
   }
-
-  static bool classof(const MCSymbol *S) { return S->isMachO(); }
 };
 }
 

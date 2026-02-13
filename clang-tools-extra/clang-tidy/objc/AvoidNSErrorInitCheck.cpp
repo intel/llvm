@@ -1,4 +1,4 @@
-//===--- AvoidNSErrorInitCheck.cpp - clang-tidy----------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,14 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "AvoidNSErrorInitCheck.h"
-#include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace objc {
+namespace clang::tidy::objc {
 
 void AvoidNSErrorInitCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(objcMessageExpr(hasSelector("init"),
@@ -31,6 +28,4 @@ void AvoidNSErrorInitCheck::check(const MatchFinder::MatchResult &Result) {
        "create a new NSError");
 }
 
-}  // namespace objc
-}  // namespace tidy
-}  // namespace clang
+} // namespace clang::tidy::objc

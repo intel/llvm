@@ -28,7 +28,6 @@ from lldbsuite.test import lldbutil
 
 
 class ZerothFrame(TestBase):
-
     def test(self):
         """
         Test that line information is recalculated properly for a frame when it moves
@@ -41,41 +40,36 @@ class ZerothFrame(TestBase):
         target = self.dbg.CreateTarget(exe)
         self.assertTrue(target, VALID_TARGET)
 
-        bp1_line = line_number('main.c', '// Set breakpoint 1 here')
-        bp2_line = line_number('main.c', '// Set breakpoint 2 here')
+        main_dot_c = lldb.SBFileSpec("main.c")
+        bp1 = target.BreakpointCreateBySourceRegex(
+            "// Set breakpoint 1 here", main_dot_c
+        )
+        bp2 = target.BreakpointCreateBySourceRegex(
+            "// Set breakpoint 2 here", main_dot_c
+        )
 
-        lldbutil.run_break_set_by_file_and_line(
-            self,
-            'main.c',
-            bp1_line,
-            num_expected_locations=1)
-        lldbutil.run_break_set_by_file_and_line(
-            self,
-            'main.c',
-            bp2_line,
-            num_expected_locations=1)
-
-        process = target.LaunchSimple(
-            None, None, self.get_process_working_directory())
+        process = target.LaunchSimple(None, None, self.get_process_working_directory())
         self.assertTrue(process, VALID_PROCESS)
 
-        thread = process.GetThreadAtIndex(0)
+        thread = self.thread()
+
         if self.TraceOn():
             print("Backtrace at the first breakpoint:")
             for f in thread.frames:
                 print(f)
+
         # Check that we have stopped at correct breakpoint.
         self.assertEqual(
-            process.GetThreadAtIndex(0).frame[0].GetLineEntry().GetLine(),
-            bp1_line,
-            "LLDB reported incorrect line number.")
+            thread.frame[0].GetLineEntry().GetLine(),
+            bp1.GetLocationAtIndex(0).GetAddress().GetLineEntry().GetLine(),
+            "LLDB reported incorrect line number.",
+        )
 
         # Important to use SBProcess::Continue() instead of
         # self.runCmd('continue'), because the problem doesn't reproduce with
         # 'continue' command.
         process.Continue()
 
-        thread = process.GetThreadAtIndex(0)
         if self.TraceOn():
             print("Backtrace at the second breakpoint:")
             for f in thread.frames:
@@ -83,10 +77,12 @@ class ZerothFrame(TestBase):
         # Check that we have stopped at the breakpoint
         self.assertEqual(
             thread.frame[0].GetLineEntry().GetLine(),
-            bp2_line,
-            "LLDB reported incorrect line number.")
+            bp2.GetLocationAtIndex(0).GetAddress().GetLineEntry().GetLine(),
+            "LLDB reported incorrect line number.",
+        )
         # Double-check with GetPCAddress()
         self.assertEqual(
             thread.frame[0].GetLineEntry().GetLine(),
             thread.frame[0].GetPCAddress().GetLineEntry().GetLine(),
-            "LLDB reported incorrect line number.")
+            "LLDB reported incorrect line number.",
+        )

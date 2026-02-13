@@ -8,20 +8,22 @@ target triple = "spir-unknown-unknown"
 @.str = internal unnamed_addr addrspace(2) constant [11 x i8] c"Value: %p\0A\00", align 1
 
 
-; CHECK-DAG: 4 TypeInt [[INT:[0-9]+]] 32 0
-; CHECK-DAG: 4 TypeInt [[CHAR:[0-9]+]] 8 0
-; CHECK-DAG: 4 TypePointer [[INTPTR:[0-9]+]] 7 [[INT]]
-; CHECK-DAG: 4 TypePointer [[CHARPTR:[0-9]+]] 0 [[CHAR]]
-; CHECK: 5 Variable {{[0-9]+}} [[STR:[0-9]+]] 0
-; CHECK: 4 Variable [[INTPTR]] [[IPTR:[0-9]+]] 7
-; CHECK: 4 Bitcast [[CHARPTR]] [[I8STR:[0-9]+]] [[STR]]
-; CHECK: 7 ExtInst [[INT]] {{[0-9]+}} {{[0-9]+}} printf [[I8STR]] [[IPTR]]
+; CHECK-DAG: TypeInt [[INT:[0-9]+]] 32 0
+; CHECK-DAG: TypeInt [[CHAR:[0-9]+]] 8 0
+; CHECK-DAG: TypePointer [[INTPTR:[0-9]+]] 7 [[INT]]
+; CHECK-DAG: TypePointer [[CHARPTR:[0-9]+]] 0 [[CHAR]]
+; CHECK-DAG: TypePointer [[CHARPTR2:[0-9]+]] 7 [[CHAR]]
+; CHECK: Variable {{[0-9]+}} [[STR:[0-9]+]] 0
+; CHECK: Variable [[INTPTR]] [[IPTR:[0-9]+]] 7
+; CHECK: Bitcast [[CHARPTR]] [[I8STR:[0-9]+]] [[STR]]
+; CHECK: Bitcast [[CHARPTR2]] [[VAR8:[0-9]+]] [[IPTR]]
+; CHECK: ExtInst [[INT]] {{[0-9]+}} {{[0-9]+}} printf [[I8STR]] [[VAR8]]
 
 ; Function Attrs: nounwind
 define spir_kernel void @foo() {
   %iptr = alloca i32, align 4
-  %res = call spir_func i32 (ptr addrspace(2), ...) @_Z18__spirv_ocl_printfPU3AS2c(ptr addrspace(2) @.str, ptr %iptr)
+  %res = call spir_func i32 (ptr addrspace(2), ...) @_Z18__spirv_ocl_printfPU3AS2cz(ptr addrspace(2) @.str, ptr %iptr)
   ret void
 }
 
-declare spir_func i32 @_Z18__spirv_ocl_printfPU3AS2c(ptr addrspace(2), ...)
+declare spir_func i32 @_Z18__spirv_ocl_printfPU3AS2cz(ptr addrspace(2), ...)

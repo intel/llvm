@@ -20,6 +20,7 @@ COMMANDS
 * :ref:`merge <profdata-merge>`
 * :ref:`show <profdata-show>`
 * :ref:`overlap <profdata-overlap>`
+* :ref:`order <profdata-order>`
 
 .. program:: llvm-profdata merge
 
@@ -161,6 +162,18 @@ OPTIONS
  coverage for the optimized target. This option can only be used with
  sample-based profile in extbinary format.
 
+.. option:: --split-layout=[true|false]
+
+ Split the profile data section to two with one containing sample profiles with
+ inlined functions and the other not. This option can only be used with
+ sample-based profile in extbinary format.
+
+.. option:: --convert-sample-profile-layout=[nest|flat]
+
+ Convert the merged profile into a profile with a new layout. Supported
+ layout are ``nest`` (Nested profile, the input should be CS flat profile) and
+ ``flat`` (Profile with nested inlinees flattened out).
+
 .. option:: --supplement-instr-with-sample=<file>
 
  Supplement an instrumentation profile with sample profile. The sample profile
@@ -188,9 +201,56 @@ OPTIONS
 .. option:: --debug-info=<path>
 
  Specify the executable or ``.dSYM`` that contains debug info for the raw profile.
- When ``-debug-info-correlate`` was used for instrumentation, use this option
- to correlate the raw profile.
+ When ``--debug-info-correlate`` or ``--profile-correlate=debug-info`` was used 
+ for instrumentation, use this option to correlate the raw profile.
 
+.. option:: --binary-file=<path>
+
+ Specify the executable that contains profile data and profile name sections for
+ the raw profile. When ``-profile-correlate=binary`` was used for
+ instrumentation, use this option to correlate the raw profile.
+
+.. option:: --debuginfod
+
+ Use debuginfod to find the associated executables that contain profile data and
+ name sections for the raw profiles to correlate them.
+ When -profile-correlate=binary was used for instrumentation, this option can be
+ used for correlation.
+
+.. option:: --debug-file-directory=<dir>
+
+ Use provided local directories to search for executables that contain profile
+ data and name sections for the raw profiles to correlate them.
+ When -profile-correlate=binary was used for instrumentation, this option can be
+ used for correlation.
+
+.. option:: --correlate=<kind>
+
+ Specify the correlation kind (debug_info or binary) to use when -debuginfod or
+ -debug-file-directory=<dir> option is provided.
+
+.. option:: --temporal-profile-trace-reservoir-size
+
+ The maximum number of temporal profile traces to be stored in the output
+ profile. If more traces are added, we will use reservoir sampling to select
+ which traces to keep. Note that changing this value between different merge
+ invocations on the same indexed profile could result in sample bias. The
+ default value is 100.
+
+.. option:: --temporal-profile-max-trace-length
+
+ The maximum number of functions in a single temporal profile trace. Longer
+ traces will be truncated. The default value is 1000.
+
+.. option:: --function=<string>
+
+ Only keep functions matching the regex in the output, all others are erased
+ from the profile.
+
+.. option:: --no-function=<string>
+
+ Remove functions matching the regex from the profile. If both --function and
+ --no-function are specified and a function matches both, it is removed.
 
 EXAMPLES
 ^^^^^^^^
@@ -245,9 +305,17 @@ OPTIONS
 
  Print details for every function.
 
+.. option:: --binary-ids
+
+ Print embedded binary ids in a profile.
+
 .. option:: --counts
 
  Print the counter values for the displayed functions.
+
+.. option:: --show-format=<text|json|yaml>
+
+ Emit output in the selected format if supported by the provided profile type.
 
 .. option:: --function=<string>
 
@@ -270,7 +338,7 @@ OPTIONS
 
  Instruct the profile dumper to show profile counts in the text format of the
  instrumentation-based profile data representation. By default, the profile
- information is dumped in a more human readable form (also in text) with
+ information is dumped in a more human-readable form (also in text) with
  annotations.
 
 .. option:: --topn=<n>
@@ -297,6 +365,10 @@ OPTIONS
  Only output names of functions whose max count value are below the cutoff
  value.
 
+.. option:: --profile-version
+
+ Print profile version.
+
 .. option:: --showcs
 
  Only show context sensitive profile counts. The default is to filter all
@@ -311,6 +383,18 @@ OPTIONS
 
  Show basic information about each section in the profile. This option is
  only meaningful for sample-based profile in extbinary format.
+
+.. option:: --debug-info=<path>
+
+ Specify the executable or ``.dSYM`` that contains debug info for the raw profile.
+ When ``--debug-info-correlate`` or ``--profile-correlate=debug-info`` was used
+ for instrumentation, use this option to show the correlated functions from the
+ raw profile.
+
+.. option:: --covered
+
+ Show only the functions that have been executed, i.e., functions with non-zero
+ counts.
 
 .. program:: llvm-profdata overlap
 
@@ -376,6 +460,40 @@ OPTIONS
 
  Only show overlap for the context sensitive profile counts. The default is to show
  non-context sensitive profile counts.
+
+.. program:: llvm-profdata order
+
+.. _profdata-order:
+
+ORDER
+-------
+
+SYNOPSIS
+^^^^^^^^
+
+:program:`llvm-profdata order` [*options*] [*filename*]
+
+DESCRIPTION
+^^^^^^^^^^^
+
+:program:`llvm-profdata order` uses temporal profiling traces from a profile and
+finds a function order that reduces the number of page faults for those traces.
+This output can be directly passed to ``lld`` via ``--symbol-ordering-file=``
+for ELF or ``-order-file`` for Mach-O. If the traces found in the profile are
+representative of the real world, then this order should improve startup
+performance.
+
+OPTIONS
+^^^^^^^
+
+.. option:: --help
+
+ Print a summary of command line options.
+
+.. option:: --output=<output>, -o
+
+ Specify the output file name.  If *output* is ``-`` or it isn't specified,
+ then the output is sent to standard output.
 
 EXIT STATUS
 -----------

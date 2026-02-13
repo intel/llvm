@@ -1,11 +1,16 @@
 add_llvm_component_library(LLVMGlobalISel
   CSEInfo.cpp
-  GISelKnownBits.cpp
+  GISelValueTracking.cpp
   CSEMIRBuilder.cpp
   CallLowering.cpp
   GlobalISel.cpp
   Combiner.cpp
   CombinerHelper.cpp
+  CombinerHelperArtifacts.cpp
+  CombinerHelperCasts.cpp
+  CombinerHelperCompares.cpp
+  CombinerHelperVectorOps.cpp
+  GIMatchTableExecutor.cpp
   GISelChangeObserver.cpp
   IRTranslator.cpp
   InlineAsmLowering.cpp
@@ -20,6 +25,7 @@ add_llvm_component_library(LLVMGlobalISel
   LoadStoreOpt.cpp
   Localizer.cpp
   LostDebugLocObserver.cpp
+  MachineFloatingPointPredicateUtils.cpp
   MachineIRBuilder.cpp
   RegBankSelect.cpp
   Utils.cpp
@@ -33,6 +39,7 @@ add_llvm_component_library(LLVMGlobalISel
   LINK_COMPONENTS
   Analysis
   CodeGen
+  CodeGenTypes
   Core
   MC
   SelectionDAG

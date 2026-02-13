@@ -234,7 +234,8 @@ enum DNBThreadStopType {
   eStopTypeInvalid = 0,
   eStopTypeSignal,
   eStopTypeException,
-  eStopTypeExec
+  eStopTypeExec,
+  eStopTypeWatchpoint
 };
 
 enum DNBMemoryPermissions {
@@ -264,6 +265,37 @@ struct DNBThreadStopInfo {
       nub_size_t data_count;
       nub_addr_t data[DNB_THREAD_STOP_INFO_MAX_EXC_DATA];
     } exception;
+
+    // eStopTypeWatchpoint
+    struct {
+      // The trigger address from the mach exception
+      // (likely the contents of the FAR register)
+      nub_addr_t mach_exception_addr;
+
+      // The trigger address, adjusted to be the start
+      // address of one of the existing watchpoints for
+      // lldb's benefit.
+      nub_addr_t addr;
+
+      // The watchpoint hardware index.
+      uint32_t hw_idx;
+
+      // If the esr_fields bitfields have been filled in.
+      bool esr_fields_set;
+      struct {
+        uint32_t
+            iss; // "ISS encoding for an exception from a Watchpoint exception"
+        uint32_t wpt;  // Watchpoint number
+        bool wptv;     // Watchpoint number Valid
+        bool wpf;      // Watchpoint might be false-positive
+        bool fnp;      // FAR not Precise
+        bool vncr;     // watchpoint from use of VNCR_EL2 reg by EL1
+        bool fnv;      // FAR not Valid
+        bool cm;       // Cache maintenance
+        bool wnr;      // Write not Read
+        uint32_t dfsc; // Data Fault Status Code
+      } esr_fields;
+    } watchpoint;
   } details;
 };
 
@@ -280,16 +312,21 @@ struct DNBRegisterValue {
     uint64_t uint64;
     float float32;
     double float64;
-    int8_t v_sint8[64];
-    int16_t v_sint16[32];
-    int32_t v_sint32[16];
-    int64_t v_sint64[8];
-    uint8_t v_uint8[64];
-    uint16_t v_uint16[32];
-    uint32_t v_uint32[16];
-    uint64_t v_uint64[8];
-    float v_float32[16];
-    double v_float64[8];
+    // AArch64 SME's ZA register max size is 64k, this object must be
+    // large enough to hold that much data.  The current Apple cores
+    // have a much smaller maximum ZA reg size, but there are not
+    // multiple copies of this object so increase the static size to
+    // maximum possible.
+    int8_t v_sint8[65536];
+    int16_t v_sint16[32768];
+    int32_t v_sint32[16384];
+    int64_t v_sint64[8192];
+    uint8_t v_uint8[65536];
+    uint16_t v_uint16[32768];
+    uint32_t v_uint32[16384];
+    uint64_t v_uint64[8192];
+    float v_float32[16384];
+    double v_float64[8192];
     void *pointer;
     char *c_str;
   } value;
@@ -321,10 +358,11 @@ struct DNBExecutableImageInfo {
 struct DNBRegionInfo {
 public:
   DNBRegionInfo()
-      : addr(0), size(0), permissions(0), dirty_pages(), vm_types() {}
+      : addr(0), size(0), permissions(0), flags(), dirty_pages(), vm_types() {}
   nub_addr_t addr;
   nub_addr_t size;
   uint32_t permissions;
+  std::vector<std::string> flags;
   std::vector<nub_addr_t> dirty_pages;
   std::vector<std::string> vm_types;
 };

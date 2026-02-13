@@ -11,14 +11,14 @@
 // RUN:       .R_ARM_THM_JUMP_callee_2 : { *(.R_ARM_THM_JUMP_callee_high) } \
 // RUN:       .got.plt 0x18b4 : {  }  } " > %t.script
 // RUN: ld.lld --script %t.script %t -o %t2
-// RUN: llvm-objdump -d --no-show-raw-insn %t2 | FileCheck --check-prefix=CHECK-THUMB --check-prefix=CHECK-ABS-THUMB %s
-// RUN: llvm-objdump -d --no-show-raw-insn --triple=armv7a-none-linux-gnueabi %t2 | FileCheck --check-prefix=CHECK-ARM --check-prefix=CHECK-ARM-ABS-ARM %s
+// RUN: llvm-objdump --no-print-imm-hex -d --no-show-raw-insn %t2 | FileCheck --check-prefix=CHECK-THUMB --check-prefix=CHECK-ABS-THUMB %s
+// RUN: llvm-objdump --no-print-imm-hex -d --no-show-raw-insn --triple=armv7a-none-linux-gnueabi %t2 | FileCheck --check-prefix=CHECK-ARM --check-prefix=CHECK-ARM-ABS-ARM %s
 // RUN: ld.lld --script %t.script %t -pie -o %t3
-// RUN: llvm-objdump -d --no-show-raw-insn %t3 | FileCheck --check-prefix=CHECK-THUMB --check-prefix=CHECK-PI-THUMB %s
-// RUN: llvm-objdump -d --no-show-raw-insn --triple=armv7a-none-linux-gnueabi %t3 | FileCheck --check-prefix=CHECK-ARM --check-prefix=CHECK-PI-ARM %s
+// RUN: llvm-objdump --no-print-imm-hex -d --no-show-raw-insn %t3 | FileCheck --check-prefix=CHECK-THUMB --check-prefix=CHECK-PI-THUMB %s
+// RUN: llvm-objdump --no-print-imm-hex -d --no-show-raw-insn --triple=armv7a-none-linux-gnueabi %t3 | FileCheck --check-prefix=CHECK-ARM --check-prefix=CHECK-PI-ARM %s
 // RUN: ld.lld --script %t.script %t --shared -o %t4
 // RUN: llvm-readobj -S -r %t4 | FileCheck -check-prefix=CHECK-DSO-REL %s
-// RUN: llvm-objdump -d --no-show-raw-insn --triple=armv7a-none-linux-gnueabi %t4 | FileCheck -check-prefix=CHECK-ARM-PLT %s
+// RUN: llvm-objdump --no-print-imm-hex -d --no-show-raw-insn --triple=armv7a-none-linux-gnueabi %t4 | FileCheck -check-prefix=CHECK-ARM-PLT %s
 /// Test ARM Thumb Interworking
 /// The file is linked and checked 3 times to check the following contexts
 /// - Absolute executables, absolute Thunks are used.
@@ -289,80 +289,62 @@ _start:
 
 // CHECK-ARM-PLT: Disassembly of section .plt:
 // CHECK-ARM-PLT-EMPTY:
-// CHECK-ARM-PLT-NEXT: 00001610 <$a>:
+// CHECK-ARM-PLT-NEXT: 00001610 <.plt>:
 // CHECK-ARM-PLT-NEXT:     1610:             str     lr, [sp, #-4]!
 // CHECK-ARM-PLT-NEXT:     1614:             add     lr, pc, #0, #12
 // CHECK-ARM-PLT-NEXT:     1618:             add     lr, lr, #0, #20
 // CHECK-ARM-PLT-NEXT:     161c:             ldr     pc, [lr, #672]!
-// CHECK-ARM-PLT-EMPTY:
-// CHECK-ARM-PLT-NEXT: 00001620 <$d>:
 // CHECK-ARM-PLT-NEXT:     1620:     d4 d4 d4 d4     .word   0xd4d4d4d4
 // CHECK-ARM-PLT-NEXT:     1624:     d4 d4 d4 d4     .word   0xd4d4d4d4
 // CHECK-ARM-PLT-NEXT:     1628:     d4 d4 d4 d4     .word   0xd4d4d4d4
 // CHECK-ARM-PLT-NEXT:     162c:     d4 d4 d4 d4     .word   0xd4d4d4d4
 // CHECK-ARM-PLT-EMPTY:
-// CHECK-ARM-PLT-NEXT: 00001630 <$a>:
+// CHECK-ARM-PLT-NEXT:     <thumb_callee1@plt>
 // CHECK-ARM-PLT-NEXT:     1630:             add     r12, pc, #0, #12
 // CHECK-ARM-PLT-NEXT:     1634:             add     r12, r12, #0, #20
 // CHECK-ARM-PLT-NEXT:     1638:             ldr     pc, [r12, #648]!
-// CHECK-ARM-PLT-EMPTY:
-// CHECK-ARM-PLT-NEXT: 0000163c <$d>:
 // CHECK-ARM-PLT-NEXT:     163c:     d4 d4 d4 d4     .word   0xd4d4d4d4
 // CHECK-ARM-PLT-EMPTY:
-// CHECK-ARM-PLT-NEXT: 00001640 <$a>:
+// CHECK-ARM-PLT-NEXT:     <arm_callee1@plt>
 // CHECK-ARM-PLT-NEXT:     1640:             add     r12, pc, #0, #12
 // CHECK-ARM-PLT-NEXT:     1644:             add     r12, r12, #0, #20
 // CHECK-ARM-PLT-NEXT:     1648:             ldr     pc, [r12, #636]!
-// CHECK-ARM-PLT-EMPTY:
-// CHECK-ARM-PLT-NEXT: 0000164c <$d>:
 // CHECK-ARM-PLT-NEXT:     164c:     d4 d4 d4 d4     .word   0xd4d4d4d4
 // CHECK-ARM-PLT-EMPTY:
-// CHECK-ARM-PLT-NEXT: 00001650 <$a>:
+// CHECK-ARM-PLT-NEXT:     <arm_caller@plt>
 // CHECK-ARM-PLT-NEXT:     1650:             add     r12, pc, #0, #12
 // CHECK-ARM-PLT-NEXT:     1654:             add     r12, r12, #0, #20
 // CHECK-ARM-PLT-NEXT:     1658:             ldr     pc, [r12, #624]!
-// CHECK-ARM-PLT-EMPTY:
-// CHECK-ARM-PLT-NEXT: 0000165c <$d>:
 // CHECK-ARM-PLT-NEXT:     165c:     d4 d4 d4 d4     .word   0xd4d4d4d4
 // CHECK-ARM-PLT-EMPTY:
-// CHECK-ARM-PLT-NEXT: 00001660 <$a>:
+// CHECK-ARM-PLT-NEXT:     <thumb_callee2@plt>
 // CHECK-ARM-PLT-NEXT:     1660:             add     r12, pc, #0, #12
 // CHECK-ARM-PLT-NEXT:     1664:             add     r12, r12, #0, #20
 // CHECK-ARM-PLT-NEXT:     1668:             ldr     pc, [r12, #612]!
-// CHECK-ARM-PLT-EMPTY:
-// CHECK-ARM-PLT-NEXT: 0000166c <$d>:
 // CHECK-ARM-PLT-NEXT:     166c:     d4 d4 d4 d4     .word   0xd4d4d4d4
 // CHECK-ARM-PLT-EMPTY:
-// CHECK-ARM-PLT-NEXT: 00001670 <$a>:
+// CHECK-ARM-PLT-NEXT:     <thumb_callee3@plt>
 // CHECK-ARM-PLT-NEXT:     1670:             add     r12, pc, #0, #12
 // CHECK-ARM-PLT-NEXT:     1674:             add     r12, r12, #0, #20
 // CHECK-ARM-PLT-NEXT:     1678:             ldr     pc, [r12, #600]!
-// CHECK-ARM-PLT-EMPTY:
-// CHECK-ARM-PLT-NEXT: 0000167c <$d>:
 // CHECK-ARM-PLT-NEXT:     167c:     d4 d4 d4 d4     .word   0xd4d4d4d4
 // CHECK-ARM-PLT-EMPTY:
-// CHECK-ARM-PLT-NEXT: 00001680 <$a>:
+// CHECK-ARM-PLT-NEXT:     <arm_callee2@plt>
 // CHECK-ARM-PLT-NEXT:     1680:             add     r12, pc, #0, #12
 // CHECK-ARM-PLT-NEXT:     1684:             add     r12, r12, #0, #20
 // CHECK-ARM-PLT-NEXT:     1688:             ldr     pc, [r12, #588]!
-// CHECK-ARM-PLT-EMPTY:
-// CHECK-ARM-PLT-NEXT: 0000168c <$d>:
 // CHECK-ARM-PLT-NEXT:     168c:     d4 d4 d4 d4     .word   0xd4d4d4d4
 // CHECK-ARM-PLT-EMPTY:
-// CHECK-ARM-PLT-NEXT: 00001690 <$a>:
+// CHECK-ARM-PLT-NEXT:     <arm_callee3@plt>
 // CHECK-ARM-PLT-NEXT:     1690:             add     r12, pc, #0, #12
 // CHECK-ARM-PLT-NEXT:     1694:             add     r12, r12, #0, #20
 // CHECK-ARM-PLT-NEXT:     1698:             ldr     pc, [r12, #576]!
-// CHECK-ARM-PLT-EMPTY:
-// CHECK-ARM-PLT-NEXT: 0000169c <$d>:
 // CHECK-ARM-PLT-NEXT:     169c:     d4 d4 d4 d4     .word   0xd4d4d4d4
 // CHECK-ARM-PLT-EMPTY:
-// CHECK-ARM-PLT-NEXT: 000016a0 <$a>:
+// CHECK-ARM-PLT-NEXT:     <thumb_caller@plt>
 // CHECK-ARM-PLT-NEXT:     16a0:             add     r12, pc, #0, #12
 // CHECK-ARM-PLT-NEXT:     16a4:             add     r12, r12, #0, #20
 // CHECK-ARM-PLT-NEXT:     16a8:             ldr     pc, [r12, #564]!
-// CHECK-ARM-PLT-EMPTY:
-// CHECK-ARM-PLT-NEXT: 000016ac <$d>:
 // CHECK-ARM-PLT-NEXT:     16ac:     d4 d4 d4 d4     .word   0xd4d4d4d4
 
 // CHECK-DSO-REL:      0x18C0 R_ARM_JUMP_SLOT thumb_callee1

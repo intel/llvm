@@ -1,4 +1,4 @@
-! RUN: bbc -emit-fir -outline-intrinsics %s -o - | FileCheck %s
+! RUN: bbc -emit-fir -hlfir=false -outline-intrinsics %s -o - | FileCheck %s
 
 ! Test statement function lowering
 
@@ -21,7 +21,7 @@ end function
 
 ! Check this is not lowered as a simple macro: e.g. argument is only
 ! evaluated once even if it appears in several placed inside the
-! statement function expression 
+! statement function expression
 ! CHECK-LABEL: func @_QPtest_stmt_only_eval_arg_once() -> f32
 real(4) function test_stmt_only_eval_arg_once()
   real(4) :: only_once, x1
@@ -66,7 +66,7 @@ real function test_stmt_1(x, a)
 
   ! CHECK-DAG: %[[res12:.*]] = fir.load %[[res1]]
   ! CHECK-DAG: %[[res22:.*]] = fir.load %[[res2]]
-  ! CHECK: = arith.addf %[[res12]], %[[res22]] : f32
+  ! CHECK: = arith.addf %[[res12]], %[[res22]] {{.*}}: f32
   test_stmt_1 = res1 + res2
   ! CHECK: return %{{.*}} : f32
 end function
@@ -92,9 +92,11 @@ integer function test_stmt_character(c, j)
   integer :: i, j, func, argj
   character(10) :: c, argc
   ! CHECK-DAG: %[[unboxed:.*]]:2 = fir.unboxchar %arg0 :
+  ! CHECK-DAG: %[[ref:.*]] = fir.convert %[[unboxed]]#0 : (!fir.ref<!fir.char<1,?>>) -> !fir.ref<!fir.char<1,10>>
   ! CHECK-DAG: %[[c10:.*]] = arith.constant 10 :
+  ! CHECK-DAG: %[[ref_cast:.*]] = fir.convert %[[ref]] : (!fir.ref<!fir.char<1,10>>) -> !fir.ref<!fir.char<1,?>>
   ! CHECK: %[[c10_cast:.*]] = fir.convert %[[c10]] : (i32) -> index
-  ! CHECK: %[[c:.*]] = fir.emboxchar %[[unboxed]]#0, %[[c10_cast]]
+  ! CHECK: %[[c:.*]] = fir.emboxchar %[[ref_cast]], %[[c10_cast]]
 
   func(argc, argj) = len_trim(argc, 4) + argj
   ! CHECK: addi %{{.*}}, %{{.*}} : i
@@ -115,7 +117,7 @@ integer function test_stmt_character_with_different_length(c)
   ! CHECK-DAG: %[[c10:.*]] = arith.constant 10 :
   ! CHECK: %[[c10_cast:.*]] = fir.convert %[[c10]] : (i32) -> index
   ! CHECK: %[[argc:.*]] = fir.emboxchar %[[unboxed]]#0, %[[c10_cast]]
-  ! CHECK: fir.call @_QPifoo(%[[argc]]) : (!fir.boxchar<1>) -> i32
+  ! CHECK: fir.call @_QPifoo(%[[argc]]) {{.*}}: (!fir.boxchar<1>) -> i32
   func(argc) = ifoo(argc)
   test_stmt_character = func(c)
 end function
@@ -127,13 +129,12 @@ integer function test_stmt_character_with_different_length_2(c, n)
   character(n) :: argc
   character(*) :: c
   ! CHECK: %[[unboxed:.*]]:2 = fir.unboxchar %[[arg0]] :
-  ! CHECK: fir.load %[[arg1]] : !fir.ref<i32>
   ! CHECK: %[[n:.*]] = fir.load %[[arg1]] : !fir.ref<i32>
   ! CHECK: %[[n_is_positive:.*]] = arith.cmpi sgt, %[[n]], %c0{{.*}} : i32
   ! CHECK: %[[len:.*]] = arith.select %[[n_is_positive]], %[[n]], %c0{{.*}} : i32
   ! CHECK: %[[lenCast:.*]] = fir.convert %[[len]] : (i32) -> index
   ! CHECK: %[[argc:.*]] = fir.emboxchar %[[unboxed]]#0, %[[lenCast]] : (!fir.ref<!fir.char<1,?>>, index) -> !fir.boxchar<1>
-  ! CHECK: fir.call @_QPifoo(%[[argc]]) : (!fir.boxchar<1>) -> i32
+  ! CHECK: fir.call @_QPifoo(%[[argc]]) {{.*}}: (!fir.boxchar<1>) -> i32
   func(argc) = ifoo(argc)
   test_stmt_character = func(c)
 end function
@@ -157,7 +158,7 @@ end subroutine
 
 ! CHECK-LABEL: @_QPtruncate_arg
 ! CHECK: %[[c4:.*]] = arith.constant 4 : i32
-! CHECK: %[[arg:.*]] = fir.address_of(@_QQcl.{{.*}}) : !fir.ref<!fir.char<1,10>>
+! CHECK: %[[arg:.*]] = fir.address_of(@_QQclX{{.*}}) : !fir.ref<!fir.char<1,10>>
 ! CHECK: %[[cast_arg:.*]] = fir.convert %[[arg]] : (!fir.ref<!fir.char<1,10>>) -> !fir.ref<!fir.char<1,?>>
 ! CHECK: %[[c10:.*]] = arith.constant 10 : i64
 ! CHECK: %[[temp:.*]] = fir.alloca !fir.char<1,10> {bindc_name = ".chrtmp"}
@@ -168,12 +169,12 @@ end subroutine
 ! CHECK: %[[c1:.*]] = arith.constant 1 : i64
 ! CHECK: %[[select_i64:.*]] = fir.convert %[[select]] : (index) -> i64
 ! CHECK: %[[length:.*]] = arith.muli %[[c1]], %[[select_i64]] : i64
-! CHECK: %[[cast_temp_i8:.*]] = fir.convert %[[temp]] : (!fir.ref<!fir.char<1,10>>) -> !fir.ref<i8>
-! CHECK: %[[cast_arg_i8:.*]] = fir.convert %[[cast_arg]] : (!fir.ref<!fir.char<1,?>>) -> !fir.ref<i8>
-! CHECK: fir.call @llvm.memmove.p0.p0.i64(%[[cast_temp_i8]], %[[cast_arg_i8]], %[[length]], %{{.*}}) : (!fir.ref<i8>, !fir.ref<i8>, i64, i1) -> ()
+! CHECK: %[[cast_temp_i8:.*]] = fir.convert %[[temp]] : (!fir.ref<!fir.char<1,10>>) -> !llvm.ptr
+! CHECK: %[[cast_arg_i8:.*]] = fir.convert %[[cast_arg]] : (!fir.ref<!fir.char<1,?>>) -> !llvm.ptr
+! CHECK: "llvm.intr.memmove"(%[[cast_temp_i8]], %[[cast_arg_i8]], %[[length]]) <{isVolatile = false}> : (!llvm.ptr, !llvm.ptr, i64) -> ()
 ! CHECK: %[[c1_i64:.*]] = arith.constant 1 : i64
 ! CHECK: %[[ub:.*]] = arith.subi %[[c10]], %[[c1_i64]] : i64
 ! CHECK: %[[ub_index:.*]] = fir.convert %[[ub]] : (i64) -> index
 ! CHECK: fir.do_loop %{{.*}} = %[[select]] to %[[ub_index]] step %{{.*}} {
 ! CHECK: %[[cast_temp:.*]] = fir.convert %[[temp:.*]] : (!fir.ref<!fir.char<1,10>>) -> !fir.ref<i8>
-! CHECK: %{{.*}} = fir.call @_FortranAioOutputAscii(%{{.*}}, %[[cast_temp]], %[[c10]]) : (!fir.ref<i8>, !fir.ref<i8>, i64) -> i1
+! CHECK: %{{.*}} = fir.call @_FortranAioOutputAscii(%{{.*}}, %[[cast_temp]], %[[c10]]) {{.*}}: (!fir.ref<i8>, !fir.ref<i8>, i64) -> i1

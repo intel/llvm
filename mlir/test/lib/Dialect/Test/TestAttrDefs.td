@@ -15,15 +15,21 @@
 
 // To get the test dialect definition.
 include "TestDialect.td"
+include "TestEnumDefs.td"
+include "mlir/Dialect/Ptr/IR/MemorySpaceInterfaces.td"
+include "mlir/Dialect/Utils/StructuredOpsUtils.td"
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/BuiltinAttributeInterfaces.td"
 include "mlir/IR/EnumAttr.td"
 include "mlir/IR/OpAsmInterface.td"
-include "mlir/IR/SubElementInterfaces.td"
+include "mlir/IR/SymbolInterfaces.td"
+include "mlir/IR/TensorEncoding.td"
 
 // All of the attributes will extend this class.
 class Test_Attr<string name, list<Trait> traits = []>
     : AttrDef<Test_Dialect, name, traits>;
+
+class Test_LocAttr<string name> : LocationAttrDef<Test_Dialect, name, []>;
 
 def SimpleAttrA : Test_Attr<"SimpleA"> {
   let mnemonic = "smpla";
@@ -79,10 +85,17 @@ def AttrWithTrait : Test_Attr<"AttrWithTrait", [TestAttrTrait]> {
   let mnemonic = "attr_with_trait";
 }
 
+// An attribute of a list of decimal formatted integers in similar format to shapes.
+def TestDecimalShapeAttr : Test_Attr<"TestDecimalShape"> {
+  let mnemonic = "decimal_shape";
+
+  let parameters = (ins ArrayRefParameter<"int64_t">:$shape);
+
+  let hasCustomAssemblyFormat = 1;
+}
+
 // Test support for ElementsAttrInterface.
-def TestI64ElementsAttr : Test_Attr<"TestI64Elements", [
-    ElementsAttrInterface, TypedAttrInterface
-  ]> {
+def TestI64ElementsAttr : Test_Attr<"TestI64Elements", [ElementsAttrInterface]> {
   let mnemonic = "i64_elements";
   let parameters = (ins
     AttributeSelfTypeParameter<"", "::mlir::ShapedType">:$type,
@@ -118,10 +131,7 @@ def TestI64ElementsAttr : Test_Attr<"TestI64Elements", [
   let hasCustomAssemblyFormat = 1;
 }
 
-def TestSubElementsAccessAttr : Test_Attr<"TestSubElementsAccess", [
-    DeclareAttrInterfaceMethods<SubElementAttrInterface,
-        ["replaceImmediateSubElements"]>
-  ]> {
+def TestSubElementsAccessAttr : Test_Attr<"TestSubElementsAccess"> {
   let mnemonic = "sub_elements_access";
 
   let parameters = (ins
@@ -175,6 +185,13 @@ def TestParamFour : ArrayRefParameter<"int", ""> {
   let printer = "::printIntArray($_printer, $_self)";
 }
 
+
+def TestParamVector : ArrayRefParameter<"int", ""> {
+  let cppStorageType = "std::vector<int>";
+}
+
+def TestParamUnsigned : AttrParameter<"uint64_t", ""> {}
+
 def TestAttrWithFormat : Test_Attr<"TestAttrWithFormat"> {
   let parameters = (
     ins
@@ -182,6 +199,8 @@ def TestAttrWithFormat : Test_Attr<"TestAttrWithFormat"> {
     TestParamTwo:$two,
     "::mlir::IntegerAttr":$three,
     TestParamFour:$four,
+    TestParamUnsigned:$five,
+    TestParamVector:$six,
     // Array of another attribute.
     ArrayRefParameter<
       "AttrWithTypeBuilderAttr", // The parameter C++ type.
@@ -191,10 +210,28 @@ def TestAttrWithFormat : Test_Attr<"TestAttrWithFormat"> {
 
   let mnemonic = "attr_with_format";
   let assemblyFormat = [{
-    `<` $one `:` struct($two, $four) `:` $three `,`
+    `<` $one `:` struct($two, $four) `:` $three `:` $five `:` `[` $six `]` `,`
     `[` `` $arrayOfAttrWithTypeBuilderAttr `]` `>`
   }];
   let genVerifyDecl = 1;
+}
+
+def TestAttrWithOptionalSigned : Test_Attr<"TestAttrWithOptionalSigned"> {
+  let parameters = (ins OptionalParameter<"std::optional<int64_t>">:$value);
+  let assemblyFormat = "`<` $value `>`";
+  let mnemonic = "attr_with_optional_signed";
+}
+
+def TestAttrWithOptionalUnsigned : Test_Attr<"TestAttrWithOptionalUnsigned"> {
+  let parameters = (ins OptionalParameter<"std::optional<uint64_t>">:$value);
+  let assemblyFormat = "`<` $value `>`";
+  let mnemonic = "attr_with_optional_unsigned";
+}
+
+def TestAttrWithOptionalEnum : Test_Attr<"TestAttrWithOptionalEnum"> {
+  let parameters = (ins OptionalParameter<"std::optional<SimpleEnum>">:$value);
+  let assemblyFormat = "`<` $value `>`";
+  let mnemonic = "attr_with_optional_enum";
 }
 
 def TestAttrUgly : Test_Attr<"TestAttrUgly"> {
@@ -228,6 +265,14 @@ def TestAttrSelfTypeParameterFormat
   let assemblyFormat = "`<` $a `>`";
 }
 
+def TestAttrSelfTypeParameterStructFormat
+    : Test_Attr<"TestAttrSelfTypeParameterStructFormat", [TypedAttrInterface]> {
+  let parameters = (ins "int":$a, AttributeSelfTypeParameter<"">:$type);
+
+  let mnemonic = "attr_self_type_struct_format";
+  let assemblyFormat = "`<` struct(params) `>`";
+}
+
 // Test overridding attribute builders with a custom builder.
 def TestOverrideBuilderAttr : Test_Attr<"TestOverrideBuilder"> {
   let mnemonic = "override_builder";
@@ -235,16 +280,13 @@ def TestOverrideBuilderAttr : Test_Attr<"TestOverrideBuilder"> {
   let assemblyFormat = "`<` $a `>`";
 
   let skipDefaultBuilders = 1;
-  let genVerifyDecl = 1;
   let builders = [AttrBuilder<(ins "int":$a), [{
     return ::mlir::IntegerAttr::get(::mlir::IndexType::get($_ctxt), a);
   }], "::mlir::Attribute">];
 }
 
 // Test simple extern 1D vector using ElementsAttrInterface.
-def TestExtern1DI64ElementsAttr : Test_Attr<"TestExtern1DI64Elements", [
-    ElementsAttrInterface, TypedAttrInterface
-  ]> {
+def TestExtern1DI64ElementsAttr : Test_Attr<"TestExtern1DI64Elements", [ElementsAttrInterface]> {
   let mnemonic = "e1di64_elements";
   let parameters = (ins
     AttributeSelfTypeParameter<"", "::mlir::ShapedType">:$type,
@@ -278,17 +320,168 @@ def TestArrayOfInts : ArrayOfAttr<Test_Dialect, "ArrayOfInts",
     "array_of_ints", "int32_t">;
 
 // An array of enum attributes.
-def TestSimpleEnum : I32EnumAttr<"SimpleEnum", "", [
-    I32EnumAttrCase<"a", 0>,
-    I32EnumAttrCase<"b", 1>
-  ]> {
-  let genSpecializedAttr = 0;
-  let cppNamespace = "::test";
-}
 def TestSimpleEnumAttr : EnumAttr<Test_Dialect, TestSimpleEnum, "simple_enum"> {
   let assemblyFormat = "`` $value";
 }
 def TestArrayOfEnums : ArrayOfAttr<Test_Dialect, "ArrayOfEnums",
     "array_of_enums", "SimpleEnumAttr">;
+
+// Test custom directive as optional group anchor.
+def TestCustomAnchor : Test_Attr<"TestCustomAnchor"> {
+  let parameters = (ins "int":$a, OptionalParameter<"std::optional<int>">:$b);
+  let mnemonic = "custom_anchor";
+  let assemblyFormat = "`<` $a (`>`) : (`,` custom<TrueFalse>($b)^ `>`)?";
+}
+
+def Test_IteratorTypeEnum
+    : EnumAttr<Test_Dialect, IteratorType, "iterator_type"> {
+  let assemblyFormat = "`<` $value `>`";
+}
+
+def Test_IteratorTypeArrayAttr
+    : TypedArrayAttrBase<Test_IteratorTypeEnum,
+  "Iterator type should be an enum.">;
+
+def TestParamCopyCount : AttrParameter<"CopyCount", "", "const CopyCount &"> {}
+
+// Test overridding attribute builders with a custom builder.
+def TestCopyCount : Test_Attr<"TestCopyCount"> {
+  let mnemonic = "copy_count";
+  let parameters = (ins TestParamCopyCount:$copy_count);
+  let assemblyFormat = "`<` $copy_count `>`";
+  let genVerifyDecl = 1;
+}
+
+def TestConditionalAliasAttr : Test_Attr<"TestConditionalAlias"> {
+  let mnemonic = "conditional_alias";
+  let parameters = (ins "mlir::StringAttr":$value);
+  let assemblyFormat = [{
+    `<` custom<ConditionalAlias>($value) `>`
+  }];
+}
+
+def TestNestedAliasAttr : Test_Attr<"TestNestedAlias"> {
+  let mnemonic = "nested_alias";
+  let parameters = (ins "mlir::StringAttr":$value, OptionalParameter<"TestNestedAliasAttr">:$nested);
+  let assemblyFormat = [{
+    `<` $value (`,` $nested^)? `>`
+  }];
+}
+
+// Test AsmParser::parseFloat(const fltSemnatics&, APFloat&) API through the
+// custom parser and printer.
+def TestCustomFloatAttr : Test_Attr<"TestCustomFloat"> {
+  let mnemonic = "custom_float";
+  let parameters = (ins "mlir::StringAttr":$type_str, APFloatParameter<"">:$value);
+
+  let assemblyFormat = [{
+    `<` custom<CustomFloatAttr>($type_str, $value) `>`
+  }];
+}
+
+// Test `struct` with nested `custom` assembly format.
+def TestCustomStructAttr : Test_Attr<"TestCustomStruct"> {
+  let mnemonic = "custom_struct";
+  let parameters = (ins "mlir::StringAttr":$type_str, "int64_t":$value,
+                        OptionalParameter<"mlir::ArrayAttr">:$opt_value);
+  let assemblyFormat = [{
+    `<` struct($type_str, custom<CustomStructAttr>($value), custom<CustomOptStructFieldAttr>($opt_value)) `>`
+  }];
+}
+
+// Test a ptr constant memory space.
+def TestConstMemorySpaceAttr : Test_Attr<"TestConstMemorySpace", [
+    DeclareAttrInterfaceMethods<MemorySpaceAttrInterface>
+  ]> {
+  let mnemonic = "const_memory_space";
+  let parameters = (ins DefaultValuedParameter<"unsigned", "0">:$addressSpace);
+  let assemblyFormat = "(`<` $addressSpace^ `>`)?";
+}
+
+// Test custom location handling.
+def TestCustomLocationAttr : Test_LocAttr<"TestCustomLocation"> {
+  let mnemonic = "custom_location";
+  let parameters = (ins "mlir::StringAttr":$file, "unsigned":$line);
+
+  // Choose a silly separator token so we know it's hitting this code path
+  // and not another.
+  let assemblyFormat = "`<` $file `*` $line `>`";
+}
+
+// Test OpAsmAttrInterface.
+def TestOpAsmAttrInterfaceAttr : Test_Attr<"TestOpAsmAttrInterface",
+    [DeclareAttrInterfaceMethods<OpAsmAttrInterface, ["getAlias"]>]> {
+  let mnemonic = "op_asm_attr_interface";
+  let parameters = (ins "mlir::StringAttr":$value);
+  let assemblyFormat = [{
+    `<` struct(params) `>`
+  }];
+}
+
+// Test OpAsmAttrInterface from tablegen genMnemonicAlias option.
+def TestOpAsmAttrInterfaceTablegenDefaultAttr : Test_Attr<"TestOpAsmAttrInterfaceTablegenDefault"> {
+  let mnemonic = "op_asm_attr_interface_tablegen_default";
+  let parameters = (ins "mlir::StringAttr":$value);
+  let assemblyFormat = [{
+    `<` struct(params) `>`
+  }];
+
+  let genMnemonicAlias = 1;
+}
+
+// Test attribute containing a slash token
+def SlashAttr: Test_Attr<"Slash">{
+  let mnemonic = "slash_attr";
+
+  let parameters = (
+    ins
+    "int":$lhs,
+    "int":$rhs
+  );
+
+  let hasCustomAssemblyFormat = 1;
+}
+
+def TestCustomStorageCtorAttr : Test_Attr<"TestCustomStorageCtorAttr"> {
+    let mnemonic = "custom_storage_ctor_attr";
+    let parameters = (ins "int":$value);
+    let assemblyFormat = "`<` $value `>`";
+    let hasStorageCustomConstructor = 1;
+}
+
+def TestTensorEncodingAttr : Test_Attr<"TestTensorEncoding",
+    [DeclareAttrInterfaceMethods<VerifiableTensorEncoding>]> {
+  let mnemonic = "tensor_encoding";
+
+  let parameters = (ins "mlir::StringAttr":$dummy);
+  let assemblyFormat = "`<` $dummy `>`";
+}
+
+def TestMemRefLayoutAttr : Test_Attr<"TestMemRefLayout",
+    [DeclareAttrInterfaceMethods<MemRefLayoutAttrInterface>]> {
+  let mnemonic = "memref_layout";
+
+  let parameters = (ins "mlir::StringAttr":$dummy);
+  let assemblyFormat = "`<` $dummy `>`";
+}
+
+// Test attribute that implements SymbolUserAttrInterface.
+def TestSymbolRefAttr : Test_Attr<"TestSymbolRef",
+    [DeclareAttrInterfaceMethods<SymbolUserAttrInterface>]> {
+  let mnemonic = "symbol_ref_attr";
+  let summary = "Test attribute that references a symbol";
+  let description = [{
+    This attribute holds a reference to a symbol and implements
+    SymbolUserAttrInterface to verify that the referenced symbol exists.
+  }];
+  let parameters = (ins "::mlir::FlatSymbolRefAttr":$symbol);
+  let assemblyFormat = "`<` $symbol `>`";
+}
+
+def TestAttrNewlineAndIndent : Test_Attr<"TestAttrNewlineAndIndent"> {
+  let mnemonic = "newline_and_indent";
+  let parameters = (ins "::mlir::Type":$indentType);
+  let hasCustomAssemblyFormat = 1;
+}
 
 #endif // TEST_ATTRDEFS

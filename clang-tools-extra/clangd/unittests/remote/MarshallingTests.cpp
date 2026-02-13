@@ -223,6 +223,7 @@ TEST(RemoteMarshallingTest, RefSerialization) {
   Location.FileURI = testPathURI(
       "llvm-project/llvm/clang-tools-extra/clangd/Protocol.h", Strings);
   Ref.Location = Location;
+  Ref.Container = llvm::cantFail(SymbolID::fromStr("0000000000000001"));
 
   Marshaller ProtobufMarshaller(testPath("llvm-project/"),
                                 testPath("llvm-project/"));
@@ -438,7 +439,7 @@ TEST(RemoteMarshallingTest, URIToRelativePathTranslation) {
   auto RelativePath = ProtobufMarshaller.uriToRelativePath(
       testPathURI("remote/project/lib/File.cpp", Strings));
   ASSERT_TRUE(bool(RelativePath));
-  // RemoteIndexRoot has to be be a prefix of the file path.
+  // RemoteIndexRoot has to be a prefix of the file path.
   Marshaller WrongMarshaller(
       /*RemoteIndexRoot=*/testPath("remote/other/project/"),
       /*LocalIndexRoot=*/"");

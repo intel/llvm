@@ -25,7 +25,7 @@ private:
   /// Constructor
   ///
   /// The constructor for the target list is private. Clients can
-  /// get ahold of of the one and only target list through the
+  /// get ahold of the one and only target list through the
   /// lldb_private::Debugger::GetSharedInstance().GetTargetList().
   ///
   /// \see static TargetList& lldb_private::Debugger::GetTargetList().
@@ -37,15 +37,14 @@ public:
 
   // These two functions fill out the Broadcaster interface:
 
-  static ConstString &GetStaticBroadcasterClass();
+  static llvm::StringRef GetStaticBroadcasterClass();
 
-  ConstString &GetBroadcasterClass() const override {
+  llvm::StringRef GetBroadcasterClass() const override {
     return GetStaticBroadcasterClass();
   }
 
   typedef std::vector<lldb::TargetSP> collection;
-  typedef LockingAdaptedIterable<collection, lldb::TargetSP, vector_adapter,
-                                 std::recursive_mutex>
+  typedef LockingAdaptedIterable<std::recursive_mutex, collection>
       TargetIterable;
 
   /// Create a new Target.
@@ -115,7 +114,7 @@ public:
   ///     in \a target_sp which can then be properly released.
   bool DeleteTarget(lldb::TargetSP &target_sp);
 
-  int GetNumTargets() const;
+  size_t GetNumTargets() const;
 
   lldb::TargetSP GetTargetAtIndex(uint32_t index) const;
 
@@ -160,6 +159,17 @@ public:
 
   lldb::TargetSP FindTargetWithProcess(lldb_private::Process *process) const;
 
+  /// Find the target that has a globally unique ID that matches ID \a id.
+  ///
+  /// \param[in] id
+  ///     The globally unique target ID to search our target list for.
+  ///
+  /// \return
+  ///     A shared pointer to a target object. The returned shared
+  ///     pointer will contain nullptr if no target objects has a
+  ///     matching target ID.
+  lldb::TargetSP FindTargetByGloballyUniqueID(lldb::user_id_t id) const;
+
   lldb::TargetSP GetTargetSP(Target *target) const;
 
   /// Send an async interrupt to one or all processes.
@@ -184,6 +194,12 @@ public:
   void SetSelectedTarget(const lldb::TargetSP &target);
 
   lldb::TargetSP GetSelectedTarget();
+  
+  ///  Returns whether any module, including ones in the process of being
+  ///  added, contains this module.  I don't want to give direct access to
+  ///  these not yet added target, but for interruption purposes, we might
+  ///  need to ask whether this target contains this module. 
+  bool AnyTargetContainsModule(Module &module);
 
   TargetIterable Targets() {
     return TargetIterable(m_target_list, m_target_list_mutex);
@@ -191,6 +207,7 @@ public:
 
 private:
   collection m_target_list;
+  std::unordered_set<lldb::TargetSP> m_in_process_target_list;
   mutable std::recursive_mutex m_target_list_mutex;
   uint32_t m_selected_target_idx;
 
@@ -199,6 +216,11 @@ private:
       llvm::StringRef triple_str, LoadDependentFiles load_dependent_files,
       const OptionGroupPlatform *platform_options, lldb::TargetSP &target_sp);
 
+  // Create Target Internal does not modify any state directly, and should not
+  // be called under the target list mutex. Instead any state changes should
+  // call into methods which themselves are protected by the target list mutex.
+  // We need to do this so the locate module call back doesn't cause a re-entry
+  // dead lock when creating the target.
   static Status CreateTargetInternal(Debugger &debugger,
                                      llvm::StringRef user_exe_path,
                                      const ArchSpec &arch,
@@ -206,6 +228,12 @@ private:
                                      lldb::PlatformSP &platform_sp,
                                      lldb::TargetSP &target_sp);
 
+  void RegisterInProcessTarget(lldb::TargetSP target_sp);
+  
+  void UnregisterInProcessTarget(lldb::TargetSP target_sp);
+  
+  bool IsTargetInProcess(lldb::TargetSP target_sp);
+  
   void AddTargetInternal(lldb::TargetSP target_sp, bool do_select);
 
   void SetSelectedTargetInternal(uint32_t index);

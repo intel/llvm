@@ -10,15 +10,14 @@
 #ifndef _LIBCPP___FORMAT_FORMATTER_POINTER_H
 #define _LIBCPP___FORMAT_FORMATTER_POINTER_H
 
-#include <__availability>
 #include <__config>
+#include <__cstddef/nullptr_t.h>
 #include <__format/concepts.h>
 #include <__format/format_parse_context.h>
 #include <__format/formatter.h>
 #include <__format/formatter_integral.h>
 #include <__format/formatter_output.h>
 #include <__format/parser_std_format_spec.h>
-#include <cstddef>
 #include <cstdint>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
@@ -27,24 +26,27 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 template <__fmt_char_type _CharT>
-struct _LIBCPP_TEMPLATE_VIS __formatter_pointer {
+struct __formatter_pointer {
 public:
-  constexpr __formatter_pointer() { __parser_.__alignment_ = __format_spec::__alignment::__right; }
-
-  _LIBCPP_HIDE_FROM_ABI constexpr auto
-  parse(basic_format_parse_context<_CharT>& __parse_ctx) -> decltype(__parse_ctx.begin()) {
-    auto __result = __parser_.__parse(__parse_ctx, __format_spec::__fields_pointer);
-    __format_spec::__process_display_type_pointer(__parser_.__type_);
+  template <class _ParseContext>
+  _LIBCPP_HIDE_FROM_ABI constexpr typename _ParseContext::iterator parse(_ParseContext& __ctx) {
+    typename _ParseContext::iterator __result = __parser_.__parse(__ctx, __format_spec::__fields_pointer);
+    __format_spec::__process_display_type_pointer(__parser_.__type_, "a pointer");
     return __result;
   }
 
-  _LIBCPP_HIDE_FROM_ABI auto format(const void* __ptr, auto& __ctx) const -> decltype(__ctx.out()) {
+  template <class _FormatContext>
+  _LIBCPP_HIDE_FROM_ABI typename _FormatContext::iterator format(const void* __ptr, _FormatContext& __ctx) const {
     __format_spec::__parsed_specifications<_CharT> __specs = __parser_.__get_parsed_std_specifications(__ctx);
     __specs.__std_.__alternate_form_                       = true;
-    __specs.__std_.__type_                                 = __format_spec::__type::__hexadecimal_lower_case;
+    __specs.__std_.__type_ =
+        __specs.__std_.__type_ == __format_spec::__type::__pointer_upper_case
+            ? __format_spec::__type::__hexadecimal_upper_case
+            : __format_spec::__type::__hexadecimal_lower_case;
+
     return __formatter::__format_integer(reinterpret_cast<uintptr_t>(__ptr), __ctx, __specs);
   }
 
@@ -57,16 +59,21 @@ public:
 // - template<> struct formatter<void*, charT>;
 // - template<> struct formatter<const void*, charT>;
 template <__fmt_char_type _CharT>
-struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT formatter<nullptr_t, _CharT>
-    : public __formatter_pointer<_CharT> {};
+struct formatter<nullptr_t, _CharT> : public __formatter_pointer<_CharT> {};
 template <__fmt_char_type _CharT>
-struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT formatter<void*, _CharT> : public __formatter_pointer<_CharT> {
-};
+struct formatter<void*, _CharT> : public __formatter_pointer<_CharT> {};
 template <__fmt_char_type _CharT>
-struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT formatter<const void*, _CharT>
-    : public __formatter_pointer<_CharT> {};
+struct formatter<const void*, _CharT> : public __formatter_pointer<_CharT> {};
 
-#endif //_LIBCPP_STD_VER > 17
+#  if _LIBCPP_STD_VER >= 23
+template <>
+inline constexpr bool enable_nonlocking_formatter_optimization<nullptr_t> = true;
+template <>
+inline constexpr bool enable_nonlocking_formatter_optimization<void*> = true;
+template <>
+inline constexpr bool enable_nonlocking_formatter_optimization<const void*> = true;
+#  endif // _LIBCPP_STD_VER >= 23
+#endif   // _LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

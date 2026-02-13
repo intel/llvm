@@ -7,12 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "MipsABIInfo.h"
-#include "MipsRegisterInfo.h"
+#include "Mips.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/MC/MCTargetOptions.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/LowLevelTypeImpl.h"
 
 using namespace llvm;
 
@@ -22,6 +20,10 @@ cl::opt<bool>
 EmitJalrReloc("mips-jalr-reloc", cl::Hidden,
               cl::desc("MIPS: Emit R_{MICRO}MIPS_JALR relocation with jalr"),
               cl::init(true));
+cl::opt<bool>
+    NoZeroDivCheck("mno-check-zero-division", cl::Hidden,
+                   cl::desc("MIPS: Don't trap on integer division by zero."),
+                   cl::init(false));
 
 namespace {
 static const MCPhysReg O32IntRegs[4] = {Mips::A0, Mips::A1, Mips::A2, Mips::A3};
@@ -33,17 +35,21 @@ static const MCPhysReg Mips64IntRegs[8] = {
 
 ArrayRef<MCPhysReg> MipsABIInfo::GetByValArgRegs() const {
   if (IsO32())
-    return makeArrayRef(O32IntRegs);
+    return ArrayRef(O32IntRegs);
   if (IsN32() || IsN64())
-    return makeArrayRef(Mips64IntRegs);
+    return ArrayRef(Mips64IntRegs);
   llvm_unreachable("Unhandled ABI");
 }
 
-ArrayRef<MCPhysReg> MipsABIInfo::GetVarArgRegs() const {
-  if (IsO32())
-    return makeArrayRef(O32IntRegs);
+ArrayRef<MCPhysReg> MipsABIInfo::getVarArgRegs(bool isGP64bit) const {
+  if (IsO32()) {
+    if (isGP64bit)
+      return ArrayRef(Mips64IntRegs);
+    else
+      return ArrayRef(O32IntRegs);
+  }
   if (IsN32() || IsN64())
-    return makeArrayRef(Mips64IntRegs);
+    return ArrayRef(Mips64IntRegs);
   llvm_unreachable("Unhandled ABI");
 }
 
@@ -55,17 +61,16 @@ unsigned MipsABIInfo::GetCalleeAllocdArgSizeInBytes(CallingConv::ID CC) const {
   llvm_unreachable("Unhandled ABI");
 }
 
-MipsABIInfo MipsABIInfo::computeTargetABI(const Triple &TT, StringRef CPU,
-                                          const MCTargetOptions &Options) {
-  if (Options.getABIName().startswith("o32"))
+MipsABIInfo MipsABIInfo::computeTargetABI(const Triple &TT, StringRef ABIName) {
+  if (ABIName.starts_with("o32"))
     return MipsABIInfo::O32();
-  if (Options.getABIName().startswith("n32"))
+  if (ABIName.starts_with("n32"))
     return MipsABIInfo::N32();
-  if (Options.getABIName().startswith("n64"))
+  if (ABIName.starts_with("n64"))
     return MipsABIInfo::N64();
-  if (TT.getEnvironment() == llvm::Triple::GNUABIN32)
+  if (TT.isABIN32())
     return MipsABIInfo::N32();
-  assert(Options.getABIName().empty() && "Unknown ABI option for MIPS");
+  assert(ABIName.empty() && "Unknown ABI option for MIPS");
 
   if (TT.isMIPS64())
     return MipsABIInfo::N64();
@@ -126,4 +131,3 @@ unsigned MipsABIInfo::GetEhDataReg(unsigned I) const {
 
   return IsN64() ? EhDataReg64[I] : EhDataReg[I];
 }
-

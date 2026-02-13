@@ -11,11 +11,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Analysis/SliceAnalysis.h"
-#include "mlir/IR/BuiltinOps.h"
+#include "mlir/Analysis/TopologicalSortUtils.h"
+#include "mlir/IR/Block.h"
 #include "mlir/IR/Operation.h"
+#include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Support/LLVM.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
-#include "llvm/ADT/SmallPtrSet.h"
 
 ///
 /// Implements Analysis functions specific to slicing in Function.
@@ -23,9 +25,10 @@
 
 using namespace mlir;
 
-static void getForwardSliceImpl(Operation *op,
-                                SetVector<Operation *> *forwardSlice,
-                                TransitiveFilter filter) {
+static void
+getForwardSliceImpl(Operation *op, DenseSet<Operation *> &visited,
+                    SetVector<Operation *> *forwardSlice,
+                    const SliceOptions::TransitiveFilter &filter = nullptr) {
   if (!op)
     return;
 
@@ -38,101 +41,170 @@ static void getForwardSliceImpl(Operation *op,
   for (Region &region : op->getRegions())
     for (Block &block : region)
       for (Operation &blockOp : block)
-        if (forwardSlice->count(&blockOp) == 0)
-          getForwardSliceImpl(&blockOp, forwardSlice, filter);
-  for (Value result : op->getResults()) {
-    for (Operation *userOp : result.getUsers())
-      if (forwardSlice->count(userOp) == 0)
-        getForwardSliceImpl(userOp, forwardSlice, filter);
-  }
+        if (forwardSlice->count(&blockOp) == 0) {
+          // We don't have to check if the 'blockOp' is already visited because
+          // there cannot be a traversal path from this nested op to the parent
+          // and thus a cycle cannot be closed here. We still have to mark it
+          // as visited to stop before visiting this operation again if it is
+          // part of a cycle.
+          visited.insert(&blockOp);
+          getForwardSliceImpl(&blockOp, visited, forwardSlice, filter);
+          visited.erase(&blockOp);
+        }
+
+  for (Value result : op->getResults())
+    for (Operation *userOp : result.getUsers()) {
+      // A cycle can only occur within a basic block (not across regions or
+      // basic blocks) because the parent region must be a graph region, graph
+      // regions are restricted to always have 0 or 1 blocks, and there cannot
+      // be a def-use edge from a nested operation to an operation in an
+      // ancestor region. Therefore, we don't have to but may use the same
+      // 'visited' set across regions/blocks as long as we remove operations
+      // from the set again when the DFS traverses back from the leaf to the
+      // root.
+      if (forwardSlice->count(userOp) == 0 && visited.insert(userOp).second)
+        getForwardSliceImpl(userOp, visited, forwardSlice, filter);
+
+      visited.erase(userOp);
+    }
 
   forwardSlice->insert(op);
 }
 
 void mlir::getForwardSlice(Operation *op, SetVector<Operation *> *forwardSlice,
-                           TransitiveFilter filter) {
-  getForwardSliceImpl(op, forwardSlice, filter);
-  // Don't insert the top level operation, we just queried on it and don't
-  // want it in the results.
-  forwardSlice->remove(op);
+                           const ForwardSliceOptions &options) {
+  DenseSet<Operation *> visited;
+  visited.insert(op);
+  getForwardSliceImpl(op, visited, forwardSlice, options.filter);
+  if (!options.inclusive) {
+    // Don't insert the top level operation, we just queried on it and don't
+    // want it in the results.
+    forwardSlice->remove(op);
+  }
 
   // Reverse to get back the actual topological order.
   // std::reverse does not work out of the box on SetVector and I want an
   // in-place swap based thing (the real std::reverse, not the LLVM adapter).
-  std::vector<Operation *> v(forwardSlice->takeVector());
+  SmallVector<Operation *, 0> v(forwardSlice->takeVector());
   forwardSlice->insert(v.rbegin(), v.rend());
 }
 
 void mlir::getForwardSlice(Value root, SetVector<Operation *> *forwardSlice,
-                           TransitiveFilter filter) {
-  for (Operation *user : root.getUsers())
-    getForwardSliceImpl(user, forwardSlice, filter);
+                           const SliceOptions &options) {
+  DenseSet<Operation *> visited;
+  for (Operation *user : root.getUsers()) {
+    visited.insert(user);
+    getForwardSliceImpl(user, visited, forwardSlice, options.filter);
+    visited.erase(user);
+  }
 
   // Reverse to get back the actual topological order.
   // std::reverse does not work out of the box on SetVector and I want an
   // in-place swap based thing (the real std::reverse, not the LLVM adapter).
-  std::vector<Operation *> v(forwardSlice->takeVector());
+  SmallVector<Operation *, 0> v(forwardSlice->takeVector());
   forwardSlice->insert(v.rbegin(), v.rend());
 }
 
-static void getBackwardSliceImpl(Operation *op,
-                                 SetVector<Operation *> *backwardSlice,
-                                 TransitiveFilter filter) {
-  if (!op || op->hasTrait<OpTrait::IsIsolatedFromAbove>())
-    return;
+static LogicalResult getBackwardSliceImpl(Operation *op,
+                                          DenseSet<Operation *> &visited,
+                                          SetVector<Operation *> *backwardSlice,
+                                          const BackwardSliceOptions &options) {
+  if (!op)
+    return success();
 
   // Evaluate whether we should keep this def.
   // This is useful in particular to implement scoping; i.e. return the
   // transitive backwardSlice in the current scope.
-  if (filter && !filter(op))
-    return;
+  if (options.filter && !options.filter(op))
+    return success();
 
-  for (const auto &en : llvm::enumerate(op->getOperands())) {
-    auto operand = en.value();
-    if (auto *definingOp = operand.getDefiningOp()) {
-      if (backwardSlice->count(definingOp) == 0)
-        getBackwardSliceImpl(definingOp, backwardSlice, filter);
-    } else if (auto blockArg = operand.dyn_cast<BlockArgument>()) {
+  auto processValue = [&](Value value) {
+    if (auto *definingOp = value.getDefiningOp()) {
+      if (backwardSlice->count(definingOp) == 0 &&
+          visited.insert(definingOp).second)
+        return getBackwardSliceImpl(definingOp, visited, backwardSlice,
+                                    options);
+
+      visited.erase(definingOp);
+    } else if (auto blockArg = dyn_cast<BlockArgument>(value)) {
+      if (options.omitBlockArguments)
+        return success();
+
       Block *block = blockArg.getOwner();
       Operation *parentOp = block->getParentOp();
       // TODO: determine whether we want to recurse backward into the other
       // blocks of parentOp, which are not technically backward unless they flow
       // into us. For now, just bail.
-      assert(parentOp->getNumRegions() == 1 &&
-             parentOp->getRegion(0).getBlocks().size() == 1);
-      if (backwardSlice->count(parentOp) == 0)
-        getBackwardSliceImpl(parentOp, backwardSlice, filter);
+      if (parentOp && backwardSlice->count(parentOp) == 0) {
+        if (!parentOp->hasTrait<OpTrait::IsIsolatedFromAbove>() &&
+            parentOp->getNumRegions() == 1 &&
+            parentOp->getRegion(0).hasOneBlock()) {
+          return getBackwardSliceImpl(parentOp, visited, backwardSlice,
+                                      options);
+        }
+      }
     } else {
-      llvm_unreachable("No definingOp and not a block argument.");
+      return failure();
     }
+    return success();
+  };
+
+  bool succeeded = true;
+
+  if (!options.omitUsesFromAbove &&
+      !op->hasTrait<OpTrait::IsIsolatedFromAbove>()) {
+    llvm::for_each(op->getRegions(), [&](Region &region) {
+      // Walk this region recursively to collect the regions that descend from
+      // this op's nested regions (inclusive).
+      SmallPtrSet<Region *, 4> descendents;
+      region.walk(
+          [&](Region *childRegion) { descendents.insert(childRegion); });
+      region.walk([&](Operation *op) {
+        for (OpOperand &operand : op->getOpOperands()) {
+          if (!descendents.contains(operand.get().getParentRegion()))
+            if (!processValue(operand.get()).succeeded()) {
+              return WalkResult::interrupt();
+            }
+        }
+        return WalkResult::advance();
+      });
+    });
   }
+  llvm::for_each(op->getOperands(), processValue);
 
   backwardSlice->insert(op);
+  return success(succeeded);
 }
 
-void mlir::getBackwardSlice(Operation *op,
-                            SetVector<Operation *> *backwardSlice,
-                            TransitiveFilter filter) {
-  getBackwardSliceImpl(op, backwardSlice, filter);
+LogicalResult mlir::getBackwardSlice(Operation *op,
+                                     SetVector<Operation *> *backwardSlice,
+                                     const BackwardSliceOptions &options) {
+  DenseSet<Operation *> visited;
+  visited.insert(op);
+  LogicalResult result =
+      getBackwardSliceImpl(op, visited, backwardSlice, options);
 
-  // Don't insert the top level operation, we just queried on it and don't
-  // want it in the results.
-  backwardSlice->remove(op);
-}
-
-void mlir::getBackwardSlice(Value root, SetVector<Operation *> *backwardSlice,
-                            TransitiveFilter filter) {
-  if (Operation *definingOp = root.getDefiningOp()) {
-    getBackwardSlice(definingOp, backwardSlice, filter);
-    return;
+  if (!options.inclusive) {
+    // Don't insert the top level operation, we just queried on it and don't
+    // want it in the results.
+    backwardSlice->remove(op);
   }
-  Operation *bbAargOwner = root.cast<BlockArgument>().getOwner()->getParentOp();
-  getBackwardSlice(bbAargOwner, backwardSlice, filter);
+  return result;
 }
 
-SetVector<Operation *> mlir::getSlice(Operation *op,
-                                      TransitiveFilter backwardFilter,
-                                      TransitiveFilter forwardFilter) {
+LogicalResult mlir::getBackwardSlice(Value root,
+                                     SetVector<Operation *> *backwardSlice,
+                                     const BackwardSliceOptions &options) {
+  if (Operation *definingOp = root.getDefiningOp()) {
+    return getBackwardSlice(definingOp, backwardSlice, options);
+  }
+  Operation *bbAargOwner = cast<BlockArgument>(root).getOwner()->getParentOp();
+  return getBackwardSlice(bbAargOwner, backwardSlice, options);
+}
+
+SetVector<Operation *>
+mlir::getSlice(Operation *op, const BackwardSliceOptions &backwardSliceOptions,
+               const ForwardSliceOptions &forwardSliceOptions) {
   SetVector<Operation *> slice;
   slice.insert(op);
 
@@ -143,74 +215,19 @@ SetVector<Operation *> mlir::getSlice(Operation *op,
     auto *currentOp = (slice)[currentIndex];
     // Compute and insert the backwardSlice starting from currentOp.
     backwardSlice.clear();
-    getBackwardSlice(currentOp, &backwardSlice, backwardFilter);
-    slice.insert(backwardSlice.begin(), backwardSlice.end());
+    LogicalResult result =
+        getBackwardSlice(currentOp, &backwardSlice, backwardSliceOptions);
+    assert(result.succeeded());
+    (void)result;
+    slice.insert_range(backwardSlice);
 
     // Compute and insert the forwardSlice starting from currentOp.
     forwardSlice.clear();
-    getForwardSlice(currentOp, &forwardSlice, forwardFilter);
-    slice.insert(forwardSlice.begin(), forwardSlice.end());
+    getForwardSlice(currentOp, &forwardSlice, forwardSliceOptions);
+    slice.insert_range(forwardSlice);
     ++currentIndex;
   }
   return topologicalSort(slice);
-}
-
-namespace {
-/// DFS post-order implementation that maintains a global count to work across
-/// multiple invocations, to help implement topological sort on multi-root DAGs.
-/// We traverse all operations but only record the ones that appear in
-/// `toSort` for the final result.
-struct DFSState {
-  DFSState(const SetVector<Operation *> &set) : toSort(set), seen() {}
-  const SetVector<Operation *> &toSort;
-  SmallVector<Operation *, 16> topologicalCounts;
-  DenseSet<Operation *> seen;
-};
-} // namespace
-
-static void dfsPostorder(Operation *root, DFSState *state) {
-  SmallVector<Operation *> queue(1, root);
-  std::vector<Operation *> ops;
-  while (!queue.empty()) {
-    Operation *current = queue.pop_back_val();
-    ops.push_back(current);
-    for (Value result : current->getResults()) {
-      for (Operation *op : result.getUsers())
-        queue.push_back(op);
-    }
-    for (Region &region : current->getRegions()) {
-      for (Operation &op : region.getOps())
-        queue.push_back(&op);
-    }
-  }
-
-  for (Operation *op : llvm::reverse(ops)) {
-    if (state->seen.insert(op).second && state->toSort.count(op) > 0)
-      state->topologicalCounts.push_back(op);
-  }
-}
-
-SetVector<Operation *>
-mlir::topologicalSort(const SetVector<Operation *> &toSort) {
-  if (toSort.empty()) {
-    return toSort;
-  }
-
-  // Run from each root with global count and `seen` set.
-  DFSState state(toSort);
-  for (auto *s : toSort) {
-    assert(toSort.count(s) == 1 && "NYI: multi-sets not supported");
-    dfsPostorder(s, &state);
-  }
-
-  // Reorder and return.
-  SetVector<Operation *> res;
-  for (auto it = state.topologicalCounts.rbegin(),
-            eit = state.topologicalCounts.rend();
-       it != eit; ++it) {
-    res.insert(*it);
-  }
-  return res;
 }
 
 /// Returns true if `value` (transitively) depends on iteration-carried values
@@ -220,13 +237,17 @@ static bool dependsOnCarriedVals(Value value,
                                  Operation *ancestorOp) {
   // Compute the backward slice of the value.
   SetVector<Operation *> slice;
-  getBackwardSlice(value, &slice,
-                   [&](Operation *op) { return !ancestorOp->isAncestor(op); });
+  BackwardSliceOptions sliceOptions;
+  sliceOptions.filter = [&](Operation *op) {
+    return !ancestorOp->isAncestor(op);
+  };
+  LogicalResult result = getBackwardSlice(value, &slice, sliceOptions);
+  assert(result.succeeded());
+  (void)result;
 
   // Check that none of the operands of the operations in the backward slice are
   // loop iteration arguments, and neither is the value itself.
-  SmallPtrSet<Value, 8> iterCarriedValSet(iterCarriedArgs.begin(),
-                                          iterCarriedArgs.end());
+  SmallPtrSet<Value, 8> iterCarriedValSet(llvm::from_range, iterCarriedArgs);
   if (iterCarriedValSet.contains(value))
     return true;
 
@@ -292,9 +313,8 @@ Value mlir::matchReduction(ArrayRef<BlockArgument> iterCarriedArgs,
   // terminator is found. Gather all the combiner ops along the way in
   // topological order.
   while (!combinerOp->mightHaveTrait<OpTrait::IsTerminator>()) {
-    if (!MemoryEffectOpInterface::hasNoEffect(combinerOp) ||
-        combinerOp->getNumResults() != 1 || !combinerOp->hasOneUse() ||
-        combinerOp->getParentOp() != redRegionOp)
+    if (!isMemoryEffectFree(combinerOp) || combinerOp->getNumResults() != 1 ||
+        !combinerOp->hasOneUse() || combinerOp->getParentOp() != redRegionOp)
       return nullptr;
 
     combinerOps.push_back(combinerOp);

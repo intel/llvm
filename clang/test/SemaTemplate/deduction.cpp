@@ -1,8 +1,8 @@
-// RUN: %clang_cc1 -fsyntax-only -verify %s -std=c++11
-// RUN: %clang_cc1 -fsyntax-only -verify %s -std=c++1z
+// RUN: %clang_cc1 -fsyntax-only -verify %s %std_cxx11-
+// RUN: %clang_cc1 -fsyntax-only -verify %s %std_cxx11- -fexperimental-new-constant-interpreter
 
 // Template argument deduction with template template parameters.
-template<typename T, template<T> class A> 
+template<typename T, template<T> class A>
 struct X0 {
   static const unsigned value = 0;
 };
@@ -11,6 +11,17 @@ template<template<int> class A>
 struct X0<int, A> {
   static const unsigned value = 1;
 };
+
+template<class T>
+struct type_identity {
+    using type = T;
+};
+
+template<class T>
+using type_identity_t = typename type_identity<T>::type;
+
+template <typename... T>
+struct args_tag {};
 
 template<int> struct X0i;
 template<long> struct X0l;
@@ -136,7 +147,6 @@ namespace test2 {
   }
 }
 
-// rdar://problem/8537391
 namespace test3 {
   struct Foo {
     template <void F(char)> static inline void foo();
@@ -192,8 +202,9 @@ void g() {
 
 namespace test8 {
 template <class T> void foo(T);
-void test(int a) {
-    char n[a];
+void test(int a) { // expected-note {{declared here}}
+    char n[a]; // expected-warning {{variable length arrays in C++ are a Clang extension}} \
+                  expected-note {{function parameter 'a' with unknown value cannot be used in a constant expression}}
     foo(n);
 }
 } // namespace test8
@@ -310,7 +321,7 @@ int main() {
   get_helper<double>(t);
   return 0;
 }
-} // end ns2 
+} // end ns2
 }
 
 namespace multiple_deduction_different_type {
@@ -400,6 +411,34 @@ namespace deduction_substitution_failure {
   template<typename T, typename U> int B; // expected-warning 0-1 {{extension}}
   template<typename T> int B<T, typename Fail<T>::error> {}; // expected-note {{instantiation of}}
   int bi = B<char, char>; // expected-note {{during template argument deduction for variable template partial specialization 'B<T, typename Fail<T>::error>' [with T = char]}}
+}
+
+namespace deduce_pack_from_argument {
+  template <typename... T>
+  void separator(args_tag<T...>, T..., int, T...) {}
+  template <typename... T>
+  void separator_dependent(args_tag<T...>, type_identity_t<T>..., int, type_identity_t<T>...) {}
+  template <typename... Y, typename... T>
+  void separator_multiple_parameters(args_tag<Y...>, args_tag<T...>, type_identity_t<T>..., int mid, type_identity_t<T>...) {}
+
+  void test_separator() {
+    separator(args_tag<int, int>{}, 4, 8, 42, 16, 25);
+    separator(args_tag<>{}, 42);
+    separator_dependent(args_tag<int, int>{}, 4, 8, 42, 16, 25);
+    separator_dependent(args_tag<>{}, 42);
+    separator_multiple_parameters(args_tag<const int, const int>{}, args_tag<int, int>{}, 8, 9, 15, 16, 23);
+  }
+
+  template <typename... Y, typename... T> void no_separator(args_tag<T...>, T..., T...) {}
+  template <typename... Y, typename... T>
+  void no_separator_dependent(args_tag<Y...>, args_tag<T...>, type_identity_t<T>..., type_identity_t<T>...) {}
+
+  void test_no_separator() {
+    no_separator(args_tag<int, int>{}, 1, 2, 3, 4);
+    no_separator(args_tag<>{});
+    no_separator_dependent(args_tag<const int, const int>{}, args_tag<int, int>{}, 8, 9, 15, 16);
+    no_separator_dependent(args_tag<>{}, args_tag<>{});
+  }
 }
 
 namespace deduction_after_explicit_pack {
@@ -661,3 +700,25 @@ namespace PR49724 {
   template<void (A::*P)()> void f(Y<P>);
   void g(Y<nullptr> y) { f(y); }
 }
+
+namespace sugared_deduction {
+using Int = int;
+
+template <class T, int C> void f1(T(&)[C], T(&)[C+1]);
+// expected-note@-1 {{candidate template ignored: deduced type 'int[3]' of 2nd parameter does not match adjusted type 'Int[2]' (aka 'int[2]') of argument [with T = Int, C = 2]}}
+
+void t1() {
+  Int a[2], b[2];
+  f1(a, b); // expected-error {{no matching function for call to 'f1'}}
+}
+
+#if defined(__cpp_concepts)
+template <class T> void f2() requires false {}
+// expected-note@-1 {{candidate template ignored: constraints not satisfied [with T = Int]}}
+// expected-note@-2 {{because 'false' evaluated to false}}
+
+void t2() {
+  f2<Int>(); // expected-error {{no matching function for call to 'f2'}}
+}
+#endif
+} // namespace sugared_deduction

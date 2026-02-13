@@ -72,6 +72,7 @@ struct ExecutionContext {
 // Interpreter - This class represents the entirety of the interpreter.
 //
 class Interpreter : public ExecutionEngine, public InstVisitor<Interpreter> {
+protected:
   GenericValue ExitValue;          // The return value of the called function
   IntrinsicLowering *IL;
 
@@ -199,7 +200,11 @@ private:  // Helper functions
   void initializeExecutionEngine() { }
   void initializeExternalFunctions();
   GenericValue getConstantExprValue(ConstantExpr *CE, ExecutionContext &SF);
+
+protected:
   GenericValue getOperandValue(Value *V, ExecutionContext &SF);
+
+private:
   GenericValue executeTruncInst(Value *SrcVal, Type *DstTy,
                                 ExecutionContext &SF);
   GenericValue executeSExtInst(Value *SrcVal, Type *DstTy,
@@ -224,8 +229,6 @@ private:  // Helper functions
                                    ExecutionContext &SF);
   GenericValue executeBitCastInst(Value *SrcVal, Type *DstTy,
                                   ExecutionContext &SF);
-  GenericValue executeCastOperation(Instruction::CastOps opcode, Value *SrcVal,
-                                    Type *Ty, ExecutionContext &SF);
   void popStackAndReturnValueToCaller(Type *RetTy, GenericValue Result);
 
 };

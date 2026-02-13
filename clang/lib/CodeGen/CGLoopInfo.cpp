@@ -17,50 +17,47 @@
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Metadata.h"
+#include <optional>
 
 using namespace clang;
 using namespace clang::CodeGen;
 using namespace llvm;
 
 MDNode *
-LoopInfo::createLoopPropertiesMetadata(ArrayRef<Metadata *> LoopProperties) {
+LoopInfo::createFollowupMetadata(const char *FollowupName,
+                                 ArrayRef<llvm::Metadata *> LoopProperties) {
   LLVMContext &Ctx = Header->getContext();
-  SmallVector<Metadata *, 4> NewLoopProperties;
-  NewLoopProperties.push_back(nullptr);
-  NewLoopProperties.append(LoopProperties.begin(), LoopProperties.end());
 
-  MDNode *LoopID = MDNode::getDistinct(Ctx, NewLoopProperties);
-  LoopID->replaceOperandWith(0, LoopID);
-  return LoopID;
+  SmallVector<Metadata *, 4> Args;
+  Args.push_back(MDString::get(Ctx, FollowupName));
+  Args.append(LoopProperties.begin(), LoopProperties.end());
+  return MDNode::get(Ctx, Args);
 }
 
-MDNode *LoopInfo::createPipeliningMetadata(const LoopAttributes &Attrs,
-                                           ArrayRef<Metadata *> LoopProperties,
-                                           bool &HasUserTransforms) {
+SmallVector<Metadata *, 4>
+LoopInfo::createPipeliningMetadata(const LoopAttributes &Attrs,
+                                   ArrayRef<Metadata *> LoopProperties,
+                                   bool &HasUserTransforms) {
   LLVMContext &Ctx = Header->getContext();
 
-  Optional<bool> Enabled;
+  std::optional<bool> Enabled;
   if (Attrs.PipelineDisabled)
     Enabled = false;
   else if (Attrs.PipelineInitiationInterval != 0)
     Enabled = true;
 
+  SmallVector<Metadata *, 4> Args;
+  Args.append(LoopProperties.begin(), LoopProperties.end());
+
   if (Enabled != true) {
-    SmallVector<Metadata *, 4> NewLoopProperties;
     if (Enabled == false) {
-      NewLoopProperties.append(LoopProperties.begin(), LoopProperties.end());
-      NewLoopProperties.push_back(
+      Args.push_back(
           MDNode::get(Ctx, {MDString::get(Ctx, "llvm.loop.pipeline.disable"),
                             ConstantAsMetadata::get(ConstantInt::get(
                                 llvm::Type::getInt1Ty(Ctx), 1))}));
-      LoopProperties = NewLoopProperties;
     }
-    return createLoopPropertiesMetadata(LoopProperties);
+    return Args;
   }
-
-  SmallVector<Metadata *, 4> Args;
-  Args.push_back(nullptr);
-  Args.append(LoopProperties.begin(), LoopProperties.end());
 
   if (Attrs.PipelineInitiationInterval > 0) {
     Metadata *Vals[] = {
@@ -72,23 +69,21 @@ MDNode *LoopInfo::createPipeliningMetadata(const LoopAttributes &Attrs,
 
   // No follow-up: This is the last transformation.
 
-  MDNode *LoopID = MDNode::getDistinct(Ctx, Args);
-  LoopID->replaceOperandWith(0, LoopID);
   HasUserTransforms = true;
-  return LoopID;
+  return Args;
 }
 
-MDNode *
+SmallVector<Metadata *, 4>
 LoopInfo::createPartialUnrollMetadata(const LoopAttributes &Attrs,
                                       ArrayRef<Metadata *> LoopProperties,
                                       bool &HasUserTransforms) {
   LLVMContext &Ctx = Header->getContext();
 
-  Optional<bool> Enabled;
+  std::optional<bool> Enabled;
   if (Attrs.UnrollEnable == LoopAttributes::Disable)
     Enabled = false;
   else if (Attrs.UnrollEnable == LoopAttributes::Full)
-    Enabled = None;
+    Enabled = std::nullopt;
   else if (Attrs.UnrollEnable != LoopAttributes::Unspecified ||
            Attrs.UnrollCount != 0)
     Enabled = true;
@@ -109,11 +104,10 @@ LoopInfo::createPartialUnrollMetadata(const LoopAttributes &Attrs,
       MDNode::get(Ctx, MDString::get(Ctx, "llvm.loop.unroll.disable")));
 
   bool FollowupHasTransforms = false;
-  MDNode *Followup = createPipeliningMetadata(Attrs, FollowupLoopProperties,
-                                              FollowupHasTransforms);
+  SmallVector<Metadata *, 4> Followup = createPipeliningMetadata(
+      Attrs, FollowupLoopProperties, FollowupHasTransforms);
 
   SmallVector<Metadata *, 4> Args;
-  Args.push_back(nullptr);
   Args.append(LoopProperties.begin(), LoopProperties.end());
 
   // Setting unroll.count
@@ -131,22 +125,20 @@ LoopInfo::createPartialUnrollMetadata(const LoopAttributes &Attrs,
   }
 
   if (FollowupHasTransforms)
-    Args.push_back(MDNode::get(
-        Ctx, {MDString::get(Ctx, "llvm.loop.unroll.followup_all"), Followup}));
+    Args.push_back(
+        createFollowupMetadata("llvm.loop.unroll.followup_all", Followup));
 
-  MDNode *LoopID = MDNode::getDistinct(Ctx, Args);
-  LoopID->replaceOperandWith(0, LoopID);
   HasUserTransforms = true;
-  return LoopID;
+  return Args;
 }
 
-MDNode *
+SmallVector<Metadata *, 4>
 LoopInfo::createUnrollAndJamMetadata(const LoopAttributes &Attrs,
                                      ArrayRef<Metadata *> LoopProperties,
                                      bool &HasUserTransforms) {
   LLVMContext &Ctx = Header->getContext();
 
-  Optional<bool> Enabled;
+  std::optional<bool> Enabled;
   if (Attrs.UnrollAndJamEnable == LoopAttributes::Disable)
     Enabled = false;
   else if (Attrs.UnrollAndJamEnable == LoopAttributes::Enable ||
@@ -171,11 +163,10 @@ LoopInfo::createUnrollAndJamMetadata(const LoopAttributes &Attrs,
       MDNode::get(Ctx, MDString::get(Ctx, "llvm.loop.unroll_and_jam.disable")));
 
   bool FollowupHasTransforms = false;
-  MDNode *Followup = createPartialUnrollMetadata(Attrs, FollowupLoopProperties,
-                                                 FollowupHasTransforms);
+  SmallVector<Metadata *, 4> Followup = createPartialUnrollMetadata(
+      Attrs, FollowupLoopProperties, FollowupHasTransforms);
 
   SmallVector<Metadata *, 4> Args;
-  Args.push_back(nullptr);
   Args.append(LoopProperties.begin(), LoopProperties.end());
 
   // Setting unroll_and_jam.count
@@ -193,28 +184,24 @@ LoopInfo::createUnrollAndJamMetadata(const LoopAttributes &Attrs,
   }
 
   if (FollowupHasTransforms)
-    Args.push_back(MDNode::get(
-        Ctx, {MDString::get(Ctx, "llvm.loop.unroll_and_jam.followup_outer"),
-              Followup}));
+    Args.push_back(createFollowupMetadata(
+        "llvm.loop.unroll_and_jam.followup_outer", Followup));
 
-  if (UnrollAndJamInnerFollowup)
-    Args.push_back(MDNode::get(
-        Ctx, {MDString::get(Ctx, "llvm.loop.unroll_and_jam.followup_inner"),
-              UnrollAndJamInnerFollowup}));
+  if (UnrollAndJamInnerFollowup.has_value())
+    Args.push_back(createFollowupMetadata(
+        "llvm.loop.unroll_and_jam.followup_inner", *UnrollAndJamInnerFollowup));
 
-  MDNode *LoopID = MDNode::getDistinct(Ctx, Args);
-  LoopID->replaceOperandWith(0, LoopID);
   HasUserTransforms = true;
-  return LoopID;
+  return Args;
 }
 
-MDNode *
+SmallVector<Metadata *, 4>
 LoopInfo::createLoopVectorizeMetadata(const LoopAttributes &Attrs,
                                       ArrayRef<Metadata *> LoopProperties,
                                       bool &HasUserTransforms) {
   LLVMContext &Ctx = Header->getContext();
 
-  Optional<bool> Enabled;
+  std::optional<bool> Enabled;
   if (Attrs.VectorizeEnable == LoopAttributes::Disable)
     Enabled = false;
   else if (Attrs.VectorizeEnable != LoopAttributes::Unspecified ||
@@ -236,20 +223,7 @@ LoopInfo::createLoopVectorizeMetadata(const LoopAttributes &Attrs,
     return createUnrollAndJamMetadata(Attrs, LoopProperties, HasUserTransforms);
   }
 
-  // Apply all loop properties to the vectorized loop.
-  SmallVector<Metadata *, 4> FollowupLoopProperties;
-  FollowupLoopProperties.append(LoopProperties.begin(), LoopProperties.end());
-
-  // Don't vectorize an already vectorized loop.
-  FollowupLoopProperties.push_back(
-      MDNode::get(Ctx, MDString::get(Ctx, "llvm.loop.isvectorized")));
-
-  bool FollowupHasTransforms = false;
-  MDNode *Followup = createUnrollAndJamMetadata(Attrs, FollowupLoopProperties,
-                                                FollowupHasTransforms);
-
   SmallVector<Metadata *, 4> Args;
-  Args.push_back(nullptr);
   Args.append(LoopProperties.begin(), LoopProperties.end());
 
   // Setting vectorize.predicate when it has been specified and vectorization
@@ -302,37 +276,58 @@ LoopInfo::createLoopVectorizeMetadata(const LoopAttributes &Attrs,
   // 5) it is implied when vectorize.width is unset (0) and the user
   //    explicitly requested fixed-width vectorization, i.e.
   //    vectorize.scalable.enable is false.
+  bool VectorizeEnabled = false;
   if (Attrs.VectorizeEnable != LoopAttributes::Unspecified ||
       (IsVectorPredicateEnabled && Attrs.VectorizeWidth != 1) ||
       Attrs.VectorizeWidth > 1 ||
       Attrs.VectorizeScalable == LoopAttributes::Enable ||
       (Attrs.VectorizeScalable == LoopAttributes::Disable &&
        Attrs.VectorizeWidth != 1)) {
-    bool AttrVal = Attrs.VectorizeEnable != LoopAttributes::Disable;
+    VectorizeEnabled = Attrs.VectorizeEnable != LoopAttributes::Disable;
     Args.push_back(
         MDNode::get(Ctx, {MDString::get(Ctx, "llvm.loop.vectorize.enable"),
                           ConstantAsMetadata::get(ConstantInt::get(
-                              llvm::Type::getInt1Ty(Ctx), AttrVal))}));
+                              llvm::Type::getInt1Ty(Ctx), VectorizeEnabled))}));
   }
 
-  if (FollowupHasTransforms)
-    Args.push_back(MDNode::get(
-        Ctx,
-        {MDString::get(Ctx, "llvm.loop.vectorize.followup_all"), Followup}));
+  // Apply all loop properties to the vectorized loop.
+  SmallVector<Metadata *, 4> FollowupLoopProperties;
 
-  MDNode *LoopID = MDNode::getDistinct(Ctx, Args);
-  LoopID->replaceOperandWith(0, LoopID);
+  // If vectorization is not explicitly enabled, the follow-up metadata will be
+  // directly appended to the list currently being created. In that case, adding
+  // LoopProperties to FollowupLoopProperties would result in duplication.
+  if (VectorizeEnabled)
+    FollowupLoopProperties.append(LoopProperties.begin(), LoopProperties.end());
+
+  // Don't vectorize an already vectorized loop.
+  FollowupLoopProperties.push_back(
+      MDNode::get(Ctx, MDString::get(Ctx, "llvm.loop.isvectorized")));
+
+  bool FollowupHasTransforms = false;
+  SmallVector<Metadata *, 4> Followup = createUnrollAndJamMetadata(
+      Attrs, FollowupLoopProperties, FollowupHasTransforms);
+
+  if (FollowupHasTransforms) {
+    // If vectorization is explicitly enabled, we create a follow-up metadata,
+    // otherwise directly add the contents of it to Args.
+    if (VectorizeEnabled)
+      Args.push_back(
+          createFollowupMetadata("llvm.loop.vectorize.followup_all", Followup));
+    else
+      Args.append(Followup.begin(), Followup.end());
+  }
+
   HasUserTransforms = true;
-  return LoopID;
+  return Args;
 }
 
-MDNode *
+SmallVector<Metadata *, 4>
 LoopInfo::createLoopDistributeMetadata(const LoopAttributes &Attrs,
                                        ArrayRef<Metadata *> LoopProperties,
                                        bool &HasUserTransforms) {
   LLVMContext &Ctx = Header->getContext();
 
-  Optional<bool> Enabled;
+  std::optional<bool> Enabled;
   if (Attrs.DistributeEnable == LoopAttributes::Disable)
     Enabled = false;
   if (Attrs.DistributeEnable == LoopAttributes::Enable)
@@ -353,11 +348,10 @@ LoopInfo::createLoopDistributeMetadata(const LoopAttributes &Attrs,
   }
 
   bool FollowupHasTransforms = false;
-  MDNode *Followup =
+  SmallVector<Metadata *, 4> Followup =
       createLoopVectorizeMetadata(Attrs, LoopProperties, FollowupHasTransforms);
 
   SmallVector<Metadata *, 4> Args;
-  Args.push_back(nullptr);
   Args.append(LoopProperties.begin(), LoopProperties.end());
 
   Metadata *Vals[] = {MDString::get(Ctx, "llvm.loop.distribute.enable"),
@@ -367,22 +361,20 @@ LoopInfo::createLoopDistributeMetadata(const LoopAttributes &Attrs,
   Args.push_back(MDNode::get(Ctx, Vals));
 
   if (FollowupHasTransforms)
-    Args.push_back(MDNode::get(
-        Ctx,
-        {MDString::get(Ctx, "llvm.loop.distribute.followup_all"), Followup}));
+    Args.push_back(
+        createFollowupMetadata("llvm.loop.distribute.followup_all", Followup));
 
-  MDNode *LoopID = MDNode::getDistinct(Ctx, Args);
-  LoopID->replaceOperandWith(0, LoopID);
   HasUserTransforms = true;
-  return LoopID;
+  return Args;
 }
 
-MDNode *LoopInfo::createFullUnrollMetadata(const LoopAttributes &Attrs,
-                                           ArrayRef<Metadata *> LoopProperties,
-                                           bool &HasUserTransforms) {
+SmallVector<Metadata *, 4>
+LoopInfo::createFullUnrollMetadata(const LoopAttributes &Attrs,
+                                   ArrayRef<Metadata *> LoopProperties,
+                                   bool &HasUserTransforms) {
   LLVMContext &Ctx = Header->getContext();
 
-  Optional<bool> Enabled;
+  std::optional<bool> Enabled;
   if (Attrs.UnrollEnable == LoopAttributes::Disable)
     Enabled = false;
   else if (Attrs.UnrollEnable == LoopAttributes::Full)
@@ -401,17 +393,14 @@ MDNode *LoopInfo::createFullUnrollMetadata(const LoopAttributes &Attrs,
   }
 
   SmallVector<Metadata *, 4> Args;
-  Args.push_back(nullptr);
   Args.append(LoopProperties.begin(), LoopProperties.end());
   Args.push_back(MDNode::get(Ctx, MDString::get(Ctx, "llvm.loop.unroll.full")));
 
   // No follow-up: there is no loop after full unrolling.
   // TODO: Warn if there are transformations after full unrolling.
 
-  MDNode *LoopID = MDNode::getDistinct(Ctx, Args);
-  LoopID->replaceOperandWith(0, LoopID);
   HasUserTransforms = true;
-  return LoopID;
+  return Args;
 }
 
 void LoopInfoStack::addSYCLIVDepInfo(llvm::LLVMContext &Ctx, unsigned SafeLen,
@@ -504,7 +493,7 @@ static void EmitLegacyIVDepLoopMetadata(
   LoopProperties.push_back(MDNode::get(Ctx, SafelenMDs));
 }
 
-MDNode *LoopInfo::createMetadata(
+SmallVector<Metadata *, 4> LoopInfo::createMetadata(
     const LoopAttributes &Attrs,
     llvm::ArrayRef<llvm::Metadata *> AdditionalLoopProperties,
     bool &HasUserTransforms) {
@@ -531,7 +520,7 @@ MDNode *LoopInfo::createMetadata(
         Ctx, {MDString::get(Ctx, "llvm.loop.parallel_accesses"), AccGroup}));
   }
 
-  if (Attrs.GlobalSYCLIVDepInfo.hasValue()) {
+  if (Attrs.GlobalSYCLIVDepInfo.has_value()) {
     EmitIVDepLoopMetadata(Ctx, LoopProperties, *Attrs.GlobalSYCLIVDepInfo);
     // The legacy metadata also needs to be emitted to provide backwards
     // compatibility with any conformant backend. This is done exclusively
@@ -621,8 +610,24 @@ MDNode *LoopInfo::createMetadata(
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
 
-  LoopProperties.insert(LoopProperties.end(), AdditionalLoopProperties.begin(),
-                        AdditionalLoopProperties.end());
+  // enable_loop_pipelining attribute corresponds to
+  // 'llvm.loop.intel.pipelining.enable, i32 1' metadata
+  if (Attrs.SYCLLoopPipeliningEnable) {
+    Metadata *Vals[] = {MDString::get(Ctx, "llvm.loop.intel.pipelining.enable"),
+                        ConstantAsMetadata::get(
+                            ConstantInt::get(llvm::Type::getInt32Ty(Ctx), 1))};
+    LoopProperties.push_back(MDNode::get(Ctx, Vals));
+  }
+
+  // Setting clang::code_align attribute.
+  if (Attrs.CodeAlign > 0) {
+    Metadata *Vals[] = {MDString::get(Ctx, "llvm.loop.align"),
+                        ConstantAsMetadata::get(ConstantInt::get(
+                            llvm::Type::getInt32Ty(Ctx), Attrs.CodeAlign))};
+    LoopProperties.push_back(MDNode::get(Ctx, Vals));
+  }
+
+  llvm::append_range(LoopProperties, AdditionalLoopProperties);
   return createFullUnrollMetadata(Attrs, LoopProperties, HasUserTransforms);
 }
 
@@ -634,9 +639,9 @@ LoopAttributes::LoopAttributes(bool IsParallel)
       VectorizeScalable(LoopAttributes::Unspecified), InterleaveCount(0),
       SYCLIInterval(0), SYCLLoopCoalesceEnable(false),
       SYCLLoopCoalesceNLevels(0), SYCLLoopPipeliningDisable(false),
-      UnrollCount(0), UnrollAndJamCount(0),
+      SYCLLoopPipeliningEnable(false), UnrollCount(0), UnrollAndJamCount(0),
       DistributeEnable(LoopAttributes::Unspecified), PipelineDisabled(false),
-      PipelineInitiationInterval(0), SYCLNofusionEnable(false),
+      PipelineInitiationInterval(0), SYCLNofusionEnable(false), CodeAlign(0),
       MustProgress(false) {}
 
 void LoopAttributes::clear() {
@@ -655,6 +660,7 @@ void LoopAttributes::clear() {
   SYCLSpeculatedIterationsNIterations.reset();
   SYCLIntelFPGAVariantCount.clear();
   SYCLMaxReinvocationDelayNCycles.reset();
+  SYCLLoopPipeliningEnable = false;
   UnrollCount = 0;
   UnrollAndJamCount = 0;
   VectorizeEnable = LoopAttributes::Unspecified;
@@ -665,6 +671,7 @@ void LoopAttributes::clear() {
   PipelineDisabled = false;
   PipelineInitiationInterval = 0;
   SYCLNofusionEnable = false;
+  CodeAlign = 0;
   MustProgress = false;
 }
 
@@ -682,7 +689,7 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
 
   if (!Attrs.IsParallel && Attrs.VectorizeWidth == 0 &&
       Attrs.VectorizeScalable == LoopAttributes::Unspecified &&
-      Attrs.InterleaveCount == 0 && !Attrs.GlobalSYCLIVDepInfo.hasValue() &&
+      Attrs.InterleaveCount == 0 && !Attrs.GlobalSYCLIVDepInfo.has_value() &&
       Attrs.ArraySYCLIVDepInfo.empty() && Attrs.SYCLIInterval == 0 &&
       !Attrs.SYCLMaxConcurrencyNThreads &&
       Attrs.SYCLLoopCoalesceEnable == false &&
@@ -692,17 +699,18 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
       !Attrs.SYCLSpeculatedIterationsNIterations &&
       Attrs.SYCLIntelFPGAVariantCount.empty() && Attrs.UnrollCount == 0 &&
       !Attrs.SYCLMaxReinvocationDelayNCycles &&
-      Attrs.UnrollAndJamCount == 0 && !Attrs.PipelineDisabled &&
-      Attrs.PipelineInitiationInterval == 0 &&
+      !Attrs.SYCLLoopPipeliningEnable && Attrs.UnrollAndJamCount == 0 &&
+      !Attrs.PipelineDisabled && Attrs.PipelineInitiationInterval == 0 &&
       Attrs.VectorizePredicateEnable == LoopAttributes::Unspecified &&
       Attrs.VectorizeEnable == LoopAttributes::Unspecified &&
       Attrs.UnrollEnable == LoopAttributes::Unspecified &&
       Attrs.UnrollAndJamEnable == LoopAttributes::Unspecified &&
-      Attrs.DistributeEnable == LoopAttributes::Unspecified && !StartLoc &&
-      Attrs.SYCLNofusionEnable == false && !EndLoc && !Attrs.MustProgress)
+      Attrs.DistributeEnable == LoopAttributes::Unspecified &&
+      Attrs.CodeAlign == 0 && !StartLoc && Attrs.SYCLNofusionEnable == false &&
+      !EndLoc && !Attrs.MustProgress)
     return;
 
-  TempLoopID = MDNode::getTemporary(Header->getContext(), None);
+  TempLoopID = MDNode::getTemporary(Header->getContext(), {});
 }
 
 void LoopInfo::finish() {
@@ -775,8 +783,8 @@ void LoopInfo::finish() {
             MDNode::get(Ctx, MDString::get(Ctx, "llvm.loop.isvectorized")));
 
       bool InnerFollowupHasTransform = false;
-      MDNode *InnerFollowup = createMetadata(AfterJam, BeforeLoopProperties,
-                                             InnerFollowupHasTransform);
+      SmallVector<Metadata *, 4> InnerFollowup = createMetadata(
+          AfterJam, BeforeLoopProperties, InnerFollowupHasTransform);
       if (InnerFollowupHasTransform)
         Parent->UnrollAndJamInnerFollowup = InnerFollowup;
     }
@@ -785,7 +793,14 @@ void LoopInfo::finish() {
   }
 
   bool HasUserTransforms = false;
-  LoopID = createMetadata(CurLoopAttr, {}, HasUserTransforms);
+  SmallVector<Metadata *, 4> Properties =
+      createMetadata(CurLoopAttr, {}, HasUserTransforms);
+  SmallVector<Metadata *, 4> Args;
+  Args.push_back(nullptr);
+  Args.append(Properties.begin(), Properties.end());
+  LoopID = MDNode::getDistinct(Ctx, Args);
+  LoopID->replaceOperandWith(0, LoopID);
+
   TempLoopID->replaceAllUsesWith(LoopID);
 }
 
@@ -808,10 +823,11 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
     const LoopHintAttr *LH = dyn_cast<LoopHintAttr>(Attr);
     const OpenCLUnrollHintAttr *OpenCLHint =
         dyn_cast<OpenCLUnrollHintAttr>(Attr);
-    const LoopUnrollHintAttr *UnrollHint = dyn_cast<LoopUnrollHintAttr>(Attr);
 
+    const LoopUnrollHintAttr *UnrollHint = dyn_cast<LoopUnrollHintAttr>(Attr);
+    const HLSLLoopHintAttr *HLSLLoopHint = dyn_cast<HLSLLoopHintAttr>(Attr);
     // Skip non loop hint attributes
-    if (!LH && !OpenCLHint && !UnrollHint) {
+    if (!LH && !OpenCLHint && !HLSLLoopHint && !UnrollHint) {
       continue;
     }
 
@@ -836,6 +852,17 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
       } else if (ValueInt != 1) {
         Option = LoopHintAttr::UnrollCount;
         State = LoopHintAttr::Numeric;
+      }
+    } else if (HLSLLoopHint) {
+      ValueInt = HLSLLoopHint->getDirective();
+      if (HLSLLoopHint->getSemanticSpelling() ==
+          HLSLLoopHintAttr::Spelling::Microsoft_unroll) {
+        if (ValueInt == 0)
+          State = LoopHintAttr::Enable;
+        if (ValueInt > 0) {
+          Option = LoopHintAttr::UnrollCount;
+          State = LoopHintAttr::Numeric;
+        }
       }
     } else if (LH) {
       auto *ValueExpr = LH->getValue();
@@ -1026,42 +1053,43 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
   // For attribute max_reinvocation_delay:
   // n - 'llvm.loop.intel.max_reinvocation_delay.count, i32 n' metadata will be
   // emitted
+  // For attribute enable_loop_pipelining:
+  // 'llvm.loop.intel.pipelining.enable, i32 1' metadata will be emitted
   for (const auto *A : Attrs) {
-    if (const auto *IntelFPGAIVDep = dyn_cast<SYCLIntelFPGAIVDepAttr>(A))
-      addSYCLIVDepInfo(Header->getContext(), IntelFPGAIVDep->getSafelenValue(),
-                       IntelFPGAIVDep->getArrayDecl());
+    if (const auto *SYCLIntelIVDep = dyn_cast<SYCLIntelIVDepAttr>(A))
+      addSYCLIVDepInfo(Header->getContext(), SYCLIntelIVDep->getSafelenValue(),
+                       SYCLIntelIVDep->getArrayDecl());
 
-    if (const auto *IntelFPGAII =
-            dyn_cast<SYCLIntelFPGAInitiationIntervalAttr>(A)) {
-      const auto *CE = cast<ConstantExpr>(IntelFPGAII->getIntervalExpr());
+    if (const auto *SYCLIntelII =
+            dyn_cast<SYCLIntelInitiationIntervalAttr>(A)) {
+      const auto *CE = cast<ConstantExpr>(SYCLIntelII->getNExpr());
       llvm::APSInt ArgVal = CE->getResultAsAPSInt();
       setSYCLIInterval(ArgVal.getSExtValue());
     }
 
-    if (const auto *IntelFPGAMaxConcurrency =
-            dyn_cast<SYCLIntelFPGAMaxConcurrencyAttr>(A)) {
-      const auto *CE =
-          cast<ConstantExpr>(IntelFPGAMaxConcurrency->getNThreadsExpr());
+    if (const auto *SYCLIntelMaxConcurrency =
+            dyn_cast<SYCLIntelMaxConcurrencyAttr>(A)) {
+      const auto *CE = cast<ConstantExpr>(SYCLIntelMaxConcurrency->getNExpr());
       llvm::APSInt ArgVal = CE->getResultAsAPSInt();
       setSYCLMaxConcurrencyNThreads(ArgVal.getSExtValue());
     }
 
-    if (const auto *IntelFPGALoopCountAvg =
-            dyn_cast<SYCLIntelFPGALoopCountAttr>(A)) {
+    if (const auto *SYCLIntelLoopCountAvg =
+            dyn_cast<SYCLIntelLoopCountAttr>(A)) {
       const auto *CE =
-          cast<ConstantExpr>(IntelFPGALoopCountAvg->getNTripCount());
+          cast<ConstantExpr>(SYCLIntelLoopCountAvg->getNTripCount());
       llvm::APSInt ArgVal = CE->getResultAsAPSInt();
       const char *Var =
-          IntelFPGALoopCountAvg->isMax()   ? "llvm.loop.intel.loopcount_max"
-          : IntelFPGALoopCountAvg->isMin() ? "llvm.loop.intel.loopcount_min"
-          : IntelFPGALoopCountAvg->isAvg() ? "llvm.loop.intel.loopcount_avg"
+          SYCLIntelLoopCountAvg->isMax()   ? "llvm.loop.intel.loopcount_max"
+          : SYCLIntelLoopCountAvg->isMin() ? "llvm.loop.intel.loopcount_min"
+          : SYCLIntelLoopCountAvg->isAvg() ? "llvm.loop.intel.loopcount_avg"
                                            : "llvm.loop.intel.loopcount";
       setSYCLIntelFPGAVariantCount(Var, ArgVal.getSExtValue());
     }
 
-    if (const auto *IntelFPGALoopCoalesce =
-            dyn_cast<SYCLIntelFPGALoopCoalesceAttr>(A)) {
-      if (const auto *LCE = IntelFPGALoopCoalesce->getNExpr()) {
+    if (const auto *SYCLIntelLoopCoalesce =
+            dyn_cast<SYCLIntelLoopCoalesceAttr>(A)) {
+      if (const auto *LCE = SYCLIntelLoopCoalesce->getNExpr()) {
         const auto *CE = cast<ConstantExpr>(LCE);
         llvm::APSInt ArgVal = CE->getResultAsAPSInt();
         setSYCLLoopCoalesceNLevels(ArgVal.getSExtValue());
@@ -1070,34 +1098,45 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
       }
     }
 
-    if (isa<SYCLIntelFPGADisableLoopPipeliningAttr>(A))
+    if (isa<SYCLIntelDisableLoopPipeliningAttr>(A))
       setSYCLLoopPipeliningDisable();
 
-    if (const auto *IntelFPGAMaxInterleaving =
-            dyn_cast<SYCLIntelFPGAMaxInterleavingAttr>(A)) {
-      const auto *CE = cast<ConstantExpr>(IntelFPGAMaxInterleaving->getNExpr());
+    if (const auto *SYCLIntelMaxInterleaving =
+            dyn_cast<SYCLIntelMaxInterleavingAttr>(A)) {
+      const auto *CE = cast<ConstantExpr>(SYCLIntelMaxInterleaving->getNExpr());
       llvm::APSInt ArgVal = CE->getResultAsAPSInt();
       setSYCLMaxInterleavingNInvocations(ArgVal.getSExtValue());
     }
 
-    if (const auto *IntelFPGASpeculatedIterations =
-            dyn_cast<SYCLIntelFPGASpeculatedIterationsAttr>(A)) {
+    if (const auto *SYCLIntelSpeculatedIterations =
+            dyn_cast<SYCLIntelSpeculatedIterationsAttr>(A)) {
       const auto *CE =
-          cast<ConstantExpr>(IntelFPGASpeculatedIterations->getNExpr());
+          cast<ConstantExpr>(SYCLIntelSpeculatedIterations->getNExpr());
       llvm::APSInt ArgVal = CE->getResultAsAPSInt();
       setSYCLSpeculatedIterationsNIterations(ArgVal.getSExtValue());
     }
 
-    if (isa<SYCLIntelFPGANofusionAttr>(A))
+    if (isa<SYCLIntelNofusionAttr>(A))
       setSYCLNofusionEnable();
 
-    if (const auto *IntelFPGAMaxReinvocationDelay =
-            dyn_cast<SYCLIntelFPGAMaxReinvocationDelayAttr>(A)) {
+    if (const auto *SYCLIntelMaxReinvocationDelay =
+            dyn_cast<SYCLIntelMaxReinvocationDelayAttr>(A)) {
       const auto *CE = cast<ConstantExpr>(
-          IntelFPGAMaxReinvocationDelay->getNExpr());
+          SYCLIntelMaxReinvocationDelay->getNExpr());
       llvm::APSInt ArgVal = CE->getResultAsAPSInt();
       setSYCLMaxReinvocationDelayNCycles(ArgVal.getSExtValue());
     }
+
+    if (isa<SYCLIntelEnableLoopPipeliningAttr>(A))
+      setSYCLLoopPipeliningEnable();
+  }
+  // Identify loop attribute 'code_align' from Attrs.
+  // For attribute code_align:
+  // n - 'llvm.loop.align i32 n' metadata will be emitted.
+  if (const auto *CodeAlign = getSpecificAttr<CodeAlignAttr>(Attrs)) {
+    const auto *CE = cast<ConstantExpr>(CodeAlign->getAlignment());
+    llvm::APSInt ArgVal = CE->getResultAsAPSInt();
+    setCodeAlign(ArgVal.getSExtValue());
   }
 
   setMustProgress(MustProgress);

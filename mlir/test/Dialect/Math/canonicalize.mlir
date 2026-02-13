@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s -canonicalize | FileCheck %s
+// RUN: mlir-opt %s -canonicalize="test-convergence" | FileCheck %s
 
 // CHECK-LABEL: @ceil_fold
 // CHECK: %[[cst:.+]] = arith.constant 1.000000e+00 : f32
@@ -449,7 +449,7 @@ func.func @trunc_fold_vec() -> (vector<4xf32>) {
 }
 
 // CHECK-LABEL: @sin_fold
-// CHECK-NEXT: %[[cst:.+]] = arith.constant 0.84{{[0-9]+}} : f32
+// CHECK-NEXT: %[[cst:.+]] = arith.constant {{0.84[0-9]+|8.4[0-9]+e-01}} : f32
 // CHECK-NEXT:   return %[[cst]]
 func.func @sin_fold() -> f32 {
   %c = arith.constant 1.0 : f32
@@ -458,7 +458,7 @@ func.func @sin_fold() -> f32 {
 }
 
 // CHECK-LABEL: @sin_fold_vec
-// CHECK-NEXT: %[[cst:.+]] = arith.constant dense<[0.000000e+00, 0.84{{[0-9]+}}, 0.000000e+00, 0.84{{[0-9]+}}]> : vector<4xf32>
+// CHECK-NEXT: %[[cst:.+]] = arith.constant dense<[0.000000e+00, {{0.84[0-9]+|8.4[0-9]+e-01}}, 0.000000e+00, {{0.84[0-9]+|8.4[0-9]+e-01}}]> : vector<4xf32>
 // CHECK-NEXT:   return %[[cst]]
 func.func @sin_fold_vec() -> (vector<4xf32>) {
   %v1 = arith.constant dense<[0.0, 1.0, 0.0, 1.0]> : vector<4xf32>
@@ -467,7 +467,7 @@ func.func @sin_fold_vec() -> (vector<4xf32>) {
 }
 
 // CHECK-LABEL: @erf_fold
-// CHECK-NEXT: %[[cst:.+]] = arith.constant 0.84{{[0-9]+}} : f32
+// CHECK-NEXT: %[[cst:.+]] = arith.constant {{0.84[0-9]+|8.4[0-9]+e-01}} : f32
 // CHECK-NEXT:   return %[[cst]]
 func.func @erf_fold() -> f32 {
   %c = arith.constant 1.0 : f32
@@ -476,10 +476,91 @@ func.func @erf_fold() -> f32 {
 }
 
 // CHECK-LABEL: @erf_fold_vec
-// CHECK-NEXT: %[[cst:.+]] = arith.constant dense<[0.000000e+00, 0.84{{[0-9]+}}, 0.000000e+00, 0.84{{[0-9]+}}]> : vector<4xf32>
+// CHECK-NEXT: %[[cst:.+]] = arith.constant dense<[0.000000e+00, {{0.84[0-9]+|8.4[0-9]+e-01}}, 0.000000e+00, {{0.84[0-9]+|8.4[0-9]+e-01}}]> : vector<4xf32>
 // CHECK-NEXT:   return %[[cst]]
 func.func @erf_fold_vec() -> (vector<4xf32>) {
   %v1 = arith.constant dense<[0.0, 1.0, 0.0, 1.0]> : vector<4xf32>
   %0 = math.erf %v1 : vector<4xf32>
   return %0 : vector<4xf32>
+}
+
+// CHECK-LABEL: @abs_poison
+//       CHECK:   %[[P:.*]] = ub.poison : f32
+//       CHECK:   return %[[P]]
+func.func @abs_poison() -> f32 {
+  %0 = ub.poison : f32
+  %1 = math.absf %0 : f32
+  return %1 : f32
+}
+
+// CHECK-LABEL: @isfinite_fold
+// CHECK: %[[cst:.+]] = arith.constant true
+// CHECK: return %[[cst]]
+func.func @isfinite_fold() -> i1 {
+  %c = arith.constant 2.0 : f32
+  %r = math.isfinite %c : f32
+  return %r : i1
+}
+
+// CHECK-LABEL: @isfinite_fold_vec
+// CHECK: %[[cst:.+]] = arith.constant dense<true> : vector<4xi1>
+// CHECK: return %[[cst]]
+func.func @isfinite_fold_vec() -> (vector<4xi1>) {
+  %v1 = arith.constant dense<2.0> : vector<4xf32>
+  %0 = math.isfinite %v1 : vector<4xf32>
+  return %0 : vector<4xi1>
+}
+
+// CHECK-LABEL: @isinf_fold
+// CHECK: %[[cst:.+]] = arith.constant false
+// CHECK: return %[[cst]]
+func.func @isinf_fold() -> i1 {
+  %c = arith.constant 2.0 : f32
+  %r = math.isinf %c : f32
+  return %r : i1
+}
+
+// CHECK-LABEL: @isinf_fold_vec
+// CHECK: %[[cst:.+]] = arith.constant dense<false> : vector<4xi1>
+// CHECK: return %[[cst]]
+func.func @isinf_fold_vec() -> (vector<4xi1>) {
+  %v1 = arith.constant dense<2.0> : vector<4xf32>
+  %0 = math.isinf %v1 : vector<4xf32>
+  return %0 : vector<4xi1>
+}
+
+// CHECK-LABEL: @isnan_fold
+// CHECK: %[[cst:.+]] = arith.constant false
+// CHECK: return %[[cst]]
+func.func @isnan_fold() -> i1 {
+  %c = arith.constant 2.0 : f32
+  %r = math.isnan %c : f32
+  return %r : i1
+}
+
+// CHECK-LABEL: @isnan_fold_vec
+// CHECK: %[[cst:.+]] = arith.constant dense<false> : vector<4xi1>
+// CHECK: return %[[cst]]
+func.func @isnan_fold_vec() -> (vector<4xi1>) {
+  %v1 = arith.constant dense<2.0> : vector<4xf32>
+  %0 = math.isnan %v1 : vector<4xf32>
+  return %0 : vector<4xi1>
+}
+
+// CHECK-LABEL: @isnormal_fold
+// CHECK: %[[cst:.+]] = arith.constant true
+// CHECK: return %[[cst]]
+func.func @isnormal_fold() -> i1 {
+  %c = arith.constant 2.0 : f32
+  %r = math.isnormal %c : f32
+  return %r : i1
+}
+
+// CHECK-LABEL: @isnormal_fold_vec
+// CHECK: %[[cst:.+]] = arith.constant dense<true> : vector<4xi1>
+// CHECK: return %[[cst]]
+func.func @isnormal_fold_vec() -> (vector<4xi1>) {
+  %v1 = arith.constant dense<2.0> : vector<4xf32>
+  %0 = math.isnormal %v1 : vector<4xf32>
+  return %0 : vector<4xi1>
 }

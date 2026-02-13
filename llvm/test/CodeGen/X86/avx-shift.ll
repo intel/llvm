@@ -105,9 +105,9 @@ define <32 x i8> @vshift09(<32 x i8> %a) {
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    vextractf128 $1, %ymm0, %xmm1
 ; CHECK-NEXT:    vpsrlw $2, %xmm1, %xmm1
-; CHECK-NEXT:    vmovdqa {{.*#+}} xmm2 = [63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63]
+; CHECK-NEXT:    vbroadcastss {{.*#+}} xmm2 = [63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63]
 ; CHECK-NEXT:    vpand %xmm2, %xmm1, %xmm1
-; CHECK-NEXT:    vmovdqa {{.*#+}} xmm3 = [32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32]
+; CHECK-NEXT:    vbroadcastss {{.*#+}} xmm3 = [32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32]
 ; CHECK-NEXT:    vpxor %xmm3, %xmm1, %xmm1
 ; CHECK-NEXT:    vpsubb %xmm3, %xmm1, %xmm1
 ; CHECK-NEXT:    vpsrlw $2, %xmm0, %xmm0
@@ -136,13 +136,11 @@ define <32 x i8> @vshift10(<32 x i8> %a) {
 define <32 x i8> @vshift11(<32 x i8> %a) {
 ; CHECK-LABEL: vshift11:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vextractf128 $1, %ymm0, %xmm1
-; CHECK-NEXT:    vpsrlw $2, %xmm1, %xmm1
-; CHECK-NEXT:    vmovdqa {{.*#+}} xmm2 = [63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63]
-; CHECK-NEXT:    vpand %xmm2, %xmm1, %xmm1
+; CHECK-NEXT:    vpsrlw $2, %xmm0, %xmm1
+; CHECK-NEXT:    vextractf128 $1, %ymm0, %xmm0
 ; CHECK-NEXT:    vpsrlw $2, %xmm0, %xmm0
-; CHECK-NEXT:    vpand %xmm2, %xmm0, %xmm0
-; CHECK-NEXT:    vinsertf128 $1, %xmm1, %ymm0, %ymm0
+; CHECK-NEXT:    vinsertf128 $1, %xmm0, %ymm1, %ymm0
+; CHECK-NEXT:    vandps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %ymm0, %ymm0
 ; CHECK-NEXT:    retq
   %s = lshr <32 x i8> %a, <i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2>
   ret <32 x i8> %s
@@ -151,13 +149,11 @@ define <32 x i8> @vshift11(<32 x i8> %a) {
 define <32 x i8> @vshift12(<32 x i8> %a) {
 ; CHECK-LABEL: vshift12:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vextractf128 $1, %ymm0, %xmm1
-; CHECK-NEXT:    vpsllw $2, %xmm1, %xmm1
-; CHECK-NEXT:    vmovdqa {{.*#+}} xmm2 = [252,252,252,252,252,252,252,252,252,252,252,252,252,252,252,252]
-; CHECK-NEXT:    vpand %xmm2, %xmm1, %xmm1
+; CHECK-NEXT:    vpsllw $2, %xmm0, %xmm1
+; CHECK-NEXT:    vextractf128 $1, %ymm0, %xmm0
 ; CHECK-NEXT:    vpsllw $2, %xmm0, %xmm0
-; CHECK-NEXT:    vpand %xmm2, %xmm0, %xmm0
-; CHECK-NEXT:    vinsertf128 $1, %xmm1, %ymm0, %ymm0
+; CHECK-NEXT:    vinsertf128 $1, %xmm0, %ymm1, %ymm0
+; CHECK-NEXT:    vandps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %ymm0, %ymm0
 ; CHECK-NEXT:    retq
   %s = shl <32 x i8> %a, <i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2>
   ret <32 x i8> %s
@@ -169,7 +165,7 @@ define <8 x i32> @vshift08(<8 x i32> %a)  {
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    vextractf128 $1, %ymm0, %xmm1
 ; CHECK-NEXT:    vpslld $23, %xmm1, %xmm1
-; CHECK-NEXT:    vmovdqa {{.*#+}} xmm2 = [1065353216,1065353216,1065353216,1065353216]
+; CHECK-NEXT:    vbroadcastss {{.*#+}} xmm2 = [1065353216,1065353216,1065353216,1065353216]
 ; CHECK-NEXT:    vpaddd %xmm2, %xmm1, %xmm1
 ; CHECK-NEXT:    vpslld $23, %xmm0, %xmm0
 ; CHECK-NEXT:    vpaddd %xmm2, %xmm0, %xmm0
@@ -184,7 +180,7 @@ define <8 x i32> @vshift08_add(<8 x i32> %a, <8 x i32> %y)  {
 ; CHECK-LABEL: vshift08_add:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    vpslld $23, %xmm0, %xmm2
-; CHECK-NEXT:    vmovdqa {{.*#+}} xmm3 = [1065353216,1065353216,1065353216,1065353216]
+; CHECK-NEXT:    vbroadcastss {{.*#+}} xmm3 = [1065353216,1065353216,1065353216,1065353216]
 ; CHECK-NEXT:    vpaddd %xmm3, %xmm2, %xmm2
 ; CHECK-NEXT:    vcvttps2dq %xmm2, %xmm2
 ; CHECK-NEXT:    vextractf128 $1, %ymm0, %xmm0
@@ -205,7 +201,7 @@ define <8 x i32> @vshift08_add(<8 x i32> %a, <8 x i32> %y)  {
 define <4 x i32> @vshift13(<4 x i32> %in) {
 ; CHECK-LABEL: vshift13:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vpmulld {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0, %xmm0
+; CHECK-NEXT:    vpmulld {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0, %xmm0 # [1,2,4,16]
 ; CHECK-NEXT:    retq
   %T = shl <4 x i32> %in, <i32 0, i32 1, i32 2, i32 4>
   ret <4 x i32> %T

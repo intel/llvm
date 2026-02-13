@@ -1,4 +1,5 @@
 # RUN: llc %s -run-pass=postra-machine-sink -o - | FileCheck %s
+# RUN: llc %s -passes='postra-machine-sink' -o - | FileCheck %s
 --- |
   ; Module stripped of everything, MIR below is what's interesting
   ; ModuleID = '<stdin>'
@@ -7,7 +8,7 @@
   target triple = "x86_64-unknown-linux-gnu"
   
   ; Function Attrs: noinline norecurse nounwind uwtable
-  define dso_local i32 @main(i32 %argc, i8** nocapture readnone %argv) local_unnamed_addr #0 {
+  define dso_local i32 @main(i32 %argc, ptr nocapture readnone %argv) local_unnamed_addr #0 {
   entry:
     br label %if.end
   if.end:
@@ -59,8 +60,8 @@ frameInfo:
   hasVAStart:      false
   hasMustTailInVarArgFunc: false
   localFrameSize:  0
-  savePoint:       ''
-  restorePoint:    ''
+  savePoint:       []
+  restorePoint:    []
 fixedStack:
 stack:
 constants:

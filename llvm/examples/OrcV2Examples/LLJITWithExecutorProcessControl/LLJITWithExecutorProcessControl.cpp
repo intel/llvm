@@ -22,12 +22,12 @@
 
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ExecutionEngine/JITLink/JITLinkMemoryManager.h"
-#include "llvm/ExecutionEngine/Orc/EPCDynamicLibrarySearchGenerator.h"
 #include "llvm/ExecutionEngine/Orc/EPCIndirectionUtils.h"
 #include "llvm/ExecutionEngine/Orc/ExecutorProcessControl.h"
 #include "llvm/ExecutionEngine/Orc/LLJIT.h"
 #include "llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h"
 #include "llvm/ExecutionEngine/Orc/OrcABISupport.h"
+#include "llvm/ExecutionEngine/Orc/SelfExecutorProcessControl.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/raw_ostream.h"
@@ -107,10 +107,8 @@ static void *reenter(void *Ctx, void *TrampolineAddr) {
 
   auto *EPCIU = static_cast<EPCIndirectionUtils *>(Ctx);
   EPCIU->getLazyCallThroughManager().resolveTrampolineLandingAddress(
-      pointerToJITTargetAddress(TrampolineAddr),
-      [&](JITTargetAddress LandingAddress) {
-        LandingAddressP.set_value(
-            jitTargetAddressToPointer<void *>(LandingAddress));
+      ExecutorAddr::fromPtr(TrampolineAddr), [&](ExecutorAddr LandingAddress) {
+        LandingAddressP.set_value(LandingAddress.toPtr<void *>());
       });
   return LandingAddressF.get();
 }
@@ -120,8 +118,8 @@ static void reportErrorAndExit() {
   exit(1);
 }
 
-cl::list<std::string> InputArgv(cl::Positional,
-                                cl::desc("<program arguments>..."));
+static cl::list<std::string> InputArgv(cl::Positional,
+                                       cl::desc("<program arguments>..."));
 
 int main(int argc, char *argv[]) {
   // Initialize LLVM.
@@ -147,16 +145,12 @@ int main(int argc, char *argv[]) {
       });
 
   // (3) Create stubs and call-through managers:
-  auto EPCIU = ExitOnErr(EPCIndirectionUtils::Create(
-      J->getExecutionSession().getExecutorProcessControl()));
-  ExitOnErr(EPCIU->writeResolverBlock(pointerToJITTargetAddress(&reenter),
-                                      pointerToJITTargetAddress(EPCIU.get())));
+  auto EPCIU = ExitOnErr(EPCIndirectionUtils::Create(J->getExecutionSession()));
+  ExitOnErr(EPCIU->writeResolverBlock(ExecutorAddr::fromPtr(&reenter),
+                                      ExecutorAddr::fromPtr(EPCIU.get())));
   EPCIU->createLazyCallThroughManager(
-      J->getExecutionSession(), pointerToJITTargetAddress(&reportErrorAndExit));
+      J->getExecutionSession(), ExecutorAddr::fromPtr(&reportErrorAndExit));
   auto ISM = EPCIU->createIndirectStubsManager();
-  J->getMainJITDylib().addGenerator(
-      ExitOnErr(EPCDynamicLibrarySearchGenerator::GetForTargetProcess(
-          J->getExecutionSession())));
 
   // (4) Add modules.
   ExitOnErr(J->addIRModule(ExitOnErr(parseExampleModule(FooMod, "foo-mod"))));

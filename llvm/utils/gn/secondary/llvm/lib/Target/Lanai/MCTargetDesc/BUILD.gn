@@ -47,6 +47,7 @@ static_library("MCTargetDesc") {
     "//llvm/lib/MC",
     "//llvm/lib/Support",
     "//llvm/lib/Target/Lanai/TargetInfo",
+    "//llvm/lib/TargetParser",
   ]
   include_dirs = [ ".." ]
   sources = [
@@ -55,7 +56,6 @@ static_library("MCTargetDesc") {
     "LanaiInstPrinter.cpp",
     "LanaiMCAsmInfo.cpp",
     "LanaiMCCodeEmitter.cpp",
-    "LanaiMCExpr.cpp",
     "LanaiMCTargetDesc.cpp",
   ]
 }

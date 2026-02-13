@@ -1,9 +1,6 @@
 Testing
 =======
 
-.. contents::
-   :local:
-
 Test Suite Structure
 --------------------
 
@@ -20,8 +17,8 @@ The LLDB test suite consists of three different kinds of test:
   the output.
 * **API tests**: Integration tests that interact with the debugger through the
   SB API. These are written in Python and use LLDB's ``dotest.py`` testing
-  framework on top of Python's `unittest2
-  <https://docs.python.org/2/library/unittest.html>`_.
+  framework on top of Python's `unittest
+  <https://docs.python.org/3/library/unittest.html>`_.
 
 All three test suites use ``lit`` (`LLVM Integrated Tester
 <https://llvm.org/docs/CommandGuide/lit.html>`_ ) as the test driver. The test
@@ -63,7 +60,8 @@ something like ``target.BreakpointCreateByName`` [#]_.
 A good rule of thumb is to prefer shell tests when what is being tested is
 relatively simple. Expressivity is limited compared to the API tests, which
 means that you have to have a well-defined test scenario that you can easily
-match with ``FileCheck``.
+match with ``FileCheck``. Though Shell tests can be run remotely, behavior
+specific to remote debugging must be tested with API tests instead.
 
 Another thing to consider are the binaries being debugged, which we call
 inferiors. For shell tests, they have to be relatively simple. The
@@ -97,7 +95,7 @@ programs from source, run them, and debug the processes.
 As mentioned before, ``dotest.py`` is LLDB's testing framework. The
 implementation is located under ``lldb/packages/Python/lldbsuite``. We have
 several extensions and custom test primitives on top of what's offered by
-`unittest2 <https://docs.python.org/2/library/unittest.html>`_. Those can be
+`unittest <https://docs.python.org/3/library/unittest.html>`_. Those can be
 found  in
 `lldbtest.py <https://github.com/llvm/llvm-project/blob/main/lldb/packages/Python/lldbsuite/test/lldbtest.py>`_.
 
@@ -149,7 +147,7 @@ the test should be run or not.
 
 ::
 
-  @expectedFailure(checking_function_name)
+  @skipTestIfFn(checking_function_name)
 
 In addition to providing a lot more flexibility when it comes to writing the
 test, the API test also allow for much more complex scenarios when it comes to
@@ -229,7 +227,7 @@ good testing practices.
     time (e.g., C and C++) there is also usually no process necessary to test
     the `SBType`-related parts of the API. With those languages it's also
     possible to test `SBValue` by running expressions with
-    `SBTarget.EvaluateExpression` or the `expect_expr` testing utility.
+    `SBTarget.EvaluateExpression` or the ``expect_expr`` testing utility.
 
     Functionality that always requires a running process is everything that
     tests the `SBProcess`, `SBThread`, and `SBFrame` classes. The same is true
@@ -315,27 +313,27 @@ A better way to write the test above would be using LLDB's testing function
     self.expect_expr("2 + 2", result_value="0")
 
 **Prefer using specific asserts over the generic assertTrue/assertFalse.**.
-    The `self.assertTrue`/`self.assertFalse` functions should always be your
+    The ``self.assertTrue``/``self.assertFalse`` functions should always be your
     last option as they give non-descriptive error messages. The test class has
-    several expressive asserts such as `self.assertIn` that automatically
+    several expressive asserts such as ``self.assertIn`` that automatically
     generate an explanation how the received values differ from the expected
-    ones. Check the documentation of Python's `unittest` module to see what
+    ones. Check the documentation of Python's ``unittest`` module to see what
     asserts are available. LLDB also has a few custom asserts that are tailored
     to our own data types.
 
 +-----------------------------------------------+-----------------------------------------------------------------+
-| **Assert**                                    | **Description**                                               |
+| **Assert**                                    | **Description**                                                 |
 +-----------------------------------------------+-----------------------------------------------------------------+
-| ``assertSuccess``                             | Assert that an ``lldb.SBError`` is in the "success" state.    |
+| ``assertSuccess``                             | Assert that an ``lldb.SBError`` is in the "success" state.      |
 +-----------------------------------------------+-----------------------------------------------------------------+
-| ``assertState``                               | Assert that two states (``lldb.eState*``) are equal.          |
+| ``assertState``                               | Assert that two states (``lldb.eState*``) are equal.            |
 +-----------------------------------------------+-----------------------------------------------------------------+
 | ``assertStopReason``                          | Assert that two stop reasons (``lldb.eStopReason*``) are equal. |
 +-----------------------------------------------+-----------------------------------------------------------------+
 
     If you can't find a specific assert that fits your needs and you fall back
     to a generic assert, make sure you put useful information into the assert's
-    `msg` argument that helps explain the failure.
+    ``msg`` argument that helps explain the failure.
 
 ::
 
@@ -409,6 +407,21 @@ The 'child_send1.txt' file gets generated during the test run, so it makes sense
 TestSTTYBeforeAndAfter.py file to do the cleanup instead of artificially adding it as part of the default cleanup action which serves to
 cleanup those intermediate and a.out files.
 
+CI
+--
+
+LLVM Buildbot is the place where volunteers provide machines for building and
+testing. Everyone can `add a buildbot for LLDB <https://llvm.org/docs/HowToAddABuilder.html>`_.
+
+An overview of all LLDB builders can be found here:
+
+`https://lab.llvm.org/buildbot/#/builders?tags=lldb <https://lab.llvm.org/buildbot/#/builders?tags=lldb>`_
+
+Building and testing for macOS uses a different platform called GreenDragon. It
+has a dedicated tab for LLDB: `https://green.lab.llvm.org/job/llvm.org/view/LLDB/
+<https://green.lab.llvm.org/job/llvm.org/view/LLDB/>`_
+
+
 Running The Tests
 -----------------
 
@@ -429,22 +442,39 @@ Running the Full Test Suite
 The easiest way to run the LLDB test suite is to use the ``check-lldb`` build
 target.
 
+::
+
+   $ ninja check-lldb
+
+Changing Test Suite Options
+```````````````````````````
+
 By default, the ``check-lldb`` target builds the test programs with the same
 compiler that was used to build LLDB. To build the tests with a different
 compiler, you can set the ``LLDB_TEST_COMPILER`` CMake variable.
 
+You can also add to the test runner options by setting the
+``LLDB_TEST_USER_ARGS`` CMake variable. This variable uses ``;`` to separate
+items which must be separate parts of the runner's command line.
+
 It is possible to customize the architecture of the test binaries and compiler
-used by appending ``-A`` and ``-C`` options respectively to the CMake variable
-``LLDB_TEST_USER_ARGS``. For example, to test LLDB against 32-bit binaries
-built with a custom version of clang, do:
+used by appending ``-A`` and ``-C`` options respectively. For example, to test
+LLDB against 32-bit binaries built with a custom version of clang, do:
 
 ::
 
-   $ cmake -DLLDB_TEST_USER_ARGS="-A i386 -C /path/to/custom/clang" -G Ninja
+   $ cmake -DLLDB_TEST_USER_ARGS="-A;i386;-C;/path/to/custom/clang" -G Ninja
    $ ninja check-lldb
 
 Note that multiple ``-A`` and ``-C`` flags can be specified to
 ``LLDB_TEST_USER_ARGS``.
+
+If you want to change the LLDB settings that tests run with then you can set
+the ``--setting`` option of the test runner via this same variable. For example
+``--setting;target.disable-aslr=true``.
+
+For a full list of test runner options, see
+``<build-dir>/bin/lldb-dotest --help``.
 
 Running a Single Test Suite
 ```````````````````````````
@@ -471,7 +501,7 @@ run as part of a test suite.
 
 ::
 
-   $ ./bin/llvm-lit -sv tools/lldb/test --filter <test>
+   $ ./bin/llvm-lit -sv <llvm-project-root>/lldb/test --filter <test>
 
 
 Because lit automatically scans a directory for tests, it's also possible to
@@ -479,7 +509,7 @@ pass a subdirectory to run a specific subset of the tests.
 
 ::
 
-   $ ./bin/llvm-lit -sv tools/lldb/test/Shell/Commands/CommandScriptImmediateOutput
+   $ ./bin/llvm-lit -sv <llvm-project-root>/lldb/test/Shell/Commands/CommandScriptImmediateOutput
 
 
 For the SB API tests it is possible to forward arguments to ``dotest.py`` by
@@ -487,7 +517,7 @@ passing ``--param`` to lit and setting a value for ``dotest-args``.
 
 ::
 
-   $ ./bin/llvm-lit -sv tools/lldb/test --param dotest-args='-C gcc'
+   $ ./bin/llvm-lit -sv <llvm-project-root>/lldb/test --param dotest-args='-C gcc'
 
 
 Below is an overview of running individual test in the unit and API test suites
@@ -556,30 +586,68 @@ To run a specific test, pass a filter, for example:
 Running the Test Suite Remotely
 ```````````````````````````````
 
-Running the test-suite remotely is similar to the process of running a local
-test suite, but there are two things to have in mind:
+1. Run lldb-server on the remote system, so that it can accept multiple connections.
+   This is called "platform" mode:
 
-1. You must have the lldb-server running on the remote system, ready to accept
-   multiple connections. For more information on how to setup remote debugging
-   see the Remote debugging page.
-2. You must tell the test-suite how to connect to the remote system. This is
-   achieved using the ``--platform-name``, ``--platform-url`` and
-   ``--platform-working-dir`` parameters to ``dotest.py``. These parameters
-   correspond to the platform select and platform connect LLDB commands. You
-   will usually also need to specify the compiler and architecture for the
-   remote system.
+   ::
 
-Currently, running the remote test suite is supported only with ``dotest.py`` (or
-dosep.py with a single thread), but we expect this issue to be addressed in the
-near future.
+      lldb-server platform --server --listen 0.0.0.0:<port A> --gdbserver-port <port B>
+
+   Assuming that ``port A`` and ``port B`` on the remote system can be reached
+   from your host system. If your remote system is a simulator on your host machine,
+   you may need to forward these ports to the host when you start the simulator.
+
+   For more information on how to setup remote debugging see :doc:`/use/remote`.
+
+2. Tell the test-suite how to connect to the remote system. This is done using the
+   ``LLDB_TEST_PLATFORM_URL`` and ``LLDB_TEST_PLATFORM_WORKING_DIR`` flags of CMake,
+   or the ``--platform-name``, ``--platform-url`` and ``--platform-working-dir``
+   parameters of ``dotest.py``. These parameters are passed on to the ``platform select``
+   and ``platform connect`` LLDB commands when the tests are run.
+
+   You will usually need to specify the compiler and architecture for the
+   remote system. This is done with CMake options ``LLDB_TEST_COMPILER`` and
+   ``LLDB_TEST_ARCH``, or the ``dotest.py`` options ``--compiler`` and ``--arch``.
+
+   .. note::
+      Even in cases where the two systems are the same architecture and run the
+      same operating system, there may be version differences between the two
+      which require you to use a different compiler version for remote testing.
+
+   For example, to run tests using ``dotest.py`` on a remote AArch64 Linux system
+   you might run:
+
+   ::
+
+      ./bin/lldb-dotest --platform-name remote-linux --arch aarch64 --compiler aarch64-none-linux-gnu-gcc --platform-url connect://<remote-ip>:<port A> --platform-working-dir /tmp/test_lldb -p <test-name>.py
+
+   This is the equivalent of:
+
+      * ``LLDB_TEST_ARCH`` = ``aarch64``
+      * ``LLDB_TEST_COMPILER`` = ``aarch64-none-linux-gnu-gcc``
+      * ``LLDB_TEST_PLATFORM_URL`` = ``connect://<remote-ip>:<port A>``
+      * ``LLDB_TEST_PLATFORM_WORKING_DIR`` = ``/tmp/test_lldb``
+
+   Setting these values using CMake allows you to run ``ninja check-lldb`` to run
+   tests on the remote system.
+
+   If you have a host build that you sometimes check on a remote system, but otherwise
+   test on the host, adding arguments to ``dotest.py`` manually is easier.
+
+.. note::
+   Remote Shell test execution is currently supported only for Linux targets.
+   It is enabled when ``LLDB_TEST_SYSROOT`` is set. Remote Shell testing can
+   be disabled by setting ``LLDB_TEST_SHELL_DISABLE_REMOTE=On``. Shell tests
+   are not guaranteed to pass against remote target if the test compiler is not
+   Clang.
 
 Running tests in QEMU System Emulation Environment
 ``````````````````````````````````````````````````
 
 QEMU can be used to test LLDB in an emulation environment in the absence of
-actual hardware. `QEMU based testing <https://lldb.llvm.org/use/qemu-testing.html>`_
-page describes how to setup an emulation environment using QEMU helper scripts
-found under llvm-project/lldb/scripts/lldb-test-qemu. These scripts currently
+actual hardware. :doc:`/resources/qemu-testing` describes how to setup an
+emulation environment using QEMU helper scripts found in
+``llvm-project/lldb/scripts/lldb-test-qemu``. These scripts currently
 work with Arm or AArch64, but support for other architectures can be added easily.
 
 Debugging Test Failures
@@ -589,17 +657,15 @@ On non-Windows platforms, you can use the ``-d`` option to ``dotest.py`` which
 will cause the script to print out the pid of the test and wait for a while
 until a debugger is attached. Then run ``lldb -p <pid>`` to attach.
 
-To instead debug a test's python source, edit the test and insert
-``import pdb; pdb.set_trace()`` at the point you want to start debugging. In
-addition to pdb's debugging facilities, lldb commands can be executed with the
+To instead debug a test's python source, edit the test and insert ``import pdb; pdb.set_trace()`` or ``breakpoint()`` (Python 3 only) at the point you want to start debugging. The ``breakpoint()`` command can be used for any LLDB Python script, not just for API tests.
+
+In addition to pdb's debugging facilities, lldb commands can be executed with the
 help of a pdb alias. For example ``lldb bt`` and ``lldb v some_var``. Add this
 line to your ``~/.pdbrc``:
 
 ::
 
    alias lldb self.dbg.HandleCommand("%*")
-
-::
 
 Debugging Test Failures on Windows
 ``````````````````````````````````

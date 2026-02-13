@@ -33,7 +33,7 @@ define <2 x double> @test_mm_blend_pd(<2 x double> %a0, <2 x double> %a1) {
 ;
 ; AVX-LABEL: test_mm_blend_pd:
 ; AVX:       # %bb.0:
-; AVX-NEXT:    vblendps {{.*#+}} xmm0 = xmm0[0,1],xmm1[2,3]
+; AVX-NEXT:    vmovsd {{.*#+}} xmm0 = xmm0[0],xmm1[1]
 ; AVX-NEXT:    ret{{[l|q]}}
   %res = shufflevector <2 x double> %a0, <2 x double> %a1, <2 x i32> <i32 0, i32 3>
   ret <2 x double> %res
@@ -574,8 +574,7 @@ define <2 x i64> @test_mm_insert_epi8(<2 x i64> %a0, i8 %a1) {
 ;
 ; X64-AVX-LABEL: test_mm_insert_epi8:
 ; X64-AVX:       # %bb.0:
-; X64-AVX-NEXT:    movzbl %dil, %eax
-; X64-AVX-NEXT:    vpinsrb $1, %eax, %xmm0, %xmm0
+; X64-AVX-NEXT:    vpinsrb $1, %edi, %xmm0, %xmm0
 ; X64-AVX-NEXT:    retq
   %arg0 = bitcast <2 x i64> %a0 to <16 x i8>
   %res = insertelement <16 x i8> %arg0, i8 %a1,i32 1

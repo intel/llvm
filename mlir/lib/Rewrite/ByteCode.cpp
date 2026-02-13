@@ -20,9 +20,12 @@
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/DebugLog.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/FormatVariadic.h"
+#include "llvm/Support/InterleavedRange.h"
 #include <numeric>
+#include <optional>
 
 #define DEBUG_TYPE "pdl-bytecode"
 
@@ -34,21 +37,23 @@ using namespace mlir::detail;
 //===----------------------------------------------------------------------===//
 
 PDLByteCodePattern PDLByteCodePattern::create(pdl_interp::RecordMatchOp matchOp,
+                                              PDLPatternConfigSet *configSet,
                                               ByteCodeAddr rewriterAddr) {
+  PatternBenefit benefit = matchOp.getBenefit();
+  MLIRContext *ctx = matchOp.getContext();
+
+  // Collect the set of generated operations.
   SmallVector<StringRef, 8> generatedOps;
   if (ArrayAttr generatedOpsAttr = matchOp.getGeneratedOpsAttr())
     generatedOps =
         llvm::to_vector<8>(generatedOpsAttr.getAsValueRange<StringAttr>());
 
-  PatternBenefit benefit = matchOp.getBenefit();
-  MLIRContext *ctx = matchOp.getContext();
-
   // Check to see if this is pattern matches a specific operation type.
-  if (Optional<StringRef> rootKind = matchOp.getRootKind())
-    return PDLByteCodePattern(rewriterAddr, *rootKind, benefit, ctx,
+  if (std::optional<StringRef> rootKind = matchOp.getRootKind())
+    return PDLByteCodePattern(rewriterAddr, configSet, *rootKind, benefit, ctx,
                               generatedOps);
-  return PDLByteCodePattern(rewriterAddr, MatchAnyOpTypeTag(), benefit, ctx,
-                            generatedOps);
+  return PDLByteCodePattern(rewriterAddr, configSet, MatchAnyOpTypeTag(),
+                            benefit, ctx, generatedOps);
 }
 
 //===----------------------------------------------------------------------===//
@@ -97,10 +102,14 @@ enum OpCode : ByteCodeField {
   CheckTypes,
   /// Continue to the next iteration of a loop.
   Continue,
+  /// Create a type range from a list of constant types.
+  CreateConstantTypeRange,
   /// Create an operation.
   CreateOperation,
-  /// Create a range of types.
-  CreateTypes,
+  /// Create a type range from a list of dynamic types.
+  CreateDynamicTypeRange,
+  /// Create a value range.
+  CreateDynamicValueRange,
   /// Erase an operation.
   EraseOp,
   /// Extract the op from a range at the specified index.
@@ -172,6 +181,7 @@ static constexpr ByteCodeField kInferTypesMarker =
 
 //===----------------------------------------------------------------------===//
 // Generator
+//===----------------------------------------------------------------------===//
 
 namespace {
 struct ByteCodeLiveRange;
@@ -194,14 +204,15 @@ public:
             ByteCodeField &maxValueRangeMemoryIndex,
             ByteCodeField &maxLoopLevel,
             llvm::StringMap<PDLConstraintFunction> &constraintFns,
-            llvm::StringMap<PDLRewriteFunction> &rewriteFns)
+            llvm::StringMap<PDLRewriteFunction> &rewriteFns,
+            const DenseMap<Operation *, PDLPatternConfigSet *> &configMap)
       : ctx(ctx), uniquedData(uniquedData), matcherByteCode(matcherByteCode),
         rewriterByteCode(rewriterByteCode), patterns(patterns),
         maxValueMemoryIndex(maxValueMemoryIndex),
         maxOpRangeMemoryIndex(maxOpRangeMemoryIndex),
         maxTypeRangeMemoryIndex(maxTypeRangeMemoryIndex),
         maxValueRangeMemoryIndex(maxValueRangeMemoryIndex),
-        maxLoopLevel(maxLoopLevel) {
+        maxLoopLevel(maxLoopLevel), configMap(configMap) {
     for (const auto &it : llvm::enumerate(constraintFns))
       constraintToMemIndex.try_emplace(it.value().first(), it.index());
     for (const auto &it : llvm::enumerate(rewriteFns))
@@ -262,6 +273,7 @@ private:
   void generate(pdl_interp::ContinueOp op, ByteCodeWriter &writer);
   void generate(pdl_interp::CreateAttributeOp op, ByteCodeWriter &writer);
   void generate(pdl_interp::CreateOperationOp op, ByteCodeWriter &writer);
+  void generate(pdl_interp::CreateRangeOp op, ByteCodeWriter &writer);
   void generate(pdl_interp::CreateTypeOp op, ByteCodeWriter &writer);
   void generate(pdl_interp::CreateTypesOp op, ByteCodeWriter &writer);
   void generate(pdl_interp::EraseOp op, ByteCodeWriter &writer);
@@ -328,6 +340,9 @@ private:
   ByteCodeField &maxTypeRangeMemoryIndex;
   ByteCodeField &maxValueRangeMemoryIndex;
   ByteCodeField &maxLoopLevel;
+
+  /// A map of pattern configurations.
+  const DenseMap<Operation *, PDLPatternConfigSet *> &configMap;
 };
 
 /// This class provides utilities for writing a bytecode stream.
@@ -390,7 +405,7 @@ struct ByteCodeWriter {
             .Case<pdl::OperationType>(
                 [](Type) { return PDLValue::Kind::Operation; })
             .Case<pdl::RangeType>([](pdl::RangeType rangeTy) {
-              if (rangeTy.getElementType().isa<pdl::TypeType>())
+              if (isa<pdl::TypeType>(rangeTy.getElementType()))
                 return PDLValue::Kind::TypeRange;
               return PDLValue::Kind::ValueRange;
             })
@@ -475,13 +490,13 @@ struct ByteCodeLiveRange {
   std::unique_ptr<llvm::IntervalMap<uint64_t, char, 16>> liveness;
 
   /// The operation range storage index for this range.
-  Optional<unsigned> opRangeIndex;
+  std::optional<unsigned> opRangeIndex;
 
   /// The type range storage index for this range.
-  Optional<unsigned> typeRangeIndex;
+  std::optional<unsigned> typeRangeIndex;
 
   /// The value range storage index for this range.
-  Optional<unsigned> valueRangeIndex;
+  std::optional<unsigned> valueRangeIndex;
 };
 } // namespace
 
@@ -526,11 +541,11 @@ void Generator::allocateMemoryIndices(pdl_interp::FuncOp matcherFunc,
     ByteCodeField index = 0, typeRangeIndex = 0, valueRangeIndex = 0;
     auto processRewriterValue = [&](Value val) {
       valueToMemIndex.try_emplace(val, index++);
-      if (pdl::RangeType rangeType = val.getType().dyn_cast<pdl::RangeType>()) {
+      if (pdl::RangeType rangeType = dyn_cast<pdl::RangeType>(val.getType())) {
         Type elementTy = rangeType.getElementType();
-        if (elementTy.isa<pdl::TypeType>())
+        if (isa<pdl::TypeType>(elementTy))
           valueToRangeIndex.try_emplace(val, typeRangeIndex++);
-        else if (elementTy.isa<pdl::ValueType>())
+        else if (isa<pdl::ValueType>(elementTy))
           valueToRangeIndex.try_emplace(val, valueRangeIndex++);
       }
     };
@@ -599,13 +614,13 @@ void Generator::allocateMemoryIndices(pdl_interp::FuncOp matcherFunc,
           /*dummyValue*/ 0);
 
       // Check to see if this value is a range type.
-      if (auto rangeTy = value.getType().dyn_cast<pdl::RangeType>()) {
+      if (auto rangeTy = dyn_cast<pdl::RangeType>(value.getType())) {
         Type eleType = rangeTy.getElementType();
-        if (eleType.isa<pdl::OperationType>())
+        if (isa<pdl::OperationType>(eleType))
           defRangeIt->second.opRangeIndex = 0;
-        else if (eleType.isa<pdl::TypeType>())
+        else if (isa<pdl::TypeType>(eleType))
           defRangeIt->second.typeRangeIndex = 0;
-        else if (eleType.isa<pdl::ValueType>())
+        else if (isa<pdl::ValueType>(eleType))
           defRangeIt->second.valueRangeIndex = 0;
       }
     };
@@ -694,10 +709,8 @@ void Generator::allocateMemoryIndices(pdl_interp::FuncOp matcherFunc,
   }
 
   // Print the index usage and ensure that we did not run out of index space.
-  LLVM_DEBUG({
-    llvm::dbgs() << "Allocated " << allocatedIndices.size() << " indices "
-                 << "(down from initial " << valueDefRanges.size() << ").\n";
-  });
+  LDBG() << "Allocated " << allocatedIndices.size() << " indices "
+         << "(down from initial " << valueDefRanges.size() << ").";
   assert(allocatedIndices.size() <= std::numeric_limits<ByteCodeField>::max() &&
          "Ran out of memory for allocated indices");
 
@@ -723,6 +736,7 @@ void Generator::generate(Region *region, ByteCodeWriter &writer) {
 }
 
 void Generator::generate(Operation *op, ByteCodeWriter &writer) {
+  LDBG() << "Generating bytecode for operation: " << op->getName();
   LLVM_DEBUG({
     // The following list must contain all the operations that do not
     // produce any bytecode.
@@ -736,9 +750,9 @@ void Generator::generate(Operation *op, ByteCodeWriter &writer) {
             pdl_interp::CheckOperationNameOp, pdl_interp::CheckResultCountOp,
             pdl_interp::CheckTypeOp, pdl_interp::CheckTypesOp,
             pdl_interp::ContinueOp, pdl_interp::CreateAttributeOp,
-            pdl_interp::CreateOperationOp, pdl_interp::CreateTypeOp,
-            pdl_interp::CreateTypesOp, pdl_interp::EraseOp,
-            pdl_interp::ExtractOp, pdl_interp::FinalizeOp,
+            pdl_interp::CreateOperationOp, pdl_interp::CreateRangeOp,
+            pdl_interp::CreateTypeOp, pdl_interp::CreateTypesOp,
+            pdl_interp::EraseOp, pdl_interp::ExtractOp, pdl_interp::FinalizeOp,
             pdl_interp::ForEachOp, pdl_interp::GetAttributeOp,
             pdl_interp::GetAttributeTypeOp, pdl_interp::GetDefiningOpOp,
             pdl_interp::GetOperandOp, pdl_interp::GetOperandsOp,
@@ -750,17 +764,30 @@ void Generator::generate(Operation *op, ByteCodeWriter &writer) {
             pdl_interp::SwitchOperandCountOp, pdl_interp::SwitchOperationNameOp,
             pdl_interp::SwitchResultCountOp>(
           [&](auto interpOp) { this->generate(interpOp, writer); })
-      .Default([](Operation *) {
-        llvm_unreachable("unknown `pdl_interp` operation");
-      });
+      .DefaultUnreachable("unknown `pdl_interp` operation");
 }
 
 void Generator::generate(pdl_interp::ApplyConstraintOp op,
                          ByteCodeWriter &writer) {
-  assert(constraintToMemIndex.count(op.getName()) &&
-         "expected index for constraint function");
+  // Constraints that should return a value have to be registered as rewrites.
+  // If a constraint and a rewrite of similar name are registered the
+  // constraint takes precedence
   writer.append(OpCode::ApplyConstraint, constraintToMemIndex[op.getName()]);
   writer.appendPDLValueList(op.getArgs());
+  writer.append(ByteCodeField(op.getIsNegated()));
+  ResultRange results = op.getResults();
+  writer.append(ByteCodeField(results.size()));
+  for (Value result : results) {
+    // We record the expected kind of the result, so that we can provide extra
+    // verification of the native rewrite function and handle the failure case
+    // of constraints accordingly.
+    writer.appendPDLValueKind(result);
+
+    // Range results also need to append the range storage index.
+    if (isa<pdl::RangeType>(result.getType()))
+      writer.append(getRangeStorageIndex(result));
+    writer.append(result);
+  }
   writer.append(op.getSuccessors());
 }
 void Generator::generate(pdl_interp::ApplyRewriteOp op,
@@ -773,21 +800,19 @@ void Generator::generate(pdl_interp::ApplyRewriteOp op,
   ResultRange results = op.getResults();
   writer.append(ByteCodeField(results.size()));
   for (Value result : results) {
-    // In debug mode we also record the expected kind of the result, so that we
+    // We record the expected kind of the result, so that we
     // can provide extra verification of the native rewrite function.
-#ifndef NDEBUG
     writer.appendPDLValueKind(result);
-#endif
 
     // Range results also need to append the range storage index.
-    if (result.getType().isa<pdl::RangeType>())
+    if (isa<pdl::RangeType>(result.getType()))
       writer.append(getRangeStorageIndex(result));
     writer.append(result);
   }
 }
 void Generator::generate(pdl_interp::AreEqualOp op, ByteCodeWriter &writer) {
   Value lhs = op.getLhs();
-  if (lhs.getType().isa<pdl::RangeType>()) {
+  if (isa<pdl::RangeType>(lhs.getType())) {
     writer.append(OpCode::AreRangesEqual);
     writer.appendPDLValueKind(lhs);
     writer.append(op.getLhs(), op.getRhs(), op.getSuccessors());
@@ -857,12 +882,24 @@ void Generator::generate(pdl_interp::CreateOperationOp op,
   else
     writer.appendPDLValueList(op.getInputResultTypes());
 }
+void Generator::generate(pdl_interp::CreateRangeOp op, ByteCodeWriter &writer) {
+  // Append the correct opcode for the range type.
+  TypeSwitch<Type>(op.getType().getElementType())
+      .Case(
+          [&](pdl::TypeType) { writer.append(OpCode::CreateDynamicTypeRange); })
+      .Case([&](pdl::ValueType) {
+        writer.append(OpCode::CreateDynamicValueRange);
+      });
+
+  writer.append(op.getResult(), getRangeStorageIndex(op.getResult()));
+  writer.appendPDLValueList(op->getOperands());
+}
 void Generator::generate(pdl_interp::CreateTypeOp op, ByteCodeWriter &writer) {
   // Simply repoint the memory index of the result to the constant.
   getMemIndex(op.getResult()) = getMemIndex(op.getValue());
 }
 void Generator::generate(pdl_interp::CreateTypesOp op, ByteCodeWriter &writer) {
-  writer.append(OpCode::CreateTypes, op.getResult(),
+  writer.append(OpCode::CreateConstantTypeRange, op.getResult(),
                 getRangeStorageIndex(op.getResult()), op.getValue());
 }
 void Generator::generate(pdl_interp::EraseOp op, ByteCodeWriter &writer) {
@@ -874,9 +911,7 @@ void Generator::generate(pdl_interp::ExtractOp op, ByteCodeWriter &writer) {
           .Case([](pdl::OperationType) { return OpCode::ExtractOp; })
           .Case([](pdl::ValueType) { return OpCode::ExtractValue; })
           .Case([](pdl::TypeType) { return OpCode::ExtractType; })
-          .Default([](Type) -> OpCode {
-            llvm_unreachable("unsupported element type");
-          });
+          .DefaultUnreachable("unsupported element type");
   writer.append(opCode, op.getRange(), op.getIndex(), op.getResult());
 }
 void Generator::generate(pdl_interp::FinalizeOp op, ByteCodeWriter &writer) {
@@ -917,11 +952,11 @@ void Generator::generate(pdl_interp::GetOperandOp op, ByteCodeWriter &writer) {
 }
 void Generator::generate(pdl_interp::GetOperandsOp op, ByteCodeWriter &writer) {
   Value result = op.getValue();
-  Optional<uint32_t> index = op.getIndex();
+  std::optional<uint32_t> index = op.getIndex();
   writer.append(OpCode::GetOperands,
                 index.value_or(std::numeric_limits<uint32_t>::max()),
                 op.getInputOp());
-  if (result.getType().isa<pdl::RangeType>())
+  if (isa<pdl::RangeType>(result.getType()))
     writer.append(getRangeStorageIndex(result));
   else
     writer.append(std::numeric_limits<ByteCodeField>::max());
@@ -937,11 +972,11 @@ void Generator::generate(pdl_interp::GetResultOp op, ByteCodeWriter &writer) {
 }
 void Generator::generate(pdl_interp::GetResultsOp op, ByteCodeWriter &writer) {
   Value result = op.getValue();
-  Optional<uint32_t> index = op.getIndex();
+  std::optional<uint32_t> index = op.getIndex();
   writer.append(OpCode::GetResults,
                 index.value_or(std::numeric_limits<uint32_t>::max()),
                 op.getInputOp());
-  if (result.getType().isa<pdl::RangeType>())
+  if (isa<pdl::RangeType>(result.getType()))
     writer.append(getRangeStorageIndex(result));
   else
     writer.append(std::numeric_limits<ByteCodeField>::max());
@@ -955,7 +990,7 @@ void Generator::generate(pdl_interp::GetUsersOp op, ByteCodeWriter &writer) {
 }
 void Generator::generate(pdl_interp::GetValueTypeOp op,
                          ByteCodeWriter &writer) {
-  if (op.getType().isa<pdl::RangeType>()) {
+  if (isa<pdl::RangeType>(op.getType())) {
     Value result = op.getResult();
     writer.append(OpCode::GetValueRangeTypes, result,
                   getRangeStorageIndex(result), op.getValue());
@@ -969,7 +1004,8 @@ void Generator::generate(pdl_interp::IsNotNullOp op, ByteCodeWriter &writer) {
 void Generator::generate(pdl_interp::RecordMatchOp op, ByteCodeWriter &writer) {
   ByteCodeField patternIndex = patterns.size();
   patterns.emplace_back(PDLByteCodePattern::create(
-      op, rewriterToAddr[op.getRewriter().getLeafReference().getValue()]));
+      op, configMap.lookup(op),
+      rewriterToAddr[op.getRewriter().getLeafReference().getValue()]));
   writer.append(OpCode::RecordMatch, patternIndex,
                 SuccessorRange(op.getOperation()), op.getMatchedOps());
   writer.appendPDLValueList(op.getInputs());
@@ -991,7 +1027,7 @@ void Generator::generate(pdl_interp::SwitchOperandCountOp op,
 void Generator::generate(pdl_interp::SwitchOperationNameOp op,
                          ByteCodeWriter &writer) {
   auto cases = llvm::map_range(op.getCaseValuesAttr(), [&](Attribute attr) {
-    return OperationName(attr.cast<StringAttr>().getValue(), ctx);
+    return OperationName(cast<StringAttr>(attr).getValue(), ctx);
   });
   writer.append(OpCode::SwitchOperationName, op.getInputOp(), cases,
                 op.getSuccessors());
@@ -1014,13 +1050,16 @@ void Generator::generate(pdl_interp::SwitchTypesOp op, ByteCodeWriter &writer) {
 // PDLByteCode
 //===----------------------------------------------------------------------===//
 
-PDLByteCode::PDLByteCode(ModuleOp module,
-                         llvm::StringMap<PDLConstraintFunction> constraintFns,
-                         llvm::StringMap<PDLRewriteFunction> rewriteFns) {
+PDLByteCode::PDLByteCode(
+    ModuleOp module, SmallVector<std::unique_ptr<PDLPatternConfigSet>> configs,
+    const DenseMap<Operation *, PDLPatternConfigSet *> &configMap,
+    llvm::StringMap<PDLConstraintFunction> constraintFns,
+    llvm::StringMap<PDLRewriteFunction> rewriteFns)
+    : configs(std::move(configs)) {
   Generator generator(module.getContext(), uniquedData, matcherByteCode,
                       rewriterByteCode, patterns, maxValueMemoryIndex,
                       maxOpRangeCount, maxTypeRangeCount, maxValueRangeCount,
-                      maxLoopLevel, constraintFns, rewriteFns);
+                      maxLoopLevel, constraintFns, rewriteFns, configMap);
   generator.generate(module);
 
   // Initialize the external functions.
@@ -1045,24 +1084,48 @@ void PDLByteCode::initializeMutableState(PDLByteCodeMutableState &state) const {
 
 //===----------------------------------------------------------------------===//
 // ByteCode Execution
+//===----------------------------------------------------------------------===//
 
 namespace {
+/// This class is an instantiation of the PDLResultList that provides access to
+/// the returned results. This API is not on `PDLResultList` to avoid
+/// overexposing access to information specific solely to the ByteCode.
+class ByteCodeRewriteResultList : public PDLResultList {
+public:
+  ByteCodeRewriteResultList(unsigned maxNumResults)
+      : PDLResultList(maxNumResults) {}
+
+  /// Return the list of PDL results.
+  MutableArrayRef<PDLValue> getResults() { return results; }
+
+  /// Return the type ranges allocated by this list.
+  MutableArrayRef<std::vector<Type>> getAllocatedTypeRanges() {
+    return allocatedTypeRanges;
+  }
+
+  /// Return the value ranges allocated by this list.
+  MutableArrayRef<std::vector<Value>> getAllocatedValueRanges() {
+    return allocatedValueRanges;
+  }
+};
+
 /// This class provides support for executing a bytecode stream.
 class ByteCodeExecutor {
 public:
-  ByteCodeExecutor(
-      const ByteCodeField *curCodeIt, MutableArrayRef<const void *> memory,
-      MutableArrayRef<llvm::OwningArrayRef<Operation *>> opRangeMemory,
-      MutableArrayRef<TypeRange> typeRangeMemory,
-      std::vector<llvm::OwningArrayRef<Type>> &allocatedTypeRangeMemory,
-      MutableArrayRef<ValueRange> valueRangeMemory,
-      std::vector<llvm::OwningArrayRef<Value>> &allocatedValueRangeMemory,
-      MutableArrayRef<unsigned> loopIndex, ArrayRef<const void *> uniquedMemory,
-      ArrayRef<ByteCodeField> code,
-      ArrayRef<PatternBenefit> currentPatternBenefits,
-      ArrayRef<PDLByteCodePattern> patterns,
-      ArrayRef<PDLConstraintFunction> constraintFunctions,
-      ArrayRef<PDLRewriteFunction> rewriteFunctions)
+  ByteCodeExecutor(const ByteCodeField *curCodeIt,
+                   MutableArrayRef<const void *> memory,
+                   MutableArrayRef<std::vector<Operation *>> opRangeMemory,
+                   MutableArrayRef<TypeRange> typeRangeMemory,
+                   std::vector<std::vector<Type>> &allocatedTypeRangeMemory,
+                   MutableArrayRef<ValueRange> valueRangeMemory,
+                   std::vector<std::vector<Value>> &allocatedValueRangeMemory,
+                   MutableArrayRef<unsigned> loopIndex,
+                   ArrayRef<const void *> uniquedMemory,
+                   ArrayRef<ByteCodeField> code,
+                   ArrayRef<PatternBenefit> currentPatternBenefits,
+                   ArrayRef<PDLByteCodePattern> patterns,
+                   ArrayRef<PDLConstraintFunction> constraintFunctions,
+                   ArrayRef<PDLRewriteFunction> rewriteFunctions)
       : curCodeIt(curCodeIt), memory(memory), opRangeMemory(opRangeMemory),
         typeRangeMemory(typeRangeMemory),
         allocatedTypeRangeMemory(allocatedTypeRangeMemory),
@@ -1076,14 +1139,15 @@ public:
   /// Start executing the code at the current bytecode index. `matches` is an
   /// optional field provided when this function is executed in a matching
   /// context.
-  void execute(PatternRewriter &rewriter,
-               SmallVectorImpl<PDLByteCode::MatchResult> *matches = nullptr,
-               Optional<Location> mainRewriteLoc = {});
+  LogicalResult
+  execute(PatternRewriter &rewriter,
+          SmallVectorImpl<PDLByteCode::MatchResult> *matches = nullptr,
+          std::optional<Location> mainRewriteLoc = {});
 
 private:
   /// Internal implementation of executing each of the bytecode commands.
   void executeApplyConstraint(PatternRewriter &rewriter);
-  void executeApplyRewrite(PatternRewriter &rewriter);
+  LogicalResult executeApplyRewrite(PatternRewriter &rewriter);
   void executeAreEqual();
   void executeAreRangesEqual();
   void executeBranch();
@@ -1092,9 +1156,11 @@ private:
   void executeCheckResultCount();
   void executeCheckTypes();
   void executeContinue();
+  void executeCreateConstantTypeRange();
   void executeCreateOperation(PatternRewriter &rewriter,
                               Location mainRewriteLoc);
-  void executeCreateTypes();
+  template <typename T>
+  void executeDynamicCreateRange(StringRef type);
   void executeEraseOp(PatternRewriter &rewriter);
   template <typename T, typename Range, PDLValue::Kind kind>
   void executeExtract();
@@ -1120,6 +1186,9 @@ private:
   void executeSwitchResultCount();
   void executeSwitchType();
   void executeSwitchTypes();
+  void processNativeFunResults(ByteCodeRewriteResultList &results,
+                               unsigned numResults,
+                               LogicalResult &rewriteResult);
 
   /// Pushes a code iterator to the stack.
   void pushCodeIt(const ByteCodeField *it) { resumeCodeIt.push_back(it); }
@@ -1127,8 +1196,7 @@ private:
   /// Pops a code iterator from the stack, returning true on success.
   void popCodeIt() {
     assert(!resumeCodeIt.empty() && "attempt to pop code off empty stack");
-    curCodeIt = resumeCodeIt.back();
-    resumeCodeIt.pop_back();
+    curCodeIt = resumeCodeIt.pop_back_val();
   }
 
   /// Return the bytecode iterator at the start of the current op code.
@@ -1161,8 +1229,18 @@ private:
   }
 
   /// Read a list of values from the bytecode buffer. The values may be encoded
-  /// as either Value or ValueRange elements.
-  void readValueList(SmallVectorImpl<Value> &list) {
+  /// either as a single element or a range of elements.
+  void readList(SmallVectorImpl<Type> &list) {
+    for (unsigned i = 0, e = read(); i != e; ++i) {
+      if (read<PDLValue::Kind>() == PDLValue::Kind::Type) {
+        list.push_back(read<Type>());
+      } else {
+        TypeRange *values = read<TypeRange *>();
+        list.append(values->begin(), values->end());
+      }
+    }
+  }
+  void readList(SmallVectorImpl<Value> &list) {
     for (unsigned i = 0, e = read(); i != e; ++i) {
       if (read<PDLValue::Kind>() == PDLValue::Kind::Value) {
         list.push_back(read<Value>());
@@ -1183,6 +1261,8 @@ private:
     return T::getFromOpaquePointer(pointer);
   }
 
+  void skip(size_t skipN) { curCodeIt += skipN; }
+
   /// Jump to a specific successor based on a predicate value.
   void selectJump(bool isTrue) { selectJump(size_t(isTrue ? 0 : 1)); }
   /// Jump to a specific successor based on a destination index.
@@ -1193,12 +1273,8 @@ private:
   /// Handle a switch operation with the provided value and cases.
   template <typename T, typename RangeT, typename Comparator = std::equal_to<T>>
   void handleSwitch(const T &value, RangeT &&cases, Comparator cmp = {}) {
-    LLVM_DEBUG({
-      llvm::dbgs() << "  * Value: " << value << "\n"
-                   << "  * Cases: ";
-      llvm::interleaveComma(cases, llvm::dbgs());
-      llvm::dbgs() << "\n";
-    });
+    LDBG() << "Switch operation:\n  * Value: " << value
+           << "\n  * Cases: " << llvm::interleaved(cases);
 
     // Check to see if the attribute value is within the case list. Jump to
     // the correct successor index based on the result.
@@ -1281,6 +1357,35 @@ private:
     return static_cast<PDLValue::Kind>(readImpl<ByteCodeField>());
   }
 
+  /// Assign the given range to the given memory index. This allocates a new
+  /// range object if necessary.
+  template <typename RangeT, typename T = llvm::detail::ValueOfRange<RangeT>>
+  void assignRangeToMemory(RangeT &&range, unsigned memIndex,
+                           unsigned rangeIndex) {
+    // Utility functor used to type-erase the assignment.
+    auto assignRange = [&](auto &allocatedRangeMemory, auto &rangeMemory) {
+      // If the input range is empty, we don't need to allocate anything.
+      if (range.empty()) {
+        rangeMemory[rangeIndex] = {};
+      } else {
+        // Assign this to the range slot and use the range as the value for the
+        // memory index.
+        allocatedRangeMemory.emplace_back(range.begin(), range.end());
+        rangeMemory[rangeIndex] = allocatedRangeMemory.back();
+      }
+      memory[memIndex] = &rangeMemory[rangeIndex];
+    };
+
+    // Dispatch based on the concrete range type.
+    if constexpr (std::is_same_v<T, Type>) {
+      return assignRange(allocatedTypeRangeMemory, typeRangeMemory);
+    } else if constexpr (std::is_same_v<T, Value>) {
+      return assignRange(allocatedValueRangeMemory, valueRangeMemory);
+    } else {
+      llvm_unreachable("unhandled range type");
+    }
+  }
+
   /// The underlying bytecode buffer.
   const ByteCodeField *curCodeIt;
 
@@ -1289,11 +1394,11 @@ private:
 
   /// The current execution memory.
   MutableArrayRef<const void *> memory;
-  MutableArrayRef<OwningOpRange> opRangeMemory;
+  MutableArrayRef<std::vector<Operation *>> opRangeMemory;
   MutableArrayRef<TypeRange> typeRangeMemory;
-  std::vector<llvm::OwningArrayRef<Type>> &allocatedTypeRangeMemory;
+  std::vector<std::vector<Type>> &allocatedTypeRangeMemory;
   MutableArrayRef<ValueRange> valueRangeMemory;
-  std::vector<llvm::OwningArrayRef<Value>> &allocatedValueRangeMemory;
+  std::vector<std::vector<Value>> &allocatedValueRangeMemory;
 
   /// The current loop indices.
   MutableArrayRef<unsigned> loopIndex;
@@ -1306,81 +1411,98 @@ private:
   ArrayRef<PDLConstraintFunction> constraintFunctions;
   ArrayRef<PDLRewriteFunction> rewriteFunctions;
 };
-
-/// This class is an instantiation of the PDLResultList that provides access to
-/// the returned results. This API is not on `PDLResultList` to avoid
-/// overexposing access to information specific solely to the ByteCode.
-class ByteCodeRewriteResultList : public PDLResultList {
-public:
-  ByteCodeRewriteResultList(unsigned maxNumResults)
-      : PDLResultList(maxNumResults) {}
-
-  /// Return the list of PDL results.
-  MutableArrayRef<PDLValue> getResults() { return results; }
-
-  /// Return the type ranges allocated by this list.
-  MutableArrayRef<llvm::OwningArrayRef<Type>> getAllocatedTypeRanges() {
-    return allocatedTypeRanges;
-  }
-
-  /// Return the value ranges allocated by this list.
-  MutableArrayRef<llvm::OwningArrayRef<Value>> getAllocatedValueRanges() {
-    return allocatedValueRanges;
-  }
-};
 } // namespace
 
 void ByteCodeExecutor::executeApplyConstraint(PatternRewriter &rewriter) {
-  LLVM_DEBUG(llvm::dbgs() << "Executing ApplyConstraint:\n");
-  const PDLConstraintFunction &constraintFn = constraintFunctions[read()];
+  LDBG() << "Executing ApplyConstraint:";
+  ByteCodeField fun_idx = read();
   SmallVector<PDLValue, 16> args;
   readList<PDLValue>(args);
 
-  LLVM_DEBUG({
-    llvm::dbgs() << "  * Arguments: ";
-    llvm::interleaveComma(args, llvm::dbgs());
-  });
+  LDBG() << "  * Arguments: " << llvm::interleaved(args);
 
-  // Invoke the constraint and jump to the proper destination.
-  selectJump(succeeded(constraintFn(rewriter, args)));
+  ByteCodeField isNegated = read();
+  LDBG() << "  * isNegated: " << isNegated;
+
+  ByteCodeField numResults = read();
+  const PDLRewriteFunction &constraintFn = constraintFunctions[fun_idx];
+  ByteCodeRewriteResultList results(numResults);
+  LogicalResult rewriteResult = constraintFn(rewriter, results, args);
+  [[maybe_unused]] ArrayRef<PDLValue> constraintResults = results.getResults();
+  if (succeeded(rewriteResult)) {
+    LDBG() << "  * Constraint succeeded, results: "
+           << llvm::interleaved(constraintResults);
+  } else {
+    LDBG() << "  * Constraint failed";
+  }
+  assert((failed(rewriteResult) || constraintResults.size() == numResults) &&
+         "native PDL rewrite function succeeded but returned "
+         "unexpected number of results");
+  processNativeFunResults(results, numResults, rewriteResult);
+
+  // Depending on the constraint jump to the proper destination.
+  selectJump(isNegated != succeeded(rewriteResult));
 }
 
-void ByteCodeExecutor::executeApplyRewrite(PatternRewriter &rewriter) {
-  LLVM_DEBUG(llvm::dbgs() << "Executing ApplyRewrite:\n");
+LogicalResult ByteCodeExecutor::executeApplyRewrite(PatternRewriter &rewriter) {
+  LDBG() << "Executing ApplyRewrite:";
   const PDLRewriteFunction &rewriteFn = rewriteFunctions[read()];
   SmallVector<PDLValue, 16> args;
   readList<PDLValue>(args);
 
-  LLVM_DEBUG({
-    llvm::dbgs() << "  * Arguments: ";
-    llvm::interleaveComma(args, llvm::dbgs());
-  });
+  LDBG() << "  * Arguments: " << llvm::interleaved(args);
 
   // Execute the rewrite function.
   ByteCodeField numResults = read();
   ByteCodeRewriteResultList results(numResults);
-  rewriteFn(rewriter, results, args);
+  LogicalResult rewriteResult = rewriteFn(rewriter, results, args);
 
   assert(results.getResults().size() == numResults &&
          "native PDL rewrite function returned unexpected number of results");
 
-  // Store the results in the bytecode memory.
-  for (PDLValue &result : results.getResults()) {
-    LLVM_DEBUG(llvm::dbgs() << "  * Result: " << result << "\n");
+  processNativeFunResults(results, numResults, rewriteResult);
 
-// In debug mode we also verify the expected kind of the result.
-#ifndef NDEBUG
-    assert(result.getKind() == read<PDLValue::Kind>() &&
-           "native PDL rewrite function returned an unexpected type of result");
-#endif
+  if (failed(rewriteResult)) {
+    LDBG() << "  - Failed";
+    return failure();
+  }
+  return success();
+}
 
+void ByteCodeExecutor::processNativeFunResults(
+    ByteCodeRewriteResultList &results, unsigned numResults,
+    LogicalResult &rewriteResult) {
+  if (failed(rewriteResult)) {
+    // Skip the according number of values on the buffer on failure and exit
+    // early as there are no results to process.
+    for (unsigned resultIdx = 0; resultIdx < numResults; resultIdx++) {
+      const PDLValue::Kind resultKind = read<PDLValue::Kind>();
+      if (resultKind == PDLValue::Kind::TypeRange ||
+          resultKind == PDLValue::Kind::ValueRange) {
+        skip(2);
+      } else {
+        skip(1);
+      }
+    }
+    return;
+  }
+
+  // Store the results in the bytecode memory
+  for (unsigned resultIdx = 0; resultIdx < numResults; resultIdx++) {
+    PDLValue::Kind resultKind = read<PDLValue::Kind>();
+    (void)resultKind;
+    PDLValue result = results.getResults()[resultIdx];
+    LDBG() << "  * Result: " << result;
+    assert(result.getKind() == resultKind &&
+           "native PDL rewrite function returned an unexpected type of "
+           "result");
     // If the result is a range, we need to copy it over to the bytecodes
     // range memory.
-    if (Optional<TypeRange> typeRange = result.dyn_cast<TypeRange>()) {
+    if (std::optional<TypeRange> typeRange = result.dyn_cast<TypeRange>()) {
       unsigned rangeIndex = read();
       typeRangeMemory[rangeIndex] = *typeRange;
       memory[read()] = &typeRangeMemory[rangeIndex];
-    } else if (Optional<ValueRange> valueRange =
+    } else if (std::optional<ValueRange> valueRange =
                    result.dyn_cast<ValueRange>()) {
       unsigned rangeIndex = read();
       valueRangeMemory[rangeIndex] = *valueRange;
@@ -1398,16 +1520,16 @@ void ByteCodeExecutor::executeApplyRewrite(PatternRewriter &rewriter) {
 }
 
 void ByteCodeExecutor::executeAreEqual() {
-  LLVM_DEBUG(llvm::dbgs() << "Executing AreEqual:\n");
+  LDBG() << "Executing AreEqual:";
   const void *lhs = read<const void *>();
   const void *rhs = read<const void *>();
 
-  LLVM_DEBUG(llvm::dbgs() << "  * " << lhs << " == " << rhs << "\n");
+  LDBG() << "  * " << lhs << " == " << rhs;
   selectJump(lhs == rhs);
 }
 
 void ByteCodeExecutor::executeAreRangesEqual() {
-  LLVM_DEBUG(llvm::dbgs() << "Executing AreRangesEqual:\n");
+  LDBG() << "Executing AreRangesEqual:";
   PDLValue::Kind valueKind = read<PDLValue::Kind>();
   const void *lhs = read<const void *>();
   const void *rhs = read<const void *>();
@@ -1416,14 +1538,14 @@ void ByteCodeExecutor::executeAreRangesEqual() {
   case PDLValue::Kind::TypeRange: {
     const TypeRange *lhsRange = reinterpret_cast<const TypeRange *>(lhs);
     const TypeRange *rhsRange = reinterpret_cast<const TypeRange *>(rhs);
-    LLVM_DEBUG(llvm::dbgs() << "  * " << lhs << " == " << rhs << "\n\n");
+    LDBG() << "  * " << lhs << " == " << rhs;
     selectJump(*lhsRange == *rhsRange);
     break;
   }
   case PDLValue::Kind::ValueRange: {
     const auto *lhsRange = reinterpret_cast<const ValueRange *>(lhs);
     const auto *rhsRange = reinterpret_cast<const ValueRange *>(rhs);
-    LLVM_DEBUG(llvm::dbgs() << "  * " << lhs << " == " << rhs << "\n\n");
+    LDBG() << "  * " << lhs << " == " << rhs;
     selectJump(*lhsRange == *rhsRange);
     break;
   }
@@ -1433,20 +1555,19 @@ void ByteCodeExecutor::executeAreRangesEqual() {
 }
 
 void ByteCodeExecutor::executeBranch() {
-  LLVM_DEBUG(llvm::dbgs() << "Executing Branch\n");
+  LDBG() << "Executing Branch";
   curCodeIt = &code[read<ByteCodeAddr>()];
 }
 
 void ByteCodeExecutor::executeCheckOperandCount() {
-  LLVM_DEBUG(llvm::dbgs() << "Executing CheckOperandCount:\n");
+  LDBG() << "Executing CheckOperandCount:";
   Operation *op = read<Operation *>();
   uint32_t expectedCount = read<uint32_t>();
   bool compareAtLeast = read();
 
-  LLVM_DEBUG(llvm::dbgs() << "  * Found: " << op->getNumOperands() << "\n"
-                          << "  * Expected: " << expectedCount << "\n"
-                          << "  * Comparator: "
-                          << (compareAtLeast ? ">=" : "==") << "\n");
+  LDBG() << "  * Found: " << op->getNumOperands()
+         << "\n  * Expected: " << expectedCount
+         << "\n  * Comparator: " << (compareAtLeast ? ">=" : "==");
   if (compareAtLeast)
     selectJump(op->getNumOperands() >= expectedCount);
   else
@@ -1454,25 +1575,24 @@ void ByteCodeExecutor::executeCheckOperandCount() {
 }
 
 void ByteCodeExecutor::executeCheckOperationName() {
-  LLVM_DEBUG(llvm::dbgs() << "Executing CheckOperationName:\n");
+  LDBG() << "Executing CheckOperationName:";
   Operation *op = read<Operation *>();
   OperationName expectedName = read<OperationName>();
 
-  LLVM_DEBUG(llvm::dbgs() << "  * Found: \"" << op->getName() << "\"\n"
-                          << "  * Expected: \"" << expectedName << "\"\n");
+  LDBG() << "  * Found: \"" << op->getName() << "\"\n  * Expected: \""
+         << expectedName << "\"";
   selectJump(op->getName() == expectedName);
 }
 
 void ByteCodeExecutor::executeCheckResultCount() {
-  LLVM_DEBUG(llvm::dbgs() << "Executing CheckResultCount:\n");
+  LDBG() << "Executing CheckResultCount:";
   Operation *op = read<Operation *>();
   uint32_t expectedCount = read<uint32_t>();
   bool compareAtLeast = read();
 
-  LLVM_DEBUG(llvm::dbgs() << "  * Found: " << op->getNumResults() << "\n"
-                          << "  * Expected: " << expectedCount << "\n"
-                          << "  * Comparator: "
-                          << (compareAtLeast ? ">=" : "==") << "\n");
+  LDBG() << "  * Found: " << op->getNumResults()
+         << "\n  * Expected: " << expectedCount
+         << "\n  * Comparator: " << (compareAtLeast ? ">=" : "==");
   if (compareAtLeast)
     selectJump(op->getNumResults() >= expectedCount);
   else
@@ -1480,48 +1600,39 @@ void ByteCodeExecutor::executeCheckResultCount() {
 }
 
 void ByteCodeExecutor::executeCheckTypes() {
-  LLVM_DEBUG(llvm::dbgs() << "Executing AreEqual:\n");
+  LDBG() << "Executing AreEqual:";
   TypeRange *lhs = read<TypeRange *>();
   Attribute rhs = read<Attribute>();
-  LLVM_DEBUG(llvm::dbgs() << "  * " << lhs << " == " << rhs << "\n\n");
+  LDBG() << "  * " << lhs << " == " << rhs;
 
-  selectJump(*lhs == rhs.cast<ArrayAttr>().getAsValueRange<TypeAttr>());
+  selectJump(*lhs == cast<ArrayAttr>(rhs).getAsValueRange<TypeAttr>());
 }
 
 void ByteCodeExecutor::executeContinue() {
   ByteCodeField level = read();
-  LLVM_DEBUG(llvm::dbgs() << "Executing Continue\n"
-                          << "  * Level: " << level << "\n");
+  LDBG() << "Executing Continue\n  * Level: " << level;
   ++loopIndex[level];
   popCodeIt();
 }
 
-void ByteCodeExecutor::executeCreateTypes() {
-  LLVM_DEBUG(llvm::dbgs() << "Executing CreateTypes:\n");
+void ByteCodeExecutor::executeCreateConstantTypeRange() {
+  LDBG() << "Executing CreateConstantTypeRange:";
   unsigned memIndex = read();
   unsigned rangeIndex = read();
-  ArrayAttr typesAttr = read<Attribute>().cast<ArrayAttr>();
+  ArrayAttr typesAttr = cast<ArrayAttr>(read<Attribute>());
 
-  LLVM_DEBUG(llvm::dbgs() << "  * Types: " << typesAttr << "\n\n");
-
-  // Allocate a buffer for this type range.
-  llvm::OwningArrayRef<Type> storage(typesAttr.size());
-  llvm::copy(typesAttr.getAsValueRange<TypeAttr>(), storage.begin());
-  allocatedTypeRangeMemory.emplace_back(std::move(storage));
-
-  // Assign this to the range slot and use the range as the value for the
-  // memory index.
-  typeRangeMemory[rangeIndex] = allocatedTypeRangeMemory.back();
-  memory[memIndex] = &typeRangeMemory[rangeIndex];
+  LDBG() << "  * Types: " << typesAttr;
+  assignRangeToMemory(typesAttr.getAsValueRange<TypeAttr>(), memIndex,
+                      rangeIndex);
 }
 
 void ByteCodeExecutor::executeCreateOperation(PatternRewriter &rewriter,
                                               Location mainRewriteLoc) {
-  LLVM_DEBUG(llvm::dbgs() << "Executing CreateOperation:\n");
+  LDBG() << "Executing CreateOperation:";
 
   unsigned memIndex = read();
   OperationState state(mainRewriteLoc, read<OperationName>());
-  readValueList(state.operands);
+  readList(state.operands);
   for (unsigned i = 0, e = read(); i != e; ++i) {
     StringAttr name = read<StringAttr>();
     if (Attribute attr = read<Attribute>())
@@ -1533,15 +1644,15 @@ void ByteCodeExecutor::executeCreateOperation(PatternRewriter &rewriter,
   unsigned numResults = read();
   if (numResults == kInferTypesMarker) {
     InferTypeOpInterface::Concept *inferInterface =
-        state.name.getRegisteredInfo()->getInterface<InferTypeOpInterface>();
+        state.name.getInterface<InferTypeOpInterface>();
     assert(inferInterface &&
            "expected operation to provide InferTypeOpInterface");
 
     // TODO: Handle failure.
     if (failed(inferInterface->inferReturnTypes(
             state.getContext(), state.location, state.operands,
-            state.attributes.getDictionary(state.getContext()), state.regions,
-            state.types)))
+            state.attributes.getDictionary(state.getContext()),
+            state.getRawProperties(), state.regions, state.types)))
       return;
   } else {
     // Otherwise, this is a fixed number of results.
@@ -1558,28 +1669,37 @@ void ByteCodeExecutor::executeCreateOperation(PatternRewriter &rewriter,
   Operation *resultOp = rewriter.create(state);
   memory[memIndex] = resultOp;
 
-  LLVM_DEBUG({
-    llvm::dbgs() << "  * Attributes: "
-                 << state.attributes.getDictionary(state.getContext())
-                 << "\n  * Operands: ";
-    llvm::interleaveComma(state.operands, llvm::dbgs());
-    llvm::dbgs() << "\n  * Result Types: ";
-    llvm::interleaveComma(state.types, llvm::dbgs());
-    llvm::dbgs() << "\n  * Result: " << *resultOp << "\n";
-  });
+  LDBG() << "  * Attributes: "
+         << state.attributes.getDictionary(state.getContext())
+         << "\n  * Operands: " << llvm::interleaved(state.operands)
+         << "\n  * Result Types: " << llvm::interleaved(state.types)
+         << "\n  * Result: " << *resultOp;
+}
+
+template <typename T>
+void ByteCodeExecutor::executeDynamicCreateRange(StringRef type) {
+  LDBG() << "Executing CreateDynamic" << type << "Range:";
+  unsigned memIndex = read();
+  unsigned rangeIndex = read();
+  SmallVector<T> values;
+  readList(values);
+
+  LDBG() << "  * " << type << "s: " << llvm::interleaved(values);
+
+  assignRangeToMemory(values, memIndex, rangeIndex);
 }
 
 void ByteCodeExecutor::executeEraseOp(PatternRewriter &rewriter) {
-  LLVM_DEBUG(llvm::dbgs() << "Executing EraseOp:\n");
+  LDBG() << "Executing EraseOp:";
   Operation *op = read<Operation *>();
 
-  LLVM_DEBUG(llvm::dbgs() << "  * Operation: " << *op << "\n");
+  LDBG() << "  * Operation: " << *op;
   rewriter.eraseOp(op);
 }
 
 template <typename T, typename Range, PDLValue::Kind kind>
 void ByteCodeExecutor::executeExtract() {
-  LLVM_DEBUG(llvm::dbgs() << "Executing Extract" << kind << ":\n");
+  LDBG() << "Executing Extract" << kind << ":";
   Range *range = read<Range *>();
   unsigned index = read<uint32_t>();
   unsigned memIndex = read();
@@ -1590,18 +1710,16 @@ void ByteCodeExecutor::executeExtract() {
   }
 
   T result = index < range->size() ? (*range)[index] : T();
-  LLVM_DEBUG(llvm::dbgs() << "  * " << kind << "s(" << range->size() << ")\n"
-                          << "  * Index: " << index << "\n"
-                          << "  * Result: " << result << "\n");
+  LDBG() << "  * " << kind << "s(" << range->size() << ")";
+  LDBG() << "  * Index: " << index;
+  LDBG() << "  * Result: " << result;
   storeToMemory(memIndex, result);
 }
 
-void ByteCodeExecutor::executeFinalize() {
-  LLVM_DEBUG(llvm::dbgs() << "Executing Finalize\n");
-}
+void ByteCodeExecutor::executeFinalize() { LDBG() << "Executing Finalize"; }
 
 void ByteCodeExecutor::executeForEach() {
-  LLVM_DEBUG(llvm::dbgs() << "Executing ForEach:\n");
+  LDBG() << "Executing ForEach:";
   const ByteCodeField *prevCodeIt = getPrevCodeIt();
   unsigned rangeIndex = read();
   unsigned memIndex = read();
@@ -1613,12 +1731,12 @@ void ByteCodeExecutor::executeForEach() {
     ArrayRef<Operation *> array = opRangeMemory[rangeIndex];
     assert(index <= array.size() && "iterated past the end");
     if (index < array.size()) {
-      LLVM_DEBUG(llvm::dbgs() << "  * Result: " << array[index] << "\n");
+      LDBG() << "  * Result: " << array[index];
       value = array[index];
       break;
     }
 
-    LLVM_DEBUG(llvm::dbgs() << "  * Done\n");
+    LDBG() << "  * Done";
     index = 0;
     selectJump(size_t(0));
     return;
@@ -1636,49 +1754,47 @@ void ByteCodeExecutor::executeForEach() {
 }
 
 void ByteCodeExecutor::executeGetAttribute() {
-  LLVM_DEBUG(llvm::dbgs() << "Executing GetAttribute:\n");
+  LDBG() << "Executing GetAttribute:";
   unsigned memIndex = read();
   Operation *op = read<Operation *>();
   StringAttr attrName = read<StringAttr>();
   Attribute attr = op->getAttr(attrName);
 
-  LLVM_DEBUG(llvm::dbgs() << "  * Operation: " << *op << "\n"
-                          << "  * Attribute: " << attrName << "\n"
-                          << "  * Result: " << attr << "\n");
+  LDBG() << "  * Operation: " << *op << "\n  * Attribute: " << attrName
+         << "\n  * Result: " << attr;
   memory[memIndex] = attr.getAsOpaquePointer();
 }
 
 void ByteCodeExecutor::executeGetAttributeType() {
-  LLVM_DEBUG(llvm::dbgs() << "Executing GetAttributeType:\n");
+  LDBG() << "Executing GetAttributeType:";
   unsigned memIndex = read();
   Attribute attr = read<Attribute>();
   Type type;
-  if (auto typedAttr = attr.dyn_cast<TypedAttr>())
+  if (auto typedAttr = dyn_cast<TypedAttr>(attr))
     type = typedAttr.getType();
 
-  LLVM_DEBUG(llvm::dbgs() << "  * Attribute: " << attr << "\n"
-                          << "  * Result: " << type << "\n");
+  LDBG() << "  * Attribute: " << attr << "\n  * Result: " << type;
   memory[memIndex] = type.getAsOpaquePointer();
 }
 
 void ByteCodeExecutor::executeGetDefiningOp() {
-  LLVM_DEBUG(llvm::dbgs() << "Executing GetDefiningOp:\n");
+  LDBG() << "Executing GetDefiningOp:";
   unsigned memIndex = read();
   Operation *op = nullptr;
   if (read<PDLValue::Kind>() == PDLValue::Kind::Value) {
     Value value = read<Value>();
     if (value)
       op = value.getDefiningOp();
-    LLVM_DEBUG(llvm::dbgs() << "  * Value: " << value << "\n");
+    LDBG() << "  * Value: " << value;
   } else {
     ValueRange *values = read<ValueRange *>();
     if (values && !values->empty()) {
       op = values->front().getDefiningOp();
     }
-    LLVM_DEBUG(llvm::dbgs() << "  * Values: " << values << "\n");
+    LDBG() << "  * Values: " << values;
   }
 
-  LLVM_DEBUG(llvm::dbgs() << "  * Result: " << op << "\n");
+  LDBG() << "  * Result: " << op;
   memory[memIndex] = op;
 }
 
@@ -1688,9 +1804,8 @@ void ByteCodeExecutor::executeGetOperand(unsigned index) {
   Value operand =
       index < op->getNumOperands() ? op->getOperand(index) : Value();
 
-  LLVM_DEBUG(llvm::dbgs() << "  * Operation: " << *op << "\n"
-                          << "  * Index: " << index << "\n"
-                          << "  * Result: " << operand << "\n");
+  LDBG() << "  * Operation: " << *op << "\n  * Index: " << index
+         << "\n  * Result: " << operand;
   memory[memIndex] = operand.getAsOpaquePointer();
 }
 
@@ -1705,33 +1820,30 @@ executeGetOperandsResults(RangeT values, Operation *op, unsigned index,
   // Check for the sentinel index that signals that all values should be
   // returned.
   if (index == std::numeric_limits<uint32_t>::max()) {
-    LLVM_DEBUG(llvm::dbgs() << "  * Getting all values\n");
+    LDBG() << "  * Getting all values";
     // `values` is already the full value range.
 
     // Otherwise, check to see if this operation uses AttrSizedSegments.
   } else if (op->hasTrait<AttrSizedSegmentsT>()) {
-    LLVM_DEBUG(llvm::dbgs()
-               << "  * Extracting values from `" << attrSizedSegments << "`\n");
+    LDBG() << "  * Extracting values from `" << attrSizedSegments << "`";
 
     auto segmentAttr = op->getAttrOfType<DenseI32ArrayAttr>(attrSizedSegments);
     if (!segmentAttr || segmentAttr.asArrayRef().size() <= index)
       return nullptr;
 
     ArrayRef<int32_t> segments = segmentAttr;
-    unsigned startIndex =
-        std::accumulate(segments.begin(), segments.begin() + index, 0);
+    unsigned startIndex = llvm::sum_of(segments.take_front(index));
     values = values.slice(startIndex, *std::next(segments.begin(), index));
 
-    LLVM_DEBUG(llvm::dbgs() << "  * Extracting range[" << startIndex << ", "
-                            << *std::next(segments.begin(), index) << "]\n");
+    LDBG() << "  * Extracting range[" << startIndex << ", "
+           << *std::next(segments.begin(), index) << "]";
 
     // Otherwise, assume this is the last operand group of the operation.
     // FIXME: We currently don't support operations with
     // SameVariadicOperandSize/SameVariadicResultSize here given that we don't
     // have a way to detect it's presence.
   } else if (values.size() >= index) {
-    LLVM_DEBUG(llvm::dbgs()
-               << "  * Treating values as trailing variadic range\n");
+    LDBG() << "  * Treating values as trailing variadic range";
     values = values.drop_front(index);
 
     // If we couldn't detect a way to compute the values, bail out.
@@ -1750,16 +1862,16 @@ executeGetOperandsResults(RangeT values, Operation *op, unsigned index,
 }
 
 void ByteCodeExecutor::executeGetOperands() {
-  LLVM_DEBUG(llvm::dbgs() << "Executing GetOperands:\n");
+  LDBG() << "Executing GetOperands:";
   unsigned index = read<uint32_t>();
   Operation *op = read<Operation *>();
   ByteCodeField rangeIndex = read();
 
   void *result = executeGetOperandsResults<OpTrait::AttrSizedOperandSegments>(
-      op->getOperands(), op, index, rangeIndex, "operand_segment_sizes",
+      op->getOperands(), op, index, rangeIndex, "operandSegmentSizes",
       valueRangeMemory);
   if (!result)
-    LLVM_DEBUG(llvm::dbgs() << "  * Invalid operand range\n");
+    LDBG() << "  * Invalid operand range";
   memory[read()] = result;
 }
 
@@ -1769,111 +1881,96 @@ void ByteCodeExecutor::executeGetResult(unsigned index) {
   OpResult result =
       index < op->getNumResults() ? op->getResult(index) : OpResult();
 
-  LLVM_DEBUG(llvm::dbgs() << "  * Operation: " << *op << "\n"
-                          << "  * Index: " << index << "\n"
-                          << "  * Result: " << result << "\n");
+  LDBG() << "  * Operation: " << *op << "\n  * Index: " << index
+         << "\n  * Result: " << result;
   memory[memIndex] = result.getAsOpaquePointer();
 }
 
 void ByteCodeExecutor::executeGetResults() {
-  LLVM_DEBUG(llvm::dbgs() << "Executing GetResults:\n");
+  LDBG() << "Executing GetResults:";
   unsigned index = read<uint32_t>();
   Operation *op = read<Operation *>();
   ByteCodeField rangeIndex = read();
 
   void *result = executeGetOperandsResults<OpTrait::AttrSizedResultSegments>(
-      op->getResults(), op, index, rangeIndex, "result_segment_sizes",
+      op->getResults(), op, index, rangeIndex, "resultSegmentSizes",
       valueRangeMemory);
   if (!result)
-    LLVM_DEBUG(llvm::dbgs() << "  * Invalid result range\n");
+    LDBG() << "  * Invalid result range";
   memory[read()] = result;
 }
 
 void ByteCodeExecutor::executeGetUsers() {
-  LLVM_DEBUG(llvm::dbgs() << "Executing GetUsers:\n");
+  LDBG() << "Executing GetUsers:";
   unsigned memIndex = read();
   unsigned rangeIndex = read();
-  OwningOpRange &range = opRangeMemory[rangeIndex];
+  std::vector<Operation *> &range = opRangeMemory[rangeIndex];
   memory[memIndex] = &range;
 
-  range = OwningOpRange();
+  range.clear();
   if (read<PDLValue::Kind>() == PDLValue::Kind::Value) {
     // Read the value.
     Value value = read<Value>();
     if (!value)
       return;
-    LLVM_DEBUG(llvm::dbgs() << "  * Value: " << value << "\n");
+    LDBG() << "  * Value: " << value;
 
-    // Extract the users of a single value.
-    range = OwningOpRange(std::distance(value.user_begin(), value.user_end()));
-    llvm::copy(value.getUsers(), range.begin());
+    range.assign(value.user_begin(), value.user_end());
   } else {
     // Read a range of values.
     ValueRange *values = read<ValueRange *>();
     if (!values)
       return;
-    LLVM_DEBUG({
-      llvm::dbgs() << "  * Values (" << values->size() << "): ";
-      llvm::interleaveComma(*values, llvm::dbgs());
-      llvm::dbgs() << "\n";
-    });
+    LDBG() << "  * Values (" << values->size()
+           << "): " << llvm::interleaved(*values);
 
-    // Extract all the users of a range of values.
-    SmallVector<Operation *> users;
     for (Value value : *values)
-      users.append(value.user_begin(), value.user_end());
-    range = OwningOpRange(users.size());
-    llvm::copy(users, range.begin());
+      range.insert(range.end(), value.user_begin(), value.user_end());
   }
 
-  LLVM_DEBUG(llvm::dbgs() << "  * Result: " << range.size() << " operations\n");
+  LDBG() << "  * Result: " << range.size() << " operations";
 }
 
 void ByteCodeExecutor::executeGetValueType() {
-  LLVM_DEBUG(llvm::dbgs() << "Executing GetValueType:\n");
+  LDBG() << "Executing GetValueType:";
   unsigned memIndex = read();
   Value value = read<Value>();
   Type type = value ? value.getType() : Type();
 
-  LLVM_DEBUG(llvm::dbgs() << "  * Value: " << value << "\n"
-                          << "  * Result: " << type << "\n");
+  LDBG() << "  * Value: " << value << "\n  * Result: " << type;
   memory[memIndex] = type.getAsOpaquePointer();
 }
 
 void ByteCodeExecutor::executeGetValueRangeTypes() {
-  LLVM_DEBUG(llvm::dbgs() << "Executing GetValueRangeTypes:\n");
+  LDBG() << "Executing GetValueRangeTypes:";
   unsigned memIndex = read();
   unsigned rangeIndex = read();
   ValueRange *values = read<ValueRange *>();
   if (!values) {
-    LLVM_DEBUG(llvm::dbgs() << "  * Values: <NULL>\n\n");
+    LDBG() << "  * Values: <NULL>";
     memory[memIndex] = nullptr;
     return;
   }
 
-  LLVM_DEBUG({
-    llvm::dbgs() << "  * Values (" << values->size() << "): ";
-    llvm::interleaveComma(*values, llvm::dbgs());
-    llvm::dbgs() << "\n  * Result: ";
-    llvm::interleaveComma(values->getType(), llvm::dbgs());
-    llvm::dbgs() << "\n";
-  });
+  LDBG() << "  * Values (" << values->size()
+         << "): " << llvm::interleaved(*values)
+         << "\n  * Result: " << llvm::interleaved(values->getType());
   typeRangeMemory[rangeIndex] = values->getType();
   memory[memIndex] = &typeRangeMemory[rangeIndex];
 }
 
 void ByteCodeExecutor::executeIsNotNull() {
-  LLVM_DEBUG(llvm::dbgs() << "Executing IsNotNull:\n");
+  LDBG() << "Executing IsNotNull:";
   const void *value = read<const void *>();
 
-  LLVM_DEBUG(llvm::dbgs() << "  * Value: " << value << "\n");
+  LDBG() << "  * Value: " << value;
   selectJump(value != nullptr);
 }
 
 void ByteCodeExecutor::executeRecordMatch(
     PatternRewriter &rewriter,
     SmallVectorImpl<PDLByteCode::MatchResult> &matches) {
-  LLVM_DEBUG(llvm::dbgs() << "Executing RecordMatch:\n");
+  LDBG() << "Executing RecordMatch:";
   unsigned patternIndex = read();
   PatternBenefit benefit = currentPatternBenefits[patternIndex];
   const ByteCodeField *dest = &code[read<ByteCodeAddr>()];
@@ -1881,7 +1978,7 @@ void ByteCodeExecutor::executeRecordMatch(
   // If the benefit of the pattern is impossible, skip the processing of the
   // rest of the pattern.
   if (benefit.isImpossibleToMatch()) {
-    LLVM_DEBUG(llvm::dbgs() << "  * Benefit: Impossible To Match\n");
+    LDBG() << "  * Benefit: Impossible To Match";
     curCodeIt = dest;
     return;
   }
@@ -1897,8 +1994,8 @@ void ByteCodeExecutor::executeRecordMatch(
     matchLocs.push_back(read<Operation *>()->getLoc());
   Location matchLoc = rewriter.getFusedLoc(matchLocs);
 
-  LLVM_DEBUG(llvm::dbgs() << "  * Benefit: " << benefit.getBenefit() << "\n"
-                          << "  * Location: " << matchLoc << "\n");
+  LDBG() << "  * Benefit: " << benefit.getBenefit();
+  LDBG() << "  * Location: " << matchLoc;
   matches.emplace_back(matchLoc, patterns[patternIndex], benefit);
   PDLByteCode::MatchResult &match = matches.back();
 
@@ -1928,38 +2025,34 @@ void ByteCodeExecutor::executeRecordMatch(
 }
 
 void ByteCodeExecutor::executeReplaceOp(PatternRewriter &rewriter) {
-  LLVM_DEBUG(llvm::dbgs() << "Executing ReplaceOp:\n");
+  LDBG() << "Executing ReplaceOp:";
   Operation *op = read<Operation *>();
   SmallVector<Value, 16> args;
-  readValueList(args);
+  readList(args);
 
-  LLVM_DEBUG({
-    llvm::dbgs() << "  * Operation: " << *op << "\n"
-                 << "  * Values: ";
-    llvm::interleaveComma(args, llvm::dbgs());
-    llvm::dbgs() << "\n";
-  });
+  LDBG() << "  * Operation: " << *op
+         << "\n  * Values: " << llvm::interleaved(args);
   rewriter.replaceOp(op, args);
 }
 
 void ByteCodeExecutor::executeSwitchAttribute() {
-  LLVM_DEBUG(llvm::dbgs() << "Executing SwitchAttribute:\n");
+  LDBG() << "Executing SwitchAttribute:";
   Attribute value = read<Attribute>();
   ArrayAttr cases = read<ArrayAttr>();
   handleSwitch(value, cases);
 }
 
 void ByteCodeExecutor::executeSwitchOperandCount() {
-  LLVM_DEBUG(llvm::dbgs() << "Executing SwitchOperandCount:\n");
+  LDBG() << "Executing SwitchOperandCount:";
   Operation *op = read<Operation *>();
   auto cases = read<DenseIntOrFPElementsAttr>().getValues<uint32_t>();
 
-  LLVM_DEBUG(llvm::dbgs() << "  * Operation: " << *op << "\n");
+  LDBG() << "  * Operation: " << *op;
   handleSwitch(op->getNumOperands(), cases);
 }
 
 void ByteCodeExecutor::executeSwitchOperationName() {
-  LLVM_DEBUG(llvm::dbgs() << "Executing SwitchOperationName:\n");
+  LDBG() << "Executing SwitchOperationName:";
   OperationName value = read<Operation *>()->getName();
   size_t caseCount = read();
 
@@ -1968,13 +2061,11 @@ void ByteCodeExecutor::executeSwitchOperationName() {
   // switch so that we can display all of the possible values.
   LLVM_DEBUG({
     const ByteCodeField *prevCodeIt = curCodeIt;
-    llvm::dbgs() << "  * Value: " << value << "\n"
-                 << "  * Cases: ";
-    llvm::interleaveComma(
-        llvm::map_range(llvm::seq<size_t>(0, caseCount),
-                        [&](size_t) { return read<OperationName>(); }),
-        llvm::dbgs());
-    llvm::dbgs() << "\n";
+    LDBG() << "  * Value: " << value << "\n  * Cases: "
+           << llvm::interleaved(
+                  llvm::map_range(llvm::seq<size_t>(0, caseCount), [&](size_t) {
+                    return read<OperationName>();
+                  }));
     curCodeIt = prevCodeIt;
   });
 
@@ -1989,27 +2080,27 @@ void ByteCodeExecutor::executeSwitchOperationName() {
 }
 
 void ByteCodeExecutor::executeSwitchResultCount() {
-  LLVM_DEBUG(llvm::dbgs() << "Executing SwitchResultCount:\n");
+  LDBG() << "Executing SwitchResultCount:";
   Operation *op = read<Operation *>();
   auto cases = read<DenseIntOrFPElementsAttr>().getValues<uint32_t>();
 
-  LLVM_DEBUG(llvm::dbgs() << "  * Operation: " << *op << "\n");
+  LDBG() << "  * Operation: " << *op;
   handleSwitch(op->getNumResults(), cases);
 }
 
 void ByteCodeExecutor::executeSwitchType() {
-  LLVM_DEBUG(llvm::dbgs() << "Executing SwitchType:\n");
+  LDBG() << "Executing SwitchType:";
   Type value = read<Type>();
   auto cases = read<ArrayAttr>().getAsValueRange<TypeAttr>();
   handleSwitch(value, cases);
 }
 
 void ByteCodeExecutor::executeSwitchTypes() {
-  LLVM_DEBUG(llvm::dbgs() << "Executing SwitchTypes:\n");
+  LDBG() << "Executing SwitchTypes:";
   TypeRange *value = read<TypeRange *>();
   auto cases = read<ArrayAttr>().getAsRange<ArrayAttr>();
   if (!value) {
-    LLVM_DEBUG(llvm::dbgs() << "Types: <NULL>\n");
+    LDBG() << "Types: <NULL>";
     return selectJump(size_t(0));
   }
   handleSwitch(*value, cases, [](ArrayAttr caseValue, const TypeRange &value) {
@@ -2017,13 +2108,13 @@ void ByteCodeExecutor::executeSwitchTypes() {
   });
 }
 
-void ByteCodeExecutor::execute(
-    PatternRewriter &rewriter,
-    SmallVectorImpl<PDLByteCode::MatchResult> *matches,
-    Optional<Location> mainRewriteLoc) {
+LogicalResult
+ByteCodeExecutor::execute(PatternRewriter &rewriter,
+                          SmallVectorImpl<PDLByteCode::MatchResult> *matches,
+                          std::optional<Location> mainRewriteLoc) {
   while (true) {
     // Print the location of the operation being executed.
-    LLVM_DEBUG(llvm::dbgs() << readInline<Location>() << "\n");
+    LDBG() << readInline<Location>();
 
     OpCode opCode = static_cast<OpCode>(read());
     switch (opCode) {
@@ -2031,7 +2122,8 @@ void ByteCodeExecutor::execute(
       executeApplyConstraint(rewriter);
       break;
     case ApplyRewrite:
-      executeApplyRewrite(rewriter);
+      if (failed(executeApplyRewrite(rewriter)))
+        return failure();
       break;
     case AreEqual:
       executeAreEqual();
@@ -2057,17 +2149,24 @@ void ByteCodeExecutor::execute(
     case Continue:
       executeContinue();
       break;
+    case CreateConstantTypeRange:
+      executeCreateConstantTypeRange();
+      break;
     case CreateOperation:
       executeCreateOperation(rewriter, *mainRewriteLoc);
       break;
-    case CreateTypes:
-      executeCreateTypes();
+    case CreateDynamicTypeRange:
+      executeDynamicCreateRange<Type>("Type");
+      break;
+    case CreateDynamicValueRange:
+      executeDynamicCreateRange<Value>("Value");
       break;
     case EraseOp:
       executeEraseOp(rewriter);
       break;
     case ExtractOp:
-      executeExtract<Operation *, OwningOpRange, PDLValue::Kind::Operation>();
+      executeExtract<Operation *, std::vector<Operation *>,
+                     PDLValue::Kind::Operation>();
       break;
     case ExtractType:
       executeExtract<Type, TypeRange, PDLValue::Kind::Type>();
@@ -2077,8 +2176,8 @@ void ByteCodeExecutor::execute(
       break;
     case Finalize:
       executeFinalize();
-      LLVM_DEBUG(llvm::dbgs() << "\n");
-      return;
+      LDBG() << "";
+      return success();
     case ForEach:
       executeForEach();
       break;
@@ -2096,12 +2195,12 @@ void ByteCodeExecutor::execute(
     case GetOperand2:
     case GetOperand3: {
       unsigned index = opCode - GetOperand0;
-      LLVM_DEBUG(llvm::dbgs() << "Executing GetOperand" << index << ":\n");
+      LDBG() << "Executing GetOperand" << index << ":";
       executeGetOperand(index);
       break;
     }
     case GetOperandN:
-      LLVM_DEBUG(llvm::dbgs() << "Executing GetOperandN:\n");
+      LDBG() << "Executing GetOperandN:";
       executeGetOperand(read<uint32_t>());
       break;
     case GetOperands:
@@ -2112,12 +2211,12 @@ void ByteCodeExecutor::execute(
     case GetResult2:
     case GetResult3: {
       unsigned index = opCode - GetResult0;
-      LLVM_DEBUG(llvm::dbgs() << "Executing GetResult" << index << ":\n");
+      LDBG() << "Executing GetResult" << index << ":";
       executeGetResult(index);
       break;
     }
     case GetResultN:
-      LLVM_DEBUG(llvm::dbgs() << "Executing GetResultN:\n");
+      LDBG() << "Executing GetResultN:";
       executeGetResult(read<uint32_t>());
       break;
     case GetResults:
@@ -2162,12 +2261,10 @@ void ByteCodeExecutor::execute(
       executeSwitchTypes();
       break;
     }
-    LLVM_DEBUG(llvm::dbgs() << "\n");
+    LDBG() << "";
   }
 }
 
-/// Run the pattern matcher on the given root operation, collecting the matched
-/// patterns in `matches`.
 void PDLByteCode::match(Operation *op, PatternRewriter &rewriter,
                         SmallVectorImpl<MatchResult> &matches,
                         PDLByteCodeMutableState &state) const {
@@ -2181,18 +2278,24 @@ void PDLByteCode::match(Operation *op, PatternRewriter &rewriter,
       state.valueRangeMemory, state.allocatedValueRangeMemory, state.loopIndex,
       uniquedData, matcherByteCode, state.currentPatternBenefits, patterns,
       constraintFunctions, rewriteFunctions);
-  executor.execute(rewriter, &matches);
+  LogicalResult executeResult = executor.execute(rewriter, &matches);
+  (void)executeResult;
+  assert(succeeded(executeResult) && "unexpected matcher execution failure");
 
   // Order the found matches by benefit.
-  std::stable_sort(matches.begin(), matches.end(),
-                   [](const MatchResult &lhs, const MatchResult &rhs) {
-                     return lhs.benefit > rhs.benefit;
-                   });
+  llvm::stable_sort(matches,
+                    [](const MatchResult &lhs, const MatchResult &rhs) {
+                      return lhs.benefit > rhs.benefit;
+                    });
 }
 
-/// Run the rewriter of the given pattern on the root operation `op`.
-void PDLByteCode::rewrite(PatternRewriter &rewriter, const MatchResult &match,
-                          PDLByteCodeMutableState &state) const {
+LogicalResult PDLByteCode::rewrite(PatternRewriter &rewriter,
+                                   const MatchResult &match,
+                                   PDLByteCodeMutableState &state) const {
+  auto *configSet = match.pattern->getConfigSet();
+  if (configSet)
+    configSet->notifyRewriteBegin(rewriter);
+
   // The arguments of the rewrite function are stored at the start of the
   // memory buffer.
   llvm::copy(match.values, state.memory.begin());
@@ -2204,5 +2307,24 @@ void PDLByteCode::rewrite(PatternRewriter &rewriter, const MatchResult &match,
       state.allocatedValueRangeMemory, state.loopIndex, uniquedData,
       rewriterByteCode, state.currentPatternBenefits, patterns,
       constraintFunctions, rewriteFunctions);
-  executor.execute(rewriter, /*matches=*/nullptr, match.location);
+  LogicalResult result =
+      executor.execute(rewriter, /*matches=*/nullptr, match.location);
+
+  if (configSet)
+    configSet->notifyRewriteEnd(rewriter);
+
+  // If the rewrite failed, check if the pattern rewriter can recover. If it
+  // can, we can signal to the pattern applicator to keep trying patterns. If it
+  // doesn't, we need to bail. Bailing here should be fine, given that we have
+  // no means to propagate such a failure to the user, and it also indicates a
+  // bug in the user code (i.e. failable rewrites should not be used with
+  // pattern rewriters that don't support it).
+  if (failed(result) && !rewriter.canRecoverFromRewriteFailure()) {
+    LDBG() << " and rollback is not supported - aborting";
+    llvm::report_fatal_error(
+        "Native PDL Rewrite failed, but the pattern "
+        "rewriter doesn't support recovery. Failable pattern rewrites should "
+        "not be used with pattern rewriters that do not support them.");
+  }
+  return result;
 }

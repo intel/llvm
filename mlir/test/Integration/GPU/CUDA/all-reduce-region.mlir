@@ -1,10 +1,8 @@
 // RUN: mlir-opt %s \
-// RUN:   -gpu-kernel-outlining \
-// RUN:   -pass-pipeline='gpu.module(strip-debuginfo,convert-gpu-to-nvvm,gpu-to-cubin)' \
-// RUN:   -gpu-to-llvm \
-// RUN: | mlir-cpu-runner \
-// RUN:   --shared-libs=%mlir_lib_dir/libmlir_cuda_runtime%shlibext \
-// RUN:   --shared-libs=%mlir_lib_dir/libmlir_runner_utils%shlibext \
+// RUN: | mlir-opt -gpu-lower-to-nvvm-pipeline="cubin-format=%gpu_compilation_format allow-pattern-rollback=0" \
+// RUN: | mlir-runner \
+// RUN:   --shared-libs=%mlir_cuda_runtime \
+// RUN:   --shared-libs=%mlir_runner_utils \
 // RUN:   --entry-point-result=void \
 // RUN: | FileCheck %s
 
@@ -20,7 +18,7 @@ func.func @main() {
   gpu.launch blocks(%bx, %by, %bz) in (%grid_x = %one, %grid_y = %one, %grid_z = %one)
              threads(%tx, %ty, %tz) in (%block_x = %sx, %block_y = %one, %block_z = %one) {
     %val = arith.index_cast %tx : index to i32
-    %xor = gpu.all_reduce %val {
+    %xor = gpu.all_reduce %val uniform {
     ^bb(%lhs : i32, %rhs : i32):
       %xor = arith.xori %lhs, %rhs : i32
       "gpu.yield"(%xor) : (i32) -> ()

@@ -2,7 +2,7 @@
 ;
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ;
 ; RUN: llc -mtriple=%triple -O0 -filetype=obj %t.ll -o - | llvm-dwarfdump -v -debug-info - | FileCheck %s
 
@@ -33,9 +33,9 @@ target triple = "spir64-unknown-unknown"
 %struct.S = type { i8 }
 %struct.T = type { i8 }
 
-@s = global %struct.S zeroinitializer, align 1, !dbg !0
-@__dso_handle = external hidden global i8
-@t = global %struct.T zeroinitializer, align 1, !dbg !6
+@s = addrspace(1) global %struct.S zeroinitializer, align 1, !dbg !0
+@__dso_handle = external hidden addrspace(1) global i8
+@t = addrspace(1) global %struct.T zeroinitializer, align 1, !dbg !6
 
 !llvm.dbg.cu = !{!2}
 !llvm.module.flags = !{!20, !21, !22, !23}

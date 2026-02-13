@@ -10,12 +10,11 @@
 #define LLDB_UTILITY_ARCHSPEC_H
 
 #include "lldb/Utility/CompletionRequest.h"
-#include "lldb/Utility/ConstString.h"
 #include "lldb/lldb-enumerations.h"
 #include "lldb/lldb-forward.h"
 #include "lldb/lldb-private-enumerations.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
+#include "llvm/TargetParser/Triple.h"
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -108,6 +107,21 @@ public:
     eRISCVSubType_riscv64,
   };
 
+  enum LoongArcheflags {
+    eLoongArch_abi_soft_float = 0x00000000, /// soft float
+    eLoongArch_abi_single_float =
+        0x00000001, /// single precision floating point, +f
+    eLoongArch_abi_double_float =
+        0x00000002, /// double precision floating point, +d
+    eLoongArch_abi_mask = 0x00000003,
+  };
+
+  enum LoongArchSubType {
+    eLoongArchSubType_unknown,
+    eLoongArchSubType_loongarch32,
+    eLoongArchSubType_loongarch64,
+  };
+
   enum Core {
     eCore_arm_generic,
     eCore_arm_armv4,
@@ -118,6 +132,7 @@ public:
     eCore_arm_armv6,
     eCore_arm_armv6m,
     eCore_arm_armv7,
+    eCore_arm_armv7a,
     eCore_arm_armv7l,
     eCore_arm_armv7f,
     eCore_arm_armv7s,
@@ -140,6 +155,7 @@ public:
     eCore_thumbv7em,
     eCore_arm_arm64,
     eCore_arm_armv8,
+    eCore_arm_armv8a,
     eCore_arm_armv8l,
     eCore_arm_arm64e,
     eCore_arm_arm64_32,
@@ -165,6 +181,8 @@ public:
     eCore_mips64r3el,
     eCore_mips64r5el,
     eCore_mips64r6el,
+
+    eCore_msp430,
 
     eCore_ppc_generic,
     eCore_ppc_ppc601,
@@ -197,12 +215,17 @@ public:
 
     eCore_x86_64_x86_64,
     eCore_x86_64_x86_64h, // Haswell enabled x86_64
+    eCore_x86_64_amd64,
+
     eCore_hexagon_generic,
     eCore_hexagon_hexagonv4,
     eCore_hexagon_hexagonv5,
 
     eCore_riscv32,
     eCore_riscv64,
+
+    eCore_loongarch32,
+    eCore_loongarch64,
 
     eCore_uknownMach32,
     eCore_uknownMach64,
@@ -304,6 +327,11 @@ public:
   ///  \return a boolean value.
   bool IsMIPS() const;
 
+  /// If NVPTX architecture return true.
+  ///
+  ///  \return a boolean value.
+  bool IsNVPTX() const;
+
   /// Returns a string representing current architecture as a target CPU for
   /// tools like compiler, disassembler etc.
   ///
@@ -330,20 +358,6 @@ public:
   ///
   /// \return An LLVM arch type.
   llvm::Triple::ArchType GetMachine() const;
-
-  /// Returns the distribution id of the architecture.
-  ///
-  /// This will be something like "ubuntu", "fedora", etc. on Linux.
-  ///
-  /// \return A ConstString ref containing the distribution id,
-  ///         potentially empty.
-  ConstString GetDistributionId() const;
-
-  /// Set the distribution id of the architecture.
-  ///
-  /// This will be something like "ubuntu", "fedora", etc. on Linux. This
-  /// should be the same value returned by HostInfo::GetDistributionId ().
-  void SetDistributionId(const char *distribution_id);
 
   /// Tests if this ArchSpec is valid.
   ///
@@ -509,11 +523,6 @@ public:
 
   bool IsFullySpecifiedTriple() const;
 
-  void PiecewiseTripleCompare(const ArchSpec &other, bool &arch_different,
-                              bool &vendor_different, bool &os_different,
-                              bool &os_version_different,
-                              bool &env_different) const;
-
   /// Detect whether this architecture uses thumb code exclusively
   ///
   /// Some embedded ARM chips (e.g. the ARM Cortex M0-7 line) can only execute
@@ -544,8 +553,6 @@ protected:
   // these are application specific extensions like micromips, mips16 etc.
   uint32_t m_flags = 0;
 
-  ConstString m_distribution_id;
-
   // Called when m_def or m_entry are changed.  Fills in all remaining members
   // with default values.
   void CoreUpdated(bool update_triple);
@@ -562,6 +569,7 @@ protected:
 /// \return true if \a lhs is less than \a rhs
 bool operator<(const ArchSpec &lhs, const ArchSpec &rhs);
 bool operator==(const ArchSpec &lhs, const ArchSpec &rhs);
+bool operator!=(const ArchSpec &lhs, const ArchSpec &rhs);
 
 bool ParseMachCPUDashSubtypeTriple(llvm::StringRef triple_str, ArchSpec &arch);
 

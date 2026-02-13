@@ -20,6 +20,7 @@
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/BlockFrequencyInfo.h"
+#include "llvm/Analysis/CtxProfAnalysis.h"
 #include "llvm/Analysis/InlineAdvisor.h"
 #include "llvm/Analysis/InlineCost.h"
 #include "llvm/Analysis/InlineOrder.h"
@@ -47,6 +48,13 @@ using namespace llvm;
 
 STATISTIC(NumInlined, "Number of functions inlined");
 STATISTIC(NumDeleted, "Number of functions deleted because all callers found");
+
+static cl::opt<bool> CtxProfPromoteAlwaysInline(
+    "ctx-prof-promote-alwaysinline", cl::init(false), cl::Hidden,
+    cl::desc("If using a contextual profile in this module, and an indirect "
+             "call target is marked as alwaysinline, perform indirect call "
+             "promotion for that target. If multiple targets for an indirect "
+             "call site fit this description, they are all promoted."));
 
 /// Return true if the specified inline history ID
 /// indicates an inline history that includes the specified function.
@@ -113,6 +121,8 @@ PreservedAnalyses ModuleInlinerPass::run(Module &M,
     return PreservedAnalyses::all();
   }
 
+  auto &CtxProf = MAM.getResult<CtxProfAnalysis>(M);
+
   bool Changed = false;
 
   ProfileSummaryInfo *PSI = MAM.getCachedResult<ProfileSummaryAnalysis>(M);
@@ -127,7 +137,7 @@ PreservedAnalyses ModuleInlinerPass::run(Module &M,
   InlineAdvisor &Advisor = getAdvisor(MAM, FAM, M);
   Advisor.onPassEntry();
 
-  auto AdvisorOnExit = make_scope_exit([&] { Advisor.onPassExit(); });
+  llvm::scope_exit AdvisorOnExit([&] { Advisor.onPassExit(); });
 
   // In the module inliner, a priority-based worklist is used for calls across
   // the entire Module. With this module inliner, the inline order is not
@@ -138,19 +148,15 @@ PreservedAnalyses ModuleInlinerPass::run(Module &M,
   //
   // TODO: Here is a huge amount duplicate code between the module inliner and
   // the SCC inliner, which need some refactoring.
-  auto Calls = getInlineOrder(FAM, Params);
+  auto Calls = getInlineOrder(FAM, Params, MAM, M);
   assert(Calls != nullptr && "Expected an initialized InlineOrder");
 
   // Populate the initial list of calls in this module.
+  SetVector<std::pair<CallBase *, Function *>> ICPCandidates;
   for (Function &F : M) {
     auto &ORE = FAM.getResult<OptimizationRemarkEmitterAnalysis>(F);
-    // We want to generally process call sites top-down in order for
-    // simplifications stemming from replacing the call with the returned value
-    // after inlining to be visible to subsequent inlining decisions.
-    // FIXME: Using instructions sequence is a really bad way to do this.
-    // Instead we should do an actual RPO walk of the function body.
-    for (Instruction &I : instructions(F))
-      if (auto *CB = dyn_cast<CallBase>(&I))
+    for (Instruction &I : instructions(F)) {
+      if (auto *CB = dyn_cast<CallBase>(&I)) {
         if (Function *Callee = CB->getCalledFunction()) {
           if (!Callee->isDeclaration())
             Calls->push({CB, -1});
@@ -165,7 +171,17 @@ PreservedAnalyses ModuleInlinerPass::run(Module &M,
                      << setIsVerbose();
             });
           }
+        } else if (CtxProfPromoteAlwaysInline &&
+                   CtxProf.isInSpecializedModule() && CB->isIndirectCall()) {
+          CtxProfAnalysis::collectIndirectCallPromotionList(*CB, CtxProf,
+                                                            ICPCandidates);
         }
+      }
+    }
+  }
+  for (auto &[CB, Target] : ICPCandidates) {
+    if (auto *DirectCB = promoteCallWithIfThenElse(*CB, *Target, CtxProf))
+      Calls->push({DirectCB, -1});
   }
   if (Calls->empty())
     return PreservedAnalyses::all();
@@ -213,12 +229,12 @@ PreservedAnalyses ModuleInlinerPass::run(Module &M,
     // Setup the data structure used to plumb customization into the
     // `InlineFunction` routine.
     InlineFunctionInfo IFI(
-        /*cg=*/nullptr, GetAssumptionCache, PSI,
+        GetAssumptionCache, PSI,
         &FAM.getResult<BlockFrequencyAnalysis>(*(CB->getCaller())),
         &FAM.getResult<BlockFrequencyAnalysis>(Callee));
 
     InlineResult IR =
-        InlineFunction(*CB, IFI, /*MergeAttributes=*/true,
+        InlineFunction(*CB, IFI, CtxProf, /*MergeAttributes=*/true,
                        &FAM.getResult<AAManager>(*CB->getCaller()));
     if (!IR.isSuccess()) {
       Advice->recordUnsuccessfulInlining(IR);
@@ -243,8 +259,10 @@ PreservedAnalyses ModuleInlinerPass::run(Module &M,
           // the post-inline cleanup and the next DevirtSCCRepeatedPass
           // iteration because the next iteration may not happen and we may
           // miss inlining it.
-          if (tryPromoteCall(*ICB))
-            NewCallee = ICB->getCalledFunction();
+          // FIXME: enable for ctxprof.
+          if (CtxProf.isInSpecializedModule())
+            if (tryPromoteCall(*ICB))
+              NewCallee = ICB->getCalledFunction();
         }
         if (NewCallee)
           if (!NewCallee->isDeclaration())
@@ -266,6 +284,10 @@ PreservedAnalyses ModuleInlinerPass::run(Module &M,
         Calls->erase_if([&](const std::pair<CallBase *, int> &Call) {
           return Call.first->getCaller() == &Callee;
         });
+
+        // Report inlining decision BEFORE deleting function contents, so we
+        // can still access e.g. the DebugLoc
+        Advice->recordInliningWithCalleeDeleted();
         // Clear the body and queue the function itself for deletion when we
         // finish inlining.
         // Note that after this point, it is an error to do anything other
@@ -277,9 +299,7 @@ PreservedAnalyses ModuleInlinerPass::run(Module &M,
         CalleeWasDeleted = true;
       }
     }
-    if (CalleeWasDeleted)
-      Advice->recordInliningWithCalleeDeleted();
-    else
+    if (!CalleeWasDeleted)
       Advice->recordInlining();
   }
 

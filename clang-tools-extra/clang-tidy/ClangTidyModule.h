@@ -1,4 +1,4 @@
-//===--- ClangTidyModule.h - clang-tidy -------------------------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,11 +12,11 @@
 #include "ClangTidyOptions.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Registry.h"
 #include <functional>
 #include <memory>
 
-namespace clang {
-namespace tidy {
+namespace clang::tidy {
 
 class ClangTidyCheck;
 class ClangTidyContext;
@@ -63,15 +63,17 @@ public:
                          });
   }
 
+  void eraseCheck(llvm::StringRef CheckName) { Factories.erase(CheckName); }
+
   /// Create instances of checks that are enabled.
   std::vector<std::unique_ptr<ClangTidyCheck>>
-  createChecks(ClangTidyContext *Context);
+  createChecks(ClangTidyContext *Context) const;
 
   /// Create instances of checks that are enabled for the current Language.
   std::vector<std::unique_ptr<ClangTidyCheck>>
-  createChecksForLanguage(ClangTidyContext *Context);
+  createChecksForLanguage(ClangTidyContext *Context) const;
 
-  typedef llvm::StringMap<CheckFactory> FactoryMap;
+  using FactoryMap = llvm::StringMap<CheckFactory>;
   FactoryMap::const_iterator begin() const { return Factories.begin(); }
   FactoryMap::const_iterator end() const { return Factories.end(); }
   bool empty() const { return Factories.empty(); }
@@ -84,7 +86,7 @@ private:
 /// them a prefixed name.
 class ClangTidyModule {
 public:
-  virtual ~ClangTidyModule() {}
+  virtual ~ClangTidyModule() = default;
 
   /// Implement this function in order to register all \c CheckFactories
   /// belonging to this module.
@@ -94,7 +96,12 @@ public:
   virtual ClangTidyOptions getModuleOptions();
 };
 
-} // end namespace tidy
-} // end namespace clang
+using ClangTidyModuleRegistry = llvm::Registry<ClangTidyModule>;
+
+} // namespace clang::tidy
+
+namespace llvm {
+extern template class Registry<clang::tidy::ClangTidyModule>;
+} // namespace llvm
 
 #endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_CLANGTIDYMODULE_H

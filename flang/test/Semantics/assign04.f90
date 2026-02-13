@@ -22,11 +22,14 @@ subroutine s2(x)
   !ERROR: Assignment to constant 'x' is not allowed
   x = 2.0
   i = 2
-  !ERROR: Left-hand side of assignment is not modifiable
+  !ERROR: Left-hand side of assignment is not definable
+  !BECAUSE: 'a' is not a variable
   a(i) = 3.0
-  !ERROR: Left-hand side of assignment is not modifiable
+  !ERROR: Left-hand side of assignment is not definable
+  !BECAUSE: 'a' is not a variable
   a(i:i+1) = [4, 5]
-  !ERROR: Left-hand side of assignment is not modifiable
+  !ERROR: Left-hand side of assignment is not definable
+  !BECAUSE: 'c' is not a variable
   c(i:2) = "cd"
 end
 
@@ -40,7 +43,8 @@ subroutine s3
   type(t), parameter :: y = t([1,2], 3)
   integer :: i = 1
   x%a(i) = 1
-  !ERROR: Left-hand side of assignment is not modifiable
+  !ERROR: Left-hand side of assignment is not definable
+  !BECAUSE: 'y' is not a variable
   y%a(i) = 2
   x%b = 4
   !ERROR: Assignment to constant 'y%b' is not allowed
@@ -57,11 +61,14 @@ contains
     type(t), intent(in) :: x
     character(10), intent(in) :: c
     type(t) :: y
-    !ERROR: Left-hand side of assignment is not modifiable
+    !ERROR: Left-hand side of assignment is not definable
+    !BECAUSE: 'x' is an INTENT(IN) dummy argument
     x = y
-    !ERROR: Left-hand side of assignment is not modifiable
+    !ERROR: Left-hand side of assignment is not definable
+    !BECAUSE: 'x' is an INTENT(IN) dummy argument
     x%a(1) = 2
-    !ERROR: Left-hand side of assignment is not modifiable
+    !ERROR: Left-hand side of assignment is not definable
+    !BECAUSE: 'c' is an INTENT(IN) dummy argument
     c(2:3) = "ab"
   end
 end
@@ -80,22 +87,34 @@ subroutine s5()
   use m5
   implicit none
   x = 1.0
-  !ERROR: Left-hand side of assignment is not modifiable
+  !ERROR: Left-hand side of assignment is not definable
+  !BECAUSE: 'y' is protected in this scope
   y = 2.0
   !ERROR: No explicit type declared for 'z'
   z = 3.0
-  !ERROR: Left-hand side of assignment is not modifiable
+  !ERROR: Left-hand side of assignment is not definable
+  !BECAUSE: 'b' is protected in this scope
   b%a = 1.0
 end
 
 subroutine s6(x)
   integer :: x(*)
+  integer, allocatable :: ja(:)
   x(1:3) = [1, 2, 3]
   x(:3) = [1, 2, 3]
   !ERROR: Assumed-size array 'x' must have explicit final subscript upper bound value
   x(:) = [1, 2, 3]
   !ERROR: Whole assumed-size array 'x' may not appear here without subscripts
   x = [1, 2, 3]
+  !ERROR: Whole assumed-size array 'x' may not appear here without subscripts
+  ja = x
+  associate (y => x) ! ok
+    !ERROR: Whole assumed-size array 'y' may not appear here without subscripts
+    y = [1, 2, 3]
+  end associate
+  !ERROR: Whole assumed-size array 'x' may not appear here without subscripts
+  associate (y => (x))
+  end associate
 end
 
 module m7
@@ -198,20 +217,20 @@ subroutine s13()
       !ERROR: The mask or variable must not be scalar
       x(j)='?'
       !ERROR: The mask or variable must not be scalar
-      n(j)='?' ! fine
+      n(j)='?'
     !ERROR: The mask or variable must not be scalar
     elsewhere (.false.)
       !ERROR: Defined assignment in WHERE must be elemental, but 'ctor' is not
       !ERROR: The mask or variable must not be scalar
       x(j)='1'
       !ERROR: The mask or variable must not be scalar
-      n(j)='1' ! fine
+      n(j)='1'
     elsewhere
       !ERROR: Defined assignment in WHERE must be elemental, but 'ctor' is not
       !ERROR: The mask or variable must not be scalar
       x(j)='9'
       !ERROR: The mask or variable must not be scalar
-      n(j)='9' ! fine
+      n(j)='9'
     end where
   end forall
   x='0' ! still fine
@@ -230,3 +249,42 @@ subroutine s13()
     character, intent(in) :: c
   end subroutine
 end subroutine s13
+
+module m14
+  type t1
+    integer, pointer :: p
+   contains
+    procedure definedAsst1
+    generic :: assignment(=) => definedAsst1
+  end type
+  type t2
+    integer, pointer :: p
+  end type
+  interface assignment(=)
+    module procedure definedAsst2
+  end interface
+  type t3
+    integer, pointer :: p
+  end type
+ contains
+  pure subroutine definedAsst1(lhs,rhs)
+    class(t1), intent(in out) :: lhs
+    class(t1), intent(in) :: rhs
+  end subroutine
+  pure subroutine definedAsst2(lhs,rhs)
+    type(t2), intent(out) :: lhs
+    type(t2), intent(in) :: rhs
+  end subroutine
+  pure subroutine test(y1,y2,y3)
+    type(t1) x1
+    type(t1), intent(in) :: y1
+    type(t2) x2
+    type(t2), intent(in) :: y2
+    type(t3) x3
+    type(t3), intent(in) :: y3
+    x1 = y1 ! fine due to not being intrinsic assignment
+    x2 = y2 ! fine due to not being intrinsic assignment
+    !ERROR: A pure subprogram may not copy the value of 'y3' because it is an INTENT(IN) dummy argument and has the POINTER potential subobject component '%p'
+    x3 = y3
+  end subroutine
+end module m14

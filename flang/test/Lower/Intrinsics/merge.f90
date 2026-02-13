@@ -1,5 +1,5 @@
-! RUN: bbc -emit-fir %s -o - | FileCheck %s
-! RUN: %flang_fc1 -emit-fir %s -o - | FileCheck %s
+! RUN: bbc -emit-fir -hlfir=false %s -o - | FileCheck %s
+! RUN: %flang_fc1 -emit-fir -flang-deprecated-no-hlfir %s -o - | FileCheck %s
 
 ! CHECK-LABEL: func @_QPmerge_test(
 ! CHECK-SAME: %[[arg0:.*]]: !fir.ref<!fir.char<1>>{{.*}}, %[[arg1:.*]]: index{{.*}},  %[[arg2:[^:]+]]: !fir.boxchar<1>{{.*}}, %[[arg3:[^:]+]]: !fir.boxchar<1>{{.*}}, %[[arg4:.*]]: !fir.ref<!fir.logical<4>>{{.*}}) -> !fir.boxchar<1> {
@@ -8,11 +8,13 @@ character :: o1, o2, merge_test
 logical :: mask
 merge_test = merge(o1, o2, mask)
 ! CHECK:  %[[a0:.*]]:2 = fir.unboxchar %[[arg2]] : (!fir.boxchar<1>) -> (!fir.ref<!fir.char<1,?>>, index)
-! CHECK-DAG:  %[[a1:.*]]:2 = fir.unboxchar %[[arg3]] : (!fir.boxchar<1>) -> (!fir.ref<!fir.char<1,?>>, index) 
+! CHECK: %[[a0_cast:.*]] = fir.convert %[[a0]]#0 : (!fir.ref<!fir.char<1,?>>) -> !fir.ref<!fir.char<1>>
+! CHECK:  %[[a1:.*]]:2 = fir.unboxchar %[[arg3]] : (!fir.boxchar<1>) -> (!fir.ref<!fir.char<1,?>>, index)
+! CHECK: %[[a1_cast:.*]] = fir.convert %[[a1]]#0 : (!fir.ref<!fir.char<1,?>>) -> !fir.ref<!fir.char<1>>
 ! CHECK: %[[a2:.*]] = fir.load %[[arg4]] : !fir.ref<!fir.logical<4>>
 ! CHECK: %[[a3:.*]] = fir.convert %[[a2]] : (!fir.logical<4>) -> i1
-! CHECK: %[[a4:.*]] = arith.select %[[a3]], %[[a0]]#0, %[[a1]]#0 : !fir.ref<!fir.char<1,?>>
-! CHECK-DAG:  %{{.*}} = fir.convert %[[a4]] : (!fir.ref<!fir.char<1,?>>) -> !fir.ref<i8>
+! CHECK: %[[a4:.*]] = arith.select %[[a3]], %[[a0_cast]], %[[a1_cast]] : !fir.ref<!fir.char<1>>
+! CHECK:  %{{.*}} = fir.load %[[a4]] : !fir.ref<!fir.char<1>>
 end
 
 ! CHECK-LABEL: func @_QPmerge_test2(
@@ -56,7 +58,7 @@ subroutine merge_logical_var_and_expr(l1, l2)
 ! CHECK:  %[[VAL_7:.*]] = fir.convert %[[VAL_4]] : (i1) -> !fir.logical<4>
 ! CHECK:  %[[VAL_8:.*]] = arith.select %[[VAL_6]], %[[VAL_3]], %[[VAL_7]] : !fir.logical<4>
 ! CHECK:  fir.store %[[VAL_8]] to %[[VAL_2]] : !fir.ref<!fir.logical<4>>
-! CHECK:  fir.call @_QPbar(%[[VAL_2]]) : (!fir.ref<!fir.logical<4>>) -> ()
+! CHECK:  fir.call @_QPbar(%[[VAL_2]]) {{.*}}: (!fir.ref<!fir.logical<4>>) -> ()
 end subroutine
 
 ! CHECK-LABEL: func @_QPmerge_cst_and_dyn_char(
@@ -76,5 +78,5 @@ subroutine merge_cst_and_dyn_char(dyn, l)
 ! CHECK:  %[[VAL_13:.*]] = arith.select %[[VAL_11]], %[[VAL_2]], %[[VAL_12]] : !fir.ref<!fir.char<1,4>>
 ! CHECK:  %[[VAL_14:.*]] = fir.convert %[[VAL_13]] : (!fir.ref<!fir.char<1,4>>) -> !fir.ref<i8>
 ! CHECK:  %[[VAL_15:.*]] = fir.convert %[[VAL_3]] : (index) -> i64
-! CHECK:  fir.call @_FortranAioOutputAscii(%{{.*}}, %[[VAL_14]], %[[VAL_15]]) : (!fir.ref<i8>, !fir.ref<i8>, i64) -> i1
+! CHECK:  fir.call @_FortranAioOutputAscii(%{{.*}}, %[[VAL_14]], %[[VAL_15]]) {{.*}}: (!fir.ref<i8>, !fir.ref<i8>, i64) -> i1
 end subroutine

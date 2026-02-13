@@ -11,9 +11,19 @@
 
 include "mlir/Pass/PassBase.td"
 
-def TensorBufferize : Pass<"tensor-bufferize", "func::FuncOp"> {
-  let summary = "Bufferize the `tensor` dialect";
-  let constructor = "mlir::createTensorBufferizePass()";
+def FoldTensorSubsetOpsPass : Pass<"fold-tensor-subset-ops"> {
+  let summary = "Fold tensor subset ops into producer/consumer ops";
+  let description = [{
+    The pass folds tensor subset ops into producer/consumer ops.
+
+    At the moment, the following foldings occur when possible:
+      - tensor.extract_slice into vector.transfer_read
+      - vector.transfer_write into tensor.insert_slice
+
+  }];
+  let dependentDialects = [
+      "affine::AffineDialect", "tensor::TensorDialect", "vector::VectorDialect"
+  ];
 }
 
 #endif // MLIR_DIALECT_TENSOR_TRANSFORMS_PASSES

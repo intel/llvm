@@ -20,13 +20,14 @@
 #ifndef LLVM_ADT_SETVECTOR_H
 #define LLVM_ADT_SETVECTOR_H
 
+#include "llvm/ADT/ADL.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/STLForwardCompat.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Compiler.h"
 #include <cassert>
-#include <iterator>
-#include <vector>
 
 namespace llvm {
 
@@ -35,14 +36,37 @@ namespace llvm {
 /// This adapter class provides a way to keep a set of things that also has the
 /// property of a deterministic iteration order. The order of iteration is the
 /// order of insertion.
-template <typename T, typename Vector = std::vector<T>,
-          typename Set = DenseSet<T>>
+///
+/// The key and value types are derived from the Set and Vector types
+/// respectively. This allows the vector-type operations and set-type operations
+/// to have different types.
+///
+/// No constraint is placed on the key and value types, although it is assumed
+/// that value_type can be converted into key_type for insertion. Users must be
+/// aware of any loss of information in this conversion. For example, setting
+/// value_type to float and key_type to int can produce very surprising results,
+/// but it is not explicitly disallowed.
+///
+/// The parameter N specifies the "small" size of the container, which is the
+/// number of elements upto which a linear scan over the Vector will be used
+/// when searching for elements instead of checking Set, due to it being better
+/// for performance. A value of 0 means that this mode of operation is not used,
+/// and is the default value.
+template <typename T, typename Vector = SmallVector<T, 0>,
+          typename Set = DenseSet<T>, unsigned N = 0>
 class SetVector {
+  // Much like in SmallPtrSet, this value should not be too high to prevent
+  // excessively long linear scans from occuring.
+  static_assert(N <= 32, "Small size should be less than or equal to 32!");
+
+  using const_arg_type =
+      typename const_pointer_or_const_ref<typename Set::key_type>::type;
+
 public:
-  using value_type = T;
-  using key_type = T;
-  using reference = T&;
-  using const_reference = const T&;
+  using value_type = typename Vector::value_type;
+  using key_type = typename Set::key_type;
+  using reference = value_type &;
+  using const_reference = const value_type &;
   using set_type = Set;
   using vector_type = Vector;
   using iterator = typename vector_type::const_iterator;
@@ -60,72 +84,58 @@ public:
     insert(Start, End);
   }
 
-  ArrayRef<T> getArrayRef() const { return vector_; }
+  template <typename Range>
+  SetVector(llvm::from_range_t, Range &&R)
+      : SetVector(adl_begin(R), adl_end(R)) {}
+
+  [[nodiscard]] ArrayRef<value_type> getArrayRef() const { return vector_; }
 
   /// Clear the SetVector and return the underlying vector.
-  Vector takeVector() {
+  [[nodiscard]] Vector takeVector() {
     set_.clear();
     return std::move(vector_);
   }
 
   /// Determine if the SetVector is empty or not.
-  bool empty() const {
-    return vector_.empty();
-  }
+  [[nodiscard]] bool empty() const { return vector_.empty(); }
 
   /// Determine the number of elements in the SetVector.
-  size_type size() const {
-    return vector_.size();
-  }
+  [[nodiscard]] size_type size() const { return vector_.size(); }
 
   /// Get an iterator to the beginning of the SetVector.
-  iterator begin() {
-    return vector_.begin();
-  }
+  [[nodiscard]] iterator begin() { return vector_.begin(); }
 
   /// Get a const_iterator to the beginning of the SetVector.
-  const_iterator begin() const {
-    return vector_.begin();
-  }
+  [[nodiscard]] const_iterator begin() const { return vector_.begin(); }
 
   /// Get an iterator to the end of the SetVector.
-  iterator end() {
-    return vector_.end();
-  }
+  [[nodiscard]] iterator end() { return vector_.end(); }
 
   /// Get a const_iterator to the end of the SetVector.
-  const_iterator end() const {
-    return vector_.end();
-  }
+  [[nodiscard]] const_iterator end() const { return vector_.end(); }
 
   /// Get an reverse_iterator to the end of the SetVector.
-  reverse_iterator rbegin() {
-    return vector_.rbegin();
-  }
+  [[nodiscard]] reverse_iterator rbegin() { return vector_.rbegin(); }
 
   /// Get a const_reverse_iterator to the end of the SetVector.
-  const_reverse_iterator rbegin() const {
+  [[nodiscard]] const_reverse_iterator rbegin() const {
     return vector_.rbegin();
   }
 
   /// Get a reverse_iterator to the beginning of the SetVector.
-  reverse_iterator rend() {
-    return vector_.rend();
-  }
+  [[nodiscard]] reverse_iterator rend() { return vector_.rend(); }
 
   /// Get a const_reverse_iterator to the beginning of the SetVector.
-  const_reverse_iterator rend() const {
-    return vector_.rend();
-  }
+  [[nodiscard]] const_reverse_iterator rend() const { return vector_.rend(); }
 
   /// Return the first element of the SetVector.
-  const T &front() const {
+  [[nodiscard]] const value_type &front() const {
     assert(!empty() && "Cannot call front() on empty SetVector!");
     return vector_.front();
   }
 
   /// Return the last element of the SetVector.
-  const T &back() const {
+  [[nodiscard]] const value_type &back() const {
     assert(!empty() && "Cannot call back() on empty SetVector!");
     return vector_.back();
   }
@@ -139,6 +149,17 @@ public:
   /// Insert a new element into the SetVector.
   /// \returns true if the element was inserted into the SetVector.
   bool insert(const value_type &X) {
+    if constexpr (canBeSmall())
+      if (isSmall()) {
+        if (!llvm::is_contained(vector_, X)) {
+          vector_.push_back(X);
+          if (vector_.size() > N)
+            makeBig();
+          return true;
+        }
+        return false;
+      }
+
     bool result = set_.insert(X).second;
     if (result)
       vector_.push_back(X);
@@ -149,12 +170,25 @@ public:
   template<typename It>
   void insert(It Start, It End) {
     for (; Start != End; ++Start)
-      if (set_.insert(*Start).second)
-        vector_.push_back(*Start);
+      insert(*Start);
+  }
+
+  template <typename Range> void insert_range(Range &&R) {
+    insert(adl_begin(R), adl_end(R));
   }
 
   /// Remove an item from the set vector.
   bool remove(const value_type& X) {
+    if constexpr (canBeSmall())
+      if (isSmall()) {
+        typename vector_type::iterator I = find(vector_, X);
+        if (I != vector_.end()) {
+          vector_.erase(I);
+          return true;
+        }
+        return false;
+      }
+
     if (set_.erase(X)) {
       typename vector_type::iterator I = find(vector_, X);
       assert(I != vector_.end() && "Corrupted SetVector instances!");
@@ -168,18 +202,15 @@ public:
   /// \returns an iterator pointing to the next element that followed the
   /// element erased. This is the end of the SetVector if the last element is
   /// erased.
-  iterator erase(iterator I) {
+  iterator erase(const_iterator I) {
+    if constexpr (canBeSmall())
+      if (isSmall())
+        return vector_.erase(I);
+
     const key_type &V = *I;
     assert(set_.count(V) && "Corrupted SetVector instances!");
     set_.erase(V);
-
-    // FIXME: No need to use the non-const iterator when built with
-    // std::vector.erase(const_iterator) as defined in C++11. This is for
-    // compatibility with non-standard libstdc++ up to 4.8 (fixed in 4.9).
-    auto NI = vector_.begin();
-    std::advance(NI, std::distance<iterator>(NI, I));
-
-    return vector_.erase(NI);
+    return vector_.erase(I);
   }
 
   /// Remove items from the set vector based on a predicate function.
@@ -197,8 +228,20 @@ public:
   /// \returns true if any element is removed.
   template <typename UnaryPredicate>
   bool remove_if(UnaryPredicate P) {
-    typename vector_type::iterator I =
-        llvm::remove_if(vector_, TestAndEraseFromSet<UnaryPredicate>(P, set_));
+    typename vector_type::iterator I = [this, P] {
+      if constexpr (canBeSmall())
+        if (isSmall())
+          return llvm::remove_if(vector_, P);
+
+      return llvm::remove_if(vector_, [&](const value_type &V) {
+        if (P(V)) {
+          set_.erase(V);
+          return true;
+        }
+        return false;
+      });
+    }();
+
     if (I == vector_.end())
       return false;
     vector_.erase(I, vector_.end());
@@ -206,14 +249,18 @@ public:
   }
 
   /// Check if the SetVector contains the given key.
-  bool contains(const key_type &key) const {
-    return set_.find(key) != set_.end();
+  [[nodiscard]] bool contains(const_arg_type key) const {
+    if constexpr (canBeSmall())
+      if (isSmall())
+        return is_contained(vector_, key);
+
+    return is_contained(set_, key);
   }
 
   /// Count the number of elements of a given key in the SetVector.
   /// \returns 0 if the element is not in the SetVector, 1 if it is.
-  size_type count(const key_type &key) const {
-    return set_.count(key);
+  [[nodiscard]] size_type count(const_arg_type key) const {
+    return contains(key) ? 1 : 0;
   }
 
   /// Completely clear the SetVector
@@ -229,17 +276,17 @@ public:
     vector_.pop_back();
   }
 
-  [[nodiscard]] T pop_back_val() {
-    T Ret = back();
+  [[nodiscard]] value_type pop_back_val() {
+    value_type Ret = back();
     pop_back();
     return Ret;
   }
 
-  bool operator==(const SetVector &that) const {
+  [[nodiscard]] bool operator==(const SetVector &that) const {
     return vector_ == that.vector_;
   }
 
-  bool operator!=(const SetVector &that) const {
+  [[nodiscard]] bool operator!=(const SetVector &that) const {
     return vector_ != that.vector_;
   }
 
@@ -250,9 +297,8 @@ public:
   bool set_union(const STy &S) {
     bool Changed = false;
 
-    for (typename STy::const_iterator SI = S.begin(), SE = S.end(); SI != SE;
-         ++SI)
-      if (insert(*SI))
+    for (const auto &Elem : S)
+      if (insert(Elem))
         Changed = true;
 
     return Changed;
@@ -263,39 +309,25 @@ public:
   ///       SetVector interface is inconsistent with DenseSet.
   template <class STy>
   void set_subtract(const STy &S) {
-    for (typename STy::const_iterator SI = S.begin(), SE = S.end(); SI != SE;
-         ++SI)
-      remove(*SI);
+    for (const auto &Elem : S)
+      remove(Elem);
   }
 
-  void swap(SetVector<T, Vector, Set> &RHS) {
+  void swap(SetVector<T, Vector, Set, N> &RHS) {
     set_.swap(RHS.set_);
     vector_.swap(RHS.vector_);
   }
 
 private:
-  /// A wrapper predicate designed for use with std::remove_if.
-  ///
-  /// This predicate wraps a predicate suitable for use with std::remove_if to
-  /// call set_.erase(x) on each element which is slated for removal.
-  template <typename UnaryPredicate>
-  class TestAndEraseFromSet {
-    UnaryPredicate P;
-    set_type &set_;
+  [[nodiscard]] static constexpr bool canBeSmall() { return N != 0; }
 
-  public:
-    TestAndEraseFromSet(UnaryPredicate P, set_type &set_)
-        : P(std::move(P)), set_(set_) {}
+  [[nodiscard]] bool isSmall() const { return set_.empty(); }
 
-    template <typename ArgumentT>
-    bool operator()(const ArgumentT &Arg) {
-      if (P(Arg)) {
-        set_.erase(Arg);
-        return true;
-      }
-      return false;
-    }
-  };
+  void makeBig() {
+    if constexpr (canBeSmall())
+      for (const auto &entry : vector_)
+        set_.insert(entry);
+  }
 
   set_type set_;         ///< The set.
   vector_type vector_;   ///< The vector.
@@ -304,16 +336,9 @@ private:
 /// A SetVector that performs no allocations if smaller than
 /// a certain size.
 template <typename T, unsigned N>
-class SmallSetVector
-    : public SetVector<T, SmallVector<T, N>, SmallDenseSet<T, N>> {
+class SmallSetVector : public SetVector<T, SmallVector<T, N>, DenseSet<T>, N> {
 public:
-  SmallSetVector() = default;
-
-  /// Initialize a SmallSetVector with a range of elements
-  template<typename It>
-  SmallSetVector(It Start, It End) {
-    this->insert(Start, End);
-  }
+  using SetVector<T, SmallVector<T, N>, DenseSet<T>, N>::SetVector;
 };
 
 } // end namespace llvm
@@ -321,9 +346,9 @@ public:
 namespace std {
 
 /// Implement std::swap in terms of SetVector swap.
-template<typename T, typename V, typename S>
-inline void
-swap(llvm::SetVector<T, V, S> &LHS, llvm::SetVector<T, V, S> &RHS) {
+template <typename T, typename V, typename S, unsigned N>
+inline void swap(llvm::SetVector<T, V, S, N> &LHS,
+                 llvm::SetVector<T, V, S, N> &RHS) {
   LHS.swap(RHS);
 }
 

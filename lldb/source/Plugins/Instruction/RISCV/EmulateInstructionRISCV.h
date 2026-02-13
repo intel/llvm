@@ -9,28 +9,42 @@
 #ifndef LLDB_SOURCE_PLUGINS_INSTRUCTION_RISCV_EMULATEINSTRUCTIONRISCV_H
 #define LLDB_SOURCE_PLUGINS_INSTRUCTION_RISCV_EMULATEINSTRUCTIONRISCV_H
 
+#include "RISCVInstructions.h"
+
 #include "lldb/Core/EmulateInstruction.h"
 #include "lldb/Interpreter/OptionValue.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/RegisterValue.h"
 #include "lldb/Utility/Status.h"
+#include <optional>
 
 namespace lldb_private {
 
-constexpr uint32_t DecodeRD(uint32_t inst) { return (inst & 0xF80) >> 7; }
-constexpr uint32_t DecodeRS1(uint32_t inst) { return (inst & 0xF8000) >> 15; }
-constexpr uint32_t DecodeRS2(uint32_t inst) { return (inst & 0x1F00000) >> 20; }
+class RISCVSingleStepBreakpointLocationsPredictor
+    : public SingleStepBreakpointLocationsPredictor {
+public:
+  RISCVSingleStepBreakpointLocationsPredictor(
+      std::unique_ptr<EmulateInstruction> emulator)
+      : SingleStepBreakpointLocationsPredictor{std::move(emulator)} {}
 
-class EmulateInstructionRISCV;
+  BreakpointLocations GetBreakpointLocations(Status &status) override;
 
-struct InstrPattern {
-  const char *name;
-  /// Bit mask to check the type of a instruction (B-Type, I-Type, J-Type, etc.)
-  uint32_t type_mask;
-  /// Characteristic value after bitwise-and with type_mask.
-  uint32_t eigen;
-  bool (*exec)(EmulateInstructionRISCV &emulator, uint32_t inst,
-               bool ignore_cond);
+  llvm::Expected<unsigned> GetBreakpointSize(lldb::addr_t bp_addr) override;
+
+private:
+  static bool FoundLoadReserve(const RISCVInst &inst) {
+    return std::holds_alternative<LR_W>(inst) ||
+           std::holds_alternative<LR_D>(inst);
+  }
+
+  static bool FoundStoreConditional(const RISCVInst &inst) {
+    return std::holds_alternative<SC_W>(inst) ||
+           std::holds_alternative<SC_D>(inst);
+  }
+
+  BreakpointLocations HandleAtomicSequence(lldb::addr_t pc, Status &error);
+
+  static constexpr size_t s_max_atomic_sequence_length = 64;
 };
 
 class EmulateInstructionRISCV : public EmulateInstruction {
@@ -47,6 +61,7 @@ public:
     case eInstructionTypePCModifying:
       return true;
     case eInstructionTypePrologueEpilogue:
+      return true;
     case eInstructionTypeAll:
       return false;
     }
@@ -71,39 +86,57 @@ public:
     return SupportsThisInstructionType(inst_type);
   }
 
+  bool CreateFunctionEntryUnwind(UnwindPlan &unwind_plan) override;
   bool SetTargetTriple(const ArchSpec &arch) override;
   bool ReadInstruction() override;
+  std::optional<uint32_t> GetLastInstrSize() override { return m_last_size; }
   bool EvaluateInstruction(uint32_t options) override;
-  bool TestEmulation(Stream *out_stream, ArchSpec &arch,
+  bool TestEmulation(Stream &out_stream, ArchSpec &arch,
                      OptionValueDictionary *test_data) override;
-  llvm::Optional<RegisterInfo> GetRegisterInfo(lldb::RegisterKind reg_kind,
-                                               uint32_t reg_num) override;
+  std::optional<RegisterInfo> GetRegisterInfo(lldb::RegisterKind reg_kind,
+                                              uint32_t reg_num) override;
 
-  lldb::addr_t ReadPC(bool &success);
-  bool WritePC(lldb::addr_t pc);
-
-  const InstrPattern *Decode(uint32_t inst);
-  bool DecodeAndExecute(uint32_t inst, bool ignore_cond);
+  bool SetInstruction(const Opcode &opcode, const Address &inst_addr,
+                      Target *target) override;
+  std::optional<DecodeResult> ReadInstructionAt(lldb::addr_t addr);
+  std::optional<DecodeResult> Decode(uint32_t inst);
+  bool Execute(DecodeResult inst, bool ignore_cond);
 
   template <typename T>
-  static std::enable_if_t<std::is_integral_v<T>, T>
-  ReadMem(EmulateInstructionRISCV &emulator, uint64_t addr, bool *success) {
-
+  std::enable_if_t<std::is_integral_v<T>, std::optional<T>>
+  ReadMem(uint64_t addr) {
     EmulateInstructionRISCV::Context ctx;
     ctx.type = EmulateInstruction::eContextRegisterLoad;
     ctx.SetNoArgs();
-    return T(emulator.ReadMemoryUnsigned(ctx, addr, sizeof(T), T(), success));
+    bool success = false;
+    T result = ReadMemoryUnsigned(ctx, addr, sizeof(T), T(), &success);
+    if (!success)
+      return {}; // aka return false
+    return result;
   }
 
-  template <typename T>
-  static bool WriteMem(EmulateInstructionRISCV &emulator, uint64_t addr,
-                       RegisterValue value) {
+  template <typename T> bool WriteMem(uint64_t addr, uint64_t value) {
     EmulateInstructionRISCV::Context ctx;
     ctx.type = EmulateInstruction::eContextRegisterStore;
     ctx.SetNoArgs();
-    return emulator.WriteMemoryUnsigned(ctx, addr, value.GetAsUInt64(),
-                                        sizeof(T));
+    return WriteMemoryUnsigned(ctx, addr, value, sizeof(T));
   }
+
+  llvm::RoundingMode GetRoundingMode();
+  bool SetAccruedExceptions(llvm::APFloatBase::opStatus);
+
+private:
+  BreakpointLocationsPredictorCreator
+  GetSingleStepBreakpointLocationsPredictorCreator() override {
+    return [](std::unique_ptr<EmulateInstruction> emulator_up) {
+      return std::make_unique<RISCVSingleStepBreakpointLocationsPredictor>(
+          std::move(emulator_up));
+    };
+  }
+  /// Last decoded instruction from m_opcode
+  DecodeResult m_decoded;
+  /// Last decoded instruction size estimate.
+  std::optional<uint32_t> m_last_size;
 };
 
 } // namespace lldb_private

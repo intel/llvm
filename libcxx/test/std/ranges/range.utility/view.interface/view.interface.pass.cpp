@@ -15,6 +15,7 @@
 #include <ranges>
 
 #include <cassert>
+#include <utility>
 #include "test_macros.h"
 #include "test_iterators.h"
 
@@ -37,6 +38,14 @@ struct InputRange : std::ranges::view_interface<InputRange> {
   constexpr InputIter begin() const { return InputIter(buff); }
   constexpr InputIter end() const { return InputIter(buff + 8); }
 };
+
+struct SizedInputRange : std::ranges::view_interface<SizedInputRange> {
+  int buff[8] = {0, 1, 2, 3, 4, 5, 6, 7};
+  constexpr InputIter begin() const { return InputIter(buff); }
+  constexpr sentinel_wrapper<InputIter> end() const { return sentinel_wrapper(InputIter(buff + 8)); }
+  constexpr std::size_t size() const { return 8; }
+};
+static_assert(std::ranges::sized_range<SizedInputRange>);
 
 struct NotSizedSentinel {
   using value_type = int;
@@ -94,7 +103,7 @@ struct SizeIsTen : std::ranges::view_interface<SizeIsTen> {
   int buff[8] = {0, 1, 2, 3, 4, 5, 6, 7};
   constexpr ForwardIter begin() const { return ForwardIter(const_cast<int*>(buff)); }
   constexpr ForwardIter end() const { return ForwardIter(const_cast<int*>(buff) + 8); }
-  constexpr size_t size() const { return 10; }
+  constexpr std::size_t size() const { return 10; }
 };
 static_assert(std::ranges::view<SizeIsTen>);
 
@@ -154,10 +163,23 @@ concept BoolOpInvocable = requires (T const& obj) { bool(obj); };
 
 constexpr bool testEmpty() {
   static_assert(!EmptyInvocable<InputRange>);
+  // LWG 3715: `view_interface::empty` is overconstrained
+  static_assert(EmptyInvocable<SizedInputRange>);
   static_assert( EmptyInvocable<ForwardRange>);
 
   static_assert(!BoolOpInvocable<InputRange>);
+  static_assert(BoolOpInvocable<SizedInputRange>);
   static_assert( BoolOpInvocable<ForwardRange>);
+
+  SizedInputRange sizedInputRange;
+  assert(!sizedInputRange.empty());
+  assert(!static_cast<SizedInputRange const&>(sizedInputRange).empty());
+
+  assert(sizedInputRange);
+  assert(static_cast<SizedInputRange const&>(sizedInputRange));
+
+  assert(!std::ranges::empty(sizedInputRange));
+  assert(!std::ranges::empty(static_cast<SizedInputRange const&>(sizedInputRange)));
 
   ForwardRange forwardRange;
   assert(!forwardRange.empty());
@@ -233,12 +255,21 @@ constexpr bool testSize() {
   static_assert(!SizeInvocable<NotSizedSentinel>);
   static_assert( SizeInvocable<ForwardRange>);
 
+  // Test the test.
+  static_assert(std::same_as<decltype(std::declval<ForwardIter>() - std::declval<ForwardIter>()), std::ptrdiff_t>);
+  using UnsignedSize = std::make_unsigned_t<std::ptrdiff_t>;
+  using SignedSize = std::common_type_t<std::ptrdiff_t, std::make_signed_t<UnsignedSize>>;
   ForwardRange forwardRange;
   assert(forwardRange.size() == 8);
   assert(static_cast<ForwardRange const&>(forwardRange).size() == 8);
 
   assert(std::ranges::size(forwardRange) == 8);
+  static_assert(std::same_as<decltype(std::ranges::size(std::declval<ForwardRange>())), UnsignedSize>);
+  static_assert(std::same_as<decltype(std::ranges::ssize(std::declval<ForwardRange>())), SignedSize>);
+
   assert(std::ranges::size(static_cast<ForwardRange const&>(forwardRange)) == 8);
+  static_assert(std::same_as<decltype(std::ranges::size(std::declval<ForwardRange const>())), UnsignedSize>);
+  static_assert(std::same_as<decltype(std::ranges::ssize(std::declval<ForwardRange const>())), SignedSize>);
 
   SizeIsTen sizeTen;
   assert(sizeTen.size() == 10);
@@ -252,7 +283,7 @@ constexpr bool testSize() {
 }
 
 template<class T>
-concept SubscriptInvocable = requires (T const& obj, size_t n) { obj[n]; };
+concept SubscriptInvocable = requires (T const& obj, std::size_t n) { obj[n]; };
 
 constexpr bool testSubscript() {
   static_assert(!SubscriptInvocable<ForwardRange>);

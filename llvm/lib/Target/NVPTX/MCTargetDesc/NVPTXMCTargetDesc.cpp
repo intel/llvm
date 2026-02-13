@@ -19,6 +19,7 @@
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/Compiler.h"
 
 using namespace llvm;
 
@@ -62,12 +63,17 @@ static MCInstPrinter *createNVPTXMCInstPrinter(const Triple &T,
 
 static MCTargetStreamer *createTargetAsmStreamer(MCStreamer &S,
                                                  formatted_raw_ostream &,
-                                                 MCInstPrinter *, bool) {
+                                                 MCInstPrinter *) {
+  return new NVPTXAsmTargetStreamer(S);
+}
+
+static MCTargetStreamer *createNullTargetStreamer(MCStreamer &S) {
   return new NVPTXTargetStreamer(S);
 }
 
 // Force static initialization.
-extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeNVPTXTargetMC() {
+extern "C" LLVM_ABI LLVM_EXTERNAL_VISIBILITY void
+LLVMInitializeNVPTXTargetMC() {
   for (Target *T : {&getTheNVPTXTarget32(), &getTheNVPTXTarget64()}) {
     // Register the MC asm info.
     RegisterMCAsmInfo<NVPTXMCAsmInfo> X(*T);
@@ -86,5 +92,8 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeNVPTXTargetMC() {
 
     // Register the MCTargetStreamer.
     TargetRegistry::RegisterAsmTargetStreamer(*T, createTargetAsmStreamer);
+
+    // Register the MCTargetStreamer.
+    TargetRegistry::RegisterNullTargetStreamer(*T, createNullTargetStreamer);
   }
 }

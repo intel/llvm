@@ -17,11 +17,12 @@
 
 #include <random>
 #include <algorithm>
-#include <vector>
+#include <cassert>
+#include <cmath>
+#include <cstddef>
 #include <iterator>
 #include <numeric>
-#include <cassert>
-#include <cstddef>
+#include <vector>
 
 #include "test_macros.h"
 
@@ -42,7 +43,7 @@ int main(int, char**)
         G g;
         double b[] = {10, 14, 16, 17};
         double p[] = {25, 62.5, 12.5};
-        const size_t Np = sizeof(p) / sizeof(p[0]);
+        const std::size_t Np = sizeof(p) / sizeof(p[0]);
         D d;
         P pa(b, b+Np+1, p);
         const int N = 1000000;
@@ -63,7 +64,7 @@ int main(int, char**)
             typedef std::vector<D::result_type>::iterator I;
             I lb = std::lower_bound(u.begin(), u.end(), b[i]);
             I ub = std::lower_bound(u.begin(), u.end(), b[i+1]);
-            const size_t Ni = ub - lb;
+            const std::size_t Ni = ub - lb;
             if (prob[i] == 0)
                 assert(Ni == 0);
             else

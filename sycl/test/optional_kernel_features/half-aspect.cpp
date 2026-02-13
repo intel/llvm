@@ -1,4 +1,4 @@
-// RUN: %clangxx %s -S -o %t.ll -fsycl-device-only
+// RUN: %clangxx %s -S -o %t.ll -fsycl-device-only -Xclang -disable-llvm-passes
 // RUN: FileCheck %s --input-file %t.ll
 
 // CHECK: !sycl_types_that_use_aspects = !{![[#MDNUM:]]}

@@ -1,16 +1,17 @@
-<!--===- docs/Parsing.md 
-  
+<!--===- docs/Parsing.md
+
    Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
    See https://llvm.org/LICENSE.txt for license information.
    SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-  
+
 -->
 
-# The F18 Parser
+# The Flang Parser
 
-```eval_rst
-.. contents::
-   :local:
+```{contents}
+---
+local:
+---
 ```
 
 This program source code implements a parser for the Fortran programming
@@ -134,8 +135,9 @@ indicators within the parser and in the parse tree.
 Message texts, and snprintf-like formatting strings for constructing
 messages, are instantiated in the various components of the parser with
 C++ user defined character literals tagged with `_err_en_US`, `_warn_en_US`,
-`port_en_US`, and `_en_US` to signify severity and language; the default
-language is the dialect of English used in the United States.
+`port_en_US`, `because_en_US`, `todo_en_US`, and `_en_US` to signify severity
+and language.
+The default language is the dialect of English used in the United States.
 
 All "fatal" errors that do not immediately abort compilation but do
 prevent the generation of binary and module files are `_err_en_US`.
@@ -143,8 +145,9 @@ Warnings about detected flaws in the program that probably indicate
 problems worth attention are `_warn_en_US`.
 Non-conforming extensions, legacy features, and obsolescent or deleted
 features will raise `_port_en_US` messages when those are enabled.
-Other messages have a simple `_en_US` suffix, including all messages
-that are explanatory attachments.
+Messages that are explanatory attachments to others are `_because_en_US`.
+Messages signifying an incomplete compiler feature are `_todo_en_US`.
+Other messages have a simple `_en_US` suffix.
 
 As described above, messages are associated with
 source code positions by means of provenance values.
@@ -179,7 +182,7 @@ Parse tree entities should be viewed as values, not objects; their
 addresses should not be abused for purposes of identification.  They are
 assembled with C++ move semantics during parse tree construction.
 Their default and copy constructors are deliberately deleted in their
-declarations. 
+declarations.
 
 The std::list<> data type is used in the parse tree to reliably store pointers
 to other relevant entries in the tree. Since the tree lists are moved and

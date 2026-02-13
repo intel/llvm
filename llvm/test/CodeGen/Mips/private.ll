@@ -1,6 +1,6 @@
 ; Test to make sure that the 'private' is used correctly.
 ;
-; RUN: llc -march=mips -relocation-model=pic < %s | FileCheck %s
+; RUN: llc -mtriple=mips -relocation-model=pic < %s | FileCheck %s
 
 define private void @foo() {
 ; CHECK-LABEL: foo:
@@ -15,6 +15,6 @@ define i32 @bar() {
 ; CHECK: lw $[[R0:[0-9]+]], %got($baz)($
 ; CHECK: lw ${{[0-9]+}}, %lo($baz)($[[R0]])
   call void @foo()
-  %1 = load i32, i32* @baz, align 4
+  %1 = load i32, ptr @baz, align 4
   ret i32 %1
 }

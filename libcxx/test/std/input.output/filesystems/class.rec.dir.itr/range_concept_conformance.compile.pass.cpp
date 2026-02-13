@@ -7,13 +7,15 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
+// UNSUPPORTED: no-filesystem
 
 // recursive_directory_iterator
 
-#include "filesystem_include.h"
+#include <filesystem>
 
 #include <concepts>
 #include <ranges>
+namespace fs = std::filesystem;
 
 static_assert(std::same_as<std::ranges::iterator_t<fs::recursive_directory_iterator>, fs::recursive_directory_iterator>);
 static_assert(std::ranges::common_range<fs::recursive_directory_iterator>);

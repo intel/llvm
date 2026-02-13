@@ -12,11 +12,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "Standalone/StandaloneDialect.h"
-#include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/DialectRegistry.h"
+#include "mlir/IR/Operation.h"
 #include "mlir/InitAllTranslations.h"
-#include "mlir/Support/LogicalResult.h"
 #include "mlir/Tools/mlir-translate/MlirTranslateMain.h"
 #include "mlir/Tools/mlir-translate/Translation.h"
+#include "llvm/Support/raw_ostream.h"
 
 int main(int argc, char **argv) {
   mlir::registerAllTranslations();
@@ -24,8 +25,8 @@ int main(int argc, char **argv) {
   // TODO: Register standalone translations here.
   mlir::TranslateFromMLIRRegistration withdescription(
       "option", "different from option",
-      [](mlir::ModuleOp op, llvm::raw_ostream &output) {
-        return mlir::LogicalResult::success();
+      [](mlir::Operation *op, llvm::raw_ostream &output) {
+        return llvm::LogicalResult::success();
       },
       [](mlir::DialectRegistry &a) {});
 

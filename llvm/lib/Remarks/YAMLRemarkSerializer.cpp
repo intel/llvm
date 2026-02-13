@@ -14,17 +14,15 @@
 #include "llvm/Remarks/YAMLRemarkSerializer.h"
 #include "llvm/Remarks/Remark.h"
 #include "llvm/Support/FileSystem.h"
+#include <optional>
 
 using namespace llvm;
 using namespace llvm::remarks;
 
-// Use the same keys whether we use a string table or not (respectively, T is an
-// unsigned or a StringRef).
-template <typename T>
-static void mapRemarkHeader(yaml::IO &io, T PassName, T RemarkName,
-                            Optional<RemarkLocation> RL, T FunctionName,
-                            Optional<uint64_t> Hotness,
-                            ArrayRef<Argument> Args) {
+static void
+mapRemarkHeader(yaml::IO &io, StringRef PassName, StringRef RemarkName,
+                std::optional<RemarkLocation> RL, StringRef FunctionName,
+                std::optional<uint64_t> Hotness, ArrayRef<Argument> Args) {
   io.mapRequired("Pass", PassName);
   io.mapRequired("Name", RemarkName);
   io.mapOptional("DebugLoc", RL);
@@ -57,19 +55,8 @@ template <> struct MappingTraits<remarks::Remark *> {
     else
       llvm_unreachable("Unknown remark type");
 
-    if (auto *Serializer = dyn_cast<YAMLStrTabRemarkSerializer>(
-            reinterpret_cast<RemarkSerializer *>(io.getContext()))) {
-      assert(Serializer->StrTab && "YAMLStrTabSerializer with no StrTab.");
-      StringTable &StrTab = *Serializer->StrTab;
-      unsigned PassID = StrTab.add(Remark->PassName).first;
-      unsigned NameID = StrTab.add(Remark->RemarkName).first;
-      unsigned FunctionID = StrTab.add(Remark->FunctionName).first;
-      mapRemarkHeader(io, PassID, NameID, Remark->Loc, FunctionID,
-                      Remark->Hotness, Remark->Args);
-    } else {
-      mapRemarkHeader(io, Remark->PassName, Remark->RemarkName, Remark->Loc,
-                      Remark->FunctionName, Remark->Hotness, Remark->Args);
-    }
+    mapRemarkHeader(io, Remark->PassName, Remark->RemarkName, Remark->Loc,
+                    Remark->FunctionName, Remark->Hotness, Remark->Args);
   }
 };
 
@@ -81,15 +68,7 @@ template <> struct MappingTraits<RemarkLocation> {
     unsigned Line = RL.SourceLine;
     unsigned Col = RL.SourceColumn;
 
-    if (auto *Serializer = dyn_cast<YAMLStrTabRemarkSerializer>(
-            reinterpret_cast<RemarkSerializer *>(io.getContext()))) {
-      assert(Serializer->StrTab && "YAMLStrTabSerializer with no StrTab.");
-      StringTable &StrTab = *Serializer->StrTab;
-      unsigned FileID = StrTab.add(File).first;
-      io.mapRequired("File", FileID);
-    } else {
-      io.mapRequired("File", File);
-    }
+    io.mapRequired("File", File);
 
     io.mapRequired("Line", Line);
     io.mapRequired("Column", Col);
@@ -135,17 +114,13 @@ template <> struct MappingTraits<Argument> {
   static void mapping(IO &io, Argument &A) {
     assert(io.outputting() && "input not yet implemented");
 
-    if (auto *Serializer = dyn_cast<YAMLStrTabRemarkSerializer>(
-            reinterpret_cast<RemarkSerializer *>(io.getContext()))) {
-      assert(Serializer->StrTab && "YAMLStrTabSerializer with no StrTab.");
-      StringTable &StrTab = *Serializer->StrTab;
-      auto ValueID = StrTab.add(A.Val).first;
-      io.mapRequired(A.Key.data(), ValueID);
-    } else if (StringRef(A.Val).count('\n') > 1) {
+    // NB: A.Key.data() is not necessarily null-terminated, as the StringRef may
+    // be a span into the middle of a string.
+    if (StringRef(A.Val).count('\n') > 1) {
       StringBlockVal S(A.Val);
-      io.mapRequired(A.Key.data(), S);
+      io.mapRequired(A.Key, S);
     } else {
-      io.mapRequired(A.Key.data(), A.Val);
+      io.mapRequired(A.Key, A.Val);
     }
     io.mapOptional("DebugLoc", A.Loc);
   }
@@ -156,50 +131,27 @@ template <> struct MappingTraits<Argument> {
 
 LLVM_YAML_IS_SEQUENCE_VECTOR(Argument)
 
-YAMLRemarkSerializer::YAMLRemarkSerializer(raw_ostream &OS, SerializerMode Mode,
-                                           Optional<StringTable> StrTabIn)
-    : YAMLRemarkSerializer(Format::YAML, OS, Mode, std::move(StrTabIn)) {}
+YAMLRemarkSerializer::YAMLRemarkSerializer(raw_ostream &OS)
+    : RemarkSerializer(Format::YAML, OS),
+      YAMLOutput(OS, reinterpret_cast<void *>(this)) {}
 
-YAMLRemarkSerializer::YAMLRemarkSerializer(Format SerializerFormat,
-                                           raw_ostream &OS, SerializerMode Mode,
-                                           Optional<StringTable> StrTabIn)
-    : RemarkSerializer(SerializerFormat, OS, Mode),
-      YAMLOutput(OS, reinterpret_cast<void *>(this)) {
+YAMLRemarkSerializer::YAMLRemarkSerializer(raw_ostream &OS,
+                                           StringTable StrTabIn)
+    : YAMLRemarkSerializer(OS) {
   StrTab = std::move(StrTabIn);
 }
 
 void YAMLRemarkSerializer::emit(const Remark &Remark) {
   // Again, YAMLTraits expect a non-const object for inputting, but we're not
   // using that here.
-  auto R = const_cast<remarks::Remark *>(&Remark);
+  auto *R = const_cast<remarks::Remark *>(&Remark);
   YAMLOutput << R;
 }
 
 std::unique_ptr<MetaSerializer>
 YAMLRemarkSerializer::metaSerializer(raw_ostream &OS,
-                                     Optional<StringRef> ExternalFilename) {
+                                     StringRef ExternalFilename) {
   return std::make_unique<YAMLMetaSerializer>(OS, ExternalFilename);
-}
-
-void YAMLStrTabRemarkSerializer::emit(const Remark &Remark) {
-  // In standalone mode, for the serializer with a string table, emit the
-  // metadata first and set DidEmitMeta to avoid emitting it again.
-  if (Mode == SerializerMode::Standalone && !DidEmitMeta) {
-    std::unique_ptr<MetaSerializer> MetaSerializer =
-        metaSerializer(OS, /*ExternalFilename=*/None);
-    MetaSerializer->emit();
-    DidEmitMeta = true;
-  }
-
-  // Then do the usual remark emission.
-  YAMLRemarkSerializer::emit(Remark);
-}
-
-std::unique_ptr<MetaSerializer> YAMLStrTabRemarkSerializer::metaSerializer(
-    raw_ostream &OS, Optional<StringRef> ExternalFilename) {
-  assert(StrTab);
-  return std::make_unique<YAMLStrTabMetaSerializer>(OS, ExternalFilename,
-                                                    *StrTab);
 }
 
 static void emitMagic(raw_ostream &OS) {
@@ -216,19 +168,6 @@ static void emitVersion(raw_ostream &OS) {
   OS.write(Version.data(), Version.size());
 }
 
-static void emitStrTab(raw_ostream &OS, Optional<const StringTable *> StrTab) {
-  // Emit the string table in the section.
-  uint64_t StrTabSize = StrTab ? (*StrTab)->SerializedSize : 0;
-  // Emit the total size of the string table (the size itself excluded):
-  // little-endian uint64_t.
-  // Note: even if no string table is used, emit 0.
-  std::array<char, 8> StrTabSizeBuf;
-  support::endian::write64le(StrTabSizeBuf.data(), StrTabSize);
-  OS.write(StrTabSizeBuf.data(), StrTabSizeBuf.size());
-  if (StrTab)
-    (*StrTab)->serialize(OS);
-}
-
 static void emitExternalFile(raw_ostream &OS, StringRef Filename) {
   // Emit the null-terminated absolute path to the remark file.
   SmallString<128> FilenameBuf = Filename;
@@ -241,15 +180,15 @@ static void emitExternalFile(raw_ostream &OS, StringRef Filename) {
 void YAMLMetaSerializer::emit() {
   emitMagic(OS);
   emitVersion(OS);
-  emitStrTab(OS, None);
-  if (ExternalFilename)
-    emitExternalFile(OS, *ExternalFilename);
-}
 
-void YAMLStrTabMetaSerializer::emit() {
-  emitMagic(OS);
-  emitVersion(OS);
-  emitStrTab(OS, &StrTab);
-  if (ExternalFilename)
-    emitExternalFile(OS, *ExternalFilename);
+  // Emit StringTable with size 0. This is left over after removing StringTable
+  // support from the YAML format. For now, don't unnecessarily change how the
+  // the metadata is serialized. When changing the format, we should think about
+  // just reusing the bitstream remark meta for this.
+  uint64_t StrTabSize = 0;
+  std::array<char, 8> StrTabSizeBuf;
+  support::endian::write64le(StrTabSizeBuf.data(), StrTabSize);
+
+  OS.write(StrTabSizeBuf.data(), StrTabSizeBuf.size());
+  emitExternalFile(OS, ExternalFilename);
 }

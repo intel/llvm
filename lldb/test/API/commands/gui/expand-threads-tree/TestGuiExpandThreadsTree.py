@@ -9,19 +9,21 @@ from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
 from lldbsuite.test.lldbpexpect import PExpectTest
 
-class TestGuiExpandThreadsTree(PExpectTest):
 
+class TestGuiExpandThreadsTree(PExpectTest):
     # PExpect uses many timeouts internally and doesn't play well
     # under ASAN on a loaded machine..
     @skipIfAsan
     @skipIfCursesSupportMissing
-    @skipIf(oslist=["linux"], archs=["arm", "aarch64"])
+    @skipIf(oslist=["linux"], archs=["arm$", "aarch64"])
     @skipIf(bugnumber="rdar://97460266")
     def test_gui(self):
         self.build()
 
-        self.launch(executable=self.getBuildArtifact("a.out"), dimensions=(100,500))
-        self.expect("breakpoint set -n break_here", substrs=["Breakpoint 1", "address ="])
+        self.launch(executable=self.getBuildArtifact("a.out"), dimensions=(100, 500))
+        self.expect(
+            "breakpoint set -n break_here", substrs=["Breakpoint 1", "address ="]
+        )
         self.expect("run", substrs=["stop reason ="])
 
         escape_key = chr(27).encode()
@@ -46,7 +48,7 @@ class TestGuiExpandThreadsTree(PExpectTest):
         self.child.expect_exact("Threads")
 
         # The main thread should be expanded.
-        self.child.expect("#\d+: main")
+        self.child.expect(r"#\d+: main")
 
         # Quit the GUI
         self.child.send(escape_key)

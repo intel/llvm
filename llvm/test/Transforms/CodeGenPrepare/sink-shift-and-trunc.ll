@@ -11,15 +11,15 @@ entry:
 
   %x.sroa.3.0.extract.shift = lshr i64 %arg1, 32, !dbg !37
   call void @llvm.dbg.value(metadata i64 %x.sroa.3.0.extract.shift, metadata !13, metadata !DIExpression()), !dbg !37
-; CHECK: call void @llvm.dbg.value(metadata i64 %arg1, metadata {{.*}}, metadata !DIExpression(DW_OP_constu, 32, DW_OP_shr, DW_OP_stack_value)), !dbg [[shift2_loc:![0-9]+]]
+; CHECK: #dbg_value(i64 %arg1, {{.*}}, !DIExpression(DW_OP_constu, 32, DW_OP_shr, DW_OP_stack_value), [[shift2_loc:![0-9]+]]
 
   %x.sroa.5.0.extract.shift = lshr i64 %arg1, 48, !dbg !38
   %tobool = icmp eq i64 %x.sroa.5.0.extract.shift, 0, !dbg !39
   br i1 %tobool, label %if.end, label %if.then, !dbg !40
 
 if.then:                                          ; preds = %entry
-  %arrayidx3 = getelementptr inbounds [65536 x i8], [65536 x i8]* @first_ones, i64 0, i64 %x.sroa.5.0.extract.shift, !dbg !41
-  %0 = load i8, i8* %arrayidx3, align 1, !dbg !42
+  %arrayidx3 = getelementptr inbounds [65536 x i8], ptr @first_ones, i64 0, i64 %x.sroa.5.0.extract.shift, !dbg !41
+  %0 = load i8, ptr %arrayidx3, align 1, !dbg !42
   %conv = zext i8 %0 to i32, !dbg !43
   br label %return, !dbg !44
 
@@ -32,8 +32,8 @@ if.end:                                           ; preds = %entry
 
 if.then7:                                         ; preds = %if.end
   %idxprom10 = and i64 %x.sroa.3.0.extract.shift, 65535, !dbg !48
-  %arrayidx11 = getelementptr inbounds [65536 x i8], [65536 x i8]* @first_ones, i64 0, i64 %idxprom10, !dbg !49
-  %1 = load i8, i8* %arrayidx11, align 1, !dbg !50
+  %arrayidx11 = getelementptr inbounds [65536 x i8], ptr @first_ones, i64 0, i64 %idxprom10, !dbg !49
+  %1 = load i8, ptr %arrayidx11, align 1, !dbg !50
   %conv12 = zext i8 %1 to i32, !dbg !51
   %add = add nsw i32 %conv12, 16, !dbg !52
   br label %return, !dbg !53
@@ -47,8 +47,8 @@ if.end13:                                         ; preds = %if.end
 
 if.then17:                                        ; preds = %if.end13
   %idxprom20 = and i64 %x.sroa.1.0.extract.shift, 65535, !dbg !56
-  %arrayidx21 = getelementptr inbounds [65536 x i8], [65536 x i8]* @first_ones, i64 0, i64 %idxprom20, !dbg !57
-  %2 = load i8, i8* %arrayidx21, align 1, !dbg !58
+  %arrayidx21 = getelementptr inbounds [65536 x i8], ptr @first_ones, i64 0, i64 %idxprom20, !dbg !57
+  %2 = load i8, ptr %arrayidx21, align 1, !dbg !58
   %conv22 = zext i8 %2 to i32, !dbg !59
   %add23 = add nsw i32 %conv22, 32, !dbg !60
   br label %return, !dbg !61

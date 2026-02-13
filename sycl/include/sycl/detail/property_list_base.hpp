@@ -8,16 +8,19 @@
 
 #pragma once
 
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/property_helper.hpp>
-#include <sycl/detail/stl_type_traits.hpp>
+#include <sycl/detail/property_helper.hpp> // for DataLessPropKind, Propert...
+#include <sycl/exception.hpp>
 
-#include <bitset>
-#include <memory>
-#include <vector>
+#include <algorithm>   // for iter_swap
+#include <bitset>      // for bitset
+#include <functional>  // for function
+#include <memory>      // for shared_ptr, __shared_ptr_...
+#include <type_traits> // for enable_if_t
+#include <utility>     // for move
+#include <vector>      // for vector
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 class PropertyListBase {
 protected:
@@ -32,8 +35,7 @@ protected:
   void ctorHelper() {}
 
   template <typename... PropsT, class PropT>
-  typename detail::enable_if_t<
-      std::is_base_of<DataLessPropertyBase, PropT>::value>
+  typename std::enable_if_t<std::is_base_of_v<DataLessPropertyBase, PropT>>
   ctorHelper(PropT &, PropsT... Props) {
     const int PropKind = static_cast<int>(PropT::getKind());
     MDataLessProps[PropKind] = true;
@@ -41,8 +43,7 @@ protected:
   }
 
   template <typename... PropsT, class PropT>
-  typename detail::enable_if_t<
-      std::is_base_of<PropertyWithDataBase, PropT>::value>
+  typename std::enable_if_t<std::is_base_of_v<PropertyWithDataBase, PropT>>
   ctorHelper(PropT &Prop, PropsT... Props) {
     MPropsWithData.emplace_back(new PropT(Prop));
     ctorHelper(Props...);
@@ -50,16 +51,15 @@ protected:
 
   // Compile-time-constant properties are simply skipped
   template <typename... PropsT, class PropT>
-  typename detail::enable_if_t<
-      !std::is_base_of<PropertyWithDataBase, PropT>::value &&
-      !std::is_base_of<DataLessPropertyBase, PropT>::value>
+  typename std::enable_if_t<!std::is_base_of_v<PropertyWithDataBase, PropT> &&
+                            !std::is_base_of_v<DataLessPropertyBase, PropT>>
   ctorHelper(PropT &, PropsT... Props) {
     ctorHelper(Props...);
   }
 
   template <typename PropT>
-  typename detail::enable_if_t<
-      std::is_base_of<DataLessPropertyBase, PropT>::value, bool>
+  typename std::enable_if_t<std::is_base_of_v<DataLessPropertyBase, PropT>,
+                            bool>
   has_property_helper() const noexcept {
     const int PropKind = static_cast<int>(PropT::getKind());
     if (PropKind > detail::DataLessPropKind::LastKnownDataLessPropKind)
@@ -68,8 +68,8 @@ protected:
   }
 
   template <typename PropT>
-  typename detail::enable_if_t<
-      std::is_base_of<PropertyWithDataBase, PropT>::value, bool>
+  typename std::enable_if_t<std::is_base_of_v<PropertyWithDataBase, PropT>,
+                            bool>
   has_property_helper() const noexcept {
     const int PropKind = static_cast<int>(PropT::getKind());
     for (const std::shared_ptr<PropertyWithDataBase> &Prop : MPropsWithData)
@@ -79,51 +79,46 @@ protected:
   }
 
   template <typename PropT>
-  typename detail::enable_if_t<
-      std::is_base_of<DataLessPropertyBase, PropT>::value, PropT>
+  typename std::enable_if_t<std::is_base_of_v<DataLessPropertyBase, PropT>,
+                            PropT>
   get_property_helper() const {
     // In case of simple property we can just construct it
     return PropT{};
   }
 
   template <typename PropT>
-  typename detail::enable_if_t<
-      std::is_base_of<PropertyWithDataBase, PropT>::value, PropT>
+  typename std::enable_if_t<std::is_base_of_v<PropertyWithDataBase, PropT>,
+                            PropT>
   get_property_helper() const {
     const int PropKind = static_cast<int>(PropT::getKind());
     if (PropKind >= PropWithDataKind::PropWithDataKindSize)
-      throw sycl::invalid_object_error("The property is not found",
-                                       PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "The property is not found");
 
     for (const std::shared_ptr<PropertyWithDataBase> &Prop : MPropsWithData)
       if (Prop->isSame(PropKind))
         return *static_cast<PropT *>(Prop.get());
 
-    throw sycl::invalid_object_error("The property is not found",
-                                     PI_ERROR_INVALID_VALUE);
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "The property is not found");
   }
 
-  void add_or_replace_accessor_properties_helper(
-      const std::vector<std::shared_ptr<PropertyWithDataBase>> &PropsWithData) {
-    for (auto &Prop : PropsWithData) {
-      if (Prop->isSame(sycl::detail::PropWithDataKind::AccPropBufferLocation)) {
-        delete_accessor_property_helper(
-            sycl::detail::PropWithDataKind::AccPropBufferLocation);
-        MPropsWithData.push_back(Prop);
-        break;
-      }
-    }
-  }
+  void checkPropsAndThrow(std::function<bool(int)> FunctionForDataless,
+                          std::function<bool(int)> FunctionForData) const {
+    static const auto ErrorCode = sycl::make_error_code(errc::invalid);
+    static const auto ErrorMessage = "The property list contains property "
+                                     "unsupported for the current object";
 
-  void delete_accessor_property_helper(const PropWithDataKind &Kind) {
-    auto It = MPropsWithData.begin();
-    for (; It != MPropsWithData.end(); ++It) {
-      if ((*It)->isSame(Kind))
-        break;
+    for (int PropertyKind = 0;
+         PropertyKind < static_cast<int>(MDataLessProps.size());
+         PropertyKind++) {
+      if (MDataLessProps[PropertyKind] && !FunctionForDataless(PropertyKind))
+        throw sycl::exception(ErrorCode, ErrorMessage);
     }
-    if (It != MPropsWithData.end()) {
-      std::iter_swap(It, MPropsWithData.end() - 1);
-      MPropsWithData.pop_back();
+
+    for (const auto &PropertyItem : MPropsWithData) {
+      if (!FunctionForData(PropertyItem->getKind()))
+        throw sycl::exception(ErrorCode, ErrorMessage);
     }
   }
 
@@ -133,5 +128,5 @@ protected:
   std::vector<std::shared_ptr<PropertyWithDataBase>> MPropsWithData;
 };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

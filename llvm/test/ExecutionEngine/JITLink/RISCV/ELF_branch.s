@@ -13,6 +13,8 @@
 # RUN:     -check %s %t/elf_riscv32_branch.o
 #
 
+        .option exact
+
         .text
 # Empty main entry point.
         .globl  main

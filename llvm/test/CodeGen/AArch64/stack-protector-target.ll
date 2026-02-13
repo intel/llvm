@@ -8,12 +8,11 @@
 define void @_Z1fv() sspreq {
 entry:
   %x = alloca i32, align 4
-  %0 = bitcast i32* %x to i8*
-  call void @_Z7CapturePi(i32* nonnull %x)
+  call void @_Z7CapturePi(ptr nonnull %x)
   ret void
 }
 
-declare void @_Z7CapturePi(i32*)
+declare void @_Z7CapturePi(ptr)
 
 ; ANDROID-AARCH64: mrs [[A:.*]], TPIDR_EL0
 ; ANDROID-AARCH64: ldr [[B:.*]], [[[A]], #40]
@@ -40,6 +39,6 @@ declare void @_Z7CapturePi(i32*)
 ; WINDOWS-ARM64EC: adrp x8, __security_cookie
 ; WINDOWS-ARM64EC: ldr x8, [x8, :lo12:__security_cookie]
 ; WINDOWS-ARM64EC: str x8, [sp, #8]
-; WINDOWS-ARM64EC: bl  _Z7CapturePi
+; WINDOWS-ARM64EC: bl "#_Z7CapturePi"
 ; WINDOWS-ARM64EC: ldr x0, [sp, #8]
-; WINDOWS-ARM64EC: bl  __security_check_cookie_arm64ec
+; WINDOWS-ARM64EC: bl "#__security_check_cookie_arm64ec"

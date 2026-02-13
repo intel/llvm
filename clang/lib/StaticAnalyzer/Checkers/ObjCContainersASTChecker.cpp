@@ -72,7 +72,7 @@ class WalkAST : public StmtVisitor<WalkAST> {
 public:
   WalkAST(BugReporter &br, const CheckerBase *checker, AnalysisDeclContext *ac)
       : BR(br), Checker(checker), AC(ac), ASTC(AC->getASTContext()),
-        PtrWidth(ASTC.getTargetInfo().getPointerWidth(0)) {}
+        PtrWidth(ASTC.getTargetInfo().getPointerWidth(LangAS::Default)) {}
 
   // Statement visitor methods.
   void VisitChildren(Stmt *S);
@@ -101,14 +101,14 @@ void WalkAST::VisitCallExpr(CallExpr *CE) {
   const Expr *Arg = nullptr;
   unsigned ArgNum;
 
-  if (Name.equals("CFArrayCreate") || Name.equals("CFSetCreate")) {
+  if (Name == "CFArrayCreate" || Name == "CFSetCreate") {
     if (CE->getNumArgs() != 4)
       return;
     ArgNum = 1;
     Arg = CE->getArg(ArgNum)->IgnoreParenCasts();
     if (hasPointerToPointerSizedType(Arg))
         return;
-  } else if (Name.equals("CFDictionaryCreate")) {
+  } else if (Name == "CFDictionaryCreate") {
     if (CE->getNumArgs() != 6)
       return;
     // Check first argument.

@@ -1,4 +1,4 @@
-//===--- UseToStringCheck.h - clang-tidy-------------------------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,21 +6,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_BOOST_USE_TO_STRING_H
-#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_BOOST_USE_TO_STRING_H
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_BOOST_USETOSTRINGCHECK_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_BOOST_USETOSTRINGCHECK_H
 
 #include "../ClangTidyCheck.h"
 
-namespace clang {
-namespace tidy {
-namespace boost {
+namespace clang::tidy::boost {
 
 /// Finds calls to ``boost::lexical_cast<std::string>`` and
 /// ``boost::lexical_cast<std::wstring>`` and replaces them with
 /// ``std::to_string`` and ``std::to_wstring`` calls.
 ///
 /// For the user-facing documentation see:
-/// http://clang.llvm.org/extra/clang-tidy/checks/boost/use-to-string.html
+/// https://clang.llvm.org/extra/clang-tidy/checks/boost/use-to-string.html
 class UseToStringCheck : public ClangTidyCheck {
 public:
   UseToStringCheck(StringRef Name, ClangTidyContext *Context)
@@ -32,8 +30,6 @@ public:
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
 };
 
-} // namespace boost
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::boost
 
-#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_BOOST_USE_TO_STRING_H
+#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_BOOST_USETOSTRINGCHECK_H

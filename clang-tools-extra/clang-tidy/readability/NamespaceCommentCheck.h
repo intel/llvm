@@ -1,4 +1,4 @@
-//===--- NamespaceCommentCheck.h - clang-tidy -------------------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,13 +12,11 @@
 #include "../ClangTidyCheck.h"
 #include "llvm/Support/Regex.h"
 
-namespace clang {
-namespace tidy {
-namespace readability {
+namespace clang::tidy::readability {
 
 /// Checks that long namespaces have a closing comment.
 ///
-/// http://llvm.org/docs/CodingStandards.html#namespace-indentation
+/// https://llvm.org/docs/CodingStandards.html#namespace-indentation
 ///
 /// https://google.github.io/styleguide/cppguide.html#Namespaces
 class NamespaceCommentCheck : public ClangTidyCheck {
@@ -31,16 +29,15 @@ public:
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
 
 private:
-  void storeOptions(ClangTidyOptions::OptionMap &Options) override;
+  void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
 
   llvm::Regex NamespaceCommentPattern;
   const unsigned ShortNamespaceLines;
   const unsigned SpacesBeforeComments;
+  const bool AllowOmittingNamespaceComments;
   llvm::SmallVector<SourceLocation, 4> Ends;
 };
 
-} // namespace readability
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::readability
 
 #endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_NAMESPACECOMMENTCHECK_H

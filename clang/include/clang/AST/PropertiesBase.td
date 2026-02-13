@@ -39,9 +39,9 @@ class EnumPropertyType<string typeName = ""> : PropertyType<typeName> {}
 /// Supports optional values by using the null representation.
 class RefPropertyType<string className> : PropertyType<className # "*"> {
   let PackOptional =
-    "value ? *value : nullptr";
+    "value.value_or(nullptr)";
   let UnpackOptional =
-    "value ? llvm::Optional<" # CXXName # ">(value) : llvm::None";
+    "value ? std::optional<" # CXXName # ">(value) : std::nullopt";
 }
 
 /// Property types that correspond to a specific subclass of another type.
@@ -58,7 +58,7 @@ class DefaultValuePropertyType<string typeName = ""> : PropertyType<typeName> {
   let PackOptional =
     "value ? *value : " # CXXName # "()";
   let UnpackOptional =
-    "value.isNull() ? llvm::None : llvm::Optional<" # CXXName # ">(value)";
+    "value.isNull() ? std::nullopt : std::optional<" # CXXName # ">(value)";
 }
 
 /// Property types that correspond to integer types and support optional
@@ -67,15 +67,16 @@ class CountPropertyType<string typeName = ""> : PropertyType<typeName> {
   let PackOptional =
     "value ? *value + 1 : 0";
   let UnpackOptional =
-    "value ? llvm::Optional<" # CXXName # ">(value - 1) : llvm::None";
+    "value ? std::optional<" # CXXName # ">(value - 1) : std::nullopt";
 }
 
 def APInt : PropertyType<"llvm::APInt"> { let PassByReference = 1; }
 def APSInt : PropertyType<"llvm::APSInt"> { let PassByReference = 1; }
 def APValue : PropertyType { let PassByReference = 1; }
 def APValueKind : EnumPropertyType<"APValue::ValueKind">;
-def ArraySizeModifier : EnumPropertyType<"ArrayType::ArraySizeModifier">;
+def ArraySizeModifier : EnumPropertyType<"ArraySizeModifier">;
 def AttrKind : EnumPropertyType<"attr::Kind">;
+def Attr : PropertyType<"const Attr *">;
 def AutoTypeKeyword : EnumPropertyType;
 def Bool : PropertyType<"bool">;
 def BuiltinTypeKind : EnumPropertyType<"BuiltinType::Kind">;
@@ -90,6 +91,7 @@ def DeclRef : RefPropertyType<"Decl"> { let ConstWhenWriting = 1; }
     SubclassPropertyType<"FunctionDecl", DeclRef>;
   def NamedDeclRef :
     SubclassPropertyType<"NamedDecl", DeclRef>;
+  def NamespaceBaseDeclRef : SubclassPropertyType<"NamespaceBaseDecl", DeclRef>;
   def NamespaceDeclRef :
     SubclassPropertyType<"NamespaceDecl", DeclRef>;
   def NamespaceAliasDeclRef :
@@ -117,15 +119,16 @@ def ExtParameterInfo : PropertyType<"FunctionProtoType::ExtParameterInfo">;
 def FixedPointSemantics : PropertyType<"llvm::FixedPointSemantics"> {
   let PassByReference = 1;
 }
+def FunctionEffect : PropertyType<"FunctionEffect">;
+def EffectConditionExpr : PropertyType<"EffectConditionExpr">;
 def Identifier : RefPropertyType<"IdentifierInfo"> { let ConstWhenWriting = 1; }
 def LValuePathEntry : PropertyType<"APValue::LValuePathEntry">;
 def LValuePathSerializationHelper :
     PropertyType<"APValue::LValuePathSerializationHelper"> {
   let BufferElementTypes = [ LValuePathEntry ];
 }
-def NestedNameSpecifier : PropertyType<"NestedNameSpecifier *">;
-def NestedNameSpecifierKind :
-  EnumPropertyType<"NestedNameSpecifier::SpecifierKind">;
+def NestedNameSpecifier : PropertyType<"NestedNameSpecifier">;
+def NestedNameSpecifierKind : EnumPropertyType<"NestedNameSpecifier::Kind">;
 def OverloadedOperatorKind : EnumPropertyType;
 def Qualifiers : PropertyType;
 def QualType : DefaultValuePropertyType;
@@ -141,8 +144,11 @@ def TemplateNameKind : EnumPropertyType<"TemplateName::NameKind">;
 def TypeOfKind : EnumPropertyType<"TypeOfKind">;
 def UInt32 : CountPropertyType<"uint32_t">;
 def UInt64 : CountPropertyType<"uint64_t">;
+def UnsignedOrNone : PropertyType;
 def UnaryTypeTransformKind : EnumPropertyType<"UnaryTransformType::UTTKind">;
-def VectorKind : EnumPropertyType<"VectorType::VectorKind">;
+def VectorKind : EnumPropertyType<"VectorKind">;
+def TypeCoupledDeclRefInfo : PropertyType;
+def HLSLSpirvOperand : PropertyType<"SpirvOperand"> { let PassByReference = 1; }
 
 def ExceptionSpecInfo : PropertyType<"FunctionProtoType::ExceptionSpecInfo"> {
   let BufferElementTypes = [ QualType ];
@@ -155,7 +161,7 @@ class Array<PropertyType element> : PropertyType {
   let BufferElementTypes = [ element ];
 }
 
-/// llvm::Optional<T>.  The corresponding C++ type is generally just the
+/// std::optional<T>.  The corresponding C++ type is generally just the
 /// corresponding C++ type of the element.
 ///
 /// Optional<Unsigned> may restrict the range of the operand for some
@@ -409,7 +415,8 @@ let Class = PropertyTypeCase<APValue, "Union"> in {
     let Read = [{ node.getUnionValue() }];
   }
   def : Creator<[{
-    return APValue(cast<clang::FieldDecl>(fieldDecl), std::move(value));
+    // node.getUnionField() / fieldDecl can be null, thus, using `cast_if_present`
+    return APValue(cast_if_present<clang::FieldDecl>(fieldDecl), std::move(value));
   }]>;
 }
 let Class = PropertyTypeCase<APValue, "AddrLabelDiff"> in {
@@ -450,10 +457,13 @@ let Class = PropertyTypeCase<APValue, "LValue"> in {
         lvalueBase ? lvalueBase.dyn_cast<const Expr *>() : nullptr;
     bool lvalueBaseIsExpr = (bool) expr;
     bool lvalueBaseIsTypeInfo = lvalueBase.is<TypeInfoLValue>();
+    bool lvalueBaseIsDynamicAlloc = lvalueBase.is<DynamicAllocLValue>();
     QualType elemTy;
     if (lvalueBase) {
       if (lvalueBaseIsTypeInfo) {
         elemTy = lvalueBase.getTypeInfoType();
+      } else if (lvalueBaseIsDynamicAlloc) {
+        elemTy = lvalueBase.getDynamicAllocType();
       } else if (lvalueBaseIsExpr) {
         elemTy = expr->getType();
       } else {
@@ -473,6 +483,9 @@ let Class = PropertyTypeCase<APValue, "LValue"> in {
   def : Property<"isTypeInfo", Bool> {
     let Read = [{ lvalueBaseIsTypeInfo }];
   }
+  def : Property<"isDynamicAlloc", Bool> {
+    let Read = [{ lvalueBaseIsDynamicAlloc }];
+  }
   def : Property<"hasBase", Bool> {
     let Read = [{ static_cast<bool>(lvalueBase) }];
   }
@@ -485,9 +498,17 @@ let Class = PropertyTypeCase<APValue, "LValue"> in {
       QualType(node.getLValueBase().get<TypeInfoLValue>().getType(), 0)
     }];
   }
+  def : Property<"dynamicAlloc", UInt32> {
+    let Conditional = [{ hasBase && isDynamicAlloc }];
+    let Read = [{ node.getLValueBase().get<DynamicAllocLValue>().getIndex() }];
+  }
   def : Property<"type", QualType> {
-    let Conditional = [{ hasBase && isTypeInfo }];
-    let Read = [{ node.getLValueBase().getTypeInfoType() }];
+    let Conditional = [{ hasBase && (isTypeInfo || isDynamicAlloc) }];
+    let Read = [{
+      isTypeInfo
+        ? node.getLValueBase().getTypeInfoType()
+        : node.getLValueBase().getDynamicAllocType()
+    }];
   }
   def : Property<"callIndex", UInt32> {
     let Conditional = [{ hasBase && !isTypeInfo }];
@@ -502,7 +523,7 @@ let Class = PropertyTypeCase<APValue, "LValue"> in {
     let Read = [{ const_cast<Expr *>(expr) }];
   }
   def : Property<"decl", DeclRef> {
-    let Conditional = [{ hasBase && !isTypeInfo && !isExpr }];
+    let Conditional = [{ hasBase && !isTypeInfo && !isDynamicAlloc && !isExpr }];
     let Read = [{ lvalueBase.get<const ValueDecl *>() }];
   }
   def : Property<"offsetQuantity", UInt32> {
@@ -517,20 +538,19 @@ let Class = PropertyTypeCase<APValue, "LValue"> in {
   def : Creator<[{
     (void)ctx;
     APValue::LValueBase base;
-    QualType elemTy;
     if (hasBase) {
       if (isTypeInfo) {
         base = APValue::LValueBase::getTypeInfo(
-            TypeInfoLValue(typeInfo.value().getTypePtr()), type.value());
-        elemTy = base.getTypeInfoType();
+            TypeInfoLValue(typeInfo->getTypePtr()), *type);
+      } else if (isDynamicAlloc) {
+        base = APValue::LValueBase::getDynamicAlloc(
+            DynamicAllocLValue(*dynamicAlloc), *type);
       } else if (isExpr) {
-        base = APValue::LValueBase(cast<Expr>(stmt.value()),
-                                   callIndex.value(), version.value());
-        elemTy = base.get<const Expr *>()->getType();
+        base = APValue::LValueBase(cast<Expr>(*stmt),
+                                   *callIndex, *version);
       } else {
-        base = APValue::LValueBase(cast<ValueDecl>(decl.value()),
-                                   callIndex.value(), version.value());
-        elemTy = base.get<const ValueDecl *>()->getType();
+        base = APValue::LValueBase(cast<ValueDecl>(*decl),
+                                   *callIndex, *version);
       }
     }
     CharUnits offset = CharUnits::fromQuantity(offsetQuantity);
@@ -543,7 +563,6 @@ let Class = PropertyTypeCase<APValue, "LValue"> in {
     auto pathLength = lvaluePath->Path.size();
     APValue::LValuePathEntry *path = result.setLValueUninit(
         base, offset, pathLength, isLValueOnePastTheEnd, isNullPtr).data();
-    assert(lvaluePath->getType() == elemTy && "Unexpected type reference!");
     llvm::copy(lvaluePath->Path, path);
     return result;
   }]>;
@@ -675,25 +694,26 @@ let Class = PropertyTypeCase<TemplateName, "QualifiedTemplate"> in {
 let Class = PropertyTypeCase<TemplateName, "DependentTemplate"> in {
   def : ReadHelper<[{
     auto dtn = node.getAsDependentTemplateName();
+    auto name = dtn->getName();
   }]>;
   def : Property<"qualifier", NestedNameSpecifier> {
     let Read = [{ dtn->getQualifier() }];
   }
   def : Property<"identifier", Optional<Identifier>> {
-    let Read = [{ makeOptionalFromPointer(
-                    dtn->isIdentifier()
-                      ? dtn->getIdentifier()
-                      : nullptr) }];
+    let Read = [{ makeOptionalFromPointer(name.getIdentifier()) }];
   }
   def : Property<"operatorKind", OverloadedOperatorKind> {
     let Conditional = [{ !identifier }];
-    let Read = [{ dtn->getOperator() }];
+    let Read = [{ name.getOperator() }];
+  }
+  def : Property<"HasTemplateKeyword", Bool> {
+    let Read = [{ dtn->hasTemplateKeyword() }];
   }
   def : Creator<[{
     if (identifier) {
-      return ctx.getDependentTemplateName(qualifier, *identifier);
+      return ctx.getDependentTemplateName({qualifier, *identifier, HasTemplateKeyword});
     } else {
-      return ctx.getDependentTemplateName(qualifier, *operatorKind);
+      return ctx.getDependentTemplateName({qualifier, *operatorKind, HasTemplateKeyword});
     }
   }]>;
 }
@@ -701,28 +721,58 @@ let Class = PropertyTypeCase<TemplateName, "SubstTemplateTemplateParm"> in {
   def : ReadHelper<[{
     auto parm = node.getAsSubstTemplateTemplateParm();
   }]>;
-  def : Property<"parameter", TemplateTemplateParmDeclRef> {
-    let Read = [{ parm->getParameter() }];
-  }
   def : Property<"replacement", TemplateName> {
     let Read = [{ parm->getReplacement() }];
   }
+  def : Property<"associatedDecl", DeclRef> {
+    let Read = [{ parm->getAssociatedDecl() }];
+  }
+  def : Property<"index", UInt32> {
+    let Read = [{ parm->getIndex() }];
+  }
+  def : Property<"packIndex", UnsignedOrNone> {
+    let Read = [{ parm->getPackIndex() }];
+  }
+  def : Property<"final", Bool> { let Read = [{ parm->getFinal() }]; }
   def : Creator<[{
-    return ctx.getSubstTemplateTemplateParm(parameter, replacement);
+    return ctx.getSubstTemplateTemplateParm(replacement, associatedDecl, index, packIndex, final);
   }]>;
 }
 let Class = PropertyTypeCase<TemplateName, "SubstTemplateTemplateParmPack"> in {
   def : ReadHelper<[{
     auto parm = node.getAsSubstTemplateTemplateParmPack();
   }]>;
-  def : Property<"parameterPack", TemplateTemplateParmDeclRef> {
-    let Read = [{ parm->getParameterPack() }];
-  }
   def : Property<"argumentPack", TemplateArgument> {
     let Read = [{ parm->getArgumentPack() }];
   }
+  def : Property<"associatedDecl", DeclRef> {
+    let Read = [{ parm->getAssociatedDecl() }];
+  }
+  def : Property<"index", UInt32> {
+    let Read = [{ parm->getIndex() }];
+  }
+  def : Property<"final", Bool> {
+    let Read = [{ parm->getFinal() }];
+  }
   def : Creator<[{
-    return ctx.getSubstTemplateTemplateParmPack(parameterPack, argumentPack);
+    return ctx.getSubstTemplateTemplateParmPack(argumentPack, associatedDecl, index, final);
+  }]>;
+}
+let Class = PropertyTypeCase<TemplateName, "DeducedTemplate"> in {
+  def : ReadHelper<[{
+    auto DTS = node.getAsDeducedTemplateName();
+  }]>;
+  def : Property<"underlying", TemplateName> {
+    let Read = [{ DTS->getUnderlying() }];
+  }
+  def : Property<"startPos", UInt32> {
+    let Read = [{ DTS->getDefaultArguments().StartPos }];
+  }
+  def : Property<"defaultArgs", Array<TemplateArgument>> {
+    let Read = [{ DTS->getDefaultArguments().Args }];
+  }
+  def : Creator<[{
+    return ctx.getDeducedTemplateName(underlying, {startPos, defaultArgs});
   }]>;
 }
 
@@ -738,8 +788,11 @@ let Class = PropertyTypeCase<TemplateArgument, "Type"> in {
   def : Property<"type", QualType> {
     let Read = [{ node.getAsType() }];
   }
+  def : Property<"isDefaulted", Bool> {
+    let Read = [{ node.getIsDefaulted() }];
+  }
   def : Creator<[{
-    return TemplateArgument(type);
+    return TemplateArgument(type, /* isNullPtr */ false, isDefaulted);
   }]>;
 }
 let Class = PropertyTypeCase<TemplateArgument, "Declaration"> in {
@@ -749,16 +802,22 @@ let Class = PropertyTypeCase<TemplateArgument, "Declaration"> in {
   def : Property<"parameterType", QualType> {
     let Read = [{ node.getParamTypeForDecl() }];
   }
+  def : Property<"isDefaulted", Bool> {
+    let Read = [{ node.getIsDefaulted() }];
+  }
   def : Creator<[{
-    return TemplateArgument(declaration, parameterType);
+    return TemplateArgument(declaration, parameterType, isDefaulted);
   }]>;
 }
 let Class = PropertyTypeCase<TemplateArgument, "NullPtr"> in {
   def : Property<"type", QualType> {
     let Read = [{ node.getNullPtrType() }];
   }
+  def : Property<"isDefaulted", Bool> {
+    let Read = [{ node.getIsDefaulted() }];
+  }
   def : Creator<[{
-    return TemplateArgument(type, /*nullptr*/ true);
+    return TemplateArgument(type, /*nullptr*/ true, isDefaulted);
   }]>;
 }
 let Class = PropertyTypeCase<TemplateArgument, "Integral"> in {
@@ -768,41 +827,66 @@ let Class = PropertyTypeCase<TemplateArgument, "Integral"> in {
   def : Property<"type", QualType> {
     let Read = [{ node.getIntegralType() }];
   }
+  def : Property<"isDefaulted", Bool> {
+    let Read = [{ node.getIsDefaulted() }];
+  }
   def : Creator<[{
-    return TemplateArgument(ctx, value, type);
+    return TemplateArgument(ctx, value, type, isDefaulted);
+  }]>;
+}
+let Class = PropertyTypeCase<TemplateArgument, "StructuralValue"> in {
+  def : Property<"value", APValue> {
+    let Read = [{ node.getAsStructuralValue() }];
+  }
+  def : Property<"type", QualType> {
+    let Read = [{ node.getStructuralValueType() }];
+  }
+  def : Property<"isDefaulted", Bool> {
+    let Read = [{ node.getIsDefaulted() }];
+  }
+  def : Creator<[{
+    return TemplateArgument(ctx, type, value, isDefaulted);
   }]>;
 }
 let Class = PropertyTypeCase<TemplateArgument, "Template"> in {
   def : Property<"name", TemplateName> {
     let Read = [{ node.getAsTemplateOrTemplatePattern() }];
   }
+  def : Property<"isDefaulted", Bool> {
+    let Read = [{ node.getIsDefaulted() }];
+  }
   def : Creator<[{
-    return TemplateArgument(name);
+    return TemplateArgument(name, isDefaulted);
   }]>;
 }
 let Class = PropertyTypeCase<TemplateArgument, "TemplateExpansion"> in {
   def : Property<"name", TemplateName> {
     let Read = [{ node.getAsTemplateOrTemplatePattern() }];
   }
-  def : Property<"numExpansions", Optional<UInt32>> {
+  def : Property<"numExpansions", UnsignedOrNone> {
     let Read = [{
-      // Translate unsigned -> uint32_t just in case.
-      node.getNumTemplateExpansions().transform(
-        [](unsigned i) { return uint32_t(i); })
+      node.getNumTemplateExpansions()
     }];
   }
+  def : Property<"isDefaulted", Bool> {
+    let Read = [{ node.getIsDefaulted() }];
+  }
   def : Creator<[{
-    auto numExpansionsUnsigned =
-      numExpansions.transform([](uint32_t i) { return unsigned(i); });
-    return TemplateArgument(name, numExpansionsUnsigned);
+    return TemplateArgument(name, numExpansions, isDefaulted);
   }]>;
 }
 let Class = PropertyTypeCase<TemplateArgument, "Expression"> in {
   def : Property<"expression", ExprRef> {
     let Read = [{ node.getAsExpr() }];
   }
+  def : Property<"IsCanonical", Bool> {
+    let Read = [{ node.isCanonicalExpr() }];
+  }
+  def : Property<"isDefaulted", Bool> {
+    let Read = [{ node.getIsDefaulted() }];
+  }
   def : Creator<[{
-    return TemplateArgument(expression);
+    return TemplateArgument(expression, IsCanonical, isDefaulted);
   }]>;
 }
 let Class = PropertyTypeCase<TemplateArgument, "Pack"> in {
@@ -814,6 +898,6 @@ let Class = PropertyTypeCase<TemplateArgument, "Pack"> in {
     TemplateArgument *ctxElements = new (ctx) TemplateArgument[elements.size()];
     for (size_t i = 0, e = elements.size(); i != e; ++i)
       ctxElements[i] = elements[i];
-    return TemplateArgument(llvm::makeArrayRef(ctxElements, elements.size()));
+    return TemplateArgument(ArrayRef(ctxElements, elements.size()));
   }]>;
 }

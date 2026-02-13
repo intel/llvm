@@ -1,27 +1,28 @@
 ; Test that incorrect memprof and callsite metadata fail verification.
 ; RUN: not llvm-as -disable-output < %s 2>&1 | FileCheck %s
 
-define i32* @test1() {
+define ptr @test1() {
 entry:
-  %call1 = call noalias dereferenceable_or_null(40) i8* @malloc(i64 noundef 40), !memprof !0
-  %call2 = call noalias dereferenceable_or_null(40) i8* @malloc(i64 noundef 40), !memprof !1
-  %call3 = call noalias dereferenceable_or_null(40) i8* @malloc(i64 noundef 40), !memprof !3
-  %call4 = call noalias dereferenceable_or_null(40) i8* @malloc(i64 noundef 40), !memprof !5
-  %call5 = call noalias dereferenceable_or_null(40) i8* @malloc(i64 noundef 40), !memprof !7, !callsite !9
-  %0 = bitcast i8* %call5 to i32*
-  ret i32* %0
+  %call1 = call noalias dereferenceable_or_null(40) ptr @malloc(i64 noundef 40), !memprof !0
+  %call2 = call noalias dereferenceable_or_null(40) ptr @malloc(i64 noundef 40), !memprof !1
+  %call3 = call noalias dereferenceable_or_null(40) ptr @malloc(i64 noundef 40), !memprof !3
+  %call4 = call noalias dereferenceable_or_null(40) ptr @malloc(i64 noundef 40), !memprof !5
+  %call5 = call noalias dereferenceable_or_null(40) ptr @malloc(i64 noundef 40), !memprof !7, !callsite !9
+  %call6 = call noalias dereferenceable_or_null(40) ptr @malloc(i64 noundef 40), !memprof !12
+  %call7 = call noalias dereferenceable_or_null(40) ptr @malloc(i64 noundef 40), !memprof !15
+  ret ptr %call5
 }
 
-define i32* @test2() {
+define ptr @test2() {
 entry:
-  %call = call noundef i32* @test1(), !callsite !10
-  ret i32* %call
+  %call = call noundef ptr @test1(), !callsite !10
+  ret ptr %call
 }
 
-define i32* @test3() {
+define ptr @test3() {
 entry:
-  %call = call noundef i32* @test2(), !callsite !11
-  ret i32* %call
+  %call = call noundef ptr @test2(), !callsite !11
+  ret ptr %call
 }
 
 define void @wronginsttype() {
@@ -29,7 +30,7 @@ define void @wronginsttype() {
   ret void
 }
 
-declare dso_local noalias noundef i8* @malloc(i64 noundef)
+declare dso_local noalias noundef ptr @malloc(i64 noundef)
 
 ; CHECK: !memprof annotations should have at least 1 metadata operand (MemInfoBlock)
 !0 = !{}
@@ -44,12 +45,20 @@ declare dso_local noalias noundef i8* @malloc(i64 noundef)
 !6 = !{i64 0}
 !7 = !{!8}
 ; CHECK: call stack metadata should have at least 1 operand
-; CHECK: Not all !memprof MemInfoBlock operands 1 to N are MDString
-!8 = !{!0, !"default", i64 0}
+; CHECK: Not all !memprof MemInfoBlock operands 2 to N are MDNode
+!8 = !{!0, !"default", i64 0, i64 5}
+!12 = !{!13}
+; CHECK: Not all !memprof MemInfoBlock operands 2 to N are MDNode
+!13 = !{!14, !"default", !"tag"}
+!15 = !{!16}
+; CHECK: Not all !memprof MemInfoBlock operands 2 to N are MDNode with 2 operands
+!16 = !{!14, !"default", !17}
+!17 = !{i64 789}
 !9 = !{i64 123}
 ; CHECK: call stack metadata operand should be constant integer
 !10 = !{!"wrongtype"}
 !11 = !{i64 789, i64 678}
+!14 = !{i64 234}
 
 ; Errors from annotating incorrect instruction type in @wronginsttype.
 ; CHECK: !memprof metadata should only exist on calls

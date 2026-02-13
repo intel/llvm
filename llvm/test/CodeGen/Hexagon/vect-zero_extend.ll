@@ -1,4 +1,4 @@
-; RUN: llc -march=hexagon < %s
+; RUN: llc -mtriple=hexagon < %s
 ; REQUIRES: asserts
 ; Used to fail with "Cannot select: 0x16cb2d0: v4i16 = zero_extend"
 
@@ -13,9 +13,9 @@ b1:                                               ; preds = %b0
   br label %b2
 
 b2:                                               ; preds = %b2, %b1
-  %v0 = load <3 x i8>, <3 x i8>* undef, align 8
+  %v0 = load <3 x i8>, ptr undef, align 8
   %v1 = zext <3 x i8> %v0 to <3 x i16>
-  store <3 x i16> %v1, <3 x i16>* undef, align 8
+  store <3 x i16> %v1, ptr undef, align 8
   br label %b2
 
 b3:                                               ; preds = %b0

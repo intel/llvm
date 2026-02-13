@@ -44,6 +44,16 @@ TEST(AlignmentTest, AlignConstexprConstant) {
   EXPECT_EQ(Align(alignof(uint64_t)), kConstantAlign);
 }
 
+TEST(AlignmentTest, ConstexprAssign) {
+  constexpr auto assignAndGet = []() constexpr {
+    Align A = Align::Constant<8>();
+    Align B = Align::Constant<16>();
+    A = B;
+    return A.value();
+  };
+  static_assert(assignAndGet() == 16);
+}
+
 std::vector<uint64_t> getValidAlignments() {
   std::vector<uint64_t> Out;
   for (size_t Shift = 0; Shift < 64; ++Shift)
@@ -151,8 +161,8 @@ TEST(AlignmentTest, isAligned_isAddrAligned) {
     MaybeAlign A(T.alignment);
     // Test Align
     if (A) {
-      EXPECT_EQ(isAligned(A.value(), T.offset), T.isAligned);
-      EXPECT_EQ(isAddrAligned(A.value(), T.forgedAddr()), T.isAligned);
+      EXPECT_EQ(isAligned(*A, T.offset), T.isAligned);
+      EXPECT_EQ(isAddrAligned(*A, T.forgedAddr()), T.isAligned);
     }
   }
 }
@@ -233,10 +243,6 @@ std::vector<uint64_t> getValidAlignmentsForDeathTest() {
 }
 
 std::vector<uint64_t> getNonPowerOfTwo() { return {3, 10, 15}; }
-
-TEST(AlignmentDeathTest, CantConvertUnsetMaybe) {
-  EXPECT_DEATH((*MaybeAlign(0)), ".*");
-}
 
 TEST(AlignmentDeathTest, InvalidCTors) {
   EXPECT_DEATH((Align(0)), "Value must not be 0");

@@ -9,6 +9,7 @@ define void @f() {
 ; CHECK-NEXT:    .cfi_def_cfa_offset 16
 ; CHECK-NEXT:    sw a0, 12(sp)
 ; CHECK-NEXT:    addi sp, sp, 16
+; CHECK-NEXT:    .cfi_def_cfa_offset 0
 ; CHECK-NEXT:    ret
 BB:
   %B = fdiv <1 x float> <float 0.5>, <float 0.5>
@@ -16,6 +17,6 @@ BB:
   br label %BB1
 
 BB1:                                              ; preds = %BB
-  store <1 x float> %B, <1 x float>* %PTR
+  store <1 x float> %B, ptr %PTR
   ret void
 }

@@ -10,6 +10,8 @@ tablegen(LLVM SparcGenDisassemblerTables.inc -gen-disassembler)
 tablegen(LLVM SparcGenInstrInfo.inc -gen-instr-info)
 tablegen(LLVM SparcGenMCCodeEmitter.inc -gen-emitter)
 tablegen(LLVM SparcGenRegisterInfo.inc -gen-register-info)
+tablegen(LLVM SparcGenSDNodeInfo.inc -gen-sd-node-info -sdnode-namespace=SPISD)
+tablegen(LLVM SparcGenSearchableTables.inc -gen-searchable-tables)
 tablegen(LLVM SparcGenSubtargetInfo.inc -gen-subtarget)
 
 add_public_tablegen_target(SparcCommonTableGen)
@@ -24,14 +26,15 @@ add_llvm_target(SparcCodeGen
   SparcFrameLowering.cpp
   SparcMachineFunctionInfo.cpp
   SparcRegisterInfo.cpp
+  SparcSelectionDAGInfo.cpp
   SparcSubtarget.cpp
   SparcTargetMachine.cpp
-  SparcMCInstLower.cpp
   SparcTargetObjectFile.cpp
 
   LINK_COMPONENTS
   AsmPrinter
   CodeGen
+  CodeGenTypes
   Core
   MC
   SelectionDAG
@@ -39,6 +42,7 @@ add_llvm_target(SparcCodeGen
   SparcInfo
   Support
   Target
+  TargetParser
 
   ADD_TO_COMPONENT
   Sparc

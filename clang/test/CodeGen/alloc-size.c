@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -no-opaque-pointers           -triple x86_64-apple-darwin -emit-llvm %s -o - 2>&1 | FileCheck %s
-// RUN: %clang_cc1 -no-opaque-pointers -DDYNAMIC -triple x86_64-apple-darwin -emit-llvm %s -o - 2>&1 | FileCheck %s
+// RUN: %clang_cc1           -triple x86_64-apple-darwin -emit-llvm %s -o - 2>&1 | FileCheck %s
+// RUN: %clang_cc1 -DDYNAMIC -triple x86_64-apple-darwin -emit-llvm %s -o - 2>&1 | FileCheck %s
 
 #ifdef DYNAMIC
 #define OBJECT_SIZE_BUILTIN __builtin_dynamic_object_size
@@ -137,7 +137,7 @@ void test5(void) {
   // CHECK: store i32 36
   gi = OBJECT_SIZE_BUILTIN(&data->t[1], 3);
 
-  struct Data *const arr = my_calloc(sizeof(*data), 2);
+  struct Data *const arr = my_calloc(2, sizeof(*data));
   // CHECK: store i32 96
   gi = OBJECT_SIZE_BUILTIN(arr, 0);
   // CHECK: store i32 96
@@ -171,7 +171,7 @@ void test6(void) {
   // CHECK: store i32 11
   gi = OBJECT_SIZE_BUILTIN(data->end, 3);
 
-  struct Data *const arr = my_calloc(sizeof(*arr) + 5, 3);
+  struct Data *const arr = my_calloc(3, sizeof(*arr) + 5);
   // AFAICT, GCC treats malloc and calloc identically. So, we should do the
   // same.
   //
@@ -238,7 +238,7 @@ void test7(void) {
 void test8(void) {
   // Non-const pointers aren't currently supported.
   void *buf = my_calloc(100, 5);
-  // CHECK: @llvm.objectsize.i64.p0i8(i8* %{{.*}}, i1 false, i1 true, i1
+  // CHECK: @llvm.objectsize.i64.p0(ptr %{{.*}}, i1 false, i1 true, i1
   gi = OBJECT_SIZE_BUILTIN(buf, 0);
   // CHECK: @llvm.objectsize
   gi = OBJECT_SIZE_BUILTIN(buf, 1);

@@ -23,21 +23,25 @@ class SPIRVTypeConverter;
 namespace spirv {
 /// Mapping from numeric MemRef memory spaces into SPIR-V symbolic ones.
 using MemorySpaceToStorageClassMap =
-    std::function<Optional<spirv::StorageClass>(unsigned)>;
+    std::function<std::optional<spirv::StorageClass>(Attribute)>;
 
 /// Maps MemRef memory spaces to storage classes for Vulkan-flavored SPIR-V
-/// using the default rule. Returns None if the memory space is unknown.
-Optional<spirv::StorageClass> mapMemorySpaceToVulkanStorageClass(unsigned);
+/// using the default rule. Returns std::nullopt if the memory space is unknown.
+std::optional<spirv::StorageClass>
+    mapMemorySpaceToVulkanStorageClass(Attribute);
 /// Maps storage classes for Vulkan-flavored SPIR-V to MemRef memory spaces
-/// using the default rule. Returns None if the storage class is unsupported.
-Optional<unsigned> mapVulkanStorageClassToMemorySpace(spirv::StorageClass);
+/// using the default rule. Returns std::nullopt if the storage class is
+/// unsupported.
+std::optional<unsigned> mapVulkanStorageClassToMemorySpace(spirv::StorageClass);
 
 /// Maps MemRef memory spaces to storage classes for OpenCL-flavored SPIR-V
-/// using the default rule. Returns None if the memory space is unknown.
-Optional<spirv::StorageClass> mapMemorySpaceToOpenCLStorageClass(unsigned);
+/// using the default rule. Returns std::nullopt if the memory space is unknown.
+std::optional<spirv::StorageClass>
+    mapMemorySpaceToOpenCLStorageClass(Attribute);
 /// Maps storage classes for OpenCL-flavored SPIR-V to MemRef memory spaces
-/// using the default rule. Returns None if the storage class is unsupported.
-Optional<unsigned> mapOpenCLStorageClassToMemorySpace(spirv::StorageClass);
+/// using the default rule. Returns std::nullopt if the storage class is
+/// unsupported.
+std::optional<unsigned> mapOpenCLStorageClassToMemorySpace(spirv::StorageClass);
 
 /// Type converter for converting numeric MemRef memory spaces into SPIR-V
 /// symbolic ones.
@@ -54,17 +58,16 @@ private:
 std::unique_ptr<ConversionTarget>
 getMemorySpaceToStorageClassTarget(MLIRContext &);
 
-/// Appends to a pattern list additional patterns for converting numeric MemRef
-/// memory spaces into SPIR-V symbolic ones.
-void populateMemorySpaceToStorageClassPatterns(
-    MemorySpaceToStorageClassConverter &typeConverter,
-    RewritePatternSet &patterns);
+/// Converts all MemRef types and attributes in the op, as decided by the
+/// `typeConverter`.
+void convertMemRefTypesAndAttrs(
+    Operation *op, MemorySpaceToStorageClassConverter &typeConverter);
 
 } // namespace spirv
 
 /// Appends to a pattern list additional patterns for translating MemRef ops
 /// to SPIR-V ops.
-void populateMemRefToSPIRVPatterns(SPIRVTypeConverter &typeConverter,
+void populateMemRefToSPIRVPatterns(const SPIRVTypeConverter &typeConverter,
                                    RewritePatternSet &patterns);
 
 } // namespace mlir

@@ -1,4 +1,4 @@
-//===--- UndelegatedConstructorCheck.h - clang-tidy -------------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,14 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MISC_UNDELEGATEDCONSTRUCTOR_H
-#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MISC_UNDELEGATEDCONSTRUCTOR_H
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_BUGPRONE_UNDELEGATEDCONSTRUCTORCHECK_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_BUGPRONE_UNDELEGATEDCONSTRUCTORCHECK_H
 
 #include "../ClangTidyCheck.h"
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 /// Finds creation of temporary objects in constructors that look like a
 /// function call to another constructor of the same class.
@@ -31,8 +29,6 @@ public:
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
 };
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone
 
-#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MISC_UNDELEGATEDCONSTRUCTOR_H
+#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_BUGPRONE_UNDELEGATEDCONSTRUCTORCHECK_H

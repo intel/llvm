@@ -17,14 +17,14 @@ using namespace llvm;
 
 static bool isStdout(StringRef Filename) { return Filename == "-"; }
 
-ToolOutputFile::CleanupInstaller::CleanupInstaller(StringRef Filename)
+CleanupInstaller::CleanupInstaller(StringRef Filename)
     : Filename(std::string(Filename)), Keep(false) {
   // Arrange for the file to be deleted if the process is killed.
   if (!isStdout(Filename))
     sys::RemoveFileOnSignal(Filename);
 }
 
-ToolOutputFile::CleanupInstaller::~CleanupInstaller() {
+CleanupInstaller::~CleanupInstaller() {
   if (isStdout(Filename))
     return;
 
@@ -46,7 +46,7 @@ ToolOutputFile::ToolOutputFile(StringRef Filename, std::error_code &EC,
     return;
   }
   OSHolder.emplace(Filename, EC, Flags);
-  OS = OSHolder.getPointer();
+  OS = &*OSHolder;
   // If open fails, no cleanup is needed.
   if (EC)
     Installer.Keep = true;
@@ -55,5 +55,5 @@ ToolOutputFile::ToolOutputFile(StringRef Filename, std::error_code &EC,
 ToolOutputFile::ToolOutputFile(StringRef Filename, int FD)
     : Installer(Filename) {
   OSHolder.emplace(FD, true);
-  OS = OSHolder.getPointer();
+  OS = &*OSHolder;
 }

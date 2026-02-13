@@ -35,7 +35,7 @@ void testNSStringFreeWhenDoneYES3(NSUInteger dataLength) {
 void testNSStringFreeWhenDoneYES4(NSUInteger dataLength) {
   unichar *data = (unichar*)malloc(42);
   NSString *nsstr = [[NSString alloc] initWithCharactersNoCopy:data length:dataLength freeWhenDone:1];
-  free(data); //expected-warning {{Attempt to free non-owned memory}}
+  free(data); //expected-warning {{Attempt to release non-owned memory}}
 }
 
 void testNSStringFreeWhenDoneYES(NSUInteger dataLength) {
@@ -89,20 +89,20 @@ void testNSStringFreeWhenDoneNO2(NSUInteger dataLength) {
 
 void testOffsetFree() {
   int *p = (int *)malloc(sizeof(int));
-  NSData *nsdata = [NSData dataWithBytesNoCopy:++p length:sizeof(int) freeWhenDone:1]; // expected-warning{{Argument to +dataWithBytesNoCopy:length:freeWhenDone: is offset by 4 bytes from the start of memory allocated by malloc()}}
+  NSData *nsdata = [NSData dataWithBytesNoCopy:++p length:sizeof(int) freeWhenDone:1]; // expected-warning{{Argument to +dataWithBytesNoCopy:length:freeWhenDone: is offset by 4 bytes from the start of memory allocated by 'malloc()'}}
 }
 
 void testRelinquished1() {
   void *data = malloc(42);
   NSData *nsdata = [NSData dataWithBytesNoCopy:data length:42 freeWhenDone:1];
-  free(data); // expected-warning {{Attempt to free non-owned memory}}
+  free(data); // expected-warning {{Attempt to release non-owned memory}}
 }
 
 void testRelinquished2() {
   void *data = malloc(42);
   NSData *nsdata;
   free(data);
-  [NSData dataWithBytesNoCopy:data length:42]; // expected-warning {{Use of memory after it is freed}}
+  [NSData dataWithBytesNoCopy:data length:42]; // expected-warning {{Use of memory after it is released}}
 }
 
 @interface My
@@ -112,21 +112,21 @@ void testRelinquished2() {
 void testUseAfterFree() {
   int *p = (int *)malloc(sizeof(int));
   free(p);
-  [My param:p];  // expected-warning{{Use of memory after it is freed}}
+  [My param:p];  // expected-warning{{Use of memory after it is released}}
 }
 
 void testNoCopy() {
-  char *p = (char *)calloc(sizeof(int), 1);
+  char *p = (char *)calloc(1, sizeof(int));
   CustomData *w = [CustomData somethingNoCopy:p]; // no-warning
 }
 
 void testFreeWhenDone() {
-  char *p = (char *)calloc(sizeof(int), 1);
+  char *p = (char *)calloc(1, sizeof(int));
   CustomData *w = [CustomData something:p freeWhenDone:1]; // no-warning
 }
 
 void testFreeWhenDonePositive() {
-  char *p = (char *)calloc(sizeof(int), 1);
+  char *p = (char *)calloc(1, sizeof(int));
   CustomData *w = [CustomData something:p freeWhenDone:0]; // expected-warning{{leak}}
 }
 
@@ -214,7 +214,7 @@ static inline void radar11111210(OSQueueHead *pool) {
     OSAtomicEnqueue(pool, newItem, 4);
 }
 
-// Pointer might escape through CGDataProviderCreateWithData (radar://11187558).
+// Pointer might escape through CGDataProviderCreateWithData
 typedef struct CGDataProvider *CGDataProviderRef;
 typedef void (*CGDataProviderReleaseDataCallback)(void *info, const void *data,
     size_t size);
@@ -235,7 +235,7 @@ void testCGDataProviderCreateWithData() {
 
 // Assume that functions which take a function pointer can free memory even if
 // they are defined in system headers and take the const pointer to the
-// allocated memory. (radar://11160612)
+// allocated memory.
 extern CGDataProviderRef UnknownFunWithCallback(void *info,
     const void *data, size_t size,
     CGDataProviderReleaseDataCallback releaseData)
@@ -258,7 +258,7 @@ void testCallWithBlockCallbackInSystem() {
   SystemHeaderFunctionWithBlockParam(l, ^(void *i) { free(i); }, sizeof(char *));
 }
 
-// Test escape into NSPointerArray. radar://11691035, PR13140
+// Test escape into NSPointerArray. PR13140
 void foo(NSPointerArray* pointerArray) {
   
   void* p1 = malloc (1024);
@@ -318,7 +318,7 @@ NSString *test12365078_no_malloc_returnValue(unichar *characters) {
 
 void test12365078_nocheck_nomalloc(unichar *characters) {
   NSString *string = [[NSString alloc] initWithCharactersNoCopy:characters length:12 freeWhenDone:1];
-  free(characters); // expected-warning {{Attempt to free non-owned memory}}
+  free(characters); // expected-warning {{Attempt to release non-owned memory}}
 }
 
 void test12365078_nested(unichar *characters) {
@@ -339,7 +339,7 @@ void test12365078_nested(unichar *characters) {
 void test12365078_check_positive() {
   unichar *characters = (unichar*)malloc(12);
   NSString *string = [[NSString alloc] initWithCharactersNoCopy:characters length:12 freeWhenDone:1];
-  if (string) free(characters); // expected-warning{{Attempt to free non-owned memory}}
+  if (string) free(characters); // expected-warning{{Attempt to release non-owned memory}}
 }
 
 void *test_reinterpret_cast_to_block() {

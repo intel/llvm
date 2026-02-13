@@ -17,6 +17,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/CodeGen/LivePhysRegs.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/ReachingDefAnalysis.h"
@@ -30,13 +31,13 @@
 
 using namespace llvm;
 
-namespace llvm {
+namespace {
 
 class BreakFalseDeps : public MachineFunctionPass {
 private:
-  MachineFunction *MF;
-  const TargetInstrInfo *TII;
-  const TargetRegisterInfo *TRI;
+  MachineFunction *MF = nullptr;
+  const TargetInstrInfo *TII = nullptr;
+  const TargetRegisterInfo *TRI = nullptr;
   RegisterClassInfo RegClassInfo;
 
   /// List of undefined register reads in this block in forward order.
@@ -45,7 +46,7 @@ private:
   /// Storage for register unit liveness.
   LivePhysRegs LiveRegSet;
 
-  ReachingDefAnalysis *RDA;
+  ReachingDefInfo *RDI = nullptr;
 
 public:
   static char ID; // Pass identification, replacement for typeid
@@ -56,15 +57,14 @@ public:
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesAll();
-    AU.addRequired<ReachingDefAnalysis>();
+    AU.addRequired<ReachingDefInfoWrapperPass>();
     MachineFunctionPass::getAnalysisUsage(AU);
   }
 
   bool runOnMachineFunction(MachineFunction &MF) override;
 
   MachineFunctionProperties getRequiredProperties() const override {
-    return MachineFunctionProperties().set(
-      MachineFunctionProperties::Property::NoVRegs);
+    return MachineFunctionProperties().setNoVRegs();
   }
 
 private:
@@ -95,13 +95,13 @@ private:
   void processUndefReads(MachineBasicBlock *);
 };
 
-} // namespace llvm
+} // namespace
 
 #define DEBUG_TYPE "break-false-deps"
 
 char BreakFalseDeps::ID = 0;
 INITIALIZE_PASS_BEGIN(BreakFalseDeps, DEBUG_TYPE, "BreakFalseDeps", false, false)
-INITIALIZE_PASS_DEPENDENCY(ReachingDefAnalysis)
+INITIALIZE_PASS_DEPENDENCY(ReachingDefInfoWrapperPass)
 INITIALIZE_PASS_END(BreakFalseDeps, DEBUG_TYPE, "BreakFalseDeps", false, false)
 
 FunctionPass *llvm::createBreakFalseDeps() { return new BreakFalseDeps(); }
@@ -123,9 +123,9 @@ bool BreakFalseDeps::pickBestRegisterForUndef(MachineInstr *MI, unsigned OpIdx,
   MCRegister OriginalReg = MO.getReg().asMCReg();
 
   // Update only undef operands that have reg units that are mapped to one root.
-  for (MCRegUnitIterator Unit(OriginalReg, TRI); Unit.isValid(); ++Unit) {
+  for (MCRegUnit Unit : TRI->regunits(OriginalReg)) {
     unsigned NumRoots = 0;
-    for (MCRegUnitRootIterator Root(*Unit, TRI); Root.isValid(); ++Root) {
+    for (MCRegUnitRootIterator Root(Unit, TRI); Root.isValid(); ++Root) {
       NumRoots++;
       if (NumRoots > 1)
         return false;
@@ -133,14 +133,13 @@ bool BreakFalseDeps::pickBestRegisterForUndef(MachineInstr *MI, unsigned OpIdx,
   }
 
   // Get the undef operand's register class
-  const TargetRegisterClass *OpRC =
-    TII->getRegClass(MI->getDesc(), OpIdx, TRI, *MF);
+  const TargetRegisterClass *OpRC = TII->getRegClass(MI->getDesc(), OpIdx);
+  assert(OpRC && "Not a valid register class");
 
   // If the instruction has a true dependency, we can hide the false depdency
   // behind it.
-  for (MachineOperand &CurrMO : MI->operands()) {
-    if (!CurrMO.isReg() || CurrMO.isDef() || CurrMO.isUndef() ||
-      !OpRC->contains(CurrMO.getReg()))
+  for (MachineOperand &CurrMO : MI->all_uses()) {
+    if (CurrMO.isUndef() || !OpRC->contains(CurrMO.getReg()))
       continue;
     // We found a true dependency - replace the undef register with the true
     // dependency.
@@ -154,7 +153,7 @@ bool BreakFalseDeps::pickBestRegisterForUndef(MachineInstr *MI, unsigned OpIdx,
   unsigned MaxClearanceReg = OriginalReg;
   ArrayRef<MCPhysReg> Order = RegClassInfo.getOrder(OpRC);
   for (MCPhysReg Reg : Order) {
-    unsigned Clearance = RDA->getClearance(MI, Reg);
+    unsigned Clearance = RDI->getClearance(MI, Reg);
     if (Clearance <= MaxClearance)
       continue;
     MaxClearance = Clearance;
@@ -174,7 +173,7 @@ bool BreakFalseDeps::pickBestRegisterForUndef(MachineInstr *MI, unsigned OpIdx,
 bool BreakFalseDeps::shouldBreakDependence(MachineInstr *MI, unsigned OpIdx,
                                            unsigned Pref) {
   MCRegister Reg = MI->getOperand(OpIdx).getReg().asMCReg();
-  unsigned Clearance = RDA->getClearance(MI, Reg);
+  unsigned Clearance = RDI->getClearance(MI, Reg);
   LLVM_DEBUG(dbgs() << "Clearance: " << Clearance << ", want " << Pref);
 
   if (Pref > Clearance) {
@@ -283,16 +282,22 @@ bool BreakFalseDeps::runOnMachineFunction(MachineFunction &mf) {
   MF = &mf;
   TII = MF->getSubtarget().getInstrInfo();
   TRI = MF->getSubtarget().getRegisterInfo();
-  RDA = &getAnalysis<ReachingDefAnalysis>();
+  RDI = &getAnalysis<ReachingDefInfoWrapperPass>().getRDI();
 
-  RegClassInfo.runOnMachineFunction(mf);
+  RegClassInfo.runOnMachineFunction(mf, /*Rev=*/true);
 
   LLVM_DEBUG(dbgs() << "********** BREAK FALSE DEPENDENCIES **********\n");
 
+  // Skip Dead blocks due to ReachingDefAnalysis has no idea about instructions
+  // in them.
+  df_iterator_default_set<MachineBasicBlock *> Reachable;
+  for (MachineBasicBlock *MBB : depth_first_ext(&mf, Reachable))
+    (void)MBB /* Mark all reachable blocks */;
+
   // Traverse the basic blocks.
-  for (MachineBasicBlock &MBB : mf) {
-    processBasicBlock(&MBB);
-  }
+  for (MachineBasicBlock &MBB : mf)
+    if (Reachable.count(&MBB))
+      processBasicBlock(&MBB);
 
   return false;
 }

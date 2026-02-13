@@ -164,10 +164,10 @@ lldb::addr_t AppleGetPendingItemsHandler::SetupGetPendingItemsFunction(
 
       // Next make the runner function for our implementation utility function.
       Status error;
-      TypeSystemClang *clang_ast_context = ScratchTypeSystemClang::GetForTarget(
+      TypeSystemClangSP scratch_ts_sp = ScratchTypeSystemClang::GetForTarget(
           thread.GetProcess()->GetTarget());
       CompilerType get_pending_items_return_type =
-          clang_ast_context->GetBasicType(eBasicTypeVoid).GetPointerType();
+          scratch_ts_sp->GetBasicType(eBasicTypeVoid).GetPointerType();
       get_pending_items_caller =
           m_get_pending_items_impl_code->MakeFunctionCaller(
               get_pending_items_return_type, get_pending_items_arglist,
@@ -216,7 +216,7 @@ AppleGetPendingItemsHandler::GetPendingItems(Thread &thread, addr_t queue,
   lldb::StackFrameSP thread_cur_frame = thread.GetStackFrameAtIndex(0);
   ProcessSP process_sp(thread.CalculateProcess());
   TargetSP target_sp(thread.CalculateTarget());
-  TypeSystemClang *clang_ast_context =
+  TypeSystemClangSP scratch_ts_sp =
       ScratchTypeSystemClang::GetForTarget(*target_sp);
   Log *log = GetLog(LLDBLog::SystemRuntime);
 
@@ -230,7 +230,8 @@ AppleGetPendingItemsHandler::GetPendingItems(Thread &thread, addr_t queue,
   if (!thread.SafeToCallFunctions()) {
     LLDB_LOGF(log, "Not safe to call functions on thread 0x%" PRIx64,
               thread.GetID());
-    error.SetErrorString("Not safe to call functions on this thread.");
+    error =
+        Status::FromErrorString("Not safe to call functions on this thread.");
     return return_value;
   }
 
@@ -260,18 +261,18 @@ AppleGetPendingItemsHandler::GetPendingItems(Thread &thread, addr_t queue,
   // already allocated by lldb in the inferior process.
 
   CompilerType clang_void_ptr_type =
-      clang_ast_context->GetBasicType(eBasicTypeVoid).GetPointerType();
+      scratch_ts_sp->GetBasicType(eBasicTypeVoid).GetPointerType();
   Value return_buffer_ptr_value;
   return_buffer_ptr_value.SetValueType(Value::ValueType::Scalar);
   return_buffer_ptr_value.SetCompilerType(clang_void_ptr_type);
 
-  CompilerType clang_int_type = clang_ast_context->GetBasicType(eBasicTypeInt);
+  CompilerType clang_int_type = scratch_ts_sp->GetBasicType(eBasicTypeInt);
   Value debug_value;
   debug_value.SetValueType(Value::ValueType::Scalar);
   debug_value.SetCompilerType(clang_int_type);
 
   CompilerType clang_uint64_type =
-      clang_ast_context->GetBasicType(eBasicTypeUnsignedLongLong);
+      scratch_ts_sp->GetBasicType(eBasicTypeUnsignedLongLong);
   Value queue_value;
   queue_value.SetValueType(Value::ValueType::Scalar);
   queue_value.SetCompilerType(clang_uint64_type);
@@ -337,8 +338,9 @@ AppleGetPendingItemsHandler::GetPendingItems(Thread &thread, addr_t queue,
   thread.CalculateExecutionContext(exe_ctx);
 
   if (get_pending_items_caller == nullptr) {
-    error.SetErrorString("Unable to compile function to call "
-                         "__introspection_dispatch_queue_get_pending_items");
+    error = Status::FromErrorString(
+        "Unable to compile function to call "
+        "__introspection_dispatch_queue_get_pending_items");
     return return_value;
   }
 
@@ -352,9 +354,10 @@ AppleGetPendingItemsHandler::GetPendingItems(Thread &thread, addr_t queue,
               "__introspection_dispatch_queue_get_pending_items(), got "
               "ExpressionResults %d, error contains %s",
               func_call_ret, error.AsCString(""));
-    error.SetErrorString("Unable to call "
-                         "__introspection_dispatch_queue_get_pending_items() "
-                         "for list of queues");
+    error = Status::FromErrorString(
+        "Unable to call "
+        "__introspection_dispatch_queue_get_pending_items() "
+        "for list of queues");
     return return_value;
   }
 

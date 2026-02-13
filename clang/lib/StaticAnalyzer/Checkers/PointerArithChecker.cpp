@@ -11,13 +11,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/StaticAnalyzer/Checkers/BuiltinCheckerRegistration.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/ExprCXX.h"
+#include "clang/StaticAnalyzer/Checkers/BuiltinCheckerRegistration.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugType.h"
 #include "clang/StaticAnalyzer/Core/Checker.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
+#include "llvm/ADT/StringRef.h"
 
 using namespace clang;
 using namespace ento;
@@ -55,9 +56,9 @@ class PointerArithChecker
                                 bool PointedNeeded = false) const;
   void initAllocIdentifiers(ASTContext &C) const;
 
-  mutable std::unique_ptr<BuiltinBug> BT_pointerArith;
-  mutable std::unique_ptr<BuiltinBug> BT_polyArray;
-  mutable llvm::SmallSet<IdentifierInfo *, 8> AllocFunctions;
+  const BugType BT_pointerArith{this, "Dangerous pointer arithmetic"};
+  const BugType BT_polyArray{this, "Dangerous pointer arithmetic"};
+  mutable llvm::SmallPtrSet<IdentifierInfo *, 8> AllocFunctions;
 
 public:
   void checkPreStmt(const UnaryOperator *UOp, CheckerContext &C) const;
@@ -73,16 +74,31 @@ public:
 
 REGISTER_MAP_WITH_PROGRAMSTATE(RegionState, const MemRegion *, AllocKind)
 
+static bool isArrayPlacementNew(const CXXNewExpr *NE) {
+  return NE->isArray() && NE->getNumPlacementArgs() > 0;
+}
+
+static ProgramStateRef markSuperRegionReinterpreted(ProgramStateRef State,
+                                                    const MemRegion *Region) {
+  while (const auto *BaseRegion = dyn_cast<CXXBaseObjectRegion>(Region)) {
+    Region = BaseRegion->getSuperRegion();
+  }
+  if (const auto *ElemRegion = dyn_cast<ElementRegion>(Region)) {
+    State = State->set<RegionState>(ElemRegion->getSuperRegion(),
+                                    AllocKind::Reinterpreted);
+  }
+  return State;
+}
+
 void PointerArithChecker::checkDeadSymbols(SymbolReaper &SR,
                                            CheckerContext &C) const {
   // TODO: intentional leak. Some information is garbage collected too early,
   // see http://reviews.llvm.org/D14203 for further information.
   /*ProgramStateRef State = C.getState();
   RegionStateTy RegionStates = State->get<RegionState>();
-  for (RegionStateTy::iterator I = RegionStates.begin(), E = RegionStates.end();
-       I != E; ++I) {
-    if (!SR.isLiveRegion(I->first))
-      State = State->remove<RegionState>(I->first);
+  for (const MemRegion *Reg: llvm::make_first_range(RegionStates)) {
+    if (!SR.isLiveRegion(Reg))
+      State = State->remove<RegionState>(Reg);
   }
   C.addTransition(State);*/
 }
@@ -168,13 +184,10 @@ void PointerArithChecker::reportPointerArithMisuse(const Expr *E,
     if (!IsPolymorphic)
       return;
     if (ExplodedNode *N = C.generateNonFatalErrorNode()) {
-      if (!BT_polyArray)
-        BT_polyArray.reset(new BuiltinBug(
-            this, "Dangerous pointer arithmetic",
-            "Pointer arithmetic on a pointer to base class is dangerous "
-            "because derived and base class may have different size."));
-      auto R = std::make_unique<PathSensitiveBugReport>(
-          *BT_polyArray, BT_polyArray->getDescription(), N);
+      constexpr llvm::StringLiteral Msg =
+          "Pointer arithmetic on a pointer to base class is dangerous "
+          "because derived and base class may have different size.";
+      auto R = std::make_unique<PathSensitiveBugReport>(BT_polyArray, Msg, N);
       R->addRange(E->getSourceRange());
       R->markInteresting(ArrayRegion);
       C.emitReport(std::move(R));
@@ -191,13 +204,10 @@ void PointerArithChecker::reportPointerArithMisuse(const Expr *E,
     return;
 
   if (ExplodedNode *N = C.generateNonFatalErrorNode()) {
-    if (!BT_pointerArith)
-      BT_pointerArith.reset(new BuiltinBug(this, "Dangerous pointer arithmetic",
-                                           "Pointer arithmetic on non-array "
-                                           "variables relies on memory layout, "
-                                           "which is dangerous."));
-    auto R = std::make_unique<PathSensitiveBugReport>(
-        *BT_pointerArith, BT_pointerArith->getDescription(), N);
+    constexpr llvm::StringLiteral Msg =
+        "Pointer arithmetic on non-array variables relies on memory layout, "
+        "which is dangerous.";
+    auto R = std::make_unique<PathSensitiveBugReport>(BT_pointerArith, Msg, N);
     R->addRange(SR);
     R->markInteresting(Region);
     C.emitReport(std::move(R));
@@ -250,13 +260,23 @@ void PointerArithChecker::checkPostStmt(const CXXNewExpr *NE,
   const MemRegion *Region = AllocedVal.getAsRegion();
   if (!Region)
     return;
+
+  // For array placement-new, mark the original region as reinterpreted
+  if (isArrayPlacementNew(NE)) {
+    State = markSuperRegionReinterpreted(State, Region);
+  }
+
   State = State->set<RegionState>(Region, Kind);
   C.addTransition(State);
 }
 
 void PointerArithChecker::checkPostStmt(const CastExpr *CE,
                                         CheckerContext &C) const {
-  if (CE->getCastKind() != CastKind::CK_BitCast)
+  // Casts to `void*` happen, for instance, on placement new calls.
+  // We consider `void*` not to erase the type information about the underlying
+  // region.
+  if (CE->getCastKind() != CastKind::CK_BitCast ||
+      CE->getType()->isVoidPointerType())
     return;
 
   const Expr *CastedExpr = CE->getSubExpr();

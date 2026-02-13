@@ -1,7 +1,7 @@
 ; RUN: opt -S -structurizecfg %s -o - | FileCheck %s
 ; RUN: opt -S -passes=structurizecfg %s -o - | FileCheck %s
 
-define void @main(float addrspace(1)* %out) {
+define void @main(ptr addrspace(1) %out) {
 
 ; CHECK: main_body:
 ; CHECK: br label %LOOP.outer
@@ -32,7 +32,7 @@ ENDLOOP:                                          ; preds = %ENDIF28, %IF29, %LO
   %temp8.1 = phi float [ %temp8.0.ph, %LOOP ], [ %temp8.0.ph, %IF29 ], [ %tmp35, %ENDIF28 ]
   %tmp23 = icmp eq i32 %tmp20, 3
   %.45 = select i1 %tmp23, float 0.000000e+00, float 1.000000e+00
-  store float %.45, float addrspace(1)* %out
+  store float %.45, ptr addrspace(1) %out
   ret void
 
 ; CHECK: ENDIF:
@@ -63,7 +63,3 @@ ENDIF28:                                          ; preds = %ENDIF
   %tmp36 = icmp sgt i32 %tmp20, 2
   br i1 %tmp36, label %ENDLOOP, label %LOOP.outer
 }
-
-attributes #0 = { "enable-no-nans-fp-math"="true" "unsafe-fp-math"="true" }
-attributes #1 = { nounwind readnone }
-attributes #2 = { readnone }

@@ -8,8 +8,8 @@
 
 #include "llvm/DebugInfo/PDB/Native/NativeSession.h"
 
+#include "llvm/ADT/SmallString.h"
 #include "llvm/BinaryFormat/Magic.h"
-#include "llvm/DebugInfo/MSF/MSFCommon.h"
 #include "llvm/DebugInfo/MSF/MappedBlockStream.h"
 #include "llvm/DebugInfo/PDB/IPDBEnumChildren.h"
 #include "llvm/DebugInfo/PDB/IPDBSourceFile.h"
@@ -38,7 +38,6 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 
-#include <algorithm>
 #include <cassert>
 #include <memory>
 #include <utility>
@@ -73,7 +72,7 @@ Error NativeSession::createFromPdb(std::unique_ptr<MemoryBuffer> Buffer,
                                    std::unique_ptr<IPDBSession> &Session) {
   StringRef Path = Buffer->getBufferIdentifier();
   auto Stream = std::make_unique<MemoryBufferByteStream>(
-      std::move(Buffer), llvm::support::little);
+      std::move(Buffer), llvm::endianness::little);
 
   auto Allocator = std::make_unique<BumpPtrAllocator>();
   auto File = std::make_unique<PDBFile>(Path, std::move(Stream), *Allocator);
@@ -88,6 +87,19 @@ Error NativeSession::createFromPdb(std::unique_ptr<MemoryBuffer> Buffer,
   return Error::success();
 }
 
+static Error validatePdbMagic(StringRef PdbPath) {
+  file_magic Magic;
+  if (auto EC = identify_magic(PdbPath, Magic))
+    return make_error<RawError>(EC);
+
+  if (Magic != file_magic::pdb)
+    return make_error<RawError>(
+        raw_error_code::invalid_format,
+        "The input file did not contain the pdb file magic.");
+
+  return Error::success();
+}
+
 static Expected<std::unique_ptr<PDBFile>>
 loadPdbFile(StringRef PdbPath, std::unique_ptr<BumpPtrAllocator> &Allocator) {
   ErrorOr<std::unique_ptr<MemoryBuffer>> ErrorOrBuffer =
@@ -98,13 +110,11 @@ loadPdbFile(StringRef PdbPath, std::unique_ptr<BumpPtrAllocator> &Allocator) {
   std::unique_ptr<llvm::MemoryBuffer> Buffer = std::move(*ErrorOrBuffer);
 
   PdbPath = Buffer->getBufferIdentifier();
-  file_magic Magic;
-  auto EC = identify_magic(PdbPath, Magic);
-  if (EC || Magic != file_magic::pdb)
-    return make_error<RawError>(EC);
+  if (auto EC = validatePdbMagic(PdbPath))
+    return std::move(EC);
 
-  auto Stream = std::make_unique<MemoryBufferByteStream>(std::move(Buffer),
-                                                         llvm::support::little);
+  auto Stream = std::make_unique<MemoryBufferByteStream>(
+      std::move(Buffer), llvm::endianness::little);
 
   auto File = std::make_unique<PDBFile>(PdbPath, std::move(Stream), *Allocator);
   if (auto EC = File->parseFileHeaders())
@@ -153,10 +163,8 @@ Error NativeSession::createFromExe(StringRef ExePath,
   if (!PdbPath)
     return PdbPath.takeError();
 
-  file_magic Magic;
-  auto EC = identify_magic(PdbPath.get(), Magic);
-  if (EC || Magic != file_magic::pdb)
-    return make_error<RawError>(EC);
+  if (auto EC = validatePdbMagic(PdbPath.get()))
+    return EC;
 
   auto Allocator = std::make_unique<BumpPtrAllocator>();
   auto File = loadPdbFile(PdbPath.get(), Allocator);
@@ -175,7 +183,7 @@ NativeSession::searchForPdb(const PdbSearchOptions &Opts) {
   if (!PathOrErr)
     return PathOrErr.takeError();
   StringRef PathFromExe = PathOrErr.get();
-  sys::path::Style Style = PathFromExe.startswith("/")
+  sys::path::Style Style = PathFromExe.starts_with("/")
                                ? sys::path::Style::posix
                                : sys::path::Style::windows;
   StringRef PdbName = sys::path::filename(PathFromExe, Style);

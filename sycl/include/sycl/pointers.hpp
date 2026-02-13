@@ -7,14 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <sycl/access/access.hpp>
+
+#include <sycl/detail/fwd/multi_ptr.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
-
-template <typename ElementType, access::address_space Space,
-          access::decorated DecorateAddress>
-class multi_ptr;
+inline namespace _V1 {
 // Template specialization aliases for different pointer address spaces
 
 template <typename ElementType,
@@ -26,18 +23,6 @@ template <typename ElementType,
           access::decorated IsDecorated = access::decorated::legacy>
 using global_ptr =
     multi_ptr<ElementType, access::address_space::global_space, IsDecorated>;
-
-template <typename ElementType,
-          access::decorated IsDecorated = access::decorated::legacy>
-using device_ptr =
-    multi_ptr<ElementType, access::address_space::ext_intel_global_device_space,
-              IsDecorated>;
-
-template <typename ElementType,
-          access::decorated IsDecorated = access::decorated::legacy>
-using host_ptr =
-    multi_ptr<ElementType, access::address_space::ext_intel_global_host_space,
-              IsDecorated>;
 
 template <typename ElementType,
           access::decorated IsDecorated = access::decorated::legacy>
@@ -59,6 +44,11 @@ using private_ptr =
 // address space information internally.
 
 template <typename ElementType>
+using raw_generic_ptr =
+    multi_ptr<ElementType, access::address_space::generic_space,
+              access::decorated::no>;
+
+template <typename ElementType>
 using raw_global_ptr =
     multi_ptr<ElementType, access::address_space::global_space,
               access::decorated::no>;
@@ -76,6 +66,11 @@ using raw_private_ptr =
 // The interface exposes decorated pointer.
 
 template <typename ElementType>
+using decorated_generic_ptr =
+    multi_ptr<ElementType, access::address_space::generic_space,
+              access::decorated::yes>;
+
+template <typename ElementType>
 using decorated_global_ptr =
     multi_ptr<ElementType, access::address_space::global_space,
               access::decorated::yes>;
@@ -90,5 +85,5 @@ using decorated_private_ptr =
     multi_ptr<ElementType, access::address_space::private_space,
               access::decorated::yes>;
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

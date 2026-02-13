@@ -148,14 +148,14 @@ static bool rescheduleCanonically(unsigned &PseudoIdempotentInstCount,
   std::map<unsigned, MachineInstr *> MultiUserLookup;
   unsigned UseToBringDefCloserToCount = 0;
   std::vector<MachineInstr *> PseudoIdempotentInstructions;
-  std::vector<unsigned> PhysRegDefs;
+  std::vector<MCRegister> PhysRegDefs;
   for (auto *II : Instructions) {
     for (unsigned i = 1; i < II->getNumOperands(); i++) {
       MachineOperand &MO = II->getOperand(i);
       if (!MO.isReg())
         continue;
 
-      if (Register::isVirtualRegister(MO.getReg()))
+      if (MO.getReg().isVirtual())
         continue;
 
       if (!MO.isDef())
@@ -172,7 +172,7 @@ static bool rescheduleCanonically(unsigned &PseudoIdempotentInstCount,
       continue;
 
     MachineOperand &MO = II->getOperand(0);
-    if (!MO.isReg() || !Register::isVirtualRegister(MO.getReg()))
+    if (!MO.isReg() || !MO.getReg().isVirtual())
       continue;
     if (!MO.isDef())
       continue;
@@ -185,8 +185,9 @@ static bool rescheduleCanonically(unsigned &PseudoIdempotentInstCount,
       }
 
       if (II->getOperand(i).isReg()) {
-        if (!Register::isVirtualRegister(II->getOperand(i).getReg()))
-          if (!llvm::is_contained(PhysRegDefs, II->getOperand(i).getReg())) {
+        if (!II->getOperand(i).getReg().isVirtual())
+          if (!llvm::is_contained(PhysRegDefs,
+                                  II->getOperand(i).getReg().asMCReg())) {
             continue;
           }
       }
@@ -271,15 +272,14 @@ static bool rescheduleCanonically(unsigned &PseudoIdempotentInstCount,
       continue;
 
     LLVM_DEBUG(
-        dbgs() << "Rescheduling Multi-Use Instructions Lexographically.";);
+        dbgs() << "Rescheduling Multi-Use Instructions Lexographically.");
     Changed |= rescheduleLexographically(
         MultiUsers[E.second], MBB,
         [&]() -> MachineBasicBlock::iterator { return UseI; });
   }
 
   PseudoIdempotentInstCount = PseudoIdempotentInstructions.size();
-  LLVM_DEBUG(
-      dbgs() << "Rescheduling Idempotent Instructions Lexographically.";);
+  LLVM_DEBUG(dbgs() << "Rescheduling Idempotent Instructions Lexographically.");
   Changed |= rescheduleLexographically(
       PseudoIdempotentInstructions, MBB,
       [&]() -> MachineBasicBlock::iterator { return MBB->begin(); });
@@ -307,9 +307,9 @@ static bool propagateLocalCopies(MachineBasicBlock *MBB) {
     const Register Dst = MI->getOperand(0).getReg();
     const Register Src = MI->getOperand(1).getReg();
 
-    if (!Register::isVirtualRegister(Dst))
+    if (!Dst.isVirtual())
       continue;
-    if (!Register::isVirtualRegister(Src))
+    if (!Src.isVirtual())
       continue;
     // Not folding COPY instructions if regbankselect has not set the RCs.
     // Why are we only considering Register Classes? Because the verifier
@@ -365,7 +365,7 @@ static bool runOnBasicBlock(MachineBasicBlock *MBB,
 
   bool Changed = false;
 
-  LLVM_DEBUG(dbgs() << "\n\n NEW BASIC BLOCK: " << MBB->getName() << "\n\n";);
+  LLVM_DEBUG(dbgs() << "\n\n NEW BASIC BLOCK: " << MBB->getName() << "\n\n");
 
   LLVM_DEBUG(dbgs() << "MBB Before Canonical Copy Propagation:\n";
              MBB->dump(););
@@ -384,7 +384,7 @@ static bool runOnBasicBlock(MachineBasicBlock *MBB,
   Changed |= doDefKillClear(MBB);
 
   LLVM_DEBUG(dbgs() << "Updated MachineBasicBlock:\n"; MBB->dump();
-             dbgs() << "\n";);
+             dbgs() << "\n");
   LLVM_DEBUG(
       dbgs() << "\n\n================================================\n\n");
   return Changed;

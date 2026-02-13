@@ -1,4 +1,4 @@
-//===-- extensible_address_test.cpp ---------------------------------------===//
+//===-- executor_address_test.cpp -----------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -17,7 +17,7 @@
 #include "executor_address.h"
 #include "gtest/gtest.h"
 
-using namespace __orc_rt;
+using namespace orc_rt;
 
 TEST(ExecutorAddrTest, DefaultAndNull) {
   // Check that default constructed values and isNull behave as expected.

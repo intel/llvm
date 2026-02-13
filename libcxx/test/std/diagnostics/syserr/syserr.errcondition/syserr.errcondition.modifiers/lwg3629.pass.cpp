@@ -12,7 +12,7 @@
 
 // template <ErrorCodeEnum E> error_condition& operator=(E e);
 
-// Regression test for https://github.com/llvm/llvm-project/issues/57614
+// Regression test for https://llvm.org/PR57614
 
 int make_error_condition; // It's important that this comes before <system_error>
 
@@ -22,20 +22,18 @@ int make_error_condition; // It's important that this comes before <system_error
 
 #include "test_macros.h"
 
-namespace user {
+namespace User {
   enum Err {};
 
   std::error_condition make_error_condition(Err) { return std::error_condition(42, std::generic_category()); }
 }
 
-namespace std {
-  template <>
-  struct is_error_condition_enum<user::Err> : true_type {};
-}
+template <>
+struct std::is_error_condition_enum<User::Err> : true_type {};
 
 int main(int, char**) {
   std::error_condition e;
-  e = user::Err();
+  e = User::Err();
   assert(e.value() == 42);
   assert(e.category() == std::generic_category());
   return 0;

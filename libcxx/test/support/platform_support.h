@@ -35,72 +35,72 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <codecvt>
-#include <locale>
 #include <string>
 #if defined(_WIN32)
 #   include <io.h> // _mktemp_s
 #   include <fcntl.h> // _O_EXCL, ...
 #   include <sys/stat.h> // _S_IREAD, ...
-#else
-#   include <unistd.h> // close
+#elif __has_include(<unistd.h>)
+#  include <unistd.h> // close
 #endif
 
 #if defined(_CS_GNU_LIBC_VERSION)
 # include <string.h> // strverscmp
 #endif
 
-#if defined(_NEWLIB_VERSION) && defined(__STRICT_ANSI__)
+#if _LIBCPP_LIBC_NEWLIB && defined(__STRICT_ANSI__)
 // Newlib provides this, but in the header it's under __STRICT_ANSI__
 extern "C" {
   int mkstemp(char*);
 }
 #endif
 
-inline
-std::string get_temp_file_name()
-{
+inline std::string get_temp_file_name() {
 #if defined(_WIN32)
-    while (true) {
-        char Name[] = "libcxx.XXXXXX";
-        if (_mktemp_s(Name, sizeof(Name)) != 0) abort();
-        int fd = _open(Name, _O_RDWR | _O_CREAT | _O_EXCL, _S_IREAD | _S_IWRITE);
-        if (fd != -1) {
-            _close(fd);
-            return Name;
-        }
-        if (errno == EEXIST)
-            continue;
-        abort();
+  while (true) {
+    char Name[] = "libcxx.XXXXXX";
+    if (_mktemp_s(Name, sizeof(Name)) != 0)
+      abort();
+    int fd = _open(Name, _O_RDWR | _O_CREAT | _O_EXCL, _S_IREAD | _S_IWRITE);
+    if (fd != -1) {
+      _close(fd);
+      return Name;
     }
+    if (errno == EEXIST)
+      continue;
+    abort();
+  }
+#elif !__has_include(<unistd.h>)
+  // Without `unistd.h` we cannot guarantee that the file is unused, however we
+  // can simply generate a good guess in the temporary folder and create it.
+  constexpr char chars[] = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  char Name[]            = "/tmp/libcxx.XXXXXX";
+  for (std::size_t i = 0; i < sizeof(Name); ++i)
+    if (Name[i] == 'X')
+      Name[i] = chars[rand() % strlen(chars)];
+  FILE* file = fopen(Name, "w");
+  if (!file)
+    abort();
+  if (fclose(file) == EOF)
+    abort();
+  return std::string(Name);
 #else
-    std::string Name = "libcxx.XXXXXX";
-    int FD = mkstemp(&Name[0]);
-    if (FD == -1) {
-        perror("mkstemp");
-        abort();
-    }
-    close(FD);
-    return Name;
+  std::string Name = "libcxx.XXXXXX";
+  int FD           = mkstemp(&Name[0]);
+  if (FD == -1) {
+    perror("mkstemp");
+    abort();
+  }
+  close(FD);
+  return Name;
 #endif
 }
-
-_LIBCPP_SUPPRESS_DEPRECATED_PUSH
-#ifdef _LIBCPP_HAS_OPEN_WITH_WCHAR
-inline
-std::wstring get_wide_temp_file_name()
-{
-    return std::wstring_convert<std::codecvt_utf8_utf16<wchar_t> >().from_bytes(
-        get_temp_file_name());
-}
-#endif // _LIBCPP_HAS_OPEN_WITH_WCHAR
-_LIBCPP_SUPPRESS_DEPRECATED_POP
 
 #if defined(_CS_GNU_LIBC_VERSION)
 inline bool glibc_version_less_than(char const* version) {
   std::string test_version = std::string("glibc ") + version;
 
-  size_t n = confstr(_CS_GNU_LIBC_VERSION, nullptr, (size_t)0);
+  std::size_t n = confstr(_CS_GNU_LIBC_VERSION, nullptr, (size_t)0);
   char *current_version = new char[n];
   confstr(_CS_GNU_LIBC_VERSION, current_version, n);
 

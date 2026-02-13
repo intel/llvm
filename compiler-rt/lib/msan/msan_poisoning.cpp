@@ -17,9 +17,9 @@
 #include "msan_thread.h"
 #include "sanitizer_common/sanitizer_common.h"
 
-DECLARE_REAL(void *, memset, void *dest, int c, uptr n)
-DECLARE_REAL(void *, memcpy, void *dest, const void *src, uptr n)
-DECLARE_REAL(void *, memmove, void *dest, const void *src, uptr n)
+DECLARE_REAL(void *, memset, void *dest, int c, SIZE_T n)
+DECLARE_REAL(void *, memcpy, void *dest, const void *src, SIZE_T n)
+DECLARE_REAL(void *, memmove, void *dest, const void *src, SIZE_T n)
 
 namespace __msan {
 
@@ -216,6 +216,13 @@ void SetShadow(const void *ptr, uptr size, u8 value) {
       }
       if (!MmapFixedSuperNoReserve(page_beg, page_end - page_beg))
         Die();
+
+      if (__msan_get_track_origins()) {
+        // No need to set origin for zero shadow, but we can release pages.
+        uptr origin_beg = RoundUpTo(MEM_TO_ORIGIN(ptr), PageSize);
+        if (!MmapFixedSuperNoReserve(origin_beg, page_end - page_beg))
+          Die();
+      }
     }
   }
 }

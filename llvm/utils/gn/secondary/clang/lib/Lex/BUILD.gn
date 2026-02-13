@@ -4,17 +4,20 @@ static_library("Lex") {
   deps = [
     "//clang/lib/Basic",
     "//llvm/lib/Support",
+    "//llvm/lib/TargetParser",
   ]
   sources = [
     "DependencyDirectivesScanner.cpp",
     "HeaderMap.cpp",
     "HeaderSearch.cpp",
     "InitHeaderSearch.cpp",
+    "LexHLSLRootSignature.cpp",
     "Lexer.cpp",
     "LiteralSupport.cpp",
     "MacroArgs.cpp",
     "MacroInfo.cpp",
     "ModuleMap.cpp",
+    "ModuleMapFile.cpp",
     "PPCaching.cpp",
     "PPCallbacks.cpp",
     "PPConditionalDirectiveRecord.cpp",

@@ -8,7 +8,6 @@
 
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringMap.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Demangle/Demangle.h"
@@ -20,6 +19,7 @@
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/WithColor.h"
+#include "llvm/TargetParser/Triple.h"
 
 using namespace llvm;
 using namespace llvm::object;
@@ -28,32 +28,30 @@ using namespace llvm::object;
 namespace {
 enum ID {
   OPT_INVALID = 0, // This is not an option ID.
-#define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
-               HELPTEXT, METAVAR, VALUES)                                      \
-  OPT_##ID,
+#define OPTION(...) LLVM_MAKE_OPT_ID(__VA_ARGS__),
 #include "Opts.inc"
 #undef OPTION
 };
 
-#define PREFIX(NAME, VALUE) const char *const NAME[] = VALUE;
+#define OPTTABLE_STR_TABLE_CODE
 #include "Opts.inc"
-#undef PREFIX
+#undef OPTTABLE_STR_TABLE_CODE
 
-static const opt::OptTable::Info InfoTable[] = {
-#define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
-               HELPTEXT, METAVAR, VALUES)                                      \
-  {                                                                            \
-      PREFIX,      NAME,      HELPTEXT,                                        \
-      METAVAR,     OPT_##ID,  opt::Option::KIND##Class,                        \
-      PARAM,       FLAGS,     OPT_##GROUP,                                     \
-      OPT_##ALIAS, ALIASARGS, VALUES},
+#define OPTTABLE_PREFIXES_TABLE_CODE
+#include "Opts.inc"
+#undef OPTTABLE_PREFIXES_TABLE_CODE
+
+using namespace llvm::opt;
+static constexpr opt::OptTable::Info InfoTable[] = {
+#define OPTION(...) LLVM_CONSTRUCT_OPT_INFO(__VA_ARGS__),
 #include "Opts.inc"
 #undef OPTION
 };
 
-class TLICheckerOptTable : public opt::OptTable {
+class TLICheckerOptTable : public opt::GenericOptTable {
 public:
-  TLICheckerOptTable() : OptTable(InfoTable) {}
+  TLICheckerOptTable()
+      : GenericOptTable(OptionStrTable, OptionPrefixesTable, InfoTable) {}
 };
 } // end anonymous namespace
 
@@ -100,55 +98,41 @@ static void reportArchiveChildIssue(const object::Archive::Child &C, int Index,
 }
 
 // Return Name, and if Name is mangled, append "aka" and the demangled name.
-static std::string getPrintableName(StringRef Name) {
-  std::string OutputName = "'";
-  OutputName += Name;
-  OutputName += "'";
-  std::string DemangledName(demangle(Name.str()));
-  if (Name != DemangledName) {
-    OutputName += " aka ";
-    OutputName += DemangledName;
-  }
-  return OutputName;
+static raw_ostream &printPrintableName(raw_ostream &OS, StringRef Name) {
+  OS << '\'' << Name << '\'';
+
+  std::string DemangledName(demangle(Name));
+  if (Name != DemangledName)
+    OS << " aka " << DemangledName;
+  return OS;
 }
 
-// Store all the names that TargetLibraryInfo knows about; the bool indicates
-// whether TLI has it marked as "available" for the target of interest.
-// This is a vector to preserve the sorted order for better reporting.
-struct TLINameList : std::vector<std::pair<StringRef, bool>> {
-  // Record all the TLI info in the vector.
-  void initialize(StringRef TargetTriple);
-  // Print out what we found.
-  void dump();
-};
-static TLINameList TLINames;
+static void reportNumberOfEntries(const TargetLibraryInfo &TLI,
+                                  StringRef TargetTriple) {
+  unsigned NumAvailable = 0;
 
-void TLINameList::initialize(StringRef TargetTriple) {
-  Triple T(TargetTriple);
-  TargetLibraryInfoImpl TLII(T);
-  TargetLibraryInfo TLI(TLII);
-
-  reserve(LibFunc::NumLibFuncs);
-  size_t NumAvailable = 0;
-  for (unsigned FI = 0; FI != LibFunc::NumLibFuncs; ++FI) {
-    LibFunc LF = (LibFunc)FI;
-    bool Available = TLI.has(LF);
-    // getName returns names only for available funcs.
-    TLII.setAvailable(LF);
-    emplace_back(TLI.getName(LF), Available);
-    if (Available)
-      ++NumAvailable;
-  }
-  outs() << "TLI knows " << LibFunc::NumLibFuncs << " symbols, " << NumAvailable
-         << " available for '" << TargetTriple << "'\n";
-}
-
-void TLINameList::dump() {
   // Assume this gets called after initialize(), so we have the above line of
   // output as a header.  So, for example, no need to repeat the triple.
-  for (auto &TLIName : TLINames) {
-    outs() << (TLIName.second ? "    " : "not ")
-           << "available: " << getPrintableName(TLIName.first) << '\n';
+  for (unsigned FI = LibFunc::Begin_LibFunc; FI != LibFunc::End_LibFunc; ++FI) {
+    if (TLI.has(static_cast<LibFunc>(FI)))
+      ++NumAvailable;
+  }
+
+  outs() << "TLI knows " << (LibFunc::End_LibFunc - LibFunc::Begin_LibFunc)
+         << " symbols, " << NumAvailable << " available for '" << TargetTriple
+         << "'\n";
+}
+
+static void dumpTLIEntries(const TargetLibraryInfo &TLI) {
+  // Assume this gets called after initialize(), so we have the above line of
+  // output as a header.  So, for example, no need to repeat the triple.
+  for (unsigned FI = LibFunc::Begin_LibFunc; FI != LibFunc::End_LibFunc; ++FI) {
+    LibFunc LF = static_cast<LibFunc>(FI);
+    bool IsAvailable = TLI.has(LF);
+    StringRef FuncName = TargetLibraryInfo::getStandardName(LF);
+
+    outs() << (IsAvailable ? "    " : "not ") << "available: ";
+    printPrintableName(outs(), FuncName) << '\n';
   }
 }
 
@@ -170,8 +154,12 @@ void SDKNameMap::maybeInsertSymbol(const SymbolRef &S, const ObjectFile &O) {
   uint32_t Flags = unwrapIgnoreError(S.getFlags());
   section_iterator Section = unwrapIgnoreError(S.getSection(),
                                                /*Default=*/O.section_end());
-  if (Type == SymbolRef::ST_Function && (Flags & SymbolRef::SF_Global) &&
-      Section != O.section_end()) {
+  bool IsRegularFunction = Type == SymbolRef::ST_Function &&
+                           (Flags & SymbolRef::SF_Global) &&
+                           Section != O.section_end();
+  bool IsIFunc =
+      Type == SymbolRef::ST_Other && (Flags & SymbolRef::SF_Indirect);
+  if (IsRegularFunction || IsIFunc) {
     StringRef Name = unwrapIgnoreError(S.getName());
     insert({ Name, true });
   }
@@ -273,11 +261,16 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
-  TLINames.initialize(Args.getLastArgValue(OPT_triple_EQ));
+  StringRef TripleStr = Args.getLastArgValue(OPT_triple_EQ);
+  Triple TargetTriple(TripleStr);
+  TargetLibraryInfoImpl TLII(TargetTriple);
+  TargetLibraryInfo TLI(TLII);
+
+  reportNumberOfEntries(TLI, TripleStr);
 
   // --dump-tli doesn't require any input files.
   if (Args.hasArg(OPT_dump_tli)) {
-    TLINames.dump();
+    dumpTLIEntries(TLI);
     return 0;
   }
 
@@ -323,9 +316,14 @@ int main(int argc, char *argv[]) {
     unsigned TLIdoesntSDKdoes = 0;
     unsigned TLIandSDKboth = 0;
     unsigned TLIandSDKneither = 0;
-    for (auto &TLIName : TLINames) {
-      bool TLIHas = TLIName.second;
-      bool SDKHas = SDKNames.count(TLIName.first) == 1;
+
+    for (unsigned FI = LibFunc::Begin_LibFunc; FI != LibFunc::End_LibFunc;
+         ++FI) {
+      LibFunc LF = static_cast<LibFunc>(FI);
+
+      StringRef TLIName = TLI.getStandardName(LF);
+      bool TLIHas = TLI.has(LF);
+      bool SDKHas = SDKNames.count(TLIName) == 1;
       int Which = int(TLIHas) * 2 + int(SDKHas);
       switch (Which) {
       case 0: ++TLIandSDKneither; break;
@@ -340,14 +338,15 @@ int main(int argc, char *argv[]) {
         constexpr char YesNo[2][4] = {"no ", "yes"};
         constexpr char Indicator[4][3] = {"!!", ">>", "<<", "=="};
         outs() << Indicator[Which] << " TLI " << YesNo[TLIHas] << " SDK "
-               << YesNo[SDKHas] << ": " << getPrintableName(TLIName.first)
-               << '\n';
+               << YesNo[SDKHas] << ": ";
+        printPrintableName(outs(), TLIName);
+        outs() << '\n';
       }
     }
 
     assert(TLIandSDKboth + TLIandSDKneither + TLIdoesSDKdoesnt +
                TLIdoesntSDKdoes ==
-           LibFunc::NumLibFuncs);
+           LibFunc::End_LibFunc - LibFunc::Begin_LibFunc);
     (void) TLIandSDKneither;
     outs() << "<< Total TLI yes SDK no:  " << TLIdoesSDKdoesnt
            << "\n>> Total TLI no  SDK yes: " << TLIdoesntSDKdoes

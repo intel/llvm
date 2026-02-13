@@ -17,9 +17,11 @@
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Support/Compiler.h"
 
 namespace llvm {
 
@@ -52,6 +54,9 @@ struct MachineIRBuilderState {
   DebugLoc DL;
   /// PC sections metadata to be set to any instruction we create.
   MDNode *PCSections = nullptr;
+  /// MMRA Metadata to be set on any instruction we create.
+  MDNode *MMRA = nullptr;
+  Value *DS = nullptr;
 
   /// \name Fields describing the insertion point.
   /// @{
@@ -69,15 +74,20 @@ class DstOp {
     LLT LLTTy;
     Register Reg;
     const TargetRegisterClass *RC;
+    MachineRegisterInfo::VRegAttrs Attrs;
   };
 
 public:
-  enum class DstType { Ty_LLT, Ty_Reg, Ty_RC };
+  enum class DstType { Ty_LLT, Ty_Reg, Ty_RC, Ty_VRegAttrs };
   DstOp(unsigned R) : Reg(R), Ty(DstType::Ty_Reg) {}
   DstOp(Register R) : Reg(R), Ty(DstType::Ty_Reg) {}
   DstOp(const MachineOperand &Op) : Reg(Op.getReg()), Ty(DstType::Ty_Reg) {}
   DstOp(const LLT T) : LLTTy(T), Ty(DstType::Ty_LLT) {}
   DstOp(const TargetRegisterClass *TRC) : RC(TRC), Ty(DstType::Ty_RC) {}
+  DstOp(MachineRegisterInfo::VRegAttrs Attrs)
+      : Attrs(Attrs), Ty(DstType::Ty_VRegAttrs) {}
+  DstOp(RegClassOrRegBank RCOrRB, LLT Ty)
+      : Attrs({RCOrRB, Ty}), Ty(DstType::Ty_VRegAttrs) {}
 
   void addDefToMIB(MachineRegisterInfo &MRI, MachineInstrBuilder &MIB) const {
     switch (Ty) {
@@ -90,6 +100,9 @@ public:
     case DstType::Ty_RC:
       MIB.addDef(MRI.createVirtualRegister(RC));
       break;
+    case DstType::Ty_VRegAttrs:
+      MIB.addDef(MRI.createVirtualRegister(Attrs));
+      break;
     }
   }
 
@@ -101,6 +114,8 @@ public:
       return LLTTy;
     case DstType::Ty_Reg:
       return MRI.getType(Reg);
+    case DstType::Ty_VRegAttrs:
+      return Attrs.Ty;
     }
     llvm_unreachable("Unrecognised DstOp::DstType enum");
   }
@@ -111,12 +126,13 @@ public:
   }
 
   const TargetRegisterClass *getRegClass() const {
-    switch (Ty) {
-    case DstType::Ty_RC:
-      return RC;
-    default:
-      llvm_unreachable("Not a RC Operand");
-    }
+    assert(Ty == DstType::Ty_RC && "Not a RC Operand");
+    return RC;
+  }
+
+  MachineRegisterInfo::VRegAttrs getVRegAttrs() const {
+    assert(Ty == DstType::Ty_VRegAttrs && "Not a VRegAttrs Operand");
+    return Attrs;
   }
 
   DstType getDstOpKind() const { return Ty; }
@@ -217,10 +233,12 @@ private:
 /// Helper class to build MachineInstr.
 /// It keeps internally the insertion point and debug location for all
 /// the new instructions we want to create.
-/// This information can be modify via the related setters.
-class MachineIRBuilder {
+/// This information can be modified via the related setters.
+class LLVM_ABI MachineIRBuilder {
 
   MachineIRBuilderState State;
+
+  unsigned getOpcodeForMerge(const DstOp &DstOp, ArrayRef<SrcOp> SrcOps) const;
 
 protected:
   void validateTruncExt(const LLT Dst, const LLT Src, bool IsExtend);
@@ -279,7 +297,11 @@ public:
   }
 
   const DataLayout &getDataLayout() const {
-    return getMF().getFunction().getParent()->getDataLayout();
+    return getMF().getFunction().getDataLayout();
+  }
+
+  LLVMContext &getContext() const {
+    return getMF().getFunction().getContext();
   }
 
   /// Getter for DebugLoc
@@ -291,6 +313,9 @@ public:
 
   /// Getter for the State
   MachineIRBuilderState &getState() { return State; }
+
+  /// Setter for the State
+  void setState(const MachineIRBuilderState &NewState) { State = NewState; }
 
   /// Getter for the basic block we currently build.
   const MachineBasicBlock &getMBB() const {
@@ -344,6 +369,8 @@ public:
     setMBB(*MI.getParent());
     State.II = MI.getIterator();
     setPCSections(MI.getPCSections());
+    setMMRAMetadata(MI.getMMRAMetadata());
+    setDeactivationSymbol(MI.getDeactivationSymbol());
   }
   /// @}
 
@@ -358,7 +385,11 @@ public:
     State.Observer = &Observer;
   }
 
+  GISelChangeObserver *getObserver() { return State.Observer; }
+
   void stopObservingChanges() { State.Observer = nullptr; }
+
+  bool isObservingChanges() const { return State.Observer != nullptr; }
   /// @}
 
   /// Set the debug location to \p DL for all the next build instructions.
@@ -372,6 +403,15 @@ public:
 
   /// Get the current instruction's PC sections metadata.
   MDNode *getPCSections() { return State.PCSections; }
+
+  /// Set the PC sections metadata to \p MD for all the next build instructions.
+  void setMMRAMetadata(MDNode *MMRA) { State.MMRA = MMRA; }
+
+  Value *getDeactivationSymbol() { return State.DS; }
+  void setDeactivationSymbol(Value *DS) { State.DS = DS; }
+
+  /// Get the current instruction's MMRA metadata.
+  MDNode *getMMRAMetadata() { return State.MMRA; }
 
   /// Build and insert <empty> = \p Opcode <empty>.
   /// The insertion point is the one set by the last call of either
@@ -456,6 +496,17 @@ public:
   /// \return a MachineInstrBuilder for the newly created instruction.
   MachineInstrBuilder buildGlobalValue(const DstOp &Res, const GlobalValue *GV);
 
+  /// Build and insert \p Res = G_CONSTANT_POOL \p Idx
+  ///
+  /// G_CONSTANT_POOL materializes the address of an object in the constant
+  /// pool.
+  ///
+  /// \pre setBasicBlock or setMI must have been called.
+  /// \pre \p Res must be a generic virtual register with pointer type.
+  ///
+  /// \return a MachineInstrBuilder for the newly created instruction.
+  MachineInstrBuilder buildConstantPool(const DstOp &Res, unsigned Idx);
+
   /// Build and insert \p Res = G_PTR_ADD \p Op0, \p Op1
   ///
   /// G_PTR_ADD adds \p Op1 addressible units to the pointer specified by \p Op0,
@@ -469,7 +520,23 @@ public:
   ///
   /// \return a MachineInstrBuilder for the newly created instruction.
   MachineInstrBuilder buildPtrAdd(const DstOp &Res, const SrcOp &Op0,
-                                  const SrcOp &Op1);
+                                  const SrcOp &Op1,
+                                  std::optional<unsigned> Flags = std::nullopt);
+
+  /// Build and insert an instruction with appropriate flags for addressing some
+  /// offset of an object, i.e.: \p Res = nuw inbounds G_PTR_ADD \p Op0, \p Op1
+  /// The value of \p Op0 must be a pointer into or just after an object, adding
+  /// the value of \p Op1 to it must yield to a pointer into or just after the
+  /// same object.
+  ///
+  /// \pre setBasicBlock or setMI must have been called.
+  /// \pre \p Res and \p Op0 must be generic virtual registers with pointer
+  ///      type.
+  /// \pre \p Op1 must be a generic virtual register with scalar type.
+  ///
+  /// \return a MachineInstrBuilder for the newly created instruction.
+  MachineInstrBuilder buildObjectPtrOffset(const DstOp &Res, const SrcOp &Op0,
+                                           const SrcOp &Op1);
 
   /// Materialize and insert \p Res = G_PTR_ADD \p Op0, (G_CONSTANT \p Value)
   ///
@@ -487,9 +554,29 @@ public:
   ///       type as \p Op0 or \p Op0 itself.
   ///
   /// \return a MachineInstrBuilder for the newly created instruction.
-  Optional<MachineInstrBuilder> materializePtrAdd(Register &Res, Register Op0,
-                                                  const LLT ValueTy,
-                                                  uint64_t Value);
+  std::optional<MachineInstrBuilder>
+  materializePtrAdd(Register &Res, Register Op0, const LLT ValueTy,
+                    uint64_t Value,
+                    std::optional<unsigned> Flags = std::nullopt);
+
+  /// Materialize and insert an instruction with appropriate flags for
+  /// addressing some offset of an object, i.e.:
+  ///   \p Res = nuw inbounds G_PTR_ADD \p Op0, (G_CONSTANT \p Value)
+  /// The value of \p Op0 must be a pointer into or just after an object, adding
+  /// \p Value to it must yield to a pointer into or just after the same object.
+  ///
+  /// \pre setBasicBlock or setMI must have been called.
+  /// \pre \p Op0 must be a generic virtual register with pointer type.
+  /// \pre \p ValueTy must be a scalar type.
+  /// \pre \p Res must be 0. This is to detect confusion between
+  ///      materializeObjectPtrOffset() and buildObjectPtrOffset().
+  /// \post \p Res will either be a new generic virtual register of the same
+  ///       type as \p Op0 or \p Op0 itself.
+  ///
+  /// \return a MachineInstrBuilder for the newly created instruction.
+  std::optional<MachineInstrBuilder>
+  materializeObjectPtrOffset(Register &Res, Register Op0, const LLT ValueTy,
+                             uint64_t Value);
 
   /// Build and insert \p Res = G_PTRMASK \p Op0, \p Op1
   MachineInstrBuilder buildPtrMask(const DstOp &Res, const SrcOp &Op0,
@@ -658,10 +745,9 @@ public:
 
   /// Build and insert \p Res = G_FPEXT \p Op
   MachineInstrBuilder buildFPExt(const DstOp &Res, const SrcOp &Op,
-                                 Optional<unsigned> Flags = None) {
+                                 std::optional<unsigned> Flags = std::nullopt) {
     return buildInstr(TargetOpcode::G_FPEXT, {Res}, {Op}, Flags);
   }
-
 
   /// Build and insert a G_PTRTOINT instruction.
   MachineInstrBuilder buildPtrToInt(const DstOp &Dst, const SrcOp &Src) {
@@ -711,11 +797,12 @@ public:
   /// \pre \p Op must be smaller than \p Res
   ///
   /// \return The newly created instruction.
-  MachineInstrBuilder buildZExt(const DstOp &Res, const SrcOp &Op);
+  MachineInstrBuilder buildZExt(const DstOp &Res, const SrcOp &Op,
+                                std::optional<unsigned> Flags = std::nullopt);
 
   /// Build and insert \p Res = G_SEXT \p Op, \p Res = G_TRUNC \p Op, or
   /// \p Res = COPY \p Op depending on the differing sizes of \p Res and \p Op.
-  ///  ///
+  ///
   /// \pre setBasicBlock or setMI must have been called.
   /// \pre \p Res must be a generic virtual register with scalar or vector type.
   /// \pre \p Op must be a generic virtual register with scalar or vector type.
@@ -725,7 +812,7 @@ public:
 
   /// Build and insert \p Res = G_ZEXT \p Op, \p Res = G_TRUNC \p Op, or
   /// \p Res = COPY \p Op depending on the differing sizes of \p Res and \p Op.
-  ///  ///
+  ///
   /// \pre setBasicBlock or setMI must have been called.
   /// \pre \p Res must be a generic virtual register with scalar or vector type.
   /// \pre \p Op must be a generic virtual register with scalar or vector type.
@@ -735,7 +822,7 @@ public:
 
   // Build and insert \p Res = G_ANYEXT \p Op, \p Res = G_TRUNC \p Op, or
   /// \p Res = COPY \p Op depending on the differing sizes of \p Res and \p Op.
-  ///  ///
+  ///
   /// \pre setBasicBlock or setMI must have been called.
   /// \pre \p Res must be a generic virtual register with scalar or vector type.
   /// \pre \p Op must be a generic virtual register with scalar or vector type.
@@ -746,7 +833,7 @@ public:
   /// Build and insert \p Res = \p ExtOpc, \p Res = G_TRUNC \p
   /// Op, or \p Res = COPY \p Op depending on the differing sizes of \p Res and
   /// \p Op.
-  ///  ///
+  ///
   /// \pre setBasicBlock or setMI must have been called.
   /// \pre \p Res must be a generic virtual register with scalar or vector type.
   /// \pre \p Op must be a generic virtual register with scalar or vector type.
@@ -760,6 +847,48 @@ public:
   /// emulated using G_AND.
   MachineInstrBuilder buildZExtInReg(const DstOp &Res, const SrcOp &Op,
                                      int64_t ImmOp);
+
+  /// Build and insert \p Res = \p G_TRUNC_SSAT_S \p Op
+  ///
+  /// G_TRUNC_SSAT_S truncates the signed input, \p Op, to a signed result with
+  /// saturation.
+  ///
+  /// \pre setBasicBlock or setMI must have been called.
+  /// \pre \p Res must be a generic virtual register with scalar or vector type.
+  /// \pre \p Op must be a generic virtual register with scalar or vector type.
+  ///
+  /// \return The newly created instruction.
+  MachineInstrBuilder buildTruncSSatS(const DstOp &Res, const SrcOp &Op) {
+    return buildInstr(TargetOpcode::G_TRUNC_SSAT_S, {Res}, {Op});
+  }
+
+  /// Build and insert \p Res = \p G_TRUNC_SSAT_U \p Op
+  ///
+  /// G_TRUNC_SSAT_U truncates the signed input, \p Op, to an unsigned result
+  /// with saturation.
+  ///
+  /// \pre setBasicBlock or setMI must have been called.
+  /// \pre \p Res must be a generic virtual register with scalar or vector type.
+  /// \pre \p Op must be a generic virtual register with scalar or vector type.
+  ///
+  /// \return The newly created instruction.
+  MachineInstrBuilder buildTruncSSatU(const DstOp &Res, const SrcOp &Op) {
+    return buildInstr(TargetOpcode::G_TRUNC_SSAT_U, {Res}, {Op});
+  }
+
+  /// Build and insert \p Res = \p G_TRUNC_USAT_U \p Op
+  ///
+  /// G_TRUNC_USAT_U truncates the unsigned input, \p Op, to an unsigned result
+  /// with saturation.
+  ///
+  /// \pre setBasicBlock or setMI must have been called.
+  /// \pre \p Res must be a generic virtual register with scalar or vector type.
+  /// \pre \p Op must be a generic virtual register with scalar or vector type.
+  ///
+  /// \return The newly created instruction.
+  MachineInstrBuilder buildTruncUSatU(const DstOp &Res, const SrcOp &Op) {
+    return buildInstr(TargetOpcode::G_TRUNC_USAT_U, {Res}, {Op});
+  }
 
   /// Build and insert an appropriate cast between two registers of equal size.
   MachineInstrBuilder buildCast(const DstOp &Dst, const SrcOp &Src);
@@ -804,7 +933,7 @@ public:
   ///
   /// \pre setBasicBlock or setMI must have been called.
   /// \pre \p TablePtr must be a generic virtual register with pointer type.
-  /// \pre \p JTI must be be a jump table index.
+  /// \pre \p JTI must be a jump table index.
   /// \pre \p IndexReg must be a generic virtual register with pointer type.
   ///
   /// \return a MachineInstrBuilder for the newly created instruction.
@@ -850,6 +979,13 @@ public:
   MachineInstrBuilder buildFConstant(const DstOp &Res, double Val);
   MachineInstrBuilder buildFConstant(const DstOp &Res, const APFloat &Val);
 
+  /// Build and insert G_PTRAUTH_GLOBAL_VALUE
+  ///
+  /// \return a MachineInstrBuilder for the newly created instruction.
+  MachineInstrBuilder buildConstantPtrAuth(const DstOp &Res,
+                                           const ConstantPtrAuth *CPA,
+                                           Register Addr, Register AddrDisc);
+
   /// Build and insert \p Res = COPY Op
   ///
   /// Register-to-register COPY sets \p Res to \p Op.
@@ -863,8 +999,8 @@ public:
   /// Build and insert G_ASSERT_SEXT, G_ASSERT_ZEXT, or G_ASSERT_ALIGN
   ///
   /// \return a MachineInstrBuilder for the newly created instruction.
-  MachineInstrBuilder buildAssertOp(unsigned Opc, const DstOp &Res, const SrcOp &Op,
-				    unsigned Val) {
+  MachineInstrBuilder buildAssertInstr(unsigned Opc, const DstOp &Res,
+                                       const SrcOp &Op, unsigned Val) {
     return buildInstr(Opc, Res, Op).addImm(Val);
   }
 
@@ -873,7 +1009,7 @@ public:
   /// \return a MachineInstrBuilder for the newly created instruction.
   MachineInstrBuilder buildAssertZExt(const DstOp &Res, const SrcOp &Op,
                                       unsigned Size) {
-    return buildAssertOp(TargetOpcode::G_ASSERT_ZEXT, Res, Op, Size);
+    return buildAssertInstr(TargetOpcode::G_ASSERT_ZEXT, Res, Op, Size);
   }
 
   /// Build and insert \p Res = G_ASSERT_SEXT Op, Size
@@ -881,7 +1017,7 @@ public:
   /// \return a MachineInstrBuilder for the newly created instruction.
   MachineInstrBuilder buildAssertSExt(const DstOp &Res, const SrcOp &Op,
                                       unsigned Size) {
-    return buildAssertOp(TargetOpcode::G_ASSERT_SEXT, Res, Op, Size);
+    return buildAssertInstr(TargetOpcode::G_ASSERT_SEXT, Res, Op, Size);
   }
 
   /// Build and insert \p Res = G_ASSERT_ALIGN Op, AlignVal
@@ -889,7 +1025,8 @@ public:
   /// \return a MachineInstrBuilder for the newly created instruction.
   MachineInstrBuilder buildAssertAlign(const DstOp &Res, const SrcOp &Op,
 				       Align AlignVal) {
-    return buildAssertOp(TargetOpcode::G_ASSERT_ALIGN, Res, Op, AlignVal.value());
+    return buildAssertInstr(TargetOpcode::G_ASSERT_ALIGN, Res, Op,
+                            AlignVal.value());
   }
 
   /// Build and insert `Res = G_LOAD Addr, MMO`.
@@ -968,7 +1105,8 @@ public:
   /// Build and insert \p Res = G_MERGE_VALUES \p Op0, ...
   ///
   /// G_MERGE_VALUES combines the input elements contiguously into a larger
-  /// register.
+  /// register. It should only be used when the destination register is not a
+  /// vector.
   ///
   /// \pre setBasicBlock or setMI must have been called.
   /// \pre The entire register \p Res (and no more) must be covered by the input
@@ -976,9 +1114,30 @@ public:
   /// \pre The type of all \p Ops registers must be identical.
   ///
   /// \return a MachineInstrBuilder for the newly created instruction.
-  MachineInstrBuilder buildMerge(const DstOp &Res, ArrayRef<Register> Ops);
-  MachineInstrBuilder buildMerge(const DstOp &Res,
-                                 std::initializer_list<SrcOp> Ops);
+  MachineInstrBuilder buildMergeValues(const DstOp &Res,
+                                       ArrayRef<Register> Ops);
+
+  /// Build and insert \p Res = G_MERGE_VALUES \p Op0, ...
+  ///               or \p Res = G_BUILD_VECTOR \p Op0, ...
+  ///               or \p Res = G_CONCAT_VECTORS \p Op0, ...
+  ///
+  /// G_MERGE_VALUES combines the input elements contiguously into a larger
+  /// register. It is used when the destination register is not a vector.
+  /// G_BUILD_VECTOR combines scalar inputs into a vector register.
+  /// G_CONCAT_VECTORS combines vector inputs into a vector register.
+  ///
+  /// \pre setBasicBlock or setMI must have been called.
+  /// \pre The entire register \p Res (and no more) must be covered by the input
+  ///      registers.
+  /// \pre The type of all \p Ops registers must be identical.
+  ///
+  /// \return a MachineInstrBuilder for the newly created instruction. The
+  ///         opcode of the new instruction will depend on the types of both
+  ///         the destination and the sources.
+  MachineInstrBuilder buildMergeLikeInstr(const DstOp &Res,
+                                          ArrayRef<Register> Ops);
+  MachineInstrBuilder buildMergeLikeInstr(const DstOp &Res,
+                                          std::initializer_list<SrcOp> Ops);
 
   /// Build and insert \p Res0, ... = G_UNMERGE_VALUES \p Op
   ///
@@ -995,6 +1154,11 @@ public:
 
   /// Build and insert an unmerge of \p Res sized pieces to cover \p Op
   MachineInstrBuilder buildUnmerge(LLT Res, const SrcOp &Op);
+
+  /// Build and insert an unmerge of pieces with \p Attrs register attributes to
+  /// cover \p Op
+  MachineInstrBuilder buildUnmerge(MachineRegisterInfo::VRegAttrs Attrs,
+                                   const SrcOp &Op);
 
   /// Build and insert \p Res = G_BUILD_VECTOR \p Op0, ...
   ///
@@ -1015,8 +1179,7 @@ public:
 
   /// Build and insert \p Res = G_BUILD_VECTOR with \p Src replicated to fill
   /// the number of elements
-  MachineInstrBuilder buildSplatVector(const DstOp &Res,
-                                       const SrcOp &Src);
+  MachineInstrBuilder buildSplatBuildVector(const DstOp &Res, const SrcOp &Src);
 
   /// Build and insert \p Res = G_BUILD_VECTOR_TRUNC \p Op0, ...
   ///
@@ -1051,6 +1214,15 @@ public:
   MachineInstrBuilder buildShuffleVector(const DstOp &Res, const SrcOp &Src1,
                                          const SrcOp &Src2, ArrayRef<int> Mask);
 
+  /// Build and insert \p Res = G_SPLAT_VECTOR \p Val
+  ///
+  /// \pre setBasicBlock or setMI must have been called.
+  /// \pre \p Res must be a generic virtual register with vector type.
+  /// \pre \p Val must be a generic virtual register with scalar type.
+  ///
+  /// \return a MachineInstrBuilder for the newly created instruction.
+  MachineInstrBuilder buildSplatVector(const DstOp &Res, const SrcOp &Val);
+
   /// Build and insert \p Res = G_CONCAT_VECTORS \p Op0, ...
   ///
   /// G_CONCAT_VECTORS creates a vector from the concatenation of 2 or more
@@ -1065,23 +1237,91 @@ public:
   MachineInstrBuilder buildConcatVectors(const DstOp &Res,
                                          ArrayRef<Register> Ops);
 
+  /// Build and insert `Res = G_INSERT_SUBVECTOR Src0, Src1, Idx`.
+  ///
+  /// \pre setBasicBlock or setMI must have been called.
+  /// \pre \p Res, \p Src0, and \p Src1 must be generic virtual registers with
+  /// vector type.
+  ///
+  /// \return a MachineInstrBuilder for the newly created instruction.
+  MachineInstrBuilder buildInsertSubvector(const DstOp &Res, const SrcOp &Src0,
+                                           const SrcOp &Src1, unsigned Index);
+
+  /// Build and insert `Res = G_EXTRACT_SUBVECTOR Src, Idx0`.
+  ///
+  /// \pre setBasicBlock or setMI must have been called.
+  /// \pre \p Res and \p Src must be generic virtual registers with vector type.
+  ///
+  /// \return a MachineInstrBuilder for the newly created instruction.
+  MachineInstrBuilder buildExtractSubvector(const DstOp &Res, const SrcOp &Src,
+                                            unsigned Index);
+
   MachineInstrBuilder buildInsert(const DstOp &Res, const SrcOp &Src,
                                   const SrcOp &Op, unsigned Index);
 
-  /// Build and insert either a G_INTRINSIC (if \p HasSideEffects is false) or
-  /// G_INTRINSIC_W_SIDE_EFFECTS instruction. Its first operand will be the
-  /// result register definition unless \p Reg is NoReg (== 0). The second
-  /// operand will be the intrinsic's ID.
+  /// Build and insert \p Res = G_STEP_VECTOR \p Step
   ///
-  /// Callers are expected to add the required definitions and uses afterwards.
+  /// G_STEP_VECTOR returns a scalable vector of linear sequence of step \p Step
+  /// into \p Res.
+  ///
+  /// \pre setBasicBlock or setMI must have been called.
+  /// \pre \p Res must be a generic virtual register with scalable vector type.
+  ///
+  /// \return a MachineInstrBuilder for the newly created instruction.
+  MachineInstrBuilder buildStepVector(const DstOp &Res, unsigned Step);
+
+  /// Build and insert \p Res = G_VSCALE \p MinElts
+  ///
+  /// G_VSCALE puts the value of the runtime vscale multiplied by \p MinElts
+  /// into \p Res.
+  ///
+  /// \pre setBasicBlock or setMI must have been called.
+  /// \pre \p Res must be a generic virtual register with scalar type.
+  ///
+  /// \return a MachineInstrBuilder for the newly created instruction.
+  MachineInstrBuilder buildVScale(const DstOp &Res, unsigned MinElts);
+
+  /// Build and insert \p Res = G_VSCALE \p MinElts
+  ///
+  /// G_VSCALE puts the value of the runtime vscale multiplied by \p MinElts
+  /// into \p Res.
+  ///
+  /// \pre setBasicBlock or setMI must have been called.
+  /// \pre \p Res must be a generic virtual register with scalar type.
+  ///
+  /// \return a MachineInstrBuilder for the newly created instruction.
+  MachineInstrBuilder buildVScale(const DstOp &Res, const ConstantInt &MinElts);
+
+  /// Build and insert \p Res = G_VSCALE \p MinElts
+  ///
+  /// G_VSCALE puts the value of the runtime vscale multiplied by \p MinElts
+  /// into \p Res.
+  ///
+  /// \pre setBasicBlock or setMI must have been called.
+  /// \pre \p Res must be a generic virtual register with scalar type.
+  ///
+  /// \return a MachineInstrBuilder for the newly created instruction.
+  MachineInstrBuilder buildVScale(const DstOp &Res, const APInt &MinElts);
+
+  /// Build and insert a G_INTRINSIC instruction.
+  ///
+  /// There are four different opcodes based on combinations of whether the
+  /// intrinsic has side effects and whether it is convergent. These properties
+  /// can be specified as explicit parameters, or else they are retrieved from
+  /// the MCID for the intrinsic.
+  ///
+  /// The parameter \p Res provides the Registers or MOs that will be defined by
+  /// this instruction.
   ///
   /// \pre setBasicBlock or setMI must have been called.
   ///
   /// \return a MachineInstrBuilder for the newly created instruction.
   MachineInstrBuilder buildIntrinsic(Intrinsic::ID ID, ArrayRef<Register> Res,
-                                     bool HasSideEffects);
+                                     bool HasSideEffects, bool isConvergent);
+  MachineInstrBuilder buildIntrinsic(Intrinsic::ID ID, ArrayRef<Register> Res);
   MachineInstrBuilder buildIntrinsic(Intrinsic::ID ID, ArrayRef<DstOp> Res,
-                                     bool HasSideEffects);
+                                     bool HasSideEffects, bool isConvergent);
+  MachineInstrBuilder buildIntrinsic(Intrinsic::ID ID, ArrayRef<DstOp> Res);
 
   /// Build and insert \p Res = G_FPTRUNC \p Op
   ///
@@ -1093,8 +1333,9 @@ public:
   /// \pre \p Res must be smaller than \p Op
   ///
   /// \return The newly created instruction.
-  MachineInstrBuilder buildFPTrunc(const DstOp &Res, const SrcOp &Op,
-                                   Optional<unsigned> Flags = None);
+  MachineInstrBuilder
+  buildFPTrunc(const DstOp &Res, const SrcOp &Op,
+               std::optional<unsigned> Flags = std::nullopt);
 
   /// Build and insert \p Res = G_TRUNC \p Op
   ///
@@ -1107,7 +1348,8 @@ public:
   /// \pre \p Res must be smaller than \p Op
   ///
   /// \return The newly created instruction.
-  MachineInstrBuilder buildTrunc(const DstOp &Res, const SrcOp &Op);
+  MachineInstrBuilder buildTrunc(const DstOp &Res, const SrcOp &Op,
+                                 std::optional<unsigned> Flags = std::nullopt);
 
   /// Build and insert a \p Res = G_ICMP \p Pred, \p Op0, \p Op1
   ///
@@ -1122,7 +1364,8 @@ public:
   ///
   /// \return a MachineInstrBuilder for the newly created instruction.
   MachineInstrBuilder buildICmp(CmpInst::Predicate Pred, const DstOp &Res,
-                                const SrcOp &Op0, const SrcOp &Op1);
+                                const SrcOp &Op0, const SrcOp &Op1,
+                                std::optional<unsigned> Flags = std::nullopt);
 
   /// Build and insert a \p Res = G_FCMP \p Pred\p Op0, \p Op1
   ///
@@ -1138,7 +1381,42 @@ public:
   /// \return a MachineInstrBuilder for the newly created instruction.
   MachineInstrBuilder buildFCmp(CmpInst::Predicate Pred, const DstOp &Res,
                                 const SrcOp &Op0, const SrcOp &Op1,
-                                Optional<unsigned> Flags = None);
+                                std::optional<unsigned> Flags = std::nullopt);
+
+  /// Build and insert a \p Res = G_SCMP \p Op0, \p Op1
+  ///
+  /// \pre setBasicBlock or setMI must have been called.
+
+  /// \pre \p Res must be a generic virtual register with scalar or
+  ///      vector type. Typically this starts as s2 or <N x s2>.
+  /// \pre \p Op0 and Op1 must be generic virtual registers with the
+  ///      same number of elements as \p Res. If \p Res is a scalar,
+  ///      \p Op0 must be a scalar.
+  ///
+  /// \return a MachineInstrBuilder for the newly created instruction.
+  MachineInstrBuilder buildSCmp(const DstOp &Res, const SrcOp &Op0,
+                                const SrcOp &Op1);
+
+  /// Build and insert a \p Res = G_UCMP \p Op0, \p Op1
+  ///
+  /// \pre setBasicBlock or setMI must have been called.
+
+  /// \pre \p Res must be a generic virtual register with scalar or
+  ///      vector type. Typically this starts as s2 or <N x s2>.
+  /// \pre \p Op0 and Op1 must be generic virtual registers with the
+  ///      same number of elements as \p Res. If \p Res is a scalar,
+  ///      \p Op0 must be a scalar.
+  ///
+  /// \return a MachineInstrBuilder for the newly created instruction.
+  MachineInstrBuilder buildUCmp(const DstOp &Res, const SrcOp &Op0,
+                                const SrcOp &Op1);
+
+  /// Build and insert a \p Res = G_IS_FPCLASS \p Src, \p Mask
+  MachineInstrBuilder buildIsFPClass(const DstOp &Res, const SrcOp &Src,
+                                     unsigned Mask) {
+    return buildInstr(TargetOpcode::G_IS_FPCLASS, {Res},
+                      {Src, SrcOp(static_cast<int64_t>(Mask))});
+  }
 
   /// Build and insert a \p Res = G_SELECT \p Tst, \p Op0, \p Op1
   ///
@@ -1152,7 +1430,7 @@ public:
   /// \return a MachineInstrBuilder for the newly created instruction.
   MachineInstrBuilder buildSelect(const DstOp &Res, const SrcOp &Tst,
                                   const SrcOp &Op0, const SrcOp &Op1,
-                                  Optional<unsigned> Flags = None);
+                                  std::optional<unsigned> Flags = std::nullopt);
 
   /// Build and insert \p Res = G_INSERT_VECTOR_ELT \p Val,
   /// \p Elt, \p Idx
@@ -1168,6 +1446,21 @@ public:
                                                const SrcOp &Val,
                                                const SrcOp &Elt,
                                                const SrcOp &Idx);
+
+  /// Build and insert \p Res = G_EXTRACT_VECTOR_ELT \p Val, \p Idx
+  ///
+  /// \pre setBasicBlock or setMI must have been called.
+  /// \pre \p Res must be a generic virtual register with scalar type.
+  /// \pre \p Val must be a generic virtual register with vector type.
+  ///
+  /// \return The newly created instruction.
+  MachineInstrBuilder buildExtractVectorElementConstant(const DstOp &Res,
+                                                        const SrcOp &Val,
+                                                        const int Idx) {
+    const TargetLowering *TLI = getMF().getSubtarget().getTargetLowering();
+    LLT IdxTy = TLI->getVectorIdxLLT(getDataLayout());
+    return buildExtractVectorElement(Res, Val, buildConstant(IdxTy, Idx));
+  }
 
   /// Build and insert \p Res = G_EXTRACT_VECTOR_ELT \p Val, \p Idx
   ///
@@ -1198,9 +1491,9 @@ public:
   ///
   /// \return a MachineInstrBuilder for the newly created instruction.
   MachineInstrBuilder
-  buildAtomicCmpXchgWithSuccess(Register OldValRes, Register SuccessRes,
-                                Register Addr, Register CmpVal, Register NewVal,
-                                MachineMemOperand &MMO);
+  buildAtomicCmpXchgWithSuccess(const DstOp &OldValRes, const DstOp &SuccessRes,
+                                const SrcOp &Addr, const SrcOp &CmpVal,
+                                const SrcOp &NewVal, MachineMemOperand &MMO);
 
   /// Build and insert `OldValRes<def> = G_ATOMIC_CMPXCHG Addr, CmpVal, NewVal,
   /// MMO`.
@@ -1216,8 +1509,9 @@ public:
   ///      registers of the same type.
   ///
   /// \return a MachineInstrBuilder for the newly created instruction.
-  MachineInstrBuilder buildAtomicCmpXchg(Register OldValRes, Register Addr,
-                                         Register CmpVal, Register NewVal,
+  MachineInstrBuilder buildAtomicCmpXchg(const DstOp &OldValRes,
+                                         const SrcOp &Addr, const SrcOp &CmpVal,
+                                         const SrcOp &NewVal,
                                          MachineMemOperand &MMO);
 
   /// Build and insert `OldValRes<def> = G_ATOMICRMW_<Opcode> Addr, Val, MMO`.
@@ -1451,8 +1745,84 @@ public:
         const DstOp &OldValRes, const SrcOp &Addr, const SrcOp &Val,
         MachineMemOperand &MMO);
 
+  /// Build and insert `OldValRes<def> = G_ATOMICRMW_FMAXIMUM Addr, Val, MMO`.
+  ///
+  /// Atomically replace the value at \p Addr with the floating point maximum of
+  /// \p Val and the original value. Puts the original value from \p Addr in \p
+  /// OldValRes.
+  ///
+  /// \pre setBasicBlock or setMI must have been called.
+  /// \pre \p OldValRes must be a generic virtual register.
+  /// \pre \p Addr must be a generic virtual register with pointer type.
+  /// \pre \p OldValRes, and \p Val must be generic virtual registers of the
+  ///      same type.
+  ///
+  /// \return a MachineInstrBuilder for the newly created instruction.
+  MachineInstrBuilder buildAtomicRMWFMaximum(const DstOp &OldValRes,
+                                             const SrcOp &Addr,
+                                             const SrcOp &Val,
+                                             MachineMemOperand &MMO);
+
+  /// Build and insert `OldValRes<def> = G_ATOMICRMW_FMINIMUM Addr, Val, MMO`.
+  ///
+  /// Atomically replace the value at \p Addr with the floating point minimum of
+  /// \p Val and the original value. Puts the original value from \p Addr in \p
+  /// OldValRes.
+  ///
+  /// \pre setBasicBlock or setMI must have been called.
+  /// \pre \p OldValRes must be a generic virtual register.
+  /// \pre \p Addr must be a generic virtual register with pointer type.
+  /// \pre \p OldValRes, and \p Val must be generic virtual registers of the
+  ///      same type.
+  ///
+  /// \return a MachineInstrBuilder for the newly created instruction.
+  MachineInstrBuilder buildAtomicRMWFMinimum(const DstOp &OldValRes,
+                                             const SrcOp &Addr,
+                                             const SrcOp &Val,
+                                             MachineMemOperand &MMO);
+
+  /// Build and insert `OldValRes<def> = G_ATOMICRMW_USUB_COND Addr, Val, MMO`.
+  ///
+  /// Atomically replace the value at \p Addr with the original value minus \p
+  /// Val if the original value is greater than or equal to \p Val, or leaves it
+  /// unchanged otherwise. Puts the original value from \p Addr in \p OldValRes.
+  ///
+  /// \pre setBasicBlock or setMI must have been called.
+  /// \pre \p OldValRes must be a generic virtual register.
+  /// \pre \p Addr must be a generic virtual register with pointer type.
+  /// \pre \p OldValRes, and \p Val must be generic virtual registers of the
+  ///      same type.
+  ///
+  /// \return a MachineInstrBuilder for the newly created instruction.
+  MachineInstrBuilder buildAtomicRMWUSubCond(const DstOp &OldValRes,
+                                             const SrcOp &Addr,
+                                             const SrcOp &Val,
+                                             MachineMemOperand &MMO);
+
+  /// Build and insert `OldValRes<def> = G_ATOMICRMW_USUB_SAT Addr, Val, MMO`.
+  ///
+  /// Atomically replace the value at \p Addr with the original value minus \p
+  /// Val, with clamping to zero if the unsigned subtraction would overflow.
+  /// Puts the original value from \p Addr in \p OldValRes.
+  ///
+  /// \pre setBasicBlock or setMI must have been called.
+  /// \pre \p OldValRes must be a generic virtual register.
+  /// \pre \p Addr must be a generic virtual register with pointer type.
+  /// \pre \p OldValRes, and \p Val must be generic virtual registers of the
+  ///      same type.
+  ///
+  /// \return a MachineInstrBuilder for the newly created instruction.
+  MachineInstrBuilder buildAtomicRMWUSubSat(const DstOp &OldValRes,
+                                            const SrcOp &Addr, const SrcOp &Val,
+                                            MachineMemOperand &MMO);
+
   /// Build and insert `G_FENCE Ordering, Scope`.
   MachineInstrBuilder buildFence(unsigned Ordering, unsigned Scope);
+
+  /// Build and insert G_PREFETCH \p Addr, \p RW, \p Locality, \p CacheType
+  MachineInstrBuilder buildPrefetch(const SrcOp &Addr, unsigned RW,
+                                    unsigned Locality, unsigned CacheType,
+                                    MachineMemOperand &MMO);
 
   /// Build and insert \p Dst = G_FREEZE \p Src
   MachineInstrBuilder buildFreeze(const DstOp &Dst, const SrcOp &Src) {
@@ -1482,7 +1852,7 @@ public:
 
   MachineInstrBuilder buildAdd(const DstOp &Dst, const SrcOp &Src0,
                                const SrcOp &Src1,
-                               Optional<unsigned> Flags = None) {
+                               std::optional<unsigned> Flags = std::nullopt) {
     return buildInstr(TargetOpcode::G_ADD, {Dst}, {Src0, Src1}, Flags);
   }
 
@@ -1499,7 +1869,7 @@ public:
 
   MachineInstrBuilder buildSub(const DstOp &Dst, const SrcOp &Src0,
                                const SrcOp &Src1,
-                               Optional<unsigned> Flags = None) {
+                               std::optional<unsigned> Flags = std::nullopt) {
     return buildInstr(TargetOpcode::G_SUB, {Dst}, {Src0, Src1}, Flags);
   }
 
@@ -1515,74 +1885,102 @@ public:
   /// \return a MachineInstrBuilder for the newly created instruction.
   MachineInstrBuilder buildMul(const DstOp &Dst, const SrcOp &Src0,
                                const SrcOp &Src1,
-                               Optional<unsigned> Flags = None) {
+                               std::optional<unsigned> Flags = std::nullopt) {
     return buildInstr(TargetOpcode::G_MUL, {Dst}, {Src0, Src1}, Flags);
+  }
+
+  /// Build and insert \p Res = G_ABDS \p Op0, \p Op1
+  ///
+  /// G_ABDS return the signed absolute difference of \p Op0 and \p Op1.
+  ///
+  /// \pre setBasicBlock or setMI must have been called.
+  /// \pre \p Res, \p Op0 and \p Op1 must be generic virtual registers
+  ///      with the same (scalar or vector) type).
+  ///
+  /// \return a MachineInstrBuilder for the newly created instruction.
+  MachineInstrBuilder buildAbds(const DstOp &Dst, const SrcOp &Src0,
+                                const SrcOp &Src1) {
+    return buildInstr(TargetOpcode::G_ABDS, {Dst}, {Src0, Src1});
+  }
+
+  /// Build and insert \p Res = G_ABDU \p Op0, \p Op1
+  ///
+  /// G_ABDU return the unsigned absolute difference of \p Op0 and \p Op1.
+  ///
+  /// \pre setBasicBlock or setMI must have been called.
+  /// \pre \p Res, \p Op0 and \p Op1 must be generic virtual registers
+  ///      with the same (scalar or vector) type).
+  ///
+  /// \return a MachineInstrBuilder for the newly created instruction.
+  MachineInstrBuilder buildAbdu(const DstOp &Dst, const SrcOp &Src0,
+                                const SrcOp &Src1) {
+    return buildInstr(TargetOpcode::G_ABDU, {Dst}, {Src0, Src1});
   }
 
   MachineInstrBuilder buildUMulH(const DstOp &Dst, const SrcOp &Src0,
                                  const SrcOp &Src1,
-                                 Optional<unsigned> Flags = None) {
+                                 std::optional<unsigned> Flags = std::nullopt) {
     return buildInstr(TargetOpcode::G_UMULH, {Dst}, {Src0, Src1}, Flags);
   }
 
   MachineInstrBuilder buildSMulH(const DstOp &Dst, const SrcOp &Src0,
                                  const SrcOp &Src1,
-                                 Optional<unsigned> Flags = None) {
+                                 std::optional<unsigned> Flags = std::nullopt) {
     return buildInstr(TargetOpcode::G_SMULH, {Dst}, {Src0, Src1}, Flags);
   }
 
   /// Build and insert \p Res = G_UREM \p Op0, \p Op1
   MachineInstrBuilder buildURem(const DstOp &Dst, const SrcOp &Src0,
                                 const SrcOp &Src1,
-                                Optional<unsigned> Flags = None) {
+                                std::optional<unsigned> Flags = std::nullopt) {
     return buildInstr(TargetOpcode::G_UREM, {Dst}, {Src0, Src1}, Flags);
   }
 
   MachineInstrBuilder buildFMul(const DstOp &Dst, const SrcOp &Src0,
                                 const SrcOp &Src1,
-                                Optional<unsigned> Flags = None) {
+                                std::optional<unsigned> Flags = std::nullopt) {
     return buildInstr(TargetOpcode::G_FMUL, {Dst}, {Src0, Src1}, Flags);
   }
 
-  MachineInstrBuilder buildFMinNum(const DstOp &Dst, const SrcOp &Src0,
-                                   const SrcOp &Src1,
-                                   Optional<unsigned> Flags = None) {
+  MachineInstrBuilder
+  buildFMinNum(const DstOp &Dst, const SrcOp &Src0, const SrcOp &Src1,
+               std::optional<unsigned> Flags = std::nullopt) {
     return buildInstr(TargetOpcode::G_FMINNUM, {Dst}, {Src0, Src1}, Flags);
   }
 
-  MachineInstrBuilder buildFMaxNum(const DstOp &Dst, const SrcOp &Src0,
-                                   const SrcOp &Src1,
-                                   Optional<unsigned> Flags = None) {
+  MachineInstrBuilder
+  buildFMaxNum(const DstOp &Dst, const SrcOp &Src0, const SrcOp &Src1,
+               std::optional<unsigned> Flags = std::nullopt) {
     return buildInstr(TargetOpcode::G_FMAXNUM, {Dst}, {Src0, Src1}, Flags);
   }
 
-  MachineInstrBuilder buildFMinNumIEEE(const DstOp &Dst, const SrcOp &Src0,
-                                       const SrcOp &Src1,
-                                       Optional<unsigned> Flags = None) {
+  MachineInstrBuilder
+  buildFMinNumIEEE(const DstOp &Dst, const SrcOp &Src0, const SrcOp &Src1,
+                   std::optional<unsigned> Flags = std::nullopt) {
     return buildInstr(TargetOpcode::G_FMINNUM_IEEE, {Dst}, {Src0, Src1}, Flags);
   }
 
-  MachineInstrBuilder buildFMaxNumIEEE(const DstOp &Dst, const SrcOp &Src0,
-                                       const SrcOp &Src1,
-                                       Optional<unsigned> Flags = None) {
+  MachineInstrBuilder
+  buildFMaxNumIEEE(const DstOp &Dst, const SrcOp &Src0, const SrcOp &Src1,
+                   std::optional<unsigned> Flags = std::nullopt) {
     return buildInstr(TargetOpcode::G_FMAXNUM_IEEE, {Dst}, {Src0, Src1}, Flags);
   }
 
   MachineInstrBuilder buildShl(const DstOp &Dst, const SrcOp &Src0,
                                const SrcOp &Src1,
-                               Optional<unsigned> Flags = None) {
+                               std::optional<unsigned> Flags = std::nullopt) {
     return buildInstr(TargetOpcode::G_SHL, {Dst}, {Src0, Src1}, Flags);
   }
 
   MachineInstrBuilder buildLShr(const DstOp &Dst, const SrcOp &Src0,
                                 const SrcOp &Src1,
-                                Optional<unsigned> Flags = None) {
+                                std::optional<unsigned> Flags = std::nullopt) {
     return buildInstr(TargetOpcode::G_LSHR, {Dst}, {Src0, Src1}, Flags);
   }
 
   MachineInstrBuilder buildAShr(const DstOp &Dst, const SrcOp &Src0,
                                 const SrcOp &Src1,
-                                Optional<unsigned> Flags = None) {
+                                std::optional<unsigned> Flags = std::nullopt) {
     return buildInstr(TargetOpcode::G_ASHR, {Dst}, {Src0, Src1}, Flags);
   }
 
@@ -1614,7 +2012,7 @@ public:
   /// \return a MachineInstrBuilder for the newly created instruction.
   MachineInstrBuilder buildOr(const DstOp &Dst, const SrcOp &Src0,
                               const SrcOp &Src1,
-                              Optional<unsigned> Flags = None) {
+                              std::optional<unsigned> Flags = std::nullopt) {
     return buildInstr(TargetOpcode::G_OR, {Dst}, {Src0, Src1}, Flags);
   }
 
@@ -1673,91 +2071,129 @@ public:
   /// Build and insert \p Res = G_FADD \p Op0, \p Op1
   MachineInstrBuilder buildFAdd(const DstOp &Dst, const SrcOp &Src0,
                                 const SrcOp &Src1,
-                                Optional<unsigned> Flags = None) {
+                                std::optional<unsigned> Flags = std::nullopt) {
     return buildInstr(TargetOpcode::G_FADD, {Dst}, {Src0, Src1}, Flags);
+  }
+
+  /// Build and insert \p Res = G_STRICT_FADD \p Op0, \p Op1
+  MachineInstrBuilder
+  buildStrictFAdd(const DstOp &Dst, const SrcOp &Src0, const SrcOp &Src1,
+                  std::optional<unsigned> Flags = std::nullopt) {
+    return buildInstr(TargetOpcode::G_STRICT_FADD, {Dst}, {Src0, Src1}, Flags);
   }
 
   /// Build and insert \p Res = G_FSUB \p Op0, \p Op1
   MachineInstrBuilder buildFSub(const DstOp &Dst, const SrcOp &Src0,
                                 const SrcOp &Src1,
-                                Optional<unsigned> Flags = None) {
+                                std::optional<unsigned> Flags = std::nullopt) {
     return buildInstr(TargetOpcode::G_FSUB, {Dst}, {Src0, Src1}, Flags);
   }
 
   /// Build and insert \p Res = G_FDIV \p Op0, \p Op1
   MachineInstrBuilder buildFDiv(const DstOp &Dst, const SrcOp &Src0,
                                 const SrcOp &Src1,
-                                Optional<unsigned> Flags = None) {
+                                std::optional<unsigned> Flags = std::nullopt) {
     return buildInstr(TargetOpcode::G_FDIV, {Dst}, {Src0, Src1}, Flags);
   }
 
   /// Build and insert \p Res = G_FMA \p Op0, \p Op1, \p Op2
   MachineInstrBuilder buildFMA(const DstOp &Dst, const SrcOp &Src0,
                                const SrcOp &Src1, const SrcOp &Src2,
-                               Optional<unsigned> Flags = None) {
+                               std::optional<unsigned> Flags = std::nullopt) {
     return buildInstr(TargetOpcode::G_FMA, {Dst}, {Src0, Src1, Src2}, Flags);
   }
 
   /// Build and insert \p Res = G_FMAD \p Op0, \p Op1, \p Op2
   MachineInstrBuilder buildFMAD(const DstOp &Dst, const SrcOp &Src0,
                                 const SrcOp &Src1, const SrcOp &Src2,
-                                Optional<unsigned> Flags = None) {
+                                std::optional<unsigned> Flags = std::nullopt) {
     return buildInstr(TargetOpcode::G_FMAD, {Dst}, {Src0, Src1, Src2}, Flags);
   }
 
   /// Build and insert \p Res = G_FNEG \p Op0
   MachineInstrBuilder buildFNeg(const DstOp &Dst, const SrcOp &Src0,
-                                Optional<unsigned> Flags = None) {
+                                std::optional<unsigned> Flags = std::nullopt) {
     return buildInstr(TargetOpcode::G_FNEG, {Dst}, {Src0}, Flags);
   }
 
   /// Build and insert \p Res = G_FABS \p Op0
   MachineInstrBuilder buildFAbs(const DstOp &Dst, const SrcOp &Src0,
-                                Optional<unsigned> Flags = None) {
+                                std::optional<unsigned> Flags = std::nullopt) {
     return buildInstr(TargetOpcode::G_FABS, {Dst}, {Src0}, Flags);
   }
 
   /// Build and insert \p Dst = G_FCANONICALIZE \p Src0
-  MachineInstrBuilder buildFCanonicalize(const DstOp &Dst, const SrcOp &Src0,
-                                         Optional<unsigned> Flags = None) {
+  MachineInstrBuilder
+  buildFCanonicalize(const DstOp &Dst, const SrcOp &Src0,
+                     std::optional<unsigned> Flags = std::nullopt) {
     return buildInstr(TargetOpcode::G_FCANONICALIZE, {Dst}, {Src0}, Flags);
   }
 
   /// Build and insert \p Dst = G_INTRINSIC_TRUNC \p Src0
-  MachineInstrBuilder buildIntrinsicTrunc(const DstOp &Dst, const SrcOp &Src0,
-                                         Optional<unsigned> Flags = None) {
+  MachineInstrBuilder
+  buildIntrinsicTrunc(const DstOp &Dst, const SrcOp &Src0,
+                      std::optional<unsigned> Flags = std::nullopt) {
     return buildInstr(TargetOpcode::G_INTRINSIC_TRUNC, {Dst}, {Src0}, Flags);
   }
 
   /// Build and insert \p Res = GFFLOOR \p Op0, \p Op1
-  MachineInstrBuilder buildFFloor(const DstOp &Dst, const SrcOp &Src0,
-                                          Optional<unsigned> Flags = None) {
+  MachineInstrBuilder
+  buildFFloor(const DstOp &Dst, const SrcOp &Src0,
+              std::optional<unsigned> Flags = std::nullopt) {
     return buildInstr(TargetOpcode::G_FFLOOR, {Dst}, {Src0}, Flags);
   }
 
   /// Build and insert \p Dst = G_FLOG \p Src
   MachineInstrBuilder buildFLog(const DstOp &Dst, const SrcOp &Src,
-                                Optional<unsigned> Flags = None) {
+                                std::optional<unsigned> Flags = std::nullopt) {
     return buildInstr(TargetOpcode::G_FLOG, {Dst}, {Src}, Flags);
   }
 
   /// Build and insert \p Dst = G_FLOG2 \p Src
   MachineInstrBuilder buildFLog2(const DstOp &Dst, const SrcOp &Src,
-                                Optional<unsigned> Flags = None) {
+                                 std::optional<unsigned> Flags = std::nullopt) {
     return buildInstr(TargetOpcode::G_FLOG2, {Dst}, {Src}, Flags);
   }
 
   /// Build and insert \p Dst = G_FEXP2 \p Src
   MachineInstrBuilder buildFExp2(const DstOp &Dst, const SrcOp &Src,
-                                Optional<unsigned> Flags = None) {
+                                 std::optional<unsigned> Flags = std::nullopt) {
     return buildInstr(TargetOpcode::G_FEXP2, {Dst}, {Src}, Flags);
   }
 
   /// Build and insert \p Dst = G_FPOW \p Src0, \p Src1
   MachineInstrBuilder buildFPow(const DstOp &Dst, const SrcOp &Src0,
                                 const SrcOp &Src1,
-                                Optional<unsigned> Flags = None) {
+                                std::optional<unsigned> Flags = std::nullopt) {
     return buildInstr(TargetOpcode::G_FPOW, {Dst}, {Src0, Src1}, Flags);
+  }
+
+  /// Build and insert \p Dst = G_FLDEXP \p Src0, \p Src1
+  MachineInstrBuilder
+  buildFLdexp(const DstOp &Dst, const SrcOp &Src0, const SrcOp &Src1,
+              std::optional<unsigned> Flags = std::nullopt) {
+    return buildInstr(TargetOpcode::G_FLDEXP, {Dst}, {Src0, Src1}, Flags);
+  }
+
+  /// Build and insert \p Fract, \p Exp = G_FFREXP \p Src
+  MachineInstrBuilder
+  buildFFrexp(const DstOp &Fract, const DstOp &Exp, const SrcOp &Src,
+              std::optional<unsigned> Flags = std::nullopt) {
+    return buildInstr(TargetOpcode::G_FFREXP, {Fract, Exp}, {Src}, Flags);
+  }
+
+  /// Build and insert \p Sin, \p Cos = G_FSINCOS \p Src
+  MachineInstrBuilder
+  buildFSincos(const DstOp &Sin, const DstOp &Cos, const SrcOp &Src,
+               std::optional<unsigned> Flags = std::nullopt) {
+    return buildInstr(TargetOpcode::G_FSINCOS, {Sin, Cos}, {Src}, Flags);
+  }
+
+  /// Build and insert \p Fract, \p Int = G_FMODF \p Src
+  MachineInstrBuilder buildModf(const DstOp &Fract, const DstOp &Int,
+                                const SrcOp &Src,
+                                std::optional<unsigned> Flags = std::nullopt) {
+    return buildInstr(TargetOpcode::G_FMODF, {Fract, Int}, {Src}, Flags);
   }
 
   /// Build and insert \p Res = G_FCOPYSIGN \p Op0, \p Op1
@@ -1784,6 +2220,24 @@ public:
   /// Build and insert \p Res = G_FPTOSI \p Src0
   MachineInstrBuilder buildFPTOSI(const DstOp &Dst, const SrcOp &Src0) {
     return buildInstr(TargetOpcode::G_FPTOSI, {Dst}, {Src0});
+  }
+
+  /// Build and insert \p Res = G_FPTOUI_SAT \p Src0
+  MachineInstrBuilder buildFPTOUI_SAT(const DstOp &Dst, const SrcOp &Src0) {
+    return buildInstr(TargetOpcode::G_FPTOUI_SAT, {Dst}, {Src0});
+  }
+
+  /// Build and insert \p Res = G_FPTOSI_SAT \p Src0
+  MachineInstrBuilder buildFPTOSI_SAT(const DstOp &Dst, const SrcOp &Src0) {
+    return buildInstr(TargetOpcode::G_FPTOSI_SAT, {Dst}, {Src0});
+  }
+
+  /// Build and insert \p Dst = G_INTRINSIC_ROUNDEVEN \p Src0, \p Src1
+  MachineInstrBuilder
+  buildIntrinsicRoundeven(const DstOp &Dst, const SrcOp &Src0,
+                          std::optional<unsigned> Flags = std::nullopt) {
+    return buildInstr(TargetOpcode::G_INTRINSIC_ROUNDEVEN, {Dst}, {Src0},
+                      Flags);
   }
 
   /// Build and insert \p Res = G_SMIN \p Op0, \p Op1
@@ -1874,6 +2328,19 @@ public:
   MachineInstrBuilder buildVecReduceFMin(const DstOp &Dst, const SrcOp &Src) {
     return buildInstr(TargetOpcode::G_VECREDUCE_FMIN, {Dst}, {Src});
   }
+
+  /// Build and insert \p Res = G_VECREDUCE_FMAXIMUM \p Src
+  MachineInstrBuilder buildVecReduceFMaximum(const DstOp &Dst,
+                                             const SrcOp &Src) {
+    return buildInstr(TargetOpcode::G_VECREDUCE_FMAXIMUM, {Dst}, {Src});
+  }
+
+  /// Build and insert \p Res = G_VECREDUCE_FMINIMUM \p Src
+  MachineInstrBuilder buildVecReduceFMinimum(const DstOp &Dst,
+                                             const SrcOp &Src) {
+    return buildInstr(TargetOpcode::G_VECREDUCE_FMINIMUM, {Dst}, {Src});
+  }
+
   /// Build and insert \p Res = G_VECREDUCE_ADD \p Src
   MachineInstrBuilder buildVecReduceAdd(const DstOp &Dst, const SrcOp &Src) {
     return buildInstr(TargetOpcode::G_VECREDUCE_ADD, {Dst}, {Src});
@@ -1939,6 +2406,11 @@ public:
                                 DstMMO, SrcMMO);
   }
 
+  /// Build and insert G_TRAP or G_DEBUGTRAP
+  MachineInstrBuilder buildTrap(bool Debug = false) {
+    return buildInstr(Debug ? TargetOpcode::G_DEBUGTRAP : TargetOpcode::G_TRAP);
+  }
+
   /// Build and insert \p Dst = G_SBFX \p Src, \p LSB, \p Width.
   MachineInstrBuilder buildSbfx(const DstOp &Dst, const SrcOp &Src,
                                 const SrcOp &LSB, const SrcOp &Width) {
@@ -1968,9 +2440,49 @@ public:
     return buildInstr(TargetOpcode::G_BITREVERSE, {Dst}, {Src});
   }
 
-  virtual MachineInstrBuilder buildInstr(unsigned Opc, ArrayRef<DstOp> DstOps,
-                                         ArrayRef<SrcOp> SrcOps,
-                                         Optional<unsigned> Flags = None);
+  /// Build and insert \p Dst = G_GET_FPENV
+  MachineInstrBuilder buildGetFPEnv(const DstOp &Dst) {
+    return buildInstr(TargetOpcode::G_GET_FPENV, {Dst}, {});
+  }
+
+  /// Build and insert G_SET_FPENV \p Src
+  MachineInstrBuilder buildSetFPEnv(const SrcOp &Src) {
+    return buildInstr(TargetOpcode::G_SET_FPENV, {}, {Src});
+  }
+
+  /// Build and insert G_RESET_FPENV
+  MachineInstrBuilder buildResetFPEnv() {
+    return buildInstr(TargetOpcode::G_RESET_FPENV, {}, {});
+  }
+
+  /// Build and insert \p Dst = G_GET_FPMODE
+  MachineInstrBuilder buildGetFPMode(const DstOp &Dst) {
+    return buildInstr(TargetOpcode::G_GET_FPMODE, {Dst}, {});
+  }
+
+  /// Build and insert G_SET_FPMODE \p Src
+  MachineInstrBuilder buildSetFPMode(const SrcOp &Src) {
+    return buildInstr(TargetOpcode::G_SET_FPMODE, {}, {Src});
+  }
+
+  /// Build and insert G_RESET_FPMODE
+  MachineInstrBuilder buildResetFPMode() {
+    return buildInstr(TargetOpcode::G_RESET_FPMODE, {}, {});
+  }
+
+  /// Build and insert \p Dst = G_GET_ROUNDING
+  MachineInstrBuilder buildGetRounding(const DstOp &Dst) {
+    return buildInstr(TargetOpcode::G_GET_ROUNDING, {Dst}, {});
+  }
+
+  /// Build and insert G_SET_ROUNDING
+  MachineInstrBuilder buildSetRounding(const SrcOp &Src) {
+    return buildInstr(TargetOpcode::G_SET_ROUNDING, {}, {Src});
+  }
+
+  virtual MachineInstrBuilder
+  buildInstr(unsigned Opc, ArrayRef<DstOp> DstOps, ArrayRef<SrcOp> SrcOps,
+             std::optional<unsigned> Flags = std::nullopt);
 };
 
 } // End namespace llvm.

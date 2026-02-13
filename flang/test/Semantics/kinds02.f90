@@ -1,16 +1,17 @@
+! REQUIRES: x86_64-registered-target
 ! RUN: %python %S/test_errors.py %s %flang_fc1
-! C712 The value of scalar-int-constant-expr shall be nonnegative and 
+! C712 The value of scalar-int-constant-expr shall be nonnegative and
 ! shall specify a representation method that exists on the processor.
 ! C714 The value of kind-param shall be nonnegative.
-! C715 The value of kind-param shall specify a representation method that 
+! C715 The value of kind-param shall specify a representation method that
 ! exists on the processor.
-! C719 The value of scalar-int-constant-expr shall be nonnegative and shall 
+! C719 The value of scalar-int-constant-expr shall be nonnegative and shall
 ! specify a representation method that exists on the processor.
-! C725 The optional comma in a length-selector is permitted only if no 
+! C725 The optional comma in a length-selector is permitted only if no
 ! double-colon separator appears in the typedeclaration- stmt.
-! C727 The value of kind-param shall specify a representation method that 
+! C727 The value of kind-param shall specify a representation method that
 ! exists on the processor.
-! C728 The value of kind-param shall specify a representation method that 
+! C728 The value of kind-param shall specify a representation method that
 ! exists on the processor.
 !
 !ERROR: INTEGER(KIND=0) is not a supported type
@@ -82,6 +83,8 @@ character(len=*), parameter :: cvar9 = 3_"abcd"
 character(len=*), parameter :: cvar10 = 4_"abcd"
 !ERROR: CHARACTER(KIND=8) is not a supported type
 character(len=*), parameter :: cvar11 = 8_"abcd"
+!ERROR: Unsupported type kind value (5000000000)
+print *, 123_5000000000
 end program
 
 subroutine s(a, b)

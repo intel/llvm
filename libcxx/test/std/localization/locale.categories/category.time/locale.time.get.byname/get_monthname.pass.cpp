@@ -10,6 +10,8 @@
 // REQUIRES: locale.fr_FR.UTF-8
 // REQUIRES: locale.zh_CN.UTF-8
 
+// XFAIL: LIBCXX-FREEBSD-FIXME
+
 // <locale>
 
 // class time_get_byname<charT, InputIterator>
@@ -18,8 +20,10 @@
 // get_monthname(iter_type s, iter_type end, ios_base& str,
 //               ios_base::iostate& err, tm* t) const;
 
-#include <locale>
 #include <cassert>
+#include <ctime>
+#include <locale>
+
 #include "test_macros.h"
 #include "test_iterators.h"
 

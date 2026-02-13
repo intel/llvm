@@ -1,4 +1,4 @@
-//===--- FileExtensionsUtils.cpp - clang-tidy -------------------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,26 +9,25 @@
 #include "FileExtensionsUtils.h"
 #include "clang/Basic/CharInfo.h"
 #include "llvm/Support/Path.h"
+#include <optional>
 
-namespace clang {
-namespace tidy {
-namespace utils {
+namespace clang::tidy::utils {
 
 bool isExpansionLocInHeaderFile(SourceLocation Loc, const SourceManager &SM,
                                 const FileExtensionsSet &HeaderFileExtensions) {
-  SourceLocation ExpansionLoc = SM.getExpansionLoc(Loc);
+  const SourceLocation ExpansionLoc = SM.getExpansionLoc(Loc);
   return isFileExtension(SM.getFilename(ExpansionLoc), HeaderFileExtensions);
 }
 
 bool isPresumedLocInHeaderFile(SourceLocation Loc, SourceManager &SM,
                                const FileExtensionsSet &HeaderFileExtensions) {
-  PresumedLoc PresumedLocation = SM.getPresumedLoc(Loc);
+  const PresumedLoc PresumedLocation = SM.getPresumedLoc(Loc);
   return isFileExtension(PresumedLocation.getFilename(), HeaderFileExtensions);
 }
 
 bool isSpellingLocInHeaderFile(SourceLocation Loc, SourceManager &SM,
                                const FileExtensionsSet &HeaderFileExtensions) {
-  SourceLocation SpellingLoc = SM.getSpellingLoc(Loc);
+  const SourceLocation SpellingLoc = SM.getSpellingLoc(Loc);
   return isFileExtension(SM.getFilename(SpellingLoc), HeaderFileExtensions);
 }
 
@@ -36,7 +35,7 @@ bool parseFileExtensions(StringRef AllFileExtensions,
                          FileExtensionsSet &FileExtensions,
                          StringRef Delimiters) {
   SmallVector<StringRef, 5> Suffixes;
-  for (char Delimiter : Delimiters) {
+  for (const char Delimiter : Delimiters) {
     if (AllFileExtensions.contains(Delimiter)) {
       AllFileExtensions.split(Suffixes, Delimiter);
       break;
@@ -44,7 +43,7 @@ bool parseFileExtensions(StringRef AllFileExtensions,
   }
 
   FileExtensions.clear();
-  for (StringRef Suffix : Suffixes) {
+  for (const StringRef Suffix : Suffixes) {
     StringRef Extension = Suffix.trim();
     if (!llvm::all_of(Extension, isAlphanumeric))
       return false;
@@ -53,14 +52,14 @@ bool parseFileExtensions(StringRef AllFileExtensions,
   return true;
 }
 
-llvm::Optional<StringRef>
+std::optional<StringRef>
 getFileExtension(StringRef FileName, const FileExtensionsSet &FileExtensions) {
   StringRef Extension = llvm::sys::path::extension(FileName);
   if (Extension.empty())
-    return llvm::None;
+    return std::nullopt;
   // Skip "." prefix.
-  if (!FileExtensions.count(Extension.substr(1)))
-    return llvm::None;
+  if (!FileExtensions.contains(Extension.substr(1)))
+    return std::nullopt;
   return Extension;
 }
 
@@ -69,6 +68,4 @@ bool isFileExtension(StringRef FileName,
   return getFileExtension(FileName, FileExtensions).has_value();
 }
 
-} // namespace utils
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::utils

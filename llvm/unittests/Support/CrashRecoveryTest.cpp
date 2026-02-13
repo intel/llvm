@@ -6,16 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/ADT/Triple.h"
 #include "llvm/Config/config.h"
+#include "llvm/Config/llvm-config.h" // for LLVM_ON_UNIX
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/CrashRecoveryContext.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Host.h"
+#include "llvm/TargetParser/Triple.h"
 #include "gtest/gtest.h"
 
 #ifdef _WIN32
@@ -25,9 +26,7 @@
 #endif
 
 #ifdef LLVM_ON_UNIX
-#ifdef HAVE_SIGNAL_H
 #include <signal.h>
-#endif
 #endif
 
 using namespace llvm;
@@ -110,8 +109,7 @@ TEST(CrashRecoveryTest, LimitedStackTrace) {
   std::string Res;
   llvm::raw_string_ostream RawStream(Res);
   PrintStackTrace(RawStream, 1);
-  std::string Str = RawStream.str();
-  EXPECT_EQ(std::string::npos, Str.find("#1"));
+  EXPECT_EQ(std::string::npos, Res.find("#1"));
 }
 
 #ifdef _WIN32

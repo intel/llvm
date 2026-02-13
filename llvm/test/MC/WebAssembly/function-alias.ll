@@ -1,15 +1,15 @@
-; RUN: llc -filetype=obj %s -o - | llvm-readobj --symbols - | FileCheck %s
-; RUN: llc -filetype=obj %s -mattr=+reference-types -o - | llvm-readobj --symbols - | FileCheck --check-prefix=REF %s
+; RUN: llc -filetype=obj %s -mattr=-reference-types,-call-indirect-overlong -o - | llvm-readobj --symbols - | FileCheck %s
+; RUN: llc -filetype=obj %s -mattr=+reference-types,-call-indirect-overlong -o - | llvm-readobj --symbols - | FileCheck --check-prefix=REF %s
 
 target triple = "wasm32-unknown-unknown-wasm"
 
-@foo = alias i8, bitcast (i8* ()* @func to i8*)
-@bar = alias i8* (), i8* ()* @func
-@bar2 = alias i8* (), i8* ()* @bar
+@foo = alias i8, ptr @func
+@bar = alias ptr (), ptr @func
+@bar2 = alias ptr (), ptr @bar
 
-define i8* @func() {
-  call i8* @bar2();
-  ret i8* @foo;
+define ptr @func() {
+  call ptr @bar2();
+  ret ptr @foo;
 }
 
 ; CHECK:      Symbols [

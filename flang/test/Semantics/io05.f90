@@ -55,12 +55,14 @@
   inquire(1, read=c(1), write=c(2), sign=c(3), sign=c(4), read=c(5), write=c(1))
 
   !ERROR: Duplicate IOMSG specifier
+  !WARNING: IOMSG= is useless without either ERR= or IOSTAT=
   inquire(10, iomsg=msg, pos=ipos, iomsg=msg)
 
   !ERROR: If ID appears, PENDING must also appear
   inquire(file='abc', id=id)
 
-  !ERROR: ROUND variable 'const_round' must be definable
+  !ERROR: ROUND variable 'const_round' is not definable
+  !BECAUSE: '"c"' is not a variable or pointer
   inquire(file='abc', round=const_round)
 
 9 continue

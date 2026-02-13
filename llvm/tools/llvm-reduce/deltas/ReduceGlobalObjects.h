@@ -1,4 +1,4 @@
-//===- ReduceGlobalObjects.h ----------------------------------------------===//
+//===- ReduceGlobalObjects.h ------------------------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,7 +12,7 @@
 #include "Delta.h"
 
 namespace llvm {
-void reduceGlobalObjectsDeltaPass(TestRunner &Test);
+void reduceGlobalObjectsDeltaPass(Oracle &O, ReducerWorkItem &Program);
 } // namespace llvm
 
 #endif

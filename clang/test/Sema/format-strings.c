@@ -24,50 +24,127 @@ int vscanf(const char *restrict format, va_list arg);
 
 char * global_fmt;
 
-void check_string_literal( FILE* fp, const char* s, char *buf, ... ) {
-
-  char * b;
+void check_string_literal1( const char* s, ... ) {
   va_list ap;
-  va_start(ap,buf);
-
+  va_start(ap,s);
   printf(s); // expected-warning {{format string is not a string literal}}
   // expected-note@-1{{treat the string as an argument to avoid this}}
-  vprintf(s,ap); // expected-warning {{format string is not a string literal}}
+}
+
+void check_string_literal2( const char* s, ... ) { // #check_string_literal2
+  va_list ap;
+  va_start(ap,s);
+  vprintf(s,ap); // expected-warning {{diagnostic behavior may be improved by adding the 'format(printf, 1, 2)' attribute to the declaration of 'check_string_literal2'}}
+  // expected-note@#check_string_literal2 {{'check_string_literal2' declared here}}
+}
+
+void check_string_literal3( FILE* fp, const char* s, ... ) {
+  va_list ap;
+  va_start(ap,s);
   fprintf(fp,s); // expected-warning {{format string is not a string literal}}
   // expected-note@-1{{treat the string as an argument to avoid this}}
-  vfprintf(fp,s,ap); // expected-warning {{format string is not a string literal}}
+}
+
+void check_string_literal4( FILE* fp, const char* s, ... ) { // #check_string_literal4
+  va_list ap;
+  va_start(ap,s);
+  vfprintf(fp,s,ap); // expected-warning {{diagnostic behavior may be improved by adding the 'format(printf, 2, 3)' attribute to the declaration of 'check_string_literal4'}}
+  // expected-note@#check_string_literal4 {{'check_string_literal4' declared here}}
+}
+
+void check_string_literal5( const char* s, ... ) {
+  char * b;
+  va_list ap;
+  va_start(ap,s);
   asprintf(&b,s); // expected-warning {{format string is not a string lit}}
   // expected-note@-1{{treat the string as an argument to avoid this}}
-  vasprintf(&b,s,ap); // expected-warning {{format string is not a string literal}}
+}
+
+void check_string_literal6( const char* s, ... ) { // #check_string_literal6
+  char * b;
+  va_list ap;
+  va_start(ap,s);
+  vasprintf(&b,s,ap); // expected-warning {{diagnostic behavior may be improved by adding the 'format(printf, 1, 2)' attribute to the declaration of 'check_string_literal6'}}
+  // expected-note@#check_string_literal6 {{'check_string_literal6' declared here}}
+}
+
+void check_string_literal7( const char* s, char *buf ) {
   sprintf(buf,s); // expected-warning {{format string is not a string literal}}
   // expected-note@-1{{treat the string as an argument to avoid this}}
+}
+
+void check_string_literal8( const char* s, char *buf ) {
   snprintf(buf,2,s); // expected-warning {{format string is not a string lit}}
   // expected-note@-1{{treat the string as an argument to avoid this}}
+}
+
+void check_string_literal9( const char* s, char *buf, ... ) {
+  va_list ap;
+  va_start(ap,buf);
   __builtin___sprintf_chk(buf,0,-1,s); // expected-warning {{format string is not a string literal}}
   // expected-note@-1{{treat the string as an argument to avoid this}}
+}
+
+void check_string_literal10( const char* s, char *buf, ... ) {
+  va_list ap;
+  va_start(ap,buf);
   __builtin___snprintf_chk(buf,2,0,-1,s); // expected-warning {{format string is not a string lit}}
   // expected-note@-1{{treat the string as an argument to avoid this}}
-  vsprintf(buf,s,ap); // expected-warning {{format string is not a string lit}}
-  vsnprintf(buf,2,s,ap); // expected-warning {{format string is not a string lit}}
+}
+
+void check_string_literal11( const char* s, char *buf, ... ) { // #check_string_literal11
+  va_list ap;
+  va_start(ap,buf);
+  vsprintf(buf,s,ap); // expected-warning {{diagnostic behavior may be improved by adding the 'format(printf, 1, 3)' attribute to the declaration of 'check_string_literal11'}}
+  // expected-note@#check_string_literal11 {{'check_string_literal11' declared here}}
+}
+
+void check_string_literal12( const char* s, char *buf, ... ) { // #check_string_literal12
+  va_list ap;
+  va_start(ap,buf);
+  vsnprintf(buf,2,s,ap); // expected-warning {{diagnostic behavior may be improved by adding the 'format(printf, 1, 3)' attribute to the declaration of 'check_string_literal12'}}
+  // expected-note@#check_string_literal12 {{'check_string_literal12' declared here}}
+}
+
+void check_string_literal13( char *buf, ... ) {
+  va_list ap;
+  va_start(ap,buf);
   vsnprintf(buf,2,global_fmt,ap); // expected-warning {{format string is not a string literal}}
-  __builtin___vsnprintf_chk(buf,2,0,-1,s,ap); // expected-warning {{format string is not a string lit}}
+}
+
+void check_string_literal14( FILE* fp, const char* s, char *buf, ... ) { // #check_string_literal14
+  va_list ap;
+  va_start(ap,buf);
+  __builtin___vsnprintf_chk(buf,2,0,-1,s,ap); // expected-warning {{diagnostic behavior may be improved by adding the 'format(printf, 2, 4)' attribute to the declaration of 'check_string_literal14'}}
+  // expected-note@#check_string_literal14 {{'check_string_literal14' declared here}}
+}
+
+void check_string_literal15( FILE* fp, const char* s, char *buf, ... ) {
+  va_list ap;
+  va_start(ap,buf);
   __builtin___vsnprintf_chk(buf,2,0,-1,global_fmt,ap); // expected-warning {{format string is not a string literal}}
+}
 
-  vscanf(s, ap); // expected-warning {{format string is not a string literal}}
+void check_string_literal16(const char* s, ... ) { // #check_string_literal16
+  va_list ap;
+  va_start(ap,s);
+  vscanf(s, ap); // expected-warning {{diagnostic behavior may be improved by adding the 'format(scanf, 1, 2)' attribute to the declaration of 'check_string_literal16'}}
+  // expected-note@#check_string_literal16 {{'check_string_literal16' declared here}}
+}
 
+void check_string_literal17() {
   const char *const fmt = "%d"; // FIXME -- defined here
   printf(fmt, 1, 2); // expected-warning{{data argument not used}}
 
-  // rdar://6079877
   printf("abc"
          "%*d", 1, 1); // no-warning
   printf("abc\
 def"
          "%*d", 1, 1); // no-warning
 
-  // <rdar://problem/6079850>, allow 'unsigned' (instead of 'int') to be used for both
-  // the field width and precision.  This deviates from C99, but is reasonably safe
-  // and is also accepted by GCC.
+  // Allow 'unsigned' (instead of 'int') to be used for both the field width
+  // and precision. This deviates from C99, but is reasonably safe and is also
+  // accepted by GCC.
   printf("%*d", (unsigned) 1, 1); // no-warning
 }
 
@@ -75,7 +152,7 @@ def"
 // warn only if the format string argument is a parameter that is not itself
 // declared as a format string with compatible format.
 __attribute__((__format__ (__printf__, 2, 4)))
-void check_string_literal2( FILE* fp, const char* s, char *buf, ... ) {
+void check_string_literal18( FILE* fp, const char* s, char *buf, ... ) {
   char * b;
   va_list ap;
   va_start(ap,buf);
@@ -95,7 +172,7 @@ void check_string_literal2( FILE* fp, const char* s, char *buf, ... ) {
   // expected-note@-1{{treat the string as an argument to avoid this}}
   __builtin___vsnprintf_chk(buf,2,0,-1,s,ap); // no-warning
 
-  vscanf(s, ap); // expected-warning {{format string is not a string literal}}
+  vscanf(s, ap); // expected-warning {{passing 'printf' format string where 'scanf' format string is expected}}
 }
 
 void check_conditional_literal(const char* s, int i) {
@@ -202,7 +279,8 @@ void check_invalid_specifier(FILE* fp, char *buf)
   printf("%s%lv%d","unix",10,20); // expected-warning {{invalid conversion specifier 'v'}} expected-warning {{data argument not used by format string}}
   fprintf(fp,"%%%l"); // expected-warning {{incomplete format specifier}}
   sprintf(buf,"%%%%%ld%d%d", 1, 2, 3); // expected-warning{{format specifies type 'long' but the argument has type 'int'}}
-  snprintf(buf, 2, "%%%%%ld%;%d", 1, 2, 3); // expected-warning{{format specifies type 'long' but the argument has type 'int'}} expected-warning {{invalid conversion specifier ';'}} expected-warning {{data argument not used by format string}}
+  snprintf(buf, 2, "%%%%%ld%;%d", 1, 2, 3); // expected-warning{{format specifies type 'long' but the argument has type 'int'}} expected-warning {{invalid conversion specifier ';'}} expected-warning {{data argument not used by format string}} \
+                                            // expected-warning{{'snprintf' will always be truncated; specified size is 2, but format string expands to at least 7}}
 }
 
 void check_null_char_string(char* b)
@@ -230,8 +308,8 @@ void check_wide_string(char* b, ...)
   va_list ap;
   va_start(ap,b);
 
-  printf(L"foo %d",2); // expected-warning {{incompatible pointer types}}, expected-warning {{should not be a wide string}}
-  vsprintf(b,L"bar %d",ap); // expected-warning {{incompatible pointer types}}, expected-warning {{should not be a wide string}}
+  printf(L"foo %d",2); // expected-error {{incompatible pointer types}}, expected-warning {{should not be a wide string}}
+  vsprintf(b,L"bar %d",ap); // expected-error {{incompatible pointer types}}, expected-warning {{should not be a wide string}}
 }
 
 void check_asterisk_precision_width(int x) {
@@ -304,6 +382,7 @@ void test10(int x, float f, int i, long long lli) {
   printf("%qp", (void *)0); // expected-warning{{length modifier 'q' results in undefined behavior or no effect with 'p' conversion specifier}}
   printf("hhX %hhX", (unsigned char)10); // no-warning
   printf("llX %llX", (long long) 10); // no-warning
+  printf("%lb %lB", (long) 10, (long) 10); // no-warning
   printf("%llb %llB", (long long) 10, (long long) 10); // no-warning
   // This is fine, because there is an implicit conversion to an int.
   printf("%d", (unsigned char) 10); // no-warning
@@ -360,12 +439,10 @@ typedef struct __aslclient *aslclient;
 typedef struct __aslmsg *aslmsg;
 int asl_log(aslclient asl, aslmsg msg, int level, const char *format, ...) __attribute__((__format__ (__printf__, 4, 5)));
 void test_asl(aslclient asl) {
-  // Test case from <rdar://problem/7341605>.
   asl_log(asl, 0, 3, "Error: %m"); // no-warning
   asl_log(asl, 0, 3, "Error: %W"); // expected-warning{{invalid conversion specifier 'W'}}
 }
 
-// <rdar://problem/7595366>
 typedef enum { A } int_t;
 void f0(int_t x) { printf("%d\n", x); }
 
@@ -481,11 +558,9 @@ void pr7981(wint_t c, wchar_t c2) {
 #endif
 }
 
-// <rdar://problem/8269537> -Wformat-security says NULL is not a string literal
 void rdar8269537(void) {
-  // This is likely to crash in most cases, but -Wformat-nonliteral technically
-  // doesn't warn in this case.
-  printf(0); // no-warning
+  printf(0);
+  // expected-warning@-1{{null passed to a callee that requires a non-null argument}}
 }
 
 // Handle functions with multiple format attributes.
@@ -497,6 +572,26 @@ void rdar8332221(va_list ap, int *x, long *y) {
   rdar8332221_vprintf_scanf("%", ap, "%d", x); // expected-warning{{incomplete format specifier}}
 }
 
+void rdar8332221_vprintf_scanf(const char *p, va_list ap, const char *s, ...) {
+  vprintf(p, ap);
+
+  va_list vs;
+  va_start(vs, s);
+  vscanf(s, vs);
+  va_end(vs);
+}
+
+__attribute__((__format__(__printf__, 1, 0)))
+__attribute__((__format__(__scanf__, 3, 4)))
+void vprintf_scanf_bad(const char *p, va_list ap, const char *s, ...) {
+  vscanf(p, ap); // expected-warning{{passing 'printf' format string where 'scanf' format string is expected}}
+
+  va_list vs;
+  va_start(vs, s);
+  vprintf(s, vs); // expected-warning{{passing 'scanf' format string where 'printf' format string is expected}}
+  va_end(vs);
+}
+
 // PR8641
 void pr8641(void) {
   printf("%#x\n", 10);
@@ -506,7 +601,6 @@ void pr8641(void) {
 
 void posix_extensions(void) {
   // Test %'d, "thousands grouping".
-  // <rdar://problem/8816343>
   printf("%'d\n", 123456789); // no-warning
   printf("%'i\n", 123456789); // no-warning
   printf("%'f\n", (float) 1.0); // no-warning
@@ -660,19 +754,24 @@ void pr18905(void) {
 }
 
 void __attribute__((format(strfmon,1,2))) monformat(const char *fmt, ...);
+void __attribute__((format(gnu_strfmon,1,2))) gnu_monformat(const char *fmt, ...);
 void __attribute__((format(strftime,1,0))) dateformat(const char *fmt);
+void __attribute__((format(gnu_strftime,1,0))) gnu_dateformat(const char *fmt);
 
 // Other formats
 void test_other_formats(void) {
   char *str = "";
   monformat("", 1); // expected-warning{{format string is empty}}
   monformat(str); // expected-warning{{format string is not a string literal (potentially insecure)}}
+  gnu_monformat("", 1); // expected-warning{{format string is empty}}
+  gnu_monformat(str); // expected-warning{{format string is not a string literal (potentially insecure)}}
   dateformat(""); // expected-warning{{format string is empty}}
   dateformat(str); // no-warning (using strftime non-literal is not unsafe)
+  gnu_dateformat(""); // expected-warning{{format string is empty}}
+  gnu_dateformat(str); // no-warning (using strftime non-literal is not unsafe)
 }
 
 // Do not warn about unused arguments coming from system headers.
-// <rdar://problem/11317765>
 #include <format-unused-system-args.h>
 void test_unused_system_args(int x) {
   PRINT1("%d\n", x); // no-warning{{extra argument is system header is OK}}
@@ -750,7 +849,6 @@ void test_qualifiers(volatile int *vip, const int *cip,
 
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
 #pragma GCC diagnostic warning "-Wformat-security"
-// <rdar://problem/14178260>
 extern void test_format_security_extra_args(const char*, int, ...)
     __attribute__((__format__(__printf__, 1, 3)));
 void test_format_security_pos(char* string) {
@@ -818,12 +916,13 @@ void test_block(void) {
 
   void __attribute__((__format__(__printf__, 2, 3))) (^printf_arg2)(
       const char *, const char *, ...) =
-      ^(const char *not_fmt, const char *fmt, ...)
+      ^(const char *not_fmt, const char *fmt, ...) // #printf_arg2
           __attribute__((__format__(__printf__, 2, 3))) {
     va_list ap;
     va_start(ap, fmt);
     vprintf(fmt, ap);
-    vprintf(not_fmt, ap); // expected-warning{{format string is not a string literal}}
+    vprintf(not_fmt, ap); // expected-warning{{diagnostic behavior may be improved by adding the 'format(printf, 1, 3)' attribute to the declaration of block}}
+    // expected-note@#printf_arg2 {{block declared here}}
     va_end(ap);
   };
 

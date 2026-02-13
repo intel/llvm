@@ -8,10 +8,6 @@
 
 #pragma once
 
-#define __SYCL_INLINE_NAMESPACE(X) inline namespace X
-
-#define __SYCL_INLINE_VER_NAMESPACE(X) inline namespace X
-
 #ifndef __has_attribute
 #define __has_attribute(x) 0
 #endif
@@ -28,18 +24,41 @@
 #endif
 #endif // __SYCL_ALWAYS_INLINE
 
-#ifndef SYCL_EXTERNAL
+#ifdef SYCL_EXTERNAL
+#ifdef __NativeCPU__
+#define __DPCPP_SYCL_EXTERNAL SYCL_EXTERNAL __attribute__((__libclc_call__))
+#define __DPCPP_SYCL_EXTERNAL_LIBC SYCL_EXTERNAL
+#else
+#define __DPCPP_SYCL_EXTERNAL SYCL_EXTERNAL
+#endif
+#else
+#ifdef __SYCL_DEVICE_ONLY__
+#define __DPCPP_SYCL_EXTERNAL __attribute__((sycl_device))
+#else
+#define __DPCPP_SYCL_EXTERNAL
 #define SYCL_EXTERNAL
 #endif
+#endif
+
+#ifndef __DPCPP_SYCL_EXTERNAL_LIBC
+#define __DPCPP_SYCL_EXTERNAL_LIBC __DPCPP_SYCL_EXTERNAL
+#endif
+
+// Helper for enabling empty-base optimizations on MSVC.
+// TODO: Remove this when MSVC has this optimization enabled by default.
+#ifdef _MSC_VER
+#define __SYCL_EBO __declspec(empty_bases)
+#else
+#define __SYCL_EBO
+#endif
+
 
 #ifndef __SYCL_ID_QUERIES_FIT_IN_INT__
 #define __SYCL_ID_QUERIES_FIT_IN_INT__ 0
 #endif
 
 #ifndef __SYCL_DEPRECATED
-// The deprecated attribute is not supported in some situations(e.g. namespace)
-// in C++14 mode
-#if !defined(SYCL2020_DISABLE_DEPRECATION_WARNINGS) && __cplusplus >= 201703L
+#if !defined(__SYCL_DISABLE_DEPRECATION_WARNINGS)
 #define __SYCL_DEPRECATED(message) [[deprecated(message)]]
 #else // SYCL_DISABLE_DEPRECATION_WARNINGS
 #define __SYCL_DEPRECATED(message)
@@ -47,7 +66,7 @@
 #endif // __SYCL_DEPRECATED
 
 #ifndef __SYCL2020_DEPRECATED
-#if SYCL_LANGUAGE_VERSION >= 202001 &&                                         \
+#if SYCL_LANGUAGE_VERSION == 202012L &&                                        \
     !defined(SYCL2020_DISABLE_DEPRECATION_WARNINGS)
 #define __SYCL2020_DEPRECATED(message) __SYCL_DEPRECATED(message)
 #else
@@ -55,14 +74,19 @@
 #endif
 #endif // __SYCL2020_DEPRECATED
 
-#ifndef __SYCL_INLINE_CONSTEXPR
-// inline constexpr is a C++17 feature
-#if __cplusplus >= 201703L
-#define __SYCL_INLINE_CONSTEXPR inline constexpr
+#ifndef __SYCL_WARN_IMAGE_ASPECT
+#if !defined(SYCL_DISABLE_IMAGE_ASPECT_WARNING) && __has_attribute(diagnose_if)
+#define __SYCL_WARN_IMAGE_ASPECT(aspect_param)                                   \
+  __attribute__((diagnose_if(                                                    \
+      aspect_param == aspect::image,                                             \
+      "SYCL 2020 images are not supported on any devices. Consider using "       \
+      "‘aspect::ext_intel_legacy_image’ instead. Disable this warning with " \
+      "by defining SYCL_DISABLE_IMAGE_ASPECT_WARNING.",                          \
+      "warning")))
 #else
-#define __SYCL_INLINE_CONSTEXPR static constexpr
+#define __SYCL_WARN_IMAGE_ASPECT(aspect)
 #endif
-#endif // __SYCL_INLINE_CONSTEXPR
+#endif // __SYCL_WARN_IMAGE_ASPECT
 
 #ifndef __SYCL_HAS_CPP_ATTRIBUTE
 #if defined(__cplusplus) && defined(__has_cpp_attribute)
@@ -72,25 +96,34 @@
 #endif
 #endif
 
-#ifndef __SYCL_FALLTHROUGH
-#if defined(__cplusplus) && __cplusplus >= 201703L &&                          \
-    __SYCL_HAS_CPP_ATTRIBUTE(fallthrough)
-#define __SYCL_FALLTHROUGH [[fallthrough]]
-#elif __SYCL_HAS_CPP_ATTRIBUTE(gnu::fallthrough)
-#define __SYCL_FALLTHROUGH [[gnu::fallthrough]]
-#elif __has_attribute(fallthrough)
-#define __SYCL_FALLTHROUGH __attribute__((fallthrough))
-#elif __SYCL_HAS_CPP_ATTRIBUTE(clang::fallthrough)
-#define __SYCL_FALLTHROUGH [[clang::fallthrough]]
-#else
-#define __SYCL_FALLTHROUGH
-#endif
-#endif // __SYCL_FALLTHROUGH
-
-// Stringify an argument to pass it in _Pragma directive below.
-#ifndef __SYCL_STRINGIFY
-#define __SYCL_STRINGIFY(x) #x
-#endif // __SYCL_STRINGIFY
-
 static_assert(__cplusplus >= 201703L,
               "DPCPP does not support C++ version earlier than C++17.");
+
+// MSVC doesn't support #warning and we cannot use other methods to report a
+// warning from inside a system header (which SYCL is considered to be).
+#if defined(SYCL_FALLBACK_ASSERT) && (!defined(_MSC_VER) || defined(__clang__))
+#warning "SYCL_FALLBACK_ASSERT has been removed and no longer has any effect."
+#endif
+
+#if defined(_WIN32) && !defined(_DLL) && !defined(__SYCL_DEVICE_ONLY__)
+// SYCL library is designed such a way that STL objects cross DLL boundary,
+// which is guaranteed to work properly only when the application uses the same
+// C++ runtime that SYCL library uses.
+// The appplications using sycl.dll must be linked with dynamic/release C++ MSVC
+// runtime, i.e. be compiled with /MD switch. Similarly, the applications using
+// sycld.dll must be linked with dynamic/debug C++ runtime and be compiled with
+// /MDd switch.
+// Compiler automatically adds /MD or /MDd when -fsycl switch is used.
+// The options /MD and /MDd that make the code to use dynamic runtime also
+// define the _DLL macro.
+#if defined(_MSC_VER)
+#pragma message(                                                               \
+    "SYCL library is designed to work safely with dynamic C++ runtime."        \
+    "Please use /MD switch with sycl.dll, /MDd switch with sycld.dll, "        \
+    "or -fsycl switch to set C++ runtime automatically.")
+#else
+#warning "SYCL library is designed to work safely with dynamic C++ runtime."\
+    "Please use /MD switch with sycl.dll, /MDd switch with sycld.dll, "\
+    "or -fsycl switch to set C++ runtime automatically."
+#endif
+#endif // defined(_WIN32) && !defined(_DLL) && !defined(__SYCL_DEVICE_ONLY__)

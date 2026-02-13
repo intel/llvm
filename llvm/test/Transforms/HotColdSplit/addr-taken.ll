@@ -1,4 +1,4 @@
-; RUN: opt -hotcoldsplit -hotcoldsplit-threshold=-1 -S < %s | FileCheck %s
+; RUN: opt -passes=hotcoldsplit -hotcoldsplit-threshold=-1 -S < %s | FileCheck %s
 
 target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-apple-macosx10.14.0"
@@ -9,8 +9,8 @@ define void @foo() noreturn cold {
 }
 
 ; CHECK: define {{.*}} @bar.cold.1{{.*}}#[[outlined_func_attr]]
-define void @bar() {
-  br i1 undef, label %normal, label %exit
+define void @bar(i1 %arg) {
+  br i1 %arg, label %normal, label %exit
 
 normal:
   unreachable
@@ -19,8 +19,8 @@ exit:
   ret void
 }
 
-@take_addr_of_foo = global void ()* @foo
-@take_addr_of_bar = global void ()* @bar
+@take_addr_of_foo = global ptr @foo
+@take_addr_of_bar = global ptr @bar
 
 ; CHECK: attributes #[[outlined_func_attr]] = {
 ; CHECK-SAME: cold

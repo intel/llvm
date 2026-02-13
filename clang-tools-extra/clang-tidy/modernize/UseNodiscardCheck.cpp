@@ -1,4 +1,4 @@
-//===--- UseNodiscardCheck.cpp - clang-tidy -------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,15 +14,13 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace modernize {
+namespace clang::tidy::modernize {
 
 static bool doesNoDiscardMacroExist(ASTContext &Context,
                                     const llvm::StringRef &MacroId) {
   // Don't check for the Macro existence if we are using an attribute
   // either a C++17 standard attribute or pre C++17 syntax
-  if (MacroId.startswith("[[") || MacroId.startswith("__attribute__"))
+  if (MacroId.starts_with("[[") || MacroId.starts_with("__attribute__"))
     return true;
 
   // Otherwise look up the macro name in the context to see if its defined.
@@ -91,20 +89,20 @@ void UseNodiscardCheck::registerMatchers(MatchFinder *Finder) {
   // warn on unused result.
   Finder->addMatcher(
       cxxMethodDecl(
-          allOf(isConst(), isDefinitionOrInline(),
-                unless(anyOf(
-                    returns(voidType()),
-                    returns(hasDeclaration(decl(hasAttr(clang::attr::WarnUnusedResult)))),
-                    isNoReturn(), isOverloadedOperator(),
-                    isVariadic(), hasTemplateReturnType(),
-                    hasClassMutableFields(), isConversionOperator(),
-                    hasAttr(clang::attr::WarnUnusedResult),
-                    hasType(isInstantiationDependentType()),
-                    hasAnyParameter(anyOf(
-                        parmVarDecl(anyOf(hasType(FunctionObj),
+          isConst(), isDefinitionOrInline(),
+          unless(anyOf(
+              returns(voidType()),
+              returns(
+                  hasDeclaration(decl(hasAttr(clang::attr::WarnUnusedResult)))),
+              isNoReturn(), isOverloadedOperator(), isVariadic(),
+              hasTemplateReturnType(), hasClassMutableFields(),
+              isConversionOperator(), hasAttr(clang::attr::WarnUnusedResult),
+              hasType(isInstantiationDependentType()),
+              hasAnyParameter(
+                  anyOf(parmVarDecl(anyOf(hasType(FunctionObj),
                                           hasType(references(FunctionObj)))),
                         hasType(isNonConstReferenceOrPointer()),
-                        hasParameterPack()))))))
+                        hasParameterPack())))))
           .bind("no_discard"),
       this);
 }
@@ -112,11 +110,11 @@ void UseNodiscardCheck::registerMatchers(MatchFinder *Finder) {
 void UseNodiscardCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *MatchedDecl = Result.Nodes.getNodeAs<CXXMethodDecl>("no_discard");
   // Don't make replacements if the location is invalid or in a macro.
-  SourceLocation Loc = MatchedDecl->getLocation();
+  const SourceLocation Loc = MatchedDecl->getLocation();
   if (Loc.isInvalid() || Loc.isMacroID())
     return;
 
-  SourceLocation RetLoc = MatchedDecl->getInnerLocStart();
+  const SourceLocation RetLoc = MatchedDecl->getInnerLocStart();
 
   ASTContext &Context = *Result.Context;
 
@@ -146,6 +144,4 @@ bool UseNodiscardCheck::isLanguageVersionSupported(
   return LangOpts.CPlusPlus;
 }
 
-} // namespace modernize
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::modernize

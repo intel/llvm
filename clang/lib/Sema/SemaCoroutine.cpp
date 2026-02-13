@@ -16,15 +16,15 @@
 #include "CoroutineStmtBuilder.h"
 #include "clang/AST/ASTLambda.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/StmtCXX.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Lex/Preprocessor.h"
+#include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/Overload.h"
 #include "clang/Sema/ScopeInfo.h"
-#include "clang/Sema/SemaInternal.h"
-#include "llvm/ADT/SmallSet.h"
 
 using namespace clang;
 using namespace sema;
@@ -54,12 +54,10 @@ static QualType lookupPromiseType(Sema &S, const FunctionDecl *FD,
   const FunctionProtoType *FnType = FD->getType()->castAs<FunctionProtoType>();
   const SourceLocation FuncLoc = FD->getLocation();
 
-  NamespaceDecl *CoroNamespace = nullptr;
   ClassTemplateDecl *CoroTraits =
-      S.lookupCoroutineTraits(KwLoc, FuncLoc, CoroNamespace);
-  if (!CoroTraits) {
+      S.lookupCoroutineTraits(KwLoc, FuncLoc);
+  if (!CoroTraits)
     return QualType();
-  }
 
   // Form template argument list for coroutine_traits<R, P1, P2, ...> according
   // to [dcl.fct.def.coroutine]3
@@ -72,7 +70,7 @@ static QualType lookupPromiseType(Sema &S, const FunctionDecl *FD,
   // If the function is a non-static member function, add the type
   // of the implicit object parameter before the formal parameters.
   if (auto *MD = dyn_cast<CXXMethodDecl>(FD)) {
-    if (MD->isInstance()) {
+    if (MD->isImplicitObjectMemberFunction()) {
       // [over.match.funcs]4
       // For non-static member functions, the type of the implicit object
       // parameter is
@@ -80,7 +78,7 @@ static QualType lookupPromiseType(Sema &S, const FunctionDecl *FD,
       //      ref-qualifier or with the & ref-qualifier
       //  -- "rvalue reference to cv X" for functions declared with the &&
       //      ref-qualifier
-      QualType T = MD->getThisType()->castAs<PointerType>()->getPointeeType();
+      QualType T = MD->getFunctionObjectParameterType();
       T = FnType->getRefQualifier() == RQ_RValue
               ? S.Context.getRValueReferenceType(T)
               : S.Context.getLValueReferenceType(T, /*SpelledAsLValue*/ true);
@@ -91,8 +89,9 @@ static QualType lookupPromiseType(Sema &S, const FunctionDecl *FD,
     AddArg(T);
 
   // Build the template-id.
-  QualType CoroTrait =
-      S.CheckTemplateIdType(TemplateName(CoroTraits), KwLoc, Args);
+  QualType CoroTrait = S.CheckTemplateIdType(
+      ElaboratedTypeKeyword::None, TemplateName(CoroTraits), KwLoc, Args,
+      /*Scope=*/nullptr, /*ForNestedNameSpecifier=*/false);
   if (CoroTrait.isNull())
     return QualType();
   if (S.RequireCompleteType(KwLoc, CoroTrait,
@@ -113,23 +112,18 @@ static QualType lookupPromiseType(Sema &S, const FunctionDecl *FD,
         << RD;
     return QualType();
   }
+
+  NestedNameSpecifier Qualifier(CoroTrait.getTypePtr());
+  QualType PromiseType = S.Context.getTypeDeclType(ElaboratedTypeKeyword::None,
+                                                   Qualifier, Promise);
   // The promise type is required to be a class type.
-  QualType PromiseType = S.Context.getTypeDeclType(Promise);
-
-  auto buildElaboratedType = [&]() {
-    auto *NNS = NestedNameSpecifier::Create(S.Context, nullptr, CoroNamespace);
-    NNS = NestedNameSpecifier::Create(S.Context, NNS, false,
-                                      CoroTrait.getTypePtr());
-    return S.Context.getElaboratedType(ETK_None, NNS, PromiseType);
-  };
-
   if (!PromiseType->getAsCXXRecordDecl()) {
     S.Diag(FuncLoc,
            diag::err_implied_std_coroutine_traits_promise_type_not_class)
-        << buildElaboratedType();
+        << PromiseType;
     return QualType();
   }
-  if (S.RequireCompleteType(FuncLoc, buildElaboratedType(),
+  if (S.RequireCompleteType(FuncLoc, PromiseType,
                             diag::err_coroutine_promise_type_incomplete))
     return QualType();
 
@@ -142,7 +136,7 @@ static QualType lookupCoroutineHandleType(Sema &S, QualType PromiseType,
   if (PromiseType.isNull())
     return QualType();
 
-  NamespaceDecl *CoroNamespace = S.getCachedCoroNamespace();
+  NamespaceDecl *CoroNamespace = S.getStdNamespace();
   assert(CoroNamespace && "Should already be diagnosed");
 
   LookupResult Result(S, &S.PP.getIdentifierTable().get("coroutine_handle"),
@@ -169,8 +163,9 @@ static QualType lookupCoroutineHandleType(Sema &S, QualType PromiseType,
       S.Context.getTrivialTypeSourceInfo(PromiseType, Loc)));
 
   // Build the template-id.
-  QualType CoroHandleType =
-      S.CheckTemplateIdType(TemplateName(CoroHandle), Loc, Args);
+  QualType CoroHandleType = S.CheckTemplateIdType(
+      ElaboratedTypeKeyword::None, TemplateName(CoroHandle), Loc, Args,
+      /*Scope=*/nullptr, /*ForNestedNameSpecifier=*/false);
   if (CoroHandleType.isNull())
     return QualType();
   if (S.RequireCompleteType(Loc, CoroHandleType,
@@ -311,20 +306,12 @@ static ExprResult buildMemberCall(Sema &S, Expr *Base, SourceLocation Loc,
   if (Result.isInvalid())
     return ExprError();
 
-  // We meant exactly what we asked for. No need for typo correction.
-  if (auto *TE = dyn_cast<TypoExpr>(Result.get())) {
-    S.clearDelayedTypo(TE);
-    S.Diag(Loc, diag::err_no_member)
-        << NameInfo.getName() << Base->getType()->getAsCXXRecordDecl()
-        << Base->getSourceRange();
-    return ExprError();
-  }
-
-  return S.BuildCallExpr(nullptr, Result.get(), Loc, Args, Loc, nullptr);
+  auto EndLoc = Args.empty() ? Loc : Args.back()->getEndLoc();
+  return S.BuildCallExpr(nullptr, Result.get(), Loc, Args, EndLoc, nullptr);
 }
 
 // See if return type is coroutine-handle and if so, invoke builtin coro-resume
-// on its address. This is to enable experimental support for coroutine-handle
+// on its address. This is to enable the support for coroutine-handle
 // returning await_suspend that results in a guaranteed tail call to the target
 // coroutine.
 static Expr *maybeTailCall(Sema &S, QualType RetType, Expr *E,
@@ -339,7 +326,7 @@ static Expr *maybeTailCall(Sema &S, QualType RetType, Expr *E,
   // EvaluateBinaryTypeTrait(BTT_IsConvertible, ...) which is at the moment
   // a private function in SemaExprCXX.cpp
 
-  ExprResult AddressExpr = buildMemberCall(S, E, Loc, "address", None);
+  ExprResult AddressExpr = buildMemberCall(S, E, Loc, "address", {});
   if (AddressExpr.isInvalid())
     return nullptr;
 
@@ -351,14 +338,9 @@ static Expr *maybeTailCall(Sema &S, QualType RetType, Expr *E,
            diag::warn_coroutine_handle_address_invalid_return_type)
         << JustAddress->getType();
 
-  // Clean up temporary objects so that they don't live across suspension points
-  // unnecessarily. We choose to clean up before the call to
-  // __builtin_coro_resume so that the cleanup code are not inserted in-between
-  // the resume call and return instruction, which would interfere with the
-  // musttail call contract.
-  JustAddress = S.MaybeCreateExprWithCleanups(JustAddress);
-  return S.BuildBuiltinCallExpr(Loc, Builtin::BI__builtin_coro_resume,
-                                JustAddress);
+  // Clean up temporary objects, because the resulting expression
+  // will become the body of await_suspend wrapper.
+  return S.MaybeCreateExprWithCleanups(JustAddress);
 }
 
 /// Build calls to await_ready, await_suspend, and await_resume for a co_await
@@ -396,7 +378,7 @@ static ReadySuspendResumeResult buildCoawaitCalls(Sema &S, VarDecl *CoroPromise,
   };
 
   CallExpr *AwaitReady =
-      cast_or_null<CallExpr>(BuildSubExpr(ACT::ACT_Ready, "await_ready", None));
+      cast_or_null<CallExpr>(BuildSubExpr(ACT::ACT_Ready, "await_ready", {}));
   if (!AwaitReady)
     return Calls;
   if (!AwaitReady->getType()->isDependentType()) {
@@ -432,7 +414,7 @@ static ReadySuspendResumeResult buildCoawaitCalls(Sema &S, VarDecl *CoroPromise,
     //     type Z.
     QualType RetType = AwaitSuspend->getCallReturnType(S.Context);
 
-    // Experimental support for coroutine_handle returning await_suspend.
+    // Support for coroutine_handle returning await_suspend.
     if (Expr *TailCallSuspend =
             maybeTailCall(S, RetType, AwaitSuspend, Loc))
       // Note that we don't wrap the expression with ExprWithCleanups here
@@ -457,7 +439,7 @@ static ReadySuspendResumeResult buildCoawaitCalls(Sema &S, VarDecl *CoroPromise,
     }
   }
 
-  BuildSubExpr(ACT::ACT_Resume, "await_resume", None);
+  BuildSubExpr(ACT::ACT_Resume, "await_resume", {});
 
   // Make sure the awaiter object gets a chance to be cleaned up.
   S.Cleanup.setExprNeedsCleanups(true);
@@ -482,10 +464,10 @@ VarDecl *Sema::buildCoroutinePromise(SourceLocation Loc) {
   assert(isa<FunctionDecl>(CurContext) && "not in a function scope");
   auto *FD = cast<FunctionDecl>(CurContext);
   bool IsThisDependentType = [&] {
-    if (auto *MD = dyn_cast_or_null<CXXMethodDecl>(FD))
-      return MD->isInstance() && MD->getThisType()->isDependentType();
-    else
-      return false;
+    if (const auto *MD = dyn_cast_if_present<CXXMethodDecl>(FD))
+      return MD->isImplicitObjectMemberFunction() &&
+             MD->getThisType()->isDependentType();
+    return false;
   }();
 
   QualType T = FD->getType()->isDependentType() || IsThisDependentType
@@ -510,7 +492,7 @@ VarDecl *Sema::buildCoroutinePromise(SourceLocation Loc) {
 
   // Add implicit object parameter.
   if (auto *MD = dyn_cast<CXXMethodDecl>(FD)) {
-    if (MD->isInstance() && !isLambdaCallOperator(MD)) {
+    if (MD->isImplicitObjectMemberFunction() && !isLambdaCallOperator(MD)) {
       ExprResult ThisExpr = ActOnCXXThis(Loc);
       if (ThisExpr.isInvalid())
         return nullptr;
@@ -658,8 +640,9 @@ static void checkNoThrow(Sema &S, const Stmt *E,
         QualType::DestructionKind::DK_cxx_destructor) {
       const auto *T =
           cast<RecordType>(ReturnType.getCanonicalType().getTypePtr());
-      checkDeclNoexcept(cast<CXXRecordDecl>(T->getDecl())->getDestructor(),
-                        /*IsDtor=*/true);
+      checkDeclNoexcept(
+          cast<CXXRecordDecl>(T->getDecl())->getDefinition()->getDestructor(),
+          /*IsDtor=*/true);
     }
   } else
     for (const auto *Child : E->children()) {
@@ -687,12 +670,34 @@ bool Sema::checkFinalSuspendNoThrow(const Stmt *FinalSuspend) {
   return ThrowingDecls.empty();
 }
 
+// [stmt.return.coroutine]p1:
+//   A coroutine shall not enclose a return statement ([stmt.return]).
+static void checkReturnStmtInCoroutine(Sema &S, FunctionScopeInfo *FSI) {
+  assert(FSI && "FunctionScopeInfo is null");
+  assert(FSI->FirstCoroutineStmtLoc.isValid() &&
+         "first coroutine location not set");
+  if (FSI->FirstReturnLoc.isInvalid())
+    return;
+  S.Diag(FSI->FirstReturnLoc, diag::err_return_in_coroutine);
+  S.Diag(FSI->FirstCoroutineStmtLoc, diag::note_declared_coroutine_here)
+      << FSI->getFirstCoroutineStmtKeyword();
+}
+
 bool Sema::ActOnCoroutineBodyStart(Scope *SC, SourceLocation KWLoc,
                                    StringRef Keyword) {
+  // Ignore previous expr evaluation contexts.
+  EnterExpressionEvaluationContextForFunction PotentiallyEvaluated(
+      *this, Sema::ExpressionEvaluationContext::PotentiallyEvaluated,
+      dyn_cast_or_null<FunctionDecl>(CurContext));
+
   if (!checkCoroutineContext(*this, KWLoc, Keyword))
     return false;
   auto *ScopeInfo = getCurFunction();
   assert(ScopeInfo->CoroutinePromise);
+
+  // Avoid duplicate errors, report only on first keyword.
+  if (ScopeInfo->FirstCoroutineStmtLoc == KWLoc)
+    checkReturnStmtInCoroutine(*this, ScopeInfo);
 
   // If we have existing coroutine statements then we have already built
   // the initial and final suspend points.
@@ -706,7 +711,7 @@ bool Sema::ActOnCoroutineBodyStart(Scope *SC, SourceLocation KWLoc,
   // Build the initial suspend point
   auto buildSuspends = [&](StringRef Name) mutable -> StmtResult {
     ExprResult Operand =
-        buildPromiseCall(*this, ScopeInfo->CoroutinePromise, Loc, Name, None);
+        buildPromiseCall(*this, ScopeInfo->CoroutinePromise, Loc, Name, {});
     if (Operand.isInvalid())
       return StmtError();
     ExprResult Suspend =
@@ -768,32 +773,43 @@ static bool isWithinCatchScope(Scope *S) {
 // function-body *outside of a handler* [...] A context within a function
 // where an await-expression can appear is called a suspension context of the
 // function."
-static void checkSuspensionContext(Sema &S, SourceLocation Loc,
+static bool checkSuspensionContext(Sema &S, SourceLocation Loc,
                                    StringRef Keyword) {
   // First emphasis of [expr.await]p2: must be a potentially evaluated context.
   // That is, 'co_await' and 'co_yield' cannot appear in subexpressions of
   // \c sizeof.
-  if (S.isUnevaluatedContext())
+  const auto ExprContext = S.currentEvaluationContext().ExprContext;
+  const bool BadContext =
+      S.isUnevaluatedContext() ||
+      (ExprContext != Sema::ExpressionEvaluationContextRecord::EK_Other &&
+       ExprContext != Sema::ExpressionEvaluationContextRecord::EK_VariableInit);
+  if (BadContext) {
     S.Diag(Loc, diag::err_coroutine_unevaluated_context) << Keyword;
+    return false;
+  }
 
   // Second emphasis of [expr.await]p2: must be outside of an exception handler.
-  if (isWithinCatchScope(S.getCurScope()))
+  if (isWithinCatchScope(S.getCurScope())) {
     S.Diag(Loc, diag::err_coroutine_within_handler) << Keyword;
+    return false;
+  }
+  return true;
 }
 
 ExprResult Sema::ActOnCoawaitExpr(Scope *S, SourceLocation Loc, Expr *E) {
+  if (!checkSuspensionContext(*this, Loc, "co_await"))
+    return ExprError();
+
   if (!ActOnCoroutineBodyStart(S, Loc, "co_await")) {
-    CorrectDelayedTyposInExpr(E);
     return ExprError();
   }
-
-  checkSuspensionContext(*this, Loc, "co_await");
 
   if (E->hasPlaceholderType()) {
     ExprResult R = CheckPlaceholderExpr(E);
     if (R.isInvalid()) return ExprError();
     E = R.get();
   }
+
   ExprResult Lookup = BuildOperatorCoawaitLookupExpr(S, Loc);
   if (Lookup.isInvalid())
     return ExprError();
@@ -810,15 +826,42 @@ ExprResult Sema::BuildOperatorCoawaitLookupExpr(Scope *S, SourceLocation Loc) {
 
   assert(!Operators.isAmbiguous() && "Operator lookup cannot be ambiguous");
   const auto &Functions = Operators.asUnresolvedSet();
-  bool IsOverloaded =
-      Functions.size() > 1 ||
-      (Functions.size() == 1 && isa<FunctionTemplateDecl>(*Functions.begin()));
   Expr *CoawaitOp = UnresolvedLookupExpr::Create(
       Context, /*NamingClass*/ nullptr, NestedNameSpecifierLoc(),
-      DeclarationNameInfo(OpName, Loc), /*RequiresADL*/ true, IsOverloaded,
-      Functions.begin(), Functions.end());
+      DeclarationNameInfo(OpName, Loc), /*RequiresADL*/ true, Functions.begin(),
+      Functions.end(), /*KnownDependent=*/false,
+      /*KnownInstantiationDependent=*/false);
   assert(CoawaitOp);
   return CoawaitOp;
+}
+
+static bool isAttributedCoroAwaitElidable(const QualType &QT) {
+  auto *Record = QT->getAsCXXRecordDecl();
+  return Record && Record->hasAttr<CoroAwaitElidableAttr>();
+}
+
+static void applySafeElideContext(Expr *Operand) {
+  auto *Call = dyn_cast<CallExpr>(Operand->IgnoreImplicit());
+  if (!Call || !Call->isPRValue())
+    return;
+
+  if (!isAttributedCoroAwaitElidable(Call->getType()))
+    return;
+
+  Call->setCoroElideSafe();
+
+  // Check parameter
+  auto *Fn = llvm::dyn_cast_if_present<FunctionDecl>(Call->getCalleeDecl());
+  if (!Fn)
+    return;
+
+  size_t ParmIdx = 0;
+  for (ParmVarDecl *PD : Fn->parameters()) {
+    if (PD->hasAttr<CoroAwaitElidableArgumentAttr>())
+      applySafeElideContext(Call->getArg(ParmIdx));
+
+    ParmIdx++;
+  }
 }
 
 // Attempts to resolve and build a CoawaitExpr from "raw" inputs, bailing out to
@@ -844,7 +887,14 @@ ExprResult Sema::BuildUnresolvedCoawaitExpr(SourceLocation Loc, Expr *Operand,
   }
 
   auto *RD = Promise->getType()->getAsCXXRecordDecl();
-  auto *Transformed = Operand;
+
+  bool CurFnAwaitElidable = isAttributedCoroAwaitElidable(
+      getCurFunctionDecl(/*AllowLambda=*/true)->getReturnType());
+
+  if (CurFnAwaitElidable)
+    applySafeElideContext(Operand);
+
+  Expr *Transformed = Operand;
   if (lookupMember(*this, "await_transform", RD, Loc)) {
     ExprResult R =
         buildPromiseCall(*this, Promise, Loc, "await_transform", Operand);
@@ -905,12 +955,12 @@ ExprResult Sema::BuildResolvedCoawaitExpr(SourceLocation Loc, Expr *Operand,
 }
 
 ExprResult Sema::ActOnCoyieldExpr(Scope *S, SourceLocation Loc, Expr *E) {
+  if (!checkSuspensionContext(*this, Loc, "co_yield"))
+    return ExprError();
+
   if (!ActOnCoroutineBodyStart(S, Loc, "co_yield")) {
-    CorrectDelayedTyposInExpr(E);
     return ExprError();
   }
-
-  checkSuspensionContext(*this, Loc, "co_yield");
 
   // Build yield_value call.
   ExprResult Awaitable = buildPromiseCall(
@@ -963,7 +1013,6 @@ ExprResult Sema::BuildCoyieldExpr(SourceLocation Loc, Expr *E) {
 
 StmtResult Sema::ActOnCoreturnStmt(Scope *S, SourceLocation Loc, Expr *E) {
   if (!ActOnCoroutineBodyStart(S, Loc, "co_return")) {
-    CorrectDelayedTyposInExpr(E);
     return StmtError();
   }
   return BuildCoreturnStmt(Loc, E);
@@ -989,7 +1038,7 @@ StmtResult Sema::BuildCoreturnStmt(SourceLocation Loc, Expr *E,
     PC = buildPromiseCall(*this, Promise, Loc, "return_value", E);
   } else {
     E = MakeFullDiscardedValueExpr(E).get();
-    PC = buildPromiseCall(*this, Promise, Loc, "return_void", None);
+    PC = buildPromiseCall(*this, Promise, Loc, "return_void", {});
   }
   if (PC.isInvalid())
     return StmtError();
@@ -1032,9 +1081,34 @@ static Expr *buildStdNoThrowDeclRef(Sema &S, SourceLocation Loc) {
 
 static TypeSourceInfo *getTypeSourceInfoForStdAlignValT(Sema &S,
                                                         SourceLocation Loc) {
-  EnumDecl *StdAlignValT = S.getStdAlignValT();
-  QualType StdAlignValDecl = S.Context.getTypeDeclType(StdAlignValT);
-  return S.Context.getTrivialTypeSourceInfo(StdAlignValDecl);
+  EnumDecl *StdAlignValDecl = S.getStdAlignValT();
+  CanQualType StdAlignValT = S.Context.getCanonicalTagType(StdAlignValDecl);
+  return S.Context.getTrivialTypeSourceInfo(StdAlignValT);
+}
+
+// When searching for custom allocators on the PromiseType we want to
+// warn that we will ignore type aware allocators.
+static bool DiagnoseTypeAwareAllocators(Sema &S, SourceLocation Loc,
+                                        unsigned DiagnosticID,
+                                        DeclarationName Name,
+                                        QualType PromiseType) {
+  assert(PromiseType->isRecordType());
+
+  LookupResult R(S, Name, Loc, Sema::LookupOrdinaryName);
+  S.LookupQualifiedName(R, PromiseType->getAsCXXRecordDecl());
+  bool HaveIssuedWarning = false;
+  for (auto Decl : R) {
+    if (!Decl->getAsFunction()->isTypeAwareOperatorNewOrDelete())
+      continue;
+    if (!HaveIssuedWarning) {
+      S.Diag(Loc, DiagnosticID) << Name;
+      HaveIssuedWarning = true;
+    }
+    S.Diag(Decl->getLocation(), diag::note_type_aware_operator_declared)
+        << /* isTypeAware=*/1 << Decl << Decl->getDeclContext();
+  }
+  R.suppressDiagnostics();
+  return HaveIssuedWarning;
 }
 
 // Find an appropriate delete for the promise.
@@ -1042,7 +1116,9 @@ static bool findDeleteForPromise(Sema &S, SourceLocation Loc, QualType PromiseTy
                                  FunctionDecl *&OperatorDelete) {
   DeclarationName DeleteName =
       S.Context.DeclarationNames.getCXXOperatorName(OO_Delete);
-
+  DiagnoseTypeAwareAllocators(S, Loc,
+                              diag::warn_coroutine_type_aware_allocator_ignored,
+                              DeleteName, PromiseType);
   auto *PointeeRD = PromiseType->getAsCXXRecordDecl();
   assert(PointeeRD && "PromiseType must be a CxxRecordDecl type");
 
@@ -1052,9 +1128,10 @@ static bool findDeleteForPromise(Sema &S, SourceLocation Loc, QualType PromiseTy
   // The deallocation function's name is looked up by searching for it in the
   // scope of the promise type. If nothing is found, a search is performed in
   // the global scope.
+  ImplicitDeallocationParameters IDP = {
+      alignedAllocationModeFromBool(Overaligned), SizedDeallocationMode::Yes};
   if (S.FindDeallocationFunction(Loc, PointeeRD, DeleteName, OperatorDelete,
-                                 /*Diagnose*/ true, /*WantSize*/ true,
-                                 /*WantAligned*/ Overaligned))
+                                 IDP, /*Diagnose=*/true))
     return false;
 
   // [dcl.fct.def.coroutine]p12
@@ -1065,18 +1142,18 @@ static bool findDeleteForPromise(Sema &S, SourceLocation Loc, QualType PromiseTy
   //   shall be the function with one parameter.
   if (!OperatorDelete) {
     // Look for a global declaration.
-    // Coroutines can always provide their required size.
-    const bool CanProvideSize = true;
     // Sema::FindUsualDeallocationFunction will try to find the one with two
     // parameters first. It will return the deallocation function with one
     // parameter if failed.
-    OperatorDelete = S.FindUsualDeallocationFunction(Loc, CanProvideSize,
-                                                     Overaligned, DeleteName);
+    // Coroutines can always provide their required size.
+    IDP.PassSize = SizedDeallocationMode::Yes;
+    OperatorDelete = S.FindUsualDeallocationFunction(Loc, IDP, DeleteName);
 
     if (!OperatorDelete)
       return false;
   }
 
+  assert(!OperatorDelete->isTypeAwareOperatorNewOrDelete());
   S.MarkFunctionReferenced(Loc, OperatorDelete);
   return true;
 }
@@ -1108,21 +1185,38 @@ void Sema::CheckCompletedCoroutineBody(FunctionDecl *FD, Stmt *&Body) {
   if (FD->hasAttr<AlwaysInlineAttr>())
     Diag(FD->getLocation(), diag::warn_always_inline_coroutine);
 
-  // [stmt.return.coroutine]p1:
-  //   A coroutine shall not enclose a return statement ([stmt.return]).
-  if (Fn->FirstReturnLoc.isValid()) {
-    assert(Fn->FirstCoroutineStmtLoc.isValid() &&
-                   "first coroutine location not set");
-    Diag(Fn->FirstReturnLoc, diag::err_return_in_coroutine);
-    Diag(Fn->FirstCoroutineStmtLoc, diag::note_declared_coroutine_here)
-            << Fn->getFirstCoroutineStmtKeyword();
-  }
+  // The design of coroutines means we cannot allow use of VLAs within one, so
+  // diagnose if we've seen a VLA in the body of this function.
+  if (Fn->FirstVLALoc.isValid())
+    Diag(Fn->FirstVLALoc, diag::err_vla_in_coroutine_unsupported);
+
+  // Coroutines will get splitted into pieces. The GNU address of label
+  // extension wouldn't be meaningful in coroutines.
+  for (AddrLabelExpr *ALE : Fn->AddrLabels)
+    Diag(ALE->getBeginLoc(), diag::err_coro_invalid_addr_of_label);
+
+  // Coroutines always return a handle, so they can't be [[noreturn]].
+  if (FD->isNoReturn())
+    Diag(FD->getLocation(), diag::warn_noreturn_coroutine) << FD;
+
   CoroutineStmtBuilder Builder(*this, *FD, *Fn, Body);
   if (Builder.isInvalid() || !Builder.buildStatements())
     return FD->setInvalidDecl();
 
   // Build body for the coroutine wrapper statement.
   Body = CoroutineBodyStmt::Create(Context, Builder);
+}
+
+static CompoundStmt *buildCoroutineBody(Stmt *Body, ASTContext &Context) {
+  if (auto *CS = dyn_cast<CompoundStmt>(Body))
+    return CS;
+
+  // The body of the coroutine may be a try statement if it is in
+  // 'function-try-block' syntax. Here we wrap it into a compound
+  // statement for consistency.
+  assert(isa<CXXTryStmt>(Body) && "Unimaged coroutine body type");
+  return CompoundStmt::Create(Context, {Body}, FPOptionsOverride(),
+                              SourceLocation(), SourceLocation());
 }
 
 CoroutineStmtBuilder::CoroutineStmtBuilder(Sema &S, FunctionDecl &FD,
@@ -1132,7 +1226,7 @@ CoroutineStmtBuilder::CoroutineStmtBuilder(Sema &S, FunctionDecl &FD,
       IsPromiseDependentType(
           !Fn.CoroutinePromise ||
           Fn.CoroutinePromise->getType()->isDependentType()) {
-  this->Body = Body;
+  this->Body = buildCoroutineBody(Body, S.getASTContext());
 
   for (auto KV : Fn.CoroutineParameterMoves)
     this->ParamMovesVector.push_back(KV.second);
@@ -1259,7 +1353,7 @@ bool CoroutineStmtBuilder::makeReturnOnAllocFailure() {
 static bool collectPlacementArgs(Sema &S, FunctionDecl &FD, SourceLocation Loc,
                                  SmallVectorImpl<Expr *> &PlacementArgs) {
   if (auto *MD = dyn_cast<CXXMethodDecl>(&FD)) {
-    if (MD->isInstance() && !isLambdaCallOperator(MD)) {
+    if (MD->isImplicitObjectMemberFunction() && !isLambdaCallOperator(MD)) {
       ExprResult ThisExpr = S.ActOnCXXThis(Loc);
       if (ThisExpr.isInvalid())
         return false;
@@ -1334,10 +1428,10 @@ bool CoroutineStmtBuilder::makeNewAndDeleteExpr() {
 
   FunctionDecl *OperatorNew = nullptr;
   SmallVector<Expr *, 1> PlacementArgs;
+  DeclarationName NewName =
+      S.getASTContext().DeclarationNames.getCXXOperatorName(OO_New);
 
-  const bool PromiseContainsNew = [this, &PromiseType]() -> bool {
-    DeclarationName NewName =
-        S.getASTContext().DeclarationNames.getCXXOperatorName(OO_New);
+  const bool PromiseContainsNew = [this, &PromiseType, NewName]() -> bool {
     LookupResult R(S, NewName, Loc, Sema::LookupOrdinaryName);
 
     if (PromiseType->isRecordType())
@@ -1348,9 +1442,10 @@ bool CoroutineStmtBuilder::makeNewAndDeleteExpr() {
 
   // Helper function to indicate whether the last lookup found the aligned
   // allocation function.
-  bool PassAlignment = S.getLangOpts().CoroAlignedAllocation;
-  auto LookupAllocationFunction = [&](Sema::AllocationFunctionScope NewScope =
-                                          Sema::AFS_Both,
+  ImplicitAllocationParameters IAP(
+      alignedAllocationModeFromBool(S.getLangOpts().CoroAlignedAllocation));
+  auto LookupAllocationFunction = [&](AllocationFunctionScope NewScope =
+                                          AllocationFunctionScope::Both,
                                       bool WithoutPlacementArgs = false,
                                       bool ForceNonAligned = false) {
     // [dcl.fct.def.coroutine]p9
@@ -1359,17 +1454,23 @@ bool CoroutineStmtBuilder::makeNewAndDeleteExpr() {
     // - If any declarations are found, ...
     // - If no declarations are found in the scope of the promise type, a search
     // is performed in the global scope.
-    if (NewScope == Sema::AFS_Both)
-      NewScope = PromiseContainsNew ? Sema::AFS_Class : Sema::AFS_Global;
+    if (NewScope == AllocationFunctionScope::Both)
+      NewScope = PromiseContainsNew ? AllocationFunctionScope::Class
+                                    : AllocationFunctionScope::Global;
 
-    PassAlignment = !ForceNonAligned && S.getLangOpts().CoroAlignedAllocation;
+    bool ShouldUseAlignedAlloc =
+        !ForceNonAligned && S.getLangOpts().CoroAlignedAllocation;
+    IAP = ImplicitAllocationParameters(
+        alignedAllocationModeFromBool(ShouldUseAlignedAlloc));
+
     FunctionDecl *UnusedResult = nullptr;
-    S.FindAllocationFunctions(Loc, SourceRange(), NewScope,
-                              /*DeleteScope*/ Sema::AFS_Both, PromiseType,
-                              /*isArray*/ false, PassAlignment,
-                              WithoutPlacementArgs ? MultiExprArg{}
-                                                   : PlacementArgs,
-                              OperatorNew, UnusedResult, /*Diagnose*/ false);
+    S.FindAllocationFunctions(
+        Loc, SourceRange(), NewScope,
+        /*DeleteScope=*/AllocationFunctionScope::Both, PromiseType,
+        /*isArray=*/false, IAP,
+        WithoutPlacementArgs ? MultiExprArg{} : PlacementArgs, OperatorNew,
+        UnusedResult, /*Diagnose=*/false);
+    assert(!OperatorNew || !OperatorNew->isTypeAwareOperatorNewOrDelete());
   };
 
   // We don't expect to call to global operator new with (size, p0, …, pn).
@@ -1393,9 +1494,9 @@ bool CoroutineStmtBuilder::makeNewAndDeleteExpr() {
     // by passing the amount of space requested as an argument of type
     // std::size_t as the first argument, and the requested alignment as
     // an argument of type std:align_val_t as the second argument.
-    if (!OperatorNew ||
-        (S.getLangOpts().CoroAlignedAllocation && !PassAlignment))
-      LookupAllocationFunction(/*NewScope*/ Sema::AFS_Class,
+    if (!OperatorNew || (S.getLangOpts().CoroAlignedAllocation &&
+                         !isAlignedAllocation(IAP.PassAlignment)))
+      LookupAllocationFunction(/*NewScope*/ AllocationFunctionScope::Class,
                                /*WithoutPlacementArgs*/ true);
   }
 
@@ -1419,15 +1520,15 @@ bool CoroutineStmtBuilder::makeNewAndDeleteExpr() {
   // Helper variable to emit warnings.
   bool FoundNonAlignedInPromise = false;
   if (PromiseContainsNew && S.getLangOpts().CoroAlignedAllocation)
-    if (!OperatorNew || !PassAlignment) {
+    if (!OperatorNew || !isAlignedAllocation(IAP.PassAlignment)) {
       FoundNonAlignedInPromise = OperatorNew;
 
-      LookupAllocationFunction(/*NewScope*/ Sema::AFS_Class,
+      LookupAllocationFunction(/*NewScope*/ AllocationFunctionScope::Class,
                                /*WithoutPlacementArgs*/ false,
                                /*ForceNonAligned*/ true);
 
       if (!OperatorNew && !PlacementArgs.empty())
-        LookupAllocationFunction(/*NewScope*/ Sema::AFS_Class,
+        LookupAllocationFunction(/*NewScope*/ AllocationFunctionScope::Class,
                                  /*WithoutPlacementArgs*/ true,
                                  /*ForceNonAligned*/ true);
     }
@@ -1443,7 +1544,7 @@ bool CoroutineStmtBuilder::makeNewAndDeleteExpr() {
       return false;
     PlacementArgs = {StdNoThrow};
     OperatorNew = nullptr;
-    LookupAllocationFunction(Sema::AFS_Global);
+    LookupAllocationFunction(AllocationFunctionScope::Global);
   }
 
   // If we found a non-aligned allocation function in the promise_type,
@@ -1456,14 +1557,22 @@ bool CoroutineStmtBuilder::makeNewAndDeleteExpr() {
   }
 
   if (!OperatorNew) {
-    if (PromiseContainsNew)
+    if (PromiseContainsNew) {
       S.Diag(Loc, diag::err_coroutine_unusable_new) << PromiseType << &FD;
-    else if (RequiresNoThrowAlloc)
+      DiagnoseTypeAwareAllocators(
+          S, Loc, diag::note_coroutine_unusable_type_aware_allocators, NewName,
+          PromiseType);
+    } else if (RequiresNoThrowAlloc)
       S.Diag(Loc, diag::err_coroutine_unfound_nothrow_new)
           << &FD << S.getLangOpts().CoroAlignedAllocation;
 
     return false;
   }
+  assert(!OperatorNew->isTypeAwareOperatorNewOrDelete());
+
+  DiagnoseTypeAwareAllocators(S, Loc,
+                              diag::warn_coroutine_type_aware_allocator_ignored,
+                              NewName, PromiseType);
 
   if (RequiresNoThrowAlloc) {
     const auto *FT = OperatorNew->getType()->castAs<FunctionProtoType>();
@@ -1484,6 +1593,8 @@ bool CoroutineStmtBuilder::makeNewAndDeleteExpr() {
     //   If no usual deallocation function is found, the program is ill-formed.
     return false;
   }
+
+  assert(!OperatorDelete->isTypeAwareOperatorNewOrDelete());
 
   Expr *FramePtr =
       S.BuildBuiltinCallExpr(Loc, Builtin::BI__builtin_coro_frame, {});
@@ -1514,7 +1625,8 @@ bool CoroutineStmtBuilder::makeNewAndDeleteExpr() {
     return false;
 
   SmallVector<Expr *, 2> NewArgs(1, FrameSize);
-  if (S.getLangOpts().CoroAlignedAllocation && PassAlignment)
+  if (S.getLangOpts().CoroAlignedAllocation &&
+      isAlignedAllocation(IAP.PassAlignment))
     NewArgs.push_back(FrameAlignment);
 
   if (OperatorNew->getNumParams() > NewArgs.size())
@@ -1548,7 +1660,7 @@ bool CoroutineStmtBuilder::makeNewAndDeleteExpr() {
   const auto *OpDeleteType =
       OpDeleteQualType.getTypePtr()->castAs<FunctionProtoType>();
   if (OpDeleteType->getNumParams() > DeleteArgs.size() &&
-      S.getASTContext().hasSameType(
+      S.getASTContext().hasSameUnqualifiedType(
           OpDeleteType->getParamType(DeleteArgs.size()), FrameSize->getType()))
     DeleteArgs.push_back(FrameSize);
 
@@ -1565,7 +1677,7 @@ bool CoroutineStmtBuilder::makeNewAndDeleteExpr() {
   // So we are not forced to pass alignment to the deallocation function.
   if (S.getLangOpts().CoroAlignedAllocation &&
       OpDeleteType->getNumParams() > DeleteArgs.size() &&
-      S.getASTContext().hasSameType(
+      S.getASTContext().hasSameUnqualifiedType(
           OpDeleteType->getParamType(DeleteArgs.size()),
           FrameAlignment->getType()))
     DeleteArgs.push_back(FrameAlignment);
@@ -1629,7 +1741,7 @@ bool CoroutineStmtBuilder::makeOnFallthrough() {
       return false;
   } else if (HasRVoid) {
     Fallthrough = S.BuildCoreturnStmt(FD.getLocation(), nullptr,
-                                      /*IsImplicit*/false);
+                                      /*IsImplicit=*/true);
     Fallthrough = S.ActOnFinishFullStmt(Fallthrough.get());
     if (Fallthrough.isInvalid())
       return false;
@@ -1662,8 +1774,8 @@ bool CoroutineStmtBuilder::makeOnException() {
   if (!S.getLangOpts().CXXExceptions)
     return true;
 
-  ExprResult UnhandledException = buildPromiseCall(S, Fn.CoroutinePromise, Loc,
-                                                   "unhandled_exception", None);
+  ExprResult UnhandledException =
+      buildPromiseCall(S, Fn.CoroutinePromise, Loc, "unhandled_exception", {});
   UnhandledException = S.ActOnFinishFullExpr(UnhandledException.get(), Loc,
                                              /*DiscardedValue*/ false);
   if (UnhandledException.isInvalid())
@@ -1687,7 +1799,7 @@ bool CoroutineStmtBuilder::makeReturnObject() {
   // The expression promise.get_return_object() is used to initialize the
   // returned reference or prvalue result object of a call to a coroutine.
   ExprResult ReturnObject =
-      buildPromiseCall(S, Fn.CoroutinePromise, Loc, "get_return_object", None);
+      buildPromiseCall(S, Fn.CoroutinePromise, Loc, "get_return_object", {});
   if (ReturnObject.isInvalid())
     return false;
 
@@ -1718,12 +1830,22 @@ bool CoroutineStmtBuilder::makeGroDeclAndReturnStmt() {
   assert(!FnRetType->isDependentType() &&
          "get_return_object type must no longer be dependent");
 
+  // The call to get_­return_­object is sequenced before the call to
+  // initial_­suspend and is invoked at most once, but there are caveats
+  // regarding on whether the prvalue result object may be initialized
+  // directly/eager or delayed, depending on the types involved.
+  //
+  // More info at https://github.com/cplusplus/papers/issues/1414
+  bool GroMatchesRetType = S.getASTContext().hasSameType(GroType, FnRetType);
+
   if (FnRetType->isVoidType()) {
     ExprResult Res =
         S.ActOnFinishFullExpr(this->ReturnValue, Loc, /*DiscardedValue*/ false);
     if (Res.isInvalid())
       return false;
 
+    if (!GroMatchesRetType)
+      this->ResultDecl = Res.get();
     return true;
   }
 
@@ -1736,11 +1858,60 @@ bool CoroutineStmtBuilder::makeGroDeclAndReturnStmt() {
     return false;
   }
 
-  StmtResult ReturnStmt = S.BuildReturnStmt(Loc, ReturnValue);
+  StmtResult ReturnStmt;
+  clang::VarDecl *GroDecl = nullptr;
+  if (GroMatchesRetType) {
+    ReturnStmt = S.BuildReturnStmt(Loc, ReturnValue);
+  } else {
+    GroDecl = VarDecl::Create(
+        S.Context, &FD, FD.getLocation(), FD.getLocation(),
+        &S.PP.getIdentifierTable().get("__coro_gro"), GroType,
+        S.Context.getTrivialTypeSourceInfo(GroType, Loc), SC_None);
+    GroDecl->setImplicit();
+
+    S.CheckVariableDeclarationType(GroDecl);
+    if (GroDecl->isInvalidDecl())
+      return false;
+
+    InitializedEntity Entity = InitializedEntity::InitializeVariable(GroDecl);
+    ExprResult Res =
+        S.PerformCopyInitialization(Entity, SourceLocation(), ReturnValue);
+    if (Res.isInvalid())
+      return false;
+
+    Res = S.ActOnFinishFullExpr(Res.get(), /*DiscardedValue*/ false);
+    if (Res.isInvalid())
+      return false;
+
+    S.AddInitializerToDecl(GroDecl, Res.get(),
+                           /*DirectInit=*/false);
+
+    S.FinalizeDeclaration(GroDecl);
+
+    // Form a declaration statement for the return declaration, so that AST
+    // visitors can more easily find it.
+    StmtResult GroDeclStmt =
+        S.ActOnDeclStmt(S.ConvertDeclToDeclGroup(GroDecl), Loc, Loc);
+    if (GroDeclStmt.isInvalid())
+      return false;
+
+    this->ResultDecl = GroDeclStmt.get();
+
+    ExprResult declRef = S.BuildDeclRefExpr(GroDecl, GroType, VK_LValue, Loc);
+    if (declRef.isInvalid())
+      return false;
+
+    ReturnStmt = S.BuildReturnStmt(Loc, declRef.get());
+  }
+
   if (ReturnStmt.isInvalid()) {
     noteMemberDeclaredHere(S, ReturnValue, Fn);
     return false;
   }
+
+  if (!GroMatchesRetType &&
+      cast<clang::ReturnStmt>(ReturnStmt.get())->getNRVOCandidate() == GroDecl)
+    GroDecl->setNRVOVariable(true);
 
   this->ReturnStmt = ReturnStmt.get();
   return true;
@@ -1792,9 +1963,15 @@ bool Sema::buildCoroutineParameterMoves(SourceLocation Loc) {
     if (PD->getType()->isDependentType())
       continue;
 
+    // Preserve the referenced state for unused parameter diagnostics.
+    bool DeclReferenced = PD->isReferenced();
+
     ExprResult PDRefExpr =
         BuildDeclRefExpr(PD, PD->getType().getNonReferenceType(),
                          ExprValueKind::VK_LValue, Loc); // FIXME: scope?
+
+    PD->setReferenced(DeclReferenced);
+
     if (PDRefExpr.isInvalid())
       return false;
 
@@ -1828,67 +2005,32 @@ StmtResult Sema::BuildCoroutineBodyStmt(CoroutineBodyStmt::CtorArgs Args) {
 }
 
 ClassTemplateDecl *Sema::lookupCoroutineTraits(SourceLocation KwLoc,
-                                               SourceLocation FuncLoc,
-                                               NamespaceDecl *&Namespace) {
-  if (!StdCoroutineTraitsCache) {
-    // Because coroutines moved from std::experimental in the TS to std in
-    // C++20, we look in both places to give users time to transition their
-    // TS-specific code to C++20.  Diagnostics are given when the TS usage is
-    // discovered.
-    // TODO: Become stricter when <experimental/coroutine> is removed.
+                                               SourceLocation FuncLoc) {
+  if (StdCoroutineTraitsCache)
+    return StdCoroutineTraitsCache;
 
-    IdentifierInfo const &TraitIdent =
-        PP.getIdentifierTable().get("coroutine_traits");
+  IdentifierInfo const &TraitIdent =
+      PP.getIdentifierTable().get("coroutine_traits");
 
-    NamespaceDecl *StdSpace = getStdNamespace();
-    LookupResult ResStd(*this, &TraitIdent, FuncLoc, LookupOrdinaryName);
-    bool InStd = StdSpace && LookupQualifiedName(ResStd, StdSpace);
+  NamespaceDecl *StdSpace = getStdNamespace();
+  LookupResult Result(*this, &TraitIdent, FuncLoc, LookupOrdinaryName);
+  bool Found = StdSpace && LookupQualifiedName(Result, StdSpace);
 
-    NamespaceDecl *ExpSpace = lookupStdExperimentalNamespace();
-    LookupResult ResExp(*this, &TraitIdent, FuncLoc, LookupOrdinaryName);
-    bool InExp = ExpSpace && LookupQualifiedName(ResExp, ExpSpace);
-
-    if (!InStd && !InExp) {
-      // The goggles, they found nothing!
-      Diag(KwLoc, diag::err_implied_coroutine_type_not_found)
-          << "std::coroutine_traits";
-      return nullptr;
-    }
-
-    // Prefer ::std to std::experimental.
-    LookupResult &Result = InStd ? ResStd : ResExp;
-    CoroTraitsNamespaceCache = InStd ? StdSpace : ExpSpace;
-
-    // coroutine_traits is required to be a class template.
-    StdCoroutineTraitsCache = Result.getAsSingle<ClassTemplateDecl>();
-    if (!StdCoroutineTraitsCache) {
-      Result.suppressDiagnostics();
-      NamedDecl *Found = *Result.begin();
-      Diag(Found->getLocation(), diag::err_malformed_std_coroutine_traits);
-      return nullptr;
-    }
-
-    if (InExp) {
-      // Found in std::experimental
-      Diag(KwLoc, diag::warn_deprecated_coroutine_namespace)
-          << "coroutine_traits";
-      ResExp.suppressDiagnostics();
-      NamedDecl *Found = *ResExp.begin();
-      Diag(Found->getLocation(), diag::note_entity_declared_at) << Found;
-
-      if (InStd &&
-          StdCoroutineTraitsCache != ResExp.getAsSingle<ClassTemplateDecl>()) {
-        // Also found something different in std
-        Diag(KwLoc,
-             diag::err_mixed_use_std_and_experimental_namespace_for_coroutine);
-        Diag(StdCoroutineTraitsCache->getLocation(),
-             diag::note_entity_declared_at)
-            << StdCoroutineTraitsCache;
-
-        return nullptr;
-      }
-    }
+  if (!Found) {
+    // The goggles, we found nothing!
+    Diag(KwLoc, diag::err_implied_coroutine_type_not_found)
+        << "std::coroutine_traits";
+    return nullptr;
   }
-  Namespace = CoroTraitsNamespaceCache;
+
+  // coroutine_traits is required to be a class template.
+  StdCoroutineTraitsCache = Result.getAsSingle<ClassTemplateDecl>();
+  if (!StdCoroutineTraitsCache) {
+    Result.suppressDiagnostics();
+    NamedDecl *Found = *Result.begin();
+    Diag(Found->getLocation(), diag::err_malformed_std_coroutine_traits);
+    return nullptr;
+  }
+
   return StdCoroutineTraitsCache;
 }

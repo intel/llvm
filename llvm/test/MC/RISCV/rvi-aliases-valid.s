@@ -7,16 +7,16 @@
 # RUN: llvm-mc %s -triple=riscv64 \
 # RUN:     | FileCheck -check-prefixes=CHECK-S,CHECK-S-OBJ %s
 # RUN: llvm-mc -filetype=obj -triple riscv32 < %s \
-# RUN:     | llvm-objdump -d -r -M no-aliases - \
+# RUN:     | llvm-objdump --no-print-imm-hex -d -r -M no-aliases - \
 # RUN:     | FileCheck -check-prefixes=CHECK-OBJ-NOALIAS,CHECK-S-OBJ-NOALIAS %s
 # RUN: llvm-mc -filetype=obj -triple riscv32 < %s \
-# RUN:     | llvm-objdump -d -r - \
+# RUN:     | llvm-objdump --no-print-imm-hex -d -r - \
 # RUN:     | FileCheck -check-prefixes=CHECK-OBJ,CHECK-S-OBJ %s
 # RUN: llvm-mc -filetype=obj -triple riscv64 < %s \
-# RUN:     | llvm-objdump -d -r -M no-aliases - \
+# RUN:     | llvm-objdump --no-print-imm-hex -d -r -M no-aliases - \
 # RUN:     | FileCheck -check-prefixes=CHECK-OBJ-NOALIAS,CHECK-S-OBJ-NOALIAS %s
 # RUN: llvm-mc -filetype=obj -triple riscv64 < %s \
-# RUN:     | llvm-objdump -d -r - \
+# RUN:     | llvm-objdump --no-print-imm-hex -d -r - \
 # RUN:     | FileCheck -check-prefixes=CHECK-OBJ,CHECK-S-OBJ %s
 
 # The following check prefixes are used in this test:
@@ -190,6 +190,16 @@ jalr x25, x26, 11
 # CHECK-S-OBJ-NOALIAS: jalr zero, 0(ra)
 # CHECK-S-OBJ: ret
 ret
+# CHECK-S-OBJ-NOALIAS: jalr zero, 0(s11)
+# CHECK-S-OBJ: jr s11
+jr (x27)
+# CHECK-S-OBJ-NOALIAS: jalr ra, 0(t3)
+# CHECK-S-OBJ: jalr t3
+jalr (x28)
+# CHECK-S-OBJ-NOALIAS: jalr t4, 0(t5)
+# CHECK-S-OBJ: jalr t4, t5
+jalr x29, (x30)
+
 # TODO call
 # TODO tail
 
@@ -207,8 +217,8 @@ rdcycle x24
 # CHECK-S-OBJ: rdtime s9
 rdtime x25
 
-# CHECK-S-OBJ-NOALIAS: csrrs  s0, 336, zero
-# CHECK-S-OBJ: csrr s0, 336
+# CHECK-S-OBJ-NOALIAS: csrrs s0, siselect, zero
+# CHECK-S-OBJ: csrr s0, siselect
 csrr x8, 0x150
 # CHECK-S-OBJ-NOALIAS: csrrw zero, sscratch, s1
 # CHECK-S-OBJ: csrw sscratch, s1
@@ -220,8 +230,8 @@ csrs 0xfff, x22
 # CHECK-S-OBJ: csrc 4095, s7
 csrc 0xfff, x23
 
-# CHECK-S-OBJ-NOALIAS: csrrwi zero, 336, 15
-# CHECK-S-OBJ: csrwi 336, 15
+# CHECK-S-OBJ-NOALIAS: csrrwi zero, siselect, 15
+# CHECK-S-OBJ: csrwi siselect, 15
 csrwi 0x150, 0xf
 # CHECK-S-OBJ-NOALIAS: csrrsi zero, 4095, 16
 # CHECK-S-OBJ: csrsi 4095, 16
@@ -230,18 +240,18 @@ csrsi 0xfff, 0x10
 # CHECK-S-OBJ: csrci sscratch, 17
 csrci 0x140, 0x11
 
-# CHECK-S-OBJ-NOALIAS: csrrwi zero, 336, 7
-# CHECK-S-OBJ: csrwi 336, 7
+# CHECK-S-OBJ-NOALIAS: csrrwi zero, siselect, 7
+# CHECK-S-OBJ: csrwi siselect, 7
 csrw 0x150, 7
-# CHECK-S-OBJ-NOALIAS: csrrsi zero, 336, 7
-# CHECK-S-OBJ: csrsi 336, 7
+# CHECK-S-OBJ-NOALIAS: csrrsi zero, siselect, 7
+# CHECK-S-OBJ: csrsi siselect, 7
 csrs 0x150, 7
-# CHECK-S-OBJ-NOALIAS: csrrci zero, 336, 7
-# CHECK-S-OBJ: csrci 336, 7
+# CHECK-S-OBJ-NOALIAS: csrrci zero, siselect, 7
+# CHECK-S-OBJ: csrci siselect, 7
 csrc 0x150, 7
 
-# CHECK-S-OBJ-NOALIAS: csrrwi t0, 336, 15
-# CHECK-S-OBJ: csrrwi t0, 336, 15
+# CHECK-S-OBJ-NOALIAS: csrrwi t0, siselect, 15
+# CHECK-S-OBJ: csrrwi t0, siselect, 15
 csrrw t0, 0x150, 0xf
 # CHECK-S-OBJ-NOALIAS: csrrsi t0, 4095, 16
 # CHECK-S-OBJ: csrrsi t0, 4095, 16
@@ -251,23 +261,11 @@ csrrs t0, 0xfff, 0x10
 csrrc t0, 0x140, 0x11
 
 # CHECK-S-OBJ-NOALIAS: sfence.vma zero, zero
-# CHECK-S-OBJ: sfence.vma
+# CHECK-S-OBJ: sfence.vma{{$}}
 sfence.vma
 # CHECK-S-OBJ-NOALIAS: sfence.vma a0, zero
-# CHECK-S-OBJ: sfence.vma a0
+# CHECK-S-OBJ: sfence.vma a0{{$}}
 sfence.vma a0
-# CHECK-S-OBJ-NOALIAS: hfence.gvma zero, zero
-# CHECK-S-OBJ: hfence.gvma
-hfence.gvma
-# CHECK-S-OBJ-NOALIAS: hfence.gvma a0, zero
-# CHECK-S-OBJ: hfence.gvma a0
-hfence.gvma a0
-# CHECK-S-OBJ-NOALIAS: hfence.vvma zero, zero
-# CHECK-S-OBJ: hfence.vvma
-hfence.vvma
-# CHECK-S-OBJ-NOALIAS: hfence.vvma a0, zero
-# CHECK-S-OBJ: hfence.vvma a0
-hfence.vvma a0
 
 # The following aliases are accepted as input but the canonical form
 # of the instruction will always be printed.

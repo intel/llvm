@@ -22,7 +22,7 @@ define i32 @test_internal_global() {
 ; DARWIN-MOVT-NOT: .long _internal_global
 
 entry:
-  %v = load i32, i32* @internal_global
+  %v = load i32, ptr @internal_global
   ret i32 %v
 }
 
@@ -41,12 +41,12 @@ define i32 @test_external_global() {
 ; CHECK-NEXT: bx lr
 ; ELF: [[LABEL]]:
 ; ELF: [[TMPLABEL:.L[[:alnum:]_]+]]:
-; ELF: .long external_global(GOT_PREL)-(([[ANCHOR]]+4)-[[TMPLABEL]])
+; ELF: .long external_global(GOT_PREL)-([[ANCHOR]]+4-[[TMPLABEL]])
 ; DARWIN-NOMOVT: [[LABEL]]:
 ; DARWIN-NOMOVT: .long L_external_global$non_lazy_ptr-([[ANCHOR]]+4)
 ; DARWIN-NOMOVT-NOT: .long L_external_global
 entry:
-  %v = load i32, i32* @external_global
+  %v = load i32, ptr @external_global
   ret i32 %v
 }
 
@@ -69,7 +69,7 @@ define i32 @test_internal_constant() {
 ; DARWIN-MOVT-NOT: .long _internal_constant
 
 entry:
-  %v = load i32, i32* @internal_constant
+  %v = load i32, ptr @internal_constant
   ret i32 %v
 }
 
@@ -88,12 +88,12 @@ define i32 @test_external_constant() {
 ; CHECK-NEXT: bx lr
 ; ELF: [[LABEL]]:
 ; ELF: [[TMPLABEL:.L[[:alnum:]_]+]]:
-; ELF: .long external_constant(GOT_PREL)-(([[ANCHOR]]+4)-[[TMPLABEL]])
+; ELF: .long external_constant(GOT_PREL)-([[ANCHOR]]+4-[[TMPLABEL]])
 ; DARWIN-NOMOVT: [[LABEL]]:
 ; DARWIN-NOMOVT: .long L_external_constant$non_lazy_ptr-([[ANCHOR]]+4)
 ; DARWIN-NOMOVT-NOT: .long L_external_constant
 entry:
-  %v = load i32, i32* @external_constant
+  %v = load i32, ptr @external_constant
   ret i32 %v
 }
 

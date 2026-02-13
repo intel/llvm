@@ -19,7 +19,6 @@
 #include "flang/Parser/characters.h"
 #include "flang/Parser/instrumented-parser.h"
 #include "flang/Parser/provenance.h"
-#include <cctype>
 #include <cstddef>
 #include <cstring>
 #include <functional>
@@ -214,6 +213,10 @@ template <class PA> inline constexpr auto parenthesized(const PA &p) {
 
 template <class PA> inline constexpr auto bracketed(const PA &p) {
   return "[" >> p / "]";
+}
+
+template <class PA> inline constexpr auto braced(const PA &p) {
+  return "{" >> p / "}";
 }
 
 // Quoted character literal constants.
@@ -526,7 +529,7 @@ struct HollerithLiteral {
       int chBytes{UTF_8CharacterBytes(state.GetLocation())};
       for (int bytes{chBytes}; bytes > 0; --bytes) {
         if (std::optional<const char *> at{nextCh.Parse(state)}) {
-          if (chBytes == 1 && !std::isprint(**at)) {
+          if (chBytes == 1 && !IsPrintable(**at)) {
             state.Say(start, "Bad character in Hollerith"_err_en_US);
             return std::nullopt;
           }
@@ -561,6 +564,8 @@ template <char goal> struct SkipPast {
     while (std::optional<const char *> p{state.GetNextChar()}) {
       if (**p == goal) {
         return {Success{}};
+      } else if (**p == '\n') {
+        break;
       }
     }
     return std::nullopt;
@@ -575,8 +580,32 @@ template <char goal> struct SkipTo {
     while (std::optional<const char *> p{state.PeekAtNextChar()}) {
       if (**p == goal) {
         return {Success{}};
+      } else if (**p == '\n') {
+        break;
+      } else {
+        state.UncheckedAdvance();
       }
-      state.UncheckedAdvance();
+    }
+    return std::nullopt;
+  }
+};
+
+template <char left, char right> struct SkipPastNested {
+  using resultType = Success;
+  constexpr SkipPastNested() {}
+  constexpr SkipPastNested(const SkipPastNested &) {}
+  static std::optional<Success> Parse(ParseState &state) {
+    int nesting{1};
+    while (std::optional<const char *> p{state.GetNextChar()}) {
+      if (**p == right) {
+        if (!--nesting) {
+          return {Success{}};
+        }
+      } else if (**p == left) {
+        ++nesting;
+      } else if (**p == '\n') {
+        break;
+      }
     }
     return std::nullopt;
   }

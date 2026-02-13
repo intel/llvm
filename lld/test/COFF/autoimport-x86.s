@@ -2,7 +2,7 @@
 
 # RUN: echo -e ".global variable\n.global DllMainCRTStartup\n.text\nDllMainCRTStartup:\nret\n.data\nvariable:\n.long 42" > %t-lib.s
 # RUN: llvm-mc -triple=x86_64-windows-gnu %t-lib.s -filetype=obj -o %t-lib.obj
-# RUN: lld-link -out:%t-lib.dll -dll -entry:DllMainCRTStartup %t-lib.obj -lldmingw -implib:%t-lib.lib
+# RUN: lld-link -out:%t-lib.dll -dll %t-lib.obj -lldmingw -implib:%t-lib.lib
 
 # RUN: llvm-mc -triple=x86_64-windows-gnu -defsym listptrs=1 %s -filetype=obj -o %t.obj
 # RUN: lld-link -lldmingw -debug:symtab -out:%t.exe -entry:main %t.obj %t-lib.lib -verbose
@@ -11,7 +11,7 @@
 # RUN: not lld-link -lldmingw -runtime-pseudo-reloc:no -debug:symtab -out:%t.exe -entry:main %t.noptrs.obj %t-lib.lib 2>&1 | FileCheck --check-prefix=DISABLED %s
 
 # RUN: llvm-readobj --coff-imports %t.exe | FileCheck -check-prefix=IMPORTS %s
-# RUN: llvm-objdump -d %t.exe | FileCheck --check-prefix=DISASM %s
+# RUN: llvm-objdump --no-print-imm-hex -d %t.exe | FileCheck --check-prefix=DISASM %s
 # RUN: llvm-objdump -s %t.exe | FileCheck --check-prefix=CONTENTS %s
 # RUN: llvm-nm %t.exe | FileCheck -check-prefix=SYMBOLS %s
 
@@ -55,6 +55,9 @@
     .text
 main:
     movl variable(%rip), %eax
+    ret
+    .global _pei386_runtime_relocator
+_pei386_runtime_relocator:
     ret
     .data
 ptr:

@@ -1,5 +1,5 @@
-; RUN: opt -instcombine -instcombine-lower-dbg-declare=1 -S < %s | FileCheck %s
-; RUN: opt -instcombine -instcombine-lower-dbg-declare=0 -S < %s | FileCheck %s --check-prefix=DECLARE
+; RUN: opt -passes=instcombine -instcombine-lower-dbg-declare=1 -S < %s | FileCheck %s
+; RUN: opt -passes=instcombine -instcombine-lower-dbg-declare=0 -S < %s | FileCheck %s --check-prefix=DECLARE
 ; XFAIL: *
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
@@ -11,12 +11,12 @@ declare void @llvm.dbg.declare(metadata, metadata, metadata) #0
 declare void @llvm.dbg.value(metadata, metadata, metadata) #0
 
 ; Function Attrs: sspreq
-define void @julia_fastshortest_6256() #1 {
+define void @julia_fastshortest_6256(i1 %c1) #1 {
 top:
   %cp = alloca %foo, align 8
   %sink = alloca %foo, align 8
   call void @llvm.dbg.declare(metadata ptr %cp, metadata !1, metadata !16), !dbg !17
-  br i1 undef, label %idxend, label %fail
+  br i1 %c1, label %idxend, label %fail
 
 fail:                                             ; preds = %top
   unreachable

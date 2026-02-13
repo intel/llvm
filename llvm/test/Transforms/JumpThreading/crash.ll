@@ -1,4 +1,4 @@
-; RUN: opt < %s -jump-threading -S | FileCheck %s
+; RUN: opt < %s -passes=jump-threading -S | FileCheck %s
 ; PR2285
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128"
 target triple = "x86_64-unknown-linux-gnu"
@@ -26,32 +26,32 @@ declare %struct.system__secondary_stack__mark_id @system__secondary_stack__ss_ma
 
 
 
-define fastcc void @findratio(double* nocapture %res1, double* nocapture %res2) nounwind ssp {
+define fastcc void @findratio(ptr nocapture %res1, ptr nocapture %res2) nounwind ssp {
 entry:
   br label %bb12
 
-bb6.us:                                        
-  %tmp = icmp eq i32 undef, undef              
-  %tmp1 = fsub double undef, undef             
-  %tmp2 = fcmp ult double %tmp1, 0.000000e+00  
+bb6.us:
+  %tmp = icmp eq i32 undef, undef
+  %tmp1 = fsub double undef, undef
+  %tmp2 = fcmp ult double %tmp1, 0.000000e+00
   br i1 %tmp, label %bb6.us, label %bb13
 
 
-bb12:                                            
-  %tmp3 = fcmp ult double undef, 0.000000e+00  
+bb12:
+  %tmp3 = fcmp ult double undef, 0.000000e+00
   br label %bb13
 
-bb13:                                            
+bb13:
   %.lcssa31 = phi double [ undef, %bb12 ], [ %tmp1, %bb6.us ]
-  %.lcssa30 = phi i1 [ %tmp3, %bb12 ], [ %tmp2, %bb6.us ] 
+  %.lcssa30 = phi i1 [ %tmp3, %bb12 ], [ %tmp2, %bb6.us ]
   br i1 %.lcssa30, label %bb15, label %bb61
 
-bb15:                                            
-  %tmp4 = fsub double -0.000000e+00, %.lcssa31   
+bb15:
+  %tmp4 = fsub double -0.000000e+00, %.lcssa31
   ret void
 
 
-bb61:                                            
+bb61:
   ret void
 }
 
@@ -63,14 +63,14 @@ A:
 F:
   br label %A1
 
-A1:  
+A1:
   %d = phi i1 [false, %A], [true, %F]
   %e = add i32 %a, %a
   br i1 %d, label %B, label %G
-  
+
 G:
   br i1 %cond2, label %B, label %D
-  
+
 B:
   %f = phi i32 [%e, %G], [%e, %A1]
   %b = add i32 0, 0
@@ -82,7 +82,7 @@ B:
 
 C:
   br label %D
-  
+
 D:
   %c = phi i32 [%e, %B], [%e, %B], [%e, %B], [%f, %C], [%e, %G]
   ret i32 %c
@@ -176,19 +176,19 @@ entry:
   br i1 %tmp, label %bb12, label %bb13
 
 
-bb12:                                            
+bb12:
   br label %bb13
 
-bb13:                                            
+bb13:
   %.lcssa31 = phi i32 [ undef, %bb12 ], [ %tmp1, %entry ]
   %A = and i1 undef, undef
   br i1 %A, label %bb15, label %bb61
 
-bb15:                                            
+bb15:
   ret void
 
 
-bb61:                                            
+bb61:
   ret void
 }
 
@@ -198,18 +198,18 @@ define fastcc void @test6(i1 %tmp, i1 %tmp1) nounwind ssp {
 entry:
   br i1 %tmp, label %bb12, label %bb14
 
-bb12:           
+bb12:
   br label %bb14
 
-bb14:           
+bb14:
   %A = phi i1 [ %A, %bb13 ],  [ true, %bb12 ], [%tmp1, %entry]
   br label %bb13
 
-bb13:                                            
+bb13:
   br i1 %A, label %bb14, label %bb61
 
 
-bb61:                                            
+bb61:
   ret void
 }
 
@@ -225,21 +225,21 @@ tailrecurse:
     i32 3, label %bb
   ]
 
-bb:         
+bb:
   switch i32 %x, label %return [
     i32 2, label %bb2
     i32 3, label %tailrecurse
   ]
 
-bb2:        
+bb2:
   ret void
 
-return:     
+return:
   ret void
 }
 
 ; PR6119
-define i32 @test8(i32 %action) nounwind {
+define i32 @test8(i32 %action, i1 %arg) nounwind {
 entry:
   switch i32 %action, label %lor.rhs [
     i32 1, label %if.then
@@ -257,14 +257,14 @@ lor.end:                                          ; preds = %lor.rhs, %entry
   br i1 %cmp103, label %for.cond, label %if.then
 
 for.cond:                                         ; preds = %for.body, %lor.end
-  br i1 undef, label %if.then, label %for.body
+  br i1 %arg, label %if.then, label %for.body
 
 for.body:                                         ; preds = %for.cond
   br label %for.cond
 }
 
 ; PR6119
-define i32 @test9(i32 %action) nounwind {
+define i32 @test9(i32 %action, i1 %arg) nounwind {
 entry:
   switch i32 %action, label %lor.rhs [
     i32 1, label %if.then
@@ -283,14 +283,14 @@ lor.end:                                          ; preds = %lor.rhs, %entry
   br i1 %cmp103, label %for.cond, label %if.then
 
 for.cond:                                         ; preds = %for.body, %lor.end
-  br i1 undef, label %if.then, label %for.body
+  br i1 %arg, label %if.then, label %for.body
 
 for.body:                                         ; preds = %for.cond
   br label %for.cond
 }
 
 ; PR6119
-define i32 @test10(i32 %action, i32 %type) nounwind {
+define i32 @test10(i32 %action, i32 %type, i1 %arg) nounwind {
 entry:
   %cmp2 = icmp eq i32 %type, 0                    ; <i1> [#uses=1]
   switch i32 %action, label %lor.rhs [
@@ -311,7 +311,7 @@ lor.end:                                          ; preds = %lor.rhs, %entry
   br i1 %cmp103, label %for.cond, label %if.then
 
 for.cond:                                         ; preds = %for.body, %lor.end
-  br i1 undef, label %if.then, label %for.body
+  br i1 %arg, label %if.then, label %for.body
 
 for.body:                                         ; preds = %for.cond
   br label %for.cond
@@ -324,7 +324,7 @@ entry:
   br label %A
 
 A:                                             ; preds = %entry
-  call void undef(i64 ptrtoint (i8* blockaddress(@test11, %A) to i64)) nounwind
+  call void undef(i64 ptrtoint (ptr blockaddress(@test11, %A) to i64)) nounwind
   unreachable
 }
 
@@ -347,19 +347,19 @@ if.end12:                                         ; preds = %if.then, %lbl_51
 
 
 ; PR7356
-define i32 @test13(i32* %P, i8* %Ptr) {
+define i32 @test13(ptr %P, ptr %Ptr) {
 entry:
-  indirectbr i8* %Ptr, [label %BrBlock, label %B2]
-  
+  indirectbr ptr %Ptr, [label %BrBlock, label %B2]
+
 B2:
-  store i32 4, i32 *%P
+  store i32 4, ptr %P
   br label %BrBlock
 
 BrBlock:
-  %L = load i32, i32* %P
+  %L = load i32, ptr %P
   %C = icmp eq i32 %L, 42
   br i1 %C, label %T, label %F
-  
+
 T:
   ret i32 123
 F:
@@ -391,15 +391,15 @@ if.end:                                           ; preds = %land.end69
 }
 
 ; PR7647
-define void @test15() nounwind {
+define void @test15(i1 %arg) nounwind {
 entry:
   ret void
-  
+
 if.then237:
   br label %lbl_664
 
 lbl_596:                                          ; preds = %lbl_664, %for.end37
-  store volatile i64 undef, i64* undef, align 4
+  store volatile i64 undef, ptr undef, align 4
   br label %for.cond111
 
 for.cond111:                                      ; preds = %safe_sub_func_int64_t_s_s.exit, %lbl_596
@@ -418,9 +418,9 @@ cond.true.i100:                                   ; preds = %for.inc120
 
 lbl_709:
   br label %if.end949
-  
+
 for.cond603:                                      ; preds = %for.body607, %if.end336
-  br i1 undef, label %for.cond603, label %if.end949
+  br i1 %arg, label %for.cond603, label %if.end949
 
 if.end949:                                        ; preds = %for.cond603, %lbl_709, %for.cond111
   %l_678.2 = phi i64 [ %l_678.5, %for.cond111 ], [ undef, %lbl_709 ], [ 5, %for.cond603 ] ; <i64> [#uses=1]
@@ -430,7 +430,7 @@ for.body1016:                                     ; preds = %for.cond1012
   br label %for.body1016
 
 for.cond1035:                                     ; preds = %for.inc1055, %if.then1026
-  br i1 undef, label %for.cond1040, label %lbl_664
+  br i1 %arg, label %for.cond1040, label %lbl_664
 
 for.cond1040:                                     ; preds = %for.body1044, %for.cond1035
   ret void
@@ -448,22 +448,22 @@ land.rhs:                                         ; preds = %entry
 lor.lhs.false.i:                                  ; preds = %land.rhs
   br i1 %c3, label %land.end, label %land.end
 
-land.end:                            
+land.end:
   %0 = phi i1 [ true, %entry ], [ false, %land.rhs ], [false, %lor.lhs.false.i], [false, %lor.lhs.false.i] ; <i1> [#uses=1]
-  %cmp12 = and i1 %cmp, %0 
+  %cmp12 = and i1 %cmp, %0
   %xor1 = xor i1 %cmp12, %c4
   br i1 %xor1, label %if.then, label %if.end
 
-if.then:                      
+if.then:
   ret void
 
-if.end:                       
+if.end:
   ret void
 }
 
-define void @test17() {
+define void @test17(i1 %arg) {
 entry:
-  br i1 undef, label %bb269.us.us, label %bb269.us.us.us
+  br i1 %arg, label %bb269.us.us, label %bb269.us.us.us
 
 bb269.us.us.us:
   %indvar = phi i64 [ %indvar.next, %bb287.us.us.us ], [ 0, %entry ]
@@ -488,9 +488,9 @@ bb288.bb289.loopexit_crit_edge:
 ; PR 8247
 %struct.S1 = type { i8, i8 }
 @func_89.l_245 = internal constant %struct.S1 { i8 33, i8 6 }, align 1
-define void @func_89(i16 zeroext %p_90, %struct.S1* nocapture %p_91, i32* nocapture %p_92) nounwind ssp {
+define void @func_89(i16 zeroext %p_90, ptr nocapture %p_91, ptr nocapture %p_92) nounwind ssp {
 entry:
-  store i32 0, i32* %p_92, align 4
+  store i32 0, ptr %p_92, align 4
   br i1 false, label %lbl_260, label %if.else
 
 if.else:                                          ; preds = %entry
@@ -530,8 +530,8 @@ bb:
   br label %if.end2
 
 if.end2:
-  %B = phi i64 [ ptrtoint (i8* ()* @PR14233.f1 to i64), %bb ], [ %A, %if.end ]
-  %cmp.ptr = icmp eq i64 %B, ptrtoint (i8* ()* @PR14233.f2 to i64)
+  %B = phi i64 [ ptrtoint (ptr @PR14233.f1 to i64), %bb ], [ %A, %if.end ]
+  %cmp.ptr = icmp eq i64 %B, ptrtoint (ptr @PR14233.f2 to i64)
   br i1 %cmp.ptr, label %cond.true2, label %if.end3
 
 cond.true2:
@@ -544,7 +544,7 @@ if.end4:
   unreachable
 
 if.end3:
-  %cmp.ptr2 = icmp eq i64 %B, ptrtoint (i8* ()* @PR14233.f2 to i64)
+  %cmp.ptr2 = icmp eq i64 %B, ptrtoint (ptr @PR14233.f2 to i64)
   br i1 %cmp.ptr2, label %ur, label %if.then601
 
 if.then601:
@@ -561,9 +561,9 @@ ur:
   unreachable
 }
 
-declare i8* @PR14233.f1()
+declare ptr @PR14233.f1()
 
-declare i8* @PR14233.f2()
+declare ptr @PR14233.f2()
 
 ; Make sure the following compiles in a sane amount of time, as opposed
 ; to taking exponential time.

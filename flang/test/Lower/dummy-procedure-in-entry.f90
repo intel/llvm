@@ -1,7 +1,7 @@
 ! Test dummy procedures that are not an argument in every entry.
 ! This requires creating a mock value in the entries where it is
 ! not an argument.
-! RUN: bbc -emit-fir %s -o - | FileCheck %s
+! RUN: bbc -emit-fir -hlfir=false %s -o - | FileCheck %s
 
 subroutine dummy_with_iface()
   interface
@@ -17,9 +17,9 @@ end subroutine
 ! CHECK:  br ^bb1
 ! CHECK:  ^bb1:
 ! CHECK:  %[[VAL_2:.*]] = fir.box_addr %[[VAL_1]] : (!fir.boxproc<() -> ()>) -> (() -> f32)
-! CHECK:  %[[VAL_3:.*]] = fir.call %[[VAL_2]]() : () -> f32
+! CHECK:  %[[VAL_3:.*]] = fir.call %[[VAL_2]]() {{.*}}: () -> f32
 ! CHECK:  fir.store %[[VAL_3]] to %[[VAL_0]] : !fir.ref<f32>
-! CHECK:  fir.call @_QPtakes_real(%[[VAL_0]]) : (!fir.ref<f32>) -> ()
+! CHECK:  fir.call @_QPtakes_real(%[[VAL_0]]) {{.*}}: (!fir.ref<f32>) -> ()
 
 ! CHECK-LABEL: func @_QPdummy_with_iface_entry(
 ! CHECK-SAME:  %[[VAL_0:.*]]: !fir.boxproc<() -> ()>) {
@@ -27,9 +27,9 @@ end subroutine
 ! CHECK:  br ^bb1
 ! CHECK:  ^bb1:
 ! CHECK:  %[[VAL_2:.*]] = fir.box_addr %[[VAL_0]] : (!fir.boxproc<() -> ()>) -> (() -> f32)
-! CHECK:  %[[VAL_3:.*]] = fir.call %[[VAL_2]]() : () -> f32
+! CHECK:  %[[VAL_3:.*]] = fir.call %[[VAL_2]]() {{.*}}: () -> f32
 ! CHECK:  fir.store %[[VAL_3]] to %[[VAL_1]] : !fir.ref<f32>
-! CHECK:  fir.call @_QPtakes_real(%[[VAL_1]]) : (!fir.ref<f32>) -> ()
+! CHECK:  fir.call @_QPtakes_real(%[[VAL_1]]) {{.*}}: (!fir.ref<f32>) -> ()
 
 subroutine subroutine_dummy()
   entry subroutine_dummy_entry(x)
@@ -40,11 +40,11 @@ end subroutine
 ! CHECK:  br ^bb1
 ! CHECK:  ^bb1:
 ! CHECK:  %[[VAL_1:.*]] = fir.box_addr %[[VAL_0]] : (!fir.boxproc<() -> ()>) -> (() -> ())
-! CHECK:  fir.call %[[VAL_1]]() : () -> ()
+! CHECK:  fir.call %[[VAL_1]]() {{.*}}: () -> ()
 
 ! CHECK-LABEL: func @_QPsubroutine_dummy_entry(
 ! CHECK-SAME:  %[[VAL_0:.*]]: !fir.boxproc<() -> ()>) {
 ! CHECK:  br ^bb1
 ! CHECK:  ^bb1:
 ! CHECK:  %[[VAL_1:.*]] = fir.box_addr %[[VAL_0]] : (!fir.boxproc<() -> ()>) -> (() -> ())
-! CHECK:  fir.call %[[VAL_1]]() : () -> ()
+! CHECK:  fir.call %[[VAL_1]]() {{.*}}: () -> ()

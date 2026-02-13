@@ -15,6 +15,8 @@
 
 #include "llvm/Remarks/RemarkFormat.h"
 #include "llvm/Remarks/RemarkStringTable.h"
+#include "llvm/Support/Compiler.h"
+#include <optional>
 
 namespace llvm {
 
@@ -23,16 +25,6 @@ class raw_ostream;
 namespace remarks {
 
 struct Remark;
-
-enum class SerializerMode {
-  Separate,  // A mode where the metadata is serialized separately from the
-             // remarks. Typically, this is used when the remarks need to be
-             // streamed to a side file and the metadata is embedded into the
-             // final result of the compilation.
-  Standalone // A mode where everything can be retrieved in the same
-             // file/buffer. Typically, this is used for storing remarks for
-             // later use.
-};
 
 struct MetaSerializer;
 
@@ -43,24 +35,27 @@ struct RemarkSerializer {
   Format SerializerFormat;
   /// The open raw_ostream that the remark diagnostics are emitted to.
   raw_ostream &OS;
-  /// The serialization mode.
-  SerializerMode Mode;
   /// The string table containing all the unique strings used in the output.
   /// The table can be serialized to be consumed after the compilation.
-  Optional<StringTable> StrTab;
+  std::optional<StringTable> StrTab;
 
-  RemarkSerializer(Format SerializerFormat, raw_ostream &OS,
-                   SerializerMode Mode)
-      : SerializerFormat(SerializerFormat), OS(OS), Mode(Mode) {}
+  RemarkSerializer(Format SerializerFormat, raw_ostream &OS)
+      : SerializerFormat(SerializerFormat), OS(OS) {}
 
-  /// This is just an interface.
   virtual ~RemarkSerializer() = default;
+
+  /// Finalize remark emission (e.g. finish writing metadata, flush internal
+  /// buffers). It is safe to call this function multiple times, and it should
+  /// have the same behavior as destructing the RemarkSerializer.
+  /// After finalizing, the behavior of emit is unspecified.
+  virtual void finalize() {}
+
   /// Emit a remark to the stream.
   virtual void emit(const Remark &Remark) = 0;
+
   /// Return the corresponding metadata serializer.
   virtual std::unique_ptr<MetaSerializer>
-  metaSerializer(raw_ostream &OS,
-                 Optional<StringRef> ExternalFilename = None) = 0;
+  metaSerializer(raw_ostream &OS, StringRef ExternalFilename) = 0;
 };
 
 /// This is the base class for a remark metadata serializer.
@@ -76,14 +71,13 @@ struct MetaSerializer {
 };
 
 /// Create a remark serializer.
-Expected<std::unique_ptr<RemarkSerializer>>
-createRemarkSerializer(Format RemarksFormat, SerializerMode Mode,
-                       raw_ostream &OS);
+LLVM_ABI Expected<std::unique_ptr<RemarkSerializer>>
+createRemarkSerializer(Format RemarksFormat, raw_ostream &OS);
 
 /// Create a remark serializer that uses a pre-filled string table.
-Expected<std::unique_ptr<RemarkSerializer>>
-createRemarkSerializer(Format RemarksFormat, SerializerMode Mode,
-                       raw_ostream &OS, remarks::StringTable StrTab);
+LLVM_ABI Expected<std::unique_ptr<RemarkSerializer>>
+createRemarkSerializer(Format RemarksFormat, raw_ostream &OS,
+                       remarks::StringTable StrTab);
 
 } // end namespace remarks
 } // end namespace llvm

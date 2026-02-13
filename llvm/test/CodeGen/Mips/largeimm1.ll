@@ -1,10 +1,10 @@
-; RUN: llc -march=mipsel -relocation-model=pic < %s | FileCheck %s
+; RUN: llc -mtriple=mipsel -relocation-model=pic < %s | FileCheck %s
 
 define void @f() nounwind {
 entry:
   %a1 = alloca [1073741824 x i8], align 1
-  %arrayidx = getelementptr inbounds [1073741824 x i8], [1073741824 x i8]* %a1, i32 0, i32 1048676
-  call void @f2(i8* %arrayidx) nounwind
+  %arrayidx = getelementptr inbounds [1073741824 x i8], ptr %a1, i32 0, i32 1048676
+  call void @f2(ptr %arrayidx) nounwind
   ret void
 ; CHECK-LABEL: f:
 
@@ -16,4 +16,4 @@ entry:
 ; CHECK: addu   ${{[0-9]+}}, $sp, $[[R2]]
 }
 
-declare void @f2(i8*)
+declare void @f2(ptr)

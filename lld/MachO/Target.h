@@ -20,6 +20,8 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "mach-o/compact_unwind_encoding.h"
+
 namespace lld::macho {
 LLVM_ENABLE_BITMASK_ENUMS_IN_NAMESPACE();
 
@@ -28,6 +30,15 @@ class Defined;
 class DylibSymbol;
 class InputSection;
 class ObjFile;
+
+static_assert(static_cast<uint32_t>(UNWIND_X86_64_MODE_MASK) ==
+                  static_cast<uint32_t>(UNWIND_X86_MODE_MASK) &&
+              static_cast<uint32_t>(UNWIND_ARM64_MODE_MASK) ==
+                  static_cast<uint32_t>(UNWIND_X86_64_MODE_MASK));
+
+// Since the mode masks have the same value on all targets, define
+// a common one for convenience.
+constexpr uint32_t UNWIND_MODE_MASK = UNWIND_X86_64_MODE_MASK;
 
 class TargetInfo {
 public:
@@ -38,7 +49,7 @@ public:
     pageZeroSize = LP::pageZeroSize;
     headerSize = sizeof(typename LP::mach_header);
     wordSize = LP::wordSize;
-    p2WordSize = llvm::CTLog2<LP::wordSize>();
+    p2WordSize = llvm::ConstantLog2<LP::wordSize>();
   }
 
   virtual ~TargetInfo() = default;
@@ -47,7 +58,7 @@ public:
   virtual int64_t
   getEmbeddedAddend(llvm::MemoryBufferRef, uint64_t offset,
                     const llvm::MachO::relocation_info) const = 0;
-  virtual void relocateOne(uint8_t *loc, const Reloc &, uint64_t va,
+  virtual void relocateOne(uint8_t *loc, const Relocation &, uint64_t va,
                            uint64_t relocVA) const = 0;
 
   // Write code for lazy binding. See the comments on StubsSection for more
@@ -59,10 +70,25 @@ public:
                                     uint64_t entryAddr) const = 0;
 
   virtual void writeObjCMsgSendStub(uint8_t *buf, Symbol *sym,
-                                    uint64_t stubsAddr, uint64_t stubOffset,
-                                    uint64_t selrefsVA, uint64_t selectorIndex,
-                                    uint64_t gotAddr,
-                                    uint64_t msgSendIndex) const = 0;
+                                    uint64_t stubsAddr, uint64_t &stubOffset,
+                                    uint64_t selrefVA,
+                                    Symbol *objcMsgSend) const = 0;
+
+  // Init 'thunk' so that it be a direct jump to 'branchTarget'.
+  virtual void initICFSafeThunkBody(InputSection *thunk,
+                                    Symbol *targetSym) const {
+    llvm_unreachable("target does not support ICF safe thunks");
+  }
+
+  // Given a thunk for which `initICFSafeThunkBody` was called, return the
+  // branchTarget it was initialized with.
+  virtual Symbol *getThunkBranchTarget(InputSection *thunk) const {
+    llvm_unreachable("target does not support ICF safe thunks");
+  }
+
+  virtual uint32_t getICFSafeThunkSize() const {
+    llvm_unreachable("target does not support ICF safe thunks");
+  }
 
   // Symbols may be referenced via either the GOT or the stubs section,
   // depending on the relocation type. prepareSymbolRelocation() will set up the
@@ -93,12 +119,10 @@ public:
   // For now, handleDtraceReloc only implements -no_dtrace_dof, and ensures
   // that the linking would not fail even when there are user-provided dtrace
   // symbols. However, unlike ld64, lld currently does not emit __dof sections.
-  virtual void handleDtraceReloc(const Symbol *sym, const Reloc &r,
+  virtual void handleDtraceReloc(const Symbol *sym, const Relocation &r,
                                  uint8_t *loc) const {
     llvm_unreachable("Unsupported architecture for dtrace symbols");
   }
-
-  virtual void applyOptimizationHints(uint8_t *, const ObjFile &) const {};
 
   uint32_t magic;
   llvm::MachO::CPUType cpuType;
@@ -110,7 +134,9 @@ public:
   size_t stubHelperHeaderSize;
   size_t stubHelperEntrySize;
   size_t objcStubsFastSize;
-  size_t objcStubsAlignment;
+  size_t objcStubsSmallSize;
+  size_t objcStubsFastAlignment;
+  size_t objcStubsSmallAlignment;
   uint8_t p2WordSize;
   size_t wordSize;
 
@@ -134,7 +160,6 @@ public:
 TargetInfo *createX86_64TargetInfo();
 TargetInfo *createARM64TargetInfo();
 TargetInfo *createARM64_32TargetInfo();
-TargetInfo *createARMTargetInfo(uint32_t cpuSubtype);
 
 struct LP64 {
   using mach_header = llvm::MachO::mach_header_64;

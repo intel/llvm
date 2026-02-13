@@ -82,9 +82,9 @@ void VLAPtrAssign(int size) {
   // This is well formed
   int (*p)[2][3][size][4][5] = array;
   // Last array dimension too large
-  int (*p2)[2][3][size][4][6] = array; // expected-warning {{incompatible pointer types}}
+  int (*p2)[2][3][size][4][6] = array; // expected-error {{incompatible pointer types}}
   // Second array dimension too large
-  int (*p3)[20][3][size][4][5] = array; // expected-warning {{incompatible pointer types}}
+  int (*p3)[20][3][size][4][5] = array; // expected-error {{incompatible pointer types}}
 
   // Not illegal in C, program _might_ be well formed if size == 3.
   int (*p4)[2][size][3][4][5] = array;
@@ -113,14 +113,14 @@ void test_fold_to_constant_array(void) {
  jump_over_a2:;
 
   goto jump_over_a3;
-  char a3[ksize] = {}; // expected-warning {{variable length array folded to constant array as an extension}} expected-warning{{use of GNU empty initializer}}
+  char a3[ksize] = {}; // expected-warning {{variable length array folded to constant array as an extension}} expected-warning{{use of an empty initializer is a C23 extension}}
  jump_over_a3:;
 
   goto jump_over_a4; // expected-error{{cannot jump from this goto statement to its label}}
   char a4[ksize][2]; // expected-note{{variable length array}}
  jump_over_a4:;
 
-  char a5[ksize][2] = {}; // expected-warning {{variable length array folded to constant array as an extension}} expected-warning{{use of GNU empty initializer}}
+  char a5[ksize][2] = {}; // expected-warning {{variable length array folded to constant array as an extension}} expected-warning{{use of an empty initializer is a C23 extension}}
 
   int a6[ksize] = {1,2,3,4}; // expected-warning{{variable length array folded to constant array as an extension}}
 

@@ -18,8 +18,9 @@ function(check_z3_version z3_include z3_lib)
   # The program that will be executed to print Z3's version.
   file(WRITE ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp/testz3.cpp
        "#include <assert.h>
+        #include <stdio.h> 
         #include <z3.h>
-        int main() {
+        int main(void) {
           unsigned int major, minor, build, rev;
           Z3_get_version(&major, &minor, &build, &rev);
           printf(\"%u.%u.%u\", major, minor, build);
@@ -74,7 +75,7 @@ unset(Z3_VERSION_STRING)
 
 # First, try to check it dynamically, by compiling a small program that
 # prints Z3's version
-if(Z3_INCLUDE_DIR AND Z3_LIBRARIES)
+if(Z3_INCLUDE_DIR AND Z3_LIBRARIES AND NOT CMAKE_CROSSCOMPILING)
   # We do not have the Z3 binary to query for a version. Try to use
   # a small C++ program to detect it via the Z3_get_version() API call.
   check_z3_version(${Z3_INCLUDE_DIR} ${Z3_LIBRARIES})

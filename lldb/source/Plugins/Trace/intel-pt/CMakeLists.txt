@@ -13,6 +13,14 @@ lldb_tablegen(TraceIntelPTCommandOptions.inc -gen-lldb-option-defs
   SOURCE TraceIntelPTOptions.td
   TARGET TraceIntelPTOptionsGen)
 
+lldb_tablegen(TraceIntelPTProperties.inc -gen-lldb-property-defs
+  SOURCE TraceIntelPTProperties.td
+  TARGET TraceIntelPTPropertiesGen)
+
+lldb_tablegen(TraceIntelPTPropertiesEnum.inc -gen-lldb-property-enum-defs
+  SOURCE TraceIntelPTProperties.td
+  TARGET TraceIntelPTPropertiesEnumGen)
+
 add_lldb_library(lldbPluginTraceIntelPT PLUGIN
   CommandObjectTraceStartIntelPT.cpp
   DecodedThread.cpp
@@ -27,15 +35,18 @@ add_lldb_library(lldbPluginTraceIntelPT PLUGIN
   TraceIntelPTBundleLoader.cpp
   TraceIntelPTBundleSaver.cpp
 
+  LINK_COMPONENTS
+    Support
   LINK_LIBS
     lldbCore
     lldbSymbol
     lldbTarget
     lldbPluginTraceCommon
     ${LIBIPT_LIBRARY}
-  LINK_COMPONENTS
-    Support
   )
 
 
-add_dependencies(lldbPluginTraceIntelPT TraceIntelPTOptionsGen)
+add_dependencies(lldbPluginTraceIntelPT
+  TraceIntelPTOptionsGen
+  TraceIntelPTPropertiesGen
+  TraceIntelPTPropertiesEnumGen)

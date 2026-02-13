@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -no-opaque-pointers -triple x86_64-unknown-unknown %s -Wno-strict-prototypes -emit-llvm -o - | FileCheck %s
+// RUN: %clang_cc1 -triple x86_64-unknown-unknown %s -Wno-strict-prototypes -emit-llvm -o - | FileCheck %s
 
 // PR1895
 // sizeof function
@@ -7,7 +7,7 @@ int x=sizeof(zxcv);
 int y=__alignof__(zxcv);
 
 
-void *test(int *i) {
+void test(int *i) {
  short a = 1;
  i += a;
  i + a;
@@ -18,7 +18,7 @@ _Bool test2b;
 int test2(void) { if (test2b); return 0; }
 
 // PR1921
-int test3(void) {
+void test3(void) {
   const unsigned char *bp;
   bp -= (short)1;
 }
@@ -53,7 +53,6 @@ void eMaisUma(void) {
     return;
 }
 
-// rdar://6520707
 void f0(void (*fp)(void), void (*fp2)(void)) {
   int x = fp - fp2;
 }
@@ -105,7 +104,6 @@ int f8(void) {
   return ({ foo(); }).Y;
 }
 
-// rdar://6880558
 struct S;
 struct C {
   int i;
@@ -120,7 +118,6 @@ void f10(void) {
   __builtin_sin(0);
 }
 
-// rdar://7530813
 // CHECK-LABEL: define{{.*}} i32 @f11
 int f11(long X) {
   int A[100];
@@ -128,9 +125,9 @@ int f11(long X) {
 
 // CHECK: [[Xaddr:%[^ ]+]] = alloca i64, align 8
 // CHECK: [[A:%.*]] = alloca [100 x i32], align
-// CHECK: [[X:%.*]] = load {{.*}}, {{.*}}* [[Xaddr]]
-// CHECK-NEXT: [[T0:%.*]] = getelementptr inbounds [100 x i32], [100 x i32]* [[A]], i64 0, i64 [[X]]
-// CHECK-NEXT: load i32, i32* [[T0]], align 4
+// CHECK: [[X:%.*]] = load {{.*}}, ptr [[Xaddr]]
+// CHECK-NEXT: [[T0:%.*]] = getelementptr inbounds [100 x i32], ptr [[A]], i64 0, i64 [[X]]
+// CHECK-NEXT: load i32, ptr [[T0]], align 4
 }
 
 int f12(void) {
@@ -199,10 +196,17 @@ void f18(void) {
 
 // Ensure the right stmt is returned
 int f19(void) {
-  return ({ 3;;4;; });
+  return ({ 3;;4; });
 }
 // CHECK-LABEL: define{{.*}} i32 @f19()
 // CHECK: [[T:%.*]] = alloca i32
-// CHECK: store i32 4, i32* [[T]]
-// CHECK: [[L:%.*]] = load i32, i32* [[T]]
+// CHECK: store i32 4, ptr [[T]]
+// CHECK: [[L:%.*]] = load i32, ptr [[T]]
 // CHECK: ret i32 [[L]]
+
+// PR166036: The trailing NullStmt should result in a void.
+void f20(void) {
+  return ({ 3;;4;; });
+}
+// CHECK-LABEL: define{{.*}} void @f20()
+// CHECK: ret void

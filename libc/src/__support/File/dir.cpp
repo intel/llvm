@@ -8,34 +8,41 @@
 
 #include "dir.h"
 
-#include <stdlib.h>
+#include "src/__support/CPP/mutex.h" // lock_guard
+#include "src/__support/CPP/new.h"
+#include "src/__support/alloc-checker.h"
+#include "src/__support/error_or.h"
+#include "src/__support/libc_errno.h" // For error macros
+#include "src/__support/macros/config.h"
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE_DECL {
 
-Dir *Dir::open(const char *path) {
-  int fd = platform_opendir(path);
-  if (fd < 0)
-    return nullptr;
+ErrorOr<Dir *> Dir::open(const char *path) {
+  auto fd = platform_opendir(path);
+  if (!fd)
+    return LIBC_NAMESPACE::Error(fd.error());
 
-  Dir *dir = reinterpret_cast<Dir *>(malloc(sizeof(Dir)));
-  dir->fd = fd;
-  dir->readptr = 0;
-  dir->fillsize = 0;
-  Mutex::init(&dir->mutex, false, false, false);
-
+  LIBC_NAMESPACE::AllocChecker ac;
+  Dir *dir = new (ac) Dir(fd.value());
+  if (!ac)
+    return LIBC_NAMESPACE::Error(ENOMEM);
   return dir;
 }
 
-struct ::dirent *Dir::read() {
-  MutexLock lock(&mutex);
+ErrorOr<struct ::dirent *> Dir::read() {
+  cpp::lock_guard lock(mutex);
   if (readptr >= fillsize) {
-    fillsize = platform_fetch_dirents(fd, buffer);
-    if (fillsize == 0)
-      return nullptr;
+    auto readsize = platform_fetch_dirents(fd, buffer);
+    if (!readsize)
+      return LIBC_NAMESPACE::Error(readsize.error());
+    fillsize = readsize.value();
     readptr = 0;
   }
+  if (fillsize == 0)
+    return nullptr;
+
   struct ::dirent *d = reinterpret_cast<struct ::dirent *>(buffer + readptr);
-#ifdef __unix__
+#ifdef __linux__
   // The d_reclen field is available on Linux but not required by POSIX.
   readptr += d->d_reclen;
 #else
@@ -47,12 +54,13 @@ struct ::dirent *Dir::read() {
 
 int Dir::close() {
   {
-    MutexLock lock(&mutex);
-    if (!platform_closedir(fd))
-      return -1;
+    cpp::lock_guard lock(mutex);
+    int retval = platform_closedir(fd);
+    if (retval != 0)
+      return retval;
   }
-  free(this);
+  delete this;
   return 0;
 }
 
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE_DECL

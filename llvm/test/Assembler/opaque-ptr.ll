@@ -1,28 +1,26 @@
-; RUN: llvm-as -opaque-pointers < %s | llvm-dis -opaque-pointers | llvm-as -opaque-pointers | llvm-dis -opaque-pointers | FileCheck %s
-; RUN: verify-uselistorder -opaque-pointers %s
+; RUN: llvm-as < %s | llvm-dis | llvm-as | llvm-dis | FileCheck %s
+; RUN: verify-uselistorder %s
 
 ; CHECK: @global = external global ptr
 @global = external global ptr
 
-; CHECK: @global_const_gep = global ptr getelementptr inbounds (i47, ptr @global, i64 1)
+; CHECK: @global_const_gep = global ptr getelementptr (i47, ptr @global, i64 1)
 @global_const_gep = global ptr getelementptr (i47, ptr @global, i64 1)
 
 ; CHECK: @fptr1 = external global ptr
 ; CHECK: @fptr2 = external global ptr addrspace(1)
 ; CHECK: @fptr3 = external global ptr addrspace(2)
-@fptr1 = external global ptr ()*
-@fptr2 = external global ptr () addrspace(1)*
-@fptr3 = external global ptr () addrspace(1)* addrspace(2)*
+@fptr1 = external global ptr
+@fptr2 = external global ptr addrspace(1)
+@fptr3 = external global ptr addrspace(2)
 
 ; CHECK: @ifunc = ifunc void (), ptr @f
 @ifunc = ifunc void (), ptr @f
 
 ; CHECK: define ptr @f(ptr %a) {
-; CHECK:     %b = bitcast ptr %a to ptr
-; CHECK:     ret ptr %b
+; CHECK:     ret ptr %a
 define ptr @f(ptr %a) {
-    %b = bitcast ptr %a to ptr
-    ret ptr %b
+    ret ptr %a
 }
 
 ; CHECK: define ptr @g(ptr addrspace(2) %a) {
@@ -94,7 +92,7 @@ define <2 x ptr> @gep_constexpr_vec1(ptr %a) {
 }
 
 ; CHECK: define <2 x ptr> @gep_constexpr_vec2(<2 x ptr> %a)
-; CHECK:     ret <2 x ptr> getelementptr (i16, <2 x ptr> zeroinitializer, <2 x i32> <i32 3, i32 3>)
+; CHECK:     ret <2 x ptr> getelementptr (i16, <2 x ptr> zeroinitializer, <2 x i32> splat (i32 3))
 define <2 x ptr> @gep_constexpr_vec2(<2 x ptr> %a) {
   ret <2 x ptr> getelementptr (i16, <2 x ptr> zeroinitializer, i32 3)
 }
@@ -123,6 +121,14 @@ define void @atomicrmw(ptr %a, i32 %i) {
     ret void
 }
 
+; CHECK: define void @atomicrmw_ptr(ptr %a, ptr %b)
+; CHECK:     %c = atomicrmw xchg ptr %a, ptr %b acquire
+; CHECK:     ret void
+define void @atomicrmw_ptr(ptr %a, ptr %b) {
+    %c = atomicrmw xchg ptr %a, ptr %b acquire
+    ret void
+}
+
 ; CHECK: define void @call(ptr %p)
 ; CHECK:     call void %p()
 ; CHECK:     ret void
@@ -143,7 +149,7 @@ define void @call_arg(ptr %p, i32 %a) {
 ; CHECK:   invoke void %p()
 ; CHECK:     to label %continue unwind label %cleanup
 declare void @personality()
-define void @invoke(ptr %p) personality void ()* @personality {
+define void @invoke(ptr %p) personality ptr @personality {
   invoke void %p()
     to label %continue unwind label %cleanup
 

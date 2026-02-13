@@ -6,7 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "token-sequence.h"
+#include "flang/Parser/token-sequence.h"
+
+#include "prescan.h"
 #include "flang/Parser/characters.h"
 #include "flang/Parser/message.h"
 #include "llvm/Support/raw_ostream.h"
@@ -28,7 +30,8 @@ void TokenSequence::clear() {
 
 void TokenSequence::pop_back() {
   CHECK(!start_.empty());
-  CHECK(nextStart_ > start_.back());
+  // If the last token is empty then `nextStart_ == start_.back()`.
+  CHECK(nextStart_ >= start_.back());
   std::size_t bytes{nextStart_ - start_.back()};
   nextStart_ = start_.back();
   start_.pop_back();
@@ -59,6 +62,16 @@ std::size_t TokenSequence::SkipBlanks(std::size_t at) const {
   return tokens; // even if at > tokens
 }
 
+std::optional<std::size_t> TokenSequence::SkipBlanksBackwards(
+    std::size_t at) const {
+  while (at-- > 0) {
+    if (!TokenAt(at).IsBlank()) {
+      return at;
+    }
+  }
+  return std::nullopt;
+}
+
 // C-style /*comments*/ are removed from preprocessing directive
 // token sequences by the prescanner, but not C++ or Fortran
 // free-form line-ending comments (//...  and !...) because
@@ -84,7 +97,7 @@ bool TokenSequence::IsAnythingLeft(std::size_t at) const {
   return false;
 }
 
-void TokenSequence::Put(const TokenSequence &that) {
+void TokenSequence::CopyAll(const TokenSequence &that) {
   if (nextStart_ < char_.size()) {
     start_.push_back(nextStart_);
   }
@@ -97,7 +110,8 @@ void TokenSequence::Put(const TokenSequence &that) {
   provenances_.Put(that.provenances_);
 }
 
-void TokenSequence::Put(const TokenSequence &that, ProvenanceRange range) {
+void TokenSequence::CopyWithProvenance(
+    const TokenSequence &that, ProvenanceRange range) {
   std::size_t offset{0};
   std::size_t tokens{that.SizeInTokens()};
   for (std::size_t j{0}; j < tokens; ++j) {
@@ -108,7 +122,7 @@ void TokenSequence::Put(const TokenSequence &that, ProvenanceRange range) {
   CHECK(offset == range.size());
 }
 
-void TokenSequence::Put(
+void TokenSequence::AppendRange(
     const TokenSequence &that, std::size_t at, std::size_t tokens) {
   ProvenanceRange provenance;
   std::size_t offset{0};
@@ -135,7 +149,10 @@ void TokenSequence::Put(
 }
 
 void TokenSequence::Put(const CharBlock &t, Provenance provenance) {
-  Put(&t[0], t.size(), provenance);
+  // Avoid t[0] if t is empty: it would create a reference to nullptr,
+  // which is UB.
+  const char *addr{t.size() ? &t[0] : nullptr};
+  Put(addr, t.size(), provenance);
 }
 
 void TokenSequence::Put(const std::string &s, Provenance provenance) {
@@ -154,7 +171,16 @@ TokenSequence &TokenSequence::ToLowerCase() {
     std::size_t nextStart{atToken + 1 < tokens ? start_[++atToken] : chars};
     char *p{&char_[j]};
     char const *limit{char_.data() + nextStart};
+    const char *lastChar{limit - 1};
     j = nextStart;
+    // Skip leading whitespaces
+    while (p < limit - 1 && *p == ' ') {
+      ++p;
+    }
+    // Find last non-whitespace char
+    while (lastChar > p + 1 && *lastChar == ' ') {
+      --lastChar;
+    }
     if (IsDecimalDigit(*p)) {
       while (p < limit && IsDecimalDigit(*p)) {
         ++p;
@@ -163,7 +189,7 @@ TokenSequence &TokenSequence::ToLowerCase() {
       } else if (*p == 'h' || *p == 'H') {
         // Hollerith
         *p = 'h';
-      } else if (*p == '_') {
+      } else if (*p == '_' && p + 1 < limit && (p[1] == '"' || p[1] == '\'')) {
         // kind-prefixed character literal (e.g., 1_"ABC")
       } else {
         // exponent
@@ -171,17 +197,17 @@ TokenSequence &TokenSequence::ToLowerCase() {
           *p = ToLowerCaseLetter(*p);
         }
       }
-    } else if (limit[-1] == '\'' || limit[-1] == '"') {
-      if (*p == limit[-1]) {
+    } else if (*lastChar == '\'' || *lastChar == '"') {
+      if (*p == *lastChar) {
         // Character literal without prefix
-      } else if (p[1] == limit[-1]) {
+      } else if (p[1] == *lastChar) {
         // BOZX-prefixed constant
         for (; p < limit; ++p) {
           *p = ToLowerCaseLetter(*p);
         }
       } else {
         // Literal with kind-param prefix name (e.g., K_"ABC").
-        for (; *p != limit[-1]; ++p) {
+        for (; *p != *lastChar; ++p) {
           *p = ToLowerCaseLetter(*p);
         }
       }
@@ -222,7 +248,7 @@ TokenSequence &TokenSequence::RemoveBlanks(std::size_t firstChar) {
   TokenSequence result;
   for (std::size_t j{0}; j < tokens; ++j) {
     if (!TokenAt(j).IsBlank() || start_[j] < firstChar) {
-      result.Put(*this, j);
+      result.AppendRange(*this, j);
     }
   }
   swap(result);
@@ -236,7 +262,7 @@ TokenSequence &TokenSequence::RemoveRedundantBlanks(std::size_t firstChar) {
   for (std::size_t j{0}; j < tokens; ++j) {
     bool isBlank{TokenAt(j).IsBlank()};
     if (!isBlank || !lastWasBlank || start_[j] < firstChar) {
-      result.Put(*this, j);
+      result.AppendRange(*this, j);
     }
     lastWasBlank = isBlank;
   }
@@ -244,16 +270,33 @@ TokenSequence &TokenSequence::RemoveRedundantBlanks(std::size_t firstChar) {
   return *this;
 }
 
-TokenSequence &TokenSequence::ClipComment(bool skipFirst) {
+TokenSequence &TokenSequence::ClipComment(
+    const Prescanner &prescanner, bool skipFirst) {
   std::size_t tokens{SizeInTokens()};
   for (std::size_t j{0}; j < tokens; ++j) {
-    if (TokenAt(j).FirstNonBlank() == '!') {
-      if (skipFirst) {
+    CharBlock tok{TokenAt(j)};
+    if (std::size_t blanks{tok.CountLeadingBlanks()};
+        blanks < tok.size() && tok[blanks] == '!') {
+      // Retain active compiler directive sentinels (e.g. "!dir$")
+      for (std::size_t k{j + 1}; k < tokens && tok.size() <= blanks + 5; ++k) {
+        if (tok.begin() + tok.size() == TokenAt(k).begin()) {
+          tok.ExtendToCover(TokenAt(k));
+        } else {
+          break;
+        }
+      }
+      bool isSentinel{false};
+      if (tok.size() > blanks + 5) {
+        isSentinel = prescanner.IsCompilerDirectiveSentinel(&tok[blanks + 1])
+                         .has_value();
+      }
+      if (isSentinel) {
+      } else if (skipFirst) {
         skipFirst = false;
       } else {
         TokenSequence result;
         if (j > 0) {
-          result.Put(*this, 0, j - 1);
+          result.AppendRange(*this, 0, j - 1);
         }
         swap(result);
         return *this;
@@ -264,8 +307,10 @@ TokenSequence &TokenSequence::ClipComment(bool skipFirst) {
 }
 
 void TokenSequence::Emit(CookedSource &cooked) const {
-  cooked.Put(&char_[0], char_.size());
-  cooked.PutProvenanceMappings(provenances_);
+  if (auto n{char_.size()}) {
+    cooked.Put(&char_[0], n);
+    cooked.PutProvenanceMappings(provenances_);
+  }
 }
 
 llvm::raw_ostream &TokenSequence::Dump(llvm::raw_ostream &o) const {
@@ -275,6 +320,7 @@ llvm::raw_ostream &TokenSequence::Dump(llvm::raw_ostream &o) const {
     o << '[' << j << "] @ " << start_[j] << " '" << TokenAt(j).ToString()
       << "'\n";
   }
+  provenances_.Dump(o << "provenances_:\n");
   return o;
 }
 
@@ -311,15 +357,28 @@ ProvenanceRange TokenSequence::GetProvenanceRange() const {
 }
 
 const TokenSequence &TokenSequence::CheckBadFortranCharacters(
-    Messages &messages) const {
+    Messages &messages, const Prescanner &prescanner,
+    bool preprocessingOnly) const {
   std::size_t tokens{SizeInTokens()};
   for (std::size_t j{0}; j < tokens; ++j) {
     CharBlock token{TokenAt(j)};
     char ch{token.FirstNonBlank()};
     if (ch != ' ' && !IsValidFortranTokenCharacter(ch)) {
-      if (ch == '!' && j == 0) {
-        // allow in !dir$
-      } else if (ch < ' ' || ch >= '\x7f') {
+      if (ch == '!') {
+        if (prescanner.IsCompilerDirectiveSentinel(token)) {
+          continue;
+        } else if (j + 1 < tokens &&
+            prescanner.IsCompilerDirectiveSentinel(
+                TokenAt(j + 1))) { // !dir$, &c.
+          ++j;
+          continue;
+        } else if (preprocessingOnly) {
+          continue;
+        }
+      } else if (ch == '&' && preprocessingOnly) {
+        continue;
+      }
+      if (ch < ' ' || ch >= '\x7f') {
         messages.Say(GetTokenProvenanceRange(j),
             "bad character (0x%02x) in Fortran token"_err_en_US, ch & 0xff);
       } else {
@@ -331,26 +390,32 @@ const TokenSequence &TokenSequence::CheckBadFortranCharacters(
   return *this;
 }
 
-const TokenSequence &TokenSequence::CheckBadParentheses(
-    Messages &messages) const {
-  // First, a quick pass with no allocation for the common case
+bool TokenSequence::BadlyNestedParentheses() const {
   int nesting{0};
   std::size_t tokens{SizeInTokens()};
   for (std::size_t j{0}; j < tokens; ++j) {
     CharBlock token{TokenAt(j)};
-    char ch{token.FirstNonBlank()};
+    char ch{token.OnlyNonBlank()};
     if (ch == '(') {
       ++nesting;
     } else if (ch == ')') {
-      --nesting;
+      if (nesting-- == 0) {
+        break;
+      }
     }
   }
-  if (nesting != 0) {
+  return nesting != 0;
+}
+
+const TokenSequence &TokenSequence::CheckBadParentheses(
+    Messages &messages) const {
+  if (BadlyNestedParentheses()) {
     // There's an error; diagnose it
+    std::size_t tokens{SizeInTokens()};
     std::vector<std::size_t> stack;
     for (std::size_t j{0}; j < tokens; ++j) {
       CharBlock token{TokenAt(j)};
-      char ch{token.FirstNonBlank()};
+      char ch{token.OnlyNonBlank()};
       if (ch == '(') {
         stack.push_back(j);
       } else if (ch == ')') {

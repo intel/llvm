@@ -8,14 +8,13 @@
 
 #include "mlir/Conversion/OpenACCToSCF/ConvertOpenACCToSCF.h"
 
-#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/OpenACC/OpenACC.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
-#include "mlir/Pass/Pass.h"
+#include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/DialectConversion.h"
 
 namespace mlir {
-#define GEN_PASS_DEF_CONVERTOPENACCTOSCF
+#define GEN_PASS_DEF_CONVERTOPENACCTOSCFPASS
 #include "mlir/Conversion/Passes.h.inc"
 } // namespace mlir
 
@@ -36,19 +35,22 @@ class ExpandIfCondition : public OpRewritePattern<OpTy> {
                                 PatternRewriter &rewriter) const override {
     // Early exit if there is no condition.
     if (!op.getIfCond())
-      return success();
+      return failure();
 
-    // Condition is not a constant.
-    if (!op.getIfCond().template getDefiningOp<arith::ConstantOp>()) {
-      auto ifOp = rewriter.create<scf::IfOp>(op.getLoc(), TypeRange(),
-                                             op.getIfCond(), false);
-      rewriter.updateRootInPlace(op, [&]() { op.getIfCondMutable().erase(0); });
-      auto thenBodyBuilder = ifOp.getThenBodyBuilder();
-      thenBodyBuilder.setListener(rewriter.getListener());
+    IntegerAttr constAttr;
+    if (!matchPattern(op.getIfCond(), m_Constant(&constAttr))) {
+      auto ifOp = scf::IfOp::create(rewriter, op.getLoc(), TypeRange(),
+                                    op.getIfCond(), false);
+      rewriter.modifyOpInPlace(op, [&]() { op.getIfCondMutable().erase(0); });
+      auto thenBodyBuilder = ifOp.getThenBodyBuilder(rewriter.getListener());
       thenBodyBuilder.clone(*op.getOperation());
       rewriter.eraseOp(op);
+    } else {
+      if (constAttr.getInt())
+        rewriter.modifyOpInPlace(op, [&]() { op.getIfCondMutable().erase(0); });
+      else
+        rewriter.eraseOp(op);
     }
-
     return success();
   }
 };
@@ -62,7 +64,7 @@ void mlir::populateOpenACCToSCFConversionPatterns(RewritePatternSet &patterns) {
 
 namespace {
 struct ConvertOpenACCToSCFPass
-    : public impl::ConvertOpenACCToSCFBase<ConvertOpenACCToSCFPass> {
+    : public impl::ConvertOpenACCToSCFPassBase<ConvertOpenACCToSCFPass> {
   void runOnOperation() override;
 };
 } // namespace
@@ -89,8 +91,4 @@ void ConvertOpenACCToSCFPass::runOnOperation() {
 
   if (failed(applyPartialConversion(op, target, std::move(patterns))))
     signalPassFailure();
-}
-
-std::unique_ptr<OperationPass<ModuleOp>> mlir::createConvertOpenACCToSCFPass() {
-  return std::make_unique<ConvertOpenACCToSCFPass>();
 }

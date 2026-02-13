@@ -8,14 +8,19 @@ include(FindPrefixFromConfig)
 # the usual CMake convention seems to be ${Project}Targets.cmake.
 set(CLANG_INSTALL_PACKAGE_DIR "${CMAKE_INSTALL_PACKAGEDIR}/clang" CACHE STRING
   "Path for CMake subdirectory for Clang (defaults to '${CMAKE_INSTALL_PACKAGEDIR}/clang')")
-# CMAKE_INSTALL_PACKAGEDIR might be absolute, so don't reuse below.
-set(clang_cmake_builddir "${CMAKE_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX}/cmake/clang")
 
 # Keep this in sync with llvm/cmake/CMakeLists.txt!
 set(LLVM_INSTALL_PACKAGE_DIR "${CMAKE_INSTALL_PACKAGEDIR}/llvm" CACHE STRING
   "Path for CMake subdirectory for LLVM (defaults to '${CMAKE_INSTALL_PACKAGEDIR}/llvm')")
 # CMAKE_INSTALL_PACKAGEDIR might be absolute, so don't reuse below.
-set(llvm_cmake_builddir "${LLVM_LIBRARY_DIR}/cmake/llvm")
+string(REPLACE "${CMAKE_CFG_INTDIR}" "." llvm_builddir "${LLVM_LIBRARY_DIR}")
+set(llvm_cmake_builddir "${llvm_builddir}/cmake/llvm")
+if(CLANG_BUILT_STANDALONE)
+  # CMAKE_INSTALL_PACKAGEDIR might be absolute, so don't reuse below.
+  set(clang_cmake_builddir "${CMAKE_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX}/cmake/clang")
+else()
+  set(clang_cmake_builddir "${llvm_builddir}/cmake/clang")
+endif()
 
 get_property(CLANG_EXPORTS GLOBAL PROPERTY CLANG_EXPORTS)
 export(TARGETS ${CLANG_EXPORTS} FILE ${clang_cmake_builddir}/ClangTargets.cmake)
@@ -31,6 +36,10 @@ set(CLANG_CONFIG_INCLUDE_DIRS
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/ClangConfig.cmake.in
   ${clang_cmake_builddir}/ClangConfig.cmake
+  @ONLY)
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/ClangConfigVersion.cmake.in
+  ${clang_cmake_builddir}/ClangConfigVersion.cmake
   @ONLY)
 set(CLANG_CONFIG_CMAKE_DIR)
 set(CLANG_CONFIG_LLVM_CMAKE_DIR)
@@ -59,6 +68,10 @@ configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/ClangConfig.cmake.in
   ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/ClangConfig.cmake
   @ONLY)
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/ClangConfigVersion.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/ClangConfigVersion.cmake
+  @ONLY)
 set(CLANG_CONFIG_CODE)
 set(CLANG_CONFIG_CMAKE_DIR)
 
@@ -67,6 +80,7 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
 
   install(FILES
     ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/ClangConfig.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/ClangConfigVersion.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/AddClang.cmake
     DESTINATION ${CLANG_INSTALL_PACKAGE_DIR}
     COMPONENT clang-cmake-exports)

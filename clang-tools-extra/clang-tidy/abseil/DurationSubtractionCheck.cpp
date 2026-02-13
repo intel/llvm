@@ -1,4 +1,4 @@
-//===--- DurationSubtractionCheck.cpp - clang-tidy ------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,18 +11,17 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Tooling/FixIt.h"
+#include <optional>
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace abseil {
+namespace clang::tidy::abseil {
 
 void DurationSubtractionCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
       binaryOperator(
           hasOperatorName("-"),
-          hasLHS(callExpr(callee(functionDecl(DurationConversionFunction())
+          hasLHS(callExpr(callee(functionDecl(durationConversionFunction())
                                      .bind("function_decl")),
                           hasArgument(0, expr().bind("lhs_arg")))))
           .bind("binop"),
@@ -37,12 +36,12 @@ void DurationSubtractionCheck::check(const MatchFinder::MatchResult &Result) {
   if (Binop->getExprLoc().isMacroID() || Binop->getExprLoc().isInvalid())
     return;
 
-  llvm::Optional<DurationScale> Scale =
+  std::optional<DurationScale> Scale =
       getScaleForDurationInverse(FuncDecl->getName());
   if (!Scale)
     return;
 
-  std::string RhsReplacement =
+  const std::string RhsReplacement =
       rewriteExprFromNumberToDuration(Result, *Scale, Binop->getRHS());
 
   const Expr *LhsArg = Result.Nodes.getNodeAs<Expr>("lhs_arg");
@@ -56,6 +55,4 @@ void DurationSubtractionCheck::check(const MatchFinder::MatchResult &Result) {
                  .str());
 }
 
-} // namespace abseil
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::abseil

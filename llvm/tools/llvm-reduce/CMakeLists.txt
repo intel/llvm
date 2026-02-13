@@ -7,15 +7,17 @@ set(LLVM_LINK_COMPONENTS
   BitReader
   BitWriter
   CodeGen
+  CodeGenTypes
   Core
+  IPO
   IRReader
   MC
   MIRParser
   Passes
   Support
   Target
+  TargetParser
   TransformUtils
-  IPO
   )
 
 add_llvm_tool(llvm-reduce
@@ -28,16 +30,24 @@ add_llvm_tool(llvm-reduce
   deltas/ReduceArguments.cpp
   deltas/ReduceAttributes.cpp
   deltas/ReduceBasicBlocks.cpp
+  deltas/ReduceDIMetadata.cpp
+  deltas/ReduceDistinctMetadata.cpp
+  deltas/ReduceDbgRecords.cpp
   deltas/ReduceFunctionBodies.cpp
   deltas/ReduceFunctions.cpp
   deltas/ReduceGlobalObjects.cpp
   deltas/ReduceGlobalValues.cpp
   deltas/ReduceGlobalVarInitializers.cpp
   deltas/ReduceGlobalVars.cpp
+  deltas/ReduceInlineCallSites.cpp
   deltas/ReduceInstructions.cpp
+  deltas/ReduceInstructionFlags.cpp
+  deltas/ReduceInvokes.cpp
   deltas/ReduceMetadata.cpp
   deltas/ReduceModuleData.cpp
+  deltas/ReduceMemoryOperations.cpp
   deltas/ReduceOperandBundles.cpp
+  deltas/ReduceOpcodes.cpp
   deltas/ReduceSpecialGlobals.cpp
   deltas/ReduceOperands.cpp
   deltas/ReduceOperandsSkip.cpp
@@ -45,13 +55,17 @@ add_llvm_tool(llvm-reduce
   deltas/ReduceInstructionsMIR.cpp
   deltas/ReduceInstructionFlagsMIR.cpp
   deltas/ReduceIRReferences.cpp
+  deltas/ReduceValuesToReturn.cpp
   deltas/ReduceVirtualRegisters.cpp
   deltas/ReduceRegisterMasks.cpp
   deltas/ReduceRegisterDefs.cpp
   deltas/ReduceRegisterUses.cpp
+  deltas/ReduceSinkDefsToUses.cpp
+  deltas/ReduceTargetFeaturesAttr.cpp
   deltas/ReduceUsingSimplifyCFG.cpp
   deltas/RunIRPasses.cpp
   deltas/SimplifyInstructions.cpp
+  deltas/StripDebugInfo.cpp
   llvm-reduce.cpp
 
   DEPENDS

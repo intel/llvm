@@ -1,4 +1,4 @@
-//===--- EasilySwappableParametersCheck.cpp - clang-tidy ------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -16,6 +16,11 @@
 
 #define DEBUG_TYPE "EasilySwappableParametersCheck"
 #include "llvm/Support/Debug.h"
+#include <optional>
+
+using namespace clang::ast_matchers;
+
+namespace clang::tidy::bugprone {
 
 namespace optutils = clang::tidy::utils::options;
 
@@ -23,24 +28,24 @@ namespace optutils = clang::tidy::utils::options;
 static constexpr std::size_t DefaultMinimumLength = 2;
 
 /// The default value for ignored parameter names.
-static constexpr llvm::StringLiteral DefaultIgnoredParameterNames = "\"\";"
-                                                                    "iterator;"
-                                                                    "Iterator;"
-                                                                    "begin;"
-                                                                    "Begin;"
-                                                                    "end;"
-                                                                    "End;"
-                                                                    "first;"
-                                                                    "First;"
-                                                                    "last;"
-                                                                    "Last;"
-                                                                    "lhs;"
-                                                                    "LHS;"
-                                                                    "rhs;"
-                                                                    "RHS";
+static constexpr StringRef DefaultIgnoredParameterNames = "\"\";"
+                                                          "iterator;"
+                                                          "Iterator;"
+                                                          "begin;"
+                                                          "Begin;"
+                                                          "end;"
+                                                          "End;"
+                                                          "first;"
+                                                          "First;"
+                                                          "last;"
+                                                          "Last;"
+                                                          "lhs;"
+                                                          "LHS;"
+                                                          "rhs;"
+                                                          "RHS";
 
 /// The default value for ignored parameter type suffixes.
-static constexpr llvm::StringLiteral DefaultIgnoredParameterTypeSuffixes =
+static constexpr StringRef DefaultIgnoredParameterTypeSuffixes =
     "bool;"
     "Bool;"
     "_Bool;"
@@ -81,16 +86,10 @@ static constexpr bool DefaultModelImplicitConversions = true;
 /// used together.
 static constexpr bool DefaultSuppressParametersUsedTogether = true;
 
-/// The default value for the NamePrefixSuffixSilenceDissimilarityTreshold
+/// The default value for the NamePrefixSuffixSilenceDissimilarityThreshold
 /// check option.
 static constexpr std::size_t
     DefaultNamePrefixSuffixSilenceDissimilarityTreshold = 1;
-
-using namespace clang::ast_matchers;
-
-namespace clang {
-namespace tidy {
-namespace bugprone {
 
 using TheCheck = EasilySwappableParametersCheck;
 
@@ -106,6 +105,8 @@ static bool prefixSuffixCoverUnderThreshold(std::size_t Threshold,
 } // namespace filter
 
 namespace model {
+
+namespace {
 
 /// The language features involved in allowing the mix between two parameters.
 enum class MixFlags : unsigned char {
@@ -130,6 +131,9 @@ enum class MixFlags : unsigned char {
 
   LLVM_MARK_AS_BITMASK_ENUM(/* LargestValue =*/ImplicitConversion)
 };
+
+} // namespace
+
 LLVM_ENABLE_BITMASK_ENUMS_IN_NAMESPACE();
 
 /// Returns whether the SearchedFlag is turned on in the Data.
@@ -179,6 +183,8 @@ static inline std::string formatMixFlags(MixFlags F) {
 }
 
 #endif // NDEBUG
+
+namespace {
 
 /// The results of the steps of an Implicit Conversion Sequence is saved in
 /// an instance of this record.
@@ -418,7 +424,7 @@ struct MixData {
   void sanitize() {
     assert(Flags != MixFlags::Invalid && "sanitize() called on invalid bitvec");
 
-    MixFlags CanonicalAndWorkaround =
+    const MixFlags CanonicalAndWorkaround =
         MixFlags::Canonical | MixFlags::WorkaroundDisableCanonicalEquivalence;
     if ((Flags & CanonicalAndWorkaround) == CanonicalAndWorkaround) {
       // A workaround for too eagerly equivalent canonical types was requested,
@@ -480,11 +486,11 @@ struct MixData {
     return *this;
   }
 
-  template <class F> MixData withCommonTypeTransformed(F &&Func) const {
+  template <typename F> MixData withCommonTypeTransformed(const F &Func) const {
     if (CommonType.isNull())
       return *this;
 
-    QualType NewCommonType = Func(CommonType);
+    const QualType NewCommonType = Func(CommonType);
 
     if (CreatedFromOneWayConversion) {
       MixData M{Flags, Conversion};
@@ -519,9 +525,9 @@ struct Mix {
 };
 
 // NOLINTNEXTLINE(misc-redundant-expression): Seems to be a bogus warning.
-static_assert(std::is_trivially_copyable<Mix>::value &&
-                  std::is_trivially_move_constructible<Mix>::value &&
-                  std::is_trivially_move_assignable<Mix>::value,
+static_assert(std::is_trivially_copyable_v<Mix> &&
+                  std::is_trivially_move_constructible_v<Mix> &&
+                  std::is_trivially_move_assignable_v<Mix>,
               "Keep frequently used data simple!");
 
 struct MixableParameterRange {
@@ -566,6 +572,8 @@ enum class ImplicitConversionModellingMode : unsigned char {
   OneWaySingleStandardOnly
 };
 
+} // namespace
+
 static MixData
 isLRefEquallyBindingToType(const TheCheck &Check,
                            const LValueReferenceType *LRef, QualType Ty,
@@ -578,7 +586,7 @@ approximateImplicitConversion(const TheCheck &Check, QualType LType,
                               ImplicitConversionModellingMode ImplicitMode);
 
 static inline bool isUselessSugar(const Type *T) {
-  return isa<AttributedType, DecayedType, ElaboratedType, ParenType>(T);
+  return isa<AttributedType, DecayedType, ParenType>(T);
 }
 
 namespace {
@@ -762,7 +770,7 @@ calculateMixability(const TheCheck &Check, QualType LType, QualType RType,
       return {MixFlags::None};
     }
 
-    MixData UnqualifiedMixability =
+    const MixData UnqualifiedMixability =
         calculateMixability(Check, LType.getLocalUnqualifiedType(),
                             RType.getLocalUnqualifiedType(), Ctx, ImplicitMode)
             .withCommonTypeTransformed([&AdditionalQuals, &Ctx](QualType QT) {
@@ -814,7 +822,7 @@ calculateMixability(const TheCheck &Check, QualType LType, QualType RType,
 
   if (ImplicitMode > ImplicitConversionModellingMode::None) {
     LLVM_DEBUG(llvm::dbgs() << "--- calculateMixability. Start implicit...\n");
-    MixData MixLTR =
+    const MixData MixLTR =
         approximateImplicitConversion(Check, LType, RType, Ctx, ImplicitMode);
     LLVM_DEBUG(
         if (hasFlag(MixLTR.Flags, MixFlags::ImplicitConversion)) llvm::dbgs()
@@ -834,7 +842,7 @@ calculateMixability(const TheCheck &Check, QualType LType, QualType RType,
 
     // Otherwise if the invoker requested a full modelling, do the other
     // direction as well.
-    MixData MixRTL =
+    const MixData MixRTL =
         approximateImplicitConversion(Check, RType, LType, Ctx, ImplicitMode);
     LLVM_DEBUG(
         if (hasFlag(MixRTL.Flags, MixFlags::ImplicitConversion)) llvm::dbgs()
@@ -869,7 +877,7 @@ calculateMixability(const TheCheck &Check, QualType LType, QualType RType,
 
   // If none of the previous logic found a match, try if Clang otherwise
   // believes the types to be the same.
-  QualType LCanonical = LType.getCanonicalType();
+  const QualType LCanonical = LType.getCanonicalType();
   if (LCanonical == RType.getCanonicalType()) {
     LLVM_DEBUG(llvm::dbgs()
                << "<<< calculateMixability. Same CanonicalType.\n");
@@ -952,7 +960,7 @@ static inline bool isDerivedToBase(const CXXRecordDecl *Derived,
          Base->isCompleteDefinition() && Derived->isDerivedFrom(Base);
 }
 
-static Optional<QualType>
+static std::optional<QualType>
 approximateStandardConversionSequence(const TheCheck &Check, QualType From,
                                       QualType To, const ASTContext &Ctx) {
   LLVM_DEBUG(llvm::dbgs() << ">>> approximateStdConv for LType:\n";
@@ -968,7 +976,8 @@ approximateStandardConversionSequence(const TheCheck &Check, QualType From,
   // Get out the qualifiers of the original type. This will always be
   // re-applied to the WorkType to ensure it is the same qualification as the
   // original From was.
-  auto QualifiersToApply = From.split().Quals.getAsOpaqueValue();
+  auto FastQualifiersToApply = static_cast<unsigned>(
+      From.split().Quals.getAsOpaqueValue() & Qualifiers::FastMask);
 
   // LValue->RValue is irrelevant for the check, because it is a thing to be
   // done at a call site, and will be performed if need be performed.
@@ -983,9 +992,9 @@ approximateStandardConversionSequence(const TheCheck &Check, QualType From,
   // Numeric promotions and conversions.
   const auto *FromBuiltin = WorkType->getAs<BuiltinType>();
   const auto *ToBuiltin = To->getAs<BuiltinType>();
-  bool FromNumeric = FromBuiltin && (FromBuiltin->isIntegerType() ||
-                                     FromBuiltin->isFloatingType());
-  bool ToNumeric =
+  const bool FromNumeric = FromBuiltin && (FromBuiltin->isIntegerType() ||
+                                           FromBuiltin->isFloatingType());
+  const bool ToNumeric =
       ToBuiltin && (ToBuiltin->isIntegerType() || ToBuiltin->isFloatingType());
   if (FromNumeric && ToNumeric) {
     // If both are integral types, the numeric conversion is performed.
@@ -994,16 +1003,16 @@ approximateStandardConversionSequence(const TheCheck &Check, QualType From,
     // "const double -> double".
     LLVM_DEBUG(llvm::dbgs()
                << "--- approximateStdConv. Conversion between numerics.\n");
-    WorkType = QualType{ToBuiltin, QualifiersToApply};
+    WorkType = QualType{ToBuiltin, FastQualifiersToApply};
   }
 
-  const auto *FromEnum = WorkType->getAs<EnumType>();
+  const auto *FromEnum = WorkType->getAsCanonical<EnumType>();
   const auto *ToEnum = To->getAs<EnumType>();
   if (FromEnum && ToNumeric && FromEnum->isUnscopedEnumerationType()) {
     // Unscoped enumerations (or enumerations in C) convert to numerics.
     LLVM_DEBUG(llvm::dbgs()
                << "--- approximateStdConv. Unscoped enum to numeric.\n");
-    WorkType = QualType{ToBuiltin, QualifiersToApply};
+    WorkType = QualType{ToBuiltin, FastQualifiersToApply};
   } else if (FromNumeric && ToEnum && ToEnum->isUnscopedEnumerationType()) {
     // Numeric types convert to enumerations only in C.
     if (Ctx.getLangOpts().CPlusPlus) {
@@ -1014,7 +1023,7 @@ approximateStandardConversionSequence(const TheCheck &Check, QualType From,
 
     LLVM_DEBUG(llvm::dbgs()
                << "--- approximateStdConv. Numeric to unscoped enum.\n");
-    WorkType = QualType{ToEnum, QualifiersToApply};
+    WorkType = QualType{ToEnum, FastQualifiersToApply};
   }
 
   // Check for pointer conversions.
@@ -1023,14 +1032,14 @@ approximateStandardConversionSequence(const TheCheck &Check, QualType From,
   if (FromPtr && ToPtr) {
     if (ToPtr->isVoidPointerType()) {
       LLVM_DEBUG(llvm::dbgs() << "--- approximateStdConv. To void pointer.\n");
-      WorkType = QualType{ToPtr, QualifiersToApply};
+      WorkType = QualType{ToPtr, FastQualifiersToApply};
     }
 
     const auto *FromRecordPtr = FromPtr->getPointeeCXXRecordDecl();
     const auto *ToRecordPtr = ToPtr->getPointeeCXXRecordDecl();
     if (isDerivedToBase(FromRecordPtr, ToRecordPtr)) {
       LLVM_DEBUG(llvm::dbgs() << "--- approximateStdConv. Derived* to Base*\n");
-      WorkType = QualType{ToPtr, QualifiersToApply};
+      WorkType = QualType{ToPtr, FastQualifiersToApply};
     }
   }
 
@@ -1040,7 +1049,9 @@ approximateStandardConversionSequence(const TheCheck &Check, QualType From,
   const auto *ToRecord = To->getAsCXXRecordDecl();
   if (isDerivedToBase(FromRecord, ToRecord)) {
     LLVM_DEBUG(llvm::dbgs() << "--- approximateStdConv. Derived To Base.\n");
-    WorkType = QualType{ToRecord->getTypeForDecl(), QualifiersToApply};
+    WorkType = QualType{
+        ToRecord->getASTContext().getCanonicalTagType(ToRecord)->getTypePtr(),
+        FastQualifiersToApply};
   }
 
   if (Ctx.getLangOpts().CPlusPlus17 && FromPtr && ToPtr) {
@@ -1055,7 +1066,7 @@ approximateStandardConversionSequence(const TheCheck &Check, QualType From,
         !ToFunctionPtr->hasNoexceptExceptionSpec()) {
       LLVM_DEBUG(llvm::dbgs() << "--- approximateStdConv. noexcept function "
                                  "pointer to non-noexcept.\n");
-      WorkType = QualType{ToPtr, QualifiersToApply};
+      WorkType = QualType{ToPtr, FastQualifiersToApply};
     }
   }
 
@@ -1072,9 +1083,9 @@ approximateStandardConversionSequence(const TheCheck &Check, QualType From,
     WorkType = To;
   }
 
-  if (WorkType == To) {
+  if (ASTContext::hasSameType(WorkType, To)) {
     LLVM_DEBUG(llvm::dbgs() << "<<< approximateStdConv. Reached 'To' type.\n");
-    return {WorkType};
+    return {Ctx.getCommonSugaredType(WorkType, To)};
   }
 
   LLVM_DEBUG(llvm::dbgs() << "<<< approximateStdConv. Did not reach 'To'.\n");
@@ -1127,7 +1138,7 @@ public:
 
   /// Selects the best conversion function that is applicable from the
   /// prepared set of potential conversion functions taken.
-  Optional<PreparedConversion> operator()() const {
+  std::optional<PreparedConversion> operator()() const {
     if (FlaggedConversions.empty()) {
       LLVM_DEBUG(llvm::dbgs() << "--- selectUserDefinedConv. Empty.\n");
       return {};
@@ -1137,7 +1148,7 @@ public:
       return FlaggedConversions.front();
     }
 
-    Optional<PreparedConversion> BestConversion;
+    std::optional<PreparedConversion> BestConversion;
     unsigned short HowManyGoodConversions = 0;
     for (const auto &Prepared : FlaggedConversions) {
       LLVM_DEBUG(llvm::dbgs() << "--- selectUserDefinedConv. Candidate flags: "
@@ -1148,9 +1159,9 @@ public:
         continue;
       }
 
-      bool BestConversionHasImplicit =
+      const bool BestConversionHasImplicit =
           hasFlag(BestConversion->Flags, MixFlags::ImplicitConversion);
-      bool ThisConversionHasImplicit =
+      const bool ThisConversionHasImplicit =
           hasFlag(Prepared.Flags, MixFlags::ImplicitConversion);
       if (!BestConversionHasImplicit && ThisConversionHasImplicit)
         // This is a worse conversion, because a better one was found earlier.
@@ -1191,7 +1202,7 @@ private:
 
 } // namespace
 
-static Optional<ConversionSequence>
+static std::optional<ConversionSequence>
 tryConversionOperators(const TheCheck &Check, const CXXRecordDecl *RD,
                        QualType ToType) {
   if (!RD || !RD->isCompleteDefinition())
@@ -1217,9 +1228,9 @@ tryConversionOperators(const TheCheck &Check, const CXXRecordDecl *RD,
     ConversionSet.addConversion(Con, Con->getConversionType(), ToType);
   }
 
-  if (Optional<UserDefinedConversionSelector::PreparedConversion>
+  if (std::optional<UserDefinedConversionSelector::PreparedConversion>
           SelectedConversion = ConversionSet()) {
-    QualType RecordType{RD->getTypeForDecl(), 0};
+    const CanQualType RecordType = RD->getASTContext().getCanonicalTagType(RD);
 
     ConversionSequence Result{RecordType, ToType};
     // The conversion from the operator call's return type to ToType was
@@ -1242,7 +1253,7 @@ tryConversionOperators(const TheCheck &Check, const CXXRecordDecl *RD,
   return {};
 }
 
-static Optional<ConversionSequence>
+static std::optional<ConversionSequence>
 tryConvertingConstructors(const TheCheck &Check, QualType FromType,
                           const CXXRecordDecl *RD) {
   if (!RD || !RD->isCompleteDefinition())
@@ -1268,9 +1279,9 @@ tryConvertingConstructors(const TheCheck &Check, QualType FromType,
     ConversionSet.addConversion(Con, FromType, Con->getParamDecl(0)->getType());
   }
 
-  if (Optional<UserDefinedConversionSelector::PreparedConversion>
+  if (std::optional<UserDefinedConversionSelector::PreparedConversion>
           SelectedConversion = ConversionSet()) {
-    QualType RecordType{RD->getTypeForDecl(), 0};
+    const CanQualType RecordType = RD->getASTContext().getCanonicalTagType(RD);
 
     ConversionSequence Result{FromType, RecordType};
     Result.AfterFirstStandard = SelectedConversion->Seq.AfterFirstStandard;
@@ -1323,7 +1334,7 @@ approximateImplicitConversion(const TheCheck &Check, QualType LType,
   ConversionSequence ImplicitSeq{LType, RType};
   QualType WorkType = LType;
 
-  Optional<QualType> AfterFirstStdConv =
+  std::optional<QualType> AfterFirstStdConv =
       approximateStandardConversionSequence(Check, LType, RType, Ctx);
   if (AfterFirstStdConv) {
     LLVM_DEBUG(llvm::dbgs() << "--- approximateImplicitConversion. Standard "
@@ -1343,7 +1354,7 @@ approximateImplicitConversion(const TheCheck &Check, QualType LType,
     bool FoundConversionOperator = false, FoundConvertingCtor = false;
 
     if (const auto *LRD = WorkType->getAsCXXRecordDecl()) {
-      Optional<ConversionSequence> ConversionOperatorResult =
+      std::optional<ConversionSequence> ConversionOperatorResult =
           tryConversionOperators(Check, LRD, RType);
       if (ConversionOperatorResult) {
         LLVM_DEBUG(llvm::dbgs() << "--- approximateImplicitConversion. Found "
@@ -1358,7 +1369,7 @@ approximateImplicitConversion(const TheCheck &Check, QualType LType,
       // Use the original "LType" here, and not WorkType, because the
       // conversion to the converting constructors' parameters will be
       // modelled in the recursive call.
-      Optional<ConversionSequence> ConvCtorResult =
+      std::optional<ConversionSequence> ConvCtorResult =
           tryConvertingConstructors(Check, LType, RRD);
       if (ConvCtorResult) {
         LLVM_DEBUG(llvm::dbgs() << "--- approximateImplicitConversion. Found "
@@ -1383,7 +1394,7 @@ approximateImplicitConversion(const TheCheck &Check, QualType LType,
   LLVM_DEBUG(
       llvm::dbgs()
       << "--- approximateImplicitConversion. Try to find post-conversion.\n");
-  MixData SecondStdConv = approximateImplicitConversion(
+  const MixData SecondStdConv = approximateImplicitConversion(
       Check, WorkType, RType, Ctx,
       ImplicitConversionModellingMode::OneWaySingleStandardOnly);
   if (SecondStdConv.indicatesMixability()) {
@@ -1412,7 +1423,7 @@ approximateImplicitConversion(const TheCheck &Check, QualType LType,
 static MixableParameterRange modelMixingRange(
     const TheCheck &Check, const FunctionDecl *FD, std::size_t StartIndex,
     const filter::SimilarlyUsedParameterPairSuppressor &UsageBasedSuppressor) {
-  std::size_t NumParams = FD->getNumParams();
+  const std::size_t NumParams = FD->getNumParams();
   assert(StartIndex < NumParams && "out of bounds for start");
   const ASTContext &Ctx = FD->getASTContext();
 
@@ -1422,7 +1433,7 @@ static MixableParameterRange modelMixingRange(
 
   for (std::size_t I = StartIndex + 1; I < NumParams; ++I) {
     const ParmVarDecl *Ith = FD->getParamDecl(I);
-    StringRef ParamName = Ith->getName();
+    const StringRef ParamName = Ith->getName();
     LLVM_DEBUG(llvm::dbgs()
                << "Check param #" << I << " '" << ParamName << "'...\n");
     if (filter::isIgnoredParameter(Check, Ith)) {
@@ -1430,10 +1441,10 @@ static MixableParameterRange modelMixingRange(
       break;
     }
 
-    StringRef PrevParamName = FD->getParamDecl(I - 1)->getName();
+    const StringRef PrevParamName = FD->getParamDecl(I - 1)->getName();
     if (!ParamName.empty() && !PrevParamName.empty() &&
         filter::prefixSuffixCoverUnderThreshold(
-            Check.NamePrefixSuffixSilenceDissimilarityTreshold, PrevParamName,
+            Check.NamePrefixSuffixSilenceDissimilarityThreshold, PrevParamName,
             ParamName)) {
       LLVM_DEBUG(llvm::dbgs() << "Parameter '" << ParamName
                               << "' follows a pattern with previous parameter '"
@@ -1497,11 +1508,13 @@ static MixableParameterRange modelMixingRange(
 
 } // namespace model
 
+namespace {
 /// Matches DeclRefExprs and their ignorable wrappers to ParmVarDecls.
 AST_MATCHER_FUNCTION(ast_matchers::internal::Matcher<Stmt>, paramRefExpr) {
   return expr(ignoringParenImpCasts(ignoringElidableConstructorCall(
       declRefExpr(to(parmVarDecl().bind("param"))))));
 }
+} // namespace
 
 namespace filter {
 
@@ -1514,18 +1527,18 @@ static bool isIgnoredParameter(const TheCheck &Check, const ParmVarDecl *Node) {
   if (!Node->getIdentifier())
     return llvm::is_contained(Check.IgnoredParameterNames, "\"\"");
 
-  StringRef NodeName = Node->getName();
+  const StringRef NodeName = Node->getName();
   if (llvm::is_contained(Check.IgnoredParameterNames, NodeName)) {
     LLVM_DEBUG(llvm::dbgs() << "\tName ignored.\n");
     return true;
   }
 
-  StringRef NodeTypeName = [Node] {
+  const StringRef NodeTypeName = [Node] {
     const ASTContext &Ctx = Node->getASTContext();
     const SourceManager &SM = Ctx.getSourceManager();
     SourceLocation B = Node->getTypeSpecStartLoc();
     SourceLocation E = Node->getTypeSpecEndLoc();
-    LangOptions LO;
+    const LangOptions LO;
 
     LLVM_DEBUG(llvm::dbgs() << "\tType name code is '"
                             << Lexer::getSourceText(
@@ -1551,7 +1564,7 @@ static bool isIgnoredParameter(const TheCheck &Check, const ParmVarDecl *Node) {
   if (!NodeTypeName.empty()) {
     if (llvm::any_of(Check.IgnoredParameterTypeSuffixes,
                      [NodeTypeName](StringRef E) {
-                       return !E.empty() && NodeTypeName.endswith(E);
+                       return !E.empty() && NodeTypeName.ends_with(E);
                      })) {
       LLVM_DEBUG(llvm::dbgs() << "\tType suffix ignored.\n");
       return true;
@@ -1571,22 +1584,26 @@ template <typename T, std::size_t N = SmallDataStructureSize>
 using ParamToSmallSetMap =
     llvm::DenseMap<const ParmVarDecl *, llvm::SmallSet<T, N>>;
 
+template <typename T, std::size_t N = SmallDataStructureSize>
+using ParamToSmallPtrSetMap =
+    llvm::DenseMap<const ParmVarDecl *, llvm::SmallPtrSet<T, N>>;
+
 /// Returns whether the sets mapped to the two elements in the map have at
 /// least one element in common.
 template <typename MapTy, typename ElemTy>
-bool lazyMapOfSetsIntersectionExists(const MapTy &Map, const ElemTy &E1,
-                                     const ElemTy &E2) {
+static bool lazyMapOfSetsIntersectionExists(const MapTy &Map, const ElemTy &E1,
+                                            const ElemTy &E2) {
   auto E1Iterator = Map.find(E1);
   auto E2Iterator = Map.find(E2);
   if (E1Iterator == Map.end() || E2Iterator == Map.end())
     return false;
 
-  for (const auto &E1SetElem : E1Iterator->second)
-    if (llvm::is_contained(E2Iterator->second, E1SetElem))
-      return true;
-
-  return false;
+  return llvm::any_of(E1Iterator->second, [&E2Iterator](const auto &E1SetElem) {
+    return E2Iterator->second.contains(E1SetElem);
+  });
 }
+
+namespace {
 
 /// Implements the heuristic that marks two parameters related if there is
 /// a usage for both in the same strict expression subtree. A strict
@@ -1625,7 +1642,7 @@ public:
         RootSetInCurrentStackFrame = true;
       }
 
-      bool Ret = Base::TraverseStmt(S);
+      const bool Ret = Base::TraverseStmt(S);
 
       if (RootSetInCurrentStackFrame)
         CurrentExprOnlyTreeRoot = nullptr;
@@ -1675,8 +1692,8 @@ public:
       if (!CalledFn)
         continue;
 
-      llvm::Optional<unsigned> TargetIdx;
-      unsigned NumFnParams = CalledFn->getNumParams();
+      std::optional<unsigned> TargetIdx;
+      const unsigned NumFnParams = CalledFn->getNumParams();
       for (unsigned Idx = 0; Idx < NumFnParams; ++Idx)
         if (CalledFn->getParamDecl(Idx) == PassedToParam)
           TargetIdx.emplace(Idx);
@@ -1695,7 +1712,7 @@ public:
 /// Implements the heuristic that marks two parameters related if the same
 /// member is accessed (referred to) inside the current function's body.
 class AccessedSameMemberOf {
-  ParamToSmallSetMap<const Decl *> AccessedMembers;
+  ParamToSmallPtrSetMap<const Decl *> AccessedMembers;
 
 public:
   void setup(const FunctionDecl *FD) {
@@ -1748,6 +1765,8 @@ public:
            llvm::is_contained(ReturnedParams, Param2);
   }
 };
+
+} // namespace
 
 } // namespace relatedness_heuristic
 
@@ -1829,16 +1848,16 @@ static void padStringAtBegin(SmallVectorImpl<char> &Str, std::size_t ToLen) {
 static bool isCommonPrefixWithoutSomeCharacters(std::size_t N, StringRef S1,
                                                 StringRef S2) {
   assert(S1.size() >= N && S2.size() >= N);
-  StringRef S1Prefix = S1.take_front(S1.size() - N),
-            S2Prefix = S2.take_front(S2.size() - N);
+  const StringRef S1Prefix = S1.take_front(S1.size() - N),
+                  S2Prefix = S2.take_front(S2.size() - N);
   return S1Prefix == S2Prefix && !S1Prefix.empty();
 }
 
 static bool isCommonSuffixWithoutSomeCharacters(std::size_t N, StringRef S1,
                                                 StringRef S2) {
   assert(S1.size() >= N && S2.size() >= N);
-  StringRef S1Suffix = S1.take_back(S1.size() - N),
-            S2Suffix = S2.take_back(S2.size() - N);
+  const StringRef S1Suffix = S1.take_back(S1.size() - N),
+                  S2Suffix = S2.take_back(S2.size() - N);
   return S1Suffix == S2Suffix && !S1Suffix.empty();
 }
 
@@ -1850,7 +1869,7 @@ static bool prefixSuffixCoverUnderThreshold(std::size_t Threshold,
     return false;
 
   // Pad the two strings to the longer length.
-  std::size_t BiggerLength = std::max(Str1.size(), Str2.size());
+  const std::size_t BiggerLength = std::max(Str1.size(), Str2.size());
 
   if (BiggerLength <= Threshold)
     // If the length of the strings is still smaller than the threshold, they
@@ -1882,6 +1901,8 @@ static bool prefixSuffixCoverUnderThreshold(std::size_t Threshold,
 
 } // namespace filter
 
+namespace {
+
 /// Matches functions that have at least the specified amount of parameters.
 AST_MATCHER_P(FunctionDecl, parameterCountGE, unsigned, N) {
   return Node.getNumParams() >= N;
@@ -1903,6 +1924,8 @@ AST_MATCHER(FunctionDecl, isOverloadedUnaryOrBinaryOperator) {
     return Node.getNumParams() <= 2;
   }
 }
+
+} // namespace
 
 /// Returns the DefaultMinimumLength if the Value of requested minimum length
 /// is less than 2. Minimum lengths of 0 or 1 are not accepted.
@@ -1940,7 +1963,7 @@ static inline bool needsToPrintTypeInDiagnostic(const model::Mix &M) {
 /// Returns whether a particular Mix between the two parameters should have
 /// implicit conversions elaborated.
 static inline bool needsToElaborateImplicitConversion(const model::Mix &M) {
-  return hasFlag(M.flags(), model::MixFlags::ImplicitConversion);
+  return model::hasFlag(M.flags(), model::MixFlags::ImplicitConversion);
 }
 
 namespace {
@@ -1953,13 +1976,12 @@ struct FormattedConversionSequence {
   /// The formatted sequence is trivial if it is "Ty1 -> Ty2", but Ty1 and
   /// Ty2 are the types that are shown in the code. A trivial diagnostic
   /// does not need to be printed.
-  bool Trivial;
+  bool Trivial = true;
 
   FormattedConversionSequence(const PrintingPolicy &PP,
                               StringRef StartTypeAsDiagnosed,
                               const model::ConversionSequence &Conv,
                               StringRef DestinationTypeAsDiagnosed) {
-    Trivial = true;
     llvm::raw_string_ostream OS{DiagnosticText};
 
     // Print the type name as it is printed in other places in the diagnostic.
@@ -1969,7 +1991,7 @@ struct FormattedConversionSequence {
 
     // However, the parameter's defined type might not be what the implicit
     // conversion started with, e.g. if a typedef is found to convert.
-    std::string SeqBeginTypeStr = Conv.Begin.getAsString(PP);
+    const std::string SeqBeginTypeStr = Conv.Begin.getAsString(PP);
     std::string SeqEndTypeStr = Conv.End.getAsString(PP);
     if (StartTypeAsDiagnosed != SeqBeginTypeStr) {
       OS << " (as '" << SeqBeginTypeStr << "')";
@@ -1984,7 +2006,7 @@ struct FormattedConversionSequence {
         ++NumElementsAdded;
       }
     };
-    for (QualType InvolvedType : Conv.getInvolvedTypesInSequence())
+    for (const QualType InvolvedType : Conv.getInvolvedTypesInSequence())
       // Print every type that's unique in the sequence into the diagnosis.
       AddType(InvolvedType.getAsString(PP));
 
@@ -2062,12 +2084,14 @@ public:
     if (CommonType.isNull() || CommonType == LHSType || CommonType == RHSType)
       return Base::operator()({LHSType, RHSType, {}});
 
-    TypeAliasDiagnosticTuple ThreeTuple{LHSType, RHSType, CommonType};
+    const TypeAliasDiagnosticTuple ThreeTuple{LHSType, RHSType, CommonType};
     if (!Base::operator()(ThreeTuple))
       return false;
 
-    bool AlreadySaidLHSAndCommonIsSame = calledWith({LHSType, CommonType, {}});
-    bool AlreadySaidRHSAndCommonIsSame = calledWith({RHSType, CommonType, {}});
+    const bool AlreadySaidLHSAndCommonIsSame =
+        calledWith({LHSType, CommonType, {}});
+    const bool AlreadySaidRHSAndCommonIsSame =
+        calledWith({RHSType, CommonType, {}});
     if (AlreadySaidLHSAndCommonIsSame && AlreadySaidRHSAndCommonIsSame) {
       // "SomeInt == int" && "SomeOtherInt == int" => "Common(SomeInt,
       // SomeOtherInt) == int", no need to diagnose it. Save the 3-tuple only
@@ -2097,8 +2121,8 @@ EasilySwappableParametersCheck::EasilySwappableParametersCheck(
       SuppressParametersUsedTogether(
           Options.get("SuppressParametersUsedTogether",
                       DefaultSuppressParametersUsedTogether)),
-      NamePrefixSuffixSilenceDissimilarityTreshold(
-          Options.get("NamePrefixSuffixSilenceDissimilarityTreshold",
+      NamePrefixSuffixSilenceDissimilarityThreshold(
+          Options.get("NamePrefixSuffixSilenceDissimilarityThreshold",
                       DefaultNamePrefixSuffixSilenceDissimilarityTreshold)) {}
 
 void EasilySwappableParametersCheck::storeOptions(
@@ -2112,8 +2136,8 @@ void EasilySwappableParametersCheck::storeOptions(
   Options.store(Opts, "ModelImplicitConversions", ModelImplicitConversions);
   Options.store(Opts, "SuppressParametersUsedTogether",
                 SuppressParametersUsedTogether);
-  Options.store(Opts, "NamePrefixSuffixSilenceDissimilarityTreshold",
-                NamePrefixSuffixSilenceDissimilarityTreshold);
+  Options.store(Opts, "NamePrefixSuffixSilenceDissimilarityThreshold",
+                NamePrefixSuffixSilenceDissimilarityThreshold);
 }
 
 void EasilySwappableParametersCheck::registerMatchers(MatchFinder *Finder) {
@@ -2143,12 +2167,12 @@ void EasilySwappableParametersCheck::check(
   assert(FD);
 
   const PrintingPolicy &PP = FD->getASTContext().getPrintingPolicy();
-  std::size_t NumParams = FD->getNumParams();
+  const std::size_t NumParams = FD->getNumParams();
   std::size_t MixableRangeStartIndex = 0;
 
   // Spawn one suppressor and if the user requested, gather information from
   // the AST for the parameters' usages.
-  filter::SimilarlyUsedParameterPairSuppressor UsageBasedSuppressor{
+  const filter::SimilarlyUsedParameterPairSuppressor UsageBasedSuppressor{
       FD, SuppressParametersUsedTogether};
 
   LLVM_DEBUG(llvm::dbgs() << "Begin analysis of " << getName(FD) << " with "
@@ -2171,11 +2195,13 @@ void EasilySwappableParametersCheck::check(
       continue;
     }
 
-    bool NeedsAnyTypeNote = llvm::any_of(R.Mixes, needsToPrintTypeInDiagnostic);
-    bool HasAnyImplicits =
+    const bool NeedsAnyTypeNote =
+        llvm::any_of(R.Mixes, needsToPrintTypeInDiagnostic);
+    const bool HasAnyImplicits =
         llvm::any_of(R.Mixes, needsToElaborateImplicitConversion);
     const ParmVarDecl *First = R.getFirstParam(), *Last = R.getLastParam();
-    std::string FirstParamTypeAsWritten = First->getType().getAsString(PP);
+    const std::string FirstParamTypeAsWritten =
+        First->getType().getAsString(PP);
     {
       StringRef DiagText;
 
@@ -2194,7 +2220,7 @@ void EasilySwappableParametersCheck::check(
       if (!NeedsAnyTypeNote)
         Diag << FirstParamTypeAsWritten;
 
-      CharSourceRange HighlightRange = CharSourceRange::getTokenRange(
+      const CharSourceRange HighlightRange = CharSourceRange::getTokenRange(
           First->getBeginLoc(), Last->getEndLoc());
       Diag << HighlightRange;
     }
@@ -2229,12 +2255,12 @@ void EasilySwappableParametersCheck::check(
       // emitted to a note diagnostic, so prepare it.
       const ParmVarDecl *LVar = M.First;
       const ParmVarDecl *RVar = M.Second;
-      QualType LType = LVar->getType();
-      QualType RType = RVar->getType();
-      QualType CommonType = M.commonUnderlyingType();
-      std::string LTypeStr = LType.getAsString(PP);
-      std::string RTypeStr = RType.getAsString(PP);
-      std::string CommonTypeStr = CommonType.getAsString(PP);
+      const QualType LType = LVar->getType();
+      const QualType RType = RVar->getType();
+      const QualType CommonType = M.commonUnderlyingType();
+      const std::string LTypeStr = LType.getAsString(PP);
+      const std::string RTypeStr = RType.getAsString(PP);
+      const std::string CommonTypeStr = CommonType.getAsString(PP);
 
       if (hasFlag(M.flags(), MixFlags::TypeAlias) &&
           UniqueTypeAlias(LType, RType, CommonType)) {
@@ -2263,8 +2289,9 @@ void EasilySwappableParametersCheck::check(
       if ((hasFlag(M.flags(), MixFlags::ReferenceBind) ||
            hasFlag(M.flags(), MixFlags::Qualifiers)) &&
           UniqueBindPower({LType, RType})) {
-        StringRef DiagText = "'%0' and '%1' parameters accept and bind the "
-                             "same kind of values";
+        const StringRef DiagText =
+            "'%0' and '%1' parameters accept and bind the "
+            "same kind of values";
         diag(RVar->getOuterLocStart(), DiagText, DiagnosticIDs::Note)
             << LTypeStr << RTypeStr;
       }
@@ -2275,8 +2302,8 @@ void EasilySwappableParametersCheck::check(
             M.leftToRightConversionSequence();
         const model::ConversionSequence &RTL =
             M.rightToLeftConversionSequence();
-        FormattedConversionSequence LTRFmt{PP, LTypeStr, LTR, RTypeStr};
-        FormattedConversionSequence RTLFmt{PP, RTypeStr, RTL, LTypeStr};
+        const FormattedConversionSequence LTRFmt{PP, LTypeStr, LTR, RTypeStr};
+        const FormattedConversionSequence RTLFmt{PP, RTypeStr, RTL, LTypeStr};
 
         StringRef DiagText = "'%0' and '%1' may be implicitly converted";
         if (!LTRFmt.Trivial || !RTLFmt.Trivial)
@@ -2291,7 +2318,7 @@ void EasilySwappableParametersCheck::check(
             Diag << LTRFmt.DiagnosticText << RTLFmt.DiagnosticText;
         }
 
-        StringRef ConversionFunctionDiagText =
+        const StringRef ConversionFunctionDiagText =
             "the implicit conversion involves the "
             "%select{|converting constructor|conversion operator}0 "
             "declared here";
@@ -2310,6 +2337,4 @@ void EasilySwappableParametersCheck::check(
   }
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

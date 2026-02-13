@@ -1,19 +1,16 @@
-; RUN: opt %loadPolly -polly-print-ast -polly-ast-detect-parallel -disable-output < %s | FileCheck %s
-; RUN: opt %loadPolly -print-polyhedral-info -polly-check-parallel -disable-output < %s | FileCheck %s -check-prefix=PINFO
+; RUN: opt %loadNPMPolly '-passes=polly-custom<ast>' -polly-print-ast -polly-ast-detect-parallel -disable-output < %s | FileCheck %s
 ;
 ;        void f(int *A, int N, int c, int v) {
 ; CHECK:   #pragma minimal dependence distance: 1
-; PINFO:   for.cond: Loop is not parallel.
 ;          for (int j = 0; j < N; j++)
 ; CHECK:      #pragma minimal dependence distance: max(-c - v, c + v)
-; PINFO-NEXT: for.cond1: Loop is not parallel.
 ;             for (int i = 0; i < N; i++)
 ;               A[i + c + v] = A[i] + 1;
 ;        }
 ;
 target datalayout = "e-m:e-p:32:32-i64:64-v128:64:128-n32-S64"
 
-define void @f(i32* %A, i32 %N, i32 %c, i32 %v) {
+define void @f(ptr %A, i32 %N, i32 %c, i32 %v) {
 entry:
   br label %for.cond
 
@@ -31,13 +28,13 @@ for.cond1:                                        ; preds = %for.inc, %for.body
   br i1 %exitcond, label %for.body3, label %for.end
 
 for.body3:                                        ; preds = %for.cond1
-  %arrayidx = getelementptr inbounds i32, i32* %A, i32 %i.0
-  %tmp = load i32, i32* %arrayidx, align 4
+  %arrayidx = getelementptr inbounds i32, ptr %A, i32 %i.0
+  %tmp = load i32, ptr %arrayidx, align 4
   %add = add nsw i32 %tmp, 1
   %add4 = add nsw i32 %i.0, %c
   %add5 = add nsw i32 %add4, %v
-  %arrayidx6 = getelementptr inbounds i32, i32* %A, i32 %add5
-  store i32 %add, i32* %arrayidx6, align 4
+  %arrayidx6 = getelementptr inbounds i32, ptr %A, i32 %add5
+  store i32 %add, ptr %arrayidx6, align 4
   br label %for.inc
 
 for.inc:                                          ; preds = %for.body3

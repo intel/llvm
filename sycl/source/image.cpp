@@ -9,7 +9,7 @@
 #include <memory>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 image_plain::image_plain(image_channel_order Order, image_channel_type Type,
@@ -78,6 +78,47 @@ image_plain::image_plain(const std::shared_ptr<const void> &HostPointer,
                                               Dimensions, PropList, IsConstPtr);
 }
 
+image_plain::image_plain(const void *HostPointer, image_channel_order Order,
+                         image_channel_type Type, image_sampler Sampler,
+                         const range<3> &Range,
+                         std::unique_ptr<SYCLMemObjAllocator> Allocator,
+                         uint8_t Dimensions, const property_list &PropList) {
+  impl = std::make_shared<detail::image_impl>(HostPointer, Order, Type, Sampler,
+                                              Range, std::move(Allocator),
+                                              Dimensions, PropList);
+}
+
+image_plain::image_plain(const void *HostPointer, image_channel_order Order,
+                         image_channel_type Type, image_sampler Sampler,
+                         const range<3> &Range, const range<2> &Pitch,
+                         std::unique_ptr<SYCLMemObjAllocator> Allocator,
+                         uint8_t Dimensions, const property_list &PropList) {
+  impl = std::make_shared<detail::image_impl>(
+      HostPointer, Order, Type, Sampler, Range, Pitch, std::move(Allocator),
+      Dimensions, PropList);
+}
+
+image_plain::image_plain(const std::shared_ptr<const void> &HostPointer,
+                         image_channel_order Order, image_channel_type Type,
+                         image_sampler Sampler, const range<3> &Range,
+                         std::unique_ptr<SYCLMemObjAllocator> Allocator,
+                         uint8_t Dimensions, const property_list &PropList) {
+  impl = std::make_shared<detail::image_impl>(HostPointer, Order, Type, Sampler,
+                                              Range, std::move(Allocator),
+                                              Dimensions, PropList);
+}
+
+image_plain::image_plain(const std::shared_ptr<const void> &HostPointer,
+                         image_channel_order Order, image_channel_type Type,
+                         image_sampler Sampler, const range<3> &Range,
+                         const range<2> &Pitch,
+                         std::unique_ptr<SYCLMemObjAllocator> Allocator,
+                         uint8_t Dimensions, const property_list &PropList) {
+  impl = std::make_shared<detail::image_impl>(
+      HostPointer, Order, Type, Sampler, Range, Pitch, std::move(Allocator),
+      Dimensions, PropList);
+}
+
 #ifdef __SYCL_INTERNAL_API
 image_plain::image_plain(cl_mem ClMemObject, const context &SyclContext,
                          event AvailableEvent,
@@ -89,31 +130,24 @@ image_plain::image_plain(cl_mem ClMemObject, const context &SyclContext,
 }
 #endif
 
-#define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
-  template <>                                                                  \
-  __SYCL_EXPORT bool image_plain::has_property<param_type>() const noexcept {  \
-    return impl->has_property<param_type>();                                   \
-  }
-#include <sycl/detail/properties_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
-
-#define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
-  template <>                                                                  \
-  __SYCL_EXPORT param_type image_plain::get_property<param_type>() const {     \
-    return impl->get_property<param_type>();                                   \
-  }
-#include <sycl/detail/properties_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
+image_plain::image_plain(ur_native_handle_t MemObject,
+                         const context &SyclContext, event AvailableEvent,
+                         std::unique_ptr<SYCLMemObjAllocator> Allocator,
+                         uint8_t Dimensions, image_channel_order Order,
+                         image_channel_type Type, bool OwnNativeHandle,
+                         range<3> Range3WithOnes) {
+  impl = std::make_shared<detail::image_impl>(
+      MemObject, SyclContext, AvailableEvent, std::move(Allocator), Dimensions,
+      Order, Type, OwnNativeHandle, Range3WithOnes);
+}
 
 range<3> image_plain::get_range() const { return impl->get_range(); }
 
 range<2> image_plain::get_pitch() const { return impl->get_pitch(); }
 
-size_t image_plain::get_size() const { return impl->getSizeInBytes(); }
+size_t image_plain::get_size() const noexcept { return impl->getSizeInBytes(); }
 
-size_t image_plain::get_count() const { return impl->get_count(); }
+size_t image_plain::get_count() const noexcept { return impl->get_count(); }
 
 void image_plain::set_final_data_internal() { impl->set_final_data(nullptr); }
 
@@ -138,6 +172,10 @@ size_t image_plain::getRowPitch() const { return impl->getRowPitch(); }
 
 size_t image_plain::getSlicePitch() const { return impl->getSlicePitch(); }
 
+image_sampler image_plain::getSampler() const noexcept {
+  return impl->getSampler();
+}
+
 image_channel_order image_plain::getChannelOrder() const {
   return impl->getChannelOrder();
 }
@@ -146,6 +184,33 @@ image_channel_type image_plain::getChannelType() const {
   return impl->getChannelType();
 }
 
+void image_plain::sampledImageConstructorNotification(
+    const detail::code_location &CodeLoc, void *UserObj, const void *HostObj,
+    uint32_t Dim, size_t Range[3], image_format Format,
+    const image_sampler &Sampler) {
+  impl->sampledImageConstructorNotification(CodeLoc, UserObj, HostObj, Dim,
+                                            Range, Format, Sampler);
+}
+
+void image_plain::sampledImageDestructorNotification(void *UserObj) {
+  impl->sampledImageDestructorNotification(UserObj);
+}
+
+void image_plain::unsampledImageConstructorNotification(
+    const detail::code_location &CodeLoc, void *UserObj, const void *HostObj,
+    uint32_t Dim, size_t Range[3], image_format Format) {
+  impl->unsampledImageConstructorNotification(CodeLoc, UserObj, HostObj, Dim,
+                                              Range, Format);
+}
+
+void image_plain::unsampledImageDestructorNotification(void *UserObj) {
+  impl->unsampledImageDestructorNotification(UserObj);
+}
+
+const property_list &image_plain::getPropList() const {
+  return impl->getPropList();
+}
+
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

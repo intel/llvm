@@ -8,17 +8,25 @@
 
 #pragma once
 
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/property_list_base.hpp>
-#include <sycl/properties/property_traits.hpp>
+#include <sycl/detail/property_helper.hpp>     // for DataLessPropKind, Pro...
+#include <sycl/detail/property_list_base.hpp>  // for PropertyListBase
+#include <sycl/exception.hpp>
+#include <sycl/properties/property_traits.hpp> // for is_property
+
+#include <bitset>      // for bitset
+#include <memory>      // for shared_ptr
+#include <type_traits> // for conditional_t, enable...
+#include <vector>      // for vector
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
+inline namespace _V1 {
+namespace ext::oneapi {
 template <typename... PropsT> class accessor_property_list;
-}
-} // namespace ext
+} // namespace ext::oneapi
+namespace detail {
+class PropertyValidator;
+class SYCLMemObjT;
+} // namespace detail
 
 /// Objects of the property_list class are containers for the SYCL properties
 ///
@@ -29,11 +37,11 @@ class property_list : protected detail::PropertyListBase {
   template <typename... Tail> struct AllProperties : std::true_type {};
   template <typename T, typename... Tail>
   struct AllProperties<T, Tail...>
-      : detail::conditional_t<is_property<T>::value, AllProperties<Tail...>,
-                              std::false_type> {};
+      : std::conditional_t<is_property<T>::value, AllProperties<Tail...>,
+                           std::false_type> {};
 
 public:
-  template <typename... PropsT, typename = typename detail::enable_if_t<
+  template <typename... PropsT, typename = typename std::enable_if_t<
                                     AllProperties<PropsT...>::value>>
   property_list(PropsT... Props) : detail::PropertyListBase(false) {
     ctorHelper(Props...);
@@ -41,21 +49,14 @@ public:
 
   template <typename PropT> PropT get_property() const {
     if (!has_property<PropT>())
-      throw sycl::invalid_object_error("The property is not found",
-                                       PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "The property is not found");
 
     return get_property_helper<PropT>();
   }
 
   template <typename PropT> bool has_property() const noexcept {
     return has_property_helper<PropT>();
-  }
-
-  void add_or_replace_accessor_properties(const property_list &PropertyList) {
-    add_or_replace_accessor_properties_helper(PropertyList.MPropsWithData);
-  }
-  void delete_accessor_property(const sycl::detail::PropWithDataKind &Kind) {
-    delete_accessor_property_helper(Kind);
   }
 
   template <typename... T> operator ext::oneapi::accessor_property_list<T...>();
@@ -68,7 +69,21 @@ private:
 
   template <typename... PropsT>
   friend class ext::oneapi::accessor_property_list;
+  friend class detail::PropertyValidator;
+  friend class detail::SYCLMemObjT;
 };
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+namespace detail {
+class PropertyValidator {
+public:
+  static void checkPropsAndThrow(const property_list &PropList,
+                                 std::function<bool(int)> FunctionForDataless,
+                                 std::function<bool(int)> FunctionForData) {
+    PropList.checkPropsAndThrow(std::move(FunctionForDataless),
+                                std::move(FunctionForData));
+  }
+};
+} // namespace detail
+
+} // namespace _V1
 } // namespace sycl

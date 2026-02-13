@@ -1,19 +1,19 @@
-; RUN: llc -march=bpfel -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
-; RUN: llc -march=bpfeb -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
+; RUN: llc -mtriple=bpfel -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
+; RUN: llc -mtriple=bpfeb -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
 ; Source code:
-;   unsigned long long load_byte(void *skb,
+;   unsigned long long load_byte(ptr skb,
 ;       unsigned long long off) asm("llvm.bpf.load.byte");
-;   unsigned long long test(void *skb) {
+;   unsigned long long test(ptr skb) {
 ;     return load_byte(skb, 10);
 ;   }
 ; Compilation flag:
 ;   clang -target bpf -O2 -g -S -emit-llvm test.c
 
 ; Function Attrs: nounwind readonly
-define dso_local i64 @test(i8* readonly %skb) local_unnamed_addr #0 !dbg !13 {
+define dso_local i64 @test(ptr readonly %skb) local_unnamed_addr !dbg !13 {
 entry:
-  call void @llvm.dbg.value(metadata i8* %skb, metadata !17, metadata !DIExpression()), !dbg !18
-  %call = tail call i64 @llvm.bpf.load.byte(i8* %skb, i64 10), !dbg !19
+  call void @llvm.dbg.value(metadata ptr %skb, metadata !17, metadata !DIExpression()), !dbg !18
+  %call = tail call i64 @llvm.bpf.load.byte(ptr %skb, i64 10), !dbg !19
   ret i64 %call, !dbg !20
 }
 
@@ -54,13 +54,9 @@ entry:
 ; CHECK-NEXT:        .byte   0
 
 ; Function Attrs: nounwind readonly
-declare !dbg !4 i64 @llvm.bpf.load.byte(i8*, i64) #1
+declare !dbg !4 i64 @llvm.bpf.load.byte(ptr, i64)
 ; Function Attrs: nounwind readnone speculatable willreturn
-declare void @llvm.dbg.value(metadata, metadata, metadata) #2
-
-attributes #0 = { nounwind readonly "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { nounwind readonly }
-attributes #2 = { nounwind readnone speculatable willreturn }
+declare void @llvm.dbg.value(metadata, metadata, metadata)
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!9, !10, !11}

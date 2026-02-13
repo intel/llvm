@@ -9,10 +9,34 @@
 #ifndef LLVM_LIBC_ERRNO_H
 #define LLVM_LIBC_ERRNO_H
 
-#include <__llvm-libc-common.h>
+#include "__llvm-libc-common.h"
 
-%%include_file(${platform_errno})
+#ifdef __linux__
 
-%%public_api()
+#include <linux/errno.h>
+
+#ifndef ENOTSUP
+#define ENOTSUP EOPNOTSUPP
+#endif // ENOTSUP
+
+#include "llvm-libc-macros/linux/error-number-macros.h"
+
+#elif defined(__APPLE__)
+
+#include <sys/errno.h>
+
+#else // __APPLE__
+
+#include "llvm-libc-macros/generic-error-number-macros.h"
+
+#endif
+
+__BEGIN_C_DECLS
+
+int *__llvm_libc_errno(void) __NOEXCEPT;
+
+__END_C_DECLS
+
+#define errno (*__llvm_libc_errno())
 
 #endif // LLVM_LIBC_ERRNO_H

@@ -6,7 +6,7 @@
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-QUUX
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-CORGE
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-GRAULT
-; RUN: llvm-lto2 run -opaque-pointers %t.bc -r %t.bc,foo,px -r %t.bc,bar,px -r %t.bc,baz,px -r %t.bc,qux,px -r %t.bc,grault,px -o %t2
+; RUN: llvm-lto2 run %t.bc -r %t.bc,foo,px -r %t.bc,bar,px -r %t.bc,baz,px -r %t.bc,qux,px -r %t.bc,grault,px -o %t2
 ; RUN: llvm-nm %t2.1 | FileCheck %s --check-prefix=CHECK-SYMBOL
 
 ; CHECK-SYMBOL: i bar
@@ -22,9 +22,9 @@ target triple = "x86_64-unknown-linux-gnu"
 @foo = ifunc i32 (i32), ptr @foo_resolver
 ; CHECK-RESOLVER:      (name: "foo_resolver"
 ; CHECK-RESOLVER-SAME: live: 1
-define internal i32 (i32)* @foo_resolver() {
+define internal ptr @foo_resolver() {
 entry:
-  ret i32 (i32)* null
+  ret ptr null
 }
 ; CHECK-BAR:      (name: "bar"
 ; CHECK-BAR-NOT:  summaries: (
@@ -43,7 +43,7 @@ entry:
 
 ; CHECK-QUUX:      (name: "quux"
 ; CHECK-QUUX-SAME: live: 1
-@quux = internal alias i32 (i32)* (), ptr @foo_resolver
+@quux = internal alias ptr (), ptr @foo_resolver
 @quuz = internal ifunc i32 (i32), ptr @quux
 
 ; CHECK-CORGE:      (name: "corge"

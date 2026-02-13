@@ -43,7 +43,7 @@ namespace types {
 
   /// getTypeTempSuffix - Return the suffix to use when creating a
   /// temp file of this type, or null if unspecified.
-  const char *getTypeTempSuffix(ID Id, bool CLMode = false);
+  const char *getTypeTempSuffix(ID Id, bool CLStyle = false);
 
   /// onlyPrecompileType - Should this type only be precompiled.
   bool onlyPrecompileType(ID Id);
@@ -88,9 +88,6 @@ namespace types {
 
   /// isHIP - Is this a HIP input.
   bool isHIP(ID Id);
-
-  /// isFPGA - Is this FPGA input.
-  bool isFPGA(ID Id);
 
   /// isArchive - Is this an archive input.
   bool isArchive(ID Id);

@@ -6,29 +6,30 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LIBC_SRC_SUPPORT_FILE_DIR_H
-#define LLVM_LIBC_SRC_SUPPORT_FILE_DIR_H
+#ifndef LLVM_LIBC_SRC___SUPPORT_FILE_DIR_H
+#define LLVM_LIBC_SRC___SUPPORT_FILE_DIR_H
 
 #include "src/__support/CPP/span.h"
+#include "src/__support/error_or.h"
+#include "src/__support/macros/config.h"
 #include "src/__support/threads/mutex.h"
 
 #include <dirent.h>
-#include <stdlib.h>
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE_DECL {
 
 // Platform specific function which will open the directory |name|
-// and return its file descriptor. Upon failure, this function sets the errno
-// value as suitable.
-int platform_opendir(const char *name);
+// and return its file descriptor. Upon failure, the error value is returned.
+ErrorOr<int> platform_opendir(const char *name);
 
 // Platform specific function which will close the directory with
-// file descriptor |fd|. Returns true on success, false on failure.
-bool platform_closedir(int fd);
+// file descriptor |fd|. Returns 0 on success, or the error number on failure.
+int platform_closedir(int fd);
 
 // Platform specific function which will fetch dirents in to buffer.
-// Returns the number of bytes written into buffer
-size_t platform_fetch_dirents(int fd, cpp::span<uint8_t> buffer);
+// Returns the number of bytes written into buffer or the error number on
+// failure.
+ErrorOr<size_t> platform_fetch_dirents(int fd, cpp::span<uint8_t> buffer);
 
 // This class is designed to allow implementation of the POSIX dirent.h API.
 // By itself, it is platform independent but calls platform specific
@@ -46,25 +47,33 @@ class Dir {
 
   Mutex mutex;
 
-public:
   // A directory is to be opened by the static method open and closed
   // by the close method. So, all constructors and destructor are declared
-  // as deleted.
-  Dir() = delete;
-  Dir(const Dir &) = delete;
-  ~Dir() = delete;
+  // as private. Inappropriate constructors are declared as deleted.
+  LIBC_INLINE Dir() = delete;
+  LIBC_INLINE Dir(const Dir &) = delete;
 
-  Dir &operator=(const Dir &) = delete;
+  LIBC_INLINE explicit Dir(int fdesc)
+      : fd(fdesc), readptr(0), fillsize(0),
+        mutex(/*timed=*/false, /*recursive=*/false, /*robust=*/false,
+              /*pshared=*/false) {}
+  LIBC_INLINE ~Dir() = default;
 
-  static Dir *open(const char *path);
+  LIBC_INLINE Dir &operator=(const Dir &) = delete;
 
-  struct ::dirent *read();
+public:
+  static ErrorOr<Dir *> open(const char *path);
 
+  ErrorOr<struct ::dirent *> read();
+
+  // Returns 0 on success or the error number on failure. If an error number
+  // was returned, then the resources associated with the directory are not
+  // cleaned up.
   int close();
 
-  int getfd() { return fd; }
+  LIBC_INLINE int getfd() { return fd; }
 };
 
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE_DECL
 
-#endif // LLVM_LIBC_SRC_SUPPORT_FILE_DIR_H
+#endif // LLVM_LIBC_SRC___SUPPORT_FILE_DIR_H

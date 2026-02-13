@@ -27,37 +27,43 @@ Integer :: pi
 Character(256) :: ee
 Procedure(Real) :: prp
 
+type at
+  real, allocatable :: a
+end type
+type(at) :: c[*]
+
 Allocate(rp)
 Deallocate(rp)
 
 Allocate(x(3))
 
-!ERROR: component in DEALLOCATE statement must have the ALLOCATABLE or POINTER attribute
+!ERROR: Component in DEALLOCATE statement must have the ALLOCATABLE or POINTER attribute
 Deallocate(x(2)%p)
 
-!ERROR: name in DEALLOCATE statement must have the ALLOCATABLE or POINTER attribute
+!ERROR: Name in DEALLOCATE statement must have the ALLOCATABLE or POINTER attribute
 Deallocate(pi)
 
-!ERROR: component in DEALLOCATE statement must have the ALLOCATABLE or POINTER attribute
-!ERROR: name in DEALLOCATE statement must have the ALLOCATABLE or POINTER attribute
+!ERROR: Component in DEALLOCATE statement must have the ALLOCATABLE or POINTER attribute
+!ERROR: Name in DEALLOCATE statement must have the ALLOCATABLE or POINTER attribute
 Deallocate(x(2)%p, pi)
 
-!ERROR: name in DEALLOCATE statement must be a variable name
+!ERROR: Name in DEALLOCATE statement must be a variable name
 Deallocate(prp)
 
-!ERROR: name in DEALLOCATE statement must have the ALLOCATABLE or POINTER attribute
-!ERROR: name in DEALLOCATE statement must be a variable name
+!ERROR: Name in DEALLOCATE statement must have the ALLOCATABLE or POINTER attribute
+!ERROR: Name in DEALLOCATE statement must be a variable name
 Deallocate(pi, prp)
 
-!ERROR: name in DEALLOCATE statement must be a variable name
+!ERROR: Name in DEALLOCATE statement must be a variable name
 Deallocate(maxvalue)
 
-!ERROR: component in DEALLOCATE statement must have the ALLOCATABLE or POINTER attribute
+!ERROR: Component in DEALLOCATE statement must have the ALLOCATABLE or POINTER attribute
 Deallocate(x%p)
 
 !ERROR: STAT may not be duplicated in a DEALLOCATE statement
 Deallocate(x, stat=s, stat=s)
-!ERROR: STAT variable 'const_s' must be definable
+!ERROR: STAT variable 'const_s' is not definable
+!BECAUSE: '13_4' is not a variable or pointer
 Deallocate(x, stat=const_s)
 !ERROR: ERRMSG may not be duplicated in a DEALLOCATE statement
 Deallocate(x, errmsg=ee, errmsg=ee)
@@ -65,5 +71,8 @@ Deallocate(x, errmsg=ee, errmsg=ee)
 Deallocate(x, stat=s, errmsg=ee, stat=s)
 !ERROR: ERRMSG may not be duplicated in a DEALLOCATE statement
 Deallocate(x, stat=s, errmsg=ee, errmsg=ee)
+
+!ERROR: Component in DEALLOCATE statement may not be coindexed
+deallocate(c[1]%a)
 
 End Program deallocatetest

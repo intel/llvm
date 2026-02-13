@@ -308,8 +308,7 @@ namespace TypeId {
   static_assert(&B2().ti1 == &typeid(B));
   static_assert(&B2().ti2 == &typeid(B2));
   extern B2 extern_b2;
-  // expected-note@+1 {{typeid applied to object 'extern_b2' whose dynamic type is not constant}}
-  static_assert(&typeid(extern_b2) == &typeid(B2)); // expected-error {{constant expression}}
+  static_assert(&typeid(extern_b2) == &typeid(B2));
 
   constexpr B2 b2;
   constexpr const B &b1 = b2;
@@ -409,12 +408,12 @@ namespace Union {
     b.a.x = 2;
     return b;
   }
-  constexpr B uninit = return_uninit(); // expected-error {{constant expression}} expected-note {{subobject of type 'int' is not initialized}}
+  constexpr B uninit = return_uninit(); // expected-error {{constant expression}} expected-note {{subobject 'y' is not initialized}}
   static_assert(return_uninit().a.x == 2);
   constexpr A return_uninit_struct() {
     B b = {.b = 1};
     b.a.x = 2;
-    return b.a; // expected-note {{in call to 'A(b.a)'}} expected-note {{subobject of type 'int' is not initialized}}
+    return b.a; // expected-note {{in call to 'A(b.a)'}} expected-note {{subobject 'y' is not initialized}}
   }
   // Note that this is rejected even though return_uninit() is accepted, and
   // return_uninit() copies the same stuff wrapped in a union.
@@ -558,7 +557,7 @@ namespace Uninit {
     }
   };
   constinit X x1(true);
-  constinit X x2(false); // expected-error {{constant initializer}} expected-note {{constinit}} expected-note {{subobject of type 'int' is not initialized}}
+  constinit X x2(false); // expected-error {{constant initializer}} expected-note {{constinit}} expected-note {{subobject 'n' is not initialized}}
 
   struct Y {
     struct Z { int n; }; // expected-note {{here}}
@@ -577,7 +576,7 @@ namespace Uninit {
   };
   // FIXME: This is working around clang not implementing DR2026. With that
   // fixed, we should be able to test this without the injected copy.
-  constexpr Y copy(Y y) { return y; } // expected-note {{in call to 'Y(y)'}} expected-note {{subobject of type 'int' is not initialized}}
+  constexpr Y copy(Y y) { return y; } // expected-note {{in call to 'Y(y)'}} expected-note {{subobject 'n' is not initialized}}
   constexpr Y y1 = copy(Y());
   static_assert(y1.z1.n == 1 && y1.z2.n == 2 && y1.z3.n == 3);
 
@@ -928,7 +927,7 @@ namespace dynamic_alloc {
   constexpr void use_after_free() { // expected-error {{never produces a constant expression}}
     int *p = new int;
     delete p;
-    *p = 1; // expected-note {{assignment to heap allocated object that has been deleted}}
+    *p = 1; // expected-note {{read of heap allocated object that has been deleted}}
   }
   constexpr void use_after_free_2() { // expected-error {{never produces a constant expression}}
     struct X { constexpr void f() {} };
@@ -994,7 +993,7 @@ namespace placement_new_delete {
   constexpr bool bad(int which) {
     switch (which) {
     case 0:
-      delete new (placement_new_arg{}) int; // expected-note {{call to placement 'operator new'}}
+      delete new (placement_new_arg{}) int; // expected-note {{this placement new expression is not supported in constant expressions}}
       break;
 
     case 1:
@@ -1012,7 +1011,7 @@ namespace placement_new_delete {
     case 4:
       // FIXME: This technically follows the standard's rules, but it seems
       // unreasonable to expect implementations to support this.
-      delete new (std::align_val_t{64}) Overaligned; // expected-note {{placement new expression is not yet supported}}
+      delete new (std::align_val_t{64}) Overaligned; // expected-note {{this placement new expression is not supported in constant expressions}}
       break;
     }
 
@@ -1491,4 +1490,23 @@ class B{
 
 class D : B{}; // expected-error {{deleted function '~D' cannot override a non-deleted function}}
 // expected-note@-1 {{destructor of 'D' is implicitly deleted because base class 'B' has an inaccessible destructor}}
+}
+
+namespace GH67317 {
+  constexpr unsigned char a = // expected-error {{constexpr variable 'a' must be initialized by a constant expression}} \
+                              // expected-note {{subobject of type 'const unsigned char' is not initialized}}
+    __builtin_bit_cast(unsigned char, *new char[3][1]);
+};
+
+namespace GH150705 {
+  struct A { };
+  struct B : A { };
+  struct C : A {
+    constexpr virtual int foo() const { return 0; }
+  };
+  constexpr auto p = &C::foo;
+  constexpr auto q = static_cast<int (A::*)() const>(p);
+  constexpr B b;
+  constexpr const A& a = b;
+  constexpr auto x = (a.*q)(); // expected-error {{constant expression}}
 }

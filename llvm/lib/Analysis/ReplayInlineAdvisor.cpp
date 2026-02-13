@@ -114,7 +114,7 @@ std::unique_ptr<InlineAdvice> ReplayInlineAdvisor::getAdviceImpl(CallBase &CB) {
   // Replay decision, if it has one
   auto Iter = InlineSitesFromRemarks.find(Combined);
   if (Iter != InlineSitesFromRemarks.end()) {
-    if (InlineSitesFromRemarks[Combined]) {
+    if (Iter->second) {
       LLVM_DEBUG(dbgs() << "Replay Inliner: Inlined " << Callee << " @ "
                         << CallSiteLoc << "\n");
       return std::make_unique<DefaultInlineAdvice>(
@@ -123,8 +123,8 @@ std::unique_ptr<InlineAdvice> ReplayInlineAdvisor::getAdviceImpl(CallBase &CB) {
     } else {
       LLVM_DEBUG(dbgs() << "Replay Inliner: Not Inlined " << Callee << " @ "
                         << CallSiteLoc << "\n");
-      // A negative inline is conveyed by "None" Optional<InlineCost>
-      return std::make_unique<DefaultInlineAdvice>(this, CB, None, ORE,
+      // A negative inline is conveyed by "None" std::optional<InlineCost>
+      return std::make_unique<DefaultInlineAdvice>(this, CB, std::nullopt, ORE,
                                                    EmitRemarks);
     }
   }
@@ -137,8 +137,8 @@ std::unique_ptr<InlineAdvice> ReplayInlineAdvisor::getAdviceImpl(CallBase &CB) {
         EmitRemarks);
   else if (ReplaySettings.ReplayFallback ==
            ReplayInlinerSettings::Fallback::NeverInline)
-    // A negative inline is conveyed by "None" Optional<InlineCost>
-    return std::make_unique<DefaultInlineAdvice>(this, CB, None, ORE,
+    // A negative inline is conveyed by "None" std::optional<InlineCost>
+    return std::make_unique<DefaultInlineAdvice>(this, CB, std::nullopt, ORE,
                                                  EmitRemarks);
   else {
     assert(ReplaySettings.ReplayFallback ==

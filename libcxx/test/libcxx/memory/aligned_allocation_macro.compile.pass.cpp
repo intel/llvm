@@ -8,13 +8,10 @@
 
 // UNSUPPORTED: c++03, c++11, c++14
 
-// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11|12}}
-
 #include <new>
 
 #include "test_macros.h"
 
-
-#ifdef _LIBCPP_HAS_NO_ALIGNED_ALLOCATION
-#   error "libc++ should have aligned allocation in C++17 and up when targeting a platform that supports it"
+#if !_LIBCPP_HAS_ALIGNED_ALLOCATION
+#  error "libc++ should have aligned allocation in C++17 and up when targeting a platform that supports it"
 #endif

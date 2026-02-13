@@ -11,7 +11,9 @@ add_llvm_library(clangTesting
   BUILDTREE_ONLY
 
   LINK_COMPONENTS
+  MC
   Support
+  TargetParser
   )
 
 clang_target_link_libraries(clangTesting

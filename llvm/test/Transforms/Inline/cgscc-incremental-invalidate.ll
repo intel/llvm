@@ -12,15 +12,18 @@
 ; CHECK: Invalidating analysis: LoopAnalysis on test1_f
 ; CHECK: Invalidating analysis: BranchProbabilityAnalysis on test1_f
 ; CHECK: Invalidating analysis: BlockFrequencyAnalysis on test1_f
+; CHECK: Invalidating analysis: EphemeralValuesAnalysis on test1_f
 ; CHECK: Running analysis: DominatorTreeAnalysis on test1_g
 ; CHECK: Invalidating analysis: DominatorTreeAnalysis on test1_g
 ; CHECK: Invalidating analysis: LoopAnalysis on test1_g
 ; CHECK: Invalidating analysis: BranchProbabilityAnalysis on test1_g
 ; CHECK: Invalidating analysis: BlockFrequencyAnalysis on test1_g
+; CHECK: Invalidating analysis: EphemeralValuesAnalysis on test1_g
 ; CHECK: Invalidating analysis: DominatorTreeAnalysis on test1_h
 ; CHECK: Invalidating analysis: LoopAnalysis on test1_h
 ; CHECK: Invalidating analysis: BranchProbabilityAnalysis on test1_h
 ; CHECK: Invalidating analysis: BlockFrequencyAnalysis on test1_h
+; CHECK: Invalidating analysis: EphemeralValuesAnalysis on test1_h
 ; CHECK-NOT: Invalidating analysis:
 ; CHECK: Running pass: DominatorTreeVerifierPass on test1_g
 ; CHECK-NEXT: Running analysis: DominatorTreeAnalysis on test1_g
@@ -43,11 +46,11 @@ entry:
   br i1 %flag, label %then, label %else
 
 then:
-  store volatile i8 42, i8* %ptr
+  store volatile i8 42, ptr %ptr
   br label %return
 
 else:
-  store volatile i8 -42, i8* %ptr
+  store volatile i8 -42, ptr %ptr
   br label %return
 
 return:
@@ -125,15 +128,15 @@ entry:
 
 @test2_global = external global i32, align 4
 
-define void @test2_hoge(i1 (i32*)* %arg) {
+define void @test2_hoge(ptr %arg) {
 ; CHECK-LABEL: define void @test2_hoge(
 bb:
-  %tmp2 = call zeroext i1 %arg(i32* @test2_global)
+  %tmp2 = call zeroext i1 %arg(ptr @test2_global)
 ; CHECK: call zeroext i1 %arg(
   br label %bb3
 
 bb3:
-  %tmp5 = call zeroext i1 %arg(i32* @test2_global)
+  %tmp5 = call zeroext i1 %arg(ptr @test2_global)
 ; CHECK: call zeroext i1 %arg(
   br i1 %tmp5, label %bb3, label %bb6
 
@@ -141,7 +144,7 @@ bb6:
   ret void
 }
 
-define zeroext i1 @test2_widget(i32* %arg) {
+define zeroext i1 @test2_widget(ptr %arg) {
 ; CHECK-LABEL: define zeroext i1 @test2_widget(
 bb:
   %tmp1 = alloca i8, align 1
@@ -149,32 +152,32 @@ bb:
   call void @test2_quux()
 ; CHECK-NOT:     call
 ;
-; CHECK:         call zeroext i1 @test2_widget(i32* @test2_global)
+; CHECK:         call zeroext i1 @test2_widget(ptr @test2_global)
 ; CHECK-NEXT:    br label %[[NEW_BB:.*]]
 ;
 ; CHECK:       [[NEW_BB]]:
-; CHECK-NEXT:    call zeroext i1 @test2_widget(i32* @test2_global)
+; CHECK-NEXT:    call zeroext i1 @test2_widget(ptr @test2_global)
 ;
 ; CHECK:       {{.*}}:
 
-  call void @test2_hoge.1(i32* %arg)
+  call void @test2_hoge.1(ptr %arg)
 ; CHECK-NEXT:    call void @test2_hoge.1(
 
-  %tmp4 = call zeroext i1 @test2_barney(i32* %tmp2)
+  %tmp4 = call zeroext i1 @test2_barney(ptr %tmp2)
   %tmp5 = zext i1 %tmp4 to i32
-  store i32 %tmp5, i32* %tmp2, align 4
-  %tmp6 = call zeroext i1 @test2_barney(i32* null)
-  call void @test2_ham(i8* %tmp1)
+  store i32 %tmp5, ptr %tmp2, align 4
+  %tmp6 = call zeroext i1 @test2_barney(ptr null)
+  call void @test2_ham(ptr %tmp1)
 ; CHECK:         call void @test2_ham(
 
   call void @test2_quux()
 ; CHECK-NOT:     call
 ;
-; CHECK:         call zeroext i1 @test2_widget(i32* @test2_global)
+; CHECK:         call zeroext i1 @test2_widget(ptr @test2_global)
 ; CHECK-NEXT:    br label %[[NEW_BB:.*]]
 ;
 ; CHECK:       [[NEW_BB]]:
-; CHECK-NEXT:    call zeroext i1 @test2_widget(i32* @test2_global)
+; CHECK-NEXT:    call zeroext i1 @test2_widget(ptr @test2_global)
 ;
 ; CHECK:       {{.*}}:
   ret i1 true
@@ -184,12 +187,12 @@ bb:
 define internal void @test2_quux() {
 ; CHECK-NOT: @test2_quux
 bb:
-  call void @test2_hoge(i1 (i32*)* @test2_widget)
+  call void @test2_hoge(ptr @test2_widget)
   ret void
 }
 
-declare void @test2_hoge.1(i32*)
+declare void @test2_hoge.1(ptr)
 
-declare zeroext i1 @test2_barney(i32*)
+declare zeroext i1 @test2_barney(ptr)
 
-declare void @test2_ham(i8*)
+declare void @test2_ham(ptr)

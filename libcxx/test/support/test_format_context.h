@@ -19,9 +19,9 @@
  * required object.
  *
  * @note This requires every standard library implementation to write their own
- * helper function. Vendors are encouraged to file a review at
- * https://reviews.llvm.org/ so their specific implementation can be part of
- * this file.
+ * helper function. Vendors are encouraged to file a PR at
+ * https://github.com/llvm/llvm-project so their specific implementation can be
+ * part of this file.
  */
 
 #include "test_macros.h"
@@ -32,11 +32,11 @@
 
 #include <format>
 
-#ifndef _LIBCPP_HAS_NO_LOCALIZATION
-#include <locale>
+#ifndef TEST_HAS_NO_LOCALIZATION
+#  include <locale>
 #endif
 
-#if defined(_LIBCPP_VERSION)
+#ifdef _LIBCPP_VERSION
 
 /** Creates a std::basic_format_context as-if the formatting function takes no locale. */
 template <class OutIt, class CharT>
@@ -46,7 +46,7 @@ std::basic_format_context<OutIt, CharT> test_format_context_create(
   return std::__format_context_create(std::move(out_it), args);
 }
 
-#ifndef _LIBCPP_HAS_NO_LOCALIZATION
+#  ifndef TEST_HAS_NO_LOCALIZATION
 /** Creates a std::basic_format_context as-if the formatting function takes locale. */
 template <class OutIt, class CharT>
 std::basic_format_context<OutIt, CharT> test_format_context_create(
@@ -55,10 +55,10 @@ std::basic_format_context<OutIt, CharT> test_format_context_create(
     std::locale loc) {
   return std::__format_context_create(std::move(out_it), args, std::move(loc));
 }
-#endif
-#else
-#error                                                                         \
-    "Please create a vendor specific version of the test functions and file a review at https://reviews.llvm.org/"
-#endif
+#  endif // TEST_HAS_NO_LOCALIZATION
+#else    // _LIBCPP_VERSION
+#  error                                                                                                               \
+      "Please create a vendor specific version of the test typedef and file a PR at https://github.com/llvm/llvm-project"
+#endif // _LIBCPP_VERSION
 
 #endif // SUPPORT_TEST_FORMAT_CONTEXT_HPP

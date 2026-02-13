@@ -11,7 +11,7 @@
 #include "lldb/Core/Address.h"
 #include "lldb/Core/DumpRegisterValue.h"
 #include "lldb/Core/PluginManager.h"
-#include "lldb/Core/StreamFile.h"
+#include "lldb/Host/StreamFile.h"
 #include "lldb/Symbol/UnwindPlan.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/RegisterContext.h"
@@ -29,6 +29,7 @@
 
 #include <cstring>
 #include <memory>
+#include <optional>
 
 #include <cinttypes>
 #include <cstdio>
@@ -72,20 +73,29 @@ EmulateInstruction::FindPlugin(const ArchSpec &arch,
 
 EmulateInstruction::EmulateInstruction(const ArchSpec &arch) : m_arch(arch) {}
 
-bool EmulateInstruction::ReadRegister(const RegisterInfo *reg_info,
-                                      RegisterValue &reg_value) {
-  if (m_read_reg_callback != nullptr)
-    return m_read_reg_callback(this, m_baton, reg_info, reg_value);
-  return false;
+std::optional<RegisterValue>
+EmulateInstruction::ReadRegister(const RegisterInfo &reg_info) {
+  if (m_read_reg_callback == nullptr)
+    return {};
+
+  RegisterValue reg_value;
+  bool success = m_read_reg_callback(this, m_baton, &reg_info, reg_value);
+  if (success)
+    return reg_value;
+  return {};
 }
 
 bool EmulateInstruction::ReadRegister(lldb::RegisterKind reg_kind,
                                       uint32_t reg_num,
                                       RegisterValue &reg_value) {
-  llvm::Optional<RegisterInfo> reg_info = GetRegisterInfo(reg_kind, reg_num);
-  if (reg_info)
-    return ReadRegister(&(*reg_info), reg_value);
-  return false;
+  std::optional<RegisterInfo> reg_info = GetRegisterInfo(reg_kind, reg_num);
+  if (!reg_info)
+    return false;
+
+  std::optional<RegisterValue> value = ReadRegister(*reg_info);
+  if (value)
+    reg_value = *value;
+  return value.has_value();
 }
 
 uint64_t EmulateInstruction::ReadRegisterUnsigned(lldb::RegisterKind reg_kind,
@@ -100,22 +110,24 @@ uint64_t EmulateInstruction::ReadRegisterUnsigned(lldb::RegisterKind reg_kind,
   return fail_value;
 }
 
-uint64_t EmulateInstruction::ReadRegisterUnsigned(const RegisterInfo *reg_info,
+uint64_t EmulateInstruction::ReadRegisterUnsigned(const RegisterInfo &reg_info,
                                                   uint64_t fail_value,
                                                   bool *success_ptr) {
-  RegisterValue reg_value;
-  if (ReadRegister(reg_info, reg_value))
-    return reg_value.GetAsUInt64(fail_value, success_ptr);
-  if (success_ptr)
-    *success_ptr = false;
-  return fail_value;
+  std::optional<RegisterValue> reg_value = ReadRegister(reg_info);
+  if (!reg_value) {
+    if (success_ptr)
+      *success_ptr = false;
+    return fail_value;
+  }
+
+  return reg_value->GetAsUInt64(fail_value, success_ptr);
 }
 
 bool EmulateInstruction::WriteRegister(const Context &context,
-                                       const RegisterInfo *reg_info,
+                                       const RegisterInfo &reg_info,
                                        const RegisterValue &reg_value) {
   if (m_write_reg_callback != nullptr)
-    return m_write_reg_callback(this, m_baton, context, reg_info, reg_value);
+    return m_write_reg_callback(this, m_baton, context, &reg_info, reg_value);
   return false;
 }
 
@@ -123,9 +135,9 @@ bool EmulateInstruction::WriteRegister(const Context &context,
                                        lldb::RegisterKind reg_kind,
                                        uint32_t reg_num,
                                        const RegisterValue &reg_value) {
-  llvm::Optional<RegisterInfo> reg_info = GetRegisterInfo(reg_kind, reg_num);
+  std::optional<RegisterInfo> reg_info = GetRegisterInfo(reg_kind, reg_num);
   if (reg_info)
-    return WriteRegister(context, &(*reg_info), reg_value);
+    return WriteRegister(context, *reg_info, reg_value);
   return false;
 }
 
@@ -133,23 +145,21 @@ bool EmulateInstruction::WriteRegisterUnsigned(const Context &context,
                                                lldb::RegisterKind reg_kind,
                                                uint32_t reg_num,
                                                uint64_t uint_value) {
-  llvm::Optional<RegisterInfo> reg_info = GetRegisterInfo(reg_kind, reg_num);
+  std::optional<RegisterInfo> reg_info = GetRegisterInfo(reg_kind, reg_num);
   if (reg_info) {
     RegisterValue reg_value;
     if (reg_value.SetUInt(uint_value, reg_info->byte_size))
-      return WriteRegister(context, &(*reg_info), reg_value);
+      return WriteRegister(context, *reg_info, reg_value);
   }
   return false;
 }
 
 bool EmulateInstruction::WriteRegisterUnsigned(const Context &context,
-                                               const RegisterInfo *reg_info,
+                                               const RegisterInfo &reg_info,
                                                uint64_t uint_value) {
-  if (reg_info != nullptr) {
-    RegisterValue reg_value;
-    if (reg_value.SetUInt(uint_value, reg_info->byte_size))
-      return WriteRegister(context, reg_info, reg_value);
-  }
+  RegisterValue reg_value;
+  if (reg_value.SetUInt(uint_value, reg_info.byte_size))
+    return WriteRegister(context, reg_info, reg_value);
   return false;
 }
 
@@ -353,7 +363,7 @@ bool EmulateInstruction::WriteRegisterDefault(EmulateInstruction *instruction,
                                               const RegisterValue &reg_value) {
   StreamFile strm(stdout, false);
   strm.Printf("    Write to Register (name = %s, value = ", reg_info->name);
-  DumpRegisterValue(reg_value, &strm, reg_info, false, false, eFormatDefault);
+  DumpRegisterValue(reg_value, strm, *reg_info, false, false, eFormatDefault);
   strm.PutCString(", context = ");
   context.Dump(strm, instruction);
   strm.EOL();
@@ -578,7 +588,99 @@ EmulateInstruction::GetInternalRegisterNumber(RegisterContext *reg_ctx,
   return LLDB_INVALID_REGNUM;
 }
 
+std::unique_ptr<SingleStepBreakpointLocationsPredictor>
+EmulateInstruction::CreateBreakpointLocationPredictor(
+    std::unique_ptr<EmulateInstruction> emulator_up) {
+  auto creator =
+      emulator_up->GetSingleStepBreakpointLocationsPredictorCreator();
+  return creator(std::move(emulator_up));
+}
+
+std::optional<lldb::addr_t> EmulateInstruction::ReadPC() {
+  bool success = false;
+  auto addr = ReadRegisterUnsigned(eRegisterKindGeneric, LLDB_REGNUM_GENERIC_PC,
+                                   LLDB_INVALID_ADDRESS, &success);
+  return success ? std::optional<addr_t>(addr) : std::nullopt;
+}
+
+bool EmulateInstruction::WritePC(lldb::addr_t addr) {
+  EmulateInstruction::Context ctx;
+  ctx.type = eContextAdvancePC;
+  ctx.SetNoArgs();
+  return WriteRegisterUnsigned(ctx, eRegisterKindGeneric,
+                               LLDB_REGNUM_GENERIC_PC, addr);
+}
+
 bool EmulateInstruction::CreateFunctionEntryUnwind(UnwindPlan &unwind_plan) {
   unwind_plan.Clear();
   return false;
+}
+
+BreakpointLocations
+SingleStepBreakpointLocationsPredictor::GetBreakpointLocations(Status &status) {
+  if (!m_emulator_up->ReadInstruction()) {
+    // try to get at least the size of next instruction to set breakpoint.
+    lldb::addr_t next_pc = GetNextInstructionAddress(status);
+    return BreakpointLocations{next_pc};
+  }
+
+  auto entry_pc = m_emulator_up->ReadPC();
+  if (!entry_pc) {
+    status = Status("Can't read PC");
+    return {};
+  }
+
+  m_emulation_result = m_emulator_up->EvaluateInstruction(
+      eEmulateInstructionOptionAutoAdvancePC);
+
+  lldb::addr_t next_pc = GetBreakpointLocationAddress(*entry_pc, status);
+  return BreakpointLocations{next_pc};
+}
+
+lldb::addr_t SingleStepBreakpointLocationsPredictor::GetNextInstructionAddress(
+    Status &error) {
+  auto instr_size = m_emulator_up->GetLastInstrSize();
+  if (!instr_size) {
+    error = Status("Read instruction failed!");
+    return LLDB_INVALID_ADDRESS;
+  }
+
+  auto pc = m_emulator_up->ReadPC();
+  if (!pc) {
+    error = Status("Can't read PC");
+    return LLDB_INVALID_ADDRESS;
+  }
+
+  lldb::addr_t next_pc = *pc + *instr_size;
+  return next_pc;
+}
+
+lldb::addr_t
+SingleStepBreakpointLocationsPredictor::GetBreakpointLocationAddress(
+    lldb::addr_t entry_pc, Status &error) {
+  auto addr = m_emulator_up->ReadPC();
+  if (!addr) {
+    error = Status("Can't read PC");
+    return LLDB_INVALID_ADDRESS;
+  }
+  lldb::addr_t pc = *addr;
+
+  if (m_emulation_result) {
+    assert(entry_pc != pc && "Emulation was successfull but PC wasn't updated");
+    return pc;
+  }
+
+  if (entry_pc == pc) {
+    // Emulate instruction failed and it hasn't changed PC. Advance PC with
+    // the size of the current opcode because the emulation of all
+    // PC modifying instruction should be successful. The failure most
+    // likely caused by an unsupported instruction which does not modify PC.
+    return pc + m_emulator_up->GetOpcode().GetByteSize();
+  }
+
+  // The instruction emulation failed after it modified the PC. It is an
+  // unknown error where we can't continue because the next instruction is
+  // modifying the PC but we don't  know how.
+  error = Status("Instruction emulation failed unexpectedly.");
+  return LLDB_INVALID_ADDRESS;
 }

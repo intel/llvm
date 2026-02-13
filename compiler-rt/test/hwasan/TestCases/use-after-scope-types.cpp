@@ -1,7 +1,7 @@
 // This is the ASAN test of the same name ported to HWAsan.
 
-// RUN: %clangxx_hwasan -mllvm -hwasan-use-after-scope -std=c++11 -O0 %s -o %t
-// RUN: %clangxx_hwasan -fno-exceptions -mllvm -hwasan-use-after-scope -std=c++11 -O0 %s -o %t-noexcept
+// RUN: %clangxx_hwasan -std=c++11 -O0 %s -o %t
+// RUN: %clangxx_hwasan -fno-exceptions -std=c++11 -O0 %s -o %t-noexcept
 
 // RUN: not %run %t 0 2>&1 | FileCheck %s
 // RUN: not %run %t 1 2>&1 | FileCheck %s
@@ -27,8 +27,7 @@
 // RUN: not %run %t-noexcept 9 2>&1 | FileCheck %s
 // RUN: not %run %t-noexcept 10 2>&1 | FileCheck %s
 
-// REQUIRES: aarch64-target-arch
-// REQUIRES: stable-runtime
+// REQUIRES: aarch64-target-arch || riscv64-target-arch
 
 #include <stdlib.h>
 #include <string>

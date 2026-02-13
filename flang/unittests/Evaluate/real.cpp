@@ -1,6 +1,6 @@
-#include "fp-testing.h"
-#include "testing.h"
 #include "flang/Evaluate/type.h"
+#include "flang/Testing/fp-testing.h"
+#include "flang/Testing/testing.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cmath>
 #include <cstdio>
@@ -14,7 +14,9 @@ using Real2 = Scalar<Type<TypeCategory::Real, 2>>;
 using Real3 = Scalar<Type<TypeCategory::Real, 3>>;
 using Real4 = Scalar<Type<TypeCategory::Real, 4>>;
 using Real8 = Scalar<Type<TypeCategory::Real, 8>>;
+#ifdef __x86_64__
 using Real10 = Scalar<Type<TypeCategory::Real, 10>>;
+#endif
 using Real16 = Scalar<Type<TypeCategory::Real, 16>>;
 using Integer4 = Scalar<Type<TypeCategory::Integer, 4>>;
 using Integer8 = Scalar<Type<TypeCategory::Integer, 8>>;
@@ -95,7 +97,15 @@ template <typename R> void basicTests(int rm, Rounding rounding) {
   int exponentBits{R::bits - significandBits - 1};
   std::uint64_t maxExponent{(std::uint64_t{1} << exponentBits) - 1};
   MATCH(nan.Exponent(), maxExponent)(desc);
-  R inf{Word{maxExponent}.SHIFTL(significandBits)};
+  Word infWord{Word{maxExponent}.SHIFTL(significandBits)};
+  Word negInfWord{
+      Word{maxExponent}.SHIFTL(significandBits).IOR(Word::MASKL(1))};
+  if constexpr (kind == 10) { // x87
+    infWord = infWord.IBSET(63);
+    negInfWord = negInfWord.IBSET(63);
+  }
+  R inf{infWord};
+  R negInf{negInfWord};
   TEST(!inf.IsNegative())(desc);
   TEST(!inf.IsNotANumber())(desc);
   TEST(inf.IsInfinite())(desc);
@@ -106,7 +116,6 @@ template <typename R> void basicTests(int rm, Rounding rounding) {
   TEST(minusZero.Compare(inf) == Relation::Less)(desc);
   TEST(nan.Compare(inf) == Relation::Unordered)(desc);
   TEST(inf.Compare(inf) == Relation::Equal)(desc);
-  R negInf{Word{maxExponent}.SHIFTL(significandBits).IOR(Word::MASKL(1))};
   TEST(negInf.IsNegative())(desc);
   TEST(!negInf.IsNotANumber())(desc);
   TEST(negInf.IsInfinite())(desc);
@@ -133,7 +142,7 @@ template <typename R> void basicTests(int rm, Rounding rounding) {
     Integer8 ix{x};
     TEST(!ix.IsNegative())(ldesc);
     MATCH(x, ix.ToUInt64())(ldesc);
-    vr = R::FromInteger(ix, rounding);
+    vr = R::FromInteger(ix, false, rounding);
     TEST(!vr.value.IsNegative())(ldesc);
     TEST(!vr.value.IsNotANumber())(ldesc);
     TEST(!vr.value.IsZero())(ldesc);
@@ -149,10 +158,9 @@ template <typename R> void basicTests(int rm, Rounding rounding) {
       TEST(ivf.flags.empty())(ldesc);
       MATCH(x, ivf.value.ToUInt64())(ldesc);
       if (rounding.mode == RoundingMode::TiesToEven) { // to match stold()
-        std::string buf;
-        llvm::raw_string_ostream ss{buf};
+        std::string decimal;
+        llvm::raw_string_ostream ss{decimal};
         vr.value.AsFortran(ss, kind, false /*exact*/);
-        std::string decimal{ss.str()};
         const char *p{decimal.data()};
         MATCH(x, static_cast<std::uint64_t>(std::stold(decimal)))
         ("%s %s", ldesc, p);
@@ -295,7 +303,7 @@ void inttest(std::int64_t x, int pass, Rounding rounding) {
   ScopedHostFloatingPointEnvironment fpenv;
   Integer8 ix{x};
   ValueWithRealFlags<REAL> real;
-  real = real.value.FromInteger(ix, rounding);
+  real = real.value.FromInteger(ix, false, rounding);
 #ifndef __clang__ // broken and also slow
   fpenv.ClearFlags();
 #endif
@@ -415,14 +423,13 @@ void subsetTests(int pass, Rounding rounding, std::uint32_t opds) {
       ("%d IsInfinite(0x%jx)", pass, static_cast<std::intmax_t>(rj));
 
       static constexpr int kind{REAL::bits / 8};
-      std::string ssBuf, cssBuf;
-      llvm::raw_string_ostream ss{ssBuf};
+      std::string s, cssBuf;
+      llvm::raw_string_ostream ss{s};
       llvm::raw_string_ostream css{cssBuf};
       x.AsFortran(ss, kind, false /*exact*/);
-      std::string s{ss.str()};
       if (IsNaN(rj)) {
         css << "(0._" << kind << "/0.)";
-        MATCH(css.str(), s)
+        MATCH(cssBuf, s)
         ("%d invalid(0x%jx)", pass, static_cast<std::intmax_t>(rj));
       } else if (IsInfinite(rj)) {
         css << '(';
@@ -430,7 +437,7 @@ void subsetTests(int pass, Rounding rounding, std::uint32_t opds) {
           css << '-';
         }
         css << "1._" << kind << "/0.)";
-        MATCH(css.str(), s)
+        MATCH(cssBuf, s)
         ("%d overflow(0x%jx)", pass, static_cast<std::intmax_t>(rj));
       } else {
         const char *p = s.data();
@@ -531,7 +538,9 @@ void roundTest(int rm, Rounding rounding, std::uint32_t opds) {
   basicTests<Real3>(rm, rounding);
   basicTests<Real4>(rm, rounding);
   basicTests<Real8>(rm, rounding);
+#ifdef __x86_64__
   basicTests<Real10>(rm, rounding);
+#endif
   basicTests<Real16>(rm, rounding);
   ScopedHostFloatingPointEnvironment::SetRounding(rounding);
   subsetTests<std::uint32_t, float, Real4>(rm, rounding, opds);

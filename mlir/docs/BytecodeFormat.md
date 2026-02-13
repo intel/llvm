@@ -1,12 +1,32 @@
 # MLIR Bytecode Format
 
-This documents describes the MLIR bytecode format and its encoding.
+This document describes the MLIR bytecode format and its encoding.
+This format is versioned and stable: we don't plan to ever break
+compatibility, that is a dialect should be able to deserialize any
+older bytecode. Similarly, we support back-deployment so that an
+older version of the format can be targetted.
+
+That said, it is important to realize that the promises of the
+bytecode format are made assuming immutable dialects: the format
+allows backward and forward compatibility, but only when nothing
+in a dialect changes (operations, types, attributes definitions).
+
+A dialect can opt-in to handle its own versioning through the
+`BytecodeDialectInterface`. Some hooks are exposed to the dialect
+to allow managing a version encoded into the bytecode file. The
+version is loaded lazily and allows to retrieve the version
+information while decoding the input IR, and gives an opportunity
+to each dialect for which a version is present to perform IR
+upgrades post-parsing through the `upgradeFromVersion` method.
+There is no restriction on what kind of information a dialect
+is allowed to encode to model its versioning.
 
 [TOC]
 
 ## Magic Number
 
-MLIR uses the following four-byte magic number to indicate bytecode files:
+MLIR uses the following four-byte magic number to
+indicate bytecode files:
 
 '\[‘M’<sub>8</sub>, ‘L’<sub>8</sub>, ‘ï’<sub>8</sub>, ‘R’<sub>8</sub>\]'
 
@@ -24,7 +44,7 @@ structural concepts layered on top.
 #### Fixed-Width Integers
 
 ```
-  byte                  ::= `0x00`...`0xFF`
+  byte ::= `0x00`...`0xFF`
 ```
 
 Fixed width integers are unsigned integers of a known byte size. The values are
@@ -105,7 +125,9 @@ lazy-loading, and more. Each section contains a Section ID, whose high bit
 indicates if the section has alignment requirements, a length (which allows for
 skipping over the section), and an optional alignment. When an alignment is
 present, a variable number of padding bytes (0xCB) may appear before the section
-data. The alignment of a section must be a power of 2.
+data. The alignment of a section must be a power of 2. 
+The input bytecode buffer must satisfy the same alignment requirements as 
+those of every section.
 
 ## MLIR Encoding
 
@@ -152,21 +174,37 @@ dialects that were also referenced.
 ```
 dialect_section {
   numDialects: varint,
-  dialectNames: varint[],
+  dialectNames: dialect_name_group[],
+  opNames: dialect_ops_group[]  // ops grouped by dialect
+}
+
+dialect_name_group {
+  nameAndIsVersioned: varint  // (dialectID << 1) | (hasVersion),
+  version: dialect_version_section  // only if versioned
+}
+
+dialect_version_section {
+  size: varint,
+  version: byte[]
+}
+
+dialect_ops_group {
+  dialect: varint,
+  numOpNames: varint,
   opNames: op_name_group[]
 }
 
 op_name_group {
-  dialect: varint,
-  numOpNames: varint,
-  opNames: varint[]
+  nameAndIsRegistered: varint  // (nameID << 1) | (isRegisteredOp)
 }
 ```
 
-Dialects are encoded as indexes to the name string within the string section.
-Operation names are encoded in groups by dialect, with each group containing the
-dialect, the number of operation names, and the array of indexes to each name
-within the string section.
+Dialects are encoded as a `varint` containing the index to the name string
+within the string section, plus a flag indicating whether the dialect is
+versioned. Operation names are encoded in groups by dialect, with each group
+containing the dialect, the number of operation names, and the array of indexes
+to each name within the string section. The version is encoded as a nested
+section for each dialect.
 
 ### Attribute/Type Sections
 
@@ -179,7 +217,7 @@ and types to always be lazily loaded on demand.
 ```
 attr_type_section {
   attrs: attribute[],
-  types: type[]  
+  types: type[]
 }
 attr_type_offset_section {
   numAttrs: varint,
@@ -190,7 +228,7 @@ attr_type_offset_section {
 attr_type_offset_group {
   dialect: varint,
   numElements: varint,
-  offsets: varint[] // (offset << 1) | (hasCustomEncoding) 
+  offsets: varint[] // (offset << 1) | (hasCustomEncoding)
 }
 
 attribute {
@@ -219,9 +257,9 @@ its assembly format, or via a custom dialect defined encoding.
 
 In the case where a dialect does not define a method for encoding the attribute
 or type, the textual assembly format of that attribute or type is used as a
-fallback. For example, a type of `!bytecode.type` would be encoded as the null
-terminated string "!bytecode.type". This ensures that every attribute and type
-may be encoded, even if the owning dialect has not yet opted in to a more
+fallback. For example, a type `!bytecode.type<42>` would be encoded as the null
+terminated string "!bytecode.type<42>". This ensures that every attribute and
+type can be encoded, even if the owning dialect has not yet opted in to a more
 efficient serialization.
 
 TODO: We shouldn't redundantly encode the dialect name here, we should use a
@@ -229,9 +267,9 @@ reference to the parent dialect instead.
 
 ##### Dialect Defined Encoding
 
-In addition to the assembly format fallback, dialects may also provide a custom
-encoding for their attributes and types. Custom encodings are very beneficial in
-that they are significantly smaller and faster to read and write.
+As an alternative to the assembly format fallback, dialects may also provide a
+custom encoding for their attributes and types. Custom encodings are very
+beneficial in that they are significantly smaller and faster to read and write.
 
 Dialects can opt-in to providing custom encodings by implementing the
 `BytecodeDialectInterface`. This interface provides hooks, namely
@@ -304,6 +342,12 @@ offsets provides more effective compression.
 
 The IR section contains the encoded form of operations within the bytecode.
 
+```
+ir_section {
+  block: block; // Single block without arguments.
+}
+```
+
 #### Operation Encoding
 
 ```
@@ -323,14 +367,25 @@ op {
   numSuccessors: varint?,
   successors: varint[],
 
-  regionEncoding: varint?, // (numRegions << 1) | (isIsolatedFromAbove) 
-  regions: region[]
+  numUseListOrders: varint?,
+  useListOrders: uselist[],
+
+  regionEncoding: varint?, // (numRegions << 1) | (isIsolatedFromAbove)
+
+  // regions are stored in a section if isIsolatedFromAbove
+  regions: (region | region_section)[]
+}
+
+uselist {
+  indexInRange: varint?,
+  useListEncoding: varint, // (numIndices << 1) | (isIndexPairEncoding)
+  indices: varint[]
 }
 ```
 
 The encoding of an operation is important because this is generally the most
 commonly appearing structure in the bytecode. A single encoding is used for
-every type of operation. Given this prevelance, many of the fields of an
+every type of operation. Given this prevalence, many of the fields of an
 operation are optional. The `encodingMask` field is a bitmask which indicates
 which of the components of the operation are present.
 
@@ -358,6 +413,26 @@ definition of that value from the start of the first ancestor isolated region.
 
 If the operation has successors, the number of successors and the indexes of the
 successor blocks within the parent region are encoded.
+
+##### Use-list orders
+
+The reference use-list order is assumed to be the reverse of the global
+enumeration of all the op operands that one would obtain with a pre-order walk
+of the IR. This order is naturally obtained by building blocks of operations
+op-by-op. However, some transformations may shuffle the use-lists with respect
+to this reference ordering. If any of the results of the operation have a
+use-list order that is not sorted with respect to the reference use-list order,
+an encoding is emitted such that it is possible to reconstruct such order after
+parsing the bytecode. The encoding represents an index map from the reference
+operand order to the current use-list order. A bit flag is used to detect if
+this encoding is of type index-pair or not. When the bit flag is set to zero,
+the element at `i` represent the position of the use `i` of the reference list
+into the current use-list. When the bit flag is set to `1`, the encoding
+represent index pairs `(i, j)`, which indicate that the use at position `i` of
+the reference list is mapped to position `j` in the current use-list. When only
+less than half of the elements in the current use-list are shuffled with respect
+to the reference use-list, the index-pair encoding is used to reduce the
+bytecode memory requirements.
 
 ##### Regions
 
@@ -392,14 +467,19 @@ block {
 block_arguments {
   numArgs: varint?,
   args: block_argument[]
+  numUseListOrders: varint?,
+  useListOrders: uselist[],
 }
 
 block_argument {
-  typeIndex: varint,
-  location: varint
+  typeAndLocation: varint, // (type << 1) | (hasLocation)
+  location: varint? // Optional, else unknown location
 }
 ```
 
 A block is encoded with an array of operations and block arguments. The first
 field is an encoding that combines the number of operations in the block, with a
 flag indicating if the block has arguments.
+
+Use-list orders are attached to block arguments similarly to how they are
+attached to operation results.

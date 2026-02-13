@@ -1,4 +1,4 @@
-# RUN: llc -mtriple=amdgcn--amdpal -mcpu=gfx803 -run-pass=simple-register-coalescing -o - %s | FileCheck -check-prefix=GCN %s
+# RUN: llc -mtriple=amdgcn--amdpal -mcpu=gfx803 -run-pass=register-coalescer -o - %s | FileCheck -check-prefix=GCN %s
 
 # With one version of the D48102 fix, this test failed with
 # Assertion failed: (Id != S.end() && T != S.end() && T->valno == Id->valno), function pruneSubRegValues, file ../lib/CodeGen/RegisterCoalescer.cpp, line 2870.
@@ -6,7 +6,6 @@
 # GCN: {{^body}}
 
 --- |
-  target datalayout = "e-p:64:64-p1:64:64-p2:32:32-p3:32:32-p4:64:64-p5:32:32-p6:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5"
   target triple = "amdgcn--amdpal"
 
   ; Function Attrs: nounwind
@@ -148,7 +147,7 @@ body: |
     %43:sreg_32_xm0_xexec = S_BUFFER_LOAD_DWORD_IMM undef %44:sgpr_128, 12, 0 :: (dereferenceable invariant load (s32))
     %45:vgpr_32 = V_MUL_LO_I32_e64 killed %42, killed %43, implicit $exec
     %46:vgpr_32 = V_LSHLREV_B32_e32 2, killed %45, implicit $exec
-    %47:vgpr_32 = BUFFER_LOAD_FORMAT_X_IDXEN killed %46, undef %48:sgpr_128, 0, 0, 0, 0, 0, implicit $exec :: (dereferenceable load (s32) from constant-pool, align 1, addrspace 4)
+    %47:vgpr_32 = BUFFER_LOAD_FORMAT_X_IDXEN killed %46, undef %48:sgpr_128, 0, 0, 0, 0, implicit $exec :: (dereferenceable load (s32) from constant-pool, align 1, addrspace 4)
     %49:sreg_64 = V_CMP_NE_U32_e64 0, killed %47, implicit $exec
     %50:sreg_64 = COPY $exec, implicit-def $exec
     %51:sreg_64 = S_AND_B64 %50, %49, implicit-def dead $scc

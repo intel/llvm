@@ -1,4 +1,4 @@
-//===--- UndefinedMemoryManipulationCheck.cpp - clang-tidy-----------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,9 +12,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 namespace {
 AST_MATCHER(CXXRecordDecl, isNotTriviallyCopyable) {
@@ -24,9 +22,14 @@ AST_MATCHER(CXXRecordDecl, isNotTriviallyCopyable) {
 } // namespace
 
 void UndefinedMemoryManipulationCheck::registerMatchers(MatchFinder *Finder) {
-  const auto NotTriviallyCopyableObject =
-      hasType(ast_matchers::hasCanonicalType(
-          pointsTo(cxxRecordDecl(isNotTriviallyCopyable()))));
+  const auto HasNotTriviallyCopyableDecl =
+      hasDeclaration(cxxRecordDecl(isNotTriviallyCopyable()));
+  const auto ArrayOfNotTriviallyCopyable =
+      arrayType(hasElementType(HasNotTriviallyCopyableDecl));
+  const auto NotTriviallyCopyableObject = hasType(hasCanonicalType(
+      anyOf(pointsTo(qualType(anyOf(HasNotTriviallyCopyableDecl,
+                                    ArrayOfNotTriviallyCopyable))),
+            ArrayOfNotTriviallyCopyable)));
 
   // Check whether destination object is not TriviallyCopyable.
   // Applicable to all three memory manipulation functions.
@@ -65,6 +68,4 @@ void UndefinedMemoryManipulationCheck::check(
   }
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

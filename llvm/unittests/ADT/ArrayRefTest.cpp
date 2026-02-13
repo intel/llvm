@@ -8,42 +8,41 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/Allocator.h"
-#include "llvm/Support/raw_ostream.h"
 #include "gtest/gtest.h"
 #include <limits>
 #include <vector>
+#if __has_include(<version>)
+#include <version>
+#endif
+#ifdef __cpp_lib_span
+#include <span>
+#endif
+
 using namespace llvm;
 
 // Check that the ArrayRef-of-pointer converting constructor only allows adding
 // cv qualifiers (not removing them, or otherwise changing the type)
-static_assert(
-    std::is_convertible<ArrayRef<int *>, ArrayRef<const int *>>::value,
-    "Adding const");
-static_assert(
-    std::is_convertible<ArrayRef<int *>, ArrayRef<volatile int *>>::value,
-    "Adding volatile");
-static_assert(!std::is_convertible<ArrayRef<int *>, ArrayRef<float *>>::value,
+static_assert(std::is_convertible_v<ArrayRef<int *>, ArrayRef<const int *>>,
+              "Adding const");
+static_assert(std::is_convertible_v<ArrayRef<int *>, ArrayRef<volatile int *>>,
+              "Adding volatile");
+static_assert(!std::is_convertible_v<ArrayRef<int *>, ArrayRef<float *>>,
               "Changing pointer of one type to a pointer of another");
-static_assert(
-    !std::is_convertible<ArrayRef<const int *>, ArrayRef<int *>>::value,
-    "Removing const");
-static_assert(
-    !std::is_convertible<ArrayRef<volatile int *>, ArrayRef<int *>>::value,
-    "Removing volatile");
+static_assert(!std::is_convertible_v<ArrayRef<const int *>, ArrayRef<int *>>,
+              "Removing const");
+static_assert(!std::is_convertible_v<ArrayRef<volatile int *>, ArrayRef<int *>>,
+              "Removing volatile");
 
 // Check that we can't accidentally assign a temporary location to an ArrayRef.
 // (Unfortunately we can't make use of the same thing with constructors.)
+static_assert(!std::is_assignable_v<ArrayRef<int *> &, int *>,
+              "Assigning from single prvalue element");
+static_assert(!std::is_assignable_v<ArrayRef<int *> &, int *&&>,
+              "Assigning from single xvalue element");
+static_assert(std::is_assignable_v<ArrayRef<int *> &, int *&>,
+              "Assigning from single lvalue element");
 static_assert(
-    !std::is_assignable<ArrayRef<int *>&, int *>::value,
-    "Assigning from single prvalue element");
-static_assert(
-    !std::is_assignable<ArrayRef<int *>&, int * &&>::value,
-    "Assigning from single xvalue element");
-static_assert(
-    std::is_assignable<ArrayRef<int *>&, int * &>::value,
-    "Assigning from single lvalue element");
-static_assert(
-    !std::is_assignable<ArrayRef<int *>&, std::initializer_list<int *>>::value,
+    !std::is_assignable_v<ArrayRef<int *> &, std::initializer_list<int *>>,
     "Assigning from an initializer list");
 
 namespace {
@@ -51,9 +50,9 @@ namespace {
 TEST(ArrayRefTest, AllocatorCopy) {
   BumpPtrAllocator Alloc;
   static const uint16_t Words1[] = { 1, 4, 200, 37 };
-  ArrayRef<uint16_t> Array1 = makeArrayRef(Words1, 4);
+  ArrayRef<uint16_t> Array1 = ArrayRef(Words1, 4);
   static const uint16_t Words2[] = { 11, 4003, 67, 64000, 13 };
-  ArrayRef<uint16_t> Array2 = makeArrayRef(Words2, 5);
+  ArrayRef<uint16_t> Array2 = ArrayRef(Words2, 5);
   ArrayRef<uint16_t> Array1c = Array1.copy(Alloc);
   ArrayRef<uint16_t> Array2c = Array2.copy(Alloc);
   EXPECT_TRUE(Array1.equals(Array1c));
@@ -70,9 +69,9 @@ TEST(ArrayRefTest, AllocatorCopy) {
     void operator=(const NonAssignable &RHS) { assert(RHS.Ptr != nullptr); }
     bool operator==(const NonAssignable &RHS) const { return Ptr == RHS.Ptr; }
   } Array3Src[] = {"hello", "world"};
-  ArrayRef<NonAssignable> Array3Copy = makeArrayRef(Array3Src).copy(Alloc);
-  EXPECT_EQ(makeArrayRef(Array3Src), Array3Copy);
-  EXPECT_NE(makeArrayRef(Array3Src).data(), Array3Copy.data());
+  ArrayRef<NonAssignable> Array3Copy = ArrayRef(Array3Src).copy(Alloc);
+  EXPECT_EQ(ArrayRef(Array3Src), Array3Copy);
+  EXPECT_NE(ArrayRef(Array3Src).data(), Array3Copy.data());
 }
 
 // This test is pure UB given the ArrayRef<> implementation.
@@ -103,6 +102,48 @@ TEST(ArrayRefTest, DropFront) {
   ArrayRef<int> AR1(TheNumbers);
   ArrayRef<int> AR2(&TheNumbers[2], AR1.size() - 2);
   EXPECT_TRUE(AR1.drop_front(2).equals(AR2));
+}
+
+TEST(ArrayRefTest, ConsumeFront) {
+  static const int TheNumbers[] = {4, 8, 15, 16, 23, 42};
+  ArrayRef<int> AR1(TheNumbers);
+  ArrayRef<int> AR2(&TheNumbers[2], AR1.size() - 2);
+  EXPECT_EQ(&AR1.consume_front(), &TheNumbers[0]);
+  EXPECT_EQ(&AR1.consume_front(), &TheNumbers[1]);
+  EXPECT_TRUE(AR1.equals(AR2));
+}
+
+TEST(ArrayRefTest, ConsumeBack) {
+  static const int TheNumbers[] = {4, 8, 15, 16, 23, 42};
+  ArrayRef<int> AR1(TheNumbers);
+  ArrayRef<int> AR2(TheNumbers, AR1.size() - 2);
+  EXPECT_EQ(&AR1.consume_back(), &TheNumbers[5]);
+  EXPECT_EQ(&AR1.consume_back(), &TheNumbers[4]);
+  EXPECT_TRUE(AR1.equals(AR2));
+}
+
+TEST(ArrayRefTest, MutableArryaRefConsumeFront) {
+  int TheNumbers[] = {4, 8, 15, 16, 23, 42};
+  MutableArrayRef<int> AR1(TheNumbers);
+  MutableArrayRef<int> AR2(&TheNumbers[2], AR1.size() - 2);
+  EXPECT_EQ(&AR1.consume_front(), &TheNumbers[0]);
+  EXPECT_EQ(&AR1.consume_front(), &TheNumbers[1]);
+  EXPECT_TRUE(AR1.equals(AR2));
+
+  AR1.consume_front() = 33;
+  EXPECT_EQ(TheNumbers[2], 33);
+}
+
+TEST(ArrayRefTest, MutableArryaRefConsumeBack) {
+  int TheNumbers[] = {4, 8, 15, 16, 23, 42};
+  MutableArrayRef<int> AR1(TheNumbers);
+  MutableArrayRef<int> AR2(TheNumbers, AR1.size() - 2);
+  EXPECT_EQ(&AR1.consume_back(), &TheNumbers[5]);
+  EXPECT_EQ(&AR1.consume_back(), &TheNumbers[4]);
+  EXPECT_TRUE(AR1.equals(AR2));
+
+  AR1.consume_back() = 33;
+  EXPECT_EQ(TheNumbers[3], 33);
 }
 
 TEST(ArrayRefTest, DropWhile) {
@@ -190,6 +231,27 @@ TEST(ArrayRefTest, EmptyEquals) {
   EXPECT_TRUE(ArrayRef<unsigned>() == ArrayRef<unsigned>());
 }
 
+TEST(ArrayRefTest, Compare) {
+  ArrayRef<char> Ban("Ban");
+  ArrayRef<char> Banana("Banana");
+  ArrayRef<char> Band("Band");
+
+  EXPECT_TRUE(Ban < Banana);
+  EXPECT_TRUE(Ban <= Banana);
+  EXPECT_FALSE(Ban > Banana);
+  EXPECT_FALSE(Ban >= Banana);
+
+  EXPECT_FALSE(Banana < Banana);
+  EXPECT_TRUE(Banana <= Banana);
+  EXPECT_FALSE(Banana > Banana);
+  EXPECT_TRUE(Banana >= Banana);
+
+  EXPECT_TRUE(Banana < Band);
+  EXPECT_TRUE(Banana <= Band);
+  EXPECT_FALSE(Banana > Band);
+  EXPECT_FALSE(Banana >= Band);
+}
+
 TEST(ArrayRefTest, ConstConvert) {
   int buf[4];
   for (int i = 0; i < 4; ++i)
@@ -229,31 +291,32 @@ TEST(ArrayRefTest, EmptyInitializerList) {
   EXPECT_TRUE(A.empty());
 }
 
-TEST(ArrayRefTest, makeArrayRef) {
+TEST(ArrayRefTest, ArrayRef) {
   static const int A1[] = {1, 2, 3, 4, 5, 6, 7, 8};
 
-  // No copy expected for non-const ArrayRef (true no-op)
+  // A copy is expected for non-const ArrayRef (thin copy)
   ArrayRef<int> AR1(A1);
-  ArrayRef<int> &AR1Ref = makeArrayRef(AR1);
-  EXPECT_EQ(&AR1, &AR1Ref);
+  const ArrayRef<int> &AR1Ref = ArrayRef(AR1);
+  EXPECT_NE(&AR1, &AR1Ref);
+  EXPECT_TRUE(AR1.equals(AR1Ref));
 
   // A copy is expected for non-const ArrayRef (thin copy)
   const ArrayRef<int> AR2(A1);
-  const ArrayRef<int> &AR2Ref = makeArrayRef(AR2);
+  const ArrayRef<int> &AR2Ref = ArrayRef(AR2);
   EXPECT_NE(&AR2Ref, &AR2);
   EXPECT_TRUE(AR2.equals(AR2Ref));
 }
 
 TEST(ArrayRefTest, OwningArrayRef) {
   static const int A1[] = {0, 1};
-  OwningArrayRef<int> A(makeArrayRef(A1));
+  OwningArrayRef<int> A{ArrayRef(A1)};
   OwningArrayRef<int> B(std::move(A));
   EXPECT_EQ(A.data(), nullptr);
 }
 
-TEST(ArrayRefTest, makeArrayRefFromStdArray) {
+TEST(ArrayRefTest, ArrayRefFromStdArray) {
   std::array<int, 5> A1{{42, -5, 0, 1000000, -1000000}};
-  ArrayRef<int> A2 = makeArrayRef(A1);
+  ArrayRef<int> A2 = ArrayRef(A1);
 
   EXPECT_EQ(A1.size(), A2.size());
   for (std::size_t i = 0; i < A1.size(); ++i) {
@@ -261,46 +324,176 @@ TEST(ArrayRefTest, makeArrayRefFromStdArray) {
   }
 }
 
-static_assert(std::is_trivially_copyable<ArrayRef<int>>::value,
+struct TestRandomAccessIterator {
+  using iterator_category = std::random_access_iterator_tag;
+};
+
+static_assert(!std::is_constructible_v<
+                  ArrayRef<int>, iterator_range<TestRandomAccessIterator>>,
+              "cannot construct from iterator range with non-pointer iterator");
+static_assert(!std::is_constructible_v<ArrayRef<int>, iterator_range<int>>,
+              "cannot construct from iterator range with non-pointer iterator");
+
+class TestBase {};
+
+class TestDerived : public TestBase {};
+
+static_assert(
+    !std::is_constructible_v<ArrayRef<TestDerived>, iterator_range<TestBase *>>,
+    "cannot construct ArrayRef with derived type");
+static_assert(
+    !std::is_constructible_v<ArrayRef<TestBase>, iterator_range<TestDerived *>>,
+    "cannot construct ArrayRef base type");
+static_assert(!std::is_constructible_v<ArrayRef<TestBase *>,
+                                       iterator_range<TestDerived **>>,
+              "cannot construct ArrayRef pointer of base type");
+
+static_assert(
+    !std::is_constructible_v<ArrayRef<int>, iterator_range<const int *>>,
+    "cannot construct ArrayRef with non-const elements from const iterator "
+    "range");
+static_assert(
+    std::is_constructible_v<ArrayRef<char *>, iterator_range<char **>>,
+    "should be able to construct ArrayRef from iterator_range over pointers");
+static_assert(
+    !std::is_constructible_v<ArrayRef<char *>, iterator_range<char *const *>>,
+    "should be able to construct ArrayRef from iterator_range over pointers");
+
+TEST(ArrayRefTest, ArrayRefFromIteratorRange) {
+  int A1[] = {42, -5, 0, 1000000, -1000000, 0};
+  ArrayRef<int> A2 = make_range(&A1[0], &A1[5]);
+
+  EXPECT_EQ(5ull, A2.size());
+  for (std::size_t i = 0; i < A2.size(); ++i)
+    EXPECT_EQ(A1[i], A2[i]);
+
+  ArrayRef<const int> A3 = make_range(&A1[0], &A1[5]);
+  EXPECT_EQ(5ull, A3.size());
+  for (std::size_t i = 0; i < A3.size(); ++i)
+    EXPECT_EQ(A1[i], A3[i]);
+}
+
+TEST(ArrayRefTest, ArrayRefFromIteratorConstRange) {
+  const int A1[] = {42, -5, 0, 1000000, -1000000, 0};
+  ArrayRef<const int> A2 = make_range(&A1[0], &A1[5]);
+
+  EXPECT_EQ(5ull, A2.size());
+  for (std::size_t i = 0; i < A2.size(); ++i)
+    EXPECT_EQ(A1[i], A2[i]);
+}
+
+static_assert(std::is_trivially_copyable_v<ArrayRef<int>>,
               "trivially copyable");
 
-TEST(ArrayRefTest, makeMutableArrayRef) {
-  int A = 0;
-  auto AR = makeMutableArrayRef(A);
-  EXPECT_EQ(AR.data(), &A);
-  EXPECT_EQ(AR.size(), (size_t)1);
+TEST(ArrayRefTest, MutableArrayRefDeductionGuides) {
+  // Single element
+  {
+    int x = 0;
+    auto aref = MutableArrayRef(x);
+    static_assert(std::is_same_v<MutableArrayRef<int>, decltype(aref)>);
+    EXPECT_EQ(aref.data(), &x);
+    EXPECT_EQ(aref.size(), 1u);
 
-  AR[0] = 1;
-  EXPECT_EQ(A, 1);
+    // Make sure it's mutable still
+    aref[0] = 1;
+    EXPECT_EQ(x, 1);
+  }
 
-  int B[] = {0, 1, 2, 3};
-  auto BR1 = makeMutableArrayRef(&B[0], 4);
-  auto BR2 = makeMutableArrayRef(B);
-  EXPECT_EQ(BR1.data(), &B[0]);
-  EXPECT_EQ(BR1.size(), (size_t)4);
-  EXPECT_EQ(BR2.data(), &B[0]);
-  EXPECT_EQ(BR2.size(), (size_t)4);
+  // Pointer + length
+  {
+    int x[] = {0, 1, 2, 3};
+    auto aref = MutableArrayRef(&x[0], 4);
+    static_assert(std::is_same_v<MutableArrayRef<int>, decltype(aref)>);
+    EXPECT_EQ(aref.data(), &x[0]);
+    EXPECT_EQ(aref.size(), 4u);
+  }
 
-  SmallVector<int> C1;
-  SmallVectorImpl<int> &C2 = C1;
-  C1.resize(5);
-  auto CR1 = makeMutableArrayRef(C1);
-  auto CR2 = makeMutableArrayRef(C2);
-  EXPECT_EQ(CR1.data(), C1.data());
-  EXPECT_EQ(CR1.size(), C1.size());
-  EXPECT_EQ(CR2.data(), C2.data());
-  EXPECT_EQ(CR2.size(), C2.size());
+  // // Pointer + pointer
+  {
+    int x[] = {0, 1, 2, 3};
+    auto aref = MutableArrayRef(std::begin(x), std::end(x));
+    static_assert(std::is_same_v<MutableArrayRef<int>, decltype(aref)>);
+    EXPECT_EQ(aref.data(), &x[0]);
+    EXPECT_EQ(aref.size(), 4u);
+  }
 
-  std::vector<int> D;
-  D.resize(5);
-  auto DR = makeMutableArrayRef(D);
-  EXPECT_EQ(DR.data(), D.data());
-  EXPECT_EQ(DR.size(), D.size());
+  // SmallVector
+  {
+    SmallVector<int> sv1;
+    SmallVectorImpl<int> &sv2 = sv1;
+    sv1.resize(5);
+    auto aref1 = MutableArrayRef(sv1);
+    auto aref2 = MutableArrayRef(sv2);
+    static_assert(std::is_same_v<MutableArrayRef<int>, decltype(aref1)>);
+    static_assert(std::is_same_v<MutableArrayRef<int>, decltype(aref2)>);
+    EXPECT_EQ(aref1.data(), sv1.data());
+    EXPECT_EQ(aref1.size(), sv1.size());
+    EXPECT_EQ(aref2.data(), sv2.data());
+    EXPECT_EQ(aref2.size(), sv2.size());
+  }
 
-  std::array<int, 5> E;
-  auto ER = makeMutableArrayRef(E);
-  EXPECT_EQ(ER.data(), E.data());
-  EXPECT_EQ(ER.size(), E.size());
+  // std::vector
+  {
+    std::vector<int> x(5);
+    auto aref = MutableArrayRef(x);
+    static_assert(std::is_same_v<MutableArrayRef<int>, decltype(aref)>);
+    EXPECT_EQ(aref.data(), x.data());
+    EXPECT_EQ(aref.size(), x.size());
+  }
+
+  // std::array
+  {
+    std::array<int, 5> x{};
+    auto aref = MutableArrayRef(x);
+    static_assert(std::is_same_v<MutableArrayRef<int>, decltype(aref)>);
+    EXPECT_EQ(aref.data(), x.data());
+    EXPECT_EQ(aref.size(), x.size());
+  }
+
+  // MutableArrayRef
+  {
+    MutableArrayRef<int> x{};
+    auto aref = MutableArrayRef(x);
+    static_assert(std::is_same_v<MutableArrayRef<int>, decltype(aref)>);
+    EXPECT_EQ(aref.data(), x.data());
+    EXPECT_EQ(aref.size(), x.size());
+
+    const MutableArrayRef<int> y{};
+    auto aref2 = MutableArrayRef(y);
+    static_assert(std::is_same_v<MutableArrayRef<int>, decltype(aref2)>);
+    EXPECT_EQ(aref2.data(), y.data());
+    EXPECT_EQ(aref2.size(), y.size());
+  }
+
+  // C-style array
+  {
+    int x[] = {0, 1, 2, 3};
+    auto aref = MutableArrayRef(x);
+    static_assert(std::is_same_v<MutableArrayRef<int>, decltype(aref)>);
+    EXPECT_EQ(aref.data(), &x[0]);
+    EXPECT_EQ(aref.size(), 4u);
+  }
 }
+
+#ifdef __cpp_lib_span
+static_assert(std::is_constructible_v<ArrayRef<int>, std::span<const int>>,
+              "should be able to construct ArrayRef from const std::span");
+static_assert(std::is_constructible_v<std::span<const int>, ArrayRef<int>>,
+              "should be able to construct const std::span from ArrayRef");
+static_assert(std::is_constructible_v<ArrayRef<int>, std::span<int>>,
+              "should be able to construct ArrayRef from mutable std::span");
+static_assert(!std::is_constructible_v<std::span<int>, ArrayRef<int>>,
+              "cannot construct mutable std::span from ArrayRef");
+
+static_assert(
+    !std::is_constructible_v<MutableArrayRef<int>, std::span<const int>>,
+    "cannot construct MutableArrayRef from const std::span");
+static_assert(
+    std::is_constructible_v<std::span<const int>, MutableArrayRef<int>>,
+    "should be able to construct const std::span from MutableArrayRef");
+static_assert(
+    std::is_constructible_v<MutableArrayRef<int>, std::span<int>>,
+    "should be able to construct MutableArrayRef from mutable std::span");
+#endif
 
 } // end anonymous namespace

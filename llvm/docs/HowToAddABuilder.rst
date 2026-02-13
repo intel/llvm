@@ -6,7 +6,13 @@ Introduction
 ============
 
 This document contains information about adding a build configuration and
-buildbot-worker to private worker builder to LLVM Buildbot Infrastructure.
+buildbot worker to the LLVM Buildbot Infrastructure.
+
+.. note:: The term "buildmaster" is used in this document to refer to the
+  server that manages which builds are run and where. Though we would not
+  normally choose to use "master" terminology, it is used in this document
+  because it is the term that the Buildbot package currently
+  `uses <https://github.com/buildbot/buildbot/issues/5382>`_.
 
 Buildmasters
 ============
@@ -18,10 +24,11 @@ There are two buildmasters running.
   the build.
 * The staging buildmaster at `<https://lab.llvm.org/staging>`_. All builders
   attached to this machine will be completely silent by default when the build
-  is broken.
+  is broken. This buildmaster is reconfigured every two hours with any new
+  commits from the llvm-zorg repository.
 
 In order to remain connected to the main buildmaster (and thus notify
-developers of failures), a builbot must:
+developers of failures), a buildbot must:
 
 * Be building a supported configuration.  Builders for experimental backends
   should generally be attached to staging buildmaster.
@@ -62,15 +69,14 @@ Here are the steps you can follow to do so:
    will get feedback sooner after changes get committed.
 
 #. The computer you will be registering with the LLVM buildbot
-   infrastructure should have all dependencies installed and you can
-   actually build your configuration successfully. Please check what degree
+   infrastructure should have all dependencies installed and be able to
+   build your configuration successfully. Please check what degree
    of parallelism (-j param) would give the fastest build.  You can build
    multiple configurations on one computer.
 
-#. Install buildbot-worker (currently we are using buildbot version 2.8.5).
-   Depending on the platform, buildbot-worker could be available to download and
-   install with your package manager, or you can download it directly from
-   `<http://trac.buildbot.net>`_ and install it manually.
+#. Install buildbot-worker (currently we are using buildbot version 3.11.7).
+   This specific version can be installed using ``pip``, with a command such
+   as ``pip3 install buildbot-worker==3.11.7``.
 
 #. Create a designated user account, your buildbot-worker will be running under,
    and set appropriate permissions.
@@ -92,10 +98,24 @@ Here are the steps you can follow to do so:
                     <buildbot-worker-access-name> \
                     <buildbot-worker-access-password>
 
-   This will cause your new worker to connect to the staging buildmaster
-   which is silent by default.  Only once a new worker is stable, and
+   Only once a new worker is stable, and
    approval from Galina has been received (see last step) should it
    be pointed at the main buildmaster.
+
+   Now start the worker:
+
+    .. code-block:: bash
+
+       $ buildbot-worker start <buildbot-worker-root-directory>
+
+   This will cause your new worker to connect to the staging buildmaster
+   which is silent by default.
+
+   Try this once then check the log file
+   ``<buildbot-worker-root-directory>/worker/twistd.log``. If your settings
+   are correct you will see a refused connection. This is good and expected,
+   as the credentials have not been established on both ends. Now stop the
+   worker and proceed to the next steps.
 
 #. Fill the buildbot-worker description and admin name/e-mail.  Here is an
    example of the buildbot-worker description::
@@ -108,10 +128,8 @@ Here are the steps you can follow to do so:
        cmake version 2.8.4
        Microsoft(R) 32-bit C/C++ Optimizing Compiler Version 16.00.40219.01 for 80x86
 
-#. Make sure you can actually start the buildbot-worker successfully. Then set
-   up your buildbot-worker to start automatically at the start up time.  See the
-   buildbot documentation for help.  You may want to restart your computer
-   to see if it works.
+   See `here <http://docs.buildbot.net/current/manual/installation/worker.html>`_
+   for which files to edit.
 
 #. Send a patch which adds your build worker and your builder to
    `zorg <https://github.com/llvm/llvm-zorg>`_. Use the typical LLVM
@@ -138,9 +156,14 @@ Here are the steps you can follow to do so:
    otherwise.
 
 #. Send the buildbot-worker access name and the access password directly to
-   `Galina Kistanova <mailto:gkistanova@gmail.com>`_, and wait till she
-   will let you know that your changes are applied and buildmaster is
+   `Galina Kistanova <mailto:gkistanova@gmail.com>`_, and wait until she
+   lets you know that your changes are applied and buildmaster is
    reconfigured.
+
+#. Make sure you can start the buildbot-worker and successfully connect
+   to the silent buildmaster. Then set up your buildbot-worker to start
+   automatically at the start up time.  See the buildbot documentation
+   for help.  You may want to restart your computer to see if it works.
 
 #. Check the status of your buildbot-worker on the `Waterfall Display (Staging)
    <http://lab.llvm.org/staging/#/waterfall>`_ to make sure it is
@@ -154,13 +177,116 @@ Here are the steps you can follow to do so:
    keep an unstable builder connected to staging indefinitely.
 
 #. (Optional) Once the builder is stable on the staging buildmaster with
-   several days of green history, you can chose to move it to the production
+   several days of green history, you can choose to move it to the production
    buildmaster to enable developer notifications.  Please email `Galina
    Kistanova <mailto:gkistanova@gmail.com>`_ for review and approval.
 
    To move a worker to production (once approved), stop your worker, edit the
    buildbot.tac file to change the port number from 9994 to 9990 and start it
    again.
+
+Testing a Builder Config Locally
+================================
+
+It is possible to test a builder running against a local version of LLVM's
+buildmaster setup. This allows you to test changes to builder, worker, and
+buildmaster configuration. A buildmaster launched in this "local testing" mode
+will:
+
+* Bind only to local interfaces.
+* Use SQLite as the database.
+* Use a single fixed password for workers.
+* Disable extras like GitHub authentication.
+
+In order to use this "local testing" mode:
+
+* Create and activate a Python `venv
+  <https://docs.python.org/3/library/venv.html>`_ and install the necessary
+  dependencies. This step can be run from any directory.
+
+    .. code-block:: bash
+
+       python -m venv bbenv
+       source bbenv/bin/activate
+       pip install buildbot{,-console-view,-grid-view,-waterfall-view,-worker,-www}==3.11.7 urllib3
+
+* If your system has Python 3.13 or newer you will need to additionally
+  install ``legacy-cgi`` and make a minor patch to the installed buildbot
+  package. This step does not need to be followed for earlier Python versions.
+
+    .. code-block:: bash
+
+       pip install legacy-cgi
+       sed -i \
+         -e 's/import pipes/import shlex/' \
+         -e 's/pipes\.quote/shlex.quote/' \
+         bbenv/lib/python3.13/site-packages/buildbot_worker/runprocess.py
+
+* Initialise the necessary buildmaster files, link to the configuration in a
+  local checkout out of `llvm-zorg <https://github.com/llvm/llvm-zorg>`_, and
+  ask ``buildbot`` to check the configuration. This step can be run from any
+  directory.
+
+    .. code-block:: bash
+
+       buildbot create-master llvm-testbbmaster
+       cd llvm-testbbmaster
+       ln -s /path/to/checkout/of/llvm-zorg/buildbot/osuosl/master/master.cfg .
+       ln -s /path/to/checkout/of/llvm-zorg/buildbot/osuosl/master/config/ .
+       ln -s /path/to/checkout/of/llvm-zorg/zorg/ .
+       BUILDBOT_TEST=1 buildbot checkconfig
+
+* Start the buildmaster.
+
+    .. code-block:: bash
+
+       BUILDBOT_TEST=1 buildbot start --nodaemon .
+
+* After waiting a few seconds for startup to complete, you should be able to
+  open the web UI at ``http://localhost:8011``.  If there are any errors or
+  this isn't working, check ``twistd.log`` (within the current directory) for
+  more information.
+
+* You can now create and start a buildbot worker. Ensure you pick the correct
+  name for the worker associated with the build configuration you want to test
+  in ``buildbot/osuosl/master/config/builders.py``.
+
+    .. code-block:: bash
+
+       buildbot-worker create-worker <buildbot-worker-root-directory> \
+                       localhost:9990 \
+                       <buildbot-worker-name> \
+                       test
+       buildbot-worker start --nodaemon <buildbot-worker-root-directory>
+
+* Either wait until the poller sets off a build, or alternatively force a
+  build to start in the web UI.
+
+* Review the progress and results of the build in the web UI.
+
+This local testing configuration defaults to binding only to the loopback
+interface for security reasons.
+
+If you want to run the test worker on a different machine, or to run the
+buildmaster on a remote server, ssh port forwarding can be used to make
+connection possible. For instance, if running the buildmaster on a remote
+server the following command will suffice to make the web UI accessible via
+``http://localhost:8011`` and make it possible for a local worker to connect
+to the remote buildmaster by connecting to ``localhost:9900``:
+
+    .. code-block:: bash
+
+       ssh -N -L 8011:localhost:8011 -L 9990:localhost:9990 username@buildmaster_server_address
+
+Be aware that some build configurations may checkout the current upstream
+``llvm-zorg`` repository in order to retrieve additional scripts used during
+the build process, meaning any local changes will not be reflected in this
+part of the build. If you wish to test changes to any of these scripts without
+committing them upstream, you will need to temporarily patch the builder logic
+in order to instead check out your own branch.
+Typically, ``addGetSourcecodeForProject`` from
+``zorg/buildbot/process/factory.py`` is used for this and you can edit the
+caller to specify your own ``repourl`` and/or ``branch`` keyword argument.
 
 Best Practices for Configuring a Fast Builder
 =============================================
@@ -219,7 +345,7 @@ Use Ninja & LLD
   Ninja really does help build times over Make, particularly for highly
   parallel builds.  LLD helps to reduce both link times and memory usage
   during linking significantly.  With a build machine with sufficient
-  parallism, link times tend to dominate critical path of the build, and are
+  parallelism, link times tend to dominate critical path of the build, and are
   thus worth optimizing.
 
 Use CCache and NOT incremental builds
@@ -259,4 +385,32 @@ Leave it on the staging buildmaster
   impacting the broader community.  The sponsoring organization simply
   has to take on the responsibility of all bisection and triage.
 
-  
+Managing a Worker From The Web Interface
+========================================
+
+Tasks such as clearing pending building requests can be done using
+the Buildbot web interface. To do this you must be recognised as an admin
+of the worker:
+
+* Set your public GitHub profile email to one that was included in the
+  ``admin`` information you set up on the worker. It does not matter if this
+  is your primary account email or a "verified email". To confirm this has been
+  done correctly, go to ``github.com/<your GitHub username>`` and you should
+  see the email address listed there.
+
+  A worker can have many admins, if they are listed in the form
+  ``First Last <first.last@example.com>, First2 Last2 <first2.last2@example.com>``.
+  You only need to have one of those addresses in your profile to be recognised
+  as an admin.
+
+  If you need to add an email address, you can edit the ``admin`` file and
+  restart the worker. You should see the new admin details in the web interface
+  shortly afterwards.
+
+* Connect GitHub to Buildbot by clicking on the "Anonymous" button on the
+  top right of the page, then "Login with GitHub" and authorise the app.
+
+Some tasks don't give immediate feedback, so if nothing happens within a short
+time, try again with the browser's web console open. Sometimes you will see
+403 errors and other messages that might indicate you don't have the correct
+details set up.

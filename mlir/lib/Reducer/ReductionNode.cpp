@@ -15,10 +15,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Reducer/ReductionNode.h"
-#include "mlir/IR/BlockAndValueMapping.h"
+#include "mlir/IR/IRMapping.h"
 #include "llvm/ADT/STLExtras.h"
 
-#include <algorithm>
 #include <limits>
 
 using namespace mlir;
@@ -38,7 +37,7 @@ ReductionNode::ReductionNode(
 LogicalResult ReductionNode::initialize(ModuleOp parentModule,
                                         Region &targetRegion) {
   // Use the mapper help us find the corresponding region after module clone.
-  BlockAndValueMapping mapper;
+  IRMapping mapper;
   module = cast<ModuleOp>(parentModule->clone(mapper));
   // Use the first block of targetRegion to locate the cloned region.
   Block *block = mapper.lookup(&*targetRegion.begin());
@@ -62,7 +61,7 @@ ArrayRef<ReductionNode *> ReductionNode::generateNewVariants() {
   if (variants.empty() && getRanges().size() > 1) {
     for (const Range &range : getRanges()) {
       std::vector<Range> subRanges = getRanges();
-      llvm::erase_value(subRanges, range);
+      llvm::erase(subRanges, range);
       variants.push_back(createNewNode(subRanges));
     }
 
@@ -74,8 +73,8 @@ ArrayRef<ReductionNode *> ReductionNode::generateNewVariants() {
   // the above example, we split the range {4, 9} into {4, 6}, {6, 9}, and
   // create two variants with range {{1, 3}, {4, 6}} and {{1, 3}, {6, 9}}. The
   // final ranges vector will be {{1, 3}, {4, 6}, {6, 9}}.
-  auto maxElement = std::max_element(
-      ranges.begin(), ranges.end(), [](const Range &lhs, const Range &rhs) {
+  auto maxElement =
+      llvm::max_element(ranges, [](const Range &lhs, const Range &rhs) {
         return (lhs.second - lhs.first) > (rhs.second - rhs.first);
       });
 

@@ -8,9 +8,6 @@
 
 // UNSUPPORTED: c++03, c++11, c++14
 
-// Throwing bad_any_cast is supported starting in macosx10.13
-// UNSUPPORTED: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11|12}}
-
 // <any>
 
 // template <class ValueType>
@@ -33,11 +30,10 @@
 
 #include <any>
 
-struct no_copy
-{
-    no_copy() {}
-    no_copy(no_copy &&) {}
-    no_copy(no_copy const &) = delete;
+struct no_copy {
+  no_copy() {}
+  no_copy(no_copy&&) {}
+  no_copy(no_copy const&) = delete;
 };
 
 struct no_move {
@@ -46,18 +42,16 @@ struct no_move {
   no_move(no_move const&) {}
 };
 
-int main(int, char**) {
-    std::any a;
-    // expected-error-re@any:* {{{{(static_assert|static assertion)}} failed{{.*}}ValueType is required to be an lvalue reference or a CopyConstructible type}}
-    std::any_cast<no_copy>(static_cast<std::any&>(a)); // expected-note {{requested here}}
+void test() {
+  std::any a;
+  // expected-error-re@any:* {{static assertion failed{{.*}}ValueType is required to be an lvalue reference or a CopyConstructible type}}
+  (void)std::any_cast<no_copy>(static_cast<std::any&>(a)); // expected-note {{requested here}}
 
-    // expected-error-re@any:* {{{{(static_assert|static assertion)}} failed{{.*}}ValueType is required to be a const lvalue reference or a CopyConstructible type}}
-    std::any_cast<no_copy>(static_cast<std::any const&>(a)); // expected-note {{requested here}}
+  // expected-error-re@any:* {{static assertion failed{{.*}}ValueType is required to be a const lvalue reference or a CopyConstructible type}}
+  (void)std::any_cast<no_copy>(static_cast<std::any const&>(a)); // expected-note {{requested here}}
 
-    std::any_cast<no_copy>(static_cast<std::any &&>(a)); // OK
+  (void)std::any_cast<no_copy>(static_cast<std::any&&>(a)); // OK
 
-    // expected-error-re@any:* {{{{(static_assert|static assertion)}} failed{{.*}}ValueType is required to be an rvalue reference or a CopyConstructible type}}
-    std::any_cast<no_move>(static_cast<std::any &&>(a));
-
-  return 0;
+  // expected-error-re@any:* {{static assertion failed{{.*}}ValueType is required to be an rvalue reference or a CopyConstructible type}}
+  (void)std::any_cast<no_move>(static_cast<std::any&&>(a));
 }

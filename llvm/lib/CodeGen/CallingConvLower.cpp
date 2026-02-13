@@ -25,12 +25,15 @@
 
 using namespace llvm;
 
-CCState::CCState(CallingConv::ID CC, bool isVarArg, MachineFunction &mf,
-                 SmallVectorImpl<CCValAssign> &locs, LLVMContext &C)
-    : CallingConv(CC), IsVarArg(isVarArg), MF(mf),
-      TRI(*MF.getSubtarget().getRegisterInfo()), Locs(locs), Context(C) {
+CCState::CCState(CallingConv::ID CC, bool IsVarArg, MachineFunction &MF,
+                 SmallVectorImpl<CCValAssign> &Locs, LLVMContext &Context,
+                 bool NegativeOffsets)
+    : CallingConv(CC), IsVarArg(IsVarArg), MF(MF),
+      TRI(*MF.getSubtarget().getRegisterInfo()), Locs(Locs), Context(Context),
+      NegativeOffsets(NegativeOffsets) {
+
   // No stack is used.
-  StackOffset = 0;
+  StackSize = 0;
 
   clearByValRegsInfo();
   UsedRegs.resize((TRI.getNumRegs()+31)/32);
@@ -51,19 +54,19 @@ void CCState::HandleByVal(unsigned ValNo, MVT ValVT, MVT LocVT,
   ensureMaxAlignment(Alignment);
   MF.getSubtarget().getTargetLowering()->HandleByVal(this, Size, Alignment);
   Size = unsigned(alignTo(Size, MinAlign));
-  unsigned Offset = AllocateStack(Size, Alignment);
+  uint64_t Offset = AllocateStack(Size, Alignment);
   addLoc(CCValAssign::getMem(ValNo, ValVT, Offset, LocVT, LocInfo));
 }
 
 /// Mark a register and all of its aliases as allocated.
 void CCState::MarkAllocated(MCPhysReg Reg) {
   for (MCRegAliasIterator AI(Reg, &TRI, true); AI.isValid(); ++AI)
-    UsedRegs[*AI / 32] |= 1 << (*AI & 31);
+    UsedRegs[(*AI).id() / 32] |= 1 << ((*AI).id() & 31);
 }
 
 void CCState::MarkUnallocated(MCPhysReg Reg) {
   for (MCRegAliasIterator AI(Reg, &TRI, true); AI.isValid(); ++AI)
-    UsedRegs[*AI / 32] &= ~(1 << (*AI & 31));
+    UsedRegs[(*AI).id() / 32] &= ~(1 << ((*AI).id() & 31));
 }
 
 bool CCState::IsShadowAllocatedReg(MCRegister Reg) const {
@@ -86,7 +89,7 @@ CCState::AnalyzeFormalArguments(const SmallVectorImpl<ISD::InputArg> &Ins,
   for (unsigned i = 0; i != NumArgs; ++i) {
     MVT ArgVT = Ins[i].VT;
     ISD::ArgFlagsTy ArgFlags = Ins[i].Flags;
-    if (Fn(i, ArgVT, ArgVT, CCValAssign::Full, ArgFlags, *this))
+    if (Fn(i, ArgVT, ArgVT, CCValAssign::Full, ArgFlags, Ins[i].OrigTy, *this))
       report_fatal_error("unable to allocate function argument #" + Twine(i));
   }
 }
@@ -99,7 +102,7 @@ bool CCState::CheckReturn(const SmallVectorImpl<ISD::OutputArg> &Outs,
   for (unsigned i = 0, e = Outs.size(); i != e; ++i) {
     MVT VT = Outs[i].VT;
     ISD::ArgFlagsTy ArgFlags = Outs[i].Flags;
-    if (Fn(i, VT, VT, CCValAssign::Full, ArgFlags, *this))
+    if (Fn(i, VT, VT, CCValAssign::Full, ArgFlags, Outs[i].OrigTy, *this))
       return false;
   }
   return true;
@@ -113,7 +116,7 @@ void CCState::AnalyzeReturn(const SmallVectorImpl<ISD::OutputArg> &Outs,
   for (unsigned i = 0, e = Outs.size(); i != e; ++i) {
     MVT VT = Outs[i].VT;
     ISD::ArgFlagsTy ArgFlags = Outs[i].Flags;
-    if (Fn(i, VT, VT, CCValAssign::Full, ArgFlags, *this))
+    if (Fn(i, VT, VT, CCValAssign::Full, ArgFlags, Outs[i].OrigTy, *this))
       report_fatal_error("unable to allocate function return #" + Twine(i));
   }
 }
@@ -126,10 +129,11 @@ void CCState::AnalyzeCallOperands(const SmallVectorImpl<ISD::OutputArg> &Outs,
   for (unsigned i = 0; i != NumOps; ++i) {
     MVT ArgVT = Outs[i].VT;
     ISD::ArgFlagsTy ArgFlags = Outs[i].Flags;
-    if (Fn(i, ArgVT, ArgVT, CCValAssign::Full, ArgFlags, *this)) {
+    if (Fn(i, ArgVT, ArgVT, CCValAssign::Full, ArgFlags, Outs[i].OrigTy,
+           *this)) {
 #ifndef NDEBUG
       dbgs() << "Call operand #" << i << " has unhandled type "
-             << EVT(ArgVT).getEVTString() << '\n';
+             << ArgVT << '\n';
 #endif
       llvm_unreachable(nullptr);
     }
@@ -139,15 +143,16 @@ void CCState::AnalyzeCallOperands(const SmallVectorImpl<ISD::OutputArg> &Outs,
 /// Same as above except it takes vectors of types and argument flags.
 void CCState::AnalyzeCallOperands(SmallVectorImpl<MVT> &ArgVTs,
                                   SmallVectorImpl<ISD::ArgFlagsTy> &Flags,
+                                  SmallVectorImpl<Type *> &OrigTys,
                                   CCAssignFn Fn) {
   unsigned NumOps = ArgVTs.size();
   for (unsigned i = 0; i != NumOps; ++i) {
     MVT ArgVT = ArgVTs[i];
     ISD::ArgFlagsTy ArgFlags = Flags[i];
-    if (Fn(i, ArgVT, ArgVT, CCValAssign::Full, ArgFlags, *this)) {
+    if (Fn(i, ArgVT, ArgVT, CCValAssign::Full, ArgFlags, OrigTys[i], *this)) {
 #ifndef NDEBUG
       dbgs() << "Call operand #" << i << " has unhandled type "
-             << EVT(ArgVT).getEVTString() << '\n';
+             << ArgVT << '\n';
 #endif
       llvm_unreachable(nullptr);
     }
@@ -161,10 +166,10 @@ void CCState::AnalyzeCallResult(const SmallVectorImpl<ISD::InputArg> &Ins,
   for (unsigned i = 0, e = Ins.size(); i != e; ++i) {
     MVT VT = Ins[i].VT;
     ISD::ArgFlagsTy Flags = Ins[i].Flags;
-    if (Fn(i, VT, VT, CCValAssign::Full, Flags, *this)) {
+    if (Fn(i, VT, VT, CCValAssign::Full, Flags, Ins[i].OrigTy, *this)) {
 #ifndef NDEBUG
       dbgs() << "Call result #" << i << " has unhandled type "
-             << EVT(VT).getEVTString() << '\n';
+             << VT << '\n';
 #endif
       llvm_unreachable(nullptr);
     }
@@ -172,11 +177,11 @@ void CCState::AnalyzeCallResult(const SmallVectorImpl<ISD::InputArg> &Ins,
 }
 
 /// Same as above except it's specialized for calls that produce a single value.
-void CCState::AnalyzeCallResult(MVT VT, CCAssignFn Fn) {
-  if (Fn(0, VT, VT, CCValAssign::Full, ISD::ArgFlagsTy(), *this)) {
+void CCState::AnalyzeCallResult(MVT VT, Type *OrigTy, CCAssignFn Fn) {
+  if (Fn(0, VT, VT, CCValAssign::Full, ISD::ArgFlagsTy(), OrigTy, *this)) {
 #ifndef NDEBUG
     dbgs() << "Call result has unhandled type "
-           << EVT(VT).getEVTString() << '\n';
+           << VT << '\n';
 #endif
     llvm_unreachable(nullptr);
   }
@@ -195,9 +200,9 @@ static bool isValueTypeInRegForCC(CallingConv::ID CC, MVT VT) {
   return (CC == CallingConv::X86_VectorCall || CC == CallingConv::X86_FastCall);
 }
 
-void CCState::getRemainingRegParmsForType(SmallVectorImpl<MCPhysReg> &Regs,
+void CCState::getRemainingRegParmsForType(SmallVectorImpl<MCRegister> &Regs,
                                           MVT VT, CCAssignFn Fn) {
-  unsigned SavedStackOffset = StackOffset;
+  uint64_t SavedStackSize = StackSize;
   Align SavedMaxStackArgAlign = MaxStackArgAlign;
   unsigned NumLocs = Locs.size();
 
@@ -210,9 +215,10 @@ void CCState::getRemainingRegParmsForType(SmallVectorImpl<MCPhysReg> &Regs,
   // location in memory.
   bool HaveRegParm;
   do {
-    if (Fn(0, VT, VT, CCValAssign::Full, Flags, *this)) {
+    Type *OrigTy = EVT(VT).getTypeForEVT(Context);
+    if (Fn(0, VT, VT, CCValAssign::Full, Flags, OrigTy, *this)) {
 #ifndef NDEBUG
-      dbgs() << "Call has unhandled type " << EVT(VT).getEVTString()
+      dbgs() << "Call has unhandled type " << VT
              << " while computing remaining regparms\n";
 #endif
       llvm_unreachable(nullptr);
@@ -224,14 +230,14 @@ void CCState::getRemainingRegParmsForType(SmallVectorImpl<MCPhysReg> &Regs,
   assert(NumLocs < Locs.size() && "CC assignment failed to add location");
   for (unsigned I = NumLocs, E = Locs.size(); I != E; ++I)
     if (Locs[I].isRegLoc())
-      Regs.push_back(MCPhysReg(Locs[I].getLocReg()));
+      Regs.push_back(Locs[I].getLocReg());
 
   // Clear the assigned values and stack memory. We leave the registers marked
   // as allocated so that future queries don't return the same registers, i.e.
   // when i64 and f64 are both passed in GPRs.
-  StackOffset = SavedStackOffset;
+  StackSize = SavedStackSize;
   MaxStackArgAlign = SavedMaxStackArgAlign;
-  Locs.resize(NumLocs);
+  Locs.truncate(NumLocs);
 }
 
 void CCState::analyzeMustTailForwardedRegisters(
@@ -240,15 +246,15 @@ void CCState::analyzeMustTailForwardedRegisters(
   // Oftentimes calling conventions will not user register parameters for
   // variadic functions, so we need to assume we're not variadic so that we get
   // all the registers that might be used in a non-variadic call.
-  SaveAndRestore<bool> SavedVarArg(IsVarArg, false);
-  SaveAndRestore<bool> SavedMustTail(AnalyzingMustTailForwardedRegs, true);
+  SaveAndRestore SavedVarArg(IsVarArg, false);
+  SaveAndRestore SavedMustTail(AnalyzingMustTailForwardedRegs, true);
 
   for (MVT RegVT : RegParmTypes) {
-    SmallVector<MCPhysReg, 8> RemainingRegs;
+    SmallVector<MCRegister, 8> RemainingRegs;
     getRemainingRegParmsForType(RemainingRegs, RegVT, Fn);
     const TargetLowering *TL = MF.getSubtarget().getTargetLowering();
     const TargetRegisterClass *RC = TL->getRegClassFor(RegVT);
-    for (MCPhysReg PReg : RemainingRegs) {
+    for (MCRegister PReg : RemainingRegs) {
       Register VReg = MF.addLiveIn(PReg, RC);
       Forwards.push_back(ForwardedRegister(VReg, PReg, RegVT));
     }
@@ -270,19 +276,19 @@ bool CCState::resultsCompatible(CallingConv::ID CalleeCC,
   CCState CCInfo2(CallerCC, false, MF, RVLocs2, C);
   CCInfo2.AnalyzeCallResult(Ins, CallerFn);
 
-  if (RVLocs1.size() != RVLocs2.size())
-    return false;
-  for (unsigned I = 0, E = RVLocs1.size(); I != E; ++I) {
-    const CCValAssign &Loc1 = RVLocs1[I];
-    const CCValAssign &Loc2 = RVLocs2[I];
-
-    if ( // Must both be in registers, or both in memory
-        Loc1.isRegLoc() != Loc2.isRegLoc() ||
-        // Must fill the same part of their locations
-        Loc1.getLocInfo() != Loc2.getLocInfo() ||
-        // Memory offset/register number must be the same
-        Loc1.getExtraInfo() != Loc2.getExtraInfo())
+  auto AreCompatible = [](const CCValAssign &Loc1, const CCValAssign &Loc2) {
+    assert(!Loc1.isPendingLoc() && !Loc2.isPendingLoc() &&
+           "The location must have been decided by now");
+    // Must fill the same part of their locations.
+    if (Loc1.getLocInfo() != Loc2.getLocInfo())
       return false;
-  }
-  return true;
+    // Must both be in the same registers, or both in memory at the same offset.
+    if (Loc1.isRegLoc() && Loc2.isRegLoc())
+      return Loc1.getLocReg() == Loc2.getLocReg();
+    if (Loc1.isMemLoc() && Loc2.isMemLoc())
+      return Loc1.getLocMemOffset() == Loc2.getLocMemOffset();
+    llvm_unreachable("Unknown location kind");
+  };
+
+  return llvm::equal(RVLocs1, RVLocs2, AreCompatible);
 }

@@ -50,7 +50,7 @@ public:
   /// Check an <nsw> AddRec for the loop @p L is cached.
   bool hasNSWAddRecForLoop(llvm::Loop *L) const;
 
-  /// Return the LoopInfo used by thi object.
+  /// Return the LoopInfo used by the object.
   llvm::LoopInfo *getLI() const { return &LI; }
 
 private:
@@ -99,6 +99,7 @@ private:
 
   PWACtx visit(const llvm::SCEV *E);
   PWACtx visitConstant(const llvm::SCEVConstant *E);
+  PWACtx visitVScale(const llvm::SCEVVScale *E);
   PWACtx visitPtrToIntExpr(const llvm::SCEVPtrToIntExpr *E);
   PWACtx visitTruncateExpr(const llvm::SCEVTruncateExpr *E);
   PWACtx visitZeroExtendExpr(const llvm::SCEVZeroExtendExpr *E);

@@ -12,10 +12,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "SplitKit.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Statistic.h"
-#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/CodeGen/LiveRangeEdit.h"
 #include "llvm/CodeGen/MachineBlockFrequencyInfo.h"
 #include "llvm/CodeGen/MachineDominators.h"
@@ -45,6 +43,11 @@
 using namespace llvm;
 
 #define DEBUG_TYPE "regalloc"
+
+static cl::opt<bool>
+    EnableLoopIVHeuristic("enable-split-loopiv-heuristic",
+                          cl::desc("Enable loop iv regalloc heuristic"),
+                          cl::init(true));
 
 STATISTIC(NumFinished, "Number of splits finished");
 STATISTIC(NumSimple,   "Number of splits that were simple");
@@ -127,7 +130,6 @@ InsertPointAnalysis::computeLastInsertPoint(const LiveInterval &CurLI,
   // If the value leaving MBB was defined after the call in MBB, it can't
   // really be live-in to the landing pad.  This can happen if the landing pad
   // has a PHI, and this register is undef on the exceptional edge.
-  // <rdar://problem/10664933>
   if (!SlotIndex::isEarlierInstr(VNI->def, LIP.second) && VNI->def < MBBEnd)
     return LIP.first;
 
@@ -181,8 +183,7 @@ void SplitAnalysis::analyzeUses() {
 
   // Remove duplicates, keeping the smaller slot for each instruction.
   // That is what we want for early clobbers.
-  UseSlots.erase(std::unique(UseSlots.begin(), UseSlots.end(),
-                             SlotIndex::isSameInstr),
+  UseSlots.erase(llvm::unique(UseSlots, SlotIndex::isSameInstr),
                  UseSlots.end());
 
   // Compute per-live block info.
@@ -295,6 +296,13 @@ void SplitAnalysis::calcLiveBlockInfo() {
       MFI = LIS.getMBBFromIndex(LVI->start)->getIterator();
   }
 
+  LooksLikeLoopIV = EnableLoopIVHeuristic && UseBlocks.size() == 2 &&
+                    any_of(UseBlocks, [this](BlockInfo &BI) {
+                      MachineLoop *L = Loops.getLoopFor(BI.MBB);
+                      return BI.LiveIn && BI.LiveOut && BI.FirstDef && L &&
+                             L->isLoopLatch(BI.MBB);
+                    });
+
   assert(getNumLiveBlocks() == countLiveBlocks(CurLI) && "Bad block count");
 }
 
@@ -323,7 +331,7 @@ unsigned SplitAnalysis::countLiveBlocks(const LiveInterval *cli) const {
 }
 
 bool SplitAnalysis::isOriginalEndpoint(SlotIndex Idx) const {
-  unsigned OrigReg = VRM.getOriginal(CurLI->reg());
+  Register OrigReg = VRM.getOriginal(CurLI->reg());
   const LiveInterval &Orig = LIS.getInterval(OrigReg);
   assert(!Orig.empty() && "Splitting empty interval?");
   LiveInterval::const_iterator I = Orig.find(Idx);
@@ -368,8 +376,6 @@ void SplitEditor::reset(LiveRangeEdit &LRE, ComplementSpillMode SM) {
   if (SpillMode)
     LICalc[1].reset(&VRM.getMachineFunction(), LIS.getSlotIndexes(), &MDT,
                     &LIS.getVNInfoAllocator());
-
-  Edit->anyRematerializable();
 }
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
@@ -515,16 +521,17 @@ void SplitEditor::forceRecompute(unsigned RegIdx, const VNInfo &ParentVNI) {
   VFP = ValueForcePair(nullptr, true);
 }
 
-SlotIndex SplitEditor::buildSingleSubRegCopy(Register FromReg, Register ToReg,
-    MachineBasicBlock &MBB, MachineBasicBlock::iterator InsertBefore,
-    unsigned SubIdx, LiveInterval &DestLI, bool Late, SlotIndex Def) {
-  const MCInstrDesc &Desc = TII.get(TargetOpcode::COPY);
+SlotIndex SplitEditor::buildSingleSubRegCopy(
+    Register FromReg, Register ToReg, MachineBasicBlock &MBB,
+    MachineBasicBlock::iterator InsertBefore, unsigned SubIdx,
+    LiveInterval &DestLI, bool Late, SlotIndex Def, const MCInstrDesc &Desc) {
   bool FirstCopy = !Def.isValid();
   MachineInstr *CopyMI = BuildMI(MBB, InsertBefore, DebugLoc(), Desc)
       .addReg(ToReg, RegState::Define | getUndefRegState(FirstCopy)
               | getInternalReadRegState(!FirstCopy), SubIdx)
       .addReg(FromReg, 0, SubIdx);
 
+  CopyMI->setFlag(MachineInstr::LRSplit);
   SlotIndexes &Indexes = *LIS.getSlotIndexes();
   if (FirstCopy) {
     Def = Indexes.insertMachineInstrInMaps(*CopyMI, Late).getRegSlot();
@@ -537,12 +544,14 @@ SlotIndex SplitEditor::buildSingleSubRegCopy(Register FromReg, Register ToReg,
 SlotIndex SplitEditor::buildCopy(Register FromReg, Register ToReg,
     LaneBitmask LaneMask, MachineBasicBlock &MBB,
     MachineBasicBlock::iterator InsertBefore, bool Late, unsigned RegIdx) {
-  const MCInstrDesc &Desc = TII.get(TargetOpcode::COPY);
+  const MCInstrDesc &Desc =
+      TII.get(TII.getLiveRangeSplitOpcode(FromReg, *MBB.getParent()));
   SlotIndexes &Indexes = *LIS.getSlotIndexes();
   if (LaneMask.all() || LaneMask == MRI.getMaxLaneMaskForVReg(FromReg)) {
     // The full vreg is copied.
     MachineInstr *CopyMI =
         BuildMI(MBB, InsertBefore, DebugLoc(), Desc, ToReg).addReg(FromReg);
+    CopyMI->setFlag(MachineInstr::LRSplit);
     return Indexes.insertMachineInstrInMaps(*CopyMI, Late).getRegSlot();
   }
 
@@ -559,13 +568,13 @@ SlotIndex SplitEditor::buildCopy(Register FromReg, Register ToReg,
   SmallVector<unsigned, 8> SubIndexes;
 
   // Abort if we cannot possibly implement the COPY with the given indexes.
-  if (!TRI.getCoveringSubRegIndexes(MRI, RC, LaneMask, SubIndexes))
+  if (!TRI.getCoveringSubRegIndexes(RC, LaneMask, SubIndexes))
     report_fatal_error("Impossible to implement partial COPY");
 
   SlotIndex Def;
   for (unsigned BestIdx : SubIndexes) {
     Def = buildSingleSubRegCopy(FromReg, ToReg, MBB, InsertBefore, BestIdx,
-                                DestLI, Late, Def);
+                                DestLI, Late, Def, Desc);
   }
 
   BumpPtrAllocator &Allocator = LIS.getVNInfoAllocator();
@@ -579,10 +588,40 @@ SlotIndex SplitEditor::buildCopy(Register FromReg, Register ToReg,
   return Def;
 }
 
+bool SplitEditor::rematWillIncreaseRestriction(const MachineInstr *DefMI,
+                                               MachineBasicBlock &MBB,
+                                               SlotIndex UseIdx) const {
+  const MachineInstr *UseMI = LIS.getInstructionFromIndex(UseIdx);
+  if (!UseMI)
+    return false;
+
+  // Currently code assumes rematerialization only happens for a def at 0.
+  const unsigned DefOperandIdx = 0;
+  // We want to compute the static register class constraint for the instruction
+  // def. If it is a smaller subclass than getLargestLegalSuperClass at the use
+  // site, then rematerializing it will increase the constraints.
+  const TargetRegisterClass *DefConstrainRC =
+      DefMI->getRegClassConstraint(DefOperandIdx, &TII, &TRI);
+  if (!DefConstrainRC)
+    return false;
+
+  const TargetRegisterClass *RC = MRI.getRegClass(Edit->getReg());
+
+  // We want to find the register class that can be inflated to after the split
+  // occurs in recomputeRegClass
+  const TargetRegisterClass *SuperRC =
+      TRI.getLargestLegalSuperClass(RC, *MBB.getParent());
+
+  Register DefReg = DefMI->getOperand(DefOperandIdx).getReg();
+  const TargetRegisterClass *UseConstrainRC =
+      UseMI->getRegClassConstraintEffectForVReg(DefReg, SuperRC, &TII, &TRI,
+                                                /*ExploreBundle=*/true);
+  return UseConstrainRC->hasSubClass(DefConstrainRC);
+}
+
 VNInfo *SplitEditor::defFromParent(unsigned RegIdx, const VNInfo *ParentVNI,
                                    SlotIndex UseIdx, MachineBasicBlock &MBB,
                                    MachineBasicBlock::iterator I) {
-  SlotIndex Def;
   LiveInterval *LI = &LIS.getInterval(Edit->get(RegIdx));
 
   // We may be trying to avoid interference that ends at a deleted instruction,
@@ -590,42 +629,49 @@ VNInfo *SplitEditor::defFromParent(unsigned RegIdx, const VNInfo *ParentVNI,
   bool Late = RegIdx != 0;
 
   // Attempt cheap-as-a-copy rematerialization.
-  unsigned Original = VRM.getOriginal(Edit->get(RegIdx));
+  Register Original = VRM.getOriginal(Edit->get(RegIdx));
   LiveInterval &OrigLI = LIS.getInterval(Original);
   VNInfo *OrigVNI = OrigLI.getVNInfoAt(UseIdx);
 
   Register Reg = LI->reg();
-  bool DidRemat = false;
   if (OrigVNI) {
     LiveRangeEdit::Remat RM(ParentVNI);
     RM.OrigMI = LIS.getInstructionFromIndex(OrigVNI->def);
-    if (Edit->canRematerializeAt(RM, OrigVNI, UseIdx, true)) {
-      Def = Edit->rematerializeAt(MBB, I, Reg, RM, TRI, Late);
-      ++NumRemats;
-      DidRemat = true;
+    if (RM.OrigMI && TII.isAsCheapAsAMove(*RM.OrigMI) &&
+        Edit->canRematerializeAt(RM, UseIdx)) {
+      if (!rematWillIncreaseRestriction(RM.OrigMI, MBB, UseIdx)) {
+        SlotIndex Def = Edit->rematerializeAt(MBB, I, Reg, RM, TRI, Late);
+        ++NumRemats;
+        // Define the value in Reg.
+        return defValue(RegIdx, ParentVNI, Def, false);
+      }
+      LLVM_DEBUG(
+          dbgs() << "skipping rematerialize of " << printReg(Reg) << " at "
+                 << UseIdx
+                 << " since it will increase register class restrictions\n");
     }
   }
-  if (!DidRemat) {
-    LaneBitmask LaneMask;
-    if (OrigLI.hasSubRanges()) {
-      LaneMask = LaneBitmask::getNone();
-      for (LiveInterval::SubRange &S : OrigLI.subranges()) {
-        if (S.liveAt(UseIdx))
-          LaneMask |= S.LaneMask;
-      }
-    } else {
-      LaneMask = LaneBitmask::getAll();
-    }
 
-    if (LaneMask.none()) {
-      const MCInstrDesc &Desc = TII.get(TargetOpcode::IMPLICIT_DEF);
-      MachineInstr *ImplicitDef = BuildMI(MBB, I, DebugLoc(), Desc, Reg);
-      SlotIndexes &Indexes = *LIS.getSlotIndexes();
-      Def = Indexes.insertMachineInstrInMaps(*ImplicitDef, Late).getRegSlot();
-    } else {
-      ++NumCopies;
-      Def = buildCopy(Edit->getReg(), Reg, LaneMask, MBB, I, Late, RegIdx);
+  LaneBitmask LaneMask;
+  if (OrigLI.hasSubRanges()) {
+    LaneMask = LaneBitmask::getNone();
+    for (LiveInterval::SubRange &S : OrigLI.subranges()) {
+      if (S.liveAt(UseIdx))
+        LaneMask |= S.LaneMask;
     }
+  } else {
+    LaneMask = LaneBitmask::getAll();
+  }
+
+  SlotIndex Def;
+  if (LaneMask.none()) {
+    const MCInstrDesc &Desc = TII.get(TargetOpcode::IMPLICIT_DEF);
+    MachineInstr *ImplicitDef = BuildMI(MBB, I, DebugLoc(), Desc, Reg);
+    SlotIndexes &Indexes = *LIS.getSlotIndexes();
+    Def = Indexes.insertMachineInstrInMaps(*ImplicitDef, Late).getRegSlot();
+  } else {
+    ++NumCopies;
+    Def = buildCopy(Edit->getReg(), Reg, LaneMask, MBB, I, Late, RegIdx);
   }
 
   // Define the value in Reg.
@@ -796,14 +842,16 @@ SlotIndex SplitEditor::leaveIntvAtTop(MachineBasicBlock &MBB) {
     return Start;
   }
 
-  VNInfo *VNI = defFromParent(0, ParentVNI, Start, MBB,
-                              MBB.SkipPHIsLabelsAndDebug(MBB.begin()));
+  unsigned RegIdx = 0;
+  Register Reg = LIS.getInterval(Edit->get(RegIdx)).reg();
+  VNInfo *VNI = defFromParent(RegIdx, ParentVNI, Start, MBB,
+                              MBB.SkipPHIsLabelsAndDebug(MBB.begin(), Reg));
   RegAssign.insert(Start, VNI->def, OpenIdx);
   LLVM_DEBUG(dump());
   return VNI->def;
 }
 
-static bool hasTiedUseOf(MachineInstr &MI, unsigned Reg) {
+static bool hasTiedUseOf(MachineInstr &MI, Register Reg) {
   return any_of(MI.defs(), [Reg](const MachineOperand &MO) {
     return MO.isReg() && MO.isTied() && MO.getReg() == Reg;
   });
@@ -1366,7 +1414,7 @@ void SplitEditor::rewriteAssigned(bool ExtendRanges) {
         // The point we want to extend is 0d to 16e not 16r in this case, but if
         // we use 16r here we will extend nothing because that already contained
         // in [16e, 32d).
-        unsigned OpIdx = MI->getOperandNo(&MO);
+        unsigned OpIdx = MO.getOperandNo();
         unsigned DefOpIdx = MI->findTiedOperandIdx(OpIdx);
         const MachineOperand &DefOp = MI->getOperand(DefOpIdx);
         IsEarlyClobber = DefOp.isEarlyClobber();
@@ -1394,7 +1442,8 @@ void SplitEditor::rewriteAssigned(bool ExtendRanges) {
     assert(LI.hasSubRanges());
 
     LiveIntervalCalc SubLIC;
-    Register Reg = EP.MO.getReg(), Sub = EP.MO.getSubReg();
+    Register Reg = EP.MO.getReg();
+    unsigned Sub = EP.MO.getSubReg();
     LaneBitmask LM = Sub != 0 ? TRI.getSubRegIndexLaneMask(Sub)
                               : MRI.getMaxLaneMaskForVReg(Reg);
     for (LiveInterval::SubRange &S : LI.subranges()) {
@@ -1450,7 +1499,7 @@ void SplitEditor::deleteRematVictims() {
   if (Dead.empty())
     return;
 
-  Edit->eliminateDeadDefs(Dead, None);
+  Edit->eliminateDeadDefs(Dead, {});
 }
 
 void SplitEditor::forceRecomputeVNI(const VNInfo &ParentVNI) {
@@ -1462,16 +1511,14 @@ void SplitEditor::forceRecomputeVNI(const VNInfo &ParentVNI) {
   }
 
   // Trace value through phis.
-  SmallPtrSet<const VNInfo *, 8> Visited; ///< whether VNI was/is in worklist.
-  SmallVector<const VNInfo *, 4> WorkList;
-  Visited.insert(&ParentVNI);
-  WorkList.push_back(&ParentVNI);
+  ///< whether VNI was/is in worklist.
+  SmallPtrSet<const VNInfo *, 8> Visited = {&ParentVNI};
+  SmallVector<const VNInfo *, 4> WorkList = {&ParentVNI};
 
   const LiveInterval &ParentLI = Edit->getParent();
   const SlotIndexes &Indexes = *LIS.getSlotIndexes();
   do {
-    const VNInfo &VNI = *WorkList.back();
-    WorkList.pop_back();
+    const VNInfo &VNI = *WorkList.pop_back_val();
     for (unsigned I = 0, E = Edit->size(); I != E; ++I)
       forceRecompute(I, VNI);
     if (!VNI.isPHIDef())
@@ -1585,7 +1632,9 @@ bool SplitAnalysis::shouldSplitSingleBlock(const BlockInfo &BI,
   if (BI.LiveIn && BI.LiveOut)
     return true;
   // No point in isolating a copy. It has no register class constraints.
-  if (LIS.getInstructionFromIndex(BI.FirstInstr)->isCopyLike())
+  MachineInstr *MI = LIS.getInstructionFromIndex(BI.FirstInstr);
+  bool copyLike = TII.isCopyInstr(*MI) || MI->isSubregToReg();
+  if (copyLike)
     return false;
   // Finally, don't isolate an end point that was created by earlier splits.
   return isOriginalEndpoint(BI.FirstInstr);

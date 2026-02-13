@@ -1,4 +1,4 @@
-; RUN: opt %loadPolly -polly-print-optree -disable-output < %s | FileCheck %s -match-full-lines
+; RUN: opt %loadNPMPolly '-passes=polly-custom<optree>' -polly-print-optree -disable-output < %s | FileCheck %s -match-full-lines
 
 ; In the code below, %0 is known to be equal to the content of @c (constant 0).
 ; Thus, in order to save a scalar dependency, forward-optree replaces
@@ -28,7 +28,7 @@ lor.end.thread:
 
 lor.rhs87:
   %0 = phi i64 [ 0, %lor.end.thread ], [ 0, %lor.end ]
-  store i64 %0, i64* @c, align 8
+  store i64 %0, ptr @c, align 8
   %neg79 = xor i64 %0, -1
   br label %lor.end93
 

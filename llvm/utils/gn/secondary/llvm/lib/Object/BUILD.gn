@@ -10,6 +10,7 @@ static_library("Object") {
     "//llvm/lib/MC",
     "//llvm/lib/MC/MCParser",
     "//llvm/lib/Support",
+    "//llvm/lib/TargetParser",
     "//llvm/lib/TextAPI",
   ]
 
@@ -27,6 +28,7 @@ static_library("Object") {
     "ELFObjectFile.cpp",
     "Error.cpp",
     "FaultMapParser.cpp",
+    "GOFFObjectFile.cpp",
     "IRObjectFile.cpp",
     "IRSymtab.cpp",
     "MachOObjectFile.cpp",
@@ -37,8 +39,10 @@ static_library("Object") {
     "Object.cpp",
     "ObjectFile.cpp",
     "OffloadBinary.cpp",
+    "OffloadBundle.cpp",
     "RecordStreamer.cpp",
     "RelocationResolver.cpp",
+    "SFrameParser.cpp",
     "SymbolSize.cpp",
     "SymbolicFile.cpp",
     "TapiFile.cpp",

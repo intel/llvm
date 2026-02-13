@@ -34,7 +34,7 @@ define spir_func void @funcD() {
   ret void
 }
 
-; CHECK: define spir_kernel void @kernel() !sycl_used_aspects ![[#ID3]] {
+; CHECK: define spir_kernel void @kernel() !sycl_used_aspects ![[#ID3]]
 define spir_kernel void @kernel() {
   call spir_func void @funcD()
   ret void

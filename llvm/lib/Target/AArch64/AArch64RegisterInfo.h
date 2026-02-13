@@ -27,7 +27,7 @@ class AArch64RegisterInfo final : public AArch64GenRegisterInfo {
   const Triple &TT;
 
 public:
-  AArch64RegisterInfo(const Triple &TT);
+  AArch64RegisterInfo(const Triple &TT, unsigned HwMode);
 
   // FIXME: This should be tablegen'd like getDwarfRegNum is
   int getSEHRegNum(unsigned i) const {
@@ -35,6 +35,7 @@ public:
   }
 
   bool isReservedReg(const MachineFunction &MF, MCRegister Reg) const;
+  bool isUserReservedReg(const MachineFunction &MF, MCRegister Reg) const;
   bool isStrictlyReservedReg(const MachineFunction &MF, MCRegister Reg) const;
   bool isAnyArgRegReserved(const MachineFunction &MF) const;
   void emitReservedArgRegCallError(const MachineFunction &MF) const;
@@ -45,7 +46,6 @@ public:
 
   /// Code Generation virtual methods...
   const MCPhysReg *getCalleeSavedRegs(const MachineFunction *MF) const override;
-  const MCPhysReg *getDarwinCalleeSavedRegs(const MachineFunction *MF) const;
   const MCPhysReg *
   getCalleeSavedRegsViaCopy(const MachineFunction *MF) const;
   const uint32_t *getCallPreservedMask(const MachineFunction &MF,
@@ -69,6 +69,7 @@ public:
   const uint32_t *getTLSCallPreservedMask() const;
 
   const uint32_t *getSMStartStopCallPreservedMask() const;
+  const uint32_t *SMEABISupportRoutinesCallPreservedMaskFromX0() const;
 
   // Funclets on ARM64 Windows don't preserve any registers.
   const uint32_t *getNoPreservedMask() const override;
@@ -92,15 +93,15 @@ public:
   const uint32_t *getWindowsStackProbePreservedMask() const;
 
   BitVector getStrictlyReservedRegs(const MachineFunction &MF) const;
+  BitVector getUserReservedRegs(const MachineFunction &MF) const;
   BitVector getReservedRegs(const MachineFunction &MF) const override;
-  llvm::Optional<std::string>
+  std::optional<std::string>
   explainReservedReg(const MachineFunction &MF,
                      MCRegister PhysReg) const override;
   bool isAsmClobberable(const MachineFunction &MF,
                        MCRegister PhysReg) const override;
   const TargetRegisterClass *
-  getPointerRegClass(const MachineFunction &MF,
-                     unsigned Kind = 0) const override;
+  getPointerRegClass(unsigned Kind = 0) const override;
   const TargetRegisterClass *
   getCrossCopyRegClass(const TargetRegisterClass *RC) const override;
 
@@ -115,14 +116,14 @@ public:
                                         int64_t Offset) const override;
   void resolveFrameIndex(MachineInstr &MI, Register BaseReg,
                          int64_t Offset) const override;
-  void eliminateFrameIndex(MachineBasicBlock::iterator II, int SPAdj,
+  bool eliminateFrameIndex(MachineBasicBlock::iterator II, int SPAdj,
                            unsigned FIOperandNum,
                            RegScavenger *RS = nullptr) const override;
   bool cannotEliminateFrame(const MachineFunction &MF) const;
 
   bool requiresVirtualBaseRegisters(const MachineFunction &MF) const override;
   bool hasBasePointer(const MachineFunction &MF) const;
-  unsigned getBaseRegister() const;
+  MCRegister getBaseRegister() const;
 
   bool isArgumentRegister(const MachineFunction &MF,
                           MCRegister Reg) const override;
@@ -133,8 +134,13 @@ public:
   unsigned getRegPressureLimit(const TargetRegisterClass *RC,
                                MachineFunction &MF) const override;
 
+  bool getRegAllocationHints(Register VirtReg, ArrayRef<MCPhysReg> Order,
+                             SmallVectorImpl<MCPhysReg> &Hints,
+                             const MachineFunction &MF, const VirtRegMap *VRM,
+                             const LiveRegMatrix *Matrix) const override;
+
   unsigned getLocalAddressRegister(const MachineFunction &MF) const;
-  bool regNeedsCFI(unsigned Reg, unsigned &RegToUseForCFI) const;
+  bool regNeedsCFI(MCRegister Reg, MCRegister &RegToUseForCFI) const;
 
   /// SrcRC and DstRC will be morphed into NewRC if this returns true
   bool shouldCoalesce(MachineInstr *MI, const TargetRegisterClass *SrcRC,
@@ -144,6 +150,10 @@ public:
 
   void getOffsetOpcodes(const StackOffset &Offset,
                         SmallVectorImpl<uint64_t> &Ops) const override;
+
+  bool shouldAnalyzePhysregInMachineLoopInfo(MCRegister R) const override;
+
+  bool isIgnoredCVReg(MCRegister LLVMReg) const override;
 };
 
 } // end namespace llvm

@@ -17,7 +17,7 @@
 
 ; Do the same but with llvm-lto2
 ; RUN: rm -Rf %t.cache && mkdir %t.cache
-; RUN: llvm-lto2 run  %t1.bc %t4.bc %t2.bc -cache-dir=%t.cache -o %t5 \
+; RUN: llvm-lto2 run %t1.bc %t4.bc %t2.bc -cache-dir=%t.cache -o %t5 \
 ; RUN:  -r=%t1.bc,main,plx -r=%t1.bc,foo,l \
 ; RUN:  -r=%t4.bc,test,plx -r=%t4.bc,foo,l -r=%t4.bc,bar,l \
 ; RUN:  -r=%t2.bc,foo,pl -r=%t2.bc,bar,pl -r=%t2.bc,rand,

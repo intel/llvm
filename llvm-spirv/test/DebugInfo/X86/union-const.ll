@@ -1,8 +1,16 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -filetype=obj < %t.ll | llvm-dwarfdump -v -debug-info - | FileCheck %s
 
-; RUN: llc -mtriple=%triple -filetype=obj < %t.ll | llvm-dwarfdump -v -debug-info - | FileCheck %s
+; RUN: llvm-spirv %t.bc -o %t.spv -spirv-debug-info-version=nonsemantic-shader-100
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -filetype=obj < %t.ll | llvm-dwarfdump -v -debug-info - | FileCheck %s
+
+; RUN: llvm-spirv %t.bc -o %t.spv -spirv-debug-info-version=nonsemantic-shader-200
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -filetype=obj < %t.ll | llvm-dwarfdump -v -debug-info - | FileCheck %s
+
 ; CHECK: DW_TAG_variable
 ; CHECK-NEXT: DW_AT_const_value [DW_FORM_udata]	(0)
 ; CHECK-NEXT: DW_AT_name {{.*}}"a"
@@ -26,7 +34,7 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: nounwind readnone ssp uwtable
 define i32 @mfi_aen_setup() #0 !dbg !4 {
 entry:
-  tail call void @llvm.dbg.declare(metadata %union.mfi_evt* undef, metadata !16, metadata !21), !dbg !22
+  tail call void @llvm.dbg.declare(metadata ptr undef, metadata !16, metadata !21), !dbg !22
   tail call void @llvm.dbg.value(metadata i32 0, metadata !16, metadata !21), !dbg !22
   ret i32 undef, !dbg !23
 }

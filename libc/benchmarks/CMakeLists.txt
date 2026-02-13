@@ -1,10 +1,25 @@
+if(LIBC_TARGET_OS_IS_GPU)
+  add_subdirectory(gpu)
+  return()
+endif()
+
+# The CPU build depends on Google benchmark.
+if(NOT LIBC_INCLUDE_BENCHMARKS)
+  return()
+endif()
+
 find_package(Threads)
 
-set(LLVM_LINK_COMPONENTS Support)
+set(LLVM_LINK_COMPONENTS
+  Support
+  TargetParser
+  )
 
 #==============================================================================
 # Add Unit Testing Support
 #==============================================================================
+
+make_gtest_target()
 
 function(add_libc_benchmark_unittest target_name)
   if(NOT LLVM_INCLUDE_TESTS)
@@ -25,8 +40,8 @@ function(add_libc_benchmark_unittest target_name)
   )
   target_link_libraries(${target_name}
     PRIVATE
-    llvm_gtest_main
-    llvm_gtest
+    default_gtest_main
+    default_gtest
     ${LIBC_BENCHMARKS_UNITTEST_DEPENDS}
   )
   llvm_update_compile_flags(${target_name})
@@ -56,10 +71,18 @@ ExternalProject_Add(google-benchmark-libc
           -DBENCHMARK_ENABLE_WERROR:BOOL=${LLVM_ENABLE_WERROR}
           -DBENCHMARK_FORCE_WERROR:BOOL=OFF
           -DBENCHMARK_USE_LIBCXX:BOOL=OFF
-          -DCMAKE_BUILD_TYPE:STRING=RELEASE
+          -DCMAKE_BUILD_TYPE:STRING=Release
+
+          -DCMAKE_SYSTEM_NAME:STRING=${CMAKE_SYSTEM_NAME}
+          -DCMAKE_SYSTEM_PROCESSOR:STRING=${CMAKE_SYSTEM_PROCESSOR}
           -DCMAKE_C_COMPILER:STRING=${CMAKE_C_COMPILER}
           -DCMAKE_CXX_COMPILER:STRING=${CMAKE_CXX_COMPILER}
-          -DCMAKE_CXX_FLAGS:STRING=${BENCHMARK_LIBC_COMPILE_FLAGS}
+          -DCMAKE_CXX_FLAGS:STRING=${CMAKE_CXX_FLAGS}
+          -DCMAKE_FIND_ROOT_PATH:STRING=${CMAKE_FIND_ROOT_PATH}
+
+          -DBUILD_SHARED_LIBS:BOOL=OFF
+          -DCMAKE_EXE_LINKER_FLAGS:STRING=-static
+
           -DCMAKE_CXX_STANDARD:STRING=14
           -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
         )
@@ -74,10 +97,14 @@ add_library(libc-benchmark
     LibcBenchmark.h
 )
 
+target_include_directories(libc-benchmark
+    PUBLIC ${LLVM_INCLUDE_DIR} ${LLVM_MAIN_INCLUDE_DIR}
+)
 target_link_libraries(libc-benchmark
     PUBLIC
     benchmark::benchmark
     LLVMSupport
+    LLVMTargetParser
     Threads::Threads
 )
 add_dependencies(libc-benchmark google-benchmark-libc)
@@ -101,6 +128,7 @@ add_library(libc-memory-benchmark
 target_include_directories(libc-memory-benchmark
     PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${LIBC_SOURCE_DIR}
 )
 target_link_libraries(libc-memory-benchmark
     PUBLIC
@@ -147,7 +175,7 @@ function(add_libc_multi_impl_benchmark name)
         get_target_property(entrypoint_object_file ${fq_config_name} "OBJECT_FILE_RAW")
         target_link_libraries(${benchmark_name} PUBLIC json ${entrypoint_object_file})
         string(TOUPPER ${name} name_upper)
-        target_compile_definitions(${benchmark_name} PRIVATE "-DLIBC_BENCHMARK_FUNCTION_${name_upper}=__llvm_libc::${name}" "-DLIBC_BENCHMARK_FUNCTION_NAME=\"${fq_config_name}\"")
+        target_compile_definitions(${benchmark_name} PRIVATE "-DLIBC_BENCHMARK_FUNCTION_${name_upper}=LIBC_NAMESPACE::${name}" "-DLIBC_BENCHMARK_FUNCTION_NAME=\"${fq_config_name}\"")
         llvm_update_compile_flags(${benchmark_name})
     else()
       message(STATUS "Skipping benchmark for '${fq_config_name}' insufficient host cpu features '${required_cpu_features}'")
@@ -177,14 +205,12 @@ add_executable(libc.benchmarks.memory_functions.opt_host
 target_link_libraries(libc.benchmarks.memory_functions.opt_host
   PRIVATE
   libc-memory-benchmark
-  libc.src.string.memcmp_opt_host
-  libc.src.string.bcmp_opt_host
-  libc.src.string.memcpy_opt_host
-  libc.src.string.memset_opt_host
-  libc.src.string.bzero_opt_host
-  libc.src.string.memmove_opt_host
+  libc.src.string.memcmp_opt_host.__internal__
+  libc.src.string.memcpy_opt_host.__internal__
+  libc.src.string.memmove_opt_host.__internal__
+  libc.src.string.memset_opt_host.__internal__
+  libc.src.strings.bcmp_opt_host.__internal__
+  libc.src.strings.bzero_opt_host.__internal__
   benchmark_main
 )
 llvm_update_compile_flags(libc.benchmarks.memory_functions.opt_host)
-
-add_subdirectory(automemcpy)

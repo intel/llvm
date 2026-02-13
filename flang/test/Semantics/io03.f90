@@ -7,7 +7,7 @@
   character(20) advance
   character(20) :: cvar;
   character, parameter :: const_internal_file = "(I6)"
-  character, parameter :: const_cvar = "Ceci n'est pas une pipe."
+  character, parameter :: const_cvar*(*) = "Ceci n'est pas une pipe."
   integer*1 stat1
   integer*2 stat2, id2
   integer*8 stat8
@@ -58,19 +58,30 @@
   read(internal_file2, *) jj
   read(internal_file4, *) jj
 
+  !This is a valid statement but it's not what it looks like; "(internal-file)"
+  !must be parsed as a format expression, not as an internal unit.
+  read(internal_file) jj
+
+  !ERROR: If UNIT=internal-file appears, FMT or NML must also appear
+  read(internal_file, iostat=stat1) jj
+
   !ERROR: Internal file must not have a vector subscript
   read(internal_fileA(vv), *) jj
 
-  !ERROR: Input variable 'const_int' must be definable
+  !ERROR: Input variable 'const_int' is not definable
+  !BECAUSE: '15_4' is not a variable or pointer
   read(11, *) const_int
 
-  !ERROR: SIZE variable 'const_size' must be definable
+  !ERROR: SIZE variable 'const_size' is not definable
+  !BECAUSE: '13_4' is not a variable or pointer
   read(11, pos=ipos, size=const_size, end=9)
 
-  !ERROR: Input variable 'const_cvar' must be definable
+  !ERROR: Input variable 'const_cvar' is not definable
+  !BECAUSE: '"Ceci n'est pas une pipe."' is not a variable or pointer
   read(11, *) const_cvar
 
-  !ERROR: Input variable 'const_cvar' must be definable
+  !ERROR: Input variable 'const_cvar(3:13)' is not definable
+  !BECAUSE: '"ci n'est pa"' is not a variable or pointer
   read(11, *) const_cvar(3:13)
 
   !ERROR: Duplicate IOSTAT specifier
@@ -102,11 +113,12 @@
   !ERROR: If UNIT=* appears, POS must not appear
   read(*, pos=13)
 
+  !ERROR: If UNIT=internal-file appears, FMT or NML must also appear
   !ERROR: If UNIT=internal-file appears, REC must not appear
   read(internal_file, rec=13)
 
   !ERROR: If UNIT=internal-file appears, POS must not appear
-  read(internal_file, pos=13)
+  read(internal_file, *, pos=13)
 
   !ERROR: If REC appears, END must not appear
   read(10, fmt='(I4)', end=9, rec=13) jj
@@ -131,7 +143,7 @@
   read(*, asynchronous='yes')
 
   !ERROR: If ASYNCHRONOUS='YES' appears, UNIT=number must also appear
-  read(internal_file, asynchronous='y'//'es')
+  read(internal_file, *, asynchronous='y'//'es')
 
   !ERROR: If ID appears, ASYNCHRONOUS='YES' must also appear
   read(10, id=id)
@@ -151,8 +163,29 @@
   !ERROR: If PAD appears, FMT or NML must also appear
   read(10, pad='no', round='nearest') jj
 
+  !PORTABILITY: If NML appears, SIZE should not appear
+  read(10, nml=nnn, size=kk)
+  !PORTABILITY: If FMT=* appears, SIZE should not appear
+  read(10, *, size=kk) jj
+
   !ERROR: ID kind (2) is smaller than default INTEGER kind (4)
   read(10, id=id2, asynchronous='yes') jj
+
+  !ERROR: I/O unit must be a character variable or a scalar integer expression, but is an expression of type CHARACTER(1)
+  read((msg), *)
+  !ERROR: I/O unit must be a character variable or a scalar integer expression, but is an expression of type CHARACTER(KIND=1,LEN=8_8)
+  read("a string", *)
+  !ERROR: I/O unit must be a character variable or a scalar integer expression, but is an expression of type CHARACTER(1)
+  read(msg//msg, *)
+  !ERROR: I/O unit must be a character variable or a scalar integer expression, but is an expression of type LOGICAL(4)
+  read(.true., *)
+  !ERROR: I/O unit must be a character variable or a scalar integer expression, but is an expression of type REAL(4)
+  read(1.0, *)
+  read(internal_fileA, *)
+  !ERROR: I/O unit must be a character variable or a scalar integer expression, but is an expression of type CHARACTER(1)
+  read((internal_fileA), *)
+  !ERROR: I/O unit number must be scalar
+  read([1,2,3], *)
 
 9 continue
 end
@@ -172,7 +205,8 @@ subroutine s(aa, n)
   read(*, *) aa(n:n+2,2)
   read(*, *) qq(2:5)%y
 
-  !ERROR: Input variable 'n' must be definable
+  !ERROR: Input variable 'n' is not definable
+  !BECAUSE: 'n' is an INTENT(IN) dummy argument
   read(*, *) n
 
   !ERROR: Whole assumed-size array 'aa' may not appear here without subscripts

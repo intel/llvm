@@ -1,4 +1,4 @@
-// RUN: %check_clang_tidy %s performance-unnecessary-value-param %t -- -config="{CheckOptions: [{key: performance-unnecessary-value-param.AllowedTypes, value: '[Pp]ointer$;[Pp]tr$;[Rr]ef(erence)?$'}]}" --
+// RUN: %check_clang_tidy %s performance-unnecessary-value-param %t -- -config="{CheckOptions: {performance-unnecessary-value-param.AllowedTypes: '[Pp]ointer$;[Pp]tr$;[Rr]ef(erence)?$'}}" --
 
 struct SmartPointer {
   ~SmartPointer();
@@ -67,7 +67,7 @@ void negative_smart_ref(smart_ref r) {
 }
 
 void positiveOtherType(OtherType O) {
-  // CHECK-MESSAGES: [[@LINE-1]]:34: warning: the parameter 'O' is copied for each invocation but only used as a const reference; consider making it a const reference [performance-unnecessary-value-param]
+  // CHECK-MESSAGES: [[@LINE-1]]:34: warning: the parameter 'O' of type 'OtherType' is copied for each invocation but only used as a const reference; consider making it a const reference [performance-unnecessary-value-param]
   // CHECK-FIXES: void positiveOtherType(const OtherType& O) {
 }
 

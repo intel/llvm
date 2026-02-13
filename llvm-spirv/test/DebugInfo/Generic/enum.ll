@@ -2,7 +2,7 @@
 
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -mtriple=%triple -O0 -filetype=obj < %t.ll > %t
 ; RUN: llvm-dwarfdump -v %t | FileCheck %s
@@ -42,14 +42,14 @@ target triple = "spir64-unknown-unknown"
 
 source_filename = "test/DebugInfo/Generic/enum.ll"
 
-@a = global i64 0, align 8, !dbg !0
+@a = addrspace(1) global i64 0, align 8, !dbg !0
 
 ; Function Attrs: nounwind uwtable
 define void @_Z4funcv() #0 !dbg !17 {
 entry:
   %b = alloca i32, align 4
-  call void @llvm.dbg.declare(metadata i32* %b, metadata !20, metadata !22), !dbg !23
-  store i32 0, i32* %b, align 4, !dbg !23
+  call void @llvm.dbg.declare(metadata ptr %b, metadata !20, metadata !22), !dbg !23
+  store i32 0, ptr %b, align 4, !dbg !23
   ret void, !dbg !24
 }
 

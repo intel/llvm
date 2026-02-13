@@ -6,7 +6,7 @@
 ; RUN: llc < %s -disable-peephole -mtriple=x86_64-apple-darwin -mattr=avx512f | FileCheck %s --check-prefixes=AVX,AVX512,AVX512F
 ; RUN: llc < %s -disable-peephole -mtriple=x86_64-apple-darwin -mattr=avx512f,avx512dq,avx512vl | FileCheck %s --check-prefixes=AVX,AVX512,AVX512VL,AVX512VLDQ
 ; RUN: llc < %s -disable-peephole -mtriple=x86_64-apple-darwin -mattr=avx512f,avx512bw,avx512vl | FileCheck %s --check-prefixes=AVX,AVX512,AVX512VL,AVX512VLBW
-; RUN: llc < %s -mtriple=i686-apple-darwin -mattr=avx512f,avx512bw,avx512dq,avx512vl | FileCheck %s --check-prefixes=X86-AVX512
+; RUN: llc < %s -mtriple=i686-apple-darwin -mattr=avx512f,avx512bw,avx512dq,avx512vl -verify-machineinstrs | FileCheck %s --check-prefixes=X86-AVX512
 
 ;
 ; vXf64
@@ -180,8 +180,7 @@ define <4 x double> @load_v4f64_v4i32(<4 x i32> %trigger, ptr %addr, <4 x double
 ; AVX1-NEXT:    vpxor %xmm2, %xmm2, %xmm2
 ; AVX1-NEXT:    vpcmpeqd %xmm2, %xmm0, %xmm0
 ; AVX1-NEXT:    vpmovsxdq %xmm0, %xmm2
-; AVX1-NEXT:    vpshufd {{.*#+}} xmm0 = xmm0[2,3,2,3]
-; AVX1-NEXT:    vpmovsxdq %xmm0, %xmm0
+; AVX1-NEXT:    vpshufd {{.*#+}} xmm0 = xmm0[2,2,3,3]
 ; AVX1-NEXT:    vinsertf128 $1, %xmm0, %ymm2, %ymm0
 ; AVX1-NEXT:    vmaskmovpd (%rdi), %ymm0, %ymm2
 ; AVX1-NEXT:    vblendvpd %ymm0, %ymm2, %ymm1, %ymm0
@@ -247,7 +246,6 @@ define <4 x double> @load_v4f64_v4i32_zero(<4 x i32> %trigger, ptr %addr) {
 ; SSE-NEXT:    retq
 ; SSE-NEXT:  LBB3_1: ## %cond.load
 ; SSE-NEXT:    movq {{.*#+}} xmm0 = mem[0],zero
-; SSE-NEXT:    xorps %xmm1, %xmm1
 ; SSE-NEXT:    testb $2, %al
 ; SSE-NEXT:    je LBB3_4
 ; SSE-NEXT:  LBB3_3: ## %cond.load1
@@ -267,8 +265,7 @@ define <4 x double> @load_v4f64_v4i32_zero(<4 x i32> %trigger, ptr %addr) {
 ; AVX1-NEXT:    vpxor %xmm1, %xmm1, %xmm1
 ; AVX1-NEXT:    vpcmpeqd %xmm1, %xmm0, %xmm0
 ; AVX1-NEXT:    vpmovsxdq %xmm0, %xmm1
-; AVX1-NEXT:    vpshufd {{.*#+}} xmm0 = xmm0[2,3,2,3]
-; AVX1-NEXT:    vpmovsxdq %xmm0, %xmm0
+; AVX1-NEXT:    vpshufd {{.*#+}} xmm0 = xmm0[2,2,3,3]
 ; AVX1-NEXT:    vinsertf128 $1, %xmm0, %ymm1, %ymm0
 ; AVX1-NEXT:    vmaskmovpd (%rdi), %ymm0, %ymm0
 ; AVX1-NEXT:    retq
@@ -313,13 +310,12 @@ define <4 x double> @load_v4f64_v4i64(<4 x i64> %trigger, ptr %addr, <4 x double
 ; SSE2:       ## %bb.0:
 ; SSE2-NEXT:    pxor %xmm4, %xmm4
 ; SSE2-NEXT:    pcmpeqd %xmm4, %xmm1
-; SSE2-NEXT:    pshufd {{.*#+}} xmm5 = xmm1[1,0,3,2]
-; SSE2-NEXT:    pand %xmm1, %xmm5
 ; SSE2-NEXT:    pcmpeqd %xmm4, %xmm0
-; SSE2-NEXT:    pshufd {{.*#+}} xmm1 = xmm0[1,0,3,2]
-; SSE2-NEXT:    pand %xmm0, %xmm1
-; SSE2-NEXT:    packssdw %xmm5, %xmm1
-; SSE2-NEXT:    movmskps %xmm1, %eax
+; SSE2-NEXT:    movdqa %xmm0, %xmm4
+; SSE2-NEXT:    shufps {{.*#+}} xmm4 = xmm4[1,3],xmm1[1,3]
+; SSE2-NEXT:    shufps {{.*#+}} xmm0 = xmm0[0,2],xmm1[0,2]
+; SSE2-NEXT:    andps %xmm4, %xmm0
+; SSE2-NEXT:    movmskps %xmm0, %eax
 ; SSE2-NEXT:    testb $1, %al
 ; SSE2-NEXT:    jne LBB4_1
 ; SSE2-NEXT:  ## %bb.2: ## %else
@@ -821,7 +817,7 @@ define <2 x float> @load_v2f32_v2i32(<2 x i32> %trigger, ptr %addr, <2 x float> 
 ; SSE42-NEXT:    retq
 ; SSE42-NEXT:  LBB7_1: ## %cond.load
 ; SSE42-NEXT:    movss {{.*#+}} xmm0 = mem[0],zero,zero,zero
-; SSE42-NEXT:    blendps {{.*#+}} xmm1 = xmm0[0],xmm1[1,2,3]
+; SSE42-NEXT:    movss {{.*#+}} xmm1 = xmm0[0],xmm1[1,2,3]
 ; SSE42-NEXT:    testb $2, %al
 ; SSE42-NEXT:    je LBB7_4
 ; SSE42-NEXT:  LBB7_3: ## %cond.load1
@@ -1129,7 +1125,6 @@ define <8 x float> @load_v8f32_v8i1_zero(<8 x i1> %mask, ptr %addr) {
 ; SSE2-NEXT:    retq
 ; SSE2-NEXT:  LBB10_1: ## %cond.load
 ; SSE2-NEXT:    movd {{.*#+}} xmm0 = mem[0],zero,zero,zero
-; SSE2-NEXT:    xorps %xmm1, %xmm1
 ; SSE2-NEXT:    testb $2, %al
 ; SSE2-NEXT:    je LBB10_4
 ; SSE2-NEXT:  LBB10_3: ## %cond.load1
@@ -1209,7 +1204,6 @@ define <8 x float> @load_v8f32_v8i1_zero(<8 x i1> %mask, ptr %addr) {
 ; SSE42-NEXT:    retq
 ; SSE42-NEXT:  LBB10_1: ## %cond.load
 ; SSE42-NEXT:    movd {{.*#+}} xmm0 = mem[0],zero,zero,zero
-; SSE42-NEXT:    xorps %xmm1, %xmm1
 ; SSE42-NEXT:    testb $2, %al
 ; SSE42-NEXT:    je LBB10_4
 ; SSE42-NEXT:  LBB10_3: ## %cond.load1
@@ -1226,7 +1220,7 @@ define <8 x float> @load_v8f32_v8i1_zero(<8 x i1> %mask, ptr %addr) {
 ; SSE42-NEXT:    je LBB10_10
 ; SSE42-NEXT:  LBB10_9: ## %cond.load10
 ; SSE42-NEXT:    movss {{.*#+}} xmm2 = mem[0],zero,zero,zero
-; SSE42-NEXT:    blendps {{.*#+}} xmm1 = xmm2[0],xmm1[1,2,3]
+; SSE42-NEXT:    movss {{.*#+}} xmm1 = xmm2[0],xmm1[1,2,3]
 ; SSE42-NEXT:    testb $32, %al
 ; SSE42-NEXT:    je LBB10_12
 ; SSE42-NEXT:  LBB10_11: ## %cond.load13
@@ -1638,13 +1632,12 @@ define <4 x i64> @load_v4i64_v4i64(<4 x i64> %trigger, ptr %addr, <4 x i64> %dst
 ; SSE2:       ## %bb.0:
 ; SSE2-NEXT:    pxor %xmm4, %xmm4
 ; SSE2-NEXT:    pcmpeqd %xmm4, %xmm1
-; SSE2-NEXT:    pshufd {{.*#+}} xmm5 = xmm1[1,0,3,2]
-; SSE2-NEXT:    pand %xmm1, %xmm5
 ; SSE2-NEXT:    pcmpeqd %xmm4, %xmm0
-; SSE2-NEXT:    pshufd {{.*#+}} xmm1 = xmm0[1,0,3,2]
-; SSE2-NEXT:    pand %xmm0, %xmm1
-; SSE2-NEXT:    packssdw %xmm5, %xmm1
-; SSE2-NEXT:    movmskps %xmm1, %eax
+; SSE2-NEXT:    movdqa %xmm0, %xmm4
+; SSE2-NEXT:    shufps {{.*#+}} xmm4 = xmm4[1,3],xmm1[1,3]
+; SSE2-NEXT:    shufps {{.*#+}} xmm0 = xmm0[0,2],xmm1[0,2]
+; SSE2-NEXT:    andps %xmm4, %xmm0
+; SSE2-NEXT:    movmskps %xmm0, %eax
 ; SSE2-NEXT:    testb $1, %al
 ; SSE2-NEXT:    jne LBB14_1
 ; SSE2-NEXT:  ## %bb.2: ## %else
@@ -2650,7 +2643,6 @@ define <8 x i32> @load_v8i32_v8i1_zero(<8 x i1> %mask, ptr %addr) {
 ; SSE2-NEXT:    retq
 ; SSE2-NEXT:  LBB20_1: ## %cond.load
 ; SSE2-NEXT:    movd {{.*#+}} xmm0 = mem[0],zero,zero,zero
-; SSE2-NEXT:    xorps %xmm1, %xmm1
 ; SSE2-NEXT:    testb $2, %al
 ; SSE2-NEXT:    je LBB20_4
 ; SSE2-NEXT:  LBB20_3: ## %cond.load1
@@ -2730,7 +2722,6 @@ define <8 x i32> @load_v8i32_v8i1_zero(<8 x i1> %mask, ptr %addr) {
 ; SSE42-NEXT:    retq
 ; SSE42-NEXT:  LBB20_1: ## %cond.load
 ; SSE42-NEXT:    movd {{.*#+}} xmm0 = mem[0],zero,zero,zero
-; SSE42-NEXT:    pxor %xmm1, %xmm1
 ; SSE42-NEXT:    testb $2, %al
 ; SSE42-NEXT:    je LBB20_4
 ; SSE42-NEXT:  LBB20_3: ## %cond.load1
@@ -3017,8 +3008,7 @@ define <8 x i16> @load_v8i16_v8i16(<8 x i16> %trigger, ptr %addr, <8 x i16> %dst
 ; AVX512VLDQ-NEXT:    vpxor %xmm2, %xmm2, %xmm2
 ; AVX512VLDQ-NEXT:    vpcmpgtw %xmm0, %xmm2, %xmm0
 ; AVX512VLDQ-NEXT:    vpmovsxwd %xmm0, %ymm0
-; AVX512VLDQ-NEXT:    vpmovd2m %ymm0, %k0
-; AVX512VLDQ-NEXT:    kmovw %k0, %eax
+; AVX512VLDQ-NEXT:    vmovmskps %ymm0, %eax
 ; AVX512VLDQ-NEXT:    testb $1, %al
 ; AVX512VLDQ-NEXT:    jne LBB21_1
 ; AVX512VLDQ-NEXT:  ## %bb.2: ## %else
@@ -3123,8 +3113,8 @@ define <16 x i16> @load_v16i16_v16i16(<16 x i16> %trigger, ptr %addr, <16 x i16>
 ; SSE-NEXT:    testb $64, %al
 ; SSE-NEXT:    jne LBB22_13
 ; SSE-NEXT:  LBB22_14: ## %else17
-; SSE-NEXT:    testb $-128, %al
-; SSE-NEXT:    jne LBB22_15
+; SSE-NEXT:    testb %al, %al
+; SSE-NEXT:    js LBB22_15
 ; SSE-NEXT:  LBB22_16: ## %else20
 ; SSE-NEXT:    testl $256, %eax ## imm = 0x100
 ; SSE-NEXT:    jne LBB22_17
@@ -3181,8 +3171,8 @@ define <16 x i16> @load_v16i16_v16i16(<16 x i16> %trigger, ptr %addr, <16 x i16>
 ; SSE-NEXT:    je LBB22_14
 ; SSE-NEXT:  LBB22_13: ## %cond.load16
 ; SSE-NEXT:    pinsrw $6, 12(%rdi), %xmm2
-; SSE-NEXT:    testb $-128, %al
-; SSE-NEXT:    je LBB22_16
+; SSE-NEXT:    testb %al, %al
+; SSE-NEXT:    jns LBB22_16
 ; SSE-NEXT:  LBB22_15: ## %cond.load19
 ; SSE-NEXT:    pinsrw $7, 14(%rdi), %xmm2
 ; SSE-NEXT:    testl $256, %eax ## imm = 0x100
@@ -3243,8 +3233,8 @@ define <16 x i16> @load_v16i16_v16i16(<16 x i16> %trigger, ptr %addr, <16 x i16>
 ; AVX1-NEXT:    testb $64, %al
 ; AVX1-NEXT:    jne LBB22_13
 ; AVX1-NEXT:  LBB22_14: ## %else17
-; AVX1-NEXT:    testb $-128, %al
-; AVX1-NEXT:    jne LBB22_15
+; AVX1-NEXT:    testb %al, %al
+; AVX1-NEXT:    js LBB22_15
 ; AVX1-NEXT:  LBB22_16: ## %else20
 ; AVX1-NEXT:    testl $256, %eax ## imm = 0x100
 ; AVX1-NEXT:    jne LBB22_17
@@ -3305,8 +3295,8 @@ define <16 x i16> @load_v16i16_v16i16(<16 x i16> %trigger, ptr %addr, <16 x i16>
 ; AVX1-NEXT:  LBB22_13: ## %cond.load16
 ; AVX1-NEXT:    vpinsrw $6, 12(%rdi), %xmm1, %xmm0
 ; AVX1-NEXT:    vblendps {{.*#+}} ymm1 = ymm0[0,1,2,3],ymm1[4,5,6,7]
-; AVX1-NEXT:    testb $-128, %al
-; AVX1-NEXT:    je LBB22_16
+; AVX1-NEXT:    testb %al, %al
+; AVX1-NEXT:    jns LBB22_16
 ; AVX1-NEXT:  LBB22_15: ## %cond.load19
 ; AVX1-NEXT:    vpinsrw $7, 14(%rdi), %xmm1, %xmm0
 ; AVX1-NEXT:    vblendps {{.*#+}} ymm1 = ymm0[0,1,2,3],ymm1[4,5,6,7]
@@ -3387,8 +3377,8 @@ define <16 x i16> @load_v16i16_v16i16(<16 x i16> %trigger, ptr %addr, <16 x i16>
 ; AVX2-NEXT:    testb $64, %al
 ; AVX2-NEXT:    jne LBB22_13
 ; AVX2-NEXT:  LBB22_14: ## %else17
-; AVX2-NEXT:    testb $-128, %al
-; AVX2-NEXT:    jne LBB22_15
+; AVX2-NEXT:    testb %al, %al
+; AVX2-NEXT:    js LBB22_15
 ; AVX2-NEXT:  LBB22_16: ## %else20
 ; AVX2-NEXT:    testl $256, %eax ## imm = 0x100
 ; AVX2-NEXT:    jne LBB22_17
@@ -3449,8 +3439,8 @@ define <16 x i16> @load_v16i16_v16i16(<16 x i16> %trigger, ptr %addr, <16 x i16>
 ; AVX2-NEXT:  LBB22_13: ## %cond.load16
 ; AVX2-NEXT:    vpinsrw $6, 12(%rdi), %xmm1, %xmm0
 ; AVX2-NEXT:    vpblendd {{.*#+}} ymm1 = ymm0[0,1,2,3],ymm1[4,5,6,7]
-; AVX2-NEXT:    testb $-128, %al
-; AVX2-NEXT:    je LBB22_16
+; AVX2-NEXT:    testb %al, %al
+; AVX2-NEXT:    jns LBB22_16
 ; AVX2-NEXT:  LBB22_15: ## %cond.load19
 ; AVX2-NEXT:    vpinsrw $7, 14(%rdi), %xmm1, %xmm0
 ; AVX2-NEXT:    vpblendd {{.*#+}} ymm1 = ymm0[0,1,2,3],ymm1[4,5,6,7]
@@ -3533,8 +3523,8 @@ define <16 x i16> @load_v16i16_v16i16(<16 x i16> %trigger, ptr %addr, <16 x i16>
 ; AVX512F-NEXT:    testb $64, %al
 ; AVX512F-NEXT:    jne LBB22_13
 ; AVX512F-NEXT:  LBB22_14: ## %else17
-; AVX512F-NEXT:    testb $-128, %al
-; AVX512F-NEXT:    jne LBB22_15
+; AVX512F-NEXT:    testb %al, %al
+; AVX512F-NEXT:    js LBB22_15
 ; AVX512F-NEXT:  LBB22_16: ## %else20
 ; AVX512F-NEXT:    testl $256, %eax ## imm = 0x100
 ; AVX512F-NEXT:    jne LBB22_17
@@ -3595,8 +3585,8 @@ define <16 x i16> @load_v16i16_v16i16(<16 x i16> %trigger, ptr %addr, <16 x i16>
 ; AVX512F-NEXT:  LBB22_13: ## %cond.load16
 ; AVX512F-NEXT:    vpinsrw $6, 12(%rdi), %xmm1, %xmm0
 ; AVX512F-NEXT:    vpblendd {{.*#+}} ymm1 = ymm0[0,1,2,3],ymm1[4,5,6,7]
-; AVX512F-NEXT:    testb $-128, %al
-; AVX512F-NEXT:    je LBB22_16
+; AVX512F-NEXT:    testb %al, %al
+; AVX512F-NEXT:    jns LBB22_16
 ; AVX512F-NEXT:  LBB22_15: ## %cond.load19
 ; AVX512F-NEXT:    vpinsrw $7, 14(%rdi), %xmm1, %xmm0
 ; AVX512F-NEXT:    vpblendd {{.*#+}} ymm1 = ymm0[0,1,2,3],ymm1[4,5,6,7]
@@ -3679,8 +3669,8 @@ define <16 x i16> @load_v16i16_v16i16(<16 x i16> %trigger, ptr %addr, <16 x i16>
 ; AVX512VLDQ-NEXT:    testb $64, %al
 ; AVX512VLDQ-NEXT:    jne LBB22_13
 ; AVX512VLDQ-NEXT:  LBB22_14: ## %else17
-; AVX512VLDQ-NEXT:    testb $-128, %al
-; AVX512VLDQ-NEXT:    jne LBB22_15
+; AVX512VLDQ-NEXT:    testb %al, %al
+; AVX512VLDQ-NEXT:    js LBB22_15
 ; AVX512VLDQ-NEXT:  LBB22_16: ## %else20
 ; AVX512VLDQ-NEXT:    testl $256, %eax ## imm = 0x100
 ; AVX512VLDQ-NEXT:    jne LBB22_17
@@ -3741,8 +3731,8 @@ define <16 x i16> @load_v16i16_v16i16(<16 x i16> %trigger, ptr %addr, <16 x i16>
 ; AVX512VLDQ-NEXT:  LBB22_13: ## %cond.load16
 ; AVX512VLDQ-NEXT:    vpinsrw $6, 12(%rdi), %xmm1, %xmm0
 ; AVX512VLDQ-NEXT:    vpblendd {{.*#+}} ymm1 = ymm0[0,1,2,3],ymm1[4,5,6,7]
-; AVX512VLDQ-NEXT:    testb $-128, %al
-; AVX512VLDQ-NEXT:    je LBB22_16
+; AVX512VLDQ-NEXT:    testb %al, %al
+; AVX512VLDQ-NEXT:    jns LBB22_16
 ; AVX512VLDQ-NEXT:  LBB22_15: ## %cond.load19
 ; AVX512VLDQ-NEXT:    vpinsrw $7, 14(%rdi), %xmm1, %xmm0
 ; AVX512VLDQ-NEXT:    vpblendd {{.*#+}} ymm1 = ymm0[0,1,2,3],ymm1[4,5,6,7]
@@ -3843,8 +3833,8 @@ define <16 x i8> @load_v16i8_v16i8(<16 x i8> %trigger, ptr %addr, <16 x i8> %dst
 ; SSE2-NEXT:    testb $64, %al
 ; SSE2-NEXT:    jne LBB23_13
 ; SSE2-NEXT:  LBB23_14: ## %else17
-; SSE2-NEXT:    testb $-128, %al
-; SSE2-NEXT:    jne LBB23_15
+; SSE2-NEXT:    testb %al, %al
+; SSE2-NEXT:    js LBB23_15
 ; SSE2-NEXT:  LBB23_16: ## %else20
 ; SSE2-NEXT:    testl $256, %eax ## imm = 0x100
 ; SSE2-NEXT:    jne LBB23_17
@@ -3939,8 +3929,8 @@ define <16 x i8> @load_v16i8_v16i8(<16 x i8> %trigger, ptr %addr, <16 x i8> %dst
 ; SSE2-NEXT:    psllq $48, %xmm2
 ; SSE2-NEXT:    pandn %xmm2, %xmm0
 ; SSE2-NEXT:    por %xmm0, %xmm1
-; SSE2-NEXT:    testb $-128, %al
-; SSE2-NEXT:    je LBB23_16
+; SSE2-NEXT:    testb %al, %al
+; SSE2-NEXT:    jns LBB23_16
 ; SSE2-NEXT:  LBB23_15: ## %cond.load19
 ; SSE2-NEXT:    movdqa {{.*#+}} xmm0 = [255,255,255,255,255,255,255,0,255,255,255,255,255,255,255,255]
 ; SSE2-NEXT:    pand %xmm0, %xmm1
@@ -4054,8 +4044,8 @@ define <16 x i8> @load_v16i8_v16i8(<16 x i8> %trigger, ptr %addr, <16 x i8> %dst
 ; SSE42-NEXT:    testb $64, %al
 ; SSE42-NEXT:    jne LBB23_13
 ; SSE42-NEXT:  LBB23_14: ## %else17
-; SSE42-NEXT:    testb $-128, %al
-; SSE42-NEXT:    jne LBB23_15
+; SSE42-NEXT:    testb %al, %al
+; SSE42-NEXT:    js LBB23_15
 ; SSE42-NEXT:  LBB23_16: ## %else20
 ; SSE42-NEXT:    testl $256, %eax ## imm = 0x100
 ; SSE42-NEXT:    jne LBB23_17
@@ -4109,8 +4099,8 @@ define <16 x i8> @load_v16i8_v16i8(<16 x i8> %trigger, ptr %addr, <16 x i8> %dst
 ; SSE42-NEXT:    je LBB23_14
 ; SSE42-NEXT:  LBB23_13: ## %cond.load16
 ; SSE42-NEXT:    pinsrb $6, 6(%rdi), %xmm1
-; SSE42-NEXT:    testb $-128, %al
-; SSE42-NEXT:    je LBB23_16
+; SSE42-NEXT:    testb %al, %al
+; SSE42-NEXT:    jns LBB23_16
 ; SSE42-NEXT:  LBB23_15: ## %cond.load19
 ; SSE42-NEXT:    pinsrb $7, 7(%rdi), %xmm1
 ; SSE42-NEXT:    testl $256, %eax ## imm = 0x100
@@ -4172,8 +4162,8 @@ define <16 x i8> @load_v16i8_v16i8(<16 x i8> %trigger, ptr %addr, <16 x i8> %dst
 ; AVX1OR2-NEXT:    testb $64, %al
 ; AVX1OR2-NEXT:    jne LBB23_13
 ; AVX1OR2-NEXT:  LBB23_14: ## %else17
-; AVX1OR2-NEXT:    testb $-128, %al
-; AVX1OR2-NEXT:    jne LBB23_15
+; AVX1OR2-NEXT:    testb %al, %al
+; AVX1OR2-NEXT:    js LBB23_15
 ; AVX1OR2-NEXT:  LBB23_16: ## %else20
 ; AVX1OR2-NEXT:    testl $256, %eax ## imm = 0x100
 ; AVX1OR2-NEXT:    jne LBB23_17
@@ -4227,8 +4217,8 @@ define <16 x i8> @load_v16i8_v16i8(<16 x i8> %trigger, ptr %addr, <16 x i8> %dst
 ; AVX1OR2-NEXT:    je LBB23_14
 ; AVX1OR2-NEXT:  LBB23_13: ## %cond.load16
 ; AVX1OR2-NEXT:    vpinsrb $6, 6(%rdi), %xmm1, %xmm1
-; AVX1OR2-NEXT:    testb $-128, %al
-; AVX1OR2-NEXT:    je LBB23_16
+; AVX1OR2-NEXT:    testb %al, %al
+; AVX1OR2-NEXT:    jns LBB23_16
 ; AVX1OR2-NEXT:  LBB23_15: ## %cond.load19
 ; AVX1OR2-NEXT:    vpinsrb $7, 7(%rdi), %xmm1, %xmm1
 ; AVX1OR2-NEXT:    testl $256, %eax ## imm = 0x100
@@ -4290,8 +4280,8 @@ define <16 x i8> @load_v16i8_v16i8(<16 x i8> %trigger, ptr %addr, <16 x i8> %dst
 ; AVX512F-NEXT:    testb $64, %al
 ; AVX512F-NEXT:    jne LBB23_13
 ; AVX512F-NEXT:  LBB23_14: ## %else17
-; AVX512F-NEXT:    testb $-128, %al
-; AVX512F-NEXT:    jne LBB23_15
+; AVX512F-NEXT:    testb %al, %al
+; AVX512F-NEXT:    js LBB23_15
 ; AVX512F-NEXT:  LBB23_16: ## %else20
 ; AVX512F-NEXT:    testl $256, %eax ## imm = 0x100
 ; AVX512F-NEXT:    jne LBB23_17
@@ -4345,8 +4335,8 @@ define <16 x i8> @load_v16i8_v16i8(<16 x i8> %trigger, ptr %addr, <16 x i8> %dst
 ; AVX512F-NEXT:    je LBB23_14
 ; AVX512F-NEXT:  LBB23_13: ## %cond.load16
 ; AVX512F-NEXT:    vpinsrb $6, 6(%rdi), %xmm1, %xmm1
-; AVX512F-NEXT:    testb $-128, %al
-; AVX512F-NEXT:    je LBB23_16
+; AVX512F-NEXT:    testb %al, %al
+; AVX512F-NEXT:    jns LBB23_16
 ; AVX512F-NEXT:  LBB23_15: ## %cond.load19
 ; AVX512F-NEXT:    vpinsrb $7, 7(%rdi), %xmm1, %xmm1
 ; AVX512F-NEXT:    testl $256, %eax ## imm = 0x100
@@ -4408,8 +4398,8 @@ define <16 x i8> @load_v16i8_v16i8(<16 x i8> %trigger, ptr %addr, <16 x i8> %dst
 ; AVX512VLDQ-NEXT:    testb $64, %al
 ; AVX512VLDQ-NEXT:    jne LBB23_13
 ; AVX512VLDQ-NEXT:  LBB23_14: ## %else17
-; AVX512VLDQ-NEXT:    testb $-128, %al
-; AVX512VLDQ-NEXT:    jne LBB23_15
+; AVX512VLDQ-NEXT:    testb %al, %al
+; AVX512VLDQ-NEXT:    js LBB23_15
 ; AVX512VLDQ-NEXT:  LBB23_16: ## %else20
 ; AVX512VLDQ-NEXT:    testl $256, %eax ## imm = 0x100
 ; AVX512VLDQ-NEXT:    jne LBB23_17
@@ -4463,8 +4453,8 @@ define <16 x i8> @load_v16i8_v16i8(<16 x i8> %trigger, ptr %addr, <16 x i8> %dst
 ; AVX512VLDQ-NEXT:    je LBB23_14
 ; AVX512VLDQ-NEXT:  LBB23_13: ## %cond.load16
 ; AVX512VLDQ-NEXT:    vpinsrb $6, 6(%rdi), %xmm1, %xmm1
-; AVX512VLDQ-NEXT:    testb $-128, %al
-; AVX512VLDQ-NEXT:    je LBB23_16
+; AVX512VLDQ-NEXT:    testb %al, %al
+; AVX512VLDQ-NEXT:    jns LBB23_16
 ; AVX512VLDQ-NEXT:  LBB23_15: ## %cond.load19
 ; AVX512VLDQ-NEXT:    vpinsrb $7, 7(%rdi), %xmm1, %xmm1
 ; AVX512VLDQ-NEXT:    testl $256, %eax ## imm = 0x100
@@ -4547,8 +4537,8 @@ define <32 x i8> @load_v32i8_v32i8(<32 x i8> %trigger, ptr %addr, <32 x i8> %dst
 ; SSE2-NEXT:    testb $64, %al
 ; SSE2-NEXT:    jne LBB24_13
 ; SSE2-NEXT:  LBB24_14: ## %else17
-; SSE2-NEXT:    testb $-128, %al
-; SSE2-NEXT:    jne LBB24_15
+; SSE2-NEXT:    testb %al, %al
+; SSE2-NEXT:    js LBB24_15
 ; SSE2-NEXT:  LBB24_16: ## %else20
 ; SSE2-NEXT:    testl $256, %eax ## imm = 0x100
 ; SSE2-NEXT:    jne LBB24_17
@@ -4571,8 +4561,8 @@ define <32 x i8> @load_v32i8_v32i8(<32 x i8> %trigger, ptr %addr, <32 x i8> %dst
 ; SSE2-NEXT:    testl $16384, %eax ## imm = 0x4000
 ; SSE2-NEXT:    jne LBB24_29
 ; SSE2-NEXT:  LBB24_30: ## %else41
-; SSE2-NEXT:    testl $32768, %eax ## imm = 0x8000
-; SSE2-NEXT:    jne LBB24_31
+; SSE2-NEXT:    testw %ax, %ax
+; SSE2-NEXT:    js LBB24_31
 ; SSE2-NEXT:  LBB24_32: ## %else44
 ; SSE2-NEXT:    testl $65536, %eax ## imm = 0x10000
 ; SSE2-NEXT:    jne LBB24_33
@@ -4698,8 +4688,8 @@ define <32 x i8> @load_v32i8_v32i8(<32 x i8> %trigger, ptr %addr, <32 x i8> %dst
 ; SSE2-NEXT:    psllq $48, %xmm1
 ; SSE2-NEXT:    pandn %xmm1, %xmm0
 ; SSE2-NEXT:    por %xmm0, %xmm2
-; SSE2-NEXT:    testb $-128, %al
-; SSE2-NEXT:    je LBB24_16
+; SSE2-NEXT:    testb %al, %al
+; SSE2-NEXT:    jns LBB24_16
 ; SSE2-NEXT:  LBB24_15: ## %cond.load19
 ; SSE2-NEXT:    movdqa {{.*#+}} xmm0 = [255,255,255,255,255,255,255,0,255,255,255,255,255,255,255,255]
 ; SSE2-NEXT:    pand %xmm0, %xmm2
@@ -4778,8 +4768,8 @@ define <32 x i8> @load_v32i8_v32i8(<32 x i8> %trigger, ptr %addr, <32 x i8> %dst
 ; SSE2-NEXT:    pslldq {{.*#+}} xmm1 = zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,xmm1[0,1]
 ; SSE2-NEXT:    pandn %xmm1, %xmm0
 ; SSE2-NEXT:    por %xmm0, %xmm2
-; SSE2-NEXT:    testl $32768, %eax ## imm = 0x8000
-; SSE2-NEXT:    je LBB24_32
+; SSE2-NEXT:    testw %ax, %ax
+; SSE2-NEXT:    jns LBB24_32
 ; SSE2-NEXT:  LBB24_31: ## %cond.load43
 ; SSE2-NEXT:    pand {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm2
 ; SSE2-NEXT:    movzbl 15(%rdi), %ecx
@@ -4966,8 +4956,8 @@ define <32 x i8> @load_v32i8_v32i8(<32 x i8> %trigger, ptr %addr, <32 x i8> %dst
 ; SSE42-NEXT:    testb $64, %al
 ; SSE42-NEXT:    jne LBB24_13
 ; SSE42-NEXT:  LBB24_14: ## %else17
-; SSE42-NEXT:    testb $-128, %al
-; SSE42-NEXT:    jne LBB24_15
+; SSE42-NEXT:    testb %al, %al
+; SSE42-NEXT:    js LBB24_15
 ; SSE42-NEXT:  LBB24_16: ## %else20
 ; SSE42-NEXT:    testl $256, %eax ## imm = 0x100
 ; SSE42-NEXT:    jne LBB24_17
@@ -4990,8 +4980,8 @@ define <32 x i8> @load_v32i8_v32i8(<32 x i8> %trigger, ptr %addr, <32 x i8> %dst
 ; SSE42-NEXT:    testl $16384, %eax ## imm = 0x4000
 ; SSE42-NEXT:    jne LBB24_29
 ; SSE42-NEXT:  LBB24_30: ## %else41
-; SSE42-NEXT:    testl $32768, %eax ## imm = 0x8000
-; SSE42-NEXT:    jne LBB24_31
+; SSE42-NEXT:    testw %ax, %ax
+; SSE42-NEXT:    js LBB24_31
 ; SSE42-NEXT:  LBB24_32: ## %else44
 ; SSE42-NEXT:    testl $65536, %eax ## imm = 0x10000
 ; SSE42-NEXT:    jne LBB24_33
@@ -5072,8 +5062,8 @@ define <32 x i8> @load_v32i8_v32i8(<32 x i8> %trigger, ptr %addr, <32 x i8> %dst
 ; SSE42-NEXT:    je LBB24_14
 ; SSE42-NEXT:  LBB24_13: ## %cond.load16
 ; SSE42-NEXT:    pinsrb $6, 6(%rdi), %xmm2
-; SSE42-NEXT:    testb $-128, %al
-; SSE42-NEXT:    je LBB24_16
+; SSE42-NEXT:    testb %al, %al
+; SSE42-NEXT:    jns LBB24_16
 ; SSE42-NEXT:  LBB24_15: ## %cond.load19
 ; SSE42-NEXT:    pinsrb $7, 7(%rdi), %xmm2
 ; SSE42-NEXT:    testl $256, %eax ## imm = 0x100
@@ -5104,8 +5094,8 @@ define <32 x i8> @load_v32i8_v32i8(<32 x i8> %trigger, ptr %addr, <32 x i8> %dst
 ; SSE42-NEXT:    je LBB24_30
 ; SSE42-NEXT:  LBB24_29: ## %cond.load40
 ; SSE42-NEXT:    pinsrb $14, 14(%rdi), %xmm2
-; SSE42-NEXT:    testl $32768, %eax ## imm = 0x8000
-; SSE42-NEXT:    je LBB24_32
+; SSE42-NEXT:    testw %ax, %ax
+; SSE42-NEXT:    jns LBB24_32
 ; SSE42-NEXT:  LBB24_31: ## %cond.load43
 ; SSE42-NEXT:    pinsrb $15, 15(%rdi), %xmm2
 ; SSE42-NEXT:    testl $65536, %eax ## imm = 0x10000
@@ -5200,8 +5190,8 @@ define <32 x i8> @load_v32i8_v32i8(<32 x i8> %trigger, ptr %addr, <32 x i8> %dst
 ; AVX1-NEXT:    testb $64, %al
 ; AVX1-NEXT:    jne LBB24_13
 ; AVX1-NEXT:  LBB24_14: ## %else17
-; AVX1-NEXT:    testb $-128, %al
-; AVX1-NEXT:    jne LBB24_15
+; AVX1-NEXT:    testb %al, %al
+; AVX1-NEXT:    js LBB24_15
 ; AVX1-NEXT:  LBB24_16: ## %else20
 ; AVX1-NEXT:    testl $256, %eax ## imm = 0x100
 ; AVX1-NEXT:    jne LBB24_17
@@ -5224,8 +5214,8 @@ define <32 x i8> @load_v32i8_v32i8(<32 x i8> %trigger, ptr %addr, <32 x i8> %dst
 ; AVX1-NEXT:    testl $16384, %eax ## imm = 0x4000
 ; AVX1-NEXT:    jne LBB24_29
 ; AVX1-NEXT:  LBB24_30: ## %else41
-; AVX1-NEXT:    testl $32768, %eax ## imm = 0x8000
-; AVX1-NEXT:    jne LBB24_31
+; AVX1-NEXT:    testw %ax, %ax
+; AVX1-NEXT:    js LBB24_31
 ; AVX1-NEXT:  LBB24_32: ## %else44
 ; AVX1-NEXT:    testl $65536, %eax ## imm = 0x10000
 ; AVX1-NEXT:    jne LBB24_33
@@ -5310,8 +5300,8 @@ define <32 x i8> @load_v32i8_v32i8(<32 x i8> %trigger, ptr %addr, <32 x i8> %dst
 ; AVX1-NEXT:  LBB24_13: ## %cond.load16
 ; AVX1-NEXT:    vpinsrb $6, 6(%rdi), %xmm1, %xmm0
 ; AVX1-NEXT:    vblendps {{.*#+}} ymm1 = ymm0[0,1,2,3],ymm1[4,5,6,7]
-; AVX1-NEXT:    testb $-128, %al
-; AVX1-NEXT:    je LBB24_16
+; AVX1-NEXT:    testb %al, %al
+; AVX1-NEXT:    jns LBB24_16
 ; AVX1-NEXT:  LBB24_15: ## %cond.load19
 ; AVX1-NEXT:    vpinsrb $7, 7(%rdi), %xmm1, %xmm0
 ; AVX1-NEXT:    vblendps {{.*#+}} ymm1 = ymm0[0,1,2,3],ymm1[4,5,6,7]
@@ -5350,8 +5340,8 @@ define <32 x i8> @load_v32i8_v32i8(<32 x i8> %trigger, ptr %addr, <32 x i8> %dst
 ; AVX1-NEXT:  LBB24_29: ## %cond.load40
 ; AVX1-NEXT:    vpinsrb $14, 14(%rdi), %xmm1, %xmm0
 ; AVX1-NEXT:    vblendps {{.*#+}} ymm1 = ymm0[0,1,2,3],ymm1[4,5,6,7]
-; AVX1-NEXT:    testl $32768, %eax ## imm = 0x8000
-; AVX1-NEXT:    je LBB24_32
+; AVX1-NEXT:    testw %ax, %ax
+; AVX1-NEXT:    jns LBB24_32
 ; AVX1-NEXT:  LBB24_31: ## %cond.load43
 ; AVX1-NEXT:    vpinsrb $15, 15(%rdi), %xmm1, %xmm0
 ; AVX1-NEXT:    vblendps {{.*#+}} ymm1 = ymm0[0,1,2,3],ymm1[4,5,6,7]
@@ -5478,8 +5468,8 @@ define <32 x i8> @load_v32i8_v32i8(<32 x i8> %trigger, ptr %addr, <32 x i8> %dst
 ; AVX2-NEXT:    testb $64, %al
 ; AVX2-NEXT:    jne LBB24_13
 ; AVX2-NEXT:  LBB24_14: ## %else17
-; AVX2-NEXT:    testb $-128, %al
-; AVX2-NEXT:    jne LBB24_15
+; AVX2-NEXT:    testb %al, %al
+; AVX2-NEXT:    js LBB24_15
 ; AVX2-NEXT:  LBB24_16: ## %else20
 ; AVX2-NEXT:    testl $256, %eax ## imm = 0x100
 ; AVX2-NEXT:    jne LBB24_17
@@ -5502,8 +5492,8 @@ define <32 x i8> @load_v32i8_v32i8(<32 x i8> %trigger, ptr %addr, <32 x i8> %dst
 ; AVX2-NEXT:    testl $16384, %eax ## imm = 0x4000
 ; AVX2-NEXT:    jne LBB24_29
 ; AVX2-NEXT:  LBB24_30: ## %else41
-; AVX2-NEXT:    testl $32768, %eax ## imm = 0x8000
-; AVX2-NEXT:    jne LBB24_31
+; AVX2-NEXT:    testw %ax, %ax
+; AVX2-NEXT:    js LBB24_31
 ; AVX2-NEXT:  LBB24_32: ## %else44
 ; AVX2-NEXT:    testl $65536, %eax ## imm = 0x10000
 ; AVX2-NEXT:    jne LBB24_33
@@ -5588,8 +5578,8 @@ define <32 x i8> @load_v32i8_v32i8(<32 x i8> %trigger, ptr %addr, <32 x i8> %dst
 ; AVX2-NEXT:  LBB24_13: ## %cond.load16
 ; AVX2-NEXT:    vpinsrb $6, 6(%rdi), %xmm1, %xmm0
 ; AVX2-NEXT:    vpblendd {{.*#+}} ymm1 = ymm0[0,1,2,3],ymm1[4,5,6,7]
-; AVX2-NEXT:    testb $-128, %al
-; AVX2-NEXT:    je LBB24_16
+; AVX2-NEXT:    testb %al, %al
+; AVX2-NEXT:    jns LBB24_16
 ; AVX2-NEXT:  LBB24_15: ## %cond.load19
 ; AVX2-NEXT:    vpinsrb $7, 7(%rdi), %xmm1, %xmm0
 ; AVX2-NEXT:    vpblendd {{.*#+}} ymm1 = ymm0[0,1,2,3],ymm1[4,5,6,7]
@@ -5628,8 +5618,8 @@ define <32 x i8> @load_v32i8_v32i8(<32 x i8> %trigger, ptr %addr, <32 x i8> %dst
 ; AVX2-NEXT:  LBB24_29: ## %cond.load40
 ; AVX2-NEXT:    vpinsrb $14, 14(%rdi), %xmm1, %xmm0
 ; AVX2-NEXT:    vpblendd {{.*#+}} ymm1 = ymm0[0,1,2,3],ymm1[4,5,6,7]
-; AVX2-NEXT:    testl $32768, %eax ## imm = 0x8000
-; AVX2-NEXT:    je LBB24_32
+; AVX2-NEXT:    testw %ax, %ax
+; AVX2-NEXT:    jns LBB24_32
 ; AVX2-NEXT:  LBB24_31: ## %cond.load43
 ; AVX2-NEXT:    vpinsrb $15, 15(%rdi), %xmm1, %xmm0
 ; AVX2-NEXT:    vpblendd {{.*#+}} ymm1 = ymm0[0,1,2,3],ymm1[4,5,6,7]
@@ -5756,8 +5746,8 @@ define <32 x i8> @load_v32i8_v32i8(<32 x i8> %trigger, ptr %addr, <32 x i8> %dst
 ; AVX512F-NEXT:    testb $64, %al
 ; AVX512F-NEXT:    jne LBB24_13
 ; AVX512F-NEXT:  LBB24_14: ## %else17
-; AVX512F-NEXT:    testb $-128, %al
-; AVX512F-NEXT:    jne LBB24_15
+; AVX512F-NEXT:    testb %al, %al
+; AVX512F-NEXT:    js LBB24_15
 ; AVX512F-NEXT:  LBB24_16: ## %else20
 ; AVX512F-NEXT:    testl $256, %eax ## imm = 0x100
 ; AVX512F-NEXT:    jne LBB24_17
@@ -5780,8 +5770,8 @@ define <32 x i8> @load_v32i8_v32i8(<32 x i8> %trigger, ptr %addr, <32 x i8> %dst
 ; AVX512F-NEXT:    testl $16384, %eax ## imm = 0x4000
 ; AVX512F-NEXT:    jne LBB24_29
 ; AVX512F-NEXT:  LBB24_30: ## %else41
-; AVX512F-NEXT:    testl $32768, %eax ## imm = 0x8000
-; AVX512F-NEXT:    jne LBB24_31
+; AVX512F-NEXT:    testw %ax, %ax
+; AVX512F-NEXT:    js LBB24_31
 ; AVX512F-NEXT:  LBB24_32: ## %else44
 ; AVX512F-NEXT:    testl $65536, %eax ## imm = 0x10000
 ; AVX512F-NEXT:    jne LBB24_33
@@ -5866,8 +5856,8 @@ define <32 x i8> @load_v32i8_v32i8(<32 x i8> %trigger, ptr %addr, <32 x i8> %dst
 ; AVX512F-NEXT:  LBB24_13: ## %cond.load16
 ; AVX512F-NEXT:    vpinsrb $6, 6(%rdi), %xmm1, %xmm0
 ; AVX512F-NEXT:    vpblendd {{.*#+}} ymm1 = ymm0[0,1,2,3],ymm1[4,5,6,7]
-; AVX512F-NEXT:    testb $-128, %al
-; AVX512F-NEXT:    je LBB24_16
+; AVX512F-NEXT:    testb %al, %al
+; AVX512F-NEXT:    jns LBB24_16
 ; AVX512F-NEXT:  LBB24_15: ## %cond.load19
 ; AVX512F-NEXT:    vpinsrb $7, 7(%rdi), %xmm1, %xmm0
 ; AVX512F-NEXT:    vpblendd {{.*#+}} ymm1 = ymm0[0,1,2,3],ymm1[4,5,6,7]
@@ -5906,8 +5896,8 @@ define <32 x i8> @load_v32i8_v32i8(<32 x i8> %trigger, ptr %addr, <32 x i8> %dst
 ; AVX512F-NEXT:  LBB24_29: ## %cond.load40
 ; AVX512F-NEXT:    vpinsrb $14, 14(%rdi), %xmm1, %xmm0
 ; AVX512F-NEXT:    vpblendd {{.*#+}} ymm1 = ymm0[0,1,2,3],ymm1[4,5,6,7]
-; AVX512F-NEXT:    testl $32768, %eax ## imm = 0x8000
-; AVX512F-NEXT:    je LBB24_32
+; AVX512F-NEXT:    testw %ax, %ax
+; AVX512F-NEXT:    jns LBB24_32
 ; AVX512F-NEXT:  LBB24_31: ## %cond.load43
 ; AVX512F-NEXT:    vpinsrb $15, 15(%rdi), %xmm1, %xmm0
 ; AVX512F-NEXT:    vpblendd {{.*#+}} ymm1 = ymm0[0,1,2,3],ymm1[4,5,6,7]
@@ -6034,8 +6024,8 @@ define <32 x i8> @load_v32i8_v32i8(<32 x i8> %trigger, ptr %addr, <32 x i8> %dst
 ; AVX512VLDQ-NEXT:    testb $64, %al
 ; AVX512VLDQ-NEXT:    jne LBB24_13
 ; AVX512VLDQ-NEXT:  LBB24_14: ## %else17
-; AVX512VLDQ-NEXT:    testb $-128, %al
-; AVX512VLDQ-NEXT:    jne LBB24_15
+; AVX512VLDQ-NEXT:    testb %al, %al
+; AVX512VLDQ-NEXT:    js LBB24_15
 ; AVX512VLDQ-NEXT:  LBB24_16: ## %else20
 ; AVX512VLDQ-NEXT:    testl $256, %eax ## imm = 0x100
 ; AVX512VLDQ-NEXT:    jne LBB24_17
@@ -6058,8 +6048,8 @@ define <32 x i8> @load_v32i8_v32i8(<32 x i8> %trigger, ptr %addr, <32 x i8> %dst
 ; AVX512VLDQ-NEXT:    testl $16384, %eax ## imm = 0x4000
 ; AVX512VLDQ-NEXT:    jne LBB24_29
 ; AVX512VLDQ-NEXT:  LBB24_30: ## %else41
-; AVX512VLDQ-NEXT:    testl $32768, %eax ## imm = 0x8000
-; AVX512VLDQ-NEXT:    jne LBB24_31
+; AVX512VLDQ-NEXT:    testw %ax, %ax
+; AVX512VLDQ-NEXT:    js LBB24_31
 ; AVX512VLDQ-NEXT:  LBB24_32: ## %else44
 ; AVX512VLDQ-NEXT:    testl $65536, %eax ## imm = 0x10000
 ; AVX512VLDQ-NEXT:    jne LBB24_33
@@ -6144,8 +6134,8 @@ define <32 x i8> @load_v32i8_v32i8(<32 x i8> %trigger, ptr %addr, <32 x i8> %dst
 ; AVX512VLDQ-NEXT:  LBB24_13: ## %cond.load16
 ; AVX512VLDQ-NEXT:    vpinsrb $6, 6(%rdi), %xmm1, %xmm0
 ; AVX512VLDQ-NEXT:    vpblendd {{.*#+}} ymm1 = ymm0[0,1,2,3],ymm1[4,5,6,7]
-; AVX512VLDQ-NEXT:    testb $-128, %al
-; AVX512VLDQ-NEXT:    je LBB24_16
+; AVX512VLDQ-NEXT:    testb %al, %al
+; AVX512VLDQ-NEXT:    jns LBB24_16
 ; AVX512VLDQ-NEXT:  LBB24_15: ## %cond.load19
 ; AVX512VLDQ-NEXT:    vpinsrb $7, 7(%rdi), %xmm1, %xmm0
 ; AVX512VLDQ-NEXT:    vpblendd {{.*#+}} ymm1 = ymm0[0,1,2,3],ymm1[4,5,6,7]
@@ -6184,8 +6174,8 @@ define <32 x i8> @load_v32i8_v32i8(<32 x i8> %trigger, ptr %addr, <32 x i8> %dst
 ; AVX512VLDQ-NEXT:  LBB24_29: ## %cond.load40
 ; AVX512VLDQ-NEXT:    vpinsrb $14, 14(%rdi), %xmm1, %xmm0
 ; AVX512VLDQ-NEXT:    vpblendd {{.*#+}} ymm1 = ymm0[0,1,2,3],ymm1[4,5,6,7]
-; AVX512VLDQ-NEXT:    testl $32768, %eax ## imm = 0x8000
-; AVX512VLDQ-NEXT:    je LBB24_32
+; AVX512VLDQ-NEXT:    testw %ax, %ax
+; AVX512VLDQ-NEXT:    jns LBB24_32
 ; AVX512VLDQ-NEXT:  LBB24_31: ## %cond.load43
 ; AVX512VLDQ-NEXT:    vpinsrb $15, 15(%rdi), %xmm1, %xmm0
 ; AVX512VLDQ-NEXT:    vpblendd {{.*#+}} ymm1 = ymm0[0,1,2,3],ymm1[4,5,6,7]
@@ -6433,12 +6423,12 @@ define <4 x i32> @mload_constmask_v4i32(ptr %addr, <4 x i32> %dst) {
 ; AVX1:       ## %bb.0:
 ; AVX1-NEXT:    vmovaps {{.*#+}} xmm1 = [0,4294967295,4294967295,4294967295]
 ; AVX1-NEXT:    vmaskmovps (%rdi), %xmm1, %xmm1
-; AVX1-NEXT:    vblendps {{.*#+}} xmm0 = xmm0[0],xmm1[1,2,3]
+; AVX1-NEXT:    vmovss {{.*#+}} xmm0 = xmm0[0],xmm1[1,2,3]
 ; AVX1-NEXT:    retq
 ;
 ; AVX2-LABEL: mload_constmask_v4i32:
 ; AVX2:       ## %bb.0:
-; AVX2-NEXT:    vmovdqa {{.*#+}} xmm1 = [0,4294967295,4294967295,4294967295]
+; AVX2-NEXT:    vpmovsxbd {{.*#+}} xmm1 = [0,4294967295,4294967295,4294967295]
 ; AVX2-NEXT:    vpmaskmovd (%rdi), %xmm1, %xmm1
 ; AVX2-NEXT:    vpblendd {{.*#+}} xmm0 = xmm0[0],xmm1[1,2,3]
 ; AVX2-NEXT:    retq
@@ -6521,7 +6511,7 @@ define <8 x float> @mload_constmask_v8f32(ptr %addr, <8 x float> %dst) {
 ; SSE42-LABEL: mload_constmask_v8f32:
 ; SSE42:       ## %bb.0:
 ; SSE42-NEXT:    movss {{.*#+}} xmm2 = mem[0],zero,zero,zero
-; SSE42-NEXT:    blendps {{.*#+}} xmm0 = xmm2[0,1],xmm0[2,3]
+; SSE42-NEXT:    movsd {{.*#+}} xmm0 = xmm2[0],xmm0[1]
 ; SSE42-NEXT:    insertps {{.*#+}} xmm0 = xmm0[0],mem[0],xmm0[2,3]
 ; SSE42-NEXT:    insertps {{.*#+}} xmm0 = xmm0[0,1],mem[0],xmm0[3]
 ; SSE42-NEXT:    retq
@@ -6971,7 +6961,7 @@ define <4 x i64> @mload_constmask_v4i64_undef_passthrough(ptr %addr) {
 ;
 ; AVX2-LABEL: mload_constmask_v4i64_undef_passthrough:
 ; AVX2:       ## %bb.0:
-; AVX2-NEXT:    vmovdqa {{.*#+}} ymm0 = [0,18446744073709551615,18446744073709551615,0]
+; AVX2-NEXT:    vpmovsxbq {{.*#+}} ymm0 = [0,18446744073709551615,18446744073709551615,0]
 ; AVX2-NEXT:    vpmaskmovq (%rdi), %ymm0, %ymm0
 ; AVX2-NEXT:    retq
 ;
@@ -7212,12 +7202,12 @@ define <16 x i64> @load_one_mask_bit_set6(ptr %addr, <16 x i64> %val) {
 ;
 ; AVX2-LABEL: load_one_mask_bit_set6:
 ; AVX2:       ## %bb.0:
-; AVX2-NEXT:    vmovdqa {{.*#+}} ymm4 = [0,0,18446744073709551615,0]
+; AVX2-NEXT:    vpmovsxbq {{.*#+}} ymm4 = [0,0,18446744073709551615,0]
 ; AVX2-NEXT:    vpmaskmovq (%rdi), %ymm4, %ymm5
 ; AVX2-NEXT:    vpblendd {{.*#+}} ymm0 = ymm0[0,1,2,3],ymm5[4,5],ymm0[6,7]
 ; AVX2-NEXT:    vpmaskmovq 64(%rdi), %ymm4, %ymm4
 ; AVX2-NEXT:    vpblendd {{.*#+}} ymm2 = ymm2[0,1,2,3],ymm4[4,5],ymm2[6,7]
-; AVX2-NEXT:    vmovdqa {{.*#+}} ymm4 = [0,18446744073709551615,0,0]
+; AVX2-NEXT:    vpmovsxbq {{.*#+}} ymm4 = [0,18446744073709551615,0,0]
 ; AVX2-NEXT:    vpmaskmovq 96(%rdi), %ymm4, %ymm4
 ; AVX2-NEXT:    vpblendd {{.*#+}} ymm3 = ymm3[0,1],ymm4[2,3],ymm3[4,5,6,7]
 ; AVX2-NEXT:    retq

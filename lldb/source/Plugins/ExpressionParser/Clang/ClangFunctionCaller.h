@@ -13,10 +13,10 @@
 
 #include "lldb/Core/Address.h"
 #include "lldb/Core/Value.h"
-#include "lldb/Core/ValueObjectList.h"
 #include "lldb/Expression/FunctionCaller.h"
 #include "lldb/Symbol/CompilerType.h"
 #include "lldb/Target/Process.h"
+#include "lldb/ValueObject/ValueObjectList.h"
 
 namespace lldb_private {
 
@@ -57,11 +57,14 @@ class ASTStructExtractor;
 class ClangFunctionCaller : public FunctionCaller {
   friend class ASTStructExtractor;
 
-  class ClangFunctionCallerHelper : public ClangExpressionHelper {
+  class ClangFunctionCallerHelper
+      : public llvm::RTTIExtends<ClangFunctionCallerHelper,
+                                 ClangExpressionHelper> {
   public:
-    ClangFunctionCallerHelper(ClangFunctionCaller &owner) : m_owner(owner) {}
+    // LLVM RTTI support
+    static char ID;
 
-    ~ClangFunctionCallerHelper() override = default;
+    ClangFunctionCallerHelper(ClangFunctionCaller &owner) : m_owner(owner) {}
 
     /// Return the object that the parser should use when resolving external
     /// values.  May be NULL if everything should be self-contained.

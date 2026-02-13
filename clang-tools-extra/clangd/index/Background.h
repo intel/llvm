@@ -27,6 +27,7 @@
 #include <condition_variable>
 #include <deque>
 #include <mutex>
+#include <optional>
 #include <queue>
 #include <string>
 #include <thread>
@@ -61,7 +62,7 @@ public:
   // CDBDirectory is the first directory containing a CDB in parent directories
   // of a file, or user cache directory if none was found, e.g. stdlib headers.
   static Factory createDiskBackedStorageFactory(
-      std::function<llvm::Optional<ProjectInfo>(PathRef)> GetProjectInfo);
+      std::function<std::optional<ProjectInfo>(PathRef)> GetProjectInfo);
 };
 
 // A priority queue of tasks which can be run on (external) worker threads.
@@ -111,7 +112,7 @@ public:
   // Only affects tasks that run after the call.
   static void preventThreadStarvationInTests();
   [[nodiscard]] bool
-  blockUntilIdleForTest(llvm::Optional<double> TimeoutSeconds);
+  blockUntilIdleForTest(std::optional<double> TimeoutSeconds);
 
 private:
   void notifyProgress() const; // Requires lock Mu
@@ -144,6 +145,9 @@ public:
     // file. Called with the empty string for other tasks.
     // (When called, the context from BackgroundIndex construction is active).
     std::function<Context(PathRef)> ContextProvider = nullptr;
+    // Whether the index needs to support the containedRefs() operation.
+    // May use extra memory.
+    bool SupportContainedRefs = true;
   };
 
   /// Creates a new background index and starts its threads.
@@ -173,7 +177,7 @@ public:
 
   // Wait until the queue is empty, to allow deterministic testing.
   [[nodiscard]] bool
-  blockUntilIdleForTest(llvm::Optional<double> TimeoutSeconds = 10) {
+  blockUntilIdleForTest(std::optional<double> TimeoutSeconds = 10) {
     return Queue.blockUntilIdleForTest(TimeoutSeconds);
   }
 

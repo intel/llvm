@@ -1,20 +1,20 @@
-; RUN: llc -march=bpfel -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
+; RUN: llc -mtriple=bpfel -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
 ; Source Code:
 ;   int test(int a, int b) { return a + b; }
 ; Compilation flag:
 ;   clang -target bpf -g -S -emit-llvm test.c
 
 ; Function Attrs: noinline nounwind optnone
-define dso_local i32 @test(i32 %a, i32 %b) #0 !dbg !7 {
+define dso_local i32 @test(i32 %a, i32 %b) !dbg !7 {
 entry:
   %a.addr = alloca i32, align 4
   %b.addr = alloca i32, align 4
-  store i32 %a, i32* %a.addr, align 4
-  call void @llvm.dbg.declare(metadata i32* %a.addr, metadata !11, metadata !DIExpression()), !dbg !12
-  store i32 %b, i32* %b.addr, align 4
-  call void @llvm.dbg.declare(metadata i32* %b.addr, metadata !13, metadata !DIExpression()), !dbg !14
-  %0 = load i32, i32* %a.addr, align 4, !dbg !15
-  %1 = load i32, i32* %b.addr, align 4, !dbg !16
+  store i32 %a, ptr %a.addr, align 4
+  call void @llvm.dbg.declare(metadata ptr %a.addr, metadata !11, metadata !DIExpression()), !dbg !12
+  store i32 %b, ptr %b.addr, align 4
+  call void @llvm.dbg.declare(metadata ptr %b.addr, metadata !13, metadata !DIExpression()), !dbg !14
+  %0 = load i32, ptr %a.addr, align 4, !dbg !15
+  %1 = load i32, ptr %b.addr, align 4, !dbg !16
   %add = add nsw i32 %0, %1, !dbg !17
   ret i32 %add, !dbg !18
 }
@@ -22,10 +22,7 @@ entry:
 ; CHECK-LABEL: test
 
 ; Function Attrs: nounwind readnone speculatable
-declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
-
-attributes #0 = { noinline nounwind optnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { nounwind readnone speculatable}
+declare void @llvm.dbg.declare(metadata, metadata, metadata)
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!3, !4, !5}

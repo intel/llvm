@@ -8,11 +8,12 @@
 
 #pragma once
 
-#include <sycl/detail/pi.hpp>
-#include <sycl/stl.hpp>
+#include <ur_api.h>
+
+#include <memory>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace detail {
 
@@ -21,7 +22,6 @@ class context_impl;
 struct MemObjRecord;
 
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
-using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 
 // The class serves as an interface in the scheduler for all SYCL memory
 // objects.
@@ -43,8 +43,8 @@ public:
   // Non null HostPtr requires allocation to be made with USE_HOST_PTR property.
   // Method returns a pointer to host allocation if Context is host one and
   // cl_mem obect if not.
-  virtual void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                            void *HostPtr, RT::PiEvent &InteropEvent) = 0;
+  virtual void *allocateMem(context_impl *Context, bool InitFromUserData,
+                            void *HostPtr, ur_event_handle_t &InteropEvent) = 0;
 
   // Should be used for memory object created without use_host_ptr property.
   virtual void *allocateHostMem() = 0;
@@ -53,17 +53,25 @@ public:
   // If Context is a device context and Ptr is a host pointer exception will be
   // thrown. And it's undefined behaviour if Context is a host context and Ptr
   // is a device pointer.
-  virtual void releaseMem(ContextImplPtr Context, void *Ptr) = 0;
+  virtual void releaseMem(context_impl *Context, void *Ptr) = 0;
 
   // Ptr must be a pointer returned by allocateHostMem.
   virtual void releaseHostMem(void *Ptr) = 0;
 
   // Returns size of object in bytes
-  virtual size_t getSizeInBytes() const = 0;
+  virtual size_t getSizeInBytes() const noexcept = 0;
+
+  virtual bool isInterop() const = 0;
+
+  virtual bool hasUserDataPtr() const = 0;
+
+  virtual bool isHostPointerReadOnly() const = 0;
+
+  virtual bool usesPinnedHostMemory() const = 0;
 
   // Returns the context which is passed if a memory object is created using
   // interoperability constructor, nullptr otherwise.
-  virtual ContextImplPtr getInteropContext() const = 0;
+  virtual detail::context_impl *getInteropContext() const = 0;
 
 protected:
   // Pointer to the record that contains the memory commands. This is managed
@@ -77,5 +85,5 @@ protected:
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

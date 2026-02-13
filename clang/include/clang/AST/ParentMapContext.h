@@ -1,4 +1,4 @@
-//===- ParentMapContext.h - Map of parents using DynTypedNode -------*- C++ -*-===//
+//===- ParentMapContext.h - Map of parents using DynTypedNode ---*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -77,7 +77,7 @@ class TraversalKindScope {
   TraversalKind TK = TK_AsIs;
 
 public:
-  TraversalKindScope(ASTContext &ASTCtx, llvm::Optional<TraversalKind> ScopeTK)
+  TraversalKindScope(ASTContext &ASTCtx, std::optional<TraversalKind> ScopeTK)
       : Ctx(ASTCtx.getParentMapContext()) {
     TK = Ctx.getTraversalKind();
     if (ScopeTK)

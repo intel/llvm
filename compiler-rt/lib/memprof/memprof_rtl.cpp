@@ -27,10 +27,15 @@
 
 #include <time.h>
 
+SANITIZER_WEAK_ATTRIBUTE char __memprof_default_options_str[1];
+
 uptr __memprof_shadow_memory_dynamic_address; // Global interface symbol.
 
 // Allow the user to specify a profile output file via the binary.
 SANITIZER_WEAK_ATTRIBUTE char __memprof_profile_filename[1];
+
+// Share ClHistogram compiler flag with runtime.
+SANITIZER_WEAK_ATTRIBUTE bool __memprof_histogram;
 
 namespace __memprof {
 
@@ -50,6 +55,14 @@ static void MemprofDie() {
   }
 }
 
+static void MemprofOnDeadlySignal(int signo, void *siginfo, void *context) {
+  // We call StartReportDeadlySignal not HandleDeadlySignal so we get the
+  // deadly signal message to stderr but no writing to the profile output file
+  StartReportDeadlySignal();
+  __memprof_profile_dump();
+  Die();
+}
+
 static void CheckUnwind() {
   GET_STACK_TRACE(kStackTraceMax, common_flags()->fast_unwind_on_check);
   stack.Print();
@@ -57,7 +70,6 @@ static void CheckUnwind() {
 
 // -------------------------- Globals --------------------- {{{1
 int memprof_inited;
-int memprof_init_done;
 bool memprof_init_is_running;
 int memprof_timestamp_inited;
 long memprof_init_timestamp_s;
@@ -68,11 +80,22 @@ uptr kHighMemEnd;
 // exported functions
 
 #define MEMPROF_MEMORY_ACCESS_CALLBACK_BODY() __memprof::RecordAccess(addr);
+#define MEMPROF_MEMORY_ACCESS_CALLBACK_BODY_HIST()                             \
+  __memprof::RecordAccessHistogram(addr);
 
 #define MEMPROF_MEMORY_ACCESS_CALLBACK(type)                                   \
   extern "C" NOINLINE INTERFACE_ATTRIBUTE void __memprof_##type(uptr addr) {   \
     MEMPROF_MEMORY_ACCESS_CALLBACK_BODY()                                      \
   }
+
+#define MEMPROF_MEMORY_ACCESS_CALLBACK_HIST(type)                              \
+  extern "C" NOINLINE INTERFACE_ATTRIBUTE void __memprof_hist_##type(          \
+      uptr addr) {                                                             \
+    MEMPROF_MEMORY_ACCESS_CALLBACK_BODY_HIST()                                 \
+  }
+
+MEMPROF_MEMORY_ACCESS_CALLBACK_HIST(load)
+MEMPROF_MEMORY_ACCESS_CALLBACK_HIST(store)
 
 MEMPROF_MEMORY_ACCESS_CALLBACK(load)
 MEMPROF_MEMORY_ACCESS_CALLBACK(store)
@@ -131,7 +154,7 @@ void PrintAddressSpaceLayout() {
 
   Printf("SHADOW_SCALE: %d\n", (int)SHADOW_SCALE);
   Printf("SHADOW_GRANULARITY: %d\n", (int)SHADOW_GRANULARITY);
-  Printf("SHADOW_OFFSET: 0x%zx\n", (uptr)SHADOW_OFFSET);
+  Printf("SHADOW_OFFSET: %p\n", (void *)SHADOW_OFFSET);
   CHECK(SHADOW_SCALE >= 3 && SHADOW_SCALE <= 7);
 }
 
@@ -155,7 +178,7 @@ static void MemprofInitInternal() {
   InitializeHighMemEnd();
 
   // Make sure we are not statically linked.
-  MemprofDoesNotSupportStaticLinkage();
+  __interception::DoesNotSupportStaticLinking();
 
   // Install tool-specific callbacks in sanitizer_common.
   AddDieCallback(MemprofDie);
@@ -183,33 +206,26 @@ static void MemprofInitInternal() {
   InitializeShadowMemory();
 
   TSDInit(PlatformTSDDtor);
+  InstallDeadlySignalHandlers(MemprofOnDeadlySignal);
 
   InitializeAllocator();
-
-  // On Linux MemprofThread::ThreadStart() calls malloc() that's why
-  // memprof_inited should be set to 1 prior to initializing the threads.
-  memprof_inited = 1;
-  memprof_init_is_running = false;
 
   if (flags()->atexit)
     Atexit(memprof_atexit);
 
   InitializeCoverage(common_flags()->coverage, common_flags()->coverage_dir);
 
-  // interceptors
-  InitTlsSize();
-
   // Create main thread.
   MemprofThread *main_thread = CreateMainThread();
   CHECK_EQ(0, main_thread->tid());
   force_interface_symbols(); // no-op.
-  SanitizerInitializeUnwinder();
 
   Symbolizer::LateInitialize();
 
   VReport(1, "MemProfiler Init done\n");
 
-  memprof_init_done = 1;
+  memprof_init_is_running = false;
+  memprof_inited = 1;
 }
 
 void MemprofInitTime() {
@@ -256,9 +272,18 @@ void __memprof_record_access(void const volatile *addr) {
   __memprof::RecordAccess((uptr)addr);
 }
 
+void __memprof_record_access_hist(void const volatile *addr) {
+  __memprof::RecordAccessHistogram((uptr)addr);
+}
+
 void __memprof_record_access_range(void const volatile *addr, uptr size) {
   for (uptr a = (uptr)addr; a < (uptr)addr + size; a += kWordSize)
     __memprof::RecordAccess(a);
+}
+
+void __memprof_record_access_range_hist(void const volatile *addr, uptr size) {
+  for (uptr a = (uptr)addr; a < (uptr)addr + size; a += kWordSize)
+    __memprof::RecordAccessHistogram(a);
 }
 
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE u16

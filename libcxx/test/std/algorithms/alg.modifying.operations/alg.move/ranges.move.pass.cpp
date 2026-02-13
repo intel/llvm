@@ -9,6 +9,7 @@
 // <algorithm>
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
+// UNSUPPORTED: GCC-ALWAYS_INLINE-FIXME
 
 // template<input_iterator I, sentinel_for<I> S, weakly_incrementable O>
 //   requires indirectly_movable<I, O>
@@ -22,11 +23,15 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <deque>
+#include <iterator>
 #include <ranges>
+#include <vector>
 
 #include "almost_satisfies_types.h"
 #include "MoveOnly.h"
 #include "test_iterators.h"
+#include "test_macros.h"
 
 template <class In, class Out = In, class Sent = sentinel_wrapper<In>>
 concept HasMoveIt = requires(In in, Sent sent, Out out) { std::ranges::move(in, sent, out); };
@@ -61,7 +66,7 @@ constexpr void test(std::array<int, N> in) {
   {
     std::array<int, N> out;
     std::same_as<std::ranges::in_out_result<In, Out>> decltype(auto) ret =
-      std::ranges::move(In(in.data()), Sent(In(in.data() + in.size())), Out(out.data()));
+        std::ranges::move(In(in.data()), Sent(In(in.data() + in.size())), Out(out.data()));
     assert(in == out);
     assert(base(ret.in) == in.data() + in.size());
     assert(base(ret.out) == out.data() + out.size());
@@ -69,11 +74,32 @@ constexpr void test(std::array<int, N> in) {
   {
     std::array<int, N> out;
     auto range = std::ranges::subrange(In(in.data()), Sent(In(in.data() + in.size())));
-    std::same_as<std::ranges::in_out_result<In, Out>> decltype(auto) ret =
-        std::ranges::move(range, Out(out.data()));
+    std::same_as<std::ranges::in_out_result<In, Out>> decltype(auto) ret = std::ranges::move(range, Out(out.data()));
     assert(in == out);
     assert(base(ret.in) == in.data() + in.size());
     assert(base(ret.out) == out.data() + out.size());
+  }
+}
+
+template <class InContainer, class OutContainer, class In, class Out, class Sent = In>
+constexpr void test_containers() {
+  {
+    InContainer in{1, 2, 3, 4};
+    OutContainer out(4);
+    std::same_as<std::ranges::in_out_result<In, Out>> auto ret =
+        std::ranges::move(In(in.begin()), Sent(In(in.end())), Out(out.begin()));
+    assert(std::ranges::equal(in, out));
+    assert(base(ret.in) == in.end());
+    assert(base(ret.out) == out.end());
+  }
+  {
+    InContainer in{1, 2, 3, 4};
+    OutContainer out(4);
+    auto range = std::ranges::subrange(In(in.begin()), Sent(In(in.end())));
+    std::same_as<std::ranges::in_out_result<In, Out>> auto ret = std::ranges::move(range, Out(out.begin()));
+    assert(std::ranges::equal(in, out));
+    assert(base(ret.in) == in.end());
+    assert(base(ret.out) == out.end());
   }
 }
 
@@ -85,58 +111,130 @@ constexpr void test_iterators() {
   test<In, Out, Sent, 0>({});
 }
 
-template <class Out>
-constexpr void test_in_iterators() {
-  test_iterators<cpp20_input_iterator<int*>, Out, sentinel_wrapper<cpp20_input_iterator<int*>>>();
-  test_iterators<forward_iterator<int*>, Out>();
-  test_iterators<bidirectional_iterator<int*>, Out>();
-  test_iterators<random_access_iterator<int*>, Out>();
-  test_iterators<contiguous_iterator<int*>, Out>();
+template <template <class> class In, template <class> class Out>
+constexpr void test_sentinels() {
+  test_iterators<In<int*>, Out<int*>>();
+  test_iterators<In<int*>, Out<int*>, sized_sentinel<In<int*>>>();
+  test_iterators<In<int*>, Out<int*>, sentinel_wrapper<In<int*>>>();
+
+  if (!std::is_constant_evaluated()) {
+    if constexpr (!std::is_same_v<In<int*>, contiguous_iterator<int*>> &&
+                  !std::is_same_v<Out<int*>, contiguous_iterator<int*>> &&
+                  !std::is_same_v<In<int*>, ContiguousProxyIterator<int*>> &&
+                  !std::is_same_v<Out<int*>, ContiguousProxyIterator<int*>>) {
+      test_containers<std::deque<int>,
+                      std::deque<int>,
+                      In<std::deque<int>::iterator>,
+                      Out<std::deque<int>::iterator>>();
+      test_containers<std::deque<int>,
+                      std::vector<int>,
+                      In<std::deque<int>::iterator>,
+                      Out<std::vector<int>::iterator>>();
+      test_containers<std::vector<int>,
+                      std::deque<int>,
+                      In<std::vector<int>::iterator>,
+                      Out<std::deque<int>::iterator>>();
+      test_containers<std::vector<int>,
+                      std::vector<int>,
+                      In<std::vector<int>::iterator>,
+                      Out<std::vector<int>::iterator>>();
+    }
+  }
 }
 
-template <class Out>
+template <template <class> class Out>
+constexpr void test_in_iterators() {
+  test_iterators<cpp20_input_iterator<int*>, Out<int*>, sentinel_wrapper<cpp20_input_iterator<int*>>>();
+  test_sentinels<forward_iterator, Out>();
+  test_sentinels<bidirectional_iterator, Out>();
+  test_sentinels<random_access_iterator, Out>();
+  test_sentinels<contiguous_iterator, Out>();
+  test_sentinels<std::type_identity_t, Out>();
+}
+
+template <template <class> class Out>
 constexpr void test_proxy_in_iterators() {
-  test_iterators<ProxyIterator<cpp20_input_iterator<int*>>, Out, sentinel_wrapper<ProxyIterator<cpp20_input_iterator<int*>>>>();
-  test_iterators<ProxyIterator<forward_iterator<int*>>, Out>();
-  test_iterators<ProxyIterator<bidirectional_iterator<int*>>, Out>();
-  test_iterators<ProxyIterator<random_access_iterator<int*>>, Out>();
-  test_iterators<ProxyIterator<contiguous_iterator<int*>>, Out>();
+  test_iterators<ProxyIterator<cpp20_input_iterator<int*>>,
+                 Out<int*>,
+                 sentinel_wrapper<ProxyIterator<cpp20_input_iterator<int*>>>>();
+  test_sentinels<ForwardProxyIterator, Out>();
+  test_sentinels<BidirectionalProxyIterator, Out>();
+  test_sentinels<RandomAccessProxyIterator, Out>();
+  test_sentinels<ContiguousProxyIterator, Out>();
+  test_sentinels<ProxyIterator, Out>();
 }
 
 struct IteratorWithMoveIter {
-  using value_type = int;
-  using difference_type = int;
+  using value_type                = int;
+  using difference_type           = int;
   explicit IteratorWithMoveIter() = default;
   int* ptr;
   constexpr IteratorWithMoveIter(int* ptr_) : ptr(ptr_) {}
 
   constexpr int& operator*() const; // iterator with iter_move should not be dereferenced
 
-  constexpr IteratorWithMoveIter& operator++() { ++ptr; return *this; }
-  constexpr IteratorWithMoveIter operator++(int) { auto ret = *this; ++*this; return ret; }
+  constexpr IteratorWithMoveIter& operator++() {
+    ++ptr;
+    return *this;
+  }
+  constexpr IteratorWithMoveIter operator++(int) {
+    auto ret = *this;
+    ++*this;
+    return ret;
+  }
 
   friend constexpr int iter_move(const IteratorWithMoveIter&) { return 42; }
 
   constexpr bool operator==(const IteratorWithMoveIter& other) const = default;
 };
 
-constexpr bool test() {
-  test_in_iterators<cpp17_output_iterator<int*>>();
-  test_in_iterators<cpp20_output_iterator<int*>>();
-  test_in_iterators<cpp17_input_iterator<int*>>();
-  test_in_iterators<cpp20_input_iterator<int*>>();
-  test_in_iterators<forward_iterator<int*>>();
-  test_in_iterators<bidirectional_iterator<int*>>();
-  test_in_iterators<random_access_iterator<int*>>();
-  test_in_iterators<contiguous_iterator<int*>>();
+#if TEST_STD_VER >= 23
+constexpr bool test_vector_bool(std::size_t N) {
+  std::vector<bool> v(N, false);
+  for (std::size_t i = 0; i < N; i += 2)
+    v[i] = true;
 
-  test_proxy_in_iterators<ProxyIterator<cpp20_input_iterator<int*>>>();
-  test_proxy_in_iterators<ProxyIterator<forward_iterator<int*>>>();
-  test_proxy_in_iterators<ProxyIterator<bidirectional_iterator<int*>>>();
-  test_proxy_in_iterators<ProxyIterator<random_access_iterator<int*>>>();
-  test_proxy_in_iterators<ProxyIterator<contiguous_iterator<int*>>>();
+  { // Test move with aligned bytes
+    std::vector<bool> in{v};
+    std::vector<bool> out(N);
+    std::ranges::move(in, out.begin());
+    assert(out == v);
+  }
+  { // Test move with unaligned bytes
+    std::vector<bool> in{v};
+    std::vector<bool> out(N);
+    std::ranges::move(std::views::counted(in.begin() + 4, N - 4), out.begin());
+    assert(std::ranges::equal(v | std::views::drop(4), out | std::views::take(N - 4)));
+  }
+
+  return true;
+}
+#endif
+
+// cpp17_intput_iterator has a defaulted template argument
+template <class Iter>
+using Cpp17InIter = cpp17_input_iterator<Iter>;
+
+constexpr bool test() {
+  test_in_iterators<cpp17_output_iterator>();
+  test_in_iterators<cpp20_output_iterator>();
+  test_in_iterators<Cpp17InIter>();
+  test_in_iterators<cpp20_input_iterator>();
+  test_in_iterators<forward_iterator>();
+  test_in_iterators<bidirectional_iterator>();
+  test_in_iterators<random_access_iterator>();
+  test_in_iterators<contiguous_iterator>();
+  test_in_iterators<std::type_identity_t>();
+
+  test_proxy_in_iterators<Cpp20InputProxyIterator>();
+  test_proxy_in_iterators<ForwardProxyIterator>();
+  test_proxy_in_iterators<BidirectionalProxyIterator>();
+  test_proxy_in_iterators<RandomAccessProxyIterator>();
+  test_proxy_in_iterators<ContiguousProxyIterator>();
+  test_proxy_in_iterators<ProxyIterator>();
 
   { // check that a move-only type works
+    // When non-trivial
     {
       MoveOnly a[] = {1, 2, 3};
       MoveOnly b[3];
@@ -148,6 +246,24 @@ constexpr bool test() {
     {
       MoveOnly a[] = {1, 2, 3};
       MoveOnly b[3];
+      std::ranges::move(std::begin(a), std::end(a), std::begin(b));
+      assert(b[0].get() == 1);
+      assert(b[1].get() == 2);
+      assert(b[2].get() == 3);
+    }
+
+    // When trivial
+    {
+      TrivialMoveOnly a[] = {1, 2, 3};
+      TrivialMoveOnly b[3];
+      std::ranges::move(a, std::begin(b));
+      assert(b[0].get() == 1);
+      assert(b[1].get() == 2);
+      assert(b[2].get() == 3);
+    }
+    {
+      TrivialMoveOnly a[] = {1, 2, 3};
+      TrivialMoveOnly b[3];
       std::ranges::move(std::begin(a), std::end(a), std::begin(b));
       assert(b[0].get() == 1);
       assert(b[1].get() == 2);
@@ -181,25 +297,25 @@ constexpr bool test() {
   { // check that ranges::dangling is returned
     std::array<int, 4> out;
     std::same_as<std::ranges::in_out_result<std::ranges::dangling, int*>> decltype(auto) ret =
-      std::ranges::move(std::array {1, 2, 3, 4}, out.data());
+        std::ranges::move(std::array{1, 2, 3, 4}, out.data());
     assert(ret.out == out.data() + 4);
     assert((out == std::array{1, 2, 3, 4}));
   }
 
   { // check that an iterator is returned with a borrowing range
-    std::array in {1, 2, 3, 4};
+    std::array in{1, 2, 3, 4};
     std::array<int, 4> out;
-    std::same_as<std::ranges::in_out_result<int*, int*>> decltype(auto) ret =
+    std::same_as<std::ranges::in_out_result<std::array<int, 4>::iterator, int*>> decltype(auto) ret =
         std::ranges::move(std::views::all(in), out.data());
-    assert(ret.in == in.data() + 4);
+    assert(ret.in == in.end());
     assert(ret.out == out.data() + 4);
     assert(in == out);
   }
 
   { // check that every element is moved exactly once
     struct MoveOnce {
-      bool moved = false;
-      constexpr MoveOnce() = default;
+      bool moved                                = false;
+      constexpr MoveOnce()                      = default;
       constexpr MoveOnce(const MoveOnce& other) = delete;
       constexpr MoveOnce& operator=(MoveOnce&& other) {
         assert(!other.moved);
@@ -208,16 +324,16 @@ constexpr bool test() {
       }
     };
     {
-      std::array<MoveOnce, 4> in {};
-      std::array<MoveOnce, 4> out {};
+      std::array<MoveOnce, 4> in{};
+      std::array<MoveOnce, 4> out{};
       auto ret = std::ranges::move(in.begin(), in.end(), out.begin());
       assert(ret.in == in.end());
       assert(ret.out == out.end());
       assert(std::all_of(out.begin(), out.end(), [](const auto& e) { return e.moved; }));
     }
     {
-      std::array<MoveOnce, 4> in {};
-      std::array<MoveOnce, 4> out {};
+      std::array<MoveOnce, 4> in{};
+      std::array<MoveOnce, 4> out{};
       auto ret = std::ranges::move(in, out.begin());
       assert(ret.in == in.end());
       assert(ret.out == out.end());
@@ -228,8 +344,8 @@ constexpr bool test() {
   { // check that the range is moved forwards
     struct OnlyForwardsMovable {
       OnlyForwardsMovable* next = nullptr;
-      bool canMove = false;
-      OnlyForwardsMovable() = default;
+      bool canMove              = false;
+      OnlyForwardsMovable()     = default;
       constexpr OnlyForwardsMovable& operator=(OnlyForwardsMovable&&) {
         assert(canMove);
         if (next != nullptr)
@@ -238,12 +354,12 @@ constexpr bool test() {
       }
     };
     {
-      std::array<OnlyForwardsMovable, 3> in {};
-      std::array<OnlyForwardsMovable, 3> out {};
-      out[0].next = &out[1];
-      out[1].next = &out[2];
+      std::array<OnlyForwardsMovable, 3> in{};
+      std::array<OnlyForwardsMovable, 3> out{};
+      out[0].next    = &out[1];
+      out[1].next    = &out[2];
       out[0].canMove = true;
-      auto ret = std::ranges::move(in.begin(), in.end(), out.begin());
+      auto ret       = std::ranges::move(in.begin(), in.end(), out.begin());
       assert(ret.in == in.end());
       assert(ret.out == out.end());
       assert(out[0].canMove);
@@ -251,12 +367,12 @@ constexpr bool test() {
       assert(out[2].canMove);
     }
     {
-      std::array<OnlyForwardsMovable, 3> in {};
-      std::array<OnlyForwardsMovable, 3> out {};
-      out[0].next = &out[1];
-      out[1].next = &out[2];
+      std::array<OnlyForwardsMovable, 3> in{};
+      std::array<OnlyForwardsMovable, 3> out{};
+      out[0].next    = &out[1];
+      out[1].next    = &out[2];
       out[0].canMove = true;
-      auto ret = std::ranges::move(in, out.begin());
+      auto ret       = std::ranges::move(in, out.begin());
       assert(ret.in == in.end());
       assert(ret.out == out.end());
       assert(out[0].canMove);
@@ -272,18 +388,30 @@ constexpr bool test() {
       auto ret = std::ranges::move(IteratorWithMoveIter(a), IteratorWithMoveIter(a + 4), b.data());
       assert(ret.in == a + 4);
       assert(ret.out == b.data() + 4);
-      assert((b == std::array {42, 42, 42, 42}));
+      assert((b == std::array{42, 42, 42, 42}));
     }
     {
       int a[] = {1, 2, 3, 4};
       std::array<int, 4> b;
       auto range = std::ranges::subrange(IteratorWithMoveIter(a), IteratorWithMoveIter(a + 4));
-      auto ret = std::ranges::move(range, b.data());
+      auto ret   = std::ranges::move(range, b.data());
       assert(ret.in == a + 4);
       assert(ret.out == b.data() + 4);
-      assert((b == std::array {42, 42, 42, 42}));
+      assert((b == std::array{42, 42, 42, 42}));
     }
   }
+
+#if TEST_STD_VER >= 23
+  { // Test vector<bool>::iterator optimization
+    assert(test_vector_bool(8));
+    assert(test_vector_bool(19));
+    assert(test_vector_bool(32));
+    assert(test_vector_bool(49));
+    assert(test_vector_bool(64));
+    assert(test_vector_bool(199));
+    assert(test_vector_bool(256));
+  }
+#endif
 
   return true;
 }

@@ -11,7 +11,7 @@
 #include <sycl/handler.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 void associateWithHandler(handler &CGH, AccessorBaseHost *Acc,
@@ -19,6 +19,16 @@ void associateWithHandler(handler &CGH, AccessorBaseHost *Acc,
   CGH.associateWithHandler(Acc, Target);
 }
 
+void associateWithHandler(handler &CGH, UnsampledImageAccessorBaseHost *Acc,
+                          image_target Target) {
+  CGH.associateWithHandler(Acc, Target);
+}
+
+void associateWithHandler(handler &CGH, SampledImageAccessorBaseHost *Acc,
+                          image_target Target) {
+  CGH.associateWithHandler(Acc, Target);
+}
+
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

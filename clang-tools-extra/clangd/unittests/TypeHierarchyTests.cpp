@@ -28,6 +28,7 @@ using ::testing::ElementsAre;
 using ::testing::Field;
 using ::testing::IsEmpty;
 using ::testing::Matcher;
+using ::testing::Optional;
 using ::testing::SizeIs;
 using ::testing::UnorderedElementsAre;
 
@@ -38,12 +39,12 @@ MATCHER_P(selectionRangeIs, R, "") { return arg.selectionRange == R; }
 template <class... ParentMatchers>
 ::testing::Matcher<TypeHierarchyItem> parents(ParentMatchers... ParentsM) {
   return Field(&TypeHierarchyItem::parents,
-               HasValue(UnorderedElementsAre(ParentsM...)));
+               Optional(UnorderedElementsAre(ParentsM...)));
 }
 template <class... ChildMatchers>
 ::testing::Matcher<TypeHierarchyItem> children(ChildMatchers... ChildrenM) {
   return Field(&TypeHierarchyItem::children,
-               HasValue(UnorderedElementsAre(ChildrenM...)));
+               Optional(UnorderedElementsAre(ChildrenM...)));
 }
 // Note: "not resolved" is different from "resolved but empty"!
 MATCHER(parentsNotResolved, "") { return !arg.parents; }
@@ -75,6 +76,19 @@ int main() {
     ASSERT_THAT(Records, SizeIs(1));
     EXPECT_EQ(&findDecl(AST, "Child2"),
               static_cast<const NamedDecl *>(Records.front()));
+  }
+}
+
+TEST(FindRecordTypeAt, Nonexistent) {
+  Annotations Source(R"cpp(
+    int *wa^ldo;
+  )cpp");
+  TestTU TU = TestTU::withCode(Source.code());
+  auto AST = TU.build();
+
+  for (Position Pt : Source.points()) {
+    auto Records = findRecordTypeAt(AST, Pt);
+    ASSERT_THAT(Records, SizeIs(0));
   }
 }
 
@@ -119,7 +133,7 @@ int main() {
 
   for (Position Pt : Source.points()) {
     // A field does not unambiguously specify a record type
-    // (possible associated reocrd types could be the field's type,
+    // (possible associated record types could be the field's type,
     // or the type of the record that the field is a member of).
     EXPECT_THAT(findRecordTypeAt(AST, Pt), SizeIs(0));
   }
@@ -229,7 +243,6 @@ const NamedDecl &findDeclWithTemplateArgs(ParsedAST &AST,
     // Use getNameForDiagnostic() which includes the template
     // arguments in the printed name.
     ND.getNameForDiagnostic(OS, Policy, /*Qualified=*/true);
-    OS.flush();
     return QName == Query;
   });
 }
@@ -402,7 +415,7 @@ TEST(TypeHierarchy, RecursiveHierarchyUnbounded) {
 
   // The compiler should produce a diagnostic for hitting the
   // template instantiation depth.
-  ASSERT_TRUE(!AST.getDiagnostics()->empty());
+  ASSERT_FALSE(AST.getDiagnostics().empty());
 
   // Make sure getTypeHierarchy() doesn't get into an infinite recursion.
   // The parent is reported as "S" because "S<0>" is an invalid instantiation.
@@ -778,7 +791,7 @@ struct Child : Parent1, Parent2 {};
       Children,
       UnorderedElementsAre(
           AllOf(withName("Child"),
-                withResolveParents(HasValue(UnorderedElementsAre(withResolveID(
+                withResolveParents(Optional(UnorderedElementsAre(withResolveID(
                     getSymbolID(&findDecl(AST, "Parent1")).str())))))));
 }
 
@@ -798,9 +811,9 @@ struct Chil^d : Parent {};
   ASSERT_THAT(Result, SizeIs(1));
   auto Parents = superTypes(Result.front(), Index.get());
 
-  EXPECT_THAT(Parents, HasValue(UnorderedElementsAre(
+  EXPECT_THAT(Parents, Optional(UnorderedElementsAre(
                            AllOf(withName("Parent"),
-                                 withResolveParents(HasValue(IsEmpty()))))));
+                                 withResolveParents(Optional(IsEmpty()))))));
 }
 } // namespace
 } // namespace clangd

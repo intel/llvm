@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2017 -Wno-sycl-2017-compat -triple spir64 | FileCheck %s
+// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -internal-isystem %S/Inputs -triple spir64 | FileCheck %s
 
 // The test checks AST of [[intel::max_global_work_dim()]] attribute.
 
@@ -19,7 +19,7 @@ queue q;
 // Test that checks template parameter support on member function of class template.
 // CHECK: ClassTemplateDecl {{.*}} {{.*}} KernelFunctor
 // CHECK: ClassTemplateSpecializationDecl {{.*}} {{.*}} class KernelFunctor definition
-// CHECK: TemplateArgument integral 2
+// CHECK: TemplateArgument integral '2'
 // CHECK: CXXRecordDecl {{.*}} {{.*}} implicit class KernelFunctor
 // CHECK: SYCLIntelMaxGlobalWorkDimAttr
 // CHECK-NEXT: ConstantExpr {{.*}} 'int'
@@ -40,7 +40,7 @@ int kernel() {
 
 // Test that checks template parameter support on function.
 // CHECK: FunctionDecl {{.*}} {{.*}} func1 'void ()'
-// CHECK: TemplateArgument integral 3
+// CHECK: TemplateArgument integral '3'
 // CHECK: SYCLIntelMaxGlobalWorkDimAttr
 // CHECK-NEXT: ConstantExpr {{.*}} 'int'
 // CHECK-NEXT: value: Int 3
@@ -54,8 +54,6 @@ int ver() {
   func1<3>(); // OK
   return 0;
 }
-
-[[intel::max_global_work_dim(2)]] void func_do_not_ignore() {}
 
 struct FuncObj {
   [[intel::max_global_work_dim(1)]] void operator()() const {}
@@ -133,14 +131,6 @@ int main() {
     h.single_task<class test_kernel2>(
         []() [[intel::max_global_work_dim(2)]] {});
 
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
-    // CHECK:       SYCLIntelMaxGlobalWorkDimAttr
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 2
-    // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
-    h.single_task<class test_kernel3>(
-        []() { func_do_not_ignore(); });
-
     h.single_task<class test_kernel4>(TRIFuncObjGood1());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel4
     // CHECK:       SYCLIntelMaxGlobalWorkDimAttr
@@ -157,7 +147,7 @@ int main() {
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 1
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
+    // CHECK:       SYCLReqdWorkGroupSizeAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 1
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
@@ -184,7 +174,7 @@ int main() {
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 1
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK:       ReqdWorkGroupSizeAttr
+    // CHECK:       SYCLReqdWorkGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 4
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
@@ -197,13 +187,7 @@ int main() {
 
     h.single_task<class test_kernel5>(TRIFuncObjGood3());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel5
-    // CHECK:       ReqdWorkGroupSizeAttr
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK:       SYCLReqdWorkGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 1
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
@@ -214,7 +198,7 @@ int main() {
 
     h.single_task<class test_kernel6>(TRIFuncObjGood4());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel6
-    // CHECK:       ReqdWorkGroupSizeAttr
+    // CHECK:       SYCLReqdWorkGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 1
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
@@ -248,7 +232,7 @@ int main() {
 
     h.single_task<class test_kernel8>(TRIFuncObjGood6());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel8
-    // CHECK:       ReqdWorkGroupSizeAttr
+    // CHECK:       SYCLReqdWorkGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 4
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
@@ -265,7 +249,7 @@ int main() {
 
     h.single_task<class test_kernel9>(TRIFuncObjGood7());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel9
-    // CHECK:       ReqdWorkGroupSizeAttr
+    // CHECK:       SYCLReqdWorkGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 4
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
@@ -316,7 +300,7 @@ int main() {
 
     // Ignore duplicate attribute with same argument value.
     h.single_task<class test_kernell2>(
-        // CHECK-LABEL: FunctionDecl {{.*}}test_kernell2 'void ()'
+        // CHECK-LABEL: FunctionDecl {{.*}}test_kernell2 'void () __attribute__((device_kernel))'
         // CHECK:       SYCLIntelMaxGlobalWorkDimAttr
         // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
         // CHECK-NEXT:  value: Int 3

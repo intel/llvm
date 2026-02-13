@@ -1,4 +1,4 @@
-//===- ReduceUsingSimplifyCFG.h - Specialized Delta Pass ------------------===//
+//===- ReduceUsingSimplifyCFG.h - Specialized Delta Pass --------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -17,7 +17,9 @@
 #include "Delta.h"
 
 namespace llvm {
-void reduceUsingSimplifyCFGDeltaPass(TestRunner &Test);
+void reduceUsingSimplifyCFGDeltaPass(Oracle &O, ReducerWorkItem &WorkItem);
+void reduceConditionalsTrueDeltaPass(Oracle &O, ReducerWorkItem &WorkItem);
+void reduceConditionalsFalseDeltaPass(Oracle &O, ReducerWorkItem &WorkItem);
 } // namespace llvm
 
 #endif

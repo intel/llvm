@@ -1,5 +1,5 @@
-; RUN: llc -march=mips -fast-isel=false -O0 < %s 2>&1 | FileCheck %s -check-prefix=O0
-; RUN: llc -march=mips -fast-isel=false -O2 < %s 2>&1 | FileCheck %s -check-prefix=O2
+; RUN: llc -mtriple=mips -fast-isel=false -O0 < %s 2>&1 | FileCheck %s -check-prefix=O0
+; RUN: llc -mtriple=mips -fast-isel=false -O2 < %s 2>&1 | FileCheck %s -check-prefix=O2
 
 ; At -O0, DAGCombine won't try to merge these consecutive loads but it will at
 ; -O2.
@@ -7,10 +7,9 @@
 define void @foo() nounwind {
 entry:
   %0 = alloca [2 x i8], align 32
-  %1 = getelementptr inbounds [2 x i8], [2 x i8]* %0, i32 0, i32 0
-  store i8 1, i8* %1
-  %2 = getelementptr inbounds [2 x i8], [2 x i8]* %0, i32 0, i32 1
-  store i8 1, i8* %2
+  store i8 1, ptr %0
+  %1 = getelementptr inbounds [2 x i8], ptr %0, i32 0, i32 1
+  store i8 1, ptr %1
   ret void
 }
 

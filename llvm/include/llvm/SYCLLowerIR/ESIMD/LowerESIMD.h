@@ -34,10 +34,14 @@ class PassRegistry;
 /// like intrinsics to a form parsable by the ESIMD-aware SPIRV translator.
 class SYCLLowerESIMDPass : public PassInfoMixin<SYCLLowerESIMDPass> {
 public:
+  SYCLLowerESIMDPass(bool ModuleContainsScalar = true)
+      : ModuleContainsScalarCode(ModuleContainsScalar) {}
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 
 private:
-  size_t runOnFunction(Function &F, SmallPtrSet<Type *, 4> &);
+  bool prepareForAlwaysInliner(Module &M);
+  size_t runOnFunction(Function &F, SmallPtrSetImpl<Type *> &);
+  bool ModuleContainsScalarCode;
 };
 
 ModulePass *createSYCLLowerESIMDPass();
@@ -50,24 +54,6 @@ public:
 
 FunctionPass *createESIMDLowerLoadStorePass();
 void initializeESIMDLowerLoadStorePass(PassRegistry &);
-
-// Pass converts simd* function parameters and globals to
-// llvm's first-class vector* type.
-class ESIMDLowerVecArgPass : public PassInfoMixin<ESIMDLowerVecArgPass> {
-public:
-  PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
-
-private:
-  DenseMap<GlobalVariable *, GlobalVariable *> OldNewGlobal;
-
-  Function *rewriteFunc(Function &F);
-  Type *getSimdArgPtrTyOrNull(Value *arg);
-  void fixGlobals(Module &M);
-  void removeOldGlobals();
-};
-
-ModulePass *createESIMDLowerVecArgPass();
-void initializeESIMDLowerVecArgLegacyPassPass(PassRegistry &);
 
 // - Converts simd* function parameters and return values passed by pointer to
 // pass-by-value
@@ -93,6 +79,26 @@ class SYCLFixupESIMDKernelWrapperMDPass
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };
+
+class ESIMDRemoveHostCodePass : public PassInfoMixin<ESIMDRemoveHostCodePass> {
+public:
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
+};
+
+class ESIMDRemoveOptnoneNoinlinePass
+    : public PassInfoMixin<ESIMDRemoveOptnoneNoinlinePass> {
+public:
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
+};
+
+// Lowers calls __esimd_slm_alloc, __esimd_slm_free and __esimd_slm_init APIs.
+// See more details in the .cpp file.
+class ESIMDLowerSLMReservationCalls
+    : public PassInfoMixin<ESIMDLowerSLMReservationCalls> {
+public:
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
+};
+
 } // namespace llvm
 
 #endif // LLVM_SYCLLOWERIR_LOWERESIMD_H

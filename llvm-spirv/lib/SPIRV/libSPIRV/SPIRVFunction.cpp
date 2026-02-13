@@ -102,7 +102,7 @@ void SPIRVFunction::decode(std::istream &I) {
 
     switch (Decoder.OpCode) {
     case OpFunctionParameter: {
-      auto Param = static_cast<SPIRVFunctionParameter *>(Decoder.getEntry());
+      auto *Param = static_cast<SPIRVFunctionParameter *>(Decoder.getEntry());
       assert(Param);
       Module->add(Param);
       Param->setParent(this);
@@ -143,7 +143,8 @@ bool SPIRVFunction::decodeBB(SPIRVDecoder &Decoder) {
     SPIRVEntry *Entry = Decoder.getEntry();
 
     if (Decoder.OpCode == OpLine) {
-      Module->add(Entry);
+      std::shared_ptr<const SPIRVLine> L(static_cast<SPIRVLine *>(Entry));
+      Module->setCurrentLine(L);
       continue;
     }
 
@@ -152,6 +153,7 @@ bool SPIRVFunction::decodeBB(SPIRVDecoder &Decoder) {
                                           std::to_string(Entry->getOpCode()))) {
       // Bail out if the opcode is not implemented.
       Module->setInvalid();
+      delete Entry;
       return false;
     }
 
@@ -159,12 +161,32 @@ bool SPIRVFunction::decodeBB(SPIRVDecoder &Decoder) {
     assert(Inst);
     if (Inst->getOpCode() == OpUndef) {
       Module->add(Inst);
+    } else if (Inst->isExtInst(SPIRVEIS_NonSemantic_Shader_DebugInfo_100,
+                               SPIRVDebug::DebugNoLine) ||
+               Inst->isExtInst(SPIRVEIS_NonSemantic_Shader_DebugInfo_200,
+                               SPIRVDebug::DebugNoLine)) {
+      delete Entry;
+      continue;
+    } else if (Inst->isExtInst(SPIRVEIS_NonSemantic_Shader_DebugInfo_100,
+                               SPIRVDebug::DebugLine) ||
+               Inst->isExtInst(SPIRVEIS_NonSemantic_Shader_DebugInfo_200,
+                               SPIRVDebug::DebugLine)) {
+      std::shared_ptr<const SPIRVExtInst> DL(static_cast<SPIRVExtInst *>(Inst));
+      Module->setCurrentDebugLine(DL);
     } else {
       if (Inst->isExtInst(SPIRVEIS_Debug, SPIRVDebug::Scope) ||
-          Inst->isExtInst(SPIRVEIS_OpenCL_DebugInfo_100, SPIRVDebug::Scope)) {
+          Inst->isExtInst(SPIRVEIS_OpenCL_DebugInfo_100, SPIRVDebug::Scope) ||
+          Inst->isExtInst(SPIRVEIS_NonSemantic_Shader_DebugInfo_100,
+                          SPIRVDebug::Scope) ||
+          Inst->isExtInst(SPIRVEIS_NonSemantic_Shader_DebugInfo_200,
+                          SPIRVDebug::Scope)) {
         DebugScope = Inst;
       } else if (Inst->isExtInst(SPIRVEIS_Debug, SPIRVDebug::NoScope) ||
                  Inst->isExtInst(SPIRVEIS_OpenCL_DebugInfo_100,
+                                 SPIRVDebug::NoScope) ||
+                 Inst->isExtInst(SPIRVEIS_NonSemantic_Shader_DebugInfo_100,
+                                 SPIRVDebug::NoScope) ||
+                 Inst->isExtInst(SPIRVEIS_NonSemantic_Shader_DebugInfo_200,
                                  SPIRVDebug::NoScope)) {
         DebugScope = nullptr;
       } else {

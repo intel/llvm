@@ -3,9 +3,10 @@ set(LLVM_LINK_COMPONENTS
   Support
   )
 
-add_clang_library(clangTidyLLVMLibcModule
+add_clang_library(clangTidyLLVMLibcModule STATIC
   CalleeNamespaceCheck.cpp
   ImplementationInNamespaceCheck.cpp
+  InlineFunctionDeclCheck.cpp
   LLVMLibcTidyModule.cpp
   RestrictSystemLibcHeadersCheck.cpp
 
@@ -16,6 +17,7 @@ add_clang_library(clangTidyLLVMLibcModule
 
   DEPENDS
   omp_gen
+  ClangDriverOptions
   )
 
 clang_target_link_libraries(clangTidyLLVMLibcModule

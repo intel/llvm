@@ -1,5 +1,8 @@
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown -emit-llvm -disable-llvm-optzns -o - %s -O2 | FileCheck %s
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown -emit-llvm -disable-llvm-optzns -o - %s -O0 | FileCheck %s
+// RUN: %clang_cc1 -triple x86_64-unknown-unknown -emit-llvm -disable-llvm-optzns -o - %s -O2 -fexperimental-new-constant-interpreter | FileCheck %s
+// RUN: %clang_cc1 -triple x86_64-unknown-unknown -emit-llvm -disable-llvm-optzns -o - %s -O0 -fexperimental-new-constant-interpreter | FileCheck %s
+
 
 int a = 42;
 
@@ -76,7 +79,7 @@ int test6(void) {
 
 int test7(void) {
   // CHECK-LABEL: test7
-  // CHECK: call i1 @llvm.is.constant.i32
+  // CHECK: ret i32 1
   return __builtin_constant_p(c_arr[2]);
 }
 

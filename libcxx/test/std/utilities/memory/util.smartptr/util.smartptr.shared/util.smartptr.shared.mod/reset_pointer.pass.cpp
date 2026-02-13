@@ -14,7 +14,9 @@
 
 #include <memory>
 #include <cassert>
+#include <utility>
 
+#include "reset_helper.h"
 #include "test_macros.h"
 
 struct B
@@ -39,6 +41,19 @@ struct A
 };
 
 int A::count = 0;
+
+struct Derived : A {};
+
+static_assert( HasReset<std::shared_ptr<int>,  int*>::value, "");
+static_assert( HasReset<std::shared_ptr<A>,  Derived*>::value, "");
+static_assert(!HasReset<std::shared_ptr<A>,  int*>::value, "");
+
+#if TEST_STD_VER >= 17
+static_assert( HasReset<std::shared_ptr<int[]>,  int*>::value, "");
+static_assert(!HasReset<std::shared_ptr<int[]>,  int(*)[]>::value, "");
+static_assert( HasReset<std::shared_ptr<int[5]>, int*>::value, "");
+static_assert(!HasReset<std::shared_ptr<int[5]>, int(*)[5]>::value, "");
+#endif
 
 int main(int, char**)
 {

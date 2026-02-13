@@ -20,6 +20,7 @@
 #include "CompileUnitIndex.h"
 #include "PdbIndex.h"
 #include "PdbAstBuilder.h"
+#include <optional>
 
 namespace clang {
 class TagDecl;
@@ -76,7 +77,7 @@ public:
 
   void InitializeObject() override;
 
-  uint64_t GetDebugInfoSize() override;
+  uint64_t GetDebugInfoSize(bool load_all_debug_info = false) override;
 
   // Compile Unit function calls
 
@@ -93,7 +94,7 @@ public:
   bool ParseDebugMacros(lldb_private::CompileUnit &comp_unit) override;
 
   bool ParseSupportFiles(lldb_private::CompileUnit &comp_unit,
-                         FileSpecList &support_files) override;
+                         SupportFileList &support_files) override;
   size_t ParseTypes(lldb_private::CompileUnit &comp_unit) override;
 
   bool ParseImportedModules(
@@ -115,7 +116,7 @@ public:
   CompilerDeclContext GetDeclContextForUID(lldb::user_id_t uid) override;
   CompilerDeclContext GetDeclContextContainingUID(lldb::user_id_t uid) override;
   Type *ResolveTypeUID(lldb::user_id_t type_uid) override;
-  llvm::Optional<ArrayInfo> GetDynamicArrayInfoForUID(
+  std::optional<ArrayInfo> GetDynamicArrayInfoForUID(
       lldb::user_id_t type_uid,
       const lldb_private::ExecutionContext *exe_ctx) override;
 
@@ -137,23 +138,23 @@ public:
   void FindFunctions(const RegularExpression &regex, bool include_inlines,
                      SymbolContextList &sc_list) override;
 
-  llvm::Optional<PdbCompilandSymId> FindSymbolScope(PdbCompilandSymId id);
+  std::optional<PdbCompilandSymId> FindSymbolScope(PdbCompilandSymId id);
 
-  void FindTypes(ConstString name, const CompilerDeclContext &parent_decl_ctx,
-                 uint32_t max_matches,
-                 llvm::DenseSet<SymbolFile *> &searched_symbol_files,
-                 TypeMap &types) override;
+  /// Find the mangled name for a function
+  ///
+  /// \param id A symbol ID of a S_LPROC32/S_GPROC32 record
+  /// \returns The mangled name of the function (if available)
+  std::optional<llvm::StringRef> FindMangledFunctionName(PdbCompilandSymId id);
 
-  void FindTypes(llvm::ArrayRef<CompilerContext> pattern, LanguageSet languages,
-                 llvm::DenseSet<SymbolFile *> &searched_symbol_files,
-                 TypeMap &types) override;
+  void FindTypes(const lldb_private::TypeQuery &match,
+                 lldb_private::TypeResults &results) override;
 
-  llvm::Expected<TypeSystem &>
+  llvm::Expected<lldb::TypeSystemSP>
   GetTypeSystemForLanguage(lldb::LanguageType language) override;
 
-  CompilerDeclContext
-  FindNamespace(ConstString name,
-                const CompilerDeclContext &parent_decl_ctx) override;
+  CompilerDeclContext FindNamespace(ConstString name,
+                                    const CompilerDeclContext &parent_decl_ctx,
+                                    bool only_root_namespaces) override;
 
   llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
@@ -162,9 +163,10 @@ public:
 
   PdbIndex &GetIndex() { return *m_index; };
 
-  void DumpClangAST(Stream &s) override;
+  void DumpClangAST(Stream &s, llvm::StringRef filter,
+                    bool show_color) override;
 
-  llvm::Optional<llvm::codeview::TypeIndex>
+  std::optional<llvm::codeview::TypeIndex>
   GetParentType(llvm::codeview::TypeIndex ti);
 
 private:
@@ -231,7 +233,7 @@ private:
   lldb::TypeSP GetOrCreateType(PdbTypeSymId type_id);
   lldb::TypeSP GetOrCreateType(llvm::codeview::TypeIndex ti);
   lldb::VariableSP GetOrCreateGlobalVariable(PdbGlobalSymId var_id);
-  Block &GetOrCreateBlock(PdbCompilandSymId block_id);
+  Block *GetOrCreateBlock(PdbCompilandSymId block_id);
   lldb::VariableSP GetOrCreateLocalVariable(PdbCompilandSymId scope_id,
                                             PdbCompilandSymId var_id,
                                             bool is_param);
@@ -239,7 +241,7 @@ private:
 
   lldb::FunctionSP CreateFunction(PdbCompilandSymId func_id,
                                   CompileUnit &comp_unit);
-  Block &CreateBlock(PdbCompilandSymId block_id);
+  Block *CreateBlock(PdbCompilandSymId block_id);
   lldb::VariableSP CreateLocalVariable(PdbCompilandSymId scope_id,
                                        PdbCompilandSymId var_id, bool is_param);
   lldb::TypeSP CreateTypedef(PdbGlobalSymId id);
@@ -253,6 +255,8 @@ private:
                                       VariableList &variables);
   size_t ParseVariablesForBlock(PdbCompilandSymId block_id);
 
+  void CreateSimpleArgumentListTypes(llvm::codeview::TypeIndex arglist_ti);
+
   llvm::Expected<uint32_t> GetFileIndex(const CompilandIndexItem &cii,
                                         uint32_t file_id);
 
@@ -263,10 +267,37 @@ private:
 
   void ParseInlineSite(PdbCompilandSymId inline_site_id, Address func_addr);
 
+  std::vector<CompilerContext> GetContextForType(llvm::codeview::TypeIndex ti);
+
+  /// Caches the basenames of symbols found in the globals stream.
+  ///
+  /// This includes functions and global variables
+  void CacheGlobalBaseNames();
+
+  void CacheUdtDeclarations();
+  llvm::Expected<Declaration> ResolveUdtDeclaration(PdbTypeSymId type_id);
+
+  /// Find a symbol name at a specific address (`so`).
+  ///
+  /// \param[in] so The segment and offset where the symbol is located.
+  /// \param[in] function_type If the symbol is expected to be a function, this
+  ///     has to be the type of the function. It's used to strip the name of
+  ///     __cdecl functions on x86.
+  /// \returns The mangled symbol name if found, otherwise `std::nullopt`.
+  std::optional<llvm::StringRef> FindMangledSymbol(
+      SegmentOffset so,
+      llvm::codeview::TypeIndex function_type = llvm::codeview::TypeIndex());
+
+  llvm::StringRef StripMangledFunctionName(llvm::StringRef mangled,
+                                           PdbTypeSymId func_ty);
+
   llvm::BumpPtrAllocator m_allocator;
 
   lldb::addr_t m_obj_load_address = 0;
   bool m_done_full_type_scan = false;
+  // UID for anonymous union and anonymous struct as they don't have entities in
+  // pdb debug info.
+  lldb::user_id_t anonymous_id = LLDB_INVALID_UID - 1;
 
   std::unique_ptr<llvm::pdb::PDBFile> m_file_up;
   std::unique_ptr<PdbIndex> m_index;
@@ -280,6 +311,30 @@ private:
   llvm::DenseMap<lldb::user_id_t, std::shared_ptr<InlineSite>> m_inline_sites;
   llvm::DenseMap<llvm::codeview::TypeIndex, llvm::codeview::TypeIndex>
       m_parent_types;
+
+  struct UdtDeclaration {
+    /// This could either be an index into the `/names` section (string table,
+    /// LF_UDT_MOD_SRC_LINE) or, this could be an index into the IPI stream to a
+    /// LF_STRING_ID record (LF_UDT_SRC_LINE).
+    llvm::codeview::TypeIndex FileNameIndex;
+    bool IsIpiIndex;
+
+    uint32_t Line;
+  };
+  llvm::DenseMap<llvm::codeview::TypeIndex, UdtDeclaration> m_udt_declarations;
+  std::once_flag m_cached_udt_declarations;
+
+  lldb_private::UniqueCStringMap<uint32_t> m_type_base_names;
+
+  /// mangled name/full function name -> Global ID(s)
+  lldb_private::UniqueCStringMap<uint32_t> m_func_full_names;
+  /// basename -> Global ID(s)
+  lldb_private::UniqueCStringMap<uint32_t> m_func_base_names;
+  /// method basename -> Global ID(s)
+  lldb_private::UniqueCStringMap<uint32_t> m_func_method_names;
+
+  /// global variable basename -> Global ID(s)
+  lldb_private::UniqueCStringMap<uint32_t> m_global_variable_base_names;
 };
 
 } // namespace npdb

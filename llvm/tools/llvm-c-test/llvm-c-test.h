@@ -24,7 +24,7 @@ extern "C" {
 void llvm_tokenize_stdin(void (*cb)(char **tokens, int ntokens));
 
 // module.c
-LLVMModuleRef llvm_load_module(bool Lazy, bool New);
+LLVMModuleRef llvm_load_module(LLVMContextRef C, bool Lazy, bool New);
 int llvm_module_dump(bool Lazy, bool New);
 int llvm_module_list_functions(void);
 int llvm_module_list_globals(void);
@@ -37,10 +37,15 @@ int llvm_disassemble(void);
 
 // debuginfo.c
 int llvm_test_dibuilder(void);
+int llvm_get_di_tag(void);
+int llvm_di_type_get_name(void);
 
 // metadata.c
 int llvm_add_named_metadata_operand(void);
 int llvm_set_metadata(void);
+int llvm_replace_md_operand(void);
+int llvm_is_a_value_as_metadata(void);
+int llvm_add_globaldebuginfo(void);
 
 // object.c
 int llvm_object_list_sections(void);
@@ -50,7 +55,7 @@ int llvm_object_list_symbols(void);
 int llvm_targets_list(void);
 
 // echo.c
-int llvm_echo(bool OpaquePointers);
+int llvm_echo(void);
 
 // diagnostic.c
 int llvm_test_diagnostic_handler(void);

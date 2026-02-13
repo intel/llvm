@@ -33,76 +33,76 @@ define ghccc void @foo() nounwind {
 ; CHECK-LABEL: foo:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lui a0, %hi(d6)
+; CHECK-NEXT:    lui a1, %hi(d5)
+; CHECK-NEXT:    lui a2, %hi(d4)
+; CHECK-NEXT:    lui a3, %hi(d3)
+; CHECK-NEXT:    lui a4, %hi(d2)
+; CHECK-NEXT:    lui a5, %hi(d1)
+; CHECK-NEXT:    lui a6, %hi(f6)
+; CHECK-NEXT:    lui a7, %hi(f5)
+; CHECK-NEXT:    lui t0, %hi(f4)
+; CHECK-NEXT:    lui t1, %hi(f3)
+; CHECK-NEXT:    lui t2, %hi(f2)
 ; CHECK-NEXT:    fld fs11, %lo(d6)(a0)
-; CHECK-NEXT:    lui a0, %hi(d5)
-; CHECK-NEXT:    fld fs10, %lo(d5)(a0)
-; CHECK-NEXT:    lui a0, %hi(d4)
-; CHECK-NEXT:    fld fs9, %lo(d4)(a0)
-; CHECK-NEXT:    lui a0, %hi(d3)
-; CHECK-NEXT:    fld fs8, %lo(d3)(a0)
-; CHECK-NEXT:    lui a0, %hi(d2)
-; CHECK-NEXT:    fld fs7, %lo(d2)(a0)
-; CHECK-NEXT:    lui a0, %hi(d1)
-; CHECK-NEXT:    fld fs6, %lo(d1)(a0)
-; CHECK-NEXT:    lui a0, %hi(f6)
-; CHECK-NEXT:    flw fs5, %lo(f6)(a0)
-; CHECK-NEXT:    lui a0, %hi(f5)
-; CHECK-NEXT:    flw fs4, %lo(f5)(a0)
-; CHECK-NEXT:    lui a0, %hi(f4)
-; CHECK-NEXT:    flw fs3, %lo(f4)(a0)
-; CHECK-NEXT:    lui a0, %hi(f3)
-; CHECK-NEXT:    flw fs2, %lo(f3)(a0)
-; CHECK-NEXT:    lui a0, %hi(f2)
-; CHECK-NEXT:    flw fs1, %lo(f2)(a0)
 ; CHECK-NEXT:    lui a0, %hi(f1)
+; CHECK-NEXT:    fld fs10, %lo(d5)(a1)
+; CHECK-NEXT:    lui a1, %hi(splim)
+; CHECK-NEXT:    fld fs9, %lo(d4)(a2)
+; CHECK-NEXT:    lui a2, %hi(r7)
+; CHECK-NEXT:    fld fs8, %lo(d3)(a3)
+; CHECK-NEXT:    lui a3, %hi(r6)
+; CHECK-NEXT:    fld fs7, %lo(d2)(a4)
+; CHECK-NEXT:    lui a4, %hi(r5)
+; CHECK-NEXT:    fld fs6, %lo(d1)(a5)
+; CHECK-NEXT:    lui a5, %hi(r4)
+; CHECK-NEXT:    flw fs5, %lo(f6)(a6)
+; CHECK-NEXT:    lui a6, %hi(r3)
+; CHECK-NEXT:    flw fs4, %lo(f5)(a7)
+; CHECK-NEXT:    lui a7, %hi(r2)
+; CHECK-NEXT:    flw fs3, %lo(f4)(t0)
+; CHECK-NEXT:    lui t0, %hi(r1)
+; CHECK-NEXT:    flw fs2, %lo(f3)(t1)
+; CHECK-NEXT:    lui t1, %hi(hp)
+; CHECK-NEXT:    flw fs1, %lo(f2)(t2)
+; CHECK-NEXT:    lui t2, %hi(sp)
 ; CHECK-NEXT:    flw fs0, %lo(f1)(a0)
-; CHECK-NEXT:    lui a0, %hi(splim)
-; CHECK-NEXT:    ld s11, %lo(splim)(a0)
-; CHECK-NEXT:    lui a0, %hi(r7)
-; CHECK-NEXT:    ld s10, %lo(r7)(a0)
-; CHECK-NEXT:    lui a0, %hi(r6)
-; CHECK-NEXT:    ld s9, %lo(r6)(a0)
-; CHECK-NEXT:    lui a0, %hi(r5)
-; CHECK-NEXT:    ld s8, %lo(r5)(a0)
-; CHECK-NEXT:    lui a0, %hi(r4)
-; CHECK-NEXT:    ld s7, %lo(r4)(a0)
-; CHECK-NEXT:    lui a0, %hi(r3)
-; CHECK-NEXT:    ld s6, %lo(r3)(a0)
-; CHECK-NEXT:    lui a0, %hi(r2)
-; CHECK-NEXT:    ld s5, %lo(r2)(a0)
-; CHECK-NEXT:    lui a0, %hi(r1)
-; CHECK-NEXT:    ld s4, %lo(r1)(a0)
-; CHECK-NEXT:    lui a0, %hi(hp)
-; CHECK-NEXT:    ld s3, %lo(hp)(a0)
-; CHECK-NEXT:    lui a0, %hi(sp)
-; CHECK-NEXT:    ld s2, %lo(sp)(a0)
 ; CHECK-NEXT:    lui a0, %hi(base)
+; CHECK-NEXT:    ld s11, %lo(splim)(a1)
+; CHECK-NEXT:    ld s10, %lo(r7)(a2)
+; CHECK-NEXT:    ld s9, %lo(r6)(a3)
+; CHECK-NEXT:    ld s8, %lo(r5)(a4)
+; CHECK-NEXT:    ld s7, %lo(r4)(a5)
+; CHECK-NEXT:    ld s6, %lo(r3)(a6)
+; CHECK-NEXT:    ld s5, %lo(r2)(a7)
+; CHECK-NEXT:    ld s4, %lo(r1)(t0)
+; CHECK-NEXT:    ld s3, %lo(hp)(t1)
+; CHECK-NEXT:    ld s2, %lo(sp)(t2)
 ; CHECK-NEXT:    ld s1, %lo(base)(a0)
-; CHECK-NEXT:    tail bar@plt
+; CHECK-NEXT:    tail bar
 entry:
-  %0  = load double, double* @d6
-  %1  = load double, double* @d5
-  %2  = load double, double* @d4
-  %3  = load double, double* @d3
-  %4  = load double, double* @d2
-  %5  = load double, double* @d1
-  %6  = load float, float* @f6
-  %7  = load float, float* @f5
-  %8  = load float, float* @f4
-  %9  = load float, float* @f3
-  %10 = load float, float* @f2
-  %11 = load float, float* @f1
-  %12 = load i64, i64* @splim
-  %13 = load i64, i64* @r7
-  %14 = load i64, i64* @r6
-  %15 = load i64, i64* @r5
-  %16 = load i64, i64* @r4
-  %17 = load i64, i64* @r3
-  %18 = load i64, i64* @r2
-  %19 = load i64, i64* @r1
-  %20 = load i64, i64* @hp
-  %21 = load i64, i64* @sp
-  %22 = load i64, i64* @base
+  %0  = load double, ptr @d6
+  %1  = load double, ptr @d5
+  %2  = load double, ptr @d4
+  %3  = load double, ptr @d3
+  %4  = load double, ptr @d2
+  %5  = load double, ptr @d1
+  %6  = load float, ptr @f6
+  %7  = load float, ptr @f5
+  %8  = load float, ptr @f4
+  %9  = load float, ptr @f3
+  %10 = load float, ptr @f2
+  %11 = load float, ptr @f1
+  %12 = load i64, ptr @splim
+  %13 = load i64, ptr @r7
+  %14 = load i64, ptr @r6
+  %15 = load i64, ptr @r5
+  %16 = load i64, ptr @r4
+  %17 = load i64, ptr @r3
+  %18 = load i64, ptr @r2
+  %19 = load i64, ptr @r1
+  %20 = load i64, ptr @hp
+  %21 = load i64, ptr @sp
+  %22 = load i64, ptr @base
   tail call ghccc void @bar(i64 %22, i64 %21, i64 %20, i64 %19, i64 %18, i64 %17, i64 %16, i64 %15, i64 %14, i64 %13, i64 %12,
                             float %11, float %10, float %9, float %8, float %7, float %6,
                             double %5, double %4, double %3, double %2, double %1, double %0) nounwind

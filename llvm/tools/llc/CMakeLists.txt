@@ -4,24 +4,29 @@ set(LLVM_LINK_COMPONENTS
   AllTargetsDescs
   AllTargetsInfos
   Analysis
-  AsmParser
   AsmPrinter
   CodeGen
+  CodeGenTypes
   Core
+  IRPrinter
   IRReader
   MC
   MIRParser
+  Passes
+  Plugins
   Remarks
   ScalarOpts
   SelectionDAG
   Support
   Target
+  TargetParser
   TransformUtils
   Vectorize
   )
 
 add_llvm_tool(llc
   llc.cpp
+  NewPMDriver.cpp
 
   DEPENDS
   intrinsics_gen

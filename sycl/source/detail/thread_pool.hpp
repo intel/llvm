@@ -19,7 +19,7 @@
 #include <sycl/detail/defines.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 class ThreadPool {
@@ -29,17 +29,46 @@ class ThreadPool {
   std::queue<std::function<void()>> MJobQueue;
   std::mutex MJobQueueMutex;
   std::condition_variable MDoSmthOrStop;
-  std::atomic_bool MStop;
+  bool MStop = false;
+  std::atomic_uint MJobsInPool;
+
+#ifdef _WIN32
+  class ThreadExitTracker {
+  public:
+    void wait(size_t ThreadCount) {
+      std::unique_lock<std::mutex> lk(MWorkerExitMutex);
+      MWorkerExitCV.wait(
+          lk, [&ThreadCount, this] { return MWorkerExitCount == ThreadCount; });
+    }
+
+    void signalAboutExit() {
+      {
+        std::lock_guard<std::mutex> lk(MWorkerExitMutex);
+        MWorkerExitCount++;
+      }
+      MWorkerExitCV.notify_one();
+    }
+
+  private:
+    std::mutex MWorkerExitMutex;
+    std::condition_variable MWorkerExitCV;
+    size_t MWorkerExitCount{};
+  } WinThreadExitTracker;
+#endif
 
   void worker() {
+    GlobalHandler::instance().registerSchedulerUsage(/*ModifyCounter*/ false);
     std::unique_lock<std::mutex> Lock(MJobQueueMutex);
-
     while (true) {
-      MDoSmthOrStop.wait(
-          Lock, [this]() { return !MJobQueue.empty() || MStop.load(); });
+      MDoSmthOrStop.wait(Lock,
+                         [this]() { return !MJobQueue.empty() || MStop; });
 
-      if (MStop.load())
-        break;
+      if (MStop) {
+#ifdef _WIN32
+        WinThreadExitTracker.signalAboutExit();
+#endif
+        return;
+      }
 
       std::function<void()> Job = std::move(MJobQueue.front());
       MJobQueue.pop();
@@ -48,29 +77,59 @@ class ThreadPool {
       Job();
 
       Lock.lock();
+
+      MJobsInPool--;
     }
   }
 
   void start() {
     MLaunchedThreads.reserve(MThreadCount);
 
-    MStop.store(false);
+    MJobsInPool.store(0);
 
     for (size_t Idx = 0; Idx < MThreadCount; ++Idx)
       MLaunchedThreads.emplace_back([this] { worker(); });
   }
 
 public:
+  void drain() {
+    while (MJobsInPool != 0)
+      std::this_thread::yield();
+  }
+
   ThreadPool(unsigned int ThreadCount = 1) : MThreadCount(ThreadCount) {
     start();
   }
 
-  ~ThreadPool() { finishAndWait(); }
+  ~ThreadPool() {
+    try {
+#ifndef _WIN32
+      finishAndWait(true);
+#endif
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ThreadPool", e);
+    }
+  }
 
-  void finishAndWait() {
-    MStop.store(true);
+  void finishAndWait(bool CanJoinThreads) {
+    {
+      std::lock_guard<std::mutex> Lock(MJobQueueMutex);
+      MStop = true;
+    }
 
     MDoSmthOrStop.notify_all();
+
+#ifdef _WIN32
+    if (!CanJoinThreads) {
+      WinThreadExitTracker.wait(MThreadCount);
+      for (std::thread &Thread : MLaunchedThreads)
+        Thread.detach();
+      return;
+    }
+#else
+    // We always can join on Linux.
+    std::ignore = CanJoinThreads;
+#endif
 
     for (std::thread &Thread : MLaunchedThreads)
       if (Thread.joinable())
@@ -82,7 +141,7 @@ public:
       std::lock_guard<std::mutex> Lock(MJobQueueMutex);
       MJobQueue.emplace([F = std::move(Func)]() { F(); });
     }
-
+    MJobsInPool++;
     MDoSmthOrStop.notify_one();
   }
 
@@ -91,11 +150,11 @@ public:
       std::lock_guard<std::mutex> Lock(MJobQueueMutex);
       MJobQueue.emplace(Func);
     }
-
+    MJobsInPool++;
     MDoSmthOrStop.notify_one();
   }
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

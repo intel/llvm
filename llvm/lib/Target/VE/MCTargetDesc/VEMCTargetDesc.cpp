@@ -19,6 +19,7 @@
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
 
 using namespace llvm;
@@ -68,9 +69,12 @@ createObjectTargetStreamer(MCStreamer &S, const MCSubtargetInfo &STI) {
 
 static MCTargetStreamer *createTargetAsmStreamer(MCStreamer &S,
                                                  formatted_raw_ostream &OS,
-                                                 MCInstPrinter *InstPrint,
-                                                 bool isVerboseAsm) {
+                                                 MCInstPrinter *InstPrint) {
   return new VETargetAsmStreamer(S, OS);
+}
+
+static MCTargetStreamer *createNullTargetStreamer(MCStreamer &S) {
+  return new VETargetStreamer(S);
 }
 
 static MCInstPrinter *createVEMCInstPrinter(const Triple &T,
@@ -81,7 +85,7 @@ static MCInstPrinter *createVEMCInstPrinter(const Triple &T,
   return new VEInstPrinter(MAI, MII, MRI);
 }
 
-extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeVETargetMC() {
+extern "C" LLVM_ABI LLVM_EXTERNAL_VISIBILITY void LLVMInitializeVETargetMC() {
   // Register the MC asm info.
   RegisterMCAsmInfoFn X(getTheVETarget(), createVEMCAsmInfo);
 
@@ -107,6 +111,9 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeVETargetMC() {
 
     // Register the asm streamer.
     TargetRegistry::RegisterAsmTargetStreamer(*T, createTargetAsmStreamer);
+
+    // Register the null streamer.
+    TargetRegistry::RegisterNullTargetStreamer(*T, createNullTargetStreamer);
 
     // Register the MCInstPrinter
     TargetRegistry::RegisterMCInstPrinter(*T, createVEMCInstPrinter);

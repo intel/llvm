@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "assignment.h"
+#include "definable.h"
 #include "pointer-assignment.h"
 #include "flang/Common/idioms.h"
 #include "flang/Common/restorer.h"
@@ -40,11 +41,10 @@ public:
   void PopWhereContext();
   void Analyze(const parser::AssignmentStmt &);
   void Analyze(const parser::PointerAssignmentStmt &);
-  void Analyze(const parser::ConcurrentControl &);
+  SemanticsContext &context() { return context_; }
 
 private:
-  bool CheckForPureContext(const SomeExpr &lhs, const SomeExpr &rhs,
-      parser::CharBlock rhsSource, bool isPointerAssignment);
+  bool CheckForPureContext(const SomeExpr &rhs, parser::CharBlock rhsSource);
   void CheckShape(parser::CharBlock, const SomeExpr *);
   template <typename... A>
   parser::Message *Say(parser::CharBlock at, A &&...args) {
@@ -65,15 +65,37 @@ void AssignmentContext::Analyze(const parser::AssignmentStmt &stmt) {
     const SomeExpr &lhs{assignment->lhs};
     const SomeExpr &rhs{assignment->rhs};
     auto lhsLoc{std::get<parser::Variable>(stmt.t).GetSource()};
-    auto rhsLoc{std::get<parser::Expr>(stmt.t).source};
-    if (CheckForPureContext(lhs, rhs, rhsLoc, false)) {
-      const Scope &scope{context_.FindScope(lhsLoc)};
-      if (auto whyNot{WhyNotModifiable(lhsLoc, lhs, scope, true)}) {
-        if (auto *msg{Say(lhsLoc,
-                "Left-hand side of assignment is not modifiable"_err_en_US)}) {
-          msg->Attach(*whyNot);
+    const Scope &scope{context_.FindScope(lhsLoc)};
+    DefinabilityFlags flags{DefinabilityFlag::VectorSubscriptIsOk};
+    bool isDefinedAssignment{
+        std::holds_alternative<evaluate::ProcedureRef>(assignment->u)};
+    if (isDefinedAssignment) {
+      flags.set(DefinabilityFlag::AllowEventLockOrNotifyType);
+    } else if (const Symbol *
+        whole{evaluate::UnwrapWholeSymbolOrComponentDataRef(lhs)}) {
+      if (IsAllocatable(whole->GetUltimate())) {
+        flags.set(DefinabilityFlag::PotentialDeallocation);
+        if (IsPolymorphic(*whole) && whereDepth_ > 0) {
+          Say(lhsLoc,
+              "Assignment to whole polymorphic allocatable '%s' may not be nested in a WHERE statement or construct"_err_en_US,
+              whole->name());
         }
       }
+    }
+    if (auto whyNot{WhyNotDefinable(lhsLoc, scope, flags, lhs)}) {
+      if (whyNot->IsFatal()) {
+        if (auto *msg{Say(lhsLoc,
+                "Left-hand side of assignment is not definable"_err_en_US)}) {
+          msg->Attach(
+              std::move(whyNot->set_severity(parser::Severity::Because)));
+        }
+      } else {
+        context_.Say(std::move(*whyNot));
+      }
+    }
+    auto rhsLoc{std::get<parser::Expr>(stmt.t).source};
+    if (!isDefinedAssignment) {
+      CheckForPureContext(rhs, rhsLoc);
     }
     if (whereDepth_ > 0) {
       CheckShape(lhsLoc, &lhs);
@@ -84,61 +106,19 @@ void AssignmentContext::Analyze(const parser::AssignmentStmt &stmt) {
 void AssignmentContext::Analyze(const parser::PointerAssignmentStmt &stmt) {
   CHECK(whereDepth_ == 0);
   if (const evaluate::Assignment * assignment{GetAssignment(stmt)}) {
-    const SomeExpr &lhs{assignment->lhs};
-    const SomeExpr &rhs{assignment->rhs};
-    CheckForPureContext(lhs, rhs, std::get<parser::Expr>(stmt.t).source, true);
-    auto restorer{
-        foldingContext().messages().SetLocation(context_.location().value())};
-    CheckPointerAssignment(foldingContext(), *assignment);
+    parser::CharBlock at{context_.location().value()};
+    auto restorer{foldingContext().messages().SetLocation(at)};
+    CheckPointerAssignment(context_, *assignment, context_.FindScope(at));
   }
-}
-
-// C1594 checks
-static bool IsPointerDummyOfPureFunction(const Symbol &x) {
-  return IsPointerDummy(x) && FindPureProcedureContaining(x.owner()) &&
-      x.owner().symbol() && IsFunction(*x.owner().symbol());
-}
-
-static const char *WhyBaseObjectIsSuspicious(
-    const Symbol &x, const Scope &scope) {
-  // See C1594, first paragraph.  These conditions enable checks on both
-  // left-hand and right-hand sides in various circumstances.
-  if (IsHostAssociatedIntoSubprogram(x, scope)) {
-    return "host-associated";
-  } else if (IsUseAssociated(x, scope)) {
-    return "USE-associated";
-  } else if (IsPointerDummyOfPureFunction(x)) {
-    return "a POINTER dummy argument of a pure function";
-  } else if (IsIntentIn(x)) {
-    return "an INTENT(IN) dummy argument";
-  } else if (FindCommonBlockContaining(x)) {
-    return "in a COMMON block";
-  } else {
-    return nullptr;
-  }
-}
-
-// Checks C1594(1,2); false if check fails
-bool CheckDefinabilityInPureScope(parser::ContextualMessages &messages,
-    const Symbol &lhs, const Scope &context, const Scope &pure) {
-  if (pure.symbol()) {
-    if (const char *why{WhyBaseObjectIsSuspicious(lhs, context)}) {
-      evaluate::SayWithDeclaration(messages, lhs,
-          "Pure subprogram '%s' may not define '%s' because it is %s"_err_en_US,
-          pure.symbol()->name(), lhs.name(), why);
-      return false;
-    }
-  }
-  return true;
 }
 
 static std::optional<std::string> GetPointerComponentDesignatorName(
     const SomeExpr &expr) {
   if (const auto *derived{
           evaluate::GetDerivedTypeSpec(evaluate::DynamicType::From(expr))}) {
-    UltimateComponentIterator ultimates{*derived};
+    PotentialAndPointerComponentIterator potentials{*derived};
     if (auto pointer{
-            std::find_if(ultimates.begin(), ultimates.end(), IsPointer)}) {
+            std::find_if(potentials.begin(), potentials.end(), IsPointer)}) {
       return pointer.BuildResultDesignatorName();
     }
   }
@@ -148,12 +128,19 @@ static std::optional<std::string> GetPointerComponentDesignatorName(
 // Checks C1594(5,6); false if check fails
 bool CheckCopyabilityInPureScope(parser::ContextualMessages &messages,
     const SomeExpr &expr, const Scope &scope) {
-  if (const Symbol * base{GetFirstSymbol(expr)}) {
-    if (const char *why{WhyBaseObjectIsSuspicious(*base, scope)}) {
-      if (auto pointer{GetPointerComponentDesignatorName(expr)}) {
+  if (auto pointer{GetPointerComponentDesignatorName(expr)}) {
+    if (const Symbol * base{GetFirstSymbol(expr)}) {
+      const char *why{WhyBaseObjectIsSuspicious(base->GetUltimate(), scope)};
+      if (!why) {
+        if (auto coarray{evaluate::ExtractCoarrayRef(expr)}) {
+          base = &coarray->GetLastSymbol();
+          why = "coindexed";
+        }
+      }
+      if (why) {
         evaluate::SayWithDeclaration(messages, *base,
             "A pure subprogram may not copy the value of '%s' because it is %s"
-            " and has the POINTER component '%s'"_err_en_US,
+            " and has the POINTER potential subobject component '%s'"_err_en_US,
             base->name(), why, *pointer);
         return false;
       }
@@ -162,58 +149,16 @@ bool CheckCopyabilityInPureScope(parser::ContextualMessages &messages,
   return true;
 }
 
-bool AssignmentContext::CheckForPureContext(const SomeExpr &lhs,
-    const SomeExpr &rhs, parser::CharBlock source, bool isPointerAssignment) {
-  const Scope &scope{context_.FindScope(source)};
-  if (const Scope * pure{FindPureProcedureContaining(scope)}) {
+bool AssignmentContext::CheckForPureContext(
+    const SomeExpr &rhs, parser::CharBlock rhsSource) {
+  const Scope &scope{context_.FindScope(rhsSource)};
+  if (FindPureProcedureContaining(scope)) {
     parser::ContextualMessages messages{
         context_.location().value(), &context_.messages()};
-    if (evaluate::ExtractCoarrayRef(lhs)) {
-      messages.Say(
-          "A pure subprogram may not define a coindexed object"_err_en_US);
-    } else if (const Symbol * base{GetFirstSymbol(lhs)}) {
-      if (const auto *assoc{base->detailsIf<AssocEntityDetails>()}) {
-        auto dataRef{ExtractDataRef(assoc->expr(), true)};
-        // ASSOCIATE(a=>x) -- check x, not a, for "a=..."
-        base = dataRef ? &dataRef->GetFirstSymbol() : nullptr;
-      }
-      if (base &&
-          !CheckDefinabilityInPureScope(messages, *base, scope, *pure)) {
-        return false;
-      }
-    }
-    if (isPointerAssignment) {
-      if (const Symbol * base{GetFirstSymbol(rhs)}) {
-        if (const char *why{
-                WhyBaseObjectIsSuspicious(*base, scope)}) { // C1594(3)
-          evaluate::SayWithDeclaration(messages, *base,
-              "A pure subprogram may not use '%s' as the target of pointer assignment because it is %s"_err_en_US,
-              base->name(), why);
-          return false;
-        }
-      }
-    } else if (auto type{evaluate::DynamicType::From(lhs)}) {
-      // C1596 checks for polymorphic deallocation in a pure subprogram
-      // due to automatic reallocation on assignment
-      if (type->IsPolymorphic()) {
-        context_.Say(
-            "Deallocation of polymorphic object is not permitted in a pure subprogram"_err_en_US);
-        return false;
-      }
-      if (const DerivedTypeSpec * derived{GetDerivedTypeSpec(type)}) {
-        if (auto bad{FindPolymorphicAllocatableNonCoarrayUltimateComponent(
-                *derived)}) {
-          evaluate::SayWithDeclaration(messages, *bad,
-              "Deallocation of polymorphic non-coarray component '%s' is not permitted in a pure subprogram"_err_en_US,
-              bad.BuildResultDesignatorName());
-          return false;
-        } else {
-          return CheckCopyabilityInPureScope(messages, rhs, scope);
-        }
-      }
-    }
+    return CheckCopyabilityInPureScope(messages, rhs, scope);
+  } else {
+    return true;
   }
-  return true;
 }
 
 // 10.2.3.1(2) The masks and LHS of assignments must be arrays of the same shape
@@ -249,7 +194,8 @@ void AssignmentContext::CheckShape(parser::CharBlock at, const SomeExpr *expr) {
 
 template <typename A> void AssignmentContext::PushWhereContext(const A &x) {
   const auto &expr{std::get<parser::LogicalExpr>(x.t)};
-  CheckShape(expr.thing.value().source, GetExpr(context_, expr));
+  CheckShape(
+      parser::UnwrapRef<parser::Expr>(expr).source, GetExpr(context_, expr));
   ++whereDepth_;
 }
 
@@ -262,8 +208,17 @@ void AssignmentContext::PopWhereContext() {
 
 AssignmentChecker::~AssignmentChecker() {}
 
+SemanticsContext &AssignmentChecker::context() {
+  return context_.value().context();
+}
+
 AssignmentChecker::AssignmentChecker(SemanticsContext &context)
     : context_{new AssignmentContext{context}} {}
+
+void AssignmentChecker::Enter(
+    const parser::OpenMPDeclareReductionConstruct &x) {
+  context().set_location(x.source);
+}
 void AssignmentChecker::Enter(const parser::AssignmentStmt &x) {
   context_.value().Analyze(x);
 }

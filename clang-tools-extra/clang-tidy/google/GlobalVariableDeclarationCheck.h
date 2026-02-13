@@ -1,4 +1,4 @@
-//===--- GlobalVariableDeclarationCheck.h - clang-tidy-----------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,24 +6,21 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_GOOGLE_OBJC_GLOBAL_VARIABLE_DECLARATION_H
-#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_GOOGLE_OBJC_GLOBAL_VARIABLE_DECLARATION_H
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_GOOGLE_GLOBALVARIABLEDECLARATIONCHECK_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_GOOGLE_GLOBALVARIABLEDECLARATIONCHECK_H
 
 #include "../ClangTidyCheck.h"
 
-namespace clang {
-namespace tidy {
-namespace google {
-namespace objc {
+namespace clang::tidy::google::objc {
 
 /// The check for Objective-C global variables and constants naming convention.
 /// The declaration should follow the patterns of 'k[A-Z].*' (constants) or
 /// 'g[A-Z].*' (variables).
 ///
 /// For the user-facing documentation see:
-/// http://clang.llvm.org/extra/clang-tidy/checks/google/objc-global-variable-declaration.html
+/// https://clang.llvm.org/extra/clang-tidy/checks/google/objc-global-variable-declaration.html
 class GlobalVariableDeclarationCheck : public ClangTidyCheck {
- public:
+public:
   GlobalVariableDeclarationCheck(StringRef Name, ClangTidyContext *Context)
       : ClangTidyCheck(Name, Context) {}
   bool isLanguageVersionSupported(const LangOptions &LangOpts) const override {
@@ -33,9 +30,6 @@ class GlobalVariableDeclarationCheck : public ClangTidyCheck {
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
 };
 
-}  // namespace objc
-}  // namespace google
-}  // namespace tidy
-}  // namespace clang
+} // namespace clang::tidy::google::objc
 
-#endif  // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_GOOGLE_OBJC_GLOBAL_VARIABLE_DECLARATION_H
+#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_GOOGLE_GLOBALVARIABLEDECLARATIONCHECK_H

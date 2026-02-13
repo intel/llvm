@@ -13,13 +13,12 @@
 #include "Feature.h"
 #include "TestFS.h"
 #include "clang/Basic/DiagnosticSema.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/SourceMgr.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include <optional>
 #include <string>
 
 namespace clang {
@@ -247,22 +246,19 @@ TEST_F(ConfigCompileTests, PathSpecMatch) {
 }
 
 TEST_F(ConfigCompileTests, DiagnosticsIncludeCleaner) {
-  // Defaults to None.
+  // Defaults to Strict.
   EXPECT_TRUE(compileAndApply());
-  EXPECT_EQ(Conf.Diagnostics.UnusedIncludes,
-            Config::UnusedIncludesPolicy::None);
+  EXPECT_EQ(Conf.Diagnostics.UnusedIncludes, Config::IncludesPolicy::Strict);
 
   Frag = {};
   Frag.Diagnostics.UnusedIncludes.emplace("None");
   EXPECT_TRUE(compileAndApply());
-  EXPECT_EQ(Conf.Diagnostics.UnusedIncludes,
-            Config::UnusedIncludesPolicy::None);
+  EXPECT_EQ(Conf.Diagnostics.UnusedIncludes, Config::IncludesPolicy::None);
 
   Frag = {};
   Frag.Diagnostics.UnusedIncludes.emplace("Strict");
   EXPECT_TRUE(compileAndApply());
-  EXPECT_EQ(Conf.Diagnostics.UnusedIncludes,
-            Config::UnusedIncludesPolicy::Strict);
+  EXPECT_EQ(Conf.Diagnostics.UnusedIncludes, Config::IncludesPolicy::Strict);
 
   Frag = {};
   EXPECT_TRUE(Conf.Diagnostics.Includes.IgnoreHeader.empty())
@@ -281,6 +277,12 @@ TEST_F(ConfigCompileTests, DiagnosticsIncludeCleaner) {
   };
   EXPECT_TRUE(HeaderFilter("foo.h"));
   EXPECT_FALSE(HeaderFilter("bar.h"));
+
+  Frag = {};
+  EXPECT_FALSE(Conf.Diagnostics.Includes.AnalyzeAngledIncludes);
+  Frag.Diagnostics.Includes.AnalyzeAngledIncludes = true;
+  EXPECT_TRUE(compileAndApply());
+  EXPECT_TRUE(Conf.Diagnostics.Includes.AnalyzeAngledIncludes);
 }
 
 TEST_F(ConfigCompileTests, DiagnosticSuppression) {
@@ -296,20 +298,42 @@ TEST_F(ConfigCompileTests, DiagnosticSuppression) {
                                    "unreachable-code", "unused-variable",
                                    "typecheck_bool_condition",
                                    "unexpected_friend", "warn_alloca"));
-  EXPECT_TRUE(isBuiltinDiagnosticSuppressed(
-      diag::warn_unreachable, Conf.Diagnostics.Suppress, LangOptions()));
+  clang::DiagnosticOptions DiagOpts;
+  clang::DiagnosticsEngine DiagEngine(DiagnosticIDs::create(), DiagOpts,
+                                      new clang::IgnoringDiagConsumer);
+
+  using Diag = clang::Diagnostic;
+  {
+    auto D = DiagEngine.Report(diag::warn_unreachable);
+    EXPECT_TRUE(isDiagnosticSuppressed(
+        Diag{&DiagEngine, D}, Conf.Diagnostics.Suppress, LangOptions()));
+  }
   // Subcategory not respected/suppressed.
-  EXPECT_FALSE(isBuiltinDiagnosticSuppressed(
-      diag::warn_unreachable_break, Conf.Diagnostics.Suppress, LangOptions()));
-  EXPECT_TRUE(isBuiltinDiagnosticSuppressed(
-      diag::warn_unused_variable, Conf.Diagnostics.Suppress, LangOptions()));
-  EXPECT_TRUE(isBuiltinDiagnosticSuppressed(diag::err_typecheck_bool_condition,
-                                            Conf.Diagnostics.Suppress,
-                                            LangOptions()));
-  EXPECT_TRUE(isBuiltinDiagnosticSuppressed(
-      diag::err_unexpected_friend, Conf.Diagnostics.Suppress, LangOptions()));
-  EXPECT_TRUE(isBuiltinDiagnosticSuppressed(
-      diag::warn_alloca, Conf.Diagnostics.Suppress, LangOptions()));
+  {
+    auto D = DiagEngine.Report(diag::warn_unreachable_break);
+    EXPECT_FALSE(isDiagnosticSuppressed(
+        Diag{&DiagEngine, D}, Conf.Diagnostics.Suppress, LangOptions()));
+  }
+  {
+    auto D = DiagEngine.Report(diag::warn_unused_variable);
+    EXPECT_TRUE(isDiagnosticSuppressed(
+        Diag{&DiagEngine, D}, Conf.Diagnostics.Suppress, LangOptions()));
+  }
+  {
+    auto D = DiagEngine.Report(diag::err_typecheck_bool_condition);
+    EXPECT_TRUE(isDiagnosticSuppressed(
+        Diag{&DiagEngine, D}, Conf.Diagnostics.Suppress, LangOptions()));
+  }
+  {
+    auto D = DiagEngine.Report(diag::err_unexpected_friend);
+    EXPECT_TRUE(isDiagnosticSuppressed(
+        Diag{&DiagEngine, D}, Conf.Diagnostics.Suppress, LangOptions()));
+  }
+  {
+    auto D = DiagEngine.Report(diag::warn_alloca);
+    EXPECT_TRUE(isDiagnosticSuppressed(
+        Diag{&DiagEngine, D}, Conf.Diagnostics.Suppress, LangOptions()));
+  }
 
   Frag.Diagnostics.Suppress.emplace_back("*");
   EXPECT_TRUE(compileAndApply());
@@ -323,14 +347,10 @@ TEST_F(ConfigCompileTests, Tidy) {
   Tidy.Add.emplace_back("llvm-*");
   Tidy.Remove.emplace_back("llvm-include-order");
   Tidy.Remove.emplace_back("readability-*");
-  Tidy.CheckOptions.emplace_back(
-      std::make_pair(std::string("StrictMode"), std::string("true")));
   Tidy.CheckOptions.emplace_back(std::make_pair(
       std::string("example-check.ExampleOption"), std::string("0")));
   EXPECT_TRUE(compileAndApply());
-  EXPECT_EQ(Conf.Diagnostics.ClangTidy.CheckOptions.size(), 2U);
-  EXPECT_EQ(Conf.Diagnostics.ClangTidy.CheckOptions.lookup("StrictMode"),
-            "true");
+  EXPECT_EQ(Conf.Diagnostics.ClangTidy.CheckOptions.size(), 1U);
   EXPECT_EQ(Conf.Diagnostics.ClangTidy.CheckOptions.lookup(
                 "example-check.ExampleOption"),
             "0");
@@ -436,7 +456,7 @@ TEST_F(ConfigCompileTests, ExternalBlockDisablesBackgroundIndex) {
 
 TEST_F(ConfigCompileTests, ExternalBlockMountPoint) {
   auto GetFrag = [](llvm::StringRef Directory,
-                    llvm::Optional<const char *> MountPoint) {
+                    std::optional<const char *> MountPoint) {
     Fragment Frag;
     Frag.Source.Directory = Directory.str();
     Fragment::IndexBlock::ExternalBlock External;
@@ -471,7 +491,7 @@ TEST_F(ConfigCompileTests, ExternalBlockMountPoint) {
   EXPECT_THAT(Conf.Index.External.MountPoint, FooPath);
 
   // None defaults to ".".
-  Frag = GetFrag(FooPath, llvm::None);
+  Frag = GetFrag(FooPath, std::nullopt);
   compileAndApply();
   ASSERT_THAT(Diags.Diagnostics, IsEmpty());
   ASSERT_EQ(Conf.Index.External.Kind, Config::ExternalIndexSpec::File);
@@ -543,6 +563,44 @@ TEST_F(ConfigCompileTests, Style) {
   Frag.Style.FullyQualifiedNamespaces.push_back(std::string("bar"));
   EXPECT_TRUE(compileAndApply());
   EXPECT_THAT(Conf.Style.FullyQualifiedNamespaces, ElementsAre("foo", "bar"));
+
+  {
+    Frag = {};
+    EXPECT_TRUE(Conf.Style.QuotedHeaders.empty())
+        << Conf.Style.QuotedHeaders.size();
+    Frag.Style.QuotedHeaders.push_back(Located<std::string>("foo.h"));
+    Frag.Style.QuotedHeaders.push_back(Located<std::string>(".*inc"));
+    EXPECT_TRUE(compileAndApply());
+    auto HeaderFilter = [this](llvm::StringRef Path) {
+      for (auto &Filter : Conf.Style.QuotedHeaders) {
+        if (Filter(Path))
+          return true;
+      }
+      return false;
+    };
+    EXPECT_TRUE(HeaderFilter("foo.h"));
+    EXPECT_TRUE(HeaderFilter("prefix/foo.h"));
+    EXPECT_FALSE(HeaderFilter("bar.h"));
+    EXPECT_FALSE(HeaderFilter("foo.h/bar.h"));
+  }
+
+  {
+    Frag = {};
+    EXPECT_TRUE(Conf.Style.AngledHeaders.empty())
+        << Conf.Style.AngledHeaders.size();
+    Frag.Style.AngledHeaders.push_back(Located<std::string>("foo.h"));
+    Frag.Style.AngledHeaders.push_back(Located<std::string>(".*inc"));
+    EXPECT_TRUE(compileAndApply());
+    auto HeaderFilter = [this](llvm::StringRef Path) {
+      for (auto &Filter : Conf.Style.AngledHeaders) {
+        if (Filter(Path))
+          return true;
+      }
+      return false;
+    };
+    EXPECT_TRUE(HeaderFilter("foo.h"));
+    EXPECT_FALSE(HeaderFilter("bar.h"));
+  }
 }
 } // namespace
 } // namespace config

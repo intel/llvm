@@ -19,7 +19,7 @@ LLDB_PLUGIN_DEFINE(ObjCPlusPlusLanguage)
 bool ObjCPlusPlusLanguage::IsSourceFile(llvm::StringRef file_path) const {
   const auto suffixes = {".h", ".mm"};
   for (auto suffix : suffixes) {
-    if (file_path.endswith_insensitive(suffix))
+    if (file_path.ends_with_insensitive(suffix))
       return true;
   }
   return false;
@@ -42,4 +42,12 @@ Language *ObjCPlusPlusLanguage::CreateInstance(lldb::LanguageType language) {
   default:
     return nullptr;
   }
+}
+
+std::optional<bool>
+ObjCPlusPlusLanguage::GetBooleanFromString(llvm::StringRef str) const {
+  return llvm::StringSwitch<std::optional<bool>>(str)
+      .Cases({"true", "YES"}, {true})
+      .Cases({"false", "NO"}, {false})
+      .Default({});
 }

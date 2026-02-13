@@ -1,6 +1,7 @@
 ; RUN: llc < %s -filetype=obj | llvm-readobj - --codeview | FileCheck %s
 ; RUN: llc < %s | llvm-mc -filetype=obj --triple=x86_64-windows | llvm-readobj - --codeview | FileCheck %s
 
+
 ; C++ source to regenerate:
 ; struct A {
 ;   int NoRefQual();
@@ -29,18 +30,18 @@ target triple = "x86_64-pc-windows-msvc19.15.26732"
 ; Function Attrs: noinline nounwind optnone uwtable
 define dso_local void @"?foo@@YAXXZ"() #0 !dbg !10 {
 entry:
-  %GenericPtr = alloca %struct.A*, align 8
+  %GenericPtr = alloca ptr, align 8
   %a = alloca %struct.A, align 1
-  call void @llvm.dbg.declare(metadata %struct.A** %GenericPtr, metadata !13, metadata !DIExpression()), !dbg !28
-  store %struct.A* null, %struct.A** %GenericPtr, align 8, !dbg !28
-  call void @llvm.dbg.declare(metadata %struct.A* %a, metadata !29, metadata !DIExpression()), !dbg !30
+  call void @llvm.dbg.declare(metadata ptr %GenericPtr, metadata !13, metadata !DIExpression()), !dbg !28
+  store ptr null, ptr %GenericPtr, align 8, !dbg !28
+  call void @llvm.dbg.declare(metadata ptr %a, metadata !29, metadata !DIExpression()), !dbg !30
   ret void, !dbg !31
 }
 
 ; Function Attrs: nounwind readnone speculatable
 declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
 
-attributes #0 = { noinline nounwind optnone uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { noinline nounwind optnone uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone speculatable }
 
 !llvm.dbg.cu = !{!0}

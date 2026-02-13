@@ -35,17 +35,21 @@
 # CHECK-NEXT:        "firstTriggerCharacter": "\n",
 # CHECK-NEXT:        "moreTriggerCharacter": []
 # CHECK-NEXT:      },
-# CHECK-NEXT:      "documentRangeFormattingProvider": true,
+# CHECK-NEXT:      "documentRangeFormattingProvider": {
+# CHECK-NEXT:        "rangesSupport": true
+# CHECK-NEXT:      },
 # CHECK-NEXT:      "documentSymbolProvider": true,
 # CHECK-NEXT:      "executeCommandProvider": {
 # CHECK-NEXT:        "commands": [
 # CHECK-NEXT:          "clangd.applyFix",
+# CHECK-NEXT:          "clangd.applyRename"
 # CHECK-NEXT:          "clangd.applyTweak"
 # CHECK-NEXT:        ]
 # CHECK-NEXT:      },
 # CHECK-NEXT:      "foldingRangeProvider": true,
 # CHECK-NEXT:      "hoverProvider": true,
 # CHECK-NEXT:      "implementationProvider": true,
+# CHECK-NEXT:      "inactiveRegionsProvider": true,
 # CHECK-NEXT:      "inlayHintProvider": true,
 # CHECK-NEXT:      "memoryUsageProvider": true,
 # CHECK-NEXT:      "referencesProvider": true,
@@ -58,6 +62,7 @@
 # CHECK-NEXT:        "legend": {
 # CHECK-NEXT:          "tokenModifiers": [
 # CHECK-NEXT:            "declaration",
+# CHECK-NEXT:            "definition",
 # CHECK-NEXT:            "deprecated",
 # CHECK-NEXT:            "deduced",
 # CHECK-NEXT:            "readonly",
@@ -67,6 +72,9 @@
 # CHECK-NEXT:            "dependentName",
 # CHECK-NEXT:            "defaultLibrary",
 # CHECK-NEXT:            "usedAsMutableReference",
+# CHECK-NEXT:            "usedAsMutablePointer",
+# CHECK-NEXT:            "constructorOrDestructor",
+# CHECK-NEXT:            "userDefined",
 # CHECK-NEXT:            "functionScope",
 # CHECK-NEXT:            "classScope",
 # CHECK-NEXT:            "fileScope",

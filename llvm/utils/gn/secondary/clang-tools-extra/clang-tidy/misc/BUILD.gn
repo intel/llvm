@@ -13,11 +13,15 @@ compiled_action("Confusables.inc") {
 static_library("misc") {
   output_name = "clangTidyMiscModule"
   configs += [ "//llvm/utils/gn/build:clang_code" ]
-  include_dirs = [ target_gen_dir ]
+  include_dirs = [
+    target_gen_dir,
+    "//clang-tools-extra/include-cleaner/include",
+  ]
   deps = [
     ":Confusables.inc",
     "//clang-tools-extra/clang-tidy",
     "//clang-tools-extra/clang-tidy/utils",
+    "//clang-tools-extra/include-cleaner/lib",
     "//clang/lib/AST",
     "//clang/lib/ASTMatchers",
     "//clang/lib/Analysis",
@@ -28,17 +32,24 @@ static_library("misc") {
     "//llvm/lib/Support",
   ]
   sources = [
+    "AnonymousNamespaceInHeaderCheck.cpp",
     "ConfusableIdentifierCheck.cpp",
     "ConstCorrectnessCheck.cpp",
+    "CoroutineHostileRAIICheck.cpp",
     "DefinitionsInHeadersCheck.cpp",
+    "HeaderIncludeCycleCheck.cpp",
+    "IncludeCleanerCheck.cpp",
     "MiscTidyModule.cpp",
-    "MisleadingBidirectional.cpp",
-    "MisleadingIdentifier.cpp",
+    "MisleadingBidirectionalCheck.cpp",
+    "MisleadingIdentifierCheck.cpp",
     "MisplacedConstCheck.cpp",
+    "MultipleInheritanceCheck.cpp",
     "NewDeleteOverloadsCheck.cpp",
     "NoRecursionCheck.cpp",
-    "NonCopyableObjects.cpp",
+    "NonCopyableObjectsCheck.cpp",
     "NonPrivateMemberVariablesInClassesCheck.cpp",
+    "OverrideWithDifferentVisibilityCheck.cpp",
+    "PredictableRandCheck.cpp",
     "RedundantExpressionCheck.cpp",
     "StaticAssertCheck.cpp",
     "ThrowByValueCatchByReferenceCheck.cpp",
@@ -47,5 +58,7 @@ static_library("misc") {
     "UnusedAliasDeclsCheck.cpp",
     "UnusedParametersCheck.cpp",
     "UnusedUsingDeclsCheck.cpp",
+    "UseAnonymousNamespaceCheck.cpp",
+    "UseInternalLinkageCheck.cpp",
   ]
 }

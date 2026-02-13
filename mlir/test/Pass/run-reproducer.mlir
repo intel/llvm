@@ -1,4 +1,5 @@
-// RUN: mlir-opt %s -mlir-print-ir-before=cse 2>&1 | FileCheck -check-prefix=BEFORE %s
+// RUN: mlir-opt %s --run-reproducer -dump-pass-pipeline 2>&1 | FileCheck %s
+// RUN: mlir-opt %s --run-reproducer -mlir-print-ir-before=cse 2>&1 | FileCheck -check-prefix=BEFORE %s
 
 func.func @foo() {
   %0 = arith.constant 0 : i32
@@ -12,7 +13,14 @@ func.func @bar() {
 {-#
   external_resources: {
     mlir_reproducer: {
-      pipeline: "func.func(cse,canonicalize)",
+      verify_each: true,
+      // CHECK:       builtin.module(
+      // CHECK-NEXT:    func.func(
+      // CHECK-NEXT:      cse,
+      // CHECK-NEXT:      canonicalize{ max-iterations=1 max-num-rewrites=-1 region-simplify=normal test-convergence=false top-down=false}
+      // CHECK-NEXT:    )
+      // CHECK-NEXT:  )
+      pipeline: "builtin.module(func.func(cse,canonicalize{max-iterations=1 max-num-rewrites=-1 region-simplify=normal top-down=false}))",
       disable_threading: true
     }
   }

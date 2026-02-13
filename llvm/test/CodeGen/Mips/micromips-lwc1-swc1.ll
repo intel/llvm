@@ -1,7 +1,7 @@
-; RUN: llc -march=mips -mcpu=mips32r3 -mattr=+micromips \
+; RUN: llc -mtriple=mips -mcpu=mips32r3 -mattr=+micromips \
 ; RUN:   -relocation-model=pic < %s | \
 ; RUN:   FileCheck %s -check-prefixes=MM32
-; RUN: llc -march=mips -mcpu=mips32r6 -mattr=+micromips \
+; RUN: llc -mtriple=mips -mcpu=mips32r6 -mattr=+micromips \
 ; RUN:   -relocation-model=pic < %s | \
 ; RUN:   FileCheck %s -check-prefixes=MM32
 
@@ -16,7 +16,7 @@ entry:
 ; MM32:      lw      $[[R3:[0-9]+]], %got(gf0)($[[R2]])
 ; MM32:      lwc1    $f0, 0($[[R3]])
 
-  %0 = load float, float* @gf0, align 4
+  %0 = load float, ptr @gf0, align 4
   ret float %0
 }
 
@@ -29,7 +29,7 @@ entry:
 ; MM32:      lw      $[[R3:[0-9]+]], %got(gf0)($[[R2]])
 ; MM32:      swc1    $f12, 0($[[R3]])
 
-  store float %a, float* @gf0, align 4
+  store float %a, ptr @gf0, align 4
   ret void
 }
 

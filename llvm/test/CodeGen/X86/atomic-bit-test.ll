@@ -106,7 +106,7 @@ define i64 @bts63() nounwind {
 ; X86-NEXT:    movl $-2147483648, %esi # imm = 0x80000000
 ; X86-NEXT:    movl v64+4, %edx
 ; X86-NEXT:    movl v64, %eax
-; X86-NEXT:    .p2align 4, 0x90
+; X86-NEXT:    .p2align 4
 ; X86-NEXT:  .LBB4_1: # %atomicrmw.start
 ; X86-NEXT:    # =>This Inner Loop Header: Depth=1
 ; X86-NEXT:    movl %edx, %ecx
@@ -183,19 +183,17 @@ entry:
 define i16 @btc15() nounwind {
 ; X86-LABEL: btc15:
 ; X86:       # %bb.0: # %entry
-; X86-NEXT:    xorl %eax, %eax
-; X86-NEXT:    lock btcw $15, v16
-; X86-NEXT:    setb %al
-; X86-NEXT:    shll $15, %eax
+; X86-NEXT:    movw $-32768, %ax # imm = 0x8000
+; X86-NEXT:    lock xaddw %ax, v16
+; X86-NEXT:    andl $32768, %eax # imm = 0x8000
 ; X86-NEXT:    # kill: def $ax killed $ax killed $eax
 ; X86-NEXT:    retl
 ;
 ; X64-LABEL: btc15:
 ; X64:       # %bb.0: # %entry
-; X64-NEXT:    xorl %eax, %eax
-; X64-NEXT:    lock btcw $15, v16(%rip)
-; X64-NEXT:    setb %al
-; X64-NEXT:    shll $15, %eax
+; X64-NEXT:    movw $-32768, %ax # imm = 0x8000
+; X64-NEXT:    lock xaddw %ax, v16(%rip)
+; X64-NEXT:    andl $32768, %eax # imm = 0x8000
 ; X64-NEXT:    # kill: def $ax killed $ax killed $eax
 ; X64-NEXT:    retq
 entry:
@@ -207,18 +205,16 @@ entry:
 define i32 @btc31() nounwind {
 ; X86-LABEL: btc31:
 ; X86:       # %bb.0: # %entry
-; X86-NEXT:    xorl %eax, %eax
-; X86-NEXT:    lock btcl $31, v32
-; X86-NEXT:    setb %al
-; X86-NEXT:    shll $31, %eax
+; X86-NEXT:    movl $-2147483648, %eax # imm = 0x80000000
+; X86-NEXT:    lock xaddl %eax, v32
+; X86-NEXT:    andl $-2147483648, %eax # imm = 0x80000000
 ; X86-NEXT:    retl
 ;
 ; X64-LABEL: btc31:
 ; X64:       # %bb.0: # %entry
-; X64-NEXT:    xorl %eax, %eax
-; X64-NEXT:    lock btcl $31, v32(%rip)
-; X64-NEXT:    setb %al
-; X64-NEXT:    shll $31, %eax
+; X64-NEXT:    movl $-2147483648, %eax # imm = 0x80000000
+; X64-NEXT:    lock xaddl %eax, v32(%rip)
+; X64-NEXT:    andl $-2147483648, %eax # imm = 0x80000000
 ; X64-NEXT:    retq
 entry:
   %0 = atomicrmw xor ptr @v32, i32 2147483648 monotonic, align 4
@@ -234,7 +230,7 @@ define i64 @btc63() nounwind {
 ; X86-NEXT:    movl $-2147483648, %esi # imm = 0x80000000
 ; X86-NEXT:    movl v64+4, %edx
 ; X86-NEXT:    movl v64, %eax
-; X86-NEXT:    .p2align 4, 0x90
+; X86-NEXT:    .p2align 4
 ; X86-NEXT:  .LBB9_1: # %atomicrmw.start
 ; X86-NEXT:    # =>This Inner Loop Header: Depth=1
 ; X86-NEXT:    movl %edx, %ecx
@@ -251,10 +247,10 @@ define i64 @btc63() nounwind {
 ;
 ; X64-LABEL: btc63:
 ; X64:       # %bb.0: # %entry
-; X64-NEXT:    xorl %eax, %eax
-; X64-NEXT:    lock btcq $63, v64(%rip)
-; X64-NEXT:    setb %al
-; X64-NEXT:    shlq $63, %rax
+; X64-NEXT:    movabsq $-9223372036854775808, %rcx # imm = 0x8000000000000000
+; X64-NEXT:    movq %rcx, %rax
+; X64-NEXT:    lock xaddq %rax, v64(%rip)
+; X64-NEXT:    andq %rcx, %rax
 ; X64-NEXT:    retq
 entry:
   %0 = atomicrmw xor ptr @v64, i64 -9223372036854775808 monotonic, align 8
@@ -364,7 +360,7 @@ define i64 @btr63() nounwind {
 ; X86-NEXT:    movl $-1, %edi
 ; X86-NEXT:    movl v64+4, %edx
 ; X86-NEXT:    movl v64, %eax
-; X86-NEXT:    .p2align 4, 0x90
+; X86-NEXT:    .p2align 4
 ; X86-NEXT:  .LBB14_1: # %atomicrmw.start
 ; X86-NEXT:    # =>This Inner Loop Header: Depth=1
 ; X86-NEXT:    movl %eax, %ebx
@@ -400,7 +396,7 @@ define i16 @multi_use1() nounwind {
 ; X86-LABEL: multi_use1:
 ; X86:       # %bb.0: # %entry
 ; X86-NEXT:    movzwl v16, %eax
-; X86-NEXT:    .p2align 4, 0x90
+; X86-NEXT:    .p2align 4
 ; X86-NEXT:  .LBB15_1: # %atomicrmw.start
 ; X86-NEXT:    # =>This Inner Loop Header: Depth=1
 ; X86-NEXT:    movl %eax, %ecx
@@ -420,7 +416,7 @@ define i16 @multi_use1() nounwind {
 ; X64-LABEL: multi_use1:
 ; X64:       # %bb.0: # %entry
 ; X64-NEXT:    movzwl v16(%rip), %eax
-; X64-NEXT:    .p2align 4, 0x90
+; X64-NEXT:    .p2align 4
 ; X64-NEXT:  .LBB15_1: # %atomicrmw.start
 ; X64-NEXT:    # =>This Inner Loop Header: Depth=1
 ; X64-NEXT:    movl %eax, %ecx
@@ -473,52 +469,56 @@ entry:
 define i16 @use_in_diff_bb() nounwind {
 ; X86-LABEL: use_in_diff_bb:
 ; X86:       # %bb.0: # %entry
-; X86-NEXT:    pushl %esi
-; X86-NEXT:    movzwl v16, %esi
-; X86-NEXT:    .p2align 4, 0x90
+; X86-NEXT:    movzwl v16, %eax
+; X86-NEXT:    .p2align 4
 ; X86-NEXT:  .LBB17_1: # %atomicrmw.start
 ; X86-NEXT:    # =>This Inner Loop Header: Depth=1
-; X86-NEXT:    movl %esi, %ecx
+; X86-NEXT:    movl %eax, %ecx
 ; X86-NEXT:    orl $1, %ecx
-; X86-NEXT:    movl %esi, %eax
+; X86-NEXT:    # kill: def $ax killed $ax killed $eax
 ; X86-NEXT:    lock cmpxchgw %cx, v16
-; X86-NEXT:    movl %eax, %esi
+; X86-NEXT:    # kill: def $ax killed $ax def $eax
 ; X86-NEXT:    jne .LBB17_1
 ; X86-NEXT:  # %bb.2: # %atomicrmw.end
-; X86-NEXT:    xorl %eax, %eax
-; X86-NEXT:    testb %al, %al
+; X86-NEXT:    xorl %ecx, %ecx
+; X86-NEXT:    testb %cl, %cl
 ; X86-NEXT:    jne .LBB17_4
 ; X86-NEXT:  # %bb.3:
+; X86-NEXT:    pushl %esi
+; X86-NEXT:    movl %eax, %esi
 ; X86-NEXT:    calll foo@PLT
-; X86-NEXT:  .LBB17_4:
-; X86-NEXT:    andl $1, %esi
 ; X86-NEXT:    movl %esi, %eax
 ; X86-NEXT:    popl %esi
+; X86-NEXT:  .LBB17_4:
+; X86-NEXT:    andl $1, %eax
+; X86-NEXT:    # kill: def $ax killed $ax killed $eax
 ; X86-NEXT:    retl
 ;
 ; X64-LABEL: use_in_diff_bb:
 ; X64:       # %bb.0: # %entry
-; X64-NEXT:    pushq %rbx
-; X64-NEXT:    movzwl v16(%rip), %ebx
-; X64-NEXT:    .p2align 4, 0x90
+; X64-NEXT:    movzwl v16(%rip), %eax
+; X64-NEXT:    .p2align 4
 ; X64-NEXT:  .LBB17_1: # %atomicrmw.start
 ; X64-NEXT:    # =>This Inner Loop Header: Depth=1
-; X64-NEXT:    movl %ebx, %ecx
+; X64-NEXT:    movl %eax, %ecx
 ; X64-NEXT:    orl $1, %ecx
-; X64-NEXT:    movl %ebx, %eax
+; X64-NEXT:    # kill: def $ax killed $ax killed $eax
 ; X64-NEXT:    lock cmpxchgw %cx, v16(%rip)
-; X64-NEXT:    movl %eax, %ebx
+; X64-NEXT:    # kill: def $ax killed $ax def $eax
 ; X64-NEXT:    jne .LBB17_1
 ; X64-NEXT:  # %bb.2: # %atomicrmw.end
-; X64-NEXT:    xorl %eax, %eax
-; X64-NEXT:    testb %al, %al
+; X64-NEXT:    xorl %ecx, %ecx
+; X64-NEXT:    testb %cl, %cl
 ; X64-NEXT:    jne .LBB17_4
 ; X64-NEXT:  # %bb.3:
+; X64-NEXT:    pushq %rbx
+; X64-NEXT:    movl %eax, %ebx
 ; X64-NEXT:    callq foo@PLT
-; X64-NEXT:  .LBB17_4:
-; X64-NEXT:    andl $1, %ebx
 ; X64-NEXT:    movl %ebx, %eax
 ; X64-NEXT:    popq %rbx
+; X64-NEXT:  .LBB17_4:
+; X64-NEXT:    andl $1, %eax
+; X64-NEXT:    # kill: def $ax killed $ax killed $eax
 ; X64-NEXT:    retq
 entry:
   %0 = atomicrmw or ptr @v16, i16 1 monotonic, align 2
@@ -586,7 +586,6 @@ define i32 @split_hoist_and(i32 %0) nounwind {
 ; X64-NEXT:    lock btsl $3, v32(%rip)
 ; X64-NEXT:    setb %al
 ; X64-NEXT:    shll $3, %eax
-; X64-NEXT:    testl %edi, %edi
 ; X64-NEXT:    retq
   %2 = atomicrmw or ptr @v32, i32 8 monotonic, align 4
   %3 = tail call i32 @llvm.ctlz.i32(i32 %0, i1 false)

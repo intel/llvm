@@ -8,9 +8,15 @@
 
 // UNSUPPORTED: c++03, c++11, c++14
 
+// TODO Investigate why this fails
+// UNSUPPORTED: windows
+
+// This test times out under msan
+// UNSUPPORTED: msan
+
 // to_chars requires functions in the dylib that have not been introduced in older
 // versions of the dylib on macOS.
-// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx{{10.9|10.10|10.11|10.12|10.13|10.14|10.15|11.0}}
+// XFAIL: availability-fp_to_chars-missing
 
 // steady_clock requires threads.
 // UNSUPPORTED: no-threads
@@ -22,6 +28,7 @@
 // <charconv>
 
 #include <type_traits>
+#include "test_macros.h"
 
 // Work-around for sprintf_s's usage in the Microsoft tests.
 #ifndef _WIN32

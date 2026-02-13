@@ -16,7 +16,7 @@
 #include <cassert>
 #include <cinttypes>
 #include <cstdint>
-#include <utility>
+#include <set>
 
 using namespace llvm;
 
@@ -59,6 +59,20 @@ void DWARFGdbIndex::dumpSymbolTable(raw_ostream &OS) const {
                ", filled slots:",
                SymbolTableOffset, (uint64_t)SymbolTable.size())
      << '\n';
+
+  const auto FindCuVectorId = [&](uint32_t VecOffset) {
+    // Entries in ConstantPoolVectors are sorted by their offset in constant
+    // pool, see how ConstantPoolVectors is populated in parseImpl.
+    const auto *It =
+        llvm::lower_bound(ConstantPoolVectors, VecOffset,
+                          [](const auto &ConstantPoolEntry, uint32_t Offset) {
+                            return ConstantPoolEntry.first < Offset;
+                          });
+    assert(It != ConstantPoolVectors.end() && It->first == VecOffset &&
+           "Invalid symbol table");
+    return It - ConstantPoolVectors.begin();
+  };
+
   uint32_t I = -1;
   for (const SymTableEntry &E : SymbolTable) {
     ++I;
@@ -71,13 +85,7 @@ void DWARFGdbIndex::dumpSymbolTable(raw_ostream &OS) const {
     StringRef Name = ConstantPoolStrings.substr(
         ConstantPoolOffset - StringPoolOffset + E.NameOffset);
 
-    auto CuVector = llvm::find_if(
-        ConstantPoolVectors,
-        [&](const std::pair<uint32_t, SmallVector<uint32_t, 0>> &V) {
-          return V.first == E.VecOffset;
-        });
-    assert(CuVector != ConstantPoolVectors.end() && "Invalid symbol table");
-    uint32_t CuVectorId = CuVector - ConstantPoolVectors.begin();
+    const uint32_t CuVectorId = FindCuVectorId(E.VecOffset);
     OS << format("      String name: %s, CU vector index: %d\n", Name.data(),
                  CuVectorId);
   }
@@ -114,9 +122,9 @@ void DWARFGdbIndex::dump(raw_ostream &OS) {
 bool DWARFGdbIndex::parseImpl(DataExtractor Data) {
   uint64_t Offset = 0;
 
-  // Only version 7 is supported at this moment.
+  // Only version 7 and 8 are supported at this moment.
   Version = Data.getU32(&Offset);
-  if (Version != 7)
+  if (Version != 7 && Version != 8)
     return false;
 
   CuListOffset = Data.getU32(&Offset);
@@ -166,25 +174,26 @@ bool DWARFGdbIndex::parseImpl(DataExtractor Data) {
   // for both a string and a CU vector.
   uint32_t SymTableSize = (ConstantPoolOffset - SymbolTableOffset) / 8;
   SymbolTable.reserve(SymTableSize);
-  uint32_t CuVectorsTotal = 0;
+  std::set<uint32_t> CUOffsets;
   for (uint32_t i = 0; i < SymTableSize; ++i) {
     uint32_t NameOffset = Data.getU32(&Offset);
     uint32_t CuVecOffset = Data.getU32(&Offset);
     SymbolTable.push_back({NameOffset, CuVecOffset});
     if (NameOffset || CuVecOffset)
-      ++CuVectorsTotal;
+      CUOffsets.insert(CuVecOffset);
   }
 
   // The constant pool. CU vectors are stored first, followed by strings.
   // The first value is the number of CU indices in the vector. Each subsequent
   // value is the index and symbol attributes of a CU in the CU list.
-  for (uint32_t i = 0; i < CuVectorsTotal; ++i) {
+  for (auto CUOffset : CUOffsets) {
+    Offset = ConstantPoolOffset + CUOffset;
     ConstantPoolVectors.emplace_back(0, SmallVector<uint32_t, 0>());
     auto &Vec = ConstantPoolVectors.back();
     Vec.first = Offset - ConstantPoolOffset;
 
     uint32_t Num = Data.getU32(&Offset);
-    for (uint32_t j = 0; j < Num; ++j)
+    for (uint32_t J = 0; J < Num; ++J)
       Vec.second.push_back(Data.getU32(&Offset));
   }
 

@@ -15,7 +15,7 @@
 #include "TestTU.h"
 #include "TestWorkspace.h"
 #include "URI.h"
-#include "index/CanonicalIncludes.h"
+#include "clang-include-cleaner/Record.h"
 #include "index/FileIndex.h"
 #include "index/Index.h"
 #include "index/Ref.h"
@@ -25,12 +25,12 @@
 #include "index/SymbolID.h"
 #include "support/Threading.h"
 #include "clang/Frontend/CompilerInvocation.h"
-#include "clang/Lex/Preprocessor.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/Allocator.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include <memory>
 #include <utility>
 #include <vector>
 
@@ -59,6 +59,11 @@ MATCHER_P(defURI, U, "") {
 MATCHER_P(qName, N, "") { return (arg.Scope + arg.Name).str() == N; }
 MATCHER_P(numReferences, N, "") { return arg.References == N; }
 MATCHER_P(hasOrign, O, "") { return bool(arg.Origin & O); }
+
+MATCHER_P(includeHeader, P, "") {
+  return (arg.IncludeHeaders.size() == 1) &&
+         (arg.IncludeHeaders.begin()->IncludeHeader == P);
+}
 
 namespace clang {
 namespace clangd {
@@ -99,7 +104,7 @@ std::unique_ptr<RelationSlab> relSlab(llvm::ArrayRef<const Relation> Rels) {
 }
 
 TEST(FileSymbolsTest, UpdateAndGet) {
-  FileSymbols FS(IndexContents::All);
+  FileSymbols FS(IndexContents::All, true);
   EXPECT_THAT(runFuzzyFind(*FS.buildIndex(IndexType::Light), ""), IsEmpty());
 
   FS.update("f1", numSlab(1, 3), refSlab(SymbolID("1"), "f1.cc"), nullptr,
@@ -111,7 +116,7 @@ TEST(FileSymbolsTest, UpdateAndGet) {
 }
 
 TEST(FileSymbolsTest, Overlap) {
-  FileSymbols FS(IndexContents::All);
+  FileSymbols FS(IndexContents::All, true);
   FS.update("f1", numSlab(1, 3), nullptr, nullptr, false);
   FS.update("f2", numSlab(3, 5), nullptr, nullptr, false);
   for (auto Type : {IndexType::Light, IndexType::Heavy})
@@ -121,7 +126,7 @@ TEST(FileSymbolsTest, Overlap) {
 }
 
 TEST(FileSymbolsTest, MergeOverlap) {
-  FileSymbols FS(IndexContents::All);
+  FileSymbols FS(IndexContents::All, true);
   auto OneSymboSlab = [](Symbol Sym) {
     SymbolSlab::Builder S;
     S.insert(Sym);
@@ -142,7 +147,7 @@ TEST(FileSymbolsTest, MergeOverlap) {
 }
 
 TEST(FileSymbolsTest, SnapshotAliveAfterRemove) {
-  FileSymbols FS(IndexContents::All);
+  FileSymbols FS(IndexContents::All, true);
 
   SymbolID ID("1");
   FS.update("f1", numSlab(1, 3), refSlab(ID, "f1.cc"), nullptr, false);
@@ -171,18 +176,18 @@ void update(FileIndex &M, llvm::StringRef Basename, llvm::StringRef Code) {
   auto AST = File.build();
   M.updatePreamble(testPath(File.Filename), /*Version=*/"null",
                    AST.getASTContext(), AST.getPreprocessor(),
-                   AST.getCanonicalIncludes());
+                   AST.getPragmaIncludes());
 }
 
 TEST(FileIndexTest, CustomizedURIScheme) {
-  FileIndex M;
+  FileIndex M(true);
   update(M, "f", "class string {};");
 
   EXPECT_THAT(runFuzzyFind(M, ""), ElementsAre(declURI("unittest:///f.h")));
 }
 
 TEST(FileIndexTest, IndexAST) {
-  FileIndex M;
+  FileIndex M(true);
   update(M, "f1", "namespace ns { void f() {} class X {}; }");
 
   FuzzyFindRequest Req;
@@ -193,7 +198,7 @@ TEST(FileIndexTest, IndexAST) {
 }
 
 TEST(FileIndexTest, NoLocal) {
-  FileIndex M;
+  FileIndex M(true);
   update(M, "f1", "namespace ns { void f() { int local = 0; } class X {}; }");
 
   EXPECT_THAT(
@@ -202,7 +207,7 @@ TEST(FileIndexTest, NoLocal) {
 }
 
 TEST(FileIndexTest, IndexMultiASTAndDeduplicate) {
-  FileIndex M;
+  FileIndex M(true);
   update(M, "f1", "namespace ns { void f() {} class X {}; }");
   update(M, "f2", "namespace ns { void ff() {} class X {}; }");
 
@@ -214,7 +219,7 @@ TEST(FileIndexTest, IndexMultiASTAndDeduplicate) {
 }
 
 TEST(FileIndexTest, ClassMembers) {
-  FileIndex M;
+  FileIndex M(true);
   update(M, "f1", "class X { static int m1; int m2; static void f(); };");
 
   EXPECT_THAT(runFuzzyFind(M, ""),
@@ -223,7 +228,7 @@ TEST(FileIndexTest, ClassMembers) {
 }
 
 TEST(FileIndexTest, IncludeCollected) {
-  FileIndex M;
+  FileIndex M(true);
   update(
       M, "f",
       "// IWYU pragma: private, include <the/good/header.h>\nclass string {};");
@@ -232,6 +237,32 @@ TEST(FileIndexTest, IncludeCollected) {
   EXPECT_THAT(Symbols, ElementsAre(_));
   EXPECT_THAT(Symbols.begin()->IncludeHeaders.front().IncludeHeader,
               "<the/good/header.h>");
+}
+
+TEST(FileIndexTest, IWYUPragmaExport) {
+  FileIndex M(true);
+
+  TestTU File;
+  File.Code = R"cpp(#pragma once
+    #include "exporter.h"
+  )cpp";
+  File.HeaderFilename = "exporter.h";
+  File.HeaderCode = R"cpp(#pragma once
+    #include "private.h" // IWYU pragma: export
+  )cpp";
+  File.AdditionalFiles["private.h"] = "class Foo{};";
+  auto AST = File.build();
+  M.updatePreamble(testPath(File.Filename), /*Version=*/"null",
+                   AST.getASTContext(), AST.getPreprocessor(),
+                   AST.getPragmaIncludes());
+
+  auto Symbols = runFuzzyFind(M, "");
+  EXPECT_THAT(
+      Symbols,
+      UnorderedElementsAre(AllOf(
+          qName("Foo"),
+          includeHeader(URI::create(testPath(File.HeaderFilename)).toString()),
+          declURI(URI::create(testPath("private.h")).toString()))));
 }
 
 TEST(FileIndexTest, HasSystemHeaderMappingsInPreamble) {
@@ -255,7 +286,7 @@ template <class Ty, class Arg>
 vector<Ty> make_vector(Arg A) {}
 )cpp";
 
-  FileIndex M;
+  FileIndex M(true);
   update(M, "f", Source);
 
   auto Symbols = runFuzzyFind(M, "");
@@ -303,18 +334,19 @@ TEST(FileIndexTest, RebuildWithPreamble) {
   IgnoreDiagnostics IgnoreDiags;
   auto CI = buildCompilerInvocation(PI, IgnoreDiags);
 
-  FileIndex Index;
+  FileIndex Index(true);
   bool IndexUpdated = false;
-  buildPreamble(FooCpp, *CI, PI,
-                /*StoreInMemory=*/true,
-                [&](ASTContext &Ctx, Preprocessor &PP,
-                    const CanonicalIncludes &CanonIncludes) {
-                  EXPECT_FALSE(IndexUpdated)
-                      << "Expected only a single index update";
-                  IndexUpdated = true;
-                  Index.updatePreamble(FooCpp, /*Version=*/"null", Ctx, PP,
-                                       CanonIncludes);
-                });
+  buildPreamble(
+      FooCpp, *CI, PI,
+      /*StoreInMemory=*/true,
+      [&](CapturedASTCtx ASTCtx,
+          std::shared_ptr<const include_cleaner::PragmaIncludes> PI) {
+        auto &Ctx = ASTCtx.getASTContext();
+        auto &PP = ASTCtx.getPreprocessor();
+        EXPECT_FALSE(IndexUpdated) << "Expected only a single index update";
+        IndexUpdated = true;
+        Index.updatePreamble(FooCpp, /*Version=*/"null", Ctx, PP, *PI);
+      });
   ASSERT_TRUE(IndexUpdated);
 
   // Check the index contains symbols from the preamble, but not from the main
@@ -342,7 +374,7 @@ TEST(FileIndexTest, Refs) {
   RefsRequest Request;
   Request.IDs = {Foo.ID};
 
-  FileIndex Index;
+  FileIndex Index(true);
   // Add test.cc
   TestTU Test;
   Test.HeaderCode = HeaderCode;
@@ -377,7 +409,7 @@ TEST(FileIndexTest, MacroRefs) {
   }
   )cpp");
 
-  FileIndex Index;
+  FileIndex Index(true);
   // Add test.cc
   TestTU Test;
   Test.HeaderCode = std::string(HeaderCode.code());
@@ -400,7 +432,7 @@ TEST(FileIndexTest, MacroRefs) {
 }
 
 TEST(FileIndexTest, CollectMacros) {
-  FileIndex M;
+  FileIndex M(true);
   update(M, "f", "#define CLANGD 1");
   EXPECT_THAT(runFuzzyFind(M, ""), Contains(qName("CLANGD")));
 }
@@ -411,10 +443,10 @@ TEST(FileIndexTest, Relations) {
   TU.HeaderFilename = "f.h";
   TU.HeaderCode = "class A {}; class B : public A {};";
   auto AST = TU.build();
-  FileIndex Index;
+  FileIndex Index(true);
   Index.updatePreamble(testPath(TU.Filename), /*Version=*/"null",
                        AST.getASTContext(), AST.getPreprocessor(),
-                       AST.getCanonicalIncludes());
+                       AST.getPragmaIncludes());
   SymbolID A = findSymbol(TU.headerSymbols(), "A").ID;
   uint32_t Results = 0;
   RelationsRequest Req;
@@ -461,7 +493,7 @@ TEST(FileIndexTest, ReferencesInMainFileWithPreamble) {
   )cpp");
   TU.Code = std::string(Main.code());
   auto AST = TU.build();
-  FileIndex Index;
+  FileIndex Index(true);
   Index.updateMain(testPath(TU.Filename), AST);
 
   // Expect to see references in main file, references in headers are excluded
@@ -478,7 +510,7 @@ TEST(FileIndexTest, MergeMainFileSymbols) {
   Cpp.HeaderFilename = "foo.h";
   Cpp.HeaderCode = CommonHeader;
 
-  FileIndex Index;
+  FileIndex Index(true);
   auto HeaderAST = Header.build();
   auto CppAST = Cpp.build();
   Index.updateMain(testPath("foo.h"), HeaderAST);
@@ -492,7 +524,7 @@ TEST(FileIndexTest, MergeMainFileSymbols) {
 }
 
 TEST(FileSymbolsTest, CountReferencesNoRefSlabs) {
-  FileSymbols FS(IndexContents::All);
+  FileSymbols FS(IndexContents::All, true);
   FS.update("f1", numSlab(1, 3), nullptr, nullptr, true);
   FS.update("f2", numSlab(1, 3), nullptr, nullptr, false);
   EXPECT_THAT(
@@ -504,7 +536,7 @@ TEST(FileSymbolsTest, CountReferencesNoRefSlabs) {
 }
 
 TEST(FileSymbolsTest, CountReferencesWithRefSlabs) {
-  FileSymbols FS(IndexContents::All);
+  FileSymbols FS(IndexContents::All, true);
   FS.update("f1cpp", numSlab(1, 3), refSlab(SymbolID("1"), "f1.cpp"), nullptr,
             true);
   FS.update("f1h", numSlab(1, 3), refSlab(SymbolID("1"), "f1.h"), nullptr,
@@ -526,7 +558,7 @@ TEST(FileSymbolsTest, CountReferencesWithRefSlabs) {
 }
 
 TEST(FileIndexTest, StalePreambleSymbolsDeleted) {
-  FileIndex M;
+  FileIndex M(true);
   TestTU File;
   File.HeaderFilename = "a.h";
 
@@ -535,7 +567,7 @@ TEST(FileIndexTest, StalePreambleSymbolsDeleted) {
   auto AST = File.build();
   M.updatePreamble(testPath(File.Filename), /*Version=*/"null",
                    AST.getASTContext(), AST.getPreprocessor(),
-                   AST.getCanonicalIncludes());
+                   AST.getPragmaIncludes());
   EXPECT_THAT(runFuzzyFind(M, ""), UnorderedElementsAre(qName("a")));
 
   File.Filename = "f2.cpp";
@@ -543,13 +575,13 @@ TEST(FileIndexTest, StalePreambleSymbolsDeleted) {
   AST = File.build();
   M.updatePreamble(testPath(File.Filename), /*Version=*/"null",
                    AST.getASTContext(), AST.getPreprocessor(),
-                   AST.getCanonicalIncludes());
+                   AST.getPragmaIncludes());
   EXPECT_THAT(runFuzzyFind(M, ""), UnorderedElementsAre(qName("b")));
 }
 
 // Verifies that concurrent calls to updateMain don't "lose" any updates.
 TEST(FileIndexTest, Threadsafety) {
-  FileIndex M;
+  FileIndex M(true);
   Notification Go;
 
   constexpr int Count = 10;
@@ -682,13 +714,13 @@ TEST(FileShardedIndexTest, Sharding) {
 }
 
 TEST(FileIndexTest, Profile) {
-  FileIndex FI;
+  FileIndex FI(true);
 
   auto FileName = testPath("foo.cpp");
   auto AST = TestTU::withHeaderCode("int a;").build();
   FI.updateMain(FileName, AST);
   FI.updatePreamble(FileName, "v1", AST.getASTContext(), AST.getPreprocessor(),
-                    AST.getCanonicalIncludes());
+                    AST.getPragmaIncludes());
 
   llvm::BumpPtrAllocator Alloc;
   MemoryTree MT(&Alloc);
@@ -706,7 +738,7 @@ TEST(FileIndexTest, Profile) {
 }
 
 TEST(FileSymbolsTest, Profile) {
-  FileSymbols FS(IndexContents::All);
+  FileSymbols FS(IndexContents::All, true);
   FS.update("f1", numSlab(1, 2), nullptr, nullptr, false);
   FS.update("f2", nullptr, refSlab(SymbolID("1"), "f1"), nullptr, false);
   FS.update("f3", nullptr, nullptr,
@@ -726,7 +758,7 @@ TEST(FileSymbolsTest, Profile) {
 }
 
 TEST(FileIndexTest, MacrosFromMainFile) {
-  FileIndex Idx;
+  FileIndex Idx(true);
   TestTU TU;
   TU.Code = "#pragma once\n#define FOO";
   TU.Filename = "foo.h";

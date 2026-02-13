@@ -60,9 +60,14 @@ static std::string getDescription(const Module &M) {
   return "module (" + M.getName().str() + ")";
 }
 
-bool ModulePass::skipModule(Module &M) const {
-  OptPassGate &Gate = M.getContext().getOptPassGate();
-  return Gate.isEnabled() && !Gate.shouldRunPass(this, getDescription(M));
+bool ModulePass::skipModule(const Module &M) const {
+  const OptPassGate &Gate = M.getContext().getOptPassGate();
+
+  StringRef PassName = getPassArgument();
+  if (PassName.empty())
+    PassName = this->getPassName();
+
+  return Gate.isEnabled() && !Gate.shouldRunPass(PassName, getDescription(M));
 }
 
 bool Pass::mustPreserveAnalysisID(char &AID) const {
@@ -85,6 +90,16 @@ StringRef Pass::getPassName() const {
   return "Unnamed pass: implement Pass::getPassName()";
 }
 
+/// getPassArgument - Return a nice clean name for a pass
+/// corresponding to that used to enable the pass in opt
+StringRef Pass::getPassArgument() const {
+  AnalysisID AID = getPassID();
+  const PassInfo *PI = Pass::lookupPassInfo(AID);
+  if (PI)
+    return PI->getPassArgument();
+  return "";
+}
+
 void Pass::preparePassManager(PMStack &) {
   // By default, don't do anything.
 }
@@ -104,10 +119,6 @@ void Pass::releaseMemory() {
 
 void Pass::verifyAnalysis() const {
   // By default, don't do anything.
-}
-
-void *Pass::getAdjustedAnalysisPointer(AnalysisID AID) {
-  return this;
 }
 
 ImmutablePass *Pass::getAsImmutablePass() {
@@ -138,9 +149,13 @@ LLVM_DUMP_METHOD void Pass::dump() const {
 #endif
 
 #ifdef EXPENSIVE_CHECKS
-uint64_t Pass::structuralHash(Module &M) const { return StructuralHash(M); }
+uint64_t Pass::structuralHash(Module &M) const {
+  return StructuralHash(M, true);
+}
 
-uint64_t Pass::structuralHash(Function &F) const { return StructuralHash(F); }
+uint64_t Pass::structuralHash(Function &F) const {
+  return StructuralHash(F, true);
+}
 #endif
 
 //===----------------------------------------------------------------------===//
@@ -172,7 +187,12 @@ static std::string getDescription(const Function &F) {
 
 bool FunctionPass::skipFunction(const Function &F) const {
   OptPassGate &Gate = F.getContext().getOptPassGate();
-  if (Gate.isEnabled() && !Gate.shouldRunPass(this, getDescription(F)))
+
+  StringRef PassName = getPassArgument();
+  if (PassName.empty())
+    PassName = this->getPassName();
+
+  if (Gate.isEnabled() && !Gate.shouldRunPass(PassName, getDescription(F)))
     return true;
 
   if (F.hasOptNone()) {
@@ -196,19 +216,6 @@ Pass *Pass::createPass(AnalysisID ID) {
   if (!PI)
     return nullptr;
   return PI->createPass();
-}
-
-//===----------------------------------------------------------------------===//
-//                  Analysis Group Implementation Code
-//===----------------------------------------------------------------------===//
-
-// RegisterAGBase implementation
-
-RegisterAGBase::RegisterAGBase(StringRef Name, const void *InterfaceID,
-                               const void *PassID, bool isDefault)
-    : PassInfo(Name, InterfaceID) {
-  PassRegistry::getPassRegistry()->registerAnalysisGroup(InterfaceID, PassID,
-                                                         *this, isDefault);
 }
 
 //===----------------------------------------------------------------------===//
@@ -289,3 +296,21 @@ AnalysisUsage &AnalysisUsage::addRequiredTransitiveID(char &ID) {
   pushUnique(RequiredTransitive, &ID);
   return *this;
 }
+
+#ifndef NDEBUG
+const char *llvm::to_string(ThinOrFullLTOPhase Phase) {
+  switch (Phase) {
+  case ThinOrFullLTOPhase::None:
+    return "None";
+  case ThinOrFullLTOPhase::ThinLTOPreLink:
+    return "ThinLTOPreLink";
+  case ThinOrFullLTOPhase::ThinLTOPostLink:
+    return "ThinLTOPostLink";
+  case ThinOrFullLTOPhase::FullLTOPreLink:
+    return "FullLTOPreLink";
+  case ThinOrFullLTOPhase::FullLTOPostLink:
+    return "FullLTOPostLink";
+  }
+  llvm_unreachable("invalid phase");
+}
+#endif

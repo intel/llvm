@@ -19,7 +19,7 @@ namespace {
 struct Node : ilist_node<Node> {
   int Value;
 
-  Node() {}
+  Node() = default;
   Node(int Value) : Value(Value) {}
   Node(const Node&) = default;
   ~Node() { Value = -1; }
@@ -156,42 +156,6 @@ TEST(IListTest, UnsafeClear) {
   ASSERT_EQ(2u, List.size());
   EXPECT_EQ(5, List.front().Value);
   EXPECT_EQ(6, List.back().Value);
-}
-
-struct Empty {};
-TEST(IListTest, HasObsoleteCustomizationTrait) {
-  // Negative test for HasObsoleteCustomization.
-  static_assert(!ilist_detail::HasObsoleteCustomization<Empty, Node>::value,
-                "Empty has no customizations");
-}
-
-struct GetNext {
-  Node *getNext(Node *);
-};
-TEST(IListTest, HasGetNextTrait) {
-  static_assert(ilist_detail::HasGetNext<GetNext, Node>::value,
-                "GetNext has a getNext(Node*)");
-  static_assert(ilist_detail::HasObsoleteCustomization<GetNext, Node>::value,
-                "Empty should be obsolete because of getNext()");
-
-  // Negative test for HasGetNext.
-  static_assert(!ilist_detail::HasGetNext<Empty, Node>::value,
-                "Empty does not have a getNext(Node*)");
-}
-
-struct CreateSentinel {
-  Node *createSentinel();
-};
-TEST(IListTest, HasCreateSentinelTrait) {
-  static_assert(ilist_detail::HasCreateSentinel<CreateSentinel>::value,
-                "CreateSentinel has a getNext(Node*)");
-  static_assert(
-      ilist_detail::HasObsoleteCustomization<CreateSentinel, Node>::value,
-      "Empty should be obsolete because of createSentinel()");
-
-  // Negative test for HasCreateSentinel.
-  static_assert(!ilist_detail::HasCreateSentinel<Empty>::value,
-                "Empty does not have a createSentinel()");
 }
 
 struct NodeWithCallback : ilist_node<NodeWithCallback> {

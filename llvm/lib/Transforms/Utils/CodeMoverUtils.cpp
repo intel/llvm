@@ -12,7 +12,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/Utils/CodeMoverUtils.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/DependenceAnalysis.h"
 #include "llvm/Analysis/PostDominators.h"
@@ -26,8 +25,6 @@ using namespace llvm;
 STATISTIC(HasDependences,
           "Cannot move across instructions that has memory dependences");
 STATISTIC(MayThrowException, "Cannot move across instructions that may throw");
-STATISTIC(NotControlFlowEquivalent,
-          "Instructions are not control flow equivalent");
 STATISTIC(NotMovedPHINode, "Movement of PHINodes are not supported");
 STATISTIC(NotMovedTerminator, "Movement of Terminator are not supported");
 
@@ -58,9 +55,9 @@ class ControlConditions {
 public:
   /// Return a ControlConditions which stores all conditions required to execute
   /// \p BB from \p Dominator. If \p MaxLookup is non-zero, it limits the
-  /// number of conditions to collect. Return None if not all conditions are
-  /// collected successfully, or we hit the limit.
-  static const Optional<ControlConditions>
+  /// number of conditions to collect. Return std::nullopt if not all conditions
+  /// are collected successfully, or we hit the limit.
+  static const std::optional<ControlConditions>
   collectControlConditions(const BasicBlock &BB, const BasicBlock &Dominator,
                            const DominatorTree &DT,
                            const PostDominatorTree &PDT,
@@ -105,9 +102,12 @@ static bool domTreeLevelBefore(DominatorTree *DT, const Instruction *InstA,
   return DA->getLevel() < DB->getLevel();
 }
 
-const Optional<ControlConditions> ControlConditions::collectControlConditions(
-    const BasicBlock &BB, const BasicBlock &Dominator, const DominatorTree &DT,
-    const PostDominatorTree &PDT, unsigned MaxLookup) {
+const std::optional<ControlConditions>
+ControlConditions::collectControlConditions(const BasicBlock &BB,
+                                            const BasicBlock &Dominator,
+                                            const DominatorTree &DT,
+                                            const PostDominatorTree &PDT,
+                                            unsigned MaxLookup) {
   assert(DT.dominates(&Dominator, &BB) && "Expecting Dominator to dominate BB");
 
   ControlConditions Conditions;
@@ -129,7 +129,7 @@ const Optional<ControlConditions> ControlConditions::collectControlConditions(
     // Limitation: can only handle branch instruction currently.
     const BranchInst *BI = dyn_cast<BranchInst>(IDom->getTerminator());
     if (!BI)
-      return None;
+      return std::nullopt;
 
     bool Inserted = false;
     if (PDT.dominates(CurBlock, IDom)) {
@@ -149,13 +149,13 @@ const Optional<ControlConditions> ControlConditions::collectControlConditions(
       Inserted = Conditions.addControlCondition(
           ControlCondition(BI->getCondition(), false));
     } else
-      return None;
+      return std::nullopt;
 
     if (Inserted)
       ++NumConditions;
 
     if (MaxLookup != 0 && NumConditions > MaxLookup)
-      return None;
+      return std::nullopt;
 
     CurBlock = IDom;
   } while (CurBlock != &Dominator);
@@ -226,44 +226,6 @@ bool ControlConditions::isInverse(const Value &V1, const Value &V2) {
   return false;
 }
 
-bool llvm::isControlFlowEquivalent(const Instruction &I0, const Instruction &I1,
-                                   const DominatorTree &DT,
-                                   const PostDominatorTree &PDT) {
-  return isControlFlowEquivalent(*I0.getParent(), *I1.getParent(), DT, PDT);
-}
-
-bool llvm::isControlFlowEquivalent(const BasicBlock &BB0, const BasicBlock &BB1,
-                                   const DominatorTree &DT,
-                                   const PostDominatorTree &PDT) {
-  if (&BB0 == &BB1)
-    return true;
-
-  if ((DT.dominates(&BB0, &BB1) && PDT.dominates(&BB1, &BB0)) ||
-      (PDT.dominates(&BB0, &BB1) && DT.dominates(&BB1, &BB0)))
-    return true;
-
-  // If the set of conditions required to execute BB0 and BB1 from their common
-  // dominator are the same, then BB0 and BB1 are control flow equivalent.
-  const BasicBlock *CommonDominator = DT.findNearestCommonDominator(&BB0, &BB1);
-  LLVM_DEBUG(dbgs() << "The nearest common dominator of " << BB0.getName()
-                    << " and " << BB1.getName() << " is "
-                    << CommonDominator->getName() << "\n");
-
-  const Optional<ControlConditions> BB0Conditions =
-      ControlConditions::collectControlConditions(BB0, *CommonDominator, DT,
-                                                  PDT);
-  if (BB0Conditions == None)
-    return false;
-
-  const Optional<ControlConditions> BB1Conditions =
-      ControlConditions::collectControlConditions(BB1, *CommonDominator, DT,
-                                                  PDT);
-  if (BB1Conditions == None)
-    return false;
-
-  return BB0Conditions->isEquivalent(*BB1Conditions);
-}
-
 static bool reportInvalidCandidate(const Instruction &I,
                                    llvm::Statistic &Stat) {
   ++Stat;
@@ -328,15 +290,24 @@ bool llvm::isSafeToMoveBefore(Instruction &I, Instruction &InsertPoint,
   if (I.isTerminator())
     return reportInvalidCandidate(I, NotMovedTerminator);
 
-  // TODO remove this limitation.
-  if (!isControlFlowEquivalent(I, InsertPoint, DT, *PDT))
-    return reportInvalidCandidate(I, NotControlFlowEquivalent);
-
   if (isReachedBefore(&I, &InsertPoint, &DT, PDT))
     for (const Use &U : I.uses())
-      if (auto *UserInst = dyn_cast<Instruction>(U.getUser()))
-        if (UserInst != &InsertPoint && !DT.dominates(&InsertPoint, U))
+      if (auto *UserInst = dyn_cast<Instruction>(U.getUser())) {
+        // If InsertPoint is in a BB that comes after I, then we cannot move if
+        // I is used in the terminator of the current BB.
+        if (I.getParent() == InsertPoint.getParent() &&
+            UserInst == I.getParent()->getTerminator())
           return false;
+        if (UserInst != &InsertPoint && !DT.dominates(&InsertPoint, U)) {
+          // If UserInst is an instruction that appears later in the same BB as
+          // I, then it is okay to move since I will still be available when
+          // UserInst is executed.
+          if (CheckForEntireBlock && I.getParent() == UserInst->getParent() &&
+              DT.dominates(&I, UserInst))
+            continue;
+          return false;
+        }
+      }
   if (isReachedBefore(&InsertPoint, &I, &DT, PDT))
     for (const Value *Op : I.operands())
       if (auto *OpInst = dyn_cast<Instruction>(Op)) {
@@ -383,7 +354,7 @@ bool llvm::isSafeToMoveBefore(Instruction &I, Instruction &InsertPoint,
   // Check if I has any output/flow/anti dependences with instructions from \p
   // StartInst to \p EndInst.
   if (llvm::any_of(InstsToCheck, [&DI, &I](Instruction *CurInst) {
-        auto DepResult = DI->depends(&I, CurInst, true);
+        auto DepResult = DI->depends(&I, CurInst);
         if (DepResult && (DepResult->isOutput() || DepResult->isFlow() ||
                           DepResult->isAnti()))
           return true;
@@ -412,10 +383,10 @@ void llvm::moveInstructionsToTheBeginning(BasicBlock &FromBB, BasicBlock &ToBB,
                                           DependenceInfo &DI) {
   for (Instruction &I :
        llvm::make_early_inc_range(llvm::drop_begin(llvm::reverse(FromBB)))) {
-    Instruction *MovePos = ToBB.getFirstNonPHIOrDbg();
+    BasicBlock::iterator MovePos = ToBB.getFirstNonPHIOrDbg();
 
     if (isSafeToMoveBefore(I, *MovePos, DT, &PDT, &DI))
-      I.moveBefore(MovePos);
+      I.moveBeforePreserving(MovePos);
   }
 }
 
@@ -427,7 +398,7 @@ void llvm::moveInstructionsToTheEnd(BasicBlock &FromBB, BasicBlock &ToBB,
   while (FromBB.size() > 1) {
     Instruction &I = FromBB.front();
     if (isSafeToMoveBefore(I, *MovePos, DT, &PDT, &DI))
-      I.moveBefore(MovePos);
+      I.moveBeforePreserving(MovePos->getIterator());
   }
 }
 
@@ -435,8 +406,6 @@ bool llvm::nonStrictlyPostDominate(const BasicBlock *ThisBlock,
                                    const BasicBlock *OtherBlock,
                                    const DominatorTree *DT,
                                    const PostDominatorTree *PDT) {
-  assert(isControlFlowEquivalent(*ThisBlock, *OtherBlock, *DT, *PDT) &&
-         "ThisBlock and OtherBlock must be CFG equivalent!");
   const BasicBlock *CommonDominator =
       DT->findNearestCommonDominator(ThisBlock, OtherBlock);
   if (CommonDominator == nullptr)
@@ -449,8 +418,7 @@ bool llvm::nonStrictlyPostDominate(const BasicBlock *ThisBlock,
   SmallPtrSet<const BasicBlock *, 8> Visited;
   WorkList.push_back(ThisBlock);
   while (!WorkList.empty()) {
-    const BasicBlock *CurBlock = WorkList.back();
-    WorkList.pop_back();
+    const BasicBlock *CurBlock = WorkList.pop_back_val();
     Visited.insert(CurBlock);
     if (PDT->dominates(CurBlock, OtherBlock))
       return true;

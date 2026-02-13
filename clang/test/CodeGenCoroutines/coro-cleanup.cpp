@@ -1,5 +1,6 @@
 // Verify that coroutine promise and allocated memory are freed up on exception.
-// RUN: %clang_cc1 -no-opaque-pointers -std=c++20 -triple=x86_64-unknown-linux-gnu -emit-llvm -o - %s -fexceptions -fcxx-exceptions -disable-llvm-passes | FileCheck %s
+// RUN: %clang_cc1 -std=c++20 -triple=x86_64-unknown-linux-gnu -emit-llvm -o - %s -fexceptions -fcxx-exceptions -disable-llvm-passes | FileCheck %s --check-prefixes=CHECK,THROWEND
+// RUN: %clang_cc1 -std=c++20 -triple=x86_64-unknown-linux-gnu -emit-llvm -o - %s -fexceptions -fcxx-exceptions -fassume-nothrow-exception-dtor -disable-llvm-passes | FileCheck %s --check-prefixes=CHECK,NOTHROWEND
 
 namespace std {
 template <typename... T> struct coroutine_traits;
@@ -39,7 +40,7 @@ void may_throw();
 
 // CHECK-LABEL: define{{.*}} void @_Z1fv(
 void f() {
-  // CHECK: call noalias noundef nonnull i8* @_Znwm(i64
+  // CHECK: call noalias noundef nonnull ptr @_Znwm(i64
 
   // If promise constructor throws, check that we free the memory.
 
@@ -49,7 +50,9 @@ void f() {
   // CHECK: [[DeallocPad]]:
   // CHECK-NEXT: landingpad
   // CHECK-NEXT:   cleanup
-  // CHECK: br label %[[Dealloc:.+]]
+  // THROWEND:        br label %[[Dealloc:.+]]
+  // NOTHROWEND:      icmp ne ptr %[[#]], null
+  // NOTHROWEND-NEXT: br i1 %[[#]], label %[[Dealloc:.+]], label
 
   Cleanup cleanup;
   may_throw();
@@ -61,29 +64,33 @@ void f() {
 
   // CHECK: [[CatchPad]]:
   // CHECK-NEXT:  landingpad
-  // CHECK-NEXT:       catch i8* null
+  // CHECK-NEXT:       catch ptr null
   // CHECK:  call void @_ZN7CleanupD1Ev(
   // CHECK:  br label %[[Catch:.+]]
 
   // CHECK: [[Catch]]:
-  // CHECK:    call i8* @__cxa_begin_catch(
+  // CHECK:    call ptr @__cxa_begin_catch(
   // CHECK:    call void @_ZNSt16coroutine_traitsIJvEE12promise_type19unhandled_exceptionEv(
-  // CHECK:    invoke void @__cxa_end_catch()
-  // CHECK-NEXT:    to label %[[Cont:.+]] unwind
+  // THROWEND:        invoke void @__cxa_end_catch()
+  // THROWEND-NEXT:     to label %[[Cont:.+]] unwind
+  // NOTHROWEND:      call void @__cxa_end_catch()
+  // NOTHROWEND-NEXT:   br label %[[Cont2:.+]]
 
-  // CHECK: [[Cont]]:
-  // CHECK-NEXT: br label %[[Cont2:.+]]
-  // CHECK: [[Cont2]]:
-  // CHECK-NEXT: br label %[[Cleanup:.+]]
+  // THROWEND:      [[Cont]]:
+  // THROWEND-NEXT:   br label %[[Cont2:.+]]
+  // CHECK:         [[Cont2]]:
+  // CHECK-NEXT:      br label %[[Cleanup:.+]]
 
   // CHECK: [[Cleanup]]:
   // CHECK: call void @_ZNSt16coroutine_traitsIJvEE12promise_typeD1Ev(
-  // CHECK: %[[Mem0:.+]] = call i8* @llvm.coro.free(
-  // CHECK: call void @_ZdlPv(i8* noundef %[[Mem0]]
+  // CHECK: %[[Mem0:.+]] = call ptr @llvm.coro.free(
+  // CHECK: %[[SIZE:.+]] = call i64 @llvm.coro.size.i64()
+  // CHECK: call void @_ZdlPvm(ptr noundef %[[Mem0]], i64 noundef %[[SIZE]])
 
   // CHECK: [[Dealloc]]:
-  // CHECK:   %[[Mem:.+]] = call i8* @llvm.coro.free(
-  // CHECK:   call void @_ZdlPv(i8* noundef %[[Mem]])
+  // THROWEND:   %[[Mem:.+]] = call ptr @llvm.coro.free(
+  // THROWEND:   %[[SIZE:.+]] = call i64 @llvm.coro.size.i64()
+  // THROWEND:   call void @_ZdlPvm(ptr noundef %[[Mem]], i64 noundef %[[SIZE]])
 
   co_return;
 }

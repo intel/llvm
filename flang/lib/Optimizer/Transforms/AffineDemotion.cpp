@@ -31,7 +31,6 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 
@@ -47,43 +46,47 @@ using namespace mlir;
 
 namespace {
 
-class AffineLoadConversion : public OpConversionPattern<mlir::AffineLoadOp> {
+class AffineLoadConversion
+    : public OpConversionPattern<mlir::affine::AffineLoadOp> {
 public:
-  using OpConversionPattern<mlir::AffineLoadOp>::OpConversionPattern;
+  using OpConversionPattern<mlir::affine::AffineLoadOp>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(mlir::AffineLoadOp op, OpAdaptor adaptor,
+  matchAndRewrite(mlir::affine::AffineLoadOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     SmallVector<Value> indices(adaptor.getIndices());
-    auto maybeExpandedMap =
-        expandAffineMap(rewriter, op.getLoc(), op.getAffineMap(), indices);
+    auto maybeExpandedMap = affine::expandAffineMap(rewriter, op.getLoc(),
+                                                    op.getAffineMap(), indices);
     if (!maybeExpandedMap)
       return failure();
 
-    auto coorOp = rewriter.create<fir::CoordinateOp>(
-        op.getLoc(), fir::ReferenceType::get(op.getResult().getType()),
-        adaptor.getMemref(), *maybeExpandedMap);
+    auto coorOp = fir::CoordinateOp::create(
+        rewriter, op.getLoc(),
+        fir::ReferenceType::get(op.getResult().getType()), adaptor.getMemref(),
+        *maybeExpandedMap);
 
     rewriter.replaceOpWithNewOp<fir::LoadOp>(op, coorOp.getResult());
     return success();
   }
 };
 
-class AffineStoreConversion : public OpConversionPattern<mlir::AffineStoreOp> {
+class AffineStoreConversion
+    : public OpConversionPattern<mlir::affine::AffineStoreOp> {
 public:
-  using OpConversionPattern<mlir::AffineStoreOp>::OpConversionPattern;
+  using OpConversionPattern<mlir::affine::AffineStoreOp>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(mlir::AffineStoreOp op, OpAdaptor adaptor,
+  matchAndRewrite(mlir::affine::AffineStoreOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     SmallVector<Value> indices(op.getIndices());
-    auto maybeExpandedMap =
-        expandAffineMap(rewriter, op.getLoc(), op.getAffineMap(), indices);
+    auto maybeExpandedMap = affine::expandAffineMap(rewriter, op.getLoc(),
+                                                    op.getAffineMap(), indices);
     if (!maybeExpandedMap)
       return failure();
 
-    auto coorOp = rewriter.create<fir::CoordinateOp>(
-        op.getLoc(), fir::ReferenceType::get(op.getValueToStore().getType()),
+    auto coorOp = fir::CoordinateOp::create(
+        rewriter, op.getLoc(),
+        fir::ReferenceType::get(op.getValueToStore().getType()),
         adaptor.getMemref(), *maybeExpandedMap);
     rewriter.replaceOpWithNewOp<fir::StoreOp>(op, adaptor.getValue(),
                                               coorOp.getResult());
@@ -94,17 +97,18 @@ public:
 class ConvertConversion : public mlir::OpRewritePattern<fir::ConvertOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
-  mlir::LogicalResult
+  llvm::LogicalResult
   matchAndRewrite(fir::ConvertOp op,
                   mlir::PatternRewriter &rewriter) const override {
-    if (op.getRes().getType().isa<mlir::MemRefType>()) {
+    if (mlir::isa<mlir::MemRefType>(op.getRes().getType())) {
       // due to index calculation moving to affine maps we still need to
       // add converts for sequence types this has a side effect of losing
       // some information about arrays with known dimensions by creating:
       // fir.convert %arg0 : (!fir.ref<!fir.array<5xi32>>) ->
       // !fir.ref<!fir.array<?xi32>>
-      if (auto refTy = op.getValue().getType().dyn_cast<fir::ReferenceType>())
-        if (auto arrTy = refTy.getEleTy().dyn_cast<fir::SequenceType>()) {
+      if (auto refTy =
+              mlir::dyn_cast<fir::ReferenceType>(op.getValue().getType()))
+        if (auto arrTy = mlir::dyn_cast<fir::SequenceType>(refTy.getEleTy())) {
           fir::SequenceType::Shape flatShape = {
               fir::SequenceType::getUnknownExtent()};
           auto flatArrTy = fir::SequenceType::get(flatShape, arrTy.getEleTy());
@@ -113,25 +117,21 @@ public:
                                                       op.getValue());
           return success();
         }
-      rewriter.startRootUpdate(op->getParentOp());
-      op.getResult().replaceAllUsesWith(op.getValue());
-      rewriter.finalizeRootUpdate(op->getParentOp());
-      rewriter.eraseOp(op);
+      rewriter.replaceOp(op, op.getValue());
     }
     return success();
   }
 };
 
 mlir::Type convertMemRef(mlir::MemRefType type) {
-  return fir::SequenceType::get(
-      SmallVector<int64_t>(type.getShape().begin(), type.getShape().end()),
-      type.getElementType());
+  return fir::SequenceType::get(SmallVector<int64_t>(type.getShape()),
+                                type.getElementType());
 }
 
 class StdAllocConversion : public mlir::OpRewritePattern<memref::AllocOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
-  mlir::LogicalResult
+  llvm::LogicalResult
   matchAndRewrite(memref::AllocOp op,
                   mlir::PatternRewriter &rewriter) const override {
     rewriter.replaceOpWithNewOp<fir::AllocaOp>(op, convertMemRef(op.getType()),
@@ -157,7 +157,7 @@ public:
     mlir::ConversionTarget target(*context);
     target.addIllegalOp<memref::AllocOp>();
     target.addDynamicallyLegalOp<fir::ConvertOp>([](fir::ConvertOp op) {
-      if (op.getRes().getType().isa<mlir::MemRefType>())
+      if (mlir::isa<mlir::MemRefType>(op.getRes().getType()))
         return false;
       return true;
     });

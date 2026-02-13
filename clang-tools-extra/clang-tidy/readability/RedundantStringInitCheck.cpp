@@ -1,4 +1,4 @@
-//===- RedundantStringInitCheck.cpp - clang-tidy ----------------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,16 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "RedundantStringInitCheck.h"
-#include "../utils/Matchers.h"
 #include "../utils/OptionsUtils.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
+#include <optional>
 
 using namespace clang::ast_matchers;
-using namespace clang::tidy::matchers;
 
-namespace clang {
-namespace tidy {
-namespace readability {
+namespace clang::tidy::readability {
 
 const char DefaultStringNames[] =
     "::std::basic_string_view;::std::basic_string";
@@ -24,8 +21,8 @@ const char DefaultStringNames[] =
 static std::vector<StringRef> removeNamespaces(ArrayRef<StringRef> Names) {
   std::vector<StringRef> Result;
   Result.reserve(Names.size());
-  for (StringRef Name : Names) {
-    StringRef::size_type ColonPos = Name.rfind(':');
+  for (const StringRef Name : Names) {
+    const StringRef::size_type ColonPos = Name.rfind(':');
     Result.push_back(
         Name.drop_front(ColonPos == StringRef::npos ? 0 : ColonPos + 1));
   }
@@ -40,7 +37,7 @@ getConstructExpr(const CXXCtorInitializer &CtorInit) {
   return dyn_cast<CXXConstructExpr>(InitExpr);
 }
 
-static llvm::Optional<SourceRange>
+static std::optional<SourceRange>
 getConstructExprArgRange(const CXXConstructExpr &Construct) {
   SourceLocation B, E;
   for (const Expr *Arg : Construct.arguments()) {
@@ -50,7 +47,7 @@ getConstructExprArgRange(const CXXConstructExpr &Construct) {
       E = Arg->getEndLoc();
   }
   if (B.isInvalid() || E.isInvalid())
-    return llvm::None;
+    return std::nullopt;
   return SourceRange(B, E);
 }
 
@@ -126,14 +123,14 @@ void RedundantStringInitCheck::check(const MatchFinder::MatchResult &Result) {
   if (const auto *VDecl = Result.Nodes.getNodeAs<VarDecl>("vardecl")) {
     // VarDecl's getSourceRange() spans 'string foo = ""' or 'string bar("")'.
     // So start at getLocation() to span just 'foo = ""' or 'bar("")'.
-    SourceRange ReplaceRange(VDecl->getLocation(), VDecl->getEndLoc());
+    const SourceRange ReplaceRange(VDecl->getLocation(), VDecl->getEndLoc());
     diag(VDecl->getLocation(), "redundant string initialization")
         << FixItHint::CreateReplacement(ReplaceRange, VDecl->getName());
   }
   if (const auto *FDecl = Result.Nodes.getNodeAs<FieldDecl>("fieldDecl")) {
     // FieldDecl's getSourceRange() spans 'string foo = ""'.
     // So start at getLocation() to span just 'foo = ""'.
-    SourceRange ReplaceRange(FDecl->getLocation(), FDecl->getEndLoc());
+    const SourceRange ReplaceRange(FDecl->getLocation(), FDecl->getEndLoc());
     diag(FDecl->getLocation(), "redundant string initialization")
         << FixItHint::CreateReplacement(ReplaceRange, FDecl->getName());
   }
@@ -154,13 +151,11 @@ void RedundantStringInitCheck::check(const MatchFinder::MatchResult &Result) {
     const CXXConstructExpr *Construct = getConstructExpr(*CtorInit);
     if (!Construct)
       return;
-    if (llvm::Optional<SourceRange> RemovalRange =
+    if (std::optional<SourceRange> RemovalRange =
             getConstructExprArgRange(*Construct))
       diag(CtorInit->getMemberLocation(), "redundant string initialization")
           << FixItHint::CreateRemoval(*RemovalRange);
   }
 }
 
-} // namespace readability
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::readability

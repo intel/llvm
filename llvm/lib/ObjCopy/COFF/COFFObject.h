@@ -11,7 +11,6 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/BinaryFormat/COFF.h"
@@ -70,7 +69,7 @@ private:
 struct AuxSymbol {
   AuxSymbol(ArrayRef<uint8_t> In) {
     assert(In.size() == sizeof(Opaque));
-    std::copy(In.begin(), In.end(), Opaque);
+    llvm::copy(In, Opaque);
   }
 
   ArrayRef<uint8_t> getRef() const {
@@ -87,9 +86,10 @@ struct Symbol {
   StringRef AuxFile;
   ssize_t TargetSectionId;
   ssize_t AssociativeComdatTargetSectionId = 0;
-  Optional<size_t> WeakTargetSymbolId;
+  std::optional<size_t> WeakTargetSymbolId;
   size_t UniqueId;
   size_t RawIndex;
+  size_t OriginalRawIndex;
   bool Referenced;
 };
 
@@ -141,6 +141,7 @@ private:
   DenseMap<size_t, Symbol *> SymbolMap;
 
   size_t NextSymbolUniqueId = 0;
+  size_t NextSymbolOriginalIndex = 0;
 
   std::vector<Section> Sections;
   DenseMap<ssize_t, Section *> SectionMap;

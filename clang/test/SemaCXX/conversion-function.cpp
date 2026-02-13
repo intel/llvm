@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -std=c++2b -fsyntax-only -verify=expected                -triple %itanium_abi_triple -Wbind-to-temporary-copy %s
+// RUN: %clang_cc1 -std=c++23 -fsyntax-only -verify=expected                -triple %itanium_abi_triple -Wbind-to-temporary-copy %s
 // RUN: %clang_cc1 -std=c++20 -fsyntax-only -verify=expected                -triple %itanium_abi_triple -Wbind-to-temporary-copy %s
 // RUN: %clang_cc1 -std=c++11 -fsyntax-only -verify=expected,cxx98_11,cxx11 -triple %itanium_abi_triple -Wbind-to-temporary-copy %s
 // RUN: %clang_cc1 -std=c++98 -fsyntax-only -verify=expected,cxx98_11,cxx98 -triple %itanium_abi_triple -Wbind-to-temporary-copy %s
@@ -452,13 +452,13 @@ namespace PR18234 {
   struct A {
     operator enum E { e } (); // expected-error {{'PR18234::A::E' cannot be defined in a type specifier}}
     operator struct S { int n; } (); // expected-error {{'PR18234::A::S' cannot be defined in a type specifier}}
-    // expected-note@-1 {{candidate constructor (the implicit copy constructor) not viable: no known conversion from 'struct A' to 'const PR18234::A::S &' for 1st argument}}
+    // expected-note@-1 {{candidate constructor (the implicit copy constructor) not viable: no known conversion from 'struct A' to 'const S &' for 1st argument}}
 #if __cplusplus >= 201103L
-  // expected-note@-3 {{candidate constructor (the implicit move constructor) not viable: no known conversion from 'struct A' to 'PR18234::A::S &&' for 1st argument}}
+  // expected-note@-3 {{candidate constructor (the implicit move constructor) not viable: no known conversion from 'struct A' to 'S &&' for 1st argument}}
 #endif
   } a;
   A::S s = a; // expected-error {{no viable conversion from 'struct A' to 'A::S'}}
-  A::E e = a;
+  A::E e = a; // expected-note {{'e' declared here}}
   bool k1 = e == A::e; // expected-error {{no member named 'e'}}
   bool k2 = e.n == 0;
 }
@@ -470,5 +470,34 @@ struct S {
   volatile const operator int(); // expected-error {{cannot specify any part of a return type}}
 
   operator const int() const;
+};
+}
+
+#if __cplusplus >= 201103L
+namespace dependent_conversion_function_id_lookup {
+namespace gh77583 {
+struct A1 {
+  operator int();
+};
+template<class T> struct C {
+  template <typename U> using Lookup = decltype(T{}.operator U());
+};
+C<A1> v{};
+}
+template<typename T> struct A2 {
+  operator T();
+};
+template<typename T> struct B : A2<T> {
+  template<typename U> using Lookup = decltype(&B::operator U);
+};
+using Result = B<int>::Lookup<int>;
+using Result = int (A2<int>::*)();
+}
+#endif
+
+namespace GH121706 {
+struct S {
+  *operator int();   // expected-error {{cannot specify any part of a return type in the declaration of a conversion function; put the complete type after 'operator'}}
+  **operator char(); // expected-error {{cannot specify any part of a return type in the declaration of a conversion function; put the complete type after 'operator'}}
 };
 }

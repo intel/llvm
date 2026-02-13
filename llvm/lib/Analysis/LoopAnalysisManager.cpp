@@ -13,17 +13,21 @@
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/PassManagerImpl.h"
+#include "llvm/Support/Compiler.h"
+#include <optional>
 
 using namespace llvm;
 
 namespace llvm {
 // Explicit template instantiations and specialization definitions for core
 // template typedefs.
-template class AllAnalysesOn<Loop>;
-template class AnalysisManager<Loop, LoopStandardAnalysisResults &>;
-template class InnerAnalysisManagerProxy<LoopAnalysisManager, Function>;
-template class OuterAnalysisManagerProxy<FunctionAnalysisManager, Loop,
-                                         LoopStandardAnalysisResults &>;
+template class LLVM_EXPORT_TEMPLATE AllAnalysesOn<Loop>;
+template class LLVM_EXPORT_TEMPLATE
+    AnalysisManager<Loop, LoopStandardAnalysisResults &>;
+template class LLVM_EXPORT_TEMPLATE
+    InnerAnalysisManagerProxy<LoopAnalysisManager, Function>;
+template class LLVM_EXPORT_TEMPLATE OuterAnalysisManagerProxy<
+    FunctionAnalysisManager, Loop, LoopStandardAnalysisResults &>;
 
 bool LoopAnalysisManagerFunctionProxy::Result::invalidate(
     Function &F, const PreservedAnalyses &PA,
@@ -90,7 +94,7 @@ bool LoopAnalysisManagerFunctionProxy::Result::invalidate(
   // cache and so we walk the preorder list in reverse to form a valid
   // postorder.
   for (Loop *L : reverse(PreOrderLoops)) {
-    Optional<PreservedAnalyses> InnerPA;
+    std::optional<PreservedAnalyses> InnerPA;
 
     // Check to see whether the preserved set needs to be adjusted based on
     // function-level analysis invalidation triggering deferred invalidation
@@ -132,7 +136,7 @@ LoopAnalysisManagerFunctionProxy::run(Function &F,
                                       FunctionAnalysisManager &AM) {
   return Result(*InnerAM, AM.getResult<LoopAnalysis>(F));
 }
-}
+} // namespace llvm
 
 PreservedAnalyses llvm::getLoopPassPreservedAnalyses() {
   PreservedAnalyses PA;

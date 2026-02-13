@@ -1,6 +1,6 @@
 // FIXME: https://code.google.com/p/address-sanitizer/issues/detail?id=316
 // XFAIL: android
-// XFAIL: mips
+// XFAIL: target=mips{{.*}}
 //
 // RUN: %clangxx_asan -O0 %s -o %t && %run %t
 // RUN: %clangxx_asan -DPOSITIVE -O0 %s -o %t && not %run %t 2>&1 | FileCheck %s
@@ -14,8 +14,8 @@
 #include <unistd.h>
 #include <sys/uio.h> // for iovec
 #include <elf.h> // for NT_PRSTATUS
-#ifdef __aarch64__
-# include <asm/ptrace.h>
+#if defined(__aarch64__) || defined(__loongarch__)
+#  include <asm/ptrace.h>
 #endif
 
 #if defined(__i386__) || defined(__x86_64__)
@@ -36,6 +36,13 @@ typedef struct user_fpsimd_state fpregs_struct;
 #define PRINT_REG_PC(__regs)    printf ("%x\n", (unsigned) (__regs.pc))
 #define PRINT_REG_FP(__fpregs)  printf ("%x\n", (unsigned) (__fpregs.fpsr))
 #define ARCH_IOVEC_FOR_GETREGSET
+
+#elif defined(__loongarch__)
+typedef struct user_pt_regs regs_struct;
+typedef struct user_fp_state fpregs_struct;
+#  define PRINT_REG_PC(__regs) printf("%lx\n", (unsigned long)(__regs.csr_era))
+#  define PRINT_REG_FP(__fpregs) printf("%x\n", (unsigned)(__fpregs.fcsr))
+#  define ARCH_IOVEC_FOR_GETREGSET
 
 #elif defined(__powerpc64__)
 typedef struct pt_regs regs_struct;
@@ -74,6 +81,13 @@ typedef __riscv_q_ext_state fpregs_struct;
 #define PRINT_REG_PC(__regs) printf("%lx\n", (unsigned long)(__regs.pc))
 #define PRINT_REG_FP(__fpregs) printf("%lx\n", (unsigned long)(__fpregs.fcsr))
 #define ARCH_IOVEC_FOR_GETREGSET
+
+#elif defined(__sparc__)
+typedef sunos_regs regs_struct;
+typedef sunos_fp fpregs_struct;
+#  define PRINT_REG_PC(__regs) printf("%x\n", (unsigned)(__regs.pc))
+#  define PRINT_REG_FP(__fpregs) printf("%x\n", (unsigned)(__fpregs.fsr))
+#  define __PTRACE_FPREQUEST PTRACE_GETFPREGS
 #endif
 
 
@@ -103,7 +117,13 @@ int main(void) {
     regset_io.iov_len = sizeof(regs_struct);
 #else
 # define __PTRACE_REQUEST  PTRACE_GETREGS
-# define __PTRACE_ARGS     NULL, pregs
+#  ifdef __sparc__
+    // The meanings of addr and data are reversed for a few requests on
+    // Linux/sparc64.
+#    define __PTRACE_ARGS pregs, NULL
+#  else
+#    define __PTRACE_ARGS NULL, pregs
+#  endif
 #endif
     res = ptrace((enum __ptrace_request)__PTRACE_REQUEST, pid, __PTRACE_ARGS);
     // CHECK: AddressSanitizer: stack-buffer-overflow
@@ -120,7 +140,13 @@ int main(void) {
     res = ptrace((enum __ptrace_request)PTRACE_GETREGSET, pid, (void*)NT_FPREGSET,
                  (void*)&regset_io);
 #else
-# define __PTRACE_FPARGS     NULL, &fpregs
+    // The meanings of addr and data are reversed for a few requests on
+    // Linux/sparc64.
+#  ifdef __sparc__
+#    define __PTRACE_FPARGS &fpregs, NULL
+#  else
+#    define __PTRACE_FPARGS NULL, &fpregs
+#  endif
 #endif
     res = ptrace((enum __ptrace_request)__PTRACE_FPREQUEST, pid, __PTRACE_FPARGS);
     assert(!res);

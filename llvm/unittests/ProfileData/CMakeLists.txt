@@ -1,4 +1,5 @@
 set(LLVM_LINK_COMPONENTS
+  BitReader
   Core
   Coverage
   ProfileData
@@ -7,11 +8,16 @@ set(LLVM_LINK_COMPONENTS
   )
 
 add_llvm_unittest(ProfileDataTests
+  BPFunctionNodeTest.cpp
   CoverageMappingTest.cpp
+  DataAccessProfTest.cpp
   InstrProfDataTest.cpp
   InstrProfTest.cpp
-  SampleProfTest.cpp
+  ItaniumManglingCanonicalizerTest.cpp
   MemProfTest.cpp
+  PGOCtxProfReaderWriterTest.cpp
+  SampleProfTest.cpp
+  SymbolRemappingReaderTest.cpp
   )
 
 target_link_libraries(ProfileDataTests PRIVATE LLVMTestingSupport)

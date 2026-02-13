@@ -1,4 +1,4 @@
-; RUN: llc -march=hexagon < %s | FileCheck %s
+; RUN: llc -mtriple=hexagon < %s | FileCheck %s
 
 ; Check that constraint a is handled correctly.
 ; CHECK: [[M:m[01]]] = r1
@@ -7,9 +7,9 @@
 target triple = "hexagon"
 
 ; Function Attrs: nounwind
-define void @foo(i32* %a, i32 %m, i32 %v) #0 {
+define void @foo(ptr %a, i32 %m, i32 %v) #0 {
 entry:
-  tail call void asm sideeffect "memw($0++$1) = $2", "r,a,r,~{memory}"(i32* %a, i32 %m, i32 %v)
+  tail call void asm sideeffect "memw($0++$1) = $2", "r,a,r,~{memory}"(ptr %a, i32 %m, i32 %v)
   ret void
 }
 

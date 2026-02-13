@@ -7,43 +7,48 @@
 //===----------------------------------------------------------------------===//
 ///
 /// \file
-/// This file implements the ExtractAPIAction, and ASTVisitor/Consumer to
-/// collect API information.
+/// This file implements the ExtractAPIAction, and ASTConsumer to collect API
+/// information.
 ///
 //===----------------------------------------------------------------------===//
 
-#include "TypedefUnderlyingTypeResolver.h"
+#include "clang/AST/ASTConcept.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
-#include "clang/AST/Decl.h"
-#include "clang/AST/DeclCXX.h"
-#include "clang/AST/ParentMapContext.h"
-#include "clang/AST/RawCommentList.h"
-#include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/DeclObjC.h"
+#include "clang/Basic/DiagnosticFrontend.h"
+#include "clang/Basic/FileEntry.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/ExtractAPI/API.h"
-#include "clang/ExtractAPI/AvailabilityInfo.h"
-#include "clang/ExtractAPI/DeclarationFragments.h"
+#include "clang/ExtractAPI/APIIgnoresList.h"
+#include "clang/ExtractAPI/ExtractAPIVisitor.h"
 #include "clang/ExtractAPI/FrontendActions.h"
 #include "clang/ExtractAPI/Serialization/SymbolGraphSerializer.h"
 #include "clang/Frontend/ASTConsumers.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendOptions.h"
+#include "clang/Frontend/MultiplexConsumer.h"
+#include "clang/Index/USRGeneration.h"
+#include "clang/InstallAPI/HeaderFile.h"
 #include "clang/Lex/MacroInfo.h"
 #include "clang/Lex/PPCallbacks.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Lex/PreprocessorOptions.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/Support/FileSystem.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Casting.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/raw_ostream.h"
 #include <memory>
+#include <optional>
 #include <utility>
 
 using namespace clang;
@@ -51,23 +56,13 @@ using namespace extractapi;
 
 namespace {
 
-StringRef getTypedefName(const TagDecl *Decl) {
-  if (const auto *TypedefDecl = Decl->getTypedefNameForAnonDecl())
-    return TypedefDecl->getName();
-
-  return {};
-}
-
-Optional<std::string> getRelativeIncludeName(const CompilerInstance &CI,
-                                             StringRef File,
-                                             bool *IsQuoted = nullptr) {
+std::optional<std::string> getRelativeIncludeName(const CompilerInstance &CI,
+                                                  StringRef File,
+                                                  bool *IsQuoted = nullptr) {
   assert(CI.hasFileManager() &&
          "CompilerInstance does not have a FileNamager!");
 
   using namespace llvm::sys;
-  // Matches framework include patterns
-  const llvm::Regex Rule("/(.+)\\.framework/(.+)?Headers/(.+)");
-
   const auto &FS = CI.getVirtualFileSystem();
 
   SmallString<128> FilePath(File.begin(), File.end());
@@ -109,10 +104,10 @@ Optional<std::string> getRelativeIncludeName(const CompilerInstance &CI,
       // Special case Apple .sdk folders since the search path is typically a
       // symlink like `iPhoneSimulator14.5.sdk` while the file is instead
       // located in `iPhoneSimulator.sdk` (the real folder).
-      if (NI->endswith(".sdk") && DI->endswith(".sdk")) {
+      if (NI->ends_with(".sdk") && DI->ends_with(".sdk")) {
         StringRef NBasename = path::stem(*NI);
         StringRef DBasename = path::stem(*DI);
-        if (DBasename.startswith(NBasename))
+        if (DBasename.starts_with(NBasename))
           continue;
       }
 
@@ -151,10 +146,11 @@ Optional<std::string> getRelativeIncludeName(const CompilerInstance &CI,
       // include name `<Framework/Header.h>`
       if (Entry.IsFramework) {
         SmallVector<StringRef, 4> Matches;
-        Rule.match(File, &Matches);
+        clang::installapi::HeaderFile::getFrameworkIncludeRule().match(
+            File, &Matches);
         // Returned matches are always in stable order.
         if (Matches.size() != 4)
-          return None;
+          return std::nullopt;
 
         return path::convert_to_slash(
             (Matches[1].drop_front(Matches[1].rfind('/') + 1) + "/" +
@@ -169,11 +165,17 @@ Optional<std::string> getRelativeIncludeName(const CompilerInstance &CI,
   }
 
   // Couldn't determine a include name, use full path instead.
-  return None;
+  return std::nullopt;
+}
+
+std::optional<std::string> getRelativeIncludeName(const CompilerInstance &CI,
+                                                  FileEntryRef FE,
+                                                  bool *IsQuoted = nullptr) {
+  return getRelativeIncludeName(CI, FE.getNameAsRequested(), IsQuoted);
 }
 
 struct LocationFileChecker {
-  bool isLocationInKnownFile(SourceLocation Loc) {
+  bool operator()(SourceLocation Loc) {
     // If the loc refers to a macro expansion we need to first get the file
     // location of the expansion.
     auto &SM = CI.getSourceManager();
@@ -182,35 +184,31 @@ struct LocationFileChecker {
     if (FID.isInvalid())
       return false;
 
-    const auto *File = SM.getFileEntryForID(FID);
+    OptionalFileEntryRef File = SM.getFileEntryRefForID(FID);
     if (!File)
       return false;
 
-    if (KnownFileEntries.count(File))
+    if (KnownFileEntries.count(*File))
       return true;
 
-    if (ExternalFileEntries.count(File))
+    if (ExternalFileEntries.count(*File))
       return false;
-
-    StringRef FileName = File->tryGetRealPathName().empty()
-                             ? File->getName()
-                             : File->tryGetRealPathName();
 
     // Try to reduce the include name the same way we tried to include it.
     bool IsQuoted = false;
-    if (auto IncludeName = getRelativeIncludeName(CI, FileName, &IsQuoted))
+    if (auto IncludeName = getRelativeIncludeName(CI, *File, &IsQuoted))
       if (llvm::any_of(KnownFiles,
                        [&IsQuoted, &IncludeName](const auto &KnownFile) {
                          return KnownFile.first.equals(*IncludeName) &&
                                 KnownFile.second == IsQuoted;
                        })) {
-        KnownFileEntries.insert(File);
+        KnownFileEntries.insert(*File);
         return true;
       }
 
     // Record that the file was not found to avoid future reverse lookup for
     // the same file.
-    ExternalFileEntries.insert(File);
+    ExternalFileEntries.insert(*File);
     return false;
   }
 
@@ -218,8 +216,8 @@ struct LocationFileChecker {
                       SmallVector<std::pair<SmallString<32>, bool>> &KnownFiles)
       : CI(CI), KnownFiles(KnownFiles), ExternalFileEntries() {
     for (const auto &KnownFile : KnownFiles)
-      if (auto FileEntry = CI.getFileManager().getFile(KnownFile.first))
-        KnownFileEntries.insert(*FileEntry);
+      if (auto FE = CI.getFileManager().getOptionalFileRef(KnownFile.first))
+        KnownFileEntries.insert(*FE);
   }
 
 private:
@@ -229,518 +227,33 @@ private:
   llvm::DenseSet<const FileEntry *> ExternalFileEntries;
 };
 
-/// The RecursiveASTVisitor to traverse symbol declarations and collect API
-/// information.
-class ExtractAPIVisitor : public RecursiveASTVisitor<ExtractAPIVisitor> {
-public:
-  ExtractAPIVisitor(ASTContext &Context, LocationFileChecker &LCF, APISet &API)
-      : Context(Context), API(API), LCF(LCF) {}
+struct BatchExtractAPIVisitor : ExtractAPIVisitor<BatchExtractAPIVisitor> {
+  bool shouldDeclBeIncluded(const Decl *D) const {
+    bool ShouldBeIncluded = true;
+    // Check that we have the definition for redeclarable types.
+    if (auto *TD = llvm::dyn_cast<TagDecl>(D))
+      ShouldBeIncluded = TD->isThisDeclarationADefinition();
+    else if (auto *Interface = llvm::dyn_cast<ObjCInterfaceDecl>(D))
+      ShouldBeIncluded = Interface->isThisDeclarationADefinition();
+    else if (auto *Protocol = llvm::dyn_cast<ObjCProtocolDecl>(D))
+      ShouldBeIncluded = Protocol->isThisDeclarationADefinition();
 
-  const APISet &getAPI() const { return API; }
-
-  bool VisitVarDecl(const VarDecl *Decl) {
-    // Skip function parameters.
-    if (isa<ParmVarDecl>(Decl))
-      return true;
-
-    // Skip non-global variables in records (struct/union/class).
-    if (Decl->getDeclContext()->isRecord())
-      return true;
-
-    // Skip local variables inside function or method.
-    if (!Decl->isDefinedOutsideFunctionOrMethod())
-      return true;
-
-    // If this is a template but not specialization or instantiation, skip.
-    if (Decl->getASTContext().getTemplateOrSpecializationInfo(Decl) &&
-        Decl->getTemplateSpecializationKind() == TSK_Undeclared)
-      return true;
-
-    if (!LCF.isLocationInKnownFile(Decl->getLocation()))
-      return true;
-
-    // Collect symbol information.
-    StringRef Name = Decl->getName();
-    StringRef USR = API.recordUSR(Decl);
-    PresumedLoc Loc =
-        Context.getSourceManager().getPresumedLoc(Decl->getLocation());
-    LinkageInfo Linkage = Decl->getLinkageAndVisibility();
-    DocComment Comment;
-    if (auto *RawComment = Context.getRawCommentForDeclNoCache(Decl))
-      Comment = RawComment->getFormattedLines(Context.getSourceManager(),
-                                              Context.getDiagnostics());
-
-    // Build declaration fragments and sub-heading for the variable.
-    DeclarationFragments Declaration =
-        DeclarationFragmentsBuilder::getFragmentsForVar(Decl);
-    DeclarationFragments SubHeading =
-        DeclarationFragmentsBuilder::getSubHeading(Decl);
-
-    // Add the global variable record to the API set.
-    API.addGlobalVar(Name, USR, Loc, AvailabilitySet(Decl), Linkage, Comment,
-                     Declaration, SubHeading);
-    return true;
+    ShouldBeIncluded = ShouldBeIncluded && LCF(D->getLocation());
+    return ShouldBeIncluded;
   }
 
-  bool VisitFunctionDecl(const FunctionDecl *Decl) {
-    if (const auto *Method = dyn_cast<CXXMethodDecl>(Decl)) {
-      // Skip member function in class templates.
-      if (Method->getParent()->getDescribedClassTemplate() != nullptr)
-        return true;
-
-      // Skip methods in records.
-      for (auto P : Context.getParents(*Method)) {
-        if (P.get<CXXRecordDecl>())
-          return true;
-      }
-
-      // Skip ConstructorDecl and DestructorDecl.
-      if (isa<CXXConstructorDecl>(Method) || isa<CXXDestructorDecl>(Method))
-        return true;
-    }
-
-    // Skip templated functions.
-    switch (Decl->getTemplatedKind()) {
-    case FunctionDecl::TK_NonTemplate:
-    case FunctionDecl::TK_DependentNonTemplate:
-      break;
-    case FunctionDecl::TK_MemberSpecialization:
-    case FunctionDecl::TK_FunctionTemplateSpecialization:
-      if (auto *TemplateInfo = Decl->getTemplateSpecializationInfo()) {
-        if (!TemplateInfo->isExplicitInstantiationOrSpecialization())
-          return true;
-      }
-      break;
-    case FunctionDecl::TK_FunctionTemplate:
-    case FunctionDecl::TK_DependentFunctionTemplateSpecialization:
-      return true;
-    }
-
-    if (!LCF.isLocationInKnownFile(Decl->getLocation()))
-      return true;
-
-    // Collect symbol information.
-    StringRef Name = Decl->getName();
-    StringRef USR = API.recordUSR(Decl);
-    PresumedLoc Loc =
-        Context.getSourceManager().getPresumedLoc(Decl->getLocation());
-    LinkageInfo Linkage = Decl->getLinkageAndVisibility();
-    DocComment Comment;
-    if (auto *RawComment = Context.getRawCommentForDeclNoCache(Decl))
-      Comment = RawComment->getFormattedLines(Context.getSourceManager(),
-                                              Context.getDiagnostics());
-
-    // Build declaration fragments, sub-heading, and signature of the function.
-    DeclarationFragments Declaration =
-        DeclarationFragmentsBuilder::getFragmentsForFunction(Decl);
-    DeclarationFragments SubHeading =
-        DeclarationFragmentsBuilder::getSubHeading(Decl);
-    FunctionSignature Signature =
-        DeclarationFragmentsBuilder::getFunctionSignature(Decl);
-
-    // Add the function record to the API set.
-    API.addGlobalFunction(Name, USR, Loc, AvailabilitySet(Decl), Linkage,
-                          Comment, Declaration, SubHeading, Signature);
-    return true;
-  }
-
-  bool VisitEnumDecl(const EnumDecl *Decl) {
-    if (!Decl->isComplete())
-      return true;
-
-    // Skip forward declaration.
-    if (!Decl->isThisDeclarationADefinition())
-      return true;
-
-    if (!LCF.isLocationInKnownFile(Decl->getLocation()))
-      return true;
-
-    // Collect symbol information.
-    std::string NameString = Decl->getQualifiedNameAsString();
-    StringRef Name(NameString);
-    if (Name.empty())
-      Name = getTypedefName(Decl);
-
-    StringRef USR = API.recordUSR(Decl);
-    PresumedLoc Loc =
-        Context.getSourceManager().getPresumedLoc(Decl->getLocation());
-    DocComment Comment;
-    if (auto *RawComment = Context.getRawCommentForDeclNoCache(Decl))
-      Comment = RawComment->getFormattedLines(Context.getSourceManager(),
-                                              Context.getDiagnostics());
-
-    // Build declaration fragments and sub-heading for the enum.
-    DeclarationFragments Declaration =
-        DeclarationFragmentsBuilder::getFragmentsForEnum(Decl);
-    DeclarationFragments SubHeading =
-        DeclarationFragmentsBuilder::getSubHeading(Decl);
-
-    EnumRecord *EnumRecord =
-        API.addEnum(API.copyString(Name), USR, Loc, AvailabilitySet(Decl),
-                    Comment, Declaration, SubHeading);
-
-    // Now collect information about the enumerators in this enum.
-    recordEnumConstants(EnumRecord, Decl->enumerators());
-
-    return true;
-  }
-
-  bool VisitRecordDecl(const RecordDecl *Decl) {
-    if (!Decl->isCompleteDefinition())
-      return true;
-
-    // Skip C++ structs/classes/unions
-    // TODO: support C++ records
-    if (isa<CXXRecordDecl>(Decl))
-      return true;
-
-    if (!LCF.isLocationInKnownFile(Decl->getLocation()))
-      return true;
-
-    // Collect symbol information.
-    StringRef Name = Decl->getName();
-    if (Name.empty())
-      Name = getTypedefName(Decl);
-    StringRef USR = API.recordUSR(Decl);
-    PresumedLoc Loc =
-        Context.getSourceManager().getPresumedLoc(Decl->getLocation());
-    DocComment Comment;
-    if (auto *RawComment = Context.getRawCommentForDeclNoCache(Decl))
-      Comment = RawComment->getFormattedLines(Context.getSourceManager(),
-                                              Context.getDiagnostics());
-
-    // Build declaration fragments and sub-heading for the struct.
-    DeclarationFragments Declaration =
-        DeclarationFragmentsBuilder::getFragmentsForStruct(Decl);
-    DeclarationFragments SubHeading =
-        DeclarationFragmentsBuilder::getSubHeading(Decl);
-
-    StructRecord *StructRecord =
-        API.addStruct(Name, USR, Loc, AvailabilitySet(Decl), Comment,
-                      Declaration, SubHeading);
-
-    // Now collect information about the fields in this struct.
-    recordStructFields(StructRecord, Decl->fields());
-
-    return true;
-  }
-
-  bool VisitObjCInterfaceDecl(const ObjCInterfaceDecl *Decl) {
-    // Skip forward declaration for classes (@class)
-    if (!Decl->isThisDeclarationADefinition())
-      return true;
-
-    if (!LCF.isLocationInKnownFile(Decl->getLocation()))
-      return true;
-
-    // Collect symbol information.
-    StringRef Name = Decl->getName();
-    StringRef USR = API.recordUSR(Decl);
-    PresumedLoc Loc =
-        Context.getSourceManager().getPresumedLoc(Decl->getLocation());
-    LinkageInfo Linkage = Decl->getLinkageAndVisibility();
-    DocComment Comment;
-    if (auto *RawComment = Context.getRawCommentForDeclNoCache(Decl))
-      Comment = RawComment->getFormattedLines(Context.getSourceManager(),
-                                              Context.getDiagnostics());
-
-    // Build declaration fragments and sub-heading for the interface.
-    DeclarationFragments Declaration =
-        DeclarationFragmentsBuilder::getFragmentsForObjCInterface(Decl);
-    DeclarationFragments SubHeading =
-        DeclarationFragmentsBuilder::getSubHeading(Decl);
-
-    // Collect super class information.
-    SymbolReference SuperClass;
-    if (const auto *SuperClassDecl = Decl->getSuperClass()) {
-      SuperClass.Name = SuperClassDecl->getObjCRuntimeNameAsString();
-      SuperClass.USR = API.recordUSR(SuperClassDecl);
-    }
-
-    ObjCInterfaceRecord *ObjCInterfaceRecord =
-        API.addObjCInterface(Name, USR, Loc, AvailabilitySet(Decl), Linkage,
-                             Comment, Declaration, SubHeading, SuperClass);
-
-    // Record all methods (selectors). This doesn't include automatically
-    // synthesized property methods.
-    recordObjCMethods(ObjCInterfaceRecord, Decl->methods());
-    recordObjCProperties(ObjCInterfaceRecord, Decl->properties());
-    recordObjCInstanceVariables(ObjCInterfaceRecord, Decl->ivars());
-    recordObjCProtocols(ObjCInterfaceRecord, Decl->protocols());
-
-    return true;
-  }
-
-  bool VisitObjCProtocolDecl(const ObjCProtocolDecl *Decl) {
-    // Skip forward declaration for protocols (@protocol).
-    if (!Decl->isThisDeclarationADefinition())
-      return true;
-
-    if (!LCF.isLocationInKnownFile(Decl->getLocation()))
-      return true;
-
-    // Collect symbol information.
-    StringRef Name = Decl->getName();
-    StringRef USR = API.recordUSR(Decl);
-    PresumedLoc Loc =
-        Context.getSourceManager().getPresumedLoc(Decl->getLocation());
-    DocComment Comment;
-    if (auto *RawComment = Context.getRawCommentForDeclNoCache(Decl))
-      Comment = RawComment->getFormattedLines(Context.getSourceManager(),
-                                              Context.getDiagnostics());
-
-    // Build declaration fragments and sub-heading for the protocol.
-    DeclarationFragments Declaration =
-        DeclarationFragmentsBuilder::getFragmentsForObjCProtocol(Decl);
-    DeclarationFragments SubHeading =
-        DeclarationFragmentsBuilder::getSubHeading(Decl);
-
-    ObjCProtocolRecord *ObjCProtocolRecord =
-        API.addObjCProtocol(Name, USR, Loc, AvailabilitySet(Decl), Comment,
-                            Declaration, SubHeading);
-
-    recordObjCMethods(ObjCProtocolRecord, Decl->methods());
-    recordObjCProperties(ObjCProtocolRecord, Decl->properties());
-    recordObjCProtocols(ObjCProtocolRecord, Decl->protocols());
-
-    return true;
-  }
-
-  bool VisitTypedefNameDecl(const TypedefNameDecl *Decl) {
-    // Skip ObjC Type Parameter for now.
-    if (isa<ObjCTypeParamDecl>(Decl))
-      return true;
-
-    if (!Decl->isDefinedOutsideFunctionOrMethod())
-      return true;
-
-    if (!LCF.isLocationInKnownFile(Decl->getLocation()))
-      return true;
-
-    PresumedLoc Loc =
-        Context.getSourceManager().getPresumedLoc(Decl->getLocation());
-    StringRef Name = Decl->getName();
-    StringRef USR = API.recordUSR(Decl);
-    DocComment Comment;
-    if (auto *RawComment = Context.getRawCommentForDeclNoCache(Decl))
-      Comment = RawComment->getFormattedLines(Context.getSourceManager(),
-                                              Context.getDiagnostics());
-
-    QualType Type = Decl->getUnderlyingType();
-    SymbolReference SymRef =
-        TypedefUnderlyingTypeResolver(Context).getSymbolReferenceForType(Type,
-                                                                         API);
-
-    API.addTypedef(Name, USR, Loc, AvailabilitySet(Decl), Comment,
-                   DeclarationFragmentsBuilder::getFragmentsForTypedef(Decl),
-                   DeclarationFragmentsBuilder::getSubHeading(Decl), SymRef);
-
-    return true;
-  }
-
-  bool VisitObjCCategoryDecl(const ObjCCategoryDecl *Decl) {
-    // Collect symbol information.
-    StringRef Name = Decl->getName();
-    StringRef USR = API.recordUSR(Decl);
-    PresumedLoc Loc =
-        Context.getSourceManager().getPresumedLoc(Decl->getLocation());
-    DocComment Comment;
-    if (auto *RawComment = Context.getRawCommentForDeclNoCache(Decl))
-      Comment = RawComment->getFormattedLines(Context.getSourceManager(),
-                                              Context.getDiagnostics());
-    // Build declaration fragments and sub-heading for the category.
-    DeclarationFragments Declaration =
-        DeclarationFragmentsBuilder::getFragmentsForObjCCategory(Decl);
-    DeclarationFragments SubHeading =
-        DeclarationFragmentsBuilder::getSubHeading(Decl);
-
-    const ObjCInterfaceDecl *InterfaceDecl = Decl->getClassInterface();
-    SymbolReference Interface(InterfaceDecl->getName(),
-                              API.recordUSR(InterfaceDecl));
-
-    ObjCCategoryRecord *ObjCCategoryRecord =
-        API.addObjCCategory(Name, USR, Loc, AvailabilitySet(Decl), Comment,
-                            Declaration, SubHeading, Interface);
-
-    recordObjCMethods(ObjCCategoryRecord, Decl->methods());
-    recordObjCProperties(ObjCCategoryRecord, Decl->properties());
-    recordObjCInstanceVariables(ObjCCategoryRecord, Decl->ivars());
-    recordObjCProtocols(ObjCCategoryRecord, Decl->protocols());
-
-    return true;
-  }
+  BatchExtractAPIVisitor(LocationFileChecker &LCF, ASTContext &Context,
+                         APISet &API)
+      : ExtractAPIVisitor<BatchExtractAPIVisitor>(Context, API), LCF(LCF) {}
 
 private:
-  /// Collect API information for the enum constants and associate with the
-  /// parent enum.
-  void recordEnumConstants(EnumRecord *EnumRecord,
-                           const EnumDecl::enumerator_range Constants) {
-    for (const auto *Constant : Constants) {
-      // Collect symbol information.
-      StringRef Name = Constant->getName();
-      StringRef USR = API.recordUSR(Constant);
-      PresumedLoc Loc =
-          Context.getSourceManager().getPresumedLoc(Constant->getLocation());
-      DocComment Comment;
-      if (auto *RawComment = Context.getRawCommentForDeclNoCache(Constant))
-        Comment = RawComment->getFormattedLines(Context.getSourceManager(),
-                                                Context.getDiagnostics());
-
-      // Build declaration fragments and sub-heading for the enum constant.
-      DeclarationFragments Declaration =
-          DeclarationFragmentsBuilder::getFragmentsForEnumConstant(Constant);
-      DeclarationFragments SubHeading =
-          DeclarationFragmentsBuilder::getSubHeading(Constant);
-
-      API.addEnumConstant(EnumRecord, Name, USR, Loc, AvailabilitySet(Constant),
-                          Comment, Declaration, SubHeading);
-    }
-  }
-
-  /// Collect API information for the struct fields and associate with the
-  /// parent struct.
-  void recordStructFields(StructRecord *StructRecord,
-                          const RecordDecl::field_range Fields) {
-    for (const auto *Field : Fields) {
-      // Collect symbol information.
-      StringRef Name = Field->getName();
-      StringRef USR = API.recordUSR(Field);
-      PresumedLoc Loc =
-          Context.getSourceManager().getPresumedLoc(Field->getLocation());
-      DocComment Comment;
-      if (auto *RawComment = Context.getRawCommentForDeclNoCache(Field))
-        Comment = RawComment->getFormattedLines(Context.getSourceManager(),
-                                                Context.getDiagnostics());
-
-      // Build declaration fragments and sub-heading for the struct field.
-      DeclarationFragments Declaration =
-          DeclarationFragmentsBuilder::getFragmentsForField(Field);
-      DeclarationFragments SubHeading =
-          DeclarationFragmentsBuilder::getSubHeading(Field);
-
-      API.addStructField(StructRecord, Name, USR, Loc, AvailabilitySet(Field),
-                         Comment, Declaration, SubHeading);
-    }
-  }
-
-  /// Collect API information for the Objective-C methods and associate with the
-  /// parent container.
-  void recordObjCMethods(ObjCContainerRecord *Container,
-                         const ObjCContainerDecl::method_range Methods) {
-    for (const auto *Method : Methods) {
-      // Don't record selectors for properties.
-      if (Method->isPropertyAccessor())
-        continue;
-
-      StringRef Name = API.copyString(Method->getSelector().getAsString());
-      StringRef USR = API.recordUSR(Method);
-      PresumedLoc Loc =
-          Context.getSourceManager().getPresumedLoc(Method->getLocation());
-      DocComment Comment;
-      if (auto *RawComment = Context.getRawCommentForDeclNoCache(Method))
-        Comment = RawComment->getFormattedLines(Context.getSourceManager(),
-                                                Context.getDiagnostics());
-
-      // Build declaration fragments, sub-heading, and signature for the method.
-      DeclarationFragments Declaration =
-          DeclarationFragmentsBuilder::getFragmentsForObjCMethod(Method);
-      DeclarationFragments SubHeading =
-          DeclarationFragmentsBuilder::getSubHeading(Method);
-      FunctionSignature Signature =
-          DeclarationFragmentsBuilder::getFunctionSignature(Method);
-
-      API.addObjCMethod(Container, Name, USR, Loc, AvailabilitySet(Method),
-                        Comment, Declaration, SubHeading, Signature,
-                        Method->isInstanceMethod());
-    }
-  }
-
-  void recordObjCProperties(ObjCContainerRecord *Container,
-                            const ObjCContainerDecl::prop_range Properties) {
-    for (const auto *Property : Properties) {
-      StringRef Name = Property->getName();
-      StringRef USR = API.recordUSR(Property);
-      PresumedLoc Loc =
-          Context.getSourceManager().getPresumedLoc(Property->getLocation());
-      DocComment Comment;
-      if (auto *RawComment = Context.getRawCommentForDeclNoCache(Property))
-        Comment = RawComment->getFormattedLines(Context.getSourceManager(),
-                                                Context.getDiagnostics());
-
-      // Build declaration fragments and sub-heading for the property.
-      DeclarationFragments Declaration =
-          DeclarationFragmentsBuilder::getFragmentsForObjCProperty(Property);
-      DeclarationFragments SubHeading =
-          DeclarationFragmentsBuilder::getSubHeading(Property);
-
-      StringRef GetterName =
-          API.copyString(Property->getGetterName().getAsString());
-      StringRef SetterName =
-          API.copyString(Property->getSetterName().getAsString());
-
-      // Get the attributes for property.
-      unsigned Attributes = ObjCPropertyRecord::NoAttr;
-      if (Property->getPropertyAttributes() &
-          ObjCPropertyAttribute::kind_readonly)
-        Attributes |= ObjCPropertyRecord::ReadOnly;
-      if (Property->getPropertyAttributes() & ObjCPropertyAttribute::kind_class)
-        Attributes |= ObjCPropertyRecord::Class;
-
-      API.addObjCProperty(
-          Container, Name, USR, Loc, AvailabilitySet(Property), Comment,
-          Declaration, SubHeading,
-          static_cast<ObjCPropertyRecord::AttributeKind>(Attributes),
-          GetterName, SetterName, Property->isOptional());
-    }
-  }
-
-  void recordObjCInstanceVariables(
-      ObjCContainerRecord *Container,
-      const llvm::iterator_range<
-          DeclContext::specific_decl_iterator<ObjCIvarDecl>>
-          Ivars) {
-    for (const auto *Ivar : Ivars) {
-      StringRef Name = Ivar->getName();
-      StringRef USR = API.recordUSR(Ivar);
-      PresumedLoc Loc =
-          Context.getSourceManager().getPresumedLoc(Ivar->getLocation());
-      DocComment Comment;
-      if (auto *RawComment = Context.getRawCommentForDeclNoCache(Ivar))
-        Comment = RawComment->getFormattedLines(Context.getSourceManager(),
-                                                Context.getDiagnostics());
-
-      // Build declaration fragments and sub-heading for the instance variable.
-      DeclarationFragments Declaration =
-          DeclarationFragmentsBuilder::getFragmentsForField(Ivar);
-      DeclarationFragments SubHeading =
-          DeclarationFragmentsBuilder::getSubHeading(Ivar);
-
-      ObjCInstanceVariableRecord::AccessControl Access =
-          Ivar->getCanonicalAccessControl();
-
-      API.addObjCInstanceVariable(Container, Name, USR, Loc,
-                                  AvailabilitySet(Ivar), Comment, Declaration,
-                                  SubHeading, Access);
-    }
-  }
-
-  void recordObjCProtocols(ObjCContainerRecord *Container,
-                           ObjCInterfaceDecl::protocol_range Protocols) {
-    for (const auto *Protocol : Protocols)
-      Container->Protocols.emplace_back(Protocol->getName(),
-                                        API.recordUSR(Protocol));
-  }
-
-  ASTContext &Context;
-  APISet &API;
   LocationFileChecker &LCF;
 };
 
-class ExtractAPIConsumer : public ASTConsumer {
+class WrappingExtractAPIConsumer : public ASTConsumer {
 public:
-  ExtractAPIConsumer(ASTContext &Context,
-                     std::unique_ptr<LocationFileChecker> LCF, APISet &API)
-      : Visitor(Context, *LCF, API), LCF(std::move(LCF)) {}
+  WrappingExtractAPIConsumer(ASTContext &Context, APISet &API)
+      : Visitor(Context, API) {}
 
   void HandleTranslationUnit(ASTContext &Context) override {
     // Use ExtractAPIVisitor to traverse symbol declarations in the context.
@@ -748,107 +261,178 @@ public:
   }
 
 private:
-  ExtractAPIVisitor Visitor;
+  ExtractAPIVisitor<> Visitor;
+};
+
+class ExtractAPIConsumer : public ASTConsumer {
+public:
+  ExtractAPIConsumer(ASTContext &Context,
+                     std::unique_ptr<LocationFileChecker> LCF, APISet &API)
+      : Visitor(*LCF, Context, API), LCF(std::move(LCF)) {}
+
+  void HandleTranslationUnit(ASTContext &Context) override {
+    // Use ExtractAPIVisitor to traverse symbol declarations in the context.
+    Visitor.TraverseDecl(Context.getTranslationUnitDecl());
+  }
+
+private:
+  BatchExtractAPIVisitor Visitor;
   std::unique_ptr<LocationFileChecker> LCF;
 };
 
 class MacroCallback : public PPCallbacks {
 public:
-  MacroCallback(const SourceManager &SM, LocationFileChecker &LCF, APISet &API,
-                Preprocessor &PP)
-      : SM(SM), LCF(LCF), API(API), PP(PP) {}
-
-  void MacroDefined(const Token &MacroNameToken,
-                    const MacroDirective *MD) override {
-    auto *MacroInfo = MD->getMacroInfo();
-
-    if (MacroInfo->isBuiltinMacro())
-      return;
-
-    auto SourceLoc = MacroNameToken.getLocation();
-    if (SM.isWrittenInBuiltinFile(SourceLoc) ||
-        SM.isWrittenInCommandLineFile(SourceLoc))
-      return;
-
-    PendingMacros.emplace_back(MacroNameToken, MD);
-  }
-
-  // If a macro gets undefined at some point during preprocessing of the inputs
-  // it means that it isn't an exposed API and we should therefore not add a
-  // macro definition for it.
-  void MacroUndefined(const Token &MacroNameToken, const MacroDefinition &MD,
-                      const MacroDirective *Undef) override {
-    // If this macro wasn't previously defined we don't need to do anything
-    // here.
-    if (!Undef)
-      return;
-
-    llvm::erase_if(PendingMacros, [&MD, this](const PendingMacro &PM) {
-      return MD.getMacroInfo()->isIdenticalTo(*PM.MD->getMacroInfo(), PP,
-                                              /*Syntactically*/ false);
-    });
-  }
+  MacroCallback(const SourceManager &SM, APISet &API, Preprocessor &PP)
+      : SM(SM), API(API), PP(PP) {}
 
   void EndOfMainFile() override {
-    for (auto &PM : PendingMacros) {
-      // `isUsedForHeaderGuard` is only set when the preprocessor leaves the
-      // file so check for it here.
-      if (PM.MD->getMacroInfo()->isUsedForHeaderGuard())
+    for (const auto &M : PP.macros()) {
+      auto *II = M.getFirst();
+      auto MD = PP.getMacroDefinition(II);
+      auto *MI = MD.getMacroInfo();
+
+      if (!MI)
         continue;
 
-      if (!LCF.isLocationInKnownFile(PM.MacroNameToken.getLocation()))
+      // Ignore header guard macros
+      if (MI->isUsedForHeaderGuard())
         continue;
 
-      StringRef Name = PM.MacroNameToken.getIdentifierInfo()->getName();
-      PresumedLoc Loc = SM.getPresumedLoc(PM.MacroNameToken.getLocation());
-      StringRef USR =
-          API.recordUSRForMacro(Name, PM.MacroNameToken.getLocation(), SM);
+      // Ignore builtin macros and ones defined via the command line.
+      if (MI->isBuiltinMacro())
+        continue;
 
-      API.addMacroDefinition(
-          Name, USR, Loc,
-          DeclarationFragmentsBuilder::getFragmentsForMacro(Name, PM.MD),
-          DeclarationFragmentsBuilder::getSubHeadingForMacro(Name));
+      auto DefLoc = MI->getDefinitionLoc();
+
+      if (SM.isInPredefinedFile(DefLoc))
+        continue;
+
+      auto AssociatedModuleMacros = MD.getModuleMacros();
+      StringRef OwningModuleName;
+      if (!AssociatedModuleMacros.empty())
+        OwningModuleName = AssociatedModuleMacros.back()
+                               ->getOwningModule()
+                               ->getTopLevelModuleName();
+
+      if (!shouldMacroBeIncluded(DefLoc, OwningModuleName))
+        continue;
+
+      StringRef Name = II->getName();
+      PresumedLoc Loc = SM.getPresumedLoc(DefLoc);
+      SmallString<128> USR;
+      index::generateUSRForMacro(Name, DefLoc, SM, USR);
+      API.createRecord<extractapi::MacroDefinitionRecord>(
+          USR, Name, SymbolReference(), Loc,
+          DeclarationFragmentsBuilder::getFragmentsForMacro(Name, MI),
+          DeclarationFragmentsBuilder::getSubHeadingForMacro(Name),
+          SM.isInSystemHeader(DefLoc));
     }
+  }
 
-    PendingMacros.clear();
+  virtual bool shouldMacroBeIncluded(const SourceLocation &MacroLoc,
+                                     StringRef ModuleName) {
+    return true;
+  }
+
+  const SourceManager &SM;
+  APISet &API;
+  Preprocessor &PP;
+};
+
+class APIMacroCallback : public MacroCallback {
+public:
+  APIMacroCallback(const SourceManager &SM, APISet &API, Preprocessor &PP,
+                   LocationFileChecker &LCF)
+      : MacroCallback(SM, API, PP), LCF(LCF) {}
+
+  bool shouldMacroBeIncluded(const SourceLocation &MacroLoc,
+                             StringRef ModuleName) override {
+    // Do not include macros from external files
+    return LCF(MacroLoc);
   }
 
 private:
-  struct PendingMacro {
-    Token MacroNameToken;
-    const MacroDirective *MD;
-
-    PendingMacro(const Token &MacroNameToken, const MacroDirective *MD)
-        : MacroNameToken(MacroNameToken), MD(MD) {}
-  };
-
-  const SourceManager &SM;
   LocationFileChecker &LCF;
-  APISet &API;
-  Preprocessor &PP;
-  llvm::SmallVector<PendingMacro> PendingMacros;
 };
+
+std::unique_ptr<llvm::raw_pwrite_stream>
+createAdditionalSymbolGraphFile(CompilerInstance &CI, Twine BaseName) {
+  auto OutputDirectory = CI.getFrontendOpts().SymbolGraphOutputDir;
+
+  SmallString<256> FileName;
+  llvm::sys::path::append(FileName, OutputDirectory,
+                          BaseName + ".symbols.json");
+  return CI.createOutputFile(
+      FileName, /*Binary*/ false, /*RemoveFileOnSignal*/ false,
+      /*UseTemporary*/ true, /*CreateMissingDirectories*/ true);
+}
 
 } // namespace
 
+void ExtractAPIActionBase::ImplEndSourceFileAction(CompilerInstance &CI) {
+  SymbolGraphSerializerOption SerializationOptions;
+  SerializationOptions.Compact = !CI.getFrontendOpts().EmitPrettySymbolGraphs;
+  SerializationOptions.EmitSymbolLabelsForTesting =
+      CI.getFrontendOpts().EmitSymbolGraphSymbolLabelsForTesting;
+
+  if (CI.getFrontendOpts().EmitExtensionSymbolGraphs) {
+    auto ConstructOutputFile = [&CI](Twine BaseName) {
+      return createAdditionalSymbolGraphFile(CI, BaseName);
+    };
+
+    SymbolGraphSerializer::serializeWithExtensionGraphs(
+        *OS, *API, IgnoresList, ConstructOutputFile, SerializationOptions);
+  } else {
+    SymbolGraphSerializer::serializeMainSymbolGraph(*OS, *API, IgnoresList,
+                                                    SerializationOptions);
+  }
+
+  // Flush the stream and close the main output stream.
+  OS.reset();
+}
+
 std::unique_ptr<ASTConsumer>
 ExtractAPIAction::CreateASTConsumer(CompilerInstance &CI, StringRef InFile) {
-  OS = CreateOutputFile(CI, InFile);
+  auto ProductName = CI.getFrontendOpts().ProductName;
+
+  if (CI.getFrontendOpts().SymbolGraphOutputDir.empty())
+    OS = CI.createDefaultOutputFile(/*Binary*/ false, InFile,
+                                    /*Extension*/ "symbols.json",
+                                    /*RemoveFileOnSignal*/ false,
+                                    /*CreateMissingDirectories*/ true);
+  else
+    OS = createAdditionalSymbolGraphFile(CI, ProductName);
+
   if (!OS)
     return nullptr;
-
-  ProductName = CI.getFrontendOpts().ProductName;
 
   // Now that we have enough information about the language options and the
   // target triple, let's create the APISet before anyone uses it.
   API = std::make_unique<APISet>(
       CI.getTarget().getTriple(),
-      CI.getFrontendOpts().Inputs.back().getKind().getLanguage());
+      CI.getFrontendOpts().Inputs.back().getKind().getLanguage(), ProductName);
 
   auto LCF = std::make_unique<LocationFileChecker>(CI, KnownInputFiles);
 
-  CI.getPreprocessor().addPPCallbacks(std::make_unique<MacroCallback>(
-      CI.getSourceManager(), *LCF, *API, CI.getPreprocessor()));
+  CI.getPreprocessor().addPPCallbacks(std::make_unique<APIMacroCallback>(
+      CI.getSourceManager(), *API, CI.getPreprocessor(), *LCF));
+
+  // Do not include location in anonymous decls.
+  PrintingPolicy Policy = CI.getASTContext().getPrintingPolicy();
+  Policy.AnonymousTagLocations = false;
+  CI.getASTContext().setPrintingPolicy(Policy);
+
+  if (!CI.getFrontendOpts().ExtractAPIIgnoresFileList.empty()) {
+    llvm::handleAllErrors(
+        APIIgnoresList::create(CI.getFrontendOpts().ExtractAPIIgnoresFileList,
+                               CI.getFileManager())
+            .moveInto(IgnoresList),
+        [&CI](const IgnoresFileNotFound &Err) {
+          CI.getDiagnostics().Report(
+              diag::err_extract_api_ignores_file_not_found)
+              << Err.Path;
+        });
+  }
 
   return std::make_unique<ExtractAPIConsumer>(CI.getASTContext(),
                                               std::move(LCF), *API);
@@ -860,8 +444,7 @@ bool ExtractAPIAction::PrepareToExecuteAction(CompilerInstance &CI) {
     return true;
 
   if (!CI.hasFileManager())
-    if (!CI.createFileManager())
-      return false;
+    CI.createFileManager();
 
   auto Kind = Inputs[0].getKind();
 
@@ -912,23 +495,62 @@ bool ExtractAPIAction::PrepareToExecuteAction(CompilerInstance &CI) {
 }
 
 void ExtractAPIAction::EndSourceFileAction() {
-  if (!OS)
-    return;
-
-  // Setup a SymbolGraphSerializer to write out collected API information in
-  // the Symbol Graph format.
-  // FIXME: Make the kind of APISerializer configurable.
-  SymbolGraphSerializer SGSerializer(*API, ProductName);
-  SGSerializer.serialize(*OS);
-  OS.reset();
+  ImplEndSourceFileAction(getCompilerInstance());
 }
 
-std::unique_ptr<raw_pwrite_stream>
-ExtractAPIAction::CreateOutputFile(CompilerInstance &CI, StringRef InFile) {
-  std::unique_ptr<raw_pwrite_stream> OS =
-      CI.createDefaultOutputFile(/*Binary=*/false, InFile, /*Extension=*/"json",
-                                 /*RemoveFileOnSignal=*/false);
-  if (!OS)
+std::unique_ptr<ASTConsumer>
+WrappingExtractAPIAction::CreateASTConsumer(CompilerInstance &CI,
+                                            StringRef InFile) {
+  auto OtherConsumer = WrapperFrontendAction::CreateASTConsumer(CI, InFile);
+  if (!OtherConsumer)
     return nullptr;
-  return OS;
+
+  CreatedASTConsumer = true;
+
+  ProductName = CI.getFrontendOpts().ProductName;
+  auto InputFilename = llvm::sys::path::filename(InFile);
+  OS = createAdditionalSymbolGraphFile(CI, InputFilename);
+
+  // Now that we have enough information about the language options and the
+  // target triple, let's create the APISet before anyone uses it.
+  API = std::make_unique<APISet>(
+      CI.getTarget().getTriple(),
+      CI.getFrontendOpts().Inputs.back().getKind().getLanguage(), ProductName);
+
+  CI.getPreprocessor().addPPCallbacks(std::make_unique<MacroCallback>(
+      CI.getSourceManager(), *API, CI.getPreprocessor()));
+
+  // Do not include location in anonymous decls.
+  PrintingPolicy Policy = CI.getASTContext().getPrintingPolicy();
+  Policy.AnonymousTagLocations = false;
+  CI.getASTContext().setPrintingPolicy(Policy);
+
+  if (!CI.getFrontendOpts().ExtractAPIIgnoresFileList.empty()) {
+    llvm::handleAllErrors(
+        APIIgnoresList::create(CI.getFrontendOpts().ExtractAPIIgnoresFileList,
+                               CI.getFileManager())
+            .moveInto(IgnoresList),
+        [&CI](const IgnoresFileNotFound &Err) {
+          CI.getDiagnostics().Report(
+              diag::err_extract_api_ignores_file_not_found)
+              << Err.Path;
+        });
+  }
+
+  auto WrappingConsumer =
+      std::make_unique<WrappingExtractAPIConsumer>(CI.getASTContext(), *API);
+  std::vector<std::unique_ptr<ASTConsumer>> Consumers;
+  Consumers.push_back(std::move(OtherConsumer));
+  Consumers.push_back(std::move(WrappingConsumer));
+
+  return std::make_unique<MultiplexConsumer>(std::move(Consumers));
+}
+
+void WrappingExtractAPIAction::EndSourceFileAction() {
+  // Invoke wrapped action's method.
+  WrapperFrontendAction::EndSourceFileAction();
+
+  if (CreatedASTConsumer) {
+    ImplEndSourceFileAction(getCompilerInstance());
+  }
 }

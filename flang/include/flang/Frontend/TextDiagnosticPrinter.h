@@ -37,13 +37,13 @@ class TextDiagnostic;
 
 class TextDiagnosticPrinter : public clang::DiagnosticConsumer {
   raw_ostream &os;
-  llvm::IntrusiveRefCntPtr<clang::DiagnosticOptions> diagOpts;
+  clang::DiagnosticOptions &diagOpts;
 
   /// A string to prefix to error messages.
   std::string prefix;
 
 public:
-  TextDiagnosticPrinter(raw_ostream &os, clang::DiagnosticOptions *diags);
+  TextDiagnosticPrinter(raw_ostream &os, clang::DiagnosticOptions &diags);
   ~TextDiagnosticPrinter() override;
 
   /// Set the diagnostic printer prefix string, which will be printed at the
@@ -51,7 +51,10 @@ public:
   void setPrefix(std::string value) { prefix = std::move(value); }
 
   void HandleDiagnostic(clang::DiagnosticsEngine::Level level,
-      const clang::Diagnostic &info) override;
+                        const clang::Diagnostic &info) override;
+
+  void printLocForRemarks(llvm::raw_svector_ostream &diagMessageStream,
+                          llvm::StringRef &diagMsg);
 };
 
 } // namespace Fortran::frontend

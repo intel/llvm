@@ -11,9 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/AST/TypeLoc.h"
-#include "clang/AST/DeclTemplate.h"
+#include "clang/AST/ASTConcept.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attr.h"
+#include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/NestedNameSpecifier.h"
 #include "clang/AST/TemplateBase.h"
@@ -21,6 +22,7 @@
 #include "clang/AST/TypeLocVisitor.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
 #include <algorithm>
@@ -193,15 +195,6 @@ SourceLocation TypeLoc::getBeginLoc() const {
   TypeLoc LeftMost = Cur;
   while (true) {
     switch (Cur.getTypeLocClass()) {
-    case Elaborated:
-      if (Cur.getLocalSourceRange().getBegin().isValid()) {
-        LeftMost = Cur;
-        break;
-      }
-      Cur = Cur.getNextTypeLoc();
-      if (Cur.isNull())
-        break;
-      continue;
     case FunctionProto:
       if (Cur.castAs<FunctionProtoTypeLoc>().getTypePtr()
               ->hasTrailingReturn()) {
@@ -273,7 +266,6 @@ SourceLocation TypeLoc::getEndLoc() const {
         Last = Cur;
       break;
     case Qualified:
-    case Elaborated:
       break;
     }
     Cur = Cur.getNextTypeLoc();
@@ -311,9 +303,7 @@ bool TypeSpecTypeLoc::isKind(const TypeLoc &TL) {
 }
 
 bool TagTypeLoc::isDefinition() const {
-  TagDecl *D = getDecl();
-  return D->isCompleteDefinition() &&
-         (D->getIdentifier() == nullptr || D->getLocation() == getNameLoc());
+  return getTypePtr()->isTagOwned() && getDecl()->isCompleteDefinition();
 }
 
 // Reimplemented to account for GNU/C++ extension
@@ -398,6 +388,7 @@ TypeSpecifierType BuiltinTypeLoc::getWrittenTypeSpec() const {
   case BuiltinType::NullPtr:
   case BuiltinType::Overload:
   case BuiltinType::Dependent:
+  case BuiltinType::UnresolvedTemplate:
   case BuiltinType::BoundMember:
   case BuiltinType::UnknownAny:
   case BuiltinType::ARCUnbridgedCast:
@@ -423,15 +414,21 @@ TypeSpecifierType BuiltinTypeLoc::getWrittenTypeSpec() const {
   case BuiltinType::OCLReserveID:
 #define SVE_TYPE(Name, Id, SingletonId) \
   case BuiltinType::Id:
-#include "clang/Basic/AArch64SVEACLETypes.def"
+#include "clang/Basic/AArch64ACLETypes.def"
 #define PPC_VECTOR_TYPE(Name, Id, Size) \
   case BuiltinType::Id:
 #include "clang/Basic/PPCTypes.def"
 #define RVV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
 #include "clang/Basic/RISCVVTypes.def"
+#define WASM_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
+#include "clang/Basic/WebAssemblyReferenceTypes.def"
+#define AMDGPU_TYPE(Name, Id, SingletonId, Width, Align) case BuiltinType::Id:
+#include "clang/Basic/AMDGPUTypes.def"
+#define HLSL_INTANGIBLE_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
+#include "clang/Basic/HLSLIntangibleTypes.def"
   case BuiltinType::BuiltinFn:
   case BuiltinType::IncompleteMatrixIdx:
-  case BuiltinType::OMPArraySection:
+  case BuiltinType::ArraySection:
   case BuiltinType::OMPArrayShaping:
   case BuiltinType::OMPIterator:
     return TST_unspecified;
@@ -478,6 +475,86 @@ TypeLoc TypeLoc::findExplicitQualifierLoc() const {
   return {};
 }
 
+NestedNameSpecifierLoc TypeLoc::getPrefix() const {
+  switch (getTypeLocClass()) {
+  case TypeLoc::DependentName:
+    return castAs<DependentNameTypeLoc>().getQualifierLoc();
+  case TypeLoc::TemplateSpecialization:
+    return castAs<TemplateSpecializationTypeLoc>().getQualifierLoc();
+  case TypeLoc::DeducedTemplateSpecialization:
+    return castAs<DeducedTemplateSpecializationTypeLoc>().getQualifierLoc();
+  case TypeLoc::Enum:
+  case TypeLoc::Record:
+  case TypeLoc::InjectedClassName:
+    return castAs<TagTypeLoc>().getQualifierLoc();
+  case TypeLoc::Typedef:
+    return castAs<TypedefTypeLoc>().getQualifierLoc();
+  case TypeLoc::UnresolvedUsing:
+    return castAs<UnresolvedUsingTypeLoc>().getQualifierLoc();
+  case TypeLoc::Using:
+    return castAs<UsingTypeLoc>().getQualifierLoc();
+  default:
+    return NestedNameSpecifierLoc();
+  }
+}
+
+SourceLocation TypeLoc::getNonElaboratedBeginLoc() const {
+  // For elaborated types (e.g. `struct a::A`) we want the portion after the
+  // `struct` but including the namespace qualifier, `a::`.
+  switch (getTypeLocClass()) {
+  case TypeLoc::Qualified:
+    return castAs<QualifiedTypeLoc>()
+        .getUnqualifiedLoc()
+        .getNonElaboratedBeginLoc();
+  case TypeLoc::TemplateSpecialization: {
+    auto T = castAs<TemplateSpecializationTypeLoc>();
+    if (NestedNameSpecifierLoc QualifierLoc = T.getQualifierLoc())
+      return QualifierLoc.getBeginLoc();
+    return T.getTemplateNameLoc();
+  }
+  case TypeLoc::DeducedTemplateSpecialization: {
+    auto T = castAs<DeducedTemplateSpecializationTypeLoc>();
+    if (NestedNameSpecifierLoc QualifierLoc = T.getQualifierLoc())
+      return QualifierLoc.getBeginLoc();
+    return T.getTemplateNameLoc();
+  }
+  case TypeLoc::DependentName: {
+    auto T = castAs<DependentNameTypeLoc>();
+    if (NestedNameSpecifierLoc QualifierLoc = T.getQualifierLoc())
+      return QualifierLoc.getBeginLoc();
+    return T.getNameLoc();
+  }
+  case TypeLoc::Enum:
+  case TypeLoc::Record:
+  case TypeLoc::InjectedClassName: {
+    auto T = castAs<TagTypeLoc>();
+    if (NestedNameSpecifierLoc QualifierLoc = T.getQualifierLoc())
+      return QualifierLoc.getBeginLoc();
+    return T.getNameLoc();
+  }
+  case TypeLoc::Typedef: {
+    auto T = castAs<TypedefTypeLoc>();
+    if (NestedNameSpecifierLoc QualifierLoc = T.getQualifierLoc())
+      return QualifierLoc.getBeginLoc();
+    return T.getNameLoc();
+  }
+  case TypeLoc::UnresolvedUsing: {
+    auto T = castAs<UnresolvedUsingTypeLoc>();
+    if (NestedNameSpecifierLoc QualifierLoc = T.getQualifierLoc())
+      return QualifierLoc.getBeginLoc();
+    return T.getNameLoc();
+  }
+  case TypeLoc::Using: {
+    auto T = castAs<UsingTypeLoc>();
+    if (NestedNameSpecifierLoc QualifierLoc = T.getQualifierLoc())
+      return QualifierLoc.getBeginLoc();
+    return T.getNameLoc();
+  }
+  default:
+    return getBeginLoc();
+  }
+}
+
 void ObjCTypeParamTypeLoc::initializeLocal(ASTContext &Context,
                                            SourceLocation Loc) {
   setNameLoc(Loc);
@@ -518,6 +595,10 @@ SourceRange AttributedTypeLoc::getLocalSourceRange() const {
   return getAttr() ? getAttr()->getRange() : SourceRange();
 }
 
+SourceRange CountAttributedTypeLoc::getLocalSourceRange() const {
+  return getCountExpr() ? getCountExpr()->getSourceRange() : SourceRange();
+}
+
 SourceRange BTFTagAttributedTypeLoc::getLocalSourceRange() const {
   return getAttr() ? getAttr()->getRange() : SourceRange();
 }
@@ -539,51 +620,106 @@ void UnaryTransformTypeLoc::initializeLocal(ASTContext &Context,
         Context.getTrivialTypeSourceInfo(getTypePtr()->getBaseType(), Loc));
 }
 
-void ElaboratedTypeLoc::initializeLocal(ASTContext &Context,
-                                        SourceLocation Loc) {
-  if (isEmpty())
-    return;
-  setElaboratedKeywordLoc(Loc);
+template <class TL>
+static void initializeElaboratedKeyword(TL T, SourceLocation Loc) {
+  T.setElaboratedKeywordLoc(T.getTypePtr()->getKeyword() !=
+                                    ElaboratedTypeKeyword::None
+                                ? Loc
+                                : SourceLocation());
+}
+
+static NestedNameSpecifierLoc initializeQualifier(ASTContext &Context,
+                                                  NestedNameSpecifier Qualifier,
+                                                  SourceLocation Loc) {
+  if (!Qualifier)
+    return NestedNameSpecifierLoc();
   NestedNameSpecifierLocBuilder Builder;
-  Builder.MakeTrivial(Context, getTypePtr()->getQualifier(), Loc);
-  setQualifierLoc(Builder.getWithLocInContext(Context));
+  Builder.MakeTrivial(Context, Qualifier, Loc);
+  return Builder.getWithLocInContext(Context);
 }
 
 void DependentNameTypeLoc::initializeLocal(ASTContext &Context,
                                            SourceLocation Loc) {
-  setElaboratedKeywordLoc(Loc);
-  NestedNameSpecifierLocBuilder Builder;
-  Builder.MakeTrivial(Context, getTypePtr()->getQualifier(), Loc);
-  setQualifierLoc(Builder.getWithLocInContext(Context));
+  initializeElaboratedKeyword(*this, Loc);
+  setQualifierLoc(
+      initializeQualifier(Context, getTypePtr()->getQualifier(), Loc));
   setNameLoc(Loc);
 }
 
-void
-DependentTemplateSpecializationTypeLoc::initializeLocal(ASTContext &Context,
-                                                        SourceLocation Loc) {
-  setElaboratedKeywordLoc(Loc);
-  if (getTypePtr()->getQualifier()) {
-    NestedNameSpecifierLocBuilder Builder;
-    Builder.MakeTrivial(Context, getTypePtr()->getQualifier(), Loc);
-    setQualifierLoc(Builder.getWithLocInContext(Context));
-  } else {
-    setQualifierLoc(NestedNameSpecifierLoc());
-  }
-  setTemplateKeywordLoc(Loc);
-  setTemplateNameLoc(Loc);
-  setLAngleLoc(Loc);
-  setRAngleLoc(Loc);
-  TemplateSpecializationTypeLoc::initializeArgLocs(Context, getNumArgs(),
-                                                   getTypePtr()->getArgs(),
-                                                   getArgInfos(), Loc);
+void TemplateSpecializationTypeLoc::set(SourceLocation ElaboratedKeywordLoc,
+                                        NestedNameSpecifierLoc QualifierLoc,
+                                        SourceLocation TemplateKeywordLoc,
+                                        SourceLocation NameLoc,
+                                        SourceLocation LAngleLoc,
+                                        SourceLocation RAngleLoc) {
+  TemplateSpecializationLocInfo &Data = *getLocalData();
+
+  Data.ElaboratedKWLoc = ElaboratedKeywordLoc;
+  SourceLocation BeginLoc = ElaboratedKeywordLoc;
+
+  getLocalData()->QualifierData = QualifierLoc.getOpaqueData();
+
+  assert(QualifierLoc.getNestedNameSpecifier() ==
+         getTypePtr()->getTemplateName().getQualifier());
+  Data.QualifierData = QualifierLoc ? QualifierLoc.getOpaqueData() : nullptr;
+  if (QualifierLoc && !BeginLoc.isValid())
+    BeginLoc = QualifierLoc.getBeginLoc();
+
+  Data.TemplateKWLoc = TemplateKeywordLoc;
+  if (!BeginLoc.isValid())
+    BeginLoc = TemplateKeywordLoc;
+
+  Data.NameLoc = NameLoc;
+  if (!BeginLoc.isValid())
+    BeginLoc = NameLoc;
+
+  Data.LAngleLoc = LAngleLoc;
+  Data.SR = SourceRange(BeginLoc, RAngleLoc);
 }
 
-void TemplateSpecializationTypeLoc::initializeArgLocs(ASTContext &Context,
-                                                      unsigned NumArgs,
-                                                  const TemplateArgument *Args,
-                                              TemplateArgumentLocInfo *ArgInfos,
-                                                      SourceLocation Loc) {
-  for (unsigned i = 0, e = NumArgs; i != e; ++i) {
+void TemplateSpecializationTypeLoc::set(SourceLocation ElaboratedKeywordLoc,
+                                        NestedNameSpecifierLoc QualifierLoc,
+                                        SourceLocation TemplateKeywordLoc,
+                                        SourceLocation NameLoc,
+                                        const TemplateArgumentListInfo &TAL) {
+  set(ElaboratedKeywordLoc, QualifierLoc, TemplateKeywordLoc, NameLoc,
+      TAL.getLAngleLoc(), TAL.getRAngleLoc());
+  MutableArrayRef<TemplateArgumentLocInfo> ArgInfos = getArgLocInfos();
+  assert(TAL.size() == ArgInfos.size());
+  for (unsigned I = 0, N = TAL.size(); I != N; ++I)
+    ArgInfos[I] = TAL[I].getLocInfo();
+}
+
+void TemplateSpecializationTypeLoc::initializeLocal(ASTContext &Context,
+                                                    SourceLocation Loc) {
+
+  auto [Qualifier, HasTemplateKeyword] =
+      getTypePtr()->getTemplateName().getQualifierAndTemplateKeyword();
+
+  SourceLocation ElaboratedKeywordLoc =
+      getTypePtr()->getKeyword() != ElaboratedTypeKeyword::None
+          ? Loc
+          : SourceLocation();
+
+  NestedNameSpecifierLoc QualifierLoc;
+  if (Qualifier) {
+    NestedNameSpecifierLocBuilder Builder;
+    Builder.MakeTrivial(Context, Qualifier, Loc);
+    QualifierLoc = Builder.getWithLocInContext(Context);
+  }
+
+  TemplateArgumentListInfo TAL(Loc, Loc);
+  set(ElaboratedKeywordLoc, QualifierLoc,
+      /*TemplateKeywordLoc=*/HasTemplateKeyword ? Loc : SourceLocation(),
+      /*NameLoc=*/Loc, /*LAngleLoc=*/Loc, /*RAngleLoc=*/Loc);
+  initializeArgLocs(Context, getTypePtr()->template_arguments(), getArgInfos(),
+                    Loc);
+}
+
+void TemplateSpecializationTypeLoc::initializeArgLocs(
+    ASTContext &Context, ArrayRef<TemplateArgument> Args,
+    TemplateArgumentLocInfo *ArgInfos, SourceLocation Loc) {
+  for (unsigned i = 0, e = Args.size(); i != e; ++i) {
     switch (Args[i].getKind()) {
     case TemplateArgument::Null:
       llvm_unreachable("Impossible TemplateArgument");
@@ -591,6 +727,7 @@ void TemplateSpecializationTypeLoc::initializeArgLocs(ASTContext &Context,
     case TemplateArgument::Integral:
     case TemplateArgument::Declaration:
     case TemplateArgument::NullPtr:
+    case TemplateArgument::StructuralValue:
       ArgInfos[i] = TemplateArgumentLocInfo();
       break;
 
@@ -614,7 +751,7 @@ void TemplateSpecializationTypeLoc::initializeArgLocs(ASTContext &Context,
         Builder.MakeTrivial(Context, QTN->getQualifier(), Loc);
 
       ArgInfos[i] = TemplateArgumentLocInfo(
-          Context, Builder.getWithLocInContext(Context), Loc,
+          Context, Loc, Builder.getWithLocInContext(Context), Loc,
           Args[i].getKind() == TemplateArgument::Template ? SourceLocation()
                                                           : Loc);
       break;
@@ -627,25 +764,49 @@ void TemplateSpecializationTypeLoc::initializeArgLocs(ASTContext &Context,
   }
 }
 
-DeclarationNameInfo AutoTypeLoc::getConceptNameInfo() const {
-  return DeclarationNameInfo(getNamedConcept()->getDeclName(),
-                             getLocalData()->ConceptNameLoc);
+// Builds a ConceptReference where all locations point at the same token,
+// for use in trivial TypeSourceInfo for constrained AutoType
+static ConceptReference *createTrivialConceptReference(ASTContext &Context,
+                                                       SourceLocation Loc,
+                                                       const AutoType *AT) {
+  DeclarationNameInfo DNI =
+      DeclarationNameInfo(AT->getTypeConstraintConcept()->getDeclName(), Loc,
+                          AT->getTypeConstraintConcept()->getDeclName());
+  unsigned size = AT->getTypeConstraintArguments().size();
+  llvm::SmallVector<TemplateArgumentLocInfo, 8> TALI(size);
+  TemplateSpecializationTypeLoc::initializeArgLocs(
+      Context, AT->getTypeConstraintArguments(), TALI.data(), Loc);
+  TemplateArgumentListInfo TAListI;
+  for (unsigned i = 0; i < size; ++i) {
+    TAListI.addArgument(
+        TemplateArgumentLoc(AT->getTypeConstraintArguments()[i],
+                            TALI[i])); // TemplateArgumentLocInfo()
+  }
+
+  auto *ConceptRef = ConceptReference::Create(
+      Context, NestedNameSpecifierLoc{}, Loc, DNI, nullptr,
+      AT->getTypeConstraintConcept(),
+      ASTTemplateArgumentListInfo::Create(Context, TAListI));
+  return ConceptRef;
 }
 
 void AutoTypeLoc::initializeLocal(ASTContext &Context, SourceLocation Loc) {
-  setNestedNameSpecifierLoc(NestedNameSpecifierLoc());
-  setTemplateKWLoc(Loc);
-  setConceptNameLoc(Loc);
-  setFoundDecl(nullptr);
-  setRAngleLoc(Loc);
-  setLAngleLoc(Loc);
   setRParenLoc(Loc);
-  TemplateSpecializationTypeLoc::initializeArgLocs(Context, getNumArgs(),
-                                                   getTypePtr()->getArgs(),
-                                                   getArgInfos(), Loc);
   setNameLoc(Loc);
+  setConceptReference(nullptr);
+  if (getTypePtr()->isConstrained()) {
+    setConceptReference(
+        createTrivialConceptReference(Context, Loc, getTypePtr()));
+  }
 }
 
+void DeducedTemplateSpecializationTypeLoc::initializeLocal(ASTContext &Context,
+                                                           SourceLocation Loc) {
+  initializeElaboratedKeyword(*this, Loc);
+  setQualifierLoc(initializeQualifier(
+      Context, getTypePtr()->getTemplateName().getQualifier(), Loc));
+  setTemplateNameLoc(Loc);
+}
 
 namespace {
 
@@ -659,10 +820,6 @@ namespace {
     }
 
     // Only these types can contain the desired 'auto' type.
-
-    TypeLoc VisitElaboratedTypeLoc(ElaboratedTypeLoc T) {
-      return Visit(T.getNamedTypeLoc());
-    }
 
     TypeLoc VisitQualifiedTypeLoc(QualifiedTypeLoc T) {
       return Visit(T.getUnqualifiedLoc());
@@ -704,6 +861,11 @@ namespace {
       return Visit(T.getWrappedLoc());
     }
 
+    TypeLoc
+    VisitHLSLAttributedResourceTypeLoc(HLSLAttributedResourceTypeLoc T) {
+      return Visit(T.getWrappedLoc());
+    }
+
     TypeLoc VisitMacroQualifiedTypeLoc(MacroQualifiedTypeLoc T) {
       return Visit(T.getInnerLoc());
     }
@@ -724,4 +886,10 @@ AutoTypeLoc TypeLoc::getContainedAutoTypeLoc() const {
   if (Res.isNull())
     return AutoTypeLoc();
   return Res.getAs<AutoTypeLoc>();
+}
+
+SourceLocation TypeLoc::getTemplateKeywordLoc() const {
+  if (const auto TSTL = getAsAdjusted<TemplateSpecializationTypeLoc>())
+    return TSTL.getTemplateKeywordLoc();
+  return SourceLocation();
 }

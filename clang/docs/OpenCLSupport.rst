@@ -34,7 +34,7 @@ Missing features or with limited support
   list
   <https://github.com/llvm/llvm-project/issues?q=is%3Aopen+is%3Aissue+label%3Aopencl>`__.
 
-- Command-line flag :ref:`-cl-ext <opencl_cl_ext>` (used to override extensions/
+- Command-line flag :option:`-cl-ext` (used to override extensions/
   features supported by a target) is missing support of some functionality i.e. that is
   implemented fully through libraries (see :ref:`library-based features and
   extensions <opencl_ext_libs>`).
@@ -113,7 +113,7 @@ To enable modules for OpenCL:
 
    .. code-block:: console
 
-     $ clang -target spir-unknown-unknown -c -emit-llvm -Xclang -finclude-default-header -fmodules -fimplicit-module-maps -fmodules-cache-path=<path to the generated module> test.cl
+     $ clang --target=spir-unknown-unknown -c -emit-llvm -Xclang -finclude-default-header -fmodules -fimplicit-module-maps -fmodules-cache-path=<path to the generated module> test.cl
 
 Another way to circumvent long parsing latency for the OpenCL builtin
 declarations is to use mechanism enabled by :ref:`-fdeclare-opencl-builtins
@@ -217,9 +217,9 @@ This section explains how to extend clang with the new functionality.
 
 **Parsing functionality**
 
-If an extension modifies the standard parsing it needs to be added to
-the clang frontend source code. This also means that the associated macro
-indicating the presence of the extension should be added to clang.
+If a new extension is added it needs to be added to the clang frontend source
+code. This also means that the associated macro indicating the presence of the
+extension should be added to clang.
 
 The default flow for adding a new extension into the frontend is to
 modify `OpenCLExtensions.def
@@ -235,14 +235,14 @@ Note that by default targets like `SPIR-V`, `SPIR` or `X86` expose all the OpenC
 extensions. For all other targets the configuration has to be made explicitly.
 
 Note that the target extension support performed by clang can be overridden
-with :ref:`-cl-ext <opencl_cl_ext>` command-line flags.
+with :option:`-cl-ext` command-line flags.
 
 .. _opencl_ext_libs:
 
 **Library functionality**
 
 If an extension adds functionality that does not modify standard language
-parsing it should not require modifying anything other than header files and
+parsing it may not require modifying anything other than header files and
 ``OpenCLBuiltins.td`` detailed in :ref:`OpenCL builtins <opencl_builtins>`.
 Most commonly such extensions add functionality via libraries (by adding
 non-native types or functions) parsed regularly. Similar to other languages this
@@ -250,13 +250,7 @@ is the most common way to add new functionality.
 
 Clang has standard headers where new types and functions are being added,
 for more details refer to
-:ref:`the section on the OpenCL Header <opencl_header>`. The macros indicating
-the presence of such extensions can be added in the standard header files
-conditioned on target specific predefined macros or/and language version
-predefined macros (see `feature/extension preprocessor macros defined in
-opencl-c-base.h
-<https://github.com/llvm/llvm-project/blob/main/clang/lib/Headers/opencl-c-base.h>`__).
-
+:ref:`the section on the OpenCL Header <opencl_header>`.
 **Pragmas**
 
 Some extensions alter standard parsing dynamically via pragmas.
@@ -333,7 +327,7 @@ Missing features or with limited support
 - IR generation for non-trivial global destructors is incomplete (See:
   `PR48047 <https://llvm.org/PR48047>`_).
 
-- Support of `destrutors with non-default address spaces
+- Support of `destructors with non-default address spaces
   <https://www.khronos.org/opencl/assets/CXX_for_OpenCL.html#_construction_initialization_and_destruction>`_
   is incomplete (See: `D109609 <https://reviews.llvm.org/D109609>`_).
 
@@ -345,7 +339,7 @@ OpenCL C 3.0 Usage
 OpenCL C 3.0 language standard makes most OpenCL C 2.0 features optional. Optional
 functionality in OpenCL C 3.0 is indicated with the presence of feature-test macros
 (list of feature-test macros is `here <https://www.khronos.org/registry/OpenCL/specs/3.0-unified/html/OpenCL_C.html#features>`__).
-Command-line flag :ref:`-cl-ext <opencl_cl_ext>` can be used to override features supported by a target.
+Command-line flag :option:`-cl-ext` can be used to override features supported by a target.
 
 For cases when there is an associated extension for a specific feature (fp64 and 3d image writes)
 user should specify both (extension and feature) in command-line flag:

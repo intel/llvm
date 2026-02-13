@@ -100,7 +100,6 @@ define <16 x i8> @sub_op1_constant(ptr %p) nounwind {
 ; AVX:       # %bb.0:
 ; AVX-NEXT:    movzbl (%rdi), %eax
 ; AVX-NEXT:    addb $-42, %al
-; AVX-NEXT:    movzbl %al, %eax
 ; AVX-NEXT:    vmovd %eax, %xmm0
 ; AVX-NEXT:    retq
   %x = load i8, ptr %p
@@ -242,7 +241,6 @@ define <16 x i8> @shl_op1_constant(ptr %p) nounwind {
 ; AVX:       # %bb.0:
 ; AVX-NEXT:    movzbl (%rdi), %eax
 ; AVX-NEXT:    shlb $5, %al
-; AVX-NEXT:    movzbl %al, %eax
 ; AVX-NEXT:    vmovd %eax, %xmm0
 ; AVX-NEXT:    retq
   %x = load i8, ptr %p
@@ -257,7 +255,7 @@ define <2 x i64> @lshr_op0_constant(ptr %p) nounwind {
 ; SSE-NEXT:    movzbl (%rdi), %ecx
 ; SSE-NEXT:    movl $42, %eax
 ; SSE-NEXT:    shrq %cl, %rax
-; SSE-NEXT:    movq %rax, %xmm0
+; SSE-NEXT:    movd %eax, %xmm0
 ; SSE-NEXT:    retq
 ;
 ; AVX-LABEL: lshr_op0_constant:
@@ -265,7 +263,7 @@ define <2 x i64> @lshr_op0_constant(ptr %p) nounwind {
 ; AVX-NEXT:    movzbl (%rdi), %ecx
 ; AVX-NEXT:    movl $42, %eax
 ; AVX-NEXT:    shrq %cl, %rax
-; AVX-NEXT:    vmovq %rax, %xmm0
+; AVX-NEXT:    vmovd %eax, %xmm0
 ; AVX-NEXT:    retq
   %x = load i64, ptr %p
   %b = lshr i64 42, %x
@@ -276,16 +274,14 @@ define <2 x i64> @lshr_op0_constant(ptr %p) nounwind {
 define <4 x i32> @lshr_op1_constant(ptr %p) nounwind {
 ; SSE-LABEL: lshr_op1_constant:
 ; SSE:       # %bb.0:
-; SSE-NEXT:    movl (%rdi), %eax
-; SSE-NEXT:    shrl $17, %eax
-; SSE-NEXT:    movd %eax, %xmm0
+; SSE-NEXT:    movd {{.*#+}} xmm0 = mem[0],zero,zero,zero
+; SSE-NEXT:    psrld $17, %xmm0
 ; SSE-NEXT:    retq
 ;
 ; AVX-LABEL: lshr_op1_constant:
 ; AVX:       # %bb.0:
-; AVX-NEXT:    movl (%rdi), %eax
-; AVX-NEXT:    shrl $17, %eax
-; AVX-NEXT:    vmovd %eax, %xmm0
+; AVX-NEXT:    vmovd {{.*#+}} xmm0 = mem[0],zero,zero,zero
+; AVX-NEXT:    vpsrld $17, %xmm0, %xmm0
 ; AVX-NEXT:    retq
   %x = load i32, ptr %p
   %b = lshr i32 %x, 17
@@ -319,15 +315,15 @@ define <8 x i16> @ashr_op1_constant(ptr %p) nounwind {
 ; SSE-LABEL: ashr_op1_constant:
 ; SSE:       # %bb.0:
 ; SSE-NEXT:    movswl (%rdi), %eax
-; SSE-NEXT:    sarl $7, %eax
 ; SSE-NEXT:    movd %eax, %xmm0
+; SSE-NEXT:    psrad $7, %xmm0
 ; SSE-NEXT:    retq
 ;
 ; AVX-LABEL: ashr_op1_constant:
 ; AVX:       # %bb.0:
 ; AVX-NEXT:    movswl (%rdi), %eax
-; AVX-NEXT:    sarl $7, %eax
 ; AVX-NEXT:    vmovd %eax, %xmm0
+; AVX-NEXT:    vpsrad $7, %xmm0, %xmm0
 ; AVX-NEXT:    retq
   %x = load i16, ptr %p
   %b = ashr i16 %x, 7
@@ -476,8 +472,8 @@ define <2 x i64> @udiv_op1_constant(ptr %p) nounwind {
 ; SSE-NEXT:    shrq %rax
 ; SSE-NEXT:    movabsq $-4392081922311798003, %rcx # imm = 0xC30C30C30C30C30D
 ; SSE-NEXT:    mulq %rcx
-; SSE-NEXT:    shrq $4, %rdx
 ; SSE-NEXT:    movq %rdx, %xmm0
+; SSE-NEXT:    psrlq $4, %xmm0
 ; SSE-NEXT:    retq
 ;
 ; AVX-LABEL: udiv_op1_constant:
@@ -486,8 +482,8 @@ define <2 x i64> @udiv_op1_constant(ptr %p) nounwind {
 ; AVX-NEXT:    shrq %rax
 ; AVX-NEXT:    movabsq $-4392081922311798003, %rcx # imm = 0xC30C30C30C30C30D
 ; AVX-NEXT:    mulq %rcx
-; AVX-NEXT:    shrq $4, %rdx
 ; AVX-NEXT:    vmovq %rdx, %xmm0
+; AVX-NEXT:    vpsrlq $4, %xmm0, %xmm0
 ; AVX-NEXT:    retq
   %x = load i64, ptr %p
   %b = udiv i64 %x, 42
@@ -542,7 +538,6 @@ define <16 x i8> @urem_op1_constant(ptr %p) nounwind {
 ; AVX-NEXT:    shrl $10, %ecx
 ; AVX-NEXT:    imull $42, %ecx, %ecx
 ; AVX-NEXT:    subb %cl, %al
-; AVX-NEXT:    movzbl %al, %eax
 ; AVX-NEXT:    vmovd %eax, %xmm0
 ; AVX-NEXT:    retq
   %x = load i8, ptr %p
@@ -590,13 +585,13 @@ define <2 x double> @fsub_op1_constant(ptr %p) nounwind {
 define <4 x float> @fsub_op0_constant(ptr %p) nounwind {
 ; SSE-LABEL: fsub_op0_constant:
 ; SSE:       # %bb.0:
-; SSE-NEXT:    movss {{.*#+}} xmm0 = mem[0],zero,zero,zero
+; SSE-NEXT:    movss {{.*#+}} xmm0 = [4.2E+1,0.0E+0,0.0E+0,0.0E+0]
 ; SSE-NEXT:    subss (%rdi), %xmm0
 ; SSE-NEXT:    retq
 ;
 ; AVX-LABEL: fsub_op0_constant:
 ; AVX:       # %bb.0:
-; AVX-NEXT:    vmovss {{.*#+}} xmm0 = mem[0],zero,zero,zero
+; AVX-NEXT:    vmovss {{.*#+}} xmm0 = [4.2E+1,0.0E+0,0.0E+0,0.0E+0]
 ; AVX-NEXT:    vsubss (%rdi), %xmm0, %xmm0
 ; AVX-NEXT:    retq
   %x = load float, ptr %p
@@ -644,13 +639,13 @@ define <2 x double> @fdiv_op1_constant(ptr %p) nounwind {
 define <4 x float> @fdiv_op0_constant(ptr %p) nounwind {
 ; SSE-LABEL: fdiv_op0_constant:
 ; SSE:       # %bb.0:
-; SSE-NEXT:    movss {{.*#+}} xmm0 = mem[0],zero,zero,zero
+; SSE-NEXT:    movss {{.*#+}} xmm0 = [4.2E+1,0.0E+0,0.0E+0,0.0E+0]
 ; SSE-NEXT:    divss (%rdi), %xmm0
 ; SSE-NEXT:    retq
 ;
 ; AVX-LABEL: fdiv_op0_constant:
 ; AVX:       # %bb.0:
-; AVX-NEXT:    vmovss {{.*#+}} xmm0 = mem[0],zero,zero,zero
+; AVX-NEXT:    vmovss {{.*#+}} xmm0 = [4.2E+1,0.0E+0,0.0E+0,0.0E+0]
 ; AVX-NEXT:    vdivss (%rdi), %xmm0, %xmm0
 ; AVX-NEXT:    retq
   %x = load float, ptr %p
@@ -664,7 +659,7 @@ define <4 x float> @frem_op1_constant(ptr %p) nounwind {
 ; SSE:       # %bb.0:
 ; SSE-NEXT:    pushq %rax
 ; SSE-NEXT:    movss {{.*#+}} xmm0 = mem[0],zero,zero,zero
-; SSE-NEXT:    movss {{.*#+}} xmm1 = mem[0],zero,zero,zero
+; SSE-NEXT:    movss {{.*#+}} xmm1 = [4.2E+1,0.0E+0,0.0E+0,0.0E+0]
 ; SSE-NEXT:    callq fmodf@PLT
 ; SSE-NEXT:    popq %rax
 ; SSE-NEXT:    retq
@@ -673,7 +668,7 @@ define <4 x float> @frem_op1_constant(ptr %p) nounwind {
 ; AVX:       # %bb.0:
 ; AVX-NEXT:    pushq %rax
 ; AVX-NEXT:    vmovss {{.*#+}} xmm0 = mem[0],zero,zero,zero
-; AVX-NEXT:    vmovss {{.*#+}} xmm1 = mem[0],zero,zero,zero
+; AVX-NEXT:    vmovss {{.*#+}} xmm1 = [4.2E+1,0.0E+0,0.0E+0,0.0E+0]
 ; AVX-NEXT:    callq fmodf@PLT
 ; AVX-NEXT:    popq %rax
 ; AVX-NEXT:    retq
@@ -688,7 +683,7 @@ define <2 x double> @frem_op0_constant(ptr %p) nounwind {
 ; SSE:       # %bb.0:
 ; SSE-NEXT:    pushq %rax
 ; SSE-NEXT:    movsd {{.*#+}} xmm1 = mem[0],zero
-; SSE-NEXT:    movsd {{.*#+}} xmm0 = mem[0],zero
+; SSE-NEXT:    movsd {{.*#+}} xmm0 = [4.2E+1,0.0E+0]
 ; SSE-NEXT:    callq fmod@PLT
 ; SSE-NEXT:    popq %rax
 ; SSE-NEXT:    retq
@@ -697,7 +692,7 @@ define <2 x double> @frem_op0_constant(ptr %p) nounwind {
 ; AVX:       # %bb.0:
 ; AVX-NEXT:    pushq %rax
 ; AVX-NEXT:    vmovsd {{.*#+}} xmm1 = mem[0],zero
-; AVX-NEXT:    vmovsd {{.*#+}} xmm0 = mem[0],zero
+; AVX-NEXT:    vmovsd {{.*#+}} xmm0 = [4.2E+1,0.0E+0]
 ; AVX-NEXT:    callq fmod@PLT
 ; AVX-NEXT:    popq %rax
 ; AVX-NEXT:    retq

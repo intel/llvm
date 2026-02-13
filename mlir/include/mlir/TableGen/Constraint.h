@@ -30,7 +30,14 @@ namespace tblgen {
 class Constraint {
 public:
   // Constraint kind
-  enum Kind { CK_Attr, CK_Region, CK_Successor, CK_Type, CK_Uncategorized };
+  enum Kind {
+    CK_Attr,
+    CK_Prop,
+    CK_Region,
+    CK_Successor,
+    CK_Type,
+    CK_Uncategorized
+  };
 
   // Create a constraint with a TableGen definition and a kind.
   Constraint(const llvm::Record *record, Kind kind) : def(record), kind(kind) {}
@@ -60,7 +67,7 @@ public:
 
   /// Returns the name of the TablGen def of this constraint. In some cases
   /// where the current def is anonymous, the name of the base def is used (e.g.
-  /// `Optional<>`/`Variadic<>` type constraints).
+  /// `std::optional<>`/`Variadic<>` type constraints).
   StringRef getDefName() const;
 
   /// Returns a unique name for the TablGen def of this constraint. This is
@@ -68,6 +75,10 @@ public:
   /// def is anonymous, the name of the base def is attached (to provide more
   /// context on the def).
   std::string getUniqueDefName() const;
+
+  /// Returns the name of the C++ function that should be generated for this
+  /// constraint, or std::nullopt if no C++ function should be generated.
+  std::optional<StringRef> getCppFunctionName() const;
 
   Kind getKind() const { return kind; }
 
@@ -79,8 +90,9 @@ protected:
   const llvm::Record *def;
 
 private:
-  /// Return the name of the base def if there is one, or None otherwise.
-  Optional<StringRef> getBaseDefName() const;
+  /// Return the name of the base def if there is one, or std::nullopt
+  /// otherwise.
+  std::optional<StringRef> getBaseDefName() const;
 
   // What kind of constraint this is.
   Kind kind;

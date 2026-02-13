@@ -8,7 +8,7 @@ declare i32 @call_foo(i32, ...)
 
 define i32 @foo() {
 entry:
-  %0 = load i32, i32* @bar, align 4
+  %0 = load i32, ptr @bar, align 4
   %call = call i32 (i32, ...) @call_foo(i32 %0, i32 0, i32 1, i32 2, i32 4, i32 8, i32 16, i32 32, i32 64)
   ret i32 0
 }
@@ -19,7 +19,7 @@ entry:
 ; SMALL:         stwu 1, -32(1)
 ; SMALL:         stw 30, 24(1)
 ; SMALL-BSS:     bl _GLOBAL_OFFSET_TABLE_@local-4
-; SMALL-SECURE:  bl .L0$pb
+; SMALL-SECURE:  bcl 20, 31, .L0$pb
 ; SMALL:         mflr 30
 ; SMALL-SECURE:  addis 30, 30, _GLOBAL_OFFSET_TABLE_-.L0$pb@ha
 ; SMALL-SECURE:  addi 30, 30, _GLOBAL_OFFSET_TABLE_-.L0$pb@l

@@ -2,9 +2,9 @@
 // inside the class.
 // RUN: %clangxx_asan  %s -o %t && %run %t
 //
-// XFAIL: arm
+// XFAIL: target=arm{{.*}}
 
-// UNSUPPORTED: ios
+// UNSUPPORTED: darwin-remote
 
 #include <new>
 #include <stdlib.h>

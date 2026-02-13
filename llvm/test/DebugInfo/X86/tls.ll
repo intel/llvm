@@ -106,7 +106,7 @@ entry:
   ret i32 0, !dbg !18
 }
 
-attributes #0 = { nounwind uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "use-soft-float"="false" }
 
 !llvm.dbg.cu = !{!6}
 !llvm.module.flags = !{!9, !10}
@@ -128,7 +128,7 @@ attributes #0 = { nounwind uwtable "less-precise-fpmad"="false" "frame-pointer"=
 !13 = !DISubroutineType(types: !14)
 !14 = !{!3}
 !15 = !{!16}
-!16 = !DITemplateValueParameter(name: "I", type: !17, value: i32* @glbl)
+!16 = !DITemplateValueParameter(name: "I", type: !17, value: ptr @glbl)
 !17 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !3, size: 64, align: 64)
 !18 = !DILocation(line: 6, scope: !12)
 

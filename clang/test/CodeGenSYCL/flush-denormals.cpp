@@ -11,8 +11,8 @@ void foo() {}
 
 // FTZ32: attributes #0 = {{.*}} "denormal-fp-math-f32"="preserve-sign,preserve-sign"
 // PTXFTZ32:!llvm.module.flags = !{{{.*}}, [[MODFLAG:![0-9]+]], {{.*}}}
-// PTXFTZ32:[[MODFLAG]] = !{i32 4, !"nvvm-reflect-ftz", i32 1}
+// PTXFTZ32:[[MODFLAG]] = !{i32 7, !"nvvm-reflect-ftz", i32 1}
 
 // FTZ: attributes #0 = {{.*}} "denormal-fp-math"="preserve-sign,preserve-sign"
 // PTXFTZ:!llvm.module.flags = !{{{.*}}, [[MODFLAG:![0-9]+]], {{.*}}}
-// PTXFTZ:[[MODFLAG]] = !{i32 4, !"nvvm-reflect-ftz", i32 1}
+// PTXFTZ:[[MODFLAG]] = !{i32 7, !"nvvm-reflect-ftz", i32 1}

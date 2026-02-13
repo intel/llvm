@@ -126,13 +126,14 @@ OPTIONS
 
  Print the installation prefix for LLVM.
 
+**--quote-paths**
+
+ Quote and escape paths when needed, most notably when a quote, space, backslash
+ or dollar sign characters are present in the path.
+
 **--shared-mode**
 
  Print how the provided components can be collectively linked (`shared` or `static`).
-
-**--src-root**
-
- Print the source root from which LLVM was built.
 
 **--system-libs**
 

@@ -10,6 +10,7 @@
 #define LLVM_DEBUGINFO_CODEVIEW_TYPETABLECOLLECTION_H
 
 #include "llvm/DebugInfo/CodeView/TypeCollection.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/StringSaver.h"
 
 #include <vector>
@@ -17,12 +18,12 @@
 namespace llvm {
 namespace codeview {
 
-class TypeTableCollection : public TypeCollection {
+class LLVM_ABI TypeTableCollection : public TypeCollection {
 public:
   explicit TypeTableCollection(ArrayRef<ArrayRef<uint8_t>> Records);
 
-  Optional<TypeIndex> getFirst() override;
-  Optional<TypeIndex> getNext(TypeIndex Prev) override;
+  std::optional<TypeIndex> getFirst() override;
+  std::optional<TypeIndex> getNext(TypeIndex Prev) override;
 
   CVType getType(TypeIndex Index) override;
   StringRef getTypeName(TypeIndex Index) override;

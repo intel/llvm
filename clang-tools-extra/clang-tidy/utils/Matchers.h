@@ -1,4 +1,4 @@
-//===--- Matchers.h - clang-tidy-------------------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,11 +10,11 @@
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_UTILS_MATCHERS_H
 
 #include "TypeTraits.h"
+#include "clang/AST/ExprConcepts.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
+#include <optional>
 
-namespace clang {
-namespace tidy {
-namespace matchers {
+namespace clang::tidy::matchers {
 
 AST_MATCHER(BinaryOperator, isRelationalOperator) {
   return Node.isRelationalOp();
@@ -23,7 +23,7 @@ AST_MATCHER(BinaryOperator, isRelationalOperator) {
 AST_MATCHER(BinaryOperator, isEqualityOperator) { return Node.isEqualityOp(); }
 
 AST_MATCHER(QualType, isExpensiveToCopy) {
-  llvm::Optional<bool> IsExpensive =
+  std::optional<bool> IsExpensive =
       utils::type_traits::isExpensiveToCopy(Node, Finder->getASTContext());
   return IsExpensive && *IsExpensive;
 }
@@ -49,26 +49,44 @@ AST_MATCHER_FUNCTION(ast_matchers::TypeMatcher, isPointerToConst) {
   return pointerType(pointee(qualType(isConstQualified())));
 }
 
+// Returns QualType matcher for target char type only.
+AST_MATCHER(QualType, isSimpleChar) {
+  const auto *ActualType = Node.getTypePtr();
+  return ActualType &&
+         (ActualType->isSpecificBuiltinType(BuiltinType::Char_S) ||
+          ActualType->isSpecificBuiltinType(BuiltinType::Char_U));
+}
+
+AST_MATCHER(Expr, hasUnevaluatedContext) {
+  if (isa<CXXNoexceptExpr>(Node) || isa<RequiresExpr>(Node))
+    return true;
+  if (const auto *UnaryExpr = dyn_cast<UnaryExprOrTypeTraitExpr>(&Node)) {
+    switch (UnaryExpr->getKind()) {
+    case UETT_SizeOf:
+    case UETT_AlignOf:
+      return true;
+    default:
+      return false;
+    }
+  }
+  if (const auto *TypeIDExpr = dyn_cast<CXXTypeidExpr>(&Node))
+    return !TypeIDExpr->isPotentiallyEvaluated();
+  return false;
+}
+
 // A matcher implementation that matches a list of type name regular expressions
 // against a NamedDecl. If a regular expression contains the substring "::"
 // matching will occur against the qualified name, otherwise only the typename.
-class MatchesAnyListedNameMatcher
+class MatchesAnyListedRegexNameMatcher
     : public ast_matchers::internal::MatcherInterface<NamedDecl> {
 public:
-  explicit MatchesAnyListedNameMatcher(llvm::ArrayRef<StringRef> NameList) {
+  explicit MatchesAnyListedRegexNameMatcher(
+      llvm::ArrayRef<StringRef> NameList) {
     std::transform(
         NameList.begin(), NameList.end(), std::back_inserter(NameMatchers),
         [](const llvm::StringRef Name) { return NameMatcher(Name); });
   }
-  bool matches(
-      const NamedDecl &Node, ast_matchers::internal::ASTMatchFinder *Finder,
-      ast_matchers::internal::BoundNodesTreeBuilder *Builder) const override {
-    return llvm::any_of(NameMatchers, [&Node](const NameMatcher &NM) {
-      return NM.match(Node);
-    });
-  }
 
-private:
   class NameMatcher {
     llvm::Regex Regex;
     enum class MatchMode {
@@ -95,20 +113,30 @@ private:
       case MatchMode::MatchFullyQualified:
         return Regex.match("::" + ND.getQualifiedNameAsString());
       default:
-        return Regex.match(ND.getName());
+        if (const IdentifierInfo *II = ND.getIdentifier())
+          return Regex.match(II->getName());
+        return false;
       }
     }
 
   private:
     MatchMode determineMatchMode(llvm::StringRef Regex) {
-      if (Regex.startswith(":") || Regex.startswith("^:")) {
+      if (Regex.starts_with(":") || Regex.starts_with("^:"))
         return MatchMode::MatchFullyQualified;
-      }
       return Regex.contains(":") ? MatchMode::MatchQualified
                                  : MatchMode::MatchUnqualified;
     }
   };
 
+  bool matches(
+      const NamedDecl &Node, ast_matchers::internal::ASTMatchFinder *Finder,
+      ast_matchers::internal::BoundNodesTreeBuilder *Builder) const override {
+    return llvm::any_of(NameMatchers, [&Node](const NameMatcher &NM) {
+      return NM.match(Node);
+    });
+  }
+
+private:
   std::vector<NameMatcher> NameMatchers;
 };
 
@@ -116,13 +144,58 @@ private:
 // expressions. If a regular expression contains starts ':' the NamedDecl's
 // qualified name will be used for matching, otherwise its name will be used.
 inline ::clang::ast_matchers::internal::Matcher<NamedDecl>
-matchesAnyListedName(llvm::ArrayRef<StringRef> NameList) {
-  return ::clang::ast_matchers::internal::makeMatcher(
-      new MatchesAnyListedNameMatcher(NameList));
+matchesAnyListedRegexName(llvm::ArrayRef<StringRef> NameList) {
+  return ::clang::ast_matchers::internal::Matcher(
+      new MatchesAnyListedRegexNameMatcher(NameList));
 }
 
-} // namespace matchers
-} // namespace tidy
-} // namespace clang
+// Predicate that verify if statement is not identical to one bound to ID node.
+struct NotIdenticalStatementsPredicate {
+  bool
+  operator()(const clang::ast_matchers::internal::BoundNodesMap &Nodes) const;
+
+  std::string ID;
+  ::clang::DynTypedNode Node;
+  ASTContext *Context;
+};
+
+// Checks if statement is identical (utils::areStatementsIdentical) to one bound
+// to ID node.
+AST_MATCHER_P(Stmt, isStatementIdenticalToBoundNode, std::string, ID) {
+  const NotIdenticalStatementsPredicate Predicate{
+      ID, ::clang::DynTypedNode::create(Node), &(Finder->getASTContext())};
+  return Builder->removeBindings(Predicate);
+}
+
+// A matcher implementation that matches a list of type name regular expressions
+// against a QualType.
+class MatchesAnyListedTypeNameMatcher
+    : public ast_matchers::internal::MatcherInterface<QualType> {
+public:
+  explicit MatchesAnyListedTypeNameMatcher(llvm::ArrayRef<StringRef> NameList,
+                                           bool CanonicalTypes);
+  ~MatchesAnyListedTypeNameMatcher() override;
+  bool matches(
+      const QualType &Node, ast_matchers::internal::ASTMatchFinder *Finder,
+      ast_matchers::internal::BoundNodesTreeBuilder *Builder) const override;
+
+private:
+  std::vector<llvm::Regex> NameMatchers;
+  bool CanonicalTypes;
+};
+
+// Returns a matcher that matches QualType against a list of provided regular.
+inline ::clang::ast_matchers::internal::Matcher<QualType>
+matchesAnyListedTypeName(llvm::ArrayRef<StringRef> NameList,
+                         bool CanonicalTypes) {
+  return ::clang::ast_matchers::internal::Matcher(
+      new MatchesAnyListedTypeNameMatcher(NameList, CanonicalTypes));
+}
+inline ::clang::ast_matchers::internal::Matcher<QualType>
+matchesAnyListedTypeName(llvm::ArrayRef<StringRef> NameList) {
+  return matchesAnyListedTypeName(NameList, true);
+}
+
+} // namespace clang::tidy::matchers
 
 #endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_UTILS_MATCHERS_H

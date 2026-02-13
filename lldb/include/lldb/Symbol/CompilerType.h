@@ -10,15 +10,19 @@
 #define LLDB_SYMBOL_COMPILERTYPE_H
 
 #include <functional>
+#include <optional>
 #include <string>
 #include <vector>
 
+#include "lldb/Utility/Scalar.h"
 #include "lldb/lldb-private.h"
 #include "llvm/ADT/APSInt.h"
+#include "llvm/Support/Casting.h"
 
 namespace lldb_private {
 
 class DataExtractor;
+class TypeSystem;
 
 /// Generic representation of a type in a programming language.
 ///
@@ -38,38 +42,82 @@ public:
   /// implementation.
   ///
   /// \see lldb_private::TypeSystemClang::GetType(clang::QualType)
-  CompilerType(TypeSystem *type_system, lldb::opaque_compiler_type_t type)
-      : m_type(type), m_type_system(type_system) {
-    assert(Verify() && "verification failed");
-  }
+  CompilerType(lldb::TypeSystemWP type_system,
+               lldb::opaque_compiler_type_t type);
+
+  /// This is a minimal wrapper of a TypeSystem shared pointer as
+  /// returned by CompilerType which conventien dyn_cast support.
+  class TypeSystemSPWrapper {
+    lldb::TypeSystemSP m_typesystem_sp;
+
+  public:
+    TypeSystemSPWrapper() = default;
+    TypeSystemSPWrapper(lldb::TypeSystemSP typesystem_sp)
+        : m_typesystem_sp(typesystem_sp) {}
+
+    template <class TypeSystemType> bool isa_and_nonnull() {
+      if (auto *ts = m_typesystem_sp.get())
+        return llvm::isa<TypeSystemType>(ts);
+      return false;
+    }
+
+    /// Return a shared_ptr<TypeSystemType> if dyn_cast succeeds.
+    template <class TypeSystemType>
+    std::shared_ptr<TypeSystemType> dyn_cast_or_null() {
+      if (isa_and_nonnull<TypeSystemType>())
+        return std::shared_ptr<TypeSystemType>(
+            m_typesystem_sp, llvm::cast<TypeSystemType>(m_typesystem_sp.get()));
+      return nullptr;
+    }
+
+    explicit operator bool() const {
+      return static_cast<bool>(m_typesystem_sp);
+    }
+    bool operator==(const TypeSystemSPWrapper &other) const;
+    bool operator!=(const TypeSystemSPWrapper &other) const {
+      return !(*this == other);
+    }
+
+    /// Only to be used in a one-off situations like
+    ///    if (typesystem && typesystem->method())
+    /// Do not store this pointer!
+    TypeSystem *operator->() const;
+
+    lldb::TypeSystemSP GetSharedPointer() const { return m_typesystem_sp; }
+  };
+
+  CompilerType(TypeSystemSPWrapper type_system,
+               lldb::opaque_compiler_type_t type);
 
   CompilerType(const CompilerType &rhs)
-      : m_type(rhs.m_type), m_type_system(rhs.m_type_system) {}
+      : m_type_system(rhs.m_type_system), m_type(rhs.m_type) {}
 
   CompilerType() = default;
 
   /// Operators.
   /// \{
   const CompilerType &operator=(const CompilerType &rhs) {
-    m_type = rhs.m_type;
     m_type_system = rhs.m_type_system;
+    m_type = rhs.m_type;
     return *this;
   }
 
   bool operator<(const CompilerType &rhs) const {
-    if (m_type_system == rhs.m_type_system)
+    auto lts = m_type_system.lock();
+    auto rts = rhs.m_type_system.lock();
+    if (lts.get() == rts.get())
       return m_type < rhs.m_type;
-    return m_type_system < rhs.m_type_system;
+    return lts.get() < rts.get();
   }
   /// \}
 
   /// Tests.
   /// \{
   explicit operator bool() const {
-    return m_type != nullptr && m_type_system != nullptr;
+    return m_type_system.lock() && m_type;
   }
 
-  bool IsValid() const { return m_type != nullptr && m_type_system != nullptr; }
+  bool IsValid() const { return (bool)*this; }
 
   bool IsArrayType(CompilerType *element_type = nullptr,
                    uint64_t *size = nullptr,
@@ -94,11 +142,9 @@ public:
 
   bool IsConst() const;
 
-  bool IsCStringType(uint32_t &length) const;
-
   bool IsDefined() const;
 
-  bool IsFloatingPointType(uint32_t &count, bool &is_complex) const;
+  bool IsFloatingPointType(bool &is_complex) const;
 
   bool IsFunctionType() const;
 
@@ -111,6 +157,8 @@ public:
   bool IsVariadicFunctionType() const;
 
   bool IsFunctionPointerType() const;
+
+  bool IsMemberFunctionPointerType() const;
 
   bool
   IsBlockPointerType(CompilerType *function_pointer_type_ptr = nullptr) const;
@@ -142,9 +190,65 @@ public:
 
   bool IsScalarType() const;
 
+  bool IsTemplateType() const;
+
   bool IsTypedefType() const;
 
   bool IsVoidType() const;
+
+  /// This is used when you don't care about the signedness of the integer.
+  bool IsInteger() const;
+
+  bool IsFloat() const;
+
+  /// This is used when you don't care about the signedness of the enum.
+  bool IsEnumerationType() const;
+
+  bool IsUnscopedEnumerationType() const;
+
+  bool IsIntegerOrUnscopedEnumerationType() const;
+
+  bool IsSigned() const;
+
+  bool IsNullPtrType() const;
+
+  bool IsBoolean() const;
+
+  bool IsEnumerationIntegerTypeSigned() const;
+
+  bool IsScalarOrUnscopedEnumerationType() const;
+
+  bool IsPromotableIntegerType() const;
+
+  bool IsPointerToVoid() const;
+
+  bool IsRecordType() const;
+
+  //// Checks whether `target_base` is a virtual base of `type` (direct or
+  /// indirect). If it is, stores the first virtual base type on the path from
+  /// `type` to `target_type`. Parameter "virtual_base" is where the first
+  /// virtual base type gets stored. Parameter "carry_virtual" is used to
+  /// denote that we're in a recursive check of virtual base classes and we
+  /// have already seen a virtual base class (so should only check direct
+  /// base classes).
+  /// Note: This may only be defined in TypeSystemClang.
+  bool IsVirtualBase(CompilerType target_base, CompilerType *virtual_base,
+                     bool carry_virtual = false) const;
+
+  /// This may only be defined in TypeSystemClang.
+  bool IsContextuallyConvertibleToBool() const;
+
+  bool IsBasicType() const;
+
+  std::string TypeDescription();
+
+  bool CompareTypes(CompilerType rhs) const;
+
+  const char *GetTypeTag();
+
+  /// Go through the base classes and count non-empty ones.
+  uint32_t GetNumberOfNonEmptyBaseClasses();
+
   /// \}
 
   /// Type Completion.
@@ -152,18 +256,36 @@ public:
   bool GetCompleteType() const;
   /// \}
 
+  bool IsForcefullyCompleted() const;
+
   /// AST related queries.
   /// \{
   size_t GetPointerByteSize() const;
   /// \}
 
+  unsigned GetPtrAuthKey() const;
+
+  unsigned GetPtrAuthDiscriminator() const;
+
+  bool GetPtrAuthAddressDiversity() const;
+
   /// Accessors.
   /// \{
-  TypeSystem *GetTypeSystem() const { return m_type_system; }
 
-  ConstString GetTypeName() const;
+  /// Returns a shared pointer to the type system. The
+  /// TypeSystem::TypeSystemSPWrapper can be compared for equality.
+  TypeSystemSPWrapper GetTypeSystem() const;
+
+  template <typename TypeSystemType>
+  std::shared_ptr<TypeSystemType> GetTypeSystem() const {
+    return GetTypeSystem().dyn_cast_or_null<TypeSystemType>();
+  }
+
+  ConstString GetTypeName(bool BaseOnly = false) const;
 
   ConstString GetDisplayTypeName() const;
+
+  ConstString GetMangledTypeName() const;
 
   uint32_t
   GetTypeInfo(CompilerType *pointee_or_element_compiler_type = nullptr) const;
@@ -174,7 +296,9 @@ public:
 
   lldb::TypeClass GetTypeClass() const;
 
-  void SetCompilerType(TypeSystem *type_system,
+  void SetCompilerType(lldb::TypeSystemWP type_system,
+                       lldb::opaque_compiler_type_t type);
+  void SetCompilerType(TypeSystemSPWrapper type_system,
                        lldb::opaque_compiler_type_t type);
 
   unsigned GetTypeQualifiers() const;
@@ -259,6 +383,12 @@ public:
 
   /// Create related types using the current type's AST
   CompilerType GetBasicTypeFromAST(lldb::BasicType basic_type) const;
+
+  /// Return a new CompilerType adds a ptrauth modifier from the given 32-bit
+  /// opaque payload to this type if this type is valid and the type system
+  /// supports ptrauth modifiers, else return an invalid type. Note that this
+  /// does not check if this type is a pointer.
+  CompilerType AddPtrAuthModifier(uint32_t payload) const;
   /// \}
 
   /// Exploring the type.
@@ -266,23 +396,21 @@ public:
   struct IntegralTemplateArgument;
 
   /// Return the size of the type in bytes.
-  llvm::Optional<uint64_t> GetByteSize(ExecutionContextScope *exe_scope) const;
+  llvm::Expected<uint64_t> GetByteSize(ExecutionContextScope *exe_scope) const;
   /// Return the size of the type in bits.
-  llvm::Optional<uint64_t> GetBitSize(ExecutionContextScope *exe_scope) const;
+  llvm::Expected<uint64_t> GetBitSize(ExecutionContextScope *exe_scope) const;
 
-  lldb::Encoding GetEncoding(uint64_t &count) const;
+  lldb::Encoding GetEncoding() const;
 
   lldb::Format GetFormat() const;
 
-  llvm::Optional<size_t>
-  GetTypeBitAlign(ExecutionContextScope *exe_scope) const;
+  std::optional<size_t> GetTypeBitAlign(ExecutionContextScope *exe_scope) const;
 
-  uint32_t GetNumChildren(bool omit_empty_base_classes,
-                          const ExecutionContext *exe_ctx) const;
+  llvm::Expected<uint32_t>
+  GetNumChildren(bool omit_empty_base_classes,
+                 const ExecutionContext *exe_ctx) const;
 
   lldb::BasicType GetBasicTypeEnumeration() const;
-
-  static lldb::BasicType GetBasicTypeEnumeration(ConstString name);
 
   /// If this type is an enumeration, iterate through all of its enumerators
   /// using a callback. If the callback returns true, keep iterating, else abort
@@ -308,13 +436,14 @@ public:
   CompilerType GetVirtualBaseClassAtIndex(size_t idx,
                                           uint32_t *bit_offset_ptr) const;
 
-  uint32_t GetIndexOfFieldWithName(const char *name,
-                                   CompilerType *field_compiler_type = nullptr,
-                                   uint64_t *bit_offset_ptr = nullptr,
-                                   uint32_t *bitfield_bit_size_ptr = nullptr,
-                                   bool *is_bitfield_ptr = nullptr) const;
+  CompilerDecl GetStaticFieldWithName(llvm::StringRef name) const;
 
-  CompilerType GetChildCompilerTypeAtIndex(
+  llvm::Expected<CompilerType>
+  GetDereferencedType(ExecutionContext *exe_ctx, std::string &deref_name,
+                      uint32_t &deref_byte_size, int32_t &deref_byte_offset,
+                      ValueObject *valobj, uint64_t &language_flags) const;
+
+  llvm::Expected<CompilerType> GetChildCompilerTypeAtIndex(
       ExecutionContext *exe_ctx, size_t idx, bool transparent_pointers,
       bool omit_empty_base_classes, bool ignore_array_bounds,
       std::string &child_name, uint32_t &child_byte_size,
@@ -325,18 +454,26 @@ public:
 
   /// Lookup a child given a name. This function will match base class names and
   /// member member names in "clang_type" only, not descendants.
-  uint32_t GetIndexOfChildWithName(const char *name,
-                                   bool omit_empty_base_classes) const;
+  llvm::Expected<uint32_t>
+  GetIndexOfChildWithName(llvm::StringRef name,
+                          bool omit_empty_base_classes) const;
 
   /// Lookup a child member given a name. This function will match member names
   /// only and will descend into "clang_type" children in search for the first
   /// member in this class, or any base class that matches "name".
+  ///
+  /// \param child_indexes returns an index path for the result.
+  /// \returns 0 if unsuccessful, otherwise the length of the index path.
+  ///
   /// TODO: Return all matches for a given name by returning a
-  /// vector<vector<uint32_t>>
-  /// so we catch all names that match a given child name, not just the first.
+  /// vector<vector<uint32_t>> so we catch all names that match a
+  /// given child name, not just the first.
   size_t
-  GetIndexOfChildMemberWithName(const char *name, bool omit_empty_base_classes,
+  GetIndexOfChildMemberWithName(llvm::StringRef name,
+                                bool omit_empty_base_classes,
                                 std::vector<uint32_t> &child_indexes) const;
+
+  CompilerType GetDirectNestedTypeWithName(llvm::StringRef name) const;
 
   /// Return the number of template arguments the type has.
   /// If expand_pack is true, then variadic argument packs are automatically
@@ -358,7 +495,7 @@ public:
   /// expanded to their supplied arguments. With expand_pack set to false, an
   /// arguement pack will count as 1 argument and it is invalid to call this
   /// method on the pack argument.
-  llvm::Optional<IntegralTemplateArgument>
+  std::optional<IntegralTemplateArgument>
   GetIntegralTemplateArgument(size_t idx, bool expand_pack = false) const;
 
   CompilerType GetTypeForFormatters() const;
@@ -376,20 +513,10 @@ public:
   LLVM_DUMP_METHOD void dump() const;
 #endif
 
-  void DumpValue(ExecutionContext *exe_ctx, Stream *s, lldb::Format format,
-                 const DataExtractor &data, lldb::offset_t data_offset,
-                 size_t data_byte_size, uint32_t bitfield_bit_size,
-                 uint32_t bitfield_bit_offset, bool show_types,
-                 bool show_summary, bool verbose, uint32_t depth);
-
   bool DumpTypeValue(Stream *s, lldb::Format format, const DataExtractor &data,
                      lldb::offset_t data_offset, size_t data_byte_size,
                      uint32_t bitfield_bit_size, uint32_t bitfield_bit_offset,
                      ExecutionContextScope *exe_scope);
-
-  void DumpSummary(ExecutionContext *exe_ctx, Stream *s,
-                   const DataExtractor &data, lldb::offset_t data_offset,
-                   size_t data_byte_size);
 
   /// Dump to stdout.
   void DumpTypeDescription(lldb::DescriptionLevel level =
@@ -407,8 +534,8 @@ public:
                         size_t data_byte_size, Scalar &value,
                         ExecutionContextScope *exe_scope) const;
   void Clear() {
+    m_type_system = {};
     m_type = nullptr;
-    m_type_system = nullptr;
   }
 
 private:
@@ -419,15 +546,15 @@ private:
   bool Verify() const;
 #endif
 
+  lldb::TypeSystemWP m_type_system;
   lldb::opaque_compiler_type_t m_type = nullptr;
-  TypeSystem *m_type_system = nullptr;
 };
 
 bool operator==(const CompilerType &lhs, const CompilerType &rhs);
 bool operator!=(const CompilerType &lhs, const CompilerType &rhs);
 
 struct CompilerType::IntegralTemplateArgument {
-  llvm::APSInt value;
+  Scalar value;
   CompilerType type;
 };
 

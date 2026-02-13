@@ -107,6 +107,7 @@
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Allocator.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/RecyclingAllocator.h"
 #include <algorithm>
 #include <cassert>
@@ -222,7 +223,7 @@ using IdxPair = std::pair<unsigned,unsigned>;
 template <typename T1, typename T2, unsigned N>
 class NodeBase {
 public:
-  enum { Capacity = N };
+  static constexpr unsigned Capacity = N;
 
   T1 first[N];
   T2 second[N];
@@ -411,9 +412,9 @@ void adjustSiblingSizes(NodeT *Node[], unsigned Nodes,
 /// @param Position Insert position.
 /// @param Grow     Reserve space for a new element at Position.
 /// @return         (node, offset) for Position.
-IdxPair distribute(unsigned Nodes, unsigned Elements, unsigned Capacity,
-                   const unsigned *CurSize, unsigned NewSize[],
-                   unsigned Position, bool Grow);
+LLVM_ABI IdxPair distribute(unsigned Nodes, unsigned Elements,
+                            unsigned Capacity, const unsigned *CurSize,
+                            unsigned NewSize[], unsigned Position, bool Grow);
 
 //===----------------------------------------------------------------------===//
 //---                   IntervalMapImpl::NodeSizer                         ---//
@@ -867,17 +868,17 @@ public:
   /// @param Root The new root node.
   /// @param Size Number of entries in the new root.
   /// @param Offsets Offsets into the root and first branch nodes.
-  void replaceRoot(void *Root, unsigned Size, IdxPair Offsets);
+  LLVM_ABI void replaceRoot(void *Root, unsigned Size, IdxPair Offsets);
 
   /// getLeftSibling - Get the left sibling node at Level, or a null NodeRef.
   /// @param Level Get the sibling to node(Level).
   /// @return Left sibling, or NodeRef().
-  NodeRef getLeftSibling(unsigned Level) const;
+  LLVM_ABI NodeRef getLeftSibling(unsigned Level) const;
 
   /// moveLeft - Move path to the left sibling at Level. Leave nodes below Level
   /// unaltered.
   /// @param Level Move node(Level).
-  void moveLeft(unsigned Level);
+  LLVM_ABI void moveLeft(unsigned Level);
 
   /// fillLeft - Grow path to Height by taking leftmost branches.
   /// @param Height The target height.
@@ -889,12 +890,12 @@ public:
   /// getLeftSibling - Get the left sibling node at Level, or a null NodeRef.
   /// @param Level Get the sibling to node(Level).
   /// @return Left sibling, or NodeRef().
-  NodeRef getRightSibling(unsigned Level) const;
+  LLVM_ABI NodeRef getRightSibling(unsigned Level) const;
 
   /// moveRight - Move path to the left sibling at Level. Leave nodes below
   /// Level unaltered.
   /// @param Level Move node(Level).
-  void moveRight(unsigned Level);
+  LLVM_ABI void moveRight(unsigned Level);
 
   /// atBegin - Return true if path is at begin().
   bool atBegin() const {
@@ -975,13 +976,13 @@ private:
   // 0: Leaves in root.
   // 1: Root points to leaf.
   // 2: root->branch->leaf ...
-  unsigned height;
+  unsigned height = 0;
 
   // Number of entries in the root node.
-  unsigned rootSize;
+  unsigned rootSize = 0;
 
   // Allocator used for creating external nodes.
-  Allocator &allocator;
+  Allocator *allocator = nullptr;
 
   const RootLeaf &rootLeaf() const {
     assert(!branched() && "Cannot acces leaf data in branched root");
@@ -1007,12 +1008,12 @@ private:
   KeyT &rootBranchStart()      { return rootBranchData().start; }
 
   template <typename NodeT> NodeT *newNode() {
-    return new(allocator.template Allocate<NodeT>()) NodeT();
+    return new (allocator->template Allocate<NodeT>()) NodeT();
   }
 
   template <typename NodeT> void deleteNode(NodeT *P) {
     P->~NodeT();
-    allocator.Deallocate(P);
+    allocator->Deallocate(P);
   }
 
   IdxPair branchRoot(unsigned Position);
@@ -1038,20 +1039,59 @@ private:
   void deleteNode(IntervalMapImpl::NodeRef Node, unsigned Level);
 
 public:
-  explicit IntervalMap(Allocator &a) : height(0), rootSize(0), allocator(a) {
-    new(&rootLeaf()) RootLeaf();
+  explicit IntervalMap(Allocator &a) : allocator(&a) {
+    new (&rootLeaf()) RootLeaf();
   }
 
-  // The default copy/move constructors and assignment operators would perform
-  // a shallow copy, leading to an incorrect internal state. To prevent
-  // accidental use, explicitly delete these operators.
-  // If necessary, implement them to perform a deep copy.
-  IntervalMap(const IntervalMap &Other) = delete;
-  IntervalMap(IntervalMap &&Other) = delete;
-  // Note: these are already implicitly deleted, because RootLeaf (union
-  // member) has a non-trivial assignment operator (because of std::pair).
-  IntervalMap &operator=(const IntervalMap &Other) = delete;
-  IntervalMap &operator=(IntervalMap &&Other) = delete;
+  ///@{
+  /// NOTE: The moved-from or copied-from object's allocator needs to have a
+  /// lifetime equal to or exceeding the moved-to or copied-to object to avoid
+  /// undefined behaviour.
+  IntervalMap(IntervalMap const &RHS) : IntervalMap(*RHS.allocator) {
+    // Future-proofing assertion: this function assumes the IntervalMap
+    // constructor doesn't add any nodes.
+    assert(empty() && "Expected emptry tree");
+    *this = RHS;
+  }
+  IntervalMap &operator=(IntervalMap const &RHS) {
+    clear();
+    allocator = RHS.allocator;
+    for (auto It = RHS.begin(), End = RHS.end(); It != End; ++It)
+      insert(It.start(), It.stop(), It.value());
+    return *this;
+  }
+
+  IntervalMap(IntervalMap &&RHS) : IntervalMap(*RHS.allocator) {
+    // Future-proofing assertion: this function assumes the IntervalMap
+    // constructor doesn't add any nodes.
+    assert(empty() && "Expected emptry tree");
+    *this = std::move(RHS);
+  }
+  IntervalMap &operator=(IntervalMap &&RHS) {
+    // Calling clear deallocates memory and switches to rootLeaf.
+    clear();
+    // Destroy the new rootLeaf.
+    rootLeaf().~RootLeaf();
+
+    height = RHS.height;
+    rootSize = RHS.rootSize;
+    allocator = RHS.allocator;
+
+    // rootLeaf and rootBranch are both uninitialized. Move RHS data into
+    // appropriate field.
+    if (RHS.branched()) {
+      rootBranch() = std::move(RHS.rootBranch());
+      // Prevent RHS deallocating memory LHS now owns by replacing RHS
+      // rootBranch with a new rootLeaf.
+      RHS.rootBranch().~RootBranch();
+      RHS.height = 0;
+      new (&RHS.rootLeaf()) RootLeaf();
+    } else {
+      rootLeaf() = std::move(RHS.rootLeaf());
+    }
+    return *this;
+  }
+  ///@}
 
   ~IntervalMap() {
     clear();
@@ -1182,7 +1222,7 @@ branchRoot(unsigned Position) {
   unsigned size[Nodes];
   IdxPair NewOffset(0, Position);
 
-  // Is is very common for the root node to be smaller than external nodes.
+  // It is very common for the root node to be smaller than external nodes.
   if (Nodes == 1)
     size[0] = rootSize;
   else
@@ -1223,7 +1263,7 @@ splitRoot(unsigned Position) {
   unsigned Size[Nodes];
   IdxPair NewOffset(0, Position);
 
-  // Is is very common for the root node to be smaller than external nodes.
+  // It is very common for the root node to be smaller than external nodes.
   if (Nodes == 1)
     Size[0] = rootSize;
   else
@@ -1775,7 +1815,7 @@ iterator::insertNode(unsigned Level, IntervalMapImpl::NodeRef Node, KeyT Stop) {
 
   // Insert into the branch node at Level-1.
   if (P.size(Level) == Branch::Capacity) {
-    // Branch node is full, handle handle the overflow.
+    // Branch node is full, handle the overflow.
     assert(!SplitRoot && "Cannot overflow after splitting the root");
     SplitRoot = overflow<Branch>(Level);
     Level += SplitRoot;
@@ -2092,9 +2132,10 @@ class IntervalMapOverlaps {
       posB.advanceTo(posA.start());
       if (!posB.valid() || !Traits::stopLess(posA.stop(), posB.start()))
         return;
-    } else
+    } else {
       // Already overlapping.
       return;
+    }
 
     while (true) {
       // Make a.end > b.start.

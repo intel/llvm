@@ -40,17 +40,17 @@ for.body:                                         ; preds = %for.body.preheader,
   %indvars.iv = phi i64 [ %indvars.iv.next, %for.body ], [ 0, %for.body.preheader ]
   %a.addr.08 = phi i32 [ %0, %for.body ], [ %a, %for.body.preheader ]
 
-  %arrayidx = getelementptr inbounds [0 x i32], [0 x i32]* @out, i64 0, i64 %indvars.iv, !dbg !10
-  store i32 %a.addr.08, i32* %arrayidx, align 4, !dbg !12, !tbaa !13
+  %arrayidx = getelementptr inbounds [0 x i32], ptr @out, i64 0, i64 %indvars.iv, !dbg !10
+  store i32 %a.addr.08, ptr %arrayidx, align 4, !dbg !12, !tbaa !13
   %idxprom1 = sext i32 %a.addr.08 to i64, !dbg !17
-  %arrayidx2 = getelementptr inbounds [0 x i32], [0 x i32]* @map, i64 0, i64 %idxprom1, !dbg !17
-  %0 = load i32, i32* %arrayidx2, align 4, !dbg !17, !tbaa !13
+  %arrayidx2 = getelementptr inbounds [0 x i32], ptr @map, i64 0, i64 %idxprom1, !dbg !17
+  %0 = load i32, ptr %arrayidx2, align 4, !dbg !17, !tbaa !13
   %indvars.iv.next = add nuw nsw i64 %indvars.iv, 1, !dbg !9
   %exitcond = icmp eq i64 %indvars.iv.next, %wide.trip.count, !dbg !9
   br i1 %exitcond, label %for.cond.cleanup, label %for.body, !dbg !9, !llvm.loop !18
 }
 
-attributes #0 = { norecurse nounwind ssp uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="core2" "target-features"="+cx16,+fxsr,+mmx,+sse,+sse2,+sse3,+ssse3,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { norecurse nounwind ssp uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="core2" "target-features"="+cx16,+fxsr,+mmx,+sse,+sse2,+sse3,+ssse3,+x87" "use-soft-float"="false" }
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!3, !4}

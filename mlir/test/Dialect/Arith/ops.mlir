@@ -25,27 +25,27 @@ func.func @test_addi_scalable_vector(%arg0 : vector<[8]xi64>, %arg1 : vector<[8]
   return %0 : vector<[8]xi64>
 }
 
-// CHECK-LABEL: test_addui_carry
-func.func @test_addui_carry(%arg0 : i64, %arg1 : i64) -> i64 {
-  %sum, %carry = arith.addui_carry %arg0, %arg1 : i64, i1
+// CHECK-LABEL: test_addui_extended
+func.func @test_addui_extended(%arg0 : i64, %arg1 : i64) -> i64 {
+  %sum, %overflow = arith.addui_extended %arg0, %arg1 : i64, i1
   return %sum : i64
 }
 
-// CHECK-LABEL: test_addui_carry_tensor
-func.func @test_addui_carry_tensor(%arg0 : tensor<8x8xi64>, %arg1 : tensor<8x8xi64>) -> tensor<8x8xi64> {
-  %sum, %carry = arith.addui_carry %arg0, %arg1 : tensor<8x8xi64>, tensor<8x8xi1>
+// CHECK-LABEL: test_addui_extended_tensor
+func.func @test_addui_extended_tensor(%arg0 : tensor<8x8xi64>, %arg1 : tensor<8x8xi64>) -> tensor<8x8xi64> {
+  %sum, %overflow = arith.addui_extended %arg0, %arg1 : tensor<8x8xi64>, tensor<8x8xi1>
   return %sum : tensor<8x8xi64>
 }
 
-// CHECK-LABEL: test_addui_carry_vector
-func.func @test_addui_carry_vector(%arg0 : vector<8xi64>, %arg1 : vector<8xi64>) -> vector<8xi64> {
-  %0:2 = arith.addui_carry %arg0, %arg1 : vector<8xi64>, vector<8xi1>
+// CHECK-LABEL: test_addui_extended_vector
+func.func @test_addui_extended_vector(%arg0 : vector<8xi64>, %arg1 : vector<8xi64>) -> vector<8xi64> {
+  %0:2 = arith.addui_extended %arg0, %arg1 : vector<8xi64>, vector<8xi1>
   return %0#0 : vector<8xi64>
 }
 
-// CHECK-LABEL: test_addui_carry_scalable_vector
-func.func @test_addui_carry_scalable_vector(%arg0 : vector<[8]xi64>, %arg1 : vector<[8]xi64>) -> vector<[8]xi64> {
-  %0:2 = arith.addui_carry %arg0, %arg1 : vector<[8]xi64>, vector<[8]xi1>
+// CHECK-LABEL: test_addui_extended_scalable_vector
+func.func @test_addui_extended_scalable_vector(%arg0 : vector<[8]xi64>, %arg1 : vector<[8]xi64>) -> vector<[8]xi64> {
+  %0:2 = arith.addui_extended %arg0, %arg1 : vector<[8]xi64>, vector<[8]xi1>
   return %0#0 : vector<[8]xi64>
 }
 
@@ -97,9 +97,63 @@ func.func @test_muli_scalable_vector(%arg0 : vector<[8]xi64>, %arg1 : vector<[8]
   return %0 : vector<[8]xi64>
 }
 
+// CHECK-LABEL: test_mulsi_extended
+func.func @test_mulsi_extended(%arg0 : i32, %arg1 : i32) -> i32 {
+  %low, %high = arith.mulsi_extended %arg0, %arg1 : i32
+  return %high : i32
+}
+
+// CHECK-LABEL: test_mulsi_extended_tensor
+func.func @test_mulsi_extended_tensor(%arg0 : tensor<8x8xi64>, %arg1 : tensor<8x8xi64>) -> tensor<8x8xi64> {
+  %low, %high = arith.mulsi_extended %arg0, %arg1 : tensor<8x8xi64>
+  return %high : tensor<8x8xi64>
+}
+
+// CHECK-LABEL: test_mulsi_extended_vector
+func.func @test_mulsi_extended_vector(%arg0 : vector<8xi64>, %arg1 : vector<8xi64>) -> vector<8xi64> {
+  %0:2 = arith.mulsi_extended %arg0, %arg1 : vector<8xi64>
+  return %0#0 : vector<8xi64>
+}
+
+// CHECK-LABEL: test_mulsi_extended_scalable_vector
+func.func @test_mulsi_extended_scalable_vector(%arg0 : vector<[8]xi64>, %arg1 : vector<[8]xi64>) -> vector<[8]xi64> {
+  %0:2 = arith.mulsi_extended %arg0, %arg1 : vector<[8]xi64>
+  return %0#1 : vector<[8]xi64>
+}
+
+// CHECK-LABEL: test_mului_extended
+func.func @test_mului_extended(%arg0 : i32, %arg1 : i32) -> i32 {
+  %low, %high = arith.mului_extended %arg0, %arg1 : i32
+  return %high : i32
+}
+
+// CHECK-LABEL: test_mului_extended_tensor
+func.func @test_mului_extended_tensor(%arg0 : tensor<8x8xi64>, %arg1 : tensor<8x8xi64>) -> tensor<8x8xi64> {
+  %low, %high = arith.mului_extended %arg0, %arg1 : tensor<8x8xi64>
+  return %high : tensor<8x8xi64>
+}
+
+// CHECK-LABEL: test_mului_extended_vector
+func.func @test_mului_extended_vector(%arg0 : vector<8xi64>, %arg1 : vector<8xi64>) -> vector<8xi64> {
+  %0:2 = arith.mului_extended %arg0, %arg1 : vector<8xi64>
+  return %0#0 : vector<8xi64>
+}
+
+// CHECK-LABEL: test_mului_extended_scalable_vector
+func.func @test_mului_extended_scalable_vector(%arg0 : vector<[8]xi64>, %arg1 : vector<[8]xi64>) -> vector<[8]xi64> {
+  %0:2 = arith.mului_extended %arg0, %arg1 : vector<[8]xi64>
+  return %0#1 : vector<[8]xi64>
+}
+
 // CHECK-LABEL: test_divui
 func.func @test_divui(%arg0 : i64, %arg1 : i64) -> i64 {
   %0 = arith.divui %arg0, %arg1 : i64
+  return %0 : i64
+}
+
+// CHECK-LABEL: test_divui_exact
+func.func @test_divui_exact(%arg0 : i64, %arg1 : i64) -> i64 {
+  %0 = arith.divui %arg0, %arg1 exact : i64
   return %0 : i64
 }
 
@@ -124,6 +178,12 @@ func.func @test_divui_scalable_vector(%arg0 : vector<[8]xi64>, %arg1 : vector<[8
 // CHECK-LABEL: test_divsi
 func.func @test_divsi(%arg0 : i64, %arg1 : i64) -> i64 {
   %0 = arith.divsi %arg0, %arg1 : i64
+  return %0 : i64
+}
+
+// CHECK-LABEL: test_divsi_exact
+func.func @test_divsi_exact(%arg0 : i64, %arg1 : i64) -> i64 {
+  %0 = arith.divsi %arg0, %arg1 exact : i64
   return %0 : i64
 }
 
@@ -343,6 +403,12 @@ func.func @test_shrui(%arg0 : i64, %arg1 : i64) -> i64 {
   return %0 : i64
 }
 
+// CHECK-LABEL: test_shrui_exact
+func.func @test_shrui_exact(%arg0 : i64, %arg1 : i64) -> i64 {
+  %0 = arith.shrui %arg0, %arg1 exact : i64
+  return %0 : i64
+}
+
 // CHECK-LABEL: test_shrui_tensor
 func.func @test_shrui_tensor(%arg0 : tensor<8x8xi64>, %arg1 : tensor<8x8xi64>) -> tensor<8x8xi64> {
   %0 = arith.shrui %arg0, %arg1 : tensor<8x8xi64>
@@ -364,6 +430,12 @@ func.func @test_shrui_scalable_vector(%arg0 : vector<[8]xi64>, %arg1 : vector<[8
 // CHECK-LABEL: test_shrsi
 func.func @test_shrsi(%arg0 : i64, %arg1 : i64) -> i64 {
   %0 = arith.shrsi %arg0, %arg1 : i64
+  return %0 : i64
+}
+
+// CHECK-LABEL: test_shrsi_exact
+func.func @test_shrsi_exact(%arg0 : i64, %arg1 : i64) -> i64 {
+  %0 = arith.shrsi %arg0, %arg1 exact : i64
   return %0 : i64
 }
 
@@ -589,6 +661,12 @@ func.func @test_extf_tensor(%arg0 : tensor<8x8xf32>) -> tensor<8x8xf64> {
   return %0 : tensor<8x8xf64>
 }
 
+// CHECK-LABEL: test_extf_tensor_encoding
+func.func @test_extf_tensor_encoding(%arg0 : tensor<8x8xf32, "foo">) -> tensor<8x8xf64, "foo"> {
+  %0 = arith.extf %arg0 : tensor<8x8xf32, "foo"> to tensor<8x8xf64, "foo">
+  return %0 : tensor<8x8xf64, "foo">
+}
+
 // CHECK-LABEL: test_extf_vector
 func.func @test_extf_vector(%arg0 : vector<8xf32>) -> vector<8xf64> {
   %0 = arith.extf %arg0 : vector<8xf32> to vector<8xf64>
@@ -647,6 +725,16 @@ func.func @test_truncf_vector(%arg0 : vector<8xf32>) -> vector<8xbf16> {
 func.func @test_truncf_scalable_vector(%arg0 : vector<[8]xf32>) -> vector<[8]xbf16> {
   %0 = arith.truncf %arg0 : vector<[8]xf32> to vector<[8]xbf16>
   return %0 : vector<[8]xbf16>
+}
+
+// CHECK-LABEL: test_truncf_rounding_mode
+func.func @test_truncf_rounding_mode(%arg0 : f64) -> (f32, f32, f32, f32, f32) {
+  %0 = arith.truncf %arg0 to_nearest_even : f64 to f32
+  %1 = arith.truncf %arg0 downward : f64 to f32
+  %2 = arith.truncf %arg0 upward : f64 to f32
+  %3 = arith.truncf %arg0 toward_zero : f64 to f32
+  %4 = arith.truncf %arg0 to_nearest_away : f64 to f32
+  return %0, %1, %2, %3, %4 : f32, f32, f32, f32, f32
 }
 
 // CHECK-LABEL: test_uitofp
@@ -902,6 +990,12 @@ func.func @test_cmpi_tensor(%arg0 : tensor<8x8xi64>, %arg1 : tensor<8x8xi64>) ->
   return %0 : tensor<8x8xi1>
 }
 
+// CHECK-LABEL: test_cmpi_tensor_encoding
+func.func @test_cmpi_tensor_encoding(%arg0 : tensor<8x8xi64, "foo">, %arg1 : tensor<8x8xi64, "foo">) -> tensor<8x8xi1, "foo"> {
+  %0 = arith.cmpi slt, %arg0, %arg1 : tensor<8x8xi64, "foo">
+  return %0 : tensor<8x8xi1, "foo">
+}
+
 // CHECK-LABEL: test_cmpi_vector
 func.func @test_cmpi_vector(%arg0 : vector<8xi64>, %arg1 : vector<8xi64>) -> vector<8xi1> {
   %0 = arith.cmpi ult, %arg0, %arg1 : vector<8xi64>
@@ -1011,9 +1105,12 @@ func.func @maximum(%v1: vector<4xf32>, %v2: vector<4xf32>,
                %sv1: vector<[4]xf32>, %sv2: vector<[4]xf32>,
                %f1: f32, %f2: f32,
                %i1: i32, %i2: i32) {
-  %max_vector = arith.maxf %v1, %v2 : vector<4xf32>
-  %max_scalable_vector = arith.maxf %sv1, %sv2 : vector<[4]xf32>
-  %max_float = arith.maxf %f1, %f2 : f32
+  %maximum_vector = arith.maximumf %v1, %v2 : vector<4xf32>
+  %maximum_scalable_vector = arith.maximumf %sv1, %sv2 : vector<[4]xf32>
+  %maximum_float = arith.maximumf %f1, %f2 : f32
+  %maxnum_vector = arith.maxnumf %v1, %v2 : vector<4xf32>
+  %maxnum_scalable_vector = arith.maxnumf %sv1, %sv2 : vector<[4]xf32>
+  %maxnum_float = arith.maxnumf %f1, %f2 : f32
   %max_signed = arith.maxsi %i1, %i2 : i32
   %max_unsigned = arith.maxui %i1, %i2 : i32
   return
@@ -1024,10 +1121,69 @@ func.func @minimum(%v1: vector<4xf32>, %v2: vector<4xf32>,
                %sv1: vector<[4]xf32>, %sv2: vector<[4]xf32>,
                %f1: f32, %f2: f32,
                %i1: i32, %i2: i32) {
-  %min_vector = arith.minf %v1, %v2 : vector<4xf32>
-  %min_scalable_vector = arith.minf %sv1, %sv2 : vector<[4]xf32>
-  %min_float = arith.minf %f1, %f2 : f32
+  %minimum_vector = arith.minimumf %v1, %v2 : vector<4xf32>
+  %minimum_scalable_vector = arith.minimumf %sv1, %sv2 : vector<[4]xf32>
+  %minimum_float = arith.minimumf %f1, %f2 : f32
+  %minnum_vector = arith.minnumf %v1, %v2 : vector<4xf32>
+  %minnum_scalable_vector = arith.minnumf %sv1, %sv2 : vector<[4]xf32>
+  %minnum_float = arith.minnumf %f1, %f2 : f32
   %min_signed = arith.minsi %i1, %i2 : i32
   %min_unsigned = arith.minui %i1, %i2 : i32
+  return
+}
+
+// CHECK-LABEL: @fastmath
+func.func @fastmath(%arg0: f32, %arg1: f32, %arg2: i32) {
+// CHECK: {{.*}} = arith.addf %arg0, %arg1 fastmath<fast> : f32
+// CHECK: {{.*}} = arith.subf %arg0, %arg1 fastmath<fast> : f32
+// CHECK: {{.*}} = arith.mulf %arg0, %arg1 fastmath<fast> : f32
+// CHECK: {{.*}} = arith.divf %arg0, %arg1 fastmath<fast> : f32
+// CHECK: {{.*}} = arith.remf %arg0, %arg1 fastmath<fast> : f32
+// CHECK: {{.*}} = arith.negf %arg0 fastmath<fast> : f32
+  %0 = arith.addf %arg0, %arg1 fastmath<fast> : f32
+  %1 = arith.subf %arg0, %arg1 fastmath<fast> : f32
+  %2 = arith.mulf %arg0, %arg1 fastmath<fast> : f32
+  %3 = arith.divf %arg0, %arg1 fastmath<fast> : f32
+  %4 = arith.remf %arg0, %arg1 fastmath<fast> : f32
+  %5 = arith.negf %arg0 fastmath<fast> : f32
+// CHECK: {{.*}} = arith.addf %arg0, %arg1 : f32
+  %6 = arith.addf %arg0, %arg1 fastmath<none> : f32
+// CHECK: {{.*}} = arith.addf %arg0, %arg1 fastmath<nnan,ninf> : f32
+  %7 = arith.addf %arg0, %arg1 fastmath<nnan,ninf> : f32
+// CHECK: {{.*}} = arith.mulf %arg0, %arg1 fastmath<fast> : f32
+  %8 = arith.mulf %arg0, %arg1 fastmath<reassoc,nnan,ninf,nsz,arcp,contract,afn> : f32
+// CHECK: {{.*}} = arith.cmpf oeq, %arg0, %arg1 fastmath<fast> : f32
+  %9 = arith.cmpf oeq, %arg0, %arg1 fastmath<fast> : f32
+
+  return
+}
+
+// CHECK-LABEL: @select_tensor
+func.func @select_tensor(%arg0 : tensor<8xi1>, %arg1 : tensor<8xi32>, %arg2 : tensor<8xi32>) -> tensor<8xi32> {
+  // CHECK: = arith.select %{{.*}}, %{{.*}}, %{{.*}} : tensor<8xi1>, tensor<8xi32>
+  %0 = arith.select %arg0, %arg1, %arg2 : tensor<8xi1>, tensor<8xi32>
+  return %0 : tensor<8xi32>
+}
+
+// CHECK-LABEL: @select_tensor_encoding
+func.func @select_tensor_encoding(
+  %arg0 : tensor<8xi1, "foo">, %arg1 : tensor<8xi32, "foo">, %arg2 : tensor<8xi32, "foo">) -> tensor<8xi32, "foo"> {
+  // CHECK: = arith.select %{{.*}}, %{{.*}}, %{{.*}} : tensor<8xi1, "foo">, tensor<8xi32, "foo">
+  %0 = arith.select %arg0, %arg1, %arg2 : tensor<8xi1, "foo">, tensor<8xi32, "foo">
+  return %0 : tensor<8xi32, "foo">
+}
+
+// CHECK-LABEL: @intflags_func
+func.func @intflags_func(%arg0: i64, %arg1: i64) {
+  // CHECK: %{{.*}} = arith.addi %{{.*}}, %{{.*}} overflow<nsw> : i64
+  %0 = arith.addi %arg0, %arg1 overflow<nsw> : i64
+  // CHECK: %{{.*}} = arith.subi %{{.*}}, %{{.*}} overflow<nuw> : i64
+  %1 = arith.subi %arg0, %arg1 overflow<nuw> : i64
+  // CHECK: %{{.*}} = arith.muli %{{.*}}, %{{.*}} overflow<nsw, nuw> : i64
+  %2 = arith.muli %arg0, %arg1 overflow<nsw, nuw> : i64
+  // CHECK: %{{.*}} = arith.shli %{{.*}}, %{{.*}} overflow<nsw, nuw> : i64
+  %3 = arith.shli %arg0, %arg1 overflow<nsw, nuw> : i64
+  // CHECK: %{{.*}} = arith.trunci %{{.*}} overflow<nsw, nuw> : i64 to i32
+  %4 = arith.trunci %arg0 overflow<nsw, nuw> : i64 to i32
   return
 }

@@ -11,10 +11,20 @@
 
 #include "Plugins/Process/Utility/ARMDefines.h"
 #include "lldb/Core/EmulateInstruction.h"
-#include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/Status.h"
+#include <optional>
 
 namespace lldb_private {
+
+class ARMSingleStepBreakpointLocationsPredictor
+    : public SingleStepBreakpointLocationsPredictor {
+public:
+  ARMSingleStepBreakpointLocationsPredictor(
+      std::unique_ptr<EmulateInstruction> emulator_up)
+      : SingleStepBreakpointLocationsPredictor{std::move(emulator_up)} {}
+
+  llvm::Expected<unsigned> GetBreakpointSize(lldb::addr_t bp_addr) override;
+};
 
 // ITSession - Keep track of the IT Block progression.
 class ITSession {
@@ -132,11 +142,11 @@ public:
 
   InstructionCondition GetInstructionCondition() override;
 
-  bool TestEmulation(Stream *out_stream, ArchSpec &arch,
+  bool TestEmulation(Stream &out_stream, ArchSpec &arch,
                      OptionValueDictionary *test_data) override;
 
-  llvm::Optional<RegisterInfo> GetRegisterInfo(lldb::RegisterKind reg_kind,
-                                               uint32_t reg_num) override;
+  std::optional<RegisterInfo> GetRegisterInfo(lldb::RegisterKind reg_kind,
+                                              uint32_t reg_num) override;
 
   bool CreateFunctionEntryUnwind(UnwindPlan &unwind_plan) override;
 
@@ -769,6 +779,14 @@ protected:
 
   // B6.2.13 SUBS PC, LR and related instructions
   bool EmulateSUBSPcLrEtc(const uint32_t opcode, const ARMEncoding encoding);
+
+  BreakpointLocationsPredictorCreator
+  GetSingleStepBreakpointLocationsPredictorCreator() override {
+    return [](std::unique_ptr<EmulateInstruction> emulator_up) {
+      return std::make_unique<ARMSingleStepBreakpointLocationsPredictor>(
+          std::move(emulator_up));
+    };
+  }
 
   uint32_t m_arm_isa;
   Mode m_opcode_mode;

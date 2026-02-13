@@ -1,10 +1,10 @@
-# RUN: llvm-mc %s -triple=riscv32 -riscv-no-aliases -show-encoding \
+# RUN: llvm-mc %s -triple=riscv32 -M no-aliases -show-encoding \
 # RUN:     | FileCheck -check-prefixes=CHECK-INST,CHECK-ENC %s
 # RUN: llvm-mc -filetype=obj -triple riscv32 < %s \
 # RUN:     | llvm-objdump -d - \
 # RUN:     | FileCheck -check-prefix=CHECK-INST-ALIAS %s
 #
-# RUN: llvm-mc %s -triple=riscv64 -riscv-no-aliases -show-encoding \
+# RUN: llvm-mc %s -triple=riscv64 -M no-aliases -show-encoding \
 # RUN:     | FileCheck -check-prefixes=CHECK-INST,CHECK-ENC %s
 # RUN: llvm-mc -filetype=obj -triple riscv64 < %s \
 # RUN:     | llvm-objdump -d - \
@@ -447,3 +447,206 @@ csrrs t2, 0x60E, zero
 csrrs t1, hstateen3, zero
 # uimm12
 csrrs t2, 0x60F, zero
+
+#########################################
+# Advanced Interrupt Architecture (Smaia and Ssaia)
+#########################################
+
+# hvien
+# name
+# CHECK-INST: csrrs t1, hvien, zero
+# CHECK-ENC: encoding: [0x73,0x23,0x80,0x60]
+# CHECK-INST-ALIAS: csrr t1, hvien
+# uimm12
+# CHECK-INST: csrrs t2, hvien, zero
+# CHECK-ENC: encoding: [0xf3,0x23,0x80,0x60]
+# CHECK-INST-ALIAS: csrr t2, hvien
+# name
+csrrs t1, hvien, zero
+# uimm12
+csrrs t2, 0x608, zero
+
+# hvictl
+# name
+# CHECK-INST: csrrs t1, hvictl, zero
+# CHECK-ENC: encoding: [0x73,0x23,0x90,0x60]
+# CHECK-INST-ALIAS: csrr t1, hvictl
+# uimm12
+# CHECK-INST: csrrs t2, hvictl, zero
+# CHECK-ENC: encoding: [0xf3,0x23,0x90,0x60]
+# CHECK-INST-ALIAS: csrr t2, hvictl
+# name
+csrrs t1, hvictl, zero
+# uimm12
+csrrs t2, 0x609, zero
+
+# hviprio1
+# name
+# CHECK-INST: csrrs t1, hviprio1, zero
+# CHECK-ENC: encoding: [0x73,0x23,0x60,0x64]
+# CHECK-INST-ALIAS: csrr t1, hviprio1
+# uimm12
+# CHECK-INST: csrrs t2, hviprio1, zero
+# CHECK-ENC: encoding: [0xf3,0x23,0x60,0x64]
+# CHECK-INST-ALIAS: csrr t2, hviprio1
+# name
+csrrs t1, hviprio1, zero
+# uimm12
+csrrs t2, 0x646, zero
+
+# hviprio2
+# name
+# CHECK-INST: csrrs t1, hviprio2, zero
+# CHECK-ENC: encoding: [0x73,0x23,0x70,0x64]
+# CHECK-INST-ALIAS: csrr t1, hviprio2
+# uimm12
+# CHECK-INST: csrrs t2, hviprio2, zero
+# CHECK-ENC: encoding: [0xf3,0x23,0x70,0x64]
+# CHECK-INST-ALIAS: csrr t2, hviprio2
+# name
+csrrs t1, hviprio2, zero
+# uimm12
+csrrs t2, 0x647, zero
+
+# vsiselect
+# name
+# CHECK-INST: csrrs t1, vsiselect, zero
+# CHECK-ENC: encoding: [0x73,0x23,0x00,0x25]
+# CHECK-INST-ALIAS: csrr t1, vsiselect
+# uimm12
+# CHECK-INST: csrrs t2, vsiselect, zero
+# CHECK-ENC: encoding: [0xf3,0x23,0x00,0x25]
+# CHECK-INST-ALIAS: csrr t2, vsiselect
+# name
+csrrs t1, vsiselect, zero
+# uimm12
+csrrs t2, 0x250, zero
+
+# vsireg
+# name
+# CHECK-INST: csrrs t1, vsireg, zero
+# CHECK-ENC: encoding: [0x73,0x23,0x10,0x25]
+# CHECK-INST-ALIAS: csrr t1, vsireg
+# uimm12
+# CHECK-INST: csrrs t2, vsireg, zero
+# CHECK-ENC: encoding: [0xf3,0x23,0x10,0x25]
+# CHECK-INST-ALIAS: csrr t2, vsireg
+# name
+csrrs t1, vsireg, zero
+# uimm12
+csrrs t2, 0x251, zero
+
+# vsireg2
+# name
+# CHECK-INST: csrrs t1, vsireg2, zero
+# CHECK-ENC: encoding: [0x73,0x23,0x20,0x25]
+# CHECK-INST-ALIAS: csrr t1, vsireg2
+# uimm12
+# CHECK-INST: csrrs t2, vsireg2, zero
+# CHECK-ENC: encoding: [0xf3,0x23,0x20,0x25]
+# CHECK-INST-ALIAS: csrr t2, vsireg2
+# name
+csrrs t1, vsireg2, zero
+# uimm12
+csrrs t2, 0x252, zero
+
+# vsireg3
+# name
+# CHECK-INST: csrrs t1, vsireg3, zero
+# CHECK-ENC: encoding: [0x73,0x23,0x30,0x25]
+# CHECK-INST-ALIAS: csrr t1, vsireg3
+# uimm12
+# CHECK-INST: csrrs t2, vsireg3, zero
+# CHECK-ENC: encoding: [0xf3,0x23,0x30,0x25]
+# CHECK-INST-ALIAS: csrr t2, vsireg3
+# name
+csrrs t1, vsireg3, zero
+# uimm12
+csrrs t2, 0x253, zero
+
+# vsireg4
+# name
+# CHECK-INST: csrrs t1, vsireg4, zero
+# CHECK-ENC: encoding: [0x73,0x23,0x50,0x25]
+# CHECK-INST-ALIAS: csrr t1, vsireg4
+# uimm12
+# CHECK-INST: csrrs t2, vsireg4, zero
+# CHECK-ENC: encoding: [0xf3,0x23,0x50,0x25]
+# CHECK-INST-ALIAS: csrr t2, vsireg4
+# name
+csrrs t1, vsireg4, zero
+# uimm12
+csrrs t2, 0x255, zero
+
+# vsireg5
+# name
+# CHECK-INST: csrrs t1, vsireg5, zero
+# CHECK-ENC: encoding: [0x73,0x23,0x60,0x25]
+# CHECK-INST-ALIAS: csrr t1, vsireg5
+# uimm12
+# CHECK-INST: csrrs t2, vsireg5, zero
+# CHECK-ENC: encoding: [0xf3,0x23,0x60,0x25]
+# CHECK-INST-ALIAS: csrr t2, vsireg5
+# name
+csrrs t1, vsireg5, zero
+# uimm12
+csrrs t2, 0x256, zero
+
+# vsireg6
+# name
+# CHECK-INST: csrrs t1, vsireg6, zero
+# CHECK-ENC: encoding: [0x73,0x23,0x70,0x25]
+# CHECK-INST-ALIAS: csrr t1, vsireg6
+# uimm12
+# CHECK-INST: csrrs t2, vsireg6, zero
+# CHECK-ENC: encoding: [0xf3,0x23,0x70,0x25]
+# CHECK-INST-ALIAS: csrr t2, vsireg6
+# name
+csrrs t1, vsireg6, zero
+# uimm12
+csrrs t2, 0x257, zero
+
+# vstopei
+# name
+# CHECK-INST: csrrs t1, vstopei, zero
+# CHECK-ENC: encoding: [0x73,0x23,0xc0,0x25]
+# CHECK-INST-ALIAS: csrr t1, vstopei
+# uimm12
+# CHECK-INST: csrrs t2, vstopei, zero
+# CHECK-ENC: encoding: [0xf3,0x23,0xc0,0x25]
+# CHECK-INST-ALIAS: csrr t2, vstopei
+# name
+csrrs t1, vstopei, zero
+# uimm12
+csrrs t2, 0x25C, zero
+
+# vstopi
+# name
+# CHECK-INST: csrrs t1, vstopi, zero
+# CHECK-ENC: encoding: [0x73,0x23,0x00,0xeb]
+# CHECK-INST-ALIAS: csrr t1, vstopi
+# uimm12
+# CHECK-INST: csrrs t2, vstopi, zero
+# CHECK-ENC: encoding: [0xf3,0x23,0x00,0xeb]
+# CHECK-INST-ALIAS: csrr t2, vstopi
+# name
+csrrs t1, vstopi, zero
+# uimm12
+csrrs t2, 0xEB0, zero
+
+##################################
+# Control Transfer Records
+##################################
+
+# vsctrctl
+# name
+# CHECK-INST: csrrs t1, vsctrctl, zero
+# CHECK-ENC: encoding: [0x73,0x23,0xe0,0x24]
+# CHECK-INST-ALIAS: csrr t1, vsctrctl
+# uimm12
+# CHECK-INST: csrrs t2, vsctrctl, zero
+# CHECK-ENC: encoding: [0xf3,0x23,0xe0,0x24]
+# CHECK-INST-ALIAS: csrr t2, vsctrctl
+csrrs t1, vsctrctl, zero
+# uimm12
+csrrs t2, 0x24E, zero

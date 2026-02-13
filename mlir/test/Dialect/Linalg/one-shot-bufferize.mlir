@@ -1,19 +1,19 @@
-// RUN: mlir-opt %s -one-shot-bufferize="allow-return-allocs bufferize-function-boundaries" -buffer-loop-hoisting -drop-equivalent-buffer-results -split-input-file | FileCheck %s
+// RUN: mlir-opt %s -one-shot-bufferize="bufferize-function-boundaries" -canonicalize -buffer-loop-hoisting -drop-equivalent-buffer-results -split-input-file | FileCheck %s
 
 // Run fuzzer with different seeds.
-// RUN: mlir-opt %s -one-shot-bufferize="allow-return-allocs test-analysis-only analysis-fuzzer-seed=23 bufferize-function-boundaries" -split-input-file -o /dev/null
-// RUN: mlir-opt %s -one-shot-bufferize="allow-return-allocs test-analysis-only analysis-fuzzer-seed=59 bufferize-function-boundaries" -split-input-file -o /dev/null
-// RUN: mlir-opt %s -one-shot-bufferize="allow-return-allocs test-analysis-only analysis-fuzzer-seed=91 bufferize-function-boundaries" -split-input-file -o /dev/null
+// RUN: mlir-opt %s -one-shot-bufferize="test-analysis-only analysis-heuristic=fuzzer analysis-fuzzer-seed=23 bufferize-function-boundaries" -split-input-file -o /dev/null
+// RUN: mlir-opt %s -one-shot-bufferize="test-analysis-only analysis-heuristic=fuzzer analysis-fuzzer-seed=59 bufferize-function-boundaries" -split-input-file -o /dev/null
+// RUN: mlir-opt %s -one-shot-bufferize="test-analysis-only analysis-heuristic=fuzzer analysis-fuzzer-seed=91 bufferize-function-boundaries" -split-input-file -o /dev/null
 
 // Test bufferization using memref types that have no layout map.
-// RUN: mlir-opt %s -one-shot-bufferize="allow-return-allocs unknown-type-conversion=identity-layout-map function-boundary-type-conversion=identity-layout-map bufferize-function-boundaries" -drop-equivalent-buffer-results -split-input-file | FileCheck %s --check-prefix=CHECK-NO-LAYOUT-MAP
+// RUN: mlir-opt %s -one-shot-bufferize="unknown-type-conversion=identity-layout-map function-boundary-type-conversion=identity-layout-map bufferize-function-boundaries" -drop-equivalent-buffer-results -split-input-file | FileCheck %s --check-prefix=CHECK-NO-LAYOUT-MAP
 
 // TODO: Some test cases from this file should be moved to other dialects.
 
-// CHECK-LABEL: func @fill_inplace(
+// CHECK-LABEL: func private @fill_inplace(
 //  CHECK-SAME:   %[[A:[a-zA-Z0-9]*]]: memref<?xf32, strided<[?], offset: ?>>
-// CHECK-NO-LAYOUT-MAP-LABEL: func @fill_inplace(%{{.*}}: memref<?xf32>) {
-func.func @fill_inplace(
+// CHECK-NO-LAYOUT-MAP-LABEL: func private @fill_inplace(%{{.*}}: memref<?xf32>) {
+func.func private @fill_inplace(
     %A : tensor<?xf32> {bufferization.writable = true})
   -> tensor<?xf32>
 {
@@ -44,7 +44,7 @@ func.func @not_inplace(
   %f0 = arith.constant 0.0 : f32
 
   //     CHECK: %[[D0:.*]] = memref.dim %[[A]], {{.*}} : memref<?xf32, strided<[?], offset: ?>>
-  //     CHECK: %[[ALLOC:.*]] = memref.alloc(%[[D0]]) {alignment = 128 : i64} : memref<?xf32>
+  //     CHECK: %[[ALLOC:.*]] = memref.alloc(%[[D0]]) {alignment = 64 : i64} : memref<?xf32>
   //     CHECK: linalg.fill ins(%[[F0]] : f32) outs(%[[ALLOC]] : memref<?xf32>)
   %r = linalg.fill ins(%f0 : f32) outs(%A : tensor<?xf32>) -> tensor<?xf32>
 
@@ -56,10 +56,10 @@ func.func @not_inplace(
 // -----
 
 
-// CHECK-LABEL: func @not_inplace
+// CHECK-LABEL: func private @not_inplace
 //  CHECK-SAME:   %[[A:[a-zA-Z0-9]*]]: memref<?x?xf32, strided<[?, ?], offset: ?>>) {
-// CHECK-NO-LAYOUT-MAP-LABEL: func @not_inplace(%{{.*}}: memref<?x?xf32>) {
-func.func @not_inplace(
+// CHECK-NO-LAYOUT-MAP-LABEL: func private @not_inplace(%{{.*}}: memref<?x?xf32>) {
+func.func private @not_inplace(
     %A : tensor<?x?xf32> {bufferization.writable = true})
   -> tensor<?x?xf32>
 {
@@ -77,7 +77,6 @@ func.func @not_inplace(
                      outs(%A: tensor<?x?xf32>)
     -> tensor<?x?xf32>
 
-  //     CHECK: memref.dealloc %[[ALLOC]]
   //     CHECK: return
   // CHECK-NOT: tensor
   return %r: tensor<?x?xf32>
@@ -161,8 +160,7 @@ func.func @matmul(
   %c16 = arith.constant 16 : index
 
   // Hoisted alloc.
-  // CHECK: %[[ALLOC:.*]] = memref.alloc() {alignment = 128 : i64} : memref<128x192xf32>
-  // CHECK: memref.copy %[[C]], %[[ALLOC]]
+  // CHECK: %[[ALLOC:.*]] = memref.alloc() {alignment = 64 : i64} : memref<8x16xf32>
 
   // CHECK: scf.for %[[I:.*]] =
   %0 = scf.for %arg3 = %c0 to %c128 step %c8 iter_args(%arg4 = %C) -> (tensor<128x192xf32>) {
@@ -174,14 +172,12 @@ func.func @matmul(
       %3 = tensor.extract_slice %B[0, %arg5] [256, 16] [1, 1] :
         tensor<256x192xf32> to tensor<256x16xf32>
 
-      // C was already replaced with a copy by preprocessing, so no copy is
-      // needed here.
-      // CHECK: %[[C_SLICE:.*]] = memref.subview %[[ALLOC]]
+      // Insert an artificial out-of-place buffer by extracting from %C instead
+      // of %arg6.
       %4 = tensor.extract_slice %C[%arg3, %arg5] [8, 16] [1, 1] :
         tensor<128x192xf32> to tensor<8x16xf32>
 
-      // linalg.fill is inplace.
-      // CHECK: linalg.fill ins(%{{.*}} : f32) outs(%[[C_SLICE]]
+      // CHECK: linalg.fill ins(%{{.*}} : f32) outs(%[[ALLOC]]
       %5 = linalg.fill ins(%cst : f32) outs(%4 : tensor<8x16xf32>) -> tensor<8x16xf32>
 
       // CHECK: scf.for %[[K:.*]] =
@@ -192,7 +188,7 @@ func.func @matmul(
           tensor<256x16xf32> to tensor<32x16xf32>
 
         // linalg.matmul is inplace as well as the enclosing scf.for.
-        // CHECK: linalg.matmul ins({{.*}} outs(%[[C_SLICE]]
+        // CHECK: linalg.matmul ins({{.*}} outs(%[[ALLOC]]
         %10 = linalg.matmul ins(%8, %9 : tensor<8x32xf32>, tensor<32x16xf32>)
                            outs(%arg8 : tensor<8x16xf32>)
           -> tensor<8x16xf32>
@@ -203,7 +199,7 @@ func.func @matmul(
       // that is not in place. So we must insert a copy of the small buffer into
       // the bigger buffer.
       // CHECK: %[[T:.*]] = memref.subview %[[C]][%[[I]], %[[J]]] [8, 16] [1, 1]
-      // CHECK: memref.copy %[[C_SLICE]], %[[T]]
+      // CHECK: memref.copy %[[ALLOC]], %[[T]]
       %7 = tensor.insert_slice %6 into %arg6[%arg3, %arg5] [8, 16] [1, 1] :
         tensor<8x16xf32> into tensor<128x192xf32>
 
@@ -212,7 +208,6 @@ func.func @matmul(
     scf.yield %2 : tensor<128x192xf32>
   }
 
-  // CHECK: memref.dealloc %[[ALLOC]]
   return %0 : tensor<128x192xf32>
 }
 
@@ -240,7 +235,7 @@ func.func @dominance_violation_bug_1(
 
 // -----
 
-func.func @gather_like(
+func.func private @gather_like(
     %arg0 : tensor<?x?xf32> {bufferization.writable = false},
     %arg1 : tensor<?xi32> {bufferization.writable = false},
     %arg2 : tensor<?x?xf32> {bufferization.writable = true})
@@ -259,7 +254,7 @@ func.func @gather_like(
       } -> tensor<?x?xf32>
   return %0 : tensor<?x?xf32>
 }
-// CHECK-LABEL: func @gather_like(
+// CHECK-LABEL: func private @gather_like(
 //  CHECK-SAME:     %[[ARG0:[a-zA-Z0-9]+]]: memref<?x?xf32,
 //  CHECK-SAME:     %[[ARG1:.+]]: memref<?xi32
 //  CHECK-SAME:     %[[ARG2:.+]]: memref<?x?xf32
@@ -331,6 +326,69 @@ func.func @op_is_reading_but_following_ops_are_not(
 
   // CHECK: return %[[ALLOC]]
   return %r1 : tensor<?xf32>
+}
+
+// -----
+
+// CHECK-LABEL: func @map_binary
+// CHECK-SAME:  %[[LHS:[0-9a-zA-Z]*]]: memref<64xf32
+// CHECK-SAME:  %[[RHS:[0-9a-zA-Z]*]]: memref<64xf32
+func.func @map_binary(%lhs: tensor<64xf32>, %rhs: tensor<64xf32>,
+                      %init: tensor<64xf32>) -> tensor<64xf32> {
+   // CHECK:      linalg.map { arith.addf } ins(%[[LHS]], %[[RHS]] : memref<64xf32
+   %add = linalg.map
+          ins(%lhs, %rhs: tensor<64xf32>, tensor<64xf32>)
+          outs(%init:tensor<64xf32>)
+          (%lhs_elem: f32, %rhs_elem: f32, %out: f32) {
+            %0 = arith.addf %lhs_elem, %rhs_elem: f32
+            linalg.yield %0: f32
+          }
+  func.return %add : tensor<64xf32>
+}
+
+// -----
+
+// CHECK-LABEL: func @reduce
+// CHECK-SAME:  %[[INPUT:.*]]: memref<16x32x64xf32
+func.func @reduce(%input: tensor<16x32x64xf32>,
+                  %init: tensor<16x64xf32>) -> tensor<16x64xf32> {
+  // CHECK:     linalg.reduce { arith.addf } ins(%[[INPUT]] : memref<16x32x64xf32
+  %reduce = linalg.reduce
+      ins(%input:tensor<16x32x64xf32>)
+      outs(%init:tensor<16x64xf32>)
+      dimensions = [1]
+      (%in: f32, %out: f32) {
+        %0 = arith.addf %out, %in: f32
+        linalg.yield %0: f32
+      }
+  func.return %reduce : tensor<16x64xf32>
+}
+
+// -----
+
+// CHECK-LABEL: func @transpose
+// CHECK-SAME:  %[[ARG0:.*]]: memref<16x32x64xf32
+func.func @transpose(%input: tensor<16x32x64xf32>,
+                     %init: tensor<32x64x16xf32>) -> tensor<32x64x16xf32> {
+  // CHECK:      linalg.transpose ins(%[[ARG0]] : memref<16x32x64xf32
+  %transpose = linalg.transpose
+      ins(%input:tensor<16x32x64xf32>)
+      outs(%init:tensor<32x64x16xf32>)
+      permutation = [1, 2, 0]
+  func.return %transpose : tensor<32x64x16xf32>
+}
+
+// -----
+
+// CHECK-LABEL: func @broadcast
+// CHECK-SAME:  %[[ARG0:.*]]: memref<8x32xf32
+func.func @broadcast(%input: tensor<8x32xf32>,
+                     %init: tensor<8x16x32xf32>) -> tensor<8x16x32xf32> {
+  %bcast = linalg.broadcast
+      ins(%input:tensor<8x32xf32>)
+      outs(%init:tensor<8x16x32xf32>)
+      dimensions = [1]
+  func.return %bcast : tensor<8x16x32xf32>
 }
 
 // -----

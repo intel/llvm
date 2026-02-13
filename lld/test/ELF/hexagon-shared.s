@@ -4,9 +4,9 @@
 # RUN: ld.lld -shared %t2.o -soname so -o %t3.so
 # RUN: ld.lld -shared %t.o %t3.so -o %t4.so
 # RUN: ld.lld -Bsymbolic -shared %t.o %t3.so -o %t5.so
-# RUN: llvm-objdump -d -j .plt %t4.so | FileCheck --check-prefix=PLT %s
-# RUN: llvm-objdump -d -j .text %t4.so | FileCheck --check-prefix=TEXT %s
-# RUN: llvm-objdump -D -j .got %t4.so | FileCheck --check-prefix=GOT %s
+# RUN: llvm-objdump --no-print-imm-hex -d -j .plt %t4.so | FileCheck --check-prefix=PLT %s
+# RUN: llvm-objdump --no-print-imm-hex -d -j .text %t4.so | FileCheck --check-prefix=TEXT %s
+# RUN: llvm-objdump --no-print-imm-hex -D -j .got %t4.so | FileCheck --check-prefix=GOT %s
 # RUN: llvm-readelf -r  %t4.so | FileCheck --check-prefix=RELO %s
 # RUN: llvm-readelf -r  %t5.so | FileCheck --check-prefix=SYMBOLIC %s
 
@@ -42,6 +42,13 @@ r0 = add(r1,##bar@GOT)
 { r0 = add(r0,##bar@GOT)
   memw(r0) = r2 }
 
+# R_HEX_GOT_16_X, pred add
+if (p0) r0 = add(r0,##bar@GOT)
+if (!p0) r0 = add(r0,##bar@GOT)
+{ p0 = cmp.gtu(r0, r1)
+  if (p0.new) r0 = add(r0,##bar@GOT) }
+{ p0 = cmp.gtu(r0, r1)
+  if (!p0.new) r0 = add(r0,##bar@GOT) }
 
 # foo is local so no plt will be generated
 foo:
@@ -73,17 +80,23 @@ pvar:
 # PLT-NEXT: { r14 = asr(r14,#2)
 # PLT-NEXT: jumpr r28 }
 # PLT-NEXT: { trap0(#219) }
+# PLT-EMPTY:
+# PLT-NEXT: 000102f0 <foo@plt>:
 # PLT-NEXT: immext(#131200)
 # PLT-NEXT: r14 = add(pc,##131252) }
 # PLT-NEXT: r28 = memw(r14+#0) }
 # PLT-NEXT: jumpr r28 }
 
-# TEXT:  8c 00 01 00 0001008c
-# TEXT: { 	call 0x102d0 }
-# TEXT: if (p0) jump:nt 0x102d0
-# TEXT: r0 = #0 ; jump 0x102d0
+# TEXT:  bc 00 01 00 000100bc
+# TEXT: { 	call 0x10300 <bar@plt> }
+# TEXT: if (p0) jump:nt 0x10300
+# TEXT: r0 = #0 ; jump 0x10300
 # TEXT: r0 = add(r1,##-65548)
 # TEXT: r0 = add(r0,##-65548); memw(r0+#0) = r2 }
+# TEXT: if (p0) r0 = add(r0,##-65548)
+# TEXT: if (!p0) r0 = add(r0,##-65548)
+# TEXT: if (p0.new) r0 = add(r0,##-65548)
+# TEXT: if (!p0.new) r0 = add(r0,##-65548)
 
 # GOT: .got:
 # GOT:  00 00 00 00 00000000 <unknown>

@@ -21,6 +21,8 @@
 #include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/TypeSwitch.h"
+#include "llvm/Support/TypeSize.h"
+#include <optional>
 
 using namespace mlir;
 using namespace test;
@@ -88,26 +90,24 @@ static llvm::hash_code test::hash_value(const FieldInfo &fi) { // NOLINT
 // TestCustomType
 //===----------------------------------------------------------------------===//
 
-static LogicalResult parseCustomTypeA(AsmParser &parser,
-                                      FailureOr<int> &aResult) {
-  aResult.emplace();
-  return parser.parseInteger(*aResult);
+static ParseResult parseCustomTypeA(AsmParser &parser, int &aResult) {
+  return parser.parseInteger(aResult);
 }
 
 static void printCustomTypeA(AsmPrinter &printer, int a) { printer << a; }
 
-static LogicalResult parseCustomTypeB(AsmParser &parser, int a,
-                                      FailureOr<Optional<int>> &bResult) {
+static ParseResult parseCustomTypeB(AsmParser &parser, int a,
+                                    std::optional<int> &bResult) {
   if (a < 0)
     return success();
   for (int i : llvm::seq(0, a))
     if (failed(parser.parseInteger(i)))
       return failure();
   bResult.emplace(0);
-  return parser.parseInteger(**bResult);
+  return parser.parseInteger(*bResult);
 }
 
-static void printCustomTypeB(AsmPrinter &printer, int a, Optional<int> b) {
+static void printCustomTypeB(AsmPrinter &printer, int a, std::optional<int> b) {
   if (a < 0)
     return;
   printer << ' ';
@@ -116,8 +116,7 @@ static void printCustomTypeB(AsmPrinter &printer, int a, Optional<int> b) {
   printer << *b;
 }
 
-static LogicalResult parseFooString(AsmParser &parser,
-                                    FailureOr<std::string> &foo) {
+static ParseResult parseFooString(AsmParser &parser, std::string &foo) {
   std::string result;
   if (parser.parseString(&result))
     return failure();
@@ -129,17 +128,18 @@ static void printFooString(AsmPrinter &printer, StringRef foo) {
   printer << '"' << foo << '"';
 }
 
-static LogicalResult parseBarString(AsmParser &parser, StringRef foo) {
+static ParseResult parseBarString(AsmParser &parser, StringRef foo) {
   return parser.parseKeyword(foo);
 }
 
 static void printBarString(AsmPrinter &printer, StringRef foo) {
-  printer << ' ' << foo;
+  printer << foo;
 }
 //===----------------------------------------------------------------------===//
 // Tablegen Generated Definitions
 //===----------------------------------------------------------------------===//
 
+#include "TestTypeInterfaces.cpp.inc"
 #define GET_TYPEDEF_CLASSES
 #include "TestTypeDefs.cpp.inc"
 
@@ -245,6 +245,10 @@ void TestType::printTypeC(Location loc) const {
   emitRemark(loc) << *this << " - TestC";
 }
 
+void TestType::printTypeC(Location loc, int value) const {
+  emitRemark(loc) << *this << " - " << value << " - Int TestC";
+}
+
 //===----------------------------------------------------------------------===//
 // TestTypeWithLayout
 //===----------------------------------------------------------------------===//
@@ -260,25 +264,33 @@ void TestTypeWithLayoutType::print(AsmPrinter &printer) const {
   printer << "<" << getKey() << ">";
 }
 
-unsigned
+llvm::TypeSize
 TestTypeWithLayoutType::getTypeSizeInBits(const DataLayout &dataLayout,
                                           DataLayoutEntryListRef params) const {
-  return extractKind(params, "size");
+  return llvm::TypeSize::getFixed(extractKind(params, "size"));
 }
 
-unsigned
+uint64_t
 TestTypeWithLayoutType::getABIAlignment(const DataLayout &dataLayout,
                                         DataLayoutEntryListRef params) const {
   return extractKind(params, "alignment");
 }
 
-unsigned TestTypeWithLayoutType::getPreferredAlignment(
+uint64_t TestTypeWithLayoutType::getPreferredAlignment(
     const DataLayout &dataLayout, DataLayoutEntryListRef params) const {
   return extractKind(params, "preferred");
 }
 
+std::optional<uint64_t>
+TestTypeWithLayoutType::getIndexBitwidth(const DataLayout &dataLayout,
+                                         DataLayoutEntryListRef params) const {
+  return extractKind(params, "index");
+}
+
 bool TestTypeWithLayoutType::areCompatible(
-    DataLayoutEntryListRef oldLayout, DataLayoutEntryListRef newLayout) const {
+    DataLayoutEntryListRef oldLayout, DataLayoutEntryListRef newLayout,
+    DataLayoutSpecInterface newSpec,
+    const DataLayoutIdentifiedEntryMap &map) const {
   unsigned old = extractKind(oldLayout, "alignment");
   return old == 1 || extractKind(newLayout, "alignment") <= old;
 }
@@ -289,29 +301,31 @@ TestTypeWithLayoutType::verifyEntries(DataLayoutEntryListRef params,
   for (DataLayoutEntryInterface entry : params) {
     // This is for testing purposes only, so assert well-formedness.
     assert(entry.isTypeEntry() && "unexpected identifier entry");
-    assert(entry.getKey().get<Type>().isa<TestTypeWithLayoutType>() &&
-           "wrong type passed in");
-    auto array = entry.getValue().dyn_cast<ArrayAttr>();
+    assert(
+        llvm::isa<TestTypeWithLayoutType>(llvm::cast<Type>(entry.getKey())) &&
+        "wrong type passed in");
+    auto array = llvm::dyn_cast<ArrayAttr>(entry.getValue());
     assert(array && array.getValue().size() == 2 &&
            "expected array of two elements");
-    auto kind = array.getValue().front().dyn_cast<StringAttr>();
+    auto kind = llvm::dyn_cast<StringAttr>(array.getValue().front());
     (void)kind;
     assert(kind &&
            (kind.getValue() == "size" || kind.getValue() == "alignment" ||
-            kind.getValue() == "preferred") &&
+            kind.getValue() == "preferred" || kind.getValue() == "index") &&
            "unexpected kind");
-    assert(array.getValue().back().isa<IntegerAttr>());
+    assert(llvm::isa<IntegerAttr>(array.getValue().back()));
   }
   return success();
 }
 
-unsigned TestTypeWithLayoutType::extractKind(DataLayoutEntryListRef params,
+uint64_t TestTypeWithLayoutType::extractKind(DataLayoutEntryListRef params,
                                              StringRef expectedKind) const {
   for (DataLayoutEntryInterface entry : params) {
-    ArrayRef<Attribute> pair = entry.getValue().cast<ArrayAttr>().getValue();
-    StringRef kind = pair.front().cast<StringAttr>().getValue();
+    ArrayRef<Attribute> pair =
+        llvm::cast<ArrayAttr>(entry.getValue()).getValue();
+    StringRef kind = llvm::cast<StringAttr>(pair.front()).getValue();
     if (kind == expectedKind)
-      return pair.back().cast<IntegerAttr>().getValue().getZExtValue();
+      return llvm::cast<IntegerAttr>(pair.back()).getValue().getZExtValue();
   }
   return 1;
 }
@@ -382,6 +396,14 @@ getCustomAssemblyFormatDynamicType(TestDialect *testDialect) {
                                     std::move(parser), std::move(printer));
 }
 
+test::detail::TestCustomStorageCtorTypeStorage *
+test::detail::TestCustomStorageCtorTypeStorage::construct(
+    mlir::StorageUniquer::StorageAllocator &, std::tuple<int> &&) {
+  // Note: this tests linker error ("undefined symbol"), the actual
+  // implementation is not important.
+  return nullptr;
+}
+
 //===----------------------------------------------------------------------===//
 // TestDialect
 //===----------------------------------------------------------------------===//
@@ -405,8 +427,7 @@ void TestDialect::registerTypes() {
   registerDynamicType(getCustomAssemblyFormatDynamicType(this));
 }
 
-Type TestDialect::parseTestType(AsmParser &parser,
-                                SetVector<Type> &stack) const {
+Type TestDialect::parseType(DialectAsmParser &parser) const {
   StringRef typeTag;
   {
     Type genType;
@@ -435,9 +456,12 @@ Type TestDialect::parseTestType(AsmParser &parser,
     return Type();
   auto rec = TestRecursiveType::get(parser.getContext(), name);
 
+  FailureOr<AsmParser::CyclicParseReset> cyclicParse =
+      parser.tryStartCyclicParse(rec);
+
   // If this type already has been parsed above in the stack, expect just the
   // name.
-  if (stack.contains(rec)) {
+  if (failed(cyclicParse)) {
     if (failed(parser.parseGreater()))
       return Type();
     return rec;
@@ -446,40 +470,138 @@ Type TestDialect::parseTestType(AsmParser &parser,
   // Otherwise, parse the body and update the type.
   if (failed(parser.parseComma()))
     return Type();
-  stack.insert(rec);
-  Type subtype = parseTestType(parser, stack);
-  stack.pop_back();
+  Type subtype = parseType(parser);
   if (!subtype || failed(parser.parseGreater()) || failed(rec.setBody(subtype)))
     return Type();
 
   return rec;
 }
 
-Type TestDialect::parseType(DialectAsmParser &parser) const {
-  SetVector<Type> stack;
-  return parseTestType(parser, stack);
-}
-
-void TestDialect::printTestType(Type type, AsmPrinter &printer,
-                                SetVector<Type> &stack) const {
+void TestDialect::printType(Type type, DialectAsmPrinter &printer) const {
   if (succeeded(generatedTypePrinter(type, printer)))
     return;
 
   if (succeeded(printIfDynamicType(type, printer)))
     return;
 
-  auto rec = type.cast<TestRecursiveType>();
+  auto rec = llvm::cast<TestRecursiveType>(type);
+
+  FailureOr<AsmPrinter::CyclicPrintReset> cyclicPrint =
+      printer.tryStartCyclicPrint(rec);
+
   printer << "test_rec<" << rec.getName();
-  if (!stack.contains(rec)) {
+  if (succeeded(cyclicPrint)) {
     printer << ", ";
-    stack.insert(rec);
-    printTestType(rec.getBody(), printer, stack);
-    stack.pop_back();
+    printType(rec.getBody(), printer);
   }
   printer << ">";
 }
 
-void TestDialect::printType(Type type, DialectAsmPrinter &printer) const {
-  SetVector<Type> stack;
-  printTestType(type, printer, stack);
+Type TestRecursiveAliasType::getBody() const { return getImpl()->body; }
+
+void TestRecursiveAliasType::setBody(Type type) { (void)Base::mutate(type); }
+
+StringRef TestRecursiveAliasType::getName() const { return getImpl()->name; }
+
+Type TestRecursiveAliasType::parse(AsmParser &parser) {
+  StringRef name;
+  if (parser.parseLess() || parser.parseKeyword(&name))
+    return Type();
+  auto rec = TestRecursiveAliasType::get(parser.getContext(), name);
+
+  FailureOr<AsmParser::CyclicParseReset> cyclicParse =
+      parser.tryStartCyclicParse(rec);
+
+  // If this type already has been parsed above in the stack, expect just the
+  // name.
+  if (failed(cyclicParse)) {
+    if (failed(parser.parseGreater()))
+      return Type();
+    return rec;
+  }
+
+  // Otherwise, parse the body and update the type.
+  if (failed(parser.parseComma()))
+    return Type();
+  Type subtype;
+  if (parser.parseType(subtype))
+    return nullptr;
+  if (!subtype || failed(parser.parseGreater()))
+    return Type();
+
+  rec.setBody(subtype);
+
+  return rec;
+}
+
+void TestRecursiveAliasType::print(AsmPrinter &printer) const {
+
+  FailureOr<AsmPrinter::CyclicPrintReset> cyclicPrint =
+      printer.tryStartCyclicPrint(*this);
+
+  printer << "<" << getName();
+  if (succeeded(cyclicPrint)) {
+    printer << ", ";
+    printer << getBody();
+  }
+  printer << ">";
+}
+
+void TestTypeOpAsmTypeInterfaceType::getAsmName(
+    OpAsmSetNameFn setNameFn) const {
+  setNameFn("op_asm_type_interface");
+}
+
+::mlir::OpAsmDialectInterface::AliasResult
+TestTypeOpAsmTypeInterfaceType::getAlias(::llvm::raw_ostream &os) const {
+  os << "op_asm_type_interface_type";
+  return ::mlir::OpAsmDialectInterface::AliasResult::FinalAlias;
+}
+
+::mlir::FailureOr<::mlir::bufferization::BufferLikeType>
+TestTensorType::getBufferType(
+    const ::mlir::bufferization::BufferizationOptions &,
+    ::llvm::function_ref<::mlir::InFlightDiagnostic()>) {
+  return cast<bufferization::BufferLikeType>(
+      TestMemrefType::get(getContext(), getShape(), getElementType(), nullptr));
+}
+
+::mlir::LogicalResult TestTensorType::verifyCompatibleBufferType(
+    ::mlir::bufferization::BufferLikeType bufferType,
+    ::llvm::function_ref<::mlir::InFlightDiagnostic()> emitError) {
+  if (auto testMemref = dyn_cast<TestMemrefType>(bufferType)) {
+    const bool valid = getShape() == testMemref.getShape() &&
+                       getElementType() == testMemref.getElementType();
+    return mlir::success(valid);
+  }
+
+  if (auto builtinMemref = dyn_cast<MemRefType>(bufferType)) {
+    const bool valid = getShape() == builtinMemref.getShape() &&
+                       getElementType() == builtinMemref.getElementType();
+    return mlir::success(valid);
+  }
+
+  return emitError() << "expected MemRefType or TestMemrefType";
+}
+
+//===----------------------------------------------------------------------===//
+// TestTypeNewlineAndIndent
+//===----------------------------------------------------------------------===//
+
+Type TestTypeNewlineAndIndentType::parse(::mlir::AsmParser &parser) {
+  if (parser.parseLess() || parser.parseKeyword("indented_content") ||
+      parser.parseGreater()) {
+    return Type();
+  }
+  return get(parser.getContext());
+}
+
+void TestTypeNewlineAndIndentType::print(::mlir::AsmPrinter &printer) const {
+  printer << "<";
+  printer.increaseIndent();
+  printer.printNewline();
+  printer << "indented_content";
+  printer.decreaseIndent();
+  printer.printNewline();
+  printer << ">";
 }

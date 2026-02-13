@@ -114,16 +114,16 @@ func.func @instructions() {
   %25 = fir.insert_value %22, %cf1, ["f", !fir.type<derived{f:f32}>] : (!fir.type<derived{f:f32}>, f32) -> !fir.type<derived{f:f32}>
   %26 = fir.len_param_index f, !fir.type<derived3{f:f32}>
 
-// CHECK: [[VAL_31:%.*]] = fir.call @box3() : () -> !fir.box<!fir.type<derived3{f:f32}>>
-// CHECK: [[VAL_32:%.*]] = fir.dispatch "method"([[VAL_31]]) : (!fir.box<!fir.type<derived3{f:f32}>>) -> i32
+// CHECK: [[VAL_31:%.*]] = fir.call @box3() : () -> !fir.class<!fir.type<derived3{f:f32}>>
+// CHECK: [[VAL_32:%.*]] = fir.dispatch "method"([[VAL_31]] : !fir.class<!fir.type<derived3{f:f32}>>) -> i32
 // CHECK: [[VAL_33:%.*]] = fir.convert [[VAL_32]] : (i32) -> i64
-// CHECK: [[VAL_34:%.*]] = fir.gentypedesc !fir.type<x>
+// CHECK: [[VAL_34:%.*]] = fir.type_desc !fir.type<x>
 // CHECK: fir.call @user_tdesc([[VAL_34]]) : (!fir.tdesc<!fir.type<x>>) -> ()
 // CHECK: [[VAL_35:%.*]] = fir.no_reassoc [[VAL_33]] : i64
-  %27 = fir.call @box3() : () -> !fir.box<!fir.type<derived3{f:f32}>>
-  %28 = fir.dispatch "method"(%27) : (!fir.box<!fir.type<derived3{f:f32}>>) -> i32
+  %27 = fir.call @box3() : () -> !fir.class<!fir.type<derived3{f:f32}>>
+  %28 = fir.dispatch "method"(%27 : !fir.class<!fir.type<derived3{f:f32}>>) -> i32
   %29 = fir.convert %28 : (i32) -> i64
-  %30 = fir.gentypedesc !fir.type<x>
+  %30 = fir.type_desc !fir.type<x>
   fir.call @user_tdesc(%30) : (!fir.tdesc<!fir.type<x>>) -> ()
   %31 = fir.no_reassoc %29 : i64
 
@@ -309,12 +309,12 @@ func.func @bar_select_rank(%arg : i32, %arg2 : i32) -> i32 {
 
 // CHECK: ^bb5:
 // CHECK: [[VAL_99:%.*]] = arith.constant 0 : i32
-// CHECK: [[VAL_100:%.*]] = fir.call @get_method_box() : () -> !fir.box<!fir.type<derived3{f:f32}>>
-// CHECK: fir.dispatch "method"([[VAL_100]]) : (!fir.box<!fir.type<derived3{f:f32}>>) -> ()
+// CHECK: [[VAL_100:%.*]] = fir.call @get_method_box() : () -> !fir.class<!fir.type<derived3{f:f32}>>
+// CHECK: fir.dispatch "method"([[VAL_100]] : !fir.class<!fir.type<derived3{f:f32}>>)
 ^bb5 :
   %zero = arith.constant 0 : i32
-  %7 = fir.call @get_method_box() : () -> !fir.box<!fir.type<derived3{f:f32}>>
-  fir.dispatch method(%7) : (!fir.box<!fir.type<derived3{f:f32}>>) -> ()
+  %7 = fir.call @get_method_box() : () -> !fir.class<!fir.type<derived3{f:f32}>>
+  fir.dispatch "method"(%7 : !fir.class<!fir.type<derived3{f:f32}>>)
 
 // CHECK: return [[VAL_99]] : i32
 // CHECK: }
@@ -322,8 +322,8 @@ func.func @bar_select_rank(%arg : i32, %arg2 : i32) -> i32 {
 }
 
 // CHECK-LABEL: func @bar_select_type(
-// CHECK-SAME: [[VAL_101:%.*]]: !fir.box<!fir.type<name(param1:i32){fld:!fir.char<1>}>>) -> i32 {
-func.func @bar_select_type(%arg : !fir.box<!fir.type<name(param1:i32){fld:!fir.char<1>}>>) -> i32 {
+// CHECK-SAME: [[VAL_101:%.*]]: !fir.class<!fir.type<name(param1:i32){fld:!fir.char<1>}>>) -> i32 {
+func.func @bar_select_type(%arg : !fir.class<!fir.type<name(param1:i32){fld:!fir.char<1>}>>) -> i32 {
 
 // CHECK: [[VAL_102:%.*]] = arith.constant 1 : i32
 // CHECK: [[VAL_103:%.*]] = arith.constant 2 : i32
@@ -334,8 +334,8 @@ func.func @bar_select_type(%arg : !fir.box<!fir.type<name(param1:i32){fld:!fir.c
   %2 = arith.constant 3 : i32
   %3 = arith.constant 4 : i32
 
-// CHECK: fir.select_type [[VAL_101]] : !fir.box<!fir.type<name(param1:i32){fld:!fir.char<1>}>> [#fir.instance<!fir.int<4>>, ^bb1([[VAL_102]] : i32), #fir.instance<!fir.int<8>>, ^bb2([[VAL_104]] : i32), #fir.subsumed<!fir.int<2>>, ^bb3([[VAL_104]] : i32), #fir.instance<!fir.int<1>>, ^bb4([[VAL_103]] : i32), unit, ^bb5]
-  fir.select_type %arg : !fir.box<!fir.type<name(param1:i32){fld:!fir.char<1>}>> [ #fir.instance<!fir.int<4>>,^bb1(%0:i32), #fir.instance<!fir.int<8>>,^bb2(%2:i32), #fir.subsumed<!fir.int<2>>,^bb3(%2:i32), #fir.instance<!fir.int<1>>,^bb4(%1:i32), unit,^bb5 ]
+// CHECK: fir.select_type [[VAL_101]] : !fir.class<!fir.type<name(param1:i32){fld:!fir.char<1>}>> [#fir.type_is<!fir.int<4>>, ^bb1([[VAL_102]] : i32), #fir.type_is<!fir.int<8>>, ^bb2([[VAL_104]] : i32), #fir.class_is<!fir.int<2>>, ^bb3([[VAL_104]] : i32), #fir.type_is<!fir.int<1>>, ^bb4([[VAL_103]] : i32), unit, ^bb5]
+  fir.select_type %arg : !fir.class<!fir.type<name(param1:i32){fld:!fir.char<1>}>> [ #fir.type_is<!fir.int<4>>,^bb1(%0:i32), #fir.type_is<!fir.int<8>>,^bb2(%2:i32), #fir.class_is<!fir.int<2>>,^bb3(%2:i32), #fir.type_is<!fir.int<1>>,^bb4(%1:i32), unit,^bb5 ]
 
 // CHECK: ^bb1([[VAL_106:%.*]]: i32):
 // CHECK: return [[VAL_106]] : i32
@@ -450,52 +450,69 @@ fir.global linkonce_odr @global_linkonce_odr : i32 {
   fir.has_value %0 : i32
 }
 
-// CHECK-LABEL: fir.dispatch_table @dispatch_tbl {
+// CHECK-LABEL: fir.type_info @dispatch_tbl : !fir.type<dispatch_tbl{i:i32}> dispatch_table {
 // CHECK: fir.dt_entry "method", @method_impl
 // CHECK: }
-fir.dispatch_table @dispatch_tbl {
+fir.type_info @dispatch_tbl : !fir.type<dispatch_tbl{i:i32}> dispatch_table {
   fir.dt_entry "method", @method_impl
 }
 
+// CHECK-LABEL: fir.type_info @test_type_info noinit nodestroy nofinal extends !fir.type<parent{i:i32}> : !fir.type<test_type_info{i:i32,j:f32}>
+fir.type_info @test_type_info noinit nodestroy nofinal extends !fir.type<parent{i:i32}> : !fir.type<test_type_info{i:i32,j:f32}>
+
+// CHECK-LABEL: fir.type_info @cpinfo : !fir.type<cpinfo{comp_i:!fir.array<10x20xi32>}> component_info {
+// CHECK: fir.dt_component "component_info" lbs [2, 3]
+// CHECK: }
+fir.type_info @cpinfo : !fir.type<cpinfo{comp_i:!fir.array<10x20xi32>}> component_info {
+  fir.dt_component "component_info" lbs [2, 3]
+}
+
+// CHECK-LABEL: fir.type_info @abstract_dispatch_tbl abstract : !fir.type<abstract_dispatch_tbl{i:i32}> dispatch_table {
+// CHECK: fir.dt_entry "deferred_method", @deferred_impl deferred
+// CHECK: }
+fir.type_info @abstract_dispatch_tbl abstract : !fir.type<abstract_dispatch_tbl{i:i32}> dispatch_table {
+  fir.dt_entry "deferred_method", @deferred_impl deferred
+}
+
 // CHECK-LABEL: func @compare_complex(
-// CHECK-SAME: [[VAL_151:%.*]]: !fir.complex<16>, [[VAL_152:%.*]]: !fir.complex<16>) {
-func.func @compare_complex(%a : !fir.complex<16>, %b : !fir.complex<16>) {
+// CHECK-SAME: [[VAL_151:%.*]]: complex<f128>, [[VAL_152:%.*]]: complex<f128>) {
+func.func @compare_complex(%a : complex<f128>, %b : complex<f128>) {
 
-// CHECK: [[VAL_153:%.*]] = fir.cmpc "false", [[VAL_151]], [[VAL_152]] : !fir.complex<16>
-// CHECK: [[VAL_154:%.*]] = fir.cmpc "oeq", [[VAL_151]], [[VAL_152]] : !fir.complex<16>
-// CHECK: [[VAL_155:%.*]] = fir.cmpc "ogt", [[VAL_151]], [[VAL_152]] : !fir.complex<16>
-// CHECK: [[VAL_156:%.*]] = fir.cmpc "oge", [[VAL_151]], [[VAL_152]] : !fir.complex<16>
-  %d0 = fir.cmpc "false", %a, %b : !fir.complex<16>
-  %d1 = fir.cmpc "oeq", %a, %b : !fir.complex<16>
-  %d2 = fir.cmpc "ogt", %a, %b : !fir.complex<16>
-  %d3 = fir.cmpc "oge", %a, %b : !fir.complex<16>
+// CHECK: [[VAL_153:%.*]] = fir.cmpc "false", [[VAL_151]], [[VAL_152]] {fastmath = {{.*}}} : complex<f128>
+// CHECK: [[VAL_154:%.*]] = fir.cmpc "oeq", [[VAL_151]], [[VAL_152]] {fastmath = {{.*}}} : complex<f128>
+// CHECK: [[VAL_155:%.*]] = fir.cmpc "ogt", [[VAL_151]], [[VAL_152]] {fastmath = {{.*}}} : complex<f128>
+// CHECK: [[VAL_156:%.*]] = fir.cmpc "oge", [[VAL_151]], [[VAL_152]] {fastmath = {{.*}}} : complex<f128>
+  %d0 = fir.cmpc "false", %a, %b : complex<f128>
+  %d1 = fir.cmpc "oeq", %a, %b : complex<f128>
+  %d2 = fir.cmpc "ogt", %a, %b : complex<f128>
+  %d3 = fir.cmpc "oge", %a, %b : complex<f128>
 
-// CHECK: [[VAL_157:%.*]] = fir.cmpc "olt", [[VAL_151]], [[VAL_152]] : !fir.complex<16>
-// CHECK: [[VAL_158:%.*]] = fir.cmpc "ole", [[VAL_151]], [[VAL_152]] : !fir.complex<16>
-// CHECK: [[VAL_159:%.*]] = fir.cmpc "one", [[VAL_151]], [[VAL_152]] : !fir.complex<16>
-// CHECK: [[VAL_160:%.*]] = fir.cmpc "ord", [[VAL_151]], [[VAL_152]] : !fir.complex<16>
-  %a0 = fir.cmpc "olt", %a, %b : !fir.complex<16>
-  %a1 = fir.cmpc "ole", %a, %b : !fir.complex<16>
-  %a2 = fir.cmpc "one", %a, %b : !fir.complex<16>
-  %a3 = fir.cmpc "ord", %a, %b : !fir.complex<16>
+// CHECK: [[VAL_157:%.*]] = fir.cmpc "olt", [[VAL_151]], [[VAL_152]] {fastmath = {{.*}}} : complex<f128>
+// CHECK: [[VAL_158:%.*]] = fir.cmpc "ole", [[VAL_151]], [[VAL_152]] {fastmath = {{.*}}} : complex<f128>
+// CHECK: [[VAL_159:%.*]] = fir.cmpc "one", [[VAL_151]], [[VAL_152]] {fastmath = {{.*}}} : complex<f128>
+// CHECK: [[VAL_160:%.*]] = fir.cmpc "ord", [[VAL_151]], [[VAL_152]] {fastmath = {{.*}}} : complex<f128>
+  %a0 = fir.cmpc "olt", %a, %b : complex<f128>
+  %a1 = fir.cmpc "ole", %a, %b : complex<f128>
+  %a2 = fir.cmpc "one", %a, %b : complex<f128>
+  %a3 = fir.cmpc "ord", %a, %b : complex<f128>
 
-// CHECK: [[VAL_161:%.*]] = fir.cmpc "ueq", [[VAL_151]], [[VAL_152]] : !fir.complex<16>
-// CHECK: [[VAL_162:%.*]] = fir.cmpc "ugt", [[VAL_151]], [[VAL_152]] : !fir.complex<16>
-// CHECK: [[VAL_163:%.*]] = fir.cmpc "uge", [[VAL_151]], [[VAL_152]] : !fir.complex<16>
-// CHECK: [[VAL_164:%.*]] = fir.cmpc "ult", [[VAL_151]], [[VAL_152]] : !fir.complex<16>
-  %b0 = fir.cmpc "ueq", %a, %b : !fir.complex<16>
-  %b1 = fir.cmpc "ugt", %a, %b : !fir.complex<16>
-  %b2 = fir.cmpc "uge", %a, %b : !fir.complex<16>
-  %b3 = fir.cmpc "ult", %a, %b : !fir.complex<16>
+// CHECK: [[VAL_161:%.*]] = fir.cmpc "ueq", [[VAL_151]], [[VAL_152]] {fastmath = {{.*}}} : complex<f128>
+// CHECK: [[VAL_162:%.*]] = fir.cmpc "ugt", [[VAL_151]], [[VAL_152]] {fastmath = {{.*}}} : complex<f128>
+// CHECK: [[VAL_163:%.*]] = fir.cmpc "uge", [[VAL_151]], [[VAL_152]] {fastmath = {{.*}}} : complex<f128>
+// CHECK: [[VAL_164:%.*]] = fir.cmpc "ult", [[VAL_151]], [[VAL_152]] {fastmath = {{.*}}} : complex<f128>
+  %b0 = fir.cmpc "ueq", %a, %b : complex<f128>
+  %b1 = fir.cmpc "ugt", %a, %b : complex<f128>
+  %b2 = fir.cmpc "uge", %a, %b : complex<f128>
+  %b3 = fir.cmpc "ult", %a, %b : complex<f128>
 
-// CHECK: [[VAL_165:%.*]] = fir.cmpc "ule", [[VAL_151]], [[VAL_152]] : !fir.complex<16>
-// CHECK: [[VAL_166:%.*]] = fir.cmpc "une", [[VAL_151]], [[VAL_152]] : !fir.complex<16>
-// CHECK: [[VAL_167:%.*]] = fir.cmpc "uno", [[VAL_151]], [[VAL_152]] : !fir.complex<16>
-// CHECK: [[VAL_168:%.*]] = fir.cmpc "true", [[VAL_151]], [[VAL_152]] : !fir.complex<16>
-  %c0 = fir.cmpc "ule", %a, %b : !fir.complex<16>
-  %c1 = fir.cmpc "une", %a, %b : !fir.complex<16>
-  %c2 = fir.cmpc "uno", %a, %b : !fir.complex<16>
-  %c3 = fir.cmpc "true", %a, %b : !fir.complex<16>
+// CHECK: [[VAL_165:%.*]] = fir.cmpc "ule", [[VAL_151]], [[VAL_152]] {fastmath = {{.*}}} : complex<f128>
+// CHECK: [[VAL_166:%.*]] = fir.cmpc "une", [[VAL_151]], [[VAL_152]] {fastmath = {{.*}}} : complex<f128>
+// CHECK: [[VAL_167:%.*]] = fir.cmpc "uno", [[VAL_151]], [[VAL_152]] {fastmath = {{.*}}} : complex<f128>
+// CHECK: [[VAL_168:%.*]] = fir.cmpc "true", [[VAL_151]], [[VAL_152]] {fastmath = {{.*}}} : complex<f128>
+  %c0 = fir.cmpc "ule", %a, %b : complex<f128>
+  %c1 = fir.cmpc "une", %a, %b : complex<f128>
+  %c2 = fir.cmpc "uno", %a, %b : complex<f128>
+  %c3 = fir.cmpc "true", %a, %b : complex<f128>
 // CHECK: return
 // CHECK: }
   return
@@ -525,21 +542,21 @@ func.func @arith_real(%a : f128, %b : f128) -> f128 {
 }
 
 // CHECK-LABEL: func @arith_complex(
-// CHECK-SAME: [[VAL_179:%.*]]: !fir.complex<16>, [[VAL_180:%.*]]: !fir.complex<16>) -> !fir.complex<16> {
-func.func @arith_complex(%a : !fir.complex<16>, %b : !fir.complex<16>) -> !fir.complex<16> {
-// CHECK: [[VAL_181:%.*]] = fir.negc [[VAL_179]] : !fir.complex<16>
-// CHECK: [[VAL_182:%.*]] = fir.addc [[VAL_180]], [[VAL_181]] : !fir.complex<16>
-// CHECK: [[VAL_183:%.*]] = fir.subc [[VAL_182]], [[VAL_180]] : !fir.complex<16>
-// CHECK: [[VAL_184:%.*]] = fir.mulc [[VAL_181]], [[VAL_183]] : !fir.complex<16>
-// CHECK: [[VAL_185:%.*]] = fir.divc [[VAL_184]], [[VAL_179]] : !fir.complex<16>
-  %1 = fir.negc %a : !fir.complex<16>
-  %2 = fir.addc %b, %1 : !fir.complex<16>
-  %3 = fir.subc %2, %b : !fir.complex<16>
-  %4 = fir.mulc %1, %3 : !fir.complex<16>
-  %5 = fir.divc %4, %a : !fir.complex<16>
-// CHECK: return [[VAL_185]] : !fir.complex<16>
+// CHECK-SAME: [[VAL_179:%.*]]: complex<f128>, [[VAL_180:%.*]]: complex<f128>) -> complex<f128> {
+func.func @arith_complex(%a : complex<f128>, %b : complex<f128>) -> complex<f128> {
+// CHECK: [[VAL_181:%.*]] = fir.negc [[VAL_179]] : complex<f128>
+// CHECK: [[VAL_182:%.*]] = fir.addc [[VAL_180]], [[VAL_181]] : complex<f128>
+// CHECK: [[VAL_183:%.*]] = fir.subc [[VAL_182]], [[VAL_180]] : complex<f128>
+// CHECK: [[VAL_184:%.*]] = fir.mulc [[VAL_181]], [[VAL_183]] : complex<f128>
+// CHECK: [[VAL_185:%.*]] = fir.divc [[VAL_184]], [[VAL_179]] : complex<f128>
+  %1 = fir.negc %a : complex<f128>
+  %2 = fir.addc %b, %1 : complex<f128>
+  %3 = fir.subc %2, %b : complex<f128>
+  %4 = fir.mulc %1, %3 : complex<f128>
+  %5 = fir.divc %4, %a : complex<f128>
+// CHECK: return [[VAL_185]] : complex<f128>
 // CHECK: }
-  return %5 : !fir.complex<16>
+  return %5 : complex<f128>
 }
 
 // CHECK-LABEL: func @character_literal() -> !fir.char<1,13> {
@@ -665,23 +682,6 @@ func.func @test_misc_ops(%arr1 : !fir.ref<!fir.array<?x?xf32>>, %m : index, %n :
   return
 }
 
-// CHECK-LABEL: @test_const_complex
-func.func @test_const_complex() {
- // CHECK-DAG: {{%.*}} = fir.constc(#fir.real<2, i x3000>, #fir.real<2, i x4C40>) : !fir.complex<2>
- // CHECK-DAG: {{%.*}} = fir.constc(#fir.real<3, i x3E80>, #fir.real<3, i x4202>) : !fir.complex<3>
- // CHECK-DAG: {{%.*}} = fir.constc(#fir.real<4, i x3E800000>, #fir.real<4, i x42028000>) : !fir.complex<4>
- // CHECK-DAG: {{%.*}} = fir.constc(#fir.real<8, i x3FD0000000000000>, #fir.real<8, i x4040500000000000>) : !fir.complex<8>
- // CHECK-DAG: {{%.*}} = fir.constc(#fir.real<10, i x3FFD8000000000000000>, #fir.real<10, i x40048280000000000000>) : !fir.complex<10>
- // CHECK-DAG: {{%.*}} = fir.constc(#fir.real<16, i x3FFD0000000000000000000000000000>, #fir.real<16, i x40040500000000000000000000000000>) : !fir.complex<16>
-  %c2 = fir.constc (#fir.real<2, 0.125>, #fir.real<2, 17.0>) : !fir.complex<2>
-  %c3 = fir.constc (#fir.real<3, 0.25>, #fir.real<3, 32.625>) : !fir.complex<3>
-  %c4 = fir.constc (#fir.real<4, 0.25>, #fir.real<4, 32.625>) : !fir.complex<4>
-  %c8 = fir.constc (#fir.real<8, 0.25>, #fir.real<8, 32.625>) : !fir.complex<8>
-  %c10 = fir.constc (#fir.real<10, 0.25>, #fir.real<10, 32.625>) : !fir.complex<10>
-  %c16 = fir.constc (#fir.real<16, 0.25>, #fir.real<16, 32.625>) : !fir.complex<16>
-  return
-}
-
 // CHECK-LABEL: @insert_on_range_multi_dim
 // CHECK-SAME: %[[ARR:.*]]: !fir.array<10x20xi32>, %[[CST:.*]]: i32
 func.func @insert_on_range_multi_dim(%arr : !fir.array<10x20xi32>, %cst : i32) {
@@ -803,5 +803,248 @@ func.func @array_amend_ops(%a : !fir.ref<!fir.array<?x?xf32>>) {
   %p = fir.array_access %v, %c1, %c1 : (!fir.array<?x?xf32>, index, index) -> !fir.ref<f32>
   %res = fir.array_amend %v, %p : (!fir.array<?x?xf32>, !fir.ref<f32>) -> !fir.array<?x?xf32>
   // CHECK: %{{.*}} = fir.array_amend %{{.*}}, %{{.*}} : (!fir.array<?x?xf32>, !fir.ref<f32>) -> !fir.array<?x?xf32>
+  return
+}
+
+func.func private @dispatch(%arg0: !fir.class<!fir.type<dispatch_derived1{a:i32,b:i32}>>, %arg1: i32) -> () {
+  // CHECK-LABEL: func.func private @dispatch(
+  // CHECK-SAME: %[[CLASS:.*]]: !fir.class<!fir.type<dispatch_derived1{a:i32,b:i32}>>, %[[INTARG:.*]]: i32)
+  fir.dispatch "proc1"(%arg0 : !fir.class<!fir.type<dispatch_derived1{a:i32,b:i32}>>) (%arg0 : !fir.class<!fir.type<dispatch_derived1{a:i32,b:i32}>>) {pass_arg_pos = 0 : i32}
+  // CHECK: fir.dispatch "proc1"(%[[CLASS]] : !fir.class<!fir.type<dispatch_derived1{a:i32,b:i32}>>) (%[[CLASS]] : !fir.class<!fir.type<dispatch_derived1{a:i32,b:i32}>>) {pass_arg_pos = 0 : i32}
+
+  fir.dispatch "proc2"(%arg0 : !fir.class<!fir.type<dispatch_derived1{a:i32,b:i32}>>) proc_attrs<pure>
+  // CHECK: fir.dispatch "proc2"(%[[CLASS]] : !fir.class<!fir.type<dispatch_derived1{a:i32,b:i32}>>) proc_attrs <pure>
+
+  fir.dispatch "proc3"(%arg0 : !fir.class<!fir.type<dispatch_derived1{a:i32,b:i32}>>) (%arg1, %arg0 : i32, !fir.class<!fir.type<dispatch_derived1{a:i32,b:i32}>>) {pass_arg_pos = 1 : i32}
+  // CHECK: fir.dispatch "proc3"(%[[CLASS]] : !fir.class<!fir.type<dispatch_derived1{a:i32,b:i32}>>) (%[[INTARG]], %[[CLASS]] : i32, !fir.class<!fir.type<dispatch_derived1{a:i32,b:i32}>>) {pass_arg_pos = 1 : i32}
+  return
+}
+
+
+// CHECK-LABEL: func.func @embox_tdesc(
+// CHECK-SAME: %[[ARG0:.*]]: !fir.class<!fir.array<10x!fir.type<derived_poly{a:i32,b:i32}>>>
+func.func @embox_tdesc(%arg0: !fir.class<!fir.array<10x!fir.type<derived_poly{a:i32,b:i32}>>>) {
+  %0 = fir.alloca i32
+  %c1_i32 = arith.constant 1 : i32
+  %1 = fir.convert %c1_i32 : (i32) -> index
+  %c10_i32 = arith.constant 10 : i32
+  %2 = fir.convert %c10_i32 : (i32) -> index
+  %c1 = arith.constant 1 : index
+  %3 = fir.convert %1 : (index) -> i32
+  %4:2 = fir.do_loop %arg2 = %1 to %2 step %c1 iter_args(%arg3 = %3) -> (index, i32) {
+    fir.store %arg3 to %0 : !fir.ref<i32>
+    %9 = fir.load %0 : !fir.ref<i32>
+    %10 = fir.convert %9 : (i32) -> i64
+    %c1_i64 = arith.constant 1 : i64
+    %11 = arith.subi %10, %c1_i64 : i64
+    %12 = fir.coordinate_of %arg0, %11 : (!fir.class<!fir.array<10x!fir.type<derived_poly{a:i32,b:i32}>>>, i64) -> !fir.ref<!fir.type<derived_poly{a:i32,b:i32}>>
+    %13 = fir.embox %12 source_box %arg0 : (!fir.ref<!fir.type<derived_poly{a:i32,b:i32}>>, !fir.class<!fir.array<10x!fir.type<derived_poly{a:i32,b:i32}>>>) -> !fir.class<!fir.type<derived_poly{a:i32,b:i32}>>
+    // CHECK: %{{.*}} = fir.embox %{{.*}} source_box %[[ARG0]] : (!fir.ref<!fir.type<derived_poly{a:i32,b:i32}>>, !fir.class<!fir.array<10x!fir.type<derived_poly{a:i32,b:i32}>>>) -> !fir.class<!fir.type<derived_poly{a:i32,b:i32}>>
+    %14 = arith.addi %arg2, %c1 : index
+    %15 = fir.convert %c1 : (index) -> i32
+    %16 = fir.load %0 : !fir.ref<i32>
+    %17 = arith.addi %16, %15 : i32
+    fir.result %14, %17 : index, i32
+  }
+  fir.store %4#1 to %0 : !fir.ref<i32>
+  return
+}
+
+// CHECK-LABEL:   func.func @embox_with_source_box(
+// CHECK-SAME:      %[[ARG0:.*]]: !fir.heap<!fir.array<?xnone>>,
+// CHECK-SAME:      %[[ARG1:.*]]: !fir.shape<1>,
+// CHECK-SAME:      %[[ARG2:.*]]: !fir.box<!fir.array<?xnone>>) -> !fir.class<!fir.heap<!fir.array<?xnone>>> {
+func.func @embox_with_source_box(%arg0: !fir.heap<!fir.array<?xnone>>, %arg1: !fir.shape<1>, %arg2: !fir.box<!fir.array<?xnone>>) -> !fir.class<!fir.heap<!fir.array<?xnone>>> {
+// CHECK:           %[[VAL_0:.*]] = fir.embox %[[ARG0]](%[[ARG1]]) source_box %[[ARG2]] : (!fir.heap<!fir.array<?xnone>>, !fir.shape<1>, !fir.box<!fir.array<?xnone>>) -> !fir.class<!fir.heap<!fir.array<?xnone>>>
+  %0 = fir.embox %arg0(%arg1) source_box %arg2 : (!fir.heap<!fir.array<?xnone>>, !fir.shape<1>, !fir.box<!fir.array<?xnone>>) -> !fir.class<!fir.heap<!fir.array<?xnone>>>
+  return %0 : !fir.class<!fir.heap<!fir.array<?xnone>>>
+}
+
+func.func @test_fortran_var_attrs() {
+  %0 = fir.alloca !fir.heap<f32> {fortran_attrs = #fir.var_attrs<allocatable>}
+  %1 = fir.alloca f32 {fortran_attrs = #fir.var_attrs<asynchronous>}
+  %2 = fir.alloca f32 {fortran_attrs = #fir.var_attrs<bind_c>}
+  %3 = fir.alloca f32 {fortran_attrs = #fir.var_attrs<contiguous>}
+  %4 = fir.alloca f32 {fortran_attrs = #fir.var_attrs<intent_in>}
+  %5 = fir.alloca f32 {fortran_attrs = #fir.var_attrs<intent_inout>}
+  %6 = fir.alloca f32 {fortran_attrs = #fir.var_attrs<intent_out>}
+  %7 = fir.alloca f32 {fortran_attrs = #fir.var_attrs<optional>}
+  %8 = fir.alloca f32 {fortran_attrs = #fir.var_attrs<parameter>}
+  %9 = fir.alloca !fir.ptr<f32> {fortran_attrs = #fir.var_attrs<pointer>}
+  %10 = fir.alloca f32 {fortran_attrs = #fir.var_attrs<target>}
+  %11 = fir.alloca f32 {fortran_attrs = #fir.var_attrs<value>}
+  %12 = fir.alloca f32 {fortran_attrs = #fir.var_attrs<volatile>}
+  %13 = fir.alloca !fir.box<!fir.ptr<!fir.array<?xf32>>> {fortran_attrs = #fir.var_attrs<pointer, contiguous, volatile>}
+  return
+  // CHECK: fir.alloca !fir.heap<f32> {fortran_attrs = #fir.var_attrs<allocatable>}
+  // CHECK: fir.alloca f32 {fortran_attrs = #fir.var_attrs<asynchronous>}
+  // CHECK: fir.alloca f32 {fortran_attrs = #fir.var_attrs<bind_c>}
+  // CHECK: fir.alloca f32 {fortran_attrs = #fir.var_attrs<contiguous>}
+  // CHECK: fir.alloca f32 {fortran_attrs = #fir.var_attrs<intent_in>}
+  // CHECK: fir.alloca f32 {fortran_attrs = #fir.var_attrs<intent_inout>}
+  // CHECK: fir.alloca f32 {fortran_attrs = #fir.var_attrs<intent_out>}
+  // CHECK: fir.alloca f32 {fortran_attrs = #fir.var_attrs<optional>}
+  // CHECK: fir.alloca f32 {fortran_attrs = #fir.var_attrs<parameter>}
+  // CHECK: fir.alloca !fir.ptr<f32> {fortran_attrs = #fir.var_attrs<pointer>}
+  // CHECK: fir.alloca f32 {fortran_attrs = #fir.var_attrs<target>}
+  // CHECK: fir.alloca f32 {fortran_attrs = #fir.var_attrs<value>}
+  // CHECK: fir.alloca f32 {fortran_attrs = #fir.var_attrs<volatile>}
+  // CHECK: fir.alloca !fir.box<!fir.ptr<!fir.array<?xf32>>> {fortran_attrs = #fir.var_attrs<contiguous, pointer, volatile>}
+}
+
+func.func @test_box_typecode(%a: !fir.class<none>) {
+  %0 = fir.box_typecode %a : (!fir.class<none>) -> i32
+  return
+}
+
+// CHECK-LABEL: func.func @test_box_typecode(
+// CHECK-SAME: %[[A:.*]]: !fir.class<none>)
+// CHECK: %{{.*}} = fir.box_typecode %[[A]] : (!fir.class<none>) -> i32
+
+fir.global @t1 {keep_my_attr = "data"} : i32 {
+ %1 = arith.constant 0 : i32
+  fir.has_value %1 : i32
+}
+
+// CHECK-LABEL: fir.global @t1 {keep_my_attr = "data"} : i32
+
+func.func @test_rebox_assumed_rank(%arg0: !fir.box<!fir.array<*:f32>> ) {
+  %1 = fir.rebox_assumed_rank %arg0 lbs ones : (!fir.box<!fir.array<*:f32>>) -> !fir.box<!fir.array<*:f32>>
+  %2 = fir.rebox_assumed_rank %arg0 lbs zeroes : (!fir.box<!fir.array<*:f32>>) -> !fir.box<!fir.array<*:f32>>
+  %3 = fir.rebox_assumed_rank %arg0 lbs preserve : (!fir.box<!fir.array<*:f32>>) -> !fir.box<!fir.array<*:f32>>
+  return
+}
+// CHECK-LABEL: func.func @test_rebox_assumed_rank(
+// CHECK-SAME: %[[A:.*]]: !fir.box<!fir.array<*:f32>>)
+  // CHECK: fir.rebox_assumed_rank %[[A]] lbs ones : (!fir.box<!fir.array<*:f32>>) -> !fir.box<!fir.array<*:f32>>
+  // CHECK: fir.rebox_assumed_rank %[[A]] lbs zeroes : (!fir.box<!fir.array<*:f32>>) -> !fir.box<!fir.array<*:f32>>
+  // CHECK: fir.rebox_assumed_rank %[[A]] lbs preserve : (!fir.box<!fir.array<*:f32>>) -> !fir.box<!fir.array<*:f32>>
+
+func.func @test_is_assumed_size(%arg0: !fir.class<!fir.array<*:none>>, %arg1 : !fir.box<!fir.array<?xf32>>) {
+  %1 = fir.is_assumed_size %arg0 : (!fir.class<!fir.array<*:none>>) -> i1
+  %2 = fir.is_assumed_size %arg1 : (!fir.box<!fir.array<?xf32>>) -> i1
+  return
+}
+// CHECK-LABEL: func.func @test_is_assumed_size(
+// CHECK-SAME: %[[A:.*]]: !fir.class<!fir.array<*:none>>,
+// CHECK-SAME: %[[B:.*]]: !fir.box<!fir.array<?xf32>>)
+  // CHECK: fir.is_assumed_size %[[A]] : (!fir.class<!fir.array<*:none>>) -> i1
+  // CHECK: fir.is_assumed_size %[[B]] : (!fir.box<!fir.array<?xf32>>) -> i1
+
+func.func private @somefunc(i32, !fir.ref<i64>)
+
+// CHECK-LABEL: @test_call_arg_attrs_direct
+// CHECK-SAME:    %[[VAL_0:.*]]: i32,
+// CHECK-SAME:    %[[VAL_1:.*]]: !fir.ref<i64>) {
+func.func @test_call_arg_attrs_direct(%arg0: i32, %arg1: !fir.ref<i64>) {
+  // CHECK:  fir.call @somefunc(%[[VAL_0]], %[[VAL_1]]) : (i32, !fir.ref<i64> {llvm.byval = i64}) -> ()
+  fir.call @somefunc(%arg0, %arg1) : (i32, !fir.ref<i64> {llvm.byval = i64}) -> ()
+  return
+}
+
+// CHECK-LABEL: @test_call_arg_attrs_indirect
+// CHECK-SAME:    %[[VAL_0:.*]]: i16,
+// CHECK-SAME:    %[[VAL_1:.*]]: (i16) -> i16) -> i16 {
+func.func @test_call_arg_attrs_indirect(%arg0: i16, %arg1: (i16)-> i16) -> i16 {
+  // CHECK:  fir.call %[[VAL_1]](%[[VAL_0]]) : (i16 {llvm.noundef, llvm.signext}) -> (i16 {llvm.signext})
+  %0 = fir.call %arg1(%arg0) : (i16 {llvm.noundef, llvm.signext}) -> (i16 {llvm.signext})
+  return %0 : i16
+}
+
+// CHECK-LABEL: @test_copy(
+// CHECK-SAME:    %[[VAL_0:.*]]: !fir.ref<!fir.type<sometype{i:i32}>>,
+// CHECK-SAME:    %[[VAL_1:.*]]: !fir.ptr<!fir.type<sometype{i:i32}>>
+func.func @test_copy(%arg0: !fir.ref<!fir.type<sometype{i:i32}>>, %arg1: !fir.ptr<!fir.type<sometype{i:i32}>>) {
+  // CHECK: fir.copy %[[VAL_0]] to %[[VAL_1]] no_overlap : !fir.ref<!fir.type<sometype{i:i32}>>, !fir.ptr<!fir.type<sometype{i:i32}>>
+  fir.copy %arg0 to %arg1 no_overlap : !fir.ref<!fir.type<sometype{i:i32}>>, !fir.ptr<!fir.type<sometype{i:i32}>>
+  return
+}
+
+// CHECK-LABEL:   func.func @test_pack_unpack_array(
+// CHECK-SAME:                                      %[[VAL_0:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !fir.ref<!fir.box<none>>,
+// CHECK-SAME:                                      %[[VAL_1:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !fir.box<!fir.array<?xi32>>) {
+func.func @test_pack_unpack_array(%arg0: !fir.ref<!fir.box<none>>, %arg1: !fir.box<!fir.array<?xi32>>) {
+// CHECK:           %[[VAL_2:.*]] = fir.pack_array %[[VAL_1]] heap whole : (!fir.box<!fir.array<?xi32>>) -> !fir.box<!fir.array<?xi32>>
+  %0 = fir.pack_array %arg1 heap whole : (!fir.box<!fir.array<?xi32>>) -> !fir.box<!fir.array<?xi32>>
+  %1 = fir.convert %0 : (!fir.box<!fir.array<?xi32>>) -> !fir.box<none>
+  fir.store %1 to %arg0 : !fir.ref<!fir.box<none>>
+// CHECK:           %[[VAL_4:.*]] = fir.pack_array %[[VAL_1]] stack whole : (!fir.box<!fir.array<?xi32>>) -> !fir.box<!fir.array<?xi32>>
+  %2 = fir.pack_array %arg1 stack whole : (!fir.box<!fir.array<?xi32>>) -> !fir.box<!fir.array<?xi32>>
+  %3 = fir.convert %2 : (!fir.box<!fir.array<?xi32>>) -> !fir.box<none>
+  fir.store %3 to %arg0 : !fir.ref<!fir.box<none>>
+// CHECK:           %[[VAL_6:.*]] = fir.pack_array %[[VAL_1]] heap whole no_copy : (!fir.box<!fir.array<?xi32>>) -> !fir.box<!fir.array<?xi32>>
+  %4 = fir.pack_array %arg1 heap whole no_copy constraints {} heuristics <none> : (!fir.box<!fir.array<?xi32>>) -> !fir.box<!fir.array<?xi32>>
+  %5 = fir.convert %4 : (!fir.box<!fir.array<?xi32>>) -> !fir.box<none>
+  fir.store %5 to %arg0 : !fir.ref<!fir.box<none>>
+// CHECK:           %[[VAL_8:.*]] = fir.pack_array %[[VAL_1]] stack whole constraints  {max_size = 100 : ui64, max_element_size = 1 : ui64, min_stride = 10 : ui64} heuristics <loop_only> : (!fir.box<!fir.array<?xi32>>) -> !fir.box<!fir.array<?xi32>>
+  %6 = fir.pack_array %arg1 stack whole constraints {max_size = 100 : ui64, max_element_size = 1 : ui64, min_stride = 10 : ui64} heuristics <loop_only> : (!fir.box<!fir.array<?xi32>>) -> !fir.box<!fir.array<?xi32>>
+  %7 = fir.convert %6 : (!fir.box<!fir.array<?xi32>>) -> !fir.box<none>
+  fir.store %7 to %arg0 : !fir.ref<!fir.box<none>>
+// CHECK:           fir.unpack_array %[[VAL_8]] to %[[VAL_1]] stack no_copy : !fir.box<!fir.array<?xi32>>
+  fir.unpack_array %6 to %arg1 stack no_copy : !fir.box<!fir.array<?xi32>>
+  return
+}
+
+// Test assumed-length character array packing.
+// CHECK-LABEL:   func.func @test_pack_array_character(
+// CHECK-SAME:                                         %[[VAL_0:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !fir.box<!fir.array<?x!fir.char<1,?>>>) {
+func.func @test_pack_array_character(%arg0: !fir.box<!fir.array<?x!fir.char<1,?>>>) {
+// CHECK:           %[[VAL_1:.*]] = fir.pack_array %[[VAL_0]] heap whole : (!fir.box<!fir.array<?x!fir.char<1,?>>>) -> !fir.box<!fir.array<?x!fir.char<1,?>>>
+  %0 = fir.pack_array %arg0 heap whole : (!fir.box<!fir.array<?x!fir.char<1,?>>>) -> !fir.box<!fir.array<?x!fir.char<1,?>>>
+// CHECK:           fir.unpack_array %[[VAL_1]] to %[[VAL_0]] heap no_copy : !fir.box<!fir.array<?x!fir.char<1,?>>>
+  fir.unpack_array %0 to %arg0 heap no_copy : !fir.box<!fir.array<?x!fir.char<1,?>>>
+  return
+}
+
+// CHECK-LABEL:   func.func @test_is_contiguous_box(
+func.func @test_is_contiguous_box(%arg0: !fir.class<!fir.type<sometype{i:i32}>>, %arg1: !fir.box<!fir.array<?x?xf32>>, %arg2: !fir.box<i32>) -> i1 {
+// CHECK:           fir.is_contiguous_box %{{.*}} innermost : (!fir.class<!fir.type<sometype{i:i32}>>) -> i1
+  %0 = fir.is_contiguous_box %arg0 innermost : (!fir.class<!fir.type<sometype{i:i32}>>) -> i1
+// CHECK:           fir.is_contiguous_box %{{.*}} whole : (!fir.class<!fir.type<sometype{i:i32}>>) -> i1
+  %1 = fir.is_contiguous_box %arg0 whole : (!fir.class<!fir.type<sometype{i:i32}>>) -> i1
+// CHECK:           fir.is_contiguous_box %{{.*}} innermost : (!fir.box<!fir.array<?x?xf32>>) -> i1
+  %2 = fir.is_contiguous_box %arg1 innermost : (!fir.box<!fir.array<?x?xf32>>) -> i1
+// CHECK:           fir.is_contiguous_box %{{.*}} whole : (!fir.box<!fir.array<?x?xf32>>) -> i1
+  %3 = fir.is_contiguous_box %arg1 whole : (!fir.box<!fir.array<?x?xf32>>) -> i1
+// CHECK:           fir.is_contiguous_box %{{.*}} innermost : (!fir.box<i32>) -> i1
+  %4 = fir.is_contiguous_box %arg2 innermost : (!fir.box<i32>) -> i1
+// CHECK:           fir.is_contiguous_box %{{.*}} whole : (!fir.box<i32>) -> i1
+  %5 = fir.is_contiguous_box %arg2 whole : (!fir.box<i32>) -> i1
+  %6 = arith.andi %0, %1 : i1
+  %7 = arith.andi %2, %3 : i1
+  %8 = arith.andi %4, %5 : i1
+  %9 = arith.andi %6, %7 : i1
+  %10 = arith.andi %8, %9 : i1
+  return %10 : i1
+}
+
+// CHECK-LABEL:   func.func @test_box_total_elements(
+func.func @test_box_total_elements(%arg0: !fir.class<!fir.type<sometype{i:i32}>>, %arg1: !fir.box<!fir.array<?x?xf32>>, %arg2: !fir.box<i32>) -> index {
+// CHECK:           fir.box_total_elements %{{.*}} : (!fir.class<!fir.type<sometype{i:i32}>>) -> i16
+  %0 = fir.box_total_elements %arg0 : (!fir.class<!fir.type<sometype{i:i32}>>) -> i16
+// CHECK:           fir.box_total_elements %{{.*}} : (!fir.box<!fir.array<?x?xf32>>) -> i32
+  %1 = fir.box_total_elements %arg1 : (!fir.box<!fir.array<?x?xf32>>) -> i32
+// CHECK:           fir.box_total_elements %{{.*}} : (!fir.box<i32>) -> index
+  %2 = fir.box_total_elements %arg2 : (!fir.box<i32>) -> index
+  %3 = fir.convert %0 : (i16) -> index
+  %4 = fir.convert %1 : (i32) -> index
+  %5 = arith.addi %3, %4 : index
+  %6 = arith.addi %2, %5 : index
+  return %6 : index
+}
+
+// CHECK-LABEL:   func.func @test_if_weights(
+// CHECK-SAME:      %[[ARG0:.*]]: i1) {
+func.func @test_if_weights(%cond: i1) {
+// CHECK:           fir.if %[[ARG0]] weights([99, 1]) {
+// CHECK:           }
+  fir.if %cond weights([99, 1]) {
+  }
+// CHECK:           fir.if %[[ARG0]] weights([99, 1]) {
+// CHECK:           } else {
+// CHECK:           }
+  fir.if %cond weights ([99,1]) {
+  } else {
+  }
   return
 }

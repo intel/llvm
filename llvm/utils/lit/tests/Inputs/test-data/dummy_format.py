@@ -1,11 +1,9 @@
 import os
-try:
-    import ConfigParser
-except ImportError:
-    import configparser as ConfigParser
+import configparser
 
 import lit.formats
 import lit.Test
+
 
 class DummyFormat(lit.formats.FileBasedTest):
     def execute(self, test, lit_config):
@@ -14,25 +12,29 @@ class DummyFormat(lit.formats.FileBasedTest):
 
         source_path = test.getSourcePath()
 
-        cfg = ConfigParser.ConfigParser()
+        cfg = configparser.ConfigParser()
         cfg.read(source_path)
 
         # Create the basic test result.
-        result_code = cfg.get('global', 'result_code')
-        result_output = cfg.get('global', 'result_output')
-        result = lit.Test.Result(getattr(lit.Test, result_code),
-                                 result_output)
+        result_code = cfg.get("global", "result_code")
+        result_output = cfg.get("global", "result_output")
+        result = lit.Test.Result(getattr(lit.Test, result_code), result_output)
 
         # Load additional metrics.
-        for key,value_str in cfg.items('results'):
+        for key, value_str in cfg.items("results"):
             value = eval(value_str)
+            metric = lit.Test.toMetricValue(value)
             if isinstance(value, int):
-                metric = lit.Test.IntMetricValue(value)
+                assert isinstance(metric, lit.Test.IntMetricValue)
+                assert metric.format() == lit.Test.IntMetricValue(value).format()
             elif isinstance(value, float):
-                metric = lit.Test.RealMetricValue(value)
+                assert isinstance(metric, lit.Test.RealMetricValue)
+                assert metric.format() == lit.Test.RealMetricValue(value).format()
+            elif isinstance(value, str):
+                assert isinstance(metric, lit.Test.JSONMetricValue)
+                assert metric.format() == lit.Test.JSONMetricValue(value).format()
             else:
                 raise RuntimeError("unsupported result type")
             result.addMetric(key, metric)
 
         return result
-

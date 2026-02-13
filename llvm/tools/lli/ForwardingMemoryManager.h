@@ -43,10 +43,10 @@ public:
                                        IsReadOnly);
   }
 
-  void reserveAllocationSpace(uintptr_t CodeSize, uint32_t CodeAlign,
-                              uintptr_t RODataSize, uint32_t RODataAlign,
+  void reserveAllocationSpace(uintptr_t CodeSize, Align CodeAlign,
+                              uintptr_t RODataSize, Align RODataAlign,
                               uintptr_t RWDataSize,
-                              uint32_t RWDataAlign) override {
+                              Align RWDataAlign) override {
     MemMgr->reserveAllocationSpace(CodeSize, CodeAlign, RODataSize, RODataAlign,
                                    RWDataSize, RWDataAlign);
   }
@@ -98,20 +98,24 @@ public:
     auto H = DylibMgr->open("", 0);
     if (!H)
       return H.takeError();
-    return std::unique_ptr<RemoteResolver>(
-        new RemoteResolver(std::move(*DylibMgr), std::move(*H)));
+    return std::make_unique<RemoteResolver>(std::move(*DylibMgr),
+                                            std::move(*H));
   }
 
   JITSymbol findSymbol(const std::string &Name) override {
     orc::RemoteSymbolLookupSet R;
     R.push_back({std::move(Name), false});
-    if (auto Addrs = DylibMgr.lookup(H, R)) {
-      if (Addrs->size() != 1)
+    if (auto Syms = DylibMgr.lookup(H, R)) {
+      if (Syms->size() != 1)
         return make_error<StringError>("Unexpected remote lookup result",
                                        inconvertibleErrorCode());
-      return JITSymbol(Addrs->front().getValue(), JITSymbolFlags::Exported);
+      if (!Syms->front())
+        return make_error<StringError>("Expected valid address",
+                                       inconvertibleErrorCode());
+      return JITSymbol(Syms->front()->getAddress().getValue(),
+                       Syms->front()->getFlags());
     } else
-      return Addrs.takeError();
+      return Syms.takeError();
   }
 
   JITSymbol findSymbolInLogicalDylib(const std::string &Name) override {

@@ -13,7 +13,7 @@
 #include "LanaiAluCode.h"
 #include "MCTargetDesc/LanaiBaseInfo.h"
 #include "MCTargetDesc/LanaiFixupKinds.h"
-#include "MCTargetDesc/LanaiMCExpr.h"
+#include "MCTargetDesc/LanaiMCAsmInfo.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/MC/MCCodeEmitter.h"
@@ -21,10 +21,9 @@
 #include "llvm/MC/MCFixup.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstrInfo.h"
-#include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/Support/Casting.h"
-#include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/EndianStream.h"
 #include <cassert>
 #include <cstdint>
 
@@ -74,7 +73,7 @@ public:
                                   SmallVectorImpl<MCFixup> &Fixups,
                                   const MCSubtargetInfo &SubtargetInfo) const;
 
-  void encodeInstruction(const MCInst &Inst, raw_ostream &Ostream,
+  void encodeInstruction(const MCInst &Inst, SmallVectorImpl<char> &CB,
                          SmallVectorImpl<MCFixup> &Fixups,
                          const MCSubtargetInfo &SubtargetInfo) const override;
 
@@ -90,14 +89,14 @@ public:
 static Lanai::Fixups FixupKind(const MCExpr *Expr) {
   if (isa<MCSymbolRefExpr>(Expr))
     return Lanai::FIXUP_LANAI_21;
-  if (const LanaiMCExpr *McExpr = dyn_cast<LanaiMCExpr>(Expr)) {
-    LanaiMCExpr::VariantKind ExprKind = McExpr->getKind();
+  if (const MCSpecifierExpr *McExpr = dyn_cast<MCSpecifierExpr>(Expr)) {
+    Lanai::Specifier ExprKind = McExpr->getSpecifier();
     switch (ExprKind) {
-    case LanaiMCExpr::VK_Lanai_None:
+    case Lanai::S_None:
       return Lanai::FIXUP_LANAI_21;
-    case LanaiMCExpr::VK_Lanai_ABS_HI:
+    case Lanai::S_ABS_HI:
       return Lanai::FIXUP_LANAI_HI16;
-    case LanaiMCExpr::VK_Lanai_ABS_LO:
+    case Lanai::S_ABS_LO:
       return Lanai::FIXUP_LANAI_LO16;
     }
   }
@@ -124,7 +123,7 @@ unsigned LanaiMCCodeEmitter::getMachineOpValue(
     Expr = BinaryExpr->getLHS();
   }
 
-  assert(isa<LanaiMCExpr>(Expr) || Expr->getKind() == MCExpr::SymbolRef);
+  assert(isa<MCSpecifierExpr>(Expr) || Expr->getKind() == MCExpr::SymbolRef);
   // Push fixup (all info is contained within)
   Fixups.push_back(
       MCFixup::create(0, MCOp.getExpr(), MCFixupKind(FixupKind(Expr))));
@@ -170,15 +169,14 @@ LanaiMCCodeEmitter::adjustPqBitsSpls(const MCInst &Inst, unsigned Value,
 }
 
 void LanaiMCCodeEmitter::encodeInstruction(
-    const MCInst &Inst, raw_ostream &Ostream, SmallVectorImpl<MCFixup> &Fixups,
+    const MCInst &Inst, SmallVectorImpl<char> &CB,
+    SmallVectorImpl<MCFixup> &Fixups,
     const MCSubtargetInfo &SubtargetInfo) const {
   // Get instruction encoding and emit it
   unsigned Value = getBinaryCodeForInstr(Inst, Fixups, SubtargetInfo);
   ++MCNumEmitted; // Keep track of the number of emitted insns.
 
-  // Emit bytes in big-endian
-  for (int i = (4 - 1) * 8; i >= 0; i -= 8)
-    Ostream << static_cast<char>((Value >> i) & 0xff);
+  support::endian::write<uint32_t>(CB, Value, llvm::endianness::big);
 }
 
 // Encode Lanai Memory Operand
@@ -292,8 +290,7 @@ unsigned LanaiMCCodeEmitter::getBranchTargetOpValue(
   if (MCOp.isReg() || MCOp.isImm())
     return getMachineOpValue(Inst, MCOp, Fixups, SubtargetInfo);
 
-  Fixups.push_back(MCFixup::create(
-      0, MCOp.getExpr(), static_cast<MCFixupKind>(Lanai::FIXUP_LANAI_25)));
+  Fixups.push_back(MCFixup::create(0, MCOp.getExpr(), Lanai::FIXUP_LANAI_25));
 
   return 0;
 }

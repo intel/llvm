@@ -1,6 +1,6 @@
 ; xfail this test on hexagon because at O2, instructions are bundled in packets
 ; and DW_OP_lit13 is correctly omitted.
-; XFAIL: hexagon
+; XFAIL: target=hexagon-{{.*}}
 
 ; RUN: %llc_dwarf -O2  -dwarf-version 2 -filetype=obj < %s | llvm-dwarfdump - | FileCheck %s  --check-prefix=DWARF23
 ; RUN: %llc_dwarf -O2  -dwarf-version 3 -filetype=obj < %s | llvm-dwarfdump - | FileCheck %s  --check-prefix=DWARF23
@@ -33,12 +33,12 @@ define i32 @main() #0 !dbg !4 {
 entry:
   %c = alloca i32, align 4
   tail call void @llvm.dbg.value(metadata i32 13, metadata !10, metadata !16), !dbg !17
-  store volatile i32 13, i32* %c, align 4, !dbg !18
+  store volatile i32 13, ptr %c, align 4, !dbg !18
   %call = tail call i32 @_Z4funcv(), !dbg !19
   tail call void @llvm.dbg.value(metadata i32 %call, metadata !10, metadata !16), !dbg !17
-  store volatile i32 %call, i32* %c, align 4, !dbg !19
-  tail call void @llvm.dbg.value(metadata i32* %c, metadata !10, metadata !21), !dbg !17
-  %c.0.c.0. = load volatile i32, i32* %c, align 4, !dbg !20
+  store volatile i32 %call, ptr %c, align 4, !dbg !19
+  tail call void @llvm.dbg.value(metadata ptr %c, metadata !10, metadata !21), !dbg !17
+  %c.0.c.0. = load volatile i32, ptr %c, align 4, !dbg !20
   ret i32 %c.0.c.0., !dbg !20
 }
 
@@ -47,8 +47,8 @@ declare i32 @_Z4funcv() #1
 ; Function Attrs: nounwind readnone
 declare void @llvm.dbg.value(metadata, metadata, metadata) #2
 
-attributes #0 = { uwtable "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { uwtable "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "use-soft-float"="false" }
+attributes #1 = { "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "use-soft-float"="false" }
 attributes #2 = { nounwind readnone }
 
 !llvm.dbg.cu = !{!0}

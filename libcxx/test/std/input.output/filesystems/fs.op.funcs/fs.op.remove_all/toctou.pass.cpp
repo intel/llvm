@@ -6,9 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++03
+// UNSUPPORTED: c++03, c++11, c++14
 // UNSUPPORTED: no-localization
 // UNSUPPORTED: no-threads
+// UNSUPPORTED: no-filesystem
 
 // <filesystem>
 
@@ -27,24 +28,23 @@
 //
 // This is taken from https://github.com/rust-lang/wg-security-response/blob/master/patches/CVE-2022-21658/0002-Fix-CVE-2022-21658-for-UNIX-like.patch
 
-// This test requires a dylib containing the fix shipped in https://reviews.llvm.org/D118134.
+// This test requires a dylib containing the fix shipped in https://reviews.llvm.org/D118134 (4f67a909902d).
 // We use UNSUPPORTED instead of XFAIL because the test might not fail reliably.
-// UNSUPPORTED: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11|12|13|14|15}}
-// UNSUPPORTED: use_system_cxx_lib && target={{.+}}-apple-macosx11.0
-// UNSUPPORTED: use_system_cxx_lib && target={{.+}}-apple-macosx12.{{0|1|2}}
+// UNSUPPORTED: using-built-library-before-llvm-14
 
 // Windows doesn't support the necessary APIs to mitigate this issue.
-// UNSUPPORTED: target={{.+}}-windows-{{.+}}
+// XFAIL: target={{.+}}-windows-{{.+}}
 
 #include <cstdio>
 #include <filesystem>
 #include <system_error>
 #include <thread>
 
-#include "filesystem_include.h"
+#include <filesystem>
 #include "filesystem_test_helper.h"
+namespace fs = std::filesystem;
 
-int main() {
+int main(int, char**) {
   scoped_test_env env;
   fs::path const tmpdir = env.create_dir("mydir");
   fs::path const victim_del_path = tmpdir / "victim_del";

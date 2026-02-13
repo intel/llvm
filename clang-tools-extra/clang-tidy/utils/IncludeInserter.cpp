@@ -1,4 +1,4 @@
-//===-------- IncludeInserter.cpp - clang-tidy ----------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,10 +10,9 @@
 #include "clang/Lex/PPCallbacks.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Lex/Token.h"
+#include <optional>
 
-namespace clang {
-namespace tidy {
-namespace utils {
+namespace clang::tidy::utils {
 
 class IncludeInserterCallback : public PPCallbacks {
 public:
@@ -24,9 +23,10 @@ public:
   void InclusionDirective(SourceLocation HashLocation,
                           const Token &IncludeToken, StringRef FileNameRef,
                           bool IsAngled, CharSourceRange FileNameRange,
-                          Optional<FileEntryRef> /*IncludedFile*/,
+                          OptionalFileEntryRef /*IncludedFile*/,
                           StringRef /*SearchPath*/, StringRef /*RelativePath*/,
-                          const Module * /*ImportedModule*/,
+                          const Module * /*SuggestedModule*/,
+                          bool /*ModuleImported*/,
                           SrcMgr::CharacteristicKind /*FileType*/) override {
     Inserter->addInclude(FileNameRef, IsAngled, HashLocation,
                          IncludeToken.getEndLoc());
@@ -67,22 +67,22 @@ IncludeSorter &IncludeInserter::getOrCreate(FileID FileID) {
   return *Entry;
 }
 
-llvm::Optional<FixItHint>
+std::optional<FixItHint>
 IncludeInserter::createIncludeInsertion(FileID FileID, llvm::StringRef Header) {
-  bool IsAngled = Header.consume_front("<");
+  const bool IsAngled = Header.consume_front("<");
   if (IsAngled != Header.consume_back(">"))
-    return llvm::None;
+    return std::nullopt;
   // We assume the same Header will never be included both angled and not
   // angled.
   // In self contained diags mode we don't track what headers we have already
   // inserted.
   if (!SelfContainedDiags && !InsertedHeaders[FileID].insert(Header).second)
-    return llvm::None;
+    return std::nullopt;
 
   return getOrCreate(FileID).createIncludeInsertion(Header, IsAngled);
 }
 
-llvm::Optional<FixItHint>
+std::optional<FixItHint>
 IncludeInserter::createMainFileIncludeInsertion(StringRef Header) {
   assert(SourceMgr && "SourceMgr shouldn't be null; did you remember to call "
                       "registerPreprocessor()?");
@@ -94,10 +94,8 @@ void IncludeInserter::addInclude(StringRef FileName, bool IsAngled,
                                  SourceLocation EndLocation) {
   assert(SourceMgr && "SourceMgr shouldn't be null; did you remember to call "
                       "registerPreprocessor()?");
-  FileID FileID = SourceMgr->getFileID(HashLocation);
+  const FileID FileID = SourceMgr->getFileID(HashLocation);
   getOrCreate(FileID).addInclude(FileName, IsAngled, HashLocation, EndLocation);
 }
 
-} // namespace utils
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::utils

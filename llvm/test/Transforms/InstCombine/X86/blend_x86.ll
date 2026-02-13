@@ -209,14 +209,14 @@ define <16 x i8> @sel_v16i8(<16 x i8> %x, <16 x i8> %y, <16 x i1> %cond) {
 ; expected IR when 1 of the blend operands is a constant 0 vector. Potentially, this could
 ; be transformed to bitwise logic in IR, but currently that transform is left to the backend.
 
-define <4 x float> @sel_v4f32_sse_reality(<4 x float>* %x, <4 x float> %y, <4 x float> %z) {
+define <4 x float> @sel_v4f32_sse_reality(ptr %x, <4 x float> %y, <4 x float> %z) {
 ; CHECK-LABEL: @sel_v4f32_sse_reality(
-; CHECK-NEXT:    [[LD:%.*]] = load <4 x float>, <4 x float>* [[X:%.*]], align 16
+; CHECK-NEXT:    [[LD:%.*]] = load <4 x float>, ptr [[X:%.*]], align 16
 ; CHECK-NEXT:    [[CMP:%.*]] = fcmp olt <4 x float> [[Z:%.*]], [[Y:%.*]]
 ; CHECK-NEXT:    [[R:%.*]] = select <4 x i1> [[CMP]], <4 x float> zeroinitializer, <4 x float> [[LD]]
 ; CHECK-NEXT:    ret <4 x float> [[R]]
 ;
-  %ld = load <4 x float>, <4 x float>* %x, align 16
+  %ld = load <4 x float>, ptr %x, align 16
   %cmp = fcmp olt <4 x float> %z, %y
   %sext = sext <4 x i1> %cmp to <4 x i32>
   %cond = bitcast <4 x i32> %sext to <4 x float>
@@ -224,14 +224,14 @@ define <4 x float> @sel_v4f32_sse_reality(<4 x float>* %x, <4 x float> %y, <4 x 
   ret <4 x float> %r
 }
 
-define <2 x double> @sel_v2f64_sse_reality(<2 x double>* nocapture readonly %x, <2 x double> %y, <2 x double> %z) {
+define <2 x double> @sel_v2f64_sse_reality(ptr nocapture readonly %x, <2 x double> %y, <2 x double> %z) {
 ; CHECK-LABEL: @sel_v2f64_sse_reality(
-; CHECK-NEXT:    [[LD:%.*]] = load <2 x double>, <2 x double>* [[X:%.*]], align 16
+; CHECK-NEXT:    [[LD:%.*]] = load <2 x double>, ptr [[X:%.*]], align 16
 ; CHECK-NEXT:    [[CMP:%.*]] = fcmp olt <2 x double> [[Z:%.*]], [[Y:%.*]]
 ; CHECK-NEXT:    [[R:%.*]] = select <2 x i1> [[CMP]], <2 x double> zeroinitializer, <2 x double> [[LD]]
 ; CHECK-NEXT:    ret <2 x double> [[R]]
 ;
-  %ld = load <2 x double>, <2 x double>* %x, align 16
+  %ld = load <2 x double>, ptr %x, align 16
   %cmp = fcmp olt <2 x double> %z, %y
   %sext = sext <2 x i1> %cmp to <2 x i64>
   %cond = bitcast <2 x i64> %sext to <2 x double>
@@ -241,10 +241,9 @@ define <2 x double> @sel_v2f64_sse_reality(<2 x double>* nocapture readonly %x, 
 
 ; Bitcast the inputs and the result and remove the intrinsic.
 
-define <2 x i64> @sel_v4i32_sse_reality(<2 x i64>* nocapture readonly %x, <2 x i64> %y, <2 x i64> %z) {
+define <2 x i64> @sel_v4i32_sse_reality(ptr nocapture readonly %x, <2 x i64> %y, <2 x i64> %z) {
 ; CHECK-LABEL: @sel_v4i32_sse_reality(
-; CHECK-NEXT:    [[TMP1:%.*]] = bitcast <2 x i64>* [[X:%.*]] to <4 x i32>*
-; CHECK-NEXT:    [[LD1:%.*]] = load <4 x i32>, <4 x i32>* [[TMP1]], align 16
+; CHECK-NEXT:    [[LD1:%.*]] = load <4 x i32>, ptr [[X:%.*]], align 16
 ; CHECK-NEXT:    [[YCAST:%.*]] = bitcast <2 x i64> [[Y:%.*]] to <4 x i32>
 ; CHECK-NEXT:    [[ZCAST:%.*]] = bitcast <2 x i64> [[Z:%.*]] to <4 x i32>
 ; CHECK-NEXT:    [[CMP:%.*]] = icmp sgt <4 x i32> [[YCAST]], [[ZCAST]]
@@ -252,8 +251,7 @@ define <2 x i64> @sel_v4i32_sse_reality(<2 x i64>* nocapture readonly %x, <2 x i
 ; CHECK-NEXT:    [[RCAST:%.*]] = bitcast <4 x i32> [[TMP2]] to <2 x i64>
 ; CHECK-NEXT:    ret <2 x i64> [[RCAST]]
 ;
-  %xcast = bitcast <2 x i64>* %x to <16 x i8>*
-  %ld = load <16 x i8>, <16 x i8>* %xcast, align 16
+  %ld = load <16 x i8>, ptr %x, align 16
   %ycast = bitcast <2 x i64> %y to <4 x i32>
   %zcast = bitcast <2 x i64> %z to <4 x i32>
   %cmp = icmp sgt <4 x i32> %ycast, %zcast
@@ -264,10 +262,9 @@ define <2 x i64> @sel_v4i32_sse_reality(<2 x i64>* nocapture readonly %x, <2 x i
   ret <2 x i64> %rcast
 }
 
-define <2 x i64> @sel_v16i8_sse_reality(<2 x i64>* nocapture readonly %x, <2 x i64> %y, <2 x i64> %z) {
+define <2 x i64> @sel_v16i8_sse_reality(ptr nocapture readonly %x, <2 x i64> %y, <2 x i64> %z) {
 ; CHECK-LABEL: @sel_v16i8_sse_reality(
-; CHECK-NEXT:    [[XCAST:%.*]] = bitcast <2 x i64>* [[X:%.*]] to <16 x i8>*
-; CHECK-NEXT:    [[LD:%.*]] = load <16 x i8>, <16 x i8>* [[XCAST]], align 16
+; CHECK-NEXT:    [[LD:%.*]] = load <16 x i8>, ptr [[X:%.*]], align 16
 ; CHECK-NEXT:    [[YCAST:%.*]] = bitcast <2 x i64> [[Y:%.*]] to <16 x i8>
 ; CHECK-NEXT:    [[ZCAST:%.*]] = bitcast <2 x i64> [[Z:%.*]] to <16 x i8>
 ; CHECK-NEXT:    [[CMP:%.*]] = icmp sgt <16 x i8> [[YCAST]], [[ZCAST]]
@@ -275,8 +272,7 @@ define <2 x i64> @sel_v16i8_sse_reality(<2 x i64>* nocapture readonly %x, <2 x i
 ; CHECK-NEXT:    [[RCAST:%.*]] = bitcast <16 x i8> [[R]] to <2 x i64>
 ; CHECK-NEXT:    ret <2 x i64> [[RCAST]]
 ;
-  %xcast = bitcast <2 x i64>* %x to <16 x i8>*
-  %ld = load <16 x i8>, <16 x i8>* %xcast, align 16
+  %ld = load <16 x i8>, ptr %x, align 16
   %ycast = bitcast <2 x i64> %y to <16 x i8>
   %zcast = bitcast <2 x i64> %z to <16 x i8>
   %cmp = icmp sgt <16 x i8> %ycast, %zcast
@@ -284,6 +280,150 @@ define <2 x i64> @sel_v16i8_sse_reality(<2 x i64>* nocapture readonly %x, <2 x i
   %r = tail call <16 x i8> @llvm.x86.sse41.pblendvb(<16 x i8> %ld, <16 x i8> zeroinitializer, <16 x i8> %sext)
   %rcast = bitcast <16 x i8> %r to <2 x i64>
   ret <2 x i64> %rcast
+}
+
+define <4 x float> @sel_v16i8_bitcast_shuffle_bitcast_cmp(<8 x float> %a, <8 x float> %b, <8 x float> %c, <8 x float> %d) {
+; CHECK-LABEL: @sel_v16i8_bitcast_shuffle_bitcast_cmp(
+; CHECK-NEXT:    [[CMP:%.*]] = fcmp olt <8 x float> [[A:%.*]], [[B:%.*]]
+; CHECK-NEXT:    [[A_BC:%.*]] = bitcast <8 x float> [[A]] to <8 x i32>
+; CHECK-NEXT:    [[B_BC:%.*]] = bitcast <8 x float> [[B]] to <8 x i32>
+; CHECK-NEXT:    [[TMP1:%.*]] = shufflevector <8 x i1> [[CMP]], <8 x i1> poison, <4 x i32> <i32 0, i32 1, i32 2, i32 3>
+; CHECK-NEXT:    [[A_LO:%.*]] = shufflevector <8 x i32> [[A_BC]], <8 x i32> poison, <4 x i32> <i32 0, i32 1, i32 2, i32 3>
+; CHECK-NEXT:    [[B_LO:%.*]] = shufflevector <8 x i32> [[B_BC]], <8 x i32> poison, <4 x i32> <i32 0, i32 1, i32 2, i32 3>
+; CHECK-NEXT:    [[TMP2:%.*]] = select <4 x i1> [[TMP1]], <4 x i32> [[B_LO]], <4 x i32> [[A_LO]]
+; CHECK-NEXT:    [[RES:%.*]] = bitcast <4 x i32> [[TMP2]] to <4 x float>
+; CHECK-NEXT:    ret <4 x float> [[RES]]
+;
+  %cmp = fcmp olt <8 x float> %a, %b
+  %sext = sext <8 x i1> %cmp to <8 x i32>
+  %a.bc = bitcast <8 x float> %a to <8 x i32>
+  %b.bc = bitcast <8 x float> %b to <8 x i32>
+  %sext.lo = shufflevector <8 x i32> %sext, <8 x i32> poison, <4 x i32> <i32 0, i32 1, i32 2, i32 3>
+  %a.lo = shufflevector <8 x i32> %a.bc, <8 x i32> poison, <4 x i32> <i32 0, i32 1, i32 2, i32 3>
+  %b.lo = shufflevector <8 x i32> %b.bc, <8 x i32> poison, <4 x i32> <i32 0, i32 1, i32 2, i32 3>
+  %a.lo.bc = bitcast <4 x i32> %a.lo to <16 x i8>
+  %b.lo.bc = bitcast <4 x i32> %b.lo to <16 x i8>
+  %sext.lo.bc = bitcast <4 x i32> %sext.lo to <16 x i8>
+  %blendv = call <16 x i8> @llvm.x86.sse41.pblendvb(<16 x i8> %a.lo.bc, <16 x i8> %b.lo.bc, <16 x i8> %sext.lo.bc)
+  %res = bitcast <16 x i8> %blendv to <4 x float>
+  ret <4 x float> %res
+}
+
+define <16 x i8> @shl_pblendvb_v16i8(<16 x i8> %a0, <16 x i8> %a1, <16 x i8> %a2) {
+; CHECK-LABEL: @shl_pblendvb_v16i8(
+; CHECK-NEXT:    [[S_MASK:%.*]] = and <16 x i8> [[A2:%.*]], splat (i8 64)
+; CHECK-NEXT:    [[DOTNOT:%.*]] = icmp eq <16 x i8> [[S_MASK]], zeroinitializer
+; CHECK-NEXT:    [[TMP1:%.*]] = select <16 x i1> [[DOTNOT]], <16 x i8> [[A0:%.*]], <16 x i8> [[A1:%.*]]
+; CHECK-NEXT:    ret <16 x i8> [[TMP1]]
+;
+  %s = shl <16 x i8> %a2, splat (i8 1)
+  %r = tail call <16 x i8> @llvm.x86.sse41.pblendvb(<16 x i8> %a0, <16 x i8> %a1, <16 x i8> %s)
+  ret <16 x i8> %r
+}
+
+define <32 x i8> @shl_pblendvb_v32i8(<32 x i8> %a0, <32 x i8> %a1, <32 x i8> %a2) {
+; CHECK-LABEL: @shl_pblendvb_v32i8(
+; CHECK-NEXT:    [[TMP1:%.*]] = icmp eq <32 x i8> [[A2:%.*]], splat (i8 7)
+; CHECK-NEXT:    [[TMP2:%.*]] = select <32 x i1> [[TMP1]], <32 x i8> [[A1:%.*]], <32 x i8> [[A0:%.*]]
+; CHECK-NEXT:    ret <32 x i8> [[TMP2]]
+;
+  %s = shl <32 x i8> splat (i8 1), %a2
+  %r = tail call <32 x i8> @llvm.x86.avx2.pblendvb(<32 x i8> %a0, <32 x i8> %a1, <32 x i8> %s)
+  ret <32 x i8> %r
+}
+
+define <4 x float> @shl_blendvps_v4f32(<4 x float> %a0, <4 x float> %a1, <4 x i32> %a2) {
+; CHECK-LABEL: @shl_blendvps_v4f32(
+; CHECK-NEXT:    [[S_MASK:%.*]] = and <4 x i32> [[A2:%.*]], splat (i32 1)
+; CHECK-NEXT:    [[DOTNOT:%.*]] = icmp eq <4 x i32> [[S_MASK]], zeroinitializer
+; CHECK-NEXT:    [[TMP1:%.*]] = select <4 x i1> [[DOTNOT]], <4 x float> [[A0:%.*]], <4 x float> [[A1:%.*]]
+; CHECK-NEXT:    ret <4 x float> [[TMP1]]
+;
+  %s = shl <4 x i32> %a2, splat (i32 31)
+  %b = bitcast <4 x i32> %s to <4 x float>
+  %r = call <4 x float> @llvm.x86.sse41.blendvps(<4 x float> %a0, <4 x float> %a1, <4 x float> %b)
+  ret <4 x float> %r
+}
+
+define <4 x double> @shl_blendvpd_v4f64(<4 x double> %a0, <4 x double> %a1, <4 x i64> %a2) {
+; CHECK-LABEL: @shl_blendvpd_v4f64(
+; CHECK-NEXT:    [[TMP1:%.*]] = icmp eq <4 x i64> [[A2:%.*]], splat (i64 63)
+; CHECK-NEXT:    [[TMP2:%.*]] = select <4 x i1> [[TMP1]], <4 x double> [[A1:%.*]], <4 x double> [[A0:%.*]]
+; CHECK-NEXT:    ret <4 x double> [[TMP2]]
+;
+  %s = shl <4 x i64> splat (i64 1), %a2
+  %b = bitcast <4 x i64> %s to <4 x double>
+  %r = call <4 x double> @llvm.x86.avx.blendv.pd.256(<4 x double> %a0, <4 x double> %a1, <4 x double> %b)
+  ret <4 x double> %r
+}
+
+define <16 x i8> @pblendvb_demanded_msb(<16 x i8> %a, <16 x i8> %b, <16 x i8> %m) {
+; CHECK-LABEL: @pblendvb_demanded_msb(
+; CHECK-NEXT:    [[R:%.*]] = call <16 x i8> @llvm.x86.sse41.pblendvb(<16 x i8> [[A:%.*]], <16 x i8> [[B:%.*]], <16 x i8> [[OR:%.*]])
+; CHECK-NEXT:    ret <16 x i8> [[R]]
+;
+  %or = or <16 x i8> %m, splat (i8 1)
+  %r = call <16 x i8> @llvm.x86.sse41.pblendvb(<16 x i8> %a, <16 x i8> %b, <16 x i8> %or)
+  ret <16 x i8> %r
+}
+
+define <8 x float> @blendvps_demanded_msb(<8 x float> %a, <8 x float> %b, <8 x i32> %m) {
+; CHECK-LABEL: @blendvps_demanded_msb(
+; CHECK-NEXT:    [[MASK:%.*]] = bitcast <8 x i32> [[OR:%.*]] to <8 x float>
+; CHECK-NEXT:    [[R:%.*]] = call <8 x float> @llvm.x86.avx.blendv.ps.256(<8 x float> [[A:%.*]], <8 x float> [[B:%.*]], <8 x float> [[MASK]])
+; CHECK-NEXT:    ret <8 x float> [[R]]
+;
+  %or = or <8 x i32> %m, splat (i32 1)
+  %mask = bitcast <8 x i32> %or to <8 x float>
+  %r = call <8 x float> @llvm.x86.avx.blendv.ps.256(<8 x float> %a, <8 x float> %b, <8 x float> %mask)
+  ret <8 x float> %r
+}
+
+define <16 x i8> @pblendvb_or_affects_msb(<16 x i8> %a, <16 x i8> %b, <16 x i8> %m) {
+; CHECK-LABEL: @pblendvb_or_affects_msb(
+; CHECK-NEXT:    ret <16 x i8> [[R:%.*]]
+;
+  %or = or <16 x i8> %m, splat (i8 128)
+  %r = call <16 x i8> @llvm.x86.sse41.pblendvb(<16 x i8> %a, <16 x i8> %b, <16 x i8> %or)
+  ret <16 x i8> %r
+}
+
+define <32 x i8> @pblendvb_demanded_msb_avx2(<32 x i8> %a, <32 x i8> %b, <32 x i8> %m) {
+; CHECK-LABEL: @pblendvb_demanded_msb_avx2(
+; CHECK-NEXT:    [[R:%.*]] = call <32 x i8> @llvm.x86.avx2.pblendvb(<32 x i8> [[A:%.*]], <32 x i8> [[B:%.*]], <32 x i8> [[OR:%.*]])
+; CHECK-NEXT:    ret <32 x i8> [[R]]
+;
+  %or = or <32 x i8> %m, splat (i8 1)
+  %r  = call <32 x i8> @llvm.x86.avx2.pblendvb(<32 x i8> %a, <32 x i8> %b, <32 x i8> %or)
+  ret <32 x i8> %r
+}
+
+define <2 x double> @blendvpd_demanded_msb(<2 x double> %a, <2 x double> %b, <2 x i64> %m) {
+; CHECK-LABEL: @blendvpd_demanded_msb(
+; CHECK-NEXT:    [[MASK:%.*]] = bitcast <2 x i64> [[M:%.*]] to <2 x double>
+; CHECK-NEXT:    [[R:%.*]] = call <2 x double> @llvm.x86.sse41.blendvpd(<2 x double> [[A:%.*]], <2 x double> [[B:%.*]], <2 x double> [[MASK]])
+; CHECK-NEXT:    ret <2 x double> [[R]]
+;
+  %or = or <2 x i64> %m, splat (i64 1)
+  %mask = bitcast <2 x i64> %or to <2 x double>
+  %r = call <2 x double> @llvm.x86.sse41.blendvpd(<2 x double> %a, <2 x double> %b, <2 x double> %mask)
+  ret <2 x double> %r
+}
+
+declare void @use_mask(<8 x float>)
+define <8 x float> @blendvps_demanded_msb_multiuse(<8 x float> %a, <8 x float> %b, <8 x i32> %m) {
+; CHECK-LABEL: @blendvps_demanded_msb_multiuse(
+; CHECK-NEXT:    [[OR:%.*]] = or <8 x i32> [[M:%.*]], splat (i32 1)
+; CHECK-NEXT:    [[MASK:%.*]] = bitcast <8 x i32> [[OR]] to <8 x float>
+; CHECK-NEXT:    call void @use_mask(<8 x float> [[MASK]])
+; CHECK-NEXT:    [[R:%.*]] = call <8 x float> @llvm.x86.avx.blendv.ps.256(<8 x float> [[A:%.*]], <8 x float> [[B:%.*]], <8 x float> [[MASK]])
+; CHECK-NEXT:    ret <8 x float> [[R]]
+;
+  %or = or <8 x i32> %m, splat (i32 1)
+  %mask = bitcast <8 x i32> %or to <8 x float>
+  call void @use_mask(<8 x float> %mask)
+  %r = call <8 x float> @llvm.x86.avx.blendv.ps.256(<8 x float> %a, <8 x float> %b, <8 x float> %mask)
+  ret <8 x float> %r
 }
 
 declare <16 x i8> @llvm.x86.sse41.pblendvb(<16 x i8>, <16 x i8>, <16 x i8>)

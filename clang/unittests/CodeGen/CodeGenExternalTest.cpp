@@ -19,12 +19,12 @@
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Parse/ParseAST.h"
 #include "clang/Sema/Sema.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/Support/Debug.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/TargetParser/Host.h"
+#include "llvm/TargetParser/Triple.h"
 #include "gtest/gtest.h"
 
 using namespace llvm;
@@ -172,6 +172,7 @@ static void test_codegen_fns(MyASTConsumer *my) {
   bool mytest_struct_ok = false;
 
   CodeGen::CodeGenModule &CGM = my->Builder->CGM();
+  const ASTContext &Ctx = my->toplevel_decls.front()->getASTContext();
 
   for (auto decl : my->toplevel_decls ) {
     if (FunctionDecl *fd = dyn_cast<FunctionDecl>(decl)) {
@@ -189,9 +190,7 @@ static void test_codegen_fns(MyASTConsumer *my) {
       if (rd->getName() == "mytest_struct") {
         RecordDecl *def = rd->getDefinition();
         ASSERT_TRUE(def != NULL);
-        const clang::Type *clangTy = rd->getCanonicalDecl()->getTypeForDecl();
-        ASSERT_TRUE(clangTy != NULL);
-        QualType qType = clangTy->getCanonicalTypeInternal();
+        CanQualType qType = Ctx.getCanonicalTagType(rd);
 
         // Check convertTypeForMemory
         llvm::Type *llvmTy = CodeGen::convertTypeForMemory(CGM, qType);

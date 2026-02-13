@@ -1,4 +1,4 @@
-; RUN: opt %loadPolly -polly-invariant-load-hoisting=true -polly-print-scops -disable-output < %s | FileCheck %s
+; RUN: opt %loadNPMPolly -polly-invariant-load-hoisting=true '-passes=polly-custom<scops>' -polly-print-scops -disable-output < %s 2>&1 | FileCheck %s
 ;
 ;    void f(unsigned *restrict I, unsigned *restrict A, unsigned N, unsigned M) {
 ;      for (unsigned i = 0; i < N; i++) {
@@ -8,7 +8,7 @@
 ;      }
 ;    }
 ;
-; FIXME: The truncated value should be a paramter.
+; FIXME: The truncated value should be a parameter.
 ; CHECK:         Assumed Context:
 ; CHECK-NEXT:    [N, tmp, M] -> { : }
 ; CHECK-NEXT:    Invalid Context:
@@ -19,7 +19,7 @@
 ;
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
-define void @f(i32* noalias %I, i32* noalias %A, i32 %N, i32 %M) {
+define void @f(ptr noalias %I, ptr noalias %A, i32 %N, i32 %M) {
 entry:
   br label %for.cond
 
@@ -30,16 +30,16 @@ for.cond:                                         ; preds = %for.inc, %entry
   br i1 %exitcond, label %for.body, label %for.end
 
 for.body:                                         ; preds = %for.cond
-  %tmp = load i32, i32* %I, align 4
+  %tmp = load i32, ptr %I, align 4
   %conv1 = and i32 %tmp, 255
   %cmp2 = icmp ult i32 %conv1, %M
   br i1 %cmp2, label %if.then, label %if.end
 
 if.then:                                          ; preds = %for.body
-  %arrayidx = getelementptr inbounds i32, i32* %A, i64 %indvars.iv
-  %tmp1 = load i32, i32* %arrayidx, align 4
+  %arrayidx = getelementptr inbounds i32, ptr %A, i64 %indvars.iv
+  %tmp1 = load i32, ptr %arrayidx, align 4
   %inc = add i32 %tmp1, 1
-  store i32 %inc, i32* %arrayidx, align 4
+  store i32 %inc, ptr %arrayidx, align 4
   br label %if.end
 
 if.end:                                           ; preds = %if.then, %for.body

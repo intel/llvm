@@ -171,10 +171,10 @@ lldb::addr_t AppleGetThreadItemInfoHandler::SetupGetThreadItemInfoFunction(
 
       // Also make the FunctionCaller for this UtilityFunction:
 
-      TypeSystemClang *clang_ast_context = ScratchTypeSystemClang::GetForTarget(
+      TypeSystemClangSP scratch_ts_sp = ScratchTypeSystemClang::GetForTarget(
           thread.GetProcess()->GetTarget());
       CompilerType get_thread_item_info_return_type =
-          clang_ast_context->GetBasicType(eBasicTypeVoid).GetPointerType();
+          scratch_ts_sp->GetBasicType(eBasicTypeVoid).GetPointerType();
 
       get_thread_item_info_caller =
           m_get_thread_item_info_impl_code->MakeFunctionCaller(
@@ -216,14 +216,14 @@ lldb::addr_t AppleGetThreadItemInfoHandler::SetupGetThreadItemInfoFunction(
 
 AppleGetThreadItemInfoHandler::GetThreadItemInfoReturnInfo
 AppleGetThreadItemInfoHandler::GetThreadItemInfo(Thread &thread,
-                                                 tid_t thread_id,
+                                                 lldb::tid_t thread_id,
                                                  addr_t page_to_free,
                                                  uint64_t page_to_free_size,
                                                  Status &error) {
   lldb::StackFrameSP thread_cur_frame = thread.GetStackFrameAtIndex(0);
   ProcessSP process_sp(thread.CalculateProcess());
   TargetSP target_sp(thread.CalculateTarget());
-  TypeSystemClang *clang_ast_context =
+  TypeSystemClangSP scratch_ts_sp =
       ScratchTypeSystemClang::GetForTarget(*target_sp);
   Log *log = GetLog(LLDBLog::SystemRuntime);
 
@@ -236,7 +236,8 @@ AppleGetThreadItemInfoHandler::GetThreadItemInfo(Thread &thread,
   if (!thread.SafeToCallFunctions()) {
     LLDB_LOGF(log, "Not safe to call functions on thread 0x%" PRIx64,
               thread.GetID());
-    error.SetErrorString("Not safe to call functions on this thread.");
+    error =
+        Status::FromErrorString("Not safe to call functions on this thread.");
     return return_value;
   }
 
@@ -261,18 +262,18 @@ AppleGetThreadItemInfoHandler::GetThreadItemInfo(Thread &thread,
   // already allocated by lldb in the inferior process.
 
   CompilerType clang_void_ptr_type =
-      clang_ast_context->GetBasicType(eBasicTypeVoid).GetPointerType();
+      scratch_ts_sp->GetBasicType(eBasicTypeVoid).GetPointerType();
   Value return_buffer_ptr_value;
   return_buffer_ptr_value.SetValueType(Value::ValueType::Scalar);
   return_buffer_ptr_value.SetCompilerType(clang_void_ptr_type);
 
-  CompilerType clang_int_type = clang_ast_context->GetBasicType(eBasicTypeInt);
+  CompilerType clang_int_type = scratch_ts_sp->GetBasicType(eBasicTypeInt);
   Value debug_value;
   debug_value.SetValueType(Value::ValueType::Scalar);
   debug_value.SetCompilerType(clang_int_type);
 
   CompilerType clang_uint64_type =
-      clang_ast_context->GetBasicType(eBasicTypeUnsignedLongLong);
+      scratch_ts_sp->GetBasicType(eBasicTypeUnsignedLongLong);
   Value thread_id_value;
   thread_id_value.SetValueType(Value::ValueType::Scalar);
   thread_id_value.SetCompilerType(clang_uint64_type);
@@ -338,8 +339,9 @@ AppleGetThreadItemInfoHandler::GetThreadItemInfo(Thread &thread,
   thread.CalculateExecutionContext(exe_ctx);
 
   if (!m_get_thread_item_info_impl_code) {
-    error.SetErrorString("Unable to compile function to call "
-                         "__introspection_dispatch_thread_get_item_info");
+    error = Status::FromErrorString(
+        "Unable to compile function to call "
+        "__introspection_dispatch_thread_get_item_info");
     return return_value;
   }
 
@@ -347,8 +349,9 @@ AppleGetThreadItemInfoHandler::GetThreadItemInfo(Thread &thread,
       m_get_thread_item_info_impl_code->GetFunctionCaller();
 
   if (!get_thread_item_info_caller) {
-    error.SetErrorString("Unable to compile function caller for "
-                         "__introspection_dispatch_thread_get_item_info");
+    error = Status::FromErrorString(
+        "Unable to compile function caller for "
+        "__introspection_dispatch_thread_get_item_info");
     return return_value;
   }
 
@@ -362,9 +365,10 @@ AppleGetThreadItemInfoHandler::GetThreadItemInfo(Thread &thread,
               "__introspection_dispatch_thread_get_item_info(), got "
               "ExpressionResults %d, error contains %s",
               func_call_ret, error.AsCString(""));
-    error.SetErrorString("Unable to call "
-                         "__introspection_dispatch_thread_get_item_info() for "
-                         "list of queues");
+    error = Status::FromErrorString(
+        "Unable to call "
+        "__introspection_dispatch_thread_get_item_info() for "
+        "list of queues");
     return return_value;
   }
 

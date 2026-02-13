@@ -1,4 +1,4 @@
-// RUN: %check_clang_tidy -std=c++14 %s readability-const-return-type %t
+// RUN: %check_clang_tidy -std=c++14-or-later %s readability-const-return-type %t -- -- -Wno-error=return-type
 
 //  p# = positive test
 //  n# = negative test
@@ -66,7 +66,7 @@ class Clazz {
   const Klazz<const int>* const p5() const;
   // CHECK-FIXES: const Klazz<const int>* p5() const;
 
-  const Clazz operator++(int x) {  //  p12
+  const Clazz operator++(int x) {
   // CHECK-MESSAGES: [[@LINE-1]]:3: warning: return type 'const Clazz' is 'const
   // CHECK-FIXES: Clazz operator++(int x) {
   }
@@ -196,21 +196,28 @@ const /* comment */ /* another comment*/ int p16() { return 0; }
 // Test cases where the `const` token lexically is hidden behind some form of
 // indirection.
 
+// Regression tests involving macros, which are ignored by default because
+// IgnoreMacros defaults to true.
+#define CONCAT(a, b) a##b
+CONCAT(cons, t) int n22(){}
+
 #define CONSTINT const int
-CONSTINT p18() {}
-// CHECK-MESSAGES: [[@LINE-1]]:1: warning: return type 'const int' is 'const'-qu
+CONSTINT n23() {}
 
 #define CONST const
-CONST int p19() {}
-// CHECK-MESSAGES: [[@LINE-1]]:1: warning: return type 'const int' is 'const'-qu
+CONST int n24() {}
+
+#define CREATE_FUNCTION()                    \
+const int n_inside_macro() { \
+  return 1; \
+}
+CREATE_FUNCTION();
 
 using ty = const int;
 ty p21() {}
-// CHECK-MESSAGES: [[@LINE-1]]:1: warning: return type 'ty' (aka 'const int') is
 
 typedef const int ty2;
 ty2 p22() {}
-// CHECK-MESSAGES: [[@LINE-1]]:1: warning: return type 'ty2' (aka 'const int') i
 
 // Declaration uses a macro, while definition doesn't.  In this case, we won't
 // fix the declaration, and will instead issue a warning.
@@ -240,7 +247,6 @@ auto p27() -> int const { return 3; }
 // CHECK-MESSAGES: [[@LINE-1]]:1: warning: return type 'const int' is 'const'-qu
 
 std::add_const<int>::type p28() { return 3; }
-// CHECK-MESSAGES: [[@LINE-1]]:1: warning: return type 'std::add_const<int>::typ
 
 // p29, p30 are based on
 // llvm/projects/test-suite/SingleSource/Benchmarks/Misc-C++-EH/spirit.cpp:
@@ -279,12 +285,21 @@ public:
   // CHECK-NOT-FIXES: virtual int getC() = 0;
 };
 
-class PVDerive : public PVBase {
+class NVDerive : public PVBase {
 public:
-  const int getC() { return 1; }
-  // CHECK-MESSAGES: [[@LINE-1]]:3: warning: return type 'const int' is 'const'-qualified at the top level, which may reduce code readability without improving const correctness
-  // CHECK-NOT-FIXES: int getC() { return 1; }
+  // Don't warn about overridden methods, because it may be impossible to make
+  // them non-const as the user may not be able to change the base class.
+  const int getC() override { return 1; }
 };
+
+class NVDeriveOutOfLine : public PVBase {
+public:
+  // Don't warn about overridden methods, because it may be impossible to make
+  // them non-const as one may not be able to change the base class
+  const int getC();
+};
+
+const int NVDeriveOutOfLine::getC() { return 1; }
 
 // Don't warn about const auto types, because it may be impossible to make them non-const
 // without a significant semantics change. Since `auto` drops cv-qualifiers,
@@ -321,4 +336,36 @@ __typeof__(n17i) n20() {
 // Don't warn about `__typeof__(type)` types
 __typeof__(const int) n21() {
   return 21;
+}
+
+template <typename T>
+struct n25 {
+  T foo() const { return 2; }
+};
+template struct n25<const int>;
+
+template <typename T>
+struct p41 {
+  const T foo() const { return 2; }
+  // CHECK-MESSAGES: [[@LINE-1]]:3: warning: return type 'const
+  // CHECK-MESSAGES: [[@LINE-2]]:3: warning: return type 'const
+  // CHECK-FIXES: T foo() const { return 2; }
+};
+template struct p41<int>;
+
+namespace PR73270 {
+  template<typename K, typename V>
+  struct Pair {
+    using first_type = const K;
+    using second_type = V;
+  };
+
+  template<typename PairType>
+  typename PairType::first_type getFirst() {
+    return {};
+  }
+
+  void test() {
+    getFirst<Pair<int, int>>();
+  }
 }

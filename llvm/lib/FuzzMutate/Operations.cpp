@@ -67,9 +67,18 @@ void llvm::describeFuzzerFloatOps(std::vector<fuzzerop::OpDescriptor> &Ops) {
   Ops.push_back(cmpOpDescriptor(1, Instruction::FCmp, CmpInst::FCMP_TRUE));
 }
 
+void llvm::describeFuzzerUnaryOperations(
+    std::vector<fuzzerop::OpDescriptor> &Ops) {
+  Ops.push_back(fnegDescriptor(1));
+}
+
 void llvm::describeFuzzerControlFlowOps(
     std::vector<fuzzerop::OpDescriptor> &Ops) {
   Ops.push_back(splitBlockDescriptor(1));
+}
+
+void llvm::describeFuzzerOtherOps(std::vector<fuzzerop::OpDescriptor> &Ops) {
+  Ops.push_back(selectDescriptor(1));
 }
 
 void llvm::describeFuzzerPointerOps(std::vector<fuzzerop::OpDescriptor> &Ops) {
@@ -88,10 +97,26 @@ void llvm::describeFuzzerVectorOps(std::vector<fuzzerop::OpDescriptor> &Ops) {
   Ops.push_back(shuffleVectorDescriptor(1));
 }
 
+OpDescriptor llvm::fuzzerop::selectDescriptor(unsigned Weight) {
+  auto buildOp = [](ArrayRef<Value *> Srcs, BasicBlock::iterator InsertPt) {
+    return SelectInst::Create(Srcs[0], Srcs[1], Srcs[2], "S", InsertPt);
+  };
+  return {Weight,
+          {boolOrVecBoolType(), matchFirstLengthWAnyType(), matchSecondType()},
+          buildOp};
+}
+
+OpDescriptor llvm::fuzzerop::fnegDescriptor(unsigned Weight) {
+  auto buildOp = [](ArrayRef<Value *> Srcs, BasicBlock::iterator InsertPt) {
+    return UnaryOperator::Create(Instruction::FNeg, Srcs[0], "F", InsertPt);
+  };
+  return {Weight, {anyFloatOrVecFloatType()}, buildOp};
+}
+
 OpDescriptor llvm::fuzzerop::binOpDescriptor(unsigned Weight,
                                              Instruction::BinaryOps Op) {
-  auto buildOp = [Op](ArrayRef<Value *> Srcs, Instruction *Inst) {
-    return BinaryOperator::Create(Op, Srcs[0], Srcs[1], "B", Inst);
+  auto buildOp = [Op](ArrayRef<Value *> Srcs, BasicBlock::iterator InsertPt) {
+    return BinaryOperator::Create(Op, Srcs[0], Srcs[1], "B", InsertPt);
   };
   switch (Op) {
   case Instruction::Add:
@@ -107,13 +132,13 @@ OpDescriptor llvm::fuzzerop::binOpDescriptor(unsigned Weight,
   case Instruction::And:
   case Instruction::Or:
   case Instruction::Xor:
-    return {Weight, {anyIntType(), matchFirstType()}, buildOp};
+    return {Weight, {anyIntOrVecIntType(), matchFirstType()}, buildOp};
   case Instruction::FAdd:
   case Instruction::FSub:
   case Instruction::FMul:
   case Instruction::FDiv:
   case Instruction::FRem:
-    return {Weight, {anyFloatType(), matchFirstType()}, buildOp};
+    return {Weight, {anyFloatOrVecFloatType(), matchFirstType()}, buildOp};
   case Instruction::BinaryOpsEnd:
     llvm_unreachable("Value out of range of enum");
   }
@@ -123,24 +148,26 @@ OpDescriptor llvm::fuzzerop::binOpDescriptor(unsigned Weight,
 OpDescriptor llvm::fuzzerop::cmpOpDescriptor(unsigned Weight,
                                              Instruction::OtherOps CmpOp,
                                              CmpInst::Predicate Pred) {
-  auto buildOp = [CmpOp, Pred](ArrayRef<Value *> Srcs, Instruction *Inst) {
-    return CmpInst::Create(CmpOp, Pred, Srcs[0], Srcs[1], "C", Inst);
+  auto buildOp = [CmpOp, Pred](ArrayRef<Value *> Srcs,
+                               BasicBlock::iterator InsertPt) {
+    return CmpInst::Create(CmpOp, Pred, Srcs[0], Srcs[1], "C", InsertPt);
   };
 
   switch (CmpOp) {
   case Instruction::ICmp:
-    return {Weight, {anyIntType(), matchFirstType()}, buildOp};
+    return {Weight, {anyIntOrVecIntType(), matchFirstType()}, buildOp};
   case Instruction::FCmp:
-    return {Weight, {anyFloatType(), matchFirstType()}, buildOp};
+    return {Weight, {anyFloatOrVecFloatType(), matchFirstType()}, buildOp};
   default:
     llvm_unreachable("CmpOp must be ICmp or FCmp");
   }
 }
 
 OpDescriptor llvm::fuzzerop::splitBlockDescriptor(unsigned Weight) {
-  auto buildSplitBlock = [](ArrayRef<Value *> Srcs, Instruction *Inst) {
-    BasicBlock *Block = Inst->getParent();
-    BasicBlock *Next = Block->splitBasicBlock(Inst, "BB");
+  auto buildSplitBlock = [](ArrayRef<Value *> Srcs,
+                            BasicBlock::iterator InsertPt) {
+    BasicBlock *Block = InsertPt->getParent();
+    BasicBlock *Next = Block->splitBasicBlock(InsertPt, "BB");
 
     // If it was an exception handling block, we are done.
     if (Block->isEHPad())
@@ -149,40 +176,39 @@ OpDescriptor llvm::fuzzerop::splitBlockDescriptor(unsigned Weight) {
     // Loop back on this block by replacing the unconditional forward branch
     // with a conditional with a backedge.
     if (Block != &Block->getParent()->getEntryBlock()) {
-      BranchInst::Create(Block, Next, Srcs[0], Block->getTerminator());
+      BranchInst::Create(Block, Next, Srcs[0],
+                         Block->getTerminator()->getIterator());
       Block->getTerminator()->eraseFromParent();
 
       // We need values for each phi in the block. Since there isn't a good way
       // to do a variable number of input values currently, we just fill them
-      // with undef.
+      // with poison.
       for (PHINode &PHI : Block->phis())
-        PHI.addIncoming(UndefValue::get(PHI.getType()), Block);
+        PHI.addIncoming(PoisonValue::get(PHI.getType()), Block);
     }
     return nullptr;
   };
   SourcePred isInt1Ty{[](ArrayRef<Value *>, const Value *V) {
                         return V->getType()->isIntegerTy(1);
                       },
-                      None};
+                      std::nullopt};
   return {Weight, {isInt1Ty}, buildSplitBlock};
 }
 
 OpDescriptor llvm::fuzzerop::gepDescriptor(unsigned Weight) {
-  auto buildGEP = [](ArrayRef<Value *> Srcs, Instruction *Inst) {
+  auto buildGEP = [](ArrayRef<Value *> Srcs, BasicBlock::iterator InsertPt) {
     // TODO: It would be better to generate a random type here, rather than
     // generating a random value and picking its type.
-    Type *Ty = Srcs[0]->getType()->isOpaquePointerTy()
-                   ? Srcs[1]->getType()
-                   : Srcs[0]->getType()->getNonOpaquePointerElementType();
-    auto Indices = makeArrayRef(Srcs).drop_front(2);
-    return GetElementPtrInst::Create(Ty, Srcs[0], Indices, "G", Inst);
+    Type *Ty = Srcs[1]->getType();
+    auto Indices = ArrayRef(Srcs).drop_front(2);
+    return GetElementPtrInst::Create(Ty, Srcs[0], Indices, "G", InsertPt);
   };
   // TODO: Handle aggregates and vectors
   // TODO: Support multiple indices.
   // TODO: Try to avoid meaningless accesses.
   SourcePred sizedType(
       [](ArrayRef<Value *>, const Value *V) { return V->getType()->isSized(); },
-      None);
+      std::nullopt);
   return {Weight, {sizedPtrType(), sizedType, anyIntType()}, buildGEP};
 }
 
@@ -216,10 +242,11 @@ static SourcePred validExtractValueIndex() {
 }
 
 OpDescriptor llvm::fuzzerop::extractValueDescriptor(unsigned Weight) {
-  auto buildExtract = [](ArrayRef<Value *> Srcs, Instruction *Inst) {
+  auto buildExtract = [](ArrayRef<Value *> Srcs,
+                         BasicBlock::iterator InsertPt) {
     // TODO: It's pretty inefficient to shuffle this all through constants.
     unsigned Idx = cast<ConstantInt>(Srcs[1])->getZExtValue();
-    return ExtractValueInst::Create(Srcs[0], {Idx}, "E", Inst);
+    return ExtractValueInst::Create(Srcs[0], {Idx}, "E", InsertPt);
   };
   // TODO: Should we handle multiple indices?
   return {Weight, {anyAggregateType(), validExtractValueIndex()}, buildExtract};
@@ -275,10 +302,10 @@ static SourcePred validInsertValueIndex() {
 }
 
 OpDescriptor llvm::fuzzerop::insertValueDescriptor(unsigned Weight) {
-  auto buildInsert = [](ArrayRef<Value *> Srcs, Instruction *Inst) {
+  auto buildInsert = [](ArrayRef<Value *> Srcs, BasicBlock::iterator InsertPt) {
     // TODO: It's pretty inefficient to shuffle this all through constants.
     unsigned Idx = cast<ConstantInt>(Srcs[2])->getZExtValue();
-    return InsertValueInst::Create(Srcs[0], Srcs[1], {Idx}, "I", Inst);
+    return InsertValueInst::Create(Srcs[0], Srcs[1], {Idx}, "I", InsertPt);
   };
   return {
       Weight,
@@ -287,18 +314,19 @@ OpDescriptor llvm::fuzzerop::insertValueDescriptor(unsigned Weight) {
 }
 
 OpDescriptor llvm::fuzzerop::extractElementDescriptor(unsigned Weight) {
-  auto buildExtract = [](ArrayRef<Value *> Srcs, Instruction *Inst) {
-    return ExtractElementInst::Create(Srcs[0], Srcs[1], "E", Inst);
+  auto buildExtract = [](ArrayRef<Value *> Srcs,
+                         BasicBlock::iterator InsertPt) {
+    return ExtractElementInst::Create(Srcs[0], Srcs[1], "E", InsertPt);
   };
   // TODO: Try to avoid undefined accesses.
   return {Weight, {anyVectorType(), anyIntType()}, buildExtract};
 }
 
 OpDescriptor llvm::fuzzerop::insertElementDescriptor(unsigned Weight) {
-  auto buildInsert = [](ArrayRef<Value *> Srcs, Instruction *Inst) {
-    return InsertElementInst::Create(Srcs[0], Srcs[1], Srcs[2], "I", Inst);
+  auto buildInsert = [](ArrayRef<Value *> Srcs, BasicBlock::iterator InsertPt) {
+    return InsertElementInst::Create(Srcs[0], Srcs[1], Srcs[2], "I", InsertPt);
   };
-    // TODO: Try to avoid undefined accesses.
+  // TODO: Try to avoid undefined accesses.
   return {Weight,
           {anyVectorType(), matchScalarOfFirstType(), anyIntType()},
           buildInsert};
@@ -313,15 +341,16 @@ static SourcePred validShuffleVectorIndex() {
     auto *Int32Ty = Type::getInt32Ty(Cur[0]->getContext());
     // TODO: It's straighforward to make up reasonable values, but listing them
     // exhaustively would be insane. Come up with a couple of sensible ones.
-    return std::vector<Constant *>{UndefValue::get(
-        VectorType::get(Int32Ty, FirstTy->getElementCount()))};
+    return std::vector<Constant *>{
+        PoisonValue::get(VectorType::get(Int32Ty, FirstTy->getElementCount()))};
   };
   return {Pred, Make};
 }
 
 OpDescriptor llvm::fuzzerop::shuffleVectorDescriptor(unsigned Weight) {
-  auto buildShuffle = [](ArrayRef<Value *> Srcs, Instruction *Inst) {
-    return new ShuffleVectorInst(Srcs[0], Srcs[1], Srcs[2], "S", Inst);
+  auto buildShuffle = [](ArrayRef<Value *> Srcs,
+                         BasicBlock::iterator InsertPt) {
+    return new ShuffleVectorInst(Srcs[0], Srcs[1], Srcs[2], "S", InsertPt);
   };
   return {Weight,
           {anyVectorType(), matchFirstType(), validShuffleVectorIndex()},

@@ -10,13 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "HTMLDiagnostics.h"
+#include "PlistDiagnostics.h"
+#include "SarifDiagnostics.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
 #include "clang/AST/Stmt.h"
 #include "clang/Analysis/IssueHash.h"
 #include "clang/Analysis/MacroExpansionContext.h"
 #include "clang/Analysis/PathDiagnostic.h"
-#include "clang/Basic/FileManager.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
@@ -26,25 +28,22 @@
 #include "clang/Rewrite/Core/HTMLRewrite.h"
 #include "clang/Rewrite/Core/Rewriter.h"
 #include "clang/StaticAnalyzer/Core/PathDiagnosticConsumers.h"
-#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/RewriteBuffer.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator_range.h"
-#include "llvm/Support/Casting.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/IOSandbox.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
-#include <algorithm>
 #include <cassert>
 #include <map>
 #include <memory>
 #include <set>
-#include <sstream>
 #include <string>
 #include <system_error>
 #include <utility>
@@ -52,6 +51,7 @@
 
 using namespace clang;
 using namespace ento;
+using llvm::RewriteBuffer;
 
 //===----------------------------------------------------------------------===//
 // Boilerplate.
@@ -68,6 +68,9 @@ class HTMLDiagnostics : public PathDiagnosticConsumer {
   bool noDir = false;
   const Preprocessor &PP;
   const bool SupportsCrossFileDiagnostics;
+  llvm::StringSet<> EmittedHashes;
+  html::RelexRewriteCacheRef RewriterCache =
+      html::instantiateRelexRewriteCache();
 
 public:
   HTMLDiagnostics(PathDiagnosticConsumerOptions DiagOpts,
@@ -81,7 +84,7 @@ public:
   void FlushDiagnosticsImpl(std::vector<const PathDiagnostic *> &Diags,
                             FilesMade *filesMade) override;
 
-  StringRef getName() const override { return "HTMLDiagnostics"; }
+  StringRef getName() const override { return HTML_DIAGNOSTICS_NAME; }
 
   bool supportsCrossFileDiagnostics() const override {
     return SupportsCrossFileDiagnostics;
@@ -112,7 +115,7 @@ public:
   // Add HTML header/footers to file specified by FID
   void FinalizeHTML(const PathDiagnostic &D, Rewriter &R,
                     const SourceManager &SMgr, const PathPieces &path,
-                    FileID FID, const FileEntry *Entry, const char *declName);
+                    FileID FID, FileEntryRef Entry, const char *declName);
 
   // Rewrite the file specified by FID with HTML formatting.
   void RewriteFile(Rewriter &R, const PathPieces &path, FileID FID);
@@ -170,6 +173,21 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const ArrowMap &Indices) {
 
 } // namespace
 
+/// Creates and registers an HTML diagnostic consumer, without any additional
+/// text consumer.
+static void createHTMLDiagnosticConsumerImpl(
+    PathDiagnosticConsumerOptions DiagOpts, PathDiagnosticConsumers &C,
+    const std::string &OutputDir, const Preprocessor &PP,
+    bool SupportMultipleFiles) {
+
+  // TODO: Emit an error here.
+  if (OutputDir.empty())
+    return;
+
+  C.emplace_back(std::make_unique<HTMLDiagnostics>(
+      std::move(DiagOpts), OutputDir, PP, SupportMultipleFiles));
+}
+
 void ento::createHTMLDiagnosticConsumer(
     PathDiagnosticConsumerOptions DiagOpts, PathDiagnosticConsumers &C,
     const std::string &OutputDir, const Preprocessor &PP,
@@ -184,11 +202,8 @@ void ento::createHTMLDiagnosticConsumer(
   createTextMinimalPathDiagnosticConsumer(DiagOpts, C, OutputDir, PP, CTU,
                                           MacroExpansions);
 
-  // TODO: Emit an error here.
-  if (OutputDir.empty())
-    return;
-
-  C.push_back(new HTMLDiagnostics(std::move(DiagOpts), OutputDir, PP, true));
+  createHTMLDiagnosticConsumerImpl(DiagOpts, C, OutputDir, PP,
+                                   /*SupportMultipleFiles=*/true);
 }
 
 void ento::createHTMLSingleFileDiagnosticConsumer(
@@ -199,11 +214,8 @@ void ento::createHTMLSingleFileDiagnosticConsumer(
   createTextMinimalPathDiagnosticConsumer(DiagOpts, C, OutputDir, PP, CTU,
                                           MacroExpansions);
 
-  // TODO: Emit an error here.
-  if (OutputDir.empty())
-    return;
-
-  C.push_back(new HTMLDiagnostics(std::move(DiagOpts), OutputDir, PP, false));
+  createHTMLDiagnosticConsumerImpl(DiagOpts, C, OutputDir, PP,
+                                   /*SupportMultipleFiles=*/false);
 }
 
 void ento::createPlistHTMLDiagnosticConsumer(
@@ -211,11 +223,10 @@ void ento::createPlistHTMLDiagnosticConsumer(
     const std::string &prefix, const Preprocessor &PP,
     const cross_tu::CrossTranslationUnitContext &CTU,
     const MacroExpansionContext &MacroExpansions) {
-  createHTMLDiagnosticConsumer(
-      DiagOpts, C, std::string(llvm::sys::path::parent_path(prefix)), PP, CTU,
-      MacroExpansions);
-  createPlistMultiFileDiagnosticConsumer(DiagOpts, C, prefix, PP, CTU,
-                                         MacroExpansions);
+  createHTMLDiagnosticConsumerImpl(
+      DiagOpts, C, std::string(llvm::sys::path::parent_path(prefix)), PP, true);
+  createPlistDiagnosticConsumerImpl(DiagOpts, C, prefix, PP, CTU,
+                                    MacroExpansions, true);
   createTextMinimalPathDiagnosticConsumer(std::move(DiagOpts), C, prefix, PP,
                                           CTU, MacroExpansions);
 }
@@ -225,11 +236,11 @@ void ento::createSarifHTMLDiagnosticConsumer(
     const std::string &sarif_file, const Preprocessor &PP,
     const cross_tu::CrossTranslationUnitContext &CTU,
     const MacroExpansionContext &MacroExpansions) {
-  createHTMLDiagnosticConsumer(
+  createHTMLDiagnosticConsumerImpl(
       DiagOpts, C, std::string(llvm::sys::path::parent_path(sarif_file)), PP,
-      CTU, MacroExpansions);
-  createSarifDiagnosticConsumer(DiagOpts, C, sarif_file, PP, CTU,
-                                MacroExpansions);
+      true);
+  createSarifDiagnosticConsumerImpl(DiagOpts, C, sarif_file, PP);
+
   createTextMinimalPathDiagnosticConsumer(std::move(DiagOpts), C, sarif_file,
                                           PP, CTU, MacroExpansions);
 }
@@ -245,20 +256,11 @@ void HTMLDiagnostics::FlushDiagnosticsImpl(
     ReportDiag(*Diag, filesMade);
 }
 
-static llvm::SmallString<32> getIssueHash(const PathDiagnostic &D,
-                                          const Preprocessor &PP) {
-  SourceManager &SMgr = PP.getSourceManager();
-  PathDiagnosticLocation UPDLoc = D.getUniqueingLoc();
-  FullSourceLoc L(SMgr.getExpansionLoc(UPDLoc.isValid()
-                                           ? UPDLoc.asLocation()
-                                           : D.getLocation().asLocation()),
-                  SMgr);
-  return getIssueHash(L, D.getCheckerName(), D.getBugType(),
-                      D.getDeclWithIssue(), PP.getLangOpts());
-}
-
 void HTMLDiagnostics::ReportDiag(const PathDiagnostic& D,
                                  FilesMade *filesMade) {
+  // FIXME(sandboxing): Remove this by adopting `llvm::vfs::OutputBackend`.
+  auto BypassSandbox = llvm::sys::sandbox::scopedDisable();
+
   // Create the HTML directory if it is missing.
   if (!createdDir) {
     createdDir = true;
@@ -301,6 +303,14 @@ void HTMLDiagnostics::ReportDiag(const PathDiagnostic& D,
       }
   }
 
+  SmallString<32> IssueHash =
+      D.getIssueHash(PP.getSourceManager(), PP.getLangOpts());
+  auto [It, IsNew] = EmittedHashes.insert(IssueHash);
+  if (!IsNew) {
+    // We've already emitted a duplicate issue. It'll get overwritten anyway.
+    return;
+  }
+
   std::string report = GenerateHTML(D, R, SMgr, path, declName.c_str());
   if (report.empty()) {
     llvm::errs() << "warning: no diagnostics generated for main file.\n";
@@ -326,13 +336,13 @@ void HTMLDiagnostics::ReportDiag(const PathDiagnostic& D,
     FileID ReportFile =
         path.back()->getLocation().asLocation().getExpansionLoc().getFileID();
 
-    const FileEntry *Entry = SMgr.getFileEntryForID(ReportFile);
+    OptionalFileEntryRef Entry = SMgr.getFileEntryRefForID(ReportFile);
 
     FileName << llvm::sys::path::filename(Entry->getName()).str() << "-"
              << declName.c_str() << "-" << offsetDecl << "-";
   }
 
-  FileName << StringRef(getIssueHash(D, PP)).substr(0, 6).str() << ".html";
+  FileName << StringRef(IssueHash).substr(0, 6).str() << ".html";
 
   SmallString<128> ResultPath;
   llvm::sys::path::append(ResultPath, Directory, FileName.str());
@@ -353,6 +363,12 @@ void HTMLDiagnostics::ReportDiag(const PathDiagnostic& D,
     if (EC != llvm::errc::file_exists) {
       llvm::errs() << "warning: could not create file in '" << Directory
                    << "': " << EC.message() << '\n';
+    } else if (filesMade) {
+      // Record that we created the file so that it gets referenced in the
+      // plist and SARIF reports for every translation unit that found the
+      // issue.
+      filesMade->addDiagnostic(D, getName(),
+                               llvm::sys::path::filename(ResultPath));
     }
     return;
   }
@@ -396,7 +412,7 @@ std::string HTMLDiagnostics::GenerateHTML(const PathDiagnostic& D, Rewriter &R,
         os << "<div class=FileNav><a href=\"#File" << (I - 1)->getHashValue()
            << "\">&#x2190;</a></div>";
 
-      os << "<h4 class=FileName>" << SMgr.getFileEntryForID(*I)->getName()
+      os << "<h4 class=FileName>" << SMgr.getFileEntryRefForID(*I)->getName()
          << "</h4>\n";
 
       // Right nav arrow
@@ -429,8 +445,8 @@ std::string HTMLDiagnostics::GenerateHTML(const PathDiagnostic& D, Rewriter &R,
   // Add CSS, header, and footer.
   FileID FID =
       path.back()->getLocation().asLocation().getExpansionLoc().getFileID();
-  const FileEntry* Entry = SMgr.getFileEntryForID(FID);
-  FinalizeHTML(D, R, SMgr, path, FileIDs[0], Entry, declName);
+  OptionalFileEntryRef Entry = SMgr.getFileEntryRefForID(FID);
+  FinalizeHTML(D, R, SMgr, path, FileIDs[0], *Entry, declName);
 
   std::string file;
   llvm::raw_string_ostream os(file);
@@ -537,16 +553,17 @@ document.addEventListener("DOMContentLoaded", function() {
   return s;
 }
 
-void HTMLDiagnostics::FinalizeHTML(const PathDiagnostic& D, Rewriter &R,
-    const SourceManager& SMgr, const PathPieces& path, FileID FID,
-    const FileEntry *Entry, const char *declName) {
+void HTMLDiagnostics::FinalizeHTML(const PathDiagnostic &D, Rewriter &R,
+                                   const SourceManager &SMgr,
+                                   const PathPieces &path, FileID FID,
+                                   FileEntryRef Entry, const char *declName) {
   // This is a cludge; basically we want to append either the full
   // working directory if we have no directory information.  This is
   // a work in progress.
 
   llvm::SmallString<0> DirName;
 
-  if (llvm::sys::path::is_relative(Entry->getName())) {
+  if (llvm::sys::path::is_relative(Entry.getName())) {
     llvm::sys::fs::current_path(DirName);
     DirName += '/';
   }
@@ -575,7 +592,7 @@ void HTMLDiagnostics::FinalizeHTML(const PathDiagnostic& D, Rewriter &R,
        << "<h3>Bug Summary</h3>\n<table class=\"simpletable\">\n"
           "<tr><td class=\"rowname\">File:</td><td>"
        << html::EscapeText(DirName)
-       << html::EscapeText(Entry->getName())
+       << html::EscapeText(Entry.getName())
        << "</td></tr>\n<tr><td class=\"rowname\">Warning:</td><td>"
           "<a href=\"#EndPath\">line "
        << LineNumber
@@ -592,19 +609,19 @@ void HTMLDiagnostics::FinalizeHTML(const PathDiagnostic& D, Rewriter &R,
             P->getLocation().asLocation().getExpansionLineNumber();
         int ColumnNumber =
             P->getLocation().asLocation().getExpansionColumnNumber();
+        ++NumExtraPieces;
         os << "<tr><td class=\"rowname\">Note:</td><td>"
            << "<a href=\"#Note" << NumExtraPieces << "\">line "
            << LineNumber << ", column " << ColumnNumber << "</a><br />"
            << P->getString() << "</td></tr>";
-        ++NumExtraPieces;
       }
     }
 
     // Output any other meta data.
 
-    for (PathDiagnostic::meta_iterator I = D.meta_begin(), E = D.meta_end();
-         I != E; ++I) {
-      os << "<tr><td></td><td>" << html::EscapeText(*I) << "</td></tr>\n";
+    for (const std::string &Metadata :
+         llvm::make_range(D.meta_begin(), D.meta_end())) {
+      os << "<tr><td></td><td>" << html::EscapeText(Metadata) << "</td></tr>\n";
     }
 
     os << R"<<<(
@@ -656,14 +673,14 @@ void HTMLDiagnostics::FinalizeHTML(const PathDiagnostic& D, Rewriter &R,
     if (!BugCategory.empty())
       os << "\n<!-- BUGCATEGORY " << BugCategory << " -->\n";
 
-    os << "\n<!-- BUGFILE " << DirName << Entry->getName() << " -->\n";
+    os << "\n<!-- BUGFILE " << DirName << Entry.getName() << " -->\n";
 
-    os << "\n<!-- FILENAME " << llvm::sys::path::filename(Entry->getName()) << " -->\n";
+    os << "\n<!-- FILENAME " << llvm::sys::path::filename(Entry.getName()) << " -->\n";
 
     os  << "\n<!-- FUNCTIONNAME " <<  declName << " -->\n";
 
-    os << "\n<!-- ISSUEHASHCONTENTOFLINEINCONTEXT " << getIssueHash(D, PP)
-       << " -->\n";
+    os << "\n<!-- ISSUEHASHCONTENTOFLINEINCONTEXT "
+       << D.getIssueHash(PP.getSourceManager(), PP.getLangOpts()) << " -->\n";
 
     os << "\n<!-- BUGLINE "
        << LineNumber
@@ -682,7 +699,7 @@ void HTMLDiagnostics::FinalizeHTML(const PathDiagnostic& D, Rewriter &R,
     R.InsertTextBefore(SMgr.getLocForStartOfFile(FID), os.str());
   }
 
-  html::AddHeaderFooterInternalBuiltinCSS(R, FID, Entry->getName());
+  html::AddHeaderFooterInternalBuiltinCSS(R, FID, Entry.getName());
 }
 
 StringRef HTMLDiagnostics::showHelpJavascript() {
@@ -869,8 +886,8 @@ void HTMLDiagnostics::RewriteFile(Rewriter &R, const PathPieces &path,
   // If we have a preprocessor, relex the file and syntax highlight.
   // We might not have a preprocessor if we come from a deserialized AST file,
   // for example.
-  html::SyntaxHighlight(R, FID, PP);
-  html::HighlightMacros(R, FID, PP);
+  html::SyntaxHighlight(R, FID, PP, RewriterCache);
+  html::HighlightMacros(R, FID, PP, RewriterCache);
 }
 
 void HTMLDiagnostics::HandlePiece(Rewriter &R, FileID BugFileID,
@@ -886,7 +903,7 @@ void HTMLDiagnostics::HandlePiece(Rewriter &R, FileID BugFileID,
 
   SourceManager &SM = R.getSourceMgr();
   assert(&Pos.getManager() == &SM && "SourceManagers are different!");
-  std::pair<FileID, unsigned> LPosInfo = SM.getDecomposedExpansionLoc(Pos);
+  FileIDAndOffset LPosInfo = SM.getDecomposedExpansionLoc(Pos);
 
   if (LPosInfo.first != BugFileID)
     return;
@@ -1025,7 +1042,7 @@ void HTMLDiagnostics::HandlePiece(Rewriter &R, FileID BugFileID,
       FullSourceLoc L = MP->getLocation().asLocation().getExpansionLoc();
       assert(L.isFileID());
       StringRef BufferInfo = L.getBufferData();
-      std::pair<FileID, unsigned> LocInfo = L.getDecomposedLoc();
+      FileIDAndOffset LocInfo = L.getDecomposedLoc();
       const char* MacroName = LocInfo.second + BufferInfo.data();
       Lexer rawLexer(SM.getLocForStartOfFile(LocInfo.first), PP.getLangOpts(),
                      BufferInfo.begin(), MacroName, BufferInfo.end());
@@ -1198,18 +1215,19 @@ const arrowIndices = )<<<";
                      OS.str());
 }
 
-std::string getSpanBeginForControl(const char *ClassName, unsigned Index) {
+static std::string getSpanBeginForControl(const char *ClassName,
+                                          unsigned Index) {
   std::string Result;
   llvm::raw_string_ostream OS(Result);
   OS << "<span id=\"" << ClassName << Index << "\">";
   return Result;
 }
 
-std::string getSpanBeginForControlStart(unsigned Index) {
+static std::string getSpanBeginForControlStart(unsigned Index) {
   return getSpanBeginForControl("start", Index);
 }
 
-std::string getSpanBeginForControlEnd(unsigned Index) {
+static std::string getSpanBeginForControlEnd(unsigned Index) {
   return getSpanBeginForControl("end", Index);
 }
 

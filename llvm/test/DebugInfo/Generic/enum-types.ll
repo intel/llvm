@@ -23,8 +23,8 @@
 define void @_Z4topA2EA(i32 %sa) #0 !dbg !7 {
 entry:
   %sa.addr = alloca i32, align 4
-  store i32 %sa, i32* %sa.addr, align 4
-  call void @llvm.dbg.declare(metadata i32* %sa.addr, metadata !22, metadata !DIExpression()), !dbg !23
+  store i32 %sa, ptr %sa.addr, align 4
+  call void @llvm.dbg.declare(metadata ptr %sa.addr, metadata !22, metadata !DIExpression()), !dbg !23
   ret void, !dbg !24
 }
 
@@ -35,12 +35,12 @@ declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
 define void @_Z4topB2EA(i32 %sa) #0 !dbg !17 {
 entry:
   %sa.addr = alloca i32, align 4
-  store i32 %sa, i32* %sa.addr, align 4
-  call void @llvm.dbg.declare(metadata i32* %sa.addr, metadata !25, metadata !DIExpression()), !dbg !26
+  store i32 %sa, ptr %sa.addr, align 4
+  call void @llvm.dbg.declare(metadata ptr %sa.addr, metadata !25, metadata !DIExpression()), !dbg !26
   ret void, !dbg !27
 }
 
-attributes #0 = { nounwind ssp uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind ssp uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone }
 
 !llvm.dbg.cu = !{!0, !12}

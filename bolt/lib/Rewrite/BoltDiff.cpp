@@ -14,6 +14,8 @@
 #include "bolt/Passes/IdenticalCodeFolding.h"
 #include "bolt/Profile/ProfileReaderBase.h"
 #include "bolt/Rewrite/RewriteInstance.h"
+#include "bolt/Utils/Utils.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/CommandLine.h"
 
 #undef  DEBUG_TYPE
@@ -26,7 +28,9 @@ using namespace bolt;
 namespace opts {
 extern cl::OptionCategory BoltDiffCategory;
 extern cl::opt<bool> NeverPrint;
-extern cl::opt<bool> ICF;
+extern cl::opt<bolt::IdenticalCodeFolding::ICFLevel, false,
+               llvm::bolt::DeprecatedICFNumericOptionParser>
+    ICF;
 
 static cl::opt<bool> IgnoreLTOSuffix(
     "ignore-lto-suffix",
@@ -80,6 +84,11 @@ static cl::opt<bool> NormalizeByBin1(
              "total samples in binary 1 - make sure both profiles have equal "
              "collection time and sampling rate for this to make sense"),
     cl::cat(BoltDiffCategory));
+
+static cl::opt<bool>
+    SkipNonSimple("skip-non-simple",
+                  cl::desc("skip non-simple functions in reporting"),
+                  cl::ReallyHidden, cl::cat(BoltDiffCategory));
 
 } // end namespace opts
 
@@ -202,7 +211,7 @@ class RewriteInstanceDiff {
       const double Score = getNormalizedScore(Function, RI1);
       LargestBin1.insert(std::make_pair<>(Score, &Function));
       for (const StringRef &Name : Function.getNames()) {
-        if (Optional<StringRef> OptionalLTOName = getLTOCommonName(Name))
+        if (std::optional<StringRef> OptionalLTOName = getLTOCommonName(Name))
           LTOName = *OptionalLTOName;
         NameLookup[Name] = &Function;
       }
@@ -222,7 +231,7 @@ class RewriteInstanceDiff {
       const double Score = getNormalizedScore(Function, RI2);
       LargestBin2.insert(std::make_pair<>(Score, &Function));
       for (const StringRef &Name : Function.getNames()) {
-        if (Optional<StringRef> OptionalLTOName = getLTOCommonName(Name))
+        if (std::optional<StringRef> OptionalLTOName = getLTOCommonName(Name))
           LTOName = *OptionalLTOName;
       }
       if (opts::IgnoreLTOSuffix && !LTOName.empty()) {
@@ -245,7 +254,7 @@ class RewriteInstanceDiff {
       bool Match = false;
       for (const StringRef &Name : Function2.getNames()) {
         auto Iter = NameLookup.find(Name);
-        if (Optional<StringRef> OptionalLTOName = getLTOCommonName(Name))
+        if (std::optional<StringRef> OptionalLTOName = getLTOCommonName(Name))
           LTOName = *OptionalLTOName;
         if (Iter == NameLookup.end())
           continue;
@@ -285,11 +294,11 @@ class RewriteInstanceDiff {
         }
       }
     }
-    PrintProgramStats PPS(opts::NeverPrint);
+    PrintProgramStats PPS;
     outs() << "* BOLT-DIFF: Starting print program stats pass for binary 1\n";
-    PPS.runOnFunctions(*RI1.BC);
+    RI1.BC->logBOLTErrorsAndQuitOnFatal(PPS.runOnFunctions(*RI1.BC));
     outs() << "* BOLT-DIFF: Starting print program stats pass for binary 2\n";
-    PPS.runOnFunctions(*RI2.BC);
+    RI1.BC->logBOLTErrorsAndQuitOnFatal(PPS.runOnFunctions(*RI2.BC));
     outs() << "=====\n";
     outs() << "Inputs share " << BothHaveProfile
            << " functions with valid profile.\n";
@@ -422,12 +431,14 @@ class RewriteInstanceDiff {
     outs() << "=========================================================\n";
     setRegularColor();
     outs() << " * Functions with different contents do not appear here\n\n";
-    for (auto I = LargestDiffs.rbegin(), E = LargestDiffs.rend(); I != E; ++I) {
-      const BinaryBasicBlock *BB2 = I->second;
+    for (const BinaryBasicBlock *BB2 :
+         llvm::make_second_range(llvm::reverse(LargestDiffs))) {
       const double Score2 = getNormalizedScore(*BB2, RI2);
       const double Score1 = getNormalizedScore(*BBMap[BB2], RI1);
-      outs() << "BB " << BB2->getName() << " from "
-             << BBToFuncMap[BB2]->getDemangledName()
+      const BinaryFunction *Func = BBToFuncMap[BB2];
+      if (opts::SkipNonSimple && !Func->isSimple())
+        continue;
+      outs() << "BB " << BB2->getName() << " from " << Func->getDemangledName()
              << "\n\tScore bin1 = " << format("%.4f", Score1 * 100.0)
              << "%\n\tScore bin2 = " << format("%.4f", Score2 * 100.0);
       outs() << "%\t(Difference: ";
@@ -452,16 +463,18 @@ class RewriteInstanceDiff {
     outs() << "=========================================================\n";
     setRegularColor();
     outs() << " * Functions with different contents do not appear here\n";
-    for (auto I = EdgeMap.rbegin(), E = EdgeMap.rend(); I != E; ++I) {
-      std::tuple<const BinaryBasicBlock *, const BinaryBasicBlock *, double>
-          &Edge2 = I->second.first;
-      std::tuple<const BinaryBasicBlock *, const BinaryBasicBlock *, double>
-          &Edge1 = I->second.second;
+    for (std::pair<EdgeTy, EdgeTy> &EI :
+         llvm::make_second_range(llvm::reverse(EdgeMap))) {
+      EdgeTy &Edge2 = EI.first;
+      EdgeTy &Edge1 = EI.second;
       const double Score2 = std::get<2>(Edge2);
       const double Score1 = std::get<2>(Edge1);
+      const BinaryFunction *Func = BBToFuncMap[std::get<0>(Edge2)];
+      if (opts::SkipNonSimple && !Func->isSimple())
+        continue;
       outs() << "Edge (" << std::get<0>(Edge2)->getName() << " -> "
              << std::get<1>(Edge2)->getName() << ") in "
-             << BBToFuncMap[std::get<0>(Edge2)]->getDemangledName()
+             << Func->getDemangledName()
              << "\n\tScore bin1 = " << format("%.4f", Score1 * 100.0)
              << "%\n\tScore bin2 = " << format("%.4f", Score2 * 100.0);
       outs() << "%\t(Difference: ";
@@ -536,6 +549,8 @@ class RewriteInstanceDiff {
         Score2 = LTOAggregatedScore2[Iter2->second];
       if (Score1 == 0.0 || Score2 == 0.0)
         continue;
+      if (opts::SkipNonSimple && !Func1->isSimple() && !Func2->isSimple())
+        continue;
       LargestDiffs.insert(
           std::make_pair<>(std::abs(Score1 - Score2), MapEntry));
       ScoreMap[Func2] = std::make_pair<>(Score1, Score2);
@@ -547,9 +562,8 @@ class RewriteInstanceDiff {
            << " largest differences in performance bin 2 -> bin 1:\n";
     outs() << "=========================================================\n";
     setRegularColor();
-    for (auto I = LargestDiffs.rbegin(), E = LargestDiffs.rend(); I != E; ++I) {
-      const std::pair<const BinaryFunction *const, const BinaryFunction *>
-          &MapEntry = I->second;
+    for (decltype(this->FuncMap)::value_type &MapEntry :
+         llvm::make_second_range(llvm::reverse(LargestDiffs))) {
       if (opts::IgnoreUnchanged &&
           MapEntry.second->computeHash(/*UseDFS=*/true) ==
               MapEntry.first->computeHash(/*UseDFS=*/true))
@@ -592,8 +606,8 @@ class RewriteInstanceDiff {
            << " hottest functions in binary 2:\n";
     outs() << "=====================================\n";
     setRegularColor();
-    for (auto I = LargestBin2.rbegin(), E = LargestBin2.rend(); I != E; ++I) {
-      const std::pair<const double, const BinaryFunction *> &MapEntry = *I;
+    for (std::pair<const double, const BinaryFunction *> &MapEntry :
+         llvm::reverse(LargestBin2)) {
       outs() << "Function " << MapEntry.second->getDemangledName() << "\n";
       auto Iter = ScoreMap.find(MapEntry.second);
       if (Iter != ScoreMap.end())
@@ -611,8 +625,8 @@ class RewriteInstanceDiff {
            << " hottest functions in binary 1:\n";
     outs() << "=====================================\n";
     setRegularColor();
-    for (auto I = LargestBin1.rbegin(), E = LargestBin1.rend(); I != E; ++I) {
-      const std::pair<const double, const BinaryFunction *> &MapEntry = *I;
+    for (const std::pair<const double, const BinaryFunction *> &MapEntry :
+         llvm::reverse(LargestBin1)) {
       outs() << "Function " << MapEntry.second->getDemangledName()
              << "\n\tScore bin1 = " << format("%.2f", MapEntry.first * 100.0)
              << "%\n";
@@ -660,7 +674,7 @@ public:
 
 };
 
-} // end nampespace bolt
+} // end namespace bolt
 } // end namespace llvm
 
 void RewriteInstance::compare(RewriteInstance &RI2) {
@@ -685,12 +699,12 @@ void RewriteInstance::compare(RewriteInstance &RI2) {
   }
 
   // Pre-pass ICF
-  if (opts::ICF) {
+  if (opts::ICF != IdenticalCodeFolding::ICFLevel::None) {
     IdenticalCodeFolding ICF(opts::NeverPrint);
     outs() << "BOLT-DIFF: Starting ICF pass for binary 1";
-    ICF.runOnFunctions(*BC);
+    BC->logBOLTErrorsAndQuitOnFatal(ICF.runOnFunctions(*BC));
     outs() << "BOLT-DIFF: Starting ICF pass for binary 2";
-    ICF.runOnFunctions(*RI2.BC);
+    BC->logBOLTErrorsAndQuitOnFatal(ICF.runOnFunctions(*RI2.BC));
   }
 
   RewriteInstanceDiff RID(*this, RI2);

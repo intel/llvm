@@ -9,7 +9,6 @@
 #ifndef LLDB_SOURCE_PLUGINS_LANGUAGERUNTIME_OBJC_APPLEOBJCRUNTIME_APPLEOBJCRUNTIME_H
 #define LLDB_SOURCE_PLUGINS_LANGUAGERUNTIME_OBJC_APPLEOBJCRUNTIME_APPLEOBJCRUNTIME_H
 
-#include "llvm/ADT/Optional.h"
 
 #include "AppleObjCTrampolineHandler.h"
 #include "AppleThreadPlanStepThroughObjCTrampoline.h"
@@ -17,6 +16,7 @@
 #include "lldb/lldb-private.h"
 
 #include "Plugins/LanguageRuntime/ObjC/ObjCLanguageRuntime.h"
+#include <optional>
 
 namespace lldb_private {
 
@@ -44,18 +44,18 @@ public:
   }
 
   // These are generic runtime functions:
-  bool GetObjectDescription(Stream &str, Value &value,
-                            ExecutionContextScope *exe_scope) override;
+  llvm::Error GetObjectDescription(Stream &str, Value &value,
+                                   ExecutionContextScope *exe_scope) override;
 
-  bool GetObjectDescription(Stream &str, ValueObject &object) override;
+  llvm::Error GetObjectDescription(Stream &str, ValueObject &object) override;
 
   bool CouldHaveDynamicValue(ValueObject &in_value) override;
 
   bool GetDynamicTypeAndAddress(ValueObject &in_value,
                                 lldb::DynamicValueType use_dynamic,
                                 TypeAndOrName &class_type_or_name,
-                                Address &address,
-                                Value::ValueType &value_type) override;
+                                Address &address, Value::ValueType &value_type,
+                                llvm::ArrayRef<uint8_t> &local_buffer) override;
 
   TypeAndOrName FixUpDynamicType(const TypeAndOrName &type_and_or_name,
                                  ValueObject &static_value) override;
@@ -127,7 +127,7 @@ protected:
   lldb::ModuleWP m_objc_module_wp;
   std::unique_ptr<FunctionCaller> m_print_object_caller_up;
 
-  llvm::Optional<uint32_t> m_Foundation_major;
+  std::optional<uint32_t> m_Foundation_major;
 };
 
 } // namespace lldb_private

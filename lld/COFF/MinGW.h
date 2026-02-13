@@ -25,7 +25,8 @@ class COFFLinkerContext;
 // symbols for MinGW.
 class AutoExporter {
 public:
-  AutoExporter(const llvm::DenseSet<StringRef> &manualExcludeSymbols);
+  AutoExporter(SymbolTable &symtab,
+               const llvm::DenseSet<StringRef> &manualExcludeSymbols);
 
   void addWholeArchive(StringRef path);
   void addExcludedSymbol(StringRef symbol);
@@ -38,10 +39,14 @@ public:
 
   const llvm::DenseSet<StringRef> &manualExcludeSymbols;
 
-  bool shouldExport(const COFFLinkerContext &ctx, Defined *sym) const;
+  bool shouldExport(Defined *sym) const;
+
+private:
+  SymbolTable &symtab;
 };
 
-void writeDefFile(StringRef name);
+void writeDefFile(COFFLinkerContext &, StringRef name,
+                  const std::vector<Export> &exports);
 
 // The -wrap option is a feature to rename symbols so that you can write
 // wrappers for existing functions. If you pass `-wrap:foo`, all
@@ -50,17 +55,9 @@ void writeDefFile(StringRef name);
 // symbol becomes accessible as `__real_foo`, so you can call that from your
 // wrapper.
 //
-// This data structure is instantiated for each -wrap option.
-struct WrappedSymbol {
-  Symbol *sym;
-  Symbol *real;
-  Symbol *wrap;
-};
+void addWrappedSymbols(SymbolTable &symtab, llvm::opt::InputArgList &args);
 
-std::vector<WrappedSymbol> addWrappedSymbols(COFFLinkerContext &ctx,
-                                             llvm::opt::InputArgList &args);
-
-void wrapSymbols(COFFLinkerContext &ctx, ArrayRef<WrappedSymbol> wrapped);
+void wrapSymbols(SymbolTable &symtab);
 
 } // namespace lld::coff
 

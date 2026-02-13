@@ -1,7 +1,7 @@
-; RUN: llc -march=mipsel -mcpu=mips32 < %s | FileCheck %s -check-prefix=CHECK-MIPS32
-; RUN: llc -march=mips64el -mcpu=mips64 -relocation-model=pic < %s | \
+; RUN: llc -mtriple=mipsel -mcpu=mips32 < %s | FileCheck %s -check-prefix=CHECK-MIPS32
+; RUN: llc -mtriple=mips64el -mcpu=mips64 -relocation-model=pic < %s | \
 ; RUN:      FileCheck %s -check-prefix=CHECK-MIPS64
-; RUN: llc -march=mipsel -mcpu=mips64 -target-abi n32 < %s | \
+; RUN: llc -mtriple=mipsel -mcpu=mips64 -target-abi n32 < %s | \
 ; RUN:      FileCheck %s -check-prefix=CHECK-MIPSN32
 
 ; Test that the expansion of ADJCALLSTACKDOWN and ADJCALLSTACKUP generate
@@ -11,8 +11,7 @@
 define i32 @main() {
 entry:
   %z = alloca [1048576 x i8], align 1
-  %arraydecay = getelementptr inbounds [1048576 x i8], [1048576 x i8]* %z, i32 0, i32 0
-  %call = call i32 @foo(i8* %arraydecay)
+  %call = call i32 @foo(ptr %z)
   ret i32 0
 ; CHECK-LABEL: main
 
@@ -51,4 +50,4 @@ entry:
 
 }
 
-declare i32 @foo(i8*)
+declare i32 @foo(ptr)

@@ -32,7 +32,7 @@ StructuredDataPlugin::StructuredDataPlugin(const ProcessWP &process_wp)
 
 StructuredDataPlugin::~StructuredDataPlugin() = default;
 
-bool StructuredDataPlugin::GetEnabled(ConstString type_name) const {
+bool StructuredDataPlugin::GetEnabled(llvm::StringRef type_name) const {
   // By default, plugins are always enabled.  Plugin authors should override
   // this if there is an enabled/disabled state for their plugin.
   return true;
@@ -43,7 +43,7 @@ ProcessSP StructuredDataPlugin::GetProcess() const {
 }
 
 void StructuredDataPlugin::InitializeBasePluginForDebugger(Debugger &debugger) {
-  // Create our mutliword command anchor if it doesn't already exist.
+  // Create our multiword command anchor if it doesn't already exist.
   auto &interpreter = debugger.GetCommandInterpreter();
   if (!interpreter.GetCommandObject("plugin structured-data")) {
     // Find the parent command.
@@ -52,7 +52,7 @@ void StructuredDataPlugin::InitializeBasePluginForDebugger(Debugger &debugger) {
     if (!parent_command)
       return;
 
-    // Create the structured-data ommand object.
+    // Create the structured-data command object.
     auto command_name = "structured-data";
     auto command_sp = CommandObjectSP(new CommandStructuredData(interpreter));
 

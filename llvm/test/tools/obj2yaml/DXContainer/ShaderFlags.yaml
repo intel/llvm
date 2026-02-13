@@ -8,7 +8,7 @@ Header:
   Version:
     Major:           1
     Minor:           0
-  PartCount:       7
+  PartCount:       2
 Parts:
   - Name:            SFI0
     Size:            8
@@ -44,18 +44,10 @@ Parts:
       AtomicInt64OnHeapResource: false
       AdvancedTextureOps: true
       WriteableMSAATextures: false
+      SampleCmpWithGradientOrBias: false
+      ExtendedCommandInfo: false
       NextUnusedBit:   true
-  - Name:            ISG1
-    Size:            8
-  - Name:            OSG1
-    Size:            8
-  - Name:            PSV0
-    Size:            8
-  - Name:            STAT
-    Size:            8
-  - Name:            HASH
-    Size:            8
-  - Name:            CXIL
+  - Name:            FKE0
     Size:            8
 ...
 
@@ -94,4 +86,6 @@ Parts:
 # CHECK-NEXT:       AtomicInt64OnHeapResource: false
 # CHECK-NEXT:       AdvancedTextureOps: true
 # CHECK-NEXT:       WriteableMSAATextures: false
+# CHECK-NEXT:       SampleCmpWithGradientOrBias: false
+# CHECK-NEXT:       ExtendedCommandInfo: false
 # CHECK-NEXT:       NextUnusedBit:   true

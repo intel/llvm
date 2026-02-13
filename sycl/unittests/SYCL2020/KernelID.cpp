@@ -8,103 +8,42 @@
 
 #include <sycl/sycl.hpp>
 
-#include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/MockDeviceImage.hpp>
+#include <helpers/MockKernelInfo.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
 
 class TestKernel1;
 class TestKernel2;
 class TestKernel3;
-class ServiceKernel1;
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
-template <> struct KernelInfo<TestKernel1> {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
+template <>
+struct KernelInfo<TestKernel1> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "KernelID_TestKernel1"; }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
-  static constexpr int64_t getKernelSize() { return 1; }
 };
 
-template <> struct KernelInfo<TestKernel2> {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
+template <>
+struct KernelInfo<TestKernel2> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "KernelID_TestKernel2"; }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
-  static constexpr int64_t getKernelSize() { return 1; }
 };
 
-template <> struct KernelInfo<TestKernel3> {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
+template <>
+struct KernelInfo<TestKernel3> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "KernelID_TestKernel3"; }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
-  static constexpr int64_t getKernelSize() { return 1; }
-};
-
-template <> struct KernelInfo<ServiceKernel1> {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
-  static constexpr const char *getName() {
-    return "_ZTSN2cl4sycl6detail23__sycl_service_kernel__14ServiceKernel1";
-  }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
-  static constexpr int64_t getKernelSize() { return 1; }
 };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::PiImage
-generateDefaultImage(std::initializer_list<std::string> Kernels) {
-  using namespace sycl::unittest;
-
-  PiPropertySet PropSet;
-
-  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
-
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels(Kernels);
-
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
-
-  return Img;
-}
-
-static sycl::unittest::PiImage Imgs[2] = {
-    generateDefaultImage({"KernelID_TestKernel1", "KernelID_TestKernel3"}),
-    generateDefaultImage(
-        {"KernelID_TestKernel2",
-         "_ZTSN2cl4sycl6detail23__sycl_service_kernel__14ServiceKernel1"})};
-static sycl::unittest::PiImageArray<2> ImgArray{Imgs};
+static sycl::unittest::MockDeviceImage Imgs[2] = {
+    sycl::unittest::generateDefaultImage(
+        {"KernelID_TestKernel1", "KernelID_TestKernel3"}),
+    sycl::unittest::generateDefaultImage({"KernelID_TestKernel2"})};
+static sycl::unittest::MockDeviceImageArray<2> ImgArray{Imgs};
 
 TEST(KernelID, AllProgramKernelIds) {
   std::vector<sycl::kernel_id> AllKernelIDs = sycl::get_kernel_ids();
@@ -125,23 +64,9 @@ TEST(KernelID, AllProgramKernelIds) {
   }
 }
 
-TEST(KernelID, NoServiceKernelIds) {
-  const char *ServiceKernel1Name =
-      sycl::detail::KernelInfo<ServiceKernel1>::getName();
-
-  std::vector<sycl::kernel_id> AllKernelIDs = sycl::get_kernel_ids();
-
-  auto NoFoundServiceKernelID = std::none_of(
-      AllKernelIDs.begin(), AllKernelIDs.end(), [=](sycl::kernel_id KernelID) {
-        return strcmp(KernelID.get_name(), ServiceKernel1Name) == 0;
-      });
-
-  EXPECT_TRUE(NoFoundServiceKernelID);
-}
-
 TEST(KernelID, FreeKernelIDEqualsKernelBundleId) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
@@ -165,8 +90,8 @@ TEST(KernelID, FreeKernelIDEqualsKernelBundleId) {
 }
 
 TEST(KernelID, KernelBundleKernelIDsIntersectAll) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
@@ -186,8 +111,8 @@ TEST(KernelID, KernelBundleKernelIDsIntersectAll) {
 }
 
 TEST(KernelID, KernelIDHasKernel) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
@@ -264,18 +189,36 @@ TEST(KernelID, KernelIDHasKernel) {
   EXPECT_TRUE(InputBundle7.has_kernel(TestKernel3ID));
 }
 
-TEST(KernelID, InvalidKernelName) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+TEST(KernelID, HasKernelTemplated) {
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
+
+  sycl::kernel_id TestKernel1ID = sycl::get_kernel_id<TestKernel1>();
+
+  std::vector<sycl::kernel_id> KernelIDs1 = {TestKernel1ID};
+  auto InputBundle1 =
+      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, KernelIDs1);
+
+  EXPECT_TRUE(InputBundle1.has_kernel<TestKernel1>());
+  EXPECT_FALSE(InputBundle1.has_kernel<TestKernel2>());
+  EXPECT_TRUE(InputBundle1.has_kernel<TestKernel3>());
+}
+
+TEST(KernelID, GetKernelIDInvalidKernelName) {
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
 
   try {
     sycl::get_kernel_id<class NotAKernel>();
-    throw std::logic_error("sycl::runtime_error didn't throw");
-  } catch (sycl::runtime_error const &e) {
-    EXPECT_EQ(std::string("No kernel found with the specified name -46 "
-                          "(PI_ERROR_INVALID_KERNEL_NAME)"),
-              e.what());
+    FAIL() << "Expected an exception";
+  } catch (sycl::exception const &e) {
+    EXPECT_TRUE(e.code() == sycl::errc::runtime);
+    EXPECT_EQ(std::string("No kernel found with the specified name"), e.what());
   } catch (...) {
-    FAIL() << "Expected sycl::runtime_error";
+    FAIL() << "Expected sycl::exception";
   }
 }

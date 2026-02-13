@@ -8,10 +8,12 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
+#ifndef __SYCL_DEVICE_ONLY__
+#include <atomic> // for memory_order
+#endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 enum class memory_order : int {
   relaxed = 0,
@@ -31,7 +33,6 @@ enum class memory_scope : int {
   system = 4
 };
 
-#if __cplusplus >= 201703L
 inline constexpr auto memory_scope_work_item = memory_scope::work_item;
 inline constexpr auto memory_scope_sub_group = memory_scope::sub_group;
 inline constexpr auto memory_scope_work_group = memory_scope::work_group;
@@ -43,41 +44,8 @@ inline constexpr auto memory_order_acquire = memory_order::acquire;
 inline constexpr auto memory_order_release = memory_order::release;
 inline constexpr auto memory_order_acq_rel = memory_order::acq_rel;
 inline constexpr auto memory_order_seq_cst = memory_order::seq_cst;
-#endif
 
 namespace detail {
-
-inline std::vector<memory_order>
-readMemoryOrderBitfield(pi_memory_order_capabilities bits) {
-  std::vector<memory_order> result;
-  if (bits & PI_MEMORY_ORDER_RELAXED)
-    result.push_back(memory_order::relaxed);
-  if (bits & PI_MEMORY_ORDER_ACQUIRE)
-    result.push_back(memory_order::acquire);
-  if (bits & PI_MEMORY_ORDER_RELEASE)
-    result.push_back(memory_order::release);
-  if (bits & PI_MEMORY_ORDER_ACQ_REL)
-    result.push_back(memory_order::acq_rel);
-  if (bits & PI_MEMORY_ORDER_SEQ_CST)
-    result.push_back(memory_order::seq_cst);
-  return result;
-}
-
-inline std::vector<memory_scope>
-readMemoryScopeBitfield(pi_memory_scope_capabilities bits) {
-  std::vector<memory_scope> result;
-  if (bits & PI_MEMORY_SCOPE_WORK_ITEM)
-    result.push_back(memory_scope::work_item);
-  if (bits & PI_MEMORY_SCOPE_SUB_GROUP)
-    result.push_back(memory_scope::sub_group);
-  if (bits & PI_MEMORY_SCOPE_WORK_GROUP)
-    result.push_back(memory_scope::work_group);
-  if (bits & PI_MEMORY_SCOPE_DEVICE)
-    result.push_back(memory_scope::device);
-  if (bits & PI_MEMORY_SCOPE_SYSTEM)
-    result.push_back(memory_scope::system);
-  return result;
-}
 
 #ifndef __SYCL_DEVICE_ONLY__
 static constexpr std::memory_order getStdMemoryOrder(sycl::memory_order order) {
@@ -95,9 +63,13 @@ static constexpr std::memory_order getStdMemoryOrder(sycl::memory_order order) {
   case memory_order::seq_cst:
     return std::memory_order_seq_cst;
   }
+  // Return default value here to avoid compiler warnings.
+  // default case in switch doesn't help because some compiler warn about
+  // having a default case while all values of enum are handled.
+  return std::memory_order_acq_rel;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -1,4 +1,4 @@
-//===--- IsolateDeclarationCheck.cpp - clang-tidy -------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,13 +9,12 @@
 #include "IsolateDeclarationCheck.h"
 #include "../utils/LexerUtils.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
+#include <optional>
 
 using namespace clang::ast_matchers;
 using namespace clang::tidy::utils::lexer;
 
-namespace clang {
-namespace tidy {
-namespace readability {
+namespace clang::tidy::readability {
 
 namespace {
 AST_MATCHER(DeclStmt, isSingleDecl) { return Node.isSingleDecl(); }
@@ -44,7 +43,7 @@ static SourceLocation findStartOfIndirection(SourceLocation Start,
   while (Indirections-- != 0) {
     Start = findPreviousAnyTokenKind(Start, SM, LangOpts, tok::star, tok::amp);
     if (Start.isInvalid() || Start.isMacroID())
-      return SourceLocation();
+      return {};
   }
   return Start;
 }
@@ -105,15 +104,15 @@ static bool typeIsMemberPointer(const Type *T) {
 /// // [  ][              ] [         ] - The ranges here are inclusive
 /// \endcode
 /// \todo Generalize this function to take other declarations than \c VarDecl.
-static Optional<std::vector<SourceRange>>
+static std::optional<std::vector<SourceRange>>
 declRanges(const DeclStmt *DS, const SourceManager &SM,
            const LangOptions &LangOpts) {
-  std::size_t DeclCount = std::distance(DS->decl_begin(), DS->decl_end());
+  const std::size_t DeclCount = std::distance(DS->decl_begin(), DS->decl_end());
   if (DeclCount < 2)
-    return None;
+    return std::nullopt;
 
   if (rangeContainsExpansionsOrDirectives(DS->getSourceRange(), SM, LangOpts))
-    return None;
+    return std::nullopt;
 
   // The initial type of the declaration and each declaration has it's own
   // slice. This is necessary, because pointers and references bind only
@@ -127,12 +126,12 @@ declRanges(const DeclStmt *DS, const SourceManager &SM,
   const auto *FirstDecl = dyn_cast<VarDecl>(*DS->decl_begin());
 
   if (FirstDecl == nullptr)
-    return None;
+    return std::nullopt;
 
   // FIXME: Member pointers are not transformed correctly right now, that's
   // why they are treated as problematic here.
   if (typeIsMemberPointer(FirstDecl->getType().IgnoreParens().getTypePtr()))
-    return None;
+    return std::nullopt;
 
   // Consider the following case: 'int * pointer, value = 42;'
   // Created slices (inclusive)    [  ][       ] [         ]
@@ -158,7 +157,7 @@ declRanges(const DeclStmt *DS, const SourceManager &SM,
     if (Start.isInvalid() || Start.isMacroID())
       break;
 
-    Token T = getPreviousToken(Start, SM, LangOpts);
+    const Token T = getPreviousToken(Start, SM, LangOpts);
     if (T.is(tok::l_paren)) {
       Start = findPreviousTokenStart(Start, SM, LangOpts);
       continue;
@@ -166,9 +165,9 @@ declRanges(const DeclStmt *DS, const SourceManager &SM,
     break;
   }
 
-  SourceRange DeclRange(DS->getBeginLoc(), Start);
+  const SourceRange DeclRange(DS->getBeginLoc(), Start);
   if (DeclRange.isInvalid() || isMacroID(DeclRange))
-    return None;
+    return std::nullopt;
 
   // The first slice, that is prepended to every isolated declaration, is
   // created.
@@ -182,17 +181,17 @@ declRanges(const DeclStmt *DS, const SourceManager &SM,
     // FIXME: Member pointers are not transformed correctly right now, that's
     // why they are treated as problematic here.
     if (typeIsMemberPointer(CurrentDecl->getType().IgnoreParens().getTypePtr()))
-      return None;
+      return std::nullopt;
 
-    SourceLocation DeclEnd =
+    const SourceLocation DeclEnd =
         CurrentDecl->hasInit()
             ? findNextTerminator(CurrentDecl->getInit()->getEndLoc(), SM,
                                  LangOpts)
             : findNextTerminator(CurrentDecl->getEndLoc(), SM, LangOpts);
 
-    SourceRange VarNameRange(DeclBegin, DeclEnd);
+    const SourceRange VarNameRange(DeclBegin, DeclEnd);
     if (VarNameRange.isInvalid() || isMacroID(VarNameRange))
-      return None;
+      return std::nullopt;
 
     Slices.emplace_back(VarNameRange);
     DeclBegin = DeclEnd.getLocWithOffset(1);
@@ -200,26 +199,26 @@ declRanges(const DeclStmt *DS, const SourceManager &SM,
   return Slices;
 }
 
-static Optional<std::vector<StringRef>>
+static std::optional<std::vector<StringRef>>
 collectSourceRanges(llvm::ArrayRef<SourceRange> Ranges, const SourceManager &SM,
                     const LangOptions &LangOpts) {
   std::vector<StringRef> Snippets;
   Snippets.reserve(Ranges.size());
 
   for (const auto &Range : Ranges) {
-    CharSourceRange CharRange = Lexer::getAsCharRange(
+    const CharSourceRange CharRange = Lexer::getAsCharRange(
         CharSourceRange::getCharRange(Range.getBegin(), Range.getEnd()), SM,
         LangOpts);
 
     if (CharRange.isInvalid())
-      return None;
+      return std::nullopt;
 
     bool InvalidText = false;
-    StringRef Snippet =
+    const StringRef Snippet =
         Lexer::getSourceText(CharRange, SM, LangOpts, &InvalidText);
 
     if (InvalidText)
-      return None;
+      return std::nullopt;
 
     Snippets.emplace_back(Snippet);
   }
@@ -236,7 +235,7 @@ createIsolatedDecls(llvm::ArrayRef<StringRef> Snippets) {
 
   for (std::size_t I = 1; I < Snippets.size(); ++I)
     Decls[I - 1] = Twine(Snippets[0])
-                       .concat(Snippets[0].endswith(" ") ? "" : " ")
+                       .concat(Snippets[0].ends_with(" ") ? "" : " ")
                        .concat(Snippets[I].ltrim())
                        .concat(";")
                        .str();
@@ -251,19 +250,19 @@ void IsolateDeclarationCheck::check(const MatchFinder::MatchResult &Result) {
       diag(WholeDecl->getBeginLoc(),
            "multiple declarations in a single statement reduces readability");
 
-  Optional<std::vector<SourceRange>> PotentialRanges =
+  std::optional<std::vector<SourceRange>> PotentialRanges =
       declRanges(WholeDecl, *Result.SourceManager, getLangOpts());
   if (!PotentialRanges)
     return;
 
-  Optional<std::vector<StringRef>> PotentialSnippets = collectSourceRanges(
+  std::optional<std::vector<StringRef>> PotentialSnippets = collectSourceRanges(
       *PotentialRanges, *Result.SourceManager, getLangOpts());
 
   if (!PotentialSnippets)
     return;
 
   std::vector<std::string> NewDecls = createIsolatedDecls(*PotentialSnippets);
-  std::string Replacement = llvm::join(
+  const std::string Replacement = llvm::join(
       NewDecls,
       (Twine("\n") + Lexer::getIndentationForLine(WholeDecl->getBeginLoc(),
                                                   *Result.SourceManager))
@@ -272,6 +271,4 @@ void IsolateDeclarationCheck::check(const MatchFinder::MatchResult &Result) {
   Diag << FixItHint::CreateReplacement(WholeDecl->getSourceRange(),
                                        Replacement);
 }
-} // namespace readability
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::readability

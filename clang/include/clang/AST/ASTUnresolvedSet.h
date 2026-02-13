@@ -16,6 +16,7 @@
 
 #include "clang/AST/ASTVector.h"
 #include "clang/AST/DeclAccessPair.h"
+#include "clang/AST/DeclID.h"
 #include "clang/AST/UnresolvedSet.h"
 #include "clang/Basic/Specifiers.h"
 #include <cassert>
@@ -56,6 +57,10 @@ public:
     Decls.push_back(DeclAccessPair::make(D, AS), C);
   }
 
+  void addLazyDecl(ASTContext &C, GlobalDeclID ID, AccessSpecifier AS) {
+    Decls.push_back(DeclAccessPair::makeLazy(ID.getRawValue(), AS), C);
+  }
+
   /// Replaces the given declaration with the new one, once.
   ///
   /// \return true if the set changed
@@ -69,7 +74,12 @@ public:
     return false;
   }
 
-  void erase(unsigned I) { Decls[I] = Decls.pop_back_val(); }
+  void erase(unsigned I) {
+    if (I == Decls.size() - 1)
+      Decls.pop_back();
+    else
+      Decls[I] = Decls.pop_back_val();
+  }
 
   void clear() { Decls.clear(); }
 
@@ -104,10 +114,10 @@ public:
 
   void reserve(ASTContext &C, unsigned N) { Impl.reserve(C, N); }
 
-  void addLazyDecl(ASTContext &C, uintptr_t ID, AccessSpecifier AS) {
+  void addLazyDecl(ASTContext &C, GlobalDeclID ID, AccessSpecifier AS) {
     assert(Impl.empty() || Impl.Decls.isLazy());
     Impl.Decls.setLazy(true);
-    Impl.addDecl(C, reinterpret_cast<NamedDecl *>(ID << 2), AS);
+    Impl.addLazyDecl(C, ID, AS);
   }
 };
 

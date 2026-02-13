@@ -1,4 +1,4 @@
-//===--- TriviallyDestructibleCheck.cpp - clang-tidy ----------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -16,21 +16,16 @@ using namespace clang::ast_matchers;
 using namespace clang::ast_matchers::internal;
 using namespace clang::tidy::matchers;
 
-namespace clang {
-namespace tidy {
-namespace performance {
+namespace clang::tidy::performance {
 
 namespace {
 
 AST_MATCHER(Decl, isFirstDecl) { return Node.isFirstDecl(); }
 
 AST_MATCHER_P(CXXRecordDecl, hasBase, Matcher<QualType>, InnerMatcher) {
-  for (const CXXBaseSpecifier &BaseSpec : Node.bases()) {
-    QualType BaseType = BaseSpec.getType();
-    if (InnerMatcher.matches(BaseType, Finder, Builder))
-      return true;
-  }
-  return false;
+  return llvm::any_of(Node.bases(), [&](const CXXBaseSpecifier &BaseSpec) {
+    return InnerMatcher.matches(BaseSpec.getType(), Finder, Builder);
+  });
 }
 
 } // namespace
@@ -52,7 +47,7 @@ void TriviallyDestructibleCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *MatchedDecl = Result.Nodes.getNodeAs<CXXDestructorDecl>("decl");
 
   // Get locations of both first and out-of-line declarations.
-  SourceManager &SM = *Result.SourceManager;
+  const SourceManager &SM = *Result.SourceManager;
   const auto *FirstDecl = cast<CXXMethodDecl>(MatchedDecl->getFirstDecl());
   const SourceLocation FirstDeclEnd = utils::lexer::findNextTerminator(
       FirstDecl->getEndLoc(), SM, getLangOpts());
@@ -74,6 +69,4 @@ void TriviallyDestructibleCheck::check(const MatchFinder::MatchResult &Result) {
        DiagnosticIDs::Note);
 }
 
-} // namespace performance
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::performance

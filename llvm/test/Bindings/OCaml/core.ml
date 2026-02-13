@@ -34,17 +34,35 @@ let fp128_type = Llvm.fp128_type context
 let filename = Sys.argv.(1)
 let m = create_module context filename
 
+(*===-- Modules  ----------------------------------------------------------===*)
+
+let test_modules () =
+  insist (module_context m = context)
+
 (*===-- Contained types  --------------------------------------------------===*)
 
 let test_contained_types () =
   let ar = struct_type context [| i32_type; i8_type |] in
   insist (i32_type = (Array.get (subtypes ar)) 0);
-  insist (i8_type = (Array.get (subtypes ar)) 1)
+  insist (i8_type = (Array.get (subtypes ar)) 1);
+  insist ([| i32_type; i8_type |] = struct_element_types ar)
 
 (*===-- Pointer types  ----------------------------------------------------===*)
+
 let test_pointer_types () =
-  insist (address_space (pointer_type_in_context context 0) = 0);
-  insist (address_space (pointer_type_in_context context 1) = 1)
+  insist (TypeKind.Pointer = classify_type (pointer_type context));
+  insist (0 = address_space (pointer_type context));
+  insist (0 = address_space (qualified_pointer_type context 0));
+  insist (1 = address_space (qualified_pointer_type context 1))
+
+(*===-- Other types  ------------------------------------------------------===*)
+
+let test_other_types () =
+  insist (TypeKind.Void = classify_type void_type);
+  insist (TypeKind.Label = classify_type (label_type context));
+  insist (TypeKind.X86_amx = classify_type (x86_amx_type context));
+  insist (TypeKind.Token = classify_type (token_type context));
+  insist (TypeKind.Metadata = classify_type (metadata_type context))
 
 (*===-- Conversion --------------------------------------------------------===*)
 
@@ -64,11 +82,11 @@ let test_target () =
   end;
 
   begin group "layout";
-    let layout = "e" in
+    let layout = "e-m:o-p:32:32-p270:32:32-p271:32:32-p272:64:64-i128:128-f64:32:64-f80:128-n8:16:32-S128" in
     set_data_layout layout m;
     insist (layout = data_layout m)
   end
-  (* CHECK: target datalayout = "e"
+  (* CHECK: target datalayout = "e-m:o-p:32:32-p270:32:32-p271:32:32-p272:64:64-i128:128-f64:32:64-f80:128-n8:16:32-S128"
    * CHECK: target triple = "i686-apple-darwin8"
    *)
 
@@ -184,8 +202,10 @@ let test_constants () =
   let c = const_array i32_type [| three; four |] in
   ignore (define_global "const_array" c m);
   insist ((array_type i32_type 2) = (type_of c));
-  insist (three = (const_element c 0));
-  insist (four = (const_element c 1));
+  insist (element_type (type_of c) = i32_type);
+  insist (Some three = (aggregate_element c 0));
+  insist (Some four = (aggregate_element c 1));
+  insist (None = (aggregate_element c 2));
 
   (* CHECK: const_vector{{.*}}<i16 1, i16 2{{.*}}>
    *)
@@ -194,6 +214,7 @@ let test_constants () =
                           one; two; one; two |] in
   ignore (define_global "const_vector" c m);
   insist ((vector_type i16_type 8) = (type_of c));
+  insist (element_type (type_of c) = i16_type);
 
   (* CHECK: const_structure{{.*.}}i16 1, i16 2, i32 3, i32 4
    *)
@@ -219,7 +240,7 @@ let test_constants () =
   group "pointer null"; begin
     (* CHECK: const_pointer_null = global ptr null
      *)
-    let c = const_pointer_null (pointer_type i64_type) in
+    let c = const_pointer_null (pointer_type context) in
     ignore (define_global "const_pointer_null" c m);
   end;
 
@@ -242,7 +263,6 @@ let test_constants () =
   group "constant arithmetic";
   (* CHECK: @const_neg = global i64 sub
    * CHECK: @const_nsw_neg = global i64 sub nsw
-   * CHECK: @const_nuw_neg = global i64 sub nuw
    * CHECK: @const_not = global i64 xor
    * CHECK: @const_add = global i64 add
    * CHECK: @const_nsw_add = global i64 add nsw
@@ -250,24 +270,14 @@ let test_constants () =
    * CHECK: @const_sub = global i64 sub
    * CHECK: @const_nsw_sub = global i64 sub nsw
    * CHECK: @const_nuw_sub = global i64 sub nuw
-   * CHECK: @const_mul = global i64 mul
-   * CHECK: @const_nsw_mul = global i64 mul nsw
-   * CHECK: @const_nuw_mul = global i64 mul nuw
-   * CHECK: @const_and = global i64 and
-   * CHECK: @const_or = global i64 or
    * CHECK: @const_xor = global i64 xor
-   * CHECK: @const_icmp = global i1 icmp sle
-   * CHECK: @const_fcmp = global i1 fcmp ole
    *)
-  let void_ptr = pointer_type i8_type in
+  let void_ptr = pointer_type context in
   let five = const_int i64_type 5 in
-  let ffive = const_uitofp five double_type in
   let foldbomb_gv = define_global "FoldBomb" (const_null i8_type) m in
   let foldbomb = const_ptrtoint foldbomb_gv i64_type in
-  let ffoldbomb = const_uitofp foldbomb double_type in
   ignore (define_global "const_neg" (const_neg foldbomb) m);
   ignore (define_global "const_nsw_neg" (const_nsw_neg foldbomb) m);
-  ignore (define_global "const_nuw_neg" (const_nuw_neg foldbomb) m);
   ignore (define_global "const_not" (const_not foldbomb) m);
   ignore (define_global "const_add" (const_add foldbomb five) m);
   ignore (define_global "const_nsw_add" (const_nsw_add foldbomb five) m);
@@ -275,66 +285,35 @@ let test_constants () =
   ignore (define_global "const_sub" (const_sub foldbomb five) m);
   ignore (define_global "const_nsw_sub" (const_nsw_sub foldbomb five) m);
   ignore (define_global "const_nuw_sub" (const_nuw_sub foldbomb five) m);
-  ignore (define_global "const_mul" (const_mul foldbomb five) m);
-  ignore (define_global "const_nsw_mul" (const_nsw_mul foldbomb five) m);
-  ignore (define_global "const_nuw_mul" (const_nuw_mul foldbomb five) m);
-  ignore (define_global "const_and" (const_and foldbomb five) m);
-  ignore (define_global "const_or" (const_or foldbomb five) m);
   ignore (define_global "const_xor" (const_xor foldbomb five) m);
-  ignore (define_global "const_icmp" (const_icmp Icmp.Sle foldbomb five) m);
-  ignore (define_global "const_fcmp" (const_fcmp Fcmp.Ole ffoldbomb ffive) m);
 
   group "constant casts";
   (* CHECK: const_trunc{{.*}}trunc
-   * CHECK: const_sext{{.*}}sext
-   * CHECK: const_zext{{.*}}zext
-   * CHECK: const_fptrunc{{.*}}fptrunc
-   * CHECK: const_fpext{{.*}}fpext
-   * CHECK: const_uitofp{{.*}}uitofp
-   * CHECK: const_sitofp{{.*}}sitofp
-   * CHECK: const_fptoui{{.*}}fptoui
-   * CHECK: const_fptosi{{.*}}fptosi
    * CHECK: const_ptrtoint{{.*}}ptrtoint
    * CHECK: const_inttoptr{{.*}}inttoptr
    * CHECK: const_bitcast{{.*}}bitcast
-   * CHECK: const_intcast{{.*}}zext
    *)
   let i128_type = integer_type context 128 in
   ignore (define_global "const_trunc" (const_trunc (const_add foldbomb five)
                                                i8_type) m);
-  ignore (define_global "const_sext" (const_sext foldbomb i128_type) m);
-  ignore (define_global "const_zext" (const_zext foldbomb i128_type) m);
-  ignore (define_global "const_fptrunc" (const_fptrunc ffoldbomb float_type) m);
-  ignore (define_global "const_fpext" (const_fpext ffoldbomb fp128_type) m);
-  ignore (define_global "const_uitofp" (const_uitofp foldbomb double_type) m);
-  ignore (define_global "const_sitofp" (const_sitofp foldbomb double_type) m);
-  ignore (define_global "const_fptoui" (const_fptoui ffoldbomb i32_type) m);
-  ignore (define_global "const_fptosi" (const_fptosi ffoldbomb i32_type) m);
   ignore (define_global "const_ptrtoint" (const_ptrtoint
-    (const_gep2 i8_type (const_null (pointer_type i8_type))
-                [| const_int i32_type 1 |])
+    (const_gep i8_type (const_null (pointer_type context))
+               [| const_int i32_type 1 |])
     i32_type) m);
   ignore (define_global "const_inttoptr" (const_inttoptr (const_add foldbomb five)
                                                   void_ptr) m);
-  ignore (define_global "const_bitcast" (const_bitcast ffoldbomb i64_type) m);
-  ignore (define_global "const_intcast"
-          (const_intcast foldbomb i128_type ~is_signed:false) m);
+  ignore (define_global "const_bitcast" (const_bitcast foldbomb double_type) m);
 
   group "misc constants";
   (* CHECK: const_size_of{{.*}}getelementptr{{.*}}null
    * CHECK: const_gep{{.*}}getelementptr
-   * CHECK: const_select{{.*}}select
    * CHECK: const_extractelement{{.*}}extractelement
    * CHECK: const_insertelement{{.*}}insertelement
    * CHECK: const_shufflevector = global <4 x i32> <i32 0, i32 1, i32 1, i32 0>
    *)
-  ignore (define_global "const_size_of" (size_of (pointer_type i8_type)) m);
-  ignore (define_global "const_gep" (const_gep2 i8_type foldbomb_gv [| five |])
+  ignore (define_global "const_size_of" (size_of (pointer_type context)) m);
+  ignore (define_global "const_gep" (const_gep i8_type foldbomb_gv [| five |])
           m);
-  ignore (define_global "const_select" (const_select
-    (const_icmp Icmp.Sle foldbomb five)
-    (const_int i8_type (-1))
-    (const_int i8_type 0)) m);
   let zero = const_int i32_type 0 in
   let one  = const_int i32_type 1 in
   ignore (define_global "const_extractelement" (const_extractelement
@@ -361,7 +340,7 @@ let test_constants () =
 
   group "recursive struct"; begin
       let nsty = named_struct_type context "rec" in
-      let pty = pointer_type nsty in
+      let pty = pointer_type context in
       struct_set_body nsty [| i32_type; pty |] false;
       let elts = [| const_int i32_type 4; const_pointer_null pty |] in
       let grec_init = const_named_struct nsty elts in
@@ -453,8 +432,19 @@ let test_global_values () =
   group "dll_storage_class";
   let g = define_global "GVal06" zero32 m ++
           set_dll_storage_class DLLStorageClass.DLLExport in
-  insist (DLLStorageClass.DLLExport = dll_storage_class g)
+  insist (DLLStorageClass.DLLExport = dll_storage_class g);
 
+  (* CHECK: GVal07{{.*}}!test !0
+   * See metadata check at the end of the file.
+   *)
+  group "metadata";
+  let g = define_global "GVal07" zero32 m in
+  let md_string = mdstring context "global test metadata" in
+  let md_node = mdnode context [| zero32; md_string |] |> value_as_metadata in
+  let mdkind_test = mdkind_id context "test" in
+  global_set_metadata g mdkind_test md_node;
+  let md' = global_copy_all_metadata g in
+  insist (md' = [| mdkind_test, md_node |])
 
 (*===-- Global Variables --------------------------------------------------===*)
 
@@ -469,7 +459,7 @@ let test_global_variables () =
     insist (None == lookup_global "GVar01" m);
     let g = declare_global i32_type "GVar01" m in
     insist (is_declaration g);
-    insist (pointer_type float_type ==
+    insist (pointer_type context ==
               type_of (declare_global float_type "GVar01" m));
     insist (g == declare_global i32_type "GVar01" m);
     insist (match lookup_global "GVar01" m with Some x -> x = g
@@ -478,7 +468,7 @@ let test_global_variables () =
     insist (None == lookup_global "QGVar01" m);
     let g = declare_qualified_global i32_type "QGVar01" 3 m in
     insist (is_declaration g);
-    insist (qualified_pointer_type float_type 3 ==
+    insist (qualified_pointer_type context 3 ==
               type_of (declare_qualified_global float_type "QGVar01" 3 m));
     insist (g == declare_qualified_global i32_type "QGVar01" 3 m);
     insist (match lookup_global "QGVar01" m with Some x -> x = g
@@ -545,7 +535,7 @@ let test_global_variables () =
     let m = create_module context "temp" in
 
     insist (get_module_identifier m = "temp");
-    set_module_identifer m "temp2";
+    set_module_identifier m "temp2";
     insist (get_module_identifier m = "temp2");
 
     insist (At_end m = global_begin m);
@@ -613,7 +603,7 @@ let test_users () =
   let p1 = param fn 0 in
   let p2 = param fn 1 in
   let a3 = build_alloca i32_type "user_alloca" b in
-  let p3 = build_load2 i32_type a3 "user_load" b in
+  let p3 = build_load i32_type a3 "user_load" b in
   let i = build_add p1 p2 "sum" b in
 
   insist ((num_operands i) = 2);
@@ -634,7 +624,7 @@ let test_aliases () =
    *)
   let forty_two32 = const_int i32_type 42 in
   let v = define_global "aliasee" forty_two32 m in
-  ignore (add_alias2 m i32_type 0 v "alias")
+  ignore (add_alias m i32_type 0 v "alias")
 
 
 (*===-- Functions ---------------------------------------------------------===*)
@@ -648,10 +638,10 @@ let test_functions () =
   begin group "declare";
     insist (None = lookup_function "Fn1" m);
     let fn = declare_function "Fn1" ty m in
-    insist (pointer_type ty = type_of fn);
+    insist (pointer_type context = type_of fn);
     insist (is_declaration fn);
     insist (0 = Array.length (basic_blocks fn));
-    insist (pointer_type ty2 == type_of (declare_function "Fn1" ty2 m));
+    insist (pointer_type context == type_of (declare_function "Fn1" ty2 m));
     insist (fn == declare_function "Fn1" ty m);
     insist (None <> lookup_function "Fn1" m);
     insist (match lookup_function "Fn1" m with Some x -> x = fn
@@ -686,6 +676,22 @@ let test_functions () =
   set_value_name "Param1" params.(0);
   set_value_name "Param2" params.(1);
   ignore (build_unreachable (builder_at_end context (entry_block fn)));
+
+  group "intrinsics";
+  insist (not (is_intrinsic fn));
+  let abs_id = lookup_intrinsic_id "llvm.abs" in
+  let abs_decl = intrinsic_declaration m abs_id [|i32_type|] in
+  insist ("llvm.abs.i8" = intrinsic_overloaded_name m abs_id [|i8_type|]);
+  insist ("llvm.abs.i32" = intrinsic_overloaded_name m abs_id [|i32_type|]);
+  let abs_i8_type = intrinsic_type context abs_id [|i8_type|] in
+  insist (TypeKind.Function = classify_type abs_i8_type);
+  insist (is_intrinsic abs_decl);
+  insist (intrinsic_is_overloaded abs_id);
+  let stackmap_id = lookup_intrinsic_id "llvm.experimental.stackmap" in
+  let stackmap_decl = intrinsic_declaration m stackmap_id [||] in
+  insist ("llvm.experimental.stackmap" = intrinsic_name stackmap_id);
+  insist (is_intrinsic stackmap_decl);
+  insist (not (intrinsic_is_overloaded stackmap_id));
 
   (* CHECK: fastcc{{.*}}Fn5
    *)
@@ -982,7 +988,7 @@ let test_builder () =
   end;
 
   group "casts"; begin
-    let void_ptr = pointer_type i8_type in
+    let void_ptr = pointer_type context in
 
     (* CHECK-DAG: %build_trunc = trunc i32 %P1 to i8
      * CHECK-DAG: %build_trunc2 = trunc i32 %P1 to i8
@@ -1023,7 +1029,7 @@ let test_builder () =
     ignore(build_zext_or_bitcast inst38 double_type "build_bitcast2" atentry);
     ignore(build_sext_or_bitcast inst38 double_type "build_bitcast3" atentry);
     ignore(build_trunc_or_bitcast inst38 double_type "build_bitcast4" atentry);
-    ignore(build_pointercast inst37 (pointer_type i16_type) "build_pointercast" atentry);
+    ignore(build_pointercast inst37 (pointer_type context) "build_pointercast" atentry);
 
     ignore(build_zext_or_bitcast inst28 i32_type "build_zext2" atentry);
     ignore(build_sext_or_bitcast inst29 i64_type "build_sext2" atentry);
@@ -1060,13 +1066,13 @@ let test_builder () =
     (* insist (Some Fcmp.True = fcmp_predicate c); *)
     insist (None = icmp_predicate c);
 
-    let g0 = declare_global (pointer_type i8_type) "g0" m in
-    let g1 = declare_global (pointer_type i8_type) "g1" m in
-    let p0 = build_load2 (pointer_type i8_type) g0 "X0" atentry in
-    let p1 = build_load2 (pointer_type i8_type) g1 "X1" atentry in
+    let g0 = declare_global (pointer_type context) "g0" m in
+    let g1 = declare_global (pointer_type context) "g1" m in
+    let p0 = build_load (pointer_type context) g0 "X0" atentry in
+    let p1 = build_load (pointer_type context) g1 "X1" atentry in
     ignore (build_is_null p0 "build_is_null" atentry);
     ignore (build_is_not_null p1 "build_is_not_null" atentry);
-    ignore (build_ptrdiff2 i8_type p1 p0 "build_ptrdiff" atentry);
+    ignore (build_ptrdiff i8_type p1 p0 "build_ptrdiff" atentry);
   end;
 
   group "miscellaneous"; begin
@@ -1079,7 +1085,7 @@ let test_builder () =
      * CHECK: %build_insertvalue0 = insertvalue{{.*}}%bl, i32 1, 0
      * CHECK: %build_extractvalue = extractvalue{{.*}}%build_insertvalue1, 1
      *)
-    let ci = build_call2 fty fn [| p2; p1 |] "build_call" atentry in
+    let ci = build_call fty fn [| p2; p1 |] "build_call" atentry in
     insist (CallConv.c = instruction_call_conv ci);
     set_instruction_call_conv 63 ci;
     insist (63 = instruction_call_conv ci);
@@ -1107,7 +1113,7 @@ let test_builder () =
     let inst46 = build_icmp Icmp.Eq p1 p2 "build_icmp" atentry in
     ignore (build_select inst46 p1 p2 "build_select" atentry);
     ignore (build_va_arg
-      (const_null (pointer_type (pointer_type i8_type)))
+      (const_null (pointer_type context))
       i32_type "build_va_arg" atentry);
 
     (* Set up some vector vregs. *)
@@ -1125,7 +1131,7 @@ let test_builder () =
     ignore (build_shufflevector vec1 vec2 t3 "build_shufflevector" atentry);
 
     let p = build_alloca sty "ba" atentry in
-    let agg = build_load2 sty p "bl" atentry in
+    let agg = build_load sty p "bl" atentry in
     let agg0 = build_insertvalue agg (const_int i32_type 1) 0
                  "build_insertvalue0" atentry in
     let agg1 = build_insertvalue agg0 (const_int i8_type 2) 1
@@ -1134,8 +1140,8 @@ let test_builder () =
   end;
 
   group "metadata"; begin
-    (* CHECK: %metadata = add i32 %P1, %P2, !test !1
-     * !1 is metadata emitted at EOF.
+    (* CHECK: %metadata = add i32 %P1, %P2, !test !2
+     * !2 is metadata emitted at EOF.
      *)
     let i = build_add p1 p2 "metadata" atentry in
     insist ((has_metadata i) = false);
@@ -1174,17 +1180,17 @@ let test_builder () =
     (* CHECK: ret{{.*}}P1
      *)
     let ret = build_ret p1 atentry in
-    position_before ret atentry
+    position_before_dbg_records ret atentry
   end;
 
   (* see test/Feature/exception.ll *)
   let bblpad = append_block context "Bblpad" fn in
-  let rt = struct_type context [| pointer_type i8_type; i32_type |] in
+  let rt = struct_type context [| pointer_type context; i32_type |] in
   let ft = var_arg_function_type i32_type  [||] in
   let personality = declare_function "__gxx_personality_v0" ft m in
-  let ztic = declare_global (pointer_type i8_type) "_ZTIc" m in
-  let ztid = declare_global (pointer_type i8_type) "_ZTId" m in
-  let ztipkc = declare_global (pointer_type i8_type) "_ZTIPKc" m in
+  let ztic = declare_global (pointer_type context) "_ZTIc" m in
+  let ztid = declare_global (pointer_type context) "_ZTId" m in
+  let ztipkc = declare_global (pointer_type context) "_ZTIPKc" m in
   begin
       set_global_constant true ztic;
       set_global_constant true ztid;
@@ -1193,8 +1199,8 @@ let test_builder () =
        (builder_at_end context bblpad) in begin
            set_cleanup lp true;
            add_clause lp ztic;
-           insist((pointer_type (pointer_type i8_type)) = type_of ztid);
-           let ety = pointer_type (pointer_type i8_type) in
+           insist((pointer_type context) = type_of ztid);
+           let ety = pointer_type context in
            add_clause lp (const_array ety [| ztipkc; ztid |]);
            ignore (build_resume lp (builder_at_end context bblpad));
       end;
@@ -1254,7 +1260,7 @@ let test_builder () =
        * CHECK: call{{.*}}@malloc(i32 %
        *)
       let bb1 = append_block context "MallocBlock1" fn in
-      let m1 = (build_malloc (pointer_type i32_type) "m1"
+      let m1 = (build_malloc (pointer_type context) "m1"
       (builder_at_end context bb1)) in
       ignore (build_free m1 (builder_at_end context bb1));
       ignore (build_array_malloc i32_type p1 "m2" (builder_at_end context bb1));
@@ -1284,7 +1290,7 @@ let test_builder () =
      *)
     let bb04 = append_block context "Bb04" fn in
     let b = builder_at_end context bb04 in
-    ignore (build_invoke2 fty fn [| p1; p2 |] bb04 bblpad "build_invoke" b)
+    ignore (build_invoke fty fn [| p1; p2 |] bb04 bblpad "build_invoke" b)
   end;
 
   group "unreachable"; begin
@@ -1326,7 +1332,6 @@ let test_builder () =
      * CHECK: %build_xor = xor i32 %P1, %P2
      * CHECK: %build_neg = sub i32 0, %P1
      * CHECK: %build_nsw_neg = sub nsw i32 0, %P1
-     * CHECK: %build_nuw_neg = sub nuw i32 0, %P1
      * CHECK: %build_fneg = fneg float %F1
      * CHECK: %build_not = xor i32 %P1, -1
      * CHECK: %build_freeze = freeze i32 %P1
@@ -1358,7 +1363,6 @@ let test_builder () =
     ignore (build_xor p1 p2 "build_xor" b);
     ignore (build_neg p1 "build_neg" b);
     ignore (build_nsw_neg p1 "build_nsw_neg" b);
-    ignore (build_nuw_neg p1 "build_nuw_neg" b);
     ignore (build_fneg f1 "build_fneg" b);
     ignore (build_not p1 "build_not" b);
     ignore (build_freeze p1 "build_freeze" b);
@@ -1381,7 +1385,7 @@ let test_builder () =
     let alloca = build_alloca i32_type "build_alloca" b in
     let array_alloca = build_array_alloca i32_type p2 "build_array_alloca" b in
 
-    let load = build_load2 i32_type array_alloca "build_load" b in
+    let load = build_load i32_type array_alloca "build_load" b in
     ignore(set_alignment 4 load);
     ignore(set_volatile true load);
     insist(true = is_volatile load);
@@ -1392,13 +1396,13 @@ let test_builder () =
     ignore(set_alignment 4 store);
     insist(true = is_volatile store);
     insist(4 = alignment store);
-    ignore(build_gep2 i32_type array_alloca [| p2 |] "build_gep" b);
-    ignore(build_in_bounds_gep2 i32_type array_alloca [| p2 |]
+    ignore(build_gep i32_type array_alloca [| p2 |] "build_gep" b);
+    ignore(build_in_bounds_gep i32_type array_alloca [| p2 |]
            "build_in_bounds_gep" b);
 
     let sty = struct_type context [| i32_type; i8_type |] in
     let alloca2 = build_alloca sty "build_alloca2" b in
-    ignore(build_struct_gep2 sty alloca2 1 "build_struct_gep" b);
+    ignore(build_struct_gep sty alloca2 1 "build_struct_gep" b);
 
     let p = build_alloca i8_type "p" b in
     ignore(build_atomicrmw AtomicRMWBinOp.Xchg p (const_int i8_type 42)
@@ -1411,7 +1415,7 @@ let test_builder () =
   group "string"; begin
     let bb09 = append_block context "Bb09" fn in
     let b = builder_at_end context bb09 in
-    let p = build_alloca (pointer_type i8_type) "p" b in
+    let p = build_alloca (pointer_type context) "p" b in
     (* build_global_string is emitted above.
      * CHECK: store{{.*}}build_global_string1{{.*}}p
      * *)
@@ -1451,33 +1455,11 @@ let test_builder () =
   end
 
 (* End-of-file checks for things like metdata and attributes.
- * CHECK: !llvm.module.flags = !{!0}
- * CHECK: !0 = !{i32 1, !"Debug Info Version", i32 3}
- * CHECK: !1 = !{i32 1, !"metadata test"}
+ * CHECK: !llvm.module.flags = !{!1}
+ * CHECK: !0 = !{i32 0, !"global test metadata"}
+ * CHECK: !1 = !{i32 1, !"Debug Info Version", i32 3}
+ * CHECK: !2 = !{i32 1, !"metadata test"}
  *)
-
-(*===-- Pass Managers -----------------------------------------------------===*)
-
-let test_pass_manager () =
-  let (++) x f = ignore (f x); x in
-
-  begin group "module pass manager";
-    ignore (PassManager.create ()
-             ++ PassManager.run_module m
-             ++ PassManager.dispose)
-  end;
-
-  begin group "function pass manager";
-    let fty = function_type void_type [| |] in
-    let fn = define_function "FunctionPassManager" fty m in
-    ignore (build_ret_void (builder_at_end context (entry_block fn)));
-
-    ignore (PassManager.create_function m
-             ++ PassManager.initialize
-             ++ PassManager.run_function fn
-             ++ PassManager.finalize
-             ++ PassManager.dispose)
-  end
 
 
 (*===-- Memory Buffer -----------------------------------------------------===*)
@@ -1505,8 +1487,10 @@ let test_writer () =
 (*===-- Driver ------------------------------------------------------------===*)
 
 let _ =
+  suite "modules"          test_modules;
   suite "contained types"  test_contained_types;
   suite "pointer types"    test_pointer_types;
+  suite "other types"      test_other_types;
   suite "conversion"       test_conversion;
   suite "target"           test_target;
   suite "constants"        test_constants;
@@ -1521,7 +1505,6 @@ let _ =
   suite "basic blocks"     test_basic_blocks;
   suite "instructions"     test_instructions;
   suite "builder"          test_builder;
-  suite "pass manager"     test_pass_manager;
   suite "memory buffer"    test_memory_buffer;
   suite "writer"           test_writer; (* Keep this last; it disposes m. *)
   exit !exit_status

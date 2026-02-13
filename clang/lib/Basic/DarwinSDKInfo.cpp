@@ -7,16 +7,18 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Basic/DarwinSDKInfo.h"
+#include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
+#include <optional>
 
 using namespace clang;
 
-Optional<VersionTuple> DarwinSDKInfo::RelatedTargetVersionMapping::map(
+std::optional<VersionTuple> DarwinSDKInfo::RelatedTargetVersionMapping::map(
     const VersionTuple &Key, const VersionTuple &MinimumValue,
-    Optional<VersionTuple> MaximumValue) const {
+    std::optional<VersionTuple> MaximumValue) const {
   if (Key < MinimumKeyVersion)
     return MinimumValue;
   if (Key > MaximumKeyVersion)
@@ -29,11 +31,11 @@ Optional<VersionTuple> DarwinSDKInfo::RelatedTargetVersionMapping::map(
   // the major-only check.
   if (Key.getMinor())
     return map(VersionTuple(Key.getMajor()), MinimumValue, MaximumValue);
-  // If this a major only key, return None for a missing entry.
-  return None;
+  // If this a major only key, return std::nullopt for a missing entry.
+  return std::nullopt;
 }
 
-Optional<DarwinSDKInfo::RelatedTargetVersionMapping>
+std::optional<DarwinSDKInfo::RelatedTargetVersionMapping>
 DarwinSDKInfo::RelatedTargetVersionMapping::parseJSON(
     const llvm::json::Object &Obj, VersionTuple MaximumDeploymentTarget) {
   VersionTuple Min = VersionTuple(std::numeric_limits<unsigned>::max());
@@ -45,7 +47,7 @@ DarwinSDKInfo::RelatedTargetVersionMapping::parseJSON(
       llvm::VersionTuple KeyVersion;
       llvm::VersionTuple ValueVersion;
       if (KeyVersion.tryParse(KV.getFirst()) || ValueVersion.tryParse(*Val))
-        return None;
+        return std::nullopt;
       Mapping[KeyVersion.normalize()] = ValueVersion;
       if (KeyVersion < Min)
         Min = KeyVersion;
@@ -56,32 +58,135 @@ DarwinSDKInfo::RelatedTargetVersionMapping::parseJSON(
     }
   }
   if (Mapping.empty())
-    return None;
+    return std::nullopt;
   return RelatedTargetVersionMapping(
       Min, Max, MinValue, MaximumDeploymentTarget, std::move(Mapping));
 }
 
-static Optional<VersionTuple> getVersionKey(const llvm::json::Object &Obj,
-                                            StringRef Key) {
+static DarwinSDKInfo::PlatformInfoStorageType
+parsePlatformInfos(const llvm::json::Object &Obj, VersionTuple Version) {
+  // The CanonicalName is the Xcode platform followed by a version, e.g.
+  // macosx15.0. The associated SDKPlatformInfo must be the first entry  in the
+  // returned PlatformInfoStorageType.
+  StringRef XcodePlatform;
+  if (auto CanonicalName = Obj.getString("CanonicalName")) {
+    size_t VersionStart = CanonicalName->find_first_of("0123456789");
+    XcodePlatform = CanonicalName->slice(0, VersionStart);
+  }
+
+  DarwinSDKInfo::PlatformInfoStorageType PlatformInfos;
+  auto SupportedTargets = Obj.getObject("SupportedTargets");
+  if (!SupportedTargets) {
+    // For older SDKs that don't have SupportedTargets, infer one from the Xcode
+    // platform.
+    if (XcodePlatform == "macosx") {
+      PlatformInfos.push_back({llvm::Triple::Apple, llvm::Triple::MacOSX,
+                               llvm::Triple::UnknownEnvironment,
+                               llvm::Triple::MachO, ""});
+    } else if (XcodePlatform == "iphoneos") {
+      PlatformInfos.push_back({llvm::Triple::Apple, llvm::Triple::IOS,
+                               llvm::Triple::UnknownEnvironment,
+                               llvm::Triple::MachO, ""});
+    } else if (XcodePlatform == "iphonesimulator") {
+      PlatformInfos.push_back({llvm::Triple::Apple, llvm::Triple::IOS,
+                               llvm::Triple::Simulator, llvm::Triple::MachO,
+                               ""});
+    } else if (XcodePlatform == "appletvos") {
+      PlatformInfos.push_back({llvm::Triple::Apple, llvm::Triple::TvOS,
+                               llvm::Triple::UnknownEnvironment,
+                               llvm::Triple::MachO, ""});
+    } else if (XcodePlatform == "appletvsimulator") {
+      PlatformInfos.push_back({llvm::Triple::Apple, llvm::Triple::TvOS,
+                               llvm::Triple::Simulator, llvm::Triple::MachO,
+                               ""});
+    } else if (XcodePlatform == "watchos") {
+      PlatformInfos.push_back({llvm::Triple::Apple, llvm::Triple::WatchOS,
+                               llvm::Triple::UnknownEnvironment,
+                               llvm::Triple::MachO, ""});
+    } else if (XcodePlatform == "watchsimulator") {
+      PlatformInfos.push_back({llvm::Triple::Apple, llvm::Triple::WatchOS,
+                               llvm::Triple::Simulator, llvm::Triple::MachO,
+                               ""});
+    } else if (XcodePlatform == "driverkit") {
+      PlatformInfos.push_back({llvm::Triple::Apple, llvm::Triple::DriverKit,
+                               llvm::Triple::UnknownEnvironment,
+                               llvm::Triple::MachO, "/System/DriverKit"});
+    } else {
+      llvm::reportFatalUsageError(
+          "Unrecognized CanonicalName in SDKSettings.json. SupportedTargets is "
+          "expected, or a recognized CanonicalName.");
+    }
+    return PlatformInfos;
+  }
+
+  for (auto SupportedTargetPair : *SupportedTargets) {
+    llvm::json::Object *SupportedTarget =
+        SupportedTargetPair.getSecond().getAsObject();
+    auto Vendor = SupportedTarget->getString("LLVMTargetTripleVendor");
+    auto OS = SupportedTarget->getString("LLVMTargetTripleSys");
+    if (!Vendor || !OS)
+      continue;
+
+    StringRef Arch = llvm::Triple::getArchName(llvm::Triple::UnknownArch);
+    auto Environment =
+        SupportedTarget->getString("LLVMTargetTripleEnvironment");
+    llvm::Triple Triple;
+    if (Environment)
+      Triple = llvm::Triple(Arch, *Vendor, *OS, *Environment);
+    else
+      Triple = llvm::Triple(Arch, *Vendor, *OS);
+
+    StringRef PlatformOrVariant = SupportedTargetPair.getFirst();
+
+    StringRef EffectivePlatformPrefix;
+    // Ignore iosmac value if it exists.
+    if ((PlatformOrVariant != "iosmac") || (Version >= VersionTuple(99))) {
+      auto PlatformPrefix = SupportedTarget->getString("SystemPrefix");
+      if (PlatformPrefix) {
+        EffectivePlatformPrefix = *PlatformPrefix;
+      } else {
+        // Older SDKs don't have SystemPrefix in SupportedTargets, manually add
+        // their prefixes.
+        if ((Triple.getOS() == llvm::Triple::DriverKit) &&
+            (Version < VersionTuple(22, 1)))
+          EffectivePlatformPrefix = "/System/DriverKit";
+      }
+    }
+
+    DarwinSDKInfo::SDKPlatformInfo PlatformInfo(
+        Triple.getVendor(), Triple.getOS(), Triple.getEnvironment(),
+        Triple.getObjectFormat(), EffectivePlatformPrefix);
+    if (PlatformOrVariant == XcodePlatform)
+      PlatformInfos.insert(PlatformInfos.begin(), PlatformInfo);
+    else
+      PlatformInfos.push_back(PlatformInfo);
+  }
+  return PlatformInfos;
+}
+
+static std::optional<VersionTuple> getVersionKey(const llvm::json::Object &Obj,
+                                                 StringRef Key) {
   auto Value = Obj.getString(Key);
   if (!Value)
-    return None;
+    return std::nullopt;
   VersionTuple Version;
   if (Version.tryParse(*Value))
-    return None;
+    return std::nullopt;
   return Version;
 }
 
-Optional<DarwinSDKInfo>
+std::optional<DarwinSDKInfo>
 DarwinSDKInfo::parseDarwinSDKSettingsJSON(const llvm::json::Object *Obj) {
   auto Version = getVersionKey(*Obj, "Version");
   if (!Version)
-    return None;
+    return std::nullopt;
   auto MaximumDeploymentVersion =
       getVersionKey(*Obj, "MaximumDeploymentTarget");
   if (!MaximumDeploymentVersion)
-    return None;
-  llvm::DenseMap<OSEnvPair::StorageType, Optional<RelatedTargetVersionMapping>>
+    return std::nullopt;
+  PlatformInfoStorageType PlatformInfos = parsePlatformInfos(*Obj, *Version);
+  llvm::DenseMap<OSEnvPair::StorageType,
+                 std::optional<RelatedTargetVersionMapping>>
       VersionMappings;
   if (const auto *VM = Obj->getObject("VersionMap")) {
     // FIXME: Generalize this out beyond iOS-deriving targets.
@@ -107,7 +212,7 @@ DarwinSDKInfo::parseDarwinSDKSettingsJSON(const llvm::json::Object *Obj) {
       auto VersionMap = RelatedTargetVersionMapping::parseJSON(
           *Mapping, *MaximumDeploymentVersion);
       if (!VersionMap)
-        return None;
+        return std::nullopt;
       VersionMappings[OSEnvPair::macOStoMacCatalystPair().Value] =
           std::move(VersionMap);
     }
@@ -115,7 +220,7 @@ DarwinSDKInfo::parseDarwinSDKSettingsJSON(const llvm::json::Object *Obj) {
       auto VersionMap = RelatedTargetVersionMapping::parseJSON(
           *Mapping, *MaximumDeploymentVersion);
       if (!VersionMap)
-        return None;
+        return std::nullopt;
       VersionMappings[OSEnvPair::macCatalystToMacOSPair().Value] =
           std::move(VersionMap);
     }
@@ -123,10 +228,10 @@ DarwinSDKInfo::parseDarwinSDKSettingsJSON(const llvm::json::Object *Obj) {
 
   return DarwinSDKInfo(std::move(*Version),
                        std::move(*MaximumDeploymentVersion),
-                       std::move(VersionMappings));
+                       std::move(PlatformInfos), std::move(VersionMappings));
 }
 
-Expected<Optional<DarwinSDKInfo>>
+Expected<std::optional<DarwinSDKInfo>>
 clang::parseDarwinSDKInfo(llvm::vfs::FileSystem &VFS, StringRef SDKRootPath) {
   llvm::SmallString<256> Filepath = SDKRootPath;
   llvm::sys::path::append(Filepath, "SDKSettings.json");
@@ -134,7 +239,7 @@ clang::parseDarwinSDKInfo(llvm::vfs::FileSystem &VFS, StringRef SDKRootPath) {
       VFS.getBufferForFile(Filepath);
   if (!File) {
     // If the file couldn't be read, assume it just doesn't exist.
-    return None;
+    return std::nullopt;
   }
   Expected<llvm::json::Value> Result =
       llvm::json::parse(File.get()->getBuffer());

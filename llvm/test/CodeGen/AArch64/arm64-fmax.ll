@@ -60,7 +60,7 @@ define i64 @test_integer(i64  %in) {
 ; CHECK-LABEL: test_integer:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    cmp x0, #0
-; CHECK-NEXT:    csel x0, xzr, x0, lt
+; CHECK-NEXT:    csel x0, xzr, x0, mi
 ; CHECK-NEXT:    ret
   %cmp = icmp slt i64 %in, 0
   %val = select i1 %cmp, i64 0, i64 %in
@@ -73,8 +73,7 @@ define float @test_f16(half %in) {
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    // kill: def $h0 killed $h0 def $s0
 ; CHECK-NEXT:    fcvt s1, h0
-; CHECK-NEXT:    adrp x8, .LCPI5_0
-; CHECK-NEXT:    ldr h2, [x8, :lo12:.LCPI5_0]
+; CHECK-NEXT:    movi d2, #0000000000000000
 ; CHECK-NEXT:    fcmp s1, #0.0
 ; CHECK-NEXT:    fcsel s0, s0, s2, lt
 ; CHECK-NEXT:    fcvt s0, h0

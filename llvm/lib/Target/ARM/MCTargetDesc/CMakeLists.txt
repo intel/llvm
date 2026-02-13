@@ -7,7 +7,6 @@ add_llvm_component_library(LLVMARMDesc
   ARMMachORelocationInfo.cpp
   ARMMCAsmInfo.cpp
   ARMMCCodeEmitter.cpp
-  ARMMCExpr.cpp
   ARMMCTargetDesc.cpp
   ARMTargetStreamer.cpp
   ARMUnwindOpAsm.cpp
@@ -17,10 +16,13 @@ add_llvm_component_library(LLVMARMDesc
   LINK_COMPONENTS
   ARMInfo
   ARMUtils
+  BinaryFormat
+  CodeGenTypes
   MC
   MCDisassembler
+  Object
   Support
-  BinaryFormat
+  TargetParser
 
   ADD_TO_COMPONENT
   ARM

@@ -9,114 +9,227 @@
 #include "Plugins/Language/CPlusPlus/CPlusPlusNameParser.h"
 #include "TestingSupport/SubsystemRAII.h"
 #include "lldb/lldb-enumerations.h"
+#include "llvm/Support/Error.h"
+#include "llvm/Testing/Support/Error.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include <optional>
 
 using namespace lldb_private;
 
 TEST(CPlusPlusLanguage, MethodNameParsing) {
   struct TestCase {
     std::string input;
-    std::string context, basename, arguments, qualifiers, scope_qualified_name;
+    std::string return_type, context, basename, arguments, qualifiers,
+        scope_qualified_name;
   };
 
   TestCase test_cases[] = {
-      {"main(int, char *[]) ", "", "main", "(int, char *[])", "", "main"},
-      {"foo::bar(baz) const", "foo", "bar", "(baz)", "const", "foo::bar"},
-      {"foo::~bar(baz)", "foo", "~bar", "(baz)", "", "foo::~bar"},
-      {"a::b::c::d(e,f)", "a::b::c", "d", "(e,f)", "", "a::b::c::d"},
-      {"void f(int)", "", "f", "(int)", "", "f"},
+      {"main(int, char *[]) ", "", "", "main", "(int, char *[])", "", "main"},
+      {"foo::bar(baz) const", "", "foo", "bar", "(baz)", "const", "foo::bar"},
+      {"foo::~bar(baz)", "", "foo", "~bar", "(baz)", "", "foo::~bar"},
+      {"a::b::c::d(e,f)", "", "a::b::c", "d", "(e,f)", "", "a::b::c::d"},
+      {"void f(int)", "void", "", "f", "(int)", "", "f"},
+      {"std::vector<int>foo::bar()", "std::vector<int>", "foo", "bar", "()", "",
+       "foo::bar"},
+      {"int foo::bar::func01(int a, double b)", "int", "foo::bar", "func01",
+       "(int a, double b)", "", "foo::bar::func01"},
 
       // Operators
       {"std::basic_ostream<char, std::char_traits<char> >& "
-       "std::operator<<<std::char_traits<char> >"
-       "(std::basic_ostream<char, std::char_traits<char> >&, char const*)",
-       "std", "operator<<<std::char_traits<char> >",
+       "std::operator<<<std::char_traits<char> >(std::basic_ostream<char, "
+       "std::char_traits<char> >&, char const*)",
+       "std::basic_ostream<char, std::char_traits<char> >&", "std",
+       "operator<<<std::char_traits<char> >",
        "(std::basic_ostream<char, std::char_traits<char> >&, char const*)", "",
        "std::operator<<<std::char_traits<char> >"},
       {"operator delete[](void*, clang::ASTContext const&, unsigned long)", "",
-       "operator delete[]", "(void*, clang::ASTContext const&, unsigned long)",
-       "", "operator delete[]"},
-      {"llvm::Optional<clang::PostInitializer>::operator bool() const",
-       "llvm::Optional<clang::PostInitializer>", "operator bool", "()", "const",
-       "llvm::Optional<clang::PostInitializer>::operator bool"},
-      {"(anonymous namespace)::FactManager::operator[](unsigned short)",
+       "", "operator delete[]",
+       "(void*, clang::ASTContext const&, unsigned long)", "",
+       "operator delete[]"},
+      {"std::optional<clang::PostInitializer>::operator bool() const", "",
+       "std::optional<clang::PostInitializer>", "operator bool", "()", "const",
+       "std::optional<clang::PostInitializer>::operator bool"},
+      {"(anonymous namespace)::FactManager::operator[](unsigned short)", "",
        "(anonymous namespace)::FactManager", "operator[]", "(unsigned short)",
        "", "(anonymous namespace)::FactManager::operator[]"},
       {"const int& std::map<int, pair<short, int>>::operator[](short) const",
-       "std::map<int, pair<short, int>>", "operator[]", "(short)", "const",
-       "std::map<int, pair<short, int>>::operator[]"},
-      {"CompareInsn::operator()(llvm::StringRef, InsnMatchEntry const&)",
+       "const int&", "std::map<int, pair<short, int>>", "operator[]", "(short)",
+       "const", "std::map<int, pair<short, int>>::operator[]"},
+      {"CompareInsn::operator()(llvm::StringRef, InsnMatchEntry const&)", "",
        "CompareInsn", "operator()", "(llvm::StringRef, InsnMatchEntry const&)",
        "", "CompareInsn::operator()"},
-      {"llvm::Optional<llvm::MCFixupKind>::operator*() const &",
-       "llvm::Optional<llvm::MCFixupKind>", "operator*", "()", "const &",
-       "llvm::Optional<llvm::MCFixupKind>::operator*"},
+      {"std::optional<llvm::MCFixupKind>::operator*() const &", "",
+       "std::optional<llvm::MCFixupKind>", "operator*", "()", "const &",
+       "std::optional<llvm::MCFixupKind>::operator*"},
+      {"auto std::__1::ranges::__begin::__fn::operator()[abi:v160000]<char "
+       "const, 18ul>(char const (&) [18ul]) const",
+       "auto", "std::__1::ranges::__begin::__fn",
+       "operator()[abi:v160000]<char const, 18ul>", "(char const (&) [18ul])",
+       "const",
+       "std::__1::ranges::__begin::__fn::operator()[abi:v160000]<char const, "
+       "18ul>"},
+      {"bool Ball[abi:BALL]<int>::operator<<[abi:operator]<int>(int)", "bool",
+       "Ball[abi:BALL]<int>", "operator<<[abi:operator]<int>", "(int)", "",
+       "Ball[abi:BALL]<int>::operator<<[abi:operator]<int>"},
+      {"bool Ball[abi:BALL]<int>::operator>>[abi:operator]<int>(int)", "bool",
+       "Ball[abi:BALL]<int>", "operator>>[abi:operator]<int>", "(int)", "",
+       "Ball[abi:BALL]<int>::operator>>[abi:operator]<int>"},
       // Internal classes
-      {"operator<<(Cls, Cls)::Subclass::function()",
+      {"operator<<(Cls, Cls)::Subclass::function()", "",
        "operator<<(Cls, Cls)::Subclass", "function", "()", "",
        "operator<<(Cls, Cls)::Subclass::function"},
-      {"SAEC::checkFunction(context&) const::CallBack::CallBack(int)",
+      {"SAEC::checkFunction(context&) const::CallBack::CallBack(int)", "",
        "SAEC::checkFunction(context&) const::CallBack", "CallBack", "(int)", "",
        "SAEC::checkFunction(context&) const::CallBack::CallBack"},
       // Anonymous namespace
-      {"XX::(anonymous namespace)::anon_class::anon_func() const",
+      {"XX::(anonymous namespace)::anon_class::anon_func() const", "",
        "XX::(anonymous namespace)::anon_class", "anon_func", "()", "const",
        "XX::(anonymous namespace)::anon_class::anon_func"},
 
       // Lambda
-      {"main::{lambda()#1}::operator()() const::{lambda()#1}::operator()() const",
-       "main::{lambda()#1}::operator()() const::{lambda()#1}", "operator()", "()", "const",
+      {"main::{lambda()#1}::operator()() const::{lambda()#1}::operator()() "
+       "const",
+       "", "main::{lambda()#1}::operator()() const::{lambda()#1}", "operator()",
+       "()", "const",
        "main::{lambda()#1}::operator()() const::{lambda()#1}::operator()"},
 
       // Function pointers
-      {"string (*f(vector<int>&&))(float)", "", "f", "(vector<int>&&)", "",
+      {"string (*f(vector<int>&&))(float)", "", "", "f", "(vector<int>&&)", "",
        "f"},
-      {"void (*&std::_Any_data::_M_access<void (*)()>())()", "std::_Any_data",
-       "_M_access<void (*)()>", "()", "",
+      {"void (*&std::_Any_data::_M_access<void (*)()>())()", "",
+       "std::_Any_data", "_M_access<void (*)()>", "()", "",
        "std::_Any_data::_M_access<void (*)()>"},
-      {"void (*(*(*(*(*(*(*(* const&func1(int))())())())())())())())()", "",
+      {"void (*(*(*(*(*(*(*(* const&func1(int))())())())())())())())()", "", "",
        "func1", "(int)", "", "func1"},
 
       // Decltype
       {"decltype(nullptr)&& std::forward<decltype(nullptr)>"
        "(std::remove_reference<decltype(nullptr)>::type&)",
-       "std", "forward<decltype(nullptr)>",
+       "decltype(nullptr)&&", "std", "forward<decltype(nullptr)>",
        "(std::remove_reference<decltype(nullptr)>::type&)", "",
        "std::forward<decltype(nullptr)>"},
 
       // Templates
+      {"vector<int > foo::bar::func(int)", "vector<int >", "foo::bar", "func",
+       "(int)", "", "foo::bar::func"},
       {"void llvm::PM<llvm::Module, llvm::AM<llvm::Module>>::"
        "addPass<llvm::VP>(llvm::VP)",
-       "llvm::PM<llvm::Module, llvm::AM<llvm::Module>>", "addPass<llvm::VP>",
-       "(llvm::VP)", "",
+       "void", "llvm::PM<llvm::Module, llvm::AM<llvm::Module>>",
+       "addPass<llvm::VP>", "(llvm::VP)", "",
        "llvm::PM<llvm::Module, llvm::AM<llvm::Module>>::"
        "addPass<llvm::VP>"},
       {"void std::vector<Class, std::allocator<Class> >"
        "::_M_emplace_back_aux<Class const&>(Class const&)",
-       "std::vector<Class, std::allocator<Class> >",
+       "void", "std::vector<Class, std::allocator<Class> >",
        "_M_emplace_back_aux<Class const&>", "(Class const&)", "",
        "std::vector<Class, std::allocator<Class> >::"
        "_M_emplace_back_aux<Class const&>"},
       {"unsigned long llvm::countTrailingOnes<unsigned int>"
        "(unsigned int, llvm::ZeroBehavior)",
-       "llvm", "countTrailingOnes<unsigned int>",
+       "unsigned long", "llvm", "countTrailingOnes<unsigned int>",
        "(unsigned int, llvm::ZeroBehavior)", "",
        "llvm::countTrailingOnes<unsigned int>"},
       {"std::enable_if<(10u)<(64), bool>::type llvm::isUInt<10u>(unsigned "
        "long)",
-       "llvm", "isUInt<10u>", "(unsigned long)", "", "llvm::isUInt<10u>"},
-      {"f<A<operator<(X,Y)::Subclass>, sizeof(B)<sizeof(C)>()", "",
+       "std::enable_if<(10u)<(64), bool>::type", "llvm", "isUInt<10u>",
+       "(unsigned long)", "", "llvm::isUInt<10u>"},
+      {"f<A<operator<(X,Y)::Subclass>, sizeof(B)<sizeof(C)>()", "", "",
        "f<A<operator<(X,Y)::Subclass>, sizeof(B)<sizeof(C)>", "()", "",
        "f<A<operator<(X,Y)::Subclass>, sizeof(B)<sizeof(C)>"},
-      {"llvm::Optional<llvm::MCFixupKind>::operator*() const volatile &&",
-       "llvm::Optional<llvm::MCFixupKind>", "operator*", "()", "const volatile &&",
-       "llvm::Optional<llvm::MCFixupKind>::operator*"}};
+      {"std::optional<llvm::MCFixupKind>::operator*() const volatile &&", "",
+       "std::optional<llvm::MCFixupKind>", "operator*", "()",
+       "const volatile &&", "std::optional<llvm::MCFixupKind>::operator*"},
+      {"void foo<Dummy<char [10]>>()", "void", "", "foo<Dummy<char [10]>>",
+       "()", "", "foo<Dummy<char [10]>>"},
+      {"void foo<Bar<Bar<int>[10]>>()", "void", "", "foo<Bar<Bar<int>[10]>>",
+       "()", "", "foo<Bar<Bar<int>[10]>>"},
+      {"void foo<Bar[10]>()", "void", "", "foo<Bar[10]>", "()", "",
+       "foo<Bar[10]>"},
+      {"void foo<Bar[]>()", "void", "", "foo<Bar[]>", "()", "", "foo<Bar[]>"},
+
+      // auto return type
+      {"auto std::test_return_auto<int>() const", "auto", "std",
+       "test_return_auto<int>", "()", "const", "std::test_return_auto<int>"},
+      {"decltype(auto) std::test_return_auto<int>(int) const", "decltype(auto)",
+       "std", "test_return_auto<int>", "(int)", "const",
+       "std::test_return_auto<int>"},
+
+      // abi_tag on class method
+      {"v1::v2::Dummy[abi:c1][abi:c2]<v1::v2::Dummy[abi:c1][abi:c2]<int>> "
+       "v1::v2::Dummy[abi:c1][abi:c2]<v1::v2::Dummy[abi:c1][abi:c2]<int>>"
+       "::method2<v1::v2::Dummy[abi:c1][abi:c2]<v1::v2::Dummy[abi:c1][abi:c2]<"
+       "int>>>(int, v1::v2::Dummy<int>) const &&",
+       // Return type
+       "v1::v2::Dummy[abi:c1][abi:c2]<v1::v2::Dummy[abi:c1][abi:c2]<int>>",
+       // Context
+       "v1::v2::Dummy[abi:c1][abi:c2]<v1::v2::Dummy[abi:c1][abi:c2]<int>>",
+       // Basename
+       "method2<v1::v2::Dummy[abi:c1][abi:c2]<v1::v2::Dummy[abi:c1][abi:c2]<"
+       "int>>>",
+       // Args, qualifiers
+       "(int, v1::v2::Dummy<int>)", "const &&",
+       // Full scope-qualified name without args
+       "v1::v2::Dummy[abi:c1][abi:c2]<v1::v2::Dummy[abi:c1][abi:c2]<int>>"
+       "::method2<v1::v2::Dummy[abi:c1][abi:c2]<v1::v2::Dummy[abi:c1][abi:c2]<"
+       "int>>>"},
+
+      // abi_tag on free function and template argument
+      {"v1::v2::Dummy[abi:c1][abi:c2]<v1::v2::Dummy[abi:c1][abi:c2]<int>> "
+       "v1::v2::with_tag_in_ns[abi:f1][abi:f2]<v1::v2::Dummy[abi:c1][abi:c2]"
+       "<v1::v2::Dummy[abi:c1][abi:c2]<int>>>(int, v1::v2::Dummy<int>) const "
+       "&&",
+       // Return type
+       "v1::v2::Dummy[abi:c1][abi:c2]<v1::v2::Dummy[abi:c1][abi:c2]<int>>",
+       // Context
+       "v1::v2",
+       // Basename
+       "with_tag_in_ns[abi:f1][abi:f2]<v1::v2::Dummy[abi:c1][abi:c2]<v1::v2::"
+       "Dummy[abi:c1][abi:c2]<int>>>",
+       // Args, qualifiers
+       "(int, v1::v2::Dummy<int>)", "const &&",
+       // Full scope-qualified name without args
+       "v1::v2::with_tag_in_ns[abi:f1][abi:f2]<v1::v2::Dummy[abi:c1][abi:c2]<"
+       "v1::v2::Dummy[abi:c1][abi:c2]<int>>>"},
+
+      // abi_tag with special characters
+      {"auto ns::with_tag_in_ns[abi:special tag,0.0][abi:special "
+       "tag,1.0]<Dummy<int>>"
+       "(float) const &&",
+       // Return type
+       "auto",
+       // Context
+       "ns",
+       // Basename
+       "with_tag_in_ns[abi:special tag,0.0][abi:special tag,1.0]<Dummy<int>>",
+       // Args, qualifiers
+       "(float)", "const &&",
+       // Full scope-qualified name without args
+       "ns::with_tag_in_ns[abi:special tag,0.0][abi:special "
+       "tag,1.0]<Dummy<int>>"},
+
+      // abi_tag on operator overloads
+      {"std::__1::error_code::operator bool[abi:v160000]() const", "",
+       "std::__1::error_code", "operator bool[abi:v160000]", "()", "const",
+       "std::__1::error_code::operator bool[abi:v160000]"},
+
+      {"auto ns::foo::operator[][abi:v160000](size_t) const", "auto", "ns::foo",
+       "operator[][abi:v160000]", "(size_t)", "const",
+       "ns::foo::operator[][abi:v160000]"},
+
+      {"auto Foo[abi:abc]<int>::operator<<<Foo[abi:abc]<int>>(int) &", "auto",
+       "Foo[abi:abc]<int>", "operator<<<Foo[abi:abc]<int>>", "(int)", "&",
+       "Foo[abi:abc]<int>::operator<<<Foo[abi:abc]<int>>"},
+
+      {"auto A::operator<=>[abi:tag]<A::B>()", "auto", "A",
+       "operator<=>[abi:tag]<A::B>", "()", "",
+       "A::operator<=>[abi:tag]<A::B>"}};
 
   for (const auto &test : test_cases) {
-    CPlusPlusLanguage::MethodName method(ConstString(test.input));
+    CPlusPlusLanguage::CxxMethodName method(ConstString(test.input));
     EXPECT_TRUE(method.IsValid()) << test.input;
     if (method.IsValid()) {
+      EXPECT_EQ(test.return_type, method.GetReturnType().str());
       EXPECT_EQ(test.context, method.GetContext().str());
       EXPECT_EQ(test.basename, method.GetBasename().str());
       EXPECT_EQ(test.arguments, method.GetArguments().str());
@@ -126,15 +239,43 @@ TEST(CPlusPlusLanguage, MethodNameParsing) {
   }
 }
 
+TEST(CPlusPlusLanguage, InvalidMethodNameParsing) {
+  // Tests that we correctly reject malformed function names
+
+  std::string test_cases[] = {
+      "int Foo::operator[]<[10>()",
+      "Foo::operator bool[10]()",
+      "auto A::operator<<<(int)",
+      "auto A::operator>>>(int)",
+      "auto A::operator<<<Type[abi:tag]<>(int)",
+      "auto A::operator<<<Type[abi:tag]<Type<int>>(int)",
+      "auto A::foo[(int)",
+      "auto A::foo[](int)",
+      "auto A::foo[bar](int)",
+      "auto A::foo[abi](int)",
+      "auto A::foo[abi:(int)",
+  };
+
+  for (const auto &name : test_cases) {
+    CPlusPlusLanguage::CxxMethodName method{ConstString(name)};
+    EXPECT_FALSE(method.IsValid()) << name;
+  }
+}
+
 TEST(CPlusPlusLanguage, ContainsPath) {
-  CPlusPlusLanguage::MethodName 
-      reference_1(ConstString("int foo::bar::func01(int a, double b)"));
-  CPlusPlusLanguage::MethodName
-      reference_2(ConstString("int foofoo::bar::func01(std::string a, int b)"));
-  CPlusPlusLanguage::MethodName reference_3(ConstString("int func01()"));
-  CPlusPlusLanguage::MethodName 
-      reference_4(ConstString("bar::baz::operator bool()"));
-  
+  CPlusPlusLanguage::CxxMethodName reference_1(
+      ConstString("int foo::bar::func01(int a, double b)"));
+  CPlusPlusLanguage::CxxMethodName reference_2(
+      ConstString("int foofoo::bar::func01(std::string a, int b)"));
+  CPlusPlusLanguage::CxxMethodName reference_3(ConstString("int func01()"));
+  CPlusPlusLanguage::CxxMethodName reference_4(
+      ConstString("bar::baz::operator bool()"));
+  CPlusPlusLanguage::CxxMethodName reference_5(
+      ConstString("bar::baz::operator bool<int, Type<double>>()"));
+  CPlusPlusLanguage::CxxMethodName reference_6(ConstString(
+      "bar::baz::operator<<<Type<double>, Type<std::vector<double>>>()"));
+
+  EXPECT_TRUE(reference_1.ContainsPath(""));
   EXPECT_TRUE(reference_1.ContainsPath("func01"));
   EXPECT_TRUE(reference_1.ContainsPath("bar::func01"));
   EXPECT_TRUE(reference_1.ContainsPath("foo::bar::func01"));
@@ -144,17 +285,35 @@ TEST(CPlusPlusLanguage, ContainsPath) {
   EXPECT_FALSE(reference_1.ContainsPath("::foo::baz::func01"));
   EXPECT_FALSE(reference_1.ContainsPath("foo::bar::baz::func01"));
   
+  EXPECT_TRUE(reference_2.ContainsPath(""));
   EXPECT_TRUE(reference_2.ContainsPath("foofoo::bar::func01"));
   EXPECT_FALSE(reference_2.ContainsPath("foo::bar::func01"));
   
+  EXPECT_TRUE(reference_3.ContainsPath(""));
   EXPECT_TRUE(reference_3.ContainsPath("func01"));
   EXPECT_FALSE(reference_3.ContainsPath("func"));
   EXPECT_FALSE(reference_3.ContainsPath("bar::func01"));
 
+  EXPECT_TRUE(reference_4.ContainsPath(""));
+  EXPECT_TRUE(reference_4.ContainsPath("operator"));
   EXPECT_TRUE(reference_4.ContainsPath("operator bool"));
   EXPECT_TRUE(reference_4.ContainsPath("baz::operator bool"));
   EXPECT_TRUE(reference_4.ContainsPath("bar::baz::operator bool"));
   EXPECT_FALSE(reference_4.ContainsPath("az::operator bool"));
+
+  EXPECT_TRUE(reference_5.ContainsPath(""));
+  EXPECT_TRUE(reference_5.ContainsPath("operator"));
+  EXPECT_TRUE(reference_5.ContainsPath("operator bool"));
+  EXPECT_TRUE(reference_5.ContainsPath("operator bool<int, Type<double>>"));
+  EXPECT_FALSE(reference_5.ContainsPath("operator bool<int, double>"));
+  EXPECT_FALSE(reference_5.ContainsPath("operator bool<int, Type<int>>"));
+
+  EXPECT_TRUE(reference_6.ContainsPath(""));
+  EXPECT_TRUE(reference_6.ContainsPath("operator"));
+  EXPECT_TRUE(reference_6.ContainsPath("operator<<"));
+  EXPECT_TRUE(reference_6.ContainsPath(
+      "bar::baz::operator<<<Type<double>, Type<std::vector<double>>>()"));
+  EXPECT_FALSE(reference_6.ContainsPath("operator<<<Type<double>>"));
 }
 
 TEST(CPlusPlusLanguage, ExtractContextAndIdentifier) {
@@ -194,7 +353,7 @@ TEST(CPlusPlusLanguage, ExtractContextAndIdentifier) {
   llvm::StringRef context, basename;
   for (const auto &test : test_cases) {
     EXPECT_TRUE(CPlusPlusLanguage::ExtractContextAndIdentifier(
-        test.input.c_str(), context, basename));
+        test.input, context, basename));
     EXPECT_EQ(test.context, context.str());
     EXPECT_EQ(test.basename, basename.str());
   }
@@ -214,10 +373,9 @@ TEST(CPlusPlusLanguage, ExtractContextAndIdentifier) {
   EXPECT_FALSE(CPlusPlusLanguage::ExtractContextAndIdentifier(
       "f<A<B><C>>", context, basename));
 
-  // We expect these cases to fail until we turn on C++2a
-  EXPECT_FALSE(CPlusPlusLanguage::ExtractContextAndIdentifier(
+  EXPECT_TRUE(CPlusPlusLanguage::ExtractContextAndIdentifier(
       "A::operator<=><A::B>", context, basename));
-  EXPECT_FALSE(CPlusPlusLanguage::ExtractContextAndIdentifier(
+  EXPECT_TRUE(CPlusPlusLanguage::ExtractContextAndIdentifier(
       "operator<=><A::B>", context, basename));
 }
 
@@ -252,4 +410,207 @@ TEST(CPlusPlusLanguage, GenerateAlternateFunctionManglings) {
 TEST(CPlusPlusLanguage, CPlusPlusNameParser) {
   // Don't crash.
   CPlusPlusNameParser((const char *)nullptr);
+}
+
+TEST(CPlusPlusLanguage, DoesNotMatchCxx) {
+  // Test that a symbol name that is NOT C++ does not match C++.
+
+  SubsystemRAII<CPlusPlusLanguage> lang;
+  Language *CPlusPlusLang =
+      Language::FindPlugin(lldb::eLanguageTypeC_plus_plus);
+
+  EXPECT_TRUE(CPlusPlusLang != nullptr);
+
+  Mangled swiftSymbol("$sS");
+  EXPECT_FALSE(CPlusPlusLang->SymbolNameFitsToLanguage(swiftSymbol));
+}
+
+TEST(CPlusPlusLanguage, MatchesCxx) {
+  // Test that a symbol name that is C++ does match C++ (both Itanium and MSVC).
+
+  SubsystemRAII<CPlusPlusLanguage> lang;
+  Language *CPlusPlusLang =
+      Language::FindPlugin(lldb::eLanguageTypeC_plus_plus);
+
+  EXPECT_TRUE(CPlusPlusLang != nullptr);
+
+  Mangled itaniumSymbol("_Z3Foo");
+  EXPECT_TRUE(CPlusPlusLang->SymbolNameFitsToLanguage(itaniumSymbol));
+  Mangled itaniumExtensionSymbol("___Z3Bar_block_invoke");
+  EXPECT_TRUE(CPlusPlusLang->SymbolNameFitsToLanguage(itaniumExtensionSymbol));
+  Mangled msvcSymbol("??x@@3AH");
+  EXPECT_TRUE(CPlusPlusLang->SymbolNameFitsToLanguage(msvcSymbol));
+}
+
+struct ManglingSubstitutorTestCase {
+  llvm::StringRef mangled;
+  llvm::StringRef from;
+  llvm::StringRef to;
+  llvm::StringRef expected;
+  bool expect_error;
+};
+
+struct ManglingSubstitutorTestFixture
+    : public ::testing::TestWithParam<ManglingSubstitutorTestCase> {};
+
+ManglingSubstitutorTestCase g_mangled_substitutor_type_test_cases[] = {
+    {/*.mangled*/ "_Z3fooa", /*from*/ "a", /*to*/ "c", /*expected*/ "_Z3fooc",
+     /*expect_error*/ false},
+    {/*.mangled*/ "_Z3fooy", /*from*/ "y", /*to*/ "m", /*expected*/ "_Z3foom",
+     /*expect_error*/ false},
+    {/*.mangled*/ "_Z3foox", /*from*/ "x", /*to*/ "l", /*expected*/ "_Z3fool",
+     /*expect_error*/ false},
+    {/*.mangled*/ "_Z3baraa", /*from*/ "a", /*to*/ "c", /*expected*/ "_Z3barcc",
+     /*expect_error*/ false},
+    {/*.mangled*/ "_Z3foov", /*from*/ "x", /*to*/ "l", /*expected*/ "",
+     /*expect_error*/ false},
+    {/*.mangled*/ "_Z3fooB3Tagv", /*from*/ "Tag", /*to*/ "random",
+     /*expected*/ "", /*expect_error*/ false},
+    {/*.mangled*/ "_Z3foocc", /*from*/ "a", /*to*/ "c", /*expected*/ "",
+     /*expect_error*/ false},
+    {/*.mangled*/ "_ZN3fooIaE3barIaEEvaT_", /*from*/ "a", /*to*/ "c",
+     /*expected*/ "_ZN3fooIcE3barIcEEvcT_", /*expect_error*/ false},
+    {/*.mangled*/ "foo", /*from*/ "x", /*to*/ "l", /*expected*/ "",
+     /*expect_error*/ true},
+    {/*.mangled*/ "", /*from*/ "x", /*to*/ "l", /*expected*/ "",
+     /*expect_error*/ true},
+    // FIXME: these two cases are odd behaviours, though not realistic in
+    // practice.
+    {/*.mangled*/ "_Z3foox", /*from*/ "", /*to*/ "l", /*expected*/ "_Z3foolx",
+     /*expect_error*/ false},
+    {/*.mangled*/ "_Z3foox", /*from*/ "x", /*to*/ "", /*expected*/ "_Z3foo",
+     /*expect_error*/ false}};
+
+TEST_P(ManglingSubstitutorTestFixture, Type) {
+  // Tests the CPlusPlusLanguage::SubstituteType_ItaniumMangle API.
+
+  const auto &[mangled, from, to, expected, expect_error] = GetParam();
+
+  auto subst_or_err =
+      CPlusPlusLanguage::SubstituteType_ItaniumMangle(mangled, from, to);
+  if (expect_error) {
+    EXPECT_THAT_EXPECTED(subst_or_err, llvm::Failed());
+  } else {
+    EXPECT_THAT_EXPECTED(subst_or_err, llvm::Succeeded());
+    EXPECT_EQ(*subst_or_err, expected);
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    ManglingSubstitutorTypeTests, ManglingSubstitutorTestFixture,
+    ::testing::ValuesIn(g_mangled_substitutor_type_test_cases));
+
+struct ManglingSubstitutorStructorTestFixture
+    : public ::testing::TestWithParam<ManglingSubstitutorTestCase> {};
+
+ManglingSubstitutorTestCase g_mangled_substitutor_structor_test_cases[] = {
+    {/*.mangled*/ "_ZN3FooC1Ev", /*from*/ "C1", /*to*/ "C2",
+     /*expected*/ "_ZN3FooC2Ev", /*expect_error*/ false},
+    {/*.mangled*/ "_ZN3FooC4Ev", /*from*/ "C4", /*to*/ "C2",
+     /*expected*/ "_ZN3FooC2Ev", /*expect_error*/ false},
+    {/*.mangled*/ "_ZN3FooC2Ev", /*from*/ "C1", /*to*/ "C2", /*expected*/ "",
+     /*expect_error*/ false},
+    {/*.mangled*/ "_ZN3FooD1Ev", /*from*/ "D1", /*to*/ "D2",
+     /*expected*/ "_ZN3FooD2Ev", /*expect_error*/ false},
+    {/*.mangled*/ "_ZN3FooD2Ev", /*from*/ "D1", /*to*/ "D2", /*expected*/ "",
+     /*expect_error*/ false},
+    {/*.mangled*/ "_ZN3FooD4Ev", /*from*/ "D4", /*to*/ "D2",
+     /*expected*/ "_ZN3FooD2Ev", /*expect_error*/ false},
+    {/*.mangled*/ "_ZN2D12C1C1I2C12D1EE2C12D1", /*from*/ "C1", /*to*/ "C2",
+     /*expected*/ "_ZN2D12C1C2I2C12D1EE2C12D1", /*expect_error*/ false},
+    {/*.mangled*/ "_ZN2D12C1D1I2C12D1EE2C12D1", /*from*/ "D1", /*to*/ "D2",
+     /*expected*/ "_ZN2D12C1D2I2C12D1EE2C12D1", /*expect_error*/ false},
+    {/*.mangled*/ "_ZN3FooC6Ev", /*from*/ "D1", /*to*/ "D2", /*expected*/ "",
+     /*expect_error*/ true},
+    {/*.mangled*/ "_ZN2D12C1B2D1C1I2C1B2C12D1B2D1EE2C1B2C12D1B2D1",
+     /*from*/ "C1", /*to*/ "C2",
+     /*expected*/ "_ZN2D12C1B2D1C2I2C1B2C12D1B2D1EE2C1B2C12D1B2D1",
+     /*expect_error*/ false},
+    {/*.mangled*/ "_ZN2D12C1B2D1D1I2C1B2C12D1B2D1EE2C1B2C12D1B2D1",
+     /*from*/ "D1", /*to*/ "D2",
+     /*expected*/ "_ZN2D12C1B2D1D2I2C1B2C12D1B2D1EE2C1B2C12D1B2D1",
+     /*expect_error*/ false},
+};
+
+TEST_P(ManglingSubstitutorStructorTestFixture, Structors) {
+  // Tests the CPlusPlusLanguage::SubstituteStructor_ItaniumMangle API.
+
+  const auto &[mangled, from, to, expected, expect_error] = GetParam();
+
+  auto subst_or_err =
+      CPlusPlusLanguage::SubstituteStructor_ItaniumMangle(mangled, from, to);
+  if (expect_error) {
+    EXPECT_THAT_EXPECTED(subst_or_err, llvm::Failed());
+  } else {
+    EXPECT_THAT_EXPECTED(subst_or_err, llvm::Succeeded());
+    EXPECT_EQ(*subst_or_err, expected);
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    ManglingSubstitutorStructorTests, ManglingSubstitutorStructorTestFixture,
+    ::testing::ValuesIn(g_mangled_substitutor_structor_test_cases));
+
+TEST(CPlusPlusLanguage, ManglingSubstitutor_StructorAlias) {
+  // Tests the CPlusPlusLanguage::SubstituteStructorAliases_ItaniumMangle API.
+  {
+    // Invalid mangling.
+    auto subst_or_err =
+        CPlusPlusLanguage::SubstituteStructorAliases_ItaniumMangle("Foo");
+    EXPECT_THAT_EXPECTED(subst_or_err, llvm::Failed());
+  }
+
+  {
+    // Ctor C1 alias.
+    auto subst_or_err =
+        CPlusPlusLanguage::SubstituteStructorAliases_ItaniumMangle(
+            "_ZN3FooC1Ev");
+    EXPECT_THAT_EXPECTED(subst_or_err, llvm::Succeeded());
+    EXPECT_EQ(*subst_or_err, "_ZN3FooC2Ev");
+  }
+
+  {
+    // Dtor D1 alias.
+    auto subst_or_err =
+        CPlusPlusLanguage::SubstituteStructorAliases_ItaniumMangle(
+            "_ZN3FooD1Ev");
+    EXPECT_THAT_EXPECTED(subst_or_err, llvm::Succeeded());
+    EXPECT_EQ(*subst_or_err, "_ZN3FooD2Ev");
+  }
+
+  {
+    // Ctor C2 not aliased.
+    auto subst_or_err =
+        CPlusPlusLanguage::SubstituteStructorAliases_ItaniumMangle(
+            "_ZN3FooC2Ev");
+    EXPECT_THAT_EXPECTED(subst_or_err, llvm::Succeeded());
+    EXPECT_FALSE(*subst_or_err);
+  }
+
+  {
+    // Dtor D2 not aliased.
+    auto subst_or_err =
+        CPlusPlusLanguage::SubstituteStructorAliases_ItaniumMangle(
+            "_ZN3FooD2Ev");
+    EXPECT_THAT_EXPECTED(subst_or_err, llvm::Succeeded());
+    EXPECT_FALSE(*subst_or_err);
+  }
+
+  {
+    // Check that ctor variants in other parts of the name don't get replaced.
+    auto subst_or_err =
+        CPlusPlusLanguage::SubstituteStructorAliases_ItaniumMangle(
+            "_ZN2D12C1B2D1C1I2C1B2C12D1B2D1EE2C1B2C12D1B2D1");
+    EXPECT_THAT_EXPECTED(subst_or_err, llvm::Succeeded());
+    EXPECT_EQ(*subst_or_err, "_ZN2D12C1B2D1C2I2C1B2C12D1B2D1EE2C1B2C12D1B2D1");
+  }
+
+  {
+    // Check that dtor variants in other parts of the name don't get replaced.
+    auto subst_or_err =
+        CPlusPlusLanguage::SubstituteStructorAliases_ItaniumMangle(
+            "_ZN2D12C1B2D1D1I2C1B2C12D1B2D1EE2C1B2C12D1B2D1");
+    EXPECT_THAT_EXPECTED(subst_or_err, llvm::Succeeded());
+    EXPECT_EQ(*subst_or_err, "_ZN2D12C1B2D1D2I2C1B2C12D1B2D1EE2C1B2C12D1B2D1");
+  }
 }

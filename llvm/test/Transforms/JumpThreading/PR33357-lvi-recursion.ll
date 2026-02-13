@@ -1,4 +1,4 @@
-; RUN: opt -S -jump-threading -verify -o - %s | FileCheck %s
+; RUN: opt -S -passes=jump-threading,verify -o - %s | FileCheck %s
 @a = external global i16, align 1
 
 ; CHECK-LABEL: f
@@ -12,7 +12,7 @@
 define void @f(i32 %p1) {
 bb0:
   %0 = icmp eq i32 %p1, 0
-  br i1 undef, label %bb6, label %bb1
+  br i1 true, label %bb6, label %bb1
 
 bb1:
   br label %bb2
@@ -23,7 +23,7 @@ bb2:
   br i1 %2, label %bb3, label %bb4
 
 bb3:
-  store i16 undef, i16* @a, align 1
+  store i16 undef, ptr @a, align 1
   br label %bb4
 
 bb4:

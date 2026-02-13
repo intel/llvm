@@ -28,7 +28,7 @@ combined with other commands:
 .. option:: -d, --disassemble
 
   Disassemble all executable sections found in the input files. On some
-  architectures (AArch64, PPC64, x86), all known instructions are disassembled by
+  architectures (AArch64, PowerPC, x86), all known instructions are disassembled by
   default. On the others, :option:`--mcpu` or :option:`--mattr` is needed to
   enable some instruction sets. Disabled instructions are displayed as
   ``<unknown>``.
@@ -125,6 +125,11 @@ OPTIONS
   Specify the target architecture when disassembling. Use :option:`--version`
   for a list of available targets.
 
+.. option:: --build-id=<string>
+
+  Look up the object using the given build ID, specified as a hexadecimal
+  string. The found object is handled as if it were an input filename.
+
 .. option:: -C, --demangle
 
   Demangle symbol names in the output.
@@ -135,23 +140,29 @@ OPTIONS
   debug information for stripped binaries. Multiple instances of this argument
   are searched in the order given.
 
+.. option:: --debug-indent=<width>
+
+  Distance to indent the source-level variable or inlined function display,
+  relative to the start of the disassembly. Defaults to 52 characters.
+
+.. option:: --debug-inlined-funcs[=<format>]
+
+  Print the locations of inlined functions alongside disassembly.
+  ``format`` may be ``ascii``, ``limits-only``, or ``unicode``, defaulting to
+  ``unicode`` if omitted.
+
+.. option:: --debug-vars[=<format>]
+
+  Print the locations (in registers or memory) of source-level variables
+  alongside disassembly. ``format`` may be ``ascii`` or ``unicode``, defaulting
+  to ``unicode`` if omitted.
+
 .. option:: --debuginfod, --no-debuginfod
 
   Whether or not to try debuginfod lookups for debug binaries. Unless specified,
   debuginfod is only enabled if libcurl was compiled in (``LLVM_ENABLE_CURL``)
   and at least one server URL was provided by the environment variable
   ``DEBUGINFOD_URLS``.
-
-.. option:: --debug-vars=<format>
-
-  Print the locations (in registers or memory) of source-level variables
-  alongside disassembly. ``format`` may be ``unicode`` or ``ascii``, defaulting
-  to ``unicode`` if omitted.
-
-.. option:: --debug-vars-indent=<width>
-
-  Distance to indent the source-level variable display, relative to the start
-  of the disassembly. Defaults to 52 characters.
 
 .. option:: -j, --section=<section1[,section2,...]>
 
@@ -174,6 +185,15 @@ OPTIONS
   * ``att``: x86 only (default). Print in the AT&T syntax.
   * ``intel``: x86 only. Print in the intel syntax.
 
+
+.. option::  --disassembler-color=<mode>
+
+  Enable or disable disassembler color output.
+
+  * ``off``: Disable disassembler color output.
+  * ``on``: Enable disassembler color output.
+  * ``terminal``: Enable disassembler color output if the terminal supports it (default).
+
 .. option:: --mcpu=<cpu-name>
 
   Target a specific CPU type for disassembly. Specify ``--mcpu=help`` to display
@@ -184,13 +204,18 @@ OPTIONS
   Enable/disable target-specific attributes. Specify ``--mattr=help`` to display
   the available attributes.
 
-.. option:: --no-leading-addr
+.. option:: -mllvm <arg>
 
-  When disassembling, do not print leading addresses.
+   Specify an argument to forward to LLVM's CommandLine library.
+
+.. option:: --no-leading-addr, --no-addresses
+
+  When disassembling, do not print leading addresses for instructions or inline
+  relocations.
 
 .. option:: --no-print-imm-hex
 
-  Do not use hex format for immediate values in disassembly output (default).
+  Do not use hex format for immediate values in disassembly output.
 
 .. option:: --no-show-raw-insn
 
@@ -198,7 +223,7 @@ OPTIONS
 
 .. option:: --offloading
 
-  Display the content of the LLVM offloading section.
+  Display the content of the LLVM offloading sections and HIP offload bundles.
 
 .. option:: --prefix=<prefix>
 
@@ -213,12 +238,17 @@ OPTIONS
 
 .. option:: --print-imm-hex
 
-  Use hex format when printing immediate values in disassembly output.
+  Use hex format when printing immediate values in disassembly output (default).
 
 .. option:: -S, --source
 
   When disassembling, display source interleaved with the disassembly. Implies
   :option:`--disassemble`.
+
+.. option:: --show-all-symbols
+
+  Show all symbols during disassembly, even if multiple symbols are defined at
+  the same location.
 
 .. option:: --show-lma
 
@@ -247,9 +277,14 @@ OPTIONS
 
   When printing a PC-relative global symbol reference, print it as an offset from the leading symbol.
 
-  When a bb-address-map section is present (i.e., the object file is built with ``-fbasic-block-sections=labels``), labels are retrieved from that section instead.
+  When a bb-address-map section is present (i.e., the object file is built with
+  ``-fbasic-block-address-map``), labels are retrieved from that section
+  instead. If a pgo-analysis-map is present alongside the bb-address-map, any
+  available analyses are printed after the relevant block label. By default,
+  any analysis with a special representation (i.e. BlockFrequency,
+  BranchProbability, etc) are printed as raw hex values.
 
-  Only works with PowerPC objects or X86 linked images.
+  Only supported for AArch64, BPF, PowerPC, and X86.
 
   Example:
     A non-symbolized branch instruction with a local target and pc-relative memory access like
@@ -266,6 +301,15 @@ OPTIONS
      <L0>:
        cmp eax, dword ptr <g>
        jge	<L0>
+
+.. option:: --pretty-pgo-analysis-map
+
+  When using :option:`--symbolize-operands` with bb-address-map and
+  pgo-analysis-map, print analyses using the same format as their analysis
+  passes would. An example of pretty format would be printing block frequencies
+  relative to the entry block, the same as BFI.
+
+  Only works when :option:`--symbolize-operands` is enabled.
 
 .. option:: --triple=<string>
 
@@ -350,9 +394,12 @@ MACH-O ONLY OPTIONS AND COMMANDS
 
   Display exported symbols.
 
-.. option:: --function-starts
+.. option:: --function-starts [=<addrs|names|both>]
 
-  Print the function starts table for Mach-O objects.
+  Print the function starts table for Mach-O objects. Either ``addrs``
+  (default) to print only the addresses of functions, ``names`` to print only
+  the names of the functions (when available), or ``both`` to print the
+  names beside the addresses.
 
 .. option:: -g
 
@@ -425,6 +472,10 @@ XCOFF ONLY OPTIONS AND COMMANDS
 .. option:: --symbol-description
 
   Add symbol description to disassembly output.
+
+.. option:: --traceback-table
+
+  Decode traceback table in disassembly output. Implies :option:`--disassemble`.
 
 BUGS
 ----

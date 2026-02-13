@@ -6,13 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/Analysis/CFG.h"
 #include "CFGBuildResult.h"
 #include "clang/AST/Decl.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
+#include "clang/Analysis/Analyses/IntervalPartition.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
-#include "clang/Analysis/CFG.h"
 #include "clang/Analysis/FlowSensitive/DataflowWorklist.h"
 #include "clang/Tooling/Tooling.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include <algorithm>
 #include <string>
@@ -89,6 +91,159 @@ TEST(CFG, DependantBaseAddImplicitDtors) {
   EXPECT_EQ(BuildResult::BuiltCFG,
             BuildCFG(Code, Options, ast_matchers::hasName("~Derived<T>"))
                 .getStatus());
+}
+
+TEST(CFG, SwitchCoveredEnumNoDefault) {
+  const char *Code = R"(
+    enum class E {E1, E2};
+    int f(E e) {
+      switch(e) {
+        case E::E1:
+          return 1;
+        case E::E2:
+          return 2;
+      }
+      return 0;
+    }
+  )";
+  CFG::BuildOptions Options;
+  Options.AssumeReachableDefaultInSwitchStatements = true;
+  BuildResult B = BuildCFG(Code, Options);
+  ASSERT_EQ(BuildResult::BuiltCFG, B.getStatus());
+
+  // [B5 (ENTRY)]
+  //   Succs (1): B2
+  //
+  // [B1]
+  //   1: 0
+  //   2: return [B1.1];
+  //   Preds (1): B2
+  //   Succs (1): B0
+  //
+  // [B2]
+  //   1: e (ImplicitCastExpr, LValueToRValue, E)
+  //   T: switch [B2.1]
+  //   Preds (1): B5
+  //   Succs (3): B3 B4 B1
+  //
+  // [B3]
+  //  case E::E2:
+  //   1: 2
+  //   2: return [B3.1];
+  //   Preds (1): B2
+  //   Succs (1): B0
+  //
+  // [B4]
+  //  case E::E1:
+  //   1: 1
+  //   2: return [B4.1];
+  //   Preds (1): B2
+  //   Succs (1): B0
+  //
+  // [B0 (EXIT)]
+  //   Preds (3): B1 B3 B4
+
+  auto *CFG = B.getCFG();
+  const auto &Entry = CFG->getEntry();
+  ASSERT_EQ(1u, Entry.succ_size());
+  // First successor of Entry is the switch
+  CFGBlock *SwitchBlock = *Entry.succ_begin();
+  ASSERT_EQ(3u, SwitchBlock->succ_size());
+  // Last successor of the switch is after the switch
+  auto NoCaseSucc = SwitchBlock->succ_rbegin();
+  EXPECT_TRUE(NoCaseSucc->isReachable());
+
+  // Checking that the same node is Unreachable without this setting
+  Options.AssumeReachableDefaultInSwitchStatements = false;
+  B = BuildCFG(Code, Options);
+  ASSERT_EQ(BuildResult::BuiltCFG, B.getStatus());
+
+  const auto &Entry2 = B.getCFG()->getEntry();
+  ASSERT_EQ(1u, Entry2.succ_size());
+  CFGBlock *SwitchBlock2 = *Entry2.succ_begin();
+  ASSERT_EQ(3u, SwitchBlock2->succ_size());
+  auto NoCaseSucc2 = SwitchBlock2->succ_rbegin();
+  EXPECT_FALSE(NoCaseSucc2->isReachable());
+}
+
+TEST(CFG, SwitchCoveredEnumWithDefault) {
+  const char *Code = R"(
+    enum class E {E1, E2};
+    int f(E e) {
+      switch(e) {
+        case E::E1:
+          return 1;
+        case E::E2:
+          return 2;
+        default:
+          return 0;
+      }
+      return -1;
+    }
+  )";
+  CFG::BuildOptions Options;
+  Options.AssumeReachableDefaultInSwitchStatements = true;
+  BuildResult B = BuildCFG(Code, Options);
+  ASSERT_EQ(BuildResult::BuiltCFG, B.getStatus());
+
+  // [B6 (ENTRY)]
+  //   Succs (1): B2
+  //
+  // [B1]
+  //   1: -1
+  //   2: return [B1.1];
+  //   Succs (1): B0
+  //
+  // [B2]
+  //   1: e (ImplicitCastExpr, LValueToRValue, E)
+  //   T: switch [B2.1]
+  //   Preds (1): B6
+  //   Succs (3): B4 B5 B3
+  //
+  // [B3]
+  //  default:
+  //   1: 0
+  //   2: return [B3.1];
+  //   Preds (1): B2
+  //   Succs (1): B0
+  //
+  // [B4]
+  //  case E::E2:
+  //   1: 2
+  //   2: return [B4.1];
+  //   Preds (1): B2
+  //   Succs (1): B0
+  //
+  // [B5]
+  //  case E::E1:
+  //   1: 1
+  //   2: return [B5.1];
+  //   Preds (1): B2
+  //   Succs (1): B0
+  //
+  // [B0 (EXIT)]
+  //   Preds (4): B1 B3 B4 B5
+
+  const auto &Entry = B.getCFG()->getEntry();
+  ASSERT_EQ(1u, Entry.succ_size());
+  // First successor of Entry is the switch
+  CFGBlock *SwitchBlock = *Entry.succ_begin();
+  ASSERT_EQ(3u, SwitchBlock->succ_size());
+  // Last successor of the switch is the default branch
+  auto defaultBlock = SwitchBlock->succ_rbegin();
+  EXPECT_TRUE(defaultBlock->isReachable());
+
+  // Checking that the same node is Unreachable without this setting
+  Options.AssumeReachableDefaultInSwitchStatements = false;
+  B = BuildCFG(Code, Options);
+  ASSERT_EQ(BuildResult::BuiltCFG, B.getStatus());
+
+  const auto &Entry2 = B.getCFG()->getEntry();
+  ASSERT_EQ(1u, Entry2.succ_size());
+  CFGBlock *SwitchBlock2 = *Entry2.succ_begin();
+  ASSERT_EQ(3u, SwitchBlock2->succ_size());
+  auto defaultBlock2 = SwitchBlock2->succ_rbegin();
+  EXPECT_FALSE(defaultBlock2->isReachable());
 }
 
 TEST(CFG, IsLinear) {
@@ -193,7 +348,6 @@ TEST(CFG, ElementRefIterator) {
   // Reverse, non-const version
   Index = MainBlockSize;
   for (CFGBlock::CFGElementRef ElementRef : MainBlock->rrefs()) {
-    llvm::errs() << Index << '\n';
     EXPECT_EQ(ElementRef.getParent(), MainBlock);
     EXPECT_EQ(ElementRef.getIndexInBlock(), Index);
     EXPECT_TRUE(ElementRef->getAs<CFGStmt>());
@@ -244,6 +398,8 @@ TEST(CFG, ElementRefIterator) {
 TEST(CFG, Worklists) {
   const char *Code = "int f(bool cond) {\n"
                      "  int a = 5;\n"
+                     "  while (a < 6)\n"
+                     "    ++a;\n"
                      "  if (cond)\n"
                      "    a += 1;\n"
                      "  return a;\n"
@@ -270,6 +426,22 @@ TEST(CFG, Worklists) {
     EXPECT_EQ(ForwardNodes.size(), ReferenceOrder.size());
     EXPECT_TRUE(std::equal(ReferenceOrder.begin(), ReferenceOrder.end(),
                            ForwardNodes.begin()));
+  }
+
+  {
+    using ::testing::ElementsAreArray;
+    std::optional<WeakTopologicalOrdering> WTO = getIntervalWTO(*CFG);
+    ASSERT_TRUE(WTO);
+    WTOCompare WCmp(*WTO);
+    WTODataflowWorklist WTOWorklist(*CFG, WCmp);
+    for (const auto *B : *CFG)
+      WTOWorklist.enqueueBlock(B);
+
+    std::vector<const CFGBlock *> WTONodes;
+    while (const CFGBlock *B = WTOWorklist.dequeue())
+      WTONodes.push_back(B);
+
+    EXPECT_THAT(WTONodes, ElementsAreArray(*WTO));
   }
 
   std::reverse(ReferenceOrder.begin(), ReferenceOrder.end());

@@ -60,12 +60,6 @@ class InstHexagon<dag outs, dag ins, string asmstr, list<dag> pattern,
   let Itinerary = itin;
   let Size = 4;
 
-  // SoftFail is a field the disassembler can use to provide a way for
-  // instructions to not match without killing the whole decode process. It is
-  // mainly used for ARM, but Tablegen expects this field to exist or it fails
-  // to build the decode table.
-  field bits<32> SoftFail = 0;
-
   // *** Must match MCTargetDesc/HexagonBaseInfo.h ***
 
   // Instruction type according to the ISA.
@@ -134,37 +128,46 @@ class InstHexagon<dag outs, dag ins, string asmstr, list<dag> pattern,
 
   // Addressing mode for load/store instructions.
   AddrModeType addrMode = NoAddrMode;
-  let TSFlags{44-42} = addrMode.Value;
+  let TSFlags{42-40} = addrMode.Value;
 
   // Memory access size for mem access instructions (load/store)
   MemAccessSize accessSize = NoMemAccess;
-  let TSFlags{48-45} = accessSize.Value;
+  let TSFlags{46-43} = accessSize.Value;
 
   bits<1> isTaken = 0;
-  let TSFlags {49} = isTaken; // Branch prediction.
+  let TSFlags {47} = isTaken; // Branch prediction.
 
   bits<1> isFP = 0;
-  let TSFlags {50} = isFP; // Floating-point.
+  let TSFlags {48} = isFP; // Floating-point.
 
   bits<1> hasNewValue2 = 0;
-  let TSFlags{52} = hasNewValue2; // Second New-value producer insn.
+  let TSFlags{50} = hasNewValue2; // Second New-value producer insn.
   bits<3> opNewValue2 = 0;
-  let TSFlags{55-53} = opNewValue2; // Second New-value produced operand.
+  let TSFlags{53-51} = opNewValue2; // Second New-value produced operand.
 
   bits<1> isAccumulator = 0;
-  let TSFlags{56} = isAccumulator;
+  let TSFlags{54} = isAccumulator;
 
   bits<1> prefersSlot3 = 0;
-  let TSFlags{57} = prefersSlot3; // Complex XU
+  let TSFlags{55} = prefersSlot3; // Complex XU
 
   bits<1> hasHvxTmp = 0;
-  let TSFlags{60} = hasHvxTmp;  // vector register vX.tmp false-write
+  let TSFlags{56} = hasHvxTmp;  // vector register vX.tmp false-write
 
   bit CVINew = 0;
-  let TSFlags{62} = CVINew;
+  let TSFlags{58} = CVINew;
 
   bit isCVI = 0;
-  let TSFlags{63} = isCVI;
+  let TSFlags{59} = isCVI;
+
+  bit isHVXALU = 0;
+  let TSFlags{60} = isHVXALU;
+
+  bit isHVXALU2SRC = 0;
+  let TSFlags{61} = isHVXALU2SRC;
+
+  bit hasUnaryRestriction = 0;
+  let TSFlags{62} = hasUnaryRestriction;
 
   // Fields used for relation models.
   bit isNonTemporal = 0;
@@ -265,8 +268,8 @@ class OpcodeDuplex {
   let Inst{12-0}  = ISubLo;
 }
 
-class InstDuplex<bits<4> iClass, string cstr = "">
-  : Instruction, OpcodeDuplex {
+class InstDuplex<bits<4> iClass, string cstr = ""> : Instruction,
+                                                     OpcodeDuplex {
   let Namespace = "Hexagon";
   IType Type = TypeDUPLEX;  // uses slot 0,1
   let isCodeGenOnly = 1;
@@ -277,12 +280,6 @@ class InstDuplex<bits<4> iClass, string cstr = "">
   let Constraints = cstr;
   let Itinerary = DUPLEX;
   let Size = 4;
-
-  // SoftFail is a field the disassembler can use to provide a way for
-  // instructions to not match without killing the whole decode process. It is
-  // mainly used for ARM, but Tablegen expects this field to exist or it fails
-  // to build the decode table.
-  field bits<32> SoftFail = 0;
 
   // *** Must match MCTargetDesc/HexagonBaseInfo.h ***
 
@@ -327,5 +324,4 @@ class InstDuplex<bits<4> iClass, string cstr = "">
 //                         Instruction Classes Definitions -
 //===----------------------------------------------------------------------===//
 
-include "HexagonInstrFormatsV60.td"
 include "HexagonInstrFormatsV65.td"

@@ -12,9 +12,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/Utils/EscapeEnumerator.h"
-#include "llvm/ADT/Triple.h"
-#include "llvm/Analysis/EHPersonalities.h"
+#include "llvm/IR/EHPersonalities.h"
 #include "llvm/IR/Module.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Utils/Local.h"
 
 using namespace llvm;
@@ -70,7 +70,7 @@ IRBuilder<> *EscapeEnumerator::Next() {
   // Create a cleanup block.
   LLVMContext &C = F.getContext();
   BasicBlock *CleanupBB = BasicBlock::Create(C, CleanupBBName, &F);
-  Type *ExnTy = StructType::get(Type::getInt8PtrTy(C), Type::getInt32Ty(C));
+  Type *ExnTy = StructType::get(PointerType::getUnqual(C), Type::getInt32Ty(C));
   if (!F.hasPersonalityFn()) {
     FunctionCallee PersFn = getDefaultPersonalityFn(F.getParent());
     F.setPersonalityFn(cast<Constant>(PersFn.getCallee()));
@@ -87,7 +87,6 @@ IRBuilder<> *EscapeEnumerator::Next() {
 
   // Transform the 'call' instructions into 'invoke's branching to the
   // cleanup block. Go in reverse order to make prettier BB names.
-  SmallVector<Value *, 16> Args;
   for (unsigned I = Calls.size(); I != 0;) {
     CallInst *CI = cast<CallInst>(Calls[--I]);
     changeToInvokeAndSplitBasicBlock(CI, CleanupBB, DTU);

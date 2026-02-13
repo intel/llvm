@@ -18,11 +18,14 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Host.h"
+#include "llvm/Support/IOSandbox.h"
+#include "llvm/Support/LLVMDriver.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Host.h"
+#include <optional>
 
 using namespace clang;
 
@@ -103,24 +106,32 @@ static std::string generateReproducerMetaInfo(const ClangInvocationInfo &Info) {
   OS << '}';
   // FIXME: Compare unsaved file hashes and report mismatch in the reproducer.
   if (Info.Dump)
-    llvm::outs() << "REPRODUCER METAINFO: " << OS.str() << "\n";
-  return std::move(OS.str());
+    llvm::outs() << "REPRODUCER METAINFO: " << Result << "\n";
+  return Result;
 }
 
 /// Generates a reproducer for a set of arguments from a specific invocation.
-static llvm::Optional<driver::Driver::CompilationDiagnosticReport>
-generateReproducerForInvocationArguments(ArrayRef<const char *> Argv,
-                                         const ClangInvocationInfo &Info) {
+static std::optional<driver::Driver::CompilationDiagnosticReport>
+generateReproducerForInvocationArguments(
+    ArrayRef<const char *> Argv, const ClangInvocationInfo &Info,
+    const llvm::ToolContext &ToolContext,
+    IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS) {
+  // The driver is not expected to be free of sandbox violations.
+  auto BypassSandbox = llvm::sys::sandbox::scopedDisable();
+
   using namespace driver;
   auto TargetAndMode = ToolChain::getTargetAndModeFromProgramName(Argv[0]);
 
-  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions;
+  DiagnosticOptions DiagOpts;
 
-  IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
-  DiagnosticsEngine Diags(DiagID, &*DiagOpts, new IgnoringDiagConsumer());
-  ProcessWarningOptions(Diags, *DiagOpts, /*ReportDiags=*/false);
-  Driver TheDriver(Argv[0], llvm::sys::getDefaultTargetTriple(), Diags);
+  DiagnosticsEngine Diags(DiagnosticIDs::create(), DiagOpts,
+                          new IgnoringDiagConsumer());
+  ProcessWarningOptions(Diags, DiagOpts, *VFS, /*ReportDiags=*/false);
+  Driver TheDriver(ToolContext.Path, llvm::sys::getDefaultTargetTriple(), Diags,
+                   /*Title=*/"clang LLVM compiler", VFS);
   TheDriver.setTargetAndMode(TargetAndMode);
+  if (ToolContext.NeedsPrependArg)
+    TheDriver.setPrependArg(ToolContext.PrependArg);
 
   std::unique_ptr<Compilation> C(TheDriver.BuildCompilation(Argv));
   if (C && !C->containsError()) {
@@ -134,7 +145,7 @@ generateReproducerForInvocationArguments(ArrayRef<const char *> Argv,
     }
   }
 
-  return None;
+  return std::nullopt;
 }
 
 std::string GetExecutablePath(const char *Argv0, bool CanonicalPrefixes);
@@ -154,15 +165,20 @@ static void printReproducerInformation(
 }
 
 int cc1gen_reproducer_main(ArrayRef<const char *> Argv, const char *Argv0,
-                           void *MainAddr) {
+                           void *MainAddr,
+                           const llvm::ToolContext &ToolContext) {
   if (Argv.size() < 1) {
     llvm::errs() << "error: missing invocation file\n";
     return 1;
   }
+  auto VFS = [] {
+    auto BypassSandbox = llvm::sys::sandbox::scopedDisable();
+    return llvm::vfs::getRealFileSystem();
+  }();
   // Parse the invocation descriptor.
   StringRef Input = Argv[0];
   llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> Buffer =
-      llvm::MemoryBuffer::getFile(Input, /*IsText=*/true);
+      VFS->getBufferForFile(Input);
   if (!Buffer) {
     llvm::errs() << "error: failed to read " << Input << ": "
                  << Buffer.getError().message() << "\n";
@@ -180,8 +196,9 @@ int cc1gen_reproducer_main(ArrayRef<const char *> Argv, const char *Argv0,
     DriverArgs.push_back(Arg.c_str());
   std::string Path = GetExecutablePath(Argv0, /*CanonicalPrefixes=*/true);
   DriverArgs[0] = Path.c_str();
-  llvm::Optional<driver::Driver::CompilationDiagnosticReport> Report =
-      generateReproducerForInvocationArguments(DriverArgs, InvocationInfo);
+  std::optional<driver::Driver::CompilationDiagnosticReport> Report =
+      generateReproducerForInvocationArguments(DriverArgs, InvocationInfo,
+                                               ToolContext, VFS);
 
   // Emit the information about the reproduce files to stdout.
   int Result = 1;

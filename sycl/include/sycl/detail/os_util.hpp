@@ -10,14 +10,13 @@
 
 #pragma once
 
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/export.hpp>
+#include <sycl/detail/export.hpp> // for __SYCL_EXPORT
 
-#include <cstdint>
-#include <cstdlib>
-#include <string>
-#include <sys/stat.h>
-#include <sys/types.h>
+#include <array>
+#include <cstdlib> // for size_t
+#include <functional>
+#include <string>     // for string
+#include <sys/stat.h> // for stat
 
 #ifdef _WIN32
 #define __SYCL_RT_OS_WINDOWS
@@ -40,32 +39,15 @@
 #endif // _WIN32
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
-
-/// Uniquely identifies an operating system module (executable or a dynamic
-/// library)
-using OSModuleHandle = intptr_t;
 
 /// Groups the OS-dependent services.
 class __SYCL_EXPORT OSUtil {
 public:
-  /// Returns a module enclosing given address or nullptr.
-  static OSModuleHandle getOSModuleHandle(const void *VirtAddr);
-
   /// Returns an absolute path to a directory where the object was found.
+  __SYCL_DLL_LOCAL
   static std::string getCurrentDSODir();
-
-  /// Returns a directory component of a path.
-  static std::string getDirName(const char *Path);
-
-  /// Module handle for the executable module - it is assumed there is always
-  /// single one at most.
-  static constexpr OSModuleHandle ExeModuleHandle = -1;
-
-  /// Dummy module handle to designate non-existing module for a device binary
-  /// image loaded from file e.g. via SYCL_USE_KERNEL_SPV env var.
-  static constexpr OSModuleHandle DummyModuleHandle = -2;
 
 #ifdef __SYCL_RT_OS_WINDOWS
   static constexpr const char *DirSep = "\\";
@@ -83,11 +65,11 @@ public:
   /// Deallocates the memory referenced by \p Ptr.
   static void alignedFree(void *Ptr);
 
-  /// Make directory recursively and returns zero code on success
+  /// Make all directories on the path, throws on error.
   static int makeDir(const char *Dir);
 
-  /// Checks if specified path is present
-  static inline bool isPathPresent(const std::string &Path) {
+  /// Checks if specified path is present.
+  static bool isPathPresent(const std::string &Path) {
 #ifdef __SYCL_RT_OS_WINDOWS
     struct _stat Stat;
     return !_stat(Path.c_str(), &Stat);
@@ -98,6 +80,54 @@ public:
   }
 };
 
+// These functions are not a part of OSUtils class to prevent
+// exporting them as ABI. They are only used in persistent cache
+// implementation and should not be exposed to the end users.
+// Get size of directory in bytes.
+size_t getDirectorySize(const std::string &Path, bool ignoreErrors = false);
+
+// Get size of file in bytes.
+size_t getFileSize(const std::string &Path);
+
+// Function to recursively iterate over the directory and execute
+// 'Func' on each regular file.
+void fileTreeWalk(const std::string Path,
+                  std::function<void(const std::string)> Func,
+                  bool ignoreErrors = false);
+
+// Look up a function name that was dynamically linked
+// This is used by the runtime where it needs to manipulate native handles
+// (e.g. retaining OpenCL handles).
+//
+// The library must already have been loaded (perhaps by UR), otherwise this
+// function throws a SYCL runtime exception.
+void *dynLookup(const char *const *LibNames, size_t LibNameSizes,
+                const char *FunName);
+
+template <typename fn>
+fn *dynLookupFunction(const char *const *LibNames, size_t LibNameSize,
+                      const char *FunName) {
+  return reinterpret_cast<fn *>(dynLookup(LibNames, LibNameSize, FunName));
+}
+
+// On Linux, first try to load from libur_adapter_opencl.so, then
+// libur_adapter_opencl.so.0 if the first is not found. libur_adapter_opencl.so
+// and libur_adapter_opencl.so.0 might be different libraries if they are not
+// symlinked, which is the case with PyPi compiler distribution package.
+// We can't load libur_adapter_opencl.so.0 always as the first choice because
+// that would break SYCL unittests, which rely on mocking libur_adapter_opencl.
+#ifdef __SYCL_RT_OS_WINDOWS
+constexpr std::array<const char *, 1> OCLLibNames = {"OpenCL"};
+#else
+constexpr std::array<const char *, 2> OCLLibNames = {
+    "libur_adapter_opencl.so", "libur_adapter_opencl.so.0"};
+#endif
+
+#define __SYCL_OCL_CALL(FN, ...)                                               \
+  (sycl::_V1::detail::dynLookupFunction<decltype(FN)>(                         \
+      sycl::detail::OCLLibNames.data(), sycl::detail::OCLLibNames.size(),      \
+      #FN)(__VA_ARGS__))
+
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

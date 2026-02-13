@@ -69,5 +69,5 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
-; CHECK-LLVM: %opencl.image2d_ro_t = type opaque
+; CHECK-LLVM: ocl_image2d_ro
 ; CHECK-LLVM: !{{[0-9]*}} = !{!"read_only", !"none", !"none"}

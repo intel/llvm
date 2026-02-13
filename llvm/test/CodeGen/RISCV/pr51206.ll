@@ -11,49 +11,45 @@
 define signext i32 @wobble() nounwind {
 ; CHECK-LABEL: wobble:
 ; CHECK:       # %bb.0: # %bb
-; CHECK-NEXT:    addi sp, sp, -16
-; CHECK-NEXT:    sd ra, 8(sp) # 8-byte Folded Spill
 ; CHECK-NEXT:    lui a0, %hi(global)
+; CHECK-NEXT:    lui a1, %hi(global.1)
 ; CHECK-NEXT:    lbu a0, %lo(global)(a0)
-; CHECK-NEXT:    lui a1, %hi(global.2)
-; CHECK-NEXT:    lbu a1, %lo(global.2)(a1)
+; CHECK-NEXT:    lui a2, %hi(global.2)
+; CHECK-NEXT:    lui a3, 52429
+; CHECK-NEXT:    lbu a2, %lo(global.2)(a2)
 ; CHECK-NEXT:    addi a0, a0, 1
-; CHECK-NEXT:    lui a2, %hi(global.1)
-; CHECK-NEXT:    sw a0, %lo(global.1)(a2)
-; CHECK-NEXT:    mul a0, a0, a1
-; CHECK-NEXT:    slli a1, a0, 48
-; CHECK-NEXT:    lui a2, 52429
-; CHECK-NEXT:    slli a2, a2, 4
-; CHECK-NEXT:    mulhu a1, a1, a2
-; CHECK-NEXT:    srli a1, a1, 18
-; CHECK-NEXT:    lui a2, %hi(global.3)
+; CHECK-NEXT:    sw a0, %lo(global.1)(a1)
+; CHECK-NEXT:    lui a1, %hi(global.3)
+; CHECK-NEXT:    slli a3, a3, 4
+; CHECK-NEXT:    mul a0, a0, a2
+; CHECK-NEXT:    slli a2, a0, 48
+; CHECK-NEXT:    mulhu a2, a2, a3
+; CHECK-NEXT:    srli a2, a2, 18
 ; CHECK-NEXT:    li a3, 5
-; CHECK-NEXT:    sw a1, %lo(global.3)(a2)
-; CHECK-NEXT:    bltu a0, a3, .LBB0_2
-; CHECK-NEXT:  # %bb.1: # %bb10
-; CHECK-NEXT:    call quux@plt
-; CHECK-NEXT:  .LBB0_2: # %bb12
+; CHECK-NEXT:    sw a2, %lo(global.3)(a1)
+; CHECK-NEXT:    bgeu a0, a3, .LBB0_2
+; CHECK-NEXT:  # %bb.1: # %bb12
 ; CHECK-NEXT:    li a0, 0
-; CHECK-NEXT:    ld ra, 8(sp) # 8-byte Folded Reload
-; CHECK-NEXT:    addi sp, sp, 16
 ; CHECK-NEXT:    ret
+; CHECK-NEXT:  .LBB0_2: # %bb10
+; CHECK-NEXT:    tail quux
 bb:
-  %tmp = load i8, i8* @global, align 1
+  %tmp = load i8, ptr @global, align 1
   %tmp1 = zext i8 %tmp to i32
   %tmp2 = add nuw nsw i32 %tmp1, 1
-  store i32 %tmp2, i32* @global.1, align 4
-  %tmp3 = load i8, i8* @global.2, align 1
+  store i32 %tmp2, ptr @global.1, align 4
+  %tmp3 = load i8, ptr @global.2, align 1
   %tmp4 = zext i8 %tmp3 to i32
   %tmp5 = mul nuw nsw i32 %tmp2, %tmp4
   %tmp6 = trunc i32 %tmp5 to i16
   %tmp7 = udiv i16 %tmp6, 5
   %tmp8 = zext i16 %tmp7 to i32
-  store i32 %tmp8, i32* @global.3, align 4
+  store i32 %tmp8, ptr @global.3, align 4
   %tmp9 = icmp ult i32 %tmp5, 5
   br i1 %tmp9, label %bb12, label %bb10
 
 bb10:                                             ; preds = %bb
-  %tmp11 = tail call signext i32 bitcast (i32 (...)* @quux to i32 ()*)()
+  %tmp11 = tail call signext i32 @quux()
   br label %bb12
 
 bb12:                                             ; preds = %bb10, %bb

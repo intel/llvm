@@ -1,4 +1,4 @@
-; RUN: llc -march=mipsel < %s | FileCheck %s
+; RUN: llc -mtriple=mipsel < %s | FileCheck %s
 
 @foo12.d4 = internal unnamed_addr global double 0.000000e+00, align 8
 
@@ -14,8 +14,8 @@ entry:
   %tobool1. = or i1 %tobool1, %not.tobool
   %lor.ext = zext i1 %tobool1. to i32
   %conv = sitofp i32 %lor.ext to double
-  %1 = load double, double* @foo12.d4, align 8
+  %1 = load double, ptr @foo12.d4, align 8
   %add = fadd double %conv, %1
-  store double %add, double* @foo12.d4, align 8
+  store double %add, ptr @foo12.d4, align 8
   ret double %add
 }

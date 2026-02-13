@@ -1,14 +1,14 @@
 // RUN: %clang_cc1 -fsycl-is-device -fcxx-exceptions -triple spir64 \
 // RUN:  -aux-triple x86_64-unknown-linux-gnu -Wno-return-type -verify     \
-// RUN:  -Wno-sycl-2017-compat -fsyntax-only -std=c++17 %s
+// RUN:  -fsyntax-only -std=c++17 %s
 // RUN: %clang_cc1 -fsycl-is-device -fcxx-exceptions -triple spir64 \
 // RUN:  -aux-triple x86_64-unknown-linux-gnu -fno-sycl-allow-func-ptr     \
-// RUN:  -Wno-return-type -verify -Wno-sycl-2017-compat -fsyntax-only      \
+// RUN:  -Wno-return-type -verify -fsyntax-only      \
 // RUN:  -std=c++17 %s
 // RUN: %clang_cc1 -fsycl-is-device -fcxx-exceptions -triple spir64 \
 // RUN:  -aux-triple x86_64-unknown-linux-gnu -DALLOW_FP=1                 \
 // RUN:  -fsycl-allow-func-ptr -Wno-return-type -verify                    \
-// RUN:  -Wno-sycl-2017-compat -fsyntax-only -std=c++17 %s
+// RUN:  -fsyntax-only -std=c++17 %s
 
 namespace std {
 class type_info;
@@ -40,10 +40,12 @@ bool operator==(const Fraction &lhs, const Fraction &rhs) {
 } // namespace Check_User_Operators
 
 namespace Check_VLA_Restriction {
-void no_restriction(int p) {
+void no_restriction(int p) { // expected-note {{declared here}}
+  // expected-note@+2 {{function parameter 'p' with unknown value cannot be used in a constant expression}}
+  // expected-warning@+1 {{variable length arrays in C++ are a Clang extension}}
   int index[p + 2];
 }
-void restriction(int p) {
+void restriction(int p) { // expected-note {{declared here}}
   // This particular violation is nested under two kernels with intermediate function calls.
   // e.g. main -> 1stkernel -> usage -> 2ndkernel -> isa_B -> restriction -> !!
   // Because the error is in two different kernels, we are given helpful notes for the origination of the error, twice.
@@ -52,6 +54,8 @@ void restriction(int p) {
   // expected-note@#call_isa_B 2{{called by 'operator()'}}
   // expected-note@#rtti_kernel 2{{called by 'kernel1<kernel_name, (lambda at }}
   // expected-note@#call_vla {{called by 'isa_B'}}
+  // expected-note@+2 {{function parameter 'p' with unknown value cannot be used in a constant expression}}
+  // expected-warning@+1 {{variable length arrays in C++ are a Clang extension}}
   int index[p + 2]; // expected-error {{variable length arrays are not supported for the current target}}
 }
 } // namespace Check_VLA_Restriction
@@ -99,10 +103,6 @@ __attribute__((sycl_kernel)) void kernel1(const L &l) {
 }
 } // namespace Check_RTTI_Restriction
 
-typedef struct Base {
-  virtual void f() const {}
-} b_type;
-
 typedef struct A {
   static int stat_member;
   const static int const_stat_member;
@@ -112,8 +112,6 @@ typedef struct A {
     return stat_member; // expected-error {{SYCL kernel cannot use a non-const static data variable}}
   }
 } a_type;
-
-b_type b;
 
 using myFuncDef = int(int, int);
 
@@ -221,8 +219,7 @@ void usage(myFuncDef functionPtr) {
   // expected-error@+2 {{SYCL kernel cannot call through a function pointer}}
 #endif
   if ((*functionPtr)(1, 2))
-    // expected-error@+1 {{SYCL kernel cannot use a non-const global variable}}
-    b.f(); // expected-error {{SYCL kernel cannot call a virtual function}}
+    /* no-op */;
 
   Check_RTTI_Restriction::kernel1<class kernel_name>([]() { //#call_rtti_kernel
     Check_RTTI_Restriction::A *a;

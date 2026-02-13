@@ -331,7 +331,7 @@ void writeSymbol(const Symbol &Sym, const StringTableOut &Strings,
 
   auto WriteInclude = [&](const Symbol::IncludeHeaderWithReferences &Include) {
     writeVar(Strings.index(Include.IncludeHeader), OS);
-    writeVar(Include.References, OS);
+    writeVar((Include.References << 2) | Include.SupportedDirectives, OS);
   };
   writeVar(Sym.IncludeHeaders.size(), OS);
   for (const auto &Include : Sym.IncludeHeaders)
@@ -361,7 +361,9 @@ Symbol readSymbol(Reader &Data, llvm::ArrayRef<llvm::StringRef> Strings,
     return Sym;
   for (auto &I : Sym.IncludeHeaders) {
     I.IncludeHeader = Data.consumeString(Strings);
-    I.References = Data.consumeVar();
+    uint32_t RefsWithDirectives = Data.consumeVar();
+    I.References = RefsWithDirectives >> 2;
+    I.SupportedDirectives = RefsWithDirectives & 0x3;
   }
   return Sym;
 }
@@ -455,7 +457,7 @@ readCompileCommand(Reader CmdReader, llvm::ArrayRef<llvm::StringRef> Strings) {
 // The current versioning scheme is simple - non-current versions are rejected.
 // If you make a breaking change, bump this version number to invalidate stored
 // data. Later we may want to support some backward compatibility.
-constexpr static uint32_t Version = 17;
+constexpr static uint32_t Version = 20;
 
 llvm::Expected<IndexFileIn> readRIFF(llvm::StringRef Data,
                                      SymbolOrigin Origin) {
@@ -690,7 +692,7 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const IndexFileOut &O) {
 
 llvm::Expected<IndexFileIn> readIndexFile(llvm::StringRef Data,
                                           SymbolOrigin Origin) {
-  if (Data.startswith("RIFF")) {
+  if (Data.starts_with("RIFF")) {
     return readRIFF(Data, Origin);
   }
   if (auto YAMLContents = readYAML(Data, Origin)) {
@@ -702,7 +704,8 @@ llvm::Expected<IndexFileIn> readIndexFile(llvm::StringRef Data,
 }
 
 std::unique_ptr<SymbolIndex> loadIndex(llvm::StringRef SymbolFilename,
-                                       SymbolOrigin Origin, bool UseDex) {
+                                       SymbolOrigin Origin, bool UseDex,
+                                       bool SupportContainedRefs) {
   trace::Span OverallTracer("LoadIndex");
   auto Buffer = llvm::MemoryBuffer::getFile(SymbolFilename);
   if (!Buffer) {
@@ -733,10 +736,11 @@ std::unique_ptr<SymbolIndex> loadIndex(llvm::StringRef SymbolFilename,
   size_t NumRelations = Relations.size();
 
   trace::Span Tracer("BuildIndex");
-  auto Index = UseDex ? dex::Dex::build(std::move(Symbols), std::move(Refs),
-                                        std::move(Relations))
-                      : MemIndex::build(std::move(Symbols), std::move(Refs),
-                                        std::move(Relations));
+  auto Index = UseDex
+                   ? dex::Dex::build(std::move(Symbols), std::move(Refs),
+                                     std::move(Relations), SupportContainedRefs)
+                   : MemIndex::build(std::move(Symbols), std::move(Refs),
+                                     std::move(Relations));
   vlog("Loaded {0} from {1} with estimated memory usage {2} bytes\n"
        "  - number of symbols: {3}\n"
        "  - number of refs: {4}\n"

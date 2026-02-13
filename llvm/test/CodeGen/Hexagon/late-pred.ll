@@ -1,4 +1,4 @@
-; RUN: llc -march=hexagon < %s | FileCheck %s
+; RUN: llc -mtriple=hexagon < %s | FileCheck %s
 
 ; This generates A4_addp_c, which cannot be used as a dot-new predicate
 ; producer (resulting in a crash).
@@ -8,7 +8,7 @@ target triple = "hexagon"
 
 define void @ext4_group_extend() #0 {
 entry:
-  %es.idx.val = load i32, i32* undef, align 4
+  %es.idx.val = load i32, ptr undef, align 4
   %conv1.i = zext i32 %es.idx.val to i64
   %or.i = or i64 undef, %conv1.i
   %add20 = add i64 %or.i, undef

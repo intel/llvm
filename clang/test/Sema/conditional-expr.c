@@ -18,11 +18,11 @@ void foo(void) {
 
   dp = vp;
   vp = dp;
-  ip = dp; // expected-warning {{incompatible pointer types assigning to 'int *' from 'double *'}}
-  dp = ip; // expected-warning {{incompatible pointer types assigning to 'double *' from 'int *'}}
+  ip = dp; // expected-error {{incompatible pointer types assigning to 'int *' from 'double *'}}
+  dp = ip; // expected-error {{incompatible pointer types assigning to 'double *' from 'int *'}}
   dp = 0 ? (double *)0 : (void *)0;
   vp = 0 ? (double *)0 : (void *)0;
-  ip = 0 ? (double *)0 : (void *)0; // expected-warning {{incompatible pointer types assigning to 'int *' from 'double *'}}
+  ip = 0 ? (double *)0 : (void *)0; // expected-error {{incompatible pointer types assigning to 'int *' from 'double *'}}
 
   const int *cip;
   vp = (0 ? vp : cip); // expected-warning {{discards qualifiers}}
@@ -86,7 +86,8 @@ void foo(void) {
 
 int Postgresql(void) {
   char x;
-  return ((((&x) != ((void *) 0)) ? (*(&x) = ((char) 1)) : (void) ((void *) 0)), (unsigned long) ((void *) 0)); // expected-warning {{C99 forbids conditional expressions with only one void side}}
+  return ((((&x) != ((void *) 0)) ? (*(&x) = ((char) 1)) : (void) ((void *) 0)), (unsigned long) ((void *) 0)); /* expected-warning {{C99 forbids conditional expressions with only one void side}}
+                                                                                                                 expected-warning {{comparison of address of 'x' not equal to a null pointer is always true}} */
 }
 
 #define nil ((void*) 0)

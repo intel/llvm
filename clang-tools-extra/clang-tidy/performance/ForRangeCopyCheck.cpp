@@ -1,4 +1,4 @@
-//===--- ForRangeCopyCheck.cpp - clang-tidy--------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,19 +7,17 @@
 //===----------------------------------------------------------------------===//
 
 #include "ForRangeCopyCheck.h"
-#include "../utils/DeclRefExprUtils.h"
 #include "../utils/FixItHintUtils.h"
 #include "../utils/Matchers.h"
 #include "../utils/OptionsUtils.h"
 #include "../utils/TypeTraits.h"
 #include "clang/Analysis/Analyses/ExprMutationAnalyzer.h"
 #include "clang/Basic/Diagnostic.h"
+#include <optional>
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace performance {
+namespace clang::tidy::performance {
 
 ForRangeCopyCheck::ForRangeCopyCheck(StringRef Name, ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
@@ -40,7 +38,7 @@ void ForRangeCopyCheck::registerMatchers(MatchFinder *Finder) {
   auto HasReferenceOrPointerTypeOrIsAllowed = hasType(qualType(
       unless(anyOf(hasCanonicalType(anyOf(referenceType(), pointerType())),
                    hasDeclaration(namedDecl(
-                       matchers::matchesAnyListedName(AllowedTypes)))))));
+                       matchers::matchesAnyListedRegexName(AllowedTypes)))))));
   auto IteratorReturnsValueType = cxxOperatorCallExpr(
       hasOverloadedOperatorName("*"),
       callee(
@@ -81,7 +79,7 @@ bool ForRangeCopyCheck::handleConstValueCopy(const VarDecl &LoopVar,
   } else if (!LoopVar.getType().isConstQualified()) {
     return false;
   }
-  llvm::Optional<bool> Expensive =
+  std::optional<bool> Expensive =
       utils::type_traits::isExpensiveToCopy(LoopVar.getType(), Context);
   if (!Expensive || !*Expensive)
     return false;
@@ -91,17 +89,26 @@ bool ForRangeCopyCheck::handleConstValueCopy(const VarDecl &LoopVar,
            "copy in each iteration; consider making this a reference")
       << utils::fixit::changeVarDeclToReference(LoopVar, Context);
   if (!LoopVar.getType().isConstQualified()) {
-    if (llvm::Optional<FixItHint> Fix = utils::fixit::addQualifierToVarDecl(
-            LoopVar, Context, DeclSpec::TQ::TQ_const))
+    if (std::optional<FixItHint> Fix = utils::fixit::addQualifierToVarDecl(
+            LoopVar, Context, Qualifiers::Const))
       Diagnostic << *Fix;
   }
   return true;
 }
 
+static bool isReferenced(const VarDecl &LoopVar, const Stmt &Stmt,
+                         ASTContext &Context) {
+  const auto IsLoopVar = varDecl(equalsNode(&LoopVar));
+  return !match(stmt(hasDescendant(declRefExpr(to(valueDecl(anyOf(
+                    IsLoopVar, bindingDecl(forDecomposition(IsLoopVar)))))))),
+                Stmt, Context)
+              .empty();
+}
+
 bool ForRangeCopyCheck::handleCopyIsOnlyConstReferenced(
     const VarDecl &LoopVar, const CXXForRangeStmt &ForRange,
     ASTContext &Context) {
-  llvm::Optional<bool> Expensive =
+  std::optional<bool> Expensive =
       utils::type_traits::isExpensiveToCopy(LoopVar.getType(), Context);
   if (LoopVar.getType().isConstQualified() || !Expensive || !*Expensive)
     return false;
@@ -114,16 +121,14 @@ bool ForRangeCopyCheck::handleCopyIsOnlyConstReferenced(
   // compiler warning which can't be suppressed.
   // Since this case is very rare, it is safe to ignore it.
   if (!ExprMutationAnalyzer(*ForRange.getBody(), Context).isMutated(&LoopVar) &&
-      !utils::decl_ref_expr::allDeclRefExprs(LoopVar, *ForRange.getBody(),
-                                             Context)
-           .empty()) {
+      isReferenced(LoopVar, *ForRange.getBody(), Context)) {
     auto Diag = diag(
         LoopVar.getLocation(),
         "loop variable is copied but only used as const reference; consider "
         "making it a const reference");
 
-    if (llvm::Optional<FixItHint> Fix = utils::fixit::addQualifierToVarDecl(
-            LoopVar, Context, DeclSpec::TQ::TQ_const))
+    if (std::optional<FixItHint> Fix = utils::fixit::addQualifierToVarDecl(
+            LoopVar, Context, Qualifiers::Const))
       Diag << *Fix << utils::fixit::changeVarDeclToReference(LoopVar, Context);
 
     return true;
@@ -131,6 +136,4 @@ bool ForRangeCopyCheck::handleCopyIsOnlyConstReferenced(
   return false;
 }
 
-} // namespace performance
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::performance

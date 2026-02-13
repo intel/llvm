@@ -97,8 +97,8 @@ define dso_local zeroext i32 @caller(i32 zeroext %in, i32 zeroext %add_after) #0
 ; BE-P8-NEXT:    clrldi r3, r3, 32
 ; BE-P8-NEXT:    addi r1, r1, 128
 ; BE-P8-NEXT:    ld r0, 16(r1)
-; BE-P8-NEXT:    hashchk r0, -16(r1)
 ; BE-P8-NEXT:    mtlr r0
+; BE-P8-NEXT:    hashchk r0, -16(r1)
 ; BE-P8-NEXT:    blr
 ;
 ; BE-32BIT-P10-LABEL: caller:
@@ -151,8 +151,8 @@ define dso_local zeroext i32 @caller(i32 zeroext %in, i32 zeroext %add_after) #0
 ; BE-32BIT-P8-NEXT:    lwz r31, 76(r1) # 4-byte Folded Reload
 ; BE-32BIT-P8-NEXT:    addi r1, r1, 80
 ; BE-32BIT-P8-NEXT:    lwz r0, 8(r1)
-; BE-32BIT-P8-NEXT:    hashchk r0, -16(r1)
 ; BE-32BIT-P8-NEXT:    mtlr r0
+; BE-32BIT-P8-NEXT:    hashchk r0, -16(r1)
 ; BE-32BIT-P8-NEXT:    blr
 ;
 ; BE-P10-PRIV-LABEL: caller:
@@ -208,8 +208,8 @@ define dso_local zeroext i32 @caller(i32 zeroext %in, i32 zeroext %add_after) #0
 ; BE-P8-PRIV-NEXT:    clrldi r3, r3, 32
 ; BE-P8-PRIV-NEXT:    addi r1, r1, 128
 ; BE-P8-PRIV-NEXT:    ld r0, 16(r1)
-; BE-P8-PRIV-NEXT:    hashchkp r0, -16(r1)
 ; BE-P8-PRIV-NEXT:    mtlr r0
+; BE-P8-PRIV-NEXT:    hashchkp r0, -16(r1)
 ; BE-P8-PRIV-NEXT:    blr
 ;
 ; BE-32BIT-P10-PRIV-LABEL: caller:
@@ -262,8 +262,8 @@ define dso_local zeroext i32 @caller(i32 zeroext %in, i32 zeroext %add_after) #0
 ; BE-32BIT-P8-PRIV-NEXT:    lwz r31, 76(r1) # 4-byte Folded Reload
 ; BE-32BIT-P8-PRIV-NEXT:    addi r1, r1, 80
 ; BE-32BIT-P8-PRIV-NEXT:    lwz r0, 8(r1)
-; BE-32BIT-P8-PRIV-NEXT:    hashchkp r0, -16(r1)
 ; BE-32BIT-P8-PRIV-NEXT:    mtlr r0
+; BE-32BIT-P8-PRIV-NEXT:    hashchkp r0, -16(r1)
 ; BE-32BIT-P8-PRIV-NEXT:    blr
 entry:
   %call = tail call zeroext i32 @callee(i32 zeroext %in)
@@ -276,7 +276,7 @@ entry:
 ;; outside of the initial 288 byte volatile program storage region in the
 ;; Protected Zone. However, this restriction will be removed in an upcoming
 ;; revision of the ABI.
-define dso_local zeroext i32 @spill(i32* nocapture readonly %in) #0 {
+define dso_local zeroext i32 @spill(ptr nocapture readonly %in) #0 {
 ; BE-P10-LABEL: spill:
 ; BE-P10:       # %bb.0: # %entry
 ; BE-P10-NEXT:    mflr r0
@@ -408,9 +408,9 @@ define dso_local zeroext i32 @spill(i32* nocapture readonly %in) #0 {
 ; BE-P9:       # %bb.0: # %entry
 ; BE-P9-NEXT:    mflr r0
 ; BE-P9-NEXT:    mfcr r12
+; BE-P9-NEXT:    stw r12, 8(r1)
 ; BE-P9-NEXT:    std r0, 16(r1)
 ; BE-P9-NEXT:    hashst r0, -488(r1)
-; BE-P9-NEXT:    stw r12, 8(r1)
 ; BE-P9-NEXT:    stdu r1, -624(r1)
 ; BE-P9-NEXT:    lwz r4, 12(r3)
 ; BE-P9-NEXT:    std r14, 336(r1) # 8-byte Folded Spill
@@ -533,74 +533,74 @@ define dso_local zeroext i32 @spill(i32* nocapture readonly %in) #0 {
 ;
 ; BE-P8-LABEL: spill:
 ; BE-P8:       # %bb.0: # %entry
-; BE-P8-NEXT:    mfcr r12
 ; BE-P8-NEXT:    mflr r0
+; BE-P8-NEXT:    mfcr r12
+; BE-P8-NEXT:    stw r12, 8(r1)
 ; BE-P8-NEXT:    std r0, 16(r1)
 ; BE-P8-NEXT:    hashst r0, -488(r1)
-; BE-P8-NEXT:    stw r12, 8(r1)
 ; BE-P8-NEXT:    stdu r1, -624(r1)
 ; BE-P8-NEXT:    li r4, 144
 ; BE-P8-NEXT:    std r14, 336(r1) # 8-byte Folded Spill
 ; BE-P8-NEXT:    std r15, 344(r1) # 8-byte Folded Spill
 ; BE-P8-NEXT:    std r16, 352(r1) # 8-byte Folded Spill
 ; BE-P8-NEXT:    std r17, 360(r1) # 8-byte Folded Spill
-; BE-P8-NEXT:    stxvd2x v20, r1, r4 # 16-byte Folded Spill
-; BE-P8-NEXT:    li r4, 160
 ; BE-P8-NEXT:    std r18, 368(r1) # 8-byte Folded Spill
 ; BE-P8-NEXT:    std r19, 376(r1) # 8-byte Folded Spill
 ; BE-P8-NEXT:    std r20, 384(r1) # 8-byte Folded Spill
+; BE-P8-NEXT:    stxvd2x v20, r1, r4 # 16-byte Folded Spill
+; BE-P8-NEXT:    li r4, 160
 ; BE-P8-NEXT:    std r21, 392(r1) # 8-byte Folded Spill
-; BE-P8-NEXT:    stxvd2x v21, r1, r4 # 16-byte Folded Spill
-; BE-P8-NEXT:    li r4, 176
 ; BE-P8-NEXT:    std r22, 400(r1) # 8-byte Folded Spill
 ; BE-P8-NEXT:    std r23, 408(r1) # 8-byte Folded Spill
 ; BE-P8-NEXT:    std r24, 416(r1) # 8-byte Folded Spill
 ; BE-P8-NEXT:    std r25, 424(r1) # 8-byte Folded Spill
 ; BE-P8-NEXT:    std r26, 432(r1) # 8-byte Folded Spill
+; BE-P8-NEXT:    stxvd2x v21, r1, r4 # 16-byte Folded Spill
+; BE-P8-NEXT:    li r4, 176
 ; BE-P8-NEXT:    std r27, 440(r1) # 8-byte Folded Spill
 ; BE-P8-NEXT:    std r28, 448(r1) # 8-byte Folded Spill
 ; BE-P8-NEXT:    std r29, 456(r1) # 8-byte Folded Spill
 ; BE-P8-NEXT:    std r30, 464(r1) # 8-byte Folded Spill
 ; BE-P8-NEXT:    std r31, 472(r1) # 8-byte Folded Spill
-; BE-P8-NEXT:    std r3, 120(r1) # 8-byte Folded Spill
+; BE-P8-NEXT:    stfd f14, 480(r1) # 8-byte Folded Spill
 ; BE-P8-NEXT:    stxvd2x v22, r1, r4 # 16-byte Folded Spill
 ; BE-P8-NEXT:    li r4, 192
+; BE-P8-NEXT:    stfd f15, 488(r1) # 8-byte Folded Spill
+; BE-P8-NEXT:    stfd f16, 496(r1) # 8-byte Folded Spill
+; BE-P8-NEXT:    stfd f17, 504(r1) # 8-byte Folded Spill
+; BE-P8-NEXT:    stfd f18, 512(r1) # 8-byte Folded Spill
+; BE-P8-NEXT:    stfd f19, 520(r1) # 8-byte Folded Spill
+; BE-P8-NEXT:    stfd f20, 528(r1) # 8-byte Folded Spill
 ; BE-P8-NEXT:    stxvd2x v23, r1, r4 # 16-byte Folded Spill
 ; BE-P8-NEXT:    li r4, 208
-; BE-P8-NEXT:    stfd f14, 480(r1) # 8-byte Folded Spill
-; BE-P8-NEXT:    stxvd2x v24, r1, r4 # 16-byte Folded Spill
-; BE-P8-NEXT:    li r4, 224
-; BE-P8-NEXT:    stfd f15, 488(r1) # 8-byte Folded Spill
-; BE-P8-NEXT:    stxvd2x v25, r1, r4 # 16-byte Folded Spill
-; BE-P8-NEXT:    li r4, 240
-; BE-P8-NEXT:    stfd f16, 496(r1) # 8-byte Folded Spill
-; BE-P8-NEXT:    stxvd2x v26, r1, r4 # 16-byte Folded Spill
-; BE-P8-NEXT:    li r4, 256
-; BE-P8-NEXT:    stfd f17, 504(r1) # 8-byte Folded Spill
-; BE-P8-NEXT:    stxvd2x v27, r1, r4 # 16-byte Folded Spill
-; BE-P8-NEXT:    li r4, 272
-; BE-P8-NEXT:    stfd f18, 512(r1) # 8-byte Folded Spill
-; BE-P8-NEXT:    stxvd2x v28, r1, r4 # 16-byte Folded Spill
-; BE-P8-NEXT:    li r4, 288
-; BE-P8-NEXT:    stfd f19, 520(r1) # 8-byte Folded Spill
-; BE-P8-NEXT:    stxvd2x v29, r1, r4 # 16-byte Folded Spill
-; BE-P8-NEXT:    li r4, 304
-; BE-P8-NEXT:    stfd f20, 528(r1) # 8-byte Folded Spill
-; BE-P8-NEXT:    stxvd2x v30, r1, r4 # 16-byte Folded Spill
-; BE-P8-NEXT:    li r4, 320
 ; BE-P8-NEXT:    stfd f21, 536(r1) # 8-byte Folded Spill
-; BE-P8-NEXT:    stxvd2x v31, r1, r4 # 16-byte Folded Spill
-; BE-P8-NEXT:    lwz r4, 12(r3)
 ; BE-P8-NEXT:    stfd f22, 544(r1) # 8-byte Folded Spill
 ; BE-P8-NEXT:    stfd f23, 552(r1) # 8-byte Folded Spill
 ; BE-P8-NEXT:    stfd f24, 560(r1) # 8-byte Folded Spill
 ; BE-P8-NEXT:    stfd f25, 568(r1) # 8-byte Folded Spill
 ; BE-P8-NEXT:    stfd f26, 576(r1) # 8-byte Folded Spill
+; BE-P8-NEXT:    stxvd2x v24, r1, r4 # 16-byte Folded Spill
+; BE-P8-NEXT:    li r4, 224
 ; BE-P8-NEXT:    stfd f27, 584(r1) # 8-byte Folded Spill
 ; BE-P8-NEXT:    stfd f28, 592(r1) # 8-byte Folded Spill
 ; BE-P8-NEXT:    stfd f29, 600(r1) # 8-byte Folded Spill
 ; BE-P8-NEXT:    stfd f30, 608(r1) # 8-byte Folded Spill
 ; BE-P8-NEXT:    stfd f31, 616(r1) # 8-byte Folded Spill
+; BE-P8-NEXT:    std r3, 120(r1) # 8-byte Folded Spill
+; BE-P8-NEXT:    stxvd2x v25, r1, r4 # 16-byte Folded Spill
+; BE-P8-NEXT:    li r4, 240
+; BE-P8-NEXT:    stxvd2x v26, r1, r4 # 16-byte Folded Spill
+; BE-P8-NEXT:    li r4, 256
+; BE-P8-NEXT:    stxvd2x v27, r1, r4 # 16-byte Folded Spill
+; BE-P8-NEXT:    li r4, 272
+; BE-P8-NEXT:    stxvd2x v28, r1, r4 # 16-byte Folded Spill
+; BE-P8-NEXT:    li r4, 288
+; BE-P8-NEXT:    stxvd2x v29, r1, r4 # 16-byte Folded Spill
+; BE-P8-NEXT:    li r4, 304
+; BE-P8-NEXT:    stxvd2x v30, r1, r4 # 16-byte Folded Spill
+; BE-P8-NEXT:    li r4, 320
+; BE-P8-NEXT:    stxvd2x v31, r1, r4 # 16-byte Folded Spill
+; BE-P8-NEXT:    lwz r4, 12(r3)
 ; BE-P8-NEXT:    stw r4, 132(r1)
 ; BE-P8-NEXT:    #APP
 ; BE-P8-NEXT:    nop
@@ -616,55 +616,55 @@ define dso_local zeroext i32 @spill(i32* nocapture readonly %in) #0 {
 ; BE-P8-NEXT:    lfd f28, 592(r1) # 8-byte Folded Reload
 ; BE-P8-NEXT:    ld r30, 464(r1) # 8-byte Folded Reload
 ; BE-P8-NEXT:    ld r29, 456(r1) # 8-byte Folded Reload
-; BE-P8-NEXT:    lwz r4, 16(r4)
 ; BE-P8-NEXT:    lfd f27, 584(r1) # 8-byte Folded Reload
 ; BE-P8-NEXT:    lfd f26, 576(r1) # 8-byte Folded Reload
 ; BE-P8-NEXT:    ld r28, 448(r1) # 8-byte Folded Reload
+; BE-P8-NEXT:    ld r27, 440(r1) # 8-byte Folded Reload
+; BE-P8-NEXT:    lwz r4, 16(r4)
 ; BE-P8-NEXT:    lfd f25, 568(r1) # 8-byte Folded Reload
 ; BE-P8-NEXT:    lfd f24, 560(r1) # 8-byte Folded Reload
-; BE-P8-NEXT:    ld r27, 440(r1) # 8-byte Folded Reload
 ; BE-P8-NEXT:    ld r26, 432(r1) # 8-byte Folded Reload
-; BE-P8-NEXT:    add r3, r4, r3
-; BE-P8-NEXT:    li r4, 320
 ; BE-P8-NEXT:    lfd f23, 552(r1) # 8-byte Folded Reload
 ; BE-P8-NEXT:    lfd f22, 544(r1) # 8-byte Folded Reload
 ; BE-P8-NEXT:    ld r25, 424(r1) # 8-byte Folded Reload
 ; BE-P8-NEXT:    ld r24, 416(r1) # 8-byte Folded Reload
-; BE-P8-NEXT:    lxvd2x v31, r1, r4 # 16-byte Folded Reload
-; BE-P8-NEXT:    li r4, 304
 ; BE-P8-NEXT:    lfd f21, 536(r1) # 8-byte Folded Reload
+; BE-P8-NEXT:    lfd f20, 528(r1) # 8-byte Folded Reload
 ; BE-P8-NEXT:    ld r23, 408(r1) # 8-byte Folded Reload
 ; BE-P8-NEXT:    ld r22, 400(r1) # 8-byte Folded Reload
-; BE-P8-NEXT:    clrldi r3, r3, 32
-; BE-P8-NEXT:    lxvd2x v30, r1, r4 # 16-byte Folded Reload
-; BE-P8-NEXT:    li r4, 288
-; BE-P8-NEXT:    lfd f20, 528(r1) # 8-byte Folded Reload
+; BE-P8-NEXT:    add r3, r4, r3
+; BE-P8-NEXT:    li r4, 320
+; BE-P8-NEXT:    lfd f19, 520(r1) # 8-byte Folded Reload
+; BE-P8-NEXT:    lfd f18, 512(r1) # 8-byte Folded Reload
+; BE-P8-NEXT:    lfd f17, 504(r1) # 8-byte Folded Reload
+; BE-P8-NEXT:    lfd f16, 496(r1) # 8-byte Folded Reload
 ; BE-P8-NEXT:    ld r21, 392(r1) # 8-byte Folded Reload
 ; BE-P8-NEXT:    ld r20, 384(r1) # 8-byte Folded Reload
-; BE-P8-NEXT:    lxvd2x v29, r1, r4 # 16-byte Folded Reload
-; BE-P8-NEXT:    li r4, 272
-; BE-P8-NEXT:    lfd f19, 520(r1) # 8-byte Folded Reload
+; BE-P8-NEXT:    lxvd2x v31, r1, r4 # 16-byte Folded Reload
+; BE-P8-NEXT:    li r4, 304
+; BE-P8-NEXT:    lfd f15, 488(r1) # 8-byte Folded Reload
 ; BE-P8-NEXT:    ld r19, 376(r1) # 8-byte Folded Reload
+; BE-P8-NEXT:    lfd f14, 480(r1) # 8-byte Folded Reload
 ; BE-P8-NEXT:    ld r18, 368(r1) # 8-byte Folded Reload
-; BE-P8-NEXT:    lxvd2x v28, r1, r4 # 16-byte Folded Reload
-; BE-P8-NEXT:    li r4, 256
-; BE-P8-NEXT:    lfd f18, 512(r1) # 8-byte Folded Reload
 ; BE-P8-NEXT:    ld r17, 360(r1) # 8-byte Folded Reload
 ; BE-P8-NEXT:    ld r16, 352(r1) # 8-byte Folded Reload
-; BE-P8-NEXT:    lxvd2x v27, r1, r4 # 16-byte Folded Reload
-; BE-P8-NEXT:    li r4, 240
-; BE-P8-NEXT:    lfd f17, 504(r1) # 8-byte Folded Reload
+; BE-P8-NEXT:    lxvd2x v30, r1, r4 # 16-byte Folded Reload
+; BE-P8-NEXT:    li r4, 288
 ; BE-P8-NEXT:    ld r15, 344(r1) # 8-byte Folded Reload
 ; BE-P8-NEXT:    ld r14, 336(r1) # 8-byte Folded Reload
+; BE-P8-NEXT:    clrldi r3, r3, 32
+; BE-P8-NEXT:    lxvd2x v29, r1, r4 # 16-byte Folded Reload
+; BE-P8-NEXT:    li r4, 272
+; BE-P8-NEXT:    lxvd2x v28, r1, r4 # 16-byte Folded Reload
+; BE-P8-NEXT:    li r4, 256
+; BE-P8-NEXT:    lxvd2x v27, r1, r4 # 16-byte Folded Reload
+; BE-P8-NEXT:    li r4, 240
 ; BE-P8-NEXT:    lxvd2x v26, r1, r4 # 16-byte Folded Reload
 ; BE-P8-NEXT:    li r4, 224
-; BE-P8-NEXT:    lfd f16, 496(r1) # 8-byte Folded Reload
 ; BE-P8-NEXT:    lxvd2x v25, r1, r4 # 16-byte Folded Reload
 ; BE-P8-NEXT:    li r4, 208
-; BE-P8-NEXT:    lfd f15, 488(r1) # 8-byte Folded Reload
 ; BE-P8-NEXT:    lxvd2x v24, r1, r4 # 16-byte Folded Reload
 ; BE-P8-NEXT:    li r4, 192
-; BE-P8-NEXT:    lfd f14, 480(r1) # 8-byte Folded Reload
 ; BE-P8-NEXT:    lxvd2x v23, r1, r4 # 16-byte Folded Reload
 ; BE-P8-NEXT:    li r4, 176
 ; BE-P8-NEXT:    lxvd2x v22, r1, r4 # 16-byte Folded Reload
@@ -675,9 +675,9 @@ define dso_local zeroext i32 @spill(i32* nocapture readonly %in) #0 {
 ; BE-P8-NEXT:    addi r1, r1, 624
 ; BE-P8-NEXT:    ld r0, 16(r1)
 ; BE-P8-NEXT:    lwz r12, 8(r1)
-; BE-P8-NEXT:    mtocrf 32, r12
 ; BE-P8-NEXT:    hashchk r0, -488(r1)
 ; BE-P8-NEXT:    mtlr r0
+; BE-P8-NEXT:    mtocrf 32, r12
 ; BE-P8-NEXT:    mtocrf 16, r12
 ; BE-P8-NEXT:    mtocrf 8, r12
 ; BE-P8-NEXT:    blr
@@ -814,9 +814,9 @@ define dso_local zeroext i32 @spill(i32* nocapture readonly %in) #0 {
 ; BE-32BIT-P9:       # %bb.0: # %entry
 ; BE-32BIT-P9-NEXT:    mflr r0
 ; BE-32BIT-P9-NEXT:    mfcr r12
+; BE-32BIT-P9-NEXT:    stw r12, 4(r1)
 ; BE-32BIT-P9-NEXT:    stw r0, 8(r1)
 ; BE-32BIT-P9-NEXT:    hashst r0, -424(r1)
-; BE-32BIT-P9-NEXT:    stw r12, 4(r1)
 ; BE-32BIT-P9-NEXT:    stwu r1, -496(r1)
 ; BE-32BIT-P9-NEXT:    lwz r4, 12(r3)
 ; BE-32BIT-P9-NEXT:    stw r13, 276(r1) # 4-byte Folded Spill
@@ -940,75 +940,75 @@ define dso_local zeroext i32 @spill(i32* nocapture readonly %in) #0 {
 ;
 ; BE-32BIT-P8-LABEL: spill:
 ; BE-32BIT-P8:       # %bb.0: # %entry
-; BE-32BIT-P8-NEXT:    mfcr r12
 ; BE-32BIT-P8-NEXT:    mflr r0
+; BE-32BIT-P8-NEXT:    mfcr r12
+; BE-32BIT-P8-NEXT:    stw r12, 4(r1)
 ; BE-32BIT-P8-NEXT:    stw r0, 8(r1)
 ; BE-32BIT-P8-NEXT:    hashst r0, -424(r1)
-; BE-32BIT-P8-NEXT:    stw r12, 4(r1)
 ; BE-32BIT-P8-NEXT:    stwu r1, -496(r1)
 ; BE-32BIT-P8-NEXT:    li r4, 80
 ; BE-32BIT-P8-NEXT:    stw r13, 276(r1) # 4-byte Folded Spill
 ; BE-32BIT-P8-NEXT:    stw r14, 280(r1) # 4-byte Folded Spill
+; BE-32BIT-P8-NEXT:    stw r15, 284(r1) # 4-byte Folded Spill
+; BE-32BIT-P8-NEXT:    stw r16, 288(r1) # 4-byte Folded Spill
+; BE-32BIT-P8-NEXT:    stw r17, 292(r1) # 4-byte Folded Spill
+; BE-32BIT-P8-NEXT:    stw r18, 296(r1) # 4-byte Folded Spill
+; BE-32BIT-P8-NEXT:    stw r19, 300(r1) # 4-byte Folded Spill
 ; BE-32BIT-P8-NEXT:    stxvd2x v20, r1, r4 # 16-byte Folded Spill
 ; BE-32BIT-P8-NEXT:    li r4, 96
-; BE-32BIT-P8-NEXT:    stw r15, 284(r1) # 4-byte Folded Spill
+; BE-32BIT-P8-NEXT:    stw r20, 304(r1) # 4-byte Folded Spill
+; BE-32BIT-P8-NEXT:    stw r21, 308(r1) # 4-byte Folded Spill
+; BE-32BIT-P8-NEXT:    stw r22, 312(r1) # 4-byte Folded Spill
+; BE-32BIT-P8-NEXT:    stw r23, 316(r1) # 4-byte Folded Spill
+; BE-32BIT-P8-NEXT:    stw r24, 320(r1) # 4-byte Folded Spill
+; BE-32BIT-P8-NEXT:    stw r25, 324(r1) # 4-byte Folded Spill
 ; BE-32BIT-P8-NEXT:    stxvd2x v21, r1, r4 # 16-byte Folded Spill
 ; BE-32BIT-P8-NEXT:    li r4, 112
-; BE-32BIT-P8-NEXT:    stw r16, 288(r1) # 4-byte Folded Spill
-; BE-32BIT-P8-NEXT:    stxvd2x v22, r1, r4 # 16-byte Folded Spill
-; BE-32BIT-P8-NEXT:    li r4, 128
-; BE-32BIT-P8-NEXT:    stw r17, 292(r1) # 4-byte Folded Spill
-; BE-32BIT-P8-NEXT:    stxvd2x v23, r1, r4 # 16-byte Folded Spill
-; BE-32BIT-P8-NEXT:    li r4, 144
-; BE-32BIT-P8-NEXT:    stw r18, 296(r1) # 4-byte Folded Spill
-; BE-32BIT-P8-NEXT:    stxvd2x v24, r1, r4 # 16-byte Folded Spill
-; BE-32BIT-P8-NEXT:    li r4, 160
-; BE-32BIT-P8-NEXT:    stw r19, 300(r1) # 4-byte Folded Spill
-; BE-32BIT-P8-NEXT:    stxvd2x v25, r1, r4 # 16-byte Folded Spill
-; BE-32BIT-P8-NEXT:    li r4, 176
-; BE-32BIT-P8-NEXT:    stw r20, 304(r1) # 4-byte Folded Spill
-; BE-32BIT-P8-NEXT:    stxvd2x v26, r1, r4 # 16-byte Folded Spill
-; BE-32BIT-P8-NEXT:    li r4, 192
-; BE-32BIT-P8-NEXT:    stw r21, 308(r1) # 4-byte Folded Spill
-; BE-32BIT-P8-NEXT:    stxvd2x v27, r1, r4 # 16-byte Folded Spill
-; BE-32BIT-P8-NEXT:    li r4, 208
-; BE-32BIT-P8-NEXT:    stw r22, 312(r1) # 4-byte Folded Spill
-; BE-32BIT-P8-NEXT:    stxvd2x v28, r1, r4 # 16-byte Folded Spill
-; BE-32BIT-P8-NEXT:    li r4, 224
-; BE-32BIT-P8-NEXT:    stw r23, 316(r1) # 4-byte Folded Spill
-; BE-32BIT-P8-NEXT:    stxvd2x v29, r1, r4 # 16-byte Folded Spill
-; BE-32BIT-P8-NEXT:    li r4, 240
-; BE-32BIT-P8-NEXT:    stw r24, 320(r1) # 4-byte Folded Spill
-; BE-32BIT-P8-NEXT:    stxvd2x v30, r1, r4 # 16-byte Folded Spill
-; BE-32BIT-P8-NEXT:    li r4, 256
-; BE-32BIT-P8-NEXT:    stw r25, 324(r1) # 4-byte Folded Spill
-; BE-32BIT-P8-NEXT:    stxvd2x v31, r1, r4 # 16-byte Folded Spill
-; BE-32BIT-P8-NEXT:    lwz r4, 12(r3)
 ; BE-32BIT-P8-NEXT:    stw r26, 328(r1) # 4-byte Folded Spill
 ; BE-32BIT-P8-NEXT:    stw r27, 332(r1) # 4-byte Folded Spill
 ; BE-32BIT-P8-NEXT:    stw r28, 336(r1) # 4-byte Folded Spill
 ; BE-32BIT-P8-NEXT:    stw r29, 340(r1) # 4-byte Folded Spill
 ; BE-32BIT-P8-NEXT:    stw r30, 344(r1) # 4-byte Folded Spill
 ; BE-32BIT-P8-NEXT:    stw r31, 348(r1) # 4-byte Folded Spill
+; BE-32BIT-P8-NEXT:    stxvd2x v22, r1, r4 # 16-byte Folded Spill
+; BE-32BIT-P8-NEXT:    li r4, 128
 ; BE-32BIT-P8-NEXT:    stfd f14, 352(r1) # 8-byte Folded Spill
 ; BE-32BIT-P8-NEXT:    stfd f15, 360(r1) # 8-byte Folded Spill
 ; BE-32BIT-P8-NEXT:    stfd f16, 368(r1) # 8-byte Folded Spill
 ; BE-32BIT-P8-NEXT:    stfd f17, 376(r1) # 8-byte Folded Spill
 ; BE-32BIT-P8-NEXT:    stfd f18, 384(r1) # 8-byte Folded Spill
 ; BE-32BIT-P8-NEXT:    stfd f19, 392(r1) # 8-byte Folded Spill
+; BE-32BIT-P8-NEXT:    stxvd2x v23, r1, r4 # 16-byte Folded Spill
+; BE-32BIT-P8-NEXT:    li r4, 144
 ; BE-32BIT-P8-NEXT:    stfd f20, 400(r1) # 8-byte Folded Spill
 ; BE-32BIT-P8-NEXT:    stfd f21, 408(r1) # 8-byte Folded Spill
 ; BE-32BIT-P8-NEXT:    stfd f22, 416(r1) # 8-byte Folded Spill
 ; BE-32BIT-P8-NEXT:    stfd f23, 424(r1) # 8-byte Folded Spill
 ; BE-32BIT-P8-NEXT:    stfd f24, 432(r1) # 8-byte Folded Spill
 ; BE-32BIT-P8-NEXT:    stfd f25, 440(r1) # 8-byte Folded Spill
+; BE-32BIT-P8-NEXT:    stxvd2x v24, r1, r4 # 16-byte Folded Spill
+; BE-32BIT-P8-NEXT:    li r4, 160
 ; BE-32BIT-P8-NEXT:    stfd f26, 448(r1) # 8-byte Folded Spill
 ; BE-32BIT-P8-NEXT:    stfd f27, 456(r1) # 8-byte Folded Spill
 ; BE-32BIT-P8-NEXT:    stfd f28, 464(r1) # 8-byte Folded Spill
 ; BE-32BIT-P8-NEXT:    stfd f29, 472(r1) # 8-byte Folded Spill
 ; BE-32BIT-P8-NEXT:    stfd f30, 480(r1) # 8-byte Folded Spill
 ; BE-32BIT-P8-NEXT:    stfd f31, 488(r1) # 8-byte Folded Spill
+; BE-32BIT-P8-NEXT:    stxvd2x v25, r1, r4 # 16-byte Folded Spill
+; BE-32BIT-P8-NEXT:    li r4, 176
 ; BE-32BIT-P8-NEXT:    stw r3, 64(r1) # 4-byte Folded Spill
+; BE-32BIT-P8-NEXT:    stxvd2x v26, r1, r4 # 16-byte Folded Spill
+; BE-32BIT-P8-NEXT:    li r4, 192
+; BE-32BIT-P8-NEXT:    stxvd2x v27, r1, r4 # 16-byte Folded Spill
+; BE-32BIT-P8-NEXT:    li r4, 208
+; BE-32BIT-P8-NEXT:    stxvd2x v28, r1, r4 # 16-byte Folded Spill
+; BE-32BIT-P8-NEXT:    li r4, 224
+; BE-32BIT-P8-NEXT:    stxvd2x v29, r1, r4 # 16-byte Folded Spill
+; BE-32BIT-P8-NEXT:    li r4, 240
+; BE-32BIT-P8-NEXT:    stxvd2x v30, r1, r4 # 16-byte Folded Spill
+; BE-32BIT-P8-NEXT:    li r4, 256
+; BE-32BIT-P8-NEXT:    stxvd2x v31, r1, r4 # 16-byte Folded Spill
+; BE-32BIT-P8-NEXT:    lwz r4, 12(r3)
 ; BE-32BIT-P8-NEXT:    stw r4, 68(r1)
 ; BE-32BIT-P8-NEXT:    #APP
 ; BE-32BIT-P8-NEXT:    nop
@@ -1024,55 +1024,55 @@ define dso_local zeroext i32 @spill(i32* nocapture readonly %in) #0 {
 ; BE-32BIT-P8-NEXT:    lfd f28, 464(r1) # 8-byte Folded Reload
 ; BE-32BIT-P8-NEXT:    lwz r30, 344(r1) # 4-byte Folded Reload
 ; BE-32BIT-P8-NEXT:    lwz r29, 340(r1) # 4-byte Folded Reload
-; BE-32BIT-P8-NEXT:    lwz r4, 16(r4)
 ; BE-32BIT-P8-NEXT:    lfd f27, 456(r1) # 8-byte Folded Reload
 ; BE-32BIT-P8-NEXT:    lfd f26, 448(r1) # 8-byte Folded Reload
 ; BE-32BIT-P8-NEXT:    lwz r28, 336(r1) # 4-byte Folded Reload
+; BE-32BIT-P8-NEXT:    lwz r27, 332(r1) # 4-byte Folded Reload
+; BE-32BIT-P8-NEXT:    lwz r4, 16(r4)
 ; BE-32BIT-P8-NEXT:    lfd f25, 440(r1) # 8-byte Folded Reload
 ; BE-32BIT-P8-NEXT:    lfd f24, 432(r1) # 8-byte Folded Reload
-; BE-32BIT-P8-NEXT:    lwz r27, 332(r1) # 4-byte Folded Reload
 ; BE-32BIT-P8-NEXT:    lwz r26, 328(r1) # 4-byte Folded Reload
-; BE-32BIT-P8-NEXT:    add r3, r4, r3
-; BE-32BIT-P8-NEXT:    li r4, 256
 ; BE-32BIT-P8-NEXT:    lfd f23, 424(r1) # 8-byte Folded Reload
 ; BE-32BIT-P8-NEXT:    lfd f22, 416(r1) # 8-byte Folded Reload
 ; BE-32BIT-P8-NEXT:    lwz r25, 324(r1) # 4-byte Folded Reload
 ; BE-32BIT-P8-NEXT:    lwz r24, 320(r1) # 4-byte Folded Reload
-; BE-32BIT-P8-NEXT:    lxvd2x v31, r1, r4 # 16-byte Folded Reload
-; BE-32BIT-P8-NEXT:    li r4, 240
 ; BE-32BIT-P8-NEXT:    lfd f21, 408(r1) # 8-byte Folded Reload
+; BE-32BIT-P8-NEXT:    lfd f20, 400(r1) # 8-byte Folded Reload
 ; BE-32BIT-P8-NEXT:    lwz r23, 316(r1) # 4-byte Folded Reload
 ; BE-32BIT-P8-NEXT:    lwz r22, 312(r1) # 4-byte Folded Reload
-; BE-32BIT-P8-NEXT:    lxvd2x v30, r1, r4 # 16-byte Folded Reload
-; BE-32BIT-P8-NEXT:    li r4, 224
-; BE-32BIT-P8-NEXT:    lfd f20, 400(r1) # 8-byte Folded Reload
+; BE-32BIT-P8-NEXT:    add r3, r4, r3
+; BE-32BIT-P8-NEXT:    li r4, 256
+; BE-32BIT-P8-NEXT:    lfd f19, 392(r1) # 8-byte Folded Reload
+; BE-32BIT-P8-NEXT:    lfd f18, 384(r1) # 8-byte Folded Reload
+; BE-32BIT-P8-NEXT:    lfd f17, 376(r1) # 8-byte Folded Reload
+; BE-32BIT-P8-NEXT:    lfd f16, 368(r1) # 8-byte Folded Reload
 ; BE-32BIT-P8-NEXT:    lwz r21, 308(r1) # 4-byte Folded Reload
 ; BE-32BIT-P8-NEXT:    lwz r20, 304(r1) # 4-byte Folded Reload
-; BE-32BIT-P8-NEXT:    lxvd2x v29, r1, r4 # 16-byte Folded Reload
-; BE-32BIT-P8-NEXT:    li r4, 208
-; BE-32BIT-P8-NEXT:    lfd f19, 392(r1) # 8-byte Folded Reload
+; BE-32BIT-P8-NEXT:    lxvd2x v31, r1, r4 # 16-byte Folded Reload
+; BE-32BIT-P8-NEXT:    li r4, 240
+; BE-32BIT-P8-NEXT:    lfd f15, 360(r1) # 8-byte Folded Reload
 ; BE-32BIT-P8-NEXT:    lwz r19, 300(r1) # 4-byte Folded Reload
+; BE-32BIT-P8-NEXT:    lfd f14, 352(r1) # 8-byte Folded Reload
 ; BE-32BIT-P8-NEXT:    lwz r18, 296(r1) # 4-byte Folded Reload
-; BE-32BIT-P8-NEXT:    lxvd2x v28, r1, r4 # 16-byte Folded Reload
-; BE-32BIT-P8-NEXT:    li r4, 192
-; BE-32BIT-P8-NEXT:    lfd f18, 384(r1) # 8-byte Folded Reload
 ; BE-32BIT-P8-NEXT:    lwz r17, 292(r1) # 4-byte Folded Reload
 ; BE-32BIT-P8-NEXT:    lwz r16, 288(r1) # 4-byte Folded Reload
-; BE-32BIT-P8-NEXT:    lxvd2x v27, r1, r4 # 16-byte Folded Reload
-; BE-32BIT-P8-NEXT:    li r4, 176
-; BE-32BIT-P8-NEXT:    lfd f17, 376(r1) # 8-byte Folded Reload
+; BE-32BIT-P8-NEXT:    lxvd2x v30, r1, r4 # 16-byte Folded Reload
+; BE-32BIT-P8-NEXT:    li r4, 224
 ; BE-32BIT-P8-NEXT:    lwz r15, 284(r1) # 4-byte Folded Reload
 ; BE-32BIT-P8-NEXT:    lwz r14, 280(r1) # 4-byte Folded Reload
+; BE-32BIT-P8-NEXT:    lwz r13, 276(r1) # 4-byte Folded Reload
+; BE-32BIT-P8-NEXT:    lxvd2x v29, r1, r4 # 16-byte Folded Reload
+; BE-32BIT-P8-NEXT:    li r4, 208
+; BE-32BIT-P8-NEXT:    lxvd2x v28, r1, r4 # 16-byte Folded Reload
+; BE-32BIT-P8-NEXT:    li r4, 192
+; BE-32BIT-P8-NEXT:    lxvd2x v27, r1, r4 # 16-byte Folded Reload
+; BE-32BIT-P8-NEXT:    li r4, 176
 ; BE-32BIT-P8-NEXT:    lxvd2x v26, r1, r4 # 16-byte Folded Reload
 ; BE-32BIT-P8-NEXT:    li r4, 160
-; BE-32BIT-P8-NEXT:    lfd f16, 368(r1) # 8-byte Folded Reload
-; BE-32BIT-P8-NEXT:    lwz r13, 276(r1) # 4-byte Folded Reload
 ; BE-32BIT-P8-NEXT:    lxvd2x v25, r1, r4 # 16-byte Folded Reload
 ; BE-32BIT-P8-NEXT:    li r4, 144
-; BE-32BIT-P8-NEXT:    lfd f15, 360(r1) # 8-byte Folded Reload
 ; BE-32BIT-P8-NEXT:    lxvd2x v24, r1, r4 # 16-byte Folded Reload
 ; BE-32BIT-P8-NEXT:    li r4, 128
-; BE-32BIT-P8-NEXT:    lfd f14, 352(r1) # 8-byte Folded Reload
 ; BE-32BIT-P8-NEXT:    lxvd2x v23, r1, r4 # 16-byte Folded Reload
 ; BE-32BIT-P8-NEXT:    li r4, 112
 ; BE-32BIT-P8-NEXT:    lxvd2x v22, r1, r4 # 16-byte Folded Reload
@@ -1083,9 +1083,9 @@ define dso_local zeroext i32 @spill(i32* nocapture readonly %in) #0 {
 ; BE-32BIT-P8-NEXT:    addi r1, r1, 496
 ; BE-32BIT-P8-NEXT:    lwz r0, 8(r1)
 ; BE-32BIT-P8-NEXT:    lwz r12, 4(r1)
-; BE-32BIT-P8-NEXT:    mtocrf 32, r12
 ; BE-32BIT-P8-NEXT:    hashchk r0, -424(r1)
 ; BE-32BIT-P8-NEXT:    mtlr r0
+; BE-32BIT-P8-NEXT:    mtocrf 32, r12
 ; BE-32BIT-P8-NEXT:    mtocrf 16, r12
 ; BE-32BIT-P8-NEXT:    mtocrf 8, r12
 ; BE-32BIT-P8-NEXT:    blr
@@ -1221,9 +1221,9 @@ define dso_local zeroext i32 @spill(i32* nocapture readonly %in) #0 {
 ; BE-P9-PRIV:       # %bb.0: # %entry
 ; BE-P9-PRIV-NEXT:    mflr r0
 ; BE-P9-PRIV-NEXT:    mfcr r12
+; BE-P9-PRIV-NEXT:    stw r12, 8(r1)
 ; BE-P9-PRIV-NEXT:    std r0, 16(r1)
 ; BE-P9-PRIV-NEXT:    hashstp r0, -488(r1)
-; BE-P9-PRIV-NEXT:    stw r12, 8(r1)
 ; BE-P9-PRIV-NEXT:    stdu r1, -624(r1)
 ; BE-P9-PRIV-NEXT:    lwz r4, 12(r3)
 ; BE-P9-PRIV-NEXT:    std r14, 336(r1) # 8-byte Folded Spill
@@ -1346,74 +1346,74 @@ define dso_local zeroext i32 @spill(i32* nocapture readonly %in) #0 {
 ;
 ; BE-P8-PRIV-LABEL: spill:
 ; BE-P8-PRIV:       # %bb.0: # %entry
-; BE-P8-PRIV-NEXT:    mfcr r12
 ; BE-P8-PRIV-NEXT:    mflr r0
+; BE-P8-PRIV-NEXT:    mfcr r12
+; BE-P8-PRIV-NEXT:    stw r12, 8(r1)
 ; BE-P8-PRIV-NEXT:    std r0, 16(r1)
 ; BE-P8-PRIV-NEXT:    hashstp r0, -488(r1)
-; BE-P8-PRIV-NEXT:    stw r12, 8(r1)
 ; BE-P8-PRIV-NEXT:    stdu r1, -624(r1)
 ; BE-P8-PRIV-NEXT:    li r4, 144
 ; BE-P8-PRIV-NEXT:    std r14, 336(r1) # 8-byte Folded Spill
 ; BE-P8-PRIV-NEXT:    std r15, 344(r1) # 8-byte Folded Spill
 ; BE-P8-PRIV-NEXT:    std r16, 352(r1) # 8-byte Folded Spill
 ; BE-P8-PRIV-NEXT:    std r17, 360(r1) # 8-byte Folded Spill
-; BE-P8-PRIV-NEXT:    stxvd2x v20, r1, r4 # 16-byte Folded Spill
-; BE-P8-PRIV-NEXT:    li r4, 160
 ; BE-P8-PRIV-NEXT:    std r18, 368(r1) # 8-byte Folded Spill
 ; BE-P8-PRIV-NEXT:    std r19, 376(r1) # 8-byte Folded Spill
 ; BE-P8-PRIV-NEXT:    std r20, 384(r1) # 8-byte Folded Spill
+; BE-P8-PRIV-NEXT:    stxvd2x v20, r1, r4 # 16-byte Folded Spill
+; BE-P8-PRIV-NEXT:    li r4, 160
 ; BE-P8-PRIV-NEXT:    std r21, 392(r1) # 8-byte Folded Spill
-; BE-P8-PRIV-NEXT:    stxvd2x v21, r1, r4 # 16-byte Folded Spill
-; BE-P8-PRIV-NEXT:    li r4, 176
 ; BE-P8-PRIV-NEXT:    std r22, 400(r1) # 8-byte Folded Spill
 ; BE-P8-PRIV-NEXT:    std r23, 408(r1) # 8-byte Folded Spill
 ; BE-P8-PRIV-NEXT:    std r24, 416(r1) # 8-byte Folded Spill
 ; BE-P8-PRIV-NEXT:    std r25, 424(r1) # 8-byte Folded Spill
 ; BE-P8-PRIV-NEXT:    std r26, 432(r1) # 8-byte Folded Spill
+; BE-P8-PRIV-NEXT:    stxvd2x v21, r1, r4 # 16-byte Folded Spill
+; BE-P8-PRIV-NEXT:    li r4, 176
 ; BE-P8-PRIV-NEXT:    std r27, 440(r1) # 8-byte Folded Spill
 ; BE-P8-PRIV-NEXT:    std r28, 448(r1) # 8-byte Folded Spill
 ; BE-P8-PRIV-NEXT:    std r29, 456(r1) # 8-byte Folded Spill
 ; BE-P8-PRIV-NEXT:    std r30, 464(r1) # 8-byte Folded Spill
 ; BE-P8-PRIV-NEXT:    std r31, 472(r1) # 8-byte Folded Spill
-; BE-P8-PRIV-NEXT:    std r3, 120(r1) # 8-byte Folded Spill
+; BE-P8-PRIV-NEXT:    stfd f14, 480(r1) # 8-byte Folded Spill
 ; BE-P8-PRIV-NEXT:    stxvd2x v22, r1, r4 # 16-byte Folded Spill
 ; BE-P8-PRIV-NEXT:    li r4, 192
+; BE-P8-PRIV-NEXT:    stfd f15, 488(r1) # 8-byte Folded Spill
+; BE-P8-PRIV-NEXT:    stfd f16, 496(r1) # 8-byte Folded Spill
+; BE-P8-PRIV-NEXT:    stfd f17, 504(r1) # 8-byte Folded Spill
+; BE-P8-PRIV-NEXT:    stfd f18, 512(r1) # 8-byte Folded Spill
+; BE-P8-PRIV-NEXT:    stfd f19, 520(r1) # 8-byte Folded Spill
+; BE-P8-PRIV-NEXT:    stfd f20, 528(r1) # 8-byte Folded Spill
 ; BE-P8-PRIV-NEXT:    stxvd2x v23, r1, r4 # 16-byte Folded Spill
 ; BE-P8-PRIV-NEXT:    li r4, 208
-; BE-P8-PRIV-NEXT:    stfd f14, 480(r1) # 8-byte Folded Spill
-; BE-P8-PRIV-NEXT:    stxvd2x v24, r1, r4 # 16-byte Folded Spill
-; BE-P8-PRIV-NEXT:    li r4, 224
-; BE-P8-PRIV-NEXT:    stfd f15, 488(r1) # 8-byte Folded Spill
-; BE-P8-PRIV-NEXT:    stxvd2x v25, r1, r4 # 16-byte Folded Spill
-; BE-P8-PRIV-NEXT:    li r4, 240
-; BE-P8-PRIV-NEXT:    stfd f16, 496(r1) # 8-byte Folded Spill
-; BE-P8-PRIV-NEXT:    stxvd2x v26, r1, r4 # 16-byte Folded Spill
-; BE-P8-PRIV-NEXT:    li r4, 256
-; BE-P8-PRIV-NEXT:    stfd f17, 504(r1) # 8-byte Folded Spill
-; BE-P8-PRIV-NEXT:    stxvd2x v27, r1, r4 # 16-byte Folded Spill
-; BE-P8-PRIV-NEXT:    li r4, 272
-; BE-P8-PRIV-NEXT:    stfd f18, 512(r1) # 8-byte Folded Spill
-; BE-P8-PRIV-NEXT:    stxvd2x v28, r1, r4 # 16-byte Folded Spill
-; BE-P8-PRIV-NEXT:    li r4, 288
-; BE-P8-PRIV-NEXT:    stfd f19, 520(r1) # 8-byte Folded Spill
-; BE-P8-PRIV-NEXT:    stxvd2x v29, r1, r4 # 16-byte Folded Spill
-; BE-P8-PRIV-NEXT:    li r4, 304
-; BE-P8-PRIV-NEXT:    stfd f20, 528(r1) # 8-byte Folded Spill
-; BE-P8-PRIV-NEXT:    stxvd2x v30, r1, r4 # 16-byte Folded Spill
-; BE-P8-PRIV-NEXT:    li r4, 320
 ; BE-P8-PRIV-NEXT:    stfd f21, 536(r1) # 8-byte Folded Spill
-; BE-P8-PRIV-NEXT:    stxvd2x v31, r1, r4 # 16-byte Folded Spill
-; BE-P8-PRIV-NEXT:    lwz r4, 12(r3)
 ; BE-P8-PRIV-NEXT:    stfd f22, 544(r1) # 8-byte Folded Spill
 ; BE-P8-PRIV-NEXT:    stfd f23, 552(r1) # 8-byte Folded Spill
 ; BE-P8-PRIV-NEXT:    stfd f24, 560(r1) # 8-byte Folded Spill
 ; BE-P8-PRIV-NEXT:    stfd f25, 568(r1) # 8-byte Folded Spill
 ; BE-P8-PRIV-NEXT:    stfd f26, 576(r1) # 8-byte Folded Spill
+; BE-P8-PRIV-NEXT:    stxvd2x v24, r1, r4 # 16-byte Folded Spill
+; BE-P8-PRIV-NEXT:    li r4, 224
 ; BE-P8-PRIV-NEXT:    stfd f27, 584(r1) # 8-byte Folded Spill
 ; BE-P8-PRIV-NEXT:    stfd f28, 592(r1) # 8-byte Folded Spill
 ; BE-P8-PRIV-NEXT:    stfd f29, 600(r1) # 8-byte Folded Spill
 ; BE-P8-PRIV-NEXT:    stfd f30, 608(r1) # 8-byte Folded Spill
 ; BE-P8-PRIV-NEXT:    stfd f31, 616(r1) # 8-byte Folded Spill
+; BE-P8-PRIV-NEXT:    std r3, 120(r1) # 8-byte Folded Spill
+; BE-P8-PRIV-NEXT:    stxvd2x v25, r1, r4 # 16-byte Folded Spill
+; BE-P8-PRIV-NEXT:    li r4, 240
+; BE-P8-PRIV-NEXT:    stxvd2x v26, r1, r4 # 16-byte Folded Spill
+; BE-P8-PRIV-NEXT:    li r4, 256
+; BE-P8-PRIV-NEXT:    stxvd2x v27, r1, r4 # 16-byte Folded Spill
+; BE-P8-PRIV-NEXT:    li r4, 272
+; BE-P8-PRIV-NEXT:    stxvd2x v28, r1, r4 # 16-byte Folded Spill
+; BE-P8-PRIV-NEXT:    li r4, 288
+; BE-P8-PRIV-NEXT:    stxvd2x v29, r1, r4 # 16-byte Folded Spill
+; BE-P8-PRIV-NEXT:    li r4, 304
+; BE-P8-PRIV-NEXT:    stxvd2x v30, r1, r4 # 16-byte Folded Spill
+; BE-P8-PRIV-NEXT:    li r4, 320
+; BE-P8-PRIV-NEXT:    stxvd2x v31, r1, r4 # 16-byte Folded Spill
+; BE-P8-PRIV-NEXT:    lwz r4, 12(r3)
 ; BE-P8-PRIV-NEXT:    stw r4, 132(r1)
 ; BE-P8-PRIV-NEXT:    #APP
 ; BE-P8-PRIV-NEXT:    nop
@@ -1429,55 +1429,55 @@ define dso_local zeroext i32 @spill(i32* nocapture readonly %in) #0 {
 ; BE-P8-PRIV-NEXT:    lfd f28, 592(r1) # 8-byte Folded Reload
 ; BE-P8-PRIV-NEXT:    ld r30, 464(r1) # 8-byte Folded Reload
 ; BE-P8-PRIV-NEXT:    ld r29, 456(r1) # 8-byte Folded Reload
-; BE-P8-PRIV-NEXT:    lwz r4, 16(r4)
 ; BE-P8-PRIV-NEXT:    lfd f27, 584(r1) # 8-byte Folded Reload
 ; BE-P8-PRIV-NEXT:    lfd f26, 576(r1) # 8-byte Folded Reload
 ; BE-P8-PRIV-NEXT:    ld r28, 448(r1) # 8-byte Folded Reload
+; BE-P8-PRIV-NEXT:    ld r27, 440(r1) # 8-byte Folded Reload
+; BE-P8-PRIV-NEXT:    lwz r4, 16(r4)
 ; BE-P8-PRIV-NEXT:    lfd f25, 568(r1) # 8-byte Folded Reload
 ; BE-P8-PRIV-NEXT:    lfd f24, 560(r1) # 8-byte Folded Reload
-; BE-P8-PRIV-NEXT:    ld r27, 440(r1) # 8-byte Folded Reload
 ; BE-P8-PRIV-NEXT:    ld r26, 432(r1) # 8-byte Folded Reload
-; BE-P8-PRIV-NEXT:    add r3, r4, r3
-; BE-P8-PRIV-NEXT:    li r4, 320
 ; BE-P8-PRIV-NEXT:    lfd f23, 552(r1) # 8-byte Folded Reload
 ; BE-P8-PRIV-NEXT:    lfd f22, 544(r1) # 8-byte Folded Reload
 ; BE-P8-PRIV-NEXT:    ld r25, 424(r1) # 8-byte Folded Reload
 ; BE-P8-PRIV-NEXT:    ld r24, 416(r1) # 8-byte Folded Reload
-; BE-P8-PRIV-NEXT:    lxvd2x v31, r1, r4 # 16-byte Folded Reload
-; BE-P8-PRIV-NEXT:    li r4, 304
 ; BE-P8-PRIV-NEXT:    lfd f21, 536(r1) # 8-byte Folded Reload
+; BE-P8-PRIV-NEXT:    lfd f20, 528(r1) # 8-byte Folded Reload
 ; BE-P8-PRIV-NEXT:    ld r23, 408(r1) # 8-byte Folded Reload
 ; BE-P8-PRIV-NEXT:    ld r22, 400(r1) # 8-byte Folded Reload
-; BE-P8-PRIV-NEXT:    clrldi r3, r3, 32
-; BE-P8-PRIV-NEXT:    lxvd2x v30, r1, r4 # 16-byte Folded Reload
-; BE-P8-PRIV-NEXT:    li r4, 288
-; BE-P8-PRIV-NEXT:    lfd f20, 528(r1) # 8-byte Folded Reload
+; BE-P8-PRIV-NEXT:    add r3, r4, r3
+; BE-P8-PRIV-NEXT:    li r4, 320
+; BE-P8-PRIV-NEXT:    lfd f19, 520(r1) # 8-byte Folded Reload
+; BE-P8-PRIV-NEXT:    lfd f18, 512(r1) # 8-byte Folded Reload
+; BE-P8-PRIV-NEXT:    lfd f17, 504(r1) # 8-byte Folded Reload
+; BE-P8-PRIV-NEXT:    lfd f16, 496(r1) # 8-byte Folded Reload
 ; BE-P8-PRIV-NEXT:    ld r21, 392(r1) # 8-byte Folded Reload
 ; BE-P8-PRIV-NEXT:    ld r20, 384(r1) # 8-byte Folded Reload
-; BE-P8-PRIV-NEXT:    lxvd2x v29, r1, r4 # 16-byte Folded Reload
-; BE-P8-PRIV-NEXT:    li r4, 272
-; BE-P8-PRIV-NEXT:    lfd f19, 520(r1) # 8-byte Folded Reload
+; BE-P8-PRIV-NEXT:    lxvd2x v31, r1, r4 # 16-byte Folded Reload
+; BE-P8-PRIV-NEXT:    li r4, 304
+; BE-P8-PRIV-NEXT:    lfd f15, 488(r1) # 8-byte Folded Reload
 ; BE-P8-PRIV-NEXT:    ld r19, 376(r1) # 8-byte Folded Reload
+; BE-P8-PRIV-NEXT:    lfd f14, 480(r1) # 8-byte Folded Reload
 ; BE-P8-PRIV-NEXT:    ld r18, 368(r1) # 8-byte Folded Reload
-; BE-P8-PRIV-NEXT:    lxvd2x v28, r1, r4 # 16-byte Folded Reload
-; BE-P8-PRIV-NEXT:    li r4, 256
-; BE-P8-PRIV-NEXT:    lfd f18, 512(r1) # 8-byte Folded Reload
 ; BE-P8-PRIV-NEXT:    ld r17, 360(r1) # 8-byte Folded Reload
 ; BE-P8-PRIV-NEXT:    ld r16, 352(r1) # 8-byte Folded Reload
-; BE-P8-PRIV-NEXT:    lxvd2x v27, r1, r4 # 16-byte Folded Reload
-; BE-P8-PRIV-NEXT:    li r4, 240
-; BE-P8-PRIV-NEXT:    lfd f17, 504(r1) # 8-byte Folded Reload
+; BE-P8-PRIV-NEXT:    lxvd2x v30, r1, r4 # 16-byte Folded Reload
+; BE-P8-PRIV-NEXT:    li r4, 288
 ; BE-P8-PRIV-NEXT:    ld r15, 344(r1) # 8-byte Folded Reload
 ; BE-P8-PRIV-NEXT:    ld r14, 336(r1) # 8-byte Folded Reload
+; BE-P8-PRIV-NEXT:    clrldi r3, r3, 32
+; BE-P8-PRIV-NEXT:    lxvd2x v29, r1, r4 # 16-byte Folded Reload
+; BE-P8-PRIV-NEXT:    li r4, 272
+; BE-P8-PRIV-NEXT:    lxvd2x v28, r1, r4 # 16-byte Folded Reload
+; BE-P8-PRIV-NEXT:    li r4, 256
+; BE-P8-PRIV-NEXT:    lxvd2x v27, r1, r4 # 16-byte Folded Reload
+; BE-P8-PRIV-NEXT:    li r4, 240
 ; BE-P8-PRIV-NEXT:    lxvd2x v26, r1, r4 # 16-byte Folded Reload
 ; BE-P8-PRIV-NEXT:    li r4, 224
-; BE-P8-PRIV-NEXT:    lfd f16, 496(r1) # 8-byte Folded Reload
 ; BE-P8-PRIV-NEXT:    lxvd2x v25, r1, r4 # 16-byte Folded Reload
 ; BE-P8-PRIV-NEXT:    li r4, 208
-; BE-P8-PRIV-NEXT:    lfd f15, 488(r1) # 8-byte Folded Reload
 ; BE-P8-PRIV-NEXT:    lxvd2x v24, r1, r4 # 16-byte Folded Reload
 ; BE-P8-PRIV-NEXT:    li r4, 192
-; BE-P8-PRIV-NEXT:    lfd f14, 480(r1) # 8-byte Folded Reload
 ; BE-P8-PRIV-NEXT:    lxvd2x v23, r1, r4 # 16-byte Folded Reload
 ; BE-P8-PRIV-NEXT:    li r4, 176
 ; BE-P8-PRIV-NEXT:    lxvd2x v22, r1, r4 # 16-byte Folded Reload
@@ -1488,9 +1488,9 @@ define dso_local zeroext i32 @spill(i32* nocapture readonly %in) #0 {
 ; BE-P8-PRIV-NEXT:    addi r1, r1, 624
 ; BE-P8-PRIV-NEXT:    ld r0, 16(r1)
 ; BE-P8-PRIV-NEXT:    lwz r12, 8(r1)
-; BE-P8-PRIV-NEXT:    mtocrf 32, r12
 ; BE-P8-PRIV-NEXT:    hashchkp r0, -488(r1)
 ; BE-P8-PRIV-NEXT:    mtlr r0
+; BE-P8-PRIV-NEXT:    mtocrf 32, r12
 ; BE-P8-PRIV-NEXT:    mtocrf 16, r12
 ; BE-P8-PRIV-NEXT:    mtocrf 8, r12
 ; BE-P8-PRIV-NEXT:    blr
@@ -1627,9 +1627,9 @@ define dso_local zeroext i32 @spill(i32* nocapture readonly %in) #0 {
 ; BE-32BIT-P9-PRIV:       # %bb.0: # %entry
 ; BE-32BIT-P9-PRIV-NEXT:    mflr r0
 ; BE-32BIT-P9-PRIV-NEXT:    mfcr r12
+; BE-32BIT-P9-PRIV-NEXT:    stw r12, 4(r1)
 ; BE-32BIT-P9-PRIV-NEXT:    stw r0, 8(r1)
 ; BE-32BIT-P9-PRIV-NEXT:    hashstp r0, -424(r1)
-; BE-32BIT-P9-PRIV-NEXT:    stw r12, 4(r1)
 ; BE-32BIT-P9-PRIV-NEXT:    stwu r1, -496(r1)
 ; BE-32BIT-P9-PRIV-NEXT:    lwz r4, 12(r3)
 ; BE-32BIT-P9-PRIV-NEXT:    stw r13, 276(r1) # 4-byte Folded Spill
@@ -1753,75 +1753,75 @@ define dso_local zeroext i32 @spill(i32* nocapture readonly %in) #0 {
 ;
 ; BE-32BIT-P8-PRIV-LABEL: spill:
 ; BE-32BIT-P8-PRIV:       # %bb.0: # %entry
-; BE-32BIT-P8-PRIV-NEXT:    mfcr r12
 ; BE-32BIT-P8-PRIV-NEXT:    mflr r0
+; BE-32BIT-P8-PRIV-NEXT:    mfcr r12
+; BE-32BIT-P8-PRIV-NEXT:    stw r12, 4(r1)
 ; BE-32BIT-P8-PRIV-NEXT:    stw r0, 8(r1)
 ; BE-32BIT-P8-PRIV-NEXT:    hashstp r0, -424(r1)
-; BE-32BIT-P8-PRIV-NEXT:    stw r12, 4(r1)
 ; BE-32BIT-P8-PRIV-NEXT:    stwu r1, -496(r1)
 ; BE-32BIT-P8-PRIV-NEXT:    li r4, 80
 ; BE-32BIT-P8-PRIV-NEXT:    stw r13, 276(r1) # 4-byte Folded Spill
 ; BE-32BIT-P8-PRIV-NEXT:    stw r14, 280(r1) # 4-byte Folded Spill
+; BE-32BIT-P8-PRIV-NEXT:    stw r15, 284(r1) # 4-byte Folded Spill
+; BE-32BIT-P8-PRIV-NEXT:    stw r16, 288(r1) # 4-byte Folded Spill
+; BE-32BIT-P8-PRIV-NEXT:    stw r17, 292(r1) # 4-byte Folded Spill
+; BE-32BIT-P8-PRIV-NEXT:    stw r18, 296(r1) # 4-byte Folded Spill
+; BE-32BIT-P8-PRIV-NEXT:    stw r19, 300(r1) # 4-byte Folded Spill
 ; BE-32BIT-P8-PRIV-NEXT:    stxvd2x v20, r1, r4 # 16-byte Folded Spill
 ; BE-32BIT-P8-PRIV-NEXT:    li r4, 96
-; BE-32BIT-P8-PRIV-NEXT:    stw r15, 284(r1) # 4-byte Folded Spill
+; BE-32BIT-P8-PRIV-NEXT:    stw r20, 304(r1) # 4-byte Folded Spill
+; BE-32BIT-P8-PRIV-NEXT:    stw r21, 308(r1) # 4-byte Folded Spill
+; BE-32BIT-P8-PRIV-NEXT:    stw r22, 312(r1) # 4-byte Folded Spill
+; BE-32BIT-P8-PRIV-NEXT:    stw r23, 316(r1) # 4-byte Folded Spill
+; BE-32BIT-P8-PRIV-NEXT:    stw r24, 320(r1) # 4-byte Folded Spill
+; BE-32BIT-P8-PRIV-NEXT:    stw r25, 324(r1) # 4-byte Folded Spill
 ; BE-32BIT-P8-PRIV-NEXT:    stxvd2x v21, r1, r4 # 16-byte Folded Spill
 ; BE-32BIT-P8-PRIV-NEXT:    li r4, 112
-; BE-32BIT-P8-PRIV-NEXT:    stw r16, 288(r1) # 4-byte Folded Spill
-; BE-32BIT-P8-PRIV-NEXT:    stxvd2x v22, r1, r4 # 16-byte Folded Spill
-; BE-32BIT-P8-PRIV-NEXT:    li r4, 128
-; BE-32BIT-P8-PRIV-NEXT:    stw r17, 292(r1) # 4-byte Folded Spill
-; BE-32BIT-P8-PRIV-NEXT:    stxvd2x v23, r1, r4 # 16-byte Folded Spill
-; BE-32BIT-P8-PRIV-NEXT:    li r4, 144
-; BE-32BIT-P8-PRIV-NEXT:    stw r18, 296(r1) # 4-byte Folded Spill
-; BE-32BIT-P8-PRIV-NEXT:    stxvd2x v24, r1, r4 # 16-byte Folded Spill
-; BE-32BIT-P8-PRIV-NEXT:    li r4, 160
-; BE-32BIT-P8-PRIV-NEXT:    stw r19, 300(r1) # 4-byte Folded Spill
-; BE-32BIT-P8-PRIV-NEXT:    stxvd2x v25, r1, r4 # 16-byte Folded Spill
-; BE-32BIT-P8-PRIV-NEXT:    li r4, 176
-; BE-32BIT-P8-PRIV-NEXT:    stw r20, 304(r1) # 4-byte Folded Spill
-; BE-32BIT-P8-PRIV-NEXT:    stxvd2x v26, r1, r4 # 16-byte Folded Spill
-; BE-32BIT-P8-PRIV-NEXT:    li r4, 192
-; BE-32BIT-P8-PRIV-NEXT:    stw r21, 308(r1) # 4-byte Folded Spill
-; BE-32BIT-P8-PRIV-NEXT:    stxvd2x v27, r1, r4 # 16-byte Folded Spill
-; BE-32BIT-P8-PRIV-NEXT:    li r4, 208
-; BE-32BIT-P8-PRIV-NEXT:    stw r22, 312(r1) # 4-byte Folded Spill
-; BE-32BIT-P8-PRIV-NEXT:    stxvd2x v28, r1, r4 # 16-byte Folded Spill
-; BE-32BIT-P8-PRIV-NEXT:    li r4, 224
-; BE-32BIT-P8-PRIV-NEXT:    stw r23, 316(r1) # 4-byte Folded Spill
-; BE-32BIT-P8-PRIV-NEXT:    stxvd2x v29, r1, r4 # 16-byte Folded Spill
-; BE-32BIT-P8-PRIV-NEXT:    li r4, 240
-; BE-32BIT-P8-PRIV-NEXT:    stw r24, 320(r1) # 4-byte Folded Spill
-; BE-32BIT-P8-PRIV-NEXT:    stxvd2x v30, r1, r4 # 16-byte Folded Spill
-; BE-32BIT-P8-PRIV-NEXT:    li r4, 256
-; BE-32BIT-P8-PRIV-NEXT:    stw r25, 324(r1) # 4-byte Folded Spill
-; BE-32BIT-P8-PRIV-NEXT:    stxvd2x v31, r1, r4 # 16-byte Folded Spill
-; BE-32BIT-P8-PRIV-NEXT:    lwz r4, 12(r3)
 ; BE-32BIT-P8-PRIV-NEXT:    stw r26, 328(r1) # 4-byte Folded Spill
 ; BE-32BIT-P8-PRIV-NEXT:    stw r27, 332(r1) # 4-byte Folded Spill
 ; BE-32BIT-P8-PRIV-NEXT:    stw r28, 336(r1) # 4-byte Folded Spill
 ; BE-32BIT-P8-PRIV-NEXT:    stw r29, 340(r1) # 4-byte Folded Spill
 ; BE-32BIT-P8-PRIV-NEXT:    stw r30, 344(r1) # 4-byte Folded Spill
 ; BE-32BIT-P8-PRIV-NEXT:    stw r31, 348(r1) # 4-byte Folded Spill
+; BE-32BIT-P8-PRIV-NEXT:    stxvd2x v22, r1, r4 # 16-byte Folded Spill
+; BE-32BIT-P8-PRIV-NEXT:    li r4, 128
 ; BE-32BIT-P8-PRIV-NEXT:    stfd f14, 352(r1) # 8-byte Folded Spill
 ; BE-32BIT-P8-PRIV-NEXT:    stfd f15, 360(r1) # 8-byte Folded Spill
 ; BE-32BIT-P8-PRIV-NEXT:    stfd f16, 368(r1) # 8-byte Folded Spill
 ; BE-32BIT-P8-PRIV-NEXT:    stfd f17, 376(r1) # 8-byte Folded Spill
 ; BE-32BIT-P8-PRIV-NEXT:    stfd f18, 384(r1) # 8-byte Folded Spill
 ; BE-32BIT-P8-PRIV-NEXT:    stfd f19, 392(r1) # 8-byte Folded Spill
+; BE-32BIT-P8-PRIV-NEXT:    stxvd2x v23, r1, r4 # 16-byte Folded Spill
+; BE-32BIT-P8-PRIV-NEXT:    li r4, 144
 ; BE-32BIT-P8-PRIV-NEXT:    stfd f20, 400(r1) # 8-byte Folded Spill
 ; BE-32BIT-P8-PRIV-NEXT:    stfd f21, 408(r1) # 8-byte Folded Spill
 ; BE-32BIT-P8-PRIV-NEXT:    stfd f22, 416(r1) # 8-byte Folded Spill
 ; BE-32BIT-P8-PRIV-NEXT:    stfd f23, 424(r1) # 8-byte Folded Spill
 ; BE-32BIT-P8-PRIV-NEXT:    stfd f24, 432(r1) # 8-byte Folded Spill
 ; BE-32BIT-P8-PRIV-NEXT:    stfd f25, 440(r1) # 8-byte Folded Spill
+; BE-32BIT-P8-PRIV-NEXT:    stxvd2x v24, r1, r4 # 16-byte Folded Spill
+; BE-32BIT-P8-PRIV-NEXT:    li r4, 160
 ; BE-32BIT-P8-PRIV-NEXT:    stfd f26, 448(r1) # 8-byte Folded Spill
 ; BE-32BIT-P8-PRIV-NEXT:    stfd f27, 456(r1) # 8-byte Folded Spill
 ; BE-32BIT-P8-PRIV-NEXT:    stfd f28, 464(r1) # 8-byte Folded Spill
 ; BE-32BIT-P8-PRIV-NEXT:    stfd f29, 472(r1) # 8-byte Folded Spill
 ; BE-32BIT-P8-PRIV-NEXT:    stfd f30, 480(r1) # 8-byte Folded Spill
 ; BE-32BIT-P8-PRIV-NEXT:    stfd f31, 488(r1) # 8-byte Folded Spill
+; BE-32BIT-P8-PRIV-NEXT:    stxvd2x v25, r1, r4 # 16-byte Folded Spill
+; BE-32BIT-P8-PRIV-NEXT:    li r4, 176
 ; BE-32BIT-P8-PRIV-NEXT:    stw r3, 64(r1) # 4-byte Folded Spill
+; BE-32BIT-P8-PRIV-NEXT:    stxvd2x v26, r1, r4 # 16-byte Folded Spill
+; BE-32BIT-P8-PRIV-NEXT:    li r4, 192
+; BE-32BIT-P8-PRIV-NEXT:    stxvd2x v27, r1, r4 # 16-byte Folded Spill
+; BE-32BIT-P8-PRIV-NEXT:    li r4, 208
+; BE-32BIT-P8-PRIV-NEXT:    stxvd2x v28, r1, r4 # 16-byte Folded Spill
+; BE-32BIT-P8-PRIV-NEXT:    li r4, 224
+; BE-32BIT-P8-PRIV-NEXT:    stxvd2x v29, r1, r4 # 16-byte Folded Spill
+; BE-32BIT-P8-PRIV-NEXT:    li r4, 240
+; BE-32BIT-P8-PRIV-NEXT:    stxvd2x v30, r1, r4 # 16-byte Folded Spill
+; BE-32BIT-P8-PRIV-NEXT:    li r4, 256
+; BE-32BIT-P8-PRIV-NEXT:    stxvd2x v31, r1, r4 # 16-byte Folded Spill
+; BE-32BIT-P8-PRIV-NEXT:    lwz r4, 12(r3)
 ; BE-32BIT-P8-PRIV-NEXT:    stw r4, 68(r1)
 ; BE-32BIT-P8-PRIV-NEXT:    #APP
 ; BE-32BIT-P8-PRIV-NEXT:    nop
@@ -1837,55 +1837,55 @@ define dso_local zeroext i32 @spill(i32* nocapture readonly %in) #0 {
 ; BE-32BIT-P8-PRIV-NEXT:    lfd f28, 464(r1) # 8-byte Folded Reload
 ; BE-32BIT-P8-PRIV-NEXT:    lwz r30, 344(r1) # 4-byte Folded Reload
 ; BE-32BIT-P8-PRIV-NEXT:    lwz r29, 340(r1) # 4-byte Folded Reload
-; BE-32BIT-P8-PRIV-NEXT:    lwz r4, 16(r4)
 ; BE-32BIT-P8-PRIV-NEXT:    lfd f27, 456(r1) # 8-byte Folded Reload
 ; BE-32BIT-P8-PRIV-NEXT:    lfd f26, 448(r1) # 8-byte Folded Reload
 ; BE-32BIT-P8-PRIV-NEXT:    lwz r28, 336(r1) # 4-byte Folded Reload
+; BE-32BIT-P8-PRIV-NEXT:    lwz r27, 332(r1) # 4-byte Folded Reload
+; BE-32BIT-P8-PRIV-NEXT:    lwz r4, 16(r4)
 ; BE-32BIT-P8-PRIV-NEXT:    lfd f25, 440(r1) # 8-byte Folded Reload
 ; BE-32BIT-P8-PRIV-NEXT:    lfd f24, 432(r1) # 8-byte Folded Reload
-; BE-32BIT-P8-PRIV-NEXT:    lwz r27, 332(r1) # 4-byte Folded Reload
 ; BE-32BIT-P8-PRIV-NEXT:    lwz r26, 328(r1) # 4-byte Folded Reload
-; BE-32BIT-P8-PRIV-NEXT:    add r3, r4, r3
-; BE-32BIT-P8-PRIV-NEXT:    li r4, 256
 ; BE-32BIT-P8-PRIV-NEXT:    lfd f23, 424(r1) # 8-byte Folded Reload
 ; BE-32BIT-P8-PRIV-NEXT:    lfd f22, 416(r1) # 8-byte Folded Reload
 ; BE-32BIT-P8-PRIV-NEXT:    lwz r25, 324(r1) # 4-byte Folded Reload
 ; BE-32BIT-P8-PRIV-NEXT:    lwz r24, 320(r1) # 4-byte Folded Reload
-; BE-32BIT-P8-PRIV-NEXT:    lxvd2x v31, r1, r4 # 16-byte Folded Reload
-; BE-32BIT-P8-PRIV-NEXT:    li r4, 240
 ; BE-32BIT-P8-PRIV-NEXT:    lfd f21, 408(r1) # 8-byte Folded Reload
+; BE-32BIT-P8-PRIV-NEXT:    lfd f20, 400(r1) # 8-byte Folded Reload
 ; BE-32BIT-P8-PRIV-NEXT:    lwz r23, 316(r1) # 4-byte Folded Reload
 ; BE-32BIT-P8-PRIV-NEXT:    lwz r22, 312(r1) # 4-byte Folded Reload
-; BE-32BIT-P8-PRIV-NEXT:    lxvd2x v30, r1, r4 # 16-byte Folded Reload
-; BE-32BIT-P8-PRIV-NEXT:    li r4, 224
-; BE-32BIT-P8-PRIV-NEXT:    lfd f20, 400(r1) # 8-byte Folded Reload
+; BE-32BIT-P8-PRIV-NEXT:    add r3, r4, r3
+; BE-32BIT-P8-PRIV-NEXT:    li r4, 256
+; BE-32BIT-P8-PRIV-NEXT:    lfd f19, 392(r1) # 8-byte Folded Reload
+; BE-32BIT-P8-PRIV-NEXT:    lfd f18, 384(r1) # 8-byte Folded Reload
+; BE-32BIT-P8-PRIV-NEXT:    lfd f17, 376(r1) # 8-byte Folded Reload
+; BE-32BIT-P8-PRIV-NEXT:    lfd f16, 368(r1) # 8-byte Folded Reload
 ; BE-32BIT-P8-PRIV-NEXT:    lwz r21, 308(r1) # 4-byte Folded Reload
 ; BE-32BIT-P8-PRIV-NEXT:    lwz r20, 304(r1) # 4-byte Folded Reload
-; BE-32BIT-P8-PRIV-NEXT:    lxvd2x v29, r1, r4 # 16-byte Folded Reload
-; BE-32BIT-P8-PRIV-NEXT:    li r4, 208
-; BE-32BIT-P8-PRIV-NEXT:    lfd f19, 392(r1) # 8-byte Folded Reload
+; BE-32BIT-P8-PRIV-NEXT:    lxvd2x v31, r1, r4 # 16-byte Folded Reload
+; BE-32BIT-P8-PRIV-NEXT:    li r4, 240
+; BE-32BIT-P8-PRIV-NEXT:    lfd f15, 360(r1) # 8-byte Folded Reload
 ; BE-32BIT-P8-PRIV-NEXT:    lwz r19, 300(r1) # 4-byte Folded Reload
+; BE-32BIT-P8-PRIV-NEXT:    lfd f14, 352(r1) # 8-byte Folded Reload
 ; BE-32BIT-P8-PRIV-NEXT:    lwz r18, 296(r1) # 4-byte Folded Reload
-; BE-32BIT-P8-PRIV-NEXT:    lxvd2x v28, r1, r4 # 16-byte Folded Reload
-; BE-32BIT-P8-PRIV-NEXT:    li r4, 192
-; BE-32BIT-P8-PRIV-NEXT:    lfd f18, 384(r1) # 8-byte Folded Reload
 ; BE-32BIT-P8-PRIV-NEXT:    lwz r17, 292(r1) # 4-byte Folded Reload
 ; BE-32BIT-P8-PRIV-NEXT:    lwz r16, 288(r1) # 4-byte Folded Reload
-; BE-32BIT-P8-PRIV-NEXT:    lxvd2x v27, r1, r4 # 16-byte Folded Reload
-; BE-32BIT-P8-PRIV-NEXT:    li r4, 176
-; BE-32BIT-P8-PRIV-NEXT:    lfd f17, 376(r1) # 8-byte Folded Reload
+; BE-32BIT-P8-PRIV-NEXT:    lxvd2x v30, r1, r4 # 16-byte Folded Reload
+; BE-32BIT-P8-PRIV-NEXT:    li r4, 224
 ; BE-32BIT-P8-PRIV-NEXT:    lwz r15, 284(r1) # 4-byte Folded Reload
 ; BE-32BIT-P8-PRIV-NEXT:    lwz r14, 280(r1) # 4-byte Folded Reload
+; BE-32BIT-P8-PRIV-NEXT:    lwz r13, 276(r1) # 4-byte Folded Reload
+; BE-32BIT-P8-PRIV-NEXT:    lxvd2x v29, r1, r4 # 16-byte Folded Reload
+; BE-32BIT-P8-PRIV-NEXT:    li r4, 208
+; BE-32BIT-P8-PRIV-NEXT:    lxvd2x v28, r1, r4 # 16-byte Folded Reload
+; BE-32BIT-P8-PRIV-NEXT:    li r4, 192
+; BE-32BIT-P8-PRIV-NEXT:    lxvd2x v27, r1, r4 # 16-byte Folded Reload
+; BE-32BIT-P8-PRIV-NEXT:    li r4, 176
 ; BE-32BIT-P8-PRIV-NEXT:    lxvd2x v26, r1, r4 # 16-byte Folded Reload
 ; BE-32BIT-P8-PRIV-NEXT:    li r4, 160
-; BE-32BIT-P8-PRIV-NEXT:    lfd f16, 368(r1) # 8-byte Folded Reload
-; BE-32BIT-P8-PRIV-NEXT:    lwz r13, 276(r1) # 4-byte Folded Reload
 ; BE-32BIT-P8-PRIV-NEXT:    lxvd2x v25, r1, r4 # 16-byte Folded Reload
 ; BE-32BIT-P8-PRIV-NEXT:    li r4, 144
-; BE-32BIT-P8-PRIV-NEXT:    lfd f15, 360(r1) # 8-byte Folded Reload
 ; BE-32BIT-P8-PRIV-NEXT:    lxvd2x v24, r1, r4 # 16-byte Folded Reload
 ; BE-32BIT-P8-PRIV-NEXT:    li r4, 128
-; BE-32BIT-P8-PRIV-NEXT:    lfd f14, 352(r1) # 8-byte Folded Reload
 ; BE-32BIT-P8-PRIV-NEXT:    lxvd2x v23, r1, r4 # 16-byte Folded Reload
 ; BE-32BIT-P8-PRIV-NEXT:    li r4, 112
 ; BE-32BIT-P8-PRIV-NEXT:    lxvd2x v22, r1, r4 # 16-byte Folded Reload
@@ -1896,29 +1896,28 @@ define dso_local zeroext i32 @spill(i32* nocapture readonly %in) #0 {
 ; BE-32BIT-P8-PRIV-NEXT:    addi r1, r1, 496
 ; BE-32BIT-P8-PRIV-NEXT:    lwz r0, 8(r1)
 ; BE-32BIT-P8-PRIV-NEXT:    lwz r12, 4(r1)
-; BE-32BIT-P8-PRIV-NEXT:    mtocrf 32, r12
 ; BE-32BIT-P8-PRIV-NEXT:    hashchkp r0, -424(r1)
 ; BE-32BIT-P8-PRIV-NEXT:    mtlr r0
+; BE-32BIT-P8-PRIV-NEXT:    mtocrf 32, r12
 ; BE-32BIT-P8-PRIV-NEXT:    mtocrf 16, r12
 ; BE-32BIT-P8-PRIV-NEXT:    mtocrf 8, r12
 ; BE-32BIT-P8-PRIV-NEXT:    blr
 entry:
   %local = alloca i32, align 4
-  %0 = bitcast i32* %local to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* nonnull %0)
-  %arrayidx = getelementptr inbounds i32, i32* %in, i64 3
-  %1 = load i32, i32* %arrayidx, align 4
-  store i32 %1, i32* %local, align 4
+  call void @llvm.lifetime.start.p0(i64 4, ptr nonnull %local)
+  %arrayidx = getelementptr inbounds i32, ptr %in, i64 3
+  %0 = load i32, ptr %arrayidx, align 4
+  store i32 %0, ptr %local, align 4
   tail call void asm sideeffect "nop", "~{cr2},~{cr3},~{cr4},~{r0},~{r1},~{r2},~{r3},~{r4},~{r5},~{r6},~{r7},~{r8},~{r9},~{r10},~{r11},~{r12},~{r13},~{r14},~{r15},~{r16},~{r17},~{r18},~{r19},~{r20},~{r21},~{r22},~{r23},~{r24},~{r25},~{r26},~{r27},~{r28},~{r29},~{r30},~{r31},~{f14},~{f15},~{f16},~{f17},~{f18},~{f19},~{f20},~{f21},~{f22},~{f23},~{f24},~{f25},~{f26},~{f27},~{f28},~{f29},~{f30},~{f31},~{v20},~{v21},~{v22},~{v23},~{v24},~{v25},~{v26},~{v27},~{v28},~{v29},~{v30},~{v31}"()
-  %call = call zeroext i32 @callee2(i32* nonnull %local)
-  %arrayidx1 = getelementptr inbounds i32, i32* %in, i64 4
-  %2 = load i32, i32* %arrayidx1, align 4
-  %add = add i32 %2, %call
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* nonnull %0)
+  %call = call zeroext i32 @callee2(ptr nonnull %local)
+  %arrayidx1 = getelementptr inbounds i32, ptr %in, i64 4
+  %1 = load i32, ptr %arrayidx1, align 4
+  %add = add i32 %1, %call
+  call void @llvm.lifetime.end.p0(i64 4, ptr nonnull %local)
   ret i32 %add
 }
 
-define dso_local zeroext i32 @shrinkwrap(i32* readonly %in) #0 {
+define dso_local zeroext i32 @shrinkwrap(ptr readonly %in) #0 {
 ; BE-P10-LABEL: shrinkwrap:
 ; BE-P10:       # %bb.0: # %entry
 ; BE-P10-NEXT:    cmpldi r3, 0
@@ -1928,11 +1927,12 @@ define dso_local zeroext i32 @shrinkwrap(i32* readonly %in) #0 {
 ; BE-P10-NEXT:    std r0, 16(r1)
 ; BE-P10-NEXT:    hashst r0, -16(r1)
 ; BE-P10-NEXT:    stdu r1, -144(r1)
+; BE-P10-NEXT:    lwz r4, 12(r3)
 ; BE-P10-NEXT:    std r31, 136(r1) # 8-byte Folded Spill
 ; BE-P10-NEXT:    mr r31, r3
-; BE-P10-NEXT:    lwz r3, 12(r3)
-; BE-P10-NEXT:    stw r3, 124(r1)
-; BE-P10-NEXT:    addi r3, r1, 124
+; BE-P10-NEXT:    stw r4, 124(r1)
+; BE-P10-NEXT:    addi r4, r1, 124
+; BE-P10-NEXT:    mr r3, r4
 ; BE-P10-NEXT:    bl .callee2[PR]
 ; BE-P10-NEXT:    nop
 ; BE-P10-NEXT:    lwz r4, 16(r31)
@@ -1957,11 +1957,12 @@ define dso_local zeroext i32 @shrinkwrap(i32* readonly %in) #0 {
 ; BE-P9-NEXT:    std r0, 16(r1)
 ; BE-P9-NEXT:    hashst r0, -16(r1)
 ; BE-P9-NEXT:    stdu r1, -144(r1)
+; BE-P9-NEXT:    lwz r4, 12(r3)
 ; BE-P9-NEXT:    std r31, 136(r1) # 8-byte Folded Spill
 ; BE-P9-NEXT:    mr r31, r3
-; BE-P9-NEXT:    lwz r3, 12(r3)
-; BE-P9-NEXT:    stw r3, 124(r1)
-; BE-P9-NEXT:    addi r3, r1, 124
+; BE-P9-NEXT:    stw r4, 124(r1)
+; BE-P9-NEXT:    addi r4, r1, 124
+; BE-P9-NEXT:    mr r3, r4
 ; BE-P9-NEXT:    bl .callee2[PR]
 ; BE-P9-NEXT:    nop
 ; BE-P9-NEXT:    lwz r4, 16(r31)
@@ -1986,11 +1987,12 @@ define dso_local zeroext i32 @shrinkwrap(i32* readonly %in) #0 {
 ; BE-P8-NEXT:    std r0, 16(r1)
 ; BE-P8-NEXT:    hashst r0, -16(r1)
 ; BE-P8-NEXT:    stdu r1, -144(r1)
+; BE-P8-NEXT:    lwz r4, 12(r3)
 ; BE-P8-NEXT:    std r31, 136(r1) # 8-byte Folded Spill
 ; BE-P8-NEXT:    mr r31, r3
-; BE-P8-NEXT:    lwz r3, 12(r3)
-; BE-P8-NEXT:    stw r3, 124(r1)
-; BE-P8-NEXT:    addi r3, r1, 124
+; BE-P8-NEXT:    stw r4, 124(r1)
+; BE-P8-NEXT:    addi r4, r1, 124
+; BE-P8-NEXT:    mr r3, r4
 ; BE-P8-NEXT:    bl .callee2[PR]
 ; BE-P8-NEXT:    nop
 ; BE-P8-NEXT:    lwz r4, 16(r31)
@@ -2015,11 +2017,12 @@ define dso_local zeroext i32 @shrinkwrap(i32* readonly %in) #0 {
 ; BE-32BIT-P10-NEXT:    stw r0, 8(r1)
 ; BE-32BIT-P10-NEXT:    hashst r0, -16(r1)
 ; BE-32BIT-P10-NEXT:    stwu r1, -80(r1)
+; BE-32BIT-P10-NEXT:    lwz r4, 12(r3)
 ; BE-32BIT-P10-NEXT:    stw r31, 76(r1) # 4-byte Folded Spill
 ; BE-32BIT-P10-NEXT:    mr r31, r3
-; BE-32BIT-P10-NEXT:    lwz r3, 12(r3)
-; BE-32BIT-P10-NEXT:    stw r3, 60(r1)
-; BE-32BIT-P10-NEXT:    addi r3, r1, 60
+; BE-32BIT-P10-NEXT:    stw r4, 60(r1)
+; BE-32BIT-P10-NEXT:    addi r4, r1, 60
+; BE-32BIT-P10-NEXT:    mr r3, r4
 ; BE-32BIT-P10-NEXT:    bl .callee2[PR]
 ; BE-32BIT-P10-NEXT:    nop
 ; BE-32BIT-P10-NEXT:    lwz r4, 16(r31)
@@ -2043,11 +2046,12 @@ define dso_local zeroext i32 @shrinkwrap(i32* readonly %in) #0 {
 ; BE-32BIT-P9-NEXT:    stw r0, 8(r1)
 ; BE-32BIT-P9-NEXT:    hashst r0, -16(r1)
 ; BE-32BIT-P9-NEXT:    stwu r1, -80(r1)
+; BE-32BIT-P9-NEXT:    lwz r4, 12(r3)
 ; BE-32BIT-P9-NEXT:    stw r31, 76(r1) # 4-byte Folded Spill
 ; BE-32BIT-P9-NEXT:    mr r31, r3
-; BE-32BIT-P9-NEXT:    lwz r3, 12(r3)
-; BE-32BIT-P9-NEXT:    stw r3, 60(r1)
-; BE-32BIT-P9-NEXT:    addi r3, r1, 60
+; BE-32BIT-P9-NEXT:    stw r4, 60(r1)
+; BE-32BIT-P9-NEXT:    addi r4, r1, 60
+; BE-32BIT-P9-NEXT:    mr r3, r4
 ; BE-32BIT-P9-NEXT:    bl .callee2[PR]
 ; BE-32BIT-P9-NEXT:    nop
 ; BE-32BIT-P9-NEXT:    lwz r4, 16(r31)
@@ -2071,11 +2075,12 @@ define dso_local zeroext i32 @shrinkwrap(i32* readonly %in) #0 {
 ; BE-32BIT-P8-NEXT:    stw r0, 8(r1)
 ; BE-32BIT-P8-NEXT:    hashst r0, -16(r1)
 ; BE-32BIT-P8-NEXT:    stwu r1, -80(r1)
+; BE-32BIT-P8-NEXT:    lwz r4, 12(r3)
 ; BE-32BIT-P8-NEXT:    stw r31, 76(r1) # 4-byte Folded Spill
 ; BE-32BIT-P8-NEXT:    mr r31, r3
-; BE-32BIT-P8-NEXT:    lwz r3, 12(r3)
-; BE-32BIT-P8-NEXT:    stw r3, 60(r1)
-; BE-32BIT-P8-NEXT:    addi r3, r1, 60
+; BE-32BIT-P8-NEXT:    stw r4, 60(r1)
+; BE-32BIT-P8-NEXT:    addi r4, r1, 60
+; BE-32BIT-P8-NEXT:    mr r3, r4
 ; BE-32BIT-P8-NEXT:    bl .callee2[PR]
 ; BE-32BIT-P8-NEXT:    nop
 ; BE-32BIT-P8-NEXT:    lwz r4, 16(r31)
@@ -2083,8 +2088,8 @@ define dso_local zeroext i32 @shrinkwrap(i32* readonly %in) #0 {
 ; BE-32BIT-P8-NEXT:    add r3, r4, r3
 ; BE-32BIT-P8-NEXT:    addi r1, r1, 80
 ; BE-32BIT-P8-NEXT:    lwz r0, 8(r1)
-; BE-32BIT-P8-NEXT:    hashchk r0, -16(r1)
 ; BE-32BIT-P8-NEXT:    mtlr r0
+; BE-32BIT-P8-NEXT:    hashchk r0, -16(r1)
 ; BE-32BIT-P8-NEXT:    blr
 ; BE-32BIT-P8-NEXT:  L..BB2_2:
 ; BE-32BIT-P8-NEXT:    li r3, 0
@@ -2099,11 +2104,12 @@ define dso_local zeroext i32 @shrinkwrap(i32* readonly %in) #0 {
 ; BE-P10-PRIV-NEXT:    std r0, 16(r1)
 ; BE-P10-PRIV-NEXT:    hashstp r0, -16(r1)
 ; BE-P10-PRIV-NEXT:    stdu r1, -144(r1)
+; BE-P10-PRIV-NEXT:    lwz r4, 12(r3)
 ; BE-P10-PRIV-NEXT:    std r31, 136(r1) # 8-byte Folded Spill
 ; BE-P10-PRIV-NEXT:    mr r31, r3
-; BE-P10-PRIV-NEXT:    lwz r3, 12(r3)
-; BE-P10-PRIV-NEXT:    stw r3, 124(r1)
-; BE-P10-PRIV-NEXT:    addi r3, r1, 124
+; BE-P10-PRIV-NEXT:    stw r4, 124(r1)
+; BE-P10-PRIV-NEXT:    addi r4, r1, 124
+; BE-P10-PRIV-NEXT:    mr r3, r4
 ; BE-P10-PRIV-NEXT:    bl .callee2[PR]
 ; BE-P10-PRIV-NEXT:    nop
 ; BE-P10-PRIV-NEXT:    lwz r4, 16(r31)
@@ -2128,11 +2134,12 @@ define dso_local zeroext i32 @shrinkwrap(i32* readonly %in) #0 {
 ; BE-P9-PRIV-NEXT:    std r0, 16(r1)
 ; BE-P9-PRIV-NEXT:    hashstp r0, -16(r1)
 ; BE-P9-PRIV-NEXT:    stdu r1, -144(r1)
+; BE-P9-PRIV-NEXT:    lwz r4, 12(r3)
 ; BE-P9-PRIV-NEXT:    std r31, 136(r1) # 8-byte Folded Spill
 ; BE-P9-PRIV-NEXT:    mr r31, r3
-; BE-P9-PRIV-NEXT:    lwz r3, 12(r3)
-; BE-P9-PRIV-NEXT:    stw r3, 124(r1)
-; BE-P9-PRIV-NEXT:    addi r3, r1, 124
+; BE-P9-PRIV-NEXT:    stw r4, 124(r1)
+; BE-P9-PRIV-NEXT:    addi r4, r1, 124
+; BE-P9-PRIV-NEXT:    mr r3, r4
 ; BE-P9-PRIV-NEXT:    bl .callee2[PR]
 ; BE-P9-PRIV-NEXT:    nop
 ; BE-P9-PRIV-NEXT:    lwz r4, 16(r31)
@@ -2157,11 +2164,12 @@ define dso_local zeroext i32 @shrinkwrap(i32* readonly %in) #0 {
 ; BE-P8-PRIV-NEXT:    std r0, 16(r1)
 ; BE-P8-PRIV-NEXT:    hashstp r0, -16(r1)
 ; BE-P8-PRIV-NEXT:    stdu r1, -144(r1)
+; BE-P8-PRIV-NEXT:    lwz r4, 12(r3)
 ; BE-P8-PRIV-NEXT:    std r31, 136(r1) # 8-byte Folded Spill
 ; BE-P8-PRIV-NEXT:    mr r31, r3
-; BE-P8-PRIV-NEXT:    lwz r3, 12(r3)
-; BE-P8-PRIV-NEXT:    stw r3, 124(r1)
-; BE-P8-PRIV-NEXT:    addi r3, r1, 124
+; BE-P8-PRIV-NEXT:    stw r4, 124(r1)
+; BE-P8-PRIV-NEXT:    addi r4, r1, 124
+; BE-P8-PRIV-NEXT:    mr r3, r4
 ; BE-P8-PRIV-NEXT:    bl .callee2[PR]
 ; BE-P8-PRIV-NEXT:    nop
 ; BE-P8-PRIV-NEXT:    lwz r4, 16(r31)
@@ -2186,11 +2194,12 @@ define dso_local zeroext i32 @shrinkwrap(i32* readonly %in) #0 {
 ; BE-32BIT-P10-PRIV-NEXT:    stw r0, 8(r1)
 ; BE-32BIT-P10-PRIV-NEXT:    hashstp r0, -16(r1)
 ; BE-32BIT-P10-PRIV-NEXT:    stwu r1, -80(r1)
+; BE-32BIT-P10-PRIV-NEXT:    lwz r4, 12(r3)
 ; BE-32BIT-P10-PRIV-NEXT:    stw r31, 76(r1) # 4-byte Folded Spill
 ; BE-32BIT-P10-PRIV-NEXT:    mr r31, r3
-; BE-32BIT-P10-PRIV-NEXT:    lwz r3, 12(r3)
-; BE-32BIT-P10-PRIV-NEXT:    stw r3, 60(r1)
-; BE-32BIT-P10-PRIV-NEXT:    addi r3, r1, 60
+; BE-32BIT-P10-PRIV-NEXT:    stw r4, 60(r1)
+; BE-32BIT-P10-PRIV-NEXT:    addi r4, r1, 60
+; BE-32BIT-P10-PRIV-NEXT:    mr r3, r4
 ; BE-32BIT-P10-PRIV-NEXT:    bl .callee2[PR]
 ; BE-32BIT-P10-PRIV-NEXT:    nop
 ; BE-32BIT-P10-PRIV-NEXT:    lwz r4, 16(r31)
@@ -2214,11 +2223,12 @@ define dso_local zeroext i32 @shrinkwrap(i32* readonly %in) #0 {
 ; BE-32BIT-P9-PRIV-NEXT:    stw r0, 8(r1)
 ; BE-32BIT-P9-PRIV-NEXT:    hashstp r0, -16(r1)
 ; BE-32BIT-P9-PRIV-NEXT:    stwu r1, -80(r1)
+; BE-32BIT-P9-PRIV-NEXT:    lwz r4, 12(r3)
 ; BE-32BIT-P9-PRIV-NEXT:    stw r31, 76(r1) # 4-byte Folded Spill
 ; BE-32BIT-P9-PRIV-NEXT:    mr r31, r3
-; BE-32BIT-P9-PRIV-NEXT:    lwz r3, 12(r3)
-; BE-32BIT-P9-PRIV-NEXT:    stw r3, 60(r1)
-; BE-32BIT-P9-PRIV-NEXT:    addi r3, r1, 60
+; BE-32BIT-P9-PRIV-NEXT:    stw r4, 60(r1)
+; BE-32BIT-P9-PRIV-NEXT:    addi r4, r1, 60
+; BE-32BIT-P9-PRIV-NEXT:    mr r3, r4
 ; BE-32BIT-P9-PRIV-NEXT:    bl .callee2[PR]
 ; BE-32BIT-P9-PRIV-NEXT:    nop
 ; BE-32BIT-P9-PRIV-NEXT:    lwz r4, 16(r31)
@@ -2242,11 +2252,12 @@ define dso_local zeroext i32 @shrinkwrap(i32* readonly %in) #0 {
 ; BE-32BIT-P8-PRIV-NEXT:    stw r0, 8(r1)
 ; BE-32BIT-P8-PRIV-NEXT:    hashstp r0, -16(r1)
 ; BE-32BIT-P8-PRIV-NEXT:    stwu r1, -80(r1)
+; BE-32BIT-P8-PRIV-NEXT:    lwz r4, 12(r3)
 ; BE-32BIT-P8-PRIV-NEXT:    stw r31, 76(r1) # 4-byte Folded Spill
 ; BE-32BIT-P8-PRIV-NEXT:    mr r31, r3
-; BE-32BIT-P8-PRIV-NEXT:    lwz r3, 12(r3)
-; BE-32BIT-P8-PRIV-NEXT:    stw r3, 60(r1)
-; BE-32BIT-P8-PRIV-NEXT:    addi r3, r1, 60
+; BE-32BIT-P8-PRIV-NEXT:    stw r4, 60(r1)
+; BE-32BIT-P8-PRIV-NEXT:    addi r4, r1, 60
+; BE-32BIT-P8-PRIV-NEXT:    mr r3, r4
 ; BE-32BIT-P8-PRIV-NEXT:    bl .callee2[PR]
 ; BE-32BIT-P8-PRIV-NEXT:    nop
 ; BE-32BIT-P8-PRIV-NEXT:    lwz r4, 16(r31)
@@ -2254,28 +2265,27 @@ define dso_local zeroext i32 @shrinkwrap(i32* readonly %in) #0 {
 ; BE-32BIT-P8-PRIV-NEXT:    add r3, r4, r3
 ; BE-32BIT-P8-PRIV-NEXT:    addi r1, r1, 80
 ; BE-32BIT-P8-PRIV-NEXT:    lwz r0, 8(r1)
-; BE-32BIT-P8-PRIV-NEXT:    hashchkp r0, -16(r1)
 ; BE-32BIT-P8-PRIV-NEXT:    mtlr r0
+; BE-32BIT-P8-PRIV-NEXT:    hashchkp r0, -16(r1)
 ; BE-32BIT-P8-PRIV-NEXT:    blr
 ; BE-32BIT-P8-PRIV-NEXT:  L..BB2_2:
 ; BE-32BIT-P8-PRIV-NEXT:    li r3, 0
 ; BE-32BIT-P8-PRIV-NEXT:    blr
 entry:
   %local = alloca i32, align 4
-  %tobool.not = icmp eq i32* %in, null
+  %tobool.not = icmp eq ptr %in, null
   br i1 %tobool.not, label %return, label %if.end
 
 if.end:                                           ; preds = %entry
-  %0 = bitcast i32* %local to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* nonnull %0)
-  %arrayidx = getelementptr inbounds i32, i32* %in, i64 3
-  %1 = load i32, i32* %arrayidx, align 4
-  store i32 %1, i32* %local, align 4
-  %call = call zeroext i32 @callee2(i32* nonnull %local)
-  %arrayidx1 = getelementptr inbounds i32, i32* %in, i64 4
-  %2 = load i32, i32* %arrayidx1, align 4
-  %add = add i32 %2, %call
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* nonnull %0)
+  call void @llvm.lifetime.start.p0(i64 4, ptr nonnull %local)
+  %arrayidx = getelementptr inbounds i32, ptr %in, i64 3
+  %0 = load i32, ptr %arrayidx, align 4
+  store i32 %0, ptr %local, align 4
+  %call = call zeroext i32 @callee2(ptr nonnull %local)
+  %arrayidx1 = getelementptr inbounds i32, ptr %in, i64 4
+  %1 = load i32, ptr %arrayidx1, align 4
+  %add = add i32 %1, %call
+  call void @llvm.lifetime.end.p0(i64 4, ptr nonnull %local)
   br label %return
 
 return:                                           ; preds = %entry, %if.end
@@ -2283,7 +2293,7 @@ return:                                           ; preds = %entry, %if.end
   ret i32 %retval.0
 }
 
-define dso_local zeroext i32 @aligned(i32* nocapture readonly %in) #0 {
+define dso_local zeroext i32 @aligned(ptr nocapture readonly %in) #0 {
 ; BE-P10-LABEL: aligned:
 ; BE-P10:       # %bb.0: # %entry
 ; BE-P10-NEXT:    mflr r0
@@ -2381,25 +2391,25 @@ define dso_local zeroext i32 @aligned(i32* nocapture readonly %in) #0 {
 ; BE-P8-NEXT:    clrldi r0, r1, 49
 ; BE-P8-NEXT:    subc r0, r12, r0
 ; BE-P8-NEXT:    stdux r1, r1, r0
+; BE-P8-NEXT:    lis r4, 0
 ; BE-P8-NEXT:    std r31, -8(r30) # 8-byte Folded Spill
 ; BE-P8-NEXT:    mr r31, r3
 ; BE-P8-NEXT:    lwz r3, 4(r3)
-; BE-P8-NEXT:    lis r6, 0
-; BE-P8-NEXT:    ori r6, r6, 65508
-; BE-P8-NEXT:    lwz r4, 12(r31)
-; BE-P8-NEXT:    lwz r5, 20(r31)
-; BE-P8-NEXT:    stwx r3, r1, r6
-; BE-P8-NEXT:    lis r3, 0
-; BE-P8-NEXT:    ori r3, r3, 32768
-; BE-P8-NEXT:    stw r5, 32764(r1)
 ; BE-P8-NEXT:    addi r5, r1, 32764
-; BE-P8-NEXT:    stwx r4, r1, r3
-; BE-P8-NEXT:    lis r3, 0
-; BE-P8-NEXT:    lis r4, 0
-; BE-P8-NEXT:    ori r3, r3, 32768
 ; BE-P8-NEXT:    ori r4, r4, 65508
-; BE-P8-NEXT:    add r3, r1, r3
+; BE-P8-NEXT:    stwx r3, r1, r4
+; BE-P8-NEXT:    lis r4, 0
+; BE-P8-NEXT:    lwz r3, 12(r31)
+; BE-P8-NEXT:    ori r4, r4, 32768
+; BE-P8-NEXT:    stwx r3, r1, r4
+; BE-P8-NEXT:    lwz r3, 20(r31)
+; BE-P8-NEXT:    lis r4, 0
+; BE-P8-NEXT:    ori r4, r4, 65508
+; BE-P8-NEXT:    stw r3, 32764(r1)
+; BE-P8-NEXT:    lis r3, 0
 ; BE-P8-NEXT:    add r4, r1, r4
+; BE-P8-NEXT:    ori r3, r3, 32768
+; BE-P8-NEXT:    add r3, r1, r3
 ; BE-P8-NEXT:    bl .callee3[PR]
 ; BE-P8-NEXT:    nop
 ; BE-P8-NEXT:    lwz r4, 16(r31)
@@ -2508,25 +2518,25 @@ define dso_local zeroext i32 @aligned(i32* nocapture readonly %in) #0 {
 ; BE-32BIT-P8-NEXT:    clrlwi r0, r1, 17
 ; BE-32BIT-P8-NEXT:    subc r0, r12, r0
 ; BE-32BIT-P8-NEXT:    stwux r1, r1, r0
+; BE-32BIT-P8-NEXT:    lis r4, 0
 ; BE-32BIT-P8-NEXT:    stw r31, -4(r30) # 4-byte Folded Spill
 ; BE-32BIT-P8-NEXT:    mr r31, r3
 ; BE-32BIT-P8-NEXT:    lwz r3, 4(r3)
-; BE-32BIT-P8-NEXT:    lis r6, 0
-; BE-32BIT-P8-NEXT:    ori r6, r6, 65516
-; BE-32BIT-P8-NEXT:    lwz r4, 12(r31)
-; BE-32BIT-P8-NEXT:    lwz r5, 20(r31)
-; BE-32BIT-P8-NEXT:    stwx r3, r1, r6
-; BE-32BIT-P8-NEXT:    lis r3, 0
-; BE-32BIT-P8-NEXT:    ori r3, r3, 32768
-; BE-32BIT-P8-NEXT:    stw r5, 32764(r1)
 ; BE-32BIT-P8-NEXT:    addi r5, r1, 32764
-; BE-32BIT-P8-NEXT:    stwx r4, r1, r3
-; BE-32BIT-P8-NEXT:    lis r3, 0
-; BE-32BIT-P8-NEXT:    lis r4, 0
-; BE-32BIT-P8-NEXT:    ori r3, r3, 32768
 ; BE-32BIT-P8-NEXT:    ori r4, r4, 65516
-; BE-32BIT-P8-NEXT:    add r3, r1, r3
+; BE-32BIT-P8-NEXT:    stwx r3, r1, r4
+; BE-32BIT-P8-NEXT:    lis r4, 0
+; BE-32BIT-P8-NEXT:    lwz r3, 12(r31)
+; BE-32BIT-P8-NEXT:    ori r4, r4, 32768
+; BE-32BIT-P8-NEXT:    stwx r3, r1, r4
+; BE-32BIT-P8-NEXT:    lwz r3, 20(r31)
+; BE-32BIT-P8-NEXT:    lis r4, 0
+; BE-32BIT-P8-NEXT:    ori r4, r4, 65516
+; BE-32BIT-P8-NEXT:    stw r3, 32764(r1)
+; BE-32BIT-P8-NEXT:    lis r3, 0
 ; BE-32BIT-P8-NEXT:    add r4, r1, r4
+; BE-32BIT-P8-NEXT:    ori r3, r3, 32768
+; BE-32BIT-P8-NEXT:    add r3, r1, r3
 ; BE-32BIT-P8-NEXT:    bl .callee3[PR]
 ; BE-32BIT-P8-NEXT:    nop
 ; BE-32BIT-P8-NEXT:    lwz r4, 16(r31)
@@ -2636,25 +2646,25 @@ define dso_local zeroext i32 @aligned(i32* nocapture readonly %in) #0 {
 ; BE-P8-PRIV-NEXT:    clrldi r0, r1, 49
 ; BE-P8-PRIV-NEXT:    subc r0, r12, r0
 ; BE-P8-PRIV-NEXT:    stdux r1, r1, r0
+; BE-P8-PRIV-NEXT:    lis r4, 0
 ; BE-P8-PRIV-NEXT:    std r31, -8(r30) # 8-byte Folded Spill
 ; BE-P8-PRIV-NEXT:    mr r31, r3
 ; BE-P8-PRIV-NEXT:    lwz r3, 4(r3)
-; BE-P8-PRIV-NEXT:    lis r6, 0
-; BE-P8-PRIV-NEXT:    ori r6, r6, 65508
-; BE-P8-PRIV-NEXT:    lwz r4, 12(r31)
-; BE-P8-PRIV-NEXT:    lwz r5, 20(r31)
-; BE-P8-PRIV-NEXT:    stwx r3, r1, r6
-; BE-P8-PRIV-NEXT:    lis r3, 0
-; BE-P8-PRIV-NEXT:    ori r3, r3, 32768
-; BE-P8-PRIV-NEXT:    stw r5, 32764(r1)
 ; BE-P8-PRIV-NEXT:    addi r5, r1, 32764
-; BE-P8-PRIV-NEXT:    stwx r4, r1, r3
-; BE-P8-PRIV-NEXT:    lis r3, 0
-; BE-P8-PRIV-NEXT:    lis r4, 0
-; BE-P8-PRIV-NEXT:    ori r3, r3, 32768
 ; BE-P8-PRIV-NEXT:    ori r4, r4, 65508
-; BE-P8-PRIV-NEXT:    add r3, r1, r3
+; BE-P8-PRIV-NEXT:    stwx r3, r1, r4
+; BE-P8-PRIV-NEXT:    lis r4, 0
+; BE-P8-PRIV-NEXT:    lwz r3, 12(r31)
+; BE-P8-PRIV-NEXT:    ori r4, r4, 32768
+; BE-P8-PRIV-NEXT:    stwx r3, r1, r4
+; BE-P8-PRIV-NEXT:    lwz r3, 20(r31)
+; BE-P8-PRIV-NEXT:    lis r4, 0
+; BE-P8-PRIV-NEXT:    ori r4, r4, 65508
+; BE-P8-PRIV-NEXT:    stw r3, 32764(r1)
+; BE-P8-PRIV-NEXT:    lis r3, 0
 ; BE-P8-PRIV-NEXT:    add r4, r1, r4
+; BE-P8-PRIV-NEXT:    ori r3, r3, 32768
+; BE-P8-PRIV-NEXT:    add r3, r1, r3
 ; BE-P8-PRIV-NEXT:    bl .callee3[PR]
 ; BE-P8-PRIV-NEXT:    nop
 ; BE-P8-PRIV-NEXT:    lwz r4, 16(r31)
@@ -2763,25 +2773,25 @@ define dso_local zeroext i32 @aligned(i32* nocapture readonly %in) #0 {
 ; BE-32BIT-P8-PRIV-NEXT:    clrlwi r0, r1, 17
 ; BE-32BIT-P8-PRIV-NEXT:    subc r0, r12, r0
 ; BE-32BIT-P8-PRIV-NEXT:    stwux r1, r1, r0
+; BE-32BIT-P8-PRIV-NEXT:    lis r4, 0
 ; BE-32BIT-P8-PRIV-NEXT:    stw r31, -4(r30) # 4-byte Folded Spill
 ; BE-32BIT-P8-PRIV-NEXT:    mr r31, r3
 ; BE-32BIT-P8-PRIV-NEXT:    lwz r3, 4(r3)
-; BE-32BIT-P8-PRIV-NEXT:    lis r6, 0
-; BE-32BIT-P8-PRIV-NEXT:    ori r6, r6, 65516
-; BE-32BIT-P8-PRIV-NEXT:    lwz r4, 12(r31)
-; BE-32BIT-P8-PRIV-NEXT:    lwz r5, 20(r31)
-; BE-32BIT-P8-PRIV-NEXT:    stwx r3, r1, r6
-; BE-32BIT-P8-PRIV-NEXT:    lis r3, 0
-; BE-32BIT-P8-PRIV-NEXT:    ori r3, r3, 32768
-; BE-32BIT-P8-PRIV-NEXT:    stw r5, 32764(r1)
 ; BE-32BIT-P8-PRIV-NEXT:    addi r5, r1, 32764
-; BE-32BIT-P8-PRIV-NEXT:    stwx r4, r1, r3
-; BE-32BIT-P8-PRIV-NEXT:    lis r3, 0
-; BE-32BIT-P8-PRIV-NEXT:    lis r4, 0
-; BE-32BIT-P8-PRIV-NEXT:    ori r3, r3, 32768
 ; BE-32BIT-P8-PRIV-NEXT:    ori r4, r4, 65516
-; BE-32BIT-P8-PRIV-NEXT:    add r3, r1, r3
+; BE-32BIT-P8-PRIV-NEXT:    stwx r3, r1, r4
+; BE-32BIT-P8-PRIV-NEXT:    lis r4, 0
+; BE-32BIT-P8-PRIV-NEXT:    lwz r3, 12(r31)
+; BE-32BIT-P8-PRIV-NEXT:    ori r4, r4, 32768
+; BE-32BIT-P8-PRIV-NEXT:    stwx r3, r1, r4
+; BE-32BIT-P8-PRIV-NEXT:    lwz r3, 20(r31)
+; BE-32BIT-P8-PRIV-NEXT:    lis r4, 0
+; BE-32BIT-P8-PRIV-NEXT:    ori r4, r4, 65516
+; BE-32BIT-P8-PRIV-NEXT:    stw r3, 32764(r1)
+; BE-32BIT-P8-PRIV-NEXT:    lis r3, 0
 ; BE-32BIT-P8-PRIV-NEXT:    add r4, r1, r4
+; BE-32BIT-P8-PRIV-NEXT:    ori r3, r3, 32768
+; BE-32BIT-P8-PRIV-NEXT:    add r3, r1, r3
 ; BE-32BIT-P8-PRIV-NEXT:    bl .callee3[PR]
 ; BE-32BIT-P8-PRIV-NEXT:    nop
 ; BE-32BIT-P8-PRIV-NEXT:    lwz r4, 16(r31)
@@ -2797,35 +2807,32 @@ entry:
   %beforeLocal = alloca i32, align 4
   %local = alloca i32, align 32768
   %afterLocal = alloca i32, align 4
-  %0 = bitcast i32* %beforeLocal to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* nonnull %0)
-  %arrayidx = getelementptr inbounds i32, i32* %in, i64 1
-  %1 = load i32, i32* %arrayidx, align 4
-  store i32 %1, i32* %beforeLocal, align 4
-  %2 = bitcast i32* %local to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* nonnull %2)
-  %arrayidx1 = getelementptr inbounds i32, i32* %in, i64 3
-  %3 = load i32, i32* %arrayidx1, align 4
-  store i32 %3, i32* %local, align 32768
-  %4 = bitcast i32* %afterLocal to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* nonnull %4)
-  %arrayidx2 = getelementptr inbounds i32, i32* %in, i64 5
-  %5 = load i32, i32* %arrayidx2, align 4
-  store i32 %5, i32* %afterLocal, align 4
-  %call = call zeroext i32 @callee3(i32* nonnull %local, i32* nonnull %beforeLocal, i32* nonnull %afterLocal)
-  %arrayidx3 = getelementptr inbounds i32, i32* %in, i64 4
-  %6 = load i32, i32* %arrayidx3, align 4
-  %add = add i32 %6, %call
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* nonnull %4)
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* nonnull %2)
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* nonnull %0)
+  call void @llvm.lifetime.start.p0(i64 4, ptr nonnull %beforeLocal)
+  %arrayidx = getelementptr inbounds i32, ptr %in, i64 1
+  %0 = load i32, ptr %arrayidx, align 4
+  store i32 %0, ptr %beforeLocal, align 4
+  call void @llvm.lifetime.start.p0(i64 4, ptr nonnull %local)
+  %arrayidx1 = getelementptr inbounds i32, ptr %in, i64 3
+  %1 = load i32, ptr %arrayidx1, align 4
+  store i32 %1, ptr %local, align 32768
+  call void @llvm.lifetime.start.p0(i64 4, ptr nonnull %afterLocal)
+  %arrayidx2 = getelementptr inbounds i32, ptr %in, i64 5
+  %2 = load i32, ptr %arrayidx2, align 4
+  store i32 %2, ptr %afterLocal, align 4
+  %call = call zeroext i32 @callee3(ptr nonnull %local, ptr nonnull %beforeLocal, ptr nonnull %afterLocal)
+  %arrayidx3 = getelementptr inbounds i32, ptr %in, i64 4
+  %3 = load i32, ptr %arrayidx3, align 4
+  %add = add i32 %3, %call
+  call void @llvm.lifetime.end.p0(i64 4, ptr nonnull %afterLocal)
+  call void @llvm.lifetime.end.p0(i64 4, ptr nonnull %local)
+  call void @llvm.lifetime.end.p0(i64 4, ptr nonnull %beforeLocal)
   ret i32 %add
 }
 
 declare zeroext i32 @callee(i32 zeroext) local_unnamed_addr
-declare zeroext i32 @callee2(i32*) local_unnamed_addr
-declare zeroext i32 @callee3(i32*, i32*, i32*) local_unnamed_addr
-declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture)
-declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture)
+declare zeroext i32 @callee2(ptr) local_unnamed_addr
+declare zeroext i32 @callee3(ptr, ptr, ptr) local_unnamed_addr
+declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture)
+declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture)
 
 attributes #0 = { nounwind }

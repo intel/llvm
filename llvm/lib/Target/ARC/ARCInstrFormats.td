@@ -12,7 +12,6 @@
 
 class Encoding64 {
   field bits<64> Inst;
-  field bits<64> SoftFail = 0;
 }
 
 // Address operands
@@ -964,19 +963,11 @@ class F16_OP_U7<bit i, string asmstr> :
 }
 
 // Special types for different instruction operands.
-def cmovpred : Operand<i32>, PredicateOp,
-               ComplexPattern<i32, 2, "SelectCMOVPred"> {
-  let MIOperandInfo = (ops i32imm, i32imm);
-  let PrintMethod = "printPredicateOperand";
-}
-
 def ccond : Operand<i32> {
-  let MIOperandInfo = (ops i32imm);
   let PrintMethod = "printPredicateOperand";
 }
 
 def brccond : Operand<i32> {
-  let MIOperandInfo = (ops i32imm);
   let PrintMethod = "printBRCCPredicateOperand";
 }
 

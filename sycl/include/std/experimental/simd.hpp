@@ -854,13 +854,16 @@ public:
   void __set(size_t __index, _Tp __val) noexcept {
     __storage_[__index] = __val;
   }
+#ifdef ENABLE_SYCL_EXT_ONEAPI_INVOKE_SIMD
+  const _StorageType& data() const noexcept { return __storage_; }
+#endif
 };
 
 #endif // _LIBCPP_HAS_NO_VECTOR_EXTENSION
 
 template <class _Vp, class _Tp, class _Abi>
 class __simd_reference {
-  static_assert(std::is_same<_Vp, _Tp>::value, "");
+  static_assert(std::is_same_v<_Vp, _Tp>, "");
 
   template <class, class>
   friend struct simd;
@@ -960,17 +963,17 @@ constexpr bool __is_non_narrowing_convertible_impl(...) {
 }
 
 template <class _From, class _To>
-constexpr typename std::enable_if<std::is_arithmetic<_To>::value &&
-                                      std::is_arithmetic<_From>::value,
-                                  bool>::type
+constexpr std::enable_if_t<std::is_arithmetic_v<_To> &&
+                                      std::is_arithmetic_v<_From>,
+                                  bool>
 __is_non_narrowing_arithmetic_convertible() {
   return __is_non_narrowing_convertible_impl<_To>(_From{});
 }
 
 template <class _From, class _To>
-constexpr typename std::enable_if<!(std::is_arithmetic<_To>::value &&
-                                    std::is_arithmetic<_From>::value),
-                                  bool>::type
+constexpr std::enable_if_t<!(std::is_arithmetic_v<_To> &&
+                                    std::is_arithmetic_v<_From>),
+                                  bool>
 __is_non_narrowing_arithmetic_convertible() {
   return false;
 }
@@ -992,8 +995,8 @@ struct __nodeduce {
 
 template <class _Tp>
 constexpr bool __vectorizable() {
-  return std::is_arithmetic<_Tp>::value && !std::is_const<_Tp>::value &&
-         !std::is_volatile<_Tp>::value && !std::is_same<_Tp, bool>::value;
+  return std::is_arithmetic_v<_Tp> && !std::is_const_v<_Tp> &&
+         !std::is_volatile_v<_Tp> && !std::is_same_v<_Tp, bool>;
 }
 
 _LIBCPP_END_NAMESPACE_EXPERIMENTAL_SIMD
@@ -1039,39 +1042,39 @@ inline constexpr overaligned_tag<_Np> overaligned{};
 
 // traits [simd.traits]
 template <class _Tp>
-struct is_abi_tag : std::integral_constant<bool, false> {};
+struct is_abi_tag : std::false_type {};
 
 template <_StorageKind __kind, int _Np>
 struct is_abi_tag<__simd_abi<__kind, _Np>>
-    : std::integral_constant<bool, true> {};
+  : std::true_type {};
 
 template <class _Tp>
-struct is_simd : std::integral_constant<bool, false> {};
+struct is_simd : std::false_type {};
 
 template <class _Tp, class _Abi>
-struct is_simd<simd<_Tp, _Abi>> : std::integral_constant<bool, true> {};
+struct is_simd<simd<_Tp, _Abi>> : std::true_type {};
 
 template <class _Tp>
-struct is_simd_mask : std::integral_constant<bool, false> {};
+struct is_simd_mask : std::false_type {};
 
 template <class _Tp, class _Abi>
-struct is_simd_mask<simd_mask<_Tp, _Abi>> : std::integral_constant<bool, true> {
+struct is_simd_mask<simd_mask<_Tp, _Abi>> : std::true_type {
 };
 
 template <class _Tp>
-struct is_simd_flag_type : std::integral_constant<bool, false> {};
+struct is_simd_flag_type : std::false_type {};
 
 template <>
 struct is_simd_flag_type<element_aligned_tag>
-    : std::integral_constant<bool, true> {};
+    : std::true_type {};
 
 template <>
 struct is_simd_flag_type<vector_aligned_tag>
-    : std::integral_constant<bool, true> {};
+    : std::true_type {};
 
 template <size_t _Align>
 struct is_simd_flag_type<overaligned_tag<_Align>>
-    : std::integral_constant<bool, true> {};
+    : std::true_type {};
 
 template <class _Tp>
 inline constexpr bool is_abi_tag_v = is_abi_tag<_Tp>::value;
@@ -1095,8 +1098,8 @@ template <class _Tp, _StorageKind __kind, int _Np>
 struct simd_size<_Tp, __simd_abi<__kind, _Np>>
     : std::integral_constant<size_t, _Np> {
   static_assert(
-      std::is_arithmetic<_Tp>::value &&
-          !std::is_same<typename std::remove_const<_Tp>::type, bool>::value,
+      std::is_arithmetic_v<_Tp> &&
+          !std::is_same_v<std::remove_const_t<_Tp>, bool>,
       "Element type should be vectorizable");
 };
 
@@ -1133,28 +1136,28 @@ struct __static_simd_cast_traits {
 template <class _Tp, class _NewAbi>
 struct __static_simd_cast_traits<simd<_Tp, _NewAbi>> {
   template <class _Up, class _Abi>
-  static typename std::enable_if<simd<_Up, _Abi>::size() ==
+  static std::enable_if_t<simd<_Up, _Abi>::size() ==
                                      simd<_Tp, _NewAbi>::size(),
-                                 simd<_Tp, _NewAbi>>::type
+                                 simd<_Tp, _NewAbi>>
   __apply(const simd<_Up, _Abi>& __v);
 };
 
 template <class _Tp>
 struct __simd_cast_traits {
   template <class _Up, class _Abi>
-  static typename std::enable_if<
+  static std::enable_if_t<
       __is_non_narrowing_arithmetic_convertible<_Up, _Tp>(),
-      simd<_Tp, _Abi>>::type
+      simd<_Tp, _Abi>>
   __apply(const simd<_Up, _Abi>& __v);
 };
 
 template <class _Tp, class _NewAbi>
 struct __simd_cast_traits<simd<_Tp, _NewAbi>> {
   template <class _Up, class _Abi>
-  static typename std::enable_if<
+  static std::enable_if_t<
       __is_non_narrowing_arithmetic_convertible<_Up, _Tp>() &&
           simd<_Up, _Abi>::size() == simd<_Tp, _NewAbi>::size(),
-      simd<_Tp, _NewAbi>>::type
+      simd<_Tp, _NewAbi>>
   __apply(const simd<_Up, _Abi>& __v);
 };
 
@@ -1318,10 +1321,10 @@ hmax(const const_where_expression<_MaskType, _SimdType>&);
 
 // algorithms [simd.alg]
 template <class _Tp, class _Abi>
-simd<_Tp, _Abi> min(const simd<_Tp, _Abi>&, const simd<_Tp, _Abi>&) noexcept;
+simd<_Tp, _Abi> (min)(const simd<_Tp, _Abi>&, const simd<_Tp, _Abi>&) noexcept;
 
 template <class _Tp, class _Abi>
-simd<_Tp, _Abi> max(const simd<_Tp, _Abi>&, const simd<_Tp, _Abi>&) noexcept;
+simd<_Tp, _Abi> (max)(const simd<_Tp, _Abi>&, const simd<_Tp, _Abi>&) noexcept;
 
 template <class _Tp, class _Abi>
 std::pair<simd<_Tp, _Abi>, simd<_Tp, _Abi>>
@@ -1338,7 +1341,7 @@ class const_where_expression {
 public:
   const_where_expression(const const_where_expression&) = delete;
   const_where_expression& operator=(const const_where_expression&) = delete;
-  typename remove_const<_Tp>::type operator-() const&&;
+  remove_const_t<_Tp>operator-() const&&;
   template <class _Up, class _Flags>
   void copy_to(_Up*, _Flags) const&&;
 };
@@ -1421,14 +1424,14 @@ public:
 private:
   template <class _Up>
   static constexpr bool __can_broadcast() {
-    return (std::is_arithmetic<_Up>::value &&
+    return (std::is_arithmetic_v<_Up> &&
             __is_non_narrowing_arithmetic_convertible<_Up, _Tp>()) ||
-           (!std::is_arithmetic<_Up>::value &&
-            std::is_convertible<_Up, _Tp>::value) ||
-           std::is_same<typename std::remove_const<_Up>::type, int>::value ||
-           (std::is_same<typename std::remove_const<_Up>::type,
-                         unsigned int>::value &&
-            std::is_unsigned<_Tp>::value);
+           (!std::is_arithmetic_v<_Up> &&
+            std::is_convertible_v<_Up, _Tp>) ||
+           std::is_same_v<std::remove_const_t<_Up>, int> ||
+           (std::is_same_v<std::remove_const_t<_Up>,
+                         unsigned int> &&
+            std::is_unsigned_v<_Tp>);
   }
 
   template <class _Generator, size_t... __indicies>
@@ -1459,17 +1462,17 @@ public:
   // implicit type conversion constructor
 #ifdef ENABLE_SYCL_EXT_ONEAPI_INVOKE_SIMD
   template <class _Up,
-    class = typename std::enable_if<
-      std::is_same<_Abi, __simd_abi<_StorageKind::_VecExt, size()>>::value &&
-    __is_non_narrowing_arithmetic_convertible<_Up, _Tp>()>::type>
+    class = std::enable_if_t<
+      std::is_same_v<_Abi, __simd_abi<_StorageKind::_VecExt, size()>> &&
+    __is_non_narrowing_arithmetic_convertible<_Up, _Tp>()>>
     simd(const simd<_Up, _Abi>& __v) {
     __s_.__storage_ = __builtin_convertvector(__v.__s_.__storage_, raw_storage_type);
   }
 #endif // ENABLE_SYCL_EXT_ONEAPI_INVOKE_SIMD
   template <class _Up,
-            class = typename std::enable_if<
-                std::is_same<_Abi, simd_abi::fixed_size<size()>>::value &&
-                __is_non_narrowing_arithmetic_convertible<_Up, _Tp>()>::type>
+            class = std::enable_if_t<
+                std::is_same_v<_Abi, simd_abi::fixed_size<size()>> &&
+                __is_non_narrowing_arithmetic_convertible<_Up, _Tp>()>>
   simd(const simd<_Up, simd_abi::fixed_size<size()>>& __v) {
     for (size_t __i = 0; __i < size(); __i++) {
       (*this)[__i] = static_cast<_Tp>(__v[__i]);
@@ -1478,7 +1481,7 @@ public:
 
   // implicit broadcast constructor
   template <class _Up,
-            class = typename std::enable_if<__can_broadcast<_Up>()>::type>
+            class = std::enable_if_t<__can_broadcast<_Up>()>>
   simd(_Up&& __rv) {
     auto __v = static_cast<_Tp>(__rv);
     for (size_t __i = 0; __i < size(); __i++) {
@@ -1488,9 +1491,9 @@ public:
 
   // generator constructor
   template <class _Generator,
-            int = typename std::enable_if<
+            int = std::enable_if_t<
                 __can_generate<_Generator>(std::make_index_sequence<size()>()),
-                int>::type()>
+                int>()>
   explicit simd(_Generator&& __g) {
     __generator_init(std::forward<_Generator>(__g),
                      std::make_index_sequence<size()>());
@@ -1499,8 +1502,8 @@ public:
   // load constructor
   template <
       class _Up, class _Flags,
-      class = typename std::enable_if<__vectorizable<_Up>()>::type,
-      class = typename std::enable_if<is_simd_flag_type<_Flags>::value>::type>
+      class = std::enable_if_t<__vectorizable<_Up>()>,
+      class = std::enable_if_t<is_simd_flag_type<_Flags>::value>>
   simd(const _Up* __buffer, _Flags) {
     // TODO: optimize for overaligned flags
     for (size_t __i = 0; __i < size(); __i++) {
@@ -1510,16 +1513,16 @@ public:
 
   // loads [simd.load]
   template <class _Up, class _Flags>
-  typename std::enable_if<__vectorizable<_Up>() &&
-                          is_simd_flag_type<_Flags>::value>::type
+  std::enable_if_t<__vectorizable<_Up>() &&
+                          is_simd_flag_type<_Flags>::value>
   copy_from(const _Up* __buffer, _Flags) {
     *this = simd(__buffer, _Flags());
   }
 
   // stores [simd.store]
   template <class _Up, class _Flags>
-  typename std::enable_if<__vectorizable<_Up>() &&
-                          is_simd_flag_type<_Flags>::value>::type
+  std::enable_if_t<__vectorizable<_Up>() &&
+                          is_simd_flag_type<_Flags>::value>
   copy_to(_Up* __buffer, _Flags) const {
     // TODO: optimize for overaligned flags
     for (size_t __i = 0; __i < size(); __i++) {
@@ -1586,7 +1589,7 @@ struct __abi_storage_kind : public std::false_type {};
 
 template <_StorageKind _K, int _Np>
 struct __abi_storage_kind<__simd_abi<_K, _Np>> : public std::true_type {
-  static inline constexpr _StorageKind value = _K;
+  static constexpr _StorageKind value = _K;
 };
 
 template <typename _Tp, class _Abi> struct __mask_element {
@@ -1652,7 +1655,7 @@ class simd_mask {
 public:
   using value_type = bool;
 #ifdef ENABLE_SYCL_EXT_ONEAPI_INVOKE_SIMD
-  using reference = __simd_mask_reference<_Tp, _Abi>;
+  using reference = __simd_mask_reference<element_type, _Abi>;
 #else
   // TODO: this is strawman implementation. Turn it into a proxy type.
   using reference = bool&;
@@ -1665,6 +1668,10 @@ public:
 #else
   static constexpr size_t size() noexcept;
 #endif // ENABLE_SYCL_EXT_ONEAPI_INVOKE_SIMD
+
+#ifdef ENABLE_SYCL_EXT_ONEAPI_INVOKE_SIMD
+  const auto& data() const noexcept { return __s_.data(); }
+#endif
 
   simd_mask() = default;
 
@@ -1682,12 +1689,14 @@ public:
 
   // implicit type conversion constructor
 #ifdef ENABLE_SYCL_EXT_ONEAPI_INVOKE_SIMD
-  // TODO inefficient, use this's and __v's storage directly
   template <class _Up>
   simd_mask(const simd_mask<_Up, simd_abi::fixed_size<size()>>& __v) noexcept {
-    for (size_t __i = 0; __i < size(); __i++) {
-      (*this)[__i] = static_cast<element_type>(__v[__i]);
-    }
+    copyElements(__v);
+  }
+
+  template <class _Up>
+  simd_mask(const simd_mask<_Up, abi_type>& __v) noexcept {
+    copyElements(__v);
   }
 #else
   template <class _Up>
@@ -1735,6 +1744,14 @@ public:
 #ifdef ENABLE_SYCL_EXT_ONEAPI_INVOKE_SIMD
 private:
   __simd_storage<element_type, _Abi> __s_;
+
+  // TODO inefficient, use this's and __v's storage directly
+  template <class _Up, class _UAbi>
+  inline void copyElements(const simd_mask<_Up, _UAbi> & __v) noexcept {
+    for (size_t __i = 0; __i < size(); __i++) {
+      (*this)[__i] = static_cast<element_type>(__v[__i]);
+    }
+  }
 #endif // ENABLE_SYCL_EXT_ONEAPI_INVOKE_SIMD
 };
 

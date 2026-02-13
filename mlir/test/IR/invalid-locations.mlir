@@ -75,7 +75,7 @@ func.func @location_fused_missing_greater() {
 func.func @location_fused_missing_metadata() {
 ^bb:
   // expected-error@+1 {{expected attribute value}}
-  return loc(fused<) 
+  return loc(fused<)
 }
 
 // -----
@@ -90,13 +90,6 @@ func.func @location_fused_missing_l_square() {
 func.func @location_fused_missing_r_square() {
 ^bb:
   return loc(fused[unknown) // expected-error {{expected ']' in fused location}}
-}
-
-// -----
-
-func.func @location_invalid_alias() {
-  // expected-error@+1 {{expected location, but found dialect attribute: '#foo.loc'}}
-  return loc(#foo.loc)
 }
 
 // -----

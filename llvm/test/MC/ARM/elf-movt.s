@@ -1,8 +1,8 @@
 @ RUN: llvm-mc %s -triple=armv7-linux-gnueabi | FileCheck -check-prefix=ASM %s
 @ RUN: llvm-mc %s -triple=armv7-linux-gnueabi -filetype=obj -o %t.o
-@ RUN: llvm-objdump -d -r %t.o --triple=armv7-linux-gnueabi | FileCheck --check-prefix=OBJ %s
+@ RUN: llvm-objdump --no-print-imm-hex -d -r %t.o --triple=armv7-linux-gnueabi | FileCheck --check-prefix=OBJ %s
 @ RUN: llvm-mc %s -triple=thumbv7-linux-gnueabi -filetype=obj -o %t.o
-@ RUN: llvm-objdump -d -r %t.o --triple=thumbv7-linux-gnueabi | FileCheck --check-prefix=THUMB %s
+@ RUN: llvm-objdump --no-print-imm-hex -d -r %t.o --triple=thumbv7-linux-gnueabi | FileCheck --check-prefix=THUMB %s
 
 	.syntax unified
 	.text
@@ -26,8 +26,8 @@ bar:
 @ ASM-NEXT:     movt    r0, :upper16:(GOT-(.LPC0_2+8))
 @ ASM:          movw    r0, :lower16:(extern_symbol+1234)
 @ ASM-NEXT:     movt    r0, :upper16:(extern_symbol+1234)
-@ ASM:          movw    r0, :lower16:((foo-bar)+1234)
-@ ASM-NEXT:     movt    r0, :upper16:((foo-bar)+1234)
+@ ASM:          movw    r0, :lower16:(foo-bar+1234)
+@ ASM-NEXT:     movt    r0, :upper16:(foo-bar+1234)
 
 @OBJ:      Disassembly of section .text:
 @OBJ-EMPTY:

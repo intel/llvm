@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -no-opaque-pointers %s -cl-std=CL1.2 -emit-llvm -triple x86_64-unknown-unknown -o - | FileCheck %s
+// RUN: %clang_cc1 %s -cl-std=CL1.2 -emit-llvm -triple x86_64-unknown-unknown -o - | FileCheck %s
 
 // Test that pointer arguments to kernels are assumed to be ABI aligned.
 
@@ -17,10 +17,10 @@ kernel void test(
     global void *v,
     global struct packed *p) {
 // CHECK-LABEL: spir_kernel void @test(
-// CHECK-SAME: i32* nocapture noundef align 4 %i32,
-// CHECK-SAME: i64* nocapture noundef align 8 %i64,
-// CHECK-SAME: <4 x i32>* nocapture noundef align 16 %v4i32,
-// CHECK-SAME: <2 x float>* nocapture noundef align 8 %v2f32,
-// CHECK-SAME: i8* nocapture noundef %v,
-// CHECK-SAME: %struct.packed* nocapture noundef align 1 %p)
+// CHECK-SAME: ptr noundef readnone align 4 captures(none) %i32,
+// CHECK-SAME: ptr noundef readnone align 8 captures(none) %i64,
+// CHECK-SAME: ptr noundef readnone align 16 captures(none) %v4i32,
+// CHECK-SAME: ptr noundef readnone align 8 captures(none) %v2f32,
+// CHECK-SAME: ptr noundef readnone captures(none) %v,
+// CHECK-SAME: ptr noundef readnone align 1 captures(none) %p)
 }

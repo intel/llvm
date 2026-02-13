@@ -30,7 +30,6 @@
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
-#include <memory>
 #include <tuple>
 
 using namespace llvm;
@@ -152,14 +151,14 @@ raw_ostream &operator<<(raw_ostream &OS, const UseInfo<CalleeTy> &U) {
 /// Calculate the allocation size of a given alloca. Returns empty range
 // in case of confution.
 ConstantRange getStaticAllocaSizeRange(const AllocaInst &AI) {
-  const DataLayout &DL = AI.getModule()->getDataLayout();
+  const DataLayout &DL = AI.getDataLayout();
   TypeSize TS = DL.getTypeAllocSize(AI.getAllocatedType());
   unsigned PointerSize = DL.getPointerTypeSizeInBits(AI.getType());
   // Fallback to empty range for alloca size.
   ConstantRange R = ConstantRange::getEmpty(PointerSize);
   if (TS.isScalable())
     return R;
-  APInt APSize(PointerSize, TS.getFixedSize(), true);
+  APInt APSize(PointerSize, TS.getFixedValue(), true);
   if (APSize.isNonPositive())
     return R;
   if (AI.isArrayAllocation()) {
@@ -243,6 +242,14 @@ class StackSafetyLocalAnalysis {
 
   const ConstantRange UnknownRange;
 
+  /// FIXME: This function is a bandaid, it's only needed
+  /// because this pass doesn't handle address spaces of different pointer
+  /// sizes.
+  ///
+  /// \returns \p Val's SCEV as a pointer of AS zero, or nullptr if it can't be
+  /// converted to AS 0.
+  const SCEV *getSCEVAsPointer(Value *Val);
+
   ConstantRange offsetFrom(Value *Addr, Value *Base);
   ConstantRange getAccessRange(Value *Addr, Value *Base,
                                const ConstantRange &SizeRange);
@@ -260,7 +267,7 @@ class StackSafetyLocalAnalysis {
 
 public:
   StackSafetyLocalAnalysis(Function &F, ScalarEvolution &SE)
-      : F(F), DL(F.getParent()->getDataLayout()), SE(SE),
+      : F(F), DL(F.getDataLayout()), SE(SE),
         PointerSize(DL.getPointerSizeInBits()),
         UnknownRange(PointerSize, true) {}
 
@@ -268,13 +275,29 @@ public:
   FunctionInfo<GlobalValue> run();
 };
 
+const SCEV *StackSafetyLocalAnalysis::getSCEVAsPointer(Value *Val) {
+  Type *ValTy = Val->getType();
+
+  // We don't handle targets with multiple address spaces.
+  if (!ValTy->isPointerTy()) {
+    auto *PtrTy = PointerType::getUnqual(SE.getContext());
+    return SE.getTruncateOrZeroExtend(SE.getSCEV(Val), PtrTy);
+  }
+
+  if (ValTy->getPointerAddressSpace() != 0)
+    return nullptr;
+  return SE.getSCEV(Val);
+}
+
 ConstantRange StackSafetyLocalAnalysis::offsetFrom(Value *Addr, Value *Base) {
   if (!SE.isSCEVable(Addr->getType()) || !SE.isSCEVable(Base->getType()))
     return UnknownRange;
 
-  auto *PtrTy = IntegerType::getInt8PtrTy(SE.getContext());
-  const SCEV *AddrExp = SE.getTruncateOrZeroExtend(SE.getSCEV(Addr), PtrTy);
-  const SCEV *BaseExp = SE.getTruncateOrZeroExtend(SE.getSCEV(Base), PtrTy);
+  const SCEV *AddrExp = getSCEVAsPointer(Addr);
+  const SCEV *BaseExp = getSCEVAsPointer(Base);
+  if (!AddrExp || !BaseExp)
+    return UnknownRange;
+
   const SCEV *Diff = SE.getMinusSCEV(AddrExp, BaseExp);
   if (isa<SCEVCouldNotCompute>(Diff))
     return UnknownRange;
@@ -307,7 +330,7 @@ ConstantRange StackSafetyLocalAnalysis::getAccessRange(Value *Addr, Value *Base,
                                                        TypeSize Size) {
   if (Size.isScalable())
     return UnknownRange;
-  APInt APSize(PointerSize, Size.getFixedSize(), true);
+  APInt APSize(PointerSize, Size.getFixedValue(), true);
   if (APSize.isNegative())
     return UnknownRange;
   return getAccessRange(Addr, Base,
@@ -331,7 +354,7 @@ ConstantRange StackSafetyLocalAnalysis::getMemIntrinsicAccessRange(
   const SCEV *Expr =
       SE.getTruncateOrZeroExtend(SE.getSCEV(MI->getLength()), CalculationTy);
   ConstantRange Sizes = SE.getSignedRange(Expr);
-  if (Sizes.getUpper().isNegative() || isUnsafe(Sizes))
+  if (!Sizes.getUpper().isStrictlyPositive() || isUnsafe(Sizes))
     return UnknownRange;
   Sizes = Sizes.sextOrTrunc(PointerSize);
   ConstantRange SizeRange(APInt::getZero(PointerSize), Sizes.getUpper() - 1);
@@ -348,7 +371,7 @@ bool StackSafetyLocalAnalysis::isSafeAccess(const Use &U, AllocaInst *AI,
   if (TS.isScalable())
     return false;
   auto *CalculationTy = IntegerType::getIntNTy(SE.getContext(), PointerSize);
-  const SCEV *SV = SE.getConstant(CalculationTy, TS.getFixedSize());
+  const SCEV *SV = SE.getConstant(CalculationTy, TS.getFixedValue());
   return isSafeAccess(U, AI, SV);
 }
 
@@ -356,19 +379,17 @@ bool StackSafetyLocalAnalysis::isSafeAccess(const Use &U, AllocaInst *AI,
                                             const SCEV *AccessSize) {
 
   if (!AI)
-    return true;
+    return true; // This only judges whether it is a safe *stack* access.
   if (isa<SCEVCouldNotCompute>(AccessSize))
     return false;
 
   const auto *I = cast<Instruction>(U.getUser());
 
-  auto ToCharPtr = [&](const SCEV *V) {
-    auto *PtrTy = IntegerType::getInt8PtrTy(SE.getContext());
-    return SE.getTruncateOrZeroExtend(V, PtrTy);
-  };
+  const SCEV *AddrExp = getSCEVAsPointer(U.get());
+  const SCEV *BaseExp = getSCEVAsPointer(AI);
+  if (!AddrExp || !BaseExp)
+    return false;
 
-  const SCEV *AddrExp = ToCharPtr(SE.getSCEV(U.get()));
-  const SCEV *BaseExp = ToCharPtr(SE.getSCEV(AI));
   const SCEV *Diff = SE.getMinusSCEV(AddrExp, BaseExp);
   if (isa<SCEVCouldNotCompute>(Diff))
     return false;
@@ -408,6 +429,23 @@ void StackSafetyLocalAnalysis::analyzeAllUses(Value *Ptr,
 
       assert(V == UI.get());
 
+      auto RecordStore = [&](const Value* StoredVal) {
+        if (V == StoredVal) {
+          // Stored the pointer - conservatively assume it may be unsafe.
+          US.addRange(I, UnknownRange, /*IsSafe=*/false);
+          return;
+        }
+        if (AI && !SL.isAliveAfter(AI, I)) {
+          US.addRange(I, UnknownRange, /*IsSafe=*/false);
+          return;
+        }
+        auto TypeSize = DL.getTypeStoreSize(StoredVal->getType());
+        auto AccessRange = getAccessRange(UI, Ptr, TypeSize);
+        bool Safe = isSafeAccess(UI, AI, TypeSize);
+        US.addRange(I, AccessRange, Safe);
+        return;
+      };
+
       switch (I->getOpcode()) {
       case Instruction::Load: {
         if (AI && !SL.isAliveAfter(AI, I)) {
@@ -424,22 +462,15 @@ void StackSafetyLocalAnalysis::analyzeAllUses(Value *Ptr,
       case Instruction::VAArg:
         // "va-arg" from a pointer is safe.
         break;
-      case Instruction::Store: {
-        if (V == I->getOperand(0)) {
-          // Stored the pointer - conservatively assume it may be unsafe.
-          US.addRange(I, UnknownRange, /*IsSafe=*/false);
-          break;
-        }
-        if (AI && !SL.isAliveAfter(AI, I)) {
-          US.addRange(I, UnknownRange, /*IsSafe=*/false);
-          break;
-        }
-        auto TypeSize = DL.getTypeStoreSize(I->getOperand(0)->getType());
-        auto AccessRange = getAccessRange(UI, Ptr, TypeSize);
-        bool Safe = isSafeAccess(UI, AI, TypeSize);
-        US.addRange(I, AccessRange, Safe);
+      case Instruction::Store:
+        RecordStore(cast<StoreInst>(I)->getValueOperand());
         break;
-      }
+      case Instruction::AtomicCmpXchg:
+        RecordStore(cast<AtomicCmpXchgInst>(I)->getNewValOperand());
+        break;
+      case Instruction::AtomicRMW:
+        RecordStore(cast<AtomicRMWInst>(I)->getValOperand());
+        break;
 
       case Instruction::Ret:
         // Information leak.
@@ -496,7 +527,7 @@ void StackSafetyLocalAnalysis::analyzeAllUses(Value *Ptr,
         // dso_preemptable aliases or aliases with interposable linkage.
         const GlobalValue *Callee =
             dyn_cast<GlobalValue>(CB.getCalledOperand()->stripPointerCasts());
-        if (!Callee) {
+        if (!Callee || isa<GlobalIFunc>(Callee)) {
           US.addRange(I, UnknownRange, /*IsSafe=*/false);
           break;
         }
@@ -640,8 +671,7 @@ void StackSafetyDataFlowAnalysis<CalleeTy>::updateOneNode(
                       << (UpdateToFullSet ? ", full-set" : "") << "] " << &FS
                       << "\n");
     // Callers of this function may need updating.
-    for (auto &CallerID : Callers[Callee])
-      WorkList.insert(CallerID);
+    WorkList.insert_range(Callers[Callee]);
 
     ++FS.UpdateCount;
   }
@@ -658,7 +688,7 @@ void StackSafetyDataFlowAnalysis<CalleeTy>::runDataFlow() {
         Callees.push_back(CS.first.Callee);
 
     llvm::sort(Callees);
-    Callees.erase(std::unique(Callees.begin(), Callees.end()), Callees.end());
+    Callees.erase(llvm::unique(Callees), Callees.end());
 
     for (auto &Callee : Callees)
       Callers[Callee].push_back(F.first);
@@ -820,7 +850,7 @@ GVToSSI createGlobalStackSafetyInfo(
     }
 
   uint32_t PointerSize =
-      Copy.begin()->first->getParent()->getDataLayout().getPointerSizeInBits();
+      Copy.begin()->first->getDataLayout().getPointerSizeInBits();
   StackSafetyDataFlowAnalysis<GlobalValue> SSDFA(PointerSize, std::move(Copy));
 
   for (const auto &F : SSDFA.run()) {
@@ -986,6 +1016,7 @@ void StackSafetyGlobalInfo::print(raw_ostream &O) const {
       for (const auto &I : instructions(F)) {
         const CallInst *Call = dyn_cast<CallInst>(&I);
         if ((isa<StoreInst>(I) || isa<LoadInst>(I) || isa<MemIntrinsic>(I) ||
+             isa<AtomicCmpXchgInst>(I) || isa<AtomicRMWInst>(I) ||
              (Call && Call->hasByValArgument())) &&
             stackAccessIsSafe(I)) {
           O << "     " << I << "\n";
@@ -1016,9 +1047,7 @@ PreservedAnalyses StackSafetyPrinterPass::run(Function &F,
 
 char StackSafetyInfoWrapperPass::ID = 0;
 
-StackSafetyInfoWrapperPass::StackSafetyInfoWrapperPass() : FunctionPass(ID) {
-  initializeStackSafetyInfoWrapperPassPass(*PassRegistry::getPassRegistry());
-}
+StackSafetyInfoWrapperPass::StackSafetyInfoWrapperPass() : FunctionPass(ID) {}
 
 void StackSafetyInfoWrapperPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequiredTransitive<ScalarEvolutionWrapperPass>();
@@ -1059,10 +1088,7 @@ PreservedAnalyses StackSafetyGlobalPrinterPass::run(Module &M,
 char StackSafetyGlobalInfoWrapperPass::ID = 0;
 
 StackSafetyGlobalInfoWrapperPass::StackSafetyGlobalInfoWrapperPass()
-    : ModulePass(ID) {
-  initializeStackSafetyGlobalInfoWrapperPassPass(
-      *PassRegistry::getPassRegistry());
-}
+    : ModulePass(ID) {}
 
 StackSafetyGlobalInfoWrapperPass::~StackSafetyGlobalInfoWrapperPass() = default;
 
@@ -1109,7 +1135,7 @@ void llvm::generateParamAccessSummary(ModuleSummaryIndex &Index) {
     if (!AreStatisticsEnabled())
       return;
     for (auto &GVS : Index)
-      for (auto &GV : GVS.second.SummaryList)
+      for (auto &GV : GVS.second.getSummaryList())
         if (FunctionSummary *FS = dyn_cast<FunctionSummary>(GV.get()))
           Stat += FS->paramAccesses().size();
   };
@@ -1120,7 +1146,7 @@ void llvm::generateParamAccessSummary(ModuleSummaryIndex &Index) {
 
   // Convert the ModuleSummaryIndex to a FunctionMap
   for (auto &GVS : Index) {
-    for (auto &GV : GVS.second.SummaryList) {
+    for (auto &GV : GVS.second.getSummaryList()) {
       FunctionSummary *FS = dyn_cast<FunctionSummary>(GV.get());
       if (!FS || FS->paramAccesses().empty())
         continue;

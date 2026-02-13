@@ -1,39 +1,33 @@
 // Run the test cases without distributing ops to test default lowering. Run
 // everything on the same thread.
 // RUN: mlir-opt %s -test-vector-warp-distribute=rewrite-warp-ops-to-scf-if -canonicalize | \
-// RUN: mlir-opt -convert-scf-to-cf -convert-cf-to-llvm -convert-vector-to-llvm -convert-arith-to-llvm \
-// RUN:  -gpu-kernel-outlining \
-// RUN:  -pass-pipeline='gpu.module(strip-debuginfo,convert-gpu-to-nvvm,reconcile-unrealized-casts,gpu-to-cubin)' \
-// RUN:  -gpu-to-llvm -reconcile-unrealized-casts |\
-// RUN: mlir-cpu-runner -e main -entry-point-result=void \
-// RUN:   -shared-libs=%mlir_lib_dir/libmlir_cuda_runtime%shlibext \
-// RUN:   -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext \
-// RUN:   -shared-libs=%mlir_lib_dir/libmlir_runner_utils%shlibext | \
+// RUN: mlir-opt -convert-vector-to-scf -convert-scf-to-cf -convert-cf-to-llvm -convert-vector-to-llvm -convert-arith-to-llvm \
+// RUN:  -gpu-lower-to-nvvm-pipeline | \
+// RUN: mlir-runner -e main -entry-point-result=void \
+// RUN:   -shared-libs=%mlir_cuda_runtime \
+// RUN:   -shared-libs=%mlir_c_runner_utils \
+// RUN:   -shared-libs=%mlir_runner_utils | \
 // RUN: FileCheck %s
 
 // Run the same test cases with distribution and propagation.
 // RUN: mlir-opt %s  -test-vector-warp-distribute="hoist-uniform distribute-transfer-write" \
 // RUN:   -test-vector-warp-distribute=rewrite-warp-ops-to-scf-if -canonicalize | \
-// RUN: mlir-opt -convert-scf-to-cf -convert-cf-to-llvm -convert-vector-to-llvm -convert-arith-to-llvm \
-// RUN:  -gpu-kernel-outlining \
-// RUN:  -pass-pipeline='gpu.module(strip-debuginfo,convert-gpu-to-nvvm,reconcile-unrealized-casts,gpu-to-cubin)' \
-// RUN:  -gpu-to-llvm -reconcile-unrealized-casts |\
-// RUN: mlir-cpu-runner -e main -entry-point-result=void \
-// RUN:   -shared-libs=%mlir_lib_dir/libmlir_cuda_runtime%shlibext \
-// RUN:   -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext \
-// RUN:   -shared-libs=%mlir_lib_dir/libmlir_runner_utils%shlibext | \
+// RUN: mlir-opt -convert-vector-to-scf -convert-scf-to-cf -convert-cf-to-llvm -convert-vector-to-llvm -convert-arith-to-llvm \
+// RUN:  -gpu-lower-to-nvvm-pipeline | \
+// RUN: mlir-runner -e main -entry-point-result=void \
+// RUN:   -shared-libs=%mlir_cuda_runtime \
+// RUN:   -shared-libs=%mlir_c_runner_utils \
+// RUN:   -shared-libs=%mlir_runner_utils | \
 // RUN: FileCheck %s
 
 // RUN: mlir-opt %s  -test-vector-warp-distribute="hoist-uniform distribute-transfer-write propagate-distribution" \
 // RUN:   -test-vector-warp-distribute=rewrite-warp-ops-to-scf-if -canonicalize | \
-// RUN: mlir-opt -convert-scf-to-cf -convert-cf-to-llvm -convert-vector-to-llvm -convert-arith-to-llvm \
-// RUN:  -gpu-kernel-outlining \
-// RUN:  -pass-pipeline='gpu.module(strip-debuginfo,convert-gpu-to-nvvm,reconcile-unrealized-casts,gpu-to-cubin)' \
-// RUN:  -gpu-to-llvm -reconcile-unrealized-casts |\
-// RUN: mlir-cpu-runner -e main -entry-point-result=void \
-// RUN:   -shared-libs=%mlir_lib_dir/libmlir_cuda_runtime%shlibext \
-// RUN:   -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext \
-// RUN:   -shared-libs=%mlir_lib_dir/libmlir_runner_utils%shlibext | \
+// RUN: mlir-opt -convert-vector-to-scf -convert-scf-to-cf -convert-cf-to-llvm -convert-vector-to-llvm -convert-arith-to-llvm \
+// RUN:  -gpu-lower-to-nvvm-pipeline | \
+// RUN: mlir-runner -e main -entry-point-result=void \
+// RUN:   -shared-libs=%mlir_cuda_runtime \
+// RUN:   -shared-libs=%mlir_c_runner_utils \
+// RUN:   -shared-libs=%mlir_runner_utils | \
 // RUN: FileCheck %s
 
 func.func @gpu_func(%arg1: memref<32xf32>, %arg2: memref<32xf32>) {
@@ -44,7 +38,7 @@ func.func @gpu_func(%arg1: memref<32xf32>, %arg2: memref<32xf32>) {
   gpu.launch blocks(%arg3, %arg4, %arg5)
   in (%arg9 = %c1, %arg10 = %c1, %arg11 = %c1)
   threads(%arg6, %arg7, %arg8) in (%arg12 = %c32, %arg13 = %c1, %arg14 = %c1) {
-    vector.warp_execute_on_lane_0(%arg6)[32] {
+    gpu.warp_execute_on_lane_0(%arg6)[32] {
       %0 = vector.transfer_read %arg1[%c0], %cst {in_bounds = [true]} : memref<32xf32>, vector<32xf32>
       %1 = vector.transfer_read %arg2[%c0], %cst {in_bound = [true]} : memref<32xf32>, vector<32xf32>
       %2 = arith.addf %0, %1 : vector<32xf32>

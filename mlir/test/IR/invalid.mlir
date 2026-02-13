@@ -112,6 +112,14 @@ func.func @non_operation() {
 
 // -----
 
+func.func @unknown_dialect_operation() {
+  // expected-error@below {{Dialect `foo' not found for custom op 'foo.asd'}}
+  // expected-note-re@below {{Available dialects:{{.*}} test{{.*}}}}
+  foo.asd
+}
+
+// -----
+
 func.func @non_operation() {
   // expected-error@+1 {{custom op 'asd' is unknown (tried 'func.asd' as well)}}
   asd
@@ -361,7 +369,7 @@ func.func @dialect_type_empty_namespace(!<"">) -> () { // expected-error {{inval
 
 // -----
 
-func.func @dialect_type_missing_greater(!foo<) -> () { // expected-error {{unbalanced ')' character in pretty dialect name}}
+func.func @dialect_type_missing_greater(!foo<) -> () { // expected-error {{unbalanced '<' character in pretty dialect name}}
   return
 
 // -----
@@ -406,7 +414,7 @@ func.func @invalid_nested_dominance() {
 
 // -----
 
-// expected-error @+1 {{unbalanced ']' character in pretty dialect name}}
+// expected-error @+1 {{unbalanced '<' character in pretty dialect name}}
 func.func @invalid_unknown_type_dialect_name() -> !invalid.dialect<!x@#]!@#>
 
 // -----
@@ -574,13 +582,8 @@ func.func @invalid_region_dominance() {
 
 // -----
 
-// expected-error @+1 {{unbalanced ')' character in pretty dialect name}}
+// expected-error @+1 {{unbalanced '<' character in pretty dialect name}}
 func.func @bad_arrow(%arg : !unreg.ptr<(i32)->)
-
-// -----
-
-// expected-error @+1 {{attribute 'attr' occurs more than once in the attribute list}}
-test.format_symbol_name_attr_op @name { attr = "xx" }
 
 // -----
 
@@ -639,11 +642,21 @@ func.func @invalid_region_dominance_with_dominance_free_regions() {
 
 // -----
 
+// expected-error @below {{expected bare identifier or keyword}}
+test.parse_custom_operation_name_api(@foo) {}
+
+// -----
+
+// expected-error @below {{expected bare identifier or keyword}}
+test.parse_custom_operation_name_api(42) {}
+
+// -----
+
 // This makes sure we emit an error at the end of the correct line, the : is
 // expected at the end of foo, not on the return line.
 func.func @error_at_end_of_line() {
   // expected-error@+1 {{expected ':' followed by operation type}}
-  %0 = "foo"() 
+  %0 = "foo"()
   return
 }
 
@@ -652,7 +665,7 @@ func.func @error_at_end_of_line() {
 // This makes sure we emit an error at the end of the correct line, the : is
 // expected at the end of foo, not on the return line.
 func.func @error_at_end_of_line() {
-  %0 = "foo"() 
+  %0 = "foo"()
   // expected-error@-1 {{expected ':' followed by operation type}}
 
   // This is a comment and so is the thing above.
@@ -672,3 +685,17 @@ func.func @error_at_end_of_line() {
 // -----
 
 @foo   // expected-error {{expected operation name in quotes}}
+
+// -----
+
+func.func @drop_references_on_block_parse_error(){
+  "test.user"(%i, %1) : (index, index) -> ()
+  "test.op_with_region"() ({
+  ^bb0(%i : index):
+    // expected-error @below{{expected operation name in quotes}}
+    %1 = "test.foo"() : () -> (index)
+    // Syntax error to abort parsing this block.
+    123
+  }) : () -> ()
+  return
+}

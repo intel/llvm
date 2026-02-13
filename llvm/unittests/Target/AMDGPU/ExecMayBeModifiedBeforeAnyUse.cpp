@@ -7,27 +7,16 @@
 //===----------------------------------------------------------------------===//
 
 #include "AMDGPUTargetMachine.h"
-#include "GCNSubtarget.h"
-#include "MCTargetDesc/AMDGPUMCTargetDesc.h"
+#include "AMDGPUUnitTests.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
-#include "llvm/CodeGen/TargetSubtargetInfo.h"
-#include "llvm/MC/MCTargetOptions.h"
-#include "llvm/MC/TargetRegistry.h"
-#include "llvm/Support/TargetSelect.h"
-#include "llvm/Target/TargetMachine.h"
 #include "gtest/gtest.h"
-#include <thread>
 
 using namespace llvm;
 
-// implementation is in the llvm/unittests/Target/AMDGPU/DwarfRegMappings.cpp
-std::unique_ptr<const GCNTargetMachine>
-createTargetMachine(std::string TStr, StringRef CPU, StringRef FS);
-
-TEST(AMDGPUExecMayBeModifiedBeforeAnyUse, TheTest) {
-  auto TM = createTargetMachine("amdgcn-amd-", "gfx906", "");
+TEST(AMDGPU, ExecMayBeModifiedBeforeAnyUse) {
+  auto TM = createAMDGPUTargetMachine("amdgcn-amd-", "gfx906", "");
   if (!TM)
-    return;
+    GTEST_SKIP();
 
   GCNSubtarget ST(TM->getTargetTriple(), std::string(TM->getTargetCPU()),
                   std::string(TM->getTargetFeatureString()), *TM);
@@ -40,7 +29,8 @@ TEST(AMDGPUExecMayBeModifiedBeforeAnyUse, TheTest) {
   auto *F = Function::Create(Type, GlobalValue::ExternalLinkage, "Test", &Mod);
 
   MachineModuleInfo MMI(TM.get());
-  auto MF = std::make_unique<MachineFunction>(*F, *TM, ST, 42, MMI);
+  auto MF =
+      std::make_unique<MachineFunction>(*F, *TM, ST, MMI.getContext(), 42);
   auto *BB = MF->CreateMachineBasicBlock();
   MF->push_back(BB);
 

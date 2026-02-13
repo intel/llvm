@@ -40,7 +40,7 @@
 #endif
 
 #ifndef __APPLE__
-#include "Utility/UuidCompatibility.h"
+#include "lldb/Utility/AppleUuidCompatibility.h"
 #else
 #include <uuid/uuid.h>
 #endif
@@ -75,7 +75,9 @@ DynamicLoader *DynamicLoaderMacOSXDYLD::CreateInstance(Process *process,
       case llvm::Triple::IOS:
       case llvm::Triple::TvOS:
       case llvm::Triple::WatchOS:
-      // NEED_BRIDGEOS_TRIPLE case llvm::Triple::BridgeOS:
+      case llvm::Triple::BridgeOS:
+      case llvm::Triple::DriverKit:
+      case llvm::Triple::XROS:
         create = triple_ref.getVendor() == llvm::Triple::Apple;
         break;
       default:
@@ -258,10 +260,13 @@ bool DynamicLoaderMacOSXDYLD::ReadDYLDInfoFromMemoryAndSetNotificationCallback(
       ModuleSP dyld_module_sp;
       if (ParseLoadCommands(data, m_dyld, &m_dyld.file_spec)) {
         if (m_dyld.file_spec) {
-          UpdateDYLDImageInfoFromNewImageInfo(m_dyld);
+          if (!UpdateDYLDImageInfoFromNewImageInfo(m_dyld))
+            return false;
         }
       }
       dyld_module_sp = GetDYLDModule();
+      if (!dyld_module_sp)
+        return false;
 
       Target &target = m_process->GetTarget();
 
@@ -275,6 +280,16 @@ bool DynamicLoaderMacOSXDYLD::ReadDYLDInfoFromMemoryAndSetNotificationCallback(
         }
         if (symbol)
           m_dyld_all_image_infos_addr = symbol->GetLoadAddress(&target);
+      }
+
+      if (m_dyld_all_image_infos_addr == LLDB_INVALID_ADDRESS) {
+        ConstString g_sect_name("__all_image_info");
+        SectionSP dyld_aii_section_sp =
+            dyld_module_sp->GetSectionList()->FindSectionByName(g_sect_name);
+        if (dyld_aii_section_sp) {
+          Address dyld_aii_addr(dyld_aii_section_sp, 0);
+          m_dyld_all_image_infos_addr = dyld_aii_addr.GetLoadAddress(&target);
+        }
       }
 
       // Update all image infos
@@ -347,19 +362,19 @@ bool DynamicLoaderMacOSXDYLD::NotifyBreakpointHit(
     // Build up the value array to store the three arguments given above, then
     // get the values from the ABI:
 
-    TypeSystemClang *clang_ast_context =
+    TypeSystemClangSP scratch_ts_sp =
         ScratchTypeSystemClang::GetForTarget(process->GetTarget());
-    if (!clang_ast_context)
+    if (!scratch_ts_sp)
       return false;
 
     ValueList argument_values;
     Value input_value;
 
     CompilerType clang_void_ptr_type =
-        clang_ast_context->GetBasicType(eBasicTypeVoid).GetPointerType();
+        scratch_ts_sp->GetBasicType(eBasicTypeVoid).GetPointerType();
     CompilerType clang_uint32_type =
-        clang_ast_context->GetBuiltinTypeForEncodingAndBitSize(
-            lldb::eEncodingUint, 32);
+        scratch_ts_sp->GetBuiltinTypeForEncodingAndBitSize(lldb::eEncodingUint,
+                                                           32);
     input_value.SetValueType(Value::ValueType::Scalar);
     input_value.SetCompilerType(clang_uint32_type);
     //        input_value.SetContext (Value::eContextTypeClangType,
@@ -558,8 +573,9 @@ bool DynamicLoaderMacOSXDYLD::AddModulesUsingImageInfosAddress(
               ->GetSize() == image_infos_count) {
     bool return_value = false;
     if (JSONImageInformationIntoImageInfo(image_infos_json_sp, image_infos)) {
-      UpdateSpecialBinariesFromNewImageInfos(image_infos);
-      return_value = AddModulesUsingImageInfos(image_infos);
+      auto images = PreloadModulesFromImageInfos(image_infos);
+      UpdateSpecialBinariesFromPreloadedModules(images);
+      return_value = AddModulesUsingPreloadedModules(images);
     }
     m_dyld_image_infos_stop_id = m_process->GetStopID();
     return return_value;
@@ -683,7 +699,7 @@ bool DynamicLoaderMacOSXDYLD::ReadImageInfos(
          i++) {
       image_infos[i].address = info_data_ref.GetAddress(&info_data_offset);
       lldb::addr_t path_addr = info_data_ref.GetAddress(&info_data_offset);
-      image_infos[i].mod_date = info_data_ref.GetAddress(&info_data_offset);
+      info_data_ref.GetAddress(&info_data_offset); // mod_date, unused */
 
       char raw_path[PATH_MAX];
       m_process->ReadCStringFromMemory(path_addr, raw_path, sizeof(raw_path),
@@ -1049,7 +1065,7 @@ Status DynamicLoaderMacOSXDYLD::CanLoadImage() {
       return error; // Success
   }
 
-  error.SetErrorString("unsafe to load or unload shared libraries");
+  error = Status::FromErrorString("unsafe to load or unload shared libraries");
   return error;
 }
 

@@ -45,6 +45,8 @@
 ; ASM:         .cv_loc 1 1 5 3                 # t.cpp:5:3
 ; ASM:         callq   capture
 ; ASM:         leaq    40(%rsp), %rcx
+; ASM: [[end_inline_1:\.Ltmp.*]]:
+; ASM:         .cv_loc 0 1 11 5                # t.cpp:11:5
 ; ASM:         jmp     .LBB0_3
 ; ASM: [[else_start:\.Ltmp.*]]:
 ; ASM: .LBB0_2:                                # %if.else
@@ -87,7 +89,7 @@
 ; ASM: .long   116                     # TypeIndex
 ; ASM: .short  0                       # Flags
 ; ASM: .asciz  "v"
-; ASM: .cv_def_range    [[inline_site1]] [[else_start]], frame_ptr_rel, 44
+; ASM: .cv_def_range    [[inline_site1]] [[end_inline_1]], frame_ptr_rel, 44
 ; ASM: .short  4430                    # Record kind: S_INLINESITE_END
 ; ASM: .short  4429                    # Record kind: S_INLINESITE
 ; ASM: .short  4414                    # Record kind: S_LOCAL
@@ -154,7 +156,7 @@
 ; OBJ:        ChangeLineOffset: 1
 ; OBJ:        ChangeCodeOffset: 0x14
 ; OBJ:        ChangeCodeOffsetAndLineOffset: {CodeOffset: 0xD, LineOffset: 1}
-; OBJ:        ChangeCodeLength: 0xC
+; OBJ:        ChangeCodeLength: 0xA
 ; OBJ:      ]
 ; OBJ:    }
 ; OBJ:    LocalSym {
@@ -168,7 +170,7 @@
 ; OBJ:      LocalVariableAddrRange {
 ; OBJ:        OffsetStart: .text+0x14
 ; OBJ:        ISectStart: 0x0
-; OBJ:        Range: 0x19
+; OBJ:        Range: 0x17
 ; OBJ:      }
 ; OBJ:    }
 ; OBJ:    InlineSiteEnd {
@@ -211,32 +213,32 @@ target triple = "x86_64-pc-windows-msvc18.0.0"
 define void @f(i32 %param) #0 !dbg !4 {
 entry:
   %v.i1 = alloca i32, align 4
-  call void @llvm.dbg.declare(metadata i32* %v.i1, metadata !15, metadata !16), !dbg !17
+  call void @llvm.dbg.declare(metadata ptr %v.i1, metadata !15, metadata !16), !dbg !17
   %v.i = alloca i32, align 4
-  call void @llvm.dbg.declare(metadata i32* %v.i, metadata !15, metadata !16), !dbg !21
+  call void @llvm.dbg.declare(metadata ptr %v.i, metadata !15, metadata !16), !dbg !21
   %param.addr = alloca i32, align 4
   %a = alloca i32, align 4
   %b = alloca i32, align 4
-  store i32 %param, i32* %param.addr, align 4
-  call void @llvm.dbg.declare(metadata i32* %param.addr, metadata !24, metadata !16), !dbg !25
-  %0 = load i32, i32* %param.addr, align 4, !dbg !26
+  store i32 %param, ptr %param.addr, align 4
+  call void @llvm.dbg.declare(metadata ptr %param.addr, metadata !24, metadata !16), !dbg !25
+  %0 = load i32, ptr %param.addr, align 4, !dbg !26
   %tobool = icmp ne i32 %0, 0, !dbg !26
   br i1 %tobool, label %if.then, label %if.else, !dbg !27
 
 if.then:                                          ; preds = %entry
-  call void @llvm.dbg.declare(metadata i32* %a, metadata !28, metadata !16), !dbg !29
-  store i32 42, i32* %a, align 4, !dbg !29
-  store i32 3, i32* %v.i, align 4, !dbg !21
-  call void @capture(i32* %v.i) #3, !dbg !30
-  call void @capture(i32* %a), !dbg !31
+  call void @llvm.dbg.declare(metadata ptr %a, metadata !28, metadata !16), !dbg !29
+  store i32 42, ptr %a, align 4, !dbg !29
+  store i32 3, ptr %v.i, align 4, !dbg !21
+  call void @capture(ptr %v.i) #3, !dbg !30
+  call void @capture(ptr %a), !dbg !31
   br label %if.end, !dbg !32
 
 if.else:                                          ; preds = %entry
-  call void @llvm.dbg.declare(metadata i32* %b, metadata !33, metadata !16), !dbg !34
-  store i32 42, i32* %b, align 4, !dbg !34
-  store i32 3, i32* %v.i1, align 4, !dbg !17
-  call void @capture(i32* %v.i1) #3, !dbg !35
-  call void @capture(i32* %b), !dbg !36
+  call void @llvm.dbg.declare(metadata ptr %b, metadata !33, metadata !16), !dbg !34
+  store i32 42, ptr %b, align 4, !dbg !34
+  store i32 3, ptr %v.i1, align 4, !dbg !17
+  call void @capture(ptr %v.i1) #3, !dbg !35
+  call void @capture(ptr %b), !dbg !36
   br label %if.end
 
 if.end:                                           ; preds = %if.else, %if.then
@@ -246,11 +248,11 @@ if.end:                                           ; preds = %if.else, %if.then
 ; Function Attrs: nounwind readnone
 declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
 
-declare void @capture(i32*) #2
+declare void @capture(ptr) #2
 
-attributes #0 = { nounwind uwtable "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind uwtable "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone }
-attributes #2 = { "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #2 = { "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2" "use-soft-float"="false" }
 attributes #3 = { nounwind }
 
 !llvm.dbg.cu = !{!0}

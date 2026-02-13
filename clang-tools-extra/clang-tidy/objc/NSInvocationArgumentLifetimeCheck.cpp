@@ -1,4 +1,4 @@
-//===--- NSInvocationArgumentLifetimeCheck.cpp - clang-tidy ---------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -23,20 +23,18 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Lexer.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
+#include <optional>
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace objc {
-namespace {
+namespace clang::tidy::objc {
 
 static constexpr StringRef WeakText = "__weak";
 static constexpr StringRef StrongText = "__strong";
 static constexpr StringRef UnsafeUnretainedText = "__unsafe_unretained";
+
+namespace {
 
 /// Matches ObjCIvarRefExpr, DeclRefExpr, or MemberExpr that reference
 /// Objective-C object (or block) variables or fields whose object lifetimes
@@ -45,58 +43,58 @@ AST_POLYMORPHIC_MATCHER(isObjCManagedLifetime,
                         AST_POLYMORPHIC_SUPPORTED_TYPES(ObjCIvarRefExpr,
                                                         DeclRefExpr,
                                                         MemberExpr)) {
-  QualType QT = Node.getType();
+  const QualType QT = Node.getType();
   return QT->isScalarType() &&
          (QT->getScalarTypeKind() == Type::STK_ObjCObjectPointer ||
           QT->getScalarTypeKind() == Type::STK_BlockPointer) &&
          QT.getQualifiers().getObjCLifetime() > Qualifiers::OCL_ExplicitNone;
 }
 
-static llvm::Optional<FixItHint>
+} // namespace
+
+static std::optional<FixItHint>
 fixItHintReplacementForOwnershipString(StringRef Text, CharSourceRange Range,
                                        StringRef Ownership) {
-  size_t Index = Text.find(Ownership);
+  const size_t Index = Text.find(Ownership);
   if (Index == StringRef::npos)
-    return llvm::None;
+    return std::nullopt;
 
-  SourceLocation Begin = Range.getBegin().getLocWithOffset(Index);
-  SourceLocation End = Begin.getLocWithOffset(Ownership.size());
+  const SourceLocation Begin = Range.getBegin().getLocWithOffset(Index);
+  const SourceLocation End = Begin.getLocWithOffset(Ownership.size());
   return FixItHint::CreateReplacement(SourceRange(Begin, End),
                                       UnsafeUnretainedText);
 }
 
-static llvm::Optional<FixItHint>
+static std::optional<FixItHint>
 fixItHintForVarDecl(const VarDecl *VD, const SourceManager &SM,
                     const LangOptions &LangOpts) {
   assert(VD && "VarDecl parameter must not be null");
   // Don't provide fix-its for any parameter variables at this time.
   if (isa<ParmVarDecl>(VD))
-    return llvm::None;
+    return std::nullopt;
 
   // Currently there is no way to directly get the source range for the
   // __weak/__strong ObjC lifetime qualifiers, so it's necessary to string
   // search in the source code.
-  CharSourceRange Range = Lexer::makeFileCharRange(
+  const CharSourceRange Range = Lexer::makeFileCharRange(
       CharSourceRange::getTokenRange(VD->getSourceRange()), SM, LangOpts);
   if (Range.isInvalid()) {
     // An invalid range likely means inside a macro, in which case don't supply
     // a fix-it.
-    return llvm::None;
+    return std::nullopt;
   }
 
-  StringRef VarDeclText = Lexer::getSourceText(Range, SM, LangOpts);
-  if (llvm::Optional<FixItHint> Hint =
+  const StringRef VarDeclText = Lexer::getSourceText(Range, SM, LangOpts);
+  if (std::optional<FixItHint> Hint =
           fixItHintReplacementForOwnershipString(VarDeclText, Range, WeakText))
     return Hint;
 
-  if (llvm::Optional<FixItHint> Hint = fixItHintReplacementForOwnershipString(
+  if (std::optional<FixItHint> Hint = fixItHintReplacementForOwnershipString(
           VarDeclText, Range, StrongText))
     return Hint;
 
   return FixItHint::CreateInsertion(Range.getBegin(), "__unsafe_unretained ");
 }
-
-} // namespace
 
 void NSInvocationArgumentLifetimeCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
@@ -143,6 +141,4 @@ void NSInvocationArgumentLifetimeCheck::check(
     Diag << *Hint;
 }
 
-} // namespace objc
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::objc

@@ -1,10 +1,9 @@
-; RUN: opt -disable-output -print-mustexecute < %s 2>&1 | FileCheck %s
+; RUN: opt -disable-output -passes=print-mustexecute < %s 2>&1 | FileCheck %s
 
 @c = global i16 0, align 2
 
-; FIXME: miscompile
 ; CHECK-LABEL: define void @latch_cycle_irreducible
-; CHECK: store i16 5, ptr @c, align 2 ; (mustexec in: loop)
+; CHECK: store i16 5, ptr @c, align 2{{$}}
 define void @latch_cycle_irreducible() {
 entry:
   br label %loop
@@ -28,9 +27,8 @@ loop.exit:                                        ; preds = %loop
   ret void
 }
 
-; FIXME: miscompile
 ; CHECK-LABEL: define void @latch_cycle_reducible
-; CHECK: store i16 5, ptr @c, align 2 ; (mustexec in: loop)
+; CHECK: store i16 5, ptr @c, align 2{{$}}
 define void @latch_cycle_reducible() {
 entry:
   br label %loop

@@ -10,7 +10,7 @@
 
 define dso_preemptable i32 @f1() nounwind {
 entry:
-  %tmp = load i32, i32* @t1, align 4
+  %tmp = load i32, ptr @t1, align 4
   ret i32 %tmp
 
 ; PIC32-LABEL:       f1:
@@ -28,10 +28,9 @@ entry:
 ; PIC64-DAG:   lw      $2, 0($2)
 
 ; MM-LABEL:       f1:
-; MM-DAG:   addu    $[[R0:[a-z0-9]+]], $2, $25
-; MM-DAG:   addiu   $4, $[[R0]], %tlsgd(t1)
-; MM-DAG:   lw      $25, %call16(__tls_get_addr)($[[R0]])
-; MM-DAG:   move    $gp, $2
+; MM-DAG:   addu    $gp, $2, $25
+; MM-DAG:   addiu   $4, $gp, %tlsgd(t1)
+; MM-DAG:   lw      $25, %call16(__tls_get_addr)($gp)
 ; MM-DAG:   jalr    $25
 ; MM-DAG:   lw16    $2, 0($2)
 }
@@ -40,7 +39,7 @@ entry:
 
 define dso_preemptable i32 @f2() nounwind {
 entry:
-  %tmp = load i32, i32* @t2, align 4
+  %tmp = load i32, ptr @t2, align 4
   ret i32 %tmp
 
 ; PIC32-LABEL:       f2:
@@ -100,8 +99,8 @@ entry:
 ; MM:   addu16  $[[R1:[0-9]+]], $[[R0]], $2
 ; MM:   lw      ${{[0-9]+}}, %dtprel_lo(f3.i)($[[R1]])
 
-  %0 = load i32, i32* @f3.i, align 4
+  %0 = load i32, ptr @f3.i, align 4
   %inc = add nsw i32 %0, 1
-  store i32 %inc, i32* @f3.i, align 4
+  store i32 %inc, ptr @f3.i, align 4
   ret i32 %inc
 }

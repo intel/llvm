@@ -18,18 +18,18 @@
 ;;         ++i;
 ;;     }
 ;; }
-; CHECK: call void @llvm.dbg.value(metadata i64 %lsr.iv, metadata ![[i:[0-9]+]], metadata !DIExpression())
-; CHECK: call void @llvm.dbg.value(metadata !DIArgList(i64 %lsr.iv, i16 %factor1, i32 %factor0), metadata ![[comp:[0-9]+]], metadata !DIExpression(DW_OP_LLVM_arg, 0, DW_OP_consts, 18446744073709551612, DW_OP_LLVM_arg, 1, DW_OP_LLVM_convert, 32, DW_ATE_signed, DW_OP_mul, DW_OP_mul, DW_OP_LLVM_arg, 2, DW_OP_plus, DW_OP_stack_value))
-; CHECK: call void @llvm.dbg.value(metadata i64 %lsr.iv, metadata ![[i]], metadata !DIExpression(DW_OP_consts, 1, DW_OP_plus, DW_OP_stack_value))
+; CHECK: #dbg_value(i64 %lsr.iv, ![[i:[0-9]+]], !DIExpression(),
+; CHECK: #dbg_value(!DIArgList(i64 %lsr.iv, i16 %factor1, i32 %factor0), ![[comp:[0-9]+]], !DIExpression(DW_OP_LLVM_arg, 0, DW_OP_consts, 18446744073709551612, DW_OP_LLVM_arg, 1, DW_OP_LLVM_convert, 32, DW_ATE_signed, DW_OP_mul, DW_OP_mul, DW_OP_LLVM_arg, 2, DW_OP_plus, DW_OP_stack_value),
+; CHECK: #dbg_value(i64 %lsr.iv, ![[i]], !DIExpression(DW_OP_consts, 1, DW_OP_plus, DW_OP_stack_value),
 ; CHECK: ![[i]] = !DILocalVariable(name: "i"
 ; CHECK: ![[comp]] = !DILocalVariable(name: "comp"
 
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
-define dso_local void @_Z9zext_scevPljs(i64* nocapture %arr, i32 %factor0, i16 signext %factor1) local_unnamed_addr !dbg !90 {
+define dso_local void @_Z9zext_scevPljs(ptr nocapture %arr, i32 %factor0, i16 signext %factor1) local_unnamed_addr !dbg !90 {
 entry:
-  call void @llvm.dbg.value(metadata i64* %arr, metadata !94, metadata !DIExpression()), !dbg !95
+  call void @llvm.dbg.value(metadata ptr %arr, metadata !94, metadata !DIExpression()), !dbg !95
   call void @llvm.dbg.value(metadata i32 %factor0, metadata !96, metadata !DIExpression()), !dbg !95
   call void @llvm.dbg.value(metadata i16 %factor1, metadata !97, metadata !DIExpression()), !dbg !95
   call void @llvm.dbg.value(metadata i32 0, metadata !98, metadata !DIExpression()), !dbg !95
@@ -46,8 +46,8 @@ while.body:                                       ; preds = %while.body, %entry
   call void @llvm.dbg.value(metadata i32 %sub, metadata !101, metadata !DIExpression()), !dbg !99
   %conv2 = zext i32 %sub to i64, !dbg !99
   %idxprom = zext i32 %i.04 to i64, !dbg !99
-  %arrayidx = getelementptr inbounds i64, i64* %arr, i64 %idxprom, !dbg !99
-  store i64 %conv2, i64* %arrayidx, align 8, !dbg !99
+  %arrayidx = getelementptr inbounds i64, ptr %arr, i64 %idxprom, !dbg !99
+  store i64 %conv2, ptr %arrayidx, align 8, !dbg !99
   %inc = add nuw nsw i32 %i.04, 1, !dbg !99
   call void @llvm.dbg.value(metadata i32 %inc, metadata !98, metadata !DIExpression()), !dbg !95
   %cmp = icmp ult i32 %inc, 63, !dbg !95

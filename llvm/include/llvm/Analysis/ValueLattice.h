@@ -9,17 +9,15 @@
 #ifndef LLVM_ANALYSIS_VALUELATTICE_H
 #define LLVM_ANALYSIS_VALUELATTICE_H
 
-#include "llvm/IR/Constants.h"
 #include "llvm/IR/ConstantRange.h"
-#include "llvm/IR/Instructions.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/Support/Compiler.h"
 
 //===----------------------------------------------------------------------===//
 //                               ValueLatticeElement
 //===----------------------------------------------------------------------===//
 
 namespace llvm {
-
-class Constant;
 
 /// This class represents lattice values for constants.
 ///
@@ -202,10 +200,7 @@ public:
 
   static ValueLatticeElement get(Constant *C) {
     ValueLatticeElement Res;
-    if (isa<UndefValue>(C))
-      Res.markUndef();
-    else
-      Res.markConstant(C);
+    Res.markConstant(C);
     return Res;
   }
   static ValueLatticeElement getNot(Constant *C) {
@@ -275,13 +270,28 @@ public:
     return Range;
   }
 
-  Optional<APInt> asConstantInteger() const {
+  std::optional<APInt> asConstantInteger() const {
     if (isConstant() && isa<ConstantInt>(getConstant())) {
       return cast<ConstantInt>(getConstant())->getValue();
     } else if (isConstantRange() && getConstantRange().isSingleElement()) {
       return *getConstantRange().getSingleElement();
     }
-    return None;
+    return std::nullopt;
+  }
+
+  ConstantRange asConstantRange(unsigned BW, bool UndefAllowed = false) const {
+    if (isConstantRange(UndefAllowed))
+      return getConstantRange();
+    if (isConstant())
+      return getConstant()->toConstantRange();
+    if (isUnknown())
+      return ConstantRange::getEmpty(BW);
+    return ConstantRange::getFull(BW);
+  }
+
+  ConstantRange asConstantRange(Type *Ty, bool UndefAllowed = false) const {
+    assert(Ty->isIntOrIntVectorTy() && "Must be integer type");
+    return asConstantRange(Ty->getScalarSizeInBits(), UndefAllowed);
   }
 
   bool markOverdefined() {
@@ -375,7 +385,9 @@ public:
       return true;
     }
 
-    assert(isUnknown() || isUndef());
+    assert(isUnknown() || isUndef() || isConstant());
+    assert((!isConstant() || NewR.contains(getConstant()->toConstantRange())) &&
+           "Constant must be subset of new range");
 
     NumRangeExtensions = 0;
     Tag = NewTag;
@@ -417,6 +429,16 @@ public:
         return false;
       if (RHS.isUndef())
         return false;
+      // If the constant is a vector of integers, try to treat it as a range.
+      if (getConstant()->getType()->isVectorTy() &&
+          getConstant()->getType()->getScalarType()->isIntegerTy()) {
+        ConstantRange L = getConstant()->toConstantRange();
+        ConstantRange NewR = L.unionWith(
+            RHS.asConstantRange(L.getBitWidth(), /*UndefAllowed=*/true));
+        return markConstantRange(
+            std::move(NewR),
+            Opts.setMayIncludeUndef(RHS.isConstantRangeIncludingUndef()));
+      }
       markOverdefined();
       return true;
     }
@@ -435,14 +457,9 @@ public:
       return OldTag != Tag;
     }
 
-    if (!RHS.isConstantRange()) {
-      // We can get here if we've encountered a constantexpr of integer type
-      // and merge it with a constantrange.
-      markOverdefined();
-      return true;
-    }
-
-    ConstantRange NewR = getConstantRange().unionWith(RHS.getConstantRange());
+    const ConstantRange &L = getConstantRange();
+    ConstantRange NewR = L.unionWith(
+        RHS.asConstantRange(L.getBitWidth(), /*UndefAllowed=*/true));
     return markConstantRange(
         std::move(NewR),
         Opts.setMayIncludeUndef(RHS.isConstantRangeIncludingUndef()));
@@ -451,38 +468,27 @@ public:
   // Compares this symbolic value with Other using Pred and returns either
   /// true, false or undef constants, or nullptr if the comparison cannot be
   /// evaluated.
-  Constant *getCompare(CmpInst::Predicate Pred, Type *Ty,
-                       const ValueLatticeElement &Other) const {
-    if (isUnknownOrUndef() || Other.isUnknownOrUndef())
-      return UndefValue::get(Ty);
+  LLVM_ABI Constant *getCompare(CmpInst::Predicate Pred, Type *Ty,
+                                const ValueLatticeElement &Other,
+                                const DataLayout &DL) const;
 
-    if (isConstant() && Other.isConstant())
-      return ConstantExpr::getCompare(Pred, getConstant(), Other.getConstant());
-
-    if (ICmpInst::isEquality(Pred)) {
-      // not(C) != C => true, not(C) == C => false.
-      if ((isNotConstant() && Other.isConstant() &&
-           getNotConstant() == Other.getConstant()) ||
-          (isConstant() && Other.isNotConstant() &&
-           getConstant() == Other.getNotConstant()))
-        return Pred == ICmpInst::ICMP_NE
-            ? ConstantInt::getTrue(Ty) : ConstantInt::getFalse(Ty);
-    }
-
-    // Integer constants are represented as ConstantRanges with single
-    // elements.
-    if (!isConstantRange() || !Other.isConstantRange())
-      return nullptr;
-
-    const auto &CR = getConstantRange();
-    const auto &OtherCR = Other.getConstantRange();
-    if (CR.icmp(Pred, OtherCR))
-      return ConstantInt::getTrue(Ty);
-    if (CR.icmp(CmpInst::getInversePredicate(Pred), OtherCR))
-      return ConstantInt::getFalse(Ty);
-
-    return nullptr;
-  }
+  /// Combine two sets of facts about the same value into a single set of
+  /// facts.  Note that this method is not suitable for merging facts along
+  /// different paths in a CFG; that's what the mergeIn function is for.  This
+  /// is for merging facts gathered about the same value at the same location
+  /// through two independent means.
+  /// Notes:
+  /// * This method does not promise to return the most precise possible lattice
+  ///   value implied by A and B.  It is allowed to return any lattice element
+  ///   which is at least as strong as *either* A or B (unless our facts
+  ///   conflict, see below).
+  /// * Due to unreachable code, the intersection of two lattice values could be
+  ///   contradictory.  If this happens, we return some valid lattice value so
+  ///   as not confuse the rest of LVI.  Ideally, we'd always return Undefined,
+  ///   but we do not make this guarantee.  TODO: This would be a useful
+  ///   enhancement.
+  LLVM_ABI ValueLatticeElement
+  intersect(const ValueLatticeElement &Other) const;
 
   unsigned getNumRangeExtensions() const { return NumRangeExtensions; }
   void setNumRangeExtensions(unsigned N) { NumRangeExtensions = N; }
@@ -491,6 +497,7 @@ public:
 static_assert(sizeof(ValueLatticeElement) <= 40,
               "size of ValueLatticeElement changed unexpectedly");
 
-raw_ostream &operator<<(raw_ostream &OS, const ValueLatticeElement &Val);
+LLVM_ABI raw_ostream &operator<<(raw_ostream &OS,
+                                 const ValueLatticeElement &Val);
 } // end namespace llvm
 #endif

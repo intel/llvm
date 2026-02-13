@@ -41,6 +41,7 @@ protected:
     EXPECT_TRUE(testMap.begin() == testMap.end());
 
     // Lookup tests
+    EXPECT_FALSE(testMap.contains(testKey));
     EXPECT_EQ(0u, testMap.count(testKey));
     EXPECT_EQ(0u, testMap.count(StringRef(testKeyFirst, testKeyLength)));
     EXPECT_EQ(0u, testMap.count(testKeyStr));
@@ -64,6 +65,7 @@ protected:
     EXPECT_TRUE(it == testMap.end());
 
     // Lookup tests
+    EXPECT_TRUE(testMap.contains(testKey));
     EXPECT_EQ(1u, testMap.count(testKey));
     EXPECT_EQ(1u, testMap.count(StringRef(testKeyFirst, testKeyLength)));
     EXPECT_EQ(1u, testMap.count(testKeyStr));
@@ -205,6 +207,18 @@ TEST_F(StringMapTest, CopyCtorTest) {
   EXPECT_EQ(5, Map2.lookup("funf"));
 }
 
+TEST_F(StringMapTest, AtTest) {
+  llvm::StringMap<int> Map;
+
+  // keys both found and not found on non-empty map
+  Map["a"] = 1;
+  Map["b"] = 2;
+  Map["c"] = 3;
+  EXPECT_EQ(1, Map.at("a"));
+  EXPECT_EQ(2, Map.at("b"));
+  EXPECT_EQ(3, Map.at("c"));
+}
+
 // A more complex iteration test.
 TEST_F(StringMapTest, IterationTest) {
   bool visited[100];
@@ -236,7 +250,7 @@ TEST_F(StringMapTest, IterationTest) {
 TEST_F(StringMapTest, StringMapEntryTest) {
   MallocAllocator Allocator;
   StringMap<uint32_t>::value_type *entry =
-      StringMap<uint32_t>::value_type::Create(
+      StringMap<uint32_t>::value_type::create(
           StringRef(testKeyFirst, testKeyLength), Allocator, 1u);
   EXPECT_STREQ(testKey, entry->first().data());
   EXPECT_EQ(1u, entry->second);
@@ -246,7 +260,7 @@ TEST_F(StringMapTest, StringMapEntryTest) {
 // Test insert() method.
 TEST_F(StringMapTest, InsertTest) {
   SCOPED_TRACE("InsertTest");
-  testMap.insert(StringMap<uint32_t>::value_type::Create(
+  testMap.insert(StringMap<uint32_t>::value_type::create(
       StringRef(testKeyFirst, testKeyLength), testMap.getAllocator(), 1u));
   assertSingleItemMap();
 }
@@ -353,7 +367,7 @@ TEST_F(StringMapTest, NonDefaultConstructable) {
 }
 
 struct Immovable {
-  Immovable() {}
+  Immovable() = default;
   Immovable(Immovable &&) = delete; // will disable the other special members
 };
 
@@ -367,6 +381,9 @@ struct MoveOnly {
     return *this;
   }
 
+  bool operator==(const MoveOnly &RHS) const { return i == RHS.i; }
+  bool operator!=(const MoveOnly &RHS) const { return i != RHS.i; }
+
 private:
   MoveOnly(const MoveOnly &) = delete;
   MoveOnly &operator=(const MoveOnly &) = delete;
@@ -376,14 +393,14 @@ TEST_F(StringMapTest, MoveOnly) {
   StringMap<MoveOnly> t;
   t.insert(std::make_pair("Test", MoveOnly(42)));
   StringRef Key = "Test";
-  StringMapEntry<MoveOnly>::Create(Key, t.getAllocator(), MoveOnly(42))
+  StringMapEntry<MoveOnly>::create(Key, t.getAllocator(), MoveOnly(42))
       ->Destroy(t.getAllocator());
 }
 
 TEST_F(StringMapTest, CtorArg) {
   StringRef Key = "Test";
   MallocAllocator Allocator;
-  StringMapEntry<MoveOnly>::Create(Key, Allocator, Immovable())
+  StringMapEntry<MoveOnly>::create(Key, Allocator, Immovable())
       ->Destroy(Allocator);
 }
 
@@ -473,6 +490,17 @@ TEST_F(StringMapTest, NotEqualWithDifferentValues) {
   ASSERT_TRUE(B != A);
 }
 
+TEST_F(StringMapTest, PrecomputedHash) {
+  StringMap<int> A;
+  StringRef Key = "foo";
+  int Value = 42;
+  uint64_t Hash = StringMap<int>::hash(Key);
+  A.insert({"foo", Value}, Hash);
+  auto I = A.find(Key, Hash);
+  ASSERT_NE(I, A.end());
+  ASSERT_EQ(I->second, Value);
+}
+
 struct Countable {
   int &InstanceCount;
   int Number;
@@ -515,6 +543,36 @@ TEST_F(StringMapTest, MoveDtor) {
   B = StringMap<Countable>();
   ASSERT_EQ(InstanceCount, 0);
   ASSERT_TRUE(B.empty());
+}
+
+TEST_F(StringMapTest, StructuredBindings) {
+  StringMap<int> A;
+  A["a"] = 42;
+
+  for (auto &[Key, Value] : A) {
+    EXPECT_EQ("a", Key);
+    EXPECT_EQ(42, Value);
+  }
+
+  for (const auto &[Key, Value] : A) {
+    EXPECT_EQ("a", Key);
+    EXPECT_EQ(42, Value);
+  }
+}
+
+TEST_F(StringMapTest, StructuredBindingsMoveOnly) {
+  StringMap<MoveOnly> A;
+  A.insert(std::make_pair("a", MoveOnly(42)));
+
+  for (auto &[Key, Value] : A) {
+    EXPECT_EQ("a", Key);
+    EXPECT_EQ(MoveOnly(42), Value);
+  }
+
+  for (const auto &[Key, Value] : A) {
+    EXPECT_EQ("a", Key);
+    EXPECT_EQ(MoveOnly(42), Value);
+  }
 }
 
 namespace {
@@ -633,6 +691,60 @@ TEST(StringMapCustomTest, StringMapEntrySize) {
   StringMapEntry<int> LargerEntry(LargeValue);
   Key = LargerEntry.getKey();
   EXPECT_EQ(LargeValue, Key.size());
+}
+
+TEST(StringMapCustomTest, NonConstIterator) {
+  StringMap<int> Map;
+  Map["key"] = 1;
+
+  // Check that Map.begin() returns a non-const iterator.
+  static_assert(
+      std::is_same_v<decltype(Map.begin()), StringMap<int>::iterator>);
+
+  // Check that the value_type of a non-const iterator is not a const type.
+  static_assert(
+      !std::is_const_v<StringMap<int>::iterator::value_type>,
+      "The value_type of a non-const iterator should not be a const type.");
+
+  // Check that pointer and reference types are not const.
+  static_assert(std::is_same_v<StringMap<int>::iterator::pointer,
+                               StringMap<int>::iterator::value_type *>);
+  static_assert(std::is_same_v<StringMap<int>::iterator::reference,
+                               StringMap<int>::iterator::value_type &>);
+
+  // Check that we can construct a const_iterator from an iterator.
+  static_assert(std::is_constructible_v<StringMap<int>::const_iterator,
+                                        StringMap<int>::iterator>);
+
+  // Double check that we can actually construct a const_iterator.
+  StringMap<int>::const_iterator const_it = Map.begin();
+  (void)const_it;
+}
+
+TEST(StringMapCustomTest, ConstIterator) {
+  StringMap<int> Map;
+  const StringMap<int> &ConstMap = Map;
+
+  // Check that ConstMap.begin() returns a const_iterator.
+  static_assert(std::is_same_v<decltype(ConstMap.begin()),
+                               StringMap<int>::const_iterator>);
+
+  // Check that the value_type of a const iterator is not a const type.
+  static_assert(
+      !std::is_const_v<StringMap<int>::const_iterator::value_type>,
+      "The value_type of a const iterator should not be a const type.");
+
+  // Check that pointer and reference types are const.
+  static_assert(
+      std::is_same_v<StringMap<int>::const_iterator::pointer,
+                     const StringMap<int>::const_iterator::value_type *>);
+  static_assert(
+      std::is_same_v<StringMap<int>::const_iterator::reference,
+                     const StringMap<int>::const_iterator::value_type &>);
+
+  // Check that we cannot construct an iterator from a const_iterator.
+  static_assert(!std::is_constructible_v<StringMap<int>::iterator,
+                                         StringMap<int>::const_iterator>);
 }
 
 } // end anonymous namespace

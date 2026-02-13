@@ -1,4 +1,4 @@
-//===--- MisplacedArrayIndexCheck.cpp - clang-tidy-------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,9 +14,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace readability {
+namespace clang::tidy::readability {
 
 void MisplacedArrayIndexCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
@@ -52,6 +50,4 @@ void MisplacedArrayIndexCheck::check(const MatchFinder::MatchResult &Result) {
       ArraySubscriptE->getRHS()->getSourceRange(), LText);
 }
 
-} // namespace readability
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::readability

@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Basic/Version.h"
+#include "clang/Config/config.h"
+#include "clang/Options/OptionUtils.h"
 
 #include "Plugins/ExpressionParser/Clang/ClangHost.h"
 #include "TestingSupport/SubsystemRAII.h"
@@ -37,13 +39,22 @@ static std::string ComputeClangResourceDir(std::string lldb_shlib_path,
 TEST_F(ClangHostTest, ComputeClangResourceDirectory) {
 #if !defined(_WIN32)
   std::string path_to_liblldb = "/foo/bar/lib/";
-  std::string path_to_clang_dir =
-      "/foo/bar/" LLDB_INSTALL_LIBDIR_BASENAME "/clang/" CLANG_VERSION_STRING;
 #else
-  std::string path_to_liblldb = "C:\\foo\\bar\\lib";
-  std::string path_to_clang_dir = "C:\\foo\\bar\\lib\\clang\\" CLANG_VERSION_STRING;
+  std::string path_to_liblldb = "C:\\foo\\bar\\lib\\";
 #endif
-  EXPECT_EQ(ComputeClangResourceDir(path_to_liblldb), path_to_clang_dir);
+  std::string path_to_clang_dir =
+      clang::GetResourcesPath(path_to_liblldb + "liblldb");
+  llvm::SmallString<256> path_to_clang_lib_dir_real;
+  llvm::sys::fs::real_path(path_to_clang_dir, path_to_clang_lib_dir_real);
+
+  std::string computed_path = ComputeClangResourceDir(path_to_liblldb);
+  llvm::SmallString<256> computed_path_real;
+  llvm::sys::fs::real_path(computed_path, computed_path_real);
+
+  // When CLANG_RESOURCE_DIR is set, both the functions we use here behave in
+  // such a way that leads to one path being lib/ and the other bin/. Check that
+  // they are equivalent after any ".." have been resolved.
+  EXPECT_EQ(path_to_clang_lib_dir_real, computed_path_real);
 
   // The path doesn't really exist, so setting verify to true should make
   // ComputeClangResourceDir not give you path_to_clang_dir.

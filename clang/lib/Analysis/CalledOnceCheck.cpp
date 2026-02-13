@@ -11,11 +11,11 @@
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
+#include "clang/AST/DynamicRecursiveASTVisitor.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprObjC.h"
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/ParentMap.h"
-#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/StmtObjC.h"
 #include "clang/AST/StmtVisitor.h"
@@ -28,16 +28,14 @@
 #include "clang/Basic/LLVM.h"
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/BitmaskEnum.h"
-#include "llvm/ADT/Optional.h"
-#include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
 #include <memory>
+#include <optional>
 
 using namespace clang;
 
@@ -163,7 +161,7 @@ public:
     NotVisited = 0x8, /* 1000 */
     // We already reported a violation and stopped tracking calls for this
     // parameter.
-    Reported = 0x15, /* 1111 */
+    Reported = 0xF, /* 1111 */
     LLVM_MARK_AS_BITMASK_ENUM(/* LargestValue = */ Reported)
   };
 
@@ -426,7 +424,7 @@ const Expr *getCondition(const Stmt *S) {
 /// of the AST will end up in the results.
 /// Results might have duplicate names, if this is a problem, convert to
 /// string sets afterwards.
-class NamesCollector : public RecursiveASTVisitor<NamesCollector> {
+class NamesCollector : public DynamicRecursiveASTVisitor {
 public:
   static constexpr unsigned EXPECTED_NUMBER_OF_NAMES = 5;
   using NameCollection =
@@ -438,12 +436,12 @@ public:
     return Impl.Result;
   }
 
-  bool VisitDeclRefExpr(const DeclRefExpr *E) {
+  bool VisitDeclRefExpr(DeclRefExpr *E) override {
     Result.push_back(E->getDecl()->getName());
     return true;
   }
 
-  bool VisitObjCPropertyRefExpr(const ObjCPropertyRefExpr *E) {
+  bool VisitObjCPropertyRefExpr(ObjCPropertyRefExpr *E) override {
     llvm::StringRef Name;
 
     if (E->isImplicitProperty()) {
@@ -494,7 +492,7 @@ struct Clarification {
 /// of basic blocks.
 class NotCalledClarifier
     : public ConstStmtVisitor<NotCalledClarifier,
-                              llvm::Optional<Clarification>> {
+                              std::optional<Clarification>> {
 public:
   /// The main entrypoint for the class, the function that tries to find the
   /// clarification of how to explain which sub-path starts with a CFG edge
@@ -508,24 +506,24 @@ public:
   /// results only for such cases.  For this very reason, the parent basic
   /// block, Conditional, is named that way, so it is clear what kind of
   /// block is expected.
-  static llvm::Optional<Clarification>
-  clarify(const CFGBlock *Conditional, const CFGBlock *SuccWithoutCall) {
+  static std::optional<Clarification> clarify(const CFGBlock *Conditional,
+                                              const CFGBlock *SuccWithoutCall) {
     if (const Stmt *Terminator = Conditional->getTerminatorStmt()) {
       return NotCalledClarifier{Conditional, SuccWithoutCall}.Visit(Terminator);
     }
-    return llvm::None;
+    return std::nullopt;
   }
 
-  llvm::Optional<Clarification> VisitIfStmt(const IfStmt *If) {
+  std::optional<Clarification> VisitIfStmt(const IfStmt *If) {
     return VisitBranchingBlock(If, NeverCalledReason::IfThen);
   }
 
-  llvm::Optional<Clarification>
+  std::optional<Clarification>
   VisitAbstractConditionalOperator(const AbstractConditionalOperator *Ternary) {
     return VisitBranchingBlock(Ternary, NeverCalledReason::IfThen);
   }
 
-  llvm::Optional<Clarification> VisitSwitchStmt(const SwitchStmt *Switch) {
+  std::optional<Clarification> VisitSwitchStmt(const SwitchStmt *Switch) {
     const Stmt *CaseToBlame = SuccInQuestion->getLabel();
     if (!CaseToBlame) {
       // If interesting basic block is not labeled, it means that this
@@ -543,15 +541,15 @@ public:
     llvm_unreachable("Found unexpected switch structure");
   }
 
-  llvm::Optional<Clarification> VisitForStmt(const ForStmt *For) {
+  std::optional<Clarification> VisitForStmt(const ForStmt *For) {
     return VisitBranchingBlock(For, NeverCalledReason::LoopEntered);
   }
 
-  llvm::Optional<Clarification> VisitWhileStmt(const WhileStmt *While) {
+  std::optional<Clarification> VisitWhileStmt(const WhileStmt *While) {
     return VisitBranchingBlock(While, NeverCalledReason::LoopEntered);
   }
 
-  llvm::Optional<Clarification>
+  std::optional<Clarification>
   VisitBranchingBlock(const Stmt *Terminator, NeverCalledReason DefaultReason) {
     assert(Parent->succ_size() == 2 &&
            "Branching block should have exactly two successors");
@@ -561,12 +559,12 @@ public:
     return Clarification{ActualReason, Terminator};
   }
 
-  llvm::Optional<Clarification> VisitBinaryOperator(const BinaryOperator *) {
+  std::optional<Clarification> VisitBinaryOperator(const BinaryOperator *) {
     // We don't want to report on short-curcuit logical operations.
-    return llvm::None;
+    return std::nullopt;
   }
 
-  llvm::Optional<Clarification> VisitStmt(const Stmt *Terminator) {
+  std::optional<Clarification> VisitStmt(const Stmt *Terminator) {
     // If we got here, we didn't have a visit function for more derived
     // classes of statement that this terminator actually belongs to.
     //
@@ -753,7 +751,7 @@ private:
     // We use a backward dataflow propagation and for this reason we
     // should traverse basic blocks bottom-up.
     for (const CFGElement &Element : llvm::reverse(*BB)) {
-      if (Optional<CFGStmt> S = Element.getAs<CFGStmt>()) {
+      if (std::optional<CFGStmt> S = Element.getAs<CFGStmt>()) {
         check(S->getStmt());
       }
     }
@@ -880,8 +878,8 @@ private:
   template <class CallLikeExpr>
   void checkIndirectCall(const CallLikeExpr *CallOrMessage) {
     // CallExpr::arguments does not interact nicely with llvm::enumerate.
-    llvm::ArrayRef<const Expr *> Arguments = llvm::makeArrayRef(
-        CallOrMessage->getArgs(), CallOrMessage->getNumArgs());
+    llvm::ArrayRef<const Expr *> Arguments =
+        llvm::ArrayRef(CallOrMessage->getArgs(), CallOrMessage->getNumArgs());
 
     // Let's check if any of the call arguments is a point of interest.
     for (const auto &Argument : llvm::enumerate(Arguments)) {
@@ -932,7 +930,8 @@ private:
     ParameterStatus &CurrentParamStatus = CurrentState.getStatusFor(Index);
 
     // Escape overrides whatever error we think happened.
-    if (CurrentParamStatus.isErrorStatus()) {
+    if (CurrentParamStatus.isErrorStatus() &&
+        CurrentParamStatus.getKind() != ParameterStatus::Kind::Reported) {
       CurrentParamStatus = ParameterStatus::Escaped;
     }
   }
@@ -973,7 +972,7 @@ private:
   /// Return true if the given name has conventional suffixes.
   static bool hasConventionalSuffix(llvm::StringRef Name) {
     return llvm::any_of(CONVENTIONAL_SUFFIXES, [Name](llvm::StringRef Suffix) {
-      return Name.endswith(Suffix);
+      return Name.ends_with(Suffix);
     });
   }
 
@@ -997,10 +996,10 @@ private:
 
   /// Return true/false if 'swift_async' attribute states that the given
   /// parameter is conventionally called once.
-  /// Return llvm::None if the given declaration doesn't have 'swift_async'
+  /// Return std::nullopt if the given declaration doesn't have 'swift_async'
   /// attribute.
-  static llvm::Optional<bool> isConventionalSwiftAsync(const Decl *D,
-                                                       unsigned ParamIndex) {
+  static std::optional<bool> isConventionalSwiftAsync(const Decl *D,
+                                                      unsigned ParamIndex) {
     if (const SwiftAsyncAttr *A = D->getAttr<SwiftAsyncAttr>()) {
       if (A->getKind() == SwiftAsyncAttr::None) {
         return false;
@@ -1008,7 +1007,7 @@ private:
 
       return A->getCompletionHandlerIndex().getASTIndex() == ParamIndex;
     }
-    return llvm::None;
+    return std::nullopt;
   }
 
   /// Return true if the specified selector represents init method.
@@ -1157,8 +1156,8 @@ private:
   bool shouldBlockArgumentBeCalledOnce(const CallLikeExpr *CallOrMessage,
                                        const Stmt *BlockArgument) const {
     // CallExpr::arguments does not interact nicely with llvm::enumerate.
-    llvm::ArrayRef<const Expr *> Arguments = llvm::makeArrayRef(
-        CallOrMessage->getArgs(), CallOrMessage->getNumArgs());
+    llvm::ArrayRef<const Expr *> Arguments =
+        llvm::ArrayRef(CallOrMessage->getArgs(), CallOrMessage->getNumArgs());
 
     for (const auto &Argument : llvm::enumerate(Arguments)) {
       if (Argument.value() == BlockArgument) {
@@ -1265,7 +1264,7 @@ private:
           llvm::reverse(*BB), // we should start with return statements, if we
                               // have any, i.e. from the bottom of the block
           [&ReturnChildren](const CFGElement &Element) {
-            if (Optional<CFGStmt> S = Element.getAs<CFGStmt>()) {
+            if (std::optional<CFGStmt> S = Element.getAs<CFGStmt>()) {
               const Stmt *SuspiciousStmt = S->getStmt();
 
               if (isa<ReturnStmt>(SuspiciousStmt)) {
@@ -1635,19 +1634,19 @@ public:
 private:
   unsigned size() const { return TrackedParams.size(); }
 
-  llvm::Optional<unsigned> getIndexOfCallee(const CallExpr *Call) const {
+  std::optional<unsigned> getIndexOfCallee(const CallExpr *Call) const {
     return getIndexOfExpression(Call->getCallee());
   }
 
-  llvm::Optional<unsigned> getIndexOfExpression(const Expr *E) const {
+  std::optional<unsigned> getIndexOfExpression(const Expr *E) const {
     if (const ParmVarDecl *Parameter = findReferencedParmVarDecl(E)) {
       return getIndex(*Parameter);
     }
 
-    return llvm::None;
+    return std::nullopt;
   }
 
-  llvm::Optional<unsigned> getIndex(const ParmVarDecl &Parameter) const {
+  std::optional<unsigned> getIndex(const ParmVarDecl &Parameter) const {
     // Expected number of parameters that we actually track is 1.
     //
     // Also, the maximum number of declared parameters could not be on a scale
@@ -1662,7 +1661,7 @@ private:
       return It - TrackedParams.begin();
     }
 
-    return llvm::None;
+    return std::nullopt;
   }
 
   const ParmVarDecl *getParameter(unsigned Index) const {

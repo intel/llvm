@@ -11,6 +11,8 @@
 // struct is_placeholder
 
 #include <functional>
+#include <type_traits>
+
 #include "test_macros.h"
 
 template <int Expected, class T>
@@ -21,8 +23,13 @@ test(const T&)
     LIBCPP_STATIC_ASSERT(std::is_placeholder<T&>::value == Expected, "");
     LIBCPP_STATIC_ASSERT(std::is_placeholder<const T>::value == Expected, "");
     LIBCPP_STATIC_ASSERT(std::is_placeholder<const T&>::value == Expected, "");
+    static_assert(std::is_base_of<std::integral_constant<int, Expected>, std::is_placeholder<T> >::value, "");
+    LIBCPP_STATIC_ASSERT(std::is_base_of<std::integral_constant<int, Expected>, std::is_placeholder<T&> >::value, "");
+    LIBCPP_STATIC_ASSERT(std::is_base_of<std::integral_constant<int, Expected>, std::is_placeholder<const T> >::value, "");
+    LIBCPP_STATIC_ASSERT(std::is_base_of<std::integral_constant<int, Expected>, std::is_placeholder<const T&> >::value, "");
 
 #if TEST_STD_VER > 14
+    ASSERT_SAME_TYPE(decltype(std::is_placeholder_v<T>), const int);
     static_assert(std::is_placeholder_v<T> == Expected, "");
     LIBCPP_STATIC_ASSERT(std::is_placeholder_v<T&> == Expected, "");
     LIBCPP_STATIC_ASSERT(std::is_placeholder_v<const T> == Expected, "");

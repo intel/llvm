@@ -53,11 +53,11 @@ public:
   bool isVariableLength() const { return isOptional() || isVariadic(); }
 
   // Returns the builder call for this constraint if this is a buildable type,
-  // returns None otherwise.
-  Optional<StringRef> getBuilderCall() const;
+  // returns std::nullopt otherwise.
+  std::optional<StringRef> getBuilderCall() const;
 
-  // Return the C++ class name for this type (which may just be ::mlir::Type).
-  std::string getCPPClassName() const;
+  // Return the C++ type for this type (which may just be ::mlir::Type).
+  StringRef getCppType() const;
 };
 
 // Wrapper class with helper methods for accessing Types defined in TableGen.

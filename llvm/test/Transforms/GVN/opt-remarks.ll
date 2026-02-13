@@ -1,11 +1,11 @@
-; RUN: opt < %s -gvn -o /dev/null  -S -pass-remarks=gvn -pass-remarks-missed=gvn  \
+; RUN: opt < %s -passes=gvn -disable-output -pass-remarks=gvn -pass-remarks-missed=gvn  \
 ; RUN:     2>&1 | FileCheck %s
-; RUN: opt < %s -gvn -o /dev/null  -pass-remarks-output=%t -S
+; RUN: opt < %s -passes=gvn -disable-output -pass-remarks-output=%t -S
 ; RUN: cat %t | FileCheck -check-prefix=YAML %s
 
-; RUN: opt < %s -aa-pipeline=basic-aa -passes=gvn -o /dev/null -S -pass-remarks=gvn -pass-remarks-missed=gvn \
+; RUN: opt < %s -aa-pipeline=basic-aa -passes=gvn -disable-output -pass-remarks=gvn -pass-remarks-missed=gvn \
 ; RUN:     2>&1 | FileCheck %s
-; RUN: opt < %s -aa-pipeline=basic-aa -passes=gvn -o /dev/null -pass-remarks-output=%t -S
+; RUN: opt < %s -aa-pipeline=basic-aa -passes=gvn -disable-output -pass-remarks-output=%t -S
 ; RUN: cat %t | FileCheck -check-prefix=YAML %s
 
 ; CHECK:      remark: <unknown>:0:0: load of type i32 eliminated{{$}}
@@ -62,37 +62,60 @@
 ; YAML-NEXT:   - ClobberedBy:     store
 ; YAML-NEXT:     DebugLoc:        { File: '/tmp/s.c', Line: 2, Column: 10 }
 ; YAML-NEXT: ...
+; YAML-NEXT: --- !Missed
+; YAML-NEXT: Pass:            gvn
+; YAML-NEXT: Name:            LoadClobbered
+; YAML-NEXT: Function:        lifetime_end
+; YAML-NEXT: Args:
+; YAML-NEXT:   - String:          'load of type '
+; YAML-NEXT:   - Type:            i8
+; YAML-NEXT:   - String:          ' not eliminated'
+; YAML-NEXT:   - String:          ' in favor of '
+; YAML-NEXT:   - OtherAccess:     store
+; YAML-NEXT:   - String:          ' because it is clobbered by '
+; YAML-NEXT:   - ClobberedBy:     call llvm.lifetime.end.p0
+; YAML-NEXT: ...
 
-define i32 @arg(i32* %p, i32 %i) {
+define i32 @arg(ptr %p, i32 %i) {
 entry:
-  store i32 %i, i32* %p
-  %load = load i32, i32* %p
+  store i32 %i, ptr %p
+  %load = load i32, ptr %p
   ret i32 %load
 }
 
-define i32 @const(i32* %p) {
+define i32 @const(ptr %p) {
 entry:
-  store i32 4, i32* %p
-  %load = load i32, i32* %p
+  store i32 4, ptr %p
+  %load = load i32, ptr %p
   ret i32 %load
 }
 
-define i32 @inst(i32* %p) {
+define i32 @inst(ptr %p) {
 entry:
-  %load1 = load i32, i32* %p
-  %load = load i32, i32* %p
+  %load1 = load i32, ptr %p
+  %load = load i32, ptr %p
   %add = add i32 %load1, %load
   ret i32 %add
 }
 
-define i32 @may_alias(i32* %p, i32* %r) !dbg !7 {
+define i32 @may_alias(ptr %p, ptr %r) !dbg !7 {
 entry:
-  %load1 = load i32, i32* %p, !tbaa !13, !dbg !9
-  store i32 4, i32* %r, !tbaa !13, !dbg !10
-  %load = load i32, i32* %p, !tbaa !13, !dbg !11
+  %load1 = load i32, ptr %p, !tbaa !13, !dbg !9
+  store i32 4, ptr %r, !tbaa !13, !dbg !10
+  %load = load i32, ptr %p, !tbaa !13, !dbg !11
   %add = add i32 %load1, %load
   ret i32 %add
 }
+
+define i8 @lifetime_end(i8 %val) {
+  %p = alloca [32 x i8]
+  call void @llvm.lifetime.start.p0(ptr %p)
+  store i8 %val, ptr %p
+  call void @llvm.lifetime.end.p0(ptr %p)
+  %1 = load i8, ptr %p
+  ret i8 %1
+}
+
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!3, !4, !5}
 !llvm.ident = !{!6}

@@ -1,5 +1,5 @@
-# Check that llvm-bolt is able to parse DWARF expressions in CFI instructions,
-# store them in memory and correctly write them back to the output binary.
+## Check that llvm-bolt is able to parse DWARF expressions in CFI instructions,
+## store them in memory and correctly write them back to the output binary.
 
 # RUN: llvm-mc -filetype=obj -triple x86_64-unknown-unknown %s -o %t.o
 # RUN: %clang %cflags %t.o -o %t.exe
@@ -11,7 +11,7 @@
 # CHECK-NEXT:  DW_CFA_expression: RBP DW_OP_breg6 RBP+0
 # CHECK-NEXT:  DW_CFA_advance_loc: 5
 # CHECK-NEXT:  DW_CFA_def_cfa_expression: DW_OP_breg6 RBP-8, DW_OP_deref
-# CHECK-NEXT:  DW_CFA_advance_loc2: 3174
+# CHECK-NEXT:  DW_CFA_advance_loc2: 3130
 # CHECK-NEXT:  DW_CFA_def_cfa: R10 +0
 # CHECK-NEXT:  DW_CFA_advance_loc: 5
 # CHECK-NEXT:  DW_CFA_def_cfa: RSP +8

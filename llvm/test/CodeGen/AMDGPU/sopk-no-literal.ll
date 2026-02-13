@@ -1,5 +1,5 @@
 ; REQUIRES: asserts
-; RUN: llc -O0 -mtriple=amdgcn-amd-amdhsa -mcpu=gfx1100 -debug-only=branch-relaxation -verify-machineinstrs < %s 2>&1 | FileCheck --check-prefix=GFX10 %s
+; RUN: llc -O0 -mtriple=amdgcn-amd-amdhsa -mcpu=gfx1100 -debug-only=branch-relaxation < %s 2>&1 | FileCheck --check-prefix=GFX10 %s
 
 ; GFX10: Basic blocks after relaxation
 ; GFX10: %bb.0	offset=00000000	size=0x1c
@@ -9,7 +9,7 @@
 define amdgpu_kernel void @test_sopk_size(i32 %var.mode) {
 ; GFX10-LABEL: test_sopk_size:
 ; GFX10:  ; %bb.0:
-; GFX10:    s_load_b32 s0, s[0:1], 0x0
+; GFX10:    s_load_b32 s0, s[4:5], 0x0
 ; GFX10:    s_mov_b32 s1, 3
 ; GFX10:    s_setreg_b32 hwreg(HW_REG_MODE, 0, 2), s1
 ; GFX10:    s_waitcnt lgkmcnt(0)
@@ -22,3 +22,4 @@ define amdgpu_kernel void @test_sopk_size(i32 %var.mode) {
 }
 
 declare void @llvm.amdgcn.s.setreg(i32 immarg, i32)
+

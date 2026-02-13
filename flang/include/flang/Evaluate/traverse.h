@@ -38,13 +38,16 @@
 // expression of an ASSOCIATE (or related) construct entity.
 
 #include "expression.h"
+#include "flang/Common/indirection.h"
 #include "flang/Semantics/symbol.h"
 #include "flang/Semantics/type.h"
 #include <set>
 #include <type_traits>
 
 namespace Fortran::evaluate {
-template <typename Visitor, typename Result> class Traverse {
+template <typename Visitor, typename Result,
+    bool TraverseAssocEntityDetails = true>
+class Traverse {
 public:
   explicit Traverse(Visitor &v) : visitor_{v} {}
 
@@ -53,7 +56,11 @@ public:
   Result operator()(const common::Indirection<A, C> &x) const {
     return visitor_(x.value());
   }
-  template <typename A> Result operator()(const SymbolRef x) const {
+  template <typename A>
+  Result operator()(const common::ForwardOwningPointer<A> &p) const {
+    return visitor_(p.get());
+  }
+  template <typename _> Result operator()(const SymbolRef x) const {
     return visitor_(*x);
   }
   template <typename A> Result operator()(const std::unique_ptr<A> &x) const {
@@ -76,12 +83,16 @@ public:
       return visitor_.Default();
     }
   }
-  template <typename... A>
-  Result operator()(const std::variant<A...> &u) const {
-    return common::visit(visitor_, u);
+  template <typename... As>
+  Result operator()(const std::variant<As...> &u) const {
+    return common::visit([=](const auto &y) { return visitor_(y); }, u);
   }
   template <typename A> Result operator()(const std::vector<A> &x) const {
     return CombineContents(x);
+  }
+  template <typename A, typename B>
+  Result operator()(const std::pair<A, B> &x) const {
+    return Combine(x.first, x.second);
   }
 
   // Leaves
@@ -91,28 +102,21 @@ public:
   Result operator()(const NullPointer &) const { return visitor_.Default(); }
   template <typename T> Result operator()(const Constant<T> &x) const {
     if constexpr (T::category == TypeCategory::Derived) {
-      std::optional<Result> result;
-      for (const StructureConstructorValues &map : x.values()) {
-        for (const auto &pair : map) {
-          auto value{visitor_(pair.second.value())};
-          result = result
-              ? visitor_.Combine(std::move(*result), std::move(value))
-              : std::move(value);
-        }
-      }
-      return result ? *result : visitor_.Default();
+      return visitor_.Combine(
+          visitor_(x.result().derivedTypeSpec()), CombineContents(x.values()));
     } else {
       return visitor_.Default();
     }
   }
   Result operator()(const Symbol &symbol) const {
     const Symbol &ultimate{symbol.GetUltimate()};
-    if (const auto *assoc{
-            ultimate.detailsIf<semantics::AssocEntityDetails>()}) {
-      return visitor_(assoc->expr());
-    } else {
-      return visitor_.Default();
+    if constexpr (TraverseAssocEntityDetails) {
+      if (const auto *assoc{
+              ultimate.detailsIf<semantics::AssocEntityDetails>()}) {
+        return visitor_(assoc->expr());
+      }
     }
+    return visitor_.Default();
   }
   Result operator()(const StaticDataObject &) const {
     return visitor_.Default();
@@ -122,40 +126,36 @@ public:
   // Variables
   Result operator()(const BaseObject &x) const { return visitor_(x.u); }
   Result operator()(const Component &x) const {
-    return Combine(x.base(), x.GetLastSymbol());
+    return Combine(x.base(), x.symbol());
   }
   Result operator()(const NamedEntity &x) const {
     if (const Component * component{x.UnwrapComponent()}) {
       return visitor_(*component);
     } else {
-      return visitor_(x.GetFirstSymbol());
+      return visitor_(DEREF(x.UnwrapSymbolRef()));
     }
   }
   Result operator()(const TypeParamInquiry &x) const {
     return visitor_(x.base());
   }
   Result operator()(const Triplet &x) const {
-    return Combine(x.lower(), x.upper(), x.stride());
+    return Combine(x.GetLower(), x.GetUpper(), x.GetStride());
   }
   Result operator()(const Subscript &x) const { return visitor_(x.u); }
   Result operator()(const ArrayRef &x) const {
     return Combine(x.base(), x.subscript());
   }
   Result operator()(const CoarrayRef &x) const {
-    return Combine(
-        x.base(), x.subscript(), x.cosubscript(), x.stat(), x.team());
+    return Combine(x.base(), x.cosubscript(), x.notify(), x.stat(), x.team());
   }
   Result operator()(const DataRef &x) const { return visitor_(x.u); }
   Result operator()(const Substring &x) const {
-    return Combine(x.parent(), x.lower(), x.upper());
+    return Combine(x.parent(), x.GetLower(), x.GetUpper());
   }
   Result operator()(const ComplexPart &x) const {
     return visitor_(x.complex());
   }
   template <typename T> Result operator()(const Designator<T> &x) const {
-    return visitor_(x.u);
-  }
-  template <typename T> Result operator()(const Variable<T> &x) const {
     return visitor_(x.u);
   }
   Result operator()(const DescriptorInquiry &x) const {
@@ -208,24 +208,32 @@ public:
       const semantics::DerivedTypeSpec::ParameterMapType::value_type &x) const {
     return visitor_(x.second);
   }
+  Result operator()(
+      const semantics::DerivedTypeSpec::ParameterMapType &x) const {
+    return CombineContents(x);
+  }
   Result operator()(const semantics::DerivedTypeSpec &x) const {
-    return CombineContents(x.parameters());
+    return Combine(x.originalTypeSymbol(), x.parameters());
   }
   Result operator()(const StructureConstructorValues::value_type &x) const {
     return visitor_(x.second);
+  }
+  Result operator()(const StructureConstructorValues &x) const {
+    return CombineContents(x);
   }
   Result operator()(const StructureConstructor &x) const {
     return visitor_.Combine(visitor_(x.derivedTypeSpec()), CombineContents(x));
   }
 
   // Operations and wrappers
-  template <typename D, typename R, typename O>
-  Result operator()(const Operation<D, R, O> &op) const {
-    return visitor_(op.left());
-  }
-  template <typename D, typename R, typename LO, typename RO>
-  Result operator()(const Operation<D, R, LO, RO> &op) const {
-    return Combine(op.left(), op.right());
+  // Have a single operator() for all Operations.
+  template <typename D, typename R, typename... Os>
+  Result operator()(const Operation<D, R, Os...> &op) const {
+    if constexpr (sizeof...(Os) == 1) {
+      return visitor_(op.left());
+    } else {
+      return CombineOperands(op, std::index_sequence_for<Os...>{});
+    }
   }
   Result operator()(const Relational<SomeType> &x) const {
     return visitor_(x.u);
@@ -233,14 +241,24 @@ public:
   template <typename T> Result operator()(const Expr<T> &x) const {
     return visitor_(x.u);
   }
+  Result operator()(const Assignment &x) const {
+    return Combine(x.lhs, x.rhs, x.u);
+  }
+  Result operator()(const Assignment::Intrinsic &) const {
+    return visitor_.Default();
+  }
+  Result operator()(const GenericExprWrapper &x) const { return visitor_(x.v); }
+  Result operator()(const GenericAssignmentWrapper &x) const {
+    return visitor_(x.v);
+  }
 
 private:
   template <typename ITER> Result CombineRange(ITER iter, ITER end) const {
     if (iter == end) {
       return visitor_.Default();
     } else {
-      Result result{visitor_(*iter++)};
-      for (; iter != end; ++iter) {
+      Result result{visitor_(*iter)};
+      for (++iter; iter != end; ++iter) {
         result = visitor_.Combine(std::move(result), visitor_(*iter));
       }
       return result;
@@ -249,6 +267,13 @@ private:
 
   template <typename A> Result CombineContents(const A &x) const {
     return CombineRange(x.begin(), x.end());
+  }
+
+  template <typename D, typename R, typename... Os, size_t... Is>
+  Result CombineOperands(
+      const Operation<D, R, Os...> &op, std::index_sequence<Is...>) const {
+    static_assert(sizeof...(Os) > 1 && "Expecting multiple operands");
+    return Combine(op.template operand<Is>()...);
   }
 
   template <typename A, typename... Bs>
@@ -266,7 +291,8 @@ private:
 // For validity checks across an expression: if any operator() result is
 // false, so is the overall result.
 template <typename Visitor, bool DefaultValue,
-    typename Base = Traverse<Visitor, bool>>
+    bool TraverseAssocEntityDetails = true,
+    typename Base = Traverse<Visitor, bool, TraverseAssocEntityDetails>>
 struct AllTraverse : public Base {
   explicit AllTraverse(Visitor &v) : Base{v} {}
   using Base::operator();
@@ -278,7 +304,8 @@ struct AllTraverse : public Base {
 // is truthful is the final result.  Works for Booleans, pointers,
 // and std::optional<>.
 template <typename Visitor, typename Result = bool,
-    typename Base = Traverse<Visitor, Result>>
+    bool TraverseAssocEntityDetails = true,
+    typename Base = Traverse<Visitor, Result, TraverseAssocEntityDetails>>
 class AnyTraverse : public Base {
 public:
   explicit AnyTraverse(Visitor &v) : Base{v} {}
@@ -297,7 +324,8 @@ private:
 };
 
 template <typename Visitor, typename Set,
-    typename Base = Traverse<Visitor, Set>>
+    bool TraverseAssocEntityDetails = true,
+    typename Base = Traverse<Visitor, Set, TraverseAssocEntityDetails>>
 struct SetTraverse : public Base {
   explicit SetTraverse(Visitor &v) : Base{v} {}
   using Base::operator();

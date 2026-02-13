@@ -15,7 +15,9 @@
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Target/Process.h"
+#include "lldb/Target/ProcessTrace.h"
 #include "lldb/Target/Target.h"
+#include <optional>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -34,14 +36,14 @@ Error TraceIntelPTBundleLoader::ParseModule(Target &target,
   auto do_parse = [&]() -> Error {
     FileSpec system_file_spec(module.system_path);
 
-    FileSpec local_file_spec(module.file.hasValue() ? *module.file
-                                                    : module.system_path);
+    FileSpec local_file_spec(module.file.has_value() ? *module.file
+                                                     : module.system_path);
 
     ModuleSpec module_spec;
     module_spec.GetFileSpec() = local_file_spec;
     module_spec.GetPlatformFileSpec() = system_file_spec;
 
-    if (module.uuid.hasValue())
+    if (module.uuid.has_value())
       module_spec.GetUUID().SetFromStringRef(*module.uuid);
 
     Status error;
@@ -70,7 +72,7 @@ Error TraceIntelPTBundleLoader::CreateJSONError(json::Path::Root &root,
   root.printErrorContext(value, os);
   return createStringError(
       std::errc::invalid_argument, "%s\n\nContext:\n%s\n\nSchema:\n%s",
-      toString(root.getError()).c_str(), os.str().c_str(), GetSchema().data());
+      toString(root.getError()).c_str(), err.c_str(), GetSchema().data());
 }
 
 ThreadPostMortemTraceSP
@@ -78,7 +80,7 @@ TraceIntelPTBundleLoader::ParseThread(Process &process,
                                       const JSONThread &thread) {
   lldb::tid_t tid = static_cast<lldb::tid_t>(thread.tid);
 
-  Optional<FileSpec> trace_file;
+  std::optional<FileSpec> trace_file;
   if (thread.ipt_trace)
     trace_file = FileSpec(*thread.ipt_trace);
 
@@ -102,6 +104,7 @@ TraceIntelPTBundleLoader::CreateEmptyProcess(lldb::pid_t pid,
   ParsedProcess parsed_process;
   parsed_process.target_sp = target_sp;
 
+  ProcessTrace::Initialize();
   ProcessSP process_sp = target_sp->CreateProcess(
       /*listener*/ nullptr, "trace",
       /*crash_file*/ nullptr,
@@ -241,6 +244,8 @@ StringRef TraceIntelPTBundleLoader::GetSchema() {
       "pid": integer,
       "triple"?: string,
           // Optional clang/llvm target triple.
+          // This must be provided if the trace will be created not using the
+          // CLI or on a machine other than where the target was traced.
       "threads": [
           // A list of known threads for the given process. When context switch
           // data is provided, LLDB will automatically create threads for the
@@ -282,7 +287,7 @@ StringRef TraceIntelPTBundleLoader::GetSchema() {
   "tscPerfZeroConversion"?: {
     // Values used to convert between TSCs and nanoseconds. See the time_zero
     // section in https://man7.org/linux/man-pages/man2/perf_event_open.2.html
-    // for for information.
+    // for information.
 
     "timeMult": integer,
     "timeShift": integer,
@@ -340,7 +345,7 @@ Error TraceIntelPTBundleLoader::AugmentThreadsFromContextSwitches(
     if (indexed_threads[proc->second].count(tid))
       return;
     indexed_threads[proc->second].insert(tid);
-    proc->second->threads.push_back({tid, /*ipt_trace=*/None});
+    proc->second->threads.push_back({tid, /*ipt_trace=*/std::nullopt});
   };
 
   for (const JSONCpu &cpu : *bundle_description.cpus) {

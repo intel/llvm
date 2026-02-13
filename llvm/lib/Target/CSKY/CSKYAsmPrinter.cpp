@@ -15,7 +15,7 @@
 #include "CSKYConstantPoolValue.h"
 #include "CSKYTargetMachine.h"
 #include "MCTargetDesc/CSKYInstPrinter.h"
-#include "MCTargetDesc/CSKYMCExpr.h"
+#include "MCTargetDesc/CSKYMCAsmInfo.h"
 #include "MCTargetDesc/CSKYTargetStreamer.h"
 #include "TargetInfo/CSKYTargetInfo.h"
 #include "llvm/ADT/Statistic.h"
@@ -58,7 +58,7 @@ bool CSKYAsmPrinter::runOnMachineFunction(MachineFunction &MF) {
 #include "CSKYGenCompressInstEmitter.inc"
 void CSKYAsmPrinter::EmitToStreamer(MCStreamer &S, const MCInst &Inst) {
   MCInst CInst;
-  bool Res = compressInst(CInst, Inst, *Subtarget, OutStreamer->getContext());
+  bool Res = compressInst(CInst, Inst, *Subtarget);
   if (Res)
     ++CSKYNumInstrsCompressed;
   AsmPrinter::EmitToStreamer(*OutStreamer, Res ? CInst : Inst);
@@ -105,7 +105,7 @@ void CSKYAsmPrinter::emitCustomConstantPool(const MachineInstr *MI) {
 
   // If this is the first entry of the pool, mark it.
   if (!InConstantPool) {
-    OutStreamer->emitValueToAlignment(4);
+    OutStreamer->emitValueToAlignment(Align(4));
     InConstantPool = true;
   }
 
@@ -145,8 +145,10 @@ void CSKYAsmPrinter::emitInstruction(const MachineInstr *MI) {
                                        getSubtargetInfo().getFeatureBits());
 
   // Do any auto-generated pseudo lowerings.
-  if (emitPseudoExpansionLowering(*OutStreamer, MI))
+  if (MCInst OutInst; lowerPseudoInstExpansion(MI, OutInst)) {
+    EmitToStreamer(*OutStreamer, OutInst);
     return;
+  }
 
   // If we just ended a constant pool, mark it as such.
   if (InConstantPool && MI->getOpcode() != CSKY::CONSTPOOL_ENTRY) {
@@ -166,25 +168,24 @@ void CSKYAsmPrinter::emitInstruction(const MachineInstr *MI) {
 
 // Convert a CSKY-specific constant pool modifier into the associated
 // MCSymbolRefExpr variant kind.
-static CSKYMCExpr::VariantKind
-getModifierVariantKind(CSKYCP::CSKYCPModifier Modifier) {
+static CSKY::Specifier getModifierVariantKind(CSKYCP::CSKYCPModifier Modifier) {
   switch (Modifier) {
   case CSKYCP::NO_MOD:
-    return CSKYMCExpr::VK_CSKY_None;
+    return CSKY::S_None;
   case CSKYCP::ADDR:
-    return CSKYMCExpr::VK_CSKY_ADDR;
+    return CSKY::S_ADDR;
   case CSKYCP::GOT:
-    return CSKYMCExpr::VK_CSKY_GOT;
+    return CSKY::S_GOT;
   case CSKYCP::GOTOFF:
-    return CSKYMCExpr::VK_CSKY_GOTOFF;
+    return CSKY::S_GOTOFF;
   case CSKYCP::PLT:
-    return CSKYMCExpr::VK_CSKY_PLT;
+    return CSKY::S_PLT;
   case CSKYCP::TLSGD:
-    return CSKYMCExpr::VK_CSKY_TLSGD;
+    return CSKY::S_TLSGD;
   case CSKYCP::TLSLE:
-    return CSKYMCExpr::VK_CSKY_TLSLE;
+    return CSKY::S_TLSLE;
   case CSKYCP::TLSIE:
-    return CSKYMCExpr::VK_CSKY_TLSIE;
+    return CSKY::S_TLSIE;
   }
   llvm_unreachable("Invalid CSKYCPModifier!");
 }
@@ -208,14 +209,16 @@ void CSKYAsmPrinter::emitMachineConstantPoolValue(
   } else if (CCPV->isJT()) {
     signed JTI = cast<CSKYConstantPoolJT>(CCPV)->getJTI();
     MCSym = GetJTISymbol(JTI);
+  } else if (CCPV->isConstPool()) {
+    const Constant *C = cast<CSKYConstantPoolConstant>(CCPV)->getConstantPool();
+    MCSym = GetCPISymbol(MCP->getConstantPoolIndex(C, Align(4)));
   } else {
     assert(CCPV->isExtSymbol() && "unrecognized constant pool value");
     StringRef Sym = cast<CSKYConstantPoolSymbol>(CCPV)->getSymbol();
     MCSym = GetExternalSymbolSymbol(Sym);
   }
   // Create an MCSymbol for the reference.
-  const MCExpr *Expr =
-      MCSymbolRefExpr::create(MCSym, MCSymbolRefExpr::VK_None, OutContext);
+  const MCExpr *Expr = MCSymbolRefExpr::create(MCSym, OutContext);
 
   if (CCPV->getPCAdjustment()) {
 
@@ -236,8 +239,8 @@ void CSKYAsmPrinter::emitMachineConstantPoolValue(
   }
 
   // Create an MCSymbol for the reference.
-  Expr = CSKYMCExpr::create(Expr, getModifierVariantKind(CCPV->getModifier()),
-                            OutContext);
+  Expr = MCSpecifierExpr::create(
+      Expr, getModifierVariantKind(CCPV->getModifier()), OutContext);
 
   OutStreamer->emitValue(Expr, Size);
 }

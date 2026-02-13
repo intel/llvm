@@ -2,33 +2,10 @@
 #if defined(__aarch64__)
 
 #include "sanitizer_common/sanitizer_asm.h"
+#include "builtins/assembly.h"
 
+TEXT_SECTION
 #if defined(__APPLE__)
-.align  2
-
-.section  __DATA,__nl_symbol_ptr,non_lazy_symbol_pointers
-.long _setjmp$non_lazy_ptr
-_setjmp$non_lazy_ptr:
-.indirect_symbol _setjmp
-.long 0
-
-.section  __DATA,__nl_symbol_ptr,non_lazy_symbol_pointers
-.long __setjmp$non_lazy_ptr
-__setjmp$non_lazy_ptr:
-.indirect_symbol __setjmp
-.long 0
-
-.section  __DATA,__nl_symbol_ptr,non_lazy_symbol_pointers
-.long _sigsetjmp$non_lazy_ptr
-_sigsetjmp$non_lazy_ptr:
-.indirect_symbol _sigsetjmp
-.long 0
-#endif
-
-#if !defined(__APPLE__)
-.section .text
-#else
-.section __TEXT,__text
 .align 3
 #endif
 
@@ -38,6 +15,7 @@ ASM_HIDDEN(__tsan_setjmp)
 ASM_TYPE_FUNCTION(ASM_SYMBOL_INTERCEPTOR(setjmp))
 ASM_SYMBOL_INTERCEPTOR(setjmp):
   CFI_STARTPROC
+  BTI_C
 
   // Save frame/link register
   stp     x29, x30, [sp, -32]!
@@ -75,9 +53,8 @@ ASM_SYMBOL_INTERCEPTOR(setjmp):
   ldr     x1, [x1, #:got_lo12:_ZN14__interception11real_setjmpE]
   ldr     x1, [x1]
 #else
-  adrp    x1, _setjmp$non_lazy_ptr@page
-  add     x1, x1, _setjmp$non_lazy_ptr@pageoff
-  ldr     x1, [x1]
+  adrp    x1, _setjmp@GOTPAGE
+  ldr     x1, [x1, _setjmp@GOTPAGEOFF]
 #endif
   br      x1
 
@@ -89,6 +66,7 @@ ASM_SIZE(ASM_SYMBOL_INTERCEPTOR(setjmp))
 ASM_TYPE_FUNCTION(ASM_SYMBOL_INTERCEPTOR(_setjmp))
 ASM_SYMBOL_INTERCEPTOR(_setjmp):
   CFI_STARTPROC
+  BTI_C
 
   // Save frame/link register
   stp     x29, x30, [sp, -32]!
@@ -126,9 +104,8 @@ ASM_SYMBOL_INTERCEPTOR(_setjmp):
   ldr     x1, [x1, #:got_lo12:_ZN14__interception12real__setjmpE]
   ldr     x1, [x1]
 #else
-  adrp    x1, __setjmp$non_lazy_ptr@page
-  add     x1, x1, __setjmp$non_lazy_ptr@pageoff
-  ldr     x1, [x1]
+  adrp    x1, __setjmp@GOTPAGE
+  ldr     x1, [x1, __setjmp@GOTPAGEOFF]
 #endif
   br      x1
 
@@ -140,6 +117,7 @@ ASM_SIZE(ASM_SYMBOL_INTERCEPTOR(_setjmp))
 ASM_TYPE_FUNCTION(ASM_SYMBOL_INTERCEPTOR(sigsetjmp))
 ASM_SYMBOL_INTERCEPTOR(sigsetjmp):
   CFI_STARTPROC
+  BTI_C
 
   // Save frame/link register
   stp     x29, x30, [sp, -32]!
@@ -179,9 +157,8 @@ ASM_SYMBOL_INTERCEPTOR(sigsetjmp):
   ldr     x2, [x2, #:got_lo12:_ZN14__interception14real_sigsetjmpE]
   ldr     x2, [x2]
 #else
-  adrp    x2, _sigsetjmp$non_lazy_ptr@page
-  add     x2, x2, _sigsetjmp$non_lazy_ptr@pageoff
-  ldr     x2, [x2]
+  adrp    x2, _sigsetjmp@GOTPAGE
+  ldr     x2, [x2, _sigsetjmp@GOTPAGEOFF]
 #endif
   br      x2
   CFI_ENDPROC
@@ -193,6 +170,7 @@ ASM_SIZE(ASM_SYMBOL_INTERCEPTOR(sigsetjmp))
 ASM_TYPE_FUNCTION(ASM_SYMBOL_INTERCEPTOR(__sigsetjmp))
 ASM_SYMBOL_INTERCEPTOR(__sigsetjmp):
   CFI_STARTPROC
+  BTI_C
 
   // Save frame/link register
   stp     x29, x30, [sp, -32]!
@@ -241,5 +219,7 @@ ASM_SIZE(ASM_SYMBOL_INTERCEPTOR(__sigsetjmp))
 #endif
 
 NO_EXEC_STACK_DIRECTIVE
+
+GNU_PROPERTY_BTI_PAC_GCS
 
 #endif

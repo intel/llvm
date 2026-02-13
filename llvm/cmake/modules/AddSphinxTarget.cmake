@@ -6,6 +6,7 @@ if (LLVM_ENABLE_SPHINX)
   find_package(Sphinx REQUIRED)
   if (LLVM_BUILD_DOCS AND NOT TARGET sphinx)
     add_custom_target(sphinx ALL)
+    set_target_properties(sphinx PROPERTIES FOLDER "LLVM/Docs")
   endif()
 else()
   message(STATUS "Sphinx disabled.")
@@ -58,6 +59,8 @@ function (add_sphinx_target builder project)
                             "${SPHINX_BUILD_DIR}" # Output
                     COMMENT
                     "Generating ${builder} Sphinx documentation for ${project} into \"${SPHINX_BUILD_DIR}\"")
+  get_subproject_title(subproject_title)
+  set_target_properties(${SPHINX_TARGET_NAME} PROPERTIES FOLDER "${subproject_title}/Docs")
 
   # When "clean" target is run, remove the Sphinx build directory
   set_property(DIRECTORY APPEND PROPERTY
@@ -68,8 +71,7 @@ function (add_sphinx_target builder project)
   # but we should only add this path once
   get_property(_CURRENT_MAKE_CLEAN_FILES
                DIRECTORY PROPERTY ADDITIONAL_MAKE_CLEAN_FILES)
-  list(FIND _CURRENT_MAKE_CLEAN_FILES "${SPHINX_DOC_TREE_DIR}" _INDEX)
-  if (_INDEX EQUAL -1)
+  if (NOT "${SPHINX_DOC_TREE_DIR}" IN_LIST _CURRENT_MAKE_CLEAN_FILES)
     set_property(DIRECTORY APPEND PROPERTY
                  ADDITIONAL_MAKE_CLEAN_FILES
                  "${SPHINX_DOC_TREE_DIR}")

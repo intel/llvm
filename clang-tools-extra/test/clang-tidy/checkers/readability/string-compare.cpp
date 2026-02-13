@@ -1,25 +1,5 @@
-// RUN: %check_clang_tidy %s readability-string-compare %t
-
-namespace std {
-template <typename T>
-class allocator {};
-template <typename T>
-class char_traits {};
-template <typename C, typename T = std::char_traits<C>, typename A = std::allocator<C>>
-class basic_string {
-public:
-  basic_string();
-  basic_string(const C *, unsigned int size);
-  int compare(const basic_string<char> &str) const;
-  int compare(const C *) const;
-  int compare(int, int, const basic_string<char> &str) const;
-  bool empty();
-};
-bool operator==(const basic_string<char> &lhs, const basic_string<char> &rhs);
-bool operator!=(const basic_string<char> &lhs, const basic_string<char> &rhs);
-bool operator==(const basic_string<char> &lhs, const char *&rhs);
-typedef basic_string<char> string;
-}
+// RUN: %check_clang_tidy %s readability-string-compare %t -- -- -isystem %clang_tidy_headers
+#include <string>
 
 void func(bool b);
 
@@ -87,11 +67,27 @@ void Test() {
   if (str1.compare(comp())) {
   }
   // CHECK-MESSAGES: [[@LINE-2]]:7: warning: do not use 'compare' to test equality of strings;
+
+  std::string_view sv1("a");
+  std::string_view sv2("b");
+  if (sv1.compare(sv2)) {
+  }
+  // CHECK-MESSAGES: [[@LINE-2]]:7: warning: do not use 'compare' to test equality of strings; use the string equality operator instead [readability-string-compare]
+}
+
+struct DerivedFromStdString : std::string {};
+
+void TestDerivedClass() {
+  DerivedFromStdString derived;
+  if (derived.compare(derived)) {
+  }
+  // CHECK-MESSAGES: [[@LINE-2]]:7: warning: do not use 'compare' to test equality of strings; use the string equality operator instead [readability-string-compare]
 }
 
 void Valid() {
   std::string str1("a", 1);
   std::string str2("b", 1);
+
   if (str1 == str2) {
   }
   if (str1 != str2) {
@@ -115,5 +111,12 @@ void Valid() {
   if (str1.compare(str2) == 1) {
   }
   if (str1.compare(str2) == -1) {
+  }
+
+  std::string_view sv1("a");
+  std::string_view sv2("b");
+  if (sv1 == sv2) {
+  }
+  if (sv1.compare(sv2) > 0) {
   }
 }

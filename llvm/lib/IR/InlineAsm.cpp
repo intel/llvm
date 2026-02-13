@@ -30,7 +30,7 @@ using namespace llvm;
 InlineAsm::InlineAsm(FunctionType *FTy, const std::string &asmString,
                      const std::string &constraints, bool hasSideEffects,
                      bool isAlignStack, AsmDialect asmDialect, bool canThrow)
-    : Value(PointerType::getUnqual(FTy), Value::InlineAsmVal),
+    : Value(PointerType::getUnqual(FTy->getContext()), Value::InlineAsmVal),
       AsmString(asmString), Constraints(constraints), FTy(FTy),
       HasSideEffects(hasSideEffects), IsAlignStack(isAlignStack),
       Dialect(asmDialect), CanThrow(canThrow) {
@@ -47,7 +47,8 @@ InlineAsm *InlineAsm::get(FunctionType *FTy, StringRef AsmString,
   InlineAsmKeyType Key(AsmString, Constraints, FTy, hasSideEffects,
                        isAlignStack, asmDialect, canThrow);
   LLVMContextImpl *pImpl = FTy->getContext().pImpl;
-  return pImpl->InlineAsms.getOrCreate(PointerType::getUnqual(FTy), Key);
+  return pImpl->InlineAsms.getOrCreate(
+      PointerType::getUnqual(FTy->getContext()), Key);
 }
 
 void InlineAsm::destroyConstant() {
@@ -57,6 +58,19 @@ void InlineAsm::destroyConstant() {
 
 FunctionType *InlineAsm::getFunctionType() const {
   return FTy;
+}
+
+void InlineAsm::collectAsmStrs(SmallVectorImpl<StringRef> &AsmStrs) const {
+  StringRef AsmStr(AsmString);
+  AsmStrs.clear();
+
+  // TODO: 1) Unify delimiter for inline asm, we also meet other delimiters
+  // for example "\0A", ";".
+  // 2) Enhance StringRef. Some of the special delimiter ("\0") can't be
+  // split in StringRef. Also empty StringRef can not call split (will stuck).
+  if (AsmStr.empty())
+    return;
+  AsmStr.split(AsmStrs, "\n\t", -1, false);
 }
 
 /// Parse - Analyze the specified string (e.g. "==&{eax}") and fill in the

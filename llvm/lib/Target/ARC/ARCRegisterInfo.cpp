@@ -63,7 +63,8 @@ static void replaceFrameIndex(MachineBasicBlock::iterator II,
       // of the load offset.
       const TargetRegisterInfo *TRI =
           MBB.getParent()->getSubtarget().getRegisterInfo();
-      BaseReg = RS->scavengeRegister(&ARC::GPR32RegClass, II, SPAdj);
+      BaseReg =
+          RS->scavengeRegisterBackwards(ARC::GPR32RegClass, II, false, SPAdj);
       assert(BaseReg && "Register scavenging failed.");
       LLVM_DEBUG(dbgs() << "Scavenged register " << printReg(BaseReg, TRI)
                         << " for FrameReg=" << printReg(FrameReg, TRI)
@@ -159,7 +160,7 @@ bool ARCRegisterInfo::useFPForScavengingIndex(const MachineFunction &MF) const {
   return true;
 }
 
-void ARCRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
+bool ARCRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
                                           int SPAdj, unsigned FIOperandNum,
                                           RegScavenger *RS) const {
   assert(SPAdj == 0 && "Unexpected");
@@ -190,7 +191,7 @@ void ARCRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
     Register FrameReg = getFrameRegister(MF);
     MI.getOperand(FIOperandNum).ChangeToRegister(FrameReg, false /*isDef*/);
     MI.getOperand(FIOperandNum + 1).ChangeToImmediate(Offset);
-    return;
+    return false;
   }
 
   // fold constant into offset.
@@ -218,6 +219,7 @@ void ARCRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   }
   replaceFrameIndex(II, TII, Reg, getFrameRegister(MF), Offset, StackSize,
                     ObjSize, RS, SPAdj);
+  return true;                  
 }
 
 Register ARCRegisterInfo::getFrameRegister(const MachineFunction &MF) const {

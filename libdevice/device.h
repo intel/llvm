@@ -15,21 +15,29 @@
 #define EXTERN_C
 #endif // __cplusplus
 
-#if defined(__SPIR__) || defined(__NVPTX__)
+#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__) ||           \
+    defined(__AMDGCN__)
+#define __LIBDEVICE_TARGET_SUPPORT
+#endif
+
+#ifdef __LIBDEVICE_TARGET_SUPPORT
 #ifdef __SYCL_DEVICE_ONLY__
 #define DEVICE_EXTERNAL SYCL_EXTERNAL __attribute__((weak))
 #else // __SYCL_DEVICE_ONLY__
 #define DEVICE_EXTERNAL __attribute__((weak))
 #endif // __SYCL_DEVICE_ONLY__
 
+#define DEVICE_EXTERN_CPP DEVICE_EXTERNAL
 #define DEVICE_EXTERN_C DEVICE_EXTERNAL EXTERN_C
 #define DEVICE_EXTERN_C_INLINE                                                 \
   DEVICE_EXTERNAL EXTERN_C __attribute__((always_inline))
-#endif // __SPIR__ || __NVPTX__
+#define DEVICE_EXTERN_C_NOINLINE                                               \
+  DEVICE_EXTERNAL EXTERN_C __attribute__((noinline))
+#endif // __LIBDEVICE_TARGET_SUPPORT
 
-#if defined(__SPIR__) || defined(__LIBDEVICE_HOST_IMPL__)
+#if defined(__SPIR__) || defined(__SPIRV__) || defined(__LIBDEVICE_HOST_IMPL__)
 #define __LIBDEVICE_IMF_ENABLED__
-#endif // __SPIR__ || __LIBDEVICE_HOST_IMPL__
+#endif // __SPIR__ || __SPIRV__ || __LIBDEVICE_HOST_IMPL__
 
 #ifdef __LIBDEVICE_HOST_IMPL__
 // For host implementation, all functions will be located in a static library
@@ -39,14 +47,4 @@
 #define DEVICE_EXTERN_C EXTERN_C
 #define DEVICE_EXTERN_C_INLINE DEVICE_EXTERN_C __attribute__((always_inline))
 #endif // __LIBDEVICE_HOST_IMPL__
-
-// Rounding mode are used internally by type convert functions in imf libdevice
-//  and we don't want to include system's fenv.h, so we define ourselves'.
-typedef enum {
-  __IML_RTE, // round to nearest-even
-  __IML_RTZ, // round to zero
-  __IML_RTP, // round to +inf
-  __IML_RTN, // round to -inf
-} __iml_rounding_mode;
-
 #endif // __LIBDEVICE_DEVICE_H__

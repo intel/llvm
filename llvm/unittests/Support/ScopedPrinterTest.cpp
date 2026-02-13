@@ -8,8 +8,20 @@
 
 #include "llvm/Support/ScopedPrinter.h"
 #include "llvm/ADT/APSInt.h"
+#include "llvm/ADT/BitmaskEnum.h"
+#include "llvm/Support/Format.h"
 #include "gtest/gtest.h"
+#include <cmath>
 #include <vector>
+
+namespace {
+enum class BitmaskEnum : uint8_t {
+  F1 = 0x1,
+  F2 = 0x2,
+  LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue=*/F2),
+};
+LLVM_ENABLE_BITMASK_ENUMS_IN_NAMESPACE();
+} // namespace
 
 using namespace llvm;
 
@@ -28,10 +40,10 @@ TEST(JSONScopedPrinterTest, PrettyPrintCtor) {
 })";
   const char *NoPrettyPrintOut = R"({"Key":"Value"})";
   PrintFunc(PrettyPrintWriter);
-  EXPECT_EQ(PrettyPrintOut, OS.str());
+  EXPECT_EQ(PrettyPrintOut, StreamBuffer);
   StreamBuffer.clear();
   PrintFunc(NoPrettyPrintWriter);
-  EXPECT_EQ(NoPrettyPrintOut, OS.str());
+  EXPECT_EQ(NoPrettyPrintOut, StreamBuffer);
 }
 
 TEST(JSONScopedPrinterTest, DelimitedScopeCtor) {
@@ -42,20 +54,20 @@ TEST(JSONScopedPrinterTest, DelimitedScopeCtor) {
                                       std::make_unique<DictScope>());
     DictScopeWriter.printString("Label", "DictScope");
   }
-  EXPECT_EQ(R"({"Label":"DictScope"})", OS.str());
+  EXPECT_EQ(R"({"Label":"DictScope"})", StreamBuffer);
   StreamBuffer.clear();
   {
     JSONScopedPrinter ListScopeWriter(OS, /*PrettyPrint=*/false,
                                       std::make_unique<ListScope>());
     ListScopeWriter.printString("ListScope");
   }
-  EXPECT_EQ(R"(["ListScope"])", OS.str());
+  EXPECT_EQ(R"(["ListScope"])", StreamBuffer);
   StreamBuffer.clear();
   {
     JSONScopedPrinter NoScopeWriter(OS, /*PrettyPrint=*/false);
     NoScopeWriter.printString("NoScope");
   }
-  EXPECT_EQ(R"("NoScope")", OS.str());
+  EXPECT_EQ(R"("NoScope")", StreamBuffer);
 }
 
 class ScopedPrinterTest : public ::testing::Test {
@@ -76,7 +88,7 @@ protected:
   void verifyScopedPrinter(StringRef Expected, PrintFunc Func) {
     Func(Writer);
     Writer.flush();
-    EXPECT_EQ(Expected.str(), OS.str());
+    EXPECT_EQ(Expected.str(), StreamBuffer);
     StreamBuffer.clear();
   }
 
@@ -86,7 +98,7 @@ protected:
       Func(JSONWriter);
     }
     JSONWriter.flush();
-    EXPECT_EQ(Expected.str(), OS.str());
+    EXPECT_EQ(Expected.str(), StreamBuffer);
     StreamBuffer.clear();
     HasPrintedToJSON = true;
   }
@@ -97,7 +109,7 @@ protected:
     verifyJSONScopedPrinter(JSONExpectedOut, Func);
   }
 
-  void TearDown() {
+  void TearDown() override {
     // JSONScopedPrinter fails an assert if nothing's been printed.
     if (!HasPrintedToJSON)
       JSONWriter.printString("");
@@ -226,8 +238,8 @@ TEST_F(ScopedPrinterTest, PrintEnum) {
                                        {"Name3", "AltName3", 3},
                                        {"Name4", "AltName4", 2}};
     EnumEntry<int> OtherEnum{"Name5", "AltName5", 5};
-    W.printEnum("Exists", EnumList[1].Value, makeArrayRef(EnumList));
-    W.printEnum("DoesNotExist", OtherEnum.Value, makeArrayRef(EnumList));
+    W.printEnum("Exists", EnumList[1].Value, ArrayRef(EnumList));
+    W.printEnum("DoesNotExist", OtherEnum.Value, ArrayRef(EnumList));
   };
 
   const char *ExpectedOut = R"(Exists: Name2 (0x2)
@@ -236,8 +248,8 @@ DoesNotExist: 0x5
 
   const char *JSONExpectedOut = R"({
   "Exists": {
-    "Value": "Name2",
-    "RawValue": 2
+    "Name": "Name2",
+    "Value": 2
   },
   "DoesNotExist": 5
 })";
@@ -259,11 +271,16 @@ TEST_F(ScopedPrinterTest, PrintFlag) {
         {"SecondByte2", "Second2", 0x20u}, {"SecondByte3", "Second3", 0x30u},
         {"ThirdByte1", "Third1", 0x100u},  {"ThirdByte2", "Third2", 0x200u},
         {"ThirdByte3", "Third3", 0x300u}};
-    W.printFlags("ZeroFlag", 0, makeArrayRef(SingleBitFlags));
-    W.printFlags("NoFlag", 1 << 3, makeArrayRef(SingleBitFlags));
-    W.printFlags("Flag1", SingleBitFlags[1].Value,
-                 makeArrayRef(SingleBitFlags));
-    W.printFlags("Flag1&3", (1 << 2) + 1, makeArrayRef(SingleBitFlags));
+
+    const EnumEntry<BitmaskEnum> ScopedFlags[] = {
+        {"F1", "AltF1", BitmaskEnum::F1},
+        {"F2", "AltF2", BitmaskEnum::F2},
+    };
+
+    W.printFlags("ZeroFlag", 0, ArrayRef(SingleBitFlags));
+    W.printFlags("NoFlag", 1 << 3, ArrayRef(SingleBitFlags));
+    W.printFlags("Flag1", SingleBitFlags[1].Value, ArrayRef(SingleBitFlags));
+    W.printFlags("Flag1&3", (1 << 2) + 1, ArrayRef(SingleBitFlags));
 
     W.printFlags("ZeroFlagRaw", 0);
     W.printFlags("NoFlagRaw", 1 << 3);
@@ -271,22 +288,21 @@ TEST_F(ScopedPrinterTest, PrintFlag) {
     W.printFlags("Flag1&3Raw", (1 << 2) + 1);
 
     W.printFlags("FlagSorted", (1 << 2) + (1 << 1) + 1,
-                 makeArrayRef(UnsortedFlags));
+                 ArrayRef(UnsortedFlags));
 
     uint16_t NoBitMask = 0;
     uint16_t FirstByteMask = 0xFu;
     uint16_t SecondByteMask = 0xF0u;
     uint16_t ThirdByteMask = 0xF00u;
-    W.printFlags("NoBitMask", 0xFFFu, makeArrayRef(EnumFlags), NoBitMask);
-    W.printFlags("FirstByteMask", 0x3u, makeArrayRef(EnumFlags), FirstByteMask);
-    W.printFlags("SecondByteMask", 0x30u, makeArrayRef(EnumFlags),
-                 SecondByteMask);
-    W.printFlags("ValueOutsideMask", 0x1u, makeArrayRef(EnumFlags),
-                 SecondByteMask);
-    W.printFlags("FirstSecondByteMask", 0xFFu, makeArrayRef(EnumFlags),
+    W.printFlags("NoBitMask", 0xFFFu, ArrayRef(EnumFlags), NoBitMask);
+    W.printFlags("FirstByteMask", 0x3u, ArrayRef(EnumFlags), FirstByteMask);
+    W.printFlags("SecondByteMask", 0x30u, ArrayRef(EnumFlags), SecondByteMask);
+    W.printFlags("ValueOutsideMask", 0x1u, ArrayRef(EnumFlags), SecondByteMask);
+    W.printFlags("FirstSecondByteMask", 0xFFu, ArrayRef(EnumFlags),
                  FirstByteMask, SecondByteMask);
-    W.printFlags("FirstSecondThirdByteMask", 0x333u, makeArrayRef(EnumFlags),
+    W.printFlags("FirstSecondThirdByteMask", 0x333u, ArrayRef(EnumFlags),
                  FirstByteMask, SecondByteMask, ThirdByteMask);
+    W.printFlags("BitmaskEnum::F1", BitmaskEnum::F1, ArrayRef(ScopedFlags));
   };
 
   const char *ExpectedOut = R"(ZeroFlag [ (0x0)
@@ -344,19 +360,22 @@ FirstSecondThirdByteMask [ (0x333)
   SecondByte3 (0x30)
   ThirdByte3 (0x300)
 ]
+BitmaskEnum::F1 [ (0x1)
+  F1 (0x1)
+]
 )";
 
   const char *JSONExpectedOut = R"({
   "ZeroFlag": {
-    "RawFlags": 0,
+    "Value": 0,
     "Flags": []
   },
   "NoFlag": {
-    "RawFlags": 8,
+    "Value": 8,
     "Flags": []
   },
   "Flag1": {
-    "RawFlags": 1,
+    "Value": 1,
     "Flags": [
       {
         "Name": "Name1",
@@ -365,7 +384,7 @@ FirstSecondThirdByteMask [ (0x333)
     ]
   },
   "Flag1&3": {
-    "RawFlags": 5,
+    "Value": 5,
     "Flags": [
       {
         "Name": "Name1",
@@ -378,30 +397,30 @@ FirstSecondThirdByteMask [ (0x333)
     ]
   },
   "ZeroFlagRaw": {
-    "RawFlags": 0,
+    "Value": 0,
     "Flags": []
   },
   "NoFlagRaw": {
-    "RawFlags": 8,
+    "Value": 8,
     "Flags": [
       8
     ]
   },
   "Flag1Raw": {
-    "RawFlags": 1,
+    "Value": 1,
     "Flags": [
       1
     ]
   },
   "Flag1&3Raw": {
-    "RawFlags": 5,
+    "Value": 5,
     "Flags": [
       1,
       4
     ]
   },
   "FlagSorted": {
-    "RawFlags": 7,
+    "Value": 7,
     "Flags": [
       {
         "Name": "A",
@@ -418,7 +437,7 @@ FirstSecondThirdByteMask [ (0x333)
     ]
   },
   "NoBitMask": {
-    "RawFlags": 4095,
+    "Value": 4095,
     "Flags": [
       {
         "Name": "FirstByte1",
@@ -459,7 +478,7 @@ FirstSecondThirdByteMask [ (0x333)
     ]
   },
   "FirstByteMask": {
-    "RawFlags": 3,
+    "Value": 3,
     "Flags": [
       {
         "Name": "FirstByte3",
@@ -468,7 +487,7 @@ FirstSecondThirdByteMask [ (0x333)
     ]
   },
   "SecondByteMask": {
-    "RawFlags": 48,
+    "Value": 48,
     "Flags": [
       {
         "Name": "SecondByte3",
@@ -477,7 +496,7 @@ FirstSecondThirdByteMask [ (0x333)
     ]
   },
   "ValueOutsideMask": {
-    "RawFlags": 1,
+    "Value": 1,
     "Flags": [
       {
         "Name": "FirstByte1",
@@ -486,11 +505,11 @@ FirstSecondThirdByteMask [ (0x333)
     ]
   },
   "FirstSecondByteMask": {
-    "RawFlags": 255,
+    "Value": 255,
     "Flags": []
   },
   "FirstSecondThirdByteMask": {
-    "RawFlags": 819,
+    "Value": 819,
     "Flags": [
       {
         "Name": "FirstByte3",
@@ -505,13 +524,53 @@ FirstSecondThirdByteMask [ (0x333)
         "Value": 768
       }
     ]
+  },
+  "BitmaskEnum::F1": {
+    "Value": 1,
+    "Flags": [
+      {
+        "Name": "F1",
+        "Value": 1
+      }
+    ]
   }
 })";
   verifyAll(ExpectedOut, JSONExpectedOut, PrintFunc);
 }
 
+// Format floats using the same format string as PrintNumber, so we can check
+// the output on all platforms.
+template <typename T,
+          std::enable_if_t<std::is_floating_point_v<T>, bool> = true>
+std::string formatFloatString(T Val) {
+  std::string Ret;
+  raw_string_ostream OS(Ret);
+  OS << format("%5.1f", Val);
+  return Ret;
+}
+
+// Format floats using the same format string used in JSON, so we can check the
+// output on all platforms.
+template <typename T,
+          std::enable_if_t<std::is_floating_point_v<T>, bool> = true>
+std::string formatJsonFloatString(T Val) {
+  std::string Ret;
+  raw_string_ostream OS(Ret);
+  OS << format("%.*g", std::numeric_limits<double>::max_digits10, Val);
+  return Ret;
+}
+
 TEST_F(ScopedPrinterTest, PrintNumber) {
-  auto PrintFunc = [](ScopedPrinter &W) {
+  constexpr float MaxFloat = std::numeric_limits<float>::max();
+  constexpr float MinFloat = std::numeric_limits<float>::min();
+  constexpr float InfFloat = std::numeric_limits<float>::infinity();
+  const float NaNFloat = std::nanf("1");
+  constexpr double MaxDouble = std::numeric_limits<double>::max();
+  constexpr double MinDouble = std::numeric_limits<double>::min();
+  constexpr double InfDouble = std::numeric_limits<double>::infinity();
+  const double NaNDouble = std::nan("1");
+
+  auto PrintFunc = [&](ScopedPrinter &W) {
     uint64_t Unsigned64Max = std::numeric_limits<uint64_t>::max();
     uint64_t Unsigned64Min = std::numeric_limits<uint64_t>::min();
     W.printNumber("uint64_t-max", Unsigned64Max);
@@ -556,9 +615,24 @@ TEST_F(ScopedPrinterTest, PrintNumber) {
     W.printNumber("apsint", LargeNum);
 
     W.printNumber("label", "value", 0);
+
+    W.printNumber("float-max", MaxFloat);
+    W.printNumber("float-min", MinFloat);
+    W.printNumber("float-inf", InfFloat);
+    W.printNumber("float-nan", NaNFloat);
+    W.printNumber("float-42.0", 42.0f);
+    W.printNumber("float-42.5625", 42.5625f);
+
+    W.printNumber("double-max", MaxDouble);
+    W.printNumber("double-min", MinDouble);
+    W.printNumber("double-inf", InfDouble);
+    W.printNumber("double-nan", NaNDouble);
+    W.printNumber("double-42.0", 42.0);
+    W.printNumber("double-42.5625", 42.5625);
   };
 
-  const char *ExpectedOut = R"(uint64_t-max: 18446744073709551615
+  std::string ExpectedOut = Twine(
+                                R"(uint64_t-max: 18446744073709551615
 uint64_t-min: 0
 uint32_t-max: 4294967295
 uint32_t-min: 0
@@ -576,9 +650,28 @@ int8_t-max: 127
 int8_t-min: -128
 apsint: 9999999999999999999999
 label: value (0)
-)";
+float-max: )" + formatFloatString(MaxFloat) +
+                                R"(
+float-min:   0.0
+float-inf: )" + formatFloatString(InfFloat) +
+                                R"(
+float-nan: )" + formatFloatString(NaNFloat) +
+                                R"(
+float-42.0:  42.0
+float-42.5625:  42.6
+double-max: )" + formatFloatString(MaxDouble) +
+                                R"(
+double-min:   0.0
+double-inf: )" + formatFloatString(InfDouble) +
+                                R"(
+double-nan: )" + formatFloatString(NaNDouble) +
+                                R"(
+double-42.0:  42.0
+double-42.5625:  42.6
+)")
+                                .str();
 
-  const char *JSONExpectedOut = R"({
+  std::string JSONExpectedOut = Twine(R"({
   "uint64_t-max": 18446744073709551615,
   "uint64_t-min": 0,
   "uint32_t-max": 4294967295,
@@ -597,10 +690,27 @@ label: value (0)
   "int8_t-min": -128,
   "apsint": 9999999999999999999999,
   "label": {
-    "Value": "value",
-    "RawValue": 0
-  }
-})";
+    "Name": "value",
+    "Value": 0
+  },
+  "float-max": 3.4028234663852886e+38,
+  "float-min": 1.1754943508222875e-38,
+  "float-inf": )" + formatJsonFloatString(InfFloat) +
+                                      R"(,
+  "float-nan": )" + formatJsonFloatString(NaNFloat) +
+                                      R"(,
+  "float-42.0": 42,
+  "float-42.5625": 42.5625,
+  "double-max": 1.7976931348623157e+308,
+  "double-min": 2.2250738585072014e-308,
+  "double-inf": )" + formatJsonFloatString(InfDouble) +
+                                      R"(,
+  "double-nan": )" + formatJsonFloatString(NaNDouble) +
+                                      R"(,
+  "double-42.0": 42,
+  "double-42.5625": 42.5625
+})")
+                                    .str();
   verifyAll(ExpectedOut, JSONExpectedOut, PrintFunc);
 }
 
@@ -662,7 +772,7 @@ TEST_F(ScopedPrinterTest, PrintList) {
                                             APSInt("-9999999999999999999999")};
     W.printList("EmptyList", EmptyList);
     W.printList("StringList", StringList);
-    W.printList("BoolList", makeArrayRef(BoolList));
+    W.printList("BoolList", ArrayRef(BoolList));
     W.printList("uint64List", Unsigned64List);
     W.printList("uint32List", Unsigned32List);
     W.printList("uint16List", Unsigned16List);
@@ -764,8 +874,8 @@ HexLabel: Name (0x10)
   const char *JSONExpectedOut = R"({
   "HexNumber": 16,
   "HexLabel": {
-    "Value": "Name",
-    "RawValue": 16
+    "Name": "Name",
+    "Value": 16
   }
 })";
   verifyAll(ExpectedOut, JSONExpectedOut, PrintFunc);

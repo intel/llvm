@@ -103,8 +103,11 @@ protected:
   }
 };
 
-INSTANTIATE_TEST_SUITE_P(TreeTests, TreeTest,
-                        ::testing::ValuesIn(allTestClangConfigs()) );
+INSTANTIATE_TEST_SUITE_P(
+    TreeTests, TreeTest, ::testing::ValuesIn(allTestClangConfigs()),
+    [](const testing::TestParamInfo<TestClangConfig> &Info) {
+      return Info.param.toShortString();
+    });
 
 TEST_P(TreeTest, FirstLeaf) {
   buildTree("", GetParam());
@@ -151,9 +154,8 @@ TEST_F(TreeTest, Iterators) {
   // FIXME: mutate and observe no invalidation. Mutations are private for now...
   auto It = Range.begin();
   auto CIt = ConstRange.begin();
-  static_assert(std::is_same<decltype(*It), syntax::Node &>::value,
-                "mutable range");
-  static_assert(std::is_same<decltype(*CIt), const syntax::Node &>::value,
+  static_assert(std::is_same_v<decltype(*It), syntax::Node &>, "mutable range");
+  static_assert(std::is_same_v<decltype(*CIt), const syntax::Node &>,
                 "const range");
 
   for (unsigned I = 0; I < 3; ++I) {
@@ -222,8 +224,11 @@ protected:
   }
 };
 
-INSTANTIATE_TEST_SUITE_P(TreeTests, ListTest,
-                        ::testing::ValuesIn(allTestClangConfigs()) );
+INSTANTIATE_TEST_SUITE_P(
+    TreeTests, ListTest, ::testing::ValuesIn(allTestClangConfigs()),
+    [](const testing::TestParamInfo<TestClangConfig> &Info) {
+      return Info.param.toShortString();
+    });
 
 /// "a, b, c"  <=> [("a", ","), ("b", ","), ("c", null)]
 TEST_P(ListTest, List_Separated_WellFormed) {

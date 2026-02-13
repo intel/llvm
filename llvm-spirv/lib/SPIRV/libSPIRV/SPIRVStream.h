@@ -78,6 +78,7 @@ public:
   void ignoreInstruction();
   std::vector<SPIRVEntry *>
   getContinuedInstructions(const spv::Op ContinuedOpCode);
+  std::vector<SPIRVEntry *> getSourceContinuedInstructions();
 
   std::istream &IS;
   SPIRVModule &M;
@@ -170,7 +171,7 @@ const SPIRVDecoder &operator>>(const SPIRVDecoder &I, std::vector<T> &V) {
 }
 
 template <typename T>
-const SPIRVDecoder &operator>>(const SPIRVDecoder &I, llvm::Optional<T> &V) {
+const SPIRVDecoder &operator>>(const SPIRVDecoder &I, std::optional<T> &V) {
   if (V)
     I >> V.value();
   return I;
@@ -204,7 +205,7 @@ const SPIRVEncoder &operator<<(const SPIRVEncoder &O, const std::vector<T> &V) {
 
 template <typename T>
 const SPIRVEncoder &operator<<(const SPIRVEncoder &O,
-                               const llvm::Optional<T> &V) {
+                               const std::optional<T> &V) {
   if (V)
     O << V.value();
   return O;
@@ -227,6 +228,10 @@ SPIRV_DEC_ENCDEC(Capability)
 SPIRV_DEC_ENCDEC(Decoration)
 SPIRV_DEC_ENCDEC(OCLExtOpKind)
 SPIRV_DEC_ENCDEC(SPIRVDebugExtOpKind)
+SPIRV_DEC_ENCDEC(NonSemanticAuxDataOpKind)
+SPIRV_DEC_ENCDEC(InitializationModeQualifier)
+SPIRV_DEC_ENCDEC(HostAccessQualifier)
+SPIRV_DEC_ENCDEC(NamedMaximumNumberOfRegisters)
 SPIRV_DEC_ENCDEC(LinkageType)
 
 const SPIRVEncoder &operator<<(const SPIRVEncoder &O, const std::string &Str);

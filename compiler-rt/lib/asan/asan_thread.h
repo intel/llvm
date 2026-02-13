@@ -15,11 +15,12 @@
 #define ASAN_THREAD_H
 
 #include "asan_allocator.h"
-#include "asan_internal.h"
 #include "asan_fake_stack.h"
+#include "asan_internal.h"
 #include "asan_stats.h"
 #include "sanitizer_common/sanitizer_common.h"
 #include "sanitizer_common/sanitizer_libc.h"
+#include "sanitizer_common/sanitizer_thread_arg_retval.h"
 #include "sanitizer_common/sanitizer_thread_registry.h"
 
 namespace __sanitizer {
@@ -35,38 +36,47 @@ class AsanThread;
 class AsanThreadContext final : public ThreadContextBase {
  public:
   explicit AsanThreadContext(int tid)
-      : ThreadContextBase(tid), announced(false),
-        destructor_iterations(GetPthreadDestructorIterations()), stack_id(0),
+      : ThreadContextBase(tid),
+        announced(false),
+        destructor_iterations(GetPthreadDestructorIterations()),
         thread(nullptr) {}
   bool announced;
   u8 destructor_iterations;
-  u32 stack_id;
   AsanThread *thread;
 
   void OnCreated(void *arg) override;
   void OnFinished() override;
-
-  struct CreateThreadContextArgs {
-    AsanThread *thread;
-    StackTrace *stack;
-  };
 };
 
 // AsanThreadContext objects are never freed, so we need many of them.
 COMPILER_CHECK(sizeof(AsanThreadContext) <= 256);
 
+#if defined(_MSC_VER) && !defined(__clang__)
+// MSVC raises a warning about a nonstandard extension being used for the 0
+// sized element in this array. Disable this for warn-as-error builds.
+#  pragma warning(push)
+#  pragma warning(disable : 4200)
+#endif
+
 // AsanThread are stored in TSD and destroyed when the thread dies.
 class AsanThread {
  public:
-  static AsanThread *Create(thread_callback_t start_routine, void *arg,
-                            u32 parent_tid, StackTrace *stack, bool detached);
+  template <typename T>
+  static AsanThread *Create(const T &data, u32 parent_tid, StackTrace *stack,
+                            bool detached) {
+    return Create(&data, sizeof(data), parent_tid, stack, detached);
+  }
+  static AsanThread *Create(u32 parent_tid, StackTrace *stack, bool detached) {
+    return Create(nullptr, 0, parent_tid, stack, detached);
+  }
   static void TSDDtor(void *tsd);
   void Destroy();
 
   struct InitOptions;
   void Init(const InitOptions *options = nullptr);
 
-  thread_return_t ThreadStart(tid_t os_id);
+  void ThreadStart(ThreadID os_id);
+  thread_return_t RunThread();
 
   uptr stack_top();
   uptr stack_bottom();
@@ -94,7 +104,7 @@ class AsanThread {
     if (!fake_stack_) return;
     FakeStack *t = fake_stack_;
     fake_stack_ = nullptr;
-    SetTLSFakeStack(nullptr);
+    ResetTLSFakeStack();
     t->Destroy(tid);
   }
 
@@ -129,11 +139,23 @@ class AsanThread {
 
   void *extra_spill_area() { return &extra_spill_area_; }
 
-  void *get_arg() { return arg_; }
+  template <typename T>
+  void GetStartData(T &data) const {
+    GetStartData(&data, sizeof(data));
+  }
+
+  bool IsFakeStackSuppressed() const {
+    return fake_stack_suppression_counter_ > 0;
+  }
+  void SuppressFakeStack();
+  void UnsuppressFakeStack();
 
  private:
   // NOTE: There is no AsanThread constructor. It is allocated
   // via mmap() and *must* be valid in zero-initialized state.
+
+  static AsanThread *Create(const void *start_data, uptr data_size,
+                            u32 parent_tid, StackTrace *stack, bool detached);
 
   void SetThreadStackAndTls(const InitOptions *options);
 
@@ -146,9 +168,9 @@ class AsanThread {
   };
   StackBounds GetStackBounds() const;
 
+  void GetStartData(void *out, uptr out_size) const;
+
   AsanThreadContext *context_;
-  thread_callback_t start_routine_;
-  void *arg_;
 
   uptr stack_top_;
   uptr stack_bottom_;
@@ -163,14 +185,22 @@ class AsanThread {
   DTLS *dtls_;
 
   FakeStack *fake_stack_;
+  int fake_stack_suppression_counter_;
   AsanThreadLocalMallocStorage malloc_storage_;
   AsanStats stats_;
   bool unwinding_;
   uptr extra_spill_area_;
+
+  char start_data_[];
 };
+
+#if defined(_MSC_VER) && !defined(__clang__)
+#  pragma warning(pop)
+#endif
 
 // Returns a single instance of registry.
 ThreadRegistry &asanThreadRegistry();
+ThreadArgRetval &asanThreadArgRetval();
 
 // Must be called under ThreadRegistryLock.
 AsanThreadContext *GetThreadContextByTidLocked(u32 tid);

@@ -1,4 +1,6 @@
-// REQUIRES: shell, arm-registered-target
+// REQUIRES: arm-registered-target
+// UNSUPPORTED: system-windows
+// UNSUPPORTED: llvm-driver
 
 // RUN: mkdir -p %t
 

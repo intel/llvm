@@ -7,66 +7,62 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include <CL/__spirv/spirv_vars.hpp>
-#include <sycl/detail/defines_elementary.hpp>
-#include <sycl/detail/sycl_fe_intrins.hpp>
-#include <sycl/detail/type_traits.hpp>
-#include <sycl/exception.hpp>
-#include <sycl/group.hpp>
-#include <sycl/multi_ptr.hpp>
+#include <sycl/access/access.hpp>             // for address_space, decorated
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
+#include <sycl/detail/sycl_local_mem_builtins.hpp> // for __sycl_allocateLocalMemory
+#include <sycl/detail/type_traits.hpp>             // for is_group
+#include <sycl/exception.hpp>                      // for exception
+#include <sycl/group.hpp>                          // for workGroupBarrier
 
-#include <cstdint>
-#include <type_traits>
-#include <utility>
+#include <type_traits> // for enable_if_t
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
+inline namespace _V1 {
+namespace ext::oneapi {
 template <typename T, typename Group>
 std::enable_if_t<
-    std::is_trivially_destructible<T>::value &&
-        sycl::detail::is_group<Group>::value,
+    std::is_trivially_destructible_v<T> && sycl::detail::is_group<Group>::value,
     multi_ptr<T, access::address_space::local_space, access::decorated::legacy>>
     __SYCL_ALWAYS_INLINE group_local_memory_for_overwrite(Group g) {
   (void)g;
 #ifdef __SYCL_DEVICE_ONLY__
   __attribute__((opencl_local)) std::uint8_t *AllocatedMem =
       __sycl_allocateLocalMemory(sizeof(T), alignof(T));
+  // If the type is non-trivial we need to default initialize it.
+  if constexpr (!std::is_trivial_v<T>) {
+    if (g.get_local_linear_id() == 0)
+      new (AllocatedMem) T; // Default initialize.
+    sycl::detail::workGroupBarrier();
+  }
   return reinterpret_cast<__attribute__((opencl_local)) T *>(AllocatedMem);
 #else
-  throw feature_not_supported(
-      "sycl_ext_oneapi_local_memory extension is not supported on host device",
-      PI_ERROR_INVALID_OPERATION);
+  throw sycl::exception(
+      sycl::errc::feature_not_supported,
+      "sycl_ext_oneapi_local_memory extension is not supported on host");
 #endif
 }
 
 template <typename T, typename Group, typename... Args>
 std::enable_if_t<
-    std::is_trivially_destructible<T>::value &&
-        sycl::detail::is_group<Group>::value,
+    std::is_trivially_destructible_v<T> && sycl::detail::is_group<Group>::value,
     multi_ptr<T, access::address_space::local_space, access::decorated::legacy>>
     __SYCL_ALWAYS_INLINE group_local_memory(Group g, Args &&...args) {
-  (void)g;
 #ifdef __SYCL_DEVICE_ONLY__
   __attribute__((opencl_local)) std::uint8_t *AllocatedMem =
       __sycl_allocateLocalMemory(sizeof(T), alignof(T));
-
-  // TODO switch to using group::get_local_linear_id here once it's implemented
-  id<3> Id = __spirv::initLocalInvocationId<3, id<3>>();
-  if (Id == id<3>(0, 0, 0))
-    new (AllocatedMem) T(std::forward<Args>(args)...);
+  if (g.get_local_linear_id() == 0)
+    new (AllocatedMem) T{std::forward<Args>(args)...};
   sycl::detail::workGroupBarrier();
   return reinterpret_cast<__attribute__((opencl_local)) T *>(AllocatedMem);
 #else
   // Silence unused variable warning
+  (void)g;
   [&args...] {}();
-  throw feature_not_supported(
-      "sycl_ext_oneapi_local_memory extension is not supported on host device",
-      PI_ERROR_INVALID_OPERATION);
+  throw sycl::exception(
+      sycl::errc::feature_not_supported,
+      "sycl_ext_oneapi_local_memory extension is not supported on host");
 #endif
 }
-} // namespace oneapi
-} // namespace ext
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace ext::oneapi
+} // namespace _V1
 } // namespace sycl

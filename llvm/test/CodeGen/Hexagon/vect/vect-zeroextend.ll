@@ -1,4 +1,4 @@
-; RUN: llc -march=hexagon < %s
+; RUN: llc -mtriple=hexagon < %s
 ; Used to fail with "Cannot select: 0x16cb2d0: v4i16 = zero_extend"
 
 ; ModuleID = 'bugpoint-reduced-simplified.bc'
@@ -13,9 +13,9 @@ for.cond30.preheader.lr.ph:                       ; preds = %entry
   br label %for.cond37.preheader
 
 for.cond37.preheader:                             ; preds = %for.cond37.preheader, %for.cond30.preheader.lr.ph
-  %_p_vec_full = load <3 x i8>, <3 x i8>* undef, align 8
+  %_p_vec_full = load <3 x i8>, ptr undef, align 8
   %0 = zext <3 x i8> %_p_vec_full to <3 x i16>
-  store <3 x i16> %0, <3 x i16>* undef, align 8
+  store <3 x i16> %0, ptr undef, align 8
   br label %for.cond37.preheader
 
 for.end425:                                       ; preds = %entry

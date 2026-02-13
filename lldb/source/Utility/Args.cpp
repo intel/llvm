@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "lldb/Utility/Args.h"
-#include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/Stream.h"
 #include "lldb/Utility/StringList.h"
@@ -26,7 +25,7 @@ static llvm::StringRef ParseDoubleQuotes(llvm::StringRef quoted,
   // Inside double quotes, '\' and '"' are special.
   static const char *k_escapable_characters = "\"\\";
   while (true) {
-    // Skip over over regular characters and append them.
+    // Skip over regular characters and append them.
     size_t regular = quoted.find_first_of(k_escapable_characters);
     result += quoted.substr(0, regular);
     quoted = quoted.substr(regular);
@@ -67,9 +66,11 @@ static size_t ArgvToArgc(const char **argv) {
 
 // Trims all whitespace that can separate command line arguments from the left
 // side of the string.
-static llvm::StringRef ltrimForArgs(llvm::StringRef str) {
+static llvm::StringRef ltrimForArgs(llvm::StringRef str, size_t &shift) {
   static const char *k_space_separators = " \t";
-  return str.ltrim(k_space_separators);
+  llvm::StringRef result = str.ltrim(k_space_separators);
+  shift = result.data() - str.data();
+  return result;
 }
 
 // A helper function for SetCommandString. Parses a single argument from the
@@ -94,7 +95,7 @@ ParseSingleArgument(llvm::StringRef command) {
 
   bool arg_complete = false;
   do {
-    // Skip over over regular characters and append them.
+    // Skip over regular characters and append them.
     size_t regular = command.find_first_of(" \t\r\"'`\\");
     arg += command.substr(0, regular);
     command = command.substr(regular);
@@ -157,7 +158,9 @@ ParseSingleArgument(llvm::StringRef command) {
   return std::make_tuple(arg, first_quote_char, command);
 }
 
-Args::ArgEntry::ArgEntry(llvm::StringRef str, char quote) : quote(quote) {
+Args::ArgEntry::ArgEntry(llvm::StringRef str, char quote,
+                         std::optional<uint16_t> column)
+    : quote(quote), column(column) {
   size_t size = str.size();
   ptr.reset(new char[size + 1]);
 
@@ -186,7 +189,7 @@ Args &Args::operator=(const Args &rhs) {
   m_argv.clear();
   m_entries.clear();
   for (auto &entry : rhs.m_entries) {
-    m_entries.emplace_back(entry.ref(), entry.quote);
+    m_entries.emplace_back(entry.ref(), entry.quote, entry.column);
     m_argv.push_back(m_entries.back().data());
   }
   m_argv.push_back(nullptr);
@@ -249,14 +252,20 @@ void Args::SetCommandString(llvm::StringRef command) {
   Clear();
   m_argv.clear();
 
-  command = ltrimForArgs(command);
+  uint16_t column = 1;
+  size_t shift = 0;
+  command = ltrimForArgs(command, shift);
+  column += shift;
   std::string arg;
   char quote;
   while (!command.empty()) {
+    const char *prev = command.data();
     std::tie(arg, quote, command) = ParseSingleArgument(command);
-    m_entries.emplace_back(arg, quote);
+    m_entries.emplace_back(arg, quote, column);
     m_argv.push_back(m_entries.back().data());
-    command = ltrimForArgs(command);
+    command = ltrimForArgs(command, shift);
+    column += shift;
+    column += command.data() - prev;
   }
   m_argv.push_back(nullptr);
 }
@@ -300,7 +309,7 @@ void Args::AppendArguments(const Args &rhs) {
   assert(m_argv.back() == nullptr);
   m_argv.pop_back();
   for (auto &entry : rhs.m_entries) {
-    m_entries.emplace_back(entry.ref(), entry.quote);
+    m_entries.emplace_back(entry.ref(), entry.quote, entry.column);
     m_argv.push_back(m_entries.back().data());
   }
   m_argv.push_back(nullptr);
@@ -312,8 +321,8 @@ void Args::AppendArguments(const char **argv) {
   assert(m_argv.size() == m_entries.size() + 1);
   assert(m_argv.back() == nullptr);
   m_argv.pop_back();
-  for (auto arg : llvm::makeArrayRef(argv, argc)) {
-    m_entries.emplace_back(arg, '\0');
+  for (auto arg : llvm::ArrayRef(argv, argc)) {
+    m_entries.emplace_back(arg, '\0', std::nullopt);
     m_argv.push_back(m_entries.back().data());
   }
 
@@ -331,7 +340,7 @@ void Args::InsertArgumentAtIndex(size_t idx, llvm::StringRef arg_str,
 
   if (idx > m_entries.size())
     return;
-  m_entries.emplace(m_entries.begin() + idx, arg_str, quote_char);
+  m_entries.emplace(m_entries.begin() + idx, arg_str, quote_char, std::nullopt);
   m_argv.insert(m_argv.begin() + idx, m_entries[idx].data());
 }
 
@@ -343,7 +352,7 @@ void Args::ReplaceArgumentAtIndex(size_t idx, llvm::StringRef arg_str,
   if (idx >= m_entries.size())
     return;
 
-  m_entries[idx] = ArgEntry(arg_str, quote_char);
+  m_entries[idx] = ArgEntry(arg_str, quote_char, std::nullopt);
   m_argv[idx] = m_entries[idx].data();
 }
 
@@ -358,7 +367,7 @@ void Args::DeleteArgumentAtIndex(size_t idx) {
 void Args::SetArguments(size_t argc, const char **argv) {
   Clear();
 
-  auto args = llvm::makeArrayRef(argv, argc);
+  auto args = llvm::ArrayRef(argv, argc);
   m_entries.resize(argc);
   m_argv.resize(argc + 1);
   for (size_t i = 0; i < args.size(); ++i) {
@@ -367,7 +376,7 @@ void Args::SetArguments(size_t argc, const char **argv) {
             ? args[i][0]
             : '\0';
 
-    m_entries[i] = ArgEntry(args[i], quote);
+    m_entries[i] = ArgEntry(args[i], quote, std::nullopt);
     m_argv[i] = m_entries[i].data();
   }
 }
@@ -385,20 +394,21 @@ void Args::Clear() {
 std::string Args::GetShellSafeArgument(const FileSpec &shell,
                                        llvm::StringRef unsafe_arg) {
   struct ShellDescriptor {
-    ConstString m_basename;
+    llvm::StringRef m_basename;
     llvm::StringRef m_escapables;
   };
 
-  static ShellDescriptor g_Shells[] = {{ConstString("bash"), " '\"<>()&;"},
-                                       {ConstString("fish"), " '\"<>()&\\|;"},
-                                       {ConstString("tcsh"), " '\"<>()&;"},
-                                       {ConstString("zsh"), " '\"<>()&;\\|"},
-                                       {ConstString("sh"), " '\"<>()&;"}};
+  static ShellDescriptor g_Shells[] = {{"bash", " '\"<>()&;"},
+                                       {"fish", " '\"<>()&\\|;"},
+                                       {"tcsh", " '\"<>()&;"},
+                                       {"zsh", " '\"<>()&;\\|"},
+                                       {"sh", " '\"<>()&;"}};
 
   // safe minimal set
   llvm::StringRef escapables = " '\"";
 
-  if (auto basename = shell.GetFilename()) {
+  auto basename = shell.GetFilename().GetStringRef();
+  if (!basename.empty()) {
     for (const auto &Shell : g_Shells) {
       if (Shell.m_basename == basename) {
         escapables = Shell.m_escapables;
@@ -435,7 +445,7 @@ uint32_t Args::StringToGenericRegister(llvm::StringRef s) {
                         .Case("pc", LLDB_REGNUM_GENERIC_PC)
                         .Case("sp", LLDB_REGNUM_GENERIC_SP)
                         .Case("fp", LLDB_REGNUM_GENERIC_FP)
-                        .Cases("ra", "lr", LLDB_REGNUM_GENERIC_RA)
+                        .Cases({"ra", "lr"}, LLDB_REGNUM_GENERIC_RA)
                         .Case("flags", LLDB_REGNUM_GENERIC_FLAGS)
                         .Case("arg1", LLDB_REGNUM_GENERIC_ARG1)
                         .Case("arg2", LLDB_REGNUM_GENERIC_ARG2)
@@ -445,6 +455,7 @@ uint32_t Args::StringToGenericRegister(llvm::StringRef s) {
                         .Case("arg6", LLDB_REGNUM_GENERIC_ARG6)
                         .Case("arg7", LLDB_REGNUM_GENERIC_ARG7)
                         .Case("arg8", LLDB_REGNUM_GENERIC_ARG8)
+                        .Case("tp", LLDB_REGNUM_GENERIC_TP)
                         .Default(LLDB_INVALID_REGNUM);
   return result;
 }
@@ -634,13 +645,14 @@ OptionsWithRaw::OptionsWithRaw(llvm::StringRef arg_string) {
 void OptionsWithRaw::SetFromString(llvm::StringRef arg_string) {
   const llvm::StringRef original_args = arg_string;
 
-  arg_string = ltrimForArgs(arg_string);
+  size_t shift;
+  arg_string = ltrimForArgs(arg_string, shift);
   std::string arg;
   char quote;
 
   // If the string doesn't start with a dash, we just have no options and just
   // a raw part.
-  if (!arg_string.startswith("-")) {
+  if (!arg_string.starts_with("-")) {
     m_suffix = std::string(original_args);
     return;
   }
@@ -655,7 +667,7 @@ void OptionsWithRaw::SetFromString(llvm::StringRef arg_string) {
 
     // If we get an unquoted '--' argument, then we reached the suffix part
     // of the command.
-    Args::ArgEntry entry(arg, quote);
+    Args::ArgEntry entry(arg, quote, std::nullopt);
     if (!entry.IsQuoted() && arg == "--") {
       // The remaining line is the raw suffix, and the line we parsed so far
       // needs to be interpreted as arguments.
@@ -680,7 +692,7 @@ void OptionsWithRaw::SetFromString(llvm::StringRef arg_string) {
       break;
     }
 
-    arg_string = ltrimForArgs(arg_string);
+    arg_string = ltrimForArgs(arg_string, shift);
   }
 
   // If we didn't find a suffix delimiter, the whole string is the raw suffix.

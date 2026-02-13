@@ -12,6 +12,7 @@
 #include "bolt/Core/BinaryContext.h"
 #include "bolt/Core/BinaryFunction.h"
 #include "llvm/Support/Errc.h"
+#include <optional>
 #include <queue>
 
 namespace llvm {
@@ -152,7 +153,7 @@ class DataflowAnalysis {
     return *static_cast<const Derived *>(this);
   }
 
-  mutable Optional<unsigned> AnnotationIndex;
+  mutable std::optional<unsigned> AnnotationIndex;
 
 protected:
   const BinaryContext &BC;
@@ -291,14 +292,17 @@ public:
   /// Relies on a ptr map to fetch the previous instruction and then retrieve
   /// state. WARNING: Watch out for invalidated pointers. Do not use this
   /// function if you invalidated pointers after the analysis has been completed
-  ErrorOr<const StateTy &> getStateBefore(const MCInst &Point) {
-    return getStateAt(PrevPoint[&Point]);
+  ErrorOr<const StateTy &> getStateBefore(const MCInst &Point) const {
+    auto It = PrevPoint.find(&Point);
+    if (It == PrevPoint.end())
+      return make_error_code(std::errc::result_out_of_range);
+    return getStateAt(It->getSecond());
   }
 
-  ErrorOr<const StateTy &> getStateBefore(ProgramPoint Point) {
+  ErrorOr<const StateTy &> getStateBefore(ProgramPoint Point) const {
     if (Point.isBB())
       return getStateAt(*Point.getBB());
-    return getStateAt(PrevPoint[Point.getInst()]);
+    return getStateBefore(*Point.getInst());
   }
 
   /// Remove any state annotations left by this analysis
@@ -340,12 +344,11 @@ public:
         }
       }
     } else {
-      for (auto I = Func.rbegin(), E = Func.rend(); I != E; ++I) {
-        Worklist.push(&*I);
+      for (BinaryBasicBlock &BB : llvm::reverse(Func)) {
+        Worklist.push(&BB);
         MCInst *Prev = nullptr;
-        for (auto J = (*I).rbegin(), E2 = (*I).rend(); J != E2; ++J) {
-          MCInst &Inst = *J;
-          PrevPoint[&Inst] = Prev ? ProgramPoint(Prev) : ProgramPoint(&*I);
+        for (MCInst &Inst : llvm::reverse(BB)) {
+          PrevPoint[&Inst] = Prev ? ProgramPoint(Prev) : ProgramPoint(&BB);
           Prev = &Inst;
         }
       }
@@ -416,8 +419,8 @@ public:
         for (MCInst &Inst : *BB)
           doNext(Inst, *BB);
       else
-        for (auto I = BB->rbegin(), E = BB->rend(); I != E; ++I)
-          doNext(*I, *BB);
+        for (MCInst &Inst : llvm::reverse(*BB))
+          doNext(Inst, *BB);
 
       if (Changed) {
         if (!Backward) {

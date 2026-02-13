@@ -18,6 +18,7 @@
 
 using namespace llvm;
 
+namespace llvm {
 cl::opt<bool> UseContextLessSummary(
     "profile-summary-contextless", cl::Hidden,
     cl::desc("Merge context profiles before calculating thresholds."));
@@ -64,6 +65,7 @@ cl::opt<uint64_t> ProfileSummaryColdCount(
     "profile-summary-cold-count", cl::ReallyHidden,
     cl::desc("A fixed cold count that overrides the count derived from"
              " profile-summary-cutoff-cold"));
+} // namespace llvm
 
 // A set of cutoff values. Each value, when divided by ProfileSummary::Scale
 // (which is 1000000) is a desired percentile of total counts.
@@ -75,9 +77,18 @@ static const uint32_t DefaultCutoffsData[] = {
 const ArrayRef<uint32_t> ProfileSummaryBuilder::DefaultCutoffs =
     DefaultCutoffsData;
 
+// An entry for the 0th percentile to correctly calculate hot/cold count
+// thresholds when -profile-summary-cutoff-hot/cold is 0.  If the hot cutoff is
+// 0, no sample counts are treated as hot.  If the cold cutoff is 0, all sample
+// counts are treated as cold.  Assumes there is no UINT64_MAX sample counts.
+static const ProfileSummaryEntry ZeroCutoffEntry = {0, UINT64_MAX, 0};
+
 const ProfileSummaryEntry &
 ProfileSummaryBuilder::getEntryForPercentile(const SummaryEntryVector &DS,
                                              uint64_t Percentile) {
+  if (Percentile == 0)
+    return ZeroCutoffEntry;
+
   auto It = partition_point(DS, [=](const ProfileSummaryEntry &Entry) {
     return Entry.Cutoff < Percentile;
   });
@@ -202,9 +213,7 @@ SampleProfileSummaryBuilder::computeSummaryForProfiles(
   // profiles before computing profile summary.
   if (UseContextLessSummary || (sampleprof::FunctionSamples::ProfileIsCS &&
                                 !UseContextLessSummary.getNumOccurrences())) {
-    for (const auto &I : Profiles) {
-      ContextLessProfiles[I.second.getName()].merge(I.second);
-    }
+    ProfileConverter::flattenProfile(Profiles, ContextLessProfiles, true);
     ProfilesToUse = &ContextLessProfiles;
   }
 

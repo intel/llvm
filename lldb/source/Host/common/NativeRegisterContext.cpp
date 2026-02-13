@@ -125,15 +125,12 @@ lldb::addr_t NativeRegisterContext::GetPC(lldb::addr_t fail_value) {
 
   uint32_t reg = ConvertRegisterKindToRegisterNumber(eRegisterKindGeneric,
                                                      LLDB_REGNUM_GENERIC_PC);
-  LLDB_LOGF(log,
-            "NativeRegisterContext::%s using reg index %" PRIu32
-            " (default %" PRIu64 ")",
-            __FUNCTION__, reg, fail_value);
+  LLDB_LOGF(log, "Using reg index %" PRIu32 " (default %" PRIu64 ")", reg,
+            fail_value);
 
   const uint64_t retval = ReadRegisterAsUnsigned(reg, fail_value);
 
-  LLDB_LOGF(log, "NativeRegisterContext::%s " PRIu32 " retval %" PRIu64,
-            __FUNCTION__, retval);
+  LLDB_LOGF(log, PRIu32 " retval %" PRIu64, retval);
 
   return retval;
 }
@@ -203,18 +200,15 @@ NativeRegisterContext::ReadRegisterAsUnsigned(const RegisterInfo *reg_info,
     Status error = ReadRegister(reg_info, value);
     if (error.Success()) {
       LLDB_LOGF(log,
-                "NativeRegisterContext::%s ReadRegister() succeeded, value "
+                "Read register succeeded: value "
                 "%" PRIu64,
-                __FUNCTION__, value.GetAsUInt64());
+                value.GetAsUInt64());
       return value.GetAsUInt64();
     } else {
-      LLDB_LOGF(log,
-                "NativeRegisterContext::%s ReadRegister() failed, error %s",
-                __FUNCTION__, error.AsCString());
+      LLDB_LOGF(log, "Read register failed: error %s", error.AsCString());
     }
   } else {
-    LLDB_LOGF(log, "NativeRegisterContext::%s ReadRegister() null reg_info",
-              __FUNCTION__);
+    LLDB_LOGF(log, "Read register failed: null reg_info");
   }
   return fail_value;
 }
@@ -222,7 +216,7 @@ NativeRegisterContext::ReadRegisterAsUnsigned(const RegisterInfo *reg_info,
 Status NativeRegisterContext::WriteRegisterFromUnsigned(uint32_t reg,
                                                         uint64_t uval) {
   if (reg == LLDB_INVALID_REGNUM)
-    return Status("NativeRegisterContext::%s (): reg is invalid", __FUNCTION__);
+    return Status::FromErrorString("Write register failed: reg is invalid");
   return WriteRegisterFromUnsigned(GetRegisterInfoAtIndex(reg), uval);
 }
 
@@ -231,11 +225,11 @@ NativeRegisterContext::WriteRegisterFromUnsigned(const RegisterInfo *reg_info,
                                                  uint64_t uval) {
   assert(reg_info);
   if (!reg_info)
-    return Status("reg_info is nullptr");
+    return Status::FromErrorString("reg_info is nullptr");
 
   RegisterValue value;
   if (!value.SetUInt(uval, reg_info->byte_size))
-    return Status("RegisterValue::SetUInt () failed");
+    return Status::FromErrorString("RegisterValue::SetUInt () failed");
 
   return WriteRegister(reg_info, value);
 }
@@ -252,7 +246,7 @@ uint32_t NativeRegisterContext::SetHardwareBreakpoint(lldb::addr_t addr,
 }
 
 Status NativeRegisterContext::ClearAllHardwareBreakpoints() {
-  return Status("not implemented");
+  return Status::FromErrorString("not implemented");
 }
 
 bool NativeRegisterContext::ClearHardwareBreakpoint(uint32_t hw_idx) {
@@ -262,7 +256,7 @@ bool NativeRegisterContext::ClearHardwareBreakpoint(uint32_t hw_idx) {
 Status NativeRegisterContext::GetHardwareBreakHitIndex(uint32_t &bp_index,
                                                        lldb::addr_t trap_addr) {
   bp_index = LLDB_INVALID_INDEX32;
-  return Status("not implemented");
+  return Status::FromErrorString("not implemented");
 }
 
 uint32_t NativeRegisterContext::NumSupportedHardwareWatchpoints() { return 0; }
@@ -278,28 +272,28 @@ bool NativeRegisterContext::ClearHardwareWatchpoint(uint32_t hw_index) {
 }
 
 Status NativeRegisterContext::ClearWatchpointHit(uint32_t hw_index) {
-  return Status("not implemented");
+  return Status::FromErrorString("not implemented");
 }
 
 Status NativeRegisterContext::ClearAllHardwareWatchpoints() {
-  return Status("not implemented");
+  return Status::FromErrorString("not implemented");
 }
 
 Status NativeRegisterContext::IsWatchpointHit(uint32_t wp_index, bool &is_hit) {
   is_hit = false;
-  return Status("not implemented");
+  return Status::FromErrorString("not implemented");
 }
 
 Status NativeRegisterContext::GetWatchpointHitIndex(uint32_t &wp_index,
                                                     lldb::addr_t trap_addr) {
   wp_index = LLDB_INVALID_INDEX32;
-  return Status("not implemented");
+  return Status::FromErrorString("not implemented");
 }
 
 Status NativeRegisterContext::IsWatchpointVacant(uint32_t wp_index,
                                                  bool &is_vacant) {
   is_vacant = false;
-  return Status("not implemented");
+  return Status::FromErrorString("not implemented");
 }
 
 lldb::addr_t NativeRegisterContext::GetWatchpointAddress(uint32_t wp_index) {
@@ -317,7 +311,7 @@ Status NativeRegisterContext::ReadRegisterValueFromMemory(
     RegisterValue &reg_value) {
   Status error;
   if (reg_info == nullptr) {
-    error.SetErrorString("invalid register info argument.");
+    error = Status::FromErrorString("invalid register info argument.");
     return error;
   }
 
@@ -337,15 +331,10 @@ Status NativeRegisterContext::ReadRegisterValueFromMemory(
   //   |AABB| Address contents
   //   |AABB0000| Register contents [on little-endian hardware]
   //   |0000AABB| Register contents [on big-endian hardware]
-  if (src_len > RegisterValue::kMaxRegisterByteSize) {
-    error.SetErrorString("register too small to receive memory data");
-    return error;
-  }
-
   const size_t dst_len = reg_info->byte_size;
 
   if (src_len > dst_len) {
-    error.SetErrorStringWithFormat(
+    error = Status::FromErrorStringWithFormat(
         "%" PRIu64 " bytes is too big to store in register %s (%" PRIu64
         " bytes)",
         static_cast<uint64_t>(src_len), reg_info->name,
@@ -354,20 +343,20 @@ Status NativeRegisterContext::ReadRegisterValueFromMemory(
   }
 
   NativeProcessProtocol &process = m_thread.GetProcess();
-  uint8_t src[RegisterValue::kMaxRegisterByteSize];
+  RegisterValue::BytesContainer src(src_len);
 
   // Read the memory
   size_t bytes_read;
-  error = process.ReadMemory(src_addr, src, src_len, bytes_read);
+  error = process.ReadMemory(src_addr, src.data(), src_len, bytes_read);
   if (error.Fail())
     return error;
 
   // Make sure the memory read succeeded...
   if (bytes_read != src_len) {
     // This might happen if we read _some_ bytes but not all
-    error.SetErrorStringWithFormat("read %" PRIu64 " of %" PRIu64 " bytes",
-                                   static_cast<uint64_t>(bytes_read),
-                                   static_cast<uint64_t>(src_len));
+    error = Status::FromErrorStringWithFormat(
+        "read %" PRIu64 " of %" PRIu64 " bytes",
+        static_cast<uint64_t>(bytes_read), static_cast<uint64_t>(src_len));
     return error;
   }
 
@@ -376,8 +365,8 @@ Status NativeRegisterContext::ReadRegisterValueFromMemory(
   // TODO: we might need to add a parameter to this function in case the byte
   // order of the memory data doesn't match the process. For now we are
   // assuming they are the same.
-  reg_value.SetFromMemoryData(reg_info, src, src_len, process.GetByteOrder(),
-                              error);
+  reg_value.SetFromMemoryData(*reg_info, src.data(), src_len,
+                              process.GetByteOrder(), error);
 
   return error;
 }
@@ -385,34 +374,37 @@ Status NativeRegisterContext::ReadRegisterValueFromMemory(
 Status NativeRegisterContext::WriteRegisterValueToMemory(
     const RegisterInfo *reg_info, lldb::addr_t dst_addr, size_t dst_len,
     const RegisterValue &reg_value) {
-
-  uint8_t dst[RegisterValue::kMaxRegisterByteSize];
-
   Status error;
+  if (reg_info == nullptr) {
+    error = Status::FromErrorString("Invalid register info argument.");
+    return error;
+  }
 
+  RegisterValue::BytesContainer dst(dst_len);
   NativeProcessProtocol &process = m_thread.GetProcess();
 
   // TODO: we might need to add a parameter to this function in case the byte
   // order of the memory data doesn't match the process. For now we are
   // assuming they are the same.
   const size_t bytes_copied = reg_value.GetAsMemoryData(
-      reg_info, dst, dst_len, process.GetByteOrder(), error);
+      *reg_info, dst.data(), dst_len, process.GetByteOrder(), error);
 
   if (error.Success()) {
     if (bytes_copied == 0) {
-      error.SetErrorString("byte copy failed.");
+      error = Status::FromErrorString("byte copy failed.");
     } else {
       size_t bytes_written;
-      error = process.WriteMemory(dst_addr, dst, bytes_copied, bytes_written);
+      error = process.WriteMemory(dst_addr, dst.data(), bytes_copied,
+                                  bytes_written);
       if (error.Fail())
         return error;
 
       if (bytes_written != bytes_copied) {
         // This might happen if we read _some_ bytes but not all
-        error.SetErrorStringWithFormat("only wrote %" PRIu64 " of %" PRIu64
-                                       " bytes",
-                                       static_cast<uint64_t>(bytes_written),
-                                       static_cast<uint64_t>(bytes_copied));
+        error = Status::FromErrorStringWithFormat(
+            "only wrote %" PRIu64 " of %" PRIu64 " bytes",
+            static_cast<uint64_t>(bytes_written),
+            static_cast<uint64_t>(bytes_copied));
       }
     }
   }

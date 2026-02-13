@@ -25,10 +25,21 @@
 #include "llvm/ExecutionEngine/Orc/LLJIT.h"
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/TargetSelect.h"
-#include "llvm-c/Error.h"
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+
+// Disable LSan for this test.
+// FIXME: Re-enable once we can assume GCC 13.2 or higher.
+// https://llvm.org/github.com/llvm/llvm-project/issues/67586.
+#if LLVM_ADDRESS_SANITIZER_BUILD || LLVM_HWADDRESS_SANITIZER_BUILD
+#include <sanitizer/lsan_interface.h>
+LLVM_ATTRIBUTE_USED int __lsan_is_turned_off() { return 1; }
+#endif
+
+#if defined(_AIX) || defined(__MVS__)
+#define CLANG_INTERPRETER_PLATFORM_CANNOT_CREATE_LLJIT
+#endif
 
 using namespace clang;
 
@@ -38,14 +49,20 @@ static std::unique_ptr<Interpreter>
 createInterpreter(const Args &ExtraArgs = {},
                   DiagnosticConsumer *Client = nullptr) {
   Args ClangArgs = {"-Xclang", "-emit-llvm-only"};
-  ClangArgs.insert(ClangArgs.end(), ExtraArgs.begin(), ExtraArgs.end());
-  auto CI = cantFail(clang::IncrementalCompilerBuilder::create(ClangArgs));
+  llvm::append_range(ClangArgs, ExtraArgs);
+  auto CB = clang::IncrementalCompilerBuilder();
+  CB.SetCompilerArgs(ClangArgs);
+  auto CI = cantFail(CB.CreateCpp());
   if (Client)
     CI->getDiagnostics().setClient(Client, /*ShouldOwnClient=*/false);
   return cantFail(clang::Interpreter::create(std::move(CI)));
 }
 
-TEST(InterpreterTest, CatchException) {
+#ifdef CLANG_INTERPRETER_PLATFORM_CANNOT_CREATE_LLJIT
+TEST(InterpreterExceptionTest, DISABLED_CatchException) {
+#else
+TEST(InterpreterExceptionTest, CatchException) {
+#endif
   llvm::llvm_shutdown_obj Y; // Call llvm_shutdown() on exit.
   llvm::InitializeNativeTarget();
   llvm::InitializeNativeTargetAsmPrinter();
@@ -57,7 +74,7 @@ TEST(InterpreterTest, CatchException) {
       // Using llvm::consumeError will require typeinfo for ErrorInfoBase, we
       // can avoid that by going via the C interface.
       LLVMConsumeError(llvm::wrap(J.takeError()));
-      return;
+      GTEST_SKIP();
     }
   }
 
@@ -100,23 +117,20 @@ extern "C" int throw_exception() {
   const clang::CompilerInstance *CI = Interp->getCompilerInstance();
   const llvm::Triple &Triple = CI->getASTContext().getTargetInfo().getTriple();
 
-  // AIX is unsupported.
-  if (Triple.isOSAIX())
-    return;
-
   // FIXME: ARM fails due to `Not implemented relocation type!`
   if (Triple.isARM())
-    return;
+    GTEST_SKIP();
 
   // FIXME: libunwind on darwin is broken, see PR49692.
   if (Triple.isOSDarwin() && (Triple.getArch() == llvm::Triple::aarch64 ||
                               Triple.getArch() == llvm::Triple::aarch64_32))
-    return;
+    GTEST_SKIP();
 
   llvm::cantFail(Interp->ParseAndExecute(ExceptionCode));
   testing::internal::CaptureStdout();
   auto ThrowException =
-      (int (*)())llvm::cantFail(Interp->getSymbolAddress("throw_exception"));
+      llvm::cantFail(Interp->getSymbolAddress("throw_exception"))
+          .toPtr<int (*)()>();
   EXPECT_ANY_THROW(ThrowException());
   std::string CapturedStdOut = testing::internal::GetCapturedStdout();
   EXPECT_EQ(CapturedStdOut, "Caught: 'To be caught in JIT'\n");

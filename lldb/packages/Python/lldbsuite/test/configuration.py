@@ -7,22 +7,19 @@ Provides the configuration class, which holds all information related to
 how this invocation of the test suite should be run.
 """
 
-from __future__ import absolute_import
-from __future__ import print_function
-
 # System modules
 import os
 
 
 # Third-party modules
-import unittest2
+import unittest
 
 # LLDB Modules
 import lldbsuite
 
 
 # The test suite.
-suite = unittest2.TestSuite()
+suite = unittest.TestSuite()
 
 # The list of categories we said we care about
 categories_list = None
@@ -46,8 +43,16 @@ arch = None
 compiler = None
 dsymutil = None
 sdkroot = None
+make_path = None
+
+# Allow specifying a triple for cross compilation.
+triple = None
 
 # The overriden dwarf verison.
+# Don't use this to test the current compiler's
+# DWARF version, as this won't be set if the
+# version isn't overridden.
+# Use lldbplatformutils.getDwarfVersion() instead.
 dwarf_version = 0
 
 # Any overridden settings.
@@ -59,10 +64,13 @@ filecheck = None
 # Path to the yaml2obj tool. Not optional.
 yaml2obj = None
 
+# Path to the yaml2macho-core tool. Not optional.
+yaml2macho_core = None
+
 # The arch might dictate some specific CFLAGS to be passed to the toolchain to build
 # the inferior programs.  The global variable cflags_extras provides a hook to do
 # just that.
-cflags_extras = ''
+cflags_extras = ""
 
 # The filters (testclass.testmethod) used to admit tests into our test suite.
 filters = []
@@ -78,7 +86,7 @@ xfail_tests = None
 # Set this flag if there is any session info dumped during the test run.
 sdir_has_content = False
 # svn_info stores the output from 'svn info lldb.base.dir'.
-svn_info = ''
+svn_info = ""
 
 # Default verbosity is 0.
 verbose = 0
@@ -93,7 +101,7 @@ testdirs = [lldbsuite.lldb_test_root]
 test_src_root = lldbsuite.lldb_test_root
 
 # Separator string.
-separator = '-' * 70
+separator = "-" * 70
 
 failed = False
 
@@ -101,6 +109,7 @@ failed = False
 lldb_platform_name = None
 lldb_platform_url = None
 lldb_platform_working_dir = None
+lldb_platform_available_ports = None
 
 # Apple SDK
 apple_sdk = None
@@ -120,20 +129,31 @@ test_result = None
 # same base name.
 all_tests = set()
 
+# Path to LLVM tools to be used by tests.
+llvm_tools_dir = None
+
 # LLDB library directory.
 lldb_libs_dir = None
+lldb_obj_root = None
 
 libcxx_include_dir = None
+libcxx_include_target_dir = None
 libcxx_library_dir = None
 
 # A plugin whose tests will be enabled, like intel-pt.
 enabled_plugins = []
 
+# the build type of lldb
+# Typical values include Debug, Release, RelWithDebInfo and MinSizeRel
+cmake_build_type = None
+
 
 def shouldSkipBecauseOfCategories(test_categories):
     if use_categories:
-        if len(test_categories) == 0 or len(
-                categories_list & set(test_categories)) == 0:
+        if (
+            len(test_categories) == 0
+            or len(categories_list & set(test_categories)) == 0
+        ):
             return True
 
     for category in skip_categories:
@@ -150,9 +170,18 @@ def get_filecheck_path():
     if filecheck and os.path.lexists(filecheck):
         return filecheck
 
+
 def get_yaml2obj_path():
     """
     Get the path to the yaml2obj tool.
     """
     if yaml2obj and os.path.lexists(yaml2obj):
         return yaml2obj
+
+
+def get_yaml2macho_core_path():
+    """
+    Get the path to the yaml2macho-core tool.
+    """
+    if yaml2macho_core and os.path.lexists(yaml2macho_core):
+        return yaml2macho_core

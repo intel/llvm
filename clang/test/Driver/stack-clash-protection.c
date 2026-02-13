@@ -13,7 +13,7 @@
 // SCP-armv7: argument unused during compilation: '-fstack-clash-protection'
 
 // RUN: %clang -target x86_64-unknown-linux -fstack-clash-protection -S -emit-llvm -o %t.ll %s 2>&1 | FileCheck %s -check-prefix=SCP-warn
-// SCP-warn: warning: Unable to protect inline asm that clobbers stack pointer against stack clash
+// SCP-warn: warning: unable to protect inline asm that clobbers stack pointer against stack clash
 
 // RUN: %clang -target x86_64-pc-unknown-linux -fstack-clash-protection -S -emit-llvm -o- %s | FileCheck %s -check-prefix=SCP-ll-linux64
 // SCP-ll-linux64: attributes {{.*}} "probe-stack"="inline-asm"
@@ -21,6 +21,11 @@
 // RUN: %clang -target x86_64-pc-windows-msvc -fstack-clash-protection -S -emit-llvm -o- %s 2>&1 | FileCheck %s -check-prefix=SCP-ll-win64
 // SCP-ll-win64-NOT: attributes {{.*}} "probe-stack"="inline-asm"
 // SCP-ll-win64: argument unused during compilation: '-fstack-clash-protection'
+
+// RUN: %clang -target x86_64-unknown-fuchsia -fstack-clash-protection -### %s 2>&1 | FileCheck %s -check-prefix=SCP-FUCHSIA
+// RUN: %clang -target aarch64-unknown-fuchsia -fstack-clash-protection -### %s 2>&1 | FileCheck %s -check-prefix=SCP-FUCHSIA
+// RUN: %clang -target riscv64-unknown-fuchsia -fstack-clash-protection -### %s 2>&1 | FileCheck %s -check-prefix=SCP-FUCHSIA
+// SCP-FUCHSIA: "-fstack-clash-protection"
 
 int foo(int c) {
   int r;

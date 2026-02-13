@@ -41,8 +41,7 @@ public:
 
   /// tblgen'erated driver function for lowering simple MI->MC
   /// pseudo instructions.
-  bool emitPseudoExpansionLowering(MCStreamer &OutStreamer,
-                                   const MachineInstr *MI);
+  bool lowerPseudoInstExpansion(const MachineInstr *MI, MCInst &Inst);
 
   void emitMachineConstantPoolValue(MachineConstantPoolValue *MCPV) override;
 
@@ -57,7 +56,7 @@ public:
   bool runOnMachineFunction(MachineFunction &MF) override;
 
   // we emit constant pools customly!
-  void emitConstantPool() override{};
+  void emitConstantPool() override {}
 
   bool PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
                        const char *ExtraCode, raw_ostream &OS) override;

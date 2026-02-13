@@ -2,7 +2,7 @@
 
 func.func @alloc_tensor_missing_dims(%arg0: index)
 {
-  // expected-error @+1 {{expected 2 dynamic sizes}}
+  // expected-error @+1 {{incorrect number of dynamic sizes, has 1, expected 2}}
   %0 = bufferization.alloc_tensor(%arg0) : tensor<4x?x?x5xf32>
   return
 }
@@ -26,64 +26,164 @@ func.func @alloc_tensor_copy_and_dims(%t: tensor<?xf32>, %sz: index) {
 
 // -----
 
-func.func @alloc_tensor_invalid_escape_attr(%sz: index) {
-  // expected-error @+1{{'bufferization.escape' is expected to be a bool array attribute}}
-  %0 = bufferization.alloc_tensor(%sz) {bufferization.escape = 5} : tensor<?xf32>
+// expected-error @+1{{invalid value for 'bufferization.access'}}
+func.func private @invalid_buffer_access_type(tensor<*xf32> {bufferization.access = "foo"})
+
+// -----
+
+// expected-error @+1{{'bufferization.writable' is invalid on external functions}}
+func.func private @invalid_writable_attribute(tensor<*xf32> {bufferization.writable = false})
+
+// -----
+
+func.func @invalid_writable_on_op() {
+  // expected-error @+1{{attribute '"bufferization.writable"' not supported as an op attribute by the bufferization dialect}}
+  arith.constant {bufferization.writable = true} 0  : index
+}
+
+// -----
+
+func.func @invalid_materialize_in_destination(%arg0: tensor<4xf32>, %arg1: tensor<5xf32>) {
+  // expected-error @below{{source/destination shapes are incompatible}}
+  bufferization.materialize_in_destination %arg0 in %arg1 : (tensor<4xf32>, tensor<5xf32>) -> tensor<5xf32>
+}
+
+// -----
+
+func.func @invalid_materialize_in_destination(%arg0: tensor<5x5xf32>, %arg1: tensor<5xf32>) {
+  // expected-error @below{{rank mismatch between source and destination shape}}
+  bufferization.materialize_in_destination %arg0 in %arg1 : (tensor<5x5xf32>, tensor<5xf32>) -> tensor<5xf32>
+}
+
+// -----
+
+func.func @invalid_materialize_in_destination_dest_type(%arg0: tensor<5xf32>, %arg1: vector<5xf32>) {
+  // expected-error @below{{'dest' must be a tensor or a memref}}
+  bufferization.materialize_in_destination %arg0 in %arg1 : (tensor<5xf32>, vector<5xf32>) -> ()
+}
+
+// -----
+
+func.func @invalid_materialize_in_destination_result(%arg0: tensor<?xf32>, %arg1: memref<?xf32>) {
+  // expected-error @below{{memref 'dest' implies zero results}}
+  bufferization.materialize_in_destination %arg0 in restrict %arg1 : (tensor<?xf32>, memref<?xf32>) -> (tensor<?xf32>)
+}
+
+// -----
+
+func.func @invalid_materialize_in_destination_result_missing(%arg0: tensor<?xf32>, %arg1: tensor<?xf32>) {
+  // expected-error @below{{tensor 'dest' implies exactly one tensor result}}
+  bufferization.materialize_in_destination %arg0 in %arg1 : (tensor<?xf32>, tensor<?xf32>) -> ()
+}
+
+// -----
+
+func.func @invalid_materialize_in_destination_restrict(%arg0: tensor<?xf32>, %arg1: tensor<?xf32>) {
+  // expected-error @below{{'restrict' is valid only for memref destinations}}
+  bufferization.materialize_in_destination %arg0 in restrict %arg1 : (tensor<?xf32>, tensor<?xf32>) -> (tensor<?xf32>)
+}
+
+// -----
+
+func.func @invalid_materialize_in_destination_restrict(%arg0: tensor<?xf32>, %arg1: tensor<?xf32>) {
+  // expected-error @below{{'writable' must be specified if and only if the destination is of memref type}}
+  bufferization.materialize_in_destination %arg0 in writable %arg1 : (tensor<?xf32>, tensor<?xf32>) -> (tensor<?xf32>)
+}
+
+// -----
+
+func.func @invalid_materialize_in_destination_result_shape(%arg0: tensor<?xf32>, %arg1: tensor<?xf32>) {
+  // expected-error @below{{result and 'dest' types must match}}
+  bufferization.materialize_in_destination %arg0 in %arg1 : (tensor<?xf32>, tensor<?xf32>) -> (tensor<6xf32>)
+}
+
+// -----
+
+func.func @invalid_dealloc_memref_condition_mismatch(%arg0: memref<2xf32>, %arg1: memref<4xi32>, %arg2: i1) {
+  // expected-error @below{{must have the same number of conditions as memrefs to deallocate}}
+  bufferization.dealloc (%arg0, %arg1 : memref<2xf32>, memref<4xi32>) if (%arg2)
   return
 }
 
 // -----
 
-func.func @alloc_tensor_invalid_escape_attr_size(%sz: index) {
-  // expected-error @+1{{'bufferization.escape' has wrong number of elements, expected 1, got 2}}
-  %0 = bufferization.alloc_tensor(%sz) {bufferization.escape = [true, false]} : tensor<?xf32>
+func.func @invalid_dealloc_wrong_number_of_results(%arg0: memref<2xf32>, %arg1: memref<4xi32>, %arg2: i1) -> i1 {
+  // expected-error @below{{operation defines 1 results but was provided 2 to bind}}
+  %0:2 = bufferization.dealloc (%arg0, %arg1 : memref<2xf32>, memref<4xi32>) if (%arg2, %arg2) retain (%arg1 : memref<4xi32>)
+  return %0#0 : i1
+}
+
+// -----
+
+func.func @invalid_dealloc_wrong_number_of_results(%arg0: memref<2xf32>, %arg1: memref<4xi32>, %arg2: i1) -> i1 {
+  // expected-error @below{{must have the same number of updated conditions (results) as retained operands}}
+  %0:3 = "bufferization.dealloc"(%arg0, %arg1, %arg2, %arg2, %arg1) <{operandSegmentSizes = array<i32: 2, 2, 1>}> : (memref<2xf32>, memref<4xi32>, i1, i1, memref<4xi32>) -> (i1, i1, i1)
+  return %0#0 : i1
+}
+
+// -----
+
+func.func @invalid_manual_deallocation() {
+  // expected-error @below{{op attribute 'bufferization.manual_deallocation' can be used only on ops that have an allocation and/or free side effect}}
+  arith.constant {bufferization.manual_deallocation} 0  : index
+}
+
+// -----
+
+func.func @invalid_rank_to_buffer(%t: tensor<1x2x3x4xf32>) {
+  // expected-error @below{{'bufferization.to_buffer' op failed to verify that specified tensor and buffer types match}}
+  // expected-error @below{{shapes do not match}}
+  %b = bufferization.to_buffer %t
+    : tensor<1x2x3x4xf32> to memref<1x2x3xf32>
   return
 }
 
 // -----
 
-func.func @escape_attr_non_allocating(%t0: tensor<?xf32>) {
-  // expected-error @+1{{'bufferization.escape' only valid for allocation results}}
-  %0 = tensor.extract_slice %t0[0][5][1] {bufferization.escape = [true]} : tensor<?xf32> to tensor<5xf32>
+func.func @invalid_rank_to_tensor(%b: memref<1x2x3xf32>) {
+  // expected-error @below{{'bufferization.to_tensor' op failed to verify that specified tensor and buffer types match}}
+  // expected-error @below{{shapes do not match}}
+  %t = bufferization.to_tensor %b
+    : memref<1x2x3xf32> to tensor<1x2x3x4xf32>
   return
 }
 
 // -----
 
-func.func @escape_attr_non_bufferizable(%m0: memref<?xf32>) {
-  // expected-error @+1{{'bufferization.escape' only valid on bufferizable ops}}
-  %0 = memref.cast %m0 {bufferization.escape = [true]} : memref<?xf32> to memref<10xf32>
+func.func @invalid_shape_to_buffer(%t: tensor<1x2x3x4xf32>) {
+  // expected-error @below{{'bufferization.to_buffer' op failed to verify that specified tensor and buffer types match}}
+  // expected-error @below{{shapes do not match}}
+  %b = bufferization.to_buffer %t
+    : tensor<1x2x3x4xf32> to memref<1x2x4x3xf32>
   return
 }
 
 // -----
 
-#DCSR = #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "compressed" ] }>
-
-func.func @sparse_alloc_direct_return() -> tensor<20x40xf32, #DCSR> {
-  // expected-error @+1{{sparse tensor allocation should not escape function}}
-  %0 = bufferization.alloc_tensor() : tensor<20x40xf32, #DCSR>
-  return %0 : tensor<20x40xf32, #DCSR>
-}
-
-// -----
-
-#DCSR = #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "compressed" ] }>
-
-func.func private @foo(tensor<20x40xf32, #DCSR>) -> ()
-
-func.func @sparse_alloc_call() {
-  // expected-error @+1{{sparse tensor allocation should not escape function}}
-  %0 = bufferization.alloc_tensor() : tensor<20x40xf32, #DCSR>
-  call @foo(%0) : (tensor<20x40xf32, #DCSR>) -> ()
+func.func @invalid_shape_to_tensor(%b: memref<1x2x4x3xf32>) {
+  // expected-error @below{{'bufferization.to_tensor' op failed to verify that specified tensor and buffer types match}}
+  // expected-error @below{{shapes do not match}}
+  %t = bufferization.to_tensor %b
+    : memref<1x2x4x3xf32> to tensor<1x2x3x4xf32>
   return
 }
 
 // -----
 
-func.func @alloc_tensor_invalid_memory_space_attr(%sz: index) {
-  // expected-error @+1{{'bufferization.alloc_tensor' op attribute 'memory_space' failed to satisfy constraint: 64-bit unsigned integer attribute}}
-  %0 = bufferization.alloc_tensor(%sz) {memory_space = "foo"} : tensor<?xf32>
+func.func @invalid_type_to_buffer(%t: tensor<1x2x3x4xf32>) {
+  // expected-error @below{{'bufferization.to_buffer' op failed to verify that specified tensor and buffer types match}}
+  // expected-error @below{{element types do not match}}
+  %b = bufferization.to_buffer %t
+    : tensor<1x2x3x4xf32> to memref<1x2x3x4xf16>
   return
 }
 
+// -----
+
+func.func @invalid_type_to_tensor(%b: memref<1x2x3x4xf16>) {
+  // expected-error @below{{'bufferization.to_tensor' op failed to verify that specified tensor and buffer types match}}
+  // expected-error @below{{element types do not match}}
+  %t2 = bufferization.to_tensor %b
+    : memref<1x2x3x4xf16> to tensor<1x2x3x4xf32>
+  return
+}

@@ -22,6 +22,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "bolt/Passes/RetpolineInsertion.h"
+#include "llvm/MC/MCInstPrinter.h"
 #include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "bolt-retpoline"
@@ -32,28 +33,26 @@ namespace opts {
 
 extern cl::OptionCategory BoltCategory;
 
-llvm::cl::opt<bool> InsertRetpolines("insert-retpolines",
-                                     cl::desc("run retpoline insertion pass"),
-                                     cl::cat(BoltCategory));
+static llvm::cl::opt<bool>
+    InsertRetpolines("insert-retpolines",
+                     cl::desc("run retpoline insertion pass"),
+                     cl::cat(BoltCategory));
 
-llvm::cl::opt<bool>
-RetpolineLfence("retpoline-lfence",
-  cl::desc("determine if lfence instruction should exist in the retpoline"),
-  cl::init(true),
-  cl::ZeroOrMore,
-  cl::Hidden,
-  cl::cat(BoltCategory));
+static llvm::cl::opt<bool> RetpolineLfence(
+    "retpoline-lfence",
+    cl::desc("determine if lfence instruction should exist in the retpoline"),
+    cl::init(true), cl::ZeroOrMore, cl::Hidden, cl::cat(BoltCategory));
 
-cl::opt<RetpolineInsertion::AvailabilityOptions> R11Availability(
+static cl::opt<RetpolineInsertion::AvailabilityOptions> R11Availability(
     "r11-availability",
     cl::desc("determine the availability of r11 before indirect branches"),
     cl::init(RetpolineInsertion::AvailabilityOptions::NEVER),
     cl::values(clEnumValN(RetpolineInsertion::AvailabilityOptions::NEVER,
                           "never", "r11 not available"),
                clEnumValN(RetpolineInsertion::AvailabilityOptions::ALWAYS,
-                          "always", "r11 avaialable before calls and jumps"),
+                          "always", "r11 available before calls and jumps"),
                clEnumValN(RetpolineInsertion::AvailabilityOptions::ABI, "abi",
-                          "r11 avaialable before calls but not before jumps")),
+                          "r11 available before calls but not before jumps")),
     cl::ZeroOrMore, cl::cat(BoltCategory));
 
 } // namespace opts
@@ -79,7 +78,7 @@ BinaryFunction *createNewRetpoline(BinaryContext &BC,
                                    const IndirectBranchInfo &BrInfo,
                                    bool R11Available) {
   auto &MIB = *BC.MIB;
-  MCContext &Ctx = *BC.Ctx.get();
+  MCContext &Ctx = *BC.Ctx;
   LLVM_DEBUG(dbgs() << "BOLT-DEBUG: Creating a new retpoline function["
                     << RetpolineTag << "]\n");
 
@@ -134,8 +133,8 @@ BinaryFunction *createNewRetpoline(BinaryContext &BC,
 
       MCInst LoadCalleeAddrs;
       const IndirectBranchInfo::MemOpInfo &MemRef = BrInfo.Memory;
-      MIB.createLoad(LoadCalleeAddrs, MemRef.BaseRegNum, MemRef.ScaleValue,
-                     MemRef.IndexRegNum, MemRef.DispValue, MemRef.DispExpr,
+      MIB.createLoad(LoadCalleeAddrs, MemRef.BaseRegNum, MemRef.ScaleImm,
+                     MemRef.IndexRegNum, MemRef.DispImm, MemRef.DispExpr,
                      MemRef.SegRegNum, MIB.getX86R11(), 8);
 
       BB2.addInstruction(LoadCalleeAddrs);
@@ -173,39 +172,42 @@ BinaryFunction *createNewRetpoline(BinaryContext &BC,
 std::string createRetpolineFunctionTag(BinaryContext &BC,
                                        const IndirectBranchInfo &BrInfo,
                                        bool R11Available) {
-  if (BrInfo.isReg())
-    return "__retpoline_r" + to_string(BrInfo.BranchReg) + "_";
+  std::string Tag;
+  llvm::raw_string_ostream TagOS(Tag);
+  TagOS << "__retpoline_";
+
+  if (BrInfo.isReg()) {
+    BC.InstPrinter->printRegName(TagOS, BrInfo.BranchReg);
+    TagOS << "_";
+    return Tag;
+  }
 
   // Memory Branch
   if (R11Available)
     return "__retpoline_r11";
 
-  std::string Tag = "__retpoline_mem_";
-
   const IndirectBranchInfo::MemOpInfo &MemRef = BrInfo.Memory;
 
-  std::string DispExprStr;
-  if (MemRef.DispExpr) {
-    llvm::raw_string_ostream Ostream(DispExprStr);
-    MemRef.DispExpr->print(Ostream, BC.AsmInfo.get());
-    Ostream.flush();
+  TagOS << "mem_";
+
+  if (MemRef.BaseRegNum != BC.MIB->getNoRegister())
+    BC.InstPrinter->printRegName(TagOS, MemRef.BaseRegNum);
+
+  TagOS << "+";
+  if (MemRef.DispExpr)
+    BC.AsmInfo->printExpr(TagOS, *MemRef.DispExpr);
+  else
+    TagOS << MemRef.DispImm;
+
+  if (MemRef.IndexRegNum != BC.MIB->getNoRegister()) {
+    TagOS << "+" << MemRef.ScaleImm << "*";
+    BC.InstPrinter->printRegName(TagOS, MemRef.IndexRegNum);
   }
 
-  Tag += MemRef.BaseRegNum != BC.MIB->getNoRegister()
-             ? "r" + to_string(MemRef.BaseRegNum)
-             : "";
-
-  Tag +=
-      MemRef.DispExpr ? "+" + DispExprStr : "+" + to_string(MemRef.DispValue);
-
-  Tag += MemRef.IndexRegNum != BC.MIB->getNoRegister()
-             ? "+" + to_string(MemRef.ScaleValue) + "*" +
-                   to_string(MemRef.IndexRegNum)
-             : "";
-
-  Tag += MemRef.SegRegNum != BC.MIB->getNoRegister()
-             ? "_seg_" + to_string(MemRef.SegRegNum)
-             : "";
+  if (MemRef.SegRegNum != BC.MIB->getNoRegister()) {
+    TagOS << "_seg_";
+    BC.InstPrinter->printRegName(TagOS, MemRef.SegRegNum);
+  }
 
   return Tag;
 }
@@ -232,8 +234,8 @@ void createBranchReplacement(BinaryContext &BC,
   if (BrInfo.isMem() && R11Available) {
     const IndirectBranchInfo::MemOpInfo &MemRef = BrInfo.Memory;
     MCInst LoadCalleeAddrs;
-    MIB.createLoad(LoadCalleeAddrs, MemRef.BaseRegNum, MemRef.ScaleValue,
-                   MemRef.IndexRegNum, MemRef.DispValue, MemRef.DispExpr,
+    MIB.createLoad(LoadCalleeAddrs, MemRef.BaseRegNum, MemRef.ScaleImm,
+                   MemRef.IndexRegNum, MemRef.DispImm, MemRef.DispExpr,
                    MemRef.SegRegNum, MIB.getX86R11(), 8);
     Replacement.push_back(LoadCalleeAddrs);
   }
@@ -252,11 +254,11 @@ IndirectBranchInfo::IndirectBranchInfo(MCInst &Inst, MCPlusBuilder &MIB) {
 
   if (MIB.isBranchOnMem(Inst)) {
     IsMem = true;
-    if (!MIB.evaluateX86MemoryOperand(Inst, &Memory.BaseRegNum,
-                                      &Memory.ScaleValue,
-                                      &Memory.IndexRegNum, &Memory.DispValue,
-                                      &Memory.SegRegNum, &Memory.DispExpr))
+    std::optional<MCPlusBuilder::X86MemOperand> MO =
+        MIB.evaluateX86MemoryOperand(Inst);
+    if (!MO)
       llvm_unreachable("not expected");
+    Memory = MO.value();
   } else if (MIB.isBranchOnReg(Inst)) {
     assert(MCPlus::getNumPrimeOperands(Inst) == 1 && "expect 1 operand");
     BranchReg = Inst.getOperand(0).getReg();
@@ -265,9 +267,9 @@ IndirectBranchInfo::IndirectBranchInfo(MCInst &Inst, MCPlusBuilder &MIB) {
   }
 }
 
-void RetpolineInsertion::runOnFunctions(BinaryContext &BC) {
+Error RetpolineInsertion::runOnFunctions(BinaryContext &BC) {
   if (!opts::InsertRetpolines)
-    return;
+    return Error::success();
 
   assert(BC.isX86() &&
          "retpoline insertion not supported for target architecture");
@@ -306,9 +308,9 @@ void RetpolineInsertion::runOnFunctions(BinaryContext &BC) {
           IndirectBranchInfo::MemOpInfo &MemRef = BrInfo.Memory;
           int Addend = (BrInfo.isJump() || BrInfo.isTailCall()) ? 8 : 16;
           if (MemRef.BaseRegNum == MIB.getStackPointer())
-            MemRef.DispValue += Addend;
+            MemRef.DispImm += Addend;
           if (MemRef.IndexRegNum == MIB.getStackPointer())
-            MemRef.DispValue += Addend * MemRef.ScaleValue;
+            MemRef.DispImm += Addend * MemRef.ScaleImm;
         }
 
         TargetRetpoline = getOrCreateRetpoline(BC, BrInfo, R11Available);
@@ -321,10 +323,11 @@ void RetpolineInsertion::runOnFunctions(BinaryContext &BC) {
       }
     }
   }
-  outs() << "BOLT-INFO: The number of created retpoline functions is : "
-         << CreatedRetpolines.size()
-         << "\nBOLT-INFO: The number of retpolined branches is : "
-         << RetpolinedBranches << "\n";
+  BC.outs() << "BOLT-INFO: The number of created retpoline functions is : "
+            << CreatedRetpolines.size()
+            << "\nBOLT-INFO: The number of retpolined branches is : "
+            << RetpolinedBranches << "\n";
+  return Error::success();
 }
 
 } // namespace bolt

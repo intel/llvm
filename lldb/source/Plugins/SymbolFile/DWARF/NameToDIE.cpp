@@ -16,9 +16,12 @@
 #include "lldb/Utility/RegularExpression.h"
 #include "lldb/Utility/Stream.h"
 #include "lldb/Utility/StreamString.h"
+#include "lldb/lldb-private-enumerations.h"
+#include <optional>
 
 using namespace lldb;
 using namespace lldb_private;
+using namespace lldb_private::plugin::dwarf;
 
 void NameToDIE::Finalize() {
   m_map.Sort(std::less<DIERef>());
@@ -29,36 +32,38 @@ void NameToDIE::Insert(ConstString name, const DIERef &die_ref) {
   m_map.Append(name, die_ref);
 }
 
-bool NameToDIE::Find(ConstString name,
-                     llvm::function_ref<bool(DIERef ref)> callback) const {
+bool NameToDIE::Find(
+    ConstString name,
+    llvm::function_ref<IterationAction(DIERef ref)> callback) const {
   for (const auto &entry : m_map.equal_range(name))
-    if (!callback(entry.value))
+    if (callback(entry.value) == IterationAction::Stop)
       return false;
   return true;
 }
 
-bool NameToDIE::Find(const RegularExpression &regex,
-                     llvm::function_ref<bool(DIERef ref)> callback) const {
+bool NameToDIE::Find(
+    const RegularExpression &regex,
+    llvm::function_ref<IterationAction(DIERef ref)> callback) const {
   for (const auto &entry : m_map)
     if (regex.Execute(entry.cstring.GetCString())) {
-      if (!callback(entry.value))
+      if (callback(entry.value) == IterationAction::Stop)
         return false;
     }
   return true;
 }
 
 void NameToDIE::FindAllEntriesForUnit(
-    DWARFUnit &s_unit, llvm::function_ref<bool(DIERef ref)> callback) const {
-  lldbassert(!s_unit.GetSymbolFileDWARF().GetDwoNum());
+    DWARFUnit &s_unit,
+    llvm::function_ref<IterationAction(DIERef ref)> callback) const {
   const DWARFUnit &ns_unit = s_unit.GetNonSkeletonUnit();
   const uint32_t size = m_map.GetSize();
   for (uint32_t i = 0; i < size; ++i) {
     const DIERef &die_ref = m_map.GetValueAtIndexUnchecked(i);
-    if (ns_unit.GetSymbolFileDWARF().GetDwoNum() == die_ref.dwo_num() &&
+    if (ns_unit.GetSymbolFileDWARF().GetFileIndex() == die_ref.file_index() &&
         ns_unit.GetDebugSection() == die_ref.section() &&
         ns_unit.GetOffset() <= die_ref.die_offset() &&
         die_ref.die_offset() < ns_unit.GetNextUnitOffset()) {
-      if (!callback(die_ref))
+      if (callback(die_ref) == IterationAction::Stop)
         return;
     }
   }
@@ -106,7 +111,7 @@ bool NameToDIE::Decode(const DataExtractor &data, lldb::offset_t *offset_ptr,
     // No empty strings allowed in the name to DIE maps.
     if (str.empty())
       return false;
-    if (llvm::Optional<DIERef> die_ref = DIERef::Decode(data, offset_ptr))
+    if (std::optional<DIERef> die_ref = DIERef::Decode(data, offset_ptr))
       m_map.Append(ConstString(str), *die_ref);
     else
       return false;

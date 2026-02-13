@@ -36,7 +36,6 @@
 // further translation to SPIR-V.
 //
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "clmdtospv"
 
 #include "PreprocessMetadata.h"
 #include "OCLUtil.h"
@@ -46,10 +45,12 @@
 #include "VectorComputeUtil.h"
 #include "libSPIRV/SPIRVDebug.h"
 
-#include "llvm/ADT/Triple.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/TargetParser/Triple.h"
+
+#define DEBUG_TYPE "clmdtospv"
 
 using namespace llvm;
 using namespace SPIRV;
@@ -128,29 +129,28 @@ void PreprocessMetadataBase::visit(Module *M) {
     // of ExecutionMode instructions.
 
     // !{void (i32 addrspace(1)*)* @kernel, i32 17, i32 X, i32 Y, i32 Z}
-    if (MDNode *WGSize = Kernel.getMetadata(kSPIR2MD::WGSize)) {
-      unsigned X, Y, Z;
-      decodeMDNode(WGSize, X, Y, Z);
-      EM.addOp()
-          .add(&Kernel)
-          .add(spv::ExecutionModeLocalSize)
-          .add(X)
-          .add(Y)
-          .add(Z)
-          .done();
-    }
-
     // !{void (i32 addrspace(1)*)* @kernel, i32 18, i32 X, i32 Y, i32 Z}
-    if (MDNode *WGSizeHint = Kernel.getMetadata(kSPIR2MD::WGSizeHint)) {
-      unsigned X, Y, Z;
-      decodeMDNode(WGSizeHint, X, Y, Z);
-      EM.addOp()
-          .add(&Kernel)
-          .add(spv::ExecutionModeLocalSizeHint)
-          .add(X)
-          .add(Y)
-          .add(Z)
-          .done();
+    // !{void (i32 addrspace(1)*)* @kernel, i32 max_work_group_size, i32 X,
+    //         i32 Y, i32 Z}
+    std::pair<unsigned, const char *> WGSizeMDs[3] = {
+        {spv::ExecutionModeLocalSize, kSPIR2MD::WGSize},
+        {spv::ExecutionModeLocalSizeHint, kSPIR2MD::WGSizeHint},
+        {spv::ExecutionModeMaxWorkgroupSizeINTEL, kSPIR2MD::MaxWGSize},
+    };
+
+    for (auto &[ExMode, MDName] : WGSizeMDs) {
+      if (MDNode *WGMD = Kernel.getMetadata(MDName)) {
+        assert(WGMD->getNumOperands() >= 1 && WGMD->getNumOperands() <= 3 &&
+               "work-group metadata does not have between 1 and 3 operands.");
+        SmallVector<unsigned, 3> DecodedVals = decodeMDNode(WGMD);
+        EM.addOp()
+            .add(&Kernel)
+            .add(ExMode)
+            .add(DecodedVals[0])
+            .add(DecodedVals.size() >= 2 ? DecodedVals[1] : 1)
+            .add(DecodedVals.size() == 3 ? DecodedVals[2] : 1)
+            .done();
+      }
     }
 
     // !{void (i32 addrspace(1)*)* @kernel, i32 30, i32 hint}
@@ -164,25 +164,19 @@ void PreprocessMetadataBase::visit(Module *M) {
 
     // !{void (i32 addrspace(1)*)* @kernel, i32 35, i32 size}
     if (MDNode *ReqdSubgroupSize = Kernel.getMetadata(kSPIR2MD::SubgroupSize)) {
+      // A primary named subgroup size is encoded as
+      // the metadata intel_reqd_sub_group_size with value -1.
+      auto Val = getMDOperandAsInt(ReqdSubgroupSize, 0);
+      if (Val == -1U)
+        EM.addOp()
+            .add(&Kernel)
+            .add(spv::internal::ExecutionModeNamedSubgroupSizeINTEL)
+            .add(/* PrimarySubgroupSizeINTEL = */ 0U)
+            .done();
       EM.addOp()
           .add(&Kernel)
           .add(spv::ExecutionModeSubgroupSize)
-          .add(getMDOperandAsInt(ReqdSubgroupSize, 0))
-          .done();
-    }
-
-    // !{void (i32 addrspace(1)*)* @kernel, i32 max_work_group_size, i32 X,
-    //         i32 Y, i32 Z}
-    if (MDNode *MaxWorkgroupSizeINTEL =
-            Kernel.getMetadata(kSPIR2MD::MaxWGSize)) {
-      unsigned X, Y, Z;
-      decodeMDNode(MaxWorkgroupSizeINTEL, X, Y, Z);
-      EM.addOp()
-          .add(&Kernel)
-          .add(spv::ExecutionModeMaxWorkgroupSizeINTEL)
-          .add(X)
-          .add(Y)
-          .add(Z)
+          .add(Val)
           .done();
     }
 
@@ -224,9 +218,31 @@ void PreprocessMetadataBase::visit(Module *M) {
     if (MDNode *Interface =
             Kernel.getMetadata(kSPIR2MD::IntelFPGAIPInterface)) {
       std::set<std::string> InterfaceStrSet;
-      // Default mode is 'csr' aka !ip_interface !N
-      //                           !N = !{!”csr”}
-      // don't emit any particular SPIR-V for it
+      for (size_t I = 0; I != Interface->getNumOperands(); ++I)
+        InterfaceStrSet.insert(getMDOperandAsString(Interface, I).str());
+
+      // ip_interface metadata will either have Register Map metadata or
+      // Streaming metadata.
+      //
+      // Register Map mode metadata:
+      // Not 'WaitForDoneWrite' mode (to be mapped on '0' literal)
+      // !ip_interface !N
+      // !N = !{!"csr"}
+      // 'WaitForDoneWrite' mode (to be mapped on '1' literal)
+      // !ip_interface !N
+      // !N = !{!"csr", !"wait_for_done_write"}
+      if (InterfaceStrSet.find("csr") != InterfaceStrSet.end()) {
+        int32_t InterfaceMode = 0;
+        if (InterfaceStrSet.find("wait_for_done_write") !=
+            InterfaceStrSet.end())
+          InterfaceMode = 1;
+        EM.addOp()
+            .add(&Kernel)
+            .add(spv::ExecutionModeRegisterMapInterfaceINTEL)
+            .add(InterfaceMode)
+            .done();
+      }
+
       // Streaming mode metadata be like:
       // Not 'stall free' mode (to be mapped on '0' literal)
       // !ip_interface !N
@@ -234,15 +250,13 @@ void PreprocessMetadataBase::visit(Module *M) {
       // 'stall free' mode (to be mapped on '1' literal)
       // !ip_interface !N
       // !N = !{!"streaming", !"stall_free_return"}
-      for (size_t I = 0; I != Interface->getNumOperands(); ++I)
-        InterfaceStrSet.insert(getMDOperandAsString(Interface, I).str());
       if (InterfaceStrSet.find("streaming") != InterfaceStrSet.end()) {
         int32_t InterfaceMode = 0;
         if (InterfaceStrSet.find("stall_free_return") != InterfaceStrSet.end())
           InterfaceMode = 1;
         EM.addOp()
             .add(&Kernel)
-            .add(spv::internal::ExecutionModeStreamingInterfaceINTEL)
+            .add(spv::ExecutionModeStreamingInterfaceINTEL)
             .add(InterfaceMode)
             .done();
       }
@@ -260,12 +274,16 @@ void PreprocessMetadataBase::preprocessOCLMetadata(Module *M, SPIRVMDBuilder *B,
   // !{x} = !{i32 3, i32 102000}
   B->addNamedMD(kSPIRVMD::Source)
       .addOp()
-      .add(CLVer == kOCLVer::CL21 ? spv::SourceLanguageOpenCL_CPP
-                                  : spv::SourceLanguageOpenCL_C)
+      .add(M->getNamedMetadata(kSPIR2MD::OCLCXXVer) &&
+                   (CLVer == kOCLVer::CLCXX10 || CLVer == kOCLVer::CLCXX2021)
+               ? spv::SourceLanguageCPP_for_OpenCL
+               : spv::SourceLanguageOpenCL_C)
       .add(CLVer)
       .done();
   if (EraseOCLMD)
-    B->eraseNamedMD(kSPIR2MD::OCLVer).eraseNamedMD(kSPIR2MD::SPIRVer);
+    B->eraseNamedMD(kSPIR2MD::OCLVer)
+        .eraseNamedMD(kSPIR2MD::SPIRVer)
+        .eraseNamedMD(kSPIR2MD::OCLCXXVer);
 
   // !spirv.MemoryModel = !{!x}
   // !{x} = !{i32 1, i32 2}
@@ -320,17 +338,16 @@ void PreprocessMetadataBase::preprocessVectorComputeMetadata(Module *M,
           FPRoundingModeExecModeMap::map(getFPRoundingMode(Mode));
       spv::ExecutionMode ExecFloatMode =
           FPOperationModeExecModeMap::map(getFPOperationMode(Mode));
-      VCFloatTypeSizeMap::foreach (
-          [&](VCFloatType FloatType, unsigned TargetWidth) {
-            EM.addOp().add(&F).add(ExecRoundMode).add(TargetWidth).done();
-            EM.addOp().add(&F).add(ExecFloatMode).add(TargetWidth).done();
-            EM.addOp()
-                .add(&F)
-                .add(FPDenormModeExecModeMap::map(
-                    getFPDenormMode(Mode, FloatType)))
-                .add(TargetWidth)
-                .done();
-          });
+      VCFloatTypeSizeMap::foreach ([&](VCFloatType FloatType,
+                                       unsigned TargetWidth) {
+        EM.addOp().add(&F).add(ExecRoundMode).add(TargetWidth).done();
+        EM.addOp().add(&F).add(ExecFloatMode).add(TargetWidth).done();
+        EM.addOp()
+            .add(&F)
+            .add(FPDenormModeExecModeMap::map(getFPDenormMode(Mode, FloatType)))
+            .add(TargetWidth)
+            .done();
+      });
     }
     if (Attrs.hasFnAttr(kVCMetadata::VCSLMSize)) {
       SPIRVWord SLMSize = 0;
@@ -341,12 +358,6 @@ void PreprocessMetadataBase::preprocessVectorComputeMetadata(Module *M,
           .add(&F)
           .add(spv::ExecutionModeSharedLocalMemorySizeINTEL)
           .add(SLMSize)
-          .done();
-    }
-    if (Attrs.hasFnAttr(kVCMetadata::VCFCEntry)) {
-      EM.addOp()
-          .add(&F)
-          .add(spv::internal::ExecutionModeFastCompositeKernelINTEL)
           .done();
     }
 

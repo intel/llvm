@@ -3,16 +3,16 @@
 // RUN: %clang_cc1 -E -dM -ffreestanding -fgnuc-version=4.2.1 -triple loongarch32-unknown-linux /dev/null \
 // RUN:   | FileCheck --match-full-lines --check-prefixes=LA32,LA32-LINUX %s
 // RUN: %clang_cc1 -E -dM -ffreestanding -fgnuc-version=4.2.1 -triple loongarch32 \
-// RUN: -fforce-enable-int128 /dev/null | FileCheck --match-full-lines \
-// RUN: --check-prefixes=LA32,LA32-INT128 %s
+// RUN:   -fforce-enable-int128 /dev/null | FileCheck --match-full-lines \
+// RUN:   --check-prefixes=LA32,LA32-INT128 %s
 
 // RUN: %clang_cc1 -E -dM -ffreestanding -fgnuc-version=4.2.1 -triple loongarch64 /dev/null \
 // RUN:   | FileCheck --match-full-lines --check-prefix=LA64 %s
 // RUN: %clang_cc1 -E -dM -ffreestanding -fgnuc-version=4.2.1 -triple loongarch64-unknown-linux /dev/null \
 // RUN:   | FileCheck --match-full-lines --check-prefixes=LA64,LA64-LINUX %s
 // RUN: %clang_cc1 -E -dM -ffreestanding -fgnuc-version=4.2.1 -triple loongarch64 \
-// RUN: -fforce-enable-int128 /dev/null | FileCheck --match-full-lines \
-// RUN: --check-prefixes=LA64,LA64-INT128 %s
+// RUN:   -fforce-enable-int128 /dev/null | FileCheck --match-full-lines \
+// RUN:   --check-prefixes=LA64,LA64-INT128 %s
 
 //// Note that common macros are tested in init.c, such as __VERSION__. So they're not listed here.
 
@@ -25,21 +25,21 @@
 // LA32-NEXT: #define __ATOMIC_SEQ_CST 5
 // LA32: #define __BIGGEST_ALIGNMENT__ 16
 // LA32: #define __BITINT_MAXWIDTH__ 128
-// LA32: #define __BOOL_WIDTH__ 8
+// LA32: #define __BOOL_WIDTH__ 1
 // LA32: #define __BYTE_ORDER__ __ORDER_LITTLE_ENDIAN__
 // LA32: #define __CHAR16_TYPE__ unsigned short
 // LA32: #define __CHAR32_TYPE__ unsigned int
 // LA32: #define __CHAR_BIT__ 8
-// LA32: #define __CLANG_ATOMIC_BOOL_LOCK_FREE 1
-// LA32: #define __CLANG_ATOMIC_CHAR16_T_LOCK_FREE 1
-// LA32: #define __CLANG_ATOMIC_CHAR32_T_LOCK_FREE 1
-// LA32: #define __CLANG_ATOMIC_CHAR_LOCK_FREE 1
-// LA32: #define __CLANG_ATOMIC_INT_LOCK_FREE 1
+// LA32: #define __CLANG_ATOMIC_BOOL_LOCK_FREE 2
+// LA32: #define __CLANG_ATOMIC_CHAR16_T_LOCK_FREE 2
+// LA32: #define __CLANG_ATOMIC_CHAR32_T_LOCK_FREE 2
+// LA32: #define __CLANG_ATOMIC_CHAR_LOCK_FREE 2
+// LA32: #define __CLANG_ATOMIC_INT_LOCK_FREE 2
 // LA32: #define __CLANG_ATOMIC_LLONG_LOCK_FREE 1
-// LA32: #define __CLANG_ATOMIC_LONG_LOCK_FREE 1
-// LA32: #define __CLANG_ATOMIC_POINTER_LOCK_FREE 1
-// LA32: #define __CLANG_ATOMIC_SHORT_LOCK_FREE 1
-// LA32: #define __CLANG_ATOMIC_WCHAR_T_LOCK_FREE 1
+// LA32: #define __CLANG_ATOMIC_LONG_LOCK_FREE 2
+// LA32: #define __CLANG_ATOMIC_POINTER_LOCK_FREE 2
+// LA32: #define __CLANG_ATOMIC_SHORT_LOCK_FREE 2
+// LA32: #define __CLANG_ATOMIC_WCHAR_T_LOCK_FREE 2
 // LA32: #define __DBL_DECIMAL_DIG__ 17
 // LA32: #define __DBL_DENORM_MIN__ 4.9406564584124654e-324
 // LA32: #define __DBL_DIG__ 15
@@ -70,38 +70,46 @@
 // LA32: #define __FLT_MIN_EXP__ (-125)
 // LA32: #define __FLT_MIN__ 1.17549435e-38F
 // LA32: #define __FLT_RADIX__ 2
-// LA32: #define __GCC_ATOMIC_BOOL_LOCK_FREE 1
-// LA32: #define __GCC_ATOMIC_CHAR16_T_LOCK_FREE 1
-// LA32: #define __GCC_ATOMIC_CHAR32_T_LOCK_FREE 1
-// LA32: #define __GCC_ATOMIC_CHAR_LOCK_FREE 1
-// LA32: #define __GCC_ATOMIC_INT_LOCK_FREE 1
+// LA32: #define __GCC_ATOMIC_BOOL_LOCK_FREE 2
+// LA32: #define __GCC_ATOMIC_CHAR16_T_LOCK_FREE 2
+// LA32: #define __GCC_ATOMIC_CHAR32_T_LOCK_FREE 2
+// LA32: #define __GCC_ATOMIC_CHAR_LOCK_FREE 2
+// LA32: #define __GCC_ATOMIC_INT_LOCK_FREE 2
 // LA32: #define __GCC_ATOMIC_LLONG_LOCK_FREE 1
-// LA32: #define __GCC_ATOMIC_LONG_LOCK_FREE 1
-// LA32: #define __GCC_ATOMIC_POINTER_LOCK_FREE 1
-// LA32: #define __GCC_ATOMIC_SHORT_LOCK_FREE 1
+// LA32: #define __GCC_ATOMIC_LONG_LOCK_FREE 2
+// LA32: #define __GCC_ATOMIC_POINTER_LOCK_FREE 2
+// LA32: #define __GCC_ATOMIC_SHORT_LOCK_FREE 2
 // LA32: #define __GCC_ATOMIC_TEST_AND_SET_TRUEVAL 1
-// LA32: #define __GCC_ATOMIC_WCHAR_T_LOCK_FREE 1
+// LA32: #define __GCC_ATOMIC_WCHAR_T_LOCK_FREE 2
+// LA32: #define __GCC_HAVE_SYNC_COMPARE_AND_SWAP_1 1
+// LA32: #define __GCC_HAVE_SYNC_COMPARE_AND_SWAP_2 1
+// LA32: #define __GCC_HAVE_SYNC_COMPARE_AND_SWAP_4 1
 // LA32: #define __ILP32__ 1
+// LA32: #define __INT16_C(c) c
 // LA32: #define __INT16_C_SUFFIX__
 // LA32: #define __INT16_FMTd__ "hd"
 // LA32: #define __INT16_FMTi__ "hi"
 // LA32: #define __INT16_MAX__ 32767
 // LA32: #define __INT16_TYPE__ short
+// LA32: #define __INT32_C(c) c
 // LA32: #define __INT32_C_SUFFIX__
 // LA32: #define __INT32_FMTd__ "d"
 // LA32: #define __INT32_FMTi__ "i"
 // LA32: #define __INT32_MAX__ 2147483647
 // LA32: #define __INT32_TYPE__ int
+// LA32: #define __INT64_C(c) c##LL
 // LA32: #define __INT64_C_SUFFIX__ LL
 // LA32: #define __INT64_FMTd__ "lld"
 // LA32: #define __INT64_FMTi__ "lli"
 // LA32: #define __INT64_MAX__ 9223372036854775807LL
 // LA32: #define __INT64_TYPE__ long long int
+// LA32: #define __INT8_C(c) c
 // LA32: #define __INT8_C_SUFFIX__
 // LA32: #define __INT8_FMTd__ "hhd"
 // LA32: #define __INT8_FMTi__ "hhi"
 // LA32: #define __INT8_MAX__ 127
 // LA32: #define __INT8_TYPE__ signed char
+// LA32: #define __INTMAX_C(c) c##LL
 // LA32: #define __INTMAX_C_SUFFIX__ LL
 // LA32: #define __INTMAX_FMTd__ "lld"
 // LA32: #define __INTMAX_FMTi__ "lli"
@@ -174,6 +182,12 @@
 // LA32: #define __LONG_LONG_MAX__ 9223372036854775807LL
 // LA32: #define __LONG_MAX__ 2147483647L
 // LA32: #define __LONG_WIDTH__ 32
+// LA32: #define __MEMORY_SCOPE_CLUSTR 5
+// LA32: #define __MEMORY_SCOPE_DEVICE 1
+// LA32: #define __MEMORY_SCOPE_SINGLE 4
+// LA32: #define __MEMORY_SCOPE_SYSTEM 0
+// LA32: #define __MEMORY_SCOPE_WRKGRP 2
+// LA32: #define __MEMORY_SCOPE_WVFRNT 3
 // LA32: #define __NO_INLINE__ 1
 // LA32: #define __NO_MATH_ERRNO__ 1
 // LA32: #define __OBJC_BOOL_IS_BOOL 0
@@ -219,6 +233,7 @@
 // LA32: #define __STDC_UTF_32__ 1
 // LA32: #define __STDC_VERSION__ 201710L
 // LA32: #define __STDC__ 1
+// LA32: #define __UINT16_C(c) c
 // LA32: #define __UINT16_C_SUFFIX__
 // LA32: #define __UINT16_FMTX__ "hX"
 // LA32: #define __UINT16_FMTo__ "ho"
@@ -226,6 +241,7 @@
 // LA32: #define __UINT16_FMTx__ "hx"
 // LA32: #define __UINT16_MAX__ 65535
 // LA32: #define __UINT16_TYPE__ unsigned short
+// LA32: #define __UINT32_C(c) c##U
 // LA32: #define __UINT32_C_SUFFIX__ U
 // LA32: #define __UINT32_FMTX__ "X"
 // LA32: #define __UINT32_FMTo__ "o"
@@ -233,6 +249,7 @@
 // LA32: #define __UINT32_FMTx__ "x"
 // LA32: #define __UINT32_MAX__ 4294967295U
 // LA32: #define __UINT32_TYPE__ unsigned int
+// LA32: #define __UINT64_C(c) c##ULL
 // LA32: #define __UINT64_C_SUFFIX__ ULL
 // LA32: #define __UINT64_FMTX__ "llX"
 // LA32: #define __UINT64_FMTo__ "llo"
@@ -240,6 +257,7 @@
 // LA32: #define __UINT64_FMTx__ "llx"
 // LA32: #define __UINT64_MAX__ 18446744073709551615ULL
 // LA32: #define __UINT64_TYPE__ long long unsigned int
+// LA32: #define __UINT8_C(c) c
 // LA32: #define __UINT8_C_SUFFIX__
 // LA32: #define __UINT8_FMTX__ "hhX"
 // LA32: #define __UINT8_FMTo__ "hho"
@@ -247,6 +265,7 @@
 // LA32: #define __UINT8_FMTx__ "hhx"
 // LA32: #define __UINT8_MAX__ 255
 // LA32: #define __UINT8_TYPE__ unsigned char
+// LA32: #define __UINTMAX_C(c) c##ULL
 // LA32: #define __UINTMAX_C_SUFFIX__ ULL
 // LA32: #define __UINTMAX_FMTX__ "llX"
 // LA32: #define __UINTMAX_FMTo__ "llo"
@@ -322,6 +341,7 @@
 // LA32-LINUX: #define __gnu_linux__ 1
 // LA32-LINUX: #define __linux 1
 // LA32-LINUX: #define __linux__ 1
+// LA32-NOT: #define __loongarch64 1
 // LA32: #define __loongarch__ 1
 // LA32-LINUX: #define __unix 1
 // LA32-LINUX: #define __unix__ 1
@@ -337,21 +357,21 @@
 // LA64-NEXT: #define __ATOMIC_SEQ_CST 5
 // LA64: #define __BIGGEST_ALIGNMENT__ 16
 // LA64: #define __BITINT_MAXWIDTH__ 128
-// LA64: #define __BOOL_WIDTH__ 8
+// LA64: #define __BOOL_WIDTH__ 1
 // LA64: #define __BYTE_ORDER__ __ORDER_LITTLE_ENDIAN__
 // LA64: #define __CHAR16_TYPE__ unsigned short
 // LA64: #define __CHAR32_TYPE__ unsigned int
 // LA64: #define __CHAR_BIT__ 8
-// LA64: #define __CLANG_ATOMIC_BOOL_LOCK_FREE 1
-// LA64: #define __CLANG_ATOMIC_CHAR16_T_LOCK_FREE 1
-// LA64: #define __CLANG_ATOMIC_CHAR32_T_LOCK_FREE 1
-// LA64: #define __CLANG_ATOMIC_CHAR_LOCK_FREE 1
-// LA64: #define __CLANG_ATOMIC_INT_LOCK_FREE 1
-// LA64: #define __CLANG_ATOMIC_LLONG_LOCK_FREE 1
-// LA64: #define __CLANG_ATOMIC_LONG_LOCK_FREE 1
-// LA64: #define __CLANG_ATOMIC_POINTER_LOCK_FREE 1
-// LA64: #define __CLANG_ATOMIC_SHORT_LOCK_FREE 1
-// LA64: #define __CLANG_ATOMIC_WCHAR_T_LOCK_FREE 1
+// LA64: #define __CLANG_ATOMIC_BOOL_LOCK_FREE 2
+// LA64: #define __CLANG_ATOMIC_CHAR16_T_LOCK_FREE 2
+// LA64: #define __CLANG_ATOMIC_CHAR32_T_LOCK_FREE 2
+// LA64: #define __CLANG_ATOMIC_CHAR_LOCK_FREE 2
+// LA64: #define __CLANG_ATOMIC_INT_LOCK_FREE 2
+// LA64: #define __CLANG_ATOMIC_LLONG_LOCK_FREE 2
+// LA64: #define __CLANG_ATOMIC_LONG_LOCK_FREE 2
+// LA64: #define __CLANG_ATOMIC_POINTER_LOCK_FREE 2
+// LA64: #define __CLANG_ATOMIC_SHORT_LOCK_FREE 2
+// LA64: #define __CLANG_ATOMIC_WCHAR_T_LOCK_FREE 2
 // LA64: #define __DBL_DECIMAL_DIG__ 17
 // LA64: #define __DBL_DENORM_MIN__ 4.9406564584124654e-324
 // LA64: #define __DBL_DIG__ 15
@@ -382,37 +402,46 @@
 // LA64: #define __FLT_MIN_EXP__ (-125)
 // LA64: #define __FLT_MIN__ 1.17549435e-38F
 // LA64: #define __FLT_RADIX__ 2
-// LA64: #define __GCC_ATOMIC_BOOL_LOCK_FREE 1
-// LA64: #define __GCC_ATOMIC_CHAR16_T_LOCK_FREE 1
-// LA64: #define __GCC_ATOMIC_CHAR32_T_LOCK_FREE 1
-// LA64: #define __GCC_ATOMIC_CHAR_LOCK_FREE 1
-// LA64: #define __GCC_ATOMIC_INT_LOCK_FREE 1
-// LA64: #define __GCC_ATOMIC_LLONG_LOCK_FREE 1
-// LA64: #define __GCC_ATOMIC_LONG_LOCK_FREE 1
-// LA64: #define __GCC_ATOMIC_POINTER_LOCK_FREE 1
-// LA64: #define __GCC_ATOMIC_SHORT_LOCK_FREE 1
+// LA64: #define __GCC_ATOMIC_BOOL_LOCK_FREE 2
+// LA64: #define __GCC_ATOMIC_CHAR16_T_LOCK_FREE 2
+// LA64: #define __GCC_ATOMIC_CHAR32_T_LOCK_FREE 2
+// LA64: #define __GCC_ATOMIC_CHAR_LOCK_FREE 2
+// LA64: #define __GCC_ATOMIC_INT_LOCK_FREE 2
+// LA64: #define __GCC_ATOMIC_LLONG_LOCK_FREE 2
+// LA64: #define __GCC_ATOMIC_LONG_LOCK_FREE 2
+// LA64: #define __GCC_ATOMIC_POINTER_LOCK_FREE 2
+// LA64: #define __GCC_ATOMIC_SHORT_LOCK_FREE 2
 // LA64: #define __GCC_ATOMIC_TEST_AND_SET_TRUEVAL 1
-// LA64: #define __GCC_ATOMIC_WCHAR_T_LOCK_FREE 1
+// LA64: #define __GCC_ATOMIC_WCHAR_T_LOCK_FREE 2
+// LA64: #define __GCC_HAVE_SYNC_COMPARE_AND_SWAP_1 1
+// LA64: #define __GCC_HAVE_SYNC_COMPARE_AND_SWAP_2 1
+// LA64: #define __GCC_HAVE_SYNC_COMPARE_AND_SWAP_4 1
+// LA64: #define __GCC_HAVE_SYNC_COMPARE_AND_SWAP_8 1
+// LA64: #define __INT16_C(c) c
 // LA64: #define __INT16_C_SUFFIX__
 // LA64: #define __INT16_FMTd__ "hd"
 // LA64: #define __INT16_FMTi__ "hi"
 // LA64: #define __INT16_MAX__ 32767
 // LA64: #define __INT16_TYPE__ short
+// LA64: #define __INT32_C(c) c
 // LA64: #define __INT32_C_SUFFIX__
 // LA64: #define __INT32_FMTd__ "d"
 // LA64: #define __INT32_FMTi__ "i"
 // LA64: #define __INT32_MAX__ 2147483647
 // LA64: #define __INT32_TYPE__ int
+// LA64: #define __INT64_C(c) c##L
 // LA64: #define __INT64_C_SUFFIX__ L
 // LA64: #define __INT64_FMTd__ "ld"
 // LA64: #define __INT64_FMTi__ "li"
 // LA64: #define __INT64_MAX__ 9223372036854775807L
 // LA64: #define __INT64_TYPE__ long int
+// LA64: #define __INT8_C(c) c
 // LA64: #define __INT8_C_SUFFIX__
 // LA64: #define __INT8_FMTd__ "hhd"
 // LA64: #define __INT8_FMTi__ "hhi"
 // LA64: #define __INT8_MAX__ 127
 // LA64: #define __INT8_TYPE__ signed char
+// LA64: #define __INTMAX_C(c) c##L
 // LA64: #define __INTMAX_C_SUFFIX__ L
 // LA64: #define __INTMAX_FMTd__ "ld"
 // LA64: #define __INTMAX_FMTi__ "li"
@@ -486,6 +515,12 @@
 // LA64: #define __LONG_MAX__ 9223372036854775807L
 // LA64: #define __LONG_WIDTH__ 64
 // LA64: #define __LP64__ 1
+// LA64: #define __MEMORY_SCOPE_CLUSTR 5
+// LA64: #define __MEMORY_SCOPE_DEVICE 1
+// LA64: #define __MEMORY_SCOPE_SINGLE 4
+// LA64: #define __MEMORY_SCOPE_SYSTEM 0
+// LA64: #define __MEMORY_SCOPE_WRKGRP 2
+// LA64: #define __MEMORY_SCOPE_WVFRNT 3
 // LA64: #define __NO_INLINE__ 1
 // LA64: #define __NO_MATH_ERRNO__ 1
 // LA64: #define __OBJC_BOOL_IS_BOOL 0
@@ -531,6 +566,7 @@
 // LA64: #define __STDC_UTF_32__ 1
 // LA64: #define __STDC_VERSION__ 201710L
 // LA64: #define __STDC__ 1
+// LA64: #define __UINT16_C(c) c
 // LA64: #define __UINT16_C_SUFFIX__
 // LA64: #define __UINT16_FMTX__ "hX"
 // LA64: #define __UINT16_FMTo__ "ho"
@@ -538,6 +574,7 @@
 // LA64: #define __UINT16_FMTx__ "hx"
 // LA64: #define __UINT16_MAX__ 65535
 // LA64: #define __UINT16_TYPE__ unsigned short
+// LA64: #define __UINT32_C(c) c##U
 // LA64: #define __UINT32_C_SUFFIX__ U
 // LA64: #define __UINT32_FMTX__ "X"
 // LA64: #define __UINT32_FMTo__ "o"
@@ -545,6 +582,7 @@
 // LA64: #define __UINT32_FMTx__ "x"
 // LA64: #define __UINT32_MAX__ 4294967295U
 // LA64: #define __UINT32_TYPE__ unsigned int
+// LA64: #define __UINT64_C(c) c##UL
 // LA64: #define __UINT64_C_SUFFIX__ UL
 // LA64: #define __UINT64_FMTX__ "lX"
 // LA64: #define __UINT64_FMTo__ "lo"
@@ -552,6 +590,7 @@
 // LA64: #define __UINT64_FMTx__ "lx"
 // LA64: #define __UINT64_MAX__ 18446744073709551615UL
 // LA64: #define __UINT64_TYPE__ long unsigned int
+// LA64: #define __UINT8_C(c) c
 // LA64: #define __UINT8_C_SUFFIX__
 // LA64: #define __UINT8_FMTX__ "hhX"
 // LA64: #define __UINT8_FMTo__ "hho"
@@ -559,6 +598,7 @@
 // LA64: #define __UINT8_FMTx__ "hhx"
 // LA64: #define __UINT8_MAX__ 255
 // LA64: #define __UINT8_TYPE__ unsigned char
+// LA64: #define __UINTMAX_C(c) c##UL
 // LA64: #define __UINTMAX_C_SUFFIX__ UL
 // LA64: #define __UINTMAX_FMTX__ "lX"
 // LA64: #define __UINTMAX_FMTo__ "lo"
@@ -634,8 +674,287 @@
 // LA64-LINUX: #define __gnu_linux__ 1
 // LA64-LINUX: #define __linux 1
 // LA64-LINUX: #define __linux__ 1
+// LA64: #define __loongarch64 1
 // LA64: #define __loongarch__ 1
 // LA64-LINUX: #define __unix 1
 // LA64-LINUX: #define __unix__ 1
 // LA64-LINUX: #define linux 1
 // LA64-LINUX: #define unix 1
+
+
+/// Check __loongarch_{double,single,hard,soft}_float, __loongarch_{gr,fr}len, __loongarch_lp64.
+
+// RUN: %clang --target=loongarch32 -mfpu=64 -mabi=ilp32d -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=LA32-FPU64-ILP32D %s
+// RUN: %clang --target=loongarch32 -mdouble-float -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=LA32-FPU64-ILP32D %s
+// LA32-FPU64-ILP32D: #define __loongarch_double_float 1
+// LA32-FPU64-ILP32D: #define __loongarch_frlen 64
+// LA32-FPU64-ILP32D: #define __loongarch_grlen 32
+// LA32-FPU64-ILP32D: #define __loongarch_hard_float 1
+// LA32-FPU64-ILP32D-NOT: #define __loongarch_lp64
+// LA32-FPU64-ILP32D-NOT: #define __loongarch_single_float
+// LA32-FPU64-ILP32D-NOT: #define __loongarch_soft_float
+
+// RUN: %clang --target=loongarch32 -mfpu=64 -mabi=ilp32f -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=LA32-FPU64-ILP32F %s
+// LA32-FPU64-ILP32F-NOT: #define __loongarch_double_float
+// LA32-FPU64-ILP32F: #define __loongarch_frlen 64
+// LA32-FPU64-ILP32F: #define __loongarch_grlen 32
+// LA32-FPU64-ILP32F: #define __loongarch_hard_float 1
+// LA32-FPU64-ILP32F-NOT: #define __loongarch_lp64
+// LA32-FPU64-ILP32F: #define __loongarch_single_float 1
+// LA32-FPU64-ILP32F-NOT: #define __loongarch_soft_float
+
+// RUN: %clang --target=loongarch32 -mfpu=64 -mabi=ilp32s -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=LA32-FPU64-ILP32S %s
+// LA32-FPU64-ILP32S-NOT: #define __loongarch_double_float
+// LA32-FPU64-ILP32S: #define __loongarch_frlen 64
+// LA32-FPU64-ILP32S: #define __loongarch_grlen 32
+// LA32-FPU64-ILP32S-NOT: #define __loongarch_hard_float
+// LA32-FPU64-ILP32S-NOT: #define __loongarch_lp64
+// LA32-FPU64-ILP32S-NOT: #define __loongarch_single_float
+// LA32-FPU64-ILP32S: #define __loongarch_soft_float 1
+
+// RUN: %clang --target=loongarch32 -mfpu=32 -mabi=ilp32f -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=LA32-FPU32-ILP32F %s
+// RUN: %clang --target=loongarch32 -msingle-float -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=LA32-FPU32-ILP32F %s
+// LA32-FPU32-ILP32F-NOT: #define __loongarch_double_float
+// LA32-FPU32-ILP32F: #define __loongarch_frlen 32
+// LA32-FPU32-ILP32F: #define __loongarch_grlen 32
+// LA32-FPU32-ILP32F: #define __loongarch_hard_float 1
+// LA32-FPU32-ILP32F-NOT: #define __loongarch_lp64
+// LA32-FPU32-ILP32F: #define __loongarch_single_float 1
+// LA32-FPU32-ILP32F-NOT: #define __loongarch_soft_float
+
+// RUN: %clang --target=loongarch32 -mfpu=32 -mabi=ilp32s -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=LA32-FPU32-ILP32S %s
+// LA32-FPU32-ILP32S-NOT: #define __loongarch_double_float
+// LA32-FPU32-ILP32S: #define __loongarch_frlen 32
+// LA32-FPU32-ILP32S: #define __loongarch_grlen 32
+// LA32-FPU32-ILP32S-NOT: #define __loongarch_hard_float
+// LA32-FPU32-ILP32S-NOT: #define __loongarch_lp64
+// LA32-FPU32-ILP32S-NOT: #define __loongarch_single_float
+// LA32-FPU32-ILP32S: #define __loongarch_soft_float 1
+
+// RUN: %clang --target=loongarch32 -mfpu=0 -mabi=ilp32s -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=LA32-FPU0-ILP32S %s
+// RUN: %clang --target=loongarch32 -mfpu=none -mabi=ilp32s -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=LA32-FPU0-ILP32S %s
+// RUN: %clang --target=loongarch32 -msoft-float -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=LA32-FPU0-ILP32S %s
+// LA32-FPU0-ILP32S-NOT: #define __loongarch_double_float
+// LA32-FPU0-ILP32S: #define __loongarch_frlen 0
+// LA32-FPU0-ILP32S: #define __loongarch_grlen 32
+// LA32-FPU0-ILP32S-NOT: #define __loongarch_hard_float
+// LA32-FPU0-ILP32S-NOT: #define __loongarch_lp64
+// LA32-FPU0-ILP32S-NOT: #define __loongarch_single_float
+// LA32-FPU0-ILP32S: #define __loongarch_soft_float 1
+
+// RUN: %clang --target=loongarch64 -mfpu=64 -mabi=lp64d -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=LA64-FPU64-LP64D %s
+// RUN: %clang --target=loongarch64 -mdouble-float -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=LA64-FPU64-LP64D %s
+// LA64-FPU64-LP64D: #define __loongarch_double_float 1
+// LA64-FPU64-LP64D: #define __loongarch_frlen 64
+// LA64-FPU64-LP64D: #define __loongarch_grlen 64
+// LA64-FPU64-LP64D: #define __loongarch_hard_float 1
+// LA64-FPU64-LP64D: #define __loongarch_lp64 1
+// LA64-FPU64-LP64D-NOT: #define __loongarch_single_float
+// LA64-FPU64-LP64D-NOT: #define __loongarch_soft_float
+
+// RUN: %clang --target=loongarch64 -mfpu=64 -mabi=lp64f -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=LA64-FPU64-LP64F %s
+// LA64-FPU64-LP64F-NOT: #define __loongarch_double_float
+// LA64-FPU64-LP64F: #define __loongarch_frlen 64
+// LA64-FPU64-LP64F: #define __loongarch_grlen 64
+// LA64-FPU64-LP64F: #define __loongarch_hard_float 1
+// LA64-FPU64-LP64F: #define __loongarch_lp64 1
+// LA64-FPU64-LP64F: #define __loongarch_single_float 1
+// LA64-FPU64-LP64F-NOT: #define __loongarch_soft_float
+
+// RUN: %clang --target=loongarch64 -mfpu=64 -mabi=lp64s -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=LA64-FPU64-LP64S %s
+// LA64-FPU64-LP64S-NOT: #define __loongarch_double_float
+// LA64-FPU64-LP64S: #define __loongarch_frlen 64
+// LA64-FPU64-LP64S: #define __loongarch_grlen 64
+// LA64-FPU64-LP64S-NOT: #define __loongarch_hard_float
+// LA64-FPU64-LP64S: #define __loongarch_lp64 1
+// LA64-FPU64-LP64S-NOT: #define __loongarch_single_float
+// LA64-FPU64-LP64S: #define __loongarch_soft_float 1
+
+// RUN: %clang --target=loongarch64 -mfpu=32 -mabi=lp64f -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=LA64-FPU32-LP64F %s
+// RUN: %clang --target=loongarch64 -msingle-float -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=LA64-FPU32-LP64F %s
+// LA64-FPU32-LP64F-NOT: #define __loongarch_double_float
+// LA64-FPU32-LP64F: #define __loongarch_frlen 32
+// LA64-FPU32-LP64F: #define __loongarch_grlen 64
+// LA64-FPU32-LP64F: #define __loongarch_hard_float 1
+// LA64-FPU32-LP64F: #define __loongarch_lp64 1
+// LA64-FPU32-LP64F: #define __loongarch_single_float 1
+// LA64-FPU32-LP64F-NOT: #define __loongarch_soft_float
+
+// RUN: %clang --target=loongarch64 -mfpu=32 -mabi=lp64s -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=LA64-FPU32-LP64S %s
+// LA64-FPU32-LP64S-NOT: #define __loongarch_double_float
+// LA64-FPU32-LP64S: #define __loongarch_frlen 32
+// LA64-FPU32-LP64S: #define __loongarch_grlen 64
+// LA64-FPU32-LP64S-NOT: #define __loongarch_hard_float
+// LA64-FPU32-LP64S: #define __loongarch_lp64 1
+// LA64-FPU32-LP64S-NOT: #define __loongarch_single_float
+// LA64-FPU32-LP64S: #define __loongarch_soft_float 1
+
+// RUN: %clang --target=loongarch64 -mfpu=0 -mabi=lp64s -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=LA64-FPU0-LP64S %s
+// RUN: %clang --target=loongarch64 -mfpu=none -mabi=lp64s -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=LA64-FPU0-LP64S %s
+// RUN: %clang --target=loongarch64 -msoft-float -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=LA64-FPU0-LP64S %s
+// LA64-FPU0-LP64S-NOT: #define __loongarch_double_float
+// LA64-FPU0-LP64S: #define __loongarch_frlen 0
+// LA64-FPU0-LP64S: #define __loongarch_grlen 64
+// LA64-FPU0-LP64S-NOT: #define __loongarch_hard_float
+// LA64-FPU0-LP64S: #define __loongarch_lp64 1
+// LA64-FPU0-LP64S-NOT: #define __loongarch_single_float
+// LA64-FPU0-LP64S: #define __loongarch_soft_float 1
+
+/// Check __loongarch_arch{_tune/_frecipe/_lam_bh/_lamcas/_ld_seq_sa/_div32/_scq}.
+
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - | \
+// RUN:   FileCheck --match-full-lines --check-prefix=ARCH-TUNE -DARCH=la64v1.0 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=loongarch64 | \
+// RUN:   FileCheck --match-full-lines --check-prefix=ARCH-TUNE -DARCH=loongarch64 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=la464 | \
+// RUN:   FileCheck --match-full-lines --check-prefix=ARCH-TUNE -DARCH=la464 -DTUNE=la464 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -mtune=loongarch64 | \
+// RUN:   FileCheck --match-full-lines --check-prefix=ARCH-TUNE -DARCH=la64v1.0 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -mtune=la464 | \
+// RUN:   FileCheck --match-full-lines --check-prefix=ARCH-TUNE -DARCH=la64v1.0 -DTUNE=la464 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=loongarch64 -mtune=la464 | \
+// RUN:   FileCheck --match-full-lines --check-prefix=ARCH-TUNE -DARCH=loongarch64 -DTUNE=la464 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=la464 -mtune=loongarch64 | \
+// RUN:   FileCheck --match-full-lines --check-prefix=ARCH-TUNE -DARCH=la464 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=la64v1.0 | \
+// RUN:   FileCheck --match-full-lines --check-prefix=ARCH-TUNE -DARCH=la64v1.0 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=la64v1.0 -Xclang -target-feature -Xclang -lsx | \
+// RUN:   FileCheck --match-full-lines --check-prefix=ARCH-TUNE -DARCH=loongarch64 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=la64v1.0 -Xclang -target-feature -Xclang +frecipe | \
+// RUN:   FileCheck --match-full-lines --check-prefixes=ARCH-TUNE,FRECIPE -DARCH=la64v1.0 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=loongarch64 -Xclang -target-feature -Xclang +lsx | \
+// RUN:   FileCheck --match-full-lines --check-prefix=ARCH-TUNE -DARCH=la64v1.0 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=la64v1.1 | \
+// RUN:   FileCheck --match-full-lines  --check-prefixes=ARCH-TUNE,FRECIPE,LAM-BH,LAMCAS,LD-SEQ-SA,DIV32,SCQ -DARCH=la64v1.1 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=la64v1.1 -Xclang -target-feature -Xclang -frecipe | \
+// RUN:   FileCheck --match-full-lines --check-prefixes=ARCH-TUNE,LAM-BH,LAMCAS,LD-SEQ-SA,DIV32,SCQ -DARCH=la64v1.0 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=la64v1.1 -Xclang -target-feature -Xclang -lsx | \
+// RUN:   FileCheck --match-full-lines --check-prefixes=ARCH-TUNE,FRECIPE,LAM-BH,LAMCAS,LD-SEQ-SA,DIV32,SCQ -DARCH=loongarch64 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=loongarch64 -Xclang -target-feature -Xclang +frecipe | \
+// RUN:   FileCheck --match-full-lines --check-prefixes=ARCH-TUNE,FRECIPE -DARCH=loongarch64 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=loongarch64 -Xclang -target-feature -Xclang +lsx -Xclang -target-feature -Xclang +frecipe | \
+// RUN:   FileCheck --match-full-lines --check-prefixes=ARCH-TUNE,FRECIPE -DARCH=la64v1.0 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=la64v1.0 -Xclang -target-feature -Xclang +lam-bh | \
+// RUN:   FileCheck --match-full-lines --check-prefixes=ARCH-TUNE,LAM-BH -DARCH=la64v1.0 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=la64v1.1 -Xclang -target-feature -Xclang -lam-bh | \
+// RUN:   FileCheck --match-full-lines --check-prefixes=ARCH-TUNE,FRECIPE,LAMCAS,LD-SEQ-SA,DIV32,SCQ -DARCH=la64v1.0 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=loongarch64 -Xclang -target-feature -Xclang +lam-bh | \
+// RUN:   FileCheck --match-full-lines --check-prefixes=ARCH-TUNE,LAM-BH -DARCH=loongarch64 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=loongarch64 -Xclang -target-feature -Xclang +lsx -Xclang -target-feature -Xclang +lam-bh | \
+// RUN:   FileCheck --match-full-lines --check-prefixes=ARCH-TUNE,LAM-BH -DARCH=la64v1.0 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=la64v1.0 -Xclang -target-feature -Xclang +lamcas | \
+// RUN:   FileCheck --match-full-lines --check-prefixes=ARCH-TUNE,LAMCAS -DARCH=la64v1.0 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=la64v1.1 -Xclang -target-feature -Xclang -lamcas | \
+// RUN:   FileCheck --match-full-lines --check-prefixes=ARCH-TUNE,FRECIPE,LAM-BH,LD-SEQ-SA,DIV32,SCQ -DARCH=la64v1.0 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=loongarch64 -Xclang -target-feature -Xclang +lamcas | \
+// RUN:   FileCheck --match-full-lines --check-prefixes=ARCH-TUNE,LAMCAS -DARCH=loongarch64 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=loongarch64 -Xclang -target-feature -Xclang +lsx -Xclang -target-feature -Xclang +lamcas | \
+// RUN:   FileCheck --match-full-lines --check-prefixes=ARCH-TUNE,LAMCAS -DARCH=la64v1.0 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=la64v1.0 -Xclang -target-feature -Xclang +ld-seq-sa | \
+// RUN:   FileCheck --match-full-lines --check-prefixes=ARCH-TUNE,LD-SEQ-SA -DARCH=la64v1.0 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=la64v1.1 -Xclang -target-feature -Xclang -ld-seq-sa | \
+// RUN:   FileCheck --match-full-lines --check-prefixes=ARCH-TUNE,FRECIPE,LAM-BH,LAMCAS,DIV32,SCQ -DARCH=la64v1.0 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=loongarch64 -Xclang -target-feature -Xclang +ld-seq-sa | \
+// RUN:   FileCheck --match-full-lines --check-prefixes=ARCH-TUNE,LD-SEQ-SA -DARCH=loongarch64 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=loongarch64 -Xclang -target-feature -Xclang +lsx -Xclang -target-feature -Xclang +ld-seq-sa | \
+// RUN:   FileCheck --match-full-lines --check-prefixes=ARCH-TUNE,LD-SEQ-SA -DARCH=la64v1.0 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=la64v1.0 -Xclang -target-feature -Xclang +div32 | \
+// RUN:   FileCheck --match-full-lines --check-prefixes=ARCH-TUNE,DIV32 -DARCH=la64v1.0 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=la64v1.1 -Xclang -target-feature -Xclang -div32| \
+// RUN:   FileCheck --match-full-lines --check-prefixes=ARCH-TUNE,FRECIPE,LAM-BH,LAMCAS,LD-SEQ-SA,SCQ -DARCH=la64v1.0 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=loongarch64 -Xclang -target-feature -Xclang +div32 | \
+// RUN:   FileCheck --match-full-lines --check-prefixes=ARCH-TUNE,DIV32 -DARCH=loongarch64 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=loongarch64 -Xclang -target-feature -Xclang +lsx -Xclang -target-feature -Xclang +div32 | \
+// RUN:   FileCheck --match-full-lines --check-prefixes=ARCH-TUNE,DIV32 -DARCH=la64v1.0 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=la64v1.0 -Xclang -target-feature -Xclang +scq | \
+// RUN:   FileCheck --match-full-lines --check-prefixes=ARCH-TUNE,SCQ -DARCH=la64v1.0 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=la64v1.1 -Xclang -target-feature -Xclang -scq | \
+// RUN:   FileCheck --match-full-lines --check-prefixes=ARCH-TUNE,FRECIPE,LAM-BH,LAMCAS,LD-SEQ-SA,DIV32 -DARCH=la64v1.0 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=loongarch64 -Xclang -target-feature -Xclang +scq | \
+// RUN:   FileCheck --match-full-lines --check-prefixes=ARCH-TUNE,SCQ -DARCH=loongarch64 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=loongarch64 -Xclang -target-feature -Xclang +lsx -Xclang -target-feature -Xclang +scq | \
+// RUN:   FileCheck --match-full-lines --check-prefixes=ARCH-TUNE,SCQ -DARCH=la64v1.0 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=la64v1.0 -Xclang -target-feature -Xclang +frecipe -Xclang -target-feature -Xclang +lam-bh  -Xclang -target-feature -Xclang +lamcas -Xclang -target-feature -Xclang +ld-seq-sa -Xclang -target-feature -Xclang +div32 -Xclang -target-feature -Xclang +scq | \
+// RUN:   FileCheck --match-full-lines --check-prefixes=ARCH-TUNE -DARCH=la64v1.1 -DTUNE=loongarch64 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=la664 | \
+// RUN:   FileCheck --match-full-lines --check-prefixes=ARCH-TUNE,FRECIPE,LAM-BH,LAMCAS,LD-SEQ-SA,DIV32,SCQ -DARCH=la664 -DTUNE=la664 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -mtune=la664 | \
+// RUN:   FileCheck --match-full-lines --check-prefix=ARCH-TUNE -DARCH=la64v1.0 -DTUNE=la664 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=loongarch64 -mtune=la664 | \
+// RUN:   FileCheck --match-full-lines --check-prefix=ARCH-TUNE -DARCH=loongarch64 -DTUNE=la664 %s
+// RUN: %clang --target=loongarch64 -x c -E -dM %s -o - -march=la664 -mtune=loongarch64 | \
+// RUN:   FileCheck --match-full-lines --check-prefixes=ARCH-TUNE,FRECIPE,LAM-BH,LAMCAS,LD-SEQ-SA,DIV32,SCQ -DARCH=la664 -DTUNE=loongarch64 %s
+
+// ARCH-TUNE: #define __loongarch_arch "[[ARCH]]"
+// DIV32: #define __loongarch_div32 1
+// FRECIPE: #define __loongarch_frecipe 1
+// LAM-BH: #define __loongarch_lam_bh 1
+// LAMCAS: #define __loongarch_lamcas 1
+// LD-SEQ-SA: #define __loongarch_ld_seq_sa 1
+// SCQ: #define __loongarch_scq 1
+// ARCH-TUNE: #define __loongarch_tune "[[TUNE]]"
+
+// RUN: %clang --target=loongarch64 -mlsx -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=MLSX %s
+// RUN: %clang --target=loongarch64 -mno-lsx -mlsx -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=MLSX %s
+// RUN: %clang --target=loongarch64 -mlsx -mno-lasx -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=MLSX %s
+// RUN: %clang --target=loongarch64 -mno-lasx -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=MLSX %s
+// RUN: %clang --target=loongarch64 -mno-lasx -mlsx -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=MLSX %s
+// MLSX-NOT: #define __loongarch_asx
+// MLSX-NOT: #define __loongarch_asx_sx_conv
+// MLSX: #define __loongarch_simd_width 128
+// MLSX: #define __loongarch_sx 1
+
+// RUN: %clang --target=loongarch64 -mlasx -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=MLASX %s
+// RUN: %clang --target=loongarch64 -mlsx -mlasx -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=MLASX %s
+// RUN: %clang --target=loongarch64 -mlasx -mlsx -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=MLASX %s
+// RUN: %clang --target=loongarch64 -mno-lasx -mlasx -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=MLASX %s
+// MLASX: #define __loongarch_asx 1
+// MLASX: #define __loongarch_asx_sx_conv 1
+// MLASX: #define __loongarch_simd_width 256
+// MLASX: #define __loongarch_sx 1
+
+// RUN: %clang --target=loongarch64 -mno-lsx -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=MNO-LSX %s
+// RUN: %clang --target=loongarch64 -mlsx -mno-lsx -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=MNO-LSX %s
+// RUN: %clang --target=loongarch64 -mno-lsx -mno-lasx -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=MNO-LSX %s
+// RUN: %clang --target=loongarch64 -mno-lasx -mno-lsx -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=MNO-LSX %s
+// RUN: %clang --target=loongarch64 -march=la464 -mno-lsx -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=MNO-LSX %s
+// RUN: %clang --target=loongarch64 -mno-lsx -march=la464 -x c -E -dM %s -o - \
+// RUN:   | FileCheck --match-full-lines --check-prefix=MNO-LSX %s
+// MNO-LSX-NOT: #define __loongarch_asx
+// MNO-LSX-NOT: #define __loongarch_asx_sx_conv
+// MNO-LSX-NOT: #define __loongarch_simd_width
+// MNO-LSX-NOT: #define __loongarch_sx

@@ -14,7 +14,6 @@
 #ifndef LLVM_SUPPORT_SMLOC_H
 #define LLVM_SUPPORT_SMLOC_H
 
-#include "llvm/ADT/None.h"
 #include <cassert>
 
 namespace llvm {
@@ -24,14 +23,14 @@ class SMLoc {
   const char *Ptr = nullptr;
 
 public:
-  SMLoc() = default;
+  constexpr SMLoc() = default;
 
-  bool isValid() const { return Ptr != nullptr; }
+  constexpr bool isValid() const { return Ptr != nullptr; }
 
-  bool operator==(const SMLoc &RHS) const { return RHS.Ptr == Ptr; }
-  bool operator!=(const SMLoc &RHS) const { return RHS.Ptr != Ptr; }
+  constexpr bool operator==(SMLoc RHS) const { return RHS.Ptr == Ptr; }
+  constexpr bool operator!=(SMLoc RHS) const { return RHS.Ptr != Ptr; }
 
-  const char *getPointer() const { return Ptr; }
+  constexpr const char *getPointer() const { return Ptr; }
 
   static SMLoc getFromPointer(const char *Ptr) {
     SMLoc L;
@@ -50,7 +49,6 @@ public:
   SMLoc Start, End;
 
   SMRange() = default;
-  SMRange(NoneType) {}
   SMRange(SMLoc St, SMLoc En) : Start(St), End(En) {
     assert(Start.isValid() == End.isValid() &&
            "Start and End should either both be valid or both be invalid!");

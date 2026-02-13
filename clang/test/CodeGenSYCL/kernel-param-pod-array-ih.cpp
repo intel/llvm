@@ -8,15 +8,18 @@
 // CHECK: class kernel_B;
 
 // CHECK: namespace sycl {
-// CHECK-NEXT: __SYCL_INLINE_VER_NAMESPACE(_V1) {
+// CHECK-NEXT: inline namespace _V1 {
 // CHECK-NEXT: namespace detail {
 
 // CHECK: static constexpr
 // CHECK-NEXT: const char* const kernel_names[] = {
 // CHECK-NEXT:   "_ZTSZ4mainE8kernel_B",
 // CHECK-NEXT:   "_ZTSZ4mainE8kernel_C",
-// CHECK-NEXT:   "_ZTSZ4mainE8kernel_D"
+// CHECK-NEXT:   "_ZTSZ4mainE8kernel_D",
+// CHECK-NEXT:   ""
 // CHECK-NEXT: };
+
+// CHECK: static constexpr unsigned kernel_args_sizes[] = {1, 1, 1, 4294967295,
 
 // CHECK: static constexpr
 // CHECK-NEXT: const kernel_param_desc_t kernel_signatures[] = {

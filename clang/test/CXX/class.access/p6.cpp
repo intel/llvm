@@ -92,7 +92,7 @@ namespace test3 {
 
   template <class T> class Outer::A<T, typename T::nature> {
   public:
-    static void foo(); // expected-note {{'Outer::A<B, Green>::foo' declared here}}
+    static void foo(); // expected-note {{'Outer::A<test3::B, test3::Green>::foo' declared here}}
   };
 
   class B {
@@ -102,7 +102,7 @@ namespace test3 {
 
   void test() {
     Outer::A<B, Green>::foo();
-    Outer::A<B, Blue>::foo(); // expected-error {{no member named 'foo' in 'test3::Outer::A<test3::B, test3::Blue>'; did you mean 'Outer::A<B, Green>::foo'?}}
+    Outer::A<B, Blue>::foo(); // expected-error {{no member named 'foo' in 'test3::Outer::A<test3::B, test3::Blue>'; did you mean 'Outer::A<test3::B, test3::Green>::foo'?}}
   }
 }
 
@@ -113,7 +113,7 @@ namespace test4 {
   };
 
   template <class U> void foo(U &, typename U::type) {}
-  
+
   void test() {
     A<int> a;
     foo(a, 0);
@@ -169,7 +169,6 @@ namespace test7 {
   }
 }
 
-// rdar://problem/10155256
 namespace test8 {
   class A {
     typedef void* (A::*UnspecifiedBoolType)() const;

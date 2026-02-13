@@ -131,10 +131,21 @@ INTERCEPTOR(int, _except_handler4, void *a, void *b, void *c, void *d) {
 }
 #endif
 
+struct ThreadStartParams {
+  thread_callback_t start_routine;
+  void *arg;
+};
+
 static thread_return_t THREAD_CALLING_CONV asan_thread_start(void *arg) {
   AsanThread *t = (AsanThread *)arg;
   SetCurrentThread(t);
-  return t->ThreadStart(GetTid());
+  t->ThreadStart(GetTid());
+
+  ThreadStartParams params;
+  t->GetStartData(params);
+
+  auto res = (*params.start_routine)(params.arg);
+  return res;
 }
 
 INTERCEPTOR_WINAPI(HANDLE, CreateThread, LPSECURITY_ATTRIBUTES security,
@@ -148,10 +159,17 @@ INTERCEPTOR_WINAPI(HANDLE, CreateThread, LPSECURITY_ATTRIBUTES security,
   // one.  This is a bandaid fix for PR22025.
   bool detached = false;  // FIXME: how can we determine it on Windows?
   u32 current_tid = GetCurrentTidOrInvalid();
-  AsanThread *t =
-      AsanThread::Create(start_routine, arg, current_tid, &stack, detached);
+  ThreadStartParams params = {start_routine, arg};
+  AsanThread *t = AsanThread::Create(params, current_tid, &stack, detached);
   return REAL(CreateThread)(security, stack_size, asan_thread_start, t,
                             thr_flags, tid);
+}
+
+INTERCEPTOR_WINAPI(void, ExitThread, DWORD dwExitCode) {
+  AsanThread *t = (AsanThread *)__asan::GetCurrentThread();
+  if (t)
+    t->Destroy();
+  REAL(ExitThread)(dwExitCode);
 }
 
 // }}}
@@ -159,6 +177,8 @@ INTERCEPTOR_WINAPI(HANDLE, CreateThread, LPSECURITY_ATTRIBUTES security,
 namespace __asan {
 
 void InitializePlatformInterceptors() {
+  __interception::SetErrorReportCallback(Report);
+
   // The interceptors were not designed to be removable, so we have to keep this
   // module alive for the life of the process.
   HMODULE pinned;
@@ -167,6 +187,7 @@ void InitializePlatformInterceptors() {
       (LPCWSTR)&InitializePlatformInterceptors, &pinned));
 
   ASAN_INTERCEPT_FUNC(CreateThread);
+  ASAN_INTERCEPT_FUNC(ExitThread);
   ASAN_INTERCEPT_FUNC(SetUnhandledExceptionFilter);
 
 #ifdef _WIN64
@@ -189,14 +210,19 @@ void InitializePlatformInterceptors() {
 
 void InstallAtExitCheckLeaks() {}
 
+void InstallAtForkHandler() {}
+
 void AsanApplyToGlobals(globals_op_fptr op, const void *needle) {
   UNIMPLEMENTED();
 }
 
 void FlushUnneededASanShadowMemory(uptr p, uptr size) {
+  // Only asan on 64-bit Windows supports committing shadow memory on demand.
+#if SANITIZER_WINDOWS64
   // Since asan's mapping is compacting, the shadow chunk may be
   // not page-aligned, so we only flush the page-aligned portion.
   ReleaseMemoryPagesToOS(MemToShadow(p), MemToShadow(p + size));
+#endif
 }
 
 // ---------------------- TSD ---------------- {{{
@@ -247,27 +273,18 @@ void PlatformTSDDtor(void *tsd) { AsanThread::TSDDtor(tsd); }
 // }}}
 
 // ---------------------- Various stuff ---------------- {{{
-void *AsanDoesNotSupportStaticLinkage() {
-#if defined(_DEBUG)
-#error Please build the runtime with a non-debug CRT: /MD or /MT
-#endif
-  return 0;
-}
-
 uptr FindDynamicShadowStart() {
   return MapDynamicShadow(MemToShadowSize(kHighMemEnd), ASAN_SHADOW_SCALE,
-                          /*min_shadow_base_alignment*/ 0, kHighMemEnd);
+                          /*min_shadow_base_alignment*/ 0, kHighMemEnd,
+                          GetMmapGranularity());
 }
+
+// Not used
+void TryReExecWithoutASLR() {}
 
 void AsanCheckDynamicRTPrereqs() {}
 
 void AsanCheckIncompatibleRT() {}
-
-void ReadContextStack(void *context, uptr *stack, uptr *ssize) {
-  UNIMPLEMENTED();
-}
-
-void ResetContextStack(void *context) { UNIMPLEMENTED(); }
 
 void AsanOnDeadlySignal(int, void *siginfo, void *context) { UNIMPLEMENTED(); }
 

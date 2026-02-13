@@ -20,7 +20,7 @@ namespace hexagon {
 // For Hexagon, we do not need to instantiate tools for PreProcess, PreCompile
 // and Compile.
 // We simply use "clang -cc1" for those actions.
-class LLVM_LIBRARY_VISIBILITY Assembler : public Tool {
+class LLVM_LIBRARY_VISIBILITY Assembler final : public Tool {
 public:
   Assembler(const ToolChain &TC)
       : Tool("hexagon::Assembler", "hexagon-as", TC) {}
@@ -35,22 +35,23 @@ public:
                     const char *LinkingOutput) const override;
 };
 
-class LLVM_LIBRARY_VISIBILITY Linker : public Tool {
+class LLVM_LIBRARY_VISIBILITY Linker final : public Tool {
 public:
   Linker(const ToolChain &TC) : Tool("hexagon::Linker", "hexagon-ld", TC) {}
 
   bool hasIntegratedCPP() const override { return false; }
   bool isLinkJob() const override { return true; }
 
-  virtual void RenderExtraToolArgs(const JobAction &JA,
-                                   llvm::opt::ArgStringList &CmdArgs) const;
+  void RenderExtraToolArgs(const JobAction &JA,
+                           llvm::opt::ArgStringList &CmdArgs) const;
   void ConstructJob(Compilation &C, const JobAction &JA,
                     const InputInfo &Output, const InputInfoList &Inputs,
                     const llvm::opt::ArgList &TCArgs,
                     const char *LinkingOutput) const override;
 };
 
-void getHexagonTargetFeatures(const Driver &D, const llvm::opt::ArgList &Args,
+void getHexagonTargetFeatures(const Driver &D, const llvm::Triple &Triple,
+                              const llvm::opt::ArgList &Args,
                               std::vector<StringRef> &Features);
 
 } // end namespace hexagon.
@@ -107,8 +108,8 @@ public:
   static StringRef GetDefaultCPU();
   static StringRef GetTargetCPUVersion(const llvm::opt::ArgList &Args);
 
-  static Optional<unsigned> getSmallDataThreshold(
-      const llvm::opt::ArgList &Args);
+  static std::optional<unsigned>
+  getSmallDataThreshold(const llvm::opt::ArgList &Args);
 };
 
 } // end namespace toolchains

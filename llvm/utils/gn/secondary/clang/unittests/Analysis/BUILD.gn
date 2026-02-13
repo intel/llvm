@@ -1,4 +1,4 @@
-import("//llvm/utils/unittest/unittest.gni")
+import("//third-party/unittest/unittest.gni")
 
 unittest("ClangAnalysisTests") {
   configs += [ "//llvm/utils/gn/build:clang_code" ]
@@ -8,6 +8,7 @@ unittest("ClangAnalysisTests") {
     "//clang/lib/Analysis",
     "//clang/lib/Basic",
     "//clang/lib/Frontend",
+    "//clang/lib/Testing",
     "//clang/lib/Tooling",
     "//llvm/lib/Support",
   ]
@@ -16,6 +17,9 @@ unittest("ClangAnalysisTests") {
     "CFGTest.cpp",
     "CloneDetectionTest.cpp",
     "ExprMutationAnalyzerTest.cpp",
+    "IntervalPartitionTest.cpp",
+    "LifetimeSafetyTest.cpp",
     "MacroExpansionContextTest.cpp",
+    "UnsafeBufferUsageTest.cpp",
   ]
 }

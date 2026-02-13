@@ -14,6 +14,7 @@ tablegen(LLVM ARMGenMCCodeEmitter.inc -gen-emitter)
 tablegen(LLVM ARMGenMCPseudoLowering.inc -gen-pseudo-lowering)
 tablegen(LLVM ARMGenRegisterBank.inc -gen-register-bank)
 tablegen(LLVM ARMGenRegisterInfo.inc -gen-register-info)
+tablegen(LLVM ARMGenSDNodeInfo.inc -gen-sd-node-info)
 tablegen(LLVM ARMGenSubtargetInfo.inc -gen-subtarget)
 tablegen(LLVM ARMGenSystemRegister.inc -gen-searchable-tables)
 
@@ -62,6 +63,7 @@ add_llvm_target(ARMCodeGen
   MVETailPredication.cpp
   MVEVPTBlockPass.cpp
   MVETPAndVPTOptimisationsPass.cpp
+  ARMLatencyMutations.cpp
   Thumb1FrameLowering.cpp
   Thumb1InstrInfo.cpp
   ThumbRegisterInfo.cpp
@@ -72,20 +74,22 @@ add_llvm_target(ARMCodeGen
   LINK_COMPONENTS
   ARMDesc
   ARMInfo
+  ARMUtils
   Analysis
   AsmPrinter
+  CFGuard
   CodeGen
+  CodeGenTypes
   Core
+  GlobalISel
   IPO
   MC
   Scalar
   SelectionDAG
   Support
   Target
-  GlobalISel
-  ARMUtils
+  TargetParser
   TransformUtils
-  CFGuard
 
   ADD_TO_COMPONENT
   ARM

@@ -13,32 +13,32 @@
 %struct.s1 = type { i32, i32 }
 
 ; Function Attrs: nounwind
-define dso_local i32 @foo(%struct.s1* %arg) #0 !dbg !7 {
+define dso_local i32 @foo(ptr %arg) !dbg !7 {
 entry:
-  %arg.addr = alloca %struct.s1*, align 8
-  store %struct.s1* %arg, %struct.s1** %arg.addr, align 8, !tbaa !18
-  call void @llvm.dbg.declare(metadata %struct.s1** %arg.addr, metadata !17, metadata !DIExpression()), !dbg !22
-  %0 = load %struct.s1*, %struct.s1** %arg.addr, align 8, !dbg !23, !tbaa !18
-  %1 = call i32* @llvm.preserve.struct.access.index.p0i32.p0s_struct.s1s(%struct.s1* elementtype(%struct.s1) %0, i32 0, i32 0), !dbg !24, !llvm.preserve.access.index !12
-  %2 = load i32, i32* %1, align 4, !dbg !24, !tbaa !25
+  %arg.addr = alloca ptr, align 8
+  store ptr %arg, ptr %arg.addr, align 8, !tbaa !18
+  call void @llvm.dbg.declare(metadata ptr %arg.addr, metadata !17, metadata !DIExpression()), !dbg !22
+  %0 = load ptr, ptr %arg.addr, align 8, !dbg !23, !tbaa !18
+  %1 = call ptr @llvm.preserve.struct.access.index.p0.p0.s1s(ptr elementtype(%struct.s1) %0, i32 0, i32 0), !dbg !24, !llvm.preserve.access.index !12
+  %2 = load i32, ptr %1, align 4, !dbg !24, !tbaa !25
   ret i32 %2, !dbg !28
 }
 
 ; Function Attrs: nounwind readnone speculatable willreturn
-declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
+declare void @llvm.dbg.declare(metadata, metadata, metadata)
 
 ; Function Attrs: nounwind readnone
-declare i32* @llvm.preserve.struct.access.index.p0i32.p0s_struct.s1s(%struct.s1*, i32 immarg, i32 immarg) #2
+declare ptr @llvm.preserve.struct.access.index.p0.p0.s1s(ptr, i32 immarg, i32 immarg)
 
 ; Function Attrs: nounwind
-define dso_local i32 @bar(%struct.s1* %arg) #0 !dbg !29 {
+define dso_local i32 @bar(ptr %arg) !dbg !29 {
 entry:
-  %arg.addr = alloca %struct.s1*, align 8
-  store %struct.s1* %arg, %struct.s1** %arg.addr, align 8, !tbaa !18
-  call void @llvm.dbg.declare(metadata %struct.s1** %arg.addr, metadata !31, metadata !DIExpression()), !dbg !32
-  %0 = load %struct.s1*, %struct.s1** %arg.addr, align 8, !dbg !33, !tbaa !18
-  %1 = call i32* @llvm.preserve.struct.access.index.p0i32.p0s_struct.s1s(%struct.s1* elementtype(%struct.s1) %0, i32 0, i32 0), !dbg !34, !llvm.preserve.access.index !12
-  %2 = load i32, i32* %1, align 4, !dbg !34, !tbaa !25
+  %arg.addr = alloca ptr, align 8
+  store ptr %arg, ptr %arg.addr, align 8, !tbaa !18
+  call void @llvm.dbg.declare(metadata ptr %arg.addr, metadata !31, metadata !DIExpression()), !dbg !32
+  %0 = load ptr, ptr %arg.addr, align 8, !dbg !33, !tbaa !18
+  %1 = call ptr @llvm.preserve.struct.access.index.p0.p0.s1s(ptr elementtype(%struct.s1) %0, i32 0, i32 0), !dbg !34, !llvm.preserve.access.index !12
+  %2 = load i32, ptr %1, align 4, !dbg !34, !tbaa !25
   ret i32 %2, !dbg !35
 }
 
@@ -59,10 +59,6 @@ entry:
 ; CHECK-NEXT:        .long   2
 ; CHECK-NEXT:        .long   26
 ; CHECK-NEXT:        .long   0
-
-attributes #0 = { nounwind "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { nounwind readnone speculatable willreturn }
-attributes #2 = { nounwind readnone }
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!3, !4, !5}

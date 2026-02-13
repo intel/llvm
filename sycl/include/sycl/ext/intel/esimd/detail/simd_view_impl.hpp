@@ -10,12 +10,12 @@
 
 #pragma once
 
+#include <sycl/aspects.hpp>
 #include <sycl/ext/intel/esimd/detail/intrin.hpp>
-#include <sycl/ext/intel/esimd/detail/test_proxy.hpp>
 #include <sycl/ext/intel/esimd/detail/type_format.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::esimd::detail {
 
 /// @addtogroup sycl_esimd_core_vectors
@@ -38,7 +38,12 @@ namespace ext::intel::esimd::detail {
 template <typename BaseTy,
           typename RegionTy =
               region1d_t<typename BaseTy::element_type, BaseTy::length, 1>>
+#ifndef __SYCL_DEVICE_ONLY__
 class simd_view_impl {
+#else
+class [[__sycl_detail__::__uses_aspects__(
+    sycl::aspect::ext_intel_esimd)]] simd_view_impl {
+#endif
 public:
   /// The only type which is supposed to extend this one and be used in user
   /// code.
@@ -230,7 +235,7 @@ public:
   /// @param Offset is the starting element offset.
   /// @return \c simd_view representing the subregion.
   template <int Size, int Stride, typename T = Derived,
-            typename = sycl::detail::enable_if_t<T::is1D()>>
+            typename = std::enable_if_t<T::is1D()>>
   auto select(uint16_t Offset = 0) {
     using TopRegionTy = region1d_t<element_type, Size, Stride>;
     using NewRegionTy = std::pair<TopRegionTy, RegionTy>;
@@ -280,8 +285,7 @@ public:
   /// @return 2D simd_view of the subregion.
   // clang-format on
   template <int SizeY, int StrideY, int SizeX, int StrideX,
-            typename T = Derived,
-            typename = sycl::detail::enable_if_t<T::is2D()>>
+            typename T = Derived, typename = std::enable_if_t<T::is2D()>>
   auto select(uint16_t OffsetY = 0, uint16_t OffsetX = 0) {
     using TopRegionTy =
         region2d_t<element_type, SizeY, StrideY, SizeX, StrideX>;
@@ -295,10 +299,9 @@ public:
   /* OPASSIGN simd_obj_impl */                                                 \
   template <class T1, int N1, class SimdT1, class T = element_type,            \
             class SimdT = BaseTy,                                              \
-            class =                                                            \
-                std::enable_if_t<(is_simd_type_v<SimdT> ==                     \
-                                  is_simd_type_v<SimdT1>)&&(N1 == length) &&   \
-                                 COND>>                                        \
+            class = std::enable_if_t<(is_simd_type_v<SimdT> ==                 \
+                                      is_simd_type_v<SimdT1>) &&               \
+                                     (N1 == length) && COND>>                  \
   Derived &operator OPASSIGN(const simd_obj_impl<T1, N1, SimdT1> &RHS) {       \
     auto Res = read() BINOP RHS;                                               \
     write(Res);                                                                \
@@ -311,9 +314,8 @@ public:
                 typename __ESIMD_NS::shape_type<RegionT1>::element_type,       \
             class T = element_type, class SimdT = BaseTy,                      \
             class = std::enable_if_t<                                          \
-                (is_simd_type_v<SimdT> == is_simd_type_v<SimdT1>)&&(           \
-                    length == __ESIMD_NS::shape_type<RegionT1>::length) &&     \
-                COND>>                                                         \
+                (is_simd_type_v<SimdT> == is_simd_type_v<SimdT1>) &&           \
+                (length == __ESIMD_NS::shape_type<RegionT1>::length) && COND>> \
   Derived &operator OPASSIGN(const simd_view_impl<SimdT1, RegionT1> &RHS) {    \
     *this OPASSIGN RHS.read();                                                 \
     return cast_this_to_derived();                                             \
@@ -399,14 +401,10 @@ public:
   /// region viewed by this object.
   /// @param Other The source rvalue object.
   /// @return This object cast to the derived class.
-  Derived &operator=(Derived &&Other) {
-    __esimd_move_test_proxy(Other);
-    return write(Other.read());
-  }
+  Derived &operator=(Derived &&Other) { return write(Other.read()); }
 
   /// Move assignment operator. Updates the target region viewed by this object.
   simd_view_impl &operator=(simd_view_impl &&Other) {
-    __esimd_move_test_proxy(Other);
     return write(Other.read());
   }
 
@@ -420,8 +418,8 @@ public:
   /// @return This object cast to the derived class.
   template <class T, int N, class SimdT,
             class = std::enable_if_t<(is_simd_type_v<SimdT> ==
-                                      is_simd_type_v<BaseTy>)&&(length ==
-                                                                SimdT::length)>>
+                                      is_simd_type_v<BaseTy>) &&
+                                     (length == SimdT::length)>>
   Derived &operator=(const simd_obj_impl<T, N, SimdT> &Other) {
     return write(convert_vector<element_type, typename SimdT::element_type, N>(
         Other.data()));
@@ -472,8 +470,7 @@ public:
   /// Reference a row from a 2D region. Available only if this object is 2D.
   /// @param i Row index.
   /// @return A 2D view of a region representing i'th row of the target region.
-  template <typename T = Derived,
-            typename = sycl::detail::enable_if_t<T::is2D()>>
+  template <typename T = Derived, typename = std::enable_if_t<T::is2D()>>
   auto row(int i) {
     return select<1, 1, getSizeX(), 1>(i, 0)
         .template bit_cast_view<element_type>();
@@ -483,8 +480,7 @@ public:
   /// @param i Column index.
   /// @return A 2D view of a region representing i'th column of the target
   ///   region.
-  template <typename T = Derived,
-            typename = sycl::detail::enable_if_t<T::is2D()>>
+  template <typename T = Derived, typename = std::enable_if_t<T::is2D()>>
   auto column(int i) {
     return select<getSizeY(), 1, 1, 1>(0, i);
   }
@@ -492,8 +488,7 @@ public:
   /// Read a single element from the target 1D region.
   /// @param i Element index.
   /// @return Element value.
-  template <typename T = Derived,
-            typename = sycl::detail::enable_if_t<T::is1D()>>
+  template <typename T = Derived, typename = std::enable_if_t<T::is1D()>>
   element_type operator[](int i) const {
     const auto v = read();
     return v[i];
@@ -502,8 +497,7 @@ public:
   /// Return a writeable view of a single element in the target 1D region.
   /// @param i Element index.
   /// @return A new 1D view of the element. Can be used to update it.
-  template <typename T = Derived,
-            typename = sycl::detail::enable_if_t<T::is1D()>>
+  template <typename T = Derived, typename = std::enable_if_t<T::is1D()>>
   auto operator[](int i) {
     return select<1, 1>(i);
   }
@@ -572,29 +566,23 @@ public:
 
   /// Applies simd_obj_impl::any operation to the target region.
   template <typename T1 = element_type, typename T2 = BaseTy,
-            typename = std::enable_if_t<std::is_integral<T1>::value, T2>>
+            typename = std::enable_if_t<std::is_integral_v<T1>, T2>>
   uint16_t any() {
     return read().any();
   }
 
   /// Applies simd_obj_impl::all operation to the target region.
   template <typename T1 = element_type, typename T2 = BaseTy,
-            typename = std::enable_if_t<std::is_integral<T1>::value, T2>>
+            typename = std::enable_if_t<std::is_integral_v<T1>, T2>>
   uint16_t all() {
     return read().all();
   }
 
   /// @cond EXCLUDE
 public:
-  // Getter for the test proxy member, if enabled
-  __ESIMD_DECLARE_TEST_PROXY_ACCESS
-
 protected:
   // The reference to the base object, which must be a simd object
   BaseTy &M_base;
-
-  // The test proxy if enabled
-  __ESIMD_DECLARE_TEST_PROXY
 
   // The region applied on the base object. Its type could be
   // - region1d_t
@@ -608,5 +596,5 @@ protected:
 /// @} sycl_esimd_core_vectors
 
 } // namespace ext::intel::esimd::detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

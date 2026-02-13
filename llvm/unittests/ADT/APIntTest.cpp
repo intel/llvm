@@ -8,10 +8,15 @@
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/Support/Alignment.h"
 #include "gtest/gtest.h"
 #include <array>
+#include <climits>
+#include <limits>
+#include <optional>
 
 using namespace llvm;
 
@@ -22,6 +27,73 @@ TEST(APIntTest, ValueInit) {
   EXPECT_TRUE(!Zero);
   EXPECT_TRUE(!Zero.zext(64));
   EXPECT_TRUE(!Zero.sext(64));
+}
+
+// Test that 0^5 == 0
+TEST(APIntTest, PowZeroTo5) {
+  APInt Zero = APInt::getZero(32);
+  EXPECT_TRUE(!Zero);
+  APInt ZeroTo5 = APIntOps::pow(Zero, 5);
+  EXPECT_TRUE(!ZeroTo5);
+}
+
+// Test that 1^16 == 1
+TEST(APIntTest, PowOneTo16) {
+  APInt One(32, 1);
+  APInt OneTo16 = APIntOps::pow(One, 16);
+  EXPECT_EQ(One, OneTo16);
+}
+
+// Test that 2^10 == 1024
+TEST(APIntTest, PowerTwoTo10) {
+  APInt Two(32, 2);
+  APInt TwoTo20 = APIntOps::pow(Two, 10);
+  APInt V_1024(32, 1024);
+  EXPECT_EQ(TwoTo20, V_1024);
+}
+
+// Test that 3^3 == 27
+TEST(APIntTest, PowerThreeTo3) {
+  APInt Three(32, 3);
+  APInt ThreeTo3 = APIntOps::pow(Three, 3);
+  APInt V_27(32, 27);
+  EXPECT_EQ(ThreeTo3, V_27);
+}
+
+// Test that SignedMaxValue^3 == SignedMaxValue
+TEST(APIntTest, PowerSignedMaxValue) {
+  APInt SignedMaxValue = APInt::getSignedMaxValue(32);
+  APInt MaxTo3 = APIntOps::pow(SignedMaxValue, 3);
+  EXPECT_EQ(MaxTo3, SignedMaxValue);
+}
+
+// Test that MaxValue^3 == MaxValue
+TEST(APIntTest, PowerMaxValue) {
+  APInt MaxValue = APInt::getMaxValue(32);
+  APInt MaxTo3 = APIntOps::pow(MaxValue, 3);
+  EXPECT_EQ(MaxValue, MaxTo3);
+}
+
+// Test that SignedMinValue^3 == 0
+TEST(APIntTest, PowerSignedMinValueTo3) {
+  APInt SignedMinValue = APInt::getSignedMinValue(32);
+  APInt MinTo3 = APIntOps::pow(SignedMinValue, 3);
+  EXPECT_TRUE(MinTo3.isZero());
+}
+
+// Test that SignedMinValue^1 == SignedMinValue
+TEST(APIntTest, PowerSignedMinValueTo1) {
+  APInt SignedMinValue = APInt::getSignedMinValue(32);
+  APInt MinTo1 = APIntOps::pow(SignedMinValue, 1);
+  EXPECT_EQ(SignedMinValue, MinTo1);
+}
+
+// Test that MaxValue^3 == MaxValue
+TEST(APIntTest, ZeroToZero) {
+  APInt Zero = APInt::getZero(32);
+  APInt One(32, 1);
+  APInt ZeroToZero = APIntOps::pow(Zero, 0);
+  EXPECT_EQ(ZeroToZero, One);
 }
 
 // Test that APInt shift left works when bitwidth > 64 and shiftamt == 0
@@ -39,145 +111,145 @@ TEST(APIntTest, i64_ArithmeticRightShiftNegative) {
 
 TEST(APIntTest, i128_NegativeCount) {
   APInt Minus3(128, static_cast<uint64_t>(-3), true);
-  EXPECT_EQ(126u, Minus3.countLeadingOnes());
+  EXPECT_EQ(126u, Minus3.countl_one());
   EXPECT_EQ(-3, Minus3.getSExtValue());
 
   APInt Minus1(128, static_cast<uint64_t>(-1), true);
-  EXPECT_EQ(0u, Minus1.countLeadingZeros());
-  EXPECT_EQ(128u, Minus1.countLeadingOnes());
+  EXPECT_EQ(0u, Minus1.countl_zero());
+  EXPECT_EQ(128u, Minus1.countl_one());
   EXPECT_EQ(128u, Minus1.getActiveBits());
-  EXPECT_EQ(0u, Minus1.countTrailingZeros());
-  EXPECT_EQ(128u, Minus1.countTrailingOnes());
-  EXPECT_EQ(128u, Minus1.countPopulation());
+  EXPECT_EQ(0u, Minus1.countr_zero());
+  EXPECT_EQ(128u, Minus1.countr_one());
+  EXPECT_EQ(128u, Minus1.popcount());
   EXPECT_EQ(-1, Minus1.getSExtValue());
 }
 
 TEST(APIntTest, i33_Count) {
   APInt i33minus2(33, static_cast<uint64_t>(-2), true);
-  EXPECT_EQ(0u, i33minus2.countLeadingZeros());
-  EXPECT_EQ(32u, i33minus2.countLeadingOnes());
+  EXPECT_EQ(0u, i33minus2.countl_zero());
+  EXPECT_EQ(32u, i33minus2.countl_one());
   EXPECT_EQ(33u, i33minus2.getActiveBits());
-  EXPECT_EQ(1u, i33minus2.countTrailingZeros());
-  EXPECT_EQ(32u, i33minus2.countPopulation());
+  EXPECT_EQ(1u, i33minus2.countr_zero());
+  EXPECT_EQ(32u, i33minus2.popcount());
   EXPECT_EQ(-2, i33minus2.getSExtValue());
   EXPECT_EQ(((uint64_t)-2)&((1ull<<33) -1), i33minus2.getZExtValue());
 }
 
 TEST(APIntTest, i61_Count) {
   APInt i61(61, 1 << 15);
-  EXPECT_EQ(45u, i61.countLeadingZeros());
-  EXPECT_EQ(0u, i61.countLeadingOnes());
+  EXPECT_EQ(45u, i61.countl_zero());
+  EXPECT_EQ(0u, i61.countl_one());
   EXPECT_EQ(16u, i61.getActiveBits());
-  EXPECT_EQ(15u, i61.countTrailingZeros());
-  EXPECT_EQ(1u, i61.countPopulation());
+  EXPECT_EQ(15u, i61.countr_zero());
+  EXPECT_EQ(1u, i61.popcount());
   EXPECT_EQ(static_cast<int64_t>(1 << 15), i61.getSExtValue());
   EXPECT_EQ(static_cast<uint64_t>(1 << 15), i61.getZExtValue());
 
   i61.setBits(8, 19);
-  EXPECT_EQ(42u, i61.countLeadingZeros());
-  EXPECT_EQ(0u, i61.countLeadingOnes());
+  EXPECT_EQ(42u, i61.countl_zero());
+  EXPECT_EQ(0u, i61.countl_one());
   EXPECT_EQ(19u, i61.getActiveBits());
-  EXPECT_EQ(8u, i61.countTrailingZeros());
-  EXPECT_EQ(11u, i61.countPopulation());
+  EXPECT_EQ(8u, i61.countr_zero());
+  EXPECT_EQ(11u, i61.popcount());
   EXPECT_EQ(static_cast<int64_t>((1 << 19) - (1 << 8)), i61.getSExtValue());
   EXPECT_EQ(static_cast<uint64_t>((1 << 19) - (1 << 8)), i61.getZExtValue());
 }
 
 TEST(APIntTest, i65_Count) {
   APInt i65(65, 0, true);
-  EXPECT_EQ(65u, i65.countLeadingZeros());
-  EXPECT_EQ(0u, i65.countLeadingOnes());
+  EXPECT_EQ(65u, i65.countl_zero());
+  EXPECT_EQ(0u, i65.countl_one());
   EXPECT_EQ(0u, i65.getActiveBits());
   EXPECT_EQ(1u, i65.getActiveWords());
-  EXPECT_EQ(65u, i65.countTrailingZeros());
-  EXPECT_EQ(0u, i65.countPopulation());
+  EXPECT_EQ(65u, i65.countr_zero());
+  EXPECT_EQ(0u, i65.popcount());
 
   APInt i65minus(65, 0, true);
   i65minus.setBit(64);
-  EXPECT_EQ(0u, i65minus.countLeadingZeros());
-  EXPECT_EQ(1u, i65minus.countLeadingOnes());
+  EXPECT_EQ(0u, i65minus.countl_zero());
+  EXPECT_EQ(1u, i65minus.countl_one());
   EXPECT_EQ(65u, i65minus.getActiveBits());
-  EXPECT_EQ(64u, i65minus.countTrailingZeros());
-  EXPECT_EQ(1u, i65minus.countPopulation());
+  EXPECT_EQ(64u, i65minus.countr_zero());
+  EXPECT_EQ(1u, i65minus.popcount());
 }
 
 TEST(APIntTest, i128_PositiveCount) {
   APInt u128max = APInt::getAllOnes(128);
-  EXPECT_EQ(128u, u128max.countLeadingOnes());
-  EXPECT_EQ(0u, u128max.countLeadingZeros());
+  EXPECT_EQ(128u, u128max.countl_one());
+  EXPECT_EQ(0u, u128max.countl_zero());
   EXPECT_EQ(128u, u128max.getActiveBits());
-  EXPECT_EQ(0u, u128max.countTrailingZeros());
-  EXPECT_EQ(128u, u128max.countTrailingOnes());
-  EXPECT_EQ(128u, u128max.countPopulation());
+  EXPECT_EQ(0u, u128max.countr_zero());
+  EXPECT_EQ(128u, u128max.countr_one());
+  EXPECT_EQ(128u, u128max.popcount());
 
   APInt u64max(128, static_cast<uint64_t>(-1), false);
-  EXPECT_EQ(64u, u64max.countLeadingZeros());
-  EXPECT_EQ(0u, u64max.countLeadingOnes());
+  EXPECT_EQ(64u, u64max.countl_zero());
+  EXPECT_EQ(0u, u64max.countl_one());
   EXPECT_EQ(64u, u64max.getActiveBits());
-  EXPECT_EQ(0u, u64max.countTrailingZeros());
-  EXPECT_EQ(64u, u64max.countTrailingOnes());
-  EXPECT_EQ(64u, u64max.countPopulation());
+  EXPECT_EQ(0u, u64max.countr_zero());
+  EXPECT_EQ(64u, u64max.countr_one());
+  EXPECT_EQ(64u, u64max.popcount());
   EXPECT_EQ((uint64_t)~0ull, u64max.getZExtValue());
 
   APInt zero(128, 0, true);
-  EXPECT_EQ(128u, zero.countLeadingZeros());
-  EXPECT_EQ(0u, zero.countLeadingOnes());
+  EXPECT_EQ(128u, zero.countl_zero());
+  EXPECT_EQ(0u, zero.countl_one());
   EXPECT_EQ(0u, zero.getActiveBits());
-  EXPECT_EQ(128u, zero.countTrailingZeros());
-  EXPECT_EQ(0u, zero.countTrailingOnes());
-  EXPECT_EQ(0u, zero.countPopulation());
+  EXPECT_EQ(128u, zero.countr_zero());
+  EXPECT_EQ(0u, zero.countr_one());
+  EXPECT_EQ(0u, zero.popcount());
   EXPECT_EQ(0u, zero.getSExtValue());
   EXPECT_EQ(0u, zero.getZExtValue());
 
   APInt one(128, 1, true);
-  EXPECT_EQ(127u, one.countLeadingZeros());
-  EXPECT_EQ(0u, one.countLeadingOnes());
+  EXPECT_EQ(127u, one.countl_zero());
+  EXPECT_EQ(0u, one.countl_one());
   EXPECT_EQ(1u, one.getActiveBits());
-  EXPECT_EQ(0u, one.countTrailingZeros());
-  EXPECT_EQ(1u, one.countTrailingOnes());
-  EXPECT_EQ(1u, one.countPopulation());
+  EXPECT_EQ(0u, one.countr_zero());
+  EXPECT_EQ(1u, one.countr_one());
+  EXPECT_EQ(1u, one.popcount());
   EXPECT_EQ(1, one.getSExtValue());
   EXPECT_EQ(1u, one.getZExtValue());
 
   APInt s128(128, 2, true);
-  EXPECT_EQ(126u, s128.countLeadingZeros());
-  EXPECT_EQ(0u, s128.countLeadingOnes());
+  EXPECT_EQ(126u, s128.countl_zero());
+  EXPECT_EQ(0u, s128.countl_one());
   EXPECT_EQ(2u, s128.getActiveBits());
-  EXPECT_EQ(1u, s128.countTrailingZeros());
-  EXPECT_EQ(0u, s128.countTrailingOnes());
-  EXPECT_EQ(1u, s128.countPopulation());
+  EXPECT_EQ(1u, s128.countr_zero());
+  EXPECT_EQ(0u, s128.countr_one());
+  EXPECT_EQ(1u, s128.popcount());
   EXPECT_EQ(2, s128.getSExtValue());
   EXPECT_EQ(2u, s128.getZExtValue());
 
   // NOP Test
   s128.setBits(42, 42);
-  EXPECT_EQ(126u, s128.countLeadingZeros());
-  EXPECT_EQ(0u, s128.countLeadingOnes());
+  EXPECT_EQ(126u, s128.countl_zero());
+  EXPECT_EQ(0u, s128.countl_one());
   EXPECT_EQ(2u, s128.getActiveBits());
-  EXPECT_EQ(1u, s128.countTrailingZeros());
-  EXPECT_EQ(0u, s128.countTrailingOnes());
-  EXPECT_EQ(1u, s128.countPopulation());
+  EXPECT_EQ(1u, s128.countr_zero());
+  EXPECT_EQ(0u, s128.countr_one());
+  EXPECT_EQ(1u, s128.popcount());
   EXPECT_EQ(2, s128.getSExtValue());
   EXPECT_EQ(2u, s128.getZExtValue());
 
   s128.setBits(3, 32);
-  EXPECT_EQ(96u, s128.countLeadingZeros());
-  EXPECT_EQ(0u, s128.countLeadingOnes());
+  EXPECT_EQ(96u, s128.countl_zero());
+  EXPECT_EQ(0u, s128.countl_one());
   EXPECT_EQ(32u, s128.getActiveBits());
-  EXPECT_EQ(33u, s128.getMinSignedBits());
-  EXPECT_EQ(1u, s128.countTrailingZeros());
-  EXPECT_EQ(0u, s128.countTrailingOnes());
-  EXPECT_EQ(30u, s128.countPopulation());
+  EXPECT_EQ(33u, s128.getSignificantBits());
+  EXPECT_EQ(1u, s128.countr_zero());
+  EXPECT_EQ(0u, s128.countr_one());
+  EXPECT_EQ(30u, s128.popcount());
   EXPECT_EQ(static_cast<uint32_t>((~0u << 3) | 2), s128.getZExtValue());
 
   s128.setBits(62, 128);
-  EXPECT_EQ(0u, s128.countLeadingZeros());
-  EXPECT_EQ(66u, s128.countLeadingOnes());
+  EXPECT_EQ(0u, s128.countl_zero());
+  EXPECT_EQ(66u, s128.countl_one());
   EXPECT_EQ(128u, s128.getActiveBits());
-  EXPECT_EQ(63u, s128.getMinSignedBits());
-  EXPECT_EQ(1u, s128.countTrailingZeros());
-  EXPECT_EQ(0u, s128.countTrailingOnes());
-  EXPECT_EQ(96u, s128.countPopulation());
+  EXPECT_EQ(63u, s128.getSignificantBits());
+  EXPECT_EQ(1u, s128.countr_zero());
+  EXPECT_EQ(0u, s128.countr_one());
+  EXPECT_EQ(96u, s128.popcount());
   EXPECT_EQ(static_cast<int64_t>((3ull << 62) |
                                  static_cast<uint32_t>((~0u << 3) | 2)),
             s128.getSExtValue());
@@ -185,41 +257,42 @@ TEST(APIntTest, i128_PositiveCount) {
 
 TEST(APIntTest, i256) {
   APInt s256(256, 15, true);
-  EXPECT_EQ(252u, s256.countLeadingZeros());
-  EXPECT_EQ(0u, s256.countLeadingOnes());
+  EXPECT_EQ(252u, s256.countl_zero());
+  EXPECT_EQ(0u, s256.countl_one());
   EXPECT_EQ(4u, s256.getActiveBits());
-  EXPECT_EQ(0u, s256.countTrailingZeros());
-  EXPECT_EQ(4u, s256.countTrailingOnes());
-  EXPECT_EQ(4u, s256.countPopulation());
+  EXPECT_EQ(0u, s256.countr_zero());
+  EXPECT_EQ(4u, s256.countr_one());
+  EXPECT_EQ(4u, s256.popcount());
   EXPECT_EQ(15, s256.getSExtValue());
   EXPECT_EQ(15u, s256.getZExtValue());
 
   s256.setBits(62, 66);
-  EXPECT_EQ(190u, s256.countLeadingZeros());
-  EXPECT_EQ(0u, s256.countLeadingOnes());
+  EXPECT_EQ(190u, s256.countl_zero());
+  EXPECT_EQ(0u, s256.countl_one());
   EXPECT_EQ(66u, s256.getActiveBits());
-  EXPECT_EQ(67u, s256.getMinSignedBits());
-  EXPECT_EQ(0u, s256.countTrailingZeros());
-  EXPECT_EQ(4u, s256.countTrailingOnes());
-  EXPECT_EQ(8u, s256.countPopulation());
+  EXPECT_EQ(67u, s256.getSignificantBits());
+  EXPECT_EQ(0u, s256.countr_zero());
+  EXPECT_EQ(4u, s256.countr_one());
+  EXPECT_EQ(8u, s256.popcount());
 
   s256.setBits(60, 256);
-  EXPECT_EQ(0u, s256.countLeadingZeros());
-  EXPECT_EQ(196u, s256.countLeadingOnes());
+  EXPECT_EQ(0u, s256.countl_zero());
+  EXPECT_EQ(196u, s256.countl_one());
   EXPECT_EQ(256u, s256.getActiveBits());
-  EXPECT_EQ(61u, s256.getMinSignedBits());
-  EXPECT_EQ(0u, s256.countTrailingZeros());
-  EXPECT_EQ(4u, s256.countTrailingOnes());
-  EXPECT_EQ(200u, s256.countPopulation());
+  EXPECT_EQ(61u, s256.getSignificantBits());
+  EXPECT_EQ(0u, s256.countr_zero());
+  EXPECT_EQ(4u, s256.countr_one());
+  EXPECT_EQ(200u, s256.popcount());
   EXPECT_EQ(static_cast<int64_t>((~0ull << 60) | 15), s256.getSExtValue());
 }
 
 TEST(APIntTest, i1) {
-  const APInt neg_two(1, static_cast<uint64_t>(-2), true);
+  const APInt neg_two(1, static_cast<uint64_t>(-2), true,
+                      /*implicitTrunc=*/true);
   const APInt neg_one(1, static_cast<uint64_t>(-1), true);
   const APInt zero(1, 0);
   const APInt one(1, 1);
-  const APInt two(1, 2);
+  const APInt two(1, 2, false, /*implicitTrunc=*/true);
 
   EXPECT_EQ(0, neg_two.getSExtValue());
   EXPECT_EQ(-1, neg_one.getSExtValue());
@@ -1105,11 +1178,11 @@ TEST(APIntTest, fromString) {
   EXPECT_EQ(APInt(32, 3), APInt(32,  "+11", 2));
   EXPECT_EQ(APInt(32, 4), APInt(32, "+100", 2));
 
-  EXPECT_EQ(APInt(32, uint64_t(-0LL)), APInt(32,   "-0", 2));
-  EXPECT_EQ(APInt(32, uint64_t(-1LL)), APInt(32,   "-1", 2));
-  EXPECT_EQ(APInt(32, uint64_t(-2LL)), APInt(32,  "-10", 2));
-  EXPECT_EQ(APInt(32, uint64_t(-3LL)), APInt(32,  "-11", 2));
-  EXPECT_EQ(APInt(32, uint64_t(-4LL)), APInt(32, "-100", 2));
+  EXPECT_EQ(APInt(32, uint32_t(-0LL)), APInt(32, "-0", 2));
+  EXPECT_EQ(APInt(32, uint32_t(-1LL)), APInt(32, "-1", 2));
+  EXPECT_EQ(APInt(32, uint32_t(-2LL)), APInt(32, "-10", 2));
+  EXPECT_EQ(APInt(32, uint32_t(-3LL)), APInt(32, "-11", 2));
+  EXPECT_EQ(APInt(32, uint32_t(-4LL)), APInt(32, "-100", 2));
 
   EXPECT_EQ(APInt(32,  0), APInt(32,  "0",  8));
   EXPECT_EQ(APInt(32,  1), APInt(32,  "1",  8));
@@ -1125,12 +1198,12 @@ TEST(APIntTest, fromString) {
   EXPECT_EQ(APInt(32, +15), APInt(32,  "+17", 8));
   EXPECT_EQ(APInt(32, +16), APInt(32,  "+20", 8));
 
-  EXPECT_EQ(APInt(32,  uint64_t(-0LL)), APInt(32,  "-0",  8));
-  EXPECT_EQ(APInt(32,  uint64_t(-1LL)), APInt(32,  "-1",  8));
-  EXPECT_EQ(APInt(32,  uint64_t(-7LL)), APInt(32,  "-7",  8));
-  EXPECT_EQ(APInt(32,  uint64_t(-8LL)), APInt(32,  "-10", 8));
-  EXPECT_EQ(APInt(32, uint64_t(-15LL)), APInt(32,  "-17", 8));
-  EXPECT_EQ(APInt(32, uint64_t(-16LL)), APInt(32,  "-20", 8));
+  EXPECT_EQ(APInt(32, uint32_t(-0LL)), APInt(32, "-0", 8));
+  EXPECT_EQ(APInt(32, uint32_t(-1LL)), APInt(32, "-1", 8));
+  EXPECT_EQ(APInt(32, uint32_t(-7LL)), APInt(32, "-7", 8));
+  EXPECT_EQ(APInt(32, uint32_t(-8LL)), APInt(32, "-10", 8));
+  EXPECT_EQ(APInt(32, uint32_t(-15LL)), APInt(32, "-17", 8));
+  EXPECT_EQ(APInt(32, uint32_t(-16LL)), APInt(32, "-20", 8));
 
   EXPECT_EQ(APInt(32,  0), APInt(32,  "0", 10));
   EXPECT_EQ(APInt(32,  1), APInt(32,  "1", 10));
@@ -1139,12 +1212,12 @@ TEST(APIntTest, fromString) {
   EXPECT_EQ(APInt(32, 19), APInt(32, "19", 10));
   EXPECT_EQ(APInt(32, 20), APInt(32, "20", 10));
 
-  EXPECT_EQ(APInt(32,  uint64_t(-0LL)), APInt(32,  "-0", 10));
-  EXPECT_EQ(APInt(32,  uint64_t(-1LL)), APInt(32,  "-1", 10));
-  EXPECT_EQ(APInt(32,  uint64_t(-9LL)), APInt(32,  "-9", 10));
-  EXPECT_EQ(APInt(32, uint64_t(-10LL)), APInt(32, "-10", 10));
-  EXPECT_EQ(APInt(32, uint64_t(-19LL)), APInt(32, "-19", 10));
-  EXPECT_EQ(APInt(32, uint64_t(-20LL)), APInt(32, "-20", 10));
+  EXPECT_EQ(APInt(32, uint32_t(-0LL)), APInt(32, "-0", 10));
+  EXPECT_EQ(APInt(32, uint32_t(-1LL)), APInt(32, "-1", 10));
+  EXPECT_EQ(APInt(32, uint32_t(-9LL)), APInt(32, "-9", 10));
+  EXPECT_EQ(APInt(32, uint32_t(-10LL)), APInt(32, "-10", 10));
+  EXPECT_EQ(APInt(32, uint32_t(-19LL)), APInt(32, "-19", 10));
+  EXPECT_EQ(APInt(32, uint32_t(-20LL)), APInt(32, "-20", 10));
 
   EXPECT_EQ(APInt(32,  0), APInt(32,  "0", 16));
   EXPECT_EQ(APInt(32,  1), APInt(32,  "1", 16));
@@ -1153,12 +1226,12 @@ TEST(APIntTest, fromString) {
   EXPECT_EQ(APInt(32, 31), APInt(32, "1F", 16));
   EXPECT_EQ(APInt(32, 32), APInt(32, "20", 16));
 
-  EXPECT_EQ(APInt(32,  uint64_t(-0LL)), APInt(32,  "-0", 16));
-  EXPECT_EQ(APInt(32,  uint64_t(-1LL)), APInt(32,  "-1", 16));
-  EXPECT_EQ(APInt(32, uint64_t(-15LL)), APInt(32,  "-F", 16));
-  EXPECT_EQ(APInt(32, uint64_t(-16LL)), APInt(32, "-10", 16));
-  EXPECT_EQ(APInt(32, uint64_t(-31LL)), APInt(32, "-1F", 16));
-  EXPECT_EQ(APInt(32, uint64_t(-32LL)), APInt(32, "-20", 16));
+  EXPECT_EQ(APInt(32, uint32_t(-0LL)), APInt(32, "-0", 16));
+  EXPECT_EQ(APInt(32, uint32_t(-1LL)), APInt(32, "-1", 16));
+  EXPECT_EQ(APInt(32, uint32_t(-15LL)), APInt(32, "-F", 16));
+  EXPECT_EQ(APInt(32, uint32_t(-16LL)), APInt(32, "-10", 16));
+  EXPECT_EQ(APInt(32, uint32_t(-31LL)), APInt(32, "-1F", 16));
+  EXPECT_EQ(APInt(32, uint32_t(-32LL)), APInt(32, "-20", 16));
 
   EXPECT_EQ(APInt(32,  0), APInt(32,  "0", 36));
   EXPECT_EQ(APInt(32,  1), APInt(32,  "1", 36));
@@ -1167,12 +1240,12 @@ TEST(APIntTest, fromString) {
   EXPECT_EQ(APInt(32, 71), APInt(32, "1Z", 36));
   EXPECT_EQ(APInt(32, 72), APInt(32, "20", 36));
 
-  EXPECT_EQ(APInt(32,  uint64_t(-0LL)), APInt(32,  "-0", 36));
-  EXPECT_EQ(APInt(32,  uint64_t(-1LL)), APInt(32,  "-1", 36));
-  EXPECT_EQ(APInt(32, uint64_t(-35LL)), APInt(32,  "-Z", 36));
-  EXPECT_EQ(APInt(32, uint64_t(-36LL)), APInt(32, "-10", 36));
-  EXPECT_EQ(APInt(32, uint64_t(-71LL)), APInt(32, "-1Z", 36));
-  EXPECT_EQ(APInt(32, uint64_t(-72LL)), APInt(32, "-20", 36));
+  EXPECT_EQ(APInt(32, uint32_t(-0LL)), APInt(32, "-0", 36));
+  EXPECT_EQ(APInt(32, uint32_t(-1LL)), APInt(32, "-1", 36));
+  EXPECT_EQ(APInt(32, uint32_t(-35LL)), APInt(32, "-Z", 36));
+  EXPECT_EQ(APInt(32, uint32_t(-36LL)), APInt(32, "-10", 36));
+  EXPECT_EQ(APInt(32, uint32_t(-71LL)), APInt(32, "-1Z", 36));
+  EXPECT_EQ(APInt(32, uint32_t(-72LL)), APInt(32, "-20", 36));
 }
 
 TEST(APIntTest, SaturatingMath) {
@@ -1196,10 +1269,10 @@ TEST(APIntTest, SaturatingMath) {
   EXPECT_EQ(APInt(6, 31), AP_42.truncSSat(6));
   EXPECT_EQ(APInt(5, 15), AP_42.truncSSat(5));
 
-  EXPECT_EQ(APInt(8, -56), AP_200.truncSSat(8));
-  EXPECT_EQ(APInt(7, -56), AP_200.truncSSat(7));
-  EXPECT_EQ(APInt(6, -32), AP_200.truncSSat(6));
-  EXPECT_EQ(APInt(5, -16), AP_200.truncSSat(5));
+  EXPECT_EQ(APInt(8, -56, true), AP_200.truncSSat(8));
+  EXPECT_EQ(APInt(7, -56, true), AP_200.truncSSat(7));
+  EXPECT_EQ(APInt(6, -32, true), AP_200.truncSSat(6));
+  EXPECT_EQ(APInt(5, -16, true), AP_200.truncSSat(5));
 
   EXPECT_EQ(APInt(8, 200), AP_100.uadd_sat(AP_100));
   EXPECT_EQ(APInt(8, 255), AP_100.uadd_sat(AP_200));
@@ -1207,52 +1280,53 @@ TEST(APIntTest, SaturatingMath) {
 
   EXPECT_EQ(APInt(8, 110), AP_10.sadd_sat(AP_100));
   EXPECT_EQ(APInt(8, 127), AP_100.sadd_sat(AP_100));
-  EXPECT_EQ(APInt(8, -128), (-AP_100).sadd_sat(-AP_100));
-  EXPECT_EQ(APInt(8, -128), APInt(8, -128).sadd_sat(APInt(8, -128)));
+  EXPECT_EQ(APInt(8, -128, true), (-AP_100).sadd_sat(-AP_100));
+  EXPECT_EQ(APInt(8, -128, true),
+            APInt(8, -128, true).sadd_sat(APInt(8, -128, true)));
 
   EXPECT_EQ(APInt(8, 90), AP_100.usub_sat(AP_10));
   EXPECT_EQ(APInt(8, 0), AP_100.usub_sat(AP_200));
   EXPECT_EQ(APInt(8, 0), APInt(8, 0).usub_sat(APInt(8, 255)));
 
-  EXPECT_EQ(APInt(8, -90), AP_10.ssub_sat(AP_100));
+  EXPECT_EQ(APInt(8, -90, true), AP_10.ssub_sat(AP_100));
   EXPECT_EQ(APInt(8, 127), AP_100.ssub_sat(-AP_100));
-  EXPECT_EQ(APInt(8, -128), (-AP_100).ssub_sat(AP_100));
-  EXPECT_EQ(APInt(8, -128), APInt(8, -128).ssub_sat(APInt(8, 127)));
+  EXPECT_EQ(APInt(8, -128, true), (-AP_100).ssub_sat(AP_100));
+  EXPECT_EQ(APInt(8, -128, true), APInt(8, -128, true).ssub_sat(APInt(8, 127)));
 
   EXPECT_EQ(APInt(8, 250), APInt(8, 50).umul_sat(APInt(8, 5)));
   EXPECT_EQ(APInt(8, 255), APInt(8, 50).umul_sat(APInt(8, 6)));
-  EXPECT_EQ(APInt(8, 255), APInt(8, -128).umul_sat(APInt(8, 3)));
-  EXPECT_EQ(APInt(8, 255), APInt(8, 3).umul_sat(APInt(8, -128)));
-  EXPECT_EQ(APInt(8, 255), APInt(8, -128).umul_sat(APInt(8, -128)));
+  EXPECT_EQ(APInt(8, 255), APInt(8, -128, true).umul_sat(APInt(8, 3)));
+  EXPECT_EQ(APInt(8, 255), APInt(8, 3).umul_sat(APInt(8, -128, true)));
+  EXPECT_EQ(APInt(8, 255), APInt(8, -128, true).umul_sat(APInt(8, -128, true)));
 
   EXPECT_EQ(APInt(8, 125), APInt(8, 25).smul_sat(APInt(8, 5)));
   EXPECT_EQ(APInt(8, 127), APInt(8, 25).smul_sat(APInt(8, 6)));
   EXPECT_EQ(APInt(8, 127), APInt(8, 127).smul_sat(APInt(8, 127)));
-  EXPECT_EQ(APInt(8, -125), APInt(8, -25).smul_sat(APInt(8, 5)));
-  EXPECT_EQ(APInt(8, -125), APInt(8, 25).smul_sat(APInt(8, -5)));
-  EXPECT_EQ(APInt(8, 125), APInt(8, -25).smul_sat(APInt(8, -5)));
+  EXPECT_EQ(APInt(8, -125, true), APInt(8, -25, true).smul_sat(APInt(8, 5)));
+  EXPECT_EQ(APInt(8, -125, true), APInt(8, 25).smul_sat(APInt(8, -5, true)));
+  EXPECT_EQ(APInt(8, 125), APInt(8, -25, true).smul_sat(APInt(8, -5, true)));
   EXPECT_EQ(APInt(8, 125), APInt(8, 25).smul_sat(APInt(8, 5)));
-  EXPECT_EQ(APInt(8, -128), APInt(8, -25).smul_sat(APInt(8, 6)));
-  EXPECT_EQ(APInt(8, -128), APInt(8, 25).smul_sat(APInt(8, -6)));
-  EXPECT_EQ(APInt(8, 127), APInt(8, -25).smul_sat(APInt(8, -6)));
+  EXPECT_EQ(APInt(8, -128, true), APInt(8, -25, true).smul_sat(APInt(8, 6)));
+  EXPECT_EQ(APInt(8, -128, true), APInt(8, 25).smul_sat(APInt(8, -6, true)));
+  EXPECT_EQ(APInt(8, 127), APInt(8, -25, true).smul_sat(APInt(8, -6, true)));
   EXPECT_EQ(APInt(8, 127), APInt(8, 25).smul_sat(APInt(8, 6)));
 
   EXPECT_EQ(APInt(8, 128), APInt(8, 4).ushl_sat(APInt(8, 5)));
   EXPECT_EQ(APInt(8, 255), APInt(8, 4).ushl_sat(APInt(8, 6)));
   EXPECT_EQ(APInt(8, 128), APInt(8, 1).ushl_sat(APInt(8, 7)));
   EXPECT_EQ(APInt(8, 255), APInt(8, 1).ushl_sat(APInt(8, 8)));
-  EXPECT_EQ(APInt(8, 255), APInt(8, -128).ushl_sat(APInt(8, 2)));
+  EXPECT_EQ(APInt(8, 255), APInt(8, -128, true).ushl_sat(APInt(8, 2)));
   EXPECT_EQ(APInt(8, 255), APInt(8, 64).ushl_sat(APInt(8, 2)));
-  EXPECT_EQ(APInt(8, 255), APInt(8, 64).ushl_sat(APInt(8, -2)));
+  EXPECT_EQ(APInt(8, 255), APInt(8, 64).ushl_sat(APInt(8, -2, true)));
 
   EXPECT_EQ(APInt(8, 64), APInt(8, 4).sshl_sat(APInt(8, 4)));
   EXPECT_EQ(APInt(8, 127), APInt(8, 4).sshl_sat(APInt(8, 5)));
   EXPECT_EQ(APInt(8, 127), APInt(8, 1).sshl_sat(APInt(8, 8)));
-  EXPECT_EQ(APInt(8, -64), APInt(8, -4).sshl_sat(APInt(8, 4)));
-  EXPECT_EQ(APInt(8, -128), APInt(8, -4).sshl_sat(APInt(8, 5)));
-  EXPECT_EQ(APInt(8, -128), APInt(8, -4).sshl_sat(APInt(8, 6)));
-  EXPECT_EQ(APInt(8, -128), APInt(8, -1).sshl_sat(APInt(8, 7)));
-  EXPECT_EQ(APInt(8, -128), APInt(8, -1).sshl_sat(APInt(8, 8)));
+  EXPECT_EQ(APInt(8, -64, true), APInt(8, -4, true).sshl_sat(APInt(8, 4)));
+  EXPECT_EQ(APInt(8, -128, true), APInt(8, -4, true).sshl_sat(APInt(8, 5)));
+  EXPECT_EQ(APInt(8, -128, true), APInt(8, -4, true).sshl_sat(APInt(8, 6)));
+  EXPECT_EQ(APInt(8, -128, true), APInt(8, -1, true).sshl_sat(APInt(8, 7)));
+  EXPECT_EQ(APInt(8, -128, true), APInt(8, -1, true).sshl_sat(APInt(8, 8)));
 }
 
 TEST(APIntTest, FromArray) {
@@ -1376,38 +1450,76 @@ TEST(APIntTest, toString) {
   EXPECT_EQ(std::string(S), "0");
   S.clear();
 
+  // with separators
+  APInt(64, 140).toString(S, 2, false, true, false, true);
+  EXPECT_EQ(std::string(S), "0b1000'1100");
+  S.clear();
+  APInt(64, 1024).toString(S, 8, false, true, false, true);
+  EXPECT_EQ(std::string(S), "02'000");
+  S.clear();
+  APInt(64, 1000000).toString(S, 10, false, true, false, true);
+  EXPECT_EQ(std::string(S), "1'000'000");
+  S.clear();
+  APInt(64, 1000000).toString(S, 16, false, true, true, true);
+  EXPECT_EQ(std::string(S), "0xF'4240");
+  S.clear();
+  APInt(64, 1'000'000'000).toString(S, 36, false, false, false, true);
+  EXPECT_EQ(std::string(S), "gj'dgxs");
+  S.clear();
+
   isSigned = false;
-  APInt(8, 255, isSigned).toString(S, 2, isSigned, true);
+  APInt(8, 255).toString(S, 2, isSigned, true);
   EXPECT_EQ(std::string(S), "0b11111111");
   S.clear();
-  APInt(8, 255, isSigned).toString(S, 8, isSigned, true);
+  APInt(8, 255).toString(S, 8, isSigned, true);
   EXPECT_EQ(std::string(S), "0377");
   S.clear();
-  APInt(8, 255, isSigned).toString(S, 10, isSigned, true);
+  APInt(8, 255).toString(S, 10, isSigned, true);
   EXPECT_EQ(std::string(S), "255");
   S.clear();
-  APInt(8, 255, isSigned).toString(S, 16, isSigned, true);
+  APInt(8, 255).toString(S, 16, isSigned, true, /*UpperCase=*/false);
+  EXPECT_EQ(std::string(S), "0xff");
+  S.clear();
+  APInt(8, 255).toString(S, 16, isSigned, true);
   EXPECT_EQ(std::string(S), "0xFF");
   S.clear();
-  APInt(8, 255, isSigned).toString(S, 36, isSigned, false);
+  APInt(8, 255).toString(S, 36, isSigned, false);
   EXPECT_EQ(std::string(S), "73");
   S.clear();
 
   isSigned = true;
-  APInt(8, 255, isSigned).toString(S, 2, isSigned, true);
+  APInt(8, 255).toString(S, 2, isSigned, true);
   EXPECT_EQ(std::string(S), "-0b1");
   S.clear();
-  APInt(8, 255, isSigned).toString(S, 8, isSigned, true);
+  APInt(8, 255).toString(S, 8, isSigned, true);
   EXPECT_EQ(std::string(S), "-01");
   S.clear();
-  APInt(8, 255, isSigned).toString(S, 10, isSigned, true);
+  APInt(8, 255).toString(S, 10, isSigned, true);
   EXPECT_EQ(std::string(S), "-1");
   S.clear();
-  APInt(8, 255, isSigned).toString(S, 16, isSigned, true);
+  APInt(8, 255).toString(S, 16, isSigned, true);
   EXPECT_EQ(std::string(S), "-0x1");
   S.clear();
-  APInt(8, 255, isSigned).toString(S, 36, isSigned, false);
+  APInt(8, 255).toString(S, 36, isSigned, false);
   EXPECT_EQ(std::string(S), "-1");
+  S.clear();
+
+  // negative with separators
+  APInt(64, -140, isSigned).toString(S, 2, isSigned, true, false, true);
+  EXPECT_EQ(std::string(S), "-0b1000'1100");
+  S.clear();
+  APInt(64, -1024, isSigned).toString(S, 8, isSigned, true, false, true);
+  EXPECT_EQ(std::string(S), "-02'000");
+  S.clear();
+  APInt(64, -1000000, isSigned).toString(S, 10, isSigned, true, false, true);
+  EXPECT_EQ(std::string(S), "-1'000'000");
+  S.clear();
+  APInt(64, -1000000, isSigned).toString(S, 16, isSigned, true, true, true);
+  EXPECT_EQ(std::string(S), "-0xF'4240");
+  S.clear();
+  APInt(64, -1'000'000'000, isSigned)
+      .toString(S, 36, isSigned, false, false, true);
+  EXPECT_EQ(std::string(S), "-gj'dgxs");
   S.clear();
 }
 
@@ -1471,7 +1583,7 @@ TEST(APIntTest, Rotate) {
   EXPECT_EQ(APInt(32, 2), APInt(32, 1).rotl(APInt(33, 33)));
   EXPECT_EQ(APInt(32, (1 << 8)), APInt(32, 1).rotl(APInt(32, 40)));
   EXPECT_EQ(APInt(32, (1 << 30)), APInt(32, 1).rotl(APInt(31, 30)));
-  EXPECT_EQ(APInt(32, (1 << 31)), APInt(32, 1).rotl(APInt(31, 31)));
+  EXPECT_EQ(APInt(32, (1u << 31)), APInt(32, 1).rotl(APInt(31, 31)));
 
   EXPECT_EQ(APInt(32, 1), APInt(32, 1).rotl(APInt(1, 0)));
   EXPECT_EQ(APInt(32, 2), APInt(32, 1).rotl(APInt(1, 1)));
@@ -1498,24 +1610,24 @@ TEST(APIntTest, Rotate) {
   EXPECT_EQ(APInt(8, 16),  APInt(8, 1).rotr(4));
   EXPECT_EQ(APInt(8, 1),   APInt(8, 1).rotr(8));
 
-  EXPECT_EQ(APInt(32, (1 << 31)), APInt(32, 1).rotr(33));
-  EXPECT_EQ(APInt(32, (1 << 31)), APInt(32, 1).rotr(APInt(32, 33)));
+  EXPECT_EQ(APInt(32, (1u << 31)), APInt(32, 1).rotr(33));
+  EXPECT_EQ(APInt(32, (1u << 31)), APInt(32, 1).rotr(APInt(32, 33)));
 
-  EXPECT_EQ(APInt(32, (1 << 31)), APInt(32, 1).rotr(33));
-  EXPECT_EQ(APInt(32, (1 << 31)), APInt(32, 1).rotr(APInt(32, 33)));
-  EXPECT_EQ(APInt(32, (1 << 31)), APInt(32, 1).rotr(APInt(33, 33)));
+  EXPECT_EQ(APInt(32, (1u << 31)), APInt(32, 1).rotr(33));
+  EXPECT_EQ(APInt(32, (1u << 31)), APInt(32, 1).rotr(APInt(32, 33)));
+  EXPECT_EQ(APInt(32, (1u << 31)), APInt(32, 1).rotr(APInt(33, 33)));
   EXPECT_EQ(APInt(32, (1 << 24)), APInt(32, 1).rotr(APInt(32, 40)));
 
   EXPECT_EQ(APInt(32, (1 << 2)), APInt(32, 1).rotr(APInt(31, 30)));
   EXPECT_EQ(APInt(32, (1 << 1)), APInt(32, 1).rotr(APInt(31, 31)));
 
   EXPECT_EQ(APInt(32, 1), APInt(32, 1).rotr(APInt(1, 0)));
-  EXPECT_EQ(APInt(32, (1 << 31)), APInt(32, 1).rotr(APInt(1, 1)));
+  EXPECT_EQ(APInt(32, (1u << 31)), APInt(32, 1).rotr(APInt(1, 1)));
 
   EXPECT_EQ(APInt(32, (1 << 28)), APInt(32, 1).rotr(APInt(3, 4)));
 
   EXPECT_EQ(APInt(32, 1), APInt(32, 1).rotr(APInt(64, 64)));
-  EXPECT_EQ(APInt(32, (1 << 31)), APInt(32, 1).rotr(APInt(64, 65)));
+  EXPECT_EQ(APInt(32, (1u << 31)), APInt(32, 1).rotr(APInt(64, 65)));
 
   EXPECT_EQ(APInt(7, 48), APInt(7, 3).rotr(APInt(7, 3)));
   EXPECT_EQ(APInt(7, 48), APInt(7, 3).rotr(APInt(7, 10)));
@@ -1537,7 +1649,7 @@ TEST(APIntTest, Splat) {
 
   APInt ValB(3, 5);
   EXPECT_EQ(APInt(4, 0xD), APInt::getSplat(4, ValB));
-  EXPECT_EQ(APInt(15, 0xDB6D), APInt::getSplat(15, ValB));
+  EXPECT_EQ(APInt(15, 0x5B6D), APInt::getSplat(15, ValB));
 }
 
 TEST(APIntTest, tcDecrement) {
@@ -1791,6 +1903,16 @@ TEST(APIntTest, isShiftedMask) {
   }
 }
 
+TEST(APIntTest, isOneBitSet) {
+  EXPECT_FALSE(APInt(5, 0x00).isOneBitSet(0));
+  EXPECT_FALSE(APInt(5, 0x02).isOneBitSet(0));
+  EXPECT_FALSE(APInt(5, 0x03).isOneBitSet(0));
+  EXPECT_TRUE(APInt(5, 0x02).isOneBitSet(1));
+  EXPECT_TRUE(APInt(32, (unsigned)(0xffu << 31)).isOneBitSet(31));
+
+  EXPECT_TRUE(APInt::getOneBitSet(255, 13).isOneBitSet(13));
+}
+
 TEST(APIntTest, isPowerOf2) {
   EXPECT_FALSE(APInt(5, 0x00).isPowerOf2());
   EXPECT_FALSE(APInt(32, 0x11).isPowerOf2());
@@ -1835,6 +1957,25 @@ TEST(APIntTest, isNegatedPowerOf2) {
       EXPECT_TRUE(ShiftMaskVal.isNegatedPowerOf2());
     }
   }
+}
+
+TEST(APIntTest, isAligned) {
+  struct {
+    uint64_t alignment;
+    uint64_t offset;
+    bool isAligned;
+  } Tests[] = {
+      {1, 0, true},  {1, 1, true},  {1, 5, true},  {2, 0, true},
+      {2, 1, false}, {2, 2, true},  {2, 7, false}, {2, 16, true},
+      {4, 0, true},  {4, 1, false}, {4, 4, true},  {4, 6, false},
+  };
+  for (const auto &T : Tests)
+    EXPECT_EQ(APInt(32, T.offset).isAligned(Align(T.alignment)), T.isAligned);
+  // Tests for APInt that can't represent the alignment.
+  // Here APInt(4, I) can represent values from 0 to 15.
+  EXPECT_TRUE(APInt(4, 0).isAligned(Align(32))); // zero is always aligned.
+  for (int I = 1; I < 16; ++I)
+    EXPECT_FALSE(APInt(4, I).isAligned(Align(32)));
 }
 
 // Test that self-move works with EXPENSIVE_CHECKS. It calls std::shuffle which
@@ -2121,262 +2262,335 @@ TEST(APIntTest, extractBitsAsZExtValue) {
 
 TEST(APIntTest, getLowBitsSet) {
   APInt i128lo64 = APInt::getLowBitsSet(128, 64);
-  EXPECT_EQ(0u, i128lo64.countLeadingOnes());
-  EXPECT_EQ(64u, i128lo64.countLeadingZeros());
+  EXPECT_EQ(0u, i128lo64.countl_one());
+  EXPECT_EQ(64u, i128lo64.countl_zero());
   EXPECT_EQ(64u, i128lo64.getActiveBits());
-  EXPECT_EQ(0u, i128lo64.countTrailingZeros());
-  EXPECT_EQ(64u, i128lo64.countTrailingOnes());
-  EXPECT_EQ(64u, i128lo64.countPopulation());
+  EXPECT_EQ(0u, i128lo64.countr_zero());
+  EXPECT_EQ(64u, i128lo64.countr_one());
+  EXPECT_EQ(64u, i128lo64.popcount());
 }
 
 TEST(APIntTest, getBitsSet) {
   APInt i64hi1lo1 = APInt::getBitsSet(64, 1, 63);
-  EXPECT_EQ(0u, i64hi1lo1.countLeadingOnes());
-  EXPECT_EQ(1u, i64hi1lo1.countLeadingZeros());
+  EXPECT_EQ(0u, i64hi1lo1.countl_one());
+  EXPECT_EQ(1u, i64hi1lo1.countl_zero());
   EXPECT_EQ(63u, i64hi1lo1.getActiveBits());
-  EXPECT_EQ(1u, i64hi1lo1.countTrailingZeros());
-  EXPECT_EQ(0u, i64hi1lo1.countTrailingOnes());
-  EXPECT_EQ(62u, i64hi1lo1.countPopulation());
+  EXPECT_EQ(1u, i64hi1lo1.countr_zero());
+  EXPECT_EQ(0u, i64hi1lo1.countr_one());
+  EXPECT_EQ(62u, i64hi1lo1.popcount());
 
   APInt i127hi1lo1 = APInt::getBitsSet(127, 1, 126);
-  EXPECT_EQ(0u, i127hi1lo1.countLeadingOnes());
-  EXPECT_EQ(1u, i127hi1lo1.countLeadingZeros());
+  EXPECT_EQ(0u, i127hi1lo1.countl_one());
+  EXPECT_EQ(1u, i127hi1lo1.countl_zero());
   EXPECT_EQ(126u, i127hi1lo1.getActiveBits());
-  EXPECT_EQ(1u, i127hi1lo1.countTrailingZeros());
-  EXPECT_EQ(0u, i127hi1lo1.countTrailingOnes());
-  EXPECT_EQ(125u, i127hi1lo1.countPopulation());
+  EXPECT_EQ(1u, i127hi1lo1.countr_zero());
+  EXPECT_EQ(0u, i127hi1lo1.countr_one());
+  EXPECT_EQ(125u, i127hi1lo1.popcount());
 }
 
 TEST(APIntTest, getBitsSetWithWrap) {
   APInt i64hi1lo1 = APInt::getBitsSetWithWrap(64, 1, 63);
-  EXPECT_EQ(0u, i64hi1lo1.countLeadingOnes());
-  EXPECT_EQ(1u, i64hi1lo1.countLeadingZeros());
+  EXPECT_EQ(0u, i64hi1lo1.countl_one());
+  EXPECT_EQ(1u, i64hi1lo1.countl_zero());
   EXPECT_EQ(63u, i64hi1lo1.getActiveBits());
-  EXPECT_EQ(1u, i64hi1lo1.countTrailingZeros());
-  EXPECT_EQ(0u, i64hi1lo1.countTrailingOnes());
-  EXPECT_EQ(62u, i64hi1lo1.countPopulation());
+  EXPECT_EQ(1u, i64hi1lo1.countr_zero());
+  EXPECT_EQ(0u, i64hi1lo1.countr_one());
+  EXPECT_EQ(62u, i64hi1lo1.popcount());
 
   APInt i127hi1lo1 = APInt::getBitsSetWithWrap(127, 1, 126);
-  EXPECT_EQ(0u, i127hi1lo1.countLeadingOnes());
-  EXPECT_EQ(1u, i127hi1lo1.countLeadingZeros());
+  EXPECT_EQ(0u, i127hi1lo1.countl_one());
+  EXPECT_EQ(1u, i127hi1lo1.countl_zero());
   EXPECT_EQ(126u, i127hi1lo1.getActiveBits());
-  EXPECT_EQ(1u, i127hi1lo1.countTrailingZeros());
-  EXPECT_EQ(0u, i127hi1lo1.countTrailingOnes());
-  EXPECT_EQ(125u, i127hi1lo1.countPopulation());
+  EXPECT_EQ(1u, i127hi1lo1.countr_zero());
+  EXPECT_EQ(0u, i127hi1lo1.countr_one());
+  EXPECT_EQ(125u, i127hi1lo1.popcount());
 
   APInt i64hi1lo1wrap = APInt::getBitsSetWithWrap(64, 63, 1);
-  EXPECT_EQ(1u, i64hi1lo1wrap.countLeadingOnes());
-  EXPECT_EQ(0u, i64hi1lo1wrap.countLeadingZeros());
+  EXPECT_EQ(1u, i64hi1lo1wrap.countl_one());
+  EXPECT_EQ(0u, i64hi1lo1wrap.countl_zero());
   EXPECT_EQ(64u, i64hi1lo1wrap.getActiveBits());
-  EXPECT_EQ(0u, i64hi1lo1wrap.countTrailingZeros());
-  EXPECT_EQ(1u, i64hi1lo1wrap.countTrailingOnes());
-  EXPECT_EQ(2u, i64hi1lo1wrap.countPopulation());
+  EXPECT_EQ(0u, i64hi1lo1wrap.countr_zero());
+  EXPECT_EQ(1u, i64hi1lo1wrap.countr_one());
+  EXPECT_EQ(2u, i64hi1lo1wrap.popcount());
 
   APInt i127hi1lo1wrap = APInt::getBitsSetWithWrap(127, 126, 1);
-  EXPECT_EQ(1u, i127hi1lo1wrap.countLeadingOnes());
-  EXPECT_EQ(0u, i127hi1lo1wrap.countLeadingZeros());
+  EXPECT_EQ(1u, i127hi1lo1wrap.countl_one());
+  EXPECT_EQ(0u, i127hi1lo1wrap.countl_zero());
   EXPECT_EQ(127u, i127hi1lo1wrap.getActiveBits());
-  EXPECT_EQ(0u, i127hi1lo1wrap.countTrailingZeros());
-  EXPECT_EQ(1u, i127hi1lo1wrap.countTrailingOnes());
-  EXPECT_EQ(2u, i127hi1lo1wrap.countPopulation());
+  EXPECT_EQ(0u, i127hi1lo1wrap.countr_zero());
+  EXPECT_EQ(1u, i127hi1lo1wrap.countr_one());
+  EXPECT_EQ(2u, i127hi1lo1wrap.popcount());
 
   APInt i32hiequallowrap = APInt::getBitsSetWithWrap(32, 10, 10);
-  EXPECT_EQ(32u, i32hiequallowrap.countLeadingOnes());
-  EXPECT_EQ(0u, i32hiequallowrap.countLeadingZeros());
+  EXPECT_EQ(32u, i32hiequallowrap.countl_one());
+  EXPECT_EQ(0u, i32hiequallowrap.countl_zero());
   EXPECT_EQ(32u, i32hiequallowrap.getActiveBits());
-  EXPECT_EQ(0u, i32hiequallowrap.countTrailingZeros());
-  EXPECT_EQ(32u, i32hiequallowrap.countTrailingOnes());
-  EXPECT_EQ(32u, i32hiequallowrap.countPopulation());
+  EXPECT_EQ(0u, i32hiequallowrap.countr_zero());
+  EXPECT_EQ(32u, i32hiequallowrap.countr_one());
+  EXPECT_EQ(32u, i32hiequallowrap.popcount());
 }
 
 TEST(APIntTest, getHighBitsSet) {
   APInt i64hi32 = APInt::getHighBitsSet(64, 32);
-  EXPECT_EQ(32u, i64hi32.countLeadingOnes());
-  EXPECT_EQ(0u, i64hi32.countLeadingZeros());
+  EXPECT_EQ(32u, i64hi32.countl_one());
+  EXPECT_EQ(0u, i64hi32.countl_zero());
   EXPECT_EQ(64u, i64hi32.getActiveBits());
-  EXPECT_EQ(32u, i64hi32.countTrailingZeros());
-  EXPECT_EQ(0u, i64hi32.countTrailingOnes());
-  EXPECT_EQ(32u, i64hi32.countPopulation());
+  EXPECT_EQ(32u, i64hi32.countr_zero());
+  EXPECT_EQ(0u, i64hi32.countr_one());
+  EXPECT_EQ(32u, i64hi32.popcount());
 }
 
 TEST(APIntTest, getBitsSetFrom) {
   APInt i64hi31 = APInt::getBitsSetFrom(64, 33);
-  EXPECT_EQ(31u, i64hi31.countLeadingOnes());
-  EXPECT_EQ(0u, i64hi31.countLeadingZeros());
+  EXPECT_EQ(31u, i64hi31.countl_one());
+  EXPECT_EQ(0u, i64hi31.countl_zero());
   EXPECT_EQ(64u, i64hi31.getActiveBits());
-  EXPECT_EQ(33u, i64hi31.countTrailingZeros());
-  EXPECT_EQ(0u, i64hi31.countTrailingOnes());
-  EXPECT_EQ(31u, i64hi31.countPopulation());
+  EXPECT_EQ(33u, i64hi31.countr_zero());
+  EXPECT_EQ(0u, i64hi31.countr_one());
+  EXPECT_EQ(31u, i64hi31.popcount());
 }
 
 TEST(APIntTest, setLowBits) {
   APInt i64lo32(64, 0);
   i64lo32.setLowBits(32);
-  EXPECT_EQ(0u, i64lo32.countLeadingOnes());
-  EXPECT_EQ(32u, i64lo32.countLeadingZeros());
+  EXPECT_EQ(0u, i64lo32.countl_one());
+  EXPECT_EQ(32u, i64lo32.countl_zero());
   EXPECT_EQ(32u, i64lo32.getActiveBits());
-  EXPECT_EQ(0u, i64lo32.countTrailingZeros());
-  EXPECT_EQ(32u, i64lo32.countTrailingOnes());
-  EXPECT_EQ(32u, i64lo32.countPopulation());
+  EXPECT_EQ(0u, i64lo32.countr_zero());
+  EXPECT_EQ(32u, i64lo32.countr_one());
+  EXPECT_EQ(32u, i64lo32.popcount());
 
   APInt i128lo64(128, 0);
   i128lo64.setLowBits(64);
-  EXPECT_EQ(0u, i128lo64.countLeadingOnes());
-  EXPECT_EQ(64u, i128lo64.countLeadingZeros());
+  EXPECT_EQ(0u, i128lo64.countl_one());
+  EXPECT_EQ(64u, i128lo64.countl_zero());
   EXPECT_EQ(64u, i128lo64.getActiveBits());
-  EXPECT_EQ(0u, i128lo64.countTrailingZeros());
-  EXPECT_EQ(64u, i128lo64.countTrailingOnes());
-  EXPECT_EQ(64u, i128lo64.countPopulation());
+  EXPECT_EQ(0u, i128lo64.countr_zero());
+  EXPECT_EQ(64u, i128lo64.countr_one());
+  EXPECT_EQ(64u, i128lo64.popcount());
 
   APInt i128lo24(128, 0);
   i128lo24.setLowBits(24);
-  EXPECT_EQ(0u, i128lo24.countLeadingOnes());
-  EXPECT_EQ(104u, i128lo24.countLeadingZeros());
+  EXPECT_EQ(0u, i128lo24.countl_one());
+  EXPECT_EQ(104u, i128lo24.countl_zero());
   EXPECT_EQ(24u, i128lo24.getActiveBits());
-  EXPECT_EQ(0u, i128lo24.countTrailingZeros());
-  EXPECT_EQ(24u, i128lo24.countTrailingOnes());
-  EXPECT_EQ(24u, i128lo24.countPopulation());
+  EXPECT_EQ(0u, i128lo24.countr_zero());
+  EXPECT_EQ(24u, i128lo24.countr_one());
+  EXPECT_EQ(24u, i128lo24.popcount());
 
   APInt i128lo104(128, 0);
   i128lo104.setLowBits(104);
-  EXPECT_EQ(0u, i128lo104.countLeadingOnes());
-  EXPECT_EQ(24u, i128lo104.countLeadingZeros());
+  EXPECT_EQ(0u, i128lo104.countl_one());
+  EXPECT_EQ(24u, i128lo104.countl_zero());
   EXPECT_EQ(104u, i128lo104.getActiveBits());
-  EXPECT_EQ(0u, i128lo104.countTrailingZeros());
-  EXPECT_EQ(104u, i128lo104.countTrailingOnes());
-  EXPECT_EQ(104u, i128lo104.countPopulation());
+  EXPECT_EQ(0u, i128lo104.countr_zero());
+  EXPECT_EQ(104u, i128lo104.countr_one());
+  EXPECT_EQ(104u, i128lo104.popcount());
 
   APInt i128lo0(128, 0);
   i128lo0.setLowBits(0);
-  EXPECT_EQ(0u, i128lo0.countLeadingOnes());
-  EXPECT_EQ(128u, i128lo0.countLeadingZeros());
+  EXPECT_EQ(0u, i128lo0.countl_one());
+  EXPECT_EQ(128u, i128lo0.countl_zero());
   EXPECT_EQ(0u, i128lo0.getActiveBits());
-  EXPECT_EQ(128u, i128lo0.countTrailingZeros());
-  EXPECT_EQ(0u, i128lo0.countTrailingOnes());
-  EXPECT_EQ(0u, i128lo0.countPopulation());
+  EXPECT_EQ(128u, i128lo0.countr_zero());
+  EXPECT_EQ(0u, i128lo0.countr_one());
+  EXPECT_EQ(0u, i128lo0.popcount());
 
   APInt i80lo79(80, 0);
   i80lo79.setLowBits(79);
-  EXPECT_EQ(0u, i80lo79.countLeadingOnes());
-  EXPECT_EQ(1u, i80lo79.countLeadingZeros());
+  EXPECT_EQ(0u, i80lo79.countl_one());
+  EXPECT_EQ(1u, i80lo79.countl_zero());
   EXPECT_EQ(79u, i80lo79.getActiveBits());
-  EXPECT_EQ(0u, i80lo79.countTrailingZeros());
-  EXPECT_EQ(79u, i80lo79.countTrailingOnes());
-  EXPECT_EQ(79u, i80lo79.countPopulation());
+  EXPECT_EQ(0u, i80lo79.countr_zero());
+  EXPECT_EQ(79u, i80lo79.countr_one());
+  EXPECT_EQ(79u, i80lo79.popcount());
 }
 
 TEST(APIntTest, setHighBits) {
   APInt i64hi32(64, 0);
   i64hi32.setHighBits(32);
-  EXPECT_EQ(32u, i64hi32.countLeadingOnes());
-  EXPECT_EQ(0u, i64hi32.countLeadingZeros());
+  EXPECT_EQ(32u, i64hi32.countl_one());
+  EXPECT_EQ(0u, i64hi32.countl_zero());
   EXPECT_EQ(64u, i64hi32.getActiveBits());
-  EXPECT_EQ(32u, i64hi32.countTrailingZeros());
-  EXPECT_EQ(0u, i64hi32.countTrailingOnes());
-  EXPECT_EQ(32u, i64hi32.countPopulation());
+  EXPECT_EQ(32u, i64hi32.countr_zero());
+  EXPECT_EQ(0u, i64hi32.countr_one());
+  EXPECT_EQ(32u, i64hi32.popcount());
 
   APInt i128hi64(128, 0);
   i128hi64.setHighBits(64);
-  EXPECT_EQ(64u, i128hi64.countLeadingOnes());
-  EXPECT_EQ(0u, i128hi64.countLeadingZeros());
+  EXPECT_EQ(64u, i128hi64.countl_one());
+  EXPECT_EQ(0u, i128hi64.countl_zero());
   EXPECT_EQ(128u, i128hi64.getActiveBits());
-  EXPECT_EQ(64u, i128hi64.countTrailingZeros());
-  EXPECT_EQ(0u, i128hi64.countTrailingOnes());
-  EXPECT_EQ(64u, i128hi64.countPopulation());
+  EXPECT_EQ(64u, i128hi64.countr_zero());
+  EXPECT_EQ(0u, i128hi64.countr_one());
+  EXPECT_EQ(64u, i128hi64.popcount());
 
   APInt i128hi24(128, 0);
   i128hi24.setHighBits(24);
-  EXPECT_EQ(24u, i128hi24.countLeadingOnes());
-  EXPECT_EQ(0u, i128hi24.countLeadingZeros());
+  EXPECT_EQ(24u, i128hi24.countl_one());
+  EXPECT_EQ(0u, i128hi24.countl_zero());
   EXPECT_EQ(128u, i128hi24.getActiveBits());
-  EXPECT_EQ(104u, i128hi24.countTrailingZeros());
-  EXPECT_EQ(0u, i128hi24.countTrailingOnes());
-  EXPECT_EQ(24u, i128hi24.countPopulation());
+  EXPECT_EQ(104u, i128hi24.countr_zero());
+  EXPECT_EQ(0u, i128hi24.countr_one());
+  EXPECT_EQ(24u, i128hi24.popcount());
 
   APInt i128hi104(128, 0);
   i128hi104.setHighBits(104);
-  EXPECT_EQ(104u, i128hi104.countLeadingOnes());
-  EXPECT_EQ(0u, i128hi104.countLeadingZeros());
+  EXPECT_EQ(104u, i128hi104.countl_one());
+  EXPECT_EQ(0u, i128hi104.countl_zero());
   EXPECT_EQ(128u, i128hi104.getActiveBits());
-  EXPECT_EQ(24u, i128hi104.countTrailingZeros());
-  EXPECT_EQ(0u, i128hi104.countTrailingOnes());
-  EXPECT_EQ(104u, i128hi104.countPopulation());
+  EXPECT_EQ(24u, i128hi104.countr_zero());
+  EXPECT_EQ(0u, i128hi104.countr_one());
+  EXPECT_EQ(104u, i128hi104.popcount());
 
   APInt i128hi0(128, 0);
   i128hi0.setHighBits(0);
-  EXPECT_EQ(0u, i128hi0.countLeadingOnes());
-  EXPECT_EQ(128u, i128hi0.countLeadingZeros());
+  EXPECT_EQ(0u, i128hi0.countl_one());
+  EXPECT_EQ(128u, i128hi0.countl_zero());
   EXPECT_EQ(0u, i128hi0.getActiveBits());
-  EXPECT_EQ(128u, i128hi0.countTrailingZeros());
-  EXPECT_EQ(0u, i128hi0.countTrailingOnes());
-  EXPECT_EQ(0u, i128hi0.countPopulation());
+  EXPECT_EQ(128u, i128hi0.countr_zero());
+  EXPECT_EQ(0u, i128hi0.countr_one());
+  EXPECT_EQ(0u, i128hi0.popcount());
 
   APInt i80hi1(80, 0);
   i80hi1.setHighBits(1);
-  EXPECT_EQ(1u, i80hi1.countLeadingOnes());
-  EXPECT_EQ(0u, i80hi1.countLeadingZeros());
+  EXPECT_EQ(1u, i80hi1.countl_one());
+  EXPECT_EQ(0u, i80hi1.countl_zero());
   EXPECT_EQ(80u, i80hi1.getActiveBits());
-  EXPECT_EQ(79u, i80hi1.countTrailingZeros());
-  EXPECT_EQ(0u, i80hi1.countTrailingOnes());
-  EXPECT_EQ(1u, i80hi1.countPopulation());
+  EXPECT_EQ(79u, i80hi1.countr_zero());
+  EXPECT_EQ(0u, i80hi1.countr_one());
+  EXPECT_EQ(1u, i80hi1.popcount());
 
   APInt i32hi16(32, 0);
   i32hi16.setHighBits(16);
-  EXPECT_EQ(16u, i32hi16.countLeadingOnes());
-  EXPECT_EQ(0u, i32hi16.countLeadingZeros());
+  EXPECT_EQ(16u, i32hi16.countl_one());
+  EXPECT_EQ(0u, i32hi16.countl_zero());
   EXPECT_EQ(32u, i32hi16.getActiveBits());
-  EXPECT_EQ(16u, i32hi16.countTrailingZeros());
-  EXPECT_EQ(0u, i32hi16.countTrailingOnes());
-  EXPECT_EQ(16u, i32hi16.countPopulation());
+  EXPECT_EQ(16u, i32hi16.countr_zero());
+  EXPECT_EQ(0u, i32hi16.countr_one());
+  EXPECT_EQ(16u, i32hi16.popcount());
 }
 
 TEST(APIntTest, setBitsFrom) {
   APInt i64from63(64, 0);
   i64from63.setBitsFrom(63);
-  EXPECT_EQ(1u, i64from63.countLeadingOnes());
-  EXPECT_EQ(0u, i64from63.countLeadingZeros());
+  EXPECT_EQ(1u, i64from63.countl_one());
+  EXPECT_EQ(0u, i64from63.countl_zero());
   EXPECT_EQ(64u, i64from63.getActiveBits());
-  EXPECT_EQ(63u, i64from63.countTrailingZeros());
-  EXPECT_EQ(0u, i64from63.countTrailingOnes());
-  EXPECT_EQ(1u, i64from63.countPopulation());
+  EXPECT_EQ(63u, i64from63.countr_zero());
+  EXPECT_EQ(0u, i64from63.countr_one());
+  EXPECT_EQ(1u, i64from63.popcount());
 }
 
 TEST(APIntTest, setAllBits) {
   APInt i32(32, 0);
   i32.setAllBits();
-  EXPECT_EQ(32u, i32.countLeadingOnes());
-  EXPECT_EQ(0u, i32.countLeadingZeros());
+  EXPECT_EQ(32u, i32.countl_one());
+  EXPECT_EQ(0u, i32.countl_zero());
   EXPECT_EQ(32u, i32.getActiveBits());
-  EXPECT_EQ(0u, i32.countTrailingZeros());
-  EXPECT_EQ(32u, i32.countTrailingOnes());
-  EXPECT_EQ(32u, i32.countPopulation());
+  EXPECT_EQ(0u, i32.countr_zero());
+  EXPECT_EQ(32u, i32.countr_one());
+  EXPECT_EQ(32u, i32.popcount());
 
   APInt i64(64, 0);
   i64.setAllBits();
-  EXPECT_EQ(64u, i64.countLeadingOnes());
-  EXPECT_EQ(0u, i64.countLeadingZeros());
+  EXPECT_EQ(64u, i64.countl_one());
+  EXPECT_EQ(0u, i64.countl_zero());
   EXPECT_EQ(64u, i64.getActiveBits());
-  EXPECT_EQ(0u, i64.countTrailingZeros());
-  EXPECT_EQ(64u, i64.countTrailingOnes());
-  EXPECT_EQ(64u, i64.countPopulation());
+  EXPECT_EQ(0u, i64.countr_zero());
+  EXPECT_EQ(64u, i64.countr_one());
+  EXPECT_EQ(64u, i64.popcount());
 
   APInt i96(96, 0);
   i96.setAllBits();
-  EXPECT_EQ(96u, i96.countLeadingOnes());
-  EXPECT_EQ(0u, i96.countLeadingZeros());
+  EXPECT_EQ(96u, i96.countl_one());
+  EXPECT_EQ(0u, i96.countl_zero());
   EXPECT_EQ(96u, i96.getActiveBits());
-  EXPECT_EQ(0u, i96.countTrailingZeros());
-  EXPECT_EQ(96u, i96.countTrailingOnes());
-  EXPECT_EQ(96u, i96.countPopulation());
+  EXPECT_EQ(0u, i96.countr_zero());
+  EXPECT_EQ(96u, i96.countr_one());
+  EXPECT_EQ(96u, i96.popcount());
 
   APInt i128(128, 0);
   i128.setAllBits();
-  EXPECT_EQ(128u, i128.countLeadingOnes());
-  EXPECT_EQ(0u, i128.countLeadingZeros());
+  EXPECT_EQ(128u, i128.countl_one());
+  EXPECT_EQ(0u, i128.countl_zero());
   EXPECT_EQ(128u, i128.getActiveBits());
-  EXPECT_EQ(0u, i128.countTrailingZeros());
-  EXPECT_EQ(128u, i128.countTrailingOnes());
-  EXPECT_EQ(128u, i128.countPopulation());
+  EXPECT_EQ(0u, i128.countr_zero());
+  EXPECT_EQ(128u, i128.countr_one());
+  EXPECT_EQ(128u, i128.popcount());
+}
+
+TEST(APIntTest, clearBits) {
+  APInt i32 = APInt::getAllOnes(32);
+  i32.clearBits(1, 3);
+  EXPECT_EQ(1u, i32.countr_one());
+  EXPECT_EQ(0u, i32.countr_zero());
+  EXPECT_EQ(32u, i32.getActiveBits());
+  EXPECT_EQ(0u, i32.countl_zero());
+  EXPECT_EQ(29u, i32.countl_one());
+  EXPECT_EQ(30u, i32.popcount());
+
+  i32.clearBits(15, 15);
+  EXPECT_EQ(1u, i32.countr_one());
+  EXPECT_EQ(0u, i32.countr_zero());
+  EXPECT_EQ(32u, i32.getActiveBits());
+  EXPECT_EQ(0u, i32.countl_zero());
+  EXPECT_EQ(29u, i32.countl_one());
+  EXPECT_EQ(30u, i32.popcount());
+
+  i32.clearBits(28, 31);
+  EXPECT_EQ(1u, i32.countr_one());
+  EXPECT_EQ(0u, i32.countr_zero());
+  EXPECT_EQ(32u, i32.getActiveBits());
+  EXPECT_EQ(0u, i32.countl_zero());
+  EXPECT_EQ(1u, i32.countl_one());
+  EXPECT_EQ(27u, i32.popcount());
+  EXPECT_EQ(APInt(32, "8FFFFFF9", 16), i32);
+
+  APInt i256 = APInt::getAllOnes(256);
+  i256.clearBits(10, 250);
+  EXPECT_EQ(10u, i256.countr_one());
+  EXPECT_EQ(0u, i256.countr_zero());
+  EXPECT_EQ(256u, i256.getActiveBits());
+  EXPECT_EQ(0u, i256.countl_zero());
+  EXPECT_EQ(6u, i256.countl_one());
+  EXPECT_EQ(16u, i256.popcount());
+
+  APInt i299 = APInt::getAllOnes(299);
+  i299.clearBits(240, 250);
+  EXPECT_EQ(240u, i299.countr_one());
+  EXPECT_EQ(0u, i299.countr_zero());
+  EXPECT_EQ(299u, i299.getActiveBits());
+  EXPECT_EQ(0u, i299.countl_zero());
+  EXPECT_EQ(49u, i299.countl_one());
+  EXPECT_EQ(289u, i299.popcount());
+
+  APInt i311 = APInt::getAllOnes(311);
+  i311.clearBits(33, 99);
+  EXPECT_EQ(33u, i311.countr_one());
+  EXPECT_EQ(0u, i311.countr_zero());
+  EXPECT_EQ(311u, i311.getActiveBits());
+  EXPECT_EQ(0u, i311.countl_zero());
+  EXPECT_EQ(212u, i311.countl_one());
+  EXPECT_EQ(245u, i311.popcount());
+
+  APInt i64hi32 = APInt::getAllOnes(64);
+  i64hi32.clearBits(0, 32);
+  EXPECT_EQ(32u, i64hi32.countl_one());
+  EXPECT_EQ(0u, i64hi32.countl_zero());
+  EXPECT_EQ(64u, i64hi32.getActiveBits());
+  EXPECT_EQ(32u, i64hi32.countr_zero());
+  EXPECT_EQ(0u, i64hi32.countr_one());
+  EXPECT_EQ(32u, i64hi32.popcount());
+
+  i64hi32 = APInt::getAllOnes(64);
+  i64hi32.clearBits(32, 64);
+  EXPECT_EQ(32u, i64hi32.countr_one());
+  EXPECT_EQ(0u, i64hi32.countr_zero());
+  EXPECT_EQ(32u, i64hi32.getActiveBits());
+  EXPECT_EQ(32u, i64hi32.countl_zero());
+  EXPECT_EQ(0u, i64hi32.countl_one());
+  EXPECT_EQ(32u, i64hi32.popcount());
 }
 
 TEST(APIntTest, getLoBits) {
@@ -2400,66 +2614,199 @@ TEST(APIntTest, getHiBits) {
 TEST(APIntTest, clearLowBits) {
   APInt i64hi32 = APInt::getAllOnes(64);
   i64hi32.clearLowBits(32);
-  EXPECT_EQ(32u, i64hi32.countLeadingOnes());
-  EXPECT_EQ(0u, i64hi32.countLeadingZeros());
+  EXPECT_EQ(32u, i64hi32.countl_one());
+  EXPECT_EQ(0u, i64hi32.countl_zero());
   EXPECT_EQ(64u, i64hi32.getActiveBits());
-  EXPECT_EQ(32u, i64hi32.countTrailingZeros());
-  EXPECT_EQ(0u, i64hi32.countTrailingOnes());
-  EXPECT_EQ(32u, i64hi32.countPopulation());
+  EXPECT_EQ(32u, i64hi32.countr_zero());
+  EXPECT_EQ(0u, i64hi32.countr_one());
+  EXPECT_EQ(32u, i64hi32.popcount());
 
   APInt i128hi64 = APInt::getAllOnes(128);
   i128hi64.clearLowBits(64);
-  EXPECT_EQ(64u, i128hi64.countLeadingOnes());
-  EXPECT_EQ(0u, i128hi64.countLeadingZeros());
+  EXPECT_EQ(64u, i128hi64.countl_one());
+  EXPECT_EQ(0u, i128hi64.countl_zero());
   EXPECT_EQ(128u, i128hi64.getActiveBits());
-  EXPECT_EQ(64u, i128hi64.countTrailingZeros());
-  EXPECT_EQ(0u, i128hi64.countTrailingOnes());
-  EXPECT_EQ(64u, i128hi64.countPopulation());
+  EXPECT_EQ(64u, i128hi64.countr_zero());
+  EXPECT_EQ(0u, i128hi64.countr_one());
+  EXPECT_EQ(64u, i128hi64.popcount());
 
   APInt i128hi24 = APInt::getAllOnes(128);
   i128hi24.clearLowBits(104);
-  EXPECT_EQ(24u, i128hi24.countLeadingOnes());
-  EXPECT_EQ(0u, i128hi24.countLeadingZeros());
+  EXPECT_EQ(24u, i128hi24.countl_one());
+  EXPECT_EQ(0u, i128hi24.countl_zero());
   EXPECT_EQ(128u, i128hi24.getActiveBits());
-  EXPECT_EQ(104u, i128hi24.countTrailingZeros());
-  EXPECT_EQ(0u, i128hi24.countTrailingOnes());
-  EXPECT_EQ(24u, i128hi24.countPopulation());
+  EXPECT_EQ(104u, i128hi24.countr_zero());
+  EXPECT_EQ(0u, i128hi24.countr_one());
+  EXPECT_EQ(24u, i128hi24.popcount());
 
   APInt i128hi104 = APInt::getAllOnes(128);
   i128hi104.clearLowBits(24);
-  EXPECT_EQ(104u, i128hi104.countLeadingOnes());
-  EXPECT_EQ(0u, i128hi104.countLeadingZeros());
+  EXPECT_EQ(104u, i128hi104.countl_one());
+  EXPECT_EQ(0u, i128hi104.countl_zero());
   EXPECT_EQ(128u, i128hi104.getActiveBits());
-  EXPECT_EQ(24u, i128hi104.countTrailingZeros());
-  EXPECT_EQ(0u, i128hi104.countTrailingOnes());
-  EXPECT_EQ(104u, i128hi104.countPopulation());
+  EXPECT_EQ(24u, i128hi104.countr_zero());
+  EXPECT_EQ(0u, i128hi104.countr_one());
+  EXPECT_EQ(104u, i128hi104.popcount());
 
   APInt i128hi0 = APInt::getAllOnes(128);
   i128hi0.clearLowBits(128);
-  EXPECT_EQ(0u, i128hi0.countLeadingOnes());
-  EXPECT_EQ(128u, i128hi0.countLeadingZeros());
+  EXPECT_EQ(0u, i128hi0.countl_one());
+  EXPECT_EQ(128u, i128hi0.countl_zero());
   EXPECT_EQ(0u, i128hi0.getActiveBits());
-  EXPECT_EQ(128u, i128hi0.countTrailingZeros());
-  EXPECT_EQ(0u, i128hi0.countTrailingOnes());
-  EXPECT_EQ(0u, i128hi0.countPopulation());
+  EXPECT_EQ(128u, i128hi0.countr_zero());
+  EXPECT_EQ(0u, i128hi0.countr_one());
+  EXPECT_EQ(0u, i128hi0.popcount());
 
   APInt i80hi1 = APInt::getAllOnes(80);
   i80hi1.clearLowBits(79);
-  EXPECT_EQ(1u, i80hi1.countLeadingOnes());
-  EXPECT_EQ(0u, i80hi1.countLeadingZeros());
+  EXPECT_EQ(1u, i80hi1.countl_one());
+  EXPECT_EQ(0u, i80hi1.countl_zero());
   EXPECT_EQ(80u, i80hi1.getActiveBits());
-  EXPECT_EQ(79u, i80hi1.countTrailingZeros());
-  EXPECT_EQ(0u, i80hi1.countTrailingOnes());
-  EXPECT_EQ(1u, i80hi1.countPopulation());
+  EXPECT_EQ(79u, i80hi1.countr_zero());
+  EXPECT_EQ(0u, i80hi1.countr_one());
+  EXPECT_EQ(1u, i80hi1.popcount());
 
   APInt i32hi16 = APInt::getAllOnes(32);
   i32hi16.clearLowBits(16);
-  EXPECT_EQ(16u, i32hi16.countLeadingOnes());
-  EXPECT_EQ(0u, i32hi16.countLeadingZeros());
+  EXPECT_EQ(16u, i32hi16.countl_one());
+  EXPECT_EQ(0u, i32hi16.countl_zero());
   EXPECT_EQ(32u, i32hi16.getActiveBits());
-  EXPECT_EQ(16u, i32hi16.countTrailingZeros());
-  EXPECT_EQ(0u, i32hi16.countTrailingOnes());
-  EXPECT_EQ(16u, i32hi16.countPopulation());
+  EXPECT_EQ(16u, i32hi16.countr_zero());
+  EXPECT_EQ(0u, i32hi16.countr_one());
+  EXPECT_EQ(16u, i32hi16.popcount());
+}
+
+TEST(APIntTest, clearHighBits) {
+  APInt i64hi32 = APInt::getAllOnes(64);
+  i64hi32.clearHighBits(32);
+  EXPECT_EQ(32u, i64hi32.countr_one());
+  EXPECT_EQ(0u, i64hi32.countr_zero());
+  EXPECT_EQ(32u, i64hi32.getActiveBits());
+  EXPECT_EQ(32u, i64hi32.countl_zero());
+  EXPECT_EQ(0u, i64hi32.countl_one());
+  EXPECT_EQ(32u, i64hi32.popcount());
+
+  APInt i128hi64 = APInt::getAllOnes(128);
+  i128hi64.clearHighBits(64);
+  EXPECT_EQ(64u, i128hi64.countr_one());
+  EXPECT_EQ(0u, i128hi64.countr_zero());
+  EXPECT_EQ(64u, i128hi64.getActiveBits());
+  EXPECT_EQ(64u, i128hi64.countl_zero());
+  EXPECT_EQ(0u, i128hi64.countl_one());
+  EXPECT_EQ(64u, i128hi64.popcount());
+
+  APInt i128hi24 = APInt::getAllOnes(128);
+  i128hi24.clearHighBits(104);
+  EXPECT_EQ(24u, i128hi24.countr_one());
+  EXPECT_EQ(0u, i128hi24.countr_zero());
+  EXPECT_EQ(24u, i128hi24.getActiveBits());
+  EXPECT_EQ(104u, i128hi24.countl_zero());
+  EXPECT_EQ(0u, i128hi24.countl_one());
+  EXPECT_EQ(24u, i128hi24.popcount());
+
+  APInt i128hi104 = APInt::getAllOnes(128);
+  i128hi104.clearHighBits(24);
+  EXPECT_EQ(104u, i128hi104.countr_one());
+  EXPECT_EQ(0u, i128hi104.countr_zero());
+  EXPECT_EQ(104u, i128hi104.getActiveBits());
+  EXPECT_EQ(24u, i128hi104.countl_zero());
+  EXPECT_EQ(0u, i128hi104.countl_one());
+  EXPECT_EQ(104u, i128hi104.popcount());
+
+  APInt i128hi0 = APInt::getAllOnes(128);
+  i128hi0.clearHighBits(128);
+  EXPECT_EQ(0u, i128hi0.countr_one());
+  EXPECT_EQ(128u, i128hi0.countr_zero());
+  EXPECT_EQ(0u, i128hi0.getActiveBits());
+  EXPECT_EQ(128u, i128hi0.countl_zero());
+  EXPECT_EQ(0u, i128hi0.countl_one());
+  EXPECT_EQ(0u, i128hi0.popcount());
+
+  APInt i80hi1 = APInt::getAllOnes(80);
+  i80hi1.clearHighBits(79);
+  EXPECT_EQ(1u, i80hi1.countr_one());
+  EXPECT_EQ(0u, i80hi1.countr_zero());
+  EXPECT_EQ(1u, i80hi1.getActiveBits());
+  EXPECT_EQ(79u, i80hi1.countl_zero());
+  EXPECT_EQ(0u, i80hi1.countl_one());
+  EXPECT_EQ(1u, i80hi1.popcount());
+
+  APInt i32hi16 = APInt::getAllOnes(32);
+  i32hi16.clearHighBits(16);
+  EXPECT_EQ(16u, i32hi16.countr_one());
+  EXPECT_EQ(0u, i32hi16.countr_zero());
+  EXPECT_EQ(16u, i32hi16.getActiveBits());
+  EXPECT_EQ(16u, i32hi16.countl_zero());
+  EXPECT_EQ(0u, i32hi16.countl_one());
+  EXPECT_EQ(16u, i32hi16.popcount());
+}
+
+TEST(APIntTest, abds) {
+  using APIntOps::abds;
+
+  APInt MaxU1(1, 1, false);
+  APInt MinU1(1, 0, false);
+  EXPECT_EQ(1u, abds(MaxU1, MinU1).getZExtValue());
+  EXPECT_EQ(1u, abds(MinU1, MaxU1).getZExtValue());
+
+  APInt MaxU4(4, 15, false);
+  APInt MinU4(4, 0, false);
+  EXPECT_EQ(1, abds(MaxU4, MinU4).getSExtValue());
+  EXPECT_EQ(1, abds(MinU4, MaxU4).getSExtValue());
+
+  APInt MaxS8(8, 127, true);
+  APInt MinS8(8, -128, true);
+  EXPECT_EQ(-1, abds(MaxS8, MinS8).getSExtValue());
+  EXPECT_EQ(-1, abds(MinS8, MaxS8).getSExtValue());
+
+  APInt MaxU16(16, 65535, false);
+  APInt MinU16(16, 0, false);
+  EXPECT_EQ(1, abds(MaxU16, MinU16).getSExtValue());
+  EXPECT_EQ(1, abds(MinU16, MaxU16).getSExtValue());
+
+  APInt MaxS16(16, 32767, true);
+  APInt MinS16(16, -32768, true);
+  APInt ZeroS16(16, 0, true);
+  EXPECT_EQ(-1, abds(MaxS16, MinS16).getSExtValue());
+  EXPECT_EQ(-1, abds(MinS16, MaxS16).getSExtValue());
+  EXPECT_EQ(32768u, abds(ZeroS16, MinS16));
+  EXPECT_EQ(32768u, abds(MinS16, ZeroS16));
+  EXPECT_EQ(32767u, abds(ZeroS16, MaxS16));
+  EXPECT_EQ(32767u, abds(MaxS16, ZeroS16));
+}
+
+TEST(APIntTest, abdu) {
+  using APIntOps::abdu;
+
+  APInt MaxU1(1, 1, false);
+  APInt MinU1(1, 0, false);
+  EXPECT_EQ(1u, abdu(MaxU1, MinU1).getZExtValue());
+  EXPECT_EQ(1u, abdu(MinU1, MaxU1).getZExtValue());
+
+  APInt MaxU4(4, 15, false);
+  APInt MinU4(4, 0, false);
+  EXPECT_EQ(15u, abdu(MaxU4, MinU4).getZExtValue());
+  EXPECT_EQ(15u, abdu(MinU4, MaxU4).getZExtValue());
+
+  APInt MaxS8(8, 127, true);
+  APInt MinS8(8, -128, true);
+  EXPECT_EQ(1u, abdu(MaxS8, MinS8).getZExtValue());
+  EXPECT_EQ(1u, abdu(MinS8, MaxS8).getZExtValue());
+
+  APInt MaxU16(16, 65535, false);
+  APInt MinU16(16, 0, false);
+  EXPECT_EQ(65535u, abdu(MaxU16, MinU16).getZExtValue());
+  EXPECT_EQ(65535u, abdu(MinU16, MaxU16).getZExtValue());
+
+  APInt MaxS16(16, 32767, true);
+  APInt MinS16(16, -32768, true);
+  APInt ZeroS16(16, 0, true);
+  EXPECT_EQ(1u, abdu(MaxS16, MinS16).getZExtValue());
+  EXPECT_EQ(1u, abdu(MinS16, MaxS16).getZExtValue());
+  EXPECT_EQ(32768u, abdu(ZeroS16, MinS16));
+  EXPECT_EQ(32768u, abdu(MinS16, ZeroS16));
+  EXPECT_EQ(32767u, abdu(ZeroS16, MaxS16));
+  EXPECT_EQ(32767u, abdu(MaxS16, ZeroS16));
 }
 
 TEST(APIntTest, GCD) {
@@ -2509,29 +2856,29 @@ TEST(APIntTest, LogicalRightShift) {
   APInt i256(APInt::getHighBitsSet(256, 2));
 
   i256.lshrInPlace(1);
-  EXPECT_EQ(1U, i256.countLeadingZeros());
-  EXPECT_EQ(253U, i256.countTrailingZeros());
-  EXPECT_EQ(2U, i256.countPopulation());
+  EXPECT_EQ(1U, i256.countl_zero());
+  EXPECT_EQ(253U, i256.countr_zero());
+  EXPECT_EQ(2U, i256.popcount());
 
   i256.lshrInPlace(62);
-  EXPECT_EQ(63U, i256.countLeadingZeros());
-  EXPECT_EQ(191U, i256.countTrailingZeros());
-  EXPECT_EQ(2U, i256.countPopulation());
+  EXPECT_EQ(63U, i256.countl_zero());
+  EXPECT_EQ(191U, i256.countr_zero());
+  EXPECT_EQ(2U, i256.popcount());
 
   i256.lshrInPlace(65);
-  EXPECT_EQ(128U, i256.countLeadingZeros());
-  EXPECT_EQ(126U, i256.countTrailingZeros());
-  EXPECT_EQ(2U, i256.countPopulation());
+  EXPECT_EQ(128U, i256.countl_zero());
+  EXPECT_EQ(126U, i256.countr_zero());
+  EXPECT_EQ(2U, i256.popcount());
 
   i256.lshrInPlace(64);
-  EXPECT_EQ(192U, i256.countLeadingZeros());
-  EXPECT_EQ(62U, i256.countTrailingZeros());
-  EXPECT_EQ(2U, i256.countPopulation());
+  EXPECT_EQ(192U, i256.countl_zero());
+  EXPECT_EQ(62U, i256.countr_zero());
+  EXPECT_EQ(2U, i256.popcount());
 
   i256.lshrInPlace(63);
-  EXPECT_EQ(255U, i256.countLeadingZeros());
-  EXPECT_EQ(0U, i256.countTrailingZeros());
-  EXPECT_EQ(1U, i256.countPopulation());
+  EXPECT_EQ(255U, i256.countl_zero());
+  EXPECT_EQ(0U, i256.countr_zero());
+  EXPECT_EQ(1U, i256.popcount());
 
   // Ensure we handle large shifts of multi-word.
   const APInt neg_one(128, static_cast<uint64_t>(-1), true);
@@ -2541,21 +2888,21 @@ TEST(APIntTest, LogicalRightShift) {
 TEST(APIntTest, ArithmeticRightShift) {
   APInt i72(APInt::getHighBitsSet(72, 1));
   i72.ashrInPlace(46);
-  EXPECT_EQ(47U, i72.countLeadingOnes());
-  EXPECT_EQ(25U, i72.countTrailingZeros());
-  EXPECT_EQ(47U, i72.countPopulation());
+  EXPECT_EQ(47U, i72.countl_one());
+  EXPECT_EQ(25U, i72.countr_zero());
+  EXPECT_EQ(47U, i72.popcount());
 
   i72 = APInt::getHighBitsSet(72, 1);
   i72.ashrInPlace(64);
-  EXPECT_EQ(65U, i72.countLeadingOnes());
-  EXPECT_EQ(7U, i72.countTrailingZeros());
-  EXPECT_EQ(65U, i72.countPopulation());
+  EXPECT_EQ(65U, i72.countl_one());
+  EXPECT_EQ(7U, i72.countr_zero());
+  EXPECT_EQ(65U, i72.popcount());
 
   APInt i128(APInt::getHighBitsSet(128, 1));
   i128.ashrInPlace(64);
-  EXPECT_EQ(65U, i128.countLeadingOnes());
-  EXPECT_EQ(63U, i128.countTrailingZeros());
-  EXPECT_EQ(65U, i128.countPopulation());
+  EXPECT_EQ(65U, i128.countl_one());
+  EXPECT_EQ(63U, i128.countr_zero());
+  EXPECT_EQ(65U, i128.popcount());
 
   // Ensure we handle large shifts of multi-word.
   const APInt signmin32(APInt::getSignedMinValue(32));
@@ -2578,29 +2925,29 @@ TEST(APIntTest, LeftShift) {
   APInt i256(APInt::getLowBitsSet(256, 2));
 
   i256 <<= 1;
-  EXPECT_EQ(253U, i256.countLeadingZeros());
-  EXPECT_EQ(1U, i256.countTrailingZeros());
-  EXPECT_EQ(2U, i256.countPopulation());
+  EXPECT_EQ(253U, i256.countl_zero());
+  EXPECT_EQ(1U, i256.countr_zero());
+  EXPECT_EQ(2U, i256.popcount());
 
   i256 <<= 62;
-  EXPECT_EQ(191U, i256.countLeadingZeros());
-  EXPECT_EQ(63U, i256.countTrailingZeros());
-  EXPECT_EQ(2U, i256.countPopulation());
+  EXPECT_EQ(191U, i256.countl_zero());
+  EXPECT_EQ(63U, i256.countr_zero());
+  EXPECT_EQ(2U, i256.popcount());
 
   i256 <<= 65;
-  EXPECT_EQ(126U, i256.countLeadingZeros());
-  EXPECT_EQ(128U, i256.countTrailingZeros());
-  EXPECT_EQ(2U, i256.countPopulation());
+  EXPECT_EQ(126U, i256.countl_zero());
+  EXPECT_EQ(128U, i256.countr_zero());
+  EXPECT_EQ(2U, i256.popcount());
 
   i256 <<= 64;
-  EXPECT_EQ(62U, i256.countLeadingZeros());
-  EXPECT_EQ(192U, i256.countTrailingZeros());
-  EXPECT_EQ(2U, i256.countPopulation());
+  EXPECT_EQ(62U, i256.countl_zero());
+  EXPECT_EQ(192U, i256.countr_zero());
+  EXPECT_EQ(2U, i256.popcount());
 
   i256 <<= 63;
-  EXPECT_EQ(0U, i256.countLeadingZeros());
-  EXPECT_EQ(255U, i256.countTrailingZeros());
-  EXPECT_EQ(1U, i256.countPopulation());
+  EXPECT_EQ(0U, i256.countl_zero());
+  EXPECT_EQ(255U, i256.countr_zero());
+  EXPECT_EQ(1U, i256.popcount());
 
   // Ensure we handle large shifts of multi-word.
   const APInt neg_one(128, static_cast<uint64_t>(-1), true);
@@ -2642,21 +2989,24 @@ TEST(APIntTest, sext) {
 
   APInt i32_max(APInt::getSignedMaxValue(32).sext(63));
   EXPECT_EQ(i32_max, i32_max.sext(63));
-  EXPECT_EQ(32U, i32_max.countLeadingZeros());
-  EXPECT_EQ(0U, i32_max.countTrailingZeros());
-  EXPECT_EQ(31U, i32_max.countPopulation());
+  EXPECT_EQ(32U, i32_max.countl_zero());
+  EXPECT_EQ(0U, i32_max.countr_zero());
+  EXPECT_EQ(31U, i32_max.popcount());
 
   APInt i32_min(APInt::getSignedMinValue(32).sext(63));
   EXPECT_EQ(i32_min, i32_min.sext(63));
-  EXPECT_EQ(32U, i32_min.countLeadingOnes());
-  EXPECT_EQ(31U, i32_min.countTrailingZeros());
-  EXPECT_EQ(32U, i32_min.countPopulation());
+  EXPECT_EQ(32U, i32_min.countl_one());
+  EXPECT_EQ(31U, i32_min.countr_zero());
+  EXPECT_EQ(32U, i32_min.popcount());
 
-  APInt i32_neg1(APInt(32, ~uint64_t(0)).sext(63));
+  APInt i32_neg1(APInt(32, ~uint32_t(0)).sext(63));
   EXPECT_EQ(i32_neg1, i32_neg1.sext(63));
-  EXPECT_EQ(63U, i32_neg1.countLeadingOnes());
-  EXPECT_EQ(0U, i32_neg1.countTrailingZeros());
-  EXPECT_EQ(63U, i32_neg1.countPopulation());
+  EXPECT_EQ(63U, i32_neg1.countl_one());
+  EXPECT_EQ(0U, i32_neg1.countr_zero());
+  EXPECT_EQ(63U, i32_neg1.popcount());
+
+  EXPECT_EQ(APInt(32u, 0), APInt(0u, 0).sext(32));
+  EXPECT_EQ(APInt(64u, 0), APInt(0u, 0).sext(64));
 }
 
 TEST(APIntTest, trunc) {
@@ -2696,9 +3046,108 @@ TEST(APIntTest, multiply) {
 
   APInt i96 = APInt::getOneBitSet(96, 64);
   i96 *= ~0ULL;
-  EXPECT_EQ(32U, i96.countLeadingOnes());
-  EXPECT_EQ(32U, i96.countPopulation());
-  EXPECT_EQ(64U, i96.countTrailingZeros());
+  EXPECT_EQ(32U, i96.countl_one());
+  EXPECT_EQ(32U, i96.popcount());
+  EXPECT_EQ(64U, i96.countr_zero());
+}
+
+TEST(APIntOpsTest, Mulh) {
+
+  // Unsigned
+
+  // 32 bits
+  APInt i32a(32, 0x0001'E235);
+  APInt i32b(32, 0xF623'55AD);
+  EXPECT_EQ(0x0001'CFA1, APIntOps::mulhu(i32a, i32b));
+
+  // 64 bits
+  APInt i64a(64, 0x1234'5678'90AB'CDEF);
+  APInt i64b(64, 0xFEDC'BA09'8765'4321);
+  EXPECT_EQ(0x121F'A000'A372'3A57, APIntOps::mulhu(i64a, i64b));
+
+  // 128 bits
+  APInt i128a(128, "1234567890ABCDEF1234567890ABCDEF", 16);
+  APInt i128b(128, "FEDCBA0987654321FEDCBA0987654321", 16);
+  APInt i128Res = APIntOps::mulhu(i128a, i128b);
+  EXPECT_EQ(APInt(128, "121FA000A3723A57E68984312C3A8D7E", 16), i128Res);
+
+  // Signed
+
+  // 32 bits
+  APInt i32c(32, 0x1234'5678); // +ve
+  APInt i32d(32, 0x10AB'CDEF); // +ve
+  APInt i32e(32, 0xFEDC'BA09); // -ve
+
+  EXPECT_EQ(0x012F'7D02, APIntOps::mulhs(i32c, i32d));
+  EXPECT_EQ(0xFFEB'4988, APIntOps::mulhs(i32c, i32e));
+  EXPECT_EQ(0x0001'4B68, APIntOps::mulhs(i32e, i32e));
+
+  // 64 bits
+  APInt i64c(64, 0x1234'5678'90AB'CDEF); // +ve
+  APInt i64d(64, 0x1234'5678'90FE'DCBA); // +ve
+  APInt i64e(64, 0xFEDC'BA09'8765'4321); // -ve
+
+  EXPECT_EQ(0x014B'66DC'328E'10C1, APIntOps::mulhs(i64c, i64d));
+  EXPECT_EQ(0xFFEB'4988'12C6'6C68, APIntOps::mulhs(i64c, i64e));
+  EXPECT_EQ(0x0001'4B68'2174'FA18, APIntOps::mulhs(i64e, i64e));
+
+  // 128 bits
+  APInt i128c(128, "1234567890ABCDEF1234567890ABCDEF", 16); // +ve
+  APInt i128d(128, "1234567890FEDCBA1234567890FEDCBA", 16); // +ve
+  APInt i128e(128, "FEDCBA0987654321FEDCBA0987654321", 16); // -ve
+
+  i128Res = APIntOps::mulhs(i128c, i128d);
+  EXPECT_EQ(APInt(128, "14B66DC328E10C1FE303DF9EA0B2529", 16), i128Res);
+
+  i128Res = APIntOps::mulhs(i128c, i128e);
+  EXPECT_EQ(APInt(128, "FFEB498812C66C68D4552DB89B8EBF8F", 16), i128Res);
+}
+
+TEST(APIntOpsTest, muli) {
+  APInt u32a(32, 0x0001'E235);
+  APInt u32b(32, 0xF623'55AD);
+  EXPECT_EQ(0x0001'CFA1'7CA0'76D1, APIntOps::muluExtended(u32a, u32b));
+
+  APInt u64a(64, 0x1234'5678'90AB'CDEF);
+  APInt u64b(64, 0xFEDC'BA09'8765'4321);
+  EXPECT_EQ(APInt(128, "121FA000A3723A57C24A442FE55618CF", 16),
+            APIntOps::muluExtended(u64a, u64b));
+
+  APInt u128a(128, "1234567890ABCDEF1234567890ABCDEF", 16);
+  APInt u128b(128, "FEDCBA0987654321FEDCBA0987654321", 16);
+  EXPECT_EQ(
+      APInt(256,
+            "121FA000A3723A57E68984312C3A8D7E96B428606E1E6BF5C24A442FE55618CF",
+            16),
+      APIntOps::muluExtended(u128a, u128b));
+
+  APInt s32a(32, 0x1234'5678);
+  APInt s32b(32, 0x10AB'CDEF);
+  APInt s32c(32, 0xFEDC'BA09);
+  EXPECT_EQ(0x012F'7D02'2A42'D208, APIntOps::mulsExtended(s32a, s32b));
+  EXPECT_EQ(0xFFEB'4988'09CA'3A38, APIntOps::mulsExtended(s32a, s32c));
+
+  APInt s64a(64, 0x1234'5678'90AB'CDEF);
+  APInt s64b(64, 0x1234'5678'90FE'DCBA);
+  APInt s64c(64, 0xFEDC'BA09'8765'4321);
+  EXPECT_EQ(APInt(128, "014B66DC328E10C1FB99704184EF03A6", 16),
+            APIntOps::mulsExtended(s64a, s64b));
+  EXPECT_EQ(APInt(128, "FFEB498812C66C68C24A442FE55618CF", 16),
+            APIntOps::mulsExtended(s64a, s64c));
+
+  APInt s128a(128, "1234567890ABCDEF1234567890ABCDEF", 16);
+  APInt s128b(128, "1234567890FEDCBA1234567890FEDCBA", 16);
+  APInt s128c(128, "FEDCBA0987654321FEDCBA0987654321", 16);
+  EXPECT_EQ(
+      APInt(256,
+            "014B66DC328E10C1FE303DF9EA0B2529F87E475F3C6C180DFB99704184EF03A6",
+            16),
+      APIntOps::mulsExtended(s128a, s128b));
+  EXPECT_EQ(
+      APInt(256,
+            "FFEB498812C66C68D4552DB89B8EBF8F96B428606E1E6BF5C24A442FE55618CF",
+            16),
+      APIntOps::mulsExtended(s128a, s128c));
 }
 
 TEST(APIntTest, RoundingUDiv) {
@@ -2730,7 +3179,7 @@ TEST(APIntTest, RoundingUDiv) {
 
 TEST(APIntTest, RoundingSDiv) {
   for (int64_t Ai = -128; Ai <= 127; Ai++) {
-    APInt A(8, Ai);
+    APInt A(8, Ai, true);
 
     if (Ai != 0) {
       APInt Zero(8, 0);
@@ -2743,11 +3192,11 @@ TEST(APIntTest, RoundingSDiv) {
       if (Bi == 0)
         continue;
 
-      APInt B(8, Bi);
+      APInt B(8, Bi, true);
       APInt QuoTowardZero = A.sdiv(B);
       {
         APInt Quo = APIntOps::RoundingSDiv(A, B, APInt::Rounding::UP);
-        if (A.srem(B).isNullValue()) {
+        if (A.srem(B).isZero()) {
           EXPECT_EQ(QuoTowardZero, Quo);
         } else if (A.isNegative() !=
                    B.isNegative()) { // if the math quotient is negative.
@@ -2758,7 +3207,7 @@ TEST(APIntTest, RoundingSDiv) {
       }
       {
         APInt Quo = APIntOps::RoundingSDiv(A, B, APInt::Rounding::DOWN);
-        if (A.srem(B).isNullValue()) {
+        if (A.srem(B).isZero()) {
           EXPECT_EQ(QuoTowardZero, Quo);
         } else if (A.isNegative() !=
                    B.isNegative()) { // if the math quotient is negative.
@@ -2771,6 +3220,91 @@ TEST(APIntTest, RoundingSDiv) {
                 APIntOps::RoundingSDiv(A, B, APInt::Rounding::TOWARD_ZERO));
     }
   }
+}
+
+TEST(APIntTest, Average) {
+  APInt A0(32, 0);
+  APInt A2(32, 2);
+  APInt A100(32, 100);
+  APInt A101(32, 101);
+  APInt A200(32, 200, false);
+  APInt ApUMax = APInt::getMaxValue(32);
+
+  EXPECT_EQ(APInt(32, 150), APIntOps::avgFloorU(A100, A200));
+  EXPECT_EQ(APIntOps::RoundingUDiv(A100 + A200, A2, APInt::Rounding::DOWN),
+            APIntOps::avgFloorU(A100, A200));
+  EXPECT_EQ(APIntOps::RoundingUDiv(A100 + A200, A2, APInt::Rounding::UP),
+            APIntOps::avgCeilU(A100, A200));
+  EXPECT_EQ(APIntOps::RoundingUDiv(A100 + A101, A2, APInt::Rounding::DOWN),
+            APIntOps::avgFloorU(A100, A101));
+  EXPECT_EQ(APIntOps::RoundingUDiv(A100 + A101, A2, APInt::Rounding::UP),
+            APIntOps::avgCeilU(A100, A101));
+  EXPECT_EQ(A0, APIntOps::avgFloorU(A0, A0));
+  EXPECT_EQ(A0, APIntOps::avgCeilU(A0, A0));
+  EXPECT_EQ(ApUMax, APIntOps::avgFloorU(ApUMax, ApUMax));
+  EXPECT_EQ(ApUMax, APIntOps::avgCeilU(ApUMax, ApUMax));
+  EXPECT_EQ(APIntOps::RoundingUDiv(ApUMax, A2, APInt::Rounding::DOWN),
+            APIntOps::avgFloorU(A0, ApUMax));
+  EXPECT_EQ(APIntOps::RoundingUDiv(ApUMax, A2, APInt::Rounding::UP),
+            APIntOps::avgCeilU(A0, ApUMax));
+
+  APInt Ap100(32, +100);
+  APInt Ap101(32, +101);
+  APInt Ap200(32, +200);
+  APInt Am1(32, -1, true);
+  APInt Am100(32, -100, true);
+  APInt Am101(32, -101, true);
+  APInt Am200(32, -200, true);
+  APInt AmSMin = APInt::getSignedMinValue(32);
+  APInt ApSMax = APInt::getSignedMaxValue(32);
+
+  EXPECT_EQ(APInt(32, +150), APIntOps::avgFloorS(Ap100, Ap200));
+  EXPECT_EQ(APIntOps::RoundingSDiv(Ap100 + Ap200, A2, APInt::Rounding::DOWN),
+            APIntOps::avgFloorS(Ap100, Ap200));
+  EXPECT_EQ(APIntOps::RoundingSDiv(Ap100 + Ap200, A2, APInt::Rounding::UP),
+            APIntOps::avgCeilS(Ap100, Ap200));
+
+  EXPECT_EQ(APInt(32, -150, true), APIntOps::avgFloorS(Am100, Am200));
+  EXPECT_EQ(APIntOps::RoundingSDiv(Am100 + Am200, A2, APInt::Rounding::DOWN),
+            APIntOps::avgFloorS(Am100, Am200));
+  EXPECT_EQ(APIntOps::RoundingSDiv(Am100 + Am200, A2, APInt::Rounding::UP),
+            APIntOps::avgCeilS(Am100, Am200));
+
+  EXPECT_EQ(APInt(32, +100), APIntOps::avgFloorS(Ap100, Ap101));
+  EXPECT_EQ(APIntOps::RoundingSDiv(Ap100 + Ap101, A2, APInt::Rounding::DOWN),
+            APIntOps::avgFloorS(Ap100, Ap101));
+  EXPECT_EQ(APInt(32, +101), APIntOps::avgCeilS(Ap100, Ap101));
+  EXPECT_EQ(APIntOps::RoundingSDiv(Ap100 + Ap101, A2, APInt::Rounding::UP),
+            APIntOps::avgCeilS(Ap100, Ap101));
+
+  EXPECT_EQ(APInt(32, -101, true), APIntOps::avgFloorS(Am100, Am101));
+  EXPECT_EQ(APIntOps::RoundingSDiv(Am100 + Am101, A2, APInt::Rounding::DOWN),
+            APIntOps::avgFloorS(Am100, Am101));
+  EXPECT_EQ(APInt(32, -100, true), APIntOps::avgCeilS(Am100, Am101));
+  EXPECT_EQ(APIntOps::RoundingSDiv(Am100 + Am101, A2, APInt::Rounding::UP),
+            APIntOps::avgCeilS(Am100, Am101));
+
+  EXPECT_EQ(AmSMin, APIntOps::avgFloorS(AmSMin, AmSMin));
+  EXPECT_EQ(AmSMin, APIntOps::avgCeilS(AmSMin, AmSMin));
+
+  EXPECT_EQ(APIntOps::RoundingSDiv(AmSMin, A2, APInt::Rounding::DOWN),
+            APIntOps::avgFloorS(A0, AmSMin));
+  EXPECT_EQ(APIntOps::RoundingSDiv(AmSMin, A2, APInt::Rounding::UP),
+            APIntOps::avgCeilS(A0, AmSMin));
+
+  EXPECT_EQ(A0, APIntOps::avgFloorS(A0, A0));
+  EXPECT_EQ(A0, APIntOps::avgCeilS(A0, A0));
+
+  EXPECT_EQ(Am1, APIntOps::avgFloorS(AmSMin, ApSMax));
+  EXPECT_EQ(A0, APIntOps::avgCeilS(AmSMin, ApSMax));
+
+  EXPECT_EQ(APIntOps::RoundingSDiv(ApSMax, A2, APInt::Rounding::DOWN),
+            APIntOps::avgFloorS(A0, ApSMax));
+  EXPECT_EQ(APIntOps::RoundingSDiv(ApSMax, A2, APInt::Rounding::UP),
+            APIntOps::avgCeilS(A0, ApSMax));
+
+  EXPECT_EQ(ApSMax, APIntOps::avgFloorS(ApSMax, ApSMax));
+  EXPECT_EQ(ApSMax, APIntOps::avgCeilS(ApSMax, ApSMax));
 }
 
 TEST(APIntTest, umul_ov) {
@@ -2822,6 +3356,69 @@ TEST(APIntTest, smul_ov) {
         EXPECT_EQ(Wide.trunc(Bits), Narrow);
         EXPECT_EQ(Narrow.sext(2 * Bits) != Wide, Overflow);
       }
+}
+
+TEST(APIntTest, sfloordiv_ov) {
+  // int16 test overflow
+  {
+    using IntTy = int16_t;
+    APInt divisor(8 * sizeof(IntTy), std::numeric_limits<IntTy>::lowest(),
+                  true);
+    APInt dividend(8 * sizeof(IntTy), IntTy(-1), true);
+    bool Overflow = false;
+    (void)divisor.sfloordiv_ov(dividend, Overflow);
+    EXPECT_TRUE(Overflow);
+  }
+  // int32 test overflow
+  {
+    using IntTy = int32_t;
+    APInt divisor(8 * sizeof(IntTy), std::numeric_limits<IntTy>::lowest(),
+                  true);
+    APInt dividend(8 * sizeof(IntTy), IntTy(-1), true);
+    bool Overflow = false;
+    (void)divisor.sfloordiv_ov(dividend, Overflow);
+    EXPECT_TRUE(Overflow);
+  }
+  // int64 test overflow
+  {
+    using IntTy = int64_t;
+    APInt divisor(8 * sizeof(IntTy), std::numeric_limits<IntTy>::lowest(),
+                  true);
+    APInt dividend(8 * sizeof(IntTy), IntTy(-1), true);
+    bool Overflow = false;
+    (void)divisor.sfloordiv_ov(dividend, Overflow);
+    EXPECT_TRUE(Overflow);
+  }
+  // test all of int8
+  {
+    bool Overflow = false;
+    for (int i = -128; i < 128; ++i) {
+      for (int j = -128; j < 128; ++j) {
+        if (j == 0)
+          continue;
+
+        int8_t a = static_cast<int8_t>(i);
+        int8_t b = static_cast<int8_t>(j);
+
+        APInt divisor(8, a, true);
+        APInt dividend(8, b, true);
+        APInt quotient = divisor.sfloordiv_ov(dividend, Overflow);
+
+        if (i == -128 && j == -1) {
+          EXPECT_TRUE(Overflow);
+          continue;
+        }
+
+        if (((i >= 0 && j > 0) || (i <= 0 && j < 0)) ||
+            (i % j == 0)) // if quotient >= 0 and remain == 0 floordiv
+                          // equivalent to div
+          EXPECT_EQ(quotient.getSExtValue(), a / b);
+        else
+          EXPECT_EQ(quotient.getSExtValue(), a / b - 1);
+        EXPECT_FALSE(Overflow);
+      }
+    }
+  }
 }
 
 TEST(APIntTest, SolveQuadraticEquationWrap) {
@@ -2894,9 +3491,9 @@ TEST(APIntTest, SolveQuadraticEquationWrap) {
         continue;
       for (int B = Low; B != High; ++B) {
         for (int C = Low; C != High; ++C) {
-          Optional<APInt> S = APIntOps::SolveQuadraticEquationWrap(
-                                APInt(Width, A), APInt(Width, B),
-                                APInt(Width, C), Width);
+          std::optional<APInt> S = APIntOps::SolveQuadraticEquationWrap(
+              APInt(Width, A, true), APInt(Width, B, true),
+              APInt(Width, C, true), Width);
           if (S)
             Validate(A, B, C, Width, S->getSExtValue());
         }
@@ -2910,31 +3507,21 @@ TEST(APIntTest, SolveQuadraticEquationWrap) {
 }
 
 TEST(APIntTest, MultiplicativeInverseExaustive) {
-  for (unsigned BitWidth = 1; BitWidth <= 16; ++BitWidth) {
-    for (unsigned Value = 0; Value < (1u << BitWidth); ++Value) {
+  for (unsigned BitWidth = 1; BitWidth <= 8; ++BitWidth) {
+    for (unsigned Value = 1; Value < (1u << BitWidth); Value += 2) {
+      // Multiplicative inverse exists for all odd numbers.
       APInt V = APInt(BitWidth, Value);
-      APInt MulInv =
-          V.zext(BitWidth + 1)
-              .multiplicativeInverse(APInt::getSignedMinValue(BitWidth + 1))
-              .trunc(BitWidth);
-      APInt One = V * MulInv;
-      if (!V.isNullValue() && V.countTrailingZeros() == 0) {
-        // Multiplicative inverse exists for all odd numbers.
-        EXPECT_TRUE(One.isOneValue());
-      } else {
-        // Multiplicative inverse does not exist for even numbers (and 0).
-        EXPECT_TRUE(MulInv.isNullValue());
-      }
+      EXPECT_EQ(V * V.multiplicativeInverse(), 1);
     }
   }
 }
 
 TEST(APIntTest, GetMostSignificantDifferentBit) {
   EXPECT_EQ(APIntOps::GetMostSignificantDifferentBit(APInt(8, 0), APInt(8, 0)),
-            llvm::None);
+            std::nullopt);
   EXPECT_EQ(
       APIntOps::GetMostSignificantDifferentBit(APInt(8, 42), APInt(8, 42)),
-      llvm::None);
+      std::nullopt);
   EXPECT_EQ(*APIntOps::GetMostSignificantDifferentBit(APInt(8, 0), APInt(8, 1)),
             0u);
   EXPECT_EQ(*APIntOps::GetMostSignificantDifferentBit(APInt(8, 0), APInt(8, 2)),
@@ -2944,7 +3531,7 @@ TEST(APIntTest, GetMostSignificantDifferentBit) {
   EXPECT_EQ(*APIntOps::GetMostSignificantDifferentBit(APInt(8, 1), APInt(8, 0)),
             0u);
   EXPECT_EQ(APIntOps::GetMostSignificantDifferentBit(APInt(8, 1), APInt(8, 1)),
-            llvm::None);
+            std::nullopt);
   EXPECT_EQ(*APIntOps::GetMostSignificantDifferentBit(APInt(8, 1), APInt(8, 2)),
             1u);
   EXPECT_EQ(*APIntOps::GetMostSignificantDifferentBit(APInt(8, 1), APInt(8, 3)),
@@ -2956,10 +3543,10 @@ TEST(APIntTest, GetMostSignificantDifferentBit) {
 
 TEST(APIntTest, GetMostSignificantDifferentBitExaustive) {
   auto GetHighestDifferentBitBruteforce =
-      [](const APInt &V0, const APInt &V1) -> llvm::Optional<unsigned> {
+      [](const APInt &V0, const APInt &V1) -> std::optional<unsigned> {
     assert(V0.getBitWidth() == V1.getBitWidth() && "Must have same bitwidth");
     if (V0 == V1)
-      return llvm::None; // Bitwise identical.
+      return std::nullopt; // Bitwise identical.
     // There is a mismatch. Let's find the most significant different bit.
     for (int Bit = V0.getBitWidth() - 1; Bit >= 0; --Bit) {
       if (V0[Bit] == V1[Bit])
@@ -3001,10 +3588,10 @@ TEST(APIntTest, GetMostSignificantDifferentBitExaustive) {
 }
 
 TEST(APIntTest, SignbitZeroChecks) {
-  EXPECT_TRUE(APInt(8, -1).isNegative());
-  EXPECT_FALSE(APInt(8, -1).isNonNegative());
-  EXPECT_FALSE(APInt(8, -1).isStrictlyPositive());
-  EXPECT_TRUE(APInt(8, -1).isNonPositive());
+  EXPECT_TRUE(APInt(8, -1, true).isNegative());
+  EXPECT_FALSE(APInt(8, -1, true).isNonNegative());
+  EXPECT_FALSE(APInt(8, -1, true).isStrictlyPositive());
+  EXPECT_TRUE(APInt(8, -1, true).isNonPositive());
 
   EXPECT_FALSE(APInt(8, 0).isNegative());
   EXPECT_TRUE(APInt(8, 0).isNonNegative());
@@ -3023,6 +3610,7 @@ TEST(APIntTest, ZeroWidth) {
   EXPECT_EQ(0U, ZW.getBitWidth());
   EXPECT_EQ(0U, APInt(0, ArrayRef<uint64_t>({0, 1, 2})).getBitWidth());
   EXPECT_EQ(0U, APInt(0, "0", 10).getBitWidth());
+  EXPECT_EQ(0U, APInt::getAllOnes(0).getBitWidth());
 
   // Default constructor is single bit wide.
   EXPECT_EQ(1U, APInt().getBitWidth());
@@ -3038,6 +3626,7 @@ TEST(APIntTest, ZeroWidth) {
   EXPECT_EQ(0U, APInt::getLowBitsSet(0, 0).getBitWidth());
   EXPECT_EQ(0U, APInt::getSplat(0, ZW).getBitWidth());
   EXPECT_EQ(0U, APInt(4, 10).extractBits(0, 2).getBitWidth());
+  EXPECT_EQ(0U, APInt(4, 10).extractBitsAsZExtValue(0, 2));
 
   // Logical operators.
   ZW |= ZW2;
@@ -3072,9 +3661,9 @@ TEST(APIntTest, ZeroWidth) {
   ZW.flipAllBits();
 
   // Leading, trailing, ctpop, etc
-  EXPECT_EQ(0U, ZW.countLeadingZeros());
-  EXPECT_EQ(0U, ZW.countLeadingOnes());
-  EXPECT_EQ(0U, ZW.countPopulation());
+  EXPECT_EQ(0U, ZW.countl_zero());
+  EXPECT_EQ(0U, ZW.countl_one());
+  EXPECT_EQ(0U, ZW.popcount());
   EXPECT_EQ(0U, ZW.reverseBits().getBitWidth());
   EXPECT_EQ(0U, ZW.getHiBits(0).getBitWidth());
   EXPECT_EQ(0U, ZW.getLoBits(0).getBitWidth());
@@ -3109,8 +3698,8 @@ TEST(APIntTest, ScaleBitMask) {
 
   EXPECT_EQ(APIntOps::ScaleBitMask(APInt(8, 0x00), 8), APInt(8, 0x00));
 
-  EXPECT_EQ(APIntOps::ScaleBitMask(APInt::getNullValue(1024), 4096),
-            APInt::getNullValue(4096));
+  EXPECT_EQ(APIntOps::ScaleBitMask(APInt::getZero(1024), 4096),
+            APInt::getZero(4096));
   EXPECT_EQ(APIntOps::ScaleBitMask(APInt::getAllOnes(4096), 256),
             APInt::getAllOnes(256));
   EXPECT_EQ(APIntOps::ScaleBitMask(APInt::getOneBitSet(4096, 32), 256),
@@ -3126,4 +3715,195 @@ TEST(APIntTest, ScaleBitMask) {
   EXPECT_EQ(APIntOps::ScaleBitMask(APInt(8, 0xE4), 4, true), APInt(4, 0x08));
 }
 
+TEST(APIntTest, DenseMap) {
+  DenseMap<APInt, int> Map;
+  APInt ZeroWidthInt(0, 0, false);
+  Map.insert({ZeroWidthInt, 123});
+  auto It = Map.find(ZeroWidthInt);
+  EXPECT_EQ(It->second, 123);
+}
+
+TEST(APIntTest, TryExt) {
+  APInt small(32, 42);
+  APInt large(128, {0xffff, 0xffff});
+  ASSERT_TRUE(small.tryZExtValue().has_value());
+  ASSERT_TRUE(small.trySExtValue().has_value());
+  ASSERT_FALSE(large.tryZExtValue().has_value());
+  ASSERT_FALSE(large.trySExtValue().has_value());
+  ASSERT_EQ(small.trySExtValue().value_or(41), 42);
+  ASSERT_EQ(large.trySExtValue().value_or(41), 41);
+
+  APInt negOne32(32, 0);
+  negOne32.setAllBits();
+  ASSERT_EQ(negOne32.trySExtValue().value_or(42), -1);
+  APInt negOne64(64, 0);
+  negOne64.setAllBits();
+  ASSERT_EQ(negOne64.trySExtValue().value_or(42), -1);
+  APInt negOne128(128, 0);
+  negOne128.setAllBits();
+  ASSERT_EQ(negOne128.trySExtValue().value_or(42), -1);
+  ASSERT_EQ(42, APInt(128, -1).trySExtValue().value_or(42));
+}
+
+TEST(APIntTest, Fshl) {
+  EXPECT_EQ(
+      APIntOps::fshl(APInt(8, 0), APInt(8, 255), APInt(8, 8)).getZExtValue(),
+      0U);
+  EXPECT_EQ(
+      APIntOps::fshl(APInt(8, 255), APInt(8, 0), APInt(8, 8)).getZExtValue(),
+      255U);
+  EXPECT_EQ(
+      APIntOps::fshl(APInt(8, 255), APInt(8, 0), APInt(8, 15)).getZExtValue(),
+      128U);
+  EXPECT_EQ(
+      APIntOps::fshl(APInt(8, 15), APInt(8, 15), APInt(8, 11)).getZExtValue(),
+      120U);
+  EXPECT_EQ(
+      APIntOps::fshl(APInt(8, 2), APInt(8, 1), APInt(8, 3)).getZExtValue(),
+      16U);
+  EXPECT_EQ(
+      APIntOps::fshl(APInt(8, 2), APInt(8, 1), APInt(8, 1)).getZExtValue(),
+      APIntOps::fshl(APInt(8, 2), APInt(8, 1), APInt(8, 9)).getZExtValue());
+  EXPECT_EQ(
+      APIntOps::fshl(APInt(8, 2), APInt(8, 1), APInt(8, 7)).getZExtValue(),
+      APIntOps::fshl(APInt(8, 2), APInt(8, 1), APInt(8, 15)).getZExtValue());
+  EXPECT_EQ(APIntOps::fshl(APInt(32, 0, /*isSigned*/ true),
+                           APInt(32, 2147483647, /*isSigned*/ true),
+                           APInt(32, 32, /*isSigned*/ true))
+                .getSExtValue(),
+            0);
+  EXPECT_EQ(APIntOps::fshl(APInt(64, 1, /*isSigned*/ true),
+                           APInt(64, 2, /*isSigned*/ true),
+                           APInt(64, 3, /*isSigned*/ true))
+                .getSExtValue(),
+            8);
+  EXPECT_EQ(APIntOps::fshl(APInt(16, -2, /*isSigned*/ true),
+                           APInt(16, -1, /*isSigned*/ true),
+                           APInt(16, 3, /*isSigned*/ true))
+                .getSExtValue(),
+            -9);
+}
+
+TEST(APIntTest, Fshr) {
+  EXPECT_EQ(
+      APIntOps::fshr(APInt(8, 0), APInt(8, 255), APInt(8, 8)).getZExtValue(),
+      255U);
+  EXPECT_EQ(
+      APIntOps::fshr(APInt(8, 255), APInt(8, 0), APInt(8, 8)).getZExtValue(),
+      0U);
+  EXPECT_EQ(
+      APIntOps::fshr(APInt(8, 255), APInt(8, 0), APInt(8, 15)).getZExtValue(),
+      254U);
+  EXPECT_EQ(
+      APIntOps::fshr(APInt(8, 15), APInt(8, 15), APInt(8, 11)).getZExtValue(),
+      225U);
+  EXPECT_EQ(
+      APIntOps::fshr(APInt(8, 1), APInt(8, 2), APInt(8, 3)).getZExtValue(),
+      32U);
+  EXPECT_EQ(
+      APIntOps::fshr(APInt(8, 1), APInt(8, 2), APInt(8, 1)).getZExtValue(),
+      APIntOps::fshr(APInt(8, 1), APInt(8, 2), APInt(8, 9)).getZExtValue());
+  EXPECT_EQ(
+      APIntOps::fshr(APInt(8, 1), APInt(8, 2), APInt(8, 7)).getZExtValue(),
+      APIntOps::fshr(APInt(8, 1), APInt(8, 2), APInt(8, 15)).getZExtValue());
+  EXPECT_EQ(APIntOps::fshr(APInt(64, 0, /*isSigned*/ true),
+                           APInt(64, 9223372036854775807, /*isSigned*/ true),
+                           APInt(64, 64, /*isSigned*/ true))
+                .getSExtValue(),
+            9223372036854775807);
+  EXPECT_EQ(APIntOps::fshr(APInt(64, 1, /*isSigned*/ true),
+                           APInt(64, 2, /*isSigned*/ true),
+                           APInt(64, 3, /*isSigned*/ true))
+                .getSExtValue(),
+            2305843009213693952);
+  EXPECT_EQ(APIntOps::fshr(APInt(16, -2, /*isSigned*/ true),
+                           APInt(16, -1, /*isSigned*/ true),
+                           APInt(16, 3, /*isSigned*/ true))
+                .getSExtValue(),
+            -8193);
+}
+
+TEST(APIntTest, clmul) {
+  EXPECT_EQ(APIntOps::clmul(APInt(4, 1), APInt(4, 2)).getZExtValue(), 2U);
+  EXPECT_EQ(APIntOps::clmul(APInt(4, 5), APInt(4, 6)).getZExtValue(), 14U);
+  EXPECT_EQ(APIntOps::clmul(APInt(4, -4, /*isSigned*/ true),
+                            APInt(4, 2, /*isSigned*/ false))
+                .getSExtValue(),
+            -8);
+  EXPECT_EQ(APIntOps::clmul(APInt(4, -4, /*isSigned*/ true),
+                            APInt(4, -5, /*isSigned*/ true))
+                .getSExtValue(),
+            4);
+  EXPECT_EQ(APIntOps::clmul(APInt(8, 0), APInt(8, 255)).getZExtValue(), 0U);
+  EXPECT_EQ(APIntOps::clmul(APInt(8, 15), APInt(8, 15)).getZExtValue(), 85U);
+  EXPECT_EQ(APIntOps::clmul(APInt(8, 1), APInt(8, 2)).getZExtValue(), 2U);
+  EXPECT_EQ(APIntOps::clmul(APInt(64, 0, /*isSigned*/ true),
+                            APInt(64, 9223372036854775807, /*isSigned*/ true))
+                .getSExtValue(),
+            0);
+  EXPECT_EQ(APIntOps::clmul(APInt(64, 1, /*isSigned*/ true),
+                            APInt(64, 2, /*isSigned*/ true))
+                .getSExtValue(),
+            2);
+  EXPECT_EQ(APIntOps::clmul(APInt(16, -2, /*isSigned*/ true),
+                            APInt(16, -1, /*isSigned*/ true))
+                .getSExtValue(),
+            -21846);
+}
+
+TEST(APIntTest, clmulr) {
+  EXPECT_EQ(APIntOps::clmulr(APInt(4, 1), APInt(4, 2)).getZExtValue(), 0U);
+  EXPECT_EQ(APIntOps::clmulr(APInt(4, 5), APInt(4, 6)).getZExtValue(), 3U);
+  EXPECT_EQ(APIntOps::clmulr(APInt(4, -4, /*isSigned*/ true),
+                             APInt(4, 2, /*isSigned*/ false))
+                .getSExtValue(),
+            3);
+  EXPECT_EQ(APIntOps::clmulr(APInt(4, -4, /*isSigned*/ true),
+                             APInt(4, -5, /*isSigned*/ true))
+                .getSExtValue(),
+            -2);
+  EXPECT_EQ(APIntOps::clmulr(APInt(8, 0), APInt(8, 255)).getZExtValue(), 0U);
+  EXPECT_EQ(APIntOps::clmulr(APInt(8, 15), APInt(8, 15)).getZExtValue(), 0U);
+  EXPECT_EQ(APIntOps::clmulr(APInt(8, 1), APInt(8, 2)).getZExtValue(), 0U);
+  EXPECT_EQ(APIntOps::clmulr(APInt(64, 0, /*isSigned*/ true),
+                             APInt(64, 9223372036854775807, /*isSigned*/ true))
+                .getSExtValue(),
+            0);
+  EXPECT_EQ(APIntOps::clmulr(APInt(64, 1, /*isSigned*/ true),
+                             APInt(64, 2, /*isSigned*/ true))
+                .getSExtValue(),
+            0);
+  EXPECT_EQ(APIntOps::clmulr(APInt(16, -2, /*isSigned*/ true),
+                             APInt(16, -1, /*isSigned*/ true))
+                .getSExtValue(),
+            -21845);
+}
+
+TEST(APIntTest, clmulh) {
+  EXPECT_EQ(APIntOps::clmulh(APInt(4, 1), APInt(4, 2)).getZExtValue(), 0U);
+  EXPECT_EQ(APIntOps::clmulh(APInt(4, 5), APInt(4, 6)).getZExtValue(), 1U);
+  EXPECT_EQ(APIntOps::clmulh(APInt(4, -4, /*isSigned*/ true),
+                             APInt(4, 2, /*isSigned*/ false))
+                .getSExtValue(),
+            1);
+  EXPECT_EQ(APIntOps::clmulh(APInt(4, -4, /*isSigned*/ true),
+                             APInt(4, -5, /*isSigned*/ true))
+                .getSExtValue(),
+            7);
+  EXPECT_EQ(APIntOps::clmulh(APInt(8, 0), APInt(8, 255)).getZExtValue(), 0U);
+  EXPECT_EQ(APIntOps::clmulh(APInt(8, 15), APInt(8, 15)).getZExtValue(), 0U);
+  EXPECT_EQ(APIntOps::clmulh(APInt(8, 1), APInt(8, 2)).getZExtValue(), 0U);
+  EXPECT_EQ(APIntOps::clmulh(APInt(64, 0, /*isSigned*/ true),
+                             APInt(64, 9223372036854775807, /*isSigned*/ true))
+                .getSExtValue(),
+            0);
+  EXPECT_EQ(APIntOps::clmulh(APInt(64, 1, /*isSigned*/ true),
+                             APInt(64, 2, /*isSigned*/ true))
+                .getSExtValue(),
+            0);
+  EXPECT_EQ(APIntOps::clmulh(APInt(16, -2, /*isSigned*/ true),
+                             APInt(16, -1, /*isSigned*/ true))
+                .getSExtValue(),
+            21845);
+}
 } // end anonymous namespace

@@ -15,17 +15,22 @@
 #define LLVM_TOOLS_LLVM_EXEGESIS_UOPSBENCHMARKRUNNER_H
 
 #include "BenchmarkRunner.h"
+#include "Target.h"
 
 namespace llvm {
 namespace exegesis {
 
 class UopsBenchmarkRunner : public BenchmarkRunner {
 public:
-  UopsBenchmarkRunner(const LLVMState &State)
-      : BenchmarkRunner(State, InstructionBenchmark::Uops) {}
+  UopsBenchmarkRunner(const LLVMState &State,
+                      BenchmarkPhaseSelectorE BenchmarkPhaseSelector,
+                      ExecutionModeE ExecutionMode,
+                      ArrayRef<ValidationEvent> ValCounters)
+      : BenchmarkRunner(State, Benchmark::Uops, BenchmarkPhaseSelector,
+                        ExecutionMode, ValCounters) {}
   ~UopsBenchmarkRunner() override;
 
-  static constexpr const size_t kMinNumDifferentAddresses = 6;
+  static constexpr size_t kMinNumDifferentAddresses = 6;
 
 private:
   Expected<std::vector<BenchmarkMeasure>>

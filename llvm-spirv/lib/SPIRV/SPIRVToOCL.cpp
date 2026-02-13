@@ -39,18 +39,19 @@
 // in this pass as a common functionality for both versions.
 //
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "spvtocl"
 
 #include "SPIRVToOCL.h"
 #include "llvm/IR/TypedPointerType.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/CommandLine.h"
 
+#define DEBUG_TYPE "spvtocl"
+
 namespace SPIRV {
 
 void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
   LLVM_DEBUG(dbgs() << "[visistCallInst] " << CI << '\n');
-  auto F = CI.getCalledFunction();
+  auto *F = CI.getCalledFunction();
   if (!F)
     return;
 
@@ -73,8 +74,8 @@ void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
     case OpenCLLIB::Printf: {
       // TODO: Lower the printf instruction with the non-constant address space
       // format string to suitable for OpenCL representation
-      if (dyn_cast<PointerType>(CI.getOperand(0)->getType())
-              ->getAddressSpace() == SPIR::TypeAttributeEnum::ATTR_CONST)
+      auto *PT = dyn_cast<PointerType>(CI.getOperand(0)->getType());
+      if (PT && PT->getAddressSpace() == SPIR::TypeAttributeEnum::ATTR_CONST)
         visitCallSPIRVPrintf(&CI, ExtOp);
       break;
     }
@@ -155,6 +156,10 @@ void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
     visitCallBuildNDRangeBuiltIn(&CI, OC, DemangledName);
     return;
   }
+  if (OC == OpGenericCastToPtr) {
+    visitCallGenericCastToPtrBuiltIn(&CI, OC);
+    return;
+  }
   if (OC == OpGenericCastToPtrExplicit) {
     visitCallGenericCastToPtrExplicitBuiltIn(&CI, OC);
     return;
@@ -210,9 +215,17 @@ void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
       visitCallSPIRVRelational(&CI, OC);
     return;
   }
-  if (OC == internal::OpConvertFToBF16INTEL ||
-      OC == internal::OpConvertBF16ToFINTEL) {
+  if (OC == OpReadClockKHR) {
+    visitCallSPIRVReadClockKHR(&CI);
+    return;
+  }
+  if (OC == OpConvertFToBF16INTEL || OC == OpConvertBF16ToFINTEL) {
     visitCallSPIRVBFloat16Conversions(&CI, OC);
+    return;
+  }
+  if (OC == OpSDot || OC == OpUDot || OC == OpSUDot || OC == OpSDotAccSat ||
+      OC == OpUDotAccSat || OC == OpSUDotAccSat) {
+    visitCallSPIRVDot(&CI, OC, DemangledName);
     return;
   }
   if (OCLSPIRVBuiltinMap::rfind(OC))
@@ -234,13 +247,17 @@ void SPIRVToOCLBase::visitCastInst(CastInst &Cast) {
       DstVecTy->getScalarSizeInBits() == 1)
     return;
 
+  // We don't have OpenCL builtins for 4-bit conversions.
+  if (DstVecTy->getScalarSizeInBits() == 4 || SrcTy->getScalarSizeInBits() == 4)
+    return;
+
   // Assemble built-in name -> convert_gentypeN
   std::string CastBuiltInName(kOCLBuiltinName::ConvertPrefix);
   // Check if this is 'floating point -> unsigned integer' cast
   CastBuiltInName += mapLLVMTypeToOCLType(DstVecTy, !isa<FPToUIInst>(Cast));
 
   // Replace LLVM conversion instruction with call to conversion built-in
-  BuiltinFuncMangleInfo Mangle;
+  OCLBuiltinFuncMangleInfo Mangle;
   // It does matter if the source is unsigned integer or not. SExt is for
   // signed source, ZExt and UIToFPInst are for unsigned source.
   if (isa<ZExtInst>(Cast) || isa<UIToFPInst>(Cast))
@@ -256,33 +273,14 @@ void SPIRVToOCLBase::visitCastInst(CastInst &Cast) {
 
 void SPIRVToOCLBase::visitCallSPIRVImageQuerySize(CallInst *CI) {
   // Get image type
-  SmallVector<Type *, 4> ParamTys;
-  getParameterTypes(CI, ParamTys);
-  StructType *ImgTy = cast<StructType>(ParamTys[0]);
-  assert(ImgTy && ImgTy->isOpaque() &&
-         "image type must be an opaque structure");
-  StringRef ImgTyName = ImgTy->getName();
-  assert(ImgTyName.startswith("opencl.image") && "not an OCL image type");
-
-  unsigned ImgDim = 0;
-  bool ImgArray = false;
-
-  if (ImgTyName.startswith("opencl.image1d")) {
-    ImgDim = 1;
-  } else if (ImgTyName.startswith("opencl.image2d")) {
-    ImgDim = 2;
-  } else if (ImgTyName.startswith("opencl.image3d")) {
-    ImgDim = 3;
-  }
-  assert(ImgDim != 0 && "unexpected image dimensionality");
-
-  if (ImgTyName.count("_array_") != 0) {
-    ImgArray = true;
-  }
+  Type *ImgTy = getCallValueType(CI, 0);
+  auto Desc = getImageDescriptor(ImgTy);
+  unsigned ImgDim = getImageDimension(Desc.Dim);
+  bool ImgArray = Desc.Arrayed;
 
   AttributeList Attributes = CI->getCalledFunction()->getAttributes();
-  BuiltinFuncMangleInfo Mangle;
-  Mangle.getTypeMangleInfo(0).PointerTy = TypedPointerType::get(ImgTy, 0);
+  OCLBuiltinFuncMangleInfo Mangle;
+  Mangle.getTypeMangleInfo(0).PointerTy = ImgTy;
   Type *Int32Ty = Type::getInt32Ty(*Ctx);
   Instruction *GetImageSize = nullptr;
 
@@ -295,9 +293,9 @@ void SPIRVToOCLBase::visitCallSPIRVImageQuerySize(CallInst *CI) {
     // The width of integer type returning by OpImageQuerySize[Lod] may
     // differ from i32
     if (CI->getType()->getScalarType() != Int32Ty) {
-      GetImageSize = CastInst::CreateIntegerCast(GetImageSize,
-                                                 CI->getType()->getScalarType(),
-                                                 false, CI->getName(), CI);
+      GetImageSize = CastInst::CreateIntegerCast(
+          GetImageSize, CI->getType()->getScalarType(), false, CI->getName(),
+          CI->getIterator());
     }
   } else {
     assert((ImgDim == 2 || ImgDim == 3) && "invalid image type");
@@ -317,7 +315,7 @@ void SPIRVToOCLBase::visitCallSPIRVImageQuerySize(CallInst *CI) {
           FixedVectorType::get(
               CI->getType()->getScalarType(),
               cast<FixedVectorType>(GetImageSize->getType())->getNumElements()),
-          false, CI->getName(), CI);
+          false, CI->getName(), CI->getIterator());
     }
   }
 
@@ -331,8 +329,8 @@ void SPIRVToOCLBase::visitCallSPIRVImageQuerySize(CallInst *CI) {
       assert(ImgQuerySizeRetEls == 2 &&
              "OpImageQuerySize[Lod] must return <2 x iN> vector type");
       GetImageSize = InsertElementInst::Create(
-          UndefValue::get(VecTy), GetImageSize, ConstantInt::get(Int32Ty, 0),
-          CI->getName(), CI);
+          PoisonValue::get(VecTy), GetImageSize, ConstantInt::get(Int32Ty, 0),
+          CI->getName(), CI->getIterator());
     } else {
       // get_image_dim and OpImageQuerySize returns different vector
       // types for arrayed and 3d images.
@@ -342,8 +340,8 @@ void SPIRVToOCLBase::visitCallSPIRVImageQuerySize(CallInst *CI) {
       Constant *Mask = ConstantVector::get(MaskEls);
 
       GetImageSize = new ShuffleVectorInst(
-          GetImageSize, UndefValue::get(GetImageSize->getType()), Mask,
-          CI->getName(), CI);
+          GetImageSize, PoisonValue::get(GetImageSize->getType()), Mask,
+          CI->getName(), CI->getIterator());
     }
   }
 
@@ -360,12 +358,13 @@ void SPIRVToOCLBase::visitCallSPIRVImageQuerySize(CallInst *CI) {
     // differ from size_t which is returned by get_image_array_size
     if (GetImageArraySize->getType() != VecTy->getElementType()) {
       GetImageArraySize = CastInst::CreateIntegerCast(
-          GetImageArraySize, VecTy->getElementType(), false, CI->getName(), CI);
+          GetImageArraySize, VecTy->getElementType(), false, CI->getName(),
+          CI->getIterator());
     }
     GetImageSize = InsertElementInst::Create(
         GetImageSize, GetImageArraySize,
         ConstantInt::get(Int32Ty, VecTy->getNumElements() - 1), CI->getName(),
-        CI);
+        CI->getIterator());
   }
 
   assert(GetImageSize && "must not be null");
@@ -586,11 +585,12 @@ void SPIRVToOCLBase::visitCallSPIRVPipeBuiltin(CallInst *CI, Op OC) {
     Mutator.mapArg(Mutator.arg_size() - 3, [](IRBuilder<> &Builder, Value *P) {
       Type *T = P->getType();
       assert(isa<PointerType>(T));
-      auto *NewTy = Builder.getInt8PtrTy(SPIRAS_Generic);
+      auto *NewTy = Builder.getPtrTy(SPIRAS_Generic);
       if (T != NewTy) {
-        P = Builder.CreatePointerBitCastOrAddrSpaceCast(P, NewTy);
+        P = Builder.CreateAddrSpaceCast(P, NewTy);
       }
-      return std::pair<Value *, Type *>(P, Builder.getInt8Ty());
+      return std::make_pair(
+          P, TypedPointerType::get(Builder.getInt8Ty(), SPIRAS_Generic));
     });
   }
 }
@@ -641,6 +641,18 @@ void SPIRVToOCLBase::visitCallBuildNDRangeBuiltIn(CallInst *CI, Op OC,
       .moveArg(2, 0);
 }
 
+void SPIRVToOCLBase::visitCallGenericCastToPtrBuiltIn(CallInst *CI, Op OC) {
+  assert(CI->getCalledFunction() && "Unexpected indirect call");
+  IRBuilder<> Builder(CI);
+  Value *PtrArg = CI->getArgOperand(0);
+  auto AddrSpace =
+      static_cast<SPIRAddressSpace>(CI->getType()->getPointerAddressSpace());
+  Type *NewTy = PointerType::get(CI->getContext(), AddrSpace);
+  Value *ASC = Builder.CreateAddrSpaceCast(PtrArg, NewTy);
+  CI->replaceAllUsesWith(ASC);
+  CI->eraseFromParent();
+}
+
 void SPIRVToOCLBase::visitCallGenericCastToPtrExplicitBuiltIn(CallInst *CI,
                                                               Op OC) {
   assert(CI->getCalledFunction() && "Unexpected indirect call");
@@ -668,6 +680,13 @@ void SPIRVToOCLBase::visitCallGenericCastToPtrExplicitBuiltIn(CallInst *CI,
 
 void SPIRVToOCLBase::visitCallSPIRVCvtBuiltin(CallInst *CI, Op OC,
                                               StringRef DemangledName) {
+  if (auto *TET =
+          dyn_cast<TargetExtType>(CI->getFunctionType()->getReturnType())) {
+    // Preserve any cooperative matrix type conversions as SPIR-V calls.
+    if (TET->getName() == "spirv.CooperativeMatrixKHR") {
+      return;
+    }
+  }
   std::string CastBuiltInName;
   if (isCvtFromUnsignedOpCode(OC))
     CastBuiltInName = "u";
@@ -744,11 +763,29 @@ SPIRVToOCLBase::mutateCallImageOperands(CallInst *CI, StringRef NewFuncName,
       ConstantFP *LodVal = dyn_cast<ConstantFP>(Mutator.getArg(ImOpArgIndex));
       // If the image operand is LOD and its value is zero, drop it too.
       if (LodVal && LodVal->isNullValue() &&
-          ImOpValue == ImageOperandsMask::ImageOperandsLodMask)
+          ImOpValue & ImageOperandsMask::ImageOperandsLodMask) {
         Mutator.removeArgs(ImOpArgIndex, Mutator.arg_size() - ImOpArgIndex);
+        ImOpValue &= ~ImageOperandsMask::ImageOperandsLodMask;
+      }
     }
   }
   return Mutator;
+}
+
+static bool isOCLDepthImage(Type *Ty) {
+  if (auto *TET = dyn_cast<TargetExtType>(Ty)) {
+    if (TET->getName() != "spirv.Image")
+      return false;
+    assert(TET->getNumIntParameters() > 2 &&
+           "unexpected image TargetExtType parameter count");
+    return TET->getIntParameter(1);
+  }
+
+  StringRef ImageTypeName;
+  if (isOCLImageType(Ty, &ImageTypeName))
+    return ImageTypeName.contains("_depth_");
+
+  return false;
 }
 
 void SPIRVToOCLBase::visitCallSPIRVImageSampleExplicitLodBuiltIn(CallInst *CI,
@@ -758,31 +795,21 @@ void SPIRVToOCLBase::visitCallSPIRVImageSampleExplicitLodBuiltIn(CallInst *CI,
     T = VT->getElementType();
   auto Mutator =
       mutateCallImageOperands(CI, kOCLBuiltinName::SampledReadImage, T, 2);
-  bool IsDepthImage = false;
-  Value *Sampler = nullptr;
-  Type *SamplerTy = nullptr;
+
+  CallInst *CallSampledImg = cast<CallInst>(CI->getArgOperand(0));
+  auto Img = getCallValue(CallSampledImg, 0);
+  auto Sampler = getCallValue(CallSampledImg, 1);
+  const bool IsDepthImage = isOCLDepthImage(Img.second);
   Mutator.mapArg(0, [&](Value *SampledImg) {
-    CallInst *CallSampledImg = cast<CallInst>(SampledImg);
-    SmallVector<Type *, 2> SampledArgTys;
-    getParameterTypes(CallSampledImg, SampledArgTys);
-    Type *ImgTy = SampledArgTys[0];
-    SamplerTy = SampledArgTys[1];
-
-    StringRef ImageTypeName;
-    if (isOCLImageStructType(ImgTy, &ImageTypeName))
-      IsDepthImage = ImageTypeName.contains("_depth_");
-    auto Img = CallSampledImg->getArgOperand(0);
-
-    Sampler = CallSampledImg->getArgOperand(1);
     if (CallSampledImg->hasOneUse()) {
       CallSampledImg->replaceAllUsesWith(
-          UndefValue::get(CallSampledImg->getType()));
+          PoisonValue::get(CallSampledImg->getType()));
       CallSampledImg->dropAllReferences();
       CallSampledImg->eraseFromParent();
     }
-    return std::make_pair(Img, ImgTy);
+    return Img;
   });
-  Mutator.insertArg(1, {Sampler, SamplerTy});
+  Mutator.insertArg(1, Sampler);
   if (IsDepthImage)
     Mutator.changeReturnType(T, [&](IRBuilder<> &Builder, CallInst *NewCI) {
       return Builder.CreateInsertElement(
@@ -868,7 +895,7 @@ void SPIRVToOCLBase::visitCallSPIRVAvcINTELEvaluateBuiltIn(CallInst *CI,
 
   auto EraseVmeImageCall = [](CallInst *CI) {
     if (CI->hasOneUse()) {
-      CI->replaceAllUsesWith(UndefValue::get(CI->getType()));
+      CI->replaceAllUsesWith(PoisonValue::get(CI->getType()));
       CI->dropAllReferences();
       CI->eraseFromParent();
     }
@@ -878,14 +905,12 @@ void SPIRVToOCLBase::visitCallSPIRVAvcINTELEvaluateBuiltIn(CallInst *CI,
       mutateCallInst(CI, OCLSPIRVSubgroupAVCIntelBuiltinMap::rmap(OC));
   if (NumImages) {
     CallInst *SrcImage = cast<CallInst>(Mutator.getArg(0));
-    SmallVector<Type *, 2> SrcImageTys;
-    getParameterTypes(SrcImage, SrcImageTys);
     if (NumImages == 1) {
       // Multi reference opcode - remove src image OpVmeImageINTEL opcode
       // and replace it with corresponding OpImage and OpSampler arguments
       size_t SamplerPos = Mutator.arg_size() - 1;
-      Mutator.replaceArg(0, {SrcImage->getOperand(0), SrcImageTys[0]});
-      Mutator.insertArg(SamplerPos, {SrcImage->getOperand(1), SrcImageTys[1]});
+      Mutator.replaceArg(0, getCallValue(SrcImage, 0));
+      Mutator.insertArg(SamplerPos, getCallValue(SrcImage, 1));
     } else {
       CallInst *FwdRefImage = cast<CallInst>(Mutator.getArg(1));
       CallInst *BwdRefImage =
@@ -895,17 +920,15 @@ void SPIRVToOCLBase::visitCallSPIRVAvcINTELEvaluateBuiltIn(CallInst *CI,
       // opcodes and OpSampler
       Mutator.removeArgs(0, NumImages);
       // insert source OpImage and OpSampler
-      Mutator.insertArg(0, {SrcImage->getOperand(0), SrcImageTys[0]});
-      Mutator.insertArg(1, {SrcImage->getOperand(1), SrcImageTys[1]});
+      Mutator.insertArg(0, getCallValue(SrcImage, 0));
+      Mutator.insertArg(1, getCallValue(SrcImage, 1));
       // insert reference OpImage
-      getParameterTypes(FwdRefImage, SrcImageTys);
-      Mutator.insertArg(1, {FwdRefImage->getOperand(0), SrcImageTys[0]});
+      Mutator.insertArg(1, getCallValue(FwdRefImage, 0));
       EraseVmeImageCall(SrcImage);
       EraseVmeImageCall(FwdRefImage);
       if (BwdRefImage) {
         // Dual reference opcode - insert second reference OpImage argument
-        getParameterTypes(BwdRefImage, SrcImageTys);
-        Mutator.insertArg(2, {BwdRefImage->getOperand(0), SrcImageTys[0]});
+        Mutator.insertArg(2, getCallValue(BwdRefImage, 0));
         EraseVmeImageCall(BwdRefImage);
       }
     }
@@ -929,16 +952,71 @@ void SPIRVToOCLBase::visitCallSPIRVBFloat16Conversions(CallInst *CI, Op OC) {
           : "";
   std::string Name;
   switch (static_cast<uint32_t>(OC)) {
-  case internal::OpConvertFToBF16INTEL:
+  case OpConvertFToBF16INTEL:
     Name = "intel_convert_bfloat16" + N + "_as_ushort" + N;
     break;
-  case internal::OpConvertBF16ToFINTEL:
+  case OpConvertBF16ToFINTEL:
     Name = "intel_convert_as_bfloat16" + N + "_float" + N;
     break;
   default:
     break; // do nothing
   }
   mutateCallInst(CI, Name);
+}
+
+void SPIRVToOCLBase::visitCallSPIRVDot(CallInst *CI, Op OC,
+                                       StringRef DemangledName) {
+  // OpenCL only supports integer dot product builtins that have return types
+  // of int and uint.
+  if (!(DemangledName.contains("_Rint") || DemangledName.contains("_Ruint")))
+    return;
+
+  bool IsPacked = !CI->getOperand(0)->getType()->isVectorTy();
+  std::stringstream Name;
+  switch (OC) {
+  case OpSDot:
+    if (IsPacked)
+      Name << kOCLBuiltinName::Dot4x8PackedPrefix << "ss_int";
+    else
+      // Add an extra suffix to help determine signed/unsigned arguments
+      Name << kOCLBuiltinName::Dot << "_ss";
+    break;
+  case OpUDot:
+    if (IsPacked)
+      Name << kOCLBuiltinName::Dot4x8PackedPrefix << "uu_uint";
+    else
+      Name << kOCLBuiltinName::Dot << "_uu";
+    break;
+  case OpSUDot:
+    if (IsPacked)
+      Name << kOCLBuiltinName::Dot4x8PackedPrefix << "su_int";
+    else
+      Name << kOCLBuiltinName::Dot << "_su";
+    break;
+  case OpSDotAccSat:
+    if (IsPacked)
+      Name << kOCLBuiltinName::DotAccSat4x8PackedPrefix << "ss_int";
+    else
+      Name << kOCLBuiltinName::DotAccSat << "_ss";
+    break;
+  case OpUDotAccSat:
+    if (IsPacked)
+      Name << kOCLBuiltinName::DotAccSat4x8PackedPrefix << "uu_uint";
+    else
+      Name << kOCLBuiltinName::DotAccSat << "_uu";
+    break;
+  case OpSUDotAccSat:
+    if (IsPacked)
+      Name << kOCLBuiltinName::DotAccSat4x8PackedPrefix << "su_int";
+    else
+      Name << kOCLBuiltinName::DotAccSat << "_su";
+    break;
+  default:
+    break; // do nothing
+  }
+  auto Mutator = mutateCallInst(CI, Name.str());
+  if (IsPacked)
+    Mutator.removeArg(CI->arg_size() - 1);
 }
 
 void SPIRVToOCLBase::visitCallSPIRVBuiltin(CallInst *CI, Op OC) {
@@ -1048,6 +1126,33 @@ void SPIRVToOCLBase::visitCallSPIRVRelational(CallInst *CI, Op OC) {
       });
 }
 
+void SPIRVToOCLBase::visitCallSPIRVReadClockKHR(CallInst *CI) {
+  std::ostringstream Name;
+  Name << "clock_read_";
+
+  if (CI->getType()->isVectorTy())
+    Name << "hilo_";
+
+  // Encode the scope (taken from the argument) in the function name.
+  ConstantInt *ScopeOp = cast<ConstantInt>(CI->getArgOperand(0));
+  switch (static_cast<Scope>(ScopeOp->getZExtValue())) {
+  case ScopeDevice:
+    Name << "device";
+    break;
+  case ScopeWorkgroup:
+    Name << "work_group";
+    break;
+  case ScopeSubgroup:
+    Name << "sub_group";
+    break;
+  default:
+    break;
+  }
+
+  auto Mutator = mutateCallInst(CI, Name.str());
+  Mutator.removeArg(0);
+}
+
 std::string SPIRVToOCLBase::getGroupBuiltinPrefix(CallInst *CI) {
   std::string Prefix;
   auto ES = getArgAsScope(CI, 0);
@@ -1094,7 +1199,7 @@ void SPIRVToOCLBase::translateOpaqueTypes() {
   for (auto *S : M->getIdentifiedStructTypes()) {
     StringRef STName = S->getStructName();
     bool IsSPIRVOpaque =
-        S->isOpaque() && STName.startswith(kSPIRVTypeName::PrefixAndDelim);
+        S->isOpaque() && STName.starts_with(kSPIRVTypeName::PrefixAndDelim);
 
     if (!IsSPIRVOpaque)
       continue;
@@ -1104,7 +1209,7 @@ void SPIRVToOCLBase::translateOpaqueTypes() {
 }
 
 std::string SPIRVToOCLBase::translateOpaqueType(StringRef STName) {
-  if (!STName.startswith(kSPIRVTypeName::PrefixAndDelim))
+  if (!STName.starts_with(kSPIRVTypeName::PrefixAndDelim))
     return STName.str();
 
   SmallVector<std::string, 8> Postfixes;
@@ -1127,11 +1232,6 @@ std::string SPIRVToOCLBase::translateOpaqueType(StringRef STName) {
     return STName.str();
 
   return OCLOpaqueName;
-}
-
-void SPIRVToOCLBase::getParameterTypes(CallInst *CI,
-                                       SmallVectorImpl<Type *> &Tys) {
-  ::getParameterTypes(CI->getCalledFunction(), Tys, translateOpaqueType);
 }
 
 void addSPIRVBIsLoweringPass(ModulePassManager &PassMgr,

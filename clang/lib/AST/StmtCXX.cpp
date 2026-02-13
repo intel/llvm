@@ -23,7 +23,8 @@ QualType CXXCatchStmt::getCaughtType() const {
 }
 
 CXXTryStmt *CXXTryStmt::Create(const ASTContext &C, SourceLocation tryLoc,
-                               Stmt *tryBlock, ArrayRef<Stmt *> handlers) {
+                               CompoundStmt *tryBlock,
+                               ArrayRef<Stmt *> handlers) {
   const size_t Size = totalSizeToAlloc<Stmt *>(handlers.size() + 1);
   void *Mem = C.Allocate(Size, alignof(CXXTryStmt));
   return new (Mem) CXXTryStmt(tryLoc, tryBlock, handlers);
@@ -36,12 +37,12 @@ CXXTryStmt *CXXTryStmt::Create(const ASTContext &C, EmptyShell Empty,
   return new (Mem) CXXTryStmt(Empty, numHandlers);
 }
 
-CXXTryStmt::CXXTryStmt(SourceLocation tryLoc, Stmt *tryBlock,
+CXXTryStmt::CXXTryStmt(SourceLocation tryLoc, CompoundStmt *tryBlock,
                        ArrayRef<Stmt *> handlers)
     : Stmt(CXXTryStmtClass), TryLoc(tryLoc), NumHandlers(handlers.size()) {
   Stmt **Stmts = getStmts();
   Stmts[0] = tryBlock;
-  std::copy(handlers.begin(), handlers.end(), Stmts + 1);
+  llvm::copy(handlers, Stmts + 1);
 }
 
 CXXForRangeStmt::CXXForRangeStmt(Stmt *Init, DeclStmt *Range,
@@ -117,10 +118,10 @@ CoroutineBodyStmt::CoroutineBodyStmt(CoroutineBodyStmt::CtorArgs const &Args)
   SubStmts[CoroutineBodyStmt::OnFallthrough] = Args.OnFallthrough;
   SubStmts[CoroutineBodyStmt::Allocate] = Args.Allocate;
   SubStmts[CoroutineBodyStmt::Deallocate] = Args.Deallocate;
+  SubStmts[CoroutineBodyStmt::ResultDecl] = Args.ResultDecl;
   SubStmts[CoroutineBodyStmt::ReturnValue] = Args.ReturnValue;
   SubStmts[CoroutineBodyStmt::ReturnStmt] = Args.ReturnStmt;
   SubStmts[CoroutineBodyStmt::ReturnStmtOnAllocFailure] =
       Args.ReturnStmtOnAllocFailure;
-  std::copy(Args.ParamMoves.begin(), Args.ParamMoves.end(),
-            const_cast<Stmt **>(getParamMoves().data()));
+  llvm::copy(Args.ParamMoves, const_cast<Stmt **>(getParamMoves().data()));
 }

@@ -9,7 +9,6 @@
 #include "llvm/Option/OptTable.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/StringSet.h"
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Option/OptSpecifier.h"
@@ -17,86 +16,74 @@
 #include "llvm/Support/CommandLine.h" // for expandResponseFiles
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/OptionStrCmp.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cassert>
 #include <cctype>
 #include <cstring>
 #include <map>
+#include <set>
 #include <string>
-#include <utility>
 #include <vector>
 
 using namespace llvm;
 using namespace llvm::opt;
 
-namespace llvm {
-namespace opt {
+namespace {
+struct OptNameLess {
+  const StringTable *StrTable;
+  ArrayRef<StringTable::Offset> PrefixesTable;
 
-// Ordering on Info. The ordering is *almost* case-insensitive lexicographic,
-// with an exception. '\0' comes at the end of the alphabet instead of the
-// beginning (thus options precede any other options which prefix them).
-static int StrCmpOptionNameIgnoreCase(const char *A, const char *B) {
-  const char *X = A, *Y = B;
-  char a = tolower(*A), b = tolower(*B);
-  while (a == b) {
-    if (a == '\0')
-      return 0;
-
-    a = tolower(*++X);
-    b = tolower(*++Y);
-  }
-
-  if (a == '\0') // A is a prefix of B.
-    return 1;
-  if (b == '\0') // B is a prefix of A.
-    return -1;
-
-  // Otherwise lexicographic.
-  return (a < b) ? -1 : 1;
-}
+  explicit OptNameLess(const StringTable &StrTable,
+                       ArrayRef<StringTable::Offset> PrefixesTable)
+      : StrTable(&StrTable), PrefixesTable(PrefixesTable) {}
 
 #ifndef NDEBUG
-static int StrCmpOptionName(const char *A, const char *B) {
-  if (int N = StrCmpOptionNameIgnoreCase(A, B))
-    return N;
-  return strcmp(A, B);
-}
+  inline bool operator()(const OptTable::Info &A,
+                         const OptTable::Info &B) const {
+    if (&A == &B)
+      return false;
 
-static inline bool operator<(const OptTable::Info &A, const OptTable::Info &B) {
-  if (&A == &B)
-    return false;
+    if (int Cmp = StrCmpOptionName(A.getName(*StrTable, PrefixesTable),
+                                   B.getName(*StrTable, PrefixesTable)))
+      return Cmp < 0;
 
-  if (int N = StrCmpOptionName(A.Name, B.Name))
-    return N < 0;
+    SmallVector<StringRef, 8> APrefixes, BPrefixes;
+    A.appendPrefixes(*StrTable, PrefixesTable, APrefixes);
+    B.appendPrefixes(*StrTable, PrefixesTable, BPrefixes);
 
-  for (const char * const *APre = A.Prefixes,
-                  * const *BPre = B.Prefixes;
-                          *APre != nullptr && *BPre != nullptr; ++APre, ++BPre){
-    if (int N = StrCmpOptionName(*APre, *BPre))
-      return N < 0;
+    if (int Cmp = StrCmpOptionPrefixes(APrefixes, BPrefixes))
+      return Cmp < 0;
+
+    // Names are the same, check that classes are in order; exactly one
+    // should be joined, and it should succeed the other.
+    assert(
+        ((A.Kind == Option::JoinedClass) ^ (B.Kind == Option::JoinedClass)) &&
+        "Unexpected classes for options with same name.");
+    return B.Kind == Option::JoinedClass;
   }
-
-  // Names are the same, check that classes are in order; exactly one
-  // should be joined, and it should succeed the other.
-  assert(((A.Kind == Option::JoinedClass) ^ (B.Kind == Option::JoinedClass)) &&
-         "Unexpected classes for options with same name.");
-  return B.Kind == Option::JoinedClass;
-}
 #endif
 
-// Support lower_bound between info and an option name.
-static inline bool operator<(const OptTable::Info &I, const char *Name) {
-  return StrCmpOptionNameIgnoreCase(I.Name, Name) < 0;
-}
-
-} // end namespace opt
-} // end namespace llvm
+  // Support lower_bound between info and an option name.
+  inline bool operator()(const OptTable::Info &I, StringRef Name) const {
+    // Do not fallback to case sensitive comparison.
+    return StrCmpOptionName(I.getName(*StrTable, PrefixesTable), Name, false) <
+           0;
+  }
+};
+} // namespace
 
 OptSpecifier::OptSpecifier(const Option *Opt) : ID(Opt->getID()) {}
 
-OptTable::OptTable(ArrayRef<Info> OptionInfos, bool IgnoreCase)
-    : OptionInfos(OptionInfos), IgnoreCase(IgnoreCase) {
+OptTable::OptTable(const StringTable &StrTable,
+                   ArrayRef<StringTable::Offset> PrefixesTable,
+                   ArrayRef<Info> OptionInfos, bool IgnoreCase,
+                   ArrayRef<SubCommand> SubCommands,
+                   ArrayRef<unsigned> SubCommandIDsTable)
+    : StrTable(&StrTable), PrefixesTable(PrefixesTable),
+      OptionInfos(OptionInfos), IgnoreCase(IgnoreCase),
+      SubCommands(SubCommands), SubCommandIDsTable(SubCommandIDsTable) {
   // Explicitly zero initialize the error to work around a bug in array
   // value-initialization on MinGW with gcc 4.3.5.
 
@@ -128,28 +115,20 @@ OptTable::OptTable(ArrayRef<Info> OptionInfos, bool IgnoreCase)
 
   // Check that options are in order.
   for (unsigned i = FirstSearchableIndex + 1, e = getNumOptions(); i != e; ++i){
-    if (!(getInfo(i) < getInfo(i + 1))) {
+    if (!(OptNameLess(StrTable, PrefixesTable)(getInfo(i), getInfo(i + 1)))) {
       getOption(i).dump();
       getOption(i + 1).dump();
       llvm_unreachable("Options are not in order!");
     }
   }
 #endif
+}
 
-  // Build prefixes.
-  for (unsigned i = FirstSearchableIndex + 1, e = getNumOptions() + 1;
-                i != e; ++i) {
-    if (const char *const *P = getInfo(i).Prefixes) {
-      for (; *P != nullptr; ++P) {
-        PrefixesUnion.insert(*P);
-      }
-    }
-  }
+void OptTable::buildPrefixChars() {
+  assert(PrefixChars.empty() && "rebuilding a non-empty prefix char");
 
   // Build prefix chars.
-  for (StringSet<>::const_iterator I = PrefixesUnion.begin(),
-                                   E = PrefixesUnion.end(); I != E; ++I) {
-    StringRef Prefix = I->getKey();
+  for (StringRef Prefix : PrefixesUnion) {
     for (char C : Prefix)
       if (!is_contained(PrefixChars, C))
         PrefixChars.push_back(C);
@@ -166,41 +145,43 @@ const Option OptTable::getOption(OptSpecifier Opt) const {
   return Option(&getInfo(id), this);
 }
 
-static bool isInput(const StringSet<> &Prefixes, StringRef Arg) {
+static bool isInput(const ArrayRef<StringRef> &Prefixes, StringRef Arg) {
   if (Arg == "-")
     return true;
-  for (StringSet<>::const_iterator I = Prefixes.begin(),
-                                   E = Prefixes.end(); I != E; ++I)
-    if (Arg.startswith(I->getKey()))
+  for (const StringRef &Prefix : Prefixes)
+    if (Arg.starts_with(Prefix))
       return false;
   return true;
 }
 
 /// \returns Matched size. 0 means no match.
-static unsigned matchOption(const OptTable::Info *I, StringRef Str,
+static unsigned matchOption(const StringTable &StrTable,
+                            ArrayRef<StringTable::Offset> PrefixesTable,
+                            const OptTable::Info *I, StringRef Str,
                             bool IgnoreCase) {
-  for (const char * const *Pre = I->Prefixes; *Pre != nullptr; ++Pre) {
-    StringRef Prefix(*Pre);
-    if (Str.startswith(Prefix)) {
+  StringRef Name = I->getName(StrTable, PrefixesTable);
+  for (auto PrefixOffset : I->getPrefixOffsets(PrefixesTable)) {
+    StringRef Prefix = StrTable[PrefixOffset];
+    if (Str.starts_with(Prefix)) {
       StringRef Rest = Str.substr(Prefix.size());
-      bool Matched = IgnoreCase ? Rest.startswith_insensitive(I->Name)
-                                : Rest.startswith(I->Name);
+      bool Matched = IgnoreCase ? Rest.starts_with_insensitive(Name)
+                                : Rest.starts_with(Name);
       if (Matched)
-        return Prefix.size() + StringRef(I->Name).size();
+        return Prefix.size() + Name.size();
     }
   }
   return 0;
 }
 
 // Returns true if one of the Prefixes + In.Names matches Option
-static bool optionMatches(const OptTable::Info &In, StringRef Option) {
-  if (In.Prefixes) {
-    StringRef InName(In.Name);
-    for (size_t I = 0; In.Prefixes[I]; I++)
-      if (Option.endswith(InName))
-        if (Option.slice(0, Option.size() - InName.size()) == In.Prefixes[I])
-          return true;
-  }
+static bool optionMatches(const StringTable &StrTable,
+                          ArrayRef<StringTable::Offset> PrefixesTable,
+                          const OptTable::Info &In, StringRef Option) {
+  StringRef Name = In.getName(StrTable, PrefixesTable);
+  if (Option.consume_back(Name))
+    for (auto PrefixOffset : In.getPrefixOffsets(PrefixesTable))
+      if (Option == StrTable[PrefixOffset])
+        return true;
   return false;
 }
 
@@ -212,7 +193,7 @@ OptTable::suggestValueCompletions(StringRef Option, StringRef Arg) const {
   // Search all options and return possible values.
   for (size_t I = FirstSearchableIndex, E = OptionInfos.size(); I < E; I++) {
     const Info &In = OptionInfos[I];
-    if (!In.Values || !optionMatches(In, Option))
+    if (!In.Values || !optionMatches(*StrTable, PrefixesTable, In, Option))
       continue;
 
     SmallVector<StringRef, 8> Candidates;
@@ -220,7 +201,7 @@ OptTable::suggestValueCompletions(StringRef Option, StringRef Arg) const {
 
     std::vector<std::string> Result;
     for (StringRef Val : Candidates)
-      if (Val.startswith(Arg) && Arg.compare(Val))
+      if (Val.starts_with(Arg) && Arg != Val)
         Result.push_back(std::string(Val));
     return Result;
   }
@@ -228,20 +209,25 @@ OptTable::suggestValueCompletions(StringRef Option, StringRef Arg) const {
 }
 
 std::vector<std::string>
-OptTable::findByPrefix(StringRef Cur, unsigned int DisableFlags) const {
+OptTable::findByPrefix(StringRef Cur, Visibility VisibilityMask,
+                       unsigned int DisableFlags) const {
   std::vector<std::string> Ret;
   for (size_t I = FirstSearchableIndex, E = OptionInfos.size(); I < E; I++) {
     const Info &In = OptionInfos[I];
-    if (!In.Prefixes || (!In.HelpText && !In.GroupID))
+    if (In.hasNoPrefix() || (!In.HelpText && !In.GroupID))
+      continue;
+    if (!(In.Visibility & VisibilityMask))
       continue;
     if (In.Flags & DisableFlags)
       continue;
 
-    for (int I = 0; In.Prefixes[I]; I++) {
-      std::string S = std::string(In.Prefixes[I]) + std::string(In.Name) + "\t";
+    StringRef Name = In.getName(*StrTable, PrefixesTable);
+    for (auto PrefixOffset : In.getPrefixOffsets(PrefixesTable)) {
+      StringRef Prefix = (*StrTable)[PrefixOffset];
+      std::string S = (Twine(Prefix) + Name + "\t").str();
       if (In.HelpText)
         S += In.HelpText;
-      if (StringRef(S).startswith(Cur) && S != std::string(Cur) + "\t")
+      if (StringRef(S).starts_with(Cur) && S != std::string(Cur) + "\t")
         Ret.push_back(S);
     }
   }
@@ -249,60 +235,99 @@ OptTable::findByPrefix(StringRef Cur, unsigned int DisableFlags) const {
 }
 
 unsigned OptTable::findNearest(StringRef Option, std::string &NearestString,
+                               Visibility VisibilityMask,
+                               unsigned MinimumLength,
+                               unsigned MaximumDistance) const {
+  return internalFindNearest(
+      Option, NearestString, MinimumLength, MaximumDistance,
+      [VisibilityMask](const Info &CandidateInfo) {
+        return (CandidateInfo.Visibility & VisibilityMask) == 0;
+      });
+}
+
+unsigned OptTable::findNearest(StringRef Option, std::string &NearestString,
                                unsigned FlagsToInclude, unsigned FlagsToExclude,
-                               unsigned MinimumLength) const {
+                               unsigned MinimumLength,
+                               unsigned MaximumDistance) const {
+  return internalFindNearest(
+      Option, NearestString, MinimumLength, MaximumDistance,
+      [FlagsToInclude, FlagsToExclude](const Info &CandidateInfo) {
+        if (FlagsToInclude && !(CandidateInfo.Flags & FlagsToInclude))
+          return true;
+        if (CandidateInfo.Flags & FlagsToExclude)
+          return true;
+        return false;
+      });
+}
+
+unsigned OptTable::internalFindNearest(
+    StringRef Option, std::string &NearestString, unsigned MinimumLength,
+    unsigned MaximumDistance,
+    std::function<bool(const Info &)> ExcludeOption) const {
   assert(!Option.empty());
 
   // Consider each [option prefix + option name] pair as a candidate, finding
   // the closest match.
-  unsigned BestDistance = UINT_MAX;
+  unsigned BestDistance =
+      MaximumDistance == UINT_MAX ? UINT_MAX : MaximumDistance + 1;
+  SmallString<16> Candidate;
+  SmallString<16> NormalizedName;
+
   for (const Info &CandidateInfo :
        ArrayRef<Info>(OptionInfos).drop_front(FirstSearchableIndex)) {
-    StringRef CandidateName = CandidateInfo.Name;
+    StringRef CandidateName = CandidateInfo.getName(*StrTable, PrefixesTable);
 
     // We can eliminate some option prefix/name pairs as candidates right away:
     // * Ignore option candidates with empty names, such as "--", or names
     //   that do not meet the minimum length.
-    if (CandidateName.empty() || CandidateName.size() < MinimumLength)
+    if (CandidateName.size() < MinimumLength)
       continue;
 
-    // * If FlagsToInclude were specified, ignore options that don't include
-    //   those flags.
-    if (FlagsToInclude && !(CandidateInfo.Flags & FlagsToInclude))
-      continue;
-    // * Ignore options that contain the FlagsToExclude.
-    if (CandidateInfo.Flags & FlagsToExclude)
+    // Ignore options that are excluded via masks
+    if (ExcludeOption(CandidateInfo))
       continue;
 
     // * Ignore positional argument option candidates (which do not
     //   have prefixes).
-    if (!CandidateInfo.Prefixes)
+    if (CandidateInfo.hasNoPrefix())
       continue;
 
     // Now check if the candidate ends with a character commonly used when
     // delimiting an option from its value, such as '=' or ':'. If it does,
     // attempt to split the given option based on that delimiter.
-    StringRef LHS, RHS;
     char Last = CandidateName.back();
     bool CandidateHasDelimiter = Last == '=' || Last == ':';
-    std::string NormalizedName = std::string(Option);
+    StringRef RHS;
     if (CandidateHasDelimiter) {
-      std::tie(LHS, RHS) = Option.split(Last);
-      NormalizedName = std::string(LHS);
-      if (Option.find(Last) == LHS.size())
+      std::tie(NormalizedName, RHS) = Option.split(Last);
+      if (Option.find(Last) == NormalizedName.size())
         NormalizedName += Last;
-    }
+    } else
+      NormalizedName = Option;
 
     // Consider each possible prefix for each candidate to find the most
     // appropriate one. For example, if a user asks for "--helm", suggest
     // "--help" over "-help".
-    for (int P = 0;
-         const char *const CandidatePrefix = CandidateInfo.Prefixes[P]; P++) {
-      std::string Candidate = (CandidatePrefix + CandidateName).str();
-      StringRef CandidateRef = Candidate;
-      unsigned Distance =
-          CandidateRef.edit_distance(NormalizedName, /*AllowReplacements=*/true,
-                                     /*MaxEditDistance=*/BestDistance);
+    for (auto CandidatePrefixOffset :
+         CandidateInfo.getPrefixOffsets(PrefixesTable)) {
+      StringRef CandidatePrefix = (*StrTable)[CandidatePrefixOffset];
+      // If Candidate and NormalizedName have more than 'BestDistance'
+      // characters of difference, no need to compute the edit distance, it's
+      // going to be greater than BestDistance. Don't bother computing Candidate
+      // at all.
+      size_t CandidateSize = CandidatePrefix.size() + CandidateName.size(),
+             NormalizedSize = NormalizedName.size();
+      size_t AbsDiff = CandidateSize > NormalizedSize
+                           ? CandidateSize - NormalizedSize
+                           : NormalizedSize - CandidateSize;
+      if (AbsDiff > BestDistance) {
+        continue;
+      }
+      Candidate = CandidatePrefix;
+      Candidate += CandidateName;
+      unsigned Distance = StringRef(Candidate).edit_distance(
+          NormalizedName, /*AllowReplacements=*/true,
+          /*MaxEditDistance=*/BestDistance);
       if (RHS.empty() && CandidateHasDelimiter) {
         // The Candidate ends with a = or : delimiter, but the option passed in
         // didn't contain the delimiter (or doesn't have anything after it).
@@ -321,21 +346,10 @@ unsigned OptTable::findNearest(StringRef Option, std::string &NearestString,
   return BestDistance;
 }
 
-bool OptTable::addValues(const char *Option, const char *Values) {
-  for (size_t I = FirstSearchableIndex, E = OptionInfos.size(); I < E; I++) {
-    Info &In = OptionInfos[I];
-    if (optionMatches(In, Option)) {
-      In.Values = Values;
-      return true;
-    }
-  }
-  return false;
-}
-
 // Parse a single argument, return the new argument, and update Index. If
 // GroupedShortOptions is true, -a matches "-abc" and the argument in Args will
-// be updated to "-bc". This overload does not support
-// FlagsToInclude/FlagsToExclude or case insensitive options.
+// be updated to "-bc". This overload does not support VisibilityMask or case
+// insensitive options.
 std::unique_ptr<Arg> OptTable::parseOneArgGrouped(InputArgList &Args,
                                                   unsigned &Index) const {
   // Anything that doesn't start with PrefixesUnion is an input, as is '-'
@@ -347,14 +361,16 @@ std::unique_ptr<Arg> OptTable::parseOneArgGrouped(InputArgList &Args,
 
   const Info *End = OptionInfos.data() + OptionInfos.size();
   StringRef Name = Str.ltrim(PrefixChars);
-  const Info *Start = std::lower_bound(
-      OptionInfos.data() + FirstSearchableIndex, End, Name.data());
+  const Info *Start =
+      std::lower_bound(OptionInfos.data() + FirstSearchableIndex, End, Name,
+                       OptNameLess(*StrTable, PrefixesTable));
   const Info *Fallback = nullptr;
   unsigned Prev = Index;
 
   // Search for the option which matches Str.
   for (; Start != End; ++Start) {
-    unsigned ArgSize = matchOption(Start, Str, IgnoreCase);
+    unsigned ArgSize =
+        matchOption(*StrTable, PrefixesTable, Start, Str, IgnoreCase);
     if (!ArgSize)
       continue;
 
@@ -400,22 +416,44 @@ std::unique_ptr<Arg> OptTable::parseOneArgGrouped(InputArgList &Args,
 }
 
 std::unique_ptr<Arg> OptTable::ParseOneArg(const ArgList &Args, unsigned &Index,
+                                           Visibility VisibilityMask) const {
+  return internalParseOneArg(Args, Index, [VisibilityMask](const Option &Opt) {
+    return !Opt.hasVisibilityFlag(VisibilityMask);
+  });
+}
+
+std::unique_ptr<Arg> OptTable::ParseOneArg(const ArgList &Args, unsigned &Index,
                                            unsigned FlagsToInclude,
                                            unsigned FlagsToExclude) const {
+  return internalParseOneArg(
+      Args, Index, [FlagsToInclude, FlagsToExclude](const Option &Opt) {
+        if (FlagsToInclude && !Opt.hasFlag(FlagsToInclude))
+          return true;
+        if (Opt.hasFlag(FlagsToExclude))
+          return true;
+        return false;
+      });
+}
+
+std::unique_ptr<Arg> OptTable::internalParseOneArg(
+    const ArgList &Args, unsigned &Index,
+    std::function<bool(const Option &)> ExcludeOption) const {
   unsigned Prev = Index;
-  const char *Str = Args.getArgString(Index);
+  StringRef Str = Args.getArgString(Index);
 
   // Anything that doesn't start with PrefixesUnion is an input, as is '-'
   // itself.
   if (isInput(PrefixesUnion, Str))
-    return std::make_unique<Arg>(getOption(InputOptionID), Str, Index++, Str);
+    return std::make_unique<Arg>(getOption(InputOptionID), Str, Index++,
+                                 Str.data());
 
   const Info *Start = OptionInfos.data() + FirstSearchableIndex;
   const Info *End = OptionInfos.data() + OptionInfos.size();
-  StringRef Name = StringRef(Str).ltrim(PrefixChars);
+  StringRef Name = Str.ltrim(PrefixChars);
 
   // Search for the first next option which could be a prefix.
-  Start = std::lower_bound(Start, End, Name.data());
+  Start =
+      std::lower_bound(Start, End, Name, OptNameLess(*StrTable, PrefixesTable));
 
   // Options are stored in sorted order, with '\0' at the end of the
   // alphabet. Since the only options which can accept a string must
@@ -429,16 +467,15 @@ std::unique_ptr<Arg> OptTable::ParseOneArg(const ArgList &Args, unsigned &Index,
     unsigned ArgSize = 0;
     // Scan for first option which is a proper prefix.
     for (; Start != End; ++Start)
-      if ((ArgSize = matchOption(Start, Str, IgnoreCase)))
+      if ((ArgSize =
+               matchOption(*StrTable, PrefixesTable, Start, Str, IgnoreCase)))
         break;
     if (Start == End)
       break;
 
     Option Opt(Start, this);
 
-    if (FlagsToInclude && !Opt.hasFlag(FlagsToInclude))
-      continue;
-    if (Opt.hasFlag(FlagsToExclude))
+    if (ExcludeOption(Opt))
       continue;
 
     // See if this option matches.
@@ -455,16 +492,44 @@ std::unique_ptr<Arg> OptTable::ParseOneArg(const ArgList &Args, unsigned &Index,
   // If we failed to find an option and this arg started with /, then it's
   // probably an input path.
   if (Str[0] == '/')
-    return std::make_unique<Arg>(getOption(InputOptionID), Str, Index++, Str);
+    return std::make_unique<Arg>(getOption(InputOptionID), Str, Index++,
+                                 Str.data());
 
-  return std::make_unique<Arg>(getOption(UnknownOptionID), Str, Index++, Str);
+  return std::make_unique<Arg>(getOption(UnknownOptionID), Str, Index++,
+                               Str.data());
 }
 
-InputArgList OptTable::ParseArgs(ArrayRef<const char *> ArgArr,
+InputArgList OptTable::ParseArgs(ArrayRef<const char *> Args,
+                                 unsigned &MissingArgIndex,
+                                 unsigned &MissingArgCount,
+                                 Visibility VisibilityMask) const {
+  return internalParseArgs(
+      Args, MissingArgIndex, MissingArgCount,
+      [VisibilityMask](const Option &Opt) {
+        return !Opt.hasVisibilityFlag(VisibilityMask);
+      });
+}
+
+InputArgList OptTable::ParseArgs(ArrayRef<const char *> Args,
                                  unsigned &MissingArgIndex,
                                  unsigned &MissingArgCount,
                                  unsigned FlagsToInclude,
                                  unsigned FlagsToExclude) const {
+  return internalParseArgs(
+      Args, MissingArgIndex, MissingArgCount,
+      [FlagsToInclude, FlagsToExclude](const Option &Opt) {
+        if (FlagsToInclude && !Opt.hasFlag(FlagsToInclude))
+          return true;
+        if (Opt.hasFlag(FlagsToExclude))
+          return true;
+        return false;
+      });
+}
+
+InputArgList OptTable::internalParseArgs(
+    ArrayRef<const char *> ArgArr, unsigned &MissingArgIndex,
+    unsigned &MissingArgCount,
+    std::function<bool(const Option &)> ExcludeOption) const {
   InputArgList Args(ArgArr.begin(), ArgArr.end());
 
   // FIXME: Handle '@' args (or at least error on them).
@@ -484,10 +549,20 @@ InputArgList OptTable::ParseArgs(ArrayRef<const char *> ArgArr,
       continue;
     }
 
+    // In DashDashParsing mode, the first "--" stops option scanning and treats
+    // all subsequent arguments as positional.
+    if (DashDashParsing && Str == "--") {
+      while (++Index < End) {
+        Args.append(new Arg(getOption(InputOptionID), Str, Index,
+                            Args.getArgString(Index)));
+      }
+      break;
+    }
+
     unsigned Prev = Index;
     std::unique_ptr<Arg> A = GroupedShortOptions
                  ? parseOneArgGrouped(Args, Index)
-                 : ParseOneArg(Args, Index, FlagsToInclude, FlagsToExclude);
+                 : internalParseOneArg(Args, Index, ExcludeOption);
     assert((Index > Prev || GroupedShortOptions) &&
            "Parser failed to consume argument.");
 
@@ -508,14 +583,14 @@ InputArgList OptTable::ParseArgs(ArrayRef<const char *> ArgArr,
 
 InputArgList OptTable::parseArgs(int Argc, char *const *Argv,
                                  OptSpecifier Unknown, StringSaver &Saver,
-                                 function_ref<void(StringRef)> ErrorFn) const {
+                                 std::function<void(StringRef)> ErrorFn) const {
   SmallVector<const char *, 0> NewArgv;
   // The environment variable specifies initial options which can be overridden
   // by commnad line options.
   cl::expandResponseFiles(Argc, Argv, EnvVar, Saver, NewArgv);
 
   unsigned MAI, MAC;
-  opt::InputArgList Args = ParseArgs(makeArrayRef(NewArgv), MAI, MAC);
+  opt::InputArgList Args = ParseArgs(ArrayRef(NewArgv), MAI, MAC);
   if (MAC)
     ErrorFn((Twine(Args.getArgString(MAI)) + ": missing argument").str());
 
@@ -525,17 +600,17 @@ InputArgList OptTable::parseArgs(int Argc, char *const *Argv,
   for (const opt::Arg *A : Args.filtered(Unknown)) {
     std::string Spelling = A->getAsString(Args);
     if (findNearest(Spelling, Nearest) > 1)
-      ErrorFn("unknown argument '" + A->getAsString(Args) + "'");
+      ErrorFn("unknown argument '" + Spelling + "'");
     else
-      ErrorFn("unknown argument '" + A->getAsString(Args) +
-              "', did you mean '" + Nearest + "'?");
+      ErrorFn("unknown argument '" + Spelling + "', did you mean '" + Nearest +
+              "'?");
   }
   return Args;
 }
 
 static std::string getOptionHelpName(const OptTable &Opts, OptSpecifier Id) {
   const Option O = Opts.getOption(Id);
-  std::string Name = O.getPrefixedName();
+  std::string Name = O.getPrefixedName().str();
 
   // Add metavar, if used.
   switch (O.getKind()) {
@@ -601,15 +676,24 @@ static void PrintHelpOptionList(raw_ostream &OS, StringRef Title,
   const unsigned InitialPad = 2;
   for (const OptionInfo &Opt : OptionHelp) {
     const std::string &Option = Opt.Name;
-    int Pad = OptionFieldWidth - int(Option.size());
+    int Pad = OptionFieldWidth + InitialPad;
+    int FirstLinePad = OptionFieldWidth - int(Option.size());
     OS.indent(InitialPad) << Option;
 
     // Break on long option names.
-    if (Pad < 0) {
+    if (FirstLinePad < 0) {
       OS << "\n";
-      Pad = OptionFieldWidth + InitialPad;
+      FirstLinePad = OptionFieldWidth + InitialPad;
+      Pad = FirstLinePad;
     }
-    OS.indent(Pad + 1) << Opt.HelpText << '\n';
+
+    SmallVector<StringRef> Lines;
+    Opt.HelpText.split(Lines, '\n');
+    assert(Lines.size() && "Expected at least the first line in the help text");
+    auto *LinesIt = Lines.begin();
+    OS.indent(FirstLinePad + 1) << *LinesIt << '\n';
+    while (Lines.end() != ++LinesIt)
+      OS.indent(Pad + 1) << *LinesIt << '\n';
   }
 }
 
@@ -632,39 +716,111 @@ static const char *getOptionHelpGroup(const OptTable &Opts, OptSpecifier Id) {
 }
 
 void OptTable::printHelp(raw_ostream &OS, const char *Usage, const char *Title,
-                         bool ShowHidden, bool ShowAllAliases) const {
-  printHelp(OS, Usage, Title, /*Include*/ 0, /*Exclude*/
-            (ShowHidden ? 0 : HelpHidden), ShowAllAliases);
+                         bool ShowHidden, bool ShowAllAliases,
+                         Visibility VisibilityMask,
+                         StringRef SubCommand) const {
+  return internalPrintHelp(
+      OS, Usage, Title, SubCommand, ShowHidden, ShowAllAliases,
+      [VisibilityMask](const Info &CandidateInfo) -> bool {
+        return (CandidateInfo.Visibility & VisibilityMask) == 0;
+      },
+      VisibilityMask);
 }
 
 void OptTable::printHelp(raw_ostream &OS, const char *Usage, const char *Title,
                          unsigned FlagsToInclude, unsigned FlagsToExclude,
                          bool ShowAllAliases) const {
+  bool ShowHidden = !(FlagsToExclude & HelpHidden);
+  FlagsToExclude &= ~HelpHidden;
+  return internalPrintHelp(
+      OS, Usage, Title, /*SubCommand=*/{}, ShowHidden, ShowAllAliases,
+      [FlagsToInclude, FlagsToExclude](const Info &CandidateInfo) {
+        if (FlagsToInclude && !(CandidateInfo.Flags & FlagsToInclude))
+          return true;
+        if (CandidateInfo.Flags & FlagsToExclude)
+          return true;
+        return false;
+      },
+      Visibility(0));
+}
+
+void OptTable::internalPrintHelp(
+    raw_ostream &OS, const char *Usage, const char *Title, StringRef SubCommand,
+    bool ShowHidden, bool ShowAllAliases,
+    std::function<bool(const Info &)> ExcludeOption,
+    Visibility VisibilityMask) const {
   OS << "OVERVIEW: " << Title << "\n\n";
-  OS << "USAGE: " << Usage << "\n\n";
 
   // Render help text into a map of group-name to a list of (option, help)
   // pairs.
   std::map<std::string, std::vector<OptionInfo>> GroupedOptionHelp;
+
+  auto ActiveSubCommand = llvm::find_if(
+      SubCommands, [&](const auto &C) { return SubCommand == C.Name; });
+  if (!SubCommand.empty()) {
+    assert(ActiveSubCommand != SubCommands.end() &&
+           "Not a valid registered subcommand.");
+    OS << ActiveSubCommand->HelpText << "\n\n";
+    if (!StringRef(ActiveSubCommand->Usage).empty())
+      OS << "USAGE: " << ActiveSubCommand->Usage << "\n\n";
+  } else {
+    OS << "USAGE: " << Usage << "\n\n";
+    if (SubCommands.size() > 1) {
+      OS << "SUBCOMMANDS:\n\n";
+      for (const auto &C : SubCommands)
+        OS << C.Name << " - " << C.HelpText << "\n";
+      OS << "\n";
+    }
+  }
+
+  auto DoesOptionBelongToSubcommand = [&](const Info &CandidateInfo) {
+    // Retrieve the SubCommandIDs registered to the given current CandidateInfo
+    // Option.
+    ArrayRef<unsigned> SubCommandIDs =
+        CandidateInfo.getSubCommandIDs(SubCommandIDsTable);
+
+    // If no registered subcommands, then only global options are to be printed.
+    // If no valid SubCommand (empty) in commandline then print the current
+    // global CandidateInfo Option.
+    if (SubCommandIDs.empty())
+      return SubCommand.empty();
+
+    // Handle CandidateInfo Option which has at least one registered SubCommand.
+    // If no valid SubCommand (empty) in commandline, this CandidateInfo option
+    // should not be printed.
+    if (SubCommand.empty())
+      return false;
+
+    // Find the ID of the valid subcommand passed in commandline (its index in
+    // the SubCommands table which contains all subcommands).
+    unsigned ActiveSubCommandID = ActiveSubCommand - &SubCommands[0];
+    // Print if the ActiveSubCommandID is registered with the CandidateInfo
+    // Option.
+    return llvm::is_contained(SubCommandIDs, ActiveSubCommandID);
+  };
 
   for (unsigned Id = 1, e = getNumOptions() + 1; Id != e; ++Id) {
     // FIXME: Split out option groups.
     if (getOptionKind(Id) == Option::GroupClass)
       continue;
 
-    unsigned Flags = getInfo(Id).Flags;
-    if (FlagsToInclude && !(Flags & FlagsToInclude))
+    const Info &CandidateInfo = getInfo(Id);
+    if (!ShowHidden && (CandidateInfo.Flags & opt::HelpHidden))
       continue;
-    if (Flags & FlagsToExclude)
+
+    if (ExcludeOption(CandidateInfo))
+      continue;
+
+    if (!DoesOptionBelongToSubcommand(CandidateInfo))
       continue;
 
     // If an alias doesn't have a help text, show a help text for the aliased
     // option instead.
-    const char *HelpText = getOptionHelpText(Id);
+    const char *HelpText = getOptionHelpText(Id, VisibilityMask);
     if (!HelpText && ShowAllAliases) {
       const Option Alias = getOption(Id).getAlias();
       if (Alias.isValid())
-        HelpText = getOptionHelpText(Alias.getID());
+        HelpText = getOptionHelpText(Alias.getID(), VisibilityMask);
     }
 
     if (HelpText && (strlen(HelpText) != 0)) {
@@ -681,4 +837,20 @@ void OptTable::printHelp(raw_ostream &OS, const char *Usage, const char *Title,
   }
 
   OS.flush();
+}
+
+GenericOptTable::GenericOptTable(const StringTable &StrTable,
+                                 ArrayRef<StringTable::Offset> PrefixesTable,
+                                 ArrayRef<Info> OptionInfos, bool IgnoreCase,
+                                 ArrayRef<SubCommand> SubCommands,
+                                 ArrayRef<unsigned> SubCommandIDsTable)
+    : OptTable(StrTable, PrefixesTable, OptionInfos, IgnoreCase, SubCommands,
+               SubCommandIDsTable) {
+
+  std::set<StringRef> TmpPrefixesUnion;
+  for (auto const &Info : OptionInfos.drop_front(FirstSearchableIndex))
+    for (auto PrefixOffset : Info.getPrefixOffsets(PrefixesTable))
+      TmpPrefixesUnion.insert(StrTable[PrefixOffset]);
+  PrefixesUnion.append(TmpPrefixesUnion.begin(), TmpPrefixesUnion.end());
+  buildPrefixChars();
 }

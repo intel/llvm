@@ -6,75 +6,77 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LIBC_SRC_SUPPORT_STR_TO_FLOAT_H
-#define LIBC_SRC_SUPPORT_STR_TO_FLOAT_H
+// -----------------------------------------------------------------------------
+//                               **** WARNING ****
+// This file is shared with libc++. You should also be careful when adding
+// dependencies to this file, since it needs to build for all libc++ targets.
+// -----------------------------------------------------------------------------
 
+#ifndef LLVM_LIBC_SRC___SUPPORT_STR_TO_FLOAT_H
+#define LLVM_LIBC_SRC___SUPPORT_STR_TO_FLOAT_H
+
+#include "hdr/errno_macros.h" // For ERANGE
+#include "hdr/stdint_proxy.h"
+#include "src/__support/CPP/bit.h"
 #include "src/__support/CPP/limits.h"
+#include "src/__support/CPP/optional.h"
+#include "src/__support/CPP/string_view.h"
 #include "src/__support/FPUtil/FPBits.h"
-#include "src/__support/UInt128.h"
-#include "src/__support/builtin_wrappers.h"
+#include "src/__support/FPUtil/rounding_mode.h"
+#include "src/__support/common.h"
 #include "src/__support/ctype_utils.h"
 #include "src/__support/detailed_powers_of_ten.h"
 #include "src/__support/high_precision_decimal.h"
+#include "src/__support/macros/config.h"
+#include "src/__support/macros/null_check.h"
+#include "src/__support/macros/optimization.h"
 #include "src/__support/str_to_integer.h"
-#include <errno.h>
+#include "src/__support/str_to_num_result.h"
+#include "src/__support/uint128.h"
+#include "src/__support/wctype_utils.h"
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE_DECL {
 namespace internal {
 
-template <class T> uint32_t inline leading_zeroes(T inputNumber) {
-  constexpr uint32_t BITS_IN_T = sizeof(T) * 8;
-  if (inputNumber == 0) {
-    return BITS_IN_T;
-  }
-  uint32_t cur_guess = BITS_IN_T / 2;
-  uint32_t range_size = BITS_IN_T / 2;
-  // while either shifting by curGuess does not get rid of all of the bits or
-  // shifting by one less also gets rid of all of the bits then we have not
-  // found the first bit.
-  while (((inputNumber >> cur_guess) > 0) ||
-         ((inputNumber >> (cur_guess - 1)) == 0)) {
-    // Binary search for the first set bit
-    range_size /= 2;
-    if (range_size == 0) {
-      break;
-    }
-    if ((inputNumber >> cur_guess) > 0) {
-      cur_guess += range_size;
-    } else {
-      cur_guess -= range_size;
-    }
-  }
-  if (inputNumber >> cur_guess > 0) {
-    cur_guess++;
-  }
-  return BITS_IN_T - cur_guess;
-}
+// -----------------------------------------------------------------------------
+//                               **** WARNING ****
+// This interface is shared with libc++, if you change this interface you need
+// to update it in both libc and libc++.
+// -----------------------------------------------------------------------------
+template <class T> struct ExpandedFloat {
+  typename fputil::FPBits<T>::StorageType mantissa;
+  int32_t exponent;
+};
 
-template <> uint32_t inline leading_zeroes<uint32_t>(uint32_t inputNumber) {
-  return safe_clz(inputNumber);
-}
+// -----------------------------------------------------------------------------
+//                               **** WARNING ****
+// This interface is shared with libc++, if you change this interface you need
+// to update it in both libc and libc++.
+// -----------------------------------------------------------------------------
+template <class T> struct FloatConvertReturn {
+  ExpandedFloat<T> num = {0, 0};
+  int error = 0;
+};
 
-template <> uint32_t inline leading_zeroes<uint64_t>(uint64_t inputNumber) {
-  return safe_clz(inputNumber);
-}
-
-static inline uint64_t low64(const UInt128 &num) {
+LIBC_INLINE uint64_t low64(const UInt128 &num) {
   return static_cast<uint64_t>(num & 0xffffffffffffffff);
 }
 
-static inline uint64_t high64(const UInt128 &num) {
+LIBC_INLINE uint64_t high64(const UInt128 &num) {
   return static_cast<uint64_t>(num >> 64);
 }
 
-template <class T> inline void set_implicit_bit(fputil::FPBits<T> &) { return; }
-
-#if defined(SPECIAL_X86_LONG_DOUBLE)
-template <>
-inline void set_implicit_bit<long double>(fputil::FPBits<long double> &result) {
-  result.set_implicit_bit(result.get_unbiased_exponent() != 0);
+template <class T> LIBC_INLINE void set_implicit_bit(fputil::FPBits<T> &) {
+  return;
 }
-#endif
+
+#if defined(LIBC_TYPES_LONG_DOUBLE_IS_X86_FLOAT80)
+template <>
+LIBC_INLINE void
+set_implicit_bit<long double>(fputil::FPBits<long double> &result) {
+  result.set_implicit_bit(result.get_biased_exponent() != 0);
+}
+#endif // LIBC_TYPES_LONG_DOUBLE_IS_X86_FLOAT80
 
 // This Eisel-Lemire implementation is based on the algorithm described in the
 // paper Number Parsing at a Gigabyte per Second, Software: Practice and
@@ -85,31 +87,32 @@ inline void set_implicit_bit<long double>(fputil::FPBits<long double> &result) {
 // (https://github.com/golang/go/blob/release-branch.go1.16/src/strconv/eisel_lemire.go#L25)
 // for some optimizations as well as handling 32 bit floats.
 template <class T>
-static inline bool
-eisel_lemire(typename fputil::FPBits<T>::UIntType mantissa, int32_t exp10,
-             typename fputil::FPBits<T>::UIntType *outputMantissa,
-             uint32_t *outputExp2) {
+LIBC_INLINE cpp::optional<ExpandedFloat<T>>
+eisel_lemire(ExpandedFloat<T> init_num,
+             RoundDirection round = RoundDirection::Nearest) {
+  using FPBits = typename fputil::FPBits<T>;
+  using StorageType = typename FPBits::StorageType;
 
-  using BitsType = typename fputil::FPBits<T>::UIntType;
-  constexpr uint32_t BITS_IN_MANTISSA = sizeof(mantissa) * 8;
+  StorageType mantissa = init_num.mantissa;
+  int32_t exp10 = init_num.exponent;
 
   if (sizeof(T) > 8) { // This algorithm cannot handle anything longer than a
                        // double, so we skip straight to the fallback.
-    return false;
+    return cpp::nullopt;
   }
 
   // Exp10 Range
   if (exp10 < DETAILED_POWERS_OF_TEN_MIN_EXP_10 ||
       exp10 > DETAILED_POWERS_OF_TEN_MAX_EXP_10) {
-    return false;
+    return cpp::nullopt;
   }
 
   // Normalization
-  uint32_t clz = leading_zeroes<BitsType>(mantissa);
+  uint32_t clz = static_cast<uint32_t>(cpp::countl_zero<StorageType>(mantissa));
   mantissa <<= clz;
 
-  uint32_t exp2 = static_cast<uint32_t>(exp10_to_exp2(exp10)) + BITS_IN_MANTISSA +
-                  fputil::FloatProperties<T>::EXPONENT_BIAS - clz;
+  int32_t exp2 = exp10_to_exp2(exp10) + FPBits::STORAGE_LEN + FPBits::EXP_BIAS -
+                 static_cast<int32_t>(clz);
 
   // Multiplication
   const uint64_t *power_of_ten =
@@ -126,9 +129,7 @@ eisel_lemire(typename fputil::FPBits<T>::UIntType mantissa, int32_t exp10,
   // accuracy, and the most significant bit is ignored.) = 9 bits. Similarly,
   // it's 6 bits for floats in this case.
   const uint64_t halfway_constant =
-      (uint64_t(1) << (BITS_IN_MANTISSA -
-                       fputil::FloatProperties<T>::MANTISSA_WIDTH - 3)) -
-      1;
+      (uint64_t(1) << (FPBits::STORAGE_LEN - (FPBits::FRACTION_LEN + 3))) - 1;
   if ((high64(first_approx) & halfway_constant) == halfway_constant &&
       low64(first_approx) + mantissa < mantissa) {
     UInt128 low_bits =
@@ -139,7 +140,7 @@ eisel_lemire(typename fputil::FPBits<T>::UIntType mantissa, int32_t exp10,
     if ((high64(second_approx) & halfway_constant) == halfway_constant &&
         low64(second_approx) + 1 == 0 &&
         low64(low_bits) + mantissa < mantissa) {
-      return false;
+      return cpp::nullopt;
     }
     final_approx = second_approx;
   } else {
@@ -147,47 +148,66 @@ eisel_lemire(typename fputil::FPBits<T>::UIntType mantissa, int32_t exp10,
   }
 
   // Shifting to 54 bits for doubles and 25 bits for floats
-  BitsType msb = static_cast<BitsType>(high64(final_approx) >> (BITS_IN_MANTISSA - 1));
-  BitsType final_mantissa = static_cast<BitsType>(high64(final_approx) >>
-                            (msb + BITS_IN_MANTISSA -
-                             (fputil::FloatProperties<T>::MANTISSA_WIDTH + 3)));
+  StorageType msb = static_cast<StorageType>(high64(final_approx) >>
+                                             (FPBits::STORAGE_LEN - 1));
+  StorageType final_mantissa = static_cast<StorageType>(
+      high64(final_approx) >>
+      (msb + FPBits::STORAGE_LEN - (FPBits::FRACTION_LEN + 3)));
   exp2 -= static_cast<uint32_t>(1 ^ msb); // same as !msb
 
-  // Half-way ambiguity
-  if (low64(final_approx) == 0 &&
-      (high64(final_approx) & halfway_constant) == 0 &&
-      (final_mantissa & 3) == 1) {
-    return false;
+  if (round == RoundDirection::Nearest) {
+    // Half-way ambiguity
+    if (low64(final_approx) == 0 &&
+        (high64(final_approx) & halfway_constant) == 0 &&
+        (final_mantissa & 3) == 1) {
+      return cpp::nullopt;
+    }
+
+    // Round to even.
+    final_mantissa += final_mantissa & 1;
+
+  } else if (round == RoundDirection::Up) {
+    // If any of the bits being rounded away are non-zero, then round up.
+    if (low64(final_approx) > 0 ||
+        (high64(final_approx) & halfway_constant) > 0) {
+      // Add two since the last current lowest bit is about to be shifted away.
+      final_mantissa += 2;
+    }
   }
+  // else round down, which has no effect.
 
   // From 54 to 53 bits for doubles and 25 to 24 bits for floats
-  final_mantissa += final_mantissa & 1;
   final_mantissa >>= 1;
-  if ((final_mantissa >> (fputil::FloatProperties<T>::MANTISSA_WIDTH + 1)) >
-      0) {
+  if ((final_mantissa >> (FPBits::FRACTION_LEN + 1)) > 0) {
     final_mantissa >>= 1;
     ++exp2;
   }
 
   // The if block is equivalent to (but has fewer branches than):
   //   if exp2 <= 0 || exp2 >= 0x7FF { etc }
-  if (exp2 - 1 >= (1 << fputil::FloatProperties<T>::EXPONENT_WIDTH) - 2) {
-    return false;
+  if (static_cast<uint32_t>(exp2) - 1 >= (1 << FPBits::EXP_LEN) - 2) {
+    return cpp::nullopt;
   }
 
-  *outputMantissa = final_mantissa;
-  *outputExp2 = exp2;
-  return true;
+  ExpandedFloat<T> output;
+  output.mantissa = final_mantissa;
+  output.exponent = exp2;
+  return output;
 }
 
-#if !defined(LONG_DOUBLE_IS_DOUBLE)
+// TODO: Re-enable eisel-lemire for long double is double double once it's
+// properly supported.
+#if !defined(LIBC_TYPES_LONG_DOUBLE_IS_FLOAT64) &&                             \
+    !defined(LIBC_TYPES_LONG_DOUBLE_IS_DOUBLE_DOUBLE)
 template <>
-inline bool eisel_lemire<long double>(
-    typename fputil::FPBits<long double>::UIntType mantissa, int32_t exp10,
-    typename fputil::FPBits<long double>::UIntType *outputMantissa,
-    uint32_t *outputExp2) {
-  using BitsType = typename fputil::FPBits<long double>::UIntType;
-  constexpr uint32_t BITS_IN_MANTISSA = sizeof(mantissa) * 8;
+LIBC_INLINE cpp::optional<ExpandedFloat<long double>>
+eisel_lemire<long double>(ExpandedFloat<long double> init_num,
+                          RoundDirection round) {
+  using FPBits = typename fputil::FPBits<long double>;
+  using StorageType = typename FPBits::StorageType;
+
+  UInt128 mantissa = init_num.mantissa;
+  int32_t exp10 = init_num.exponent;
 
   // Exp10 Range
   // This doesn't reach very far into the range for long doubles, since it's
@@ -201,15 +221,16 @@ inline bool eisel_lemire<long double>(
   // out to the full long double range.
   if (exp10 < DETAILED_POWERS_OF_TEN_MIN_EXP_10 ||
       exp10 > DETAILED_POWERS_OF_TEN_MAX_EXP_10) {
-    return false;
+    return cpp::nullopt;
   }
 
   // Normalization
-  uint32_t clz = leading_zeroes<BitsType>(mantissa);
+  int32_t clz = static_cast<int32_t>(cpp::countl_zero(mantissa)) -
+                ((sizeof(UInt128) - sizeof(StorageType)) * CHAR_BIT);
   mantissa <<= clz;
 
-  uint32_t exp2 = static_cast<uint32_t>(exp10_to_exp2(exp10)) + BITS_IN_MANTISSA +
-                  fputil::FloatProperties<long double>::EXPONENT_BIAS - clz;
+  int32_t exp2 =
+      exp10_to_exp2(exp10) + FPBits::STORAGE_LEN + FPBits::EXP_BIAS - clz;
 
   // Multiplication
   const uint64_t *power_of_ten =
@@ -222,10 +243,15 @@ inline bool eisel_lemire<long double>(
   UInt128 approx_upper = static_cast<UInt128>(high64(mantissa)) *
                          static_cast<UInt128>(power_of_ten[1]);
 
-  UInt128 approx_middle = static_cast<UInt128>(high64(mantissa)) *
-                              static_cast<UInt128>(power_of_ten[0]) +
-                          static_cast<UInt128>(low64(mantissa)) *
-                              static_cast<UInt128>(power_of_ten[1]);
+  UInt128 approx_middle_a = static_cast<UInt128>(high64(mantissa)) *
+                            static_cast<UInt128>(power_of_ten[0]);
+  UInt128 approx_middle_b = static_cast<UInt128>(low64(mantissa)) *
+                            static_cast<UInt128>(power_of_ten[1]);
+
+  UInt128 approx_middle = approx_middle_a + approx_middle_b;
+
+  // Handle overflow in the middle
+  approx_upper += (approx_middle < approx_middle_a) ? UInt128(1) << 64 : 0;
 
   UInt128 approx_lower = static_cast<UInt128>(low64(mantissa)) *
                          static_cast<UInt128>(power_of_ten[0]);
@@ -241,52 +267,60 @@ inline bool eisel_lemire<long double>(
   // accuracy, and the most significant bit is ignored.) = 61 bits. Similarly,
   // it's 12 bits for 128 bit floats in this case.
   constexpr UInt128 HALFWAY_CONSTANT =
-      (UInt128(1) << (BITS_IN_MANTISSA -
-                      fputil::FloatProperties<long double>::MANTISSA_WIDTH -
-                      3)) -
-      1;
+      (UInt128(1) << (FPBits::STORAGE_LEN - (FPBits::FRACTION_LEN + 3))) - 1;
 
   if ((final_approx_upper & HALFWAY_CONSTANT) == HALFWAY_CONSTANT &&
       final_approx_lower + mantissa < mantissa) {
-    return false;
+    return cpp::nullopt;
   }
 
   // Shifting to 65 bits for 80 bit floats and 113 bits for 128 bit floats
-  BitsType msb = final_approx_upper >> (BITS_IN_MANTISSA - 1);
-  BitsType final_mantissa =
-      final_approx_upper >>
-      (msb + BITS_IN_MANTISSA -
-       (fputil::FloatProperties<long double>::MANTISSA_WIDTH + 3));
+  uint32_t msb =
+      static_cast<uint32_t>(final_approx_upper >> (FPBits::STORAGE_LEN - 1));
+  UInt128 final_mantissa = final_approx_upper >> (msb + FPBits::STORAGE_LEN -
+                                                  (FPBits::FRACTION_LEN + 3));
   exp2 -= static_cast<uint32_t>(1 ^ msb); // same as !msb
 
-  // Half-way ambiguity
-  if (final_approx_lower == 0 && (final_approx_upper & HALFWAY_CONSTANT) == 0 &&
-      (final_mantissa & 3) == 1) {
-    return false;
+  if (round == RoundDirection::Nearest) {
+    // Half-way ambiguity
+    if (final_approx_lower == 0 &&
+        (final_approx_upper & HALFWAY_CONSTANT) == 0 &&
+        (final_mantissa & 3) == 1) {
+      return cpp::nullopt;
+    }
+    // Round to even.
+    final_mantissa += final_mantissa & 1;
+
+  } else if (round == RoundDirection::Up) {
+    // If any of the bits being rounded away are non-zero, then round up.
+    if (final_approx_lower > 0 || (final_approx_upper & HALFWAY_CONSTANT) > 0) {
+      // Add two since the last current lowest bit is about to be shifted away.
+      final_mantissa += 2;
+    }
   }
+  // else round down, which has no effect.
 
   // From 65 to 64 bits for 80 bit floats and 113  to 112 bits for 128 bit
   // floats
-  final_mantissa += final_mantissa & 1;
   final_mantissa >>= 1;
-  if ((final_mantissa >>
-       (fputil::FloatProperties<long double>::MANTISSA_WIDTH + 1)) > 0) {
+  if ((final_mantissa >> (FPBits::FRACTION_LEN + 1)) > 0) {
     final_mantissa >>= 1;
     ++exp2;
   }
 
   // The if block is equivalent to (but has fewer branches than):
   //   if exp2 <= 0 || exp2 >= MANTISSA_MAX { etc }
-  if (exp2 - 1 >=
-      (1 << fputil::FloatProperties<long double>::EXPONENT_WIDTH) - 2) {
-    return false;
+  if (exp2 - 1 >= (1 << FPBits::EXP_LEN) - 2) {
+    return cpp::nullopt;
   }
 
-  *outputMantissa = final_mantissa;
-  *outputExp2 = exp2;
-  return true;
+  ExpandedFloat<long double> output;
+  output.mantissa = static_cast<StorageType>(final_mantissa);
+  output.exponent = exp2;
+  return output;
 }
-#endif
+#endif // !defined(LIBC_TYPES_LONG_DOUBLE_IS_FLOAT64) &&
+       // !defined(LIBC_TYPES_LONG_DOUBLE_IS_DOUBLE_DOUBLE)
 
 // The nth item in POWERS_OF_TWO represents the greatest power of two less than
 // 10^n. This tells us how much we can safely shift without overshooting.
@@ -301,40 +335,39 @@ constexpr int32_t NUM_POWERS_OF_TWO =
 // the Eisel-Lemire algorithm fails, it's slower but more accurate. It's based
 // on the Simple Decimal Conversion algorithm by Nigel Tao, described at this
 // link: https://nigeltao.github.io/blog/2020/parse-number-f64-simple.html
-template <class T>
-static inline void
-simple_decimal_conversion(const char *__restrict numStart,
-                          typename fputil::FPBits<T>::UIntType *outputMantissa,
-                          uint32_t *outputExp2) {
+template <typename T, typename CharType>
+LIBC_INLINE FloatConvertReturn<T> simple_decimal_conversion(
+    const CharType *__restrict numStart,
+    const size_t num_len = cpp::numeric_limits<size_t>::max(),
+    RoundDirection round = RoundDirection::Nearest) {
+  using FPBits = typename fputil::FPBits<T>;
+  using StorageType = typename FPBits::StorageType;
 
   int32_t exp2 = 0;
-  HighPrecisionDecimal hpd = HighPrecisionDecimal(numStart);
+  HighPrecisionDecimal hpd = HighPrecisionDecimal(numStart, num_len);
+
+  FloatConvertReturn<T> output;
 
   if (hpd.get_num_digits() == 0) {
-    *outputMantissa = 0;
-    *outputExp2 = 0;
-    return;
+    output.num = {0, 0};
+    return output;
   }
 
   // If the exponent is too large and can't be represented in this size of
   // float, return inf.
   if (hpd.get_decimal_point() > 0 &&
-      exp10_to_exp2(hpd.get_decimal_point() - 1) >
-          static_cast<int64_t>(fputil::FloatProperties<T>::EXPONENT_BIAS)) {
-    *outputMantissa = 0;
-    *outputExp2 = fputil::FPBits<T>::MAX_EXPONENT;
-    errno = ERANGE;
-    return;
+      exp10_to_exp2(hpd.get_decimal_point() - 1) > FPBits::EXP_BIAS) {
+    output.num = {0, fputil::FPBits<T>::MAX_BIASED_EXPONENT};
+    output.error = ERANGE;
+    return output;
   }
   // If the exponent is too small even for a subnormal, return 0.
   if (hpd.get_decimal_point() < 0 &&
       exp10_to_exp2(-hpd.get_decimal_point()) >
-          static_cast<int64_t>(fputil::FloatProperties<T>::EXPONENT_BIAS +
-                               fputil::FloatProperties<T>::MANTISSA_WIDTH)) {
-    *outputMantissa = 0;
-    *outputExp2 = 0;
-    errno = ERANGE;
-    return;
+          (FPBits::EXP_BIAS + static_cast<int32_t>(FPBits::FRACTION_LEN))) {
+    output.num = {0, 0};
+    output.error = ERANGE;
+    return output;
   }
 
   // Right shift until the number is smaller than 1.
@@ -370,20 +403,18 @@ simple_decimal_conversion(const char *__restrict numStart,
   hpd.shift(1);
 
   // Get the biased exponent
-  exp2 += fputil::FloatProperties<T>::EXPONENT_BIAS;
+  exp2 += FPBits::EXP_BIAS;
 
   // Handle the exponent being too large (and return inf).
-  if (exp2 >= fputil::FPBits<T>::MAX_EXPONENT) {
-    *outputMantissa = 0;
-    *outputExp2 = fputil::FPBits<T>::MAX_EXPONENT;
-    errno = ERANGE;
-    return;
+  if (exp2 >= FPBits::MAX_BIASED_EXPONENT) {
+    output.num = {0, FPBits::MAX_BIASED_EXPONENT};
+    output.error = ERANGE;
+    return output;
   }
 
   // Shift left to fill the mantissa
-  hpd.shift(fputil::FloatProperties<T>::MANTISSA_WIDTH);
-  typename fputil::FPBits<T>::UIntType final_mantissa =
-      hpd.round_to_integer_type<typename fputil::FPBits<T>::UIntType>();
+  hpd.shift(FPBits::FRACTION_LEN);
+  StorageType final_mantissa = hpd.round_to_integer_type<StorageType>();
 
   // Handle subnormals
   if (exp2 <= 0) {
@@ -395,35 +426,33 @@ simple_decimal_conversion(const char *__restrict numStart,
     // Shift right one more time to compensate for the left shift to get it
     // between 1 and 2.
     hpd.shift(-1);
-    final_mantissa =
-        hpd.round_to_integer_type<typename fputil::FPBits<T>::UIntType>();
+    final_mantissa = hpd.round_to_integer_type<StorageType>(round);
 
     // Check if by shifting right we've caused this to round to a normal number.
-    if ((final_mantissa >> fputil::FloatProperties<T>::MANTISSA_WIDTH) != 0) {
+    if ((final_mantissa >> FPBits::FRACTION_LEN) != 0) {
       ++exp2;
     }
   }
 
   // Check if rounding added a bit, and shift down if that's the case.
-  if (final_mantissa == typename fputil::FPBits<T>::UIntType(2)
-                            << fputil::FloatProperties<T>::MANTISSA_WIDTH) {
+  if (final_mantissa == StorageType(2) << FPBits::FRACTION_LEN) {
     final_mantissa >>= 1;
     ++exp2;
 
     // Check if this rounding causes exp2 to go out of range and make the result
     // INF. If this is the case, then finalMantissa and exp2 are already the
     // correct values for an INF result.
-    if (exp2 >= fputil::FPBits<T>::MAX_EXPONENT) {
-      errno = ERANGE; // NOLINT
+    if (exp2 >= FPBits::MAX_BIASED_EXPONENT) {
+      output.error = ERANGE;
     }
   }
 
   if (exp2 == 0) {
-    errno = ERANGE;
+    output.error = ERANGE;
   }
 
-  *outputMantissa = final_mantissa;
-  *outputExp2 = exp2;
+  output.num = {final_mantissa, exp2};
+  return output;
 }
 
 // This class is used for templating the constants for Clinger's Fast Path,
@@ -455,7 +484,7 @@ public:
   static constexpr double MAX_EXACT_INT = 9007199254740991.0;
 };
 
-#if defined(LONG_DOUBLE_IS_DOUBLE)
+#if defined(LIBC_TYPES_LONG_DOUBLE_IS_FLOAT64)
 template <> class ClingerConsts<long double> {
 public:
   static constexpr long double POWERS_OF_TEN_ARRAY[] = {
@@ -468,7 +497,7 @@ public:
   static constexpr long double MAX_EXACT_INT =
       ClingerConsts<double>::MAX_EXACT_INT;
 };
-#elif defined(SPECIAL_X86_LONG_DOUBLE)
+#elif defined(LIBC_TYPES_LONG_DOUBLE_IS_X86_FLOAT80)
 template <> class ClingerConsts<long double> {
 public:
   static constexpr long double POWERS_OF_TEN_ARRAY[] = {
@@ -479,7 +508,7 @@ public:
   static constexpr int32_t DIGITS_IN_MANTISSA = 21;
   static constexpr long double MAX_EXACT_INT = 18446744073709551615.0L;
 };
-#else
+#elif defined(LIBC_TYPES_LONG_DOUBLE_IS_FLOAT128)
 template <> class ClingerConsts<long double> {
 public:
   static constexpr long double POWERS_OF_TEN_ARRAY[] = {
@@ -493,6 +522,20 @@ public:
   static constexpr long double MAX_EXACT_INT =
       10384593717069655257060992658440191.0L;
 };
+#elif defined(LIBC_TYPES_LONG_DOUBLE_IS_DOUBLE_DOUBLE)
+// TODO: Add proper double double type support here, currently using constants
+// for double since it should be safe.
+template <> class ClingerConsts<long double> {
+public:
+  static constexpr double POWERS_OF_TEN_ARRAY[] = {
+      1e0,  1e1,  1e2,  1e3,  1e4,  1e5,  1e6,  1e7,  1e8,  1e9,  1e10, 1e11,
+      1e12, 1e13, 1e14, 1e15, 1e16, 1e17, 1e18, 1e19, 1e20, 1e21, 1e22};
+  static constexpr int32_t EXACT_POWERS_OF_TEN = 22;
+  static constexpr int32_t DIGITS_IN_MANTISSA = 15;
+  static constexpr double MAX_EXACT_INT = 9007199254740991.0;
+};
+#else
+#error "Unknown long double type"
 #endif
 
 // Take an exact mantissa and exponent and attempt to convert it using only
@@ -500,24 +543,36 @@ public:
 // exponents, but handles them quickly. This is an implementation of Clinger's
 // Fast Path, as described above.
 template <class T>
-static inline bool
-clinger_fast_path(typename fputil::FPBits<T>::UIntType mantissa, int32_t exp10,
-                  typename fputil::FPBits<T>::UIntType *outputMantissa,
-                  uint32_t *outputExp2) {
-  if (mantissa >> fputil::FloatProperties<T>::MANTISSA_WIDTH > 0) {
-    return false;
+LIBC_INLINE cpp::optional<ExpandedFloat<T>>
+clinger_fast_path(ExpandedFloat<T> init_num,
+                  RoundDirection round = RoundDirection::Nearest) {
+  using FPBits = typename fputil::FPBits<T>;
+  using StorageType = typename FPBits::StorageType;
+
+  StorageType mantissa = init_num.mantissa;
+  int32_t exp10 = init_num.exponent;
+
+  if ((mantissa >> FPBits::FRACTION_LEN) > 0) {
+    return cpp::nullopt;
   }
 
-  fputil::FPBits<T> result;
-  T float_mantissa = static_cast<T>(mantissa);
+  FPBits result;
+  T float_mantissa;
+  if constexpr (is_big_int_v<StorageType> || sizeof(T) > sizeof(uint64_t)) {
+    float_mantissa =
+        (static_cast<T>(uint64_t(mantissa >> 64)) * static_cast<T>(0x1.0p64)) +
+        static_cast<T>(uint64_t(mantissa));
+  } else {
+    float_mantissa = static_cast<T>(mantissa);
+  }
 
   if (exp10 == 0) {
-    result = fputil::FPBits<T>(float_mantissa);
+    result = FPBits(float_mantissa);
   }
   if (exp10 > 0) {
     if (exp10 > ClingerConsts<T>::EXACT_POWERS_OF_TEN +
                     ClingerConsts<T>::DIGITS_IN_MANTISSA) {
-      return false;
+      return cpp::nullopt;
     }
     if (exp10 > ClingerConsts<T>::EXACT_POWERS_OF_TEN) {
       float_mantissa = float_mantissa *
@@ -526,220 +581,340 @@ clinger_fast_path(typename fputil::FPBits<T>::UIntType mantissa, int32_t exp10,
       exp10 = ClingerConsts<T>::EXACT_POWERS_OF_TEN;
     }
     if (float_mantissa > ClingerConsts<T>::MAX_EXACT_INT) {
-      return false;
+      return cpp::nullopt;
     }
-    result = fputil::FPBits<T>(float_mantissa *
-                               ClingerConsts<T>::POWERS_OF_TEN_ARRAY[exp10]);
+    result =
+        FPBits(float_mantissa * ClingerConsts<T>::POWERS_OF_TEN_ARRAY[exp10]);
   } else if (exp10 < 0) {
     if (-exp10 > ClingerConsts<T>::EXACT_POWERS_OF_TEN) {
-      return false;
+      return cpp::nullopt;
     }
-    result = fputil::FPBits<T>(float_mantissa /
-                               ClingerConsts<T>::POWERS_OF_TEN_ARRAY[-exp10]);
-  }
-  *outputMantissa = result.get_mantissa();
-  *outputExp2 = result.get_unbiased_exponent();
-  return true;
-}
-
-// Takes a mantissa and base 10 exponent and converts it into its closest
-// floating point type T equivalient. First we try the Eisel-Lemire algorithm,
-// then if that fails then we fall back to a more accurate algorithm for
-// accuracy. The resulting mantissa and exponent are placed in outputMantissa
-// and outputExp2.
-template <class T>
-static inline void
-decimal_exp_to_float(typename fputil::FPBits<T>::UIntType mantissa,
-                     int32_t exp10, const char *__restrict numStart,
-                     bool truncated,
-                     typename fputil::FPBits<T>::UIntType *outputMantissa,
-                     uint32_t *outputExp2) {
-  // If the exponent is too large and can't be represented in this size of
-  // float, return inf. These bounds are very loose, but are mostly serving as a
-  // first pass. Some close numbers getting through is okay.
-  if (exp10 >
-      static_cast<int64_t>(fputil::FloatProperties<T>::EXPONENT_BIAS) / 3) {
-    *outputMantissa = 0;
-    *outputExp2 = fputil::FPBits<T>::MAX_EXPONENT;
-    errno = ERANGE;
-    return;
-  }
-  // If the exponent is too small even for a subnormal, return 0.
-  if (exp10 < 0 &&
-      -static_cast<int64_t>(exp10) >
-          static_cast<int64_t>(fputil::FloatProperties<T>::EXPONENT_BIAS +
-                               fputil::FloatProperties<T>::MANTISSA_WIDTH) /
-              2) {
-    *outputMantissa = 0;
-    *outputExp2 = 0;
-    errno = ERANGE;
-    return;
+    result =
+        FPBits(float_mantissa / ClingerConsts<T>::POWERS_OF_TEN_ARRAY[-exp10]);
   }
 
-  if (!truncated) {
-    if (clinger_fast_path<T>(mantissa, exp10, outputMantissa, outputExp2)) {
-      return;
-    }
-  }
+  // If the rounding mode is not nearest, then the sign of the number may affect
+  // the result. To make sure the rounding mode is respected properly, the
+  // calculation is redone with a negative result, and the rounding mode is used
+  // to select the correct result.
+  if (round != RoundDirection::Nearest) {
+    FPBits negative_result;
+    // I'm 99% sure this will break under fast math optimizations.
+    negative_result = FPBits((-float_mantissa) *
+                             ClingerConsts<T>::POWERS_OF_TEN_ARRAY[exp10]);
 
-  // Try Eisel-Lemire
-  if (eisel_lemire<T>(mantissa, exp10, outputMantissa, outputExp2)) {
-    if (!truncated) {
-      return;
-    }
-    // If the mantissa is truncated, then the result may be off by the LSB, so
-    // check if rounding the mantissa up changes the result. If not, then it's
-    // safe, else use the fallback.
-    typename fputil::FPBits<T>::UIntType first_mantissa = *outputMantissa;
-    uint32_t first_exp2 = *outputExp2;
-    if (eisel_lemire<T>(mantissa + 1, exp10, outputMantissa, outputExp2)) {
-      if (*outputMantissa == first_mantissa && *outputExp2 == first_exp2) {
-        return;
+    // If the results are equal, then we don't need to use the rounding mode.
+    if (result.get_val() != -negative_result.get_val()) {
+      FPBits lower_result;
+      FPBits higher_result;
+
+      if (result.get_val() < -negative_result.get_val()) {
+        lower_result = result;
+        higher_result = negative_result;
+      } else {
+        lower_result = negative_result;
+        higher_result = result;
+      }
+
+      if (round == RoundDirection::Up) {
+        result = higher_result;
+      } else {
+        result = lower_result;
       }
     }
   }
 
-  simple_decimal_conversion<T>(numStart, outputMantissa, outputExp2);
-
-  return;
+  ExpandedFloat<T> output;
+  output.mantissa = result.get_explicit_mantissa();
+  output.exponent = result.get_biased_exponent();
+  return output;
 }
 
+// The upper bound is the highest base-10 exponent that could possibly give a
+// non-inf result for this size of float. The value is
+// log10(2^(exponent bias)).
+// The generic approximation uses the fact that log10(2^x) ~= x/3
+template <typename T> LIBC_INLINE constexpr int32_t get_upper_bound() {
+  return fputil::FPBits<T>::EXP_BIAS / 3;
+}
+
+template <> LIBC_INLINE constexpr int32_t get_upper_bound<float>() {
+  return 39;
+}
+
+template <> LIBC_INLINE constexpr int32_t get_upper_bound<double>() {
+  return 309;
+}
+
+// The lower bound is the largest negative base-10 exponent that could possibly
+// give a non-zero result for this size of float. The value is
+// log10(2^(exponent bias + final mantissa width + intermediate mantissa width))
+// The intermediate mantissa is the integer that's been parsed from the string,
+// and the final mantissa is the fractional part of the output number. A very
+// low base 10 exponent with a very high intermediate mantissa can cancel each
+// other out, and subnormal numbers allow for the result to be at the very low
+// end of the final mantissa.
+template <typename T> LIBC_INLINE constexpr int32_t get_lower_bound() {
+  using FPBits = typename fputil::FPBits<T>;
+  return -((FPBits::EXP_BIAS +
+            static_cast<int32_t>(FPBits::FRACTION_LEN + FPBits::STORAGE_LEN)) /
+           3);
+}
+
+template <> LIBC_INLINE constexpr int32_t get_lower_bound<float>() {
+  return -(39 + 6 + 10);
+}
+
+template <> LIBC_INLINE constexpr int32_t get_lower_bound<double>() {
+  return -(309 + 15 + 20);
+}
+
+// -----------------------------------------------------------------------------
+//                               **** WARNING ****
+// This interface is shared with libc++, if you change this interface you need
+// to update it in both libc and libc++.
+// -----------------------------------------------------------------------------
+// Takes a mantissa and base 10 exponent and converts it into its closest
+// floating point type T equivalient. First we try the Eisel-Lemire algorithm,
+// then if that fails then we fall back to a more accurate algorithm for
+// accuracy.
+template <typename T, typename CharType>
+LIBC_INLINE FloatConvertReturn<T> decimal_exp_to_float(
+    ExpandedFloat<T> init_num, bool truncated, RoundDirection round,
+    const CharType *__restrict numStart,
+    const size_t num_len = cpp::numeric_limits<size_t>::max()) {
+  using FPBits = typename fputil::FPBits<T>;
+  using StorageType = typename FPBits::StorageType;
+
+  StorageType mantissa = init_num.mantissa;
+  int32_t exp10 = init_num.exponent;
+
+  FloatConvertReturn<T> output;
+  cpp::optional<ExpandedFloat<T>> opt_output;
+
+  // If the exponent is too large and can't be represented in this size of
+  // float, return inf. These bounds are relatively loose, but are mostly
+  // serving as a first pass. Some close numbers getting through is okay.
+  if (exp10 > get_upper_bound<T>()) {
+    output.num = {0, FPBits::MAX_BIASED_EXPONENT};
+    output.error = ERANGE;
+    return output;
+  }
+  // If the exponent is too small even for a subnormal, return 0.
+  if (exp10 < get_lower_bound<T>()) {
+    output.num = {0, 0};
+    output.error = ERANGE;
+    return output;
+  }
+
+  // Clinger's Fast Path and Eisel-Lemire can't set errno, but they can fail.
+  // For this reason the "error" field in their return values is used to
+  // represent whether they've failed as opposed to the errno value. Any
+  // non-zero value represents a failure.
+
+#ifndef LIBC_COPT_STRTOFLOAT_DISABLE_CLINGER_FAST_PATH
+  if (!truncated) {
+    opt_output = clinger_fast_path<T>(init_num, round);
+    // If the algorithm succeeded the error will be 0, else it will be a
+    // non-zero number.
+    if (opt_output.has_value()) {
+      return {opt_output.value(), 0};
+    }
+  }
+#endif // LIBC_COPT_STRTOFLOAT_DISABLE_CLINGER_FAST_PATH
+
+#ifndef LIBC_COPT_STRTOFLOAT_DISABLE_EISEL_LEMIRE
+  // Try Eisel-Lemire
+  opt_output = eisel_lemire<T>(init_num, round);
+  if (opt_output.has_value()) {
+    if (!truncated) {
+      return {opt_output.value(), 0};
+    }
+    // If the mantissa is truncated, then the result may be off by the LSB, so
+    // check if rounding the mantissa up changes the result. If not, then it's
+    // safe, else use the fallback.
+    auto second_output = eisel_lemire<T>({mantissa + 1, exp10}, round);
+    if (second_output.has_value()) {
+      if (opt_output->mantissa == second_output->mantissa &&
+          opt_output->exponent == second_output->exponent) {
+        return {opt_output.value(), 0};
+      }
+    }
+  }
+#endif // LIBC_COPT_STRTOFLOAT_DISABLE_EISEL_LEMIRE
+
+#ifndef LIBC_COPT_STRTOFLOAT_DISABLE_SIMPLE_DECIMAL_CONVERSION
+  output = simple_decimal_conversion<T>(numStart, num_len, round);
+#else
+#warning "Simple decimal conversion is disabled, result may not be correct."
+#endif // LIBC_COPT_STRTOFLOAT_DISABLE_SIMPLE_DECIMAL_CONVERSION
+
+  return output;
+}
+
+// -----------------------------------------------------------------------------
+//                               **** WARNING ****
+// This interface is shared with libc++, if you change this interface you need
+// to update it in both libc and libc++.
+// -----------------------------------------------------------------------------
 // Takes a mantissa and base 2 exponent and converts it into its closest
 // floating point type T equivalient. Since the exponent is already in the right
 // form, this is mostly just shifting and rounding. This is used for hexadecimal
 // numbers since a base 16 exponent multiplied by 4 is the base 2 exponent.
 template <class T>
-static inline void
-binary_exp_to_float(typename fputil::FPBits<T>::UIntType mantissa, int32_t exp2,
-                    bool truncated,
-                    typename fputil::FPBits<T>::UIntType *outputMantissa,
-                    uint32_t *outputExp2) {
-  using BitsType = typename fputil::FPBits<T>::UIntType;
+LIBC_INLINE FloatConvertReturn<T> binary_exp_to_float(ExpandedFloat<T> init_num,
+                                                      bool truncated,
+                                                      RoundDirection round) {
+  using FPBits = typename fputil::FPBits<T>;
+  using StorageType = typename FPBits::StorageType;
+
+  StorageType mantissa = init_num.mantissa;
+  int32_t exp2 = init_num.exponent;
+
+  FloatConvertReturn<T> output;
 
   // This is the number of leading zeroes a properly normalized float of type T
   // should have.
-  constexpr int32_t NUMBITS = sizeof(BitsType) * 8;
-  constexpr int32_t INF_EXP =
-      (1 << fputil::FloatProperties<T>::EXPONENT_WIDTH) - 1;
+  constexpr int32_t INF_EXP = (1 << FPBits::EXP_LEN) - 1;
 
-  // Normalization step 1: Bring the leading bit to the highest bit of BitsType.
-  uint32_t amount_to_shift_left = leading_zeroes<BitsType>(mantissa);
+  // Normalization step 1: Bring the leading bit to the highest bit of
+  // StorageType.
+  uint32_t amount_to_shift_left = cpp::countl_zero<StorageType>(mantissa);
   mantissa <<= amount_to_shift_left;
 
-  // Keep exp2 representing the exponent of the lowest bit of BitsType.
+  // Keep exp2 representing the exponent of the lowest bit of StorageType.
   exp2 -= amount_to_shift_left;
 
-  // biasedExponent represents the biased exponent of the most significant bit.
-  int32_t biased_exponent =
-      exp2 + NUMBITS + fputil::FPBits<T>::EXPONENT_BIAS - 1;
+  // biased_exponent represents the biased exponent of the most significant bit.
+  int32_t biased_exponent = exp2 + FPBits::STORAGE_LEN + FPBits::EXP_BIAS - 1;
 
   // Handle numbers that're too large and get squashed to inf
   if (biased_exponent >= INF_EXP) {
     // This indicates an overflow, so we make the result INF and set errno.
-    *outputExp2 = (1 << fputil::FloatProperties<T>::EXPONENT_WIDTH) - 1;
-    *outputMantissa = 0;
-    errno = ERANGE;
-    return;
+    output.num = {0, (1 << FPBits::EXP_LEN) - 1};
+    output.error = ERANGE;
+    return output;
   }
 
   uint32_t amount_to_shift_right =
-      NUMBITS - fputil::FloatProperties<T>::MANTISSA_WIDTH - 1;
+      FPBits::STORAGE_LEN - FPBits::FRACTION_LEN - 1;
 
   // Handle subnormals.
   if (biased_exponent <= 0) {
-    amount_to_shift_right += 1 - biased_exponent;
+    amount_to_shift_right += static_cast<uint32_t>(1 - biased_exponent);
     biased_exponent = 0;
 
-    if (amount_to_shift_right > NUMBITS) {
+    if (amount_to_shift_right > FPBits::STORAGE_LEN) {
       // Return 0 if the exponent is too small.
-      *outputMantissa = 0;
-      *outputExp2 = 0;
-      errno = ERANGE;
-      return;
+      output.num = {0, 0};
+      output.error = ERANGE;
+      return output;
     }
   }
 
-  BitsType round_bit_mask = BitsType(1) << (amount_to_shift_right - 1);
-  BitsType sticky_mask = round_bit_mask - 1;
-  bool round_bit = mantissa & round_bit_mask;
+  StorageType round_bit_mask = StorageType(1) << (amount_to_shift_right - 1);
+  StorageType sticky_mask = round_bit_mask - 1;
+  bool round_bit = static_cast<bool>(mantissa & round_bit_mask);
   bool sticky_bit = static_cast<bool>(mantissa & sticky_mask) || truncated;
 
-  if (amount_to_shift_right < NUMBITS) {
+  if (amount_to_shift_right < FPBits::STORAGE_LEN) {
     // Shift the mantissa and clear the implicit bit.
     mantissa >>= amount_to_shift_right;
-    mantissa &= fputil::FloatProperties<T>::MANTISSA_MASK;
+    mantissa &= FPBits::FRACTION_MASK;
   } else {
     mantissa = 0;
   }
-  bool least_significant_bit = mantissa & BitsType(1);
-  // Perform rounding-to-nearest, tie-to-even.
-  if (round_bit && (least_significant_bit || sticky_bit)) {
-    ++mantissa;
+  bool least_significant_bit = static_cast<bool>(mantissa & StorageType(1));
+
+  // TODO: check that this rounding behavior is correct.
+
+  if (round == RoundDirection::Nearest) {
+    // Perform rounding-to-nearest, tie-to-even.
+    if (round_bit && (least_significant_bit || sticky_bit)) {
+      ++mantissa;
+    }
+  } else if (round == RoundDirection::Up) {
+    if (round_bit || sticky_bit) {
+      ++mantissa;
+    }
+  } else /* (round == RoundDirection::Down)*/ {
+    if (round_bit && sticky_bit) {
+      ++mantissa;
+    }
   }
 
-  if (mantissa > fputil::FloatProperties<T>::MANTISSA_MASK) {
+  if (mantissa > FPBits::FRACTION_MASK) {
     // Rounding causes the exponent to increase.
     ++biased_exponent;
 
     if (biased_exponent == INF_EXP) {
-      errno = ERANGE;
+      output.error = ERANGE;
     }
   }
 
   if (biased_exponent == 0) {
-    errno = ERANGE;
+    output.error = ERANGE;
   }
 
-  *outputMantissa = mantissa & fputil::FloatProperties<T>::MANTISSA_MASK;
-  *outputExp2 = biased_exponent;
+  output.num = {mantissa & FPBits::FRACTION_MASK, biased_exponent};
+  return output;
 }
 
-// checks if the next 4 characters of the string pointer are the start of a
+// Checks if the first characters of the string pointer are the start of a
 // hexadecimal floating point number. Does not advance the string pointer.
-static inline bool is_float_hex_start(const char *__restrict src,
-                                      const char decimalPoint) {
-  if (!(*src == '0' && (*(src + 1) | 32) == 'x')) {
+template <typename CharType>
+LIBC_INLINE static bool is_float_hex_start(const CharType *__restrict src) {
+  if (!is_char_or_wchar(src[0], '0', L'0') ||
+      !is_char_or_wchar(tolower(src[1]), 'x', L'x')) {
     return false;
   }
-  if (*(src + 2) == decimalPoint) {
-    return isalnum(*(src + 3)) && b36_char_to_int(*(src + 3)) < 16;
-  } else {
-    return isalnum(*(src + 2)) && b36_char_to_int(*(src + 2)) < 16;
+  size_t first_digit = 2;
+  if (src[2] == constants<CharType>::DECIMAL_POINT) {
+    ++first_digit;
   }
+  return isalnum(src[first_digit]) && b36_char_to_int(src[first_digit]) < 16;
 }
 
-// Takes the start of a string representing a decimal float, as well as the
-// local decimalPoint. It returns if it suceeded in parsing any digits, and if
-// the return value is true then the outputs are pointer to the end of the
-// number, and the mantissa and exponent for the closest float T representation.
-// If the return value is false, then it is assumed that there is no number
-// here.
-template <class T>
-static inline bool
-decimal_string_to_float(const char *__restrict src, const char DECIMAL_POINT,
-                        char **__restrict strEnd,
-                        typename fputil::FPBits<T>::UIntType *outputMantissa,
-                        uint32_t *outputExponent) {
-  using BitsType = typename fputil::FPBits<T>::UIntType;
-  constexpr uint32_t BASE = 10;
-  constexpr char EXPONENT_MARKER = 'e';
+// Verifies that first prefix_len characters of str, when lowercased, match the
+// specified prefix.
+template <typename CharType>
+LIBC_INLINE static bool tolower_starts_with(const CharType *str,
+                                            size_t prefix_len,
+                                            const CharType *prefix) {
+  for (size_t i = 0; i < prefix_len; ++i) {
+    if (tolower(str[i]) != prefix[i])
+      return false;
+  }
+  return true;
+}
 
-  const char *__restrict num_start = src;
+// Attempts parsing a decimal floating point number at the start of the string.
+template <typename T, typename CharType>
+LIBC_INLINE static StrToNumResult<ExpandedFloat<T>>
+decimal_string_to_float(const CharType *__restrict src, RoundDirection round) {
+  using FPBits = typename fputil::FPBits<T>;
+  using StorageType = typename FPBits::StorageType;
+
+  constexpr uint32_t BASE = 10;
   bool truncated = false;
   bool seen_digit = false;
   bool after_decimal = false;
-  BitsType mantissa = 0;
+  StorageType mantissa = 0;
   int32_t exponent = 0;
+
+  size_t index = 0;
+
+  StrToNumResult<ExpandedFloat<T>> output({0, 0});
 
   // The goal for the first step of parsing is to convert the number in src to
   // the format mantissa * (base ^ exponent)
 
   // The loop fills the mantissa with as many digits as it can hold
-  const BitsType bitstype_max_div_by_base =
-      cpp::numeric_limits<BitsType>::max() / BASE;
+  const StorageType bitstype_max_div_by_base =
+      cpp::numeric_limits<StorageType>::max() / BASE;
   while (true) {
-    if (isdigit(*src)) {
-      uint32_t digit = *src - '0';
+    if (isdigit(src[index])) {
+      uint32_t digit = static_cast<uint32_t>(b36_char_to_int(src[index]));
       seen_digit = true;
 
       if (mantissa < bitstype_max_div_by_base) {
@@ -754,16 +929,16 @@ decimal_string_to_float(const char *__restrict src, const char DECIMAL_POINT,
           ++exponent;
       }
 
-      ++src;
+      ++index;
       continue;
     }
-    if (*src == DECIMAL_POINT) {
+    if (src[index] == constants<CharType>::DECIMAL_POINT) {
       if (after_decimal) {
-        break; // this means that *src points to a second decimal point, ending
-               // the number.
+        break; // this means that src[index] points to a second decimal point,
+               // ending the number.
       }
       after_decimal = true;
-      ++src;
+      ++index;
       continue;
     }
     // The character is neither a digit nor a decimal point.
@@ -771,65 +946,77 @@ decimal_string_to_float(const char *__restrict src, const char DECIMAL_POINT,
   }
 
   if (!seen_digit)
-    return false;
+    return output;
 
-  if ((*src | 32) == EXPONENT_MARKER) {
-    if (*(src + 1) == '+' || *(src + 1) == '-' || isdigit(*(src + 1))) {
-      ++src;
-      char *temp_str_end;
-      int32_t add_to_exponent = strtointeger<int32_t>(src, &temp_str_end, 10);
-      if (add_to_exponent > 100000)
-        add_to_exponent = 100000;
-      else if (add_to_exponent < -100000)
-        add_to_exponent = -100000;
+  // TODO: When adding max length argument, handle the case of a trailing
+  // exponent marker, see scanf for more details.
+  if (tolower(src[index]) == constants<CharType>::DECIMAL_EXPONENT_MARKER) {
+    int sign = get_sign(src + index + 1);
+    if (isdigit(src[index + 1 + static_cast<size_t>(sign != 0)])) {
+      ++index;
+      auto result = strtointeger<int32_t>(src + index, 10);
+      if (result.has_error())
+        output.error = result.error;
+      int32_t add_to_exponent = result.value;
+      index += static_cast<size_t>(result.parsed_len);
 
-      src = temp_str_end;
-      exponent += add_to_exponent;
+      // Here we do this operation as int64 to avoid overflow.
+      int64_t temp_exponent = static_cast<int64_t>(exponent) +
+                              static_cast<int64_t>(add_to_exponent);
+
+      // If the result is in the valid range, then we use it. The valid range is
+      // also within the int32 range, so this prevents overflow issues.
+      if (temp_exponent > FPBits::MAX_BIASED_EXPONENT) {
+        exponent = FPBits::MAX_BIASED_EXPONENT;
+      } else if (temp_exponent < -FPBits::MAX_BIASED_EXPONENT) {
+        exponent = -FPBits::MAX_BIASED_EXPONENT;
+      } else {
+        exponent = static_cast<int32_t>(temp_exponent);
+      }
     }
   }
 
-  *strEnd = const_cast<char *>(src);
+  output.parsed_len = index;
   if (mantissa == 0) { // if we have a 0, then also 0 the exponent.
-    *outputMantissa = 0;
-    *outputExponent = 0;
+    output.value = {0, 0};
   } else {
-    decimal_exp_to_float<T>(mantissa, exponent, num_start, truncated,
-                            outputMantissa, outputExponent);
+    auto temp =
+        decimal_exp_to_float<T>({mantissa, exponent}, truncated, round, src);
+    output.value = temp.num;
+    output.error = temp.error;
   }
-  return true;
+  return output;
 }
 
-// Takes the start of a string representing a hexadecimal float, as well as the
-// local decimal point. It returns if it suceeded in parsing any digits, and if
-// the return value is true then the outputs are pointer to the end of the
-// number, and the mantissa and exponent for the closest float T representation.
-// If the return value is false, then it is assumed that there is no number
-// here.
-template <class T>
-static inline bool hexadecimal_string_to_float(
-    const char *__restrict src, const char DECIMAL_POINT,
-    char **__restrict strEnd,
-    typename fputil::FPBits<T>::UIntType *outputMantissa,
-    uint32_t *outputExponent) {
-  using BitsType = typename fputil::FPBits<T>::UIntType;
-  constexpr uint32_t BASE = 16;
-  constexpr char EXPONENT_MARKER = 'p';
+// Attempts parsing a hexadecimal floating point number at the start of the
+// string.
+template <typename T, typename CharType>
+LIBC_INLINE static StrToNumResult<ExpandedFloat<T>>
+hexadecimal_string_to_float(const CharType *__restrict src,
+                            RoundDirection round) {
+  using FPBits = typename fputil::FPBits<T>;
+  using StorageType = typename FPBits::StorageType;
 
+  constexpr uint32_t BASE = 16;
   bool truncated = false;
   bool seen_digit = false;
   bool after_decimal = false;
-  BitsType mantissa = 0;
+  StorageType mantissa = 0;
   int32_t exponent = 0;
+
+  size_t index = 0;
+
+  StrToNumResult<ExpandedFloat<T>> output({0, 0});
 
   // The goal for the first step of parsing is to convert the number in src to
   // the format mantissa * (base ^ exponent)
 
   // The loop fills the mantissa with as many digits as it can hold
-  const BitsType bitstype_max_div_by_base =
-      cpp::numeric_limits<BitsType>::max() / BASE;
+  const StorageType bitstype_max_div_by_base =
+      cpp::numeric_limits<StorageType>::max() / BASE;
   while (true) {
-    if (isalnum(*src)) {
-      uint32_t digit = b36_char_to_int(*src);
+    if (isalnum(src[index])) {
+      uint32_t digit = static_cast<uint32_t>(b36_char_to_int(src[index]));
       if (digit < BASE)
         seen_digit = true;
       else
@@ -845,16 +1032,16 @@ static inline bool hexadecimal_string_to_float(
         if (!after_decimal)
           ++exponent;
       }
-      ++src;
+      ++index;
       continue;
     }
-    if (*src == DECIMAL_POINT) {
+    if (src[index] == constants<CharType>::DECIMAL_POINT) {
       if (after_decimal) {
-        break; // this means that *src points to a second decimal point, ending
-               // the number.
+        break; // this means that src[index] points to a second decimal point,
+               // ending the number.
       }
       after_decimal = true;
-      ++src;
+      ++index;
       continue;
     }
     // The character is neither a hexadecimal digit nor a decimal point.
@@ -862,156 +1049,200 @@ static inline bool hexadecimal_string_to_float(
   }
 
   if (!seen_digit)
-    return false;
+    return output;
 
   // Convert the exponent from having a base of 16 to having a base of 2.
   exponent *= 4;
 
-  if ((*src | 32) == EXPONENT_MARKER) {
-    if (*(src + 1) == '+' || *(src + 1) == '-' || isdigit(*(src + 1))) {
-      ++src;
-      char *temp_str_end;
-      int32_t add_to_exponent = strtointeger<int32_t>(src, &temp_str_end, 10);
-      if (add_to_exponent > 100000)
-        add_to_exponent = 100000;
-      else if (add_to_exponent < -100000)
-        add_to_exponent = -100000;
-      src = temp_str_end;
-      exponent += add_to_exponent;
+  if (tolower(src[index]) == constants<CharType>::HEX_EXPONENT_MARKER) {
+    int sign = get_sign(src + index + 1);
+    if (isdigit(src[index + 1 + static_cast<size_t>(sign != 0)])) {
+      ++index;
+      auto result = strtointeger<int32_t>(src + index, 10);
+      if (result.has_error())
+        output.error = result.error;
+
+      int32_t add_to_exponent = result.value;
+      index += static_cast<size_t>(result.parsed_len);
+
+      // Here we do this operation as int64 to avoid overflow.
+      int64_t temp_exponent = static_cast<int64_t>(exponent) +
+                              static_cast<int64_t>(add_to_exponent);
+
+      // If the result is in the valid range, then we use it. The valid range is
+      // also within the int32 range, so this prevents overflow issues.
+      if (temp_exponent > FPBits::MAX_BIASED_EXPONENT) {
+        exponent = FPBits::MAX_BIASED_EXPONENT;
+      } else if (temp_exponent < -FPBits::MAX_BIASED_EXPONENT) {
+        exponent = -FPBits::MAX_BIASED_EXPONENT;
+      } else {
+        exponent = static_cast<int32_t>(temp_exponent);
+      }
     }
   }
-  *strEnd = const_cast<char *>(src);
+  output.parsed_len = index;
   if (mantissa == 0) { // if we have a 0, then also 0 the exponent.
-    *outputMantissa = 0;
-    *outputExponent = 0;
+    output.value.exponent = 0;
+    output.value.mantissa = 0;
   } else {
-    binary_exp_to_float<T>(mantissa, exponent, truncated, outputMantissa,
-                           outputExponent);
+    auto temp = binary_exp_to_float<T>({mantissa, exponent}, truncated, round);
+    output.error = temp.error;
+    output.value = temp.num;
   }
-  return true;
+  return output;
+}
+
+template <typename T, typename CharType>
+LIBC_INLINE typename fputil::FPBits<T>::StorageType
+nan_mantissa_from_ncharseq(const CharType *str, size_t len) {
+  using FPBits = typename fputil::FPBits<T>;
+  using StorageType = typename FPBits::StorageType;
+
+  StorageType nan_mantissa = 0;
+
+  if (len > 0 && isdigit(str[0])) {
+    StrToNumResult<StorageType> strtoint_result =
+        strtointeger<StorageType>(str, 0, len);
+    if (!strtoint_result.has_error())
+      nan_mantissa = strtoint_result.value;
+
+    if (strtoint_result.parsed_len != static_cast<ptrdiff_t>(len))
+      nan_mantissa = 0;
+  }
+
+  return nan_mantissa;
 }
 
 // Takes a pointer to a string and a pointer to a string pointer. This function
 // is used as the backend for all of the string to float functions.
-template <class T>
-static inline T strtofloatingpoint(const char *__restrict src,
-                                   char **__restrict strEnd) {
-  using BitsType = typename fputil::FPBits<T>::UIntType;
-  fputil::FPBits<T> result = fputil::FPBits<T>();
-  const char *original_src = src;
+// TODO: Add src_len member to match strtointeger.
+// TODO: Next, move from char* and length to string_view
+template <typename T, typename CharType>
+LIBC_INLINE StrToNumResult<T>
+strtofloatingpoint(const CharType *__restrict src) {
+  using FPBits = typename fputil::FPBits<T>;
+  using StorageType = typename FPBits::StorageType;
+
+  FPBits result = FPBits();
   bool seen_digit = false;
-  src = first_non_whitespace(src);
+  int error = 0;
 
-  if (*src == '+' || *src == '-') {
-    if (*src == '-') {
-      result.set_sign(true);
-    }
-    ++src;
+  size_t index = first_non_whitespace(src);
+  int sign = get_sign(src + index);
+  bool is_positive = (sign >= 0);
+  index += (sign != 0);
+
+  if (sign < 0) {
+    result.set_sign(Sign::NEG);
   }
 
-  static constexpr char DECIMAL_POINT = '.';
-  static const char *inf_string = "infinity";
-  static const char *nan_string = "nan";
-
-  // bool truncated = false;
-
-  if (isdigit(*src) || *src == DECIMAL_POINT) { // regular number
+  if (isdigit(src[index]) ||
+      src[index] == constants<CharType>::DECIMAL_POINT) { // regular number
     int base = 10;
-    if (is_float_hex_start(src, DECIMAL_POINT)) {
+    if (is_float_hex_start(src + index)) {
       base = 16;
-      src += 2;
+      index += 2;
       seen_digit = true;
     }
-    char *new_str_end = nullptr;
 
-    BitsType output_mantissa = 0;
-    uint32_t output_exponent = 0;
+    RoundDirection round_direction = RoundDirection::Nearest;
+    switch (fputil::quick_get_round()) {
+    case FE_TONEAREST:
+      round_direction = RoundDirection::Nearest;
+      break;
+    case FE_UPWARD:
+      round_direction = is_positive ? RoundDirection::Up : RoundDirection::Down;
+      break;
+    case FE_DOWNWARD:
+      round_direction = is_positive ? RoundDirection::Down : RoundDirection::Up;
+      break;
+    case FE_TOWARDZERO:
+      round_direction = RoundDirection::Down;
+      break;
+    }
+
+    StrToNumResult<ExpandedFloat<T>> parse_result({0, 0});
     if (base == 16) {
-      seen_digit = hexadecimal_string_to_float<T>(
-          src, DECIMAL_POINT, &new_str_end, &output_mantissa, &output_exponent);
+      parse_result =
+          hexadecimal_string_to_float<T>(src + index, round_direction);
     } else { // base is 10
-      seen_digit = decimal_string_to_float<T>(
-          src, DECIMAL_POINT, &new_str_end, &output_mantissa, &output_exponent);
+      parse_result = decimal_string_to_float<T>(src + index, round_direction);
     }
-
-    if (seen_digit) {
-      src += new_str_end - src;
-      result.set_mantissa(output_mantissa);
-      result.set_unbiased_exponent(output_exponent);
-    }
-  } else if ((*src | 32) == 'n') { // NaN
-    if ((src[1] | 32) == nan_string[1] && (src[2] | 32) == nan_string[2]) {
-      seen_digit = true;
-      src += 3;
-      BitsType nan_mantissa = 0;
-      // this handles the case of `NaN(n-character-sequence)`, where the
-      // n-character-sequence is made of 0 or more letters and numbers in any
-      // order.
-      if (*src == '(') {
-        const char *left_paren = src;
-        ++src;
-        while (isalnum(*src))
-          ++src;
-        if (*src == ')') {
-          ++src;
-          char *temp_src = 0;
-          if (isdigit(*(left_paren + 1))) {
-            // This is to prevent errors when BitsType is larger than 64 bits,
-            // since strtointeger only supports up to 64 bits. This is actually
-            // more than is required by the specification, which says for the
-            // input type "NAN(n-char-sequence)" that "the meaning of
-            // the n-char sequence is implementation-defined."
-            nan_mantissa = static_cast<BitsType>(
-                strtointeger<uint64_t>(left_paren + 1, &temp_src, 0));
-            if (*temp_src != ')')
-              nan_mantissa = 0;
-          }
-        } else
-          src = left_paren;
-      }
-      nan_mantissa |= fputil::FloatProperties<T>::QUIET_NAN_MASK;
-      if (result.get_sign()) {
-        result = fputil::FPBits<T>(result.build_nan(nan_mantissa));
-        result.set_sign(true);
+    seen_digit = parse_result.parsed_len != 0;
+    result.set_mantissa(parse_result.value.mantissa);
+    result.set_biased_exponent(parse_result.value.exponent);
+    index += parse_result.parsed_len;
+    error = parse_result.error;
+  } else if (tolower_starts_with(src + index, 3,
+                                 constants<CharType>::NAN_STRING)) {
+    // NAN
+    seen_digit = true;
+    index += 3;
+    StorageType nan_mantissa = 0;
+    // this handles the case of `NaN(n-character-sequence)`, where the
+    // n-character-sequence is made of 0 or more letters, numbers, or
+    // underscore characters in any order.
+    if (is_char_or_wchar(src[index], '(', L'(')) {
+      size_t left_paren = index;
+      ++index;
+      while (isalnum(src[index]) || is_char_or_wchar(src[index], '_', L'_'))
+        ++index;
+      if (is_char_or_wchar(src[index], ')', L')')) {
+        ++index;
+        nan_mantissa = nan_mantissa_from_ncharseq<T>(src + (left_paren + 1),
+                                                     index - left_paren - 2);
       } else {
-        result.set_sign(false);
-        result = fputil::FPBits<T>(result.build_nan(nan_mantissa));
+        index = left_paren;
       }
     }
-  } else if ((*src | 32) == 'i') { // INF
-    if ((src[1] | 32) == inf_string[1] && (src[2] | 32) == inf_string[2]) {
-      seen_digit = true;
-      if (result.get_sign())
-        result = result.neg_inf();
-      else
-        result = result.inf();
-      if ((src[3] | 32) == inf_string[3] && (src[4] | 32) == inf_string[4] &&
-          (src[5] | 32) == inf_string[5] && (src[6] | 32) == inf_string[6] &&
-          (src[7] | 32) == inf_string[7]) {
-        // if the string is "INFINITY" then strEnd needs to be set to src + 8.
-        src += 8;
-      } else {
-        src += 3;
-      }
-    }
+    result = FPBits(result.quiet_nan(result.sign(), nan_mantissa));
+  } else if (tolower_starts_with(src + index, 8,
+                                 constants<CharType>::INF_STRING)) {
+    // INFINITY
+    seen_digit = true;
+    result = FPBits(result.inf(result.sign()));
+    index += 8;
+  } else if (tolower_starts_with(src + index, 3,
+                                 constants<CharType>::INF_STRING)) {
+    // INF
+    seen_digit = true;
+    result = FPBits(result.inf(result.sign()));
+    index += 3;
   }
+
   if (!seen_digit) { // If there is nothing to actually parse, then return 0.
-    if (strEnd != nullptr)
-      *strEnd = const_cast<char *>(original_src);
-    return T(0);
+    return {T(0), 0, error};
   }
-
-  if (strEnd != nullptr)
-    *strEnd = const_cast<char *>(src);
 
   // This function only does something if T is long double and the platform uses
   // special 80 bit long doubles. Otherwise it should be inlined out.
   set_implicit_bit<T>(result);
 
-  return T(result);
+  return {result.get_val(), static_cast<ptrdiff_t>(index), error};
+}
+
+template <class T> LIBC_INLINE StrToNumResult<T> strtonan(const char *arg) {
+  using FPBits = typename fputil::FPBits<T>;
+  using StorageType = typename FPBits::StorageType;
+
+  LIBC_CRASH_ON_NULLPTR(arg);
+
+  FPBits result;
+  int error = 0;
+  StorageType nan_mantissa = 0;
+
+  ptrdiff_t index = 0;
+  while (isalnum(arg[index]) || arg[index] == '_')
+    ++index;
+
+  if (arg[index] == '\0')
+    nan_mantissa = nan_mantissa_from_ncharseq<T>(arg, index);
+
+  result = FPBits::quiet_nan(Sign::POS, nan_mantissa);
+  return {result.get_val(), 0, error};
 }
 
 } // namespace internal
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE_DECL
 
-#endif // LIBC_SRC_SUPPORT_STR_TO_FLOAT_H
+#endif // LLVM_LIBC_SRC___SUPPORT_STR_TO_FLOAT_H

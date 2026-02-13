@@ -73,7 +73,7 @@ class CombinationGenerator {
     SmallVector<WrappingIterator<choice_type>, variable_smallsize>
         VariablesState;
 
-    // 'increment' of the the whole VariablesState is defined identically to the
+    // 'increment' of the whole VariablesState is defined identically to the
     // increment of a number: starting from the least significant element,
     // increment it, and if it wrapped, then propagate that carry by also
     // incrementing next (more significant) element.
@@ -118,10 +118,9 @@ public:
       : VariablesChoices(VariablesChoices_) {
 #ifndef NDEBUG
     assert(!VariablesChoices.empty() && "There should be some variables.");
-    llvm::for_each(VariablesChoices, [](ArrayRef<choice_type> VariableChoices) {
+    for (ArrayRef<choice_type> VariableChoices : VariablesChoices)
       assert(!VariableChoices.empty() &&
              "There must always be some choice, at least a placeholder one.");
-    });
 #endif
   }
 

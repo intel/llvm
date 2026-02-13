@@ -43,7 +43,6 @@
 #include "llvm/Support/raw_ostream.h"
 #include <cassert>
 #include <cstdint>
-#include <iterator>
 #include <map>
 #include <utility>
 
@@ -55,7 +54,7 @@ static cl::opt<bool> PrintBranchProb(
     "print-bpi", cl::init(false), cl::Hidden,
     cl::desc("Print the branch probability info."));
 
-cl::opt<std::string> PrintBranchProbFuncName(
+static cl::opt<std::string> PrintBranchProbFuncName(
     "print-bpi-func-name", cl::Hidden,
     cl::desc("The option to specify the name of the function "
              "whose branch probability info is printed."));
@@ -70,10 +69,7 @@ INITIALIZE_PASS_END(BranchProbabilityInfoWrapperPass, "branch-prob",
                     "Branch Probability Analysis", false, true)
 
 BranchProbabilityInfoWrapperPass::BranchProbabilityInfoWrapperPass()
-    : FunctionPass(ID) {
-  initializeBranchProbabilityInfoWrapperPassPass(
-      *PassRegistry::getPassRegistry());
-}
+    : FunctionPass(ID) {}
 
 char BranchProbabilityInfoWrapperPass::ID = 0;
 
@@ -383,17 +379,12 @@ bool BranchProbabilityInfo::calcMetadataWeights(const BasicBlock *BB) {
         isa<InvokeInst>(TI) || isa<CallBrInst>(TI)))
     return false;
 
-  MDNode *WeightsNode = TI->getMetadata(LLVMContext::MD_prof);
+  MDNode *WeightsNode = getValidBranchWeightMDNode(*TI);
   if (!WeightsNode)
     return false;
 
   // Check that the number of successors is manageable.
   assert(TI->getNumSuccessors() < UINT32_MAX && "Too many successors");
-
-  // Ensure there are weights for all of the successors. Note that the first
-  // operand to the metadata node is a name, not a weight.
-  if (WeightsNode->getNumOperands() != TI->getNumSuccessors() + 1)
-    return false;
 
   // Build up the final weights that will be used in a temporary buffer.
   // Compute the sum of all weights to later decide whether they need to
@@ -403,7 +394,7 @@ bool BranchProbabilityInfo::calcMetadataWeights(const BasicBlock *BB) {
   SmallVector<unsigned, 2> UnreachableIdxs;
   SmallVector<unsigned, 2> ReachableIdxs;
 
-  extractBranchWeights(*TI, Weights);
+  extractBranchWeights(WeightsNode, Weights);
   for (unsigned I = 0, E = Weights.size(); I != E; ++I) {
     WeightSum += Weights[I];
     const LoopBlock SrcLoopBB = getLoopBlock(BB);
@@ -625,7 +616,7 @@ computeUnlikelySuccessors(const BasicBlock *BB, Loop *L,
       if (!CmpLHSConst || !llvm::is_contained(successors(BB), B))
         continue;
       // First collapse InstChain
-      const DataLayout &DL = BB->getModule()->getDataLayout();
+      const DataLayout &DL = BB->getDataLayout();
       for (Instruction *I : llvm::reverse(InstChain)) {
         CmpLHSConst = ConstantFoldBinaryOpOperands(
             I->getOpcode(), CmpLHSConst, cast<Constant>(I->getOperand(1)), DL);
@@ -635,8 +626,8 @@ computeUnlikelySuccessors(const BasicBlock *BB, Loop *L,
       if (!CmpLHSConst)
         continue;
       // Now constant-evaluate the compare
-      Constant *Result = ConstantExpr::getCompare(CI->getPredicate(),
-                                                  CmpLHSConst, CmpConst, true);
+      Constant *Result = ConstantFoldCompareInstOperands(
+          CI->getPredicate(), CmpLHSConst, CmpConst, DL);
       // If the result means we don't branch to the block then that block is
       // unlikely.
       if (Result &&
@@ -647,23 +638,23 @@ computeUnlikelySuccessors(const BasicBlock *BB, Loop *L,
   }
 }
 
-Optional<uint32_t>
+std::optional<uint32_t>
 BranchProbabilityInfo::getEstimatedBlockWeight(const BasicBlock *BB) const {
   auto WeightIt = EstimatedBlockWeight.find(BB);
   if (WeightIt == EstimatedBlockWeight.end())
-    return None;
+    return std::nullopt;
   return WeightIt->second;
 }
 
-Optional<uint32_t>
+std::optional<uint32_t>
 BranchProbabilityInfo::getEstimatedLoopWeight(const LoopData &L) const {
   auto WeightIt = EstimatedLoopWeight.find(L);
   if (WeightIt == EstimatedLoopWeight.end())
-    return None;
+    return std::nullopt;
   return WeightIt->second;
 }
 
-Optional<uint32_t>
+std::optional<uint32_t>
 BranchProbabilityInfo::getEstimatedEdgeWeight(const LoopEdge &Edge) const {
   // For edges entering a loop take weight of a loop rather than an individual
   // block in the loop.
@@ -673,16 +664,15 @@ BranchProbabilityInfo::getEstimatedEdgeWeight(const LoopEdge &Edge) const {
 }
 
 template <class IterT>
-Optional<uint32_t> BranchProbabilityInfo::getMaxEstimatedEdgeWeight(
+std::optional<uint32_t> BranchProbabilityInfo::getMaxEstimatedEdgeWeight(
     const LoopBlock &SrcLoopBB, iterator_range<IterT> Successors) const {
-  SmallVector<uint32_t, 4> Weights;
-  Optional<uint32_t> MaxWeight;
+  std::optional<uint32_t> MaxWeight;
   for (const BasicBlock *DstBB : Successors) {
     const LoopBlock DstLoopBB = getLoopBlock(DstBB);
     auto Weight = getEstimatedEdgeWeight({SrcLoopBB, DstLoopBB});
 
     if (!Weight)
-      return None;
+      return std::nullopt;
 
     if (!MaxWeight || *MaxWeight < *Weight)
       MaxWeight = Weight;
@@ -767,8 +757,8 @@ void BranchProbabilityInfo::propagateEstimatedBlockWeight(
   }
 }
 
-Optional<uint32_t> BranchProbabilityInfo::getInitialEstimatedBlockWeight(
-    const BasicBlock *BB) {
+std::optional<uint32_t>
+BranchProbabilityInfo::getInitialEstimatedBlockWeight(const BasicBlock *BB) {
   // Returns true if \p BB has call marked with "NoReturn" attribute.
   auto hasNoReturn = [&](const BasicBlock *BB) {
     for (const auto &I : reverse(*BB))
@@ -792,12 +782,9 @@ Optional<uint32_t> BranchProbabilityInfo::getInitialEstimatedBlockWeight(
                ? static_cast<uint32_t>(BlockExecWeight::NORETURN)
                : static_cast<uint32_t>(BlockExecWeight::UNREACHABLE);
 
-  // Check if the block is 'unwind' handler of  some invoke instruction.
-  for (const auto *Pred : predecessors(BB))
-    if (Pred)
-      if (const auto *II = dyn_cast<InvokeInst>(Pred->getTerminator()))
-        if (II->getUnwindDest() == BB)
-          return static_cast<uint32_t>(BlockExecWeight::UNWIND);
+  // Check if the block is an exception handling block.
+  if (BB->isEHPad())
+    return static_cast<uint32_t>(BlockExecWeight::UNWIND);
 
   // Check if the block contains 'cold' call.
   for (const auto &I : *BB)
@@ -805,16 +792,18 @@ Optional<uint32_t> BranchProbabilityInfo::getInitialEstimatedBlockWeight(
       if (CI->hasFnAttr(Attribute::Cold))
         return static_cast<uint32_t>(BlockExecWeight::COLD);
 
-  return None;
+  return std::nullopt;
 }
 
 // Does RPO traversal over all blocks in \p F and assigns weights to
 // 'unreachable', 'noreturn', 'cold', 'unwind' blocks. In addition it does its
 // best to propagate the weight to up/down the IR.
-void BranchProbabilityInfo::computeEestimateBlockWeight(
-    const Function &F, DominatorTree *DT, PostDominatorTree *PDT) {
+void BranchProbabilityInfo::estimateBlockWeights(const Function &F,
+                                                 DominatorTree *DT,
+                                                 PostDominatorTree *PDT) {
   SmallVector<BasicBlock *, 8> BlockWorkList;
   SmallVector<LoopBlock, 8> LoopWorkList;
+  SmallDenseMap<LoopData, SmallVector<BasicBlock *, 4>> LoopExitBlocks;
 
   // By doing RPO we make sure that all predecessors already have weights
   // calculated before visiting theirs successors.
@@ -823,7 +812,7 @@ void BranchProbabilityInfo::computeEestimateBlockWeight(
     if (auto BBWeight = getInitialEstimatedBlockWeight(BB))
       // If we were able to find estimated weight for the block set it to this
       // block and propagate up the IR.
-      propagateEstimatedBlockWeight(getLoopBlock(BB), DT, PDT, BBWeight.value(),
+      propagateEstimatedBlockWeight(getLoopBlock(BB), DT, PDT, *BBWeight,
                                     BlockWorkList, LoopWorkList);
 
   // BlockWorklist/LoopWorkList contains blocks/loops with at least one
@@ -833,12 +822,14 @@ void BranchProbabilityInfo::computeEestimateBlockWeight(
   do {
     while (!LoopWorkList.empty()) {
       const LoopBlock LoopBB = LoopWorkList.pop_back_val();
-
-      if (EstimatedLoopWeight.count(LoopBB.getLoopData()))
+      const LoopData LD = LoopBB.getLoopData();
+      if (EstimatedLoopWeight.count(LD))
         continue;
 
-      SmallVector<BasicBlock *, 4> Exits;
-      getLoopExitBlocks(LoopBB, Exits);
+      auto Res = LoopExitBlocks.try_emplace(LD);
+      SmallVectorImpl<BasicBlock *> &Exits = Res.first->second;
+      if (Res.second)
+        getLoopExitBlocks(LoopBB, Exits);
       auto LoopWeight = getMaxEstimatedEdgeWeight(
           LoopBB, make_range(Exits.begin(), Exits.end()));
 
@@ -847,7 +838,7 @@ void BranchProbabilityInfo::computeEestimateBlockWeight(
         if (LoopWeight <= static_cast<uint32_t>(BlockExecWeight::UNREACHABLE))
           LoopWeight = static_cast<uint32_t>(BlockExecWeight::LOWEST_NON_ZERO);
 
-        EstimatedLoopWeight.insert({LoopBB.getLoopData(), *LoopWeight});
+        EstimatedLoopWeight.insert({LD, *LoopWeight});
         // Add all blocks entering the loop into working list.
         getLoopEnterBlocks(LoopBB, BlockWorkList);
       }
@@ -895,7 +886,7 @@ bool BranchProbabilityInfo::calcEstimatedHeuristics(const BasicBlock *BB) {
   uint64_t TotalWeight = 0;
   // Go over all successors of BB and put their weights into SuccWeights.
   for (const BasicBlock *SuccBB : successors(BB)) {
-    Optional<uint32_t> Weight;
+    std::optional<uint32_t> Weight;
     const LoopBlock SuccLoopBB = getLoopBlock(SuccBB);
     const LoopEdge Edge{LoopBB, SuccLoopBB};
 
@@ -996,7 +987,7 @@ bool BranchProbabilityInfo::calcZeroHeuristics(const BasicBlock *BB,
           return false;
 
   // Check if the LHS is the return value of a library function
-  LibFunc Func = NumLibFuncs;
+  LibFunc Func = LibFunc::NotLibFunc;
   if (TLI)
     if (CallInst *Call = dyn_cast<CallInst>(CI->getOperand(0)))
       if (Function *CalledFn = Call->getCalledFunction())
@@ -1168,7 +1159,7 @@ void BranchProbabilityInfo::copyEdgeProbabilities(BasicBlock *Src,
   assert(NumSuccessors == Dst->getTerminator()->getNumSuccessors());
   if (NumSuccessors == 0)
     return; // Nothing to set.
-  if (this->Probs.find(std::make_pair(Src, 0)) == this->Probs.end())
+  if (!this->Probs.contains(std::make_pair(Src, 0)))
     return; // No probability is set for edges from Src. Keep the same for Dst.
 
   Handles.insert(BasicBlockCallbackVH(Dst, this));
@@ -1180,13 +1171,26 @@ void BranchProbabilityInfo::copyEdgeProbabilities(BasicBlock *Src,
   }
 }
 
+void BranchProbabilityInfo::swapSuccEdgesProbabilities(const BasicBlock *Src) {
+  assert(Src->getTerminator()->getNumSuccessors() == 2);
+  auto It0 = Probs.find(std::make_pair(Src, 0));
+  if (It0 == Probs.end())
+    return; // No probability is set for edges from Src
+  auto It1 = Probs.find(std::make_pair(Src, 1));
+  assert(It1 != Probs.end());
+  std::swap(It0->second, It1->second);
+}
+
 raw_ostream &
 BranchProbabilityInfo::printEdgeProbability(raw_ostream &OS,
                                             const BasicBlock *Src,
                                             const BasicBlock *Dst) const {
   const BranchProbability Prob = getEdgeProbability(Src, Dst);
-  OS << "edge " << Src->getName() << " -> " << Dst->getName()
-     << " probability is " << Prob
+  OS << "edge ";
+  Src->printAsOperand(OS, false, Src->getModule());
+  OS << " -> ";
+  Dst->printAsOperand(OS, false, Dst->getModule());
+  OS << " probability is " << Prob
      << (isEdgeHot(Src, Dst) ? " [HOT edge]\n" : "\n");
 
   return OS;
@@ -1241,7 +1245,7 @@ void BranchProbabilityInfo::calculate(const Function &F, const LoopInfo &LoopI,
     PDT = PDTPtr.get();
   }
 
-  computeEestimateBlockWeight(F, DT, PDT);
+  estimateBlockWeights(F, DT, PDT);
 
   // Walk the basic blocks in post-order so that we can build up state about
   // the successors of a block iteratively.
@@ -1267,9 +1271,8 @@ void BranchProbabilityInfo::calculate(const Function &F, const LoopInfo &LoopI,
   EstimatedBlockWeight.clear();
   SccI.reset();
 
-  if (PrintBranchProb &&
-      (PrintBranchProbFuncName.empty() ||
-       F.getName().equals(PrintBranchProbFuncName))) {
+  if (PrintBranchProb && (PrintBranchProbFuncName.empty() ||
+                          F.getName() == PrintBranchProbFuncName)) {
     print(dbgs());
   }
 }
@@ -1308,19 +1311,19 @@ void BranchProbabilityInfoWrapperPass::print(raw_ostream &OS,
 AnalysisKey BranchProbabilityAnalysis::Key;
 BranchProbabilityInfo
 BranchProbabilityAnalysis::run(Function &F, FunctionAnalysisManager &AM) {
+  auto &LI = AM.getResult<LoopAnalysis>(F);
+  auto &TLI = AM.getResult<TargetLibraryAnalysis>(F);
+  auto &DT = AM.getResult<DominatorTreeAnalysis>(F);
+  auto &PDT = AM.getResult<PostDominatorTreeAnalysis>(F);
   BranchProbabilityInfo BPI;
-  BPI.calculate(F, AM.getResult<LoopAnalysis>(F),
-                &AM.getResult<TargetLibraryAnalysis>(F),
-                &AM.getResult<DominatorTreeAnalysis>(F),
-                &AM.getResult<PostDominatorTreeAnalysis>(F));
+  BPI.calculate(F, LI, &TLI, &DT, &PDT);
   return BPI;
 }
 
 PreservedAnalyses
 BranchProbabilityPrinterPass::run(Function &F, FunctionAnalysisManager &AM) {
-  OS << "Printing analysis results of BPI for function "
-     << "'" << F.getName() << "':"
-     << "\n";
+  OS << "Printing analysis 'Branch Probability Analysis' for function '"
+     << F.getName() << "':\n";
   AM.getResult<BranchProbabilityAnalysis>(F).print(OS);
   return PreservedAnalyses::all();
 }

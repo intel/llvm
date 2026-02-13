@@ -290,6 +290,18 @@ void doWhileLoop(Test *a) {
   } while(0);
 }
 
+struct S {
+  int a;
+  id b;
+};
+
+@interface C
+@property S p;
+@end
+
+void test_list_init(C *c) {
+  c.p = {0, c.p.b};
+}
 
 @interface Test (Methods)
 @end
@@ -411,7 +423,6 @@ void doubleLevelAccessIvar(Test *a, Test *b) {
   use(a.strongProp.weakProp); // no-warning
 }
 
-// rdar://13942025
 @interface X
 @end
 
@@ -426,7 +437,6 @@ void doubleLevelAccessIvar(Test *a, Test *b) {
 }
 @end
 
-// rdar://19053620
 @interface NSNull
 + (NSNull *)null;
 @end

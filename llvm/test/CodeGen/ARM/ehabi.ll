@@ -113,16 +113,16 @@ declare void @_Z5printddddd(double, double, double, double, double)
 
 define void @_Z4testiiiiiddddd(i32 %a, i32 %b, i32 %c, i32 %d, i32 %e,
                                double %m, double %n, double %p,
-                               double %q, double %r) personality i8* bitcast (i32 (...)* @__gxx_personality_v0 to i8*) {
+                               double %q, double %r) personality ptr @__gxx_personality_v0 {
 entry:
   invoke void @_Z5printiiiii(i32 %a, i32 %b, i32 %c, i32 %d, i32 %e)
           to label %try.cont unwind label %lpad
 
 lpad:
-  %0 = landingpad { i8*, i32 }
-          catch i8* null
-  %1 = extractvalue { i8*, i32 } %0, 0
-  %2 = tail call i8* @__cxa_begin_catch(i8* %1)
+  %0 = landingpad { ptr, i32 }
+          catch ptr null
+  %1 = extractvalue { ptr, i32 } %0, 0
+  %2 = tail call ptr @__cxa_begin_catch(ptr %1)
   invoke void @_Z5printddddd(double %m, double %n, double %p,
                              double %q, double %r)
           to label %invoke.cont2 unwind label %lpad1
@@ -135,27 +135,27 @@ try.cont:
   ret void
 
 lpad1:
-  %3 = landingpad { i8*, i32 }
+  %3 = landingpad { ptr, i32 }
           cleanup
   invoke void @__cxa_end_catch()
           to label %eh.resume unwind label %terminate.lpad
 
 eh.resume:
-  resume { i8*, i32 } %3
+  resume { ptr, i32 } %3
 
 terminate.lpad:
-  %4 = landingpad { i8*, i32 }
-          catch i8* null
-  %5 = extractvalue { i8*, i32 } %4, 0
-  tail call void @__clang_call_terminate(i8* %5)
+  %4 = landingpad { ptr, i32 }
+          catch ptr null
+  %5 = extractvalue { ptr, i32 } %4, 0
+  tail call void @__clang_call_terminate(ptr %5)
   unreachable
 }
 
-declare void @__clang_call_terminate(i8*)
+declare void @__clang_call_terminate(ptr)
 
 declare i32 @__gxx_personality_v0(...)
 
-declare i8* @__cxa_begin_catch(i8*)
+declare ptr @__cxa_begin_catch(ptr)
 
 declare void @__cxa_end_catch()
 
@@ -258,31 +258,34 @@ declare void @_ZSt9terminatev()
 ; DWARF-V7-FP:    .cfi_startproc
 ; DWARF-V7-FP:    .cfi_personality 0, __gxx_personality_v0
 ; DWARF-V7-FP:    .cfi_lsda 0, .Lexception0
-; DWARF-V7-FP:    push {r11, lr}
-; DWARF-V7-FP:    .cfi_def_cfa_offset 8
+; DWARF-V7-FP:    push {r4, r10, r11, lr}
+; DWARF-V7-FP:    .cfi_def_cfa_offset 16
 ; DWARF-V7-FP:    .cfi_offset lr, -4
 ; DWARF-V7-FP:    .cfi_offset r11, -8
-; DWARF-V7-FP:    mov r11, sp
-; DWARF-V7-FP:    .cfi_def_cfa_register r11
+; DWARF-V7-FP:    .cfi_offset r10, -12
+; DWARF-V7-FP:    .cfi_offset r4, -16
+; DWARF-V7-FP:    add r11, sp, #8
+; DWARF-V7-FP:    .cfi_def_cfa r11, 8
 ; DWARF-V7-FP:    vpush {d8, d9, d10, d11, d12}
-; DWARF-V7-FP:    .cfi_offset d12, -16
-; DWARF-V7-FP:    .cfi_offset d11, -24
-; DWARF-V7-FP:    .cfi_offset d10, -32
-; DWARF-V7-FP:    .cfi_offset d9, -40
+; DWARF-V7-FP:    .cfi_offset d12, -24
+; DWARF-V7-FP:    .cfi_offset d11, -32
+; DWARF-V7-FP:    .cfi_offset d10, -40
+; DWARF-V7-FP:    .cfi_offset d9, -48
+; DWARF-V7-FP:    .cfi_offset d8, -56
 ; DWARF-V7-FP:    sub sp, sp, #24
-; DWARF-V7-FP:    sub sp, r11, #40
+; DWARF-V7-FP:    sub sp, r11, #48
 ; DWARF-V7-FP:    vpop {d8, d9, d10, d11, d12}
-; DWARF-V7-FP:    pop {r11, pc}
+; DWARF-V7-FP:    pop {r4, r10, r11, pc}
 ; DWARF-V7-FP:    .cfi_endproc
 
 ; DWARF-V7-FP-ELIM-LABEL: _Z4testiiiiiddddd:
 ; DWARF-V7-FP-ELIM:    .cfi_startproc
 ; DWARF-V7-FP-ELIM:    .cfi_personality 0, __gxx_personality_v0
 ; DWARF-V7-FP-ELIM:    .cfi_lsda 0, .Lexception0
-; DWARF-V7-FP-ELIM:    push {r11, lr}
+; DWARF-V7-FP-ELIM:    push {r4, lr}
 ; DWARF-V7-FP-ELIM:    .cfi_def_cfa_offset 8
 ; DWARF-V7-FP-ELIM:    .cfi_offset lr, -4
-; DWARF-V7-FP-ELIM:    .cfi_offset r11, -8
+; DWARF-V7-FP-ELIM:    .cfi_offset r4, -8
 ; DWARF-V7-FP-ELIM:    vpush {d8, d9, d10, d11, d12}
 ; DWARF-V7-FP-ELIM:    .cfi_offset d12, -16
 ; DWARF-V7-FP-ELIM:    .cfi_offset d11, -24
@@ -292,7 +295,7 @@ declare void @_ZSt9terminatev()
 ; DWARF-V7-FP-ELIM:    .cfi_def_cfa_offset 72
 ; DWARF-V7-FP-ELIM:    add sp, sp, #24
 ; DWARF-V7-FP-ELIM:    vpop {d8, d9, d10, d11, d12}
-; DWARF-V7-FP-ELIM:    pop {r11, pc}
+; DWARF-V7-FP-ELIM:    pop {r4, pc}
 ; DWARF-V7-FP-ELIM:    .cfi_endproc
 
 ; DWARF-WIN-FP-ELIM-LABEL: _Z4testiiiiiddddd:
@@ -575,7 +578,7 @@ entry:
 ; Test 4
 ;-------------------------------------------------------------------------------
 
-define void @test4() nounwind {
+define void @test4() nounwind "frame-pointer"="none" {
 entry:
   ret void
 }

@@ -16,7 +16,6 @@
 #ifndef LLVM_IR_STATEPOINT_H
 #define LLVM_IR_STATEPOINT_H
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/Constants.h"
@@ -30,6 +29,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 namespace llvm {
@@ -176,23 +176,23 @@ public:
   }
 
   /// Returns an iterator to the begining of the argument range describing gc
-  /// values for the statepoint.
-  const_op_iterator gc_args_begin() const {
+  /// live values for the statepoint.
+  const_op_iterator gc_live_begin() const {
     if (auto Opt = getOperandBundle(LLVMContext::OB_gc_live))
       return Opt->Inputs.begin();
     return arg_end();
   }
 
-  /// Return an end iterator for the gc argument range
-  const_op_iterator gc_args_end() const {
+  /// Return an end iterator for the gc live range
+  const_op_iterator gc_live_end() const {
     if (auto Opt = getOperandBundle(LLVMContext::OB_gc_live))
       return Opt->Inputs.end();
     return arg_end();
   }
 
-  /// range adapter for gc arguments
-  iterator_range<const_op_iterator> gc_args() const {
-    return make_range(gc_args_begin(), gc_args_end());
+  /// range adapter for gc live arguments
+  iterator_range<const_op_iterator> gc_live() const {
+    return make_range(gc_live_begin(), gc_live_end());
   }
 
 
@@ -233,8 +233,8 @@ std::vector<const GCRelocateInst *> GCStatepointInst::getGCRelocates() const {
 /// have attributes that describe properties of gc.statepoint call they will be
 /// eventually be wrapped in.  This struct is used represent such directives.
 struct StatepointDirectives {
-  Optional<uint32_t> NumPatchBytes;
-  Optional<uint64_t> StatepointID;
+  std::optional<uint32_t> NumPatchBytes;
+  std::optional<uint64_t> StatepointID;
 
   static const uint64_t DefaultStatepointID = 0xABCDEF00;
   static const uint64_t DeoptBundleStatepointID = 0xABCDEF0F;

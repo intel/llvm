@@ -37,6 +37,7 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/WithColor.h"
+#include <optional>
 #include <string>
 
 using namespace clang;
@@ -73,22 +74,8 @@ static cl::opt<std::string> PreloadFile(
 
 bool runCommandsInFile(const char *ExeName, std::string const &FileName,
                        QuerySession &QS) {
-  auto Buffer = llvm::MemoryBuffer::getFile(FileName);
-  if (!Buffer) {
-    llvm::errs() << ExeName << ": cannot open " << FileName << ": "
-                 << Buffer.getError().message() << "\n";
-    return true;
-  }
-
-  StringRef FileContentRef(Buffer.get()->getBuffer());
-
-  while (!FileContentRef.empty()) {
-    QueryRef Q = QueryParser::parse(FileContentRef, QS);
-    if (!Q->run(llvm::outs(), QS))
-      return true;
-    FileContentRef = Q->RemainingContent;
-  }
-  return false;
+  FileQuery Query(FileName, ExeName);
+  return !Query.run(llvm::errs(), QS);
 }
 
 int main(int argc, const char **argv) {
@@ -168,7 +155,7 @@ int main(int argc, const char **argv) {
     LE.setListCompleter([&QS](StringRef Line, size_t Pos) {
       return QueryParser::complete(Line, Pos, QS);
     });
-    while (llvm::Optional<std::string> Line = LE.readLine()) {
+    while (std::optional<std::string> Line = LE.readLine()) {
       QueryRef Q = QueryParser::parse(*Line, QS);
       Q->run(llvm::outs(), QS);
       llvm::outs().flush();

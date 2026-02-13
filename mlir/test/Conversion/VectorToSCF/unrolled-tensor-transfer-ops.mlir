@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s -pass-pipeline="func.func(convert-vector-to-scf{full-unroll=true lower-tensors=true})" -split-input-file -allow-unregistered-dialect | FileCheck %s
+// RUN: mlir-opt %s -pass-pipeline="builtin.module(func.func(convert-vector-to-scf{full-unroll=true lower-tensors=true}))" -split-input-file -allow-unregistered-dialect | FileCheck %s
 
 // CHECK-LABEL: func @transfer_read_2d(
 //       CHECK: %[[V_INIT:.*]] = arith.constant dense<-4.200000e+01> : vector<4x9xf32>
@@ -22,9 +22,9 @@ func.func @transfer_read_2d(%A : tensor<?x?xf32>, %base1 : index, %base2 : index
 // -----
 
 // CHECK-LABEL: func @transfer_write_2d(
-//       CHECK:   %[[V0:.*]] = vector.extract %{{.*}}[0] : vector<2x3xf32>
+//       CHECK:   %[[V0:.*]] = vector.extract %{{.*}}[0] : vector<3xf32> from vector<2x3xf32>
 //       CHECK:   %[[T0:.*]] = vector.transfer_write %[[V0]], %{{.*}}[{{.*}}] {in_bounds = [true]} : vector<3xf32>, tensor<?x?xf32>
-//       CHECK:   %[[V1:.*]] = vector.extract %{{.*}}[1] : vector<2x3xf32>
+//       CHECK:   %[[V1:.*]] = vector.extract %{{.*}}[1] : vector<3xf32> from vector<2x3xf32>
 //       CHECK:   %[[T1:.*]] = vector.transfer_write %[[V1]], %[[T0]][{{.*}}] {in_bounds = [true]} : vector<3xf32>, tensor<?x?xf32>
 //       CHECK:   return %[[T1]] : tensor<?x?xf32>
 func.func @transfer_write_2d(%A : tensor<?x?xf32>, %vec : vector<2x3xf32>,

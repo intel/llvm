@@ -106,7 +106,7 @@ static std::string formatSymbol(StringRef Name, uint64_t Address,
   else
     OS << format("0x%" PRIX64, Address);
 
-  return OS.str();
+  return Buffer;
 }
 
 namespace llvm {
@@ -143,35 +143,38 @@ const Decoder::RingEntry Decoder::Ring[] = {
   { 0xff, 0xff, 1, &Decoder::opcode_11111111 },  // UOP_END
 };
 
-
 // Unwind opcodes for ARM64.
 // https://docs.microsoft.com/en-us/cpp/build/arm64-exception-handling
 const Decoder::RingEntry Decoder::Ring64[] = {
-  { 0xe0, 0x00, 1, &Decoder::opcode_alloc_s },
-  { 0xe0, 0x20, 1, &Decoder::opcode_save_r19r20_x },
-  { 0xc0, 0x40, 1, &Decoder::opcode_save_fplr },
-  { 0xc0, 0x80, 1, &Decoder::opcode_save_fplr_x },
-  { 0xf8, 0xc0, 2, &Decoder::opcode_alloc_m },
-  { 0xfc, 0xc8, 2, &Decoder::opcode_save_regp },
-  { 0xfc, 0xcc, 2, &Decoder::opcode_save_regp_x },
-  { 0xfc, 0xd0, 2, &Decoder::opcode_save_reg },
-  { 0xfe, 0xd4, 2, &Decoder::opcode_save_reg_x },
-  { 0xfe, 0xd6, 2, &Decoder::opcode_save_lrpair },
-  { 0xfe, 0xd8, 2, &Decoder::opcode_save_fregp },
-  { 0xfe, 0xda, 2, &Decoder::opcode_save_fregp_x },
-  { 0xfe, 0xdc, 2, &Decoder::opcode_save_freg },
-  { 0xff, 0xde, 2, &Decoder::opcode_save_freg_x },
-  { 0xff, 0xe0, 4, &Decoder::opcode_alloc_l },
-  { 0xff, 0xe1, 1, &Decoder::opcode_setfp },
-  { 0xff, 0xe2, 2, &Decoder::opcode_addfp },
-  { 0xff, 0xe3, 1, &Decoder::opcode_nop },
-  { 0xff, 0xe4, 1, &Decoder::opcode_end },
-  { 0xff, 0xe5, 1, &Decoder::opcode_end_c },
-  { 0xff, 0xe6, 1, &Decoder::opcode_save_next },
-  { 0xff, 0xe8, 1, &Decoder::opcode_trap_frame },
-  { 0xff, 0xe9, 1, &Decoder::opcode_machine_frame },
-  { 0xff, 0xea, 1, &Decoder::opcode_context },
-  { 0xff, 0xec, 1, &Decoder::opcode_clear_unwound_to_call },
+    {0xe0, 0x00, 1, &Decoder::opcode_alloc_s},
+    {0xe0, 0x20, 1, &Decoder::opcode_save_r19r20_x},
+    {0xc0, 0x40, 1, &Decoder::opcode_save_fplr},
+    {0xc0, 0x80, 1, &Decoder::opcode_save_fplr_x},
+    {0xf8, 0xc0, 2, &Decoder::opcode_alloc_m},
+    {0xfc, 0xc8, 2, &Decoder::opcode_save_regp},
+    {0xfc, 0xcc, 2, &Decoder::opcode_save_regp_x},
+    {0xfc, 0xd0, 2, &Decoder::opcode_save_reg},
+    {0xfe, 0xd4, 2, &Decoder::opcode_save_reg_x},
+    {0xfe, 0xd6, 2, &Decoder::opcode_save_lrpair},
+    {0xfe, 0xd8, 2, &Decoder::opcode_save_fregp},
+    {0xfe, 0xda, 2, &Decoder::opcode_save_fregp_x},
+    {0xfe, 0xdc, 2, &Decoder::opcode_save_freg},
+    {0xff, 0xde, 2, &Decoder::opcode_save_freg_x},
+    {0xff, 0xdf, 2, &Decoder::opcode_alloc_z},
+    {0xff, 0xe0, 4, &Decoder::opcode_alloc_l},
+    {0xff, 0xe1, 1, &Decoder::opcode_setfp},
+    {0xff, 0xe2, 2, &Decoder::opcode_addfp},
+    {0xff, 0xe3, 1, &Decoder::opcode_nop},
+    {0xff, 0xe4, 1, &Decoder::opcode_end},
+    {0xff, 0xe5, 1, &Decoder::opcode_end_c},
+    {0xff, 0xe6, 1, &Decoder::opcode_save_next},
+    {0xff, 0xe7, 3, &Decoder::opcode_e7},
+    {0xff, 0xe8, 1, &Decoder::opcode_trap_frame},
+    {0xff, 0xe9, 1, &Decoder::opcode_machine_frame},
+    {0xff, 0xea, 1, &Decoder::opcode_context},
+    {0xff, 0xeb, 1, &Decoder::opcode_ec_context},
+    {0xff, 0xec, 1, &Decoder::opcode_clear_unwound_to_call},
+    {0xff, 0xfc, 1, &Decoder::opcode_pac_sign_lr},
 };
 
 static void printRange(raw_ostream &OS, ListSeparator &LS, unsigned First,
@@ -303,7 +306,7 @@ ErrorOr<SymbolRef> Decoder::getSymbolForLocation(
       std::string Buf;
       llvm::raw_string_ostream OS(Buf);
       logAllUnhandledErrors(AddressOrErr.takeError(), OS);
-      report_fatal_error(Twine(OS.str()));
+      reportFatalUsageError(Twine(Buf));
     }
     // We apply SymbolOffset here directly. We return it separately to allow
     // the caller to print it as an offset on the symbol name.
@@ -803,6 +806,16 @@ bool Decoder::opcode_save_freg_x(const uint8_t *OC, unsigned &Offset,
   return false;
 }
 
+bool Decoder::opcode_alloc_z(const uint8_t *OC, unsigned &Offset,
+                             unsigned Length, bool Prologue) {
+  unsigned Off = OC[Offset + 1];
+  SW.startLine() << format("0x%02x%02x              ; addvl sp, #%d\n",
+                           OC[Offset], OC[Offset + 1],
+                           Prologue ? -(int)Off : (int)Off);
+  Offset += 2;
+  return false;
+}
+
 bool Decoder::opcode_alloc_l(const uint8_t *OC, unsigned &Offset,
                              unsigned Length, bool Prologue) {
   unsigned Off =
@@ -869,6 +882,125 @@ bool Decoder::opcode_save_next(const uint8_t *OC, unsigned &Offset,
   return false;
 }
 
+bool Decoder::opcode_e7(const uint8_t *OC, unsigned &Offset, unsigned Length,
+                        bool Prologue) {
+  // The e7 opcode has unusual decoding rules; write out the logic.
+  if ((OC[Offset + 1] & 0x80) == 0x80) {
+    SW.getOStream() << "reserved encoding\n";
+    Offset += 3;
+    return false;
+  }
+
+  if ((OC[Offset + 2] & 0xC0) == 0xC0) {
+    if ((OC[Offset + 1] & 0x10) == 0)
+      return opcode_save_zreg(OC, Offset, Length, Prologue);
+    return opcode_save_preg(OC, Offset, Length, Prologue);
+  }
+
+  return opcode_save_any_reg(OC, Offset, Length, Prologue);
+}
+
+bool Decoder::opcode_save_any_reg(const uint8_t *OC, unsigned &Offset,
+                                  unsigned Length, bool Prologue) {
+  // Whether the instruction has writeback
+  bool Writeback = (OC[Offset + 1] & 0x20) == 0x20;
+  // Whether the instruction is paired.  (Paired instructions are required
+  // to save/restore adjacent registers.)
+  bool Paired = (OC[Offset + 1] & 0x40) == 0x40;
+  // The kind of register saved:
+  // - 0 is an x register
+  // - 1 is the low half of a q register
+  // - 2 is a whole q register
+  int RegKind = (OC[Offset + 2] & 0xC0) >> 6;
+  // Encoded register name (0 -> x0/q0, 1 -> x1/q1, etc.)
+  int Reg = OC[Offset + 1] & 0x1F;
+  // Encoded stack offset of load/store instruction; decoding varies by mode.
+  int StackOffset = OC[Offset + 2] & 0x3F;
+  if (Writeback)
+    StackOffset++;
+  if (!Writeback && !Paired && RegKind != 2)
+    StackOffset *= 8;
+  else
+    StackOffset *= 16;
+
+  SW.startLine() << format("0x%02x%02x%02x            ; ", OC[Offset],
+                           OC[Offset + 1], OC[Offset + 2]);
+
+  // Verify the encoding is in a form we understand.  The high bit of the first
+  // byte, and mode 3 for the register kind are apparently reserved.  The
+  // encoded register must refer to a valid register.
+  int MaxReg = 0x1F;
+  if (Paired)
+    --MaxReg;
+  if (RegKind == 0)
+    --MaxReg;
+  if ((OC[Offset + 1] & 0x80) == 0x80 || RegKind == 3 || Reg > MaxReg) {
+    SW.getOStream() << "invalid save_any_reg encoding\n";
+    Offset += 3;
+    return false;
+  }
+
+  if (Paired) {
+    if (Prologue)
+      SW.getOStream() << "stp ";
+    else
+      SW.getOStream() << "ldp ";
+  } else {
+    if (Prologue)
+      SW.getOStream() << "str ";
+    else
+      SW.getOStream() << "ldr ";
+  }
+
+  char RegChar = 'x';
+  if (RegKind == 1) {
+    RegChar = 'd';
+  } else if (RegKind == 2) {
+    RegChar = 'q';
+  }
+
+  if (Paired)
+    SW.getOStream() << format("%c%d, %c%d, ", RegChar, Reg, RegChar, Reg + 1);
+  else
+    SW.getOStream() << format("%c%d, ", RegChar, Reg);
+
+  if (Writeback) {
+    if (Prologue)
+      SW.getOStream() << format("[sp, #-%d]!\n", StackOffset);
+    else
+      SW.getOStream() << format("[sp], #%d\n", StackOffset);
+  } else {
+    SW.getOStream() << format("[sp, #%d]\n", StackOffset);
+  }
+
+  Offset += 3;
+  return false;
+}
+
+bool Decoder::opcode_save_zreg(const uint8_t *OC, unsigned &Offset,
+                               unsigned Length, bool Prologue) {
+  uint32_t Reg = (OC[Offset + 1] & 0x0F) + 8;
+  uint32_t Off = ((OC[Offset + 1] & 0x60) << 1) | (OC[Offset + 2] & 0x3F);
+  SW.startLine() << format(
+      "0x%02x%02x%02x            ; %s z%u, [sp, #%u, mul vl]\n", OC[Offset],
+      OC[Offset + 1], OC[Offset + 2],
+      static_cast<const char *>(Prologue ? "str" : "ldr"), Reg, Off);
+  Offset += 3;
+  return false;
+}
+
+bool Decoder::opcode_save_preg(const uint8_t *OC, unsigned &Offset,
+                               unsigned Length, bool Prologue) {
+  uint32_t Reg = (OC[Offset + 1] & 0x0F);
+  uint32_t Off = ((OC[Offset + 1] & 0x60) << 1) | (OC[Offset + 2] & 0x3F);
+  SW.startLine() << format(
+      "0x%02x%02x%02x            ; %s p%u, [sp, #%u, mul vl]\n", OC[Offset],
+      OC[Offset + 1], OC[Offset + 2],
+      static_cast<const char *>(Prologue ? "str" : "ldr"), Reg, Off);
+  Offset += 3;
+  return false;
+}
+
 bool Decoder::opcode_trap_frame(const uint8_t *OC, unsigned &Offset,
                                 unsigned Length, bool Prologue) {
   SW.startLine() << format("0x%02x                ; trap frame\n", OC[Offset]);
@@ -891,10 +1023,27 @@ bool Decoder::opcode_context(const uint8_t *OC, unsigned &Offset,
   return false;
 }
 
+bool Decoder::opcode_ec_context(const uint8_t *OC, unsigned &Offset,
+                                unsigned Length, bool Prologue) {
+  SW.startLine() << format("0x%02x                ; EC context\n", OC[Offset]);
+  ++Offset;
+  return false;
+}
+
 bool Decoder::opcode_clear_unwound_to_call(const uint8_t *OC, unsigned &Offset,
                                            unsigned Length, bool Prologue) {
   SW.startLine() << format("0x%02x                ; clear unwound to call\n",
                            OC[Offset]);
+  ++Offset;
+  return false;
+}
+
+bool Decoder::opcode_pac_sign_lr(const uint8_t *OC, unsigned &Offset,
+                                 unsigned Length, bool Prologue) {
+  if (Prologue)
+    SW.startLine() << format("0x%02x                ; pacibsp\n", OC[Offset]);
+  else
+    SW.startLine() << format("0x%02x                ; autibsp\n", OC[Offset]);
   ++Offset;
   return false;
 }
@@ -945,7 +1094,7 @@ bool Decoder::dumpXDataRecord(const COFFObjectFile &COFF,
   // A header is one or two words, followed by at least one word to describe
   // the unwind codes. Applicable to both ARM and AArch64.
   if (Contents.size() - Offset < 8)
-    report_fatal_error(".xdata must be at least 8 bytes in size");
+    reportFatalUsageError(".xdata must be at least 8 bytes in size");
 
   const ExceptionDataRecord XData(Data, isAArch64);
   DictScope XRS(SW, "ExceptionData");
@@ -966,7 +1115,7 @@ bool Decoder::dumpXDataRecord(const COFFObjectFile &COFF,
                 (XData.E() ? 0 : XData.EpilogueCount() * 4) -
                 (XData.X() ? 8 : 0)) < (int64_t)ByteCodeLength) {
     SW.flush();
-    report_fatal_error("Malformed unwind data");
+    reportFatalUsageError("Malformed unwind data");
   }
 
   if (XData.E()) {
@@ -1029,7 +1178,7 @@ bool Decoder::dumpXDataRecord(const COFFObjectFile &COFF,
       std::string Buf;
       llvm::raw_string_ostream OS(Buf);
       logAllUnhandledErrors(Name.takeError(), OS);
-      report_fatal_error(Twine(OS.str()));
+      reportFatalUsageError(Twine(Buf));
     }
 
     ListScope EHS(SW, "ExceptionHandler");
@@ -1068,7 +1217,7 @@ bool Decoder::dumpUnpackedEntry(const COFFObjectFile &COFF,
       std::string Buf;
       llvm::raw_string_ostream OS(Buf);
       logAllUnhandledErrors(FunctionNameOrErr.takeError(), OS);
-      report_fatal_error(Twine(OS.str()));
+      reportFatalUsageError(Twine(Buf));
     }
     FunctionName = *FunctionNameOrErr;
   }
@@ -1082,7 +1231,7 @@ bool Decoder::dumpUnpackedEntry(const COFFObjectFile &COFF,
       std::string Buf;
       llvm::raw_string_ostream OS(Buf);
       logAllUnhandledErrors(Name.takeError(), OS);
-      report_fatal_error(Twine(OS.str()));
+      reportFatalUsageError(Twine(Buf));
     }
 
     SW.printString("ExceptionRecord",
@@ -1127,7 +1276,7 @@ bool Decoder::dumpPackedEntry(const object::COFFObjectFile &COFF,
       std::string Buf;
       llvm::raw_string_ostream OS(Buf);
       logAllUnhandledErrors(FunctionNameOrErr.takeError(), OS);
-      report_fatal_error(Twine(OS.str()));
+      reportFatalUsageError(Twine(Buf));
     }
     FunctionName = *FunctionNameOrErr;
   }
@@ -1160,7 +1309,7 @@ bool Decoder::dumpPackedEntry(const object::COFFObjectFile &COFF,
     }
     if (RF.C()) {
       // Count the number of registers pushed below R11
-      int FpOffset = 4 * countPopulation(GPRMask & ((1U << 11) - 1));
+      int FpOffset = 4 * llvm::popcount(GPRMask & ((1U << 11) - 1));
       if (FpOffset)
         SW.startLine() << "add.w r11, sp, #" << FpOffset << "\n";
       else
@@ -1226,7 +1375,7 @@ bool Decoder::dumpPackedARM64Entry(const object::COFFObjectFile &COFF,
       std::string Buf;
       llvm::raw_string_ostream OS(Buf);
       logAllUnhandledErrors(FunctionNameOrErr.takeError(), OS);
-      report_fatal_error(Twine(OS.str()));
+      reportFatalUsageError(Twine(Buf));
     }
     FunctionName = *FunctionNameOrErr;
   }
@@ -1255,8 +1404,14 @@ bool Decoder::dumpPackedARM64Entry(const object::COFFObjectFile &COFF,
     FpSZ += 8;
   int SavSZ = (IntSZ + FpSZ + 8 * 8 * RF.H() + 0xf) & ~0xf;
   int LocSZ = (RF.FrameSize() << 4) - SavSZ;
+  bool Homing = RF.H();
 
-  if (RF.CR() == 3) {
+  if (RF.H() && RF.RegI() == 0 && RF.RegF() == 0 && RF.CR() != 1) {
+    LocSZ += SavSZ;
+    Homing = false;
+  }
+
+  if (RF.CR() == 2 || RF.CR() == 3) {
     SW.startLine() << "mov x29, sp\n";
     if (LocSZ <= 512) {
       SW.startLine() << format("stp x29, lr, [sp, #-%d]!\n", LocSZ);
@@ -1267,21 +1422,14 @@ bool Decoder::dumpPackedARM64Entry(const object::COFFObjectFile &COFF,
   if (LocSZ > 4080) {
     SW.startLine() << format("sub sp, sp, #%d\n", LocSZ - 4080);
     SW.startLine() << "sub sp, sp, #4080\n";
-  } else if ((RF.CR() != 3 && LocSZ > 0) || LocSZ > 512) {
+  } else if ((RF.CR() != 3 && RF.CR() != 2 && LocSZ > 0) || LocSZ > 512) {
     SW.startLine() << format("sub sp, sp, #%d\n", LocSZ);
   }
-  if (RF.H()) {
+  if (Homing) {
     SW.startLine() << format("stp x6, x7, [sp, #%d]\n", SavSZ - 16);
     SW.startLine() << format("stp x4, x5, [sp, #%d]\n", SavSZ - 32);
     SW.startLine() << format("stp x2, x3, [sp, #%d]\n", SavSZ - 48);
-    if (RF.RegI() > 0 || RF.RegF() > 0 || RF.CR() == 1) {
-      SW.startLine() << format("stp x0, x1, [sp, #%d]\n", SavSZ - 64);
-    } else {
-      // This case isn't documented; if neither RegI nor RegF nor CR=1
-      // have decremented the stack pointer by SavSZ, we need to do it here
-      // (as the final stack adjustment of LocSZ excludes SavSZ).
-      SW.startLine() << format("stp x0, x1, [sp, #-%d]!\n", SavSZ);
-    }
+    SW.startLine() << format("stp x0, x1, [sp, #%d]\n", SavSZ - 64);
   }
   int FloatRegs = RF.RegF() > 0 ? RF.RegF() + 1 : 0;
   for (int I = (FloatRegs + 1) / 2 - 1; I >= 0; I--) {
@@ -1308,10 +1456,14 @@ bool Decoder::dumpPackedARM64Entry(const object::COFFObjectFile &COFF,
       // The last register, an odd register without a pair
       if (RF.CR() == 1) {
         if (I == 0) { // If this is the only register pair
-          // CR=1 combined with RegI=1 doesn't map to a documented case;
-          // it doesn't map to any regular unwind info opcode, and the
-          // actual unwinder doesn't support it.
-          SW.startLine() << "INVALID!\n";
+          // CR=1 combined with RegI=1 maps to a special case; there's
+          // no unwind info opcode that saves a GPR together with LR
+          // with writeback to sp (no save_lrpair_x).
+          // Instead, this case expands to two instructions; a preceding
+          // (in prologue execution order) "sub sp, sp, #16", followed
+          // by a regular "stp x19, lr, [sp]" (save_lrpair).
+          SW.startLine() << format("stp x%d, lr, [sp]\n", 19);
+          SW.startLine() << format("sub sp, sp, #%d\n", SavSZ);
         } else
           SW.startLine() << format("stp x%d, lr, [sp, #%d]\n", 19 + 2 * I,
                                    16 * I);
@@ -1329,6 +1481,8 @@ bool Decoder::dumpPackedARM64Entry(const object::COFFObjectFile &COFF,
                                19 + 2 * I + 1, 16 * I);
     }
   }
+  if (RF.CR() == 2)
+    SW.startLine() << "pacibsp\n";
   SW.startLine() << "end\n";
 
   return true;
@@ -1375,7 +1529,7 @@ Error Decoder::dumpProcedureData(const COFFObjectFile &COFF) {
     if (!NameOrErr)
       return NameOrErr.takeError();
 
-    if (NameOrErr->startswith(".pdata"))
+    if (NameOrErr->starts_with(".pdata"))
       dumpProcedureData(COFF, Section);
   }
   return Error::success();

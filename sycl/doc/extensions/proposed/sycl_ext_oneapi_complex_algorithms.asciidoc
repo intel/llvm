@@ -125,6 +125,18 @@ NOTE: `sycl::bit_and`, `sycl::bit_or`, `sycl::bit_xor`, `sycl::logical_and`,
 because their behaviors are defined in terms of operators that `std::complex`
 does not implement.
 
+=== Known Identities
+
+This extension adds the following known identities, augmenting https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#table.identities[Table 123] in the core SYCL specification:
+[cols="5,30,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Operator|Available When|Identity
+|`sycl::plus`|`std::is_same_v<std::remove_cv_t<AccumulatorT>, std::complex<float>> \|\|
+std::is_same_v<std::remove_cv_t<AccumulatorT>, std::complex<double>>`|`AccumulatorT{}`
+|========================================
+
 == Issues
 
 None.

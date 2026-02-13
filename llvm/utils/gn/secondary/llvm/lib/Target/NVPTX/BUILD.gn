@@ -6,9 +6,16 @@ tablegen("NVPTXGenDAGISel") {
   td_file = "NVPTX.td"
 }
 
+tablegen("NVPTXGenSDNodeInfo") {
+  visibility = [ ":LLVMNVPTXCodeGen" ]
+  args = [ "-gen-sd-node-info" ]
+  td_file = "NVPTX.td"
+}
+
 static_library("LLVMNVPTXCodeGen") {
   deps = [
     ":NVPTXGenDAGISel",
+    ":NVPTXGenSDNodeInfo",
     "MCTargetDesc",
     "TargetInfo",
     "//llvm/include/llvm/Config:llvm-config",
@@ -20,6 +27,7 @@ static_library("LLVMNVPTXCodeGen") {
     "//llvm/lib/MC",
     "//llvm/lib/Support",
     "//llvm/lib/Target",
+    "//llvm/lib/TargetParser",
     "//llvm/lib/Transforms/IPO",
     "//llvm/lib/Transforms/Scalar",
     "//llvm/lib/Transforms/Utils",
@@ -27,12 +35,16 @@ static_library("LLVMNVPTXCodeGen") {
   ]
   include_dirs = [ "." ]
   sources = [
+    "NVPTXAliasAnalysis.cpp",
     "NVPTXAllocaHoisting.cpp",
     "NVPTXAsmPrinter.cpp",
     "NVPTXAssignValidGlobalNames.cpp",
     "NVPTXAtomicLower.cpp",
+    "NVPTXCtorDtorLowering.cpp",
+    "NVPTXForwardParams.cpp",
     "NVPTXFrameLowering.cpp",
     "NVPTXGenericToNVVM.cpp",
+    "NVPTXIRPeephole.cpp",
     "NVPTXISelDAGToDAG.cpp",
     "NVPTXISelLowering.cpp",
     "NVPTXImageOptimizer.cpp",
@@ -40,13 +52,16 @@ static_library("LLVMNVPTXCodeGen") {
     "NVPTXLowerAggrCopies.cpp",
     "NVPTXLowerAlloca.cpp",
     "NVPTXLowerArgs.cpp",
+    "NVPTXLowerUnreachable.cpp",
     "NVPTXMCExpr.cpp",
     "NVPTXPeephole.cpp",
     "NVPTXPrologEpilogPass.cpp",
     "NVPTXProxyRegErasure.cpp",
     "NVPTXRegisterInfo.cpp",
     "NVPTXReplaceImageHandles.cpp",
+    "NVPTXSelectionDAGInfo.cpp",
     "NVPTXSubtarget.cpp",
+    "NVPTXTagInvariantLoads.cpp",
     "NVPTXTargetMachine.cpp",
     "NVPTXTargetTransformInfo.cpp",
     "NVPTXUtilities.cpp",

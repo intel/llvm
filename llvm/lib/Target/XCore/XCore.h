@@ -21,6 +21,7 @@
 namespace llvm {
   class FunctionPass;
   class ModulePass;
+  class PassRegistry;
   class TargetMachine;
   class XCoreTargetMachine;
 
@@ -28,8 +29,10 @@ namespace llvm {
 
   FunctionPass *createXCoreFrameToArgsOffsetEliminationPass();
   FunctionPass *createXCoreISelDag(XCoreTargetMachine &TM,
-                                   CodeGenOpt::Level OptLevel);
+                                   CodeGenOptLevel OptLevel);
   ModulePass *createXCoreLowerThreadLocalPass();
+  void initializeXCoreAsmPrinterPass(PassRegistry &);
+  void initializeXCoreDAGToDAGISelLegacyPass(PassRegistry &);
 
 } // end namespace llvm;
 

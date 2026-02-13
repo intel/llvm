@@ -67,6 +67,7 @@ STATISTIC(NumCSE,      "Number of instructions CSE'd");
 STATISTIC(NumCSECVP,   "Number of compare instructions CVP'd");
 STATISTIC(NumCSELoad,  "Number of load instructions CSE'd");
 STATISTIC(NumCSECall,  "Number of call instructions CSE'd");
+STATISTIC(NumCSEGEP, "Number of GEP instructions CSE'd");
 STATISTIC(NumDSE,      "Number of trivial dead stores removed");
 
 DEBUG_COUNTER(CSECounter, "early-cse",
@@ -107,7 +108,7 @@ struct SimpleValue {
     // of instruction handled below (UnaryOperator, etc.).
     if (CallInst *CI = dyn_cast<CallInst>(Inst)) {
       if (Function *F = CI->getCalledFunction()) {
-        switch ((Intrinsic::ID)F->getIntrinsicID()) {
+        switch (F->getIntrinsicID()) {
         case Intrinsic::experimental_constrained_fadd:
         case Intrinsic::experimental_constrained_fsub:
         case Intrinsic::experimental_constrained_fmul:
@@ -132,22 +133,28 @@ struct SimpleValue {
         }
         }
       }
-      return CI->doesNotAccessMemory() && !CI->getType()->isVoidTy();
+      return CI->doesNotAccessMemory() &&
+             // FIXME: Currently the calls which may access the thread id may
+             // be considered as not accessing the memory. But this is
+             // problematic for coroutines, since coroutines may resume in a
+             // different thread. So we disable the optimization here for the
+             // correctness. However, it may block many other correct
+             // optimizations. Revert this one when we detect the memory
+             // accessing kind more precisely.
+             !CI->getFunction()->isPresplitCoroutine();
     }
     return isa<CastInst>(Inst) || isa<UnaryOperator>(Inst) ||
-           isa<BinaryOperator>(Inst) || isa<GetElementPtrInst>(Inst) ||
-           isa<CmpInst>(Inst) || isa<SelectInst>(Inst) ||
-           isa<ExtractElementInst>(Inst) || isa<InsertElementInst>(Inst) ||
-           isa<ShuffleVectorInst>(Inst) || isa<ExtractValueInst>(Inst) ||
-           isa<InsertValueInst>(Inst) || isa<FreezeInst>(Inst);
+           isa<BinaryOperator>(Inst) || isa<CmpInst>(Inst) ||
+           isa<SelectInst>(Inst) || isa<ExtractElementInst>(Inst) ||
+           isa<InsertElementInst>(Inst) || isa<ShuffleVectorInst>(Inst) ||
+           isa<ExtractValueInst>(Inst) || isa<InsertValueInst>(Inst) ||
+           isa<FreezeInst>(Inst);
   }
 };
 
 } // end anonymous namespace
 
-namespace llvm {
-
-template <> struct DenseMapInfo<SimpleValue> {
+template <> struct llvm::DenseMapInfo<SimpleValue> {
   static inline SimpleValue getEmptyKey() {
     return DenseMapInfo<Instruction *>::getEmptyKey();
   }
@@ -159,8 +166,6 @@ template <> struct DenseMapInfo<SimpleValue> {
   static unsigned getHashValue(SimpleValue Val);
   static bool isEqual(SimpleValue LHS, SimpleValue RHS);
 };
-
-} // end namespace llvm
 
 /// Match a 'select' including an optional 'not's of the condition.
 static bool matchSelectWithOptionalNotCond(Value *V, Value *&Cond, Value *&A,
@@ -183,7 +188,7 @@ static bool matchSelectWithOptionalNotCond(Value *V, Value *&Cond, Value *&A,
   // mechanism that may remove flags to increase the likelihood of CSE.
 
   Flavor = SPF_UNKNOWN;
-  CmpInst::Predicate Pred;
+  CmpPredicate Pred;
 
   if (!match(Cond, m_ICmp(Pred, m_Specific(A), m_Specific(B)))) {
     // Check for commuted variants of min/max by swapping predicate.
@@ -208,6 +213,17 @@ static bool matchSelectWithOptionalNotCond(Value *V, Value *&Cond, Value *&A,
   }
 
   return true;
+}
+
+static unsigned hashCallInst(CallInst *CI) {
+  // Don't CSE convergent calls in different basic blocks, because they
+  // implicitly depend on the set of threads that is currently executing.
+  if (CI->isConvergent()) {
+    return hash_combine(CI->getOpcode(), CI->getParent(),
+                        hash_combine_range(CI->operand_values()));
+  }
+  return hash_combine(CI->getOpcode(),
+                      hash_combine_range(CI->operand_values()));
 }
 
 static unsigned getHashValueImpl(SimpleValue Val) {
@@ -257,7 +273,7 @@ static unsigned getHashValueImpl(SimpleValue Val) {
     // Hash general selects to allow matching commuted true/false operands.
 
     // If we do not have a compare as the condition, just hash in the condition.
-    CmpInst::Predicate Pred;
+    CmpPredicate Pred;
     Value *X, *Y;
     if (!match(Cond, m_Cmp(Pred, m_Value(X), m_Value(Y))))
       return hash_combine(Inst->getOpcode(), Cond, A, B);
@@ -268,7 +284,8 @@ static unsigned getHashValueImpl(SimpleValue Val) {
       Pred = CmpInst::getInversePredicate(Pred);
       std::swap(A, B);
     }
-    return hash_combine(Inst->getOpcode(), Pred, X, Y, A, B);
+    return hash_combine(Inst->getOpcode(),
+                        static_cast<CmpInst::Predicate>(Pred), X, Y, A, B);
   }
 
   if (CastInst *CI = dyn_cast<CastInst>(Inst))
@@ -279,28 +296,26 @@ static unsigned getHashValueImpl(SimpleValue Val) {
 
   if (const ExtractValueInst *EVI = dyn_cast<ExtractValueInst>(Inst))
     return hash_combine(EVI->getOpcode(), EVI->getOperand(0),
-                        hash_combine_range(EVI->idx_begin(), EVI->idx_end()));
+                        hash_combine_range(EVI->indices()));
 
   if (const InsertValueInst *IVI = dyn_cast<InsertValueInst>(Inst))
     return hash_combine(IVI->getOpcode(), IVI->getOperand(0),
-                        IVI->getOperand(1),
-                        hash_combine_range(IVI->idx_begin(), IVI->idx_end()));
+                        IVI->getOperand(1), hash_combine_range(IVI->indices()));
 
-  assert((isa<CallInst>(Inst) || isa<GetElementPtrInst>(Inst) ||
-          isa<ExtractElementInst>(Inst) || isa<InsertElementInst>(Inst) ||
-          isa<ShuffleVectorInst>(Inst) || isa<UnaryOperator>(Inst) ||
-          isa<FreezeInst>(Inst)) &&
+  assert((isa<CallInst>(Inst) || isa<ExtractElementInst>(Inst) ||
+          isa<InsertElementInst>(Inst) || isa<ShuffleVectorInst>(Inst) ||
+          isa<UnaryOperator>(Inst) || isa<FreezeInst>(Inst)) &&
          "Invalid/unknown instruction");
 
   // Handle intrinsics with commutative operands.
-  // TODO: Extend this to handle intrinsics with >2 operands where the 1st
-  //       2 operands are commutative.
   auto *II = dyn_cast<IntrinsicInst>(Inst);
-  if (II && II->isCommutative() && II->arg_size() == 2) {
+  if (II && II->isCommutative() && II->arg_size() >= 2) {
     Value *LHS = II->getArgOperand(0), *RHS = II->getArgOperand(1);
     if (LHS > RHS)
       std::swap(LHS, RHS);
-    return hash_combine(II->getOpcode(), LHS, RHS);
+    return hash_combine(
+        II->getOpcode(), LHS, RHS,
+        hash_combine_range(drop_begin(II->operand_values(), 2)));
   }
 
   // gc.relocate is 'special' call: its second and third operands are
@@ -310,10 +325,14 @@ static unsigned getHashValueImpl(SimpleValue Val) {
     return hash_combine(GCR->getOpcode(), GCR->getOperand(0),
                         GCR->getBasePtr(), GCR->getDerivedPtr());
 
+  // Don't CSE convergent calls in different basic blocks, because they
+  // implicitly depend on the set of threads that is currently executing.
+  if (CallInst *CI = dyn_cast<CallInst>(Inst))
+    return hashCallInst(CI);
+
   // Mix in the opcode.
-  return hash_combine(
-      Inst->getOpcode(),
-      hash_combine_range(Inst->value_op_begin(), Inst->value_op_end()));
+  return hash_combine(Inst->getOpcode(),
+                      hash_combine_range(Inst->operand_values()));
 }
 
 unsigned DenseMapInfo<SimpleValue>::getHashValue(SimpleValue Val) {
@@ -336,8 +355,16 @@ static bool isEqualImpl(SimpleValue LHS, SimpleValue RHS) {
 
   if (LHSI->getOpcode() != RHSI->getOpcode())
     return false;
-  if (LHSI->isIdenticalToWhenDefined(RHSI))
+  if (LHSI->isIdenticalToWhenDefined(RHSI, /*IntersectAttrs=*/true)) {
+    // Convergent calls implicitly depend on the set of threads that is
+    // currently executing, so conservatively return false if they are in
+    // different basic blocks.
+    if (CallInst *CI = dyn_cast<CallInst>(LHSI);
+        CI && CI->isConvergent() && LHSI->getParent() != RHSI->getParent())
+      return false;
+
     return true;
+  }
 
   // If we're not strictly identical, we still might be a commutable instruction
   if (BinaryOperator *LHSBinOp = dyn_cast<BinaryOperator>(LHSI)) {
@@ -362,13 +389,16 @@ static bool isEqualImpl(SimpleValue LHS, SimpleValue RHS) {
            LHSCmp->getSwappedPredicate() == RHSCmp->getPredicate();
   }
 
-  // TODO: Extend this for >2 args by matching the trailing N-2 args.
   auto *LII = dyn_cast<IntrinsicInst>(LHSI);
   auto *RII = dyn_cast<IntrinsicInst>(RHSI);
   if (LII && RII && LII->getIntrinsicID() == RII->getIntrinsicID() &&
-      LII->isCommutative() && LII->arg_size() == 2) {
+      LII->isCommutative() && LII->arg_size() >= 2) {
     return LII->getArgOperand(0) == RII->getArgOperand(1) &&
-           LII->getArgOperand(1) == RII->getArgOperand(0);
+           LII->getArgOperand(1) == RII->getArgOperand(0) &&
+           std::equal(LII->arg_begin() + 2, LII->arg_end(),
+                      RII->arg_begin() + 2, RII->arg_end()) &&
+           LII->hasSameSpecialState(RII, /*IgnoreAlignment=*/false,
+                                    /*IntersectAttrs=*/true);
   }
 
   // See comment above in `getHashValue()`.
@@ -416,7 +446,7 @@ static bool isEqualImpl(SimpleValue LHS, SimpleValue RHS) {
     // this code, as we simplify the double-negation before hashing the second
     // select (and so still succeed at CSEing them).
     if (LHSA == RHSB && LHSB == RHSA) {
-      CmpInst::Predicate PredL, PredR;
+      CmpPredicate PredL, PredR;
       Value *X, *Y;
       if (match(CondL, m_Cmp(PredL, m_Value(X), m_Value(Y))) &&
           match(CondR, m_Cmp(PredR, m_Specific(X), m_Specific(Y))) &&
@@ -458,12 +488,16 @@ struct CallValue {
   }
 
   static bool canHandle(Instruction *Inst) {
-    // Don't value number anything that returns void.
-    if (Inst->getType()->isVoidTy())
-      return false;
-
     CallInst *CI = dyn_cast<CallInst>(Inst);
-    if (!CI || !CI->onlyReadsMemory())
+    if (!CI || (!CI->onlyReadsMemory() && !CI->onlyWritesMemory()) ||
+        // FIXME: Currently the calls which may access the thread id may
+        // be considered as not accessing the memory. But this is
+        // problematic for coroutines, since coroutines may resume in a
+        // different thread. So we disable the optimization here for the
+        // correctness. However, it may block many other correct
+        // optimizations. Revert this one when we detect the memory
+        // accessing kind more precisely.
+        CI->getFunction()->isPresplitCoroutine())
       return false;
     return true;
   }
@@ -471,9 +505,7 @@ struct CallValue {
 
 } // end anonymous namespace
 
-namespace llvm {
-
-template <> struct DenseMapInfo<CallValue> {
+template <> struct llvm::DenseMapInfo<CallValue> {
   static inline CallValue getEmptyKey() {
     return DenseMapInfo<Instruction *>::getEmptyKey();
   }
@@ -486,23 +518,92 @@ template <> struct DenseMapInfo<CallValue> {
   static bool isEqual(CallValue LHS, CallValue RHS);
 };
 
-} // end namespace llvm
-
 unsigned DenseMapInfo<CallValue>::getHashValue(CallValue Val) {
   Instruction *Inst = Val.Inst;
 
   // Hash all of the operands as pointers and mix in the opcode.
-  return hash_combine(
-      Inst->getOpcode(),
-      hash_combine_range(Inst->value_op_begin(), Inst->value_op_end()));
+  return hashCallInst(cast<CallInst>(Inst));
 }
 
 bool DenseMapInfo<CallValue>::isEqual(CallValue LHS, CallValue RHS) {
-  Instruction *LHSI = LHS.Inst, *RHSI = RHS.Inst;
   if (LHS.isSentinel() || RHS.isSentinel())
-    return LHSI == RHSI;
+    return LHS.Inst == RHS.Inst;
 
-  return LHSI->isIdenticalTo(RHSI);
+  CallInst *LHSI = cast<CallInst>(LHS.Inst);
+  CallInst *RHSI = cast<CallInst>(RHS.Inst);
+
+  // Convergent calls implicitly depend on the set of threads that is
+  // currently executing, so conservatively return false if they are in
+  // different basic blocks.
+  if (LHSI->isConvergent() && LHSI->getParent() != RHSI->getParent())
+    return false;
+
+  return LHSI->isIdenticalToWhenDefined(RHSI, /*IntersectAttrs=*/true);
+}
+
+//===----------------------------------------------------------------------===//
+// GEPValue
+//===----------------------------------------------------------------------===//
+
+namespace {
+
+struct GEPValue {
+  Instruction *Inst;
+  std::optional<int64_t> ConstantOffset;
+
+  GEPValue(Instruction *I) : Inst(I) {
+    assert((isSentinel() || canHandle(I)) && "Inst can't be handled!");
+  }
+
+  GEPValue(Instruction *I, std::optional<int64_t> ConstantOffset)
+      : Inst(I), ConstantOffset(ConstantOffset) {
+    assert((isSentinel() || canHandle(I)) && "Inst can't be handled!");
+  }
+
+  bool isSentinel() const {
+    return Inst == DenseMapInfo<Instruction *>::getEmptyKey() ||
+           Inst == DenseMapInfo<Instruction *>::getTombstoneKey();
+  }
+
+  static bool canHandle(Instruction *Inst) {
+    return isa<GetElementPtrInst>(Inst);
+  }
+};
+
+} // namespace
+
+template <> struct llvm::DenseMapInfo<GEPValue> {
+  static inline GEPValue getEmptyKey() {
+    return DenseMapInfo<Instruction *>::getEmptyKey();
+  }
+
+  static inline GEPValue getTombstoneKey() {
+    return DenseMapInfo<Instruction *>::getTombstoneKey();
+  }
+
+  static unsigned getHashValue(const GEPValue &Val);
+  static bool isEqual(const GEPValue &LHS, const GEPValue &RHS);
+};
+
+unsigned DenseMapInfo<GEPValue>::getHashValue(const GEPValue &Val) {
+  auto *GEP = cast<GetElementPtrInst>(Val.Inst);
+  if (Val.ConstantOffset.has_value())
+    return hash_combine(GEP->getOpcode(), GEP->getPointerOperand(),
+                        Val.ConstantOffset.value());
+  return hash_combine(GEP->getOpcode(),
+                      hash_combine_range(GEP->operand_values()));
+}
+
+bool DenseMapInfo<GEPValue>::isEqual(const GEPValue &LHS, const GEPValue &RHS) {
+  if (LHS.isSentinel() || RHS.isSentinel())
+    return LHS.Inst == RHS.Inst;
+  auto *LGEP = cast<GetElementPtrInst>(LHS.Inst);
+  auto *RGEP = cast<GetElementPtrInst>(RHS.Inst);
+  if (LGEP->getPointerOperand() != RGEP->getPointerOperand())
+    return false;
+  if (LHS.ConstantOffset.has_value() && RHS.ConstantOffset.has_value())
+    return LHS.ConstantOffset.value() == RHS.ConstantOffset.value();
+  return LGEP->isIdenticalToWhenDefined(RGEP);
 }
 
 //===----------------------------------------------------------------------===//
@@ -562,12 +663,13 @@ public:
     unsigned Generation = 0;
     int MatchingId = -1;
     bool IsAtomic = false;
+    bool IsLoad = false;
 
     LoadValue() = default;
     LoadValue(Instruction *Inst, unsigned Generation, unsigned MatchingId,
-              bool IsAtomic)
+              bool IsAtomic, bool IsLoad)
         : DefInst(Inst), Generation(Generation), MatchingId(MatchingId),
-          IsAtomic(IsAtomic) {}
+          IsAtomic(IsAtomic), IsLoad(IsLoad) {}
   };
 
   using LoadMapAllocator =
@@ -598,6 +700,13 @@ public:
       ScopedHashTable<CallValue, std::pair<Instruction *, unsigned>>;
   CallHTType AvailableCalls;
 
+  using GEPMapAllocatorTy =
+      RecyclingAllocator<BumpPtrAllocator,
+                         ScopedHashTableVal<GEPValue, Value *>>;
+  using GEPHTType = ScopedHashTable<GEPValue, Value *, DenseMapInfo<GEPValue>,
+                                    GEPMapAllocatorTy>;
+  GEPHTType AvailableGEPs;
+
   /// This is the current generation of the memory value.
   unsigned CurrentGeneration = 0;
 
@@ -618,9 +727,11 @@ private:
   class NodeScope {
   public:
     NodeScope(ScopedHTType &AvailableValues, LoadHTType &AvailableLoads,
-              InvariantHTType &AvailableInvariants, CallHTType &AvailableCalls)
-      : Scope(AvailableValues), LoadScope(AvailableLoads),
-        InvariantScope(AvailableInvariants), CallScope(AvailableCalls) {}
+              InvariantHTType &AvailableInvariants, CallHTType &AvailableCalls,
+              GEPHTType &AvailableGEPs)
+        : Scope(AvailableValues), LoadScope(AvailableLoads),
+          InvariantScope(AvailableInvariants), CallScope(AvailableCalls),
+          GEPScope(AvailableGEPs) {}
     NodeScope(const NodeScope &) = delete;
     NodeScope &operator=(const NodeScope &) = delete;
 
@@ -629,6 +740,7 @@ private:
     LoadHTType::ScopeTy LoadScope;
     InvariantHTType::ScopeTy InvariantScope;
     CallHTType::ScopeTy CallScope;
+    GEPHTType::ScopeTy GEPScope;
   };
 
   // Contains all the needed information to create a stack for doing a depth
@@ -639,13 +751,13 @@ private:
   public:
     StackNode(ScopedHTType &AvailableValues, LoadHTType &AvailableLoads,
               InvariantHTType &AvailableInvariants, CallHTType &AvailableCalls,
-              unsigned cg, DomTreeNode *n, DomTreeNode::const_iterator child,
+              GEPHTType &AvailableGEPs, unsigned cg, DomTreeNode *n,
+              DomTreeNode::const_iterator child,
               DomTreeNode::const_iterator end)
         : CurrentGeneration(cg), ChildGeneration(cg), Node(n), ChildIter(child),
           EndIter(end),
           Scopes(AvailableValues, AvailableLoads, AvailableInvariants,
-                 AvailableCalls)
-          {}
+                 AvailableCalls, AvailableGEPs) {}
     StackNode(const StackNode &) = delete;
     StackNode &operator=(const StackNode &) = delete;
 
@@ -786,17 +898,7 @@ private:
 
     Type *getValueType() const {
       // TODO: handle target-specific intrinsics.
-      if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(Inst)) {
-        switch (II->getIntrinsicID()) {
-        case Intrinsic::masked_load:
-          return II->getType();
-        case Intrinsic::masked_store:
-          return II->getArgOperand(0)->getType();
-        default:
-          return nullptr;
-        }
-      }
-      return getLoadStoreType(Inst);
+      return Inst->getAccessType();
     }
 
     bool mayReadFromMemory() const {
@@ -844,30 +946,28 @@ private:
   bool overridingStores(const ParseMemoryInst &Earlier,
                         const ParseMemoryInst &Later);
 
-  Value *getOrCreateResult(Value *Inst, Type *ExpectedType) const {
-    // TODO: We could insert relevant casts on type mismatch here.
-    if (auto *LI = dyn_cast<LoadInst>(Inst))
-      return LI->getType() == ExpectedType ? LI : nullptr;
-    else if (auto *SI = dyn_cast<StoreInst>(Inst)) {
-      Value *V = SI->getValueOperand();
-      return V->getType() == ExpectedType ? V : nullptr;
+  Value *getOrCreateResult(Instruction *Inst, Type *ExpectedType,
+                           bool CanCreate) const {
+    // TODO: We could insert relevant casts on type mismatch.
+    // The load or the store's first operand.
+    Value *V;
+    if (auto *II = dyn_cast<IntrinsicInst>(Inst)) {
+      switch (II->getIntrinsicID()) {
+      case Intrinsic::masked_load:
+        V = II;
+        break;
+      case Intrinsic::masked_store:
+        V = II->getOperand(0);
+        break;
+      default:
+        return TTI.getOrCreateResultFromMemIntrinsic(II, ExpectedType,
+                                                     CanCreate);
+      }
+    } else {
+      V = isa<LoadInst>(Inst) ? Inst : cast<StoreInst>(Inst)->getValueOperand();
     }
-    assert(isa<IntrinsicInst>(Inst) && "Instruction not supported");
-    auto *II = cast<IntrinsicInst>(Inst);
-    if (isHandledNonTargetIntrinsic(II->getIntrinsicID()))
-      return getOrCreateResultNonTargetMemIntrinsic(II, ExpectedType);
-    return TTI.getOrCreateResultFromMemIntrinsic(II, ExpectedType);
-  }
 
-  Value *getOrCreateResultNonTargetMemIntrinsic(IntrinsicInst *II,
-                                                Type *ExpectedType) const {
-    switch (II->getIntrinsicID()) {
-    case Intrinsic::masked_load:
-      return II;
-    case Intrinsic::masked_store:
-      return II->getOperand(0);
-    }
-    return nullptr;
+    return V->getType() == ExpectedType ? V : nullptr;
   }
 
   /// Return true if the instruction is known to only operate on memory
@@ -917,14 +1017,14 @@ private:
     };
     auto MaskOp = [](const IntrinsicInst *II) {
       if (II->getIntrinsicID() == Intrinsic::masked_load)
-        return II->getOperand(2);
+        return II->getOperand(1);
       if (II->getIntrinsicID() == Intrinsic::masked_store)
-        return II->getOperand(3);
+        return II->getOperand(2);
       llvm_unreachable("Unexpected IntrinsicInst");
     };
     auto ThruOp = [](const IntrinsicInst *II) {
       if (II->getIntrinsicID() == Intrinsic::masked_load)
-        return II->getOperand(3);
+        return II->getOperand(2);
       llvm_unreachable("Unexpected IntrinsicInst");
     };
 
@@ -1145,9 +1245,10 @@ Value *EarlyCSE::getMatchingValue(LoadValue &InVal, ParseMemoryInst &MemInst,
 
   // For stores check the result values before checking memory generation
   // (otherwise isSameMemGeneration may crash).
-  Value *Result = MemInst.isStore()
-                      ? getOrCreateResult(Matching, Other->getType())
-                      : nullptr;
+  Value *Result =
+      MemInst.isStore()
+          ? getOrCreateResult(Matching, Other->getType(), /*CanCreate=*/false)
+          : nullptr;
   if (MemInst.isStore() && InVal.DefInst != Result)
     return nullptr;
 
@@ -1168,8 +1269,39 @@ Value *EarlyCSE::getMatchingValue(LoadValue &InVal, ParseMemoryInst &MemInst,
     return nullptr;
 
   if (!Result)
-    Result = getOrCreateResult(Matching, Other->getType());
+    Result = getOrCreateResult(Matching, Other->getType(), /*CanCreate=*/true);
   return Result;
+}
+
+static void combineIRFlags(Instruction &From, Value *To) {
+  if (auto *I = dyn_cast<Instruction>(To)) {
+    // If I being poison triggers UB, there is no need to drop those
+    // flags. Otherwise, only retain flags present on both I and Inst.
+    // TODO: Currently some fast-math flags are not treated as
+    // poison-generating even though they should. Until this is fixed,
+    // always retain flags present on both I and Inst for floating point
+    // instructions.
+    if (isa<FPMathOperator>(I) ||
+        (I->hasPoisonGeneratingFlags() && !programUndefinedIfPoison(I)))
+      I->andIRFlags(&From);
+  }
+  if (isa<CallBase>(&From) && isa<CallBase>(To)) {
+    // NB: Intersection of attrs between InVal.first and Inst is overly
+    // conservative. Since we only CSE readonly functions that have the same
+    // memory state, we can preserve (or possibly in some cases combine)
+    // more attributes. Likewise this implies when checking equality of
+    // callsite for CSEing, we can probably ignore more attributes.
+    // Generally poison generating attributes need to be handled with more
+    // care as they can create *new* UB if preserved/combined and violated.
+    // Attributes that imply immediate UB on the other hand would have been
+    // violated either way.
+    bool Success =
+        cast<CallBase>(To)->tryIntersectAttributes(cast<CallBase>(&From));
+    assert(Success && "Failed to intersect attributes in callsites that "
+                      "passed identical check");
+    // For NDEBUG Compile.
+    (void)Success;
+  }
 }
 
 bool EarlyCSE::overridingStores(const ParseMemoryInst &Earlier,
@@ -1242,7 +1374,7 @@ bool EarlyCSE::processNode(DomTreeNode *Node) {
 
   // See if any instructions in the block can be eliminated.  If so, do it.  If
   // not, add them to AvailableValues.
-  for (Instruction &Inst : make_early_inc_range(BB->getInstList())) {
+  for (Instruction &Inst : make_early_inc_range(*BB)) {
     // Dead instructions should just be removed.
     if (isInstructionTriviallyDead(&Inst, &TLI)) {
       LLVM_DEBUG(dbgs() << "EarlyCSE DCE: " << Inst << '\n');
@@ -1380,9 +1512,14 @@ bool EarlyCSE::processNode(DomTreeNode *Node) {
       }
     }
 
+    // Make sure stores prior to a potential unwind are not removed, as the
+    // caller may read the memory.
+    if (Inst.mayThrow())
+      LastStore = nullptr;
+
     // If this is a simple instruction that we can value number, process it.
     if (SimpleValue::canHandle(&Inst)) {
-      if (auto *CI = dyn_cast<ConstrainedFPIntrinsic>(&Inst)) {
+      if ([[maybe_unused]] auto *CI = dyn_cast<ConstrainedFPIntrinsic>(&Inst)) {
         assert(CI->getExceptionBehavior() != fp::ebStrict &&
                "Unexpected ebStrict from SimpleValue::canHandle()");
         assert((!CI->getRoundingMode() ||
@@ -1397,16 +1534,7 @@ bool EarlyCSE::processNode(DomTreeNode *Node) {
           LLVM_DEBUG(dbgs() << "Skipping due to debug counter\n");
           continue;
         }
-        if (auto *I = dyn_cast<Instruction>(V)) {
-          // If I being poison triggers UB, there is no need to drop those
-          // flags. Otherwise, only retain flags present on both I and Inst.
-          // TODO: Currently some fast-math flags are not treated as
-          // poison-generating even though they should. Until this is fixed,
-          // always retain flags present on both I and Inst for floating point
-          // instructions.
-          if (isa<FPMathOperator>(I) || (I->hasPoisonGeneratingFlags() && !programUndefinedIfPoison(I)))
-            I->andIRFlags(&Inst);
-        }
+        combineIRFlags(Inst, V);
         Inst.replaceAllUsesWith(V);
         salvageKnowledge(&Inst, &AC);
         removeMSSA(Inst);
@@ -1457,6 +1585,9 @@ bool EarlyCSE::processNode(DomTreeNode *Node) {
           LLVM_DEBUG(dbgs() << "Skipping due to debug counter\n");
           continue;
         }
+        if (InVal.IsLoad)
+          if (auto *I = dyn_cast<Instruction>(Op))
+            combineMetadataForCSE(I, &Inst, false);
         if (!Inst.use_empty())
           Inst.replaceAllUsesWith(Op);
         salvageKnowledge(&Inst, &AC);
@@ -1471,35 +1602,41 @@ bool EarlyCSE::processNode(DomTreeNode *Node) {
       AvailableLoads.insert(MemInst.getPointerOperand(),
                             LoadValue(&Inst, CurrentGeneration,
                                       MemInst.getMatchingId(),
-                                      MemInst.isAtomic()));
+                                      MemInst.isAtomic(),
+                                      MemInst.isLoad()));
       LastStore = nullptr;
       continue;
     }
 
-    // If this instruction may read from memory or throw (and potentially read
-    // from memory in the exception handler), forget LastStore.  Load/store
+    // If this instruction may read from memory, forget LastStore.  Load/store
     // intrinsics will indicate both a read and a write to memory.  The target
     // may override this (e.g. so that a store intrinsic does not read from
     // memory, and thus will be treated the same as a regular store for
     // commoning purposes).
-    if ((Inst.mayReadFromMemory() || Inst.mayThrow()) &&
+    if (Inst.mayReadFromMemory() &&
         !(MemInst.isValid() && !MemInst.mayReadFromMemory()))
       LastStore = nullptr;
 
-    // If this is a read-only call, process it.
-    if (CallValue::canHandle(&Inst)) {
+    // If this is a read-only or write-only call, process it. Skip store
+    // MemInsts, as they will be more precisely handled later on. Also skip
+    // memsets, as DSE may be able to optimize them better by removing the
+    // earlier rather than later store.
+    if (CallValue::canHandle(&Inst) &&
+        (!MemInst.isValid() || !MemInst.isStore()) && !isa<MemSetInst>(&Inst)) {
       // If we have an available version of this call, and if it is the right
       // generation, replace this instruction.
       std::pair<Instruction *, unsigned> InVal = AvailableCalls.lookup(&Inst);
       if (InVal.first != nullptr &&
           isSameMemGeneration(InVal.second, CurrentGeneration, InVal.first,
-                              &Inst)) {
+                              &Inst) &&
+          InVal.first->mayReadFromMemory() == Inst.mayReadFromMemory()) {
         LLVM_DEBUG(dbgs() << "EarlyCSE CSE CALL: " << Inst
                           << "  to: " << *InVal.first << '\n');
         if (!DebugCounter::shouldExecute(CSECounter)) {
           LLVM_DEBUG(dbgs() << "Skipping due to debug counter\n");
           continue;
         }
+        combineIRFlags(Inst, InVal.first);
         if (!Inst.use_empty())
           Inst.replaceAllUsesWith(InVal.first);
         salvageKnowledge(&Inst, &AC);
@@ -1510,8 +1647,38 @@ bool EarlyCSE::processNode(DomTreeNode *Node) {
         continue;
       }
 
+      // Increase memory generation for writes. Do this before inserting
+      // the call, so it has the generation after the write occurred.
+      if (Inst.mayWriteToMemory())
+        ++CurrentGeneration;
+
       // Otherwise, remember that we have this instruction.
       AvailableCalls.insert(&Inst, std::make_pair(&Inst, CurrentGeneration));
+      continue;
+    }
+
+    // Compare GEP instructions based on offset.
+    if (GEPValue::canHandle(&Inst)) {
+      auto *GEP = cast<GetElementPtrInst>(&Inst);
+      APInt Offset = APInt(SQ.DL.getIndexTypeSizeInBits(GEP->getType()), 0);
+      GEPValue GEPVal(GEP, GEP->accumulateConstantOffset(SQ.DL, Offset)
+                               ? Offset.trySExtValue()
+                               : std::nullopt);
+      if (Value *V = AvailableGEPs.lookup(GEPVal)) {
+        LLVM_DEBUG(dbgs() << "EarlyCSE CSE GEP: " << Inst << "  to: " << *V
+                          << '\n');
+        combineIRFlags(Inst, V);
+        Inst.replaceAllUsesWith(V);
+        salvageKnowledge(&Inst, &AC);
+        removeMSSA(Inst);
+        Inst.eraseFromParent();
+        Changed = true;
+        ++NumCSEGEP;
+        continue;
+      }
+
+      // Otherwise, just remember that we have this GEP.
+      AvailableGEPs.insert(GEPVal, &Inst);
       continue;
     }
 
@@ -1534,16 +1701,8 @@ bool EarlyCSE::processNode(DomTreeNode *Node) {
     if (MemInst.isValid() && MemInst.isStore()) {
       LoadValue InVal = AvailableLoads.lookup(MemInst.getPointerOperand());
       if (InVal.DefInst &&
-          InVal.DefInst == getMatchingValue(InVal, MemInst, CurrentGeneration)) {
-        // It is okay to have a LastStore to a different pointer here if MemorySSA
-        // tells us that the load and store are from the same memory generation.
-        // In that case, LastStore should keep its present value since we're
-        // removing the current store.
-        assert((!LastStore ||
-                ParseMemoryInst(LastStore, TTI).getPointerOperand() ==
-                    MemInst.getPointerOperand() ||
-                MSSA) &&
-               "can't have an intervening store if not using MemorySSA!");
+          InVal.DefInst ==
+              getMatchingValue(InVal, MemInst, CurrentGeneration)) {
         LLVM_DEBUG(dbgs() << "EarlyCSE DSE (writeback): " << Inst << '\n');
         if (!DebugCounter::shouldExecute(CSECounter)) {
           LLVM_DEBUG(dbgs() << "Skipping due to debug counter\n");
@@ -1595,7 +1754,8 @@ bool EarlyCSE::processNode(DomTreeNode *Node) {
         AvailableLoads.insert(MemInst.getPointerOperand(),
                               LoadValue(&Inst, CurrentGeneration,
                                         MemInst.getMatchingId(),
-                                        MemInst.isAtomic()));
+                                        MemInst.isAtomic(),
+                                        MemInst.isLoad()));
 
         // Remember that this was the last unordered store we saw for DSE. We
         // don't yet handle DSE on ordered or volatile stores since we don't
@@ -1628,7 +1788,7 @@ bool EarlyCSE::run() {
   // Process the root node.
   nodesToProcess.push_back(new StackNode(
       AvailableValues, AvailableLoads, AvailableInvariants, AvailableCalls,
-      CurrentGeneration, DT.getRootNode(),
+      AvailableGEPs, CurrentGeneration, DT.getRootNode(),
       DT.getRootNode()->begin(), DT.getRootNode()->end()));
 
   assert(!CurrentGeneration && "Create a new EarlyCSE instance to rerun it.");
@@ -1651,10 +1811,10 @@ bool EarlyCSE::run() {
     } else if (NodeToProcess->childIter() != NodeToProcess->end()) {
       // Push the next child onto the stack.
       DomTreeNode *child = NodeToProcess->nextChild();
-      nodesToProcess.push_back(
-          new StackNode(AvailableValues, AvailableLoads, AvailableInvariants,
-                        AvailableCalls, NodeToProcess->childGeneration(),
-                        child, child->begin(), child->end()));
+      nodesToProcess.push_back(new StackNode(
+          AvailableValues, AvailableLoads, AvailableInvariants, AvailableCalls,
+          AvailableGEPs, NodeToProcess->childGeneration(), child,
+          child->begin(), child->end()));
     } else {
       // It has been processed, and there are no more children to process,
       // so delete it and pop it off the stack.
@@ -1675,7 +1835,7 @@ PreservedAnalyses EarlyCSEPass::run(Function &F,
   auto *MSSA =
       UseMemorySSA ? &AM.getResult<MemorySSAAnalysis>(F).getMSSA() : nullptr;
 
-  EarlyCSE CSE(F.getParent()->getDataLayout(), TLI, TTI, DT, AC, MSSA);
+  EarlyCSE CSE(F.getDataLayout(), TLI, TTI, DT, AC, MSSA);
 
   if (!CSE.run())
     return PreservedAnalyses::all();
@@ -1691,10 +1851,10 @@ void EarlyCSEPass::printPipeline(
     raw_ostream &OS, function_ref<StringRef(StringRef)> MapClassName2PassName) {
   static_cast<PassInfoMixin<EarlyCSEPass> *>(this)->printPipeline(
       OS, MapClassName2PassName);
-  OS << "<";
+  OS << '<';
   if (UseMemorySSA)
     OS << "memssa";
-  OS << ">";
+  OS << '>';
 }
 
 namespace {
@@ -1729,7 +1889,7 @@ public:
     auto *MSSA =
         UseMemorySSA ? &getAnalysis<MemorySSAWrapperPass>().getMSSA() : nullptr;
 
-    EarlyCSE CSE(F.getParent()->getDataLayout(), TLI, TTI, DT, AC, MSSA);
+    EarlyCSE CSE(F.getDataLayout(), TLI, TTI, DT, AC, MSSA);
 
     return CSE.run();
   }

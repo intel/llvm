@@ -1,8 +1,8 @@
 // REQUIRES: powerpc-registered-target
-// RUN: %clang_cc1 -flax-vector-conversions=none -no-opaque-pointers -target-feature \
+// RUN: %clang_cc1 -flax-vector-conversions=none -target-feature \
 // RUN:   +altivec -target-feature +vsx -triple powerpc64-unknown-unknown -emit-llvm \
 // RUN:   -U__XL_COMPAT_ALTIVEC__ %s -o - | FileCheck %s
-// RUN: %clang_cc1 -flax-vector-conversions=none -no-opaque-pointers -target-feature \
+// RUN: %clang_cc1 -flax-vector-conversions=none -target-feature \
 // RUN:   +altivec -target-feature +vsx -triple powerpc64le-unknown-unknown \
 // RUN:   -emit-llvm -U__XL_COMPAT_ALTIVEC__ %s -o - | FileCheck %s -check-prefix=CHECK-LE
 #include <altivec.h>
@@ -240,11 +240,11 @@ void test1() {
 
   res_vd = vec_andc(vbll, vd);
 // CHECK: bitcast <2 x double> %{{[0-9]*}} to <2 x i64>
-// CHECK: xor <2 x i64> %{{[0-9]*}}, <i64 -1, i64 -1>
+// CHECK: xor <2 x i64> %{{[0-9]*}}, splat (i64 -1)
 // CHECK: and <2 x i64>
 // CHECK: bitcast <2 x i64> %{{[0-9]*}} to <2 x double>
 // CHECK-LE: bitcast <2 x double> %{{[0-9]*}} to <2 x i64>
-// CHECK-LE: xor <2 x i64> %{{[0-9]*}}, <i64 -1, i64 -1>
+// CHECK-LE: xor <2 x i64> %{{[0-9]*}}, splat (i64 -1)
 // CHECK-LE: and <2 x i64>
 // CHECK-LE: bitcast <2 x i64> %{{[0-9]*}} to <2 x double>
 
@@ -254,11 +254,11 @@ void test1() {
 
   res_vd = vec_andc(vd, vbll);
 // CHECK: bitcast <2 x double> %{{[0-9]*}} to <2 x i64>
-// CHECK: xor <2 x i64> %{{[0-9]*}}, <i64 -1, i64 -1>
+// CHECK: xor <2 x i64> %{{[0-9]*}}, splat (i64 -1)
 // CHECK: and <2 x i64>
 // CHECK: bitcast <2 x i64> %{{[0-9]*}} to <2 x double>
 // CHECK-LE: bitcast <2 x double> %{{[0-9]*}} to <2 x i64>
-// CHECK-LE: xor <2 x i64> %{{[0-9]*}}, <i64 -1, i64 -1>
+// CHECK-LE: xor <2 x i64> %{{[0-9]*}}, splat (i64 -1)
 // CHECK-LE: and <2 x i64>
 // CHECK-LE: bitcast <2 x i64> %{{[0-9]*}} to <2 x double>
 
@@ -267,7 +267,7 @@ void test1() {
 
   res_vd = vec_andc(vd, vd);
 // CHECK: bitcast <2 x double> %{{[0-9]*}} to <2 x i64>
-// CHECK: xor <2 x i64> %{{[0-9]*}}, <i64 -1, i64 -1>
+// CHECK: xor <2 x i64> %{{[0-9]*}}, splat (i64 -1)
 // CHECK: and <2 x i64>
 // CHECK: bitcast <2 x i64> %{{[0-9]*}} to <2 x double>
 
@@ -927,10 +927,10 @@ void test1() {
   res_vd = vec_nor(vd, vd);
 // CHECK: bitcast <2 x double> %{{[0-9]+}} to <2 x i64>
 // CHECK: [[OR:%.+]] = or <2 x i64> %{{[0-9]+}}, %{{[0-9]+}}
-// CHECK-NEXT: xor <2 x i64> [[OR]], <i64 -1, i64 -1>
+// CHECK-NEXT: xor <2 x i64> [[OR]], splat (i64 -1)
 // CHECK-LE: bitcast <2 x double> %{{[0-9]+}} to <2 x i64>
 // CHECK-LE: [[OR:%.+]] = or <2 x i64> %{{[0-9]+}}, %{{[0-9]+}}
-// CHECK-LE-NEXT: xor <2 x i64> [[OR]], <i64 -1, i64 -1>
+// CHECK-LE-NEXT: xor <2 x i64> [[OR]], splat (i64 -1)
 
   /* vec_or */
   res_vsll = vec_or(vsll, vsll);
@@ -1037,12 +1037,12 @@ void test1() {
 // CHECK-LE: call void @dummy()
 
   res_vd = vec_sel(vd, vd, vbll);
-// CHECK: xor <2 x i64> %{{[0-9]+}}, <i64 -1, i64 -1>
+// CHECK: xor <2 x i64> %{{[0-9]+}}, splat (i64 -1)
 // CHECK: and <2 x i64> %{{[0-9]+}},
 // CHECK: and <2 x i64> %{{[0-9]+}}, %{{[0-9]+}}
 // CHECK: or <2 x i64>
 // CHECK: bitcast <2 x i64> %{{[0-9]+}} to <2 x double>
-// CHECK-LE: xor <2 x i64> %{{[0-9]+}}, <i64 -1, i64 -1>
+// CHECK-LE: xor <2 x i64> %{{[0-9]+}}, splat (i64 -1)
 // CHECK-LE: and <2 x i64> %{{[0-9]+}},
 // CHECK-LE: and <2 x i64> %{{[0-9]+}}, %{{[0-9]+}}
 // CHECK-LE: or <2 x i64>
@@ -1053,73 +1053,73 @@ void test1() {
 // CHECK-LE: call void @dummy()
 
   res_vd = vec_sel(vd, vd, vull);
-// CHECK: xor <2 x i64> %{{[0-9]+}}, <i64 -1, i64 -1>
+// CHECK: xor <2 x i64> %{{[0-9]+}}, splat (i64 -1)
 // CHECK: and <2 x i64> %{{[0-9]+}},
 // CHECK: and <2 x i64> %{{[0-9]+}}, %{{[0-9]+}}
 // CHECK: or <2 x i64>
 // CHECK: bitcast <2 x i64> %{{[0-9]+}} to <2 x double>
-// CHECK-LE: xor <2 x i64> %{{[0-9]+}}, <i64 -1, i64 -1>
+// CHECK-LE: xor <2 x i64> %{{[0-9]+}}, splat (i64 -1)
 // CHECK-LE: and <2 x i64> %{{[0-9]+}},
 // CHECK-LE: and <2 x i64> %{{[0-9]+}}, %{{[0-9]+}}
 // CHECK-LE: or <2 x i64>
 // CHECK-LE: bitcast <2 x i64> %{{[0-9]+}} to <2 x double>
 
   res_vbll = vec_sel(vbll, vbll, vbll);
-// CHECK: xor <2 x i64> %{{[0-9]+}}, <i64 -1, i64 -1>
+// CHECK: xor <2 x i64> %{{[0-9]+}}, splat (i64 -1)
 // CHECK: and <2 x i64> %{{[0-9]+}},
 // CHECK: and <2 x i64> %{{[0-9]+}}, %{{[0-9]+}}
 // CHECK: or <2 x i64>
-// CHECK-LE: xor <2 x i64> %{{[0-9]+}}, <i64 -1, i64 -1>
+// CHECK-LE: xor <2 x i64> %{{[0-9]+}}, splat (i64 -1)
 // CHECK-LE: and <2 x i64> %{{[0-9]+}},
 // CHECK-LE: and <2 x i64> %{{[0-9]+}}, %{{[0-9]+}}
 // CHECK-LE: or <2 x i64>
 
   res_vbll = vec_sel(vbll, vbll, vull);
-// CHECK: xor <2 x i64> %{{[0-9]+}}, <i64 -1, i64 -1>
+// CHECK: xor <2 x i64> %{{[0-9]+}}, splat (i64 -1)
 // CHECK: and <2 x i64> %{{[0-9]+}},
 // CHECK: and <2 x i64> %{{[0-9]+}}, %{{[0-9]+}}
 // CHECK: or <2 x i64>
-// CHECK-LE: xor <2 x i64> %{{[0-9]+}}, <i64 -1, i64 -1>
+// CHECK-LE: xor <2 x i64> %{{[0-9]+}}, splat (i64 -1)
 // CHECK-LE: and <2 x i64> %{{[0-9]+}},
 // CHECK-LE: and <2 x i64> %{{[0-9]+}}, %{{[0-9]+}}
 // CHECK-LE: or <2 x i64>
 
   res_vsll = vec_sel(vsll, vsll, vbll);
-// CHECK: xor <2 x i64> %{{[0-9]+}}, <i64 -1, i64 -1>
+// CHECK: xor <2 x i64> %{{[0-9]+}}, splat (i64 -1)
 // CHECK: and <2 x i64> %{{[0-9]+}},
 // CHECK: and <2 x i64> %{{[0-9]+}}, %{{[0-9]+}}
 // CHECK: or <2 x i64>
-// CHECK-LE: xor <2 x i64> %{{[0-9]+}}, <i64 -1, i64 -1>
+// CHECK-LE: xor <2 x i64> %{{[0-9]+}}, splat (i64 -1)
 // CHECK-LE: and <2 x i64> %{{[0-9]+}},
 // CHECK-LE: and <2 x i64> %{{[0-9]+}}, %{{[0-9]+}}
 // CHECK-LE: or <2 x i64>
 
   res_vsll = vec_sel(vsll, vsll, vull);
-// CHECK: xor <2 x i64> %{{[0-9]+}}, <i64 -1, i64 -1>
+// CHECK: xor <2 x i64> %{{[0-9]+}}, splat (i64 -1)
 // CHECK: and <2 x i64> %{{[0-9]+}},
 // CHECK: and <2 x i64> %{{[0-9]+}}, %{{[0-9]+}}
 // CHECK: or <2 x i64>
-// CHECK-LE: xor <2 x i64> %{{[0-9]+}}, <i64 -1, i64 -1>
+// CHECK-LE: xor <2 x i64> %{{[0-9]+}}, splat (i64 -1)
 // CHECK-LE: and <2 x i64> %{{[0-9]+}},
 // CHECK-LE: and <2 x i64> %{{[0-9]+}}, %{{[0-9]+}}
 // CHECK-LE: or <2 x i64>
 
   res_vull = vec_sel(vull, vull, vbll);
-// CHECK: xor <2 x i64> %{{[0-9]+}}, <i64 -1, i64 -1>
+// CHECK: xor <2 x i64> %{{[0-9]+}}, splat (i64 -1)
 // CHECK: and <2 x i64> %{{[0-9]+}},
 // CHECK: and <2 x i64> %{{[0-9]+}}, %{{[0-9]+}}
 // CHECK: or <2 x i64>
-// CHECK-LE: xor <2 x i64> %{{[0-9]+}}, <i64 -1, i64 -1>
+// CHECK-LE: xor <2 x i64> %{{[0-9]+}}, splat (i64 -1)
 // CHECK-LE: and <2 x i64> %{{[0-9]+}},
 // CHECK-LE: and <2 x i64> %{{[0-9]+}}, %{{[0-9]+}}
 // CHECK-LE: or <2 x i64>
 
   res_vull = vec_sel(vull, vull, vull);
-// CHECK: xor <2 x i64> %{{[0-9]+}}, <i64 -1, i64 -1>
+// CHECK: xor <2 x i64> %{{[0-9]+}}, splat (i64 -1)
 // CHECK: and <2 x i64> %{{[0-9]+}},
 // CHECK: and <2 x i64> %{{[0-9]+}}, %{{[0-9]+}}
 // CHECK: or <2 x i64>
-// CHECK-LE: xor <2 x i64> %{{[0-9]+}}, <i64 -1, i64 -1>
+// CHECK-LE: xor <2 x i64> %{{[0-9]+}}, splat (i64 -1)
 // CHECK-LE: and <2 x i64> %{{[0-9]+}},
 // CHECK-LE: and <2 x i64> %{{[0-9]+}}, %{{[0-9]+}}
 // CHECK-LE: or <2 x i64>
@@ -1282,16 +1282,16 @@ void test1() {
 // CHECK-LE: fptosi <2 x double> %{{.*}} to <2 x i64>
 
   res_vsll = vec_ctsl(vf, 3);
-  // CHECK: fmul <4 x float> {{%.*}}, <float 8.000000e+00, float 8.000000e+00, float 8.000000e+00, float 8.000000e+00>
+  // CHECK: fmul <4 x float> {{%.*}}, splat (float 8.000000e+00)
   // CHECK: call <2 x i64> @llvm.ppc.vsx.xvcvspsxds(<4 x float>
-  // CHECK-LE: fmul <4 x float> {{%.*}}, <float 8.000000e+00, float 8.000000e+00, float 8.000000e+00, float 8.000000e+00>
+  // CHECK-LE: fmul <4 x float> {{%.*}}, splat (float 8.000000e+00)
   // CHECK-LE:  shufflevector <4 x i32> {{%.*}}, <4 x i32> {{%.*}}, <4 x i32> <i32 7, i32 0, i32 1, i32 2>
   // CHECK-LE: call <2 x i64> @llvm.ppc.vsx.xvcvspsxds(<4 x float>
 
   res_vsll = vec_ctsl(vd, 3);
-  // CHECK: fmul <2 x double> {{%.*}}, <double 8.000000e+00, double 8.000000e+00>
+  // CHECK: fmul <2 x double> {{%.*}}, splat (double 8.000000e+00)
   // CHECK: fptosi <2 x double> {{%.*}} to <2 x i64>
-  // CHECK-LE: fmul <2 x double> {{%.*}}, <double 8.000000e+00, double 8.000000e+00>
+  // CHECK-LE: fmul <2 x double> {{%.*}}, splat (double 8.000000e+00)
   // CHECK-LE: fptosi <2 x double> {{%.*}} to <2 x i64>
 
   res_vull = vec_ctu(vd, 0);
@@ -1307,16 +1307,16 @@ void test1() {
 // CHECK-LE: fptoui <2 x double> %{{.*}} to <2 x i64>
 
   res_vull = vec_ctul(vf, 3);
-  // CHECK: fmul <4 x float> {{%.*}}, <float 8.000000e+00, float 8.000000e+00, float 8.000000e+00, float 8.000000e+00>
+  // CHECK: fmul <4 x float> {{%.*}}, splat (float 8.000000e+00)
   // CHECK: call <2 x i64> @llvm.ppc.vsx.xvcvspuxds(<4 x float>
-  // CHECK-LE: fmul <4 x float> {{%.*}}, <float 8.000000e+00, float 8.000000e+00, float 8.000000e+00, float 8.000000e+00>
+  // CHECK-LE: fmul <4 x float> {{%.*}}, splat (float 8.000000e+00)
   // CHECK-LE:  shufflevector <4 x i32> {{%.*}}, <4 x i32> {{%.*}}, <4 x i32> <i32 7, i32 0, i32 1, i32 2>
   // CHECK-LE: call <2 x i64> @llvm.ppc.vsx.xvcvspuxds(<4 x float>
 
   res_vull = vec_ctul(vd, 3);
-  // CHECK: fmul <2 x double> {{%.*}}, <double 8.000000e+00, double 8.000000e+00>
+  // CHECK: fmul <2 x double> {{%.*}}, splat (double 8.000000e+00)
   // CHECK: fptoui <2 x double> {{%.*}} to <2 x i64>
-  // CHECK-LE: fmul <2 x double> {{%.*}}, <double 8.000000e+00, double 8.000000e+00>
+  // CHECK-LE: fmul <2 x double> {{%.*}}, splat (double 8.000000e+00)
   // CHECK-LE: fptoui <2 x double> {{%.*}} to <2 x i64>
 
   res_vf = vec_ctf(vsll, 0);
@@ -1345,29 +1345,29 @@ void test1() {
 
   res_vd = vec_ctd(vsll, 2);
 // CHECK: sitofp <2 x i64> %{{.*}} to <2 x double>
-// CHECK: fmul <2 x double> {{.*}} <double 2.500000e-01, double 2.500000e-01>
+// CHECK: fmul <2 x double> {{.*}} splat (double 2.500000e-01)
 // CHECK-LE: sitofp <2 x i64> %{{.*}} to <2 x double>
-// CHECK-LE: fmul <2 x double> {{.*}} <double 2.500000e-01, double 2.500000e-01>
+// CHECK-LE: fmul <2 x double> {{.*}} splat (double 2.500000e-01)
 
   res_vd = vec_ctd(vull, 2);
 // CHECK: uitofp <2 x i64> %{{.*}} to <2 x double>
-// CHECK: fmul <2 x double> {{.*}} <double 2.500000e-01, double 2.500000e-01>
+// CHECK: fmul <2 x double> {{.*}} splat (double 2.500000e-01)
 // CHECK-LE: uitofp <2 x i64> %{{.*}} to <2 x double>
-// CHECK-LE: fmul <2 x double> {{.*}} <double 2.500000e-01, double 2.500000e-01>
+// CHECK-LE: fmul <2 x double> {{.*}} splat (double 2.500000e-01)
 
   res_vd = vec_ctd(vsi, 2);
 // CHECK: call <2 x double> @llvm.ppc.vsx.xvcvsxwdp(<4 x i32>
-// CHECK: fmul <2 x double> {{.*}} <double 2.500000e-01, double 2.500000e-01>
+// CHECK: fmul <2 x double> {{.*}} splat (double 2.500000e-01)
 // CHECK-LE: vperm
 // CHECK-LE: call <2 x double> @llvm.ppc.vsx.xvcvsxwdp(<4 x i32>
-// CHECK-LE: fmul <2 x double> {{.*}} <double 2.500000e-01, double 2.500000e-01>
+// CHECK-LE: fmul <2 x double> {{.*}} splat (double 2.500000e-01)
 
   res_vd = vec_ctd(vui, 2);
 // CHECK: call <2 x double> @llvm.ppc.vsx.xvcvuxwdp(<4 x i32>
-// CHECK: fmul <2 x double> {{.*}} <double 2.500000e-01, double 2.500000e-01>
+// CHECK: fmul <2 x double> {{.*}} splat (double 2.500000e-01)
 // CHECK-LE: vperm
 // CHECK-LE: call <2 x double> @llvm.ppc.vsx.xvcvuxwdp(<4 x i32>
-// CHECK-LE: fmul <2 x double> {{.*}} <double 2.500000e-01, double 2.500000e-01>
+// CHECK-LE: fmul <2 x double> {{.*}} splat (double 2.500000e-01)
 
   res_vsll = vec_signed(vd);
 // CHECK: fptosi <2 x double>
@@ -1778,34 +1778,34 @@ void test1() {
 // CHECK-LE: shufflevector <2 x double> %{{[0-9]+}}, <2 x double> %{{[0-9]+}}, <2 x i32> <i32 1, i32 0>
 
   res_vbll = vec_revb(vbll);
-// CHECK: store <16 x i8> <i8 7, i8 6, i8 5, i8 4, i8 3, i8 2, i8 1, i8 0, i8 15, i8 14, i8 13, i8 12, i8 11, i8 10, i8 9, i8 8>, <16 x i8>* {{%.+}}, align 16
+// CHECK: store <16 x i8> <i8 7, i8 6, i8 5, i8 4, i8 3, i8 2, i8 1, i8 0, i8 15, i8 14, i8 13, i8 12, i8 11, i8 10, i8 9, i8 8>, ptr {{%.+}}, align 16
 // CHECK: call <4 x i32> @llvm.ppc.altivec.vperm(<4 x i32> {{%.+}}, <4 x i32> {{%.+}}, <16 x i8> {{%.+}})
-// CHECK-LE: store <16 x i8> <i8 7, i8 6, i8 5, i8 4, i8 3, i8 2, i8 1, i8 0, i8 15, i8 14, i8 13, i8 12, i8 11, i8 10, i8 9, i8 8>, <16 x i8>* {{%.+}}, align 16
-// CHECK-LE: store <16 x i8> <i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1>, <16 x i8>* {{%.+}}, align 16
+// CHECK-LE: store <16 x i8> <i8 7, i8 6, i8 5, i8 4, i8 3, i8 2, i8 1, i8 0, i8 15, i8 14, i8 13, i8 12, i8 11, i8 10, i8 9, i8 8>, ptr {{%.+}}, align 16
+// CHECK-LE: store <16 x i8> splat (i8 -1), ptr {{%.+}}, align 16
 // CHECK-LE: xor <16 x i8>
 // CHECK-LE: call <4 x i32> @llvm.ppc.altivec.vperm(<4 x i32> {{%.+}}, <4 x i32> {{%.+}}, <16 x i8> {{%.+}})
 
   res_vsll = vec_revb(vsll);
-// CHECK: store <16 x i8> <i8 7, i8 6, i8 5, i8 4, i8 3, i8 2, i8 1, i8 0, i8 15, i8 14, i8 13, i8 12, i8 11, i8 10, i8 9, i8 8>, <16 x i8>* {{%.+}}, align 16
+// CHECK: store <16 x i8> <i8 7, i8 6, i8 5, i8 4, i8 3, i8 2, i8 1, i8 0, i8 15, i8 14, i8 13, i8 12, i8 11, i8 10, i8 9, i8 8>, ptr {{%.+}}, align 16
 // CHECK: call <4 x i32> @llvm.ppc.altivec.vperm(<4 x i32> {{%.+}}, <4 x i32> {{%.+}}, <16 x i8> {{%.+}})
-// CHECK-LE: store <16 x i8> <i8 7, i8 6, i8 5, i8 4, i8 3, i8 2, i8 1, i8 0, i8 15, i8 14, i8 13, i8 12, i8 11, i8 10, i8 9, i8 8>, <16 x i8>* {{%.+}}, align 16
-// CHECK-LE: store <16 x i8> <i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1>, <16 x i8>* {{%.+}}, align 16
+// CHECK-LE: store <16 x i8> <i8 7, i8 6, i8 5, i8 4, i8 3, i8 2, i8 1, i8 0, i8 15, i8 14, i8 13, i8 12, i8 11, i8 10, i8 9, i8 8>, ptr {{%.+}}, align 16
+// CHECK-LE: store <16 x i8> splat (i8 -1), ptr {{%.+}}, align 16
 // CHECK-LE: xor <16 x i8>
 // CHECK-LE: call <4 x i32> @llvm.ppc.altivec.vperm(<4 x i32> {{%.+}}, <4 x i32> {{%.+}}, <16 x i8> {{%.+}})
 
   res_vull = vec_revb(vull);
-// CHECK: store <16 x i8> <i8 7, i8 6, i8 5, i8 4, i8 3, i8 2, i8 1, i8 0, i8 15, i8 14, i8 13, i8 12, i8 11, i8 10, i8 9, i8 8>, <16 x i8>* {{%.+}}, align 16
+// CHECK: store <16 x i8> <i8 7, i8 6, i8 5, i8 4, i8 3, i8 2, i8 1, i8 0, i8 15, i8 14, i8 13, i8 12, i8 11, i8 10, i8 9, i8 8>, ptr {{%.+}}, align 16
 // CHECK: call <4 x i32> @llvm.ppc.altivec.vperm(<4 x i32> {{%.+}}, <4 x i32> {{%.+}}, <16 x i8> {{%.+}})
-// CHECK-LE: store <16 x i8> <i8 7, i8 6, i8 5, i8 4, i8 3, i8 2, i8 1, i8 0, i8 15, i8 14, i8 13, i8 12, i8 11, i8 10, i8 9, i8 8>, <16 x i8>* {{%.+}}, align 16
-// CHECK-LE: store <16 x i8> <i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1>, <16 x i8>* {{%.+}}, align 16
+// CHECK-LE: store <16 x i8> <i8 7, i8 6, i8 5, i8 4, i8 3, i8 2, i8 1, i8 0, i8 15, i8 14, i8 13, i8 12, i8 11, i8 10, i8 9, i8 8>, ptr {{%.+}}, align 16
+// CHECK-LE: store <16 x i8> splat (i8 -1), ptr {{%.+}}, align 16
 // CHECK-LE: xor <16 x i8>
 // CHECK-LE: call <4 x i32> @llvm.ppc.altivec.vperm(<4 x i32> {{%.+}}, <4 x i32> {{%.+}}, <16 x i8> {{%.+}})
 
   res_vd = vec_revb(vd);
-// CHECK: store <16 x i8> <i8 7, i8 6, i8 5, i8 4, i8 3, i8 2, i8 1, i8 0, i8 15, i8 14, i8 13, i8 12, i8 11, i8 10, i8 9, i8 8>, <16 x i8>* {{%.+}}, align 16
+// CHECK: store <16 x i8> <i8 7, i8 6, i8 5, i8 4, i8 3, i8 2, i8 1, i8 0, i8 15, i8 14, i8 13, i8 12, i8 11, i8 10, i8 9, i8 8>, ptr {{%.+}}, align 16
 // CHECK: call <4 x i32> @llvm.ppc.altivec.vperm(<4 x i32> {{%.+}}, <4 x i32> {{%.+}}, <16 x i8> {{%.+}})
-// CHECK-LE: store <16 x i8> <i8 7, i8 6, i8 5, i8 4, i8 3, i8 2, i8 1, i8 0, i8 15, i8 14, i8 13, i8 12, i8 11, i8 10, i8 9, i8 8>, <16 x i8>* {{%.+}}, align 16
-// CHECK-LE: store <16 x i8> <i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1>, <16 x i8>* {{%.+}}, align 16
+// CHECK-LE: store <16 x i8> <i8 7, i8 6, i8 5, i8 4, i8 3, i8 2, i8 1, i8 0, i8 15, i8 14, i8 13, i8 12, i8 11, i8 10, i8 9, i8 8>, ptr {{%.+}}, align 16
+// CHECK-LE: store <16 x i8> splat (i8 -1), ptr {{%.+}}, align 16
 // CHECK-LE: xor <16 x i8>
 // CHECK-LE: call <4 x i32> @llvm.ppc.altivec.vperm(<4 x i32> {{%.+}}, <4 x i32> {{%.+}}, <16 x i8> {{%.+}})
 
@@ -1942,40 +1942,72 @@ res_vsll = vec_slo(vsll, vsc);
 // CHECK-LE: @llvm.ppc.altivec.vsro
 
 res_vsll = vec_xl(sll, asll);
-// CHECK: load <2 x i64>, <2 x i64>* %{{[0-9]+}}, align 1
-// CHECK-LE: load <2 x i64>, <2 x i64>* %{{[0-9]+}}, align 1
+// CHECK: load <2 x i64>, ptr %{{[0-9]+}}, align 1
+// CHECK-LE: load <2 x i64>, ptr %{{[0-9]+}}, align 1
 
 res_vull = vec_xl(sll, aull);
-// CHECK: load <2 x i64>, <2 x i64>* %{{[0-9]+}}, align 1
-// CHECK-LE: load <2 x i64>, <2 x i64>* %{{[0-9]+}}, align 1
+// CHECK: load <2 x i64>, ptr %{{[0-9]+}}, align 1
+// CHECK-LE: load <2 x i64>, ptr %{{[0-9]+}}, align 1
 
 res_vd = vec_xl(sll, ad);
-// CHECK: load <2 x double>, <2 x double>* %{{[0-9]+}}, align 1
-// CHECK-LE: load <2 x double>, <2 x double>* %{{[0-9]+}}, align 1
+// CHECK: load <2 x double>, ptr %{{[0-9]+}}, align 1
+// CHECK-LE: load <2 x double>, ptr %{{[0-9]+}}, align 1
 
 vec_xst(vsll, sll, asll);
-// CHECK: store <2 x i64> %{{[0-9]+}}, <2 x i64>* %{{[0-9]+}}, align 1
-// CHECK-LE: store <2 x i64> %{{[0-9]+}}, <2 x i64>* %{{[0-9]+}}, align 1
+// CHECK: store <2 x i64> %{{[0-9]+}}, ptr %{{[0-9]+}}, align 1
+// CHECK-LE: store <2 x i64> %{{[0-9]+}}, ptr %{{[0-9]+}}, align 1
 
 vec_xst(vull, sll, aull);
-// CHECK: store <2 x i64> %{{[0-9]+}}, <2 x i64>* %{{[0-9]+}}, align 1
-// CHECK-LE: store <2 x i64> %{{[0-9]+}}, <2 x i64>* %{{[0-9]+}}, align 1
+// CHECK: store <2 x i64> %{{[0-9]+}}, ptr %{{[0-9]+}}, align 1
+// CHECK-LE: store <2 x i64> %{{[0-9]+}}, ptr %{{[0-9]+}}, align 1
 
 vec_xst(vd, sll, ad);
-// CHECK: store <2 x double> %{{[0-9]+}}, <2 x double>* %{{[0-9]+}}, align 1
-// CHECK-LE: store <2 x double> %{{[0-9]+}}, <2 x double>* %{{[0-9]+}}, align 1
+// CHECK: store <2 x double> %{{[0-9]+}}, ptr %{{[0-9]+}}, align 1
+// CHECK-LE: store <2 x double> %{{[0-9]+}}, ptr %{{[0-9]+}}, align 1
 
 res_vsll = vec_xl_be(sll, asll);
-// CHECK: load <2 x i64>, <2 x i64>* %{{[0-9]+}}, align 1
-// CHECK-LE: call <2 x double> @llvm.ppc.vsx.lxvd2x.be(i8* %{{[0-9]+}})
+// CHECK: load <2 x i64>, ptr %{{[0-9]+}}, align 1
+// CHECK-LE: call <2 x double> @llvm.ppc.vsx.lxvd2x.be(ptr %{{[0-9]+}})
 
 res_vull = vec_xl_be(sll, aull);
-// CHECK: load <2 x i64>, <2 x i64>* %{{[0-9]+}}, align 1
-// CHECK-LE: call <2 x double> @llvm.ppc.vsx.lxvd2x.be(i8* %{{[0-9]+}})
+// CHECK: load <2 x i64>, ptr %{{[0-9]+}}, align 1
+// CHECK-LE: call <2 x double> @llvm.ppc.vsx.lxvd2x.be(ptr %{{[0-9]+}})
 
 res_vd = vec_xl_be(sll, ad);
-// CHECK: load <2 x double>, <2 x double>* %{{[0-9]+}}, align 1
-// CHECK-LE: call <2 x double> @llvm.ppc.vsx.lxvd2x.be(i8* %{{[0-9]+}})
+// CHECK: load <2 x double>, ptr %{{[0-9]+}}, align 1
+// CHECK-LE: call <2 x double> @llvm.ppc.vsx.lxvd2x.be(ptr %{{[0-9]+}})
+
+res_vsc = vec_xl_be(sll, asc);
+// CHECK: load <16 x i8>, ptr %{{.+}}, align 1
+// CHECK-LE: call <2 x double> @llvm.ppc.vsx.lxvd2x.be(ptr %{{[0-9]+}})
+// CHECK-LE: shufflevector <16 x i8> %{{[0-9]+}}, <16 x i8> %{{[0-9]+}}, <16 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0, i32 15, i32 14, i32 13, i32 12, i32 11, i32 10, i32 9, i32 8>
+
+res_vuc = vec_xl_be(sll, auc);
+// CHECK: load <16 x i8>, ptr %{{.+}}, align 1
+// CHECK-LE: call <2 x double> @llvm.ppc.vsx.lxvd2x.be(ptr %{{[0-9]+}})
+// CHECK-LE: shufflevector <16 x i8> %{{[0-9]+}}, <16 x i8> %{{[0-9]+}}, <16 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0, i32 15, i32 14, i32 13, i32 12, i32 11, i32 10, i32 9, i32 8>
+
+res_vss = vec_xl_be(sll, ass);
+// CHECK: load <8 x i16>, ptr %{{.+}}, align 1
+// CHECK-LE: call <2 x double> @llvm.ppc.vsx.lxvd2x.be(ptr %{{[0-9]+}})
+// CHECK-LE: shufflevector <8 x i16> %{{[0-9]+}}, <8 x i16> %{{[0-9]+}}, <8 x i32> <i32 3, i32 2, i32 1, i32 0, i32 7, i32 6, i32 5, i32 4>
+
+res_vus = vec_xl_be(sll, aus);
+// CHECK: load <8 x i16>, ptr %{{.+}}, align 1
+// CHECK-LE: call <2 x double> @llvm.ppc.vsx.lxvd2x.be(ptr %{{[0-9]+}})
+// CHECK-LE: shufflevector <8 x i16> %{{[0-9]+}}, <8 x i16> %{{[0-9]+}}, <8 x i32> <i32 3, i32 2, i32 1, i32 0, i32 7, i32 6, i32 5, i32 4>
+
+res_vsi = vec_xl_be(sll, asi);
+// CHECK: load <4 x i32>, ptr %{{.+}}, align 1
+// CHECK-LE: call <4 x i32> @llvm.ppc.vsx.lxvw4x.be(ptr %{{[0-9]+}})
+
+res_vui = vec_xl_be(sll, aui);
+// CHECK: load <4 x i32>, ptr %{{.+}}, align 1
+// CHECK-LE: call <4 x i32> @llvm.ppc.vsx.lxvw4x.be(ptr %{{[0-9]+}})
+
+res_vf = vec_xl_be(sll, af);
+// CHECK: load <4 x float>, ptr %{{.+}}, align 1
+// CHECK-LE: call <4 x i32> @llvm.ppc.vsx.lxvw4x.be(ptr %{{[0-9]+}})
 
 res_vsll = vec_xlds(sll, asll);
 // CHECK: load i64
@@ -2050,16 +2082,48 @@ res_vf = vec_load_splats(ull, af);
 // CHECK-LE: shufflevector <4 x float>
 
 vec_xst_be(vsll, sll, asll);
-// CHECK: store <2 x i64> %{{[0-9]+}}, <2 x i64>* %{{[0-9]+}}, align 1
-// CHECK-LE: call void @llvm.ppc.vsx.stxvd2x.be(<2 x double> %{{[0-9]+}}, i8* %{{[0-9]+}})
+// CHECK: store <2 x i64> %{{[0-9]+}}, ptr %{{[0-9]+}}, align 1
+// CHECK-LE: call void @llvm.ppc.vsx.stxvd2x.be(<2 x double> %{{[0-9]+}}, ptr %{{[0-9]+}})
 
 vec_xst_be(vull, sll, aull);
-// CHECK: store <2 x i64> %{{[0-9]+}}, <2 x i64>* %{{[0-9]+}}, align 1
-// CHECK-LE: call void @llvm.ppc.vsx.stxvd2x.be(<2 x double> %{{[0-9]+}}, i8* %{{[0-9]+}})
+// CHECK: store <2 x i64> %{{[0-9]+}}, ptr %{{[0-9]+}}, align 1
+// CHECK-LE: call void @llvm.ppc.vsx.stxvd2x.be(<2 x double> %{{[0-9]+}}, ptr %{{[0-9]+}})
 
 vec_xst_be(vd, sll, ad);
-// CHECK: store <2 x double> %{{[0-9]+}}, <2 x double>* %{{[0-9]+}}, align 1
-// CHECK-LE: call void @llvm.ppc.vsx.stxvd2x.be(<2 x double> %{{[0-9]+}}, i8* %{{[0-9]+}})
+// CHECK: store <2 x double> %{{[0-9]+}}, ptr %{{[0-9]+}}, align 1
+// CHECK-LE: call void @llvm.ppc.vsx.stxvd2x.be(<2 x double> %{{[0-9]+}}, ptr %{{[0-9]+}})
+
+vec_xst_be(vsc, sll, asc);
+// CHECK: store <16 x i8> %{{[0-9]+}}, ptr %{{.+}}, align 1
+// CHECK-LE: shufflevector <16 x i8> %{{[0-9]+}}, <16 x i8> %{{[0-9]+}}, <16 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0, i32 15, i32 14, i32 13, i32 12, i32 11, i32 10, i32 9, i32 8>
+// CHECK-LE: call void @llvm.ppc.vsx.stxvd2x.be(<2 x double> %{{[0-9]+}}, ptr %{{[0-9]+}})
+
+vec_xst_be(vuc, sll, auc);
+// CHECK: store <16 x i8> %{{[0-9]+}}, ptr %{{.+}}, align 1
+// CHECK-LE: shufflevector <16 x i8> %{{[0-9]+}}, <16 x i8> %{{[0-9]+}}, <16 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0, i32 15, i32 14, i32 13, i32 12, i32 11, i32 10, i32 9, i32 8>
+// CHECK-LE: call void @llvm.ppc.vsx.stxvd2x.be(<2 x double> %{{[0-9]+}}, ptr %{{[0-9]+}})
+
+vec_xst_be(vss, sll, ass);
+// CHECK: store <8 x i16> %{{[0-9]+}}, ptr %{{.+}}, align 1
+// CHECK-LE: shufflevector <8 x i16> %{{[0-9]+}}, <8 x i16> %{{[0-9]+}}, <8 x i32> <i32 3, i32 2, i32 1, i32 0, i32 7, i32 6, i32 5, i32 4>
+// CHECK-LE: call void @llvm.ppc.vsx.stxvd2x.be(<2 x double> %{{[0-9]+}}, ptr %{{[0-9]+}})
+
+vec_xst_be(vus, sll, aus);
+// CHECK: store <8 x i16> %{{[0-9]+}}, ptr %{{.+}}, align 1
+// CHECK-LE: shufflevector <8 x i16> %{{[0-9]+}}, <8 x i16> %{{[0-9]+}}, <8 x i32> <i32 3, i32 2, i32 1, i32 0, i32 7, i32 6, i32 5, i32 4>
+// CHECK-LE: call void @llvm.ppc.vsx.stxvd2x.be(<2 x double> %{{[0-9]+}}, ptr %{{[0-9]+}})
+
+vec_xst_be(vsi, sll, asi);
+// CHECK: store <4 x i32> %{{[0-9]+}}, ptr %{{.+}}, align 1
+// CHECK-LE: call void @llvm.ppc.vsx.stxvw4x.be(<4 x i32> %{{[0-9]+}}, ptr %{{[0-9]+}})
+
+vec_xst_be(vui, sll, aui);
+// CHECK: store <4 x i32> %{{[0-9]+}}, ptr %{{.+}}, align 1
+// CHECK-LE: call void @llvm.ppc.vsx.stxvw4x.be(<4 x i32> %{{[0-9]+}}, ptr %{{[0-9]+}})
+
+vec_xst_be(vf, sll, af);
+// CHECK: store <4 x float> %{{[0-9]+}}, ptr %{{.+}}, align 1
+// CHECK-LE: call void @llvm.ppc.vsx.stxvw4x.be(<4 x i32> %{{[0-9]+}}, ptr %{{[0-9]+}})
 
   res_vf = vec_neg(vf);
 // CHECK: fneg <4 x float> {{%[0-9]+}}
@@ -2168,21 +2232,47 @@ res_vuc = vec_xxsldwi(vuc, vuc, 1);
 
 res_vd = vec_promote(d, 0);
 // CHECK: store <2 x double> zeroinitializer
+// CHECK: store <2 x double> poison
 // CHECK: insertelement <2 x double>
 // CHECK-LE: store <2 x double> zeroinitializer
+// CHECK-LE: store <2 x double> poison
 // CHECK-LE: insertelement <2 x double>
 
 res_vsll = vec_promote(sll, 0);
 // CHECK: store <2 x i64> zeroinitializer
+// CHECK: store <2 x i64> poison
 // CHECK: insertelement <2 x i64>
 // CHECK-LE: store <2 x i64> zeroinitializer
+// CHECK-LE: store <2 x i64> poison
 // CHECK-LE: insertelement <2 x i64>
 
 res_vull = vec_promote(ull, 0);
 // CHECK: store <2 x i64> zeroinitializer
+// CHECK: store <2 x i64> poison
 // CHECK: insertelement <2 x i64>
 // CHECK-LE: store <2 x i64> zeroinitializer
+// CHECK-LE: store <2 x i64> poison
 // CHECK-LE: insertelement <2 x i64>
+
+res_vsc = vec_promote(asc[0], 8);
+// CHECK: store <16 x i8> zeroinitializer
+// CHECK: store <16 x i8> poison
+// CHECK: [[IDX:%.*]] = and i32 {{.*}}, 15
+// CHECK: insertelement <16 x i8> {{.*}}, i8 {{.*}}, i32 [[IDX]]
+// CHECK-LE: store <16 x i8> zeroinitializer
+// CHECK-LE: store <16 x i8> poison
+// CHECK-LE: [[IDX:%.*]] = and i32 {{.*}}, 15
+// CHECK-LE: insertelement <16 x i8> {{.*}}, i8 {{.*}}, i32 [[IDX]]
+
+res_vuc = vec_promote(auc[0], 8);
+// CHECK: store <16 x i8> zeroinitializer
+// CHECK: store <16 x i8> poison
+// CHECK: [[IDX:%.*]] = and i32 {{.*}}, 15
+// CHECK: insertelement <16 x i8> {{.*}}, i8 {{.*}}, i32 [[IDX]]
+// CHECK-LE: store <16 x i8> zeroinitializer
+// CHECK-LE: store <16 x i8> poison
+// CHECK-LE: [[IDX:%.*]] = and i32 {{.*}}, 15
+// CHECK-LE: insertelement <16 x i8> {{.*}}, i8 {{.*}}, i32 [[IDX]]
 }
 
 // The return type of the call expression may be different from the return type of the shufflevector.
@@ -2218,8 +2308,8 @@ vector double xxsldwi_should_not_assert(vector double a, vector double b) {
 void test_vector_cpsgn_float(vector float a, vector float b) {
 // CHECK-LABEL: test_vector_cpsgn_float
 // CHECK-NOT: SEPARATOR
-// CHECK-DAG: [[RA:%[0-9]+]] = load <4 x float>, <4 x float>* %__a.addr
-// CHECK-DAG: [[RB:%[0-9]+]] = load <4 x float>, <4 x float>* %__b.addr
+// CHECK-DAG: [[RA:%[0-9]+]] = load <4 x float>, ptr %__a.addr
+// CHECK-DAG: [[RB:%[0-9]+]] = load <4 x float>, ptr %__b.addr
 // CHECK-NEXT: call <4 x float> @llvm.copysign.v4f32(<4 x float> [[RB]], <4 x float> [[RA]])
   vec_cpsgn(a, b);
 }
@@ -2227,8 +2317,8 @@ void test_vector_cpsgn_float(vector float a, vector float b) {
 void test_vector_cpsgn_double(vector double a, vector double b) {
 // CHECK-LABEL: test_vector_cpsgn_double
 // CHECK-NOT: SEPARATOR
-// CHECK-DAG: [[RA:%[0-9]+]] = load <2 x double>, <2 x double>* %__a.addr
-// CHECK-DAG: [[RB:%[0-9]+]] = load <2 x double>, <2 x double>* %__b.addr
+// CHECK-DAG: [[RA:%[0-9]+]] = load <2 x double>, ptr %__a.addr
+// CHECK-DAG: [[RB:%[0-9]+]] = load <2 x double>, ptr %__b.addr
 // CHECK-NEXT: call <2 x double> @llvm.copysign.v2f64(<2 x double> [[RB]], <2 x double> [[RA]])
   vec_cpsgn(a, b);
 }
@@ -2236,8 +2326,8 @@ void test_vector_cpsgn_double(vector double a, vector double b) {
 void test_builtin_xvcpsgnsp(vector float a, vector float b) {
 // CHECK-LABEL: test_builtin_xvcpsgnsp
 // CHECK-NOT: SEPARATOR
-// CHECK-DAG: [[RA:%[0-9]+]] = load <4 x float>, <4 x float>* %a.addr
-// CHECK-DAG: [[RB:%[0-9]+]] = load <4 x float>, <4 x float>* %b.addr
+// CHECK-DAG: [[RA:%[0-9]+]] = load <4 x float>, ptr %a.addr
+// CHECK-DAG: [[RB:%[0-9]+]] = load <4 x float>, ptr %b.addr
 // CHECK-NEXT: call <4 x float> @llvm.copysign.v4f32(<4 x float> [[RA]], <4 x float> [[RB]])
   __builtin_vsx_xvcpsgnsp(a, b);
 }
@@ -2245,8 +2335,8 @@ void test_builtin_xvcpsgnsp(vector float a, vector float b) {
 void test_builtin_xvcpsgndp(vector double a, vector double b) {
 // CHECK-LABEL: test_builtin_xvcpsgndp
 // CHECK-NOT: SEPARATOR
-// CHECK-DAG: [[RA:%[0-9]+]] = load <2 x double>, <2 x double>* %a.addr
-// CHECK-DAG: [[RB:%[0-9]+]] = load <2 x double>, <2 x double>* %b.addr
+// CHECK-DAG: [[RA:%[0-9]+]] = load <2 x double>, ptr %a.addr
+// CHECK-DAG: [[RB:%[0-9]+]] = load <2 x double>, ptr %b.addr
 // CHECK-NEXT: call <2 x double> @llvm.copysign.v2f64(<2 x double> [[RA]], <2 x double> [[RB]])
   __builtin_vsx_xvcpsgndp(a, b);
 }
@@ -2262,10 +2352,10 @@ vector double test_recipdivd(vector double a, vector double b) {
 vector double test_rsqrtd(vector double a, vector double b) {
   // CHECK-LABEL: test_rsqrtd
   // CHECK: call fast <2 x double> @llvm.sqrt.v2f64
-  // CHECK: fdiv fast <2 x double> <double 1.000000e+00, double 1.000000e+00>
+  // CHECK: fdiv fast <2 x double> splat (double 1.000000e+00),
   // CHECK-LE-LABEL: test_rsqrtd
   // CHECK-LE: call fast <2 x double> @llvm.sqrt.v2f64
-  // CHECK-LE: fdiv fast <2 x double> <double 1.000000e+00, double 1.000000e+00>
+  // CHECK-LE: fdiv fast <2 x double> splat (double 1.000000e+00)
   return vec_rsqrt(a);
 }
 
@@ -2358,7 +2448,7 @@ void test_p8overloads_backwards_compat() {
   // CHECK: and <4 x i32>
   // CHECK: or <4 x i32>
   // CHECK: shufflevector <4 x i32> {{%.*}}, <4 x i32> {{%.*}}, <4 x i32> <i32 0, i32 0, i32 2, i32 2>
-  // CHECK: xor <2 x i64> {{%.*}}, <i64 -1, i64 -1>
+  // CHECK: xor <2 x i64> {{%.*}}, splat (i64 -1)
   // CHECK-LE: call <4 x i32> @llvm.ppc.altivec.vcmpgtsw
   // CHECK-LE: call <4 x i32> @llvm.ppc.altivec.vcmpgtuw
   // CHECK-LE: call <4 x i32> @llvm.ppc.altivec.vcmpequw
@@ -2366,7 +2456,7 @@ void test_p8overloads_backwards_compat() {
   // CHECK-LE: and <4 x i32>
   // CHECK-LE: or <4 x i32>
   // CHECK-LE: shufflevector <4 x i32> {{%.*}}, <4 x i32> {{%.*}}, <4 x i32> <i32 1, i32 1, i32 3, i32 3>
-  // CHECK-LE: xor <2 x i64> {{%.*}}, <i64 -1, i64 -1>
+  // CHECK-LE: xor <2 x i64> {{%.*}}, splat (i64 -1)
   res_vbll = vec_cmpge(vull, vull);
   // CHECK: call <4 x i32> @llvm.ppc.altivec.vcmpgtuw
   // CHECK: call <4 x i32> @llvm.ppc.altivec.vcmpequw
@@ -2374,14 +2464,14 @@ void test_p8overloads_backwards_compat() {
   // CHECK: and <4 x i32>
   // CHECK: or <4 x i32>
   // CHECK: shufflevector <4 x i32> {{%.*}}, <4 x i32> {{%.*}}, <4 x i32> <i32 0, i32 0, i32 2, i32 2>
-  // CHECK: xor <2 x i64> {{%.*}}, <i64 -1, i64 -1>
+  // CHECK: xor <2 x i64> {{%.*}}, splat (i64 -1)
   // CHECK-LE: call <4 x i32> @llvm.ppc.altivec.vcmpgtuw
   // CHECK-LE: call <4 x i32> @llvm.ppc.altivec.vcmpequw
   // CHECK-LE: shufflevector <4 x i32> {{%.*}}, <4 x i32> {{%.*}}, <4 x i32> <i32 3, i32 0, i32 1, i32 2>
   // CHECK-LE: and <4 x i32>
   // CHECK-LE: or <4 x i32>
   // CHECK-LE: shufflevector <4 x i32> {{%.*}}, <4 x i32> {{%.*}}, <4 x i32> <i32 1, i32 1, i32 3, i32 3>
-  // CHECK-LE: xor <2 x i64> {{%.*}}, <i64 -1, i64 -1>
+  // CHECK-LE: xor <2 x i64> {{%.*}}, splat (i64 -1)
   dummy();
   // CHECK: call void @dummy()
   // CHECK-LE: call void @dummy()
@@ -2426,7 +2516,7 @@ void test_p8overloads_backwards_compat() {
   // CHECK: and <4 x i32>
   // CHECK: or <4 x i32>
   // CHECK: shufflevector <4 x i32> {{%.*}}, <4 x i32> {{%.*}}, <4 x i32> <i32 0, i32 0, i32 2, i32 2>
-  // CHECK: xor <2 x i64> {{%.*}}, <i64 -1, i64 -1>
+  // CHECK: xor <2 x i64> {{%.*}}, splat (i64 -1)
   // CHECK-LE: call <4 x i32> @llvm.ppc.altivec.vcmpgtsw
   // CHECK-LE: call <4 x i32> @llvm.ppc.altivec.vcmpgtuw
   // CHECK-LE: call <4 x i32> @llvm.ppc.altivec.vcmpequw
@@ -2434,7 +2524,7 @@ void test_p8overloads_backwards_compat() {
   // CHECK-LE: and <4 x i32>
   // CHECK-LE: or <4 x i32>
   // CHECK-LE: shufflevector <4 x i32> {{%.*}}, <4 x i32> {{%.*}}, <4 x i32> <i32 1, i32 1, i32 3, i32 3>
-  // CHECK-LE: xor <2 x i64> {{%.*}}, <i64 -1, i64 -1>
+  // CHECK-LE: xor <2 x i64> {{%.*}}, splat (i64 -1)
   res_vbll = vec_cmple(vull, vull);
   // CHECK: call <4 x i32> @llvm.ppc.altivec.vcmpgtuw
   // CHECK: call <4 x i32> @llvm.ppc.altivec.vcmpequw
@@ -2442,20 +2532,20 @@ void test_p8overloads_backwards_compat() {
   // CHECK: and <4 x i32>
   // CHECK: or <4 x i32>
   // CHECK: shufflevector <4 x i32> {{%.*}}, <4 x i32> {{%.*}}, <4 x i32> <i32 0, i32 0, i32 2, i32 2>
-  // CHECK: xor <2 x i64> {{%.*}}, <i64 -1, i64 -1>
+  // CHECK: xor <2 x i64> {{%.*}}, splat (i64 -1)
   // CHECK-LE: call <4 x i32> @llvm.ppc.altivec.vcmpgtuw
   // CHECK-LE: call <4 x i32> @llvm.ppc.altivec.vcmpequw
   // CHECK-LE: shufflevector <4 x i32> {{%.*}}, <4 x i32> {{%.*}}, <4 x i32> <i32 3, i32 0, i32 1, i32 2>
   // CHECK-LE: and <4 x i32>
   // CHECK-LE: or <4 x i32>
   // CHECK-LE: shufflevector <4 x i32> {{%.*}}, <4 x i32> {{%.*}}, <4 x i32> <i32 1, i32 1, i32 3, i32 3>
-  // CHECK-LE: xor <2 x i64> {{%.*}}, <i64 -1, i64 -1>
+  // CHECK-LE: xor <2 x i64> {{%.*}}, splat (i64 -1)
   dummy();
   // CHECK: call void @dummy()
   // CHECK-LE: call void @dummy()
 
   res_vsll = vec_sl(vsll, vull);
-  // CHECK: urem <2 x i64> {{%.*}}, <i64 64, i64 64>
+  // CHECK: urem <2 x i64> {{%.*}}, splat (i64 64)
   // CHECK: call <4 x i32> @llvm.ppc.altivec.vslo
   // CHECK: call <4 x i32> @llvm.ppc.altivec.vsl
   // CHECK: shufflevector <2 x i64> {{%.*}}, <2 x i64> {{%.*}}, <2 x i32> <i32 1, i32 0>
@@ -2463,7 +2553,7 @@ void test_p8overloads_backwards_compat() {
   // CHECK: call <4 x i32> @llvm.ppc.altivec.vslo
   // CHECK: call <4 x i32> @llvm.ppc.altivec.vsl
   // CHECK: shufflevector <2 x i64> {{%.*}}, <2 x i64> {{%.*}}, <2 x i32> <i32 1, i32 3>
-  // CHECK-LE: urem <2 x i64> {{%.*}}, <i64 64, i64 64>
+  // CHECK-LE: urem <2 x i64> {{%.*}}, splat (i64 64)
   // CHECK-LE: call <4 x i32> @llvm.ppc.altivec.vslo
   // CHECK-LE: call <4 x i32> @llvm.ppc.altivec.vsl
   // CHECK-LE: shufflevector <2 x i64> {{%.*}}, <2 x i64> {{%.*}}, <2 x i32> <i32 1, i32 0>
@@ -2472,7 +2562,7 @@ void test_p8overloads_backwards_compat() {
   // CHECK-LE: call <4 x i32> @llvm.ppc.altivec.vsl
   // CHECK-LE: shufflevector <2 x i64> {{%.*}}, <2 x i64> {{%.*}}, <2 x i32> <i32 0, i32 2>
   res_vull = vec_sl(vull, vull);
-  // CHECK: urem <2 x i64> {{%.*}}, <i64 64, i64 64>
+  // CHECK: urem <2 x i64> {{%.*}}, splat (i64 64)
   // CHECK: call <4 x i32> @llvm.ppc.altivec.vslo
   // CHECK: call <4 x i32> @llvm.ppc.altivec.vsl
   // CHECK: shufflevector <2 x i64> {{%.*}}, <2 x i64> {{%.*}}, <2 x i32> <i32 1, i32 0>
@@ -2480,7 +2570,7 @@ void test_p8overloads_backwards_compat() {
   // CHECK: call <4 x i32> @llvm.ppc.altivec.vslo
   // CHECK: call <4 x i32> @llvm.ppc.altivec.vsl
   // CHECK: shufflevector <2 x i64> {{%.*}}, <2 x i64> {{%.*}}, <2 x i32> <i32 1, i32 3>
-  // CHECK-LE: urem <2 x i64> {{%.*}}, <i64 64, i64 64>
+  // CHECK-LE: urem <2 x i64> {{%.*}}, splat (i64 64)
   // CHECK-LE: call <4 x i32> @llvm.ppc.altivec.vslo
   // CHECK-LE: call <4 x i32> @llvm.ppc.altivec.vsl
   // CHECK-LE: shufflevector <2 x i64> {{%.*}}, <2 x i64> {{%.*}}, <2 x i32> <i32 1, i32 0>
@@ -2493,7 +2583,7 @@ void test_p8overloads_backwards_compat() {
   // CHECK-LE: call void @dummy()
 
   res_vsll = vec_sr(vsll, vull);
-  // CHECK: urem <2 x i64> {{%.*}}, <i64 64, i64 64>
+  // CHECK: urem <2 x i64> {{%.*}}, splat (i64 64)
   // CHECK: shufflevector <2 x i64> {{%.*}}, <2 x i64> {{%.*}}, <2 x i32> <i32 1, i32 0>
   // CHECK: call <4 x i32> @llvm.ppc.altivec.vsro
   // CHECK: call <4 x i32> @llvm.ppc.altivec.vsr
@@ -2501,7 +2591,7 @@ void test_p8overloads_backwards_compat() {
   // CHECK: call <4 x i32> @llvm.ppc.altivec.vsro
   // CHECK: call <4 x i32> @llvm.ppc.altivec.vsr
   // CHECK: shufflevector <2 x i64> {{%.*}}, <2 x i64> {{%.*}}, <2 x i32> <i32 0, i32 2>
-  // CHECK-LE: urem <2 x i64> {{%.*}}, <i64 64, i64 64>
+  // CHECK-LE: urem <2 x i64> {{%.*}}, splat (i64 64)
   // CHECK-LE: shufflevector <2 x i64> {{%.*}}, <2 x i64> {{%.*}}, <2 x i32> <i32 1, i32 0>
   // CHECK-LE: call <4 x i32> @llvm.ppc.altivec.vsro
   // CHECK-LE: call <4 x i32> @llvm.ppc.altivec.vsr
@@ -2510,7 +2600,7 @@ void test_p8overloads_backwards_compat() {
   // CHECK-LE: call <4 x i32> @llvm.ppc.altivec.vsr
   // CHECK-LE: shufflevector <2 x i64> {{%.*}}, <2 x i64> {{%.*}}, <2 x i32> <i32 1, i32 3>
   res_vull = vec_sr(vull, vull);
-  // CHECK: urem <2 x i64> {{%.*}}, <i64 64, i64 64>
+  // CHECK: urem <2 x i64> {{%.*}}, splat (i64 64)
   // CHECK: shufflevector <2 x i64> {{%.*}}, <2 x i64> {{%.*}}, <2 x i32> <i32 1, i32 0>
   // CHECK: call <4 x i32> @llvm.ppc.altivec.vsro
   // CHECK: call <4 x i32> @llvm.ppc.altivec.vsr
@@ -2518,7 +2608,7 @@ void test_p8overloads_backwards_compat() {
   // CHECK: call <4 x i32> @llvm.ppc.altivec.vsro
   // CHECK: call <4 x i32> @llvm.ppc.altivec.vsr
   // CHECK: shufflevector <2 x i64> {{%.*}}, <2 x i64> {{%.*}}, <2 x i32> <i32 0, i32 2>
-  // CHECK-LE: urem <2 x i64> {{%.*}}, <i64 64, i64 64>
+  // CHECK-LE: urem <2 x i64> {{%.*}}, splat (i64 64)
   // CHECK-LE: shufflevector <2 x i64> {{%.*}}, <2 x i64> {{%.*}}, <2 x i32> <i32 1, i32 0>
   // CHECK-LE: call <4 x i32> @llvm.ppc.altivec.vsro
   // CHECK-LE: call <4 x i32> @llvm.ppc.altivec.vsr
@@ -2531,14 +2621,14 @@ void test_p8overloads_backwards_compat() {
   // CHECK-LE: call void @dummy()
 
   res_vsll = vec_sra(vsll, vull);
-  // CHECK: urem <2 x i64> {{%.*}}, <i64 64, i64 64>
+  // CHECK: urem <2 x i64> {{%.*}}, splat (i64 64)
   // CHECK: ashr <2 x i64>
-  // CHECK-LE: urem <2 x i64> {{%.*}}, <i64 64, i64 64>
+  // CHECK-LE: urem <2 x i64> {{%.*}}, splat (i64 64)
   // CHECK-LE: ashr <2 x i64>
   res_vull = vec_sra(vull, vull);
-  // CHECK: urem <2 x i64> {{%.*}}, <i64 64, i64 64>
+  // CHECK: urem <2 x i64> {{%.*}}, splat (i64 64)
   // CHECK: ashr <2 x i64>
-  // CHECK-LE: urem <2 x i64> {{%.*}}, <i64 64, i64 64>
+  // CHECK-LE: urem <2 x i64> {{%.*}}, splat (i64 64)
   // CHECK-LE: ashr <2 x i64>
 
   /* ----------------------- predicates --------------------------- */

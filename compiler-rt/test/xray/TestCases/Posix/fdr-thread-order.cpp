@@ -1,14 +1,14 @@
 // RUN: rm -rf %t && mkdir %t
 // RUN: %clangxx_xray -g -std=c++11 %s -o %t.exe
-// RUN: XRAY_OPTIONS="patch_premain=false \
+// RUN: env XRAY_OPTIONS="patch_premain=false \
 // RUN:    xray_logfile_base=%t/ xray_mode=xray-fdr verbosity=1" \
 // RUN:    XRAY_FDR_OPTIONS=func_duration_threshold_us=0 %run %t.exe 2>&1 | \
 // RUN:    FileCheck %s
 // RUN: %llvm_xray convert --symbolize --output-format=yaml -instr_map=%t.exe %t/*
 // RUN: %llvm_xray convert --symbolize --output-format=yaml -instr_map=%t.exe %t/* | \
 // RUN:   FileCheck %s --check-prefix TRACE
-// FIXME: Make llvm-xray work on non-x86_64 as well.
-// REQUIRES: x86_64-target-arch
+
+// REQUIRES: target={{(aarch64|loongarch64|x86_64)-.*}}
 // REQUIRES: built-in-llvm-tree
 
 #include "xray/xray_log_interface.h"

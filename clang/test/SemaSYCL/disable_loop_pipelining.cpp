@@ -8,8 +8,8 @@
 sycl::queue deviceQueue;
 
 #ifdef TRIGGER_ERROR
-[[intel::disable_loop_pipelining(1)]] void bar1() {} // expected-error{{'disable_loop_pipelining' attribute takes no arguments}}
-[[intel::disable_loop_pipelining]] int N;            // expected-error{{'disable_loop_pipelining' attribute only applies to 'for', 'while', 'do' statements, and functions}}
+[[intel::disable_loop_pipelining(1)]] void bar1() {} // expected-error{{'intel::disable_loop_pipelining' attribute takes no arguments}}
+[[intel::disable_loop_pipelining]] int N;            // expected-error{{'intel::disable_loop_pipelining' attribute only applies to 'for', 'while', 'do' statements, and functions}}
 #endif
 
 struct FuncObj {
@@ -19,12 +19,12 @@ struct FuncObj {
 int main() {
   deviceQueue.submit([&](sycl::handler &h) {
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel1
-    // CHECK:       SYCLIntelFPGADisableLoopPipeliningAttr {{.*}}
+    // CHECK:       SYCLIntelDisableLoopPipeliningAttr {{.*}}
     h.single_task<class test_kernel1>(
         FuncObj());
 
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel2
-    // CHECK:       SYCLIntelFPGADisableLoopPipeliningAttr {{.*}}
+    // CHECK:       SYCLIntelDisableLoopPipeliningAttr {{.*}}
     h.single_task<class test_kernel2>(
         []() [[intel::disable_loop_pipelining]]{});
   });

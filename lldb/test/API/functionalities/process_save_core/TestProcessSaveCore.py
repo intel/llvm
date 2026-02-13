@@ -2,7 +2,6 @@
 Test saving a core file (or mini dump).
 """
 
-
 import os
 import lldb
 from lldbsuite.test.decorators import *
@@ -11,7 +10,6 @@ from lldbsuite.test import lldbutil
 
 
 class ProcessSaveCoreTestCase(TestBase):
-
     @skipIfRemote
     @skipUnlessWindows
     def test_cannot_save_core_unless_process_stopped(self):
@@ -20,9 +18,10 @@ class ProcessSaveCoreTestCase(TestBase):
         exe = self.getBuildArtifact("a.out")
         core = self.getBuildArtifact("core.dmp")
         target = self.dbg.CreateTarget(exe)
-        process = target.LaunchSimple(
-            None, None, self.get_process_working_directory())
+        process = target.LaunchSimple(None, None, self.get_process_working_directory())
         self.assertNotEqual(process.GetState(), lldb.eStateStopped)
+        options = lldb.SBSaveCoreOptions()
+        options.SetOutputFile(lldb.SBFileSpec(core))
         error = process.SaveCore(core)
         self.assertTrue(error.Fail())
 
@@ -37,7 +36,8 @@ class ProcessSaveCoreTestCase(TestBase):
             target = self.dbg.CreateTarget(exe)
             breakpoint = target.BreakpointCreateByName("bar")
             process = target.LaunchSimple(
-                None, None, self.get_process_working_directory())
+                None, None, self.get_process_working_directory()
+            )
             self.assertState(process.GetState(), lldb.eStateStopped)
             self.assertTrue(process.SaveCore(core))
             self.assertTrue(os.path.isfile(core))
@@ -48,18 +48,16 @@ class ProcessSaveCoreTestCase(TestBase):
             target = self.dbg.CreateTarget(None)
             process = target.LoadCore(core)
             files = [
-                target.GetModuleAtIndex(i).GetFileSpec() for i in range(
-                    0, target.GetNumModules())]
-            paths = [
-                os.path.join(
-                    f.GetDirectory(),
-                    f.GetFilename()) for f in files]
+                target.GetModuleAtIndex(i).GetFileSpec()
+                for i in range(0, target.GetNumModules())
+            ]
+            paths = [os.path.join(f.GetDirectory(), f.GetFilename()) for f in files]
             self.assertIn(exe, paths)
 
         finally:
             # Clean up the mini dump file.
             self.assertTrue(self.dbg.DeleteTarget(target))
-            if (os.path.isfile(core)):
+            if os.path.isfile(core):
                 os.unlink(core)
 
     @skipUnlessPlatform(["freebsd", "netbsd"])
@@ -71,7 +69,8 @@ class ProcessSaveCoreTestCase(TestBase):
             target = self.dbg.CreateTarget(exe)
             breakpoint = target.BreakpointCreateByName("bar")
             process = target.LaunchSimple(
-                None, None, self.get_process_working_directory())
+                None, None, self.get_process_working_directory()
+            )
             self.assertState(process.GetState(), lldb.eStateStopped)
             self.assertTrue(process.SaveCore(core))
             self.assertTrue(os.path.isfile(core))
@@ -89,3 +88,21 @@ class ProcessSaveCoreTestCase(TestBase):
                 os.unlink(core)
             except OSError:
                 pass
+
+    def test_help(self):
+        """Test that help shows an option in plugin-names and style."""
+        self.expect(
+            "help process save-core",
+            substrs=["process save-core", "<plugin>", "Values:", "minidump"],
+        )
+
+        self.expect(
+            "help process save-core",
+            substrs=[
+                "process save-core",
+                "<corefile-style>",
+                "Values:",
+                "full",
+                "stack",
+            ],
+        )

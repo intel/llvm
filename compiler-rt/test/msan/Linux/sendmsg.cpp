@@ -9,13 +9,13 @@
 // RUN: %clangxx_msan %s -DSENDMMSG -o %t && %run %t 2>&1 | FileCheck %s --check-prefix=NEGATIVE
 
 // RUN: %clangxx_msan %s -DSEND -DPOISON -o %t && \
-// RUN:   MSAN_OPTIONS=intercept_send=0 %run %t 2>&1 | FileCheck %s --check-prefix=NEGATIVE
+// RUN:   env MSAN_OPTIONS=intercept_send=0 %run %t 2>&1 | FileCheck %s --check-prefix=NEGATIVE
 // RUN: %clangxx_msan %s -DSENDTO -DPOISON -o %t && \
-// RUN:   MSAN_OPTIONS=intercept_send=0 %run %t 2>&1 | FileCheck %s --check-prefix=NEGATIVE
+// RUN:   env MSAN_OPTIONS=intercept_send=0 %run %t 2>&1 | FileCheck %s --check-prefix=NEGATIVE
 // RUN: %clangxx_msan %s -DSENDMSG -DPOISON -o %t && \
-// RUN:   MSAN_OPTIONS=intercept_send=0 %run %t 2>&1 | FileCheck %s --check-prefix=NEGATIVE
+// RUN:   env MSAN_OPTIONS=intercept_send=0 %run %t 2>&1 | FileCheck %s --check-prefix=NEGATIVE
 // RUN: %clangxx_msan %s -DSENDMMSG -DPOISON -o %t && \
-// RUN:   MSAN_OPTIONS=intercept_send=0 %run %t 2>&1 | FileCheck %s --check-prefix=NEGATIVE
+// RUN:   env MSAN_OPTIONS=intercept_send=0 %run %t 2>&1 | FileCheck %s --check-prefix=NEGATIVE
 
 // UNSUPPORTED: android
 
@@ -75,7 +75,7 @@ int main() {
 
 #if defined(SEND)
   sent = send(sockfd[0], buf, kBufSize, 0);
-  // SEND: Uninitialized bytes in __interceptor_send at offset 7 inside [{{.*}}, 10)
+  // SEND: Uninitialized bytes in send at offset 7 inside [{{.*}}, 10)
   assert(sent > 0);
 
   ret = recv(sockfd[1], rbuf, kRecvBufSize, 0);
@@ -83,7 +83,7 @@ int main() {
   assert(__msan_test_shadow(rbuf, kRecvBufSize) == sent);
 #elif defined(SENDTO)
   sent = sendto(sockfd[0], buf, kBufSize, 0, nullptr, 0);
-  // SENDTO: Uninitialized bytes in __interceptor_sendto at offset 7 inside [{{.*}}, 10)
+  // SENDTO: Uninitialized bytes in sendto at offset 7 inside [{{.*}}, 10)
   assert(sent > 0);
 
   struct sockaddr_storage ss;

@@ -20,7 +20,7 @@ define internal i32 @wwrite(i64 %i) nounwind readnone willreturn {
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    br label [[SW_DEFAULT:%.*]]
 ; CHECK:       sw.default:
-; CHECK-NEXT:    ret i32 undef
+; CHECK-NEXT:    ret i32 poison
 ;
 entry:
   switch i64 %i, label %sw.default [
@@ -36,4 +36,4 @@ return:
 }
 
 ; CHECK: attributes #0 = { noreturn nounwind }
-; CHECK: attributes #1 = { nounwind readnone willreturn }
+; CHECK: attributes #1 = { nounwind willreturn memory(none) }

@@ -15,11 +15,54 @@ define i64 @limit_i64_eq_7(i64 %x) {
 ; CHECK:       body:
 ; CHECK-NEXT:    br label [[END]]
 ; CHECK:       end:
-; CHECK-NEXT:    ret i64 7
+; CHECK-NEXT:    [[RES:%.*]] = phi i64 [ [[X]], [[ENTRY:%.*]] ], [ 7, [[BODY]] ]
+; CHECK-NEXT:    ret i64 [[RES]]
 ;
 entry:
   %cmp = icmp eq i64 %x, 7
   br i1 %cmp, label %end, label %body
+body:
+  br label %end
+end:
+  %res = phi i64 [ %x, %entry ], [ 7, %body ]
+  ret i64 %res
+}
+
+define i64 @limit_i64_eq_7_commuted(i64 %x) {
+; CHECK-LABEL: @limit_i64_eq_7_commuted(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[CMP:%.*]] = icmp eq i64 [[X:%.*]], 7
+; CHECK-NEXT:    br i1 [[CMP]], label [[END:%.*]], label [[BODY:%.*]]
+; CHECK:       body:
+; CHECK-NEXT:    br label [[BODY]]
+; CHECK:       end:
+; CHECK-NEXT:    [[RES:%.*]] = phi i64 [ [[X]], [[END]] ], [ 7, [[ENTRY:%.*]] ]
+; CHECK-NEXT:    ret i64 [[RES]]
+;
+entry:
+  %cmp = icmp eq i64 %x, 7
+  br i1 %cmp, label %body, label %end
+body:
+  br label %end
+end:
+  %res = phi i64 [ %x, %body ], [ 7, %entry ]
+  ret i64 %res
+}
+
+define i64 @neg_limit_i64_eq_7(i64 %x) {
+; CHECK-LABEL: @neg_limit_i64_eq_7(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[CMP:%.*]] = icmp eq i64 [[X:%.*]], 7
+; CHECK-NEXT:    br i1 [[CMP]], label [[END:%.*]], label [[BODY:%.*]]
+; CHECK:       body:
+; CHECK-NEXT:    br label [[BODY]]
+; CHECK:       end:
+; CHECK-NEXT:    [[RES:%.*]] = phi i64 [ [[X]], [[ENTRY:%.*]] ], [ 7, [[END]] ]
+; CHECK-NEXT:    ret i64 [[RES]]
+;
+entry:
+  %cmp = icmp eq i64 %x, 7
+  br i1 %cmp, label %body, label %end
 body:
   br label %end
 end:
@@ -37,7 +80,8 @@ define i64 @limit_i64_ne_255(i64 %x) {
 ; CHECK:       body:
 ; CHECK-NEXT:    br label [[END]]
 ; CHECK:       end:
-; CHECK-NEXT:    ret i64 255
+; CHECK-NEXT:    [[RES:%.*]] = phi i64 [ [[X]], [[ENTRY:%.*]] ], [ 255, [[BODY]] ]
+; CHECK-NEXT:    ret i64 [[RES]]
 ;
 entry:
   %cmp = icmp ne i64 %x, 255

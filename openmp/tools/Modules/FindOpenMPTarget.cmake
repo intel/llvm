@@ -79,7 +79,7 @@ be used to override the standard flag searching for a given compiler.
 # TODO: Test more compilers
 
 cmake_policy(PUSH)
-cmake_policy(VERSION 3.13.4)
+cmake_policy(VERSION 3.20.0)
 
 find_package(OpenMP ${OpenMPTarget_FIND_VERSION} REQUIRED)
 
@@ -200,7 +200,7 @@ function(_OPENMP_TARGET_DEVICE_GET_FLAGS LANG DEVICE OPENMP_FLAG_VAR OPENMP_LIB_
     file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeOutput.log
       "Compilation successful, adding flags for ${DEVICE}.\n\n")
 
-    # Clang has a seperate library for target offloading.
+    # Clang has a separate library for target offloading.
     if(CMAKE_${LANG}_COMPILER_ID STREQUAL "Clang")
       find_library(OpenMPTarget_libomptarget_LIBRARY
         NAMES omptarget

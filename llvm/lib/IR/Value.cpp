@@ -20,6 +20,7 @@
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/DerivedUser.h"
+#include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
@@ -35,7 +36,7 @@
 
 using namespace llvm;
 
-static cl::opt<unsigned> UseDerefAtPointSemantics(
+static cl::opt<bool> UseDerefAtPointSemantics(
     "use-dereferenceable-at-point-semantics", cl::Hidden, cl::init(false),
     cl::desc("Deref attributes and metadata infer facts at definition only"));
 
@@ -44,15 +45,15 @@ static cl::opt<unsigned> UseDerefAtPointSemantics(
 //===----------------------------------------------------------------------===//
 static inline Type *checkType(Type *Ty) {
   assert(Ty && "Value defined with a null type: Error!");
-  assert(!isa<TypedPointerType>(Ty) &&
+  assert(!isa<TypedPointerType>(Ty->getScalarType()) &&
          "Cannot have values with typed pointer types");
   return Ty;
 }
 
 Value::Value(Type *ty, unsigned scid)
-    : VTy(checkType(ty)), UseList(nullptr), SubclassID(scid), HasValueHandle(0),
-      SubclassOptionalData(0), SubclassData(0), NumUserOperands(0),
-      IsUsedByMD(false), HasName(false), HasMetadata(false) {
+    : SubclassID(scid), HasValueHandle(0), SubclassOptionalData(0),
+      SubclassData(0), NumUserOperands(0), IsUsedByMD(false), HasName(false),
+      HasMetadata(false), VTy(checkType(ty)) {
   static_assert(ConstantFirstVal == 0, "!(SubclassID < ConstantFirstVal)");
   // FIXME: Why isn't this in the subclass gunk??
   // Note, we cannot call isa<CallInst> before the CallInst has been
@@ -97,9 +98,10 @@ Value::~Value() {
     dbgs() << "While deleting: " << *VTy << " %" << getName() << "\n";
     for (auto *U : users())
       dbgs() << "Use still stuck around after Def is destroyed:" << *U << "\n";
+
+    llvm_unreachable("Uses remain when a value is destroyed!");
   }
 #endif
-  assert(materialized_use_empty() && "Uses remain when a value is destroyed!");
 
   // If this value is named, destroy the name.  This should not be in a symtab
   // at this point.
@@ -146,10 +148,18 @@ void Value::destroyValueName() {
 }
 
 bool Value::hasNUses(unsigned N) const {
+  if (!UseList)
+    return N == 0;
+
+  // TODO: Disallow for ConstantData and remove !UseList check?
   return hasNItems(use_begin(), use_end(), N);
 }
 
 bool Value::hasNUsesOrMore(unsigned N) const {
+  // TODO: Disallow for ConstantData and remove !UseList check?
+  if (!UseList)
+    return N == 0;
+
   return hasNItemsOrMore(use_begin(), use_end(), N);
 }
 
@@ -214,23 +224,24 @@ void Value::dropDroppableUsesIn(User &Usr) {
 }
 
 void Value::dropDroppableUse(Use &U) {
-  U.removeFromList();
   if (auto *Assume = dyn_cast<AssumeInst>(U.getUser())) {
     unsigned OpNo = U.getOperandNo();
     if (OpNo == 0)
       U.set(ConstantInt::getTrue(Assume->getContext()));
     else {
-      U.set(UndefValue::get(U.get()->getType()));
+      U.set(PoisonValue::get(U.get()->getType()));
       CallInst::BundleOpInfo &BOI = Assume->getBundleOpInfoForOperand(OpNo);
       BOI.Tag = Assume->getContext().pImpl->getOrInsertBundleTag("ignore");
     }
     return;
   }
 
-  llvm_unreachable("unkown droppable use");
+  llvm_unreachable("unknown droppable use");
 }
 
 bool Value::isUsedInBasicBlock(const BasicBlock *BB) const {
+  assert(hasUseList() && "ConstantData has no use-list");
+
   // This can be computed either by scanning the instructions in BB, or by
   // scanning the use list of this Value. Both lists can be very long, but
   // usually one is quite short.
@@ -252,6 +263,9 @@ bool Value::isUsedInBasicBlock(const BasicBlock *BB) const {
 }
 
 unsigned Value::getNumUses() const {
+  // TODO: Disallow for ConstantData and remove !UseList check?
+  if (!UseList)
+    return 0;
   return (unsigned)std::distance(use_begin(), use_end());
 }
 
@@ -315,8 +329,12 @@ StringRef Value::getName() const {
 }
 
 void Value::setNameImpl(const Twine &NewName) {
+  bool NeedNewName =
+      !getContext().shouldDiscardValueNames() || isa<GlobalValue>(this);
+
   // Fast-path: LLVMContext can be set to strip out non-GlobalValue names
-  if (getContext().shouldDiscardValueNames() && !isa<GlobalValue>(this))
+  // and there is no need to delete the old name.
+  if (!NeedNewName && !hasName())
     return;
 
   // Fast path for common IRBuilder case of setName("") when there is no name.
@@ -324,9 +342,8 @@ void Value::setNameImpl(const Twine &NewName) {
     return;
 
   SmallString<256> NameData;
-  StringRef NameRef = NewName.toStringRef(NameData);
-  assert(NameRef.find_first_of(0) == StringRef::npos &&
-         "Null bytes are not allowed in names");
+  StringRef NameRef = NeedNewName ? NewName.toStringRef(NameData) : "";
+  assert(!NameRef.contains(0) && "Null bytes are not allowed in names");
 
   // Name isn't changing?
   if (getName() == NameRef)
@@ -339,23 +356,27 @@ void Value::setNameImpl(const Twine &NewName) {
   if (getSymTab(this, ST))
     return;  // Cannot set a name on this value (e.g. constant).
 
+  ValueName *NewValueName = nullptr;
   if (!ST) { // No symbol table to update?  Just do the change.
-    if (NameRef.empty()) {
-      // Free the name for this value.
-      destroyValueName();
-      return;
+    if (!NameRef.empty()) {
+      // Create the new name.
+      MallocAllocator Allocator;
+      NewValueName = ValueName::create(NameRef, Allocator);
     }
-
     // NOTE: Could optimize for the case the name is shrinking to not deallocate
     // then reallocated.
     destroyValueName();
 
-    // Create the new name.
-    MallocAllocator Allocator;
-    setValueName(ValueName::Create(NameRef, Allocator));
-    getValueName()->setValue(this);
+    if (NewValueName) {
+      assert(NeedNewName);
+      setValueName(NewValueName);
+      getValueName()->setValue(this);
+    }
     return;
   }
+
+  if (!NameRef.empty())
+    NewValueName = ST->createValueName(NameRef, this);
 
   // NOTE: Could optimize for the case the name is shrinking to not deallocate
   // then reallocated.
@@ -369,13 +390,14 @@ void Value::setNameImpl(const Twine &NewName) {
   }
 
   // Name is changing to something new.
-  setValueName(ST->createValueName(NameRef, this));
+  assert(NeedNewName && NewValueName != nullptr);
+  setValueName(NewValueName);
 }
 
 void Value::setName(const Twine &NewName) {
   setNameImpl(NewName);
   if (Function *F = dyn_cast<Function>(this))
-    F->recalculateIntrinsicID();
+    F->updateAfterNameChange();
 }
 
 void Value::takeName(Value *V) {
@@ -439,7 +461,6 @@ void Value::takeName(Value *V) {
     ST->reinsertValue(this);
 }
 
-#ifndef NDEBUG
 std::string Value::getNameOrAsOperand() const {
   if (!getName().empty())
     return std::string(getName());
@@ -449,7 +470,6 @@ std::string Value::getNameOrAsOperand() const {
   printAsOperand(OS, false);
   return OS.str();
 }
-#endif
 
 void Value::assertModuleIsMaterializedImpl() const {
 #ifndef NDEBUG
@@ -499,6 +519,7 @@ static bool contains(Value *Expr, Value *V) {
 #endif // NDEBUG
 
 void Value::doRAUW(Value *New, ReplaceMetadataUses ReplaceMetaUses) {
+  assert(hasUseList() && "Cannot replace constant data");
   assert(New && "Value::replaceAllUsesWith(<null>) is invalid!");
   assert(!contains(New, this) &&
          "this->replaceAllUsesWith(expr(this)) is NOT valid!");
@@ -568,14 +589,15 @@ void Value::replaceUsesWithIf(Value *New,
   }
 }
 
-/// Replace llvm.dbg.* uses of MetadataAsValue(ValueAsMetadata(V)) outside BB
+/// Replace debug record uses of MetadataAsValue(ValueAsMetadata(V)) outside BB
 /// with New.
 static void replaceDbgUsesOutsideBlock(Value *V, Value *New, BasicBlock *BB) {
-  SmallVector<DbgVariableIntrinsic *> DbgUsers;
-  findDbgUsers(DbgUsers, V);
-  for (auto *DVI : DbgUsers) {
-    if (DVI->getParent() != BB)
-      DVI->replaceVariableLocationOp(V, New);
+  SmallVector<DbgVariableRecord *> DPUsers;
+  findDbgUsers(V, DPUsers);
+  for (auto *DVR : DPUsers) {
+    DbgMarker *Marker = DVR->getMarker();
+    if (Marker->getParent() != BB)
+      DVR->replaceVariableLocationOp(V, New);
   }
 }
 
@@ -607,6 +629,7 @@ enum PointerStripKind {
   PSK_InBoundsConstantIndices,
   PSK_InBounds
 };
+} // end anonymous namespace
 
 template <PointerStripKind StripKind> static void NoopCallback(const Value *) {}
 
@@ -644,9 +667,10 @@ static const Value *stripPointerCastsAndOffsets(
       }
       V = GEP->getPointerOperand();
     } else if (Operator::getOpcode(V) == Instruction::BitCast) {
-      V = cast<Operator>(V)->getOperand(0);
-      if (!V->getType()->isPointerTy())
+      Value *NewV = cast<Operator>(V)->getOperand(0);
+      if (!NewV->getType()->isPointerTy())
         return V;
+      V = NewV;
     } else if (StripKind != PSK_ZeroIndicesSameRepresentation &&
                Operator::getOpcode(V) == Instruction::AddrSpaceCast) {
       // TODO: If we know an address space cast will not change the
@@ -680,7 +704,6 @@ static const Value *stripPointerCastsAndOffsets(
 
   return V;
 }
-} // end anonymous namespace
 
 const Value *Value::stripPointerCasts() const {
   return stripPointerCastsAndOffsets<PSK_ZeroIndices>(this);
@@ -705,7 +728,8 @@ const Value *Value::stripPointerCastsForAliasAnalysis() const {
 const Value *Value::stripAndAccumulateConstantOffsets(
     const DataLayout &DL, APInt &Offset, bool AllowNonInbounds,
     bool AllowInvariantGroup,
-    function_ref<bool(Value &, APInt &)> ExternalAnalysis) const {
+    function_ref<bool(Value &, APInt &)> ExternalAnalysis,
+    bool LookThroughIntToPtr) const {
   if (!getType()->isPtrOrPtrVectorTy())
     return this;
 
@@ -737,7 +761,7 @@ const Value *Value::stripAndAccumulateConstantOffsets(
       // Stop traversal if the pointer offset wouldn't fit in the bit-width
       // provided by the Offset argument. This can happen due to AddrSpaceCast
       // stripping.
-      if (GEPOffset.getMinSignedBits() > BitWidth)
+      if (GEPOffset.getSignificantBits() > BitWidth)
         return V;
 
       // External Analysis can return a result higher/lower than the value
@@ -766,6 +790,24 @@ const Value *Value::stripAndAccumulateConstantOffsets(
           V = RV;
         if (AllowInvariantGroup && Call->isLaunderOrStripInvariantGroup())
           V = Call->getArgOperand(0);
+    } else if (auto *Int2Ptr = dyn_cast<Operator>(V)) {
+      // Try to accumulate across (inttoptr (add (ptrtoint p), off)).
+      if (!AllowNonInbounds || !LookThroughIntToPtr || !Int2Ptr ||
+          Int2Ptr->getOpcode() != Instruction::IntToPtr ||
+          Int2Ptr->getOperand(0)->getType()->getScalarSizeInBits() != BitWidth)
+        return V;
+
+      auto *Add = dyn_cast<AddOperator>(Int2Ptr->getOperand(0));
+      if (!Add)
+        return V;
+
+      auto *Ptr2Int = dyn_cast<PtrToIntOperator>(Add->getOperand(0));
+      auto *CI = dyn_cast<ConstantInt>(Add->getOperand(1));
+      if (!Ptr2Int || !CI)
+        return V;
+
+      Offset += CI->getValue();
+      V = Ptr2Int->getOperand(0);
     }
     assert(V->getType()->isPtrOrPtrVectorTy() && "Unexpected operand type!");
   } while (Visited.insert(V).second);
@@ -801,6 +843,9 @@ bool Value::canBeFreed() const {
       return false;
   }
 
+  if (isa<IntToPtrInst>(this) && getMetadata(LLVMContext::MD_nofree))
+    return false;
+
   const Function *F = nullptr;
   if (auto *I = dyn_cast<Instruction>(this))
     F = I->getFunction();
@@ -818,7 +863,7 @@ bool Value::canBeFreed() const {
   // which is why we need the explicit opt in on a per collector basis.
   if (!F->hasGC())
     return true;
-  
+
   const auto &GCName = F->getGC();
   if (GCName == "statepoint-example") {
     auto *PT = cast<PointerType>(this->getType());
@@ -855,7 +900,7 @@ uint64_t Value::getPointerDereferenceableBytes(const DataLayout &DL,
       if (Type *ArgMemTy = A->getPointeeInMemoryValueType()) {
         if (ArgMemTy->isSized()) {
           // FIXME: Why isn't this the type alloc size?
-          DerefBytes = DL.getTypeStoreSize(ArgMemTy).getKnownMinSize();
+          DerefBytes = DL.getTypeStoreSize(ArgMemTy).getKnownMinValue();
         }
       }
     }
@@ -899,7 +944,7 @@ uint64_t Value::getPointerDereferenceableBytes(const DataLayout &DL,
   } else if (auto *AI = dyn_cast<AllocaInst>(this)) {
     if (!AI->isArrayAllocation()) {
       DerefBytes =
-          DL.getTypeStoreSize(AI->getAllocatedType()).getKnownMinSize();
+          DL.getTypeStoreSize(AI->getAllocatedType()).getKnownMinValue();
       CanBeNull = false;
       CanBeFreed = false;
     }
@@ -907,7 +952,7 @@ uint64_t Value::getPointerDereferenceableBytes(const DataLayout &DL,
     if (GV->getValueType()->isSized() && !GV->hasExternalWeakLinkage()) {
       // TODO: Don't outright reject hasExternalWeakLinkage but set the
       // CanBeNull flag.
-      DerefBytes = DL.getTypeStoreSize(GV->getValueType()).getFixedSize();
+      DerefBytes = DL.getTypeStoreSize(GV->getValueType()).getFixedValue();
       CanBeNull = false;
       CanBeFreed = false;
     }
@@ -917,30 +962,27 @@ uint64_t Value::getPointerDereferenceableBytes(const DataLayout &DL,
 
 Align Value::getPointerAlignment(const DataLayout &DL) const {
   assert(getType()->isPointerTy() && "must be pointer");
-  if (auto *GO = dyn_cast<GlobalObject>(this)) {
-    if (isa<Function>(GO)) {
-      Align FunctionPtrAlign = DL.getFunctionPtrAlign().valueOrOne();
-      switch (DL.getFunctionPtrAlignType()) {
-      case DataLayout::FunctionPtrAlignType::Independent:
-        return FunctionPtrAlign;
-      case DataLayout::FunctionPtrAlignType::MultipleOfFunctionAlign:
-        return std::max(FunctionPtrAlign, GO->getAlign().valueOrOne());
-      }
-      llvm_unreachable("Unhandled FunctionPtrAlignType");
+  if (const Function *F = dyn_cast<Function>(this)) {
+    Align FunctionPtrAlign = DL.getFunctionPtrAlign().valueOrOne();
+    switch (DL.getFunctionPtrAlignType()) {
+    case DataLayout::FunctionPtrAlignType::Independent:
+      return FunctionPtrAlign;
+    case DataLayout::FunctionPtrAlignType::MultipleOfFunctionAlign:
+      return std::max(FunctionPtrAlign, F->getAlign().valueOrOne());
     }
-    const MaybeAlign Alignment(GO->getAlign());
+    llvm_unreachable("Unhandled FunctionPtrAlignType");
+  } else if (auto *GVar = dyn_cast<GlobalVariable>(this)) {
+    const MaybeAlign Alignment(GVar->getAlign());
     if (!Alignment) {
-      if (auto *GVar = dyn_cast<GlobalVariable>(GO)) {
-        Type *ObjectType = GVar->getValueType();
-        if (ObjectType->isSized()) {
-          // If the object is defined in the current Module, we'll be giving
-          // it the preferred alignment. Otherwise, we have to assume that it
-          // may only have the minimum ABI alignment.
-          if (GVar->isStrongDefinitionForLinker())
-            return DL.getPreferredAlign(GVar);
-          else
-            return DL.getABITypeAlign(ObjectType);
-        }
+      Type *ObjectType = GVar->getValueType();
+      if (ObjectType->isSized()) {
+        // If the object is defined in the current Module, we'll be giving
+        // it the preferred alignment. Otherwise, we have to assume that it
+        // may only have the minimum ABI alignment.
+        if (GVar->isStrongDefinitionForLinker())
+          return DL.getPreferredAlign(GVar);
+        else
+          return DL.getABITypeAlign(ObjectType);
       }
     }
     return Alignment.valueOrOne();
@@ -965,14 +1007,12 @@ Align Value::getPointerAlignment(const DataLayout &DL) const {
       ConstantInt *CI = mdconst::extract<ConstantInt>(MD->getOperand(0));
       return Align(CI->getLimitedValue());
     }
-  } else if (auto *CstPtr = dyn_cast<Constant>(this)) {
-    // Strip pointer casts to avoid creating unnecessary ptrtoint expression
-    // if the only "reduction" is combining a bitcast + ptrtoint.
-    CstPtr = CstPtr->stripPointerCasts();
-    if (auto *CstInt = dyn_cast_or_null<ConstantInt>(ConstantExpr::getPtrToInt(
-            const_cast<Constant *>(CstPtr), DL.getIntPtrType(getType()),
-            /*OnlyIfReduced=*/true))) {
-      size_t TrailingZeros = CstInt->getValue().countTrailingZeros();
+  } else if (auto *CE = dyn_cast<ConstantExpr>(this)) {
+    // Determine the alignment of inttoptr(C).
+    if (CE->getOpcode() == Instruction::IntToPtr &&
+        isa<ConstantInt>(CE->getOperand(0))) {
+      ConstantInt *IntPtr = cast<ConstantInt>(CE->getOperand(0));
+      size_t TrailingZeros = IntPtr->getValue().countr_zero();
       // While the actual alignment may be large, elsewhere we have
       // an arbitrary upper alignmet limit, so let's clamp to it.
       return Align(TrailingZeros < Value::MaxAlignmentExponent
@@ -981,6 +1021,78 @@ Align Value::getPointerAlignment(const DataLayout &DL) const {
     }
   }
   return Align(1);
+}
+
+static std::optional<int64_t>
+getOffsetFromIndex(const GEPOperator *GEP, unsigned Idx, const DataLayout &DL) {
+  // Skip over the first indices.
+  gep_type_iterator GTI = gep_type_begin(GEP);
+  for (unsigned i = 1; i != Idx; ++i, ++GTI)
+    /*skip along*/;
+
+  // Compute the offset implied by the rest of the indices.
+  int64_t Offset = 0;
+  for (unsigned i = Idx, e = GEP->getNumOperands(); i != e; ++i, ++GTI) {
+    ConstantInt *OpC = dyn_cast<ConstantInt>(GEP->getOperand(i));
+    if (!OpC)
+      return std::nullopt;
+    if (OpC->isZero())
+      continue; // No offset.
+
+    // Handle struct indices, which add their field offset to the pointer.
+    if (StructType *STy = GTI.getStructTypeOrNull()) {
+      Offset += DL.getStructLayout(STy)->getElementOffset(OpC->getZExtValue());
+      continue;
+    }
+
+    // Otherwise, we have a sequential type like an array or fixed-length
+    // vector. Multiply the index by the ElementSize.
+    TypeSize Size = GTI.getSequentialElementStride(DL);
+    if (Size.isScalable())
+      return std::nullopt;
+    Offset += Size.getFixedValue() * OpC->getSExtValue();
+  }
+
+  return Offset;
+}
+
+std::optional<int64_t> Value::getPointerOffsetFrom(const Value *Other,
+                                                   const DataLayout &DL) const {
+  const Value *Ptr1 = Other;
+  const Value *Ptr2 = this;
+  APInt Offset1(DL.getIndexTypeSizeInBits(Ptr1->getType()), 0);
+  APInt Offset2(DL.getIndexTypeSizeInBits(Ptr2->getType()), 0);
+  Ptr1 = Ptr1->stripAndAccumulateConstantOffsets(DL, Offset1, true);
+  Ptr2 = Ptr2->stripAndAccumulateConstantOffsets(DL, Offset2, true);
+
+  // Handle the trivial case first.
+  if (Ptr1 == Ptr2)
+    return Offset2.getSExtValue() - Offset1.getSExtValue();
+
+  const GEPOperator *GEP1 = dyn_cast<GEPOperator>(Ptr1);
+  const GEPOperator *GEP2 = dyn_cast<GEPOperator>(Ptr2);
+
+  // Right now we handle the case when Ptr1/Ptr2 are both GEPs with an identical
+  // base.  After that base, they may have some number of common (and
+  // potentially variable) indices.  After that they handle some constant
+  // offset, which determines their offset from each other.  At this point, we
+  // handle no other case.
+  if (!GEP1 || !GEP2 || GEP1->getOperand(0) != GEP2->getOperand(0) ||
+      GEP1->getSourceElementType() != GEP2->getSourceElementType())
+    return std::nullopt;
+
+  // Skip any common indices and track the GEP types.
+  unsigned Idx = 1;
+  for (; Idx != GEP1->getNumOperands() && Idx != GEP2->getNumOperands(); ++Idx)
+    if (GEP1->getOperand(Idx) != GEP2->getOperand(Idx))
+      break;
+
+  auto IOffset1 = getOffsetFromIndex(GEP1, Idx, DL);
+  auto IOffset2 = getOffsetFromIndex(GEP2, Idx, DL);
+  if (!IOffset1 || !IOffset2)
+    return std::nullopt;
+  return *IOffset2 - *IOffset1 + Offset2.getSExtValue() -
+         Offset1.getSExtValue();
 }
 
 const Value *Value::DoPHITranslation(const BasicBlock *CurBB,
@@ -1020,22 +1132,6 @@ bool Value::isSwiftError() const {
   if (!Alloca)
     return false;
   return Alloca->isSwiftError();
-}
-
-bool Value::isTransitiveUsedByMetadataOnly() const {
-  SmallVector<const User *, 32> WorkList(user_begin(), user_end());
-  SmallPtrSet<const User *, 32> Visited(user_begin(), user_end());
-  while (!WorkList.empty()) {
-    const User *U = WorkList.pop_back_val();
-    // If it is transitively used by a global value or a non-constant value,
-    // it's obviously not only used by metadata.
-    if (!isa<Constant>(U) || isa<GlobalValue>(U))
-      return false;
-    for (const User *UU : U->users())
-      if (Visited.insert(UU).second)
-        WorkList.push_back(UU);
-  }
-  return true;
 }
 
 //===----------------------------------------------------------------------===//

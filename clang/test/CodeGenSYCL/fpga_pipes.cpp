@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device %s -opaque-pointers -emit-llvm -triple spir64-unknown-unknown -disable-llvm-passes -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device %s -emit-llvm -triple spir64-unknown-unknown -disable-llvm-passes -o - | FileCheck %s
 
 using WPipeTy = __attribute__((pipe("write_only"))) const int;
 SYCL_EXTERNAL WPipeTy WPipeCreator();
@@ -49,9 +49,9 @@ __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
 
 int main() {
   kernel_single_task<class kernel_function>([]() {
-    // CHECK: alloca ptr
+    // CHECK: alloca target("spirv.Pipe", 1)
     WPipeTy wpipe = WPipeCreator();
-    // CHECK: alloca ptr
+    // CHECK: alloca target("spirv.Pipe", 0)
     RPipeTy rpipe = RPipeCreator();
     foo<WPipeTy>(wpipe);
     foo<RPipeTy>(rpipe);

@@ -17,19 +17,6 @@
 
 using namespace llvm;
 
-/// StrInStrNoCase - Portable version of strcasestr.  Locates the first
-/// occurrence of string 's1' in string 's2', ignoring case.  Returns
-/// the offset of s2 in s1 or npos if s2 cannot be found.
-StringRef::size_type llvm::StrInStrNoCase(StringRef s1, StringRef s2) {
-  size_t N = s2.size(), M = s1.size();
-  if (N > M)
-    return StringRef::npos;
-  for (size_t i = 0, e = M - N + 1; i != e; ++i)
-    if (s1.substr(i, N).equals_insensitive(s2))
-      return i;
-  return StringRef::npos;
-}
-
 /// getToken - This function extracts one token from source, ignoring any
 /// leading characters that appear in the Delimiters string, and ending the
 /// token at any of the characters that appear in the Delimiters string.  If
@@ -44,7 +31,7 @@ std::pair<StringRef, StringRef> llvm::getToken(StringRef Source,
   // Find the next occurrence of the delimiter.
   StringRef::size_type End = Source.find_first_of(Delimiters, Start);
 
-  return std::make_pair(Source.slice(Start, End), Source.substr(End));
+  return {Source.slice(Start, End), Source.substr(End)};
 }
 
 /// SplitString - Split up the specified string according to the specified
@@ -98,15 +85,16 @@ std::string llvm::convertToSnakeFromCamelCase(StringRef input) {
 
   std::string snakeCase;
   snakeCase.reserve(input.size());
-  for (char c : input) {
-    if (!std::isupper(c)) {
-      snakeCase.push_back(c);
-      continue;
-    }
-
-    if (!snakeCase.empty() && snakeCase.back() != '_')
+  auto check = [&input](size_t j, function_ref<bool(int)> predicate) {
+    return j < input.size() && predicate(input[j]);
+  };
+  for (size_t i = 0; i < input.size(); ++i) {
+    snakeCase.push_back(tolower(input[i]));
+    // Handles "runs" of capitals, such as in OPName -> op_name.
+    if (check(i, isupper) && check(i + 1, isupper) && check(i + 2, islower))
       snakeCase.push_back('_');
-    snakeCase.push_back(llvm::toLower(c));
+    if ((check(i, islower) || check(i, isdigit)) && check(i + 1, isupper))
+      snakeCase.push_back('_');
   }
   return snakeCase;
 }

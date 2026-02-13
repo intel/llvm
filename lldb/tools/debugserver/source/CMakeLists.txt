@@ -2,8 +2,9 @@ include(CheckCXXCompilerFlag)
 include(CheckLibraryExists)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/..)
 include_directories(${LLDB_SOURCE_DIR}/source)
-
 include_directories(MacOSX)
+include_directories(MacOSX/x86_64)
+include_directories(MacOSX/arm64)
 
 function(check_certificate identity result_valid)
   execute_process(
@@ -18,8 +19,8 @@ endfunction()
 
 function(get_debugserver_codesign_identity result)
   string(CONCAT not_found_help
-    "This will cause failures in the test suite."
-    "Pass '-DLLDB_USE_SYSTEM_DEBUGSERVER=ON' to use the system one instead."
+    "This will cause failures in the test suite. "
+    "Pass '-DLLDB_USE_SYSTEM_DEBUGSERVER=ON' to use the system one instead. "
     "See 'Code Signing on macOS' in the documentation."
   )
 
@@ -95,7 +96,7 @@ check_c_source_compiles(
     #else
     #error Not building for ARM64
     #endif
-    int main() { return 0; }
+    int main(void) { return 0; }
     "
     BUILDING_FOR_ARM64_OSX
 )
@@ -108,8 +109,6 @@ endif ()
 
 find_library(SECURITY_LIBRARY Security)
 
-add_subdirectory(MacOSX)
-
 set(LLDB_CODESIGN_IDENTITY "" CACHE STRING
     "Identity override for debugserver; see 'Code Signing on macOS' in the documentation (Darwin only)")
 
@@ -117,10 +116,6 @@ get_debugserver_codesign_identity(debugserver_codesign_identity)
 
 # Override locally, so the identity is used for targets created in this scope.
 set(LLVM_CODESIGNING_IDENTITY ${debugserver_codesign_identity})
-
-# Use the same identity later in the test suite.
-set_property(GLOBAL PROPERTY
-  LLDB_DEBUGSERVER_CODESIGN_IDENTITY ${debugserver_codesign_identity})
 
 if(APPLE)
   set(LIBCOMPRESSION compression)
@@ -159,6 +154,21 @@ endif()
 
 add_definitions(-DLLDB_USE_OS_LOG)
 
+# Make sure we have the macOS SDK root as mig needs it and will silently
+# fail to generate its output files without it.
+if(CMAKE_OSX_SYSROOT)
+  set(MIG_SYSROOT ${CMAKE_OSX_SYSROOT})
+else()
+  execute_process(COMMAND xcrun --show-sdk-path
+    OUTPUT_VARIABLE MIG_SYSROOT
+    ERROR_QUIET
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
+endif()
+
+if(NOT MIG_SYSROOT)
+  message(FATAL_ERROR "Unable to obtain sysroot required by mig (Mach Interface Generator). Set CMAKE_OSX_SYSROOT to explicitly specify a sysroot.")
+endif()
+
 if(${CMAKE_OSX_SYSROOT} MATCHES ".Internal.sdk$")
   message(STATUS "LLDB debugserver energy support is enabled")
   add_definitions(-DLLDB_ENERGY)
@@ -182,7 +192,7 @@ endif()
 separate_arguments(MIG_ARCH_FLAGS_SEPARTED NATIVE_COMMAND "${MIG_ARCH_FLAGS}")
 
 add_custom_command(OUTPUT ${generated_mach_interfaces}
-  VERBATIM COMMAND mig ${MIG_ARCH_FLAGS_SEPARTED} -isysroot ${CMAKE_OSX_SYSROOT} ${CMAKE_CURRENT_SOURCE_DIR}/MacOSX/dbgnub-mig.defs
+  VERBATIM COMMAND mig ${MIG_ARCH_FLAGS_SEPARTED} -isysroot ${MIG_SYSROOT} ${CMAKE_CURRENT_SOURCE_DIR}/MacOSX/dbgnub-mig.defs
   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/MacOSX/dbgnub-mig.defs
   )
 
@@ -208,7 +218,6 @@ set(lldbDebugserverCommonSources
   libdebugserver.cpp
   PseudoTerminal.cpp
   PThreadEvent.cpp
-  PThreadMutex.cpp
   RNBContext.cpp
   RNBRemote.cpp
   RNBServices.cpp
@@ -227,6 +236,8 @@ set(lldbDebugserverCommonSources
   MacOSX/MachVMMemory.cpp
   MacOSX/MachVMRegion.cpp
   MacOSX/OsLogger.cpp
+  MacOSX/arm64/DNBArchImplARM64.cpp
+  MacOSX/x86_64/DNBArchImplX86_64.cpp
   ${generated_mach_interfaces}
   ${DEBUGSERVER_VERS_GENERATED_FILE})
 
@@ -248,15 +259,14 @@ target_link_libraries(lldbDebugserverCommon
                       ${MOBILESERVICES_LIBRARY}
                       ${LOCKDOWN_LIBRARY}
                       ${CAROUSELSERVICES_LIBRARY}
-                      lldbDebugserverArchSupport
                       ${FOUNDATION_LIBRARY}
                       ${SECURITY_LIBRARY}
                       ${LIBCOMPRESSION}
                       ${ENERGY_LIBRARY})
 add_lldb_tool(debugserver ADD_TO_FRAMEWORK
   debugserver.cpp
-  LINK_LIBS lldbDebugserverCommon
   ENTITLEMENTS ${entitlements}
+  LINK_LIBS lldbDebugserverCommon
 )
 
 # Workaround for Xcode-specific code-signing behavior:
@@ -313,17 +323,15 @@ if(APPLE_EMBEDDED)
                       INTERFACE ${COCOA_LIBRARY}
                       ${CORE_FOUNDATION_LIBRARY}
                       ${FOUNDATION_LIBRARY}
-                      lldbDebugserverArchSupport
                       ${SECURITY_LIBRARY}
                       ${LIBCOMPRESSION})
 
   add_lldb_tool(debugserver-nonui
     debugserver.cpp
 
-    LINK_LIBS
-      lldbDebugserverCommon_NonUI
-
     ENTITLEMENTS
       ${entitlements}
+    LINK_LIBS
+      lldbDebugserverCommon_NonUI
     )
 endif()

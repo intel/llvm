@@ -1,12 +1,12 @@
-; REQUIRES: x86_64-linux
-; RUN: opt < %s -codegenprepare -mtriple=x86_64 -S -o %t 
+; REQUIRES: x86-registered-target
+; RUN: opt < %s -codegenprepare -mtriple=x86_64 -S -o %t
 ; RUN: FileCheck %s < %t --check-prefix=IR
 ; RUN: llc -mtriple=x86_64-- -stop-after=finalize-isel %t -o - | FileCheck %s --check-prefix=MIR
 
-define internal i32 @arc_compare() {
+define internal i32 @arc_compare(i1 %c) {
 entry:
   %0 = load i64, ptr undef, align 8
-  br i1 undef, label %return, label %if.end
+  br i1 %c, label %return, label %if.end
 
 if.end:                                           ; preds = %entry
 ;; Check pseudo probes are next to each other at the beginning of this block.

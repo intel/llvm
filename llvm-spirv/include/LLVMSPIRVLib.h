@@ -43,8 +43,11 @@
 
 #include "LLVMSPIRVOpts.h"
 
+#include <cstdint>
 #include <iostream>
+#include <optional>
 #include <string>
+#include <vector>
 
 namespace llvm {
 // Pass initialization functions need to be declared before inclusion of
@@ -57,7 +60,7 @@ void initializeSPIRVLowerBoolLegacyPass(PassRegistry &);
 void initializeSPIRVLowerConstExprLegacyPass(PassRegistry &);
 void initializeSPIRVLowerOCLBlocksLegacyPass(PassRegistry &);
 void initializeSPIRVLowerMemmoveLegacyPass(PassRegistry &);
-void initializeSPIRVLowerSaddIntrinsicsLegacyPass(PassRegistry &);
+void initializeSPIRVLowerLLVMIntrinsicLegacyPass(PassRegistry &);
 void initializeSPIRVRegularizeLLVMLegacyPass(PassRegistry &);
 void initializeSPIRVToOCL12LegacyPass(PassRegistry &);
 void initializeSPIRVToOCL20LegacyPass(PassRegistry &);
@@ -106,6 +109,39 @@ std::unique_ptr<SPIRVModule> readSpirvModule(std::istream &IS,
                                              const SPIRV::TranslatorOpts &Opts,
                                              std::string &ErrMsg);
 
+struct SPIRVModuleReport {
+  SPIRV::VersionNumber Version;
+  uint32_t MemoryModel;
+  uint32_t AddrModel;
+  std::vector<std::string> Extensions;
+  std::vector<std::string> ExtendedInstructionSets;
+  std::vector<uint32_t> Capabilities;
+};
+/// \brief Partially load SPIR-V from the stream and decode only selected
+/// instructions that are needed to retrieve general information
+/// about the module. If this call fails, readSPIRVModule is
+/// expected to fail as well.
+/// \returns nullopt on failure.
+std::optional<SPIRVModuleReport> getSpirvReport(std::istream &IS);
+std::optional<SPIRVModuleReport> getSpirvReport(std::istream &IS, int &ErrCode);
+
+struct SPIRVModuleTextReport {
+  std::string Version;
+  std::string MemoryModel;
+  std::string AddrModel;
+  std::vector<std::string> Extensions;
+  std::vector<std::string> ExtendedInstructionSets;
+  std::vector<std::string> Capabilities;
+};
+/// \brief Create a human-readable form of the report returned by a call to
+/// getSpirvReport by decoding its binary fields.
+/// \returns String with the human-readable report.
+SPIRVModuleTextReport formatSpirvReport(const SPIRVModuleReport &Report);
+
+/// \brief Returns the message associated with the error code.
+/// \returns empty string if no known error code is found.
+std::string getErrorMessage(int ErrCode);
+
 } // End namespace SPIRV
 
 namespace llvm {
@@ -132,7 +168,11 @@ bool readSpirv(LLVMContext &C, const SPIRV::TranslatorOpts &Opts,
 /// \brief Partially load SPIR-V from the stream and decode only instructions
 /// needed to get information about specialization constants.
 /// \returns true if succeeds.
-using SpecConstInfoTy = std::pair<uint32_t, uint32_t>;
+struct SpecConstInfoTy {
+  uint32_t ID;
+  uint32_t Size;
+  std::string Type;
+};
 bool getSpecConstInfo(std::istream &IS,
                       std::vector<SpecConstInfoTy> &SpecConstInfo);
 
@@ -185,8 +225,9 @@ ModulePass *createSPIRVLowerOCLBlocksLegacy();
 /// variable.
 ModulePass *createSPIRVLowerMemmoveLegacy();
 
-/// Create a pass for lowering llvm.sadd.with.overflow
-ModulePass *createSPIRVLowerSaddIntrinsicsLegacy();
+/// Create a pass for lowering llvm intrinsics
+ModulePass *
+createSPIRVLowerLLVMIntrinsicLegacy(const SPIRV::TranslatorOpts &Opts);
 
 /// Create a pass for regularize LLVM module to be translated to SPIR-V.
 ModulePass *createSPIRVRegularizeLLVMLegacy();

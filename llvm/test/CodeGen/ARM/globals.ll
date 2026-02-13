@@ -6,7 +6,7 @@
 @G = external global i32
 
 define i32 @test1() {
-	%tmp = load i32, i32* @G
+	%tmp = load i32, ptr @G
 	ret i32 %tmp
 }
 
@@ -69,4 +69,4 @@ define i32 @test1() {
 ; LinuxPIC: .p2align 2
 ; LinuxPIC: .LCPI0_0:
 ; LinuxPIC: .Ltmp0:
-; LinuxPIC:     .long   G(GOT_PREL)-((.LPC0_0+8)-.Ltmp0)
+; LinuxPIC:     .long   G(GOT_PREL)-(.LPC0_0+8-.Ltmp0)

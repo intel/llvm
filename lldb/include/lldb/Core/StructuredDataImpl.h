@@ -50,38 +50,28 @@ public:
   }
 
   Status GetAsJSON(Stream &stream) const {
-    Status error;
-
-    if (!m_data_sp) {
-      error.SetErrorString("No structured data.");
-      return error;
-    }
+    if (!m_data_sp)
+      return Status::FromErrorString("No structured data.");
 
     llvm::json::OStream s(stream.AsRawOstream());
     m_data_sp->Serialize(s);
-    return error;
+    return Status();
   }
 
   Status GetDescription(Stream &stream) const {
-    Status error;
-
-    if (!m_data_sp) {
-      error.SetErrorString("Cannot pretty print structured data: "
-                           "no data to print.");
-      return error;
-    }
+    if (!m_data_sp)
+      return Status::FromErrorString("Cannot pretty print structured data: "
+                                     "no data to print.");
 
     // Grab the plugin
     lldb::StructuredDataPluginSP plugin_sp = m_plugin_wp.lock();
 
     // If there's no plugin, call underlying data's dump method:
     if (!plugin_sp) {
-      if (!m_data_sp) {
-        error.SetErrorString("No data to describe.");
-        return error;
-      }
-      m_data_sp->Dump(stream, true);
-      return error;
+      if (!m_data_sp)
+        return Status::FromErrorString("No data to describe.");
+      m_data_sp->GetDescription(stream);
+      return Status();
     }
     // Get the data's description.
     return plugin_sp->GetDescription(m_data_sp, stream);
@@ -90,6 +80,41 @@ public:
   StructuredData::ObjectSP GetObjectSP() { return m_data_sp; }
 
   void SetObjectSP(const StructuredData::ObjectSP &obj) { m_data_sp = obj; }
+
+  void SetValueForKey(llvm::StringRef key,
+                      const StructuredData::ObjectSP &value) {
+    if (!m_data_sp ||
+        m_data_sp->GetType() != lldb::eStructuredDataTypeDictionary) {
+      m_data_sp = StructuredData::FromKeyValue(key, value);
+    } else if (StructuredData::Dictionary *dict =
+                   m_data_sp->GetAsDictionary()) {
+      dict->AddItem(key, value);
+    }
+  }
+
+  void SetUnsignedIntegerValue(uint64_t value) {
+    m_data_sp = StructuredData::FromInteger(value);
+  }
+
+  void SetSignedIntegerValue(int64_t value) {
+    m_data_sp = StructuredData::FromInteger(value);
+  }
+
+  void SetFloatValue(double value) {
+    m_data_sp = StructuredData::FromFloat(value);
+  }
+
+  void SetBooleanValue(bool value) {
+    m_data_sp = StructuredData::FromBoolean(value);
+  }
+
+  void SetStringValue(std::string value) {
+    m_data_sp = StructuredData::FromString(std::move(value));
+  }
+
+  void SetGenericValue(void *value) {
+    m_data_sp = StructuredData::FromGeneric(value);
+  }
 
   lldb::StructuredDataType GetType() const {
     return (m_data_sp ? m_data_sp->GetType() :
@@ -129,7 +154,13 @@ public:
   }
 
   uint64_t GetIntegerValue(uint64_t fail_value = 0) const {
-    return (m_data_sp ? m_data_sp->GetIntegerValue(fail_value) : fail_value);
+    return (m_data_sp ? m_data_sp->GetUnsignedIntegerValue(fail_value)
+                      : fail_value);
+  }
+
+  int64_t GetIntegerValue(int64_t fail_value = 0) const {
+    return (m_data_sp ? m_data_sp->GetSignedIntegerValue(fail_value)
+                      : fail_value);
   }
 
   double GetFloatValue(double fail_value = 0.0) const {
@@ -153,6 +184,17 @@ public:
       return (::snprintf(s, 1, "%s", result.data()));
     }
     return (::snprintf(dst, dst_len, "%s", result.data()));
+  }
+
+  void *GetGenericValue() const {
+    if (!m_data_sp)
+      return nullptr;
+
+    StructuredData::Generic *generic_data = m_data_sp->GetAsGeneric();
+    if (!generic_data)
+      return nullptr;
+
+    return generic_data->GetValue();
   }
 
   StructuredData::ObjectSP GetObjectSP() const { return m_data_sp; }

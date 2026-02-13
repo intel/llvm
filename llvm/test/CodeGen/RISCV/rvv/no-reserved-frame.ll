@@ -16,7 +16,6 @@ define signext i32 @foo(i32 signext %aa) #0 {
 ; CHECK-NEXT:    addi s0, sp, 96
 ; CHECK-NEXT:    .cfi_def_cfa s0, 0
 ; CHECK-NEXT:    csrr a1, vlenb
-; CHECK-NEXT:    slli a1, a1, 1
 ; CHECK-NEXT:    sub sp, sp, a1
 ; CHECK-NEXT:    andi sp, sp, -16
 ; CHECK-NEXT:    mv s1, sp
@@ -28,24 +27,29 @@ define signext i32 @foo(i32 signext %aa) #0 {
 ; CHECK-NEXT:    lw a6, 24(s1)
 ; CHECK-NEXT:    lw a7, 20(s1)
 ; CHECK-NEXT:    lw t1, 16(s1)
-; CHECK-NEXT:    lw a1, 12(s1)
-; CHECK-NEXT:    lw t2, 8(s1)
+; CHECK-NEXT:    lw t2, 12(s1)
+; CHECK-NEXT:    lw t3, 8(s1)
 ; CHECK-NEXT:    sw a0, 52(s1)
 ; CHECK-NEXT:    sw a0, 48(s1)
 ; CHECK-NEXT:    addi sp, sp, -32
-; CHECK-NEXT:    sd t2, 16(sp)
-; CHECK-NEXT:    sd a1, 8(sp)
 ; CHECK-NEXT:    addi a1, s1, 48
 ; CHECK-NEXT:    sd t1, 0(sp)
+; CHECK-NEXT:    sd t2, 8(sp)
+; CHECK-NEXT:    sd t3, 16(sp)
 ; CHECK-NEXT:    mv a0, t0
-; CHECK-NEXT:    call gfunc@plt
+; CHECK-NEXT:    call gfunc
 ; CHECK-NEXT:    addi sp, sp, 32
 ; CHECK-NEXT:    li a0, 0
 ; CHECK-NEXT:    addi sp, s0, -96
+; CHECK-NEXT:    .cfi_def_cfa sp, 96
 ; CHECK-NEXT:    ld ra, 88(sp) # 8-byte Folded Reload
 ; CHECK-NEXT:    ld s0, 80(sp) # 8-byte Folded Reload
 ; CHECK-NEXT:    ld s1, 72(sp) # 8-byte Folded Reload
+; CHECK-NEXT:    .cfi_restore ra
+; CHECK-NEXT:    .cfi_restore s0
+; CHECK-NEXT:    .cfi_restore s1
 ; CHECK-NEXT:    addi sp, sp, 96
+; CHECK-NEXT:    .cfi_def_cfa_offset 0
 ; CHECK-NEXT:    ret
 entry:
   %aa.addr = alloca i32, align 4
@@ -61,24 +65,24 @@ entry:
   %i = alloca i32, align 4
   %j = alloca i32, align 4
   %local_v = alloca <vscale x 2 x i32>, align 4
-  store i32 %aa, i32* %aa.addr, align 4
-  %0 = load i32, i32* %aa.addr, align 4
-  store i32 %0, i32* %local, align 4
-  %1 = load i32, i32* %a, align 4
-  %2 = load i32, i32* %b, align 4
-  %3 = load i32, i32* %c, align 4
-  %4 = load i32, i32* %d, align 4
-  %5 = load i32, i32* %e, align 4
-  %6 = load i32, i32* %f, align 4
-  %7 = load i32, i32* %g, align 4
-  %8 = load i32, i32* %h, align 4
-  %9 = load i32, i32* %i, align 4
-  %10 = load i32, i32* %j, align 4
-  call void @gfunc(i32 signext %1, i32* %local, i32 signext %2, i32 signext %3, i32 signext %4, i32 signext %5, i32 signext %6, i32 signext %7, i32 %8, i32 %9, i32 %10)
+  store i32 %aa, ptr %aa.addr, align 4
+  %0 = load i32, ptr %aa.addr, align 4
+  store i32 %0, ptr %local, align 4
+  %1 = load i32, ptr %a, align 4
+  %2 = load i32, ptr %b, align 4
+  %3 = load i32, ptr %c, align 4
+  %4 = load i32, ptr %d, align 4
+  %5 = load i32, ptr %e, align 4
+  %6 = load i32, ptr %f, align 4
+  %7 = load i32, ptr %g, align 4
+  %8 = load i32, ptr %h, align 4
+  %9 = load i32, ptr %i, align 4
+  %10 = load i32, ptr %j, align 4
+  call void @gfunc(i32 signext %1, ptr %local, i32 signext %2, i32 signext %3, i32 signext %4, i32 signext %5, i32 signext %6, i32 signext %7, i32 %8, i32 %9, i32 %10)
   ret i32 0
 }
 
-declare void @gfunc(i32 signext, i32*, i32 signext, i32 signext, i32 signext, i32 signext, i32 signext, i32 signext, i32, i32, i32) #1
+declare void @gfunc(i32 signext, ptr, i32 signext, i32 signext, i32 signext, i32 signext, i32 signext, i32 signext, i32, i32, i32) #1
 
 attributes #0 = { "stackrealign" }
 attributes #1 = { "stackrealign" }

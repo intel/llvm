@@ -47,9 +47,9 @@
 #ifndef LLVM_IR_GCSTRATEGY_H
 #define LLVM_IR_GCSTRATEGY_H
 
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Registry.h"
+#include <optional>
 #include <string>
 
 namespace llvm {
@@ -64,19 +64,25 @@ class Type;
 class GCStrategy {
 private:
   friend class GCModuleInfo;
+  friend class CollectorMetadataAnalysis;
 
   std::string Name;
 
 protected:
   bool UseStatepoints = false; /// Uses gc.statepoints as opposed to gc.roots,
-                               /// if set, none of the other options can be
-                               /// anything but their default values.
+                               /// if set, NeededSafePoints and UsesMetadata
+                               /// should be left at their default values.
+
+  bool UseRS4GC = false; /// If UseStatepoints is set, this determines whether
+                         /// the RewriteStatepointsForGC pass should rewrite
+                         /// this function's calls.
+                         /// This should only be set if UseStatepoints is set.
 
   bool NeededSafePoints = false;    ///< if set, calls are inferred to be safepoints
   bool UsesMetadata = false;     ///< If set, backend must emit metadata tables.
 
 public:
-  GCStrategy();
+  LLVM_ABI GCStrategy();
   virtual ~GCStrategy() = default;
 
   /// Return the name of the GC strategy.  This is the value of the collector
@@ -92,11 +98,20 @@ public:
 
   /// If the type specified can be reliably distinguished, returns true for
   /// pointers to GC managed locations and false for pointers to non-GC
-  /// managed locations.  Note a GCStrategy can always return 'None' (i.e. an
-  /// empty optional indicating it can't reliably distinguish.
-  virtual Optional<bool> isGCManagedPointer(const Type *Ty) const {
-    return None;
+  /// managed locations.  Note a GCStrategy can always return 'std::nullopt'
+  /// (i.e. an empty optional indicating it can't reliably distinguish.
+  virtual std::optional<bool> isGCManagedPointer(const Type *Ty) const {
+    return std::nullopt;
   }
+
+  /// Returns true if the RewriteStatepointsForGC pass should run on functions
+  /// using this GC.
+  bool useRS4GC() const {
+    assert((!UseRS4GC || useStatepoints()) &&
+           "GC strategy has useRS4GC but not useStatepoints set");
+    return UseRS4GC;
+  }
+
   ///@}
 
   /// If set, appropriate metadata tables must be emitted by the back-end
@@ -128,8 +143,10 @@ public:
 /// GCMetadataPrinterRegistery as well.
 using GCRegistry = Registry<GCStrategy>;
 
+extern template class LLVM_TEMPLATE_ABI Registry<GCStrategy>;
+
 /// Lookup the GCStrategy object associated with the given gc name.
-std::unique_ptr<GCStrategy> getGCStrategy(const StringRef Name);
+LLVM_ABI std::unique_ptr<GCStrategy> getGCStrategy(const StringRef Name);
 
 } // end namespace llvm
 

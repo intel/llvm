@@ -92,63 +92,6 @@ struct ilist_traits : public ilist_node_traits<NodeTy> {};
 /// Const traits should never be instantiated.
 template <typename Ty> struct ilist_traits<const Ty> {};
 
-namespace ilist_detail {
-
-template <class T> T &make();
-
-/// Type trait to check for a traits class that has a getNext member (as a
-/// canary for any of the ilist_nextprev_traits API).
-template <class TraitsT, class NodeT> struct HasGetNext {
-  typedef char Yes[1];
-  typedef char No[2];
-  template <size_t N> struct SFINAE {};
-
-  template <class U>
-  static Yes &test(U *I, decltype(I->getNext(&make<NodeT>())) * = nullptr);
-  template <class> static No &test(...);
-
-public:
-  static const bool value = sizeof(test<TraitsT>(nullptr)) == sizeof(Yes);
-};
-
-/// Type trait to check for a traits class that has a createSentinel member (as
-/// a canary for any of the ilist_sentinel_traits API).
-template <class TraitsT> struct HasCreateSentinel {
-  typedef char Yes[1];
-  typedef char No[2];
-
-  template <class U>
-  static Yes &test(U *I, decltype(I->createSentinel()) * = nullptr);
-  template <class> static No &test(...);
-
-public:
-  static const bool value = sizeof(test<TraitsT>(nullptr)) == sizeof(Yes);
-};
-
-/// Type trait to check for a traits class that has a createNode member.
-/// Allocation should be managed in a wrapper class, instead of in
-/// ilist_traits.
-template <class TraitsT, class NodeT> struct HasCreateNode {
-  typedef char Yes[1];
-  typedef char No[2];
-  template <size_t N> struct SFINAE {};
-
-  template <class U>
-  static Yes &test(U *I, decltype(I->createNode(make<NodeT>())) * = 0);
-  template <class> static No &test(...);
-
-public:
-  static const bool value = sizeof(test<TraitsT>(nullptr)) == sizeof(Yes);
-};
-
-template <class TraitsT, class NodeT> struct HasObsoleteCustomization {
-  static const bool value = HasGetNext<TraitsT, NodeT>::value ||
-                            HasCreateSentinel<TraitsT>::value ||
-                            HasCreateNode<TraitsT, NodeT>::value;
-};
-
-} // end namespace ilist_detail
-
 //===----------------------------------------------------------------------===//
 //
 /// A wrapper around an intrusive list with callbacks and non-intrusive
@@ -165,30 +108,23 @@ template <class TraitsT, class NodeT> struct HasObsoleteCustomization {
 /// list.
 template <class IntrusiveListT, class TraitsT>
 class iplist_impl : public TraitsT, IntrusiveListT {
-  typedef IntrusiveListT base_list_type;
+  using base_list_type = IntrusiveListT;
 
 public:
-  typedef typename base_list_type::pointer pointer;
-  typedef typename base_list_type::const_pointer const_pointer;
-  typedef typename base_list_type::reference reference;
-  typedef typename base_list_type::const_reference const_reference;
-  typedef typename base_list_type::value_type value_type;
-  typedef typename base_list_type::size_type size_type;
-  typedef typename base_list_type::difference_type difference_type;
-  typedef typename base_list_type::iterator iterator;
-  typedef typename base_list_type::const_iterator const_iterator;
-  typedef typename base_list_type::reverse_iterator reverse_iterator;
-  typedef
-      typename base_list_type::const_reverse_iterator const_reverse_iterator;
+  using pointer = typename base_list_type::pointer;
+  using const_pointer = typename base_list_type::const_pointer;
+  using reference = typename base_list_type::reference;
+  using const_reference = typename base_list_type::const_reference;
+  using value_type = typename base_list_type::value_type;
+  using size_type = typename base_list_type::size_type;
+  using difference_type = typename base_list_type::difference_type;
+  using iterator = typename base_list_type::iterator;
+  using const_iterator = typename base_list_type::const_iterator;
+  using reverse_iterator = typename base_list_type::reverse_iterator;
+  using const_reverse_iterator =
+      typename base_list_type::const_reverse_iterator;
 
 private:
-  // TODO: Drop this assertion and the transitive type traits anytime after
-  // v4.0 is branched (i.e,. keep them for one release to help out-of-tree code
-  // update).
-  static_assert(
-      !ilist_detail::HasObsoleteCustomization<TraitsT, value_type>::value,
-      "ilist customization points have changed!");
-
   static bool op_less(const_reference L, const_reference R) { return L < R; }
   static bool op_equal(const_reference L, const_reference R) { return L == R; }
 

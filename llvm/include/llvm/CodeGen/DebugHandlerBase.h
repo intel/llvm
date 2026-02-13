@@ -14,12 +14,12 @@
 #ifndef LLVM_CODEGEN_DEBUGHANDLERBASE_H
 #define LLVM_CODEGEN_DEBUGHANDLERBASE_H
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/CodeGen/AsmPrinterHandler.h"
 #include "llvm/CodeGen/DbgEntityHistoryCalculator.h"
 #include "llvm/CodeGen/LexicalScopes.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DebugLoc.h"
+#include <optional>
 
 namespace llvm {
 
@@ -30,21 +30,21 @@ class MachineModuleInfo;
 /// Represents the location at which a variable is stored.
 struct DbgVariableLocation {
   /// Base register.
-  unsigned Register;
+  MCRegister Register;
 
   /// Chain of offsetted loads necessary to load the value if it lives in
   /// memory. Every load except for the last is pointer-sized.
   SmallVector<int64_t, 1> LoadChain;
 
   /// Present if the location is part of a larger variable.
-  llvm::Optional<llvm::DIExpression::FragmentInfo> FragmentInfo;
+  std::optional<llvm::DIExpression::FragmentInfo> FragmentInfo;
 
   /// Extract a VariableLocation from a MachineInstr.
   /// This will only work if Instruction is a debug value instruction
   /// and the associated DIExpression is in one of the supported forms.
   /// If these requirements are not met, the returned Optional will not
   /// have a value.
-  static Optional<DbgVariableLocation>
+  static std::optional<DbgVariableLocation>
   extractFromMachineInstruction(const MachineInstr &Instruction);
 };
 
@@ -55,10 +55,10 @@ protected:
   DebugHandlerBase(AsmPrinter *A);
 
   /// Target of debug info emission.
-  AsmPrinter *Asm;
+  AsmPrinter *Asm = nullptr;
 
   /// Collected machine module information.
-  MachineModuleInfo *MMI;
+  MachineModuleInfo *MMI = nullptr;
 
   /// Previous instruction's location information. This is used to
   /// determine label location to indicate scope boundaries in debug info.
@@ -70,7 +70,10 @@ protected:
 
   /// This location indicates end of function prologue and beginning of
   /// function body.
-  DebugLoc PrologEndLoc;
+  const MachineInstr *PrologEndLoc;
+
+  /// This block includes epilogue instructions.
+  const MachineBasicBlock *EpilogBeginBlock = nullptr;
 
   /// If nonnull, stores the current machine instruction we're processing.
   const MachineInstr *CurMI = nullptr;
@@ -98,12 +101,12 @@ protected:
 
   /// Ensure that a label will be emitted before MI.
   void requestLabelBeforeInsn(const MachineInstr *MI) {
-    LabelsBeforeInsn.insert(std::make_pair(MI, nullptr));
+    LabelsBeforeInsn.try_emplace(MI);
   }
 
   /// Ensure that a label will be emitted after MI.
   void requestLabelAfterInsn(const MachineInstr *MI) {
-    LabelsAfterInsn.insert(std::make_pair(MI, nullptr));
+    LabelsAfterInsn.try_emplace(MI);
   }
 
   virtual void beginFunctionImpl(const MachineFunction *MF) = 0;
@@ -115,6 +118,8 @@ private:
 
   // AsmPrinterHandler overrides.
 public:
+  ~DebugHandlerBase() override;
+
   void beginModule(Module *M) override;
 
   void beginInstruction(const MachineInstr *MI) override;
@@ -123,8 +128,8 @@ public:
   void beginFunction(const MachineFunction *MF) override;
   void endFunction(const MachineFunction *MF) override;
 
-  void beginBasicBlock(const MachineBasicBlock &MBB) override;
-  void endBasicBlock(const MachineBasicBlock &MBB) override;
+  void beginBasicBlockSection(const MachineBasicBlock &MBB) override;
+  void endBasicBlockSection(const MachineBasicBlock &MBB) override;
 
   /// Return Label preceding the instruction.
   MCSymbol *getLabelBeforeInsn(const MachineInstr *MI);
@@ -139,6 +144,8 @@ public:
   static bool isUnsignedDIType(const DIType *Ty);
 
   const InstructionOrdering &getInstOrdering() const { return InstOrdering; }
+
+  const LexicalScopes &getLexicalScopes() const { return LScopes; }
 };
 
 } // namespace llvm

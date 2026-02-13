@@ -20,37 +20,133 @@
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/StmtVisitor.h"
-#include "clang/Analysis/FlowSensitive/ControlFlowContext.h"
+#include "clang/AST/Type.h"
+#include "clang/Analysis/FlowSensitive/ASTOps.h"
+#include "clang/Analysis/FlowSensitive/AdornedCFG.h"
+#include "clang/Analysis/FlowSensitive/DataflowAnalysisContext.h"
 #include "clang/Analysis/FlowSensitive/DataflowEnvironment.h"
 #include "clang/Analysis/FlowSensitive/NoopAnalysis.h"
+#include "clang/Analysis/FlowSensitive/RecordOps.h"
+#include "clang/Analysis/FlowSensitive/StorageLocation.h"
 #include "clang/Analysis/FlowSensitive/Value.h"
 #include "clang/Basic/Builtins.h"
+#include "clang/Basic/LLVM.h"
 #include "clang/Basic/OperatorKinds.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Casting.h"
+#include <assert.h>
 #include <cassert>
-#include <memory>
-#include <tuple>
+
+#define DEBUG_TYPE "dataflow"
 
 namespace clang {
 namespace dataflow {
 
+const Environment *StmtToEnvMap::getEnvironment(const Stmt &S) const {
+  const CFGBlock *Block = ACFG.blockForStmt(S);
+  if (Block == nullptr) {
+    assert(false);
+    return nullptr;
+  }
+  if (!ACFG.isBlockReachable(*Block))
+    return nullptr;
+  if (Block->getBlockID() == CurBlockID)
+    return &CurState.Env;
+  const auto &State = BlockToState[Block->getBlockID()];
+  if (!(State))
+    return nullptr;
+  return &State->Env;
+}
+
 static BoolValue &evaluateBooleanEquality(const Expr &LHS, const Expr &RHS,
                                           Environment &Env) {
-  if (auto *LHSValue =
-          dyn_cast_or_null<BoolValue>(Env.getValue(LHS, SkipPast::Reference)))
-    if (auto *RHSValue =
-            dyn_cast_or_null<BoolValue>(Env.getValue(RHS, SkipPast::Reference)))
-      return Env.makeIff(*LHSValue, *RHSValue);
+  Value *LHSValue = Env.getValue(LHS);
+  Value *RHSValue = Env.getValue(RHS);
+
+  // When two unsupported values are compared, both are nullptr. Only supported
+  // values should evaluate to equal.
+  if (LHSValue == RHSValue && LHSValue)
+    return Env.getBoolLiteralValue(true);
+
+  // Special case: `NullPtrLiteralExpr == itself`. When both sides are untyped
+  // nullptr, they do not have an assigned Value, but they compare equal.
+  if (LHS.getType()->isNullPtrType() && RHS.getType()->isNullPtrType())
+    return Env.getBoolLiteralValue(true);
+
+  if (auto *LHSBool = dyn_cast_or_null<BoolValue>(LHSValue))
+    if (auto *RHSBool = dyn_cast_or_null<BoolValue>(RHSValue))
+      return Env.makeIff(*LHSBool, *RHSBool);
+
+  if (auto *LHSPtr = dyn_cast_or_null<PointerValue>(LHSValue))
+    if (auto *RHSPtr = dyn_cast_or_null<PointerValue>(RHSValue))
+      // If the storage locations are the same, the pointers definitely compare
+      // the same. If the storage locations are different, they may still alias,
+      // so we fall through to the case below that returns an atom.
+      if (&LHSPtr->getPointeeLoc() == &RHSPtr->getPointeeLoc())
+        return Env.getBoolLiteralValue(true);
 
   return Env.makeAtomicBoolValue();
 }
 
+static BoolValue &unpackValue(BoolValue &V, Environment &Env) {
+  if (auto *Top = llvm::dyn_cast<TopBoolValue>(&V)) {
+    auto &A = Env.getDataflowAnalysisContext().arena();
+    return A.makeBoolValue(A.makeAtomRef(Top->getAtom()));
+  }
+  return V;
+}
+
+// Unpacks the value (if any) associated with `E` and updates `E` to the new
+// value, if any unpacking occured. Also, does the lvalue-to-rvalue conversion,
+// by skipping past the reference.
+static Value *maybeUnpackLValueExpr(const Expr &E, Environment &Env) {
+  auto *Loc = Env.getStorageLocation(E);
+  if (Loc == nullptr)
+    return nullptr;
+  auto *Val = Env.getValue(*Loc);
+
+  auto *B = dyn_cast_or_null<BoolValue>(Val);
+  if (B == nullptr)
+    return Val;
+
+  auto &UnpackedVal = unpackValue(*B, Env);
+  if (&UnpackedVal == Val)
+    return Val;
+  Env.setValue(*Loc, UnpackedVal);
+  return &UnpackedVal;
+}
+
+static void propagateValue(const Expr &From, const Expr &To, Environment &Env) {
+  if (From.getType()->isRecordType())
+    return;
+  if (auto *Val = Env.getValue(From))
+    Env.setValue(To, *Val);
+}
+
+static void propagateStorageLocation(const Expr &From, const Expr &To,
+                                     Environment &Env) {
+  if (auto *Loc = Env.getStorageLocation(From))
+    Env.setStorageLocation(To, *Loc);
+}
+
+// Propagates the value or storage location of `From` to `To` in cases where
+// `From` may be either a glvalue or a prvalue. `To` must be a glvalue iff
+// `From` is a glvalue.
+static void propagateValueOrStorageLocation(const Expr &From, const Expr &To,
+                                            Environment &Env) {
+  assert(From.isGLValue() == To.isGLValue());
+  if (From.isGLValue())
+    propagateStorageLocation(From, To, Env);
+  else
+    propagateValue(From, To, Env);
+}
+
+namespace {
+
 class TransferVisitor : public ConstStmtVisitor<TransferVisitor> {
 public:
   TransferVisitor(const StmtToEnvMap &StmtToEnv, Environment &Env,
-                  TransferOptions Options)
-      : StmtToEnv(StmtToEnv), Env(Env), Options(Options) {}
+                  Environment::ValueModel &Model)
+      : StmtToEnv(StmtToEnv), Env(Env), Model(Model) {}
 
   void VisitBinaryOperator(const BinaryOperator *S) {
     const Expr *LHS = S->getLHS();
@@ -59,13 +155,20 @@ public:
     const Expr *RHS = S->getRHS();
     assert(RHS != nullptr);
 
+    // Do compound assignments up-front, as there are so many of them and we
+    // don't want to list all of them in the switch statement below.
+    // To avoid generating unnecessary values, we don't create a new value but
+    // instead leave it to the specific analysis to do this if desired.
+    if (S->isCompoundAssignmentOp())
+      propagateStorageLocation(*S->getLHS(), *S, Env);
+
     switch (S->getOpcode()) {
     case BO_Assign: {
-      auto *LHSLoc = Env.getStorageLocation(*LHS, SkipPast::Reference);
+      auto *LHSLoc = Env.getStorageLocation(*LHS);
       if (LHSLoc == nullptr)
         break;
 
-      auto *RHSVal = Env.getValue(*RHS, SkipPast::Reference);
+      auto *RHSVal = Env.getValue(*RHS);
       if (RHSVal == nullptr)
         break;
 
@@ -81,26 +184,21 @@ public:
       BoolValue &LHSVal = getLogicOperatorSubExprValue(*LHS);
       BoolValue &RHSVal = getLogicOperatorSubExprValue(*RHS);
 
-      auto &Loc = Env.createStorageLocation(*S);
-      Env.setStorageLocation(*S, Loc);
       if (S->getOpcode() == BO_LAnd)
-        Env.setValue(Loc, Env.makeAnd(LHSVal, RHSVal));
+        Env.setValue(*S, Env.makeAnd(LHSVal, RHSVal));
       else
-        Env.setValue(Loc, Env.makeOr(LHSVal, RHSVal));
+        Env.setValue(*S, Env.makeOr(LHSVal, RHSVal));
       break;
     }
     case BO_NE:
     case BO_EQ: {
       auto &LHSEqRHSValue = evaluateBooleanEquality(*LHS, *RHS, Env);
-      auto &Loc = Env.createStorageLocation(*S);
-      Env.setStorageLocation(*S, Loc);
-      Env.setValue(Loc, S->getOpcode() == BO_EQ ? LHSEqRHSValue
-                                                : Env.makeNot(LHSEqRHSValue));
+      Env.setValue(*S, S->getOpcode() == BO_EQ ? LHSEqRHSValue
+                                               : Env.makeNot(LHSEqRHSValue));
       break;
     }
     case BO_Comma: {
-      if (auto *Loc = Env.getStorageLocation(*RHS, SkipPast::None))
-        Env.setStorageLocation(*S, *Loc);
+      propagateValueOrStorageLocation(*RHS, *S, Env);
       break;
     }
     default:
@@ -109,19 +207,26 @@ public:
   }
 
   void VisitDeclRefExpr(const DeclRefExpr *S) {
-    assert(S->getDecl() != nullptr);
-    auto *DeclLoc = Env.getStorageLocation(*S->getDecl(), SkipPast::None);
+    const ValueDecl *VD = S->getDecl();
+    assert(VD != nullptr);
+
+    // Some `DeclRefExpr`s aren't glvalues, so we can't associate them with a
+    // `StorageLocation`, and there's also no sensible `Value` that we can
+    // assign to them. Examples:
+    // - Non-static member variables
+    // - Non static member functions
+    //   Note: Member operators are an exception to this, but apparently only
+    //   if the `DeclRefExpr` is used within the callee of a
+    //   `CXXOperatorCallExpr`. In other cases, for example when applying the
+    //   address-of operator, the `DeclRefExpr` is a prvalue.
+    if (!S->isGLValue())
+      return;
+
+    auto *DeclLoc = Env.getStorageLocation(*VD);
     if (DeclLoc == nullptr)
       return;
 
-    if (S->getDecl()->getType()->isReferenceType()) {
-      Env.setStorageLocation(*S, *DeclLoc);
-    } else {
-      auto &Loc = Env.createStorageLocation(*S);
-      auto &Val = Env.takeOwnership(std::make_unique<ReferenceValue>(*DeclLoc));
-      Env.setStorageLocation(*S, Loc);
-      Env.setValue(Loc, Val);
-    }
+    Env.setStorageLocation(*S, *DeclLoc);
   }
 
   void VisitDeclStmt(const DeclStmt *S) {
@@ -129,78 +234,63 @@ public:
     // is safe.
     const auto &D = *cast<VarDecl>(S->getSingleDecl());
 
+    ProcessVarDecl(D);
+  }
+
+  void ProcessVarDecl(const VarDecl &D) {
     // Static local vars are already initialized in `Environment`.
     if (D.hasGlobalStorage())
       return;
 
-    auto &Loc = Env.createStorageLocation(D);
-    Env.setStorageLocation(D, Loc);
-
-    const Expr *InitExpr = D.getInit();
-    if (InitExpr == nullptr) {
-      // No initializer expression - associate `Loc` with a new value.
-      if (Value *Val = Env.createValue(D.getType()))
-        Env.setValue(Loc, *Val);
+    // If this is the holding variable for a `BindingDecl`, we may already
+    // have a storage location set up -- so check. (See also explanation below
+    // where we process the `BindingDecl`.)
+    if (D.getType()->isReferenceType() && Env.getStorageLocation(D) != nullptr)
       return;
-    }
 
-    if (D.getType()->isReferenceType()) {
-      // Initializing a reference variable - do not create a reference to
-      // reference.
-      if (auto *InitExprLoc =
-              Env.getStorageLocation(*InitExpr, SkipPast::Reference)) {
-        auto &Val =
-            Env.takeOwnership(std::make_unique<ReferenceValue>(*InitExprLoc));
-        Env.setValue(Loc, Val);
-      }
-    } else if (auto *InitExprVal = Env.getValue(*InitExpr, SkipPast::None)) {
-      Env.setValue(Loc, *InitExprVal);
-    }
+    assert(Env.getStorageLocation(D) == nullptr);
 
-    if (Env.getValue(Loc) == nullptr) {
-      // We arrive here in (the few) cases where an expression is intentionally
-      // "uninterpreted". There are two ways to handle this situation: propagate
-      // the status, so that uninterpreted initializers result in uninterpreted
-      // variables, or provide a default value. We choose the latter so that
-      // later refinements of the variable can be used for reasoning about the
-      // surrounding code.
-      //
-      // FIXME. If and when we interpret all language cases, change this to
-      // assert that `InitExpr` is interpreted, rather than supplying a default
-      // value (assuming we don't update the environment API to return
-      // references).
-      if (Value *Val = Env.createValue(D.getType()))
-        Env.setValue(Loc, *Val);
-    }
+    Env.setStorageLocation(D, Env.createObject(D));
 
+    // `DecompositionDecl` must be handled after we've interpreted the loc
+    // itself, because the binding expression refers back to the
+    // `DecompositionDecl` (even though it has no written name).
     if (const auto *Decomp = dyn_cast<DecompositionDecl>(&D)) {
       // If VarDecl is a DecompositionDecl, evaluate each of its bindings. This
       // needs to be evaluated after initializing the values in the storage for
       // VarDecl, as the bindings refer to them.
       // FIXME: Add support for ArraySubscriptExpr.
-      // FIXME: Consider adding AST nodes that are used for structured bindings
-      // to the CFG.
+      // FIXME: Consider adding AST nodes used in BindingDecls to the CFG.
       for (const auto *B : Decomp->bindings()) {
-        auto *ME = dyn_cast_or_null<MemberExpr>(B->getBinding());
-        if (ME == nullptr)
-          continue;
+        if (auto *ME = dyn_cast_or_null<MemberExpr>(B->getBinding())) {
+          auto *DE = dyn_cast_or_null<DeclRefExpr>(ME->getBase());
+          if (DE == nullptr)
+            continue;
 
-        auto *DE = dyn_cast_or_null<DeclRefExpr>(ME->getBase());
-        if (DE == nullptr)
-          continue;
+          // ME and its base haven't been visited because they aren't included
+          // in the statements of the CFG basic block.
+          VisitDeclRefExpr(DE);
+          VisitMemberExpr(ME);
 
-        // ME and its base haven't been visited because they aren't included in
-        // the statements of the CFG basic block.
-        VisitDeclRefExpr(DE);
-        VisitMemberExpr(ME);
-
-        if (auto *Loc = Env.getStorageLocation(*ME, SkipPast::Reference))
-          Env.setStorageLocation(*B, *Loc);
+          if (auto *Loc = Env.getStorageLocation(*ME))
+            Env.setStorageLocation(*B, *Loc);
+        } else if (auto *VD = B->getHoldingVar()) {
+          // Holding vars are used to back the `BindingDecl`s of tuple-like
+          // types. The holding var declarations appear after the
+          // `DecompositionDecl`, so we have to explicitly process them here
+          // to know their storage location. They will be processed a second
+          // time when we visit their `VarDecl`s, so we have code that protects
+          // against this above.
+          ProcessVarDecl(*VD);
+          auto *VDLoc = Env.getStorageLocation(*VD);
+          assert(VDLoc != nullptr);
+          Env.setStorageLocation(*B, *VDLoc);
+        }
       }
     }
   }
 
-  void VisitImplicitCastExpr(const ImplicitCastExpr *S) {
+  void VisitCastExpr(const CastExpr *S) {
     const Expr *SubExpr = S->getSubExpr();
     assert(SubExpr != nullptr);
 
@@ -209,29 +299,81 @@ public:
       // This cast creates a new, boolean value from the integral value. We
       // model that with a fresh value in the environment, unless it's already a
       // boolean.
-      auto &Loc = Env.createStorageLocation(*S);
-      Env.setStorageLocation(*S, Loc);
-      if (auto *SubExprVal = dyn_cast_or_null<BoolValue>(
-              Env.getValue(*SubExpr, SkipPast::Reference)))
-        Env.setValue(Loc, *SubExprVal);
+      if (auto *SubExprVal =
+              dyn_cast_or_null<BoolValue>(Env.getValue(*SubExpr)))
+        Env.setValue(*S, *SubExprVal);
       else
         // FIXME: If integer modeling is added, then update this code to create
         // the boolean based on the integer model.
-        Env.setValue(Loc, Env.makeAtomicBoolValue());
+        Env.setValue(*S, Env.makeAtomicBoolValue());
       break;
     }
 
     case CK_LValueToRValue: {
-      auto *SubExprVal = Env.getValue(*SubExpr, SkipPast::Reference);
+      // When an L-value is used as an R-value, it may result in sharing, so we
+      // need to unpack any nested `Top`s.
+      auto *SubExprVal = maybeUnpackLValueExpr(*SubExpr, Env);
       if (SubExprVal == nullptr)
         break;
 
-      auto &ExprLoc = Env.createStorageLocation(*S);
-      Env.setStorageLocation(*S, ExprLoc);
-      Env.setValue(ExprLoc, *SubExprVal);
+      Env.setValue(*S, *SubExprVal);
       break;
     }
 
+    case CK_BaseToDerived: {
+      // This is a cast of (single-layer) pointer or reference to a record type.
+      // We should now model the fields for the derived type.
+
+      // Get the RecordStorageLocation for the record object underneath.
+      RecordStorageLocation *Loc = nullptr;
+      if (S->getType()->isPointerType()) {
+        auto *PV = Env.get<PointerValue>(*SubExpr);
+        assert(PV != nullptr);
+        if (PV == nullptr)
+          break;
+        Loc = cast<RecordStorageLocation>(&PV->getPointeeLoc());
+      } else {
+        assert(S->getType()->isRecordType());
+        if (SubExpr->isGLValue()) {
+          Loc = Env.get<RecordStorageLocation>(*SubExpr);
+        } else {
+          Loc = &Env.getResultObjectLocation(*SubExpr);
+        }
+      }
+      if (!Loc) {
+        // Nowhere to add children or propagate from, so we're done.
+        break;
+      }
+
+      // Get the derived record type underneath the reference or pointer.
+      QualType Derived = S->getType().getNonReferenceType();
+      if (Derived->isPointerType()) {
+        Derived = Derived->getPointeeType();
+      }
+
+      // Add children to the storage location for fields (including synthetic
+      // fields) of the derived type and initialize their values.
+      for (const FieldDecl *Field :
+           Env.getDataflowAnalysisContext().getModeledFields(Derived)) {
+        assert(Field != nullptr);
+        QualType FieldType = Field->getType();
+        if (FieldType->isReferenceType()) {
+          Loc->addChild(*Field, nullptr);
+        } else {
+          Loc->addChild(*Field, &Env.createStorageLocation(FieldType));
+        }
+
+        for (const auto &Entry :
+             Env.getDataflowAnalysisContext().getSyntheticFields(Derived)) {
+          Loc->addSyntheticField(Entry.getKey(),
+                                 Env.createStorageLocation(Entry.getValue()));
+        }
+      }
+      Env.initializeFieldsWithValues(*Loc, Derived);
+
+      // Fall through to propagate SubExpr's StorageLocation to the CastExpr.
+      [[fallthrough]];
+    }
     case CK_IntegralCast:
       // FIXME: This cast creates a new integral value from the
       // subexpression. But, because we don't model integers, we don't
@@ -239,31 +381,40 @@ public:
       // modeling is added, then update this code to create a fresh location and
       // value.
     case CK_UncheckedDerivedToBase:
+    case CK_DerivedToBase:
     case CK_ConstructorConversion:
     case CK_UserDefinedConversion:
-      // FIXME: Add tests that excercise CK_UncheckedDerivedToBase,
-      // CK_ConstructorConversion, and CK_UserDefinedConversion.
     case CK_NoOp: {
       // FIXME: Consider making `Environment::getStorageLocation` skip noop
-      // expressions (this and other similar expressions in the file) instead of
-      // assigning them storage locations.
-      auto *SubExprLoc = Env.getStorageLocation(*SubExpr, SkipPast::None);
-      if (SubExprLoc == nullptr)
-        break;
-
-      Env.setStorageLocation(*S, *SubExprLoc);
+      // expressions (this and other similar expressions in the file) instead
+      // of assigning them storage locations.
+      propagateValueOrStorageLocation(*SubExpr, *S, Env);
       break;
     }
-    case CK_NullToPointer:
-    case CK_NullToMemberPointer: {
-      auto &Loc = Env.createStorageLocation(S->getType());
-      Env.setStorageLocation(*S, Loc);
-
+    case CK_NullToPointer: {
       auto &NullPointerVal =
           Env.getOrCreateNullPointerValue(S->getType()->getPointeeType());
-      Env.setValue(Loc, NullPointerVal);
+      Env.setValue(*S, NullPointerVal);
       break;
     }
+    case CK_NullToMemberPointer:
+      // FIXME: Implement pointers to members. For now, don't associate a value
+      // with this expression.
+      break;
+    case CK_FunctionToPointerDecay: {
+      StorageLocation *PointeeLoc = Env.getStorageLocation(*SubExpr);
+      if (PointeeLoc == nullptr)
+        break;
+
+      Env.setValue(*S, Env.create<PointerValue>(*PointeeLoc));
+      break;
+    }
+    case CK_BuiltinFnToFnPtr:
+      // Despite its name, the result type of `BuiltinFnToFnPtr` is a function,
+      // not a function pointer. In addition, builtin functions can only be
+      // called directly; it is not legal to take their address. We therefore
+      // don't need to create a value or storage location for them.
+      break;
     default:
       break;
     }
@@ -275,45 +426,49 @@ public:
 
     switch (S->getOpcode()) {
     case UO_Deref: {
-      // Skip past a reference to handle dereference of a dependent pointer.
-      const auto *SubExprVal = cast_or_null<PointerValue>(
-          Env.getValue(*SubExpr, SkipPast::Reference));
+      const auto *SubExprVal = Env.get<PointerValue>(*SubExpr);
       if (SubExprVal == nullptr)
         break;
 
-      auto &Loc = Env.createStorageLocation(*S);
-      Env.setStorageLocation(*S, Loc);
-      Env.setValue(Loc, Env.takeOwnership(std::make_unique<ReferenceValue>(
-                            SubExprVal->getPointeeLoc())));
+      Env.setStorageLocation(*S, SubExprVal->getPointeeLoc());
       break;
     }
     case UO_AddrOf: {
-      // Do not form a pointer to a reference. If `SubExpr` is assigned a
-      // `ReferenceValue` then form a value that points to the location of its
-      // pointee.
-      StorageLocation *PointeeLoc =
-          Env.getStorageLocation(*SubExpr, SkipPast::Reference);
-      if (PointeeLoc == nullptr)
+      // FIXME: Model pointers to members.
+      if (S->getType()->isMemberPointerType())
         break;
 
-      auto &PointerLoc = Env.createStorageLocation(*S);
-      auto &PointerVal =
-          Env.takeOwnership(std::make_unique<PointerValue>(*PointeeLoc));
-      Env.setStorageLocation(*S, PointerLoc);
-      Env.setValue(PointerLoc, PointerVal);
+      if (StorageLocation *PointeeLoc = Env.getStorageLocation(*SubExpr))
+        Env.setValue(*S, Env.create<PointerValue>(*PointeeLoc));
       break;
     }
     case UO_LNot: {
-      auto *SubExprVal =
-          dyn_cast_or_null<BoolValue>(Env.getValue(*SubExpr, SkipPast::None));
+      auto *SubExprVal = dyn_cast_or_null<BoolValue>(Env.getValue(*SubExpr));
       if (SubExprVal == nullptr)
         break;
 
-      auto &ExprLoc = Env.createStorageLocation(*S);
-      Env.setStorageLocation(*S, ExprLoc);
-      Env.setValue(ExprLoc, Env.makeNot(*SubExprVal));
+      Env.setValue(*S, Env.makeNot(*SubExprVal));
       break;
     }
+    case UO_PreInc:
+    case UO_PreDec:
+      // Propagate the storage location and clear out any value associated with
+      // it (to represent the fact that the value has definitely changed).
+      // To avoid generating unnecessary values, we leave it to the specific
+      // analysis to create a new value if desired.
+      propagateStorageLocation(*S->getSubExpr(), *S, Env);
+      if (StorageLocation *Loc = Env.getStorageLocation(*S->getSubExpr()))
+        Env.clearValue(*Loc);
+      break;
+    case UO_PostInc:
+    case UO_PostDec:
+      // Propagate the old value, then clear out any value associated with the
+      // storage location (to represent the fact that the value has definitely
+      // changed). See above for rationale.
+      propagateValue(*S->getSubExpr(), *S, Env);
+      if (StorageLocation *Loc = Env.getStorageLocation(*S->getSubExpr()))
+        Env.clearValue(*Loc);
+      break;
     default:
       break;
     }
@@ -326,29 +481,47 @@ public:
       // `this` expression's pointee.
       return;
 
-    auto &Loc = Env.createStorageLocation(*S);
-    Env.setStorageLocation(*S, Loc);
-    Env.setValue(Loc, Env.takeOwnership(
-                          std::make_unique<PointerValue>(*ThisPointeeLoc)));
+    Env.setValue(*S, Env.create<PointerValue>(*ThisPointeeLoc));
+  }
+
+  void VisitCXXNewExpr(const CXXNewExpr *S) {
+    if (Value *Val = Env.createValue(S->getType()))
+      Env.setValue(*S, *Val);
+  }
+
+  void VisitCXXDeleteExpr(const CXXDeleteExpr *S) {
+    // Empty method.
+    // We consciously don't do anything on deletes.  Diagnosing double deletes
+    // (for example) should be done by a specific analysis, not by the
+    // framework.
   }
 
   void VisitReturnStmt(const ReturnStmt *S) {
+    if (!Env.getDataflowAnalysisContext().getOptions().ContextSensitiveOpts)
+      return;
+
     auto *Ret = S->getRetValue();
     if (Ret == nullptr)
       return;
 
-    auto *Val = Env.getValue(*Ret, SkipPast::None);
-    if (Val == nullptr)
-      return;
+    if (Ret->isPRValue()) {
+      if (Ret->getType()->isRecordType())
+        return;
 
-    // FIXME: Support reference-type returns.
-    if (Val->getKind() == Value::Kind::Reference)
-      return;
+      auto *Val = Env.getValue(*Ret);
+      if (Val == nullptr)
+        return;
 
-    auto *Loc = Env.getReturnStorageLocation();
-    assert(Loc != nullptr);
-    // FIXME: Model NRVO.
-    Env.setValue(*Loc, *Val);
+      // FIXME: Model NRVO.
+      Env.setReturnValue(Val);
+    } else {
+      auto *Loc = Env.getStorageLocation(*Ret);
+      if (Loc == nullptr)
+        return;
+
+      // FIXME: Model NRVO.
+      Env.setReturnStorageLocation(Loc);
+    }
   }
 
   void VisitMemberExpr(const MemberExpr *S) {
@@ -359,43 +532,39 @@ public:
     if (Member->isFunctionOrFunctionTemplate())
       return;
 
+    // FIXME: if/when we add support for modeling enums, use that support here.
+    if (isa<EnumConstantDecl>(Member))
+      return;
+
     if (auto *D = dyn_cast<VarDecl>(Member)) {
       if (D->hasGlobalStorage()) {
-        auto *VarDeclLoc = Env.getStorageLocation(*D, SkipPast::None);
+        auto *VarDeclLoc = Env.getStorageLocation(*D);
         if (VarDeclLoc == nullptr)
           return;
 
-        if (VarDeclLoc->getType()->isReferenceType()) {
-          Env.setStorageLocation(*S, *VarDeclLoc);
-        } else {
-          auto &Loc = Env.createStorageLocation(*S);
-          Env.setStorageLocation(*S, Loc);
-          Env.setValue(Loc, Env.takeOwnership(
-                                std::make_unique<ReferenceValue>(*VarDeclLoc)));
-        }
+        Env.setStorageLocation(*S, *VarDeclLoc);
         return;
       }
     }
 
-    // The receiver can be either a value or a pointer to a value. Skip past the
-    // indirection to handle both cases.
-    auto *BaseLoc = cast_or_null<AggregateStorageLocation>(
-        Env.getStorageLocation(*S->getBase(), SkipPast::ReferenceThenPointer));
+    RecordStorageLocation *BaseLoc = getBaseObjectLocation(*S, Env);
     if (BaseLoc == nullptr)
       return;
 
-    // FIXME: Add support for union types.
-    if (BaseLoc->getType()->isUnionType())
+    auto *MemberLoc = BaseLoc->getChild(*Member);
+    if (MemberLoc == nullptr)
       return;
+    Env.setStorageLocation(*S, *MemberLoc);
+  }
 
-    auto &MemberLoc = BaseLoc->getChild(*Member);
-    if (MemberLoc.getType()->isReferenceType()) {
-      Env.setStorageLocation(*S, MemberLoc);
-    } else {
-      auto &Loc = Env.createStorageLocation(*S);
-      Env.setStorageLocation(*S, Loc);
-      Env.setValue(
-          Loc, Env.takeOwnership(std::make_unique<ReferenceValue>(MemberLoc)));
+  void VisitCXXDefaultArgExpr(const CXXDefaultArgExpr *S) {
+    const Expr *ArgExpr = S->getExpr();
+    assert(ArgExpr != nullptr);
+    propagateValueOrStorageLocation(*ArgExpr, *S, Env);
+
+    if (S->isPRValue() && S->getType()->isRecordType()) {
+      auto &Loc = Env.getResultObjectLocation(*S);
+      Env.initializeFieldsWithValues(Loc);
     }
   }
 
@@ -403,47 +572,57 @@ public:
     const Expr *InitExpr = S->getExpr();
     assert(InitExpr != nullptr);
 
-    Value *InitExprVal = Env.getValue(*InitExpr, SkipPast::None);
-    if (InitExprVal == nullptr)
+    // If this is a prvalue of record type, the handler for `*InitExpr` (if one
+    // exists) will initialize the result object; there is no value to propgate
+    // here.
+    if (S->getType()->isRecordType() && S->isPRValue())
       return;
 
-    const FieldDecl *Field = S->getField();
-    assert(Field != nullptr);
-
-    auto &ThisLoc =
-        *cast<AggregateStorageLocation>(Env.getThisPointeeStorageLocation());
-    auto &FieldLoc = ThisLoc.getChild(*Field);
-    Env.setValue(FieldLoc, *InitExprVal);
+    propagateValueOrStorageLocation(*InitExpr, *S, Env);
   }
 
   void VisitCXXConstructExpr(const CXXConstructExpr *S) {
     const CXXConstructorDecl *ConstructorDecl = S->getConstructor();
     assert(ConstructorDecl != nullptr);
 
+    // `CXXConstructExpr` can have array type if default-initializing an array
+    // of records. We don't handle this specifically beyond potentially inlining
+    // the call.
+    if (!S->getType()->isRecordType()) {
+      transferInlineCall(S, ConstructorDecl);
+      return;
+    }
+
+    RecordStorageLocation &Loc = Env.getResultObjectLocation(*S);
+
     if (ConstructorDecl->isCopyOrMoveConstructor()) {
-      assert(S->getNumArgs() == 1);
+      // It is permissible for a copy/move constructor to have additional
+      // parameters as long as they have default arguments defined for them.
+      assert(S->getNumArgs() != 0);
 
       const Expr *Arg = S->getArg(0);
       assert(Arg != nullptr);
 
-      if (S->isElidable()) {
-        auto *ArgLoc = Env.getStorageLocation(*Arg, SkipPast::Reference);
-        if (ArgLoc == nullptr)
-          return;
+      auto *ArgLoc = Env.get<RecordStorageLocation>(*Arg);
+      if (ArgLoc == nullptr)
+        return;
 
-        Env.setStorageLocation(*S, *ArgLoc);
-      } else if (auto *ArgVal = Env.getValue(*Arg, SkipPast::Reference)) {
-        auto &Loc = Env.createStorageLocation(*S);
-        Env.setStorageLocation(*S, Loc);
-        Env.setValue(Loc, *ArgVal);
-      }
+      // Even if the copy/move constructor call is elidable, we choose to copy
+      // the record in all cases (which isn't wrong, just potentially not
+      // optimal).
+      //
+      // To handle cases of base class initializers in constructors, where a
+      // sibling derived class can be used to initialize a shared-base-class
+      // subobject through a DerivedToBase cast, intentionally copy only the
+      // parts of `ArgLoc` that are part of the base class being initialized.
+      // This is necessary because the type of `Loc` in these cases is the
+      // derived type ultimately being constructed, not the type of the base
+      // class subobject.
+      copyRecord(*ArgLoc, Loc, Env, S->getType());
       return;
     }
 
-    auto &Loc = Env.createStorageLocation(*S);
-    Env.setStorageLocation(*S, Loc);
-    if (Value *Val = Env.createValue(S->getType()))
-      Env.setValue(Loc, *Val);
+    Env.initializeFieldsWithValues(Loc, S->getType());
 
     transferInlineCall(S, ConstructorDecl);
   }
@@ -459,46 +638,60 @@ public:
       assert(Arg1 != nullptr);
 
       // Evaluate only copy and move assignment operators.
-      auto *Arg0Type = Arg0->getType()->getUnqualifiedDesugaredType();
-      auto *Arg1Type = Arg1->getType()->getUnqualifiedDesugaredType();
-      if (Arg0Type != Arg1Type)
+      const auto *Method =
+          dyn_cast_or_null<CXXMethodDecl>(S->getDirectCallee());
+      if (!Method)
+        return;
+      if (!Method->isCopyAssignmentOperator() &&
+          !Method->isMoveAssignmentOperator())
         return;
 
-      auto *ObjectLoc = Env.getStorageLocation(*Arg0, SkipPast::Reference);
-      if (ObjectLoc == nullptr)
+      RecordStorageLocation *LocSrc = nullptr;
+      if (Arg1->isPRValue()) {
+        LocSrc = &Env.getResultObjectLocation(*Arg1);
+      } else {
+        LocSrc = Env.get<RecordStorageLocation>(*Arg1);
+      }
+      auto *LocDst = Env.get<RecordStorageLocation>(*Arg0);
+
+      if (LocSrc == nullptr || LocDst == nullptr)
         return;
 
-      auto *Val = Env.getValue(*Arg1, SkipPast::Reference);
-      if (Val == nullptr)
-        return;
+      // If the destination object here is of a derived class, `Arg0` may be a
+      // cast of that object to a base class, and the source object may be of a
+      // sibling derived class. To handle these cases, ensure we are copying
+      // only the fields for `Arg0`'s type, not the type of the underlying
+      // `RecordStorageLocation`.
+      copyRecord(*LocSrc, *LocDst, Env, Arg0->getType());
 
-      // Assign a value to the storage location of the object.
-      Env.setValue(*ObjectLoc, *Val);
+      // The assignment operator can have an arbitrary return type. We model the
+      // return value only if the return type is the same as or a base class of
+      // the destination type.
+      if (S->getType().getCanonicalType().getUnqualifiedType() !=
+          LocDst->getType().getCanonicalType().getUnqualifiedType()) {
+        auto ReturnDecl = S->getType()->getAsCXXRecordDecl();
+        auto DstDecl = LocDst->getType()->getAsCXXRecordDecl();
+        if (ReturnDecl == nullptr || DstDecl == nullptr)
+          return;
+        if (!DstDecl->isDerivedFrom(ReturnDecl))
+          return;
+      }
 
-      // FIXME: Add a test for the value of the whole expression.
-      // Assign a storage location for the whole expression.
-      Env.setStorageLocation(*S, *ObjectLoc);
+      if (S->isGLValue())
+        Env.setStorageLocation(*S, *LocDst);
+      else
+        copyRecord(*LocDst, Env.getResultObjectLocation(*S), Env);
+
+      return;
     }
+
+    // `CXXOperatorCallExpr` can be a prvalue. Call `VisitCallExpr`() to
+    // initialize the prvalue's fields with values.
+    VisitCallExpr(S);
   }
 
-  void VisitCXXFunctionalCastExpr(const CXXFunctionalCastExpr *S) {
-    if (S->getCastKind() == CK_ConstructorConversion) {
-      const Expr *SubExpr = S->getSubExpr();
-      assert(SubExpr != nullptr);
-
-      auto *SubExprLoc = Env.getStorageLocation(*SubExpr, SkipPast::None);
-      if (SubExprLoc == nullptr)
-        return;
-
-      Env.setStorageLocation(*S, *SubExprLoc);
-    }
-  }
-
-  void VisitCXXTemporaryObjectExpr(const CXXTemporaryObjectExpr *S) {
-    auto &Loc = Env.createStorageLocation(*S);
-    Env.setStorageLocation(*S, Loc);
-    if (Value *Val = Env.createValue(S->getType()))
-      Env.setValue(Loc, *Val);
+  void VisitCXXRewrittenBinaryOperator(const CXXRewrittenBinaryOperator *RBO) {
+    propagateValue(*RBO->getSemanticForm(), *RBO, Env);
   }
 
   void VisitCallExpr(const CallExpr *S) {
@@ -511,7 +704,7 @@ public:
       const Expr *Arg = S->getArg(0);
       assert(Arg != nullptr);
 
-      auto *ArgLoc = Env.getStorageLocation(*Arg, SkipPast::None);
+      auto *ArgLoc = Env.getStorageLocation(*Arg);
       if (ArgLoc == nullptr)
         return;
 
@@ -521,14 +714,19 @@ public:
                    Builtin::BI__builtin_expect) {
       assert(S->getNumArgs() > 0);
       assert(S->getArg(0) != nullptr);
-      // `__builtin_expect` returns by-value, so strip away any potential
-      // references in the argument.
-      auto *ArgLoc = Env.getStorageLocation(*S->getArg(0), SkipPast::Reference);
-      if (ArgLoc == nullptr)
+      auto *ArgVal = Env.getValue(*S->getArg(0));
+      if (ArgVal == nullptr)
         return;
-      Env.setStorageLocation(*S, *ArgLoc);
+      Env.setValue(*S, *ArgVal);
     } else if (const FunctionDecl *F = S->getDirectCallee()) {
       transferInlineCall(S, F);
+
+      // If this call produces a prvalue of record type, initialize its fields
+      // with values.
+      if (S->getType()->isRecordType() && S->isPRValue()) {
+        RecordStorageLocation &Loc = Env.getResultObjectLocation(*S);
+        Env.initializeFieldsWithValues(Loc);
+      }
     }
   }
 
@@ -536,78 +734,155 @@ public:
     const Expr *SubExpr = S->getSubExpr();
     assert(SubExpr != nullptr);
 
-    auto *SubExprLoc = Env.getStorageLocation(*SubExpr, SkipPast::None);
-    if (SubExprLoc == nullptr)
+    StorageLocation &Loc = Env.createStorageLocation(*S);
+    Env.setStorageLocation(*S, Loc);
+
+    if (SubExpr->getType()->isRecordType())
+      // Nothing else left to do -- we initialized the record when transferring
+      // `SubExpr`.
       return;
 
-    Env.setStorageLocation(*S, *SubExprLoc);
+    if (Value *SubExprVal = Env.getValue(*SubExpr))
+      Env.setValue(Loc, *SubExprVal);
   }
 
   void VisitCXXBindTemporaryExpr(const CXXBindTemporaryExpr *S) {
     const Expr *SubExpr = S->getSubExpr();
     assert(SubExpr != nullptr);
 
-    auto *SubExprLoc = Env.getStorageLocation(*SubExpr, SkipPast::None);
-    if (SubExprLoc == nullptr)
-      return;
-
-    Env.setStorageLocation(*S, *SubExprLoc);
-  }
-
-  void VisitCXXStaticCastExpr(const CXXStaticCastExpr *S) {
-    if (S->getCastKind() == CK_NoOp) {
-      const Expr *SubExpr = S->getSubExpr();
-      assert(SubExpr != nullptr);
-
-      auto *SubExprLoc = Env.getStorageLocation(*SubExpr, SkipPast::None);
-      if (SubExprLoc == nullptr)
-        return;
-
-      Env.setStorageLocation(*S, *SubExprLoc);
-    }
+    propagateValue(*SubExpr, *S, Env);
   }
 
   void VisitConditionalOperator(const ConditionalOperator *S) {
-    // FIXME: Revisit this once flow conditions are added to the framework. For
-    // `a = b ? c : d` we can add `b => a == c && !b => a == d` to the flow
-    // condition.
-    auto &Loc = Env.createStorageLocation(*S);
-    Env.setStorageLocation(*S, Loc);
-    if (Value *Val = Env.createValue(S->getType()))
-      Env.setValue(Loc, *Val);
+    const Environment *TrueEnv = StmtToEnv.getEnvironment(*S->getTrueExpr());
+    const Environment *FalseEnv = StmtToEnv.getEnvironment(*S->getFalseExpr());
+
+    if (TrueEnv == nullptr || FalseEnv == nullptr) {
+      // If the true or false branch is dead, we may not have an environment for
+      // it. We could handle this specifically by forwarding the value or
+      // location of the live branch, but this case is rare enough that this
+      // probably isn't worth the additional complexity.
+      return;
+    }
+
+    if (S->isGLValue()) {
+      StorageLocation *TrueLoc = TrueEnv->getStorageLocation(*S->getTrueExpr());
+      StorageLocation *FalseLoc =
+          FalseEnv->getStorageLocation(*S->getFalseExpr());
+      if (TrueLoc == FalseLoc && TrueLoc != nullptr) {
+        Env.setStorageLocation(*S, *TrueLoc);
+      } else if (!S->getType()->isRecordType()) {
+        // Ideally, we would have something like an "alias set" to say that the
+        // result StorageLocation can be either of the locations from the
+        // TrueEnv or FalseEnv. Then, when this ConditionalOperator is
+        // (a) used in an LValueToRValue cast, the value is the join of all of
+        //     the values in the alias set.
+        // (b) or, used in an assignment to the resulting LValue, the assignment
+        //     *may* update all of the locations in the alias set.
+        // For now, we do the simpler thing of creating a new StorageLocation
+        // and joining the values right away, handling only case (a).
+        // Otherwise, the dataflow framework needs to be updated be able to
+        // represent alias sets and weak updates (for the "may").
+        if (Value *Val = Environment::joinValues(
+                S->getType(), TrueEnv->getValue(*S->getTrueExpr()), *TrueEnv,
+                FalseEnv->getValue(*S->getFalseExpr()), *FalseEnv, Env,
+                Model)) {
+          StorageLocation &Loc = Env.createStorageLocation(*S);
+          Env.setStorageLocation(*S, Loc);
+          Env.setValue(Loc, *Val);
+        }
+      }
+    } else if (!S->getType()->isRecordType()) {
+      // The conditional operator can evaluate to either of the values of the
+      // two branches. To model this, join these two values together to yield
+      // the result of the conditional operator.
+      // Note: Most joins happen in `computeBlockInputState()`, but this case is
+      // different:
+      // - `computeBlockInputState()` (which in turn calls `Environment::join()`
+      //   joins values associated with the _same_ expression or storage
+      //   location, then associates the joined value with that expression or
+      //   storage location. This join has nothing to do with transfer --
+      //   instead, it joins together the results of performing transfer on two
+      //   different blocks.
+      // - Here, we join values associated with _different_ expressions (the
+      //   true and false branch), then associate the joined value with a third
+      //   expression (the conditional operator itself). This join is what it
+      //   means to perform transfer on the conditional operator.
+      if (Value *Val = Environment::joinValues(
+              S->getType(), TrueEnv->getValue(*S->getTrueExpr()), *TrueEnv,
+              FalseEnv->getValue(*S->getFalseExpr()), *FalseEnv, Env, Model))
+        Env.setValue(*S, *Val);
+    }
   }
 
   void VisitInitListExpr(const InitListExpr *S) {
     QualType Type = S->getType();
 
-    auto &Loc = Env.createStorageLocation(*S);
-    Env.setStorageLocation(*S, Loc);
+    if (!Type->isRecordType()) {
+      // Until array initialization is implemented, we skip arrays and don't
+      // need to care about cases where `getNumInits() > 1`.
+      if (!Type->isArrayType() && S->getNumInits() == 1)
+        propagateValueOrStorageLocation(*S->getInit(0), *S, Env);
+      return;
+    }
 
-    auto *Val = Env.createValue(Type);
-    if (Val == nullptr)
+    // If the initializer list is transparent, there's nothing to do.
+    if (S->isSemanticForm() && S->isTransparent())
       return;
 
-    Env.setValue(Loc, *Val);
+    RecordStorageLocation &Loc = Env.getResultObjectLocation(*S);
 
-    if (Type->isStructureOrClassType()) {
-      for (auto It : llvm::zip(Type->getAsRecordDecl()->fields(), S->inits())) {
-        const FieldDecl *Field = std::get<0>(It);
-        assert(Field != nullptr);
+    // Initialization of base classes and fields of record type happens when we
+    // visit the nested `CXXConstructExpr` or `InitListExpr` for that base class
+    // or field. We therefore only need to deal with fields of non-record type
+    // here.
 
-        const Expr *Init = std::get<1>(It);
-        assert(Init != nullptr);
+    RecordInitListHelper InitListHelper(S);
 
-        if (Value *InitVal = Env.getValue(*Init, SkipPast::None))
-          cast<StructValue>(Val)->setChild(*Field, *InitVal);
+    for (auto [Field, Init] : InitListHelper.field_inits()) {
+      if (Field->getType()->isRecordType())
+        continue;
+      if (Field->getType()->isReferenceType()) {
+        assert(Field->getType().getCanonicalType()->getPointeeType() ==
+               Init->getType().getCanonicalType());
+        Loc.setChild(*Field, &Env.createObject(Field->getType(), Init));
+        continue;
+      }
+      assert(Field->getType().getCanonicalType().getUnqualifiedType() ==
+             Init->getType().getCanonicalType().getUnqualifiedType());
+      StorageLocation *FieldLoc = Loc.getChild(*Field);
+      // Locations for non-reference fields must always be non-null.
+      assert(FieldLoc != nullptr);
+      Value *Val = Env.getValue(*Init);
+      if (Val == nullptr && isa<ImplicitValueInitExpr>(Init) &&
+          Init->getType()->isPointerType())
+        Val =
+            &Env.getOrCreateNullPointerValue(Init->getType()->getPointeeType());
+      if (Val == nullptr)
+        Val = Env.createValue(Field->getType());
+      if (Val != nullptr)
+        Env.setValue(*FieldLoc, *Val);
+    }
+
+    for (const auto &[FieldName, FieldLoc] : Loc.synthetic_fields()) {
+      QualType FieldType = FieldLoc->getType();
+      if (FieldType->isRecordType()) {
+        Env.initializeFieldsWithValues(*cast<RecordStorageLocation>(FieldLoc));
+      } else {
+        if (Value *Val = Env.createValue(FieldType))
+          Env.setValue(*FieldLoc, *Val);
       }
     }
+
     // FIXME: Implement array initialization.
   }
 
   void VisitCXXBoolLiteralExpr(const CXXBoolLiteralExpr *S) {
-    auto &Loc = Env.createStorageLocation(*S);
-    Env.setStorageLocation(*S, Loc);
-    Env.setValue(Loc, Env.getBoolLiteralValue(S->getValue()));
+    Env.setValue(*S, Env.getBoolLiteralValue(S->getValue()));
+  }
+
+  void VisitIntegerLiteral(const IntegerLiteral *S) {
+    Env.setValue(*S, Env.getIntLiteralValue(S->getValue()));
   }
 
   void VisitParenExpr(const ParenExpr *S) {
@@ -629,27 +904,24 @@ public:
   }
 
 private:
+  /// Returns the value for the sub-expression `SubExpr` of a logic operator.
   BoolValue &getLogicOperatorSubExprValue(const Expr &SubExpr) {
     // `SubExpr` and its parent logic operator might be part of different basic
     // blocks. We try to access the value that is assigned to `SubExpr` in the
     // corresponding environment.
-    if (const Environment *SubExprEnv = StmtToEnv.getEnvironment(SubExpr)) {
-      if (auto *Val = dyn_cast_or_null<BoolValue>(
-              SubExprEnv->getValue(SubExpr, SkipPast::Reference)))
+    if (const Environment *SubExprEnv = StmtToEnv.getEnvironment(SubExpr))
+      if (auto *Val =
+              dyn_cast_or_null<BoolValue>(SubExprEnv->getValue(SubExpr)))
         return *Val;
-    }
 
-    if (Env.getStorageLocation(SubExpr, SkipPast::None) == nullptr) {
-      // Sub-expressions that are logic operators are not added in basic blocks
-      // (e.g. see CFG for `bool d = a && (b || c);`). If `SubExpr` is a logic
-      // operator, it may not have been evaluated and assigned a value yet. In
-      // that case, we need to first visit `SubExpr` and then try to get the
-      // value that gets assigned to it.
+    // The sub-expression may lie within a basic block that isn't reachable,
+    // even if we need it to evaluate the current (reachable) expression
+    // (see https://discourse.llvm.org/t/70775). In this case, visit `SubExpr`
+    // within the current environment and then try to get the value that gets
+    // assigned to it.
+    if (Env.getValue(SubExpr) == nullptr)
       Visit(&SubExpr);
-    }
-
-    if (auto *Val = dyn_cast_or_null<BoolValue>(
-            Env.getValue(SubExpr, SkipPast::Reference)))
+    if (auto *Val = dyn_cast_or_null<BoolValue>(Env.getValue(SubExpr)))
       return *Val;
 
     // If the value of `SubExpr` is still unknown, we create a fresh symbolic
@@ -661,56 +933,50 @@ private:
   // `F` of `S`. The type `E` must be either `CallExpr` or `CXXConstructExpr`.
   template <typename E>
   void transferInlineCall(const E *S, const FunctionDecl *F) {
+    const auto &Options = Env.getDataflowAnalysisContext().getOptions();
     if (!(Options.ContextSensitiveOpts &&
           Env.canDescend(Options.ContextSensitiveOpts->Depth, F)))
       return;
 
-    const ControlFlowContext *CFCtx = Env.getControlFlowContext(F);
-    if (!CFCtx)
+    const AdornedCFG *ACFG = Env.getDataflowAnalysisContext().getAdornedCFG(F);
+    if (!ACFG)
       return;
 
     // FIXME: We don't support context-sensitive analysis of recursion, so
     // we should return early here if `F` is the same as the `FunctionDecl`
     // holding `S` itself.
 
-    auto ExitBlock = CFCtx->getCFG().getExit().getBlockID();
+    auto ExitBlock = ACFG->getCFG().getExit().getBlockID();
 
-    if (const auto *NonConstructExpr = dyn_cast<CallExpr>(S)) {
-      // Note that it is important for the storage location of `S` to be set
-      // before `pushCall`, because the latter uses it to set the storage
-      // location for `return`.
-      auto &ReturnLoc = Env.createStorageLocation(*S);
-      Env.setStorageLocation(*S, ReturnLoc);
-    }
     auto CalleeEnv = Env.pushCall(S);
 
     // FIXME: Use the same analysis as the caller for the callee. Note,
     // though, that doing so would require support for changing the analysis's
     // ASTContext.
-    assert(CFCtx->getDecl() != nullptr &&
-           "ControlFlowContexts in the environment should always carry a decl");
-    auto Analysis = NoopAnalysis(CFCtx->getDecl()->getASTContext(),
+    auto Analysis = NoopAnalysis(ACFG->getDecl().getASTContext(),
                                  DataflowAnalysisOptions{Options});
 
     auto BlockToOutputState =
-        dataflow::runDataflowAnalysis(*CFCtx, Analysis, CalleeEnv);
+        dataflow::runDataflowAnalysis(*ACFG, Analysis, CalleeEnv);
     assert(BlockToOutputState);
     assert(ExitBlock < BlockToOutputState->size());
 
-    auto ExitState = (*BlockToOutputState)[ExitBlock];
+    auto &ExitState = (*BlockToOutputState)[ExitBlock];
     assert(ExitState);
 
-    Env.popCall(ExitState->Env);
+    Env.popCall(S, ExitState->Env);
   }
 
   const StmtToEnvMap &StmtToEnv;
   Environment &Env;
-  TransferOptions Options;
+  Environment::ValueModel &Model;
 };
 
+} // namespace
+
 void transfer(const StmtToEnvMap &StmtToEnv, const Stmt &S, Environment &Env,
-              TransferOptions Options) {
-  TransferVisitor(StmtToEnv, Env, Options).Visit(&S);
+              Environment::ValueModel &Model) {
+  TransferVisitor(StmtToEnv, Env, Model).Visit(&S);
 }
 
 } // namespace dataflow

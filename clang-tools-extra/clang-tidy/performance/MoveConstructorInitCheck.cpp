@@ -1,4 +1,4 @@
-//===--- MoveConstructorInitCheck.cpp - clang-tidy-------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,15 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "MoveConstructorInitCheck.h"
-#include "../utils/Matchers.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace performance {
+namespace clang::tidy::performance {
 
 MoveConstructorInitCheck::MoveConstructorInitCheck(StringRef Name,
                                                    ClangTidyContext *Context)
@@ -42,7 +39,7 @@ void MoveConstructorInitCheck::check(const MatchFinder::MatchResult &Result) {
 
   // Do not diagnose if the expression used to perform the initialization is a
   // trivially-copyable type.
-  QualType QT = Initializer->getInit()->getType();
+  const QualType QT = Initializer->getInit()->getType();
   if (QT.isTriviallyCopyableType(*Result.Context))
     return;
 
@@ -84,6 +81,4 @@ void MoveConstructorInitCheck::check(const MatchFinder::MatchResult &Result) {
   }
 }
 
-} // namespace performance
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::performance

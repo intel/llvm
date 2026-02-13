@@ -1,5 +1,4 @@
-//===--- ConfusableIdentifierCheck.cpp -
-// clang-tidy--------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,8 +8,9 @@
 
 #include "ConfusableIdentifierCheck.h"
 
-#include "clang/Frontend/CompilerInstance.h"
+#include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/Lex/Preprocessor.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/Support/ConvertUTF.h"
 
 namespace {
@@ -21,9 +21,7 @@ namespace {
 #include "Confusables.inc"
 } // namespace
 
-namespace clang {
-namespace tidy {
-namespace misc {
+namespace clang::tidy::misc {
 
 ConfusableIdentifierCheck::ConfusableIdentifierCheck(StringRef Name,
                                                      ClangTidyContext *Context)
@@ -32,7 +30,7 @@ ConfusableIdentifierCheck::ConfusableIdentifierCheck(StringRef Name,
 ConfusableIdentifierCheck::~ConfusableIdentifierCheck() = default;
 
 // Build a skeleton out of the Original identifier, inspired by the algorithm
-// described in http://www.unicode.org/reports/tr39/#def-skeleton
+// described in https://www.unicode.org/reports/tr39/#def-skeleton
 //
 // FIXME: TR39 mandates:
 //
@@ -47,19 +45,17 @@ ConfusableIdentifierCheck::~ConfusableIdentifierCheck() = default;
 // We're skipping 1. and 3. for the sake of simplicity, but this can lead to
 // false positive.
 
-std::string ConfusableIdentifierCheck::skeleton(StringRef Name) {
+static llvm::SmallString<64U> skeleton(StringRef Name) {
   using namespace llvm;
-  std::string SName = Name.str();
-  std::string Skeleton;
-  Skeleton.reserve(1 + Name.size());
+  SmallString<64U> Skeleton;
+  Skeleton.reserve(1U + Name.size());
 
-  const char *Curr = SName.c_str();
-  const char *End = Curr + SName.size();
+  const char *Curr = Name.data();
+  const char *End = Curr + Name.size();
   while (Curr < End) {
-
     const char *Prev = Curr;
-    UTF32 CodePoint;
-    ConversionResult Result = convertUTF8Sequence(
+    UTF32 CodePoint = 0;
+    const ConversionResult Result = convertUTF8Sequence(
         reinterpret_cast<const UTF8 **>(&Curr),
         reinterpret_cast<const UTF8 *>(End), &CodePoint, strictConversion);
     if (Result != conversionOK) {
@@ -67,10 +63,10 @@ std::string ConfusableIdentifierCheck::skeleton(StringRef Name) {
       break;
     }
 
-    StringRef Key(Prev, Curr - Prev);
-    auto Where = llvm::lower_bound(ConfusableEntries, CodePoint,
-                                   [](decltype(ConfusableEntries[0]) x,
-                                      UTF32 y) { return x.codepoint < y; });
+    const StringRef Key(Prev, Curr - Prev);
+    auto *Where = llvm::lower_bound(ConfusableEntries, CodePoint,
+                                    [](decltype(ConfusableEntries[0]) X,
+                                       UTF32 Y) { return X.codepoint < Y; });
     if (Where == std::end(ConfusableEntries) || CodePoint != Where->codepoint) {
       Skeleton.append(Prev, Curr);
     } else {
@@ -78,98 +74,185 @@ std::string ConfusableIdentifierCheck::skeleton(StringRef Name) {
       UTF8 *BufferStart = std::begin(Buffer);
       UTF8 *IBuffer = BufferStart;
       const UTF32 *ValuesStart = std::begin(Where->values);
-      const UTF32 *ValuesEnd =
-          std::find(std::begin(Where->values), std::end(Where->values), '\0');
+      const UTF32 *ValuesEnd = llvm::find(Where->values, '\0');
       if (ConvertUTF32toUTF8(&ValuesStart, ValuesEnd, &IBuffer,
                              std::end(Buffer),
                              strictConversion) != conversionOK) {
         errs() << "Unicode conversion issue\n";
         break;
       }
-      Skeleton.append((char *)BufferStart, (char *)IBuffer);
+      Skeleton.append(reinterpret_cast<char *>(BufferStart),
+                      reinterpret_cast<char *>(IBuffer));
     }
   }
   return Skeleton;
 }
 
-static bool mayShadowImpl(const NamedDecl *ND0, const NamedDecl *ND1) {
-  const DeclContext *DC0 = ND0->getDeclContext()->getPrimaryContext();
-  const DeclContext *DC1 = ND1->getDeclContext()->getPrimaryContext();
+namespace {
+struct Entry {
+  const NamedDecl *ND;
+  const Decl *Parent;
+  bool FromDerivedClass;
+};
+} // namespace
 
-  if (isa<TemplateTypeParmDecl>(ND0) || isa<TemplateTypeParmDecl>(ND0))
-    return true;
+// Map from a context to the declarations in that context with the current
+// skeleton. At most one entry per distinct identifier is tracked. The
+// context is usually a `DeclContext`, but can also be a template declaration
+// that has no corresponding context, such as an alias template or variable
+// template.
+using DeclsWithinContextMap =
+    llvm::DenseMap<const Decl *, llvm::SmallVector<Entry, 1>>;
 
-  while (DC0->isTransparentContext())
-    DC0 = DC0->getParent();
-  while (DC1->isTransparentContext())
-    DC1 = DC1->getParent();
-
-  if (DC0->Equals(DC1))
-    return true;
-
-  return false;
-}
-
-static bool isMemberOf(const NamedDecl *ND, const CXXRecordDecl *RD) {
-  const DeclContext *NDParent = ND->getDeclContext();
-  if (!NDParent || !isa<CXXRecordDecl>(NDParent))
+static bool addToContext(DeclsWithinContextMap &DeclsWithinContext,
+                         const Decl *Context, Entry E) {
+  auto &Decls = DeclsWithinContext[Context];
+  if (!Decls.empty() &&
+      Decls.back().ND->getIdentifier() == E.ND->getIdentifier()) {
+    // Already have a declaration with this identifier in this context. Don't
+    // track another one. This means that if an outer name is confusable with an
+    // inner name, we'll only diagnose the outer name once, pointing at the
+    // first inner declaration with that name.
+    if (Decls.back().FromDerivedClass && !E.FromDerivedClass) {
+      // Prefer the declaration that's not from the derived class, because that
+      // conflicts with more declarations.
+      Decls.back() = E;
+      return true;
+    }
     return false;
-  if (NDParent == RD)
-    return true;
-  return !RD->forallBases(
-      [NDParent](const CXXRecordDecl *Base) { return NDParent != Base; });
+  }
+  Decls.push_back(E);
+  return true;
 }
 
-static bool mayShadow(const NamedDecl *ND0, const NamedDecl *ND1) {
+static void addToEnclosingContexts(DeclsWithinContextMap &DeclsWithinContext,
+                                   const Decl *Parent, const NamedDecl *ND) {
+  const Decl *Outer = Parent;
+  while (Outer) {
+    if (const auto *NS = dyn_cast<NamespaceDecl>(Outer))
+      Outer = NS->getCanonicalDecl();
 
-  const DeclContext *DC0 = ND0->getDeclContext()->getPrimaryContext();
-  const DeclContext *DC1 = ND1->getDeclContext()->getPrimaryContext();
+    if (!addToContext(DeclsWithinContext, Outer, {ND, Parent, false}))
+      return;
 
-  if (const CXXRecordDecl *RD0 = dyn_cast<CXXRecordDecl>(DC0)) {
-    RD0 = RD0->getDefinition();
-    if (RD0 && ND1->getAccess() != AS_private && isMemberOf(ND1, RD0))
-      return true;
+    if (const auto *RD = dyn_cast<CXXRecordDecl>(Outer)) {
+      RD = RD->getDefinition();
+      if (RD) {
+        RD->forallBases([&](const CXXRecordDecl *Base) {
+          addToContext(DeclsWithinContext, Base, {ND, Parent, true});
+          return true;
+        });
+      }
+    }
+
+    auto *OuterDC = Outer->getDeclContext();
+    if (!OuterDC)
+      break;
+    Outer = cast_or_null<Decl>(OuterDC->getNonTransparentContext());
   }
-  if (const CXXRecordDecl *RD1 = dyn_cast<CXXRecordDecl>(DC1)) {
-    RD1 = RD1->getDefinition();
-    if (RD1 && ND0->getAccess() != AS_private && isMemberOf(ND0, RD1))
-      return true;
-  }
-
-  if (DC0->Encloses(DC1))
-    return mayShadowImpl(ND0, ND1);
-  if (DC1->Encloses(DC0))
-    return mayShadowImpl(ND1, ND0);
-  return false;
 }
 
 void ConfusableIdentifierCheck::check(
     const ast_matchers::MatchFinder::MatchResult &Result) {
-  if (const auto *ND = Result.Nodes.getNodeAs<NamedDecl>("nameddecl")) {
-    if (IdentifierInfo *NDII = ND->getIdentifier()) {
-      StringRef NDName = NDII->getName();
-      llvm::SmallVector<const NamedDecl *> &Mapped = Mapper[skeleton(NDName)];
-      for (const NamedDecl *OND : Mapped) {
-        const IdentifierInfo *ONDII = OND->getIdentifier();
-        if (mayShadow(ND, OND)) {
-          StringRef ONDName = ONDII->getName();
-          if (ONDName != NDName) {
-            diag(ND->getLocation(), "%0 is confusable with %1") << ND << OND;
-            diag(OND->getLocation(), "other declaration found here",
-                 DiagnosticIDs::Note);
-          }
+  const auto *ND = Result.Nodes.getNodeAs<NamedDecl>("nameddecl");
+  if (!ND)
+    return;
+
+  addDeclToCheck(ND,
+                 cast<Decl>(ND->getDeclContext()->getNonTransparentContext()));
+
+  // Associate template parameters with this declaration of this template.
+  if (const auto *TD = dyn_cast<TemplateDecl>(ND))
+    for (const NamedDecl *Param : *TD->getTemplateParameters())
+      addDeclToCheck(Param, TD->getTemplatedDecl());
+
+  // Associate function parameters with this declaration of this function.
+  if (const auto *FD = dyn_cast<FunctionDecl>(ND))
+    for (const NamedDecl *Param : FD->parameters())
+      addDeclToCheck(Param, ND);
+}
+
+void ConfusableIdentifierCheck::addDeclToCheck(const NamedDecl *ND,
+                                               const Decl *Parent) {
+  if (!ND || !Parent)
+    return;
+
+  const IdentifierInfo *NDII = ND->getIdentifier();
+  if (!NDII)
+    return;
+
+  const StringRef NDName = NDII->getName();
+  if (NDName.empty())
+    return;
+
+  NameToDecls[NDII].push_back({ND, Parent});
+}
+
+void ConfusableIdentifierCheck::onEndOfTranslationUnit() {
+  llvm::StringMap<llvm::SmallVector<const IdentifierInfo *, 1>> SkeletonToNames;
+  // Compute the skeleton for each identifier.
+  for (auto &[Ident, Decls] : NameToDecls)
+    SkeletonToNames[skeleton(Ident->getName())].push_back(Ident);
+
+  // Visit each skeleton with more than one identifier.
+  for (auto &[Skel, Idents] : SkeletonToNames) {
+    if (Idents.size() < 2)
+      continue;
+
+    // Find the declaration contexts that transitively contain each identifier.
+    DeclsWithinContextMap DeclsWithinContext;
+    for (const IdentifierInfo *II : Idents)
+      for (auto [ND, Parent] : NameToDecls[II])
+        addToEnclosingContexts(DeclsWithinContext, Parent, ND);
+
+    // Check to see if any declaration is declared in a context that
+    // transitively contains another declaration with a different identifier but
+    // the same skeleton.
+    for (const IdentifierInfo *II : Idents) {
+      for (auto [OuterND, OuterParent] : NameToDecls[II]) {
+        for (const Entry Inner : DeclsWithinContext[OuterParent]) {
+          // Don't complain if the identifiers are the same.
+          if (OuterND->getIdentifier() == Inner.ND->getIdentifier())
+            continue;
+
+          // Don't complain about a derived-class name shadowing a base class
+          // private member.
+          if (OuterND->getAccess() == AS_private && Inner.FromDerivedClass)
+            continue;
+
+          // If the declarations are in the same context, only diagnose the
+          // later one.
+          if (OuterParent == Inner.Parent &&
+              Inner.ND->getASTContext()
+                  .getSourceManager()
+                  .isBeforeInTranslationUnit(Inner.ND->getLocation(),
+                                             OuterND->getLocation()))
+            continue;
+
+          diag(Inner.ND->getLocation(), "%0 is confusable with %1")
+              << Inner.ND << OuterND;
+          diag(OuterND->getLocation(), "other declaration found here",
+               DiagnosticIDs::Note);
         }
       }
-      Mapped.push_back(ND);
     }
   }
+
+  NameToDecls.clear();
 }
 
 void ConfusableIdentifierCheck::registerMatchers(
     ast_matchers::MatchFinder *Finder) {
-  Finder->addMatcher(ast_matchers::namedDecl().bind("nameddecl"), this);
+  // Parameter declarations sometimes use the translation unit or some outer
+  // enclosing context as their `DeclContext`, instead of their parent, so
+  // we handle them specially in `check`.
+  auto AnyParamDecl = ast_matchers::anyOf(
+      ast_matchers::parmVarDecl(), ast_matchers::templateTypeParmDecl(),
+      ast_matchers::nonTypeTemplateParmDecl(),
+      ast_matchers::templateTemplateParmDecl());
+  Finder->addMatcher(ast_matchers::namedDecl(ast_matchers::unless(AnyParamDecl))
+                         .bind("nameddecl"),
+                     this);
 }
 
-} // namespace misc
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::misc

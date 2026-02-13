@@ -7,8 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/DebugInfo/DWARF/DWARFDie.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/Dwarf.h"
@@ -16,23 +15,22 @@
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
 #include "llvm/DebugInfo/DWARF/DWARFDebugLine.h"
 #include "llvm/DebugInfo/DWARF/DWARFDebugLoc.h"
-#include "llvm/DebugInfo/DWARF/DWARFExpression.h"
+#include "llvm/DebugInfo/DWARF/DWARFExpressionPrinter.h"
 #include "llvm/DebugInfo/DWARF/DWARFFormValue.h"
 #include "llvm/DebugInfo/DWARF/DWARFTypePrinter.h"
 #include "llvm/DebugInfo/DWARF/DWARFTypeUnit.h"
 #include "llvm/DebugInfo/DWARF/DWARFUnit.h"
+#include "llvm/DebugInfo/DWARF/LowLevel/DWARFExpression.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/DataExtractor.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/FormatVariadic.h"
-#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cassert>
 #include <cinttypes>
 #include <cstdint>
 #include <string>
-#include <utility>
 
 using namespace llvm;
 using namespace dwarf;
@@ -41,7 +39,7 @@ using namespace object;
 static void dumpApplePropertyAttribute(raw_ostream &OS, uint64_t Val) {
   OS << " (";
   do {
-    uint64_t Shift = countTrailingZeros(Val);
+    uint64_t Shift = llvm::countr_zero(Val);
     assert(Shift < 64 && "undefined behavior");
     uint64_t Bit = 1ULL << Shift;
     auto PropName = ApplePropertyString(Bit);
@@ -76,7 +74,6 @@ static void dumpLocationList(raw_ostream &OS, const DWARFFormValue &FormValue,
   assert(FormValue.isFormClass(DWARFFormValue::FC_SectionOffset) &&
          "bad FORM for location list");
   DWARFContext &Ctx = U->getContext();
-  const MCRegisterInfo *MRI = Ctx.getRegisterInfo();
   uint64_t Offset = *FormValue.getAsSectionOffset();
 
   if (FormValue.getForm() == DW_FORM_loclistx) {
@@ -87,9 +84,8 @@ static void dumpLocationList(raw_ostream &OS, const DWARFFormValue &FormValue,
     else
       return;
   }
-  U->getLocationTable().dumpLocationList(&Offset, OS, U->getBaseAddress(), MRI,
-                                         Ctx.getDWARFObj(), U, DumpOpts,
-                                         Indent);
+  U->getLocationTable().dumpLocationList(
+      &Offset, OS, U->getBaseAddress(), Ctx.getDWARFObj(), U, DumpOpts, Indent);
 }
 
 static void dumpLocationExpr(raw_ostream &OS, const DWARFFormValue &FormValue,
@@ -99,16 +95,56 @@ static void dumpLocationExpr(raw_ostream &OS, const DWARFFormValue &FormValue,
           FormValue.isFormClass(DWARFFormValue::FC_Exprloc)) &&
          "bad FORM for location expression");
   DWARFContext &Ctx = U->getContext();
-  const MCRegisterInfo *MRI = Ctx.getRegisterInfo();
   ArrayRef<uint8_t> Expr = *FormValue.getAsBlock();
   DataExtractor Data(StringRef((const char *)Expr.data(), Expr.size()),
                      Ctx.isLittleEndian(), 0);
-  DWARFExpression(Data, U->getAddressByteSize(), U->getFormParams().Format)
-      .print(OS, DumpOpts, MRI, U);
+  DWARFExpression DE(Data, U->getAddressByteSize(), U->getFormParams().Format);
+  printDwarfExpression(&DE, OS, DumpOpts, U);
 }
 
 static DWARFDie resolveReferencedType(DWARFDie D, DWARFFormValue F) {
   return D.getAttributeValueAsReferencedDie(F).resolveTypeUnitReference();
+}
+
+static llvm::StringRef
+prettyLanguageVersionString(const DWARFAttribute &AttrValue,
+                            const DWARFDie &Die) {
+  if (AttrValue.Attr != DW_AT_language_version)
+    return {};
+
+  auto NameForm = Die.find(DW_AT_language_name);
+  if (!NameForm)
+    return {};
+
+  auto LName = NameForm->getAsUnsignedConstant();
+  if (!LName)
+    return {};
+
+  auto LVersion = AttrValue.Value.getAsUnsignedConstant();
+  if (!LVersion)
+    return {};
+
+  return llvm::dwarf::LanguageDescription(
+      static_cast<SourceLanguageName>(*LName), *LVersion);
+}
+
+static llvm::Expected<llvm::StringRef>
+getApplePropertyName(const DWARFDie &PropDIE) {
+  if (!PropDIE)
+    return llvm::createStringError("invalid DIE");
+
+  if (PropDIE.getTag() != DW_TAG_APPLE_property)
+    return llvm::createStringError("not referencing a DW_TAG_APPLE_property");
+
+  auto PropNameForm = PropDIE.find(DW_AT_APPLE_property_name);
+  if (!PropNameForm)
+    return "";
+
+  auto NameOrErr = PropNameForm->getAsCString();
+  if (!NameOrErr)
+    return NameOrErr.takeError();
+
+  return *NameOrErr;
 }
 
 static void dumpAttribute(raw_ostream &OS, const DWARFDie &Die,
@@ -137,7 +173,7 @@ static void dumpAttribute(raw_ostream &OS, const DWARFDie &Die,
   if (Attr == DW_AT_decl_file || Attr == DW_AT_call_file) {
     Color = HighlightColor::String;
     if (const auto *LT = U->getContext().getLineTableForUnit(U)) {
-      if (Optional<uint64_t> Val = FormValue.getAsUnsignedConstant()) {
+      if (std::optional<uint64_t> Val = FormValue.getAsUnsignedConstant()) {
         if (LT->getFileNameByIndex(
                 *Val, U->getCompilationDir(),
                 DILineInfoSpecifier::FileLineInfoKind::AbsoluteFilePath,
@@ -147,16 +183,31 @@ static void dumpAttribute(raw_ostream &OS, const DWARFDie &Die,
         }
       }
     }
-  } else if (Optional<uint64_t> Val = FormValue.getAsUnsignedConstant())
+  } else if (std::optional<uint64_t> Val = FormValue.getAsUnsignedConstant())
     Name = AttributeValueString(Attr, *Val);
 
-  if (!Name.empty())
-    WithColor(OS, Color) << Name;
-  else if (Attr == DW_AT_decl_line || Attr == DW_AT_call_line) {
-    if (Optional<uint64_t> Val = FormValue.getAsUnsignedConstant())
+  auto DumpUnsignedConstant = [&OS,
+                               &DumpOpts](const DWARFFormValue &FormValue) {
+    if (std::optional<uint64_t> Val = FormValue.getAsUnsignedConstant())
       OS << *Val;
     else
       FormValue.dump(OS, DumpOpts);
+  };
+
+  llvm::StringRef PrettyVersionName =
+      prettyLanguageVersionString(AttrValue, Die);
+  bool ShouldDumpRawLanguageVersion =
+      Attr == DW_AT_language_version &&
+      (DumpOpts.Verbose || PrettyVersionName.empty());
+
+  if (!Name.empty())
+    WithColor(OS, Color) << Name;
+  else if (Attr == DW_AT_decl_line || Attr == DW_AT_decl_column ||
+           Attr == DW_AT_call_line || Attr == DW_AT_call_column) {
+    DumpUnsignedConstant(FormValue);
+  } else if (Attr == DW_AT_language_version) {
+    if (ShouldDumpRawLanguageVersion)
+      DumpUnsignedConstant(FormValue);
   } else if (Attr == DW_AT_low_pc &&
              (FormValue.getAsAddress() ==
               dwarf::computeTombstoneAddress(U->getAddressByteSize()))) {
@@ -194,11 +245,21 @@ static void dumpAttribute(raw_ostream &OS, const DWARFDie &Die,
   // We have dumped the attribute raw value. For some attributes
   // having both the raw value and the pretty-printed value is
   // interesting. These attributes are handled below.
-  if (Attr == DW_AT_specification || Attr == DW_AT_abstract_origin) {
+  if (Attr == DW_AT_specification || Attr == DW_AT_abstract_origin ||
+      Attr == DW_AT_call_origin || Attr == DW_AT_import) {
     if (const char *Name =
             Die.getAttributeValueAsReferencedDie(FormValue).getName(
                 DINameKind::LinkageName))
       OS << Space << "\"" << Name << '\"';
+  } else if (Attr == DW_AT_APPLE_property) {
+    auto PropDIE = Die.getAttributeValueAsReferencedDie(FormValue);
+    if (auto PropNameOrErr = getApplePropertyName(PropDIE))
+      OS << Space << "\"" << *PropNameOrErr << '\"';
+    else
+      DumpOpts.RecoverableErrorHandler(createStringError(
+          errc::invalid_argument,
+          llvm::formatv("decoding DW_AT_APPLE_property_name: {}",
+                        toString(PropNameOrErr.takeError()))));
   } else if (Attr == DW_AT_type || Attr == DW_AT_containing_type) {
     DWARFDie D = resolveReferencedType(Die, FormValue);
     if (D && !D.isNULL()) {
@@ -207,7 +268,7 @@ static void dumpAttribute(raw_ostream &OS, const DWARFDie &Die,
       OS << '"';
     }
   } else if (Attr == DW_AT_APPLE_property_attribute) {
-    if (Optional<uint64_t> OptVal = FormValue.getAsUnsignedConstant())
+    if (std::optional<uint64_t> OptVal = FormValue.getAsUnsignedConstant())
       dumpApplePropertyAttribute(OS, *OptVal);
   } else if (Attr == DW_AT_ranges) {
     const DWARFObject &Obj = Die.getDwarfUnit()->getContext().getDWARFObj();
@@ -227,6 +288,10 @@ static void dumpAttribute(raw_ostream &OS, const DWARFDie &Die,
       DumpOpts.RecoverableErrorHandler(createStringError(
           errc::invalid_argument, "decoding address ranges: %s",
           toString(RangesOrError.takeError()).c_str()));
+  } else if (Attr == DW_AT_language_version) {
+    if (!PrettyVersionName.empty())
+      WithColor(OS, Color) << (ShouldDumpRawLanguageVersion ? " " : "")
+                           << PrettyVersionName;
   }
 
   OS << ")\n";
@@ -249,19 +314,19 @@ bool DWARFDie::isSubroutineDIE() const {
   return Tag == DW_TAG_subprogram || Tag == DW_TAG_inlined_subroutine;
 }
 
-Optional<DWARFFormValue> DWARFDie::find(dwarf::Attribute Attr) const {
+std::optional<DWARFFormValue> DWARFDie::find(dwarf::Attribute Attr) const {
   if (!isValid())
-    return None;
+    return std::nullopt;
   auto AbbrevDecl = getAbbreviationDeclarationPtr();
   if (AbbrevDecl)
     return AbbrevDecl->getAttributeValue(getOffset(), Attr, *U);
-  return None;
+  return std::nullopt;
 }
 
-Optional<DWARFFormValue>
+std::optional<DWARFFormValue>
 DWARFDie::find(ArrayRef<dwarf::Attribute> Attrs) const {
   if (!isValid())
-    return None;
+    return std::nullopt;
   auto AbbrevDecl = getAbbreviationDeclarationPtr();
   if (AbbrevDecl) {
     for (auto Attr : Attrs) {
@@ -269,10 +334,10 @@ DWARFDie::find(ArrayRef<dwarf::Attribute> Attrs) const {
         return Value;
     }
   }
-  return None;
+  return std::nullopt;
 }
 
-Optional<DWARFFormValue>
+std::optional<DWARFFormValue>
 DWARFDie::findRecursively(ArrayRef<dwarf::Attribute> Attrs) const {
   SmallVector<DWARFDie, 3> Worklist;
   Worklist.push_back(*this);
@@ -293,21 +358,20 @@ DWARFDie::findRecursively(ArrayRef<dwarf::Attribute> Attrs) const {
     if (auto Value = Die.find(Attrs))
       return Value;
 
-    if (auto D = Die.getAttributeValueAsReferencedDie(DW_AT_abstract_origin))
-      if (Seen.insert(D).second)
-        Worklist.push_back(D);
-
-    if (auto D = Die.getAttributeValueAsReferencedDie(DW_AT_specification))
-      if (Seen.insert(D).second)
-        Worklist.push_back(D);
+    for (dwarf::Attribute Attr :
+         {DW_AT_abstract_origin, DW_AT_specification, DW_AT_signature}) {
+      if (auto D = Die.getAttributeValueAsReferencedDie(Attr))
+        if (Seen.insert(D).second)
+          Worklist.push_back(D);
+    }
   }
 
-  return None;
+  return std::nullopt;
 }
 
 DWARFDie
 DWARFDie::getAttributeValueAsReferencedDie(dwarf::Attribute Attr) const {
-  if (Optional<DWARFFormValue> F = find(Attr))
+  if (std::optional<DWARFFormValue> F = find(Attr))
     return getAttributeValueAsReferencedDie(*F);
   return DWARFDie();
 }
@@ -315,40 +379,50 @@ DWARFDie::getAttributeValueAsReferencedDie(dwarf::Attribute Attr) const {
 DWARFDie
 DWARFDie::getAttributeValueAsReferencedDie(const DWARFFormValue &V) const {
   DWARFDie Result;
-  if (auto SpecRef = V.getAsRelativeReference()) {
-    if (SpecRef->Unit)
-      Result = SpecRef->Unit->getDIEForOffset(SpecRef->Unit->getOffset() +
-                                              SpecRef->Offset);
-    else if (auto SpecUnit =
-                 U->getUnitVector().getUnitForOffset(SpecRef->Offset))
-      Result = SpecUnit->getDIEForOffset(SpecRef->Offset);
+  if (std::optional<uint64_t> Offset = V.getAsRelativeReference()) {
+    Result = const_cast<DWARFUnit *>(V.getUnit())
+                 ->getDIEForOffset(V.getUnit()->getOffset() + *Offset);
+  } else if (Offset = V.getAsDebugInfoReference(); Offset) {
+    if (DWARFUnit *SpecUnit = U->getUnitVector().getUnitForOffset(*Offset))
+      Result = SpecUnit->getDIEForOffset(*Offset);
+  } else if (std::optional<uint64_t> Sig = V.getAsSignatureReference()) {
+    if (DWARFTypeUnit *TU =
+            U->getContext().getTypeUnitForHash(*Sig, U->isDWOUnit()))
+      Result = TU->getDIEForOffset(TU->getTypeOffset() + TU->getOffset());
   }
   return Result;
 }
 
 DWARFDie DWARFDie::resolveTypeUnitReference() const {
   if (auto Attr = find(DW_AT_signature)) {
-    if (Optional<uint64_t> Sig = Attr->getAsReferenceUVal()) {
-      if (DWARFTypeUnit *TU = U->getContext().getTypeUnitForHash(
-              U->getVersion(), *Sig, U->isDWOUnit()))
+    if (std::optional<uint64_t> Sig = Attr->getAsReferenceUVal()) {
+      if (DWARFTypeUnit *TU =
+              U->getContext().getTypeUnitForHash(*Sig, U->isDWOUnit()))
         return TU->getDIEForOffset(TU->getTypeOffset() + TU->getOffset());
     }
   }
   return *this;
 }
 
-Optional<uint64_t> DWARFDie::getRangesBaseAttribute() const {
+DWARFDie DWARFDie::resolveReferencedType(dwarf::Attribute Attr) const {
+  return getAttributeValueAsReferencedDie(Attr).resolveTypeUnitReference();
+}
+DWARFDie DWARFDie::resolveReferencedType(const DWARFFormValue &V) const {
+  return getAttributeValueAsReferencedDie(V).resolveTypeUnitReference();
+}
+
+std::optional<uint64_t> DWARFDie::getRangesBaseAttribute() const {
   return toSectionOffset(find({DW_AT_rnglists_base, DW_AT_GNU_ranges_base}));
 }
 
-Optional<uint64_t> DWARFDie::getLocBaseAttribute() const {
+std::optional<uint64_t> DWARFDie::getLocBaseAttribute() const {
   return toSectionOffset(find(DW_AT_loclists_base));
 }
 
-Optional<uint64_t> DWARFDie::getHighPC(uint64_t LowPC) const {
+std::optional<uint64_t> DWARFDie::getHighPC(uint64_t LowPC) const {
   uint64_t Tombstone = dwarf::computeTombstoneAddress(U->getAddressByteSize());
   if (LowPC == Tombstone)
-    return None;
+    return std::nullopt;
   if (auto FormValue = find(DW_AT_high_pc)) {
     if (auto Address = FormValue->getAsAddress()) {
       // High PC is an address.
@@ -359,7 +433,7 @@ Optional<uint64_t> DWARFDie::getHighPC(uint64_t LowPC) const {
       return LowPC + *Offset;
     }
   }
-  return None;
+  return std::nullopt;
 }
 
 bool DWARFDie::getLowAndHighPC(uint64_t &LowPC, uint64_t &HighPC,
@@ -385,7 +459,7 @@ Expected<DWARFAddressRangesVector> DWARFDie::getAddressRanges() const {
   if (getLowAndHighPC(LowPC, HighPC, Index))
     return DWARFAddressRangesVector{{LowPC, HighPC, Index}};
 
-  Optional<DWARFFormValue> Value = find(DW_AT_ranges);
+  std::optional<DWARFFormValue> Value = find(DW_AT_ranges);
   if (Value) {
     if (Value->getForm() == DW_FORM_rnglistx)
       return U->findRnglistFromIndex(*Value->getAsSectionOffset());
@@ -407,14 +481,23 @@ bool DWARFDie::addressRangeContainsAddress(const uint64_t Address) const {
   return false;
 }
 
+std::optional<uint64_t> DWARFDie::getLanguage() const {
+  if (isValid()) {
+    if (std::optional<DWARFFormValue> LV =
+            U->getUnitDIE().find(dwarf::DW_AT_language))
+      return LV->getAsUnsignedConstant();
+  }
+  return std::nullopt;
+}
+
 Expected<DWARFLocationExpressionsVector>
 DWARFDie::getLocations(dwarf::Attribute Attr) const {
-  Optional<DWARFFormValue> Location = find(Attr);
+  std::optional<DWARFFormValue> Location = find(Attr);
   if (!Location)
     return createStringError(inconvertibleErrorCode(), "No %s",
                              dwarf::AttributeString(Attr).data());
 
-  if (Optional<uint64_t> Off = Location->getAsSectionOffset()) {
+  if (std::optional<uint64_t> Off = Location->getAsSectionOffset()) {
     uint64_t Offset = *Off;
 
     if (Location->getForm() == DW_FORM_loclistx) {
@@ -427,9 +510,9 @@ DWARFDie::getLocations(dwarf::Attribute Attr) const {
     return U->findLoclistFromOffset(Offset);
   }
 
-  if (Optional<ArrayRef<uint8_t>> Expr = Location->getAsBlock()) {
+  if (std::optional<ArrayRef<uint8_t>> Expr = Location->getAsBlock()) {
     return DWARFLocationExpressionsVector{
-        DWARFLocationExpression{None, to_vector<4>(*Expr)}};
+        DWARFLocationExpression{std::nullopt, to_vector<4>(*Expr)}};
   }
 
   return createStringError(
@@ -492,18 +575,23 @@ void DWARFDie::getCallerFrame(uint32_t &CallFile, uint32_t &CallLine,
   CallDiscriminator = toUnsigned(find(DW_AT_GNU_discriminator), 0);
 }
 
-Optional<uint64_t> DWARFDie::getTypeSize(uint64_t PointerSize) {
-  if (auto SizeAttr = find(DW_AT_byte_size))
-    if (Optional<uint64_t> Size = SizeAttr->getAsUnsignedConstant())
+static std::optional<uint64_t>
+getTypeSizeImpl(DWARFDie Die, uint64_t PointerSize,
+                SmallPtrSetImpl<const DWARFDebugInfoEntry *> &Visited) {
+  // Cycle detected?
+  if (!Visited.insert(Die.getDebugInfoEntry()).second)
+    return {};
+  if (auto SizeAttr = Die.find(DW_AT_byte_size))
+    if (std::optional<uint64_t> Size = SizeAttr->getAsUnsignedConstant())
       return Size;
 
-  switch (getTag()) {
+  switch (Die.getTag()) {
   case DW_TAG_pointer_type:
   case DW_TAG_reference_type:
   case DW_TAG_rvalue_reference_type:
     return PointerSize;
   case DW_TAG_ptr_to_member_type: {
-    if (DWARFDie BaseType = getAttributeValueAsReferencedDie(DW_AT_type))
+    if (DWARFDie BaseType = Die.getAttributeValueAsReferencedDie(DW_AT_type))
       if (BaseType.getTag() == DW_TAG_subroutine_type)
         return 2 * PointerSize;
     return PointerSize;
@@ -512,29 +600,31 @@ Optional<uint64_t> DWARFDie::getTypeSize(uint64_t PointerSize) {
   case DW_TAG_immutable_type:
   case DW_TAG_volatile_type:
   case DW_TAG_restrict_type:
+  case DW_TAG_template_alias:
   case DW_TAG_typedef: {
-    if (DWARFDie BaseType = getAttributeValueAsReferencedDie(DW_AT_type))
-      return BaseType.getTypeSize(PointerSize);
+    if (DWARFDie BaseType = Die.getAttributeValueAsReferencedDie(DW_AT_type))
+      return getTypeSizeImpl(BaseType, PointerSize, Visited);
     break;
   }
   case DW_TAG_array_type: {
-    DWARFDie BaseType = getAttributeValueAsReferencedDie(DW_AT_type);
+    DWARFDie BaseType = Die.getAttributeValueAsReferencedDie(DW_AT_type);
     if (!BaseType)
-      return None;
-    Optional<uint64_t> BaseSize = BaseType.getTypeSize(PointerSize);
+      return std::nullopt;
+    std::optional<uint64_t> BaseSize =
+        getTypeSizeImpl(BaseType, PointerSize, Visited);
     if (!BaseSize)
-      return None;
+      return std::nullopt;
     uint64_t Size = *BaseSize;
-    for (DWARFDie Child : *this) {
+    for (DWARFDie Child : Die) {
       if (Child.getTag() != DW_TAG_subrange_type)
         continue;
 
       if (auto ElemCountAttr = Child.find(DW_AT_count))
-        if (Optional<uint64_t> ElemCount =
+        if (std::optional<uint64_t> ElemCount =
                 ElemCountAttr->getAsUnsignedConstant())
           Size *= *ElemCount;
       if (auto UpperBoundAttr = Child.find(DW_AT_upper_bound))
-        if (Optional<int64_t> UpperBound =
+        if (std::optional<int64_t> UpperBound =
                 UpperBoundAttr->getAsSignedConstant()) {
           int64_t LowerBound = 0;
           if (auto LowerBoundAttr = Child.find(DW_AT_lower_bound))
@@ -545,11 +635,16 @@ Optional<uint64_t> DWARFDie::getTypeSize(uint64_t PointerSize) {
     return Size;
   }
   default:
-    if (DWARFDie BaseType = getAttributeValueAsReferencedDie(DW_AT_type))
-      return BaseType.getTypeSize(PointerSize);
+    if (DWARFDie BaseType = Die.getAttributeValueAsReferencedDie(DW_AT_type))
+      return getTypeSizeImpl(BaseType, PointerSize, Visited);
     break;
   }
-  return None;
+  return std::nullopt;
+}
+
+std::optional<uint64_t> DWARFDie::getTypeSize(uint64_t PointerSize) {
+  SmallPtrSet<const DWARFDebugInfoEntry *, 4> Visited;
+  return getTypeSizeImpl(*this, PointerSize, Visited);
 }
 
 /// Helper to dump a DIE with all of its parents, but no siblings.
@@ -592,7 +687,7 @@ void DWARFDie::dump(raw_ostream &OS, unsigned Indent,
         if (DumpOpts.Verbose) {
           OS << format(" [%u] %c", abbrCode,
                        AbbrevDecl->hasChildren() ? '*' : ' ');
-          if (Optional<uint32_t> ParentIdx = Die->getParentIdx())
+          if (std::optional<uint32_t> ParentIdx = Die->getParentIdx())
             OS << format(" (0x%8.8" PRIx64 ")",
                          U->getDIEAtIndex(*ParentIdx).getOffset());
         }
@@ -608,7 +703,9 @@ void DWARFDie::dump(raw_ostream &OS, unsigned Indent,
           DIDumpOptions ChildDumpOpts = DumpOpts;
           ChildDumpOpts.ShowParents = false;
           while (Child) {
-            Child.dump(OS, Indent + 2, ChildDumpOpts);
+            if (DumpOpts.FilterChildTag.empty() ||
+                llvm::is_contained(DumpOpts.FilterChildTag, Child.getTag()))
+              Child.dump(OS, Indent + 2, ChildDumpOpts);
             Child = Child.getSibling();
           }
         }
@@ -756,6 +853,7 @@ bool DWARFAttribute::mayHaveLocationExpr(dwarf::Attribute Attr) {
   // Extensions.
   case DW_AT_GNU_call_site_value:
   case DW_AT_GNU_call_site_target:
+  case DW_AT_GNU_call_site_target_clobbered:
     return true;
   default:
     return false;
@@ -765,12 +863,12 @@ bool DWARFAttribute::mayHaveLocationExpr(dwarf::Attribute Attr) {
 namespace llvm {
 
 void dumpTypeQualifiedName(const DWARFDie &DIE, raw_ostream &OS) {
-  DWARFTypePrinter(OS).appendQualifiedName(DIE);
+  DWARFTypePrinter<DWARFDie>(OS).appendQualifiedName(DIE);
 }
 
 void dumpTypeUnqualifiedName(const DWARFDie &DIE, raw_ostream &OS,
                              std::string *OriginalFullName) {
-  DWARFTypePrinter(OS).appendUnqualifiedName(DIE, OriginalFullName);
+  DWARFTypePrinter<DWARFDie>(OS).appendUnqualifiedName(DIE, OriginalFullName);
 }
 
 } // namespace llvm

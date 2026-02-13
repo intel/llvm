@@ -8,6 +8,7 @@
 
 #include "llvm/Support/BinaryStreamWriter.h"
 
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/BinaryStreamReader.h"
 #include "llvm/Support/BinaryStreamRef.h"
 #include "llvm/Support/LEB128.h"
@@ -21,7 +22,7 @@ BinaryStreamWriter::BinaryStreamWriter(WritableBinaryStream &Stream)
     : Stream(Stream) {}
 
 BinaryStreamWriter::BinaryStreamWriter(MutableArrayRef<uint8_t> Data,
-                                       llvm::support::endianness Endian)
+                                       llvm::endianness Endian)
     : Stream(Data, Endian) {}
 
 Error BinaryStreamWriter::writeBytes(ArrayRef<uint8_t> Buffer) {
@@ -88,7 +89,7 @@ BinaryStreamWriter::split(uint64_t Off) const {
   First = First.keep_front(Off);
   BinaryStreamWriter W1{First};
   BinaryStreamWriter W2{Second};
-  return std::make_pair(W1, W2);
+  return {W1, W2};
 }
 
 Error BinaryStreamWriter::padToAlignment(uint32_t Align) {

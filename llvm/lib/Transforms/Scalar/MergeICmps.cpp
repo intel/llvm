@@ -42,6 +42,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/Scalar/MergeICmps.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/Analysis/DomTreeUpdater.h"
 #include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/Loads.h"
@@ -50,6 +51,8 @@
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Instruction.h"
+#include "llvm/IR/ProfDataUtils.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Transforms/Scalar.h"
@@ -62,9 +65,12 @@
 
 using namespace llvm;
 
-namespace {
-
 #define DEBUG_TYPE "mergeicmps"
+
+namespace llvm {
+extern cl::opt<bool> ProfcheckDisableMetadataFixes;
+} // namespace llvm
+namespace {
 
 // A BCE atom "Binary Compare Expression Atom" represents an integer load
 // that is a constant offset from a base value, e.g. `a` or `o.c` in the example
@@ -72,7 +78,7 @@ namespace {
 struct BCEAtom {
   BCEAtom() = default;
   BCEAtom(GetElementPtrInst *GEP, LoadInst *LoadI, int BaseId, APInt Offset)
-      : GEP(GEP), LoadI(LoadI), BaseId(BaseId), Offset(Offset) {}
+      : GEP(GEP), LoadI(LoadI), BaseId(BaseId), Offset(std::move(Offset)) {}
 
   BCEAtom(const BCEAtom &) = delete;
   BCEAtom &operator=(const BCEAtom &) = delete;
@@ -126,11 +132,12 @@ private:
   unsigned Order = 1;
   DenseMap<const Value*, int> BaseToIndex;
 };
+} // namespace
 
 // If this value is a load from a constant offset w.r.t. a base address, and
 // there are no other users of the load or address, returns the base address and
 // the offset.
-BCEAtom visitICmpLoadOperand(Value *const Val, BaseIdentifier &BaseId) {
+static BCEAtom visitICmpLoadOperand(Value *const Val, BaseIdentifier &BaseId) {
   auto *const LoadI = dyn_cast<LoadInst>(Val);
   if (!LoadI)
     return {};
@@ -149,15 +156,15 @@ BCEAtom visitICmpLoadOperand(Value *const Val, BaseIdentifier &BaseId) {
     LLVM_DEBUG(dbgs() << "from non-zero AddressSpace\n");
     return {};
   }
-  const auto &DL = LoadI->getModule()->getDataLayout();
+  const auto &DL = LoadI->getDataLayout();
   if (!isDereferenceablePointer(Addr, LoadI->getType(), DL)) {
     LLVM_DEBUG(dbgs() << "not dereferenceable\n");
     // We need to make sure that we can do comparison in any order, so we
-    // require memory to be unconditionnally dereferencable.
+    // require memory to be unconditionally dereferenceable.
     return {};
   }
 
-  APInt Offset = APInt(DL.getPointerTypeSizeInBits(Addr->getType()), 0);
+  APInt Offset = APInt(DL.getIndexTypeSizeInBits(Addr->getType()), 0);
   Value *Base = Addr;
   auto *GEP = dyn_cast<GetElementPtrInst>(Addr);
   if (GEP) {
@@ -173,6 +180,7 @@ BCEAtom visitICmpLoadOperand(Value *const Val, BaseIdentifier &BaseId) {
   return BCEAtom(GEP, LoadI, BaseId.getBaseId(Base), Offset);
 }
 
+namespace {
 // A comparison between two BCE atoms, e.g. `a == o.a` in the example at the
 // top.
 // Note: the terminology is misleading: the comparison is symmetric, so there
@@ -237,6 +245,7 @@ class BCECmpBlock {
 private:
   BCECmp Cmp;
 };
+} // namespace
 
 bool BCECmpBlock::canSinkBCECmpInst(const Instruction *Inst,
                                     AliasAnalysis &AA) const {
@@ -273,7 +282,7 @@ void BCECmpBlock::split(BasicBlock *NewParent, AliasAnalysis &AA) const {
 
   // Do the actual spliting.
   for (Instruction *Inst : reverse(OtherInsts))
-    Inst->moveBefore(*NewParent, NewParent->begin());
+    Inst->moveBeforePreserving(*NewParent, NewParent->begin());
 }
 
 bool BCECmpBlock::canSplit(AliasAnalysis &AA) const {
@@ -300,9 +309,9 @@ bool BCECmpBlock::doesOtherWork() const {
 
 // Visit the given comparison. If this is a comparison between two valid
 // BCE atoms, returns the comparison.
-Optional<BCECmp> visitICmp(const ICmpInst *const CmpI,
-                           const ICmpInst::Predicate ExpectedPredicate,
-                           BaseIdentifier &BaseId) {
+static std::optional<BCECmp>
+visitICmp(const ICmpInst *const CmpI,
+          const ICmpInst::Predicate ExpectedPredicate, BaseIdentifier &BaseId) {
   // The comparison can only be used once:
   //  - For intermediate blocks, as a branch condition.
   //  - For the final block, as an incoming value for the Phi.
@@ -310,32 +319,34 @@ Optional<BCECmp> visitICmp(const ICmpInst *const CmpI,
   // other comparisons as we would create an orphan use of the value.
   if (!CmpI->hasOneUse()) {
     LLVM_DEBUG(dbgs() << "cmp has several uses\n");
-    return None;
+    return std::nullopt;
   }
   if (CmpI->getPredicate() != ExpectedPredicate)
-    return None;
+    return std::nullopt;
   LLVM_DEBUG(dbgs() << "cmp "
                     << (ExpectedPredicate == ICmpInst::ICMP_EQ ? "eq" : "ne")
                     << "\n");
   auto Lhs = visitICmpLoadOperand(CmpI->getOperand(0), BaseId);
   if (!Lhs.BaseId)
-    return None;
+    return std::nullopt;
   auto Rhs = visitICmpLoadOperand(CmpI->getOperand(1), BaseId);
   if (!Rhs.BaseId)
-    return None;
-  const auto &DL = CmpI->getModule()->getDataLayout();
+    return std::nullopt;
+  const auto &DL = CmpI->getDataLayout();
   return BCECmp(std::move(Lhs), std::move(Rhs),
                 DL.getTypeSizeInBits(CmpI->getOperand(0)->getType()), CmpI);
 }
 
 // Visit the given comparison block. If this is a comparison between two valid
 // BCE atoms, returns the comparison.
-Optional<BCECmpBlock> visitCmpBlock(Value *const Val, BasicBlock *const Block,
-                                    const BasicBlock *const PhiBlock,
-                                    BaseIdentifier &BaseId) {
-  if (Block->empty()) return None;
+static std::optional<BCECmpBlock>
+visitCmpBlock(Value *const Val, BasicBlock *const Block,
+              const BasicBlock *const PhiBlock, BaseIdentifier &BaseId) {
+  if (Block->empty())
+    return std::nullopt;
   auto *const BranchI = dyn_cast<BranchInst>(Block->getTerminator());
-  if (!BranchI) return None;
+  if (!BranchI)
+    return std::nullopt;
   LLVM_DEBUG(dbgs() << "branch\n");
   Value *Cond;
   ICmpInst::Predicate ExpectedPredicate;
@@ -351,7 +362,8 @@ Optional<BCECmpBlock> visitCmpBlock(Value *const Val, BasicBlock *const Block,
     // chained).
     const auto *const Const = cast<ConstantInt>(Val);
     LLVM_DEBUG(dbgs() << "const\n");
-    if (!Const->isZero()) return None;
+    if (!Const->isZero())
+      return std::nullopt;
     LLVM_DEBUG(dbgs() << "false\n");
     assert(BranchI->getNumSuccessors() == 2 && "expecting a cond branch");
     BasicBlock *const FalseBlock = BranchI->getSuccessor(1);
@@ -361,12 +373,13 @@ Optional<BCECmpBlock> visitCmpBlock(Value *const Val, BasicBlock *const Block,
   }
 
   auto *CmpI = dyn_cast<ICmpInst>(Cond);
-  if (!CmpI) return None;
+  if (!CmpI)
+    return std::nullopt;
   LLVM_DEBUG(dbgs() << "icmp\n");
 
-  Optional<BCECmp> Result = visitICmp(CmpI, ExpectedPredicate, BaseId);
+  std::optional<BCECmp> Result = visitICmp(CmpI, ExpectedPredicate, BaseId);
   if (!Result)
-    return None;
+    return std::nullopt;
 
   BCECmpBlock::InstructionSet BlockInsts(
       {Result->Lhs.LoadI, Result->Rhs.LoadI, Result->CmpI, BranchI});
@@ -390,6 +403,7 @@ static inline void enqueueBlock(std::vector<BCECmpBlock> &Comparisons,
   Comparisons.push_back(std::move(Comparison));
 }
 
+namespace {
 // A chain of comparisons.
 class BCECmpChain {
 public:
@@ -413,6 +427,7 @@ private:
   // The original entry block (before sorting);
   BasicBlock *EntryBlock_;
 };
+} // namespace
 
 static bool areContiguous(const BCECmpBlock &First, const BCECmpBlock &Second) {
   return First.Lhs().BaseId == Second.Lhs().BaseId &&
@@ -472,7 +487,11 @@ BCECmpChain::BCECmpChain(const std::vector<BasicBlock *> &Blocks, PHINode &Phi,
   BaseIdentifier BaseId;
   for (BasicBlock *const Block : Blocks) {
     assert(Block && "invalid block");
-    Optional<BCECmpBlock> Comparison = visitCmpBlock(
+    if (Block->hasAddressTaken()) {
+      LLVM_DEBUG(dbgs() << "cannot merge blocks with blockaddress\n");
+      return;
+    }
+    std::optional<BCECmpBlock> Comparison = visitCmpBlock(
         Phi.getIncomingValueForBlock(Block), Block, Phi.getParent(), BaseId);
     if (!Comparison) {
       LLVM_DEBUG(dbgs() << "chain with invalid BCECmpBlock, no merge.\n");
@@ -592,6 +611,37 @@ private:
 };
 } // namespace
 
+/// Determine the branch weights for the resulting conditional branch, resulting
+/// after merging \p Comparisons.
+static std::optional<SmallVector<uint32_t, 2>>
+computeMergedBranchWeights(ArrayRef<BCECmpBlock> Comparisons) {
+  assert(!Comparisons.empty());
+  if (ProfcheckDisableMetadataFixes)
+    return std::nullopt;
+  if (Comparisons.size() == 1) {
+    SmallVector<uint32_t, 2> Weights;
+    if (!extractBranchWeights(*Comparisons[0].BB->getTerminator(), Weights))
+      return std::nullopt;
+    return Weights;
+  }
+  // The probability to go to the phi block is the disjunction of the
+  // probability to go to the phi block from the individual Comparisons. We'll
+  // swap the weights because `getDisjunctionWeights` computes the disjunction
+  // for the "true" branch, then swap back.
+  SmallVector<uint64_t, 2> Weights{0, 1};
+  // At this point, Weights encodes "0-probability" for the "true" side.
+  for (const auto &C : Comparisons) {
+    SmallVector<uint32_t, 2> W;
+    if (!extractBranchWeights(*C.BB->getTerminator(), W))
+      return std::nullopt;
+
+    std::swap(W[0], W[1]);
+    Weights = getDisjunctionWeights(Weights, W);
+  }
+  std::swap(Weights[0], Weights[1]);
+  return fitWeights(Weights);
+}
+
 // Merges the given contiguous comparison blocks into one memcmp block.
 static BasicBlock *mergeComparisons(ArrayRef<BCECmpBlock> Comparisons,
                                     BasicBlock *const InsertBefore,
@@ -625,7 +675,7 @@ static BasicBlock *mergeComparisons(ArrayRef<BCECmpBlock> Comparisons,
   // If there is one block that requires splitting, we do it now, i.e.
   // just before we know we will collapse the chain. The instructions
   // can be executed before any of the instructions in the chain.
-  const auto ToSplit = llvm::find_if(
+  const auto *ToSplit = llvm::find_if(
       Comparisons, [](const BCECmpBlock &B) { return B.RequireSplit; });
   if (ToSplit != Comparisons.end()) {
     LLVM_DEBUG(dbgs() << "Splitting non_BCE work to header\n");
@@ -634,11 +684,13 @@ static BasicBlock *mergeComparisons(ArrayRef<BCECmpBlock> Comparisons,
 
   if (Comparisons.size() == 1) {
     LLVM_DEBUG(dbgs() << "Only one comparison, updating branches\n");
-    Value *const LhsLoad =
-        Builder.CreateLoad(FirstCmp.Lhs().LoadI->getType(), Lhs);
-    Value *const RhsLoad =
-        Builder.CreateLoad(FirstCmp.Rhs().LoadI->getType(), Rhs);
+    // Use clone to keep the metadata
+    Instruction *const LhsLoad = Builder.Insert(FirstCmp.Lhs().LoadI->clone());
+    Instruction *const RhsLoad = Builder.Insert(FirstCmp.Rhs().LoadI->clone());
+    LhsLoad->replaceUsesOfWith(LhsLoad->getOperand(0), Lhs);
+    RhsLoad->replaceUsesOfWith(RhsLoad->getOperand(0), Rhs);
     // There are no blocks to merge, just do the comparison.
+    // If we condition on this IsEqual, we already have its probabilities.
     IsEqual = Builder.CreateICmpEQ(LhsLoad, RhsLoad);
   } else {
     const unsigned TotalSizeBits = std::accumulate(
@@ -650,7 +702,7 @@ static BasicBlock *mergeComparisons(ArrayRef<BCECmpBlock> Comparisons,
     unsigned IntBits = TLI.getIntSize();
 
     // Create memcmp() == 0.
-    const auto &DL = Phi.getModule()->getDataLayout();
+    const auto &DL = Phi.getDataLayout();
     Value *const MemCmpCall = emitMemCmp(
         Lhs, Rhs,
         ConstantInt::get(Builder.getIntNTy(SizeTBits), TotalSizeBits / 8),
@@ -668,7 +720,9 @@ static BasicBlock *mergeComparisons(ArrayRef<BCECmpBlock> Comparisons,
     DTU.applyUpdates({{DominatorTree::Insert, BB, PhiBB}});
   } else {
     // Continue to next block if equal, exit to phi else.
-    Builder.CreateCondBr(IsEqual, NextCmpBlock, PhiBB);
+    auto *BI = Builder.CreateCondBr(IsEqual, NextCmpBlock, PhiBB);
+    if (auto BranchWeights = computeMergedBranchWeights(Comparisons))
+      setBranchWeights(*BI, BranchWeights.value(), /*IsExpected=*/false);
     Phi.addIncoming(ConstantInt::getFalse(Context), BB);
     DTU.applyUpdates({{DominatorTree::Insert, BB, NextCmpBlock},
                       {DominatorTree::Insert, BB, PhiBB}});
@@ -730,9 +784,8 @@ bool BCECmpChain::simplify(const TargetLibraryInfo &TLI, AliasAnalysis &AA,
   return true;
 }
 
-std::vector<BasicBlock *> getOrderedBlocks(PHINode &Phi,
-                                           BasicBlock *const LastBlock,
-                                           int NumBlocks) {
+static std::vector<BasicBlock *>
+getOrderedBlocks(PHINode &Phi, BasicBlock *const LastBlock, int NumBlocks) {
   // Walk up from the last block to find other blocks.
   std::vector<BasicBlock *> Blocks(NumBlocks);
   assert(LastBlock && "invalid last block");
@@ -765,8 +818,8 @@ std::vector<BasicBlock *> getOrderedBlocks(PHINode &Phi,
   return Blocks;
 }
 
-bool processPhi(PHINode &Phi, const TargetLibraryInfo &TLI, AliasAnalysis &AA,
-                DomTreeUpdater &DTU) {
+static bool processPhi(PHINode &Phi, const TargetLibraryInfo &TLI,
+                       AliasAnalysis &AA, DomTreeUpdater &DTU) {
   LLVM_DEBUG(dbgs() << "processPhi()\n");
   if (Phi.getNumIncomingValues() <= 1) {
     LLVM_DEBUG(dbgs() << "skip: only one incoming value in phi\n");
@@ -862,6 +915,7 @@ static bool runImpl(Function &F, const TargetLibraryInfo &TLI,
   return MadeChange;
 }
 
+namespace {
 class MergeICmpsLegacyPass : public FunctionPass {
 public:
   static char ID;

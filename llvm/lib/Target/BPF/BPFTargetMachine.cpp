@@ -12,67 +12,74 @@
 
 #include "BPFTargetMachine.h"
 #include "BPF.h"
+#include "BPFTargetLoweringObjectFile.h"
 #include "BPFTargetTransformInfo.h"
 #include "MCTargetDesc/BPFMCAsmInfo.h"
 #include "TargetInfo/BPFTargetInfo.h"
+#include "llvm/CodeGen/GlobalISel/IRTranslator.h"
+#include "llvm/CodeGen/GlobalISel/InstructionSelect.h"
+#include "llvm/CodeGen/GlobalISel/Legalizer.h"
+#include "llvm/CodeGen/GlobalISel/RegBankSelect.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
-#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Passes/PassBuilder.h"
-#include "llvm/Support/FormattedStream.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Target/TargetOptions.h"
-#include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/SimplifyCFG.h"
 #include "llvm/Transforms/Utils/SimplifyCFGOptions.h"
+#include <optional>
 using namespace llvm;
 
 static cl::
 opt<bool> DisableMIPeephole("disable-bpf-peephole", cl::Hidden,
                             cl::desc("Disable machine peepholes for BPF"));
 
-extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeBPFTarget() {
+static cl::opt<bool>
+    DisableCheckUnreachable("bpf-disable-trap-unreachable", cl::Hidden,
+                            cl::desc("Disable Trap Unreachable for BPF"));
+
+extern "C" LLVM_ABI LLVM_EXTERNAL_VISIBILITY void LLVMInitializeBPFTarget() {
   // Register the target.
   RegisterTargetMachine<BPFTargetMachine> X(getTheBPFleTarget());
   RegisterTargetMachine<BPFTargetMachine> Y(getTheBPFbeTarget());
   RegisterTargetMachine<BPFTargetMachine> Z(getTheBPFTarget());
 
   PassRegistry &PR = *PassRegistry::getPassRegistry();
-  initializeBPFAbstractMemberAccessLegacyPassPass(PR);
-  initializeBPFPreserveDITypePass(PR);
-  initializeBPFIRPeepholePass(PR);
-  initializeBPFAdjustOptPass(PR);
+  initializeGlobalISel(PR);
+  initializeBPFAsmPrinterPass(PR);
   initializeBPFCheckAndAdjustIRPass(PR);
   initializeBPFMIPeepholePass(PR);
-  initializeBPFMIPeepholeTruncElimPass(PR);
+  initializeBPFMIPreEmitPeepholePass(PR);
+  initializeBPFDAGToDAGISelLegacyPass(PR);
+  initializeBPFMISimplifyPatchablePass(PR);
+  initializeBPFMIPreEmitCheckingPass(PR);
 }
 
-// DataLayout: little or big endian
-static std::string computeDataLayout(const Triple &TT) {
-  if (TT.getArch() == Triple::bpfeb)
-    return "E-m:e-p:64:64-i64:64-i128:128-n32:64-S128";
-  else
-    return "e-m:e-p:64:64-i64:64-i128:128-n32:64-S128";
-}
-
-static Reloc::Model getEffectiveRelocModel(Optional<Reloc::Model> RM) {
+static Reloc::Model getEffectiveRelocModel(std::optional<Reloc::Model> RM) {
   return RM.value_or(Reloc::PIC_);
 }
 
 BPFTargetMachine::BPFTargetMachine(const Target &T, const Triple &TT,
                                    StringRef CPU, StringRef FS,
                                    const TargetOptions &Options,
-                                   Optional<Reloc::Model> RM,
-                                   Optional<CodeModel::Model> CM,
-                                   CodeGenOpt::Level OL, bool JIT)
-    : LLVMTargetMachine(T, computeDataLayout(TT), TT, CPU, FS, Options,
-                        getEffectiveRelocModel(RM),
-                        getEffectiveCodeModel(CM, CodeModel::Small), OL),
-      TLOF(std::make_unique<TargetLoweringObjectFileELF>()),
+                                   std::optional<Reloc::Model> RM,
+                                   std::optional<CodeModel::Model> CM,
+                                   CodeGenOptLevel OL, bool JIT)
+    : CodeGenTargetMachineImpl(T, TT.computeDataLayout(), TT, CPU, FS, Options,
+                               getEffectiveRelocModel(RM),
+                               getEffectiveCodeModel(CM, CodeModel::Small), OL),
+      TLOF(std::make_unique<BPFTargetLoweringObjectFileELF>()),
       Subtarget(TT, std::string(CPU), std::string(FS), *this) {
+  if (!DisableCheckUnreachable) {
+    this->Options.TrapUnreachable = true;
+    this->Options.NoTrapAfterNoreturn = true;
+  }
+
   initAsmInfo();
 
   BPFMCAsmInfo *MAI =
@@ -95,6 +102,11 @@ public:
   bool addInstSelector() override;
   void addMachineSSAOptimization() override;
   void addPreEmitPass() override;
+
+  bool addIRTranslator() override;
+  bool addLegalizeMachineIR() override;
+  bool addRegBankSelect() override;
+  bool addGlobalInstructionSelect() override;
 };
 }
 
@@ -102,32 +114,19 @@ TargetPassConfig *BPFTargetMachine::createPassConfig(PassManagerBase &PM) {
   return new BPFPassConfig(*this, PM);
 }
 
-void BPFTargetMachine::adjustPassManager(PassManagerBuilder &Builder) {
- Builder.addExtension(
-      PassManagerBuilder::EP_EarlyAsPossible,
-      [&](const PassManagerBuilder &, legacy::PassManagerBase &PM) {
-        PM.add(createBPFAbstractMemberAccess(this));
-        PM.add(createBPFPreserveDIType());
-        PM.add(createBPFIRPeephole());
-      });
-
-  Builder.addExtension(
-      PassManagerBuilder::EP_Peephole,
-      [&](const PassManagerBuilder &, legacy::PassManagerBase &PM) {
-        PM.add(createCFGSimplificationPass(
-            SimplifyCFGOptions().hoistCommonInsts(true)));
-      });
-  Builder.addExtension(
-      PassManagerBuilder::EP_ModuleOptimizerEarly,
-      [&](const PassManagerBuilder &, legacy::PassManagerBase &PM) {
-        PM.add(createBPFAdjustOpt());
-      });
+static Expected<bool> parseBPFPreserveStaticOffsetOptions(StringRef Params) {
+  return PassBuilder::parseSinglePassOption(Params, "allow-partial",
+                                            "BPFPreserveStaticOffsetPass");
 }
 
 void BPFTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
+#define GET_PASS_REGISTRY "BPFPassRegistry.def"
+#include "llvm/Passes/TargetPassRegistry.inc"
+
   PB.registerPipelineStartEPCallback(
       [=](ModulePassManager &MPM, OptimizationLevel) {
         FunctionPassManager FPM;
+        FPM.addPass(BPFPreserveStaticOffsetPass(true));
         FPM.addPass(BPFAbstractMemberAccessPass(this));
         FPM.addPass(BPFPreserveDITypePass());
         FPM.addPass(BPFIRPeepholePass());
@@ -136,21 +135,30 @@ void BPFTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
   PB.registerPeepholeEPCallback([=](FunctionPassManager &FPM,
                                     OptimizationLevel Level) {
     FPM.addPass(SimplifyCFGPass(SimplifyCFGOptions().hoistCommonInsts(true)));
+    FPM.addPass(BPFASpaceCastSimplifyPass());
   });
+  PB.registerScalarOptimizerLateEPCallback(
+      [=](FunctionPassManager &FPM, OptimizationLevel Level) {
+        // Run this after loop unrolling but before
+        // SimplifyCFGPass(... .sinkCommonInsts(true))
+        FPM.addPass(BPFPreserveStaticOffsetPass(false));
+      });
   PB.registerPipelineEarlySimplificationEPCallback(
-      [=](ModulePassManager &MPM, OptimizationLevel) {
+      [=](ModulePassManager &MPM, OptimizationLevel, ThinOrFullLTOPhase) {
         MPM.addPass(BPFAdjustOptPass());
       });
 }
 
 void BPFPassConfig::addIRPasses() {
+  addPass(createAtomicExpandLegacyPass());
   addPass(createBPFCheckAndAdjustIR());
+
   TargetPassConfig::addIRPasses();
 }
 
 TargetTransformInfo
 BPFTargetMachine::getTargetTransformInfo(const Function &F) const {
-  return TargetTransformInfo(BPFTTIImpl(this, F));
+  return TargetTransformInfo(std::make_unique<BPFTTIImpl>(this, F));
 }
 
 // Install an instruction selector pass using
@@ -172,13 +180,32 @@ void BPFPassConfig::addMachineSSAOptimization() {
   if (!DisableMIPeephole) {
     if (Subtarget->getHasAlu32())
       addPass(createBPFMIPeepholePass());
-    addPass(createBPFMIPeepholeTruncElimPass());
   }
 }
 
 void BPFPassConfig::addPreEmitPass() {
   addPass(createBPFMIPreEmitCheckingPass());
-  if (getOptLevel() != CodeGenOpt::None)
+  if (getOptLevel() != CodeGenOptLevel::None)
     if (!DisableMIPeephole)
       addPass(createBPFMIPreEmitPeepholePass());
+}
+
+bool BPFPassConfig::addIRTranslator() {
+  addPass(new IRTranslator());
+  return false;
+}
+
+bool BPFPassConfig::addLegalizeMachineIR() {
+  addPass(new Legalizer());
+  return false;
+}
+
+bool BPFPassConfig::addRegBankSelect() {
+  addPass(new RegBankSelect());
+  return false;
+}
+
+bool BPFPassConfig::addGlobalInstructionSelect() {
+  addPass(new InstructionSelect(getOptLevel()));
+  return false;
 }

@@ -1,0 +1,258 @@
+:extension_name: SPV_INTEL_float4
+
+:hf4_capability_name: Float4E2M1INTEL
+:hf4_capability_token: 6212
+:hf4_matrix_capability_name: Float4E2M1CooperativeMatrixINTEL
+:hf4_matrix_capability_token: 6213
+:hf4_encoding: 6214
+
+:khr_matrix_capability_name: CooperativeMatrixKHR
+
+:joint_matrix_url:  https://https://github.com/intel/llvm/tree/sycl/sycl/doc/design/spirv-extensions/SPV_INTEL_joint_matrix.asciidoc
+:fp_conv_url: https://github.com/intel/llvm/tree/sycl/sycl/doc/design/spirv-extensions/SPV_INTEL_fp_conversions.asciidoc
+:coop_matrix_url: https://github.khronos.org/SPIRV-Registry/extensions/KHR/SPV_KHR_cooperative_matrix.html
+:bfloat16_url: https://github.khronos.org/SPIRV-Registry/extensions/KHR/SPV_KHR_bfloat16.html
+:fp8_url: https://github.khronos.org/SPIRV-Registry/extensions/EXT/SPV_EXT_float8.html
+
+{extension_name}
+================
+
+
+== Name Strings
+
+{extension_name}
+
+== Contributors
+
+- Dmitry Sidorov, Intel +
+- Victor Mustya, Intel +
+- Ben Ashbaugh, Intel +
+- Dounia Khaldi, Intel +
+- Joe Garvey, Intel +
+- Greg Lueck, Intel +
+- Pawel Jurek, Intel +
+
+Notice
+------
+
+Copyright (c) 2025 Intel Corporation. All rights reserved.
+
+Status
+------
+
+* Working Draft
+
+This is a preview extension specification, intended to provide early access to
+a feature for review and community feedback. When the feature matures, this
+specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products. If you are interested in using this feature in your software product,
+please let us know!
+
+== Version
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | 2025-10-24
+| Revision           | 2
+|========================================
+
+== Dependencies
+
+This extension is written against the SPIR-V Specification,
+Version 1.6 Revision 4.
+
+This extension interacts with {coop_matrix_url}[*SPV_KHR_cooperative_matrix*] extension.
+
+This extension interacts with {joint_matrix_url}[*SPV_INTEL_joint_matrix*] extension.
+
+This extension interacts with {bfloat16_url}[*SPV_KHR_bfloat16*] extension.
+
+This extension interacts with {fp8_url}[*SPV_EXT_float8*] extension.
+
+This extension interacts with {fp_conv_url}[*SPV_INTEL_fp_conversions*] extension.
+
+This extension requires SPIR-V 1.0.
+
+Overview
+--------
+
+This extension extends the *OpTypeFloat* instruction to enable the definition of `FP4E2M1`
+floating-point format that has one sign bit, two exponent bits and one mantissa bits.
+
+The `FP4E2M1` special values are defined by the table below.
+
+[options="header"]
+[width="80%"]
+[cols="1,2"]
+|====
+| ^| `FP4E2M1`
+| Exponent Bias | 1
+| Max normal
+| S.11.1 = 6.0 (1.5 * 2^2^)
+
+| Min normal
+| S.01.0 = 1.0 (1.0 * 2^0^)
+
+| Max subnormal
+| S.00.1 = 0.5 (0.5 * 2^0^)
+
+| Min subnormal
+| S.00.1 = 0.5 (0.5 * 2^0^)
+
+| Infinity | N/A
+| NaN | N/A
+
+|====
+
+== Modifications to the SPIR-V Specification, Version 1.6
+
+Binary Form
+~~~~~~~~~~~
+
+FP Encoding
+~~~~~~~~~~~
+
+Add a new enum:
+
+--
+[cols="^2,14,2,4",options="header",width = "100%"]
+|====
+2+^.^| FP Encoding | Width(s) | Enabling Capabilities
+| {hf4_encoding} | *Float4E2M1INTEL* +
+The floating point type is encoded as a 4-bit float type.
+This is encoded with the following encoding parameters: +
+
+ - _bias_ is 1
+ +
+ - _sign bit_ is 1
+ +
+ - _w_ (exponent) is 2
+ +
+ - _t_ (significand) is 1
+ +
+ - _k_ (width) is 4
+| 4 | *Float4E2M1INTEL*
+
+|===
+--
+
+=== Capabilities
+
+Modify Section 3.31, Capability, adding rows to the Capability table:
+
+--
+[options="header"]
+|====
+2+^| Capability ^| Implicitly Declares 
+| {hf4_capability_token} | *{hf4_capability_name}* +
+Uses *Float4E2M1INTEL* floating-point encoding. +
+|
+| {hf4_matrix_capability_token} | *{hf4_matrix_capability_name}* | *{khr_matrix_capability_name}*
+|====
+--
+
+=== Memory Layout
+
+Add to Section 2.18.1. Memory Layout, FPE2M1 4 layout:
+
+Scalar floating point variables with a `Width` of 4 can only be declared in the `Private` or `Function` storage classes.
+In other storage classes, they must be included in an `OpTypeVector` with an even `Component Count`, where the first component in every pair is in bits 0-3 of the corresponding byte, and the second component is in bits 4-7.
+
+=== Instructions
+
+==== 3.42.11. Conversion Instructions
+
+* Add the following paragraphs to *OpFConvert*:
+ +
+When converting to floating-point values with the *Float4E2M1INTEL* encoding, out-of-range
+values and infinity and are converted to largest representable finite value with a matching sign.
+Conversion from NaNs is implementation-defined. +
+ +
+
+==== 3.49.6. Type-Declaration Instructions
+
+Add the following requirement to *OpTypeCooperativeMatrixKHR*:
+
+If _Component Type_ has a *Float4E2M1INTEL* encoding then *{hf4_matrix_capability_name}* must be declared.
+
+Validation Rules
+~~~~~~~~~~~~~~~~
+
+Add the following bullets to section 2.16.1, Universal Validation Rules:
+
+  * Variables with a type that is or includes a floating-point type with the *Float4E2M1INTEL* encoding must only be used with the following instructions:
+  ** https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#_miscellaneous_instructions[Miscellaneous Instructions] :
+  *** OpUndef
+  ** https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#_constant_creation_instructions[Constant Creation Instructions] :
+  *** OpConstant
+  *** OpConstantNull
+  *** OpConstantOp
+  *** OpConstantComposite
+  *** OpConstantCompositeContinuedINTEL
+  *** OpCooperativeMatrixConstructCheckedINTEL
+  *** OpSpecConstant
+  *** OpSpecConstantOp
+  *** OpSpecConstantComposite
+  *** OpSpecConstantCompositeContinuedINTEL
+  ** https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#_arithmetic_instructions[Arithmetic Instructions] :
+  *** OpCooperativeMatrixMulAddKHR
+  *** OpCooperativeMatrixMulAddScaledINTEL
+  ** https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#_composite_instructions[Composite Instructions] :
+  *** OpVectorExtractDynamic
+  *** OpVectorInsertDynamic
+  *** OpVectorShuffle
+  *** OpCompositeConstruct
+  *** OpCompositeExtract
+  *** OpCompositeInsert
+  *** OpCopyObject
+  *** OpCopyLogical
+  ** https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#_memory_instructions[Memory Instructions] :
+  *** OpPtrEqual
+  *** OpPtrNotEqual
+  *** OpPtrDiff
+  *** OpCooperativeMatrixLoadKHR
+  *** OpCooperativeMatrixStoreKHR
+  *** OpCooperativeMatrixLoadCheckedINTEL
+  *** OpCooperativeMatrixStoreCheckedINTEL
+  ** https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#_function_instructions[Function Instructions] :
+  *** OpFunction
+  *** OpFunctionParameter
+  *** OpFunctionCall
+  ** https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#_conversion_instructions[Conversion Instructions] :
+  *** OpConvertSToF
+  *** OpFConvert
+  *** OpConvertPtrToU
+  *** OpConvertUToPtr
+  *** OpPtrCastToGeneric
+  *** OpGenericCastToPtr
+  *** OpGenericCastToPtrExplicit
+  *** OpBitcast
+  *** OpClampConvertFToFINTEL
+  *** OpBiasedRoundFToFINTEL
+  *** OpClampBiasedRoundFToFINTEL
+  *** OpBiasedRoundFToSINTEL
+  ** https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#_control_flow_instructions[Control-Flow Instructions] :
+  *** OpReturnValue
+  *** OpSelect
+  *** OpPhi
+  *** OpLifetimeStart
+  *** OpLifetimeStop
+
+=== Issues
+
+-
+
+Revision History
+----------------
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2024-06-15|Dmitry Sidorov|Initial revision
+|2|2025-10-24|Dmitry Sidorov|Prepare to publish
+|========================================

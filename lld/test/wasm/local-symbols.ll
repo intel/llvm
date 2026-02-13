@@ -1,5 +1,5 @@
 ; Test that internal symbols can still be GC'd when with --export-dynamic.
-; RUN: llc -filetype=obj %s -o %t.o
+; RUN: llc -mcpu=mvp -filetype=obj %s -o %t.o
 ; RUN: wasm-ld --export-dynamic -o %t.wasm %t.o
 ; RUN: obj2yaml %t.wasm | FileCheck %s
 
@@ -10,7 +10,7 @@ target triple = "wasm32-unknown-unknown"
 
 define internal i32 @baz() local_unnamed_addr {
 entry:
-  %0 = load i32, i32* @bar, align 4
+  %0 = load i32, ptr @bar, align 4
   ret i32 %0
 }
 
@@ -45,13 +45,13 @@ entry:
 ; CHECK-NEXT:         Mutable:         true
 ; CHECK-NEXT:         InitExpr:
 ; CHECK-NEXT:           Opcode:          I32_CONST
-; CHECK-NEXT:           Value:           66576
+; CHECK-NEXT:           Value:           65536
 ; CHECK-NEXT:       - Index:           1
 ; CHECK-NEXT:         Type:            I32
 ; CHECK-NEXT:         Mutable:         false
 ; CHECK-NEXT:         InitExpr:
 ; CHECK-NEXT:           Opcode:          I32_CONST
-; CHECK-NEXT:           Value:           1024
+; CHECK-NEXT:           Value:           65536
 ; CHECK-NEXT:   - Type:            EXPORT
 ; CHECK-NEXT:     Exports:
 ; CHECK-NEXT:       - Name:            memory
@@ -67,17 +67,17 @@ entry:
 ; CHECK-NEXT:     Functions:
 ; CHECK-NEXT:       - Index:           0
 ; CHECK-NEXT:         Locals:
-; CHECK-NEXT:         Body:            4100280284888080000B
+; CHECK-NEXT:         Body:            4100280284808480000B
 ; CHECK-NEXT:       - Index:           1
 ; CHECK-NEXT:         Locals:
 ; CHECK-NEXT:         Body:            1080808080001A0B
 ; CHECK-NEXT:   - Type:            DATA
 ; CHECK-NEXT:     Segments:
-; CHECK-NEXT:       - SectionOffset:   7
+; CHECK-NEXT:       - SectionOffset:   8
 ; CHECK-NEXT:         InitFlags:       0
 ; CHECK-NEXT:         Offset:
 ; CHECK-NEXT:           Opcode:          I32_CONST
-; CHECK-NEXT:           Value:           1024
+; CHECK-NEXT:           Value:           65536
 ; CHECK-NEXT:         Content:         '0100000003000000'
 ; CHECK-NEXT:   - Type:            CUSTOM
 ; CHECK-NEXT:     Name:            name

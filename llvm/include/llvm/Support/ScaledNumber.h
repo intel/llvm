@@ -21,6 +21,7 @@
 #ifndef LLVM_SUPPORT_SCALEDNUMBER_H
 #define LLVM_SUPPORT_SCALEDNUMBER_H
 
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/MathExtras.h"
 #include <algorithm>
 #include <cstdint>
@@ -56,8 +57,8 @@ inline std::pair<DigitsT, int16_t> getRounded(DigitsT Digits, int16_t Scale,
   if (ShouldRound)
     if (!++Digits)
       // Overflow.
-      return std::make_pair(DigitsT(1) << (getWidth<DigitsT>() - 1), Scale + 1);
-  return std::make_pair(Digits, Scale);
+      return {DigitsT(1) << (getWidth<DigitsT>() - 1), Scale + 1};
+  return {Digits, Scale};
 }
 
 /// Convenience helper for 32-bit rounding.
@@ -82,10 +83,10 @@ inline std::pair<DigitsT, int16_t> getAdjusted(uint64_t Digits,
 
   const int Width = getWidth<DigitsT>();
   if (Width == 64 || Digits <= std::numeric_limits<DigitsT>::max())
-    return std::make_pair(Digits, Scale);
+    return {Digits, Scale};
 
   // Shift right and round.
-  int Shift = 64 - Width - countLeadingZeros(Digits);
+  int Shift = llvm::bit_width(Digits) - Width;
   return getRounded<DigitsT>(Digits >> Shift, Scale + Shift,
                              Digits & (UINT64_C(1) << (Shift - 1)));
 }
@@ -105,7 +106,7 @@ inline std::pair<uint64_t, int16_t> getAdjusted64(uint64_t Digits,
 /// Multiply two 64-bit integers to create a 64-bit scaled number.
 ///
 /// Implemented with four 64-bit integer multiplies.
-std::pair<uint64_t, int16_t> multiply64(uint64_t LHS, uint64_t RHS);
+LLVM_ABI std::pair<uint64_t, int16_t> multiply64(uint64_t LHS, uint64_t RHS);
 
 /// Multiply two 32-bit integers to create a 32-bit scaled number.
 ///
@@ -135,14 +136,16 @@ inline std::pair<uint64_t, int16_t> getProduct64(uint64_t LHS, uint64_t RHS) {
 /// Implemented with long division.
 ///
 /// \pre \c Dividend and \c Divisor are non-zero.
-std::pair<uint64_t, int16_t> divide64(uint64_t Dividend, uint64_t Divisor);
+LLVM_ABI std::pair<uint64_t, int16_t> divide64(uint64_t Dividend,
+                                               uint64_t Divisor);
 
 /// Divide two 32-bit integers to create a 32-bit scaled number.
 ///
 /// Implemented with one 64-bit integer divide/remainder pair.
 ///
 /// \pre \c Dividend and \c Divisor are non-zero.
-std::pair<uint32_t, int16_t> divide32(uint32_t Dividend, uint32_t Divisor);
+LLVM_ABI std::pair<uint32_t, int16_t> divide32(uint32_t Dividend,
+                                               uint32_t Divisor);
 
 /// Divide two 32-bit numbers to create a 32-bit scaled number.
 ///
@@ -157,9 +160,9 @@ std::pair<DigitsT, int16_t> getQuotient(DigitsT Dividend, DigitsT Divisor) {
 
   // Check for zero.
   if (!Dividend)
-    return std::make_pair(0, 0);
+    return {0, 0};
   if (!Divisor)
-    return std::make_pair(std::numeric_limits<DigitsT>::max(), MaxScale);
+    return {std::numeric_limits<DigitsT>::max(), MaxScale};
 
   if (getWidth<DigitsT>() == 64)
     return divide64(Dividend, Divisor);
@@ -189,20 +192,21 @@ inline std::pair<int32_t, int> getLgImpl(DigitsT Digits, int16_t Scale) {
   static_assert(!std::numeric_limits<DigitsT>::is_signed, "expected unsigned");
 
   if (!Digits)
-    return std::make_pair(INT32_MIN, 0);
+    return {INT32_MIN, 0};
 
   // Get the floor of the lg of Digits.
-  int32_t LocalFloor = sizeof(Digits) * 8 - countLeadingZeros(Digits) - 1;
+  static_assert(sizeof(Digits) <= sizeof(uint64_t));
+  int32_t LocalFloor = llvm::Log2_64(Digits);
 
   // Get the actual floor.
   int32_t Floor = Scale + LocalFloor;
   if (Digits == UINT64_C(1) << LocalFloor)
-    return std::make_pair(Floor, 0);
+    return {Floor, 0};
 
   // Round based on the next digit.
   assert(LocalFloor >= 1);
   bool Round = Digits & UINT64_C(1) << (LocalFloor - 1);
-  return std::make_pair(Floor + Round, Round ? 1 : -1);
+  return {Floor + Round, Round ? 1 : -1};
 }
 
 /// Get the lg (rounded) of a scaled number.
@@ -241,7 +245,7 @@ template <class DigitsT> int32_t getLgCeiling(DigitsT Digits, int16_t Scale) {
 /// 1, and 0 for less than, greater than, and equal, respectively.
 ///
 /// \pre 0 <= ScaleDiff < 64.
-int compareImpl(uint64_t L, uint64_t R, int ScaleDiff);
+LLVM_ABI int compareImpl(uint64_t L, uint64_t R, int ScaleDiff);
 
 /// Compare two scaled numbers.
 ///
@@ -304,7 +308,7 @@ int16_t matchScales(DigitsT &LDigits, int16_t &LScale, DigitsT &RDigits,
   }
 
   // Shift LDigits left as much as possible, then shift RDigits right.
-  int32_t ShiftL = std::min<int32_t>(countLeadingZeros(LDigits), ScaleDiff);
+  int32_t ShiftL = std::min<int32_t>(llvm::countl_zero(LDigits), ScaleDiff);
   assert(ShiftL < getWidth<DigitsT>() && "can't shift more than width");
 
   int32_t ShiftR = ScaleDiff - ShiftL;
@@ -344,11 +348,11 @@ std::pair<DigitsT, int16_t> getSum(DigitsT LDigits, int16_t LScale,
   // Compute sum.
   DigitsT Sum = LDigits + RDigits;
   if (Sum >= RDigits)
-    return std::make_pair(Sum, Scale);
+    return {Sum, Scale};
 
   // Adjust sum after arithmetic overflow.
   DigitsT HighBit = DigitsT(1) << (getWidth<DigitsT>() - 1);
-  return std::make_pair(HighBit | Sum >> 1, Scale + 1);
+  return {HighBit | Sum >> 1, Scale + 1};
 }
 
 /// Convenience helper for 32-bit sum.
@@ -380,18 +384,18 @@ std::pair<DigitsT, int16_t> getDifference(DigitsT LDigits, int16_t LScale,
 
   // Compute difference.
   if (LDigits <= RDigits)
-    return std::make_pair(0, 0);
+    return {0, 0};
   if (RDigits || !SavedRDigits)
-    return std::make_pair(LDigits - RDigits, LScale);
+    return {LDigits - RDigits, LScale};
 
   // Check if RDigits just barely lost its last bit.  E.g., for 32-bit:
   //
   //   1*2^32 - 1*2^0 == 0xffffffff != 1*2^32
   const auto RLgFloor = getLgFloor(SavedRDigits, SavedRScale);
   if (!compare(LDigits, LScale, DigitsT(1), RLgFloor + getWidth<DigitsT>()))
-    return std::make_pair(std::numeric_limits<DigitsT>::max(), RLgFloor);
+    return {std::numeric_limits<DigitsT>::max(), RLgFloor};
 
-  return std::make_pair(LDigits, LScale);
+  return {LDigits, LScale};
 }
 
 /// Convenience helper for 32-bit difference.
@@ -420,20 +424,20 @@ class ScaledNumberBase {
 public:
   static constexpr int DefaultPrecision = 10;
 
-  static void dump(uint64_t D, int16_t E, int Width);
-  static raw_ostream &print(raw_ostream &OS, uint64_t D, int16_t E, int Width,
-                            unsigned Precision);
-  static std::string toString(uint64_t D, int16_t E, int Width,
-                              unsigned Precision);
-  static int countLeadingZeros32(uint32_t N) { return countLeadingZeros(N); }
-  static int countLeadingZeros64(uint64_t N) { return countLeadingZeros(N); }
+  LLVM_ABI static void dump(uint64_t D, int16_t E, int Width);
+  LLVM_ABI static raw_ostream &print(raw_ostream &OS, uint64_t D, int16_t E,
+                                     int Width, unsigned Precision);
+  LLVM_ABI static std::string toString(uint64_t D, int16_t E, int Width,
+                                       unsigned Precision);
+  static int countLeadingZeros32(uint32_t N) { return llvm::countl_zero(N); }
+  static int countLeadingZeros64(uint64_t N) { return llvm::countl_zero(N); }
   static uint64_t getHalf(uint64_t N) { return (N >> 1) + (N & 1); }
 
   static std::pair<uint64_t, bool> splitSigned(int64_t N) {
     if (N >= 0)
-      return std::make_pair(N, false);
+      return {N, false};
     uint64_t Unsigned = N == INT64_MIN ? UINT64_C(1) << 63 : uint64_t(-N);
-    return std::make_pair(Unsigned, true);
+    return {Unsigned, true};
   }
   static int64_t joinSigned(uint64_t U, bool IsNeg) {
     if (U > uint64_t(INT64_MAX))
@@ -494,10 +498,10 @@ public:
   static_assert(!std::numeric_limits<DigitsT>::is_signed,
                 "only unsigned floats supported");
 
-  typedef DigitsT DigitsType;
+  using DigitsType = DigitsT;
 
 private:
-  typedef std::numeric_limits<DigitsType> DigitsLimits;
+  using DigitsLimits = std::numeric_limits<DigitsType>;
 
   static constexpr int Width = sizeof(DigitsType) * 8;
   static_assert(Width <= 64, "invalid integer width for digits");
@@ -778,7 +782,7 @@ uint64_t ScaledNumber<DigitsT>::scale(uint64_t N) const {
 template <class DigitsT>
 template <class IntT>
 IntT ScaledNumber<DigitsT>::toInt() const {
-  typedef std::numeric_limits<IntT> Limits;
+  using Limits = std::numeric_limits<IntT>;
   if (*this < 1)
     return 0;
   if (*this >= Limits::max())

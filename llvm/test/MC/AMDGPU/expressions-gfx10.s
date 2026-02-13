@@ -1,5 +1,5 @@
-// RUN: not llvm-mc -arch=amdgcn -mcpu=gfx1010 -mattr=-wavefrontsize32,+wavefrontsize64 -show-encoding %s | FileCheck %s --check-prefix=GFX10
-// RUN: not llvm-mc -arch=amdgcn -mcpu=gfx1010 -mattr=-wavefrontsize32,+wavefrontsize64 %s 2>&1 | FileCheck -check-prefix=NOGFX10 --implicit-check-not=error: %s
+// RUN: not llvm-mc -triple=amdgcn -mcpu=gfx1010 -mattr=+wavefrontsize64 -show-encoding %s | FileCheck %s --check-prefix=GFX10
+// RUN: not llvm-mc -triple=amdgcn -mcpu=gfx1010 -mattr=+wavefrontsize64 %s -filetype=null 2>&1 | FileCheck -check-prefix=NOGFX10 --implicit-check-not=error: %s
 
 i1=1
 
@@ -55,19 +55,19 @@ v_lshlrev_b64 v[5:6], u-1, v[2:3]
 //===----------------------------------------------------------------------===//
 
 s_sub_u32 s0, 123, u
-// NOGFX10: error: only one unique literal operand is allowed
+// NOGFX10: :[[@LINE-1]]:{{[0-9]+}}: error: only one unique literal operand is allowed
 
 s_sub_u32 s0, u, u
-// NOGFX10: error: only one unique literal operand is allowed
+// NOGFX10: :[[@LINE-1]]:{{[0-9]+}}: error: only one unique literal operand is allowed
 
 s_sub_u32 s0, u, u1
-// NOGFX10: error: only one unique literal operand is allowed
+// NOGFX10: :[[@LINE-1]]:{{[0-9]+}}: error: only one unique literal operand is allowed
 
 v_bfe_u32 v0, v2, 123, u
-// NOGFX10: error: only one unique literal operand is allowed
+// NOGFX10: :[[@LINE-1]]:{{[0-9]+}}: error: only one unique literal operand is allowed
 
 v_bfe_u32 v0, v2, u, u
-// NOGFX10: error: only one unique literal operand is allowed
+// NOGFX10: :[[@LINE-1]]:{{[0-9]+}}: error: only one unique literal operand is allowed
 
 v_bfe_u32 v0, v2, u, u1
-// NOGFX10: error: only one unique literal operand is allowed
+// NOGFX10: :[[@LINE-1]]:{{[0-9]+}}: error: only one unique literal operand is allowed

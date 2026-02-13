@@ -11,6 +11,7 @@
 
 #include "mlir/Support/LLVM.h"
 #include "mlir/Support/TypeID.h"
+#include <optional>
 
 namespace mlir {
 class OperationName;
@@ -41,17 +42,17 @@ public:
   virtual ~PassInstrumentation() = 0;
 
   /// A callback to run before a pass pipeline is executed. This function takes
-  /// the name of the operation type being operated on, or None if the pipeline
-  /// is op-agnostic, and information related to the parent that spawned this
-  /// pipeline.
-  virtual void runBeforePipeline(Optional<OperationName> name,
+  /// the name of the operation type being operated on, or std::nullopt if the
+  /// pipeline is op-agnostic, and information related to the parent that
+  /// spawned this pipeline.
+  virtual void runBeforePipeline(std::optional<OperationName> name,
                                  const PipelineParentInfo &parentInfo);
 
   /// A callback to run after a pass pipeline has executed. This function takes
-  /// the name of the operation type being operated on, or None if the pipeline
-  /// is op-agnostic, and information related to the parent that spawned this
-  /// pipeline.
-  virtual void runAfterPipeline(Optional<OperationName> name,
+  /// the name of the operation type being operated on, or std::nullopt if the
+  /// pipeline is op-agnostic, and information related to the parent that
+  /// spawned this pipeline.
+  virtual void runAfterPipeline(std::optional<OperationName> name,
                                 const PipelineParentInfo &parentInfo);
 
   /// A callback to run before a pass is executed. This function takes a pointer
@@ -79,6 +80,10 @@ public:
   /// name of the analysis that was computed, its TypeID, as well as the
   /// current operation being analyzed.
   virtual void runAfterAnalysis(StringRef name, TypeID id, Operation *op) {}
+
+  /// Helper method to enable analysis to signal pass failure. Used, for
+  /// example, when pre- or post-conditions fail.
+  void signalPassFailure(Pass *pass);
 };
 
 /// This class holds a collection of PassInstrumentation objects, and invokes
@@ -92,12 +97,12 @@ public:
 
   /// See PassInstrumentation::runBeforePipeline for details.
   void
-  runBeforePipeline(Optional<OperationName> name,
+  runBeforePipeline(std::optional<OperationName> name,
                     const PassInstrumentation::PipelineParentInfo &parentInfo);
 
   /// See PassInstrumentation::runAfterPipeline for details.
   void
-  runAfterPipeline(Optional<OperationName> name,
+  runAfterPipeline(std::optional<OperationName> name,
                    const PassInstrumentation::PipelineParentInfo &parentInfo);
 
   /// See PassInstrumentation::runBeforePass for details.

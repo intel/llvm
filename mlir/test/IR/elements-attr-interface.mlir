@@ -1,7 +1,7 @@
 // RUN: mlir-opt %s -test-elements-attr-interface -verify-diagnostics
 
 // Parsing external resources does not work on big-endian platforms currently
-// XFAIL: s390x-
+// XFAIL: target={{(s390x|sparc.*)-.*}}
 
 // This test contains various `ElementsAttr` attributes, and tests the support
 // for iterating the values of these attributes using various native C++ types.
@@ -20,33 +20,19 @@ arith.constant #test.i64_elements<[10, 11, 12, 13, 14]> : tensor<5xi64>
 // expected-error@below {{Test iterating `IntegerAttr`: 10 : i64, 11 : i64, 12 : i64, 13 : i64, 14 : i64}}
 arith.constant dense<[10, 11, 12, 13, 14]> : tensor<5xi64>
 
+// This test is expected to only be called on integer elements.
+// expected-error@below {{Test iterating `int64_t`: expected element type to be an integer type}}
+// expected-error@below {{Test iterating `uint64_t`: expected element type to be an integer type}}
+// expected-error@below {{Test iterating `APInt`: expected element type to be an integer type}}
+// expected-error@below {{Test iterating `IntegerAttr`: expected element type to be an integer type}}
+arith.constant dense<[1.1, 1.2, 1.3]> : tensor<3xf32>
+
 // Check that we don't crash on empty element attributes.
 // expected-error@below {{Test iterating `int64_t`: }}
 // expected-error@below {{Test iterating `uint64_t`: }}
 // expected-error@below {{Test iterating `APInt`: }}
 // expected-error@below {{Test iterating `IntegerAttr`: }}
 arith.constant dense<> : tensor<0xi64>
-
-// expected-error@below {{Test iterating `bool`: true, false, true, false, true, false}}
-// expected-error@below {{Test iterating `int64_t`: unable to iterate type}}
-arith.constant array<i1: true, false, true, false, true, false>
-// expected-error@below {{Test iterating `int8_t`: 10, 11, -12, 13, 14}}
-// expected-error@below {{Test iterating `int64_t`: unable to iterate type}}
-arith.constant array<i8: 10, 11, -12, 13, 14>
-// expected-error@below {{Test iterating `int16_t`: 10, 11, -12, 13, 14}}
-// expected-error@below {{Test iterating `int64_t`: unable to iterate type}}
-arith.constant array<i16: 10, 11, -12, 13, 14>
-// expected-error@below {{Test iterating `int32_t`: 10, 11, -12, 13, 14}}
-// expected-error@below {{Test iterating `int64_t`: unable to iterate type}}
-arith.constant array<i32: 10, 11, -12, 13, 14>
-// expected-error@below {{Test iterating `int64_t`: 10, 11, -12, 13, 14}}
-arith.constant array<i64: 10, 11, -12, 13, 14>
-// expected-error@below {{Test iterating `float`: 10.00, 11.00, -12.00, 13.00, 14.00}}
-// expected-error@below {{Test iterating `int64_t`: unable to iterate type}}
-arith.constant array<f32: 10., 11., -12., 13., 14.>
-// expected-error@below {{Test iterating `double`: 10.00, 11.00, -12.00, 13.00, 14.00}}
-// expected-error@below {{Test iterating `int64_t`: unable to iterate type}}
-arith.constant array<f64: 10., 11., -12., 13., 14.>
 
 // Check that we handle an external constant parsed from the config.
 // expected-error@below {{Test iterating `int64_t`: unable to iterate type}}
@@ -62,3 +48,9 @@ arith.constant #test.e1di64_elements<blob1> : tensor<3xi64>
     }
   }
 #-}
+
+// expected-error@below {{Test iterating `int64_t`: 0, 0, 1}}
+// expected-error@below {{Test iterating `uint64_t`: 0, 0, 1}}
+// expected-error@below {{Test iterating `APInt`: 0, 0, 1}}
+// expected-error@below {{Test iterating `IntegerAttr`: 0 : i64, 0 : i64, 1 : i64}}
+arith.constant sparse<[[0, 0, 2]], 1> : vector <1x1x3xi64>

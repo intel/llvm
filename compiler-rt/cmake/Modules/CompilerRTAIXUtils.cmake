@@ -1,4 +1,3 @@
-include(CMakeParseArguments)
 include(CompilerRTUtils)
 
 function(get_aix_libatomic_default_link_flags link_flags export_list)
@@ -10,18 +9,12 @@ set(linkopts
   # Add `-Wl,-G`. Quoted from release notes of cmake-3.16.0
   # > On AIX, runtime linking is no longer enabled by default.
   # See https://cmake.org/cmake/help/latest/release/3.16.html
-  if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.16.0")
-    set(linkopts -Wl,-G ${linkopts})
-  endif()
+  set(linkopts -Wl,-G ${linkopts})
   set(${link_flags} ${linkopts} PARENT_SCOPE)
 endfunction()
 
 function(get_aix_libatomic_type type)
-  if(${CMAKE_VERSION} VERSION_LESS "3.16.0")
-    set(${type} SHARED PARENT_SCOPE)
-  else()
-    set(${type} MODULE PARENT_SCOPE)
-  endif()
+  set(${type} MODULE PARENT_SCOPE)
 endfunction()
 
 macro(archive_aix_libatomic name libname)
@@ -41,12 +34,10 @@ macro(archive_aix_libatomic name libname)
       if(TARGET ${target})
         file(MAKE_DIRECTORY ${output_dir})
         add_custom_command(OUTPUT "${output_dir}/libatomic.so.1"
-                           POST_BUILD
                            COMMAND ${CMAKE_COMMAND} -E
                            copy "$<TARGET_FILE:${target}>"
                                 "${output_dir}/libatomic.so.1"
                            # If built with MODULE, F_LOADONLY is set.
-                           # We have to remove this flag at POST_BUILD.
                            COMMAND ${CMAKE_STRIP} -X32_64 -E
                                 "${output_dir}/libatomic.so.1"
                            DEPENDS ${target})

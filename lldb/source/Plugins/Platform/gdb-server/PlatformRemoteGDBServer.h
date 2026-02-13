@@ -10,6 +10,7 @@
 #ifndef LLDB_SOURCE_PLUGINS_PLATFORM_GDB_SERVER_PLATFORMREMOTEGDBSERVER_H
 #define LLDB_SOURCE_PLUGINS_PLATFORM_GDB_SERVER_PLATFORMREMOTEGDBSERVER_H
 
+#include <optional>
 #include <string>
 
 #include "Plugins/Process/Utility/GDBRemoteSignals.h"
@@ -75,9 +76,9 @@ public:
 
   bool GetRemoteOSVersion() override;
 
-  llvm::Optional<std::string> GetRemoteOSBuildString() override;
+  std::optional<std::string> GetRemoteOSBuildString() override;
 
-  llvm::Optional<std::string> GetRemoteOSKernelDescription() override;
+  std::optional<std::string> GetRemoteOSKernelDescription() override;
 
   // Remote Platform subclasses need to override this function
   ArchSpec GetRemoteSystemArchitecture() override;
@@ -145,6 +146,9 @@ public:
 
   void CalculateTrapHandlerSymbolNames() override;
 
+  llvm::ErrorOr<llvm::MD5::MD5Result>
+  CalculateMD5(const FileSpec &file_spec) override;
+
   const lldb::UnixSignalsSP &GetRemoteUnixSignals() override;
 
   size_t ConnectToWaitingProcesses(lldb_private::Debugger &debugger,
@@ -176,13 +180,17 @@ protected:
   virtual std::string MakeUrl(const char *scheme, const char *hostname,
                               uint16_t port, const char *path);
 
+  virtual llvm::StringRef GetDefaultProcessPluginName() const {
+    return "gdb-remote";
+  }
+
 private:
   std::string MakeGdbServerUrl(const std::string &platform_scheme,
                                const std::string &platform_hostname,
                                uint16_t port, const char *socket_name);
 
-  llvm::Optional<std::string> DoGetUserName(UserIDResolver::id_t uid) override;
-  llvm::Optional<std::string> DoGetGroupName(UserIDResolver::id_t uid) override;
+  std::optional<std::string> DoGetUserName(UserIDResolver::id_t uid) override;
+  std::optional<std::string> DoGetGroupName(UserIDResolver::id_t uid) override;
 
   std::vector<ArchSpec> m_supported_architectures;
 

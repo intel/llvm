@@ -18,9 +18,9 @@
 #include "llvm/Target/TargetMachine.h"
 
 namespace llvm {
-class LoongArchTargetMachine;
 class AsmPrinter;
 class FunctionPass;
+class LoongArchTargetMachine;
 class MCInst;
 class MCOperand;
 class MachineInstr;
@@ -33,12 +33,22 @@ bool lowerLoongArchMachineOperandToMCOperand(const MachineOperand &MO,
                                              MCOperand &MCOp,
                                              const AsmPrinter &AP);
 
-FunctionPass *createLoongArchISelDag(LoongArchTargetMachine &TM);
+FunctionPass *createLoongArchDeadRegisterDefinitionsPass();
 FunctionPass *createLoongArchExpandAtomicPseudoPass();
-void initializeLoongArchExpandAtomicPseudoPass(PassRegistry &);
-
+FunctionPass *createLoongArchISelDag(LoongArchTargetMachine &TM,
+                                     CodeGenOptLevel OptLevel);
+FunctionPass *createLoongArchMergeBaseOffsetOptPass();
+FunctionPass *createLoongArchOptWInstrsPass();
 FunctionPass *createLoongArchPreRAExpandPseudoPass();
+FunctionPass *createLoongArchExpandPseudoPass();
+void initializeLoongArchAsmPrinterPass(PassRegistry &);
+void initializeLoongArchDAGToDAGISelLegacyPass(PassRegistry &);
+void initializeLoongArchDeadRegisterDefinitionsPass(PassRegistry &);
+void initializeLoongArchExpandAtomicPseudoPass(PassRegistry &);
+void initializeLoongArchMergeBaseOffsetOptPass(PassRegistry &);
+void initializeLoongArchOptWInstrsPass(PassRegistry &);
 void initializeLoongArchPreRAExpandPseudoPass(PassRegistry &);
+void initializeLoongArchExpandPseudoPass(PassRegistry &);
 } // end namespace llvm
 
 #endif // LLVM_LIB_TARGET_LOONGARCH_LOONGARCH_H

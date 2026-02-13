@@ -1,10 +1,10 @@
-; RUN: llc -march=mipsel -relocation-model=pic -O0 -fast-isel-abort=3 -mcpu=mips32r2 \
+; RUN: llc -mtriple=mipsel -relocation-model=pic -O0 -fast-isel-abort=3 -mcpu=mips32r2 \
 ; RUN:     < %s | FileCheck %s 
-; RUN: llc -march=mipsel -relocation-model=pic -O0 -fast-isel-abort=3 -mcpu=mips32 \
+; RUN: llc -mtriple=mipsel -relocation-model=pic -O0 -fast-isel-abort=3 -mcpu=mips32 \
 ; RUN:     < %s | FileCheck %s
-; RUN: llc -march=mipsel -relocation-model=pic -O0 -fast-isel-abort=3 -mcpu=mips32r2 \
+; RUN: llc -mtriple=mipsel -relocation-model=pic -O0 -fast-isel-abort=3 -mcpu=mips32r2 \
 ; RUN:     < %s | FileCheck %s -check-prefix=mips32r2 
-; RUN: llc -march=mipsel -relocation-model=pic -O0 -fast-isel-abort=3 -mcpu=mips32 \
+; RUN: llc -mtriple=mipsel -relocation-model=pic -O0 -fast-isel-abort=3 -mcpu=mips32 \
 ; RUN:     < %s | FileCheck %s -check-prefix=mips32
 
 @f = common global float 0.000000e+00, align 4
@@ -13,7 +13,7 @@
 ; Function Attrs: nounwind
 define void @f1() #0 {
 entry:
-  store float 0x3FFA76C8C0000000, float* @f, align 4
+  store float 0x3FFA76C8C0000000, ptr @f, align 4
   ret void
 ; CHECK:  .ent  f1
 ; CHECK:  lui  $[[REG1:[0-9]+]], 16339
@@ -28,7 +28,7 @@ entry:
 ; Function Attrs: nounwind
 define void @d1() #0 {
 entry:
-  store double 1.234567e+00, double* @de, align 8
+  store double 1.234567e+00, ptr @de, align 8
 ; mip32r2:  .ent  d1
 ; mips32r2:  lui  $[[REG1a:[0-9]+]], 16371
 ; mips32r2:  ori  $[[REG2a:[0-9]+]], $[[REG1a]], 49353
@@ -51,4 +51,4 @@ entry:
   ret void
 }
 
-attributes #0 = { nounwind "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "use-soft-float"="false" }

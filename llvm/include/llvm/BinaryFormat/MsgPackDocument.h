@@ -18,6 +18,7 @@
 #define LLVM_BINARYFORMAT_MSGPACKDOCUMENT_H
 
 #include "llvm/BinaryFormat/MsgPackReader.h"
+#include "llvm/Support/Compiler.h"
 #include <map>
 
 namespace llvm {
@@ -124,6 +125,11 @@ public:
     return Raw;
   }
 
+  MemoryBufferRef getBinary() const {
+    assert(getKind() == Type::Binary);
+    return MemoryBufferRef(Raw, "");
+  }
+
   /// Get an ArrayDocNode for an array node. If Convert, convert the node to an
   /// array node if necessary.
   ArrayDocNode &getArray(bool Convert = false) {
@@ -187,12 +193,12 @@ public:
   }
 
   /// Convert this node to a string, assuming it is scalar.
-  std::string toString() const;
+  LLVM_ABI std::string toString() const;
 
   /// Convert the StringRef and use it to set this DocNode (assuming scalar). If
   /// it is a string, copy the string into the Document's strings list so we do
   /// not rely on S having a lifetime beyond this call. Tag is "" or a YAML tag.
-  StringRef fromString(StringRef S, StringRef Tag = "");
+  LLVM_ABI StringRef fromString(StringRef S, StringRef Tag = "");
 
   /// Convenience assignment operators. This only works if the destination
   /// DocNode has an associated Document, i.e. it was not constructed using the
@@ -200,19 +206,21 @@ public:
   /// remain valid for the lifetime of the Document. Use fromString to avoid
   /// that restriction.
   DocNode &operator=(const char *Val) { return *this = StringRef(Val); }
-  DocNode &operator=(StringRef Val);
-  DocNode &operator=(bool Val);
-  DocNode &operator=(int Val);
-  DocNode &operator=(unsigned Val);
-  DocNode &operator=(int64_t Val);
-  DocNode &operator=(uint64_t Val);
+  LLVM_ABI DocNode &operator=(StringRef Val);
+  LLVM_ABI DocNode &operator=(MemoryBufferRef Val);
+  LLVM_ABI DocNode &operator=(bool Val);
+  LLVM_ABI DocNode &operator=(int Val);
+  LLVM_ABI DocNode &operator=(unsigned Val);
+  LLVM_ABI DocNode &operator=(int64_t Val);
+  LLVM_ABI DocNode &operator=(uint64_t Val);
+  LLVM_ABI DocNode &operator=(double Val);
 
 private:
   // Private constructor setting KindAndDoc, used by methods in Document.
   DocNode(const KindAndDocument *KindAndDoc) : KindAndDoc(KindAndDoc) {}
 
-  void convertToArray();
-  void convertToMap();
+  LLVM_ABI void convertToArray();
+  LLVM_ABI void convertToMap();
 };
 
 /// A DocNode that is a map.
@@ -227,7 +235,7 @@ public:
   MapTy::iterator begin() { return Map->begin(); }
   MapTy::iterator end() { return Map->end(); }
   MapTy::iterator find(DocNode Key) { return Map->find(Key); }
-  MapTy::iterator find(StringRef Key);
+  LLVM_ABI MapTy::iterator find(StringRef Key);
   MapTy::iterator erase(MapTy::const_iterator I) { return Map->erase(I); }
   size_t erase(DocNode Key) { return Map->erase(Key); }
   MapTy::iterator erase(MapTy::const_iterator First,
@@ -236,13 +244,13 @@ public:
   }
   /// Member access. The string data must remain valid for the lifetime of the
   /// Document.
-  DocNode &operator[](StringRef S);
+  LLVM_ABI DocNode &operator[](StringRef S);
   /// Member access, with convenience versions for an integer key.
-  DocNode &operator[](DocNode Key);
-  DocNode &operator[](int Key);
-  DocNode &operator[](unsigned Key);
-  DocNode &operator[](int64_t Key);
-  DocNode &operator[](uint64_t Key);
+  LLVM_ABI DocNode &operator[](DocNode Key);
+  LLVM_ABI DocNode &operator[](int Key);
+  LLVM_ABI DocNode &operator[](unsigned Key);
+  LLVM_ABI DocNode &operator[](int64_t Key);
+  LLVM_ABI DocNode &operator[](uint64_t Key);
 };
 
 /// A DocNode that is an array.
@@ -263,7 +271,7 @@ public:
   }
 
   /// Element access. This extends the array if necessary, with empty nodes.
-  DocNode &operator[](size_t Index);
+  LLVM_ABI DocNode &operator[](size_t Index);
 };
 
 /// Simple in-memory representation of a document of msgpack objects with
@@ -368,10 +376,21 @@ public:
     return getNode(StringRef(V), Copy);
   }
 
+  /// Create a Binary node associated with this Document. If !Copy, the passed
+  /// buffer must remain valid for the lifetime of the Document.
+  DocNode getNode(MemoryBufferRef V, bool Copy = false) {
+    auto Raw = V.getBuffer();
+    if (Copy)
+      Raw = addString(Raw);
+    auto N = DocNode(&KindAndDocs[size_t(Type::Binary)]);
+    N.Raw = Raw;
+    return N;
+  }
+
   /// Create an empty Map node associated with this Document.
   MapDocNode getMapNode() {
     auto N = DocNode(&KindAndDocs[size_t(Type::Map)]);
-    Maps.push_back(std::unique_ptr<DocNode::MapTy>(new DocNode::MapTy));
+    Maps.push_back(std::make_unique<DocNode::MapTy>());
     N.Map = Maps.back().get();
     return N.getMap();
   }
@@ -379,7 +398,7 @@ public:
   /// Create an empty Array node associated with this Document.
   ArrayDocNode getArrayNode() {
     auto N = DocNode(&KindAndDocs[size_t(Type::Array)]);
-    Arrays.push_back(std::unique_ptr<DocNode::ArrayTy>(new DocNode::ArrayTy));
+    Arrays.push_back(std::make_unique<DocNode::ArrayTy>());
     N.Array = Arrays.back().get();
     return N.getArray();
   }
@@ -407,7 +426,7 @@ public:
   /// map entry, a nil node otherwise.
   ///
   /// The default for Merger is to disallow any conflict.
-  bool readFromBlob(
+  LLVM_ABI bool readFromBlob(
       StringRef Blob, bool Multi,
       function_ref<int(DocNode *DestNode, DocNode SrcNode, DocNode MapKey)>
           Merger = [](DocNode *DestNode, DocNode SrcNode, DocNode MapKey) {
@@ -415,7 +434,7 @@ public:
           });
 
   /// Write a MsgPack document to a binary MsgPack blob.
-  void writeToBlob(std::string &Blob);
+  LLVM_ABI void writeToBlob(std::string &Blob);
 
   /// Copy a string into the Document's strings list, and return the copy that
   /// is owned by the Document.
@@ -432,10 +451,10 @@ public:
   bool getHexMode() const { return HexMode; }
 
   /// Convert MsgPack Document to YAML text.
-  void toYAML(raw_ostream &OS);
+  LLVM_ABI void toYAML(raw_ostream &OS);
 
   /// Read YAML text into the MsgPack document. Returns false on failure.
-  bool fromYAML(StringRef S);
+  LLVM_ABI bool fromYAML(StringRef S);
 };
 
 } // namespace msgpack

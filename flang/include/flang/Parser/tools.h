@@ -40,6 +40,7 @@ const Name &GetFirstName(const ProcedureDesignator &);
 const Name &GetFirstName(const Call &);
 const Name &GetFirstName(const FunctionReference &);
 const Name &GetFirstName(const Variable &);
+const Name &GetFirstName(const EntityDecl &);
 
 // When a parse tree node is an instance of a specific type wrapped in
 // layers of packaging, return a pointer to that object.
@@ -63,6 +64,18 @@ struct UnwrapperHelper {
   template <typename A, typename... Bs>
   static const A *Unwrap(const std::variant<Bs...> &x) {
     return common::visit([](const auto &y) { return Unwrap<A>(y); }, x);
+  }
+
+  template <typename A, std::size_t J = 0, typename... Bs>
+  static const A *Unwrap(const std::tuple<Bs...> &x) {
+    if constexpr (J < sizeof...(Bs)) {
+      if (auto result{Unwrap<A>(std::get<J>(x))}) {
+        return result;
+      }
+      return Unwrap<A, (J + 1)>(x);
+    } else {
+      return nullptr;
+    }
   }
 
   template <typename A, typename B>
@@ -104,6 +117,12 @@ template <typename A, typename B> const A *Unwrap(const B &x) {
 template <typename A, typename B> A *Unwrap(B &x) {
   return const_cast<A *>(Unwrap<A, B>(const_cast<const B &>(x)));
 }
+template <typename A, typename B> const A &UnwrapRef(const B &x) {
+  return DEREF(Unwrap<A>(x));
+}
+template <typename A, typename B> A &UnwrapRef(B &x) {
+  return DEREF(Unwrap<A>(x));
+}
 
 // Get the CoindexedNamedObject if the entity is a coindexed object.
 const CoindexedNamedObject *GetCoindexedNamedObject(const AllocateObject &);
@@ -117,10 +136,139 @@ template <typename A>
 struct HasSource<A, decltype(static_cast<void>(A::source), 0)>
     : std::true_type {};
 
-// Detects parse tree nodes with "typedExpr" members.
+// Detects parse tree nodes with "typedExpr", "typedCall", &c. members.
 template <typename A, typename = int> struct HasTypedExpr : std::false_type {};
 template <typename A>
 struct HasTypedExpr<A, decltype(static_cast<void>(A::typedExpr), 0)>
     : std::true_type {};
+template <typename A, typename = int> struct HasTypedCall : std::false_type {};
+template <typename A>
+struct HasTypedCall<A, decltype(static_cast<void>(A::typedCall), 0)>
+    : std::true_type {};
+template <typename A, typename = int>
+struct HasTypedAssignment : std::false_type {};
+template <typename A>
+struct HasTypedAssignment<A, decltype(static_cast<void>(A::typedAssignment), 0)>
+    : std::true_type {};
+
+// GetSource()
+
+template <bool GET_FIRST> struct GetSourceHelper {
+
+  using Result = std::optional<CharBlock>;
+
+  template <typename A> static Result GetSource(A *p) {
+    if (p) {
+      return GetSource(*p);
+    } else {
+      return std::nullopt;
+    }
+  }
+  template <typename A>
+  static Result GetSource(const common::Indirection<A> &x) {
+    return GetSource(x.value());
+  }
+
+  template <typename A, bool COPY>
+  static Result GetSource(const common::Indirection<A, COPY> &x) {
+    return GetSource(x.value());
+  }
+
+  template <typename... As>
+  static Result GetSource(const std::variant<As...> &x) {
+    return common::visit([](const auto &y) { return GetSource(y); }, x);
+  }
+
+  template <std::size_t J = 0, typename... As>
+  static Result GetSource(const std::tuple<As...> &x) {
+    if constexpr (J < sizeof...(As)) {
+      constexpr std::size_t index{GET_FIRST ? J : sizeof...(As) - J - 1};
+      if (auto result{GetSource(std::get<index>(x))}) {
+        return result;
+      }
+      return GetSource<(J + 1)>(x);
+    } else {
+      return {};
+    }
+  }
+
+  template <typename A> static Result GetSource(const std::optional<A> &o) {
+    if (o) {
+      return GetSource(*o);
+    } else {
+      return {};
+    }
+  }
+
+  template <typename A> static Result GetSource(const std::list<A> &x) {
+    if constexpr (GET_FIRST) {
+      for (const A &y : x) {
+        if (auto result{GetSource(y)}) {
+          return result;
+        }
+      }
+    } else {
+      for (auto iter{x.rbegin()}; iter != x.rend(); ++iter) {
+        if (auto result{GetSource(*iter)}) {
+          return result;
+        }
+      }
+    }
+    return {};
+  }
+
+  template <typename A> static Result GetSource(const std::vector<A> &x) {
+    if constexpr (GET_FIRST) {
+      for (const A &y : x) {
+        if (auto result{GetSource(y)}) {
+          return result;
+        }
+      }
+    } else {
+      for (auto iter{x.rbegin()}; iter != x.rend(); ++iter) {
+        if (auto result{GetSource(*iter)}) {
+          return result;
+        }
+      }
+    }
+    return {};
+  }
+
+  template <typename A> static Result GetSource(A &x) {
+    if constexpr (HasSource<A>::value) {
+      return x.source;
+    } else if constexpr (ConstraintTrait<A>) {
+      return GetSource(x.thing);
+    } else if constexpr (WrapperTrait<A>) {
+      return GetSource(x.v);
+    } else if constexpr (UnionTrait<A>) {
+      return GetSource(x.u);
+    } else if constexpr (TupleTrait<A>) {
+      return GetSource(x.t);
+    } else {
+      return {};
+    }
+  }
+};
+
+template <typename A> std::optional<CharBlock> GetSource(const A &x) {
+  return GetSourceHelper<true>::GetSource(x);
+}
+template <typename A> std::optional<CharBlock> GetSource(A &x) {
+  return GetSourceHelper<true>::GetSource(const_cast<const A &>(x));
+}
+
+template <typename A> std::optional<CharBlock> GetLastSource(const A &x) {
+  return GetSourceHelper<false>::GetSource(x);
+}
+template <typename A> std::optional<CharBlock> GetLastSource(A &x) {
+  return GetSourceHelper<false>::GetSource(const_cast<const A &>(x));
+}
+
+// Checks whether the assignment statement has a single variable on the RHS.
+bool CheckForSingleVariableOnRHS(const AssignmentStmt &);
+
+const Name *GetDesignatorNameIfDataRef(const Designator &);
+
 } // namespace Fortran::parser
 #endif // FORTRAN_PARSER_TOOLS_H_

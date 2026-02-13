@@ -53,7 +53,7 @@ public:
 
     Compiler->createSema(getTranslationUnitKind(), CompletionConsumer);
     SemaSource->setCompilerInstance(Compiler);
-    Compiler->getSema().addExternalSource(SemaSource.get());
+    Compiler->getSema().addExternalSource(SemaSource);
 
     clang::ParseAST(Compiler->getSema(), Compiler->getFrontendOpts().ShowStats,
                     Compiler->getFrontendOpts().SkipFunctionBodies);
@@ -89,15 +89,15 @@ bool IncludeFixerActionFactory::runInvocation(
   assert(Invocation->getFrontendOpts().Inputs.size() == 1);
 
   // Set up Clang.
-  clang::CompilerInstance Compiler(PCHContainerOps);
-  Compiler.setInvocation(std::move(Invocation));
+  CompilerInstance Compiler(std::move(Invocation), std::move(PCHContainerOps));
+  Compiler.setVirtualFileSystem(Files->getVirtualFileSystemPtr());
   Compiler.setFileManager(Files);
 
   // Create the compiler's actual diagnostics engine. We want to drop all
   // diagnostics here.
   Compiler.createDiagnostics(new clang::IgnoringDiagConsumer,
                              /*ShouldOwnClient=*/true);
-  Compiler.createSourceManager(*Files);
+  Compiler.createSourceManager();
 
   // We abort on fatal errors so don't let a large number of errors become
   // fatal. A missing #include can cause thousands of errors.
@@ -307,18 +307,19 @@ std::string IncludeFixerSemaSource::minimizeInclude(
 
   // Get the FileEntry for the include.
   StringRef StrippedInclude = Include.trim("\"<>");
-  auto Entry = SourceManager.getFileManager().getFile(StrippedInclude);
+  auto Entry =
+      SourceManager.getFileManager().getOptionalFileRef(StrippedInclude);
 
   // If the file doesn't exist return the path from the database.
   // FIXME: This should never happen.
   if (!Entry)
     return std::string(Include);
 
-  bool IsSystem = false;
+  bool IsAngled = false;
   std::string Suggestion =
-      HeaderSearch.suggestPathToFileForDiagnostics(*Entry, "", &IsSystem);
+      HeaderSearch.suggestPathToFileForDiagnostics(*Entry, "", &IsAngled);
 
-  return IsSystem ? '<' + Suggestion + '>' : '"' + Suggestion + '"';
+  return IsAngled ? '<' + Suggestion + '>' : '"' + Suggestion + '"';
 }
 
 /// Get the include fixer context for the queried symbol.

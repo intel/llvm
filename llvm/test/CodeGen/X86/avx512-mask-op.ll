@@ -74,8 +74,7 @@ define i32 @mask8_zext(i8 %x) {
 ; X86-LABEL: mask8_zext:
 ; X86:       ## %bb.0:
 ; X86-NEXT:    movzbl {{[0-9]+}}(%esp), %eax
-; X86-NEXT:    notb %al
-; X86-NEXT:    movzbl %al, %eax
+; X86-NEXT:    xorl $255, %eax
 ; X86-NEXT:    retl
   %m0 = bitcast i8 %x to <8 x i1>
   %m1 = xor <8 x i1> %m0, <i1 -1, i1 -1, i1 -1, i1 -1, i1 -1, i1 -1, i1 -1, i1 -1>
@@ -151,21 +150,14 @@ define i16 @mand16(i16 %x, i16 %y) {
 ; CHECK-LABEL: mand16:
 ; CHECK:       ## %bb.0:
 ; CHECK-NEXT:    movl %edi, %eax
-; CHECK-NEXT:    andl %esi, %eax
-; CHECK-NEXT:    xorl %esi, %edi
-; CHECK-NEXT:    orl %edi, %eax
+; CHECK-NEXT:    orl %esi, %eax
 ; CHECK-NEXT:    ## kill: def $ax killed $ax killed $eax
 ; CHECK-NEXT:    retq
 ;
 ; X86-LABEL: mand16:
 ; X86:       ## %bb.0:
-; X86-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; X86-NEXT:    movl {{[0-9]+}}(%esp), %eax
-; X86-NEXT:    movl %eax, %edx
-; X86-NEXT:    andl %ecx, %edx
-; X86-NEXT:    xorl %ecx, %eax
-; X86-NEXT:    orl %edx, %eax
-; X86-NEXT:    ## kill: def $ax killed $ax killed $eax
+; X86-NEXT:    movzwl {{[0-9]+}}(%esp), %eax
+; X86-NEXT:    orw {{[0-9]+}}(%esp), %ax
 ; X86-NEXT:    retl
   %ma = bitcast i16 %x to <16 x i1>
   %mb = bitcast i16 %y to <16 x i1>
@@ -181,9 +173,7 @@ define i16 @mand16_mem(ptr %x, ptr %y) {
 ; KNL:       ## %bb.0:
 ; KNL-NEXT:    kmovw (%rdi), %k0
 ; KNL-NEXT:    kmovw (%rsi), %k1
-; KNL-NEXT:    kandw %k1, %k0, %k2
-; KNL-NEXT:    kxorw %k1, %k0, %k0
-; KNL-NEXT:    korw %k0, %k2, %k0
+; KNL-NEXT:    korw %k1, %k0, %k0
 ; KNL-NEXT:    kmovw %k0, %eax
 ; KNL-NEXT:    ## kill: def $ax killed $ax killed $eax
 ; KNL-NEXT:    retq
@@ -192,9 +182,7 @@ define i16 @mand16_mem(ptr %x, ptr %y) {
 ; SKX:       ## %bb.0:
 ; SKX-NEXT:    kmovw (%rdi), %k0
 ; SKX-NEXT:    kmovw (%rsi), %k1
-; SKX-NEXT:    kandw %k1, %k0, %k2
-; SKX-NEXT:    kxorw %k1, %k0, %k0
-; SKX-NEXT:    korw %k0, %k2, %k0
+; SKX-NEXT:    korw %k1, %k0, %k0
 ; SKX-NEXT:    kmovd %k0, %eax
 ; SKX-NEXT:    ## kill: def $ax killed $ax killed $eax
 ; SKX-NEXT:    retq
@@ -203,9 +191,7 @@ define i16 @mand16_mem(ptr %x, ptr %y) {
 ; AVX512BW:       ## %bb.0:
 ; AVX512BW-NEXT:    kmovw (%rdi), %k0
 ; AVX512BW-NEXT:    kmovw (%rsi), %k1
-; AVX512BW-NEXT:    kandw %k1, %k0, %k2
-; AVX512BW-NEXT:    kxorw %k1, %k0, %k0
-; AVX512BW-NEXT:    korw %k0, %k2, %k0
+; AVX512BW-NEXT:    korw %k1, %k0, %k0
 ; AVX512BW-NEXT:    kmovd %k0, %eax
 ; AVX512BW-NEXT:    ## kill: def $ax killed $ax killed $eax
 ; AVX512BW-NEXT:    retq
@@ -214,9 +200,7 @@ define i16 @mand16_mem(ptr %x, ptr %y) {
 ; AVX512DQ:       ## %bb.0:
 ; AVX512DQ-NEXT:    kmovw (%rdi), %k0
 ; AVX512DQ-NEXT:    kmovw (%rsi), %k1
-; AVX512DQ-NEXT:    kandw %k1, %k0, %k2
-; AVX512DQ-NEXT:    kxorw %k1, %k0, %k0
-; AVX512DQ-NEXT:    korw %k0, %k2, %k0
+; AVX512DQ-NEXT:    korw %k1, %k0, %k0
 ; AVX512DQ-NEXT:    kmovw %k0, %eax
 ; AVX512DQ-NEXT:    ## kill: def $ax killed $ax killed $eax
 ; AVX512DQ-NEXT:    retq
@@ -227,9 +211,7 @@ define i16 @mand16_mem(ptr %x, ptr %y) {
 ; X86-NEXT:    movl {{[0-9]+}}(%esp), %ecx
 ; X86-NEXT:    kmovw (%ecx), %k0
 ; X86-NEXT:    kmovw (%eax), %k1
-; X86-NEXT:    kandw %k1, %k0, %k2
-; X86-NEXT:    kxorw %k1, %k0, %k0
-; X86-NEXT:    korw %k0, %k2, %k0
+; X86-NEXT:    korw %k1, %k0, %k0
 ; X86-NEXT:    kmovd %k0, %eax
 ; X86-NEXT:    ## kill: def $ax killed $ax killed $eax
 ; X86-NEXT:    retl
@@ -485,7 +467,7 @@ define <4 x i32> @test4(<4 x i64> %x, <4 x i64> %y, <4 x i64> %x1, <4 x i64> %y1
 ; KNL-NEXT:    ## kill: def $ymm0 killed $ymm0 def $zmm0
 ; KNL-NEXT:    vpcmpgtq %zmm3, %zmm2, %k1
 ; KNL-NEXT:    vpcmpleq %zmm1, %zmm0, %k1 {%k1}
-; KNL-NEXT:    vpternlogd $255, %zmm0, %zmm0, %zmm0 {%k1} {z}
+; KNL-NEXT:    vpternlogd {{.*#+}} zmm0 {%k1} {z} = -1
 ; KNL-NEXT:    ## kill: def $xmm0 killed $xmm0 killed $zmm0
 ; KNL-NEXT:    vzeroupper
 ; KNL-NEXT:    retq
@@ -506,7 +488,7 @@ define <4 x i32> @test4(<4 x i64> %x, <4 x i64> %y, <4 x i64> %x1, <4 x i64> %y1
 ; AVX512BW-NEXT:    ## kill: def $ymm0 killed $ymm0 def $zmm0
 ; AVX512BW-NEXT:    vpcmpgtq %zmm3, %zmm2, %k1
 ; AVX512BW-NEXT:    vpcmpleq %zmm1, %zmm0, %k1 {%k1}
-; AVX512BW-NEXT:    vpternlogd $255, %zmm0, %zmm0, %zmm0 {%k1} {z}
+; AVX512BW-NEXT:    vpternlogd {{.*#+}} zmm0 {%k1} {z} = -1
 ; AVX512BW-NEXT:    ## kill: def $xmm0 killed $xmm0 killed $zmm0
 ; AVX512BW-NEXT:    vzeroupper
 ; AVX512BW-NEXT:    retq
@@ -547,7 +529,7 @@ define <2 x i64> @test5(<2 x i64> %x, <2 x i64> %y, <2 x i64> %x1, <2 x i64> %y1
 ; KNL-NEXT:    ## kill: def $xmm0 killed $xmm0 def $zmm0
 ; KNL-NEXT:    vpcmpgtq %zmm0, %zmm1, %k1
 ; KNL-NEXT:    vpcmpleq %zmm3, %zmm2, %k1 {%k1}
-; KNL-NEXT:    vpternlogq $255, %zmm0, %zmm0, %zmm0 {%k1} {z}
+; KNL-NEXT:    vpternlogq {{.*#+}} zmm0 {%k1} {z} = -1
 ; KNL-NEXT:    ## kill: def $xmm0 killed $xmm0 killed $zmm0
 ; KNL-NEXT:    vzeroupper
 ; KNL-NEXT:    retq
@@ -567,7 +549,7 @@ define <2 x i64> @test5(<2 x i64> %x, <2 x i64> %y, <2 x i64> %x1, <2 x i64> %y1
 ; AVX512BW-NEXT:    ## kill: def $xmm0 killed $xmm0 def $zmm0
 ; AVX512BW-NEXT:    vpcmpgtq %zmm0, %zmm1, %k1
 ; AVX512BW-NEXT:    vpcmpleq %zmm3, %zmm2, %k1 {%k1}
-; AVX512BW-NEXT:    vpternlogq $255, %zmm0, %zmm0, %zmm0 {%k1} {z}
+; AVX512BW-NEXT:    vpternlogq {{.*#+}} zmm0 {%k1} {z} = -1
 ; AVX512BW-NEXT:    ## kill: def $xmm0 killed $xmm0 killed $zmm0
 ; AVX512BW-NEXT:    vzeroupper
 ; AVX512BW-NEXT:    retq
@@ -695,7 +677,7 @@ define <16 x i8> @test8(<16 x i32>%a, <16 x i32>%b, i32 %a1, i32 %b1) {
 ; KNL-NEXT:    vpxor %xmm1, %xmm1, %xmm1
 ; KNL-NEXT:    vpcmpgtd %zmm1, %zmm0, %k1
 ; KNL-NEXT:  LBB17_3:
-; KNL-NEXT:    vpternlogd $255, %zmm0, %zmm0, %zmm0 {%k1} {z}
+; KNL-NEXT:    vpternlogd {{.*#+}} zmm0 {%k1} {z} = -1
 ; KNL-NEXT:    vpmovdb %zmm0, %xmm0
 ; KNL-NEXT:    vzeroupper
 ; KNL-NEXT:    retq
@@ -787,7 +769,7 @@ define <16 x i1> @test9(<16 x i1>%a, <16 x i1>%b, i32 %a1, i32 %b1) {
 ; KNL-NEXT:  LBB18_3:
 ; KNL-NEXT:    vpslld $31, %zmm0, %zmm0
 ; KNL-NEXT:    vptestmd %zmm0, %zmm0, %k1
-; KNL-NEXT:    vpternlogd $255, %zmm0, %zmm0, %zmm0 {%k1} {z}
+; KNL-NEXT:    vpternlogd {{.*#+}} zmm0 {%k1} {z} = -1
 ; KNL-NEXT:    vpmovdb %zmm0, %xmm0
 ; KNL-NEXT:    vzeroupper
 ; KNL-NEXT:    retq
@@ -871,7 +853,7 @@ define <8 x i1> @test10(<8 x i1>%a, <8 x i1>%b, i32 %a1, i32 %b1) {
 ; KNL-NEXT:  LBB19_3:
 ; KNL-NEXT:    vpsllq $63, %zmm0, %zmm0
 ; KNL-NEXT:    vptestmq %zmm0, %zmm0, %k1
-; KNL-NEXT:    vpternlogd $255, %zmm0, %zmm0, %zmm0 {%k1} {z}
+; KNL-NEXT:    vpternlogd {{.*#+}} zmm0 {%k1} {z} = -1
 ; KNL-NEXT:    vpmovdw %zmm0, %ymm0
 ; KNL-NEXT:    ## kill: def $xmm0 killed $xmm0 killed $ymm0
 ; KNL-NEXT:    vzeroupper
@@ -956,7 +938,7 @@ define <4 x i1> @test11(<4 x i1>%a, <4 x i1>%b, i32 %a1, i32 %b1) {
 ; KNL-NEXT:    vpslld $31, %xmm0, %xmm0
 ; KNL-NEXT:  LBB20_3:
 ; KNL-NEXT:    vptestmd %zmm0, %zmm0, %k1
-; KNL-NEXT:    vpternlogd $255, %zmm0, %zmm0, %zmm0 {%k1} {z}
+; KNL-NEXT:    vpternlogd {{.*#+}} zmm0 {%k1} {z} = -1
 ; KNL-NEXT:    ## kill: def $xmm0 killed $xmm0 killed $zmm0
 ; KNL-NEXT:    vzeroupper
 ; KNL-NEXT:    retq
@@ -986,7 +968,7 @@ define <4 x i1> @test11(<4 x i1>%a, <4 x i1>%b, i32 %a1, i32 %b1) {
 ; AVX512BW-NEXT:    vpslld $31, %xmm0, %xmm0
 ; AVX512BW-NEXT:  LBB20_3:
 ; AVX512BW-NEXT:    vptestmd %zmm0, %zmm0, %k1
-; AVX512BW-NEXT:    vpternlogd $255, %zmm0, %zmm0, %zmm0 {%k1} {z}
+; AVX512BW-NEXT:    vpternlogd {{.*#+}} zmm0 {%k1} {z} = -1
 ; AVX512BW-NEXT:    ## kill: def $xmm0 killed $xmm0 killed $zmm0
 ; AVX512BW-NEXT:    vzeroupper
 ; AVX512BW-NEXT:    retq
@@ -1078,12 +1060,12 @@ define i32 @test13_crash(i32 %x, i32 %y)  {
 define <4 x i1> @test14()  {
 ; CHECK-LABEL: test14:
 ; CHECK:       ## %bb.0:
-; CHECK-NEXT:    vmovaps {{.*#+}} xmm0 = [1,1,0,1]
+; CHECK-NEXT:    vpmovsxbd {{.*#+}} xmm0 = [1,1,0,1]
 ; CHECK-NEXT:    retq
 ;
 ; X86-LABEL: test14:
 ; X86:       ## %bb.0:
-; X86-NEXT:    vmovaps {{.*#+}} xmm0 = [1,1,0,1]
+; X86-NEXT:    vpmovsxbd {{.*#+}} xmm0 = [1,1,0,1]
 ; X86-NEXT:    retl
   %a = bitcast i16 21845 to <16 x i1>
   %b = extractelement <16 x i1> %a, i32 2
@@ -1099,7 +1081,7 @@ define <16 x i1> @test15(i32 %x, i32 %y)  {
 ; KNL-NEXT:    movl $1, %ecx
 ; KNL-NEXT:    cmovgl %eax, %ecx
 ; KNL-NEXT:    kmovw %ecx, %k1
-; KNL-NEXT:    vpternlogd $255, %zmm0, %zmm0, %zmm0 {%k1} {z}
+; KNL-NEXT:    vpternlogd {{.*#+}} zmm0 {%k1} {z} = -1
 ; KNL-NEXT:    vpmovdb %zmm0, %xmm0
 ; KNL-NEXT:    vzeroupper
 ; KNL-NEXT:    retq
@@ -1176,14 +1158,14 @@ define <64 x i8> @test16(i64 %x) {
 ; KNL-NEXT:    kshiftlw $15, %k4, %k4
 ; KNL-NEXT:    kshiftrw $10, %k4, %k4
 ; KNL-NEXT:    korw %k4, %k0, %k4
-; KNL-NEXT:    vpternlogd $255, %zmm0, %zmm0, %zmm0 {%k3} {z}
+; KNL-NEXT:    vpternlogd {{.*#+}} zmm0 {%k3} {z} = -1
 ; KNL-NEXT:    vpmovdb %zmm0, %xmm0
-; KNL-NEXT:    vpternlogd $255, %zmm1, %zmm1, %zmm1 {%k2} {z}
+; KNL-NEXT:    vpternlogd {{.*#+}} zmm1 {%k2} {z} = -1
 ; KNL-NEXT:    vpmovdb %zmm1, %xmm1
 ; KNL-NEXT:    vinserti128 $1, %xmm1, %ymm0, %ymm0
-; KNL-NEXT:    vpternlogd $255, %zmm1, %zmm1, %zmm1 {%k4} {z}
+; KNL-NEXT:    vpternlogd {{.*#+}} zmm1 {%k4} {z} = -1
 ; KNL-NEXT:    vpmovdb %zmm1, %xmm1
-; KNL-NEXT:    vpternlogd $255, %zmm2, %zmm2, %zmm2 {%k1} {z}
+; KNL-NEXT:    vpternlogd {{.*#+}} zmm2 {%k1} {z} = -1
 ; KNL-NEXT:    vpmovdb %zmm2, %xmm2
 ; KNL-NEXT:    vinserti128 $1, %xmm2, %ymm1, %ymm1
 ; KNL-NEXT:    vinserti64x4 $1, %ymm0, %zmm1, %zmm0
@@ -1256,12 +1238,12 @@ define <64 x i8> @test16(i64 %x) {
 ; X86-NEXT:    kshiftlq $6, %k1, %k1
 ; X86-NEXT:    kshiftlq $59, %k0, %k0
 ; X86-NEXT:    kshiftrq $59, %k0, %k0
-; X86-NEXT:    movb $1, %al
-; X86-NEXT:    kmovd %eax, %k2
-; X86-NEXT:    kshiftlq $63, %k2, %k2
-; X86-NEXT:    kshiftrq $58, %k2, %k2
-; X86-NEXT:    korq %k2, %k1, %k1
 ; X86-NEXT:    korq %k1, %k0, %k0
+; X86-NEXT:    movb $1, %al
+; X86-NEXT:    kmovd %eax, %k1
+; X86-NEXT:    kshiftlq $63, %k1, %k1
+; X86-NEXT:    kshiftrq $58, %k1, %k1
+; X86-NEXT:    korq %k0, %k1, %k0
 ; X86-NEXT:    vpmovm2b %k0, %zmm0
 ; X86-NEXT:    retl
   %a = bitcast i64 %x to <64 x i1>
@@ -1292,14 +1274,14 @@ define <64 x i8> @test17(i64 %x, i32 %y, i32 %z) {
 ; KNL-NEXT:    kshiftlw $15, %k4, %k4
 ; KNL-NEXT:    kshiftrw $10, %k4, %k4
 ; KNL-NEXT:    korw %k4, %k0, %k4
-; KNL-NEXT:    vpternlogd $255, %zmm0, %zmm0, %zmm0 {%k3} {z}
+; KNL-NEXT:    vpternlogd {{.*#+}} zmm0 {%k3} {z} = -1
 ; KNL-NEXT:    vpmovdb %zmm0, %xmm0
-; KNL-NEXT:    vpternlogd $255, %zmm1, %zmm1, %zmm1 {%k2} {z}
+; KNL-NEXT:    vpternlogd {{.*#+}} zmm1 {%k2} {z} = -1
 ; KNL-NEXT:    vpmovdb %zmm1, %xmm1
 ; KNL-NEXT:    vinserti128 $1, %xmm1, %ymm0, %ymm0
-; KNL-NEXT:    vpternlogd $255, %zmm1, %zmm1, %zmm1 {%k4} {z}
+; KNL-NEXT:    vpternlogd {{.*#+}} zmm1 {%k4} {z} = -1
 ; KNL-NEXT:    vpmovdb %zmm1, %xmm1
-; KNL-NEXT:    vpternlogd $255, %zmm2, %zmm2, %zmm2 {%k1} {z}
+; KNL-NEXT:    vpternlogd {{.*#+}} zmm2 {%k1} {z} = -1
 ; KNL-NEXT:    vpmovdb %zmm2, %xmm2
 ; KNL-NEXT:    vinserti128 $1, %xmm2, %ymm1, %ymm1
 ; KNL-NEXT:    vinserti64x4 $1, %ymm0, %zmm1, %zmm0
@@ -1378,11 +1360,11 @@ define <64 x i8> @test17(i64 %x, i32 %y, i32 %z) {
 ; X86-NEXT:    kshiftlq $6, %k1, %k1
 ; X86-NEXT:    kshiftlq $59, %k0, %k0
 ; X86-NEXT:    kshiftrq $59, %k0, %k0
-; X86-NEXT:    kmovd %eax, %k2
-; X86-NEXT:    kshiftlq $63, %k2, %k2
-; X86-NEXT:    kshiftrq $58, %k2, %k2
-; X86-NEXT:    korq %k2, %k1, %k1
 ; X86-NEXT:    korq %k1, %k0, %k0
+; X86-NEXT:    kmovd %eax, %k1
+; X86-NEXT:    kshiftlq $63, %k1, %k1
+; X86-NEXT:    kshiftrq $58, %k1, %k1
+; X86-NEXT:    korq %k0, %k1, %k0
 ; X86-NEXT:    vpmovm2b %k0, %zmm0
 ; X86-NEXT:    retl
   %a = bitcast i64 %x to <64 x i1>
@@ -1408,7 +1390,7 @@ define <8 x i1> @test18(i8 %a, i16 %y) {
 ; KNL-NEXT:    kshiftrw $9, %k0, %k0
 ; KNL-NEXT:    kshiftlw $7, %k2, %k1
 ; KNL-NEXT:    korw %k1, %k0, %k1
-; KNL-NEXT:    vpternlogd $255, %zmm0, %zmm0, %zmm0 {%k1} {z}
+; KNL-NEXT:    vpternlogd {{.*#+}} zmm0 {%k1} {z} = -1
 ; KNL-NEXT:    vpmovdw %zmm0, %ymm0
 ; KNL-NEXT:    ## kill: def $xmm0 killed $xmm0 killed $ymm0
 ; KNL-NEXT:    vzeroupper
@@ -2137,8 +2119,7 @@ define void @ktest_1(<8 x double> %in, ptr %base) {
 ; KNL-LABEL: ktest_1:
 ; KNL:       ## %bb.0:
 ; KNL-NEXT:    vcmpgtpd (%rdi), %zmm0, %k1
-; KNL-NEXT:    vmovupd 8(%rdi), %zmm1 {%k1} {z}
-; KNL-NEXT:    vcmpltpd %zmm1, %zmm0, %k0 {%k1}
+; KNL-NEXT:    vcmpltpd 8(%rdi), %zmm0, %k0 {%k1}
 ; KNL-NEXT:    kmovw %k0, %eax
 ; KNL-NEXT:    testb %al, %al
 ; KNL-NEXT:    je LBB44_2
@@ -2170,8 +2151,7 @@ define void @ktest_1(<8 x double> %in, ptr %base) {
 ; AVX512BW-LABEL: ktest_1:
 ; AVX512BW:       ## %bb.0:
 ; AVX512BW-NEXT:    vcmpgtpd (%rdi), %zmm0, %k1
-; AVX512BW-NEXT:    vmovupd 8(%rdi), %zmm1 {%k1} {z}
-; AVX512BW-NEXT:    vcmpltpd %zmm1, %zmm0, %k0 {%k1}
+; AVX512BW-NEXT:    vcmpltpd 8(%rdi), %zmm0, %k0 {%k1}
 ; AVX512BW-NEXT:    kmovd %k0, %eax
 ; AVX512BW-NEXT:    testb %al, %al
 ; AVX512BW-NEXT:    je LBB44_2
@@ -2386,7 +2366,7 @@ define <8 x i64> @load_8i1(ptr %a) {
 ; KNL:       ## %bb.0:
 ; KNL-NEXT:    movzbl (%rdi), %eax
 ; KNL-NEXT:    kmovw %eax, %k1
-; KNL-NEXT:    vpternlogq $255, %zmm0, %zmm0, %zmm0 {%k1} {z}
+; KNL-NEXT:    vpternlogq {{.*#+}} zmm0 {%k1} {z} = -1
 ; KNL-NEXT:    retq
 ;
 ; SKX-LABEL: load_8i1:
@@ -2399,7 +2379,7 @@ define <8 x i64> @load_8i1(ptr %a) {
 ; AVX512BW:       ## %bb.0:
 ; AVX512BW-NEXT:    movzbl (%rdi), %eax
 ; AVX512BW-NEXT:    kmovd %eax, %k1
-; AVX512BW-NEXT:    vpternlogq $255, %zmm0, %zmm0, %zmm0 {%k1} {z}
+; AVX512BW-NEXT:    vpternlogq {{.*#+}} zmm0 {%k1} {z} = -1
 ; AVX512BW-NEXT:    retq
 ;
 ; AVX512DQ-LABEL: load_8i1:
@@ -2423,7 +2403,7 @@ define <16 x i32> @load_16i1(ptr %a) {
 ; KNL-LABEL: load_16i1:
 ; KNL:       ## %bb.0:
 ; KNL-NEXT:    kmovw (%rdi), %k1
-; KNL-NEXT:    vpternlogd $255, %zmm0, %zmm0, %zmm0 {%k1} {z}
+; KNL-NEXT:    vpternlogd {{.*#+}} zmm0 {%k1} {z} = -1
 ; KNL-NEXT:    retq
 ;
 ; SKX-LABEL: load_16i1:
@@ -2435,7 +2415,7 @@ define <16 x i32> @load_16i1(ptr %a) {
 ; AVX512BW-LABEL: load_16i1:
 ; AVX512BW:       ## %bb.0:
 ; AVX512BW-NEXT:    kmovw (%rdi), %k1
-; AVX512BW-NEXT:    vpternlogd $255, %zmm0, %zmm0, %zmm0 {%k1} {z}
+; AVX512BW-NEXT:    vpternlogd {{.*#+}} zmm0 {%k1} {z} = -1
 ; AVX512BW-NEXT:    retq
 ;
 ; AVX512DQ-LABEL: load_16i1:
@@ -2460,7 +2440,7 @@ define <2 x i16> @load_2i1(ptr %a) {
 ; KNL:       ## %bb.0:
 ; KNL-NEXT:    movzbl (%rdi), %eax
 ; KNL-NEXT:    kmovw %eax, %k1
-; KNL-NEXT:    vpternlogd $255, %zmm0, %zmm0, %zmm0 {%k1} {z}
+; KNL-NEXT:    vpternlogd {{.*#+}} zmm0 {%k1} {z} = -1
 ; KNL-NEXT:    vpmovdw %zmm0, %ymm0
 ; KNL-NEXT:    ## kill: def $xmm0 killed $xmm0 killed $ymm0
 ; KNL-NEXT:    vzeroupper
@@ -2506,7 +2486,7 @@ define <4 x i16> @load_4i1(ptr %a) {
 ; KNL:       ## %bb.0:
 ; KNL-NEXT:    movzbl (%rdi), %eax
 ; KNL-NEXT:    kmovw %eax, %k1
-; KNL-NEXT:    vpternlogd $255, %zmm0, %zmm0, %zmm0 {%k1} {z}
+; KNL-NEXT:    vpternlogd {{.*#+}} zmm0 {%k1} {z} = -1
 ; KNL-NEXT:    vpmovdw %zmm0, %ymm0
 ; KNL-NEXT:    ## kill: def $xmm0 killed $xmm0 killed $ymm0
 ; KNL-NEXT:    vzeroupper
@@ -2552,9 +2532,9 @@ define <32 x i16> @load_32i1(ptr %a) {
 ; KNL:       ## %bb.0:
 ; KNL-NEXT:    kmovw (%rdi), %k1
 ; KNL-NEXT:    kmovw 2(%rdi), %k2
-; KNL-NEXT:    vpternlogd $255, %zmm0, %zmm0, %zmm0 {%k1} {z}
+; KNL-NEXT:    vpternlogd {{.*#+}} zmm0 {%k1} {z} = -1
 ; KNL-NEXT:    vpmovdw %zmm0, %ymm0
-; KNL-NEXT:    vpternlogd $255, %zmm1, %zmm1, %zmm1 {%k2} {z}
+; KNL-NEXT:    vpternlogd {{.*#+}} zmm1 {%k2} {z} = -1
 ; KNL-NEXT:    vpmovdw %zmm1, %ymm1
 ; KNL-NEXT:    vinserti64x4 $1, %ymm1, %zmm0, %zmm0
 ; KNL-NEXT:    retq
@@ -2600,14 +2580,14 @@ define <64 x i8> @load_64i1(ptr %a) {
 ; KNL-NEXT:    kmovw 2(%rdi), %k2
 ; KNL-NEXT:    kmovw 4(%rdi), %k3
 ; KNL-NEXT:    kmovw 6(%rdi), %k4
-; KNL-NEXT:    vpternlogd $255, %zmm0, %zmm0, %zmm0 {%k3} {z}
+; KNL-NEXT:    vpternlogd {{.*#+}} zmm0 {%k3} {z} = -1
 ; KNL-NEXT:    vpmovdb %zmm0, %xmm0
-; KNL-NEXT:    vpternlogd $255, %zmm1, %zmm1, %zmm1 {%k4} {z}
+; KNL-NEXT:    vpternlogd {{.*#+}} zmm1 {%k4} {z} = -1
 ; KNL-NEXT:    vpmovdb %zmm1, %xmm1
 ; KNL-NEXT:    vinserti128 $1, %xmm1, %ymm0, %ymm0
-; KNL-NEXT:    vpternlogd $255, %zmm1, %zmm1, %zmm1 {%k1} {z}
+; KNL-NEXT:    vpternlogd {{.*#+}} zmm1 {%k1} {z} = -1
 ; KNL-NEXT:    vpmovdb %zmm1, %xmm1
-; KNL-NEXT:    vpternlogd $255, %zmm2, %zmm2, %zmm2 {%k2} {z}
+; KNL-NEXT:    vpternlogd {{.*#+}} zmm2 {%k2} {z} = -1
 ; KNL-NEXT:    vpmovdb %zmm2, %xmm2
 ; KNL-NEXT:    vinserti128 $1, %xmm2, %ymm1, %ymm1
 ; KNL-NEXT:    vinserti64x4 $1, %ymm0, %zmm1, %zmm0
@@ -4115,14 +4095,14 @@ bb.2:
 }
 declare void @foo()
 
-; Make sure we can use the C flag from kortest to check for all ones.
+; Make sure we can use the ZF/CF flags from kortest to check for all ones.
 define void @ktest_allones(<16 x i32> %x, <16 x i32> %y) {
 ; CHECK-LABEL: ktest_allones:
 ; CHECK:       ## %bb.0:
 ; CHECK-NEXT:    vpord %zmm1, %zmm0, %zmm0
-; CHECK-NEXT:    vptestnmd %zmm0, %zmm0, %k0
+; CHECK-NEXT:    vptestmd %zmm0, %zmm0, %k0
 ; CHECK-NEXT:    kortestw %k0, %k0
-; CHECK-NEXT:    jb LBB67_2
+; CHECK-NEXT:    je LBB67_2
 ; CHECK-NEXT:  ## %bb.1: ## %bb.1
 ; CHECK-NEXT:    pushq %rax
 ; CHECK-NEXT:    .cfi_def_cfa_offset 16
@@ -4136,9 +4116,9 @@ define void @ktest_allones(<16 x i32> %x, <16 x i32> %y) {
 ; X86-LABEL: ktest_allones:
 ; X86:       ## %bb.0:
 ; X86-NEXT:    vpord %zmm1, %zmm0, %zmm0
-; X86-NEXT:    vptestnmd %zmm0, %zmm0, %k0
+; X86-NEXT:    vptestmd %zmm0, %zmm0, %k0
 ; X86-NEXT:    kortestw %k0, %k0
-; X86-NEXT:    jb LBB67_2
+; X86-NEXT:    je LBB67_2
 ; X86-NEXT:  ## %bb.1: ## %bb.1
 ; X86-NEXT:    subl $12, %esp
 ; X86-NEXT:    .cfi_def_cfa_offset 16
@@ -4229,13 +4209,33 @@ entry:
 }
 
 define void @store_v128i1_constant(ptr %R) {
-; CHECK-LABEL: store_v128i1_constant:
-; CHECK:       ## %bb.0: ## %entry
-; CHECK-NEXT:    movabsq $-4611686310485172227, %rax ## imm = 0xBFFFFFBBFFFFDFFD
-; CHECK-NEXT:    movq %rax, 8(%rdi)
-; CHECK-NEXT:    movabsq $-2305843576149381123, %rax ## imm = 0xDFFFFF7BFFFFEFFD
-; CHECK-NEXT:    movq %rax, (%rdi)
-; CHECK-NEXT:    retq
+; KNL-LABEL: store_v128i1_constant:
+; KNL:       ## %bb.0: ## %entry
+; KNL-NEXT:    vmovaps {{.*#+}} xmm0 = [61437,65535,65403,57343,57341,65535,65467,49151]
+; KNL-NEXT:    vmovaps %xmm0, (%rdi)
+; KNL-NEXT:    retq
+;
+; SKX-LABEL: store_v128i1_constant:
+; SKX:       ## %bb.0: ## %entry
+; SKX-NEXT:    movabsq $-4611686310485172227, %rax ## imm = 0xBFFFFFBBFFFFDFFD
+; SKX-NEXT:    movq %rax, 8(%rdi)
+; SKX-NEXT:    movabsq $-2305843576149381123, %rax ## imm = 0xDFFFFF7BFFFFEFFD
+; SKX-NEXT:    movq %rax, (%rdi)
+; SKX-NEXT:    retq
+;
+; AVX512BW-LABEL: store_v128i1_constant:
+; AVX512BW:       ## %bb.0: ## %entry
+; AVX512BW-NEXT:    movabsq $-4611686310485172227, %rax ## imm = 0xBFFFFFBBFFFFDFFD
+; AVX512BW-NEXT:    movq %rax, 8(%rdi)
+; AVX512BW-NEXT:    movabsq $-2305843576149381123, %rax ## imm = 0xDFFFFF7BFFFFEFFD
+; AVX512BW-NEXT:    movq %rax, (%rdi)
+; AVX512BW-NEXT:    retq
+;
+; AVX512DQ-LABEL: store_v128i1_constant:
+; AVX512DQ:       ## %bb.0: ## %entry
+; AVX512DQ-NEXT:    vmovaps {{.*#+}} xmm0 = [61437,65535,65403,57343,57341,65535,65467,49151]
+; AVX512DQ-NEXT:    vmovaps %xmm0, (%rdi)
+; AVX512DQ-NEXT:    retq
 ;
 ; X86-LABEL: store_v128i1_constant:
 ; X86:       ## %bb.0: ## %entry
@@ -4748,7 +4748,7 @@ define void @ktest_6(<32 x i16> %w, <32 x i16> %x, <32 x i16> %y, <32 x i16> %z)
 ; KNL-NEXT:    vpcmpeqw %ymm5, %ymm2, %ymm2
 ; KNL-NEXT:    vpcmpeqw %ymm5, %ymm3, %ymm3
 ; KNL-NEXT:    vinserti64x4 $1, %ymm2, %zmm3, %zmm2
-; KNL-NEXT:    vpternlogq $200, %zmm1, %zmm0, %zmm2
+; KNL-NEXT:    vpternlogq {{.*#+}} zmm2 = zmm0 & (zmm2 | zmm1)
 ; KNL-NEXT:    vextracti64x4 $1, %zmm2, %ymm0
 ; KNL-NEXT:    vpor %ymm0, %ymm2, %ymm0
 ; KNL-NEXT:    vpmovsxwd %ymm0, %zmm0
@@ -4829,7 +4829,7 @@ define void @ktest_6(<32 x i16> %w, <32 x i16> %x, <32 x i16> %y, <32 x i16> %z)
 ; AVX512DQ-NEXT:    vpcmpeqw %ymm5, %ymm2, %ymm2
 ; AVX512DQ-NEXT:    vpcmpeqw %ymm5, %ymm3, %ymm3
 ; AVX512DQ-NEXT:    vinserti64x4 $1, %ymm2, %zmm3, %zmm2
-; AVX512DQ-NEXT:    vpternlogq $200, %zmm1, %zmm0, %zmm2
+; AVX512DQ-NEXT:    vpternlogq {{.*#+}} zmm2 = zmm0 & (zmm2 | zmm1)
 ; AVX512DQ-NEXT:    vextracti64x4 $1, %zmm2, %ymm0
 ; AVX512DQ-NEXT:    vpor %ymm0, %ymm2, %ymm0
 ; AVX512DQ-NEXT:    vpmovsxwd %ymm0, %zmm0
@@ -4908,7 +4908,7 @@ define void @ktest_7(<64 x i8> %w, <64 x i8> %x, <64 x i8> %y, <64 x i8> %z) {
 ; KNL-NEXT:    vpcmpeqb %ymm5, %ymm2, %ymm2
 ; KNL-NEXT:    vpcmpeqb %ymm5, %ymm3, %ymm3
 ; KNL-NEXT:    vinserti64x4 $1, %ymm2, %zmm3, %zmm2
-; KNL-NEXT:    vpternlogq $200, %zmm1, %zmm0, %zmm2
+; KNL-NEXT:    vpternlogq {{.*#+}} zmm2 = zmm0 & (zmm2 | zmm1)
 ; KNL-NEXT:    vextracti64x4 $1, %zmm2, %ymm0
 ; KNL-NEXT:    vpor %ymm0, %ymm2, %ymm0
 ; KNL-NEXT:    vpmovmskb %ymm0, %eax
@@ -4987,7 +4987,7 @@ define void @ktest_7(<64 x i8> %w, <64 x i8> %x, <64 x i8> %y, <64 x i8> %z) {
 ; AVX512DQ-NEXT:    vpcmpeqb %ymm5, %ymm2, %ymm2
 ; AVX512DQ-NEXT:    vpcmpeqb %ymm5, %ymm3, %ymm3
 ; AVX512DQ-NEXT:    vinserti64x4 $1, %ymm2, %zmm3, %zmm2
-; AVX512DQ-NEXT:    vpternlogq $200, %zmm1, %zmm0, %zmm2
+; AVX512DQ-NEXT:    vpternlogq {{.*#+}} zmm2 = zmm0 & (zmm2 | zmm1)
 ; AVX512DQ-NEXT:    vextracti64x4 $1, %zmm2, %ymm0
 ; AVX512DQ-NEXT:    vpor %ymm0, %ymm2, %ymm0
 ; AVX512DQ-NEXT:    vpmovmskb %ymm0, %eax

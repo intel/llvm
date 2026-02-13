@@ -13,6 +13,7 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/IPO.h"
 
 using namespace llvm;
@@ -53,37 +54,41 @@ ModulePass *llvm::createLocalAccessorToSharedMemoryPassLegacy() {
 // New PM implementation.
 PreservedAnalyses
 LocalAccessorToSharedMemoryPass::run(Module &M, ModuleAnalysisManager &) {
-  const auto AT = TargetHelpers::getArchType(M);
-
-  // Invariant: This pass is only intended to operate on SYCL kernels being
-  // compiled to either `nvptx{,64}-nvidia-cuda`, or `amdgcn-amd-amdhsa`
-  // triples.
-  if (ArchType::Unsupported == AT)
+  // Only run this pass on SYCL device code
+  if (!TargetHelpers::isSYCLDevice(M))
     return PreservedAnalyses::all();
 
-  SmallVector<KernelPayload, 4> Kernels;
-  TargetHelpers::populateKernels(M, Kernels, AT);
-  SmallVector<std::pair<Function *, KernelPayload>, 4> NewToOldKernels;
-  if (Kernels.empty())
+  // And only for NVPTX/AMDGCN targets.
+  Triple T(M.getTargetTriple());
+  if (!T.isNVPTX() && !T.isAMDGCN())
     return PreservedAnalyses::all();
 
+  TargetHelpers::KernelCache KCache;
+  KCache.populateKernels(M);
+  if (KCache.empty())
+    return PreservedAnalyses::all();
+
+  DenseMap<Function *, Function *> NewToOldKernels;
   // Process the function and if changed, update the metadata.
-  for (auto K : Kernels) {
-    auto *NewKernel = processKernel(M, K.Kernel);
-    if (NewKernel)
-      NewToOldKernels.push_back(std::make_pair(NewKernel, K));
+  for (const auto &F : KCache) {
+    if (auto *NewKernel = processKernel(M, F))
+      NewToOldKernels[NewKernel] = F;
   }
 
   if (NewToOldKernels.empty())
     return PreservedAnalyses::all();
 
-  postProcessKernels(NewToOldKernels);
+  for (auto &[NewF, F] : NewToOldKernels)
+    KCache.handleReplacedWith(*F, *NewF);
 
   return PreservedAnalyses::none();
 }
 
 Function *LocalAccessorToSharedMemoryPass::processKernel(Module &M,
                                                          Function *F) {
+  if (F->isDeclaration())
+    return nullptr;
+
   // Check if this function is eligible by having an argument that uses shared
   // memory.
   const bool UsesLocalMemory =
@@ -156,7 +161,7 @@ Function *LocalAccessorToSharedMemoryPass::processKernel(Module &M,
   NF->takeName(F);
 
   // Splice the body of the old function right into the new function.
-  NF->getBasicBlockList().splice(NF->begin(), F->getBasicBlockList());
+  NF->splice(NF->begin(), F);
 
   unsigned i = 0;
   for (Function::arg_iterator FA = F->arg_begin(), FE = F->arg_end(),
@@ -175,7 +180,7 @@ Function *LocalAccessorToSharedMemoryPass::processKernel(Module &M,
               ConstantInt::get(Type::getInt32Ty(M.getContext()), 0, false),
               NFA,
           },
-          /* NameStr= */ Twine{NFA->getName()}, InsertBefore);
+          /* NameStr= */ Twine{NFA->getName()}, InsertBefore->getIterator());
       // Then create a bitcast to make sure the new pointer is the same type
       // as the old one. This will only ever be a `i8 addrspace(3)*` to `i32
       // addrspace(3)*` type of cast.
@@ -196,19 +201,11 @@ Function *LocalAccessorToSharedMemoryPass::processKernel(Module &M,
   // Clone metadata of the old function, including debug info descriptor.
   SmallVector<std::pair<unsigned, MDNode *>, 1> MDs;
   F->getAllMetadata(MDs);
-  for (auto MD : MDs)
+  for (const auto &MD : MDs)
     NF->addMetadata(MD.first, *MD.second);
 
   // Now that the old function is dead, delete it.
   F->eraseFromParent();
 
   return NF;
-}
-
-void LocalAccessorToSharedMemoryPass::postProcessKernels(
-    SmallVectorImpl<std::pair<Function *, KernelPayload>> &NewToOldKernels) {
-  for (auto &Pair : NewToOldKernels) {
-    std::get<1>(Pair).MD->replaceOperandWith(
-        0, llvm::ConstantAsMetadata::get(std::get<0>(Pair)));
-  }
 }

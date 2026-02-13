@@ -10,8 +10,8 @@
 #include "SchedulerTestUtils.hpp"
 
 #include <detail/config.hpp>
-#include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <algorithm>
 #include <cstddef>
@@ -20,24 +20,24 @@
 
 using namespace sycl;
 
-inline constexpr auto DisablePostEnqueueCleanupName =
-    "SYCL_DISABLE_POST_ENQUEUE_CLEANUP";
+inline constexpr auto DisableCleanupName =
+    "SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP";
 
 // Checks that scheduler's (or graph-builder's) addNodeToLeaves method works
 // correctly with dependency tracking when leaf-limit for generic commands is
 // overflowed.
 // Checks that in case of different contexts for deleted leaf and a new one
 // ConnectCmd will be created and scheduler will build the following dependency
-// structure: NewLeaf->EmptyCmd/ConnectCmd->OldLeaf
+// structure: NewLeaf->ConnectCmd->OldLeaf
 TEST_F(SchedulerTest, LeafLimitDiffContexts) {
   // All of the mock commands are owned on the test side, prevent post enqueue
   // cleanup from deleting some of them.
   unittest::ScopedEnvVar DisabledCleanup{
-      DisablePostEnqueueCleanupName, "1",
-      detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
+      DisableCleanupName, "1",
+      detail::SYCLConfig<detail::SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::reset};
 
-  // Ensure the mock plugin has been initialized prior to selecting a device.
-  unittest::PiMock::EnsureMockPluginInitialized();
+  // Ensure the mock adapter has been initialized prior to selecting a device.
+  sycl::unittest::UrMock<> Mock;
 
   device Device;
   struct QueueRelatedObjects {
@@ -52,18 +52,19 @@ TEST_F(SchedulerTest, LeafLimitDiffContexts) {
           AllocaCmd(nullptr) {}
 
     void InitializeUtils(detail::Requirement &MockReq, MockScheduler &MS) {
-      std::vector<detail::Command *> ToEnqueue;
-      Rec = MS.getOrInsertMemObjRecord(detail::getSyclObjImpl(Queue), &MockReq,
-                                       ToEnqueue);
+
+      Rec =
+          MS.getOrInsertMemObjRecord(&*detail::getSyclObjImpl(Queue), &MockReq);
       // Creating Alloca on both - device and host contexts (will be created in
       // real case in insertMemMove for example) It is done to avoid extra
       // AllocCmd insertion during ConnectCmd insertion
+      std::vector<detail::Command *> ToEnqueue;
       AllocaCmd = MS.getOrCreateAllocaForReq(
-          Rec, &MockReq, detail::getSyclObjImpl(Queue), ToEnqueue);
-      std::ignore = MS.getOrCreateAllocaForReq(
-          Rec, &MockReq, MS.getDefaultHostQueue(), ToEnqueue);
-      DepCmd =
-          std::make_unique<MockCommand>(detail::getSyclObjImpl(Queue), MockReq);
+          Rec, &MockReq, &*detail::getSyclObjImpl(Queue), ToEnqueue);
+      std::ignore =
+          MS.getOrCreateAllocaForReq(Rec, &MockReq, nullptr, ToEnqueue);
+      DepCmd = std::make_unique<MockCommand>(&*detail::getSyclObjImpl(Queue),
+                                             MockReq);
     }
   };
 
@@ -85,7 +86,7 @@ TEST_F(SchedulerTest, LeafLimitDiffContexts) {
   auto AddLeafWithDeps = [&AddedLeaves, &MockReq,
                           &MS](const QueueRelatedObjects &QueueStuff) {
     auto NewLeaf = std::make_unique<MockCommand>(
-        detail::getSyclObjImpl(QueueStuff.Queue), MockReq);
+        &*detail::getSyclObjImpl(QueueStuff.Queue), MockReq);
     // Create edges: all soon-to-be leaves are direct users of MockDep
     std::vector<detail::Command *> ToCleanUp;
     (void)NewLeaf->addDep(detail::DepDesc{QueueStuff.DepCmd.get(), &MockReq,
@@ -120,7 +121,7 @@ TEST_F(SchedulerTest, LeafLimitDiffContexts) {
            Leaves.end());
   }
 
-  // Check NewLeaf->EmptyCmd/ConnectCmd->OldLeaf structure
+  // Check NewLeaf->ConnectCmd->OldLeaf structure
   MockCommand *OldestLeaf = AddedLeaves.front().get();
   MockCommand *NewestLeaf = AddedLeaves.back().get();
   // The only user for oldLeaf must be ConnectCmd
@@ -136,10 +137,9 @@ TEST_F(SchedulerTest, LeafLimitDiffContexts) {
   // Check NewLeaf dependencies in depth by MUsers
   auto ConnectCmdIt = OldestLeaf->MUsers.begin();
   ASSERT_EQ((*ConnectCmdIt)->MUsers.size(), 1U);
-  auto EmptyCmdIt = (*ConnectCmdIt)->MUsers.begin();
   EXPECT_TRUE(std::any_of(NewestLeaf->MDeps.begin(), NewestLeaf->MDeps.end(),
                           [&](const detail::DepDesc &DD) {
-                            return DD.MDepCommand == (*EmptyCmdIt);
+                            return DD.MDepCommand == (*ConnectCmdIt);
                           }));
   // ConnectCmd is created internally in scheduler and not a mock object
   // This fact leads to active scheduler shutdown process that deletes a

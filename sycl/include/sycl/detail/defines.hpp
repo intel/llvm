@@ -8,11 +8,10 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
-
-#include <climits>
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_ID_QUERIES_FIT_...
 
 #if __SYCL_ID_QUERIES_FIT_IN_INT__ && __has_builtin(__builtin_assume)
+#include <climits>
 #define __SYCL_ASSUME_INT(x) __builtin_assume((x) <= INT_MAX)
 #else
 #define __SYCL_ASSUME_INT(x)
@@ -21,14 +20,33 @@
 #endif
 #endif
 
-#if __has_attribute(sycl_special_class)
+// FIXME Check for  __SYCL_DEVICE_ONLY__ can be removed if implementation of
+// __has_attribute is fixed to consider LangOpts when generating attributes in
+// tablegen.
+#if __has_attribute(sycl_special_class) && (defined __SYCL_DEVICE_ONLY__)
 #define __SYCL_SPECIAL_CLASS __attribute__((sycl_special_class))
 #else
 #define __SYCL_SPECIAL_CLASS
 #endif
 
-#if __has_cpp_attribute(__sycl_detail__::sycl_type)
+// FIXME Check for  __SYCL_DEVICE_ONLY__ can be removed if implementation of
+// __has_attribute is fixed to consider LangOpts when generating attributes in
+// tablegen.
+#if __has_cpp_attribute(__sycl_detail__::sycl_type) &&                         \
+    (defined __SYCL_DEVICE_ONLY__)
 #define __SYCL_TYPE(x) [[__sycl_detail__::sycl_type(x)]]
 #else
 #define __SYCL_TYPE(x)
+#endif
+
+#if __has_cpp_attribute(clang::builtin_alias)
+#define __SYCL_BUILTIN_ALIAS(x) [[clang::builtin_alias(x)]]
+#else
+#define __SYCL_BUILTIN_ALIAS(x)
+#endif
+
+#if __has_cpp_attribute(_Clang::__standalone_debug__)
+#define __SYCL_STANDALONE_DEBUG [[_Clang::__standalone_debug__]]
+#else
+#define __SYCL_STANDALONE_DEBUG
 #endif

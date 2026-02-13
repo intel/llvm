@@ -12,6 +12,9 @@ declare <4 x float> @llvm.experimental.constrained.minnum.v4f32(<4 x float>, <4 
 declare float @llvm.experimental.constrained.minimum.f32(float, float, metadata)
 declare <4 x float> @llvm.experimental.constrained.minimum.v4f32(<4 x float>, <4 x float>, metadata)
 
+declare half @llvm.experimental.constrained.minnum.f16(half, half, metadata)
+declare half @llvm.experimental.constrained.minimum.f16(half, half, metadata)
+
 declare fp128 @llvm.experimental.constrained.minnum.f128(fp128, fp128, metadata)
 declare fp128 @llvm.experimental.constrained.minimum.f128(fp128, fp128, metadata)
 
@@ -38,6 +41,20 @@ define <2 x double> @f2(<2 x double> %dummy, <2 x double> %val1,
   ret <2 x double> %ret
 }
 
+; Test the f16 minnum intrinsic.
+define half @f3_half(half %dummy, half %val1, half %val2) #0 {
+; CHECK-LABEL: f3_half:
+; CHECK: brasl %r14, __extendhfsf2@PLT
+; CHECK: brasl %r14, __extendhfsf2@PLT
+; CHECK: wfminsb %f0, %f0, %f9, 4
+; CHECK: brasl %r14, __truncsfhf2@PLT
+; CHECK: br %r14
+  %ret = call half @llvm.experimental.constrained.minnum.f16(
+                        half %val1, half %val2,
+                        metadata !"fpexcept.strict") #0
+  ret half %ret
+}
+
 ; Test the f32 minnum intrinsic.
 define float @f3(float %dummy, float %val1, float %val2) #0 {
 ; CHECK-LABEL: f3:
@@ -62,19 +79,19 @@ define <4 x float> @f4(<4 x float> %dummy, <4 x float> %val1,
 }
 
 ; Test the f128 minnum intrinsic.
-define void @f5(fp128 *%ptr1, fp128 *%ptr2, fp128 *%dst) #0 {
+define void @f5(ptr %ptr1, ptr %ptr2, ptr %dst) #0 {
 ; CHECK-LABEL: f5:
 ; CHECK-DAG: vl [[REG1:%v[0-9]+]], 0(%r2)
 ; CHECK-DAG: vl [[REG2:%v[0-9]+]], 0(%r3)
 ; CHECK: wfminxb [[RES:%v[0-9]+]], [[REG1]], [[REG2]], 4
 ; CHECK: vst [[RES]], 0(%r4)
 ; CHECK: br %r14
-  %val1 = load fp128, fp128* %ptr1
-  %val2 = load fp128, fp128* %ptr2
+  %val1 = load fp128, ptr %ptr1
+  %val2 = load fp128, ptr %ptr2
   %res = call fp128 @llvm.experimental.constrained.minnum.f128(
                         fp128 %val1, fp128 %val2,
                         metadata !"fpexcept.strict") #0
-  store fp128 %res, fp128* %dst
+  store fp128 %res, ptr %dst
   ret void
 }
 
@@ -102,6 +119,20 @@ define <2 x double> @f12(<2 x double> %dummy, <2 x double> %val1,
 }
 
 ; Test the f32 minimum intrinsic.
+define half @f13_half(half %dummy, half %val1, half %val2) #0 {
+; CHECK-LABEL: f13_half:
+; CHECK: brasl %r14, __extendhfsf2@PLT
+; CHECK: brasl %r14, __extendhfsf2@PLT
+; CHECK: wfminsb %f0, %f0, %f9, 1
+; CHECK: brasl %r14, __truncsfhf2@PLT
+; CHECK: br %r14
+  %ret = call half @llvm.experimental.constrained.minimum.f16(
+                        half %val1, half %val2,
+                        metadata !"fpexcept.strict") #0
+  ret half %ret
+}
+
+; Test the f32 minimum intrinsic.
 define float @f13(float %dummy, float %val1, float %val2) #0 {
 ; CHECK-LABEL: f13:
 ; CHECK: wfminsb %f0, %f2, %f4, 1
@@ -125,19 +156,19 @@ define <4 x float> @f14(<4 x float> %dummy, <4 x float> %val1,
 }
 
 ; Test the f128 minimum intrinsic.
-define void @f15(fp128 *%ptr1, fp128 *%ptr2, fp128 *%dst) #0 {
+define void @f15(ptr %ptr1, ptr %ptr2, ptr %dst) #0 {
 ; CHECK-LABEL: f15:
 ; CHECK-DAG: vl [[REG1:%v[0-9]+]], 0(%r2)
 ; CHECK-DAG: vl [[REG2:%v[0-9]+]], 0(%r3)
 ; CHECK: wfminxb [[RES:%v[0-9]+]], [[REG1]], [[REG2]], 1
 ; CHECK: vst [[RES]], 0(%r4)
 ; CHECK: br %r14
-  %val1 = load fp128, fp128* %ptr1
-  %val2 = load fp128, fp128* %ptr2
+  %val1 = load fp128, ptr %ptr1
+  %val2 = load fp128, ptr %ptr2
   %res = call fp128 @llvm.experimental.constrained.minimum.f128(
                         fp128 %val1, fp128 %val2,
                         metadata !"fpexcept.strict") #0
-  store fp128 %res, fp128* %dst
+  store fp128 %res, ptr %dst
   ret void
 }
 

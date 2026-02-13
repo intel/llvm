@@ -1,4 +1,4 @@
-// RUN: c-index-test -write-pch %t.ast -arch x86_64 -mmacosx-version-min=10.6 -fblocks -x objective-c %s
+// RUN: c-index-test -write-pch %t.ast -arch x86_64 -mmacos-version-min=10.6 -fblocks -x objective-c %s
 // RUN: c-index-test -test-file-scan %t.ast %s > %t 2>&1 && FileCheck --input-file=%t %s
 @interface Foo 
 {
@@ -102,9 +102,9 @@ void f() {
 // CHECK: [36:7 - 36:21] ObjCInstanceMethodDecl=bazMethod:36:1
 // CHECK: [36:21 - 38:5] ObjCInterfaceDecl=Baz:31:12
 // CHECK: [38:5 - 40:1] Invalid Cursor => NoDeclFound
-// CHECK: [40:1 - 41:3] EnumDecl=:40:1 (Definition)
+// CHECK: [40:1 - 41:3] EnumDecl=enum (unnamed at {{.*}}):40:1 (Definition)
 // CHECK: [41:3 - 41:11] EnumConstantDecl=someEnum:41:3 (Definition)
-// CHECK: [41:11 - 42:2] EnumDecl=:40:1 (Definition)
+// CHECK: [41:11 - 42:2] EnumDecl=enum (unnamed at {{.*}}):40:1 (Definition)
 // CHECK: [42:2 - 44:1] Invalid Cursor => NoDeclFound
 // CHECK: [44:1 - 44:11] FunctionDecl=main:44:5 (Definition)
 // CHECK: [44:11 - 44:19] ParmDecl=argc:44:15 (Definition)

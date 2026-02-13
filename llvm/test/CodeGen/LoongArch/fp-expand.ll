@@ -14,21 +14,12 @@ declare double @llvm.pow.f64(double, double)
 define float @sin_f32(float %a) nounwind {
 ; LA32-LABEL: sin_f32:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
-; LA32-NEXT:    bl %plt(sinf)
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
-; LA32-NEXT:    ret
+; LA32-NEXT:    b sinf
 ;
 ; LA64-LABEL: sin_f32:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
-; LA64-NEXT:    bl %plt(sinf)
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
-; LA64-NEXT:    ret
+; LA64-NEXT:    pcaddu18i $t8, %call36(sinf)
+; LA64-NEXT:    jr $t8
   %1 = call float @llvm.sin.f32(float %a)
   ret float %1
 }
@@ -36,21 +27,12 @@ define float @sin_f32(float %a) nounwind {
 define float @cos_f32(float %a) nounwind {
 ; LA32-LABEL: cos_f32:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
-; LA32-NEXT:    bl %plt(cosf)
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
-; LA32-NEXT:    ret
+; LA32-NEXT:    b cosf
 ;
 ; LA64-LABEL: cos_f32:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
-; LA64-NEXT:    bl %plt(cosf)
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
-; LA64-NEXT:    ret
+; LA64-NEXT:    pcaddu18i $t8, %call36(cosf)
+; LA64-NEXT:    jr $t8
   %1 = call float @llvm.cos.f32(float %a)
   ret float %1
 }
@@ -63,10 +45,10 @@ define float @sincos_f32(float %a) nounwind {
 ; LA32-NEXT:    fst.d $fs0, $sp, 16 # 8-byte Folded Spill
 ; LA32-NEXT:    fst.d $fs1, $sp, 8 # 8-byte Folded Spill
 ; LA32-NEXT:    fmov.s $fs0, $fa0
-; LA32-NEXT:    bl %plt(sinf)
+; LA32-NEXT:    bl sinf
 ; LA32-NEXT:    fmov.s $fs1, $fa0
 ; LA32-NEXT:    fmov.s $fa0, $fs0
-; LA32-NEXT:    bl %plt(cosf)
+; LA32-NEXT:    bl cosf
 ; LA32-NEXT:    fadd.s $fa0, $fs1, $fa0
 ; LA32-NEXT:    fld.d $fs1, $sp, 8 # 8-byte Folded Reload
 ; LA32-NEXT:    fld.d $fs0, $sp, 16 # 8-byte Folded Reload
@@ -81,10 +63,12 @@ define float @sincos_f32(float %a) nounwind {
 ; LA64-NEXT:    fst.d $fs0, $sp, 16 # 8-byte Folded Spill
 ; LA64-NEXT:    fst.d $fs1, $sp, 8 # 8-byte Folded Spill
 ; LA64-NEXT:    fmov.s $fs0, $fa0
-; LA64-NEXT:    bl %plt(sinf)
+; LA64-NEXT:    pcaddu18i $ra, %call36(sinf)
+; LA64-NEXT:    jirl $ra, $ra, 0
 ; LA64-NEXT:    fmov.s $fs1, $fa0
 ; LA64-NEXT:    fmov.s $fa0, $fs0
-; LA64-NEXT:    bl %plt(cosf)
+; LA64-NEXT:    pcaddu18i $ra, %call36(cosf)
+; LA64-NEXT:    jirl $ra, $ra, 0
 ; LA64-NEXT:    fadd.s $fa0, $fs1, $fa0
 ; LA64-NEXT:    fld.d $fs1, $sp, 8 # 8-byte Folded Reload
 ; LA64-NEXT:    fld.d $fs0, $sp, 16 # 8-byte Folded Reload
@@ -100,21 +84,12 @@ define float @sincos_f32(float %a) nounwind {
 define float @pow_f32(float %a, float %b) nounwind {
 ; LA32-LABEL: pow_f32:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
-; LA32-NEXT:    bl %plt(powf)
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
-; LA32-NEXT:    ret
+; LA32-NEXT:    b powf
 ;
 ; LA64-LABEL: pow_f32:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
-; LA64-NEXT:    bl %plt(powf)
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
-; LA64-NEXT:    ret
+; LA64-NEXT:    pcaddu18i $t8, %call36(powf)
+; LA64-NEXT:    jr $t8
   %1 = call float @llvm.pow.f32(float %a, float %b)
   ret float %1
 }
@@ -122,21 +97,12 @@ define float @pow_f32(float %a, float %b) nounwind {
 define float @frem_f32(float %a, float %b) nounwind {
 ; LA32-LABEL: frem_f32:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
-; LA32-NEXT:    bl %plt(fmodf)
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
-; LA32-NEXT:    ret
+; LA32-NEXT:    b fmodf
 ;
 ; LA64-LABEL: frem_f32:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
-; LA64-NEXT:    bl %plt(fmodf)
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
-; LA64-NEXT:    ret
+; LA64-NEXT:    pcaddu18i $t8, %call36(fmodf)
+; LA64-NEXT:    jr $t8
   %1 = frem float %a, %b
   ret float %1
 }
@@ -144,21 +110,12 @@ define float @frem_f32(float %a, float %b) nounwind {
 define double @sin_f64(double %a) nounwind {
 ; LA32-LABEL: sin_f64:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
-; LA32-NEXT:    bl %plt(sin)
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
-; LA32-NEXT:    ret
+; LA32-NEXT:    b sin
 ;
 ; LA64-LABEL: sin_f64:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
-; LA64-NEXT:    bl %plt(sin)
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
-; LA64-NEXT:    ret
+; LA64-NEXT:    pcaddu18i $t8, %call36(sin)
+; LA64-NEXT:    jr $t8
   %1 = call double @llvm.sin.f64(double %a)
   ret double %1
 }
@@ -166,21 +123,12 @@ define double @sin_f64(double %a) nounwind {
 define double @cos_f64(double %a) nounwind {
 ; LA32-LABEL: cos_f64:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
-; LA32-NEXT:    bl %plt(cos)
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
-; LA32-NEXT:    ret
+; LA32-NEXT:    b cos
 ;
 ; LA64-LABEL: cos_f64:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
-; LA64-NEXT:    bl %plt(cos)
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
-; LA64-NEXT:    ret
+; LA64-NEXT:    pcaddu18i $t8, %call36(cos)
+; LA64-NEXT:    jr $t8
   %1 = call double @llvm.cos.f64(double %a)
   ret double %1
 }
@@ -193,10 +141,10 @@ define double @sincos_f64(double %a) nounwind {
 ; LA32-NEXT:    fst.d $fs0, $sp, 16 # 8-byte Folded Spill
 ; LA32-NEXT:    fst.d $fs1, $sp, 8 # 8-byte Folded Spill
 ; LA32-NEXT:    fmov.d $fs0, $fa0
-; LA32-NEXT:    bl %plt(sin)
+; LA32-NEXT:    bl sin
 ; LA32-NEXT:    fmov.d $fs1, $fa0
 ; LA32-NEXT:    fmov.d $fa0, $fs0
-; LA32-NEXT:    bl %plt(cos)
+; LA32-NEXT:    bl cos
 ; LA32-NEXT:    fadd.d $fa0, $fs1, $fa0
 ; LA32-NEXT:    fld.d $fs1, $sp, 8 # 8-byte Folded Reload
 ; LA32-NEXT:    fld.d $fs0, $sp, 16 # 8-byte Folded Reload
@@ -211,10 +159,12 @@ define double @sincos_f64(double %a) nounwind {
 ; LA64-NEXT:    fst.d $fs0, $sp, 16 # 8-byte Folded Spill
 ; LA64-NEXT:    fst.d $fs1, $sp, 8 # 8-byte Folded Spill
 ; LA64-NEXT:    fmov.d $fs0, $fa0
-; LA64-NEXT:    bl %plt(sin)
+; LA64-NEXT:    pcaddu18i $ra, %call36(sin)
+; LA64-NEXT:    jirl $ra, $ra, 0
 ; LA64-NEXT:    fmov.d $fs1, $fa0
 ; LA64-NEXT:    fmov.d $fa0, $fs0
-; LA64-NEXT:    bl %plt(cos)
+; LA64-NEXT:    pcaddu18i $ra, %call36(cos)
+; LA64-NEXT:    jirl $ra, $ra, 0
 ; LA64-NEXT:    fadd.d $fa0, $fs1, $fa0
 ; LA64-NEXT:    fld.d $fs1, $sp, 8 # 8-byte Folded Reload
 ; LA64-NEXT:    fld.d $fs0, $sp, 16 # 8-byte Folded Reload
@@ -230,21 +180,12 @@ define double @sincos_f64(double %a) nounwind {
 define double @pow_f64(double %a, double %b) nounwind {
 ; LA32-LABEL: pow_f64:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
-; LA32-NEXT:    bl %plt(pow)
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
-; LA32-NEXT:    ret
+; LA32-NEXT:    b pow
 ;
 ; LA64-LABEL: pow_f64:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
-; LA64-NEXT:    bl %plt(pow)
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
-; LA64-NEXT:    ret
+; LA64-NEXT:    pcaddu18i $t8, %call36(pow)
+; LA64-NEXT:    jr $t8
   %1 = call double @llvm.pow.f64(double %a, double %b)
   ret double %1
 }
@@ -252,21 +193,12 @@ define double @pow_f64(double %a, double %b) nounwind {
 define double @frem_f64(double %a, double %b) nounwind {
 ; LA32-LABEL: frem_f64:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
-; LA32-NEXT:    bl %plt(fmod)
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
-; LA32-NEXT:    ret
+; LA32-NEXT:    b fmod
 ;
 ; LA64-LABEL: frem_f64:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
-; LA64-NEXT:    bl %plt(fmod)
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
-; LA64-NEXT:    ret
+; LA64-NEXT:    pcaddu18i $t8, %call36(fmod)
+; LA64-NEXT:    jr $t8
   %1 = frem double %a, %b
   ret double %1
 }

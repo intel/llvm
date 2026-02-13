@@ -25,15 +25,15 @@
 
 source_filename = "test/DebugInfo/Generic/cross-cu-linkonce.ll"
 
-@x = global i32 (i32)* @_Z4funci, align 8, !dbg !0
-@y = global i32 (i32)* @_Z4funci, align 8, !dbg !7
+@x = global ptr @_Z4funci, align 8, !dbg !0
+@y = global ptr @_Z4funci, align 8, !dbg !7
 
 ; Function Attrs: inlinehint nounwind uwtable
 define linkonce_odr i32 @_Z4funci(i32 %i) #0 !dbg !19 {
   %1 = alloca i32, align 4
-  store i32 %i, i32* %1, align 4
-  call void @llvm.dbg.declare(metadata i32* %1, metadata !20, metadata !21), !dbg !22
-  %2 = load i32, i32* %1, align 4, !dbg !23
+  store i32 %i, ptr %1, align 4
+  call void @llvm.dbg.declare(metadata ptr %1, metadata !20, metadata !21), !dbg !22
+  %2 = load i32, ptr %1, align 4, !dbg !23
   %3 = mul nsw i32 %2, 2, !dbg !23
   ret i32 %3, !dbg !23
 }
@@ -41,7 +41,7 @@ define linkonce_odr i32 @_Z4funci(i32 %i) #0 !dbg !19 {
 ; Function Attrs: nounwind readnone
 declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
 
-attributes #0 = { inlinehint nounwind uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { inlinehint nounwind uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone }
 
 !llvm.dbg.cu = !{!9, !13}

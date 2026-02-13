@@ -57,7 +57,7 @@ loop:
   call void @llvm.dbg.value(metadata i32 0, metadata !3, metadata !DIExpression()), !dbg !6
   br i1 %retval, label %loop2, label %exit
 loop2:
-  store i32 %bar, i32 *@glob
+  store i32 %bar, ptr @glob
   br label %loop
 exit:
   ret i32 %bar
@@ -108,6 +108,6 @@ exit:
 !106 = !DILocation(line: 1, scope: !104)
 !113 = !{!103}
 !203 = !DILocalVariable(name: "teacake", scope: !204, file: !2, line: 1, type: !16)
-!204 = distinct !DISubprogram(name: "toad", scope: !2, file: !2, line: 1, spFlags: DISPFlagDefinition, unit: !1, retainedNodes: !113, type: !14, isDefinition: true)
+!204 = distinct !DISubprogram(name: "toad", scope: !2, file: !2, line: 1, spFlags: DISPFlagDefinition, unit: !1, retainedNodes: !213, type: !14, isDefinition: true)
 !206 = !DILocation(line: 1, scope: !204)
 !213 = !{!203}

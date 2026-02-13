@@ -11,7 +11,6 @@
 #include "MachOObject.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/BinaryFormat/MachO.h"
-#include "llvm/Object/MachO.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/SHA256.h"
@@ -94,10 +93,11 @@ size_t MachOWriter::totalSize() const {
                      sizeof(uint32_t) * O.IndirectSymTable.Symbols.size());
   }
 
-  for (Optional<size_t> LinkEditDataCommandIndex :
-       {O.CodeSignatureCommandIndex, O.DataInCodeCommandIndex,
-        O.LinkerOptimizationHintCommandIndex, O.FunctionStartsCommandIndex,
-        O.ChainedFixupsCommandIndex, O.ExportsTrieCommandIndex})
+  for (std::optional<size_t> LinkEditDataCommandIndex :
+       {O.CodeSignatureCommandIndex, O.DylibCodeSignDRsIndex,
+        O.DataInCodeCommandIndex, O.LinkerOptimizationHintCommandIndex,
+        O.FunctionStartsCommandIndex, O.ChainedFixupsCommandIndex,
+        O.ExportsTrieCommandIndex})
     if (LinkEditDataCommandIndex) {
       const MachO::linkedit_data_command &LinkEditDataCommand =
           O.LoadCommands[*LinkEditDataCommandIndex]
@@ -112,7 +112,7 @@ size_t MachOWriter::totalSize() const {
     for (const std::unique_ptr<Section> &S : LC.Sections) {
       if (!S->hasValidOffset()) {
         assert((S->Offset == 0) && "Skipped section's offset must be zero");
-        assert((S->isVirtualSection() || S->Size == 0) &&
+        assert((S->isBssSection() || S->Size == 0) &&
                "Non-zero-fill sections with zero offset must have zero size");
         continue;
       }
@@ -125,7 +125,7 @@ size_t MachOWriter::totalSize() const {
     }
 
   if (!Ends.empty())
-    return *std::max_element(Ends.begin(), Ends.end());
+    return *llvm::max_element(Ends);
 
   // Otherwise, we have only Mach header and load commands.
   return headerSize() + loadCommandsSize();
@@ -240,7 +240,7 @@ void MachOWriter::writeSections() {
     for (const std::unique_ptr<Section> &Sec : LC.Sections) {
       if (!Sec->hasValidOffset()) {
         assert((Sec->Offset == 0) && "Skipped section's offset must be zero");
-        assert((Sec->isVirtualSection() || Sec->Size == 0) &&
+        assert((Sec->isBssSection() || Sec->Size == 0) &&
                "Non-zero-fill sections with zero offset must have zero size");
         continue;
       }
@@ -301,7 +301,7 @@ void MachOWriter::writeSymbolTable() {
       O.LoadCommands[*O.SymTabCommandIndex]
           .MachOLoadCommand.symtab_command_data;
 
-  char *SymTable = (char *)Buf->getBufferStart() + SymTabCommand.symoff;
+  char *SymTable = Buf->getBufferStart() + SymTabCommand.symoff;
   for (auto &Symbol : O.SymTable.Symbols) {
     SymbolEntry *Sym = Symbol.get();
     uint32_t Nstrx = LayoutBuilder.getStringTableBuilder().getOffset(Sym->Name);
@@ -319,7 +319,7 @@ void MachOWriter::writeRebaseInfo() {
   const MachO::dyld_info_command &DyLdInfoCommand =
       O.LoadCommands[*O.DyLdInfoCommandIndex]
           .MachOLoadCommand.dyld_info_command_data;
-  char *Out = (char *)Buf->getBufferStart() + DyLdInfoCommand.rebase_off;
+  char *Out = Buf->getBufferStart() + DyLdInfoCommand.rebase_off;
   assert((DyLdInfoCommand.rebase_size == O.Rebases.Opcodes.size()) &&
          "Incorrect rebase opcodes size");
   memcpy(Out, O.Rebases.Opcodes.data(), O.Rebases.Opcodes.size());
@@ -331,7 +331,7 @@ void MachOWriter::writeBindInfo() {
   const MachO::dyld_info_command &DyLdInfoCommand =
       O.LoadCommands[*O.DyLdInfoCommandIndex]
           .MachOLoadCommand.dyld_info_command_data;
-  char *Out = (char *)Buf->getBufferStart() + DyLdInfoCommand.bind_off;
+  char *Out = Buf->getBufferStart() + DyLdInfoCommand.bind_off;
   assert((DyLdInfoCommand.bind_size == O.Binds.Opcodes.size()) &&
          "Incorrect bind opcodes size");
   memcpy(Out, O.Binds.Opcodes.data(), O.Binds.Opcodes.size());
@@ -343,7 +343,7 @@ void MachOWriter::writeWeakBindInfo() {
   const MachO::dyld_info_command &DyLdInfoCommand =
       O.LoadCommands[*O.DyLdInfoCommandIndex]
           .MachOLoadCommand.dyld_info_command_data;
-  char *Out = (char *)Buf->getBufferStart() + DyLdInfoCommand.weak_bind_off;
+  char *Out = Buf->getBufferStart() + DyLdInfoCommand.weak_bind_off;
   assert((DyLdInfoCommand.weak_bind_size == O.WeakBinds.Opcodes.size()) &&
          "Incorrect weak bind opcodes size");
   memcpy(Out, O.WeakBinds.Opcodes.data(), O.WeakBinds.Opcodes.size());
@@ -355,7 +355,7 @@ void MachOWriter::writeLazyBindInfo() {
   const MachO::dyld_info_command &DyLdInfoCommand =
       O.LoadCommands[*O.DyLdInfoCommandIndex]
           .MachOLoadCommand.dyld_info_command_data;
-  char *Out = (char *)Buf->getBufferStart() + DyLdInfoCommand.lazy_bind_off;
+  char *Out = Buf->getBufferStart() + DyLdInfoCommand.lazy_bind_off;
   assert((DyLdInfoCommand.lazy_bind_size == O.LazyBinds.Opcodes.size()) &&
          "Incorrect lazy bind opcodes size");
   memcpy(Out, O.LazyBinds.Opcodes.data(), O.LazyBinds.Opcodes.size());
@@ -367,7 +367,7 @@ void MachOWriter::writeExportInfo() {
   const MachO::dyld_info_command &DyLdInfoCommand =
       O.LoadCommands[*O.DyLdInfoCommandIndex]
           .MachOLoadCommand.dyld_info_command_data;
-  char *Out = (char *)Buf->getBufferStart() + DyLdInfoCommand.export_off;
+  char *Out = Buf->getBufferStart() + DyLdInfoCommand.export_off;
   assert((DyLdInfoCommand.export_size == O.Exports.Trie.size()) &&
          "Incorrect export trie size");
   memcpy(Out, O.Exports.Trie.data(), O.Exports.Trie.size());
@@ -391,12 +391,13 @@ void MachOWriter::writeIndirectSymbolTable() {
   }
 }
 
-void MachOWriter::writeLinkData(Optional<size_t> LCIndex, const LinkData &LD) {
+void MachOWriter::writeLinkData(std::optional<size_t> LCIndex,
+                                const LinkData &LD) {
   if (!LCIndex)
     return;
   const MachO::linkedit_data_command &LinkEditDataCommand =
       O.LoadCommands[*LCIndex].MachOLoadCommand.linkedit_data_command_data;
-  char *Out = (char *)Buf->getBufferStart() + LinkEditDataCommand.dataoff;
+  char *Out = Buf->getBufferStart() + LinkEditDataCommand.dataoff;
   assert((LinkEditDataCommand.datasize == LD.Data.size()) &&
          "Incorrect data size");
   memcpy(Out, LD.Data.data(), LD.Data.size());
@@ -559,12 +560,24 @@ void MachOWriter::writeFunctionStartsData() {
   return writeLinkData(O.FunctionStartsCommandIndex, O.FunctionStarts);
 }
 
+void MachOWriter::writeDylibCodeSignDRsData() {
+  return writeLinkData(O.DylibCodeSignDRsIndex, O.DylibCodeSignDRs);
+}
+
 void MachOWriter::writeChainedFixupsData() {
   return writeLinkData(O.ChainedFixupsCommandIndex, O.ChainedFixups);
 }
 
 void MachOWriter::writeExportsTrieData() {
-  return writeLinkData(O.ExportsTrieCommandIndex, O.ExportsTrie);
+  if (!O.ExportsTrieCommandIndex)
+    return;
+  const MachO::linkedit_data_command &ExportsTrieCmd =
+      O.LoadCommands[*O.ExportsTrieCommandIndex]
+          .MachOLoadCommand.linkedit_data_command_data;
+  char *Out = Buf->getBufferStart() + ExportsTrieCmd.dataoff;
+  assert((ExportsTrieCmd.datasize == O.Exports.Trie.size()) &&
+         "Incorrect export trie size");
+  memcpy(Out, O.Exports.Trie.data(), O.Exports.Trie.size());
 }
 
 void MachOWriter::writeTail() {
@@ -612,9 +625,10 @@ void MachOWriter::writeTail() {
                          &MachOWriter::writeIndirectSymbolTable);
   }
 
-  std::initializer_list<std::pair<Optional<size_t>, WriteHandlerType>>
+  std::initializer_list<std::pair<std::optional<size_t>, WriteHandlerType>>
       LinkEditDataCommandWriters = {
           {O.CodeSignatureCommandIndex, &MachOWriter::writeCodeSignatureData},
+          {O.DylibCodeSignDRsIndex, &MachOWriter::writeDylibCodeSignDRsData},
           {O.DataInCodeCommandIndex, &MachOWriter::writeDataInCodeData},
           {O.LinkerOptimizationHintCommandIndex,
            &MachOWriter::writeLinkerOptimizationHint},
@@ -622,7 +636,7 @@ void MachOWriter::writeTail() {
           {O.ChainedFixupsCommandIndex, &MachOWriter::writeChainedFixupsData},
           {O.ExportsTrieCommandIndex, &MachOWriter::writeExportsTrieData}};
   for (const auto &W : LinkEditDataCommandWriters) {
-    Optional<size_t> LinkEditDataCommandIndex;
+    std::optional<size_t> LinkEditDataCommandIndex;
     WriteHandlerType WriteHandler;
     std::tie(LinkEditDataCommandIndex, WriteHandler) = W;
     if (LinkEditDataCommandIndex) {

@@ -4,12 +4,12 @@
 
 %0 = type { i16, i8, i8 }
 %1 = type { [2 x i32], [2 x i32] }
-%2 = type { %union.rec* }
+%2 = type { ptr }
 %struct.FILE_POS = type { i8, i8, i16, i32 }
 %struct.GAP = type { i8, i8, i16 }
-%struct.LIST = type { %union.rec*, %union.rec* }
+%struct.LIST = type { ptr, ptr }
 %struct.STYLE = type { %union.anon, %union.anon, i16, i16, i32 }
-%struct.head_type = type { [2 x %struct.LIST], %union.FIRST_UNION, %union.SECOND_UNION, %union.THIRD_UNION, %union.FOURTH_UNION, %union.rec*, %2, %union.rec*, %union.rec*, %union.rec*, %union.rec*, %union.rec*, %union.rec*, %union.rec*, %union.rec*, i32 }
+%struct.head_type = type { [2 x %struct.LIST], %union.FIRST_UNION, %union.SECOND_UNION, %union.THIRD_UNION, %union.FOURTH_UNION, ptr, %2, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, i32 }
 %union.FIRST_UNION = type { %struct.FILE_POS }
 %union.FOURTH_UNION = type { %struct.STYLE }
 %union.SECOND_UNION = type { %0 }
@@ -17,10 +17,10 @@
 %union.anon = type { %struct.GAP }
 %union.rec = type { %struct.head_type }
 
-@zz_hold = external global %union.rec*            ; <%union.rec**> [#uses=2]
-@zz_res = external global %union.rec*             ; <%union.rec**> [#uses=1]
+@zz_hold = external global ptr            ; <ptr> [#uses=2]
+@zz_res = external global ptr             ; <ptr> [#uses=1]
 
-define %union.rec* @Manifest(%union.rec* %x, %union.rec* %env, %struct.STYLE* %style, %union.rec** %bthr, %union.rec** %fthr, %union.rec** %target, %union.rec** %crs, i32 %ok, i32 %need_expand, %union.rec** %enclose, i32 %fcr) nounwind {
+define ptr @Manifest(ptr %x, ptr %env, ptr %style, ptr %bthr, ptr %fthr, ptr %target, ptr %crs, i32 %ok, i32 %need_expand, ptr %enclose, i32 %fcr) nounwind {
 ; CHECK-LABEL: Manifest:
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    push {r4, r5, r6, r7, lr}
@@ -38,11 +38,11 @@ define %union.rec* @Manifest(%union.rec* %x, %union.rec* %env, %struct.STYLE* %s
 ; CHECK-NEXT:    popne.w {r8, r10, r11}
 ; CHECK-NEXT:    popne {r4, r5, r6, r7, pc}
 ; CHECK-NEXT:  LBB0_1: @ %bb20
-; CHECK-NEXT:    cmp.w r0, #450
-; CHECK-NEXT:    bge LBB0_4
+; CHECK-NEXT:    movs r5, #1
+; CHECK-NEXT:    cmp r5, #0
+; CHECK-NEXT:    bne LBB0_4
 ; CHECK-NEXT:  @ %bb.2: @ %bb20
-; CHECK-NEXT:    cmp r0, #209
-; CHECK-NEXT:    ble LBB0_5
+; CHECK-NEXT:    beq LBB0_5
 ; CHECK-NEXT:  @ %bb.3: @ %bb420
 ; CHECK-NEXT:    movw r5, :lower16:(L_zz_hold$non_lazy_ptr-(LPC0_0+4))
 ; CHECK-NEXT:    movt r5, :upper16:(L_zz_hold$non_lazy_ptr-(LPC0_0+4))
@@ -72,15 +72,14 @@ define %union.rec* @Manifest(%union.rec* %x, %union.rec* %env, %struct.STYLE* %s
 ; CHECK-NEXT:    bl _Manifest
 ; CHECK-NEXT:    trap
 ; CHECK-NEXT:  LBB0_4: @ %bb20
-; CHECK-NEXT:    cmp.w r0, #560
-; CHECK-NEXT:    itt ge
-; CHECK-NEXT:    movge r0, #0
-; CHECK-NEXT:    cmpge r0, #0
+; CHECK-NEXT:    itt ne
+; CHECK-NEXT:    movne r0, #0
+; CHECK-NEXT:    cmpne r0, #0
 ; CHECK-NEXT:  LBB0_5: @ %bb20
 ; CHECK-NEXT:    trap
 entry:
-  %xgaps.i = alloca [32 x %union.rec*], align 4   ; <[32 x %union.rec*]*> [#uses=0]
-  %ycomp.i = alloca [32 x %union.rec*], align 4   ; <[32 x %union.rec*]*> [#uses=0]
+  %xgaps.i = alloca [32 x ptr], align 4   ; <ptr> [#uses=0]
+  %ycomp.i = alloca [32 x ptr], align 4   ; <ptr> [#uses=0]
   br label %bb20
 
 bb20:                                             ; preds = %entry
@@ -101,17 +100,17 @@ bb119:                                            ; preds = %bb20, %bb20
   unreachable
 
 bb420:                                            ; preds = %bb20, %bb20
-  store volatile %union.rec* null, %union.rec** @zz_hold, align 4
-  store %union.rec* null, %union.rec** @zz_res, align 4
-  store volatile %union.rec* %x, %union.rec** @zz_hold, align 4
-  %0 = call  %union.rec* @Manifest(%union.rec* undef, %union.rec* %env, %struct.STYLE* %style, %union.rec** %bthr, %union.rec** %fthr, %union.rec** %target, %union.rec** %crs, i32 %ok, i32 %need_expand, %union.rec** %enclose, i32 %fcr) nounwind ; <%union.rec*> [#uses=0]
+  store volatile ptr null, ptr @zz_hold, align 4
+  store ptr null, ptr @zz_res, align 4
+  store volatile ptr %x, ptr @zz_hold, align 4
+  %0 = call  ptr @Manifest(ptr undef, ptr %env, ptr %style, ptr %bthr, ptr %fthr, ptr %target, ptr %crs, i32 %ok, i32 %need_expand, ptr %enclose, i32 %fcr) nounwind ; <ptr> [#uses=0]
   unreachable
 
 bb438:                                            ; preds = %bb20, %bb20
   unreachable
 
 bb533:                                            ; preds = %bb20
-  ret %union.rec* %x
+  ret ptr %x
 
 bb569:                                            ; preds = %bb20
   unreachable

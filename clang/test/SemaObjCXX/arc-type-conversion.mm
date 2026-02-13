@@ -1,5 +1,7 @@
 // RUN: %clang_cc1 -fobjc-runtime-has-weak -fsyntax-only -fobjc-arc -verify -fblocks %s
-// rdar://8843600
+
+@class NSString;
+typedef unsigned __INTPTR_TYPE__ uintptr_t;
 
 void * cvt(id arg) // expected-note{{candidate function not viable: cannot convert argument of incomplete type 'void *' to '__strong id'}}
 {
@@ -20,7 +22,6 @@ void * cvt(id arg) // expected-note{{candidate function not viable: cannot conve
   return arg; // expected-error{{cannot initialize return object of type 'void *' with an lvalue of type '__strong id'}}
 }
 
-// rdar://8898937
 namespace rdar8898937 {
 
 typedef void (^dispatch_block_t)(void);
@@ -74,6 +75,24 @@ void test_reinterpret_cast(__strong id *sip, __weak id *wip,
   (void)reinterpret_cast<__weak id *>(cwip); // expected-error{{reinterpret_cast from '__weak id const *' to '__weak id *' casts away qualifiers}}
   (void)reinterpret_cast<__weak id *>(csip); // expected-error{{reinterpret_cast from '__strong id const *' to '__weak id *' casts away qualifiers}}
   (void)reinterpret_cast<__strong id *>(cwip); // expected-error{{reinterpret_cast from '__weak id const *' to '__strong id *' casts away qualifiers}}
+
+  auto *ul = reinterpret_cast<unsigned long *>(sip);
+  (void)reinterpret_cast<__strong id *>(ul);
+  auto *wp = reinterpret_cast<__weak NSString *>(sip);
+  (void)reinterpret_cast<__strong id *>(wp);
+  (void)reinterpret_cast<unsigned long *>(csip); // expected-error {{reinterpret_cast from '__strong id const *' to 'unsigned long *' casts away qualifiers}}
+  (void)reinterpret_cast<const unsigned long *>(csip);
+  const unsigned long *cul = nullptr;
+  (void)reinterpret_cast<__strong id *>(cul); // expected-error {{reinterpret_cast from 'const unsigned long *' to '__strong id *' casts away qualifiers}}
+  (void)reinterpret_cast<const __strong id *>(cul);
+  volatile __strong id *vsip = nullptr;
+  (void)reinterpret_cast<unsigned long *>(vsip); // expected-error {{reinterpret_cast from '__strong id volatile *' to 'unsigned long *' casts away qualifiers}}
+  (void)reinterpret_cast<volatile unsigned long *>(vsip);
+  volatile unsigned long *vul = nullptr;
+  (void)reinterpret_cast<__strong id *>(vul); // expected-error {{reinterpret_cast from 'volatile unsigned long *' to '__strong id *' casts away qualifiers}}
+  (void)reinterpret_cast<volatile __strong id *>(vul);
+  auto uip = reinterpret_cast<uintptr_t>(sip);
+  (void)reinterpret_cast<__strong id *>(uip); // expected-error {{to '__strong id *' is disallowed with ARC}}
 }
 
 void test_cstyle_cast(__strong id *sip, __weak id *wip, 
@@ -195,8 +214,6 @@ void from_void(void *vp) {
 typedef void (^Block)();
 typedef void (^Block_strong)() __strong;
 typedef void (^Block_autoreleasing)() __autoreleasing;
-
-@class NSString;
 
 void ownership_transfer_in_cast(void *vp, Block *pblk) {
   __strong NSString **sip2 = static_cast<NSString **>(static_cast<__strong id *>(vp));

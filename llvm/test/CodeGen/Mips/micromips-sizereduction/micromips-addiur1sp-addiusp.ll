@@ -1,4 +1,4 @@
-; RUN: llc -march=mipsel -mcpu=mips32r2 -mattr=+micromips -verify-machineinstrs < %s | FileCheck %s
+; RUN: llc -mtriple=mipsel -mcpu=mips32r2 -mattr=+micromips -verify-machineinstrs < %s | FileCheck %s
 
 define i32 @f1() {
 entry:
@@ -7,11 +7,10 @@ entry:
 ; CHECK: addiur1sp
 ; CHECK: addiusp
   %a = alloca [10 x i32], align 4
-  %index = getelementptr inbounds [10 x i32], [10 x i32]* %a, i32 0, i32 0
-  call void @init(i32* %index)
-  %0 = load i32, i32* %index, align 4
+  call void @init(ptr %a)
+  %0 = load i32, ptr %a, align 4
   ret i32 %0
 }
 
-declare void @init(i32*)
+declare void @init(ptr)
 

@@ -44,9 +44,11 @@ static_library("MCTargetDesc") {
   deps = [
     ":PPCGenAsmWriter",
     ":PPCGenMCCodeEmitter",
+    "//llvm/lib/CodeGen",
     "//llvm/lib/MC",
     "//llvm/lib/Support",
     "//llvm/lib/Target/PowerPC/TargetInfo",
+    "//llvm/lib/TargetParser",
   ]
   include_dirs = [ ".." ]
   sources = [
@@ -56,7 +58,6 @@ static_library("MCTargetDesc") {
     "PPCInstPrinter.cpp",
     "PPCMCAsmInfo.cpp",
     "PPCMCCodeEmitter.cpp",
-    "PPCMCExpr.cpp",
     "PPCMCTargetDesc.cpp",
     "PPCPredicates.cpp",
     "PPCXCOFFObjectWriter.cpp",

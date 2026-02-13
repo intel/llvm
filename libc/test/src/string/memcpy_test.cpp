@@ -6,49 +6,79 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "src/__support/CPP/span.h"
+#include "hdr/signal_macros.h"
+#include "memory_utils/memory_check_utils.h"
+#include "src/__support/macros/config.h"
+#include "src/__support/macros/properties/os.h" // LIBC_TARGET_OS_IS_LINUX
 #include "src/string/memcpy.h"
-#include "utils/UnitTest/Test.h"
+#include "test/UnitTest/Test.h"
 
-using __llvm_libc::cpp::array;
-using __llvm_libc::cpp::span;
-using Data = array<char, 2048>;
+#if !defined(LIBC_FULL_BUILD) && defined(LIBC_TARGET_OS_IS_LINUX)
+#include "memory_utils/protected_pages.h"
+#endif // !defined(LIBC_FULL_BUILD) && defined(LIBC_TARGET_OS_IS_LINUX)
 
-static const span<const char> k_numbers("0123456789", 10);
-static const span<const char> k_deadcode("DEADC0DE", 8);
+namespace LIBC_NAMESPACE_DECL {
 
-// Returns a Data object filled with a repetition of `filler`.
-Data get_data(span<const char> filler) {
-  Data out;
-  for (size_t i = 0; i < out.size(); ++i)
-    out[i] = filler[i % filler.size()];
-  return out;
+// Adapt CheckMemcpy signature to memcpy.
+static inline void Adaptor(cpp::span<char> dst, cpp::span<char> src,
+                           size_t size) {
+  LIBC_NAMESPACE::memcpy(dst.begin(), src.begin(), size);
 }
 
-TEST(LlvmLibcMemcpyTest, Thorough) {
-  const Data groundtruth = get_data(k_numbers);
-  const Data dirty = get_data(k_deadcode);
-  for (size_t count = 0; count < 1024; ++count) {
-    for (size_t align = 0; align < 64; ++align) {
-      auto buffer = dirty;
-      const char *const src = groundtruth.data();
-      void *const dst = &buffer[align];
-      void *const ret = __llvm_libc::memcpy(dst, src, count);
-      // Return value is `dst`.
-      ASSERT_EQ(ret, dst);
-      // Everything before copy is untouched.
-      for (size_t i = 0; i < align; ++i)
-        ASSERT_EQ(buffer[i], dirty[i]);
-      // Everything in between is copied.
-      for (size_t i = 0; i < count; ++i)
-        ASSERT_EQ(buffer[align + i], groundtruth[i]);
-      // Everything after copy is untouched.
-      for (size_t i = align + count; i < dirty.size(); ++i)
-        ASSERT_EQ(buffer[i], dirty[i]);
+TEST(LlvmLibcMemcpyTest, SizeSweep) {
+  static constexpr size_t kMaxSize = 400;
+  Buffer SrcBuffer(kMaxSize);
+  Buffer DstBuffer(kMaxSize);
+  Randomize(SrcBuffer.span());
+  for (size_t size = 0; size < kMaxSize; ++size) {
+    auto src = SrcBuffer.span().subspan(0, size);
+    auto dst = DstBuffer.span().subspan(0, size);
+    ASSERT_TRUE(CheckMemcpy<Adaptor>(dst, src, size));
+  }
+}
+
+#if !defined(LIBC_FULL_BUILD) && defined(LIBC_TARGET_OS_IS_LINUX)
+
+TEST(LlvmLibcMemcpyTest, CheckAccess) {
+  static constexpr size_t MAX_SIZE = 1024;
+  LIBC_ASSERT(MAX_SIZE < GetPageSize());
+  ProtectedPages pages;
+  const Page write_buffer = pages.GetPageA().WithAccess(PROT_WRITE);
+  const Page read_buffer = [&]() {
+    // We fetch page B in write mode.
+    auto page = pages.GetPageB().WithAccess(PROT_WRITE);
+    // And fill it with random numbers.
+    for (size_t i = 0; i < page.page_size; ++i)
+      page.page_ptr[i] = static_cast<uint8_t>(rand());
+    // Then return it in read mode.
+    return page.WithAccess(PROT_READ);
+  }();
+  for (size_t size = 0; size < MAX_SIZE; ++size) {
+    // We cross-check the function with two sources and two destinations.
+    //  - The first of them (bottom) is always page aligned and faults when
+    //    accessing bytes before it.
+    //  - The second one (top) is not necessarily aligned and faults when
+    //    accessing bytes after it.
+    const uint8_t *sources[2] = {read_buffer.bottom(size),
+                                 read_buffer.top(size)};
+    uint8_t *destinations[2] = {write_buffer.bottom(size),
+                                write_buffer.top(size)};
+    for (const uint8_t *src : sources) {
+      for (uint8_t *dst : destinations) {
+        LIBC_NAMESPACE::memcpy(dst, src, size);
+      }
     }
   }
 }
 
-// FIXME: Add tests with reads and writes on the boundary of a read/write
-// protected page to check we're not reading nor writing prior/past the allowed
-// regions.
+#endif // !defined(LIBC_FULL_BUILD) && defined(LIBC_TARGET_OS_IS_LINUX)
+
+#if defined(LIBC_ADD_NULL_CHECKS)
+
+TEST(LlvmLibcMemcpyTest, CrashOnNullPtr) {
+  ASSERT_DEATH([]() { LIBC_NAMESPACE::memcpy(nullptr, nullptr, 1); },
+               WITH_SIGNAL(-1));
+}
+#endif // defined(LIBC_ADD_NULL_CHECKS)
+
+} // namespace LIBC_NAMESPACE_DECL

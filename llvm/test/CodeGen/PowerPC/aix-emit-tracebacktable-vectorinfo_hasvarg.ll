@@ -8,21 +8,21 @@
 define void @f(<4 x float> %vf, ...) #0 {
 entry:
   %vf.addr = alloca <4 x float>, align 16
-  store <4 x float> %vf, <4 x float>* %vf.addr, align 16
+  store <4 x float> %vf, ptr %vf.addr, align 16
   ret void
 }
 
 ;CHECK-ASM:             .vbyte  4, 0x00000000                   # Traceback table begin
 ;CHECK-ASM-NEXT:        .byte   0x00                            # Version = 0
 ;CHECK-ASM-NEXT:        .byte   0x09                            # Language = CPlusPlus
-;CHECK-ASM-NEXT:        .byte   0x20                            # -IsGlobaLinkage, -IsOutOfLineEpilogOrPrologue
+;CHECK-ASM-NEXT:        .byte   0x20                            # -IsGlobalLinkage, -IsOutOfLineEpilogOrPrologue
 ;CHECK-ASM-NEXT:                                         # +HasTraceBackTableOffset, -IsInternalProcedure
 ;CHECK-ASM-NEXT:                                         # -HasControlledStorage, -IsTOCless
 ;CHECK-ASM-NEXT:                                         # -IsFloatingPointPresent
 ;CHECK-ASM-NEXT:                                         # -IsFloatingPointOperationLogOrAbortEnabled
 ;CHECK-ASM-NEXT:        .byte   0x40                            # -IsInterruptHandler, +IsFunctionNamePresent, -IsAllocaUsed
 ;CHECK-ASM-NEXT:                                         # OnConditionDirective = 0, -IsCRSaved, -IsLRSaved
-;CHECK-ASM-NEXT:        .byte   0x80                            # +IsBackChainStored, -IsFixup, NumOfFPRsSaved = 0
+;CHECK-ASM-NEXT:        .byte   0x00                            # -IsBackChainStored, -IsFixup, NumOfFPRsSaved = 0
 ;CHECK-ASM-NEXT:        .byte   0x40                            # -HasExtensionTable, +HasVectorInfo, NumOfGPRsSaved = 0
 ;CHECK-ASM-NEXT:        .byte   0x00                            # NumberOfFixedParms = 0
 ;CHECK-ASM-NEXT:        .byte   0x01                            # NumberOfFPParms = 0, +HasParmsOnStack

@@ -17,11 +17,11 @@ define <2 x i32> @zero_dividend_vector(<2 x i32> %A) {
   ret <2 x i32> %B
 }
 
-define <2 x i32> @zero_dividend_vector_undef_elt(<2 x i32> %A) {
-; CHECK-LABEL: @zero_dividend_vector_undef_elt(
+define <2 x i32> @zero_dividend_vector_poison_elt(<2 x i32> %A) {
+; CHECK-LABEL: @zero_dividend_vector_poison_elt(
 ; CHECK-NEXT:    ret <2 x i32> zeroinitializer
 ;
-  %B = sdiv <2 x i32> <i32 0, i32 undef>, %A
+  %B = sdiv <2 x i32> <i32 0, i32 poison>, %A
   ret <2 x i32> %B
 }
 
@@ -29,7 +29,7 @@ define <2 x i32> @zero_dividend_vector_undef_elt(<2 x i32> %A) {
 
 define <2 x i8> @sdiv_zero_elt_vec_constfold(<2 x i8> %x) {
 ; CHECK-LABEL: @sdiv_zero_elt_vec_constfold(
-; CHECK-NEXT:    ret <2 x i8> poison
+; CHECK-NEXT:    ret <2 x i8> <i8 poison, i8 0>
 ;
   %div = sdiv <2 x i8> <i8 1, i8 2>, <i8 0, i8 -42>
   ret <2 x i8> %div
@@ -37,7 +37,7 @@ define <2 x i8> @sdiv_zero_elt_vec_constfold(<2 x i8> %x) {
 
 define <2 x i8> @udiv_zero_elt_vec_constfold(<2 x i8> %x) {
 ; CHECK-LABEL: @udiv_zero_elt_vec_constfold(
-; CHECK-NEXT:    ret <2 x i8> poison
+; CHECK-NEXT:    ret <2 x i8> <i8 0, i8 poison>
 ;
   %div = udiv <2 x i8> <i8 1, i8 2>, <i8 42, i8 0>
   ret <2 x i8> %div
@@ -45,7 +45,8 @@ define <2 x i8> @udiv_zero_elt_vec_constfold(<2 x i8> %x) {
 
 define <2 x i8> @sdiv_zero_elt_vec(<2 x i8> %x) {
 ; CHECK-LABEL: @sdiv_zero_elt_vec(
-; CHECK-NEXT:    ret <2 x i8> poison
+; CHECK-NEXT:    [[DIV:%.*]] = sdiv <2 x i8> [[X:%.*]], <i8 -42, i8 0>
+; CHECK-NEXT:    ret <2 x i8> [[DIV]]
 ;
   %div = sdiv <2 x i8> %x, <i8 -42, i8 0>
   ret <2 x i8> %div
@@ -53,29 +54,32 @@ define <2 x i8> @sdiv_zero_elt_vec(<2 x i8> %x) {
 
 define <2 x i8> @udiv_zero_elt_vec(<2 x i8> %x) {
 ; CHECK-LABEL: @udiv_zero_elt_vec(
-; CHECK-NEXT:    ret <2 x i8> poison
+; CHECK-NEXT:    [[DIV:%.*]] = udiv <2 x i8> [[X:%.*]], <i8 0, i8 42>
+; CHECK-NEXT:    ret <2 x i8> [[DIV]]
 ;
   %div = udiv <2 x i8> %x, <i8 0, i8 42>
   ret <2 x i8> %div
 }
 
-define <2 x i8> @sdiv_undef_elt_vec(<2 x i8> %x) {
-; CHECK-LABEL: @sdiv_undef_elt_vec(
-; CHECK-NEXT:    ret <2 x i8> poison
+define <2 x i8> @sdiv_poison_elt_vec(<2 x i8> %x) {
+; CHECK-LABEL: @sdiv_poison_elt_vec(
+; CHECK-NEXT:    [[DIV:%.*]] = sdiv <2 x i8> [[X:%.*]], <i8 -42, i8 poison>
+; CHECK-NEXT:    ret <2 x i8> [[DIV]]
 ;
-  %div = sdiv <2 x i8> %x, <i8 -42, i8 undef>
+  %div = sdiv <2 x i8> %x, <i8 -42, i8 poison>
   ret <2 x i8> %div
 }
 
-define <2 x i8> @udiv_undef_elt_vec(<2 x i8> %x) {
-; CHECK-LABEL: @udiv_undef_elt_vec(
-; CHECK-NEXT:    ret <2 x i8> poison
+define <2 x i8> @udiv_poison_elt_vec(<2 x i8> %x) {
+; CHECK-LABEL: @udiv_poison_elt_vec(
+; CHECK-NEXT:    [[DIV:%.*]] = udiv <2 x i8> [[X:%.*]], <i8 poison, i8 42>
+; CHECK-NEXT:    ret <2 x i8> [[DIV]]
 ;
-  %div = udiv <2 x i8> %x, <i8 undef, i8 42>
+  %div = udiv <2 x i8> %x, <i8 poison, i8 42>
   ret <2 x i8> %div
 }
 
-; Division-by-zero is undef. UB in any vector lane means the whole op is undef.
+; Division-by-zero is poison. UB in any vector lane means the whole op is poison.
 ; Thus, we can simplify this: if any element of 'y' is 0, we can do anything.
 ; Therefore, assume that all elements of 'y' must be 1.
 
@@ -333,5 +337,334 @@ define i1 @const_urem_1() {
   ret i1 %rem
 }
 
+; Can't divide evenly, so create poison.
+
+define i8 @sdiv_exact_trailing_zeros(i8 %x) {
+; CHECK-LABEL: @sdiv_exact_trailing_zeros(
+; CHECK-NEXT:    ret i8 poison
+;
+  %o = or i8 %x, 1           ; odd number
+  %r = sdiv exact i8 %o, -42 ; can't divide exactly
+  ret i8 %r
+}
+
+; Negative test - could divide evenly.
+
+define i8 @sdiv_exact_trailing_zeros_eq(i8 %x) {
+; CHECK-LABEL: @sdiv_exact_trailing_zeros_eq(
+; CHECK-NEXT:    [[O:%.*]] = or i8 [[X:%.*]], 2
+; CHECK-NEXT:    [[R:%.*]] = sdiv exact i8 [[O]], -42
+; CHECK-NEXT:    ret i8 [[R]]
+;
+  %o = or i8 %x, 2
+  %r = sdiv exact i8 %o, -42
+  ret i8 %r
+}
+
+; Negative test - must be exact div.
+
+define i8 @sdiv_trailing_zeros(i8 %x) {
+; CHECK-LABEL: @sdiv_trailing_zeros(
+; CHECK-NEXT:    [[O:%.*]] = or i8 [[X:%.*]], 1
+; CHECK-NEXT:    [[R:%.*]] = sdiv i8 [[O]], -12
+; CHECK-NEXT:    ret i8 [[R]]
+;
+  %o = or i8 %x, 1
+  %r = sdiv i8 %o, -12
+  ret i8 %r
+}
+
+; TODO: Match non-splat vector constants.
+
+define <2 x i8> @sdiv_exact_trailing_zeros_nonuniform_vector(<2 x i8> %x) {
+; CHECK-LABEL: @sdiv_exact_trailing_zeros_nonuniform_vector(
+; CHECK-NEXT:    [[O:%.*]] = or <2 x i8> [[X:%.*]], <i8 3, i8 1>
+; CHECK-NEXT:    [[R:%.*]] = sdiv exact <2 x i8> [[O]], <i8 12, i8 2>
+; CHECK-NEXT:    ret <2 x i8> [[R]]
+;
+  %o = or <2 x i8> %x, <i8 3, i8 1>
+  %r = sdiv exact <2 x i8> %o, <i8 12, i8 2>
+  ret <2 x i8> %r
+}
+
+; Can't divide evenly, so create poison.
+
+define <2 x i8> @udiv_exact_trailing_zeros(<2 x i8> %x) {
+; CHECK-LABEL: @udiv_exact_trailing_zeros(
+; CHECK-NEXT:    ret <2 x i8> poison
+;
+  %o = or <2 x i8> %x, <i8 3, i8 3>
+  %r = udiv exact <2 x i8> %o, <i8 12, i8 12>  ; can't divide exactly
+  ret <2 x i8> %r
+}
+
+; Negative test - could divide evenly.
+
+define <2 x i8> @udiv_exact_trailing_zeros_eq(<2 x i8> %x) {
+; CHECK-LABEL: @udiv_exact_trailing_zeros_eq(
+; CHECK-NEXT:    [[O:%.*]] = or <2 x i8> [[X:%.*]], splat (i8 28)
+; CHECK-NEXT:    [[R:%.*]] = udiv exact <2 x i8> [[O]], splat (i8 12)
+; CHECK-NEXT:    ret <2 x i8> [[R]]
+;
+  %o = or <2 x i8> %x, <i8 28, i8 28>
+  %r = udiv exact <2 x i8> %o, <i8 12, i8 12>
+  ret <2 x i8> %r
+}
+
+; Negative test - must be exact div.
+
+define i8 @udiv_trailing_zeros(i8 %x) {
+; CHECK-LABEL: @udiv_trailing_zeros(
+; CHECK-NEXT:    [[O:%.*]] = or i8 [[X:%.*]], 1
+; CHECK-NEXT:    [[R:%.*]] = udiv i8 [[O]], 12
+; CHECK-NEXT:    ret i8 [[R]]
+;
+  %o = or i8 %x, 1
+  %r = udiv i8 %o, 12
+  ret i8 %r
+}
+
+; Negative test - only the first element is poison
+
+define <2 x i8> @udiv_exact_trailing_zeros_nonuniform_vector(<2 x i8> %x) {
+; CHECK-LABEL: @udiv_exact_trailing_zeros_nonuniform_vector(
+; CHECK-NEXT:    [[O:%.*]] = or <2 x i8> [[X:%.*]], splat (i8 3)
+; CHECK-NEXT:    [[R:%.*]] = udiv exact <2 x i8> [[O]], <i8 12, i8 1>
+; CHECK-NEXT:    ret <2 x i8> [[R]]
+;
+  %o = or <2 x i8> %x, <i8 3, i8 3>
+  %r = udiv exact <2 x i8> %o, <i8 12, i8 1>
+  ret <2 x i8> %r
+}
 
 !0 = !{i32 0, i32 3}
+
+define i32 @sdiv_one_srem_divisor(i32 %a, i32 %b) {
+; CHECK-LABEL: @sdiv_one_srem_divisor(
+; CHECK-NEXT:    ret i32 [[A:%.*]]
+;
+  %srem = srem i32 1, %b
+  %sdiv = sdiv i32 %a, %srem
+  ret i32 %sdiv
+}
+
+define i32 @sdiv_one_urem_divisor(i32 %a, i32 %b) {
+; CHECK-LABEL: @sdiv_one_urem_divisor(
+; CHECK-NEXT:    ret i32 [[A:%.*]]
+;
+  %urem = urem i32 1, %b
+  %sdiv = sdiv i32 %a, %urem
+  ret i32 %sdiv
+}
+
+define i32 @udiv_one_srem_divisor(i32 %a, i32 %b) {
+; CHECK-LABEL: @udiv_one_srem_divisor(
+; CHECK-NEXT:    ret i32 [[A:%.*]]
+;
+  %srem = srem i32 1, %b
+  %udiv = udiv i32 %a, %srem
+  ret i32 %udiv
+}
+
+define i32 @udiv_one_urem_divisor(i32 %a, i32 %b) {
+; CHECK-LABEL: @udiv_one_urem_divisor(
+; CHECK-NEXT:    ret i32 [[A:%.*]]
+;
+  %urem = urem i32 1, %b
+  %udiv = udiv i32 %a, %urem
+  ret i32 %udiv
+}
+
+define i32 @srem_one_srem_divisor(i32 %a, i32 %b) {
+; CHECK-LABEL: @srem_one_srem_divisor(
+; CHECK-NEXT:    ret i32 0
+;
+  %srem = srem i32 1, %b
+  %srem1 = srem i32 %a, %srem
+  ret i32 %srem1
+}
+
+define i32 @urem_one_srem_divisor(i32 %a, i32 %b) {
+; CHECK-LABEL: @urem_one_srem_divisor(
+; CHECK-NEXT:    ret i32 0
+;
+  %srem = srem i32 1, %b
+  %urem = urem i32 %a, %srem
+  ret i32 %urem
+}
+
+define i32 @srem_one_urem_divisor(i32 %a, i32 %b) {
+; CHECK-LABEL: @srem_one_urem_divisor(
+; CHECK-NEXT:    ret i32 0
+;
+  %urem = urem i32 1, %b
+  %srem = srem i32 %a, %urem
+  ret i32 %srem
+}
+
+define i32 @urem_one_urem_divisor(i32 %a, i32 %b) {
+; CHECK-LABEL: @urem_one_urem_divisor(
+; CHECK-NEXT:    ret i32 0
+;
+  %urem = urem i32 1, %b
+  %urem1 = urem i32 %a, %urem
+  ret i32 %urem1
+}
+
+define <2 x i8> @sdiv_one_vec_srem_divisor(<2 x i8> %a, <2 x i8> %b) {
+; CHECK-LABEL: @sdiv_one_vec_srem_divisor(
+; CHECK-NEXT:    ret <2 x i8> [[A:%.*]]
+;
+  %srem = srem <2 x i8> <i8 1, i8 1>, %b
+  %sdiv = sdiv <2 x i8> %a, %srem
+  ret <2 x i8> %sdiv
+}
+
+define i32 @sdiv_and_one_divisor(i32 %x, i32 %y) {
+; CHECK-LABEL: @sdiv_and_one_divisor(
+; CHECK-NEXT:    ret i32 [[Y:%.*]]
+;
+  %and = and i32 %x, 1
+  %res = sdiv i32 %y, %and
+  ret i32 %res
+}
+
+define <2 x i8> @sdiv_and_one_vec_divisor(<2 x i8> %x, <2 x i8> %y) {
+; CHECK-LABEL: @sdiv_and_one_vec_divisor(
+; CHECK-NEXT:    ret <2 x i8> [[Y:%.*]]
+;
+  %and = and <2 x i8> %x, <i8 1, i8 1>
+  %res = sdiv <2 x i8> %y, %and
+  ret <2 x i8> %res
+}
+
+define i32 @sdiv_neg_or_divisor(i32 %x, i32 %y) {
+; CHECK-LABEL: @sdiv_neg_or_divisor(
+; CHECK-NEXT:    ret i32 [[Y:%.*]]
+;
+  %or = or i32 %x, -2
+  %neg = xor i32 %or, -1
+  %res = sdiv i32 %y, %neg
+  ret i32 %res
+}
+
+define i32 @sdiv_neg_or_multi_one_bit_divisor(i32 %x, i32 %y) {
+; CHECK-LABEL: @sdiv_neg_or_multi_one_bit_divisor(
+; CHECK-NEXT:    [[OR:%.*]] = or i32 [[X:%.*]], -3
+; CHECK-NEXT:    [[NEG:%.*]] = xor i32 [[OR]], -1
+; CHECK-NEXT:    [[RES:%.*]] = sdiv i32 [[Y:%.*]], [[NEG]]
+; CHECK-NEXT:    ret i32 [[RES]]
+;
+  %or = or i32 %x, -3
+  %neg = xor i32 %or, -1
+  %res = sdiv i32 %y, %neg
+  ret i32 %res
+}
+
+define <2 x i8> @sdiv_vec_multi_one_bit_divisor(<2 x i8> %x, <2 x i8> %y) {
+; CHECK-LABEL: @sdiv_vec_multi_one_bit_divisor(
+; CHECK-NEXT:    [[AND:%.*]] = and <2 x i8> [[X:%.*]], <i8 1, i8 3>
+; CHECK-NEXT:    [[RES:%.*]] = sdiv <2 x i8> [[Y:%.*]], [[AND]]
+; CHECK-NEXT:    ret <2 x i8> [[RES]]
+;
+  %and = and <2 x i8> %x, <i8 1, i8 3>
+  %res = sdiv <2 x i8> %y, %and
+  ret <2 x i8> %res
+}
+
+define i8 @udiv_exact_mul_nsw(i8 %x) {
+; CHECK-LABEL: @udiv_exact_mul_nsw(
+; CHECK-NEXT:    ret i8 [[X:%.*]]
+;
+  %a = mul nsw i8 %x, 24
+  %b = udiv exact i8 %a, 24
+  ret i8 %b
+}
+
+define i8 @sdiv_exact_mul_nuw(i8 %x) {
+; CHECK-LABEL: @sdiv_exact_mul_nuw(
+; CHECK-NEXT:    ret i8 [[X:%.*]]
+;
+  %a = mul nuw i8 %x, 24
+  %b = sdiv exact i8 %a, 24
+  ret i8 %b
+}
+
+; Negative tests
+
+define i8 @udiv_exact_mul_nsw_mismatch(i8 %x) {
+; CHECK-LABEL: @udiv_exact_mul_nsw_mismatch(
+; CHECK-NEXT:    [[A:%.*]] = mul nsw i8 [[X:%.*]], 24
+; CHECK-NEXT:    [[B:%.*]] = udiv exact i8 [[A]], 12
+; CHECK-NEXT:    ret i8 [[B]]
+;
+  %a = mul nsw i8 %x, 24
+  %b = udiv exact i8 %a, 12
+  ret i8 %b
+}
+
+define i8 @udiv_exact_mul_nsw_power_of_2(i8 %x) {
+; CHECK-LABEL: @udiv_exact_mul_nsw_power_of_2(
+; CHECK-NEXT:    [[A:%.*]] = mul nsw i8 [[X:%.*]], 8
+; CHECK-NEXT:    [[B:%.*]] = udiv exact i8 [[A]], 8
+; CHECK-NEXT:    ret i8 [[B]]
+;
+  %a = mul nsw i8 %x, 8
+  %b = udiv exact i8 %a, 8
+  ret i8 %b
+}
+
+define i8 @sdiv_exact_mul_nuw_power_of_2(i8 %x) {
+; CHECK-LABEL: @sdiv_exact_mul_nuw_power_of_2(
+; CHECK-NEXT:    [[A:%.*]] = mul nuw i8 [[X:%.*]], 8
+; CHECK-NEXT:    [[B:%.*]] = sdiv exact i8 [[A]], 8
+; CHECK-NEXT:    ret i8 [[B]]
+;
+  %a = mul nuw i8 %x, 8
+  %b = sdiv exact i8 %a, 8
+  ret i8 %b
+}
+
+define i8 @udiv_exact_mul(i8 %x) {
+; CHECK-LABEL: @udiv_exact_mul(
+; CHECK-NEXT:    [[A:%.*]] = mul i8 [[X:%.*]], 24
+; CHECK-NEXT:    [[B:%.*]] = udiv exact i8 [[A]], 24
+; CHECK-NEXT:    ret i8 [[B]]
+;
+  %a = mul i8 %x, 24
+  %b = udiv exact i8 %a, 24
+  ret i8 %b
+}
+
+define i8 @sdiv_exact_mul(i8 %x) {
+; CHECK-LABEL: @sdiv_exact_mul(
+; CHECK-NEXT:    [[A:%.*]] = mul i8 [[X:%.*]], 24
+; CHECK-NEXT:    [[B:%.*]] = sdiv exact i8 [[A]], 24
+; CHECK-NEXT:    ret i8 [[B]]
+;
+  %a = mul i8 %x, 24
+  %b = sdiv exact i8 %a, 24
+  ret i8 %b
+}
+
+define i8 @udiv_mul_nsw(i8 %x) {
+; CHECK-LABEL: @udiv_mul_nsw(
+; CHECK-NEXT:    [[A:%.*]] = mul nsw i8 [[X:%.*]], 24
+; CHECK-NEXT:    [[B:%.*]] = udiv i8 [[A]], 24
+; CHECK-NEXT:    ret i8 [[B]]
+;
+  %a = mul nsw i8 %x, 24
+  %b = udiv i8 %a, 24
+  ret i8 %b
+}
+
+define i8 @sdiv_mul_nuw(i8 %x) {
+; CHECK-LABEL: @sdiv_mul_nuw(
+; CHECK-NEXT:    [[A:%.*]] = mul nuw i8 [[X:%.*]], 24
+; CHECK-NEXT:    [[B:%.*]] = sdiv i8 [[A]], 24
+; CHECK-NEXT:    ret i8 [[B]]
+;
+  %a = mul nuw i8 %x, 24
+  %b = sdiv i8 %a, 24
+  ret i8 %b
+}

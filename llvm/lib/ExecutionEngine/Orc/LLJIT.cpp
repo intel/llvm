@@ -7,22 +7,27 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ExecutionEngine/Orc/LLJIT.h"
-#include "llvm/ExecutionEngine/JITLink/EHFrameSupport.h"
-#include "llvm/ExecutionEngine/JITLink/JITLinkMemoryManager.h"
+
+#include "llvm/Analysis/TargetLibraryInfo.h"
+#include "llvm/Config/llvm-config.h" // for LLVM_ENABLE_THREADS
+#include "llvm/ExecutionEngine/Orc/COFFPlatform.h"
+#include "llvm/ExecutionEngine/Orc/EHFrameRegistrationPlugin.h"
+#include "llvm/ExecutionEngine/Orc/ELFNixPlatform.h"
+#include "llvm/ExecutionEngine/Orc/EPCDynamicLibrarySearchGenerator.h"
 #include "llvm/ExecutionEngine/Orc/ExecutorProcessControl.h"
 #include "llvm/ExecutionEngine/Orc/MachOPlatform.h"
 #include "llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h"
 #include "llvm/ExecutionEngine/Orc/ObjectTransformLayer.h"
 #include "llvm/ExecutionEngine/Orc/RTDyldObjectLinkingLayer.h"
-#include "llvm/ExecutionEngine/Orc/Shared/OrcError.h"
+#include "llvm/ExecutionEngine/Orc/SelfExecutorProcessControl.h"
+#include "llvm/ExecutionEngine/Orc/TargetProcess/RegisterEHFrames.h"
+#include "llvm/ExecutionEngine/Orc/UnwindInfoRegistrationPlugin.h"
 #include "llvm/ExecutionEngine/SectionMemoryManager.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Mangler.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/DynamicLibrary.h"
-
-#include <map>
 
 #define DEBUG_TYPE "orc"
 
@@ -53,8 +58,7 @@ Function *addHelperAndWrapper(Module &M, StringRef WrapperName,
   std::vector<Type *> HelperArgTypes;
   for (auto *Arg : HelperPrefixArgs)
     HelperArgTypes.push_back(Arg->getType());
-  for (auto *T : WrapperFnType->params())
-    HelperArgTypes.push_back(T);
+  llvm::append_range(HelperArgTypes, WrapperFnType->params());
   auto *HelperFnType =
       FunctionType::get(WrapperFnType->getReturnType(), HelperArgTypes, false);
   auto *HelperFn = Function::Create(HelperFnType, GlobalValue::ExternalLinkage,
@@ -68,8 +72,7 @@ Function *addHelperAndWrapper(Module &M, StringRef WrapperName,
   IRBuilder<> IB(EntryBlock);
 
   std::vector<Value *> HelperArgs;
-  for (auto *Arg : HelperPrefixArgs)
-    HelperArgs.push_back(Arg);
+  llvm::append_range(HelperArgs, HelperPrefixArgs);
   for (auto &Arg : WrapperFn->args())
     HelperArgs.push_back(&Arg);
   auto *HelperResult = IB.CreateCall(HelperFn, HelperArgs);
@@ -80,53 +83,6 @@ Function *addHelperAndWrapper(Module &M, StringRef WrapperName,
 
   return WrapperFn;
 }
-
-class ORCPlatformSupport : public LLJIT::PlatformSupport {
-public:
-  ORCPlatformSupport(orc::LLJIT &J) : J(J) {}
-
-  Error initialize(orc::JITDylib &JD) override {
-    using llvm::orc::shared::SPSExecutorAddr;
-    using llvm::orc::shared::SPSString;
-    using SPSDLOpenSig = SPSExecutorAddr(SPSString, int32_t);
-    enum dlopen_mode : int32_t {
-      ORC_RT_RTLD_LAZY = 0x1,
-      ORC_RT_RTLD_NOW = 0x2,
-      ORC_RT_RTLD_LOCAL = 0x4,
-      ORC_RT_RTLD_GLOBAL = 0x8
-    };
-
-    if (auto WrapperAddr = J.lookup("__orc_rt_jit_dlopen_wrapper")) {
-      return J.getExecutionSession().callSPSWrapper<SPSDLOpenSig>(
-          *WrapperAddr, DSOHandles[&JD], JD.getName(),
-          int32_t(ORC_RT_RTLD_LAZY));
-    } else
-      return WrapperAddr.takeError();
-  }
-
-  Error deinitialize(orc::JITDylib &JD) override {
-    using llvm::orc::shared::SPSExecutorAddr;
-    using SPSDLCloseSig = int32_t(SPSExecutorAddr);
-
-    if (auto WrapperAddr = J.lookup("__orc_rt_jit_dlclose_wrapper")) {
-      int32_t result;
-      auto E = J.getExecutionSession().callSPSWrapper<SPSDLCloseSig>(
-          *WrapperAddr, result, DSOHandles[&JD]);
-      if (E)
-        return E;
-      else if (result)
-        return make_error<StringError>("dlclose failed",
-                                       inconvertibleErrorCode());
-      DSOHandles.erase(&JD);
-    } else
-      return WrapperAddr.takeError();
-    return Error::success();
-  }
-
-private:
-  orc::LLJIT &J;
-  DenseMap<orc::JITDylib *, orc::ExecutorAddr> DSOHandles;
-};
 
 class GenericLLVMIRPlatformSupport;
 
@@ -174,7 +130,7 @@ private:
 /// some runtime API, including __cxa_atexit, dlopen, and dlclose.
 class GenericLLVMIRPlatformSupport : public LLJIT::PlatformSupport {
 public:
-  GenericLLVMIRPlatformSupport(LLJIT &J)
+  GenericLLVMIRPlatformSupport(LLJIT &J, JITDylib &PlatformJD)
       : J(J), InitFunctionPrefix(J.mangle("__orc_init_func.")),
         DeInitFunctionPrefix(J.mangle("__orc_deinit_func.")) {
 
@@ -186,17 +142,14 @@ public:
 
     SymbolMap StdInterposes;
 
-    StdInterposes[J.mangleAndIntern("__lljit.platform_support_instance")] =
-        JITEvaluatedSymbol(pointerToJITTargetAddress(this),
-                           JITSymbolFlags::Exported);
-    StdInterposes[J.mangleAndIntern("__lljit.cxa_atexit_helper")] =
-        JITEvaluatedSymbol(pointerToJITTargetAddress(registerCxaAtExitHelper),
-                           JITSymbolFlags());
+    StdInterposes[J.mangleAndIntern("__lljit.platform_support_instance")] = {
+        ExecutorAddr::fromPtr(this), JITSymbolFlags::Exported};
+    StdInterposes[J.mangleAndIntern("__lljit.cxa_atexit_helper")] = {
+        ExecutorAddr::fromPtr(registerCxaAtExitHelper), JITSymbolFlags()};
 
-    cantFail(
-        J.getMainJITDylib().define(absoluteSymbols(std::move(StdInterposes))));
-    cantFail(setupJITDylib(J.getMainJITDylib()));
-    cantFail(J.addIRModule(J.getMainJITDylib(), createPlatformRuntimeModule()));
+    cantFail(PlatformJD.define(absoluteSymbols(std::move(StdInterposes))));
+    cantFail(setupJITDylib(PlatformJD));
+    cantFail(J.addIRModule(PlatformJD, createPlatformRuntimeModule()));
   }
 
   ExecutionSession &getExecutionSession() { return J.getExecutionSession(); }
@@ -206,12 +159,10 @@ public:
 
     // Add per-jitdylib standard interposes.
     SymbolMap PerJDInterposes;
-    PerJDInterposes[J.mangleAndIntern("__lljit.run_atexits_helper")] =
-        JITEvaluatedSymbol(pointerToJITTargetAddress(runAtExitsHelper),
-                           JITSymbolFlags());
-    PerJDInterposes[J.mangleAndIntern("__lljit.atexit_helper")] =
-        JITEvaluatedSymbol(pointerToJITTargetAddress(registerAtExitHelper),
-                           JITSymbolFlags());
+    PerJDInterposes[J.mangleAndIntern("__lljit.run_atexits_helper")] = {
+        ExecutorAddr::fromPtr(runAtExitsHelper), JITSymbolFlags()};
+    PerJDInterposes[J.mangleAndIntern("__lljit.atexit_helper")] = {
+        ExecutorAddr::fromPtr(registerAtExitHelper), JITSymbolFlags()};
     cantFail(JD.define(absoluteSymbols(std::move(PerJDInterposes))));
 
     auto Ctx = std::make_unique<LLVMContext>();
@@ -225,7 +176,7 @@ public:
         "__dso_handle");
     DSOHandle->setVisibility(GlobalValue::DefaultVisibility);
     DSOHandle->setInitializer(
-        ConstantInt::get(Int64Ty, pointerToJITTargetAddress(&JD)));
+        ConstantInt::get(Int64Ty, ExecutorAddr::fromPtr(&JD).getValue()));
 
     auto *GenericIRPlatformSupportTy =
         StructType::create(*Ctx, "lljit.GenericLLJITIRPlatformSupport");
@@ -241,12 +192,15 @@ public:
         {PlatformInstanceDecl, DSOHandle});
 
     auto *IntTy = Type::getIntNTy(*Ctx, sizeof(int) * CHAR_BIT);
-    auto *AtExitCallbackTy = FunctionType::get(VoidTy, {}, false);
-    auto *AtExitCallbackPtrTy = PointerType::getUnqual(AtExitCallbackTy);
-    addHelperAndWrapper(*M, "atexit",
-                        FunctionType::get(IntTy, {AtExitCallbackPtrTy}, false),
-                        GlobalValue::HiddenVisibility, "__lljit.atexit_helper",
-                        {PlatformInstanceDecl, DSOHandle});
+    auto *AtExitCallbackPtrTy = PointerType::getUnqual(*Ctx);
+    auto *AtExit = addHelperAndWrapper(
+        *M, "atexit", FunctionType::get(IntTy, {AtExitCallbackPtrTy}, false),
+        GlobalValue::HiddenVisibility, "__lljit.atexit_helper",
+        {PlatformInstanceDecl, DSOHandle});
+    Attribute::AttrKind AtExitExtAttr =
+        TargetLibraryInfo::getExtAttrForI32Return(J.getTargetTriple());
+    if (AtExitExtAttr != Attribute::None)
+      AtExit->addRetAttr(AtExitExtAttr);
 
     return J.addIRModule(JD, ThreadSafeModule(std::move(M), std::move(Ctx)));
   }
@@ -262,11 +216,11 @@ public:
       // will trigger a lookup to materialize the module) and the InitFunctions
       // map (which holds the names of the symbols to execute).
       for (auto &KV : MU.getSymbols())
-        if ((*KV.first).startswith(InitFunctionPrefix)) {
+        if ((*KV.first).starts_with(InitFunctionPrefix)) {
           InitSymbols[&JD].add(KV.first,
                                SymbolLookupFlags::WeaklyReferencedSymbol);
           InitFunctions[&JD].add(KV.first);
-        } else if ((*KV.first).startswith(DeInitFunctionPrefix)) {
+        } else if ((*KV.first).starts_with(DeInitFunctionPrefix)) {
           DeInitFunctions[&JD].add(KV.first);
         }
     }
@@ -285,7 +239,7 @@ public:
           dbgs() << "  Running init " << formatv("{0:x16}", InitFnAddr)
                  << "...\n";
         });
-        auto *InitFn = jitTargetAddressToFunction<void (*)()>(InitFnAddr);
+        auto *InitFn = InitFnAddr.toPtr<void (*)()>();
         InitFn();
       }
     } else
@@ -306,7 +260,7 @@ public:
           dbgs() << "  Running deinit " << formatv("{0:x16}", DeinitFnAddr)
                  << "...\n";
         });
-        auto *DeinitFn = jitTargetAddressToFunction<void (*)()>(DeinitFnAddr);
+        auto *DeinitFn = DeinitFnAddr.toPtr<void (*)()>();
         DeinitFn();
       }
     } else
@@ -316,9 +270,8 @@ public:
   }
 
   void registerInitFunc(JITDylib &JD, SymbolStringPtr InitName) {
-    getExecutionSession().runSessionLocked([&]() {
-        InitFunctions[&JD].add(InitName);
-      });
+    getExecutionSession().runSessionLocked(
+        [&]() { InitFunctions[&JD].add(InitName); });
   }
 
   void registerDeInitFunc(JITDylib &JD, SymbolStringPtr DeInitName) {
@@ -327,8 +280,7 @@ public:
   }
 
 private:
-
-  Expected<std::vector<JITTargetAddress>> getInitializers(JITDylib &JD) {
+  Expected<std::vector<ExecutorAddr>> getInitializers(JITDylib &JD) {
     if (auto Err = issueInitLookups(JD))
       return std::move(Err);
 
@@ -368,7 +320,7 @@ private:
     if (!LookupResult)
       return LookupResult.takeError();
 
-    std::vector<JITTargetAddress> Initializers;
+    std::vector<ExecutorAddr> Initializers;
     while (!DFSLinkOrder.empty()) {
       auto &NextJD = *DFSLinkOrder.back();
       DFSLinkOrder.pop_back();
@@ -382,7 +334,7 @@ private:
     return Initializers;
   }
 
-  Expected<std::vector<JITTargetAddress>> getDeinitializers(JITDylib &JD) {
+  Expected<std::vector<ExecutorAddr>> getDeinitializers(JITDylib &JD) {
     auto &ES = getExecutionSession();
 
     auto LLJITRunAtExits = J.mangleAndIntern("__lljit_run_atexits");
@@ -425,7 +377,7 @@ private:
     if (!LookupResult)
       return LookupResult.takeError();
 
-    std::vector<JITTargetAddress> DeInitializers;
+    std::vector<ExecutorAddr> DeInitializers;
     for (auto &NextJD : DFSLinkOrder) {
       auto DeInitsItr = LookupResult->find(NextJD.get());
       assert(DeInitsItr != LookupResult->end() &&
@@ -513,19 +465,20 @@ private:
         *M, GenericIRPlatformSupportTy, true, GlobalValue::ExternalLinkage,
         nullptr, "__lljit.platform_support_instance");
 
-    auto *Int8Ty = Type::getInt8Ty(*Ctx);
     auto *IntTy = Type::getIntNTy(*Ctx, sizeof(int) * CHAR_BIT);
-    auto *VoidTy = Type::getVoidTy(*Ctx);
-    auto *BytePtrTy = PointerType::getUnqual(Int8Ty);
-    auto *CxaAtExitCallbackTy = FunctionType::get(VoidTy, {BytePtrTy}, false);
-    auto *CxaAtExitCallbackPtrTy = PointerType::getUnqual(CxaAtExitCallbackTy);
+    auto *BytePtrTy = PointerType::getUnqual(*Ctx);
+    auto *CxaAtExitCallbackPtrTy = PointerType::getUnqual(*Ctx);
 
-    addHelperAndWrapper(
+    auto *CxaAtExit = addHelperAndWrapper(
         *M, "__cxa_atexit",
         FunctionType::get(IntTy, {CxaAtExitCallbackPtrTy, BytePtrTy, BytePtrTy},
                           false),
         GlobalValue::DefaultVisibility, "__lljit.cxa_atexit_helper",
         {PlatformInstanceDecl});
+    Attribute::AttrKind CxaAtExitExtAttr =
+        TargetLibraryInfo::getExtAttrForI32Return(J.getTargetTriple());
+    if (CxaAtExitExtAttr != Attribute::None)
+      CxaAtExit->addRetAttr(CxaAtExitExtAttr);
 
     return ThreadSafeModule(std::move(M), std::move(Ctx));
   }
@@ -588,7 +541,7 @@ GlobalCtorDtorScraper::operator()(ThreadSafeModule TSM,
 
       for (auto E : COrDtors)
         InitsOrDeInits.push_back(std::make_pair(E.Func, E.Priority));
-      llvm::sort(InitsOrDeInits, llvm::less_second());
+      llvm::stable_sort(InitsOrDeInits, llvm::less_second());
 
       auto *InitOrDeInitFuncEntryBlock =
           BasicBlock::Create(Ctx, "entry", InitOrDeInitFunc);
@@ -647,6 +600,75 @@ public:
 namespace llvm {
 namespace orc {
 
+Error ORCPlatformSupport::initialize(orc::JITDylib &JD) {
+  using llvm::orc::shared::SPSExecutorAddr;
+  using llvm::orc::shared::SPSString;
+  using SPSDLOpenSig = SPSExecutorAddr(SPSString, int32_t);
+  using SPSDLUpdateSig = int32_t(SPSExecutorAddr);
+  enum dlopen_mode : int32_t {
+    ORC_RT_RTLD_LAZY = 0x1,
+    ORC_RT_RTLD_NOW = 0x2,
+    ORC_RT_RTLD_LOCAL = 0x4,
+    ORC_RT_RTLD_GLOBAL = 0x8
+  };
+
+  auto &ES = J.getExecutionSession();
+  auto MainSearchOrder = J.getMainJITDylib().withLinkOrderDo(
+      [](const JITDylibSearchOrder &SO) { return SO; });
+  StringRef WrapperToCall = "__orc_rt_jit_dlopen_wrapper";
+  bool dlupdate = false;
+  if (InitializedDylib.contains(&JD)) {
+    WrapperToCall = "__orc_rt_jit_dlupdate_wrapper";
+    dlupdate = true;
+  } else
+    InitializedDylib.insert(&JD);
+
+  if (auto WrapperAddr =
+          ES.lookup(MainSearchOrder, J.mangleAndIntern(WrapperToCall))) {
+    if (dlupdate) {
+      int32_t result;
+      auto E = ES.callSPSWrapper<SPSDLUpdateSig>(WrapperAddr->getAddress(),
+                                                 result, DSOHandles[&JD]);
+      if (E)
+        return E;
+      else if (result)
+        return make_error<StringError>("dlupdate failed",
+                                       inconvertibleErrorCode());
+    } else
+      return ES.callSPSWrapper<SPSDLOpenSig>(WrapperAddr->getAddress(),
+                                             DSOHandles[&JD], JD.getName(),
+                                             int32_t(ORC_RT_RTLD_LAZY));
+  } else
+    return WrapperAddr.takeError();
+
+  return Error::success();
+}
+
+Error ORCPlatformSupport::deinitialize(orc::JITDylib &JD) {
+  using llvm::orc::shared::SPSExecutorAddr;
+  using SPSDLCloseSig = int32_t(SPSExecutorAddr);
+
+  auto &ES = J.getExecutionSession();
+  auto MainSearchOrder = J.getMainJITDylib().withLinkOrderDo(
+      [](const JITDylibSearchOrder &SO) { return SO; });
+
+  if (auto WrapperAddr = ES.lookup(
+          MainSearchOrder, J.mangleAndIntern("__orc_rt_jit_dlclose_wrapper"))) {
+    int32_t result;
+    auto E = J.getExecutionSession().callSPSWrapper<SPSDLCloseSig>(
+        WrapperAddr->getAddress(), result, DSOHandles[&JD]);
+    if (E)
+      return E;
+    else if (result)
+      return make_error<StringError>("dlclose failed",
+                                     inconvertibleErrorCode());
+    DSOHandles.erase(&JD);
+    InitializedDylib.erase(&JD);
+  } else
+    return WrapperAddr.takeError();
+  return Error::success();
+}
+
 void LLJIT::PlatformSupport::setInitTransform(
     LLJIT &J, IRTransformLayer::TransformFunction T) {
   J.InitHelperTransformLayer->setTransform(std::move(T));
@@ -669,6 +691,40 @@ Error LLJITBuilderState::prepareForConstruction() {
       return JTMBOrErr.takeError();
   }
 
+  if ((ES || EPC) && NumCompileThreads)
+    return make_error<StringError>(
+        "NumCompileThreads cannot be used with a custom ExecutionSession or "
+        "ExecutorProcessControl",
+        inconvertibleErrorCode());
+
+#if !LLVM_ENABLE_THREADS
+  if (NumCompileThreads)
+    return make_error<StringError>(
+        "LLJIT num-compile-threads is " + Twine(NumCompileThreads) +
+            " but LLVM was compiled with LLVM_ENABLE_THREADS=Off",
+        inconvertibleErrorCode());
+#endif // !LLVM_ENABLE_THREADS
+
+  // Only used in debug builds.
+  [[maybe_unused]] bool ConcurrentCompilationSettingDefaulted =
+      !SupportConcurrentCompilation;
+
+  if (!SupportConcurrentCompilation) {
+#if LLVM_ENABLE_THREADS
+    SupportConcurrentCompilation = NumCompileThreads || ES || EPC;
+#else
+    SupportConcurrentCompilation = false;
+#endif // LLVM_ENABLE_THREADS
+  } else {
+#if !LLVM_ENABLE_THREADS
+    if (*SupportConcurrentCompilation)
+      return make_error<StringError>(
+          "LLJIT concurrent compilation support requested, but LLVM was built "
+          "with LLVM_ENABLE_THREADS=Off",
+          inconvertibleErrorCode());
+#endif // !LLVM_ENABLE_THREADS
+  }
+
   LLVM_DEBUG({
     dbgs() << "  JITTargetMachineBuilder is "
            << JITTargetMachineBuilderPrinter(*JTMB, "  ")
@@ -686,12 +742,22 @@ Error LLJITBuilderState::prepareForConstruction() {
            << (CreateCompileFunction ? "Yes" : "No") << "\n"
            << "  Custom platform-setup function: "
            << (SetUpPlatform ? "Yes" : "No") << "\n"
-           << "  Number of compile threads: " << NumCompileThreads;
-    if (!NumCompileThreads)
-      dbgs() << " (code will be compiled on the execution thread)\n";
+           << "  Support concurrent compilation: "
+           << (*SupportConcurrentCompilation ? "Yes" : "No");
+    if (ConcurrentCompilationSettingDefaulted)
+      dbgs() << " (defaulted based on ES / EPC / NumCompileThreads)\n";
     else
       dbgs() << "\n";
+    dbgs() << "  Number of compile threads: " << NumCompileThreads << "\n";
   });
+
+  // Create DL if not specified.
+  if (!DL) {
+    if (auto DLOrErr = JTMB->getDefaultDataLayoutForTarget())
+      DL = std::move(*DLOrErr);
+    else
+      return DLOrErr.takeError();
+  }
 
   // If neither ES nor EPC has been set then create an EPC instance.
   if (!ES && !EPC) {
@@ -699,45 +765,146 @@ Error LLJITBuilderState::prepareForConstruction() {
       dbgs() << "ExecutorProcessControl not specified, "
                 "Creating SelfExecutorProcessControl instance\n";
     });
-    if (auto EPCOrErr = SelfExecutorProcessControl::Create())
+
+    std::unique_ptr<TaskDispatcher> D = nullptr;
+#if LLVM_ENABLE_THREADS
+    if (*SupportConcurrentCompilation) {
+      std::optional<size_t> NumThreads = std ::nullopt;
+      if (NumCompileThreads)
+        NumThreads = NumCompileThreads;
+      D = std::make_unique<DynamicThreadPoolTaskDispatcher>(NumThreads);
+    } else
+      D = std::make_unique<InPlaceTaskDispatcher>();
+#endif // LLVM_ENABLE_THREADS
+    if (auto EPCOrErr =
+            SelfExecutorProcessControl::Create(nullptr, std::move(D), nullptr))
       EPC = std::move(*EPCOrErr);
     else
       return EPCOrErr.takeError();
-  } else
+  } else if (EPC) {
     LLVM_DEBUG({
       dbgs() << "Using explicitly specified ExecutorProcessControl instance "
              << EPC.get() << "\n";
     });
+  } else {
+    LLVM_DEBUG({
+      dbgs() << "Using explicitly specified ExecutionSession instance "
+             << ES.get() << "\n";
+    });
+  }
 
   // If the client didn't configure any linker options then auto-configure the
   // JIT linker.
   if (!CreateObjectLinkingLayer) {
     auto &TT = JTMB->getTargetTriple();
-    if (TT.getArch() == Triple::riscv64 ||
-        (TT.isOSBinFormatMachO() &&
-         (TT.getArch() == Triple::aarch64 || TT.getArch() == Triple::x86_64))) {
-
+    bool UseJITLink = false;
+    switch (TT.getArch()) {
+    case Triple::riscv64:
+    case Triple::loongarch64:
+      UseJITLink = true;
+      break;
+    case Triple::aarch64:
+      UseJITLink = !TT.isOSBinFormatCOFF();
+      break;
+    case Triple::arm:
+    case Triple::armeb:
+    case Triple::thumb:
+    case Triple::thumbeb:
+      UseJITLink = TT.isOSBinFormatELF();
+      break;
+    case Triple::x86_64:
+      UseJITLink = !TT.isOSBinFormatCOFF();
+      break;
+    case Triple::ppc64:
+      UseJITLink = TT.isPPC64ELFv2ABI();
+      break;
+    case Triple::ppc64le:
+      UseJITLink = TT.isOSBinFormatELF();
+      break;
+    default:
+      break;
+    }
+    if (UseJITLink) {
+      if (!JTMB->getCodeModel())
+        JTMB->setCodeModel(CodeModel::Small);
       JTMB->setRelocationModel(Reloc::PIC_);
-      JTMB->setCodeModel(CodeModel::Small);
       CreateObjectLinkingLayer =
-          [](ExecutionSession &ES,
-             const Triple &) -> Expected<std::unique_ptr<ObjectLayer>> {
-        auto ObjLinkingLayer = std::make_unique<ObjectLinkingLayer>(ES);
-        ObjLinkingLayer->addPlugin(std::make_unique<EHFrameRegistrationPlugin>(
-            ES, std::make_unique<jitlink::InProcessEHFrameRegistrar>()));
-        return std::move(ObjLinkingLayer);
+          [](ExecutionSession &ES) -> Expected<std::unique_ptr<ObjectLayer>> {
+        return std::make_unique<ObjectLinkingLayer>(ES);
       };
     }
+  }
+
+  // If we need a process JITDylib but no setup function has been given then
+  // create a default one.
+  if (!SetupProcessSymbolsJITDylib && LinkProcessSymbolsByDefault) {
+    LLVM_DEBUG(dbgs() << "Creating default Process JD setup function\n");
+    SetupProcessSymbolsJITDylib = [](LLJIT &J) -> Expected<JITDylibSP> {
+      auto &JD =
+          J.getExecutionSession().createBareJITDylib("<Process Symbols>");
+      auto G = EPCDynamicLibrarySearchGenerator::GetForTargetProcess(
+          J.getExecutionSession());
+      if (!G)
+        return G.takeError();
+      JD.addGenerator(std::move(*G));
+      return &JD;
+    };
   }
 
   return Error::success();
 }
 
 LLJIT::~LLJIT() {
-  if (CompileThreads)
-    CompileThreads->wait();
   if (auto Err = ES->endSession())
     ES->reportError(std::move(Err));
+}
+
+JITDylibSP LLJIT::getProcessSymbolsJITDylib() { return ProcessSymbols; }
+
+JITDylibSP LLJIT::getPlatformJITDylib() { return Platform; }
+
+Expected<JITDylib &> LLJIT::createJITDylib(std::string Name) {
+  auto JD = ES->createJITDylib(std::move(Name));
+  if (!JD)
+    return JD.takeError();
+
+  JD->addToLinkOrder(DefaultLinks);
+  return JD;
+}
+
+Expected<JITDylib &> LLJIT::loadPlatformDynamicLibrary(const char *Path) {
+  auto G = EPCDynamicLibrarySearchGenerator::Load(*ES, Path);
+  if (!G)
+    return G.takeError();
+
+  if (auto *ExistingJD = ES->getJITDylibByName(Path))
+    return *ExistingJD;
+
+  auto &JD = ES->createBareJITDylib(Path);
+  JD.addGenerator(std::move(*G));
+  return JD;
+}
+
+Error LLJIT::linkStaticLibraryInto(JITDylib &JD,
+                                   std::unique_ptr<MemoryBuffer> LibBuffer) {
+  auto G = StaticLibraryDefinitionGenerator::Create(*ObjLinkingLayer,
+                                                    std::move(LibBuffer));
+  if (!G)
+    return G.takeError();
+
+  JD.addGenerator(std::move(*G));
+
+  return Error::success();
+}
+
+Error LLJIT::linkStaticLibraryInto(JITDylib &JD, const char *Path) {
+  auto G = StaticLibraryDefinitionGenerator::Load(*ObjLinkingLayer, Path);
+  if (!G)
+    return G.takeError();
+
+  JD.addGenerator(std::move(*G));
+
+  return Error::success();
 }
 
 Error LLJIT::addIRModule(ResourceTrackerSP RT, ThreadSafeModule TSM) {
@@ -768,9 +935,9 @@ Error LLJIT::addObjectFile(JITDylib &JD, std::unique_ptr<MemoryBuffer> Obj) {
 Expected<ExecutorAddr> LLJIT::lookupLinkerMangled(JITDylib &JD,
                                                   SymbolStringPtr Name) {
   if (auto Sym = ES->lookup(
-        makeJITDylibSearchOrder(&JD, JITDylibLookupFlags::MatchAllSymbols),
-        Name))
-    return ExecutorAddr(Sym->getAddress());
+          makeJITDylibSearchOrder(&JD, JITDylibLookupFlags::MatchAllSymbols),
+          Name))
+    return Sym->getAddress();
   else
     return Sym.takeError();
 }
@@ -780,11 +947,13 @@ LLJIT::createObjectLinkingLayer(LLJITBuilderState &S, ExecutionSession &ES) {
 
   // If the config state provided an ObjectLinkingLayer factory then use it.
   if (S.CreateObjectLinkingLayer)
-    return S.CreateObjectLinkingLayer(ES, S.JTMB->getTargetTriple());
+    return S.CreateObjectLinkingLayer(ES);
 
   // Otherwise default to creating an RTDyldObjectLinkingLayer that constructs
   // a new SectionMemoryManager for each object.
-  auto GetMemMgr = []() { return std::make_unique<SectionMemoryManager>(); };
+  auto GetMemMgr = [](const MemoryBuffer &) {
+    return std::make_unique<SectionMemoryManager>();
+  };
   auto Layer =
       std::make_unique<RTDyldObjectLinkingLayer>(ES, std::move(GetMemMgr));
 
@@ -812,9 +981,8 @@ LLJIT::createCompileFunction(LLJITBuilderState &S,
   if (S.CreateCompileFunction)
     return S.CreateCompileFunction(std::move(JTMB));
 
-  // Otherwise default to creating a SimpleCompiler, or ConcurrentIRCompiler,
-  // depending on the number of threads requested.
-  if (S.NumCompileThreads > 0)
+  // If using a custom EPC then use a ConcurrentIRCompiler by default.
+  if (*S.SupportConcurrentCompilation)
     return std::make_unique<ConcurrentIRCompiler>(std::move(JTMB));
 
   auto TM = JTMB.createTargetMachine();
@@ -825,9 +993,9 @@ LLJIT::createCompileFunction(LLJITBuilderState &S,
 }
 
 LLJIT::LLJIT(LLJITBuilderState &S, Error &Err)
-    : DL(""), TT(S.JTMB->getTargetTriple()) {
+    : DL(std::move(*S.DL)), TT(S.JTMB->getTargetTriple()) {
 
-  ErrorAsOutParameter _(&Err);
+  ErrorAsOutParameter _(Err);
 
   assert(!(S.EPC && S.ES) && "EPC and ES should not both be set");
 
@@ -842,22 +1010,6 @@ LLJIT::LLJIT(LLJITBuilderState &S, Error &Err)
       Err = EPC.takeError();
       return;
     }
-  }
-
-  if (auto MainOrErr = this->ES->createJITDylib("main"))
-    Main = &*MainOrErr;
-  else {
-    Err = MainOrErr.takeError();
-    return;
-  }
-
-  if (S.DL)
-    DL = std::move(*S.DL);
-  else if (auto DLOrErr = S.JTMB->getDefaultDataLayoutForTarget())
-    DL = std::move(*DLOrErr);
-  else {
-    Err = DLOrErr.takeError();
-    return;
   }
 
   auto ObjLayer = createObjectLinkingLayer(S, *ES);
@@ -882,26 +1034,45 @@ LLJIT::LLJIT(LLJITBuilderState &S, Error &Err)
         std::make_unique<IRTransformLayer>(*ES, *TransformLayer);
   }
 
-  if (S.NumCompileThreads > 0) {
+  if (*S.SupportConcurrentCompilation)
     InitHelperTransformLayer->setCloneToNewContextOnEmit(true);
-    CompileThreads =
-        std::make_unique<ThreadPool>(hardware_concurrency(S.NumCompileThreads));
-    ES->setDispatchTask([this](std::unique_ptr<Task> T) {
-      // FIXME: We should be able to use move-capture here, but ThreadPool's
-      // AsyncTaskTys are std::functions rather than unique_functions
-      // (because MSVC's std::packaged_tasks don't support move-only types).
-      // Fix this when all the above gets sorted out.
-      CompileThreads->async([UnownedT = T.release()]() mutable {
-        std::unique_ptr<Task> T(UnownedT);
-        T->run();
-      });
-    });
+
+  if (S.SetupProcessSymbolsJITDylib) {
+    if (auto ProcSymsJD = S.SetupProcessSymbolsJITDylib(*this)) {
+      ProcessSymbols = ProcSymsJD->get();
+    } else {
+      Err = ProcSymsJD.takeError();
+      return;
+    }
   }
 
-  if (S.SetUpPlatform)
-    Err = S.SetUpPlatform(*this);
-  else
-    setUpGenericLLVMIRPlatform(*this);
+  if (S.PrePlatformSetup)
+    if ((Err = S.PrePlatformSetup(*this)))
+      return;
+
+  if (!S.SetUpPlatform)
+    S.SetUpPlatform = setUpGenericLLVMIRPlatform;
+
+  if (auto PlatformJDOrErr = S.SetUpPlatform(*this)) {
+    Platform = PlatformJDOrErr->get();
+    if (Platform)
+      DefaultLinks.push_back(
+          {Platform, JITDylibLookupFlags::MatchExportedSymbolsOnly});
+  } else {
+    Err = PlatformJDOrErr.takeError();
+    return;
+  }
+
+  if (S.LinkProcessSymbolsByDefault)
+    DefaultLinks.push_back(
+        {ProcessSymbols, JITDylibLookupFlags::MatchExportedSymbolsOnly});
+
+  if (auto MainOrErr = createJITDylib("main"))
+    Main = &*MainOrErr;
+  else {
+    Err = MainOrErr.takeError();
+    return;
+  }
 }
 
 std::string LLJIT::mangle(StringRef UnmangledName) const {
@@ -927,24 +1098,178 @@ Error LLJIT::applyDataLayout(Module &M) {
   return Error::success();
 }
 
-Error setUpOrcPlatform(LLJIT& J) {
-    LLVM_DEBUG(
-        { dbgs() << "Setting up orc platform support for LLJIT\n"; });
-    J.setPlatformSupport(std::make_unique<ORCPlatformSupport>(J));
-    return Error::success();
+Error setUpOrcPlatformManually(LLJIT &J) {
+  LLVM_DEBUG({ dbgs() << "Setting up orc platform support for LLJIT\n"; });
+  J.setPlatformSupport(std::make_unique<ORCPlatformSupport>(J));
+  return Error::success();
 }
 
-void setUpGenericLLVMIRPlatform(LLJIT &J) {
+class LoadAndLinkDynLibrary {
+public:
+  LoadAndLinkDynLibrary(LLJIT &J) : J(J) {}
+  Error operator()(JITDylib &JD, StringRef DLLName) {
+    if (!DLLName.ends_with_insensitive(".dll"))
+      return make_error<StringError>("DLLName not ending with .dll",
+                                     inconvertibleErrorCode());
+    auto DLLNameStr = DLLName.str(); // Guarantees null-termination.
+    auto DLLJD = J.loadPlatformDynamicLibrary(DLLNameStr.c_str());
+    if (!DLLJD)
+      return DLLJD.takeError();
+    JD.addToLinkOrder(*DLLJD);
+    return Error::success();
+  }
+
+private:
+  LLJIT &J;
+};
+
+Expected<JITDylibSP> ExecutorNativePlatform::operator()(LLJIT &J) {
+  auto ProcessSymbolsJD = J.getProcessSymbolsJITDylib();
+  if (!ProcessSymbolsJD)
+    return make_error<StringError>(
+        "Native platforms require a process symbols JITDylib",
+        inconvertibleErrorCode());
+
+  const Triple &TT = J.getTargetTriple();
+  ObjectLinkingLayer *ObjLinkingLayer =
+      dyn_cast<ObjectLinkingLayer>(&J.getObjLinkingLayer());
+
+  if (!ObjLinkingLayer)
+    return make_error<StringError>(
+        "ExecutorNativePlatform requires ObjectLinkingLayer",
+        inconvertibleErrorCode());
+
+  std::unique_ptr<MemoryBuffer> RuntimeArchiveBuffer;
+  if (OrcRuntime.index() == 0) {
+    auto A = errorOrToExpected(MemoryBuffer::getFile(std::get<0>(OrcRuntime)));
+    if (!A)
+      return A.takeError();
+    RuntimeArchiveBuffer = std::move(*A);
+  } else
+    RuntimeArchiveBuffer = std::move(std::get<1>(OrcRuntime));
+
+  auto &ES = J.getExecutionSession();
+  auto &PlatformJD = ES.createBareJITDylib("<Platform>");
+  PlatformJD.addToLinkOrder(*ProcessSymbolsJD);
+
+  J.setPlatformSupport(std::make_unique<ORCPlatformSupport>(J));
+
+  switch (TT.getObjectFormat()) {
+  case Triple::COFF: {
+    const char *VCRuntimePath = nullptr;
+    bool StaticVCRuntime = false;
+    if (VCRuntime) {
+      VCRuntimePath = VCRuntime->first.c_str();
+      StaticVCRuntime = VCRuntime->second;
+    }
+    if (auto P = COFFPlatform::Create(
+            *ObjLinkingLayer, PlatformJD, std::move(RuntimeArchiveBuffer),
+            LoadAndLinkDynLibrary(J), StaticVCRuntime, VCRuntimePath))
+      J.getExecutionSession().setPlatform(std::move(*P));
+    else
+      return P.takeError();
+    break;
+  }
+  case Triple::ELF: {
+    auto G = StaticLibraryDefinitionGenerator::Create(
+        *ObjLinkingLayer, std::move(RuntimeArchiveBuffer));
+    if (!G)
+      return G.takeError();
+
+    if (auto P =
+            ELFNixPlatform::Create(*ObjLinkingLayer, PlatformJD, std::move(*G)))
+      J.getExecutionSession().setPlatform(std::move(*P));
+    else
+      return P.takeError();
+    break;
+  }
+  case Triple::MachO: {
+    auto G = StaticLibraryDefinitionGenerator::Create(
+        *ObjLinkingLayer, std::move(RuntimeArchiveBuffer));
+    if (!G)
+      return G.takeError();
+
+    if (auto P =
+            MachOPlatform::Create(*ObjLinkingLayer, PlatformJD, std::move(*G)))
+      ES.setPlatform(std::move(*P));
+    else
+      return P.takeError();
+    break;
+  }
+  default:
+    return make_error<StringError>("Unsupported object format in triple " +
+                                       TT.str(),
+                                   inconvertibleErrorCode());
+  }
+
+  return &PlatformJD;
+}
+
+Expected<JITDylibSP> setUpGenericLLVMIRPlatform(LLJIT &J) {
   LLVM_DEBUG(
       { dbgs() << "Setting up GenericLLVMIRPlatform support for LLJIT\n"; });
-  J.setPlatformSupport(std::make_unique<GenericLLVMIRPlatformSupport>(J));
+  auto ProcessSymbolsJD = J.getProcessSymbolsJITDylib();
+  if (!ProcessSymbolsJD)
+    return make_error<StringError>(
+        "Native platforms require a process symbols JITDylib",
+        inconvertibleErrorCode());
+
+  auto &PlatformJD = J.getExecutionSession().createBareJITDylib("<Platform>");
+  PlatformJD.addToLinkOrder(*ProcessSymbolsJD);
+
+  if (auto *OLL = dyn_cast<ObjectLinkingLayer>(&J.getObjLinkingLayer())) {
+
+    bool UseEHFrames = true;
+
+    // Enable compact-unwind support if possible.
+    if (J.getTargetTriple().isOSDarwin() ||
+        J.getTargetTriple().isOSBinFormatMachO()) {
+
+      // Check if the bootstrap map says that we should force eh-frames:
+      // Older libunwinds require this as they don't have a dynamic
+      // registration API for compact-unwind.
+      std::optional<bool> ForceEHFrames;
+      if (auto Err = J.getExecutionSession().getBootstrapMapValue<bool, bool>(
+              "darwin-use-ehframes-only", ForceEHFrames))
+        return Err;
+      if (ForceEHFrames.has_value())
+        UseEHFrames = *ForceEHFrames;
+      else
+        UseEHFrames = false;
+
+      // If UseEHFrames hasn't been set then we're good to use compact-unwind.
+      if (!UseEHFrames) {
+        if (auto UIRP =
+                UnwindInfoRegistrationPlugin::Create(J.getExecutionSession())) {
+          OLL->addPlugin(std::move(*UIRP));
+          LLVM_DEBUG(dbgs() << "Enabled compact-unwind support.\n");
+        } else
+          return UIRP.takeError();
+      }
+    }
+
+    // Otherwise fall back to standard unwind registration.
+    if (UseEHFrames) {
+      auto &ES = J.getExecutionSession();
+      if (auto EHFP = EHFrameRegistrationPlugin::Create(ES)) {
+        OLL->addPlugin(std::move(*EHFP));
+        LLVM_DEBUG(dbgs() << "Enabled eh-frame support.\n");
+      } else
+        return EHFP.takeError();
+    }
+  }
+
+  J.setPlatformSupport(
+      std::make_unique<GenericLLVMIRPlatformSupport>(J, PlatformJD));
+
+  return &PlatformJD;
 }
 
-Error setUpInactivePlatform(LLJIT &J) {
+Expected<JITDylibSP> setUpInactivePlatform(LLJIT &J) {
   LLVM_DEBUG(
       { dbgs() << "Explicitly deactivated platform support for LLJIT\n"; });
   J.setPlatformSupport(std::make_unique<InactivePlatformSupport>());
-  return Error::success();
+  return nullptr;
 }
 
 Error LLLazyJITBuilderState::prepareForConstruction() {
@@ -977,7 +1302,7 @@ LLLazyJIT::LLLazyJIT(LLLazyJITBuilderState &S, Error &Err) : LLJIT(S, Err) {
     LCTMgr = std::move(S.LCTMgr);
   else {
     if (auto LCTMgrOrErr = createLocalLazyCallThroughManager(
-        S.TT, *ES, S.LazyCompileFailureAddr.getValue()))
+            S.TT, *ES, S.LazyCompileFailureAddr))
       LCTMgr = std::move(*LCTMgrOrErr);
     else {
       Err = LCTMgrOrErr.takeError();
@@ -1001,12 +1326,22 @@ LLLazyJIT::LLLazyJIT(LLLazyJITBuilderState &S, Error &Err) : LLJIT(S, Err) {
     return;
   }
 
-  // Create the COD layer.
-  CODLayer = std::make_unique<CompileOnDemandLayer>(
-      *ES, *InitHelperTransformLayer, *LCTMgr, std::move(ISMBuilder));
+  // Create the IP Layer.
+  IPLayer = std::make_unique<IRPartitionLayer>(*ES, *InitHelperTransformLayer);
 
-  if (S.NumCompileThreads > 0)
+  // Create the COD layer.
+  CODLayer = std::make_unique<CompileOnDemandLayer>(*ES, *IPLayer, *LCTMgr,
+                                                    std::move(ISMBuilder));
+
+  if (*S.SupportConcurrentCompilation)
     CODLayer->setCloneToNewContextOnEmit(true);
+}
+
+// In-process LLJIT uses eh-frame section wrappers via EPC, so we need to force
+// them to be linked in.
+LLVM_ATTRIBUTE_USED void linkComponents() {
+  errs() << (void *)&llvm_orc_registerEHFrameSectionAllocAction
+         << (void *)&llvm_orc_deregisterEHFrameSectionAllocAction;
 }
 
 } // End namespace orc.

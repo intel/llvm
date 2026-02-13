@@ -1,4 +1,4 @@
-//===--- ComparisonInTempFailureRetryCheck.cpp - clang-tidy----------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "../utils/Matchers.h"
 #include "ComparisonInTempFailureRetryCheck.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
@@ -14,15 +13,13 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace android {
+namespace clang::tidy::android {
 
 ComparisonInTempFailureRetryCheck::ComparisonInTempFailureRetryCheck(
     StringRef Name, ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
       RawRetryList(Options.get("RetryMacros", "TEMP_FAILURE_RETRY")) {
-  StringRef(RawRetryList).split(RetryMacros, ",", -1, false);
+  RawRetryList.split(RetryMacros, ",", -1, false);
 }
 
 void ComparisonInTempFailureRetryCheck::storeOptions(
@@ -67,7 +64,7 @@ void ComparisonInTempFailureRetryCheck::check(
   const LangOptions &Opts = Result.Context->getLangOpts();
   SourceLocation LocStart = Node.getBeginLoc();
   while (LocStart.isMacroID()) {
-    SourceLocation Invocation = SM.getImmediateMacroCallerLoc(LocStart);
+    const SourceLocation Invocation = SM.getImmediateMacroCallerLoc(LocStart);
     Token Tok;
     if (!Lexer::getRawToken(SM.getSpellingLoc(Invocation), Tok, SM, Opts,
                             /*IgnoreWhiteSpace=*/true)) {
@@ -90,6 +87,4 @@ void ComparisonInTempFailureRetryCheck::check(
   // happen, e.g. `TEMP_FAILURE_RETRY(IS_ZERO(foo()))`
 }
 
-} // namespace android
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::android

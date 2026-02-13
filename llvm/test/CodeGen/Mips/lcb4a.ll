@@ -1,4 +1,4 @@
-; RUN: llc -mtriple=mipsel-linux-gnu -march=mipsel -mattr=mips16 -mattr=+soft-float -mips16-hard-float -relocation-model=static     < %s | FileCheck %s -check-prefix=ci
+; RUN: llc -mtriple=mipsel-linux-gnu -mattr=mips16 -mattr=+soft-float -mips16-hard-float -relocation-model=static < %s | FileCheck %s -check-prefix=ci
 
 @i = global i32 0, align 4
 @j = common global i32 0, align 4
@@ -7,7 +7,7 @@
 ; Function Attrs: nounwind optsize
 define i32 @foo() #0 {
 entry:
-  %0 = load i32, i32* @i, align 4, !tbaa !1
+  %0 = load i32, ptr @i, align 4, !tbaa !1
   %cmp = icmp eq i32 %0, 0
   br i1 %cmp, label %if.then, label %if.else
 
@@ -21,7 +21,7 @@ if.else:                                          ; preds = %entry
 
 if.end:                                           ; preds = %if.else, %if.then
   %storemerge = phi i32 [ 1, %if.else ], [ 0, %if.then ]
-  store i32 %storemerge, i32* @i, align 4, !tbaa !1
+  store i32 %storemerge, ptr @i, align 4, !tbaa !1
   ret i32 0
 }
 
@@ -32,7 +32,7 @@ if.end:                                           ; preds = %if.else, %if.then
 ; Function Attrs: nounwind optsize
 define i32 @goo() #0 {
 entry:
-  %0 = load i32, i32* @i, align 4, !tbaa !1
+  %0 = load i32, ptr @i, align 4, !tbaa !1
   %cmp = icmp eq i32 %0, 0
   br i1 %cmp, label %if.then, label %if.else
 
@@ -46,7 +46,7 @@ if.else:                                          ; preds = %entry
 
 if.end:                                           ; preds = %if.else, %if.then
   %storemerge = phi i32 [ 1, %if.else ], [ 0, %if.then ]
-  store i32 %storemerge, i32* @i, align 4, !tbaa !1
+  store i32 %storemerge, ptr @i, align 4, !tbaa !1
   ret i32 0
 }
 
@@ -55,7 +55,7 @@ if.end:                                           ; preds = %if.else, %if.then
 ; ci:	nop
 ; ci: $BB1_1:                                 # %if.else
 
-attributes #0 = { nounwind optsize "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind optsize "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "use-soft-float"="false" }
 attributes #1 = { nounwind }
 
 

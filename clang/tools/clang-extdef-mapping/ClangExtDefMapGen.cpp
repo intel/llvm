@@ -23,6 +23,8 @@
 #include "clang/Tooling/Tooling.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Signals.h"
+#include "llvm/Support/TargetSelect.h"
+#include <optional>
 #include <sstream>
 #include <string>
 
@@ -82,7 +84,7 @@ void MapExtDefNamesConsumer::handleDecl(const Decl *D) {
 
 void MapExtDefNamesConsumer::addIfInMain(const DeclaratorDecl *DD,
                                          SourceLocation defStart) {
-  llvm::Optional<std::string> LookupName =
+  std::optional<std::string> LookupName =
       CrossTranslationUnitContext::getLookupName(DD);
   if (!LookupName)
     return;
@@ -96,12 +98,14 @@ void MapExtDefNamesConsumer::addIfInMain(const DeclaratorDecl *DD,
   }
 
   switch (DD->getLinkageInternal()) {
-  case ExternalLinkage:
-  case VisibleNoLinkage:
-  case UniqueExternalLinkage:
+  case Linkage::External:
+  case Linkage::VisibleNone:
+  case Linkage::UniqueExternal:
     if (SM.isInMainFile(defStart))
       Index[*LookupName] = CurrentFileName;
     break;
+  case Linkage::Invalid:
+    llvm_unreachable("Linkage has not been computed!");
   default:
     break;
   }
@@ -119,21 +123,20 @@ static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
 
 static IntrusiveRefCntPtr<DiagnosticsEngine> Diags;
 
-IntrusiveRefCntPtr<DiagnosticsEngine> GetDiagnosticsEngine() {
+IntrusiveRefCntPtr<DiagnosticsEngine>
+GetDiagnosticsEngine(DiagnosticOptions &DiagOpts) {
   if (Diags) {
     // Call reset to make sure we don't mix errors
     Diags->Reset(false);
     return Diags;
   }
 
-  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions();
   TextDiagnosticPrinter *DiagClient =
-      new TextDiagnosticPrinter(llvm::errs(), &*DiagOpts);
+      new TextDiagnosticPrinter(llvm::errs(), DiagOpts);
   DiagClient->setPrefix("clang-extdef-mappping");
-  IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
 
-  IntrusiveRefCntPtr<DiagnosticsEngine> DiagEngine(
-      new DiagnosticsEngine(DiagID, &*DiagOpts, DiagClient));
+  auto DiagEngine = llvm::makeIntrusiveRefCnt<DiagnosticsEngine>(
+      DiagnosticIDs::create(), DiagOpts, DiagClient);
   Diags.swap(DiagEngine);
 
   // Retain this one time so it's not destroyed by ASTUnit::LoadFromASTFile
@@ -148,11 +151,14 @@ static bool HandleAST(StringRef AstPath) {
   if (!CI)
     CI = new CompilerInstance();
 
-  IntrusiveRefCntPtr<DiagnosticsEngine> DiagEngine = GetDiagnosticsEngine();
+  auto DiagOpts = std::make_shared<DiagnosticOptions>();
+  IntrusiveRefCntPtr<DiagnosticsEngine> DiagEngine =
+      GetDiagnosticsEngine(*DiagOpts);
 
   std::unique_ptr<ASTUnit> Unit = ASTUnit::LoadFromASTFile(
-      AstPath.str(), CI->getPCHContainerOperations()->getRawReader(),
-      ASTUnit::LoadASTOnly, DiagEngine, CI->getFileSystemOpts());
+      AstPath, CI->getPCHContainerOperations()->getRawReader(),
+      ASTUnit::LoadASTOnly, CI->getVirtualFileSystemPtr(), DiagOpts, DiagEngine,
+      CI->getFileSystemOpts(), CI->getHeaderSearchOpts());
 
   if (!Unit)
     return false;
@@ -176,7 +182,7 @@ static int HandleFiles(ArrayRef<std::string> SourceFiles,
   // process them directly in HandleAST, otherwise put them
   // on a list for ClangTool to handle.
   for (StringRef Src : SourceFiles) {
-    if (Src.endswith(".ast")) {
+    if (Src.ends_with(".ast")) {
       if (!HandleAST(Src)) {
         return 1;
       }
@@ -211,6 +217,10 @@ int main(int argc, const char **argv) {
     return 1;
   }
   CommonOptionsParser &OptionsParser = ExpectedParser.get();
+
+  llvm::InitializeAllTargetInfos();
+  llvm::InitializeAllTargetMCs();
+  llvm::InitializeAllAsmParsers();
 
   return HandleFiles(OptionsParser.getSourcePathList(),
                      OptionsParser.getCompilations());

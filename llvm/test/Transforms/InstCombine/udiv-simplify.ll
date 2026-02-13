@@ -27,7 +27,7 @@ define i64 @test1_PR2274(i32 %x, i32 %g) nounwind {
 ; CHECK-LABEL: @test1_PR2274(
 ; CHECK-NEXT:    [[Y:%.*]] = lshr i32 [[X:%.*]], 30
 ; CHECK-NEXT:    [[R:%.*]] = udiv i32 [[Y]], [[G:%.*]]
-; CHECK-NEXT:    [[Z:%.*]] = zext i32 [[R]] to i64
+; CHECK-NEXT:    [[Z:%.*]] = zext nneg i32 [[R]] to i64
 ; CHECK-NEXT:    ret i64 [[Z]]
 ;
   %y = lshr i32 %x, 30
@@ -39,7 +39,7 @@ define i64 @test2_PR2274(i32 %x, i32 %v) nounwind {
 ; CHECK-LABEL: @test2_PR2274(
 ; CHECK-NEXT:    [[Y:%.*]] = lshr i32 [[X:%.*]], 31
 ; CHECK-NEXT:    [[R:%.*]] = udiv i32 [[Y]], [[V:%.*]]
-; CHECK-NEXT:    [[Z:%.*]] = zext i32 [[R]] to i64
+; CHECK-NEXT:    [[Z:%.*]] = zext nneg i32 [[R]] to i64
 ; CHECK-NEXT:    ret i64 [[Z]]
 ;
   %y = lshr i32 %x, 31
@@ -55,11 +55,14 @@ define i64 @test2_PR2274(i32 %x, i32 %v) nounwind {
 define i32 @PR30366(i1 %a) {
 ; CHECK-LABEL: @PR30366(
 ; CHECK-NEXT:    [[Z:%.*]] = zext i1 [[A:%.*]] to i32
-; CHECK-NEXT:    [[D:%.*]] = lshr i32 [[Z]], zext (i16 ptrtoint (ptr @b to i16) to i32)
-; CHECK-NEXT:    ret i32 [[D]]
+; CHECK-NEXT:    [[TMP1:%.*]] = zext nneg i16 ptrtoint (ptr @b to i16) to i32
+; CHECK-NEXT:    [[D1:%.*]] = lshr i32 [[Z]], [[TMP1]]
+; CHECK-NEXT:    ret i32 [[D1]]
 ;
   %z = zext i1 %a to i32
-  %d = udiv i32 %z, zext (i16 shl (i16 1, i16 ptrtoint (ptr @b to i16)) to i32)
+  %shl = shl i16 1, ptrtoint (ptr @b to i16)
+  %z2 = zext i16 %shl to i32
+  %d = udiv i32 %z, %z2
   ret i32 %d
 }
 
@@ -67,6 +70,7 @@ define i32 @PR30366(i1 %a) {
 ; https://bugs.chromium.org/p/oss-fuzz/issues/detail?id=4857
 define i177 @ossfuzz_4857(i177 %X, i177 %Y) {
 ; CHECK-LABEL: @ossfuzz_4857(
+; CHECK-NEXT:    store i1 poison, ptr undef, align 1
 ; CHECK-NEXT:    ret i177 0
 ;
   %B5 = udiv i177 %Y, -1
@@ -83,23 +87,105 @@ define i177 @ossfuzz_4857(i177 %X, i177 %Y) {
   ret i177 %B1
 }
 
-define i32 @udiv_demanded(i32 %a) {
-; CHECK-LABEL: @udiv_demanded(
-; CHECK-NEXT:    [[U:%.*]] = udiv i32 [[A:%.*]], 12
-; CHECK-NEXT:    ret i32 [[U]]
+; 2 low bits are not needed because 12 has 2 trailing zeros
+
+define i8 @udiv_demanded_low_bits_set(i8 %a) {
+; CHECK-LABEL: @udiv_demanded_low_bits_set(
+; CHECK-NEXT:    [[U:%.*]] = udiv i8 [[A:%.*]], 12
+; CHECK-NEXT:    ret i8 [[U]]
 ;
-  %o = or i32 %a, 3
-  %u = udiv i32 %o, 12
-  ret i32 %u
+  %o = or i8 %a, 3
+  %u = udiv i8 %o, 12
+  ret i8 %u
 }
 
-define i32 @udiv_exact_demanded(i32 %a) {
-; CHECK-LABEL: @udiv_exact_demanded(
-; CHECK-NEXT:    [[O:%.*]] = and i32 [[A:%.*]], -3
-; CHECK-NEXT:    [[U:%.*]] = udiv exact i32 [[O]], 12
-; CHECK-NEXT:    ret i32 [[U]]
+; This can't divide evenly, so it is poison.
+
+define i8 @udiv_exact_demanded_low_bits_set(i8 %a) {
+; CHECK-LABEL: @udiv_exact_demanded_low_bits_set(
+; CHECK-NEXT:    ret i8 poison
 ;
-  %o = and i32 %a, -3
-  %u = udiv exact i32 %o, 12
-  ret i32 %u
+  %o = or i8 %a, 3
+  %u = udiv exact i8 %o, 12
+  ret i8 %u
+}
+
+; All high bits are set, so this simplifies.
+
+define i8 @udiv_demanded_high_bits_set(i8 %x, i8 %y) {
+; CHECK-LABEL: @udiv_demanded_high_bits_set(
+; CHECK-NEXT:    ret i8 21
+;
+  %o = or i8 %x, -4
+  %r = udiv i8 %o, 12
+  ret i8 %r
+}
+
+; This should fold the same as above.
+
+define i8 @udiv_exact_demanded_high_bits_set(i8 %x, i8 %y) {
+; CHECK-LABEL: @udiv_exact_demanded_high_bits_set(
+; CHECK-NEXT:    ret i8 21
+;
+  %o = or i8 %x, -4
+  %r = udiv exact i8 %o, 12
+  ret i8 %r
+}
+
+; 2 low bits are not needed because 12 has 2 trailing zeros
+
+define i8 @udiv_demanded_low_bits_clear(i8 %a) {
+; CHECK-LABEL: @udiv_demanded_low_bits_clear(
+; CHECK-NEXT:    [[U:%.*]] = udiv i8 [[A:%.*]], 12
+; CHECK-NEXT:    ret i8 [[U]]
+;
+  %o = and i8 %a, -4
+  %u = udiv i8 %o, 12
+  ret i8 %u
+}
+
+; This should fold the same as above.
+
+define i8 @udiv_exact_demanded_low_bits_clear(i8 %a) {
+; CHECK-LABEL: @udiv_exact_demanded_low_bits_clear(
+; CHECK-NEXT:    [[U:%.*]] = udiv i8 [[A:%.*]], 12
+; CHECK-NEXT:    ret i8 [[U]]
+;
+  %o = and i8 %a, -4
+  %u = udiv exact i8 %o, 12
+  ret i8 %u
+}
+
+define <vscale x 1 x i32> @udiv_demanded3(<vscale x 1 x i32> %a) {
+; CHECK-LABEL: @udiv_demanded3(
+; CHECK-NEXT:    [[U:%.*]] = udiv <vscale x 1 x i32> [[A:%.*]], splat (i32 12)
+; CHECK-NEXT:    ret <vscale x 1 x i32> [[U]]
+;
+  %o = or <vscale x 1 x i32> %a, splat (i32 3)
+  %u = udiv <vscale x 1 x i32> %o, splat (i32 12)
+  ret <vscale x 1 x i32> %u
+}
+
+; PR74242
+define i32 @div_by_zero_or_one_from_dom_cond(i32 %a, i32 %b) {
+; CHECK-LABEL: @div_by_zero_or_one_from_dom_cond(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[CMP:%.*]] = icmp ugt i32 [[A:%.*]], 1
+; CHECK-NEXT:    br i1 [[CMP]], label [[JOIN:%.*]], label [[ZERO_OR_ONE:%.*]]
+; CHECK:       zero_or_one:
+; CHECK-NEXT:    br label [[JOIN]]
+; CHECK:       join:
+; CHECK-NEXT:    ret i32 [[B:%.*]]
+;
+entry:
+  %cmp = icmp ugt i32 %a, 1
+  br i1 %cmp, label %join, label %zero_or_one
+
+zero_or_one:
+  %div = udiv i32 %b, %a
+  br label %join
+
+join:
+  %res = phi i32 [ %div, %zero_or_one ], [ %b, %entry ]
+  ret i32 %res
 }

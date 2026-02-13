@@ -38,12 +38,17 @@
 //          Called before fork syscall.
 //   COMMON_SYSCALL_POST_FORK(long res)
 //          Called after fork syscall.
+//   COMMON_SYSCALL_BLOCKING_START()
+//         Called before blocking syscall.
+//   COMMON_SYSCALL_BLOCKING_END()
+//         Called after blocking syscall.
 //===----------------------------------------------------------------------===//
 
 #include "sanitizer_platform.h"
 #if SANITIZER_LINUX
 
 #  include "sanitizer_libc.h"
+#  include "sanitizer_platform_limits_posix.h"
 
 #  define PRE_SYSCALL(name) \
     SANITIZER_INTERFACE_ATTRIBUTE void __sanitizer_syscall_pre_impl_##name
@@ -82,6 +87,16 @@
 
 #  ifndef COMMON_SYSCALL_POST_FORK
 #    define COMMON_SYSCALL_POST_FORK(res) \
+      {}
+#  endif
+
+#  ifndef COMMON_SYSCALL_BLOCKING_START
+#    define COMMON_SYSCALL_BLOCKING_START() \
+      {}
+#  endif
+
+#  ifndef COMMON_SYSCALL_BLOCKING_END
+#    define COMMON_SYSCALL_BLOCKING_END() \
       {}
 #  endif
 
@@ -126,6 +141,12 @@ struct sanitizer_kernel_rusage {
 struct sanitizer_kernel_sockaddr {
   unsigned short sa_family;
   char sa_data[14];
+};
+
+struct sanitizer_kernel_open_how {
+  u64 flags;
+  u64 mode;
+  u64 resolve;
 };
 
 // Real sigset size is always passed as a syscall argument.
@@ -417,14 +438,14 @@ PRE_SYSCALL(capget)(void *header, void *dataptr) {
 POST_SYSCALL(capget)(long res, void *header, void *dataptr) {
   if (res >= 0)
     if (dataptr)
-      POST_WRITE(dataptr, __user_cap_data_struct_sz);
+      POST_WRITE(dataptr, __user_cap_data_struct_sz(header));
 }
 
 PRE_SYSCALL(capset)(void *header, const void *data) {
   if (header)
     PRE_READ(header, __user_cap_header_struct_sz);
   if (data)
-    PRE_READ(data, __user_cap_data_struct_sz);
+    PRE_READ(data, __user_cap_data_struct_sz(header));
 }
 
 POST_SYSCALL(capset)(long res, void *header, const void *data) {}
@@ -910,6 +931,17 @@ POST_SYSCALL(statfs)(long res, const void *path, void *buf) {
   }
 }
 
+PRE_SYSCALL(fstatfs)(long fd, void *buf) {}
+
+POST_SYSCALL(fstatfs)(long res, long fd, void *buf) {
+  if (res >= 0) {
+    if (buf)
+      POST_WRITE(buf, struct_statfs_sz);
+  }
+}
+#  endif  // !SANITIZER_ANDROID
+
+#  if SANITIZER_GLIBC
 PRE_SYSCALL(statfs64)(const void *path, long sz, void *buf) {
   if (path)
     PRE_READ(path, __sanitizer::internal_strlen((const char *)path) + 1);
@@ -922,15 +954,6 @@ POST_SYSCALL(statfs64)(long res, const void *path, long sz, void *buf) {
   }
 }
 
-PRE_SYSCALL(fstatfs)(long fd, void *buf) {}
-
-POST_SYSCALL(fstatfs)(long res, long fd, void *buf) {
-  if (res >= 0) {
-    if (buf)
-      POST_WRITE(buf, struct_statfs_sz);
-  }
-}
-
 PRE_SYSCALL(fstatfs64)(long fd, long sz, void *buf) {}
 
 POST_SYSCALL(fstatfs64)(long res, long fd, long sz, void *buf) {
@@ -939,7 +962,7 @@ POST_SYSCALL(fstatfs64)(long res, long fd, long sz, void *buf) {
       POST_WRITE(buf, struct_statfs64_sz);
   }
 }
-#  endif  // !SANITIZER_ANDROID
+#  endif  // SANITIZER_GLIBC
 
 PRE_SYSCALL(lstat)(const void *filename, void *statbuf) {
   if (filename)
@@ -998,7 +1021,7 @@ POST_SYSCALL(newfstat)(long res, long fd, void *statbuf) {
   }
 }
 
-#  if !SANITIZER_ANDROID
+#  if SANITIZER_GLIBC
 PRE_SYSCALL(ustat)(long dev, void *ubuf) {}
 
 POST_SYSCALL(ustat)(long res, long dev, void *ubuf) {
@@ -1007,7 +1030,7 @@ POST_SYSCALL(ustat)(long res, long dev, void *ubuf) {
       POST_WRITE(ubuf, struct_ustat_sz);
   }
 }
-#  endif  // !SANITIZER_ANDROID
+#  endif  // SANITIZER_GLIBC
 
 PRE_SYSCALL(stat64)(const void *filename, void *statbuf) {
   if (filename)
@@ -1372,9 +1395,8 @@ PRE_SYSCALL(io_setup)(long nr_reqs, void **ctx) {
 }
 
 POST_SYSCALL(io_setup)(long res, long nr_reqs, void **ctx) {
-  if (res >= 0) {
-    if (ctx)
-      POST_WRITE(ctx, sizeof(*ctx));
+  if (res >= 0 && ctx) {
+    POST_WRITE(ctx, sizeof(*ctx));
     // (*ctx) is actually a pointer to a kernel mapped page, and there are
     // people out there who are crazy enough to peek into that page's 32-byte
     // header.
@@ -2106,6 +2128,7 @@ PRE_SYSCALL(epoll_wait)
 POST_SYSCALL(epoll_wait)
 (long res, long epfd, void *events, long maxevents, long timeout) {
   if (res >= 0) {
+    COMMON_SYSCALL_FD_ACQUIRE(epfd);
     if (events)
       POST_WRITE(events, res * struct_epoll_event_sz);
   }
@@ -2122,6 +2145,7 @@ POST_SYSCALL(epoll_pwait)
 (long res, long epfd, void *events, long maxevents, long timeout,
  const void *sigmask, long sigsetsize) {
   if (res >= 0) {
+    COMMON_SYSCALL_FD_ACQUIRE(epfd);
     if (events)
       POST_WRITE(events, res * struct_epoll_event_sz);
   }
@@ -2132,7 +2156,7 @@ PRE_SYSCALL(epoll_pwait2)
  const sanitizer_kernel_timespec *timeout, const kernel_sigset_t *sigmask,
  long sigsetsize) {
   if (timeout)
-    PRE_READ(timeout, sizeof(timeout));
+    PRE_READ(timeout, sizeof(*timeout));
   if (sigmask)
     PRE_READ(sigmask, sigsetsize);
 }
@@ -2142,6 +2166,7 @@ POST_SYSCALL(epoll_pwait2)
  const sanitizer_kernel_timespec *timeout, const void *sigmask,
  long sigsetsize) {
   if (res >= 0) {
+    COMMON_SYSCALL_FD_ACQUIRE(epfd);
     if (events)
       POST_WRITE(events, res * struct_epoll_event_sz);
   }
@@ -2228,7 +2253,7 @@ POST_SYSCALL(setrlimit)(long res, long resource, void *rlim) {
   }
 }
 
-#  if !SANITIZER_ANDROID
+#  if SANITIZER_GLIBC
 PRE_SYSCALL(prlimit64)
 (long pid, long resource, const void *new_rlim, void *old_rlim) {
   if (new_rlim)
@@ -2512,18 +2537,19 @@ PRE_SYSCALL(ptrace)(long request, long pid, long addr, long data) {
 #  if !SANITIZER_ANDROID &&                                                   \
       (defined(__i386) || defined(__x86_64) || defined(__mips64) ||           \
        defined(__powerpc64__) || defined(__aarch64__) || defined(__s390__) || \
-       SANITIZER_RISCV64)
-  if (data) {
+       defined(__loongarch__) || SANITIZER_RISCV64 || defined(__sparc__))
+  long data_arg = ptrace_data_arg(request, addr, data);
+  if (data_arg) {
     if (request == ptrace_setregs) {
-      PRE_READ((void *)data, struct_user_regs_struct_sz);
+      PRE_READ((void *)data_arg, struct_user_regs_struct_sz);
     } else if (request == ptrace_setfpregs) {
-      PRE_READ((void *)data, struct_user_fpregs_struct_sz);
+      PRE_READ((void *)data_arg, struct_user_fpregs_struct_sz);
     } else if (request == ptrace_setfpxregs) {
-      PRE_READ((void *)data, struct_user_fpxregs_struct_sz);
+      PRE_READ((void *)data_arg, struct_user_fpxregs_struct_sz);
     } else if (request == ptrace_setsiginfo) {
-      PRE_READ((void *)data, siginfo_t_sz);
+      PRE_READ((void *)data_arg, siginfo_t_sz);
     } else if (request == ptrace_setregset) {
-      __sanitizer_iovec *iov = (__sanitizer_iovec *)data;
+      __sanitizer_iovec *iov = (__sanitizer_iovec *)data_arg;
       PRE_READ(iov->iov_base, iov->iov_len);
     }
   }
@@ -2534,25 +2560,26 @@ POST_SYSCALL(ptrace)(long res, long request, long pid, long addr, long data) {
 #  if !SANITIZER_ANDROID &&                                                   \
       (defined(__i386) || defined(__x86_64) || defined(__mips64) ||           \
        defined(__powerpc64__) || defined(__aarch64__) || defined(__s390__) || \
-       SANITIZER_RISCV64)
-  if (res >= 0 && data) {
+       defined(__loongarch__) || SANITIZER_RISCV64 || defined(__sparc__))
+  long data_arg = ptrace_data_arg(request, addr, data);
+  if (res >= 0 && data_arg) {
     // Note that this is different from the interceptor in
     // sanitizer_common_interceptors.inc.
     // PEEK* requests return resulting values through data pointer.
     if (request == ptrace_getregs) {
-      POST_WRITE((void *)data, struct_user_regs_struct_sz);
+      POST_WRITE((void *)data_arg, struct_user_regs_struct_sz);
     } else if (request == ptrace_getfpregs) {
-      POST_WRITE((void *)data, struct_user_fpregs_struct_sz);
+      POST_WRITE((void *)data_arg, struct_user_fpregs_struct_sz);
     } else if (request == ptrace_getfpxregs) {
-      POST_WRITE((void *)data, struct_user_fpxregs_struct_sz);
+      POST_WRITE((void *)data_arg, struct_user_fpxregs_struct_sz);
     } else if (request == ptrace_getsiginfo) {
-      POST_WRITE((void *)data, siginfo_t_sz);
+      POST_WRITE((void *)data_arg, siginfo_t_sz);
     } else if (request == ptrace_getregset) {
-      __sanitizer_iovec *iov = (__sanitizer_iovec *)data;
+      __sanitizer_iovec *iov = (__sanitizer_iovec *)data_arg;
       POST_WRITE(iov->iov_base, iov->iov_len);
     } else if (request == ptrace_peekdata || request == ptrace_peektext ||
                request == ptrace_peekuser) {
-      POST_WRITE((void *)data, sizeof(void *));
+      POST_WRITE((void *)data_arg, sizeof(void *));
     }
   }
 #  endif
@@ -2804,6 +2831,15 @@ PRE_SYSCALL(fchownat)
 POST_SYSCALL(fchownat)
 (long res, long dfd, const void *filename, long user, long group, long flag) {}
 
+PRE_SYSCALL(fchmodat2)(long dfd, const void *filename, long mode, long flag) {
+  if (filename)
+    PRE_READ(filename,
+             __sanitizer::internal_strlen((const char *)filename) + 1);
+}
+
+POST_SYSCALL(fchmodat2)
+(long res, long dfd, const void *filename, long mode, long flag) {}
+
 PRE_SYSCALL(openat)(long dfd, const void *filename, long flags, long mode) {
   if (filename)
     PRE_READ(filename,
@@ -2812,6 +2848,18 @@ PRE_SYSCALL(openat)(long dfd, const void *filename, long flags, long mode) {
 
 POST_SYSCALL(openat)
 (long res, long dfd, const void *filename, long flags, long mode) {}
+
+PRE_SYSCALL(openat2)(long dfd, const void* filename,
+                     const sanitizer_kernel_open_how* how, uptr howlen) {
+  if (filename)
+    PRE_READ(filename, __sanitizer::internal_strlen((const char*)filename) + 1);
+
+  if (how)
+    PRE_READ(how, howlen);
+}
+
+POST_SYSCALL(openat2)(long res, long dfd, const void* filename,
+                      const sanitizer_kernel_open_how* how, uptr howlen) {}
 
 PRE_SYSCALL(newfstatat)
 (long dfd, const void *filename, void *statbuf, long flag) {
@@ -3163,6 +3211,40 @@ POST_SYSCALL(sigaltstack)(long res, void *ss, void *oss) {
     }
   }
 }
+
+PRE_SYSCALL(futex)
+(void *uaddr, long futex_op, long val, void *timeout, void *uaddr2, long val3) {
+  COMMON_SYSCALL_BLOCKING_START();
+}
+
+POST_SYSCALL(futex)
+(long res, void *uaddr, long futex_op, long val, void *timeout, void *uaddr2,
+ long val3) {
+  COMMON_SYSCALL_BLOCKING_END();
+}
+
+PRE_SYSCALL(copy_file_range)
+(int fdin, __sanitizer___kernel_off_t *offin, int fdout,
+ __sanitizer___kernel_off_t *offout, SIZE_T size, unsigned int flags) {
+  if (offin != nullptr) {
+    PRE_READ(offin, sizeof(*offin));
+  }
+  if (offout != nullptr) {
+    PRE_READ(offout, sizeof(*offout));
+  }
+}
+
+POST_SYSCALL(copy_file_range)
+(SSIZE_T, int fdin, __sanitizer___kernel_off_t *offin, int fdout,
+ __sanitizer___kernel_off_t *offout, SIZE_T size, unsigned int flags) {
+  if (offin != nullptr) {
+    POST_WRITE(offin, sizeof(*offin));
+  }
+  if (offout != nullptr) {
+    POST_WRITE(offout, sizeof(*offout));
+  }
+}
+
 }  // extern "C"
 
 #  undef PRE_SYSCALL

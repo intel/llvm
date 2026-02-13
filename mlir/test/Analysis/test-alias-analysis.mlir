@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s -pass-pipeline='func.func(test-alias-analysis)' -split-input-file -allow-unregistered-dialect 2>&1 | FileCheck %s
+// RUN: mlir-opt %s -pass-pipeline='builtin.module(func.func(test-alias-analysis))' -split-input-file -allow-unregistered-dialect 2>&1 | FileCheck %s
 
 // CHECK-LABEL: Testing : "simple"
 // CHECK-DAG: func.region0#0 <-> func.region0#1: MayAlias
@@ -254,5 +254,21 @@ func.func @constants(%arg: memref<2xf32>) attributes {test.ptr = "func"} {
   %c0_2 = arith.constant {test.ptr = "constant_2"} 0 : index
   %c1 = arith.constant {test.ptr = "constant_3"} 1 : index
 
+  return
+}
+
+// -----
+
+// CHECK-LABEL: Testing : "distinct_objects"
+// CHECK-DAG: func.region0#0 <-> func.region0#1: MayAlias
+
+// CHECK-DAG: distinct#0 <-> distinct#1: NoAlias
+// CHECK-DAG: distinct#0 <-> func.region0#0: MustAlias
+// CHECK-DAG: distinct#1 <-> func.region0#0: MayAlias
+// CHECK-DAG: distinct#0 <-> func.region0#1: MayAlias
+// CHECK-DAG: distinct#1 <-> func.region0#1: MustAlias
+
+func.func @distinct_objects(%arg: memref<?xf32>, %arg1: memref<?xf32>) attributes {test.ptr = "func"} {
+  %0, %1 = memref.distinct_objects %arg, %arg1 {test.ptr = "distinct"} : memref<?xf32>, memref<?xf32>
   return
 }

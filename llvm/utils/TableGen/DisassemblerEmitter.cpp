@@ -6,10 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "CodeGenTarget.h"
+#include "Common/CodeGenTarget.h"
+#include "TableGenBackends.h"
 #include "WebAssemblyDisassemblerEmitter.h"
 #include "X86DisassemblerTables.h"
 #include "X86RecognizableInstr.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/TableGen/Error.h"
 #include "llvm/TableGen/Record.h"
 #include "llvm/TableGen/TableGenBackend.h"
@@ -93,27 +95,16 @@ using namespace llvm::X86Disassembler;
 /// X86RecognizableInstr.cpp contains the implementation for a single
 ///   instruction.
 
-namespace llvm {
-
-extern void EmitDecoder(RecordKeeper &RK, raw_ostream &OS,
-                        const std::string &PredicateNamespace,
-                        const std::string &GPrefix, const std::string &GPostfix,
-                        const std::string &ROK, const std::string &RFail,
-                        const std::string &L);
-
-void EmitDisassembler(RecordKeeper &Records, raw_ostream &OS) {
-  CodeGenTarget Target(Records);
+static void emitDisassembler(const RecordKeeper &Records, raw_ostream &OS) {
+  const CodeGenTarget Target(Records);
   emitSourceFileHeader(" * " + Target.getName().str() + " Disassembler", OS);
 
   // X86 uses a custom disassembler.
   if (Target.getName() == "X86") {
     DisassemblerTables Tables;
 
-    ArrayRef<const CodeGenInstruction*> numberedInstructions =
-      Target.getInstructionsByEnumValue();
-
-    for (unsigned i = 0, e = numberedInstructions.size(); i != e; ++i)
-      RecognizableInstr::processInstr(Tables, *numberedInstructions[i], i);
+    for (const auto &[Idx, NumberedInst] : enumerate(Target.getInstructions()))
+      RecognizableInstr::processInstr(Tables, *NumberedInst, Idx);
 
     if (Tables.hasConflicts()) {
       PrintError(Target.getTargetRecord()->getLoc(), "Primary decode conflict");
@@ -128,27 +119,14 @@ void EmitDisassembler(RecordKeeper &Records, raw_ostream &OS) {
   // below (which depends on a Size table-gen Record), and also uses a custom
   // disassembler.
   if (Target.getName() == "WebAssembly") {
-    emitWebAssemblyDisassemblerTables(OS, Target.getInstructionsByEnumValue());
+    emitWebAssemblyDisassemblerTables(OS, Target.getInstructions());
     return;
   }
 
-  // ARM and Thumb have a CHECK() macro to deal with DecodeStatuses.
-  if (Target.getName() == "ARM" || Target.getName() == "Thumb" ||
-      Target.getName() == "AArch64" || Target.getName() == "ARM64") {
-    std::string PredicateNamespace = std::string(Target.getName());
-    if (PredicateNamespace == "Thumb")
-      PredicateNamespace = "ARM";
-
-    EmitDecoder(Records, OS, PredicateNamespace, "if (!Check(S, ", "))", "S",
-                "MCDisassembler::Fail",
-                "  MCDisassembler::DecodeStatus S = "
-                "MCDisassembler::Success;\n(void)S;");
-    return;
-  }
-
-  EmitDecoder(Records, OS, std::string(Target.getName()), "if (",
-              " == MCDisassembler::Fail)", "MCDisassembler::Success",
-              "MCDisassembler::Fail", "");
+  EmitDecoder(Records, OS);
 }
 
-} // end namespace llvm
+cl::OptionCategory DisassemblerEmitterCat("Options for -gen-disassembler");
+
+static TableGen::Emitter::Opt X("gen-disassembler", emitDisassembler,
+                                "Generate disassembler");

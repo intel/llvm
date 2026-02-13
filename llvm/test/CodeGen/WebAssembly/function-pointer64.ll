@@ -1,6 +1,6 @@
-; RUN: llc < %s -asm-verbose=false -O2 | FileCheck %s
+; RUN: llc < %s -asm-verbose=false -mattr=-reference-types,-call-indirect-overlong -O2 | FileCheck %s
 ; RUN: llc < %s -asm-verbose=false -mattr=+reference-types -O2 | FileCheck --check-prefix=REF %s
-; RUN: llc < %s -asm-verbose=false -O2 --filetype=obj | obj2yaml | FileCheck --check-prefix=YAML %s
+; RUN: llc < %s -asm-verbose=false -mattr=-reference-types,-call-indirect-overlong -O2 --filetype=obj | obj2yaml | FileCheck --check-prefix=YAML %s
 
 ; This tests pointer features that may codegen differently in wasm64.
 
@@ -11,7 +11,7 @@ entry:
   ret void
 }
 
-define void @foo(void (i32)* %fp) {
+define void @foo(ptr %fp) {
 entry:
   call void %fp(i32 1)
   ret void
@@ -19,12 +19,12 @@ entry:
 
 define void @test() {
 entry:
-  call void @foo(void (i32)* @bar)
-  store void (i32)* @bar, void (i32)** @fptr
+  call void @foo(ptr @bar)
+  store ptr @bar, ptr @fptr
   ret void
 }
 
-@fptr = global void (i32)* @bar
+@fptr = global ptr @bar
 
 ; For simplicity (and compatibility with UB C/C++ code) we keep all types
 ; of pointers the same size, so function pointers (which are 32-bit indices
@@ -34,7 +34,6 @@ entry:
 ; CHECK:      .functype foo (i64) -> ()
 ; CHECK-NEXT: i32.const 1
 ; CHECK-NEXT: local.get 0
-; CHECK-NEXT: i32.wrap_i64
 ; CHECK-NEXT: call_indirect (i32) -> ()
 ; REF:        call_indirect __indirect_function_table, (i32) -> ()
 
@@ -53,10 +52,10 @@ entry:
 ; YAML:      - Type:   CODE
 ; YAML:      - Type:   R_WASM_TABLE_INDEX_SLEB64
 ; YAML-NEXT:   Index:  0
-; YAML-NEXT:   Offset: 0x16
+; YAML-NEXT:   Offset: 0x15
 ; YAML:      - Type:   R_WASM_TABLE_INDEX_SLEB64
 ; YAML-NEXT:   Index:  0
-; YAML-NEXT:   Offset: 0x29
+; YAML-NEXT:   Offset: 0x28
 
 ; YAML:      - Type:   DATA
 ; YAML:      - Type:   R_WASM_TABLE_INDEX_I64

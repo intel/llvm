@@ -1,5 +1,5 @@
-; RUN: opt -loop-vectorize < %s -S -o - | FileCheck %s --check-prefix=CHECK
-; RUN: opt -loop-vectorize -debug-only=loop-vectorize -disable-output < %s 2>&1 | FileCheck %s --check-prefix=CHECK-COST
+; RUN: opt -passes=loop-vectorize < %s -S -o - | FileCheck %s --check-prefix=CHECK
+; RUN: opt -passes=loop-vectorize -debug-only=loop-vectorize -disable-output < %s 2>&1 | FileCheck %s --check-prefix=CHECK-COST
 ; REQUIRES: asserts
 
 target datalayout = "e-m:e-p:32:32-Fi8-i64:64-v128:64:128-a:0:32-n32-S64"
@@ -8,18 +8,18 @@ target triple = "thumbv8.1m.main-none-none-eabi"
 ; CHECK-LABEL: test
 ; CHECK-COST: LV: Found an estimated cost of 0 for VF 1 For instruction:   %and515 = shl i32 %l41, 3
 ; CHECK-COST: LV: Found an estimated cost of 1 for VF 1 For instruction:   %l45 = and i32 %and515, 131072
-; CHECK-COST: LV: Found an estimated cost of 2 for VF 4 For instruction:   %and515 = shl i32 %l41, 3
-; CHECK-COST: LV: Found an estimated cost of 2 for VF 4 For instruction:   %l45 = and i32 %and515, 131072
+; CHECK-COST: Cost of 2 for VF 4: WIDEN ir<%and515> = shl ir<%l41>, ir<3>
+; CHECK-COST: Cost of 2 for VF 4: WIDEN ir<%l45> = and ir<%and515>, ir<131072>
 ; CHECK-NOT: vector.body
 
-define void @test([101 x i32] *%src, i32 %N) #0 {
+define void @test(ptr %src, i32 %N) #0 {
 entry:
   br label %for.body386
 
 for.body386:                                      ; preds = %entry, %l77
   %add387 = phi i32 [ %inc532, %l77 ], [ 0, %entry ]
-  %arrayidx388 = getelementptr inbounds [101 x i32], [101 x i32]* %src, i32 0, i32 %add387
-  %l41 = load i32, i32* %arrayidx388, align 4
+  %arrayidx388 = getelementptr inbounds [101 x i32], ptr %src, i32 0, i32 %add387
+  %l41 = load i32, ptr %arrayidx388, align 4
   %l42 = and i32 %l41, 65535
   %l43 = icmp eq i32 %l42, 0
   br i1 %l43, label %l77, label %l44
@@ -72,7 +72,7 @@ l44:                                               ; preds = %for.body386
   %and524 = shl i32 %l41, 1
   %l75 = and i32 %and524, 65536
   %l76 = or i32 %l75, %l74
-  store i32 %l76, i32* %arrayidx388, align 4
+  store i32 %l76, ptr %arrayidx388, align 4
   br label %l77
 
 l77:                                               ; preds = %for.body386, %l44

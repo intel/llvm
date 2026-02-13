@@ -1,4 +1,4 @@
-//===- File.h - Parsing sparse tensors from files ---------------*- C++ -*-===//
+//===- File.h - Reading sparse tensors from files ---------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements parsing and printing of files in one of the
+// This file implements reading sparse tensor from files in one of the
 // following external formats:
 //
 // (1) Matrix Market Exchange (MME): *.mtx
@@ -15,17 +15,12 @@
 // (2) Formidable Repository of Open Sparse Tensors and Tools (FROSTT): *.tns
 //     http://frostt.io/tensors/file-formats.html
 //
-// This file is part of the lightweight runtime support library for sparse
-// tensor manipulations.  The functionality of the support library is meant
-// to simplify benchmarking, testing, and debugging MLIR code operating on
-// sparse tensors.  However, the provided functionality is **not** part of
-// core MLIR itself.
-//
 //===----------------------------------------------------------------------===//
 
 #ifndef MLIR_EXECUTIONENGINE_SPARSETENSOR_FILE_H
 #define MLIR_EXECUTIONENGINE_SPARSETENSOR_FILE_H
 
+#include "mlir/ExecutionEngine/SparseTensor/MapRef.h"
 #include "mlir/ExecutionEngine/SparseTensor/Storage.h"
 
 #include <fstream>
@@ -33,16 +28,63 @@
 namespace mlir {
 namespace sparse_tensor {
 
-// TODO: benchmark whether to keep various methods inline vs moving them
-// off to the cpp file.
+namespace detail {
 
-// TODO: consider distinguishing separate classes for before vs
-// after reading the header; so as to statically avoid the need
-// to `assert(isValid())`.
+template <typename T>
+struct is_complex final : public std::false_type {};
+
+template <typename T>
+struct is_complex<std::complex<T>> final : public std::true_type {};
+
+/// Returns an element-value of non-complex type.  If `IsPattern` is true,
+/// then returns an arbitrary value.  If `IsPattern` is false, then
+/// reads the value from the current line buffer beginning at `linePtr`.
+template <typename V, bool IsPattern>
+inline std::enable_if_t<!is_complex<V>::value, V> readValue(char **linePtr) {
+  // The external formats always store these numerical values with the type
+  // double, but we cast these values to the sparse tensor object type.
+  // For a pattern tensor, we arbitrarily pick the value 1 for all entries.
+  if constexpr (IsPattern)
+    return 1.0;
+  return strtod(*linePtr, linePtr);
+}
+
+/// Returns an element-value of complex type.  If `IsPattern` is true,
+/// then returns an arbitrary value.  If `IsPattern` is false, then reads
+/// the value from the current line buffer beginning at `linePtr`.
+template <typename V, bool IsPattern>
+inline std::enable_if_t<is_complex<V>::value, V> readValue(char **linePtr) {
+  // Read two values to make a complex. The external formats always store
+  // numerical values with the type double, but we cast these values to the
+  // sparse tensor object type. For a pattern tensor, we arbitrarily pick the
+  // value 1 for all entries.
+  if constexpr (IsPattern)
+    return V(1.0, 1.0);
+  double re = strtod(*linePtr, linePtr);
+  double im = strtod(*linePtr, linePtr);
+  // Avoiding brace-notation since that forbids narrowing to `float`.
+  return V(re, im);
+}
+
+/// Returns an element-value.  If `isPattern` is true, then returns an
+/// arbitrary value.  If `isPattern` is false, then reads the value from
+/// the current line buffer beginning at `linePtr`.
+template <typename V>
+inline V readValue(char **linePtr, bool isPattern) {
+  return isPattern ? readValue<V, true>(linePtr) : readValue<V, false>(linePtr);
+}
+
+} // namespace detail
+
+//===----------------------------------------------------------------------===//
+//
+//  Reader class.
+//
+//===----------------------------------------------------------------------===//
 
 /// This class abstracts over the information stored in file headers,
 /// as well as providing the buffers and methods for parsing those headers.
-class SparseTensorFile final {
+class SparseTensorReader final {
 public:
   enum class ValueKind : uint8_t {
     // The value before calling `readHeader`.
@@ -56,18 +98,37 @@ public:
     kUndefined = 5
   };
 
-  explicit SparseTensorFile(const char *filename) : filename(filename) {
+  explicit SparseTensorReader(const char *filename) : filename(filename) {
     assert(filename && "Received nullptr for filename");
   }
 
   // Disallows copying, to avoid duplicating the `file` pointer.
-  SparseTensorFile(const SparseTensorFile &) = delete;
-  SparseTensorFile &operator=(const SparseTensorFile &) = delete;
+  SparseTensorReader(const SparseTensorReader &) = delete;
+  SparseTensorReader &operator=(const SparseTensorReader &) = delete;
+
+  /// Factory method to allocate a new reader, open the file, read the
+  /// header, and validate that the actual contents of the file match
+  /// the expected `dimShape` and `valTp`.
+  static SparseTensorReader *create(const char *filename, uint64_t dimRank,
+                                    const uint64_t *dimShape,
+                                    PrimaryType valTp) {
+    SparseTensorReader *reader = new SparseTensorReader(filename);
+    reader->openFile();
+    reader->readHeader();
+    if (!reader->canReadAs(valTp)) {
+      fprintf(stderr,
+              "Tensor element type %d not compatible with values in file %s\n",
+              static_cast<int>(valTp), filename);
+      exit(1);
+    }
+    reader->assertMatchesShape(dimRank, dimShape);
+    return reader;
+  }
 
   // This dtor tries to avoid leaking the `file`.  (Though it's better
   // to call `closeFile` explicitly when possible, since there are
   // circumstances where dtors are not called reliably.)
-  ~SparseTensorFile() { closeFile(); }
+  ~SparseTensorReader() { closeFile(); }
 
   /// Opens the file for reading.
   void openFile();
@@ -75,12 +136,10 @@ public:
   /// Closes the file.
   void closeFile();
 
-  /// Attempts to read a line from the file.
-  char *readLine();
-
   /// Reads and parses the file's header.
   void readHeader();
 
+  /// Returns the stored value kind.
   ValueKind getValueKind() const { return valueKind_; }
 
   /// Checks if a header has been successfully read.
@@ -104,15 +163,17 @@ public:
     return isSymmetric_;
   }
 
-  /// Gets the rank of the tensor.  Is only valid after parsing the header.
+  /// Gets the dimension-rank of the tensor.  Is only valid after parsing
+  /// the header.
   uint64_t getRank() const {
     assert(isValid() && "Attempt to getRank() before readHeader()");
     return idata[0];
   }
 
-  /// Gets the number of non-zeros.  Is only valid after parsing the header.
-  uint64_t getNNZ() const {
-    assert(isValid() && "Attempt to getNNZ() before readHeader()");
+  /// Gets the number of stored elements.  Is only valid after parsing
+  /// the header.
+  uint64_t getNSE() const {
+    assert(isValid() && "Attempt to getNSE() before readHeader()");
     return idata[1];
   }
 
@@ -132,7 +193,67 @@ public:
   /// valid after parsing the header.
   void assertMatchesShape(uint64_t rank, const uint64_t *shape) const;
 
+  /// Allocates a new sparse-tensor storage object with the given encoding,
+  /// initializes it by reading all the elements from the file, and then
+  /// closes the file. Templated on P, I, and V.
+  template <typename P, typename I, typename V>
+  SparseTensorStorage<P, I, V> *
+  readSparseTensor(uint64_t lvlRank, const uint64_t *lvlSizes,
+                   const LevelType *lvlTypes, const uint64_t *dim2lvl,
+                   const uint64_t *lvl2dim) {
+    const uint64_t dimRank = getRank();
+    MapRef map(dimRank, lvlRank, dim2lvl, lvl2dim);
+    auto *lvlCOO = readCOO<V>(map, lvlSizes);
+    auto *tensor = SparseTensorStorage<P, I, V>::newFromCOO(
+        dimRank, getDimSizes(), lvlRank, lvlSizes, lvlTypes, dim2lvl, lvl2dim,
+        lvlCOO);
+    delete lvlCOO;
+    return tensor;
+  }
+
+  /// Reads the COO tensor from the file, stores the coordinates and values to
+  /// the given buffers, returns a boolean value to indicate whether the COO
+  /// elements are sorted.
+  template <typename C, typename V>
+  bool readToBuffers(uint64_t lvlRank, const uint64_t *dim2lvl,
+                     const uint64_t *lvl2dim, C *lvlCoordinates, V *values);
+
 private:
+  /// Attempts to read a line from the file.
+  void readLine();
+
+  /// Reads the next line of the input file and parses the coordinates
+  /// into the `dimCoords` argument.  Returns the position in the `line`
+  /// buffer where the element's value should be parsed from.
+  template <typename C>
+  char *readCoords(C *dimCoords) {
+    readLine();
+    // Local variable for tracking the parser's position in the `line` buffer.
+    char *linePtr = line;
+    for (uint64_t dimRank = getRank(), d = 0; d < dimRank; ++d) {
+      // Parse the 1-based coordinate.
+      uint64_t c = strtoul(linePtr, &linePtr, 10);
+      // Store the 0-based coordinate.
+      dimCoords[d] = static_cast<C>(c - 1);
+    }
+    return linePtr;
+  }
+
+  /// Reads all the elements from the file while applying the given map.
+  template <typename V>
+  SparseTensorCOO<V> *readCOO(const MapRef &map, const uint64_t *lvlSizes);
+
+  /// The implementation of `readCOO` that is templated `IsPattern` in order
+  /// to perform LICM without needing to duplicate the source code.
+  template <typename V, bool IsPattern>
+  void readCOOLoop(const MapRef &map, SparseTensorCOO<V> *coo);
+
+  /// The internal implementation of `readToBuffers`. We template over
+  /// `IsPattern` in order to perform LICM without needing to duplicate
+  /// the source code.
+  template <typename C, typename V, bool IsPattern>
+  bool readToBuffersLoop(const MapRef &map, C *lvlCoordinates, V *values);
+
   /// Reads the MME header of a general sparse matrix of type real.
   void readMMEHeader();
 
@@ -152,111 +273,91 @@ private:
 };
 
 //===----------------------------------------------------------------------===//
-namespace detail {
+//
+//  Reader class methods.
+//
+//===----------------------------------------------------------------------===//
 
-template <typename T>
-struct is_complex final : public std::false_type {};
-
-template <typename T>
-struct is_complex<std::complex<T>> final : public std::true_type {};
-
-/// Reads an element of a non-complex type for the current indices in
-/// coordinate scheme.
 template <typename V>
-inline std::enable_if_t<!is_complex<V>::value, V>
-readCOOValue(char **linePtr, bool is_pattern) {
-  // The external formats always store these numerical values with the type
-  // double, but we cast these values to the sparse tensor object type.
-  // For a pattern tensor, we arbitrarily pick the value 1 for all entries.
-  return is_pattern ? 1.0 : strtod(*linePtr, linePtr);
-}
-
-/// Reads an element of a complex type for the current indices in
-/// coordinate scheme.
-template <typename V>
-inline std::enable_if_t<is_complex<V>::value, V> readCOOValue(char **linePtr,
-                                                              bool is_pattern) {
-  // Read two values to make a complex. The external formats always store
-  // numerical values with the type double, but we cast these values to the
-  // sparse tensor object type. For a pattern tensor, we arbitrarily pick the
-  // value 1 for all entries.
-  double re = is_pattern ? 1.0 : strtod(*linePtr, linePtr);
-  double im = is_pattern ? 1.0 : strtod(*linePtr, linePtr);
-  // Avoiding brace-notation since that forbids narrowing to `float`.
-  return V(re, im);
-}
-
-} // namespace detail
-
-/// Reads a sparse tensor with the given filename into a memory-resident
-/// sparse tensor in coordinate scheme.
-template <typename V>
-inline SparseTensorCOO<V> *
-openSparseTensorCOO(const char *filename, uint64_t rank, const uint64_t *shape,
-                    const uint64_t *perm, PrimaryType valTp) {
-  SparseTensorFile stfile(filename);
-  stfile.openFile();
-  stfile.readHeader();
-  // Check tensor element type against the value type in the input file.
-  if (!stfile.canReadAs(valTp))
-    MLIR_SPARSETENSOR_FATAL(
-        "Tensor element type %d not compatible with values in file %s\n",
-        static_cast<int>(valTp), filename);
-  stfile.assertMatchesShape(rank, shape);
-  // Prepare sparse tensor object with per-dimension sizes
-  // and the number of nonzeros as initial capacity.
-  uint64_t nnz = stfile.getNNZ();
-  auto *coo = SparseTensorCOO<V>::newSparseTensorCOO(rank, stfile.getDimSizes(),
-                                                     perm, nnz);
-  // Read all nonzero elements.
-  std::vector<uint64_t> indices(rank);
-  for (uint64_t k = 0; k < nnz; ++k) {
-    char *linePtr = stfile.readLine();
-    for (uint64_t r = 0; r < rank; ++r) {
-      // Parse the 1-based index.
-      uint64_t idx = strtoul(linePtr, &linePtr, 10);
-      // Add the 0-based index.
-      indices[perm[r]] = idx - 1;
-    }
-    const V value = detail::readCOOValue<V>(&linePtr, stfile.isPattern());
-    // TODO: <https://github.com/llvm/llvm-project/issues/54179>
-    coo->add(indices, value);
-    // We currently chose to deal with symmetric matrices by fully
-    // constructing them.  In the future, we may want to make symmetry
-    // implicit for storage reasons.
-    if (stfile.isSymmetric() && indices[0] != indices[1])
-      coo->add({indices[1], indices[0]}, value);
-  }
-  // Close the file and return tensor.
-  stfile.closeFile();
+SparseTensorCOO<V> *SparseTensorReader::readCOO(const MapRef &map,
+                                                const uint64_t *lvlSizes) {
+  assert(isValid() && "Attempt to readCOO() before readHeader()");
+  // Prepare a COO object with the number of stored elems as initial capacity.
+  auto *coo = new SparseTensorCOO<V>(map.getLvlRank(), lvlSizes, getNSE());
+  // Enter the reading loop.
+  if (isPattern())
+    readCOOLoop<V, true>(map, coo);
+  else
+    readCOOLoop<V, false>(map, coo);
+  // Close the file and return the COO.
+  closeFile();
   return coo;
 }
 
-/// Writes the sparse tensor to `filename` in extended FROSTT format.
-template <typename V>
-inline void writeExtFROSTT(const SparseTensorCOO<V> &coo,
-                           const char *filename) {
-  assert(filename && "Got nullptr for filename");
-  auto &dimSizes = coo.getDimSizes();
-  auto &elements = coo.getElements();
-  const uint64_t rank = coo.getRank();
-  const uint64_t nnz = elements.size();
-  std::fstream file;
-  file.open(filename, std::ios_base::out | std::ios_base::trunc);
-  assert(file.is_open());
-  file << "; extended FROSTT format\n" << rank << " " << nnz << std::endl;
-  for (uint64_t r = 0; r < rank - 1; ++r)
-    file << dimSizes[r] << " ";
-  file << dimSizes[rank - 1] << std::endl;
-  for (uint64_t i = 0; i < nnz; ++i) {
-    auto &idx = elements[i].indices;
-    for (uint64_t r = 0; r < rank; ++r)
-      file << (idx[r] + 1) << " ";
-    file << elements[i].value << std::endl;
+template <typename V, bool IsPattern>
+void SparseTensorReader::readCOOLoop(const MapRef &map,
+                                     SparseTensorCOO<V> *coo) {
+  const uint64_t dimRank = map.getDimRank();
+  const uint64_t lvlRank = map.getLvlRank();
+  assert(dimRank == getRank());
+  std::vector<uint64_t> dimCoords(dimRank);
+  std::vector<uint64_t> lvlCoords(lvlRank);
+  for (uint64_t k = 0, nse = getNSE(); k < nse; k++) {
+    char *linePtr = readCoords(dimCoords.data());
+    const V value = detail::readValue<V, IsPattern>(&linePtr);
+    map.pushforward(dimCoords.data(), lvlCoords.data());
+    coo->add(lvlCoords, value);
   }
-  file.flush();
-  file.close();
-  assert(file.good());
+}
+
+template <typename C, typename V>
+bool SparseTensorReader::readToBuffers(uint64_t lvlRank,
+                                       const uint64_t *dim2lvl,
+                                       const uint64_t *lvl2dim,
+                                       C *lvlCoordinates, V *values) {
+  assert(isValid() && "Attempt to readCOO() before readHeader()");
+  MapRef map(getRank(), lvlRank, dim2lvl, lvl2dim);
+  bool isSorted =
+      isPattern() ? readToBuffersLoop<C, V, true>(map, lvlCoordinates, values)
+                  : readToBuffersLoop<C, V, false>(map, lvlCoordinates, values);
+  closeFile();
+  return isSorted;
+}
+
+template <typename C, typename V, bool IsPattern>
+bool SparseTensorReader::readToBuffersLoop(const MapRef &map, C *lvlCoordinates,
+                                           V *values) {
+  const uint64_t dimRank = map.getDimRank();
+  const uint64_t lvlRank = map.getLvlRank();
+  const uint64_t nse = getNSE();
+  assert(dimRank == getRank());
+  std::vector<C> dimCoords(dimRank);
+  bool isSorted = false;
+  char *linePtr;
+  const auto readNextElement = [&]() {
+    linePtr = readCoords<C>(dimCoords.data());
+    map.pushforward(dimCoords.data(), lvlCoordinates);
+    *values = detail::readValue<V, IsPattern>(&linePtr);
+    if (isSorted) {
+      // Note that isSorted is set to false when reading the first element,
+      // to guarantee the safeness of using prevLvlCoords.
+      C *prevLvlCoords = lvlCoordinates - lvlRank;
+      for (uint64_t l = 0; l < lvlRank; ++l) {
+        if (prevLvlCoords[l] != lvlCoordinates[l]) {
+          if (prevLvlCoords[l] > lvlCoordinates[l])
+            isSorted = false;
+          break;
+        }
+      }
+    }
+    lvlCoordinates += lvlRank;
+    ++values;
+  };
+  readNextElement();
+  isSorted = true;
+  for (uint64_t n = 1; n < nse; ++n)
+    readNextElement();
+  return isSorted;
 }
 
 } // namespace sparse_tensor

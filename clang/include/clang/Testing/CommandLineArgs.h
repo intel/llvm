@@ -21,22 +21,27 @@
 namespace clang {
 
 enum TestLanguage {
-  Lang_C89,
-  Lang_C99,
-  Lang_CXX03,
-  Lang_CXX11,
-  Lang_CXX14,
-  Lang_CXX17,
-  Lang_CXX20,
+#define TESTLANGUAGE(lang, version, std_flag, version_index)                   \
+  Lang_##lang##version,
+#include "clang/Testing/TestLanguage.def"
+
   Lang_OpenCL,
   Lang_OBJC,
-  Lang_OBJCXX
+  Lang_OBJCXX,
 };
+
+std::vector<TestLanguage> getCOrLater(int MinimumStd);
+std::vector<TestLanguage> getCXXOrLater(int MinimumStd);
 
 std::vector<std::string> getCommandLineArgsForTesting(TestLanguage Lang);
 std::vector<std::string> getCC1ArgsForTesting(TestLanguage Lang);
 
 StringRef getFilenameForTesting(TestLanguage Lang);
+
+/// Find a target name such that looking for it in TargetRegistry by that name
+/// returns the same target. We expect that there is at least one target
+/// configured with this property.
+std::string getAnyTargetForTesting();
 
 } // end namespace clang
 

@@ -59,7 +59,7 @@ define void @foo(ptr nocapture %ctx, i32 %n) local_unnamed_addr #0 {
 define void @foo_loop(ptr nocapture %ctx, i32 %n) local_unnamed_addr #0 {
 ; X64-LABEL: foo_loop:
 ; X64:       # %bb.0: # %entry
-; X64-NEXT:    .p2align 4, 0x90
+; X64-NEXT:    .p2align 4
 ; X64-NEXT:  .LBB1_1: # %loop
 ; X64-NEXT:    # =>This Inner Loop Header: Depth=1
 ; X64-NEXT:    movl (%rdi), %ecx
@@ -71,12 +71,10 @@ define void @foo_loop(ptr nocapture %ctx, i32 %n) local_unnamed_addr #0 {
 ; X64-NEXT:  # %bb.2: # %exit
 ; X64-NEXT:    addl %eax, %ecx
 ; X64-NEXT:    leal 1(%rax,%rcx), %ecx
-; X64-NEXT:    addl %eax, %ecx
-; X64-NEXT:    addl %eax, %ecx
-; X64-NEXT:    addl %eax, %ecx
-; X64-NEXT:    addl %eax, %ecx
-; X64-NEXT:    addl %eax, %ecx
-; X64-NEXT:    addl %eax, %ecx
+; X64-NEXT:    leal (%rax,%rax), %edx
+; X64-NEXT:    addl %eax, %edx
+; X64-NEXT:    addl %edx, %ecx
+; X64-NEXT:    addl %edx, %ecx
 ; X64-NEXT:    movl %ecx, 16(%rdi)
 ; X64-NEXT:    retq
 ;
@@ -90,7 +88,7 @@ define void @foo_loop(ptr nocapture %ctx, i32 %n) local_unnamed_addr #0 {
 ; X86-NEXT:    .cfi_offset %edi, -8
 ; X86-NEXT:    movl {{[0-9]+}}(%esp), %edx
 ; X86-NEXT:    movl {{[0-9]+}}(%esp), %eax
-; X86-NEXT:    .p2align 4, 0x90
+; X86-NEXT:    .p2align 4
 ; X86-NEXT:  .LBB1_1: # %loop
 ; X86-NEXT:    # =>This Inner Loop Header: Depth=1
 ; X86-NEXT:    movl (%eax), %esi
@@ -102,12 +100,10 @@ define void @foo_loop(ptr nocapture %ctx, i32 %n) local_unnamed_addr #0 {
 ; X86-NEXT:  # %bb.2: # %exit
 ; X86-NEXT:    addl %ecx, %esi
 ; X86-NEXT:    leal 1(%ecx,%esi), %edx
-; X86-NEXT:    addl %ecx, %edx
-; X86-NEXT:    addl %ecx, %edx
-; X86-NEXT:    addl %ecx, %edx
-; X86-NEXT:    addl %ecx, %edx
-; X86-NEXT:    addl %ecx, %edx
-; X86-NEXT:    addl %ecx, %edx
+; X86-NEXT:    leal (%ecx,%ecx), %esi
+; X86-NEXT:    addl %ecx, %esi
+; X86-NEXT:    addl %esi, %edx
+; X86-NEXT:    addl %esi, %edx
 ; X86-NEXT:    movl %edx, 16(%eax)
 ; X86-NEXT:    popl %esi
 ; X86-NEXT:    .cfi_def_cfa_offset 8

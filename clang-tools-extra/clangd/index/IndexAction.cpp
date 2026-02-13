@@ -9,7 +9,9 @@
 #include "IndexAction.h"
 #include "AST.h"
 #include "Headers.h"
+#include "clang-include-cleaner/Record.h"
 #include "index/Relation.h"
+#include "index/SymbolCollector.h"
 #include "index/SymbolOrigin.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
@@ -19,21 +21,21 @@
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Index/IndexingAction.h"
 #include "clang/Index/IndexingOptions.h"
-#include <cstddef>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <utility>
 
 namespace clang {
 namespace clangd {
 namespace {
 
-llvm::Optional<std::string> toURI(Optional<FileEntryRef> File) {
+std::optional<std::string> toURI(OptionalFileEntryRef File) {
   if (!File)
-    return llvm::None;
+    return std::nullopt;
   auto AbsolutePath = File->getFileEntry().tryGetRealPathName();
   if (AbsolutePath.empty())
-    return llvm::None;
+    return std::nullopt;
   return URI::create(AbsolutePath).toString();
 }
 
@@ -85,9 +87,9 @@ public:
   void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
                           llvm::StringRef FileName, bool IsAngled,
                           CharSourceRange FilenameRange,
-                          Optional<FileEntryRef> File,
-                          llvm::StringRef SearchPath,
-                          llvm::StringRef RelativePath, const Module *Imported,
+                          OptionalFileEntryRef File, llvm::StringRef SearchPath,
+                          llvm::StringRef RelativePath,
+                          const Module *SuggestedModule, bool ModuleImported,
                           SrcMgr::CharacteristicKind FileType) override {
     auto IncludeURI = toURI(File);
     if (!IncludeURI)
@@ -126,7 +128,7 @@ private:
 class IndexAction : public ASTFrontendAction {
 public:
   IndexAction(std::shared_ptr<SymbolCollector> C,
-              std::unique_ptr<CanonicalIncludes> Includes,
+              std::unique_ptr<include_cleaner::PragmaIncludes> PI,
               const index::IndexingOptions &Opts,
               std::function<void(SymbolSlab)> SymbolsCallback,
               std::function<void(RefSlab)> RefsCallback,
@@ -135,8 +137,7 @@ public:
       : SymbolsCallback(SymbolsCallback), RefsCallback(RefsCallback),
         RelationsCallback(RelationsCallback),
         IncludeGraphCallback(IncludeGraphCallback), Collector(C),
-        Includes(std::move(Includes)), Opts(Opts),
-        PragmaHandler(collectIWYUHeaderMaps(this->Includes.get())) {
+        PI(std::move(PI)), Opts(Opts) {
     this->Opts.ShouldTraverseDecl = [this](const Decl *D) {
       // Many operations performed during indexing is linear in terms of depth
       // of the decl (USR generation, name lookups, figuring out role of a
@@ -144,6 +145,11 @@ public:
       // inside, it becomes quadratic. So we give up on nested symbols.
       if (isDeeplyNested(D))
         return false;
+      // If D is a likely forwarding function we need the body to index indirect
+      // constructor calls (e.g. `make_unique`)
+      if (auto *FT = llvm::dyn_cast<clang::FunctionTemplateDecl>(D);
+          FT && isLikelyForwardingFunction(FT))
+        return true;
       auto &SM = D->getASTContext().getSourceManager();
       auto FID = SM.getFileID(SM.getExpansionLoc(D->getLocation()));
       if (!FID.isValid())
@@ -154,8 +160,7 @@ public:
 
   std::unique_ptr<ASTConsumer>
   CreateASTConsumer(CompilerInstance &CI, llvm::StringRef InFile) override {
-    CI.getPreprocessor().addCommentHandler(PragmaHandler.get());
-    Includes->addSystemHeadersMapping(CI.getLangOpts());
+    PI->record(CI.getPreprocessor());
     if (IncludeGraphCallback != nullptr)
       CI.getPreprocessor().addPPCallbacks(
           std::make_unique<IncludeGraphCollector>(CI.getSourceManager(), IG));
@@ -201,9 +206,8 @@ private:
   std::function<void(RelationSlab)> RelationsCallback;
   std::function<void(IncludeGraph)> IncludeGraphCallback;
   std::shared_ptr<SymbolCollector> Collector;
-  std::unique_ptr<CanonicalIncludes> Includes;
+  std::unique_ptr<include_cleaner::PragmaIncludes> PI;
   index::IndexingOptions Opts;
-  std::unique_ptr<CommentHandler> PragmaHandler;
   IncludeGraph IG;
 };
 
@@ -220,6 +224,9 @@ std::unique_ptr<FrontendAction> createStaticIndexingAction(
       index::IndexingOptions::SystemSymbolFilterKind::All;
   // We index function-local classes and its member functions only.
   IndexOpts.IndexFunctionLocals = true;
+  // We need to delay indexing so instantiations of function bodies become
+  // available, this is so we can find constructor calls through `make_unique`.
+  IndexOpts.DeferIndexingToEndOfTranslationUnit = true;
   Opts.CollectIncludePath = true;
   if (Opts.Origin == SymbolOrigin::Unknown)
     Opts.Origin = SymbolOrigin::Static;
@@ -228,12 +235,12 @@ std::unique_ptr<FrontendAction> createStaticIndexingAction(
     Opts.RefFilter = RefKind::All;
     Opts.RefsInHeaders = true;
   }
-  auto Includes = std::make_unique<CanonicalIncludes>();
-  Opts.Includes = Includes.get();
-  return std::make_unique<IndexAction>(
-      std::make_shared<SymbolCollector>(std::move(Opts)), std::move(Includes),
-      IndexOpts, SymbolsCallback, RefsCallback, RelationsCallback,
-      IncludeGraphCallback);
+  auto PragmaIncludes = std::make_unique<include_cleaner::PragmaIncludes>();
+  Opts.PragmaIncludes = PragmaIncludes.get();
+  return std::make_unique<IndexAction>(std::make_shared<SymbolCollector>(Opts),
+                                       std::move(PragmaIncludes), IndexOpts,
+                                       SymbolsCallback, RefsCallback,
+                                       RelationsCallback, IncludeGraphCallback);
 }
 
 } // namespace clangd

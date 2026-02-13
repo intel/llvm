@@ -17,11 +17,10 @@
 #include "clang/Basic/LLVM.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallBitVector.h"
 #include <cassert>
 #include <deque>
+#include <optional>
 #include <utility>
 
 namespace clang {
@@ -49,6 +48,9 @@ class FunctionSummariesTy {
     /// The number of times the function has been inlined.
     unsigned TimesInlined : 32;
 
+    /// Running time for syntax-based AST analysis in milliseconds.
+    std::optional<unsigned> SyntaxRunningTime = std::nullopt;
+
     FunctionSummary()
         : TotalBasicBlocks(0), InlineChecked(0), MayInline(0),
           TimesInlined(0) {}
@@ -70,6 +72,11 @@ public:
     return I;
   }
 
+  FunctionSummary const *findSummary(const Decl *D) const {
+    auto I = Map.find(D);
+    return I == Map.end() ? nullptr : &I->second;
+  }
+
   void markMayInline(const Decl *D) {
     MapTy::iterator I = findOrInsertSummary(D);
     I->second.InlineChecked = 1;
@@ -82,15 +89,11 @@ public:
     I->second.MayInline = 0;
   }
 
-  void markReachedMaxBlockCount(const Decl *D) {
-    markShouldNotInline(D);
-  }
-
-  Optional<bool> mayInline(const Decl *D) {
+  std::optional<bool> mayInline(const Decl *D) {
     MapTy::const_iterator I = Map.find(D);
     if (I != Map.end() && I->second.InlineChecked)
       return I->second.MayInline;
-    return None;
+    return std::nullopt;
   }
 
   void markVisitedBasicBlock(unsigned ID, const Decl* D, unsigned TotalIDs) {

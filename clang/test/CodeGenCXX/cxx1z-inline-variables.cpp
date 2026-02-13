@@ -1,4 +1,18 @@
-// RUN: %clang_cc1 -no-opaque-pointers -std=c++1z %s -emit-llvm -o - -triple x86_64-linux-gnu | FileCheck %s
+// RUN: %clang_cc1 -std=c++1z %s -emit-llvm -o - -triple x86_64-linux-gnu | FileCheck %s
+
+template <typename T> struct InlineAuto {
+  template <typename G> inline static auto var = 5;
+};
+int inlineauto = InlineAuto<int>::var<int>;
+// CHECK: @_ZN10InlineAutoIiE3varIiEE = {{.*}}i32 5{{.*}}comdat
+
+template <typename> struct PartialInlineAuto {
+  template <typename, typename> inline static auto var = 6;
+  template <typename T> inline static auto var<int, T> = 7;
+};
+
+int partialinlineauto = PartialInlineAuto<int>::var<int, int>;
+// CHECK: @_ZN17PartialInlineAutoIiE3varIiiEE = {{.*}}i32 7{{.*}}comdat
 
 struct Q {
   // CHECK: @_ZN1Q1kE = linkonce_odr constant i32 5, comdat
@@ -93,10 +107,10 @@ const int &yib = Y<int>::b;
 // CHECK-LABEL: define {{.*}}global_var_init{{.*}} comdat($b)
 // CHECK: load atomic {{.*}} acquire, align
 // CHECK: br
-// CHECK: __cxa_guard_acquire(i64* @_ZGV1b)
+// CHECK: __cxa_guard_acquire(ptr @_ZGV1b)
 // CHECK: br
 // CHECK: call noundef i32 @_Z1fv
-// CHECK: __cxa_guard_release(i64* @_ZGV1b)
+// CHECK: __cxa_guard_release(ptr @_ZGV1b)
 
 // CHECK-LABEL: define {{.*}}global_var_init
 // CHECK: call noundef i32 @_Z1fv
@@ -106,9 +120,9 @@ int e = d<int>;
 
 // CHECK-LABEL: define {{.*}}global_var_init{{.*}}comdat
 // CHECK: _ZGV1dIiE
-// CHECK-NOT: __cxa_guard_acquire(i64* @_ZGV1b)
+// CHECK-NOT: __cxa_guard_acquire(ptr @_ZGV1b)
 // CHECK: call noundef i32 @_Z1fv
-// CHECK-NOT: __cxa_guard_release(i64* @_ZGV1b)
+// CHECK-NOT: __cxa_guard_release(ptr @_ZGV1b)
 
 namespace PR35599 {
 struct Marker1 {};

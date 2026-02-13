@@ -1,15 +1,15 @@
 // REQUIRES: cuda
-// RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
-// RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note -D__SYCL_INTERNAL_API %s -o %t.out
+// RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
+// RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note -D__SYCL_INTERNAL_API %s
 //
 /// Also test the experimental CUDA interop interface
-// RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note -DSYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL %s -o %t.out
-// RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note -D__SYCL_INTERNAL_API -DSYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL %s -o %t.out
-// expected-no-diagnostics
+// RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note -DSYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL %s
+// RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note -D__SYCL_INTERNAL_API -DSYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL %s
 
 // Test for legacy and experimental CUDA interop API
 
 #ifdef SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL
+// expected-no-diagnostics
 #include <sycl/ext/oneapi/experimental/backend/cuda.hpp>
 #endif
 
@@ -59,6 +59,9 @@ int main() {
   // backend-defined and specified in the backend specification.
 
   cu_device = get_native<backend::ext_oneapi_cuda>(Device);
+#ifndef SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL
+  // expected-warning@+2{{'get_native<sycl::backend::ext_oneapi_cuda, sycl::context>' is deprecated: Context interop is deprecated for CUDA. If a native context is required, use cuDevicePrimaryCtxRetain with a native device}}
+#endif
   cu_context = get_native<backend::ext_oneapi_cuda>(Context);
   cu_event = get_native<backend::ext_oneapi_cuda>(Event);
   cu_queue = get_native<backend::ext_oneapi_cuda>(Queue);
@@ -87,8 +90,6 @@ int main() {
 
   backend_input_t<backend::ext_oneapi_cuda, context> InteropContextInput{
       cu_context[0]};
-  context InteropContext =
-      make_context<backend::ext_oneapi_cuda>(InteropContextInput);
   event InteropEvent = make_event<backend::ext_oneapi_cuda>(cu_event, Context);
 
   queue InteropQueue = make_queue<backend::ext_oneapi_cuda>(cu_queue, Context);

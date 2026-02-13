@@ -8,9 +8,7 @@
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
 
-// This test relies on https://wg21.link/P0482 being implemented, which isn't in
-// older Apple dylibs
-// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx{{10.9|10.10|10.11|10.12|10.13|10.14|10.15|11.0}}
+// XFAIL: availability-char8_t_support-missing
 
 // <locale>
 
@@ -35,6 +33,6 @@ int main(int, char**) {
   assert(from_next - from == 9);
   assert(to_next - to == 9);
   for (unsigned i = 0; i < 9; ++i)
-    assert(to[i] == from[i]);
+    assert(to[i] == static_cast<char16_t>(from[i]));
   return 0;
 }

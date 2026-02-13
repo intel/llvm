@@ -1,12 +1,12 @@
-# RUN: llvm-mc %s --triple=loongarch32 --mattr=+f --show-encoding \
+# RUN: llvm-mc %s --triple=loongarch32 --show-encoding \
 # RUN:     | FileCheck --check-prefixes=ASM-AND-OBJ,ASM %s
-# RUN: llvm-mc %s --triple=loongarch64 --mattr=+f --show-encoding \
+# RUN: llvm-mc %s --triple=loongarch64 --show-encoding \
 # RUN:     | FileCheck --check-prefixes=ASM-AND-OBJ,ASM %s
-# RUN: llvm-mc %s --triple=loongarch32 --mattr=+f --filetype=obj \
-# RUN:     | llvm-objdump -d --mattr=+f - \
+# RUN: llvm-mc %s --triple=loongarch32 --filetype=obj \
+# RUN:     | llvm-objdump -d - \
 # RUN:     | FileCheck --check-prefix=ASM-AND-OBJ %s
-# RUN: llvm-mc %s --triple=loongarch64 --mattr=+f --filetype=obj \
-# RUN:     | llvm-objdump -d --mattr=+f - \
+# RUN: llvm-mc %s --triple=loongarch64 --filetype=obj \
+# RUN:     | llvm-objdump -d - \
 # RUN:     | FileCheck --check-prefix=ASM-AND-OBJ %s
 
 # ASM-AND-OBJ: fcmp.caf.s $fcc0, $fa0, $fa1

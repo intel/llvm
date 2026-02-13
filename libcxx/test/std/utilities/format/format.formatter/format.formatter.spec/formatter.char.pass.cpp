@@ -1,4 +1,5 @@
 //===----------------------------------------------------------------------===//
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -6,10 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-has-no-incomplete-format
 
 // <format>
 
+// C++23 the formatter is a debug-enabled specialization.
 // [format.formatter.spec]:
 // Each header that declares the template `formatter` provides the following
 // enabled specializations:
@@ -21,6 +22,8 @@
 #include <format>
 #include <cassert>
 #include <concepts>
+#include <iterator>
+#include <memory>
 #include <type_traits>
 
 #include "test_format_context.h"
@@ -28,16 +31,18 @@
 #include "make_string.h"
 
 #define STR(S) MAKE_STRING(CharT, S)
+#define SV(S) MAKE_STRING_VIEW(CharT, S)
 
 template <class StringT, class StringViewT, class ArgumentT>
-void test(StringT expected, StringViewT fmt, ArgumentT arg) {
+void test(StringT expected, StringViewT fmt, ArgumentT arg, std::size_t offset) {
   using CharT = typename StringT::value_type;
   auto parse_ctx = std::basic_format_parse_context<CharT>(fmt);
   std::formatter<ArgumentT, CharT> formatter;
   static_assert(std::semiregular<decltype(formatter)>);
 
-  auto it = formatter.parse(parse_ctx);
-  assert(it == fmt.end() - (!fmt.empty() && fmt.back() == '}'));
+  std::same_as<typename StringViewT::iterator> auto it = formatter.parse(parse_ctx);
+  // std::to_address works around LWG3989 and MSVC STL's iterator debugging mechanism.
+  assert(std::to_address(it) == std::to_address(fmt.end()) - offset);
 
   StringT result;
   auto out = std::back_inserter(result);
@@ -59,10 +64,31 @@ void test_termination_condition(StringT expected, StringT f, ArgumentT arg) {
   std::basic_string_view<CharT> fmt{f};
   assert(fmt.back() == CharT('}') && "Pre-condition failure");
 
-  test(expected, fmt, arg);
+  test(expected, fmt, arg, 1);
   fmt.remove_suffix(1);
-  test(expected, fmt, arg);
+  test(expected, fmt, arg, 0);
 }
+
+#if TEST_STD_VER > 20
+template <class ArgumentT, class CharT>
+constexpr bool test_set_debug_format() {
+  std::formatter<ArgumentT, CharT> formatter;
+  LIBCPP_ASSERT(formatter.__parser_.__type_ == std::__format_spec::__type::__default);
+
+  formatter.set_debug_format();
+  LIBCPP_ASSERT(formatter.__parser_.__type_ == std::__format_spec::__type::__debug);
+
+  std::basic_string_view fmt = SV("d}");
+  std::basic_format_parse_context<CharT> parse_ctx{fmt};
+  formatter.parse(parse_ctx);
+  LIBCPP_ASSERT(formatter.__parser_.__type_ == std::__format_spec::__type::__decimal);
+
+  formatter.set_debug_format();
+  LIBCPP_ASSERT(formatter.__parser_.__type_ == std::__format_spec::__type::__debug);
+
+  return true;
+}
+#endif
 
 template <class ArgumentT, class CharT>
 void test_char_type() {
@@ -72,6 +98,11 @@ void test_char_type() {
   test_termination_condition(STR("Z"), STR("}"), ArgumentT('Z'));
   test_termination_condition(STR("0"), STR("}"), ArgumentT('0'));
   test_termination_condition(STR("9"), STR("}"), ArgumentT('9'));
+
+#if TEST_STD_VER > 20
+  test_set_debug_format<ArgumentT, CharT>();
+  static_assert(test_set_debug_format<ArgumentT, CharT>());
+#endif
 }
 
 int main(int, char**) {

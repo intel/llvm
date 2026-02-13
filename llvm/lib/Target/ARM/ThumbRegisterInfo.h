@@ -23,16 +23,18 @@ namespace llvm {
   class ARMBaseInstrInfo;
 
 struct ThumbRegisterInfo : public ARMBaseRegisterInfo {
+private:
+  const bool IsThumb1Only;
+
 public:
-  ThumbRegisterInfo();
+  explicit ThumbRegisterInfo(const ARMSubtarget &STI);
 
   const TargetRegisterClass *
   getLargestLegalSuperClass(const TargetRegisterClass *RC,
                             const MachineFunction &MF) const override;
 
   const TargetRegisterClass *
-  getPointerRegClass(const MachineFunction &MF,
-                     unsigned Kind = 0) const override;
+  getPointerRegClass(unsigned Kind = 0) const override;
 
   /// emitLoadConstPool - Emits a load from constpool to materialize the
   /// specified immediate.
@@ -51,7 +53,7 @@ public:
                          const ARMBaseInstrInfo &TII) const;
   void resolveFrameIndex(MachineInstr &MI, Register BaseReg,
                          int64_t Offset) const override;
-  void eliminateFrameIndex(MachineBasicBlock::iterator II,
+  bool eliminateFrameIndex(MachineBasicBlock::iterator II,
                            int SPAdj, unsigned FIOperandNum,
                            RegScavenger *RS = nullptr) const override;
   bool useFPForScavengingIndex(const MachineFunction &MF) const override;

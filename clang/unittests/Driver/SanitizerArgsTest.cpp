@@ -15,18 +15,18 @@
 #include "clang/Frontend/TextDiagnosticPrinter.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Host.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include <cstdlib>
 #include <memory>
+#include <optional>
 #include <string>
 using namespace clang;
 using namespace clang::driver;
@@ -52,10 +52,9 @@ protected:
                                           std::vector<std::string> ExtraFiles) {
     assert(!DriverInstance && "Running twice is not allowed");
 
-    llvm::IntrusiveRefCntPtr<DiagnosticOptions> Opts = new DiagnosticOptions;
-    DiagnosticsEngine Diags(
-        new DiagnosticIDs, Opts,
-        new TextDiagnosticPrinter(llvm::errs(), Opts.get()));
+    DiagnosticOptions DiagOpts;
+    DiagnosticsEngine Diags(DiagnosticIDs::create(), DiagOpts,
+                            new TextDiagnosticPrinter(llvm::errs(), DiagOpts));
     DriverInstance.emplace(ClangBinary, "x86_64-unknown-linux-gnu", Diags,
                            "clang LLVM compiler", prepareFS(ExtraFiles));
 
@@ -79,8 +78,7 @@ protected:
 private:
   llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem>
   prepareFS(llvm::ArrayRef<std::string> ExtraFiles) {
-    llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> FS =
-        new llvm::vfs::InMemoryFileSystem;
+    auto FS = llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
     FS->addFile(ClangBinary, time_t(), llvm::MemoryBuffer::getMemBuffer(""));
     FS->addFile(InputFile, time_t(), llvm::MemoryBuffer::getMemBuffer(""));
     for (llvm::StringRef F : ExtraFiles)
@@ -88,7 +86,7 @@ private:
     return FS;
   }
 
-  llvm::Optional<Driver> DriverInstance;
+  std::optional<Driver> DriverInstance;
   std::unique_ptr<driver::Compilation> CompilationJob;
 };
 

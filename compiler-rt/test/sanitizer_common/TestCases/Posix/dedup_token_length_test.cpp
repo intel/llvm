@@ -10,7 +10,11 @@
 
 // REQUIRES: stable-runtime
 
-// XFAIL: netbsd && !asan
+// rdar://158303080 top few frames are at times inaccurate in ubsan fast stack
+// unwind on darwin
+// XFAIL: (darwin && ubsan && (arm64-target-arch || arm64e-target-arch))
+
+// XFAIL: target={{.*netbsd.*}} && !asan
 
 volatile int *null = 0;
 

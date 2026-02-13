@@ -9,12 +9,11 @@
 #include "SystemZTargetMachine.h"
 #include "MCTargetDesc/SystemZMCTargetDesc.h"
 #include "SystemZ.h"
+#include "SystemZMachineFunctionInfo.h"
 #include "SystemZMachineScheduler.h"
+#include "SystemZTargetObjectFile.h"
 #include "SystemZTargetTransformInfo.h"
 #include "TargetInfo/SystemZTargetInfo.h"
-#include "llvm/ADT/Optional.h"
-#include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/CodeGen/Passes.h"
@@ -23,16 +22,27 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/CodeGen.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Target/TargetLoweringObjectFile.h"
 #include "llvm/Transforms/Scalar.h"
+#include <memory>
+#include <optional>
 #include <string>
 
 using namespace llvm;
 
-extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeSystemZTarget() {
+static cl::opt<bool> EnableMachineCombinerPass(
+    "systemz-machine-combiner",
+    cl::desc("Enable the machine combiner pass"),
+    cl::init(true), cl::Hidden);
+
+// NOLINTNEXTLINE(readability-identifier-naming)
+extern "C" LLVM_ABI LLVM_EXTERNAL_VISIBILITY void
+LLVMInitializeSystemZTarget() {
   // Register the target.
   RegisterTargetMachine<SystemZTargetMachine> X(getTheSystemZTarget());
   auto &PR = *PassRegistry::getPassRegistry();
+  initializeSystemZAsmPrinterPass(PR);
   initializeSystemZElimComparePass(PR);
   initializeSystemZShortenInstPass(PR);
   initializeSystemZLongBranchPass(PR);
@@ -40,39 +50,8 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeSystemZTarget() {
   initializeSystemZShortenInstPass(PR);
   initializeSystemZPostRewritePass(PR);
   initializeSystemZTDCPassPass(PR);
-}
-
-static std::string computeDataLayout(const Triple &TT) {
-  std::string Ret;
-
-  // Big endian.
-  Ret += "E";
-
-  // Data mangling.
-  Ret += DataLayout::getManglingComponent(TT);
-
-  // Make sure that global data has at least 16 bits of alignment by
-  // default, so that we can refer to it using LARL.  We don't have any
-  // special requirements for stack variables though.
-  Ret += "-i1:8:16-i8:8:16";
-
-  // 64-bit integers are naturally aligned.
-  Ret += "-i64:64";
-
-  // 128-bit floats are aligned only to 64 bits.
-  Ret += "-f128:64";
-
-  // The DataLayout string always holds a vector alignment of 64 bits, see
-  // comment in clang/lib/Basic/Targets/SystemZ.h.
-  Ret += "-v128:64";
-
-  // We prefer 16 bits of aligned for all globals; see above.
-  Ret += "-a:8:16";
-
-  // Integer registers are 32 or 64 bits.
-  Ret += "-n32:64";
-
-  return Ret;
+  initializeSystemZDAGToDAGISelLegacyPass(PR);
+  initializeSystemZCopyPhysRegsPass(PR);
 }
 
 static std::unique_ptr<TargetLoweringObjectFile> createTLOF(const Triple &TT) {
@@ -81,10 +60,10 @@ static std::unique_ptr<TargetLoweringObjectFile> createTLOF(const Triple &TT) {
 
   // Note: Some times run with -triple s390x-unknown.
   // In this case, default to ELF unless z/OS specifically provided.
-  return std::make_unique<TargetLoweringObjectFileELF>();
+  return std::make_unique<SystemZELFTargetObjectFile>();
 }
 
-static Reloc::Model getEffectiveRelocModel(Optional<Reloc::Model> RM) {
+static Reloc::Model getEffectiveRelocModel(std::optional<Reloc::Model> RM) {
   // Static code is suitable for use in a dynamic executable; there is no
   // separate DynamicNoPIC model.
   if (!RM || *RM == Reloc::DynamicNoPIC)
@@ -122,8 +101,8 @@ static Reloc::Model getEffectiveRelocModel(Optional<Reloc::Model> RM) {
 //   of copy relocs, so locally-binding data symbols might not be in
 //   the range of LARL.  We need the Medium model in that case.
 static CodeModel::Model
-getEffectiveSystemZCodeModel(Optional<CodeModel::Model> CM, Reloc::Model RM,
-                             bool JIT) {
+getEffectiveSystemZCodeModel(std::optional<CodeModel::Model> CM,
+                             Reloc::Model RM, bool JIT) {
   if (CM) {
     if (*CM == CodeModel::Tiny)
       report_fatal_error("Target does not support the tiny CodeModel", false);
@@ -139,11 +118,11 @@ getEffectiveSystemZCodeModel(Optional<CodeModel::Model> CM, Reloc::Model RM,
 SystemZTargetMachine::SystemZTargetMachine(const Target &T, const Triple &TT,
                                            StringRef CPU, StringRef FS,
                                            const TargetOptions &Options,
-                                           Optional<Reloc::Model> RM,
-                                           Optional<CodeModel::Model> CM,
-                                           CodeGenOpt::Level OL, bool JIT)
-    : LLVMTargetMachine(
-          T, computeDataLayout(TT), TT, CPU, FS, Options,
+                                           std::optional<Reloc::Model> RM,
+                                           std::optional<CodeModel::Model> CM,
+                                           CodeGenOptLevel OL, bool JIT)
+    : CodeGenTargetMachineImpl(
+          T, TT.computeDataLayout(), TT, CPU, FS, Options,
           getEffectiveRelocModel(RM),
           getEffectiveSystemZCodeModel(CM, getEffectiveRelocModel(RM), JIT),
           OL),
@@ -167,12 +146,14 @@ SystemZTargetMachine::getSubtargetImpl(const Function &F) const {
       FSAttr.isValid() ? FSAttr.getValueAsString().str() : TargetFS;
 
   // FIXME: This is related to the code below to reset the target options,
-  // we need to know whether or not the soft float flag is set on the
-  // function, so we can enable it as a subtarget feature.
-  bool softFloat = F.getFnAttribute("use-soft-float").getValueAsBool();
-
-  if (softFloat)
+  // we need to know whether the soft float and backchain flags are set on the
+  // function, so we can enable them as subtarget features.
+  bool SoftFloat = F.getFnAttribute("use-soft-float").getValueAsBool();
+  if (SoftFloat)
     FS += FS.empty() ? "+soft-float" : ",+soft-float";
+  bool BackChain = F.hasFnAttribute("backchain");
+  if (BackChain)
+    FS += FS.empty() ? "+backchain" : ",+backchain";
 
   auto &I = SubtargetMap[CPU + TuneCPU + FS];
   if (!I) {
@@ -187,6 +168,11 @@ SystemZTargetMachine::getSubtargetImpl(const Function &F) const {
   return I.get();
 }
 
+ScheduleDAGInstrs *
+SystemZTargetMachine::createPostMachineScheduler(MachineSchedContext *C) const {
+  return createSchedPostRA<SystemZPostRASchedStrategy>(C);
+}
+
 namespace {
 
 /// SystemZ Code Generator Pass Configuration Options.
@@ -197,13 +183,6 @@ public:
 
   SystemZTargetMachine &getSystemZTargetMachine() const {
     return getTM<SystemZTargetMachine>();
-  }
-
-  ScheduleDAGInstrs *
-  createPostMachineScheduler(MachineSchedContext *C) const override {
-    return new ScheduleDAGMI(C,
-                             std::make_unique<SystemZPostRASchedStrategy>(C),
-                             /*RemoveKillFlags=*/true);
   }
 
   void addIRPasses() override;
@@ -219,10 +198,12 @@ public:
 } // end anonymous namespace
 
 void SystemZPassConfig::addIRPasses() {
-  if (getOptLevel() != CodeGenOpt::None) {
+  if (getOptLevel() != CodeGenOptLevel::None) {
     addPass(createSystemZTDCPass());
     addPass(createLoopDataPrefetchPass());
   }
+
+  addPass(createAtomicExpandLegacyPass());
 
   TargetPassConfig::addIRPasses();
 }
@@ -230,14 +211,18 @@ void SystemZPassConfig::addIRPasses() {
 bool SystemZPassConfig::addInstSelector() {
   addPass(createSystemZISelDag(getSystemZTargetMachine(), getOptLevel()));
 
- if (getOptLevel() != CodeGenOpt::None)
+  if (getOptLevel() != CodeGenOptLevel::None)
     addPass(createSystemZLDCleanupPass(getSystemZTargetMachine()));
 
   return false;
 }
 
 bool SystemZPassConfig::addILPOpts() {
-  addPass(&EarlyIfConverterID);
+  addPass(&EarlyIfConverterLegacyID);
+
+  if (EnableMachineCombinerPass)
+    addPass(&MachineCombinerID);
+
   return true;
 }
 
@@ -252,12 +237,12 @@ void SystemZPassConfig::addPostRewrite() {
 void SystemZPassConfig::addPostRegAlloc() {
   // PostRewrite needs to be run at -O0 also (in which case addPostRewrite()
   // is not called).
-  if (getOptLevel() == CodeGenOpt::None)
+  if (getOptLevel() == CodeGenOptLevel::None)
     addPass(createSystemZPostRewritePass(getSystemZTargetMachine()));
 }
 
 void SystemZPassConfig::addPreSched2() {
-  if (getOptLevel() != CodeGenOpt::None)
+  if (getOptLevel() != CodeGenOptLevel::None)
     addPass(&IfConverterID);
 }
 
@@ -265,7 +250,7 @@ void SystemZPassConfig::addPreEmitPass() {
   // Do instruction shortening before compare elimination because some
   // vector instructions will be shortened into opcodes that compare
   // elimination recognizes.
-  if (getOptLevel() != CodeGenOpt::None)
+  if (getOptLevel() != CodeGenOptLevel::None)
     addPass(createSystemZShortenInstPass(getSystemZTargetMachine()));
 
   // We eliminate comparisons here rather than earlier because some
@@ -291,14 +276,14 @@ void SystemZPassConfig::addPreEmitPass() {
   // Doing it so late makes it more likely that a register will be reused
   // between the comparison and the branch, but it isn't clear whether
   // preventing that would be a win or not.
-  if (getOptLevel() != CodeGenOpt::None)
+  if (getOptLevel() != CodeGenOptLevel::None)
     addPass(createSystemZElimComparePass(getSystemZTargetMachine()));
   addPass(createSystemZLongBranchPass(getSystemZTargetMachine()));
 
   // Do final scheduling after all other optimizations, to get an
   // optimal input for the decoder (branch relaxation must happen
   // after block placement).
-  if (getOptLevel() != CodeGenOpt::None)
+  if (getOptLevel() != CodeGenOptLevel::None)
     addPass(&PostMachineSchedulerID);
 }
 
@@ -308,5 +293,12 @@ TargetPassConfig *SystemZTargetMachine::createPassConfig(PassManagerBase &PM) {
 
 TargetTransformInfo
 SystemZTargetMachine::getTargetTransformInfo(const Function &F) const {
-  return TargetTransformInfo(SystemZTTIImpl(this, F));
+  return TargetTransformInfo(std::make_unique<SystemZTTIImpl>(this, F));
+}
+
+MachineFunctionInfo *SystemZTargetMachine::createMachineFunctionInfo(
+    BumpPtrAllocator &Allocator, const Function &F,
+    const TargetSubtargetInfo *STI) const {
+  return SystemZMachineFunctionInfo::create<SystemZMachineFunctionInfo>(
+      Allocator, F, STI);
 }

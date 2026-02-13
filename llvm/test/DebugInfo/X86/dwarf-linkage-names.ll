@@ -45,11 +45,11 @@ source_filename = "test/DebugInfo/X86/dwarf-linkage-names.ll"
 ; Function Attrs: nounwind uwtable
 define i32 @_ZN4test3barEv() #0 !dbg !11 {
 entry:
-  %0 = load i32, i32* @_ZN4test10global_varE, align 4, !dbg !14
+  %0 = load i32, ptr @_ZN4test10global_varE, align 4, !dbg !14
   ret i32 %0, !dbg !15
 }
 
-attributes #0 = { nounwind uwtable "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind uwtable "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+sse,+sse2" "use-soft-float"="false" }
 
 !llvm.dbg.cu = !{!5}
 !llvm.module.flags = !{!8, !9}

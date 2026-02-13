@@ -38,10 +38,10 @@ class CodeGenVTables {
   typedef VTableLayout::AddressPointsMapTy VTableAddressPointsMapTy;
 
   typedef std::pair<const CXXRecordDecl *, BaseSubobject> BaseSubobjectPairTy;
-  typedef llvm::DenseMap<BaseSubobjectPairTy, uint64_t> SubVTTIndiciesMapTy;
+  typedef llvm::DenseMap<BaseSubobjectPairTy, uint64_t> SubVTTIndicesMapTy;
 
-  /// SubVTTIndicies - Contains indices into the various sub-VTTs.
-  SubVTTIndiciesMapTy SubVTTIndicies;
+  /// SubVTTIndices - Contains indices into the various sub-VTTs.
+  SubVTTIndicesMapTy SubVTTIndices;
 
   typedef llvm::DenseMap<BaseSubobjectPairTy, uint64_t>
     SecondaryVirtualPointerIndicesMapTy;
@@ -75,20 +75,6 @@ class CodeGenVTables {
                             bool vtableHasLocalLinkage,
                             bool isCompleteDtor) const;
 
-  /// Create a dso_local stub that will be used for a relative reference in the
-  /// relative vtable layout. This stub will just be a tail call to the original
-  /// function and propagate any function attributes from the original. If the
-  /// original function is already dso_local, the original is returned instead
-  /// and a stub is not created.
-  llvm::Function *
-  getOrCreateRelativeStub(llvm::Function *func,
-                          llvm::GlobalValue::LinkageTypes stubLinkage,
-                          bool isCompleteDtor) const;
-
-  bool useRelativeLayout() const;
-
-  llvm::Type *getVTableComponentType() const;
-
 public:
   /// Add vtable components for the given vtable layout to the given
   /// global initializer.
@@ -99,6 +85,10 @@ public:
   CodeGenVTables(CodeGenModule &CGM);
 
   ItaniumVTableContext &getItaniumVTableContext() {
+    return *cast<ItaniumVTableContext>(VTContext);
+  }
+
+  const ItaniumVTableContext &getItaniumVTableContext() const {
     return *cast<ItaniumVTableContext>(VTContext);
   }
 
@@ -132,6 +122,10 @@ public:
                          llvm::GlobalVariable::LinkageTypes Linkage,
                          const CXXRecordDecl *RD);
 
+  /// GetAddrOfVTable - Get the address of the VTable for the given record
+  /// decl.
+  llvm::GlobalVariable *GetAddrOfVTable(const CXXRecordDecl *RD);
+
   /// EmitThunks - Emit the associated thunks for the given global decl.
   void EmitThunks(GlobalDecl GD);
 
@@ -157,6 +151,12 @@ public:
 
   /// Specify a global should not be instrumented with hwasan.
   void RemoveHwasanMetadata(llvm::GlobalValue *GV) const;
+
+  /// Return the type used as components for a vtable.
+  llvm::Type *getVTableComponentType() const;
+
+  /// Return true if the relative vtable layout is used.
+  bool useRelativeLayout() const;
 };
 
 } // end namespace CodeGen

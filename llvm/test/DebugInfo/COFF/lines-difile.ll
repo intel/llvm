@@ -38,26 +38,26 @@ target triple = "x86_64-pc-windows-msvc19.11.25508"
 
 @"\01?gy@@3UFoo@@A" = global %struct.Foo zeroinitializer, align 1, !dbg !0
 @"\01?global@@3HA" = external global i32, align 4
-@llvm.global_ctors = appending global [1 x { i32, void ()*, i8* }] [{ i32, void ()*, i8* } { i32 65535, void ()* @_GLOBAL__sub_I_t.cpp, i8* null }]
+@llvm.global_ctors = appending global [1 x { i32, ptr, ptr }] [{ i32, ptr, ptr } { i32 65535, ptr @_GLOBAL__sub_I_t.cpp, ptr null }]
 
 ; Function Attrs: noinline uwtable
 define internal void @"\01??__Egy@@YAXXZ"() #0 !dbg !18 {
 entry:
-  %call = call %struct.Foo* @"\01??0Foo@@QEAA@XZ"(%struct.Foo* @"\01?gy@@3UFoo@@A"), !dbg !21
+  %call = call ptr @"\01??0Foo@@QEAA@XZ"(ptr @"\01?gy@@3UFoo@@A"), !dbg !21
   ret void, !dbg !21
 }
 
-declare %struct.Foo* @"\01??0Foo@@QEAA@XZ"(%struct.Foo* returned) unnamed_addr #1
+declare ptr @"\01??0Foo@@QEAA@XZ"(ptr returned) unnamed_addr #1
 
 ; Function Attrs: noinline nounwind optnone uwtable
 define void @"\01?f@@YAXXZ"() #2 !dbg !22 {
 entry:
-  %0 = load i32, i32* @"\01?global@@3HA", align 4, !dbg !23
+  %0 = load i32, ptr @"\01?global@@3HA", align 4, !dbg !23
   %inc = add nsw i32 %0, 1, !dbg !23
-  store i32 %inc, i32* @"\01?global@@3HA", align 4, !dbg !23
-  %1 = load i32, i32* @"\01?global@@3HA", align 4, !dbg !24
+  store i32 %inc, ptr @"\01?global@@3HA", align 4, !dbg !23
+  %1 = load i32, ptr @"\01?global@@3HA", align 4, !dbg !24
   %inc1 = add nsw i32 %1, 1, !dbg !24
-  store i32 %inc1, i32* @"\01?global@@3HA", align 4, !dbg !24
+  store i32 %inc1, ptr @"\01?global@@3HA", align 4, !dbg !24
   ret void, !dbg !25
 }
 
@@ -68,9 +68,9 @@ entry:
   ret void
 }
 
-attributes #0 = { noinline uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #2 = { noinline nounwind optnone uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { noinline uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "use-soft-float"="false" }
+attributes #1 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "use-soft-float"="false" }
+attributes #2 = { noinline nounwind optnone uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "use-soft-float"="false" }
 
 !llvm.dbg.cu = !{!2}
 !llvm.module.flags = !{!13, !14, !15, !16}

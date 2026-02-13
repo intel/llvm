@@ -3,6 +3,7 @@
 #include "ARMTargetMachine.h"
 #include "llvm/CodeGen/MIRParser/MIRParser.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
+#include "llvm/IR/Module.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/TargetSelect.h"
@@ -17,7 +18,7 @@ namespace {
 /// TODO: Some of this might be useful for other architectures as well - extract
 ///       the platform-independent parts somewhere they can be reused.
 void runChecks(
-    LLVMTargetMachine *TM, const ARMBaseInstrInfo *II,
+    TargetMachine *TM, const ARMBaseInstrInfo *II,
     const StringRef InputIRSnippet, const StringRef InputMIRSnippet,
     unsigned Expected,
     std::function<void(const ARMBaseInstrInfo &, MachineFunction &, unsigned &)>
@@ -51,7 +52,7 @@ void runChecks(
   std::unique_ptr<Module> M = MParser->parseIRModule();
   ASSERT_TRUE(M);
 
-  M->setTargetTriple(TM->getTargetTriple().getTriple());
+  M->setTargetTriple(TM->getTargetTriple());
   M->setDataLayout(TM->createDataLayout());
 
   MachineModuleInfo MMI(TM);
@@ -72,18 +73,18 @@ TEST(InstSizes, PseudoInst) {
   LLVMInitializeARMTarget();
   LLVMInitializeARMTargetMC();
 
-  auto TT(Triple::normalize("thumbv8.1m.main-none-none-eabi"));
+  Triple TT("thumbv8.1m.main-none-none-eabi");
   std::string Error;
   const Target *T = TargetRegistry::lookupTarget(TT, Error);
   if (!T) {
     dbgs() << Error;
-    return;
+    GTEST_SKIP();
   }
 
   TargetOptions Options;
-  auto TM = std::unique_ptr<LLVMTargetMachine>(
-      static_cast<LLVMTargetMachine *>(T->createTargetMachine(
-          TT, "generic", "", Options, None, None, CodeGenOpt::Default)));
+  auto TM = std::unique_ptr<TargetMachine>(
+      T->createTargetMachine(TT, "generic", "", Options, std::nullopt,
+                             std::nullopt, CodeGenOptLevel::Default));
   ARMSubtarget ST(TM->getTargetTriple(), std::string(TM->getTargetCPU()),
                   std::string(TM->getTargetFeatureString()),
                   *static_cast<const ARMBaseTargetMachine *>(TM.get()), false);

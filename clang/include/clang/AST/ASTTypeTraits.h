@@ -51,11 +51,10 @@ enum TraversalKind {
 class ASTNodeKind {
 public:
   /// Empty identifier. It matches nothing.
-  ASTNodeKind() : KindId(NKI_None) {}
+  constexpr ASTNodeKind() : KindId(NKI_None) {}
 
   /// Construct an identifier for T.
-  template <class T>
-  static ASTNodeKind getFromNodeKind() {
+  template <class T> static constexpr ASTNodeKind getFromNodeKind() {
     return ASTNodeKind(KindToKindId<T>::Id);
   }
 
@@ -71,23 +70,26 @@ public:
   /// \}
 
   /// Returns \c true if \c this and \c Other represent the same kind.
-  bool isSame(ASTNodeKind Other) const {
+  constexpr bool isSame(ASTNodeKind Other) const {
     return KindId != NKI_None && KindId == Other.KindId;
   }
 
   /// Returns \c true only for the default \c ASTNodeKind()
-  bool isNone() const { return KindId == NKI_None; }
+  constexpr bool isNone() const { return KindId == NKI_None; }
+
+  /// Returns \c true if \c this is a base kind of (or same as) \c Other.
+  bool isBaseOf(ASTNodeKind Other) const;
 
   /// Returns \c true if \c this is a base kind of (or same as) \c Other.
   /// \param Distance If non-null, used to return the distance between \c this
   /// and \c Other in the class hierarchy.
-  bool isBaseOf(ASTNodeKind Other, unsigned *Distance = nullptr) const;
+  bool isBaseOf(ASTNodeKind Other, unsigned *Distance) const;
 
   /// String representation of the kind.
   StringRef asStringRef() const;
 
   /// Strict weak ordering for ASTNodeKind.
-  bool operator<(const ASTNodeKind &Other) const {
+  constexpr bool operator<(const ASTNodeKind &Other) const {
     return KindId < Other.KindId;
   }
 
@@ -121,7 +123,7 @@ public:
 
   /// Check if the given ASTNodeKind identifies a type that offers pointer
   /// identity. This is useful for the fast path in DynTypedNode.
-  bool hasPointerIdentity() const {
+  constexpr bool hasPointerIdentity() const {
     return KindId > NKI_LastKindWithoutPointerIdentity;
   }
 
@@ -161,11 +163,16 @@ private:
 #define ATTR(A) NKI_##A##Attr,
 #include "clang/Basic/AttrList.inc"
     NKI_ObjCProtocolLoc,
+    NKI_ConceptReference,
     NKI_NumberOfKinds
   };
 
   /// Use getFromNodeKind<T>() to construct the kind.
-  ASTNodeKind(NodeKindId KindId) : KindId(KindId) {}
+  constexpr ASTNodeKind(NodeKindId KindId) : KindId(KindId) {}
+
+  /// Returns \c true if \c Base is a base kind of (or same as) \c
+  ///   Derived.
+  static bool isBaseOf(NodeKindId Base, NodeKindId Derived);
 
   /// Returns \c true if \c Base is a base kind of (or same as) \c
   ///   Derived.
@@ -216,6 +223,7 @@ KIND_TO_KIND_ID(OMPClause)
 KIND_TO_KIND_ID(Attr)
 KIND_TO_KIND_ID(ObjCProtocolLoc)
 KIND_TO_KIND_ID(CXXBaseSpecifier)
+KIND_TO_KIND_ID(ConceptReference)
 #define DECL(DERIVED, BASE) KIND_TO_KIND_ID(DERIVED##Decl)
 #include "clang/AST/DeclNodes.inc"
 #define STMT(DERIVED, BASE) KIND_TO_KIND_ID(DERIVED)
@@ -299,7 +307,7 @@ public:
 
   /// For nodes which represent textual entities in the source code,
   /// return their SourceRange.  For all other nodes, return SourceRange().
-  SourceRange getSourceRange() const;
+  SourceRange getSourceRange(bool IncludeQualifier = false) const;
 
   /// @{
   /// Imposes an order on \c DynTypedNode.
@@ -328,9 +336,9 @@ public:
             NodeKind)) {
       auto NNSLA = getUnchecked<NestedNameSpecifierLoc>();
       auto NNSLB = Other.getUnchecked<NestedNameSpecifierLoc>();
-      return std::make_pair(NNSLA.getNestedNameSpecifier(),
+      return std::make_pair(NNSLA.getNestedNameSpecifier().getAsVoidPointer(),
                             NNSLA.getOpaqueData()) <
-             std::make_pair(NNSLB.getNestedNameSpecifier(),
+             std::make_pair(NNSLB.getNestedNameSpecifier().getAsVoidPointer(),
                             NNSLB.getOpaqueData());
     }
 
@@ -385,8 +393,9 @@ public:
       if (ASTNodeKind::getFromNodeKind<NestedNameSpecifierLoc>().isSame(
               Val.NodeKind)) {
         auto NNSL = Val.getUnchecked<NestedNameSpecifierLoc>();
-        return llvm::hash_combine(NNSL.getNestedNameSpecifier(),
-                                  NNSL.getOpaqueData());
+        return llvm::hash_combine(
+            NNSL.getNestedNameSpecifier().getAsVoidPointer(),
+            NNSL.getOpaqueData());
       }
 
       assert(Val.getMemoizationData());
@@ -531,8 +540,8 @@ struct DynTypedNode::BaseConverter<
     : public DynCastPtrConverter<T, Attr> {};
 
 template <>
-struct DynTypedNode::BaseConverter<
-    NestedNameSpecifier, void> : public PtrConverter<NestedNameSpecifier> {};
+struct DynTypedNode::BaseConverter<NestedNameSpecifier, void>
+    : public ValueConverter<NestedNameSpecifier> {};
 
 template <>
 struct DynTypedNode::BaseConverter<
@@ -575,6 +584,10 @@ struct DynTypedNode::BaseConverter<CXXBaseSpecifier, void>
 template <>
 struct DynTypedNode::BaseConverter<ObjCProtocolLoc, void>
     : public ValueConverter<ObjCProtocolLoc> {};
+
+template <>
+struct DynTypedNode::BaseConverter<ConceptReference, void>
+    : public PtrConverter<ConceptReference> {};
 
 // The only operation we allow on unsupported types is \c get.
 // This allows to conveniently use \c DynTypedNode when having an arbitrary

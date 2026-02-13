@@ -1,4 +1,4 @@
-; RUN: opt %loadPolly -polly-codegen < %s
+; RUN: opt %loadNPMPolly '-passes=polly<no-default-opts>' < %s
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64"
 
 define void @CleanNet() nounwind {
@@ -10,7 +10,7 @@ bb7:                                              ; preds = %bb7, %entry
   br i1 undef, label %bb7, label %bb8
 
 bb8:                                              ; preds = %bb7
-  %indvar5.lcssa.reload = load i64, i64* undef
+  %indvar5.lcssa.reload = load i64, ptr undef
   %tmp17 = mul i64 %indvar5.lcssa.reload, -1
   %tmp18 = add i64 0, %tmp17
   br label %bb18
@@ -20,7 +20,7 @@ bb13:                                             ; preds = %bb18
   br i1 %0, label %bb14, label %bb17
 
 bb14:                                             ; preds = %bb13
-  store i64 %i.1, i64* %firstVia.0.reg2mem
+  store i64 %i.1, ptr %firstVia.0.reg2mem
   br label %bb17
 
 bb17:                                             ; preds = %bb14, %bb13

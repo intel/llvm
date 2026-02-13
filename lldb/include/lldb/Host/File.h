@@ -19,6 +19,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <mutex>
+#include <optional>
 #include <sys/types.h>
 
 namespace lldb_private {
@@ -64,6 +65,9 @@ public:
     eOpenOptionInvalid = (1u << 31), // Used as invalid value
     LLVM_MARK_AS_BITMASK_ENUM(/* largest_value= */ eOpenOptionInvalid)
   };
+
+  static constexpr OpenOptions OpenOptionsModeMask =
+      eOpenOptionReadOnly | eOpenOptionWriteOnly | eOpenOptionReadWrite;
 
   static mode_t ConvertOpenOptionsForPOSIXOpen(OpenOptions open_options);
   static llvm::Expected<OpenOptions> GetOptionsFromMode(llvm::StringRef mode);
@@ -225,7 +229,7 @@ public:
   ///     A buffer where to put the bytes that are read.
   ///
   /// \param[in,out] num_bytes
-  ///     The number of bytes to read form the current file position
+  ///     The number of bytes to read from the current file position
   ///     which gets modified with the number of bytes that were read.
   ///
   /// \param[in,out] offset
@@ -376,21 +380,20 @@ private:
 
 class NativeFile : public File {
 public:
-  NativeFile() : m_descriptor(kInvalidDescriptor), m_stream(kInvalidStream) {}
+  enum TransferOwnership : bool {
+    Owned = true,
+    Unowned = false,
+  };
 
-  NativeFile(FILE *fh, bool transfer_ownership)
-      : m_descriptor(kInvalidDescriptor), m_own_descriptor(false), m_stream(fh),
-        m_options(), m_own_stream(transfer_ownership) {}
+  NativeFile();
 
-  NativeFile(int fd, OpenOptions options, bool transfer_ownership)
-      : m_descriptor(fd), m_own_descriptor(transfer_ownership),
-        m_stream(kInvalidStream), m_options(options), m_own_stream(false) {}
+  NativeFile(FILE *fh, OpenOptions options, bool transfer_ownership);
+
+  NativeFile(int fd, OpenOptions options, bool transfer_ownership);
 
   ~NativeFile() override { Close(); }
 
-  bool IsValid() const override {
-    return DescriptorIsValid() || StreamIsValid();
-  }
+  bool IsValid() const override;
 
   Status Read(void *buf, size_t &num_bytes) override;
   Status Write(const void *buf, size_t &num_bytes) override;
@@ -416,18 +419,42 @@ public:
   static bool classof(const File *file) { return file->isA(&ID); }
 
 protected:
-  bool DescriptorIsValid() const {
+  struct ValueGuard {
+    ValueGuard(std::mutex &m, bool b) : guard(m, std::adopt_lock), value(b) {}
+    std::lock_guard<std::mutex> guard;
+    bool value;
+    operator bool() { return value; }
+  };
+
+  bool DescriptorIsValidUnlocked() const {
+
     return File::DescriptorIsValid(m_descriptor);
   }
-  bool StreamIsValid() const { return m_stream != kInvalidStream; }
 
-  // Member variables
-  int m_descriptor;
+  bool StreamIsValidUnlocked() const { return m_stream != kInvalidStream; }
+
+  ValueGuard DescriptorIsValid() const {
+    m_descriptor_mutex.lock();
+    return ValueGuard(m_descriptor_mutex, DescriptorIsValidUnlocked());
+  }
+
+  ValueGuard StreamIsValid() const {
+    m_stream_mutex.lock();
+    return ValueGuard(m_stream_mutex, StreamIsValidUnlocked());
+  }
+
+  int m_descriptor = kInvalidDescriptor;
   bool m_own_descriptor = false;
-  FILE *m_stream;
+  mutable std::mutex m_descriptor_mutex;
+
+  FILE *m_stream = kInvalidStream;
+  mutable std::mutex m_stream_mutex;
+
   OpenOptions m_options{};
   bool m_own_stream = false;
   std::mutex offset_access_mutex;
+
+  bool is_windows_console = false;
 
 private:
   NativeFile(const NativeFile &) = delete;
@@ -437,10 +464,10 @@ private:
 class SerialPort : public NativeFile {
 public:
   struct Options {
-    llvm::Optional<unsigned int> BaudRate = llvm::None;
-    llvm::Optional<Terminal::Parity> Parity = llvm::None;
-    llvm::Optional<Terminal::ParityCheck> ParityCheck = llvm::None;
-    llvm::Optional<unsigned int> StopBits = llvm::None;
+    std::optional<unsigned int> BaudRate;
+    std::optional<Terminal::Parity> Parity;
+    std::optional<Terminal::ParityCheck> ParityCheck;
+    std::optional<unsigned int> StopBits;
   };
 
   // Obtain Options corresponding to the passed URL query string

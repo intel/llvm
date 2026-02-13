@@ -69,15 +69,18 @@ static Expected<Symbol &> getMachOStubTarget(LinkGraph &G, Block &B) {
 namespace llvm {
 
 Error registerMachOGraphInfo(Session &S, LinkGraph &G) {
+  std::lock_guard<std::mutex> Lock(S.M);
+
   auto FileName = sys::path::filename(G.getName());
-  if (S.FileInfos.count(FileName)) {
+  auto [It, Inserted] = S.FileInfos.try_emplace(FileName);
+  if (!Inserted) {
     return make_error<StringError>("When -check is passed, file names must be "
                                    "distinct (duplicate: \"" +
                                        FileName + "\")",
                                    inconvertibleErrorCode());
   }
 
-  auto &FileInfo = S.FileInfos[FileName];
+  auto &FileInfo = It->second;
   LLVM_DEBUG({
     dbgs() << "Registering MachO file info for \"" << FileName << "\"\n";
   });
@@ -111,27 +114,13 @@ Error registerMachOGraphInfo(Session &S, LinkGraph &G) {
         FirstSym = Sym;
       if (Sym->getAddress() > LastSym->getAddress())
         LastSym = Sym;
-      if (isGOTSection) {
-        if (Sym->isSymbolZeroFill())
-          return make_error<StringError>("zero-fill atom in GOT section",
-                                         inconvertibleErrorCode());
-
-        if (auto TS = getMachOGOTTarget(G, Sym->getBlock()))
-          FileInfo.GOTEntryInfos[TS->getName()] = {
-              Sym->getSymbolContent(), Sym->getAddress().getValue()};
-        else
-          return TS.takeError();
-        SectionContainsContent = true;
-      } else if (isStubsSection) {
-        if (Sym->isSymbolZeroFill())
-          return make_error<StringError>("zero-fill atom in Stub section",
-                                         inconvertibleErrorCode());
-
-        if (auto TS = getMachOStubTarget(G, Sym->getBlock()))
-          FileInfo.StubInfos[TS->getName()] = {Sym->getSymbolContent(),
-                                               Sym->getAddress().getValue()};
-        else
-          return TS.takeError();
+      if (isGOTSection || isStubsSection) {
+        Error Err =
+            isGOTSection
+                ? FileInfo.registerGOTEntry(G, *Sym, getMachOGOTTarget)
+                : FileInfo.registerStubEntry(G, *Sym, getMachOStubTarget);
+        if (Err)
+          return Err;
         SectionContainsContent = true;
       } else if (Sym->hasName()) {
         if (Sym->isSymbolZeroFill()) {
@@ -140,7 +129,8 @@ Error registerMachOGraphInfo(Session &S, LinkGraph &G) {
           SectionContainsZeroFill = true;
         } else {
           S.SymbolInfos[Sym->getName()] = {Sym->getSymbolContent(),
-                                           Sym->getAddress().getValue()};
+                                           Sym->getAddress().getValue(),
+                                           Sym->getTargetFlags()};
           SectionContainsContent = true;
         }
       }
@@ -160,7 +150,7 @@ Error registerMachOGraphInfo(Session &S, LinkGraph &G) {
     else
       FileInfo.SectionInfos[Sec.getName()] = {
           ArrayRef<char>(FirstSym->getBlock().getContent().data(), SecSize),
-          SecAddr.getValue()};
+          SecAddr.getValue(), FirstSym->getTargetFlags()};
   }
 
   return Error::success();

@@ -14,9 +14,7 @@
 #include "llvm/Support/BinaryStreamWriter.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Error.h"
-#include <algorithm>
 #include <cstdint>
-#include <utility>
 #include <vector>
 
 using namespace llvm;
@@ -89,7 +87,7 @@ Error DebugCrossModuleImportsSubsection::commit(
     Imp.Count = Item->getValue().size();
     if (auto EC = Writer.writeObject(Imp))
       return EC;
-    if (auto EC = Writer.writeArray(makeArrayRef(Item->getValue())))
+    if (auto EC = Writer.writeArray(ArrayRef(Item->getValue())))
       return EC;
   }
   return Error::success();

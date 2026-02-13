@@ -12,6 +12,7 @@
 
 #include "CSKYTargetMachine.h"
 #include "CSKY.h"
+#include "CSKYMachineFunctionInfo.h"
 #include "CSKYSubtarget.h"
 #include "CSKYTargetObjectFile.h"
 #include "TargetInfo/CSKYTargetInfo.h"
@@ -20,6 +21,7 @@
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/MC/TargetRegistry.h"
+#include <optional>
 
 using namespace llvm;
 
@@ -28,32 +30,18 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeCSKYTarget() {
 
   PassRegistry *Registry = PassRegistry::getPassRegistry();
   initializeCSKYConstantIslandsPass(*Registry);
-}
-
-static std::string computeDataLayout(const Triple &TT) {
-  std::string Ret;
-
-  // Only support little endian for now.
-  // TODO: Add support for big endian.
-  Ret += "e";
-
-  // CSKY is always 32-bit target with the CSKYv2 ABI as prefer now.
-  // It's a 4-byte aligned stack with ELF mangling only.
-  Ret += "-m:e-S32-p:32:32-i32:32:32-i64:32:32-f32:32:32-f64:32:32-v64:32:32"
-         "-v128:32:32-a:0:32-Fi32-n32";
-
-  return Ret;
+  initializeCSKYDAGToDAGISelLegacyPass(*Registry);
 }
 
 CSKYTargetMachine::CSKYTargetMachine(const Target &T, const Triple &TT,
                                      StringRef CPU, StringRef FS,
                                      const TargetOptions &Options,
-                                     Optional<Reloc::Model> RM,
-                                     Optional<CodeModel::Model> CM,
-                                     CodeGenOpt::Level OL, bool JIT)
-    : LLVMTargetMachine(T, computeDataLayout(TT), TT, CPU, FS, Options,
-                        RM.value_or(Reloc::Static),
-                        getEffectiveCodeModel(CM, CodeModel::Small), OL),
+                                     std::optional<Reloc::Model> RM,
+                                     std::optional<CodeModel::Model> CM,
+                                     CodeGenOptLevel OL, bool JIT)
+    : CodeGenTargetMachineImpl(T, TT.computeDataLayout(), TT, CPU, FS, Options,
+                               RM.value_or(Reloc::Static),
+                               getEffectiveCodeModel(CM, CodeModel::Small), OL),
       TLOF(std::make_unique<CSKYELFTargetObjectFile>()) {
   initAsmInfo();
 }
@@ -86,6 +74,13 @@ CSKYTargetMachine::getSubtargetImpl(const Function &F) const {
   return I.get();
 }
 
+MachineFunctionInfo *CSKYTargetMachine::createMachineFunctionInfo(
+    BumpPtrAllocator &Allocator, const Function &F,
+    const TargetSubtargetInfo *STI) const {
+  return CSKYMachineFunctionInfo::create<CSKYMachineFunctionInfo>(Allocator, F,
+                                                                  STI);
+}
+
 namespace {
 class CSKYPassConfig : public TargetPassConfig {
 public:
@@ -108,12 +103,12 @@ TargetPassConfig *CSKYTargetMachine::createPassConfig(PassManagerBase &PM) {
 }
 
 void CSKYPassConfig::addIRPasses() {
-  addPass(createAtomicExpandPass());
+  addPass(createAtomicExpandLegacyPass());
   TargetPassConfig::addIRPasses();
 }
 
 bool CSKYPassConfig::addInstSelector() {
-  addPass(createCSKYISelDag(getCSKYTargetMachine()));
+  addPass(createCSKYISelDag(getCSKYTargetMachine(), getOptLevel()));
 
   return false;
 }

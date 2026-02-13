@@ -1,4 +1,4 @@
-//=- RISCVMachineFunctionInfo.h - RISCV machine function info -----*- C++ -*-=//
+//=- RISCVMachineFunctionInfo.h - RISC-V machine function info ----*- C++ -*-=//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -31,7 +31,7 @@ struct RISCVMachineFunctionInfo final : public yaml::MachineFunctionInfo {
   RISCVMachineFunctionInfo(const llvm::RISCVMachineFunctionInfo &MFI);
 
   void mappingImpl(yaml::IO &YamlIO) override;
-  ~RISCVMachineFunctionInfo() = default;
+  ~RISCVMachineFunctionInfo() override = default;
 };
 
 template <> struct MappingTraits<RISCVMachineFunctionInfo> {
@@ -65,9 +65,29 @@ private:
   uint64_t RVVPadding = 0;
   /// Size of stack frame to save callee saved registers
   unsigned CalleeSavedStackSize = 0;
+  /// Is there any vector argument or return?
+  bool IsVectorCall = false;
+
+  /// Registers that have been sign extended from i32.
+  SmallVector<Register, 8> SExt32Registers;
+
+  /// Size of stack frame for Zcmp PUSH/POP
+  unsigned RVPushStackSize = 0;
+  unsigned RVPushRegs = 0;
+
+  /// Size of any opaque stack adjustment due to QCI Interrupt instructions.
+  unsigned QCIInterruptStackSize = 0;
+
+  /// Store Frame Indexes for Interrupt-Related CSR Spills.
+  SmallVector<int, 2> InterruptCSRFrameIndexes;
+
+  int64_t StackProbeSize = 0;
+
+  /// Does it probe the stack for a dynamic allocation?
+  bool HasDynamicAllocation = false;
 
 public:
-  RISCVMachineFunctionInfo(const MachineFunction &MF) {}
+  RISCVMachineFunctionInfo(const Function &F, const RISCVSubtarget *STI);
 
   MachineFunctionInfo *
   clone(BumpPtrAllocator &Allocator, MachineFunction &DestMF,
@@ -94,13 +114,18 @@ public:
     BranchRelaxationScratchFrameIndex = Index;
   }
 
+  unsigned getReservedSpillsSize() const {
+    return LibCallStackSize + RVPushStackSize + QCIInterruptStackSize;
+  }
+
   unsigned getLibCallStackSize() const { return LibCallStackSize; }
   void setLibCallStackSize(unsigned Size) { LibCallStackSize = Size; }
 
   bool useSaveRestoreLibCalls(const MachineFunction &MF) const {
     // We cannot use fixed locations for the callee saved spill slots if the
     // function uses a varargs save area, or is an interrupt handler.
-    return MF.getSubtarget<RISCVSubtarget>().enableSaveRestore() &&
+    return !isPushable(MF) &&
+           MF.getSubtarget<RISCVSubtarget>().enableSaveRestore() &&
            VarArgsSaveSize == 0 && !MF.getFrameInfo().hasTailCall() &&
            !MF.getFunction().hasFnAttribute("interrupt");
   }
@@ -117,7 +142,82 @@ public:
   unsigned getCalleeSavedStackSize() const { return CalleeSavedStackSize; }
   void setCalleeSavedStackSize(unsigned Size) { CalleeSavedStackSize = Size; }
 
+  enum class PushPopKind { None = 0, StdExtZcmp, VendorXqccmp };
+
+  PushPopKind getPushPopKind(const MachineFunction &MF) const;
+
+  bool isPushable(const MachineFunction &MF) const {
+    return getPushPopKind(MF) != PushPopKind::None;
+  }
+
+  unsigned getRVPushRegs() const { return RVPushRegs; }
+  void setRVPushRegs(unsigned Regs) { RVPushRegs = Regs; }
+
+  unsigned getRVPushStackSize() const { return RVPushStackSize; }
+  void setRVPushStackSize(unsigned Size) { RVPushStackSize = Size; }
+
+  enum class InterruptStackKind {
+    None = 0,
+    QCINest,
+    QCINoNest,
+    SiFiveCLICPreemptible,
+    SiFiveCLICStackSwap,
+    SiFiveCLICPreemptibleStackSwap
+  };
+
+  InterruptStackKind getInterruptStackKind(const MachineFunction &MF) const;
+
+  bool useQCIInterrupt(const MachineFunction &MF) const {
+    InterruptStackKind Kind = getInterruptStackKind(MF);
+    return Kind == InterruptStackKind::QCINest ||
+           Kind == InterruptStackKind::QCINoNest;
+  }
+
+  unsigned getQCIInterruptStackSize() const { return QCIInterruptStackSize; }
+  void setQCIInterruptStackSize(unsigned Size) { QCIInterruptStackSize = Size; }
+
+  bool useSiFiveInterrupt(const MachineFunction &MF) const {
+    InterruptStackKind Kind = getInterruptStackKind(MF);
+    return Kind == InterruptStackKind::SiFiveCLICPreemptible ||
+           Kind == InterruptStackKind::SiFiveCLICStackSwap ||
+           Kind == InterruptStackKind::SiFiveCLICPreemptibleStackSwap;
+  }
+
+  bool isSiFivePreemptibleInterrupt(const MachineFunction &MF) const {
+    InterruptStackKind Kind = getInterruptStackKind(MF);
+    return Kind == InterruptStackKind::SiFiveCLICPreemptible ||
+           Kind == InterruptStackKind::SiFiveCLICPreemptibleStackSwap;
+  }
+
+  bool isSiFiveStackSwapInterrupt(const MachineFunction &MF) const {
+    InterruptStackKind Kind = getInterruptStackKind(MF);
+    return Kind == InterruptStackKind::SiFiveCLICStackSwap ||
+           Kind == InterruptStackKind::SiFiveCLICPreemptibleStackSwap;
+  }
+
+  void pushInterruptCSRFrameIndex(int FI) {
+    InterruptCSRFrameIndexes.push_back(FI);
+  }
+  int getInterruptCSRFrameIndex(size_t Idx) const {
+    return InterruptCSRFrameIndexes[Idx];
+  }
+
+  // Some Stack Management Variants automatically update FP in a frame-pointer
+  // convention compatible way - which means we don't need to manually update
+  // the FP, but we still need to emit the correct CFI information for
+  // calculating the CFA based on FP.
+  bool hasImplicitFPUpdates(const MachineFunction &MF) const;
+
   void initializeBaseYamlFields(const yaml::RISCVMachineFunctionInfo &YamlMFI);
+
+  void addSExt32Register(Register Reg);
+  bool isSExt32Register(Register Reg) const;
+
+  bool isVectorCall() const { return IsVectorCall; }
+  void setIsVectorCall() { IsVectorCall = true; }
+
+  bool hasDynamicAllocation() const { return HasDynamicAllocation; }
+  void setDynamicAllocation() { HasDynamicAllocation = true; }
 };
 
 } // end namespace llvm

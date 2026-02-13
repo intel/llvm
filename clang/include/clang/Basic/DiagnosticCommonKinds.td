@@ -55,15 +55,25 @@ def err_expected_colon_after_setter_name : Error<
 def err_expected_string_literal : Error<"expected string literal "
   "%select{in %1|for diagnostic message in static_assert|"
           "for optional message in 'availability' attribute|"
-          "for %select{language|source container}1 name in "
-          "'external_source_symbol' attribute}0">;
+          "for %select{language name|source container name|USR}1 in "
+          "'external_source_symbol' attribute|"
+          "as argument of '%1' attribute}0">;
+
 def err_invalid_string_udl : Error<
   "string literal with user-defined suffix cannot be used here">;
 def err_invalid_character_udl : Error<
   "character literal with user-defined suffix cannot be used here">;
 def err_invalid_numeric_udl : Error<
   "numeric literal with user-defined suffix cannot be used here">;
+def warn_pragma_debug_missing_argument : Warning<
+  "missing argument to debug command '%0'">, InGroup<IgnoredPragmas>;
+def warn_pragma_debug_unexpected_argument : Warning<
+  "unexpected argument to debug command">, InGroup<IgnoredPragmas>;
 
+def warn_fp_nan_inf_when_disabled : Warning<
+  "use of %select{infinity|NaN}0%select{| via a macro}1 is undefined behavior "
+  "due to the currently enabled floating-point options">,
+  InGroup<DiagGroup<"nan-infinity-disabled", [], NanInfDisabledDocs>>;
 }
 
 // Parse && Sema
@@ -117,15 +127,23 @@ def note_pragma_entered_here : Note<"#pragma entered here">;
 def note_decl_hiding_tag_type : Note<
   "%1 %0 is hidden by a non-type declaration of %0 here">;
 def err_attribute_not_type_attr : Error<
-  "%0 attribute cannot be applied to types">;
+  "%0%select{ attribute|}1 cannot be applied to types">;
 def err_enum_template : Error<"enumeration cannot be a template">;
 
-def warn_cxx20_compat_consteval : Warning<
-  "'consteval' specifier is incompatible with C++ standards before C++20">,
-  InGroup<CXX20Compat>, DefaultIgnore;
+def warn_cxx20_compat_consteval
+    : Warning<"'consteval' specifier is incompatible with C++ standards before "
+              "C++20">,
+      InGroup<CXXPre20Compat>,
+      DefaultIgnore;
 def warn_missing_type_specifier : Warning<
   "type specifier missing, defaults to 'int'">,
   InGroup<ImplicitInt>, DefaultIgnore;
+
+def ext_c_empty_initializer : Extension<
+  "use of an empty initializer is a C23 extension">, InGroup<C23>;
+def warn_c23_compat_empty_initializer : Warning<
+  "use of an empty initializer is incompatible with C standards before C23">,
+  InGroup<CPre23Compat>, DefaultIgnore;
 }
 
 let CategoryName = "Nullability Issue" in {
@@ -163,8 +181,12 @@ def err_opencl_unknown_type_specifier : Error<
 
 def warn_unknown_attribute_ignored : Warning<
   "unknown attribute %0 ignored">, InGroup<UnknownAttributes>;
+def warn_unknown_attribute_ignored_suggestion : Warning<
+  "unknown attribute %0 ignored; did you mean '%1'?">, InGroup<UnknownAttributes>;
 def warn_attribute_ignored : Warning<"%0 attribute ignored">,
   InGroup<IgnoredAttributes>;
+def err_keyword_not_supported_on_target : Error<
+  "%0 is not supported on this target">;
 def err_use_of_tag_name_without_tag : Error<
   "must use '%1' tag to refer to type %0%select{| in this scope}2">;
 
@@ -200,23 +222,26 @@ def ext_cxx11_longlong : Extension<
 def warn_cxx98_compat_longlong : Warning<
   "'long long' is incompatible with C++98">,
   InGroup<CXX98CompatPedantic>, DefaultIgnore;
-def ext_cxx2b_size_t_suffix : ExtWarn<
-  "'size_t' suffix for literals is a C++2b extension">,
-  InGroup<CXX2b>;
+def ext_cxx23_size_t_suffix : ExtWarn<
+  "'size_t' suffix for literals is a C++23 extension">,
+  InGroup<CXX23>;
 def warn_cxx20_compat_size_t_suffix : Warning<
   "'size_t' suffix for literals is incompatible with C++ standards before "
-  "C++2b">, InGroup<CXXPre2bCompat>, DefaultIgnore;
-def err_cxx2b_size_t_suffix: Error<
-  "'size_t' suffix for literals is a C++2b feature">;
+  "C++23">, InGroup<CXXPre23Compat>, DefaultIgnore;
+def err_cxx23_size_t_suffix: Error<
+  "'size_t' suffix for literals is a C++23 feature">;
 def err_size_t_literal_too_large: Error<
   "%select{signed |}0'size_t' literal is out of range of possible "
   "%select{signed |}0'size_t' values">;
-def ext_c2x_bitint_suffix : ExtWarn<
-  "'_BitInt' suffix for literals is a C2x extension">,
-  InGroup<C2x>;
-def warn_c2x_compat_bitint_suffix : Warning<
-  "'_BitInt' suffix for literals is incompatible with C standards before C2x">,
-  InGroup<CPre2xCompat>, DefaultIgnore;
+def ext_cxx_bitint_suffix : Extension<
+  "'_BitInt' suffix for literals is a Clang extension">,
+  InGroup<BitIntExtension>;
+def ext_c23_bitint_suffix : ExtWarn<
+  "'_BitInt' suffix for literals is a C23 extension">,
+  InGroup<C23>;
+def warn_c23_compat_bitint_suffix : Warning<
+  "'_BitInt' suffix for literals is incompatible with C standards before C23">,
+  InGroup<CPre23Compat>, DefaultIgnore;
 def err_integer_literal_too_large : Error<
   "integer literal is too large to be represented in any %select{signed |}0"
   "integer type">;
@@ -246,10 +271,11 @@ def ext_clang_diagnose_if : Extension<"'diagnose_if' is a clang extension">,
                             InGroup<GccCompat>;
 def err_too_large_for_fixed_point : Error<
   "this value is too large for this fixed point type">;
-def err_fixed_point_not_enabled : Error<"compile with "
-  "'-ffixed-point' to enable fixed point types">;
 def err_unimplemented_conversion_with_fixed_point_type : Error<
   "conversion between fixed point and %0 is not yet supported">;
+
+def err_requires_positive_value : Error<
+  "%select{invalid value '%0'; must be positive|value '%0' is too large}1">;
 
 // SEH
 def err_seh_expected_handler : Error<
@@ -269,34 +295,40 @@ def note_constexpr_invalid_template_arg : Note<
   "%select{type_info object|string literal|temporary object|"
   "predefined '%3' variable}2 is not allowed in a template argument">;
 def err_constexpr_invalid_template_arg : Error<
-  note_constexpr_invalid_template_arg.Text>;
+  note_constexpr_invalid_template_arg.Summary>;
 
 // Sema && Frontend
 let CategoryName = "Inline Assembly Issue" in {
-  def err_asm_invalid_type_in_input : Error<
-    "invalid type %0 in asm input for constraint '%1'">;
+def err_asm_invalid_type_in_input : Error<
+  "invalid type %0 in asm input for constraint '%1'">;
 
-  def err_asm_invalid_type : Error<
-    "invalid type %0 in asm %select{input|output}1">;
+def err_asm_invalid_type : Error<
+  "invalid type %0 in asm %select{input|output}1">;
 
-  def warn_stack_clash_protection_inline_asm : Warning<
-    "Unable to protect inline asm that clobbers stack pointer against stack clash">,
-    InGroup<DiagGroup<"stack-protector">>;
+def err_ms_asm_bitfield_unsupported : Error<
+  "an inline asm block cannot have an operand which is a bit-field">;
 
-  def warn_slh_does_not_support_asm_goto
-      : Warning<"Speculative load hardening does not protect functions with "
-                "asm goto">,
-        InGroup<DiagGroup<"slh-asm-goto">>;
+def warn_stack_clash_protection_inline_asm : Warning<
+  "unable to protect inline asm that clobbers stack pointer against stack "
+  "clash">, InGroup<DiagGroup<"stack-protector">>;
+
+def warn_slh_does_not_support_asm_goto : Warning<
+  "speculative load hardening does not protect functions with asm goto">,
+  InGroup<DiagGroup<"slh-asm-goto">>;
+
+def err_drv_incompatible_options : Error<
+  "the combination of '%0' and '%1' is incompatible">;
 }
 
 // Sema && Serialization
 def warn_dup_category_def : Warning<
-  "duplicate definition of category %1 on interface %0">;
+  "duplicate definition of category %1 on interface %0">,
+  InGroup<DiagGroup<"objc-duplicate-category-definition">>;
 
 // Targets
 
 def err_target_unknown_triple : Error<
-  "unknown target triple '%0', please use -triple or -arch">;
+  "unknown target triple '%0'">;
 def err_target_unknown_cpu : Error<"unknown target CPU '%0'">;
 def note_valid_options : Note<"valid target CPU values are: %0">;
 def err_target_unsupported_cpu_for_micromips : Error<
@@ -321,42 +353,79 @@ def err_target_unsupported_mcmse : Error<
   "-mcmse is not supported for %0">;
 def err_opt_not_valid_with_opt : Error<
   "option '%0' cannot be specified with '%1'">;
+def err_opt_not_valid_with_opt_on_target : Error<
+  "option '%0' cannot be specified with '%1' for the %2 sub-architecture">;
 def err_opt_not_valid_without_opt : Error<
   "option '%0' cannot be specified without '%1'">;
 def err_opt_not_valid_on_target : Error<
   "option '%0' cannot be specified on this target">;
 def err_invalid_feature_combination : Error<
   "invalid feature combination: %0">;
+def warn_invalid_feature_combination : Warning<
+  "invalid feature combination: %0">, InGroup<DiagGroup<"invalid-feature-combination">>;
+def warn_target_unrecognized_env : Warning<
+  "mismatch between architecture and environment in target triple '%0'; did you mean '%1'?">,
+  InGroup<InvalidCommandLineArgument>;
+def err_target_unsupported_abi_with_fpu : Error<
+  "'%0' ABI is not supported with FPU">;
+
+def err_ppc_impossible_musttail: Error<
+  "'musttail' attribute for this call is impossible because %select{"
+  "long calls cannot be tail called on PPC|"
+  "indirect calls cannot be tail called on PPC|"
+  "external calls cannot be tail called on PPC}0"
+  >;
+def err_aix_musttail_unsupported: Error<
+  "'musttail' attribute is not supported on AIX">;
+
+def warn_acuracy_conflicts_with_explicit_offload_fp32_prec_option : Warning<
+  "floating point accuracy control '%0' conflicts with explicit target "
+  "precision option '%1'">,
+  InGroup<DiagGroup<"accuracy-conflicts-with-explicit-offload-fp32-prec-option">>;
 
 // Source manager
 def err_cannot_open_file : Error<"cannot open file '%0': %1">, DefaultFatal;
 def err_file_modified : Error<
   "file '%0' modified since it was first processed">, DefaultFatal;
 def err_file_too_large : Error<
-  "sorry, unsupported: file '%0' is too large for Clang to process">;
-def err_include_too_large : Error<
-  "sorry, this include generates a translation unit too large for"
-  " Clang to process.">, DefaultFatal;
+  "file '%0' is too large for Clang to process">;
+def err_sloc_space_too_large : Error<
+  "translation unit is too large for Clang to process: ran out of source locations">, DefaultFatal;
 def err_unsupported_bom : Error<"%0 byte order mark detected in '%1', but "
   "encoding is not supported">, DefaultFatal;
 def err_unable_to_rename_temp : Error<
   "unable to rename temporary '%0' to output file '%1': '%2'">;
 def err_unable_to_make_temp : Error<
   "unable to make temporary file: %0">;
+def remark_sloc_usage : Remark<
+  "source manager location address space usage:">,
+  InGroup<DiagGroup<"sloc-usage">>, DefaultRemark, ShowInSystemHeader;
+def note_total_sloc_usage : Note<
+  "%0B (%human0B) in local locations, %1B (%human1B) "
+  "in locations loaded from AST files, for a total of %2B (%human2B) "
+  "(%3%% of available space)">;
+def note_file_sloc_usage : Note<
+  "file entered %0 time%s0 using %1B (%human1B) of space"
+  "%plural{0:|: plus %2B (%human2B) for macro expansions}2">;
+def note_file_misc_sloc_usage : Note<
+  "%0 additional files entered using a total of %1B (%human1B) of space">;
 
 // Modules
 def err_module_format_unhandled : Error<
   "no handler registered for module format '%0'">, DefaultFatal;
 
-// TransformActions
-// TODO: Use a custom category name to distinguish rewriter errors.
-def err_mt_message : Error<"[rewriter] %0">, SuppressInSystemHeader;
-def warn_mt_message : Warning<"[rewriter] %0">;
-def note_mt_message : Note<"[rewriter] %0">;
+// API notes
+def err_apinotes_message : Error<"%0">;
+def warn_apinotes_message : Warning<"%0">, InGroup<DiagGroup<"apinotes">>;
+def note_apinotes_message : Note<"%0">;
 
-// ARCMigrate
-def warn_arcmt_nsalloc_realloc : Warning<"[rewriter] call returns pointer to GC managed memory; it will become unmanaged in ARC">;
-def err_arcmt_nsinvocation_ownership : Error<"NSInvocation's %0 is not safe to be used with an object with ownership other than __unsafe_unretained">;
+class NonportablePrivateAPINotesPath  : Warning<
+  "private API notes file for module '%0' should be named "
+  "'%0_private.apinotes', not '%1'">;
+def warn_apinotes_private_case : NonportablePrivateAPINotesPath,
+  InGroup<DiagGroup<"nonportable-private-apinotes-path">>;
+def warn_apinotes_private_case_system : NonportablePrivateAPINotesPath,
+  DefaultIgnore, InGroup<DiagGroup<"nonportable-private-system-apinotes-path">>;
 
 // C++ for OpenCL.
 def err_openclcxx_not_supported : Error<
@@ -372,6 +441,12 @@ def err_omp_more_one_clause : Error<
   "directive '#pragma omp %0' cannot contain more than one '%1' clause%select{| with '%3' name modifier| with 'source' dependence}2">;
 def err_omp_required_clause : Error<
   "directive '#pragma omp %0' requires the '%1' clause">;
+def warn_omp_gpu_unsupported_clause: Warning<
+  "clause '%0' is currently not supported on a GPU; clause ignored">,
+  InGroup<OpenMPClauses>;
+def warn_omp_gpu_unsupported_modifier_for_clause: Warning<
+  "modifier '%0' is currently not supported on a GPU for the '%1' clause; modifier ignored">,
+  InGroup<OpenMPClauses>;
 
 // Static Analyzer Core
 def err_unknown_analyzer_checker_or_package : Error<
@@ -392,4 +467,19 @@ def err_opencl_extension_and_feature_differs : Error<
   "options %0 and %1 are set to different values">;
 def err_opencl_feature_requires : Error<
   "feature %0 requires support of %1 feature">;
+
+def warn_throw_not_valid_on_target : Warning<
+  "target '%0' does not support exception handling;"
+  " 'throw' is assumed to be never reached">,
+  InGroup<OpenMPTargetException>;
+def warn_try_not_valid_on_target : Warning<
+  "target '%0' does not support exception handling;"
+  " 'catch' block is ignored">,
+  InGroup<OpenMPTargetException>;
+
+// Launch bound
+def warn_launch_bounds_missing_attr: Warning<
+  "%0 attribute ignored, as it requires: maximum work group size"
+  "%select{| and minimum work groups per compute unit}1 to be also specified">,
+  InGroup<IgnoredAttributes>;
 }

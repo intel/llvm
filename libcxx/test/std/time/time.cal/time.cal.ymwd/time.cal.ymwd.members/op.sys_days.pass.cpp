@@ -20,8 +20,9 @@
 //
 
 #include <chrono>
-#include <type_traits>
 #include <cassert>
+#include <type_traits>
+#include <utility>
 
 #include "test_macros.h"
 
@@ -68,6 +69,15 @@ int main(int, char**)
 
     assert( sd.time_since_epoch() == days{-(10957+34)});
     assert( year_month_weekday{sd} == ymwd); // and back
+    }
+
+    {
+    // Index 0 returns 7 weekdays before index 1 and can't be round-tripped.
+    constexpr year_month_weekday ymwd{year{2000}, month{2}, weekday_indexed{std::chrono::Wednesday, 0}};
+    constexpr sys_days sd{ymwd};
+
+    static_assert(sd.time_since_epoch() == days{10957 + 25});
+    static_assert(year_month_weekday{sd} != ymwd); // and back fails
     }
 
     return 0;

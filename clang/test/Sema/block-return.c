@@ -1,4 +1,5 @@
 // RUN: %clang_cc1 -Wno-int-to-pointer-cast -Wno-pointer-to-int-cast -pedantic -fsyntax-only %s -verify -fblocks
+// RUN: %clang_cc1 -Wno-int-to-pointer-cast -Wno-pointer-to-int-cast -pedantic -fsyntax-only %s -verify -fblocks -fexperimental-new-constant-interpreter
 
 extern int printf(const char *, ...);
 
@@ -125,19 +126,17 @@ void foo7(void)
   int (^JJ) (void)  = ^{ return j; }; // OK
   int (^KK) (void)  = ^{ return j+1; }; // OK
 
-  __block const int k;
+  __block const int k = 0;
   const int cint = 100;
 
   int (^MM) (void)  = ^{ return k; };
   int (^NN) (void)  = ^{ return cint; };
 }
 
-// rdar://11069896
 void (^blk)(void) = ^{
     return (void)0; // expected-warning {{void block literal should not return void expression}}
 };
 
-// rdar://13463504
 enum Test8 { T8_a, T8_b, T8_c };
 void test8(void) {
   extern void test8_helper(int (^)(int));

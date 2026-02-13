@@ -17,13 +17,13 @@ target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:
 target triple = "spir64"
 
 ; Function Attrs: nounwind
-define spir_func void @foo(i64 addrspace(4)* %object, i64 %desired) #0 {
+define spir_func void @foo(ptr addrspace(4) %object, i64 %desired) #0 {
 entry:
-  tail call spir_func void @_Z12atomic_storePVU3AS4U7_Atomicll(i64 addrspace(4)* %object, i64 %desired) #2
+  tail call spir_func void @_Z12atomic_storePVU3AS4U7_Atomicll(ptr addrspace(4) %object, i64 %desired) #2
   ret void
 }
 
-declare spir_func void @_Z12atomic_storePVU3AS4U7_Atomicll(i64 addrspace(4)*, i64) #1
+declare spir_func void @_Z12atomic_storePVU3AS4U7_Atomicll(ptr addrspace(4), i64) #1
 
 attributes #0 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }

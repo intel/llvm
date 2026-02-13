@@ -10,74 +10,14 @@
 #define LLVM_TRANSFORMS_IPO_INLINER_H
 
 #include "llvm/Analysis/CGSCCPassManager.h"
-#include "llvm/Analysis/CallGraphSCCPass.h"
 #include "llvm/Analysis/InlineAdvisor.h"
 #include "llvm/Analysis/InlineCost.h"
 #include "llvm/Analysis/LazyCallGraph.h"
 #include "llvm/Analysis/Utils/ImportedFunctionsInliningStatistics.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/Support/Compiler.h"
 
 namespace llvm {
-
-class AssumptionCacheTracker;
-class CallGraph;
-class ProfileSummaryInfo;
-
-/// This class contains all of the helper code which is used to perform the
-/// inlining operations that do not depend on the policy. It contains the core
-/// bottom-up inlining infrastructure that specific inliner passes use.
-struct LegacyInlinerBase : public CallGraphSCCPass {
-  explicit LegacyInlinerBase(char &ID);
-  explicit LegacyInlinerBase(char &ID, bool InsertLifetime);
-
-  /// For this class, we declare that we require and preserve the call graph.
-  /// If the derived class implements this method, it should always explicitly
-  /// call the implementation here.
-  void getAnalysisUsage(AnalysisUsage &Info) const override;
-
-  using llvm::Pass::doInitialization;
-
-  bool doInitialization(CallGraph &CG) override;
-
-  /// Main run interface method, this implements the interface required by the
-  /// Pass class.
-  bool runOnSCC(CallGraphSCC &SCC) override;
-
-  using llvm::Pass::doFinalization;
-
-  /// Remove now-dead linkonce functions at the end of processing to avoid
-  /// breaking the SCC traversal.
-  bool doFinalization(CallGraph &CG) override;
-
-  /// This method must be implemented by the subclass to determine the cost of
-  /// inlining the specified call site.  If the cost returned is greater than
-  /// the current inline threshold, the call site is not inlined.
-  virtual InlineCost getInlineCost(CallBase &CB) = 0;
-
-  /// Remove dead functions.
-  ///
-  /// This also includes a hack in the form of the 'AlwaysInlineOnly' flag
-  /// which restricts it to deleting functions with an 'AlwaysInline'
-  /// attribute. This is useful for the InlineAlways pass that only wants to
-  /// deal with that subset of the functions.
-  bool removeDeadFunctions(CallGraph &CG, bool AlwaysInlineOnly = false);
-
-  /// This function performs the main work of the pass.  The default of
-  /// Inlinter::runOnSCC() calls skipSCC() before calling this method, but
-  /// derived classes which cannot be skipped can override that method and call
-  /// this function unconditionally.
-  bool inlineCalls(CallGraphSCC &SCC);
-
-private:
-  // Insert @llvm.lifetime intrinsics.
-  bool InsertLifetime = true;
-
-protected:
-  AssumptionCacheTracker *ACT;
-  ProfileSummaryInfo *PSI;
-  std::function<const TargetLibraryInfo &(Function &)> GetTLI;
-  ImportedFunctionsInliningStatistics ImportedFunctionsStats;
-};
 
 /// The inliner pass for the new pass manager.
 ///
@@ -100,11 +40,13 @@ public:
       : OnlyMandatory(OnlyMandatory), LTOPhase(LTOPhase) {}
   InlinerPass(InlinerPass &&Arg) = default;
 
-  PreservedAnalyses run(LazyCallGraph::SCC &C, CGSCCAnalysisManager &AM,
-                        LazyCallGraph &CG, CGSCCUpdateResult &UR);
+  LLVM_ABI PreservedAnalyses run(LazyCallGraph::SCC &C,
+                                 CGSCCAnalysisManager &AM, LazyCallGraph &CG,
+                                 CGSCCUpdateResult &UR);
 
-  void printPipeline(raw_ostream &OS,
-                     function_ref<StringRef(StringRef)> MapClassName2PassName);
+  LLVM_ABI void
+  printPipeline(raw_ostream &OS,
+                function_ref<StringRef(StringRef)> MapClassName2PassName);
 
 private:
   InlineAdvisor &getAdvisor(const ModuleAnalysisManagerCGSCCProxy::Result &MAM,
@@ -122,14 +64,14 @@ private:
 class ModuleInlinerWrapperPass
     : public PassInfoMixin<ModuleInlinerWrapperPass> {
 public:
-  ModuleInlinerWrapperPass(
+  LLVM_ABI ModuleInlinerWrapperPass(
       InlineParams Params = getInlineParams(), bool MandatoryFirst = true,
       InlineContext IC = {},
       InliningAdvisorMode Mode = InliningAdvisorMode::Default,
       unsigned MaxDevirtIterations = 0);
   ModuleInlinerWrapperPass(ModuleInlinerWrapperPass &&Arg) = default;
 
-  PreservedAnalyses run(Module &, ModuleAnalysisManager &);
+  LLVM_ABI PreservedAnalyses run(Module &, ModuleAnalysisManager &);
 
   /// Allow adding more CGSCC passes, besides inlining. This should be called
   /// before run is called, as part of pass pipeline building.
@@ -145,8 +87,9 @@ public:
     AfterCGMPM.addPass(std::move(Pass));
   }
 
-  void printPipeline(raw_ostream &OS,
-                     function_ref<StringRef(StringRef)> MapClassName2PassName);
+  LLVM_ABI void
+  printPipeline(raw_ostream &OS,
+                function_ref<StringRef(StringRef)> MapClassName2PassName);
 
 private:
   const InlineParams Params;

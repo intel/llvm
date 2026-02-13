@@ -14,40 +14,24 @@
 #ifndef MLIR_DIALECT_LLVMIR_LLVMDIALECT_H_
 #define MLIR_DIALECT_LLVMIR_LLVMDIALECT_H_
 
+#include "mlir/Bytecode/BytecodeOpInterface.h"
+#include "mlir/Dialect/LLVMIR/LLVMAttrs.h"
+#include "mlir/Dialect/LLVMIR/LLVMInterfaces.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Dialect.h"
-#include "mlir/IR/FunctionInterfaces.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/TypeSupport.h"
 #include "mlir/IR/Types.h"
 #include "mlir/Interfaces/CallInterfaces.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
+#include "mlir/Interfaces/FunctionInterfaces.h"
 #include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
+#include "mlir/Interfaces/ViewLikeInterface.h"
 #include "mlir/Support/ThreadLocalCache.h"
 #include "llvm/ADT/PointerEmbeddedInt.h"
-#include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/Module.h"
-#include "llvm/IR/Type.h"
-
-#include "mlir/Dialect/LLVMIR/LLVMOpsEnums.h.inc"
-
-namespace mlir {
-namespace LLVM {
-// Inline the LLVM generated Linkage enum and utility.
-// This is only necessary to isolate the "enum generated code" from the
-// attribute definition itself.
-// TODO: this shouldn't be needed after we unify the attribute generation, i.e.
-// --gen-attr-* and --gen-attrdef-*.
-using cconv::CConv;
-using linkage::Linkage;
-} // namespace LLVM
-} // namespace mlir
-
-#include "mlir/Dialect/LLVMIR/LLVMOpsInterfaces.h.inc"
 
 namespace llvm {
 class Type;
@@ -61,7 +45,6 @@ class SmartMutex;
 namespace mlir {
 namespace LLVM {
 class LLVMDialect;
-class LoopOptionsAttrBuilder;
 
 namespace detail {
 struct LLVMTypeStorage;
@@ -69,9 +52,6 @@ struct LLVMDialectImpl;
 } // namespace detail
 } // namespace LLVM
 } // namespace mlir
-
-#define GET_ATTRDEF_CLASSES
-#include "mlir/Dialect/LLVMIR/LLVMOpsAttrDefs.h.inc"
 
 namespace mlir {
 namespace LLVM {
@@ -100,6 +80,13 @@ public:
 
   using BaseT::operator=;
 };
+} // namespace LLVM
+} // namespace mlir
+
+namespace mlir {
+namespace LLVM {
+struct AssumeAlignTag {};
+struct AssumeSeparateStorageTag {};
 } // namespace LLVM
 } // namespace mlir
 
@@ -182,9 +169,8 @@ public:
       if (*rawConstantIter == GEPOp::kDynamicIndex)
         return *valuesIter;
 
-      return IntegerAttr::get(
-          ElementsAttr::getElementType(base->rawConstantIndices),
-          *rawConstantIter);
+      return IntegerAttr::get(base->rawConstantIndices.getElementType(),
+                              *rawConstantIter);
     }
 
     iterator &operator++() {
@@ -232,49 +218,8 @@ Value createGlobalString(Location loc, OpBuilder &builder, StringRef name,
 /// function confirms that the Operation has the desired properties.
 bool satisfiesLLVMModule(Operation *op);
 
-/// Builder class for LoopOptionsAttr. This helper class allows to progressively
-/// build a LoopOptionsAttr one option at a time, and pay the price of attribute
-/// creation once all the options are in place.
-class LoopOptionsAttrBuilder {
-public:
-  /// Construct a empty builder.
-  LoopOptionsAttrBuilder() = default;
-
-  /// Construct a builder with an initial list of options from an existing
-  /// LoopOptionsAttr.
-  LoopOptionsAttrBuilder(LoopOptionsAttr attr);
-
-  /// Set the `disable_licm` option to the provided value. If no value
-  /// is provided the option is deleted.
-  LoopOptionsAttrBuilder &setDisableLICM(Optional<bool> value);
-
-  /// Set the `interleave_count` option to the provided value. If no value
-  /// is provided the option is deleted.
-  LoopOptionsAttrBuilder &setInterleaveCount(Optional<uint64_t> count);
-
-  /// Set the `disable_unroll` option to the provided value. If no value
-  /// is provided the option is deleted.
-  LoopOptionsAttrBuilder &setDisableUnroll(Optional<bool> value);
-
-  /// Set the `disable_pipeline` option to the provided value. If no value
-  /// is provided the option is deleted.
-  LoopOptionsAttrBuilder &setDisablePipeline(Optional<bool> value);
-
-  /// Set the `pipeline_initiation_interval` option to the provided value.
-  /// If no value is provided the option is deleted.
-  LoopOptionsAttrBuilder &
-  setPipelineInitiationInterval(Optional<uint64_t> count);
-
-  /// Returns true if any option has been set.
-  bool empty() { return options.empty(); }
-
-private:
-  template <typename T>
-  LoopOptionsAttrBuilder &setOption(LoopOptionCase tag, Optional<T> value);
-
-  friend class LoopOptionsAttr;
-  SmallVector<LoopOptionsAttr::OptionValuePair> options;
-};
+/// Lookup parent Module satisfying LLVM conditions on the Module Operation.
+Operation *parentLLVMModule(Operation *op);
 
 /// Convert an array of integer attributes to a vector of integers that can be
 /// used as indices in LLVM operations.
@@ -283,7 +228,7 @@ SmallVector<IntT> convertArrayToIndices(ArrayRef<Attribute> attrs) {
   SmallVector<IntT> indices;
   indices.reserve(attrs.size());
   for (Attribute attr : attrs)
-    indices.push_back(attr.cast<IntegerAttr>().getInt());
+    indices.push_back(cast<IntegerAttr>(attr).getInt());
   return indices;
 }
 
@@ -296,5 +241,18 @@ SmallVector<IntT> convertArrayToIndices(ArrayAttr attrs) {
 
 } // namespace LLVM
 } // namespace mlir
+
+namespace llvm {
+
+// Allow llvm::cast style functions.
+template <typename To>
+struct CastInfo<To, mlir::LLVM::GEPArg>
+    : public CastInfo<To, mlir::LLVM::GEPArg::PointerUnion> {};
+
+template <typename To>
+struct CastInfo<To, const mlir::LLVM::GEPArg>
+    : public CastInfo<To, const mlir::LLVM::GEPArg::PointerUnion> {};
+
+} // namespace llvm
 
 #endif // MLIR_DIALECT_LLVMIR_LLVMDIALECT_H_

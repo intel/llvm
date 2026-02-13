@@ -38,6 +38,23 @@ OPTIONS
  Display the contents of the basic block address map section(s), which contain the
  address of each function, along with the relative offset of each basic block.
 
+.. option:: --call-graph-info
+
+  Display the call graph section entries i.e. for each function
+  its identifying information, each of its direct callees' information
+  and for each indirect callee a 64 bit number representing the callee's
+  function signature. This information can be used to reconstruct
+  the program call graph.
+
+.. option:: --cg-profile
+
+ Display the callgraph profile section.
+
+.. option:: --decompress, -z
+
+  Dump decompressed section content when used with ``-x`` or ``-p``.
+  If the section(s) are not compressed, they are displayed as is.
+
 .. option:: --demangle, -C
 
  Display demangled symbol names in the output.
@@ -58,10 +75,6 @@ OPTIONS
 
  Display the dynamic table.
 
-.. option:: --cg-profile
-
- Display the callgraph profile section.
-
 .. option:: --histogram, -I
 
  Display a bucket list histogram for dynamic symbol hash tables.
@@ -76,6 +89,10 @@ OPTIONS
  ``GNU``, and ``JSON``. ``LLVM`` output is an expanded and structured format.
  ``GNU`` (the default) output mimics the equivalent GNU :program:`readelf`
  output. ``JSON`` is JSON formatted output intended for machine consumption.
+
+.. option:: --extra-sym-info
+
+ Display extra information (section name) when showing symbols.
 
 .. option:: --section-groups, -g
 
@@ -116,6 +133,12 @@ OPTIONS
  Display the specified section(s) as hexadecimal bytes. ``section`` may be a
  section index or section name.
 
+.. option:: --memtag
+
+ Display information about memory tagging present in the binary. This includes
+ various memtag-specific dynamic entries, decoded global descriptor sections,
+ and decoded Android-specific ELF notes.
+
 .. option:: --needed-libs
 
  Display the needed libraries.
@@ -128,6 +151,10 @@ OPTIONS
 
  Display all notes.
 
+.. option:: --offloading
+
+ Display list of HIP offload bundles.
+
 .. option:: --pretty-print
 
  When used with :option:`--elf-output-style`, JSON output will be formatted in
@@ -136,10 +163,6 @@ OPTIONS
 .. option:: --program-headers, --segments, -l
 
  Display the program headers.
-
-.. option:: --raw-relr
-
- Do not decode relocations in RELR relocation sections when displaying them.
 
 .. option:: --relocations, --relocs, -r
 

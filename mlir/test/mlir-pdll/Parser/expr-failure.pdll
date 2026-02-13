@@ -125,6 +125,25 @@ Pattern {
 // -----
 
 //===----------------------------------------------------------------------===//
+// Range Expr
+//===----------------------------------------------------------------------===//
+
+Pattern {
+  // CHECK: unable to convert expression of type `Tuple<>` to the expected type of `ValueRange`
+  // CHECK: Tuple to Range conversion is currently only allowed within a rewrite context
+  erase op<>(());
+}
+
+// -----
+
+Pattern {
+  // CHECK: unable to convert expression of type `Tuple<Value, Type>` to the expected type of `ValueRange`
+  replace op<>(arg: Value) -> (type: Type) with op<test.op>((arg, type));
+}
+
+// -----
+
+//===----------------------------------------------------------------------===//
 // Tuple Expr
 //===----------------------------------------------------------------------===//
 
@@ -154,12 +173,51 @@ Pattern {
 
 // -----
 
+Constraint Foo(op: Op) {}
+
+Pattern {
+  // CHECK: unable to negate non native constraints
+  let root = op<>;
+  not Foo(root);
+}
+
+// -----
+
 Rewrite Foo();
 
 Pattern {
   // CHECK: unable to build a tuple with `Rewrite` element
   let tuple = (Foo);
   erase op<>;
+}
+
+// -----
+
+Rewrite Foo(op: Op);
+
+Pattern {
+  // CHECK: unable to negate a Rewrite
+  let root = op<>;
+  rewrite root with {
+     not Foo(root);
+  }
+}
+
+// -----
+
+Pattern {
+  // CHECK: expected native constraint
+  not attr<"0 : i1">
+  erase _;
+}
+
+// -----
+
+Pattern {
+  let tuple = (attr<"3 : i34">);
+  // CHECK: expected `(` after function name
+  not tuple.0;
+  erase _;
 }
 
 // -----

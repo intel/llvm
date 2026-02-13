@@ -51,8 +51,12 @@ DEFINE_C_API_STRUCT(MlirOpPassManager, void);
 // PassManager/OpPassManager APIs.
 //===----------------------------------------------------------------------===//
 
-/// Create a new top-level PassManager.
+/// Create a new top-level PassManager with the default anchor.
 MLIR_CAPI_EXPORTED MlirPassManager mlirPassManagerCreate(MlirContext ctx);
+
+/// Create a new top-level PassManager anchored on `anchorOp`.
+MLIR_CAPI_EXPORTED MlirPassManager
+mlirPassManagerCreateOnOperation(MlirContext ctx, MlirStringRef anchorOp);
 
 /// Destroy the provided PassManager.
 MLIR_CAPI_EXPORTED void mlirPassManagerDestroy(MlirPassManager passManager);
@@ -66,17 +70,39 @@ static inline bool mlirPassManagerIsNull(MlirPassManager passManager) {
 MLIR_CAPI_EXPORTED MlirOpPassManager
 mlirPassManagerGetAsOpPassManager(MlirPassManager passManager);
 
-/// Run the provided `passManager` on the given `module`.
+/// Run the provided `passManager` on the given `op`.
 MLIR_CAPI_EXPORTED MlirLogicalResult
-mlirPassManagerRun(MlirPassManager passManager, MlirModule module);
+mlirPassManagerRunOnOp(MlirPassManager passManager, MlirOperation op);
 
-/// Enable mlir-print-ir-after-all.
-MLIR_CAPI_EXPORTED void
-mlirPassManagerEnableIRPrinting(MlirPassManager passManager);
+/// Enable IR printing.
+/// The treePrintingPath argument is an optional path to a directory
+/// where the dumps will be produced. If it isn't provided then dumps
+/// are produced to stderr.
+MLIR_CAPI_EXPORTED void mlirPassManagerEnableIRPrinting(
+    MlirPassManager passManager, bool printBeforeAll, bool printAfterAll,
+    bool printModuleScope, bool printAfterOnlyOnChange,
+    bool printAfterOnlyOnFailure, MlirOpPrintingFlags flags,
+    MlirStringRef treePrintingPath);
 
 /// Enable / disable verify-each.
 MLIR_CAPI_EXPORTED void
 mlirPassManagerEnableVerifier(MlirPassManager passManager, bool enable);
+
+/// Enable pass timing.
+MLIR_CAPI_EXPORTED void
+mlirPassManagerEnableTiming(MlirPassManager passManager);
+
+/// Enumerated type of pass display modes.
+/// Mainly used in mlirPassManagerEnableStatistics.
+typedef enum {
+  MLIR_PASS_DISPLAY_MODE_LIST,
+  MLIR_PASS_DISPLAY_MODE_PIPELINE,
+} MlirPassDisplayMode;
+
+/// Enable pass statistics.
+MLIR_CAPI_EXPORTED void
+mlirPassManagerEnableStatistics(MlirPassManager passManager,
+                                MlirPassDisplayMode displayMode);
 
 /// Nest an OpPassManager under the top-level PassManager, the nested
 /// passmanager will only run on operations matching the provided name.
@@ -105,6 +131,13 @@ MLIR_CAPI_EXPORTED void mlirPassManagerAddOwnedPass(MlirPassManager passManager,
 MLIR_CAPI_EXPORTED void
 mlirOpPassManagerAddOwnedPass(MlirOpPassManager passManager, MlirPass pass);
 
+/// Parse a sequence of textual MLIR pass pipeline elements and add them to the
+/// provided OpPassManager. If parsing fails an error message is reported using
+/// the provided callback.
+MLIR_CAPI_EXPORTED MlirLogicalResult mlirOpPassManagerAddPipeline(
+    MlirOpPassManager passManager, MlirStringRef pipelineElements,
+    MlirStringCallback callback, void *userData);
+
 /// Print a textual MLIR pass pipeline by sending chunks of the string
 /// representation and forwarding `userData to `callback`. Note that the
 /// callback may be called several times with consecutive chunks of the string.
@@ -112,10 +145,12 @@ MLIR_CAPI_EXPORTED void mlirPrintPassPipeline(MlirOpPassManager passManager,
                                               MlirStringCallback callback,
                                               void *userData);
 
-/// Parse a textual MLIR pass pipeline and add it to the provided OpPassManager.
-
+/// Parse a textual MLIR pass pipeline and assign it to the provided
+/// OpPassManager. If parsing fails an error message is reported using the
+/// provided callback.
 MLIR_CAPI_EXPORTED MlirLogicalResult
-mlirParsePassPipeline(MlirOpPassManager passManager, MlirStringRef pipeline);
+mlirParsePassPipeline(MlirOpPassManager passManager, MlirStringRef pipeline,
+                      MlirStringCallback callback, void *userData);
 
 //===----------------------------------------------------------------------===//
 // External Pass API.

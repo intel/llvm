@@ -68,10 +68,11 @@ struct BlockInfoBuilder {
     // operands as used. All defined value will be removed from the used set
     // at the end.
     block->walk([&](Operation *op) {
-      for (Value result : op->getResults())
-        defValues.insert(result);
-      for (Value operand : op->getOperands())
-        useValues.insert(operand);
+      defValues.insert_range(op->getResults());
+      useValues.insert_range(op->getOperands());
+      for (Region &region : op->getRegions())
+        for (Block &child : region.getBlocks())
+          defValues.insert_range(child.getArguments());
     });
     llvm::set_subtract(useValues, defValues);
   }
@@ -184,7 +185,7 @@ Liveness::OperationListT Liveness::resolveLiveness(Value value) const {
   if (Operation *defOp = value.getDefiningOp())
     currentBlock = defOp->getBlock();
   else
-    currentBlock = value.cast<BlockArgument>().getOwner();
+    currentBlock = cast<BlockArgument>(value).getOwner();
   toProcess.push_back(currentBlock);
   visited.insert(currentBlock);
 
@@ -197,8 +198,7 @@ Liveness::OperationListT Liveness::resolveLiveness(Value value) const {
 
   while (!toProcess.empty()) {
     // Get block and block liveness information.
-    Block *block = toProcess.back();
-    toProcess.pop_back();
+    Block *block = toProcess.pop_back_val();
     const LivenessBlockInfo *blockInfo = getLiveness(block);
 
     // Note that start and end will be in the same block.
@@ -280,7 +280,7 @@ void Liveness::print(raw_ostream &os) const {
     if (value.getDefiningOp())
       os << "val_" << valueIds[value];
     else {
-      auto blockArg = value.cast<BlockArgument>();
+      auto blockArg = cast<BlockArgument>(value);
       os << "arg" << blockArg.getArgNumber() << "@"
          << blockIds[blockArg.getOwner()];
     }
@@ -404,7 +404,7 @@ LivenessBlockInfo::currentlyLiveValues(Operation *op) const {
     Operation *endOfLiveRange = nullptr;
     // If it's a live in or a block argument, then the start is the beginning
     // of the block.
-    if (isLiveIn(value) || value.isa<BlockArgument>())
+    if (isLiveIn(value) || isa<BlockArgument>(value))
       startOfLiveRange = &block->front();
     else
       startOfLiveRange = block->findAncestorOpInBlock(*startOfLiveRange);

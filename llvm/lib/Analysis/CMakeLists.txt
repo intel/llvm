@@ -1,4 +1,4 @@
-if (DEFINED LLVM_HAVE_TF_AOT OR DEFINED LLVM_HAVE_TF_API)
+if (DEFINED LLVM_HAVE_TF_AOT OR LLVM_HAVE_TFLITE)
   include(TensorFlowCompile)
   set(LLVM_INLINER_MODEL_PATH_DEFAULT "models/inliner-Oz")
 
@@ -17,25 +17,26 @@ if (DEFINED LLVM_HAVE_TF_AOT OR DEFINED LLVM_HAVE_TF_API)
     )
   endif()
 
-  if (DEFINED LLVM_HAVE_TF_API)
-    if (LLVM_HAVE_TFLITE)
-      build_proto(
-        tensorflow/core/protobuf/error_codes
-        tensorflow/core/example/feature
-        tensorflow/core/example/example)
-      list(APPEND MLLinkDeps 
-        tensorflow-lite::tensorflow-lite
-        protobuf::libprotobuf)
-    else()
-      list(APPEND MLLinkDeps ${tensorflow_c_api} ${tensorflow_fx})
-    endif()
+  if (LLVM_HAVE_TFLITE)
+    list(APPEND MLLinkDeps
+      tensorflow-lite::tensorflow-lite)
   endif()
+endif()
+
+# The implementation of ConstantFolding.cpp relies on the use of math functions
+# from the host. In particular, it relies on the detection of floating point
+# exceptions originating from such math functions to prevent invalid cases
+# from being constant folded. Therefore, we must ensure that fp exceptions are
+# handled correctly.
+if (MSVC)
+  set_source_files_properties(ConstantFolding.cpp PROPERTIES COMPILE_OPTIONS "/fp:except")
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  set_source_files_properties(ConstantFolding.cpp PROPERTIES COMPILE_OPTIONS "-ftrapping-math")
 endif()
 
 add_llvm_component_library(LLVMAnalysis
   AliasAnalysis.cpp
   AliasAnalysisEvaluator.cpp
-  AliasAnalysisSummary.cpp
   AliasSetTracker.cpp
   Analysis.cpp
   AssumeBundleQueries.cpp
@@ -46,8 +47,7 @@ add_llvm_component_library(LLVMAnalysis
   BranchProbabilityInfo.cpp
   CFG.cpp
   CFGPrinter.cpp
-  CFLAndersAliasAnalysis.cpp
-  CFLSteensAliasAnalysis.cpp
+  CFGSCCPrinter.cpp
   CGSCCPassManager.cpp
   CallGraph.cpp
   CallGraphSCCPass.cpp
@@ -57,6 +57,7 @@ add_llvm_component_library(LLVMAnalysis
   CostModel.cpp
   CodeMetrics.cpp
   ConstantFolding.cpp
+  CtxProfAnalysis.cpp
   CycleAnalysis.cpp
   DDG.cpp
   DDGPrinter.cpp
@@ -66,15 +67,20 @@ add_llvm_component_library(LLVMAnalysis
   DependenceAnalysis.cpp
   DependenceGraphBuilder.cpp
   DevelopmentModeInlineAdvisor.cpp
-  DivergenceAnalysis.cpp
+  DomConditionCache.cpp
   DomPrinter.cpp
   DomTreeUpdater.cpp
   DominanceFrontier.cpp
-  EHPersonalities.cpp
+  DXILResource.cpp
+  DXILMetadataAnalysis.cpp
+  EphemeralValuesCache.cpp
+  FloatingPointPredicateUtils.cpp
   FunctionPropertiesAnalysis.cpp
   GlobalsModRef.cpp
   GuardUtils.cpp
+  HashRecognize.cpp
   HeatUtils.cpp
+  IR2Vec.cpp
   IRSimilarityIdentifier.cpp
   IVDescriptors.cpp
   IVUsers.cpp
@@ -83,19 +89,19 @@ add_llvm_component_library(LLVMAnalysis
   InlineCost.cpp
   InlineAdvisor.cpp
   InlineOrder.cpp
-  InlineSizeEstimatorAnalysis.cpp
   InstCount.cpp
   InstructionPrecedenceTracking.cpp
   InstructionSimplify.cpp
-  Interval.cpp
-  IntervalPartition.cpp
+  InteractiveModelRunner.cpp
+  KernelInfo.cpp
+  LastRunTrackingAnalysis.cpp
   LazyBranchProbabilityInfo.cpp
   LazyBlockFrequencyInfo.cpp
   LazyCallGraph.cpp
   LazyValueInfo.cpp
-  LegacyDivergenceAnalysis.cpp
   Lint.cpp
   Loads.cpp
+  Local.cpp
   LoopAccessAnalysis.cpp
   LoopAnalysisManager.cpp
   LoopCacheAnalysis.cpp
@@ -104,7 +110,6 @@ add_llvm_component_library(LLVMAnalysis
   LoopInfo.cpp
   LoopPass.cpp
   MLInlineAdvisor.cpp
-  MemDepPrinter.cpp
   MemDerefPrinter.cpp
   MemoryBuiltins.cpp
   MemoryDependenceAnalysis.cpp
@@ -131,15 +136,16 @@ add_llvm_component_library(LLVMAnalysis
   RegionPass.cpp
   RegionPrinter.cpp
   ReplayInlineAdvisor.cpp
+  RuntimeLibcallInfo.cpp
   ScalarEvolution.cpp
   ScalarEvolutionAliasAnalysis.cpp
   ScalarEvolutionDivision.cpp
   ScalarEvolutionNormalization.cpp
+  StaticDataProfileInfo.cpp
   StackLifetime.cpp
   StackSafetyAnalysis.cpp
-  SyncDependenceAnalysis.cpp
+  StructuralHash.cpp
   SyntheticCountsUtils.cpp
-  TFUtils.cpp
   TFLiteUtils.cpp
   TargetLibraryInfo.cpp
   TargetTransformInfo.cpp
@@ -148,18 +154,19 @@ add_llvm_component_library(LLVMAnalysis
   TrainingLogger.cpp
   TypeBasedAliasAnalysis.cpp
   TypeMetadataUtils.cpp
+  UniformityAnalysis.cpp
   ScopedNoAliasAA.cpp
   ValueLattice.cpp
   ValueLatticeUtils.cpp
   ValueTracking.cpp
   VectorUtils.cpp
-  VFABIDemangling.cpp
   ${GeneratedMLSources}
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/Analysis
 
   DEPENDS
+  analysis_gen
   intrinsics_gen
   ${MLDeps}
 
@@ -169,7 +176,15 @@ add_llvm_component_library(LLVMAnalysis
   LINK_COMPONENTS
   BinaryFormat
   Core
+  FrontendHLSL
   Object
   ProfileData
   Support
+  TargetParser
   )
+
+include(CheckCXXSymbolExists)
+check_cxx_symbol_exists(logf128 math.h HAS_LOGF128)
+if(HAS_LOGF128)
+ target_compile_definitions(LLVMAnalysis PRIVATE HAS_LOGF128)
+endif()

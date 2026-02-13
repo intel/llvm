@@ -44,12 +44,11 @@
 
 #include "clang/Basic/LangStandard.h"
 #include "clang/Driver/Driver.h"
-#include "clang/Driver/Options.h"
 #include "clang/Driver/Types.h"
+#include "clang/Options/Options.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Option/OptTable.h"
@@ -58,6 +57,7 @@
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/raw_ostream.h"
 #include <memory>
+#include <optional>
 
 namespace clang {
 namespace tooling {
@@ -123,12 +123,21 @@ static types::ID foldType(types::ID Lang) {
   }
 }
 
+// Return the language standard that's activated by the /std:c++latest
+// flag in clang-CL mode.
+static LangStandard::Kind latestLangStandard() {
+  // FIXME: Have a single source of truth for the mapping from
+  // c++latest --> c++26 that's shared by the driver code
+  // (clang/lib/Driver/ToolChains/Clang.cpp) and this file.
+  return LangStandard::lang_cxx26;
+}
+
 // A CompileCommand that can be applied to another file.
 struct TransferableCommand {
   // Flags that should not apply to all files are stripped from CommandLine.
   CompileCommand Cmd;
   // Language detected from -x or the filename. Never TY_INVALID.
-  Optional<types::ID> Type;
+  std::optional<types::ID> Type;
   // Standard specified by -std.
   LangStandard::Kind Std = LangStandard::lang_unspecified;
   // Whether the command line is for the cl-compatible driver.
@@ -147,7 +156,7 @@ struct TransferableCommand {
         TmpArgv.push_back(S.c_str());
       ClangCLMode = !TmpArgv.empty() &&
                     driver::IsClangCL(driver::getDriverMode(
-                        TmpArgv.front(), llvm::makeArrayRef(TmpArgv).slice(1)));
+                        TmpArgv.front(), llvm::ArrayRef(TmpArgv).slice(1)));
       ArgList = {TmpArgv.begin(), TmpArgv.end()};
     }
 
@@ -155,17 +164,16 @@ struct TransferableCommand {
     // We parse each argument individually so that we can retain the exact
     // spelling of each argument; re-rendering is lossy for aliased flags.
     // E.g. in CL mode, /W4 maps to -Wall.
-    auto &OptTable = clang::driver::getDriverOptTable();
+    auto &OptTable = getDriverOptTable();
     if (!OldArgs.empty())
       Cmd.CommandLine.emplace_back(OldArgs.front());
     for (unsigned Pos = 1; Pos < OldArgs.size();) {
-      using namespace driver::options;
+      using namespace options;
 
       const unsigned OldPos = Pos;
       std::unique_ptr<llvm::opt::Arg> Arg(OptTable.ParseOneArg(
           ArgList, Pos,
-          /* Include */ ClangCLMode ? CoreOption | CLOption | CLDXCOption : 0,
-          /* Exclude */ ClangCLMode ? 0 : CLOption | CLDXCOption));
+          llvm::opt::Visibility(ClangCLMode ? CLOption : ClangOption)));
 
       if (!Arg)
         continue;
@@ -207,7 +215,7 @@ struct TransferableCommand {
     Type = foldType(*Type);
     // The contract is to store None instead of TY_INVALID.
     if (Type == types::TY_INVALID)
-      Type = llvm::None;
+      Type = std::nullopt;
   }
 
   // Produce a CompileCommand for \p filename, based on this one.
@@ -238,9 +246,16 @@ struct TransferableCommand {
     // --std flag may only be transferred if the language is the same.
     // We may consider "translating" these, e.g. c++11 -> c11.
     if (Std != LangStandard::lang_unspecified && foldType(TargetType) == Type) {
-      Result.CommandLine.emplace_back((
-          llvm::Twine(ClangCLMode ? "/std:" : "-std=") +
-          LangStandard::getLangStandardForKind(Std).getName()).str());
+      const char *Spelling =
+          LangStandard::getLangStandardForKind(Std).getName();
+      // In clang-cl mode, the latest standard is spelled 'c++latest' rather
+      // than e.g. 'c++26', and the driver does not accept the latter, so emit
+      // the spelling that the driver does accept.
+      if (ClangCLMode && Std == latestLangStandard()) {
+        Spelling = "c++latest";
+      }
+      Result.CommandLine.emplace_back(
+          (llvm::Twine(ClangCLMode ? "/std:" : "-std=") + Spelling).str());
     }
     Result.CommandLine.push_back("--");
     Result.CommandLine.push_back(std::string(Filename));
@@ -279,27 +294,33 @@ private:
   }
 
   // Try to interpret the argument as a type specifier, e.g. '-x'.
-  Optional<types::ID> tryParseTypeArg(const llvm::opt::Arg &Arg) {
+  std::optional<types::ID> tryParseTypeArg(const llvm::opt::Arg &Arg) {
     const llvm::opt::Option &Opt = Arg.getOption();
-    using namespace driver::options;
+    using namespace options;
     if (ClangCLMode) {
       if (Opt.matches(OPT__SLASH_TC) || Opt.matches(OPT__SLASH_Tc))
         return types::TY_C;
       if (Opt.matches(OPT__SLASH_TP) || Opt.matches(OPT__SLASH_Tp))
         return types::TY_CXX;
     } else {
-      if (Opt.matches(driver::options::OPT_x))
+      if (Opt.matches(options::OPT_x))
         return types::lookupTypeForTypeSpecifier(Arg.getValue());
     }
-    return None;
+    return std::nullopt;
   }
 
   // Try to interpret the argument as '-std='.
-  Optional<LangStandard::Kind> tryParseStdArg(const llvm::opt::Arg &Arg) {
-    using namespace driver::options;
-    if (Arg.getOption().matches(ClangCLMode ? OPT__SLASH_std : OPT_std_EQ))
+  std::optional<LangStandard::Kind> tryParseStdArg(const llvm::opt::Arg &Arg) {
+    using namespace options;
+    if (Arg.getOption().matches(ClangCLMode ? OPT__SLASH_std : OPT_std_EQ)) {
+      // "c++latest" is not a recognized LangStandard, but it's accepted by
+      // the clang driver in CL mode.
+      if (ClangCLMode && StringRef(Arg.getValue()) == "c++latest") {
+        return latestLangStandard();
+      }
       return LangStandard::getLangKind(Arg.getValue());
-    return None;
+    }
+    return std::nullopt;
   }
 };
 

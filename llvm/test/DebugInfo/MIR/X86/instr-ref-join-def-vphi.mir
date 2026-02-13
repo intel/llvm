@@ -12,7 +12,7 @@
 # CHECK: ![[VAR:[0-9]+]] = !DILocalVariable(name: "a"
 
 # CHECK-LABEL: bb.6
-# CHECK: DBG_VALUE $esi, $noreg, ![[VAR]], !DIExpression()
+# CHECK: DBG_VALUE_LIST ![[VAR]], !DIExpression(DW_OP_LLVM_arg, 0), $esi
 
 --- |
   target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
@@ -124,11 +124,12 @@ tracksRegLiveness: true
 hasWinCFI:       true
 callsEHReturn:   false
 callsUnwindInit: false
-hasEHCatchret:   false
+hasEHContTarget: false
 hasEHScopes:     false
 hasEHFunclets:   false
 failsVerification: false
 tracksDebugUserValues: true
+debugInstrRef: true
 registers:       []
 liveins:
   - { reg: '$ecx', virtual-reg: '' }
@@ -151,8 +152,8 @@ frameInfo:
   hasMustTailInVarArgFunc: false
   hasTailCall:     false
   localFrameSize:  0
-  savePoint:       ''
-  restorePoint:    ''
+  savePoint:       []
+  restorePoint:    []
 fixedStack:
   - { id: 0, type: spill-slot, offset: -24, size: 8, alignment: 8, stack-id: default,
       callee-saved-register: '$rdi', callee-saved-restored: true, debug-info-variable: '',
@@ -197,7 +198,7 @@ body:             |
 
     DBG_PHI $esi, 3
     DBG_PHI $edi, 2
-    DBG_INSTR_REF 3, 0, !14, !DIExpression(), debug-location !16
+    DBG_INSTR_REF !14, !DIExpression(DW_OP_LLVM_arg, 0), dbg-instr-ref(3, 0), debug-location !16
     CALL64pcrel32 @"?bar@@YAHXZ", csr_win64, implicit $rsp, implicit $ssp, implicit-def $rsp, implicit-def $ssp, implicit-def $eax, debug-location !19
     renamable $edi = nsw SUB32rr killed renamable $edi, killed renamable $eax, implicit-def dead $eflags, debug-instr-number 1, debug-location !19
     renamable $eax = IMUL32rri renamable $edi, -1431655765, implicit-def dead $eflags, debug-location !21
@@ -211,7 +212,7 @@ body:             |
 
     CALL64pcrel32 @"?bar@@YAHXZ", csr_win64, implicit $rsp, implicit $ssp, implicit-def $rsp, implicit-def $ssp, implicit-def $eax, debug-location !22
     renamable $esi = nsw ADD32rr killed renamable $esi, killed renamable $eax, implicit-def dead $eflags, debug-instr-number 4, debug-location !22
-    DBG_INSTR_REF 4, 0, !14, !DIExpression(), debug-location !16
+    DBG_INSTR_REF !14, !DIExpression(DW_OP_LLVM_arg, 0), dbg-instr-ref(4, 0), debug-location !16
     JMP_1 %bb.3
 
   bb.4 (%ir-block.16):
@@ -226,16 +227,17 @@ body:             |
     liveins: $esi
 
     CALL64pcrel32 @"?bar@@YAHXZ", csr_win64, implicit $rsp, implicit $ssp, implicit-def $rsp, implicit-def $ssp, implicit-def $eax, debug-location !31
-    DBG_INSTR_REF 5, 0, !14, !DIExpression(), debug-location !16
+    DBG_INSTR_REF !14, !DIExpression(DW_OP_LLVM_arg, 0), dbg-instr-ref(5, 0), debug-location !16
 
   bb.6 (%ir-block.22):
     liveins: $esi
 
     $eax = MOV32rr killed $esi, debug-location !35
-    SEH_Epilogue debug-location !35
+    SEH_BeginEpilogue debug-location !35
     $rsp = frame-destroy ADD64ri8 $rsp, 40, implicit-def dead $eflags, debug-location !35
     $rdi = frame-destroy POP64r implicit-def $rsp, implicit $rsp, debug-location !35
     $rsi = frame-destroy POP64r implicit-def $rsp, implicit $rsp, debug-location !35
+    SEH_EndEpilogue debug-location !35
     RET64 $eax, debug-location !35
 
 ...

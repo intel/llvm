@@ -1,4 +1,4 @@
-//===---------- ASTUtils.h - clang-tidy -----------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,14 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_ASTUTILS_H
-#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_ASTUTILS_H
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_UTILS_ASTUTILS_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_UTILS_ASTUTILS_H
 
 #include "clang/AST/AST.h"
 
-namespace clang {
-namespace tidy {
-namespace utils {
+namespace clang::tidy::utils {
 // Returns the (closest) Function declaration surrounding |Statement| or NULL.
 const FunctionDecl *getSurroundingFunction(ASTContext &Context,
                                            const Stmt &Statement);
@@ -38,8 +36,15 @@ bool rangeContainsMacroExpansion(SourceRange Range, const SourceManager *SM);
 // FIXME: false-negative if the entire range is fully expanded from a macro.
 bool rangeCanBeFixed(SourceRange Range, const SourceManager *SM);
 
-} // namespace utils
-} // namespace tidy
-} // namespace clang
+// Check if statements are same
+bool areStatementsIdentical(const Stmt *FirstStmt, const Stmt *SecondStmt,
+                            const ASTContext &Context, bool Canonical = false);
 
-#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_ASTUTILS_H
+// Given a field of an anonymous record, find its corresponding
+// IndirectFieldDecl in the outermost possible scope.
+const IndirectFieldDecl *
+findOutermostIndirectFieldDeclForField(const FieldDecl *FD);
+
+} // namespace clang::tidy::utils
+
+#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_UTILS_ASTUTILS_H

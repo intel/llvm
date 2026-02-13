@@ -1,13 +1,12 @@
-// RUN: mlir-opt %s --test-transform-dialect-interpreter --split-input-file | FileCheck %s
+// RUN: mlir-opt %s --transform-interpreter --split-input-file --verify-diagnostics | FileCheck %s
 
 // CHECK-DAG: #[[$MAP13:.+]] = affine_map<() -> (13)>
 
-transform.with_pdl_patterns {
-^bb0(%arg0: !pdl.operation):
-  sequence %arg0 failures(propagate) {
-    ^bb0(%arg1: !pdl.operation):
-      %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1
-      transform.structured.multitile_sizes %0 { target_size = 3, dimension = 0 }
+module attributes {transform.with_named_sequence} {
+  transform.named_sequence @__transform_main(%arg1: !transform.any_op {transform.readonly}) {
+      %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+      transform.structured.multitile_sizes %0 { target_size = 3, dimension = 0 } : (!transform.any_op) -> !transform.any_op
+      transform.yield
   }
 }
 
@@ -29,12 +28,40 @@ func.func @multitile_sizes_static(
 
 // -----
 
-transform.with_pdl_patterns {
-^bb0(%arg0: !pdl.operation):
-  sequence %arg0 failures(propagate) {
-    ^bb0(%arg1: !pdl.operation):
-      %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1
-      transform.structured.multitile_sizes %0 { target_size = 3, divisor = 2, dimension = 0 }
+module attributes {transform.with_named_sequence} {
+  transform.named_sequence @__transform_main(%arg1: !transform.any_op {transform.readonly}) {
+      %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+      %low_tile, %high_tile, %split_point =
+        transform.structured.multitile_sizes %0 { target_size = 3, dimension = 0 }
+        : (!transform.any_op) -> !transform.param<i64>
+      // expected-remark @below {{2 : i64}}
+      transform.debug.emit_param_as_remark %low_tile : !transform.param<i64>
+      // expected-remark @below {{3 : i64}}
+      transform.debug.emit_param_as_remark %high_tile : !transform.param<i64>
+      // expected-remark @below {{4 : i64}}
+      transform.debug.emit_param_as_remark %split_point : !transform.param<i64>
+      transform.yield
+  }
+}
+
+// CHECK-LABEL: @multitile_sizes_static_gen
+func.func @multitile_sizes_static_gen(
+  %arg0: tensor<13x34xf32>, %arg1: tensor<34x42xf32>, %arg2: tensor<13x42xf32>)
+    -> tensor<13x42xf32> {
+  %0 = linalg.matmul  ins(%arg0, %arg1: tensor<13x34xf32>, tensor<34x42xf32>)
+                     outs(%arg2: tensor<13x42xf32>)
+    -> tensor<13x42xf32>
+
+  return %0 : tensor<13x42xf32>
+}
+
+// -----
+
+module attributes {transform.with_named_sequence} {
+  transform.named_sequence @__transform_main(%arg1: !transform.any_op {transform.readonly}) {
+      %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+      transform.structured.multitile_sizes %0 { target_size = 3, divisor = 2, dimension = 0 } : (!transform.any_op) -> !transform.any_op
+      transform.yield
   }
 }
 
@@ -67,6 +94,29 @@ func.func @multitile_sizes_dynamic(
   %0 = linalg.matmul  ins(%arg0, %arg1: tensor<?x?xf32>, tensor<?x?xf32>)
                      outs(%arg2: tensor<?x?xf32>)
     -> tensor<?x?xf32>
-  
+
+  return %0 : tensor<?x?xf32>
+}
+
+// -----
+
+module attributes {transform.with_named_sequence} {
+  transform.named_sequence @__transform_main(%arg1: !transform.any_op {transform.readonly}) {
+      %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+      // expected-error @below {{cannot compute parametric tile sizes for dynamically shaped payload op}}
+      transform.structured.multitile_sizes %0 { target_size = 3, divisor = 2, dimension = 0 }
+        : (!transform.any_op) -> !transform.param<i64>
+        transform.yield
+  }
+}
+
+func.func @multitile_sizes_dynamic_gen(
+  %arg0: tensor<?x?xf32>, %arg1: tensor<?x?xf32>, %arg2: tensor<?x?xf32>)
+    -> tensor<?x?xf32> {
+  // expected-note @below {{payload op}}
+  %0 = linalg.matmul  ins(%arg0, %arg1: tensor<?x?xf32>, tensor<?x?xf32>)
+                     outs(%arg2: tensor<?x?xf32>)
+    -> tensor<?x?xf32>
+
   return %0 : tensor<?x?xf32>
 }

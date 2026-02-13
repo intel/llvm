@@ -32,6 +32,86 @@ func.func @any_attr_of_fail() {
 // -----
 
 //===----------------------------------------------------------------------===//
+// Test float attributes
+//===----------------------------------------------------------------------===//
+
+func.func @float_attrs_pass() {
+  "test.float_attrs"() {
+    // CHECK: float_attr = 2.000000e+00 : f4E2M1FN
+    float_attr = 2. : f4E2M1FN
+  } : () -> ()
+  "test.float_attrs"() {
+    // CHECK: float_attr = 2.000000e+00 : f6E2M3FN
+    float_attr = 2. : f6E2M3FN
+  } : () -> ()
+  "test.float_attrs"() {
+    // CHECK: float_attr = 2.000000e+00 : f6E3M2FN
+    float_attr = 2. : f6E3M2FN
+  } : () -> ()
+  "test.float_attrs"() {
+    // CHECK: float_attr = 2.000000e+00 : f8E5M2
+    float_attr = 2. : f8E5M2
+  } : () -> ()
+  "test.float_attrs"() {
+    // CHECK: float_attr = 2.000000e+00 : f8E4M3
+    float_attr = 2. : f8E4M3
+  } : () -> ()
+  "test.float_attrs"() {
+    // CHECK: float_attr = 2.000000e+00 : f8E4M3FN
+    float_attr = 2. : f8E4M3FN
+  } : () -> ()
+  "test.float_attrs"() {
+    // CHECK: float_attr = 2.000000e+00 : f8E5M2FNUZ
+    float_attr = 2. : f8E5M2FNUZ
+  } : () -> ()
+  "test.float_attrs"() {
+    // CHECK: float_attr = 2.000000e+00 : f8E4M3FNUZ
+    float_attr = 2. : f8E4M3FNUZ
+  } : () -> ()
+  "test.float_attrs"() {
+    // CHECK: float_attr = 2.000000e+00 : f8E4M3B11FNUZ
+    float_attr = 2. : f8E4M3B11FNUZ
+  } : () -> ()
+  "test.float_attrs"() {
+    // CHECK: float_attr = 2.000000e+00 : f8E3M4
+    float_attr = 2. : f8E3M4
+  } : () -> ()
+  "test.float_attrs"() {
+    // CHECK: float_attr = 2.000000e+00 : f8E8M0FNU
+    float_attr = 2. : f8E8M0FNU
+  } : () -> ()
+  "test.float_attrs"() {
+    // CHECK: float_attr = 2.000000e+00 : f16
+    float_attr = 2. : f16
+  } : () -> ()
+  "test.float_attrs"() {
+    // CHECK: float_attr = 2.000000e+00 : bf16
+    float_attr = 2. : bf16
+  } : () -> ()
+  "test.float_attrs"() {
+    // CHECK: float_attr = 2.000000e+00 : tf32
+    float_attr = 2. : tf32
+  } : () -> ()
+  "test.float_attrs"() {
+    // CHECK: float_attr = 2.000000e+00 : f32
+    float_attr = 2. : f32
+  } : () -> ()
+  "test.float_attrs"() {
+    // CHECK: float_attr = 2.000000e+00 : f64
+    float_attr = 2. : f64
+  } : () -> ()
+  "test.float_attrs"() {
+    // CHECK: float_attr = 2.000000e+00 : f80
+    float_attr = 2. : f80
+  } : () -> ()
+  "test.float_attrs"() {
+    // CHECK: float_attr = 2.000000e+00 : f128
+    float_attr = 2. : f128
+  } : () -> ()
+  return
+}
+
+//===----------------------------------------------------------------------===//
 // Test integer attributes
 //===----------------------------------------------------------------------===//
 
@@ -336,10 +416,29 @@ func.func @non_type_in_type_array_attr_fail() {
 // Test StringAttr with custom type
 //===----------------------------------------------------------------------===//
 
-// CHECK-LABEL: func @string_attr_custom_type
-func.func @string_attr_custom_type() {
-  // CHECK: "string_data" : !foo.string
-  test.string_attr_with_type "string_data" : !foo.string
+// CHECK-LABEL: func @string_attr_custom_type_valid
+func.func @string_attr_custom_type_valid() {
+  // CHECK: "string_data" : i64
+  test.string_attr_with_type "string_data" : i64
+  return
+}
+
+// -----
+
+func.func @string_attr_custom_type_invalid() {
+  // expected-error @+1 {{'attr' failed to satisfy constraint: string attribute of integer}}
+  test.string_attr_with_type "string_data" : f32
+  return
+}
+
+// -----
+
+// CHECK-LABEL: func @string_attr_custom_mixed_type
+func.func @string_attr_custom_mixed_type() {
+  // CHECK: "string_data" : i64
+  test.string_attr_with_mixed_type "string_data" : i64
+  // CHECK: 42 : i64
+  test.string_attr_with_mixed_type 42 : i64
   return
 }
 
@@ -355,6 +454,10 @@ func.func @allowed_cases_pass() {
   %0 = "test.i32_enum_attr"() {attr = 5: i32} : () -> i32
   // CHECK: test.i32_enum_attr
   %1 = "test.i32_enum_attr"() {attr = 10: i32} : () -> i32
+  // CHECK: test.i32_enum_attr
+  %2 = "test.i32_enum_attr"() {attr = 2147483648: i32} : () -> i32
+  // CHECK: test.i32_enum_attr
+  %3 = "test.i32_enum_attr"() {attr = 4294967295: i32} : () -> i32
   return
 }
 
@@ -436,7 +539,7 @@ func.func @allowed_cases_pass() {
 // -----
 
 func.func @disallowed_case_sticky_fail() {
-  // expected-error@+2 {{expected test::TestBitEnum to be one of: read, write, execute}}
+  // expected-error@+2 {{expected one of [read, write, execute] for a test bit enum, got: sticky}}
   // expected-error@+1 {{failed to parse TestBitEnumAttr}}
   "test.op_with_bit_enum"() {value = #test.bit_enum<sticky>} : () -> ()
 }
@@ -476,6 +579,14 @@ func.func @correct_type_pass() {
     scalar_f32_attr = dense<5.0> : tensor<2xf32>,
     tensor_f64_attr = dense<6.0> : tensor<4xf64>
   } : () -> ()
+  return
+}
+
+// -----
+
+func.func @tf32_elements_attr() {
+  // CHECK: "foo"() {attr = dense<4.000000e+00> : tensor<tf32>} : () -> ()
+  "foo"() {attr = dense<4.0> : tensor<tf32>} : () -> ()
   return
 }
 
@@ -590,9 +701,112 @@ func.func @dense_array_attr() attributes {
     x7_f16 = array<f16: 1., 3.>
   }: () -> ()
 
-  // CHECK: test.typed_attr tensor<4xi32> = array<1, 2, 3, 4>
-  test.typed_attr tensor<4xi32> = array<1, 2, 3, 4>
   return
+}
+
+// -----
+
+func.func @test_invalid_bitwidth_type() {
+  // expected-error @below{{element type bitwidth must be a multiple of 8}}
+  "foo"() {tf32attr = array<tf32: 1024.0>} : () -> ()
+  return
+}
+
+// -----
+
+func.func @testConfinedDenseArrayAttr() {
+  "test.confined_dense_array_attr"() {
+    i64attr = array<i64: 0, 2, 3>,
+    i32attr = array<i32: 1>,
+    emptyattr = array<i16>
+  } : () -> ()
+  func.return
+}
+
+// -----
+
+func.func @testConfinedDenseArrayAttrDuplicateValues() {
+  // expected-error@+1{{'test.confined_dense_array_attr' op attribute 'i64attr' failed to satisfy constraint: i64 dense array attribute should be in increasing order}}
+  "test.confined_dense_array_attr"() {
+    emptyattr = array<i16>,
+    i32attr = array<i32: 1, 1>,
+    i64attr = array<i64: 0, 2, 2>
+  } : () -> ()
+  func.return
+}
+
+// -----
+
+func.func @testConfinedDenseArrayAttrDecreasingOrder() {
+  // expected-error@+1{{'test.confined_dense_array_attr' op attribute 'i32attr' failed to satisfy constraint: i32 dense array attribute should be in non-decreasing order}}
+  "test.confined_dense_array_attr"() {
+    emptyattr = array<i16>,
+    i32attr = array<i32: 1, 0>,
+    i64attr = array<i64: 0, 2, 3>
+  } : () -> ()
+  func.return
+}
+
+// -----
+
+func.func @testConfinedStrictlyPositiveDenseArrayAttr() {
+  "test.confined_strictly_positive_attr"() {
+    i8attr = array<i8: 2, 3>,
+    i16attr = array<i16: 20, 30>,
+    i32attr = array<i32: 1>,
+    i64attr = array<i64: 1, 2, 3>,
+    f32attr = array<f32: 1.1, 2.1>,
+    f64attr = array<f64: 2.1, 3.1>,
+    emptyattr = array<i16>
+  } : () -> ()
+  func.return
+}
+
+// -----
+
+func.func @testConfinedStrictlyPositiveDenseArrayAttr() {
+  // expected-error@+1{{'test.confined_strictly_positive_attr' op attribute 'i64attr' failed to satisfy constraint: i64 dense array attribute whose value is positive}}
+  "test.confined_strictly_positive_attr"() {
+    i8attr = array<i8: 2, 3>,
+    i16attr = array<i16: 20, 30>,
+    i32attr = array<i32: 1>,
+    i64attr = array<i64: 0, 2, 3>,
+    f32attr = array<f32: 1.1, 2.1>,
+    f64attr = array<f64: 2.1, 3.1>,
+    emptyattr = array<i16>
+  } : () -> ()
+  func.return
+}
+
+// -----
+
+func.func @testConfinedNonNegativeDenseArrayAttr() {
+  "test.confined_non_negative_attr"() {
+    i8attr = array<i8: 0, 3>,
+    i16attr = array<i16: 0, 30>,
+    i32attr = array<i32: 1>,
+    i64attr = array<i64: 1, 0, 3>,
+    f32attr = array<f32: 0.0, 2.1>,
+    f64attr = array<f64: 0.0, 3.1>,
+    emptyattr = array<i16>
+  } : () -> ()
+  func.return
+}
+
+// -----
+
+func.func @testConfinedNonNegativeDenseArrayAttr() {
+  // expected-error@+1{{'test.confined_non_negative_attr' op attribute 'i64attr' failed to satisfy constraint: i64 dense array attribute whose value is non-negative}}
+  "test.confined_non_negative_attr"() {
+    i8attr = array<i8: 0, 3>,
+    i16attr = array<i16: 0, 30>,
+    i32attr = array<i32: 1>,
+    i64attr = array<i64: -1, 0, 3>,
+    f32attr = array<f32: 0.0, 2.1>,
+    f64attr = array<f64: 0.0, 3.1>,
+    emptyattr = array<i16>
+  } : () -> ()
+  func.return
 }
 
 // -----
@@ -714,4 +928,29 @@ func.func @wrong_shape_fail() {
     vector_i32_attr = dense<5> : tensor<i32>
   } : () -> ()
   return
+}
+
+// -----
+
+//===----------------------------------------------------------------------===//
+// Test DefaultValuedAttr Printing
+//===----------------------------------------------------------------------===//
+
+// CHECK-LABEL: @default_value_printing
+func.func @default_value_printing(%arg0 : i32) {
+  // The attribute SHOULD NOT be printed because it is equal to the default
+  // CHECK: test.default_value_print %arg0
+  "test.default_value_print"(%arg0) {"value_with_default" = 0 : i32} : (i32) -> ()
+  // The attribute SHOULD be printed because it is not equal to the default
+  // CHECK: test.default_value_print {value_with_default = 1 : i32} %arg0
+  "test.default_value_print"(%arg0) {"value_with_default" = 1 : i32} : (i32) -> ()
+  return
+}
+
+// -----
+
+func.func @type_attr_of_fail() {
+    // expected-error @below {{failed to satisfy constraint: type attribute of 64-bit signless integer}}
+    test.type_attr_of i32
+    return
 }

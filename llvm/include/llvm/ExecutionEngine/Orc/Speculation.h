@@ -14,13 +14,12 @@
 #define LLVM_EXECUTIONENGINE_ORC_SPECULATION_H
 
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ExecutionEngine/Orc/Core.h"
 #include "llvm/ExecutionEngine/Orc/DebugUtils.h"
 #include "llvm/ExecutionEngine/Orc/IRCompileLayer.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Debug.h"
 #include <mutex>
-#include <type_traits>
 #include <utility>
 
 namespace llvm {
@@ -39,18 +38,18 @@ public:
   using AliaseeDetails = std::pair<SymbolStringPtr, JITDylib *>;
   using Alias = SymbolStringPtr;
   using ImapTy = DenseMap<Alias, AliaseeDetails>;
-  void trackImpls(SymbolAliasMap ImplMaps, JITDylib *SrcJD);
+  LLVM_ABI void trackImpls(SymbolAliasMap ImplMaps, JITDylib *SrcJD);
 
 private:
   // FIX ME: find a right way to distinguish the pre-compile Symbols, and update
   // the callsite
-  Optional<AliaseeDetails> getImplFor(const SymbolStringPtr &StubSymbol) {
+  std::optional<AliaseeDetails> getImplFor(const SymbolStringPtr &StubSymbol) {
     std::lock_guard<std::mutex> Lockit(ConcurrentAccess);
     auto Position = Maps.find(StubSymbol);
     if (Position != Maps.end())
       return Position->getSecond();
     else
-      return None;
+      return std::nullopt;
   }
 
   std::mutex ConcurrentAccess;
@@ -60,7 +59,7 @@ private:
 // Defines Speculator Concept,
 class Speculator {
 public:
-  using TargetFAddr = JITTargetAddress;
+  using TargetFAddr = ExecutorAddr;
   using FunctionCandidatesMap = DenseMap<SymbolStringPtr, SymbolNameSet>;
   using StubAddrLikelies = DenseMap<TargetFAddr, SymbolNameSet>;
 
@@ -71,7 +70,7 @@ private:
     GlobalSpecMap.insert({ImplAddr, std::move(likelySymbols)});
   }
 
-  void launchCompile(JITTargetAddress FAddr) {
+  void launchCompile(ExecutorAddr FAddr) {
     SymbolNameSet CandidateSet;
     // Copy CandidateSet is necessary, to avoid unsynchronized access to
     // the datastructure.
@@ -90,8 +89,8 @@ private:
       // try to distinguish already compiled & library symbols
       if (!ImplSymbol)
         continue;
-      const auto &ImplSymbolName = ImplSymbol.getPointer()->first;
-      JITDylib *ImplJD = ImplSymbol.getPointer()->second;
+      const auto &ImplSymbolName = ImplSymbol->first;
+      JITDylib *ImplJD = ImplSymbol->second;
       auto &SymbolsInJD = SpeculativeLookUpImpls[ImplJD];
       SymbolsInJD.insert(ImplSymbolName);
     }
@@ -130,7 +129,7 @@ public:
   /// Define symbols for this Speculator object (__orc_speculator) and the
   /// speculation runtime entry point symbol (__orc_speculate_for) in the
   /// given JITDylib.
-  Error addSpeculationRuntime(JITDylib &JD, MangleAndInterner &Mangle);
+  LLVM_ABI Error addSpeculationRuntime(JITDylib &JD, MangleAndInterner &Mangle);
 
   // Speculatively compile likely functions for the given Stub Address.
   // destination of __orc_speculate_for jump
@@ -145,8 +144,8 @@ public:
       auto OnReadyFixUp = [Likely, Target,
                            this](Expected<SymbolMap> ReadySymbol) {
         if (ReadySymbol) {
-          auto RAddr = (*ReadySymbol)[Target].getAddress();
-          registerSymbolsWithAddr(RAddr, std::move(Likely));
+          auto RDef = (*ReadySymbol)[Target];
+          registerSymbolsWithAddr(RDef.getAddress(), std::move(Likely));
         } else
           this->getES().reportError(ReadySymbol.takeError());
       };
@@ -169,9 +168,10 @@ private:
   StubAddrLikelies GlobalSpecMap;
 };
 
-class IRSpeculationLayer : public IRLayer {
+class LLVM_ABI IRSpeculationLayer : public IRLayer {
 public:
-  using IRlikiesStrRef = Optional<DenseMap<StringRef, DenseSet<StringRef>>>;
+  using IRlikiesStrRef =
+      std::optional<DenseMap<StringRef, DenseSet<StringRef>>>;
   using ResultEval = std::function<IRlikiesStrRef(Function &)>;
   using TargetAndLikelies = DenseMap<SymbolStringPtr, SymbolNameSet>;
 

@@ -19,13 +19,11 @@
 // RUN: %env_tool_opts=external_symbolizer_path=%d/external_symbolizer_path.cpp.tmp.bin/llvm-symbolizer \
 // RUN:   %run %t 2>&1 | FileCheck %s --check-prefix=NOT-FOUND
 
-// REQUIRES: shell
-
 // Mobile device will not have symbolizer in provided path.
 // UNSUPPORTED: ios, android
 
 // FIXME: Figure out why this fails on certain buildbots and re-enable.
-// UNSUPPORTED: linux
+// UNSUPPORTED: target={{.*linux.*}}
 
 #include <sanitizer/common_interface_defs.h>
 #include <stdio.h>

@@ -27,17 +27,19 @@ struct TestTypeInterfaces
   void runOnOperation() override {
     getOperation().walk([](Operation *op) {
       for (Type type : op->getResultTypes()) {
-        if (auto testInterface = type.dyn_cast<TestTypeInterface>()) {
+        if (auto testInterface = dyn_cast<TestTypeInterface>(type)) {
           testInterface.printTypeA(op->getLoc());
           testInterface.printTypeB(op->getLoc());
           testInterface.printTypeC(op->getLoc());
+          testInterface.printTypeC(op->getLoc(), 42);
+          testInterface.printTypeC(op->getLoc(), 3.14f);
           testInterface.printTypeD(op->getLoc());
           // Just check that we can assign the result to a variable of interface
           // type.
           TestTypeInterface result = testInterface.printTypeRet(op->getLoc());
           (void)result;
         }
-        if (auto testType = type.dyn_cast<TestType>())
+        if (auto testType = dyn_cast<TestType>(type))
           testType.printTypeE(op->getLoc());
       }
     });

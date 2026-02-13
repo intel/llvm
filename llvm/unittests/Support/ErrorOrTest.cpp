@@ -36,9 +36,7 @@ TEST(ErrorOr, SimpleValue) {
 #endif
 }
 
-ErrorOr<std::unique_ptr<int> > t3() {
-  return std::unique_ptr<int>(new int(3));
-}
+ErrorOr<std::unique_ptr<int>> t3() { return std::make_unique<int>(3); }
 
 TEST(ErrorOr, Types) {
   int x;
@@ -113,27 +111,26 @@ TEST(ErrorOr, ImplicitConversionNoAmbiguity) {
 // ErrorOr<int*> x(nullptr);
 // ErrorOr<std::unique_ptr<int>> y = x; // invalid conversion
 static_assert(
-    !std::is_convertible<const ErrorOr<int *> &,
-                         ErrorOr<std::unique_ptr<int>>>::value,
+    !std::is_convertible_v<const ErrorOr<int *> &,
+                           ErrorOr<std::unique_ptr<int>>>,
     "do not invoke explicit ctors in implicit conversion from lvalue");
 
 // ErrorOr<std::unique_ptr<int>> y = ErrorOr<int*>(nullptr); // invalid
 //                                                           // conversion
 static_assert(
-    !std::is_convertible<ErrorOr<int *> &&,
-                         ErrorOr<std::unique_ptr<int>>>::value,
+    !std::is_convertible_v<ErrorOr<int *> &&, ErrorOr<std::unique_ptr<int>>>,
     "do not invoke explicit ctors in implicit conversion from rvalue");
 
 // ErrorOr<int*> x(nullptr);
 // ErrorOr<std::unique_ptr<int>> y;
 // y = x; // invalid conversion
-static_assert(!std::is_assignable<ErrorOr<std::unique_ptr<int>>&,
-                                  const ErrorOr<int *> &>::value,
+static_assert(!std::is_assignable_v<ErrorOr<std::unique_ptr<int>> &,
+                                    const ErrorOr<int *> &>,
               "do not invoke explicit ctors in assignment");
 
 // ErrorOr<std::unique_ptr<int>> x;
 // x = ErrorOr<int*>(nullptr); // invalid conversion
-static_assert(!std::is_assignable<ErrorOr<std::unique_ptr<int>>&,
-                                  ErrorOr<int *> &&>::value,
-              "do not invoke explicit ctors in assignment");
+static_assert(
+    !std::is_assignable_v<ErrorOr<std::unique_ptr<int>> &, ErrorOr<int *> &&>,
+    "do not invoke explicit ctors in assignment");
 } // end anon namespace

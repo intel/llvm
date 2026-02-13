@@ -16,10 +16,10 @@
 #ifndef LLVM_DEBUGINFO_SYMBOLIZE_MARKUP_H
 #define LLVM_DEBUGINFO_SYMBOLIZE_MARKUP_H
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Regex.h"
 
 namespace llvm {
@@ -51,7 +51,7 @@ struct MarkupNode {
 /// Parses a log containing symbolizer markup into a sequence of nodes.
 class MarkupParser {
 public:
-  MarkupParser(StringSet<> MultilineTags = {});
+  LLVM_ABI MarkupParser(StringSet<> MultilineTags = {});
 
   /// Parses an individual \p Line of input.
   ///
@@ -65,32 +65,32 @@ public:
   /// either the end or something that cannot be part of an element is
   /// encountered. This may only occur after multiple calls to parseLine(),
   /// corresponding to the lines of the multi-line element.
-  void parseLine(StringRef Line);
+  LLVM_ABI void parseLine(StringRef Line);
 
   /// Inform the parser of that the input stream has ended.
   ///
   /// This allows the parser to finish any deferred processing (e.g., an
   /// in-progress multi-line element) and may cause nextNode() to return
   /// additional nodes.
-  void flush();
+  LLVM_ABI void flush();
 
   /// Returns the next node in the input sequence.
   ///
   /// Calling nextNode() may invalidate the contents of the node returned by the
   /// previous call.
   ///
-  /// \returns the next markup node or None if none remain.
-  Optional<MarkupNode> nextNode();
+  /// \returns the next markup node or std::nullopt if none remain.
+  LLVM_ABI std::optional<MarkupNode> nextNode();
 
   bool isSGR(const MarkupNode &Node) const {
     return SGRSyntax.match(Node.Text);
   }
 
 private:
-  Optional<MarkupNode> parseElement(StringRef Line);
+  std::optional<MarkupNode> parseElement(StringRef Line);
   void parseTextOutsideMarkup(StringRef Text);
-  Optional<StringRef> parseMultiLineBegin(StringRef Line);
-  Optional<StringRef> parseMultiLineEnd(StringRef Line);
+  std::optional<StringRef> parseMultiLineBegin(StringRef Line);
+  std::optional<StringRef> parseMultiLineEnd(StringRef Line);
 
   // Tags of elements that can span multiple lines.
   const StringSet<> MultilineTags;

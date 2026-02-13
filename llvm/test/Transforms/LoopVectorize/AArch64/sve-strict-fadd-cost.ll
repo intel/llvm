@@ -1,26 +1,35 @@
 ; REQUIRES: asserts
-; RUN: opt < %s -loop-vectorize -debug -disable-output -force-ordered-reductions=true -hints-allow-reordering=false \
-; RUN:   -prefer-predicate-over-epilogue=scalar-epilogue -force-vector-interleave=1 -S 2>&1 | FileCheck %s
-; RUN: opt < %s -loop-vectorize -debug -disable-output -force-ordered-reductions=true -hints-allow-reordering=false \
+; RUN: opt < %s -passes=loop-vectorize -debug -disable-output -force-ordered-reductions=true -hints-allow-reordering=false \
+; RUN:   -prefer-predicate-over-epilogue=scalar-epilogue -force-vector-interleave=1 -S 2>&1 | FileCheck %s --check-prefix=CHECK-VSCALE1
+; RUN: opt < %s -passes=loop-vectorize -debug -disable-output -force-ordered-reductions=true -hints-allow-reordering=false \
 ; RUN:   -prefer-predicate-over-epilogue=scalar-epilogue -force-vector-interleave=1 \
-; RUN:   -mcpu=neoverse-n2 -S 2>&1 | FileCheck %s --check-prefix=CHECK-CPU-NEOVERSE-N2
+; RUN:   -mcpu=neoverse-v1 -S 2>&1 | FileCheck %s --check-prefix=CHECK-VSCALE2
+; RUN: opt < %s -passes=loop-vectorize -debug -disable-output -force-ordered-reductions=true -hints-allow-reordering=false \
+; RUN:   -prefer-predicate-over-epilogue=scalar-epilogue -force-vector-interleave=1 \
+; RUN:   -mcpu=neoverse-n2 -S 2>&1 | FileCheck %s --check-prefix=CHECK-VSCALE1
 
 target triple="aarch64-unknown-linux-gnu"
 
-; CHECK: Found an estimated cost of 8 for VF vscale x 2 For instruction:   %add = fadd float %0, %sum.07
-; CHECK: Found an estimated cost of 16 for VF vscale x 4 For instruction:   %add = fadd float %0, %sum.07
-; CHECK-CPU-NEOVERSE-N2: Found an estimated cost of 4 for VF vscale x 2 For instruction:   %add = fadd float %0, %sum.07
-; CHECK-CPU-NEOVERSE-N2: Found an estimated cost of 8 for VF vscale x 4 For instruction:   %add = fadd float %0, %sum.07
+; CHECK-VSCALE2-LABEL: LV: Checking a loop in 'fadd_strict32'
+; CHECK-VSCALE2: Cost of 4 for VF vscale x 2:
+; CHECK-VSCALE2:  REDUCE ir<%add> = ir<%sum.07> + reduce.fadd (ir<%0>)
+; CHECK-VSCALE2: Cost of 8 for VF vscale x 4:
+; CHECK-VSCALE2:  REDUCE ir<%add> = ir<%sum.07> + reduce.fadd (ir<%0>)
+; CHECK-VSCALE1-LABEL: LV: Checking a loop in 'fadd_strict32'
+; CHECK-VSCALE1: Cost of 2 for VF vscale x 2:
+; CHECK-VSCALE1:  REDUCE ir<%add> = ir<%sum.07> + reduce.fadd (ir<%0>)
+; CHECK-VSCALE1: Cost of 4 for VF vscale x 4:
+; CHECK-VSCALE1:  REDUCE ir<%add> = ir<%sum.07> + reduce.fadd (ir<%0>)
 
-define float @fadd_strict32(float* noalias nocapture readonly %a, i64 %n) #0 {
+define float @fadd_strict32(ptr noalias nocapture readonly %a, i64 %n) #0 {
 entry:
   br label %for.body
 
 for.body:
   %iv = phi i64 [ 0, %entry ], [ %iv.next, %for.body ]
   %sum.07 = phi float [ 0.000000e+00, %entry ], [ %add, %for.body ]
-  %arrayidx = getelementptr inbounds float, float* %a, i64 %iv
-  %0 = load float, float* %arrayidx, align 4
+  %arrayidx = getelementptr inbounds float, ptr %a, i64 %iv
+  %0 = load float, ptr %arrayidx, align 4
   %add = fadd float %0, %sum.07
   %iv.next = add nuw nsw i64 %iv, 1
   %exitcond.not = icmp eq i64 %iv.next, %n
@@ -31,18 +40,22 @@ for.end:
 }
 
 
-; CHECK: Found an estimated cost of 8 for VF vscale x 2 For instruction:   %add = fadd double %0, %sum.07
-; CHECK-CPU-NEOVERSE-N2: Found an estimated cost of 4 for VF vscale x 2 For instruction:   %add = fadd double %0, %sum.07
+; CHECK-VSCALE2-LABEL: LV: Checking a loop in 'fadd_strict64'
+; CHECK-VSCALE2: Cost of 4 for VF vscale x 2:
+; CHECK-VSCALE2:  REDUCE ir<%add> = ir<%sum.07> + reduce.fadd (ir<%0>)
+; CHECK-VSCALE1-LABEL: LV: Checking a loop in 'fadd_strict64'
+; CHECK-VSCALE1: Cost of 2 for VF vscale x 2:
+; CHECK-VSCALE1:  REDUCE ir<%add> = ir<%sum.07> + reduce.fadd (ir<%0>)
 
-define double @fadd_strict64(double* noalias nocapture readonly %a, i64 %n) #0 {
+define double @fadd_strict64(ptr noalias nocapture readonly %a, i64 %n) #0 {
 entry:
   br label %for.body
 
 for.body:
   %iv = phi i64 [ 0, %entry ], [ %iv.next, %for.body ]
   %sum.07 = phi double [ 0.000000e+00, %entry ], [ %add, %for.body ]
-  %arrayidx = getelementptr inbounds double, double* %a, i64 %iv
-  %0 = load double, double* %arrayidx, align 4
+  %arrayidx = getelementptr inbounds double, ptr %a, i64 %iv
+  %0 = load double, ptr %arrayidx, align 4
   %add = fadd double %0, %sum.07
   %iv.next = add nuw nsw i64 %iv, 1
   %exitcond.not = icmp eq i64 %iv.next, %n

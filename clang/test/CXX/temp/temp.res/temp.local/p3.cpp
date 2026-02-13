@@ -16,8 +16,7 @@ template <class T> struct Derived: Base<int>, Base<char> {
   void g(X0 *t) {
     t->Derived::Base<T>::f();
     t->Base<T>::f();
-    t->Base::f(); // expected-error{{member 'Base' found in multiple base classes of different types}} \
-    // expected-error{{no member named 'f' in 'X0'}}
+    t->Base::f(); // expected-error{{member 'Base' found in multiple base classes of different types}}
   }
 };
 
@@ -28,8 +27,7 @@ namespace PR6717 {
 
     WebVector(const WebVector<T>& other) { } // expected-error{{undeclared identifier 'T'}} \
                                                 precxx17-error{{a type specifier is required}} \
-                                                cxx17-error{{deduction guide declaration without trailing return type}} \
-                                                cxx17-error{{deduction guide cannot have a function definition}}
+                                                cxx17-error{{deduction guide declaration without trailing return type}}
 
   template <typename C>
   WebVector<T>& operator=(const C& other) { } // expected-error{{undeclared identifier 'T'}}

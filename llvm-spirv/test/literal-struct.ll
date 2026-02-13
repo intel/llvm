@@ -25,31 +25,30 @@
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir"
 
-%struct.__opencl_block_literal_generic = type { i32, i32, i8 addrspace(4)* }
+%struct.__opencl_block_literal_generic = type { i32, i32, ptr addrspace(4) }
 
-@__block_literal_global = internal addrspace(1) constant { i32, i32, i8 addrspace(4)* } { i32 12, i32 4, i8 addrspace(4)* addrspacecast (i8* bitcast (void (i8 addrspace(4)*)* @__foo_block_invoke to i8*) to i8 addrspace(4)*) }, align 4
+@__block_literal_global = internal addrspace(1) constant { i32, i32, ptr addrspace(4) } { i32 12, i32 4, ptr addrspace(4) addrspacecast (ptr @__foo_block_invoke to ptr addrspace(4)) }, align 4
 ; CHECK: ConstantComposite [[StructType]]
 
-@__block_literal_global.1 = internal addrspace(1) constant { i32, i32, i8 addrspace(4)* } zeroinitializer, align 4
+@__block_literal_global.1 = internal addrspace(1) constant { i32, i32, ptr addrspace(4) } zeroinitializer, align 4
 ; CHECK: ConstantNull [[StructType]]
 
 ; Function Attrs: convergent noinline nounwind optnone
 define spir_func void @foo() #0 {
 entry:
-  %myBlock = alloca %struct.__opencl_block_literal_generic addrspace(4)*, align 4
-  store %struct.__opencl_block_literal_generic addrspace(4)* addrspacecast (%struct.__opencl_block_literal_generic addrspace(1)* bitcast ({ i32, i32, i8 addrspace(4)* } addrspace(1)* @__block_literal_global to %struct.__opencl_block_literal_generic addrspace(1)*) to %struct.__opencl_block_literal_generic addrspace(4)*), %struct.__opencl_block_literal_generic addrspace(4)** %myBlock, align 4
-  call spir_func void @__foo_block_invoke(i8 addrspace(4)* addrspacecast (i8 addrspace(1)* bitcast ({ i32, i32, i8 addrspace(4)* } addrspace(1)* @__block_literal_global to i8 addrspace(1)*) to i8 addrspace(4)*)) #1
+  %myBlock = alloca ptr addrspace(4), align 4
+  store ptr addrspace(4) addrspacecast (ptr addrspace(1) @__block_literal_global to ptr addrspace(4)), ptr %myBlock, align 4
+  call spir_func void @__foo_block_invoke(ptr addrspace(4) addrspacecast (ptr addrspace(1) @__block_literal_global to ptr addrspace(4))) #1
   ret void
 }
 
 ; Function Attrs: convergent noinline nounwind optnone
-define internal spir_func void @__foo_block_invoke(i8 addrspace(4)* %.block_descriptor) #0 {
+define internal spir_func void @__foo_block_invoke(ptr addrspace(4) %.block_descriptor) #0 {
 entry:
-  %.block_descriptor.addr = alloca i8 addrspace(4)*, align 4
-  %block.addr = alloca <{ i32, i32, i8 addrspace(4)* }> addrspace(4)*, align 4
-  store i8 addrspace(4)* %.block_descriptor, i8 addrspace(4)** %.block_descriptor.addr, align 4
-  %block = bitcast i8 addrspace(4)* %.block_descriptor to <{ i32, i32, i8 addrspace(4)* }> addrspace(4)*
-  store <{ i32, i32, i8 addrspace(4)* }> addrspace(4)* %block, <{ i32, i32, i8 addrspace(4)* }> addrspace(4)** %block.addr, align 4
+  %.block_descriptor.addr = alloca ptr addrspace(4), align 4
+  %block.addr = alloca ptr addrspace(4), align 4
+  store ptr addrspace(4) %.block_descriptor, ptr %.block_descriptor.addr, align 4
+  store ptr addrspace(4) %.block_descriptor, ptr %block.addr, align 4
   ret void
 }
 

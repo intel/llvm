@@ -1,5 +1,5 @@
 
-; RUN: llc -debugger-tune=gdb -mtriple powerpc-ibm-aix-xcoff < %s | \
+; RUN: llc -debugger-tune=gdb -mcpu=ppc -mtriple powerpc-ibm-aix-xcoff < %s | \
 ; RUN:   FileCheck %s
 
 source_filename = "2.c"
@@ -15,7 +15,7 @@ entry:
 define i32 @main() #0 section "explicit_main_sec" !dbg !14 {
 entry:
   %retval = alloca i32, align 4
-  store i32 0, i32* %retval, align 4
+  store i32 0, ptr %retval, align 4
   %call = call i32 @bar(), !dbg !15
   ret i32 %call, !dbg !16
 }
@@ -42,8 +42,10 @@ entry:
 !15 = !DILocation(line: 3, column: 10, scope: !14)
 !16 = !DILocation(line: 3, column: 3, scope: !14)
 
-; CHECK:               .csect .text[PR],5
-; CHECK-NEXT:          .file   "2.c"
+; CHECK:               .file   "2.c"
+; CHECK-NEXT:          .csect ..text..[PR],5
+; CHECK-NEXT:          .rename ..text..[PR],""
+; CHECK-NEXT:          .machine "COM"
 ; CHECK-NEXT:          .globl  bar[DS]                         # -- Begin function bar
 ; CHECK-NEXT:          .globl  .bar
 ; CHECK-NEXT:          .align  2
@@ -51,27 +53,26 @@ entry:
 ; CHECK-NEXT:          .vbyte  4, .bar                         # @bar
 ; CHECK-NEXT:          .vbyte  4, TOC[TC0]
 ; CHECK-NEXT:          .vbyte  4, 0
-; CHECK-NEXT:          .csect .text[PR],5
+; CHECK-NEXT:          .csect ..text..[PR],5
 ; CHECK-NEXT:  .bar:
 ; CHECK-NEXT:  L..func_begin0:
 ; CHECK-NEXT:  # %bb.0:                                # %entry
 ; CHECK-NEXT:  L..tmp0:
-; CHECK-NEXT:  L..tmp1:
 ; CHECK-NEXT:          li 3, 1
 ; CHECK-NEXT:          blr
-; CHECK-NEXT:  L..tmp2:
+; CHECK-NEXT:  L..tmp1:
 ; CHECK-NEXT:  L..bar0:
 ; CHECK-NEXT:          .vbyte  4, 0x00000000                   # Traceback table begin
 ; CHECK-NEXT:          .byte   0x00                            # Version = 0
 ; CHECK-NEXT:          .byte   0x09                            # Language = CPlusPlus
-; CHECK-NEXT:          .byte   0x20                            # -IsGlobaLinkage, -IsOutOfLineEpilogOrPrologue
+; CHECK-NEXT:          .byte   0x20                            # -IsGlobalLinkage, -IsOutOfLineEpilogOrPrologue
 ; CHECK-NEXT:                                          # +HasTraceBackTableOffset, -IsInternalProcedure
 ; CHECK-NEXT:                                          # -HasControlledStorage, -IsTOCless
 ; CHECK-NEXT:                                          # -IsFloatingPointPresent
 ; CHECK-NEXT:                                          # -IsFloatingPointOperationLogOrAbortEnabled
 ; CHECK-NEXT:          .byte   0x40                            # -IsInterruptHandler, +IsFunctionNamePresent, -IsAllocaUsed
 ; CHECK-NEXT:                                          # OnConditionDirective = 0, -IsCRSaved, -IsLRSaved
-; CHECK-NEXT:          .byte   0x80                            # +IsBackChainStored, -IsFixup, NumOfFPRsSaved = 0
+; CHECK-NEXT:          .byte   0x00                            # -IsBackChainStored, -IsFixup, NumOfFPRsSaved = 0
 ; CHECK-NEXT:          .byte   0x00                            # -HasExtensionTable, -HasVectorInfo, NumOfGPRsSaved = 0
 ; CHECK-NEXT:          .byte   0x00                            # NumberOfFixedParms = 0
 ; CHECK-NEXT:          .byte   0x01                            # NumberOfFPParms = 0, +HasParmsOnStack
@@ -92,27 +93,27 @@ entry:
 ; CHECK-NEXT:  .main:
 ; CHECK-NEXT:  L..func_begin1:
 ; CHECK-NEXT:  # %bb.0:                                # %entry
-; CHECK-NEXT:  L..tmp3:
+; CHECK-NEXT:  L..tmp2:
 ; CHECK-NEXT:          mflr 0
-; CHECK-NEXT:          stw 0, 8(1)
 ; CHECK-NEXT:          stwu 1, -64(1)
 ; CHECK-NEXT:          li 3, 0
+; CHECK-NEXT:          stw 0, 72(1)
 ; CHECK-NEXT:          stw 3, 60(1)
+; CHECK-NEXT:  L..tmp3:
 ; CHECK-NEXT:  L..tmp4:
-; CHECK-NEXT:  L..tmp5:
 ; CHECK-NEXT:          bl .bar
 ; CHECK-NEXT:          nop
-; CHECK-NEXT:  L..tmp6:
+; CHECK-NEXT:  L..tmp5:
 ; CHECK-NEXT:          addi 1, 1, 64
 ; CHECK-NEXT:          lwz 0, 8(1)
 ; CHECK-NEXT:          mtlr 0
 ; CHECK-NEXT:          blr
-; CHECK-NEXT:  L..tmp7:
+; CHECK-NEXT:  L..tmp6:
 ; CHECK-NEXT:  L..main0:
 ; CHECK-NEXT:          .vbyte  4, 0x00000000                   # Traceback table begin
 ; CHECK-NEXT:          .byte   0x00                            # Version = 0
 ; CHECK-NEXT:          .byte   0x09                            # Language = CPlusPlus
-; CHECK-NEXT:          .byte   0x20                            # -IsGlobaLinkage, -IsOutOfLineEpilogOrPrologue
+; CHECK-NEXT:          .byte   0x20                            # -IsGlobalLinkage, -IsOutOfLineEpilogOrPrologue
 ; CHECK-NEXT:                                          # +HasTraceBackTableOffset, -IsInternalProcedure
 ; CHECK-NEXT:                                          # -HasControlledStorage, -IsTOCless
 ; CHECK-NEXT:                                          # -IsFloatingPointPresent
@@ -130,7 +131,7 @@ entry:
 ; CHECK-NEXT:                                          # -- End function
 ; CHECK-NEXT:  L..sec_end0:
 ; CHECK:               .dwsect 0x60000
-; CHECK-NEXT:  L...dwabrev:
+; CHECK-NEXT:  .dwabrev:
 ; CHECK-NEXT:          .byte   1                               # Abbreviation Code
 ; CHECK-NEXT:          .byte   17                              # DW_TAG_compile_unit
 ; CHECK-NEXT:          .byte   1                               # DW_CHILDREN_yes
@@ -184,10 +185,10 @@ entry:
 ; CHECK-NEXT:          .byte   0                               # EOM(2)
 ; CHECK-NEXT:          .byte   0                               # EOM(3)
 ; CHECK:               .dwsect 0x10000
-; CHECK-NEXT:  L...dwinfo:
+; CHECK-NEXT:  .dwinfo:
 ; CHECK-NEXT:  L..cu_begin0:
 ; CHECK-NEXT:          .vbyte  2, 3                            # DWARF version number
-; CHECK-NEXT:          .vbyte  4, L...dwabrev                  # Offset Into Abbrev. Section
+; CHECK-NEXT:          .vbyte  4, .dwabrev                  # Offset Into Abbrev. Section
 ; CHECK-NEXT:          .byte   4                               # Address Size (in bytes)
 ; CHECK-NEXT:          .byte   1                               # Abbrev [1] 0xb:0x4f DW_TAG_compile_unit
 ; CHECK-NEXT:          .vbyte  4, L..info_string0              # DW_AT_producer
@@ -224,7 +225,7 @@ entry:
 ; CHECK-NEXT:          .byte   0                               # End Of Children Mark
 ; CHECK-NEXT:  L..debug_info_end0:
 ; CHECK:               .dwsect 0x80000
-; CHECK-NEXT:  L...dwrnges:
+; CHECK-NEXT:  .dwrnges:
 ; CHECK-NEXT:  L..debug_ranges0:
 ; CHECK-NEXT:          .vbyte  4, L..func_begin0
 ; CHECK-NEXT:          .vbyte  4, L..func_end0
@@ -233,7 +234,7 @@ entry:
 ; CHECK-NEXT:          .vbyte  4, 0
 ; CHECK-NEXT:          .vbyte  4, 0
 ; CHECK:               .dwsect 0x70000
-; CHECK-NEXT:  L...dwstr:
+; CHECK-NEXT:  .dwstr:
 ; CHECK-NEXT:  L..info_string0:
 ; CHECK-NEXT:  	.string	"clang version 13.0.0"          # string offset=0
 ; CHECK-NEXT:  L..info_string1:
@@ -248,7 +249,7 @@ entry:
 ; CHECK-NEXT:  	.string	"main"                          # string offset=39
 ; CHECK-NEXT:          .toc
 ; CHECK:               .dwsect 0x20000
-; CHECK-NEXT:  L...dwline:
+; CHECK-NEXT:  .dwline:
 ; CHECK-NEXT:  L..debug_line_0:
 ; CHECK-NEXT:  .set L..line_table_start0, L..debug_line_0-4
 ; CHECK-NEXT:          .vbyte  2, 3
@@ -281,21 +282,14 @@ entry:
 ; CHECK-NEXT:          .byte   0
 ; CHECK-NEXT:          .byte   0
 ; CHECK-NEXT:  L..prologue_end0:
+; CHECK-NEXT:          .byte   5
+; CHECK-NEXT:          .byte   12
+; CHECK-NEXT:          .byte   10
 ; CHECK-NEXT:          .byte   0                               # Set address to L..tmp0
 ; CHECK-NEXT:          .byte   5
 ; CHECK-NEXT:          .byte   2
 ; CHECK-NEXT:          .vbyte  4, L..tmp0
 ; CHECK-NEXT:          .byte   1                               # Start sequence
-; CHECK-NEXT:          .byte   5
-; CHECK-NEXT:          .byte   12
-; CHECK-NEXT:          .byte   10
-; CHECK-NEXT:          .byte   0                               # Set address to L..tmp1
-; CHECK-NEXT:          .byte   5
-; CHECK-NEXT:          .byte   2
-; CHECK-NEXT:          .vbyte  4, L..tmp1
-; CHECK-NEXT:          .byte   3                               # Advance line 0
-; CHECK-NEXT:          .byte   0
-; CHECK-NEXT:          .byte   1
 ; CHECK-NEXT:          .byte   0                               # Set address to L..func_end0
 ; CHECK-NEXT:          .byte   5
 ; CHECK-NEXT:          .byte   2
@@ -303,28 +297,28 @@ entry:
 ; CHECK-NEXT:          .byte   0                               # End sequence
 ; CHECK-NEXT:          .byte   1
 ; CHECK-NEXT:          .byte   1
-; CHECK-NEXT:          .byte   0                               # Set address to L..tmp3
+; CHECK-NEXT:          .byte   0                               # Set address to L..tmp2
 ; CHECK-NEXT:          .byte   5
 ; CHECK-NEXT:          .byte   2
-; CHECK-NEXT:          .vbyte  4, L..tmp3
+; CHECK-NEXT:          .vbyte  4, L..tmp2
 ; CHECK-NEXT:          .byte   19                              # Start sequence
 ; CHECK-NEXT:          .byte   5
 ; CHECK-NEXT:          .byte   10
 ; CHECK-NEXT:          .byte   10
-; CHECK-NEXT:          .byte   0                               # Set address to L..tmp5
+; CHECK-NEXT:          .byte   0                               # Set address to L..tmp4
 ; CHECK-NEXT:          .byte   5
 ; CHECK-NEXT:          .byte   2
-; CHECK-NEXT:          .vbyte  4, L..tmp5
+; CHECK-NEXT:          .vbyte  4, L..tmp4
 ; CHECK-NEXT:          .byte   3                               # Advance line 1
 ; CHECK-NEXT:          .byte   1
 ; CHECK-NEXT:          .byte   1
 ; CHECK-NEXT:          .byte   5
 ; CHECK-NEXT:          .byte   3
 ; CHECK-NEXT:          .byte   6
-; CHECK-NEXT:          .byte   0                               # Set address to L..tmp6
+; CHECK-NEXT:          .byte   0                               # Set address to L..tmp5
 ; CHECK-NEXT:          .byte   5
 ; CHECK-NEXT:          .byte   2
-; CHECK-NEXT:          .vbyte  4, L..tmp6
+; CHECK-NEXT:          .vbyte  4, L..tmp5
 ; CHECK-NEXT:          .byte   3                               # Advance line 0
 ; CHECK-NEXT:          .byte   0
 ; CHECK-NEXT:          .byte   1

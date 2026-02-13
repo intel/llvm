@@ -18,8 +18,8 @@ define dso_local void @f1(i32 %a1, i32 %a2) {
 ;CHECK-WIN32:    f1:
 ;CHECK-WIN32:    movw [[REG1:r[0-9]+]], :lower16:.L_MergedGlobals
 ;CHECK-WIN32:    movt [[REG1]], :upper16:.L_MergedGlobals
-  store i32 %a1, i32* @x, align 4
-  store i32 %a2, i32* @y, align 4
+  store i32 %a1, ptr @x, align 4
+  store i32 %a2, ptr @y, align 4
   ret void
 }
 
@@ -37,8 +37,8 @@ define dso_local void @g1(i32 %a1, i32 %a2) {
 ;CHECK-WIN32:    movt    [[REG2]], :upper16:z
 ;CHECK-WIN32:    movw [[REG3:r[0-9]+]], :lower16:.L_MergedGlobals
 ;CHECK-WIN32:    movt [[REG3]], :upper16:.L_MergedGlobals
-  store i32 %a1, i32* @y, align 4
-  store i32 %a2, i32* @z, align 4
+  store i32 %a1, ptr @y, align 4
+  store i32 %a2, ptr @z, align 4
   ret void
 }
 
@@ -50,16 +50,16 @@ define dso_local void @g1(i32 %a1, i32 %a2) {
 ;CHECK-WIN32:   .lcomm  .L_MergedGlobals,8,4
 
 ;CHECK-MERGE:   .globl  x
-;CHECK-MERGE: .set x, .L_MergedGlobals
+;CHECK-MERGE: x = .L_MergedGlobals
 ;CHECK-MERGE: .size x, 4
 ;CHECK-MERGE:   .globl  y
-;CHECK-MERGE: .set y, .L_MergedGlobals+4
+;CHECK-MERGE: y = .L_MergedGlobals+4
 ;CHECK-MERGE: .size y, 4
-;CHECK-MERGE-NOT: .set z, .L_MergedGlobals+8
+;CHECK-MERGE-NOT: z = .L_MergedGlobals+8
 
 
 ;CHECK-WIN32:   .globl  x
-;CHECK-WIN32: .set x, .L_MergedGlobals
+;CHECK-WIN32: x = .L_MergedGlobals
 ;CHECK-WIN32:   .globl  y
-;CHECK-WIN32: .set y, .L_MergedGlobals+4
-;CHECK-WIN32-NOT: .set z, .L_MergedGlobals+8
+;CHECK-WIN32: y = .L_MergedGlobals+4
+;CHECK-WIN32-NOT: z = .L_MergedGlobals+8

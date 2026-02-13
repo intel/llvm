@@ -3,14 +3,14 @@ set(LLVM_LINK_COMPONENTS
   Support
   )
 
-add_clang_library(clangTidyGoogleModule
-  AvoidCStyleCastsCheck.cpp
+add_clang_library(clangTidyGoogleModule STATIC
   AvoidNSObjectNewCheck.cpp
   AvoidThrowingObjCExceptionCheck.cpp
   AvoidUnderscoreInGoogletestNameCheck.cpp
   DefaultArgumentsCheck.cpp
   ExplicitConstructorCheck.cpp
   ExplicitMakePairCheck.cpp
+  FloatTypesCheck.cpp
   FunctionNamingCheck.cpp
   GlobalNamesInHeadersCheck.cpp
   GlobalVariableDeclarationCheck.cpp
@@ -18,17 +18,19 @@ add_clang_library(clangTidyGoogleModule
   IntegerTypesCheck.cpp
   OverloadedUnaryAndCheck.cpp
   TodoCommentCheck.cpp
-  UnnamedNamespaceInHeaderCheck.cpp
   UpgradeGoogletestCaseCheck.cpp
   UsingNamespaceDirectiveCheck.cpp
 
   LINK_LIBS
   clangTidy
+  clangTidyMiscModule
+  clangTidyModernizeModule
   clangTidyReadabilityModule
   clangTidyUtils
 
   DEPENDS
   omp_gen
+  ClangDriverOptions
   )
 
 clang_target_link_libraries(clangTidyGoogleModule

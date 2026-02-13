@@ -17,50 +17,101 @@
 
 using namespace mlir;
 
+static std::pair<int64_t, int64_t>
+getLineAndColStart(const llvm::SourceMgr &sourceMgr) {
+  unsigned lastFileID = sourceMgr.getNumBuffers();
+  if (lastFileID == 1)
+    return {0, 0};
+
+  auto bufferID = sourceMgr.getMainFileID();
+  const llvm::MemoryBuffer *main = sourceMgr.getMemoryBuffer(bufferID);
+  const llvm::MemoryBuffer *last = sourceMgr.getMemoryBuffer(lastFileID);
+  // Exclude same start.
+  if (main->getBufferStart() < last->getBufferStart() &&
+      main->getBufferEnd() >= last->getBufferEnd()) {
+    return sourceMgr.getLineAndColumn(
+        llvm::SMLoc::getFromPointer(last->getBufferStart()), bufferID);
+  }
+  return {0, 0};
+}
+
 LogicalResult mlir::parseSourceFile(const llvm::SourceMgr &sourceMgr,
                                     Block *block, const ParserConfig &config,
                                     LocationAttr *sourceFileLoc) {
   const auto *sourceBuf = sourceMgr.getMemoryBuffer(sourceMgr.getMainFileID());
   if (sourceFileLoc) {
-    *sourceFileLoc = FileLineColLoc::get(config.getContext(),
-                                         sourceBuf->getBufferIdentifier(),
-                                         /*line=*/0, /*column=*/0);
+    auto [line, column] = getLineAndColStart(sourceMgr);
+    *sourceFileLoc = FileLineColLoc::get(
+        config.getContext(), sourceBuf->getBufferIdentifier(), line, column);
   }
   if (isBytecode(*sourceBuf))
     return readBytecodeFile(*sourceBuf, block, config);
   return parseAsmSourceFile(sourceMgr, block, config);
 }
+LogicalResult
+mlir::parseSourceFile(const std::shared_ptr<llvm::SourceMgr> &sourceMgr,
+                      Block *block, const ParserConfig &config,
+                      LocationAttr *sourceFileLoc) {
+  const auto *sourceBuf =
+      sourceMgr->getMemoryBuffer(sourceMgr->getMainFileID());
+  if (sourceFileLoc) {
+    auto [line, column] = getLineAndColStart(*sourceMgr);
+    *sourceFileLoc = FileLineColLoc::get(
+        config.getContext(), sourceBuf->getBufferIdentifier(), line, column);
+  }
+  if (isBytecode(*sourceBuf))
+    return readBytecodeFile(sourceMgr, block, config);
+  return parseAsmSourceFile(*sourceMgr, block, config);
+}
 
 LogicalResult mlir::parseSourceFile(llvm::StringRef filename, Block *block,
                                     const ParserConfig &config,
                                     LocationAttr *sourceFileLoc) {
-  llvm::SourceMgr sourceMgr;
+  auto sourceMgr = std::make_shared<llvm::SourceMgr>();
   return parseSourceFile(filename, sourceMgr, block, config, sourceFileLoc);
+}
+
+static LogicalResult loadSourceFileBuffer(llvm::StringRef filename,
+                                          llvm::SourceMgr &sourceMgr,
+                                          MLIRContext *ctx) {
+  if (sourceMgr.getNumBuffers() != 0) {
+    // TODO: Extend to support multiple buffers.
+    return emitError(mlir::UnknownLoc::get(ctx),
+                     "only main buffer parsed at the moment");
+  }
+  auto fileOrErr = llvm::MemoryBuffer::getFileOrSTDIN(filename);
+  if (fileOrErr.getError())
+    return emitError(mlir::UnknownLoc::get(ctx),
+                     "could not open input file " + filename);
+
+  // Load the MLIR source file.
+  sourceMgr.AddNewSourceBuffer(std::move(*fileOrErr), SMLoc());
+  return success();
 }
 
 LogicalResult mlir::parseSourceFile(llvm::StringRef filename,
                                     llvm::SourceMgr &sourceMgr, Block *block,
                                     const ParserConfig &config,
                                     LocationAttr *sourceFileLoc) {
-  if (sourceMgr.getNumBuffers() != 0) {
-    // TODO: Extend to support multiple buffers.
-    return emitError(mlir::UnknownLoc::get(config.getContext()),
-                     "only main buffer parsed at the moment");
-  }
-  auto fileOrErr = llvm::MemoryBuffer::getFileOrSTDIN(filename);
-  if (std::error_code error = fileOrErr.getError())
-    return emitError(mlir::UnknownLoc::get(config.getContext()),
-                     "could not open input file " + filename);
-
-  // Load the MLIR source file.
-  sourceMgr.AddNewSourceBuffer(std::move(*fileOrErr), SMLoc());
+  if (failed(loadSourceFileBuffer(filename, sourceMgr, config.getContext())))
+    return failure();
+  return parseSourceFile(sourceMgr, block, config, sourceFileLoc);
+}
+LogicalResult mlir::parseSourceFile(
+    llvm::StringRef filename, const std::shared_ptr<llvm::SourceMgr> &sourceMgr,
+    Block *block, const ParserConfig &config, LocationAttr *sourceFileLoc) {
+  if (failed(loadSourceFileBuffer(filename, *sourceMgr, config.getContext())))
+    return failure();
   return parseSourceFile(sourceMgr, block, config, sourceFileLoc);
 }
 
 LogicalResult mlir::parseSourceString(llvm::StringRef sourceStr, Block *block,
                                       const ParserConfig &config,
+                                      StringRef sourceName,
                                       LocationAttr *sourceFileLoc) {
-  auto memBuffer = llvm::MemoryBuffer::getMemBuffer(sourceStr);
+  auto memBuffer =
+      llvm::MemoryBuffer::getMemBuffer(sourceStr, sourceName,
+                                       /*RequiresNullTerminator=*/false);
   if (!memBuffer)
     return failure();
 

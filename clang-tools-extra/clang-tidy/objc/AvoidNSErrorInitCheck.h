@@ -1,4 +1,4 @@
-//===--- AvoidNSErrorInitCheck.h - clang-tidy--------------------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,17 +11,15 @@
 
 #include "../ClangTidyCheck.h"
 
-namespace clang {
-namespace tidy {
-namespace objc {
+namespace clang::tidy::objc {
 
 /// Finds usages of -[NSError init]. It is not the proper way of creating
 /// NSError. errorWithDomain:code:userInfo: should be used instead.
 ///
 /// For the user-facing documentation see:
-/// http://clang.llvm.org/extra/clang-tidy/checks/objc/avoid-nserror-init.html
+/// https://clang.llvm.org/extra/clang-tidy/checks/objc/avoid-nserror-init.html
 class AvoidNSErrorInitCheck : public ClangTidyCheck {
- public:
+public:
   AvoidNSErrorInitCheck(StringRef Name, ClangTidyContext *Context)
       : ClangTidyCheck(Name, Context) {}
   bool isLanguageVersionSupported(const LangOptions &LangOpts) const override {
@@ -31,8 +29,6 @@ class AvoidNSErrorInitCheck : public ClangTidyCheck {
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
 };
 
-}  // namespace objc
-}  // namespace tidy
-}  // namespace clang
+} // namespace clang::tidy::objc
 
-#endif  // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_OBJC_AVOIDNSERRORINITCHECK_H
+#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_OBJC_AVOIDNSERRORINITCHECK_H

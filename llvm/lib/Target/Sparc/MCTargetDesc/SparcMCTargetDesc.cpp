@@ -19,7 +19,20 @@
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
+
+namespace llvm {
+namespace SparcASITag {
+#define GET_ASITagsList_IMPL
+#include "SparcGenSearchableTables.inc"
+} // end namespace SparcASITag
+
+namespace SparcPrefetchTag {
+#define GET_PrefetchTagsList_IMPL
+#include "SparcGenSearchableTables.inc"
+} // end namespace SparcPrefetchTag
+} // end namespace llvm
 
 using namespace llvm;
 
@@ -68,20 +81,31 @@ static MCRegisterInfo *createSparcMCRegisterInfo(const Triple &TT) {
 static MCSubtargetInfo *
 createSparcMCSubtargetInfo(const Triple &TT, StringRef CPU, StringRef FS) {
   if (CPU.empty())
-    CPU = (TT.getArch() == Triple::sparcv9) ? "v9" : "v8";
-  return createSparcMCSubtargetInfoImpl(TT, CPU, /*TuneCPU*/ CPU, FS);
+    CPU = TT.getArch() == Triple::sparcv9 ? "v9" : "v8";
+
+  MCSubtargetInfo *STI =
+      createSparcMCSubtargetInfoImpl(TT, CPU, /*TuneCPU=*/CPU, FS);
+  if (TT.isSPARC64() && !STI->hasFeature(Sparc::Feature64Bit)) {
+    FeatureBitset Features = STI->getFeatureBits();
+    STI->setFeatureBits(Features.set(Sparc::Feature64Bit));
+  }
+
+  return STI;
 }
 
 static MCTargetStreamer *
 createObjectTargetStreamer(MCStreamer &S, const MCSubtargetInfo &STI) {
-  return new SparcTargetELFStreamer(S);
+  return new SparcTargetELFStreamer(S, STI);
 }
 
 static MCTargetStreamer *createTargetAsmStreamer(MCStreamer &S,
                                                  formatted_raw_ostream &OS,
-                                                 MCInstPrinter *InstPrint,
-                                                 bool isVerboseAsm) {
+                                                 MCInstPrinter *InstPrint) {
   return new SparcTargetAsmStreamer(S, OS);
+}
+
+static MCTargetStreamer *createNullTargetStreamer(MCStreamer &S) {
+  return new SparcTargetStreamer(S);
 }
 
 static MCInstPrinter *createSparcMCInstPrinter(const Triple &T,
@@ -92,7 +116,8 @@ static MCInstPrinter *createSparcMCInstPrinter(const Triple &T,
   return new SparcInstPrinter(MAI, MII, MRI);
 }
 
-extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeSparcTargetMC() {
+extern "C" LLVM_ABI LLVM_EXTERNAL_VISIBILITY void
+LLVMInitializeSparcTargetMC() {
   // Register the MC asm info.
   RegisterMCAsmInfoFn X(getTheSparcTarget(), createSparcMCAsmInfo);
   RegisterMCAsmInfoFn Y(getTheSparcV9Target(), createSparcV9MCAsmInfo);
@@ -121,6 +146,9 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeSparcTargetMC() {
 
     // Register the asm streamer.
     TargetRegistry::RegisterAsmTargetStreamer(*T, createTargetAsmStreamer);
+
+    // Register the null streamer.
+    TargetRegistry::RegisterNullTargetStreamer(*T, createNullTargetStreamer);
 
     // Register the MCInstPrinter
     TargetRegistry::RegisterMCInstPrinter(*T, createSparcMCInstPrinter);

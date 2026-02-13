@@ -28,7 +28,8 @@ Status NativeRegisterContextLinux::ReadRegisterRaw(uint32_t reg_index,
                                                    RegisterValue &reg_value) {
   const RegisterInfo *const reg_info = GetRegisterInfoAtIndex(reg_index);
   if (!reg_info)
-    return Status("register %" PRIu32 " not found", reg_index);
+    return Status::FromErrorStringWithFormat("register %" PRIu32 " not found",
+                                             reg_index);
 
   return DoReadRegisterValue(GetPtraceOffset(reg_index), reg_info->name,
                              reg_info->byte_size, reg_value);
@@ -42,6 +43,7 @@ NativeRegisterContextLinux::WriteRegisterRaw(uint32_t reg_index,
 
   // Check if this is a subregister of a full register.
   const RegisterInfo *reg_info = GetRegisterInfoAtIndex(reg_index);
+  assert(reg_info && "Expected valid register info for reg_index.");
   if (reg_info->invalidate_regs &&
       (reg_info->invalidate_regs[0] != LLDB_INVALID_REGNUM)) {
     Status error;
@@ -52,27 +54,31 @@ NativeRegisterContextLinux::WriteRegisterRaw(uint32_t reg_index,
 
     // Read the full register.
     error = ReadRegister(full_reg_info, full_value);
-    if (error.Fail())
+    if (error.Fail()) {
+      // full_reg_info was nullptr, or we couldn't read the register.
       return error;
+    }
 
     lldb::ByteOrder byte_order = GetByteOrder();
-    uint8_t dst[RegisterValue::kMaxRegisterByteSize];
+    RegisterValue::BytesContainer dst(full_reg_info->byte_size);
 
     // Get the bytes for the full register.
     const uint32_t dest_size = full_value.GetAsMemoryData(
-        full_reg_info, dst, sizeof(dst), byte_order, error);
+        *full_reg_info, dst.data(), dst.size(), byte_order, error);
     if (error.Success() && dest_size) {
-      uint8_t src[RegisterValue::kMaxRegisterByteSize];
+      RegisterValue::BytesContainer src(reg_info->byte_size);
 
       // Get the bytes for the source data.
       const uint32_t src_size = reg_value.GetAsMemoryData(
-          reg_info, src, sizeof(src), byte_order, error);
+          *reg_info, src.data(), src.size(), byte_order, error);
       if (error.Success() && src_size && (src_size < dest_size)) {
         // Copy the src bytes to the destination.
-        memcpy(dst + (reg_info->byte_offset & 0x1), src, src_size);
+        memcpy(dst.data() + (reg_info->byte_offset & 0x1), src.data(),
+               src_size);
         // Set this full register as the value to write.
-        value_to_write.SetBytes(dst, full_value.GetByteSize(), byte_order);
-        value_to_write.SetType(full_reg_info);
+        value_to_write.SetBytes(dst.data(), full_value.GetByteSize(),
+                                byte_order);
+        value_to_write.SetType(*full_reg_info);
         reg_to_write = full_reg;
       }
     }
@@ -83,9 +89,10 @@ NativeRegisterContextLinux::WriteRegisterRaw(uint32_t reg_index,
   assert(register_to_write_info_p &&
          "register to write does not have valid RegisterInfo");
   if (!register_to_write_info_p)
-    return Status("NativeRegisterContextLinux::%s failed to get RegisterInfo "
-                  "for write register index %" PRIu32,
-                  __FUNCTION__, reg_to_write);
+    return Status::FromErrorStringWithFormat(
+        "NativeRegisterContextLinux::%s failed to get RegisterInfo "
+        "for write register index %" PRIu32,
+        __FUNCTION__, reg_to_write);
 
   return DoWriteRegisterValue(GetPtraceOffset(reg_index), reg_info->name,
                               reg_value);

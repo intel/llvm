@@ -21,17 +21,15 @@
 #include "llvm/Transforms/IPO/Internalize.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/StringSet.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/IR/Module.h"
-#include "llvm/InitializePasses.h"
-#include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/GlobPattern.h"
 #include "llvm/Support/LineIterator.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/IPO.h"
 using namespace llvm;
 
@@ -133,7 +131,6 @@ bool InternalizePass::shouldPreserveGV(const GlobalValue &GV) {
 
 bool InternalizePass::maybeInternalize(
     GlobalValue &GV, DenseMap<const Comdat *, ComdatInfo> &ComdatMap) {
-  SmallString<0> ComdatName;
   if (Comdat *C = GV.getComdat()) {
     // For GlobalAlias, C is the aliasee object's comdat which may have been
     // redirected. So ComdatMap may not contain C.
@@ -177,15 +174,14 @@ void InternalizePass::checkComdat(
   if (!C)
     return;
 
-  ComdatInfo &Info = ComdatMap.try_emplace(C).first->second;
+  ComdatInfo &Info = ComdatMap[C];
   ++Info.Size;
   if (shouldPreserveGV(GV))
     Info.External = true;
 }
 
-bool InternalizePass::internalizeModule(Module &M, CallGraph *CG) {
+bool InternalizePass::internalizeModule(Module &M) {
   bool Changed = false;
-  CallGraphNode *ExternalNode = CG ? CG->getExternalCallingNode() : nullptr;
 
   SmallVector<GlobalValue *, 4> Used;
   collectUsedGlobalVariables(M, Used, false);
@@ -230,21 +226,21 @@ bool InternalizePass::internalizeModule(Module &M, CallGraph *CG) {
   // FIXME: We should probably add this (and the __stack_chk_guard) via some
   // type of call-back in CodeGen.
   AlwaysPreserved.insert("__stack_chk_fail");
-  if (Triple(M.getTargetTriple()).isOSAIX())
+  if (M.getTargetTriple().isOSAIX())
     AlwaysPreserved.insert("__ssp_canary_word");
   else
     AlwaysPreserved.insert("__stack_chk_guard");
 
+  // Preserve the RPC interface for GPU host callbacks when internalizing.
+  if (M.getTargetTriple().isNVPTX())
+    AlwaysPreserved.insert("__llvm_rpc_client");
+
   // Mark all functions not in the api as internal.
-  IsWasm = Triple(M.getTargetTriple()).isOSBinFormatWasm();
+  IsWasm = M.getTargetTriple().isOSBinFormatWasm();
   for (Function &I : M) {
     if (!maybeInternalize(I, ComdatMap))
       continue;
     Changed = true;
-
-    if (ExternalNode)
-      // Remove a callgraph edge from the external node to this function.
-      ExternalNode->removeOneAbstractEdgeTo((*CG)[&I]);
 
     ++NumFunctions;
     LLVM_DEBUG(dbgs() << "Internalizing func " << I.getName() << "\n");
@@ -277,55 +273,8 @@ bool InternalizePass::internalizeModule(Module &M, CallGraph *CG) {
 InternalizePass::InternalizePass() : MustPreserveGV(PreserveAPIList()) {}
 
 PreservedAnalyses InternalizePass::run(Module &M, ModuleAnalysisManager &AM) {
-  if (!internalizeModule(M, AM.getCachedResult<CallGraphAnalysis>(M)))
+  if (!internalizeModule(M))
     return PreservedAnalyses::all();
 
-  PreservedAnalyses PA;
-  PA.preserve<CallGraphAnalysis>();
-  return PA;
-}
-
-namespace {
-class InternalizeLegacyPass : public ModulePass {
-  // Client supplied callback to control wheter a symbol must be preserved.
-  std::function<bool(const GlobalValue &)> MustPreserveGV;
-
-public:
-  static char ID; // Pass identification, replacement for typeid
-
-  InternalizeLegacyPass() : ModulePass(ID), MustPreserveGV(PreserveAPIList()) {}
-
-  InternalizeLegacyPass(std::function<bool(const GlobalValue &)> MustPreserveGV)
-      : ModulePass(ID), MustPreserveGV(std::move(MustPreserveGV)) {
-    initializeInternalizeLegacyPassPass(*PassRegistry::getPassRegistry());
-  }
-
-  bool runOnModule(Module &M) override {
-    if (skipModule(M))
-      return false;
-
-    CallGraphWrapperPass *CGPass =
-        getAnalysisIfAvailable<CallGraphWrapperPass>();
-    CallGraph *CG = CGPass ? &CGPass->getCallGraph() : nullptr;
-    return internalizeModule(M, MustPreserveGV, CG);
-  }
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.setPreservesCFG();
-    AU.addPreserved<CallGraphWrapperPass>();
-  }
-};
-}
-
-char InternalizeLegacyPass::ID = 0;
-INITIALIZE_PASS(InternalizeLegacyPass, "internalize",
-                "Internalize Global Symbols", false, false)
-
-ModulePass *llvm::createInternalizePass() {
-  return new InternalizeLegacyPass();
-}
-
-ModulePass *llvm::createInternalizePass(
-    std::function<bool(const GlobalValue &)> MustPreserveGV) {
-  return new InternalizeLegacyPass(std::move(MustPreserveGV));
+  return PreservedAnalyses::none();
 }

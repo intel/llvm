@@ -1,4 +1,4 @@
-; RUN: opt %loadPolly -polly-import-jscop -polly-import-jscop-postfix=transformed -polly-codegen -S < %s | FileCheck %s
+; RUN: opt %loadNPMPolly '-passes=polly-custom<import-jscop;codegen>' -polly-import-jscop-postfix=transformed -S < %s | FileCheck %s
 ;
 ; Partial write, where "partial" is the empty set.
 ; The store is never executed in this case and we do generate it in the
@@ -8,7 +8,7 @@
 ;   A[0] = 42.0
 ;
 
-define void @partial_write_emptyset(i32 %n, double* noalias nonnull %A) {
+define void @partial_write_emptyset(i32 %n, ptr noalias nonnull %A) {
 entry:
   br label %for
 
@@ -18,7 +18,7 @@ for:
   br i1 %j.cmp, label %body, label %exit
 
     body:
-      store double 42.0, double* %A
+      store double 42.0, ptr %A
       br label %inc
 
 inc:

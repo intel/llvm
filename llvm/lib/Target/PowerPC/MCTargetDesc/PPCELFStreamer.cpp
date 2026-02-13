@@ -17,11 +17,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 #include "PPCELFStreamer.h"
-#include "PPCFixupKinds.h"
-#include "PPCInstrInfo.h"
+#include "PPCMCAsmInfo.h"
 #include "PPCMCCodeEmitter.h"
+#include "PPCMCTargetDesc.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCAssembler.h"
@@ -30,8 +29,6 @@
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstrDesc.h"
 #include "llvm/MC/MCObjectWriter.h"
-#include "llvm/MC/MCSymbolELF.h"
-#include "llvm/Support/Casting.h"
 #include "llvm/Support/SourceMgr.h"
 
 using namespace llvm;
@@ -55,7 +52,7 @@ void PPCELFStreamer::emitPrefixedInstruction(const MCInst &Inst,
   // all of the nops required as part of the alignment operation. In the cases
   // when no nops are added then The fragment is still created but it remains
   // empty.
-  emitCodeAlignment(64, &STI, 4);
+  emitCodeAlignment(Align(64), &STI, 4);
 
   // Emit the instruction.
   // Since the previous emit created a new fragment then adding this instruction
@@ -68,7 +65,7 @@ void PPCELFStreamer::emitPrefixedInstruction(const MCInst &Inst,
   MCFragment *InstructionFragment = getCurrentFragment();
   SMLoc InstLoc = Inst.getLoc();
   // Check if there was a last label emitted.
-  if (LastLabel && !LastLabel->isUnset() && LastLabelLoc.isValid() &&
+  if (LastLabel && LastLabel->isDefined() && LastLabelLoc.isValid() &&
       InstLoc.isValid()) {
     const SourceMgr *SourceManager = getContext().getSourceManager();
     unsigned InstLine = SourceManager->FindLineNumber(InstLoc);
@@ -77,7 +74,7 @@ void PPCELFStreamer::emitPrefixedInstruction(const MCInst &Inst,
     // label to the top of the fragment containing the aligned instruction that
     // was just added.
     if (InstLine == LabelLine) {
-      assignFragment(LastLabel, InstructionFragment);
+      LastLabel->setFragment(InstructionFragment);
       LastLabel->setOffset(0);
     }
   }
@@ -89,10 +86,11 @@ void PPCELFStreamer::emitInstruction(const MCInst &Inst,
       static_cast<PPCMCCodeEmitter*>(getAssembler().getEmitterPtr());
 
   // If the instruction is a part of the GOT to PC-Rel link time optimization
-  // instruction pair, return a value, otherwise return None. A true returned
-  // value means the instruction is the PLDpc and a false value means it is
-  // the user instruction.
-  Optional<bool> IsPartOfGOTToPCRelPair = isPartOfGOTToPCRelPair(Inst, STI);
+  // instruction pair, return a value, otherwise return std::nullopt. A true
+  // returned value means the instruction is the PLDpc and a false value means
+  // it is the user instruction.
+  std::optional<bool> IsPartOfGOTToPCRelPair =
+      isPartOfGOTToPCRelPair(Inst, STI);
 
   // User of the GOT-indirect address.
   // For example, the load that will get the relocation as follows:
@@ -141,8 +139,8 @@ void PPCELFStreamer::emitGOTToPCRelReloc(const MCInst &Inst) {
   // Cast the last operand to MCSymbolRefExpr to get the symbol.
   const MCExpr *Expr = Operand.getExpr();
   const MCSymbolRefExpr *SymExpr = static_cast<const MCSymbolRefExpr *>(Expr);
-  assert(SymExpr->getKind() == MCSymbolRefExpr::VK_PPC_PCREL_OPT &&
-         "Expecting a symbol of type VK_PPC_PCREL_OPT");
+  assert(getSpecifier(SymExpr) == PPC::S_PCREL_OPT &&
+         "Expecting a symbol of type VK_PCREL_OPT");
   MCSymbol *LabelSym =
       getContext().getOrCreateSymbol(SymExpr->getSymbol().getName());
   const MCExpr *LabelExpr = MCSymbolRefExpr::create(LabelSym, getContext());
@@ -157,13 +155,10 @@ void PPCELFStreamer::emitGOTToPCRelReloc(const MCInst &Inst) {
   const MCExpr *SubExpr2 =
       MCBinaryExpr::createSub(CurrentLocationExpr, SubExpr, getContext());
 
-  MCDataFragment *DF = static_cast<MCDataFragment *>(LabelSym->getFragment());
-  assert(DF && "Expecting a valid data fragment.");
-  MCFixupKind FixupKind = static_cast<MCFixupKind>(FirstLiteralRelocationKind +
-                                                   ELF::R_PPC64_PCREL_OPT);
-  DF->getFixups().push_back(
+  MCFragment *F = LabelSym->getFragment();
+  F->addFixup(
       MCFixup::create(LabelSym->getOffset() - 8, SubExpr2,
-                      FixupKind, Inst.getLoc()));
+                      FirstLiteralRelocationKind + ELF::R_PPC64_PCREL_OPT));
   emitLabel(CurrentLocation, Inst.getLoc());
 }
 
@@ -176,53 +171,55 @@ void PPCELFStreamer::emitGOTToPCRelLabel(const MCInst &Inst) {
   // Cast the last operand to MCSymbolRefExpr to get the symbol.
   const MCExpr *Expr = Operand.getExpr();
   const MCSymbolRefExpr *SymExpr = static_cast<const MCSymbolRefExpr *>(Expr);
-  assert(SymExpr->getKind() == MCSymbolRefExpr::VK_PPC_PCREL_OPT &&
-         "Expecting a symbol of type VK_PPC_PCREL_OPT");
+  assert(getSpecifier(SymExpr) == PPC::S_PCREL_OPT &&
+         "Expecting a symbol of type VK_PCREL_OPT");
   MCSymbol *LabelSym =
       getContext().getOrCreateSymbol(SymExpr->getSymbol().getName());
   emitLabel(LabelSym, Inst.getLoc());
 }
 
-// This funciton checks if the parameter Inst is part of the setup for a link
+// This function checks if the parameter Inst is part of the setup for a link
 // time GOT PC Relative optimization. For example in this situation:
 // <MCInst PLDpc <MCOperand Reg:282> <MCOperand Expr:(glob_double@got@pcrel)>
 //   <MCOperand Imm:0> <MCOperand Expr:(.Lpcrel@<<invalid>>)>>
 // <MCInst SOME_LOAD <MCOperand Reg:22> <MCOperand Imm:0> <MCOperand Reg:282>
 //   <MCOperand Expr:(.Lpcrel@<<invalid>>)>>
 // The above is a pair of such instructions and this function will not return
-// None for either one of them. In both cases we are looking for the last
-// operand <MCOperand Expr:(.Lpcrel@<<invalid>>)> which needs to be an MCExpr
-// and has the flag MCSymbolRefExpr::VK_PPC_PCREL_OPT. After that we just look
-// at the opcode and in the case of PLDpc we will return true. For the load
+// std::nullopt for either one of them. In both cases we are looking for the
+// last operand <MCOperand Expr:(.Lpcrel@<<invalid>>)> which needs to be an
+// MCExpr and has the flag PPC::S_PCREL_OPT. After that we just
+// look at the opcode and in the case of PLDpc we will return true. For the load
 // (or store) this function will return false indicating it has found the second
 // instruciton in the pair.
-Optional<bool> llvm::isPartOfGOTToPCRelPair(const MCInst &Inst,
-                                            const MCSubtargetInfo &STI) {
+std::optional<bool> llvm::isPartOfGOTToPCRelPair(const MCInst &Inst,
+                                                 const MCSubtargetInfo &STI) {
   // Need at least two operands.
   if (Inst.getNumOperands() < 2)
-    return None;
+    return std::nullopt;
 
   unsigned LastOp = Inst.getNumOperands() - 1;
   // The last operand needs to be an MCExpr and it needs to have a variant kind
-  // of VK_PPC_PCREL_OPT. If it does not satisfy these conditions it is not a
-  // link time GOT PC Rel opt instruction and we can ignore it and return None.
+  // of VK_PCREL_OPT. If it does not satisfy these conditions it is not a
+  // link time GOT PC Rel opt instruction and we can ignore it and return
+  // std::nullopt.
   const MCOperand &Operand = Inst.getOperand(LastOp);
   if (!Operand.isExpr())
-    return None;
+    return std::nullopt;
 
-  // Check for the variant kind VK_PPC_PCREL_OPT in this expression.
+  // Check for the variant kind VK_PCREL_OPT in this expression.
   const MCExpr *Expr = Operand.getExpr();
   const MCSymbolRefExpr *SymExpr = static_cast<const MCSymbolRefExpr *>(Expr);
-  if (!SymExpr || SymExpr->getKind() != MCSymbolRefExpr::VK_PPC_PCREL_OPT)
-    return None;
+  if (!SymExpr || getSpecifier(SymExpr) != PPC::S_PCREL_OPT)
+    return std::nullopt;
 
   return (Inst.getOpcode() == PPC::PLDpc);
 }
 
-MCELFStreamer *llvm::createPPCELFStreamer(
-    MCContext &Context, std::unique_ptr<MCAsmBackend> MAB,
-    std::unique_ptr<MCObjectWriter> OW,
-    std::unique_ptr<MCCodeEmitter> Emitter) {
-  return new PPCELFStreamer(Context, std::move(MAB), std::move(OW),
+MCStreamer *
+llvm::createPPCELFStreamer(const Triple &T, MCContext &C,
+                           std::unique_ptr<MCAsmBackend> &&MAB,
+                           std::unique_ptr<MCObjectWriter> &&OW,
+                           std::unique_ptr<MCCodeEmitter> &&Emitter) {
+  return new PPCELFStreamer(C, std::move(MAB), std::move(OW),
                             std::move(Emitter));
 }

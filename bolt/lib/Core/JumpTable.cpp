@@ -70,12 +70,10 @@ bool bolt::JumpTable::replaceDestination(uint64_t JTAddress,
                                          MCSymbol *NewDest) {
   bool Patched = false;
   const std::pair<size_t, size_t> Range = getEntriesForAddress(JTAddress);
-  for (auto I = &Entries[Range.first], E = &Entries[Range.second]; I != E;
-       ++I) {
-    MCSymbol *&Entry = *I;
-    if (Entry == OldDest) {
+  for (auto I = Range.first; I != Range.second; ++I) {
+    if (Entries[I] == OldDest) {
       Patched = true;
-      Entry = NewDest;
+      Entries[I] = NewDest;
     }
   }
   return Patched;
@@ -86,7 +84,7 @@ void bolt::JumpTable::updateOriginal() {
   const uint64_t BaseOffset = getAddress() - getSection().getAddress();
   uint64_t EntryOffset = BaseOffset;
   for (MCSymbol *Entry : Entries) {
-    const uint64_t RelType =
+    const uint32_t RelType =
         Type == JTT_NORMAL ? ELF::R_X86_64_64 : ELF::R_X86_64_PC32;
     const uint64_t RelAddend =
         Type == JTT_NORMAL ? 0 : EntryOffset - BaseOffset;

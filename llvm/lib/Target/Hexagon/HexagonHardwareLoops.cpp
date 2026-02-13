@@ -24,6 +24,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "Hexagon.h"
 #include "HexagonInstrInfo.h"
 #include "HexagonSubtarget.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -42,7 +43,6 @@
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
-#include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
@@ -87,13 +87,6 @@ static cl::opt<bool> SpecPreheader("hwloop-spec-preheader", cl::Hidden,
 
 STATISTIC(NumHWLoops, "Number of loops converted to hardware loops");
 
-namespace llvm {
-
-  FunctionPass *createHexagonHardwareLoops();
-  void initializeHexagonHardwareLoopsPass(PassRegistry&);
-
-} // end namespace llvm
-
 namespace {
 
   class CountValue;
@@ -118,13 +111,13 @@ namespace {
     StringRef getPassName() const override { return "Hexagon Hardware Loops"; }
 
     void getAnalysisUsage(AnalysisUsage &AU) const override {
-      AU.addRequired<MachineDominatorTree>();
-      AU.addRequired<MachineLoopInfo>();
+      AU.addRequired<MachineDominatorTreeWrapperPass>();
+      AU.addRequired<MachineLoopInfoWrapperPass>();
       MachineFunctionPass::getAnalysisUsage(AU);
     }
 
   private:
-    using LoopFeederMap = std::map<unsigned, MachineInstr *>;
+    using LoopFeederMap = std::map<Register, MachineInstr *>;
 
     /// Kinds of comparisons in the compare instructions.
     struct Comparison {
@@ -180,7 +173,7 @@ namespace {
     ///   if (R.next < #N) goto loop
     /// IVBump is the immediate value added to R, and IVOp is the instruction
     /// "R.next = R + #bump".
-    bool findInductionRegister(MachineLoop *L, unsigned &Reg,
+    bool findInductionRegister(MachineLoop *L, Register &Reg,
                                int64_t &IVBump, MachineInstr *&IVOp) const;
 
     /// Return the comparison kind for the specified opcode.
@@ -203,7 +196,7 @@ namespace {
     /// or a register), the function will attempt to insert computation of it
     /// to the loop's preheader.
     CountValue *computeCount(MachineLoop *Loop, const MachineOperand *Start,
-                             const MachineOperand *End, unsigned IVReg,
+                             const MachineOperand *End, Register IVReg,
                              int64_t IVBump, Comparison::Kind Cmp) const;
 
     /// Return true if the instruction is not valid within a hardware
@@ -320,15 +313,17 @@ namespace {
   private:
     CountValueType Kind;
     union Values {
+      Values() : R{Register(), 0} {}
+      Values(const Values&) = default;
       struct {
-        unsigned Reg;
+        Register Reg;
         unsigned Sub;
       } R;
       unsigned ImmVal;
     } Contents;
 
   public:
-    explicit CountValue(CountValueType t, unsigned v, unsigned u = 0) {
+    explicit CountValue(CountValueType t, Register v, unsigned u = 0) {
       Kind = t;
       if (Kind == CV_Register) {
         Contents.R.Reg = v;
@@ -341,7 +336,7 @@ namespace {
     bool isReg() const { return Kind == CV_Register; }
     bool isImm() const { return Kind == CV_Immediate; }
 
-    unsigned getReg() const {
+    Register getReg() const {
       assert(isReg() && "Wrong CountValue accessor");
       return Contents.R.Reg;
     }
@@ -366,8 +361,8 @@ namespace {
 
 INITIALIZE_PASS_BEGIN(HexagonHardwareLoops, "hwloops",
                       "Hexagon Hardware Loops", false, false)
-INITIALIZE_PASS_DEPENDENCY(MachineDominatorTree)
-INITIALIZE_PASS_DEPENDENCY(MachineLoopInfo)
+INITIALIZE_PASS_DEPENDENCY(MachineDominatorTreeWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(MachineLoopInfoWrapperPass)
 INITIALIZE_PASS_END(HexagonHardwareLoops, "hwloops",
                     "Hexagon Hardware Loops", false, false)
 
@@ -382,9 +377,9 @@ bool HexagonHardwareLoops::runOnMachineFunction(MachineFunction &MF) {
 
   bool Changed = false;
 
-  MLI = &getAnalysis<MachineLoopInfo>();
+  MLI = &getAnalysis<MachineLoopInfoWrapperPass>().getLI();
   MRI = &MF.getRegInfo();
-  MDT = &getAnalysis<MachineDominatorTree>();
+  MDT = &getAnalysis<MachineDominatorTreeWrapperPass>().getDomTree();
   const HexagonSubtarget &HST = MF.getSubtarget<HexagonSubtarget>();
   TII = HST.getInstrInfo();
   TRI = HST.getRegisterInfo();
@@ -400,7 +395,7 @@ bool HexagonHardwareLoops::runOnMachineFunction(MachineFunction &MF) {
 }
 
 bool HexagonHardwareLoops::findInductionRegister(MachineLoop *L,
-                                                 unsigned &Reg,
+                                                 Register &Reg,
                                                  int64_t &IVBump,
                                                  MachineInstr *&IVOp
                                                  ) const {
@@ -413,13 +408,13 @@ bool HexagonHardwareLoops::findInductionRegister(MachineLoop *L,
 
   // This pair represents an induction register together with an immediate
   // value that will be added to it in each loop iteration.
-  using RegisterBump = std::pair<unsigned, int64_t>;
+  using RegisterBump = std::pair<Register, int64_t>;
 
   // Mapping:  R.next -> (R, bump), where R, R.next and bump are derived
   // from an induction operation
   //   R.next = R + bump
   // where bump is an immediate value.
-  using InductionMap = std::map<unsigned, RegisterBump>;
+  using InductionMap = std::map<Register, RegisterBump>;
 
   InductionMap IndMap;
 
@@ -459,7 +454,8 @@ bool HexagonHardwareLoops::findInductionRegister(MachineLoop *L,
   if (NotAnalyzed)
     return false;
 
-  unsigned PredR, PredPos, PredRegFlags;
+  Register PredR;
+  unsigned PredPos, PredRegFlags;
   if (!TII->getPredReg(Cond, PredR, PredPos, PredRegFlags))
     return false;
 
@@ -592,7 +588,7 @@ CountValue *HexagonHardwareLoops::getLoopTripCount(MachineLoop *L,
   if (!ExitingBlock)
     return nullptr;
 
-  unsigned IVReg = 0;
+  Register IVReg = 0;
   int64_t IVBump = 0;
   MachineInstr *IVOp;
   bool FoundIV = findInductionRegister(L, IVReg, IVBump, IVOp);
@@ -645,7 +641,8 @@ CountValue *HexagonHardwareLoops::getLoopTripCount(MachineLoop *L,
   // If TB is not the header, it means that the "not-taken" path must lead
   // to the header.
   bool Negated = TII->predOpcodeHasNot(Cond) ^ (TB != Header);
-  unsigned PredReg, PredPos, PredRegFlags;
+  Register PredReg;
+  unsigned PredPos, PredRegFlags;
   if (!TII->getPredReg(Cond, PredReg, PredPos, PredRegFlags))
     return nullptr;
   MachineInstr *CondI = MRI->getVRegDef(PredReg);
@@ -725,9 +722,14 @@ CountValue *HexagonHardwareLoops::getLoopTripCount(MachineLoop *L,
 CountValue *HexagonHardwareLoops::computeCount(MachineLoop *Loop,
                                                const MachineOperand *Start,
                                                const MachineOperand *End,
-                                               unsigned IVReg,
+                                               Register IVReg,
                                                int64_t IVBump,
                                                Comparison::Kind Cmp) const {
+  LLVM_DEBUG(llvm::dbgs() << "Loop: " << *Loop << "\n");
+  LLVM_DEBUG(llvm::dbgs() << "Initial Value: " << *Start << "\n");
+  LLVM_DEBUG(llvm::dbgs() << "End Value: " << *End << "\n");
+  LLVM_DEBUG(llvm::dbgs() << "Inc/Dec Value: " << IVBump << "\n");
+  LLVM_DEBUG(llvm::dbgs() << "Comparison: " << Cmp << "\n");
   // Cannot handle comparison EQ, i.e. while (A == B).
   if (Cmp == Comparison::EQ)
     return nullptr;
@@ -822,7 +824,7 @@ CountValue *HexagonHardwareLoops::computeCount(MachineLoop *Loop,
   // a computation of it into the preheader.
 
   // If the induction variable bump is not a power of 2, quit.
-  // Othwerise we'd need a general integer division.
+  // Otherwise we'd need a general integer division.
   if (!isPowerOf2_64(std::abs(IVBump)))
     return nullptr;
 
@@ -843,6 +845,7 @@ CountValue *HexagonHardwareLoops::computeCount(MachineLoop *Loop,
   if (IVBump < 0) {
     std::swap(Start, End);
     IVBump = -IVBump;
+    std::swap(CmpLess, CmpGreater);
   }
   // Cmp may now have a wrong direction, e.g.  LEs may now be GEs.
   // Signedness, and "including equality" are preserved.
@@ -884,7 +887,8 @@ CountValue *HexagonHardwareLoops::computeCount(MachineLoop *Loop,
       AdjV += (IVBump-1);
   }
 
-  unsigned R = 0, SR = 0;
+  Register R = 0;
+  unsigned SR = 0;
   if (Start->isReg()) {
     R = Start->getReg();
     SR = Start->getSubReg();
@@ -900,7 +904,8 @@ CountValue *HexagonHardwareLoops::computeCount(MachineLoop *Loop,
   const TargetRegisterClass *IntRC = &Hexagon::IntRegsRegClass;
 
   // Compute DistR (register with the distance between Start and End).
-  unsigned DistR, DistSR;
+  Register DistR;
+  unsigned DistSR;
 
   // Avoid special case, where the start value is an imm(0).
   if (Start->isImm() && StartV == 0) {
@@ -944,7 +949,8 @@ CountValue *HexagonHardwareLoops::computeCount(MachineLoop *Loop,
   }
 
   // From DistR, compute AdjR (register with the adjusted distance).
-  unsigned AdjR, AdjSR;
+  Register AdjR;
+  unsigned AdjSR;
 
   if (AdjV == 0) {
     AdjR = DistR;
@@ -962,7 +968,8 @@ CountValue *HexagonHardwareLoops::computeCount(MachineLoop *Loop,
   }
 
   // From AdjR, compute CountR (register with the final count).
-  unsigned CountR, CountSR;
+  Register CountR;
+  unsigned CountSR;
 
   if (IVBump == 1) {
     CountR = AdjR;
@@ -982,7 +989,45 @@ CountValue *HexagonHardwareLoops::computeCount(MachineLoop *Loop,
     CountSR = 0;
   }
 
-  return new CountValue(CountValue::CV_Register, CountR, CountSR);
+  const TargetRegisterClass *PredRC = &Hexagon::PredRegsRegClass;
+  Register MuxR = CountR;
+  unsigned MuxSR = CountSR;
+  // For the loop count to be valid unsigned number, CmpLess should imply
+  // Dist >= 0. Similarly, CmpGreater should imply Dist < 0. We can skip the
+  // check if the initial distance is zero and the comparison is LTu || LTEu.
+  if (!(Start->isImm() && StartV == 0 && Comparison::isUnsigned(Cmp) &&
+        CmpLess) &&
+      (CmpLess || CmpGreater)) {
+    // Generate:
+    //   DistCheck = CMP_GT DistR,  0   --> CmpLess
+    //   DistCheck = CMP_GT DistR, -1   --> CmpGreater
+    Register DistCheckR = MRI->createVirtualRegister(PredRC);
+    const MCInstrDesc &DistCheckD = TII->get(Hexagon::C2_cmpgti);
+    BuildMI(*PH, InsertPos, DL, DistCheckD, DistCheckR)
+        .addReg(DistR, 0, DistSR)
+        .addImm((CmpLess) ? 0 : -1);
+
+    // Generate:
+    //   MUXR = MUX DistCheck, CountR, 1   --> CmpLess
+    //   MUXR = MUX DistCheck, 1, CountR   --> CmpGreater
+    MuxR = MRI->createVirtualRegister(IntRC);
+    if (CmpLess) {
+      const MCInstrDesc &MuxD = TII->get(Hexagon::C2_muxir);
+      BuildMI(*PH, InsertPos, DL, MuxD, MuxR)
+          .addReg(DistCheckR)
+          .addReg(CountR, 0, CountSR)
+          .addImm(1);
+    } else {
+      const MCInstrDesc &MuxD = TII->get(Hexagon::C2_muxri);
+      BuildMI(*PH, InsertPos, DL, MuxD, MuxR)
+          .addReg(DistCheckR)
+          .addImm(1)
+          .addReg(CountR, 0, CountSR);
+    }
+    MuxSR = 0;
+  }
+
+  return new CountValue(CountValue::CV_Register, MuxR, MuxSR);
 }
 
 /// Return true if the operation is invalid within hardware loop.
@@ -996,11 +1041,10 @@ bool HexagonHardwareLoops::isInvalidLoopOperation(const MachineInstr *MI,
   // Check if the instruction defines a hardware loop register.
   using namespace Hexagon;
 
-  static const unsigned Regs01[] = { LC0, SA0, LC1, SA1 };
-  static const unsigned Regs1[]  = { LC1, SA1 };
-  auto CheckRegs = IsInnerHWLoop ? makeArrayRef(Regs01, std::size(Regs01))
-                                 : makeArrayRef(Regs1, std::size(Regs1));
-  for (unsigned R : CheckRegs)
+  static const Register Regs01[] = { LC0, SA0, LC1, SA1 };
+  static const Register Regs1[]  = { LC1, SA1 };
+  auto CheckRegs = IsInnerHWLoop ? ArrayRef(Regs01) : ArrayRef(Regs1);
+  for (Register R : CheckRegs)
     if (MI->modifiesRegister(R, TRI))
       return true;
 
@@ -1051,8 +1095,7 @@ bool HexagonHardwareLoops::isDead(const MachineInstr *MI,
       return false;
 
     MachineInstr *OnePhi = I->getParent();
-    for (unsigned j = 0, f = OnePhi->getNumOperands(); j != f; ++j) {
-      const MachineOperand &OPO = OnePhi->getOperand(j);
+    for (const MachineOperand &OPO : OnePhi->operands()) {
       if (!OPO.isReg() || !OPO.isDef())
         continue;
 
@@ -1393,10 +1436,10 @@ bool HexagonHardwareLoops::phiMayWrapOrUnderflow(
 /// counter if it is <= 1. We only need to perform this analysis if the
 /// initial value is a register.
 ///
-/// This function assumes the initial value may underfow unless proven
+/// This function assumes the initial value may underflow unless proven
 /// otherwise. If the type is signed, then we don't care because signed
 /// underflow is undefined. We attempt to prove the initial value is not
-/// zero by perfoming a crude analysis of the loop counter. This function
+/// zero by performing a crude analysis of the loop counter. This function
 /// checks if the initial value is used in any comparison prior to the loop
 /// and, if so, assumes the comparison is a range check. This is inexact,
 /// but will catch the simple cases.
@@ -1592,8 +1635,8 @@ bool HexagonHardwareLoops::fixupInductionVariable(MachineLoop *L) {
 
   // These data structures follow the same concept as the corresponding
   // ones in findInductionRegister (where some comments are).
-  using RegisterBump = std::pair<unsigned, int64_t>;
-  using RegisterInduction = std::pair<unsigned, RegisterBump>;
+  using RegisterBump = std::pair<Register, int64_t>;
+  using RegisterInduction = std::pair<Register, RegisterBump>;
   using RegisterInductionSet = std::set<RegisterInduction>;
 
   // Register candidates for induction variables, with their associated bumps.
@@ -1687,15 +1730,14 @@ bool HexagonHardwareLoops::fixupInductionVariable(MachineLoop *L) {
   if (!PredDef->isCompare())
     return false;
 
-  SmallSet<unsigned,2> CmpRegs;
+  SmallSet<Register,2> CmpRegs;
   MachineOperand *CmpImmOp = nullptr;
 
   // Go over all operands to the compare and look for immediate and register
   // operands.  Assume that if the compare has a single register use and a
   // single immediate operand, then the register is being compared with the
   // immediate value.
-  for (unsigned i = 0, n = PredDef->getNumOperands(); i < n; ++i) {
-    MachineOperand &MO = PredDef->getOperand(i);
+  for (MachineOperand &MO : PredDef->operands()) {
     if (MO.isReg()) {
       // Skip all implicit references.  In one case there was:
       //   %140 = FCMPUGT32_rr %138, %139, implicit %usr
@@ -1810,8 +1852,7 @@ bool HexagonHardwareLoops::fixupInductionVariable(MachineLoop *L) {
 
       // Finally, fix the compare instruction.
       setImmediate(*CmpImmOp, CmpImm);
-      for (unsigned i = 0, n = PredDef->getNumOperands(); i < n; ++i) {
-        MachineOperand &MO = PredDef->getOperand(i);
+      for (MachineOperand &MO : PredDef->operands()) {
         if (MO.isReg() && MO.getReg() == RB.first) {
           MO.setReg(I->first);
           return true;
@@ -1967,7 +2008,7 @@ MachineBasicBlock *HexagonHardwareLoops::createPreheaderForLoop(
 
   MachineLoop *ParentLoop = L->getParentLoop();
   if (ParentLoop)
-    ParentLoop->addBasicBlockToLoop(NewPH, MLI->getBase());
+    ParentLoop->addBasicBlockToLoop(NewPH, *MLI);
 
   // Update the dominator information with the new preheader.
   if (MDT) {

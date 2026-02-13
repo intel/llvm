@@ -4,15 +4,15 @@
 
 ; CHECK: @f
 ; CHECK: atomicrmw
-define void @f() {
+define void @f(i1 %arg) {
   entry:
     br label %def
 
   use:
-    %x = atomicrmw add i32* undef, i32 %y monotonic
+    %x = atomicrmw add ptr undef, i32 %y monotonic
     ret void
 
   def:
     %y = add i32 undef, undef
-    br i1 undef, label %use, label %use
+    br i1 %arg, label %use, label %use
 }

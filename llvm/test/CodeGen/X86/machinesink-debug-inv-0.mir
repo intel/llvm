@@ -2,6 +2,9 @@
 # RUN: llc -mtriple=x86_64 -machine-sink-load-instrs-threshold=2 -run-pass=machine-sink %s -o - | FileCheck %s
 # RUN: llc -mtriple=x86_64 -machine-sink-load-instrs-threshold=2 -run-pass=mir-debugify,machine-sink,mir-strip-debug %s -o - | FileCheck %s
 
+# RUN: llc -mtriple=x86_64 -machine-sink-load-instrs-threshold=2 -passes=machine-sink %s -o - | FileCheck %s
+# TODO: add test with mir-debugify once it is ported
+
 # Verify that machine-sink pass is debug invariant wrt to given input. Since
 # the pass examines MemOperands the IR is required for the original bug to
 # trigger.
@@ -73,7 +76,7 @@ body:             |
   ; CHECK-NEXT:   successors: %bb.3(0x30000000), %bb.2(0x50000000)
   ; CHECK-NEXT: {{  $}}
   ; CHECK-NEXT:   [[PHI:%[0-9]+]]:gr8 = PHI [[MOV8ri]], %bb.0, %8, %bb.3
-  ; CHECK-NEXT:   CMP32mi8 [[MOV64rm]], 1, $noreg, 0, $noreg, 0, implicit-def $eflags :: (dereferenceable load (s32) from @d, align 1)
+  ; CHECK-NEXT:   CMP32mi [[MOV64rm]], 1, $noreg, 0, $noreg, 0, implicit-def $eflags :: (dereferenceable load (s32) from @d, align 1)
   ; CHECK-NEXT:   JCC_1 %bb.3, 4, implicit $eflags
   ; CHECK-NEXT:   JMP_1 %bb.2
   ; CHECK-NEXT: {{  $}}
@@ -110,7 +113,7 @@ body:             |
     successors: %bb.3(0x30000000), %bb.2(0x50000000)
 
     %0:gr8 = PHI %2, %bb.0, %8, %bb.3
-    CMP32mi8 %3, 1, $noreg, 0, $noreg, 0, implicit-def $eflags :: (dereferenceable load (s32) from @d, align 1)
+    CMP32mi %3, 1, $noreg, 0, $noreg, 0, implicit-def $eflags :: (dereferenceable load (s32) from @d, align 1)
     %1:gr32 = MOV32rm %4, 1, $noreg, 0, $noreg :: (dereferenceable load (s32) from @e, align 1)
     JCC_1 %bb.3, 4, implicit $eflags
     JMP_1 %bb.2

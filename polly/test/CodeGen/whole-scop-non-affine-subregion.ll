@@ -1,5 +1,4 @@
-; RUN: opt %loadPolly \
-; RUN: -polly-codegen -S < %s | FileCheck %s
+; RUN: opt %loadNPMPolly '-passes=polly<no-default-opts>' -S < %s | FileCheck %s
 
 ; CHECK: polly.start
 ;    int /* pure */ g()
@@ -12,7 +11,7 @@
 ;
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
-define void @f(i32* %A) {
+define void @f(ptr %A) {
 entry:
   br label %entry.split
 
@@ -22,15 +21,15 @@ entry.split:
   br i1 %cmp, label %if.then, label %if.else
 
 if.then:                                          ; preds = %entry
-  %tmp1 = load i32, i32* %A, align 4
+  %tmp1 = load i32, ptr %A, align 4
   %add = add nsw i32 %tmp1, 1
-  store i32 %add, i32* %A, align 4
+  store i32 %add, ptr %A, align 4
   br label %if.end
 
 if.else:                                          ; preds = %entry
-  %tmp2 = load i32, i32* %A, align 4
+  %tmp2 = load i32, ptr %A, align 4
   %sub = add nsw i32 %tmp2, -1
-  store i32 %sub, i32* %A, align 4
+  store i32 %sub, ptr %A, align 4
   br label %if.end
 
 if.end:                                           ; preds = %if.else, %if.then

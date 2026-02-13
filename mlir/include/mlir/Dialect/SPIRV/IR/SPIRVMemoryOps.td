@@ -15,10 +15,12 @@
 #define MLIR_DIALECT_SPIRV_IR_MEMORY_OPS
 
 include "mlir/Dialect/SPIRV/IR/SPIRVBase.td"
+include "mlir/Interfaces/AlignmentAttrInterface.td"
+
 
 // -----
 
-def SPIRV_AccessChainOp : SPIRV_Op<"AccessChain", [NoSideEffect]> {
+def SPIRV_AccessChainOp : SPIRV_Op<"AccessChain", [Pure]> {
   let summary = "Create a pointer into a composite object.";
 
   let description = [{
@@ -46,18 +48,13 @@ def SPIRV_AccessChainOp : SPIRV_Op<"AccessChain", [NoSideEffect]> {
     - must be an OpConstant when indexing into a structure.
 
     <!-- End of AutoGen section -->
-    ```
-    access-chain-op ::= ssa-id `=` `spirv.AccessChain` ssa-use
-                        `[` ssa-use (',' ssa-use)* `]`
-                        `:` pointer-type
-    ```
 
     #### Example:
 
     ```mlir
     %0 = "spirv.Constant"() { value = 1: i32} : () -> i32
     %1 = spirv.Variable : !spirv.ptr<!spirv.struct<f32, !spirv.array<4xf32>>, Function>
-    %2 = spirv.AccessChain %1[%0] : !spirv.ptr<!spirv.struct<f32, !spirv.array<4xf32>>, Function>
+    %2 = spirv.AccessChain %1[%0] : !spirv.ptr<!spirv.struct<f32, !spirv.array<4xf32>>, Function> -> !spirv.ptr<!spirv.array<4xf32>, Function>
     %3 = spirv.Load "Function" %2 ["Volatile"] : !spirv.array<4xf32>
     ```
   }];
@@ -74,14 +71,20 @@ def SPIRV_AccessChainOp : SPIRV_Op<"AccessChain", [NoSideEffect]> {
   let builders = [OpBuilder<(ins "Value":$basePtr, "ValueRange":$indices)>];
 
   let hasCanonicalizer = 1;
+
+  let hasCustomAssemblyFormat = 0;
+
+  let assemblyFormat = [{
+    $base_ptr `[` $indices `]` attr-dict `:` type($base_ptr) `,` type($indices) `->` type(results)
+  }];
 }
 
 // -----
 
-def SPIRV_CopyMemoryOp : SPIRV_Op<"CopyMemory", []> {
+def SPIRV_CopyMemoryOp : SPIRV_Op<"CopyMemory", [DeclareOpInterfaceMethods<AlignmentAttrOpInterface>]> {
   let summary = [{
     Copy from the memory pointed to by Source to the memory pointed to by
-    Target. Both operands must be non-void pointers and having the same <id>
+    Target. Both operands must be non-void pointers and having the same `<id>`
     Type operand in their OpTypePointer type declaration.  Matching Storage
     Class is not required.  The amount of memory copied is the size of the
     type pointed to. The copied type must have a fixed size; i.e., it must
@@ -120,9 +123,9 @@ def SPIRV_CopyMemoryOp : SPIRV_Op<"CopyMemory", []> {
     SPIRV_AnyPtr:$target,
     SPIRV_AnyPtr:$source,
     OptionalAttr<SPIRV_MemoryAccessAttr>:$memory_access,
-    OptionalAttr<I32Attr>:$alignment,
+    OptionalAttr<IntValidAlignment<I32Attr>>:$alignment,
     OptionalAttr<SPIRV_MemoryAccessAttr>:$source_memory_access,
-    OptionalAttr<I32Attr>:$source_alignment
+    OptionalAttr<IntValidAlignment<I32Attr>>:$source_alignment
   );
 
   let results = (outs);
@@ -132,7 +135,7 @@ def SPIRV_CopyMemoryOp : SPIRV_Op<"CopyMemory", []> {
 
 // -----
 
-def SPIRV_InBoundsPtrAccessChainOp : SPIRV_Op<"InBoundsPtrAccessChain", [NoSideEffect]> {
+def SPIRV_InBoundsPtrAccessChainOp : SPIRV_Op<"InBoundsPtrAccessChain", [Pure]> {
   let summary = [{
     Has the same semantics as OpPtrAccessChain, with the addition that the
     resulting pointer is known to point within the base object.
@@ -143,17 +146,11 @@ def SPIRV_InBoundsPtrAccessChainOp : SPIRV_Op<"InBoundsPtrAccessChain", [NoSideE
 
     <!-- End of AutoGen section -->
 
-    ```
-    access-chain-op ::= ssa-id `=` `spirv.InBoundsPtrAccessChain` ssa-use
-                        `[` ssa-use (',' ssa-use)* `]`
-                        `:` pointer-type
-    ```mlir
-
     #### Example:
 
-    ```
+    ```mlir
     func @inbounds_ptr_access_chain(%arg0: !spirv.ptr<f32, CrossWorkgroup>, %arg1 : i64) -> () {
-      %0 = spirv.InBoundsPtrAccessChain %arg0[%arg1] : !spirv.ptr<f32, CrossWorkgroup>, i64
+      %0 = spirv.InBoundsPtrAccessChain %arg0[%arg1] : !spirv.ptr<f32, CrossWorkgroup>, i64 -> !spirv.ptr<f32, CrossWorkgroup>
       ...
     }
     ```
@@ -177,11 +174,17 @@ def SPIRV_InBoundsPtrAccessChainOp : SPIRV_Op<"InBoundsPtrAccessChain", [NoSideE
   );
 
   let builders = [OpBuilder<(ins "Value":$basePtr, "Value":$element, "ValueRange":$indices)>];
+
+  let hasCustomAssemblyFormat = 0;
+
+  let assemblyFormat = [{
+    $base_ptr `[` $element ($indices^)? `]` attr-dict `:` type($base_ptr) `,` type($element) (`,` type($indices)^)? `->` type($result)
+  }];
 }
 
 // -----
 
-def SPIRV_LoadOp : SPIRV_Op<"Load", []> {
+def SPIRV_LoadOp : SPIRV_Op<"Load", [DeclareOpInterfaceMethods<AlignmentAttrOpInterface>]> {
   let summary = "Load through a pointer.";
 
   let description = [{
@@ -219,7 +222,7 @@ def SPIRV_LoadOp : SPIRV_Op<"Load", []> {
   let arguments = (ins
     SPIRV_AnyPtr:$ptr,
     OptionalAttr<SPIRV_MemoryAccessAttr>:$memory_access,
-    OptionalAttr<I32Attr>:$alignment
+    OptionalAttr<IntValidAlignment<I32Attr>>:$alignment
   );
 
   let results = (outs
@@ -235,7 +238,7 @@ def SPIRV_LoadOp : SPIRV_Op<"Load", []> {
 
 // -----
 
-def SPIRV_PtrAccessChainOp : SPIRV_Op<"PtrAccessChain", [NoSideEffect]> {
+def SPIRV_PtrAccessChainOp : SPIRV_Op<"PtrAccessChain", [Pure]> {
   let summary = [{
     Has the same semantics as OpAccessChain, with the addition of the
     Element operand.
@@ -269,17 +272,11 @@ def SPIRV_PtrAccessChainOp : SPIRV_Op<"PtrAccessChain", [NoSideEffect]> {
 
     <!-- End of AutoGen section -->
 
-    ```
-    [access-chain-op ::= ssa-id `=` `spirv.PtrAccessChain` ssa-use
-                        `[` ssa-use (',' ssa-use)* `]`
-                        `:` pointer-type
-    ```mlir
-
     #### Example:
 
-    ```
+    ```mlir
     func @ptr_access_chain(%arg0: !spirv.ptr<f32, CrossWorkgroup>, %arg1 : i64) -> () {
-      %0 = spirv.PtrAccessChain %arg0[%arg1] : !spirv.ptr<f32, CrossWorkgroup>, i64
+      %0 = spirv.PtrAccessChain %arg0[%arg1] : !spirv.ptr<f32, CrossWorkgroup>, i64 -> !spirv.ptr<f32, CrossWorkgroup>
       ...
     }
     ```
@@ -289,7 +286,9 @@ def SPIRV_PtrAccessChainOp : SPIRV_Op<"PtrAccessChain", [NoSideEffect]> {
     MinVersion<SPIRV_V_1_0>,
     MaxVersion<SPIRV_V_1_6>,
     Extension<[]>,
-    Capability<[SPIRV_C_Addresses, SPIRV_C_PhysicalStorageBufferAddresses, SPIRV_C_VariablePointers, SPIRV_C_VariablePointersStorageBuffer]>
+    Capability<[
+      SPIRV_C_Addresses, SPIRV_C_PhysicalStorageBufferAddresses,
+      SPIRV_C_VariablePointers, SPIRV_C_VariablePointersStorageBuffer]>
   ];
 
   let arguments = (ins
@@ -303,11 +302,17 @@ def SPIRV_PtrAccessChainOp : SPIRV_Op<"PtrAccessChain", [NoSideEffect]> {
   );
 
   let builders = [OpBuilder<(ins "Value":$basePtr, "Value":$element, "ValueRange":$indices)>];
+
+  let hasCustomAssemblyFormat = 0;
+
+  let assemblyFormat = [{
+    $base_ptr `[` $element ($indices^)? `]` attr-dict `:` type($base_ptr) `,` type($element) (`,` type($indices)^)? `->` type($result)
+  }];
 }
 
 // -----
 
-def SPIRV_StoreOp : SPIRV_Op<"Store", []> {
+def SPIRV_StoreOp : SPIRV_Op<"Store", [DeclareOpInterfaceMethods<AlignmentAttrOpInterface>]> {
   let summary = "Store through a pointer.";
 
   let description = [{
@@ -342,7 +347,7 @@ def SPIRV_StoreOp : SPIRV_Op<"Store", []> {
     SPIRV_AnyPtr:$ptr,
     SPIRV_Type:$value,
     OptionalAttr<SPIRV_MemoryAccessAttr>:$memory_access,
-    OptionalAttr<I32Attr>:$alignment
+    OptionalAttr<IntValidAlignment<I32Attr>>:$alignment
   );
 
   let results = (outs);
@@ -375,10 +380,15 @@ def SPIRV_VariableOp : SPIRV_Op<"Variable", []> {
     must be the `Function` Storage Class.
 
     Initializer is optional. If Initializer is present, it will be the
-    initial value of the variable’s memory content. Initializer must be an
-    <id> from a constant instruction or a global (module scope) OpVariable
+    initial value of the variable's memory content. Initializer must be an
+    `<id>` from a constant instruction or a global (module scope) OpVariable
     instruction. Initializer must have the same type as the type pointed to
     by Result Type.
+
+    From `SPV_KHR_physical_storage_buffer`:
+    If an OpVariable's pointee type is a pointer (or array of pointers) in
+    PhysicalStorageBuffer storage class, then the variable must be decorated
+    with exactly one of AliasedPointer or RestrictPointer.
 
     <!-- End of AutoGen section -->
 
@@ -396,6 +406,9 @@ def SPIRV_VariableOp : SPIRV_Op<"Variable", []> {
 
     %1 = spirv.Variable : !spirv.ptr<f32, Function>
     %2 = spirv.Variable init(%0): !spirv.ptr<f32, Function>
+
+    %3 = spirv.Variable {aliased_pointer} :
+      !spirv.ptr<!spirv.ptr<f32, PhysicalStorageBuffer>, Function>
     ```
   }];
 
@@ -407,6 +420,15 @@ def SPIRV_VariableOp : SPIRV_Op<"Variable", []> {
   let results = (outs
     SPIRV_AnyPtr:$pointer
   );
+
+  let extraClassDeclaration = [{
+    ::mlir::spirv::PointerType getPointerType() {
+      return ::llvm::cast<::mlir::spirv::PointerType>(getType());
+    }
+    ::mlir::Type getPointeeType() {
+      return getPointerType().getPointeeType();
+    }
+  }];
 }
 
 #endif // MLIR_DIALECT_SPIRV_IR_MEMORY_OPS

@@ -86,6 +86,7 @@
 #include <type_traits> // std::is_integral, std::is_enum, std::underlying_type,
                        // std::enable_if
 
+#include "llvm/ADT/STLForwardCompat.h" // llvm::to_underlying
 #include "llvm/Support/MathExtras.h" // AddOverflow / SubOverflow
 
 namespace llvm {
@@ -125,8 +126,8 @@ template <typename T, typename U> bool canTypeFitValue(const U Value) {
 // - its internal representation overflows.
 struct CheckedInt {
   // Integral constructor, asserts if Value cannot be represented as intmax_t.
-  template <typename Integral, typename std::enable_if_t<
-                                   std::is_integral<Integral>::value, bool> = 0>
+  template <typename Integral,
+            std::enable_if_t<std::is_integral<Integral>::value, bool> = 0>
   static CheckedInt from(Integral FromValue) {
     if (!canTypeFitValue<intmax_t>(FromValue))
       assertOutOfBounds();
@@ -137,10 +138,9 @@ struct CheckedInt {
 
   // Enum constructor, asserts if Value cannot be represented as intmax_t.
   template <typename Enum,
-            typename std::enable_if_t<std::is_enum<Enum>::value, bool> = 0>
+            std::enable_if_t<std::is_enum<Enum>::value, bool> = 0>
   static CheckedInt from(Enum FromValue) {
-    using type = std::underlying_type_t<Enum>;
-    return from<type>(static_cast<type>(FromValue));
+    return from(llvm::to_underlying(FromValue));
   }
 
   // Equality
@@ -162,8 +162,8 @@ struct CheckedInt {
   }
 
   // Convert to integral, asserts if Value cannot be represented as Integral.
-  template <typename Integral, typename std::enable_if_t<
-                                   std::is_integral<Integral>::value, bool> = 0>
+  template <typename Integral,
+            std::enable_if_t<std::is_integral<Integral>::value, bool> = 0>
   Integral to() const {
     if (!canTypeFitValue<Integral>(Value))
       assertOutOfBounds();
@@ -173,7 +173,7 @@ struct CheckedInt {
   // Convert to enum, asserts if Value cannot be represented as Enum's
   // underlying type.
   template <typename Enum,
-            typename std::enable_if_t<std::is_enum<Enum>::value, bool> = 0>
+            std::enable_if_t<std::is_enum<Enum>::value, bool> = 0>
   Enum to() const {
     using type = std::underlying_type_t<Enum>;
     return Enum(to<type>());
@@ -190,7 +190,7 @@ template <typename T, bool IsReverse> struct SafeIntIterator {
   using value_type = T;
   using difference_type = intmax_t;
   using pointer = T *;
-  using reference = T &;
+  using reference = value_type; // The iterator does not reference memory.
 
   // Construct from T.
   explicit SafeIntIterator(T Value) : SI(CheckedInt::from<T>(Value)) {}
@@ -198,9 +198,9 @@ template <typename T, bool IsReverse> struct SafeIntIterator {
   SafeIntIterator(const SafeIntIterator<T, !IsReverse> &O) : SI(O.SI) {}
 
   // Dereference
-  value_type operator*() const { return SI.to<T>(); }
+  reference operator*() const { return SI.to<T>(); }
   // Indexing
-  value_type operator[](intmax_t Offset) const { return *(*this + Offset); }
+  reference operator[](intmax_t Offset) const { return *(*this + Offset); }
 
   // Can be compared for equivalence using the equality/inequality operators.
   bool operator==(const SafeIntIterator &O) const { return SI == O.SI; }
@@ -304,6 +304,16 @@ template <typename T, typename = std::enable_if_t<std::is_integral<T>::value &&
                                                   !std::is_enum<T>::value>>
 auto seq(T Begin, T End) {
   return iota_range<T>(Begin, End, false);
+}
+
+/// Iterate over an integral type from 0 up to - but not including - Size.
+/// Note: Size value has to be within [INTMAX_MIN, INTMAX_MAX - 1] for
+/// forward iteration (resp. [INTMAX_MIN + 1, INTMAX_MAX - 1] for reverse
+/// iteration).
+template <typename T, typename = std::enable_if_t<std::is_integral<T>::value &&
+                                                  !std::is_enum<T>::value>>
+auto seq(T Size) {
+  return seq<T>(0, Size);
 }
 
 /// Iterate over an integral type from Begin to End inclusive.

@@ -1,12 +1,12 @@
-# RUN: llvm-mc %s -triple=riscv32 -mattr=+zbs -riscv-no-aliases \
+# RUN: llvm-mc %s -triple=riscv32 -mattr=+zbs -M no-aliases \
 # RUN:     | FileCheck -check-prefixes=CHECK-S-OBJ-NOALIAS %s
 # RUN: llvm-mc %s -triple=riscv32 -mattr=+zbs \
 # RUN:     | FileCheck -check-prefixes=CHECK-S-OBJ %s
 # RUN: llvm-mc -filetype=obj -triple riscv32 -mattr=+zbs < %s \
-# RUN:     | llvm-objdump -d -r -M no-aliases --mattr=+zbs - \
+# RUN:     | llvm-objdump --no-print-imm-hex -d -r -M no-aliases --mattr=+zbs - \
 # RUN:     | FileCheck -check-prefixes=CHECK-S-OBJ-NOALIAS %s
 # RUN: llvm-mc -filetype=obj -triple riscv32 -mattr=+zbs < %s \
-# RUN:     | llvm-objdump -d -r --mattr=+zbs - \
+# RUN:     | llvm-objdump --no-print-imm-hex -d -r --mattr=+zbs - \
 # RUN:     | FileCheck -check-prefixes=CHECK-S-OBJ %s
 
 # The following check prefixes are used in this test:
@@ -30,3 +30,7 @@ binv x5, x6, 8
 # CHECK-S-OBJ-NOALIAS: bexti t0, t1, 8
 # CHECK-S-OBJ: bexti t0, t1, 8
 bext x5, x6, 8
+
+# CHECK-S-OBJ-NOALIAS: bseti t2, zero, 11
+# CHECK-S-OBJ: bseti t2, zero, 11
+li x7, 2048

@@ -3,7 +3,7 @@
 ! Test Pre-FIR Tree captures all the intended nodes from the parse-tree
 ! Coarray and OpenMP related nodes are tested in other files.
 
-! CHECK: Program test_prog
+! CHECK: Program TEST_PROG
 program test_prog
   ! Check specification part is not part of the tree.
   interface
@@ -144,17 +144,24 @@ program test_prog
   deallocate(x)
 end
 
-! CHECK: ModuleLike
+! CHECK: Module test
 module test
   !! When derived type processing is implemented, remove all instances of:
   !!  - !![disable]
-  !!  -  COM: 
+  !!  -  COM:
   !![disable]type :: a_type
   !![disable]  integer :: x
   !![disable]end type
   !![disable]type, extends(a_type) :: b_type
   !![disable]  integer :: y
   !![disable]end type
+  interface
+     subroutine ss(aa)
+       ! CHECK: CompilerDirective
+       !DIR$ IGNORE_TKR aa
+       integer :: aa
+     end subroutine ss
+  end interface
 contains
   ! CHECK: Function foo
   function foo(x)
@@ -212,7 +219,7 @@ contains
   ! CHECK: Subroutine sub
   subroutine sub(a)
     real(4):: a
-    ! CompilerDirective:
+    ! CHECK: CompilerDirective
     !DIR$ IGNORE_TKR a
   end subroutine
 

@@ -9,8 +9,8 @@
 #ifndef LLVM_DEBUGINFO_DWARF_DWARFLOCATIONEXPRESSION_H
 #define LLVM_DEBUGINFO_DWARF_DWARFLOCATIONEXPRESSION_H
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/DebugInfo/DWARF/DWARFAddressRange.h"
+#include "llvm/Support/Compiler.h"
 
 namespace llvm {
 
@@ -20,10 +20,10 @@ class raw_ostream;
 /// Typically used in DW_AT_location attributes to describe the location of
 /// objects.
 struct DWARFLocationExpression {
-  /// The address range in which this expression is valid. None denotes a
+  /// The address range in which this expression is valid. std::nullopt denotes a
   /// default entry which is valid in addresses not covered by other location
   /// expressions, or everywhere if there are no other expressions.
-  Optional<DWARFAddressRange> Range;
+  std::optional<DWARFAddressRange> Range;
 
   /// The expression itself.
   SmallVector<uint8_t, 4> Expr;
@@ -39,7 +39,8 @@ inline bool operator!=(const DWARFLocationExpression &L,
   return !(L == R);
 }
 
-raw_ostream &operator<<(raw_ostream &OS, const DWARFLocationExpression &Loc);
+LLVM_ABI raw_ostream &operator<<(raw_ostream &OS,
+                                 const DWARFLocationExpression &Loc);
 
 /// Represents a set of absolute location expressions.
 using DWARFLocationExpressionsVector = std::vector<DWARFLocationExpression>;

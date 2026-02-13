@@ -9,33 +9,36 @@
 #ifndef LIB_MLIR_TOOLS_MLIRLSPSERVER_SERVER_H_
 #define LIB_MLIR_TOOLS_MLIRLSPSERVER_SERVER_H_
 
+#include "Protocol.h"
 #include "mlir/Support/LLVM.h"
+#include "mlir/Tools/mlir-lsp-server/MlirLspRegistryFunction.h"
 #include "llvm/Support/Error.h"
 #include <memory>
+#include <optional>
 
 namespace mlir {
 class DialectRegistry;
 
 namespace lsp {
-struct CodeAction;
-struct CodeActionContext;
-struct CompletionList;
-struct Diagnostic;
-struct DocumentSymbol;
-struct Hover;
-struct Location;
-struct MLIRConvertBytecodeResult;
-struct Position;
-struct Range;
-class URIForFile;
+using llvm::lsp::CodeAction;
+using llvm::lsp::CodeActionContext;
+using llvm::lsp::CompletionList;
+using llvm::lsp::Diagnostic;
+using llvm::lsp::DocumentSymbol;
+using llvm::lsp::Hover;
+using llvm::lsp::Location;
+using llvm::lsp::MLIRConvertBytecodeResult;
+using llvm::lsp::Position;
+using llvm::lsp::Range;
+using llvm::lsp::URIForFile;
 
 /// This class implements all of the MLIR related functionality necessary for a
 /// language server. This class allows for keeping the MLIR specific logic
 /// separate from the logic that involves LSP server/client communication.
 class MLIRServer {
 public:
-  /// Construct a new server with the given dialect regitstry.
-  MLIRServer(DialectRegistry &registry);
+  /// Construct a new server with the given dialect registry function.
+  MLIRServer(DialectRegistryFn registry_fn);
   ~MLIRServer();
 
   /// Add or update the document, with the provided `version`, at the given URI.
@@ -46,9 +49,9 @@ public:
                            std::vector<Diagnostic> &diagnostics);
 
   /// Remove the document with the given uri. Returns the version of the removed
-  /// document, or None if the uri did not have a corresponding document within
-  /// the server.
-  Optional<int64_t> removeDocument(const URIForFile &uri);
+  /// document, or std::nullopt if the uri did not have a corresponding document
+  /// within the server.
+  std::optional<int64_t> removeDocument(const URIForFile &uri);
 
   /// Return the locations of the object pointed at by the given position.
   void getLocationsOf(const URIForFile &uri, const Position &defPos,
@@ -58,9 +61,10 @@ public:
   void findReferencesOf(const URIForFile &uri, const Position &pos,
                         std::vector<Location> &references);
 
-  /// Find a hover description for the given hover position, or None if one
-  /// couldn't be found.
-  Optional<Hover> findHover(const URIForFile &uri, const Position &hoverPos);
+  /// Find a hover description for the given hover position, or std::nullopt if
+  /// one couldn't be found.
+  std::optional<Hover> findHover(const URIForFile &uri,
+                                 const Position &hoverPos);
 
   /// Find all of the document symbols within the given file.
   void findDocumentSymbols(const URIForFile &uri,

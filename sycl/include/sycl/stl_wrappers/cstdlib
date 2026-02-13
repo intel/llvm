@@ -1,0 +1,65 @@
+//==- cstdlib --------------------------------------------------------------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#pragma once
+
+// Include real STL <cstdlib> header - the next one from the include search
+// directories.
+#if defined(__has_include_next)
+// GCC/clang support go through this path.
+#include_next <cstdlib>
+#else
+// MSVC doesn't support "#include_next", so we have to be creative.
+// Our header is located in "stl_wrappers/cstdlib" so it won't be picked by the
+// following include. MSVC's installation, on the other hand, has the layout
+// where the following would result in the <cstdlib> we want. This is obviously
+// hacky, but the best we can do...
+#include <../include/cstdlib>
+#endif
+
+#ifdef __SYCL_DEVICE_ONLY__
+extern "C" {
+[[clang::sycl_device_only, clang::always_inline]] div_t div(int x, int y) { return {x / y, x % y}; }
+[[clang::sycl_device_only, clang::always_inline]] ldiv_t ldiv(long x, long y) { return {x / y, x % y}; }
+[[clang::sycl_device_only, clang::always_inline]] lldiv_t lldiv(long long x, long long y) { return {x / y, x % y}; }
+
+[[clang::sycl_device_only, clang::always_inline]] int abs(int n) { return n < 0 ? -n : n; }
+[[clang::sycl_device_only, clang::always_inline]] long labs(long n) { return n < 0 ? -n : n; }
+[[clang::sycl_device_only, clang::always_inline]] long long llabs(long long n) { return n < 0 ? -n : n; }
+}
+
+#ifdef _LIBCPP_BEGIN_NAMESPACE_STD
+_LIBCPP_BEGIN_NAMESPACE_STD
+#else
+namespace std {
+#ifdef _GLIBCXX_BEGIN_NAMESPACE_VERSION
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
+#endif
+#endif
+
+using ::div;
+[[clang::sycl_device_only, clang::always_inline]] ldiv_t div(long x, long y) { return {x / y, x % y}; }
+[[clang::sycl_device_only, clang::always_inline]] lldiv_t div(long long x, long long y) { return {x / y, x % y}; }
+using ::ldiv;
+using ::lldiv;
+
+using ::abs;
+[[clang::sycl_device_only, clang::always_inline]] long abs(long n) { return n < 0 ? -n : n; }
+[[clang::sycl_device_only, clang::always_inline]] long long abs(long long n) { return n < 0 ? -n : n; }
+using ::labs;
+using ::llabs;
+
+#ifdef _LIBCPP_END_NAMESPACE_STD
+_LIBCPP_END_NAMESPACE_STD
+#else
+#ifdef _GLIBCXX_BEGIN_NAMESPACE_VERSION
+_GLIBCXX_END_NAMESPACE_VERSION
+#endif
+} // namespace std
+#endif
+#endif // __SYCL_DEVICE_ONLY__

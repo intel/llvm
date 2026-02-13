@@ -5,9 +5,10 @@
 ! CHECK: Subroutine test_coarray
 Subroutine test_coarray
   use iso_fortran_env, only: team_type, event_type, lock_type
+  save
   type(team_type) :: t
-  type(event_type) :: done
-  type(lock_type) :: alock
+  type(event_type) :: done[*]
+  type(lock_type) :: alock[*]
   real :: y[10,*]
   integer :: counter[*]
   logical :: is_square

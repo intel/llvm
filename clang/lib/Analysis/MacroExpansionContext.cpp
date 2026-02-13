@@ -7,11 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Analysis/MacroExpansionContext.h"
+#include "clang/Format/Format.h"
 #include "llvm/Support/Debug.h"
+#include <optional>
 
 #define DEBUG_TYPE "macro-expansion-context"
 
-static void dumpTokenInto(const clang::Preprocessor &PP, clang::raw_ostream &OS,
+static void dumpTokenInto(const clang::Preprocessor &PP, llvm::raw_ostream &OS,
                           clang::Token Tok);
 
 namespace clang {
@@ -96,14 +98,14 @@ void MacroExpansionContext::registerForPreprocessor(Preprocessor &NewPP) {
   PP->setTokenWatcher([this](const Token &Tok) { onTokenLexed(Tok); });
 }
 
-Optional<StringRef>
+std::optional<StringRef>
 MacroExpansionContext::getExpandedText(SourceLocation MacroExpansionLoc) const {
   if (MacroExpansionLoc.isMacroID())
-    return llvm::None;
+    return std::nullopt;
 
-  // If there was no macro expansion at that location, return None.
+  // If there was no macro expansion at that location, return std::nullopt.
   if (ExpansionRanges.find_as(MacroExpansionLoc) == ExpansionRanges.end())
-    return llvm::None;
+    return std::nullopt;
 
   // There was macro expansion, but resulted in no tokens, return empty string.
   const auto It = ExpandedTokens.find_as(MacroExpansionLoc);
@@ -114,14 +116,14 @@ MacroExpansionContext::getExpandedText(SourceLocation MacroExpansionLoc) const {
   return It->getSecond().str();
 }
 
-Optional<StringRef>
+std::optional<StringRef>
 MacroExpansionContext::getOriginalText(SourceLocation MacroExpansionLoc) const {
   if (MacroExpansionLoc.isMacroID())
-    return llvm::None;
+    return std::nullopt;
 
   const auto It = ExpansionRanges.find_as(MacroExpansionLoc);
   if (It == ExpansionRanges.end())
-    return llvm::None;
+    return std::nullopt;
 
   assert(It->getFirst() != It->getSecond() &&
          "Every macro expansion must cover a non-empty range.");
@@ -129,6 +131,35 @@ MacroExpansionContext::getOriginalText(SourceLocation MacroExpansionLoc) const {
   return Lexer::getSourceText(
       CharSourceRange::getCharRange(It->getFirst(), It->getSecond()), *SM,
       LangOpts);
+}
+
+std::optional<StringRef> MacroExpansionContext::getFormattedExpandedText(
+    SourceLocation MacroExpansionLoc) const {
+  std::optional<StringRef> ExpandedText = getExpandedText(MacroExpansionLoc);
+  if (!ExpandedText)
+    return std::nullopt;
+
+  auto [It, Inserted] =
+      FormattedExpandedTokens.try_emplace(MacroExpansionLoc, "");
+  if (!Inserted)
+    return StringRef(It->getSecond());
+
+  clang::format::FormatStyle Style = clang::format::getLLVMStyle();
+
+  std::string MacroCodeBlock = ExpandedText->str();
+
+  std::vector<clang::tooling::Range> Ranges;
+  Ranges.emplace_back(0, MacroCodeBlock.length());
+
+  clang::tooling::Replacements Replacements = clang::format::reformat(
+      Style, MacroCodeBlock, Ranges, "<macro-expansion>");
+
+  llvm::Expected<std::string> Result =
+      clang::tooling::applyAllReplacements(MacroCodeBlock, Replacements);
+
+  It->getSecond() = Result ? std::move(*Result) : std::move(MacroCodeBlock);
+
+  return StringRef(It->getSecond());
 }
 
 void MacroExpansionContext::dumpExpansionRanges() const {

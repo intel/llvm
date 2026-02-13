@@ -8,12 +8,14 @@
 
 #include "CXIndexDataConsumer.h"
 #include "CIndexDiagnostic.h"
+#include "CXFile.h"
 #include "CXTranslationUnit.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DeclVisitor.h"
 #include "clang/Frontend/ASTUnit.h"
+#include "llvm/ADT/STLExtras.h"
 
 using namespace clang;
 using namespace clang::index;
@@ -387,13 +389,20 @@ SourceLocation CXIndexDataConsumer::CXXBasesListInfo::getBaseLoc(
   if (QualifiedTypeLoc QL = TL.getAs<QualifiedTypeLoc>())
     TL = QL.getUnqualifiedLoc();
 
-  if (ElaboratedTypeLoc EL = TL.getAs<ElaboratedTypeLoc>())
-    return EL.getNamedTypeLoc().getBeginLoc();
-  if (DependentNameTypeLoc DL = TL.getAs<DependentNameTypeLoc>())
-    return DL.getNameLoc();
-  if (DependentTemplateSpecializationTypeLoc DTL =
-          TL.getAs<DependentTemplateSpecializationTypeLoc>())
-    return DTL.getTemplateNameLoc();
+  // FIXME: Factor this out, a lot of TypeLoc users seem to need a generic
+  // TypeLoc::getNameLoc()
+  if (auto TTL = TL.getAs<DependentNameTypeLoc>())
+    return TTL.getNameLoc();
+  if (auto TTL = TL.getAs<TemplateSpecializationTypeLoc>())
+    return TTL.getTemplateNameLoc();
+  if (auto TTL = TL.getAs<TagTypeLoc>())
+    return TTL.getNameLoc();
+  if (auto TTL = TL.getAs<TypedefTypeLoc>())
+    return TTL.getNameLoc();
+  if (auto TTL = TL.getAs<UnresolvedUsingTypeLoc>())
+    return TTL.getNameLoc();
+  if (auto TTL = TL.getAs<UsingTypeLoc>())
+    return TTL.getNameLoc();
 
   return Loc;
 }
@@ -408,14 +417,14 @@ const char *ScratchAlloc::toCStr(StringRef Str) {
 
 const char *ScratchAlloc::copyCStr(StringRef Str) {
   char *buf = IdxCtx.StrScratch.Allocate<char>(Str.size() + 1);
-  std::uninitialized_copy(Str.begin(), Str.end(), buf);
+  llvm::uninitialized_copy(Str, buf);
   buf[Str.size()] = '\0';
   return buf;
 }
 
-void CXIndexDataConsumer::setASTContext(ASTContext &ctx) {
-  Ctx = &ctx;
-  cxtu::getASTUnit(CXTU)->setASTContext(&ctx);
+void CXIndexDataConsumer::setASTContext(IntrusiveRefCntPtr<ASTContext> ctx) {
+  Ctx = ctx.get();
+  cxtu::getASTUnit(CXTU)->setASTContext(std::move(ctx));
 }
 
 void CXIndexDataConsumer::setPreprocessor(std::shared_ptr<Preprocessor> PP) {
@@ -430,15 +439,16 @@ bool CXIndexDataConsumer::isFunctionLocalDecl(const Decl *D) {
 
   if (const NamedDecl *ND = dyn_cast<NamedDecl>(D)) {
     switch (ND->getFormalLinkage()) {
-    case NoLinkage:
-    case InternalLinkage:
+    case Linkage::Invalid:
+      llvm_unreachable("Linkage hasn't been computed!");
+    case Linkage::None:
+    case Linkage::Internal:
       return true;
-    case VisibleNoLinkage:
-    case ModuleInternalLinkage:
-    case UniqueExternalLinkage:
+    case Linkage::VisibleNone:
+    case Linkage::UniqueExternal:
       llvm_unreachable("Not a sema linkage");
-    case ModuleLinkage:
-    case ExternalLinkage:
+    case Linkage::Module:
+    case Linkage::External:
       return false;
     }
   }
@@ -452,21 +462,19 @@ bool CXIndexDataConsumer::shouldAbort() {
   return CB.abortQuery(ClientData, nullptr);
 }
 
-void CXIndexDataConsumer::enteredMainFile(const FileEntry *File) {
+void CXIndexDataConsumer::enteredMainFile(OptionalFileEntryRef File) {
   if (File && CB.enteredMainFile) {
     CXIdxClientFile idxFile =
-      CB.enteredMainFile(ClientData,
-                         static_cast<CXFile>(const_cast<FileEntry *>(File)),
-                         nullptr);
-    FileMap[File] = idxFile;
+        CB.enteredMainFile(ClientData, cxfile::makeCXFile(*File), nullptr);
+    FileMap[*File] = idxFile;
   }
 }
 
 void CXIndexDataConsumer::ppIncludedFile(SourceLocation hashLoc,
-                                     StringRef filename,
-                                     Optional<FileEntryRef> File,
-                                     bool isImport, bool isAngled,
-                                     bool isModuleImport) {
+                                         StringRef filename,
+                                         OptionalFileEntryRef File,
+                                         bool isImport, bool isAngled,
+                                         bool isModuleImport) {
   if (!CB.ppIncludedFile)
     return;
 
@@ -475,8 +483,7 @@ void CXIndexDataConsumer::ppIncludedFile(SourceLocation hashLoc,
   ScratchAlloc SA(*this);
   CXIdxIncludedFileInfo Info = { getIndexLoc(hashLoc),
                                  SA.toCStr(filename),
-                                 static_cast<CXFile>(
-                                   const_cast<FileEntry *>(FE)),
+                                 cxfile::makeCXFile(File),
                                  isImport, isAngled, isModuleImport };
   CXIdxClientFile idxFile = CB.ppIncludedFile(ClientData, &Info);
   FileMap[FE] = idxFile;
@@ -498,23 +505,20 @@ void CXIndexDataConsumer::importedModule(const ImportDecl *ImportD) {
     if (SrcMod->getTopLevelModule() == Mod->getTopLevelModule())
       return;
 
-  FileEntry *FE = nullptr;
-  if (auto File = Mod->getASTFile())
-    FE = const_cast<FileEntry *>(&File->getFileEntry());
-  CXIdxImportedASTFileInfo Info = {static_cast<CXFile>(FE), Mod,
+  OptionalFileEntryRef FE = Mod->getASTFile();
+  CXIdxImportedASTFileInfo Info = {cxfile::makeCXFile(FE), Mod,
                                    getIndexLoc(ImportD->getLocation()),
                                    ImportD->isImplicit()};
   CXIdxClientASTFile astFile = CB.importedASTFile(ClientData, &Info);
   (void)astFile;
 }
 
-void CXIndexDataConsumer::importedPCH(const FileEntry *File) {
+void CXIndexDataConsumer::importedPCH(FileEntryRef File) {
   if (!CB.importedASTFile)
     return;
 
   CXIdxImportedASTFileInfo Info = {
-                                    static_cast<CXFile>(
-                                      const_cast<FileEntry *>(File)),
+                                    cxfile::makeCXFile(File),
                                     /*module=*/nullptr,
                                     getIndexLoc(SourceLocation()),
                                     /*isImplicit=*/false
@@ -865,7 +869,7 @@ bool CXIndexDataConsumer::handleObjCProperty(const ObjCPropertyDecl *D) {
 }
 
 bool CXIndexDataConsumer::handleNamespace(const NamespaceDecl *D) {
-  DeclInfo DInfo(/*isRedeclaration=*/!D->isOriginalNamespace(),
+  DeclInfo DInfo(/*isRedeclaration=*/!D->isFirstDecl(),
                  /*isDefinition=*/true,
                  /*isContainer=*/true);
   return handleDecl(D, D->getLocation(), getCursor(D), DInfo);
@@ -956,27 +960,16 @@ void CXIndexDataConsumer::addContainerInMap(const DeclContext *DC,
   if (!DC)
     return;
 
-  ContainerMapTy::iterator I = ContainerMap.find(DC);
-  if (I == ContainerMap.end()) {
-    if (container)
-      ContainerMap[DC] = container;
-    return;
-  }
   // Allow changing the container of a previously seen DeclContext so we
   // can handle invalid user code, like a function re-definition.
   if (container)
-    I->second = container;
+    ContainerMap[DC] = container;
   else
-    ContainerMap.erase(I);
+    ContainerMap.erase(DC);
 }
 
 CXIdxClientEntity CXIndexDataConsumer::getClientEntity(const Decl *D) const {
-  if (!D)
-    return nullptr;
-  EntityMapTy::const_iterator I = EntityMap.find(D);
-  if (I == EntityMap.end())
-    return nullptr;
-  return I->second;
+  return D ? EntityMap.lookup(D) : nullptr;
 }
 
 void CXIndexDataConsumer::setClientEntity(const Decl *D, CXIdxClientEntity client) {
@@ -1025,8 +1018,8 @@ bool CXIndexDataConsumer::markEntityOccurrenceInFile(const NamedDecl *D,
 
   SourceManager &SM = Ctx->getSourceManager();
   D = getEntityDecl(D);
-  
-  std::pair<FileID, unsigned> LocInfo = SM.getDecomposedLoc(SM.getFileLoc(Loc));
+
+  FileIDAndOffset LocInfo = SM.getDecomposedLoc(SM.getFileLoc(Loc));
   FileID FID = LocInfo.first;
   if (FID.isInvalid())
     return true;
@@ -1080,25 +1073,11 @@ CXIndexDataConsumer::getEntityContainer(const Decl *D) const {
 
 CXIdxClientContainer
 CXIndexDataConsumer::getClientContainerForDC(const DeclContext *DC) const {
-  if (!DC)
-    return nullptr;
-
-  ContainerMapTy::const_iterator I = ContainerMap.find(DC);
-  if (I == ContainerMap.end())
-    return nullptr;
-
-  return I->second;
+  return DC ? ContainerMap.lookup(DC) : nullptr;
 }
 
-CXIdxClientFile CXIndexDataConsumer::getIndexFile(const FileEntry *File) {
-  if (!File)
-    return nullptr;
-
-  FileMapTy::iterator FI = FileMap.find(File);
-  if (FI != FileMap.end())
-    return FI->second;
-
-  return nullptr;
+CXIdxClientFile CXIndexDataConsumer::getIndexFile(OptionalFileEntryRef File) {
+  return File ? FileMap.lookup(*File) : nullptr;
 }
 
 CXIdxLoc CXIndexDataConsumer::getIndexLoc(SourceLocation Loc) const {
@@ -1121,18 +1100,18 @@ void CXIndexDataConsumer::translateLoc(SourceLocation Loc,
   SourceManager &SM = Ctx->getSourceManager();
   Loc = SM.getFileLoc(Loc);
 
-  std::pair<FileID, unsigned> LocInfo = SM.getDecomposedLoc(Loc);
+  FileIDAndOffset LocInfo = SM.getDecomposedLoc(Loc);
   FileID FID = LocInfo.first;
   unsigned FileOffset = LocInfo.second;
 
   if (FID.isInvalid())
     return;
-  
-  const FileEntry *FE = SM.getFileEntryForID(FID);
+
+  OptionalFileEntryRef FE = SM.getFileEntryRefForID(FID);
   if (indexFile)
     *indexFile = getIndexFile(FE);
   if (file)
-    *file = const_cast<FileEntry *>(FE);
+    *file = cxfile::makeCXFile(FE);
   if (line)
     *line = SM.getLineNumber(FID, FileOffset);
   if (column)
@@ -1260,6 +1239,7 @@ static CXIdxEntityKind getEntityKindFromSymbolKind(SymbolKind K, SymbolLanguage 
   case SymbolKind::TemplateTypeParm:
   case SymbolKind::TemplateTemplateParm:
   case SymbolKind::NonTypeTemplateParm:
+  case SymbolKind::IncludeDirective:
     return CXIdxEntity_Unexposed;
 
   case SymbolKind::Enum: return CXIdxEntity_Enum;

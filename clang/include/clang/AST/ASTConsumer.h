@@ -23,9 +23,11 @@ namespace clang {
   class ASTDeserializationListener; // layering violation because void* is ugly
   class SemaConsumer; // layering violation required for safe SemaConsumer
   class TagDecl;
+  class DeclaratorDecl;
   class VarDecl;
   class FunctionDecl;
   class ImportDecl;
+  class OpenACCRoutineDecl;
 
 /// ASTConsumer - This is an abstract interface that should be implemented by
 /// clients that read ASTs.  This abstraction layer allows the client to be
@@ -33,12 +35,12 @@ namespace clang {
 class ASTConsumer {
   /// Whether this AST consumer also requires information about
   /// semantic analysis.
-  bool SemaConsumer;
+  bool SemaConsumer = false;
 
   friend class SemaConsumer;
 
 public:
-  ASTConsumer() : SemaConsumer(false) { }
+  ASTConsumer() = default;
 
   virtual ~ASTConsumer() {}
 
@@ -76,7 +78,7 @@ public:
   virtual void HandleTagDeclRequiredDefinition(const TagDecl *D) {}
 
   /// Invoked when a function is implicitly instantiated.
-  /// Note that at this point point it does not have a body, its body is
+  /// Note that at this point it does not have a body, its body is
   /// instantiated at the end of the translation unit and passed to
   /// HandleTopLevelDecl.
   virtual void HandleCXXImplicitFunctionInstantiation(FunctionDecl *D) {}
@@ -105,7 +107,7 @@ public:
   /// CompleteExternalDeclaration - Callback invoked at the end of a translation
   /// unit to notify the consumer that the given external declaration should be
   /// completed.
-  virtual void CompleteExternalDeclaration(VarDecl *D) {}
+  virtual void CompleteExternalDeclaration(DeclaratorDecl *D) {}
 
   /// Callback invoked when an MSInheritanceAttr has been attached to a
   /// CXXRecordDecl.
@@ -114,6 +116,11 @@ public:
   /// HandleCXXStaticMemberVarInstantiation - Tell the consumer that this
   // variable has been instantiated.
   virtual void HandleCXXStaticMemberVarInstantiation(VarDecl *D) {}
+
+  /// Callback to handle the end-of-translation unit attachment of OpenACC
+  /// routine declaration information.
+  virtual void HandleOpenACCRoutineReference(const FunctionDecl *FD,
+                                             const OpenACCRoutineDecl *RD) {}
 
   /// Callback involved at the end of a translation unit to
   /// notify the consumer that a vtable for the given C++ class is

@@ -24,10 +24,11 @@
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
+#include <functional>
 #include <mutex>
 #include <string>
 #include <thread>
-#include <fstream>
 
 // This function should be present in the libFuzzer so that the client
 // binary can test for its existence.
@@ -162,13 +163,13 @@ static bool ParseOneFlag(const char *Param) {
         auto Val = MyStol(Str);
         *FlagDescriptions[F].IntFlag = static_cast<int>(Val);
         if (Flags.verbosity >= 2)
-          Printf("Flag: %s %d\n", Name, Val);
+          Printf("Flag: %s %d\n", Name, (int)Val);
         return true;
       } else if (FlagDescriptions[F].UIntFlag) {
         auto Val = std::stoul(Str);
         *FlagDescriptions[F].UIntFlag = static_cast<unsigned int>(Val);
         if (Flags.verbosity >= 2)
-          Printf("Flag: %s %u\n", Name, Val);
+          Printf("Flag: %s %u\n", Name, (uint32_t)Val);
         return true;
       } else if (FlagDescriptions[F].StrFlag) {
         *FlagDescriptions[F].StrFlag = Str;
@@ -229,6 +230,7 @@ static void PulseThread() {
 
 static void WorkerThread(const Command &BaseCmd, std::atomic<unsigned> *Counter,
                          unsigned NumJobs, std::atomic<bool> *HasErrors) {
+  ScopedDisableMsanInterceptorChecks S;
   while (true) {
     unsigned C = (*Counter)++;
     if (C >= NumJobs) break;
@@ -293,14 +295,22 @@ static int RunInMultipleProcesses(const std::vector<std::string> &Args,
   std::vector<std::thread> V;
   std::thread Pulse(PulseThread);
   Pulse.detach();
-  for (unsigned i = 0; i < NumWorkers; i++)
-    V.push_back(std::thread(WorkerThread, std::ref(Cmd), &Counter, NumJobs,
-                            &HasErrors));
+  V.resize(NumWorkers);
+  for (unsigned i = 0; i < NumWorkers; i++) {
+    V[i] = std::thread(WorkerThread, std::ref(Cmd), &Counter, NumJobs,
+                            &HasErrors);
+    SetThreadName(V[i], "FuzzerWorker");
+  }
   for (auto &T : V)
     T.join();
   return HasErrors ? 1 : 0;
 }
 
+void StartRssThread(Fuzzer *F, size_t RssLimitMb);
+
+// Fuchsia needs to do some book checking before starting the RssThread,
+// so it has its own implementation.
+#if !LIBFUZZER_FUCHSIA
 static void RssThread(Fuzzer *F, size_t RssLimitMb) {
   while (true) {
     SleepSeconds(1);
@@ -310,12 +320,13 @@ static void RssThread(Fuzzer *F, size_t RssLimitMb) {
   }
 }
 
-static void StartRssThread(Fuzzer *F, size_t RssLimitMb) {
+void StartRssThread(Fuzzer *F, size_t RssLimitMb) {
   if (!RssLimitMb)
     return;
   std::thread T(RssThread, F, RssLimitMb);
   T.detach();
 }
+#endif
 
 int RunOneTest(Fuzzer *F, const char *InputFilePath, size_t MaxLen) {
   Unit U = FileToVector(InputFilePath);
@@ -463,7 +474,7 @@ int MinimizeCrashInput(const std::vector<std::string> &Args,
         CurrentFilePath = Flags.exact_artifact_path;
         WriteToFile(U, CurrentFilePath);
       }
-      Printf("CRASH_MIN: failed to minimize beyond %s (%d bytes), exiting\n",
+      Printf("CRASH_MIN: failed to minimize beyond %s (%zu bytes), exiting\n",
              CurrentFilePath.c_str(), U.size());
       break;
     }
@@ -501,7 +512,6 @@ int MinimizeCrashInputInternalStep(Fuzzer *F, InputCorpus *Corpus) {
   F->MinimizeCrashLoop(U);
   Printf("INFO: Done MinimizeCrashInputInternalStep, no crashes found\n");
   exit(0);
-  return 0;
 }
 
 void Merge(Fuzzer *F, FuzzingOptions &Options,
@@ -535,7 +545,7 @@ void Merge(Fuzzer *F, FuzzingOptions &Options,
 
 int AnalyzeDictionary(Fuzzer *F, const std::vector<Unit> &Dict,
                       UnitVector &Corpus) {
-  Printf("Started dictionary minimization (up to %d tests)\n",
+  Printf("Started dictionary minimization (up to %zu tests)\n",
          Dict.size() * Corpus.size() * 2);
 
   // Scores and usage count for each dictionary unit.
@@ -599,7 +609,7 @@ int AnalyzeDictionary(Fuzzer *F, const std::vector<Unit> &Dict,
   return 0;
 }
 
-std::vector<std::string> ParseSeedInuts(const char *seed_inputs) {
+std::vector<std::string> ParseSeedInputs(const char *seed_inputs) {
   // Parse -seed_inputs=file1,file2,... or -seed_inputs=@seed_inputs_file
   std::vector<std::string> Files;
   if (!seed_inputs) return Files;
@@ -779,7 +789,7 @@ int FuzzerDriver(int *argc, char ***argv, UserCallback Callback) {
   if (!Options.FocusFunction.empty())
     Options.Entropic = false; // FocusFunction overrides entropic scheduling.
   if (Options.Entropic)
-    Printf("INFO: Running with entropic power schedule (0x%X, %d).\n",
+    Printf("INFO: Running with entropic power schedule (0x%zX, %zu).\n",
            Options.EntropicFeatureFrequencyThreshold,
            Options.EntropicNumberOfRarestFeatures);
   struct EntropicOptions Entropic;
@@ -797,7 +807,7 @@ int FuzzerDriver(int *argc, char ***argv, UserCallback Callback) {
   if (Flags.verbosity)
     Printf("INFO: Seed: %u\n", Seed);
 
-  if (Flags.collect_data_flow && !Flags.fork &&
+  if (Flags.collect_data_flow && Flags.data_flow_trace && !Flags.fork &&
       !(Flags.merge || Flags.set_cover_merge)) {
     if (RunIndividualFiles)
       return CollectDataFlow(Flags.collect_data_flow, Flags.data_flow_trace,
@@ -830,6 +840,7 @@ int FuzzerDriver(int *argc, char ***argv, UserCallback Callback) {
   Options.HandleInt = Flags.handle_int;
   Options.HandleSegv = Flags.handle_segv;
   Options.HandleTerm = Flags.handle_term;
+  Options.HandleTrap = Flags.handle_trap;
   Options.HandleXfsz = Flags.handle_xfsz;
   Options.HandleUsr1 = Flags.handle_usr1;
   Options.HandleUsr2 = Flags.handle_usr2;
@@ -860,7 +871,7 @@ int FuzzerDriver(int *argc, char ***argv, UserCallback Callback) {
         RunOneTest(F, Path.c_str(), Options.MaxLen);
       auto StopTime = system_clock::now();
       auto MS = duration_cast<milliseconds>(StopTime - StartTime).count();
-      Printf("Executed %s in %zd ms\n", Path.c_str(), (long)MS);
+      Printf("Executed %s in %ld ms\n", Path.c_str(), (long)MS);
     }
     Printf("***\n"
            "*** NOTE: fuzzing was not performed, you have only\n"
@@ -908,7 +919,7 @@ int FuzzerDriver(int *argc, char ***argv, UserCallback Callback) {
     exit(0);
   }
 
-  auto CorporaFiles = ReadCorpora(*Inputs, ParseSeedInuts(Flags.seed_inputs));
+  auto CorporaFiles = ReadCorpora(*Inputs, ParseSeedInputs(Flags.seed_inputs));
   F->Loop(CorporaFiles);
 
   if (Flags.verbosity)

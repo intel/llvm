@@ -1,4 +1,4 @@
-//===--- SmartPtrArrayMismatchCheck.cpp - clang-tidy ----------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,17 +13,13 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
-namespace {
+static constexpr char ConstructExprN[] = "found_construct_expr";
+static constexpr char NewExprN[] = "found_new_expr";
+static constexpr char ConstructorN[] = "found_constructor";
 
-constexpr char ConstructExprN[] = "found_construct_expr";
-constexpr char NewExprN[] = "found_new_expr";
-constexpr char ConstructorN[] = "found_constructor";
-
-bool isInSingleDeclStmt(const DeclaratorDecl *D) {
+static bool isInSingleDeclStmt(const DeclaratorDecl *D) {
   const DynTypedNodeList Parents =
       D->getASTContext().getParentMapContext().getParents(*D);
   for (const DynTypedNode &PNode : Parents)
@@ -32,8 +28,8 @@ bool isInSingleDeclStmt(const DeclaratorDecl *D) {
   return false;
 }
 
-const DeclaratorDecl *getConstructedVarOrField(const Expr *FoundConstructExpr,
-                                               ASTContext &Ctx) {
+static const DeclaratorDecl *
+getConstructedVarOrField(const Expr *FoundConstructExpr, ASTContext &Ctx) {
   const DynTypedNodeList ConstructParents =
       Ctx.getParentMapContext().getParents(*FoundConstructExpr);
   if (ConstructParents.size() != 1)
@@ -44,8 +40,6 @@ const DeclaratorDecl *getConstructedVarOrField(const Expr *FoundConstructExpr,
 
   return nullptr;
 }
-
-} // namespace
 
 const char SmartPtrArrayMismatchCheck::PointerTypeN[] = "pointer_type";
 
@@ -99,10 +93,10 @@ void SmartPtrArrayMismatchCheck::check(const MatchFinder::MatchResult &Result) {
     assert(TSTypeLoc.getNumArgs() >= 1 &&
            "Matched type should have at least 1 template argument.");
 
-    SourceRange TemplateArgumentRange = TSTypeLoc.getArgLoc(0)
-                                            .getTypeSourceInfo()
-                                            ->getTypeLoc()
-                                            .getSourceRange();
+    const SourceRange TemplateArgumentRange = TSTypeLoc.getArgLoc(0)
+                                                  .getTypeSourceInfo()
+                                                  ->getTypeLoc()
+                                                  .getSourceRange();
     D << TemplateArgumentRange;
 
     if (isInSingleDeclStmt(VarOrField)) {
@@ -110,13 +104,11 @@ void SmartPtrArrayMismatchCheck::check(const MatchFinder::MatchResult &Result) {
       if (!utils::rangeCanBeFixed(TemplateArgumentRange, &SM))
         return;
 
-      SourceLocation InsertLoc = Lexer::getLocForEndOfToken(
+      const SourceLocation InsertLoc = Lexer::getLocForEndOfToken(
           TemplateArgumentRange.getEnd(), 0, SM, Ctx.getLangOpts());
       D << FixItHint::CreateInsertion(InsertLoc, "[]");
     }
   }
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

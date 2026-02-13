@@ -9,8 +9,10 @@
 #include "llvm/CodeGen/MachineCycleAnalysis.h"
 #include "llvm/ADT/GenericCycleImpl.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/MachineSSAContext.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
+#include "llvm/InitializePasses.h"
 
 using namespace llvm;
 
@@ -52,39 +54,59 @@ void MachineCycleInfoWrapperPass::releaseMemory() {
   F = nullptr;
 }
 
-class MachineCycleInfoPrinterPass : public MachineFunctionPass {
+AnalysisKey MachineCycleAnalysis::Key;
+
+MachineCycleInfo
+MachineCycleAnalysis::run(MachineFunction &MF,
+                          MachineFunctionAnalysisManager &MFAM) {
+  MachineCycleInfo MCI;
+  MCI.compute(MF);
+  return MCI;
+}
+
+namespace {
+class MachineCycleInfoPrinterLegacy : public MachineFunctionPass {
 public:
   static char ID;
 
-  MachineCycleInfoPrinterPass();
+  MachineCycleInfoPrinterLegacy();
 
   bool runOnMachineFunction(MachineFunction &F) override;
   void getAnalysisUsage(AnalysisUsage &AU) const override;
 };
+} // namespace
 
-char MachineCycleInfoPrinterPass::ID = 0;
+char MachineCycleInfoPrinterLegacy::ID = 0;
 
-MachineCycleInfoPrinterPass::MachineCycleInfoPrinterPass()
+MachineCycleInfoPrinterLegacy::MachineCycleInfoPrinterLegacy()
     : MachineFunctionPass(ID) {
-  initializeMachineCycleInfoPrinterPassPass(*PassRegistry::getPassRegistry());
+  initializeMachineCycleInfoPrinterLegacyPass(*PassRegistry::getPassRegistry());
 }
 
-INITIALIZE_PASS_BEGIN(MachineCycleInfoPrinterPass, "print-machine-cycles",
+INITIALIZE_PASS_BEGIN(MachineCycleInfoPrinterLegacy, "print-machine-cycles",
                       "Print Machine Cycle Info Analysis", true, true)
 INITIALIZE_PASS_DEPENDENCY(MachineCycleInfoWrapperPass)
-INITIALIZE_PASS_END(MachineCycleInfoPrinterPass, "print-machine-cycles",
+INITIALIZE_PASS_END(MachineCycleInfoPrinterLegacy, "print-machine-cycles",
                     "Print Machine Cycle Info Analysis", true, true)
 
-void MachineCycleInfoPrinterPass::getAnalysisUsage(AnalysisUsage &AU) const {
+void MachineCycleInfoPrinterLegacy::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
   AU.addRequired<MachineCycleInfoWrapperPass>();
   MachineFunctionPass::getAnalysisUsage(AU);
 }
 
-bool MachineCycleInfoPrinterPass::runOnMachineFunction(MachineFunction &F) {
+bool MachineCycleInfoPrinterLegacy::runOnMachineFunction(MachineFunction &F) {
   auto &CI = getAnalysis<MachineCycleInfoWrapperPass>();
   CI.print(errs());
   return false;
+}
+
+PreservedAnalyses
+MachineCycleInfoPrinterPass::run(MachineFunction &MF,
+                                 MachineFunctionAnalysisManager &MFAM) {
+  auto &MCI = MFAM.getResult<MachineCycleAnalysis>(MF);
+  MCI.print(OS);
+  return PreservedAnalyses::all();
 }
 
 bool llvm::isCycleInvariant(const MachineCycle *Cycle, MachineInstr &I) {
@@ -105,7 +127,7 @@ bool llvm::isCycleInvariant(const MachineCycle *Cycle, MachineInstr &I) {
 
     // An instruction that uses or defines a physical register can't e.g. be
     // hoisted, so mark this as not invariant.
-    if (Register::isPhysicalRegister(Reg)) {
+    if (Reg.isPhysical()) {
       if (MO.isUse()) {
         // If the physreg has no defs anywhere, it's just an ambient register
         // and we can freely move its uses. Alternatively, if it's allocatable,

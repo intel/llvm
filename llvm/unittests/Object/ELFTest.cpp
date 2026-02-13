@@ -7,6 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Object/ELF.h"
+#include "llvm/Object/ELFObjectFile.h"
+#include "llvm/ObjectYAML/yaml2obj.h"
+#include "llvm/Support/Error.h"
+#include "llvm/Support/YAMLTraits.h"
 #include "llvm/Testing/Support/Error.h"
 #include "gtest/gtest.h"
 
@@ -233,10 +237,78 @@ TEST(ELFTest, getELFRelocationTypeNameForLoongArch) {
             getELFRelocationTypeName(EM_LOONGARCH, R_LARCH_32_PCREL));
   EXPECT_EQ("R_LARCH_RELAX",
             getELFRelocationTypeName(EM_LOONGARCH, R_LARCH_RELAX));
+  EXPECT_EQ("R_LARCH_ALIGN",
+            getELFRelocationTypeName(EM_LOONGARCH, R_LARCH_ALIGN));
+  EXPECT_EQ("R_LARCH_PCREL20_S2",
+            getELFRelocationTypeName(EM_LOONGARCH, R_LARCH_PCREL20_S2));
+  EXPECT_EQ("R_LARCH_ADD6",
+            getELFRelocationTypeName(EM_LOONGARCH, R_LARCH_ADD6));
+  EXPECT_EQ("R_LARCH_SUB6",
+            getELFRelocationTypeName(EM_LOONGARCH, R_LARCH_SUB6));
+  EXPECT_EQ("R_LARCH_ADD_ULEB128",
+            getELFRelocationTypeName(EM_LOONGARCH, R_LARCH_ADD_ULEB128));
+  EXPECT_EQ("R_LARCH_SUB_ULEB128",
+            getELFRelocationTypeName(EM_LOONGARCH, R_LARCH_SUB_ULEB128));
+  EXPECT_EQ("R_LARCH_64_PCREL",
+            getELFRelocationTypeName(EM_LOONGARCH, R_LARCH_64_PCREL));
+  EXPECT_EQ("R_LARCH_CALL36",
+            getELFRelocationTypeName(EM_LOONGARCH, R_LARCH_CALL36));
+  EXPECT_EQ("R_LARCH_CALL30",
+            getELFRelocationTypeName(EM_LOONGARCH, R_LARCH_CALL30));
+  EXPECT_EQ("R_LARCH_PCADD_HI20",
+            getELFRelocationTypeName(EM_LOONGARCH, R_LARCH_PCADD_HI20));
+  EXPECT_EQ("R_LARCH_PCADD_LO12",
+            getELFRelocationTypeName(EM_LOONGARCH, R_LARCH_PCADD_LO12));
+  EXPECT_EQ("R_LARCH_GOT_PCADD_HI20",
+            getELFRelocationTypeName(EM_LOONGARCH, R_LARCH_GOT_PCADD_HI20));
+  EXPECT_EQ("R_LARCH_GOT_PCADD_LO12",
+            getELFRelocationTypeName(EM_LOONGARCH, R_LARCH_GOT_PCADD_LO12));
+  EXPECT_EQ("R_LARCH_TLS_IE_PCADD_HI20",
+            getELFRelocationTypeName(EM_LOONGARCH, R_LARCH_TLS_IE_PCADD_HI20));
+  EXPECT_EQ("R_LARCH_TLS_IE_PCADD_LO12",
+            getELFRelocationTypeName(EM_LOONGARCH, R_LARCH_TLS_IE_PCADD_LO12));
+  EXPECT_EQ("R_LARCH_TLS_LD_PCADD_HI20",
+            getELFRelocationTypeName(EM_LOONGARCH, R_LARCH_TLS_LD_PCADD_HI20));
+  EXPECT_EQ("R_LARCH_TLS_LD_PCADD_LO12",
+            getELFRelocationTypeName(EM_LOONGARCH, R_LARCH_TLS_LD_PCADD_LO12));
+  EXPECT_EQ("R_LARCH_TLS_GD_PCADD_HI20",
+            getELFRelocationTypeName(EM_LOONGARCH, R_LARCH_TLS_GD_PCADD_HI20));
+  EXPECT_EQ("R_LARCH_TLS_GD_PCADD_LO12",
+            getELFRelocationTypeName(EM_LOONGARCH, R_LARCH_TLS_GD_PCADD_LO12));
+  EXPECT_EQ(
+      "R_LARCH_TLS_DESC_PCADD_HI20",
+      getELFRelocationTypeName(EM_LOONGARCH, R_LARCH_TLS_DESC_PCADD_HI20));
+  EXPECT_EQ(
+      "R_LARCH_TLS_DESC_PCADD_LO12",
+      getELFRelocationTypeName(EM_LOONGARCH, R_LARCH_TLS_DESC_PCADD_LO12));
+}
+
+TEST(ELFTest, getRISCVVendorRelocationTypeName) {
+  EXPECT_EQ("R_RISCV_QC_ABS20_U",
+            getRISCVVendorRelocationTypeName(R_RISCV_CUSTOM192, "QUALCOMM"));
+  EXPECT_EQ("R_RISCV_QC_E_BRANCH",
+            getRISCVVendorRelocationTypeName(R_RISCV_CUSTOM193, "QUALCOMM"));
+  EXPECT_EQ("R_RISCV_QC_E_32",
+            getRISCVVendorRelocationTypeName(R_RISCV_CUSTOM194, "QUALCOMM"));
+  EXPECT_EQ("R_RISCV_QC_E_CALL_PLT",
+            getRISCVVendorRelocationTypeName(R_RISCV_CUSTOM195, "QUALCOMM"));
+
+  EXPECT_EQ("R_RISCV_NDS_BRANCH_10",
+            getRISCVVendorRelocationTypeName(R_RISCV_CUSTOM241, "ANDES"));
+
+  EXPECT_EQ("R_RISCV_CHERIOT1_COMPARTMENT_HI",
+            getRISCVVendorRelocationTypeName(R_RISCV_CUSTOM220, "CHERIOT1"));
+  EXPECT_EQ("R_RISCV_CHERIOT1_COMPARTMENT_LO_I",
+            getRISCVVendorRelocationTypeName(R_RISCV_CUSTOM221, "CHERIOT1"));
+  EXPECT_EQ("R_RISCV_CHERIOT1_COMPARTMENT_LO_S",
+            getRISCVVendorRelocationTypeName(R_RISCV_CUSTOM222, "CHERIOT1"));
+  EXPECT_EQ("R_RISCV_CHERIOT1_COMPARTMENT_SIZE",
+            getRISCVVendorRelocationTypeName(R_RISCV_CUSTOM223, "CHERIOT1"));
 }
 
 TEST(ELFTest, getELFRelativeRelocationType) {
   EXPECT_EQ(ELF::R_VE_RELATIVE, getELFRelativeRelocationType(EM_VE));
+  EXPECT_EQ(ELF::R_LARCH_RELATIVE, getELFRelativeRelocationType(EM_LOONGARCH));
 }
 
 // This is a test for the DataRegion helper struct, defined in ELF.h header.
@@ -269,4 +341,95 @@ TEST(ELFTest, DataRegionTest) {
   const char *ErrMsg2 = "can't read past the end of the file";
   EXPECT_THAT_ERROR(Region[3].takeError(), FailedWithMessage(ErrMsg2));
   EXPECT_THAT_ERROR(Region[4].takeError(), FailedWithMessage(ErrMsg2));
+}
+
+// Test the sysV and the gnu hash functions, particularly with UTF-8 unicode.
+// Use names long enough for the hash's recycling of the high bits to kick in.
+// Explicitly encode the UTF-8 to avoid encoding transliterations.
+TEST(ELFTest, Hash) {
+  EXPECT_EQ(hashSysV("FooBarBazToto"), 0x5ec3e8fU);
+  EXPECT_EQ(hashGnu("FooBarBazToto"), 0x5478be61U);
+
+  // boom💥pants
+  EXPECT_EQ(hashSysV("boom\xf0\x9f\x92\xa5pants"), 0x5a0cf53U);
+  EXPECT_EQ(hashGnu("boom\xf0\x9f\x92\xa5pants"), 0xf5dda2deU);
+
+  // woot!🧙 💑 🌈
+  EXPECT_EQ(hashSysV("woot!\xf0\x9f\xa7\x99 \xf0\x9f\x92\x91 "
+                     "\xf0\x9f\x8c\x88"), 0x3522e38U);
+  EXPECT_EQ(hashGnu("woot!\xf0\x9f\xa7\x99 \xf0\x9f\x92\x91 "
+                    "\xf0\x9f\x8c\x88"), 0xf7603f3U);
+
+  // This string hashes to 0x100000000 in the originally formulated function,
+  // when long is 64 bits -- but that was never the intent. The code was
+  // presuming 32-bit long. Thus make sure that extra bit doesn't appear. 
+  EXPECT_EQ(hashSysV("ZZZZZW9p"), 0U);
+}
+
+template <class ELFT>
+static Expected<ELFObjectFile<ELFT>> toBinary(SmallVectorImpl<char> &Storage,
+                                              StringRef Yaml) {
+  raw_svector_ostream OS(Storage);
+  yaml::Input YIn(Yaml);
+  if (!yaml::convertYAML(YIn, OS, [](const Twine &Msg) {}))
+    return createStringError(std::errc::invalid_argument,
+                             "unable to convert YAML");
+  return ELFObjectFile<ELFT>::create(MemoryBufferRef(OS.str(), "dummyELF"));
+}
+
+TEST(ELFObjectFileTest, ELFNoteIteratorOverflow) {
+  using Elf_Shdr_Range = ELFFile<ELF64LE>::Elf_Shdr_Range;
+  using Elf_Phdr_Range = ELFFile<ELF64LE>::Elf_Phdr_Range;
+
+  SmallString<0> Storage;
+  Expected<ELFObjectFile<ELF64LE>> ElfOrErr = toBinary<ELF64LE>(Storage, R"(
+--- !ELF
+FileHeader:
+  Class:          ELFCLASS64
+  Data:           ELFDATA2LSB
+  Type:           ET_EXEC
+  Machine:        EM_X86_64
+ProgramHeaders:
+  - Type:         PT_NOTE
+    FileSize:     0xffffffffffffff88
+    FirstSec:     .note.gnu.build-id
+    LastSec:      .note.gnu.build-id
+Sections:
+  - Name:         .note.gnu.build-id
+    Type:         SHT_NOTE
+    AddressAlign: 0x04
+    ShOffset:     0xffffffffffffff88
+    Notes:
+      - Name:     "GNU"
+        Desc:     "abb50d82b6bdc861"
+        Type:     3
+)");
+  ASSERT_THAT_EXPECTED(ElfOrErr, Succeeded());
+  ELFFile<ELF64LE> Obj = ElfOrErr.get().getELFFile();
+
+  auto CheckOverflow = [&](auto &&PhdrOrShdr, uint64_t Offset, uint64_t Size) {
+    Error Err = Error::success();
+    Obj.notes(PhdrOrShdr, Err);
+
+    std::string ErrMessage;
+    handleAllErrors(std::move(Err), [&](const ErrorInfoBase &EI) {
+      ErrMessage = EI.message();
+    });
+
+    EXPECT_EQ(ErrMessage, ("invalid offset (0x" + Twine::utohexstr(Offset) +
+                           ") or size (0x" + Twine::utohexstr(Size) + ")")
+                              .str());
+  };
+
+  Expected<Elf_Phdr_Range> PhdrsOrErr = Obj.program_headers();
+  EXPECT_FALSE(!PhdrsOrErr);
+  for (Elf_Phdr_Impl<ELF64LE> P : *PhdrsOrErr)
+    if (P.p_type == ELF::PT_NOTE)
+      CheckOverflow(P, P.p_offset, P.p_filesz);
+
+  Expected<Elf_Shdr_Range> ShdrsOrErr = Obj.sections();
+  EXPECT_FALSE(!ShdrsOrErr);
+  for (Elf_Shdr_Impl<ELF64LE> S : *ShdrsOrErr)
+    if (S.sh_type == ELF::SHT_NOTE)
+      CheckOverflow(S, S.sh_offset, S.sh_size);
 }

@@ -1,4 +1,4 @@
-//===---------- ASTUtils.cpp - clang-tidy ---------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,9 +12,7 @@
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/Lex/Lexer.h"
 
-namespace clang {
-namespace tidy {
-namespace utils {
+namespace clang::tidy::utils {
 using namespace ast_matchers;
 
 const FunctionDecl *getSurroundingFunction(ASTContext &Context,
@@ -26,13 +24,11 @@ const FunctionDecl *getSurroundingFunction(ASTContext &Context,
 
 bool isBinaryOrTernary(const Expr *E) {
   const Expr *EBase = E->IgnoreImpCasts();
-  if (isa<BinaryOperator>(EBase) || isa<ConditionalOperator>(EBase)) {
+  if (isa<BinaryOperator>(EBase) || isa<ConditionalOperator>(EBase))
     return true;
-  }
 
-  if (const auto *Operator = dyn_cast<CXXOperatorCallExpr>(EBase)) {
+  if (const auto *Operator = dyn_cast<CXXOperatorCallExpr>(EBase))
     return Operator->isInfixBinaryOp();
-  }
 
   return false;
 }
@@ -69,7 +65,7 @@ bool rangeIsEntirelyWithinMacroArgument(SourceRange Range,
   // Check if the range is entirely contained within a macro argument.
   SourceLocation MacroArgExpansionStartForRangeBegin;
   SourceLocation MacroArgExpansionStartForRangeEnd;
-  bool RangeIsEntirelyWithinMacroArgument =
+  const bool RangeIsEntirelyWithinMacroArgument =
       SM &&
       SM->isMacroArgExpansion(Range.getBegin(),
                               &MacroArgExpansionStartForRangeBegin) &&
@@ -90,6 +86,53 @@ bool rangeCanBeFixed(SourceRange Range, const SourceManager *SM) {
          !utils::rangeContainsMacroExpansion(Range, SM);
 }
 
-} // namespace utils
-} // namespace tidy
-} // namespace clang
+bool areStatementsIdentical(const Stmt *FirstStmt, const Stmt *SecondStmt,
+                            const ASTContext &Context, bool Canonical) {
+  if (!FirstStmt || !SecondStmt)
+    return false;
+
+  if (FirstStmt == SecondStmt)
+    return true;
+
+  if (FirstStmt->getStmtClass() != SecondStmt->getStmtClass())
+    return false;
+
+  if (isa<Expr>(FirstStmt) && isa<Expr>(SecondStmt)) {
+    // If we have errors in expressions, we will be unable
+    // to accurately profile and compute hashes for each statements.
+    if (llvm::cast<Expr>(FirstStmt)->containsErrors() ||
+        llvm::cast<Expr>(SecondStmt)->containsErrors())
+      return false;
+  }
+
+  llvm::FoldingSetNodeID DataFirst, DataSecond;
+  FirstStmt->Profile(DataFirst, Context, Canonical);
+  SecondStmt->Profile(DataSecond, Context, Canonical);
+  return DataFirst == DataSecond;
+}
+
+const IndirectFieldDecl *
+findOutermostIndirectFieldDeclForField(const FieldDecl *FD) {
+  const RecordDecl *Record = FD->getParent();
+  assert(Record->isAnonymousStructOrUnion() &&
+         "FD must be a field in an anonymous record");
+
+  const DeclContext *Context = Record;
+  while (isa<RecordDecl>(Context) &&
+         cast<RecordDecl>(Context)->isAnonymousStructOrUnion()) {
+    Context = Context->getParent();
+  }
+
+  // Search for the target IndirectFieldDecl within the located context.
+  for (const auto *D : Context->decls()) {
+    const auto *IFD = dyn_cast<IndirectFieldDecl>(D);
+    if (!IFD)
+      continue;
+    if (IFD->getAnonField() == FD)
+      return IFD;
+  }
+
+  return nullptr;
+}
+
+} // namespace clang::tidy::utils

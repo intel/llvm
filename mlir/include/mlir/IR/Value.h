@@ -71,6 +71,14 @@ public:
 protected:
   ValueImpl(Type type, Kind kind) : typeAndKind(type, kind) {}
 
+  /// Expose a few methods explicitly for the debugger to call for
+  /// visualization.
+#ifndef NDEBUG
+  LLVM_DUMP_METHOD Type debug_getType() const { return getType(); }
+  LLVM_DUMP_METHOD Kind debug_getKind() const { return getKind(); }
+
+#endif
+
   /// The type of this result and the kind.
   llvm::PointerIntPair<Type, 3, Kind> typeAndKind;
 };
@@ -82,33 +90,12 @@ protected:
 /// class has value-type semantics and is just a simple wrapper around a
 /// ValueImpl that is either owner by a block(in the case of a BlockArgument) or
 /// an Operation(in the case of an OpResult).
+/// As most IR constructs, this isn't const-correct, but we keep method
+/// consistent and as such method that immediately modify this Value aren't
+/// marked `const` (include modifying the Value use-list).
 class Value {
 public:
   constexpr Value(detail::ValueImpl *impl = nullptr) : impl(impl) {}
-
-  template <typename U>
-  bool isa() const {
-    assert(*this && "isa<> used on a null type.");
-    return U::classof(*this);
-  }
-
-  template <typename First, typename Second, typename... Rest>
-  bool isa() const {
-    return isa<First>() || isa<Second, Rest...>();
-  }
-  template <typename U>
-  U dyn_cast() const {
-    return isa<U>() ? U(impl) : U(nullptr);
-  }
-  template <typename U>
-  U dyn_cast_or_null() const {
-    return (*this && isa<U>()) ? U(impl) : U(nullptr);
-  }
-  template <typename U>
-  U cast() const {
-    assert(isa<U>());
-    return U(impl);
-  }
 
   explicit operator bool() const { return impl; }
   bool operator==(const Value &other) const { return impl == other.impl; }
@@ -154,26 +141,25 @@ public:
   //===--------------------------------------------------------------------===//
 
   /// Drop all uses of this object from their respective owners.
-  void dropAllUses() const { return impl->dropAllUses(); }
+  void dropAllUses() { return impl->dropAllUses(); }
 
   /// Replace all uses of 'this' value with the new value, updating anything in
   /// the IR that uses 'this' to use the other value instead.  When this returns
   /// there are zero uses of 'this'.
-  void replaceAllUsesWith(Value newValue) const {
+  void replaceAllUsesWith(Value newValue) {
     impl->replaceAllUsesWith(newValue);
   }
 
   /// Replace all uses of 'this' value with 'newValue', updating anything in the
   /// IR that uses 'this' to use the other value instead except if the user is
   /// listed in 'exceptions' .
-  void
-  replaceAllUsesExcept(Value newValue,
-                       const SmallPtrSetImpl<Operation *> &exceptions) const;
+  void replaceAllUsesExcept(Value newValue,
+                            const SmallPtrSetImpl<Operation *> &exceptions);
 
   /// Replace all uses of 'this' value with 'newValue', updating anything in the
   /// IR that uses 'this' to use the other value instead except if the user is
   /// 'exceptedUser'.
-  void replaceAllUsesExcept(Value newValue, Operation *exceptedUser) const;
+  void replaceAllUsesExcept(Value newValue, Operation *exceptedUser);
 
   /// Replace all uses of 'this' value with 'newValue' if the given callback
   /// returns true.
@@ -181,7 +167,12 @@ public:
                          function_ref<bool(OpOperand &)> shouldReplace);
 
   /// Returns true if the value is used outside of the given block.
-  bool isUsedOutsideOfBlock(Block *block);
+  bool isUsedOutsideOfBlock(Block *block) const;
+
+  /// Shuffle the use list order according to the provided indices. It is
+  /// responsibility of the caller to make sure that the indices map the current
+  /// use-list chain to another valid use-list chain.
+  void shuffleUseList(ArrayRef<unsigned> indices);
 
   //===--------------------------------------------------------------------===//
   // Uses
@@ -196,8 +187,22 @@ public:
   /// Returns a range of all uses, which is useful for iterating over all uses.
   use_range getUses() const { return {use_begin(), use_end()}; }
 
+  /// This method computes the number of uses of this Value.
+  ///
+  /// This is a linear time operation.  Use hasOneUse, hasNUses, or
+  /// hasNUsesOrMore to check for specific values.
+  unsigned getNumUses() const;
+
   /// Returns true if this value has exactly one use.
   bool hasOneUse() const { return impl->hasOneUse(); }
+
+  /// Return true if this Value has exactly n uses.
+  bool hasNUses(unsigned n) const;
+
+  /// Return true if this value has n uses or more.
+  ///
+  /// This is logically equivalent to getNumUses() >= N.
+  bool hasNUsesOrMore(unsigned n) const;
 
   /// Returns true if this value has no uses.
   bool use_empty() const { return impl->use_empty(); }
@@ -215,13 +220,14 @@ public:
   //===--------------------------------------------------------------------===//
   // Utilities
 
-  void print(raw_ostream &os);
-  void print(raw_ostream &os, const OpPrintingFlags &flags);
-  void print(raw_ostream &os, AsmState &state);
-  void dump();
+  void print(raw_ostream &os) const;
+  void print(raw_ostream &os, const OpPrintingFlags &flags) const;
+  void print(raw_ostream &os, AsmState &state) const;
+  void dump() const;
 
   /// Print this value as if it were an operand.
-  void printAsOperand(raw_ostream &os, AsmState &state);
+  void printAsOperand(raw_ostream &os, AsmState &state) const;
+  void printAsOperand(raw_ostream &os, const OpPrintingFlags &flags) const;
 
   /// Methods for supporting PointerLikeTypeTraits.
   void *getAsOpaquePointer() const { return impl; }
@@ -257,6 +263,9 @@ public:
 
   /// Return which operand this is in the OpOperand list of the Operation.
   unsigned getOperandNumber();
+
+  /// Set the current value being used by this operand.
+  void assign(Value value) { set(value); }
 
 private:
   /// Keep the constructor private and accessible to the OperandStorage class
@@ -423,21 +432,23 @@ inline unsigned OpResultImpl::getResultNumber() const {
 /// TypedValue can be null/empty
 template <typename Ty>
 struct TypedValue : Value {
-  /// Return the known Type
-  Ty getType() { return Value::getType().template cast<Ty>(); }
-  void setType(mlir::Type ty) {
-    assert(ty.template isa<Ty>());
-    Value::setType(ty);
+  using Value::Value;
+  using ValueType = Ty;
+
+  static bool classof(Value value) { return llvm::isa<Ty>(value.getType()); }
+
+  /// TypedValue<B> can implicitly convert to TypedValue<A> if B is assignable
+  /// to A.
+  template <typename ToTy,
+            typename = typename std::enable_if<std::is_assignable<
+                typename ToTy::ValueType &, Ty>::value>::type>
+  operator ToTy() const {
+    return llvm::cast<ToTy>(*this);
   }
 
-  TypedValue(Value val) : Value(val) {
-    assert(!val || val.getType().template isa<Ty>());
-  }
-  TypedValue &operator=(const Value &other) {
-    assert(!other || other.getType().template isa<Ty>());
-    Value::operator=(other);
-    return *this;
-  }
+  /// Return the known Type
+  Ty getType() const { return llvm::cast<Ty>(Value::getType()); }
+  void setType(Ty ty) { Value::setType(ty); }
 };
 
 } // namespace detail
@@ -527,6 +538,18 @@ struct DenseMapInfo<mlir::OpResult> : public DenseMapInfo<mlir::Value> {
     return reinterpret_cast<mlir::detail::OpResultImpl *>(pointer);
   }
 };
+template <typename T>
+struct DenseMapInfo<mlir::detail::TypedValue<T>>
+    : public DenseMapInfo<mlir::Value> {
+  static mlir::detail::TypedValue<T> getEmptyKey() {
+    void *pointer = llvm::DenseMapInfo<void *>::getEmptyKey();
+    return reinterpret_cast<mlir::detail::ValueImpl *>(pointer);
+  }
+  static mlir::detail::TypedValue<T> getTombstoneKey() {
+    void *pointer = llvm::DenseMapInfo<void *>::getTombstoneKey();
+    return reinterpret_cast<mlir::detail::ValueImpl *>(pointer);
+  }
+};
 
 /// Allow stealing the low bits of a value.
 template <>
@@ -558,6 +581,42 @@ public:
   static inline mlir::OpResult getFromVoidPointer(void *pointer) {
     return reinterpret_cast<mlir::detail::OpResultImpl *>(pointer);
   }
+};
+template <typename T>
+struct PointerLikeTypeTraits<mlir::detail::TypedValue<T>>
+    : public PointerLikeTypeTraits<mlir::Value> {
+public:
+  static inline mlir::detail::TypedValue<T> getFromVoidPointer(void *pointer) {
+    return reinterpret_cast<mlir::detail::ValueImpl *>(pointer);
+  }
+};
+
+/// Add support for llvm style casts. We provide a cast between To and From if
+/// From is mlir::Value or derives from it.
+template <typename To, typename From>
+struct CastInfo<
+    To, From,
+    std::enable_if_t<std::is_same_v<mlir::Value, std::remove_const_t<From>> ||
+                     std::is_base_of_v<mlir::Value, From>>>
+    : NullableValueCastFailed<To>,
+      DefaultDoCastIfPossible<To, From, CastInfo<To, From>> {
+  /// Arguments are taken as mlir::Value here and not as `From`, because
+  /// when casting from an intermediate type of the hierarchy to one of its
+  /// children, the val.getKind() inside T::classof will use the static
+  /// getKind() of the parent instead of the non-static ValueImpl::getKind()
+  /// that returns the dynamic type. This means that T::classof would end up
+  /// comparing the static Kind of the children to the static Kind of its
+  /// parent, making it impossible to downcast from the parent to the child.
+  static inline bool isPossible(mlir::Value ty) {
+    /// Return a constant true instead of a dynamic true when casting to self or
+    /// up the hierarchy.
+    if constexpr (std::is_base_of_v<To, From>) {
+      return true;
+    } else {
+      return To::classof(ty);
+    }
+  }
+  static inline To doCast(mlir::Value value) { return To(value.getImpl()); }
 };
 
 } // namespace llvm

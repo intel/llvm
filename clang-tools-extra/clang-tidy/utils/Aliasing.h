@@ -1,4 +1,4 @@
-//===------------- Aliasing.h - clang-tidy --------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,9 +11,7 @@
 
 #include "clang/AST/Decl.h"
 
-namespace clang {
-namespace tidy {
-namespace utils {
+namespace clang::tidy::utils {
 
 /// Returns whether \p Var has a pointer or reference in \p Func.
 ///
@@ -27,10 +25,8 @@ namespace utils {
 /// For `f()` and `n` the function returns ``true`` because `p` is a
 /// pointer to `n` created in `f()`.
 
-bool hasPtrOrReferenceInFunc(const Decl *Func, const VarDecl *Var);
+bool hasPtrOrReferenceInFunc(const Decl *Func, const ValueDecl *Var);
 
-} // namespace utils
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::utils
 
 #endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_UTILS_ALIASING_H

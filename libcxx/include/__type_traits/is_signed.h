@@ -11,6 +11,7 @@
 
 #include <__config>
 #include <__type_traits/integral_constant.h>
+#include <__type_traits/is_arithmetic.h>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -20,33 +21,29 @@ _LIBCPP_BEGIN_NAMESPACE_STD
 
 #if __has_builtin(__is_signed)
 
-template<class _Tp>
-struct _LIBCPP_TEMPLATE_VIS is_signed : _BoolConstant<__is_signed(_Tp)> { };
-
-#if _LIBCPP_STD_VER > 14
 template <class _Tp>
-inline constexpr bool is_signed_v = __is_signed(_Tp);
-#endif
+struct _LIBCPP_NO_SPECIALIZATIONS is_signed : _BoolConstant<__is_signed(_Tp)> {};
+
+#  if _LIBCPP_STD_VER >= 17
+template <class _Tp>
+_LIBCPP_NO_SPECIALIZATIONS inline constexpr bool is_signed_v = __is_signed(_Tp);
+#  endif
 
 #else // __has_builtin(__is_signed)
 
-template <class _Tp, bool = is_integral<_Tp>::value>
-struct __libcpp_is_signed_impl : public _BoolConstant<(_Tp(-1) < _Tp(0))> {};
-
-template <class _Tp>
-struct __libcpp_is_signed_impl<_Tp, false> : public true_type {};  // floating point
-
 template <class _Tp, bool = is_arithmetic<_Tp>::value>
-struct __libcpp_is_signed : public __libcpp_is_signed_impl<_Tp> {};
+inline constexpr bool __is_signed_v = false;
 
-template <class _Tp> struct __libcpp_is_signed<_Tp, false> : public false_type {};
-
-template <class _Tp> struct _LIBCPP_TEMPLATE_VIS is_signed : public __libcpp_is_signed<_Tp> {};
-
-#if _LIBCPP_STD_VER > 14
 template <class _Tp>
-inline constexpr bool is_signed_v = is_signed<_Tp>::value;
-#endif
+inline constexpr bool __is_signed_v<_Tp, true> = _Tp(-1) < _Tp(0);
+
+template <class _Tp>
+struct is_signed : integral_constant<bool, __is_signed_v<_Tp>> {};
+
+#  if _LIBCPP_STD_VER >= 17
+template <class _Tp>
+inline constexpr bool is_signed_v = __is_signed_v<_Tp>;
+#  endif
 
 #endif // __has_builtin(__is_signed)
 

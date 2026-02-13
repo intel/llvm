@@ -23,15 +23,15 @@ for.body:                                         ; preds = %for.cond
   br i1 true, label %cond.false, label %land.rhs
 
 land.rhs:                                         ; preds = %for.body
-  br i1 poison, label %cond.end, label %cond.false
+  br i1 false, label %cond.end, label %cond.false
 
 cond.false:                                       ; preds = %for.body, %land.rhs
   br label %cond.end
 
 cond.end:                                         ; preds = %land.rhs, %cond.false
   %cond = phi i32 [ 0, %cond.false ], [ 1, %land.rhs ]
-  %arrayidx = getelementptr inbounds %arrayt, %arrayt* @v_146, i16 0, i16 %storemerge
-  store i32 %cond, i32* %arrayidx, align 1
+  %arrayidx = getelementptr inbounds %arrayt, ptr @v_146, i16 0, i16 %storemerge
+  store i32 %cond, ptr %arrayidx, align 1
   %inc = add nsw i16 %storemerge, 1
   br label %for.cond
 

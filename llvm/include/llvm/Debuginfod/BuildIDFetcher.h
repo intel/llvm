@@ -16,6 +16,7 @@
 #define LLVM_DEBUGINFOD_DIFETCHER_H
 
 #include "llvm/Object/BuildID.h"
+#include <optional>
 
 namespace llvm {
 
@@ -23,11 +24,11 @@ class DebuginfodFetcher : public object::BuildIDFetcher {
 public:
   DebuginfodFetcher(std::vector<std::string> DebugFileDirectories)
       : BuildIDFetcher(std::move(DebugFileDirectories)) {}
-  virtual ~DebuginfodFetcher() = default;
+  ~DebuginfodFetcher() override = default;
 
   /// Fetches the given Build ID using debuginfod and returns a local path to
   /// the resulting file.
-  Optional<std::string> fetch(object::BuildIDRef BuildID) const override;
+  std::optional<std::string> fetch(object::BuildIDRef BuildID) const override;
 };
 
 } // namespace llvm

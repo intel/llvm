@@ -1,44 +1,44 @@
 // RUN: %check_clang_tidy %s readability-redundant-declaration %t -- \
 // RUN:   -config="{CheckOptions: \
-// RUN:             [{key: readability-redundant-declaration.IgnoreMacros, \
-// RUN:               value: false}]}"
+// RUN:             {readability-redundant-declaration.IgnoreMacros: \
+// RUN:                false}}"
 //
 // With -fms-compatibility and -DEXTERNINLINE, the extern inline shouldn't
 // produce additional diagnostics, so same check suffix as before:
 // RUN: %check_clang_tidy %s readability-redundant-declaration %t -- \
 // RUN:   -config="{CheckOptions: \
-// RUN:             [{key: readability-redundant-declaration.IgnoreMacros, \
-// RUN:               value: false}]}" -- -fms-compatibility -DEXTERNINLINE
+// RUN:             {readability-redundant-declaration.IgnoreMacros: \
+// RUN:                false}}" -- -fms-compatibility -DEXTERNINLINE
 //
 // With -fno-ms-compatibility, DEXTERNINLINE causes additional output.
 // (The leading ',' means "default checks in addition to NOMSCOMPAT checks.)
 // RUN: %check_clang_tidy -check-suffix=,NOMSCOMPAT \
 // RUN:   %s readability-redundant-declaration %t -- \
 // RUN:   -config="{CheckOptions: \
-// RUN:             [{key: readability-redundant-declaration.IgnoreMacros, \
-// RUN:               value: false}]}" -- -fno-ms-compatibility -DEXTERNINLINE
+// RUN:             {readability-redundant-declaration.IgnoreMacros: \
+// RUN:                false}}" -- -fno-ms-compatibility -DEXTERNINLINE
 
 extern int Xyz;
 extern int Xyz; // Xyz
 // CHECK-MESSAGES: :[[@LINE-1]]:12: warning: redundant 'Xyz' declaration [readability-redundant-declaration]
-// CHECK-FIXES: {{^}}// Xyz{{$}}
+// CHECK-FIXES: // Xyz
 int Xyz = 123;
 
 extern int A;
 extern int A, B;
 // CHECK-MESSAGES: :[[@LINE-1]]:12: warning: redundant 'A' declaration
-// CHECK-FIXES: {{^}}extern int A, B;{{$}}
+// CHECK-FIXES: extern int A, B;
 
 extern int Buf[10];
 extern int Buf[10]; // Buf[10]
 // CHECK-MESSAGES: :[[@LINE-1]]:12: warning: redundant 'Buf' declaration
-// CHECK-FIXES: {{^}}// Buf[10]{{$}}
+// CHECK-FIXES: // Buf[10]
 
 static int f();
 static int f(); // f
 // CHECK-MESSAGES: :[[@LINE-1]]:12: warning: redundant 'f' declaration
-// CHECK-FIXES: {{^}}// f{{$}}
-static int f() {}
+// CHECK-FIXES: // f
+static int f() { return 0; }
 
 // Original check crashed for the code below.
 namespace std {
@@ -102,10 +102,10 @@ namespace macros {
 DECLARE(test);
 DEFINE(test);
 // CHECK-MESSAGES: :[[@LINE-1]]:8: warning: redundant 'test' declaration
-// CHECK-FIXES: {{^}}#define DECLARE(x) extern int x{{$}}
-// CHECK-FIXES: {{^}}#define DEFINE(x) extern int x; int x = 42{{$}}
-// CHECK-FIXES: {{^}}DECLARE(test);{{$}}
-// CHECK-FIXES: {{^}}DEFINE(test);{{$}}
+// CHECK-FIXES: #define DECLARE(x) extern int x
+// CHECK-FIXES: #define DEFINE(x) extern int x; int x = 42
+// CHECK-FIXES: DECLARE(test);
+// CHECK-FIXES: DEFINE(test);
 
 } // namespace macros
 
@@ -113,10 +113,16 @@ inline void g() {}
 
 inline void g(); // g
 // CHECK-MESSAGES: :[[@LINE-1]]:13: warning: redundant 'g' declaration
-// CHECK-FIXES: {{^}}// g{{$}}
+// CHECK-FIXES: // g
 
 #if defined(EXTERNINLINE)
 extern inline void g(); // extern g
 // CHECK-MESSAGES-NOMSCOMPAT: :[[@LINE-1]]:20: warning: redundant 'g' declaration
-// CHECK-FIXES-NOMSCOMPAT: {{^}}// extern g{{$}}
+// CHECK-FIXES-NOMSCOMPAT: // extern g
 #endif
+
+// PR42068
+extern "C" int externX;
+int dummyBeforeBegin;extern "C" int externX;int dummyAfterEnd;
+// CHECK-MESSAGES: :[[@LINE-1]]:37: warning: redundant 'externX' declaration [readability-redundant-declaration]
+// CHECK-FIXES: int dummyBeforeBegin;int dummyAfterEnd;

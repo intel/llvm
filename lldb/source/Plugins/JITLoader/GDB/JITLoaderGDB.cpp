@@ -35,6 +35,7 @@ using namespace lldb_private;
 
 LLDB_PLUGIN_DEFINE(JITLoaderGDB)
 
+namespace {
 // Debug Interface Structures
 enum jit_actions_t { JIT_NOACTION = 0, JIT_REGISTER_FN, JIT_UNREGISTER_FN };
 
@@ -51,8 +52,6 @@ template <typename ptr_t> struct jit_descriptor {
   ptr_t relevant_entry; // pointer
   ptr_t first_entry;    // pointer
 };
-
-namespace {
 
 enum EnableJITLoaderGDB {
   eEnableJITLoaderGDBDefault,
@@ -90,8 +89,8 @@ enum {
 
 class PluginProperties : public Properties {
 public:
-  static ConstString GetSettingName() {
-    return ConstString(JITLoaderGDB::GetPluginNameStatic());
+  static llvm::StringRef GetSettingName() {
+    return JITLoaderGDB::GetPluginNameStatic();
   }
 
   PluginProperties() {
@@ -100,11 +99,13 @@ public:
   }
 
   EnableJITLoaderGDB GetEnable() const {
-    return (EnableJITLoaderGDB)m_collection_sp->GetPropertyAtIndexAsEnumeration(
-        nullptr, ePropertyEnable,
-        g_jitloadergdb_properties[ePropertyEnable].default_uint_value);
+    return GetPropertyAtIndexAs<EnableJITLoaderGDB>(
+        ePropertyEnable,
+        static_cast<EnableJITLoaderGDB>(
+            g_jitloadergdb_properties[ePropertyEnable].default_uint_value));
   }
 };
+} // namespace
 
 static PluginProperties &GetGlobalPluginProperties() {
   static PluginProperties g_settings;
@@ -112,8 +113,8 @@ static PluginProperties &GetGlobalPluginProperties() {
 }
 
 template <typename ptr_t>
-bool ReadJITEntry(const addr_t from_addr, Process *process,
-                  jit_code_entry<ptr_t> *entry) {
+static bool ReadJITEntry(const addr_t from_addr, Process *process,
+                         jit_code_entry<ptr_t> *entry) {
   lldbassert(from_addr % sizeof(ptr_t) == 0);
 
   ArchSpec::Core core = process->GetTarget().GetArchitecture().GetCore();
@@ -142,8 +143,6 @@ bool ReadJITEntry(const addr_t from_addr, Process *process,
   return true;
 }
 
-} // anonymous namespace end
-
 JITLoaderGDB::JITLoaderGDB(lldb_private::Process *process)
     : JITLoader(process), m_jit_objects(),
       m_jit_break_id(LLDB_INVALID_BREAK_ID),
@@ -160,8 +159,7 @@ void JITLoaderGDB::DebuggerInitialize(Debugger &debugger) {
     const bool is_global_setting = true;
     PluginManager::CreateSettingForJITLoaderPlugin(
         debugger, GetGlobalPluginProperties().GetValueProperties(),
-        ConstString("Properties for the JIT LoaderGDB plug-in."),
-        is_global_setting);
+        "Properties for the JIT LoaderGDB plug-in.", is_global_setting);
   }
 }
 
@@ -192,7 +190,7 @@ void JITLoaderGDB::SetJITBreakpoint(lldb_private::ModuleList &module_list) {
             __FUNCTION__);
 
   addr_t jit_addr = GetSymbolAddress(
-      module_list, ConstString("__jit_debug_register_code"), eSymbolTypeAny);
+      module_list, ConstString("__jit_debug_register_code"), eSymbolTypeCode);
   if (jit_addr == LLDB_INVALID_ADDRESS)
     return;
 
@@ -379,7 +377,7 @@ bool JITLoaderGDB::ReadJITDescriptorImpl(bool all_entries) {
             for (uint32_t i = 0; i < num_sections; ++i) {
               SectionSP section_sp(section_list->GetSectionAtIndex(i));
               if (section_sp) {
-                target.GetSectionLoadList().SetSectionUnloaded(section_sp);
+                target.SetSectionUnloaded(section_sp);
               }
             }
           }

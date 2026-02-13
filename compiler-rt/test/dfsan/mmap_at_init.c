@@ -2,9 +2,10 @@
 // RUN: %clang_dfsan %s %t-calloc.o -o %t
 // RUN: %run %t
 //
-// REQUIRES: x86_64-target-arch
-//
 // Tests that calling mmap() during during dfsan initialization works.
+
+// `internal_symbolizer` can not use `realloc` on memory from the test `calloc`.
+// UNSUPPORTED: internal_symbolizer
 
 #include <sanitizer/dfsan_interface.h>
 #include <sys/mman.h>

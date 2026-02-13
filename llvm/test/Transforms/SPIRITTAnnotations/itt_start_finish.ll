@@ -1,8 +1,8 @@
 ;; The test serves a purpose to check if work item start/finish annotations
 ;; are being added by SPIRITTAnnotations pass
 
-; RUN: opt < %s --SPIRITTAnnotations -S | FileCheck %s
-; RUN: opt < %s --SPIRITTAnnotations -enable-new-pm=1 -S | FileCheck %s
+; RUN: opt < %s -passes=SPIRITTAnnotations -S | FileCheck %s
+; RUN: opt < %s -passes=SPIRITTAnnotations -S | FileCheck %s
 
 ; ModuleID = 'synthetic.bc'
 source_filename = "synthetic.cpp"
@@ -14,25 +14,25 @@ define dso_local spir_kernel void @_ZTSZ4mainE15kernel_function() local_unnamed_
 entry:
 ; CHECK: _ZTSZ4mainE15kernel_function(
 ; CHECK-NEXT: entry:
-; CHECK-NEXT: call void @__itt_offload_wi_start_wrapper()
+; CHECK-NEXT: call spir_func void @__itt_offload_wi_start_wrapper()
   %call.i = tail call spir_func i32 @_Z3foov() #2
   %cmp.i = icmp eq i32 %call.i, 42
   br i1 %cmp.i, label %"_ZZ4mainENK3$_0clEv.exit", label %if.end.i
 
 if.end.i:                                         ; preds = %entry
   tail call spir_func void @_Z3boov() #2
-; CHECK: call void @__itt_offload_wi_finish_wrapper()
+; CHECK: call spir_func void @__itt_offload_wi_finish_wrapper()
 ; CHECK-NEXT: ret void
   ret void
 
 "_ZZ4mainENK3$_0clEv.exit":                       ; preds = %entry, %if.end.i
-; CHECK: call void @__itt_offload_wi_finish_wrapper()
+; CHECK: call spir_func void @__itt_offload_wi_finish_wrapper()
 ; CHECK-NEXT: ret void
   ret void
 }
 
-; CHECK: declare void @__itt_offload_wi_start_wrapper()
-; CHECK: declare void @__itt_offload_wi_finish_wrapper()
+; CHECK: declare spir_func void @__itt_offload_wi_start_wrapper()
+; CHECK: declare spir_func void @__itt_offload_wi_finish_wrapper()
 
 ; Function Attrs: convergent
 declare spir_func i32 @_Z3foov() local_unnamed_addr #1

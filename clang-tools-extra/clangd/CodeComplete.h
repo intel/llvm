@@ -17,6 +17,7 @@
 
 #include "ASTSignals.h"
 #include "Compiler.h"
+#include "Config.h"
 #include "Protocol.h"
 #include "Quality.h"
 #include "index/Index.h"
@@ -26,11 +27,11 @@
 #include "support/Path.h"
 #include "clang/Sema/CodeCompleteConsumer.h"
 #include "clang/Sema/CodeCompleteOptions.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include <functional>
 #include <future>
+#include <optional>
 #include <utility>
 
 namespace clang {
@@ -52,11 +53,16 @@ struct CodeCompleteOptions {
   /// For example, private members are usually inaccessible.
   bool IncludeIneligibleResults = false;
 
+  /// Force sema to load decls from preamble even if an index is provided.
+  /// This is helpful for cases the index can't provide symbols, e.g. with
+  /// experimental c++20 modules
+  bool ForceLoadPreamble = false;
+
   /// Combine overloads into a single completion item where possible.
   /// If none, the implementation may choose an appropriate behavior.
   /// (In practice, ClangdLSPServer enables bundling if the client claims
   /// to supports signature help).
-  llvm::Optional<bool> BundleOverloads;
+  std::optional<bool> BundleOverloads;
 
   /// Limit the number of results returned (0 means no limit).
   /// If more results are available, we set CompletionList.isIncomplete.
@@ -65,10 +71,12 @@ struct CodeCompleteOptions {
   /// Whether to present doc comments as plain-text or markdown.
   MarkupKind DocumentationFormat = MarkupKind::PlainText;
 
-  enum IncludeInsertion {
-    IWYU,
-    NeverInsert,
-  } InsertIncludes = IncludeInsertion::IWYU;
+  Config::HeaderInsertionPolicy InsertIncludes =
+      Config::HeaderInsertionPolicy::IWYU;
+
+  /// Whether include insertions for Objective-C code should use #import instead
+  /// of #include.
+  bool ImportInsertions = false;
 
   /// A visual indicator to prepend to the completion label to indicate whether
   /// completion result would trigger an #include insertion or not.
@@ -92,16 +100,24 @@ struct CodeCompleteOptions {
   /// '->' on member access etc.
   bool IncludeFixIts = false;
 
-  /// Whether to generate snippets for function arguments on code-completion.
-  /// Needs snippets to be enabled as well.
-  bool EnableFunctionArgSnippets = true;
-
   /// Whether to include index symbols that are not defined in the scopes
   /// visible from the code completion point. This applies in contexts without
   /// explicit scope qualifiers.
   ///
   /// Such completions can insert scope qualifiers.
   bool AllScopes = false;
+
+  /// The way argument list on calls '()' and generics '<>' are handled.
+  Config::ArgumentListsPolicy ArgumentLists =
+      Config::ArgumentListsPolicy::FullPlaceholders;
+
+  /// Whether to suggest code patterns & snippets or not in completion
+  Config::CodePatternsPolicy CodePatterns = Config::CodePatternsPolicy::All;
+
+  /// Filter macros using an exact prefix, or with a fuzzy match. In both cases,
+  /// macros with leading or trailing underscores are strictly filtered
+  Config::MacroFilterPolicy MacroFilter =
+      Config::MacroFilterPolicy::ExactPrefix;
 
   /// Whether to use the clang parser, or fallback to text-based completion
   /// (using identifiers in the current file and symbol indexes).
@@ -130,7 +146,9 @@ struct CodeCompleteOptions {
   enum CodeCompletionRankingModel {
     Heuristics,
     DecisionForest,
-  } RankingModel = DecisionForest;
+  };
+  static const CodeCompletionRankingModel DefaultRankingModel;
+  CodeCompletionRankingModel RankingModel = DefaultRankingModel;
 
   /// Callback used to score a CompletionCandidate if DecisionForest ranking
   /// model is enabled.
@@ -172,7 +190,7 @@ struct CodeCompletion {
   // Type to be displayed for this completion.
   std::string ReturnType;
   // The parsed documentation comment.
-  llvm::Optional<markup::Document> Documentation;
+  std::optional<markup::Document> Documentation;
   CompletionItemKind Kind = CompletionItemKind::Missing;
   // This completion item may represent several symbols that can be inserted in
   // the same way, such as function overloads. In this case BundleSize > 1, and
@@ -191,7 +209,7 @@ struct CodeCompletion {
     // Empty for non-symbol completions, or when not known.
     std::string Header;
     // Present if Header should be inserted to use this item.
-    llvm::Optional<TextEdit> Insertion;
+    std::optional<TextEdit> Insertion;
   };
   // All possible include headers ranked by preference. By default, the first
   // include is used.
@@ -244,7 +262,7 @@ struct CodeCompleteResult {
   // Example: foo.pb^ -> foo.push_back()
   //              ~~
   // Typically matches the textEdit.range of Completions, but not guaranteed to.
-  llvm::Optional<Range> CompletionRange;
+  std::optional<Range> CompletionRange;
   // Usually the source will be parsed with a real C++ parser.
   // But heuristics may be used instead if e.g. the preamble is not ready.
   bool RanParser = true;
@@ -257,12 +275,11 @@ raw_ostream &operator<<(raw_ostream &, const CodeCompleteResult &);
 struct SpeculativeFuzzyFind {
   /// A cached request from past code completions.
   /// Set by caller of `codeComplete()`.
-  llvm::Optional<FuzzyFindRequest> CachedReq;
+  std::optional<FuzzyFindRequest> CachedReq;
   /// The actual request used by `codeComplete()`.
   /// Set by `codeComplete()`. This can be used by callers to update cache.
-  llvm::Optional<FuzzyFindRequest> NewReq;
+  std::optional<FuzzyFindRequest> NewReq;
   /// The result is consumed by `codeComplete()` if speculation succeeded.
-  /// NOTE: the destructor will wait for the async call to finish.
   std::future<std::pair<bool /*Incomplete*/, SymbolSlab>> Result;
 };
 
@@ -291,7 +308,7 @@ SignatureHelp signatureHelp(PathRef FileName, Position Pos,
 // For index-based completion, we only consider:
 //   * symbols in namespaces or translation unit scopes (e.g. no class
 //     members, no locals)
-//   * enum constants in unscoped enum decl (e.g. "red" in "enum {red};")
+//   * enum constants (both scoped and unscoped)
 //   * primary templates (no specializations)
 // For the other cases, we let Clang do the completion because it does not
 // need any non-local information and it will be much better at following

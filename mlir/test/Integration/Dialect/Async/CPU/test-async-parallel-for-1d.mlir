@@ -3,32 +3,36 @@
 // RUN:               -async-runtime-ref-counting                              \
 // RUN:               -async-runtime-ref-counting-opt                          \
 // RUN:               -convert-async-to-llvm                                   \
-// RUN:               -convert-scf-to-cf                                      \
-// RUN:               -convert-memref-to-llvm                                  \
+// RUN:               -convert-scf-to-cf                                       \
+// RUN:               -finalize-memref-to-llvm                                 \
 // RUN:               -arith-expand                                            \
-// RUN:               -memref-expand                                              \
-// RUN:               -convert-func-to-llvm                                     \
+// RUN:               -memref-expand                                           \
+// RUN:               -convert-func-to-llvm                                    \
+// RUN:               -convert-arith-to-llvm                                   \
+// RUN:               -convert-cf-to-llvm                                      \
 // RUN:               -reconcile-unrealized-casts                              \
-// RUN: | mlir-cpu-runner                                                      \
+// RUN: | mlir-runner                                                      \
 // RUN:  -e entry -entry-point-result=void -O0                                 \
-// RUN:  -shared-libs=%mlir_lib_dir/libmlir_runner_utils%shlibext \
-// RUN:  -shared-libs=%mlir_lib_dir/libmlir_async_runtime%shlibext\
+// RUN:  -shared-libs=%mlir_runner_utils \
+// RUN:  -shared-libs=%mlir_async_runtime\
 // RUN: | FileCheck %s --dump-input=always
 
 // RUN:   mlir-opt %s -async-parallel-for                                      \
 // RUN:               -async-to-async-runtime                                  \
 // RUN:               -async-runtime-policy-based-ref-counting                 \
 // RUN:               -convert-async-to-llvm                                   \
-// RUN:               -convert-scf-to-cf                                      \
-// RUN:               -convert-memref-to-llvm                                  \
+// RUN:               -convert-scf-to-cf                                       \
+// RUN:               -finalize-memref-to-llvm                                 \
 // RUN:               -arith-expand                                            \
-// RUN:               -memref-expand                                              \
-// RUN:               -convert-func-to-llvm                                     \
+// RUN:               -memref-expand                                           \
+// RUN:               -convert-func-to-llvm                                    \
+// RUN:               -convert-arith-to-llvm                                   \
+// RUN:               -convert-cf-to-llvm                                      \
 // RUN:               -reconcile-unrealized-casts                              \
-// RUN: | mlir-cpu-runner                                                      \
+// RUN: | mlir-runner                                                      \
 // RUN:  -e entry -entry-point-result=void -O0                                 \
-// RUN:  -shared-libs=%mlir_lib_dir/libmlir_runner_utils%shlibext \
-// RUN:  -shared-libs=%mlir_lib_dir/libmlir_async_runtime%shlibext\
+// RUN:  -shared-libs=%mlir_runner_utils \
+// RUN:  -shared-libs=%mlir_async_runtime\
 // RUN: | FileCheck %s --dump-input=always
 
 // RUN:   mlir-opt %s -async-parallel-for="async-dispatch=false                \
@@ -38,16 +42,18 @@
 // RUN:               -async-runtime-ref-counting                              \
 // RUN:               -async-runtime-ref-counting-opt                          \
 // RUN:               -convert-async-to-llvm                                   \
-// RUN:               -convert-scf-to-cf                                      \
-// RUN:               -convert-memref-to-llvm                                  \
+// RUN:               -convert-scf-to-cf                                       \
+// RUN:               -finalize-memref-to-llvm                                 \
 // RUN:               -arith-expand                                            \
-// RUN:               -memref-expand                                              \
-// RUN:               -convert-func-to-llvm                                     \
+// RUN:               -memref-expand                                           \
+// RUN:               -convert-func-to-llvm                                    \
+// RUN:               -convert-arith-to-llvm                                   \
+// RUN:               -convert-cf-to-llvm                                      \
 // RUN:               -reconcile-unrealized-casts                              \
-// RUN: | mlir-cpu-runner                                                      \
+// RUN: | mlir-runner                                                      \
 // RUN:  -e entry -entry-point-result=void -O0                                 \
-// RUN:  -shared-libs=%mlir_lib_dir/libmlir_runner_utils%shlibext \
-// RUN:  -shared-libs=%mlir_lib_dir/libmlir_async_runtime%shlibext\
+// RUN:  -shared-libs=%mlir_runner_utils \
+// RUN:  -shared-libs=%mlir_async_runtime\
 // RUN: | FileCheck %s --dump-input=always
 
 // Suppress constant folding by introducing "dynamic" zero value at runtime.

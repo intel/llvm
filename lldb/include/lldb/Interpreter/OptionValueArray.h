@@ -29,7 +29,7 @@ public:
   void DumpValue(const ExecutionContext *exe_ctx, Stream &strm,
                  uint32_t dump_mask) override;
 
-  llvm::json::Value ToJSON(const ExecutionContext *exe_ctx) override;
+  llvm::json::Value ToJSON(const ExecutionContext *exe_ctx) const override;
 
   Status
   SetValueFromString(llvm::StringRef value,
@@ -46,7 +46,7 @@ public:
   bool IsAggregateValue() const override { return true; }
 
   lldb::OptionValueSP GetSubValue(const ExecutionContext *exe_ctx,
-                                  llvm::StringRef name, bool will_modify,
+                                  llvm::StringRef name,
                                   Status &error) const override;
 
   // Subclass specific functions

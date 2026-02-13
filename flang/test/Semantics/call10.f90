@@ -1,4 +1,4 @@
-! RUN: %python %S/test_errors.py %s %flang_fc1
+! RUN: %python %S/test_errors.py %s %flang_fc1 -pedantic
 ! Test 15.7 (C1583-C1590, C1592-C1599) constraints and restrictions
 ! for pure procedures.
 ! (C1591 is tested in call11.f90; C1594 in call12.f90.)
@@ -17,6 +17,27 @@ module m
 
   real, volatile, target :: volatile
 
+  interface
+    ! Ensure no errors for "ignored" declarations in a pure interface.
+    ! These declarations do not contribute to the characteristics of
+    ! the procedure and must not elicit spurious errors about being used
+    ! in a pure procedure.
+    pure subroutine s05a
+      import polyAlloc
+      real, save :: v1
+      real :: v2 = 0.
+      real :: v3
+      data v3/0./
+      real :: v4
+      common /blk/ v4
+      save /blk/
+      type(polyAlloc) :: v5
+      real, volatile :: v6
+    end subroutine
+  end interface
+
+  real :: moduleVar = 1.
+
  contains
 
   subroutine impure(x)
@@ -34,14 +55,14 @@ module m
     real, value :: a ! ok
   end function
   pure real function f03(a) ! C1583
-    !ERROR: non-POINTER dummy argument of pure function must be INTENT(IN) or VALUE
+    !WARNING: non-POINTER dummy argument of pure function must have INTENT() or VALUE attribute
     real :: a
   end function
   pure real function f03a(a)
     real, pointer :: a ! ok
   end function
   pure real function f04(a) ! C1583
-    !ERROR: non-POINTER dummy argument of pure function must be INTENT(IN) or VALUE
+    !WARNING: non-POINTER dummy argument of pure function should be INTENT(IN) or VALUE [-Wrelaxed-pure-dummy]
     real, intent(out) :: a
   end function
   pure real function f04a(a)
@@ -59,12 +80,12 @@ module m
     class(t), allocatable :: f07
   end function
   pure function f08() ! C1585
-    !ERROR: Result of pure function may not have polymorphic ALLOCATABLE ultimate component '%a'
+    !ERROR: Result of pure function may not have polymorphic ALLOCATABLE potential component '%a'
     type(polyAlloc) :: f08
   end function
 
   pure subroutine s01(a) ! C1586
-    !ERROR: non-POINTER dummy argument of pure subroutine must have INTENT() or VALUE attribute
+    !WARNING: non-POINTER dummy argument of pure subroutine must have INTENT() or VALUE attribute
     real :: a
   end subroutine
   pure subroutine s01a(a)
@@ -90,16 +111,16 @@ module m
     !ERROR: A pure subprogram may not initialize a variable
     real :: v3
     data v3/0./
-    !ERROR: A pure subprogram may not have a variable with the SAVE attribute
     real :: v4
     common /blk/ v4
-    save /blk/
     block
     !ERROR: A pure subprogram may not have a variable with the SAVE attribute
       real, save :: v5
     !ERROR: A pure subprogram may not initialize a variable
       real :: v6 = 0.
     end block
+    associate (x => moduleVar) ! ok
+    end associate
   end subroutine
   pure subroutine s06 ! C1589
     !ERROR: A pure subprogram may not have a variable with the VOLATILE attribute
@@ -138,10 +159,12 @@ module m
   end subroutine
   pure subroutine s11(to) ! C1596
     ! Implicit deallocation at the end of the subroutine
-    !ERROR: Deallocation of polymorphic object 'auto%a' is not permitted in a pure subprogram
+    !ERROR: 'auto' may not be a local variable in a pure subprogram
+    !BECAUSE: 'auto' has polymorphic component '%a' in a pure subprogram
     type(polyAlloc) :: auto
     type(polyAlloc), intent(in out) :: to
-    !ERROR: Deallocation of polymorphic non-coarray component '%a' is not permitted in a pure subprogram
+    !ERROR: Left-hand side of assignment is not definable
+    !BECAUSE: 'to' has polymorphic component '%a' in a pure subprogram
     to = auto
   end subroutine
   pure subroutine s12
@@ -181,8 +204,9 @@ module m
     !ERROR: An image control statement may not appear in a pure subprogram
     sync all ! C1599
   end subroutine
-  pure subroutine s14
-    integer :: img, nimgs, i[*], tmp
+  pure subroutine s14(i)
+    integer :: img, nimgs, tmp
+    integer, intent(in out) :: i[*]
                                    ! implicit sync all
     img = this_image()
     nimgs = num_images()

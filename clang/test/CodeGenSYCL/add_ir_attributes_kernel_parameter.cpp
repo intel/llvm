@@ -1,7 +1,7 @@
 
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -disable-llvm-passes \
-// RUN:    -triple spir64-unknown-unknown -fsycl-is-device -S \
-// RUN:    -opaque-pointers -emit-llvm %s -o - | FileCheck %s
+// RUN:    -triple spir64-unknown-unknown -fsycl-is-device \
+// RUN:    -emit-llvm %s -o - | FileCheck %s
 
 // Tests the generation of IR attributes when using
 // __sycl_detail__::add_ir_attributes_kernel_parameter

@@ -88,7 +88,7 @@ bool BlockCoverage::AppendCoverage(std::istream &IN) {
 //   * a function with a less frequently executed code gets bigger weight.
 std::vector<double> BlockCoverage::FunctionWeights(size_t NumFunctions) const {
   std::vector<double> Res(NumFunctions);
-  for (auto It : Functions) {
+  for (const auto &It : Functions) {
     auto FunctionID = It.first;
     auto Counters = It.second;
     assert(FunctionID < NumFunctions);
@@ -265,8 +265,6 @@ int CollectDataFlow(const std::string &DFTBinary, const std::string &DirPath,
     // we then request tags in [0,Size/2) and [Size/2, Size), and so on.
     // Function number => DFT.
     auto OutPath = DirPlusFile(DirPath, Hash(FileToVector(F.File)));
-    std::unordered_map<size_t, std::vector<uint8_t>> DFTMap;
-    std::unordered_set<std::string> Cov;
     Command Cmd;
     Cmd.addArgument(DFTBinary);
     Cmd.addArgument(F.File);

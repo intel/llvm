@@ -82,6 +82,7 @@ static constexpr char OPT_REPLACE_CELL[] = "replace_cell";
 static constexpr char OPT_RENAME[] = "rename";
 static constexpr char OPT_EXTRACT[] = "extract";
 static constexpr char OPT_COPY_SINGLE_FILE[] = "copy_single_file";
+static constexpr char OPT_MERGE[] = "merge";
 
 static cl::list<std::string> TformReplace{
     OPT_REPLACE, cl::ZeroOrMore, cl::desc("replace a column"),
@@ -106,6 +107,10 @@ static cl::list<std::string> TformCopySingleFile{
     cl::desc("copy the file in a cell and make it the output"),
     cl::value_desc("<column name or ordinal>,<row id ordinal>"),
     cl::cat(FileTableTformCat)};
+
+static cl::list<std::string> TformMerge{
+    OPT_MERGE, cl::Optional, cl::desc("merge all input tables"),
+    cl::value_desc("<column name or ordinal>"), cl::cat(FileTableTformCat)};
 
 static cl::opt<bool> DropTitles{"drop_titles", cl::Optional,
                                 cl::desc("drop column titles"),
@@ -172,7 +177,8 @@ struct TformCmd {
             .Case(OPT_RENAME, [&](TformCmd *Cmd) { return Error::success(); })
             .Case(OPT_EXTRACT, [&](TformCmd *Cmd) { return Error::success(); })
             .Case(OPT_COPY_SINGLE_FILE,
-                  [&](TformCmd *Cmd) { return Error::success(); });
+                  [&](TformCmd *Cmd) { return Error::success(); })
+            .Case(OPT_MERGE, [&](TformCmd *Cmd) { return Error::success(); });
     return F(this);
   }
 
@@ -234,15 +240,24 @@ struct TformCmd {
                             std::back_inserter(Args));
                   return Error::success();
                 })
-            .Case(OPT_COPY_SINGLE_FILE, [&](TformCmd *Cmd) -> Error {
-              // argument is <column name>,<row index>
+            .Case(OPT_COPY_SINGLE_FILE,
+                  [&](TformCmd *Cmd) -> Error {
+                    // argument is <column name>,<row index>
+                    if (Arg.empty())
+                      return makeUserError("empty argument in " +
+                                           Twine(OPT_COPY_SINGLE_FILE));
+                    Arg.split(Args, ',');
+                    if (Args.size() != 2 || Args[0].empty() || Args[1].empty())
+                      return makeUserError("invalid argument in " +
+                                           Twine(OPT_COPY_SINGLE_FILE));
+                    return Error::success();
+                  })
+            .Case(OPT_MERGE, [&](TformCmd *Cmd) -> Error {
               if (Arg.empty())
-                return makeUserError("empty argument in " +
-                                     Twine(OPT_COPY_SINGLE_FILE));
+                return makeUserError("empty argument in " + Twine(OPT_MERGE));
               Arg.split(Args, ',');
-              if (Args.size() != 2 || Args[0].empty() || Args[1].empty())
-                return makeUserError("invalid argument in " +
-                                     Twine(OPT_COPY_SINGLE_FILE));
+              if (Args.size() != 1 || Args[0].empty())
+                return makeUserError("invalid argument in " + Twine(OPT_MERGE));
               return Error::success();
             });
     return F(this);
@@ -286,23 +301,63 @@ struct TformCmd {
                     Error Res = Table.peelColumns(Args);
                     return Res ? std::move(Res) : std::move(Error::success());
                   })
-            .Case(OPT_COPY_SINGLE_FILE, [&](TformCmd *Cmd) -> Error {
-              // argument is <column name>,<row index>
-              assert(Args.size() == 2);
-              const int Row = std::stoi(Args[1].str());
-              if (Row >= Table.getNumRows())
-                return makeUserError("row index is out of bounds");
+            .Case(OPT_COPY_SINGLE_FILE,
+                  [&](TformCmd *Cmd) -> Error {
+                    // argument is <column name>,<row index>
+                    assert(Args.size() == 2);
+                    const int Row = std::stoi(Args[1].str());
+                    if (Row >= Table.getNumRows())
+                      return makeUserError("row index is out of bounds");
 
-              // Copy the file from the only remaining row at specified
-              // column
-              StringRef FileToCopy = Table[Row].getCell(Args[0], "");
+                    // Copy the file from the only remaining row at specified
+                    // column
+                    StringRef FileToCopy = Table[Row].getCell(Args[0], "");
 
-              if (FileToCopy.empty())
-                return makeUserError("no file found in specified column");
+                    if (FileToCopy.empty())
+                      return makeUserError("no file found in specified column");
 
+                    std::error_code EC = sys::fs::copy_file(FileToCopy, Output);
+                    return EC ? createFileError(Output, EC)
+                              : std::move(Error::success());
+                  })
+            .Case(OPT_MERGE, [&](TformCmd *Cmd) -> Error {
+              StringRef FileToCopy = Table[0].getCell(Args[0]);
+              if (!llvm::sys::fs::exists(FileToCopy))
+                return makeUserError("first file not found");
               std::error_code EC = sys::fs::copy_file(FileToCopy, Output);
-              return EC ? createFileError(Output, EC)
-                        : std::move(Error::success());
+              if (EC)
+                return createFileError(Output, EC);
+
+              Expected<util::SimpleTable::UPtrTy> OutputTable =
+                  util::SimpleTable::read(Output);
+              if (!OutputTable)
+                return OutputTable.takeError();
+
+              // The first table will be the table merged into, so start merging
+              // from the second table.
+              for (int Row = 1; Row < Table.getNumRows(); Row++) {
+                // Each cell in the input table is a path
+                // to another table.
+                Expected<util::SimpleTable::UPtrTy> Table1 =
+                    util::SimpleTable::read(Table[Row].getCell(Args[0]));
+                if (!Table1)
+                  return Table1.takeError();
+
+                Error Err = (*OutputTable)->merge(*Table1.get());
+                if (Err)
+                  return Err;
+              }
+              raw_fd_ostream Out{Output, EC, sys::fs::OpenFlags::OF_None};
+
+              if (EC)
+                return createFileError(Output, EC);
+
+              (*OutputTable)->write(Out, (*OutputTable)->getNumColumns() > 1);
+
+              if (Out.has_error())
+                return createFileError(Output, Out.error());
+              Out.close();
+              return Error::success();
             });
     return F(this);
   }
@@ -344,9 +399,10 @@ int main(int argc, char **argv) {
   // yet, as an order across all command line options-commands needs to be
   // established first to properly map inputs to commands.
 
-  auto Lists = {std::addressof(TformReplace), std::addressof(TformReplaceCell),
-                std::addressof(TformRename), std::addressof(TformExtract),
-                std::addressof(TformCopySingleFile)};
+  auto Lists = {
+      std::addressof(TformReplace),        std::addressof(TformReplaceCell),
+      std::addressof(TformRename),         std::addressof(TformExtract),
+      std::addressof(TformCopySingleFile), std::addressof(TformMerge)};
 
   for (const auto *L : Lists) {
     for (auto It = L->begin(); It != L->end(); It++) {
@@ -369,12 +425,17 @@ int main(int argc, char **argv) {
 
   // ensure that if copy_single_file is specified, it must be the last tform
   bool HasCopySingleFileTform = false;
+  bool HasMerge = false;
   for (auto &P : Cmds) {
     if (HasCopySingleFileTform) {
       CHECK_AND_EXIT(
           makeUserError("copy_single_file must be the last transformation"));
     }
+    if (HasMerge) {
+      CHECK_AND_EXIT(makeUserError("merge must be the last transformation"));
+    }
     HasCopySingleFileTform = P.second->Kind == OPT_COPY_SINGLE_FILE;
+    HasMerge = P.second->Kind == OPT_MERGE;
   }
 
   for (auto &P : Cmds) {
@@ -397,9 +458,9 @@ int main(int argc, char **argv) {
     CHECK_AND_EXIT(std::move(Res));
   }
 
-  // If copy_single_file was specified the output file is generated by the
-  // corresponding transformation.
-  if (!HasCopySingleFileTform) {
+  // If copy_single_file or merge was specified the output file is generated by
+  // the corresponding transformation.
+  if (!HasCopySingleFileTform && !HasMerge) {
     // Write the transformed table to file
     std::error_code EC;
     raw_fd_ostream Out{Output, EC, sys::fs::OpenFlags::OF_None};

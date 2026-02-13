@@ -1,3 +1,6 @@
+.. If you want to modify sections/contents permanently, you should modify both
+   ReleaseNotes.rst and ReleaseNotesTemplate.txt.
+
 ===========================
 lld |release| Release Notes
 ===========================
@@ -26,11 +29,8 @@ Non-comprehensive list of changes in this release
 ELF Improvements
 ----------------
 
-* ``ELFCOMPRESS_ZSTD`` compressed input sections are now supported.
-  (`D129406 <https://reviews.llvm.org/D129406>`_)
-* ``--compress-debug-sections=zstd`` is now available to compress debug
-  sections with zstd (``ELFCOMPRESS_ZSTD``).
-  (`D133548 <https://reviews.llvm.org/D133548>`_)
+* ``--print-gc-sections=<file>`` prints garbage collection section listing to a file.
+  (`#159706 <https://github.com/llvm/llvm-project/pull/159706>`_)
 
 Breaking changes
 ----------------
@@ -38,24 +38,33 @@ Breaking changes
 COFF Improvements
 -----------------
 
-* ...
+* ``/fat-lto-objects`` addded to support FatLTO. Without ``/fat-lto-objects`` or with ``/fat-lto-objects:no``, LLD will link LLVM FatLTO objects using the relocatable object file.
+  (`#165529 <https://github.com/llvm/llvm-project/pull/165529>`_)
+* ``/linkreprofullpathrsp`` prints the full path to each object passed to the link line to a file.
+  (`#174971 <https://github.com/llvm/llvm-project/pull/165449>`_)
+* ``-prefetch-inputs`` can improve link times by asynchronously loading input files in RAM.
+  This will dampen the effect of input file I/O latency on link times.
+  However this flag can have an adverse effect when linking a large number of inputs files, or if all
+  inputs do not fit in RAM at once. For those cases, linking might be a bit slower since the inputs
+  will be streamed into RAM upfront, only to be evicted later by swapping.
+  (`#169224 <https://github.com/llvm/llvm-project/pull/169224>`_)
 
 MinGW Improvements
 ------------------
 
-* The lld-specific options ``--guard-cf``, ``--no-guard-cf``,
-  ``--guard-longjmp`` and ``--no-guard-longjmp`` has been added to allow
-  enabling Control Flow Guard and long jump hardening. These options are
-  disabled by default, but enabling ``--guard-cf`` will also enable
-  ``--guard-longjmp`` unless ``--no-guard-longjmp`` is also specified.
-  ``--guard-longjmp`` depends on ``--guard-cf`` and cannot be used by itself.
-  Note that these features require the ``_load_config_used`` symbol to contain
-  the load config directory and be filled with the required symbols.
-  (`D132808 <https://reviews.llvm.org/D132808>`_)
-
 MachO Improvements
 ------------------
+
+* ``--separate-cstring-literal-sections`` emits cstring literal sections into sections defined by their section name.
+  (`#158720 <https://github.com/llvm/llvm-project/pull/158720>`_)
+* ``--tail-merge-strings`` enables tail merging of cstring literals.
+  (`#161262 <https://github.com/llvm/llvm-project/pull/161262>`_)
 
 WebAssembly Improvements
 ------------------------
 
+* The ``--stack-first`` flag is now enabled by default. The old
+  behavior can be enabled using ``--no-stack-first``.
+
+Fixes
+#####

@@ -71,7 +71,11 @@ inline bool isValid(spv::ExecutionModel V) {
   case ExecutionModelClosestHitKHR:
   case ExecutionModelMissKHR:
   case ExecutionModelCallableKHR:
-  case internal::ExecutionModeStreamingInterfaceINTEL:
+  case ExecutionModeRegisterMapInterfaceINTEL:
+  case ExecutionModeStreamingInterfaceINTEL:
+  case ExecutionModeMaximumRegistersINTEL:
+  case ExecutionModeMaximumRegistersIdINTEL:
+  case ExecutionModeNamedMaximumRegistersINTEL:
     return true;
   default:
     return false;
@@ -167,6 +171,7 @@ inline bool isValid(spv::FunctionParameterAttribute V) {
   case FunctionParameterAttributeNoCapture:
   case FunctionParameterAttributeNoWrite:
   case FunctionParameterAttributeNoReadWrite:
+  case FunctionParameterAttributeRuntimeAlignedINTEL:
     return true;
   default:
     return false;
@@ -277,6 +282,7 @@ inline bool isValid(spv::BuiltIn V) {
   case BuiltInCullMaskKHR:
   case internal::BuiltInSubDeviceIDINTEL:
   case internal::BuiltInGlobalHWThreadIDINTEL:
+  case internal::BuiltInDeviceBarrierValidINTEL:
     return true;
   default:
     return false;

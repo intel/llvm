@@ -11,20 +11,18 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclTemplate.h"
+#include <optional>
 
 namespace clang {
 namespace serialization {
 
 template <class T>
-inline llvm::Optional<T> makeOptionalFromNullable(const T &value) {
-  return (value.isNull()
-            ? llvm::Optional<T>()
-            : llvm::Optional<T>(value));
+inline std::optional<T> makeOptionalFromNullable(const T &value) {
+  return (value.isNull() ? std::optional<T>() : std::optional<T>(value));
 }
 
-template <class T>
-inline llvm::Optional<T*> makeOptionalFromPointer(T *value) {
-  return (value ? llvm::Optional<T*>(value) : llvm::Optional<T*>());
+template <class T> inline std::optional<T *> makeOptionalFromPointer(T *value) {
+  return (value ? std::optional<T *>(value) : std::optional<T *>());
 }
 
 // PropertyWriter is a class concept that requires the following method:
@@ -51,7 +49,7 @@ inline llvm::Optional<T*> makeOptionalFromPointer(T *value) {
 //     type-specific writers for all the enum types.
 //
 //   template <class ValueType>
-//   void writeOptional(Optional<ValueType> value);
+//   void writeOptional(std::optional<ValueType> value);
 //
 //     Writes an optional value as the current property.
 //
@@ -140,16 +138,14 @@ public:
     asImpl().writeUInt32(uint32_t(value));
   }
 
-  template <class T>
-  void writeArray(llvm::ArrayRef<T> array) {
+  template <class T> void writeArray(ArrayRef<T> array) {
     asImpl().writeUInt32(array.size());
     for (const T &elt : array) {
       WriteDispatcher<T>::write(asImpl(), elt);
     }
   }
 
-  template <class T>
-  void writeOptional(llvm::Optional<T> value) {
+  template <class T> void writeOptional(std::optional<T> value) {
     WriteDispatcher<T>::write(asImpl(), PackOptionalValue<T>::pack(value));
   }
 
@@ -180,12 +176,12 @@ public:
     asImpl().writeUInt32(path.size());
     auto &ctx = ((BasicWriterBase<Impl> *)this)->getASTContext();
     for (auto elem : path) {
-      if (elemTy->getAs<RecordType>()) {
+      if (elemTy->isRecordType()) {
         asImpl().writeUInt32(elem.getAsBaseOrMember().getInt());
         const Decl *baseOrMember = elem.getAsBaseOrMember().getPointer();
         if (const auto *recordDecl = dyn_cast<CXXRecordDecl>(baseOrMember)) {
           asImpl().writeDeclRef(recordDecl);
-          elemTy = ctx.getRecordType(recordDecl);
+          elemTy = ctx.getCanonicalTagType(recordDecl);
         } else {
           const auto *valueDecl = cast<ValueDecl>(baseOrMember);
           asImpl().writeDeclRef(valueDecl);
@@ -199,9 +195,9 @@ public:
   }
 
   void writeQualifiers(Qualifiers value) {
-    static_assert(sizeof(value.getAsOpaqueValue()) <= sizeof(uint32_t),
+    static_assert(sizeof(value.getAsOpaqueValue()) <= sizeof(uint64_t),
                   "update this if the value size changes");
-    asImpl().writeUInt32(value.getAsOpaqueValue());
+    asImpl().writeUInt64(value.getAsOpaqueValue());
   }
 
   void writeExceptionSpecInfo(
@@ -225,47 +221,51 @@ public:
     asImpl().writeUInt32(epi.getOpaqueValue());
   }
 
-  void writeNestedNameSpecifier(NestedNameSpecifier *NNS) {
+  void writeFunctionEffect(FunctionEffect E) {
+    asImpl().writeUInt32(E.toOpaqueInt32());
+  }
+
+  void writeEffectConditionExpr(EffectConditionExpr CE) {
+    asImpl().writeExprRef(CE.getCondition());
+  }
+
+  void writeNestedNameSpecifier(NestedNameSpecifier NNS) {
     // Nested name specifiers usually aren't too long. I think that 8 would
     // typically accommodate the vast majority.
-    SmallVector<NestedNameSpecifier *, 8> nestedNames;
+    SmallVector<NestedNameSpecifier, 8> nestedNames;
 
     // Push each of the NNS's onto a stack for serialization in reverse order.
     while (NNS) {
       nestedNames.push_back(NNS);
-      NNS = NNS->getPrefix();
+      NNS = NNS.getKind() == NestedNameSpecifier::Kind::Namespace
+                ? NNS.getAsNamespaceAndPrefix().Prefix
+                : std::nullopt;
     }
 
     asImpl().writeUInt32(nestedNames.size());
     while (!nestedNames.empty()) {
       NNS = nestedNames.pop_back_val();
-      NestedNameSpecifier::SpecifierKind kind = NNS->getKind();
+      NestedNameSpecifier::Kind kind = NNS.getKind();
       asImpl().writeNestedNameSpecifierKind(kind);
       switch (kind) {
-      case NestedNameSpecifier::Identifier:
-        asImpl().writeIdentifier(NNS->getAsIdentifier());
+      case NestedNameSpecifier::Kind::Namespace:
+        asImpl().writeNamespaceBaseDeclRef(
+            NNS.getAsNamespaceAndPrefix().Namespace);
+        continue;
+      case NestedNameSpecifier::Kind::Type:
+        asImpl().writeQualType(QualType(NNS.getAsType(), 0));
         continue;
 
-      case NestedNameSpecifier::Namespace:
-        asImpl().writeNamespaceDeclRef(NNS->getAsNamespace());
-        continue;
-
-      case NestedNameSpecifier::NamespaceAlias:
-        asImpl().writeNamespaceAliasDeclRef(NNS->getAsNamespaceAlias());
-        continue;
-
-      case NestedNameSpecifier::TypeSpec:
-      case NestedNameSpecifier::TypeSpecWithTemplate:
-        asImpl().writeQualType(QualType(NNS->getAsType(), 0));
-        continue;
-
-      case NestedNameSpecifier::Global:
+      case NestedNameSpecifier::Kind::Global:
         // Don't need to write an associated value.
         continue;
 
-      case NestedNameSpecifier::Super:
-        asImpl().writeDeclRef(NNS->getAsRecordDecl());
+      case NestedNameSpecifier::Kind::MicrosoftSuper:
+        asImpl().writeDeclRef(NNS.getAsMicrosoftSuper());
         continue;
+
+      case NestedNameSpecifier::Kind::Null:
+        llvm_unreachable("unexpected null nested name specifier");
       }
       llvm_unreachable("bad nested name specifier kind");
     }

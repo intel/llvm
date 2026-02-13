@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -no-opaque-pointers %s -I%S -triple=x86_64-apple-darwin10 -std=c++98 -emit-llvm -o %t
-// RUN: %clang_cc1 -no-opaque-pointers %s -I%S -triple=x86_64-apple-darwin10 -std=c++98 -O2 -disable-llvm-passes -emit-llvm -o %t.opt
-// RUN: %clang_cc1 -no-opaque-pointers %s -I%S -triple=x86_64-apple-darwin10 -std=c++98 -O2 -disable-llvm-passes -emit-llvm -o %t.vtable -fforce-emit-vtables -fstrict-vtable-pointers -mconstructor-aliases
+// RUN: %clang_cc1 %s -I%S -triple=x86_64-apple-darwin10 -std=c++98 -emit-llvm -o %t
+// RUN: %clang_cc1 %s -I%S -triple=x86_64-apple-darwin10 -std=c++98 -O2 -disable-llvm-passes -emit-llvm -o %t.opt
+// RUN: %clang_cc1 %s -I%S -triple=x86_64-apple-darwin10 -std=c++98 -O2 -disable-llvm-passes -emit-llvm -o %t.vtable -fforce-emit-vtables -fstrict-vtable-pointers -mconstructor-aliases
 // RUN: FileCheck -allow-deprecated-dag-overlap --check-prefix=CHECK-TEST1 %s < %t
 // RUN: FileCheck -allow-deprecated-dag-overlap --check-prefix=CHECK-TEST2 %s < %t
 // RUN: FileCheck -allow-deprecated-dag-overlap --check-prefix=CHECK-TEST5 %s < %t
@@ -49,8 +49,8 @@ void g() {
 // This tests mainly that the typeinfo and typename constants have their linkage
 // updated correctly.
 
-// CHECK-TEST2: @_ZTSN5Test21AE ={{.*}} constant
 // CHECK-TEST2: @_ZTIN5Test21AE ={{.*}} constant
+// CHECK-TEST2: @_ZTSN5Test21AE ={{.*}} constant
 // CHECK-TEST2: @_ZTVN5Test21AE ={{.*}} unnamed_addr constant
 namespace Test2 {
   struct A {
@@ -250,28 +250,39 @@ struct C : A {
   virtual void car();
 };
 
+// Inline definition outside body, so we can't emit vtable available_externally
+// (see previous).
+// CHECK-TEST10-DAG: @_ZTVN6Test101FE = external unnamed_addr constant
+struct F : A {
+  void foo();
+  virtual void cat();         // inline outside body
+};
+inline void F::cat() {}
+
 // no key function, vtable will be generated everywhere it will be used
 // CHECK-TEST10-DAG: @_ZTVN6Test101EE = linkonce_odr unnamed_addr constant
 // CHECK-FORCE-EMIT-DAG: @_ZTVN6Test101EE = linkonce_odr unnamed_addr constant
 
 struct E : A {};
 
-void g(A& a) {
+void h(A& a) {
   a.foo();
   a.bar();
 }
 
-void f() {
+void g() {
   A a;
-  g(a);
+  h(a);
   B b;
-  g(b);
+  h(b);
   C c;
-  g(c);
+  h(c);
   D d;
-  g(d);
+  h(d);
   E e;
-  g(e);
+  h(e);
+  F f;
+  h(f);
 }
 
 }  // Test10
@@ -442,7 +453,7 @@ void testcaseB() {
 namespace Test18 {
 // Here vtable will be only emitted because it is referenced by assume-load
 // after the Derived construction.
-// CHECK-FORCE-EMIT-DAG: @_ZTVN6Test187DerivedE = linkonce_odr unnamed_addr constant {{.*}} @_ZTIN6Test187DerivedE {{.*}} @_ZN6Test184Base3funEv {{.*}} @_ZN6Test184BaseD2Ev {{.*}} @_ZN6Test187DerivedD0Ev
+// CHECK-FORCE-EMIT-DAG: @_ZTVN6Test187DerivedE = linkonce_odr unnamed_addr constant {{.*}} @_ZTIN6Test187DerivedE, {{.*}} @_ZN6Test184Base3funEv, {{.*}} @_ZN6Test184BaseD2Ev, {{.*}} @_ZN6Test187DerivedD0Ev
 // CHECK-FORCE-EMIT-DAG: define linkonce_odr void @_ZN6Test187DerivedD0Ev
 // CHECK-FORCE-EMIT-DAG: define linkonce_odr void @_ZN6Test184BaseD2Ev
 // CHECK-FORCE-EMIT-DAG: define linkonce_odr noundef i32 @_ZN6Test184Base3funEv
@@ -465,7 +476,7 @@ int foo() {
 
 namespace TestTemplates {
 
-// CHECK-FORCE-EMIT-DAG: @_ZTVN13TestTemplates8TemplateIiEE = linkonce_odr unnamed_addr constant {{.*}} @_ZTIN13TestTemplates8TemplateIiEE {{.*}} @_ZN13TestTemplates8TemplateIiE3fooEi {{.*}}@_ZN13TestTemplates8TemplateIiE22thisShouldBeEmittedTooEi {{.*}}@_ZN13TestTemplates8TemplateIiED1Ev {{.*}}@_ZN13TestTemplates8TemplateIiED0Ev
+// CHECK-FORCE-EMIT-DAG: @_ZTVN13TestTemplates8TemplateIiEE = linkonce_odr unnamed_addr constant {{.*}} @_ZTIN13TestTemplates8TemplateIiEE, {{.*}} @_ZN13TestTemplates8TemplateIiE3fooEi, {{.*}}@_ZN13TestTemplates8TemplateIiE22thisShouldBeEmittedTooEi, {{.*}}@_ZN13TestTemplates8TemplateIiED1Ev, {{.*}}@_ZN13TestTemplates8TemplateIiED0Ev
 // CHECK-FORCE-EMIT-DAG: define linkonce_odr noundef i32 @_ZN13TestTemplates8TemplateIiE22thisShouldBeEmittedTooEi
 
 template<class T>
@@ -487,7 +498,7 @@ struct NonTemplate {
   virtual ~NonTemplate();
 };
 
-// CHECK-FORCE-EMIT-DAG: @_ZTVN13TestTemplates16OuterNonTemplate27NestedTemplateInNonTemplateIiEE = linkonce_odr {{.*}} @_ZTIN13TestTemplates16OuterNonTemplate27NestedTemplateInNonTemplateIiEE {{.*}} @_ZN13TestTemplates16OuterNonTemplate27NestedTemplateInNonTemplateIiE3fooEi {{.*}} @_ZN13TestTemplates16OuterNonTemplate27NestedTemplateInNonTemplateIiE22thisShouldBeEmittedTooEi {{.*}} @_ZN13TestTemplates16OuterNonTemplate27NestedTemplateInNonTemplateIiED1Ev {{.*}} @_ZN13TestTemplates16OuterNonTemplate27NestedTemplateInNonTemplateIiED0Ev
+// CHECK-FORCE-EMIT-DAG: @_ZTVN13TestTemplates16OuterNonTemplate27NestedTemplateInNonTemplateIiEE = linkonce_odr {{.*}} @_ZTIN13TestTemplates16OuterNonTemplate27NestedTemplateInNonTemplateIiEE, {{.*}} @_ZN13TestTemplates16OuterNonTemplate27NestedTemplateInNonTemplateIiE3fooEi, {{.*}} @_ZN13TestTemplates16OuterNonTemplate27NestedTemplateInNonTemplateIiE22thisShouldBeEmittedTooEi, {{.*}} @_ZN13TestTemplates16OuterNonTemplate27NestedTemplateInNonTemplateIiED1Ev, {{.*}} @_ZN13TestTemplates16OuterNonTemplate27NestedTemplateInNonTemplateIiED0Ev
 
 struct OuterNonTemplate {
   template<class T>

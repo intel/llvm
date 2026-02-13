@@ -15,21 +15,17 @@
 #include <unordered_map>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 class platform_impl;
 class context_impl;
 class Scheduler;
 class ProgramManager;
 class Sync;
-class plugin;
-class device_filter_list;
+class adapter_impl;
 class ods_target_list;
 class XPTIRegistry;
 class ThreadPool;
-
-using PlatformImplPtr = std::shared_ptr<platform_impl>;
-using ContextImplPtr = std::shared_ptr<context_impl>;
 
 /// Wrapper class for global data structures with non-trivial destructors.
 ///
@@ -45,44 +41,64 @@ using ContextImplPtr = std::shared_ptr<context_impl>;
 /// construction or destruction is generated anyway.
 class GlobalHandler {
 public:
-  /// \return a reference to a GlobalHandler singleton instance. Memory for
-  /// storing objects is allocated on first call. The reference is valid as long
-  /// as runtime library is loaded (i.e. untill `DllMain` or
+  static bool isInstanceAlive() { return RTGlobalObjHandler != nullptr; }
+  /// \return a reference to a GlobalHandler singleton instance. The reference
+  /// is valid as long as runtime library is loaded (i.e. until `DllMain` or
   /// `__attribute__((destructor))` is called).
-  static GlobalHandler &instance();
+  static GlobalHandler &instance() { return *RTGlobalObjHandler; }
 
   GlobalHandler(const GlobalHandler &) = delete;
   GlobalHandler(GlobalHandler &&) = delete;
+  GlobalHandler &operator=(const GlobalHandler &) = delete;
 
+  void registerSchedulerUsage(bool ModifyCounter = true);
   Scheduler &getScheduler();
+  bool isSchedulerAlive() const;
   ProgramManager &getProgramManager();
   Sync &getSync();
-  std::vector<PlatformImplPtr> &getPlatformCache();
+  std::vector<std::shared_ptr<platform_impl>> &getPlatformCache();
 
-  std::unordered_map<PlatformImplPtr, ContextImplPtr> &
+  std::unordered_map<platform_impl *, std::shared_ptr<context_impl>> &
   getPlatformToDefaultContextCache();
 
   std::mutex &getPlatformToDefaultContextCacheMutex();
   std::mutex &getPlatformMapMutex();
   std::mutex &getFilterMutex();
-  std::vector<plugin> &getPlugins();
-  device_filter_list &getDeviceFilterList(const std::string &InitValue);
+  std::vector<adapter_impl *> &getAdapters();
   ods_target_list &getOneapiDeviceSelectorTargets(const std::string &InitValue);
   XPTIRegistry &getXPTIRegistry();
   ThreadPool &getHostTaskThreadPool();
+  static void registerStaticVarShutdownHandler();
 
-  static void registerDefaultContextReleaseHandler();
+  bool isOkToDefer() const;
+  void endDeferredRelease();
+  void unloadAdapters();
+  void releaseDefaultContexts();
+  void drainThreadPool();
+  void prepareSchedulerToRelease(bool Blocking);
 
-  void unloadPlugins();
+  void TraceEventXPTI(const char *Message);
+
+  // For testing purposes only
+  void attachScheduler(Scheduler *Scheduler);
+
+  // Used in SYCL unit tests to reset the GlobalHandler instance.
+  static void resetGlobalHandler() {
+    RTGlobalObjHandler = new GlobalHandler();
+  };
 
 private:
-  friend void releaseDefaultContexts();
-  friend void shutdown();
-
   // Constructor and destructor are declared out-of-line to allow incomplete
   // types as template arguments to unique_ptr.
   GlobalHandler();
   ~GlobalHandler();
+
+  bool OkToDefer = true;
+
+  friend void shutdown_early(bool);
+  friend void shutdown_late();
+  friend class ObjectUsageCounter;
+  static SpinLock MSyclGlobalHandlerProtector;
 
   template <typename T> struct InstWithLock {
     std::unique_ptr<T> Inst;
@@ -90,24 +106,27 @@ private:
   };
 
   template <typename T, typename... Types>
-  T &getOrCreate(InstWithLock<T> &IWL, Types... Args);
+  T &getOrCreate(InstWithLock<T> &IWL, Types &&...Args);
 
   InstWithLock<Scheduler> MScheduler;
   InstWithLock<ProgramManager> MProgramManager;
   InstWithLock<Sync> MSync;
-  InstWithLock<std::vector<PlatformImplPtr>> MPlatformCache;
-  InstWithLock<std::unordered_map<PlatformImplPtr, ContextImplPtr>>
+  InstWithLock<std::vector<std::shared_ptr<platform_impl>>> MPlatformCache;
+  InstWithLock<
+      std::unordered_map<platform_impl *, std::shared_ptr<context_impl>>>
       MPlatformToDefaultContextCache;
   InstWithLock<std::mutex> MPlatformToDefaultContextCacheMutex;
   InstWithLock<std::mutex> MPlatformMapMutex;
   InstWithLock<std::mutex> MFilterMutex;
-  InstWithLock<std::vector<plugin>> MPlugins;
-  InstWithLock<device_filter_list> MDeviceFilterList;
+  InstWithLock<std::vector<adapter_impl *>> MAdapters;
   InstWithLock<ods_target_list> MOneapiDeviceSelectorTargets;
   InstWithLock<XPTIRegistry> MXPTIRegistry;
   // Thread pool for host task and event callbacks execution
   InstWithLock<ThreadPool> MHostTaskThreadPool;
+
+  static GlobalHandler *RTGlobalObjHandler;
 };
+
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

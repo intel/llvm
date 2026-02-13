@@ -60,7 +60,25 @@ enum UnwindOpcodes {
   UOP_SaveNext,
   UOP_TrapFrame,
   UOP_Context,
+  UOP_ECContext,
   UOP_ClearUnwoundToCall,
+  UOP_PACSignLR,
+  UOP_SaveAnyRegI,
+  UOP_SaveAnyRegIP,
+  UOP_SaveAnyRegD,
+  UOP_SaveAnyRegDP,
+  UOP_SaveAnyRegQ,
+  UOP_SaveAnyRegQP,
+  UOP_SaveAnyRegIX,
+  UOP_SaveAnyRegIPX,
+  UOP_SaveAnyRegDX,
+  UOP_SaveAnyRegDPX,
+  UOP_SaveAnyRegQX,
+  UOP_SaveAnyRegQPX,
+  UOP_AllocZ,
+  UOP_SaveZReg,
+  UOP_SavePReg,
+
   // The following set of unwind opcodes is for ARM.  They are documented at
   // https://docs.microsoft.com/en-us/cpp/build/arm-exception-handling
 
@@ -108,6 +126,11 @@ union UnwindCode {
   }
   uint8_t getOpInfo() const {
     return (u.UnwindOpAndOpInfo >> 4) & 0x0F;
+  }
+  /// Gets the offset for an UOP_Epilog unwind code.
+  uint32_t getEpilogOffset() const {
+    assert(getUnwindOp() == UOP_Epilog);
+    return (getOpInfo() << 8) | static_cast<uint32_t>(u.CodeOffset);
   }
 };
 

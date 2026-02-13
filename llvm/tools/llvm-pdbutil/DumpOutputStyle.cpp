@@ -15,6 +15,7 @@
 #include "llvm-pdbutil.h"
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/DebugInfo/CodeView/CVSymbolVisitor.h"
 #include "llvm/DebugInfo/CodeView/CVTypeVisitor.h"
 #include "llvm/DebugInfo/CodeView/DebugChecksumsSubsection.h"
@@ -67,7 +68,7 @@ DumpOutputStyle::DumpOutputStyle(InputFile &File)
     RefTracker.reset(new TypeReferenceTracker(File));
 }
 
-DumpOutputStyle::~DumpOutputStyle() {}
+DumpOutputStyle::~DumpOutputStyle() = default;
 
 PDBFile &DumpOutputStyle::getPdb() { return File.pdb(); }
 object::COFFObjectFile &DumpOutputStyle::getObj() { return File.obj(); }
@@ -602,7 +603,8 @@ Error DumpOutputStyle::dumpTypeStats() {
   StatCollection TypeStats;
   LazyRandomTypeCollection &Types =
       opts::dump::DumpTypeStats ? File.types() : File.ids();
-  for (Optional<TypeIndex> TI = Types.getFirst(); TI; TI = Types.getNext(*TI)) {
+  for (std::optional<TypeIndex> TI = Types.getFirst(); TI;
+       TI = Types.getNext(*TI)) {
     CVType Type = Types.getType(*TI);
     TypeStats.update(uint32_t(Type.kind()), Type.length());
   }
@@ -692,7 +694,7 @@ Error DumpOutputStyle::dumpUdtStats() {
       Kind = kNoneUdtKind;
     else if (UDT.Type.isSimple())
       Kind = kSimpleUdtKind;
-    else if (Optional<CVType> T = TpiTypes.tryGetType(UDT.Type)) {
+    else if (std::optional<CVType> T = TpiTypes.tryGetType(UDT.Type)) {
       Kind = T->kind();
       RecordSize = T->length();
     } else
@@ -1068,8 +1070,7 @@ Error DumpOutputStyle::dumpStringTableFromPdb() {
     if (IS->name_ids().empty())
       P.formatLine("Empty");
     else {
-      auto MaxID =
-          std::max_element(IS->name_ids().begin(), IS->name_ids().end());
+      auto MaxID = llvm::max_element(IS->name_ids());
       uint32_t Digits = NumDigits(*MaxID);
 
       P.formatLine("{0} | {1}", fmt_align("ID", AlignStyle::Right, Digits),
@@ -1250,7 +1251,7 @@ static void dumpPartialTypeStream(LinePrinter &Printer,
       if (TI.isSimple()) {
         Printer.formatLine("{0} | {1}", fmt_align(I, AlignStyle::Right, Width),
                            Types.getTypeName(TI));
-      } else if (Optional<CVType> Type = Types.tryGetType(TI)) {
+      } else if (std::optional<CVType> Type = Types.tryGetType(TI)) {
         if (auto EC = codeview::visitTypeRecord(*Type, TI, V))
           Printer.formatLine("An error occurred dumping type record {0}: {1}",
                              TI, toString(std::move(EC)));
@@ -1284,7 +1285,7 @@ Error DumpOutputStyle::dumpTypesFromObjectFile() {
       return ContentsOrErr.takeError();
 
     uint32_t Magic;
-    BinaryStreamReader Reader(*ContentsOrErr, llvm::support::little);
+    BinaryStreamReader Reader(*ContentsOrErr, llvm::endianness::little);
     if (auto EC = Reader.readInteger(Magic))
       return EC;
     if (Magic != COFF::DEBUG_SECTION_MAGIC)
@@ -1493,13 +1494,13 @@ Error DumpOutputStyle::dumpModuleSymsForPdb() {
           if (auto EC = Visitor.visitSymbolStreamFiltered(ModS.getSymbolArray(),
                                                           Filter)) {
             P.formatLine("Error while processing symbol records.  {0}",
-                         toString(std::move(EC)));
+                         toStringWithoutConsuming(EC));
             return EC;
           }
         } else if (auto EC = Visitor.visitSymbolStream(ModS.getSymbolArray(),
                                                        SS.Offset)) {
           P.formatLine("Error while processing symbol records.  {0}",
-                       toString(std::move(EC)));
+                       toStringWithoutConsuming(EC));
           return EC;
         }
         return Error::success();
@@ -1517,7 +1518,8 @@ Error DumpOutputStyle::dumpTypeRefStats() {
   size_t TotalBytes = 0;
   size_t RefBytes = 0;
   auto &Types = File.types();
-  for (Optional<TypeIndex> TI = Types.getFirst(); TI; TI = Types.getNext(*TI)) {
+  for (std::optional<TypeIndex> TI = Types.getFirst(); TI;
+       TI = Types.getNext(*TI)) {
     CVType Type = File.types().getType(*TI);
     TotalBytes += Type.length();
     if (RefTracker->isTypeReferenced(*TI)) {
@@ -1833,9 +1835,9 @@ Error DumpOutputStyle::dumpSectionContribs() {
   class Visitor : public ISectionContribVisitor {
   public:
     Visitor(LinePrinter &P, ArrayRef<std::string> Names) : P(P), Names(Names) {
-      auto Max = std::max_element(
-          Names.begin(), Names.end(),
-          [](StringRef S1, StringRef S2) { return S1.size() < S2.size(); });
+      auto Max = llvm::max_element(Names, [](StringRef S1, StringRef S2) {
+        return S1.size() < S2.size();
+      });
       MaxNameLen = (Max == Names.end() ? 0 : Max->size());
     }
     void visit(const SectionContrib &SC) override {

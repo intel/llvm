@@ -1,6 +1,6 @@
-; RUN: llc -O2 -march=bpfel %s -o %t -filetype=obj
+; RUN: llc -O2 -mtriple=bpfel %s -o %t -filetype=obj
 ; RUN: llvm-dwarfdump -debug-line %t | FileCheck %s
-; RUN: llc -O2 -march=bpfeb %s -o %t -filetype=obj
+; RUN: llc -O2 -mtriple=bpfeb %s -o %t -filetype=obj
 ; RUN: llvm-dwarfdump -debug-line %t | FileCheck %s
 
 source_filename = "testprog.c"
@@ -10,21 +10,18 @@ target triple = "bpf"
 @testprog.myvar_c = internal unnamed_addr global i32 0, align 4, !dbg !0
 
 ; Function Attrs: nounwind
-define i32 @testprog(i32, i32) local_unnamed_addr #0 !dbg !2 {
+define i32 @testprog(i32, i32) local_unnamed_addr !dbg !2 {
   tail call void @llvm.dbg.value(metadata i32 %0, i64 0, metadata !11, metadata !16), !dbg !17
   tail call void @llvm.dbg.value(metadata i32 %1, i64 0, metadata !12, metadata !16), !dbg !18
-  %3 = load i32, i32* @testprog.myvar_c, align 4, !dbg !19, !tbaa !20
+  %3 = load i32, ptr @testprog.myvar_c, align 4, !dbg !19, !tbaa !20
   %4 = add i32 %1, %0, !dbg !24
   %5 = add i32 %4, %3, !dbg !25
-  store i32 %5, i32* @testprog.myvar_c, align 4, !dbg !26, !tbaa !20
+  store i32 %5, ptr @testprog.myvar_c, align 4, !dbg !26, !tbaa !20
   ret i32 %5, !dbg !27
 }
 
 ; Function Attrs: nounwind readnone
-declare void @llvm.dbg.value(metadata, i64, metadata, metadata) #1
-
-attributes #0 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { nounwind readnone }
+declare void @llvm.dbg.value(metadata, i64, metadata, metadata)
 
 !llvm.dbg.cu = !{!7}
 !llvm.module.flags = !{!13, !14}

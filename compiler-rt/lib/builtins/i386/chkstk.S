@@ -7,6 +7,11 @@
 // _chkstk routine
 // This routine is windows specific
 // http://msdn.microsoft.com/en-us/library/ms648426.aspx
+//
+// This function does not decrement %esp at the end.
+
+// GCC after 4.6 generates calls to "___chkstk_ms". For other variants of
+// this function, which do decrement %esp, see chkstk2.S.
 
 #ifdef __i386__
 

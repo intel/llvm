@@ -19,25 +19,6 @@
 
 namespace llvm {
 
-namespace WebAssemblyISD {
-
-enum NodeType : unsigned {
-  FIRST_NUMBER = ISD::BUILTIN_OP_END,
-#define HANDLE_NODETYPE(NODE) NODE,
-#define HANDLE_MEM_NODETYPE(NODE)
-#include "WebAssemblyISD.def"
-  FIRST_MEM_OPCODE = ISD::FIRST_TARGET_MEMORY_OPCODE,
-#undef HANDLE_NODETYPE
-#undef HANDLE_MEM_NODETYPE
-#define HANDLE_NODETYPE(NODE)
-#define HANDLE_MEM_NODETYPE(NODE) NODE,
-#include "WebAssemblyISD.def"
-#undef HANDLE_NODETYPE
-#undef HANDLE_MEM_NODETYPE
-};
-
-} // end namespace WebAssemblyISD
-
 class WebAssemblySubtarget;
 
 class WebAssemblyTargetLowering final : public TargetLowering {
@@ -61,7 +42,6 @@ private:
   MachineBasicBlock *
   EmitInstrWithCustomInserter(MachineInstr &MI,
                               MachineBasicBlock *MBB) const override;
-  const char *getTargetNodeName(unsigned Opcode) const override;
   std::pair<unsigned, const TargetRegisterClass *>
   getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
                                StringRef Constraint, MVT VT) const override;
@@ -72,13 +52,13 @@ private:
                              Instruction *I = nullptr) const override;
   bool allowsMisalignedMemoryAccesses(EVT, unsigned AddrSpace, Align Alignment,
                                       MachineMemOperand::Flags Flags,
-                                      bool *Fast) const override;
+                                      unsigned *Fast) const override;
   bool isIntDivCheap(EVT VT, AttributeList Attr) const override;
   bool isVectorLoadExtDesirable(SDValue ExtVal) const override;
   bool isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const override;
   EVT getSetCCResultType(const DataLayout &DL, LLVMContext &Context,
                          EVT VT) const override;
-  bool getTgtMemIntrinsic(IntrinsicInfo &Info, const CallInst &I,
+  bool getTgtMemIntrinsic(IntrinsicInfo &Info, const CallBase &I,
                           MachineFunction &MF,
                           unsigned Intrinsic) const override;
 
@@ -89,13 +69,15 @@ private:
 
   TargetLoweringBase::LegalizeTypeAction
   getPreferredVectorAction(MVT VT) const override;
+  bool isFMAFasterThanFMulAndFAdd(const MachineFunction &MF,
+                                  EVT VT) const override;
 
   SDValue LowerCall(CallLoweringInfo &CLI,
                     SmallVectorImpl<SDValue> &InVals) const override;
   bool CanLowerReturn(CallingConv::ID CallConv, MachineFunction &MF,
                       bool isVarArg,
                       const SmallVectorImpl<ISD::OutputArg> &Outs,
-                      LLVMContext &Context) const override;
+                      LLVMContext &Context, const Type *RetTy) const override;
   SDValue LowerReturn(SDValue Chain, CallingConv::ID CallConv, bool isVarArg,
                       const SmallVectorImpl<ISD::OutputArg> &Outs,
                       const SmallVectorImpl<SDValue> &OutVals, const SDLoc &dl,
@@ -108,10 +90,6 @@ private:
 
   void ReplaceNodeResults(SDNode *N, SmallVectorImpl<SDValue> &Results,
                           SelectionDAG &DAG) const override;
-
-  const char *getClearCacheBuiltinName() const override {
-    report_fatal_error("llvm.clear_cache is not supported on wasm");
-  }
 
   bool
   shouldSimplifyDemandedVectorElts(SDValue Op,
@@ -131,6 +109,7 @@ private:
   SDValue LowerCopyToReg(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerIntrinsic(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSIGN_EXTEND_INREG(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerEXTEND_VECTOR_INREG(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerVECTOR_SHUFFLE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSETCC(SDValue Op, SelectionDAG &DAG) const;
@@ -139,11 +118,9 @@ private:
   SDValue LowerFP_TO_INT_SAT(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerLoad(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerStore(SDValue Op, SelectionDAG &DAG) const;
-
-  // Helper for LoadLoad and LowerStore
-  bool MatchTableForLowering(SelectionDAG &DAG, const SDLoc &DL,
-                             const SDValue &Base, GlobalAddressSDNode *&GA,
-                             SDValue &Idx) const;
+  SDValue LowerMUL_LOHI(SDValue Op, SelectionDAG &DAG) const;
+  SDValue Replace128Op(SDNode *N, SelectionDAG &DAG) const;
+  SDValue LowerUADDO(SDValue Op, SelectionDAG &DAG) const;
 
   // Custom DAG combine hooks
   SDValue

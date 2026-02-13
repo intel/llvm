@@ -1,5 +1,5 @@
-; RUN: opt %loadPolly -polly-parallel -polly-parallel-force -polly-print-ast -disable-output < %s | FileCheck %s -check-prefix=AST
-; RUN: opt %loadPolly -polly-parallel -polly-parallel-force -polly-codegen -S -verify-dom-info < %s | FileCheck %s -check-prefix=IR
+; RUN: opt %loadNPMPolly -polly-parallel -polly-parallel-force '-passes=polly-custom<ast>' -polly-print-ast -disable-output < %s | FileCheck %s -check-prefix=AST
+; RUN: opt %loadNPMPolly -polly-parallel -polly-parallel-force '-passes=polly<no-default-opts>' -S -verify-dom-info < %s | FileCheck %s -check-prefix=IR
 
 
 ; - Test the case where scalar evolution references a loop that is outside
@@ -33,8 +33,8 @@ for.one:
 while.body:
   %indvar = phi i64 [ %sub42, %while.body ], [ %i.1, %for.one ]
   %sub42 = add nsw i64 %indvar, -1
-  %arrayidx44 = getelementptr inbounds [258 x i64], [258 x i64]* @cum_freq, i64 0, i64 %sub42
-  store i64 1, i64* %arrayidx44, align 4
+  %arrayidx44 = getelementptr inbounds [258 x i64], ptr @cum_freq, i64 0, i64 %sub42
+  store i64 1, ptr %arrayidx44, align 4
   %cmp40 = icmp sgt i64 %sub42, 0
   br i1 %cmp40, label %while.body, label %while.end
 

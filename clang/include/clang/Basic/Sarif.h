@@ -34,7 +34,6 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Version.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
@@ -43,6 +42,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
+#include <optional>
 #include <string>
 
 namespace clang {
@@ -72,7 +72,7 @@ class SarifArtifactLocation {
 private:
   friend class clang::SarifDocumentWriter;
 
-  llvm::Optional<uint32_t> Index;
+  std::optional<uint32_t> Index;
   std::string URI;
 
   SarifArtifactLocation() = delete;
@@ -105,8 +105,8 @@ class SarifArtifact {
 private:
   friend class clang::SarifDocumentWriter;
 
-  llvm::Optional<uint32_t> Offset;
-  llvm::Optional<size_t> Length;
+  std::optional<uint32_t> Offset;
+  std::optional<size_t> Length;
   std::string MimeType;
   SarifArtifactLocation Location;
   llvm::SmallVector<std::string, 4> Roles;
@@ -322,9 +322,12 @@ class SarifResult {
   uint32_t RuleIdx;
   std::string RuleId;
   std::string DiagnosticMessage;
+  std::string HostedViewerURI;
+  llvm::SmallDenseMap<StringRef, std::string, 4> PartialFingerprints;
   llvm::SmallVector<CharSourceRange, 8> Locations;
+  llvm::SmallVector<CharSourceRange, 8> RelatedLocations;
   llvm::SmallVector<ThreadFlow, 8> ThreadFlows;
-  llvm::Optional<SarifResultLevel> LevelOverride;
+  std::optional<SarifResultLevel> LevelOverride;
 
   SarifResult() = delete;
   explicit SarifResult(uint32_t RuleIdx) : RuleIdx(RuleIdx) {}
@@ -347,16 +350,34 @@ public:
     return *this;
   }
 
-  SarifResult setLocations(llvm::ArrayRef<CharSourceRange> DiagLocs) {
+  SarifResult setHostedViewerURI(llvm::StringRef URI) {
+    HostedViewerURI = URI.str();
+    return *this;
+  }
+
+  SarifResult addLocations(llvm::ArrayRef<CharSourceRange> DiagLocs) {
 #ifndef NDEBUG
     for (const auto &Loc : DiagLocs) {
       assert(Loc.isCharRange() &&
              "SARIF Results require character granular source ranges!");
     }
 #endif
-    Locations.assign(DiagLocs.begin(), DiagLocs.end());
+    Locations.append(DiagLocs.begin(), DiagLocs.end());
     return *this;
   }
+
+  SarifResult addRelatedLocations(llvm::ArrayRef<CharSourceRange> DiagLocs) {
+#ifndef NDEBUG
+    for (const auto &Loc : DiagLocs) {
+      assert(
+          Loc.isCharRange() &&
+          "SARIF RelatedLocations require character granular source ranges!");
+    }
+#endif
+    RelatedLocations.append(DiagLocs.begin(), DiagLocs.end());
+    return *this;
+  }
+
   SarifResult setThreadFlows(llvm::ArrayRef<ThreadFlow> ThreadFlowResults) {
     ThreadFlows.assign(ThreadFlowResults.begin(), ThreadFlowResults.end());
     return *this;
@@ -366,13 +387,19 @@ public:
     LevelOverride = TheLevel;
     return *this;
   }
+
+  SarifResult addPartialFingerprint(llvm::StringRef key,
+                                    llvm::StringRef value) {
+    PartialFingerprints[key] = value;
+    return *this;
+  }
 };
 
 /// This class handles creating a valid SARIF document given various input
 /// attributes. However, it requires an ordering among certain method calls:
 ///
 /// 1. Because every SARIF document must contain at least 1 \c run, callers
-///    must ensure that \ref SarifDocumentWriter::createRun is is called before
+///    must ensure that \ref SarifDocumentWriter::createRun is called before
 ///    any other methods.
 /// 2. If SarifDocumentWriter::endRun is called, callers MUST call
 ///    SarifDocumentWriter::createRun, before invoking any of the result
@@ -474,6 +501,8 @@ public:
   /// Calling this will trigger a copy of the internal state including all
   /// reported diagnostics, resulting in an expensive call.
   llvm::json::Object createDocument();
+
+  static std::string fileNameToURI(llvm::StringRef Filename);
 
 private:
   /// Source Manager to use for the current SARIF document.

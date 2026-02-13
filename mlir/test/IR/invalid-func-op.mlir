@@ -31,7 +31,7 @@ func.func @func_op() {
 // -----
 
 func.func @func_op() {
-  // expected-error@+1 {{entry block must have 1 arguments to match function signature}}
+  // expected-error@+1 {{op symbol's parent must have the SymbolTable trait}}
   func.func @mixed_named_arguments(f32) {
   ^entry:
     return
@@ -42,7 +42,7 @@ func.func @func_op() {
 // -----
 
 func.func @func_op() {
-  // expected-error@+1 {{type of entry block argument #0('i32') must match the type of the corresponding argument in function signature('f32')}}
+  // expected-error@+1 {{op symbol's parent must have the SymbolTable trait}}
   func.func @mixed_named_arguments(f32) {
   ^entry(%arg : i32):
     return
@@ -96,20 +96,11 @@ func.func private @invalid_symbol_type_attr() attributes { function_type = "x" }
 
 // -----
 
-// expected-error@+1 {{argument attribute array `arg_attrs` to have the same number of elements as the number of function arguments}}
+// expected-error@+1 {{argument attribute array to have the same number of elements as the number of function arguments}}
 func.func private @invalid_arg_attrs() attributes { arg_attrs = [{}] }
 
 // -----
 
-// expected-error@+1 {{expects argument attribute dictionary to be a DictionaryAttr, but got `10 : i64`}}
-func.func private @invalid_arg_attrs(i32) attributes { arg_attrs = [10] }
 
-// -----
-
-// expected-error@+1 {{result attribute array `res_attrs` to have the same number of elements as the number of function results}}
+// expected-error@+1 {{result attribute array to have the same number of elements as the number of function results}}
 func.func private @invalid_res_attrs() attributes { res_attrs = [{}] }
-
-// -----
-
-// expected-error@+1 {{expects result attribute dictionary to be a DictionaryAttr, but got `10 : i64`}}
-func.func private @invalid_res_attrs() -> i32 attributes { res_attrs = [10] }

@@ -7,7 +7,7 @@
 ; - %cond.false.on.first.iter is false on 1st iteration;
 ; - %cond.false.on.second.iter is false on 2nd iteration;
 ; - Therefore, their AND is false on first two iterations, and the backedge is taken twice.
-;  'max backedge-taken count is 1' is a bug caused by wrong treatment of AND
+;  'constant max backedge-taken count is 1' is a bug caused by wrong treatment of AND
 ;  condition in the computation logic. It should be 2.
 define void @test_and(i1 %boolcond) {
 ; CHECK-LABEL: 'test_and'
@@ -22,10 +22,12 @@ define void @test_and(i1 %boolcond) {
 ; CHECK-NEXT:    --> {1,+,1}<nuw><nsw><%loop> U: [1,4) S: [1,4) Exits: <<Unknown>> LoopDispositions: { %loop: Computable }
 ; CHECK-NEXT:  Determining loop execution counts for: @test_and
 ; CHECK-NEXT:  Loop %loop: <multiple exits> Unpredictable backedge-taken count.
-; CHECK-NEXT:    exit count for loop: 2
+; CHECK-NEXT:    exit count for loop: i32 2
 ; CHECK-NEXT:    exit count for backedge: ***COULDNOTCOMPUTE***
-; CHECK-NEXT:  Loop %loop: max backedge-taken count is 2
-; CHECK-NEXT:  Loop %loop: Unpredictable predicated backedge-taken count.
+; CHECK-NEXT:  Loop %loop: constant max backedge-taken count is i32 2
+; CHECK-NEXT:  Loop %loop: symbolic max backedge-taken count is i32 2
+; CHECK-NEXT:    symbolic max exit count for loop: i32 2
+; CHECK-NEXT:    symbolic max exit count for backedge: ***COULDNOTCOMPUTE***
 ;
 entry:
   %conv = zext i1 %boolcond to i32
@@ -54,7 +56,7 @@ for.end:
 ; - %cond.true.on.first.iter is true on 1st iteration;
 ; - %cond.true.on.second.iter is true on 2nd iteration;
 ; - Therefore, their OR is true on first two iterations, and the backedge is taken twice.
-;  'max backedge-taken count is 1' is a bug caused by wrong treatment of OR
+;  'constant max backedge-taken count is 1' is a bug caused by wrong treatment of OR
 ;  condition in the computation logic. It should be 2.
 define void @test_or(i1 %boolcond) {
 ; CHECK-LABEL: 'test_or'
@@ -69,10 +71,12 @@ define void @test_or(i1 %boolcond) {
 ; CHECK-NEXT:    --> {1,+,1}<nuw><nsw><%loop> U: [1,4) S: [1,4) Exits: <<Unknown>> LoopDispositions: { %loop: Computable }
 ; CHECK-NEXT:  Determining loop execution counts for: @test_or
 ; CHECK-NEXT:  Loop %loop: <multiple exits> Unpredictable backedge-taken count.
-; CHECK-NEXT:    exit count for loop: 2
+; CHECK-NEXT:    exit count for loop: i32 2
 ; CHECK-NEXT:    exit count for backedge: ***COULDNOTCOMPUTE***
-; CHECK-NEXT:  Loop %loop: max backedge-taken count is 2
-; CHECK-NEXT:  Loop %loop: Unpredictable predicated backedge-taken count.
+; CHECK-NEXT:  Loop %loop: constant max backedge-taken count is i32 2
+; CHECK-NEXT:  Loop %loop: symbolic max backedge-taken count is i32 2
+; CHECK-NEXT:    symbolic max exit count for loop: i32 2
+; CHECK-NEXT:    symbolic max exit count for backedge: ***COULDNOTCOMPUTE***
 ;
 entry:
   %conv = zext i1 %boolcond to i32

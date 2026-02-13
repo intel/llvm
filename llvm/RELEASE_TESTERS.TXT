@@ -1,7 +1,7 @@
 This file is a list of the people responsible for ensuring that targets and
 environments get tested and validated during the release process.
 
-They will also, in conjunction with the release manager and the code owners,
+They will also, in conjunction with the release manager and the maintainers,
 accept patches into stable release branches, tag critical bugs and release
 stoppers as well as make sure that no regressions were observed on their
 targets since the last release.
@@ -41,7 +41,7 @@ E: hans@chromium.org
 T: x86
 O: Windows
 
-N: Diana Picus, Yvan Roux
-E: diana.picus@linaro.org, yvan.roux@linaro.org
+N: Linaro Toolchain Working Group
+E: linaro-toolchain@lists.linaro.org
 T: ARM, AArch64
-O: Linux
+O: Linux, Windows (AArch64 only)

@@ -11,7 +11,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Threading.h"
 
-#include <chrono>
+#include <optional>
 
 using namespace mlir;
 using namespace mlir::detail;
@@ -34,9 +34,6 @@ struct PassTiming : public PassInstrumentation {
   /// parent thread into which the new thread should be nested.
   DenseMap<PipelineParentInfo, unsigned> parentTimerIndices;
 
-  /// A stack of the currently active timing scopes per thread.
-  DenseMap<uint64_t, SmallVector<TimingScope, 4>> activeThreadTimers;
-
   /// The timing manager owned by this instrumentation (in case timing was
   /// enabled by the user on the pass manager without providing an external
   /// timing manager). This *must* appear before the `ownedTimingScope` to
@@ -45,6 +42,9 @@ struct PassTiming : public PassInstrumentation {
   std::unique_ptr<TimingManager> ownedTimingManager;
   TimingScope ownedTimingScope;
 
+  /// A stack of the currently active timing scopes per thread.
+  DenseMap<uint64_t, SmallVector<TimingScope, 4>> activeThreadTimers;
+
   /// The root timing scope into which timing is reported.
   TimingScope &rootScope;
 
@@ -52,7 +52,7 @@ struct PassTiming : public PassInstrumentation {
   // Pipeline
   //===--------------------------------------------------------------------===//
 
-  void runBeforePipeline(Optional<OperationName> name,
+  void runBeforePipeline(std::optional<OperationName> name,
                          const PipelineParentInfo &parentInfo) override {
     auto tid = llvm::get_threadid();
     auto &activeTimers = activeThreadTimers[tid];
@@ -74,7 +74,7 @@ struct PassTiming : public PassInstrumentation {
     }));
   }
 
-  void runAfterPipeline(Optional<OperationName>,
+  void runAfterPipeline(std::optional<OperationName>,
                         const PipelineParentInfo &) override {
     auto &activeTimers = activeThreadTimers[llvm::get_threadid()];
     assert(!activeTimers.empty() && "expected active timer");

@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Conversion/ConvertToLLVM/ToLLVMInterface.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Transforms/InliningUtils.h"
 
@@ -21,8 +22,7 @@ struct MathInlinerInterface : public DialectInlinerInterface {
   using DialectInlinerInterface::DialectInlinerInterface;
 
   /// All operations within math ops can be inlined.
-  bool isLegalToInline(Operation *, Region *, bool,
-                       BlockAndValueMapping &) const final {
+  bool isLegalToInline(Operation *, Region *, bool, IRMapping &) const final {
     return true;
   }
 };
@@ -34,4 +34,5 @@ void mlir::math::MathDialect::initialize() {
 #include "mlir/Dialect/Math/IR/MathOps.cpp.inc"
       >();
   addInterfaces<MathInlinerInterface>();
+  declarePromisedInterface<ConvertToLLVMPatternInterface, MathDialect>();
 }

@@ -5,9 +5,9 @@
 // RUN: not llvm-mc -triple=aarch64 -show-encoding < %s 2>&1 \
 // RUN:        | FileCheck %s --check-prefix=CHECK-ERROR
 // RUN: llvm-mc -triple=aarch64 -filetype=obj -mattr=+sve < %s \
-// RUN:        | llvm-objdump -d --mattr=+sve - | FileCheck %s --check-prefix=CHECK-INST
+// RUN:        | llvm-objdump --no-print-imm-hex -d --mattr=+sve - | FileCheck %s --check-prefix=CHECK-INST
 // RUN: llvm-mc -triple=aarch64 -filetype=obj -mattr=+sve < %s \
-// RUN:   | llvm-objdump -d --mattr=-sve - | FileCheck %s --check-prefix=CHECK-UNKNOWN
+// RUN:   | llvm-objdump --no-print-imm-hex -d --mattr=-sve - | FileCheck %s --check-prefix=CHECK-UNKNOWN
 
 // --------------------------------------------------------------------------//
 // Index (immediate, immediate)
@@ -180,16 +180,16 @@ index   z21.b, w10, w21
 // CHECK-UNKNOWN: 04354d55 <unknown>
 
 index   z31.h, wzr, wzr
-// check-inst: index   z31.h, wzr, wzr
-// check-encoding: [0xff,0x4f,0x7f,0x04]
-// check-error: instruction requires: sve or sme
-// check-unknown: ff 4f 7f 04 <unknown>
+// CHECK-INST: index   z31.h, wzr, wzr
+// CHECK-ENCODING: [0xff,0x4f,0x7f,0x04]
+// CHECK-ERROR: instruction requires: sve or sme
+// CHECK-UNKNOWN: 047f4fff <unknown>
 
 index   z0.h, w0, w0
-// check-inst: index   z0.h, w0, w0
-// check-encoding: [0x00,0x4c,0x60,0x04]
-// check-error: instruction requires: sve or sme
-// check-unknown: 00 4c 60 04 <unknown>
+// CHECK-INST: index   z0.h, w0, w0
+// CHECK-ENCODING: [0x00,0x4c,0x60,0x04]
+// CHECK-ERROR: instruction requires: sve or sme
+// CHECK-UNKNOWN: 04604c00 <unknown>
 
 index   z31.s, wzr, wzr
 // CHECK-INST: index   z31.s, wzr, wzr

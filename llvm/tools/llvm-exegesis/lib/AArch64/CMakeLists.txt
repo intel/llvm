@@ -5,8 +5,11 @@ include_directories(
 
 set(LLVM_LINK_COMPONENTS
   AArch64
-  Exegesis
+  CodeGen
+  CodeGenTypes
   Core
+  Exegesis
+  MC
   Support
   )
 

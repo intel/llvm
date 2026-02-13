@@ -1,12 +1,13 @@
+// RUN: %clang++ -std=gnu++11 -O2 -g %s -o %t
 // RUN: %dexter --fail-lt 1.0 -w \
-// RUN:     --builder 'clang' --debugger 'lldb' \
-// RUN:     --cflags "-O2 -g" -- %s
+// RUN:     --binary %t %dexter_lldb_args -- %s
+// RUN: %clang++ -std=gnu++11 -O0 -g %s -o %t
 // RUN: %dexter --fail-lt 1.0 -w \
-// RUN:     --builder 'clang' --debugger 'lldb' \
-// RUN:     --cflags "-O0 -g" -- %s
+// RUN:     --binary %t %dexter_lldb_args -- %s
 
-// REQUIRES: lldb
-// UNSUPPORTED: system-windows
+// REQUIRES: lldb, D136396
+// Currently getting intermittent failures on darwin.
+// UNSUPPORTED: system-windows, system-darwin
 
 //// Check that the debugging experience with __attribute__((optnone)) at O2
 //// matches O0. Test simple functions performing simple arithmetic
@@ -90,6 +91,7 @@ int test5(int test5_val) {
 // DexExpectWatchValue('test5_val', 7, from_line=ref('test5_start'), to_line=ref('test5_end'))
 // DexExpectWatchValue('c', 1, 5, from_line=ref('test5_start'), to_line=ref('test5_end'))
 
+__attribute__((optnone))
 int main() {
   int main_result = 0;
   // DexLabel('main_start')

@@ -1,4 +1,4 @@
-; RUN: llc < %s -mtriple=amdgcn--amdpal -mcpu=gfx900 -verify-machineinstrs | FileCheck %s
+; RUN: llc < %s -mtriple=amdgcn--amdpal -mcpu=gfx900 | FileCheck %s
 
 ; Check that the redundant immediate MOV instruction
 ; (by-product of handling phi nodes) is not found
@@ -21,8 +21,8 @@ bb3:                                              ; preds = %bb
   br i1 %tmp4, label %bb5, label %bb10
 
 bb5:                                              ; preds = %bb3
-  %tmp6 = getelementptr <{ [4294967295 x i32] }>, <{ [4294967295 x i32] }> addrspace(6)* null, i32 0, i32 0, i32 %arg
-  %tmp7 = load i32, i32 addrspace(6)* %tmp6
+  %tmp6 = getelementptr <{ [4294967295 x i32] }>, ptr addrspace(6) null, i32 0, i32 0, i32 %arg
+  %tmp7 = load i32, ptr addrspace(6) %tmp6
   %tmp8 = icmp eq i32 %tmp7, 1
   br i1 %tmp8, label %bb10, label %bb9
 
@@ -30,8 +30,8 @@ bb9:                                              ; preds = %bb5
   br label %bb10
 
 bb10:                                             ; preds = %bb9, %bb5, %bb3, %bb
-  %tmp11 = phi float [ 1.000000e+00, %bb3 ], [ 0.000000e+00, %bb9 ], [ 1.000000e+00, %bb ], [ undef, %bb5 ]
-  call void @llvm.amdgcn.exp.f32(i32 immarg 40, i32 immarg 15, float %tmp11, float undef, float undef, float undef, i1 immarg false, i1 immarg false) #0
+  %tmp11 = phi float [ 1.000000e+00, %bb3 ], [ 0.000000e+00, %bb9 ], [ 1.000000e+00, %bb ], [ poison, %bb5 ]
+  call void @llvm.amdgcn.exp.f32(i32 40, i32 15, float %tmp11, float poison, float poison, float poison, i1 false, i1 false) #0
   ret void
 }
 

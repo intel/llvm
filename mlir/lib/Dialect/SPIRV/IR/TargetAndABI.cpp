@@ -7,11 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/SPIRV/IR/TargetAndABI.h"
-#include "mlir/Dialect/SPIRV/IR/SPIRVTypes.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVEnums.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/FunctionInterfaces.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/SymbolTable.h"
+#include "mlir/Interfaces/FunctionInterfaces.h"
+#include <optional>
 
 using namespace mlir;
 
@@ -21,20 +22,17 @@ using namespace mlir;
 
 spirv::TargetEnv::TargetEnv(spirv::TargetEnvAttr targetAttr)
     : targetAttr(targetAttr) {
-  for (spirv::Extension ext : targetAttr.getExtensions())
-    givenExtensions.insert(ext);
+  givenExtensions.insert_range(targetAttr.getExtensions());
 
   // Add extensions implied by the current version.
-  for (spirv::Extension ext :
-       spirv::getImpliedExtensions(targetAttr.getVersion()))
-    givenExtensions.insert(ext);
+  givenExtensions.insert_range(
+      spirv::getImpliedExtensions(targetAttr.getVersion()));
 
   for (spirv::Capability cap : targetAttr.getCapabilities()) {
     givenCapabilities.insert(cap);
 
     // Add capabilities implied by the current capability.
-    for (spirv::Capability c : spirv::getRecursiveImpliedCapabilities(cap))
-      givenCapabilities.insert(c);
+    givenCapabilities.insert_range(spirv::getRecursiveImpliedCapabilities(cap));
   }
 }
 
@@ -46,28 +44,28 @@ bool spirv::TargetEnv::allows(spirv::Capability capability) const {
   return givenCapabilities.count(capability);
 }
 
-Optional<spirv::Capability>
+std::optional<spirv::Capability>
 spirv::TargetEnv::allows(ArrayRef<spirv::Capability> caps) const {
   const auto *chosen = llvm::find_if(caps, [this](spirv::Capability cap) {
     return givenCapabilities.count(cap);
   });
   if (chosen != caps.end())
     return *chosen;
-  return llvm::None;
+  return std::nullopt;
 }
 
 bool spirv::TargetEnv::allows(spirv::Extension extension) const {
   return givenExtensions.count(extension);
 }
 
-Optional<spirv::Extension>
+std::optional<spirv::Extension>
 spirv::TargetEnv::allows(ArrayRef<spirv::Extension> exts) const {
   const auto *chosen = llvm::find_if(exts, [this](spirv::Extension ext) {
     return givenExtensions.count(ext);
   });
   if (chosen != exts.end())
     return *chosen;
-  return llvm::None;
+  return std::nullopt;
 }
 
 spirv::Vendor spirv::TargetEnv::getVendorID() const {
@@ -100,7 +98,7 @@ StringRef spirv::getInterfaceVarABIAttrName() {
 
 spirv::InterfaceVarABIAttr
 spirv::getInterfaceVarABIAttr(unsigned descriptorSet, unsigned binding,
-                              Optional<spirv::StorageClass> storageClass,
+                              std::optional<spirv::StorageClass> storageClass,
                               MLIRContext *context) {
   return spirv::InterfaceVarABIAttr::get(descriptorSet, binding, storageClass,
                                          context);
@@ -118,16 +116,16 @@ bool spirv::needsInterfaceVarABIAttrs(spirv::TargetEnvAttr targetAttr) {
 
 StringRef spirv::getEntryPointABIAttrName() { return "spirv.entry_point_abi"; }
 
-spirv::EntryPointABIAttr
-spirv::getEntryPointABIAttr(ArrayRef<int32_t> localSize, MLIRContext *context) {
-  if (localSize.empty())
-    return spirv::EntryPointABIAttr::get(context, nullptr);
-
-  assert(localSize.size() == 3);
-  return spirv::EntryPointABIAttr::get(
-      context, DenseElementsAttr::get<int32_t>(
-                   VectorType::get(3, IntegerType::get(context, 32)), localSize)
-                   .cast<DenseIntElementsAttr>());
+spirv::EntryPointABIAttr spirv::getEntryPointABIAttr(
+    MLIRContext *context, ArrayRef<int32_t> workgroupSize,
+    std::optional<int> subgroupSize, std::optional<int> targetWidth) {
+  DenseI32ArrayAttr workgroupSizeAttr;
+  if (!workgroupSize.empty()) {
+    assert(workgroupSize.size() == 3);
+    workgroupSizeAttr = DenseI32ArrayAttr::get(context, workgroupSize);
+  }
+  return spirv::EntryPointABIAttr::get(context, workgroupSizeAttr, subgroupSize,
+                                       targetWidth);
 }
 
 spirv::EntryPointABIAttr spirv::lookupEntryPointABI(Operation *op) {
@@ -143,9 +141,9 @@ spirv::EntryPointABIAttr spirv::lookupEntryPointABI(Operation *op) {
   return {};
 }
 
-DenseIntElementsAttr spirv::lookupLocalWorkGroupSize(Operation *op) {
+DenseI32ArrayAttr spirv::lookupLocalWorkGroupSize(Operation *op) {
   if (auto entryPoint = spirv::lookupEntryPointABI(op))
-    return entryPoint.getLocalSize();
+    return entryPoint.getWorkgroupSize();
 
   return {};
 }
@@ -161,7 +159,10 @@ spirv::getDefaultResourceLimits(MLIRContext *context) {
       /*max_compute_workgroup_invocations=*/128,
       /*max_compute_workgroup_size=*/b.getI32ArrayAttr({128, 128, 64}),
       /*subgroup_size=*/32,
-      /*cooperative_matrix_properties_nv=*/ArrayAttr());
+      /*min_subgroup_size=*/std::nullopt,
+      /*max_subgroup_size=*/std::nullopt,
+      /*cooperative_matrix_properties_khr=*/ArrayAttr{},
+      /*cooperative_matrix_properties_nv=*/ArrayAttr{});
 }
 
 StringRef spirv::getTargetEnvAttrName() { return "spirv.target_env"; }
@@ -170,10 +171,10 @@ spirv::TargetEnvAttr spirv::getDefaultTargetEnv(MLIRContext *context) {
   auto triple = spirv::VerCapExtAttr::get(spirv::Version::V_1_0,
                                           {spirv::Capability::Shader},
                                           ArrayRef<Extension>(), context);
-  return spirv::TargetEnvAttr::get(triple, spirv::Vendor::Unknown,
-                                   spirv::DeviceType::Unknown,
-                                   spirv::TargetEnvAttr::kUnknownDeviceID,
-                                   spirv::getDefaultResourceLimits(context));
+  return spirv::TargetEnvAttr::get(
+      triple, spirv::getDefaultResourceLimits(context),
+      spirv::ClientAPI::Unknown, spirv::Vendor::Unknown,
+      spirv::DeviceType::Unknown, spirv::TargetEnvAttr::kUnknownDeviceID);
 }
 
 spirv::TargetEnvAttr spirv::lookupTargetEnv(Operation *op) {
@@ -200,12 +201,12 @@ spirv::TargetEnvAttr spirv::lookupTargetEnvOrDefault(Operation *op) {
 }
 
 spirv::AddressingModel
-spirv::getAddressingModel(spirv::TargetEnvAttr targetAttr) {
+spirv::getAddressingModel(spirv::TargetEnvAttr targetAttr,
+                          bool use64bitAddress) {
   for (spirv::Capability cap : targetAttr.getCapabilities()) {
-    // TODO: Physical64 is hard-coded here, but some information should come
-    // from TargetEnvAttr to selected between Physical32 and Physical64.
     if (cap == Capability::Kernel)
-      return spirv::AddressingModel::Physical64;
+      return use64bitAddress ? spirv::AddressingModel::Physical64
+                             : spirv::AddressingModel::Physical32;
     // TODO PhysicalStorageBuffer64 is hard-coded here, but some information
     // should come from TargetEnvAttr to select between PhysicalStorageBuffer64
     // and PhysicalStorageBuffer64EXT
@@ -230,7 +231,7 @@ spirv::getExecutionModel(spirv::TargetEnvAttr targetAttr) {
 FailureOr<spirv::MemoryModel>
 spirv::getMemoryModel(spirv::TargetEnvAttr targetAttr) {
   for (spirv::Capability cap : targetAttr.getCapabilities()) {
-    if (cap == spirv::Capability::Addresses)
+    if (cap == spirv::Capability::Kernel)
       return spirv::MemoryModel::OpenCL;
     if (cap == spirv::Capability::Shader)
       return spirv::MemoryModel::GLSL450;

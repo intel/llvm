@@ -1,4 +1,4 @@
-; RUN: opt %loadPolly -S -polly-codegen < %s | FileCheck %s
+; RUN: opt %loadNPMPolly -S '-passes=polly<no-default-opts>' < %s | FileCheck %s
 ;
 ; This test case has a inner SCEV sdiv that will escape the SCoP. Just check we
 ; do not crash and generate valid code.
@@ -7,9 +7,9 @@
 ;
 target triple = "x86_64-unknown-linux-gnu"
 
-define i64 @_vorbis_apply_window(float* %d, i64 %param) {
+define i64 @_vorbis_apply_window(ptr %d, i64 %param) {
 entry:
-  %0 = load float*, float** undef, align 8
+  %0 = load ptr, ptr undef, align 8
   %div23.neg = sdiv i64 0, -4
   %sub24 = add i64 0, %div23.neg
   br label %for.cond.30.preheader
@@ -36,11 +36,10 @@ end:
   ret i64 %div44.m
 
 for.body.51:                                      ; preds = %for.body.51, %for.body.51.lr.ph
-  %indvars.iv86 = phi i64 [ %2, %for.body.51.lr.ph ], [ undef, %for.body.51 ]
-  %arrayidx53 = getelementptr inbounds float, float* %0, i64 %indvars.iv86
-  %3 = load float, float* %arrayidx53, align 4
-  %arrayidx55 = getelementptr inbounds float, float* %d, i64 0
+  %indvars.iv86 = phi i64 [ %2, %for.body.51.lr.ph ], [ poison, %for.body.51 ]
+  %arrayidx53 = getelementptr inbounds float, ptr %0, i64 %indvars.iv86
+  %3 = load float, ptr %arrayidx53, align 4
   %mul56 = fmul float %3, undef
-  store float %mul56, float* %arrayidx55, align 4
+  store float %mul56, ptr %d, align 4
   br i1 false, label %for.body.51, label %for.cond.60.preheader
 }

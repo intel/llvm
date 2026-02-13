@@ -1,8 +1,8 @@
 // REQUIRES: arm
 // RUN: llvm-mc -filetype=obj -triple=thumbv7-windows %s -o %t.obj
 // RUN: lld-link -entry:main -subsystem:console %t.obj -out:%t.exe -verbose 2>&1 | FileCheck -check-prefix=VERBOSE %s
-// RUN: llvm-objdump -d %t.exe --start-address=0x403000 --stop-address=0x403008 | FileCheck --check-prefix=FUNC01 %s
-// RUN: llvm-objdump -d %t.exe --start-address=0x404ffa --stop-address=0x405012 | FileCheck --check-prefix=FUNC01-THUNKS %s
+// RUN: llvm-objdump --no-print-imm-hex -d %t.exe --start-address=0x403000 --stop-address=0x403008 | FileCheck --check-prefix=FUNC01 %s
+// RUN: llvm-objdump --no-print-imm-hex -d %t.exe --start-address=0x404ffa --stop-address=0x405012 | FileCheck --check-prefix=FUNC01-THUNKS %s
 
 // VERBOSE: Added {{.*}} thunks with margin 204800 in 2 passes
 
@@ -67,4 +67,4 @@ far_func\i:
 // FUNC01-THUNKS: 40500a:       f2c0 0c10       movt    r12, #16
 // FUNC01-THUNKS: 40500e:       44e7            add     pc, r12
 // The instruction below is padding from the .balign
-// FUNC01-THUNKS: 405010:       cccc            ldm     r4!, {r2, r3, r6, r7}
+// FUNC01-THUNKS: 405010:       0000            movs    r0, r0

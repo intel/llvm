@@ -8,7 +8,7 @@
 //   be one of:
 //   -- an integral constant expression; or
 //   -- the name of a non-type template-parameter ; or
-#ifndef CPP11ONLY 
+#ifndef CPP11ONLY
 
 namespace non_type_tmpl_param {
   template <int N> struct X0 { X0(); };
@@ -31,15 +31,18 @@ namespace non_type_tmpl_param {
 //      omitted if the name refers to a function or array and shall be omitted
 //      if the corresopnding template-parameter is a reference; or
 namespace addr_of_obj_or_func {
-  template <int* p> struct X0 { }; // precxx17-note 5{{here}}
+  template <int* p> struct X0 { }; // expected-note 5{{here}}
 #if __cplusplus >= 201103L
   // precxx17-note@-2 2{{template parameter is declared here}}
 #endif
 
-  template <int (*fp)(int)> struct X1 { };
-  template <int &p> struct X2 { }; // precxx17-note 4{{here}}
-  template <const int &p> struct X2k { }; // precxx17-note {{here}}
-  template <int (&fp)(int)> struct X3 { }; // precxx17-note 4{{here}}
+  template <int (*fp)(int)> struct X1 { }; // cxx17-note {{here}}
+#if __cplusplus <= 199711L
+  // precxx17-note@-2 {{here}}
+#endif
+  template <int &p> struct X2 { }; // expected-note 4{{here}}
+  template <const int &p> struct X2k { }; // expected-note {{here}}
+  template <int (&fp)(int)> struct X3 { }; // expected-note 4{{here}}
 
   int i = 42;
 #if __cplusplus >= 201103L
@@ -166,7 +169,7 @@ namespace addr_of_obj_or_func {
 
     struct Local { static int f() {} }; // precxx17-note {{here}}
     X1<&Local::f> x1_no_linkage; // precxx17-error {{non-type template argument refers to function 'f' that does not have linkage}} cxx17-error {{value of type 'int (*)()' is not implicitly convertible to 'int (*)(int)'}}
-    X0<&S::NonStaticMember> x0_non_static; // precxx17-error {{non-static data member}} cxx17-error {{value of type 'int addr_of_obj_or_func::S::*' is not implicitly convertible to 'int *'}}
+    X0<&S::NonStaticMember> x0_non_static; // precxx17-error {{non-static data member}} cxx17-error {{value of type 'int S::*' is not implicitly convertible to 'int *'}}
   }
 }
 
@@ -176,7 +179,7 @@ namespace addr_of_obj_or_func {
 //   -- a pointer to member expressed as described in 5.3.1.
 
 namespace bad_args {
-  template <int* N> struct X0 { }; // precxx17-note 2{{template parameter is declared here}}
+  template <int* N> struct X0 { }; // precxx17-note 4{{template parameter is declared here}}
   int i = 42;
   X0<&i + 2> x0a; // precxx17-error{{non-type template argument does not refer to any declaration}} \
                      cxx17-error {{non-type template argument is not a constant expression}} \
@@ -193,6 +196,15 @@ namespace bad_args {
   // precxx17-error@-4 {{non-type template argument of type 'int *' is not a constant expression}}
   // cxx17-error@-5 {{non-type template argument is not a constant expression}}
   // expected-note@-6 {{read of non-constexpr variable 'iptr' is not allowed in a constant expression}}
+#endif
+  X0<(int*)1> x0c;
+  // precxx17-error@-1 {{non-type template argument '(int *)1' is invalid}}
+  // cxx17-error@-2 {{non-type template argument is not a constant expression}}
+  // cxx17-note@-3 {{reinterpret_cast}}
+  X0<__builtin_constant_p(0) ? (int*)1 : (int*)1> x0d;
+  // precxx17-error@-1 {{non-type template argument '(int *)1' is invalid}}
+#if __cplusplus == 201703L
+  // cxx17-error@-3 {{non-type template argument refers to subobject '(int *)1'}}
 #endif
 }
 #endif // CPP11ONLY

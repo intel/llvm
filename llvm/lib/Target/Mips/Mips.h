@@ -17,40 +17,53 @@
 #include "MCTargetDesc/MipsMCTargetDesc.h"
 #include "llvm/Target/TargetMachine.h"
 
+#define IsMFLOMFHI(instr)                                                      \
+  (instr == Mips::MFLO || instr == Mips::MFLO64 || instr == Mips::MFHI ||      \
+   instr == Mips::MFHI64)
+#define IsDIVMULT(instr)                                                       \
+  (instr == Mips::SDIV || instr == Mips::PseudoSDIV || instr == Mips::DSDIV || \
+   instr == Mips::PseudoDSDIV || instr == Mips::UDIV ||                        \
+   instr == Mips::PseudoUDIV || instr == Mips::DUDIV ||                        \
+   instr == Mips::PseudoDUDIV || instr == Mips::MULT ||                        \
+   instr == Mips::PseudoMULT || instr == Mips::DMULT ||                        \
+   instr == Mips::PseudoDMULT)
+
 namespace llvm {
-  class MipsTargetMachine;
-  class ModulePass;
-  class FunctionPass;
-  class MipsRegisterBankInfo;
-  class MipsSubtarget;
-  class MipsTargetMachine;
-  class InstructionSelector;
-  class PassRegistry;
+class FunctionPass;
+class InstructionSelector;
+class MipsRegisterBankInfo;
+class MipsSubtarget;
+class MipsTargetMachine;
+class MipsTargetMachine;
+class ModulePass;
+class PassRegistry;
 
-  ModulePass *createMipsOs16Pass();
-  ModulePass *createMips16HardFloatPass();
+ModulePass *createMipsOs16Pass();
+ModulePass *createMips16HardFloatPass();
 
-  FunctionPass *createMipsModuleISelDagPass();
-  FunctionPass *createMipsOptimizePICCallPass();
-  FunctionPass *createMipsDelaySlotFillerPass();
-  FunctionPass *createMipsBranchExpansion();
-  FunctionPass *createMipsConstantIslandPass();
-  FunctionPass *createMicroMipsSizeReducePass();
-  FunctionPass *createMipsExpandPseudoPass();
-  FunctionPass *createMipsPreLegalizeCombiner();
-  FunctionPass *createMipsPostLegalizeCombiner(bool IsOptNone);
-  FunctionPass *createMipsMulMulBugPass();
+FunctionPass *createMipsModuleISelDagPass();
+FunctionPass *createMipsOptimizePICCallPass();
+FunctionPass *createMipsDelaySlotFillerPass();
+FunctionPass *createMipsBranchExpansion();
+FunctionPass *createMipsConstantIslandPass();
+FunctionPass *createMicroMipsSizeReducePass();
+FunctionPass *createMipsExpandPseudoPass();
+FunctionPass *createMipsPreLegalizeCombiner();
+FunctionPass *createMipsPostLegalizeCombiner(bool IsOptNone);
+FunctionPass *createMipsMulMulBugPass();
 
-  InstructionSelector *createMipsInstructionSelector(const MipsTargetMachine &,
-                                                     MipsSubtarget &,
-                                                     MipsRegisterBankInfo &);
+InstructionSelector *
+createMipsInstructionSelector(const MipsTargetMachine &, const MipsSubtarget &,
+                              const MipsRegisterBankInfo &);
 
-  void initializeMipsDelaySlotFillerPass(PassRegistry &);
-  void initializeMipsBranchExpansionPass(PassRegistry &);
-  void initializeMicroMipsSizeReducePass(PassRegistry &);
-  void initializeMipsPreLegalizerCombinerPass(PassRegistry&);
-  void initializeMipsPostLegalizerCombinerPass(PassRegistry &);
-  void initializeMipsMulMulBugFixPass(PassRegistry&);
-} // end namespace llvm;
+void initializeMicroMipsSizeReducePass(PassRegistry &);
+void initializeMipsAsmPrinterPass(PassRegistry &);
+void initializeMipsBranchExpansionPass(PassRegistry &);
+void initializeMipsDAGToDAGISelLegacyPass(PassRegistry &);
+void initializeMipsDelaySlotFillerPass(PassRegistry &);
+void initializeMipsMulMulBugFixPass(PassRegistry &);
+void initializeMipsPostLegalizerCombinerPass(PassRegistry &);
+void initializeMipsPreLegalizerCombinerPass(PassRegistry &);
+} // namespace llvm
 
 #endif

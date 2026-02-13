@@ -1,4 +1,4 @@
-  ! RUN: bbc -emit-fir %s -o - | FileCheck %s
+  ! RUN: bbc -emit-fir -hlfir=false %s -o - | FileCheck %s
 
   ! CHECK-LABEL: func @_QQmain() {
   ! CHECK:         %[[VAL_0:.*]] = fir.address_of(@_QFEa) : !fir.ref<!fir.array<10xf32>>
@@ -17,7 +17,7 @@
   ! CHECK:         %[[VAL_14:.*]] = arith.subi %[[VAL_5]], %[[VAL_12]] : index
   ! CHECK:         %[[VAL_15:.*]] = fir.do_loop %[[VAL_16:.*]] = %[[VAL_13]] to %[[VAL_14]] step %[[VAL_12]] unordered iter_args(%[[VAL_17:.*]] = %[[VAL_11]]) -> (!fir.array<10x!fir.logical<4>>) {
   ! CHECK:           %[[VAL_18:.*]] = fir.array_fetch %[[VAL_7]], %[[VAL_16]] : (!fir.array<10xf32>, index) -> f32
-  ! CHECK:           %[[VAL_19:.*]] = arith.cmpf ogt, %[[VAL_18]], %[[VAL_8]] : f32
+  ! CHECK:           %[[VAL_19:.*]] = arith.cmpf ogt, %[[VAL_18]], %[[VAL_8]] {{.*}} : f32
   ! CHECK:           %[[VAL_20:.*]] = fir.convert %[[VAL_19]] : (i1) -> !fir.logical<4>
   ! CHECK:           %[[VAL_21:.*]] = fir.array_update %[[VAL_17]], %[[VAL_20]], %[[VAL_16]] : (!fir.array<10x!fir.logical<4>>, !fir.logical<4>, index) -> !fir.array<10x!fir.logical<4>>
   ! CHECK:           fir.result %[[VAL_21]] : !fir.array<10x!fir.logical<4>>
@@ -39,7 +39,7 @@
   ! CHECK:           %[[VAL_38:.*]] = fir.convert %[[VAL_37]] : (!fir.logical<4>) -> i1
   ! CHECK:           %[[VAL_39:.*]] = fir.if %[[VAL_38]] -> (!fir.array<10xf32>) {
   ! CHECK:             %[[VAL_40:.*]] = fir.array_fetch %[[VAL_27]], %[[VAL_32]] : (!fir.array<10xf32>, index) -> f32
-  ! CHECK:             %[[VAL_41:.*]] = arith.negf %[[VAL_40]] : f32
+  ! CHECK:             %[[VAL_41:.*]] = arith.negf %[[VAL_40]] {{.*}}: f32
   ! CHECK:             %[[VAL_42:.*]] = fir.array_update %[[VAL_33]], %[[VAL_41]], %[[VAL_32]] : (!fir.array<10xf32>, f32, index) -> !fir.array<10xf32>
   ! CHECK:             fir.result %[[VAL_42]] : !fir.array<10xf32>
   ! CHECK:           } else {
@@ -61,7 +61,7 @@
   ! CHECK:         %[[VAL_55:.*]] = arith.subi %[[VAL_46]], %[[VAL_53]] : index
   ! CHECK:         %[[VAL_56:.*]] = fir.do_loop %[[VAL_57:.*]] = %[[VAL_54]] to %[[VAL_55]] step %[[VAL_53]] unordered iter_args(%[[VAL_58:.*]] = %[[VAL_52]]) -> (!fir.array<10x!fir.logical<4>>) {
   ! CHECK:           %[[VAL_59:.*]] = fir.array_fetch %[[VAL_48]], %[[VAL_57]] : (!fir.array<10xf32>, index) -> f32
-  ! CHECK:           %[[VAL_60:.*]] = arith.cmpf ogt, %[[VAL_59]], %[[VAL_49]] : f32
+  ! CHECK:           %[[VAL_60:.*]] = arith.cmpf ogt, %[[VAL_59]], %[[VAL_49]] {{.*}} : f32
   ! CHECK:           %[[VAL_61:.*]] = fir.convert %[[VAL_60]] : (i1) -> !fir.logical<4>
   ! CHECK:           %[[VAL_62:.*]] = fir.array_update %[[VAL_58]], %[[VAL_61]], %[[VAL_57]] : (!fir.array<10x!fir.logical<4>>, !fir.logical<4>, index) -> !fir.array<10x!fir.logical<4>>
   ! CHECK:           fir.result %[[VAL_62]] : !fir.array<10x!fir.logical<4>>
@@ -84,7 +84,7 @@
   ! CHECK:           %[[VAL_80:.*]] = fir.convert %[[VAL_79]] : (!fir.logical<4>) -> i1
   ! CHECK:           %[[VAL_81:.*]] = fir.if %[[VAL_80]] -> (!fir.array<10xf32>) {
   ! CHECK:             %[[VAL_82:.*]] = fir.array_fetch %[[VAL_69]], %[[VAL_74]] : (!fir.array<10xf32>, index) -> f32
-  ! CHECK:             %[[VAL_83:.*]] = arith.mulf %[[VAL_67]], %[[VAL_82]] : f32
+  ! CHECK:             %[[VAL_83:.*]] = arith.mulf %[[VAL_67]], %[[VAL_82]] {{.*}}: f32
   ! CHECK:             %[[VAL_84:.*]] = fir.array_update %[[VAL_75]], %[[VAL_83]], %[[VAL_74]] : (!fir.array<10xf32>, f32, index) -> !fir.array<10xf32>
   ! CHECK:             fir.result %[[VAL_84]] : !fir.array<10xf32>
   ! CHECK:           } else {
@@ -105,7 +105,7 @@
   ! CHECK:         %[[VAL_97:.*]] = arith.subi %[[VAL_88]], %[[VAL_95]] : index
   ! CHECK:         %[[VAL_98:.*]] = fir.do_loop %[[VAL_99:.*]] = %[[VAL_96]] to %[[VAL_97]] step %[[VAL_95]] unordered iter_args(%[[VAL_100:.*]] = %[[VAL_94]]) -> (!fir.array<10x!fir.logical<4>>) {
   ! CHECK:           %[[VAL_101:.*]] = fir.array_fetch %[[VAL_90]], %[[VAL_99]] : (!fir.array<10xf32>, index) -> f32
-  ! CHECK:           %[[VAL_102:.*]] = arith.cmpf ogt, %[[VAL_101]], %[[VAL_91]] : f32
+  ! CHECK:           %[[VAL_102:.*]] = arith.cmpf ogt, %[[VAL_101]], %[[VAL_91]] {{.*}} : f32
   ! CHECK:           %[[VAL_103:.*]] = fir.convert %[[VAL_102]] : (i1) -> !fir.logical<4>
   ! CHECK:           %[[VAL_104:.*]] = fir.array_update %[[VAL_100]], %[[VAL_103]], %[[VAL_99]] : (!fir.array<10x!fir.logical<4>>, !fir.logical<4>, index) -> !fir.array<10x!fir.logical<4>>
   ! CHECK:           fir.result %[[VAL_104]] : !fir.array<10x!fir.logical<4>>
@@ -136,7 +136,7 @@
   ! CHECK:             %[[VAL_128:.*]] = fir.convert %[[VAL_127]] : (!fir.logical<4>) -> i1
   ! CHECK:             %[[VAL_129:.*]] = fir.if %[[VAL_128]] -> (!fir.array<10xf32>) {
   ! CHECK:               %[[VAL_130:.*]] = fir.array_fetch %[[VAL_111]], %[[VAL_116]] : (!fir.array<10xf32>, index) -> f32
-  ! CHECK:               %[[VAL_131:.*]] = arith.addf %[[VAL_109]], %[[VAL_130]] : f32
+  ! CHECK:               %[[VAL_131:.*]] = arith.addf %[[VAL_109]], %[[VAL_130]] {{.*}}: f32
   ! CHECK:               %[[VAL_132:.*]] = fir.array_update %[[VAL_117]], %[[VAL_131]], %[[VAL_116]] : (!fir.array<10xf32>, f32, index) -> !fir.array<10xf32>
   ! CHECK:               fir.result %[[VAL_132]] : !fir.array<10xf32>
   ! CHECK:             } else {
@@ -171,7 +171,7 @@
   ! CHECK:             %[[VAL_157:.*]] = fir.convert %[[VAL_156]] : (!fir.logical<4>) -> i1
   ! CHECK:             %[[VAL_158:.*]] = fir.if %[[VAL_157]] -> (!fir.array<10xf32>) {
   ! CHECK:               %[[VAL_159:.*]] = fir.array_fetch %[[VAL_139]], %[[VAL_145]] : (!fir.array<10xf32>, index) -> f32
-  ! CHECK:               %[[VAL_160:.*]] = arith.subf %[[VAL_159]], %[[VAL_140]] : f32
+  ! CHECK:               %[[VAL_160:.*]] = arith.subf %[[VAL_159]], %[[VAL_140]] {{.*}}: f32
   ! CHECK:               %[[VAL_161:.*]] = fir.array_update %[[VAL_146]], %[[VAL_160]], %[[VAL_145]] : (!fir.array<10xf32>, f32, index) -> !fir.array<10xf32>
   ! CHECK:               fir.result %[[VAL_161]] : !fir.array<10xf32>
   ! CHECK:             } else {
@@ -208,7 +208,7 @@
   ! CHECK:               fir.result %[[VAL_175]] : !fir.array<10xf32>
   ! CHECK:             } else {
   ! CHECK:               %[[VAL_188:.*]] = fir.array_fetch %[[VAL_168]], %[[VAL_174]] : (!fir.array<10xf32>, index) -> f32
-  ! CHECK:               %[[VAL_189:.*]] = arith.divf %[[VAL_188]], %[[VAL_169]] : f32
+  ! CHECK:               %[[VAL_189:.*]] = arith.divf %[[VAL_188]], %[[VAL_169]] {{.*}}: f32
   ! CHECK:               %[[VAL_190:.*]] = fir.array_update %[[VAL_175]], %[[VAL_189]], %[[VAL_174]] : (!fir.array<10xf32>, f32, index) -> !fir.array<10xf32>
   ! CHECK:               fir.result %[[VAL_190]] : !fir.array<10xf32>
   ! CHECK:             }

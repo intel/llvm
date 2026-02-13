@@ -14,9 +14,8 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
+#include "mlir/Dialect/Vector/Utils/VectorUtils.h"
 #include "mlir/Dialect/X86Vector/Transforms.h"
-#include "mlir/IR/ImplicitLocOpBuilder.h"
-#include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/FormatVariadic.h"
@@ -37,24 +36,25 @@ Value mlir::x86vector::avx2::inline_asm::mm256BlendPsAsm(
       "=x,x,x"; // Careful: constraint parser is very brittle: no ws!
   SmallVector<Value> asmVals{v1, v2};
   auto asmStr = llvm::formatv(asmTp, llvm::format_hex(mask, /*width=*/2)).str();
-  auto asmOp = b.create<LLVM::InlineAsmOp>(
-      v1.getType(), /*operands=*/asmVals, /*asm_string=*/asmStr,
+  auto asmOp = LLVM::InlineAsmOp::create(
+      b, v1.getType(), /*operands=*/asmVals, /*asm_string=*/asmStr,
       /*constraints=*/asmCstr, /*has_side_effects=*/false,
-      /*is_align_stack=*/false, /*asm_dialect=*/asmDialectAttr,
+      /*is_align_stack=*/false, LLVM::TailCallKind::None,
+      /*asm_dialect=*/asmDialectAttr,
       /*operand_attrs=*/ArrayAttr());
   return asmOp.getResult(0);
 }
 
 Value mlir::x86vector::avx2::intrin::mm256UnpackLoPs(ImplicitLocOpBuilder &b,
                                                      Value v1, Value v2) {
-  return b.create<vector::ShuffleOp>(
-      v1, v2, ArrayRef<int64_t>{0, 8, 1, 9, 4, 12, 5, 13});
+  return vector::ShuffleOp::create(b, v1, v2,
+                                   ArrayRef<int64_t>{0, 8, 1, 9, 4, 12, 5, 13});
 }
 
 Value mlir::x86vector::avx2::intrin::mm256UnpackHiPs(ImplicitLocOpBuilder &b,
                                                      Value v1, Value v2) {
-  return b.create<vector::ShuffleOp>(
-      v1, v2, ArrayRef<int64_t>{2, 10, 3, 11, 6, 14, 7, 15});
+  return vector::ShuffleOp::create(
+      b, v1, v2, ArrayRef<int64_t>{2, 10, 3, 11, 6, 14, 7, 15});
 }
 ///                            a  a   b   b  a  a   b   b
 /// Takes an 8 bit mask, 2 bit for each position of a[0, 3)  **and** b[0, 4):
@@ -65,9 +65,9 @@ Value mlir::x86vector::avx2::intrin::mm256ShufflePs(ImplicitLocOpBuilder &b,
                                                     uint8_t mask) {
   uint8_t b01, b23, b45, b67;
   MaskHelper::extractShuffle(mask, b01, b23, b45, b67);
-  SmallVector<int64_t> shuffleMask{b01,     b23,     b45 + 8,     b67 + 8,
-                                   b01 + 4, b23 + 4, b45 + 8 + 4, b67 + 8 + 4};
-  return b.create<vector::ShuffleOp>(v1, v2, shuffleMask);
+  SmallVector<int64_t> shuffleMask = {
+      b01, b23, b45 + 8, b67 + 8, b01 + 4, b23 + 4, b45 + 8 + 4, b67 + 8 + 4};
+  return vector::ShuffleOp::create(b, v1, v2, shuffleMask);
 }
 
 // imm[0:1] out of imm[0:3] is:
@@ -95,7 +95,7 @@ Value mlir::x86vector::avx2::intrin::mm256Permute2f128Ps(
   MaskHelper::extractPermute(mask, b03, b47);
   appendToMask(b03);
   appendToMask(b47);
-  return b.create<vector::ShuffleOp>(v1, v2, shuffleMask);
+  return vector::ShuffleOp::create(b, v1, v2, shuffleMask);
 }
 
 /// If bit i of `mask` is zero, take f32@i from v1 else take it from v2.
@@ -107,7 +107,7 @@ Value mlir::x86vector::avx2::intrin::mm256BlendPs(ImplicitLocOpBuilder &b,
     bool isSet = mask & (1 << i);
     shuffleMask.push_back(!isSet ? i : i + 8);
   }
-  return b.create<vector::ShuffleOp>(v1, v2, shuffleMask);
+  return vector::ShuffleOp::create(b, v1, v2, shuffleMask);
 }
 
 /// AVX2 4x8xf32-specific transpose lowering using a "C intrinsics" model.
@@ -187,39 +187,6 @@ void mlir::x86vector::avx2::transpose8x8xf32(ImplicitLocOpBuilder &ib,
   vs[7] = mm256Permute2f128Ps(ib, s3, s7, MaskHelper::permute<3, 1>());
 }
 
-/// Given the n-D transpose pattern 'transp', return true if 'dim0' and 'dim1'
-/// should be transposed with each other within the context of their 2D
-/// transposition slice.
-///
-/// Example 1: dim0 = 0, dim1 = 2, transp = [2, 1, 0]
-///   Return true: dim0 and dim1 are transposed within the context of their 2D
-///   transposition slice ([1, 0]).
-///
-/// Example 2: dim0 = 0, dim1 = 1, transp = [2, 1, 0]
-///   Return true: dim0 and dim1 are transposed within the context of their 2D
-///   transposition slice ([1, 0]). Paradoxically, note how dim1 (1) is *not*
-///   transposed within the full context of the transposition.
-///
-/// Example 3: dim0 = 0, dim1 = 1, transp = [2, 0, 1]
-///   Return false: dim0 and dim1 are *not* transposed within the context of
-///   their 2D transposition slice ([0, 1]). Paradoxically, note how dim0 (0)
-///   and dim1 (1) are transposed within the full context of the of the
-///   transposition.
-static bool areDimsTransposedIn2DSlice(int64_t dim0, int64_t dim1,
-                                       ArrayRef<int64_t> transp) {
-  // Perform a linear scan along the dimensions of the transposed pattern. If
-  // dim0 is found first, dim0 and dim1 are not transposed within the context of
-  // their 2D slice. Otherwise, 'dim1' is found first and they are transposed.
-  for (int64_t permDim : transp) {
-    if (permDim == dim0)
-      return false;
-    if (permDim == dim1)
-      return true;
-  }
-
-  llvm_unreachable("Ill-formed transpose pattern");
-}
-
 /// Rewrite AVX2-specific vector.transpose, for the supported cases and
 /// depending on the `TransposeLoweringOptions`. The lowering supports 2-D
 /// transpose cases and n-D cases that have been decomposed into 2-D
@@ -252,33 +219,19 @@ public:
 
     // Check if the source vector type is supported. AVX2 patterns can only be
     // applied to f32 vector types with two dimensions greater than one.
-    VectorType srcType = op.getVectorType();
+    VectorType srcType = op.getSourceVectorType();
     if (!srcType.getElementType().isF32())
       return rewriter.notifyMatchFailure(op, "Unsupported vector element type");
 
-    SmallVector<int64_t> srcGtOneDims;
-    for (auto &en : llvm::enumerate(srcType.getShape()))
-      if (en.value() > 1)
-        srcGtOneDims.push_back(en.index());
-
-    if (srcGtOneDims.size() != 2)
-      return rewriter.notifyMatchFailure(op, "Unsupported vector type");
-
-    SmallVector<int64_t, 4> transp;
-    for (auto attr : op.getTransp())
-      transp.push_back(attr.cast<IntegerAttr>().getInt());
-
-    // Check whether the two source vector dimensions that are greater than one
-    // must be transposed with each other so that we can apply one of the 2-D
-    // AVX2 transpose pattens. Otherwise, these patterns are not applicable.
-    if (!areDimsTransposedIn2DSlice(srcGtOneDims[0], srcGtOneDims[1], transp))
+    auto srcGtOneDims = mlir::vector::isTranspose2DSlice(op);
+    if (failed(srcGtOneDims))
       return rewriter.notifyMatchFailure(
-          op, "Not applicable to this transpose permutation");
+          op, "expected transposition on a 2D slice");
 
     // Retrieve the sizes of the two dimensions greater than one to be
     // transposed.
-    auto srcShape = srcType.getShape();
-    int64_t m = srcShape[srcGtOneDims[0]], n = srcShape[srcGtOneDims[1]];
+    int64_t m = srcType.getDimSize(std::get<0>(srcGtOneDims.value()));
+    int64_t n = srcType.getDimSize(std::get<1>(srcGtOneDims.value()));
 
     auto applyRewrite = [&]() {
       ImplicitLocOpBuilder ib(loc, rewriter);
@@ -287,16 +240,16 @@ public:
       // Reshape the n-D input vector with only two dimensions greater than one
       // to a 2-D vector.
       auto flattenedType =
-          VectorType::get({n * m}, op.getVectorType().getElementType());
+          VectorType::get({n * m}, op.getSourceVectorType().getElementType());
       auto reshInputType = VectorType::get({m, n}, srcType.getElementType());
       auto reshInput =
-          ib.create<vector::ShapeCastOp>(flattenedType, op.getVector());
-      reshInput = ib.create<vector::ShapeCastOp>(reshInputType, reshInput);
+          vector::ShapeCastOp::create(ib, flattenedType, op.getVector());
+      reshInput = vector::ShapeCastOp::create(ib, reshInputType, reshInput);
 
       // Extract 1-D vectors from the higher-order dimension of the input
       // vector.
       for (int64_t i = 0; i < m; ++i)
-        vs.push_back(ib.create<vector::ExtractOp>(reshInput, i));
+        vs.push_back(vector::ExtractOp::create(ib, reshInput, i));
 
       // Transpose set of 1-D vectors.
       if (m == 4)
@@ -306,16 +259,16 @@ public:
 
       // Insert transposed 1-D vectors into the higher-order dimension of the
       // output vector.
-      Value res = ib.create<arith::ConstantOp>(reshInputType,
-                                               ib.getZeroAttr(reshInputType));
+      Value res = arith::ConstantOp::create(ib, reshInputType,
+                                            ib.getZeroAttr(reshInputType));
       for (int64_t i = 0; i < m; ++i)
-        res = ib.create<vector::InsertOp>(vs[i], res, i);
+        res = vector::InsertOp::create(ib, vs[i], res, i);
 
       // The output vector still has the shape of the input vector (e.g., 4x8).
       // We have to transpose their dimensions and retrieve its original rank
       // (e.g., 1x8x1x4x1).
-      res = ib.create<vector::ShapeCastOp>(flattenedType, res);
-      res = ib.create<vector::ShapeCastOp>(op.getResultType(), res);
+      res = vector::ShapeCastOp::create(ib, flattenedType, res);
+      res = vector::ShapeCastOp::create(ib, op.getResultVectorType(), res);
       rewriter.replaceOp(op, res);
       return success();
     };

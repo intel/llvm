@@ -7,12 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Tooling/Inclusions/HeaderIncludes.h"
-#include "clang/Basic/FileManager.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Lexer.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/Path.h"
+#include <optional>
 
 namespace clang {
 namespace tooling {
@@ -33,6 +32,22 @@ LangOptions createLangOpts() {
   return LangOpts;
 }
 
+// Create a new lexer on the given \p Code and calls \p Callback with the
+// created source manager and lexer. \p Callback must be a callable object that
+// could be invoked with (const SourceManager &, Lexer &). This function returns
+// whatever \p Callback returns.
+template <typename F>
+auto withLexer(StringRef FileName, StringRef Code, const IncludeStyle &Style,
+               F &&Callback)
+    -> std::invoke_result_t<F, const SourceManager &, Lexer &> {
+  SourceManagerForFile VirtualSM(FileName, Code);
+  SourceManager &SM = VirtualSM.get();
+  LangOptions LangOpts = createLangOpts();
+  Lexer Lex(SM.getMainFileID(), SM.getBufferOrFake(SM.getMainFileID()), SM,
+            LangOpts);
+  return std::invoke(std::forward<F>(Callback), std::as_const(SM), Lex);
+}
+
 // Returns the offset after skipping a sequence of tokens, matched by \p
 // GetOffsetAfterSequence, from the start of the code.
 // \p GetOffsetAfterSequence should be a function that matches a sequence of
@@ -41,15 +56,13 @@ unsigned getOffsetAfterTokenSequence(
     StringRef FileName, StringRef Code, const IncludeStyle &Style,
     llvm::function_ref<unsigned(const SourceManager &, Lexer &, Token &)>
         GetOffsetAfterSequence) {
-  SourceManagerForFile VirtualSM(FileName, Code);
-  SourceManager &SM = VirtualSM.get();
-  LangOptions LangOpts = createLangOpts();
-  Lexer Lex(SM.getMainFileID(), SM.getBufferOrFake(SM.getMainFileID()), SM,
-            LangOpts);
-  Token Tok;
-  // Get the first token.
-  Lex.LexFromRawLexer(Tok);
-  return GetOffsetAfterSequence(SM, Lex, Tok);
+  return withLexer(FileName, Code, Style,
+                   [&](const SourceManager &SM, Lexer &Lex) {
+                     Token Tok;
+                     // Get the first token.
+                     Lex.LexFromRawLexer(Tok);
+                     return GetOffsetAfterSequence(SM, Lex, Tok);
+                   });
 }
 
 // Check if a sequence of tokens is like "#<Name> <raw_identifier>". If it is,
@@ -58,7 +71,7 @@ unsigned getOffsetAfterTokenSequence(
 // (second) raw_identifier name is checked.
 bool checkAndConsumeDirectiveWithName(
     Lexer &Lex, StringRef Name, Token &Tok,
-    llvm::Optional<StringRef> RawIDName = llvm::None) {
+    std::optional<StringRef> RawIDName = std::nullopt) {
   bool Matched = Tok.is(tok::hash) && !Lex.LexFromRawLexer(Tok) &&
                  Tok.is(tok::raw_identifier) &&
                  Tok.getRawIdentifier() == Name && !Lex.LexFromRawLexer(Tok) &&
@@ -75,13 +88,24 @@ void skipComments(Lexer &Lex, Token &Tok) {
       return;
 }
 
-// Returns the offset after header guard directives and any comments
-// before/after header guards (e.g. #ifndef/#define pair, #pragma once). If no
-// header guard is present in the code, this will return the offset after
-// skipping all comments from the start of the code.
-unsigned getOffsetAfterHeaderGuardsAndComments(StringRef FileName,
-                                               StringRef Code,
-                                               const IncludeStyle &Style) {
+bool checkAndConsumeModuleDecl(const SourceManager &SM, Lexer &Lex,
+                               Token &Tok) {
+  bool Matched = Tok.is(tok::raw_identifier) &&
+                 Tok.getRawIdentifier() == "module" &&
+                 !Lex.LexFromRawLexer(Tok) && Tok.is(tok::semi) &&
+                 !Lex.LexFromRawLexer(Tok);
+  return Matched;
+}
+
+// Determines the minimum offset into the file where we want to insert header
+// includes. This will be put (when available):
+// - after `#pragma once`
+// - after header guards (`#ifdef` and `#define`)
+// - after opening global module (`module;`)
+// - after any comments at the start of the file or immediately following one of
+//   the above constructs
+unsigned getMinHeaderInsertionOffset(StringRef FileName, StringRef Code,
+                                     const IncludeStyle &Style) {
   // \p Consume returns location after header guard or 0 if no header guard is
   // found.
   auto ConsumeHeaderGuardAndComment =
@@ -96,7 +120,17 @@ unsigned getOffsetAfterHeaderGuardsAndComments(StringRef FileName,
               return std::max(InitialOffset, Consume(SM, Lex, Tok));
             });
       };
-  return std::max(
+
+  auto ModuleDecl = ConsumeHeaderGuardAndComment(
+      [](const SourceManager &SM, Lexer &Lex, Token Tok) -> unsigned {
+        if (checkAndConsumeModuleDecl(SM, Lex, Tok)) {
+          skipComments(Lex, Tok);
+          return SM.getFileOffset(Tok.getLocation());
+        }
+        return 0;
+      });
+
+  auto HeaderAndPPOffset = std::max(
       // #ifndef/#define
       ConsumeHeaderGuardAndComment(
           [](const SourceManager &SM, Lexer &Lex, Token Tok) -> unsigned {
@@ -116,6 +150,7 @@ unsigned getOffsetAfterHeaderGuardsAndComments(StringRef FileName,
               return SM.getFileOffset(Tok.getLocation());
             return 0;
           }));
+  return std::max(HeaderAndPPOffset, ModuleDecl);
 }
 
 // Check if a sequence of tokens is like
@@ -169,6 +204,43 @@ unsigned getMaxHeaderInsertionOffset(StringRef FileName, StringRef Code,
       });
 }
 
+// Check whether the first declaration in the code is a C++20 module
+// declaration, and it is not preceded by any preprocessor directives.
+bool isFirstDeclModuleDecl(StringRef FileName, StringRef Code,
+                           const IncludeStyle &Style) {
+  return withLexer(
+      FileName, Code, Style, [](const SourceManager &SM, Lexer &Lex) {
+        // Let the lexer skip any comments and whitespaces for us.
+        Lex.SetKeepWhitespaceMode(false);
+        Lex.SetCommentRetentionState(false);
+
+        Token tok;
+        if (Lex.LexFromRawLexer(tok))
+          return false;
+
+        // A module declaration is made up of the following token sequence:
+        //     export? module <ident> ('.' <ident>)* <partition> <attr> ;
+        //
+        // For convenience, we don't actually lex the whole declaration -- it's
+        // enough to distinguish a module declaration to just ensure an <ident>
+        // is following the "module" keyword.
+
+        // Lex the optional "export" keyword.
+        if (tok.is(tok::raw_identifier) && tok.getRawIdentifier() == "export") {
+          if (Lex.LexFromRawLexer(tok))
+            return false;
+        }
+
+        // Lex the "module" keyword.
+        if (!tok.is(tok::raw_identifier) ||
+            tok.getRawIdentifier() != "module" || Lex.LexFromRawLexer(tok))
+          return false;
+
+        // Make sure an identifier follows the "module" keyword.
+        return tok.is(tok::raw_identifier);
+      });
+}
+
 inline StringRef trimInclude(StringRef IncludeName) {
   return IncludeName.trim("\"<>");
 }
@@ -196,10 +268,10 @@ IncludeCategoryManager::IncludeCategoryManager(const IncludeStyle &Style,
                                                     ? llvm::Regex::NoFlags
                                                     : llvm::Regex::IgnoreCase);
   }
-  IsMainFile = FileName.endswith(".c") || FileName.endswith(".cc") ||
-               FileName.endswith(".cpp") || FileName.endswith(".c++") ||
-               FileName.endswith(".cxx") || FileName.endswith(".m") ||
-               FileName.endswith(".mm");
+  IsMainFile = FileName.ends_with(".c") || FileName.ends_with(".cc") ||
+               FileName.ends_with(".cpp") || FileName.ends_with(".c++") ||
+               FileName.ends_with(".cxx") || FileName.ends_with(".m") ||
+               FileName.ends_with(".mm");
   if (!Style.IncludeIsMainSourceRegex.empty()) {
     llvm::Regex MainFileRegex(Style.IncludeIsMainSourceRegex);
     IsMainFile |= MainFileRegex.match(FileName);
@@ -234,8 +306,18 @@ int IncludeCategoryManager::getSortIncludePriority(StringRef IncludeName,
   return Ret;
 }
 bool IncludeCategoryManager::isMainHeader(StringRef IncludeName) const {
-  if (!IncludeName.startswith("\""))
-    return false;
+  switch (Style.MainIncludeChar) {
+  case IncludeStyle::MICD_Quote:
+    if (!IncludeName.starts_with("\""))
+      return false;
+    break;
+  case IncludeStyle::MICD_AngleBracket:
+    if (!IncludeName.starts_with("<"))
+      return false;
+    break;
+  case IncludeStyle::MICD_Any:
+    break;
+  }
 
   IncludeName =
       IncludeName.drop_front(1).drop_back(1); // remove the surrounding "" or <>
@@ -253,7 +335,7 @@ bool IncludeCategoryManager::isMainHeader(StringRef IncludeName) const {
   //  1) foo.h => bar.cc
   //  2) foo.proto.h => foo.cc
   StringRef Matching;
-  if (MatchingFileStem.startswith_insensitive(HeaderStem))
+  if (MatchingFileStem.starts_with_insensitive(HeaderStem))
     Matching = MatchingFileStem; // example 1), 2)
   else if (FileStem.equals_insensitive(HeaderStem))
     Matching = FileStem; // example 3)
@@ -266,16 +348,19 @@ bool IncludeCategoryManager::isMainHeader(StringRef IncludeName) const {
   return false;
 }
 
+const llvm::Regex HeaderIncludes::IncludeRegex(IncludeRegexPattern);
+
 HeaderIncludes::HeaderIncludes(StringRef FileName, StringRef Code,
                                const IncludeStyle &Style)
     : FileName(FileName), Code(Code), FirstIncludeOffset(-1),
-      MinInsertOffset(
-          getOffsetAfterHeaderGuardsAndComments(FileName, Code, Style)),
+      MinInsertOffset(getMinHeaderInsertionOffset(FileName, Code, Style)),
       MaxInsertOffset(MinInsertOffset +
                       getMaxHeaderInsertionOffset(
                           FileName, Code.drop_front(MinInsertOffset), Style)),
-      Categories(Style, FileName),
-      IncludeRegex(llvm::Regex(IncludeRegexPattern)) {
+      MainIncludeFound(false),
+      ShouldInsertGlobalModuleFragmentDecl(
+          isFirstDeclModuleDecl(FileName, Code, Style)),
+      Categories(Style, FileName) {
   // Add 0 for main header and INT_MAX for headers that are not in any
   // category.
   Priorities = {0, INT_MAX};
@@ -295,7 +380,9 @@ HeaderIncludes::HeaderIncludes(StringRef FileName, StringRef Code,
       addExistingInclude(
           Include(Matches[2],
                   tooling::Range(
-                      Offset, std::min(Line.size() + 1, Code.size() - Offset))),
+                      Offset, std::min(Line.size() + 1, Code.size() - Offset)),
+                  Matches[1] == "import" ? tooling::IncludeDirective::Import
+                                         : tooling::IncludeDirective::Include),
           NextLineOffset);
     }
     Offset = NextLineOffset;
@@ -306,12 +393,9 @@ HeaderIncludes::HeaderIncludes(StringRef FileName, StringRef Code,
   // - If CategoryEndOffset[Priority] isn't set, use the next higher value
   // that is set, up to CategoryEndOffset[Highest].
   auto Highest = Priorities.begin();
-  if (CategoryEndOffsets.find(*Highest) == CategoryEndOffsets.end()) {
-    if (FirstIncludeOffset >= 0)
-      CategoryEndOffsets[*Highest] = FirstIncludeOffset;
-    else
-      CategoryEndOffsets[*Highest] = MinInsertOffset;
-  }
+  auto [It, Inserted] = CategoryEndOffsets.try_emplace(*Highest);
+  if (Inserted)
+    It->second = FirstIncludeOffset >= 0 ? FirstIncludeOffset : MinInsertOffset;
   // By this point, CategoryEndOffset[Highest] is always set appropriately:
   //  - to an appropriate location before/after existing #includes, or
   //  - to right after the header guard, or
@@ -324,15 +408,16 @@ HeaderIncludes::HeaderIncludes(StringRef FileName, StringRef Code,
 // \p Offset: the start of the line following this include directive.
 void HeaderIncludes::addExistingInclude(Include IncludeToAdd,
                                         unsigned NextLineOffset) {
-  auto Iter =
-      ExistingIncludes.try_emplace(trimInclude(IncludeToAdd.Name)).first;
-  Iter->second.push_back(std::move(IncludeToAdd));
-  auto &CurInclude = Iter->second.back();
+  auto &Incs = ExistingIncludes[trimInclude(IncludeToAdd.Name)];
+  Incs.push_back(std::move(IncludeToAdd));
+  auto &CurInclude = Incs.back();
   // The header name with quotes or angle brackets.
   // Only record the offset of current #include if we can insert after it.
   if (CurInclude.R.getOffset() <= MaxInsertOffset) {
     int Priority = Categories.getIncludePriority(
-        CurInclude.Name, /*CheckMainHeader=*/FirstIncludeOffset < 0);
+        CurInclude.Name, /*CheckMainHeader=*/!MainIncludeFound);
+    if (Priority == 0)
+      MainIncludeFound = true;
     CategoryEndOffsets[Priority] = NextLineOffset;
     IncludesByPriority[Priority].push_back(&CurInclude);
     if (FirstIncludeOffset < 0)
@@ -340,23 +425,26 @@ void HeaderIncludes::addExistingInclude(Include IncludeToAdd,
   }
 }
 
-llvm::Optional<tooling::Replacement>
-HeaderIncludes::insert(llvm::StringRef IncludeName, bool IsAngled) const {
+std::optional<tooling::Replacement>
+HeaderIncludes::insert(llvm::StringRef IncludeName, bool IsAngled,
+                       IncludeDirective Directive) const {
   assert(IncludeName == trimInclude(IncludeName));
   // If a <header> ("header") already exists in code, "header" (<header>) with
-  // different quotation will still be inserted.
+  // different quotation and/or directive will still be inserted.
   // FIXME: figure out if this is the best behavior.
   auto It = ExistingIncludes.find(IncludeName);
-  if (It != ExistingIncludes.end())
+  if (It != ExistingIncludes.end()) {
     for (const auto &Inc : It->second)
-      if ((IsAngled && StringRef(Inc.Name).startswith("<")) ||
-          (!IsAngled && StringRef(Inc.Name).startswith("\"")))
-        return llvm::None;
+      if (Inc.Directive == Directive &&
+          ((IsAngled && StringRef(Inc.Name).starts_with("<")) ||
+           (!IsAngled && StringRef(Inc.Name).starts_with("\""))))
+        return std::nullopt;
+  }
   std::string Quoted =
       std::string(llvm::formatv(IsAngled ? "<{0}>" : "\"{0}\"", IncludeName));
   StringRef QuotedName = Quoted;
   int Priority = Categories.getIncludePriority(
-      QuotedName, /*CheckMainHeader=*/FirstIncludeOffset < 0);
+      QuotedName, /*CheckMainHeader=*/!MainIncludeFound);
   auto CatOffset = CategoryEndOffsets.find(Priority);
   assert(CatOffset != CategoryEndOffsets.end());
   unsigned InsertOffset = CatOffset->second; // Fall back offset
@@ -370,14 +458,18 @@ HeaderIncludes::insert(llvm::StringRef IncludeName, bool IsAngled) const {
     }
   }
   assert(InsertOffset <= Code.size());
+  llvm::StringRef DirectiveSpelling =
+      Directive == IncludeDirective::Include ? "include" : "import";
   std::string NewInclude =
-      std::string(llvm::formatv("#include {0}\n", QuotedName));
+      llvm::formatv("#{0} {1}\n", DirectiveSpelling, QuotedName);
   // When inserting headers at end of the code, also append '\n' to the code
   // if it does not end with '\n'.
   // FIXME: when inserting multiple #includes at the end of code, only one
   // newline should be added.
   if (InsertOffset == Code.size() && (!Code.empty() && Code.back() != '\n'))
     NewInclude = "\n" + NewInclude;
+  if (ShouldInsertGlobalModuleFragmentDecl)
+    NewInclude = "module;\n" + NewInclude;
   return tooling::Replacement(FileName, InsertOffset, 0, NewInclude);
 }
 
@@ -389,8 +481,8 @@ tooling::Replacements HeaderIncludes::remove(llvm::StringRef IncludeName,
   if (Iter == ExistingIncludes.end())
     return Result;
   for (const auto &Inc : Iter->second) {
-    if ((IsAngled && StringRef(Inc.Name).startswith("\"")) ||
-        (!IsAngled && StringRef(Inc.Name).startswith("<")))
+    if ((IsAngled && StringRef(Inc.Name).starts_with("\"")) ||
+        (!IsAngled && StringRef(Inc.Name).starts_with("<")))
       continue;
     llvm::Error Err = Result.add(tooling::Replacement(
         FileName, Inc.R.getOffset(), Inc.R.getLength(), ""));

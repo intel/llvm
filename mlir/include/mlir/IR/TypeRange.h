@@ -23,6 +23,7 @@ namespace mlir {
 
 //===----------------------------------------------------------------------===//
 // TypeRange
+//===----------------------------------------------------------------------===//
 
 /// This class provides an abstraction over the various different ranges of
 /// value types. In many cases, this prevents the need to explicitly materialize
@@ -36,7 +37,7 @@ class TypeRange : public llvm::detail::indexed_accessor_range_base<
                       Type, Type, Type> {
 public:
   using RangeBaseT::RangeBaseT;
-  TypeRange(ArrayRef<Type> types = llvm::None);
+  TypeRange(ArrayRef<Type> types = {});
   explicit TypeRange(OperandRange values);
   explicit TypeRange(ResultRange values);
   explicit TypeRange(ValueRange values);
@@ -44,11 +45,11 @@ public:
   TypeRange(ValueTypeRange<ValueRangeT> values)
       : TypeRange(ValueRange(ValueRangeT(values.begin().getCurrent(),
                                          values.end().getCurrent()))) {}
-  template <typename Arg,
-            typename = typename std::enable_if_t<
-                std::is_constructible<ArrayRef<Type>, Arg>::value>>
-  TypeRange(Arg &&arg) : TypeRange(ArrayRef<Type>(std::forward<Arg>(arg))) {}
-  TypeRange(std::initializer_list<Type> types)
+  template <typename Arg, typename = std::enable_if_t<std::is_constructible<
+                              ArrayRef<Type>, Arg>::value>>
+  TypeRange(Arg &&arg LLVM_LIFETIME_BOUND)
+      : TypeRange(ArrayRef<Type>(std::forward<Arg>(arg))) {}
+  TypeRange(std::initializer_list<Type> types LLVM_LIFETIME_BOUND)
       : TypeRange(ArrayRef<Type>(types)) {}
 
 private:
@@ -71,7 +72,7 @@ private:
 
 /// Make TypeRange hashable.
 inline ::llvm::hash_code hash_value(TypeRange arg) {
-  return ::llvm::hash_combine_range(arg.begin(), arg.end());
+  return ::llvm::hash_combine_range(arg);
 }
 
 /// Emit a type range to the given output stream.
@@ -82,6 +83,7 @@ inline raw_ostream &operator<<(raw_ostream &os, const TypeRange &types) {
 
 //===----------------------------------------------------------------------===//
 // TypeRangeRange
+//===----------------------------------------------------------------------===//
 
 using TypeRangeRangeIterator =
     llvm::mapped_iterator<llvm::iota_range<unsigned>::iterator,
@@ -111,6 +113,7 @@ private:
 
 //===----------------------------------------------------------------------===//
 // ValueTypeRange
+//===----------------------------------------------------------------------===//
 
 /// This class implements iteration on the types of a given range of values.
 template <typename ValueIteratorT>
@@ -166,6 +169,23 @@ inline bool operator==(ArrayRef<Type> lhs, const ValueTypeRange<RangeT> &rhs) {
          std::equal(lhs.begin(), lhs.end(), rhs.begin());
 }
 
+//===----------------------------------------------------------------------===//
+// SubElements
+//===----------------------------------------------------------------------===//
+
+/// Enable TypeRange to be introspected for sub-elements.
+template <>
+struct AttrTypeSubElementHandler<TypeRange> {
+  static void walk(TypeRange param, AttrTypeImmediateSubElementWalker &walker) {
+    walker.walkRange(param);
+  }
+  static TypeRange replace(TypeRange param,
+                           AttrSubElementReplacements &attrRepls,
+                           TypeSubElementReplacements &typeRepls) {
+    return typeRepls.take_front(param.size());
+  }
+};
+
 } // namespace mlir
 
 namespace llvm {
@@ -201,13 +221,15 @@ private:
   }
 
   static bool isEmptyKey(mlir::TypeRange range) {
-    if (const auto *type = range.getBase().dyn_cast<const mlir::Type *>())
+    if (const auto *type =
+            llvm::dyn_cast_if_present<const mlir::Type *>(range.getBase()))
       return type == getEmptyKeyPointer();
     return false;
   }
 
   static bool isTombstoneKey(mlir::TypeRange range) {
-    if (const auto *type = range.getBase().dyn_cast<const mlir::Type *>())
+    if (const auto *type =
+            llvm::dyn_cast_if_present<const mlir::Type *>(range.getBase()))
       return type == getTombstoneKeyPointer();
     return false;
   }

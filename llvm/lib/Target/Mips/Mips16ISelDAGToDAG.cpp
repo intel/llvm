@@ -15,20 +15,11 @@
 #include "Mips.h"
 #include "MipsMachineFunction.h"
 #include "MipsRegisterInfo.h"
-#include "llvm/CodeGen/MachineConstantPool.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
-#include "llvm/IR/CFG.h"
-#include "llvm/IR/GlobalValue.h"
-#include "llvm/IR/Instructions.h"
-#include "llvm/IR/Intrinsics.h"
-#include "llvm/IR/Type.h"
-#include "llvm/Support/Debug.h"
-#include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 using namespace llvm;
 
@@ -47,16 +38,16 @@ Mips16DAGToDAGISel::selectMULT(SDNode *N, unsigned Opc, const SDLoc &DL, EVT Ty,
   SDNode *Lo = nullptr, *Hi = nullptr;
   SDNode *Mul = CurDAG->getMachineNode(Opc, DL, MVT::Glue, N->getOperand(0),
                                        N->getOperand(1));
-  SDValue InFlag = SDValue(Mul, 0);
+  SDValue InGlue = SDValue(Mul, 0);
 
   if (HasLo) {
     unsigned Opcode = Mips::Mflo16;
-    Lo = CurDAG->getMachineNode(Opcode, DL, Ty, MVT::Glue, InFlag);
-    InFlag = SDValue(Lo, 1);
+    Lo = CurDAG->getMachineNode(Opcode, DL, Ty, MVT::Glue, InGlue);
+    InGlue = SDValue(Lo, 1);
   }
   if (HasHi) {
     unsigned Opcode = Mips::Mfhi16;
-    Hi = CurDAG->getMachineNode(Opcode, DL, Ty, InFlag);
+    Hi = CurDAG->getMachineNode(Opcode, DL, Ty, InGlue);
   }
   return std::make_pair(Lo, Hi);
 }
@@ -219,7 +210,11 @@ bool Mips16DAGToDAGISel::trySelect(SDNode *Node) {
   return false;
 }
 
+Mips16DAGToDAGISelLegacy::Mips16DAGToDAGISelLegacy(MipsTargetMachine &TM,
+                                                   CodeGenOptLevel OL)
+    : MipsDAGToDAGISelLegacy(std::make_unique<Mips16DAGToDAGISel>(TM, OL)) {}
+
 FunctionPass *llvm::createMips16ISelDag(MipsTargetMachine &TM,
-                                        CodeGenOpt::Level OptLevel) {
-  return new Mips16DAGToDAGISel(TM, OptLevel);
+                                        CodeGenOptLevel OptLevel) {
+  return new Mips16DAGToDAGISelLegacy(TM, OptLevel);
 }

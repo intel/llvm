@@ -19,50 +19,58 @@
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Object/ArchiveWriter.h"
 #include "llvm/Object/COFF.h"
+#include "llvm/Object/COFFModuleDefinition.h"
 #include "llvm/Object/WindowsMachineFlag.h"
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
+#include "llvm/Option/OptTable.h"
 #include "llvm/Option/Option.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/raw_ostream.h"
+#include <optional>
 
 using namespace llvm;
+using namespace llvm::object;
 
 namespace {
 
+#define OPTTABLE_STR_TABLE_CODE
+#include "Options.inc"
+#undef OPTTABLE_STR_TABLE_CODE
+
 enum {
   OPT_INVALID = 0,
-#define OPTION(_1, _2, ID, _4, _5, _6, _7, _8, _9, _10, _11, _12) OPT_##ID,
+#define OPTION(...) LLVM_MAKE_OPT_ID(__VA_ARGS__),
 #include "Options.inc"
 #undef OPTION
 };
 
-#define PREFIX(NAME, VALUE) const char *const NAME[] = VALUE;
+#define OPTTABLE_PREFIXES_TABLE_CODE
 #include "Options.inc"
-#undef PREFIX
+#undef OPTTABLE_PREFIXES_TABLE_CODE
 
-static const opt::OptTable::Info InfoTable[] = {
-#define OPTION(X1, X2, ID, KIND, GROUP, ALIAS, X7, X8, X9, X10, X11, X12)      \
-  {X1, X2, X10,         X11,         OPT_##ID, opt::Option::KIND##Class,       \
-   X9, X8, OPT_##GROUP, OPT_##ALIAS, X7,       X12},
+using namespace llvm::opt;
+static constexpr opt::OptTable::Info InfoTable[] = {
+#define OPTION(...) LLVM_CONSTRUCT_OPT_INFO(__VA_ARGS__),
 #include "Options.inc"
 #undef OPTION
 };
 
-class LibOptTable : public opt::OptTable {
+class LibOptTable : public opt::GenericOptTable {
 public:
-  LibOptTable() : OptTable(InfoTable, true) {}
+  LibOptTable()
+      : opt::GenericOptTable(OptionStrTable, OptionPrefixesTable, InfoTable,
+                             true) {}
 };
-
-}
+} // namespace
 
 static std::string getDefaultOutputPath(const NewArchiveMember &FirstMember) {
   SmallString<128> Val = StringRef(FirstMember.Buf->getBufferIdentifier());
   sys::path::replace_extension(Val, ".lib");
-  return std::string(Val.str());
+  return std::string(Val);
 }
 
 static std::vector<StringRef> getSearchPaths(opt::InputArgList *Args,
@@ -76,7 +84,7 @@ static std::vector<StringRef> getSearchPaths(opt::InputArgList *Args,
     Ret.push_back(Arg->getValue());
 
   // Add $LIB.
-  Optional<std::string> EnvOpt = sys::Process::GetEnv("LIB");
+  std::optional<std::string> EnvOpt = sys::Process::GetEnv("LIB");
   if (!EnvOpt)
     return Ret;
   StringRef Env = Saver.save(*EnvOpt);
@@ -86,6 +94,19 @@ static std::vector<StringRef> getSearchPaths(opt::InputArgList *Args,
     Ret.push_back(Path);
   }
   return Ret;
+}
+
+// Opens a file. Path has to be resolved already. (used for def file)
+std::unique_ptr<MemoryBuffer> openFile(const Twine &Path) {
+  ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> MB =
+      MemoryBuffer::getFile(Path, /*IsText=*/true);
+
+  if (std::error_code EC = MB.getError()) {
+    llvm::errs() << "cannot open file " << Path << ": " << EC.message() << "\n";
+    return nullptr;
+  }
+
+  return std::move(*MB);
 }
 
 static std::string findInputFile(StringRef File, ArrayRef<StringRef> Paths) {
@@ -107,7 +128,7 @@ static void fatalOpenError(llvm::Error E, Twine File) {
   });
 }
 
-static void doList(opt::InputArgList& Args) {
+static void doList(opt::InputArgList &Args) {
   // lib.exe prints the contents of the first archive file.
   std::unique_ptr<MemoryBuffer> B;
   for (auto *Arg : Args.filtered(OPT_INPUT)) {
@@ -127,15 +148,17 @@ static void doList(opt::InputArgList& Args) {
     return;
 
   Error Err = Error::success();
-  object::Archive Archive(B.get()->getMemBufferRef(), Err);
+  object::Archive Archive(B->getMemBufferRef(), Err);
   fatalOpenError(std::move(Err), B->getBufferIdentifier());
 
+  std::vector<StringRef> Names;
   for (auto &C : Archive.children(Err)) {
     Expected<StringRef> NameOrErr = C.getName();
     fatalOpenError(NameOrErr.takeError(), B->getBufferIdentifier());
-    StringRef Name = NameOrErr.get();
-    llvm::outs() << Name << '\n';
+    Names.push_back(NameOrErr.get());
   }
+  for (auto Name : reverse(Names))
+    llvm::outs() << Name << '\n';
   fatalOpenError(std::move(Err), B->getBufferIdentifier());
 }
 
@@ -148,8 +171,8 @@ static Expected<COFF::MachineTypes> getCOFFFileMachine(MemoryBufferRef MB) {
   uint16_t Machine = (*Obj)->getMachine();
   if (Machine != COFF::IMAGE_FILE_MACHINE_I386 &&
       Machine != COFF::IMAGE_FILE_MACHINE_AMD64 &&
-      Machine != COFF::IMAGE_FILE_MACHINE_ARMNT &&
-      Machine != COFF::IMAGE_FILE_MACHINE_ARM64) {
+      Machine != COFF::IMAGE_FILE_MACHINE_R4000 &&
+      Machine != COFF::IMAGE_FILE_MACHINE_ARMNT && !COFF::isAnyArm64(Machine)) {
     return createStringError(inconvertibleErrorCode(),
                              "unknown machine: " + std::to_string(Machine));
   }
@@ -162,7 +185,8 @@ static Expected<COFF::MachineTypes> getBitcodeFileMachine(MemoryBufferRef MB) {
   if (!TripleStr)
     return TripleStr.takeError();
 
-  switch (Triple(*TripleStr).getArch()) {
+  Triple T(*TripleStr);
+  switch (T.getArch()) {
   case Triple::x86:
     return COFF::IMAGE_FILE_MACHINE_I386;
   case Triple::x86_64:
@@ -170,10 +194,31 @@ static Expected<COFF::MachineTypes> getBitcodeFileMachine(MemoryBufferRef MB) {
   case Triple::arm:
     return COFF::IMAGE_FILE_MACHINE_ARMNT;
   case Triple::aarch64:
-    return COFF::IMAGE_FILE_MACHINE_ARM64;
+    return T.isWindowsArm64EC() ? COFF::IMAGE_FILE_MACHINE_ARM64EC
+                                : COFF::IMAGE_FILE_MACHINE_ARM64;
+  case Triple::mipsel:
+    return COFF::IMAGE_FILE_MACHINE_R4000;
   default:
     return createStringError(inconvertibleErrorCode(),
                              "unknown arch in target triple: " + *TripleStr);
+  }
+}
+
+static bool machineMatches(COFF::MachineTypes LibMachine,
+                           COFF::MachineTypes FileMachine) {
+  if (LibMachine == FileMachine)
+    return true;
+  // ARM64EC mode allows both pure ARM64, ARM64EC and X64 objects to be mixed in
+  // the archive.
+  switch (LibMachine) {
+  case COFF::IMAGE_FILE_MACHINE_ARM64:
+    return FileMachine == COFF::IMAGE_FILE_MACHINE_ARM64X;
+  case COFF::IMAGE_FILE_MACHINE_ARM64EC:
+  case COFF::IMAGE_FILE_MACHINE_ARM64X:
+    return COFF::isAnyArm64(FileMachine) ||
+           FileMachine == COFF::IMAGE_FILE_MACHINE_AMD64;
+  default:
+    return false;
   }
 }
 
@@ -244,11 +289,18 @@ static void appendFile(std::vector<NewArchiveMember> &Members,
     // this check. See PR42180.
     if (FileMachine != COFF::IMAGE_FILE_MACHINE_UNKNOWN) {
       if (LibMachine == COFF::IMAGE_FILE_MACHINE_UNKNOWN) {
+        if (FileMachine == COFF::IMAGE_FILE_MACHINE_ARM64EC) {
+            llvm::errs() << MB.getBufferIdentifier() << ": file machine type "
+                         << machineToStr(FileMachine)
+                         << " conflicts with inferred library machine type,"
+                         << " use /machine:arm64ec or /machine:arm64x\n";
+            exit(1);
+        }
         LibMachine = FileMachine;
         LibMachineSource =
             (" (inferred from earlier file '" + MB.getBufferIdentifier() + "')")
                 .str();
-      } else if (LibMachine != FileMachine) {
+      } else if (!machineMatches(LibMachine, FileMachine)) {
         llvm::errs() << MB.getBufferIdentifier() << ": file machine type "
                      << machineToStr(FileMachine)
                      << " conflicts with library machine type "
@@ -266,7 +318,7 @@ int llvm::libDriverMain(ArrayRef<const char *> ArgsArr) {
   StringSaver Saver(Alloc);
 
   // Parse command line arguments.
-  SmallVector<const char *, 20> NewArgs(ArgsArr.begin(), ArgsArr.end());
+  SmallVector<const char *, 20> NewArgs(ArgsArr);
   cl::ExpandResponseFiles(Saver, cl::TokenizeWindowsCommandLine, NewArgs);
   ArgsArr = NewArgs;
 
@@ -297,6 +349,93 @@ int llvm::libDriverMain(ArrayRef<const char *> ArgsArr) {
   for (auto *Arg : Args.filtered(OPT_ignore))
     IgnoredWarnings.insert(Arg->getValue());
 
+  // get output library path, if any
+  std::string OutputPath;
+  if (auto *Arg = Args.getLastArg(OPT_out)) {
+    OutputPath = Arg->getValue();
+  }
+
+  COFF::MachineTypes LibMachine = COFF::IMAGE_FILE_MACHINE_UNKNOWN;
+  std::string LibMachineSource;
+  if (auto *Arg = Args.getLastArg(OPT_machine)) {
+    LibMachine = getMachineType(Arg->getValue());
+    if (LibMachine == COFF::IMAGE_FILE_MACHINE_UNKNOWN) {
+      llvm::errs() << "unknown /machine: arg " << Arg->getValue() << '\n';
+      return 1;
+    }
+    LibMachineSource =
+        std::string(" (from '/machine:") + Arg->getValue() + "' flag)";
+  }
+
+  // create an import library
+  if (Args.hasArg(OPT_deffile)) {
+
+    if (OutputPath.empty()) {
+      llvm::errs() << "no output path given\n";
+      return 1;
+    }
+
+    if (LibMachine == COFF::IMAGE_FILE_MACHINE_UNKNOWN) {
+      llvm::errs() << "/def option requires /machine to be specified" << '\n';
+      return 1;
+    }
+
+    std::unique_ptr<MemoryBuffer> MB =
+        openFile(Args.getLastArg(OPT_deffile)->getValue());
+    if (!MB)
+      return 1;
+
+    if (!MB->getBufferSize()) {
+      llvm::errs() << "definition file empty\n";
+      return 1;
+    }
+
+    Expected<COFFModuleDefinition> Def =
+        parseCOFFModuleDefinition(*MB, LibMachine, /*MingwDef=*/false);
+
+    if (!Def) {
+      llvm::errs() << "error parsing definition\n"
+                   << errorToErrorCode(Def.takeError()).message();
+      return 1;
+    }
+
+    std::vector<COFFShortExport> NativeExports;
+    std::string OutputFile = Def->OutputFile;
+
+    if (isArm64EC(LibMachine) && Args.hasArg(OPT_nativedeffile)) {
+      std::unique_ptr<MemoryBuffer> NativeMB =
+          openFile(Args.getLastArg(OPT_nativedeffile)->getValue());
+      if (!NativeMB)
+        return 1;
+
+      if (!NativeMB->getBufferSize()) {
+        llvm::errs() << "native definition file empty\n";
+        return 1;
+      }
+
+      Expected<COFFModuleDefinition> NativeDef =
+          parseCOFFModuleDefinition(*NativeMB, COFF::IMAGE_FILE_MACHINE_ARM64);
+
+      if (!NativeDef) {
+        llvm::errs() << "error parsing native definition\n"
+                     << errorToErrorCode(NativeDef.takeError()).message();
+        return 1;
+      }
+      NativeExports = std::move(NativeDef->Exports);
+      OutputFile = std::move(NativeDef->OutputFile);
+    }
+
+    if (Error E =
+            writeImportLibrary(OutputFile, OutputPath, Def->Exports, LibMachine,
+                               /*MinGW=*/false, NativeExports)) {
+      handleAllErrors(std::move(E), [&](const ErrorInfoBase &EI) {
+        llvm::errs() << OutputPath << ": " << EI.message() << "\n";
+      });
+      return 1;
+    }
+    return 0;
+  }
+
   // If no input files and not told otherwise, silently do nothing to match
   // lib.exe
   if (!Args.hasArgNoClaim(OPT_INPUT) && !Args.hasArg(OPT_llvmlibempty)) {
@@ -318,18 +457,6 @@ int llvm::libDriverMain(ArrayRef<const char *> ArgsArr) {
   }
 
   std::vector<StringRef> SearchPaths = getSearchPaths(&Args, Saver);
-
-  COFF::MachineTypes LibMachine = COFF::IMAGE_FILE_MACHINE_UNKNOWN;
-  std::string LibMachineSource;
-  if (auto *Arg = Args.getLastArg(OPT_machine)) {
-    LibMachine = getMachineType(Arg->getValue());
-    if (LibMachine == COFF::IMAGE_FILE_MACHINE_UNKNOWN) {
-      llvm::errs() << "unknown /machine: arg " << Arg->getValue() << '\n';
-      return 1;
-    }
-    LibMachineSource =
-        std::string(" (from '/machine:") + Arg->getValue() + "' flag)";
-  }
 
   std::vector<std::unique_ptr<MemoryBuffer>> MBs;
   StringSet<> Seen;
@@ -368,31 +495,39 @@ int llvm::libDriverMain(ArrayRef<const char *> ArgsArr) {
   }
 
   // Create an archive file.
-  std::string OutputPath;
-  if (auto *Arg = Args.getLastArg(OPT_out)) {
-    OutputPath = Arg->getValue();
-  } else if (!Members.empty()) {
-    OutputPath = getDefaultOutputPath(Members[0]);
-  } else {
-    llvm::errs() << "no output path given, and cannot infer with no inputs\n";
-    return 1;
-  }
-  // llvm-lib uses relative paths for both regular and thin archives, unlike
-  // standard GNU ar, which only uses relative paths for thin archives and
-  // basenames for regular archives.
-  for (NewArchiveMember &Member : Members) {
-    if (sys::path::is_relative(Member.MemberName)) {
-      Expected<std::string> PathOrErr =
-          computeArchiveRelativePath(OutputPath, Member.MemberName);
-      if (PathOrErr)
-        Member.MemberName = Saver.save(*PathOrErr);
+  if (OutputPath.empty()) {
+    if (!Members.empty()) {
+      OutputPath = getDefaultOutputPath(Members[0]);
+    } else {
+      llvm::errs() << "no output path given, and cannot infer with no inputs\n";
+      return 1;
     }
   }
 
-  if (Error E =
-          writeArchive(OutputPath, Members,
-                       /*WriteSymtab=*/true, object::Archive::K_GNU,
-                       /*Deterministic*/ true, Args.hasArg(OPT_llvmlibthin))) {
+  bool Thin = Args.hasArg(OPT_llvmlibthin);
+  if (Thin) {
+    for (NewArchiveMember &Member : Members) {
+      if (sys::path::is_relative(Member.MemberName)) {
+        Expected<std::string> PathOrErr =
+            computeArchiveRelativePath(OutputPath, Member.MemberName);
+        if (PathOrErr)
+          Member.MemberName = Saver.save(*PathOrErr);
+      }
+    }
+  }
+
+  // For compatibility with MSVC, reverse member vector after de-duplication.
+  std::reverse(Members.begin(), Members.end());
+
+  auto Symtab = Args.hasFlag(OPT_llvmlibindex, OPT_llvmlibindex_no,
+                             /*default=*/true)
+                    ? SymtabWritingMode::NormalSymtab
+                    : SymtabWritingMode::NoSymtab;
+
+  if (Error E = writeArchive(
+          OutputPath, Members, Symtab,
+          Thin ? object::Archive::K_GNU : object::Archive::K_COFF,
+          /*Deterministic=*/true, Thin, nullptr, COFF::isArm64EC(LibMachine))) {
     handleAllErrors(std::move(E), [&](const ErrorInfoBase &EI) {
       llvm::errs() << OutputPath << ": " << EI.message() << "\n";
     });

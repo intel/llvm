@@ -1,8 +1,8 @@
 set(LLVM_LINK_COMPONENTS
   BinaryFormat
+  JITLink
   MC
   Object
-  RuntimeDyld
   Support
   )
 
@@ -11,6 +11,7 @@ add_llvm_library(LLVMBOLTRuntimeLibs
   HugifyRuntimeLibrary.cpp
   InstrumentationRuntimeLibrary.cpp
 
+  NO_EXPORT
   DISABLE_LLVM_LINK_LLVM_DYLIB
   )
 

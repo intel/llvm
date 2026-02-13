@@ -8,101 +8,43 @@
 
 #pragma once
 
-#include <sycl/backend.hpp>
+#include <sycl/async_handler.hpp>                           // for async_han...
+#include <sycl/backend.hpp>                                 // for backend
+#include <sycl/buffer.hpp>                                  // for buffer_al...
+#include <sycl/buffer.hpp>                                  // for buffer
+#include <sycl/context.hpp>                                 // for context
+#include <sycl/detail/backend_traits.hpp>                   // for interop
+#include <sycl/detail/backend_traits_level_zero.hpp>        // for ze_comman...
+#include <sycl/detail/defines_elementary.hpp>               // for __SYCL_DE...
+#include <sycl/detail/export.hpp>                           // for __SYCL_EX...
+#include <sycl/detail/impl_utils.hpp>                       // for createSyc...
+#include <sycl/detail/ur.hpp>                               // for cast
+#include <sycl/device.hpp>                                  // for device
+#include <sycl/event.hpp>                                   // for event
+#include <sycl/ext/oneapi/backend/level_zero_ownership.hpp> // for ownership
+#include <sycl/image.hpp>                                   // for image
+#include <sycl/kernel.hpp>                                  // for kernel
+#include <sycl/kernel_bundle_enums.hpp>                     // for bundle_state
+#include <sycl/platform.hpp>                                // for platform
+#include <sycl/properties/image_properties.hpp>             // for image
+#include <sycl/property_list.hpp>                           // for property_...
+#include <sycl/queue.hpp>                                   // for queue
 
-#include <vector>
+#include <memory>      // for shared_ptr
+#include <stdint.h>    // for int32_t
+#include <type_traits> // for enable_if_t
+#include <variant>     // for get_if
+#include <vector>      // for vector
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace level_zero {
-// Implementation of various "make" functions resides in libsycl.so and thus
-// their interface needs to be backend agnostic.
-// TODO: remove/merge with similar functions in sycl::detail
-__SYCL_EXPORT platform make_platform(pi_native_handle NativeHandle);
+inline namespace _V1 {
+
+template <bundle_state State> class kernel_bundle;
+
+namespace ext::oneapi::level_zero::detail {
 __SYCL_EXPORT device make_device(const platform &Platform,
-                                 pi_native_handle NativeHandle);
-__SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
-                                   pi_native_handle NativeHandle,
-                                   bool keep_ownership = false);
-__SYCL_DEPRECATED("Use make_queue with device parameter")
-__SYCL_EXPORT queue make_queue(const context &Context,
-                               pi_native_handle InteropHandle,
-                               bool keep_ownership = false);
-__SYCL_EXPORT queue make_queue(const context &Context, const device &Device,
-                               pi_native_handle InteropHandle,
-                               bool keep_ownership = false);
-__SYCL_EXPORT event make_event(const context &Context,
-                               pi_native_handle InteropHandle,
-                               bool keep_ownership = false);
-
-// Construction of SYCL platform.
-template <typename T, typename sycl::detail::enable_if_t<
-                          std::is_same<T, platform>::value> * = nullptr>
-__SYCL_DEPRECATED("Use SYCL 2020 sycl::make_platform free function")
-T make(typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
-           Interop) {
-  return make_platform(reinterpret_cast<pi_native_handle>(Interop));
-}
-
-// Construction of SYCL device.
-template <typename T, typename sycl::detail::enable_if_t<
-                          std::is_same<T, device>::value> * = nullptr>
-__SYCL_DEPRECATED("Use SYCL 2020 sycl::make_device free function")
-T make(const platform &Platform,
-       typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
-           Interop) {
-  return make_device(Platform, reinterpret_cast<pi_native_handle>(Interop));
-}
-
-/// Construction of SYCL context.
-/// \param DeviceList is a vector of devices which must be encapsulated by
-///        created SYCL context. Provided devices and native context handle must
-///        be associated with the same platform.
-/// \param Interop is a Level Zero native context handle.
-/// \param Ownership (optional) specifies who will assume ownership of the
-///        native context handle. Default is that SYCL RT does, so it destroys
-///        the native handle when the created SYCL object goes out of life.
-///
-template <typename T, typename std::enable_if<
-                          std::is_same<T, context>::value>::type * = nullptr>
-__SYCL_DEPRECATED("Use SYCL 2020 sycl::make_context free function")
-T make(const std::vector<device> &DeviceList,
-       typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
-           Interop,
-       ownership Ownership = ownership::transfer) {
-  return make_context(DeviceList,
-                      sycl::detail::pi::cast<pi_native_handle>(Interop),
-                      Ownership == ownership::keep);
-}
-
-// Construction of SYCL queue.
-template <typename T, typename sycl::detail::enable_if_t<
-                          std::is_same<T, queue>::value> * = nullptr>
-__SYCL_DEPRECATED("Use SYCL 2020 sycl::make_queue free function")
-T make(const context &Context,
-       typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
-           Interop,
-       ownership Ownership = ownership::transfer) {
-  return make_queue(Context, reinterpret_cast<pi_native_handle>(Interop),
-                    Ownership == ownership::keep);
-}
-
-// Construction of SYCL event.
-template <typename T, typename sycl::detail::enable_if_t<
-                          std::is_same<T, event>::value> * = nullptr>
-__SYCL_DEPRECATED("Use SYCL 2020 sycl::make_event free function")
-T make(const context &Context,
-       typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
-           Interop,
-       ownership Ownership = ownership::transfer) {
-  return make_event(Context, reinterpret_cast<pi_native_handle>(Interop),
-                    Ownership == ownership::keep);
-}
-} // namespace level_zero
-} // namespace oneapi
-} // namespace ext
+                                 ur_native_handle_t NativeHandle);
+} // namespace ext::oneapi::level_zero::detail
 
 // Specialization of sycl::make_context for Level-Zero backend.
 template <>
@@ -110,11 +52,75 @@ inline context make_context<backend::ext_oneapi_level_zero>(
     const backend_input_t<backend::ext_oneapi_level_zero, context>
         &BackendObject,
     const async_handler &Handler) {
-  (void)Handler;
-  return ext::oneapi::level_zero::make_context(
-      BackendObject.DeviceList,
-      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
-      BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep);
+  const std::vector<device> &DeviceList = BackendObject.DeviceList;
+  ur_native_handle_t NativeHandle =
+      detail::ur::cast<ur_native_handle_t>(BackendObject.NativeHandle);
+  bool KeepOwnership =
+      BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep;
+
+  return sycl::detail::make_context(NativeHandle, Handler,
+                                    backend::ext_oneapi_level_zero,
+                                    KeepOwnership, DeviceList);
+}
+
+namespace detail {
+inline std::optional<sycl::device> find_matching_descendent_device(
+    sycl::device d,
+    const backend_input_t<backend::ext_oneapi_level_zero, device>
+        &BackendObject) {
+  if (get_native<backend::ext_oneapi_level_zero>(d) == BackendObject)
+    return d;
+  std::vector<info::partition_property> partition_props =
+      d.get_info<info::device::partition_properties>();
+
+  for (auto pp : partition_props) {
+    if (pp == info::partition_property::partition_by_affinity_domain) {
+      auto sub_devices = d.create_sub_devices<
+          info::partition_property::partition_by_affinity_domain>(
+          info::partition_affinity_domain::next_partitionable);
+      for (auto &sub_dev : sub_devices) {
+        if (auto maybe_device =
+                find_matching_descendent_device(sub_dev, BackendObject))
+          return maybe_device;
+      }
+    }
+  }
+
+  return {};
+}
+} // namespace detail
+
+// Specialization of sycl::make_device for Level-Zero backend.
+// Level-Zero backend specification says:
+//
+//  > The SYCL execution environment for the Level Zero backend contains a fixed
+//  > number of devices that are enumerated via sycl::device::get_devices() and
+//  > a fixed number of sub-devices that are enumerated via
+//  > sycl::device::create_sub_devices(...). Calling this function does not
+//  > create a new device. Rather it merely creates a sycl::device object that
+//  > is a copy of one of the devices from those enumerations.
+//
+// Per SYCL 2020 specification, device and it's copy should be equally
+// comparable and its hashes must be equal. As such, we cannot simply create a
+// new `detail::device_impl` and then a `sycl::device` out of it and have to
+// iterate over the existing device hierarchy and make a copy.
+template <>
+inline device make_device<backend::ext_oneapi_level_zero>(
+    const backend_input_t<backend::ext_oneapi_level_zero, device>
+        &BackendObject) {
+  for (auto &p : platform::get_platforms()) {
+    if (p.get_backend() != backend::ext_oneapi_level_zero)
+      continue;
+
+    for (auto &d : p.get_devices()) {
+      if (auto maybe_device =
+              detail::find_matching_descendent_device(d, BackendObject))
+        return *maybe_device;
+    }
+  }
+
+  throw sycl::exception(make_error_code(errc::invalid),
+                        "Native device isn't exposed to SYCL.");
 }
 
 // Specialization of sycl::make_queue for Level-Zero backend.
@@ -122,12 +128,35 @@ template <>
 inline queue make_queue<backend::ext_oneapi_level_zero>(
     const backend_input_t<backend::ext_oneapi_level_zero, queue> &BackendObject,
     const context &TargetContext, const async_handler Handler) {
-  (void)Handler;
   const device Device = device{BackendObject.Device};
-  return ext::oneapi::level_zero::make_queue(
-      TargetContext, Device,
-      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
-      BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep);
+  bool IsImmCmdList = std::holds_alternative<ze_command_list_handle_t>(
+      BackendObject.NativeHandle);
+  ur_native_handle_t Handle =
+      IsImmCmdList ? reinterpret_cast<ur_native_handle_t>(
+                         *(std::get_if<ze_command_list_handle_t>(
+                             &BackendObject.NativeHandle)))
+                   : reinterpret_cast<ur_native_handle_t>(
+                         *(std::get_if<ze_command_queue_handle_t>(
+                             &BackendObject.NativeHandle)));
+
+  return sycl::detail::make_queue(
+      Handle, IsImmCmdList, TargetContext, &Device,
+      BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep,
+      BackendObject.Properties, Handler, backend::ext_oneapi_level_zero);
+}
+
+// Specialization of sycl::get_native for Level-Zero backend.
+template <>
+inline auto get_native<backend::ext_oneapi_level_zero, queue>(const queue &Obj)
+    -> backend_return_t<backend::ext_oneapi_level_zero, queue> {
+  int32_t IsImmCmdList;
+  ur_native_handle_t Handle = Obj.getNative(IsImmCmdList);
+  return IsImmCmdList
+             ? backend_return_t<
+                   backend::ext_oneapi_level_zero,
+                   queue>{reinterpret_cast<ze_command_list_handle_t>(Handle)}
+             : backend_return_t<backend::ext_oneapi_level_zero, queue>{
+                   reinterpret_cast<ze_command_queue_handle_t>(Handle)};
 }
 
 // Specialization of sycl::make_event for Level-Zero backend.
@@ -135,10 +164,11 @@ template <>
 inline event make_event<backend::ext_oneapi_level_zero>(
     const backend_input_t<backend::ext_oneapi_level_zero, event> &BackendObject,
     const context &TargetContext) {
-  return ext::oneapi::level_zero::make_event(
+  return sycl::detail::make_event(
+      detail::ur::cast<ur_native_handle_t>(BackendObject.NativeHandle),
       TargetContext,
-      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
-      BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep);
+      BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep,
+      backend::ext_oneapi_level_zero);
 }
 
 // Specialization of sycl::make_kernel_bundle for Level-Zero backend.
@@ -151,12 +181,12 @@ make_kernel_bundle<backend::ext_oneapi_level_zero, bundle_state::executable>(
     const context &TargetContext) {
   std::shared_ptr<detail::kernel_bundle_impl> KBImpl =
       detail::make_kernel_bundle(
-          detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
+          detail::ur::cast<ur_native_handle_t>(BackendObject.NativeHandle),
           TargetContext,
           BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep,
           bundle_state::executable, backend::ext_oneapi_level_zero);
   return detail::createSyclObjFromImpl<kernel_bundle<bundle_state::executable>>(
-      KBImpl);
+      std::move(KBImpl));
 }
 
 // Specialization of sycl::make_kernel for Level-Zero backend.
@@ -167,7 +197,7 @@ inline kernel make_kernel<backend::ext_oneapi_level_zero>(
     const context &TargetContext) {
   return detail::make_kernel(
       TargetContext, BackendObject.KernelBundle,
-      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
+      detail::ur::cast<ur_native_handle_t>(BackendObject.NativeHandle),
       BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep,
       backend::ext_oneapi_level_zero);
 }
@@ -175,14 +205,14 @@ inline kernel make_kernel<backend::ext_oneapi_level_zero>(
 // Specialization of sycl::make_buffer with event for Level-Zero backend.
 template <backend Backend, typename T, int Dimensions = 1,
           typename AllocatorT = buffer_allocator<std::remove_const_t<T>>>
-typename std::enable_if<Backend == backend::ext_oneapi_level_zero,
-                        buffer<T, Dimensions, AllocatorT>>::type
+std::enable_if_t<Backend == backend::ext_oneapi_level_zero,
+                 buffer<T, Dimensions, AllocatorT>>
 make_buffer(
     const backend_input_t<backend::ext_oneapi_level_zero,
                           buffer<T, Dimensions, AllocatorT>> &BackendObject,
     const context &TargetContext, event AvailableEvent) {
   return detail::make_buffer_helper<T, Dimensions, AllocatorT>(
-      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
+      detail::ur::cast<ur_native_handle_t>(BackendObject.NativeHandle),
       TargetContext, AvailableEvent,
       !(BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep));
 }
@@ -190,16 +220,34 @@ make_buffer(
 // Specialization of sycl::make_buffer for Level-Zero backend.
 template <backend Backend, typename T, int Dimensions = 1,
           typename AllocatorT = buffer_allocator<std::remove_const_t<T>>>
-typename std::enable_if<Backend == backend::ext_oneapi_level_zero,
-                        buffer<T, Dimensions, AllocatorT>>::type
+std::enable_if_t<Backend == backend::ext_oneapi_level_zero,
+                 buffer<T, Dimensions, AllocatorT>>
 make_buffer(
     const backend_input_t<backend::ext_oneapi_level_zero,
                           buffer<T, Dimensions, AllocatorT>> &BackendObject,
     const context &TargetContext) {
   return detail::make_buffer_helper<T, Dimensions, AllocatorT>(
-      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
+      detail::ur::cast<ur_native_handle_t>(BackendObject.NativeHandle),
       TargetContext, event{},
       !(BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep));
+}
+
+// Specialization of sycl::make_image for Level-Zero backend.
+template <backend Backend, int Dimensions = 1,
+          typename AllocatorT = image_allocator>
+std::enable_if_t<Backend == backend::ext_oneapi_level_zero,
+                 image<Dimensions, AllocatorT>>
+make_image(const backend_input_t<Backend, image<Dimensions, AllocatorT>>
+               &BackendObject,
+           const context &TargetContext, event AvailableEvent) {
+
+  bool OwnNativeHandle =
+      (BackendObject.Ownership == ext::oneapi::level_zero::ownership::transfer);
+
+  return image<Dimensions, AllocatorT>(
+      detail::ur::cast<ur_native_handle_t>(BackendObject.ZeImageHandle),
+      TargetContext, AvailableEvent, BackendObject.ChanOrder,
+      BackendObject.ChanType, OwnNativeHandle, BackendObject.Range);
 }
 
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi::level_zero' instead")
@@ -207,5 +255,5 @@ namespace __SYCL2020_DEPRECATED("use 'ext::oneapi::level_zero' instead")
 using namespace ext::oneapi::level_zero;
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

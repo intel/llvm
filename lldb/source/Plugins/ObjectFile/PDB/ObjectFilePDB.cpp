@@ -27,10 +27,10 @@ using namespace llvm::codeview;
 
 LLDB_PLUGIN_DEFINE(ObjectFilePDB)
 
-static UUID GetPDBUUID(InfoStream &IS) {
+static UUID GetPDBUUID(InfoStream &IS, DbiStream &DS) {
   UUID::CvRecordPdb70 debug_info;
   memcpy(&debug_info.Uuid, IS.getGuid().Guid, sizeof(debug_info.Uuid));
-  debug_info.Age = IS.getAge();
+  debug_info.Age = DS.getAge();
   return UUID(debug_info);
 }
 
@@ -82,16 +82,23 @@ bool ObjectFilePDB::initPDBFile() {
     llvm::consumeError(info_stream.takeError());
     return false;
   }
-  m_uuid = GetPDBUUID(*info_stream);
+  auto dbi_stream = m_file_up->getPDBDbiStream();
+  if (!dbi_stream) {
+    llvm::consumeError(dbi_stream.takeError());
+    return false;
+  }
+  m_uuid = GetPDBUUID(*info_stream, *dbi_stream);
   return true;
 }
 
-ObjectFile *
-ObjectFilePDB::CreateInstance(const ModuleSP &module_sp, DataBufferSP data_sp,
-                              offset_t data_offset, const FileSpec *file,
-                              offset_t file_offset, offset_t length) {
+ObjectFile *ObjectFilePDB::CreateInstance(const ModuleSP &module_sp,
+                                          DataExtractorSP extractor_sp,
+                                          offset_t data_offset,
+                                          const FileSpec *file,
+                                          offset_t file_offset,
+                                          offset_t length) {
   auto objfile_up = std::make_unique<ObjectFilePDB>(
-      module_sp, data_sp, data_offset, file, file_offset, length);
+      module_sp, extractor_sp, data_offset, file, file_offset, length);
   if (!objfile_up->initPDBFile())
     return nullptr;
   return objfile_up.release();
@@ -126,7 +133,7 @@ size_t ObjectFilePDB::GetModuleSpecifications(
   }
 
   lldb_private::UUID &uuid = module_spec.GetUUID();
-  uuid = GetPDBUUID(*info_stream);
+  uuid = GetPDBUUID(*info_stream, *dbi_stream);
 
   ArchSpec &module_arch = module_spec.GetArchitecture();
   switch (dbi_stream->getMachineType()) {
@@ -153,10 +160,11 @@ size_t ObjectFilePDB::GetModuleSpecifications(
   return specs.GetSize() - initial_count;
 }
 
-ObjectFilePDB::ObjectFilePDB(const ModuleSP &module_sp, DataBufferSP &data_sp,
+ObjectFilePDB::ObjectFilePDB(const ModuleSP &module_sp,
+                             DataExtractorSP &extractor_sp,
                              offset_t data_offset, const FileSpec *file,
                              offset_t offset, offset_t length)
-    : ObjectFile(module_sp, file, offset, length, data_sp, data_offset) {}
+    : ObjectFile(module_sp, file, offset, length, extractor_sp, data_offset) {}
 
 std::unique_ptr<PDBFile>
 ObjectFilePDB::loadPDBFile(std::string PdbPath,
@@ -174,7 +182,7 @@ ObjectFilePDB::loadPDBFile(std::string PdbPath,
 
   llvm::StringRef Path = Buffer->getBufferIdentifier();
   auto Stream = std::make_unique<llvm::MemoryBufferByteStream>(
-      std::move(Buffer), llvm::support::little);
+      std::move(Buffer), llvm::endianness::little);
 
   auto File = std::make_unique<PDBFile>(Path, std::move(Stream), Allocator);
   if (auto EC = File->parseFileHeaders()) {

@@ -17,12 +17,15 @@
 #include "clang/Basic/LLVM.h"
 #include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/iterator_range.h"
 #include <cassert>
 
 namespace clang {
 namespace ento {
 
 class MemRegion;
+
+using SymbolID = unsigned;
 
 /// Symbolic value. These values used to capture symbolic execution of
 /// the program.
@@ -38,9 +41,19 @@ public:
 
 private:
   Kind K;
+  /// A unique identifier for this symbol.
+  ///
+  /// It is useful for SymbolData to easily differentiate multiple symbols, but
+  /// also for "ephemeral" symbols, such as binary operations, because this id
+  /// can be used for arranging constraints or equivalence classes instead of
+  /// unstable pointer values.
+  ///
+  /// Note, however, that it can't be used in Profile because SymbolManager
+  /// needs to compute Profile before allocating SymExpr.
+  const SymbolID Sym;
 
 protected:
-  SymExpr(Kind k) : K(k) {}
+  SymExpr(Kind k, SymbolID Sym) : K(k), Sym(Sym) {}
 
   static bool isValidTypeForSymbol(QualType T) {
     // FIXME: Depending on whether we choose to deprecate structural symbols,
@@ -54,6 +67,14 @@ public:
   virtual ~SymExpr() = default;
 
   Kind getKind() const { return K; }
+
+  /// Get a unique identifier for this symbol.
+  /// The ID is unique across all SymExprs in a SymbolManager.
+  /// They reflect the allocation order of these SymExprs,
+  /// and are likely stable across runs.
+  /// Used as a key in SymbolRef containers and as part of identity
+  /// for SymbolData, e.g. SymbolConjured with ID = 7 is "conj_$7".
+  SymbolID getSymbolID() const { return Sym; }
 
   virtual void dump() const;
 
@@ -83,8 +104,9 @@ public:
     bool operator!=(const symbol_iterator &X) const;
   };
 
-  symbol_iterator symbol_begin() const { return symbol_iterator(this); }
-  static symbol_iterator symbol_end() { return symbol_iterator(); }
+  llvm::iterator_range<symbol_iterator> symbols() const {
+    return llvm::make_range(symbol_iterator(this), symbol_iterator());
+  }
 
   virtual unsigned computeComplexity() const = 0;
 
@@ -110,19 +132,14 @@ inline raw_ostream &operator<<(raw_ostream &os,
 
 using SymbolRef = const SymExpr *;
 using SymbolRefSmallVectorTy = SmallVector<SymbolRef, 2>;
-using SymbolID = unsigned;
 
 /// A symbol representing data which can be stored in a memory location
 /// (region).
 class SymbolData : public SymExpr {
-  const SymbolID Sym;
-
   void anchor() override;
 
 protected:
-  SymbolData(Kind k, SymbolID sym) : SymExpr(k), Sym(sym) {
-    assert(classof(this));
-  }
+  SymbolData(Kind k, SymbolID sym) : SymExpr(k, sym) { assert(classof(this)); }
 
 public:
   ~SymbolData() override = default;
@@ -130,16 +147,14 @@ public:
   /// Get a string representation of the kind of the region.
   virtual StringRef getKindStr() const = 0;
 
-  SymbolID getSymbolID() const { return Sym; }
-
   unsigned computeComplexity() const override {
     return 1;
   };
 
   // Implement isa<T> support.
-  static inline bool classof(const SymExpr *SE) {
-    Kind k = SE->getKind();
-    return k >= BEGIN_SYMBOLS && k <= END_SYMBOLS;
+  static bool classof(const SymExpr *SE) { return classof(SE->getKind()); }
+  static constexpr bool classof(Kind K) {
+    return K >= BEGIN_SYMBOLS && K <= END_SYMBOLS;
   }
 };
 

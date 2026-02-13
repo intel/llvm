@@ -14,16 +14,12 @@
 #include "VE.h"
 #include "VESubtarget.h"
 #include "llvm/ADT/BitVector.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
-#include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/IR/Type.h"
-#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
-#include "llvm/Support/ErrorHandling.h"
 
 using namespace llvm;
 
@@ -97,8 +93,7 @@ BitVector VERegisterInfo::getReservedRegs(const MachineFunction &MF) const {
 }
 
 const TargetRegisterClass *
-VERegisterInfo::getPointerRegClass(const MachineFunction &MF,
-                                   unsigned Kind) const {
+VERegisterInfo::getPointerRegClass(unsigned Kind) const {
   return &VE::I64RegClass;
 }
 
@@ -126,6 +121,7 @@ static unsigned offsetToDisp(MachineInstr &MI) {
   return OffDisp;
 }
 
+namespace {
 class EliminateFrameIndex {
   const TargetInstrInfo &TII;
   const TargetRegisterInfo &TRI;
@@ -192,6 +188,7 @@ public:
   void processMI(MachineInstr &MI, Register FrameReg, int64_t Offset,
                  int FIOperandNum);
 };
+} // namespace
 
 // Prepare the frame index if it doesn't fit in the immediate field.  Use
 // clobber register to hold calculated address.
@@ -477,7 +474,7 @@ void EliminateFrameIndex::processMI(MachineInstr &MI, Register FrameReg,
   replaceFI(MI, FrameReg, Offset, FIOperandNum);
 }
 
-void VERegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
+bool VERegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
                                          int SPAdj, unsigned FIOperandNum,
                                          RegScavenger *RS) const {
   assert(SPAdj == 0 && "Unexpected");
@@ -500,6 +497,7 @@ void VERegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   Offset += MI.getOperand(FIOperandNum + offsetToDisp(MI)).getImm();
 
   EFI.processMI(MI, FrameReg, Offset, FIOperandNum);
+  return false;
 }
 
 Register VERegisterInfo::getFrameRegister(const MachineFunction &MF) const {

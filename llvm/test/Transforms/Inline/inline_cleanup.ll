@@ -1,22 +1,22 @@
 ; Test that the inliner doesn't leave around dead allocas, and that it folds
 ; uncond branches away after it is done specializing.
 
-; RUN: opt < %s -inline -S | FileCheck %s
+; RUN: opt < %s -passes=inline -S | FileCheck %s
 ; RUN: opt < %s -passes='cgscc(inline)' -S | FileCheck %s
 
-@A = weak global i32 0		; <i32*> [#uses=1]
-@B = weak global i32 0		; <i32*> [#uses=1]
-@C = weak global i32 0		; <i32*> [#uses=1]
+@A = weak global i32 0		; <ptr> [#uses=1]
+@B = weak global i32 0		; <ptr> [#uses=1]
+@C = weak global i32 0		; <ptr> [#uses=1]
 
 define internal fastcc void @foo(i32 %X) {
 entry:
-	%ALL = alloca i32, align 4		; <i32*> [#uses=1]
+	%ALL = alloca i32, align 4		; <ptr> [#uses=1]
 	%tmp1 = and i32 %X, 1		; <i32> [#uses=1]
 	%tmp1.upgrd.1 = icmp eq i32 %tmp1, 0		; <i1> [#uses=1]
 	br i1 %tmp1.upgrd.1, label %cond_next, label %cond_true
 
 cond_true:		; preds = %entry
-	store i32 1, i32* @A
+	store i32 1, ptr @A
 	br label %cond_next
 
 cond_next:		; preds = %cond_true, %entry
@@ -25,7 +25,7 @@ cond_next:		; preds = %cond_true, %entry
 	br i1 %tmp4.upgrd.2, label %cond_next7, label %cond_true5
 
 cond_true5:		; preds = %cond_next
-	store i32 1, i32* @B
+	store i32 1, ptr @B
 	br label %cond_next7
 
 cond_next7:		; preds = %cond_true5, %cond_next
@@ -34,7 +34,7 @@ cond_next7:		; preds = %cond_true5, %cond_next
 	br i1 %tmp10.upgrd.3, label %cond_next13, label %cond_true11
 
 cond_true11:		; preds = %cond_next7
-	store i32 1, i32* @C
+	store i32 1, ptr @C
 	br label %cond_next13
 
 cond_next13:		; preds = %cond_true11, %cond_next7
@@ -43,14 +43,14 @@ cond_next13:		; preds = %cond_true11, %cond_next7
 	br i1 %tmp16.upgrd.4, label %UnifiedReturnBlock, label %cond_true17
 
 cond_true17:		; preds = %cond_next13
-	call void @ext( i32* %ALL )
+	call void @ext( ptr %ALL )
 	ret void
 
 UnifiedReturnBlock:		; preds = %cond_next13
 	ret void
 }
 
-declare void @ext(i32*)
+declare void @ext(ptr)
 
 define void @test() {
 ; CHECK-LABEL: @test(
@@ -138,9 +138,9 @@ entry:
   ret void
 }
 
-define void @PR12470_inner(i16 signext %p1) nounwind uwtable {
+define void @PR12470_inner(i16 signext %p1, i1 %arg) nounwind uwtable {
 entry:
-  br i1 undef, label %cond.true, label %cond.false
+  br i1 %arg, label %cond.true, label %cond.false
 
 cond.true:
   br label %cond.end
@@ -161,7 +161,7 @@ if.end5:
   ret void
 }
 
-define void @PR12470_outer() {
+define void @PR12470_outer(i1 %arg) {
 ; This previously crashed during inliner cleanup and folding inner return
 ; instructions. Check that we don't crash and we produce a function with a single
 ; return instruction due to merging the returns of the inlined function.
@@ -172,16 +172,16 @@ define void @PR12470_outer() {
 ; CHECK: }
 
 entry:
-  call void @PR12470_inner(i16 signext 1)
+  call void @PR12470_inner(i16 signext 1, i1 1)
   ret void
 }
 
-define void @crasher_inner() nounwind uwtable {
+define void @crasher_inner(i1 %arg) nounwind uwtable {
 entry:
   br i1 false, label %for.end28, label %for.body6
 
 for.body6:
-  br i1 undef, label %for.body6, label %for.cond12.for.inc26_crit_edge
+  br i1 %arg, label %for.body6, label %for.cond12.for.inc26_crit_edge
 
 for.cond12.for.inc26_crit_edge:
   br label %for.body6.1
@@ -190,13 +190,13 @@ for.end28:
   ret void
 
 for.body6.1:
-  br i1 undef, label %for.body6.1, label %for.cond12.for.inc26_crit_edge.1
+  br i1 %arg, label %for.body6.1, label %for.cond12.for.inc26_crit_edge.1
 
 for.cond12.for.inc26_crit_edge.1:
   br label %for.body6.2
 
 for.body6.2:
-  br i1 undef, label %for.body6.2, label %for.cond12.for.inc26_crit_edge.2
+  br i1 %arg, label %for.body6.2, label %for.cond12.for.inc26_crit_edge.2
 
 for.cond12.for.inc26_crit_edge.2:
   br label %for.end28
@@ -209,6 +209,6 @@ define void @crasher_outer() {
 ; CHECK-NOT: ret
 ; CHECK: }
 entry:
-  tail call void @crasher_inner()
+  tail call void @crasher_inner(i1 1)
   ret void
 }

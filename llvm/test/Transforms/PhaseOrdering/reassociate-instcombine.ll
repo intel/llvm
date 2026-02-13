@@ -8,7 +8,7 @@ define i4 @not_reassociate_and_and_not(i4 %a, i4 %b, i4 %c, i4 %d) {
 ; CHECK-LABEL: @not_reassociate_and_and_not(
 ; CHECK-NEXT:    [[TMP1:%.*]] = or i4 [[B:%.*]], [[C:%.*]]
 ; CHECK-NEXT:    [[TMP2:%.*]] = xor i4 [[TMP1]], -1
-; CHECK-NEXT:    [[AND2:%.*]] = and i4 [[TMP2]], [[A:%.*]]
+; CHECK-NEXT:    [[AND2:%.*]] = and i4 [[A:%.*]], [[TMP2]]
 ; CHECK-NEXT:    [[AND3:%.*]] = and i4 [[AND2]], [[D:%.*]]
 ; CHECK-NEXT:    ret i4 [[AND3]]
 ;
@@ -25,7 +25,7 @@ define i32 @not_reassociate_or_or_not(i32 %a, i32 %b, i32 %c, i32 %d) {
 ; CHECK-LABEL: @not_reassociate_or_or_not(
 ; CHECK-NEXT:    [[TMP1:%.*]] = and i32 [[B:%.*]], [[C:%.*]]
 ; CHECK-NEXT:    [[TMP2:%.*]] = xor i32 [[TMP1]], -1
-; CHECK-NEXT:    [[B2:%.*]] = or i32 [[TMP2]], [[A:%.*]]
+; CHECK-NEXT:    [[B2:%.*]] = or i32 [[A:%.*]], [[TMP2]]
 ; CHECK-NEXT:    [[B3:%.*]] = or i32 [[B2]], [[D:%.*]]
 ; CHECK-NEXT:    ret i32 [[B3]]
 ;
@@ -35,4 +35,29 @@ define i32 @not_reassociate_or_or_not(i32 %a, i32 %b, i32 %c, i32 %d) {
   %b2 = or i32 %b1, %d
   %b3 = or i32 %b2, %notc
   ret i32 %b3
+}
+
+define i32 @PR58137_sdiv(i32 %a, i32 %b) {
+; CHECK-LABEL: @PR58137_sdiv(
+; CHECK-NEXT:    ret i32 [[B:%.*]]
+;
+  %mul = mul nsw i32 2, %b
+  %mul1 = mul nsw i32 %mul, %a
+  %mul2 = mul nsw i32 2, %a
+  %div = sdiv i32 %mul1, %mul2
+  ret i32 %div
+}
+
+define i32 @PR58137_udiv(i32 %x, i32 %y) {
+; CHECK-LABEL: @PR58137_udiv(
+; CHECK-NEXT:    ret i32 [[X:%.*]]
+;
+  %zx = zext i32 %x to i64
+  %zy = zext i32 %y to i64
+  %m1 = mul nuw i64 %zx, %zy
+  %m2 = mul nuw i64 4, %m1
+  %m3 = mul nuw i64 4, %zy
+  %d = udiv i64 %m2, %m3
+  %t = trunc i64 %d to i32
+  ret i32 %t
 }

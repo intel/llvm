@@ -12,17 +12,17 @@
 ; RUN:   -mattr=-altivec -data-sections=false -filetype=obj -o %t64.o < %s
 ; RUN: llvm-readobj --symbols %t64.o | FileCheck --check-prefixes=CHECKSYM,CHECKSYM64 %s
 
-@foo_weak_p = global void (...)* bitcast (void ()* @foo_ref_weak to void (...)*), align 4
+@foo_weak_p = global ptr @foo_ref_weak, align 4
 @b = weak global i32 0, align 4
 
-define weak void @foo_weak(i32* %p)  {
+define weak void @foo_weak(ptr %p)  {
 entry:
-  %p.addr = alloca i32*, align 4
-  store i32* %p, i32** %p.addr, align 4
-  %0 = load i32*, i32** %p.addr, align 4
-  %1 = load i32, i32* %0, align 4
+  %p.addr = alloca ptr, align 4
+  store ptr %p, ptr %p.addr, align 4
+  %0 = load ptr, ptr %p.addr, align 4
+  %1 = load i32, ptr %0, align 4
   %inc = add nsw i32 %1, 1
-  store i32 %inc, i32* %0, align 4
+  store i32 %inc, ptr %0, align 4
   ret void
 }
 
@@ -33,10 +33,9 @@ entry:
 
 define i32 @main()  {
 entry:
-  %0 = load void (...)*, void (...)** @foo_weak_p, align 4
-  %callee.knr.cast = bitcast void (...)* %0 to void ()*
-  call void %callee.knr.cast()
-  call void @foo_weak(i32* @b)
+  %0 = load ptr, ptr @foo_weak_p, align 4
+  call void %0()
+  call void @foo_weak(ptr @b)
   call void @foo_ref_weak()
   ret i32 0
 }
@@ -51,7 +50,7 @@ entry:
 ; BIT64-NEXT:           .vbyte	8, .foo_weak               # @foo_weak
 ; BIT64-NEXT:           .vbyte	8, TOC[TC0]
 ; BIT64-NEXT:           .vbyte	8, 0
-; COMMON-NEXT:          .csect .text[PR]
+; COMMON-NEXT:          .csect ..text..[PR]
 ; COMMON-NEXT:  .foo_weak:
 
 ; COMMON:               .weak   foo_ref_weak[DS]        # -- Begin function foo_ref_weak
@@ -64,7 +63,7 @@ entry:
 ; BIT64-NEXT:           .vbyte	8, .foo_ref_weak           # @foo_ref_weak
 ; BIT64-NEXT:           .vbyte	8, TOC[TC0]
 ; BIT64-NEXT:           .vbyte	8, 0
-; COMMON-NEXT:          .csect .text[PR]
+; COMMON-NEXT:          .csect ..text..[PR]
 ; COMMON-NEXT:  .foo_ref_weak:
 
 ; COMMON:               .globl  main[DS]                # -- Begin function main
@@ -77,7 +76,7 @@ entry:
 ; BIT64-NEXT:           .vbyte	8, .main                   # @main
 ; BIT64-NEXT:           .vbyte	8, TOC[TC0]
 ; BIT64-NEXT:           .vbyte	8, 0
-; COMMON-NEXT:          .csect .text[PR]
+; COMMON-NEXT:          .csect ..text..[PR]
 ; COMMON-NEXT:  .main:
 
 ; COMMON:     	        .csect .data[RW]
@@ -101,17 +100,16 @@ entry:
 ; CHECKSYM:      Symbols [
 ; CHECKSYM-NEXT:   Symbol {
 ; CHECKSYM-NEXT:     Index: 0
-; CHECKSYM-NEXT:     Name: <stdin>
+; CHECKSYM-NEXT:     Name: .file
 ; CHECKSYM-NEXT:     Value (SymbolTableIndex): 0x0
 ; CHECKSYM-NEXT:     Section: N_DEBUG
-; CHECKSYM-NEXT:     Source Language ID: TB_C (0x0)
-; CHECKSYM-NEXT:     CPU Version ID: 0x0
+; CHECKSYM-NEXT:     Source Language ID: TB_CPLUSPLUS (0x9)
+; CHECKSYM-NEXT:     CPU Version ID: TCPU_COM (0x3)
 ; CHECKSYM-NEXT:     StorageClass: C_FILE (0x67)
-; CHECKSYM-NEXT:     NumberOfAuxEntries: 0
-; CHECKSYM-NEXT:   }
-; CHECKSYM-NEXT:   Symbol {
+; CHECKSYM-NEXT:     NumberOfAuxEntries: 2
+; CHECKSYM:        Symbol {
 ; CHECKSYM-NEXT:     Index: [[#Index:]]
-; CHECKSYM-NEXT:     Name: .text
+; CHECKSYM-NEXT:     Name: 
 ; CHECKSYM-NEXT:     Value (RelocatableAddress): 0x0
 ; CHECKSYM-NEXT:     Section: .text
 ; CHECKSYM-NEXT:     Type: 0x0

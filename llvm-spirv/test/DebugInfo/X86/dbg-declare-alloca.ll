@@ -1,9 +1,18 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu < %t.ll | FileCheck %s
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu < %t.ll -filetype=obj | llvm-dwarfdump -v - --debug-info | FileCheck %s --check-prefix=DWARF
 
-; RUN: llc -mtriple=%triple < %t.ll | FileCheck %s
-; RUN: llc -mtriple=%triple < %t.ll -filetype=obj | llvm-dwarfdump -v - --debug-info | FileCheck %s --check-prefix=DWARF
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu < %t.ll | FileCheck %s
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu < %t.ll -filetype=obj | llvm-dwarfdump -v - --debug-info | FileCheck %s --check-prefix=DWARF
+
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu < %t.ll | FileCheck %s
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu < %t.ll -filetype=obj | llvm-dwarfdump -v - --debug-info | FileCheck %s --check-prefix=DWARF
 
 ; This should use the frame index side table for allocas, not DBG_VALUE
 ; instructions. For SDAG ISel, this test would see an SDNode materializing the
@@ -27,16 +36,16 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: noinline nounwind uwtable
 define void @use_dbg_declare() #0 !dbg !7 {
 entry:
-  %o = alloca %struct.Foo, align 4
-  call void @llvm.dbg.declare(metadata %struct.Foo* %o, metadata !10, metadata !15), !dbg !16
-  call void @escape_foo(%struct.Foo* %o), !dbg !17
+  %o = alloca %struct.Foo, align 8
+  call void @llvm.dbg.declare(metadata ptr %o, metadata !10, metadata !15), !dbg !16
+  call void @escape_foo(ptr %o), !dbg !17
   ret void, !dbg !18
 }
 
 ; Function Attrs: nounwind readnone speculatable
 declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
 
-declare void @escape_foo(%struct.Foo*)
+declare void @escape_foo(ptr)
 
 attributes #0 = { noinline nounwind uwtable }
 attributes #1 = { nounwind readnone speculatable }

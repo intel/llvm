@@ -1,0 +1,14 @@
+RUN: %maybe-v1 %valgrind --tool=memcheck --leak-check=full ./link-test 2>&1 | FileCheck %s
+RUN: %maybe-v1 %valgrind --tool=memcheck --leak-check=full ./event_create-test 2>&1 | FileCheck %s
+RUN: %maybe-v1 %valgrind --tool=memcheck --leak-check=full ./kernel_create-test 2>&1 | FileCheck %s
+
+RUN: %maybe-v2 %valgrind --tool=memcheck --leak-check=full ./link-test 2>&1 | FileCheck %s
+RUN: %maybe-v2 %valgrind --tool=memcheck --leak-check=full ./event_create-test 2>&1 | FileCheck %s
+RUN: %maybe-v2 %valgrind --tool=memcheck --leak-check=full ./kernel_create-test 2>&1 | FileCheck %s
+
+REQUIRES: valgrind
+
+COM: TODO: valgrind tests require very new environment. Enable once all L0 runners are updated.
+XFAIL: *
+
+CHECK: ERROR SUMMARY: 0 errors from 0 contexts

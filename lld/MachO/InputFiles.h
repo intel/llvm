@@ -45,7 +45,7 @@ class ConcatInputSection;
 class Symbol;
 class Defined;
 class AliasSymbol;
-struct Reloc;
+struct Relocation;
 enum class RefState : uint8_t;
 
 // If --reproduce option is given, all input files are written
@@ -140,6 +140,9 @@ protected:
 
   InputFile(Kind, const llvm::MachO::InterfaceFile &);
 
+  // If true, this input's arch is compatible with target.
+  bool compatArch = true;
+
 private:
   const Kind fileKind;
   const StringRef name;
@@ -157,10 +160,13 @@ struct FDE {
 class ObjFile final : public InputFile {
 public:
   ObjFile(MemoryBufferRef mb, uint32_t modTime, StringRef archiveName,
-          bool lazy = false, bool forceHidden = false);
+          bool lazy = false, bool forceHidden = false, bool compatArch = true,
+          bool builtFromBitcode = false);
   ArrayRef<llvm::MachO::data_in_code_entry> getDataInCode() const;
   ArrayRef<uint8_t> getOptimizationHints() const;
   template <class LP> void parse();
+  template <class LP>
+  void parseLinkerOptions(llvm::SmallVectorImpl<StringRef> &LinkerOptions);
 
   static bool classof(const InputFile *f) { return f->kind() == ObjKind; }
 
@@ -174,6 +180,7 @@ public:
   Section *addrSigSection = nullptr;
   const uint32_t modTime;
   bool forceHidden;
+  bool builtFromBitcode;
   std::vector<ConcatInputSection *> debugSections;
   std::vector<CallGraphEntry> callGraph;
   llvm::DenseMap<ConcatInputSection *, FDE> fdes;
@@ -234,6 +241,7 @@ public:
   DylibFile *exportingFile = nullptr;
   DylibFile *umbrella;
   SmallVector<StringRef, 2> rpaths;
+  SmallVector<StringRef> allowableClients;
   uint32_t compatibilityVersion = 0;
   uint32_t currentVersion = 0;
   int64_t ordinal = 0; // Ordinal numbering starts from 1, so 0 is a sentinel
@@ -269,6 +277,8 @@ private:
   void handleLDHideSymbol(StringRef name, StringRef originalName);
   void checkAppExtensionSafety(bool dylibIsAppExtensionSafe) const;
   void parseExportedSymbols(uint32_t offset, uint32_t size);
+  void loadReexport(StringRef path, DylibFile *umbrella,
+                    const llvm::MachO::InterfaceFile *currentTopLevelTapi);
 
   llvm::DenseSet<llvm::CachedHashStringRef> hiddenSymbols;
 };
@@ -287,10 +297,13 @@ public:
   static bool classof(const InputFile *f) { return f->kind() == ArchiveKind; }
 
 private:
+  Expected<InputFile *> childToObjectFile(const llvm::object::Archive::Child &c,
+                                          bool lazy);
   std::unique_ptr<llvm::object::Archive> file;
   // Keep track of children fetched from the archive by tracking
   // which address offsets have been fetched already.
   llvm::DenseSet<uint64_t> seen;
+  llvm::DenseSet<uint64_t> seenLazy;
   // Load all symbols with hidden visibility (-load_hidden).
   bool forceHidden;
 };
@@ -299,7 +312,7 @@ class BitcodeFile final : public InputFile {
 public:
   explicit BitcodeFile(MemoryBufferRef mb, StringRef archiveName,
                        uint64_t offsetInArchive, bool lazy = false,
-                       bool forceHidden = false);
+                       bool forceHidden = false, bool compatArch = true);
   static bool classof(const InputFile *f) { return f->kind() == BitcodeKind; }
   void parse();
 
@@ -312,8 +325,9 @@ private:
 
 extern llvm::SetVector<InputFile *> inputFiles;
 extern llvm::DenseMap<llvm::CachedHashStringRef, MemoryBufferRef> cachedReads;
+extern llvm::SmallVector<StringRef> unprocessedLCLinkerOptions;
 
-llvm::Optional<MemoryBufferRef> readFile(StringRef path);
+std::optional<MemoryBufferRef> readFile(StringRef path);
 
 void extract(InputFile &file, StringRef reason);
 
@@ -355,6 +369,7 @@ std::vector<const CommandType *> findCommands(const void *anyHdr,
   return detail::findCommands<CommandType>(anyHdr, 0, types...);
 }
 
+std::string replaceThinLTOSuffix(StringRef path);
 } // namespace macho
 
 std::string toString(const macho::InputFile *file);

@@ -11,22 +11,16 @@
 
 #pragma once
 
-// SYCL extension macro definition as required by the SYCL specification.
-// 1 - Initial extension version. Base features are supported.
-#define SYCL_EXT_ONEAPI_INVOKE_SIMD 1
-
+#include <sycl/ext/oneapi/experimental/detail/invoke_simd_types.hpp>
 #include <sycl/ext/oneapi/experimental/uniform.hpp>
 
-#include <std/experimental/simd.hpp>
-#include <sycl/detail/boost/mp11.hpp>
 #include <sycl/sub_group.hpp>
 
 #include <functional>
 
 // TODOs:
-// * (a) TODO bool translation in spmd2simd.
-// * (b) TODO enforce constness of a functor/lambda's () operator
-// * (c) TODO support lambdas and functors in BE
+// * (a) TODO enforce constness of a functor/lambda's () operator
+// * (b) TODO support lambdas and functors in BE
 
 /// Middle End - to - Back End interface to invoke explicit SIMD functions from
 /// SPMD SYCL context. Must not be used by user code. BEs are expected to
@@ -41,7 +35,7 @@
 /// target function and the original SPMD arguments passed to invoke_simd.
 template <bool IsFunc, class SpmdRet, class HelperFunc,
           class... UserSimdFuncAndSpmdArgs, class = std::enable_if_t<!IsFunc>>
-SYCL_EXTERNAL __regcall SpmdRet
+__DPCPP_SYCL_EXTERNAL __regcall SpmdRet
 __builtin_invoke_simd(HelperFunc helper, const void *obj,
                       UserSimdFuncAndSpmdArgs... args)
 #ifdef __SYCL_DEVICE_ONLY__
@@ -56,7 +50,7 @@ __builtin_invoke_simd(HelperFunc helper, const void *obj,
 
 template <bool IsFunc, class SpmdRet, class HelperFunc,
           class... UserSimdFuncAndSpmdArgs, class = std::enable_if_t<IsFunc>>
-SYCL_EXTERNAL __regcall SpmdRet
+__DPCPP_SYCL_EXTERNAL __regcall SpmdRet
 __builtin_invoke_simd(HelperFunc helper, UserSimdFuncAndSpmdArgs... args)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
@@ -69,35 +63,12 @@ __builtin_invoke_simd(HelperFunc helper, UserSimdFuncAndSpmdArgs... args)
 #endif // __SYCL_DEVICE_ONLY__
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
-namespace ext {
-namespace oneapi {
-namespace experimental {
-
-// --- Basic definitions prescribed by the spec.
-namespace simd_abi {
-// "Fixed-size simd width of N" ABI based on clang vectors - used as the ABI for
-// SIMD objects this implementation of invoke_simd spec is based on.
-template <class T, int N>
-using native_fixed_size = typename std::experimental::__simd_abi<
-    std::experimental::_StorageKind::_VecExt, N>;
-} // namespace simd_abi
-
-// The SIMD object type, which is the generic std::experimental::simd type with
-// the native fixed size ABI.
-template <class T, int N>
-using simd = std::experimental::simd<T, simd_abi::native_fixed_size<T, N>>;
-
-// The SIMD mask object type.
-template <class T, int N>
-using simd_mask =
-    std::experimental::simd_mask<T, simd_abi::native_fixed_size<T, N>>;
+namespace ext::oneapi::experimental {
 
 // --- Helpers
 namespace detail {
-
-namespace __MP11_NS = sycl::detail::boost::mp11;
 
 // This structure performs the SPMD-to-SIMD parameter type conversion as defined
 // by the spec.
@@ -116,6 +87,14 @@ template <class... T, int N> struct spmd2simd<std::tuple<T...>, N> {
 template <class T, int N>
 struct spmd2simd<T, N, std::enable_if_t<std::is_arithmetic_v<T>>> {
   using type = simd<T, N>;
+};
+
+// * bool converts to `simd_mask` with a user specified element type.
+// Arbitrarily use unsigned char for the element type for subgroup size
+// deduction and rely on the implicit conversion operator for the the actual
+// user type.
+template <int N> struct spmd2simd<bool, N> {
+  using type = simd_mask<unsigned char, N>;
 };
 
 // This structure performs the SIMD-to-SPMD return type conversion as defined
@@ -137,6 +116,11 @@ template <class... T> struct simd2spmd<std::tuple<T...>> {
 template <class T>
 struct simd2spmd<T, std::enable_if_t<std::is_arithmetic_v<T>>> {
   using type = uniform<T>;
+};
+
+// * `simd_mask` converts to bool
+template <class T, int N> struct simd2spmd<simd_mask<T, N>> {
+  using type = bool;
 };
 
 template <> struct simd2spmd<void> { using type = void; };
@@ -167,8 +151,7 @@ struct is_simd_or_mask_type<simd_mask<T, N>> : std::true_type {};
 // Checks if all the types in the parameter pack are uniform<T>.
 template <class... SpmdArgs> struct all_uniform_types {
   constexpr operator bool() {
-    using TypeList = __MP11_NS::mp_list<SpmdArgs...>;
-    return __MP11_NS::mp_all_of<TypeList, is_uniform_type>::value;
+    return ((is_uniform_type<SpmdArgs>::value && ...));
   }
 };
 
@@ -177,12 +160,27 @@ template <class... SpmdArgs> struct all_uniform_types {
 // - the case when there is nothing to unwrap
 template <typename T> struct unwrap_uniform {
   static auto impl(T val) { return val; }
+  using type = T;
 };
 
 // - the real unwrapping case
 template <typename T> struct unwrap_uniform<uniform<T>> {
   static T impl(uniform<T> val) { return val; }
+  using type = T;
 };
+
+// Verify the callee return type matches the subgroup size as is required by the
+// spec. For example: simd<int, 8> foo(simd<int,16>); The return type vector
+// length (8) does not match the subgroup size (16).
+template <auto SgSize, typename SimdRet>
+constexpr void verify_return_type_matches_sg_size() {
+  if constexpr (is_simd_or_mask_type<SimdRet>::value) {
+    constexpr auto RetVecLength = SimdRet::size();
+    static_assert(RetVecLength == SgSize,
+                  "invoke_simd callee return type vector length must match "
+                  "kernel subgroup size");
+  }
+}
 
 // Deduces subgroup size of the caller based on given SIMD callable and
 // corresponding SPMD arguments it is being invoke with via invoke_simd.
@@ -191,17 +189,32 @@ template <typename T> struct unwrap_uniform<uniform<T>> {
 // as prescribed by the spec assuming this subgroup size. One and only one
 // subgroup size should conform.
 template <class SimdCallable, class... SpmdArgs> struct sg_size {
-  template <class N>
-  using IsInvocableSgSize = __MP11_NS::mp_bool<std::is_invocable_v<
-      SimdCallable, typename spmd2simd<SpmdArgs, N::value>::type...>>;
+  __DPCPP_SYCL_EXTERNAL constexpr operator int() {
+    constexpr auto x = []() constexpr {
+      constexpr int supported_sg_sizes[] = {1, 2, 4, 8, 16, 32};
+      int num_found = 0;
+      int found_sg_size = 0;
+      sycl::detail::loop<std::size(supported_sg_sizes)>([&](auto idx) {
+        constexpr auto sg_size = supported_sg_sizes[idx];
+        if (std::is_invocable_v<
+                SimdCallable, typename spmd2simd<SpmdArgs, sg_size>::type...>) {
+          ++num_found;
+          found_sg_size = sg_size;
+        }
+      });
+      return std::pair{num_found, found_sg_size};
+    }();
 
-  SYCL_EXTERNAL constexpr operator int() {
-    using SupportedSgSizes = __MP11_NS::mp_list_c<int, 1, 2, 4, 8, 16, 32>;
-    using InvocableSgSizes =
-        __MP11_NS::mp_copy_if<SupportedSgSizes, IsInvocableSgSize>;
-    static_assert((__MP11_NS::mp_size<InvocableSgSizes>::value == 1) &&
-                  "no or multiple invoke_simd targets found");
-    return __MP11_NS::mp_front<InvocableSgSizes>::value;
+    constexpr auto num_found = x.first;
+    constexpr auto found_sg_size = x.second;
+
+    static_assert(num_found != 0,
+                  "No callable invoke_simd target found. Confirm the "
+                  "invoke_simd invocation argument types are convertible to "
+                  "the invoke_simd target argument types");
+    static_assert(num_found == 1, "Multiple invoke_simd targets found!");
+
+    return found_sg_size;
   }
 };
 
@@ -236,7 +249,7 @@ static constexpr int get_sg_size() {
 // with captures. Note __regcall - this is needed for efficient argument
 // forwarding.
 template <int N, class Callable, class... T>
-[[intel::device_indirectly_callable]] SYCL_EXTERNAL __regcall detail::
+[[intel::device_indirectly_callable]] __DPCPP_SYCL_EXTERNAL __regcall detail::
     SimdRetType<N, Callable, T...>
     simd_obj_call_helper(const void *obj_ptr,
                          typename detail::spmd2simd<T, N>::type... simd_args) {
@@ -247,7 +260,7 @@ template <int N, class Callable, class... T>
 
 // This function is a wrapper around a call to a function.
 template <int N, class Callable, class... T>
-[[intel::device_indirectly_callable]] SYCL_EXTERNAL __regcall detail::
+[[intel::device_indirectly_callable]] __DPCPP_SYCL_EXTERNAL __regcall detail::
     SimdRetType<N, Callable, T...>
     simd_func_call_helper(Callable f,
                           typename detail::spmd2simd<T, N>::type... simd_args) {
@@ -300,6 +313,11 @@ template <typename Callable> struct remove_ref_from_func_ptr_ref_type {
 };
 
 template <typename Ret, typename... Args>
+struct remove_ref_from_func_ptr_ref_type<Ret (*&)(Args...)> {
+  using type = Ret (*)(Args...);
+};
+
+template <typename Ret, typename... Args>
 struct remove_ref_from_func_ptr_ref_type<Ret(__regcall *&)(Args...)> {
   using type = Ret(__regcall *)(Args...);
 };
@@ -307,6 +325,120 @@ struct remove_ref_from_func_ptr_ref_type<Ret(__regcall *&)(Args...)> {
 template <typename T>
 using remove_ref_from_func_ptr_ref_type_t =
     typename remove_ref_from_func_ptr_ref_type<T>::type;
+
+template <typename T> struct strip_regcall_from_function_ptr;
+
+template <typename Ret, typename... Args>
+struct strip_regcall_from_function_ptr<Ret (*)(Args...)> {
+  using type = Ret (*)(Args...);
+};
+
+template <typename Ret, typename... Args>
+struct strip_regcall_from_function_ptr<Ret(__regcall *)(Args...)> {
+  using type = Ret (*)(Args...);
+};
+
+template <typename T>
+using strip_regcall_from_function_ptr_t =
+    typename strip_regcall_from_function_ptr<T>::type;
+
+template <typename T> struct is_non_trivially_copyable_uniform {
+  static constexpr bool value =
+      is_uniform_type<T>::value &&
+      !std::is_trivially_copyable_v<typename unwrap_uniform<T>::type>;
+};
+
+template <> struct is_non_trivially_copyable_uniform<void> {
+  static constexpr bool value = false;
+};
+
+template <typename T>
+inline constexpr bool is_non_trivially_copyable_uniform_v =
+    is_non_trivially_copyable_uniform<T>::value;
+
+template <typename Ret, typename... Args>
+constexpr bool has_ref_arg(Ret (*)(Args...)) {
+  return (... || std::is_reference_v<Args>);
+}
+
+template <typename Ret, typename... Args>
+constexpr bool has_ref_ret(Ret (*)(Args...)) {
+  return std::is_reference_v<Ret>;
+}
+
+template <typename Ret, typename... Args>
+constexpr bool has_non_uniform_struct_ret(Ret (*)(Args...)) {
+  return std::is_class_v<Ret> && !is_simd_or_mask_type<Ret>::value &&
+         !is_uniform_type<Ret>::value;
+}
+
+template <typename Ret, typename... Args>
+constexpr bool has_non_trivially_copyable_uniform_ret(Ret (*)(Args...)) {
+  return is_non_trivially_copyable_uniform_v<Ret>;
+}
+
+template <class Callable> constexpr void verify_callable() {
+  if constexpr (is_function_ptr_or_ref_v<Callable>) {
+    using RemoveRef =
+        remove_ref_from_func_ptr_ref_type_t<std::remove_reference_t<Callable>>;
+    using FuncPtrType =
+        std::conditional_t<std::is_pointer_v<RemoveRef>, RemoveRef,
+                           std::add_pointer_t<RemoveRef>>;
+    using FuncPtrNoCC = strip_regcall_from_function_ptr_t<FuncPtrType>;
+    constexpr FuncPtrNoCC obj = {};
+    constexpr bool callable_has_ref_ret = has_ref_ret(obj);
+    static_assert(
+        !callable_has_ref_ret,
+        "invoke_simd does not support callables returning references");
+    constexpr bool callable_has_ref_arg = has_ref_arg(obj);
+    static_assert(
+        !callable_has_ref_arg,
+        "invoke_simd does not support callables with reference arguments");
+#ifndef __INVOKE_SIMD_ENABLE_STRUCTS
+    constexpr bool callable_has_non_uniform_struct_ret =
+        has_non_uniform_struct_ret(obj);
+    static_assert(!callable_has_non_uniform_struct_ret,
+                  "invoke_simd does not support callables returning "
+                  "non-uniform structures");
+#endif
+#ifdef __SYCL_DEVICE_ONLY__
+    constexpr bool callable_has_uniform_non_trivially_copyable_ret =
+        has_non_trivially_copyable_uniform_ret(obj);
+    static_assert(!callable_has_uniform_non_trivially_copyable_ret,
+                  "invoke_simd does not support callables returning uniforms "
+                  "that are not trivially copyable");
+#endif
+  }
+}
+
+template <class... Ts>
+constexpr void verify_no_uniform_non_trivially_copyable_args() {
+#ifdef __SYCL_DEVICE_ONLY__
+  constexpr bool has_non_trivially_copyable_uniform_arg =
+      (... || is_non_trivially_copyable_uniform_v<Ts>);
+  static_assert(!has_non_trivially_copyable_uniform_arg,
+                "Uniform arguments must be trivially copyable");
+#endif
+}
+
+template <class... Ts> constexpr void verify_no_non_uniform_struct_args() {
+#if defined(__SYCL_DEVICE_ONLY__) && !defined(__INVOKE_SIMD_ENABLE_STRUCTS)
+  constexpr bool has_non_uniform_struct_arg =
+      (... || (std::is_class_v<Ts> && !is_simd_or_mask_type<Ts>::value &&
+               !is_uniform_type<Ts>::value));
+  static_assert(!has_non_uniform_struct_arg,
+                "Structure arguments must be uniform");
+#endif
+}
+
+template <class Callable, class... Ts>
+constexpr void verify_valid_args_and_ret() {
+  verify_no_uniform_non_trivially_copyable_args<Ts...>();
+
+  verify_no_non_uniform_struct_args<Ts...>();
+
+  verify_callable<Callable>();
+}
 
 } // namespace detail
 
@@ -337,8 +469,11 @@ __attribute__((always_inline)) auto invoke_simd(sycl::sub_group sg,
   // what the subgroup size is and arguments don't need widening and return
   // value does not need shrinking by this library or SPMD compiler, so 0
   // is fine in this case.
+  detail::verify_valid_args_and_ret<Callable, T...>();
   constexpr int N = detail::get_sg_size<Callable, T...>();
   using RetSpmd = detail::SpmdRetType<N, Callable, T...>;
+  detail::verify_return_type_matches_sg_size<
+      N, detail::SimdRetType<N, Callable, T...>>();
   constexpr bool is_function = detail::is_function_ptr_or_ref_v<Callable>;
 
   if constexpr (is_function) {
@@ -370,8 +505,6 @@ __attribute__((always_inline)) auto invoke_simd(sycl::sub_group sg,
 #endif // __INVOKE_SIMD_ENABLE_ALL_CALLABLES
 }
 
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace ext::oneapi::experimental
+} // namespace _V1
 } // namespace sycl

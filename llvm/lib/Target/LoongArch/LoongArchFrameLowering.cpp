@@ -14,6 +14,7 @@
 #include "LoongArchMachineFunctionInfo.h"
 #include "LoongArchSubtarget.h"
 #include "MCTargetDesc/LoongArchBaseInfo.h"
+#include "MCTargetDesc/LoongArchMCTargetDesc.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
@@ -30,7 +31,7 @@ using namespace llvm;
 // pointer register.  This is true if frame pointer elimination is
 // disabled, if it needs dynamic stack realignment, if the function has
 // variable sized allocas, or if the frame address is taken.
-bool LoongArchFrameLowering::hasFP(const MachineFunction &MF) const {
+bool LoongArchFrameLowering::hasFPImpl(const MachineFunction &MF) const {
   const TargetRegisterInfo *RegInfo = MF.getSubtarget().getRegisterInfo();
 
   const MachineFrameInfo &MFI = MF.getFrameInfo();
@@ -118,6 +119,69 @@ void LoongArchFrameLowering::determineFrameLayout(MachineFunction &MF) const {
   MFI.setStackSize(FrameSize);
 }
 
+static uint64_t estimateFunctionSizeInBytes(const LoongArchInstrInfo *TII,
+                                            const MachineFunction &MF) {
+  uint64_t FuncSize = 0;
+  for (auto &MBB : MF)
+    for (auto &MI : MBB)
+      FuncSize += TII->getInstSizeInBytes(MI);
+  return FuncSize;
+}
+
+static bool needScavSlotForCFR(MachineFunction &MF) {
+  if (!MF.getSubtarget<LoongArchSubtarget>().hasBasicF())
+    return false;
+  for (auto &MBB : MF)
+    for (auto &MI : MBB)
+      if (MI.getOpcode() == LoongArch::PseudoST_CFR)
+        return true;
+  return false;
+}
+
+void LoongArchFrameLowering::processFunctionBeforeFrameFinalized(
+    MachineFunction &MF, RegScavenger *RS) const {
+  const LoongArchRegisterInfo *RI = STI.getRegisterInfo();
+  const TargetRegisterClass &RC = LoongArch::GPRRegClass;
+  const LoongArchInstrInfo *TII = STI.getInstrInfo();
+  LoongArchMachineFunctionInfo *LAFI =
+      MF.getInfo<LoongArchMachineFunctionInfo>();
+  MachineFrameInfo &MFI = MF.getFrameInfo();
+
+  unsigned ScavSlotsNum = 0;
+
+  // Far branches beyond 27-bit offset require a spill slot for scratch
+  // register.
+  bool IsLargeFunction = !isInt<27>(estimateFunctionSizeInBytes(TII, MF));
+  if (IsLargeFunction)
+    ScavSlotsNum = 1;
+
+  // estimateStackSize has been observed to under-estimate the final stack
+  // size, so give ourselves wiggle-room by checking for stack size
+  // representable an 11-bit signed field rather than 12-bits.
+  // For [x]vstelm.{b/h/w/d} memory instructions with 8 imm offset, 7-bit
+  // signed field is fine.
+  unsigned EstimateStackSize = MFI.estimateStackSize(MF);
+  if (!isInt<11>(EstimateStackSize) ||
+      (MF.getSubtarget<LoongArchSubtarget>().hasExtLSX() &&
+       !isInt<7>(EstimateStackSize)))
+    ScavSlotsNum = std::max(ScavSlotsNum, 1u);
+
+  // For CFR spill.
+  if (needScavSlotForCFR(MF))
+    ++ScavSlotsNum;
+
+  // Create emergency spill slots.
+  for (unsigned i = 0; i < ScavSlotsNum; ++i) {
+    int FI =
+        MFI.CreateSpillStackObject(RI->getSpillSize(RC), RI->getSpillAlign(RC));
+    RS->addScavengingFrameIndex(FI);
+    if (IsLargeFunction && LAFI->getBranchRelaxationSpillFrameIndex() == -1)
+      LAFI->setBranchRelaxationSpillFrameIndex(FI);
+    LLVM_DEBUG(dbgs() << "Allocated FI(" << FI
+                      << ") as the emergency spill slot.\n");
+  }
+}
+
 void LoongArchFrameLowering::emitPrologue(MachineFunction &MF,
                                           MachineBasicBlock &MBB) const {
   MachineFrameInfo &MFI = MF.getFrameInfo();
@@ -125,6 +189,7 @@ void LoongArchFrameLowering::emitPrologue(MachineFunction &MF,
   const LoongArchRegisterInfo *RI = STI.getRegisterInfo();
   const LoongArchInstrInfo *TII = STI.getInstrInfo();
   MachineBasicBlock::iterator MBBI = MBB.begin();
+  bool IsLA64 = STI.is64Bit();
 
   Register SPReg = LoongArch::R3;
   Register FPReg = LoongArch::R22;
@@ -132,16 +197,25 @@ void LoongArchFrameLowering::emitPrologue(MachineFunction &MF,
   // Debug location must be unknown since the first debug location is used
   // to determine the end of the prologue.
   DebugLoc DL;
-
+  // All calls are tail calls in GHC calling conv, and functions have no
+  // prologue/epilogue.
+  if (MF.getFunction().getCallingConv() == CallingConv::GHC)
+    return;
   // Determine the correct frame layout
   determineFrameLayout(MF);
 
   // First, compute final stack size.
   uint64_t StackSize = MFI.getStackSize();
+  uint64_t RealStackSize = StackSize;
 
   // Early exit if there is no need to allocate space in the stack.
   if (StackSize == 0 && !MFI.adjustsStack())
     return;
+
+  uint64_t FirstSPAdjustAmount = getFirstSPAdjustAmount(MF);
+  // Split the SP adjustment to reduce the offsets of callee saved spill.
+  if (FirstSPAdjustAmount)
+    StackSize = FirstSPAdjustAmount;
 
   // Adjust stack.
   adjustReg(MBB, MBBI, DL, SPReg, SPReg, -StackSize, MachineInstr::FrameSetup);
@@ -185,6 +259,53 @@ void LoongArchFrameLowering::emitPrologue(MachineFunction &MF,
         .addCFIIndex(CFIIndex)
         .setMIFlag(MachineInstr::FrameSetup);
   }
+
+  // Emit the second SP adjustment after saving callee saved registers.
+  if (FirstSPAdjustAmount) {
+    uint64_t SecondSPAdjustAmount = RealStackSize - FirstSPAdjustAmount;
+    assert(SecondSPAdjustAmount > 0 &&
+           "SecondSPAdjustAmount should be greater than zero");
+    adjustReg(MBB, MBBI, DL, SPReg, SPReg, -SecondSPAdjustAmount,
+              MachineInstr::FrameSetup);
+
+    if (!hasFP(MF)) {
+      // If we are using a frame-pointer, and thus emitted ".cfi_def_cfa fp, 0",
+      // don't emit an sp-based .cfi_def_cfa_offset
+      // Emit ".cfi_def_cfa_offset RealStackSize"
+      unsigned CFIIndex = MF.addFrameInst(
+          MCCFIInstruction::cfiDefCfaOffset(nullptr, RealStackSize));
+      BuildMI(MBB, MBBI, DL, TII->get(TargetOpcode::CFI_INSTRUCTION))
+          .addCFIIndex(CFIIndex)
+          .setMIFlag(MachineInstr::FrameSetup);
+    }
+  }
+
+  if (hasFP(MF)) {
+    // Realign stack.
+    if (RI->hasStackRealignment(MF)) {
+      unsigned Align = Log2(MFI.getMaxAlign());
+      assert(Align > 0 && "The stack realignment size is invalid!");
+      BuildMI(MBB, MBBI, DL,
+              TII->get(IsLA64 ? LoongArch::BSTRINS_D : LoongArch::BSTRINS_W),
+              SPReg)
+          .addReg(SPReg)
+          .addReg(LoongArch::R0)
+          .addImm(Align - 1)
+          .addImm(0)
+          .setMIFlag(MachineInstr::FrameSetup);
+      // FP will be used to restore the frame in the epilogue, so we need
+      // another base register BP to record SP after re-alignment. SP will
+      // track the current stack after allocating variable sized objects.
+      if (hasBP(MF)) {
+        // move BP, $sp
+        BuildMI(MBB, MBBI, DL, TII->get(LoongArch::OR),
+                LoongArchABI::getBPReg())
+            .addReg(SPReg)
+            .addReg(LoongArch::R0)
+            .setMIFlag(MachineInstr::FrameSetup);
+      }
+    }
+  }
 }
 
 void LoongArchFrameLowering::emitEpilogue(MachineFunction &MF,
@@ -193,7 +314,10 @@ void LoongArchFrameLowering::emitEpilogue(MachineFunction &MF,
   MachineFrameInfo &MFI = MF.getFrameInfo();
   auto *LoongArchFI = MF.getInfo<LoongArchMachineFunctionInfo>();
   Register SPReg = LoongArch::R3;
-
+  // All calls are tail calls in GHC calling conv, and functions have no
+  // prologue/epilogue.
+  if (MF.getFunction().getCallingConv() == CallingConv::GHC)
+    return;
   MachineBasicBlock::iterator MBBI = MBB.getFirstTerminator();
   DebugLoc DL = MBBI != MBB.end() ? MBBI->getDebugLoc() : DebugLoc();
 
@@ -214,8 +338,45 @@ void LoongArchFrameLowering::emitEpilogue(MachineFunction &MF,
               MachineInstr::FrameDestroy);
   }
 
+  uint64_t FirstSPAdjustAmount = getFirstSPAdjustAmount(MF);
+  if (FirstSPAdjustAmount) {
+    uint64_t SecondSPAdjustAmount = StackSize - FirstSPAdjustAmount;
+    assert(SecondSPAdjustAmount > 0 &&
+           "SecondSPAdjustAmount should be greater than zero");
+
+    adjustReg(MBB, LastFrameDestroy, DL, SPReg, SPReg, SecondSPAdjustAmount,
+              MachineInstr::FrameDestroy);
+    StackSize = FirstSPAdjustAmount;
+  }
+
   // Deallocate stack
   adjustReg(MBB, MBBI, DL, SPReg, SPReg, StackSize, MachineInstr::FrameDestroy);
+}
+
+// We would like to split the SP adjustment to reduce prologue/epilogue
+// as following instructions. In this way, the offset of the callee saved
+// register could fit in a single store.
+// e.g.
+//   addi.d  $sp, $sp, -2032
+//   st.d    $ra, $sp,  2024
+//   st.d    $fp, $sp,  2016
+//   addi.d  $sp, $sp,   -16
+uint64_t LoongArchFrameLowering::getFirstSPAdjustAmount(
+    const MachineFunction &MF) const {
+  const MachineFrameInfo &MFI = MF.getFrameInfo();
+  const std::vector<CalleeSavedInfo> &CSI = MFI.getCalleeSavedInfo();
+
+  // Return the FirstSPAdjustAmount if the StackSize can not fit in a signed
+  // 12-bit and there exists a callee-saved register needing to be pushed.
+  if (!isInt<12>(MFI.getStackSize()) && (CSI.size() > 0)) {
+    // FirstSPAdjustAmount is chosen as (2048 - StackAlign) because 2048 will
+    // cause sp = sp + 2048 in the epilogue to be split into multiple
+    // instructions. Offsets smaller than 2048 can fit in a single load/store
+    // instruction, and we have to stick with the stack alignment.
+    // So (2048 - StackAlign) will satisfy the stack alignment.
+    return 2048 - getStackAlign().value();
+  }
+  return 0;
 }
 
 void LoongArchFrameLowering::determineCalleeSaves(MachineFunction &MF,
@@ -271,11 +432,37 @@ LoongArchFrameLowering::eliminateCallFramePseudoInstr(
   return MBB.erase(MI);
 }
 
+bool LoongArchFrameLowering::spillCalleeSavedRegisters(
+    MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
+    ArrayRef<CalleeSavedInfo> CSI, const TargetRegisterInfo *TRI) const {
+  if (CSI.empty())
+    return true;
+
+  MachineFunction *MF = MBB.getParent();
+  const TargetInstrInfo &TII = *MF->getSubtarget().getInstrInfo();
+
+  // Insert the spill to the stack frame.
+  for (auto &CS : CSI) {
+    MCRegister Reg = CS.getReg();
+    // If the register is RA and the return address is taken by method
+    // LoongArchTargetLowering::lowerRETURNADDR, don't set kill flag.
+    bool IsKill =
+        !(Reg == LoongArch::R1 && MF->getFrameInfo().isReturnAddressTaken());
+    const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
+    TII.storeRegToStackSlot(MBB, MI, Reg, IsKill, CS.getFrameIdx(), RC,
+                            Register());
+  }
+
+  return true;
+}
+
 StackOffset LoongArchFrameLowering::getFrameIndexReference(
     const MachineFunction &MF, int FI, Register &FrameReg) const {
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   const TargetRegisterInfo *RI = MF.getSubtarget().getRegisterInfo();
   auto *LoongArchFI = MF.getInfo<LoongArchMachineFunctionInfo>();
+  uint64_t StackSize = MFI.getStackSize();
+  uint64_t FirstSPAdjustAmount = getFirstSPAdjustAmount(MF);
 
   // Callee-saved registers should be referenced relative to the stack
   // pointer (positive offset), otherwise use the frame pointer (negative
@@ -292,13 +479,34 @@ StackOffset LoongArchFrameLowering::getFrameIndexReference(
     MaxCSFI = CSI[CSI.size() - 1].getFrameIdx();
   }
 
-  if ((FI >= MinCSFI && FI <= MaxCSFI) || !hasFP(MF)) {
+  if (FI >= MinCSFI && FI <= MaxCSFI) {
     FrameReg = LoongArch::R3;
-    Offset += StackOffset::getFixed(MFI.getStackSize());
+    if (FirstSPAdjustAmount)
+      Offset += StackOffset::getFixed(FirstSPAdjustAmount);
+    else
+      Offset += StackOffset::getFixed(StackSize);
+  } else if (RI->hasStackRealignment(MF) && !MFI.isFixedObjectIndex(FI)) {
+    // If the stack was realigned, the frame pointer is set in order to allow
+    // SP to be restored, so we need another base register to record the stack
+    // after realignment.
+    FrameReg = hasBP(MF) ? LoongArchABI::getBPReg() : LoongArch::R3;
+    Offset += StackOffset::getFixed(StackSize);
   } else {
     FrameReg = RI->getFrameRegister(MF);
-    Offset += StackOffset::getFixed(LoongArchFI->getVarArgsSaveSize());
+    if (hasFP(MF))
+      Offset += StackOffset::getFixed(LoongArchFI->getVarArgsSaveSize());
+    else
+      Offset += StackOffset::getFixed(StackSize);
   }
 
   return Offset;
+}
+
+bool LoongArchFrameLowering::enableShrinkWrapping(
+    const MachineFunction &MF) const {
+  // Keep the conventional code flow when not optimizing.
+  if (MF.getFunction().hasOptNone())
+    return false;
+
+  return true;
 }

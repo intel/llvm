@@ -37,15 +37,14 @@ public:
                             const MachineFunction &MF) const override;
 
   /// Stack Frame Processing Methods
-  void eliminateFrameIndex(MachineBasicBlock::iterator MI, int SPAdj,
+  bool eliminateFrameIndex(MachineBasicBlock::iterator MI, int SPAdj,
                            unsigned FIOperandNum,
                            RegScavenger *RS = nullptr) const override;
 
   Register getFrameRegister(const MachineFunction &MF) const override;
 
   const TargetRegisterClass *
-  getPointerRegClass(const MachineFunction &MF,
-                     unsigned Kind = 0) const override;
+  getPointerRegClass(unsigned Kind = 0) const override;
 
   /// Splits a 16-bit `DREGS` register into the lo/hi register pair.
   /// \param Reg A 16-bit register to split.

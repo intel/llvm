@@ -14,12 +14,14 @@
 #define BOLT_REWRITE_REWRITE_INSTANCE_H
 
 #include "bolt/Core/BinaryContext.h"
+#include "bolt/Core/Linker.h"
+#include "bolt/Rewrite/MetadataManager.h"
 #include "bolt/Utils/NameResolver.h"
-#include "llvm/ADT/ArrayRef.h"
 #include "llvm/MC/StringTableBuilder.h"
 #include "llvm/Object/ELFObjectFile.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/Regex.h"
 #include <map>
 #include <set>
 #include <unordered_map>
@@ -43,13 +45,16 @@ class RewriteInstance {
 public:
   // This constructor has complex initialization that can fail during
   // construction. Constructors can’t return errors, so clients must test \p Err
-  // after the object is constructed. Use createRewriteInstance instead.
+  // after the object is constructed. Use `create` method instead.
   RewriteInstance(llvm::object::ELFObjectFileBase *File, const int Argc,
-                  const char *const *Argv, StringRef ToolPath, Error &Err);
+                  const char *const *Argv, StringRef ToolPath,
+                  raw_ostream &Stdout, raw_ostream &Stderr, Error &Err);
 
   static Expected<std::unique_ptr<RewriteInstance>>
-  createRewriteInstance(llvm::object::ELFObjectFileBase *File, const int Argc,
-                        const char *const *Argv, StringRef ToolPath);
+  create(llvm::object::ELFObjectFileBase *File, const int Argc,
+         const char *const *Argv, StringRef ToolPath,
+         raw_ostream &Stdout = llvm::outs(),
+         raw_ostream &Stderr = llvm::errs());
   ~RewriteInstance();
 
   /// Assign profile from \p Filename to this instance.
@@ -74,25 +79,43 @@ public:
     return InputFile->getFileName();
   }
 
-  /// Set the build-id string if we did not fail to parse the contents of the
-  /// ELF note section containing build-id information.
-  void parseBuildID();
-
-  /// The build-id is typically a stream of 20 bytes. Return these bytes in
-  /// printable hexadecimal form if they are available, or NoneType otherwise.
-  Optional<std::string> getPrintableBuildID() const;
-
   /// If this instance uses a profile, return appropriate profile reader.
   const ProfileReaderBase *getProfileReader() const {
     return ProfileReader.get();
   }
 
 private:
-  using ELF64LEPhdrTy = object::ELF64LEFile::Elf_Phdr;
-
   /// Populate array of binary functions and other objects of interest
   /// from meta data in the file.
   void discoverFileObjects();
+
+  /// Check if the input binary has a space reserved for BOLT and use it for new
+  /// section allocations if found.
+  void discoverBOLTReserved();
+
+  /// Check whether we should use DT_INIT or DT_INIT_ARRAY for instrumentation.
+  /// DT_INIT is preferred; DT_INIT_ARRAY is only used when no DT_INIT entry was
+  /// found.
+  Error discoverRtInitAddress();
+
+  /// Check whether we should use DT_FINI or DT_FINI_ARRAY for instrumentation.
+  /// DT_FINI is preferred; DT_FINI_ARRAY is only used when no DT_FINI entry was
+  /// found.
+  Error discoverRtFiniAddress();
+
+  /// If DT_INIT_ARRAY is used for instrumentation, update the relocation of its
+  /// first entry to point to the instrumentation library's init address.
+  Error updateRtInitReloc();
+
+  /// If DT_FINI_ARRAY is used for instrumentation, update the relocation of its
+  /// first entry to point to the instrumentation library's fini address.
+  Error updateRtFiniReloc();
+
+  /// Create and initialize metadata rewriters for this instance.
+  void initializeMetadataManager();
+
+  /// Process fragments, locate parent functions.
+  void registerFragments();
 
   /// Read info from special sections. E.g. eh_frame and .gcc_except_table
   /// for exception and stack unwinding information.
@@ -107,32 +130,11 @@ private:
   /// Process input relocations.
   void processRelocations();
 
-  /// Insert an LKMarker for a given code pointer \p PC from a non-code section
-  /// \p SectionName.
-  void insertLKMarker(uint64_t PC, uint64_t SectionOffset,
-                      int32_t PCRelativeOffset, bool IsPCRelative,
-                      StringRef SectionName);
-
-  /// Process linux kernel special sections and their relocations.
-  void processLKSections();
-
-  /// Process special linux kernel section, __ex_table.
-  void processLKExTable();
-
-  /// Process special linux kernel section, .pci_fixup.
-  void processLKPCIFixup();
-
-  /// Process __ksymtab and __ksymtab_gpl.
-  void processLKKSymtab(bool IsGPL = false);
-
-  /// Process special linux kernel section, __bug_table.
-  void processLKBugTable();
-
-  /// Process special linux kernel section, .smp_locks.
-  void processLKSMPLocks();
-
   /// Read relocations from a given section.
   void readDynamicRelocations(const object::SectionRef &Section, bool IsJmpRel);
+
+  /// Read relocations from a given RELR section.
+  void readDynamicRelrRelocations(BinarySection &Section);
 
   /// Print relocation information.
   void printRelocationInfo(const RelocationRef &Rel, StringRef SymbolName,
@@ -145,6 +147,9 @@ private:
   /// Handle one relocation.
   void handleRelocation(const object::SectionRef &RelocatedSection,
                         const RelocationRef &Rel);
+
+  /// Collect functions that are specified to be bumped.
+  void selectFunctionsToPrint();
 
   /// Mark functions that are not meant for processing as ignored.
   void selectFunctionsToProcess();
@@ -169,6 +174,11 @@ private:
 
   void postProcessFunctions();
 
+  void preregisterSections();
+
+  /// run analyses requested in binary analysis mode.
+  void runBinaryAnalyses();
+
   /// Run optimizations that operate at the binary, or post-linker, level.
   void runOptimizationPasses();
 
@@ -180,32 +190,38 @@ private:
   /// Link additional runtime code to support instrumentation.
   void linkRuntime();
 
+  /// Process metadata in sections before functions are discovered.
+  void processSectionMetadata();
+
+  /// Process metadata in special sections before CFG is built for functions.
+  void processMetadataPreCFG();
+
+  /// Process metadata in special sections after CFG is built for functions.
+  void processMetadataPostCFG();
+
+  /// Make changes to metadata before the binary is emitted.
+  void finalizeMetadataPreEmit();
+
   /// Update debug and other auxiliary information in the file.
   void updateMetadata();
-
-  /// Update SDTMarkers' locations for the output binary.
-  void updateSDTMarkers();
-
-  /// Update LKMarkers' locations for the output binary.
-  void updateLKMarkers();
-
-  /// Update address of MCDecodedPseudoProbe.
-  void updatePseudoProbes();
-
-  /// Encode MCDecodedPseudoProbe.
-  void encodePseudoProbes();
 
   /// Return the list of code sections in the output order.
   std::vector<BinarySection *> getCodeSections();
 
   /// Map all sections to their final addresses.
-  void mapCodeSections(RuntimeDyld &RTDyld);
-  void mapDataSections(RuntimeDyld &RTDyld);
-  void mapFileSections(RuntimeDyld &RTDyld);
-  void mapExtraSections(RuntimeDyld &RTDyld);
+  void mapFileSections(BOLTLinker::SectionMapper MapSection);
+
+  /// Map code sections generated by BOLT.
+  void mapCodeSections(BOLTLinker::SectionMapper MapSection);
+
+  /// Map code without relocating sections.
+  void mapCodeSectionsInPlace(BOLTLinker::SectionMapper MapSection);
+
+  /// Map the rest of allocatable sections.
+  void mapAllocatableSections(BOLTLinker::SectionMapper MapSection);
 
   /// Update output object's values based on the final \p Layout.
-  void updateOutputValues(const MCAsmLayout &Layout);
+  void updateOutputValues(const BOLTLinker &Linker);
 
   /// Rewrite back all functions (hopefully optimized) that fit in the original
   /// memory footprint for that function. If the function is now larger and does
@@ -225,13 +241,19 @@ private:
   /// Return value for the symbol \p Name in the output.
   uint64_t getNewValueForSymbol(const StringRef Name);
 
+  /// Check for PT_GNU_RELRO segment presence, mark covered sections as
+  /// (dynamically) read-only (written once), as specified in LSB Chapter 12:
+  /// "segment which may be made read-only after relocations have been
+  /// processed".
+  void markGnuRelroSections();
+
   /// Detect addresses and offsets available in the binary for allocating
   /// new sections.
   Error discoverStorage();
 
   /// Adjust function sizes and set proper maximum size values after the whole
   /// symbol table has been processed.
-  void adjustFunctionBoundaries();
+  void adjustFunctionBoundaries(DenseMap<uint64_t, MarkerSymType> &MarkerSyms);
 
   /// Make .eh_frame section relocatable.
   void relocateEHFrameSection();
@@ -239,12 +261,11 @@ private:
   /// Analyze relocation \p Rel.
   /// Return true if the relocation was successfully processed, false otherwise.
   /// The \p SymbolName, \p SymbolAddress, \p Addend and \p ExtractedValue
-  /// parameters will be set on success. The \p Skip argument indicates
-  /// that the relocation was analyzed, but it must not be processed.
-  bool analyzeRelocation(const object::RelocationRef &Rel, uint64_t RType,
+  /// parameters will be set on success.
+  bool analyzeRelocation(const object::RelocationRef &Rel, uint32_t &RType,
                          std::string &SymbolName, bool &IsSectionRelocation,
                          uint64_t &SymbolAddress, int64_t &Addend,
-                         uint64_t &ExtractedValue, bool &Skip) const;
+                         uint64_t &ExtractedValue) const;
 
   /// Rewrite non-allocatable sections with modifications.
   void rewriteNoteSections();
@@ -261,12 +282,20 @@ private:
   void createPLTBinaryFunction(uint64_t TargetAddress, uint64_t EntryAddress,
                                uint64_t EntrySize);
 
+  /// Disassemble PLT instruction.
+  void disassemblePLTInstruction(const BinarySection &Section,
+                                 uint64_t InstrOffset, MCInst &Instruction,
+                                 uint64_t &InstrSize);
+
   /// Disassemble aarch64-specific .plt \p Section auxiliary function
   void disassemblePLTSectionAArch64(BinarySection &Section);
 
   /// Disassemble X86-specific .plt \p Section auxiliary function. \p EntrySize
   /// is the expected .plt \p Section entry function size.
   void disassemblePLTSectionX86(BinarySection &Section, uint64_t EntrySize);
+
+  /// Disassemble riscv-specific .plt \p Section auxiliary function
+  void disassemblePLTSectionRISCV(BinarySection &Section);
 
   /// ELF-specific part. TODO: refactor into new class.
 #define ELF_FUNCTION(TYPE, FUNC)                                               \
@@ -281,6 +310,9 @@ private:
     auto *ELF64BE = cast<object::ELF64BEObjectFile>(InputFile);                \
     return FUNC(ELF64BE);                                                      \
   }
+
+  /// Update loadable segment information based on new sections.
+  void updateSegmentInfo();
 
   /// Patch ELF book-keeping info.
   void patchELFPHDRTable();
@@ -303,13 +335,11 @@ private:
   /// Patch allocatable relocation sections.
   ELF_FUNCTION(void, patchELFAllocatableRelaSections);
 
+  /// Patch allocatable relr section.
+  ELF_FUNCTION(void, patchELFAllocatableRelrSection);
+
   /// Finalize memory image of section header string table.
   ELF_FUNCTION(void, finalizeSectionStringTable);
-
-  /// Return a name of the input file section in the output file.
-  template <typename ELFObjType, typename ELFShdrTy>
-  std::string getOutputSectionName(const ELFObjType &Obj,
-                                   const ELFShdrTy &Section);
 
   /// Return a list of all sections to include in the output binary.
   /// Populate \p NewSectionIndex with a map of input to output indices.
@@ -352,18 +382,6 @@ private:
   /// Loop over now emitted functions to write translation maps
   void encodeBATSection();
 
-  /// Update the ELF note section containing the binary build-id to reflect
-  /// a new build-id, so tools can differentiate between the old and the
-  /// rewritten binary.
-  void patchBuildID();
-
-  /// Return file offset corresponding to a given virtual address.
-  uint64_t getFileOffsetFor(uint64_t Address) {
-    assert(Address >= NewTextSegmentAddress &&
-           "address in not in the new text segment");
-    return Address - NewTextSegmentAddress + NewTextSegmentOffset;
-  }
-
   /// Return file offset corresponding to a virtual \p Address.
   /// Return 0 if the address has no mapping in the file, including being
   /// part of .bss section.
@@ -372,16 +390,6 @@ private:
   /// Return true if we will overwrite contents of the section instead
   /// of appending contents to it.
   bool willOverwriteSection(StringRef SectionName);
-
-  /// Parse .note.stapsdt section
-  void parseSDTNotes();
-
-  /// Parse .pseudo_probe_desc section and .pseudo_probe section
-  /// Setup Pseudo probe decoder
-  void parsePseudoProbe();
-
-  /// Print all SDT markers
-  void printSDTMarkers();
 
 public:
   /// Standard ELF sections we overwrite.
@@ -397,20 +405,14 @@ public:
   /// Return true if the section holds debug information.
   static bool isDebugSection(StringRef SectionName);
 
-  /// Return true if the section holds linux kernel symbol information.
-  static bool isKSymtabSection(StringRef SectionName);
-
   /// Adds Debug section to overwrite.
   static void addToDebugSectionsToOverwrite(const char *Section) {
     DebugSectionsToOverwrite.emplace_back(Section);
   }
 
 private:
-  /// Get the contents of the LSDA section for this binary.
-  ArrayRef<uint8_t> getLSDAData();
-
-  /// Get the mapped address of the LSDA section for this binary.
-  uint64_t getLSDAAddress();
+  /// Manage a pipeline of metadata handlers.
+  class MetadataManager MetadataManager;
 
   static const char TimerGroupName[];
 
@@ -419,6 +421,11 @@ private:
   /// Alignment value used for .eh_frame_hdr.
   static constexpr uint64_t EHFrameHdrAlign = 4;
 
+  /// Sections created by BOLT will have an internal name that starts with the
+  /// following prefix. Note that the prefix is used for a section lookup
+  /// internally and the section name in the output might be different.
+  static StringRef getNewSecPrefix() { return ".bolt.new"; }
+
   /// String to be added before the original section name.
   ///
   /// When BOLT creates a new section with the same name as the one in the
@@ -426,8 +433,20 @@ private:
   /// will be added to the name of the original section.
   static StringRef getOrgSecPrefix() { return ".bolt.org"; }
 
-  /// Section name used for new code.
+  /// Section name used for extra BOLT code in addition to .text.
   static StringRef getBOLTTextSectionName() { return ".bolt.text"; }
+
+  /// Symbol markers for BOLT reserved area.
+  static StringRef getBOLTReservedStart() { return "__bolt_reserved_start"; }
+  static StringRef getBOLTReservedEnd() { return "__bolt_reserved_end"; }
+
+  /// Common section names.
+  static StringRef getEHFrameSectionName() { return ".eh_frame"; }
+  static StringRef getEHFrameHdrSectionName() { return ".eh_frame_hdr"; }
+  static StringRef getRelaDynSectionName() { return ".rela.dyn"; }
+
+  /// FILE symbol name used for local fragments of global functions.
+  static StringRef getBOLTFileSymbolName() { return "bolt-pseudo.o"; }
 
   /// An instance of the input binary we are processing, externally owned.
   llvm::object::ELFObjectFileBase *InputFile;
@@ -443,7 +462,7 @@ private:
   std::unique_ptr<CFIReaderWriter> CFIRdWrt;
 
   // Run ExecutionEngine linker with custom memory manager and symbol resolver.
-  std::unique_ptr<RuntimeDyld> RTDyld;
+  std::unique_ptr<BOLTLinker> Linker;
 
   /// Output file where we mix original code from the input binary and
   /// optimized code for selected functions.
@@ -462,16 +481,25 @@ private:
   uint64_t NewTextSegmentOffset{0};
   uint64_t NewTextSegmentSize{0};
 
+  /// New writable segment info.
+  uint64_t NewWritableSegmentAddress{0};
+  uint64_t NewWritableSegmentSize{0};
+
   /// Track next available address for new allocatable sections.
   uint64_t NextAvailableAddress{0};
 
   /// Location and size of dynamic relocations.
-  Optional<uint64_t> DynamicRelocationsAddress;
+  std::optional<uint64_t> DynamicRelocationsAddress;
   uint64_t DynamicRelocationsSize{0};
   uint64_t DynamicRelativeRelocationsCount{0};
 
+  // Location and size of .relr.dyn relocations.
+  std::optional<uint64_t> DynamicRelrAddress;
+  uint64_t DynamicRelrSize{0};
+  uint64_t DynamicRelrEntrySize{0};
+
   /// PLT relocations are special kind of dynamic relocations stored separately.
-  Optional<uint64_t> PLTRelocationsAddress;
+  std::optional<uint64_t> PLTRelocationsAddress;
   uint64_t PLTRelocationsSize{0};
 
   /// True if relocation of specified type came from .rela.plt
@@ -482,7 +510,10 @@ private:
   std::unordered_map<const MCSymbol *, uint32_t> SymbolIndex;
 
   /// Store all non-zero symbols in this map for a quick address lookup.
-  std::map<uint64_t, llvm::object::SymbolRef> FileSymRefs;
+  std::multimap<uint64_t, llvm::object::SymbolRef> FileSymRefs;
+
+  /// FILE symbols used for disambiguating split function parents.
+  std::vector<ELFSymbolRef> FileSymbols;
 
   std::unique_ptr<DWARFRewriter> DebugInfoRewriter;
 
@@ -490,6 +521,9 @@ private:
 
   /// Number of local symbols in newly written symbol table.
   uint64_t NumLocalSymbols{0};
+
+  /// Flag indicating runtime library linking just started.
+  bool StartLinkingRuntimeLib{false};
 
   /// Information on special Procedure Linkage Table sections. There are
   /// multiple variants generated by different linkers.
@@ -499,16 +533,18 @@ private:
   };
 
   /// Different types of X86-64 PLT sections.
-  const PLTSectionInfo X86_64_PLTSections[4] = {
-      { ".plt", 16 },
-      { ".plt.got", 8 },
-      { ".plt.sec", 8 },
-      { nullptr, 0 }
-  };
+  const PLTSectionInfo X86_64_PLTSections[5] = {{".plt", 16},
+                                                {".plt.got", 8},
+                                                {".plt.sec", 8},
+                                                {".iplt", 16},
+                                                {nullptr, 0}};
 
   /// AArch64 PLT sections.
-  const PLTSectionInfo AArch64_PLTSections[3] = {
-      {".plt"}, {".iplt"}, {nullptr}};
+  const PLTSectionInfo AArch64_PLTSections[4] = {
+      {".plt"}, {".plt.got"}, {".iplt"}, {nullptr}};
+
+  /// RISCV PLT sections.
+  const PLTSectionInfo RISCV_PLTSections[2] = {{".plt"}, {nullptr}};
 
   /// Return PLT information for a section with \p SectionName or nullptr
   /// if the section is not PLT.
@@ -523,6 +559,9 @@ private:
     case Triple::aarch64:
       PLTSI = AArch64_PLTSections;
       break;
+    case Triple::riscv64:
+      PLTSI = RISCV_PLTSections;
+      break;
     }
     for (; PLTSI && PLTSI->Name; ++PLTSI)
       if (SectionName == PLTSI->Name)
@@ -532,51 +571,16 @@ private:
   }
 
   /// Exception handling and stack unwinding information in this binary.
-  ErrorOr<BinarySection &> LSDASection{std::errc::bad_address};
   ErrorOr<BinarySection &> EHFrameSection{std::errc::bad_address};
 
-  /// .got.plt sections.
-  ///
-  /// Contains jump slots (addresses) indirectly referenced by
-  /// instructions in .plt section.
-  ErrorOr<BinarySection &> GOTPLTSection{std::errc::bad_address};
-
-  /// .rela.plt section.
-  ///
-  /// Contains relocations against .got.plt.
-  ErrorOr<BinarySection &> RelaPLTSection{std::errc::bad_address};
-  ErrorOr<BinarySection &> RelaDynSection{std::errc::bad_address};
-
-  /// .note.gnu.build-id section.
-  ErrorOr<BinarySection &> BuildIDSection{std::errc::bad_address};
-
-  /// .note.stapsdt section.
-  /// Contains information about statically defined tracing points
-  ErrorOr<BinarySection &> SDTSection{std::errc::bad_address};
-
-  /// .pseudo_probe_desc section.
-  /// Contains information about pseudo probe description, like its related
-  /// function
-  ErrorOr<BinarySection &> PseudoProbeDescSection{std::errc::bad_address};
-
-  /// .pseudo_probe section.
-  /// Contains information about pseudo probe details, like its address
-  ErrorOr<BinarySection &> PseudoProbeSection{std::errc::bad_address};
-
-  /// A reference to the build-id bytes in the original binary
-  StringRef BuildID;
-
-  /// Keep track of functions we fail to write in the binary. We need to avoid
-  /// rewriting CFI info for these functions.
-  std::vector<uint64_t> FailedAddresses;
-
-  /// Keep track of which functions didn't fit in their original space in the
-  /// last emission, so that we may either decide to split or not optimize them.
-  std::set<uint64_t> LargeFunctions;
+  /// Helper for accessing sections by name.
+  BinarySection *getSection(const Twine &Name) {
+    ErrorOr<BinarySection &> ErrOrSection = BC->getUniqueSectionByName(Name);
+    return ErrOrSection ? &ErrOrSection.get() : nullptr;
+  }
 
   /// Section header string table.
   StringTableBuilder SHStrTab;
-  std::vector<std::string> SHStrTabPool;
 
   /// A rewrite of strtab
   std::string NewStrTab;
@@ -590,13 +594,17 @@ private:
 
   NameResolver NR;
 
+  // Regex object matching split function names.
+  const Regex FunctionFragmentTemplate{"(.*)\\.(cold|warm)(\\.[0-9]+)?"};
+
   friend class RewriteInstanceDiff;
 };
 
 MCPlusBuilder *createMCPlusBuilder(const Triple::ArchType Arch,
                                    const MCInstrAnalysis *Analysis,
                                    const MCInstrInfo *Info,
-                                   const MCRegisterInfo *RegInfo);
+                                   const MCRegisterInfo *RegInfo,
+                                   const MCSubtargetInfo *STI);
 
 } // namespace bolt
 } // namespace llvm

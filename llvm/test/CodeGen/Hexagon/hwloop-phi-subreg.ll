@@ -1,4 +1,4 @@
-; RUN: llc -march=hexagon -hexagon-hwloop-preheader < %s
+; RUN: llc -mtriple=hexagon -hexagon-hwloop-preheader < %s
 ; REQUIRES: asserts
 
 ; Checks that a subreg in a Phi is propagated correctly when a
@@ -17,7 +17,7 @@ b1:                                               ; preds = %b2, %b1
   %v4 = add nsw i64 %v3, 0
   %v5 = add nsw i64 %v4, 0
   %v6 = add nsw i64 %v5, 0
-  %v7 = load i32, i32* undef, align 4
+  %v7 = load i32, ptr undef, align 4
   %v8 = ashr i32 %v7, 5
   %v9 = sext i32 %v8 to i64
   %v10 = mul nsw i64 %v9, %v9

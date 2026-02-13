@@ -1,4 +1,4 @@
-; RUN: opt < %s -jump-threading -S -verify | FileCheck %s
+; RUN: opt -S -passes=jump-threading,verify < %s | FileCheck %s
 
 target datalayout = "e-i64:64-i128:128-v16:16-v32:32-n16:32:64"
 target triple = "nvptx64-nvidia-cuda"
@@ -12,7 +12,7 @@ define i32 @wrapped_tid() #0 comdat align 32 {
   ret i32 %1
 }
 
-declare void @llvm.nvvm.barrier0() #1
+declare void @llvm.nvvm.barrier.cta.sync.aligned.all(i32) #1
 
 ; We had a bug where we duplicated basic blocks containing convergent
 ; functions like @llvm.nvvm.barrier0 below.  Verify that we don't do
@@ -32,9 +32,9 @@ define void @foo() local_unnamed_addr #2 comdat align 32 {
   br label %6
 
 6:
-; CHECK: call void @llvm.nvvm.barrier0()
-; CHECK-NOT: call void @llvm.nvvm.barrier0()
-  call void @llvm.nvvm.barrier0()
+; CHECK: call void @llvm.nvvm.barrier.cta.sync.aligned.all(i32 0)
+; CHECK-NOT: call void @llvm.nvvm.barrier.cta.sync.aligned.all(i32 0)
+  call void @llvm.nvvm.barrier.cta.sync.aligned.all(i32 0)
   %7 = icmp eq i32 %2, 0
   br i1 %7, label %11, label %8
 

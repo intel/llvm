@@ -13,16 +13,21 @@
 #ifndef LLVM_CLANG_UNITTESTS_FORMAT_FORMATTESTUTILS_H
 #define LLVM_CLANG_UNITTESTS_FORMAT_FORMATTESTUTILS_H
 
+#include "clang/Format/Format.h"
 #include "llvm/ADT/StringRef.h"
 
 namespace clang {
 namespace format {
 namespace test {
 
+inline FormatStyle getGoogleStyle() {
+  return getGoogleStyle(FormatStyle::LK_Cpp);
+}
+
 // When HandleHash is false, preprocessor directives starting with hash will not
 // be on separate lines.  This is needed because Verilog uses hash for other
 // purposes.
-inline std::string messUp(llvm::StringRef Code, bool HandleHash = true) {
+inline std::string messUp(StringRef Code, bool HandleHash = true) {
   std::string MessedUp(Code.str());
   bool InComment = false;
   bool InPreprocessorDirective = false;

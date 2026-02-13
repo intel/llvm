@@ -1,4 +1,4 @@
-import("//llvm/utils/unittest/unittest.gni")
+import("//third-party/unittest/unittest.gni")
 
 unittest("ARMTests") {
   deps = [
@@ -6,13 +6,16 @@ unittest("ARMTests") {
     "//llvm/lib/MC",
     "//llvm/lib/Support",
     "//llvm/lib/Target",
+    "//llvm/lib/Target/ARM:ARMGenSDNodeInfo",
     "//llvm/lib/Target/ARM:LLVMARMCodeGen",
     "//llvm/lib/Target/ARM/MCTargetDesc",
     "//llvm/lib/Target/ARM/TargetInfo",
     "//llvm/lib/Target/ARM/Utils",
+    "//llvm/lib/TargetParser",
   ]
   include_dirs = [ "//llvm/lib/Target/ARM" ]
   sources = [
+    "ARMSelectionDAGTest.cpp",
     "InstSizes.cpp",
     "MachineInstrTest.cpp",
   ]

@@ -11,13 +11,13 @@
 //
 //===----------------------------------------------------------------------===//
 #include "llvm/DWP/DWP.h"
+#include "llvm/ADT/Twine.h"
 #include "llvm/DWP/DWPError.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCObjectFileInfo.h"
 #include "llvm/MC/MCTargetOptionsCommandFlags.h"
 #include "llvm/Object/Decompressor.h"
 #include "llvm/Object/ELFObjectFile.h"
-#include "llvm/Support/MemoryBuffer.h"
 #include <limits>
 
 using namespace llvm;
@@ -154,14 +154,13 @@ static bool isSupportedSectionKind(DWARFSectionKind Kind) {
   return Kind != DW_SECT_EXT_unknown;
 }
 
-namespace llvm {
 // Convert an internal section identifier into the index to use with
 // UnitIndexEntry::Contributions.
-unsigned getContributionIndex(DWARFSectionKind Kind, uint32_t IndexVersion) {
+static unsigned getContributionIndex(DWARFSectionKind Kind,
+                                     uint32_t IndexVersion) {
   assert(serializeSectionKind(Kind, IndexVersion) >= DW_SECT_INFO);
   return serializeSectionKind(Kind, IndexVersion) - DW_SECT_INFO;
 }
-} // namespace llvm
 
 // Convert a UnitIndexEntry::Contributions index to the corresponding on-disk
 // value of the section identifier.
@@ -175,15 +174,37 @@ static StringRef getSubsection(StringRef Section,
   const auto *Off = Entry.getContribution(Kind);
   if (!Off)
     return StringRef();
-  return Section.substr(Off->Offset, Off->Length);
+  return Section.substr(Off->getOffset(), Off->getLength());
 }
 
-static void
-addAllTypesFromDWP(MCStreamer &Out,
-                   MapVector<uint64_t, UnitIndexEntry> &TypeIndexEntries,
-                   const DWARFUnitIndex &TUIndex, MCSection *OutputTypes,
-                   StringRef Types, const UnitIndexEntry &TUEntry,
-                   uint32_t &TypesOffset, unsigned TypesContributionIndex) {
+static Error sectionOverflowErrorOrWarning(uint32_t PrevOffset,
+                                           uint32_t OverflowedOffset,
+                                           StringRef SectionName,
+                                           OnCuIndexOverflow OverflowOptValue,
+                                           bool &AnySectionOverflow) {
+  std::string Msg =
+      (SectionName +
+       Twine(" Section Contribution Offset overflow 4G. Previous Offset ") +
+       Twine(PrevOffset) + Twine(", After overflow offset ") +
+       Twine(OverflowedOffset) + Twine("."))
+          .str();
+  if (OverflowOptValue == OnCuIndexOverflow::Continue) {
+    WithColor::defaultWarningHandler(make_error<DWPError>(Msg));
+    return Error::success();
+  } else if (OverflowOptValue == OnCuIndexOverflow::SoftStop) {
+    AnySectionOverflow = true;
+    WithColor::defaultWarningHandler(make_error<DWPError>(Msg));
+    return Error::success();
+  }
+  return make_error<DWPError>(Msg);
+}
+
+static Error addAllTypesFromDWP(
+    MCStreamer &Out, MapVector<uint64_t, UnitIndexEntry> &TypeIndexEntries,
+    const DWARFUnitIndex &TUIndex, MCSection *OutputTypes, StringRef Types,
+    const UnitIndexEntry &TUEntry, uint32_t &TypesOffset,
+    unsigned TypesContributionIndex, OnCuIndexOverflow OverflowOptValue,
+    bool &AnySectionOverflow) {
   Out.switchSection(OutputTypes);
   for (const DWARFUnitIndex::Entry &E : TUIndex.getRows()) {
     auto *I = E.getContributions();
@@ -200,23 +221,38 @@ addAllTypesFromDWP(MCStreamer &Out,
         continue;
       auto &C =
           Entry.Contributions[getContributionIndex(Kind, TUIndex.getVersion())];
-      C.Offset += I->Offset;
-      C.Length = I->Length;
+      C.setOffset(C.getOffset() + I->getOffset());
+      C.setLength(I->getLength());
       ++I;
     }
     auto &C = Entry.Contributions[TypesContributionIndex];
     Out.emitBytes(Types.substr(
-        C.Offset - TUEntry.Contributions[TypesContributionIndex].Offset,
-        C.Length));
-    C.Offset = TypesOffset;
-    TypesOffset += C.Length;
+        C.getOffset() -
+            TUEntry.Contributions[TypesContributionIndex].getOffset(),
+        C.getLength()));
+    C.setOffset(TypesOffset);
+    uint32_t OldOffset = TypesOffset;
+    static_assert(sizeof(OldOffset) == sizeof(TypesOffset));
+    TypesOffset += C.getLength();
+    if (OldOffset > TypesOffset) {
+      if (Error Err = sectionOverflowErrorOrWarning(OldOffset, TypesOffset,
+                                                    "Types", OverflowOptValue,
+                                                    AnySectionOverflow))
+        return Err;
+      if (AnySectionOverflow) {
+        TypesOffset = OldOffset;
+        return Error::success();
+      }
+    }
   }
+  return Error::success();
 }
 
-static void addAllTypesFromTypesSection(
+static Error addAllTypesFromTypesSection(
     MCStreamer &Out, MapVector<uint64_t, UnitIndexEntry> &TypeIndexEntries,
     MCSection *OutputTypes, const std::vector<StringRef> &TypesSections,
-    const UnitIndexEntry &CUEntry, uint32_t &TypesOffset) {
+    const UnitIndexEntry &CUEntry, uint32_t &TypesOffset,
+    OnCuIndexOverflow OverflowOptValue, bool &AnySectionOverflow) {
   for (StringRef Types : TypesSections) {
     Out.switchSection(OutputTypes);
     uint64_t Offset = 0;
@@ -226,25 +262,37 @@ static void addAllTypesFromTypesSection(
       // Zero out the debug_info contribution
       Entry.Contributions[0] = {};
       auto &C = Entry.Contributions[getContributionIndex(DW_SECT_EXT_TYPES, 2)];
-      C.Offset = TypesOffset;
+      C.setOffset(TypesOffset);
       auto PrevOffset = Offset;
       // Length of the unit, including the 4 byte length field.
-      C.Length = Data.getU32(&Offset) + 4;
+      C.setLength(Data.getU32(&Offset) + 4);
 
       Data.getU16(&Offset); // Version
       Data.getU32(&Offset); // Abbrev offset
       Data.getU8(&Offset);  // Address size
       auto Signature = Data.getU64(&Offset);
-      Offset = PrevOffset + C.Length;
+      Offset = PrevOffset + C.getLength32();
 
       auto P = TypeIndexEntries.insert(std::make_pair(Signature, Entry));
       if (!P.second)
         continue;
 
-      Out.emitBytes(Types.substr(PrevOffset, C.Length));
-      TypesOffset += C.Length;
+      Out.emitBytes(Types.substr(PrevOffset, C.getLength32()));
+      uint32_t OldOffset = TypesOffset;
+      TypesOffset += C.getLength32();
+      if (OldOffset > TypesOffset) {
+        if (Error Err = sectionOverflowErrorOrWarning(OldOffset, TypesOffset,
+                                                      "Types", OverflowOptValue,
+                                                      AnySectionOverflow))
+          return Err;
+        if (AnySectionOverflow) {
+          TypesOffset = OldOffset;
+          return Error::success();
+        }
+      }
     }
   }
+  return Error::success();
 }
 
 static std::string buildDWODescription(StringRef Name, StringRef DWPName,
@@ -364,23 +412,53 @@ Expected<InfoSectionUnitHeader> parseInfoSectionUnitHeader(StringRef Info) {
   return Header;
 }
 
-void writeStringsAndOffsets(MCStreamer &Out, DWPStringPool &Strings,
-                            MCSection *StrOffsetSection,
-                            StringRef CurStrSection,
-                            StringRef CurStrOffsetSection, uint16_t Version) {
+static void writeNewOffsetsTo(MCStreamer &Out, DataExtractor &Data,
+                              DenseMap<uint64_t, uint64_t> &OffsetRemapping,
+                              uint64_t &Offset, const uint64_t Size,
+                              uint32_t OldOffsetSize, uint32_t NewOffsetSize) {
+  // Create a mask so we don't trigger a emitIntValue() assert below if the
+  // NewOffset is over 4GB.
+  const uint64_t NewOffsetMask = NewOffsetSize == 8 ? UINT64_MAX : UINT32_MAX;
+  while (Offset < Size) {
+    const uint64_t OldOffset = Data.getUnsigned(&Offset, OldOffsetSize);
+    const uint64_t NewOffset = OffsetRemapping[OldOffset];
+    // Truncate the string offset like the old llvm-dwp would have if we aren't
+    // promoting the .debug_str_offsets to DWARF64.
+    Out.emitIntValue(NewOffset & NewOffsetMask, NewOffsetSize);
+  }
+}
+
+void writeStringsAndOffsets(
+    MCStreamer &Out, DWPStringPool &Strings, MCSection *StrOffsetSection,
+    StringRef CurStrSection, StringRef CurStrOffsetSection, uint16_t Version,
+    SectionLengths &SectionLength,
+    const Dwarf64StrOffsetsPromotion StrOffsetsOptValue) {
   // Could possibly produce an error or warning if one of these was non-null but
   // the other was null.
   if (CurStrSection.empty() || CurStrOffsetSection.empty())
     return;
 
-  DenseMap<uint64_t, uint32_t> OffsetRemapping;
+  DenseMap<uint64_t, uint64_t> OffsetRemapping;
 
   DataExtractor Data(CurStrSection, true, 0);
   uint64_t LocalOffset = 0;
   uint64_t PrevOffset = 0;
+
+  // Keep track if any new string offsets exceed UINT32_MAX. If any do, we can
+  // emit a DWARF64 .debug_str_offsets table for this compile unit. If the
+  // \a StrOffsetsOptValue argument is Dwarf64StrOffsetsPromotion::Always, then
+  // force the emission of DWARF64 .debug_str_offsets for testing.
+  uint32_t OldOffsetSize = 4;
+  uint32_t NewOffsetSize =
+      StrOffsetsOptValue == Dwarf64StrOffsetsPromotion::Always ? 8 : 4;
   while (const char *S = Data.getCStr(&LocalOffset)) {
-    OffsetRemapping[PrevOffset] =
-        Strings.getOffset(S, LocalOffset - PrevOffset);
+    uint64_t NewOffset = Strings.getOffset(S, LocalOffset - PrevOffset);
+    OffsetRemapping[PrevOffset] = NewOffset;
+    // Only promote the .debug_str_offsets to DWARF64 if our setting allows it.
+    if (StrOffsetsOptValue != Dwarf64StrOffsetsPromotion::Disabled &&
+        NewOffset > UINT32_MAX) {
+      NewOffsetSize = 8;
+    }
     PrevOffset = LocalOffset;
   }
 
@@ -388,28 +466,80 @@ void writeStringsAndOffsets(MCStreamer &Out, DWPStringPool &Strings,
 
   Out.switchSection(StrOffsetSection);
 
-  uint64_t HeaderSize = debugStrOffsetsHeaderSize(Data, Version);
   uint64_t Offset = 0;
   uint64_t Size = CurStrOffsetSection.size();
-  // FIXME: This can be caused by bad input and should be handled as such.
-  assert(HeaderSize <= Size && "StrOffsetSection size is less than its header");
-  // Copy the header to the output.
-  Out.emitBytes(Data.getBytes(&Offset, HeaderSize));
-  while (Offset < Size) {
-    auto OldOffset = Data.getU32(&Offset);
-    auto NewOffset = OffsetRemapping[OldOffset];
-    Out.emitIntValue(NewOffset, 4);
+  if (Version > 4) {
+    while (Offset < Size) {
+      const uint64_t HeaderSize = debugStrOffsetsHeaderSize(Data, Version);
+      assert(HeaderSize <= Size - Offset &&
+             "StrOffsetSection size is less than its header");
+
+      uint64_t ContributionEnd = 0;
+      uint64_t ContributionSize = 0;
+      uint64_t HeaderLengthOffset = Offset;
+      if (HeaderSize == 8) {
+        ContributionSize = Data.getU32(&HeaderLengthOffset);
+      } else if (HeaderSize == 16) {
+        OldOffsetSize = 8;
+        HeaderLengthOffset += 4; // skip the dwarf64 marker
+        ContributionSize = Data.getU64(&HeaderLengthOffset);
+      }
+      ContributionEnd = ContributionSize + HeaderLengthOffset;
+
+      StringRef HeaderBytes = Data.getBytes(&Offset, HeaderSize);
+      if (OldOffsetSize == 4 && NewOffsetSize == 8) {
+        // We had a DWARF32 .debug_str_offsets header, but we need to emit
+        // some string offsets that require 64 bit offsets on the .debug_str
+        // section. Emit the .debug_str_offsets header in DWARF64 format so we
+        // can emit string offsets that exceed UINT32_MAX without truncating
+        // the string offset.
+
+        // 2 bytes for DWARF version, 2 bytes pad.
+        const uint64_t VersionPadSize = 4;
+        const uint64_t NewLength =
+            (ContributionSize - VersionPadSize) * 2 + VersionPadSize;
+        // Emit the DWARF64 length that starts with a 4 byte DW_LENGTH_DWARF64
+        // value followed by the 8 byte updated length.
+        Out.emitIntValue(llvm::dwarf::DW_LENGTH_DWARF64, 4);
+        Out.emitIntValue(NewLength, 8);
+        // Emit DWARF version as a 2 byte integer.
+        Out.emitIntValue(Version, 2);
+        // Emit 2 bytes of padding.
+        Out.emitIntValue(0, 2);
+        // Update the .debug_str_offsets section length contribution for the
+        // this .dwo file.
+        for (auto &Pair : SectionLength) {
+          if (Pair.first == DW_SECT_STR_OFFSETS) {
+            Pair.second = NewLength + 12;
+            break;
+          }
+        }
+      } else {
+        // Just emit the same .debug_str_offsets header.
+        Out.emitBytes(HeaderBytes);
+      }
+      writeNewOffsetsTo(Out, Data, OffsetRemapping, Offset, ContributionEnd,
+                        OldOffsetSize, NewOffsetSize);
+    }
+
+  } else {
+    assert(OldOffsetSize == NewOffsetSize);
+    writeNewOffsetsTo(Out, Data, OffsetRemapping, Offset, Size, OldOffsetSize,
+                      NewOffsetSize);
   }
 }
 
-void writeIndexTable(
-    MCStreamer &Out, ArrayRef<unsigned> ContributionOffsets,
-    const MapVector<uint64_t, UnitIndexEntry> &IndexEntries,
-    uint32_t DWARFUnitIndex::Entry::SectionContribution::*Field) {
+enum AccessField { Offset, Length };
+void writeIndexTable(MCStreamer &Out, ArrayRef<unsigned> ContributionOffsets,
+                     const MapVector<uint64_t, UnitIndexEntry> &IndexEntries,
+                     const AccessField &Field) {
   for (const auto &E : IndexEntries)
     for (size_t I = 0; I != std::size(E.second.Contributions); ++I)
       if (ContributionOffsets[I])
-        Out.emitIntValue(E.second.Contributions[I].*Field, 4);
+        Out.emitIntValue((Field == AccessField::Offset
+                              ? E.second.Contributions[I].getOffset32()
+                              : E.second.Contributions[I].getLength32()),
+                         4);
 }
 
 void writeIndex(MCStreamer &Out, MCSection *Section,
@@ -460,12 +590,10 @@ void writeIndex(MCStreamer &Out, MCSection *Section,
       Out.emitIntValue(getOnDiskSectionId(I), 4);
 
   // Write the offsets.
-  writeIndexTable(Out, ContributionOffsets, IndexEntries,
-                  &DWARFUnitIndex::Entry::SectionContribution::Offset);
+  writeIndexTable(Out, ContributionOffsets, IndexEntries, AccessField::Offset);
 
   // Write the lengths.
-  writeIndexTable(Out, ContributionOffsets, IndexEntries,
-                  &DWARFUnitIndex::Entry::SectionContribution::Length);
+  writeIndexTable(Out, ContributionOffsets, IndexEntries, AccessField::Length);
 }
 
 Error buildDuplicateError(const std::pair<uint64_t, UnitIndexEntry> &PrevE,
@@ -489,7 +617,7 @@ Error handleSection(
     std::vector<StringRef> &CurTypesSection,
     std::vector<StringRef> &CurInfoSection, StringRef &AbbrevSection,
     StringRef &CurCUIndexSection, StringRef &CurTUIndexSection,
-    std::vector<std::pair<DWARFSectionKind, uint32_t>> &SectionLength) {
+    SectionLengths &SectionLength) {
   if (Section.isBSS())
     return Error::success();
 
@@ -546,7 +674,9 @@ Error handleSection(
   return Error::success();
 }
 
-Error write(MCStreamer &Out, ArrayRef<std::string> Inputs) {
+Error write(MCStreamer &Out, ArrayRef<std::string> Inputs,
+            OnCuIndexOverflow OverflowOptValue,
+            Dwarf64StrOffsetsPromotion StrOffsetsOptValue) {
   const auto &MCOFI = *Out.getContext().getObjectFileInfo();
   MCSection *const StrSection = MCOFI.getDwarfStrDWOSection();
   MCSection *const StrOffsetSection = MCOFI.getDwarfStrOffDWOSection();
@@ -576,6 +706,8 @@ Error write(MCStreamer &Out, ArrayRef<std::string> Inputs) {
   uint32_t ContributionOffsets[8] = {};
   uint16_t Version = 0;
   uint32_t IndexVersion = 0;
+  StringRef FirstInput;
+  bool AnySectionOverflow = false;
 
   DWPStringPool Strings(Out, StrSection);
 
@@ -609,7 +741,7 @@ Error write(MCStreamer &Out, ArrayRef<std::string> Inputs) {
     // This maps each section contained in this file to its length.
     // This information is later on used to calculate the contributions,
     // i.e. offset and length, of each compile/type unit to a section.
-    std::vector<std::pair<DWARFSectionKind, uint32_t>> SectionLength;
+    SectionLengths SectionLength;
 
     for (const auto &Section : Obj.sections())
       if (auto Err = handleSection(
@@ -633,18 +765,38 @@ Error write(MCStreamer &Out, ArrayRef<std::string> Inputs) {
     if (Version == 0) {
       Version = Header.Version;
       IndexVersion = Version < 5 ? 2 : 5;
+      FirstInput = Input;
     } else if (Version != Header.Version) {
-      return make_error<DWPError>("incompatible DWARF compile unit versions.");
+      return make_error<DWPError>(
+          "incompatible DWARF compile unit version: " + Input + " (version " +
+          utostr(Header.Version) + ") and " + FirstInput.str() + " (version " +
+          utostr(Version) + ")");
     }
 
     writeStringsAndOffsets(Out, Strings, StrOffsetSection, CurStrSection,
-                           CurStrOffsetSection, Header.Version);
+                           CurStrOffsetSection, Header.Version, SectionLength,
+                           StrOffsetsOptValue);
 
     for (auto Pair : SectionLength) {
       auto Index = getContributionIndex(Pair.first, IndexVersion);
-      CurEntry.Contributions[Index].Offset = ContributionOffsets[Index];
-      ContributionOffsets[Index] +=
-          (CurEntry.Contributions[Index].Length = Pair.second);
+      CurEntry.Contributions[Index].setOffset(ContributionOffsets[Index]);
+      CurEntry.Contributions[Index].setLength(Pair.second);
+      uint32_t OldOffset = ContributionOffsets[Index];
+      ContributionOffsets[Index] += CurEntry.Contributions[Index].getLength32();
+      if (OldOffset > ContributionOffsets[Index]) {
+        uint32_t SectionIndex = 0;
+        for (auto &Section : Obj.sections()) {
+          if (SectionIndex == Index) {
+            if (Error Err = sectionOverflowErrorOrWarning(
+                    OldOffset, ContributionOffsets[Index], *Section.getName(),
+                    OverflowOptValue, AnySectionOverflow))
+              return Err;
+          }
+          ++SectionIndex;
+        }
+        if (AnySectionOverflow)
+          break;
+      }
     }
 
     uint32_t &InfoSectionOffset =
@@ -664,21 +816,28 @@ Error write(MCStreamer &Out, ArrayRef<std::string> Inputs) {
           UnitIndexEntry Entry = CurEntry;
           auto &C = Entry.Contributions[getContributionIndex(DW_SECT_INFO,
                                                              IndexVersion)];
-          C.Offset = InfoSectionOffset;
-          C.Length = Header.Length + 4;
+          C.setOffset(InfoSectionOffset);
+          C.setLength(Header.Length + 4);
 
           if (std::numeric_limits<uint32_t>::max() - InfoSectionOffset <
-              C.Length)
-            return make_error<DWPError>(
-                "debug information section offset is greater than 4GB");
+              C.getLength32()) {
+            if (Error Err = sectionOverflowErrorOrWarning(
+                    InfoSectionOffset, InfoSectionOffset + C.getLength32(),
+                    "debug_info", OverflowOptValue, AnySectionOverflow))
+              return Err;
+            if (AnySectionOverflow) {
+              FoundCUUnit = true;
+              break;
+            }
+          }
 
-          UnitOffset += C.Length;
+          UnitOffset += C.getLength32();
           if (Header.Version < 5 ||
               Header.UnitType == dwarf::DW_UT_split_compile) {
-            Expected<CompileUnitIdentifiers> EID =
-                getCUIdentifiers(Header, AbbrevSection,
-                                 Info.substr(UnitOffset - C.Length, C.Length),
-                                 CurStrOffsetSection, CurStrSection);
+            Expected<CompileUnitIdentifiers> EID = getCUIdentifiers(
+                Header, AbbrevSection,
+                Info.substr(UnitOffset - C.getLength32(), C.getLength32()),
+                CurStrOffsetSection, CurStrSection);
 
             if (!EID)
               return createFileError(Input, EID.takeError());
@@ -696,9 +855,12 @@ Error write(MCStreamer &Out, ArrayRef<std::string> Inputs) {
             if (!P.second)
               continue;
           }
-          Out.emitBytes(Info.substr(UnitOffset - C.Length, C.Length));
-          InfoSectionOffset += C.Length;
+          Out.emitBytes(
+              Info.substr(UnitOffset - C.getLength32(), C.getLength32()));
+          InfoSectionOffset += C.getLength32();
         }
+        if (AnySectionOverflow)
+          break;
       }
 
       if (!FoundCUUnit)
@@ -706,10 +868,14 @@ Error write(MCStreamer &Out, ArrayRef<std::string> Inputs) {
 
       if (IndexVersion == 2) {
         // Add types from the .debug_types section from DWARF < 5.
-        addAllTypesFromTypesSection(
-            Out, TypeIndexEntries, TypesSection, CurTypesSection, CurEntry,
-            ContributionOffsets[getContributionIndex(DW_SECT_EXT_TYPES, 2)]);
+        if (Error Err = addAllTypesFromTypesSection(
+                Out, TypeIndexEntries, TypesSection, CurTypesSection, CurEntry,
+                ContributionOffsets[getContributionIndex(DW_SECT_EXT_TYPES, 2)],
+                OverflowOptValue, AnySectionOverflow))
+          return Err;
       }
+      if (AnySectionOverflow)
+        break;
       continue;
     }
 
@@ -760,15 +926,15 @@ Error write(MCStreamer &Out, ArrayRef<std::string> Inputs) {
           continue;
         auto &C =
             NewEntry.Contributions[getContributionIndex(Kind, IndexVersion)];
-        C.Offset += I->Offset;
-        C.Length = I->Length;
+        C.setOffset(C.getOffset() + I->getOffset());
+        C.setLength(I->getLength());
         ++I;
       }
       unsigned Index = getContributionIndex(DW_SECT_INFO, IndexVersion);
       auto &C = NewEntry.Contributions[Index];
       Out.emitBytes(CUInfoSection);
-      C.Offset = InfoSectionOffset;
-      InfoSectionOffset += C.Length;
+      C.setOffset(InfoSectionOffset);
+      InfoSectionOffset += C.getLength32();
     }
 
     if (!CurTUIndexSection.empty()) {
@@ -802,11 +968,14 @@ Error write(MCStreamer &Out, ArrayRef<std::string> Inputs) {
 
       unsigned TypesContributionIndex =
           getContributionIndex(TUSectionKind, IndexVersion);
-      addAllTypesFromDWP(Out, TypeIndexEntries, TUIndex, OutSection,
-                         TypeInputSection, CurEntry,
-                         ContributionOffsets[TypesContributionIndex],
-                         TypesContributionIndex);
+      if (Error Err = addAllTypesFromDWP(
+              Out, TypeIndexEntries, TUIndex, OutSection, TypeInputSection,
+              CurEntry, ContributionOffsets[TypesContributionIndex],
+              TypesContributionIndex, OverflowOptValue, AnySectionOverflow))
+        return Err;
     }
+    if (AnySectionOverflow)
+      break;
   }
 
   if (Version < 5) {

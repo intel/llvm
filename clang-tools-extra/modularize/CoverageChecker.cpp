@@ -50,18 +50,18 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "CoverageChecker.h"
 #include "ModularizeUtilities.h"
 #include "clang/AST/ASTConsumer.h"
-#include "CoverageChecker.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Basic/SourceManager.h"
-#include "clang/Driver/Options.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Frontend/FrontendActions.h"
 #include "clang/Lex/PPCallbacks.h"
 #include "clang/Lex/Preprocessor.h"
+#include "clang/Options/Options.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "clang/Tooling/Tooling.h"
 #include "llvm/Option/Option.h"
@@ -73,7 +73,7 @@
 using namespace Modularize;
 using namespace clang;
 using namespace clang::driver;
-using namespace clang::driver::options;
+using namespace clang::options;
 using namespace clang::tooling;
 namespace cl = llvm::cl;
 namespace sys = llvm::sys;
@@ -89,8 +89,9 @@ public:
   void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
                           StringRef FileName, bool IsAngled,
                           CharSourceRange FilenameRange,
-                          Optional<FileEntryRef> File, StringRef SearchPath,
-                          StringRef RelativePath, const Module *Imported,
+                          OptionalFileEntryRef File, StringRef SearchPath,
+                          StringRef RelativePath, const Module *SuggestedModule,
+                          bool ModuleImported,
                           SrcMgr::CharacteristicKind FileType) override {
     Checker.collectUmbrellaHeaderHeader(File->getName());
   }
@@ -207,28 +208,27 @@ void CoverageChecker::collectModuleHeaders() {
 // FIXME: Doesn't collect files from umbrella header.
 bool CoverageChecker::collectModuleHeaders(const Module &Mod) {
 
-  if (const FileEntry *UmbrellaHeader = Mod.getUmbrellaHeader().Entry) {
+  if (std::optional<Module::Header> UmbrellaHeader =
+          Mod.getUmbrellaHeaderAsWritten()) {
     // Collect umbrella header.
-    ModuleMapHeadersSet.insert(ModularizeUtilities::getCanonicalPath(
-      UmbrellaHeader->getName()));
+    ModuleMapHeadersSet.insert(
+        ModularizeUtilities::getCanonicalPath(UmbrellaHeader->Entry.getName()));
     // Preprocess umbrella header and collect the headers it references.
-    if (!collectUmbrellaHeaderHeaders(UmbrellaHeader->getName()))
+    if (!collectUmbrellaHeaderHeaders(UmbrellaHeader->Entry.getName()))
       return false;
-  }
-  else if (const DirectoryEntry *UmbrellaDir = Mod.getUmbrellaDir().Entry) {
+  } else if (std::optional<Module::DirectoryName> UmbrellaDir =
+                 Mod.getUmbrellaDirAsWritten()) {
     // Collect headers in umbrella directory.
-    if (!collectUmbrellaHeaders(UmbrellaDir->getName()))
+    if (!collectUmbrellaHeaders(UmbrellaDir->Entry.getName()))
       return false;
   }
 
-  for (auto &HeaderKind : Mod.Headers)
-    for (auto &Header : HeaderKind)
-      ModuleMapHeadersSet.insert(ModularizeUtilities::getCanonicalPath(
-        Header.Entry->getName()));
+  for (const auto &Header : Mod.getAllHeaders())
+    ModuleMapHeadersSet.insert(
+        ModularizeUtilities::getCanonicalPath(Header.Entry.getName()));
 
-  for (auto MI = Mod.submodule_begin(), MIEnd = Mod.submodule_end();
-       MI != MIEnd; ++MI)
-    collectModuleHeaders(**MI);
+  for (auto *Submodule : Mod.submodules())
+    collectModuleHeaders(*Submodule);
 
   return true;
 }
@@ -278,15 +278,15 @@ CoverageChecker::collectUmbrellaHeaderHeaders(StringRef UmbrellaHeaderName) {
     sys::fs::current_path(PathBuf);
 
   // Create the compilation database.
-  std::unique_ptr<CompilationDatabase> Compilations;
-  Compilations.reset(new FixedCompilationDatabase(Twine(PathBuf), CommandLine));
+  FixedCompilationDatabase Compilations(Twine(PathBuf), CommandLine);
 
   std::vector<std::string> HeaderPath;
   HeaderPath.push_back(std::string(UmbrellaHeaderName));
 
   // Create the tool and run the compilation.
-  ClangTool Tool(*Compilations, HeaderPath);
-  int HadErrors = Tool.run(new CoverageCheckerFrontendActionFactory(*this));
+  ClangTool Tool(Compilations, HeaderPath);
+  CoverageCheckerFrontendActionFactory ActionFactory(*this);
+  int HadErrors = Tool.run(&ActionFactory);
 
   // If we had errors, exit early.
   return !HadErrors;
@@ -302,7 +302,7 @@ void CoverageChecker::collectUmbrellaHeaderHeader(StringRef HeaderName) {
     sys::fs::current_path(PathBuf);
   // HeaderName will have an absolute path, so if it's the module map
   // directory, we remove it, also skipping trailing separator.
-  if (HeaderName.startswith(PathBuf))
+  if (HeaderName.starts_with(PathBuf))
     HeaderName = HeaderName.substr(PathBuf.size() + 1);
   // Save header name.
   ModuleMapHeadersSet.insert(ModularizeUtilities::getCanonicalPath(HeaderName));
@@ -329,10 +329,8 @@ bool CoverageChecker::collectFileSystemHeaders() {
   else {
     // Otherwise we only look at the sub-trees specified by the
     // include paths.
-    for (std::vector<std::string>::const_iterator I = IncludePaths.begin(),
-      E = IncludePaths.end();
-      I != E; ++I) {
-      if (!collectFileSystemHeaders(*I))
+    for (const std::string &IncludePath : IncludePaths) {
+      if (!collectFileSystemHeaders(IncludePath))
         return false;
     }
   }
@@ -356,8 +354,8 @@ bool CoverageChecker::collectFileSystemHeaders(StringRef IncludePath) {
     sys::path::append(Directory, IncludePath);
   if (Directory.size() == 0)
     Directory = ".";
-  if (IncludePath.startswith("/") || IncludePath.startswith("\\") ||
-    ((IncludePath.size() >= 2) && (IncludePath[1] == ':'))) {
+  if (IncludePath.starts_with("/") || IncludePath.starts_with("\\") ||
+      ((IncludePath.size() >= 2) && (IncludePath[1] == ':'))) {
     llvm::errs() << "error: Include path \"" << IncludePath
       << "\" is not relative to the module map file.\n";
     return false;

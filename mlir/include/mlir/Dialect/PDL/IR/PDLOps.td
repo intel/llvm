@@ -35,18 +35,25 @@ def PDL_ApplyNativeConstraintOp
   let description = [{
     `pdl.apply_native_constraint` operations apply a native C++ constraint, that
     has been registered externally with the consumer of PDL, to a given set of
-    entities.
+    entities and optionally return a number of values.
 
     Example:
 
     ```mlir
     // Apply `myConstraint` to the entities defined by `input`, `attr`, and `op`.
     pdl.apply_native_constraint "myConstraint"(%input, %attr, %op : !pdl.value, !pdl.attribute, !pdl.operation)
+    // Apply constraint `with_result` to `root`. This constraint returns an attribute.
+    %attr = pdl.apply_native_constraint "with_result"(%root : !pdl.operation) : !pdl.attribute
     ```
   }];
 
-  let arguments = (ins StrAttr:$name, Variadic<PDL_AnyType>:$args);
-  let assemblyFormat = "$name `(` $args `:` type($args) `)` attr-dict";
+  let arguments = (ins StrAttr:$name, 
+                       Variadic<PDL_AnyType>:$args, 
+                       DefaultValuedAttr<BoolAttr, "false">:$isNegated);
+  let results = (outs Variadic<PDL_AnyType>:$results);
+  let assemblyFormat = [{
+    $name `(` $args `:` type($args) `)` (`:`  type($results)^ )? attr-dict
+  }];
   let hasVerifier = 1;
 }
 
@@ -353,12 +360,13 @@ def PDL_OperationOp : PDL_Op<"operation", [AttrSizedOperandSegments]> {
     (`->` `(` $typeValues^ `:` type($typeValues) `)`)? attr-dict
   }];
 
-  let builders = [
-    OpBuilder<(ins CArg<"Optional<StringRef>", "llvm::None">:$name,
-      CArg<"ValueRange", "llvm::None">:$operandValues,
-      CArg<"ArrayRef<StringRef>", "llvm::None">:$attrNames,
-      CArg<"ValueRange", "llvm::None">:$attrValues,
-      CArg<"ValueRange", "llvm::None">:$resultTypes), [{
+  let builders =
+      [OpBuilder<(ins CArg<"std::optional<StringRef>", "std::nullopt">:$name,
+                     CArg<"ValueRange", "{}">:$operandValues,
+                     CArg<"ArrayRef<StringRef>", "{}">:$attrNames,
+                     CArg<"ValueRange", "{}">:$attrValues,
+                     CArg<"ValueRange", "{}">:$resultTypes),
+                 [{
       auto nameAttr = name ? $_builder.getStringAttr(*name) : StringAttr();
       build($_builder, $_state, $_builder.getType<OperationType>(), nameAttr,
             operandValues, attrValues, $_builder.getStrArrayAttr(attrNames),
@@ -419,8 +427,8 @@ def PDL_PatternOp : PDL_Op<"pattern", [
   }];
 
   let builders = [
-    OpBuilder<(ins CArg<"Optional<uint16_t>", "1">:$benefit,
-                   CArg<"Optional<StringRef>", "llvm::None">:$name)>,
+    OpBuilder<(ins CArg<"std::optional<uint16_t>", "1">:$benefit,
+                   CArg<"std::optional<StringRef>", "std::nullopt">:$name)>,
   ];
   let extraClassDeclaration = [{
     //===------------------------------------------------------------------===//
@@ -434,6 +442,48 @@ def PDL_PatternOp : PDL_Op<"pattern", [
     RewriteOp getRewriter();
   }];
   let hasRegionVerifier = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// pdl::RangeOp
+//===----------------------------------------------------------------------===//
+
+def PDL_RangeOp : PDL_Op<"range", [Pure, HasParent<"pdl::RewriteOp">]> {
+  let summary = "Construct a range of pdl entities";
+  let description = [{
+    `pdl.range` operations construct a range from a given set of PDL entities,
+    which all share the same underlying element type. For example, a
+    `!pdl.range<value>` may be constructed from a list of `!pdl.value`
+    or `!pdl.range<value>` entities.
+
+    Example:
+
+    ```mlir
+    // Construct a range of values.
+    %valueRange = pdl.range %inputValue, %inputRange : !pdl.value, !pdl.range<value>
+
+    // Construct a range of types.
+    %typeRange = pdl.range %inputType, %inputRange : !pdl.type, !pdl.range<type>
+
+    // Construct an empty range of types.
+    %valueRange = pdl.range : !pdl.range<type>
+    ```
+
+    TODO: Range construction is currently limited to rewrites, but it could
+    be extended to constraints under certain circustances; i.e., if we can
+    determine how to extract the underlying elements. If we can't, e.g. if
+    there are multiple sub ranges used for construction, we won't be able
+    to determine their sizes during constraint time.
+  }];
+
+  let arguments = (ins Variadic<PDL_AnyType>:$arguments);
+  let results = (outs PDL_RangeOf<AnyTypeOf<[PDL_Type, PDL_Value]>>:$result);
+  let assemblyFormat = [{
+    ($arguments^ `:` type($arguments))?
+    custom<RangeType>(ref(type($arguments)), type($result))
+    attr-dict
+  }];
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -481,7 +531,7 @@ def PDL_ReplaceOp : PDL_Op<"replace", [
 // pdl::ResultOp
 //===----------------------------------------------------------------------===//
 
-def PDL_ResultOp : PDL_Op<"result", [NoSideEffect]> {
+def PDL_ResultOp : PDL_Op<"result", [Pure]> {
   let summary = "Extract a result from an operation";
   let description = [{
     `pdl.result` operations extract result edges from an operation node within
@@ -513,7 +563,7 @@ def PDL_ResultOp : PDL_Op<"result", [NoSideEffect]> {
 // pdl::ResultsOp
 //===----------------------------------------------------------------------===//
 
-def PDL_ResultsOp : PDL_Op<"results", [NoSideEffect]> {
+def PDL_ResultsOp : PDL_Op<"results", [Pure]> {
   let summary = "Extract a result group from an operation";
   let description = [{
     `pdl.results` operations extract a result group from an operation within a

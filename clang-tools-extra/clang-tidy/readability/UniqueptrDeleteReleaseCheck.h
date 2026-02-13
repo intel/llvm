@@ -1,4 +1,4 @@
-//===--- UniqueptrDeleteReleaseCheck.h - clang-tidy--------------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,27 +6,28 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_UNIQUEPTR_DELETE_RELEASE_H
-#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_UNIQUEPTR_DELETE_RELEASE_H
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_UNIQUEPTRDELETERELEASECHECK_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_UNIQUEPTRDELETERELEASECHECK_H
 
 #include "../ClangTidyCheck.h"
 
-namespace clang {
-namespace tidy {
-namespace readability {
+namespace clang::tidy::readability {
 
 /// Flags statements of the form ``delete <unique_ptr expr>.release();`` and
 /// replaces them with: ``<unique_ptr expr> = nullptr;``
 ///
 /// For the user-facing documentation see:
-/// http://clang.llvm.org/extra/clang-tidy/checks/readability/uniqueptr-delete-release.html
+/// https://clang.llvm.org/extra/clang-tidy/checks/readability/uniqueptr-delete-release.html
 class UniqueptrDeleteReleaseCheck : public ClangTidyCheck {
 public:
   UniqueptrDeleteReleaseCheck(StringRef Name, ClangTidyContext *Context);
+  bool isLanguageVersionSupported(const LangOptions &LangOpts) const override {
+    return LangOpts.CPlusPlus;
+  }
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
   void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
-  llvm::Optional<TraversalKind> getCheckTraversalKind() const override {
+  std::optional<TraversalKind> getCheckTraversalKind() const override {
     return TK_IgnoreUnlessSpelledInSource;
   }
 
@@ -34,8 +35,6 @@ private:
   const bool PreferResetCall;
 };
 
-} // namespace readability
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::readability
 
-#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_UNIQUEPTR_DELETE_RELEASE_H
+#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_UNIQUEPTRDELETERELEASECHECK_H

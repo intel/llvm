@@ -16,14 +16,13 @@
 
 #include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/Hashing.h"
-#include "llvm/ADT/Optional.h"
-#include "llvm/Support/Endian.h"
+#include "llvm/Support/Compiler.h"
+#include <optional>
 #include <string>
 #include <tuple>
 
 namespace llvm {
-template <typename HasherT, support::endianness Endianness>
-class HashBuilderImpl;
+template <typename HasherT, llvm::endianness Endianness> class HashBuilder;
 class raw_ostream;
 class StringRef;
 
@@ -41,24 +40,25 @@ class VersionTuple {
   unsigned HasBuild : 1;
 
 public:
-  VersionTuple()
+  constexpr VersionTuple()
       : Major(0), Minor(0), HasMinor(false), Subminor(0), HasSubminor(false),
         Build(0), HasBuild(false) {}
 
-  explicit VersionTuple(unsigned Major)
+  explicit constexpr VersionTuple(unsigned Major)
       : Major(Major), Minor(0), HasMinor(false), Subminor(0),
         HasSubminor(false), Build(0), HasBuild(false) {}
 
-  explicit VersionTuple(unsigned Major, unsigned Minor)
+  explicit constexpr VersionTuple(unsigned Major, unsigned Minor)
       : Major(Major), Minor(Minor), HasMinor(true), Subminor(0),
         HasSubminor(false), Build(0), HasBuild(false) {}
 
-  explicit VersionTuple(unsigned Major, unsigned Minor, unsigned Subminor)
+  explicit constexpr VersionTuple(unsigned Major, unsigned Minor,
+                                  unsigned Subminor)
       : Major(Major), Minor(Minor), HasMinor(true), Subminor(Subminor),
         HasSubminor(true), Build(0), HasBuild(false) {}
 
-  explicit VersionTuple(unsigned Major, unsigned Minor, unsigned Subminor,
-                        unsigned Build)
+  explicit constexpr VersionTuple(unsigned Major, unsigned Minor,
+                                  unsigned Subminor, unsigned Build)
       : Major(Major), Minor(Minor), HasMinor(true), Subminor(Subminor),
         HasSubminor(true), Build(Build), HasBuild(true) {}
 
@@ -72,23 +72,23 @@ public:
   unsigned getMajor() const { return Major; }
 
   /// Retrieve the minor version number, if provided.
-  Optional<unsigned> getMinor() const {
+  std::optional<unsigned> getMinor() const {
     if (!HasMinor)
-      return None;
+      return std::nullopt;
     return Minor;
   }
 
   /// Retrieve the subminor version number, if provided.
-  Optional<unsigned> getSubminor() const {
+  std::optional<unsigned> getSubminor() const {
     if (!HasSubminor)
-      return None;
+      return std::nullopt;
     return Subminor;
   }
 
   /// Retrieve the build version number, if provided.
-  Optional<unsigned> getBuild() const {
+  std::optional<unsigned> getBuild() const {
     if (!HasBuild)
-      return None;
+      return std::nullopt;
     return Build;
   }
 
@@ -101,9 +101,7 @@ public:
 
   /// Return a version tuple that contains a different major version but
   /// everything else is the same.
-  VersionTuple withMajorReplaced(unsigned NewMajor) const {
-    return VersionTuple(NewMajor, Minor, Subminor, Build);
-  }
+  LLVM_ABI VersionTuple withMajorReplaced(unsigned NewMajor) const;
 
   /// Return a version tuple that contains only components that are non-zero.
   VersionTuple normalize() const {
@@ -173,23 +171,23 @@ public:
     return hash_combine(VT.Major, VT.Minor, VT.Subminor, VT.Build);
   }
 
-  template <typename HasherT, llvm::support::endianness Endianness>
-  friend void addHash(HashBuilderImpl<HasherT, Endianness> &HBuilder,
+  template <typename HasherT, llvm::endianness Endianness>
+  friend void addHash(HashBuilder<HasherT, Endianness> &HBuilder,
                       const VersionTuple &VT) {
     HBuilder.add(VT.Major, VT.Minor, VT.Subminor, VT.Build);
   }
 
   /// Retrieve a string representation of the version number.
-  std::string getAsString() const;
+  LLVM_ABI std::string getAsString() const;
 
   /// Try to parse the given string as a version number.
   /// \returns \c true if the string does not match the regular expression
   ///   [0-9]+(\.[0-9]+){0,3}
-  bool tryParse(StringRef string);
+  LLVM_ABI bool tryParse(StringRef string);
 };
 
 /// Print a version number.
-raw_ostream &operator<<(raw_ostream &Out, const VersionTuple &V);
+LLVM_ABI raw_ostream &operator<<(raw_ostream &Out, const VersionTuple &V);
 
 // Provide DenseMapInfo for version tuples.
 template <> struct DenseMapInfo<VersionTuple> {

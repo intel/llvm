@@ -1,4 +1,4 @@
-//===--- ProTypeMemberInitCheck.h - clang-tidy-------------------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,15 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_CPPCOREGUIDELINES_PRO_TYPE_MEMBER_INIT_H
-#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_CPPCOREGUIDELINES_PRO_TYPE_MEMBER_INIT_H
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_CPPCOREGUIDELINES_PROTYPEMEMBERINITCHECK_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_CPPCOREGUIDELINES_PROTYPEMEMBERINITCHECK_H
 
 #include "../ClangTidyCheck.h"
 #include "llvm/ADT/DenseSet.h"
 
-namespace clang {
-namespace tidy {
-namespace cppcoreguidelines {
+namespace clang::tidy::cppcoreguidelines {
 
 /// Implements C++ Core Guidelines Type.6.
 ///
@@ -27,7 +25,7 @@ namespace cppcoreguidelines {
 /// will result in false positives.
 ///
 /// For the user-facing documentation see:
-/// http://clang.llvm.org/extra/clang-tidy/checks/cppcoreguidelines/pro-type-member-init.html
+/// https://clang.llvm.org/extra/clang-tidy/checks/cppcoreguidelines/pro-type-member-init.html
 /// TODO: See if 'fixes' for false positives are optimized away by the compiler.
 /// TODO: For classes with multiple constructors, make sure that we don't offer
 ///     multiple in-class initializer fixits for the same  member.
@@ -79,8 +77,6 @@ private:
   llvm::DenseSet<const FieldDecl *> HasRecordClassMemberSet;
 };
 
-} // namespace cppcoreguidelines
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::cppcoreguidelines
 
-#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_CPPCOREGUIDELINES_PRO_TYPE_MEMBER_INIT_H
+#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_CPPCOREGUIDELINES_PROTYPEMEMBERINITCHECK_H

@@ -1,6 +1,10 @@
 ;; Test SPIR-V opaque types
 
-; RUN: llc -O0 -mtriple=spirv32-unknown-unknown %s -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+; RUN: llc -verify-machineinstrs -O0 -mtriple=spirv64-unknown-unknown %s -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+; RUN: %if spirv-tools %{ llc -O0 -mtriple=spirv64-unknown-unknown %s -o - -filetype=obj | spirv-val %}
+
+; RUN: llc -verify-machineinstrs -O0 -mtriple=spirv32-unknown-unknown %s -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+; RUN: %if spirv-tools %{ llc -O0 -mtriple=spirv32-unknown-unknown %s -o - -filetype=obj | spirv-val %}
 
 ; CHECK-SPIRV-DAG: OpCapability Float16
 ; CHECK-SPIRV-DAG: OpCapability ImageReadWrite
@@ -28,23 +32,6 @@
 ; CHECK-SPIRV-DAG: %[[#SAMP:]] = OpTypeSampler
 ; CHECK-SPIRV-DAG: %[[#SAMPIMG:]] = OpTypeSampledImage %[[#IMG2DD_RD]]
 
-%spirv.Pipe._0 = type opaque ; read_only pipe
-%spirv.Pipe._1 = type opaque ; write_only pipe
-%spirv.Image._void_0_0_0_0_0_0_0 = type opaque ; read_only image1d_ro_t
-%spirv.Image._int_1_0_0_0_0_0_0 = type opaque ; read_only image2d_ro_t
-%spirv.Image._uint_2_0_0_0_0_0_0 = type opaque ; read_only image3d_ro_t
-%spirv.Image._float_1_1_0_0_0_0_0 = type opaque; read_only image2d_depth_ro_t
-%spirv.Image._half_1_0_1_0_0_0_0 = type opaque ; read_only image2d_array_ro_t
-%spirv.Image._float_5_0_0_0_0_0_0 = type opaque ; read_only image1d_buffer_ro_t
-%spirv.Image._void_0_0_0_0_0_0_1 = type opaque ; write_only image1d_wo_t
-%spirv.Image._void_1_0_0_0_0_0_2 = type opaque ; read_write image2d_rw_t
-%spirv.DeviceEvent          = type opaque ; clk_event_t
-%spirv.Event                = type opaque ; event_t
-%spirv.Queue                = type opaque ; queue_t
-%spirv.ReserveId            = type opaque ; reserve_id_t
-%spirv.Sampler              = type opaque ; sampler_t
-%spirv.SampledImage._float_1_1_0_0_0_0_0 = type opaque
-
 ; CHECK-SPIRV: OpFunction
 ; CHECK-SPIRV: %[[#]] = OpFunctionParameter %[[#PIPE_RD]]
 ; CHECK-SPIRV: %[[#]] = OpFunctionParameter %[[#PIPE_WR]]
@@ -57,15 +44,15 @@
 ; CHECK-SPIRV: %[[#]] = OpFunctionParameter %[[#IMG2D_RW]]
 
 define spir_kernel void @foo(
-  %spirv.Pipe._0 addrspace(1)* nocapture %a,
-  %spirv.Pipe._1 addrspace(1)* nocapture %b,
-  %spirv.Image._void_0_0_0_0_0_0_0 addrspace(1)* nocapture %c1,
-  %spirv.Image._int_1_0_0_0_0_0_0 addrspace(1)* nocapture %d1,
-  %spirv.Image._uint_2_0_0_0_0_0_0 addrspace(1)* nocapture %e1,
-  %spirv.Image._half_1_0_1_0_0_0_0 addrspace(1)* nocapture %f1,
-  %spirv.Image._float_5_0_0_0_0_0_0 addrspace(1)* nocapture %g1,
-  %spirv.Image._void_0_0_0_0_0_0_1 addrspace(1)* nocapture %c2,
-  %spirv.Image._void_1_0_0_0_0_0_2 addrspace(1)* nocapture %d3) {
+  target("spirv.Pipe", 0) %a,
+  target("spirv.Pipe", 1) %b,
+  target("spirv.Image", void, 0, 0, 0, 0, 0, 0, 0) %c1,
+  target("spirv.Image", i32, 1, 0, 0, 0, 0, 0, 0) %d1,
+  target("spirv.Image", i32, 2, 0, 0, 0, 0, 0, 0) %e1,
+  target("spirv.Image", half, 1, 0, 1, 0, 0, 0, 0) %f1,
+  target("spirv.Image", float, 5, 0, 0, 0, 0, 0, 0) %g1,
+  target("spirv.Image", void, 0, 0, 0, 0, 0, 0, 1) %c2,
+  target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 2) %d3) {
 entry:
   ret void
 }
@@ -77,10 +64,10 @@ entry:
 ; CHECK-SPIRV: %[[#]] = OpFunctionParameter %[[#RESID]]
 
 define spir_func void @bar(
-  %spirv.DeviceEvent * %a,
-  %spirv.Event * %b,
-  %spirv.Queue * %c,
-  %spirv.ReserveId * %d) {
+  target("spirv.DeviceEvent") %a,
+  target("spirv.Event") %b,
+  target("spirv.Queue") %c,
+  target("spirv.ReserveId") %d) {
   ret void
 }
 
@@ -90,13 +77,69 @@ define spir_func void @bar(
 ; CHECK-SPIRV: %[[#SAMPIMG_VAR:]] = OpSampledImage %[[#SAMPIMG]] %[[#IMG_ARG]] %[[#SAMP_ARG]]
 ; CHECK-SPIRV: %[[#]] = OpImageSampleExplicitLod %[[#]] %[[#SAMPIMG_VAR]]
 
-define spir_func void @test_sampler(%spirv.Image._float_1_1_0_0_0_0_0 addrspace(1)* %srcimg.coerce,
-                                    %spirv.Sampler addrspace(1)* %s.coerce) {
-  %1 = tail call spir_func %spirv.SampledImage._float_1_1_0_0_0_0_0 addrspace(1)* @_Z20__spirv_SampledImagePU3AS1K34__spirv_Image__float_1_1_0_0_0_0_0PU3AS1K15__spirv_Sampler(%spirv.Image._float_1_1_0_0_0_0_0 addrspace(1)* %srcimg.coerce, %spirv.Sampler addrspace(1)* %s.coerce)
-  %2 = tail call spir_func <4 x float> @_Z38__spirv_ImageSampleExplicitLod_Rfloat4PU3AS120__spirv_SampledImageDv4_iif(%spirv.SampledImage._float_1_1_0_0_0_0_0 addrspace(1)* %1, <4 x i32> zeroinitializer, i32 2, float 1.000000e+00)
+define spir_func void @test_sampler(target("spirv.Image", float, 1, 1, 0, 0, 0, 0, 0) %srcimg.coerce,
+                                    target("spirv.Sampler") %s.coerce) {
+  %1 = tail call spir_func target("spirv.Image", float, 1, 1, 0, 0, 0, 0, 0) @_Z20__spirv_SampledImagePU3AS1K34__spirv_Image__float_1_1_0_0_0_0_0PU3AS1K15__spirv_Sampler(target("spirv.Image", float, 1, 1, 0, 0, 0, 0, 0) %srcimg.coerce, target("spirv.Sampler") %s.coerce)
+  %2 = tail call spir_func <4 x float> @_Z38__spirv_ImageSampleExplicitLod_Rfloat4PU3AS120__spirv_SampledImageDv4_iif(target("spirv.Image", float, 1, 1, 0, 0, 0, 0, 0) %1, <4 x i32> zeroinitializer, i32 2, float 1.000000e+00)
   ret void
 }
 
-declare spir_func %spirv.SampledImage._float_1_1_0_0_0_0_0 addrspace(1)* @_Z20__spirv_SampledImagePU3AS1K34__spirv_Image__float_1_1_0_0_0_0_0PU3AS1K15__spirv_Sampler(%spirv.Image._float_1_1_0_0_0_0_0 addrspace(1)*, %spirv.Sampler addrspace(1)*)
+declare spir_func target("spirv.Image", float, 1, 1, 0, 0, 0, 0, 0) @_Z20__spirv_SampledImagePU3AS1K34__spirv_Image__float_1_1_0_0_0_0_0PU3AS1K15__spirv_Sampler(target("spirv.Image", float, 1, 1, 0, 0, 0, 0, 0), target("spirv.Sampler"))
+declare spir_func <4 x float> @_Z38__spirv_ImageSampleExplicitLod_Rfloat4PU3AS120__spirv_SampledImageDv4_iif(target("spirv.Image", float, 1, 1, 0, 0, 0, 0, 0), <4 x i32>, i32, float)
 
-declare spir_func <4 x float> @_Z38__spirv_ImageSampleExplicitLod_Rfloat4PU3AS120__spirv_SampledImageDv4_iif(%spirv.SampledImage._float_1_1_0_0_0_0_0 addrspace(1)*, <4 x i32>, i32, float)
+; CHECK-SPIRV: %[[#]] = OpImageRead
+; CHECK-SPIRV: %[[#]] = OpImageRead
+; CHECK-SPIRV: %[[#]] = OpImageRead
+; CHECK-SPIRV: %[[#]] = OpImageRead
+; CHECK-SPIRV: %[[#]] = OpImageRead
+; CHECK-SPIRV: %[[#]] = OpImageRead
+; CHECK-SPIRV: %[[#]] = OpImageRead
+; CHECK-SPIRV: %[[#]] = OpImageSampleExplicitLod
+
+define dso_local spir_kernel void @reads() {
+  %1 = tail call spir_func i32 @_Z17__spirv_ImageReadIi14ocl_image3d_roDv4_iET_T0_T1_(target("spirv.Image", void, 2, 0, 0, 0, 0, 0, 0) poison, <4 x i32> zeroinitializer)
+  %2 = tail call spir_func <2 x i32> @_Z17__spirv_ImageReadIDv2_i14ocl_image2d_roS0_ET_T0_T1_(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0) poison, <2 x i32> zeroinitializer)
+  %3 = tail call spir_func <4 x i32> @_Z17__spirv_ImageReadIDv4_j14ocl_image3d_roDv4_iET_T0_T1_(target("spirv.Image", void, 2, 0, 0, 0, 0, 0, 0) poison, <4 x i32> zeroinitializer)
+  %4 = tail call spir_func signext i16 @_Z17__spirv_ImageReadIs14ocl_image1d_roiET_T0_T1_(target("spirv.Image", void, 0, 0, 0, 0, 0, 0, 0) poison, i32 0)
+  %5 = tail call spir_func zeroext i16 @_Z17__spirv_ImageReadIt14ocl_image3d_roDv4_iET_T0_T1_(target("spirv.Image", void, 2, 0, 0, 0, 0, 0, 0) poison, <4 x i32> zeroinitializer)
+  %6 = tail call spir_func <2 x float> @_Z17__spirv_ImageReadIDv2_f14ocl_image1d_roiET_T0_T1_(target("spirv.Image", void, 0, 0, 0, 0, 0, 0, 0) poison, i32 0)
+  %7 = tail call spir_func half @_Z17__spirv_ImageReadIDF16_14ocl_image2d_roDv2_iET_T0_T1_(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0) poison, <2 x i32> zeroinitializer)
+  %8 = tail call spir_func <4 x i32> @_Z30__spirv_ImageSampleExplicitLodI32__spirv_SampledImage__image1d_roDv4_jfET0_T_T1_if(target("spirv.SampledImage", void, 0, 0, 0, 0, 0, 0, 0) poison, float 0.000000e+00, i32 2, float 0.000000e+00)
+  ret void
+}
+
+declare dso_local spir_func i32 @_Z17__spirv_ImageReadIi14ocl_image3d_roDv4_iET_T0_T1_(target("spirv.Image", void, 2, 0, 0, 0, 0, 0, 0), <4 x i32>)
+declare dso_local spir_func <2 x i32> @_Z17__spirv_ImageReadIDv2_i14ocl_image2d_roS0_ET_T0_T1_(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0), <2 x i32>)
+declare dso_local spir_func <4 x i32> @_Z17__spirv_ImageReadIDv4_j14ocl_image3d_roDv4_iET_T0_T1_(target("spirv.Image", void, 2, 0, 0, 0, 0, 0, 0), <4 x i32>)
+declare dso_local spir_func signext i16 @_Z17__spirv_ImageReadIs14ocl_image1d_roiET_T0_T1_(target("spirv.Image", void, 0, 0, 0, 0, 0, 0, 0), i32)
+declare dso_local spir_func zeroext i16 @_Z17__spirv_ImageReadIt14ocl_image3d_roDv4_iET_T0_T1_(target("spirv.Image", void, 2, 0, 0, 0, 0, 0, 0), <4 x i32>)
+declare dso_local spir_func <2 x float> @_Z17__spirv_ImageReadIDv2_f14ocl_image1d_roiET_T0_T1_(target("spirv.Image", void, 0, 0, 0, 0, 0, 0, 0), i32)
+declare dso_local spir_func half @_Z17__spirv_ImageReadIDF16_14ocl_image2d_roDv2_iET_T0_T1_(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0), <2 x i32>)
+declare dso_local spir_func <4 x i32> @_Z30__spirv_ImageSampleExplicitLodI32__spirv_SampledImage__image1d_roDv4_jfET0_T_T1_if(target("spirv.SampledImage", void, 0, 0, 0, 0, 0, 0, 0), float noundef, i32 noundef, float noundef)
+
+; CHECK-SPIRV: OpImageWrite
+; CHECK-SPIRV: OpImageWrite
+; CHECK-SPIRV: OpImageWrite
+; CHECK-SPIRV: OpImageWrite
+; CHECK-SPIRV: OpImageWrite
+; CHECK-SPIRV: OpImageWrite
+; CHECK-SPIRV: OpImageWrite
+
+define dso_local spir_kernel void @writes() {
+  call spir_func void @_Z18__spirv_ImageWriteI14ocl_image3d_woDv4_iiEvT_T0_T1_(target("spirv.Image", void, 2, 0, 0, 0, 0, 0, 1) poison, <4 x i32> zeroinitializer, i32 zeroinitializer)
+  call spir_func void @_Z18__spirv_ImageWriteI14ocl_image2d_woDv2_iS1_EvT_T0_T1_(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 1) poison, <2 x i32> zeroinitializer, <2 x i32> zeroinitializer)
+  call spir_func void @_Z18__spirv_ImageWriteI14ocl_image3d_woDv4_iDv4_jEvT_T0_T1_(target("spirv.Image", void, 2, 0, 0, 0, 0, 0, 1) poison, <4 x i32> zeroinitializer, <4 x i32> zeroinitializer)
+  call spir_func void @_Z18__spirv_ImageWriteI14ocl_image1d_woisEvT_T0_T1_(target("spirv.Image", void, 0, 0, 0, 0, 0, 0, 1) poison, i32 0, i16 signext 0)
+  call spir_func void @_Z18__spirv_ImageWriteI14ocl_image3d_woDv4_itEvT_T0_T1_(target("spirv.Image", void, 2, 0, 0, 0, 0, 0, 1) poison, <4 x i32> zeroinitializer, i16 zeroext 0)
+  call spir_func void @_Z18__spirv_ImageWriteI14ocl_image1d_woiDv2_fEvT_T0_T1_(target("spirv.Image", void, 0, 0, 0, 0, 0, 0, 1) poison, i32 0, <2 x float> zeroinitializer)
+  call spir_func void @_Z18__spirv_ImageWriteI14ocl_image2d_woDv2_iDF16_EvT_T0_T1_(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 1) poison, <2 x i32> zeroinitializer, half zeroinitializer)
+  ret void
+}
+
+declare dso_local spir_func void @_Z18__spirv_ImageWriteI14ocl_image3d_woDv4_iiEvT_T0_T1_(target("spirv.Image", void, 2, 0, 0, 0, 0, 0, 1), <4 x i32>, i32)
+declare dso_local spir_func void @_Z18__spirv_ImageWriteI14ocl_image2d_woDv2_iS1_EvT_T0_T1_(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 1), <2 x i32>, <2 x i32>)
+declare dso_local spir_func void @_Z18__spirv_ImageWriteI14ocl_image3d_woDv4_iDv4_jEvT_T0_T1_(target("spirv.Image", void, 2, 0, 0, 0, 0, 0, 1), <4 x i32>, <4 x i32>)
+declare dso_local spir_func void @_Z18__spirv_ImageWriteI14ocl_image1d_woisEvT_T0_T1_(target("spirv.Image", void, 0, 0, 0, 0, 0, 0, 1), i32, i16 signext)
+declare dso_local spir_func void @_Z18__spirv_ImageWriteI14ocl_image3d_woDv4_itEvT_T0_T1_(target("spirv.Image", void, 2, 0, 0, 0, 0, 0, 1), <4 x i32>, i16 zeroext)
+declare dso_local spir_func void @_Z18__spirv_ImageWriteI14ocl_image1d_woiDv2_fEvT_T0_T1_(target("spirv.Image", void, 0, 0, 0, 0, 0, 0, 1), i32, <2 x float>)
+declare dso_local spir_func void @_Z18__spirv_ImageWriteI14ocl_image2d_woDv2_iDF16_EvT_T0_T1_(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 1), <2 x i32>, half)

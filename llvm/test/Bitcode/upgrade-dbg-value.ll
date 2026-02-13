@@ -1,19 +1,18 @@
-; Test upgrade of dbg.dvalue intrinsics with offsets.
+; Test upgrade of dbg.value intrinsics with offsets.
 ;
 ; RUN: llvm-dis < %s.bc | FileCheck %s
 ; RUN: verify-uselistorder < %s.bc
 
 define void @f() !dbg !3 {
 entry:
-  ; CHECK-NOT: call void @llvm.dbg.value
-  ; CHECK: call void @llvm.dbg.value(metadata i32 42, metadata !8, metadata !DIExpression())
+  ; CHECK-NOT: #dbg_value
+  ; CHECK: #dbg_value(i32 42, !8, !DIExpression(),
   call void @llvm.dbg.value(metadata i32 42, i64 0, metadata !8, metadata !9), !dbg !10
-  ; CHECK-NOT: call void @llvm.dbg.value
+  ; CHECK-NOT: #dbg_value
   call void @llvm.dbg.value(metadata i32 0, i64 1, metadata !8, metadata !9), !dbg !10
   ret void
 }
 
-; CHECK: declare void @llvm.dbg.value(metadata, metadata, metadata)
 declare void @llvm.dbg.value(metadata, i64, metadata, metadata)
 
 !llvm.dbg.cu = !{!0}

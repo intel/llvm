@@ -28,14 +28,14 @@ define void @phi5() unnamed_addr {
   ]
 
 1:                                                ; preds = %0, %0, %0, %0
-  %2 = load i16, i16* undef, align 2
+  %2 = load i16, ptr undef, align 2
   br label %3
 
 3:                                                ; preds = %3, %1
   %4 = phi i16 [ %18, %3 ], [ undef, %1 ]
   %5 = phi i16 [ %13, %3 ], [ undef, %1 ]
   %6 = phi i16 [ %11, %3 ], [ undef, %1 ]
-  %7 = phi i16 [ undef, %3 ], [ %2, %1 ]
+  %7 = phi i16 [ poison, %3 ], [ %2, %1 ]
   %8 = phi i32 [ %19, %3 ], [ undef, %1 ]
   %9 = lshr i16 %6, 1
   %10 = shl i16 %7, 15

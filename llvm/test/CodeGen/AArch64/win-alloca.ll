@@ -5,11 +5,11 @@
 define void @func(i64 %a) {
 entry:
   %0 = alloca i8, i64 %a, align 16
-  call void @func2(i8* nonnull %0)
+  call void @func2(ptr nonnull %0)
   ret void
 }
 
-declare void @func2(i8*)
+declare void @func2(ptr)
 
 ; The -O0 version here ends up much less elegant, so just check the
 ; details of the optimized form, but check that -O0 at least emits the
@@ -21,4 +21,4 @@ declare void @func2(i8*)
 ; CHECK-OPT: sub [[REG3:x[0-9]+]], sp, x15, lsl #4
 ; CHECK-OPT: mov sp, [[REG3]]
 ; CHECK: bl func2
-; CHECK-ARM64EC: bl __chkstk_arm64ec
+; CHECK-ARM64EC: bl "#__chkstk_arm64ec"

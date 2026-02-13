@@ -1,4 +1,4 @@
-//===--- SwappedArgumentsCheck.cpp - clang-tidy ---------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,12 +14,11 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 void SwappedArgumentsCheck::registerMatchers(MatchFinder *Finder) {
-  Finder->addMatcher(callExpr().bind("call"), this);
+  Finder->addMatcher(callExpr(unless(isInTemplateInstantiation())).bind("call"),
+                     this);
 }
 
 /// Look through lvalue to rvalue and nop casts. This filters out
@@ -43,7 +42,42 @@ static bool isImplicitCastCandidate(const CastExpr *Cast) {
          Cast->getCastKind() == CK_IntegralToBoolean ||
          Cast->getCastKind() == CK_IntegralToFloating ||
          Cast->getCastKind() == CK_MemberPointerToBoolean ||
-         Cast->getCastKind() == CK_PointerToBoolean;
+         Cast->getCastKind() == CK_PointerToBoolean ||
+         (Cast->getCastKind() == CK_IntegralCast &&
+          Cast->getSubExpr()->getType()->isBooleanType());
+}
+
+static bool areTypesSemiEqual(const QualType L, const QualType R) {
+  if (L == R)
+    return true;
+
+  if (!L->isBuiltinType() || !R->isBuiltinType())
+    return false;
+
+  return (L->isFloatingType() && R->isFloatingType()) ||
+         (L->isIntegerType() && R->isIntegerType()) ||
+         (L->isBooleanType() && R->isBooleanType());
+}
+
+static bool areArgumentsPotentiallySwapped(const QualType LTo,
+                                           const QualType RTo,
+                                           const QualType LFrom,
+                                           const QualType RFrom) {
+  if (LTo == RTo || LFrom == RFrom)
+    return false;
+
+  const bool REq = areTypesSemiEqual(RTo, LFrom);
+  if (LTo == RFrom && REq)
+    return true;
+
+  const bool LEq = areTypesSemiEqual(LTo, RFrom);
+  if (RTo == LFrom && LEq)
+    return true;
+
+  if (REq && LEq && !areTypesSemiEqual(RTo, LTo))
+    return true;
+
+  return false;
 }
 
 void SwappedArgumentsCheck::check(const MatchFinder::MatchResult &Result) {
@@ -57,7 +91,7 @@ void SwappedArgumentsCheck::check(const MatchFinder::MatchResult &Result) {
 
     // Only need to check RHS, as LHS has already been covered. We don't want to
     // emit two warnings for a single argument.
-    if (UsedArgs.count(RHS))
+    if (UsedArgs.contains(RHS))
       continue;
 
     const auto *LHSCast = dyn_cast<ImplicitCastExpr>(ignoreNoOpCasts(LHS));
@@ -77,18 +111,16 @@ void SwappedArgumentsCheck::check(const MatchFinder::MatchResult &Result) {
     // heuristic.
     const Expr *LHSFrom = ignoreNoOpCasts(LHSCast->getSubExpr());
     const Expr *RHSFrom = ignoreNoOpCasts(RHSCast->getSubExpr());
-    if (LHS->getType() == RHS->getType() ||
-        LHS->getType() != RHSFrom->getType() ||
-        RHS->getType() != LHSFrom->getType())
+    if (!areArgumentsPotentiallySwapped(LHS->getType(), RHS->getType(),
+                                        LHSFrom->getType(), RHSFrom->getType()))
       continue;
 
     // Emit a warning and fix-its that swap the arguments.
     diag(Call->getBeginLoc(), "argument with implicit conversion from %0 "
                               "to %1 followed by argument converted from "
                               "%2 to %3, potentially swapped arguments.")
-        << LHS->getType() << LHSFrom->getType() << RHS->getType()
-        << RHSFrom->getType()
-        << tooling::fixit::createReplacement(*LHS, *RHS, Ctx)
+        << LHSFrom->getType() << LHS->getType() << RHSFrom->getType()
+        << RHS->getType() << tooling::fixit::createReplacement(*LHS, *RHS, Ctx)
         << tooling::fixit::createReplacement(*RHS, *LHS, Ctx);
 
     // Remember that we emitted a warning for this argument.
@@ -96,6 +128,4 @@ void SwappedArgumentsCheck::check(const MatchFinder::MatchResult &Result) {
   }
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

@@ -10,20 +10,17 @@ module openacc_routine_validity
 
   !$acc routine(fct2) vector
 
-  !ERROR: At least one of GANG, SEQ, VECTOR, WORKER clause must appear on the ROUTINE directive
   !$acc routine(sub3)
 
   !ERROR: ROUTINE directive without name must appear within the specification part of a subroutine or function definition, or within an interface body for a subroutine or function in an interface block
   !$acc routine seq
 
-  !ERROR: No function or subroutine declared for 'dummy'
   !$acc routine(dummy) seq
 
 contains
 
   subroutine sub1(a)
     real :: a(:)
-    !ERROR: At least one of GANG, SEQ, VECTOR, WORKER clause must appear on the ROUTINE directive
     !$acc routine
   end subroutine sub1
 
@@ -72,8 +69,14 @@ contains
 
   subroutine sub6(a)
     real :: a(:)
-    !ERROR: No function or subroutine declared for 'dummy_sub'
     !$acc routine seq bind(dummy_sub)
   end subroutine sub6
+
+  subroutine sub7(a)
+    real :: a(:)
+    !ERROR: SHORTLOOP clause is not allowed on the KERNELS directive
+    !$acc kernels shortloop
+    !$acc end kernels
+  end subroutine sub7
 
 end module openacc_routine_validity

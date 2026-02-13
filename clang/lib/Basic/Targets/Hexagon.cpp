@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "Hexagon.h"
-#include "Targets.h"
 #include "clang/Basic/MacroBuilder.h"
 #include "clang/Basic/TargetBuiltins.h"
 #include "llvm/ADT/StringSwitch.h"
@@ -23,8 +22,6 @@ void HexagonTargetInfo::getTargetDefines(const LangOptions &Opts,
                                          MacroBuilder &Builder) const {
   Builder.defineMacro("__qdsp6__", "1");
   Builder.defineMacro("__hexagon__", "1");
-
-  Builder.defineMacro("__ELF__");
 
   // The macro __HVXDBL__ is deprecated.
   bool DefineHvxDbl = false;
@@ -71,6 +68,24 @@ void HexagonTargetInfo::getTargetDefines(const LangOptions &Opts,
   } else if (CPU == "hexagonv69") {
     Builder.defineMacro("__HEXAGON_V69__");
     Builder.defineMacro("__HEXAGON_ARCH__", "69");
+  } else if (CPU == "hexagonv71") {
+    Builder.defineMacro("__HEXAGON_V71__");
+    Builder.defineMacro("__HEXAGON_ARCH__", "71");
+  } else if (CPU == "hexagonv71t") {
+    Builder.defineMacro("__HEXAGON_V71T__");
+    Builder.defineMacro("__HEXAGON_ARCH__", "71");
+  } else if (CPU == "hexagonv73") {
+    Builder.defineMacro("__HEXAGON_V73__");
+    Builder.defineMacro("__HEXAGON_ARCH__", "73");
+  } else if (CPU == "hexagonv75") {
+    Builder.defineMacro("__HEXAGON_V75__");
+    Builder.defineMacro("__HEXAGON_ARCH__", "75");
+  } else if (CPU == "hexagonv79") {
+    Builder.defineMacro("__HEXAGON_V79__");
+    Builder.defineMacro("__HEXAGON_ARCH__", "79");
+  } else if (CPU == "hexagonv81") {
+    Builder.defineMacro("__HEXAGON_V81__");
+    Builder.defineMacro("__HEXAGON_ARCH__", "81");
   }
 
   if (hasFeature("hvx-length64b")) {
@@ -93,6 +108,11 @@ void HexagonTargetInfo::getTargetDefines(const LangOptions &Opts,
 
   std::string NumPhySlots = isTinyCore() ? "3" : "4";
   Builder.defineMacro("__HEXAGON_PHYSICAL_SLOTS__", NumPhySlots);
+
+  Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_1");
+  Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_2");
+  Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_4");
+  Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_8");
 }
 
 bool HexagonTargetInfo::initFeatureMap(
@@ -132,11 +152,16 @@ bool HexagonTargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       HasAudio = true;
   }
   if (CPU.compare("hexagonv68") >= 0) {
-    HasLegalHalfType = true;
+    HasFastHalfType = true;
     HasFloat16 = true;
   }
+  if (CPU.compare("hexagonv81") >= 0)
+    HasBFloat16 = true;
+
   return true;
 }
+
+bool HexagonTargetInfo::hasBFloat16Type() const { return HasBFloat16; }
 
 const char *const HexagonTargetInfo::GCCRegNames[] = {
     // Scalar registers:
@@ -173,7 +198,7 @@ const char *const HexagonTargetInfo::GCCRegNames[] = {
 };
 
 ArrayRef<const char *> HexagonTargetInfo::getGCCRegNames() const {
-  return llvm::makeArrayRef(GCCRegNames);
+  return llvm::ArrayRef(GCCRegNames);
 }
 
 const TargetInfo::GCCRegAlias HexagonTargetInfo::GCCRegAliases[] = {
@@ -183,18 +208,29 @@ const TargetInfo::GCCRegAlias HexagonTargetInfo::GCCRegAliases[] = {
 };
 
 ArrayRef<TargetInfo::GCCRegAlias> HexagonTargetInfo::getGCCRegAliases() const {
-  return llvm::makeArrayRef(GCCRegAliases);
+  return llvm::ArrayRef(GCCRegAliases);
 }
 
-const Builtin::Info HexagonTargetInfo::BuiltinInfo[] = {
-#define BUILTIN(ID, TYPE, ATTRS)                                               \
-  {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, nullptr},
-#define LIBBUILTIN(ID, TYPE, ATTRS, HEADER)                                    \
-  {#ID, TYPE, ATTRS, HEADER, ALL_LANGUAGES, nullptr},
-#define TARGET_BUILTIN(ID, TYPE, ATTRS, FEATURE)                               \
-  {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, FEATURE},
-#include "clang/Basic/BuiltinsHexagon.def"
+static constexpr int NumBuiltins =
+    clang::Hexagon::LastTSBuiltin - Builtin::FirstTSBuiltin;
+
+#define GET_BUILTIN_STR_TABLE
+#include "clang/Basic/BuiltinsHexagon.inc"
+#undef GET_BUILTIN_STR_TABLE
+
+static constexpr Builtin::Info BuiltinInfos[] = {
+#define GET_BUILTIN_INFOS
+#include "clang/Basic/BuiltinsHexagon.inc"
+#undef GET_BUILTIN_INFOS
 };
+
+static constexpr Builtin::Info PrefixedBuiltinInfos[] = {
+#define GET_BUILTIN_PREFIXED_INFOS
+#include "clang/Basic/BuiltinsHexagon.inc"
+#undef GET_BUILTIN_PREFIXED_INFOS
+};
+static_assert((std::size(BuiltinInfos) + std::size(PrefixedBuiltinInfos)) ==
+              NumBuiltins);
 
 bool HexagonTargetInfo::hasFeature(StringRef Feature) const {
   std::string VS = "hvxv" + HVXVersion;
@@ -217,12 +253,26 @@ struct CPUSuffix {
 };
 
 static constexpr CPUSuffix Suffixes[] = {
-    {{"hexagonv5"},  {"5"}},  {{"hexagonv55"},  {"55"}},
-    {{"hexagonv60"}, {"60"}}, {{"hexagonv62"},  {"62"}},
-    {{"hexagonv65"}, {"65"}}, {{"hexagonv66"},  {"66"}},
+    {{"hexagonv5"}, {"5"}},   {{"hexagonv55"}, {"55"}},
+    {{"hexagonv60"}, {"60"}}, {{"hexagonv62"}, {"62"}},
+    {{"hexagonv65"}, {"65"}}, {{"hexagonv66"}, {"66"}},
     {{"hexagonv67"}, {"67"}}, {{"hexagonv67t"}, {"67t"}},
-    {{"hexagonv68"}, {"68"}}, {{"hexagonv69"},  {"69"}},
-};
+    {{"hexagonv68"}, {"68"}}, {{"hexagonv69"}, {"69"}},
+    {{"hexagonv71"}, {"71"}}, {{"hexagonv71t"}, {"71t"}},
+    {{"hexagonv73"}, {"73"}}, {{"hexagonv75"}, {"75"}},
+    {{"hexagonv79"}, {"79"}}, {{"hexagonv81"}, {"81"}}};
+
+std::optional<unsigned> HexagonTargetInfo::getHexagonCPURev(StringRef Name) {
+  StringRef Arch = Name;
+  Arch.consume_front("hexagonv");
+  Arch.consume_back("t");
+
+  unsigned Val;
+  if (!Arch.getAsInteger(0, Val))
+    return Val;
+
+  return std::nullopt;
+}
 
 const char *HexagonTargetInfo::getHexagonCPUSuffix(StringRef Name) {
   const CPUSuffix *Item = llvm::find_if(
@@ -238,7 +288,8 @@ void HexagonTargetInfo::fillValidCPUList(
     Values.push_back(Suffix.Name);
 }
 
-ArrayRef<Builtin::Info> HexagonTargetInfo::getTargetBuiltins() const {
-  return llvm::makeArrayRef(BuiltinInfo, clang::Hexagon::LastTSBuiltin -
-                                             Builtin::FirstTSBuiltin);
+llvm::SmallVector<Builtin::InfosShard>
+HexagonTargetInfo::getTargetBuiltins() const {
+  return {{&BuiltinStrings, BuiltinInfos},
+          {&BuiltinStrings, PrefixedBuiltinInfos, "__builtin_HEXAGON_"}};
 }

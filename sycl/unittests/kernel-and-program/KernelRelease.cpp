@@ -5,12 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
-#define SYCL2020_DISABLE_DEPRECATION_WARNINGS
-
 #include <detail/context_impl.hpp>
 #include <gtest/gtest.h>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 
 #include <iostream>
@@ -29,73 +26,43 @@ struct TestCtx {
 
 static std::unique_ptr<TestCtx> TestContext;
 
-static pi_result redefinedProgramCreateWithSource(pi_context context,
-                                                  pi_uint32 count,
-                                                  const char **strings,
-                                                  const size_t *lengths,
-                                                  pi_program *ret_program) {
-  return PI_SUCCESS;
-}
-
-static pi_result
-redefinedProgramBuild(pi_program program, pi_uint32 num_devices,
-                      const pi_device *device_list, const char *options,
-                      void (*pfn_notify)(pi_program program, void *user_data),
-                      void *user_data) {
-  return PI_SUCCESS;
-}
-
-static pi_result redefinedKernelCreate(pi_program program,
-                                       const char *kernel_name,
-                                       pi_kernel *ret_kernel) {
+static ur_result_t redefinedKernelCreate(void *) {
   TestContext->KernelReferenceCount = 1;
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-static pi_result redefinedKernelRetain(pi_kernel kernel) {
+static ur_result_t redefinedKernelRetain(void *) {
   ++TestContext->KernelReferenceCount;
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-static pi_result redefinedKernelRelease(pi_kernel kernel) {
+static ur_result_t redefinedKernelRelease(void *) {
   --TestContext->KernelReferenceCount;
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-static pi_result redefinedKernelGetInfo(pi_kernel kernel,
-                                        pi_kernel_info param_name,
-                                        size_t param_value_size,
-                                        void *param_value,
-                                        size_t *param_value_size_ret) {
-  EXPECT_EQ(param_name, PI_KERNEL_INFO_CONTEXT)
+static ur_result_t redefinedKernelGetInfo(void *pParams) {
+  auto params = *static_cast<ur_kernel_get_info_params_t *>(pParams);
+  EXPECT_EQ(*params.ppropName, UR_KERNEL_INFO_CONTEXT)
       << "Unexpected kernel info requested";
-  auto *Result = reinterpret_cast<RT::PiContext *>(param_value);
-  RT::PiContext PiCtx =
-      detail::getSyclObjImpl(TestContext->Ctx)->getHandleRef();
-  *Result = PiCtx;
-  return PI_SUCCESS;
-}
-
-static pi_result redefinedKernelSetExecInfo(pi_kernel kernel,
-                                            pi_kernel_exec_info param_name,
-                                            size_t param_value_size,
-                                            const void *param_value) {
-  return PI_SUCCESS;
+  auto *Result = reinterpret_cast<ur_context_handle_t *>(*params.ppPropValue);
+  auto UrContext = detail::getSyclObjImpl(TestContext->Ctx)->getHandleRef();
+  *Result = UrContext;
+  return UR_RESULT_SUCCESS;
 }
 
 TEST(KernelReleaseTest, DISABLED_GetKernelRelease) {
-  sycl::unittest::PiMock Mock;
-  Mock.redefine<detail::PiApiKind::piclProgramCreateWithSource>(
-      redefinedProgramCreateWithSource);
-  Mock.redefine<detail::PiApiKind::piProgramBuild>(redefinedProgramBuild);
-  Mock.redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
-  Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
-  Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
-  Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
-  Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
-      redefinedKernelSetExecInfo);
+  sycl::unittest::UrMock<> Mock;
+  mock::getCallbacks().set_before_callback("urKernelCreate",
+                                           &redefinedKernelCreate);
+  mock::getCallbacks().set_before_callback("urKernelRetain",
+                                           &redefinedKernelRetain);
+  mock::getCallbacks().set_before_callback("urKernelRelease",
+                                           &redefinedKernelRelease);
+  mock::getCallbacks().set_before_callback("urKernelGetInfo",
+                                           &redefinedKernelGetInfo);
 
-  context Ctx{Mock.getPlatform().get_devices()[0]};
+  context Ctx{sycl::platform().get_devices()[0]};
   TestContext.reset(new TestCtx(Ctx));
 
   // program Prg{Ctx};

@@ -25,9 +25,21 @@
 
 using namespace llvm;
 
-bool LLLexer::Error(LocTy ErrorLoc, const Twine &Msg) const {
-  ErrorInfo = SM.GetMessage(ErrorLoc, SourceMgr::DK_Error, Msg);
-  return true;
+// Both the lexer and parser can issue error messages. If the lexer issues a
+// lexer error, since we do not terminate execution immediately, usually that
+// is followed by the parser issuing a parser error. However, the error issued
+// by the lexer is more relevant in that case as opposed to potentially more
+// generic parser error. So instead of always recording the last error message
+// use the `Priority` to establish a priority, with Lexer > Parser > None. We
+// record the issued message only if the message has same or higher priority
+// than the existing one. This prevents lexer errors from being overwritten by
+// parser errors.
+void LLLexer::Error(LocTy ErrorLoc, const Twine &Msg,
+                    LLLexer::ErrorPriority Priority) {
+  if (Priority < ErrorInfo.Priority)
+    return;
+  ErrorInfo.Error = SM.GetMessage(ErrorLoc, SourceMgr::DK_Error, Msg);
+  ErrorInfo.Priority = Priority;
 }
 
 void LLLexer::Warning(LocTy WarningLoc, const Twine &Msg) const {
@@ -48,8 +60,8 @@ uint64_t LLLexer::atoull(const char *Buffer, const char *End) {
     uint64_t OldRes = Result;
     Result *= 10;
     Result += *Buffer-'0';
-    if (Result < OldRes) {  // Uh, oh, overflow detected!!!
-      Error("constant bigger than 64 bits detected!");
+    if (Result < OldRes) { // overflow detected.
+      LexError("constant bigger than 64 bits detected");
       return 0;
     }
   }
@@ -63,8 +75,8 @@ uint64_t LLLexer::HexIntToVal(const char *Buffer, const char *End) {
     Result *= 16;
     Result += hexDigitValue(*Buffer);
 
-    if (Result < OldRes) {   // Uh, oh, overflow detected!!!
-      Error("constant bigger than 64 bits detected!");
+    if (Result < OldRes) { // overflow detected.
+      LexError("constant bigger than 64 bits detected");
       return 0;
     }
   }
@@ -87,7 +99,7 @@ void LLLexer::HexToIntPair(const char *Buffer, const char *End,
     Pair[1] += hexDigitValue(*Buffer);
   }
   if (Buffer != End)
-    Error("constant bigger than 128 bits detected!");
+    LexError("constant bigger than 128 bits detected");
 }
 
 /// FP80HexToIntPair - translate an 80 bit FP80 number (20 hexits) into
@@ -106,7 +118,7 @@ void LLLexer::FP80HexToIntPair(const char *Buffer, const char *End,
     Pair[0] += hexDigitValue(*Buffer);
   }
   if (Buffer != End)
-    Error("constant bigger than 128 bits detected!");
+    LexError("constant bigger than 128 bits detected");
 }
 
 // UnEscapeLexed - Run through the specified buffer and change \xx codes to the
@@ -158,8 +170,7 @@ static const char *isLabelTail(const char *CurPtr) {
 
 LLLexer::LLLexer(StringRef StartBuf, SourceMgr &SM, SMDiagnostic &Err,
                  LLVMContext &C)
-    : CurBuf(StartBuf), ErrorInfo(Err), SM(SM), Context(C), APFloatVal(0.0),
-      IgnoreColonInIdentifiers(false) {
+    : CurBuf(StartBuf), ErrorInfo(Err), SM(SM), Context(C) {
   CurPtr = CurBuf.begin();
 }
 
@@ -180,6 +191,8 @@ int LLLexer::getNextChar() {
 }
 
 lltok::Kind LLLexer::LexToken() {
+  // Set token end to next location, since the end is exclusive.
+  PrevTokEnd = CurPtr;
   while (true) {
     TokStart = CurPtr;
 
@@ -189,7 +202,6 @@ lltok::Kind LLLexer::LexToken() {
       // Handle letters: [a-zA-Z_]
       if (isalpha(static_cast<unsigned char>(CurChar)) || CurChar == '_')
         return LexIdentifier();
-
       return lltok::Error;
     case EOF: return lltok::Eof;
     case 0:
@@ -240,6 +252,12 @@ lltok::Kind LLLexer::LexToken() {
     case ',': return lltok::comma;
     case '*': return lltok::star;
     case '|': return lltok::bar;
+    case '/':
+      if (getNextChar() != '*')
+        return lltok::Error;
+      if (SkipCComment())
+        return lltok::Error;
+      continue;
     }
   }
 }
@@ -248,6 +266,28 @@ void LLLexer::SkipLineComment() {
   while (true) {
     if (CurPtr[0] == '\n' || CurPtr[0] == '\r' || getNextChar() == EOF)
       return;
+  }
+}
+
+/// This skips C-style /**/ comments. Returns true if there
+/// was an error.
+bool LLLexer::SkipCComment() {
+  while (true) {
+    int CurChar = getNextChar();
+    switch (CurChar) {
+    case EOF:
+      LexError("unterminated comment");
+      return true;
+    case '*':
+      // End of the comment?
+      CurChar = getNextChar();
+      if (CurChar == '/')
+        return false;
+      if (CurChar == EOF) {
+        LexError("unterminated comment");
+        return true;
+      }
+    }
   }
 }
 
@@ -274,14 +314,14 @@ lltok::Kind LLLexer::LexDollar() {
       int CurChar = getNextChar();
 
       if (CurChar == EOF) {
-        Error("end of file in COMDAT variable name");
+        LexError("end of file in COMDAT variable name");
         return lltok::Error;
       }
       if (CurChar == '"') {
         StrVal.assign(TokStart + 2, CurPtr - 1);
         UnEscapeLexed(StrVal);
-        if (StringRef(StrVal).find_first_of(0) != StringRef::npos) {
-          Error("Null bytes are not allowed in names");
+        if (StringRef(StrVal).contains(0)) {
+          LexError("NUL character is not allowed in names");
           return lltok::Error;
         }
         return lltok::ComdatVar;
@@ -303,7 +343,7 @@ lltok::Kind LLLexer::ReadString(lltok::Kind kind) {
     int CurChar = getNextChar();
 
     if (CurChar == EOF) {
-      Error("end of file in string constant");
+      LexError("end of file in string constant");
       return lltok::Error;
     }
     if (CurChar == '"') {
@@ -343,7 +383,7 @@ lltok::Kind LLLexer::LexUIntID(lltok::Kind Token) {
 
   uint64_t Val = atoull(TokStart + 1, CurPtr);
   if ((unsigned)Val != Val)
-    Error("invalid value number (too large)!");
+    LexError("invalid value number (too large)");
   UIntVal = unsigned(Val);
   return Token;
 }
@@ -357,14 +397,14 @@ lltok::Kind LLLexer::LexVar(lltok::Kind Var, lltok::Kind VarID) {
       int CurChar = getNextChar();
 
       if (CurChar == EOF) {
-        Error("end of file in global variable name");
+        LexError("end of file in global variable name");
         return lltok::Error;
       }
       if (CurChar == '"') {
         StrVal.assign(TokStart+2, CurPtr-1);
         UnEscapeLexed(StrVal);
-        if (StringRef(StrVal).find_first_of(0) != StringRef::npos) {
-          Error("Null bytes are not allowed in names");
+        if (StringRef(StrVal).contains(0)) {
+          LexError("NUL character is not allowed in names");
           return lltok::Error;
         }
         return Var;
@@ -398,8 +438,8 @@ lltok::Kind LLLexer::LexQuote() {
 
   if (CurPtr[0] == ':') {
     ++CurPtr;
-    if (StringRef(StrVal).find_first_of(0) != StringRef::npos) {
-      Error("Null bytes are not allowed in names");
+    if (StringRef(StrVal).contains(0)) {
+      LexError("NUL character is not allowed in names");
       kind = lltok::Error;
     } else {
       kind = lltok::LabelStr;
@@ -439,9 +479,12 @@ lltok::Kind LLLexer::LexCaret() {
 
 /// Lex all tokens that start with a # character.
 ///    AttrGrpID ::= #[0-9]+
+///    Hash ::= #
 lltok::Kind LLLexer::LexHash() {
   // Handle AttrGrpID: #[0-9]+
-  return LexUIntID(lltok::AttrGrpID);
+  if (isdigit(static_cast<unsigned char>(CurPtr[0])))
+    return LexUIntID(lltok::AttrGrpID);
+  return lltok::hash;
 }
 
 /// Lex a label, integer type, keyword, or hexadecimal integer constant.
@@ -478,7 +521,7 @@ lltok::Kind LLLexer::LexIdentifier() {
     uint64_t NumBits = atoull(StartChar, CurPtr);
     if (NumBits < IntegerType::MIN_INT_BITS ||
         NumBits > IntegerType::MAX_INT_BITS) {
-      Error("bitwidth for integer type out of range!");
+      LexError("bitwidth for integer type out of range");
       return lltok::Error;
     }
     TyVal = IntegerType::get(Context, NumBits);
@@ -564,12 +607,17 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(fast);
   KEYWORD(nuw);
   KEYWORD(nsw);
+  KEYWORD(nusw);
   KEYWORD(exact);
+  KEYWORD(disjoint);
   KEYWORD(inbounds);
+  KEYWORD(nneg);
+  KEYWORD(samesign);
   KEYWORD(inrange);
   KEYWORD(addrspace);
   KEYWORD(section);
   KEYWORD(partition);
+  KEYWORD(code_model);
   KEYWORD(alias);
   KEYWORD(ifunc);
   KEYWORD(module);
@@ -598,6 +646,7 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(aarch64_vector_pcs);
   KEYWORD(aarch64_sve_vector_pcs);
   KEYWORD(aarch64_sme_preservemost_from_x0);
+  KEYWORD(aarch64_sme_preservemost_from_x1);
   KEYWORD(aarch64_sme_preservemost_from_x2);
   KEYWORD(msp430_intrcc);
   KEYWORD(avr_intrcc);
@@ -610,12 +659,12 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(x86_64_sysvcc);
   KEYWORD(win64cc);
   KEYWORD(x86_regcallcc);
-  KEYWORD(webkit_jscc);
   KEYWORD(swiftcc);
   KEYWORD(swifttailcc);
   KEYWORD(anyregcc);
   KEYWORD(preserve_mostcc);
   KEYWORD(preserve_allcc);
+  KEYWORD(preserve_nonecc);
   KEYWORD(ghccc);
   KEYWORD(x86_intrcc);
   KEYWORD(hhvmcc);
@@ -628,9 +677,19 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(amdgpu_gs);
   KEYWORD(amdgpu_ps);
   KEYWORD(amdgpu_cs);
+  KEYWORD(amdgpu_cs_chain);
+  KEYWORD(amdgpu_cs_chain_preserve);
   KEYWORD(amdgpu_kernel);
   KEYWORD(amdgpu_gfx);
+  KEYWORD(amdgpu_gfx_whole_wave);
   KEYWORD(tailcc);
+  KEYWORD(m68k_rtdcc);
+  KEYWORD(graalcc);
+  KEYWORD(riscv_vector_cc);
+  KEYWORD(riscv_vls_cc);
+  KEYWORD(cheriot_compartmentcallcc);
+  KEYWORD(cheriot_compartmentcalleecc);
+  KEYWORD(cheriot_librarycallcc);
 
   KEYWORD(cc);
   KEYWORD(c);
@@ -643,6 +702,41 @@ lltok::Kind LLLexer::LexIdentifier() {
 #define ATTRIBUTE_ENUM(ENUM_NAME, DISPLAY_NAME) \
   KEYWORD(DISPLAY_NAME);
 #include "llvm/IR/Attributes.inc"
+
+  KEYWORD(read);
+  KEYWORD(write);
+  KEYWORD(readwrite);
+  KEYWORD(argmem);
+  KEYWORD(target_mem0);
+  KEYWORD(target_mem1);
+  KEYWORD(inaccessiblemem);
+  KEYWORD(errnomem);
+  KEYWORD(argmemonly);
+  KEYWORD(inaccessiblememonly);
+  KEYWORD(inaccessiblemem_or_argmemonly);
+  KEYWORD(nocapture);
+  KEYWORD(address_is_null);
+  KEYWORD(address);
+  KEYWORD(provenance);
+  KEYWORD(read_provenance);
+
+  // nofpclass attribute
+  KEYWORD(all);
+  KEYWORD(nan);
+  KEYWORD(snan);
+  KEYWORD(qnan);
+  KEYWORD(inf);
+  // ninf already a keyword
+  KEYWORD(pinf);
+  KEYWORD(norm);
+  KEYWORD(nnorm);
+  KEYWORD(pnorm);
+  // sub already a keyword
+  KEYWORD(nsub);
+  KEYWORD(psub);
+  KEYWORD(zero);
+  KEYWORD(nzero);
+  KEYWORD(pzero);
 
   KEYWORD(type);
   KEYWORD(opaque);
@@ -663,12 +757,20 @@ lltok::Kind LLLexer::LexIdentifier() {
 
   KEYWORD(xchg); KEYWORD(nand); KEYWORD(max); KEYWORD(min); KEYWORD(umax);
   KEYWORD(umin); KEYWORD(fmax); KEYWORD(fmin);
+  KEYWORD(fmaximum);
+  KEYWORD(fminimum);
+  KEYWORD(uinc_wrap);
+  KEYWORD(udec_wrap);
+  KEYWORD(usub_cond);
+  KEYWORD(usub_sat);
 
+  KEYWORD(splat);
   KEYWORD(vscale);
   KEYWORD(x);
   KEYWORD(blockaddress);
   KEYWORD(dso_local_equivalent);
   KEYWORD(no_cfi);
+  KEYWORD(ptrauth);
 
   // Metadata types.
   KEYWORD(distinct);
@@ -697,6 +799,9 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(live);
   KEYWORD(dsoLocal);
   KEYWORD(canAutoHide);
+  KEYWORD(importType);
+  KEYWORD(definition);
+  KEYWORD(declaration);
   KEYWORD(function);
   KEYWORD(insts);
   KEYWORD(funcFlags);
@@ -763,6 +868,13 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(byte);
   KEYWORD(bit);
   KEYWORD(varFlags);
+  KEYWORD(callsites);
+  KEYWORD(clones);
+  KEYWORD(stackIds);
+  KEYWORD(allocs);
+  KEYWORD(versions);
+  KEYWORD(memProf);
+  KEYWORD(notcold);
 
 #undef KEYWORD
 
@@ -785,21 +897,10 @@ lltok::Kind LLLexer::LexIdentifier() {
   TYPEKEYWORD("ppc_fp128", Type::getPPC_FP128Ty(Context));
   TYPEKEYWORD("label",     Type::getLabelTy(Context));
   TYPEKEYWORD("metadata",  Type::getMetadataTy(Context));
-  TYPEKEYWORD("x86_mmx",   Type::getX86_MMXTy(Context));
   TYPEKEYWORD("x86_amx",   Type::getX86_AMXTy(Context));
   TYPEKEYWORD("token",     Type::getTokenTy(Context));
 
-  if (Keyword == "ptr") {
-    // setOpaquePointers() must be called before creating any pointer types.
-    if (!Context.hasSetOpaquePointersValue()) {
-      Context.setOpaquePointers(true);
-    } else if (Context.supportsTypedPointers()) {
-      Warning("ptr type is only supported in -opaque-pointers mode");
-      return lltok::Error;
-    }
-    TyVal = PointerType::getUnqual(Context);
-    return lltok::Type;
-  }
+  TYPEKEYWORD("ptr", PointerType::getUnqual(Context));
 
 #undef TYPEKEYWORD
 
@@ -835,6 +936,7 @@ lltok::Kind LLLexer::LexIdentifier() {
   INSTKEYWORD(fptoui,      FPToUI);
   INSTKEYWORD(fptosi,      FPToSI);
   INSTKEYWORD(inttoptr,    IntToPtr);
+  INSTKEYWORD(ptrtoaddr,   PtrToAddr);
   INSTKEYWORD(ptrtoint,    PtrToInt);
   INSTKEYWORD(bitcast,     BitCast);
   INSTKEYWORD(addrspacecast, AddrSpaceCast);
@@ -875,7 +977,7 @@ lltok::Kind LLLexer::LexIdentifier() {
 
 #define DWKEYWORD(TYPE, TOKEN)                                                 \
   do {                                                                         \
-    if (Keyword.startswith("DW_" #TYPE "_")) {                                 \
+    if (Keyword.starts_with("DW_" #TYPE "_")) {                                \
       StrVal.assign(Keyword.begin(), Keyword.end());                           \
       return lltok::TOKEN;                                                     \
     }                                                                          \
@@ -885,23 +987,41 @@ lltok::Kind LLLexer::LexIdentifier() {
   DWKEYWORD(ATE, DwarfAttEncoding);
   DWKEYWORD(VIRTUALITY, DwarfVirtuality);
   DWKEYWORD(LANG, DwarfLang);
+  DWKEYWORD(LNAME, DwarfSourceLangName);
   DWKEYWORD(CC, DwarfCC);
   DWKEYWORD(OP, DwarfOp);
   DWKEYWORD(MACINFO, DwarfMacinfo);
+  DWKEYWORD(APPLE_ENUM_KIND, DwarfEnumKind);
 
 #undef DWKEYWORD
 
-  if (Keyword.startswith("DIFlag")) {
+// Keywords for debug record types.
+#define DBGRECORDTYPEKEYWORD(STR)                                              \
+  do {                                                                         \
+    if (Keyword == "dbg_" #STR) {                                              \
+      StrVal = #STR;                                                           \
+      return lltok::DbgRecordType;                                             \
+    }                                                                          \
+  } while (false)
+
+  DBGRECORDTYPEKEYWORD(value);
+  DBGRECORDTYPEKEYWORD(declare);
+  DBGRECORDTYPEKEYWORD(assign);
+  DBGRECORDTYPEKEYWORD(label);
+  DBGRECORDTYPEKEYWORD(declare_value);
+#undef DBGRECORDTYPEKEYWORD
+
+  if (Keyword.starts_with("DIFlag")) {
     StrVal.assign(Keyword.begin(), Keyword.end());
     return lltok::DIFlag;
   }
 
-  if (Keyword.startswith("DISPFlag")) {
+  if (Keyword.starts_with("DISPFlag")) {
     StrVal.assign(Keyword.begin(), Keyword.end());
     return lltok::DISPFlag;
   }
 
-  if (Keyword.startswith("CSK_")) {
+  if (Keyword.starts_with("CSK_")) {
     StrVal.assign(Keyword.begin(), Keyword.end());
     return lltok::ChecksumKind;
   }
@@ -912,9 +1032,15 @@ lltok::Kind LLLexer::LexIdentifier() {
     return lltok::EmissionKind;
   }
 
-  if (Keyword == "GNU" || Keyword == "None" || Keyword == "Default") {
+  if (Keyword == "GNU" || Keyword == "Apple" || Keyword == "None" ||
+      Keyword == "Default") {
     StrVal.assign(Keyword.begin(), Keyword.end());
     return lltok::NameTableKind;
+  }
+
+  if (Keyword == "Binary" || Keyword == "Decimal" || Keyword == "Rational") {
+    StrVal.assign(Keyword.begin(), Keyword.end());
+    return lltok::FixedPointKind;
   }
 
   // Check for [us]0x[0-9A-Fa-f]+ which are Hexadecimal constant generated by
@@ -1004,15 +1130,25 @@ lltok::Kind LLLexer::Lex0x() {
     HexToIntPair(TokStart+3, CurPtr, Pair);
     APFloatVal = APFloat(APFloat::PPCDoubleDouble(), APInt(128, Pair));
     return lltok::APFloat;
-  case 'H':
-    APFloatVal = APFloat(APFloat::IEEEhalf(),
-                         APInt(16,HexIntToVal(TokStart+3, CurPtr)));
+  case 'H': {
+    uint64_t Val = HexIntToVal(TokStart + 3, CurPtr);
+    if (!llvm::isUInt<16>(Val)) {
+      LexError("hexadecimal constant too large for half (16-bit)");
+      return lltok::Error;
+    }
+    APFloatVal = APFloat(APFloat::IEEEhalf(), APInt(16, Val));
     return lltok::APFloat;
-  case 'R':
+  }
+  case 'R': {
     // Brain floating point
-    APFloatVal = APFloat(APFloat::BFloat(),
-                         APInt(16, HexIntToVal(TokStart + 3, CurPtr)));
+    uint64_t Val = HexIntToVal(TokStart + 3, CurPtr);
+    if (!llvm::isUInt<16>(Val)) {
+      LexError("hexadecimal constant too large for bfloat (16-bit)");
+      return lltok::Error;
+    }
+    APFloatVal = APFloat(APFloat::BFloat(), APInt(16, Val));
     return lltok::APFloat;
+  }
   }
 }
 
@@ -1050,7 +1186,7 @@ lltok::Kind LLLexer::LexDigitOrNegative() {
     uint64_t Val = atoull(TokStart, CurPtr);
     ++CurPtr; // Skip the colon.
     if ((unsigned)Val != Val)
-      Error("invalid value number (too large)!");
+      LexError("invalid value number (too large)");
     UIntVal = unsigned(Val);
     return lltok::LabelID;
   }

@@ -8,14 +8,14 @@
 
 #include "flang/Optimizer/Dialect/FIRDialect.h"
 #include "flang/Optimizer/Dialect/FIROps.h"
+#include "flang/Optimizer/Dialect/FIROpsSupport.h"
 #include "flang/Optimizer/Support/InternalNames.h"
 #include "flang/Optimizer/Transforms/Passes.h"
-#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Dialect/OpenACC/OpenACC.h"
-#include "mlir/Dialect/OpenMP/OpenMPDialect.h"
+#include "flang/Support/Fortran.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
+#include "mlir/IR/Attributes.h"
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Transforms/DialectConversion.h"
 
 namespace fir {
 #define GEN_PASS_DEF_EXTERNALNAMECONVERSION
@@ -32,98 +32,40 @@ using namespace mlir;
 std::string
 mangleExternalName(const std::pair<fir::NameUniquer::NameKind,
                                    fir::NameUniquer::DeconstructedName>
-                       result) {
+                       result,
+                   bool appendUnderscore) {
   if (result.first == fir::NameUniquer::NameKind::COMMON &&
       result.second.name.empty())
-    return "__BLNK__";
-  return result.second.name + "_";
+    return Fortran::common::blankCommonObjectName;
+  return Fortran::common::GetExternalAssemblyName(result.second.name,
+                                                  appendUnderscore);
 }
 
-//===----------------------------------------------------------------------===//
-// Rewrite patterns
-//===----------------------------------------------------------------------===//
+/// Process a symbol reference and return the updated symbol reference if
+/// needed.
+std::optional<mlir::SymbolRefAttr>
+processSymbolRef(mlir::SymbolRefAttr symRef, mlir::Operation *nestedOp,
+                 const llvm::DenseMap<mlir::StringAttr, mlir::FlatSymbolRefAttr>
+                     &remappings) {
+  if (auto remap = remappings.find(symRef.getLeafReference());
+      remap != remappings.end()) {
+    mlir::SymbolRefAttr symAttr = mlir::FlatSymbolRefAttr(remap->second);
+    if (mlir::isa<mlir::gpu::LaunchFuncOp>(nestedOp))
+      symAttr = mlir::SymbolRefAttr::get(
+          symRef.getRootReference(), {mlir::FlatSymbolRefAttr(remap->second)});
+    return symAttr;
+  }
+  return std::nullopt;
+}
 
 namespace {
-
-class MangleNameOnCallOp : public mlir::OpRewritePattern<fir::CallOp> {
-public:
-  using OpRewritePattern::OpRewritePattern;
-
-  mlir::LogicalResult
-  matchAndRewrite(fir::CallOp op,
-                  mlir::PatternRewriter &rewriter) const override {
-    rewriter.startRootUpdate(op);
-    auto callee = op.getCallee();
-    if (callee) {
-      auto result =
-          fir::NameUniquer::deconstruct(callee->getRootReference().getValue());
-      if (fir::NameUniquer::isExternalFacingUniquedName(result))
-        op.setCalleeAttr(
-            SymbolRefAttr::get(op.getContext(), mangleExternalName(result)));
-    }
-    rewriter.finalizeRootUpdate(op);
-    return success();
-  }
-};
-
-struct MangleNameOnFuncOp : public mlir::OpRewritePattern<mlir::func::FuncOp> {
-public:
-  using OpRewritePattern::OpRewritePattern;
-
-  mlir::LogicalResult
-  matchAndRewrite(mlir::func::FuncOp op,
-                  mlir::PatternRewriter &rewriter) const override {
-    rewriter.startRootUpdate(op);
-    auto result = fir::NameUniquer::deconstruct(op.getSymName());
-    if (fir::NameUniquer::isExternalFacingUniquedName(result))
-      op.setSymNameAttr(rewriter.getStringAttr(mangleExternalName(result)));
-    rewriter.finalizeRootUpdate(op);
-    return success();
-  }
-};
-
-struct MangleNameForCommonBlock : public mlir::OpRewritePattern<fir::GlobalOp> {
-public:
-  using OpRewritePattern::OpRewritePattern;
-
-  mlir::LogicalResult
-  matchAndRewrite(fir::GlobalOp op,
-                  mlir::PatternRewriter &rewriter) const override {
-    rewriter.startRootUpdate(op);
-    auto result = fir::NameUniquer::deconstruct(
-        op.getSymref().getRootReference().getValue());
-    if (fir::NameUniquer::isExternalFacingUniquedName(result)) {
-      auto newName = mangleExternalName(result);
-      op.setSymrefAttr(mlir::SymbolRefAttr::get(op.getContext(), newName));
-      SymbolTable::setSymbolName(op, newName);
-    }
-    rewriter.finalizeRootUpdate(op);
-    return success();
-  }
-};
-
-struct MangleNameOnAddrOfOp : public mlir::OpRewritePattern<fir::AddrOfOp> {
-public:
-  using OpRewritePattern::OpRewritePattern;
-
-  mlir::LogicalResult
-  matchAndRewrite(fir::AddrOfOp op,
-                  mlir::PatternRewriter &rewriter) const override {
-    auto result = fir::NameUniquer::deconstruct(
-        op.getSymbol().getRootReference().getValue());
-    if (fir::NameUniquer::isExternalFacingUniquedName(result)) {
-      auto newName =
-          SymbolRefAttr::get(op.getContext(), mangleExternalName(result));
-      rewriter.replaceOpWithNewOp<fir::AddrOfOp>(op, op.getResTy().getType(),
-                                                 newName);
-    }
-    return success();
-  }
-};
 
 class ExternalNameConversionPass
     : public fir::impl::ExternalNameConversionBase<ExternalNameConversionPass> {
 public:
+  using ExternalNameConversionBase<
+      ExternalNameConversionPass>::ExternalNameConversionBase;
+
   mlir::ModuleOp getModule() { return getOperation(); }
   void runOnOperation() override;
 };
@@ -133,39 +75,116 @@ void ExternalNameConversionPass::runOnOperation() {
   auto op = getOperation();
   auto *context = &getContext();
 
-  mlir::RewritePatternSet patterns(context);
-  patterns.insert<MangleNameOnCallOp, MangleNameOnCallOp, MangleNameOnFuncOp,
-                  MangleNameForCommonBlock, MangleNameOnAddrOfOp>(context);
+  llvm::DenseMap<mlir::StringAttr, mlir::FlatSymbolRefAttr> remappings;
+  mlir::SymbolTable symbolTable(op);
 
-  ConversionTarget target(*context);
-  target.addLegalDialect<fir::FIROpsDialect, LLVM::LLVMDialect,
-                         acc::OpenACCDialect, omp::OpenMPDialect>();
+  auto processFctOrGlobal = [&](mlir::Operation &funcOrGlobal) {
+    auto symName = funcOrGlobal.getAttrOfType<mlir::StringAttr>(
+        mlir::SymbolTable::getSymbolAttrName());
+    auto deconstructedName = fir::NameUniquer::deconstruct(symName);
+    if (fir::NameUniquer::isExternalFacingUniquedName(deconstructedName)) {
+      // Check if this is a private function that would conflict with a common
+      // block and get its mangled name.
+      if (auto funcOp = llvm::dyn_cast<mlir::func::FuncOp>(funcOrGlobal)) {
+        if (funcOp.isPrivate()) {
+          std::string mangledName =
+              mangleExternalName(deconstructedName, appendUnderscoreOpt);
+          auto mod = funcOp->getParentOfType<mlir::ModuleOp>();
+          bool hasConflictingCommonBlock = false;
 
-  target.addDynamicallyLegalOp<fir::CallOp>([](fir::CallOp op) {
-    if (op.getCallee())
-      return !fir::NameUniquer::needExternalNameMangling(
-          op.getCallee()->getRootReference().getValue());
-    return true;
+          // Check if any existing global has the same mangled name.
+          if (symbolTable.lookup<fir::GlobalOp>(mangledName))
+            hasConflictingCommonBlock = true;
+
+          // Skip externalization if the function has a conflicting common block
+          // and is not directly called (i.e. procedure pointers or type
+          // specifications)
+          if (hasConflictingCommonBlock) {
+            bool isDirectlyCalled = false;
+            std::optional<SymbolTable::UseRange> uses =
+                funcOp.getSymbolUses(mod);
+            if (uses.has_value()) {
+              for (auto use : *uses) {
+                mlir::Operation *user = use.getUser();
+                if (mlir::isa<fir::CallOp>(user) ||
+                    mlir::isa<mlir::func::CallOp>(user)) {
+                  isDirectlyCalled = true;
+                  break;
+                }
+              }
+            }
+            if (!isDirectlyCalled)
+              return;
+          }
+        }
+      }
+
+      auto newName = mangleExternalName(deconstructedName, appendUnderscoreOpt);
+      auto newAttr = mlir::StringAttr::get(context, newName);
+      mlir::SymbolTable::setSymbolName(&funcOrGlobal, newAttr);
+      auto newSymRef = mlir::FlatSymbolRefAttr::get(newAttr);
+      remappings.try_emplace(symName, newSymRef);
+      if (llvm::isa<mlir::func::FuncOp>(funcOrGlobal))
+        funcOrGlobal.setAttr(fir::getInternalFuncNameAttrName(), symName);
+    }
+  };
+
+  auto renameFuncOrGlobalInModule = [&](mlir::Operation *module) {
+    for (auto &op : module->getRegion(0).front()) {
+      if (mlir::isa<mlir::func::FuncOp, fir::GlobalOp>(op)) {
+        processFctOrGlobal(op);
+      } else if (auto gpuMod = mlir::dyn_cast<mlir::gpu::GPUModuleOp>(op)) {
+        for (auto &gpuOp : gpuMod.getBodyRegion().front())
+          if (mlir::isa<mlir::func::FuncOp, fir::GlobalOp,
+                        mlir::gpu::GPUFuncOp>(gpuOp))
+            processFctOrGlobal(gpuOp);
+      }
+    }
+  };
+
+  // Update names of external Fortran functions and names of Common Block
+  // globals.
+  renameFuncOrGlobalInModule(op);
+
+  if (remappings.empty())
+    return;
+
+  // Update all uses of the functions and globals that have been renamed.
+  op.walk([&remappings](mlir::Operation *nestedOp) {
+    llvm::SmallVector<std::pair<mlir::StringAttr, mlir::SymbolRefAttr>>
+        symRefUpdates;
+    llvm::SmallVector<std::pair<mlir::StringAttr, mlir::ArrayAttr>>
+        arrayUpdates;
+    for (const mlir::NamedAttribute &attr : nestedOp->getAttrDictionary())
+      if (auto symRef = llvm::dyn_cast<mlir::SymbolRefAttr>(attr.getValue())) {
+        if (auto newSymRef = processSymbolRef(symRef, nestedOp, remappings))
+          symRefUpdates.emplace_back(
+              std::pair<mlir::StringAttr, mlir::SymbolRefAttr>{attr.getName(),
+                                                               *newSymRef});
+      } else if (auto arrayAttr =
+                     llvm::dyn_cast<mlir::ArrayAttr>(attr.getValue())) {
+        llvm::SmallVector<mlir::Attribute> symbolRefs;
+        for (auto element : arrayAttr) {
+          if (!element) {
+            symbolRefs.push_back(element);
+            continue;
+          }
+          auto symRef = llvm::dyn_cast<mlir::SymbolRefAttr>(element);
+          std::optional<mlir::SymbolRefAttr> updatedSymRef;
+          if (symRef)
+            updatedSymRef = processSymbolRef(symRef, nestedOp, remappings);
+          if (!symRef || !updatedSymRef)
+            symbolRefs.push_back(element);
+          else
+            symbolRefs.push_back(*updatedSymRef);
+        }
+        arrayUpdates.push_back(std::make_pair(
+            attr.getName(),
+            mlir::ArrayAttr::get(nestedOp->getContext(), symbolRefs)));
+      }
+    for (auto update : symRefUpdates)
+      nestedOp->setAttr(update.first, update.second);
+    for (auto update : arrayUpdates)
+      nestedOp->setAttr(update.first, update.second);
   });
-
-  target.addDynamicallyLegalOp<mlir::func::FuncOp>([](mlir::func::FuncOp op) {
-    return !fir::NameUniquer::needExternalNameMangling(op.getSymName());
-  });
-
-  target.addDynamicallyLegalOp<fir::GlobalOp>([](fir::GlobalOp op) {
-    return !fir::NameUniquer::needExternalNameMangling(
-        op.getSymref().getRootReference().getValue());
-  });
-
-  target.addDynamicallyLegalOp<fir::AddrOfOp>([](fir::AddrOfOp op) {
-    return !fir::NameUniquer::needExternalNameMangling(
-        op.getSymbol().getRootReference().getValue());
-  });
-
-  if (failed(applyPartialConversion(op, target, std::move(patterns))))
-    signalPassFailure();
-}
-
-std::unique_ptr<mlir::Pass> fir::createExternalNameConversionPass() {
-  return std::make_unique<ExternalNameConversionPass>();
 }

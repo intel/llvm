@@ -78,7 +78,7 @@ SYCLMutatePrintfAddrspacePass::run(Module &M, ModuleAnalysisManager &MAM) {
   for (Function &F : M) {
     if (!F.isDeclaration())
       continue;
-    if (!F.getName().startswith("_Z18__spirv_ocl_printf"))
+    if (!F.getName().starts_with("_Z18__spirv_ocl_printf"))
       continue;
     if (F.getArg(0)->getType() == CASLiteralType)
       // No need to replace the literal type and its printf users
@@ -125,7 +125,9 @@ Constant *getCASLiteral(GlobalVariable *GenericASLiteral) {
     return ExistingGlobal;
 
   StringRef LiteralValue;
-  getConstantStringInfo(GenericASLiteral, LiteralValue);
+  bool HasString = getConstantStringInfo(GenericASLiteral, LiteralValue);
+  if (!HasString)
+    llvm_unreachable("Unexpected string literal in getCASLiteral()");
   IRBuilder<> Builder(M->getContext());
   GlobalVariable *Res = Builder.CreateGlobalString(LiteralValue, CASLiteralName,
                                                    ConstantAddrspaceID, M);
@@ -158,9 +160,12 @@ Value *stripToMemorySource(Value *V) {
   Value *MemoryAccess = V;
   if (auto *LI = dyn_cast<LoadInst>(MemoryAccess)) {
     Value *LoadSource = LI->getPointerOperand();
-    auto *Store = cast<StoreInst>(*llvm::find_if(
-        LoadSource->users(), [](User *U) { return isa<StoreInst>(U); }));
-    MemoryAccess = Store->getValueOperand();
+    auto Users = LoadSource->users();
+    auto I = llvm::find_if(Users, [](User *U) { return isa<StoreInst>(U); });
+    if (I != Users.end()) {
+      auto *Store = cast<StoreInst>(*I);
+      MemoryAccess = Store->getValueOperand();
+    }
   }
   return MemoryAccess->stripPointerCastsAndAliases();
 }

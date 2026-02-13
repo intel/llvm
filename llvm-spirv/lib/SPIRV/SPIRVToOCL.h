@@ -107,6 +107,10 @@ public:
   ///  intel_sub_group_media_block_write
   void visitCallSPIRVImageMediaBlockBuiltin(CallInst *CI, Op OC);
 
+  /// Transform __spirv_OpGenericCastToPtr_To{Global|Local|Private} to llvm
+  /// addrspacecast instruction.
+  void visitCallGenericCastToPtrBuiltIn(CallInst *CI, Op OC);
+
   /// Transform __spirv_OpGenericCastToPtrExplicit_To{Global|Local|Private} to
   /// to_{global|local|private} OCL builtin.
   void visitCallGenericCastToPtrExplicitBuiltIn(CallInst *CI, Op OC);
@@ -241,6 +245,9 @@ public:
   /// Transform relational builtin, e.g. __spirv_IsNan, to OpenCL builtin.
   void visitCallSPIRVRelational(CallInst *CI, Op OC);
 
+  /// Transform __spirv_ReadClockKHR to OpenCL builtin.
+  void visitCallSPIRVReadClockKHR(CallInst *CI);
+
   /// Conduct generic mutations for all atomic builtins
   virtual CallInst *mutateCommonAtomicArguments(CallInst *CI, Op OC) = 0;
 
@@ -250,6 +257,12 @@ public:
 
   // Transform FP atomic opcode to corresponding OpenCL function name
   virtual std::string mapFPAtomicName(Op OC) = 0;
+
+  /// Transform integer dot product builtins to corresponding OpenCL builtins
+  /// examples: __spirv_SDotKHR => dot, __spirv_SDotAccSatKHR => dot_acc_sat
+  void visitCallSPIRVDot(CallInst *CI, Op OC, StringRef DemangledName);
+
+  static std::string translateOpaqueType(StringRef STName);
 
   void translateOpaqueTypes();
 
@@ -279,10 +292,6 @@ private:
   /// example: spirv.Pipe._0 => opencl.pipe_ro_t
   static std::string
   getOCLPipeOpaqueType(SmallVector<std::string, 8> &Postfixes);
-
-  void getParameterTypes(CallInst *CI, SmallVectorImpl<Type *> &Tys);
-
-  static std::string translateOpaqueType(StringRef STName);
 
   /// Mutate the call instruction based on (optional) image operands at position
   /// ImOpArgIndex. The new function name will be based on NewFuncName, and the
@@ -382,6 +391,8 @@ public:
     return runSPIRVToOCL(M) ? llvm::PreservedAnalyses::none()
                             : llvm::PreservedAnalyses::all();
   }
+
+  static bool isRequired() { return true; }
 };
 
 class SPIRVToOCL12Legacy : public SPIRVToOCL12Base, public SPIRVToOCLLegacy {
@@ -453,6 +464,8 @@ public:
     return runSPIRVToOCL(M) ? llvm::PreservedAnalyses::none()
                             : llvm::PreservedAnalyses::all();
   }
+
+  static bool isRequired() { return true; }
 };
 
 class SPIRVToOCL20Legacy : public SPIRVToOCLLegacy, public SPIRVToOCL20Base {

@@ -49,8 +49,6 @@ struct Builder : RecursiveASTVisitor<Builder> {
   bool VisitFriendDecl(FriendDecl *D) {
     if (D->getFriendType()) {
       QualType Ty = D->getFriendType()->getType();
-      if (isa<ElaboratedType>(Ty))
-        Ty = cast<ElaboratedType>(Ty)->getNamedType();
       // A FriendDecl with a dependent type (e.g. ClassTemplateSpecialization)
       // always has that decl as child node.
       // However, there are non-dependent cases which does not have the
@@ -64,11 +62,15 @@ struct Builder : RecursiveASTVisitor<Builder> {
                      dyn_cast<SubstTemplateTypeParmType>(Ty)) {
           if (SubstTy->getAsCXXRecordDecl())
             LT.add(SubstTy->getAsCXXRecordDecl());
-        } else if (isa<TypedefType>(Ty)) {
-          // We do not put friend typedefs to the lookup table because
-          // ASTImporter does not organize typedefs into redecl chains.
         } else {
-          llvm_unreachable("Unhandled type of friend class");
+          if (isa<TypedefType>(Ty)) {
+            // We do not put friend typedefs to the lookup table because
+            // ASTImporter does not organize typedefs into redecl chains.
+          } else if (isa<UsingType>(Ty)) {
+            // Similar to TypedefType, not putting into lookup table.
+          } else {
+            llvm_unreachable("Unhandled type of friend class");
+          }
         }
       }
     }
@@ -85,6 +87,18 @@ struct Builder : RecursiveASTVisitor<Builder> {
 ASTImporterLookupTable::ASTImporterLookupTable(TranslationUnitDecl &TU) {
   Builder B(*this);
   B.TraverseDecl(&TU);
+  // The VaList declaration may be created on demand only or not traversed.
+  // To ensure it is present and found during import, add it to the table now.
+  if (auto *D =
+          dyn_cast_or_null<NamedDecl>(TU.getASTContext().getVaListTagDecl())) {
+    // On some platforms (AArch64) the VaList declaration can be inside a 'std'
+    // namespace. This is handled specially and not visible by AST traversal.
+    // ASTImporter must be able to find this namespace to import the VaList
+    // declaration (and the namespace) correctly.
+    if (auto *Ns = dyn_cast<NamespaceDecl>(D->getDeclContext()))
+      add(&TU, Ns);
+    add(D->getDeclContext(), D);
+  }
 }
 
 void ASTImporterLookupTable::add(DeclContext *DC, NamedDecl *ND) {
@@ -101,8 +115,9 @@ void ASTImporterLookupTable::remove(DeclContext *DC, NamedDecl *ND) {
 #ifndef NDEBUG
   if (!EraseResult) {
     std::string Message =
-        llvm::formatv("Trying to remove not contained Decl '{0}' of type {1}",
-                      Name.getAsString(), DC->getDeclKindName())
+        llvm::formatv(
+            "Trying to remove not contained Decl '{0}' of type {1} from a {2}",
+            Name.getAsString(), ND->getDeclKindName(), DC->getDeclKindName())
             .str();
     llvm_unreachable(Message.c_str());
   }
@@ -111,18 +126,18 @@ void ASTImporterLookupTable::remove(DeclContext *DC, NamedDecl *ND) {
 
 void ASTImporterLookupTable::add(NamedDecl *ND) {
   assert(ND);
-  DeclContext *DC = ND->getDeclContext()->getPrimaryContext();
+  DeclContext *DC = ND->getDeclContext();
   add(DC, ND);
-  DeclContext *ReDC = DC->getRedeclContext()->getPrimaryContext();
+  DeclContext *ReDC = DC->getRedeclContext();
   if (DC != ReDC)
     add(ReDC, ND);
 }
 
 void ASTImporterLookupTable::remove(NamedDecl *ND) {
   assert(ND);
-  DeclContext *DC = ND->getDeclContext()->getPrimaryContext();
+  DeclContext *DC = ND->getDeclContext();
   remove(DC, ND);
-  DeclContext *ReDC = DC->getRedeclContext()->getPrimaryContext();
+  DeclContext *ReDC = DC->getRedeclContext();
   if (DC != ReDC)
     remove(ReDC, ND);
 }
@@ -147,7 +162,7 @@ void ASTImporterLookupTable::updateForced(NamedDecl *ND, DeclContext *OldDC) {
 
 ASTImporterLookupTable::LookupResult
 ASTImporterLookupTable::lookup(DeclContext *DC, DeclarationName Name) const {
-  auto DCI = LookupTable.find(DC->getPrimaryContext());
+  auto DCI = LookupTable.find(DC);
   if (DCI == LookupTable.end())
     return {};
 
@@ -164,7 +179,7 @@ bool ASTImporterLookupTable::contains(DeclContext *DC, NamedDecl *ND) const {
 }
 
 void ASTImporterLookupTable::dump(DeclContext *DC) const {
-  auto DCI = LookupTable.find(DC->getPrimaryContext());
+  auto DCI = LookupTable.find(DC);
   if (DCI == LookupTable.end())
     llvm::errs() << "empty\n";
   const auto &FoundNameMap = DCI->second;
@@ -182,8 +197,7 @@ void ASTImporterLookupTable::dump(DeclContext *DC) const {
 void ASTImporterLookupTable::dump() const {
   for (const auto &Entry : LookupTable) {
     DeclContext *DC = Entry.first;
-    StringRef Primary = DC->getPrimaryContext() ? " primary" : "";
-    llvm::errs() << "== DC:" << cast<Decl>(DC) << Primary << "\n";
+    llvm::errs() << "== DC:" << cast<Decl>(DC) << "\n";
     dump(DC);
   }
 }

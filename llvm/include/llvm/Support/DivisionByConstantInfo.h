@@ -14,23 +14,26 @@
 #define LLVM_SUPPORT_DIVISIONBYCONSTANTINFO_H
 
 #include "llvm/ADT/APInt.h"
+#include "llvm/Support/Compiler.h"
 
 namespace llvm {
 
 /// Magic data for optimising signed division by a constant.
 struct SignedDivisionByConstantInfo {
-  static SignedDivisionByConstantInfo get(const APInt &D);
+  LLVM_ABI static SignedDivisionByConstantInfo get(const APInt &D);
   APInt Magic;          ///< magic number
   unsigned ShiftAmount; ///< shift amount
 };
 
 /// Magic data for optimising unsigned division by a constant.
 struct UnsignedDivisionByConstantInfo {
-  static UnsignedDivisionByConstantInfo get(const APInt &D,
-                                            unsigned LeadingZeros = 0);
+  LLVM_ABI static UnsignedDivisionByConstantInfo
+  get(const APInt &D, unsigned LeadingZeros = 0,
+      bool AllowEvenDivisorOptimization = true);
   APInt Magic;          ///< magic number
   bool IsAdd;           ///< add indicator
-  unsigned ShiftAmount; ///< shift amount
+  unsigned PostShift;   ///< post-shift amount
+  unsigned PreShift;    ///< pre-shift amount
 };
 
 } // namespace llvm

@@ -11,7 +11,7 @@ include "clang/Basic/TypeNodes.td"
 
 let Class = ComplexType in {
   def : Property<"elementType", QualType> {
-    let Read = [{ node->getElementType() }];    
+    let Read = [{ node->getElementType() }];
   }
 
   def : Creator<[{ return ctx.getComplexType(elementType); }]>;
@@ -23,6 +23,25 @@ let Class = PointerType in {
   }
 
   def : Creator<[{ return ctx.getPointerType(pointeeType); }]>;
+}
+
+let Class = CountAttributedType in {
+  def : Property<"WrappedTy", QualType> {
+    let Read = [{ node->desugar() }];
+  }
+  def : Property<"CountExpr", ExprRef> {
+    let Read = [{ node->getCountExpr() }];
+  }
+  def : Property<"CountInBytes", Bool> {
+    let Read = [{ node->isCountInBytes() }];
+  }
+  def : Property<"OrNull", Bool> {
+    let Read = [{ node->isOrNull() }];
+  }
+  def : Property<"CoupledDecls", Array<TypeCoupledDeclRefInfo>> {
+    let Read = [{ node->getCoupledDecls() }];
+  }
+  def : Creator<[{ return ctx.getCountAttributedType(WrappedTy, CountExpr, CountInBytes, OrNull, CoupledDecls); }]>;
 }
 
 let Class = AdjustedType in {
@@ -81,12 +100,15 @@ let Class = MemberPointerType in {
   def : Property<"pointeeType", QualType> {
     let Read = [{ node->getPointeeType() }];
   }
-  def : Property<"baseType", QualType> {
-    let Read = [{ QualType(node->getClass(), 0) }];
+  def : Property<"Qualifier", NestedNameSpecifier> {
+    let Read = [{ node->getQualifier() }];
+  }
+  def : Property<"Cls", DeclRef> {
+    let Read = [{ node->getMostRecentCXXRecordDecl() }];
   }
 
   def : Creator<[{
-    return ctx.getMemberPointerType(pointeeType, baseType.getTypePtr());
+    return ctx.getMemberPointerType(pointeeType, Qualifier, cast_or_null<CXXRecordDecl>(Cls));
   }]>;
 }
 
@@ -117,6 +139,13 @@ let Class = ConstantArrayType in {
   }]>;
 }
 
+let Class = ArrayParameterType in {
+  def : Creator<[{ return ctx.getAdjustedParameterType(
+                              ctx.getConstantArrayType(elementType,sizeValue,
+                                    size,sizeModifier,
+                                    indexQualifiers.getCVRQualifiers())); }]>;
+}
+
 let Class = IncompleteArrayType in {
   def : Creator<[{
     return ctx.getIncompleteArrayType(elementType, sizeModifier,
@@ -125,40 +154,22 @@ let Class = IncompleteArrayType in {
 }
 
 let Class = VariableArrayType in {
-  def : Property<"leftBracketLoc", SourceLocation> {
-    let Read = [{ node->getLBracketLoc() }];
-  }
-  def : Property<"rightBracketLoc", SourceLocation> {
-    let Read = [{ node->getRBracketLoc() }];
-  }
   def : Property<"size", ExprRef> {
     let Read = [{ node->getSizeExpr() }];
   }
 
   def : Creator<[{
     return ctx.getVariableArrayType(elementType, size, sizeModifier,
-                                    indexQualifiers.getCVRQualifiers(),
-                                    SourceRange(leftBracketLoc,
-                                                rightBracketLoc));
+                                    indexQualifiers.getCVRQualifiers());
   }]>;
 }
 
 let Class = DependentSizedArrayType in {
-  def : Property<"size", ExprRef> {
-    let Read = [{ node->getSizeExpr() }];
-  }
-  def : Property<"leftBracketLoc", SourceLocation> {
-    let Read = [{ node->getLBracketLoc() }];
-  }
-  def : Property<"rightBracketLoc", SourceLocation> {
-    let Read = [{ node->getRBracketLoc() }];
-  }
+  def : Property<"size", ExprRef> { let Read = [{ node->getSizeExpr() }]; }
 
   def : Creator<[{
     return ctx.getDependentSizedArrayType(elementType, size, sizeModifier,
-                                          indexQualifiers.getCVRQualifiers(),
-                                          SourceRange(leftBracketLoc,
-                                                      rightBracketLoc));
+                                          indexQualifiers.getCVRQualifiers());
   }]>;
 }
 
@@ -306,6 +317,9 @@ let Class = FunctionProtoType in {
   def : Property<"trailingReturn", Bool> {
     let Read = [{ node->hasTrailingReturn() }];
   }
+  def : Property<"cfiUncheckedCallee", Bool> {
+    let Read = [{ node->hasCFIUncheckedCallee() }];
+  }
   def : Property<"methodQualifiers", Qualifiers> {
     let Read = [{ node->getMethodQuals() }];
   }
@@ -321,7 +335,16 @@ let Class = FunctionProtoType in {
   def : Property<"extParameterInfo", Array<ExtParameterInfo>> {
     let Read = [{ node->hasExtParameterInfos()
                     ? node->getExtParameterInfos()
-                    : llvm::ArrayRef<FunctionProtoType::ExtParameterInfo>() }];
+                    : ArrayRef<FunctionProtoType::ExtParameterInfo>() }];
+  }
+  def : Property<"AArch64SMEAttributes", UInt32> {
+    let Read = [{ node->getAArch64SMEAttributes() }];
+  }
+  def : Property<"functionEffects", Array<FunctionEffect>> {
+    let Read = [{ node->getFunctionEffectsWithoutConditions() }];
+  }
+  def : Property<"functionEffectConds", Array<EffectConditionExpr>> {
+    let Read = [{ node->getFunctionEffectConditions() }];
   }
 
   def : Creator<[{
@@ -333,11 +356,14 @@ let Class = FunctionProtoType in {
     epi.ExtInfo = extInfo;
     epi.Variadic = variadic;
     epi.HasTrailingReturn = trailingReturn;
+    epi.CFIUncheckedCallee = cfiUncheckedCallee;
     epi.TypeQuals = methodQualifiers;
     epi.RefQualifier = refQualifier;
     epi.ExceptionSpec = exceptionSpecifier;
     epi.ExtParameterInfos =
       extParameterInfo.empty() ? nullptr : extParameterInfo.data();
+    epi.AArch64SMEAttributes = AArch64SMEAttributes;
+    epi.FunctionEffects = FunctionEffectsRef::create(functionEffects, functionEffectConds);
     return ctx.getFunctionType(returnType, parameters, epi);
   }]>;
 }
@@ -353,38 +379,59 @@ let Class = AtomicType in {
 }
 
 let Class = UnresolvedUsingType in {
-  def : Property<"declaration", DeclRef> {
-    let Read = [{ node->getDecl() }];
+  def : Property<"IsCanonical", Bool> {
+    let Read = [{ node->isCanonicalUnqualified() }];
   }
-
+  def : Property<"Keyword", ElaboratedTypeKeyword> {
+    let Conditional = [{ !IsCanonical }];
+    let Read = [{ node->getKeyword() }];
+  }
+  def : Property<"Qualifier", NestedNameSpecifier> {
+    let Conditional = [{ !IsCanonical }];
+    let Read = [{ node->getQualifier() }];
+  }
+  def : Property<"D", DeclRef> { let Read = [{ node->getDecl() }]; }
   def : Creator<[{
-    return ctx.getUnresolvedUsingType(cast<UnresolvedUsingTypenameDecl>(declaration));
+    auto *UD = cast<UnresolvedUsingTypenameDecl>(D);
+    return IsCanonical ? ctx.getCanonicalUnresolvedUsingType(UD) : ctx.getUnresolvedUsingType(*Keyword, *Qualifier, UD);
   }]>;
 }
 
 let Class = UsingType in {
-  def : Property<"foundDeclaration", UsingShadowDeclRef> {
-    let Read = [{ node->getFoundDecl() }];
+  def : Property<"Keyword", ElaboratedTypeKeyword> {
+    let Read = [{ node->getKeyword() }];
   }
-  def : Property<"underlyingType", QualType> {
-    let Read = [{ node->getUnderlyingType() }];
+  def : Property<"Qualifier", NestedNameSpecifier> {
+    let Read = [{ node->getQualifier() }];
   }
-
+  def : Property<"D", UsingShadowDeclRef> { let Read = [{ node->getDecl() }]; }
+  def : Property<"UnderlyingType", QualType> {
+    let Read = [{ node->desugar() }];
+  }
   def : Creator<[{
-    return ctx.getUsingType(foundDeclaration, underlyingType);
+    return ctx.getUsingType(Keyword, Qualifier, D, UnderlyingType);
   }]>;
 }
 
 let Class = TypedefType in {
+  def : Property<"Keyword", ElaboratedTypeKeyword> {
+    let Read = [{ node->getKeyword() }];
+  }
+  def : Property<"Qualifier", NestedNameSpecifier> {
+    let Read = [{ node->getQualifier() }];
+  }
   def : Property<"declaration", DeclRef> {
     let Read = [{ node->getDecl() }];
   }
-  def : Property<"underlyingType", QualType> {
+  def : Property<"UnderlyingType", QualType> {
     let Read = [{ node->desugar() }];
+  }
+  def : Property<"TypeMatchesDecl", Bool> {
+    let Read = [{ node->typeMatchesDecl() }];
   }
 
   def : Creator<[{
-    return ctx.getTypedefType(cast<TypedefNameDecl>(declaration), underlyingType);
+    return ctx.getTypedefType(Keyword, Qualifier, cast<TypedefNameDecl>(declaration), UnderlyingType, TypeMatchesDecl);
   }]>;
 }
 
@@ -394,8 +441,7 @@ let Class = TypeOfExprType in {
   }
 
   def : Property<"kind", TypeOfKind> {
-    let Read = [{ node->isUnqual() ? TypeOfKind::Unqualified
-                                   : TypeOfKind::Qualified }];
+    let Read = [{ node->getKind() }];
   }
 
   def : Creator<[{
@@ -409,8 +455,7 @@ let Class = TypeOfType in {
   }
 
   def : Property<"kind", TypeOfKind> {
-    let Read = [{ node->isUnqual() ? TypeOfKind::Unqualified
-                                   : TypeOfKind::Qualified }];
+    let Read = [{ node->getKind() }];
   }
 
   def : Creator<[{
@@ -430,6 +475,26 @@ let Class = DecltypeType in {
     return ctx.getDecltypeType(expression, underlyingType);
   }]>;
 }
+
+let Class = PackIndexingType in {
+  def : Property<"pattern", QualType> {
+    let Read = [{ node->getPattern() }];
+  }
+  def : Property<"indexExpression", ExprRef> {
+    let Read = [{ node->getIndexExpr() }];
+  }
+  def : Property<"isFullySubstituted", Bool> {
+    let Read = [{ node->isFullySubstituted() }];
+  }
+  def : Property<"expansions", Array<QualType>> {
+    let Read = [{ node->getExpansions() }];
+  }
+
+  def : Creator<[{
+    return ctx.getPackIndexingType(pattern, indexExpression, isFullySubstituted, expansions);
+  }]>;
+}
+
 
 let Class = UnaryTransformType in {
   def : Property<"baseType", QualType> {
@@ -454,9 +519,9 @@ let Class = AutoType in {
   def : Property<"keyword", AutoTypeKeyword> {
     let Read = [{ node->getKeyword() }];
   }
-  def : Property<"typeConstraintConcept", Optional<ConceptDeclRef>> {
+  def : Property<"typeConstraintConcept", Optional<TemplateDeclRef>> {
     let Read = [{ makeOptionalFromPointer(
-        const_cast<const ConceptDecl*>(node->getTypeConstraintConcept())) }];
+        node->getTypeConstraintConcept()) }];
   }
   def : Property<"typeConstraintArguments", Array<TemplateArgument>> {
     let Read = [{ node->getTypeConstraintArguments() }];
@@ -479,6 +544,9 @@ let Class = AutoType in {
 }
 
 let Class = DeducedTemplateSpecializationType in {
+  def : Property<"keyword", ElaboratedTypeKeyword> {
+    let Read = [{ node->getKeyword() }];
+  }
   def : Property<"templateName", Optional<TemplateName>> {
     let Read = [{ makeOptionalFromNullable(node->getTemplateName()) }];
   }
@@ -492,97 +560,42 @@ let Class = DeducedTemplateSpecializationType in {
   }
 
   def : Creator<[{
-    return ctx.getDeducedTemplateSpecializationType(
+    return ctx.getDeducedTemplateSpecializationType(keyword,
                                      makeNullableFromOptional(templateName),
                                      deducedType, dependent);
   }]>;
 }
 
 let Class = TagType in {
-  def : Property<"dependent", Bool> {
-    let Read = [{ node->isDependentType() }];
+  def : Property<"IsCanonical", Bool> {
+    let Read = [{ node->isCanonicalUnqualified() }];
   }
-  def : Property<"declaration", DeclRef> {
-    // We don't know which declaration was originally referenced here, and we
-    // cannot reference a declaration that follows the use (because that can
-    // introduce deserialization cycles), so conservatively generate a
-    // reference to the first declaration.
-    // FIXME: If this is a reference to a class template specialization, that
-    // can still introduce a deserialization cycle.
-    let Read = [{ node->getDecl()->getCanonicalDecl() }];
+  def : Property<"Keyword", ElaboratedTypeKeyword> {
+    let Conditional = [{ !IsCanonical }];
+    let Read = [{ node->getKeyword() }];
   }
+  def : Property<"Qualifier", NestedNameSpecifier> {
+    let Conditional = [{ !IsCanonical }];
+    let Read = [{ node->getQualifier() }];
+  }
+  def : Property<"TD", TagDeclRef> { let Read = [{ node->getDecl() }]; }
 }
 
 let Class = EnumType in {
+  def : Property<"OwnsTag", Bool> { let Read = [{ node->isTagOwned() }]; }
   def : Creator<[{
-    QualType result = ctx.getEnumType(cast<EnumDecl>(declaration));
-    if (dependent)
-      const_cast<Type *>(result.getTypePtr())
-          ->addDependence(TypeDependence::DependentInstantiation);
-    return result;
+    return IsCanonical ? ctx.getCanonicalTagType(TD) : ctx.getTagType(*Keyword, *Qualifier, TD, OwnsTag);
   }]>;
 }
-
 let Class = RecordType in {
+  def : Property<"OwnsTag", Bool> { let Read = [{ node->isTagOwned() }]; }
   def : Creator<[{
-    auto record = cast<RecordDecl>(declaration);
-    QualType result = ctx.getRecordType(record);
-    if (dependent)
-      const_cast<Type *>(result.getTypePtr())
-          ->addDependence(TypeDependence::DependentInstantiation);
-    return result;
+    return IsCanonical ? ctx.getCanonicalTagType(TD) : ctx.getTagType(*Keyword, *Qualifier, TD, OwnsTag);
   }]>;
 }
-
-let Class = ElaboratedType in {
-  def : Property<"keyword", ElaboratedTypeKeyword> {
-    let Read = [{ node->getKeyword() }];
-  }
-  def : Property<"qualifier", NestedNameSpecifier> {
-    let Read = [{ node->getQualifier() }];
-  }
-  def : Property<"namedType", QualType> {
-    let Read = [{ node->getNamedType() }];
-  }
-  def : Property<"ownedTag", Optional<TagDeclRef>> {
-    let Read = [{ makeOptionalFromPointer(
-                    const_cast<const TagDecl *>(node->getOwnedTagDecl())) }];
-  }
-
-  def : Creator<[{
-    return ctx.getElaboratedType(keyword, qualifier, namedType,
-                                 makePointerFromOptional(ownedTag));
-  }]>;
-}
-
 let Class = InjectedClassNameType in {
-  def : Property<"declaration", DeclRef> {
-    // FIXME: drilling down to the canonical declaration is what the
-    // existing serialization code was doing, but it's not clear why.
-    let Read = [{ node->getDecl()->getCanonicalDecl() }];
-  }
-  def : Property<"injectedSpecializationType", QualType> {
-    let Read = [{ node->getInjectedSpecializationType() }];
-  }
-
   def : Creator<[{
-    // FIXME: ASTContext::getInjectedClassNameType is not currently suitable
-    // for AST reading, too much interdependencies.
-    const Type *T = nullptr;
-    auto typeDecl = cast<CXXRecordDecl>(declaration);
-    for (auto *DI = typeDecl; DI; DI = DI->getPreviousDecl()) {
-      if (const Type *existing = DI->getTypeForDecl()) {
-        T = existing;
-        break;
-      }
-    }
-    if (!T) {
-      T = new (ctx, TypeAlignment)
-            InjectedClassNameType(typeDecl, injectedSpecializationType);
-      for (auto *DI = typeDecl; DI; DI = DI->getPreviousDecl())
-        DI->setTypeForDecl(T);
-    }
-    return QualType(T, 0);
+    return IsCanonical ? ctx.getCanonicalTagType(TD) : ctx.getTagType(*Keyword, *Qualifier, TD, /*OwnsTag=*/false);
   }]>;
 }
 
@@ -593,7 +606,7 @@ let Class = ParenType in {
 
   def : Creator<[{
     return ctx.getParenType(innerType);
-  }]>;  
+  }]>;
 }
 
 let Class = MacroQualifiedType in {
@@ -616,12 +629,16 @@ let Class = AttributedType in {
   def : Property<"equivalentType", QualType> {
     let Read = [{ node->getEquivalentType() }];
   }
-  def : Property<"attribute", AttrKind> {
+  def : Property<"attrKind", AttrKind> {
     let Read = [{ node->getAttrKind() }];
+  }
+  def : Property<"attribute", Attr> {
+    let Read = [{ node->getAttr() }];
   }
 
   def : Creator<[{
-    return ctx.getAttributedType(attribute, modifiedType, equivalentType);
+    return ctx.getAttributedType(attrKind, modifiedType,
+                                 equivalentType, attribute);
   }]>;
 }
 
@@ -635,6 +652,49 @@ let Class = BTFTagAttributedType in {
 
   def : Creator<[{
     return ctx.getBTFTagAttributedType(attr, wrappedType);
+  }]>;
+}
+
+let Class = HLSLAttributedResourceType in {
+  def : Property<"resClass", UInt32> {
+    let Read = [{ static_cast<uint32_t>(node->getAttrs().ResourceClass) }];
+  }
+  def : Property<"isROV", Bool> {
+    let Read = [{ node->getAttrs().IsROV }];
+  }
+  def : Property<"rawBuffer", Bool> {
+    let Read = [{ node->getAttrs().RawBuffer }];
+  }
+  def : Property<"isCounter", Bool> {
+    let Read = [{ node->getAttrs().IsCounter }];
+  }
+  def : Property<"wrappedTy", QualType> {
+    let Read = [{ node->getWrappedType() }];
+  }
+  def : Property<"containedTy", QualType> {
+    let Read = [{ node->getContainedType() }];
+  }
+  def : Creator<[{
+    HLSLAttributedResourceType::Attributes attrs(static_cast<llvm::dxil::ResourceClass>(resClass), isROV, rawBuffer, isCounter);
+    return ctx.getHLSLAttributedResourceType(wrappedTy, containedTy, attrs);
+  }]>;
+}
+
+let Class = HLSLInlineSpirvType in {
+  def : Property<"opcode", UInt32> {
+    let Read = [{ node->getOpcode() }];
+  }
+  def : Property<"size", UInt32> {
+    let Read = [{ node->getSize() }];
+  }
+  def : Property<"alignment", UInt32> {
+    let Read = [{ node->getAlignment() }];
+  }
+  def : Property<"operands", Array<HLSLSpirvOperand>> {
+    let Read = [{ node->getOperands() }];
+  }
+  def : Creator<[{
+    return ctx.getHLSLInlineSpirvType(opcode, size, alignment, operands);
   }]>;
 }
 
@@ -656,59 +716,22 @@ let Class = DependentAddressSpaceType in {
 }
 
 let Class = TemplateSpecializationType in {
-  def : Property<"dependent", Bool> {
-    let Read = [{ node->isDependentType() }];
+  def : Property<"keyword", ElaboratedTypeKeyword> {
+    let Read = [{ node->getKeyword() }];
   }
   def : Property<"templateName", TemplateName> {
     let Read = [{ node->getTemplateName() }];
   }
-  def : Property<"templateArguments", Array<TemplateArgument>> {
+  def : Property<"args", Array<TemplateArgument>> {
     let Read = [{ node->template_arguments() }];
   }
-  def : Property<"underlyingType", Optional<QualType>> {
-    let Read = [{
-      node->isTypeAlias()
-        ? llvm::Optional<QualType>(node->getAliasedType())
-        : node->isCanonicalUnqualified()
-            ? llvm::None
-            : llvm::Optional<QualType>(node->getCanonicalTypeInternal())
-    }];
+  def : Property<"UnderlyingType", QualType> {
+    let Read = [{ node->isCanonicalUnqualified() ? QualType() :
+                                                   node->desugar() }];
   }
 
   def : Creator<[{
-    QualType result;
-    if (!underlyingType) {
-      result = ctx.getCanonicalTemplateSpecializationType(templateName,
-                                                          templateArguments);
-    } else {
-      result = ctx.getTemplateSpecializationType(templateName,
-                                                 templateArguments,
-                                                 *underlyingType);
-    }
-    if (dependent)
-      const_cast<Type *>(result.getTypePtr())
-          ->addDependence(TypeDependence::DependentInstantiation);
-    return result;
-  }]>;
-}
-
-let Class = DependentTemplateSpecializationType in {
-  def : Property<"keyword", ElaboratedTypeKeyword> {
-    let Read = [{ node->getKeyword() }];
-  }
-  def : Property<"qualifier", NestedNameSpecifier> {
-    let Read = [{ node->getQualifier() }];
-  }
-  def : Property<"name", Identifier> {
-    let Read = [{ node->getIdentifier() }];
-  }
-  def : Property<"templateArguments", Array<TemplateArgument>> {
-    let Read = [{ node->template_arguments() }];
-  }
-
-  def : Creator<[{
-    return ctx.getDependentTemplateSpecializationType(keyword, qualifier,
-                                                      name, templateArguments);
+    return ctx.getTemplateSpecializationType(keyword, templateName, args, {}, UnderlyingType);
   }]>;
 }
 
@@ -734,20 +757,23 @@ let Class = TemplateTypeParmType in {
 }
 
 let Class = SubstTemplateTypeParmType in {
-  def : Property<"replacedParameter", QualType> {
-    let Read = [{ QualType(node->getReplacedParameter(), 0) }];
-  }
   def : Property<"replacementType", QualType> {
     let Read = [{ node->getReplacementType() }];
   }
-  def : Property<"PackIndex", Optional<UInt32>> {
+  def : Property<"associatedDecl", DeclRef> {
+    let Read = [{ node->getAssociatedDecl() }];
+  }
+  def : Property<"Index", UInt32> {
+    let Read = [{ node->getIndex() }];
+  }
+  def : Property<"PackIndex", UnsignedOrNone> {
     let Read = [{ node->getPackIndex() }];
   }
+  def : Property<"Final", Bool> { let Read = [{ node->getFinal() }]; }
 
   def : Creator<[{
     return ctx.getSubstTemplateTypeParmType(
-        cast<TemplateTypeParmType>(replacedParameter),
-        replacementType, PackIndex);
+        replacementType, associatedDecl, Index, PackIndex, Final);
   }]>;
 }
 
@@ -755,7 +781,7 @@ let Class = PackExpansionType in {
   def : Property<"pattern", QualType> {
     let Read = [{ node->getPattern() }];
   }
-  def : Property<"numExpansions", Optional<UInt32>> {
+  def : Property<"numExpansions", UnsignedOrNone> {
     let Read = [{ node->getNumExpansions() }];
   }
 
@@ -765,18 +791,30 @@ let Class = PackExpansionType in {
   }]>;
 }
 
-let Class = SubstTemplateTypeParmPackType in {
-  def : Property<"replacedParameter", QualType> {
-    let Read = [{ QualType(node->getReplacedParameter(), 0) }];
-  }
+let Class = SubstPackType in {
   def : Property<"replacementPack", TemplateArgument> {
     let Read = [{ node->getArgumentPack() }];
   }
+}
+
+let Class = SubstTemplateTypeParmPackType in {
+  def : Property<"associatedDecl", DeclRef> {
+    let Read = [{ node->getAssociatedDecl() }];
+  }
+  def : Property<"Index", UInt32> {
+    let Read = [{ node->getIndex() }];
+  }
+  def : Property<"Final", Bool> { let Read = [{ node->getFinal() }]; }
 
   def : Creator<[{
     return ctx.getSubstTemplateTypeParmPackType(
-                         cast<TemplateTypeParmType>(replacedParameter),
-                        replacementPack);
+                        associatedDecl, Index, Final, replacementPack);
+  }]>;
+}
+
+let Class = SubstBuiltinTemplatePackType in {
+  def : Creator<[{
+    return ctx.getSubstBuiltinTemplatePack(replacementPack);
   }]>;
 }
 
@@ -803,7 +841,7 @@ let Class = BuiltinType in {
 
 #define SVE_TYPE(NAME, ID, SINGLETON_ID) \
       case BuiltinType::ID: return ctx.SINGLETON_ID;
-#include "clang/Basic/AArch64SVEACLETypes.def"
+#include "clang/Basic/AArch64ACLETypes.def"
 
 #define PPC_VECTOR_TYPE(NAME, ID, SIZE) \
       case BuiltinType::ID: return ctx.ID##Ty;
@@ -812,6 +850,18 @@ let Class = BuiltinType in {
 #define RVV_TYPE(NAME, ID, SINGLETON_ID) \
       case BuiltinType::ID: return ctx.SINGLETON_ID;
 #include "clang/Basic/RISCVVTypes.def"
+
+#define WASM_TYPE(NAME, ID, SINGLETON_ID) \
+      case BuiltinType::ID: return ctx.SINGLETON_ID;
+#include "clang/Basic/WebAssemblyReferenceTypes.def"
+
+#define AMDGPU_TYPE(NAME, ID, SINGLETON_ID, WIDTH, ALIGN) \
+      case BuiltinType::ID: return ctx.SINGLETON_ID;
+#include "clang/Basic/AMDGPUTypes.def"
+
+#define HLSL_INTANGIBLE_TYPE(NAME, ID, SINGLETON_ID) \
+      case BuiltinType::ID: return ctx.SINGLETON_ID;
+#include "clang/Basic/HLSLIntangibleTypes.def"
 
 #define BUILTIN_TYPE(ID, SINGLETON_ID) \
       case BuiltinType::ID: return ctx.SINGLETON_ID;
@@ -828,22 +878,10 @@ let Class = DependentNameType in {
   def : Property<"qualifier", NestedNameSpecifier> {
     let Read = [{ node->getQualifier() }];
   }
-  def : Property<"name", Identifier> {
-    let Read = [{ node->getIdentifier() }];
-  }
-  def : Property<"underlyingType", Optional<QualType>> {
-    let Read = [{
-      node->isCanonicalUnqualified()
-        ? llvm::None
-        : llvm::Optional<QualType>(node->getCanonicalTypeInternal())
-    }];
-  }
+  def : Property<"name", Identifier> { let Read = [{ node->getIdentifier() }]; }
 
   def : Creator<[{
-    QualType canon = (underlyingType
-                        ? ctx.getCanonicalType(*underlyingType)
-                        : QualType());
-    return ctx.getDependentNameType(keyword, qualifier, name, canon);
+    return ctx.getDependentNameType(keyword, qualifier, name);
   }]>;
 }
 
@@ -889,7 +927,7 @@ let Class = ObjCInterfaceType in {
 let Class = ObjCTypeParamType in {
   def : Property<"declaration", ObjCTypeParamDeclRef> {
     let Read = [{ node->getDecl() }];
-  }  
+  }
   def : Property<"qualifiers", Array<ObjCProtocolDeclRef>> {
     let Read = [{ node->getProtocols() }];
   }
@@ -944,5 +982,14 @@ let Class = DependentBitIntType in {
   }
   def : Creator<[{
     return ctx.getDependentBitIntType(isUnsigned, numBitsExpr);
+  }]>;
+}
+
+let Class = PredefinedSugarType in {
+  def : Property<"kind", UInt32> {
+    let Read = [{ static_cast<uint32_t>(node->getKind()) }];
+  }
+  def : Creator<[{
+    return ctx.getPredefinedSugarType(static_cast<PredefinedSugarType::Kind>(kind));
   }]>;
 }

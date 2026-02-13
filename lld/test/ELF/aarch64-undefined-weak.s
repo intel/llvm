@@ -1,7 +1,7 @@
 // REQUIRES: aarch64
-// RUN: llvm-mc -filetype=obj -triple=aarch64-none-linux %s -o %t.o
+// RUN: llvm-mc -filetype=obj -triple=aarch64 %s -o %t.o
 // RUN: ld.lld --image-base=0x10000000 %t.o -o %t
-// RUN: llvm-objdump -d --no-show-raw-insn %t | FileCheck %s
+// RUN: llvm-objdump -d -z --no-show-raw-insn %t | FileCheck %s
 
 // Check that the ARM 64-bit ABI rules for undefined weak symbols are applied.
 // Branch instructions are resolved to the next instruction. Undefined
@@ -49,7 +49,7 @@ bl_undefweak2:
 // CHECK-NEXT: 10010124: bl      0x10010128
 // CHECK-NEXT: 10010128: b.eq    0x1001012c
 // CHECK-NEXT: 1001012c: cbz     x1, 0x10010130
-// CHECK-NEXT: 10010130: adr     x0, #0
+// CHECK-NEXT: 10010130: adr     x0, 0x10010130
 // CHECK-NEXT: 10010134: adrp    x0, 0x10010000
 // CHECK-NEXT: 10010138: ldr     x8, 0x10010138
 // CHECK:      1001013c: 00 00 00 00     .word   0x00000000

@@ -11,6 +11,7 @@
 #include "Annotations.h"
 #include "ParsedAST.h"
 #include "TestTU.h"
+#include "index/Symbol.h"
 #include "clang/AST/ASTTypeTraits.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
@@ -79,7 +80,7 @@ TEST(GetDeducedType, KwAutoKwDecltypeExpansion) {
               namespace std
               {
                 template<class _E>
-                class [[initializer_list]] {};
+                class [[initializer_list]] { const _E *a, *b; };
               }
 
               ^auto i = {1,2};
@@ -243,7 +244,8 @@ TEST(GetDeducedType, KwAutoKwDecltypeExpansion) {
     for (Position Pos : File.points()) {
       auto Location = sourceLocationInMainFile(SM.get(), Pos);
       ASSERT_TRUE(!!Location) << llvm::toString(Location.takeError());
-      auto DeducedType = getDeducedType(AST.getASTContext(), *Location);
+      auto DeducedType = getDeducedType(AST.getASTContext(),
+                                        AST.getHeuristicResolver(), *Location);
       if (T.DeducedType == nullptr) {
         EXPECT_FALSE(DeducedType);
       } else {
@@ -328,7 +330,7 @@ TEST(ClangdAST, GetContainedAutoParamType) {
        auto &&d,
        auto *&e,
        auto (*f)(int)
-    ){};
+    ){ return 0; };
 
     int withoutAuto(
       int a,
@@ -337,7 +339,7 @@ TEST(ClangdAST, GetContainedAutoParamType) {
       int &&d,
       int *&e,
       int (*f)(int)
-    ){};
+    ){ return 0; };
   )cpp");
   TU.ExtraArgs.push_back("-std=c++20");
   auto AST = TU.build();
@@ -420,7 +422,7 @@ TEST(ClangdAST, GetQualification) {
       {
           R"cpp(
             namespace ns1 { namespace ns2 { void Foo(); } }
-            void insert(); // ns2::Foo
+            void insert(); // ns1::ns2::Foo
             namespace ns1 {
               void insert(); // ns2::Foo
               namespace ns2 {
@@ -428,7 +430,7 @@ TEST(ClangdAST, GetQualification) {
               }
             }
           )cpp",
-          {"ns2::", "ns2::", ""},
+          {"ns1::ns2::", "ns2::", ""},
           {"ns1::"},
       },
       {
@@ -530,7 +532,8 @@ TEST(ClangdAST, PrintType) {
     ASSERT_EQ(InsertionPoints.size(), Case.Types.size());
     for (size_t I = 0, E = InsertionPoints.size(); I != E; ++I) {
       const auto *DC = InsertionPoints[I];
-      EXPECT_EQ(printType(AST.getASTContext().getTypeDeclType(TargetDecl), *DC),
+      EXPECT_EQ(printType(AST.getASTContext().getTypeDeclType(TargetDecl), *DC,
+                          /*Placeholder=*/"", /*FullyQualify=*/true),
                 Case.Types[I]);
     }
   }
@@ -616,6 +619,45 @@ TEST(ClangdAST, HasReservedName) {
   EXPECT_FALSE(hasReservedName(findUnqualifiedDecl(AST, "secret")));
   EXPECT_TRUE(
       hasReservedScope(*findUnqualifiedDecl(AST, "secret").getDeclContext()));
+}
+
+TEST(ClangdAST, PreferredIncludeDirective) {
+  auto ComputePreferredDirective = [](TestTU &TU) {
+    auto AST = TU.build();
+    return preferredIncludeDirective(AST.tuPath(), AST.getLangOpts(),
+                                     AST.getIncludeStructure().MainFileIncludes,
+                                     AST.getLocalTopLevelDecls());
+  };
+  TestTU ObjCTU = TestTU::withCode(R"cpp(
+  int main() {}
+  )cpp");
+  ObjCTU.Filename = "TestTU.m";
+  EXPECT_EQ(ComputePreferredDirective(ObjCTU),
+            Symbol::IncludeDirective::Import);
+
+  TestTU HeaderTU = TestTU::withCode(R"cpp(
+  #import "TestTU.h"
+  )cpp");
+  HeaderTU.Filename = "TestTUHeader.h";
+  HeaderTU.ExtraArgs = {"-xobjective-c++-header"};
+  EXPECT_EQ(ComputePreferredDirective(HeaderTU),
+            Symbol::IncludeDirective::Import);
+
+  // ObjC language option is not enough for headers.
+  HeaderTU.Code = R"cpp(
+  #include "TestTU.h"
+  )cpp";
+  EXPECT_EQ(ComputePreferredDirective(HeaderTU),
+            Symbol::IncludeDirective::Include);
+
+  HeaderTU.Code = R"cpp(
+  @interface Foo
+  @end
+
+  Foo * getFoo();
+  )cpp";
+  EXPECT_EQ(ComputePreferredDirective(HeaderTU),
+            Symbol::IncludeDirective::Import);
 }
 
 } // namespace

@@ -21,27 +21,26 @@ bool MCInstrDesc::mayAffectControlFlow(const MCInst &MI,
                                        const MCRegisterInfo &RI) const {
   if (isBranch() || isCall() || isReturn() || isIndirectBranch())
     return true;
-  unsigned PC = RI.getProgramCounter();
-  if (PC == 0)
+  MCRegister PC = RI.getProgramCounter();
+  if (!PC)
     return false;
   if (hasDefOfPhysReg(MI, PC, RI))
     return true;
   return false;
 }
 
-bool MCInstrDesc::hasImplicitDefOfPhysReg(unsigned Reg,
+bool MCInstrDesc::hasImplicitDefOfPhysReg(MCRegister Reg,
                                           const MCRegisterInfo *MRI) const {
-  if (const MCPhysReg *ImpDefs = ImplicitDefs)
-    for (; *ImpDefs; ++ImpDefs)
-      if (*ImpDefs == Reg || (MRI && MRI->isSubRegister(Reg, *ImpDefs)))
-        return true;
+  for (MCPhysReg ImpDef : implicit_defs())
+    if (ImpDef == Reg || (MRI && MRI->isSubRegister(Reg, ImpDef)))
+      return true;
   return false;
 }
 
-bool MCInstrDesc::hasDefOfPhysReg(const MCInst &MI, unsigned Reg,
+bool MCInstrDesc::hasDefOfPhysReg(const MCInst &MI, MCRegister Reg,
                                   const MCRegisterInfo &RI) const {
   for (int i = 0, e = NumDefs; i != e; ++i)
-    if (MI.getOperand(i).isReg() &&
+    if (MI.getOperand(i).isReg() && MI.getOperand(i).getReg() &&
         RI.isSubRegisterEq(Reg, MI.getOperand(i).getReg()))
       return true;
   if (variadicOpsAreDefs())

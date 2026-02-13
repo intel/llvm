@@ -5,6 +5,8 @@
 ; RUN: llc < %s -mtriple=x86_64-- -mcpu=skylake     | FileCheck %s --check-prefixes=FAST-SCALAR,FAST-VECTOR
 ; RUN: llc < %s -mtriple=x86_64-- -mcpu=znver1      | FileCheck %s --check-prefixes=FAST-SCALAR,FAST-VECTOR
 ; RUN: llc < %s -mtriple=x86_64-- -mcpu=znver3      | FileCheck %s --check-prefixes=FAST-SCALAR,FAST-VECTOR
+; RUN: llc < %s -mtriple=x86_64-- -mcpu=znver4      | FileCheck %s --check-prefixes=FAST-SCALAR,FAST-VECTOR
+; RUN: llc < %s -mtriple=x86_64-- -mcpu=znver5      | FileCheck %s --check-prefixes=FAST-SCALAR,FAST-VECTOR
 ; RUN: llc < %s -mtriple=x86_64-- -mcpu=x86-64      | FileCheck %s --check-prefixes=X86-64
 
 define float @f32_no_daz(float %f) #0 {
@@ -13,7 +15,7 @@ define float @f32_no_daz(float %f) #0 {
 ; NHM-NEXT:    rsqrtss %xmm0, %xmm1
 ; NHM-NEXT:    movaps %xmm0, %xmm2
 ; NHM-NEXT:    mulss %xmm1, %xmm2
-; NHM-NEXT:    movss {{.*#+}} xmm3 = mem[0],zero,zero,zero
+; NHM-NEXT:    movss {{.*#+}} xmm3 = [-5.0E-1,0.0E+0,0.0E+0,0.0E+0]
 ; NHM-NEXT:    mulss %xmm2, %xmm3
 ; NHM-NEXT:    mulss %xmm1, %xmm2
 ; NHM-NEXT:    addss {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm2
@@ -63,7 +65,7 @@ define <4 x float> @v4f32_no_daz(<4 x float> %f) #0 {
 ; SNB-NEXT:    vaddps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm1, %xmm1
 ; SNB-NEXT:    vmulps %xmm1, %xmm3, %xmm1
 ; SNB-NEXT:    vandps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0, %xmm0
-; SNB-NEXT:    vmovaps {{.*#+}} xmm2 = [1.17549435E-38,1.17549435E-38,1.17549435E-38,1.17549435E-38]
+; SNB-NEXT:    vbroadcastss {{.*#+}} xmm2 = [1.17549435E-38,1.17549435E-38,1.17549435E-38,1.17549435E-38]
 ; SNB-NEXT:    vcmpleps %xmm0, %xmm2, %xmm0
 ; SNB-NEXT:    vandps %xmm1, %xmm0, %xmm0
 ; SNB-NEXT:    retq
@@ -220,7 +222,7 @@ define float @f32_daz(float %f) #1 {
 ; NHM-NEXT:    rsqrtss %xmm0, %xmm1
 ; NHM-NEXT:    movaps %xmm0, %xmm2
 ; NHM-NEXT:    mulss %xmm1, %xmm2
-; NHM-NEXT:    movss {{.*#+}} xmm3 = mem[0],zero,zero,zero
+; NHM-NEXT:    movss {{.*#+}} xmm3 = [-5.0E-1,0.0E+0,0.0E+0,0.0E+0]
 ; NHM-NEXT:    mulss %xmm2, %xmm3
 ; NHM-NEXT:    mulss %xmm1, %xmm2
 ; NHM-NEXT:    addss {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm2

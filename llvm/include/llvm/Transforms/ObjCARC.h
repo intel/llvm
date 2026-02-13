@@ -15,6 +15,7 @@
 #define LLVM_TRANSFORMS_OBJCARC_H
 
 #include "llvm/IR/PassManager.h"
+#include "llvm/Support/Compiler.h"
 
 namespace llvm {
 
@@ -22,46 +23,24 @@ class Pass;
 
 //===----------------------------------------------------------------------===//
 //
-// ObjCARCAPElim - ObjC ARC autorelease pool elimination.
-//
-Pass *createObjCARCAPElimPass();
-
-//===----------------------------------------------------------------------===//
-//
-// ObjCARCExpand - ObjC ARC preliminary simplifications.
-//
-Pass *createObjCARCExpandPass();
-
-//===----------------------------------------------------------------------===//
-//
 // ObjCARCContract - Late ObjC ARC cleanups.
 //
-Pass *createObjCARCContractPass();
-
-//===----------------------------------------------------------------------===//
-//
-// ObjCARCOpt - ObjC ARC optimization.
-//
-Pass *createObjCARCOptPass();
+LLVM_ABI Pass *createObjCARCContractPass();
 
 struct ObjCARCOptPass : public PassInfoMixin<ObjCARCOptPass> {
-  PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+  LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 
 struct ObjCARCContractPass : public PassInfoMixin<ObjCARCContractPass> {
-  PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
-};
-
-struct ObjCARCAPElimPass : public PassInfoMixin<ObjCARCAPElimPass> {
-  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
+  LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 
 struct ObjCARCExpandPass : public PassInfoMixin<ObjCARCExpandPass> {
-  PreservedAnalyses run(Function &M, FunctionAnalysisManager &AM);
+  LLVM_ABI PreservedAnalyses run(Function &M, FunctionAnalysisManager &AM);
 };
 
 struct PAEvalPass : public PassInfoMixin<PAEvalPass> {
-  PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+  LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 
 } // End llvm namespace

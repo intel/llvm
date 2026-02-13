@@ -57,6 +57,10 @@
 ; CHECK-DEFAULT-AA-DAG: Running analysis: BasicAA
 ; CHECK-DEFAULT-AA-DAG: Running analysis: TypeBasedAA
 
+; RUN: not opt -passes='function<no-rerun>(no-op-function)' %s 2>&1 \
+; RUN:     | FileCheck %s --check-prefix=CHECK-RERUN-BAD
+; CHECK-RERUN-BAD: cannot have a no-rerun module to function adaptor
+
 ; RUN: not opt -disable-output -debug-pass-manager \
 ; RUN:     -passes='no-op-module)' %s 2>&1 \
 ; RUN:     | FileCheck %s --check-prefix=CHECK-UNBALANCED1
@@ -260,6 +264,9 @@
 ; RUN: opt -passes-ep-vectorizer-start=bad -passes=no-op-function \
 ; RUN:       /dev/null -disable-output 2>&1 | FileCheck %s -check-prefix=PASSES-EP-VECTORIZERSTART-ERR
 ; PASSES-EP-VECTORIZERSTART-ERR: Could not parse -passes-ep-vectorizer-start pipeline: unknown function pass 'bad'
+; RUN: opt -passes-ep-vectorizer-end=bad -passes=no-op-function \
+; RUN:       /dev/null -disable-output 2>&1 | FileCheck %s -check-prefix=PASSES-EP-VECTORIZEREND-ERR
+; PASSES-EP-VECTORIZEREND-ERR: Could not parse -passes-ep-vectorizer-end pipeline: unknown function pass 'bad'
 ; RUN: opt -passes-ep-pipeline-start=bad -passes=no-op-function \
 ; RUN:       /dev/null -disable-output 2>&1 | FileCheck %s -check-prefix=PASSES-EP-PIPELINESTART-ERR
 ; PASSES-EP-PIPELINESTART-ERR: Could not parse -passes-ep-pipeline-start pipeline: unknown pass name 'bad'

@@ -4,14 +4,17 @@ set(LLVM_LINK_COMPONENTS
   Core
   ExecutionEngine
   IPO
+  IRPrinter
   IRReader
   MC
   MCJIT
   Object
+  Passes
   RuntimeDyld
   SelectionDAG
   Support
   Target
+  TargetParser
   TransformUtils
   native
 )
@@ -21,4 +24,5 @@ add_clang_library(clangHandleLLVM
 
   DEPENDS
   intrinsics_gen
+  vt_gen
   )

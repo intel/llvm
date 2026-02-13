@@ -1,4 +1,4 @@
-//===--- UsingNamespaceDirectiveCheck.cpp - clang-tidy ----------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,26 +7,22 @@
 //===----------------------------------------------------------------------===//
 
 #include "UsingNamespaceDirectiveCheck.h"
-#include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace google {
-namespace build {
+namespace clang::tidy::google::build {
 
 void UsingNamespaceDirectiveCheck::registerMatchers(
     ast_matchers::MatchFinder *Finder) {
-    Finder->addMatcher(usingDirectiveDecl().bind("usingNamespace"), this);
+  Finder->addMatcher(usingDirectiveDecl().bind("usingNamespace"), this);
 }
 
 void UsingNamespaceDirectiveCheck::check(
     const MatchFinder::MatchResult &Result) {
   const auto *U = Result.Nodes.getNodeAs<UsingDirectiveDecl>("usingNamespace");
-  SourceLocation Loc = U->getBeginLoc();
+  const SourceLocation Loc = U->getBeginLoc();
   if (U->isImplicit() || !Loc.isValid())
     return;
 
@@ -43,7 +39,7 @@ void UsingNamespaceDirectiveCheck::check(
 
 bool UsingNamespaceDirectiveCheck::isStdLiteralsNamespace(
     const NamespaceDecl *NS) {
-  if (!NS->getName().endswith("literals"))
+  if (!NS->getName().ends_with("literals"))
     return false;
 
   const auto *Parent = dyn_cast_or_null<NamespaceDecl>(NS->getParent());
@@ -56,7 +52,4 @@ bool UsingNamespaceDirectiveCheck::isStdLiteralsNamespace(
   return Parent->getName() == "literals" && Parent->getParent() &&
          Parent->getParent()->isStdNamespace();
 }
-} // namespace build
-} // namespace google
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::google::build

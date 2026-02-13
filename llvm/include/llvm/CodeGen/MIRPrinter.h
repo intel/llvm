@@ -14,31 +14,58 @@
 #ifndef LLVM_CODEGEN_MIRPRINTER_H
 #define LLVM_CODEGEN_MIRPRINTER_H
 
+#include "llvm/CodeGen/MachinePassManager.h"
+#include "llvm/Support/Compiler.h"
+#include "llvm/Support/raw_ostream.h"
+
 namespace llvm {
 
 class MachineBasicBlock;
 class MachineFunction;
+class MachineModuleInfo;
 class Module;
-class raw_ostream;
 template <typename T> class SmallVectorImpl;
 
-/// Print LLVM IR using the MIR serialization format to the given output stream.
-void printMIR(raw_ostream &OS, const Module &M);
+class PrintMIRPreparePass : public PassInfoMixin<PrintMIRPreparePass> {
+  raw_ostream &OS;
 
-/// Print a machine function using the MIR serialization format to the given
-/// output stream.
-void printMIR(raw_ostream &OS, const MachineFunction &MF);
+public:
+  PrintMIRPreparePass(raw_ostream &OS = errs()) : OS(OS) {}
+  LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &MFAM);
+  static bool isRequired() { return true; }
+};
+
+class PrintMIRPass : public PassInfoMixin<PrintMIRPass> {
+  raw_ostream &OS;
+
+public:
+  PrintMIRPass(raw_ostream &OS = errs()) : OS(OS) {}
+  LLVM_ABI PreservedAnalyses run(MachineFunction &MF,
+                                 MachineFunctionAnalysisManager &MFAM);
+  static bool isRequired() { return true; }
+};
+
+/// Print LLVM IR using the MIR serialization format to the given output stream.
+LLVM_ABI void printMIR(raw_ostream &OS, const Module &M);
+
+/// Print MIR using Legacy Pass Manager (uses MachineModuleInfo).
+LLVM_ABI void printMIR(raw_ostream &OS, const MachineModuleInfo &MMI,
+                       const MachineFunction &MF);
+
+/// Print MIR using New Pass Manager (uses FunctionAnalysisManager).
+LLVM_ABI void printMIR(raw_ostream &OS, FunctionAnalysisManager &FAM,
+                       const MachineFunction &MF);
 
 /// Determine a possible list of successors of a basic block based on the
 /// basic block machine operand being used inside the block. This should give
 /// you the correct list of successor blocks in most cases except for things
 /// like jump tables where the basic block references can't easily be found.
 /// The MIRPRinter will skip printing successors if they match the result of
-/// this funciton and the parser will use this function to construct a list if
+/// this function and the parser will use this function to construct a list if
 /// it is missing.
-void guessSuccessors(const MachineBasicBlock &MBB,
-                     SmallVectorImpl<MachineBasicBlock*> &Result,
-                     bool &IsFallthrough);
+LLVM_ABI void guessSuccessors(const MachineBasicBlock &MBB,
+                              SmallVectorImpl<MachineBasicBlock *> &Result,
+                              bool &IsFallthrough);
 
 } // end namespace llvm
 

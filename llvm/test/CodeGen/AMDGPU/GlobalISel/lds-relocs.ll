@@ -1,8 +1,8 @@
-; RUN: llc -global-isel -mtriple=amdgcn-mesa-mesa3d -mcpu=gfx900 -amdgpu-enable-lower-module-lds=0 -verify-machineinstrs -show-mc-encoding < %s | FileCheck -check-prefixes=GCN %s
+; RUN: llc -global-isel -new-reg-bank-select -mtriple=amdgcn-mesa-mesa3d -mcpu=gfx900 -amdgpu-enable-lower-module-lds=0 -show-mc-encoding < %s | FileCheck -check-prefixes=GCN %s
 ; FIXME: Merge with DAG test
 
 @lds.external = external unnamed_addr addrspace(3) global [0 x i32]
-@lds.defined = unnamed_addr addrspace(3) global [8 x i32] undef, align 8
+@lds.defined = unnamed_addr addrspace(3) global [8 x i32] poison, align 8
 
 ; GCN-LABEL: {{^}}test_basic:
 ; GCN: s_add_u32 s0, lds.defined@abs32@lo, s0 ; encoding: [0xff,0x00,0x00,0x80,A,A,A,A]
@@ -14,11 +14,11 @@
 ; GCN: .amdgpu_lds lds.defined, 32, 8
 define amdgpu_gs float @test_basic(i32 inreg %wave, i32 %arg1) #0 {
 main_body:
-  %gep0 = getelementptr [0 x i32], [0 x i32] addrspace(3)* @lds.external, i32 0, i32 %arg1
-  %tmp = load i32, i32 addrspace(3)* %gep0
+  %gep0 = getelementptr [0 x i32], ptr addrspace(3) @lds.external, i32 0, i32 %arg1
+  %tmp = load i32, ptr addrspace(3) %gep0
 
-  %gep1 = getelementptr [8 x i32], [8 x i32] addrspace(3)* @lds.defined, i32 0, i32 %wave
-  store i32 123, i32 addrspace(3)* %gep1
+  %gep1 = getelementptr [8 x i32], ptr addrspace(3) @lds.defined, i32 0, i32 %wave
+  store i32 123, ptr addrspace(3) %gep1
 
   %r = bitcast i32 %tmp to float
   ret float %r

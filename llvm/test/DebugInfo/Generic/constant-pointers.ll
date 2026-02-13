@@ -4,7 +4,7 @@
 ; these could be signless data (dataN).
 
 ; Built with Clang from:
-; template <void *V, void (*F)(), int i>
+; template <ptr V, void (*F)(), int i>
 ; void func() {}
 ; template void func<nullptr, nullptr, 42>();
 
@@ -22,7 +22,7 @@ entry:
   ret void, !dbg !18
 }
 
-attributes #0 = { nounwind uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "use-soft-float"="false" }
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!15, !16}

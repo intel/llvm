@@ -63,6 +63,8 @@ class SPIRVLowerMemmovePass : public llvm::PassInfoMixin<SPIRVLowerMemmovePass>,
 public:
   llvm::PreservedAnalyses run(llvm::Module &M,
                               llvm::ModuleAnalysisManager &MAM);
+
+  static bool isRequired() { return true; }
 };
 
 class SPIRVLowerMemmoveLegacy : public llvm::ModulePass,

@@ -19,7 +19,7 @@
 #include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 
-#include "llvm/ADT/Triple.h"
+#include "llvm/TargetParser/Triple.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -183,7 +183,7 @@ DynamicLoaderWindowsDYLD::GetStepThroughTrampolinePlan(Thread &thread,
   AddressRange range(pc, 2 * 15);
 
   DisassemblerSP disassembler_sp = Disassembler::DisassembleRange(
-      arch, nullptr, nullptr, m_process->GetTarget(), range);
+      arch, nullptr, nullptr, nullptr, nullptr, m_process->GetTarget(), range);
   if (!disassembler_sp) {
     return ThreadPlanSP();
   }

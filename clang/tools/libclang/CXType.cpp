@@ -10,18 +10,21 @@
 //
 //===--------------------------------------------------------------------===//
 
+#include "CXType.h"
 #include "CIndexer.h"
 #include "CXCursor.h"
 #include "CXString.h"
 #include "CXTranslationUnit.h"
-#include "CXType.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/QualTypeNames.h"
+#include "clang/AST/RecordLayout.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/AddressSpaces.h"
 #include "clang/Frontend/ASTUnit.h"
+#include <optional>
 
 using namespace clang;
 
@@ -80,9 +83,11 @@ static CXTypeKind GetBuiltinTypeKind(const BuiltinType *BT) {
     BTCASE(OCLEvent);
     BTCASE(OCLQueue);
     BTCASE(OCLReserveID);
-  default:
-    return CXType_Unexposed;
-  }
+#define HLSL_INTANGIBLE_TYPE(Name, Id, SingletonId) BTCASE(Id);
+#include "clang/Basic/HLSLIntangibleTypes.def"
+    default:
+      return CXType_Unexposed;
+    }
 #undef BTCASE
 }
 
@@ -117,7 +122,6 @@ static CXTypeKind GetTypeKind(QualType T) {
     TKCASE(ExtVector);
     TKCASE(MemberPointer);
     TKCASE(Auto);
-    TKCASE(Elaborated);
     TKCASE(Pipe);
     TKCASE(Attributed);
     TKCASE(BTFTagAttributed);
@@ -184,7 +188,7 @@ static inline CXTranslationUnit GetTU(CXType CT) {
   return static_cast<CXTranslationUnit>(CT.data[1]);
 }
 
-static Optional<ArrayRef<TemplateArgument>>
+static std::optional<ArrayRef<TemplateArgument>>
 GetTemplateArguments(QualType Type) {
   assert(!Type.isNull());
   if (const auto *Specialization = Type->getAs<TemplateSpecializationType>())
@@ -197,16 +201,17 @@ GetTemplateArguments(QualType Type) {
       return TemplateDecl->getTemplateArgs().asArray();
   }
 
-  return None;
+  return std::nullopt;
 }
 
-static Optional<QualType> TemplateArgumentToQualType(const TemplateArgument &A) {
+static std::optional<QualType>
+TemplateArgumentToQualType(const TemplateArgument &A) {
   if (A.getKind() == TemplateArgument::Type)
     return A.getAsType();
-  return None;
+  return std::nullopt;
 }
 
-static Optional<QualType>
+static std::optional<QualType>
 FindTemplateArgumentTypeAt(ArrayRef<TemplateArgument> TA, unsigned index) {
   unsigned current = 0;
   for (const auto &A : TA) {
@@ -220,7 +225,12 @@ FindTemplateArgumentTypeAt(ArrayRef<TemplateArgument> TA, unsigned index) {
       return TemplateArgumentToQualType(A);
     current++;
   }
-  return None;
+  return std::nullopt;
+}
+
+static CXType getTypeDeclType(const ASTContext &Context, CXTranslationUnit TU,
+                              const TypeDecl *TD) {
+  return MakeCXType(Context.getTypeDeclType(TD), TU);
 }
 
 CXType clang_getCursorType(CXCursor C) {
@@ -242,7 +252,7 @@ CXType clang_getCursorType(CXCursor C) {
       return MakeCXType(QualType(), TU);
 
     if (const TypeDecl *TD = dyn_cast<TypeDecl>(D))
-      return MakeCXType(Context.getTypeDeclType(TD), TU);
+      return getTypeDeclType(Context, TU, TD);
     if (const ObjCInterfaceDecl *ID = dyn_cast<ObjCInterfaceDecl>(D))
       return MakeCXType(Context.getObjCInterfaceType(ID), TU);
     if (const DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D))
@@ -269,11 +279,8 @@ CXType clang_getCursorType(CXCursor C) {
       return MakeCXType(T, TU);
     }
 
-    case CXCursor_TypeRef: {
-      QualType T = Context.getTypeDeclType(getCursorTypeRef(C).first);
-      return MakeCXType(T, TU);
-
-    }
+    case CXCursor_TypeRef:
+      return getTypeDeclType(Context, TU, getCursorTypeRef(C).first);
 
     case CXCursor_CXXBaseSpecifier:
       return cxtype::MakeCXType(getCursorCXXBaseSpecifier(C)->getType(), TU);
@@ -313,6 +320,36 @@ CXString clang_getTypeSpelling(CXType CT) {
   return cxstring::createDup(OS.str());
 }
 
+CXString clang_getTypePrettyPrinted(CXType CT, CXPrintingPolicy cxPolicy) {
+  QualType T = GetQualType(CT);
+  if (T.isNull())
+    return cxstring::createEmpty();
+
+  SmallString<64> Str;
+  llvm::raw_svector_ostream OS(Str);
+  PrintingPolicy *UserPolicy = static_cast<PrintingPolicy *>(cxPolicy);
+
+  T.print(OS, *UserPolicy);
+
+  return cxstring::createDup(OS.str());
+}
+
+CXString clang_getFullyQualifiedName(CXType CT, CXPrintingPolicy cxPolicy,
+                                     unsigned int WithGlobalNsPrefix) {
+  const QualType T = GetQualType(CT);
+  if (T.isNull())
+    return cxstring::createEmpty();
+  const CXTranslationUnit TU = GetTU(CT);
+  const ASTContext &Ctx = cxtu::getASTUnit(TU)->getASTContext();
+  const PrintingPolicy *UserPolicy = static_cast<PrintingPolicy *>(cxPolicy);
+  const bool WithGlobalNs = (WithGlobalNsPrefix != 0);
+
+  const std::string Str =
+      TypeName::getFullyQualifiedName(T, Ctx, *UserPolicy, WithGlobalNs);
+
+  return cxstring::createDup(Str);
+}
+
 CXType clang_getTypedefDeclUnderlyingType(CXCursor C) {
   using namespace cxcursor;
   CXTranslationUnit TU = cxcursor::getCursorTU(C);
@@ -324,8 +361,6 @@ CXType clang_getTypedefDeclUnderlyingType(CXCursor C) {
       QualType T = TD->getUnderlyingType();
       return MakeCXType(T, TU);
     }
-
-    return MakeCXType(QualType(), TU);
   }
 
   return MakeCXType(QualType(), TU);
@@ -342,8 +377,6 @@ CXType clang_getEnumDeclIntegerType(CXCursor C) {
       QualType T = TD->getIntegerType();
       return MakeCXType(T, TU);
     }
-
-    return MakeCXType(QualType(), TU);
   }
 
   return MakeCXType(QualType(), TU);
@@ -358,8 +391,6 @@ long long clang_getEnumConstantDeclValue(CXCursor C) {
     if (const EnumConstantDecl *TD = dyn_cast_or_null<EnumConstantDecl>(D)) {
       return TD->getInitVal().getSExtValue();
     }
-
-    return LLONG_MIN;
   }
 
   return LLONG_MIN;
@@ -374,8 +405,6 @@ unsigned long long clang_getEnumConstantDeclUnsignedValue(CXCursor C) {
     if (const EnumConstantDecl *TD = dyn_cast_or_null<EnumConstantDecl>(D)) {
       return TD->getInitVal().getZExtValue();
     }
-
-    return ULLONG_MAX;
   }
 
   return ULLONG_MAX;
@@ -388,8 +417,8 @@ int clang_getFieldDeclBitWidth(CXCursor C) {
     const Decl *D = getCursorDecl(C);
 
     if (const FieldDecl *FD = dyn_cast_or_null<FieldDecl>(D)) {
-      if (FD->isBitField())
-        return FD->getBitWidthValue(getCursorContext(C));
+      if (FD->isBitField() && !FD->getBitWidth()->isValueDependent())
+        return FD->getBitWidthValue();
     }
   }
 
@@ -542,11 +571,7 @@ try_again:
     D = cast<InjectedClassNameType>(TP)->getDecl();
     break;
 
-  // FIXME: Template type parameters!      
-
-  case Type::Elaborated:
-    TP = cast<ElaboratedType>(TP)->getNamedType().getTypePtrOrNull();
-    goto try_again;
+    // FIXME: Template type parameters!
 
   default:
     break;
@@ -628,6 +653,8 @@ CXString clang_getTypeKindSpelling(enum CXTypeKind K) {
     TKIND(Pipe);
     TKIND(Attributed);
     TKIND(BTFTagAttributed);
+    TKIND(HLSLAttributedResource);
+    TKIND(HLSLInlineSpirv);
     TKIND(BFloat16);
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) TKIND(Id);
 #include "clang/Basic/OpenCLImageTypes.def"
@@ -643,6 +670,8 @@ CXString clang_getTypeKindSpelling(enum CXTypeKind K) {
     TKIND(OCLEvent);
     TKIND(OCLQueue);
     TKIND(OCLReserveID);
+#define HLSL_INTANGIBLE_TYPE(Name, Id, SingletonId) TKIND(Id);
+#include "clang/Basic/HLSLIntangibleTypes.def"
     TKIND(Atomic);
   }
 #undef TKIND
@@ -693,9 +722,24 @@ CXCallingConv clang_getFunctionTypeCallingConv(CXType X) {
       TCALLINGCONV(SwiftAsync);
       TCALLINGCONV(PreserveMost);
       TCALLINGCONV(PreserveAll);
+      TCALLINGCONV(M68kRTD);
+      TCALLINGCONV(PreserveNone);
+      TCALLINGCONV(RISCVVectorCall);
+      TCALLINGCONV(RISCVVLSCall_32);
+      TCALLINGCONV(RISCVVLSCall_64);
+      TCALLINGCONV(RISCVVLSCall_128);
+      TCALLINGCONV(RISCVVLSCall_256);
+      TCALLINGCONV(RISCVVLSCall_512);
+      TCALLINGCONV(RISCVVLSCall_1024);
+      TCALLINGCONV(RISCVVLSCall_2048);
+      TCALLINGCONV(RISCVVLSCall_4096);
+      TCALLINGCONV(RISCVVLSCall_8192);
+      TCALLINGCONV(RISCVVLSCall_16384);
+      TCALLINGCONV(RISCVVLSCall_32768);
+      TCALLINGCONV(RISCVVLSCall_65536);
     case CC_SpirFunction: return CXCallingConv_Unexposed;
-    case CC_AMDGPUKernelCall: return CXCallingConv_Unexposed;
-    case CC_OpenCLKernel: return CXCallingConv_Unexposed;
+    case CC_DeviceKernel:
+      return CXCallingConv_Unexposed;
       break;
     }
 #undef TCALLINGCONV
@@ -946,12 +990,14 @@ long long clang_Type_getAlignOf(CXType T) {
 }
 
 CXType clang_Type_getClassType(CXType CT) {
+  ASTContext &Ctx = cxtu::getASTUnit(GetTU(CT))->getASTContext();
   QualType ET = QualType();
   QualType T = GetQualType(CT);
   const Type *TP = T.getTypePtrOrNull();
 
   if (TP && TP->getTypeClass() == Type::MemberPointer) {
-    ET = QualType(cast<MemberPointerType> (TP)->getClass(), 0);
+    ET = Ctx.getCanonicalTagType(
+        cast<MemberPointerType>(TP)->getMostRecentCXXRecordDecl());
   }
   return MakeCXType(ET, GetTU(CT));
 }
@@ -1101,6 +1147,39 @@ long long clang_Cursor_getOffsetOfField(CXCursor C) {
   return -1;
 }
 
+long long clang_getOffsetOfBase(CXCursor Parent, CXCursor Base) {
+  if (Base.kind != CXCursor_CXXBaseSpecifier)
+    return -1;
+
+  if (!clang_isDeclaration(Parent.kind))
+    return -1;
+
+  // we need to validate the parent type
+  CXType PT = clang_getCursorType(Parent);
+  long long Error = validateFieldParentType(Parent, PT);
+  if (Error < 0)
+    return Error;
+
+  const CXXRecordDecl *ParentRD =
+      dyn_cast<CXXRecordDecl>(cxcursor::getCursorDecl(Parent));
+  if (!ParentRD)
+    return -1;
+
+  ASTContext &Ctx = cxcursor::getCursorContext(Base);
+  const CXXBaseSpecifier *B = cxcursor::getCursorCXXBaseSpecifier(Base);
+  if (ParentRD->bases_begin() > B || ParentRD->bases_end() <= B)
+    return -1;
+
+  const CXXRecordDecl *BaseRD = B->getType()->getAsCXXRecordDecl();
+  if (!BaseRD)
+    return -1;
+
+  const ASTRecordLayout &Layout = Ctx.getASTRecordLayout(ParentRD);
+  if (B->isVirtual())
+    return Ctx.toBits(Layout.getVBaseClassOffset(BaseRD));
+  return Ctx.toBits(Layout.getBaseClassOffset(BaseRD));
+}
+
 enum CXRefQualifierKind clang_Type_getCXXRefQualifier(CXType T) {
   QualType QT = GetQualType(T);
   if (QT.isNull())
@@ -1184,7 +1263,7 @@ CXType clang_Type_getTemplateArgumentAsType(CXType CT, unsigned index) {
   if (!TA)
     return MakeCXType(QualType(), GetTU(CT));
 
-  Optional<QualType> QT = FindTemplateArgumentTypeAt(*TA, index);
+  std::optional<QualType> QT = FindTemplateArgumentTypeAt(*TA, index);
   return MakeCXType(QT.value_or(QualType()), GetTU(CT));
 }
 
@@ -1317,10 +1396,9 @@ unsigned clang_Cursor_isInlineNamespace(CXCursor C) {
 
 CXType clang_Type_getNamedType(CXType CT){
   QualType T = GetQualType(CT);
-  const Type *TP = T.getTypePtrOrNull();
 
-  if (TP && TP->getTypeClass() == Type::Elaborated)
-    return MakeCXType(cast<ElaboratedType>(TP)->getNamedType(), GetTU(CT));
+  if (!T.isNull() && !T.isCanonical())
+    return MakeCXType(T, GetTU(CT));
 
   return MakeCXType(QualType(), GetTU(CT));
 }
@@ -1339,8 +1417,7 @@ enum CXTypeNullabilityKind clang_Type_getNullability(CXType CT) {
   if (T.isNull())
     return CXTypeNullability_Invalid;
 
-  ASTContext &Ctx = cxtu::getASTUnit(GetTU(CT))->getASTContext();
-  if (auto nullability = T->getNullability(Ctx)) {
+  if (auto nullability = T->getNullability()) {
     switch (*nullability) {
       case NullabilityKind::NonNull:
         return CXTypeNullability_NonNull;

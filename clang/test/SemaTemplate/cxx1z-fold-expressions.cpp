@@ -97,7 +97,7 @@ namespace PR41845 {
   template <int I> struct Constant {};
 
   template <int... Is> struct Sum {
-    template <int... Js> using type = Constant<((Is + Js) + ... + 0)>; // expected-error {{pack expansion contains parameter packs 'Is' and 'Js' that have different lengths (1 vs. 2)}}
+    template <int... Js> using type = Constant<((Is + Js) + ... + 0)>; // expected-error {{pack expansion contains parameter pack 'Js' that has a different length (1 vs. 2) from outer parameter packs}}
   };
 
   Sum<1>::type<1, 2> x; // expected-note {{instantiation of}}
@@ -124,3 +124,38 @@ namespace PR30738 {
   int test_h3 = h<struct X>(1, 2, 3);
   N::S test_h4 = h<struct X>(N::S(), N::S(), N::S()); // expected-note {{instantiation of}}
 }
+
+namespace GH67395 {
+template <typename>
+bool f();
+
+template <typename... T>
+void g(bool = (f<T>() || ...));
+}
+
+
+namespace comparison_warning {
+  struct S {
+    bool operator<(const S&) const;
+    bool operator<(int) const;
+    bool operator==(const S&) const;
+  };
+
+  template <typename...T>
+  void f(T... ts) {
+    (void)(ts == ...);
+    // expected-error@-1 2{{comparison in fold expression would evaluate to '(X == Y) == Z'}}
+    (void)(ts < ...);
+    // expected-error@-1 2{{comparison in fold expression would evaluate to '(X < Y) < Z'}}
+    (void)(... < ts);
+    // expected-error@-1 2{{comparison in fold expression would evaluate to '(X < Y) < Z'}}
+  }
+
+  void test() {
+    f(0, 1, 2); // expected-note{{in instantiation}}
+    f(0, 1); // expected-note{{in instantiation}}
+    f(S{}, S{});
+    f(0);
+  }
+
+};

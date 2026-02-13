@@ -15,9 +15,10 @@
 #ifndef MLIR_DIALECT_SPIRV_IR_STRUCTURE_OPS
 #define MLIR_DIALECT_SPIRV_IR_STRUCTURE_OPS
 
+include "mlir/Dialect/SPIRV/IR/SPIRVAttributes.td"
 include "mlir/Dialect/SPIRV/IR/SPIRVBase.td"
 include "mlir/IR/BuiltinAttributeInterfaces.td"
-include "mlir/IR/FunctionInterfaces.td"
+include "mlir/Interfaces/FunctionInterfaces.td"
 include "mlir/IR/OpAsmInterface.td"
 include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Interfaces/CallInterfaces.td"
@@ -27,7 +28,7 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 
 def SPIRV_AddressOfOp : SPIRV_Op<"mlir.addressof",
     [DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
-     InFunctionScope, NoSideEffect]> {
+     InFunctionScope, Pure]> {
   let summary = "Get the address of a global variable.";
 
   let description = [{
@@ -38,13 +39,6 @@ def SPIRV_AddressOfOp : SPIRV_Op<"mlir.addressof",
     dialect. Since variables in module scope in SPIR-V dialect are of pointer
     type, this op returns a pointer type as well, and the type is the same as
     the variable referenced.
-
-    <!-- End of AutoGen section -->
-
-    ```
-    spv-address-of-op ::= ssa-id `=` `spirv.mlir.addressof` symbol-ref-id
-                                     `:` spirv-pointer-type
-    ```
 
     #### Example:
 
@@ -75,7 +69,7 @@ def SPIRV_AddressOfOp : SPIRV_Op<"mlir.addressof",
 def SPIRV_ConstantOp : SPIRV_Op<"Constant",
     [ConstantLike,
      DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
-     NoSideEffect]> {
+     Pure]> {
   let summary = [{
     Declare a new integer-type or floating-point-type scalar constant.
   }];
@@ -107,7 +101,7 @@ def SPIRV_ConstantOp : SPIRV_Op<"Constant",
 
     ```mlir
     %0 = spirv.Constant true
-    %1 = spirv.Constant dense<[2, 3]> : vector<2xf32>
+    %1 = spirv.Constant dense<[2.0, 3.0]> : vector<2xf32>
     %2 = spirv.Constant [dense<3.0> : vector<2xf32>] : !spirv.array<1xvector<2xf32>>
     ```
 
@@ -141,6 +135,47 @@ def SPIRV_ConstantOp : SPIRV_Op<"Constant",
   let autogenSerialization = 0;
 }
 
+
+// -----
+
+def SPIRV_EXTConstantCompositeReplicateOp : SPIRV_ExtVendorOp<"ConstantCompositeReplicate", [Pure]> {
+  let summary = [{
+    Declare a new replicated composite constant op.
+  }];
+
+  let description = [{
+    Represents a splat composite constant i.e., all elements of composite constant
+    have the same value.
+
+    #### Example:
+
+    ```mlir
+    %0 = spirv.EXT.ConstantCompositeReplicate [1 : i32] : vector<2xi32>
+    %1 = spirv.EXT.ConstantCompositeReplicate [1 : i32] : !spirv.array<2 x vector<2xi32>>
+    %2 = spirv.EXT.ConstantCompositeReplicate [dense<[1, 2]> : vector<2xi32>] : !spirv.array<2 x vector<2xi32>>
+    ```
+  }];
+
+  let availability = [
+    MinVersion<SPIRV_V_1_0>,
+    MaxVersion<SPIRV_V_1_6>,
+    Extension<[SPV_EXT_replicated_composites]>,
+    Capability<[SPIRV_C_ReplicatedCompositesEXT]>
+  ];
+
+  let arguments = (ins
+    AnyAttr:$value
+  );
+
+  let results = (outs
+    SPIRV_Composite:$replicated_constant
+  );
+
+  let autogenSerialization = 0;
+
+  let assemblyFormat = "` ` `[` $value `]` `:` type($replicated_constant) attr-dict";
+}
+
 // -----
 
 def SPIRV_EntryPointOp : SPIRV_Op<"EntryPoint", [InModuleScope]> {
@@ -152,7 +187,7 @@ def SPIRV_EntryPointOp : SPIRV_Op<"EntryPoint", [InModuleScope]> {
     Execution Model is the execution model for the entry point and its
     static call tree. See Execution Model.
 
-    Entry Point must be the Result <id> of an OpFunction instruction.
+    Entry Point must be the Result `<id>` of an OpFunction instruction.
 
     Name is a name string for the entry point. A module cannot have two
     OpEntryPoint instructions with the same Execution Model and the same
@@ -209,14 +244,14 @@ def SPIRV_ExecutionModeOp : SPIRV_Op<"ExecutionMode", [InModuleScope]> {
   let summary = "Declare an execution mode for an entry point.";
 
   let description = [{
-    Entry Point must be the Entry Point <id> operand of an OpEntryPoint
+    Entry Point must be the Entry Point `<id>` operand of an OpEntryPoint
     instruction.
 
     Mode is the execution mode. See Execution Mode.
 
     This instruction is only valid when the Mode operand is an execution
     mode that takes no Extra Operands, or takes Extra Operands that are not
-    <id> operands.
+    `<id>` operands.
 
     <!-- End of AutoGen section -->
 
@@ -256,8 +291,8 @@ def SPIRV_ExecutionModeOp : SPIRV_Op<"ExecutionMode", [InModuleScope]> {
 // -----
 
 def SPIRV_FuncOp : SPIRV_Op<"func", [
-    AutomaticAllocationScope, DeclareOpInterfaceMethods<CallableOpInterface>,
-    FunctionOpInterface, InModuleScope, IsolatedFromAbove, Symbol
+    AutomaticAllocationScope, FunctionOpInterface,
+    InModuleScope, IsolatedFromAbove
   ]> {
   let summary = "Declare or define a function";
 
@@ -273,6 +308,15 @@ def SPIRV_FuncOp : SPIRV_Op<"func", [
     This op itself takes no operands and generates no results. Its region
     can take zero or more arguments and return zero or one values.
 
+    From `SPV_KHR_physical_storage_buffer`:
+    If a parameter of function is
+    - a pointer (or contains a pointer) in the PhysicalStorageBuffer storage
+      class, the function parameter must be decorated with exactly one of
+      `Aliased` or `Restrict`.
+    - a pointer (or contains a pointer) and the type it points to is a pointer
+      in the PhysicalStorageBuffer storage class, the function parameter must
+      be decorated with exactly one of `AliasedPointer` or `RestrictPointer`.
+
     <!-- End of AutoGen section -->
 
     ```
@@ -286,13 +330,30 @@ def SPIRV_FuncOp : SPIRV_Op<"func", [
     ```mlir
     spirv.func @foo() -> () "None" { ... }
     spirv.func @bar() -> () "Inline|Pure" { ... }
+
+    spirv.func @aliased_pointer(%arg0: !spirv.ptr<i32, PhysicalStorageBuffer>,
+        { spirv.decoration = #spirv.decoration<Aliased> }) -> () "None" { ... }
+
+    spirv.func @restrict_pointer(%arg0: !spirv.ptr<i32, PhysicalStorageBuffer>,
+        { spirv.decoration = #spirv.decoration<Restrict> }) -> () "None" { ... }
+
+    spirv.func @aliased_pointee(%arg0: !spirv.ptr<!spirv.ptr<i32,
+        PhysicalStorageBuffer>, Generic> { spirv.decoration =
+        #spirv.decoration<AliasedPointer> }) -> () "None" { ... }
+
+    spirv.func @restrict_pointee(%arg0: !spirv.ptr<!spirv.ptr<i32,
+        PhysicalStorageBuffer>, Generic> { spirv.decoration =
+        #spirv.decoration<RestrictPointer> }) -> () "None" { ... }
     ```
   }];
 
   let arguments = (ins
     TypeAttrOf<FunctionType>:$function_type,
+    OptionalAttr<DictArrayAttr>:$arg_attrs,
+    OptionalAttr<DictArrayAttr>:$res_attrs,
     StrAttr:$sym_name,
-    SPIRV_FunctionControlAttr:$function_control
+    SPIRV_FunctionControlAttr:$function_control,
+    OptionalAttr<SPIRV_LinkageAttributesAttr>:$linkage_attributes
   );
 
   let results = (outs);
@@ -311,12 +372,6 @@ def SPIRV_FuncOp : SPIRV_Op<"func", [
   let autogenSerialization = 0;
 
   let extraClassDeclaration = [{
-    /// Returns the argument types of this function.
-    ArrayRef<Type> getArgumentTypes() { return getFunctionType().getInputs(); }
-
-    /// Returns the result types of this function.
-    ArrayRef<Type> getResultTypes() { return getFunctionType().getResults(); }
-
     /// Hook for FunctionOpInterface, called after verifying that the 'type'
     /// attribute is present and checks if it holds a function type. Ensures
     /// getType, getNumArguments, and getNumResults can be called safely
@@ -326,6 +381,19 @@ def SPIRV_FuncOp : SPIRV_Op<"func", [
     /// type and the presence of the (potentially empty) function body.
     /// Ensures SPIR-V specific semantics.
     LogicalResult verifyBody();
+
+    //===------------------------------------------------------------------===//
+    // FunctionOpInterface Methods
+    //===------------------------------------------------------------------===//
+
+    /// Returns the argument types of this function.
+    ArrayRef<Type> getArgumentTypes() { return getFunctionType().getInputs(); }
+
+    /// Returns the result types of this function.
+    ArrayRef<Type> getResultTypes() { return getFunctionType().getResults(); }
+
+    // CallableOpInterface
+    Region *getCallableRegion() { return isExternal() ? nullptr : &getBody(); }
   }];
 }
 
@@ -383,7 +451,8 @@ def SPIRV_GlobalVariableOp : SPIRV_Op<"GlobalVariable", [InModuleScope, Symbol]>
     OptionalAttr<I32Attr>:$location,
     OptionalAttr<I32Attr>:$binding,
     OptionalAttr<I32Attr>:$descriptor_set,
-    OptionalAttr<StrAttr>:$builtin
+    OptionalAttr<StrAttr>:$built_in,
+    OptionalAttr<SPIRV_LinkageAttributesAttr>:$linkage_attributes
   );
 
   let results = (outs);
@@ -424,7 +493,7 @@ def SPIRV_GlobalVariableOp : SPIRV_Op<"GlobalVariable", [InModuleScope, Symbol]>
 
   let extraClassDeclaration = [{
     ::mlir::spirv::StorageClass storageClass() {
-      return this->getType().cast<::mlir::spirv::PointerType>().getStorageClass();
+      return ::llvm::cast<::mlir::spirv::PointerType>(this->getType()).getStorageClass();
     }
   }];
 }
@@ -490,11 +559,11 @@ def SPIRV_ModuleOp : SPIRV_Op<"module",
   let regions = (region AnyRegion);
 
   let builders = [
-    OpBuilder<(ins CArg<"Optional<StringRef>", "llvm::None">:$name)>,
+    OpBuilder<(ins CArg<"std::optional<StringRef>", "std::nullopt">:$name)>,
     OpBuilder<(ins "spirv::AddressingModel":$addressing_model,
                    "spirv::MemoryModel":$memory_model,
-                   CArg<"Optional<spirv::VerCapExtAttr>", "llvm::None">:$vce_triple,
-                   CArg<"Optional<StringRef>", "llvm::None">:$name)>
+                   CArg<"std::optional<spirv::VerCapExtAttr>", "std::nullopt">:$vce_triple,
+                   CArg<"std::optional<StringRef>", "std::nullopt">:$name)>
   ];
 
   // We need to ensure the block inside the region is properly terminated;
@@ -509,7 +578,7 @@ def SPIRV_ModuleOp : SPIRV_Op<"module",
 
     bool isOptionalSymbol() { return true; }
 
-    Optional<StringRef> getName() { return getSymName(); }
+    std::optional<StringRef> getName() { return getSymName(); }
 
     static StringRef getVCETripleAttrName() { return "vce_triple"; }
   }];
@@ -520,7 +589,7 @@ def SPIRV_ModuleOp : SPIRV_Op<"module",
 
 // -----
 
-def SPIRV_ReferenceOfOp : SPIRV_Op<"mlir.referenceof", [NoSideEffect]> {
+def SPIRV_ReferenceOfOp : SPIRV_Op<"mlir.referenceof", [Pure]> {
   let summary = "Reference a specialization constant.";
 
   let description = [{
@@ -530,13 +599,6 @@ def SPIRV_ReferenceOfOp : SPIRV_Op<"mlir.referenceof", [NoSideEffect]> {
     This operation has no corresponding SPIR-V instruction; it's merely used
     for modelling purpose in the SPIR-V dialect. This op's return type is
     the same as the specialization constant.
-
-    <!-- End of AutoGen section -->
-
-    ```
-    spv-reference-of-op ::= ssa-id `=` `spirv.mlir.referenceof` symbol-ref-id
-                                       `:` spirv-scalar-type
-    ```
 
     #### Example:
 
@@ -668,8 +730,45 @@ def SPIRV_SpecConstantCompositeOp : SPIRV_Op<"SpecConstantComposite", [
 
 // -----
 
+def SPIRV_EXTSpecConstantCompositeReplicateOp : SPIRV_ExtVendorOp<"SpecConstantCompositeReplicate", [InModuleScope, Symbol]> {
+  let summary = "Declare a new replicated composite specialization constant op.";
+
+  let description = [{
+    Represents a splat spec composite constant i.e., all elements of spec composite
+    constant have the same value. The splat value must come from a symbol reference
+    of spec constant instruction.
+
+    #### Example:
+
+    ```mlir
+    spirv.SpecConstant @sc_i32_1 = 1 : i32
+    spirv.EXT.SpecConstantCompositeReplicate @scc_splat_array_of_i32 (@sc_i32_1) : !spirv.array<3 x i32>
+    spirv.EXT.SpecConstantCompositeReplicate @scc_splat_struct_of_i32 (@sc_i32_1) : !spirv.struct<(i32, i32, i32)>
+    ```
+  }];
+
+  let availability = [
+    MinVersion<SPIRV_V_1_0>,
+    MaxVersion<SPIRV_V_1_6>,
+    Extension<[SPV_EXT_replicated_composites]>,
+    Capability<[SPIRV_C_ReplicatedCompositesEXT]>
+  ];
+
+  let arguments = (ins
+    TypeAttr:$type,
+    StrAttr:$sym_name,
+    SymbolRefAttr:$constituent
+  );
+
+  let results = (outs);
+
+  let autogenSerialization = 0;
+}
+
+// -----
+
 def SPIRV_SpecConstantOperationOp : SPIRV_Op<"SpecConstantOperation", [
-       NoSideEffect, InFunctionScope,
+       Pure, InFunctionScope,
        SingleBlockImplicitTerminator<"YieldOp">]> {
   let summary = [{
     Declare a new specialization constant that results from doing an operation.
@@ -760,7 +859,7 @@ def SPIRV_SpecConstantOperationOp : SPIRV_Op<"SpecConstantOperation", [
 // -----
 
 def SPIRV_YieldOp : SPIRV_Op<"mlir.yield", [
-    HasParent<"SpecConstantOperationOp">, NoSideEffect, Terminator]> {
+    HasParent<"SpecConstantOperationOp">, Pure, Terminator]> {
   let summary = [{
     Yields the result computed in `spirv.SpecConstantOperation`'s
     region back to the parent op.
@@ -773,11 +872,8 @@ def SPIRV_YieldOp : SPIRV_Op<"mlir.yield", [
     in its parent block (see SPIRV_SpecConstantOperation for further
     details). This op has no corresponding SPIR-V instruction.
 
-    ```
-    spirv.mlir.yield ::= `spirv.mlir.yield` ssa-id : spirv-type
-    ```
-
     #### Example:
+
     ```mlir
     %0 = ... (some op supported by SPIR-V OpSpecConstantOp)
     spirv.mlir.yield %0

@@ -15,6 +15,7 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Matchers.h"
 #include "llvm/Support/FormatVariadic.h"
+#include "llvm/Support/InterleavedRange.h"
 
 using namespace mlir;
 
@@ -22,39 +23,90 @@ namespace mlir {
 #include "mlir/Interfaces/InferTypeOpInterface.cpp.inc"
 } // namespace mlir
 
+LogicalResult
+mlir::reifyResultShapes(OpBuilder &b, Operation *op,
+                        ReifiedRankedShapedTypeDims &reifiedReturnShapes) {
+  auto reifiableOp = dyn_cast<ReifyRankedShapedTypeOpInterface>(op);
+  if (!reifiableOp)
+    return failure();
+  LogicalResult status = reifiableOp.reifyResultShapes(b, reifiedReturnShapes);
+#ifndef NDEBUG
+  if (failed(status))
+    return failure();
+  // Assert that ReifyRankedShapedTypeOpInterface::reifyResultShapes produced
+  // a correct result.
+  int64_t resultIdx = 0;
+  for (OpResult result : op->getResults()) {
+    auto shapedType = dyn_cast<ShapedType>(result.getType());
+    if (!shapedType)
+      continue;
+    if (!shapedType.hasRank()) {
+      // Nothing to check for unranked shaped values.
+      ++resultIdx;
+      continue;
+    }
+    // Assert one OpFoldResult per dimension.
+    assert(shapedType.getRank() ==
+               static_cast<int64_t>(reifiedReturnShapes[resultIdx].size()) &&
+           "incorrect implementation of ReifyRankedShapedTypeOpInterface");
+    ++resultIdx;
+  }
+  // Assert that every shaped value result was reified.
+  assert(resultIdx == static_cast<int64_t>(reifiedReturnShapes.size()) &&
+         "incorrect implementation of ReifyRankedShapedTypeOpInterface");
+#endif // NDEBUG
+  return status;
+}
+
+FailureOr<SmallVector<OpFoldResult>>
+mlir::reifyShapeOfResult(OpBuilder &b, Operation *op, int resultIndex) {
+  auto reifiableOp = dyn_cast<ReifyRankedShapedTypeOpInterface>(op);
+  if (!reifiableOp)
+    return failure();
+  return reifiableOp.reifyShapeOfResult(b, resultIndex);
+}
+
+FailureOr<OpFoldResult> mlir::reifyDimOfResult(OpBuilder &b, Operation *op,
+                                               int resultIndex, int dim) {
+  auto reifiableOp = dyn_cast<ReifyRankedShapedTypeOpInterface>(op);
+  if (!reifiableOp)
+    return failure();
+  return reifiableOp.reifyDimOfResult(b, resultIndex, dim);
+}
+
 bool ShapeAdaptor::hasRank() const {
   if (val.isNull())
     return false;
-  if (auto t = val.dyn_cast<Type>())
-    return t.cast<ShapedType>().hasRank();
-  if (val.is<Attribute>())
+  if (auto t = llvm::dyn_cast_if_present<Type>(val))
+    return cast<ShapedType>(t).hasRank();
+  if (isa<Attribute>(val))
     return true;
-  return val.get<ShapedTypeComponents *>()->hasRank();
+  return cast<ShapedTypeComponents *>(val)->hasRank();
 }
 
 Type ShapeAdaptor::getElementType() const {
   if (val.isNull())
     return nullptr;
-  if (auto t = val.dyn_cast<Type>())
-    return t.cast<ShapedType>().getElementType();
-  if (val.is<Attribute>())
+  if (auto t = llvm::dyn_cast_if_present<Type>(val))
+    return cast<ShapedType>(t).getElementType();
+  if (isa<Attribute>(val))
     return nullptr;
-  return val.get<ShapedTypeComponents *>()->getElementType();
+  return cast<ShapedTypeComponents *>(val)->getElementType();
 }
 
 void ShapeAdaptor::getDims(SmallVectorImpl<int64_t> &res) const {
   assert(hasRank());
-  if (auto t = val.dyn_cast<Type>()) {
-    ArrayRef<int64_t> vals = t.cast<ShapedType>().getShape();
+  if (auto t = llvm::dyn_cast_if_present<Type>(val)) {
+    ArrayRef<int64_t> vals = cast<ShapedType>(t).getShape();
     res.assign(vals.begin(), vals.end());
-  } else if (auto attr = val.dyn_cast<Attribute>()) {
-    auto dattr = attr.cast<DenseIntElementsAttr>();
+  } else if (auto attr = llvm::dyn_cast_if_present<Attribute>(val)) {
+    auto dattr = cast<DenseIntElementsAttr>(attr);
     res.clear();
     res.reserve(dattr.size());
     for (auto it : dattr.getValues<APInt>())
       res.push_back(it.getSExtValue());
   } else {
-    auto vals = val.get<ShapedTypeComponents *>()->getDims();
+    auto vals = cast<ShapedTypeComponents *>(val)->getDims();
     res.assign(vals.begin(), vals.end());
   }
 }
@@ -67,50 +119,50 @@ void ShapeAdaptor::getDims(ShapedTypeComponents &res) const {
 
 int64_t ShapeAdaptor::getDimSize(int index) const {
   assert(hasRank());
-  if (auto t = val.dyn_cast<Type>())
-    return t.cast<ShapedType>().getDimSize(index);
-  if (auto attr = val.dyn_cast<Attribute>())
-    return attr.cast<DenseIntElementsAttr>()
+  if (auto t = llvm::dyn_cast_if_present<Type>(val))
+    return cast<ShapedType>(t).getDimSize(index);
+  if (auto attr = llvm::dyn_cast_if_present<Attribute>(val))
+    return cast<DenseIntElementsAttr>(attr)
         .getValues<APInt>()[index]
         .getSExtValue();
-  auto *stc = val.get<ShapedTypeComponents *>();
+  auto *stc = cast<ShapedTypeComponents *>(val);
   return stc->getDims()[index];
 }
 
 int64_t ShapeAdaptor::getRank() const {
   assert(hasRank());
-  if (auto t = val.dyn_cast<Type>())
-    return t.cast<ShapedType>().getRank();
-  if (auto attr = val.dyn_cast<Attribute>())
-    return attr.cast<DenseIntElementsAttr>().size();
-  return val.get<ShapedTypeComponents *>()->getDims().size();
+  if (auto t = llvm::dyn_cast_if_present<Type>(val))
+    return cast<ShapedType>(t).getRank();
+  if (auto attr = llvm::dyn_cast_if_present<Attribute>(val))
+    return cast<DenseIntElementsAttr>(attr).size();
+  return cast<ShapedTypeComponents *>(val)->getDims().size();
 }
 
 bool ShapeAdaptor::hasStaticShape() const {
   if (!hasRank())
     return false;
 
-  if (auto t = val.dyn_cast<Type>())
-    return t.cast<ShapedType>().hasStaticShape();
-  if (auto attr = val.dyn_cast<Attribute>()) {
-    auto dattr = attr.cast<DenseIntElementsAttr>();
+  if (auto t = llvm::dyn_cast_if_present<Type>(val))
+    return cast<ShapedType>(t).hasStaticShape();
+  if (auto attr = llvm::dyn_cast_if_present<Attribute>(val)) {
+    auto dattr = cast<DenseIntElementsAttr>(attr);
     for (auto index : dattr.getValues<APInt>())
       if (ShapedType::isDynamic(index.getSExtValue()))
         return false;
     return true;
   }
-  auto *stc = val.get<ShapedTypeComponents *>();
+  auto *stc = cast<ShapedTypeComponents *>(val);
   return llvm::none_of(stc->getDims(), ShapedType::isDynamic);
 }
 
 int64_t ShapeAdaptor::getNumElements() const {
   assert(hasStaticShape() && "cannot get element count of dynamic shaped type");
 
-  if (auto t = val.dyn_cast<Type>())
-    return t.cast<ShapedType>().getNumElements();
+  if (auto t = llvm::dyn_cast_if_present<Type>(val))
+    return cast<ShapedType>(t).getNumElements();
 
-  if (auto attr = val.dyn_cast<Attribute>()) {
-    auto dattr = attr.cast<DenseIntElementsAttr>();
+  if (auto attr = llvm::dyn_cast_if_present<Attribute>(val)) {
+    auto dattr = cast<DenseIntElementsAttr>(attr);
     int64_t num = 1;
     for (auto index : dattr.getValues<APInt>()) {
       num *= index.getZExtValue();
@@ -119,7 +171,7 @@ int64_t ShapeAdaptor::getNumElements() const {
     return num;
   }
 
-  auto *stc = val.get<ShapedTypeComponents *>();
+  auto *stc = cast<ShapedTypeComponents *>(val);
   int64_t num = 1;
   for (int64_t dim : stc->getDims()) {
     num *= dim;
@@ -141,9 +193,8 @@ void ShapeAdaptor::dump() const {
       return "?";
     return llvm::formatv("{0}", dim).str();
   });
-  llvm::errs() << "rank = " << getRank() << " dims = [";
-  llvm::interleave(mapped, llvm::errs(), "x");
-  llvm::errs() << "]\n";
+  llvm::errs() << "rank = " << getRank()
+               << " dims = " << llvm::interleaved_array(mapped, "x") << "\n";
 }
 
 ShapeAdaptor ValueShapeRange::getValueAsShape(int index) {
@@ -174,28 +225,20 @@ ShapeAdaptor ValueShapeRange::getShape(int index) const {
 }
 
 LogicalResult mlir::detail::inferReturnTensorTypes(
-    function_ref<LogicalResult(
-        MLIRContext *, Optional<Location> location, ValueShapeRange operands,
-        DictionaryAttr attributes, RegionRange regions,
-        SmallVectorImpl<ShapedTypeComponents> &retComponents)>
-        componentTypeFn,
-    MLIRContext *context, Optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, RegionRange regions,
+    ArrayRef<ShapedTypeComponents> retComponents,
     SmallVectorImpl<Type> &inferredReturnTypes) {
-  SmallVector<ShapedTypeComponents, 2> retComponents;
-  if (failed(componentTypeFn(context, location, operands, attributes, regions,
-                             retComponents)))
-    return failure();
   for (const auto &shapeAndType : retComponents) {
-    assert(shapeAndType.getAttribute() == nullptr && "attribute not supported");
-    assert(shapeAndType.getElementType() &&
-           "element type required to construct tensor");
-    if (shapeAndType.hasRank())
-      inferredReturnTypes.push_back(RankedTensorType::get(
-          shapeAndType.getDims(), shapeAndType.getElementType()));
-    else
+    Type elementTy = shapeAndType.getElementType();
+    assert(elementTy && "element type required to construct tensor");
+
+    Attribute attr = shapeAndType.getAttribute();
+    if (shapeAndType.hasRank()) {
       inferredReturnTypes.push_back(
-          UnrankedTensorType::get(shapeAndType.getElementType()));
+          RankedTensorType::get(shapeAndType.getDims(), elementTy, attr));
+    } else {
+      assert(attr == nullptr && "attribute not supported");
+      inferredReturnTypes.push_back(UnrankedTensorType::get(elementTy));
+    }
   }
   return success();
 }
@@ -203,7 +246,25 @@ LogicalResult mlir::detail::inferReturnTensorTypes(
 LogicalResult mlir::detail::verifyInferredResultTypes(Operation *op) {
   SmallVector<Type, 4> inferredReturnTypes(op->getResultTypes());
   auto retTypeFn = cast<InferTypeOpInterface>(op);
-  return retTypeFn.refineReturnTypes(op->getContext(), op->getLoc(),
-                                     op->getOperands(), op->getAttrDictionary(),
-                                     op->getRegions(), inferredReturnTypes);
+  auto result = retTypeFn.refineReturnTypes(
+      op->getContext(), op->getLoc(), op->getOperands(),
+      op->getRawDictionaryAttrs(), op->getPropertiesStorage(), op->getRegions(),
+      inferredReturnTypes);
+  if (failed(result))
+    op->emitOpError() << "failed to infer returned types";
+
+  return result;
+}
+
+void mlir::detail::reportFatalInferReturnTypesError(OperationState &state) {
+  std::string buffer;
+  llvm::raw_string_ostream os(buffer);
+  os << "Failed to infer result type(s):\n"
+     << "\"" << state.name << "\"(...) "
+     << state.attributes.getDictionary(state.location.getContext()) << " : ("
+     << llvm::interleaved(llvm::map_range(
+            state.operands, [](Value val) { return val.getType(); }))
+     << ") -> ( ??? )";
+  emitRemark(state.location, "location of op");
+  llvm::report_fatal_error(llvm::StringRef(buffer));
 }

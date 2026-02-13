@@ -14,16 +14,18 @@
 #define FORTRAN_LOWER_SYMBOLMAP_H
 
 #include "flang/Common/reference.h"
+#include "flang/Lower/Support/Utils.h"
 #include "flang/Optimizer/Builder/BoxValue.h"
 #include "flang/Optimizer/Dialect/FIRType.h"
+#include "flang/Optimizer/Dialect/FortranVariableInterface.h"
 #include "flang/Optimizer/Support/Matcher.h"
 #include "flang/Semantics/symbol.h"
 #include "mlir/IR/Value.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Compiler.h"
+#include <optional>
 
 namespace Fortran::lower {
 
@@ -74,8 +76,9 @@ struct SymbolBox : public fir::details::matcher<SymbolBox> {
   // symbol).
   using Box = fir::BoxValue;
 
-  using VT = std::variant<Intrinsic, FullDim, Char, CharFullDim,
-                          PointerOrAllocatable, Box, None>;
+  using VT =
+      std::variant<Intrinsic, FullDim, Char, CharFullDim, PointerOrAllocatable,
+                   Box, fir::FortranVariableOpInterface, None>;
 
   //===--------------------------------------------------------------------===//
   // Constructors
@@ -87,16 +90,6 @@ struct SymbolBox : public fir::details::matcher<SymbolBox> {
 
   explicit operator bool() const { return !std::holds_alternative<None>(box); }
 
-  fir::ExtendedValue toExtendedValue() const {
-    return match(
-        [](const Fortran::lower::SymbolBox::Intrinsic &box)
-            -> fir::ExtendedValue { return box.getAddr(); },
-        [](const Fortran::lower::SymbolBox::None &) -> fir::ExtendedValue {
-          llvm::report_fatal_error("symbol not mapped");
-        },
-        [](const auto &box) -> fir::ExtendedValue { return box; });
-  }
-
   //===--------------------------------------------------------------------===//
   // Accessors
   //===--------------------------------------------------------------------===//
@@ -106,60 +99,25 @@ struct SymbolBox : public fir::details::matcher<SymbolBox> {
   /// array, etc.
   mlir::Value getAddr() const {
     return match([](const None &) { return mlir::Value{}; },
+                 [](const fir::FortranVariableOpInterface &x) {
+                   return fir::FortranVariableOpInterface(x).getBase();
+                 },
                  [](const auto &x) { return x.getAddr(); });
   }
 
-  /// Does the boxed value have an intrinsic type?
-  bool isIntrinsic() const {
-    return match([](const Intrinsic &) { return true; },
-                 [](const Char &) { return true; },
-                 [](const PointerOrAllocatable &x) {
-                   return !x.isDerived() && !x.isUnlimitedPolymorphic();
-                 },
-                 [](const Box &x) {
-                   return !x.isDerived() && !x.isUnlimitedPolymorphic();
-                 },
-                 [](const auto &x) { return false; });
-  }
-
-  /// Does the boxed value have a rank greater than zero?
-  bool hasRank() const {
-    return match([](const Intrinsic &) { return false; },
-                 [](const Char &) { return false; },
-                 [](const None &) { return false; },
-                 [](const PointerOrAllocatable &x) { return x.hasRank(); },
-                 [](const Box &x) { return x.hasRank(); },
-                 [](const auto &x) { return x.getExtents().size() > 0; });
-  }
-
-  /// Does the boxed value have trivial lower bounds (== 1)?
-  bool hasSimpleLBounds() const {
+  std::optional<fir::FortranVariableOpInterface>
+  getIfFortranVariableOpInterface() {
     return match(
-        [](const FullDim &arr) { return arr.getLBounds().empty(); },
-        [](const CharFullDim &arr) { return arr.getLBounds().empty(); },
-        [](const Box &arr) { return arr.getLBounds().empty(); },
-        [](const auto &) { return false; });
-  }
-
-  /// Does the boxed value have a constant shape?
-  bool hasConstantShape() const {
-    if (auto eleTy = fir::dyn_cast_ptrEleTy(getAddr().getType()))
-      if (auto arrTy = eleTy.dyn_cast<fir::SequenceType>())
-        return !arrTy.hasDynamicExtents();
-    return false;
-  }
-
-  /// Get the lbound if the box explicitly contains it.
-  mlir::Value getLBound(unsigned dim) const {
-    return match([&](const FullDim &box) { return box.getLBounds()[dim]; },
-                 [&](const CharFullDim &box) { return box.getLBounds()[dim]; },
-                 [&](const Box &box) { return box.getLBounds()[dim]; },
-                 [](const auto &) { return mlir::Value{}; });
+        [](const fir::FortranVariableOpInterface &x)
+            -> std::optional<fir::FortranVariableOpInterface> { return x; },
+        [](const auto &x) -> std::optional<fir::FortranVariableOpInterface> {
+          return std::nullopt;
+        });
   }
 
   /// Apply the lambda `func` to this box value.
   template <typename ON, typename RT>
-  constexpr RT apply(RT(&&func)(const ON &)) const {
+  constexpr RT apply(RT (&&func)(const ON &)) const {
     if (auto *x = std::get_if<ON>(&box))
       return func(*x);
     return RT{};
@@ -171,10 +129,45 @@ struct SymbolBox : public fir::details::matcher<SymbolBox> {
                                        const SymbolBox &symBox);
 
   /// Dump the map. For debugging.
-  LLVM_DUMP_METHOD void dump() const { llvm::errs() << *this << '\n'; }
+  LLVM_DUMP_METHOD void dump() const;
 
 private:
   VT box;
+};
+
+/// Helper class to map `Fortran::evaluate::Component` references to IR values.
+/// This is used when the evaluation of a component reference must be
+/// overridden with a pre-computed address.
+class ComponentMap {
+public:
+  void insert(const Fortran::evaluate::Component &component,
+              fir::FortranVariableOpInterface definingOp) {
+    auto iter = componentMap.find(&component);
+    if (iter != componentMap.end()) {
+      iter->second = definingOp;
+      return;
+    }
+    componentStorage.push_back(
+        std::make_unique<Fortran::evaluate::Component>(component));
+    componentMap.insert({componentStorage.back().get(), definingOp});
+  }
+
+  std::optional<fir::FortranVariableOpInterface>
+  lookup(const Fortran::evaluate::Component *component) const {
+    auto iter = componentMap.find(component);
+    if (iter != componentMap.end())
+      return iter->second;
+    return std::nullopt;
+  }
+
+  LLVM_DUMP_METHOD void dump() const;
+
+private:
+  llvm::DenseMap<const Fortran::evaluate::Component *,
+                 fir::FortranVariableOpInterface>
+      componentMap;
+  llvm::SmallVector<std::unique_ptr<Fortran::evaluate::Component>>
+      componentStorage;
 };
 
 //===----------------------------------------------------------------------===//
@@ -189,14 +182,25 @@ private:
 class SymMap {
 public:
   using AcDoVar = llvm::StringRef;
+  /// Descriptor of a symbol's storage consists of the base address
+  /// of the storage and the offset within that storage.
+  using StorageDesc = std::pair<mlir::Value, std::uint64_t>;
 
   SymMap() { pushScope(); }
   SymMap(const SymMap &) = delete;
 
-  void pushScope() { symbolMapStack.emplace_back(); }
+  void pushScope() {
+    symbolMapStack.emplace_back();
+    storageMapStack.emplace_back();
+    componentMapStack.emplace_back();
+  }
   void popScope() {
     symbolMapStack.pop_back();
     assert(symbolMapStack.size() >= 1);
+    storageMapStack.pop_back();
+    assert(storageMapStack.size() >= 1);
+    componentMapStack.pop_back();
+    assert(componentMapStack.size() >= 1);
   }
 
   /// Add an extended value to the symbol table.
@@ -295,6 +299,10 @@ public:
     return lookupSymbol(*sym);
   }
 
+  /// Find a symbol by name and return its value if it appears in the current
+  /// mappings. This lookup is more expensive as it iterates over the map.
+  const semantics::Symbol *lookupSymbolByName(llvm::StringRef symName);
+
   /// Find `symbol` and return its value if it appears in the inner-most level
   /// map.
   SymbolBox shallowLookupSymbol(semantics::SymbolRef sym);
@@ -330,19 +338,80 @@ public:
     symbolMapStack.emplace_back();
     assert(symbolMapStack.size() == 1);
     impliedDoStack.clear();
+    storageMapStack.clear();
+    storageMapStack.emplace_back();
+    componentMapStack.clear();
+    componentMapStack.emplace_back();
   }
 
   friend llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
                                        const SymMap &symMap);
 
   /// Dump the map. For debugging.
-  LLVM_DUMP_METHOD void dump() const { llvm::errs() << *this << '\n'; }
+  LLVM_DUMP_METHOD void dump() const;
+
+  void addVariableDefinition(semantics::SymbolRef symRef,
+                             fir::FortranVariableOpInterface definingOp,
+                             bool force = false) {
+    makeSym(symRef, SymbolBox(definingOp), force);
+  }
+
+  void copySymbolBinding(semantics::SymbolRef src,
+                         semantics::SymbolRef target) {
+    auto symBox = lookupSymbol(src);
+    assert(symBox && "source binding does not exists");
+    makeSym(target, symBox, /*force=*/false);
+  }
+
+  std::optional<fir::FortranVariableOpInterface>
+  lookupVariableDefinition(semantics::SymbolRef sym) {
+    if (auto symBox = lookupSymbol(sym))
+      return symBox.getIfFortranVariableOpInterface();
+    return std::nullopt;
+  }
+
+  /// Register a mapping from a front-end component reference to the FIR
+  /// variable that should be used to implement it. This is used to override
+  /// the default lowering of component references in specific contexts.
+  void addComponentOverride(const Fortran::evaluate::Component &component,
+                            fir::FortranVariableOpInterface definingOp) {
+    assert(!componentMapStack.empty() && "component map stack is empty");
+    if (!componentMapStack.back())
+      componentMapStack.back() = std::make_unique<ComponentMap>();
+    componentMapStack.back().value()->insert(component, definingOp);
+  }
+
+  /// Lookup an overridden FIR variable definition for a given component
+  /// reference, if any.
+  std::optional<fir::FortranVariableOpInterface>
+  lookupComponentOverride(const Fortran::evaluate::Component &component) const {
+    for (auto jmap = componentMapStack.rbegin(),
+              jend = componentMapStack.rend();
+         jmap != jend; ++jmap) {
+      if (*jmap) {
+        auto iter = (**jmap)->lookup(&component);
+        if (iter != std::nullopt)
+          return iter;
+      }
+    }
+    return std::nullopt;
+  }
+
+  /// Register the symbol's storage at the innermost level
+  /// of the symbol table. If the storage is already registered,
+  /// it will be replaced.
+  void registerStorage(semantics::SymbolRef sym, StorageDesc storage);
+  /// Lookup the symbol's storage at the innermost level of the symbol table.
+  StorageDesc lookupStorage(semantics::SymbolRef sym);
+  StorageDesc lookupStorage(const semantics::Symbol *sym) {
+    return lookupStorage(*sym);
+  }
 
 private:
-  /// Add `symbol` to the current map and bind a `box`.
+  /// Bind `box` to `symRef` in the symbol map.
   void makeSym(semantics::SymbolRef symRef, const SymbolBox &box,
                bool force = false) {
-    const auto *sym = &symRef.get().GetUltimate();
+    auto *sym = symRef->HasLocalLocality() ? &*symRef : &symRef->GetUltimate();
     if (force)
       symbolMapStack.back().erase(sym);
     assert(box && "cannot add an undefined symbol box");
@@ -355,6 +424,26 @@ private:
   // Implied DO induction variables are not represented as Se::Symbol in
   // Ev::Expr. Keep the variable markers in their own stack.
   llvm::SmallVector<std::pair<AcDoVar, mlir::Value>> impliedDoStack;
+
+  // A stack of maps between the symbols and their storage descriptors.
+  llvm::SmallVector<llvm::DenseMap<const semantics::Symbol *, StorageDesc>>
+      storageMapStack;
+
+  // A stack of maps from front-end component references to the FIR variables
+  // that should be used to implement them. This allows overriding component
+  // references in specific lowering contexts.
+  llvm::SmallVector<std::optional<std::unique_ptr<ComponentMap>>>
+      componentMapStack;
+};
+
+/// RAII wrapper for SymMap.
+class SymMapScope {
+public:
+  explicit SymMapScope(SymMap &map) : map(map) { map.pushScope(); }
+  ~SymMapScope() { map.popScope(); }
+
+private:
+  SymMap &map;
 };
 
 } // namespace Fortran::lower

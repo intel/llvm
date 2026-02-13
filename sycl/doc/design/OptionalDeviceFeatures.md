@@ -266,7 +266,7 @@ non-FPGA users may want to use the `device_global` property
 [`device_image_scope`][5], which requires even non-FPGA users to have precise
 control over the way kernels are bundled into device images.
 
-[5]: <../extensions/proposed/sycl_ext_oneapi_device_global.asciidoc#properties-for-device-global-variables>
+[5]: <../extensions/experimental/sycl_ext_oneapi_device_global.asciidoc#properties-for-device-global-variables>
 
 The new definition of `-fsycl-device-code-split` is as follows:
 
@@ -516,21 +516,27 @@ We add a new IR phase to the device compiler which does the following:
   aspects that come from references to types in the
   `sycl_types_that_use_aspects` list.
 
+* If a function has the `!sycl_declared_aspects` metadata, creates (or augments)
+  the function's `!sycl_used_aspects` metadata with aspects from the
+  `!sycl_declared_aspects` list.
+
 * Propagates each function's `!sycl_used_aspects` metadata up the static call
   graph so that each function lists the aspects used by that function and by
   any functions it calls.
-
-* Diagnoses a warning if any function that has `!sycl_declared_aspects` uses
-  an aspect not listed in that declared set.
 
 * Creates an `!sycl_fixed_targets` metadata for each kernel function or
   `SYCL_EXTERNAL` function that is defined.  This is done regardless of whether
   the `-fsycl-fixed-targets` command line switch is specified.  If the switch
   is not specified, the metadata has an empty list of targets.
 
-* If the `-fsycl-fixed-targets` command line switch is specified, diagnoses a
-  warning if any function uses an aspect that is not compatible with all target
-  devices specified by that switch.
+Additionally, the pass will issue warning diagnostics in the following cases:
+
+* If any function that has `!sycl_declared_aspects` uses an aspect not listed in
+  that declared set.
+
+* If the `-fsycl-fixed-targets` command line switch is specified and any
+  function uses an aspect that is not compatible with all target devices
+  specified by that switch.
 
 It is important that this IR phase runs before any other optimization phase
 that might eliminate a reference to a type or inline a function call because
@@ -547,7 +553,8 @@ type because the front-end does not include that type in the
 `!sycl_types_that_use_aspects` set.  If a function references the `double`
 type, the implementation implicitly assumes that the function uses
 `aspect::fp64` and adds that aspect to the function's `!sycl_used_aspects`
-set.
+set. If `!sycl_used_aspects` is attached to instruction then it is also added
+to the function's `!sycl_used_aspects` set.
 
 **NOTE**: This scan of the IR will require comparing the type referenced by
 each IR instruction with the names of the types in the
@@ -564,13 +571,13 @@ need only look at the `!sycl_used_aspects` metadata for each function,
 propagating the aspects used by each function up to it callers and augmenting
 the caller's `!sycl_used_aspects` set.
 
-Diagnosing warnings for the third bullet point is then straightforward.  The
+Diagnosing warnings for the fifth bullet point is then straightforward.  The
 implementation looks for functions that have `!sycl_declared_aspects` and
 compares that set with the `!sycl_used_aspects` set (if any).  If a function
 uses an aspect that is not in the declared set, the implementation issues a
 warning.
 
-Diagnosing warnings for the fifth bullet point requires the [device
+Diagnosing warnings for the sixth bullet point requires the [device
 configuration file][7] which gives the set of allowed optional features for
 each target device.  The implementation looks for functions that have either
 `!sycl_declared_aspects` or `!sycl_used_aspects`, and it compares the aspects
@@ -628,6 +635,39 @@ AST.  By contrast, we can diagnose the warning more efficiently in an IR pass
 because traversal of the IR is much more efficient than traversal of the AST.
 The downside, though, is that the warning message is less informative.
 
+#### Pre- and post-optimization aspect propagation
+
+Sometimes aspects that are used by a kernel in source code are eliminated during
+optimization. The most common case is when a kernel uses a double precision
+floating point literal to initialize a single precision floating point variable.
+Although the kernel uses the aspect `fp64` (corresponding to `double`) in its
+source code, the optimizer commonly replaces the double precision literal with a
+single precision literal, and this can sometimes mean that the kernel does not
+actually rely on the `fp64` aspect at all. We therefore have a quandary, should
+kernels like this be allowed to run on a device that doesn't have `fp64`
+support?
+
+It seems too extreme to raise an exception if the application attempts to submit
+a kernel like this to a device without fp64 support because applications like
+this previously ran without error (prior to this design being implemented).
+However, it also seems useful to issue a warning in a case like this if the
+application specifically decorated the kernel with `[[sycl::device_has()]]`
+(i.e. requesting a warning if the kernel uses aspects not listed in that
+attribute). We therefore run the aspect propagation pass twice: once before
+optimization and again after optimization.
+
+The first run of the pass takes a list of aspect names to exclude when saving
+the result of the propagation. It will still propagate the excluded aspects to
+correctly issue strict warning diagnostics for the cases mentioned above, but
+after the pass finishes functions will only have the excluded aspects in their
+`!sycl_used_aspects` metadata if they had them prior to the execution of the
+pass.
+
+In the second run of the pass, all aspects are propagated and saved. For the
+aspects that were not excluded from the first run of the pass this will have no
+effect and the pass may elect to ignore these aspects. To avoid repeating
+warnings issued by the previous execution of the pass, this run will not issue
+any warning diagnostics.
 
 ### Assumptions on other phases of clang
 
@@ -827,10 +867,10 @@ types:
 
 Property Name             | Property Type
 -------------             | -------------
-"aspect"                  | `PI_PROPERTY_TYPE_BYTE_ARRAY`
-"reqd\_sub\_group\_size"  | `PI_PROPERTY_TYPE_BYTE_ARRAY`
-"reqd\_work\_group\_size" | `PI_PROPERTY_TYPE_BYTE_ARRAY`
-"fixed\_target"           | `PI_PROPERTY_TYPE_BYTE_ARRAY`
+"aspect"                  | `SYCL_PROPERTY_TYPE_BYTE_ARRAY`
+"reqd\_sub\_group\_size"  | `SYCL_PROPERTY_TYPE_BYTE_ARRAY`
+"reqd\_work\_group\_size" | `SYCL_PROPERTY_TYPE_BYTE_ARRAY`
+"fixed\_target"           | `SYCL_PROPERTY_TYPE_BYTE_ARRAY`
 
 The "aspect" property tells the set of aspects that a device must have in order
 to use the image.  The image is only compatible with a device that supports
@@ -901,14 +941,22 @@ the supported aspects and sub-group sizes.  For example:
 ```
 intel_gpu_12_0_0:
   aspects: [1, 2, 3]
+  may_support_other_aspects: false
   sub-group-sizes: [8, 16]
 intel_gpu_icl:
   aspects: [2, 3]
+  may_support_other_aspects: false
   sub-group-sizes: [8, 16]
 x86_64_avx512:
   aspects: [1, 2, 3, 9, 11]
+  may_support_other_aspects: false
   sub-group-sizes: [8, 32]
 ```
+
+The device entries have an optional `may_support_other_aspects` sub-key
+specifying if a given target may be supported by devices that support aspects
+not in the `aspects` list. This is used by the [DeviceAspectTraitDesign.md][10]
+design.
 
 The values of the aspects in this configuration file can be the numerical
 values from the `enum class aspect` enumeration or the enum identifier itself.
@@ -921,6 +969,8 @@ to select an alternate configuration file.
 
 **TODO**:
 * Define location of the default device configuration file.
+
+[10]: <DeviceAspectTraitDesign.md>
 
 #### New features in clang compilation driver and tools
 
@@ -1041,10 +1091,10 @@ The "name" column in this table lists the possible target names.  Since not all
 targets have a corresponding enumerator in the `architecture` enumeration, the
 second column tells when there is such an enumerator.  The last row in this
 table corresponds to all of the architecture names listed in the
-[sycl\_ext\_intel\_device\_architecture][8] extension whose name starts with
+[sycl\_ext\_oneapi\_device\_architecture][8] extension whose name starts with
 `intel_gpu_`.
 
-[8]: <../extensions/proposed/sycl_ext_intel_device_architecture.asciidoc>
+[8]: <../extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc>
 
 TODO: This table needs to be filled out for the CPU variants supported by the
 `opencl-aot` tool (avx512, avx2, avx, sse4.2) and for the FPGA targets.  We
@@ -1099,6 +1149,24 @@ Kernel has a required sub-group size of '32' but device does not support this
 sub-group size.
 ```
 
+### SYCL internal aspects for device image splitting
+
+There are scenarios when we would like to split device images based on
+optional kernel features but we don't want to expose corresponding
+aspects to the user. Internal SYCL aspects are used for this purpose.
+
+To differentiate them from regular aspects, internal aspects are assigned
+negative values. If optional feature is used in the kernel then SYCL
+device compiler adds value of internal aspect to 'sycl_used_aspects' metadata,
+it gets propagated through the call graph and participates in device image
+splitting together with regular aspects but it's not passed to the SYCL runtime,
+it is filtered out when generating a set of device requirements.
+
+New value can be added to 'SYCLInternalAspect' enum to introduce new internal
+aspect.
+
+Example of internal aspects usage is splitting device images based on floating
+point accuracy level for math functions provided by user using -ffp-accuracy option.
 
 ## Appendix: Adding an attribute to 8-byte `atomic_ref`
 

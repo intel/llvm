@@ -2,7 +2,7 @@
 
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -mtriple=%triple -filetype=obj -O0 < %t.ll > %t
 ; RUN: llvm-dwarfdump -v -debug-info %t | FileCheck %s
@@ -20,7 +20,7 @@ target triple = "spir64-unknown-unknown"
 
 source_filename = "test/DebugInfo/Generic/tu-member-pointer.ll"
 
-@x = global i64 -1, align 8, !dbg !0
+@x = addrspace(1) global i64 -1, align 8, !dbg !0
 
 !llvm.dbg.cu = !{!6}
 !llvm.module.flags = !{!10, !11}

@@ -1,16 +1,16 @@
-; RUN: llc -march=mips   -mcpu=mips32   -verify-machineinstrs    -relocation-model=pic < %s | FileCheck %s -check-prefixes=ALL,ACC32,ACC32-TRAP
-; RUN: llc -march=mips   -mcpu=mips32r2 -verify-machineinstrs    -relocation-model=pic < %s | FileCheck %s -check-prefixes=ALL,ACC32,ACC32-TRAP
-; RUN: llc -march=mips   -mcpu=mips32r6 -verify-machineinstrs    -relocation-model=pic < %s | FileCheck %s -check-prefixes=ALL,GPR32,GPR32-TRAP
-; RUN: llc -march=mips64 -mcpu=mips64   -verify-machineinstrs    -relocation-model=pic < %s | FileCheck %s -check-prefixes=ALL,ACC64,ACC64-TRAP
-; RUN: llc -march=mips64 -mcpu=mips64r2 -verify-machineinstrs    -relocation-model=pic < %s | FileCheck %s -check-prefixes=ALL,ACC64,ACC64-TRAP
-; RUN: llc -march=mips64 -mcpu=mips64r6 -verify-machineinstrs    -relocation-model=pic < %s | FileCheck %s -check-prefixes=ALL,GPR64,GPR64-TRAP
+; RUN: llc -mtriple=mips   -mcpu=mips32   -verify-machineinstrs    -relocation-model=pic < %s | FileCheck %s -check-prefixes=ALL,ACC32,ACC32-TRAP
+; RUN: llc -mtriple=mips   -mcpu=mips32r2 -verify-machineinstrs    -relocation-model=pic < %s | FileCheck %s -check-prefixes=ALL,ACC32,ACC32-TRAP
+; RUN: llc -mtriple=mips   -mcpu=mips32r6 -verify-machineinstrs    -relocation-model=pic < %s | FileCheck %s -check-prefixes=ALL,GPR32,GPR32-TRAP
+; RUN: llc -mtriple=mips64 -mcpu=mips64   -verify-machineinstrs    -relocation-model=pic < %s | FileCheck %s -check-prefixes=ALL,ACC64,ACC64-TRAP
+; RUN: llc -mtriple=mips64 -mcpu=mips64r2 -verify-machineinstrs    -relocation-model=pic < %s | FileCheck %s -check-prefixes=ALL,ACC64,ACC64-TRAP
+; RUN: llc -mtriple=mips64 -mcpu=mips64r6 -verify-machineinstrs    -relocation-model=pic < %s | FileCheck %s -check-prefixes=ALL,GPR64,GPR64-TRAP
 
-; RUN: llc -march=mips   -mcpu=mips32   -mno-check-zero-division -relocation-model=pic < %s | FileCheck %s -check-prefixes=ALL,ACC32,NOCHECK
-; RUN: llc -march=mips   -mcpu=mips32r2 -mno-check-zero-division -relocation-model=pic < %s | FileCheck %s -check-prefixes=ALL,ACC32,NOCHECK
-; RUN: llc -march=mips   -mcpu=mips32r6 -mno-check-zero-division -relocation-model=pic < %s | FileCheck %s -check-prefixes=ALL,GPR32,NOCHECK
-; RUN: llc -march=mips64 -mcpu=mips64   -mno-check-zero-division -relocation-model=pic < %s | FileCheck %s -check-prefixes=ALL,ACC64,NOCHECK
-; RUN: llc -march=mips64 -mcpu=mips64r2 -mno-check-zero-division -relocation-model=pic < %s | FileCheck %s -check-prefixes=ALL,ACC64,NOCHECK
-; RUN: llc -march=mips64 -mcpu=mips64r6 -mno-check-zero-division -relocation-model=pic < %s | FileCheck %s -check-prefixes=ALL,GPR64,NOCHECK
+; RUN: llc -mtriple=mips   -mcpu=mips32   -mno-check-zero-division -relocation-model=pic < %s | FileCheck %s -check-prefixes=ALL,ACC32,NOCHECK
+; RUN: llc -mtriple=mips   -mcpu=mips32r2 -mno-check-zero-division -relocation-model=pic < %s | FileCheck %s -check-prefixes=ALL,ACC32,NOCHECK
+; RUN: llc -mtriple=mips   -mcpu=mips32r6 -mno-check-zero-division -relocation-model=pic < %s | FileCheck %s -check-prefixes=ALL,GPR32,NOCHECK
+; RUN: llc -mtriple=mips64 -mcpu=mips64   -mno-check-zero-division -relocation-model=pic < %s | FileCheck %s -check-prefixes=ALL,ACC64,NOCHECK
+; RUN: llc -mtriple=mips64 -mcpu=mips64r2 -mno-check-zero-division -relocation-model=pic < %s | FileCheck %s -check-prefixes=ALL,ACC64,NOCHECK
+; RUN: llc -mtriple=mips64 -mcpu=mips64r6 -mno-check-zero-division -relocation-model=pic < %s | FileCheck %s -check-prefixes=ALL,GPR64,NOCHECK
 
 ; FileCheck Prefixes:
 ;   ALL - All targets
@@ -134,7 +134,7 @@ entry:
   ret i32 %rem
 }
 
-define i32 @sdivrem1(i32 signext %a0, i32 signext %a1, i32* nocapture %r) nounwind {
+define i32 @sdivrem1(i32 signext %a0, i32 signext %a1, ptr nocapture %r) nounwind {
 entry:
 ; ALL-LABEL: sdivrem1:
 
@@ -170,12 +170,12 @@ entry:
 ; ALL: .end sdivrem1
 
   %rem = srem i32 %a0, %a1
-  store i32 %rem, i32* %r, align 4
+  store i32 %rem, ptr %r, align 4
   %div = sdiv i32 %a0, %a1
   ret i32 %div
 }
 
-define i32 @udivrem1(i32 signext %a0, i32 signext %a1, i32* nocapture %r) nounwind {
+define i32 @udivrem1(i32 signext %a0, i32 signext %a1, ptr nocapture %r) nounwind {
 entry:
 ; ALL-LABEL: udivrem1:
 
@@ -212,7 +212,7 @@ entry:
 ; ALL: .end udivrem1
 
   %rem = urem i32 %a0, %a1
-  store i32 %rem, i32* %r, align 4
+  store i32 %rem, ptr %r, align 4
   %div = udiv i32 %a0, %a1
   ret i32 %div
 }
@@ -220,8 +220,8 @@ entry:
 ; FIXME: It's not clear what this is supposed to test.
 define i32 @killFlags() {
 entry:
-  %0 = load i32, i32* @g0, align 4
-  %1 = load i32, i32* @g1, align 4
+  %0 = load i32, ptr @g0, align 4
+  %1 = load i32, ptr @g1, align 4
   %div = sdiv i32 %0, %1
   ret i32 %div
 }
@@ -317,7 +317,7 @@ entry:
   ret i64 %rem
 }
 
-define i64 @sdivrem2(i64 %a0, i64 %a1, i64* nocapture %r) nounwind {
+define i64 @sdivrem2(i64 %a0, i64 %a1, ptr nocapture %r) nounwind {
 entry:
 ; ALL-LABEL: sdivrem2:
 
@@ -347,12 +347,12 @@ entry:
 ; ALL: .end sdivrem2
 
   %rem = srem i64 %a0, %a1
-  store i64 %rem, i64* %r, align 8
+  store i64 %rem, ptr %r, align 8
   %div = sdiv i64 %a0, %a1
   ret i64 %div
 }
 
-define i64 @udivrem2(i64 %a0, i64 %a1, i64* nocapture %r) nounwind {
+define i64 @udivrem2(i64 %a0, i64 %a1, ptr nocapture %r) nounwind {
 entry:
 ; ALL-LABEL: udivrem2:
 
@@ -382,7 +382,7 @@ entry:
 ; ALL: .end udivrem2
 
   %rem = urem i64 %a0, %a1
-  store i64 %rem, i64* %r, align 8
+  store i64 %rem, ptr %r, align 8
   %div = udiv i64 %a0, %a1
   ret i64 %div
 }

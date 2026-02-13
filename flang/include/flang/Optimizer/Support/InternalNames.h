@@ -10,11 +10,27 @@
 #define FORTRAN_OPTIMIZER_SUPPORT_INTERNALNAMES_H
 
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include <cstdint>
+#include <optional>
 
 namespace fir {
+
+static constexpr llvm::StringRef kNameSeparator = ".";
+static constexpr llvm::StringRef kBoundsSeparator = ".b.";
+static constexpr llvm::StringRef kComponentSeparator = ".c.";
+static constexpr llvm::StringRef kComponentInitSeparator = ".di.";
+static constexpr llvm::StringRef kDataPtrInitSeparator = ".dp.";
+static constexpr llvm::StringRef kTypeDescriptorSeparator = ".dt.";
+static constexpr llvm::StringRef kKindParameterSeparator = ".kp.";
+static constexpr llvm::StringRef kLenKindSeparator = ".lpk.";
+static constexpr llvm::StringRef kLenParameterSeparator = ".lv.";
+static constexpr llvm::StringRef kNameStringSeparator = ".n.";
+static constexpr llvm::StringRef kProcPtrSeparator = ".p.";
+static constexpr llvm::StringRef kSpecialBindingSeparator = ".s.";
+static constexpr llvm::StringRef kBindingTableSeparator = ".v.";
+static constexpr llvm::StringRef boxprocSuffix = "UnboxProc";
+static constexpr llvm::StringRef kDerivedTypeInitSuffix = "DerivedInit";
 
 /// Internal name mangling of identifiers
 ///
@@ -39,23 +55,24 @@ struct NameUniquer {
     DISPATCH_TABLE,
     GENERATED,
     INTRINSIC_TYPE_DESC,
+    NAMELIST_GROUP,
     PROCEDURE,
     TYPE_DESC,
-    VARIABLE,
-    NAMELIST_GROUP
+    VARIABLE
   };
 
   /// Components of an unparsed unique name
   struct DeconstructedName {
     DeconstructedName(llvm::StringRef name) : name{name} {}
     DeconstructedName(llvm::ArrayRef<std::string> modules,
-                      llvm::Optional<std::string> host, llvm::StringRef name,
-                      llvm::ArrayRef<std::int64_t> kinds)
-        : modules{modules.begin(), modules.end()}, host{host}, name{name},
-          kinds{kinds.begin(), kinds.end()} {}
+                      llvm::ArrayRef<std::string> procs, std::int64_t blockId,
+                      llvm::StringRef name, llvm::ArrayRef<std::int64_t> kinds)
+        : modules{modules}, procs{procs}, blockId{blockId}, name{name},
+          kinds{kinds} {}
 
     llvm::SmallVector<std::string> modules;
-    llvm::Optional<std::string> host;
+    llvm::SmallVector<std::string> procs;
+    std::int64_t blockId;
     std::string name;
     llvm::SmallVector<std::int64_t> kinds;
   };
@@ -63,59 +80,61 @@ struct NameUniquer {
   /// Unique a common block name
   static std::string doCommonBlock(llvm::StringRef name);
 
-  /// Unique a block data unit name
-  static std::string doBlockData(llvm::StringRef name);
-
   /// Unique a (global) constant name
   static std::string doConstant(llvm::ArrayRef<llvm::StringRef> modules,
-                                llvm::Optional<llvm::StringRef> host,
-                                llvm::StringRef name);
+                                llvm::ArrayRef<llvm::StringRef> procs,
+                                std::int64_t block, llvm::StringRef name);
 
   /// Unique a dispatch table name
   static std::string doDispatchTable(llvm::ArrayRef<llvm::StringRef> modules,
-                                     llvm::Optional<llvm::StringRef> host,
-                                     llvm::StringRef name,
+                                     llvm::ArrayRef<llvm::StringRef> procs,
+                                     std::int64_t block, llvm::StringRef name,
                                      llvm::ArrayRef<std::int64_t> kinds);
 
-  /// Unique a compiler generated name
+  /// Unique a compiler generated name without scope context.
   static std::string doGenerated(llvm::StringRef name);
+  /// Unique a compiler generated name with scope context.
+  static std::string doGenerated(llvm::ArrayRef<llvm::StringRef> modules,
+                                 llvm::ArrayRef<llvm::StringRef> procs,
+                                 std::int64_t blockId, llvm::StringRef name);
 
   /// Unique an intrinsic type descriptor
   static std::string
   doIntrinsicTypeDescriptor(llvm::ArrayRef<llvm::StringRef> modules,
-                            llvm::Optional<llvm::StringRef> host,
-                            IntrinsicType type, std::int64_t kind);
+                            llvm::ArrayRef<llvm::StringRef> procs,
+                            std::int64_t block, IntrinsicType type,
+                            std::int64_t kind);
 
   /// Unique a procedure name
   static std::string doProcedure(llvm::ArrayRef<llvm::StringRef> modules,
-                                 llvm::Optional<llvm::StringRef> host,
+                                 llvm::ArrayRef<llvm::StringRef> procs,
                                  llvm::StringRef name);
 
   /// Unique a derived type name
   static std::string doType(llvm::ArrayRef<llvm::StringRef> modules,
-                            llvm::Optional<llvm::StringRef> host,
-                            llvm::StringRef name,
+                            llvm::ArrayRef<llvm::StringRef> procs,
+                            std::int64_t block, llvm::StringRef name,
                             llvm::ArrayRef<std::int64_t> kinds);
 
   /// Unique a (derived) type descriptor name
   static std::string doTypeDescriptor(llvm::ArrayRef<llvm::StringRef> modules,
-                                      llvm::Optional<llvm::StringRef> host,
-                                      llvm::StringRef name,
+                                      llvm::ArrayRef<llvm::StringRef> procs,
+                                      std::int64_t block, llvm::StringRef name,
                                       llvm::ArrayRef<std::int64_t> kinds);
   static std::string doTypeDescriptor(llvm::ArrayRef<std::string> modules,
-                                      llvm::Optional<std::string> host,
-                                      llvm::StringRef name,
+                                      llvm::ArrayRef<std::string> procs,
+                                      std::int64_t block, llvm::StringRef name,
                                       llvm::ArrayRef<std::int64_t> kinds);
 
   /// Unique a (global) variable name. A variable with save attribute
   /// defined inside a subprogram also needs to be handled here
   static std::string doVariable(llvm::ArrayRef<llvm::StringRef> modules,
-                                llvm::Optional<llvm::StringRef> host,
-                                llvm::StringRef name);
+                                llvm::ArrayRef<llvm::StringRef> procs,
+                                std::int64_t block, llvm::StringRef name);
 
   /// Unique a namelist group name
   static std::string doNamelistGroup(llvm::ArrayRef<llvm::StringRef> modules,
-                                     llvm::Optional<llvm::StringRef> host,
+                                     llvm::ArrayRef<llvm::StringRef> procs,
                                      llvm::StringRef name);
 
   /// Entry point for the PROGRAM (called by the runtime)
@@ -141,6 +160,34 @@ struct NameUniquer {
   /// type descriptor object. Returns an empty string if \p mangledTypeName is
   /// not a valid mangled derived type name.
   static std::string getTypeDescriptorName(llvm::StringRef mangledTypeName);
+
+  static std::string
+  getTypeDescriptorAssemblyName(llvm::StringRef mangledTypeName);
+
+  /// Given a mangled derived type name, get the name of the related binding
+  /// table object. Returns an empty string if \p mangledTypeName is not a valid
+  /// mangled derived type name.
+  static std::string
+  getTypeDescriptorBindingTableName(llvm::StringRef mangledTypeName);
+
+  /// Given a mangled derived type name and a component name, get the name of
+  /// the global object containing the component default initialization.
+  static std::string getComponentInitName(llvm::StringRef mangledTypeName,
+                                          llvm::StringRef componentName);
+
+  /// Remove markers that have been added when doing partial type
+  /// conversions. mlir::Type cannot be mutated in a pass, so new
+  /// fir::RecordType must be created when lowering member types.
+  /// Suffixes added to these new types are meaningless and are
+  /// dropped in the names passed to LLVM.
+  static llvm::StringRef
+  dropTypeConversionMarkers(llvm::StringRef mangledTypeName);
+
+  static std::string replaceSpecialSymbols(const std::string &name);
+
+  /// Returns true if the passed name denotes a special symbol (e.g. global
+  /// symbol generated for derived type description).
+  static bool isSpecialSymbol(llvm::StringRef name);
 
 private:
   static std::string intAsString(std::int64_t i);

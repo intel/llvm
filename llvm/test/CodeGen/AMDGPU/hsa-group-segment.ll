@@ -1,12 +1,12 @@
 ; RUN: llc < %s -mtriple=amdgcn--amdhsa -mcpu=kaveri | FileCheck --check-prefix=HSA %s
 
-@internal_group = internal addrspace(3) global i32 undef
-@external_group = addrspace(3) global i32 undef
+@internal_group = internal addrspace(3) global i32 poison
+@external_group = addrspace(3) global i32 poison
 
 define amdgpu_kernel void @test() {
 entry:
-  store i32 0, i32 addrspace(3)* @internal_group
-  store i32 0, i32 addrspace(3)* @external_group
+  store i32 0, ptr addrspace(3) @internal_group
+  store i32 0, ptr addrspace(3) @external_group
   ret void
 }
 

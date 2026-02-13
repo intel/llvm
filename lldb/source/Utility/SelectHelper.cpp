@@ -20,10 +20,10 @@
 #include "lldb/lldb-types.h"
 
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 
 #include <algorithm>
 #include <chrono>
+#include <optional>
 
 #include <cerrno>
 #if defined(_WIN32)
@@ -82,7 +82,7 @@ bool SelectHelper::FDIsSetError(lldb::socket_t fd) const {
     return false;
 }
 
-static void updateMaxFd(llvm::Optional<lldb::socket_t> &vold,
+static void updateMaxFd(std::optional<lldb::socket_t> &vold,
                         lldb::socket_t vnew) {
   if (!vold)
     vold = vnew;
@@ -97,20 +97,22 @@ lldb_private::Status SelectHelper::Select() {
   // numeric value.
   lldbassert(m_fd_map.size() <= FD_SETSIZE);
   if (m_fd_map.size() > FD_SETSIZE)
-    return lldb_private::Status("Too many file descriptors for select()");
+    return lldb_private::Status::FromErrorString(
+        "Too many file descriptors for select()");
 #endif
 
-  llvm::Optional<lldb::socket_t> max_read_fd;
-  llvm::Optional<lldb::socket_t> max_write_fd;
-  llvm::Optional<lldb::socket_t> max_error_fd;
-  llvm::Optional<lldb::socket_t> max_fd;
+  std::optional<lldb::socket_t> max_read_fd;
+  std::optional<lldb::socket_t> max_write_fd;
+  std::optional<lldb::socket_t> max_error_fd;
+  std::optional<lldb::socket_t> max_fd;
   for (auto &pair : m_fd_map) {
     pair.second.PrepareForSelect();
     const lldb::socket_t fd = pair.first;
 #if !defined(__APPLE__) && !defined(_WIN32)
     lldbassert(fd < static_cast<int>(FD_SETSIZE));
     if (fd >= static_cast<int>(FD_SETSIZE)) {
-      error.SetErrorStringWithFormat("%i is too large for select()", fd);
+      error = lldb_private::Status::FromErrorStringWithFormat(
+          "%i is too large for select()", fd);
       return error;
     }
 #endif
@@ -124,8 +126,7 @@ lldb_private::Status SelectHelper::Select() {
   }
 
   if (!max_fd) {
-    error.SetErrorString("no valid file descriptors");
-    return error;
+    return lldb_private::Status::FromErrorString("no valid file descriptors");
   }
 
   const unsigned nfds = static_cast<unsigned>(*max_fd) + 1;
@@ -176,7 +177,7 @@ lldb_private::Status SelectHelper::Select() {
 #endif
   // Set the FD bits in the fdsets for read/write/error
   for (auto &pair : m_fd_map) {
-    const lldb::socket_t fd = pair.first;
+    lldb::socket_t fd = pair.first;
 
     if (pair.second.read_set)
       FD_SET(fd, read_fdset_ptr);
@@ -198,7 +199,7 @@ lldb_private::Status SelectHelper::Select() {
     if (m_end_time) {
       tv_ptr = &tv;
       const auto remaining_dur =
-          duration_cast<microseconds>(m_end_time.value() - steady_clock::now());
+          duration_cast<microseconds>(*m_end_time - steady_clock::now());
       if (remaining_dur.count() > 0) {
         // Wait for a specific amount of time
         const auto dur_secs = duration_cast<seconds>(remaining_dur);
@@ -215,7 +216,7 @@ lldb_private::Status SelectHelper::Select() {
                                      error_fdset_ptr, tv_ptr);
     if (num_set_fds < 0) {
       // We got an error
-      error.SetErrorToErrno();
+      error = lldb_private::Status::FromErrno();
       if (error.GetError() == EINTR) {
         error.Clear();
         continue; // Keep calling select if we get EINTR
@@ -223,9 +224,8 @@ lldb_private::Status SelectHelper::Select() {
         return error;
     } else if (num_set_fds == 0) {
       // Timeout
-      error.SetError(ETIMEDOUT, lldb::eErrorTypePOSIX);
-      error.SetErrorString("timed out");
-      return error;
+      return lldb_private::Status(ETIMEDOUT, lldb::eErrorTypePOSIX,
+                                  "timed out");
     } else {
       // One or more descriptors were set, update the FDInfo::select_is_set
       // mask so users can ask the SelectHelper class so clients can call one

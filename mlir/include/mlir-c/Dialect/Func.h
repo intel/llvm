@@ -18,7 +18,10 @@
 #ifndef MLIR_C_DIALECT_FUNC_H
 #define MLIR_C_DIALECT_FUNC_H
 
+#include <stdint.h>
+
 #include "mlir-c/IR.h"
+#include "mlir-c/Support.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,8 +29,20 @@ extern "C" {
 
 MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(Func, func);
 
+/// Sets the argument attribute 'name' of an argument at index 'pos'.
+/// Asserts that the operation is a FuncOp.
+MLIR_CAPI_EXPORTED void mlirFuncSetArgAttr(MlirOperation op, intptr_t pos,
+                                           MlirStringRef name,
+                                           MlirAttribute attr);
+
+MLIR_CAPI_EXPORTED void mlirFuncSetResultAttr(MlirOperation op, intptr_t pos,
+                                              MlirStringRef name,
+                                              MlirAttribute attr);
+
 #ifdef __cplusplus
 }
 #endif
+
+#include "mlir/Dialect/Func/Transforms/Passes.capi.h.inc"
 
 #endif // MLIR_C_DIALECT_FUNC_H

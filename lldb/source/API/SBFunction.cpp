@@ -7,8 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "lldb/API/SBFunction.h"
+#include "lldb/API/SBAddressRange.h"
 #include "lldb/API/SBProcess.h"
 #include "lldb/API/SBStream.h"
+#include "lldb/Core/AddressRangeListImpl.h"
 #include "lldb/Core/Disassembler.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Symbol/CompileUnit.h"
@@ -54,30 +56,36 @@ SBFunction::operator bool() const {
 const char *SBFunction::GetName() const {
   LLDB_INSTRUMENT_VA(this);
 
-  const char *cstr = nullptr;
   if (m_opaque_ptr)
-    cstr = m_opaque_ptr->GetName().AsCString();
+    return m_opaque_ptr->GetName().AsCString();
 
-  return cstr;
+  return nullptr;
 }
 
 const char *SBFunction::GetDisplayName() const {
   LLDB_INSTRUMENT_VA(this);
 
-  const char *cstr = nullptr;
   if (m_opaque_ptr)
-    cstr = m_opaque_ptr->GetMangled().GetDisplayDemangledName().AsCString();
+    return m_opaque_ptr->GetMangled().GetDisplayDemangledName().AsCString();
 
-  return cstr;
+  return nullptr;
 }
 
 const char *SBFunction::GetMangledName() const {
   LLDB_INSTRUMENT_VA(this);
 
-  const char *cstr = nullptr;
   if (m_opaque_ptr)
-    cstr = m_opaque_ptr->GetMangled().GetMangledName().AsCString();
-  return cstr;
+    return m_opaque_ptr->GetMangled().GetMangledName().AsCString();
+  return nullptr;
+}
+
+const char *SBFunction::GetBaseName() const {
+  LLDB_INSTRUMENT_VA(this);
+
+  if (!m_opaque_ptr)
+    return nullptr;
+
+  return m_opaque_ptr->GetMangled().GetBaseName().AsCString();
 }
 
 bool SBFunction::operator==(const SBFunction &rhs) const {
@@ -121,14 +129,14 @@ SBInstructionList SBFunction::GetInstructions(SBTarget target,
   if (m_opaque_ptr) {
     TargetSP target_sp(target.GetSP());
     std::unique_lock<std::recursive_mutex> lock;
-    ModuleSP module_sp(
-        m_opaque_ptr->GetAddressRange().GetBaseAddress().GetModule());
+    ModuleSP module_sp(m_opaque_ptr->GetAddress().GetModule());
     if (target_sp && module_sp) {
       lock = std::unique_lock<std::recursive_mutex>(target_sp->GetAPIMutex());
       const bool force_live_memory = true;
       sb_instructions.SetDisassembler(Disassembler::DisassembleRange(
-          module_sp->GetArchitecture(), nullptr, flavor, *target_sp,
-          m_opaque_ptr->GetAddressRange(), force_live_memory));
+          module_sp->GetArchitecture(), nullptr, flavor,
+          target_sp->GetDisassemblyCPU(), target_sp->GetDisassemblyFeatures(),
+          *target_sp, m_opaque_ptr->GetAddressRanges(), force_live_memory));
     }
   }
   return sb_instructions;
@@ -145,7 +153,7 @@ SBAddress SBFunction::GetStartAddress() {
 
   SBAddress addr;
   if (m_opaque_ptr)
-    addr.SetAddress(m_opaque_ptr->GetAddressRange().GetBaseAddress());
+    addr.SetAddress(m_opaque_ptr->GetAddress());
   return addr;
 }
 
@@ -154,31 +162,45 @@ SBAddress SBFunction::GetEndAddress() {
 
   SBAddress addr;
   if (m_opaque_ptr) {
-    addr_t byte_size = m_opaque_ptr->GetAddressRange().GetByteSize();
-    if (byte_size > 0) {
-      addr.SetAddress(m_opaque_ptr->GetAddressRange().GetBaseAddress());
-      addr->Slide(byte_size);
+    AddressRanges ranges = m_opaque_ptr->GetAddressRanges();
+    if (!ranges.empty()) {
+      // Return the end of the first range, use GetRanges to get all ranges.
+      addr.SetAddress(ranges.front().GetBaseAddress());
+      addr->Slide(ranges.front().GetByteSize());
     }
   }
   return addr;
 }
 
+lldb::SBAddressRangeList SBFunction::GetRanges() {
+  LLDB_INSTRUMENT_VA(this);
+
+  lldb::SBAddressRangeList ranges;
+  if (m_opaque_ptr)
+    ranges.ref() = AddressRangeListImpl(m_opaque_ptr->GetAddressRanges());
+
+  return ranges;
+}
+
 const char *SBFunction::GetArgumentName(uint32_t arg_idx) {
   LLDB_INSTRUMENT_VA(this, arg_idx);
 
-  if (m_opaque_ptr) {
-    Block &block = m_opaque_ptr->GetBlock(true);
-    VariableListSP variable_list_sp = block.GetBlockVariableList(true);
-    if (variable_list_sp) {
-      VariableList arguments;
-      variable_list_sp->AppendVariablesWithScope(eValueTypeVariableArgument,
-                                                 arguments, true);
-      lldb::VariableSP variable_sp = arguments.GetVariableAtIndex(arg_idx);
-      if (variable_sp)
-        return variable_sp->GetName().GetCString();
-    }
-  }
-  return nullptr;
+  if (!m_opaque_ptr)
+    return nullptr;
+
+  Block &block = m_opaque_ptr->GetBlock(true);
+  VariableListSP variable_list_sp = block.GetBlockVariableList(true);
+  if (!variable_list_sp)
+    return nullptr;
+
+  VariableList arguments;
+  variable_list_sp->AppendVariablesWithScope(eValueTypeVariableArgument,
+                                             arguments, true);
+  lldb::VariableSP variable_sp = arguments.GetVariableAtIndex(arg_idx);
+  if (!variable_sp)
+    return nullptr;
+
+  return variable_sp->GetName().GetCString();
 }
 
 uint32_t SBFunction::GetPrologueByteSize() {

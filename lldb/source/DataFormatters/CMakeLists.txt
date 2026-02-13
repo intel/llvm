@@ -1,11 +1,13 @@
-add_lldb_library(lldbDataFormatters
+add_lldb_library(lldbDataFormatters NO_PLUGIN_DEPENDENCIES
   CXXFunctionPointer.cpp
   DataVisualization.cpp
   DumpValueObjectOptions.cpp
   FormatCache.cpp
   FormatClasses.cpp
   FormatManager.cpp
+  FormatterBytecode.cpp
   FormattersHelpers.cpp
+  FormatterSection.cpp
   LanguageCategory.cpp
   StringPrinter.cpp
   TypeCategory.cpp
@@ -16,13 +18,15 @@ add_lldb_library(lldbDataFormatters
   ValueObjectPrinter.cpp
   VectorType.cpp
 
+  ADDITIONAL_HEADER_DIRS
+    ${LLDB_INCLUDE_DIR}/lldb/DataFormatters
+  LINK_COMPONENTS
+    Support
   LINK_LIBS
     lldbCore
     lldbInterpreter
     lldbSymbol
     lldbTarget
     lldbUtility
-  
-  LINK_COMPONENTS
-    Support
+    lldbValueObject
   )

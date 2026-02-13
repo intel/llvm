@@ -10,19 +10,17 @@
 define <4 x i32> @sel_C1_or_C2_vec(<4 x i1> %cond) {
 ; CHECK-LABEL: sel_C1_or_C2_vec:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vspltisw 3, -16
-; CHECK-NEXT:    vspltisw 4, 15
 ; CHECK-NEXT:    addis 3, 2, .LCPI0_0@toc@ha
-; CHECK-NEXT:    addis 4, 2, .LCPI0_1@toc@ha
+; CHECK-NEXT:    xxleqv 37, 37, 37
+; CHECK-NEXT:    vslw 2, 2, 5
 ; CHECK-NEXT:    addi 3, 3, .LCPI0_0@toc@l
-; CHECK-NEXT:    addi 4, 4, .LCPI0_1@toc@l
+; CHECK-NEXT:    vsraw 2, 2, 5
 ; CHECK-NEXT:    lxvd2x 0, 0, 3
-; CHECK-NEXT:    lxvd2x 1, 0, 4
-; CHECK-NEXT:    vsubuwm 3, 4, 3
-; CHECK-NEXT:    vslw 2, 2, 3
-; CHECK-NEXT:    xxswapd 36, 1
-; CHECK-NEXT:    vsraw 2, 2, 3
+; CHECK-NEXT:    addis 3, 2, .LCPI0_1@toc@ha
+; CHECK-NEXT:    addi 3, 3, .LCPI0_1@toc@l
 ; CHECK-NEXT:    xxswapd 35, 0
+; CHECK-NEXT:    lxvd2x 0, 0, 3
+; CHECK-NEXT:    xxswapd 36, 0
 ; CHECK-NEXT:    xxsel 34, 36, 35, 34
 ; CHECK-NEXT:    blr
   %add = select <4 x i1> %cond, <4 x i32> <i32 3000, i32 1, i32 -1, i32 0>, <4 x i32> <i32 42, i32 0, i32 -2, i32 -1>
@@ -33,15 +31,15 @@ define <4 x i32> @cmp_sel_C1_or_C2_vec(<4 x i32> %x, <4 x i32> %y) {
 ; CHECK-LABEL: cmp_sel_C1_or_C2_vec:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    addis 3, 2, .LCPI1_0@toc@ha
-; CHECK-NEXT:    addis 4, 2, .LCPI1_1@toc@ha
 ; CHECK-NEXT:    vcmpequw 2, 2, 3
 ; CHECK-NEXT:    addi 3, 3, .LCPI1_0@toc@l
-; CHECK-NEXT:    addi 4, 4, .LCPI1_1@toc@l
 ; CHECK-NEXT:    lxvd2x 0, 0, 3
-; CHECK-NEXT:    lxvd2x 1, 0, 4
-; CHECK-NEXT:    xxswapd 35, 0
-; CHECK-NEXT:    xxswapd 36, 1
-; CHECK-NEXT:    xxsel 34, 36, 35, 34
+; CHECK-NEXT:    addis 3, 2, .LCPI1_1@toc@ha
+; CHECK-NEXT:    addi 3, 3, .LCPI1_1@toc@l
+; CHECK-NEXT:    xxswapd 36, 0
+; CHECK-NEXT:    lxvd2x 0, 0, 3
+; CHECK-NEXT:    xxswapd 37, 0
+; CHECK-NEXT:    xxsel 34, 37, 36, 34
 ; CHECK-NEXT:    blr
   %cond = icmp eq <4 x i32> %x, %y
   %add = select <4 x i1> %cond, <4 x i32> <i32 3000, i32 1, i32 -1, i32 0>, <4 x i32> <i32 42, i32 0, i32 -2, i32 -1>
@@ -54,8 +52,8 @@ define <4 x i32> @sel_Cplus1_or_C_vec(<4 x i1> %cond) {
 ; CHECK-NEXT:    addis 3, 2, .LCPI2_0@toc@ha
 ; CHECK-NEXT:    vspltisw 3, 1
 ; CHECK-NEXT:    addi 3, 3, .LCPI2_0@toc@l
-; CHECK-NEXT:    lxvd2x 0, 0, 3
 ; CHECK-NEXT:    xxland 34, 34, 35
+; CHECK-NEXT:    lxvd2x 0, 0, 3
 ; CHECK-NEXT:    xxswapd 36, 0
 ; CHECK-NEXT:    vadduwm 2, 2, 4
 ; CHECK-NEXT:    blr
@@ -70,8 +68,8 @@ define <4 x i32> @cmp_sel_Cplus1_or_C_vec(<4 x i32> %x, <4 x i32> %y) {
 ; CHECK-NEXT:    vcmpequw 2, 2, 3
 ; CHECK-NEXT:    addi 3, 3, .LCPI3_0@toc@l
 ; CHECK-NEXT:    lxvd2x 0, 0, 3
-; CHECK-NEXT:    xxswapd 35, 0
-; CHECK-NEXT:    vsubuwm 2, 3, 2
+; CHECK-NEXT:    xxswapd 36, 0
+; CHECK-NEXT:    vsubuwm 2, 4, 2
 ; CHECK-NEXT:    blr
   %cond = icmp eq <4 x i32> %x, %y
   %add = select <4 x i1> %cond, <4 x i32> <i32 43, i32 1, i32 -1, i32 0>, <4 x i32> <i32 42, i32 0, i32 -2, i32 -1>
@@ -81,14 +79,12 @@ define <4 x i32> @cmp_sel_Cplus1_or_C_vec(<4 x i32> %x, <4 x i32> %y) {
 define <4 x i32> @sel_Cminus1_or_C_vec(<4 x i1> %cond) {
 ; CHECK-LABEL: sel_Cminus1_or_C_vec:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vspltisw 3, -16
-; CHECK-NEXT:    vspltisw 4, 15
 ; CHECK-NEXT:    addis 3, 2, .LCPI4_0@toc@ha
+; CHECK-NEXT:    xxleqv 36, 36, 36
+; CHECK-NEXT:    vslw 2, 2, 4
 ; CHECK-NEXT:    addi 3, 3, .LCPI4_0@toc@l
+; CHECK-NEXT:    vsraw 2, 2, 4
 ; CHECK-NEXT:    lxvd2x 0, 0, 3
-; CHECK-NEXT:    vsubuwm 3, 4, 3
-; CHECK-NEXT:    vslw 2, 2, 3
-; CHECK-NEXT:    vsraw 2, 2, 3
 ; CHECK-NEXT:    xxswapd 35, 0
 ; CHECK-NEXT:    vadduwm 2, 2, 3
 ; CHECK-NEXT:    blr
@@ -103,8 +99,8 @@ define <4 x i32> @cmp_sel_Cminus1_or_C_vec(<4 x i32> %x, <4 x i32> %y) {
 ; CHECK-NEXT:    vcmpequw 2, 2, 3
 ; CHECK-NEXT:    addi 3, 3, .LCPI5_0@toc@l
 ; CHECK-NEXT:    lxvd2x 0, 0, 3
-; CHECK-NEXT:    xxswapd 35, 0
-; CHECK-NEXT:    vadduwm 2, 2, 3
+; CHECK-NEXT:    xxswapd 36, 0
+; CHECK-NEXT:    vadduwm 2, 2, 4
 ; CHECK-NEXT:    blr
   %cond = icmp eq <4 x i32> %x, %y
   %add = select <4 x i1> %cond, <4 x i32> <i32 43, i32 1, i32 -1, i32 0>, <4 x i32> <i32 44, i32 2, i32 0, i32 1>
@@ -114,9 +110,7 @@ define <4 x i32> @cmp_sel_Cminus1_or_C_vec(<4 x i32> %x, <4 x i32> %y) {
 define <4 x i32> @sel_minus1_or_0_vec(<4 x i1> %cond) {
 ; CHECK-LABEL: sel_minus1_or_0_vec:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vspltisw 3, -16
-; CHECK-NEXT:    vspltisw 4, 15
-; CHECK-NEXT:    vsubuwm 3, 4, 3
+; CHECK-NEXT:    xxleqv 35, 35, 35
 ; CHECK-NEXT:    vslw 2, 2, 3
 ; CHECK-NEXT:    vsraw 2, 2, 3
 ; CHECK-NEXT:    blr
@@ -170,9 +164,9 @@ define <4 x i32> @sel_1_or_0_vec(<4 x i1> %cond) {
 define <4 x i32> @cmp_sel_1_or_0_vec(<4 x i32> %x, <4 x i32> %y) {
 ; CHECK-LABEL: cmp_sel_1_or_0_vec:
 ; CHECK:       # %bb.0:
+; CHECK-NEXT:    vspltisw 4, 1
 ; CHECK-NEXT:    vcmpequw 2, 2, 3
-; CHECK-NEXT:    vspltisw 3, 1
-; CHECK-NEXT:    xxland 34, 34, 35
+; CHECK-NEXT:    xxland 34, 34, 36
 ; CHECK-NEXT:    blr
   %cond = icmp eq <4 x i32> %x, %y
   %add = select <4 x i1> %cond, <4 x i32> <i32 1, i32 1, i32 1, i32 1>, <4 x i32> <i32 0, i32 0, i32 0, i32 0>
@@ -193,9 +187,9 @@ define <4 x i32> @cmp_sel_0_or_1_vec(<4 x i32> %x, <4 x i32> %y) {
 ; CHECK-LABEL: cmp_sel_0_or_1_vec:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    vcmpequw 2, 2, 3
-; CHECK-NEXT:    vspltisw 3, 1
+; CHECK-NEXT:    vspltisw 4, 1
 ; CHECK-NEXT:    xxlnor 0, 34, 34
-; CHECK-NEXT:    xxland 34, 0, 35
+; CHECK-NEXT:    xxland 34, 0, 36
 ; CHECK-NEXT:    blr
   %cond = icmp eq <4 x i32> %x, %y
   %add = select <4 x i1> %cond, <4 x i32> <i32 0, i32 0, i32 0, i32 0>, <4 x i32> <i32 1, i32 1, i32 1, i32 1>

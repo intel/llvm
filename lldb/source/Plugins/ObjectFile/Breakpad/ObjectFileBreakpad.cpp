@@ -11,6 +11,7 @@
 #include "lldb/Core/ModuleSpec.h"
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/Section.h"
+#include <optional>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -22,16 +23,16 @@ namespace {
 struct Header {
   ArchSpec arch;
   UUID uuid;
-  static llvm::Optional<Header> parse(llvm::StringRef text);
+  static std::optional<Header> parse(llvm::StringRef text);
 };
 } // namespace
 
-llvm::Optional<Header> Header::parse(llvm::StringRef text) {
+std::optional<Header> Header::parse(llvm::StringRef text) {
   llvm::StringRef line;
   std::tie(line, text) = text.split('\n');
   auto Module = ModuleRecord::parse(line);
   if (!Module)
-    return llvm::None;
+    return std::nullopt;
 
   llvm::Triple triple;
   triple.setArch(Module->Arch);
@@ -56,29 +57,35 @@ void ObjectFileBreakpad::Terminate() {
   PluginManager::UnregisterPlugin(CreateInstance);
 }
 
-ObjectFile *ObjectFileBreakpad::CreateInstance(
-    const ModuleSP &module_sp, DataBufferSP data_sp, offset_t data_offset,
-    const FileSpec *file, offset_t file_offset, offset_t length) {
-  if (!data_sp) {
-    data_sp = MapFileData(*file, length, file_offset);
+ObjectFile *ObjectFileBreakpad::CreateInstance(const ModuleSP &module_sp,
+                                               DataExtractorSP extractor_sp,
+                                               offset_t data_offset,
+                                               const FileSpec *file,
+                                               offset_t file_offset,
+                                               offset_t length) {
+  if (!extractor_sp || !extractor_sp->HasData()) {
+    DataBufferSP data_sp = MapFileData(*file, length, file_offset);
     if (!data_sp)
       return nullptr;
+    extractor_sp = std::make_shared<DataExtractor>(data_sp);
     data_offset = 0;
   }
-  auto text = toStringRef(data_sp->GetData());
-  llvm::Optional<Header> header = Header::parse(text);
+  auto text = toStringRef(extractor_sp->GetSharedDataBuffer()->GetData());
+  std::optional<Header> header = Header::parse(text);
   if (!header)
     return nullptr;
 
   // Update the data to contain the entire file if it doesn't already
-  if (data_sp->GetByteSize() < length) {
+  if (extractor_sp->GetByteSize() < length) {
+    DataBufferSP data_sp = MapFileData(*file, length, file_offset);
     data_sp = MapFileData(*file, length, file_offset);
     if (!data_sp)
       return nullptr;
+    extractor_sp = std::make_shared<DataExtractor>(data_sp);
     data_offset = 0;
   }
 
-  return new ObjectFileBreakpad(module_sp, data_sp, data_offset, file,
+  return new ObjectFileBreakpad(module_sp, extractor_sp, data_offset, file,
                                 file_offset, length, std::move(header->arch),
                                 std::move(header->uuid));
 }
@@ -93,7 +100,7 @@ size_t ObjectFileBreakpad::GetModuleSpecifications(
     const FileSpec &file, DataBufferSP &data_sp, offset_t data_offset,
     offset_t file_offset, offset_t length, ModuleSpecList &specs) {
   auto text = toStringRef(data_sp->GetData());
-  llvm::Optional<Header> header = Header::parse(text);
+  std::optional<Header> header = Header::parse(text);
   if (!header)
     return 0;
   ModuleSpec spec(file, std::move(header->arch));
@@ -103,12 +110,12 @@ size_t ObjectFileBreakpad::GetModuleSpecifications(
 }
 
 ObjectFileBreakpad::ObjectFileBreakpad(const ModuleSP &module_sp,
-                                       DataBufferSP &data_sp,
+                                       DataExtractorSP extractor_sp,
                                        offset_t data_offset,
                                        const FileSpec *file, offset_t offset,
                                        offset_t length, ArchSpec arch,
                                        UUID uuid)
-    : ObjectFile(module_sp, file, offset, length, data_sp, data_offset),
+    : ObjectFile(module_sp, file, offset, length, extractor_sp, data_offset),
       m_arch(std::move(arch)), m_uuid(std::move(uuid)) {}
 
 bool ObjectFileBreakpad::ParseHeader() {
@@ -127,15 +134,15 @@ void ObjectFileBreakpad::CreateSections(SectionList &unified_section_list) {
     return;
   m_sections_up = std::make_unique<SectionList>();
 
-  llvm::Optional<Record::Kind> current_section;
+  std::optional<Record::Kind> current_section;
   offset_t section_start;
-  llvm::StringRef text = toStringRef(m_data.GetData());
+  llvm::StringRef text = toStringRef(m_data_nsp->GetData());
   uint32_t next_section_id = 1;
   auto maybe_add_section = [&](const uint8_t *end_ptr) {
     if (!current_section)
       return; // We have been called before parsing the first line.
 
-    offset_t end_offset = end_ptr - m_data.GetDataStart();
+    offset_t end_offset = end_ptr - m_data_nsp->GetDataStart();
     auto section_sp = std::make_shared<Section>(
         GetModule(), this, next_section_id++,
         ConstString(toString(*current_section)), eSectionTypeOther,
@@ -148,7 +155,7 @@ void ObjectFileBreakpad::CreateSections(SectionList &unified_section_list) {
     llvm::StringRef line;
     std::tie(line, text) = text.split('\n');
 
-    llvm::Optional<Record::Kind> next_section = Record::classify(line);
+    std::optional<Record::Kind> next_section = Record::classify(line);
     if (next_section == Record::Line || next_section == Record::Inline) {
       // Line/Inline records logically belong to the preceding Func record, so
       // we put them in the same section.
@@ -161,8 +168,8 @@ void ObjectFileBreakpad::CreateSections(SectionList &unified_section_list) {
     maybe_add_section(line.bytes_begin());
     // And start a new one.
     current_section = next_section;
-    section_start = line.bytes_begin() - m_data.GetDataStart();
+    section_start = line.bytes_begin() - m_data_nsp->GetDataStart();
   }
   // Finally, add the last section.
-  maybe_add_section(m_data.GetDataEnd());
+  maybe_add_section(m_data_nsp->GetDataEnd());
 }

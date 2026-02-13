@@ -4,21 +4,19 @@
 
 define i32 @get_globalvar() {
 ; CHECK-LABEL: get_globalvar:
+; CHECK:         adrp x[[GOTHI:[0-9]+]], :got:var
+; CHECK-NEXT:    ldr x[[GOTLOC:[0-9]+]], [x[[GOTHI]], :got_lo12:var]
+; CHECK-NEXT:    ldr w0, [x[[GOTLOC]]]
 
-  %val = load i32, i32* @var
-; CHECK: adrp x[[GOTHI:[0-9]+]], :got:var
-; CHECK: ldr x[[GOTLOC:[0-9]+]], [x[[GOTHI]], :got_lo12:var]
-; CHECK: ldr w0, [x[[GOTLOC]]]
-
+  %val = load i32, ptr @var
   ret i32 %val
 }
 
-define i32* @get_globalvaraddr() {
+define ptr @get_globalvaraddr() {
 ; CHECK-LABEL: get_globalvaraddr:
+; CHECK:         adrp x[[GOTHI:[0-9]+]], :got:var
+; CHECK-NEXT:    ldr x0, [x[[GOTHI]], :got_lo12:var]
 
-  %val = load i32, i32* @var
-; CHECK: adrp x[[GOTHI:[0-9]+]], :got:var
-; CHECK: ldr x0, [x[[GOTHI]], :got_lo12:var]
-
-  ret i32* @var
+  %val = load i32, ptr @var
+  ret ptr @var
 }

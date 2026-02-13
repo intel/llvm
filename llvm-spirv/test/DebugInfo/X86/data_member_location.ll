@@ -1,7 +1,16 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-linux -O0 -o - -filetype=obj < %t.ll | llvm-dwarfdump -v -debug-info -| FileCheck %s
+; RUN: llc -mtriple=x86_64-linux -dwarf-version=2 -O0 -o - -filetype=obj < %t.ll | llvm-dwarfdump -v -debug-info -| FileCheck -check-prefix=DWARF2 %s
 
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-linux -O0 -o - -filetype=obj < %t.ll | llvm-dwarfdump -v -debug-info -| FileCheck %s
+; RUN: llc -mtriple=x86_64-linux -dwarf-version=2 -O0 -o - -filetype=obj < %t.ll | llvm-dwarfdump -v -debug-info -| FileCheck -check-prefix=DWARF2 %s
+
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=x86_64-linux -O0 -o - -filetype=obj < %t.ll | llvm-dwarfdump -v -debug-info -| FileCheck %s
 ; RUN: llc -mtriple=x86_64-linux -dwarf-version=2 -O0 -o - -filetype=obj < %t.ll | llvm-dwarfdump -v -debug-info -| FileCheck -check-prefix=DWARF2 %s
 
@@ -37,7 +46,7 @@ source_filename = "test/DebugInfo/X86/data_member_location.ll"
 
 %struct.foo = type { i8, i32 }
 
-@f = global %struct.foo zeroinitializer, align 4, !dbg !0
+@f = addrspace(1) global %struct.foo zeroinitializer, align 4, !dbg !0
 
 !llvm.dbg.cu = !{!9}
 !llvm.module.flags = !{!13, !14}

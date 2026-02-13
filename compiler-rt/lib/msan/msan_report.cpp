@@ -11,16 +11,18 @@
 // Error reporting.
 //===----------------------------------------------------------------------===//
 
+#include "msan_report.h"
+
 #include "msan.h"
 #include "msan_chained_origin_depot.h"
 #include "msan_origin.h"
-#include "msan_report.h"
 #include "sanitizer_common/sanitizer_allocator_internal.h"
 #include "sanitizer_common/sanitizer_common.h"
 #include "sanitizer_common/sanitizer_flags.h"
 #include "sanitizer_common/sanitizer_mutex.h"
 #include "sanitizer_common/sanitizer_report_decorator.h"
 #include "sanitizer_common/sanitizer_stackdepot.h"
+#include "sanitizer_common/sanitizer_stacktrace_printer.h"
 #include "sanitizer_common/sanitizer_symbolizer.h"
 
 using namespace __sanitizer;
@@ -87,6 +89,10 @@ static void DescribeOrigin(u32 id) {
       case STACK_TRACE_TAG_VPTR:
         Printf("  %sVirtual table ptr was destroyed%s\n", d.Origin(),
                d.Default());
+        break;
+      case STACK_TRACE_TAG_ALLOC_PADDING:
+        Printf("  %sUninitialized value is outside of heap allocation%s\n",
+               d.Origin(), d.Default());
         break;
       default:
         Printf("  %sUninitialized value was created%s\n", d.Origin(),
@@ -265,12 +271,13 @@ void DescribeMemoryRange(const void *x, uptr size) {
   }
 }
 
-void ReportUMRInsideAddressRange(const char *what, const void *start, uptr size,
-                                 uptr offset) {
+void ReportUMRInsideAddressRange(const char *function, const void *start,
+                                 uptr size, uptr offset) {
+  function = StackTracePrinter::GetOrInit()->StripFunctionName(function);
   Decorator d;
   Printf("%s", d.Warning());
   Printf("%sUninitialized bytes in %s%s%s at offset %zu inside [%p, %zu)%s\n",
-         d.Warning(), d.Name(), what, d.Warning(), offset, start, size,
+         d.Warning(), d.Name(), function, d.Warning(), offset, start, size,
          d.Default());
   if (__sanitizer::Verbosity())
     DescribeMemoryRange(start, size);

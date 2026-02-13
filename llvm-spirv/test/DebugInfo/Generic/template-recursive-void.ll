@@ -2,7 +2,7 @@
 
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -mtriple=%triple -O0 -filetype=obj < %t.ll > %t
 ; RUN: llvm-dwarfdump -v %t | FileCheck %s
@@ -29,7 +29,7 @@ source_filename = "test/DebugInfo/Generic/template-recursive-void.ll"
 
 %class.bar = type { i8 }
 
-@filters = global %class.bar zeroinitializer, align 1, !dbg !0
+@filters = addrspace(1) global %class.bar zeroinitializer, align 1, !dbg !0
 
 !llvm.dbg.cu = !{!29}
 !llvm.module.flags = !{!32, !33}

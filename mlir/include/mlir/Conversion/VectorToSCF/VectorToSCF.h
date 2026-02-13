@@ -56,12 +56,6 @@ struct VectorTransferToSCFOptions {
     targetRank = r;
     return *this;
   }
-  ///
-  bool lowerPermutationMaps = false;
-  VectorTransferToSCFOptions &enableLowerPermutationMaps(bool l = true) {
-    lowerPermutationMaps = l;
-    return *this;
-  }
   /// Allows vector transfers that operated on tensors to be lowered (this is an
   /// uncommon alternative).
   bool lowerTensors = false;
@@ -73,6 +67,14 @@ struct VectorTransferToSCFOptions {
   bool unroll = false;
   VectorTransferToSCFOptions &enableFullUnroll(bool u = true) {
     unroll = u;
+    return *this;
+  }
+  /// Enable scalable vector specific lowerings (which introduce loops). These
+  /// work alongside fullUnroll (which unrolls until the first scalable
+  /// dimension).
+  bool lowerScalable = false;
+  VectorTransferToSCFOptions enableLowerScalable(bool enable = true) {
+    lowerScalable = enable;
     return *this;
   }
 };

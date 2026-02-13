@@ -1,8 +1,8 @@
 ; RUN: opt -passes=adce -S < %s | FileCheck %s
 ; Test that debug info intrinsics in dead scopes get eliminated by -adce.
 
-; Generated with 'clang -g -S -emit-llvm | opt -mem2reg -inline' at r262899
-; (before -adce was augmented) and then hand-reduced.  This was the input:
+; Generated with 'clang -g -S -emit-llvm | opt -passes=mem2reg -inline' at r262899
+; (before -passes=adce  was augmented) and then hand-reduced.  This was the input:
 ;
 ;;void sink(void);
 ;;
@@ -44,7 +44,7 @@ entry:
 ; CHECK-LABEL: define void @variable_in_parent_scope(
 define void @variable_in_parent_scope() !dbg !7 {
 ; CHECK-NEXT: entry:
-; CHECK-NEXT:   call void @llvm.dbg.value
+; CHECK-NEXT:   #dbg_value
 ; CHECK-NEXT:   call void @sink
 ; CHECK-NEXT:   ret void
 entry:

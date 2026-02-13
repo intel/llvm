@@ -46,9 +46,9 @@
 
 ; INT: {{^}}Address
 ; INT: -----
-; INT-NEXT: 2 0 1 0 0 is_stmt{{$}}
-; INT-NEXT: 3 3 1 0 0 is_stmt prologue_end{{$}}
-; INT-NEXT: 4 3 1 0 0 is_stmt{{$}}
+; INT-NEXT: 2 0 1 0 0 0 is_stmt{{$}}
+; INT-NEXT: 3 3 1 0 0 0 is_stmt prologue_end{{$}}
+; INT-NEXT: 4 3 1 0 0 0 is_stmt{{$}}
 
 
 ; Function Attrs: nounwind uwtable
@@ -61,8 +61,8 @@ entry:
 
 declare void @f1(...) #1
 
-attributes #0 = { nounwind uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "use-soft-float"="false" }
+attributes #1 = { "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "use-soft-float"="false" }
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!8, !9}

@@ -24,7 +24,7 @@
 
 @buf = global [20 x i64] zeroinitializer, align 8
 
-define i32 @f(i32 %a, i32 %b, i32 %c, i32 %d) {
+define i32 @f(i32 %a, i32 %b, i32 %c, i32 %d) "branch-target-enforcement" {
 ; BTI-LABEL: f:
 ; BTI:       bl OUTLINED_FUNCTION_0
 ; BTI-NEXT:  bti
@@ -33,14 +33,14 @@ define i32 @f(i32 %a, i32 %b, i32 %c, i32 %d) {
 ; NOBTI-NEXT:   cbz	r0, .LBB0_2
 entry:
   %a.addr = alloca i32, align 4
-  store i32 %a, i32* %a.addr, align 4
-  %call = call i32 @setjmp(i64* getelementptr inbounds ([20 x i64], [20 x i64]* @buf, i32 0, i32 0)) #0
+  store i32 %a, ptr %a.addr, align 4
+  %call = call i32 @setjmp(ptr @buf) #0
   %cmp.not = icmp eq i32 %call, 0
   br i1 %cmp.not, label %if.end, label %return
 
 if.end:                                           ; preds = %entry
-  call void @h(i32 %a, i32 %b, i32* nonnull %a.addr)
-  %0 = load i32, i32* %a.addr, align 4
+  call void @h(i32 %a, i32 %b, ptr nonnull %a.addr)
+  %0 = load i32, ptr %a.addr, align 4
   %add = add nsw i32 %0, %b
   %mul = mul nsw i32 %add, %0
   %add1 = add nsw i32 %d, %c
@@ -53,7 +53,7 @@ return:                                           ; preds = %entry, %if.end
   ret i32 %retval.0
 }
 
-define i32 @g(i32 %a, i32 %b, i32 %c, i32 %d) {
+define i32 @g(i32 %a, i32 %b, i32 %c, i32 %d) "branch-target-enforcement" {
 ; BTI-LABEL: g:
 ; BTI:       bl OUTLINED_FUNCTION_0
 ; BTI-NEXT:  bti
@@ -62,14 +62,14 @@ define i32 @g(i32 %a, i32 %b, i32 %c, i32 %d) {
 ; NOBTI-NEXT:  cbz	r0, .LBB1_2
 entry:
   %a.addr = alloca i32, align 4
-  store i32 %a, i32* %a.addr, align 4
-  %call = call i32 @setjmp(i64* getelementptr inbounds ([20 x i64], [20 x i64]* @buf, i32 0, i32 0)) #0
+  store i32 %a, ptr %a.addr, align 4
+  %call = call i32 @setjmp(ptr @buf) #0
   %cmp.not = icmp eq i32 %call, 0
   br i1 %cmp.not, label %if.end, label %return
 
 if.end:                                           ; preds = %entry
-  call void @h(i32 %a, i32 %b, i32* nonnull %a.addr)
-  %0 = load i32, i32* %a.addr, align 4
+  call void @h(i32 %a, i32 %b, ptr nonnull %a.addr)
+  %0 = load i32, ptr %a.addr, align 4
   %add = add nsw i32 %0, %b
   %mul = mul nsw i32 %add, %0
   %add1 = add nsw i32 %d, %c
@@ -82,11 +82,8 @@ return:                                           ; preds = %entry, %if.end
   ret i32 %retval.0
 }
 
-declare void @h(i32, i32, i32*)
-declare i32 @setjmp(i64*) #0
+declare void @h(i32, i32, ptr)
+declare i32 @setjmp(ptr) #0
 
 attributes #0 = { returns_twice }
 
-!llvm.module.flags = !{!0}
-
-!0 = !{i32 8, !"branch-target-enforcement", i32 1}

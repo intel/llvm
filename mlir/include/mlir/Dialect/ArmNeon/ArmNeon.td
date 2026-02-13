@@ -31,6 +31,15 @@ def ArmNeon_Dialect : Dialect {
 }
 
 //===----------------------------------------------------------------------===//
+// ArmNeon type definition
+//===----------------------------------------------------------------------===//
+
+class NeonVectorOfLength<int length, Type elementType> : ShapedContainerType<
+  [elementType], And<[IsVectorOfShape<[length]>, IsFixedVectorOfAnyRankTypePred]>,
+  "a vector with length " # length,
+  "::mlir::VectorType">;
+
+//===----------------------------------------------------------------------===//
 // ArmNeon op definitions
 //===----------------------------------------------------------------------===//
 
@@ -39,7 +48,7 @@ def ArmNeon_Dialect : Dialect {
 class ArmNeon_IntrOp<string mnemonic, list<int> overloadedResults,
                      list<int> overloadedOperands, int numResults,
                      list<Trait> traits = [], bit requiresAccessGroup = 0,
-                     bit requiresAliasScope = 0>
+                     bit requiresAliasAnalysis = 0>
     : LLVM_IntrOpBase</*dialect=*/ArmNeon_Dialect,
                       /*opName=*/"intr." # mnemonic,
                       /*enumName=*/"aarch64_neon_" # !subst(".", "_", mnemonic),
@@ -48,7 +57,7 @@ class ArmNeon_IntrOp<string mnemonic, list<int> overloadedResults,
                       /*traits=*/traits,
                       /*numResults=*/numResults,
                       /*requiresAccessGroup=*/requiresAccessGroup,
-                      /*requiresAliasScope=*/requiresAliasScope>;
+                      /*requiresAliasAnalysis=*/requiresAliasAnalysis>;
 
 // ArmNeon dialect op that corresponds to an LLVM IR intrinsic with one
 // overloaded result.
@@ -64,11 +73,11 @@ class ArmNeon_OverloadedOperandsWithOneResultIntrOp<string mnemonic,
   : ArmNeon_IntrOp<mnemonic, [0], overloadedOperands, 1, traits>;
 
 def SMullOp : ArmNeon_OverloadedOneResultIntrOp<"smull", [
-       NoSideEffect,
+       Pure,
        AllTypesMatch<["a", "b"]>,
        TypesMatchWith<
          "res has same vector shape and element bitwidth scaled by 2 as a",
-         "a", "res", "$_self.cast<VectorType>().scaleElementBitwidth(2)">
+         "a", "res", "::llvm::cast<VectorType>($_self).scaleElementBitwidth(2)">
     ]> {
   let summary = "smull roundscale op";
   let description = [{
@@ -93,12 +102,12 @@ def SMullOp : ArmNeon_OverloadedOneResultIntrOp<"smull", [
 }
 
 def SdotOp : ArmNeon_OverloadedOperandsWithOneResultIntrOp<"sdot",[1], [
-      NoSideEffect,
+      Pure,
       AllTypesMatch<["b", "c"]>,
       AllTypesMatch<["a", "res"]>,
       TypesMatchWith<"res has the same number of elements as operand b",
                      "b", "res",
-                     "VectorType::get({$_self.cast<VectorType>().getShape()[0] / 4},"
+                     "VectorType::get({::llvm::cast<VectorType>($_self).getShape()[0] / 4},"
                      "IntegerType::get($_self.getContext(), 32))">]> {
   let summary = "sdot op";
   let description = [{
@@ -120,30 +129,151 @@ def SdotOp : ArmNeon_OverloadedOperandsWithOneResultIntrOp<"sdot",[1], [
     "$a `,` $b `,` $c attr-dict `:` type($b) `,` type($c) `to` type($res)";
   }
 
+def SmmlaOp : ArmNeon_OverloadedOperandsWithOneResultIntrOp<"smmla",[1], [
+                Pure,
+                AllTypesMatch<["src1", "src2"]>,
+                AllTypesMatch<["acc", "res"]>,
+              ]> {
+  let summary = "Matrix-matrix multiply and accumulate op";
+  let description = [{
+    SMMLA: Signed integer matrix multiply-accumulate.
+
+    Signed 8-bit integer matrix multiply-accumulate. This instruction multiplies
+    the 2x8 matrix of signed 8-bit integer values in the first source vector by
+    the 8x2 matrix of signed 8-bit integer values in the second source vector.
+    The resulting 2x2 32-bit integer matrix product is destructively added to
+    the 32-bit integer matrix accumulator in the destination vector. This is
+    equivalent to performing an 8-way dot product per destination element.
+
+    Source:
+    https://developer.arm.com/architectures/instruction-sets/intrinsics/#f:@navigationhierarchiessimdisa=[Neon]&q=smmla
+  }];
+  // Supports (vector<16xi8>, vector<16xi8>) -> (vector<4xi32>)
+  let arguments = (ins
+          NeonVectorOfLength<4, I32>:$acc,
+          NeonVectorOfLength<16, I8>:$src1,
+          NeonVectorOfLength<16, I8>:$src2
+  );
+  let results = (outs NeonVectorOfLength<4, I32>:$res);
+  let assemblyFormat =
+    "$acc `,` $src1 `,` $src2 attr-dict `:` type($src1) `to` type($res)";
+}
+
+def UmmlaOp : ArmNeon_OverloadedOperandsWithOneResultIntrOp<"ummla",[1], [
+                Pure,
+                AllTypesMatch<["src1", "src2"]>,
+                AllTypesMatch<["acc", "res"]>,
+              ]> {
+  let summary = "Unsinged matrix-matrix multiply and accumulate op";
+  let description = [{
+    UMMLA: Signed integer matrix multiply-accumulate.
+
+    Unsigned 8-bit integer matrix multiply-accumulate. This instruction
+    multiplies the 2x8 matrix of unsigned 8-bit integer values in the first
+    source vector by the 8x2 matrix of unsigned 8-bit integer values in the
+    second source vector. The resulting 2x2 32-bit integer matrix product is
+    destructively added to the 32-bit integer matrix accumulator in the
+    destination vector. This is equivalent to performing an 8-way dot product
+    per destination element.
+
+    Source:
+    https://developer.arm.com/architectures/instruction-sets/intrinsics/#f:@navigationhierarchiessimdisa=[Neon]&q=ummla
+  }];
+  // Supports (vector<16xi8>, vector<16xi8>) -> (vector<4xi32>)
+  let arguments = (ins
+          NeonVectorOfLength<4, I32>:$acc,
+          NeonVectorOfLength<16, I8>:$src1,
+          NeonVectorOfLength<16, I8>:$src2
+  );
+  let results = (outs NeonVectorOfLength<4, I32>:$res);
+  let assemblyFormat =
+    "$acc `,` $src1 `,` $src2 attr-dict `:` type($src1) `to` type($res)";
+}
+
+def UsmmlaOp : ArmNeon_OverloadedOperandsWithOneResultIntrOp<"usmmla",[1], [
+                Pure,
+                AllTypesMatch<["src1", "src2"]>,
+                AllTypesMatch<["acc", "res"]>,
+              ]> {
+  let summary = "Unsignged and signed matrix-matrix multiply and accumulate op";
+  let description = [{
+    USMMLA: Signed integer matrix multiply-accumulate.
+
+    Unsigned and signed 8-bit integer matrix multiply-accumulate. This
+    instruction multiplies the 2x8 matrix of unsigned 8-bit integer values in
+    the first source vector by the 8x2 matrix of signed 8-bit integer values in
+    the second source vector. The resulting 2x2 32-bit integer matrix product is
+    destructively added to the 32-bit integer matrix accumulator in the
+    destination vector. This is equivalent to performing an 8-way dot product
+     per destination element.
+
+
+    Source:
+    https://developer.arm.com/architectures/instruction-sets/intrinsics/#f:@navigationhierarchiessimdisa=[Neon]&q=usmmla
+  }];
+  // Supports (vector<16xi8>, vector<16xi8>) -> (vector<4xi32>)
+  let arguments = (ins
+          NeonVectorOfLength<4, I32>:$acc,
+          NeonVectorOfLength<16, I8>:$src1,
+          NeonVectorOfLength<16, I8>:$src2
+  );
+  let results = (outs NeonVectorOfLength<4, I32>:$res);
+  let assemblyFormat =
+    "$acc `,` $src1 `,` $src2 attr-dict `:` type($src1) `to` type($res)";
+}
+
+def BfmmlaOp : ArmNeon_IntrOp<"bfmmla", [], [], 1, [
+                 Pure,
+                 AllTypesMatch<["src1", "src2"]>,
+                 AllTypesMatch<["acc", "res"]>,
+               ]> {
+  let summary = "BFloat16 matrix multiply-accumulate to single-precision";
+  let description = [{
+    BFMMLA: BFloat16 matrix multiply-accumulate to single-precision.
+
+    The operation multiplies the 2x4 BFloat16 matrix in the first source vector
+    with the 4x2 BFloat16 matrix in the second source vector, then accumulates
+    this intermediate result with the 2x2 Float32 matrix in the accumulator
+    vector, yielding the final 2x2 Float32 result.
+
+    Source:
+    https://developer.arm.com/architectures/instruction-sets/intrinsics/vbfmmlaq_f32
+  }];
+  // Supports (vector<8xbf16>, vector<8xbf16>) -> (vector<2xf32>)
+  let arguments = (ins
+    NeonVectorOfLength<4, F32>:$acc,
+    NeonVectorOfLength<8, BF16>:$src1,
+    NeonVectorOfLength<8, BF16>:$src2
+  );
+  let results = (outs NeonVectorOfLength<4, F32>:$res);
+  let assemblyFormat =
+    "$acc `,` $src1 `,` $src2 attr-dict `:` type($src1) `to` type($res)";
+}
+
 class ArmNeon_2dOp<string mnemonic, list<Trait> traits = []>
     : Op</*dialect=*/ArmNeon_Dialect,
          /*opName=*/"2d." # mnemonic,
          /*traits=*/traits>;
 
 def Sdot2dOp : ArmNeon_2dOp<"sdot", [
-      NoSideEffect,
+      Pure,
       AllTypesMatch<["b", "c"]>,
       AllTypesMatch<["a", "res"]>,
       PredOpTrait<
         "operand `a` should be 1-dimensional",
-        CPred<"getA().getType().cast<VectorType>().getShape().size() == 1">
+        CPred<"::llvm::cast<VectorType>(getA().getType()).getShape().size() == 1">
       >,
       PredOpTrait<
         "operand `b` should be 2-dimensional",
-        CPred<"getB().getType().cast<VectorType>().getShape().size() == 2">
+        CPred<"::llvm::cast<VectorType>(getB().getType()).getShape().size() == 2">
       >,
       PredOpTrait<
         "operand `b` should have 4 columns",
-        CPred<"getB().getType().cast<VectorType>().getShape()[1] == 4">
+        CPred<"::llvm::cast<VectorType>(getB().getType()).getShape()[1] == 4">
       >,
       PredOpTrait<
         "operand `b` should have as many rows as the size of operand `a`",
-        CPred<"getB().getType().cast<VectorType>().getShape()[0] == getA().getType().cast<VectorType>().getShape()[0]">
+        CPred<"::llvm::cast<VectorType>(getB().getType()).getShape()[0] == ::llvm::cast<VectorType>(getA().getType()).getShape()[0]">
       >,
       ]
   > {

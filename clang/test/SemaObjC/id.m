@@ -8,15 +8,14 @@ id R;
 void foo(void) {
   // Test assignment compatibility of Class and id.  No warning should be
   // produced.
-  // rdar://6770142 - Class and id<foo> are compatible.
-  S = T; // expected-warning {{incompatible pointer types assigning to 'id<Foo>' from 'Class'}}
-  T = S; // expected-warning {{incompatible pointer types assigning to 'Class' from 'id<Foo>'}}
+  // Class and id<foo> are compatible.
+  S = T; // expected-error {{incompatible pointer types assigning to 'id<Foo>' from 'Class'}}
+  T = S; // expected-error {{incompatible pointer types assigning to 'Class' from 'id<Foo>'}}
   R = T; T = R;
   R = S; S = R;
 }
 
 // Test attempt to redefine 'id' in an incompatible fashion.
-// rdar://11356439
 typedef int id;  // expected-error {{typedef redefinition with different types ('int' vs 'id')}}
 id b;
 

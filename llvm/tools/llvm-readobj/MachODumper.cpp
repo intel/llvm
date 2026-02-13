@@ -13,7 +13,6 @@
 #include "ObjDumper.h"
 #include "StackMapPrinter.h"
 #include "llvm-readobj.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Object/MachO.h"
@@ -60,10 +59,10 @@ private:
   StringRef getSymbolName(const SymbolRef &Symbol) const;
   uint8_t getSymbolType(const SymbolRef &Symbol) const;
 
-  void printSymbols() override;
-  void printSymbols(Optional<SymbolComparator> SymComp) override;
+  void printSymbols(bool ExtraSymInfo) override;
+  void printSymbols(std::optional<SymbolComparator> SymComp) override;
   void printDynamicSymbols() override;
-  void printDynamicSymbols(Optional<SymbolComparator> SymComp) override;
+  void printDynamicSymbols(std::optional<SymbolComparator> SymComp) override;
   void printSymbol(const SymbolRef &Symbol, ScopedPrinter &W);
   void printSymbol(const SymbolRef &Symbol);
 
@@ -111,17 +110,20 @@ const EnumEntry<uint32_t> MachOHeaderFileTypes[] = {
   { "KextBundle",           MachO::MH_KEXT_BUNDLE },
 };
 
+// clang-format off
 const EnumEntry<uint32_t> MachOHeaderCpuTypes[] = {
-  { "Any"       , static_cast<uint32_t>(MachO::CPU_TYPE_ANY) },
-  { "X86"       , MachO::CPU_TYPE_X86       },
-  { "X86-64"    , MachO::CPU_TYPE_X86_64    },
-  { "Mc98000"   , MachO::CPU_TYPE_MC98000   },
-  { "Arm"       , MachO::CPU_TYPE_ARM       },
-  { "Arm64"     , MachO::CPU_TYPE_ARM64     },
-  { "Sparc"     , MachO::CPU_TYPE_SPARC     },
-  { "PowerPC"   , MachO::CPU_TYPE_POWERPC   },
-  { "PowerPC64" , MachO::CPU_TYPE_POWERPC64 },
+  { "Any"          ,  static_cast<uint32_t>(MachO::CPU_TYPE_ANY) },
+  { "X86"          ,  MachO::CPU_TYPE_X86       },
+  { "X86-64"       ,  MachO::CPU_TYPE_X86_64    },
+  { "Mc98000"      ,  MachO::CPU_TYPE_MC98000   },
+  { "Arm"          ,  MachO::CPU_TYPE_ARM       },
+  { "Arm64"        ,  MachO::CPU_TYPE_ARM64     },
+  { "Arm64 (ILP32)",  MachO::CPU_TYPE_ARM64_32  },
+  { "Sparc"        ,  MachO::CPU_TYPE_SPARC     },
+  { "PowerPC"      ,  MachO::CPU_TYPE_POWERPC   },
+  { "PowerPC64"    ,  MachO::CPU_TYPE_POWERPC64 },
 };
+// clang-format on
 
 const EnumEntry<uint32_t> MachOHeaderCpuSubtypesX86[] = {
   LLVM_READOBJ_ENUM_ENT(MachO, CPU_SUBTYPE_I386_ALL),
@@ -165,6 +167,10 @@ const EnumEntry<uint32_t> MachOHeaderCpuSubtypesARM[] = {
   LLVM_READOBJ_ENUM_ENT(MachO, CPU_SUBTYPE_ARM_V6M),
   LLVM_READOBJ_ENUM_ENT(MachO, CPU_SUBTYPE_ARM_V7M),
   LLVM_READOBJ_ENUM_ENT(MachO, CPU_SUBTYPE_ARM_V7EM),
+};
+
+const EnumEntry<uint32_t> MachOHeaderCpuSubtypesARM64_32[] = {
+    LLVM_READOBJ_ENUM_ENT(MachO, CPU_SUBTYPE_ARM64_32_V8),
 };
 
 const EnumEntry<uint32_t> MachOHeaderCpuSubtypesARM64[] = {
@@ -432,36 +438,40 @@ void MachODumper::printFileHeaders() {
 
 template<class MachHeader>
 void MachODumper::printFileHeaders(const MachHeader &Header) {
-  W.printEnum("Magic", Header.magic, makeArrayRef(MachOMagics));
-  W.printEnum("CpuType", Header.cputype, makeArrayRef(MachOHeaderCpuTypes));
+  W.printEnum("Magic", Header.magic, ArrayRef(MachOMagics));
+  W.printEnum("CpuType", Header.cputype, ArrayRef(MachOHeaderCpuTypes));
   uint32_t subtype = Header.cpusubtype & ~MachO::CPU_SUBTYPE_MASK;
   switch (Header.cputype) {
   case MachO::CPU_TYPE_X86:
-    W.printEnum("CpuSubType", subtype, makeArrayRef(MachOHeaderCpuSubtypesX86));
+    W.printEnum("CpuSubType", subtype, ArrayRef(MachOHeaderCpuSubtypesX86));
     break;
   case MachO::CPU_TYPE_X86_64:
-    W.printEnum("CpuSubType", subtype, makeArrayRef(MachOHeaderCpuSubtypesX64));
+    W.printEnum("CpuSubType", subtype, ArrayRef(MachOHeaderCpuSubtypesX64));
     break;
   case MachO::CPU_TYPE_ARM:
-    W.printEnum("CpuSubType", subtype, makeArrayRef(MachOHeaderCpuSubtypesARM));
+    W.printEnum("CpuSubType", subtype, ArrayRef(MachOHeaderCpuSubtypesARM));
     break;
   case MachO::CPU_TYPE_POWERPC:
-    W.printEnum("CpuSubType", subtype, makeArrayRef(MachOHeaderCpuSubtypesPPC));
+    W.printEnum("CpuSubType", subtype, ArrayRef(MachOHeaderCpuSubtypesPPC));
     break;
   case MachO::CPU_TYPE_SPARC:
-    W.printEnum("CpuSubType", subtype, makeArrayRef(MachOHeaderCpuSubtypesSPARC));
+    W.printEnum("CpuSubType", subtype, ArrayRef(MachOHeaderCpuSubtypesSPARC));
     break;
   case MachO::CPU_TYPE_ARM64:
-    W.printEnum("CpuSubType", subtype, makeArrayRef(MachOHeaderCpuSubtypesARM64));
+    W.printEnum("CpuSubType", subtype, ArrayRef(MachOHeaderCpuSubtypesARM64));
+    break;
+  case MachO::CPU_TYPE_ARM64_32:
+    W.printEnum("CpuSubType", subtype,
+                ArrayRef(MachOHeaderCpuSubtypesARM64_32));
     break;
   case MachO::CPU_TYPE_POWERPC64:
   default:
-    W.printHex("CpuSubtype", subtype);
+    W.printHex("CpuSubType", subtype);
   }
-  W.printEnum("FileType", Header.filetype, makeArrayRef(MachOHeaderFileTypes));
+  W.printEnum("FileType", Header.filetype, ArrayRef(MachOHeaderFileTypes));
   W.printNumber("NumOfLoadCommands", Header.ncmds);
   W.printNumber("SizeOfLoadCommands", Header.sizeofcmds);
-  W.printFlags("Flags", Header.flags, makeArrayRef(MachOHeaderFlags));
+  W.printFlags("Flags", Header.flags, ArrayRef(MachOHeaderFlags));
 }
 
 void MachODumper::printSectionHeaders() { return printSectionHeaders(Obj); }
@@ -491,10 +501,9 @@ void MachODumper::printSectionHeaders(const MachOObjectFile *Obj) {
     W.printNumber("Alignment", MOSection.Alignment);
     W.printHex("RelocationOffset", MOSection.RelocationTableOffset);
     W.printNumber("RelocationCount", MOSection.NumRelocationTableEntries);
-    W.printEnum("Type", MOSection.Flags & 0xFF,
-                makeArrayRef(MachOSectionTypes));
+    W.printEnum("Type", MOSection.Flags & 0xFF, ArrayRef(MachOSectionTypes));
     W.printFlags("Attributes", MOSection.Flags >> 8,
-                 makeArrayRef(MachOSectionAttributes));
+                 ArrayRef(MachOSectionAttributes));
     W.printHex("Reserved1", MOSection.Reserved1);
     W.printHex("Reserved2", MOSection.Reserved2);
     if (Obj->is64Bit())
@@ -634,9 +643,11 @@ bool MachODumper::compareSymbolsByType(SymbolRef LHS, SymbolRef RHS) const {
   return getSymbolType(LHS) < getSymbolType(RHS);
 }
 
-void MachODumper::printSymbols() { printSymbols(None); }
+void MachODumper::printSymbols(bool /*ExtraSymInfo*/) {
+  printSymbols(std::nullopt);
+}
 
-void MachODumper::printSymbols(Optional<SymbolComparator> SymComp) {
+void MachODumper::printSymbols(std::optional<SymbolComparator> SymComp) {
   ListScope Group(W, "Symbols");
   if (SymComp) {
     auto SymbolRange = Obj->symbols();
@@ -655,7 +666,7 @@ void MachODumper::printSymbols(Optional<SymbolComparator> SymComp) {
 void MachODumper::printDynamicSymbols() {
   ListScope Group(W, "DynamicSymbols");
 }
-void MachODumper::printDynamicSymbols(Optional<SymbolComparator> SymComp) {
+void MachODumper::printDynamicSymbols(std::optional<SymbolComparator> SymComp) {
   ListScope Group(W, "DynamicSymbols");
 }
 
@@ -695,13 +706,13 @@ void MachODumper::printSymbol(const SymbolRef &Symbol, ScopedPrinter &W) {
     if (MOSymbol.Type & MachO::N_EXT)
       W.startLine() << "Extern\n";
     W.printEnum("Type", uint8_t(MOSymbol.Type & MachO::N_TYPE),
-                makeArrayRef(MachOSymbolTypes));
+                ArrayRef(MachOSymbolTypes));
   }
   W.printHex("Section", SectionName, MOSymbol.SectionIndex);
   W.printEnum("RefType", static_cast<uint16_t>(MOSymbol.Flags & 0x7),
-              makeArrayRef(MachOSymbolRefTypes));
+              ArrayRef(MachOSymbolRefTypes));
   W.printFlags("Flags", static_cast<uint16_t>(MOSymbol.Flags & ~0x7),
-               makeArrayRef(MachOSymbolFlags));
+               ArrayRef(MachOSymbolFlags));
   W.printHex("Value", MOSymbol.Value);
 }
 
@@ -734,10 +745,10 @@ void MachODumper::printStackMap() const {
 
   if (Obj->isLittleEndian())
     prettyPrintStackMap(
-        W, StackMapParser<support::little>(StackMapContentsArray));
+        W, StackMapParser<llvm::endianness::little>(StackMapContentsArray));
   else
     prettyPrintStackMap(
-        W, StackMapParser<support::big>(StackMapContentsArray));
+        W, StackMapParser<llvm::endianness::big>(StackMapContentsArray));
 }
 
 void MachODumper::printCGProfile() {
@@ -760,8 +771,8 @@ void MachODumper::printCGProfile() {
   StringRef CGProfileContents =
       unwrapOrError(Obj->getFileName(), CGProfileSection.getContents());
   BinaryStreamReader Reader(CGProfileContents, Obj->isLittleEndian()
-                                                   ? llvm::support::little
-                                                   : llvm::support::big);
+                                                   ? llvm::endianness::little
+                                                   : llvm::endianness::big);
 
   ListScope L(W, "CGProfile");
   while (!Reader.empty()) {

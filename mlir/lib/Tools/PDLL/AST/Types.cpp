@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Tools/PDLL/AST/Types.h"
-#include "TypeDetail.h"
 #include "mlir/Tools/PDLL/AST/Context.h"
+#include <optional>
 
 using namespace mlir;
 using namespace mlir::pdll;
@@ -34,8 +34,8 @@ Type Type::refineWith(Type other) const {
     return *this;
 
   // Operation types are compatible if the operation names don't conflict.
-  if (auto opTy = dyn_cast<OperationType>()) {
-    auto otherOpTy = other.dyn_cast<ast::OperationType>();
+  if (auto opTy = mlir::dyn_cast<OperationType>(*this)) {
+    auto otherOpTy = mlir::dyn_cast<ast::OperationType>(other);
     if (!otherOpTy)
       return nullptr;
     if (!otherOpTy.getName())
@@ -69,16 +69,18 @@ ConstraintType ConstraintType::get(Context &context) {
 // OperationType
 //===----------------------------------------------------------------------===//
 
-OperationType OperationType::get(Context &context, Optional<StringRef> name,
+OperationType OperationType::get(Context &context,
+                                 std::optional<StringRef> name,
                                  const ods::Operation *odsOp) {
   return context.getTypeUniquer().get<ImplTy>(
       /*initFn=*/function_ref<void(ImplTy *)>(),
       std::make_pair(name.value_or(""), odsOp));
 }
 
-Optional<StringRef> OperationType::getName() const {
+std::optional<StringRef> OperationType::getName() const {
   StringRef name = getImplAs<ImplTy>()->getValue().first;
-  return name.empty() ? Optional<StringRef>() : Optional<StringRef>(name);
+  return name.empty() ? std::optional<StringRef>()
+                      : std::optional<StringRef>(name);
 }
 
 const ods::Operation *OperationType::getODSOperation() const {
@@ -100,27 +102,30 @@ Type RangeType::getElementType() const {
 
 //===----------------------------------------------------------------------===//
 // TypeRangeType
+//===----------------------------------------------------------------------===//
 
 bool TypeRangeType::classof(Type type) {
-  RangeType range = type.dyn_cast<RangeType>();
-  return range && range.getElementType().isa<TypeType>();
+  RangeType range = mlir::dyn_cast<RangeType>(type);
+  return range && mlir::isa<TypeType>(range.getElementType());
 }
 
 TypeRangeType TypeRangeType::get(Context &context) {
-  return RangeType::get(context, TypeType::get(context)).cast<TypeRangeType>();
+  return mlir::cast<TypeRangeType>(
+      RangeType::get(context, TypeType::get(context)));
 }
 
 //===----------------------------------------------------------------------===//
 // ValueRangeType
+//===----------------------------------------------------------------------===//
 
 bool ValueRangeType::classof(Type type) {
-  RangeType range = type.dyn_cast<RangeType>();
-  return range && range.getElementType().isa<ValueType>();
+  RangeType range = mlir::dyn_cast<RangeType>(type);
+  return range && mlir::isa<ValueType>(range.getElementType());
 }
 
 ValueRangeType ValueRangeType::get(Context &context) {
-  return RangeType::get(context, ValueType::get(context))
-      .cast<ValueRangeType>();
+  return mlir::cast<ValueRangeType>(
+      RangeType::get(context, ValueType::get(context)));
 }
 
 //===----------------------------------------------------------------------===//

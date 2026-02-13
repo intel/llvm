@@ -19,6 +19,9 @@
 #include <initializer_list>
 #include <iterator>
 #include <ranges>
+#include <type_traits>
+
+#include "test_macros.h"
 
 struct Foo {
   int val;
@@ -32,27 +35,27 @@ struct Bar {
   Bar create() const { return Bar(); }
 };
 
-// Invokes both the (iterator, sentinel, ...) and the (range, ...) overloads of the given niebloid.
+// Invokes both the (iterator, sentinel, ...) and the (range, ...) overloads of the given algorithm function object.
 
 // (in, ...)
 template <class Func, std::ranges::range Input, class... Args>
 constexpr void test(Func&& func, Input& in, Args&&... args) {
-  func(in.begin(), in.end(), std::forward<Args>(args)...);
-  func(in, std::forward<Args>(args)...);
+  (void)func(in.begin(), in.end(), std::forward<Args>(args)...);
+  (void)func(in, std::forward<Args>(args)...);
 }
 
 // (in1, in2, ...)
 template <class Func, std::ranges::range Input, class... Args>
 constexpr void test(Func&& func, Input& in1, Input& in2, Args&&... args) {
-  func(in1.begin(), in1.end(), in2.begin(), in2.end(), std::forward<Args>(args)...);
-  func(in1, in2, std::forward<Args>(args)...);
+  (void)func(in1.begin(), in1.end(), in2.begin(), in2.end(), std::forward<Args>(args)...);
+  (void)func(in1, in2, std::forward<Args>(args)...);
 }
 
 // (in, mid, ...)
 template <class Func, std::ranges::range Input, class... Args>
 constexpr void test_mid(Func&& func, Input& in, std::ranges::iterator_t<Input> mid, Args&&... args) {
-  func(in.begin(), mid, in.end(), std::forward<Args>(args)...);
-  func(in, mid, std::forward<Args>(args)...);
+  (void)func(in.begin(), mid, in.end(), std::forward<Args>(args)...);
+  (void)func(in, mid, std::forward<Args>(args)...);
 }
 
 constexpr bool test_all() {
@@ -69,10 +72,14 @@ constexpr bool test_all() {
   Bar c{Foo{3}};
 
   Foo x{2};
-  size_t count = 1;
+  std::size_t count = 1;
 
   test(std::ranges::any_of, in, &Foo::unary_pred, &Bar::val);
   test(std::ranges::all_of, in, &Foo::unary_pred, &Bar::val);
+#if TEST_STD_VER >= 23
+  test(std::ranges::contains, in, x, &Bar::val);
+  test(std::ranges::ends_with, in, in2, &Foo::binary_pred, &Bar::val, &Bar::val);
+#endif
   test(std::ranges::none_of, in, &Foo::unary_pred, &Bar::val);
   test(std::ranges::find, in, x, &Bar::val);
   test(std::ranges::find_if, in, &Foo::unary_pred, &Bar::val);
@@ -89,17 +96,17 @@ constexpr bool test_all() {
   test(std::ranges::binary_search, in, x, &Foo::binary_pred, &Bar::val);
 
   // min
-  std::ranges::min(a, b, &Foo::binary_pred, &Bar::val);
-  std::ranges::min(std::initializer_list<Bar>{a, b}, &Foo::binary_pred, &Bar::val);
-  std::ranges::min(in, &Foo::binary_pred, &Bar::val);
+  (void)std::ranges::min(a, b, &Foo::binary_pred, &Bar::val);
+  (void)std::ranges::min(std::initializer_list<Bar>{a, b}, &Foo::binary_pred, &Bar::val);
+  (void)std::ranges::min(in, &Foo::binary_pred, &Bar::val);
   // max
-  std::ranges::max(a, b, &Foo::binary_pred, &Bar::val);
-  std::ranges::max(std::initializer_list<Bar>{a, b}, &Foo::binary_pred, &Bar::val);
-  std::ranges::max(in, &Foo::binary_pred, &Bar::val);
+  (void)std::ranges::max(a, b, &Foo::binary_pred, &Bar::val);
+  (void)std::ranges::max(std::initializer_list<Bar>{a, b}, &Foo::binary_pred, &Bar::val);
+  (void)std::ranges::max(in, &Foo::binary_pred, &Bar::val);
   // minmax
-  std::ranges::minmax(a, b, &Foo::binary_pred, &Bar::val);
-  std::ranges::minmax(std::initializer_list<Bar>{a, b}, &Foo::binary_pred, &Bar::val);
-  std::ranges::minmax(in, &Foo::binary_pred, &Bar::val);
+  (void)std::ranges::minmax(a, b, &Foo::binary_pred, &Bar::val);
+  (void)std::ranges::minmax(std::initializer_list<Bar>{a, b}, &Foo::binary_pred, &Bar::val);
+  (void)std::ranges::minmax(in, &Foo::binary_pred, &Bar::val);
 
   test(std::ranges::min_element, in, &Foo::binary_pred, &Bar::val);
   test(std::ranges::max_element, in, &Foo::binary_pred, &Bar::val);
@@ -115,7 +122,7 @@ constexpr bool test_all() {
   test(std::ranges::includes, in, in2, &Foo::binary_pred, &Bar::val, &Bar::val);
   test(std::ranges::is_heap, in, &Foo::binary_pred, &Bar::val);
   test(std::ranges::is_heap_until, in, &Foo::binary_pred, &Bar::val);
-  std::ranges::clamp(b, a, c, &Foo::binary_pred, &Bar::val);
+  (void)std::ranges::clamp(b, a, c, &Foo::binary_pred, &Bar::val);
   test(std::ranges::is_permutation, in, in2, &Foo::binary_pred, &Bar::val, &Bar::val);
   test(std::ranges::for_each, in, &Foo::unary_pred, &Bar::val);
   std::ranges::for_each_n(in.begin(), count, &Foo::unary_pred, &Bar::val);
@@ -143,6 +150,9 @@ constexpr bool test_all() {
   test(std::ranges::partition_copy, in, out, out2, &Foo::unary_pred, &Bar::val);
   test(std::ranges::partial_sort_copy, in, in2, &Foo::binary_pred, &Bar::val, &Bar::val);
   test(std::ranges::merge, in, in2, out, &Foo::binary_pred, &Bar::val, &Bar::val);
+#if TEST_STD_VER > 20
+  test(std::ranges::starts_with, in, in2, &Foo::binary_pred, &Bar::val, &Bar::val);
+#endif
   test(std::ranges::set_difference, in, in2, out, &Foo::binary_pred, &Bar::val, &Bar::val);
   test(std::ranges::set_intersection, in, in2, out, &Foo::binary_pred, &Bar::val, &Bar::val);
   test(std::ranges::set_symmetric_difference, in, in2, out, &Foo::binary_pred, &Bar::val, &Bar::val);
@@ -154,15 +164,18 @@ constexpr bool test_all() {
   // For `shuffle`, whether the given generator is invoked via `std::invoke` is not observable.
   test(std::ranges::unique, in, &Foo::binary_pred, &Bar::val);
   test(std::ranges::partition, in, &Foo::unary_pred, &Bar::val);
-  if (!std::is_constant_evaluated())
+  if (TEST_STD_AT_LEAST_26_OR_RUNTIME_EVALUATED) {
     test(std::ranges::stable_partition, in, &Foo::unary_pred, &Bar::val);
+  }
   test(std::ranges::sort, in, &Foo::binary_pred, &Bar::val);
-  if (!std::is_constant_evaluated())
+  if (TEST_STD_AT_LEAST_26_OR_RUNTIME_EVALUATED) {
     test(std::ranges::stable_sort, in, &Foo::binary_pred, &Bar::val);
+  }
   test_mid(std::ranges::partial_sort, in, mid, &Foo::binary_pred, &Bar::val);
   test_mid(std::ranges::nth_element, in, mid, &Foo::binary_pred, &Bar::val);
-  if (!std::is_constant_evaluated())
+  if (TEST_STD_AT_LEAST_26_OR_RUNTIME_EVALUATED) {
     test_mid(std::ranges::inplace_merge, in, mid, &Foo::binary_pred, &Bar::val);
+  }
   test(std::ranges::make_heap, in, &Foo::binary_pred, &Bar::val);
   test(std::ranges::push_heap, in, &Foo::binary_pred, &Bar::val);
   test(std::ranges::pop_heap, in, &Foo::binary_pred, &Bar::val);

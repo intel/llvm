@@ -14,6 +14,7 @@
 #ifndef LLVM_CODEGEN_ASMPRINTERHANDLER_H
 #define LLVM_CODEGEN_ASMPRINTERHANDLER_H
 
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/DataTypes.h"
 
 namespace llvm {
@@ -30,13 +31,9 @@ typedef MCSymbol *ExceptionSymbolProvider(AsmPrinter *Asm,
 
 /// Collects and handles AsmPrinter objects required to build debug
 /// or EH information.
-class AsmPrinterHandler {
+class LLVM_ABI AsmPrinterHandler {
 public:
   virtual ~AsmPrinterHandler();
-
-  /// For symbols that have a size designated (e.g. common symbols),
-  /// this tracks that size.
-  virtual void setSymbolSize(const MCSymbol *Sym, uint64_t Size) = 0;
 
   virtual void beginModule(Module *M) {}
 
@@ -53,30 +50,37 @@ public:
   virtual void markFunctionEnd();
 
   /// Gather post-function debug information.
-  /// Please note that some AsmPrinter implementations may not call
-  /// beginFunction at all.
   virtual void endFunction(const MachineFunction *MF) = 0;
 
-  virtual void beginFragment(const MachineBasicBlock *MBB,
-                             ExceptionSymbolProvider ESP) {}
-  virtual void endFragment() {}
+  /// Process the beginning of a new basic-block-section within a
+  /// function. Always called immediately after beginFunction for the first
+  /// basic-block. When basic-block-sections are enabled, called before the
+  /// first block of each such section.
+  virtual void beginBasicBlockSection(const MachineBasicBlock &MBB) {}
+
+  /// Process the end of a basic-block-section within a function. When
+  /// basic-block-sections are enabled, called after the last block in each such
+  /// section (including the last section in the function). When
+  /// basic-block-sections are disabled, called at the end of a function,
+  /// immediately prior to markFunctionEnd.
+  virtual void endBasicBlockSection(const MachineBasicBlock &MBB) {}
+
+  /// For symbols that have a size designated (e.g. common symbols),
+  /// this tracks that size.
+  virtual void setSymbolSize(const MCSymbol *Sym, uint64_t Size) {}
+
+  /// Process beginning of an instruction.
+  virtual void beginInstruction(const MachineInstr *MI) {}
+
+  /// Process end of an instruction.
+  virtual void endInstruction() {}
+
+  virtual void beginCodeAlignment(const MachineBasicBlock &MBB) {}
 
   /// Emit target-specific EH funclet machinery.
   virtual void beginFunclet(const MachineBasicBlock &MBB,
                             MCSymbol *Sym = nullptr) {}
   virtual void endFunclet() {}
-
-  /// Process beginning of an instruction.
-  virtual void beginInstruction(const MachineInstr *MI) = 0;
-
-  /// Process end of an instruction.
-  virtual void endInstruction() = 0;
-
-  /// Process beginning of a basic block during basic block sections.
-  virtual void beginBasicBlock(const MachineBasicBlock &MBB) {}
-
-  /// Process end of a basic block during basic block sections.
-  virtual void endBasicBlock(const MachineBasicBlock &MBB) {}
 };
 
 } // End of namespace llvm

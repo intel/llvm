@@ -8,10 +8,10 @@
 ;   main:3 @ _Z5funcAi
 ;   main:3 @ _Z5funcAi:1 @ _Z8funcLeafi
 ;   _Z5funcBi:1 @ _Z8funcLeafi
-; RUN: opt < %s -passes=sample-profile -sample-profile-file=%S/Inputs/profile-context-tracker.prof -sample-profile-inline-size -sample-profile-prioritized-inline=0 -profile-sample-accurate -sample-profile-even-count-distribution=0 -S | FileCheck %s --check-prefix=INLINE-ALL
-; RUN: opt < %s -passes=sample-profile -sample-profile-file=%t -sample-profile-inline-size -sample-profile-prioritized-inline=0 -profile-sample-accurate -sample-profile-even-count-distribution=0 -S | FileCheck %s --check-prefix=INLINE-ALL
-; RUN: opt < %s -passes=sample-profile -sample-profile-file=%S/Inputs/profile-context-tracker.prof -sample-profile-inline-size -sample-profile-cold-inline-threshold=200 -profile-sample-accurate -sample-profile-even-count-distribution=0 -S | FileCheck %s --check-prefix=INLINE-ALL
-; RUN: opt < %s -passes=sample-profile -sample-profile-file=%t -sample-profile-inline-size -sample-profile-cold-inline-threshold=200 -profile-sample-accurate -sample-profile-even-count-distribution=0 -S | FileCheck %s --check-prefix=INLINE-ALL
+; RUN: opt < %s -passes=sample-profile -sample-profile-file=%S/Inputs/profile-context-tracker.prof -sample-profile-inline-size -sample-profile-prioritized-inline=0 -profile-sample-accurate -sample-profile-even-flow-distribution=0 -S | FileCheck %s --check-prefix=INLINE-ALL
+; RUN: opt < %s -passes=sample-profile -sample-profile-file=%t -sample-profile-inline-size -sample-profile-prioritized-inline=0 -profile-sample-accurate -sample-profile-even-flow-distribution=0 -S | FileCheck %s --check-prefix=INLINE-ALL
+; RUN: opt < %s -passes=sample-profile -sample-profile-file=%S/Inputs/profile-context-tracker.prof -sample-profile-inline-size -sample-profile-cold-inline-threshold=200 -profile-sample-accurate -sample-profile-even-flow-distribution=0 -S | FileCheck %s --check-prefix=INLINE-ALL
+; RUN: opt < %s -passes=sample-profile -sample-profile-file=%t -sample-profile-inline-size -sample-profile-cold-inline-threshold=200 -profile-sample-accurate -sample-profile-even-flow-distribution=0 -S | FileCheck %s --check-prefix=INLINE-ALL
 ;
 ; Test we inlined the following in top-down order and entry counts accurate reflects post-inline base profile
 ;   _Z5funcAi:1 @ _Z8funcLeafi
@@ -145,15 +145,15 @@ entry:
 ; INLINE-HOT-DAG-SAME: [[LEAF_PROF]] = !{!"function_entry_count", i64 0}
 ; INLINE-HOT-DAG: [[FUNCB_PROF]] = !{!"function_entry_count", i64 13}
 
-; INLINE-NONE: [[MAIN_PROF]] = !{!"function_entry_count", i64 13}
+; INLINE-NONE: [[MAIN_PROF]] = !{!"function_entry_count", i64 14}
 ; INLINE-NONE: [[FUNCA_PROF]] = !{!"function_entry_count", i64 24}
 ; INLINE-NONE-DAG-SAME: [[LEAF_PROF]] = !{!"function_entry_count", i64 21}
 ; INLINE-NONE-DAG: [[FUNCB_PROF]] = !{!"function_entry_count", i64 32}
 
 declare i32 @_Z3fibi(i32)
 
-attributes #0 = { nofree noinline norecurse nounwind uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="none" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" "use-sample-profile" }
-attributes #1 = { nofree norecurse nounwind uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="none" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" "use-sample-profile" }
+attributes #0 = { nofree noinline norecurse nounwind uwtable "use-sample-profile" }
+attributes #1 = { nofree norecurse nounwind uwtable "use-sample-profile" }
 
 !llvm.dbg.cu = !{!2}
 !llvm.module.flags = !{!14, !15, !16}

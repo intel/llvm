@@ -1,4 +1,4 @@
-; DISABLE: llc -march=mipsel < %s | FileCheck %s
+; DISABLE: llc -mtriple=mipsel < %s | FileCheck %s
 ; RUN: false
 ; XFAIL: *
 
@@ -13,8 +13,8 @@
 define void @foo2() nounwind {
 entry:
   %s = alloca %struct.S, align 4
-  call void @foo1(%struct.S* byval(%struct.S) %s)
+  call void @foo1(ptr byval(%struct.S) %s)
   ret void
 }
 
-declare void @foo1(%struct.S* byval(%struct.S))
+declare void @foo1(ptr byval(%struct.S))

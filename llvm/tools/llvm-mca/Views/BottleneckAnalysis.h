@@ -146,19 +146,19 @@ public:
                         SmallVectorImpl<User> &Users) const;
 
   unsigned getRegisterPressureCycles(unsigned IID) const {
-    assert(IPI.find(IID) != IPI.end() && "Instruction is not tracked!");
+    assert(IPI.contains(IID) && "Instruction is not tracked!");
     const InstructionPressureInfo &Info = IPI.find(IID)->second;
     return Info.RegisterPressureCycles;
   }
 
   unsigned getMemoryPressureCycles(unsigned IID) const {
-    assert(IPI.find(IID) != IPI.end() && "Instruction is not tracked!");
+    assert(IPI.contains(IID) && "Instruction is not tracked!");
     const InstructionPressureInfo &Info = IPI.find(IID)->second;
     return Info.MemoryPressureCycles;
   }
 
   unsigned getResourcePressureCycles(unsigned IID) const {
-    assert(IPI.find(IID) != IPI.end() && "Instruction is not tracked!");
+    assert(IPI.contains(IID) && "Instruction is not tracked!");
     const InstructionPressureInfo &Info = IPI.find(IID)->second;
     return Info.ResourcePressureCycles;
   }
@@ -228,7 +228,10 @@ class DependencyGraph {
     unsigned Depth;
 
     DependencyEdge CriticalPredecessor;
-    SmallVector<DependencyEdge, 8> OutgoingEdges;
+    // Measurements show that more than 90% of nodes have no outgoing edges. To
+    // minimize memory consumption we use SmallVector with zero inline elements
+    // that is preferred version of std::vector.
+    SmallVector<DependencyEdge, 0> OutgoingEdges;
   };
   SmallVector<DGNode, 16> Nodes;
 
@@ -335,7 +338,8 @@ public:
 
   void printView(raw_ostream &OS) const override;
   StringRef getNameAsString() const override { return "BottleneckAnalysis"; }
-  bool isSerializable() const override { return false; }
+  bool isSerializable() const override { return true; }
+  json::Value toJSON() const override;
 
 #ifndef NDEBUG
   void dump(raw_ostream &OS, MCInstPrinter &MCIP) const { DG.dump(OS, MCIP); }

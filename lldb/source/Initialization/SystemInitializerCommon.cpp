@@ -12,11 +12,14 @@
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Host/Host.h"
 #include "lldb/Host/Socket.h"
+#include "lldb/Target/Statistics.h"
+#include "lldb/Utility/Diagnostics.h"
 #include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Timer.h"
 #include "lldb/Version/Version.h"
 
-#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) ||       \
+    defined(__OpenBSD__)
 #include "Plugins/Process/POSIX/ProcessPOSIXLog.h"
 #endif
 
@@ -63,6 +66,7 @@ llvm::Error SystemInitializerCommon::Initialize() {
 
   InitializeLldbChannel();
 
+  Diagnostics::Initialize();
   FileSystem::Initialize();
   HostInfo::Initialize(m_shlib_dir_helper);
 
@@ -74,7 +78,8 @@ llvm::Error SystemInitializerCommon::Initialize() {
 
   process_gdb_remote::ProcessGDBRemoteLog::Initialize();
 
-#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) ||       \
+    defined(__OpenBSD__)
   ProcessPOSIXLog::Initialize();
 #endif
 #if defined(_WIN32)
@@ -95,4 +100,5 @@ void SystemInitializerCommon::Terminate() {
   HostInfo::Terminate();
   Log::DisableAllLogChannels();
   FileSystem::Terminate();
+  Diagnostics::Terminate();
 }

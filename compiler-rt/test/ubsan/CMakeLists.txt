@@ -23,9 +23,7 @@ macro(add_ubsan_testsuite test_mode sanitizer arch lld thinlto)
     ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
     ${CMAKE_CURRENT_BINARY_DIR}/${CONFIG_NAME}/lit.site.cfg.py)
   list(APPEND UBSAN_TESTSUITES ${CMAKE_CURRENT_BINARY_DIR}/${CONFIG_NAME})
-  if(NOT COMPILER_RT_STANDALONE_BUILD)
-    list(APPEND UBSAN_TEST_DEPS ${sanitizer})
-  endif()
+  list(APPEND UBSAN_TEST_DEPS ${sanitizer})
 endmacro()
 
 macro(add_ubsan_testsuites test_mode sanitizer arch)
@@ -46,17 +44,17 @@ foreach(arch ${UBSAN_TEST_ARCH})
   if (APPLE)
     set(UBSAN_TEST_APPLE_PLATFORM "osx")
     set(UBSAN_TEST_MIN_DEPLOYMENT_TARGET_FLAG "${DARWIN_osx_MIN_VER_FLAG}")
+    set(UBSAN_TEST_APPLE_TARGET_IS_HOST ON)
   endif()
+  pythonize_bool(UBSAN_TEST_APPLE_TARGET_IS_HOST)
   get_test_cc_for_arch(${arch} UBSAN_TEST_TARGET_CC UBSAN_TEST_TARGET_CFLAGS)
   add_ubsan_testsuites("Standalone" ubsan ${arch})
 
   if(COMPILER_RT_HAS_ASAN AND ";${ASAN_SUPPORTED_ARCH};" MATCHES ";${arch};")
-    # TODO(wwchrome): Re-enable ubsan for asan win 64-bit when ready.
-    # Disable ubsan with AddressSanitizer tests for Windows 64-bit,
-    # 64-bit Solaris/x86, and SPARC.
-    if((NOT (OS_NAME MATCHES "Windows" AND CMAKE_SIZEOF_VOID_P EQUAL 8)) AND
-       (NOT (OS_NAME MATCHES "SunOS" AND ${arch} MATCHES x86_64)) AND
-       (NOT ${arch} MATCHES sparc))
+    # Disable ubsan with AddressSanitizer tests for 64-bit Solaris/x86 and
+    # 64-bit SPARC.
+    if((NOT (OS_NAME MATCHES "SunOS" AND ${arch} MATCHES x86_64)) AND
+       (NOT ${arch} MATCHES sparcv9))
       add_ubsan_testsuites("AddressSanitizer" asan ${arch})
     endif()
   endif()
@@ -65,6 +63,9 @@ foreach(arch ${UBSAN_TEST_ARCH})
   endif()
   if(COMPILER_RT_HAS_TSAN AND ";${TSAN_SUPPORTED_ARCH};" MATCHES ";${arch};" AND NOT ANDROID)
     add_ubsan_testsuites("ThreadSanitizer" tsan ${arch})
+  endif()
+  if(COMPILER_RT_HAS_TYSAN AND ";${TYSAN_SUPPORTED_ARCH};" MATCHES ";${arch};")
+    add_ubsan_testsuites("TypeSanitizer" tysan ${arch})
   endif()
 endforeach()
 
@@ -78,17 +79,17 @@ macro(add_ubsan_device_testsuite test_mode sanitizer platform arch)
   if (APPLE)
     set(UBSAN_TEST_APPLE_PLATFORM "${platform}")
     set(UBSAN_TEST_MIN_DEPLOYMENT_TARGET_FLAG "${DARWIN_${platform}_MIN_VER_FLAG}")
+    set(UBSAN_TEST_APPLE_TARGET_IS_HOST OFF)
   else()
     unset(UBSAN_TEST_APPLE_PLATFORM)
     unset(UBSAN_TEST_MIN_DEPLOYMENT_TARGET_FLAG)
   endif()
+  pythonize_bool(UBSAN_TEST_APPLE_TARGET_IS_HOST)
   configure_lit_site_cfg(
     ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
     ${CMAKE_CURRENT_BINARY_DIR}/${CONFIG_NAME}/lit.site.cfg.py)
   #list(APPEND UBSAN_TESTSUITES ${CMAKE_CURRENT_BINARY_DIR}/${CONFIG_NAME})
-  if(NOT COMPILER_RT_STANDALONE_BUILD)
-    list(APPEND UBSAN_TEST_DEPS ${sanitizer})
-  endif()
+  list(APPEND UBSAN_TEST_DEPS ${sanitizer})
   add_lit_testsuite(check-ubsan-${test_mode}-${platform}-${arch}
     "UBSan ${CONFIG_NAME} tests"
     ${CMAKE_CURRENT_BINARY_DIR}/${CONFIG_NAME}/
@@ -101,7 +102,6 @@ if(APPLE)
     set(UBSAN_TEST_TARGET_ARCH ${arch})
     get_test_cc_for_arch(${arch} UBSAN_TEST_TARGET_CC UBSAN_TEST_TARGET_CFLAGS)
     set(UBSAN_TEST_TARGET_CFLAGS "${UBSAN_TEST_TARGET_CFLAGS} -lc++abi")
-    add_ubsan_testsuites("StandaloneStatic" ubsan ${arch})
   endforeach()
 
   # Device and simulator test suites.
@@ -131,6 +131,10 @@ if(APPLE)
       if(COMPILER_RT_HAS_TSAN AND ";${TSAN_SUPPORTED_ARCH};" MATCHES ";${arch};")
         add_ubsan_device_testsuite("ThreadSanitizer" tsan ${platform} ${arch})
       endif()
+
+      if(COMPILER_RT_HAS_TYSAN AND ";${TYSAN_SUPPORTED_ARCH};" MATCHES ";${arch};")
+        add_ubsan_device_testsuite("TypeSanitizer" tysan ${platform} ${arch})
+      endif()
     endforeach()
   endforeach()
 endif()
@@ -138,5 +142,3 @@ endif()
 add_lit_testsuite(check-ubsan "Running UndefinedBehaviorSanitizer tests"
   ${UBSAN_TESTSUITES}
   DEPENDS ${UBSAN_TEST_DEPS})
-set_target_properties(check-ubsan PROPERTIES FOLDER "Compiler-RT Misc")
-

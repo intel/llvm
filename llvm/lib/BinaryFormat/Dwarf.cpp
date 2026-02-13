@@ -12,8 +12,8 @@
 
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/TargetParser/Triple.h"
 
 using namespace llvm;
 using namespace dwarf;
@@ -139,7 +139,7 @@ StringRef llvm::dwarf::OperationEncodingString(unsigned Encoding) {
   switch (Encoding) {
   default:
     return StringRef();
-#define HANDLE_DW_OP(ID, NAME, VERSION, VENDOR)                                \
+#define HANDLE_DW_OP(ID, NAME, OPERANDS, ARITY, VERSION, VENDOR)               \
   case DW_OP_##NAME:                                                           \
     return "DW_OP_" #NAME;
 #include "llvm/BinaryFormat/Dwarf.def"
@@ -155,12 +155,16 @@ StringRef llvm::dwarf::OperationEncodingString(unsigned Encoding) {
     return "DW_OP_LLVM_implicit_pointer";
   case DW_OP_LLVM_arg:
     return "DW_OP_LLVM_arg";
+  case DW_OP_LLVM_extract_bits_sext:
+    return "DW_OP_LLVM_extract_bits_sext";
+  case DW_OP_LLVM_extract_bits_zext:
+    return "DW_OP_LLVM_extract_bits_zext";
   }
 }
 
 unsigned llvm::dwarf::getOperationEncoding(StringRef OperationEncodingString) {
   return StringSwitch<unsigned>(OperationEncodingString)
-#define HANDLE_DW_OP(ID, NAME, VERSION, VENDOR)                                \
+#define HANDLE_DW_OP(ID, NAME, OPERANDS, ARITY, VERSION, VENDOR)               \
   .Case("DW_OP_" #NAME, DW_OP_##NAME)
 #include "llvm/BinaryFormat/Dwarf.def"
       .Case("DW_OP_LLVM_convert", DW_OP_LLVM_convert)
@@ -169,16 +173,78 @@ unsigned llvm::dwarf::getOperationEncoding(StringRef OperationEncodingString) {
       .Case("DW_OP_LLVM_entry_value", DW_OP_LLVM_entry_value)
       .Case("DW_OP_LLVM_implicit_pointer", DW_OP_LLVM_implicit_pointer)
       .Case("DW_OP_LLVM_arg", DW_OP_LLVM_arg)
+      .Case("DW_OP_LLVM_extract_bits_sext", DW_OP_LLVM_extract_bits_sext)
+      .Case("DW_OP_LLVM_extract_bits_zext", DW_OP_LLVM_extract_bits_zext)
       .Default(0);
+}
+
+static StringRef LlvmUserOperationEncodingString(unsigned Encoding) {
+  switch (Encoding) {
+  default:
+    llvm_unreachable("unhandled DWARF operation with LLVM user op");
+#define HANDLE_DW_OP_LLVM_USEROP(ID, NAME)                                     \
+  case DW_OP_LLVM_##NAME:                                                      \
+    return "DW_OP_LLVM_" #NAME;
+#include "llvm/BinaryFormat/Dwarf.def"
+  }
+}
+
+static unsigned
+getLlvmUserOperationEncoding(StringRef LlvmUserOperationEncodingString) {
+  unsigned E = StringSwitch<unsigned>(LlvmUserOperationEncodingString)
+#define HANDLE_DW_OP_LLVM_USEROP(ID, NAME) .Case(#NAME, DW_OP_LLVM_##NAME)
+#include "llvm/BinaryFormat/Dwarf.def"
+                   .Default(0);
+  assert(E && "unhandled DWARF operation string with LLVM user op");
+  return E;
+}
+
+StringRef llvm::dwarf::SubOperationEncodingString(unsigned OpEncoding,
+                                                  unsigned SubOpEncoding) {
+  assert(OpEncoding == DW_OP_LLVM_user);
+  return LlvmUserOperationEncodingString(SubOpEncoding);
+}
+
+unsigned
+llvm::dwarf::getSubOperationEncoding(unsigned OpEncoding,
+                                     StringRef SubOperationEncodingString) {
+  assert(OpEncoding == DW_OP_LLVM_user);
+  return getLlvmUserOperationEncoding(SubOperationEncodingString);
 }
 
 unsigned llvm::dwarf::OperationVersion(dwarf::LocationAtom Op) {
   switch (Op) {
   default:
     return 0;
-#define HANDLE_DW_OP(ID, NAME, VERSION, VENDOR)                                \
+#define HANDLE_DW_OP(ID, NAME, OPERANDS, ARITY, VERSION, VENDOR)               \
   case DW_OP_##NAME:                                                           \
     return VERSION;
+#include "llvm/BinaryFormat/Dwarf.def"
+  }
+}
+
+std::optional<unsigned> llvm::dwarf::OperationOperands(dwarf::LocationAtom Op) {
+  switch (Op) {
+  default:
+    return std::nullopt;
+#define HANDLE_DW_OP(ID, NAME, OPERANDS, ARITY, VERSION, VENDOR)               \
+  case DW_OP_##NAME:                                                           \
+    if (OPERANDS == -1)                                                        \
+      return std::nullopt;                                                     \
+    return OPERANDS;
+#include "llvm/BinaryFormat/Dwarf.def"
+  }
+}
+
+std::optional<unsigned> llvm::dwarf::OperationArity(dwarf::LocationAtom Op) {
+  switch (Op) {
+  default:
+    return std::nullopt;
+#define HANDLE_DW_OP(ID, NAME, OPERANDS, ARITY, VERSION, VENDOR)               \
+  case DW_OP_##NAME:                                                           \
+    if (ARITY == -1)                                                           \
+      return std::nullopt;                                                     \
+    return ARITY;
 #include "llvm/BinaryFormat/Dwarf.def"
   }
 }
@@ -187,7 +253,7 @@ unsigned llvm::dwarf::OperationVendor(dwarf::LocationAtom Op) {
   switch (Op) {
   default:
     return 0;
-#define HANDLE_DW_OP(ID, NAME, VERSION, VENDOR)                                \
+#define HANDLE_DW_OP(ID, NAME, OPERANDS, ARITY, VERSION, VENDOR)               \
   case DW_OP_##NAME:                                                           \
     return DWARF_VENDOR_##VENDOR;
 #include "llvm/BinaryFormat/Dwarf.def"
@@ -324,6 +390,25 @@ unsigned llvm::dwarf::getVirtuality(StringRef VirtualityString) {
       .Default(DW_VIRTUALITY_invalid);
 }
 
+StringRef llvm::dwarf::EnumKindString(unsigned EnumKind) {
+  switch (EnumKind) {
+  default:
+    return StringRef();
+#define HANDLE_DW_APPLE_ENUM_KIND(ID, NAME)                                    \
+  case DW_APPLE_ENUM_KIND_##NAME:                                              \
+    return "DW_APPLE_ENUM_KIND_" #NAME;
+#include "llvm/BinaryFormat/Dwarf.def"
+  }
+}
+
+unsigned llvm::dwarf::getEnumKind(StringRef EnumKindString) {
+  return StringSwitch<unsigned>(EnumKindString)
+#define HANDLE_DW_APPLE_ENUM_KIND(ID, NAME)                                    \
+  .Case("DW_APPLE_ENUM_KIND_" #NAME, DW_APPLE_ENUM_KIND_##NAME)
+#include "llvm/BinaryFormat/Dwarf.def"
+      .Default(DW_APPLE_ENUM_KIND_invalid);
+}
+
 StringRef llvm::dwarf::LanguageString(unsigned Language) {
   switch (Language) {
   default:
@@ -365,15 +450,157 @@ unsigned llvm::dwarf::LanguageVendor(dwarf::SourceLanguage Lang) {
   }
 }
 
-Optional<unsigned> llvm::dwarf::LanguageLowerBound(dwarf::SourceLanguage Lang) {
+std::optional<unsigned>
+llvm::dwarf::LanguageLowerBound(dwarf::SourceLanguage Lang) {
   switch (Lang) {
   default:
-    return None;
+    return std::nullopt;
 #define HANDLE_DW_LANG(ID, NAME, LOWER_BOUND, VERSION, VENDOR)                 \
   case DW_LANG_##NAME:                                                         \
     return LOWER_BOUND;
 #include "llvm/BinaryFormat/Dwarf.def"
   }
+}
+
+StringRef llvm::dwarf::LanguageDescription(dwarf::SourceLanguageName lname) {
+  switch (lname) {
+#define HANDLE_DW_LNAME(ID, NAME, DESC, LOWER_BOUND)                           \
+  case DW_LNAME_##NAME:                                                        \
+    return DESC;
+#include "llvm/BinaryFormat/Dwarf.def"
+  }
+  return "Unknown";
+}
+
+StringRef llvm::dwarf::LanguageDescription(dwarf::SourceLanguageName Name,
+                                           uint32_t Version) {
+  switch (Name) {
+  // YYYY
+  case DW_LNAME_Ada: {
+    if (Version <= 1983)
+      return "Ada 83";
+    if (Version <= 1995)
+      return "Ada 95";
+    if (Version <= 2005)
+      return "Ada 2005";
+    if (Version <= 2012)
+      return "Ada 2012";
+  } break;
+
+  case DW_LNAME_Cobol: {
+    if (Version <= 1974)
+      return "COBOL-74";
+    if (Version <= 1985)
+      return "COBOL-85";
+  } break;
+
+  case DW_LNAME_Fortran: {
+    if (Version <= 1977)
+      return "FORTRAN 77";
+    if (Version <= 1990)
+      return "FORTRAN 90";
+    if (Version <= 1995)
+      return "Fortran 95";
+    if (Version <= 2003)
+      return "Fortran 2003";
+    if (Version <= 2008)
+      return "Fortran 2008";
+    if (Version <= 2018)
+      return "Fortran 2018";
+  } break;
+
+  // YYYYMM
+  case DW_LNAME_C: {
+    if (Version == 0)
+      break;
+    if (Version <= 198912)
+      return "C89";
+    if (Version <= 199901)
+      return "C99";
+    if (Version <= 201112)
+      return "C11";
+    if (Version <= 201710)
+      return "C17";
+  } break;
+
+  case DW_LNAME_C_plus_plus: {
+    if (Version == 0)
+      break;
+    if (Version <= 199711)
+      return "C++98";
+    if (Version <= 200310)
+      return "C++03";
+    if (Version <= 201103)
+      return "C++11";
+    if (Version <= 201402)
+      return "C++14";
+    if (Version <= 201703)
+      return "C++17";
+    if (Version <= 202002)
+      return "C++20";
+  } break;
+
+  case DW_LNAME_ObjC_plus_plus:
+  case DW_LNAME_ObjC:
+  case DW_LNAME_Move:
+  case DW_LNAME_SYCL:
+  case DW_LNAME_BLISS:
+  case DW_LNAME_Crystal:
+  case DW_LNAME_D:
+  case DW_LNAME_Dylan:
+  case DW_LNAME_Go:
+  case DW_LNAME_Haskell:
+  case DW_LNAME_HLSL:
+  case DW_LNAME_Java:
+  case DW_LNAME_Julia:
+  case DW_LNAME_Kotlin:
+  case DW_LNAME_Modula2:
+  case DW_LNAME_Modula3:
+  case DW_LNAME_OCaml:
+  case DW_LNAME_OpenCL_C:
+  case DW_LNAME_Pascal:
+  case DW_LNAME_PLI:
+  case DW_LNAME_Python:
+  case DW_LNAME_RenderScript:
+  case DW_LNAME_Rust:
+  case DW_LNAME_Swift:
+  case DW_LNAME_UPC:
+  case DW_LNAME_Zig:
+  case DW_LNAME_Assembly:
+  case DW_LNAME_C_sharp:
+  case DW_LNAME_Mojo:
+  case DW_LNAME_GLSL:
+  case DW_LNAME_GLSL_ES:
+  case DW_LNAME_OpenCL_CPP:
+  case DW_LNAME_CPP_for_OpenCL:
+  case DW_LNAME_Ruby:
+  case DW_LNAME_Hylo:
+  case DW_LNAME_Metal:
+    break;
+  }
+
+  // Fallback to un-versioned name.
+  return LanguageDescription(Name);
+}
+
+llvm::StringRef llvm::dwarf::SourceLanguageNameString(SourceLanguageName Lang) {
+  switch (Lang) {
+#define HANDLE_DW_LNAME(ID, NAME, DESC, LOWER_BOUND)                           \
+  case DW_LNAME_##NAME:                                                        \
+    return "DW_LNAME_" #NAME;
+#include "llvm/BinaryFormat/Dwarf.def"
+  }
+
+  return {};
+}
+
+unsigned
+llvm::dwarf::getSourceLanguageName(StringRef SourceLanguageNameString) {
+  return StringSwitch<unsigned>(SourceLanguageNameString)
+#define HANDLE_DW_LNAME(ID, NAME, DESC, LOWER_BOUND)                           \
+  .Case("DW_LNAME_" #NAME, DW_LNAME_##NAME)
+#include "llvm/BinaryFormat/Dwarf.def"
+      .Default(0);
 }
 
 StringRef llvm::dwarf::CaseString(unsigned Case) {
@@ -664,6 +891,10 @@ StringRef llvm::dwarf::AttributeValueString(uint16_t Attr, unsigned Val) {
     return LanguageString(Val);
   case DW_AT_defaulted:
     return DefaultedMemberString(Val);
+  case DW_AT_APPLE_enum_kind:
+    return EnumKindString(Val);
+  case DW_AT_language_name:
+    return SourceLanguageNameString(static_cast<SourceLanguageName>(Val));
   }
 
   return StringRef();
@@ -691,13 +922,13 @@ StringRef llvm::dwarf::IndexString(unsigned Idx) {
   }
 }
 
-Optional<uint8_t> llvm::dwarf::getFixedFormByteSize(dwarf::Form Form,
-                                                    FormParams Params) {
+std::optional<uint8_t> llvm::dwarf::getFixedFormByteSize(dwarf::Form Form,
+                                                         FormParams Params) {
   switch (Form) {
   case DW_FORM_addr:
     if (Params)
       return Params.AddrSize;
-    return None;
+    return std::nullopt;
 
   case DW_FORM_block:          // ULEB128 length L followed by L bytes.
   case DW_FORM_block1:         // 1 byte length L followed by L bytes.
@@ -715,12 +946,12 @@ Optional<uint8_t> llvm::dwarf::getFixedFormByteSize(dwarf::Form Form,
   case DW_FORM_rnglistx:       // ULEB128.
   case DW_FORM_GNU_addr_index: // ULEB128.
   case DW_FORM_GNU_str_index:  // ULEB128.
-    return None;
+    return std::nullopt;
 
   case DW_FORM_ref_addr:
     if (Params)
       return Params.getRefAddrByteSize();
-    return None;
+    return std::nullopt;
 
   case DW_FORM_flag:
   case DW_FORM_data1:
@@ -736,6 +967,7 @@ Optional<uint8_t> llvm::dwarf::getFixedFormByteSize(dwarf::Form Form,
     return 2;
 
   case DW_FORM_strx3:
+  case DW_FORM_addrx3:
     return 3;
 
   case DW_FORM_data4:
@@ -753,7 +985,7 @@ Optional<uint8_t> llvm::dwarf::getFixedFormByteSize(dwarf::Form Form,
   case DW_FORM_strp_sup:
     if (Params)
       return Params.getDwarfOffsetByteSize();
-    return None;
+    return std::nullopt;
 
   case DW_FORM_data8:
   case DW_FORM_ref8:
@@ -775,7 +1007,7 @@ Optional<uint8_t> llvm::dwarf::getFixedFormByteSize(dwarf::Form Form,
   default:
     break;
   }
-  return None;
+  return std::nullopt;
 }
 
 bool llvm::dwarf::isValidFormForVersion(Form F, unsigned Version,
@@ -812,9 +1044,35 @@ StringRef llvm::dwarf::RLEString(unsigned RLE) {
   }
 }
 
-constexpr char llvm::dwarf::EnumTraits<Attribute>::Type[];
-constexpr char llvm::dwarf::EnumTraits<Form>::Type[];
-constexpr char llvm::dwarf::EnumTraits<Index>::Type[];
-constexpr char llvm::dwarf::EnumTraits<Tag>::Type[];
-constexpr char llvm::dwarf::EnumTraits<LineNumberOps>::Type[];
-constexpr char llvm::dwarf::EnumTraits<LocationAtom>::Type[];
+StringRef llvm::dwarf::AddressSpaceString(unsigned AS, const llvm::Triple &TT) {
+  switch (AS) {
+#define HANDLE_DW_ASPACE(ID, NAME)                                             \
+  case DW_ASPACE_LLVM_##NAME:                                                  \
+    return "DW_ASPACE_LLVM_" #NAME;
+#define HANDLE_DW_ASPACE_PRED(ID, NAME, PRED)
+#include "llvm/BinaryFormat/Dwarf.def"
+  default:
+    break;
+  }
+
+  bool SELECT_AMDGPU = TT.isAMDGPU();
+#define HANDLE_DW_ASPACE(ID, NAME)
+#define HANDLE_DW_ASPACE_PRED(ID, NAME, PRED)                                  \
+  if (DW_ASPACE_LLVM_##NAME == AS && PRED)                                     \
+    return "DW_ASPACE_LLVM_" #NAME;
+#include "llvm/BinaryFormat/Dwarf.def"
+
+  return "";
+}
+
+StringRef (*const llvm::dwarf::EnumTraits<Tag>::StringFn)(unsigned) = TagString;
+StringRef (*const llvm::dwarf::EnumTraits<Attribute>::StringFn)(unsigned) =
+    AttributeString;
+StringRef (*const llvm::dwarf::EnumTraits<Form>::StringFn)(unsigned) =
+    FormEncodingString;
+StringRef (*const llvm::dwarf::EnumTraits<LocationAtom>::StringFn)(unsigned) =
+    OperationEncodingString;
+StringRef (*const llvm::dwarf::EnumTraits<LineNumberOps>::StringFn)(unsigned) =
+    LNStandardString;
+StringRef (*const llvm::dwarf::EnumTraits<Index>::StringFn)(unsigned) =
+    IndexString;

@@ -8,7 +8,6 @@ define void @foo(){
   ret void
 }
 
-; CHECK:      *** IR Dump After VerifierPass
 ; CHECK:      *** IR Dump After PromotePass
 ; CHECK-NEXT: define void @tester
 ; CHECK:      *** IR Dump After InstCombinePass
@@ -16,5 +15,3 @@ define void @foo(){
 ; CHECK:      *** IR Dump After PromotePass
 ; CHECK-NEXT: define void @foo
 ; CHECK:      *** IR Dump After InstCombinePass
-; CHECK-NEXT: define void @foo
-; CHECK:      *** IR Dump After VerifierPass

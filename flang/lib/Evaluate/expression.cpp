@@ -35,7 +35,13 @@ Expr<Type<TypeCategory::Character, KIND>>::LEN() const {
           [](const Constant<Result> &c) -> T {
             return AsExpr(Constant<SubscriptInteger>{c.LEN()});
           },
-          [](const ArrayConstructor<Result> &a) -> T { return a.LEN(); },
+          [](const ArrayConstructor<Result> &a) -> T {
+            if (const auto *len{a.LEN()}) {
+              return T{*len};
+            } else {
+              return std::nullopt;
+            }
+          },
           [](const Parentheses<Result> &x) { return x.left().LEN(); },
           [](const Convert<Result> &x) {
             return common::visit(
@@ -107,6 +113,18 @@ template <typename A> int ExpressionBase<A>::Rank() const {
       derived().u);
 }
 
+template <typename A> int ExpressionBase<A>::Corank() const {
+  return common::visit(
+      [](const auto &x) {
+        if constexpr (common::HasMember<decltype(x), TypelessExpression>) {
+          return 0;
+        } else {
+          return x.Corank();
+        }
+      },
+      derived().u);
+}
+
 DynamicType Parentheses<SomeDerived>::GetType() const {
   return left().GetType().value();
 }
@@ -118,6 +136,24 @@ template <typename A> LLVM_DUMP_METHOD void ExpressionBase<A>::dump() const {
 #endif
 
 // Equality testing
+
+template <typename A> bool Extremum<A>::operator==(const Extremum &that) const {
+  return ordering == that.ordering && Base::operator==(that);
+}
+
+template <int KIND>
+bool LogicalOperation<KIND>::operator==(const LogicalOperation &that) const {
+  return logicalOperator == that.logicalOperator && Base::operator==(that);
+}
+
+template <typename A>
+bool Relational<A>::operator==(const Relational &that) const {
+  return opr == that.opr && Base::operator==(that);
+}
+
+bool Relational<SomeType>::operator==(const Relational &that) const {
+  return u == that.u;
+}
 
 bool ImpliedDoIndex::operator==(const ImpliedDoIndex &that) const {
   return name == that.name;
@@ -140,6 +176,13 @@ template <typename R>
 bool ArrayConstructorValues<R>::operator==(
     const ArrayConstructorValues<R> &that) const {
   return values_ == that.values_;
+}
+
+template <int KIND>
+auto ArrayConstructor<Type<TypeCategory::Character, KIND>>::set_LEN(
+    Expr<SubscriptInteger> &&len) -> ArrayConstructor & {
+  length_.emplace(std::move(len));
+  return *this;
 }
 
 template <int KIND>
@@ -166,10 +209,6 @@ StructureConstructor::StructureConstructor(
 
 bool StructureConstructor::operator==(const StructureConstructor &that) const {
   return result_ == that.result_ && values_ == that.values_;
-}
-
-bool Relational<SomeType>::operator==(const Relational<SomeType> &that) const {
-  return u == that.u;
 }
 
 template <int KIND>
@@ -199,6 +238,12 @@ bool Expr<Type<TypeCategory::Logical, KIND>>::operator==(
 template <int KIND>
 bool Expr<Type<TypeCategory::Character, KIND>>::operator==(
     const Expr<Type<TypeCategory::Character, KIND>> &that) const {
+  return u == that.u;
+}
+
+template <int KIND>
+bool Expr<Type<TypeCategory::Unsigned, KIND>>::operator==(
+    const Expr<Type<TypeCategory::Unsigned, KIND>> &that) const {
   return u == that.u;
 }
 

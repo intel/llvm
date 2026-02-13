@@ -1,4 +1,4 @@
-FROM ubuntu:bionic
+FROM docker.io/ubuntu:bionic
 
 RUN apt-get update && apt-get install -y \
     apt-transport-https \
@@ -31,8 +31,8 @@ RUN apt-get install -y \
 
 # symengine dependencies
 RUN apt-get install -y \
-    libgmp10=2:6.1.2+dfsg-2 \
-    libgmp-dev=2:6.1.2+dfsg-2
+    libgmp10=2:6.1.2+dfsg-2ubuntu0.1 \
+    libgmp-dev=2:6.1.2+dfsg-2ubuntu0.1
 
 # simbody dependencies
 RUN apt-get install -y \

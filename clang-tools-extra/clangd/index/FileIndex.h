@@ -16,7 +16,7 @@
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_INDEX_FILEINDEX_H
 
 #include "Headers.h"
-#include "index/CanonicalIncludes.h"
+#include "clang-include-cleaner/Record.h"
 #include "index/Index.h"
 #include "index/Merge.h"
 #include "index/Ref.h"
@@ -27,10 +27,10 @@
 #include "support/Path.h"
 #include "clang/Lex/Preprocessor.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace clang {
@@ -69,7 +69,7 @@ enum class DuplicateHandling {
 /// locking when we swap or obtain references to snapshots.
 class FileSymbols {
 public:
-  FileSymbols(IndexContents IdxContents);
+  FileSymbols(IndexContents IdxContents, bool SupportContainedRefs);
   /// Updates all slabs associated with the \p Key.
   /// If either is nullptr, corresponding data for \p Key will be removed.
   /// If CountReferences is true, \p Refs will be used for counting references
@@ -91,6 +91,7 @@ public:
 
 private:
   IndexContents IdxContents;
+  bool SupportContainedRefs;
 
   struct RefSlabAndCountReferences {
     std::shared_ptr<RefSlab> Slab;
@@ -108,12 +109,13 @@ private:
 /// FIXME: Expose an interface to remove files that are closed.
 class FileIndex : public MergedIndex {
 public:
-  FileIndex();
+  FileIndex(bool SupportContainedRefs);
 
   /// Update preamble symbols of file \p Path with all declarations in \p AST
   /// and macros in \p PP.
   void updatePreamble(PathRef Path, llvm::StringRef Version, ASTContext &AST,
-                      Preprocessor &PP, const CanonicalIncludes &Includes);
+                      Preprocessor &PP,
+                      const include_cleaner::PragmaIncludes &PI);
   void updatePreamble(IndexFileIn);
 
   /// Update symbols and references from main file \p Path with
@@ -162,7 +164,8 @@ SlabTuple indexMainDecls(ParsedAST &AST);
 /// included headers.
 SlabTuple indexHeaderSymbols(llvm::StringRef Version, ASTContext &AST,
                              Preprocessor &PP,
-                             const CanonicalIncludes &Includes);
+                             const include_cleaner::PragmaIncludes &PI,
+                             SymbolOrigin Origin);
 
 /// Takes slabs coming from a TU (multiple files) and shards them per
 /// declaration location.
@@ -178,7 +181,7 @@ struct FileShardedIndex {
   /// a copy of all the relevant data.
   /// Returned index will always have Symbol/Refs/Relation Slabs set, even if
   /// they are empty.
-  llvm::Optional<IndexFileIn> getShard(llvm::StringRef Uri) const;
+  std::optional<IndexFileIn> getShard(llvm::StringRef Uri) const;
 
 private:
   // Contains all the information that belongs to a single file.

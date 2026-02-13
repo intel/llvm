@@ -19,6 +19,7 @@
 // the predicate register, they cannot use the .new form. In such cases it
 // is better to collapse them back to a single MUX instruction.
 
+#include "Hexagon.h"
 #include "HexagonInstrInfo.h"
 #include "HexagonRegisterInfo.h"
 #include "HexagonSubtarget.h"
@@ -26,7 +27,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/CodeGen/LivePhysRegs.h"
+#include "llvm/CodeGen/LiveRegUnits.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
@@ -35,7 +36,6 @@
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/MC/MCInstrDesc.h"
-#include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MathExtras.h"
@@ -43,18 +43,10 @@
 #include <cassert>
 #include <iterator>
 #include <limits>
-#include <utility>
 
 #define DEBUG_TYPE "hexmux"
 
 using namespace llvm;
-
-namespace llvm {
-
-  FunctionPass *createHexagonGenMux();
-  void initializeHexagonGenMuxPass(PassRegistry& Registry);
-
-} // end namespace llvm
 
 // Initialize this to 0 to always prefer generating mux by default.
 static cl::opt<unsigned> MinPredDist("hexagon-gen-mux-threshold", cl::Hidden,
@@ -80,8 +72,7 @@ namespace {
     bool runOnMachineFunction(MachineFunction &MF) override;
 
     MachineFunctionProperties getRequiredProperties() const override {
-      return MachineFunctionProperties().set(
-          MachineFunctionProperties::Property::NoVRegs);
+      return MachineFunctionProperties().setNoVRegs();
     }
 
   private:
@@ -144,8 +135,8 @@ INITIALIZE_PASS(HexagonGenMux, "hexagon-gen-mux",
   "Hexagon generate mux instructions", false, false)
 
 void HexagonGenMux::getSubRegs(unsigned Reg, BitVector &SRs) const {
-  for (MCSubRegIterator I(Reg, HRI); I.isValid(); ++I)
-    SRs[*I] = true;
+  for (MCPhysReg I : HRI->subregs(Reg))
+    SRs[I] = true;
 }
 
 void HexagonGenMux::expandReg(unsigned Reg, BitVector &Set) const {
@@ -160,12 +151,10 @@ void HexagonGenMux::getDefsUses(const MachineInstr *MI, BitVector &Defs,
   // First, get the implicit defs and uses for this instruction.
   unsigned Opc = MI->getOpcode();
   const MCInstrDesc &D = HII->get(Opc);
-  if (const MCPhysReg *R = D.ImplicitDefs)
-    while (*R)
-      expandReg(*R++, Defs);
-  if (const MCPhysReg *R = D.ImplicitUses)
-    while (*R)
-      expandReg(*R++, Uses);
+  for (MCPhysReg R : D.implicit_defs())
+    expandReg(R, Defs);
+  for (MCPhysReg R : D.implicit_uses())
+    expandReg(R, Uses);
 
   // Look over all operands, and collect explicit defs and uses.
   for (const MachineOperand &MO : MI->operands()) {
@@ -254,8 +243,7 @@ bool HexagonGenMux::genMuxInBlock(MachineBasicBlock &B) {
       F = CM.end();
     }
     if (F == CM.end()) {
-      auto It = CM.insert(std::make_pair(DR, CondsetInfo()));
-      F = It.first;
+      F = CM.try_emplace(DR).first;
       F->second.PredR = PR;
     }
     CondsetInfo &CI = F->second;
@@ -348,14 +336,8 @@ bool HexagonGenMux::genMuxInBlock(MachineBasicBlock &B) {
 
   // Fix up kill flags.
 
-  LivePhysRegs LPR(*HRI);
+  LiveRegUnits LPR(*HRI);
   LPR.addLiveOuts(B);
-  auto IsLive = [&LPR,this] (unsigned Reg) -> bool {
-    for (MCSubRegIterator S(Reg, HRI, true); S.isValid(); ++S)
-      if (LPR.contains(*S))
-        return true;
-    return false;
-  };
   for (MachineInstr &I : llvm::reverse(B)) {
     if (I.isDebugInstr())
       continue;
@@ -367,7 +349,7 @@ bool HexagonGenMux::genMuxInBlock(MachineBasicBlock &B) {
       if (!Op.isReg() || !Op.isUse())
         continue;
       assert(Op.getSubReg() == 0 && "Should have physical registers only");
-      bool Live = IsLive(Op.getReg());
+      bool Live = !LPR.available(Op.getReg());
       Op.setIsKill(!Live);
     }
     LPR.stepBackward(I);

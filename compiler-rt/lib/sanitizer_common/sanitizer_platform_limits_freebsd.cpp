@@ -17,6 +17,7 @@
 
 #include <sys/capsicum.h>
 #include <sys/consio.h>
+#include <sys/cpuset.h>
 #include <sys/filio.h>
 #include <sys/ipc.h>
 #include <sys/kbio.h>
@@ -28,6 +29,7 @@
 #include <sys/mtio.h>
 #include <sys/ptrace.h>
 #include <sys/resource.h>
+#include <sys/shm.h>
 #include <sys/signal.h>
 #include <sys/socket.h>
 #include <sys/sockio.h>
@@ -69,14 +71,8 @@
 #include <semaphore.h>
 #include <signal.h>
 #include <stddef.h>
-#include <md5.h>
-#include <sha224.h>
-#include <sha256.h>
-#include <sha384.h>
-#include <sha512.h>
 #include <stdio.h>
 #include <stringlist.h>
-#include <term.h>
 #include <termios.h>
 #include <time.h>
 #include <ttyent.h>
@@ -85,10 +81,6 @@
 #include <vis.h>
 #include <wchar.h>
 #include <wordexp.h>
-
-#define _KERNEL  // to declare 'shminfo' structure
-#include <sys/shm.h>
-#undef _KERNEL
 
 #undef IOC_DIRMASK
 
@@ -103,6 +95,7 @@ void *__sanitizer_get_link_map_by_dlopen_handle(void *handle) {
   return internal_dlinfo(handle, RTLD_DI_LINKMAP, &p) == 0 ? p : nullptr;
 }
 
+unsigned struct_cpuset_sz = sizeof(cpuset_t);
 unsigned struct_cap_rights_sz = sizeof(cap_rights_t);
 unsigned struct_utsname_sz = sizeof(struct utsname);
 unsigned struct_stat_sz = sizeof(struct stat);
@@ -139,8 +132,6 @@ unsigned struct_timeb_sz = sizeof(struct timeb);
 unsigned struct_msqid_ds_sz = sizeof(struct msqid_ds);
 unsigned struct_mq_attr_sz = sizeof(struct mq_attr);
 unsigned struct_statvfs_sz = sizeof(struct statvfs);
-unsigned struct_shminfo_sz = sizeof(struct shminfo);
-unsigned struct_shm_info_sz = sizeof(struct shm_info);
 unsigned struct_regmatch_sz = sizeof(regmatch_t);
 unsigned struct_regex_sz = sizeof(regex_t);
 unsigned struct_fstab_sz = sizeof(struct fstab);
@@ -154,9 +145,6 @@ const uptr sig_err = (uptr)SIG_ERR;
 const uptr sa_siginfo = (uptr)SA_SIGINFO;
 
 int shmctl_ipc_stat = (int)IPC_STAT;
-int shmctl_ipc_info = (int)IPC_INFO;
-int shmctl_shm_info = (int)SHM_INFO;
-int shmctl_shm_stat = (int)SHM_STAT;
 unsigned struct_utmpx_sz = sizeof(struct utmpx);
 
 int map_fixed = MAP_FIXED;
@@ -171,6 +159,12 @@ uptr __sanitizer_in_addr_sz(int af) {
     return sizeof(struct in6_addr);
   else
     return 0;
+}
+
+// For FreeBSD the actual size of a directory entry is not always in d_reclen.
+// Use the appropriate macro to get the correct size for all cases (e.g. NFS).
+u16 __sanitizer_dirsiz(const __sanitizer_dirent *dp) {
+  return _GENERIC_DIRSIZ(dp);
 }
 
 unsigned struct_ElfW_Phdr_sz = sizeof(Elf_Phdr);
@@ -370,22 +364,6 @@ const int si_SEGV_MAPERR = SEGV_MAPERR;
 const int si_SEGV_ACCERR = SEGV_ACCERR;
 const int unvis_valid = UNVIS_VALID;
 const int unvis_validpush = UNVIS_VALIDPUSH;
-
-const unsigned MD5_CTX_sz = sizeof(MD5_CTX);
-const unsigned MD5_return_length = MD5_DIGEST_STRING_LENGTH;
-
-#define SHA2_CONST(LEN)                                                      \
-  const unsigned SHA##LEN##_CTX_sz = sizeof(SHA##LEN##_CTX);                 \
-  const unsigned SHA##LEN##_return_length = SHA##LEN##_DIGEST_STRING_LENGTH; \
-  const unsigned SHA##LEN##_block_length = SHA##LEN##_BLOCK_LENGTH;          \
-  const unsigned SHA##LEN##_digest_length = SHA##LEN##_DIGEST_LENGTH
-
-SHA2_CONST(224);
-SHA2_CONST(256);
-SHA2_CONST(384);
-SHA2_CONST(512);
-
-#undef SHA2_CONST
 }  // namespace __sanitizer
 
 using namespace __sanitizer;
@@ -467,6 +445,8 @@ CHECK_TYPE_SIZE(nfds_t);
 CHECK_TYPE_SIZE(sigset_t);
 
 COMPILER_CHECK(sizeof(__sanitizer_sigaction) == sizeof(struct sigaction));
+COMPILER_CHECK(sizeof(__sanitizer_siginfo) == sizeof(siginfo_t));
+CHECK_SIZE_AND_OFFSET(siginfo_t, si_value);
 // Can't write checks for sa_handler and sa_sigaction due to them being
 // preprocessor macros.
 CHECK_STRUCT_SIZE_AND_OFFSET(sigaction, sa_mask);
@@ -558,4 +538,5 @@ COMPILER_CHECK(__sanitizer_XDR_FREE == XDR_FREE);
 CHECK_TYPE_SIZE(sem_t);
 
 COMPILER_CHECK(sizeof(__sanitizer_cap_rights_t) >= sizeof(cap_rights_t));
+COMPILER_CHECK(sizeof(__sanitizer_cpuset_t) >= sizeof(cpuset_t));
 #endif  // SANITIZER_FREEBSD

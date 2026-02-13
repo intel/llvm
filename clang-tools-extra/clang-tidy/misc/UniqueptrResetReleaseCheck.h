@@ -1,4 +1,4 @@
-//===--- UniqueptrResetReleaseCheck.h - clang-tidy --------------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,9 +12,7 @@
 #include "../ClangTidyCheck.h"
 #include "../utils/IncludeInserter.h"
 
-namespace clang {
-namespace tidy {
-namespace misc {
+namespace clang::tidy::misc {
 
 /// Find and replace `unique_ptr::reset(release())` with `std::move()`.
 ///
@@ -47,8 +45,6 @@ private:
   utils::IncludeInserter Inserter;
 };
 
-} // namespace misc
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::misc
 
 #endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MISC_UNIQUEPTRRESETRELEASECHECK_H

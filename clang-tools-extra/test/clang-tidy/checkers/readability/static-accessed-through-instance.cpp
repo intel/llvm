@@ -1,10 +1,21 @@
-// RUN: %check_clang_tidy %s readability-static-accessed-through-instance %t -- -- -isystem %S/Inputs/static-accessed-through-instance
+// RUN: %check_clang_tidy %s readability-static-accessed-through-instance %t -- --fix-notes -- -isystem %S/Inputs/static-accessed-through-instance
 #include <__clang_cuda_builtin_vars.h>
+
+enum OutEnum {
+  E0,
+};
 
 struct C {
   static void foo();
   static int x;
   int nsx;
+  enum {
+    Anonymous,
+  };
+  enum E {
+    E1,
+  };
+  using enum OutEnum;
   void mf() {
     (void)&x;    // OK, x is accessed inside the struct.
     (void)&C::x; // OK, x is accessed using a qualified-id.
@@ -36,7 +47,8 @@ C &f(int, int, int, int);
 void g() {
   f(1, 2, 3, 4).x;
   // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: static member accessed through instance  [readability-static-accessed-through-instance]
-  // CHECK-FIXES: {{^}}  f(1, 2, 3, 4).x;{{$}}
+  // CHECK-MESSAGES: :[[@LINE-2]]:3: note: member base expression may carry some side effects
+  // CHECK-FIXES: C::x;
 }
 
 int i(int &);
@@ -48,12 +60,14 @@ int k(bool);
 void f(C c) {
   j(i(h().x));
   // CHECK-MESSAGES: :[[@LINE-1]]:7: warning: static member
-  // CHECK-FIXES: {{^}}  j(i(h().x));{{$}}
+  // CHECK-MESSAGES: :[[@LINE-2]]:7: note: member base expression may carry some side effects
+  // CHECK-FIXES: j(i(C::x));
 
   // The execution of h() depends on the return value of a().
   j(k(a() && h().x));
   // CHECK-MESSAGES: :[[@LINE-1]]:14: warning: static member
-  // CHECK-FIXES: {{^}}  j(k(a() && h().x));{{$}}
+  // CHECK-MESSAGES: :[[@LINE-2]]:14: note: member base expression may carry some side effects
+  // CHECK-FIXES: j(k(a() && C::x));
 
   if ([c]() {
         c.ns();
@@ -61,7 +75,8 @@ void f(C c) {
       }().x == 15)
     ;
   // CHECK-MESSAGES: :[[@LINE-5]]:7: warning: static member
-  // CHECK-FIXES: {{^}}  if ([c]() {{{$}}
+  // CHECK-MESSAGES: :[[@LINE-6]]:7: note: member base expression may carry some side effects
+  // CHECK-FIXES: if (C::x == 15)
 }
 
 // Nested specifiers
@@ -81,23 +96,23 @@ void f(N::V::T::U u) {
   N::V v;
   v.v = 12;
   // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: static member
-  // CHECK-FIXES: {{^}}  N::V::v = 12;{{$}}
+  // CHECK-FIXES: N::V::v = 12;
 
   N::V::T w;
   w.t = 12;
   // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: static member
-  // CHECK-FIXES: {{^}}  N::V::T::t = 12;{{$}}
+  // CHECK-FIXES: N::V::T::t = 12;
 
   // u.u is not changed to N::V::T::U::u; because the nesting level is over 3.
   u.u = 12;
   // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: static member
-  // CHECK-FIXES: {{^}}  u.u = 12;{{$}}
+  // CHECK-FIXES: u.u = 12;
 
   using B = N::V::T::U;
   B b;
   b.u;
   // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: static member
-  // CHECK-FIXES: {{^}}  B::u;{{$}}
+  // CHECK-FIXES: B::u;
 }
 
 // Templates
@@ -119,7 +134,7 @@ template <typename T> void f(T t, C c) {
   t.x; // OK, t is a template parameter.
   c.x;
   // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: static member
-  // CHECK-FIXES: {{^}}  C::x;{{$}}
+  // CHECK-FIXES: C::x;
 }
 
 template <int N> struct S { static int x; };
@@ -133,23 +148,33 @@ template <int N> void h() {
   S<2> s2;
   s2.x;
   // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: static member
-  // CHECK-FIXES: {{^}}  S<2>::x;{{$}}
+  // CHECK-FIXES: S<2>::x;
 }
 
 void static_through_instance() {
   C *c1 = new C();
   c1->foo(); // 1
   // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: static member
-  // CHECK-FIXES: {{^}}  C::foo(); // 1{{$}}
+  // CHECK-FIXES: C::foo(); // 1
   c1->x; // 2
   // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: static member
-  // CHECK-FIXES: {{^}}  C::x; // 2{{$}}
+  // CHECK-FIXES: C::x; // 2
+  c1->Anonymous; // 3
+  // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: static member
+  // CHECK-FIXES: C::Anonymous; // 3
+  c1->E1; // 4
+  // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: static member
+  // CHECK-FIXES: C::E1; // 4
+  c1->E0; // 5
+  // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: static member
+  // CHECK-FIXES: C::E0; // 5
+
   c1->nsx; // OK, nsx is a non-static member.
 
   const C *c2 = new C();
   c2->foo(); // 2
   // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: static member
-  // CHECK-FIXES: {{^}}  C::foo(); // 2{{$}}
+  // CHECK-FIXES: C::foo(); // 2
 
   C::foo(); // OK, foo() is accessed using a qualified-id.
   C::x;     // OK, x is accessed using a qualified-id.
@@ -157,18 +182,18 @@ void static_through_instance() {
   D d;
   d.foo();
   // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: static member
-  // CHECK-FIXES: {{^}}  D::foo();{{$}}
+  // CHECK-FIXES: D::foo();
   d.x;
   // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: static member
-  // CHECK-FIXES: {{^}}  D::x;{{$}}
+  // CHECK-FIXES: D::x;
 
   E e;
   e.foo();
   // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: static member
-  // CHECK-FIXES: {{^}}  E::foo();{{$}}
+  // CHECK-FIXES: E::foo();
   e.x;
   // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: static member
-  // CHECK-FIXES: {{^}}  E::x;{{$}}
+  // CHECK-FIXES: E::x;
 
   CC *cc = new CC;
 
@@ -185,10 +210,10 @@ void static_through_instance() {
   CT<int> ct;
   ct.foo();
   // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: static member
-  // CHECK-FIXES: {{^}}  CT<int>::foo();{{$}}
+  // CHECK-FIXES: CT<int>::foo();
   ct.x;
   // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: static member
-  // CHECK-FIXES: {{^}}  CT<int>::x;{{$}}
+  // CHECK-FIXES: CT<int>::x;
   ct.nsx; // OK, nsx is a non-static member
 
   CCT<int> cct;
@@ -205,7 +230,7 @@ struct SP {
 void usep() {
   P.I;
   // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: static member
-  // CHECK-FIXES: {{^}}  SP::I;{{$}}
+  // CHECK-FIXES: SP::I;
 }
 
 namespace NSP {
@@ -217,7 +242,7 @@ struct SP {
 void usensp() {
   NSP::P.I;
   // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: static member
-  // CHECK-FIXES: {{^}}  NSP::SP::I;{{$}}
+  // CHECK-FIXES: NSP::SP::I;
 }
 
 // Overloaded member access operator
@@ -239,9 +264,12 @@ struct Qptr {
   }
 };
 
-int func(Qptr qp) {
-  qp->y = 10; // OK, the overloaded operator might have side-effects.
-  qp->K = 10; //
+void func(Qptr qp) {
+  qp->y = 10;
+  qp->K = 10;
+  // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: static member accessed through instance [readability-static-accessed-through-instance]
+  // CHECK-MESSAGES: :[[@LINE-2]]:3: note: member base expression may carry some side effects
+  // CHECK-FIXES: Q::K = 10;
 }
 
 namespace {
@@ -254,7 +282,7 @@ void use_anonymous() {
   Anonymous Anon;
   Anon.I;
   // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: static member
-  // CHECK-FIXES: {{^}}  Anonymous::I;{{$}}
+  // CHECK-FIXES: Anonymous::I;
 }
 
 namespace Outer {
@@ -269,7 +297,7 @@ void use_inline() {
   Outer::S V;
   V.I;
   // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: static member
-  // CHECK-FIXES: {{^}}  Outer::S::I;{{$}}
+  // CHECK-FIXES: Outer::S::I;
 }
 
 // https://bugs.llvm.org/show_bug.cgi?id=48758
@@ -285,3 +313,94 @@ unsigned int x4 = gridDim.x;
 // CHECK-MESSAGES-NOT: :[[@LINE-1]]:10: warning: static member
 
 } // namespace Bugzilla_48758
+
+// https://github.com/llvm/llvm-project/issues/61736
+namespace llvm_issue_61736
+{
+
+struct {
+  static void f() {}
+} AnonStruct, *AnonStructPointer;
+
+class {
+  public:
+  static void f() {}
+} AnonClass, *AnonClassPointer;
+
+void testAnonymousStructAndClass() {
+  AnonStruct.f();
+  AnonStructPointer->f();
+
+  AnonClass.f();
+  AnonClassPointer->f();
+}
+
+struct Embedded {
+  struct {
+    static void f() {}
+  } static EmbeddedStruct, *EmbeddedStructPointer;
+
+  class {
+    public:
+      static void f() {}
+  } static EmbeddedClass, *EmbeddedClassPointer;
+};
+
+void testEmbeddedAnonymousStructAndClass() {
+  Embedded::EmbeddedStruct.f();
+  Embedded::EmbeddedStructPointer->f();
+
+  Embedded::EmbeddedClass.f();
+  Embedded::EmbeddedClassPointer->f();
+
+  Embedded E;
+  E.EmbeddedStruct.f();
+  // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: static member accessed through instance [readability-static-accessed-through-instance]
+  // CHECK-FIXES: llvm_issue_61736::Embedded::EmbeddedStruct.f();
+  E.EmbeddedStructPointer->f();
+  // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: static member accessed through instance [readability-static-accessed-through-instance]
+  // CHECK-FIXES: llvm_issue_61736::Embedded::EmbeddedStructPointer->f();
+
+  E.EmbeddedClass.f();
+  // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: static member accessed through instance [readability-static-accessed-through-instance]
+  // CHECK-FIXES: llvm_issue_61736::Embedded::EmbeddedClass.f();
+  E.EmbeddedClassPointer->f();
+  // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: static member accessed through instance [readability-static-accessed-through-instance]
+  // CHECK-FIXES: llvm_issue_61736::Embedded::EmbeddedClassPointer->f();
+}
+
+} // namespace llvm_issue_61736
+
+namespace PR51861 {
+  class Foo {
+    public:
+      static Foo& getInstance();
+      static int getBar();
+  };
+
+  inline int Foo::getBar() { return 42; }
+
+  void test() {
+    auto& params = Foo::getInstance();
+    params.getBar();
+    // CHECK-MESSAGES: :[[@LINE-1]]:5: warning: static member accessed through instance [readability-static-accessed-through-instance]
+    // CHECK-FIXES: PR51861::Foo::getBar();
+  }
+}
+
+namespace PR75163 {
+  struct Static {
+    static void call();
+  };
+
+  struct Ptr {
+    Static* operator->();
+  };
+
+  void test(Ptr& ptr) {
+    ptr->call();
+    // CHECK-MESSAGES: :[[@LINE-1]]:5: warning: static member accessed through instance [readability-static-accessed-through-instance]
+    // CHECK-MESSAGES: :[[@LINE-2]]:5: note: member base expression may carry some side effects
+    // CHECK-FIXES: PR75163::Static::call();
+  }
+}

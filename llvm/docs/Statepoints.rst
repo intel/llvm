@@ -167,10 +167,11 @@ Let's consider a simple call in LLVM IR:
 
 .. code-block:: llvm
 
-  define i8 addrspace(1)* @test1(i8 addrspace(1)* %obj)
+  declare void @foo()
+  define ptr addrspace(1) @test1(ptr addrspace(1) %obj)
          gc "statepoint-example" {
-    call void ()* @foo()
-    ret i8 addrspace(1)* %obj
+    call void @foo()
+    ret ptr addrspace(1) %obj
   }
 
 Depending on our language we may need to allow a safepoint during the execution
@@ -186,11 +187,11 @@ resulting relocation sequence is:
 
 .. code-block:: llvm
 
-  define i8 addrspace(1)* @test1(i8 addrspace(1)* %obj)
+  define ptr addrspace(1) @test(ptr addrspace(1) %obj)
          gc "statepoint-example" {
-    %0 = call token (i64, i32, void ()*, i32, i32, ...)* @llvm.experimental.gc.statepoint.p0f_isVoidf(i64 0, i32 0, void ()* @foo, i32 0, i32 0, i32 0, i32 0, i8 addrspace(1)* %obj)
-    %obj.relocated = call coldcc i8 addrspace(1)* @llvm.experimental.gc.relocate.p1i8(token %0, i32 7, i32 7)
-    ret i8 addrspace(1)* %obj.relocated
+    %safepoint = call token (i64, i32, ptr, i32, i32, ...) @llvm.experimental.gc.statepoint.p0f_isVoidf(i64 0, i32 0, ptr elementtype(void ()) @foo, i32 0, i32 0, i32 0, i32 0) ["gc-live" (ptr addrspace(1) %obj)]
+    %obj.relocated = call ptr addrspace(1) @llvm.experimental.gc.relocate.p1(token %safepoint, i32 0, i32 0)
+    ret ptr addrspace(1) %obj.relocated
   }
 
 Ideally, this sequence would have been represented as a M argument, N
@@ -269,10 +270,13 @@ collector:
 
 .. code-block:: llvm
 
-  define i8 addrspace(1)* @test1(i8 addrspace(1)* %obj)
-         gc "statepoint-example" {
-    call token (i64, i32, void ()*, i32, i32, ...)* @llvm.experimental.gc.statepoint.p0f_isVoidf(i64 0, i32 0, void ()* @foo, i32 0, i32 0, i32 0, i32 0, i8 addrspace(1)* %obj)
-    ret i8 addrspace(1)* %obj
+  define void @manual_frame(ptr %a, ptr %b) gc "statepoint-example" {
+    %alloca = alloca ptr
+    %allocb = alloca ptr
+    store ptr %a, ptr %alloca
+    store ptr %b, ptr %allocb
+    call token (i64, i32, ptr, i32, i32, ...) @llvm.experimental.gc.statepoint.p0(i64 0, i32 0, ptr elementtype(void ()) @func, i32 0, i32 0, i32 0, i32 0) ["gc-live" (ptr %alloca, ptr %allocb)]
+    ret void
   }
 
 Recording On Stack Regions
@@ -331,25 +335,6 @@ pointer rather than merely an internal derived pointer. Note that during
 lowering both the base and derived pointer operands are required to be live
 over the associated call safepoint even if the base is otherwise unused
 afterwards.
-
-If we extend our previous example to include a pointless derived pointer,
-we get:
-
-.. code-block:: llvm
-
-  define i8 addrspace(1)* @test1(i8 addrspace(1)* %obj)
-         gc "statepoint-example" {
-    %gep = getelementptr i8, i8 addrspace(1)* %obj, i64 20000
-    %token = call token (i64, i32, void ()*, i32, i32, ...)* @llvm.experimental.gc.statepoint.p0f_isVoidf(i64 0, i32 0, void ()* @foo, i32 0, i32 0, i32 0, i32 0, i8 addrspace(1)* %obj, i8 addrspace(1)* %gep)
-    %obj.relocated = call i8 addrspace(1)* @llvm.experimental.gc.relocate.p1i8(token %token, i32 7, i32 7)
-    %gep.relocated = call i8 addrspace(1)* @llvm.experimental.gc.relocate.p1i8(token %token, i32 7, i32 8)
-    %p = getelementptr i8, i8 addrspace(1)* %gep, i64 -20000
-    ret i8 addrspace(1)* %p
-  }
-
-Note that in this example %p and %obj.relocate are the same address and we
-could replace one with the other, potentially removing the derived pointer
-from the live set at the safepoint entirely.
 
 .. _gc_transition_args:
 
@@ -556,35 +541,37 @@ relocations.  To do this, it replaces all calls or invokes of functions which
 might contain a safepoint poll with a ``gc.statepoint`` and associated full
 relocation sequence, including all required ``gc.relocates``.
 
-Note that by default, this pass only runs for the "statepoint-example" or
-"core-clr" gc strategies.  You will need to add your custom strategy to this
-list or use one of the predefined ones.
+This pass only applies to GCStrategy instances where the ``UseRS4GC`` flag
+is set. The two builtin GC strategies with this set are the
+"statepoint-example" and "coreclr" strategies.
 
 As an example, given this code:
 
 .. code-block:: llvm
 
-  define i8 addrspace(1)* @test1(i8 addrspace(1)* %obj)
+  define ptr addrspace(1) @test1(ptr addrspace(1) %obj)
          gc "statepoint-example" {
     call void @foo()
-    ret i8 addrspace(1)* %obj
+    ret ptr addrspace(1) %obj
   }
 
 The pass would produce this IR:
 
 .. code-block:: llvm
 
-  define i8 addrspace(1)* @test1(i8 addrspace(1)* %obj)
-         gc "statepoint-example" {
-    %0 = call token (i64, i32, void ()*, i32, i32, ...)* @llvm.experimental.gc.statepoint.p0f_isVoidf(i64 2882400000, i32 0, void ()* @foo, i32 0, i32 0, i32 0, i32 5, i32 0, i32 -1, i32 0, i32 0, i32 0, i8 addrspace(1)* %obj)
-    %obj.relocated = call coldcc i8 addrspace(1)* @llvm.experimental.gc.relocate.p1i8(token %0, i32 12, i32 12)
-    ret i8 addrspace(1)* %obj.relocated
+  define ptr addrspace(1) @test_rs4gc(ptr addrspace(1) %obj) gc "statepoint-example" {
+    %statepoint_token = call token (i64, i32, ptr, i32, i32, ...) @llvm.experimental.gc.statepoint.p0(i64 2882400000, i32 0, ptr elementtype(void ()) @foo, i32 0, i32 0, i32 0, i32 0) [ "gc-live"(ptr addrspace(1) %obj) ]
+    %obj.relocated = call coldcc ptr addrspace(1) @llvm.experimental.gc.relocate.p1(token %statepoint_token, i32 0, i32 0) ; (%obj, %obj)
+    ret ptr addrspace(1) %obj.relocated
   }
 
 In the above examples, the addrspace(1) marker on the pointers is the mechanism
 that the ``statepoint-example`` GC strategy uses to distinguish references from
-non references.  The pass assumes that all addrspace(1) pointers are non-integral
-pointer types.  Address space 1 is not globally reserved for this purpose.
+non references.  This is controlled via GCStrategy::isGCManagedPointer. The
+``statepoint-example`` and ``coreclr`` strategies (the only two default
+strategies that support statepoints) both use addrspace(1) to determine which
+pointers are references, however custom strategies don't have to follow this
+convention.
 
 This pass can be used an utility function by a language frontend that doesn't
 want to manually reason about liveness, base pointers, or relocation when

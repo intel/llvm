@@ -9,48 +9,46 @@
 #ifndef LLVM_MC_MCDISASSEMBLER_MCDISASSEMBLER_H
 #define LLVM_MC_MCDISASSEMBLER_MCDISASSEMBLER_H
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/XCOFF.h"
 #include "llvm/MC/MCDisassembler/MCSymbolizer.h"
+#include "llvm/Support/Compiler.h"
+#include "llvm/Support/Error.h"
 #include <cstdint>
 #include <memory>
 #include <vector>
 
 namespace llvm {
 
-struct XCOFFSymbolInfo {
-  Optional<XCOFF::StorageMappingClass> StorageMappingClass;
-  Optional<uint32_t> Index;
-  bool IsLabel;
-  XCOFFSymbolInfo(Optional<XCOFF::StorageMappingClass> Smc,
-                  Optional<uint32_t> Idx, bool Label)
-      : StorageMappingClass(Smc), Index(Idx), IsLabel(Label) {}
-
-  bool operator<(const XCOFFSymbolInfo &SymInfo) const;
+struct XCOFFSymbolInfoTy {
+  std::optional<XCOFF::StorageMappingClass> StorageMappingClass;
+  std::optional<uint32_t> Index;
+  bool IsLabel = false;
+  LLVM_ABI bool operator<(const XCOFFSymbolInfoTy &SymInfo) const;
 };
 
 struct SymbolInfoTy {
   uint64_t Addr;
   StringRef Name;
-  union {
-    uint8_t Type;
-    XCOFFSymbolInfo XCOFFSymInfo;
-  };
+  // XCOFF uses XCOFFSymInfo. Other targets use Type.
+  XCOFFSymbolInfoTy XCOFFSymInfo;
+  uint8_t Type;
+  // Used by ELF to describe a mapping symbol that is usually not displayed.
+  bool IsMappingSymbol;
 
 private:
   bool IsXCOFF;
   bool HasType;
 
 public:
-  SymbolInfoTy(uint64_t Addr, StringRef Name,
-               Optional<XCOFF::StorageMappingClass> Smc, Optional<uint32_t> Idx,
-               bool Label)
-      : Addr(Addr), Name(Name), XCOFFSymInfo(Smc, Idx, Label), IsXCOFF(true),
-        HasType(false) {}
+  SymbolInfoTy(std::optional<XCOFF::StorageMappingClass> Smc, uint64_t Addr,
+               StringRef Name, std::optional<uint32_t> Idx, bool Label)
+      : Addr(Addr), Name(Name), XCOFFSymInfo{Smc, Idx, Label}, Type(0),
+        IsMappingSymbol(false), IsXCOFF(true), HasType(false) {}
   SymbolInfoTy(uint64_t Addr, StringRef Name, uint8_t Type,
-               bool IsXCOFF = false)
-      : Addr(Addr), Name(Name), Type(Type), IsXCOFF(IsXCOFF), HasType(true) {}
+               bool IsMappingSymbol = false, bool IsXCOFF = false)
+      : Addr(Addr), Name(Name), Type(Type), IsMappingSymbol(IsMappingSymbol),
+        IsXCOFF(IsXCOFF), HasType(true) {}
   bool isXCOFF() const { return IsXCOFF; }
 
 private:
@@ -67,8 +65,10 @@ private:
       return std::tie(P1.Addr, P1.XCOFFSymInfo, P1.Name) <
              std::tie(P2.Addr, P2.XCOFFSymInfo, P2.Name);
 
-    return std::tie(P1.Addr, P1.Name, P1.Type) <
-           std::tie(P2.Addr, P2.Name, P2.Type);
+    // With the same address, place mapping symbols first.
+    bool MS1 = !P1.IsMappingSymbol, MS2 = !P2.IsMappingSymbol;
+    return std::tie(P1.Addr, MS1, P1.Name, P1.Type) <
+           std::tie(P2.Addr, MS2, P2.Name, P2.Type);
   }
 };
 
@@ -82,7 +82,7 @@ class raw_ostream;
 
 /// Superclass for all disassemblers. Consumes a memory region and provides an
 /// array of assembly instructions.
-class MCDisassembler {
+class LLVM_ABI MCDisassembler {
 public:
   /// Ternary decode status. Most backends will just use Fail and
   /// Success, however some have a concept of an instruction with
@@ -136,12 +136,24 @@ public:
                                       ArrayRef<uint8_t> Bytes, uint64_t Address,
                                       raw_ostream &CStream) const = 0;
 
+  /// Returns the disassembly of an instruction bundle for VLIW architectures
+  /// like Hexagon.
+  ///
+  /// \param Instr    - An MCInst to populate with the contents of
+  /// the Bundle with sub-instructions encoded as Inst operands.
+  virtual DecodeStatus getInstructionBundle(MCInst &Instr, uint64_t &Size,
+                                            ArrayRef<uint8_t> Bytes,
+                                            uint64_t Address,
+                                            raw_ostream &CStream) const {
+    return Fail;
+  }
+
   /// Used to perform separate target specific disassembly for a particular
   /// symbol. May parse any prelude that precedes instructions after the
   /// start of a symbol, or the entire symbol.
   /// This is used for example by WebAssembly to decode preludes.
   ///
-  /// Base implementation returns None. So all targets by default ignore to
+  /// Base implementation returns false. So all targets by default decline to
   /// treat symbols separately.
   ///
   /// \param Symbol   - The symbol.
@@ -149,19 +161,18 @@ public:
   /// \param Address  - The address, in the memory space of region, of the first
   ///                   byte of the symbol.
   /// \param Bytes    - A reference to the actual bytes at the symbol location.
-  /// \param CStream  - The stream to print comments and annotations on.
-  /// \return         - MCDisassembler::Success if bytes are decoded
-  ///                   successfully. Size must hold the number of bytes that
-  ///                   were decoded.
-  ///                 - MCDisassembler::Fail if the bytes are invalid. Size
-  ///                   must hold the number of bytes that were decoded before
-  ///                   failing. The target must print nothing. This can be
-  ///                   done by buffering the output if needed.
-  ///                 - None if the target doesn't want to handle the symbol
-  ///                   separately. Value of Size is ignored in this case.
-  virtual Optional<DecodeStatus>
-  onSymbolStart(SymbolInfoTy &Symbol, uint64_t &Size, ArrayRef<uint8_t> Bytes,
-                uint64_t Address, raw_ostream &CStream) const;
+  /// \return         - True if this symbol triggered some target specific
+  ///                   disassembly for this symbol. Size must be set with the
+  ///                   number of bytes consumed.
+  ///                 - Error if this symbol triggered some target specific
+  ///                   disassembly for this symbol, but an error was found with
+  ///                   it. Size must be set with the number of bytes consumed.
+  ///                 - False if the target doesn't want to handle the symbol
+  ///                   separately. The value of Size is ignored in this case,
+  ///                   and Err must not be set.
+  virtual Expected<bool> onSymbolStart(SymbolInfoTy &Symbol, uint64_t &Size,
+                                       ArrayRef<uint8_t> Bytes,
+                                       uint64_t Address) const;
   // TODO:
   // Implement similar hooks that can be used at other points during
   // disassembly. Something along the following lines:
@@ -217,6 +228,9 @@ public:
   MCContext& getContext() const { return Ctx; }
 
   const MCSubtargetInfo& getSubtargetInfo() const { return STI; }
+
+  /// ELF-specific, set the ABI version from the object header.
+  virtual void setABIVersion(unsigned Version) {}
 
   // Marked mutable because we cache it inside the disassembler, rather than
   // having to pass it around as an argument through all the autogenerated code.

@@ -6,50 +6,47 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "hdr/types/size_t.h"
+#include "src/__support/CPP/new.h"
 #include "src/__support/File/file.h"
-#include "utils/UnitTest/MemoryMatcher.h"
-#include "utils/UnitTest/Test.h"
+#include "src/__support/alloc-checker.h"
+#include "src/__support/error_or.h"
+#include "test/UnitTest/MemoryMatcher.h"
+#include "test/UnitTest/Test.h"
 
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
+using ModeFlags = LIBC_NAMESPACE::File::ModeFlags;
+using MemoryView = LIBC_NAMESPACE::testing::MemoryView;
+using LIBC_NAMESPACE::ErrorOr;
+using LIBC_NAMESPACE::File;
+using LIBC_NAMESPACE::FileIOResult;
 
-using ModeFlags = __llvm_libc::File::ModeFlags;
-using MemoryView = __llvm_libc::memory::testing::MemoryView;
-
-class StringFile : public __llvm_libc::File {
+class StringFile : public File {
   static constexpr size_t SIZE = 512;
   size_t pos;
   char str[SIZE] = {0};
   size_t eof_marker;
   bool write_append;
 
-  static size_t str_read(__llvm_libc::File *f, void *data, size_t len);
-  static size_t str_write(__llvm_libc::File *f, const void *data, size_t len);
-  static int str_seek(__llvm_libc::File *f, long offset, int whence);
-  static int str_close(__llvm_libc::File *f) { return 0; }
-  static int str_flush(__llvm_libc::File *f) { return 0; }
+  static FileIOResult str_read(LIBC_NAMESPACE::File *f, void *data, size_t len);
+  static FileIOResult str_write(LIBC_NAMESPACE::File *f, const void *data,
+                                size_t len);
+  static ErrorOr<off_t> str_seek(LIBC_NAMESPACE::File *f, off_t offset,
+                                 int whence);
+  static int str_close(LIBC_NAMESPACE::File *f) {
+    delete reinterpret_cast<StringFile *>(f);
+    return 0;
+  }
 
 public:
   explicit StringFile(char *buffer, size_t buflen, int bufmode, bool owned,
                       ModeFlags modeflags)
-      : __llvm_libc::File(&str_write, &str_read, &str_seek, &str_close,
-                          &str_flush, buffer, buflen, bufmode, owned,
-                          modeflags),
+      : LIBC_NAMESPACE::File(&str_write, &str_read, &str_seek, &str_close,
+                             reinterpret_cast<uint8_t *>(buffer), buflen,
+                             bufmode, owned, modeflags),
         pos(0), eof_marker(0), write_append(false) {
-    if (modeflags & static_cast<ModeFlags>(__llvm_libc::File::OpenMode::APPEND))
+    if (modeflags &
+        static_cast<ModeFlags>(LIBC_NAMESPACE::File::OpenMode::APPEND))
       write_append = true;
-  }
-
-  void init(char *buffer, size_t buflen, int bufmode, bool owned,
-            ModeFlags modeflags) {
-    File::init(this, &str_write, &str_read, &str_seek, &str_close, &str_flush,
-               buffer, buflen, bufmode, owned, modeflags);
-    pos = eof_marker = 0;
-    if (modeflags & static_cast<ModeFlags>(__llvm_libc::File::OpenMode::APPEND))
-      write_append = true;
-    else
-      write_append = false;
   }
 
   void reset() { pos = 0; }
@@ -67,7 +64,8 @@ public:
   }
 };
 
-size_t StringFile::str_read(__llvm_libc::File *f, void *data, size_t len) {
+FileIOResult StringFile::str_read(LIBC_NAMESPACE::File *f, void *data,
+                                  size_t len) {
   StringFile *sf = static_cast<StringFile *>(f);
   if (sf->pos >= sf->eof_marker)
     return 0;
@@ -78,8 +76,8 @@ size_t StringFile::str_read(__llvm_libc::File *f, void *data, size_t len) {
   return i;
 }
 
-size_t StringFile::str_write(__llvm_libc::File *f, const void *data,
-                             size_t len) {
+FileIOResult StringFile::str_write(LIBC_NAMESPACE::File *f, const void *data,
+                                   size_t len) {
   StringFile *sf = static_cast<StringFile *>(f);
   if (sf->write_append)
     sf->pos = sf->eof_marker;
@@ -94,7 +92,8 @@ size_t StringFile::str_write(__llvm_libc::File *f, const void *data,
   return i;
 }
 
-int StringFile::str_seek(__llvm_libc::File *f, long offset, int whence) {
+ErrorOr<off_t> StringFile::str_seek(LIBC_NAMESPACE::File *f, off_t offset,
+                                    int whence) {
   StringFile *sf = static_cast<StringFile *>(f);
   if (whence == SEEK_SET)
     sf->pos = offset;
@@ -102,14 +101,16 @@ int StringFile::str_seek(__llvm_libc::File *f, long offset, int whence) {
     sf->pos += offset;
   if (whence == SEEK_END)
     sf->pos = SIZE + offset;
-  return 0;
+  return sf->pos;
 }
 
 StringFile *new_string_file(char *buffer, size_t buflen, int bufmode,
                             bool owned, const char *mode) {
-  StringFile *f = reinterpret_cast<StringFile *>(malloc(sizeof(StringFile)));
-  f->init(buffer, buflen, bufmode, owned, __llvm_libc::File::mode_flags(mode));
-  return f;
+  LIBC_NAMESPACE::AllocChecker ac;
+  // We will just assume the allocation succeeds. We cannot test anything
+  // otherwise.
+  return new (ac) StringFile(buffer, buflen, bufmode, owned,
+                             LIBC_NAMESPACE::File::mode_flags(mode));
 }
 
 TEST(LlvmLibcFileTest, WriteOnly) {
@@ -119,7 +120,7 @@ TEST(LlvmLibcFileTest, WriteOnly) {
   StringFile *f =
       new_string_file(file_buffer, FILE_BUFFER_SIZE, _IOFBF, false, "w");
 
-  ASSERT_EQ(sizeof(data), f->write(data, sizeof(data)));
+  ASSERT_EQ(sizeof(data), f->write(data, sizeof(data)).value);
   EXPECT_EQ(f->get_pos(), size_t(0)); // Data is buffered in the file stream
   ASSERT_EQ(f->flush(), 0);
   EXPECT_EQ(f->get_pos(), sizeof(data)); // Data should now be available
@@ -127,10 +128,10 @@ TEST(LlvmLibcFileTest, WriteOnly) {
 
   f->reset();
   ASSERT_EQ(f->get_pos(), size_t(0));
-  ASSERT_EQ(sizeof(data), f->write(data, sizeof(data)));
+  ASSERT_EQ(sizeof(data), f->write(data, sizeof(data)).value);
   EXPECT_EQ(f->get_pos(), size_t(0)); // Data is buffered in the file stream
   // The second write should trigger a buffer flush.
-  ASSERT_EQ(sizeof(data), f->write(data, sizeof(data)));
+  ASSERT_EQ(sizeof(data), f->write(data, sizeof(data)).value);
   EXPECT_GE(f->get_pos(), size_t(0));
   ASSERT_EQ(f->flush(), 0);
   EXPECT_EQ(f->get_pos(), 2 * sizeof(data));
@@ -139,11 +140,13 @@ TEST(LlvmLibcFileTest, WriteOnly) {
   EXPECT_MEM_EQ(src1, dst1);
 
   char read_data[sizeof(data)];
-  // This is not a readable file.
-  EXPECT_EQ(f->read(read_data, sizeof(data)), size_t(0));
-  EXPECT_TRUE(f->error());
-  EXPECT_NE(errno, 0);
-  errno = 0;
+  {
+    // This is not a readable file.
+    auto result = f->read(read_data, sizeof(data));
+    EXPECT_EQ(result.value, size_t(0));
+    EXPECT_TRUE(f->error());
+    EXPECT_TRUE(result.has_error());
+  }
 
   ASSERT_EQ(f->close(), 0);
 }
@@ -162,8 +165,8 @@ TEST(LlvmLibcFileTest, WriteLineBuffered) {
   StringFile *f_full =
       new_string_file(file_buffer_full, FILE_BUFFER_SIZE, _IOFBF, false, "w");
 
-  ASSERT_EQ(sizeof(data), f_line->write(data, sizeof(data)));
-  ASSERT_EQ(sizeof(data), f_full->write(data, sizeof(data)));
+  ASSERT_EQ(sizeof(data), f_line->write(data, sizeof(data)).value);
+  ASSERT_EQ(sizeof(data), f_full->write(data, sizeof(data)).value);
 
   EXPECT_EQ(f_line->get_pos(), size_t(6)); // buffer after the newline
   EXPECT_EQ(f_full->get_pos(), size_t(0)); // buffer all of data
@@ -175,12 +178,12 @@ TEST(LlvmLibcFileTest, WriteLineBuffered) {
 
   const char data2[] = "longer for an \n overflow";
 
-  ASSERT_EQ(sizeof(data2), f_line->write(data2, sizeof(data2)));
+  ASSERT_EQ(sizeof(data2), f_line->write(data2, sizeof(data2)).value);
   // The line buffer's initial contents should be " file\0"
   // Writing data2 should write up until the newline, even though that doesn't
   // all fit in the buffer.
 
-  ASSERT_EQ(sizeof(data2), f_full->write(data2, sizeof(data2)));
+  ASSERT_EQ(sizeof(data2), f_full->write(data2, sizeof(data2)).value);
   // The full buffer's initial contents should be "hello\n file\0"
   // Writing data2 should cause a flush of the buffer, as well as the remainder
   // to be written directly since it doesn't fit in the buffer.
@@ -215,7 +218,7 @@ TEST(LlvmLibcFileTest, WriteUnbuffered) {
   StringFile *f =
       new_string_file(file_buffer, FILE_BUFFER_SIZE, _IONBF, false, "w");
 
-  ASSERT_EQ(sizeof(data), f->write(data, sizeof(data)));
+  ASSERT_EQ(sizeof(data), f->write(data, sizeof(data)).value);
   EXPECT_EQ(f->get_pos(),
             sizeof(data)); // no buffering means this is written immediately.
   EXPECT_STREQ(f->get_str(), data);
@@ -233,7 +236,7 @@ TEST(LlvmLibcFileTest, ReadOnly) {
 
   constexpr size_t READ_SIZE = sizeof(initial_content) / 2;
   char read_data[READ_SIZE];
-  ASSERT_EQ(READ_SIZE, f->read(read_data, READ_SIZE));
+  ASSERT_EQ(READ_SIZE, f->read(read_data, READ_SIZE).value);
   EXPECT_FALSE(f->iseof());
   // Reading less than file buffer worth will still read one
   // full buffer worth of data.
@@ -246,14 +249,14 @@ TEST(LlvmLibcFileTest, ReadOnly) {
 
   // Reading another buffer worth should read out everything in
   // the file.
-  ASSERT_EQ(READ_SIZE, f->read(read_data, READ_SIZE));
+  ASSERT_EQ(READ_SIZE, f->read(read_data, READ_SIZE).value);
   EXPECT_FALSE(f->iseof());
   MemoryView src2(initial_content + READ_SIZE, READ_SIZE),
       dst2(read_data, READ_SIZE);
   EXPECT_MEM_EQ(src2, dst2);
 
   // Another read should trigger an EOF.
-  ASSERT_GT(READ_SIZE, f->read(read_data, READ_SIZE));
+  ASSERT_GT(READ_SIZE, f->read(read_data, READ_SIZE).value);
   EXPECT_TRUE(f->iseof());
 
   // Reset the pos to the beginning of the file which should allow
@@ -261,15 +264,17 @@ TEST(LlvmLibcFileTest, ReadOnly) {
   for (size_t i = 0; i < READ_SIZE; ++i)
     read_data[i] = 0;
   f->seek(0, SEEK_SET);
-  ASSERT_EQ(READ_SIZE, f->read(read_data, READ_SIZE));
+  ASSERT_EQ(READ_SIZE, f->read(read_data, READ_SIZE).value);
   MemoryView src3(initial_content, READ_SIZE), dst3(read_data, READ_SIZE);
   EXPECT_MEM_EQ(src3, dst3);
 
-  // This is not a writable file.
-  EXPECT_EQ(f->write(initial_content, sizeof(initial_content)), size_t(0));
-  EXPECT_TRUE(f->error());
-  EXPECT_NE(errno, 0);
-  errno = 0;
+  {
+    // This is not a writable file.
+    auto result = f->write(initial_content, sizeof(initial_content));
+    EXPECT_EQ(result.value, size_t(0));
+    EXPECT_TRUE(f->error());
+    EXPECT_TRUE(result.has_error());
+  }
 
   ASSERT_EQ(f->close(), 0);
 }
@@ -285,13 +290,13 @@ TEST(LlvmLibcFileTest, ReadSeekCurAndRead) {
   constexpr size_t READ_SIZE = 5;
   char data[READ_SIZE];
   data[READ_SIZE - 1] = '\0';
-  ASSERT_EQ(f->read(data, READ_SIZE - 1), READ_SIZE - 1);
+  ASSERT_EQ(f->read(data, READ_SIZE - 1).value, READ_SIZE - 1);
   ASSERT_STREQ(data, "1234");
-  ASSERT_EQ(f->seek(5, SEEK_CUR), 0);
-  ASSERT_EQ(f->read(data, READ_SIZE - 1), READ_SIZE - 1);
+  ASSERT_EQ(f->seek(5, SEEK_CUR).value(), 0);
+  ASSERT_EQ(f->read(data, READ_SIZE - 1).value, READ_SIZE - 1);
   ASSERT_STREQ(data, "0987");
-  ASSERT_EQ(f->seek(-5, SEEK_CUR), 0);
-  ASSERT_EQ(f->read(data, READ_SIZE - 1), READ_SIZE - 1);
+  ASSERT_EQ(f->seek(-5, SEEK_CUR).value(), 0);
+  ASSERT_EQ(f->read(data, READ_SIZE - 1).value, READ_SIZE - 1);
   ASSERT_STREQ(data, "9098");
   ASSERT_EQ(f->close(), 0);
 }
@@ -307,14 +312,17 @@ TEST(LlvmLibcFileTest, AppendOnly) {
 
   constexpr size_t READ_SIZE = 5;
   char read_data[READ_SIZE];
-  // This is not a readable file.
-  ASSERT_EQ(f->read(read_data, READ_SIZE), size_t(0));
-  EXPECT_TRUE(f->error());
-  EXPECT_NE(errno, 0);
-  errno = 0;
+
+  {
+    // This is not a readable file.
+    auto result = f->read(read_data, READ_SIZE);
+    EXPECT_EQ(result.value, size_t(0));
+    EXPECT_TRUE(f->error());
+    EXPECT_TRUE(result.has_error());
+  }
 
   // Write should succeed but will be buffered in the file stream.
-  ASSERT_EQ(f->write(write_data, sizeof(write_data)), sizeof(write_data));
+  ASSERT_EQ(f->write(write_data, sizeof(write_data)).value, sizeof(write_data));
   EXPECT_EQ(f->get_pos(), size_t(0));
   // Flushing will write to the file.
   EXPECT_EQ(f->flush(), int(0));
@@ -330,14 +338,14 @@ TEST(LlvmLibcFileTest, WriteUpdate) {
   StringFile *f =
       new_string_file(file_buffer, FILE_BUFFER_SIZE, _IOFBF, false, "w+");
 
-  ASSERT_EQ(sizeof(data), f->write(data, sizeof(data)));
+  ASSERT_EQ(sizeof(data), f->write(data, sizeof(data)).value);
   EXPECT_EQ(f->get_pos(), size_t(0)); // Data is buffered in the file stream
 
-  ASSERT_EQ(f->seek(0, SEEK_SET), 0);
+  ASSERT_EQ(f->seek(0, SEEK_SET).value(), 0);
 
   // Seek flushes the stream buffer so we can read the previously written data.
   char read_data[sizeof(data)];
-  ASSERT_EQ(f->read(read_data, sizeof(data)), sizeof(data));
+  ASSERT_EQ(f->read(read_data, sizeof(data)).value, sizeof(data));
   EXPECT_STREQ(read_data, data);
 
   ASSERT_EQ(f->close(), 0);
@@ -353,7 +361,7 @@ TEST(LlvmLibcFileTest, ReadUpdate) {
 
   constexpr size_t READ_SIZE = sizeof(initial_content) / 2;
   char read_data[READ_SIZE];
-  ASSERT_EQ(READ_SIZE, f->read(read_data, READ_SIZE));
+  ASSERT_EQ(READ_SIZE, f->read(read_data, READ_SIZE).value);
   EXPECT_FALSE(f->iseof());
   // Reading less than file buffer worth will still read one
   // full buffer worth of data.
@@ -364,9 +372,9 @@ TEST(LlvmLibcFileTest, ReadUpdate) {
   MemoryView src1(initial_content, READ_SIZE), dst1(read_data, READ_SIZE);
   EXPECT_MEM_EQ(src1, dst1);
 
-  ASSERT_EQ(f->seek(0, SEEK_SET), 0);
+  ASSERT_EQ(f->seek(0, SEEK_SET).value(), 0);
   const char write_data[] = "hello, file";
-  ASSERT_EQ(sizeof(write_data), f->write(write_data, sizeof(write_data)));
+  ASSERT_EQ(sizeof(write_data), f->write(write_data, sizeof(write_data)).value);
   EXPECT_STREQ(file_buffer, write_data);
   ASSERT_EQ(f->flush(), 0);
   MemoryView dst2(f->get_str(), sizeof(write_data)),
@@ -385,16 +393,16 @@ TEST(LlvmLibcFileTest, AppendUpdate) {
       new_string_file(file_buffer, FILE_BUFFER_SIZE, _IOFBF, false, "a+");
   f->reset_and_fill(initial_content, sizeof(initial_content));
 
-  ASSERT_EQ(sizeof(data), f->write(data, sizeof(data)));
+  ASSERT_EQ(sizeof(data), f->write(data, sizeof(data)).value);
   EXPECT_EQ(f->get_pos(), size_t(0)); // Data is buffered in the file stream
   ASSERT_EQ(f->flush(), 0);
   // The flush should write |data| to the endof the file.
   EXPECT_EQ(f->get_pos(), sizeof(data) + sizeof(initial_content));
 
-  ASSERT_EQ(f->seek(0, SEEK_SET), 0);
+  ASSERT_EQ(f->seek(0, SEEK_SET).value(), 0);
   // Seeking to the beginning of the file should not affect the place
   // where write happens.
-  ASSERT_EQ(sizeof(data), f->write(data, sizeof(data)));
+  ASSERT_EQ(sizeof(data), f->write(data, sizeof(data)).value);
   ASSERT_EQ(f->flush(), 0);
   EXPECT_EQ(f->get_pos(), sizeof(data) * 2 + sizeof(initial_content));
   MemoryView src1(initial_content, sizeof(initial_content)),
@@ -408,10 +416,10 @@ TEST(LlvmLibcFileTest, AppendUpdate) {
   EXPECT_MEM_EQ(src3, dst3);
 
   // Reads can happen from any point.
-  ASSERT_EQ(f->seek(0, SEEK_SET), 0);
+  ASSERT_EQ(f->seek(0, SEEK_SET).value(), 0);
   constexpr size_t READ_SIZE = 10;
   char read_data[READ_SIZE];
-  ASSERT_EQ(READ_SIZE, f->read(read_data, READ_SIZE));
+  ASSERT_EQ(READ_SIZE, f->read(read_data, READ_SIZE).value);
   MemoryView src4(initial_content, READ_SIZE), dst4(read_data, READ_SIZE);
   EXPECT_MEM_EQ(src4, dst4);
 
@@ -426,7 +434,7 @@ TEST(LlvmLibcFileTest, SmallBuffer) {
   StringFile *f =
       new_string_file(file_buffer, FILE_BUFFER_SIZE, _IOFBF, false, "w");
 
-  ASSERT_EQ(WRITE_SIZE, f->write(WRITE_DATA, WRITE_SIZE));
+  ASSERT_EQ(WRITE_SIZE, f->write(WRITE_DATA, WRITE_SIZE).value);
   // Since data much larger than the buffer is being written, all of it should
   // be available in the file without a flush operation.
   EXPECT_EQ(f->get_pos(), sizeof(WRITE_DATA));
@@ -442,9 +450,9 @@ TEST(LlvmLibcFileTest, ZeroLengthBuffer) {
   StringFile *f_lbf = new_string_file(nullptr, 0, _IOLBF, true, "w");
   StringFile *f_nbf = new_string_file(nullptr, 0, _IONBF, true, "w");
 
-  ASSERT_EQ(WRITE_SIZE, f_fbf->write(WRITE_DATA, WRITE_SIZE));
-  ASSERT_EQ(WRITE_SIZE, f_lbf->write(WRITE_DATA, WRITE_SIZE));
-  ASSERT_EQ(WRITE_SIZE, f_nbf->write(WRITE_DATA, WRITE_SIZE));
+  ASSERT_EQ(WRITE_SIZE, f_fbf->write(WRITE_DATA, WRITE_SIZE).value);
+  ASSERT_EQ(WRITE_SIZE, f_lbf->write(WRITE_DATA, WRITE_SIZE).value);
+  ASSERT_EQ(WRITE_SIZE, f_nbf->write(WRITE_DATA, WRITE_SIZE).value);
   // Since there is no buffer space, all of the written data should
   // be available in the file without a flush operation.
   EXPECT_EQ(f_fbf->get_pos(), sizeof(WRITE_DATA));
@@ -473,9 +481,9 @@ TEST(LlvmLibcFileTest, WriteNothing) {
   StringFile *f_nbf =
       new_string_file(file_buffer_nbf, FILE_BUFFER_SIZE, _IONBF, false, "w");
 
-  ASSERT_EQ(WRITE_SIZE, f_fbf->write(WRITE_DATA, WRITE_SIZE));
-  ASSERT_EQ(WRITE_SIZE, f_lbf->write(WRITE_DATA, WRITE_SIZE));
-  ASSERT_EQ(WRITE_SIZE, f_nbf->write(WRITE_DATA, WRITE_SIZE));
+  ASSERT_EQ(WRITE_SIZE, f_fbf->write(WRITE_DATA, WRITE_SIZE).value);
+  ASSERT_EQ(WRITE_SIZE, f_lbf->write(WRITE_DATA, WRITE_SIZE).value);
+  ASSERT_EQ(WRITE_SIZE, f_nbf->write(WRITE_DATA, WRITE_SIZE).value);
 
   ASSERT_FALSE(f_fbf->error_unlocked());
   ASSERT_FALSE(f_lbf->error_unlocked());
@@ -484,4 +492,23 @@ TEST(LlvmLibcFileTest, WriteNothing) {
   ASSERT_EQ(f_fbf->close(), 0);
   ASSERT_EQ(f_lbf->close(), 0);
   ASSERT_EQ(f_nbf->close(), 0);
+}
+
+TEST(LlvmLibcFileTest, WriteSplit) {
+  constexpr size_t FILE_BUFFER_SIZE = 8;
+  char file_buffer[FILE_BUFFER_SIZE];
+  StringFile *f =
+      new_string_file(file_buffer, FILE_BUFFER_SIZE, _IOFBF, false, "w");
+
+  static constexpr size_t AVAIL = 12;
+  f->seek(-AVAIL, SEEK_END);
+
+  const char data[] = "hello";
+  ASSERT_EQ(sizeof(data) - 1, f->write(data, sizeof(data) - 1).value);
+
+  const char data2[] = " extra data";
+  static constexpr size_t WR_EXPECTED = AVAIL - (sizeof(data) - 1);
+  ASSERT_EQ(WR_EXPECTED, f->write(data2, sizeof(data2) - 1).value);
+  EXPECT_TRUE(f->error());
+  ASSERT_EQ(f->close(), 0);
 }

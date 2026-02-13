@@ -1,4 +1,4 @@
-//===--- MisleadingIndentationCheck.cpp - clang-tidy-----------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,14 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "MisleadingIndentationCheck.h"
+#include "../utils/LexerUtils.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace readability {
+namespace clang::tidy::readability {
 
 static const IfStmt *getPrecedingIf(const SourceManager &SM,
                                     ASTContext *Context, const IfStmt *If) {
@@ -22,7 +21,7 @@ static const IfStmt *getPrecedingIf(const SourceManager &SM,
   if (Parents.size() != 1)
     return nullptr;
   if (const auto *PrecedingIf = Parents[0].get<IfStmt>()) {
-    SourceLocation PreviousElseLoc = PrecedingIf->getElseLoc();
+    const SourceLocation PreviousElseLoc = PrecedingIf->getElseLoc();
     if (SM.getExpansionLineNumber(PreviousElseLoc) ==
         SM.getExpansionLineNumber(If->getIfLoc()))
       return PrecedingIf;
@@ -34,7 +33,7 @@ void MisleadingIndentationCheck::danglingElseCheck(const SourceManager &SM,
                                                    ASTContext *Context,
                                                    const IfStmt *If) {
   SourceLocation IfLoc = If->getIfLoc();
-  SourceLocation ElseLoc = If->getElseLoc();
+  const SourceLocation ElseLoc = If->getElseLoc();
 
   if (IfLoc.isMacroID() || ElseLoc.isMacroID())
     return;
@@ -53,8 +52,20 @@ void MisleadingIndentationCheck::danglingElseCheck(const SourceManager &SM,
     diag(ElseLoc, "different indentation for 'if' and corresponding 'else'");
 }
 
-void MisleadingIndentationCheck::missingBracesCheck(const SourceManager &SM,
-                                                    const CompoundStmt *CStmt) {
+static bool isAtStartOfLineIncludingEmptyMacro(SourceLocation NextLoc,
+                                               const SourceManager &SM,
+                                               const LangOptions &LangOpts) {
+  const SourceLocation BeforeLoc =
+      utils::lexer::getPreviousTokenAndStart(NextLoc, SM, LangOpts).second;
+  if (BeforeLoc.isInvalid())
+    return false;
+  return SM.getExpansionLineNumber(BeforeLoc) !=
+         SM.getExpansionLineNumber(NextLoc);
+}
+
+void MisleadingIndentationCheck::missingBracesCheck(
+    const SourceManager &SM, const CompoundStmt *CStmt,
+    const LangOptions &LangOpts) {
   const static StringRef StmtNames[] = {"if", "for", "while"};
   for (unsigned int I = 0; I < CStmt->size() - 1; I++) {
     const Stmt *CurrentStmt = CStmt->body_begin()[I];
@@ -78,8 +89,8 @@ void MisleadingIndentationCheck::missingBracesCheck(const SourceManager &SM,
     if (isa<CompoundStmt>(Inner))
       continue;
 
-    SourceLocation InnerLoc = Inner->getBeginLoc();
-    SourceLocation OuterLoc = CurrentStmt->getBeginLoc();
+    const SourceLocation InnerLoc = Inner->getBeginLoc();
+    const SourceLocation OuterLoc = CurrentStmt->getBeginLoc();
 
     if (InnerLoc.isInvalid() || InnerLoc.isMacroID() || OuterLoc.isInvalid() ||
         OuterLoc.isMacroID())
@@ -90,9 +101,11 @@ void MisleadingIndentationCheck::missingBracesCheck(const SourceManager &SM,
       continue;
 
     const Stmt *NextStmt = CStmt->body_begin()[I + 1];
-    SourceLocation NextLoc = NextStmt->getBeginLoc();
+    const SourceLocation NextLoc = NextStmt->getBeginLoc();
 
     if (NextLoc.isInvalid() || NextLoc.isMacroID())
+      continue;
+    if (!isAtStartOfLineIncludingEmptyMacro(NextLoc, SM, LangOpts))
       continue;
 
     if (SM.getExpansionColumnNumber(InnerLoc) ==
@@ -106,7 +119,8 @@ void MisleadingIndentationCheck::missingBracesCheck(const SourceManager &SM,
 }
 
 void MisleadingIndentationCheck::registerMatchers(MatchFinder *Finder) {
-  Finder->addMatcher(ifStmt(hasElse(stmt())).bind("if"), this);
+  Finder->addMatcher(
+      ifStmt(unless(hasThen(nullStmt())), hasElse(stmt())).bind("if"), this);
   Finder->addMatcher(
       compoundStmt(has(stmt(anyOf(ifStmt(), forStmt(), whileStmt()))))
           .bind("compound"),
@@ -118,9 +132,8 @@ void MisleadingIndentationCheck::check(const MatchFinder::MatchResult &Result) {
     danglingElseCheck(*Result.SourceManager, Result.Context, If);
 
   if (const auto *CStmt = Result.Nodes.getNodeAs<CompoundStmt>("compound"))
-    missingBracesCheck(*Result.SourceManager, CStmt);
+    missingBracesCheck(*Result.SourceManager, CStmt,
+                       Result.Context->getLangOpts());
 }
 
-} // namespace readability
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::readability

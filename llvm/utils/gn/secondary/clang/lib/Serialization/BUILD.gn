@@ -10,6 +10,7 @@ static_library("Serialization") {
     "//clang/lib/Sema",
     "//llvm/lib/Bitcode/Reader",
     "//llvm/lib/Support",
+    "//llvm/lib/TargetParser",
   ]
   sources = [
     "ASTCommon.cpp",
@@ -24,9 +25,12 @@ static_library("Serialization") {
     "GeneratePCH.cpp",
     "GlobalModuleIndex.cpp",
     "InMemoryModuleCache.cpp",
+    "ModuleCache.cpp",
     "ModuleFile.cpp",
     "ModuleFileExtension.cpp",
     "ModuleManager.cpp",
+    "ObjectFilePCHContainerReader.cpp",
     "PCHContainerOperations.cpp",
+    "TemplateArgumentHasher.cpp",
   ]
 }

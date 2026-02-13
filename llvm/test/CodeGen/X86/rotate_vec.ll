@@ -45,7 +45,7 @@ define <4 x i32> @rot_v4i32_splat_2masks(<4 x i32> %x) {
 ; AVX512-LABEL: rot_v4i32_splat_2masks:
 ; AVX512:       # %bb.0:
 ; AVX512-NEXT:    vprold $31, %xmm0, %xmm0
-; AVX512-NEXT:    vpand {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0, %xmm0
+; AVX512-NEXT:    vpandq {{\.?LCPI[0-9]+_[0-9]+}}(%rip){1to2}, %xmm0, %xmm0
 ; AVX512-NEXT:    retq
   %1 = lshr <4 x i32> %x, <i32 1, i32 1, i32 1, i32 1>
   %2 = and <4 x i32> %1, <i32 4294901760, i32 4294901760, i32 4294901760, i32 4294901760>
@@ -80,7 +80,7 @@ define <4 x i32> @rot_v4i32_non_splat_2masks(<4 x i32> %x) {
 define <4 x i32> @rot_v4i32_zero_non_splat(<4 x i32> %x) {
 ; XOPAVX1-LABEL: rot_v4i32_zero_non_splat:
 ; XOPAVX1:       # %bb.0:
-; XOPAVX1-NEXT:    vpermilps {{.*#+}} xmm0 = xmm0[0,0,0,0]
+; XOPAVX1-NEXT:    vshufps {{.*#+}} xmm0 = xmm0[0,0,0,0]
 ; XOPAVX1-NEXT:    retq
 ;
 ; XOPAVX2-LABEL: rot_v4i32_zero_non_splat:
@@ -123,7 +123,7 @@ define <4 x i32> @rot_v4i32_mask_ashr0(<4 x i32> %a0) {
 ; AVX512-LABEL: rot_v4i32_mask_ashr0:
 ; AVX512:       # %bb.0:
 ; AVX512-NEXT:    vpsravd {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0, %xmm0
-; AVX512-NEXT:    vpand {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0, %xmm0
+; AVX512-NEXT:    vpandq {{\.?LCPI[0-9]+_[0-9]+}}(%rip){1to2}, %xmm0, %xmm0
 ; AVX512-NEXT:    retq
   %1 = ashr <4 x i32> %a0, <i32 25, i32 26, i32 27, i32 28>
   %2 = call <4 x i32> @llvm.fshl.v4i32(<4 x i32> %1, <4 x i32> %1, <4 x i32> <i32 1, i32 1, i32 1, i32 1>)
@@ -135,8 +135,8 @@ define <4 x i32> @rot_v4i32_mask_ashr0(<4 x i32> %a0) {
 define <4 x i32> @rot_v4i32_mask_ashr1(<4 x i32> %a0) {
 ; XOPAVX1-LABEL: rot_v4i32_mask_ashr1:
 ; XOPAVX1:       # %bb.0:
-; XOPAVX1-NEXT:    vpsrad $25, %xmm0, %xmm0
 ; XOPAVX1-NEXT:    vpshufd {{.*#+}} xmm0 = xmm0[0,0,0,0]
+; XOPAVX1-NEXT:    vpsrad $25, %xmm0, %xmm0
 ; XOPAVX1-NEXT:    vpand {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0, %xmm0
 ; XOPAVX1-NEXT:    retq
 ;
@@ -151,7 +151,7 @@ define <4 x i32> @rot_v4i32_mask_ashr1(<4 x i32> %a0) {
 ; AVX512:       # %bb.0:
 ; AVX512-NEXT:    vpsrad $25, %xmm0, %xmm0
 ; AVX512-NEXT:    vpbroadcastd %xmm0, %xmm0
-; AVX512-NEXT:    vpand {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0, %xmm0
+; AVX512-NEXT:    vpandq {{\.?LCPI[0-9]+_[0-9]+}}(%rip){1to2}, %xmm0, %xmm0
 ; AVX512-NEXT:    retq
   %1 = ashr <4 x i32> %a0, <i32 25, i32 26, i32 27, i32 28>
   %2 = call <4 x i32> @llvm.fshl.v4i32(<4 x i32> %1, <4 x i32> %1, <4 x i32> <i32 1, i32 2, i32 3, i32 4>)
@@ -162,21 +162,13 @@ define <4 x i32> @rot_v4i32_mask_ashr1(<4 x i32> %a0) {
 }
 
 define <8 x i16> @or_fshl_v8i16(<8 x i16> %x, <8 x i16> %y) {
-; XOPAVX1-LABEL: or_fshl_v8i16:
-; XOPAVX1:       # %bb.0:
-; XOPAVX1-NEXT:    vpor %xmm0, %xmm1, %xmm1
-; XOPAVX1-NEXT:    vpsrlw $11, %xmm0, %xmm0
-; XOPAVX1-NEXT:    vpsllw $5, %xmm1, %xmm1
-; XOPAVX1-NEXT:    vpor %xmm0, %xmm1, %xmm0
-; XOPAVX1-NEXT:    retq
-;
-; XOPAVX2-LABEL: or_fshl_v8i16:
-; XOPAVX2:       # %bb.0:
-; XOPAVX2-NEXT:    vpor %xmm0, %xmm1, %xmm1
-; XOPAVX2-NEXT:    vpsllw $5, %xmm1, %xmm1
-; XOPAVX2-NEXT:    vpsrlw $11, %xmm0, %xmm0
-; XOPAVX2-NEXT:    vpor %xmm0, %xmm1, %xmm0
-; XOPAVX2-NEXT:    retq
+; XOP-LABEL: or_fshl_v8i16:
+; XOP:       # %bb.0:
+; XOP-NEXT:    vpor %xmm0, %xmm1, %xmm1
+; XOP-NEXT:    vpsrlw $11, %xmm0, %xmm0
+; XOP-NEXT:    vpsllw $5, %xmm1, %xmm1
+; XOP-NEXT:    vpor %xmm0, %xmm1, %xmm0
+; XOP-NEXT:    retq
 ;
 ; AVX512-LABEL: or_fshl_v8i16:
 ; AVX512:       # %bb.0:
@@ -193,21 +185,13 @@ define <8 x i16> @or_fshl_v8i16(<8 x i16> %x, <8 x i16> %y) {
 }
 
 define <4 x i32> @or_fshl_v4i32(<4 x i32> %x, <4 x i32> %y) {
-; XOPAVX1-LABEL: or_fshl_v4i32:
-; XOPAVX1:       # %bb.0:
-; XOPAVX1-NEXT:    vpor %xmm0, %xmm1, %xmm1
-; XOPAVX1-NEXT:    vpsrld $11, %xmm0, %xmm0
-; XOPAVX1-NEXT:    vpslld $21, %xmm1, %xmm1
-; XOPAVX1-NEXT:    vpor %xmm0, %xmm1, %xmm0
-; XOPAVX1-NEXT:    retq
-;
-; XOPAVX2-LABEL: or_fshl_v4i32:
-; XOPAVX2:       # %bb.0:
-; XOPAVX2-NEXT:    vpor %xmm0, %xmm1, %xmm1
-; XOPAVX2-NEXT:    vpslld $21, %xmm1, %xmm1
-; XOPAVX2-NEXT:    vpsrld $11, %xmm0, %xmm0
-; XOPAVX2-NEXT:    vpor %xmm0, %xmm1, %xmm0
-; XOPAVX2-NEXT:    retq
+; XOP-LABEL: or_fshl_v4i32:
+; XOP:       # %bb.0:
+; XOP-NEXT:    vpor %xmm0, %xmm1, %xmm1
+; XOP-NEXT:    vpsrld $11, %xmm0, %xmm0
+; XOP-NEXT:    vpslld $21, %xmm1, %xmm1
+; XOP-NEXT:    vpor %xmm0, %xmm1, %xmm0
+; XOP-NEXT:    retq
 ;
 ; AVX512-LABEL: or_fshl_v4i32:
 ; AVX512:       # %bb.0:

@@ -42,7 +42,8 @@ protected:
   std::unique_ptr<DominatorTree> DT;
   std::unique_ptr<LoopInfo> LI;
 
-  ScalarEvolutionExpanderTest() : M("", Context), TLII(), TLI(TLII) {}
+  ScalarEvolutionExpanderTest()
+      : M("", Context), TLII(M.getTargetTriple()), TLI(TLII) {}
 
   ScalarEvolution buildSE(Function &F) {
     AC.reset(new AssumptionCache(F));
@@ -73,9 +74,8 @@ TEST_F(ScalarEvolutionExpanderTest, ExpandPtrTypeSCEV) {
   // expansion when the value in ValueOffsetPair is a ptr and the offset
   // is not divisible by the elem type size of value.
   auto *I8Ty = Type::getInt8Ty(Context);
-  auto *I8PtrTy = Type::getInt8PtrTy(Context);
+  auto *PtrTy = PointerType::get(Context, 0);
   auto *I32Ty = Type::getInt32Ty(Context);
-  auto *I32PtrTy = Type::getInt32PtrTy(Context);
   FunctionType *FTy =
       FunctionType::get(Type::getVoidTy(Context), std::vector<Type *>(), false);
   Function *F = Function::Create(FTy, Function::ExternalLinkage, "f", M);
@@ -87,37 +87,33 @@ TEST_F(ScalarEvolutionExpanderTest, ExpandPtrTypeSCEV) {
 
   // loop:                            ; preds = %loop, %entry
   //   %alloca = alloca i32
-  //   %gep0 = getelementptr i32, i32* %alloca, i32 1
-  //   %bitcast1 = bitcast i32* %gep0 to i8*
-  //   %gep1 = getelementptr i8, i8* %bitcast1, i32 1
-  //   %gep2 = getelementptr i8, i8* undef, i32 1
-  //   %cmp = icmp ult i8* undef, %bitcast1
-  //   %select = select i1 %cmp, i8* %gep1, i8* %gep2
-  //   %bitcast2 = bitcast i8* %select to i32*
+  //   %gep0 = getelementptr i32, ptr %alloca, i32 1
+  //   %gep1 = getelementptr i8, ptr %gep0, i32 1
+  //   %gep2 = getelementptr i8, ptr undef, i32 1
+  //   %cmp = icmp ult ptr undef, %gep0
+  //   %select = select i1 %cmp, ptr %gep1, ptr %gep2
   //   br i1 undef, label %loop, label %exit
 
-  const DataLayout &DL = F->getParent()->getDataLayout();
+  const DataLayout &DL = F->getDataLayout();
   BranchInst *Br = BranchInst::Create(
-      LoopBB, ExitBB, UndefValue::get(Type::getInt1Ty(Context)), LoopBB);
-  AllocaInst *Alloca =
-      new AllocaInst(I32Ty, DL.getAllocaAddrSpace(), "alloca", Br);
+      LoopBB, ExitBB, PoisonValue::get(Type::getInt1Ty(Context)), LoopBB);
+  AllocaInst *Alloca = new AllocaInst(I32Ty, DL.getAllocaAddrSpace(), "alloca",
+                                      Br->getIterator());
   ConstantInt *Ci32 = ConstantInt::get(Context, APInt(32, 1));
+  UndefValue *UndefPtr = UndefValue::get(PtrTy);
   GetElementPtrInst *Gep0 =
-      GetElementPtrInst::Create(I32Ty, Alloca, Ci32, "gep0", Br);
-  CastInst *CastA =
-      CastInst::CreateBitOrPointerCast(Gep0, I8PtrTy, "bitcast1", Br);
+      GetElementPtrInst::Create(I32Ty, Alloca, Ci32, "gep0", Br->getIterator());
   GetElementPtrInst *Gep1 =
-      GetElementPtrInst::Create(I8Ty, CastA, Ci32, "gep1", Br);
+      GetElementPtrInst::Create(I8Ty, Gep0, Ci32, "gep1", Br->getIterator());
   GetElementPtrInst *Gep2 = GetElementPtrInst::Create(
-      I8Ty, UndefValue::get(I8PtrTy), Ci32, "gep2", Br);
+      I8Ty, UndefPtr, Ci32, "gep2", Br->getIterator());
   CmpInst *Cmp = CmpInst::Create(Instruction::ICmp, CmpInst::ICMP_ULT,
-                                 UndefValue::get(I8PtrTy), CastA, "cmp", Br);
-  SelectInst *Sel = SelectInst::Create(Cmp, Gep1, Gep2, "select", Br);
-  CastInst *CastB =
-      CastInst::CreateBitOrPointerCast(Sel, I32PtrTy, "bitcast2", Br);
+                                 UndefPtr, Gep0, "cmp", Br->getIterator());
+  SelectInst *Select =
+      SelectInst::Create(Cmp, Gep1, Gep2, "select", Br->getIterator());
 
   ScalarEvolution SE = buildSE(*F);
-  auto *S = SE.getSCEV(CastB);
+  const SCEV *S = SE.getSCEV(Select);
   EXPECT_TRUE(isa<SCEVUnknown>(S));
 }
 
@@ -125,18 +121,18 @@ TEST_F(ScalarEvolutionExpanderTest, ExpandPtrTypeSCEV) {
 TEST_F(ScalarEvolutionExpanderTest, SCEVZeroExtendExprNonIntegral) {
   /*
    * Create the following code:
-   * func(i64 addrspace(10)* %arg)
+   * func(ptr addrspace(10) %arg)
    * top:
    *  br label %L.ph
    * L.ph:
+   *  %gepbase = getelementptr ptr addrspace(10) %arg, i64 1
    *  br label %L
    * L:
    *  %phi = phi i64 [i64 0, %L.ph], [ %add, %L2 ]
    *  %add = add i64 %phi2, 1
    *  br i1 undef, label %post, label %L2
    * post:
-   *  %gepbase = getelementptr i64 addrspace(10)* %arg, i64 1
-   *  #= %gep = getelementptr i64 addrspace(10)* %gepbase, i64 %add =#
+   *  #= %gep = getelementptr ptr addrspace(10) %gepbase, i64 %add =#
    *  ret void
    *
    * We will create the appropriate SCEV expression for %gep and expand it,
@@ -153,7 +149,7 @@ TEST_F(ScalarEvolutionExpanderTest, SCEVZeroExtendExprNonIntegral) {
 
   Type *T_int1 = Type::getInt1Ty(Context);
   Type *T_int64 = Type::getInt64Ty(Context);
-  Type *T_pint64 = T_int64->getPointerTo(10);
+  Type *T_pint64 = PointerType::get(Context, 10);
 
   FunctionType *FTy =
       FunctionType::get(Type::getVoidTy(Context), {T_pint64}, false);
@@ -170,26 +166,26 @@ TEST_F(ScalarEvolutionExpanderTest, SCEVZeroExtendExprNonIntegral) {
   Builder.CreateBr(LPh);
 
   Builder.SetInsertPoint(LPh);
+  Value *GepBase =
+      Builder.CreateGEP(T_int64, Arg, ConstantInt::get(T_int64, 1));
   Builder.CreateBr(L);
 
   Builder.SetInsertPoint(L);
   PHINode *Phi = Builder.CreatePHI(T_int64, 2);
   Value *Add = Builder.CreateAdd(Phi, ConstantInt::get(T_int64, 1), "add");
-  Builder.CreateCondBr(UndefValue::get(T_int1), L, Post);
+  Builder.CreateCondBr(PoisonValue::get(T_int1), L, Post);
   Phi->addIncoming(ConstantInt::get(T_int64, 0), LPh);
   Phi->addIncoming(Add, L);
 
   Builder.SetInsertPoint(Post);
-  Value *GepBase =
-      Builder.CreateGEP(T_int64, Arg, ConstantInt::get(T_int64, 1));
   Instruction *Ret = Builder.CreateRetVoid();
 
   ScalarEvolution SE = buildSE(*F);
-  auto *AddRec =
+  const SCEV *AddRec =
       SE.getAddRecExpr(SE.getUnknown(GepBase), SE.getConstant(T_int64, 1),
                        LI->getLoopFor(L), SCEV::FlagNUW);
 
-  SCEVExpander Exp(SE, NIM.getDataLayout(), "expander");
+  SCEVExpander Exp(SE, "expander");
   Exp.disableCanonicalMode();
   Exp.expandCodeFor(AddRec, T_pint64, Ret);
 
@@ -203,7 +199,7 @@ TEST_F(ScalarEvolutionExpanderTest, SCEVZeroExtendExprNonIntegral) {
 TEST_F(ScalarEvolutionExpanderTest, SCEVExpanderIsSafeToExpandAt) {
   /*
    * Create the following code:
-   * func(i64 addrspace(10)* %arg)
+   * func(ptr addrspace(10) %arg)
    * top:
    *  br label %L.ph
    * L.ph:
@@ -227,7 +223,7 @@ TEST_F(ScalarEvolutionExpanderTest, SCEVExpanderIsSafeToExpandAt) {
   NIM.setDataLayout(DataLayout);
 
   Type *T_int64 = Type::getInt64Ty(Context);
-  Type *T_pint64 = T_int64->getPointerTo(10);
+  Type *T_pint64 = PointerType::get(Context, 10);
 
   FunctionType *FTy =
       FunctionType::get(Type::getVoidTy(Context), {T_pint64}, false);
@@ -259,7 +255,7 @@ TEST_F(ScalarEvolutionExpanderTest, SCEVExpanderIsSafeToExpandAt) {
   Instruction *Ret = Builder.CreateRetVoid();
 
   ScalarEvolution SE = buildSE(*F);
-  SCEVExpander Exp(SE, M.getDataLayout(), "expander");
+  SCEVExpander Exp(SE, "expander");
   const SCEV *S = SE.getSCEV(Phi);
   EXPECT_TRUE(isa<SCEVAddRecExpr>(S));
   const SCEVAddRecExpr *AR = cast<SCEVAddRecExpr>(S);
@@ -321,7 +317,7 @@ TEST_F(ScalarEvolutionExpanderTest, SCEVExpanderNUW) {
   ScalarEvolution SE = buildSE(*F);
   const SCEV *S = SE.getSCEV(S1);
   EXPECT_TRUE(isa<SCEVAddExpr>(S));
-  SCEVExpander Exp(SE, M.getDataLayout(), "expander");
+  SCEVExpander Exp(SE, "expander");
   auto *I = cast<Instruction>(Exp.expandCodeFor(S, nullptr, R));
   EXPECT_FALSE(I->hasNoUnsignedWrap());
 }
@@ -373,7 +369,7 @@ TEST_F(ScalarEvolutionExpanderTest, SCEVExpanderNSW) {
   ScalarEvolution SE = buildSE(*F);
   const SCEV *S = SE.getSCEV(S1);
   EXPECT_TRUE(isa<SCEVAddExpr>(S));
-  SCEVExpander Exp(SE, M.getDataLayout(), "expander");
+  SCEVExpander Exp(SE, "expander");
   auto *I = cast<Instruction>(Exp.expandCodeFor(S, nullptr, R));
   EXPECT_FALSE(I->hasNoSignedWrap());
 }
@@ -424,7 +420,7 @@ TEST_F(ScalarEvolutionExpanderTest, SCEVCacheNUW) {
   EXPECT_TRUE(isa<SCEVAddExpr>(SC1));
   // Expand for S1, it should use S1 not S2 in spite S2
   // first in the cache.
-  SCEVExpander Exp(SE, M.getDataLayout(), "expander");
+  SCEVExpander Exp(SE, "expander");
   auto *I = cast<Instruction>(Exp.expandCodeFor(SC1, nullptr, R));
   EXPECT_FALSE(I->hasNoUnsignedWrap());
 }
@@ -475,7 +471,7 @@ TEST_F(ScalarEvolutionExpanderTest, SCEVCacheNSW) {
   EXPECT_TRUE(isa<SCEVAddExpr>(SC1));
   // Expand for S1, it should use S1 not S2 in spite S2
   // first in the cache.
-  SCEVExpander Exp(SE, M.getDataLayout(), "expander");
+  SCEVExpander Exp(SE, "expander");
   auto *I = cast<Instruction>(Exp.expandCodeFor(SC1, nullptr, R));
   EXPECT_FALSE(I->hasNoSignedWrap());
 }
@@ -516,7 +512,7 @@ TEST_F(ScalarEvolutionExpanderTest, SCEVExpandInsertCanonicalIV) {
               unsigned ExpectedCanonicalIVWidth =
                   SE.getTypeSizeInBits(AR->getType());
 
-              SCEVExpander Exp(SE, M->getDataLayout(), "expander");
+              SCEVExpander Exp(SE, "expander");
               auto *InsertAt = I.getNextNode();
               Exp.expandCodeFor(AR, nullptr, InsertAt);
               PHINode *CanonicalIV = Loop->getCanonicalInductionVariable();
@@ -567,7 +563,7 @@ TEST_F(ScalarEvolutionExpanderTest, SCEVExpandInsertCanonicalIV) {
           cast<IntegerType>(CanonicalIV->getType())->getBitWidth();
       EXPECT_LT(CanonicalIVBitWidth, ExpectedCanonicalIVWidth);
 
-      SCEVExpander Exp(SE, M->getDataLayout(), "expander");
+      SCEVExpander Exp(SE, "expander");
       auto *InsertAt = I.getNextNode();
       Exp.expandCodeFor(AR, nullptr, InsertAt);
 
@@ -649,7 +645,7 @@ TEST_F(ScalarEvolutionExpanderTest, SCEVExpandInsertCanonicalIV) {
               EXPECT_EQ(ARBitWidth, SE.getTypeSizeInBits(AR->getType()));
               EXPECT_EQ(CanonicalIVBitWidth, ARBitWidth);
 
-              SCEVExpander Exp(SE, M->getDataLayout(), "expander");
+              SCEVExpander Exp(SE, "expander");
               auto *InsertAt = I.getNextNode();
               Exp.expandCodeFor(AR, nullptr, InsertAt);
 
@@ -702,20 +698,20 @@ TEST_F(ScalarEvolutionExpanderTest, SCEVExpanderShlNSW) {
     EXPECT_TRUE(isa<SCEVMulExpr>(AndSCEV));
     EXPECT_TRUE(cast<SCEVMulExpr>(AndSCEV)->hasNoSignedWrap());
 
-    SCEVExpander Exp(SE, M->getDataLayout(), "expander");
+    SCEVExpander Exp(SE, "expander");
     auto *I = cast<Instruction>(Exp.expandCodeFor(AndSCEV, nullptr, And));
     EXPECT_EQ(I->getOpcode(), Instruction::Shl);
     EXPECT_FALSE(I->hasNoSignedWrap());
   };
 
-  checkOneCase("define void @f(i16* %arrayidx) { "
-               "  %1 = load i16, i16* %arrayidx "
+  checkOneCase("define void @f(ptr %arrayidx) { "
+               "  %1 = load i16, ptr %arrayidx "
                "  %2 = and i16 %1, -32768 "
                "  ret void "
                "} ");
 
-  checkOneCase("define void @f(i8* %arrayidx) { "
-               "  %1 = load i8, i8* %arrayidx "
+  checkOneCase("define void @f(ptr %arrayidx) { "
+               "  %1 = load i8, ptr %arrayidx "
                "  %2 = and i8 %1, -128 "
                "  ret void "
                "} ");
@@ -759,10 +755,10 @@ TEST_F(ScalarEvolutionExpanderTest, SCEVExpandNonAffineAddRec) {
                     auto *AR = GetAddRec(SE, Loop);
                     EXPECT_FALSE(AR->isAffine());
 
-                    SCEVExpander Exp(SE, M->getDataLayout(), "expander");
+                    SCEVExpander Exp(SE, "expander");
                     auto *InsertAt = I.getNextNode();
                     Value *V = Exp.expandCodeFor(AR, nullptr, InsertAt);
-                    auto *ExpandedAR = SE.getSCEV(V);
+                    const SCEV *ExpandedAR = SE.getSCEV(V);
                     // Check that the expansion happened literally.
                     EXPECT_EQ(AR, ExpandedAR);
                   });
@@ -808,10 +804,10 @@ TEST_F(ScalarEvolutionExpanderTest, SCEVExpandNonAffineAddRec) {
           cast<IntegerType>(CanonicalIV->getType())->getBitWidth();
       EXPECT_LT(CanonicalIVBitWidth, ExpectedCanonicalIVWidth);
 
-      SCEVExpander Exp(SE, M->getDataLayout(), "expander");
+      SCEVExpander Exp(SE, "expander");
       auto *InsertAt = I.getNextNode();
       Value *V = Exp.expandCodeFor(AR, nullptr, InsertAt);
-      auto *ExpandedAR = SE.getSCEV(V);
+      const SCEV *ExpandedAR = SE.getSCEV(V);
       // Check that the expansion happened literally.
       EXPECT_EQ(AR, ExpandedAR);
     });
@@ -863,10 +859,10 @@ TEST_F(ScalarEvolutionExpanderTest, SCEVExpandNonAffineAddRec) {
               EXPECT_EQ(ARBitWidth, SE.getTypeSizeInBits(AR->getType()));
               EXPECT_EQ(CanonicalIVBitWidth, ARBitWidth);
 
-              SCEVExpander Exp(SE, M->getDataLayout(), "expander");
+              SCEVExpander Exp(SE, "expander");
               auto *InsertAt = I.getNextNode();
               Value *V = Exp.expandCodeFor(AR, nullptr, InsertAt);
-              auto *ExpandedAR = SE.getSCEV(V);
+              const SCEV *ExpandedAR = SE.getSCEV(V);
               // Check that the expansion happened literally.
               EXPECT_EQ(AR, ExpandedAR);
             });
@@ -916,10 +912,10 @@ TEST_F(ScalarEvolutionExpanderTest, ExpandNonIntegralPtrWithNullBase) {
       parseAssemblyString("target datalayout = "
                           "\"e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:"
                           "128-n8:16:32:64-S128-ni:1-p2:32:8:8:32-ni:2\""
-                          "define float addrspace(1)* @test(i64 %offset) { "
-                          "  %ptr = getelementptr inbounds float, float "
-                          "addrspace(1)* null, i64 %offset"
-                          "  ret float addrspace(1)* %ptr"
+                          "define ptr addrspace(1) @test(i64 %offset) { "
+                          "  %ptr = getelementptr inbounds float, ptr "
+                          "addrspace(1) null, i64 %offset"
+                          "  ret ptr addrspace(1) %ptr"
                           "}",
                           Err, C);
 
@@ -930,38 +926,65 @@ TEST_F(ScalarEvolutionExpanderTest, ExpandNonIntegralPtrWithNullBase) {
     auto &I = GetInstByName(F, "ptr");
     auto PtrPlus1 =
         SE.getAddExpr(SE.getSCEV(&I), SE.getConstant(I.getType(), 1));
-    SCEVExpander Exp(SE, M->getDataLayout(), "expander");
+    SCEVExpander Exp(SE, "expander");
 
     Value *V = Exp.expandCodeFor(PtrPlus1, I.getType(), &I);
     I.replaceAllUsesWith(V);
 
     // Check that the expander created:
-    // define float addrspace(1)* @test(i64 %off) {
-    //   %scevgep = getelementptr float, float addrspace(1)* null, i64 %off
-    //   %scevgep1 = bitcast float addrspace(1)* %scevgep to i8 addrspace(1)*
-    //   %uglygep = getelementptr i8, i8 addrspace(1)* %scevgep1, i64 1
-    //   %uglygep2 = bitcast i8 addrspace(1)* %uglygep to float addrspace(1)*
-    //   %ptr = getelementptr inbounds float, float addrspace(1)* null, i64 %off
-    //   ret float addrspace(1)* %uglygep2
+    // define ptr addrspace(1) @test(i64 %off) {
+    //   %1 = shl i64 %offset, 2
+    //   %2 = add nuw nsw i64 %1, 1
+    //   %uglygep = getelementptr i8, ptr addrspace(1) null, i64 %2
+    //   %ptr = getelementptr inbounds float, ptr addrspace(1) null, i64 %off
+    //   ret ptr addrspace(1) %uglygep
     // }
 
-    auto *Cast = dyn_cast<BitCastInst>(V);
-    EXPECT_TRUE(Cast);
-    EXPECT_EQ(Cast->getType(), I.getType());
-    auto *GEP = dyn_cast<GetElementPtrInst>(Cast->getOperand(0));
+    Value *Offset = &*F.arg_begin();
+    auto *GEP = dyn_cast<GetElementPtrInst>(V);
     EXPECT_TRUE(GEP);
-    EXPECT_TRUE(match(GEP->getOperand(1), m_SpecificInt(1)));
-    auto *Cast1 = dyn_cast<BitCastInst>(GEP->getPointerOperand());
-    EXPECT_TRUE(Cast1);
-    auto *GEP1 = dyn_cast<GetElementPtrInst>(Cast1->getOperand(0));
-    EXPECT_TRUE(GEP1);
-    EXPECT_TRUE(cast<Constant>(GEP1->getPointerOperand())->isNullValue());
-    EXPECT_EQ(GEP1->getOperand(1), &*F.arg_begin());
-    EXPECT_EQ(cast<PointerType>(GEP1->getPointerOperand()->getType())
+    EXPECT_TRUE(cast<Constant>(GEP->getPointerOperand())->isNullValue());
+    EXPECT_EQ(GEP->getNumOperands(), 2U);
+    EXPECT_TRUE(match(
+        GEP->getOperand(1),
+        m_Add(m_Shl(m_Specific(Offset), m_SpecificInt(2)), m_SpecificInt(1))));
+    EXPECT_EQ(cast<PointerType>(GEP->getPointerOperand()->getType())
                   ->getAddressSpace(),
               cast<PointerType>(I.getType())->getAddressSpace());
     EXPECT_FALSE(verifyFunction(F, &errs()));
   });
+}
+
+TEST_F(ScalarEvolutionExpanderTest, GEPFlags) {
+  LLVMContext C;
+  SMDiagnostic Err;
+  StringRef ModStr = R"(
+  define void @f(ptr %p, i64 %x) {
+    %gep_inbounds = getelementptr inbounds i8, ptr %p, i64 %x
+    ret void
+  })";
+  std::unique_ptr<Module> M = parseAssemblyString(ModStr, Err, C);
+
+  assert(M && "Could not parse module?");
+  assert(!verifyModule(*M) && "Must have been well formed!");
+
+  Function *F = M->getFunction("f");
+  ASSERT_NE(F, nullptr) << "Could not find function 'f'";
+  BasicBlock &Entry = F->getEntryBlock();
+  auto *GEP = cast<GetElementPtrInst>(&Entry.front());
+
+  ScalarEvolution SE = buildSE(*F);
+  const SCEV *Ptr = SE.getSCEV(F->getArg(0));
+  const SCEV *X = SE.getSCEV(F->getArg(1));
+  const SCEV *PtrX = SE.getAddExpr(Ptr, X);
+
+  SCEVExpander Exp(SE, "expander");
+  auto *I = cast<Instruction>(
+      Exp.expandCodeFor(PtrX, nullptr, Entry.getTerminator()));
+  // Check that the GEP is reused, but the inbounds flag cleared. We don't
+  // know that the newly introduced use is inbounds.
+  EXPECT_EQ(I, GEP);
+  EXPECT_EQ(GEP->getNoWrapFlags(), GEPNoWrapFlags::none());
 }
 
 } // end namespace llvm

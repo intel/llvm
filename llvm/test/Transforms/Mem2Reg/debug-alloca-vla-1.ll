@@ -20,20 +20,20 @@ define void @scan() #0 !dbg !4 {
 ; CHECK-NEXT:    br label [[FOR_COND:%.*]], !dbg [[DBG10:![0-9]+]]
 ; CHECK:       for.cond:
 ; CHECK-NEXT:    [[VLA1_0:%.*]] = phi i32 [ undef, [[ENTRY:%.*]] ], [ [[T0:%.*]], [[FOR_COND]] ]
-; CHECK-NEXT:    call void @llvm.dbg.value(metadata i32 [[VLA1_0]], metadata [[META11:![0-9]+]], metadata !DIExpression()), !dbg [[DBG19:![0-9]+]]
+; CHECK-NEXT:      #dbg_value(i32 [[VLA1_0]], [[META11:![0-9]+]], !DIExpression(), [[META19:![0-9]+]])
 ; CHECK-NEXT:    [[T0]] = add i32 [[VLA1_0]], 1
-; CHECK-NEXT:    call void @llvm.dbg.value(metadata i32 [[T0]], metadata [[META11]], metadata !DIExpression()), !dbg [[DBG19]]
+; CHECK-NEXT:      #dbg_value(i32 [[T0]], [[META11]], !DIExpression(), [[META19]])
 ; CHECK-NEXT:    br label [[FOR_COND]], !dbg [[DBG10]]
 ;
 entry:
   %vla1 = alloca i32, i32 1, align 8
-  call void @llvm.dbg.declare(metadata i32* %vla1, metadata !10, metadata !DIExpression()), !dbg !18
+  call void @llvm.dbg.declare(metadata ptr %vla1, metadata !10, metadata !DIExpression()), !dbg !18
   br label %for.cond, !dbg !18
 
 for.cond:                                         ; preds = %for.cond, %entry
-  %entryN = load i32, i32* %vla1, align 8, !dbg !18
+  %entryN = load i32, ptr %vla1, align 8, !dbg !18
   %t0 = add i32 %entryN, 1
-  store i32 %t0, i32* %vla1, align 8, !dbg !18
+  store i32 %t0, ptr %vla1, align 8, !dbg !18
   br label %for.cond, !dbg !18
 }
 

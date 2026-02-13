@@ -1,15 +1,6 @@
-; Legacy pass manager
-; RUN: opt %loadPolly -O3 -enable-new-pm=0 -polly -polly-position=early                    -disable-output -debug-only=polly-scops < %s 2>&1 | FileCheck %s --check-prefix=NOINLINE
-; RUN: opt %loadPolly -O3 -enable-new-pm=0 -polly -polly-position=early -polly-run-inliner -disable-output -debug-only=polly-scops < %s 2>&1 | FileCheck %s --check-prefix=INLINED1
-; RUN: opt %loadPolly -O3 -enable-new-pm=0 -polly -polly-position=after-loopopt            -disable-output -debug-only=polly-scops < %s 2>&1 | FileCheck %s --check-prefix=INLINED2
-; RUN: opt %loadPolly -O3 -enable-new-pm=0 -polly -polly-position=before-vectorizer        -disable-output -debug-only=polly-scops < %s 2>&1 | FileCheck %s --check-prefix=INLINED3
-;
-; New pass manager
-; RUN: opt %loadNPMPolly -O3 -enable-new-pm=1 -polly -polly-position=early                    -disable-output -debug-only=polly-scops < %s 2>&1 | FileCheck %s --check-prefix=NOINLINE
-; RUN: opt %loadNPMPolly -O3 -enable-new-pm=1 -polly -polly-position=early -polly-run-inliner -disable-output -debug-only=polly-scops < %s 2>&1 | FileCheck %s --check-prefix=INLINED1
-; RUN: opt %loadNPMPolly -O3 -enable-new-pm=1 -polly -polly-position=before-vectorizer        -disable-output -debug-only=polly-scops < %s 2>&1 | FileCheck %s --check-prefix=INLINED3
-;
-; REQUIRES: asserts
+; RUN: opt %loadNPMPolly -O3 -polly -polly-position=early                    -disable-output -polly-print-scops < %s 2>&1 | FileCheck %s --check-prefix=NOINLINE
+; RUN: opt %loadNPMPolly -O3 -polly -polly-position=early -polly-run-inliner -disable-output -polly-print-scops < %s 2>&1 | FileCheck %s --check-prefix=INLINED1
+; RUN: opt %loadNPMPolly -O3 -polly -polly-position=before-vectorizer        -disable-output -polly-print-scops < %s 2>&1 | FileCheck %s --check-prefix=INLINED3
 ;
 ; void callee(int n, double A[], int i) {
 ;   for (int j = 0; j < n; j += 1)
@@ -22,7 +13,7 @@
 ; }
 
 
-define internal void @callee(i32 %n, double* noalias nonnull %A, i32 %i) {
+define internal void @callee(i32 %n, ptr noalias nonnull %A, i32 %i) {
 entry:
   br label %for
 
@@ -33,8 +24,8 @@ for:
 
     body:
       %idx = add i32 %i, %j
-      %arrayidx = getelementptr inbounds double, double* %A, i32 %idx
-      store double 42.0, double* %arrayidx
+      %arrayidx = getelementptr inbounds double, ptr %A, i32 %idx
+      store double 42.0, ptr %arrayidx
       br label %inc
 
 inc:
@@ -49,7 +40,7 @@ return:
 }
 
 
-define void @caller(i32 %n, double* noalias nonnull %A) {
+define void @caller(i32 %n, ptr noalias nonnull %A) {
 entry:
   br label %for
 
@@ -59,7 +50,7 @@ for:
   br i1 %i.cmp, label %body, label %exit
 
     body:
-      call void @callee(i32 %n, double* %A, i32 %i)
+      call void @callee(i32 %n, ptr %A, i32 %i)
       br label %inc
 
 inc:

@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning %s -o %t.out
+// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning %s
 // expected-error@sycl/stream.hpp:* {{Convert the byte to a numeric value using std::to_integer}}
 
 #include <sycl/sycl.hpp>

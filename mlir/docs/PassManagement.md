@@ -17,22 +17,26 @@ this is a great place to start.
 
 In MLIR, the main unit of abstraction and transformation is an
 [operation](LangRef.md/#operations). As such, the pass manager is designed to
-work on instances of operations at different levels of nesting. The structure of
-the [pass manager](#pass-manager), and the concept of nesting, is detailed
-further below. All passes in MLIR derive from `OperationPass` and adhere to the
-following restrictions; any noncompliance will lead to problematic behavior in
-multithreaded and other advanced scenarios:
+work on instances of operations at different levels of nesting. In the following
+paragraphs, we refer to the operation that a pass operates on as the "current
+operation".
 
-*   Must not modify any state referenced or relied upon outside the current
-    operation being operated on. This includes adding or removing operations
-    from the parent block, changing the attributes(depending on the contract
-    of the current operation)/operands/results/successors of the current operation.
-*   Must not modify the state of another operation not nested within the current
-    operation being operated on.
-    *   Other threads may be operating on these operations simultaneously.
-*   Must not inspect the state of sibling operations.
+The structure of the [pass manager](#pass-manager), and the concept of nesting,
+is detailed further below. All passes in MLIR derive from `OperationPass` and
+adhere to the following restrictions; any noncompliance will lead to problematic
+behavior in multithreaded and other advanced scenarios:
+
+*   Must not inspect the state of operations that are siblings of the current
+    operation. Must neither access operations nested under those siblings.
     *   Other threads may be modifying these operations in parallel.
     *   Inspecting the state of ancestor/parent operations is permitted.
+*   Must not modify the state of operations other than the operations that are
+    nested under the current operation. This includes adding, modifying or
+    removing other operations from an ancestor/parent block.
+    *   Other threads may be operating on these operations simultaneously.
+    *   As an exception, the attributes of the current operation may be modified
+        freely. This is the only way that the current operation may be modified.
+        (I.e., modifying operands, etc. is not allowed.)
 *   Must not maintain mutable pass state across invocations of `runOnOperation`.
     A pass may be run on many different operations with no guarantee of
     execution order.
@@ -52,8 +56,7 @@ By default, an operation pass is `op-agnostic`, meaning that it operates on the
 operation type of the pass manager that it is added to. This means a pass may operate
 on many different types of operations. Agnostic passes should be written such that
 they do not make assumptions on the operation they run on. Examples of this type of pass are
-[Canonicalization](Pass.md/-canonicalize-canonicalize-operations)
-[Common Sub-Expression Elimination](Passes.md/#-cse-eliminate-common-sub-expressions).
+[Canonicalization](Passes.md/#-canonicalize) and [Common Sub-Expression Elimination](Passes.md/#-cse).
 
 To create an agnostic operation pass, a derived class must adhere to the following:
 
@@ -358,7 +361,7 @@ specific operation, and executed on any viable operation type). Operation types 
 anchor pass managers must adhere to the following requirement:
 
 *   Must be registered and marked
-    [`IsolatedFromAbove`](Traits.md/#isolatedfromabove).
+    [`IsolatedFromAbove`](Traits/#isolatedfromabove).
 
     *   Passes are expected not to modify operations at or above the current
         operation being processed. If the operation is not isolated, it may
@@ -399,11 +402,8 @@ Below is an example of constructing a pipeline that operates on the above
 structure:
 
 ```c++
-// Create a top-level `PassManager` class. If an operation type is not
-// explicitly specific, the default is the builtin `module` operation.
-PassManager pm(ctx);
-// Note: We could also create the above `PassManager` this way.
-PassManager pm(ctx, /*operationName=*/"builtin.module");
+// Create a top-level `PassManager` class.
+auto pm = PassManager::on<ModuleOp>(ctx);
 
 // Add a pass on the top-level module operation.
 pm.addPass(std::make_unique<MyModulePass>());
@@ -461,7 +461,7 @@ program has been run through the passes. This provides several benefits:
 In some situations it may be useful to run a pass pipeline within another pass,
 to allow configuring or filtering based on some invariants of the current
 operation being operated on. For example, the
-[Inliner Pass](Passes.md/#-inline-inline-function-calls) may want to run
+[Inliner Pass](Passes.md/#-inline) may want to run
 intraprocedural simplification passes while it is inlining to produce a better
 cost model, and provide more optimal inlining. To enable this, passes may run an
 arbitrary `OpPassManager` on the current operation being operated on or any
@@ -602,7 +602,7 @@ A pipeline view that models the structure of the pass manager, this is the
 default view:
 
 ```shell
-$ mlir-opt -pass-pipeline='func.func(my-pass,my-pass)' foo.mlir -mlir-pass-statistics
+$ mlir-opt -pass-pipeline='any(func.func(my-pass,my-pass))' foo.mlir -mlir-pass-statistics
 
 ===-------------------------------------------------------------------------===
                          ... Pass statistics report ...
@@ -621,7 +621,7 @@ A list view that aggregates the statistics of all instances of a specific pass
 together:
 
 ```shell
-$ mlir-opt -pass-pipeline='func.func(my-pass, my-pass)' foo.mlir -mlir-pass-statistics -mlir-pass-statistics-display=list
+$ mlir-opt -pass-pipeline='any(func.func(my-pass,my-pass))' foo.mlir -mlir-pass-statistics -mlir-pass-statistics-display=list
 
 ===-------------------------------------------------------------------------===
                          ... Pass statistics report ...
@@ -750,10 +750,10 @@ Can also be specified as (via the `-pass-pipeline` flag):
 
 ```shell
 # Anchor the cse and canonicalize passes on the `func.func` operation.
-$ mlir-opt foo.mlir -pass-pipeline='func.func(cse,canonicalize),convert-func-to-llvm{use-bare-ptr-memref-call-conv=1}'
+$ mlir-opt foo.mlir -pass-pipeline='builtin.module(func.func(cse,canonicalize),convert-func-to-llvm{use-bare-ptr-memref-call-conv=1})'
 
 # Anchor the cse and canonicalize passes on "any" viable root operation.
-$ mlir-opt foo.mlir -pass-pipeline='any(cse,canonicalize),convert-func-to-llvm{use-bare-ptr-memref-call-conv=1}'
+$ mlir-opt foo.mlir -pass-pipeline='builtin.module(any(cse,canonicalize),convert-func-to-llvm{use-bare-ptr-memref-call-conv=1})'
 ```
 
 In order to support round-tripping a pass to the textual representation using
@@ -763,7 +763,7 @@ Pass::getArgument()` to specify the argument used when registering a pass.
 ## Declarative Pass Specification
 
 Some aspects of a Pass may be specified declaratively, in a form similar to
-[operations](OpDefinitions.md). This specification simplifies several mechanisms
+[operations](DefiningDialects/Operations.md). This specification simplifies several mechanisms
 used when defining passes. It can be used for generating pass registration
 calls, defining boilerplate pass utilities, and generating pass documentation.
 
@@ -809,11 +809,6 @@ def MyPass : Pass<"my-pass", "ModuleOp"> {
     its various constraints and behavior.
   }];
 
-  // A constructor must be provided to specify how to create a default instance
-  // of MyPass. It can be skipped for this specific example, because both the
-  // constructor and the registration methods live in the same namespace.
-  let constructor = "foo::createMyPass()";
-
   // Specify any options.
   let options = [
     Option<"option", "example-option", "bool", /*default=*/"true",
@@ -839,6 +834,12 @@ each pass, the generator produces a `registerPassName` where
 `PassName` is the name of the definition specified in tablegen. It also
 generates a `registerGroupPasses`, where `Group` is the tag provided via the
 `-name` input parameter, that registers all of the passes present.
+
+These declarations can be enabled for the whole group of passes by
+defining the `GEN_PASS_REGISTRATION` macro, or on a per-pass basis by
+defining `GEN_PASS_REGISTRATION_PASSNAME` where `PASSNAME` is the
+uppercase version of the name of the pass (similar to pass def and
+decls).
 
 ```c++
 // Tablegen options: -gen-pass-decls -name="Example"
@@ -883,8 +884,7 @@ struct MyPassOptions {
 #endif // GEN_PASS_DECL_MYPASS
 ```
 
-If the `constructor` field has not been specified in the tablegen declaration,
-then autogenerated file will also contain the declarations of the default
+The autogenerated file will also contain the declarations of the default
 constructors.
 
 ```c++
@@ -927,9 +927,8 @@ struct MyPass : foo::impl::MyPassBase<MyPass> {
 These definitions can be enabled on a per-pass basis by defining the appropriate
 preprocessor `GEN_PASS_DEF_PASSNAME` macro, with `PASSNAME` equal to the
 uppercase version of the name of the pass definition in tablegen.
-If the `constructor` field has not been specified in tablegen, then the default
-constructors are also defined and expect the name of the actual pass class to
-be equal to the name defined in tablegen.
+The default constructors are also defined and expect the name of the actual pass
+class to be equal to the name defined in tablegen.
 
 Using the `gen-pass-doc` generator, markdown documentation for each of the
 passes can be generated. See [Passes.md](Passes.md) for example output of real
@@ -951,12 +950,14 @@ contains the following fields:
 *   `dependentDialects`
     -   A list of strings representing the `Dialect` classes this pass may
         introduce entities, Attributes/Operations/Types/etc., of.
-*   `constructor`
-    -   A code block used to create a default instance of the pass.
 *   `options`
     -   A list of pass options used by the pass.
 *   `statistics`
     -   A list of pass statistics used by the pass.
+*   `constructor`
+    -   A code block used to create a default instance of the pass.
+        Specifying it will disable the constructors auto-generation for the
+        pass. This is a legacy option, it is not advised to use it.
 
 #### Options
 
@@ -1121,20 +1122,47 @@ pipeline. This display mode is available in mlir-opt via
 `-mlir-timing-display=list`.
 
 ```shell
-$ mlir-opt foo.mlir -mlir-disable-threading -pass-pipeline='func.func(cse,canonicalize)' -convert-func-to-llvm -mlir-timing -mlir-timing-display=list
+$ mlir-opt foo.mlir -mlir-disable-threading -pass-pipeline='builtin.module(func.func(cse,canonicalize),convert-func-to-llvm)' -mlir-timing -mlir-timing-display=list
 
 ===-------------------------------------------------------------------------===
-                      ... Pass execution timing report ...
+                         ... Execution time report ...
 ===-------------------------------------------------------------------------===
-  Total Execution Time: 0.0203 seconds
+  Total Execution Time: 0.0135 seconds
 
-   ---Wall Time---  --- Name ---
-   0.0047 ( 55.9%)  Canonicalizer
-   0.0019 ( 22.2%)  VerifierPass
-   0.0016 ( 18.5%)  LLVMLoweringPass
-   0.0003 (  3.4%)  CSE
-   0.0002 (  1.9%)  (A) DominanceInfo
-   0.0084 (100.0%)  Total
+  ----Wall Time----  ----Name----
+    0.0135 (100.0%)  root
+    0.0041 ( 30.1%)  Parser
+    0.0018 ( 13.3%)  ConvertFuncToLLVMPass
+    0.0011 (  8.2%)  Output
+    0.0007 (  5.2%)  Pipeline Collection : ['func.func']
+    0.0006 (  4.6%)  'func.func' Pipeline
+    0.0005 (  3.5%)  Canonicalizer
+    0.0001 (  0.9%)  CSE
+    0.0001 (  0.5%)  (A) DataLayoutAnalysis
+    0.0000 (  0.1%)  (A) DominanceInfo
+    0.0058 ( 43.2%)  Rest
+    0.0135 (100.0%)  Total
+```
+
+The results can be displayed in JSON format via `-mlir-output-format=json`.
+
+```shell
+$ mlir-opt foo.mlir -mlir-disable-threading -pass-pipeline='builtin.module(func.func(cse,canonicalize),convert-func-to-llvm)' -mlir-timing -mlir-timing-display=list -mlir-output-format=json
+
+[
+{"wall": {"duration":   0.0135, "percentage": 100.0}, "name": "root"},
+{"wall": {"duration":   0.0041, "percentage":  30.1}, "name": "Parser"},
+{"wall": {"duration":   0.0018, "percentage":  13.3}, "name": "ConvertFuncToLLVMPass"},
+{"wall": {"duration":   0.0011, "percentage":   8.2}, "name": "Output"},
+{"wall": {"duration":   0.0007, "percentage":   5.2}, "name": "Pipeline Collection : ['func.func']"},
+{"wall": {"duration":   0.0006, "percentage":   4.6}, "name": "'func.func' Pipeline"},
+{"wall": {"duration":   0.0005, "percentage":   3.5}, "name": "Canonicalizer"},
+{"wall": {"duration":   0.0001, "percentage":   0.9}, "name": "CSE"},
+{"wall": {"duration":   0.0001, "percentage":   0.5}, "name": "(A) DataLayoutAnalysis"},
+{"wall": {"duration":   0.0000, "percentage":   0.1}, "name": "(A) DominanceInfo"},
+{"wall": {"duration":   0.0058, "percentage":  43.2}, "name": "Rest"},
+{"wall": {"duration":   0.0135, "percentage": 100.0}, "name": "Total"}
+]
 ```
 
 ##### Tree Display Mode
@@ -1146,24 +1174,51 @@ the most time, and can also be used to identify when analyses are being
 invalidated and recomputed. This is the default display mode.
 
 ```shell
-$ mlir-opt foo.mlir -mlir-disable-threading -pass-pipeline='func.func(cse,canonicalize)' -convert-func-to-llvm -mlir-timing
+$ mlir-opt foo.mlir -mlir-disable-threading -pass-pipeline='builtin.module(func.func(cse,canonicalize),convert-func-to-llvm)' -mlir-timing
 
 ===-------------------------------------------------------------------------===
-                      ... Pass execution timing report ...
+                         ... Execution time report ...
 ===-------------------------------------------------------------------------===
-  Total Execution Time: 0.0249 seconds
+  Total Execution Time: 0.0127 seconds
 
-   ---Wall Time---  --- Name ---
-   0.0058 ( 70.8%)  'func.func' Pipeline
-   0.0004 (  4.3%)    CSE
-   0.0002 (  2.6%)      (A) DominanceInfo
-   0.0004 (  4.8%)    VerifierPass
-   0.0046 ( 55.4%)    Canonicalizer
-   0.0005 (  6.2%)    VerifierPass
-   0.0005 (  5.8%)  VerifierPass
-   0.0014 ( 17.2%)  LLVMLoweringPass
-   0.0005 (  6.2%)  VerifierPass
-   0.0082 (100.0%)  Total
+  ----Wall Time----  ----Name----
+    0.0038 ( 30.2%)  Parser
+    0.0006 (  4.8%)  'func.func' Pipeline
+    0.0001 (  0.9%)    CSE
+    0.0000 (  0.1%)      (A) DominanceInfo
+    0.0005 (  3.7%)    Canonicalizer
+    0.0017 ( 13.7%)  ConvertFuncToLLVMPass
+    0.0001 (  0.6%)    (A) DataLayoutAnalysis
+    0.0010 (  8.2%)  Output
+    0.0054 ( 42.5%)  Rest
+    0.0127 (100.0%)  Total
+```
+
+The results can be displayed in JSON format via `-mlir-output-format=json`.
+
+```shell
+$ mlir-opt foo.mlir -mlir-disable-threading -pass-pipeline='builtin.module(func.func(cse,canonicalize),convert-func-to-llvm)' -mlir-timing -mlir-output-format=json
+
+[
+{"wall": {"duration":   0.0038, "percentage":  30.2}, "name": "Parser", "passes": [
+{}]},
+{"wall": {"duration":   0.0006, "percentage":   4.8}, "name": "'func.func' Pipeline", "passes": [
+  {"wall": {"duration":   0.0001, "percentage":   0.9}, "name": "CSE", "passes": [
+    {"wall": {"duration":   0.0000, "percentage":   0.1}, "name": "(A) DominanceInfo", "passes": [
+    {}]},
+  {}]},
+  {"wall": {"duration":   0.0005, "percentage":   3.7}, "name": "Canonicalizer", "passes": [
+  {}]},
+{}]},
+{"wall": {"duration":   0.0017, "percentage":  13.7}, "name": "ConvertFuncToLLVMPass", "passes": [
+  {"wall": {"duration":   0.0001, "percentage":   0.6}, "name": "(A) DataLayoutAnalysis", "passes": [
+  {}]},
+{}]},
+{"wall": {"duration":   0.0010, "percentage":   8.2}, "name": "Output", "passes": [
+{}]},
+{"wall": {"duration":   0.0054, "percentage":  42.5}, "name": "Rest"},
+{"wall": {"duration":   0.0127, "percentage": 100.0}, "name": "Total"}
+]
 ```
 
 ##### Multi-threaded Pass Timing
@@ -1177,7 +1232,7 @@ perceived time, or clock time, whereas the `User Time` will display the total
 cpu time.
 
 ```shell
-$ mlir-opt foo.mlir -pass-pipeline='func.func(cse,canonicalize)' -convert-func-to-llvm -mlir-timing
+$ mlir-opt foo.mlir -pass-pipeline='builtin.module(func.func(cse,canonicalize),convert-func-to-llvm)'  -mlir-timing
 
 ===-------------------------------------------------------------------------===
                       ... Pass execution timing report ...
@@ -1305,6 +1360,66 @@ func.func @simple_constant() -> (i32, i32) {
 }
 ```
 
+*   `mlir-print-ir-tree-dir=(directory path)`
+    *   Without setting this option, the IR printed by the instrumentation will
+        be printed to `stderr`. If you provide a directory using this option,
+        the output corresponding to each pass will be printed to a file in the
+        directory tree rooted at `(directory path)`. The path created for each
+        pass reflects the nesting structure of the IR and the pass pipeline.
+    *   The below example illustrates the file tree created by running a pass
+        pipeline on IR that has two `func.func` located within two nested
+        `builtin.module` ops.
+    *   The subdirectories are given names that reflect the parent op names and
+        the symbol names for those ops (if present).
+    *   The printer keeps a counter associated with ops that are targeted by
+        passes and their isolated-from-above parents. Each filename is given a
+        numeric prefix using the counter value for the op that the pass is
+        targeting. The counter values for each parent are then prepended. This
+        gives a naming where it is easy to distinguish which passes may have run
+        concurrently versus which have a clear ordering. In the below example,for
+        both `1_1_pass4.mlir` files, the first 1 refers to the counter for the
+        parent op, and the second refers to the counter for the respective
+        function.
+
+```
+$ pipeline="builtin.module(pass1,pass2,func.func(pass3,pass4),pass5)"
+$ mlir-opt foo.mlir -pass-pipeline="$pipeline" -mlir-print-ir-tree-dir=/tmp/pipeline_output
+$ tree /tmp/pipeline_output
+
+/tmp/pass_output
+├── builtin_module_the_symbol_name
+│   ├── 0_pass1.mlir
+│   ├── 1_pass2.mlir
+│   ├── 2_pass5.mlir
+│   ├── func_func_my_func_name
+│   │   ├── 1_0_pass3.mlir
+│   │   ├── 1_1_pass4.mlir
+│   ├── func_func_my_other_func_name
+│   │   ├── 1_0_pass3.mlir
+│   │   ├── 1_1_pass4.mlir
+```
+
+*   `mlir-use-nameloc-as-prefix`
+    * If your source IR has named locations (`loc("named_location")"`) then passing this flag will use those
+      names (`named_location`) to prefix the corresponding SSA identifiers:
+    
+      ```mlir
+      %1 = memref.load %0[] : memref<i32> loc("alice")  
+      %2 = memref.load %0[] : memref<i32> loc("bob")
+      %3 = memref.load %0[] : memref<i32> loc("bob")
+      ```
+      
+      will print 
+    
+      ```mlir
+      %alice = memref.load %0[] : memref<i32>
+      %bob = memref.load %0[] : memref<i32>
+      %bob_0 = memref.load %0[] : memref<i32>
+      ```
+      
+      These names will also be preserved through passes to newly created operations if using the appropriate location.
+      
+
 ## Crash and Failure Reproduction
 
 The [pass manager](#pass-manager) in MLIR contains a builtin mechanism to
@@ -1328,7 +1443,7 @@ module {
 {-#
   external_resources: {
     mlir_reproducer: {
-      pipeline: "func.func(cse,canonicalize),inline",
+      pipeline: "builtin.module(func.func(cse,canonicalize),inline)",
       disable_threading: true,
       verify_each: true
     }
@@ -1336,9 +1451,9 @@ module {
 #-}
 ```
 
-The configuration dumped can be passed to `mlir-opt`. This will result in
-parsing the configuration of the reproducer and adjusting the necessary opt
-state, e.g. configuring the pass manager, context, etc.
+The configuration dumped can be passed to `mlir-opt` by specifying
+`-run-reproducer` flag. This will result in parsing the configuration of the reproducer
+and adjusting the necessary opt state, e.g. configuring the pass manager, context, etc.
 
 Beyond specifying a filename, one can also register a `ReproducerStreamFactory`
 function that would be invoked in the case of a crash and the reproducer written
@@ -1371,7 +1486,7 @@ module {
 {-#
   external_resources: {
     mlir_reproducer: {
-      pipeline: "func.func(canonicalize)",
+      pipeline: "builtin.module(func.func(canonicalize))",
       disable_threading: true,
       verify_each: true
     }

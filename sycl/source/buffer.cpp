@@ -8,7 +8,7 @@
 #include <memory>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 buffer_plain::buffer_plain(
@@ -54,12 +54,12 @@ buffer_plain::buffer_plain(
 }
 
 buffer_plain::buffer_plain(
-    pi_native_handle MemObject, context SyclContext,
+    ur_native_handle_t MemObject, const context &SyclContext,
     std::unique_ptr<detail::SYCLMemObjAllocator> Allocator,
-    bool OwnNativeHandle, event AvailableEvent) {
-  impl = std::make_shared<detail::buffer_impl>(
-      MemObject, std::move(SyclContext), std::move(Allocator), OwnNativeHandle,
-      std::move(AvailableEvent));
+    bool OwnNativeHandle, const event &AvailableEvent) {
+  impl = std::make_shared<detail::buffer_impl>(MemObject, SyclContext,
+                                               std::move(Allocator),
+                                               OwnNativeHandle, AvailableEvent);
 }
 
 void buffer_plain::set_final_data_internal() { impl->set_final_data(nullptr); }
@@ -82,25 +82,7 @@ void buffer_plain::set_write_back(bool NeedWriteBack) {
   impl->set_write_back(NeedWriteBack);
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
-  template <>                                                                  \
-  __SYCL_EXPORT bool buffer_plain::has_property<param_type>() const noexcept { \
-    return impl->has_property<param_type>();                                   \
-  }
-#include <sycl/detail/properties_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
-
-#define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
-  template <>                                                                  \
-  __SYCL_EXPORT param_type buffer_plain::get_property<param_type>() const {    \
-    return impl->get_property<param_type>();                                   \
-  }
-#include <sycl/detail/properties_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
-
-std::vector<pi_native_handle>
+std::vector<ur_native_handle_t>
 buffer_plain::getNativeVector(backend BackendName) const {
   return impl->getNativeVector(BackendName);
 }
@@ -110,17 +92,19 @@ buffer_plain::get_allocator_internal() const {
   return impl->get_allocator_internal();
 }
 
-void buffer_plain::deleteAccProps(const sycl::detail::PropWithDataKind &Kind) {
-  impl->deleteAccessorProperty(Kind);
-}
-
-void buffer_plain::addOrReplaceAccessorProperties(
-    const property_list &PropertyList) {
-  impl->addOrReplaceAccessorProperties(PropertyList);
-}
-
 size_t buffer_plain::getSize() const { return impl->getSizeInBytes(); }
 
+void buffer_plain::handleRelease() const {
+  // Try to detach memory object only if impl is going to be released.
+  // Buffer copy will have pointer to the same impl.
+  if (impl.use_count() == 1)
+    impl->detachMemoryObject(impl);
+}
+
+const property_list &buffer_plain::getPropList() const {
+  return impl->getPropList();
+}
+
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -23,6 +23,7 @@
 #define PASS_NAME "test-affine-data-copy"
 
 using namespace mlir;
+using namespace mlir::affine;
 
 namespace {
 
@@ -52,6 +53,11 @@ private:
       *this, "for-memref-region",
       llvm::cl::desc("Test copy generation for a single memref region"),
       llvm::cl::init(false)};
+  Option<uint64_t> clCapacityLimit{
+      *this, "capacity-kib",
+      llvm::cl::desc("Test copy generation enforcing a limit of capacity "
+                     "(default: unlimited)"),
+      llvm::cl::init(UINT64_MAX)};
 };
 
 } // namespace
@@ -60,7 +66,8 @@ void TestAffineDataCopy::runOnOperation() {
   // Gather all AffineForOps by loop depth.
   std::vector<SmallVector<AffineForOp, 2>> depthToLoops;
   gatherLoops(getOperation(), depthToLoops);
-  assert(!depthToLoops.empty() && "Loop nest not found");
+  if (depthToLoops.empty())
+    return;
 
   // Only support tests with a single loop nest and a single innermost loop
   // for now.
@@ -71,24 +78,24 @@ void TestAffineDataCopy::runOnOperation() {
   auto loopNest = depthToLoops[0][0];
   auto innermostLoop = depthToLoops[innermostLoopIdx][0];
   AffineLoadOp load;
+  // For simplicity, these options are tested on the first memref being loaded
+  // from in the innermost loop.
   if (clMemRefFilter || clTestGenerateCopyForMemRegion) {
-    // Gather MemRef filter. For simplicity, we use the first loaded memref
-    // found in the innermost loop.
     for (auto &op : *innermostLoop.getBody()) {
       if (auto ld = dyn_cast<AffineLoadOp>(op)) {
         load = ld;
         break;
       }
     }
+    if (!load)
+      return;
   }
-  if (!load)
-    return;
 
   AffineCopyOptions copyOptions = {/*generateDma=*/false,
                                    /*slowMemorySpace=*/0,
                                    /*fastMemorySpace=*/0,
                                    /*tagMemorySpace=*/0,
-                                   /*fastMemCapacityBytes=*/32 * 1024 * 1024UL};
+                                   /*fastMemCapacityBytes=*/clCapacityLimit};
   DenseSet<Operation *> copyNests;
   if (clMemRefFilter) {
     if (failed(affineDataCopyGenerate(loopNest, copyOptions, load.getMemRef(),
@@ -101,6 +108,10 @@ void TestAffineDataCopy::runOnOperation() {
       return;
     if (failed(generateCopyForMemRegion(region, loopNest, copyOptions, result)))
       return;
+  } else if (failed(affineDataCopyGenerate(loopNest, copyOptions,
+                                           /*filterMemref=*/std::nullopt,
+                                           copyNests))) {
+    return;
   }
 
   // Promote any single iteration loops in the copy nests and simplify
@@ -132,7 +143,9 @@ void TestAffineDataCopy::runOnOperation() {
       AffineStoreOp::getCanonicalizationPatterns(patterns, &getContext());
     }
   }
-  (void)applyOpPatternsAndFold(copyOps, std::move(patterns), /*strict=*/true);
+  GreedyRewriteConfig config;
+  config.setStrictness(GreedyRewriteStrictness::ExistingAndNewOps);
+  (void)applyOpPatternsGreedily(copyOps, std::move(patterns), config);
 }
 
 namespace mlir {

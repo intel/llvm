@@ -12,15 +12,19 @@
 
 #include "clang/AST/Decl.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/DeclCXX.h"
+#include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Mangle.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
+#include "clang/Basic/ABI.h"
+#include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Lex/Lexer.h"
 #include "clang/Tooling/Tooling.h"
 #include "llvm/IR/DataLayout.h"
-#include "llvm/Testing/Support/Annotations.h"
+#include "llvm/Testing/Annotations/Annotations.h"
 #include "gtest/gtest.h"
 
 using namespace clang::ast_matchers;
@@ -72,7 +76,6 @@ TEST(Decl, AsmLabelAttr) {
   StringRef Code = R"(
     struct S {
       void f() {}
-      void g() {}
     };
   )";
   auto AST =
@@ -85,27 +88,138 @@ TEST(Decl, AsmLabelAttr) {
   const auto *DeclS =
       selectFirst<CXXRecordDecl>("d", match(cxxRecordDecl().bind("d"), Ctx));
   NamedDecl *DeclF = *DeclS->method_begin();
-  NamedDecl *DeclG = *(++DeclS->method_begin());
 
-  // Attach asm labels to the decls: one literal, and one not.
-  DeclF->addAttr(::new (Ctx) AsmLabelAttr(Ctx, SourceLocation(), "foo",
-                                          /*LiteralLabel=*/true));
-  DeclG->addAttr(::new (Ctx) AsmLabelAttr(Ctx, SourceLocation(), "goo",
-                                          /*LiteralLabel=*/false));
+  DeclF->addAttr(AsmLabelAttr::Create(Ctx, "foo"));
 
   // Mangle the decl names.
-  std::string MangleF, MangleG;
+  std::string MangleF;
   std::unique_ptr<ItaniumMangleContext> MC(
       ItaniumMangleContext::create(Ctx, Diags));
   {
     llvm::raw_string_ostream OS_F(MangleF);
-    llvm::raw_string_ostream OS_G(MangleG);
     MC->mangleName(DeclF, OS_F);
-    MC->mangleName(DeclG, OS_G);
   }
 
-  ASSERT_TRUE(0 == MangleF.compare("\x01" "foo"));
-  ASSERT_TRUE(0 == MangleG.compare("goo"));
+  ASSERT_EQ(MangleF, "\x01"
+                     "foo");
+}
+
+TEST(Decl, AsmLabelAttr_LLDB) {
+  StringRef Code = R"(
+    struct S {
+      void f() {}
+      S() = default;
+      ~S() = default;
+    };
+  )";
+  auto AST =
+      tooling::buildASTFromCodeWithArgs(Code, {"-target", "i386-apple-darwin"});
+  ASTContext &Ctx = AST->getASTContext();
+  assert(Ctx.getTargetInfo().getUserLabelPrefix() == StringRef("_") &&
+         "Expected target to have a global prefix");
+  DiagnosticsEngine &Diags = AST->getDiagnostics();
+
+  const auto *DeclS =
+      selectFirst<CXXRecordDecl>("d", match(cxxRecordDecl().bind("d"), Ctx));
+
+  auto *DeclF = *DeclS->method_begin();
+  auto *Ctor = *DeclS->ctor_begin();
+  auto *Dtor = DeclS->getDestructor();
+
+  ASSERT_TRUE(DeclF);
+  ASSERT_TRUE(Ctor);
+  ASSERT_TRUE(Dtor);
+
+  DeclF->addAttr(AsmLabelAttr::Create(Ctx, "$__lldb_func::123:123:_Z1fv"));
+  Ctor->addAttr(AsmLabelAttr::Create(Ctx, "$__lldb_func::123:123:S"));
+  Dtor->addAttr(AsmLabelAttr::Create(Ctx, "$__lldb_func::123:123:~S"));
+
+  std::unique_ptr<ItaniumMangleContext> MC(
+      ItaniumMangleContext::create(Ctx, Diags));
+
+  {
+    std::string Mangled;
+    llvm::raw_string_ostream OS_Mangled(Mangled);
+    MC->mangleName(DeclF, OS_Mangled);
+
+    ASSERT_EQ(Mangled, "\x01$__lldb_func::123:123:_Z1fv");
+  };
+
+  {
+    std::string Mangled;
+    llvm::raw_string_ostream OS_Mangled(Mangled);
+    MC->mangleName(GlobalDecl(Ctor, CXXCtorType::Ctor_Complete), OS_Mangled);
+
+    ASSERT_EQ(Mangled, "\x01$__lldb_func:C0:123:123:S");
+  };
+
+  {
+    std::string Mangled;
+    llvm::raw_string_ostream OS_Mangled(Mangled);
+    MC->mangleName(GlobalDecl(Ctor, CXXCtorType::Ctor_Base), OS_Mangled);
+
+    ASSERT_EQ(Mangled, "\x01$__lldb_func:C1:123:123:S");
+  };
+
+  {
+    std::string Mangled;
+    llvm::raw_string_ostream OS_Mangled(Mangled);
+    MC->mangleName(GlobalDecl(Dtor, CXXDtorType::Dtor_Deleting), OS_Mangled);
+
+    ASSERT_EQ(Mangled, "\x01$__lldb_func:D0:123:123:~S");
+  };
+
+  {
+    std::string Mangled;
+    llvm::raw_string_ostream OS_Mangled(Mangled);
+    MC->mangleName(GlobalDecl(Dtor, CXXDtorType::Dtor_Base), OS_Mangled);
+
+    ASSERT_EQ(Mangled, "\x01$__lldb_func:D2:123:123:~S");
+  };
+}
+
+TEST(Decl, AsmLabelAttr_LLDB_Inherit) {
+  StringRef Code = R"(
+    struct Base {
+      Base(int x) {}
+    };
+
+    struct Derived : Base {
+      using Base::Base;
+    } d(5);
+  )";
+  auto AST =
+      tooling::buildASTFromCodeWithArgs(Code, {"-target", "i386-apple-darwin"});
+  ASTContext &Ctx = AST->getASTContext();
+  assert(Ctx.getTargetInfo().getUserLabelPrefix() == StringRef("_") &&
+         "Expected target to have a global prefix");
+  DiagnosticsEngine &Diags = AST->getDiagnostics();
+
+  const auto *Ctor = selectFirst<CXXConstructorDecl>(
+      "ctor",
+      match(cxxConstructorDecl(isInheritingConstructor()).bind("ctor"), Ctx));
+
+  const_cast<CXXConstructorDecl *>(Ctor)->addAttr(
+      AsmLabelAttr::Create(Ctx, "$__lldb_func::123:123:Derived"));
+
+  std::unique_ptr<ItaniumMangleContext> MC(
+      ItaniumMangleContext::create(Ctx, Diags));
+
+  {
+    std::string Mangled;
+    llvm::raw_string_ostream OS_Mangled(Mangled);
+    MC->mangleName(GlobalDecl(Ctor, CXXCtorType::Ctor_Complete), OS_Mangled);
+
+    ASSERT_EQ(Mangled, "\x01$__lldb_func:CI0:123:123:Derived");
+  };
+
+  {
+    std::string Mangled;
+    llvm::raw_string_ostream OS_Mangled(Mangled);
+    MC->mangleName(GlobalDecl(Ctor, CXXCtorType::Ctor_Base), OS_Mangled);
+
+    ASSERT_EQ(Mangled, "\x01$__lldb_func:CI1:123:123:Derived");
+  };
 }
 
 TEST(Decl, MangleDependentSizedArray) {
@@ -135,11 +249,26 @@ TEST(Decl, MangleDependentSizedArray) {
   std::unique_ptr<ItaniumMangleContext> MC(
       ItaniumMangleContext::create(Ctx, Diags));
 
-  MC->mangleTypeName(DeclA->getType(), OS_A);
-  MC->mangleTypeName(DeclB->getType(), OS_B);
+  MC->mangleCanonicalTypeName(DeclA->getType(), OS_A);
+  MC->mangleCanonicalTypeName(DeclB->getType(), OS_B);
 
-  ASSERT_TRUE(0 == MangleA.compare("_ZTSA_i"));
-  ASSERT_TRUE(0 == MangleB.compare("_ZTSAT0__T_"));
+  ASSERT_EQ(MangleA, "_ZTSA_i");
+  ASSERT_EQ(MangleB, "_ZTSAT0__T_");
+}
+
+TEST(Decl, ConceptDecl) {
+  llvm::StringRef Code(R"(
+    template<class T>
+    concept integral = __is_integral(T);
+  )");
+
+  auto AST = tooling::buildASTFromCodeWithArgs(Code, {"-std=c++20"});
+  ASTContext &Ctx = AST->getASTContext();
+
+  const auto *Decl =
+      selectFirst<ConceptDecl>("decl", match(conceptDecl().bind("decl"), Ctx));
+  ASSERT_TRUE(Decl != nullptr);
+  EXPECT_EQ(Decl->getName(), "integral");
 }
 
 TEST(Decl, EnumDeclRange) {
@@ -232,33 +361,16 @@ TEST(Decl, ModuleAndInternalLinkage) {
   const auto *f = selectFirst<FunctionDecl>(
       "f", match(functionDecl(hasName("f")).bind("f"), Ctx));
 
-  EXPECT_EQ(a->getLinkageInternal(), InternalLinkage);
-  EXPECT_EQ(f->getLinkageInternal(), InternalLinkage);
+  EXPECT_EQ(a->getFormalLinkage(), Linkage::Internal);
+  EXPECT_EQ(f->getFormalLinkage(), Linkage::Internal);
 
   const auto *b =
       selectFirst<VarDecl>("b", match(varDecl(hasName("b")).bind("b"), Ctx));
   const auto *g = selectFirst<FunctionDecl>(
       "g", match(functionDecl(hasName("g")).bind("g"), Ctx));
 
-  EXPECT_EQ(b->getLinkageInternal(), ModuleLinkage);
-  EXPECT_EQ(g->getLinkageInternal(), ModuleLinkage);
-
-  AST = tooling::buildASTFromCodeWithArgs(
-      Code.code(), /*Args=*/{"-std=c++20", "-fmodules-ts"});
-  ASTContext &CtxTS = AST->getASTContext();
-  a = selectFirst<VarDecl>("a", match(varDecl(hasName("a")).bind("a"), CtxTS));
-  f = selectFirst<FunctionDecl>(
-      "f", match(functionDecl(hasName("f")).bind("f"), CtxTS));
-
-  EXPECT_EQ(a->getLinkageInternal(), ModuleInternalLinkage);
-  EXPECT_EQ(f->getLinkageInternal(), ModuleInternalLinkage);
-
-  b = selectFirst<VarDecl>("b", match(varDecl(hasName("b")).bind("b"), CtxTS));
-  g = selectFirst<FunctionDecl>(
-      "g", match(functionDecl(hasName("g")).bind("g"), CtxTS));
-
-  EXPECT_EQ(b->getLinkageInternal(), ModuleLinkage);
-  EXPECT_EQ(g->getLinkageInternal(), ModuleLinkage);
+  EXPECT_EQ(b->getFormalLinkage(), Linkage::Module);
+  EXPECT_EQ(g->getFormalLinkage(), Linkage::Module);
 }
 
 TEST(Decl, GetNonTransparentDeclContext) {
@@ -355,6 +467,32 @@ TEST(Decl, FriendFunctionWithinClassInHeaderUnit) {
   EXPECT_TRUE(getFooValue->isInlined());
 }
 
+TEST(Decl, FunctionDeclBitsShouldNotOverlapWithCXXConstructorDeclBits) {
+  llvm::Annotations Code(R"(
+    struct A {
+      A() : m() {}
+      int m;
+    };
+
+    A f() { return A(); }
+    )");
+
+  auto AST = tooling::buildASTFromCodeWithArgs(Code.code(), {"-std=c++14"});
+  ASTContext &Ctx = AST->getASTContext();
+
+  auto HasCtorInit =
+      hasAnyConstructorInitializer(cxxCtorInitializer(isMemberInitializer()));
+  auto ImpMoveCtor =
+      cxxConstructorDecl(isMoveConstructor(), isImplicit(), HasCtorInit)
+          .bind("MoveCtor");
+
+  auto *ToImpMoveCtor =
+      selectFirst<CXXConstructorDecl>("MoveCtor", match(ImpMoveCtor, Ctx));
+
+  EXPECT_TRUE(ToImpMoveCtor->getNumCtorInitializers() == 1);
+  EXPECT_FALSE(ToImpMoveCtor->FriendConstraintRefersToEnclosingTemplate());
+}
+
 TEST(Decl, NoProtoFunctionDeclAttributes) {
   llvm::Annotations Code(R"(
     void f();
@@ -375,4 +513,215 @@ TEST(Decl, NoProtoFunctionDeclAttributes) {
   EXPECT_FALSE(FPT->isConst());
   EXPECT_FALSE(FPT->isVolatile());
   EXPECT_FALSE(FPT->isRestrict());
+}
+
+TEST(Decl, ImplicitlyDeclaredAllocationFunctionsInModules) {
+  // C++ [basic.stc.dynamic.general]p2:
+  //   The library provides default definitions for the global allocation
+  //   and deallocation functions. Some global allocation and deallocation
+  //   functions are replaceable ([new.delete]); these are attached to the
+  //   global module ([module.unit]).
+
+  llvm::Annotations Code(R"(
+    export module base;
+
+    export struct Base {
+        virtual void hello() = 0;
+        virtual ~Base() = default;
+    };
+  )");
+
+  auto AST =
+      tooling::buildASTFromCodeWithArgs(Code.code(), /*Args=*/{"-std=c++20"});
+  ASTContext &Ctx = AST->getASTContext();
+
+  // void* operator new(std::size_t);
+  auto *SizedOperatorNew = selectFirst<FunctionDecl>(
+      "operator new",
+      match(functionDecl(hasName("operator new"), parameterCountIs(1),
+                         hasParameter(0, hasType(isUnsignedInteger())))
+                .bind("operator new"),
+            Ctx));
+  ASSERT_TRUE(SizedOperatorNew->getOwningModule());
+  EXPECT_TRUE(SizedOperatorNew->isFromExplicitGlobalModule());
+
+  // void* operator new(std::size_t, std::align_val_t);
+  auto *SizedAlignedOperatorNew = selectFirst<FunctionDecl>(
+      "operator new",
+      match(functionDecl(
+                hasName("operator new"), parameterCountIs(2),
+                hasParameter(0, hasType(isUnsignedInteger())),
+                hasParameter(1, hasType(enumDecl(hasName("std::align_val_t")))))
+                .bind("operator new"),
+            Ctx));
+  ASSERT_TRUE(SizedAlignedOperatorNew->getOwningModule());
+  EXPECT_TRUE(SizedAlignedOperatorNew->isFromExplicitGlobalModule());
+
+  // void* operator new[](std::size_t);
+  auto *SizedArrayOperatorNew = selectFirst<FunctionDecl>(
+      "operator new[]",
+      match(functionDecl(hasName("operator new[]"), parameterCountIs(1),
+                         hasParameter(0, hasType(isUnsignedInteger())))
+                .bind("operator new[]"),
+            Ctx));
+  ASSERT_TRUE(SizedArrayOperatorNew->getOwningModule());
+  EXPECT_TRUE(SizedArrayOperatorNew->isFromExplicitGlobalModule());
+
+  // void* operator new[](std::size_t, std::align_val_t);
+  auto *SizedAlignedArrayOperatorNew = selectFirst<FunctionDecl>(
+      "operator new[]",
+      match(functionDecl(
+                hasName("operator new[]"), parameterCountIs(2),
+                hasParameter(0, hasType(isUnsignedInteger())),
+                hasParameter(1, hasType(enumDecl(hasName("std::align_val_t")))))
+                .bind("operator new[]"),
+            Ctx));
+  ASSERT_TRUE(SizedAlignedArrayOperatorNew->getOwningModule());
+  EXPECT_TRUE(
+      SizedAlignedArrayOperatorNew->isFromExplicitGlobalModule());
+
+  // void operator delete(void*) noexcept;
+  auto *Delete = selectFirst<FunctionDecl>(
+      "operator delete",
+      match(functionDecl(
+                hasName("operator delete"), parameterCountIs(1),
+                hasParameter(0, hasType(pointerType(pointee(voidType())))))
+                .bind("operator delete"),
+            Ctx));
+  ASSERT_TRUE(Delete->getOwningModule());
+  EXPECT_TRUE(Delete->isFromExplicitGlobalModule());
+
+  // void operator delete(void*, std::align_val_t) noexcept;
+  auto *AlignedDelete = selectFirst<FunctionDecl>(
+      "operator delete",
+      match(functionDecl(
+                hasName("operator delete"), parameterCountIs(2),
+                hasParameter(0, hasType(pointerType(pointee(voidType())))),
+                hasParameter(1, hasType(enumDecl(hasName("std::align_val_t")))))
+                .bind("operator delete"),
+            Ctx));
+  ASSERT_TRUE(AlignedDelete->getOwningModule());
+  EXPECT_TRUE(AlignedDelete->isFromExplicitGlobalModule());
+
+  // Sized deallocation is not enabled by default. So we skip it here.
+
+  // void operator delete[](void*) noexcept;
+  auto *ArrayDelete = selectFirst<FunctionDecl>(
+      "operator delete[]",
+      match(functionDecl(
+                hasName("operator delete[]"), parameterCountIs(1),
+                hasParameter(0, hasType(pointerType(pointee(voidType())))))
+                .bind("operator delete[]"),
+            Ctx));
+  ASSERT_TRUE(ArrayDelete->getOwningModule());
+  EXPECT_TRUE(ArrayDelete->isFromExplicitGlobalModule());
+
+  // void operator delete[](void*, std::align_val_t) noexcept;
+  auto *AlignedArrayDelete = selectFirst<FunctionDecl>(
+      "operator delete[]",
+      match(functionDecl(
+                hasName("operator delete[]"), parameterCountIs(2),
+                hasParameter(0, hasType(pointerType(pointee(voidType())))),
+                hasParameter(1, hasType(enumDecl(hasName("std::align_val_t")))))
+                .bind("operator delete[]"),
+            Ctx));
+  ASSERT_TRUE(AlignedArrayDelete->getOwningModule());
+  EXPECT_TRUE(AlignedArrayDelete->isFromExplicitGlobalModule());
+}
+
+TEST(Decl, TemplateArgumentDefaulted) {
+  llvm::Annotations Code(R"cpp(
+    template<typename T1, typename T2>
+    struct Alloc {};
+
+    template <typename T1,
+              typename T2 = double,
+              int      T3 = 42,
+              typename T4 = Alloc<T1, T2>>
+    struct Foo {
+    };
+
+    Foo<char, int, 42, Alloc<char, int>> X;
+  )cpp");
+
+  auto AST =
+      tooling::buildASTFromCodeWithArgs(Code.code(), /*Args=*/{"-std=c++20"});
+  ASTContext &Ctx = AST->getASTContext();
+
+  auto const *CTSD = selectFirst<ClassTemplateSpecializationDecl>(
+      "id",
+      match(classTemplateSpecializationDecl(hasName("Foo")).bind("id"), Ctx));
+  ASSERT_NE(CTSD, nullptr);
+  auto const &ArgList = CTSD->getTemplateArgs();
+
+  EXPECT_FALSE(ArgList.get(0).getIsDefaulted());
+  EXPECT_FALSE(ArgList.get(1).getIsDefaulted());
+  EXPECT_TRUE(ArgList.get(2).getIsDefaulted());
+  EXPECT_TRUE(ArgList.get(3).getIsDefaulted());
+}
+
+TEST(Decl, CXXDestructorDeclsShouldHaveWellFormedNameInfoRanges) {
+  // GH71161
+  llvm::Annotations Code(R"cpp(
+template <typename T> struct Resource {
+  ~Resource(); // 1
+};
+template <typename T>
+Resource<T>::~Resource() {} // 2,3
+
+void instantiate_template() {
+  Resource<int> x;
+}
+)cpp");
+
+  auto AST = tooling::buildASTFromCode(Code.code());
+  ASTContext &Ctx = AST->getASTContext();
+
+  const auto &SM = Ctx.getSourceManager();
+  auto GetNameInfoRange = [&SM](const BoundNodes &Match) {
+    const auto *D = Match.getNodeAs<CXXDestructorDecl>("dtor");
+    return D->getNameInfo().getSourceRange().printToString(SM);
+  };
+
+  auto Matches = match(findAll(cxxDestructorDecl().bind("dtor")),
+                       *Ctx.getTranslationUnitDecl(), Ctx);
+  ASSERT_EQ(Matches.size(), 3U);
+  EXPECT_EQ(GetNameInfoRange(Matches[0]), "<input.cc:3:3, col:4>");
+  EXPECT_EQ(GetNameInfoRange(Matches[1]), "<input.cc:6:14, col:15>");
+  EXPECT_EQ(GetNameInfoRange(Matches[2]), "<input.cc:6:14, col:15>");
+}
+
+TEST(Decl, getQualifiedNameAsString) {
+  llvm::Annotations Code(R"cpp(
+namespace x::y {
+  template <class T> class Foo { Foo() {} };
+}
+)cpp");
+
+  auto AST = tooling::buildASTFromCode(Code.code());
+  ASTContext &Ctx = AST->getASTContext();
+
+  auto const *FD = selectFirst<CXXConstructorDecl>(
+      "ctor", match(cxxConstructorDecl().bind("ctor"), Ctx));
+  ASSERT_NE(FD, nullptr);
+  ASSERT_EQ(FD->getQualifiedNameAsString(), "x::y::Foo::Foo<T>");
+}
+
+TEST(Decl, NoWrittenArgsInImplicitlyInstantiatedVarSpec) {
+  const char *Code = R"cpp(
+    template <typename>
+    int VarTpl;
+
+    void fn() {
+      (void)VarTpl<char>;
+    }
+  )cpp";
+
+  auto AST = tooling::buildASTFromCode(Code);
+  ASTContext &Ctx = AST->getASTContext();
+
+  const auto *VTSD = selectFirst<VarTemplateSpecializationDecl>(
+      "id", match(varDecl(isTemplateInstantiation()).bind("id"), Ctx));
+  ASSERT_NE(VTSD, nullptr);
+  EXPECT_EQ(VTSD->getTemplateArgsAsWritten(), nullptr);
 }

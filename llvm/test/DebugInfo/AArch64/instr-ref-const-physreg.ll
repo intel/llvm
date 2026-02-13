@@ -1,4 +1,4 @@
-; RUN: llc %s -stop-before=finalize-isel -march=aarch64 -o - \
+; RUN: llc %s -stop-before=finalize-isel -mtriple=aarch64 -o - \
 ; RUN:     -experimental-debug-variable-locations | FileCheck %s
 
 ; Test that when an SSA Value becomes a constant-physreg copy, under the
@@ -7,7 +7,7 @@
 ; crash, and we don't just drop the information.
 
 ; CHECK: DBG_PHI $xzr, 1
-; CHECK: DBG_INSTR_REF 1, 0
+; CHECK: DBG_INSTR_REF {{.+}}, dbg-instr-ref(1, 0)
 
 define i64 @test() !dbg !7 {
   %foo = add i64 0, 0

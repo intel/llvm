@@ -39,8 +39,8 @@ define <16 x i8> @testByte(<16 x i8> %a, i64 %b, i64 %idx) {
 ;
 ; AIX-P8-64-LABEL: testByte:
 ; AIX-P8-64:       # %bb.0: # %entry
-; AIX-P8-64-NEXT:    addi r5, r1, -16
 ; AIX-P8-64-NEXT:    clrldi r4, r4, 60
+; AIX-P8-64-NEXT:    addi r5, r1, -16
 ; AIX-P8-64-NEXT:    stxvw4x v2, 0, r5
 ; AIX-P8-64-NEXT:    stbx r3, r5, r4
 ; AIX-P8-64-NEXT:    lxvw4x v2, 0, r5
@@ -48,11 +48,11 @@ define <16 x i8> @testByte(<16 x i8> %a, i64 %b, i64 %idx) {
 ;
 ; AIX-P8-32-LABEL: testByte:
 ; AIX-P8-32:       # %bb.0: # %entry
-; AIX-P8-32-NEXT:    addi r3, r1, -16
-; AIX-P8-32-NEXT:    clrlwi r5, r6, 28
-; AIX-P8-32-NEXT:    stxvw4x v2, 0, r3
-; AIX-P8-32-NEXT:    stbx r4, r3, r5
-; AIX-P8-32-NEXT:    lxvw4x v2, 0, r3
+; AIX-P8-32-NEXT:    clrlwi r3, r6, 28
+; AIX-P8-32-NEXT:    addi r5, r1, -16
+; AIX-P8-32-NEXT:    stxvw4x v2, 0, r5
+; AIX-P8-32-NEXT:    stbx r4, r5, r3
+; AIX-P8-32-NEXT:    lxvw4x v2, 0, r5
 ; AIX-P8-32-NEXT:    blr
 entry:
   %conv = trunc i64 %b to i8
@@ -86,8 +86,8 @@ define <8 x i16> @testHalf(<8 x i16> %a, i64 %b, i64 %idx) {
 ;
 ; AIX-P8-64-LABEL: testHalf:
 ; AIX-P8-64:       # %bb.0: # %entry
-; AIX-P8-64-NEXT:    addi r5, r1, -16
 ; AIX-P8-64-NEXT:    rlwinm r4, r4, 1, 28, 30
+; AIX-P8-64-NEXT:    addi r5, r1, -16
 ; AIX-P8-64-NEXT:    stxvw4x v2, 0, r5
 ; AIX-P8-64-NEXT:    sthx r3, r5, r4
 ; AIX-P8-64-NEXT:    lxvw4x v2, 0, r5
@@ -95,11 +95,11 @@ define <8 x i16> @testHalf(<8 x i16> %a, i64 %b, i64 %idx) {
 ;
 ; AIX-P8-32-LABEL: testHalf:
 ; AIX-P8-32:       # %bb.0: # %entry
-; AIX-P8-32-NEXT:    addi r3, r1, -16
-; AIX-P8-32-NEXT:    rlwinm r5, r6, 1, 28, 30
-; AIX-P8-32-NEXT:    stxvw4x v2, 0, r3
-; AIX-P8-32-NEXT:    sthx r4, r3, r5
-; AIX-P8-32-NEXT:    lxvw4x v2, 0, r3
+; AIX-P8-32-NEXT:    rlwinm r3, r6, 1, 28, 30
+; AIX-P8-32-NEXT:    addi r5, r1, -16
+; AIX-P8-32-NEXT:    stxvw4x v2, 0, r5
+; AIX-P8-32-NEXT:    sthx r4, r5, r3
+; AIX-P8-32-NEXT:    lxvw4x v2, 0, r5
 ; AIX-P8-32-NEXT:    blr
 entry:
   %conv = trunc i64 %b to i16
@@ -133,8 +133,8 @@ define <4 x i32> @testWord(<4 x i32> %a, i64 %b, i64 %idx) {
 ;
 ; AIX-P8-64-LABEL: testWord:
 ; AIX-P8-64:       # %bb.0: # %entry
-; AIX-P8-64-NEXT:    addi r5, r1, -16
 ; AIX-P8-64-NEXT:    rlwinm r4, r4, 2, 28, 29
+; AIX-P8-64-NEXT:    addi r5, r1, -16
 ; AIX-P8-64-NEXT:    stxvw4x v2, 0, r5
 ; AIX-P8-64-NEXT:    stwx r3, r5, r4
 ; AIX-P8-64-NEXT:    lxvw4x v2, 0, r5
@@ -142,11 +142,11 @@ define <4 x i32> @testWord(<4 x i32> %a, i64 %b, i64 %idx) {
 ;
 ; AIX-P8-32-LABEL: testWord:
 ; AIX-P8-32:       # %bb.0: # %entry
-; AIX-P8-32-NEXT:    addi r3, r1, -16
-; AIX-P8-32-NEXT:    rlwinm r5, r6, 2, 28, 29
-; AIX-P8-32-NEXT:    stxvw4x v2, 0, r3
-; AIX-P8-32-NEXT:    stwx r4, r3, r5
-; AIX-P8-32-NEXT:    lxvw4x v2, 0, r3
+; AIX-P8-32-NEXT:    rlwinm r3, r6, 2, 28, 29
+; AIX-P8-32-NEXT:    addi r5, r1, -16
+; AIX-P8-32-NEXT:    stxvw4x v2, 0, r5
+; AIX-P8-32-NEXT:    stwx r4, r5, r3
+; AIX-P8-32-NEXT:    lxvw4x v2, 0, r5
 ; AIX-P8-32-NEXT:    blr
 entry:
   %conv = trunc i64 %b to i32
@@ -191,9 +191,9 @@ define <4 x i32> @testWordImm(<4 x i32> %a, i64 %b) {
 ; AIX-P8-32:       # %bb.0: # %entry
 ; AIX-P8-32-NEXT:    lwz r3, L..C0(r2) # %const.0
 ; AIX-P8-32-NEXT:    stw r4, -16(r1)
-; AIX-P8-32-NEXT:    addi r4, r1, -16
-; AIX-P8-32-NEXT:    lxvw4x v4, 0, r4
 ; AIX-P8-32-NEXT:    lxvw4x v3, 0, r3
+; AIX-P8-32-NEXT:    addi r3, r1, -16
+; AIX-P8-32-NEXT:    lxvw4x v4, 0, r3
 ; AIX-P8-32-NEXT:    lwz r3, L..C1(r2) # %const.1
 ; AIX-P8-32-NEXT:    vperm v2, v2, v4, v3
 ; AIX-P8-32-NEXT:    lxvw4x v3, 0, r3
@@ -232,8 +232,8 @@ define <2 x i64> @testDoubleword(<2 x i64> %a, i64 %b, i64 %idx) {
 ;
 ; AIX-P8-64-LABEL: testDoubleword:
 ; AIX-P8-64:       # %bb.0: # %entry
-; AIX-P8-64-NEXT:    addi r5, r1, -16
 ; AIX-P8-64-NEXT:    rlwinm r4, r4, 3, 28, 28
+; AIX-P8-64-NEXT:    addi r5, r1, -16
 ; AIX-P8-64-NEXT:    stxvd2x v2, 0, r5
 ; AIX-P8-64-NEXT:    stdx r3, r5, r4
 ; AIX-P8-64-NEXT:    lxvd2x v2, 0, r5
@@ -242,17 +242,14 @@ define <2 x i64> @testDoubleword(<2 x i64> %a, i64 %b, i64 %idx) {
 ; AIX-P8-32-LABEL: testDoubleword:
 ; AIX-P8-32:       # %bb.0: # %entry
 ; AIX-P8-32-NEXT:    add r6, r6, r6
-; AIX-P8-32-NEXT:    addi r5, r1, -32
+; AIX-P8-32-NEXT:    addi r5, r1, -16
 ; AIX-P8-32-NEXT:    rlwinm r7, r6, 2, 28, 29
-; AIX-P8-32-NEXT:    stxvw4x v2, 0, r5
+; AIX-P8-32-NEXT:    stxvd2x v2, 0, r5
 ; AIX-P8-32-NEXT:    stwx r3, r5, r7
 ; AIX-P8-32-NEXT:    addi r3, r6, 1
-; AIX-P8-32-NEXT:    lxvw4x vs0, 0, r5
-; AIX-P8-32-NEXT:    addi r5, r1, -16
 ; AIX-P8-32-NEXT:    rlwinm r3, r3, 2, 28, 29
-; AIX-P8-32-NEXT:    stxvw4x vs0, 0, r5
 ; AIX-P8-32-NEXT:    stwx r4, r5, r3
-; AIX-P8-32-NEXT:    lxvw4x v2, 0, r5
+; AIX-P8-32-NEXT:    lxvd2x v2, 0, r5
 ; AIX-P8-32-NEXT:    blr
 entry:
   %vecins = insertelement <2 x i64> %a, i64 %b, i64 %idx
@@ -286,17 +283,17 @@ define <2 x i64> @testDoublewordImm(<2 x i64> %a, i64 %b) {
 ;
 ; AIX-P8-32-LABEL: testDoublewordImm:
 ; AIX-P8-32:       # %bb.0: # %entry
-; AIX-P8-32-NEXT:    lwz r5, L..C2(r2) # %const.0
 ; AIX-P8-32-NEXT:    stw r3, -16(r1)
+; AIX-P8-32-NEXT:    lwz r3, L..C2(r2) # %const.0
 ; AIX-P8-32-NEXT:    stw r4, -32(r1)
+; AIX-P8-32-NEXT:    lxvw4x v3, 0, r3
 ; AIX-P8-32-NEXT:    addi r3, r1, -16
-; AIX-P8-32-NEXT:    addi r4, r1, -32
 ; AIX-P8-32-NEXT:    lxvw4x v4, 0, r3
 ; AIX-P8-32-NEXT:    lwz r3, L..C3(r2) # %const.1
-; AIX-P8-32-NEXT:    lxvw4x v3, 0, r5
 ; AIX-P8-32-NEXT:    vperm v2, v2, v4, v3
 ; AIX-P8-32-NEXT:    lxvw4x v3, 0, r3
-; AIX-P8-32-NEXT:    lxvw4x v4, 0, r4
+; AIX-P8-32-NEXT:    addi r3, r1, -32
+; AIX-P8-32-NEXT:    lxvw4x v4, 0, r3
 ; AIX-P8-32-NEXT:    vperm v2, v2, v4, v3
 ; AIX-P8-32-NEXT:    blr
 entry:
@@ -329,17 +326,17 @@ define <2 x i64> @testDoublewordImm2(<2 x i64> %a, i64 %b) {
 ;
 ; AIX-P8-32-LABEL: testDoublewordImm2:
 ; AIX-P8-32:       # %bb.0: # %entry
-; AIX-P8-32-NEXT:    lwz r5, L..C4(r2) # %const.0
 ; AIX-P8-32-NEXT:    stw r3, -16(r1)
+; AIX-P8-32-NEXT:    lwz r3, L..C4(r2) # %const.0
 ; AIX-P8-32-NEXT:    stw r4, -32(r1)
+; AIX-P8-32-NEXT:    lxvw4x v3, 0, r3
 ; AIX-P8-32-NEXT:    addi r3, r1, -16
-; AIX-P8-32-NEXT:    addi r4, r1, -32
 ; AIX-P8-32-NEXT:    lxvw4x v4, 0, r3
 ; AIX-P8-32-NEXT:    lwz r3, L..C5(r2) # %const.1
-; AIX-P8-32-NEXT:    lxvw4x v3, 0, r5
 ; AIX-P8-32-NEXT:    vperm v2, v4, v2, v3
 ; AIX-P8-32-NEXT:    lxvw4x v3, 0, r3
-; AIX-P8-32-NEXT:    lxvw4x v4, 0, r4
+; AIX-P8-32-NEXT:    addi r3, r1, -32
+; AIX-P8-32-NEXT:    lxvw4x v4, 0, r3
 ; AIX-P8-32-NEXT:    vperm v2, v2, v4, v3
 ; AIX-P8-32-NEXT:    blr
 entry:
@@ -353,16 +350,14 @@ define <4 x float> @testFloat1(<4 x float> %a, float %b, i32 zeroext %idx1) {
 ; CHECK-LABEL: testFloat1:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    xscvdpspn v3, f1
-; CHECK-NEXT:    extsw r3, r6
-; CHECK-NEXT:    slwi r3, r3, 2
+; CHECK-NEXT:    slwi r3, r6, 2
 ; CHECK-NEXT:    vinswvrx v2, r3, v3
 ; CHECK-NEXT:    blr
 ;
 ; CHECK-BE-LABEL: testFloat1:
 ; CHECK-BE:       # %bb.0: # %entry
 ; CHECK-BE-NEXT:    xscvdpspn v3, f1
-; CHECK-BE-NEXT:    extsw r3, r6
-; CHECK-BE-NEXT:    slwi r3, r3, 2
+; CHECK-BE-NEXT:    slwi r3, r6, 2
 ; CHECK-BE-NEXT:    vinswvlx v2, r3, v3
 ; CHECK-BE-NEXT:    blr
 ;
@@ -377,111 +372,84 @@ define <4 x float> @testFloat1(<4 x float> %a, float %b, i32 zeroext %idx1) {
 ;
 ; AIX-P8-LABEL: testFloat1:
 ; AIX-P8:       # %bb.0: # %entry
-; AIX-P8-NEXT:    addi r3, r1, -16
-; AIX-P8-NEXT:    rlwinm r4, r4, 2, 28, 29
-; AIX-P8-NEXT:    stxvw4x v2, 0, r3
-; AIX-P8-NEXT:    stfsx f1, r3, r4
-; AIX-P8-NEXT:    lxvw4x v2, 0, r3
+; AIX-P8-NEXT:    rlwinm r3, r4, 2, 28, 29
+; AIX-P8-NEXT:    addi r4, r1, -16
+; AIX-P8-NEXT:    stxvw4x v2, 0, r4
+; AIX-P8-NEXT:    stfsx f1, r4, r3
+; AIX-P8-NEXT:    lxvw4x v2, 0, r4
 ; AIX-P8-NEXT:    blr
 entry:
   %vecins = insertelement <4 x float> %a, float %b, i32 %idx1
   ret <4 x float> %vecins
 }
 
-define <4 x float> @testFloat2(<4 x float> %a, i8* %b, i32 zeroext %idx1, i32 zeroext %idx2) {
+define <4 x float> @testFloat2(<4 x float> %a, ptr %b, i32 zeroext %idx1, i32 zeroext %idx2) {
 ; CHECK-LABEL: testFloat2:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lwz r3, 0(r5)
-; CHECK-NEXT:    extsw r4, r6
-; CHECK-NEXT:    slwi r4, r4, 2
+; CHECK-NEXT:    slwi r4, r6, 2
 ; CHECK-NEXT:    vinswrx v2, r4, r3
 ; CHECK-NEXT:    lwz r3, 1(r5)
-; CHECK-NEXT:    extsw r4, r7
-; CHECK-NEXT:    slwi r4, r4, 2
+; CHECK-NEXT:    slwi r4, r7, 2
 ; CHECK-NEXT:    vinswrx v2, r4, r3
 ; CHECK-NEXT:    blr
 ;
 ; CHECK-BE-LABEL: testFloat2:
 ; CHECK-BE:       # %bb.0: # %entry
 ; CHECK-BE-NEXT:    lwz r3, 0(r5)
-; CHECK-BE-NEXT:    extsw r4, r6
-; CHECK-BE-NEXT:    slwi r4, r4, 2
+; CHECK-BE-NEXT:    slwi r4, r6, 2
 ; CHECK-BE-NEXT:    vinswlx v2, r4, r3
 ; CHECK-BE-NEXT:    lwz r3, 1(r5)
-; CHECK-BE-NEXT:    extsw r4, r7
-; CHECK-BE-NEXT:    slwi r4, r4, 2
+; CHECK-BE-NEXT:    slwi r4, r7, 2
 ; CHECK-BE-NEXT:    vinswlx v2, r4, r3
 ; CHECK-BE-NEXT:    blr
 ;
 ; CHECK-P9-LABEL: testFloat2:
 ; CHECK-P9:       # %bb.0: # %entry
-; CHECK-P9-NEXT:    lwz r3, 0(r5)
 ; CHECK-P9-NEXT:    rlwinm r4, r6, 2, 28, 29
-; CHECK-P9-NEXT:    addi r6, r1, -16
+; CHECK-P9-NEXT:    lwz r6, 0(r5)
+; CHECK-P9-NEXT:    rlwinm r3, r7, 2, 28, 29
+; CHECK-P9-NEXT:    addi r7, r1, -16
 ; CHECK-P9-NEXT:    stxv v2, -16(r1)
-; CHECK-P9-NEXT:    stwx r3, r6, r4
-; CHECK-P9-NEXT:    rlwinm r4, r7, 2, 28, 29
+; CHECK-P9-NEXT:    stwx r6, r7, r4
 ; CHECK-P9-NEXT:    lxv vs0, -16(r1)
-; CHECK-P9-NEXT:    lwz r3, 1(r5)
+; CHECK-P9-NEXT:    lwz r4, 1(r5)
 ; CHECK-P9-NEXT:    addi r5, r1, -32
 ; CHECK-P9-NEXT:    stxv vs0, -32(r1)
-; CHECK-P9-NEXT:    stwx r3, r5, r4
+; CHECK-P9-NEXT:    stwx r4, r5, r3
 ; CHECK-P9-NEXT:    lxv v2, -32(r1)
 ; CHECK-P9-NEXT:    blr
 ;
-; AIX-P8-64-LABEL: testFloat2:
-; AIX-P8-64:       # %bb.0: # %entry
-; AIX-P8-64-NEXT:    lwz r7, 0(r3)
-; AIX-P8-64-NEXT:    addi r6, r1, -32
-; AIX-P8-64-NEXT:    rlwinm r4, r4, 2, 28, 29
-; AIX-P8-64-NEXT:    rlwinm r5, r5, 2, 28, 29
-; AIX-P8-64-NEXT:    stxvw4x v2, 0, r6
-; AIX-P8-64-NEXT:    stwx r7, r6, r4
-; AIX-P8-64-NEXT:    addi r4, r1, -16
-; AIX-P8-64-NEXT:    lxvw4x vs0, 0, r6
-; AIX-P8-64-NEXT:    lwz r3, 1(r3)
-; AIX-P8-64-NEXT:    stxvw4x vs0, 0, r4
-; AIX-P8-64-NEXT:    stwx r3, r4, r5
-; AIX-P8-64-NEXT:    lxvw4x v2, 0, r4
-; AIX-P8-64-NEXT:    blr
-;
-; AIX-P8-32-LABEL: testFloat2:
-; AIX-P8-32:       # %bb.0: # %entry
-; AIX-P8-32-NEXT:    lwz r7, 0(r3)
-; AIX-P8-32-NEXT:    addi r6, r1, -32
-; AIX-P8-32-NEXT:    rlwinm r4, r4, 2, 28, 29
-; AIX-P8-32-NEXT:    stxvw4x v2, 0, r6
-; AIX-P8-32-NEXT:    stwx r7, r6, r4
-; AIX-P8-32-NEXT:    rlwinm r4, r5, 2, 28, 29
-; AIX-P8-32-NEXT:    addi r5, r1, -16
-; AIX-P8-32-NEXT:    lxvw4x vs0, 0, r6
-; AIX-P8-32-NEXT:    lwz r3, 1(r3)
-; AIX-P8-32-NEXT:    stxvw4x vs0, 0, r5
-; AIX-P8-32-NEXT:    stwx r3, r5, r4
-; AIX-P8-32-NEXT:    lxvw4x v2, 0, r5
-; AIX-P8-32-NEXT:    blr
+; AIX-P8-LABEL: testFloat2:
+; AIX-P8:       # %bb.0: # %entry
+; AIX-P8-NEXT:    lwz r6, 0(r3)
+; AIX-P8-NEXT:    lwz r3, 1(r3)
+; AIX-P8-NEXT:    addi r7, r1, -16
+; AIX-P8-NEXT:    stxvw4x v2, 0, r7
+; AIX-P8-NEXT:    rlwinm r5, r5, 2, 28, 29
+; AIX-P8-NEXT:    rlwinm r4, r4, 2, 28, 29
+; AIX-P8-NEXT:    stwx r6, r7, r4
+; AIX-P8-NEXT:    stwx r3, r7, r5
+; AIX-P8-NEXT:    lxvw4x v2, 0, r7
+; AIX-P8-NEXT:    blr
 entry:
-  %0 = bitcast i8* %b to float*
-  %add.ptr1 = getelementptr inbounds i8, i8* %b, i64 1
-  %1 = bitcast i8* %add.ptr1 to float*
-  %2 = load float, float* %0, align 4
-  %vecins = insertelement <4 x float> %a, float %2, i32 %idx1
-  %3 = load float, float* %1, align 4
-  %vecins2 = insertelement <4 x float> %vecins, float %3, i32 %idx2
+  %add.ptr1 = getelementptr inbounds i8, ptr %b, i64 1
+  %0 = load float, ptr %b, align 4
+  %vecins = insertelement <4 x float> %a, float %0, i32 %idx1
+  %1 = load float, ptr %add.ptr1, align 4
+  %vecins2 = insertelement <4 x float> %vecins, float %1, i32 %idx2
   ret <4 x float> %vecins2
 }
 
-define <4 x float> @testFloat3(<4 x float> %a, i8* %b, i32 zeroext %idx1, i32 zeroext %idx2) {
+define <4 x float> @testFloat3(<4 x float> %a, ptr %b, i32 zeroext %idx1, i32 zeroext %idx2) {
 ; CHECK-LABEL: testFloat3:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    plwz r3, 65536(r5), 0
-; CHECK-NEXT:    extsw r4, r6
-; CHECK-NEXT:    slwi r4, r4, 2
+; CHECK-NEXT:    slwi r4, r6, 2
 ; CHECK-NEXT:    vinswrx v2, r4, r3
 ; CHECK-NEXT:    li r3, 1
-; CHECK-NEXT:    extsw r4, r7
+; CHECK-NEXT:    slwi r4, r7, 2
 ; CHECK-NEXT:    rldic r3, r3, 36, 27
-; CHECK-NEXT:    slwi r4, r4, 2
 ; CHECK-NEXT:    lwzx r3, r5, r3
 ; CHECK-NEXT:    vinswrx v2, r4, r3
 ; CHECK-NEXT:    blr
@@ -489,80 +457,70 @@ define <4 x float> @testFloat3(<4 x float> %a, i8* %b, i32 zeroext %idx1, i32 ze
 ; CHECK-BE-LABEL: testFloat3:
 ; CHECK-BE:       # %bb.0: # %entry
 ; CHECK-BE-NEXT:    plwz r3, 65536(r5), 0
-; CHECK-BE-NEXT:    extsw r4, r6
-; CHECK-BE-NEXT:    slwi r4, r4, 2
+; CHECK-BE-NEXT:    slwi r4, r6, 2
 ; CHECK-BE-NEXT:    vinswlx v2, r4, r3
 ; CHECK-BE-NEXT:    li r3, 1
-; CHECK-BE-NEXT:    extsw r4, r7
+; CHECK-BE-NEXT:    slwi r4, r7, 2
 ; CHECK-BE-NEXT:    rldic r3, r3, 36, 27
-; CHECK-BE-NEXT:    slwi r4, r4, 2
 ; CHECK-BE-NEXT:    lwzx r3, r5, r3
 ; CHECK-BE-NEXT:    vinswlx v2, r4, r3
 ; CHECK-BE-NEXT:    blr
 ;
 ; CHECK-P9-LABEL: testFloat3:
 ; CHECK-P9:       # %bb.0: # %entry
-; CHECK-P9-NEXT:    lis r3, 1
 ; CHECK-P9-NEXT:    rlwinm r4, r6, 2, 28, 29
-; CHECK-P9-NEXT:    addi r6, r1, -16
-; CHECK-P9-NEXT:    lwzx r3, r5, r3
+; CHECK-P9-NEXT:    lis r6, 1
+; CHECK-P9-NEXT:    rlwinm r3, r7, 2, 28, 29
+; CHECK-P9-NEXT:    addi r7, r1, -16
+; CHECK-P9-NEXT:    lwzx r6, r5, r6
 ; CHECK-P9-NEXT:    stxv v2, -16(r1)
-; CHECK-P9-NEXT:    stwx r3, r6, r4
-; CHECK-P9-NEXT:    li r3, 1
-; CHECK-P9-NEXT:    rlwinm r4, r7, 2, 28, 29
+; CHECK-P9-NEXT:    stwx r6, r7, r4
+; CHECK-P9-NEXT:    li r4, 1
 ; CHECK-P9-NEXT:    lxv vs0, -16(r1)
-; CHECK-P9-NEXT:    rldic r3, r3, 36, 27
-; CHECK-P9-NEXT:    lwzx r3, r5, r3
+; CHECK-P9-NEXT:    rldic r4, r4, 36, 27
+; CHECK-P9-NEXT:    lwzx r4, r5, r4
 ; CHECK-P9-NEXT:    addi r5, r1, -32
 ; CHECK-P9-NEXT:    stxv vs0, -32(r1)
-; CHECK-P9-NEXT:    stwx r3, r5, r4
+; CHECK-P9-NEXT:    stwx r4, r5, r3
 ; CHECK-P9-NEXT:    lxv v2, -32(r1)
 ; CHECK-P9-NEXT:    blr
 ;
 ; AIX-P8-64-LABEL: testFloat3:
 ; AIX-P8-64:       # %bb.0: # %entry
+; AIX-P8-64-NEXT:    li r7, 1
 ; AIX-P8-64-NEXT:    lis r6, 1
-; AIX-P8-64-NEXT:    addi r7, r1, -32
-; AIX-P8-64-NEXT:    rlwinm r4, r4, 2, 28, 29
 ; AIX-P8-64-NEXT:    rlwinm r5, r5, 2, 28, 29
+; AIX-P8-64-NEXT:    rlwinm r4, r4, 2, 28, 29
+; AIX-P8-64-NEXT:    rldic r7, r7, 36, 27
 ; AIX-P8-64-NEXT:    lwzx r6, r3, r6
+; AIX-P8-64-NEXT:    lwzx r3, r3, r7
+; AIX-P8-64-NEXT:    addi r7, r1, -16
 ; AIX-P8-64-NEXT:    stxvw4x v2, 0, r7
 ; AIX-P8-64-NEXT:    stwx r6, r7, r4
-; AIX-P8-64-NEXT:    li r4, 1
-; AIX-P8-64-NEXT:    lxvw4x vs0, 0, r7
-; AIX-P8-64-NEXT:    rldic r4, r4, 36, 27
-; AIX-P8-64-NEXT:    lwzx r3, r3, r4
-; AIX-P8-64-NEXT:    addi r4, r1, -16
-; AIX-P8-64-NEXT:    stxvw4x vs0, 0, r4
-; AIX-P8-64-NEXT:    stwx r3, r4, r5
-; AIX-P8-64-NEXT:    lxvw4x v2, 0, r4
+; AIX-P8-64-NEXT:    stwx r3, r7, r5
+; AIX-P8-64-NEXT:    lxvw4x v2, 0, r7
 ; AIX-P8-64-NEXT:    blr
 ;
 ; AIX-P8-32-LABEL: testFloat3:
 ; AIX-P8-32:       # %bb.0: # %entry
 ; AIX-P8-32-NEXT:    lis r6, 1
+; AIX-P8-32-NEXT:    rlwinm r5, r5, 2, 28, 29
 ; AIX-P8-32-NEXT:    rlwinm r4, r4, 2, 28, 29
-; AIX-P8-32-NEXT:    addi r7, r1, -32
+; AIX-P8-32-NEXT:    addi r7, r1, -16
 ; AIX-P8-32-NEXT:    lwzx r6, r3, r6
+; AIX-P8-32-NEXT:    lwz r3, 0(r3)
 ; AIX-P8-32-NEXT:    stxvw4x v2, 0, r7
 ; AIX-P8-32-NEXT:    stwx r6, r7, r4
-; AIX-P8-32-NEXT:    rlwinm r4, r5, 2, 28, 29
-; AIX-P8-32-NEXT:    addi r5, r1, -16
-; AIX-P8-32-NEXT:    lxvw4x vs0, 0, r7
-; AIX-P8-32-NEXT:    lwz r3, 0(r3)
-; AIX-P8-32-NEXT:    stxvw4x vs0, 0, r5
-; AIX-P8-32-NEXT:    stwx r3, r5, r4
-; AIX-P8-32-NEXT:    lxvw4x v2, 0, r5
+; AIX-P8-32-NEXT:    stwx r3, r7, r5
+; AIX-P8-32-NEXT:    lxvw4x v2, 0, r7
 ; AIX-P8-32-NEXT:    blr
 entry:
-  %add.ptr = getelementptr inbounds i8, i8* %b, i64 65536
-  %0 = bitcast i8* %add.ptr to float*
-  %add.ptr1 = getelementptr inbounds i8, i8* %b, i64 68719476736
-  %1 = bitcast i8* %add.ptr1 to float*
-  %2 = load float, float* %0, align 4
-  %vecins = insertelement <4 x float> %a, float %2, i32 %idx1
-  %3 = load float, float* %1, align 4
-  %vecins2 = insertelement <4 x float> %vecins, float %3, i32 %idx2
+  %add.ptr = getelementptr inbounds i8, ptr %b, i64 65536
+  %add.ptr1 = getelementptr inbounds i8, ptr %b, i64 68719476736
+  %0 = load float, ptr %add.ptr, align 4
+  %vecins = insertelement <4 x float> %a, float %0, i32 %idx1
+  %1 = load float, ptr %add.ptr1, align 4
+  %vecins2 = insertelement <4 x float> %vecins, float %1, i32 %idx2
   ret <4 x float> %vecins2
 }
 
@@ -593,23 +551,23 @@ define <4 x float> @testFloatImm1(<4 x float> %a, float %b) {
 ; AIX-P8-64-LABEL: testFloatImm1:
 ; AIX-P8-64:       # %bb.0: # %entry
 ; AIX-P8-64-NEXT:    ld r3, L..C2(r2) # %const.0
-; AIX-P8-64-NEXT:    xscvdpspn v3, f1
-; AIX-P8-64-NEXT:    lxvw4x v4, 0, r3
+; AIX-P8-64-NEXT:    xscvdpspn v4, f1
+; AIX-P8-64-NEXT:    lxvw4x v3, 0, r3
 ; AIX-P8-64-NEXT:    ld r3, L..C3(r2) # %const.1
-; AIX-P8-64-NEXT:    vperm v2, v3, v2, v4
-; AIX-P8-64-NEXT:    lxvw4x v4, 0, r3
-; AIX-P8-64-NEXT:    vperm v2, v2, v3, v4
+; AIX-P8-64-NEXT:    vperm v2, v4, v2, v3
+; AIX-P8-64-NEXT:    lxvw4x v3, 0, r3
+; AIX-P8-64-NEXT:    vperm v2, v2, v4, v3
 ; AIX-P8-64-NEXT:    blr
 ;
 ; AIX-P8-32-LABEL: testFloatImm1:
 ; AIX-P8-32:       # %bb.0: # %entry
 ; AIX-P8-32-NEXT:    lwz r3, L..C6(r2) # %const.0
-; AIX-P8-32-NEXT:    xscvdpspn v3, f1
-; AIX-P8-32-NEXT:    lxvw4x v4, 0, r3
+; AIX-P8-32-NEXT:    xscvdpspn v4, f1
+; AIX-P8-32-NEXT:    lxvw4x v3, 0, r3
 ; AIX-P8-32-NEXT:    lwz r3, L..C7(r2) # %const.1
-; AIX-P8-32-NEXT:    vperm v2, v3, v2, v4
-; AIX-P8-32-NEXT:    lxvw4x v4, 0, r3
-; AIX-P8-32-NEXT:    vperm v2, v2, v3, v4
+; AIX-P8-32-NEXT:    vperm v2, v4, v2, v3
+; AIX-P8-32-NEXT:    lxvw4x v3, 0, r3
+; AIX-P8-32-NEXT:    vperm v2, v2, v4, v3
 ; AIX-P8-32-NEXT:    blr
 entry:
   %vecins = insertelement <4 x float> %a, float %b, i32 0
@@ -617,7 +575,7 @@ entry:
   ret <4 x float> %vecins1
 }
 
-define <4 x float> @testFloatImm2(<4 x float> %a, i32* %b) {
+define <4 x float> @testFloatImm2(<4 x float> %a, ptr %b) {
 ; CHECK-LABEL: testFloatImm2:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lwz r3, 0(r5)
@@ -647,40 +605,38 @@ define <4 x float> @testFloatImm2(<4 x float> %a, i32* %b) {
 ; AIX-P8-64-LABEL: testFloatImm2:
 ; AIX-P8-64:       # %bb.0: # %entry
 ; AIX-P8-64-NEXT:    ld r4, L..C4(r2) # %const.0
-; AIX-P8-64-NEXT:    lxsiwzx v3, 0, r3
-; AIX-P8-64-NEXT:    li r5, 4
-; AIX-P8-64-NEXT:    lxvw4x v4, 0, r4
-; AIX-P8-64-NEXT:    ld r4, L..C5(r2) # %const.1
-; AIX-P8-64-NEXT:    vperm v2, v3, v2, v4
-; AIX-P8-64-NEXT:    lxsiwzx v3, r3, r5
-; AIX-P8-64-NEXT:    lxvw4x v4, 0, r4
+; AIX-P8-64-NEXT:    lxsiwzx v4, 0, r3
+; AIX-P8-64-NEXT:    lxvw4x v3, 0, r4
+; AIX-P8-64-NEXT:    li r4, 4
+; AIX-P8-64-NEXT:    vperm v2, v4, v2, v3
+; AIX-P8-64-NEXT:    lxsiwzx v3, r3, r4
+; AIX-P8-64-NEXT:    ld r3, L..C5(r2) # %const.1
+; AIX-P8-64-NEXT:    lxvw4x v4, 0, r3
 ; AIX-P8-64-NEXT:    vperm v2, v2, v3, v4
 ; AIX-P8-64-NEXT:    blr
 ;
 ; AIX-P8-32-LABEL: testFloatImm2:
 ; AIX-P8-32:       # %bb.0: # %entry
 ; AIX-P8-32-NEXT:    lwz r4, L..C8(r2) # %const.0
-; AIX-P8-32-NEXT:    lxsiwzx v3, 0, r3
-; AIX-P8-32-NEXT:    li r5, 4
-; AIX-P8-32-NEXT:    lxvw4x v4, 0, r4
-; AIX-P8-32-NEXT:    lwz r4, L..C9(r2) # %const.1
-; AIX-P8-32-NEXT:    vperm v2, v3, v2, v4
-; AIX-P8-32-NEXT:    lxsiwzx v3, r3, r5
-; AIX-P8-32-NEXT:    lxvw4x v4, 0, r4
+; AIX-P8-32-NEXT:    lxsiwzx v4, 0, r3
+; AIX-P8-32-NEXT:    lxvw4x v3, 0, r4
+; AIX-P8-32-NEXT:    li r4, 4
+; AIX-P8-32-NEXT:    vperm v2, v4, v2, v3
+; AIX-P8-32-NEXT:    lxsiwzx v3, r3, r4
+; AIX-P8-32-NEXT:    lwz r3, L..C9(r2) # %const.1
+; AIX-P8-32-NEXT:    lxvw4x v4, 0, r3
 ; AIX-P8-32-NEXT:    vperm v2, v2, v3, v4
 ; AIX-P8-32-NEXT:    blr
 entry:
-  %0 = bitcast i32* %b to float*
-  %add.ptr1 = getelementptr inbounds i32, i32* %b, i64 1
-  %1 = bitcast i32* %add.ptr1 to float*
-  %2 = load float, float* %0, align 4
-  %vecins = insertelement <4 x float> %a, float %2, i32 0
-  %3 = load float, float* %1, align 4
-  %vecins2 = insertelement <4 x float> %vecins, float %3, i32 2
+  %add.ptr1 = getelementptr inbounds i32, ptr %b, i64 1
+  %0 = load float, ptr %b, align 4
+  %vecins = insertelement <4 x float> %a, float %0, i32 0
+  %1 = load float, ptr %add.ptr1, align 4
+  %vecins2 = insertelement <4 x float> %vecins, float %1, i32 2
   ret <4 x float> %vecins2
 }
 
-define <4 x float> @testFloatImm3(<4 x float> %a, i32* %b) {
+define <4 x float> @testFloatImm3(<4 x float> %a, ptr %b) {
 ; CHECK-LABEL: testFloatImm3:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    plwz r3, 262144(r5), 0
@@ -716,24 +672,24 @@ define <4 x float> @testFloatImm3(<4 x float> %a, i32* %b) {
 ;
 ; AIX-P8-64-LABEL: testFloatImm3:
 ; AIX-P8-64:       # %bb.0: # %entry
+; AIX-P8-64-NEXT:    lis r4, 4
+; AIX-P8-64-NEXT:    lxsiwzx v3, r3, r4
 ; AIX-P8-64-NEXT:    ld r4, L..C6(r2) # %const.0
-; AIX-P8-64-NEXT:    lis r5, 4
-; AIX-P8-64-NEXT:    lxsiwzx v3, r3, r5
-; AIX-P8-64-NEXT:    li r5, 1
-; AIX-P8-64-NEXT:    rldic r5, r5, 38, 25
 ; AIX-P8-64-NEXT:    lxvw4x v4, 0, r4
-; AIX-P8-64-NEXT:    ld r4, L..C7(r2) # %const.1
+; AIX-P8-64-NEXT:    li r4, 1
+; AIX-P8-64-NEXT:    rldic r4, r4, 38, 25
 ; AIX-P8-64-NEXT:    vperm v2, v3, v2, v4
-; AIX-P8-64-NEXT:    lxsiwzx v3, r3, r5
-; AIX-P8-64-NEXT:    lxvw4x v4, 0, r4
+; AIX-P8-64-NEXT:    lxsiwzx v3, r3, r4
+; AIX-P8-64-NEXT:    ld r3, L..C7(r2) # %const.1
+; AIX-P8-64-NEXT:    lxvw4x v4, 0, r3
 ; AIX-P8-64-NEXT:    vperm v2, v2, v3, v4
 ; AIX-P8-64-NEXT:    blr
 ;
 ; AIX-P8-32-LABEL: testFloatImm3:
 ; AIX-P8-32:       # %bb.0: # %entry
+; AIX-P8-32-NEXT:    lis r4, 4
+; AIX-P8-32-NEXT:    lxsiwzx v3, r3, r4
 ; AIX-P8-32-NEXT:    lwz r4, L..C10(r2) # %const.0
-; AIX-P8-32-NEXT:    lis r5, 4
-; AIX-P8-32-NEXT:    lxsiwzx v3, r3, r5
 ; AIX-P8-32-NEXT:    lxvw4x v4, 0, r4
 ; AIX-P8-32-NEXT:    lwz r4, L..C11(r2) # %const.1
 ; AIX-P8-32-NEXT:    vperm v2, v3, v2, v4
@@ -742,14 +698,12 @@ define <4 x float> @testFloatImm3(<4 x float> %a, i32* %b) {
 ; AIX-P8-32-NEXT:    vperm v2, v2, v4, v3
 ; AIX-P8-32-NEXT:    blr
 entry:
-  %add.ptr = getelementptr inbounds i32, i32* %b, i64 65536
-  %0 = bitcast i32* %add.ptr to float*
-  %add.ptr1 = getelementptr inbounds i32, i32* %b, i64 68719476736
-  %1 = bitcast i32* %add.ptr1 to float*
-  %2 = load float, float* %0, align 4
-  %vecins = insertelement <4 x float> %a, float %2, i32 0
-  %3 = load float, float* %1, align 4
-  %vecins2 = insertelement <4 x float> %vecins, float %3, i32 2
+  %add.ptr = getelementptr inbounds i32, ptr %b, i64 65536
+  %add.ptr1 = getelementptr inbounds i32, ptr %b, i64 68719476736
+  %0 = load float, ptr %add.ptr, align 4
+  %vecins = insertelement <4 x float> %a, float %0, i32 0
+  %1 = load float, ptr %add.ptr1, align 4
+  %vecins2 = insertelement <4 x float> %vecins, float %1, i32 2
   ret <4 x float> %vecins2
 }
 
@@ -758,17 +712,15 @@ entry:
 define <2 x double> @testDouble1(<2 x double> %a, double %b, i32 zeroext %idx1) {
 ; CHECK-LABEL: testDouble1:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    extsw r4, r6
 ; CHECK-NEXT:    mffprd r3, f1
-; CHECK-NEXT:    rlwinm r4, r4, 3, 0, 28
+; CHECK-NEXT:    rlwinm r4, r6, 3, 0, 28
 ; CHECK-NEXT:    vinsdrx v2, r4, r3
 ; CHECK-NEXT:    blr
 ;
 ; CHECK-BE-LABEL: testDouble1:
 ; CHECK-BE:       # %bb.0: # %entry
-; CHECK-BE-NEXT:    extsw r4, r6
 ; CHECK-BE-NEXT:    mffprd r3, f1
-; CHECK-BE-NEXT:    rlwinm r4, r4, 3, 0, 28
+; CHECK-BE-NEXT:    rlwinm r4, r6, 3, 0, 28
 ; CHECK-BE-NEXT:    vinsdlx v2, r4, r3
 ; CHECK-BE-NEXT:    blr
 ;
@@ -783,78 +735,74 @@ define <2 x double> @testDouble1(<2 x double> %a, double %b, i32 zeroext %idx1) 
 ;
 ; AIX-P8-64-LABEL: testDouble1:
 ; AIX-P8-64:       # %bb.0: # %entry
-; AIX-P8-64-NEXT:    addi r3, r1, -16
-; AIX-P8-64-NEXT:    rlwinm r4, r4, 3, 28, 28
-; AIX-P8-64-NEXT:    stxvd2x v2, 0, r3
-; AIX-P8-64-NEXT:    stfdx f1, r3, r4
-; AIX-P8-64-NEXT:    lxvd2x v2, 0, r3
+; AIX-P8-64-NEXT:    rlwinm r3, r4, 3, 28, 28
+; AIX-P8-64-NEXT:    addi r4, r1, -16
+; AIX-P8-64-NEXT:    stxvd2x v2, 0, r4
+; AIX-P8-64-NEXT:    stfdx f1, r4, r3
+; AIX-P8-64-NEXT:    lxvd2x v2, 0, r4
 ; AIX-P8-64-NEXT:    blr
 ;
 ; AIX-P8-32-LABEL: testDouble1:
 ; AIX-P8-32:       # %bb.0: # %entry
-; AIX-P8-32-NEXT:    addi r3, r1, -16
-; AIX-P8-32-NEXT:    rlwinm r4, r5, 3, 28, 28
-; AIX-P8-32-NEXT:    stxvd2x v2, 0, r3
-; AIX-P8-32-NEXT:    stfdx f1, r3, r4
-; AIX-P8-32-NEXT:    lxvd2x v2, 0, r3
+; AIX-P8-32-NEXT:    rlwinm r3, r5, 3, 28, 28
+; AIX-P8-32-NEXT:    addi r4, r1, -16
+; AIX-P8-32-NEXT:    stxvd2x v2, 0, r4
+; AIX-P8-32-NEXT:    stfdx f1, r4, r3
+; AIX-P8-32-NEXT:    lxvd2x v2, 0, r4
 ; AIX-P8-32-NEXT:    blr
 entry:
   %vecins = insertelement <2 x double> %a, double %b, i32 %idx1
   ret <2 x double> %vecins
 }
 
-define <2 x double> @testDouble2(<2 x double> %a, i8* %b, i32 zeroext %idx1, i32 zeroext %idx2) {
+define <2 x double> @testDouble2(<2 x double> %a, ptr %b, i32 zeroext %idx1, i32 zeroext %idx2) {
 ; CHECK-LABEL: testDouble2:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    ld r3, 0(r5)
-; CHECK-NEXT:    extsw r4, r6
-; CHECK-NEXT:    rlwinm r4, r4, 3, 0, 28
+; CHECK-NEXT:    rlwinm r4, r6, 3, 0, 28
 ; CHECK-NEXT:    vinsdrx v2, r4, r3
 ; CHECK-NEXT:    pld r3, 1(r5), 0
-; CHECK-NEXT:    extsw r4, r7
-; CHECK-NEXT:    rlwinm r4, r4, 3, 0, 28
+; CHECK-NEXT:    rlwinm r4, r7, 3, 0, 28
 ; CHECK-NEXT:    vinsdrx v2, r4, r3
 ; CHECK-NEXT:    blr
 ;
 ; CHECK-BE-LABEL: testDouble2:
 ; CHECK-BE:       # %bb.0: # %entry
 ; CHECK-BE-NEXT:    ld r3, 0(r5)
-; CHECK-BE-NEXT:    extsw r4, r6
-; CHECK-BE-NEXT:    rlwinm r4, r4, 3, 0, 28
+; CHECK-BE-NEXT:    rlwinm r4, r6, 3, 0, 28
 ; CHECK-BE-NEXT:    vinsdlx v2, r4, r3
 ; CHECK-BE-NEXT:    pld r3, 1(r5), 0
-; CHECK-BE-NEXT:    extsw r4, r7
-; CHECK-BE-NEXT:    rlwinm r4, r4, 3, 0, 28
+; CHECK-BE-NEXT:    rlwinm r4, r7, 3, 0, 28
 ; CHECK-BE-NEXT:    vinsdlx v2, r4, r3
 ; CHECK-BE-NEXT:    blr
 ;
 ; CHECK-P9-LABEL: testDouble2:
 ; CHECK-P9:       # %bb.0: # %entry
-; CHECK-P9-NEXT:    ld r3, 0(r5)
 ; CHECK-P9-NEXT:    rlwinm r4, r6, 3, 28, 28
-; CHECK-P9-NEXT:    addi r6, r1, -32
+; CHECK-P9-NEXT:    ld r6, 0(r5)
+; CHECK-P9-NEXT:    rlwinm r3, r7, 3, 28, 28
+; CHECK-P9-NEXT:    addi r7, r1, -32
 ; CHECK-P9-NEXT:    stxv v2, -32(r1)
-; CHECK-P9-NEXT:    stdx r3, r6, r4
-; CHECK-P9-NEXT:    li r3, 1
-; CHECK-P9-NEXT:    rlwinm r4, r7, 3, 28, 28
+; CHECK-P9-NEXT:    stdx r6, r7, r4
+; CHECK-P9-NEXT:    li r4, 1
 ; CHECK-P9-NEXT:    lxv vs0, -32(r1)
-; CHECK-P9-NEXT:    ldx r3, r5, r3
+; CHECK-P9-NEXT:    ldx r4, r5, r4
 ; CHECK-P9-NEXT:    addi r5, r1, -16
 ; CHECK-P9-NEXT:    stxv vs0, -16(r1)
-; CHECK-P9-NEXT:    stdx r3, r5, r4
+; CHECK-P9-NEXT:    stdx r4, r5, r3
 ; CHECK-P9-NEXT:    lxv v2, -16(r1)
 ; CHECK-P9-NEXT:    blr
 ;
 ; AIX-P8-64-LABEL: testDouble2:
 ; AIX-P8-64:       # %bb.0: # %entry
-; AIX-P8-64-NEXT:    ld r7, 0(r3)
-; AIX-P8-64-NEXT:    addi r6, r1, -32
+; AIX-P8-64-NEXT:    ld r6, 0(r3)
 ; AIX-P8-64-NEXT:    rlwinm r4, r4, 3, 28, 28
+; AIX-P8-64-NEXT:    addi r7, r1, -32
+; AIX-P8-64-NEXT:    stxvd2x v2, 0, r7
 ; AIX-P8-64-NEXT:    rlwinm r5, r5, 3, 28, 28
-; AIX-P8-64-NEXT:    stxvd2x v2, 0, r6
-; AIX-P8-64-NEXT:    stdx r7, r6, r4
+; AIX-P8-64-NEXT:    stdx r6, r7, r4
 ; AIX-P8-64-NEXT:    li r4, 1
-; AIX-P8-64-NEXT:    lxvd2x vs0, 0, r6
+; AIX-P8-64-NEXT:    lxvd2x vs0, 0, r7
 ; AIX-P8-64-NEXT:    ldx r3, r3, r4
 ; AIX-P8-64-NEXT:    addi r4, r1, -16
 ; AIX-P8-64-NEXT:    stxvd2x vs0, 0, r4
@@ -865,40 +813,36 @@ define <2 x double> @testDouble2(<2 x double> %a, i8* %b, i32 zeroext %idx1, i32
 ; AIX-P8-32-LABEL: testDouble2:
 ; AIX-P8-32:       # %bb.0: # %entry
 ; AIX-P8-32-NEXT:    lfd f0, 0(r3)
-; AIX-P8-32-NEXT:    addi r6, r1, -32
 ; AIX-P8-32-NEXT:    rlwinm r4, r4, 3, 28, 28
+; AIX-P8-32-NEXT:    addi r6, r1, -32
+; AIX-P8-32-NEXT:    rlwinm r5, r5, 3, 28, 28
 ; AIX-P8-32-NEXT:    stxvd2x v2, 0, r6
 ; AIX-P8-32-NEXT:    stfdx f0, r6, r4
-; AIX-P8-32-NEXT:    addi r4, r1, -16
 ; AIX-P8-32-NEXT:    lxvd2x vs0, 0, r6
 ; AIX-P8-32-NEXT:    lfd f1, 1(r3)
-; AIX-P8-32-NEXT:    rlwinm r3, r5, 3, 28, 28
-; AIX-P8-32-NEXT:    stxvd2x vs0, 0, r4
-; AIX-P8-32-NEXT:    stfdx f1, r4, r3
-; AIX-P8-32-NEXT:    lxvd2x v2, 0, r4
+; AIX-P8-32-NEXT:    addi r3, r1, -16
+; AIX-P8-32-NEXT:    stxvd2x vs0, 0, r3
+; AIX-P8-32-NEXT:    stfdx f1, r3, r5
+; AIX-P8-32-NEXT:    lxvd2x v2, 0, r3
 ; AIX-P8-32-NEXT:    blr
 entry:
-  %0 = bitcast i8* %b to double*
-  %add.ptr1 = getelementptr inbounds i8, i8* %b, i64 1
-  %1 = bitcast i8* %add.ptr1 to double*
-  %2 = load double, double* %0, align 8
-  %vecins = insertelement <2 x double> %a, double %2, i32 %idx1
-  %3 = load double, double* %1, align 8
-  %vecins2 = insertelement <2 x double> %vecins, double %3, i32 %idx2
+  %add.ptr1 = getelementptr inbounds i8, ptr %b, i64 1
+  %0 = load double, ptr %b, align 8
+  %vecins = insertelement <2 x double> %a, double %0, i32 %idx1
+  %1 = load double, ptr %add.ptr1, align 8
+  %vecins2 = insertelement <2 x double> %vecins, double %1, i32 %idx2
   ret <2 x double> %vecins2
 }
 
-define <2 x double> @testDouble3(<2 x double> %a, i8* %b, i32 zeroext %idx1, i32 zeroext %idx2) {
+define <2 x double> @testDouble3(<2 x double> %a, ptr %b, i32 zeroext %idx1, i32 zeroext %idx2) {
 ; CHECK-LABEL: testDouble3:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    pld r3, 65536(r5), 0
-; CHECK-NEXT:    extsw r4, r6
-; CHECK-NEXT:    rlwinm r4, r4, 3, 0, 28
+; CHECK-NEXT:    rlwinm r4, r6, 3, 0, 28
 ; CHECK-NEXT:    vinsdrx v2, r4, r3
 ; CHECK-NEXT:    li r3, 1
-; CHECK-NEXT:    extsw r4, r7
+; CHECK-NEXT:    rlwinm r4, r7, 3, 0, 28
 ; CHECK-NEXT:    rldic r3, r3, 36, 27
-; CHECK-NEXT:    rlwinm r4, r4, 3, 0, 28
 ; CHECK-NEXT:    ldx r3, r5, r3
 ; CHECK-NEXT:    vinsdrx v2, r4, r3
 ; CHECK-NEXT:    blr
@@ -906,48 +850,46 @@ define <2 x double> @testDouble3(<2 x double> %a, i8* %b, i32 zeroext %idx1, i32
 ; CHECK-BE-LABEL: testDouble3:
 ; CHECK-BE:       # %bb.0: # %entry
 ; CHECK-BE-NEXT:    pld r3, 65536(r5), 0
-; CHECK-BE-NEXT:    extsw r4, r6
-; CHECK-BE-NEXT:    rlwinm r4, r4, 3, 0, 28
+; CHECK-BE-NEXT:    rlwinm r4, r6, 3, 0, 28
 ; CHECK-BE-NEXT:    vinsdlx v2, r4, r3
 ; CHECK-BE-NEXT:    li r3, 1
-; CHECK-BE-NEXT:    extsw r4, r7
+; CHECK-BE-NEXT:    rlwinm r4, r7, 3, 0, 28
 ; CHECK-BE-NEXT:    rldic r3, r3, 36, 27
-; CHECK-BE-NEXT:    rlwinm r4, r4, 3, 0, 28
 ; CHECK-BE-NEXT:    ldx r3, r5, r3
 ; CHECK-BE-NEXT:    vinsdlx v2, r4, r3
 ; CHECK-BE-NEXT:    blr
 ;
 ; CHECK-P9-LABEL: testDouble3:
 ; CHECK-P9:       # %bb.0: # %entry
-; CHECK-P9-NEXT:    lis r3, 1
 ; CHECK-P9-NEXT:    rlwinm r4, r6, 3, 28, 28
-; CHECK-P9-NEXT:    addi r6, r1, -32
-; CHECK-P9-NEXT:    ldx r3, r5, r3
+; CHECK-P9-NEXT:    lis r6, 1
+; CHECK-P9-NEXT:    rlwinm r3, r7, 3, 28, 28
+; CHECK-P9-NEXT:    addi r7, r1, -32
+; CHECK-P9-NEXT:    ldx r6, r5, r6
 ; CHECK-P9-NEXT:    stxv v2, -32(r1)
-; CHECK-P9-NEXT:    stdx r3, r6, r4
-; CHECK-P9-NEXT:    li r3, 1
-; CHECK-P9-NEXT:    rlwinm r4, r7, 3, 28, 28
+; CHECK-P9-NEXT:    stdx r6, r7, r4
+; CHECK-P9-NEXT:    li r4, 1
 ; CHECK-P9-NEXT:    lxv vs0, -32(r1)
-; CHECK-P9-NEXT:    rldic r3, r3, 36, 27
-; CHECK-P9-NEXT:    ldx r3, r5, r3
+; CHECK-P9-NEXT:    rldic r4, r4, 36, 27
+; CHECK-P9-NEXT:    ldx r4, r5, r4
 ; CHECK-P9-NEXT:    addi r5, r1, -16
 ; CHECK-P9-NEXT:    stxv vs0, -16(r1)
-; CHECK-P9-NEXT:    stdx r3, r5, r4
+; CHECK-P9-NEXT:    stdx r4, r5, r3
 ; CHECK-P9-NEXT:    lxv v2, -16(r1)
 ; CHECK-P9-NEXT:    blr
 ;
 ; AIX-P8-64-LABEL: testDouble3:
 ; AIX-P8-64:       # %bb.0: # %entry
 ; AIX-P8-64-NEXT:    lis r6, 1
-; AIX-P8-64-NEXT:    addi r7, r1, -32
 ; AIX-P8-64-NEXT:    rlwinm r4, r4, 3, 28, 28
-; AIX-P8-64-NEXT:    li r8, 1
+; AIX-P8-64-NEXT:    addi r7, r1, -32
 ; AIX-P8-64-NEXT:    rlwinm r5, r5, 3, 28, 28
 ; AIX-P8-64-NEXT:    ldx r6, r3, r6
 ; AIX-P8-64-NEXT:    stxvd2x v2, 0, r7
 ; AIX-P8-64-NEXT:    stdx r6, r7, r4
-; AIX-P8-64-NEXT:    rldic r4, r8, 36, 27
+; AIX-P8-64-NEXT:    li r4, 1
 ; AIX-P8-64-NEXT:    lxvd2x vs0, 0, r7
+; AIX-P8-64-NEXT:    rldic r4, r4, 36, 27
 ; AIX-P8-64-NEXT:    ldx r3, r3, r4
 ; AIX-P8-64-NEXT:    addi r4, r1, -16
 ; AIX-P8-64-NEXT:    stxvd2x vs0, 0, r4
@@ -959,27 +901,25 @@ define <2 x double> @testDouble3(<2 x double> %a, i8* %b, i32 zeroext %idx1, i32
 ; AIX-P8-32:       # %bb.0: # %entry
 ; AIX-P8-32-NEXT:    lis r6, 1
 ; AIX-P8-32-NEXT:    rlwinm r4, r4, 3, 28, 28
+; AIX-P8-32-NEXT:    rlwinm r5, r5, 3, 28, 28
 ; AIX-P8-32-NEXT:    lfdx f0, r3, r6
 ; AIX-P8-32-NEXT:    addi r6, r1, -32
 ; AIX-P8-32-NEXT:    stxvd2x v2, 0, r6
 ; AIX-P8-32-NEXT:    stfdx f0, r6, r4
-; AIX-P8-32-NEXT:    addi r4, r1, -16
 ; AIX-P8-32-NEXT:    lxvd2x vs0, 0, r6
 ; AIX-P8-32-NEXT:    lfd f1, 0(r3)
-; AIX-P8-32-NEXT:    rlwinm r3, r5, 3, 28, 28
-; AIX-P8-32-NEXT:    stxvd2x vs0, 0, r4
-; AIX-P8-32-NEXT:    stfdx f1, r4, r3
-; AIX-P8-32-NEXT:    lxvd2x v2, 0, r4
+; AIX-P8-32-NEXT:    addi r3, r1, -16
+; AIX-P8-32-NEXT:    stxvd2x vs0, 0, r3
+; AIX-P8-32-NEXT:    stfdx f1, r3, r5
+; AIX-P8-32-NEXT:    lxvd2x v2, 0, r3
 ; AIX-P8-32-NEXT:    blr
 entry:
-  %add.ptr = getelementptr inbounds i8, i8* %b, i64 65536
-  %0 = bitcast i8* %add.ptr to double*
-  %add.ptr1 = getelementptr inbounds i8, i8* %b, i64 68719476736
-  %1 = bitcast i8* %add.ptr1 to double*
-  %2 = load double, double* %0, align 8
-  %vecins = insertelement <2 x double> %a, double %2, i32 %idx1
-  %3 = load double, double* %1, align 8
-  %vecins2 = insertelement <2 x double> %vecins, double %3, i32 %idx2
+  %add.ptr = getelementptr inbounds i8, ptr %b, i64 65536
+  %add.ptr1 = getelementptr inbounds i8, ptr %b, i64 68719476736
+  %0 = load double, ptr %add.ptr, align 8
+  %vecins = insertelement <2 x double> %a, double %0, i32 %idx1
+  %1 = load double, ptr %add.ptr1, align 8
+  %vecins2 = insertelement <2 x double> %vecins, double %1, i32 %idx2
   ret <2 x double> %vecins2
 }
 
@@ -988,25 +928,21 @@ entry:
 define <2 x double> @testDoubleImm1(<2 x double> %a, double %b) {
 ; CHECK-LABEL: testDoubleImm1:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    # kill: def $f1 killed $f1 def $vsl1
 ; CHECK-NEXT:    xxmrghd v2, v2, vs1
 ; CHECK-NEXT:    blr
 ;
 ; CHECK-BE-LABEL: testDoubleImm1:
 ; CHECK-BE:       # %bb.0: # %entry
-; CHECK-BE-NEXT:    # kill: def $f1 killed $f1 def $vsl1
 ; CHECK-BE-NEXT:    xxpermdi v2, vs1, v2, 1
 ; CHECK-BE-NEXT:    blr
 ;
 ; CHECK-P9-LABEL: testDoubleImm1:
 ; CHECK-P9:       # %bb.0: # %entry
-; CHECK-P9-NEXT:    # kill: def $f1 killed $f1 def $vsl1
 ; CHECK-P9-NEXT:    xxpermdi v2, vs1, v2, 1
 ; CHECK-P9-NEXT:    blr
 ;
 ; AIX-P8-LABEL: testDoubleImm1:
 ; AIX-P8:       # %bb.0: # %entry
-; AIX-P8-NEXT:    # kill: def $f1 killed $f1 def $vsl1
 ; AIX-P8-NEXT:    xxpermdi v2, vs1, v2, 1
 ; AIX-P8-NEXT:    blr
 entry:
@@ -1014,7 +950,7 @@ entry:
   ret <2 x double> %vecins
 }
 
-define <2 x double> @testDoubleImm2(<2 x double> %a, i32* %b) {
+define <2 x double> @testDoubleImm2(<2 x double> %a, ptr %b) {
 ; CHECK-LABEL: testDoubleImm2:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lfd f0, 0(r5)
@@ -1039,13 +975,12 @@ define <2 x double> @testDoubleImm2(<2 x double> %a, i32* %b) {
 ; AIX-P8-NEXT:    xxpermdi v2, vs0, v2, 1
 ; AIX-P8-NEXT:    blr
 entry:
-  %0 = bitcast i32* %b to double*
-  %1 = load double, double* %0, align 8
-  %vecins = insertelement <2 x double> %a, double %1, i32 0
+  %0 = load double, ptr %b, align 8
+  %vecins = insertelement <2 x double> %a, double %0, i32 0
   ret <2 x double> %vecins
 }
 
-define <2 x double> @testDoubleImm3(<2 x double> %a, i32* %b) {
+define <2 x double> @testDoubleImm3(<2 x double> %a, ptr %b) {
 ; CHECK-LABEL: testDoubleImm3:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lfd f0, 4(r5)
@@ -1070,14 +1005,13 @@ define <2 x double> @testDoubleImm3(<2 x double> %a, i32* %b) {
 ; AIX-P8-NEXT:    xxpermdi v2, vs0, v2, 1
 ; AIX-P8-NEXT:    blr
 entry:
-  %add.ptr = getelementptr inbounds i32, i32* %b, i64 1
-  %0 = bitcast i32* %add.ptr to double*
-  %1 = load double, double* %0, align 8
-  %vecins = insertelement <2 x double> %a, double %1, i32 0
+  %add.ptr = getelementptr inbounds i32, ptr %b, i64 1
+  %0 = load double, ptr %add.ptr, align 8
+  %vecins = insertelement <2 x double> %a, double %0, i32 0
   ret <2 x double> %vecins
 }
 
-define <2 x double> @testDoubleImm4(<2 x double> %a, i32* %b) {
+define <2 x double> @testDoubleImm4(<2 x double> %a, ptr %b) {
 ; CHECK-LABEL: testDoubleImm4:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    plfd f0, 262144(r5), 0
@@ -1104,14 +1038,13 @@ define <2 x double> @testDoubleImm4(<2 x double> %a, i32* %b) {
 ; AIX-P8-NEXT:    xxpermdi v2, vs0, v2, 1
 ; AIX-P8-NEXT:    blr
 entry:
-  %add.ptr = getelementptr inbounds i32, i32* %b, i64 65536
-  %0 = bitcast i32* %add.ptr to double*
-  %1 = load double, double* %0, align 8
-  %vecins = insertelement <2 x double> %a, double %1, i32 0
+  %add.ptr = getelementptr inbounds i32, ptr %b, i64 65536
+  %0 = load double, ptr %add.ptr, align 8
+  %vecins = insertelement <2 x double> %a, double %0, i32 0
   ret <2 x double> %vecins
 }
 
-define <2 x double> @testDoubleImm5(<2 x double> %a, i32* %b) {
+define <2 x double> @testDoubleImm5(<2 x double> %a, ptr %b) {
 ; CHECK-LABEL: testDoubleImm5:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    li r3, 1
@@ -1150,10 +1083,9 @@ define <2 x double> @testDoubleImm5(<2 x double> %a, i32* %b) {
 ; AIX-P8-32-NEXT:    xxpermdi v2, vs0, v2, 1
 ; AIX-P8-32-NEXT:    blr
 entry:
-  %add.ptr = getelementptr inbounds i32, i32* %b, i64 68719476736
-  %0 = bitcast i32* %add.ptr to double*
-  %1 = load double, double* %0, align 8
-  %vecins = insertelement <2 x double> %a, double %1, i32 0
+  %add.ptr = getelementptr inbounds i32, ptr %b, i64 68719476736
+  %0 = load double, ptr %add.ptr, align 8
+  %vecins = insertelement <2 x double> %a, double %0, i32 0
   ret <2 x double> %vecins
 }
 
@@ -1180,18 +1112,18 @@ define dso_local <4 x float> @testInsertDoubleToFloat(<4 x float> %a, double %b)
 ; AIX-P8-64:       # %bb.0: # %entry
 ; AIX-P8-64-NEXT:    xsrsp f0, f1
 ; AIX-P8-64-NEXT:    ld r3, L..C8(r2) # %const.0
-; AIX-P8-64-NEXT:    lxvw4x v4, 0, r3
-; AIX-P8-64-NEXT:    xscvdpspn v3, f0
-; AIX-P8-64-NEXT:    vperm v2, v2, v3, v4
+; AIX-P8-64-NEXT:    lxvw4x v3, 0, r3
+; AIX-P8-64-NEXT:    xscvdpspn v4, f0
+; AIX-P8-64-NEXT:    vperm v2, v2, v4, v3
 ; AIX-P8-64-NEXT:    blr
 ;
 ; AIX-P8-32-LABEL: testInsertDoubleToFloat:
 ; AIX-P8-32:       # %bb.0: # %entry
 ; AIX-P8-32-NEXT:    xsrsp f0, f1
 ; AIX-P8-32-NEXT:    lwz r3, L..C12(r2) # %const.0
-; AIX-P8-32-NEXT:    lxvw4x v4, 0, r3
-; AIX-P8-32-NEXT:    xscvdpspn v3, f0
-; AIX-P8-32-NEXT:    vperm v2, v2, v3, v4
+; AIX-P8-32-NEXT:    lxvw4x v3, 0, r3
+; AIX-P8-32-NEXT:    xscvdpspn v4, f0
+; AIX-P8-32-NEXT:    vperm v2, v2, v4, v3
 ; AIX-P8-32-NEXT:    blr
 entry:
   %conv = fptrunc double %b to float

@@ -1,11 +1,11 @@
 ; XFAIL: *
 
 ; The test case stopped making sense after r310940 that added infinite loops to
-; the PostDominatorTree. Infinite loops are postdominated ony by the virtual
+; the PostDominatorTree. Infinite loops are postdominated only by the virtual
 ; root, which causes them not to appear in regions in ScopDetection anymore.
 
-; RUN: opt %loadPolly -pass-remarks-missed="polly-detect" -polly-allow-nonaffine-loops -polly-print-detect -disable-output < %s 2>&1 | FileCheck %s
-; RUN: opt %loadPolly -pass-remarks-missed="polly-detect" -polly-allow-nonaffine-loops=false -polly-print-detect -disable-output < %s 2>&1 | FileCheck %s
+; RUN: opt %loadNPMPolly -pass-remarks-missed=polly-detect -polly-allow-nonaffine-loops '-passes=polly-custom<detect>' -polly-print-detect -disable-output < %s 2>&1 | FileCheck %s
+; RUN: opt %loadNPMPolly -pass-remarks-missed=polly-detect -polly-allow-nonaffine-loops=false '-passes=polly-custom<detect>' -polly-print-detect -disable-output < %s 2>&1 | FileCheck %s
 
 ; void func (int param0, int N, int *A)
 ; {
@@ -19,31 +19,29 @@
 
 ; CHECK: remark: ReportLoopHasNoExit.c:7:7: Loop cannot be handled because it has no exit.
 
-
-
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
 ; Function Attrs: nounwind uwtable
-define void @func(i32 %param0, i32 %N, i32* %A) #0 !dbg !6 {
+define void @func(i32 %param0, i32 %N, ptr %A) !dbg !6 {
 entry:
   %param0.addr = alloca i32, align 4
   %N.addr = alloca i32, align 4
-  %A.addr = alloca i32*, align 8
+  %A.addr = alloca ptr, align 8
   %i = alloca i32, align 4
-  store i32 %param0, i32* %param0.addr, align 4
-  store i32 %N, i32* %N.addr, align 4
-  store i32* %A, i32** %A.addr, align 8
-  store i32 0, i32* %i, align 4
+  store i32 %param0, ptr %param0.addr, align 4
+  store i32 %N, ptr %N.addr, align 4
+  store ptr %A, ptr %A.addr, align 8
+  store i32 0, ptr %i, align 4
   br label %for.cond
 
 for.cond:                                         ; preds = %for.inc, %entry
-  %0 = load i32, i32* %i, align 4
-  %1 = load i32, i32* %N.addr, align 4
+  %0 = load i32, ptr %i, align 4
+  %1 = load i32, ptr %N.addr, align 4
   %cmp = icmp slt i32 %0, %1
   br i1 %cmp, label %for.body, label %for.end, !dbg !27
 
 for.body:                                         ; preds = %for.cond
-  %2 = load i32, i32* %param0.addr, align 4
+  %2 = load i32, ptr %param0.addr, align 4
   %tobool = icmp ne i32 %2, 0
   br i1 %tobool, label %if.then, label %if.else
 
@@ -51,28 +49,28 @@ if.then:                                          ; preds = %for.body
   br label %while.body
 
 while.body:                                       ; preds = %if.then, %while.body
-  %3 = load i32, i32* %i, align 4
+  %3 = load i32, ptr %i, align 4
   %idxprom = sext i32 %3 to i64
-  %4 = load i32*, i32** %A.addr, align 8
-  %arrayidx = getelementptr inbounds i32, i32* %4, i64 %idxprom
-  store i32 1, i32* %arrayidx, align 4
+  %4 = load ptr, ptr %A.addr, align 8
+  %arrayidx = getelementptr inbounds i32, ptr %4, i64 %idxprom
+  store i32 1, ptr %arrayidx, align 4
   br label %while.body, !dbg !37
 
 if.else:                                          ; preds = %for.body
-  %5 = load i32, i32* %i, align 4
+  %5 = load i32, ptr %i, align 4
   %idxprom1 = sext i32 %5 to i64
-  %6 = load i32*, i32** %A.addr, align 8
-  %arrayidx2 = getelementptr inbounds i32, i32* %6, i64 %idxprom1
-  store i32 2, i32* %arrayidx2, align 4
+  %6 = load ptr, ptr %A.addr, align 8
+  %arrayidx2 = getelementptr inbounds i32, ptr %6, i64 %idxprom1
+  store i32 2, ptr %arrayidx2, align 4
   br label %if.end
 
 if.end:                                           ; preds = %if.else
   br label %for.inc
 
 for.inc:                                          ; preds = %if.end
-  %7 = load i32, i32* %i, align 4
+  %7 = load i32, ptr %i, align 4
   %inc = add nsw i32 %7, 1
-  store i32 %inc, i32* %i, align 4
+  store i32 %inc, ptr %i, align 4
   br label %for.cond
 
 for.end:                                          ; preds = %for.cond
@@ -80,10 +78,7 @@ for.end:                                          ; preds = %for.cond
 }
 
 ; Function Attrs: nounwind readnone
-declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
-
-attributes #0 = { nounwind uwtable "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { nounwind readnone }
+declare void @llvm.dbg.declare(metadata, metadata, metadata)
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!3, !4}

@@ -13,35 +13,32 @@
 #ifndef LLVM_CLANG_LIB_INTERPRETER_INCREMENTALPARSER_H
 #define LLVM_CLANG_LIB_INTERPRETER_INCREMENTALPARSER_H
 
-#include "clang/Interpreter/PartialTranslationUnit.h"
-
-#include "clang/AST/GlobalDecl.h"
-
-#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 
 #include <list>
 #include <memory>
+
 namespace llvm {
-class LLVMContext;
+class Module;
 }
 
 namespace clang {
 class ASTConsumer;
 class CompilerInstance;
-class IncrementalAction;
 class Parser;
+class Sema;
+class TranslationUnitDecl;
+class IncrementalAction;
+struct PartialTranslationUnit;
 
 /// Provides support for incremental compilation. Keeps track of the state
 /// changes between the subsequent incremental input.
 ///
 class IncrementalParser {
-  /// Long-lived, incremental parsing action.
-  std::unique_ptr<IncrementalAction> Act;
-
-  /// Compiler instance performing the incremental compilation.
-  std::unique_ptr<CompilerInstance> CI;
+protected:
+  /// The Sema performing the incremental compilation.
+  Sema &S;
 
   /// Parser.
   std::unique_ptr<Parser> P;
@@ -52,32 +49,29 @@ class IncrementalParser {
   /// Counts the number of direct user input lines that have been parsed.
   unsigned InputCount = 0;
 
-  /// List containing every information about every incrementally parsed piece
-  /// of code.
-  std::list<PartialTranslationUnit> PTUs;
+  /// The FrontendAction used during incremental parsing.
+  IncrementalAction *Act = nullptr;
+
+  std::list<PartialTranslationUnit> &PTUs;
 
 public:
-  IncrementalParser(std::unique_ptr<CompilerInstance> Instance,
-                    llvm::LLVMContext &LLVMCtx, llvm::Error &Err);
-  ~IncrementalParser();
-
-  const CompilerInstance *getCI() const { return CI.get(); }
+  IncrementalParser(CompilerInstance &Instance, IncrementalAction *Act,
+                    llvm::Error &Err, std::list<PartialTranslationUnit> &PTUs);
+  virtual ~IncrementalParser();
 
   /// Parses incremental input by creating an in-memory file.
   ///\returns a \c PartialTranslationUnit which holds information about the
-  /// \c TranslationUnitDecl and \c llvm::Module corresponding to the input.
-  llvm::Expected<PartialTranslationUnit &> Parse(llvm::StringRef Input);
+  /// \c TranslationUnitDecl.
+  virtual llvm::Expected<TranslationUnitDecl *> Parse(llvm::StringRef Input);
 
-  /// Uses the CodeGenModule mangled name cache and avoids recomputing.
-  ///\returns the mangled name of a \c GD.
-  llvm::StringRef GetMangledName(GlobalDecl GD) const;
+  void CleanUpPTU(TranslationUnitDecl *MostRecentTU);
 
-  void CleanUpPTU(PartialTranslationUnit &PTU);
-
-  std::list<PartialTranslationUnit> &getPTUs() { return PTUs; }
+  /// Register a PTU produced by Parse.
+  PartialTranslationUnit &RegisterPTU(TranslationUnitDecl *TU,
+                                      std::unique_ptr<llvm::Module> M = {});
 
 private:
-  llvm::Expected<PartialTranslationUnit &> ParseOrWrapTopLevelDecl();
+  llvm::Expected<TranslationUnitDecl *> ParseOrWrapTopLevelDecl();
 };
 } // end namespace clang
 

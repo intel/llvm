@@ -175,27 +175,28 @@
 
         // TLS initial-exec forms
         movz x15, #:gottprel_g1:var
-        movz w14, #:gottprel_g1:var
+// GOT relocations referencing local STT_TLS are not converted to reference STT_SECTION symbols.
+        movz w14, #:gottprel_g1:local0
 
 // CHECK: movz    x15, #:gottprel_g1:var  // encoding: [0bAAA01111,A,0b101AAAAA,0x92]
 // CHECK:                                 //   fixup A - offset: 0, value: :gottprel_g1:var, kind: fixup_aarch64_movw
-// CHECK: movz    w14, #:gottprel_g1:var  // encoding: [0bAAA01110,A,0b101AAAAA,0x12]
-// CHECK:                                 //   fixup A - offset: 0, value: :gottprel_g1:var, kind: fixup_aarch64_movw
+// CHECK: movz    w14, #:gottprel_g1:local0  // encoding: [0bAAA01110,A,0b101AAAAA,0x12]
+// CHECK:                                 //   fixup A - offset: 0, value: :gottprel_g1:local0, kind: fixup_aarch64_movw
 
 // CHECK-ELF-NEXT:     0x78 R_AARCH64_TLSIE_MOVW_GOTTPREL_G1 [[VARSYM]]
-// CHECK-ELF-NEXT:     0x7C R_AARCH64_TLSIE_MOVW_GOTTPREL_G1 [[VARSYM]]
+// CHECK-ELF-NEXT:     0x7C R_AARCH64_TLSIE_MOVW_GOTTPREL_G1 local0
 
 
         movk x13, #:gottprel_g0_nc:var
-        movk w12, #:gottprel_g0_nc:var
+        movk w12, #:gottprel_g0_nc:local1
 
 // CHECK: movk    x13, #:gottprel_g0_nc:var // encoding: [0bAAA01101,A,0b100AAAAA,0xf2]
 // CHECK:                                   //   fixup A - offset: 0, value: :gottprel_g0_nc:var, kind: fixup_aarch64_movw
-// CHECK: movk    w12, #:gottprel_g0_nc:var // encoding: [0bAAA01100,A,0b100AAAAA,0x72]
-// CHECK:                                   //   fixup A - offset: 0, value: :gottprel_g0_nc:var, kind: fixup_aarch64_movw
+// CHECK: movk    w12, #:gottprel_g0_nc:local1 // encoding: [0bAAA01100,A,0b100AAAAA,0x72]
+// CHECK:                                   //   fixup A - offset: 0, value: :gottprel_g0_nc:local1, kind: fixup_aarch64_movw
 
 // CHECK-ELF-NEXT:     0x80 R_AARCH64_TLSIE_MOVW_GOTTPREL_G0_NC [[VARSYM]]
-// CHECK-ELF-NEXT:     0x84 R_AARCH64_TLSIE_MOVW_GOTTPREL_G0_NC [[VARSYM]]
+// CHECK-ELF-NEXT:     0x84 R_AARCH64_TLSIE_MOVW_GOTTPREL_G0_NC local1
 
 
         adrp x11, :gottprel:var
@@ -388,7 +389,7 @@
 // CHECK: add    x5, x4, :tlsdesc_lo12:var // encoding: [0x85,0bAAAAAA00,0b00AAAAAA,0x91]
 // CHECK:                                  //   fixup A - offset: 0, value: :tlsdesc_lo12:var, kind: fixup_aarch64_add_imm12
 // CHECK: .tlsdesccall var                // encoding: []
-// CHECK-NEXT:                            //   fixup A - offset: 0, value: var, kind: FK_NONE
+// CHECK-NEXT:                            //   fixup A - offset: 0, value: var, relocation type: 569
 // CHECK: blr    x3                      // encoding: [0x60,0x00,0x3f,0xd6]
 
 // CHECK-ELF-NEXT:     0x104 R_AARCH64_TLSDESC_ADR_PAGE21 [[VARSYM]]
@@ -396,6 +397,11 @@
 // CHECK-ELF-NEXT:     0x10C R_AARCH64_TLSDESC_ADD_LO12 [[VARSYM]]
 // CHECK-ELF-NEXT:     0x110 R_AARCH64_TLSDESC_CALL [[VARSYM]]
 
+        .section        .tbss,"awT",@nobits
+        .p2align        2, 0x0
+local0:
+local1:
+        .word   0
 
 // Make sure symbol 5 has type STT_TLS:
 

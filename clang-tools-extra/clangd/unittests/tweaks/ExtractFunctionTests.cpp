@@ -182,6 +182,7 @@ F (extracted();)
 
   // Shouldn't crash.
   EXPECT_EQ(apply("void f([[int a]]);"), "unavailable");
+  EXPECT_EQ(apply("void f(int a = [[1]]);"), "unavailable");
   // Don't extract if we select the entire function body (CompoundStmt).
   std::string CompoundFailInput = R"cpp(
     void f() [[{
@@ -189,6 +190,18 @@ F (extracted();)
     }]]
   )cpp";
   EXPECT_EQ(apply(CompoundFailInput), "unavailable");
+
+  ExtraArgs.push_back("-std=c++14");
+  // FIXME: Expressions are currently not extracted
+  EXPECT_EQ(apply(R"cpp(
+                void call() { [[1+1]]; }
+            )cpp"),
+            "unavailable");
+  // FIXME: Single expression statements are currently not extracted
+  EXPECT_EQ(apply(R"cpp(
+                void call() { [[1+1;]] }
+            )cpp"),
+            "unavailable");
 }
 
 TEST_F(ExtractFunctionTest, DifferentHeaderSourceTest) {
@@ -567,6 +580,53 @@ int getNum(bool Superstitious, int Min, int Max) {
       }
     }
   )cpp";
+  EXPECT_EQ(apply(Before), After);
+}
+
+TEST_F(ExtractFunctionTest, OverloadedOperators) {
+  Context = File;
+  std::string Before = R"cpp(struct A {
+                int operator+(int x) { return x; }
+              };
+              A &operator<<(A &, int);
+              A &operator|(A &, int);
+
+              A stream{};
+
+              void foo(int, int);
+
+              int main() {
+                [[foo(1, 2);
+                foo(3, 4);
+                stream << 42;
+                stream + 42;
+                stream | 42;
+                foo(1, 2);
+                foo(3, 4);]]
+              })cpp";
+  std::string After =
+      R"cpp(struct A {
+                int operator+(int x) { return x; }
+              };
+              A &operator<<(A &, int);
+              A &operator|(A &, int);
+
+              A stream{};
+
+              void foo(int, int);
+
+              void extracted() {
+foo(1, 2);
+                foo(3, 4);
+                stream << 42;
+                stream + 42;
+                stream | 42;
+                foo(1, 2);
+                foo(3, 4);
+}
+int main() {
+                extracted();
+              })cpp";
   EXPECT_EQ(apply(Before), After);
 }
 

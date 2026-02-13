@@ -12,9 +12,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "YAMLRemarkParser.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Path.h"
+#include <optional>
 
 using namespace llvm;
 using namespace llvm::remarks;
@@ -73,8 +75,7 @@ static Expected<uint64_t> parseVersion(StringRef &Buf) {
                              "Expecting version number.");
 
   uint64_t Version =
-      support::endian::read<uint64_t, support::little, support::unaligned>(
-          Buf.data());
+      support::endian::read<uint64_t, llvm::endianness::little>(Buf.data());
   if (Version != remarks::CurrentRemarkVersion)
     return createStringError(std::errc::illegal_byte_sequence,
                              "Mismatching remark version. Got %" PRId64
@@ -89,28 +90,13 @@ static Expected<uint64_t> parseStrTabSize(StringRef &Buf) {
     return createStringError(std::errc::illegal_byte_sequence,
                              "Expecting string table size.");
   uint64_t StrTabSize =
-      support::endian::read<uint64_t, support::little, support::unaligned>(
-          Buf.data());
+      support::endian::read<uint64_t, llvm::endianness::little>(Buf.data());
   Buf = Buf.drop_front(sizeof(uint64_t));
   return StrTabSize;
 }
 
-static Expected<ParsedStringTable> parseStrTab(StringRef &Buf,
-                                               uint64_t StrTabSize) {
-  if (Buf.size() < StrTabSize)
-    return createStringError(std::errc::illegal_byte_sequence,
-                             "Expecting string table.");
-
-  // Attach the string table to the parser.
-  ParsedStringTable Result(StringRef(Buf.data(), StrTabSize));
-  Buf = Buf.drop_front(StrTabSize);
-  return Expected<ParsedStringTable>(std::move(Result));
-}
-
-Expected<std::unique_ptr<YAMLRemarkParser>>
-remarks::createYAMLParserFromMeta(StringRef Buf,
-                                  Optional<ParsedStringTable> StrTab,
-                                  Optional<StringRef> ExternalFilePrependPath) {
+Expected<std::unique_ptr<YAMLRemarkParser>> remarks::createYAMLParserFromMeta(
+    StringRef Buf, std::optional<StringRef> ExternalFilePrependPath) {
   // We now have a magic number. The metadata has to be correct.
   Expected<bool> isMeta = parseMagic(Buf);
   if (!isMeta)
@@ -126,18 +112,12 @@ remarks::createYAMLParserFromMeta(StringRef Buf,
     if (!StrTabSize)
       return StrTabSize.takeError();
 
-    // If the size of string table is not 0, try to build one.
     if (*StrTabSize != 0) {
-      if (StrTab)
-        return createStringError(std::errc::illegal_byte_sequence,
-                                 "String table already provided.");
-      Expected<ParsedStringTable> MaybeStrTab = parseStrTab(Buf, *StrTabSize);
-      if (!MaybeStrTab)
-        return MaybeStrTab.takeError();
-      StrTab = std::move(*MaybeStrTab);
+      return createStringError(std::errc::illegal_byte_sequence,
+                               "String table unsupported for YAML format.");
     }
     // If it starts with "---", there is no external file.
-    if (!Buf.startswith("---")) {
+    if (!Buf.starts_with("---")) {
       // At this point, we expect Buf to contain the external file path.
       StringRef ExternalFilePath = Buf;
       SmallString<80> FullPath;
@@ -158,21 +138,15 @@ remarks::createYAMLParserFromMeta(StringRef Buf,
   }
 
   std::unique_ptr<YAMLRemarkParser> Result =
-      StrTab
-          ? std::make_unique<YAMLStrTabRemarkParser>(Buf, std::move(*StrTab))
-          : std::make_unique<YAMLRemarkParser>(Buf);
+      std::make_unique<YAMLRemarkParser>(Buf);
   if (SeparateBuf)
     Result->SeparateBuf = std::move(SeparateBuf);
   return std::move(Result);
 }
 
 YAMLRemarkParser::YAMLRemarkParser(StringRef Buf)
-    : YAMLRemarkParser(Buf, None) {}
-
-YAMLRemarkParser::YAMLRemarkParser(StringRef Buf,
-                                   Optional<ParsedStringTable> StrTab)
-    : RemarkParser{Format::YAML}, StrTab(std::move(StrTab)),
-      SM(setupSM(LastErrorMessage)), Stream(Buf, SM), YAMLIt(Stream.begin()) {}
+    : RemarkParser{Format::YAML}, SM(setupSM(LastErrorMessage)),
+      Stream(Buf, SM), YAMLIt(Stream.begin()) {}
 
 Error YAMLRemarkParser::error(StringRef Message, yaml::Node &Node) {
   return make_error<YAMLParseError>(Message, SM, Stream, Node);
@@ -209,8 +183,8 @@ YAMLRemarkParser::parseRemark(yaml::Document &RemarkEntry) {
   Expected<Type> T = parseType(*Root);
   if (!T)
     return T.takeError();
-  else
-    TheRemark.RemarkType = *T;
+
+  TheRemark.RemarkType = *T;
 
   // Then, parse the fields, one by one.
   for (yaml::KeyValueNode &RemarkField : *Root) {
@@ -292,15 +266,19 @@ Expected<StringRef> YAMLRemarkParser::parseKey(yaml::KeyValueNode &Node) {
 
 Expected<StringRef> YAMLRemarkParser::parseStr(yaml::KeyValueNode &Node) {
   auto *Value = dyn_cast<yaml::ScalarNode>(Node.getValue());
-  if (!Value)
-    return error("expected a value of scalar type.", Node);
-  StringRef Result = Value->getRawValue();
+  yaml::BlockScalarNode *ValueBlock;
+  StringRef Result;
+  if (!Value) {
+    // Try to parse the value as a block node.
+    ValueBlock = dyn_cast<yaml::BlockScalarNode>(Node.getValue());
+    if (!ValueBlock)
+      return error("expected a value of scalar type.", Node);
+    Result = ValueBlock->getValue();
+  } else
+    Result = Value->getRawValue();
 
-  if (Result.front() == '\'')
-    Result = Result.drop_front();
-
-  if (Result.back() == '\'')
-    Result = Result.drop_back();
+  Result.consume_front("\'");
+  Result.consume_back("\'");
 
   return Result;
 }
@@ -322,9 +300,9 @@ YAMLRemarkParser::parseDebugLoc(yaml::KeyValueNode &Node) {
   if (!DebugLoc)
     return error("expected a value of mapping type.", Node);
 
-  Optional<StringRef> File;
-  Optional<unsigned> Line;
-  Optional<unsigned> Column;
+  std::optional<StringRef> File;
+  std::optional<unsigned> Line;
+  std::optional<unsigned> Column;
 
   for (yaml::KeyValueNode &DLNode : *DebugLoc) {
     Expected<StringRef> MaybeKey = parseKey(DLNode);
@@ -364,9 +342,9 @@ Expected<Argument> YAMLRemarkParser::parseArg(yaml::Node &Node) {
   if (!ArgMap)
     return error("expected a value of mapping type.", Node);
 
-  Optional<StringRef> KeyStr;
-  Optional<StringRef> ValueStr;
-  Optional<RemarkLocation> Loc;
+  std::optional<StringRef> KeyStr;
+  std::optional<StringRef> ValueStr;
+  std::optional<RemarkLocation> Loc;
 
   for (yaml::KeyValueNode &ArgEntry : *ArgMap) {
     Expected<StringRef> MaybeKey = parseKey(ArgEntry);
@@ -407,7 +385,11 @@ Expected<Argument> YAMLRemarkParser::parseArg(yaml::Node &Node) {
   if (!ValueStr)
     return error("argument value is missing.", *ArgMap);
 
-  return Argument{*KeyStr, *ValueStr, Loc};
+  Argument Arg;
+  Arg.Key = *KeyStr;
+  Arg.Val = *ValueStr;
+  Arg.Loc = Loc;
+  return Arg;
 }
 
 Expected<std::unique_ptr<Remark>> YAMLRemarkParser::next() {
@@ -424,30 +406,4 @@ Expected<std::unique_ptr<Remark>> YAMLRemarkParser::next() {
   ++YAMLIt;
 
   return std::move(*MaybeResult);
-}
-
-Expected<StringRef> YAMLStrTabRemarkParser::parseStr(yaml::KeyValueNode &Node) {
-  auto *Value = dyn_cast<yaml::ScalarNode>(Node.getValue());
-  if (!Value)
-    return error("expected a value of scalar type.", Node);
-  StringRef Result;
-  // If we have a string table, parse it as an unsigned.
-  unsigned StrID = 0;
-  if (Expected<unsigned> MaybeStrID = parseUnsigned(Node))
-    StrID = *MaybeStrID;
-  else
-    return MaybeStrID.takeError();
-
-  if (Expected<StringRef> Str = (*StrTab)[StrID])
-    Result = *Str;
-  else
-    return Str.takeError();
-
-  if (Result.front() == '\'')
-    Result = Result.drop_front();
-
-  if (Result.back() == '\'')
-    Result = Result.drop_back();
-
-  return Result;
 }

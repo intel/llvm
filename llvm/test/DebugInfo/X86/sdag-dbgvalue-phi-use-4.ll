@@ -19,11 +19,11 @@
 ; INSTRREF-SAME:    debug-instr-number 2
 ; CHECK-NEXT:    [[REG3:%[0-9]+]]:gr32 = PHI
 ; INSTRREF-SAME:    debug-instr-number 3
-; INSTRREF-NEXT: DBG_INSTR_REF 1, 0, !13, !DIExpression(DW_OP_LLVM_fragment, 0, 32)
-; INSTRREF-NEXT: DBG_INSTR_REF 2, 0, !13, !DIExpression(DW_OP_LLVM_fragment, 32, 32)
-; INSTRREF-NEXT: DBG_INSTR_REF 3, 0, !13, !DIExpression(DW_OP_LLVM_fragment, 64, 16)
-; INSTRREF-NEXT: DBG_INSTR_REF 1, 0, !12, !DIExpression(DW_OP_LLVM_fragment, 10, 32)
-; INSTRREF-NEXT: DBG_INSTR_REF 2, 0, !12, !DIExpression(DW_OP_LLVM_fragment, 42, 13)
+; INSTRREF-NEXT: DBG_INSTR_REF !13, !DIExpression(DW_OP_LLVM_arg, 0, DW_OP_LLVM_fragment, 0, 32), dbg-instr-ref(1, 0)
+; INSTRREF-NEXT: DBG_INSTR_REF !13, !DIExpression(DW_OP_LLVM_arg, 0, DW_OP_LLVM_fragment, 32, 32), dbg-instr-ref(2, 0)
+; INSTRREF-NEXT: DBG_INSTR_REF !13, !DIExpression(DW_OP_LLVM_arg, 0, DW_OP_LLVM_fragment, 64, 16), dbg-instr-ref(3, 0)
+; INSTRREF-NEXT: DBG_INSTR_REF !12, !DIExpression(DW_OP_LLVM_arg, 0, DW_OP_LLVM_fragment, 10, 32), dbg-instr-ref(1, 0)
+; INSTRREF-NEXT: DBG_INSTR_REF !12, !DIExpression(DW_OP_LLVM_arg, 0, DW_OP_LLVM_fragment, 42, 13), dbg-instr-ref(2, 0)
 ; DBGVALUE-NEXT: DBG_VALUE [[REG1]], $noreg,  !13, !DIExpression(DW_OP_LLVM_fragment, 0, 32)
 ; DBGVALUE-NEXT: DBG_VALUE [[REG2]], $noreg,  !13, !DIExpression(DW_OP_LLVM_fragment, 32, 32)
 ; DBGVALUE-NEXT: DBG_VALUE [[REG3]], $noreg,  !13, !DIExpression(DW_OP_LLVM_fragment, 64, 16)
@@ -35,9 +35,9 @@ target datalayout = "e-m:x-p:32:32-i64:64-f80:32-n8:16:32-a:0:32-S32"
 target triple = "i686-w64-windows-gnu"
 
 ; Function Attrs: nounwind readnone
-define dso_local i64 @nextafterl(i80 %a) local_unnamed_addr #0 !dbg !6 {
+define dso_local i64 @nextafterl(i80 %a, i1 %arg) local_unnamed_addr #0 !dbg !6 {
 entry:
-  br i1 undef, label %if.else, label %if.then13, !dbg !28
+  br i1 %arg, label %if.else, label %if.then13, !dbg !28
 
 if.then13:                                        ; preds = %entry
   %u.sroa.0.8.insert.insert = or i80 %a, 2222, !dbg !29

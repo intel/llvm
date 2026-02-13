@@ -8,8 +8,7 @@
 
 #include "PPCLinux.h"
 #include "clang/Driver/Driver.h"
-#include "clang/Driver/DriverDiagnostic.h"
-#include "clang/Driver/Options.h"
+#include "clang/Options/Options.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 
@@ -31,10 +30,10 @@ static bool GlibcSupportsFloat128(const std::string &Linker) {
 
   // Since glibc 2.34, the installed .so file is not symlink anymore. But we can
   // still safely assume it's newer than 2.32.
-  if (LinkerName.startswith("ld64.so"))
+  if (LinkerName.starts_with("ld64.so"))
     return true;
 
-  if (!LinkerName.startswith("ld-2."))
+  if (!LinkerName.starts_with("ld-2."))
     return false;
   unsigned Minor = (LinkerName[5] - '0') * 10 + (LinkerName[6] - '0');
   if (Minor < 32)
@@ -49,14 +48,17 @@ PPCLinuxToolChain::PPCLinuxToolChain(const Driver &D,
     : Linux(D, Triple, Args) {
   if (Arg *A = Args.getLastArg(options::OPT_mabi_EQ)) {
     StringRef ABIName = A->getValue();
-    if (ABIName == "ieeelongdouble" && !SupportIEEEFloat128(D, Triple, Args))
+
+    if ((ABIName == "ieeelongdouble" &&
+         !SupportIEEEFloat128(D, Triple, Args)) ||
+        (ABIName == "ibmlongdouble" && !supportIBMLongDouble(D, Args)))
       D.Diag(diag::warn_drv_unsupported_float_abi_by_lib) << ABIName;
   }
 }
 
 void PPCLinuxToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
                                                   ArgStringList &CC1Args) const {
-  if (!DriverArgs.hasArg(clang::driver::options::OPT_nostdinc) &&
+  if (!DriverArgs.hasArg(options::OPT_nostdinc) &&
       !DriverArgs.hasArg(options::OPT_nobuiltininc)) {
     const Driver &D = getDriver();
     SmallString<128> P(D.ResourceDir);
@@ -65,6 +67,18 @@ void PPCLinuxToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
   }
 
   Linux::AddClangSystemIncludeArgs(DriverArgs, CC1Args);
+}
+
+bool PPCLinuxToolChain::supportIBMLongDouble(
+    const Driver &D, const llvm::opt::ArgList &Args) const {
+  if (Args.hasArg(options::OPT_nostdlib, options::OPT_nostdlibxx))
+    return true;
+
+  CXXStdlibType StdLib = ToolChain::GetCXXStdlibType(Args);
+  if (StdLib == CST_Libstdcxx)
+    return true;
+
+  return StdLib == CST_Libcxx && !defaultToIEEELongDouble();
 }
 
 bool PPCLinuxToolChain::SupportIEEEFloat128(
@@ -78,10 +92,11 @@ bool PPCLinuxToolChain::SupportIEEEFloat128(
 
   CXXStdlibType StdLib = ToolChain::GetCXXStdlibType(Args);
   bool HasUnsupportedCXXLib =
-      StdLib == CST_Libcxx ||
+      (StdLib == CST_Libcxx && !defaultToIEEELongDouble()) ||
       (StdLib == CST_Libstdcxx &&
        GCCInstallation.getVersion().isOlderThan(12, 1, 0));
 
-  return GlibcSupportsFloat128(Linux::getDynamicLinker(Args)) &&
+  std::string Linker = Linux::getDynamicLinker(Args);
+  return GlibcSupportsFloat128((Twine(D.DyldPrefix) + Linker).str()) &&
          !(D.CCCIsCXX() && HasUnsupportedCXXLib);
 }

@@ -6,46 +6,77 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LIBC_SUPPORT_COMMON_H
-#define LLVM_LIBC_SUPPORT_COMMON_H
+#ifndef LLVM_LIBC_SRC___SUPPORT_COMMON_H
+#define LLVM_LIBC_SRC___SUPPORT_COMMON_H
 
-#define LIBC_INLINE_ASM __asm__ __volatile__
+#ifndef LIBC_NAMESPACE
+#error "LIBC_NAMESPACE macro is not defined."
+#endif
 
-#ifndef likely
-#define likely(x) __builtin_expect(!!(x), 1)
-#endif
-#ifndef unlikely
-#define unlikely(x) __builtin_expect(x, 0)
-#endif
-#ifndef UNUSED
-#define UNUSED __attribute__((unused))
-#endif
+#include "src/__support/macros/attributes.h"
+#include "src/__support/macros/config.h"
+#include "src/__support/macros/properties/architectures.h"
+#include "src/__support/macros/properties/compiler.h"
 
 #ifndef LLVM_LIBC_FUNCTION_ATTR
 #define LLVM_LIBC_FUNCTION_ATTR
 #endif
 
-// MacOS needs to be excluded because it does not support aliasing.
-#if defined(LLVM_LIBC_PUBLIC_PACKAGING) && (!defined(__APPLE__))
-#define LLVM_LIBC_FUNCTION(type, name, arglist)                                \
-  LLVM_LIBC_FUNCTION_ATTR decltype(__llvm_libc::name)                          \
-      __##name##_impl__ __asm__(#name);                                        \
-  decltype(__llvm_libc::name) name [[gnu::alias(#name)]];                      \
-  type __##name##_impl__ arglist
-#else
-#define LLVM_LIBC_FUNCTION(type, name, arglist) type name arglist
-#endif
+// clang-format off
+// Allow each function `func` to have extra attributes specified by defining:
+// `LLVM_LIBC_FUNCTION_ATTR_func` macro, which should always start with
+// "LLVM_LIBC_EMPTY, "
+//
+// For examples:
+// #define LLVM_LIBC_FUNCTION_ATTR_memcpy LLVM_LIBC_EMPTY, [[gnu::weak]]
+// #define LLVM_LIBC_FUNCTION_ATTR_memchr LLVM_LIBC_EMPTY, [[gnu::weak]] [[gnu::visibility("default")]]
+// clang-format on
+#define LLVM_LIBC_EMPTY
 
-namespace __llvm_libc {
+#define GET_SECOND(first, second, ...) second
+#define EXPAND_THEN_SECOND(name) GET_SECOND(name, LLVM_LIBC_EMPTY)
+
+#define LLVM_LIBC_ATTR(name) EXPAND_THEN_SECOND(LLVM_LIBC_FUNCTION_ATTR_##name)
+
+// At the moment, [[gnu::alias()]] is not supported on MacOS, and it is needed
+// to cleanly export and alias the C++ symbol `LIBC_NAMESPACE::func` with the C
+// symbol `func`.  So for public packaging on MacOS, we will only export the C
+// symbol.  Moreover, a C symbol `func` in macOS is mangled as `_func`.
+#if defined(LIBC_COPT_PUBLIC_PACKAGING) && !defined(LIBC_COMPILER_IS_MSVC)
+#ifndef __APPLE__
+#define LLVM_LIBC_FUNCTION_IMPL(type, name, arglist)                           \
+  LLVM_LIBC_ATTR(name)                                                         \
+  LLVM_LIBC_FUNCTION_ATTR decltype(LIBC_NAMESPACE::name)                       \
+      __##name##_impl__ asm(#name);                                            \
+  decltype(LIBC_NAMESPACE::name) name [[gnu::alias(#name)]];                   \
+  type __##name##_impl__ arglist
+#else // __APPLE__
+#define LLVM_LIBC_FUNCTION_IMPL(type, name, arglist)                           \
+  LLVM_LIBC_ATTR(name)                                                         \
+  LLVM_LIBC_FUNCTION_ATTR decltype(LIBC_NAMESPACE::name) name asm("_" #name);  \
+  type name arglist
+#endif // __APPLE__
+#else  // LIBC_COPT_PUBLIC_PACKAGING
+#define LLVM_LIBC_FUNCTION_IMPL(type, name, arglist) type name arglist
+#endif // LIBC_COPT_PUBLIC_PACKAGING
+
+// This extra layer of macro allows `name` to be a macro to rename a function.
+#define LLVM_LIBC_FUNCTION(type, name, arglist)                                \
+  LLVM_LIBC_FUNCTION_IMPL(type, name, arglist)
+
+namespace LIBC_NAMESPACE_DECL {
 namespace internal {
-constexpr bool same_string(char const *lhs, char const *rhs) {
+LIBC_INLINE constexpr bool same_string(char const *lhs, char const *rhs) {
   for (; *lhs || *rhs; ++lhs, ++rhs)
     if (*lhs != *rhs)
       return false;
   return true;
 }
 } // namespace internal
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE_DECL
+
+#define __LIBC_MACRO_TO_STRING(str) #str
+#define LIBC_MACRO_TO_STRING(str) __LIBC_MACRO_TO_STRING(str)
 
 // LLVM_LIBC_IS_DEFINED checks whether a particular macro is defined.
 // Usage: constexpr bool kUseAvx = LLVM_LIBC_IS_DEFINED(__AVX__);
@@ -55,8 +86,8 @@ constexpr bool same_string(char const *lhs, char const *rhs) {
 // is defined, one stringification yields "FOO" while the other yields its
 // stringified value "1".
 #define LLVM_LIBC_IS_DEFINED(macro)                                            \
-  !__llvm_libc::internal::same_string(                                         \
+  !LIBC_NAMESPACE::internal::same_string(                                      \
       LLVM_LIBC_IS_DEFINED__EVAL_AND_STRINGIZE(macro), #macro)
 #define LLVM_LIBC_IS_DEFINED__EVAL_AND_STRINGIZE(s) #s
 
-#endif // LLVM_LIBC_SUPPORT_COMMON_H
+#endif // LLVM_LIBC_SRC___SUPPORT_COMMON_H

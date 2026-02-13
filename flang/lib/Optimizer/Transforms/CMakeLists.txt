@@ -1,32 +1,83 @@
 add_flang_library(FIRTransforms
   AbstractResult.cpp
-  AffinePromotion.cpp
+  AddAliasTags.cpp
+  AddDebugInfo.cpp
   AffineDemotion.cpp
-  AnnotateConstant.cpp
-  CharacterConversion.cpp
-  ArrayValueCopy.cpp
-  ExternalNameConversion.cpp
-  MemoryAllocation.cpp
-  MemRefDataFlowOpt.cpp
-  RewriteLoop.cpp
-  SimplifyRegionLite.cpp
+  AffinePromotion.cpp
   AlgebraicSimplification.cpp
+  AnnotateConstant.cpp
+  ArrayValueCopy.cpp
+  ArrayValueCopy.cpp
+  AssumedRankOpConversion.cpp
+  CUDA/CUFAddConstructor.cpp
+  CUDA/CUFAllocationConversion.cpp
+  CUDA/CUFAllocationConversion.cpp
+  CUDA/CUFComputeSharedMemoryOffsetsAndSize.cpp
+  CUDA/CUFDeviceFuncTransform.cpp
+  CUDA/CUFDeviceGlobal.cpp
+  CUDA/CUFFunctionRewrite.cpp
+  CUDA/CUFGPUToLLVMConversion.cpp
+  CUDA/CUFLaunchAttachAttr.cpp
+  CUDA/CUFOpConversion.cpp
+  CUDA/CUFPredefinedVarToGPU.cpp
+  CharacterConversion.cpp
+  CompilerGeneratedNames.cpp
+  ConstantArgumentGlobalisation.cpp
+  ControlFlowConverter.cpp
+  ConvertComplexPow.cpp
+  DebugTypeGenerator.cpp
+  ExternalNameConversion.cpp
+  FIRToSCF.cpp
+  FunctionAttr.cpp
+  GenRuntimeCallsForTest.cpp
+  LoopInvariantCodeMotion.cpp
+  LoopVersioning.cpp
+  MIFOpConversion.cpp
+  MemRefDataFlowOpt.cpp
+  MemoryAllocation.cpp
+  MemoryUtils.cpp
+  OptimizeArrayRepacking.cpp
+  PolymorphicOpConversion.cpp
+  SetRuntimeCallAttributes.cpp
+  SimplifyFIROperations.cpp
   SimplifyIntrinsics.cpp
+  SimplifyRegionLite.cpp
+  StackArrays.cpp
+  StackReclaim.cpp
+  VScaleAttr.cpp
 
   DEPENDS
-  FIRBuilder
+  CUFAttrs
+  CUFDialect
   FIRDialect
-  FIRSupport
   FIROptTransformsPassIncGen
+  HLFIROpsIncGen
+  MIFDialect
 
   LINK_LIBS
+  CUFAttrs
+  CUFDialect
+  FIRAnalysis
   FIRBuilder
+  FIRCodeGen
+  FIRCodeGenDialect
   FIRDialect
+  FIRDialectSupport
+  FIRSupport
+  FortranSupport
+  HLFIRDialect
+  MIFDialect
+
+  MLIR_LIBS
   MLIRAffineUtils
+  MLIRAnalysis
   MLIRFuncDialect
+  MLIRGPUDialect
+  MLIRLLVMCommonConversion
   MLIRLLVMDialect
   MLIRMathTransforms
   MLIROpenACCDialect
+  MLIROpenACCToLLVMIRTranslation
   MLIROpenMPDialect
-  FIRSupport
+  MLIRTransformUtils
 )

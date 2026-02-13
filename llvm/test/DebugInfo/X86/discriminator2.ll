@@ -32,8 +32,8 @@ declare void @_Z3fooii(i32, i32) #1
 
 declare i32 @_Z3barv() #1
 
-attributes #0 = { uwtable "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { uwtable "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "use-soft-float"="false" }
+attributes #1 = { "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "use-soft-float"="false" }
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!3, !4}
@@ -55,7 +55,7 @@ attributes #1 = { "disable-tail-calls"="false" "less-precise-fpmad"="false" "fra
 !13 = !DILocation(line: 5, column: 21, scope: !12)
 !14 = !DILocation(line: 6, column: 1, scope: !6)
 
-; CHECK: Address            Line   Column File   ISA Discriminator Flags
-; CHECK: ------------------ ------ ------ ------ --- ------------- -------------
-; CHECK: {{.*}}      4      3      1   0             1  {{.*}}
-; CHECK: {{.*}}      5     21      1   0             1  {{.*}}
+; CHECK: Address            Line   Column File   ISA Discriminator OpIndex Flags
+; CHECK: ------------------ ------ ------ ------ --- ------------- ------- -------------
+; CHECK: {{.*}}                  4      3      1   0             1       0 {{.*}}
+; CHECK: {{.*}}                  5     21      1   0             1       0 {{.*}}

@@ -10,14 +10,18 @@
 /// This file implements the offloading-specific dumper for llvm-objdump.
 ///
 //===----------------------------------------------------------------------===//
+
 #include "OffloadDump.h"
 #include "llvm-objdump.h"
 #include "llvm/Object/ELFObjectFile.h"
-#include "llvm/Support/Alignment.h"
+#include "llvm/Object/OffloadBinary.h"
+#include "llvm/Object/OffloadBundle.h"
 
 using namespace llvm;
 using namespace llvm::object;
 using namespace llvm::objdump;
+
+void disassembleObject(llvm::object::ObjectFile *, bool InlineRelocs);
 
 /// Get the printable name of the image kind.
 static StringRef getImageName(const OffloadBinary &OB) {
@@ -46,67 +50,81 @@ static void printBinary(const OffloadBinary &OB, uint64_t Index) {
          << getOffloadKindName(OB.getOffloadKind()) << "\n";
 }
 
-static Error visitAllBinaries(const OffloadBinary &OB) {
-  uint64_t Offset = 0;
-  uint64_t Index = 0;
-  while (Offset < OB.getMemoryBufferRef().getBufferSize()) {
-    MemoryBufferRef Buffer =
-        MemoryBufferRef(OB.getData().drop_front(Offset), OB.getFileName());
-    auto BinaryOrErr = OffloadBinary::create(Buffer);
-    if (!BinaryOrErr)
-      return BinaryOrErr.takeError();
-
-    OffloadBinary &Binary = **BinaryOrErr;
-    printBinary(Binary, Index++);
-
-    Offset += Binary.getSize();
-  }
-  return Error::success();
-}
-
 /// Print the embedded offloading contents of an ObjectFile \p O.
-void llvm::dumpOffloadBinary(const ObjectFile &O) {
-  if (!O.isELF()) {
-    reportWarning("--offloading is currently only supported for ELF targets",
-                  O.getFileName());
+void llvm::dumpOffloadBinary(const ObjectFile &O, StringRef ArchName) {
+  if (!O.isELF() && !O.isCOFF()) {
+    reportWarning(
+        "--offloading is currently only supported for COFF and ELF targets",
+        O.getFileName());
     return;
   }
 
-  for (ELFSectionRef Sec : O.sections()) {
-    if (Sec.getType() != ELF::SHT_LLVM_OFFLOADING)
-      continue;
+  SmallVector<OffloadFile> Binaries;
+  if (Error Err = extractOffloadBinaries(O.getMemoryBufferRef(), Binaries))
+    reportError(O.getFileName(), "while extracting offloading files: " +
+                                     toString(std::move(Err)));
 
-    Expected<StringRef> Contents = Sec.getContents();
-    if (!Contents)
-      reportError(Contents.takeError(), O.getFileName());
+  // Print out all the binaries that are contained in this buffer.
+  for (uint64_t I = 0, E = Binaries.size(); I != E; ++I)
+    printBinary(*Binaries[I].getBinary(), I);
 
-    std::unique_ptr<MemoryBuffer> Buffer =
-        MemoryBuffer::getMemBuffer(*Contents, O.getFileName(), false);
-    if (!isAddrAligned(Align(OffloadBinary::getAlignment()),
-                       Buffer->getBufferStart()))
-      Buffer = MemoryBuffer::getMemBufferCopy(Buffer->getBuffer(),
-                                              Buffer->getBufferIdentifier());
-    auto BinaryOrErr = OffloadBinary::create(*Buffer);
-    if (!BinaryOrErr)
-      reportError(O.getFileName(), "while extracting offloading files: " +
-                                       toString(BinaryOrErr.takeError()));
-    OffloadBinary &Binary = **BinaryOrErr;
+  dumpOffloadBundleFatBinary(O, ArchName);
+}
 
-    // Print out all the binaries that are contained in this buffer. If we fail
-    // to parse a binary before reaching the end of the buffer emit a warning.
-    if (Error Err = visitAllBinaries(Binary))
-      reportWarning("while parsing offloading files: " +
-                        toString(std::move(Err)),
-                    O.getFileName());
+// Given an Object file, collect all Bundles of FatBin Binaries
+// and dump them into Code Object files
+// if -arch=-name is specified, only dump the Entries that match the target arch
+void llvm::dumpOffloadBundleFatBinary(const ObjectFile &O, StringRef ArchName) {
+  if (!O.isELF() && !O.isCOFF()) {
+    reportWarning(
+        "--offloading is currently only supported for COFF and ELF targets",
+        O.getFileName());
+    return;
+  }
+
+  SmallVector<llvm::object::OffloadBundleFatBin> FoundBundles;
+
+  if (Error Err = llvm::object::extractOffloadBundleFatBinary(O, FoundBundles))
+    reportError(O.getFileName(), "while extracting offload FatBin bundles: " +
+                                     toString(std::move(Err)));
+  for (const auto &[BundleNum, Bundle] : llvm::enumerate(FoundBundles)) {
+    for (OffloadBundleEntry &Entry : Bundle.getEntries()) {
+      if (!ArchName.empty() && Entry.ID.find(ArchName) != std::string::npos)
+        continue;
+
+      // create file name for this object file:  <source-filename>.<Bundle
+      // Number>.<EntryID>
+      std::string str =
+          Bundle.getFileName().str() + "." + itostr(BundleNum) + "." + Entry.ID;
+
+      if (Bundle.isDecompressed()) {
+        if (Error Err = object::extractCodeObject(
+                Bundle.DecompressedBuffer->getMemBufferRef(), Entry.Offset,
+                Entry.Size, StringRef(str)))
+          reportError(O.getFileName(),
+                      "while extracting offload Bundle Entries: " +
+                          toString(std::move(Err)));
+      } else {
+        if (Error Err = object::extractCodeObject(O, Entry.Offset, Entry.Size,
+                                                  StringRef(str)))
+          reportError(O.getFileName(),
+                      "while extracting offload Bundle Entries: " +
+                          toString(std::move(Err)));
+      }
+      outs() << "Extracting offload bundle: " << str << "\n";
+    }
   }
 }
 
 /// Print the contents of an offload binary file \p OB. This may contain
 /// multiple binaries stored in the same buffer.
 void llvm::dumpOffloadSections(const OffloadBinary &OB) {
-  // Print out all the binaries that are contained at this buffer. If we fail to
-  // parse a binary before reaching the end of the buffer emit a warning.
-  if (Error Err = visitAllBinaries(OB))
-    reportWarning("while parsing offloading files: " + toString(std::move(Err)),
-                  OB.getFileName());
+  SmallVector<OffloadFile> Binaries;
+  if (Error Err = extractOffloadBinaries(OB.getMemoryBufferRef(), Binaries))
+    reportError(OB.getFileName(), "while extracting offloading files: " +
+                                      toString(std::move(Err)));
+
+  // Print out all the binaries that are contained in this buffer.
+  for (uint64_t I = 0, E = Binaries.size(); I != E; ++I)
+    printBinary(*Binaries[I].getBinary(), I);
 }

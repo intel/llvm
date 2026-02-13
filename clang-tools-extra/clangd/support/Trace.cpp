@@ -9,7 +9,6 @@
 #include "support/Trace.h"
 #include "support/Context.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Chrono.h"
@@ -19,6 +18,7 @@
 #include <chrono>
 #include <memory>
 #include <mutex>
+#include <optional>
 
 namespace clang {
 namespace clangd {
@@ -159,8 +159,8 @@ private:
     Out.object([&] {
       Out.attribute("pid", 0);
       Out.attribute("ph", Phase);
-      for (const auto &KV : Event)
-        Out.attribute(KV.first, KV.second);
+      for (const auto *KV : llvm::json::sortedElements(Event))
+        Out.attribute(KV->first, KV->second);
     });
   }
 
@@ -287,9 +287,9 @@ static std::pair<Context, llvm::json::Object *>
 makeSpanContext(llvm::Twine Name, const Metric &LatencyMetric) {
   if (!T)
     return std::make_pair(Context::current().clone(), nullptr);
-  llvm::Optional<WithContextValue> WithLatency;
+  std::optional<WithContextValue> WithLatency;
   using Clock = std::chrono::high_resolution_clock;
-  WithLatency.emplace(llvm::make_scope_exit(
+  WithLatency.emplace(llvm::scope_exit(
       [StartTime = Clock::now(), Name = Name.str(), &LatencyMetric] {
         LatencyMetric.record(
             std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() -

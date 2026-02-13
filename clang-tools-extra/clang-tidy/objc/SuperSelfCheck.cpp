@@ -1,4 +1,4 @@
-//===--- SuperSelfCheck.cpp - clang-tidy ----------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,9 +12,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace objc {
+namespace clang::tidy::objc {
 
 namespace {
 
@@ -92,11 +90,11 @@ void SuperSelfCheck::check(const MatchFinder::MatchResult &Result) {
                                           "invoke a superclass initializer?")
               << Message->getMethodDecl();
 
-  SourceLocation ReceiverLoc = Message->getReceiverRange().getBegin();
+  const SourceLocation ReceiverLoc = Message->getReceiverRange().getBegin();
   if (ReceiverLoc.isMacroID() || ReceiverLoc.isInvalid())
     return;
 
-  SourceLocation SelectorLoc = Message->getSelectorStartLoc();
+  const SourceLocation SelectorLoc = Message->getSelectorStartLoc();
   if (SelectorLoc.isMacroID() || SelectorLoc.isInvalid())
     return;
 
@@ -104,6 +102,4 @@ void SuperSelfCheck::check(const MatchFinder::MatchResult &Result) {
                                        StringRef("[super init]"));
 }
 
-} // namespace objc
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::objc

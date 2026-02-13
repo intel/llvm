@@ -50,8 +50,8 @@
 ; Function Attrs: uwtable
 define void @_Z3barii(i32 %param1, i32 %param2) #0 !dbg !24 {
 entry:
-  %var1 = alloca %struct.AAA3, align 1
-  %var2 = alloca %struct.AAA3, align 1
+  %var1 = alloca %struct.AAA3, align 8
+  %var2 = alloca %struct.AAA3, align 8
   tail call void @llvm.dbg.value(metadata i32 %param1, i64 0, metadata !29, metadata !46), !dbg !47
   tail call void @llvm.dbg.value(metadata i32 %param2, i64 0, metadata !30, metadata !46), !dbg !48
   tail call void @llvm.dbg.value(metadata ptr null, i64 0, metadata !31, metadata !46), !dbg !49
@@ -112,9 +112,9 @@ declare void @_Z3fooPcjPKc(ptr, i32, ptr) #2
 ; Function Attrs: nounwind readnone
 declare void @llvm.dbg.value(metadata, i64, metadata, metadata) #3
 
-attributes #0 = { uwtable "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { uwtable "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2" "use-soft-float"="false" }
 attributes #1 = { argmemonly nounwind }
-attributes #2 = { "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #2 = { "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2" "use-soft-float"="false" }
 attributes #3 = { nounwind readnone }
 attributes #4 = { nounwind }
 

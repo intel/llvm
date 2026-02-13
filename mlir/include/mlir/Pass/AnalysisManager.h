@@ -16,6 +16,7 @@
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Support/TypeName.h"
+#include <optional>
 
 namespace mlir {
 class AnalysisManager;
@@ -84,17 +85,14 @@ template <typename T, typename... Args>
 using has_is_invalidated = decltype(std::declval<T &>().isInvalidated(
     std::declval<const PreservedAnalyses &>()));
 
-/// Implementation of 'isInvalidated' if the analysis provides a definition.
 template <typename AnalysisT>
-std::enable_if_t<llvm::is_detected<has_is_invalidated, AnalysisT>::value, bool>
-isInvalidated(AnalysisT &analysis, const PreservedAnalyses &pa) {
-  return analysis.isInvalidated(pa);
-}
-/// Default implementation of 'isInvalidated'.
-template <typename AnalysisT>
-std::enable_if_t<!llvm::is_detected<has_is_invalidated, AnalysisT>::value, bool>
-isInvalidated(AnalysisT &analysis, const PreservedAnalyses &pa) {
-  return !pa.isPreserved<AnalysisT>();
+bool isInvalidated(AnalysisT &analysis, const PreservedAnalyses &pa) {
+  if constexpr (llvm::is_detected<has_is_invalidated, AnalysisT>::value)
+    /// Implementation of 'isInvalidated' if the analysis provides a definition.
+    return analysis.isInvalidated(pa);
+  else
+    /// Default implementation of 'isInvalidated'.
+    return !pa.isPreserved<AnalysisT>();
 }
 } // namespace analysis_impl
 
@@ -168,10 +166,10 @@ public:
 
   /// Get a cached analysis instance if one exists, otherwise return null.
   template <typename AnalysisT>
-  Optional<std::reference_wrapper<AnalysisT>> getCachedAnalysis() const {
+  std::optional<std::reference_wrapper<AnalysisT>> getCachedAnalysis() const {
     auto res = analyses.find(TypeID::get<AnalysisT>());
     if (res == analyses.end())
-      return llvm::None;
+      return std::nullopt;
     return {static_cast<AnalysisModel<AnalysisT> &>(*res->second).analysis};
   }
 
@@ -253,7 +251,7 @@ struct NestedAnalysisMap {
   /// Returns the parent analysis map for this analysis map, or null if this is
   /// the top-level map.
   const NestedAnalysisMap *getParent() const {
-    return parentOrInstrumentor.dyn_cast<NestedAnalysisMap *>();
+    return llvm::dyn_cast_if_present<NestedAnalysisMap *>(parentOrInstrumentor);
   }
 
   /// Returns a pass instrumentation object for the current operation. This
@@ -261,7 +259,7 @@ struct NestedAnalysisMap {
   PassInstrumentor *getPassInstrumentor() const {
     if (auto *parent = getParent())
       return parent->getPassInstrumentor();
-    return parentOrInstrumentor.get<PassInstrumentor *>();
+    return cast<PassInstrumentor *>(parentOrInstrumentor);
   }
 
   /// The cached analyses for nested operations.
@@ -301,7 +299,7 @@ public:
   /// Query for a cached analysis on the given parent operation. The analysis
   /// may not exist and if it does it may be out-of-date.
   template <typename AnalysisT>
-  Optional<std::reference_wrapper<AnalysisT>>
+  std::optional<std::reference_wrapper<AnalysisT>>
   getCachedParentAnalysis(Operation *parentOp) const {
     const detail::NestedAnalysisMap *curParent = impl;
     while (auto *parentAM = curParent->getParent()) {
@@ -309,7 +307,7 @@ public:
         return parentAM->analyses.getCachedAnalysis<AnalysisT>();
       curParent = parentAM;
     }
-    return None;
+    return std::nullopt;
   }
 
   /// Query for the given analysis for the current operation.
@@ -328,7 +326,7 @@ public:
 
   /// Query for a cached entry of the given analysis on the current operation.
   template <typename AnalysisT>
-  Optional<std::reference_wrapper<AnalysisT>> getCachedAnalysis() const {
+  std::optional<std::reference_wrapper<AnalysisT>> getCachedAnalysis() const {
     return impl->analyses.getCachedAnalysis<AnalysisT>();
   }
 
@@ -347,12 +345,12 @@ public:
 
   /// Query for a cached analysis of a child operation, or return null.
   template <typename AnalysisT>
-  Optional<std::reference_wrapper<AnalysisT>>
+  std::optional<std::reference_wrapper<AnalysisT>>
   getCachedChildAnalysis(Operation *op) const {
     assert(op->getParentOp() == impl->getOperation());
     auto it = impl->childAnalyses.find(op);
     if (it == impl->childAnalyses.end())
-      return llvm::None;
+      return std::nullopt;
     return it->second->analyses.getCachedAnalysis<AnalysisT>();
   }
 

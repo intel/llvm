@@ -9,6 +9,7 @@
 #ifndef MLIR_DIALECT_TENSOR_IR_TENSOR_H_
 #define MLIR_DIALECT_TENSOR_IR_TENSOR_H_
 
+#include "mlir/Bytecode/BytecodeOpInterface.h"
 #include "mlir/Dialect/Utils/ReshapeOpsUtils.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
@@ -16,6 +17,8 @@
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/Interfaces/CastInterfaces.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
+#include "mlir/Interfaces/DestinationStyleOpInterface.h"
+#include "mlir/Interfaces/InferIntRangeInterface.h"
 #include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Interfaces/ParallelCombiningOpInterface.h"
 #include "mlir/Interfaces/ShapedOpInterfaces.h"
@@ -107,9 +110,25 @@ bool canFoldIntoConsumerOp(CastOp castOp);
 /// this method provides a check that it is worth doing the canonicalization.
 bool canFoldIntoProducerOp(CastOp castOp);
 
+/// Return true if any of the operands of `op` is a CastOp that can be folded
+/// into its consumer, i.e. `op`. This is effectively a convenience wrapper for
+/// `canFoldIntoProducerOp`.
+bool hasFoldableTensorCastOperand(Operation *op);
+
+/// Assuming that `op` contains at least one operand that is a foldable CastOp
+/// (i.e. `hasFoldableTensorCastOperand` returns true), calculate the updated
+/// operands.
+SmallVector<Value>
+getUpdatedOperandsAfterCastOpFolding(DestinationStyleOpInterface op,
+                                     SmallVector<Type> &newResTy);
+
 /// Performs folding of any operand of `op` if it comes from a tensor::CastOp
 /// that can be folded.
 LogicalResult foldTensorCast(Operation *op);
+
+/// Return the dimension of the given tensor value.
+OpFoldResult getMixedSize(OpBuilder &builder, Location loc, Value value,
+                          int64_t dim);
 
 /// Return the dimensions of the given tensor value.
 SmallVector<OpFoldResult> getMixedSizes(OpBuilder &builder, Location loc,
@@ -129,10 +148,25 @@ Value createCanonicalRankReducingExtractSliceOp(OpBuilder &b, Location loc,
 Value createCanonicalRankReducingInsertSliceOp(OpBuilder &b, Location loc,
                                                Value tensor, Value dest);
 
-/// Function to control the folding of constant and extract slice
+/// This is a helper function for DestinationStyleOpInterface. If there is a
+/// destination operand for the given OpResult, return that operand. Otherwise,
+/// return an empty tensor (`tensor.empty`) with the shape of the OpResult.
+/// Dynamic dimensions are queried via ReifyRankedShapedTypeOpInterface.
+FailureOr<Value> getOrCreateDestination(OpBuilder &b, Location loc,
+                                        OpResult opResult);
+
+/// This is a helper function for DestinationStyleOpInterface. Get or create
+/// destinations for every tensor OpResult of the given op.
+LogicalResult getOrCreateDestinations(OpBuilder &b, Location loc, Operation *op,
+                                      SmallVector<Value> &result);
+
+/// Tests if types are the same when ignoring encoding on ranked tensors.
+bool isSameTypeWithoutEncoding(Type tp1, Type tp2);
+
+/// Function to control the folding of constant and extract slice.
 using ControlConstantExtractSliceFusionFn = std::function<bool(ExtractSliceOp)>;
 
-/// Patterns to fold the extract slice op with its constant operand
+/// Patterns to fold the extract slice op with its constant operand.
 void populateFoldConstantExtractSlicePatterns(
     RewritePatternSet &patterns,
     const ControlConstantExtractSliceFusionFn &controlFn =
@@ -141,6 +175,10 @@ void populateFoldConstantExtractSlicePatterns(
           // constant tensor, which would affect the compile time and storage.
           return false;
         });
+
+/// Patterns to fold extracts of a collapse_shaped tensor to an extract of the
+/// source tensor.
+void populateFoldCollapseExtractPatterns(RewritePatternSet &patterns);
 
 } // namespace tensor
 } // namespace mlir

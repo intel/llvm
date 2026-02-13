@@ -3220,9 +3220,9 @@ define <16 x i8>@test_int_x86_avx512_mask_pmov_qb_512(<8 x i64> %x0, <16 x i8> %
 ; X64-NEXT:    kmovw %edi, %k1
 ; X64-NEXT:    vpmovqb %zmm0, %xmm2
 ; X64-NEXT:    vpmovqb %zmm0, %xmm1 {%k1}
+; X64-NEXT:    vpaddb %xmm1, %xmm2, %xmm1
 ; X64-NEXT:    vpmovqb %zmm0, %xmm0 {%k1} {z}
 ; X64-NEXT:    vpaddb %xmm0, %xmm1, %xmm0
-; X64-NEXT:    vpaddb %xmm0, %xmm2, %xmm0
 ; X64-NEXT:    vzeroupper
 ; X64-NEXT:    retq
 ;
@@ -3232,9 +3232,9 @@ define <16 x i8>@test_int_x86_avx512_mask_pmov_qb_512(<8 x i64> %x0, <16 x i8> %
 ; X86-NEXT:    kmovw %eax, %k1
 ; X86-NEXT:    vpmovqb %zmm0, %xmm2
 ; X86-NEXT:    vpmovqb %zmm0, %xmm1 {%k1}
+; X86-NEXT:    vpaddb %xmm1, %xmm2, %xmm1
 ; X86-NEXT:    vpmovqb %zmm0, %xmm0 {%k1} {z}
 ; X86-NEXT:    vpaddb %xmm0, %xmm1, %xmm0
-; X86-NEXT:    vpaddb %xmm0, %xmm2, %xmm0
 ; X86-NEXT:    vzeroupper
 ; X86-NEXT:    retl
     %res0 = call <16 x i8> @llvm.x86.avx512.mask.pmov.qb.512(<8 x i64> %x0, <16 x i8> %x1, i8 -1)
@@ -3278,9 +3278,9 @@ define <16 x i8>@test_int_x86_avx512_mask_pmovs_qb_512(<8 x i64> %x0, <16 x i8> 
 ; X64-NEXT:    kmovw %edi, %k1
 ; X64-NEXT:    vpmovsqb %zmm0, %xmm2
 ; X64-NEXT:    vpmovsqb %zmm0, %xmm1 {%k1}
+; X64-NEXT:    vpaddb %xmm1, %xmm2, %xmm1
 ; X64-NEXT:    vpmovsqb %zmm0, %xmm0 {%k1} {z}
 ; X64-NEXT:    vpaddb %xmm0, %xmm1, %xmm0
-; X64-NEXT:    vpaddb %xmm0, %xmm2, %xmm0
 ; X64-NEXT:    vzeroupper
 ; X64-NEXT:    retq
 ;
@@ -3290,9 +3290,9 @@ define <16 x i8>@test_int_x86_avx512_mask_pmovs_qb_512(<8 x i64> %x0, <16 x i8> 
 ; X86-NEXT:    kmovw %eax, %k1
 ; X86-NEXT:    vpmovsqb %zmm0, %xmm2
 ; X86-NEXT:    vpmovsqb %zmm0, %xmm1 {%k1}
+; X86-NEXT:    vpaddb %xmm1, %xmm2, %xmm1
 ; X86-NEXT:    vpmovsqb %zmm0, %xmm0 {%k1} {z}
 ; X86-NEXT:    vpaddb %xmm0, %xmm1, %xmm0
-; X86-NEXT:    vpaddb %xmm0, %xmm2, %xmm0
 ; X86-NEXT:    vzeroupper
 ; X86-NEXT:    retl
     %res0 = call <16 x i8> @llvm.x86.avx512.mask.pmovs.qb.512(<8 x i64> %x0, <16 x i8> %x1, i8 -1)
@@ -3336,9 +3336,9 @@ define <16 x i8>@test_int_x86_avx512_mask_pmovus_qb_512(<8 x i64> %x0, <16 x i8>
 ; X64-NEXT:    kmovw %edi, %k1
 ; X64-NEXT:    vpmovusqb %zmm0, %xmm2
 ; X64-NEXT:    vpmovusqb %zmm0, %xmm1 {%k1}
+; X64-NEXT:    vpaddb %xmm1, %xmm2, %xmm1
 ; X64-NEXT:    vpmovusqb %zmm0, %xmm0 {%k1} {z}
 ; X64-NEXT:    vpaddb %xmm0, %xmm1, %xmm0
-; X64-NEXT:    vpaddb %xmm0, %xmm2, %xmm0
 ; X64-NEXT:    vzeroupper
 ; X64-NEXT:    retq
 ;
@@ -3348,9 +3348,9 @@ define <16 x i8>@test_int_x86_avx512_mask_pmovus_qb_512(<8 x i64> %x0, <16 x i8>
 ; X86-NEXT:    kmovw %eax, %k1
 ; X86-NEXT:    vpmovusqb %zmm0, %xmm2
 ; X86-NEXT:    vpmovusqb %zmm0, %xmm1 {%k1}
+; X86-NEXT:    vpaddb %xmm1, %xmm2, %xmm1
 ; X86-NEXT:    vpmovusqb %zmm0, %xmm0 {%k1} {z}
 ; X86-NEXT:    vpaddb %xmm0, %xmm1, %xmm0
-; X86-NEXT:    vpaddb %xmm0, %xmm2, %xmm0
 ; X86-NEXT:    vzeroupper
 ; X86-NEXT:    retl
     %res0 = call <16 x i8> @llvm.x86.avx512.mask.pmovus.qb.512(<8 x i64> %x0, <16 x i8> %x1, i8 -1)
@@ -3394,9 +3394,9 @@ define <8 x i16>@test_int_x86_avx512_mask_pmov_qw_512(<8 x i64> %x0, <8 x i16> %
 ; X64-NEXT:    kmovw %edi, %k1
 ; X64-NEXT:    vpmovqw %zmm0, %xmm2
 ; X64-NEXT:    vpmovqw %zmm0, %xmm1 {%k1}
+; X64-NEXT:    vpaddw %xmm1, %xmm2, %xmm1
 ; X64-NEXT:    vpmovqw %zmm0, %xmm0 {%k1} {z}
 ; X64-NEXT:    vpaddw %xmm0, %xmm1, %xmm0
-; X64-NEXT:    vpaddw %xmm0, %xmm2, %xmm0
 ; X64-NEXT:    vzeroupper
 ; X64-NEXT:    retq
 ;
@@ -3406,9 +3406,9 @@ define <8 x i16>@test_int_x86_avx512_mask_pmov_qw_512(<8 x i64> %x0, <8 x i16> %
 ; X86-NEXT:    kmovw %eax, %k1
 ; X86-NEXT:    vpmovqw %zmm0, %xmm2
 ; X86-NEXT:    vpmovqw %zmm0, %xmm1 {%k1}
+; X86-NEXT:    vpaddw %xmm1, %xmm2, %xmm1
 ; X86-NEXT:    vpmovqw %zmm0, %xmm0 {%k1} {z}
 ; X86-NEXT:    vpaddw %xmm0, %xmm1, %xmm0
-; X86-NEXT:    vpaddw %xmm0, %xmm2, %xmm0
 ; X86-NEXT:    vzeroupper
 ; X86-NEXT:    retl
     %res0 = call <8 x i16> @llvm.x86.avx512.mask.pmov.qw.512(<8 x i64> %x0, <8 x i16> %x1, i8 -1)
@@ -3452,9 +3452,9 @@ define <8 x i16>@test_int_x86_avx512_mask_pmovs_qw_512(<8 x i64> %x0, <8 x i16> 
 ; X64-NEXT:    kmovw %edi, %k1
 ; X64-NEXT:    vpmovsqw %zmm0, %xmm2
 ; X64-NEXT:    vpmovsqw %zmm0, %xmm1 {%k1}
+; X64-NEXT:    vpaddw %xmm1, %xmm2, %xmm1
 ; X64-NEXT:    vpmovsqw %zmm0, %xmm0 {%k1} {z}
 ; X64-NEXT:    vpaddw %xmm0, %xmm1, %xmm0
-; X64-NEXT:    vpaddw %xmm0, %xmm2, %xmm0
 ; X64-NEXT:    vzeroupper
 ; X64-NEXT:    retq
 ;
@@ -3464,9 +3464,9 @@ define <8 x i16>@test_int_x86_avx512_mask_pmovs_qw_512(<8 x i64> %x0, <8 x i16> 
 ; X86-NEXT:    kmovw %eax, %k1
 ; X86-NEXT:    vpmovsqw %zmm0, %xmm2
 ; X86-NEXT:    vpmovsqw %zmm0, %xmm1 {%k1}
+; X86-NEXT:    vpaddw %xmm1, %xmm2, %xmm1
 ; X86-NEXT:    vpmovsqw %zmm0, %xmm0 {%k1} {z}
 ; X86-NEXT:    vpaddw %xmm0, %xmm1, %xmm0
-; X86-NEXT:    vpaddw %xmm0, %xmm2, %xmm0
 ; X86-NEXT:    vzeroupper
 ; X86-NEXT:    retl
     %res0 = call <8 x i16> @llvm.x86.avx512.mask.pmovs.qw.512(<8 x i64> %x0, <8 x i16> %x1, i8 -1)
@@ -3510,9 +3510,9 @@ define <8 x i16>@test_int_x86_avx512_mask_pmovus_qw_512(<8 x i64> %x0, <8 x i16>
 ; X64-NEXT:    kmovw %edi, %k1
 ; X64-NEXT:    vpmovusqw %zmm0, %xmm2
 ; X64-NEXT:    vpmovusqw %zmm0, %xmm1 {%k1}
+; X64-NEXT:    vpaddw %xmm1, %xmm2, %xmm1
 ; X64-NEXT:    vpmovusqw %zmm0, %xmm0 {%k1} {z}
 ; X64-NEXT:    vpaddw %xmm0, %xmm1, %xmm0
-; X64-NEXT:    vpaddw %xmm0, %xmm2, %xmm0
 ; X64-NEXT:    vzeroupper
 ; X64-NEXT:    retq
 ;
@@ -3522,9 +3522,9 @@ define <8 x i16>@test_int_x86_avx512_mask_pmovus_qw_512(<8 x i64> %x0, <8 x i16>
 ; X86-NEXT:    kmovw %eax, %k1
 ; X86-NEXT:    vpmovusqw %zmm0, %xmm2
 ; X86-NEXT:    vpmovusqw %zmm0, %xmm1 {%k1}
+; X86-NEXT:    vpaddw %xmm1, %xmm2, %xmm1
 ; X86-NEXT:    vpmovusqw %zmm0, %xmm0 {%k1} {z}
 ; X86-NEXT:    vpaddw %xmm0, %xmm1, %xmm0
-; X86-NEXT:    vpaddw %xmm0, %xmm2, %xmm0
 ; X86-NEXT:    vzeroupper
 ; X86-NEXT:    retl
     %res0 = call <8 x i16> @llvm.x86.avx512.mask.pmovus.qw.512(<8 x i64> %x0, <8 x i16> %x1, i8 -1)
@@ -3786,9 +3786,9 @@ define <16 x i8>@test_int_x86_avx512_mask_pmov_db_512(<16 x i32> %x0, <16 x i8> 
 ; X64-NEXT:    kmovw %edi, %k1
 ; X64-NEXT:    vpmovdb %zmm0, %xmm2
 ; X64-NEXT:    vpmovdb %zmm0, %xmm1 {%k1}
+; X64-NEXT:    vpaddb %xmm1, %xmm2, %xmm1
 ; X64-NEXT:    vpmovdb %zmm0, %xmm0 {%k1} {z}
 ; X64-NEXT:    vpaddb %xmm0, %xmm1, %xmm0
-; X64-NEXT:    vpaddb %xmm0, %xmm2, %xmm0
 ; X64-NEXT:    vzeroupper
 ; X64-NEXT:    retq
 ;
@@ -3797,9 +3797,9 @@ define <16 x i8>@test_int_x86_avx512_mask_pmov_db_512(<16 x i32> %x0, <16 x i8> 
 ; X86-NEXT:    kmovw {{[0-9]+}}(%esp), %k1
 ; X86-NEXT:    vpmovdb %zmm0, %xmm2
 ; X86-NEXT:    vpmovdb %zmm0, %xmm1 {%k1}
+; X86-NEXT:    vpaddb %xmm1, %xmm2, %xmm1
 ; X86-NEXT:    vpmovdb %zmm0, %xmm0 {%k1} {z}
 ; X86-NEXT:    vpaddb %xmm0, %xmm1, %xmm0
-; X86-NEXT:    vpaddb %xmm0, %xmm2, %xmm0
 ; X86-NEXT:    vzeroupper
 ; X86-NEXT:    retl
     %res0 = call <16 x i8> @llvm.x86.avx512.mask.pmov.db.512(<16 x i32> %x0, <16 x i8> %x1, i16 -1)
@@ -3842,9 +3842,9 @@ define <16 x i8>@test_int_x86_avx512_mask_pmovs_db_512(<16 x i32> %x0, <16 x i8>
 ; X64-NEXT:    kmovw %edi, %k1
 ; X64-NEXT:    vpmovsdb %zmm0, %xmm2
 ; X64-NEXT:    vpmovsdb %zmm0, %xmm1 {%k1}
+; X64-NEXT:    vpaddb %xmm1, %xmm2, %xmm1
 ; X64-NEXT:    vpmovsdb %zmm0, %xmm0 {%k1} {z}
 ; X64-NEXT:    vpaddb %xmm0, %xmm1, %xmm0
-; X64-NEXT:    vpaddb %xmm0, %xmm2, %xmm0
 ; X64-NEXT:    vzeroupper
 ; X64-NEXT:    retq
 ;
@@ -3853,9 +3853,9 @@ define <16 x i8>@test_int_x86_avx512_mask_pmovs_db_512(<16 x i32> %x0, <16 x i8>
 ; X86-NEXT:    kmovw {{[0-9]+}}(%esp), %k1
 ; X86-NEXT:    vpmovsdb %zmm0, %xmm2
 ; X86-NEXT:    vpmovsdb %zmm0, %xmm1 {%k1}
+; X86-NEXT:    vpaddb %xmm1, %xmm2, %xmm1
 ; X86-NEXT:    vpmovsdb %zmm0, %xmm0 {%k1} {z}
 ; X86-NEXT:    vpaddb %xmm0, %xmm1, %xmm0
-; X86-NEXT:    vpaddb %xmm0, %xmm2, %xmm0
 ; X86-NEXT:    vzeroupper
 ; X86-NEXT:    retl
     %res0 = call <16 x i8> @llvm.x86.avx512.mask.pmovs.db.512(<16 x i32> %x0, <16 x i8> %x1, i16 -1)
@@ -3898,9 +3898,9 @@ define <16 x i8>@test_int_x86_avx512_mask_pmovus_db_512(<16 x i32> %x0, <16 x i8
 ; X64-NEXT:    kmovw %edi, %k1
 ; X64-NEXT:    vpmovusdb %zmm0, %xmm2
 ; X64-NEXT:    vpmovusdb %zmm0, %xmm1 {%k1}
+; X64-NEXT:    vpaddb %xmm1, %xmm2, %xmm1
 ; X64-NEXT:    vpmovusdb %zmm0, %xmm0 {%k1} {z}
 ; X64-NEXT:    vpaddb %xmm0, %xmm1, %xmm0
-; X64-NEXT:    vpaddb %xmm0, %xmm2, %xmm0
 ; X64-NEXT:    vzeroupper
 ; X64-NEXT:    retq
 ;
@@ -3909,9 +3909,9 @@ define <16 x i8>@test_int_x86_avx512_mask_pmovus_db_512(<16 x i32> %x0, <16 x i8
 ; X86-NEXT:    kmovw {{[0-9]+}}(%esp), %k1
 ; X86-NEXT:    vpmovusdb %zmm0, %xmm2
 ; X86-NEXT:    vpmovusdb %zmm0, %xmm1 {%k1}
+; X86-NEXT:    vpaddb %xmm1, %xmm2, %xmm1
 ; X86-NEXT:    vpmovusdb %zmm0, %xmm0 {%k1} {z}
 ; X86-NEXT:    vpaddb %xmm0, %xmm1, %xmm0
-; X86-NEXT:    vpaddb %xmm0, %xmm2, %xmm0
 ; X86-NEXT:    vzeroupper
 ; X86-NEXT:    retl
     %res0 = call <16 x i8> @llvm.x86.avx512.mask.pmovus.db.512(<16 x i32> %x0, <16 x i8> %x1, i16 -1)
@@ -3954,9 +3954,9 @@ define <16 x i16>@test_int_x86_avx512_mask_pmov_dw_512(<16 x i32> %x0, <16 x i16
 ; X64-NEXT:    kmovw %edi, %k1
 ; X64-NEXT:    vpmovdw %zmm0, %ymm2
 ; X64-NEXT:    vpmovdw %zmm0, %ymm1 {%k1}
+; X64-NEXT:    vpaddw %ymm1, %ymm2, %ymm1
 ; X64-NEXT:    vpmovdw %zmm0, %ymm0 {%k1} {z}
 ; X64-NEXT:    vpaddw %ymm0, %ymm1, %ymm0
-; X64-NEXT:    vpaddw %ymm0, %ymm2, %ymm0
 ; X64-NEXT:    retq
 ;
 ; X86-LABEL: test_int_x86_avx512_mask_pmov_dw_512:
@@ -3964,9 +3964,9 @@ define <16 x i16>@test_int_x86_avx512_mask_pmov_dw_512(<16 x i32> %x0, <16 x i16
 ; X86-NEXT:    kmovw {{[0-9]+}}(%esp), %k1
 ; X86-NEXT:    vpmovdw %zmm0, %ymm2
 ; X86-NEXT:    vpmovdw %zmm0, %ymm1 {%k1}
+; X86-NEXT:    vpaddw %ymm1, %ymm2, %ymm1
 ; X86-NEXT:    vpmovdw %zmm0, %ymm0 {%k1} {z}
 ; X86-NEXT:    vpaddw %ymm0, %ymm1, %ymm0
-; X86-NEXT:    vpaddw %ymm0, %ymm2, %ymm0
 ; X86-NEXT:    retl
     %res0 = call <16 x i16> @llvm.x86.avx512.mask.pmov.dw.512(<16 x i32> %x0, <16 x i16> %x1, i16 -1)
     %res1 = call <16 x i16> @llvm.x86.avx512.mask.pmov.dw.512(<16 x i32> %x0, <16 x i16> %x1, i16 %x2)
@@ -4008,9 +4008,9 @@ define <16 x i16>@test_int_x86_avx512_mask_pmovs_dw_512(<16 x i32> %x0, <16 x i1
 ; X64-NEXT:    kmovw %edi, %k1
 ; X64-NEXT:    vpmovsdw %zmm0, %ymm2
 ; X64-NEXT:    vpmovsdw %zmm0, %ymm1 {%k1}
+; X64-NEXT:    vpaddw %ymm1, %ymm2, %ymm1
 ; X64-NEXT:    vpmovsdw %zmm0, %ymm0 {%k1} {z}
 ; X64-NEXT:    vpaddw %ymm0, %ymm1, %ymm0
-; X64-NEXT:    vpaddw %ymm0, %ymm2, %ymm0
 ; X64-NEXT:    retq
 ;
 ; X86-LABEL: test_int_x86_avx512_mask_pmovs_dw_512:
@@ -4018,9 +4018,9 @@ define <16 x i16>@test_int_x86_avx512_mask_pmovs_dw_512(<16 x i32> %x0, <16 x i1
 ; X86-NEXT:    kmovw {{[0-9]+}}(%esp), %k1
 ; X86-NEXT:    vpmovsdw %zmm0, %ymm2
 ; X86-NEXT:    vpmovsdw %zmm0, %ymm1 {%k1}
+; X86-NEXT:    vpaddw %ymm1, %ymm2, %ymm1
 ; X86-NEXT:    vpmovsdw %zmm0, %ymm0 {%k1} {z}
 ; X86-NEXT:    vpaddw %ymm0, %ymm1, %ymm0
-; X86-NEXT:    vpaddw %ymm0, %ymm2, %ymm0
 ; X86-NEXT:    retl
     %res0 = call <16 x i16> @llvm.x86.avx512.mask.pmovs.dw.512(<16 x i32> %x0, <16 x i16> %x1, i16 -1)
     %res1 = call <16 x i16> @llvm.x86.avx512.mask.pmovs.dw.512(<16 x i32> %x0, <16 x i16> %x1, i16 %x2)
@@ -4062,9 +4062,9 @@ define <16 x i16>@test_int_x86_avx512_mask_pmovus_dw_512(<16 x i32> %x0, <16 x i
 ; X64-NEXT:    kmovw %edi, %k1
 ; X64-NEXT:    vpmovusdw %zmm0, %ymm2
 ; X64-NEXT:    vpmovusdw %zmm0, %ymm1 {%k1}
+; X64-NEXT:    vpaddw %ymm1, %ymm2, %ymm1
 ; X64-NEXT:    vpmovusdw %zmm0, %ymm0 {%k1} {z}
 ; X64-NEXT:    vpaddw %ymm0, %ymm1, %ymm0
-; X64-NEXT:    vpaddw %ymm0, %ymm2, %ymm0
 ; X64-NEXT:    retq
 ;
 ; X86-LABEL: test_int_x86_avx512_mask_pmovus_dw_512:
@@ -4072,9 +4072,9 @@ define <16 x i16>@test_int_x86_avx512_mask_pmovus_dw_512(<16 x i32> %x0, <16 x i
 ; X86-NEXT:    kmovw {{[0-9]+}}(%esp), %k1
 ; X86-NEXT:    vpmovusdw %zmm0, %ymm2
 ; X86-NEXT:    vpmovusdw %zmm0, %ymm1 {%k1}
+; X86-NEXT:    vpaddw %ymm1, %ymm2, %ymm1
 ; X86-NEXT:    vpmovusdw %zmm0, %ymm0 {%k1} {z}
 ; X86-NEXT:    vpaddw %ymm0, %ymm1, %ymm0
-; X86-NEXT:    vpaddw %ymm0, %ymm2, %ymm0
 ; X86-NEXT:    retl
     %res0 = call <16 x i16> @llvm.x86.avx512.mask.pmovus.dw.512(<16 x i32> %x0, <16 x i16> %x1, i16 -1)
     %res1 = call <16 x i16> @llvm.x86.avx512.mask.pmovus.dw.512(<16 x i32> %x0, <16 x i16> %x1, i16 %x2)
@@ -4548,9 +4548,9 @@ define i8@test_int_x86_avx512_mask_cmp_sd_all(<2 x double> %x0, <2 x double> %x1
 ; X64-NEXT:    kmovw %k0, %esi
 ; X64-NEXT:    vcmpnltsd {sae}, %xmm1, %xmm0, %k0 {%k1}
 ; X64-NEXT:    kmovw %k0, %eax
+; X64-NEXT:    orl %ecx, %edx
 ; X64-NEXT:    orl %esi, %eax
 ; X64-NEXT:    orl %edx, %eax
-; X64-NEXT:    orl %ecx, %eax
 ; X64-NEXT:    # kill: def $al killed $al killed $eax
 ; X64-NEXT:    retq
 ;
@@ -4569,9 +4569,9 @@ define i8@test_int_x86_avx512_mask_cmp_sd_all(<2 x double> %x0, <2 x double> %x1
 ; X86-NEXT:    kmovw %k0, %esi
 ; X86-NEXT:    vcmpnltsd {sae}, %xmm1, %xmm0, %k0 {%k1}
 ; X86-NEXT:    kmovw %k0, %eax
+; X86-NEXT:    orl %ecx, %edx
 ; X86-NEXT:    orl %esi, %eax
 ; X86-NEXT:    orl %edx, %eax
-; X86-NEXT:    orl %ecx, %eax
 ; X86-NEXT:    # kill: def $al killed $al killed $eax
 ; X86-NEXT:    popl %esi
 ; X86-NEXT:    .cfi_def_cfa_offset 4
@@ -4625,9 +4625,9 @@ define i8@test_int_x86_avx512_mask_cmp_ss_all(<4 x float> %x0, <4 x float> %x1, 
 ; X64-NEXT:    kmovw %k0, %esi
 ; X64-NEXT:    vcmpnltss {sae}, %xmm1, %xmm0, %k0 {%k1}
 ; X64-NEXT:    kmovw %k0, %eax
+; X64-NEXT:    andl %ecx, %edx
 ; X64-NEXT:    andl %esi, %eax
 ; X64-NEXT:    andl %edx, %eax
-; X64-NEXT:    andl %ecx, %eax
 ; X64-NEXT:    # kill: def $al killed $al killed $eax
 ; X64-NEXT:    retq
 ;
@@ -4646,9 +4646,9 @@ define i8@test_int_x86_avx512_mask_cmp_ss_all(<4 x float> %x0, <4 x float> %x1, 
 ; X86-NEXT:    kmovw %k0, %esi
 ; X86-NEXT:    vcmpnltss {sae}, %xmm1, %xmm0, %k0 {%k1}
 ; X86-NEXT:    kmovw %k0, %eax
+; X86-NEXT:    andl %ecx, %edx
 ; X86-NEXT:    andl %esi, %eax
 ; X86-NEXT:    andl %edx, %eax
-; X86-NEXT:    andl %ecx, %eax
 ; X86-NEXT:    # kill: def $al killed $al killed $eax
 ; X86-NEXT:    popl %esi
 ; X86-NEXT:    .cfi_def_cfa_offset 4
@@ -5008,7 +5008,7 @@ declare <16 x i32> @llvm.x86.avx512.pternlog.d.512(<16 x i32>, <16 x i32>, <16 x
 define <16 x i32>@test_int_x86_avx512_pternlog_d_512(<16 x i32> %x0, <16 x i32> %x1, <16 x i32> %x2) {
 ; CHECK-LABEL: test_int_x86_avx512_pternlog_d_512:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vpternlogd $33, %zmm2, %zmm1, %zmm0
+; CHECK-NEXT:    vpternlogd {{.*#+}} zmm0 = ~(zmm1 | (zmm0 ^ zmm2))
 ; CHECK-NEXT:    ret{{[l|q]}}
   %1 = call <16 x i32> @llvm.x86.avx512.pternlog.d.512(<16 x i32> %x0, <16 x i32> %x1, <16 x i32> %x2, i32 33)
   ret <16 x i32> %1
@@ -5018,13 +5018,13 @@ define <16 x i32>@test_int_x86_avx512_mask_pternlog_d_512(<16 x i32> %x0, <16 x 
 ; X64-LABEL: test_int_x86_avx512_mask_pternlog_d_512:
 ; X64:       # %bb.0:
 ; X64-NEXT:    kmovw %edi, %k1
-; X64-NEXT:    vpternlogd $33, %zmm2, %zmm1, %zmm0 {%k1}
+; X64-NEXT:    vpternlogd {{.*#+}} zmm0 {%k1} = ~(zmm1 | (zmm0 ^ zmm2))
 ; X64-NEXT:    retq
 ;
 ; X86-LABEL: test_int_x86_avx512_mask_pternlog_d_512:
 ; X86:       # %bb.0:
 ; X86-NEXT:    kmovw {{[0-9]+}}(%esp), %k1
-; X86-NEXT:    vpternlogd $33, %zmm2, %zmm1, %zmm0 {%k1}
+; X86-NEXT:    vpternlogd {{.*#+}} zmm0 {%k1} = ~(zmm1 | (zmm0 ^ zmm2))
 ; X86-NEXT:    retl
   %1 = call <16 x i32> @llvm.x86.avx512.pternlog.d.512(<16 x i32> %x0, <16 x i32> %x1, <16 x i32> %x2, i32 33)
   %2 = bitcast i16 %x4 to <16 x i1>
@@ -5036,13 +5036,13 @@ define <16 x i32>@test_int_x86_avx512_maskz_pternlog_d_512(<16 x i32> %x0, <16 x
 ; X64-LABEL: test_int_x86_avx512_maskz_pternlog_d_512:
 ; X64:       # %bb.0:
 ; X64-NEXT:    kmovw %edi, %k1
-; X64-NEXT:    vpternlogd $33, %zmm2, %zmm1, %zmm0 {%k1} {z}
+; X64-NEXT:    vpternlogd {{.*#+}} zmm0 {%k1} {z} = ~(zmm1 | (zmm0 ^ zmm2))
 ; X64-NEXT:    retq
 ;
 ; X86-LABEL: test_int_x86_avx512_maskz_pternlog_d_512:
 ; X86:       # %bb.0:
 ; X86-NEXT:    kmovw {{[0-9]+}}(%esp), %k1
-; X86-NEXT:    vpternlogd $33, %zmm2, %zmm1, %zmm0 {%k1} {z}
+; X86-NEXT:    vpternlogd {{.*#+}} zmm0 {%k1} {z} = ~(zmm1 | (zmm0 ^ zmm2))
 ; X86-NEXT:    retl
   %1 = call <16 x i32> @llvm.x86.avx512.pternlog.d.512(<16 x i32> %x0, <16 x i32> %x1, <16 x i32> %x2, i32 33)
   %2 = bitcast i16 %x4 to <16 x i1>
@@ -5055,7 +5055,7 @@ declare <8 x i64> @llvm.x86.avx512.pternlog.q.512(<8 x i64>, <8 x i64>, <8 x i64
 define <8 x i64>@test_int_x86_avx512_pternlog_q_512(<8 x i64> %x0, <8 x i64> %x1, <8 x i64> %x2) {
 ; CHECK-LABEL: test_int_x86_avx512_pternlog_q_512:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vpternlogq $33, %zmm2, %zmm1, %zmm0
+; CHECK-NEXT:    vpternlogq {{.*#+}} zmm0 = ~(zmm1 | (zmm0 ^ zmm2))
 ; CHECK-NEXT:    ret{{[l|q]}}
   %1 = call <8 x i64> @llvm.x86.avx512.pternlog.q.512(<8 x i64> %x0, <8 x i64> %x1, <8 x i64> %x2, i32 33)
   ret <8 x i64> %1
@@ -5065,14 +5065,14 @@ define <8 x i64>@test_int_x86_avx512_mask_pternlog_q_512(<8 x i64> %x0, <8 x i64
 ; X64-LABEL: test_int_x86_avx512_mask_pternlog_q_512:
 ; X64:       # %bb.0:
 ; X64-NEXT:    kmovw %edi, %k1
-; X64-NEXT:    vpternlogq $33, %zmm2, %zmm1, %zmm0 {%k1}
+; X64-NEXT:    vpternlogq {{.*#+}} zmm0 {%k1} = ~(zmm1 | (zmm0 ^ zmm2))
 ; X64-NEXT:    retq
 ;
 ; X86-LABEL: test_int_x86_avx512_mask_pternlog_q_512:
 ; X86:       # %bb.0:
 ; X86-NEXT:    movzbl {{[0-9]+}}(%esp), %eax
 ; X86-NEXT:    kmovw %eax, %k1
-; X86-NEXT:    vpternlogq $33, %zmm2, %zmm1, %zmm0 {%k1}
+; X86-NEXT:    vpternlogq {{.*#+}} zmm0 {%k1} = ~(zmm1 | (zmm0 ^ zmm2))
 ; X86-NEXT:    retl
   %1 = call <8 x i64> @llvm.x86.avx512.pternlog.q.512(<8 x i64> %x0, <8 x i64> %x1, <8 x i64> %x2, i32 33)
   %2 = bitcast i8 %x4 to <8 x i1>
@@ -5084,14 +5084,14 @@ define <8 x i64>@test_int_x86_avx512_maskz_pternlog_q_512(<8 x i64> %x0, <8 x i6
 ; X64-LABEL: test_int_x86_avx512_maskz_pternlog_q_512:
 ; X64:       # %bb.0:
 ; X64-NEXT:    kmovw %edi, %k1
-; X64-NEXT:    vpternlogq $33, %zmm2, %zmm1, %zmm0 {%k1} {z}
+; X64-NEXT:    vpternlogq {{.*#+}} zmm0 {%k1} {z} = ~(zmm1 | (zmm0 ^ zmm2))
 ; X64-NEXT:    retq
 ;
 ; X86-LABEL: test_int_x86_avx512_maskz_pternlog_q_512:
 ; X86:       # %bb.0:
 ; X86-NEXT:    movzbl {{[0-9]+}}(%esp), %eax
 ; X86-NEXT:    kmovw %eax, %k1
-; X86-NEXT:    vpternlogq $33, %zmm2, %zmm1, %zmm0 {%k1} {z}
+; X86-NEXT:    vpternlogq {{.*#+}} zmm0 {%k1} {z} = ~(zmm1 | (zmm0 ^ zmm2))
 ; X86-NEXT:    retl
   %1 = call <8 x i64> @llvm.x86.avx512.pternlog.q.512(<8 x i64> %x0, <8 x i64> %x1, <8 x i64> %x2, i32 33)
   %2 = bitcast i8 %x4 to <8 x i1>
@@ -6505,7 +6505,7 @@ define <4 x float>@test_int_x86_avx512_maskz_vfmadd_ss_rm(<4 x float> %x0, <4 x 
 ; CHECK-LABEL: test_int_x86_avx512_maskz_vfmadd_ss_rm:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    vxorps %xmm1, %xmm1, %xmm1
-; CHECK-NEXT:    vblendps {{.*#+}} xmm0 = xmm1[0],xmm0[1,2,3]
+; CHECK-NEXT:    vmovss {{.*#+}} xmm0 = xmm1[0],xmm0[1,2,3]
 ; CHECK-NEXT:    ret{{[l|q]}}
   %q = load float, ptr %ptr_b
   %vecinit.i = insertelement <4 x float> undef, float %q, i32 0
@@ -7107,18 +7107,18 @@ define <16 x i32> @test_x86_avx512_psllv_d_512(<16 x i32> %a0, <16 x i32> %a1) {
 define <16 x i32> @test_x86_avx512_psllv_d_512_const() {
 ; X64-LABEL: test_x86_avx512_psllv_d_512_const:
 ; X64:       # %bb.0:
-; X64-NEXT:    vmovdqa64 {{.*#+}} zmm0 = [2,9,0,4294967295,3,7,4294967295,0,4,5,4294967294,0,5,3,4294967293,0]
+; X64-NEXT:    vpmovsxbd {{.*#+}} zmm0 = [2,9,0,4294967295,3,7,4294967295,0,4,5,4294967294,0,5,3,4294967293,0]
 ; X64-NEXT:    vpsllvd {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %zmm0, %zmm0
-; X64-NEXT:    vmovdqa64 {{.*#+}} zmm1 = [4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4294967295]
+; X64-NEXT:    vpmovsxbd {{.*#+}} zmm1 = [4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4294967295]
 ; X64-NEXT:    vpsllvd {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %zmm1, %zmm1
 ; X64-NEXT:    vpaddd %zmm1, %zmm0, %zmm0
 ; X64-NEXT:    retq
 ;
 ; X86-LABEL: test_x86_avx512_psllv_d_512_const:
 ; X86:       # %bb.0:
-; X86-NEXT:    vmovdqa64 {{.*#+}} zmm0 = [2,9,0,4294967295,3,7,4294967295,0,4,5,4294967294,0,5,3,4294967293,0]
+; X86-NEXT:    vpmovsxbd {{.*#+}} zmm0 = [2,9,0,4294967295,3,7,4294967295,0,4,5,4294967294,0,5,3,4294967293,0]
 ; X86-NEXT:    vpsllvd {{\.?LCPI[0-9]+_[0-9]+}}, %zmm0, %zmm0
-; X86-NEXT:    vmovdqa64 {{.*#+}} zmm1 = [4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4294967295]
+; X86-NEXT:    vpmovsxbd {{.*#+}} zmm1 = [4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4294967295]
 ; X86-NEXT:    vpsllvd {{\.?LCPI[0-9]+_[0-9]+}}, %zmm1, %zmm1
 ; X86-NEXT:    vpaddd %zmm1, %zmm0, %zmm0
 ; X86-NEXT:    retl
@@ -7180,18 +7180,18 @@ define <8 x i64> @test_x86_avx512_psllv_q_512(<8 x i64> %a0, <8 x i64> %a1) {
 define <8 x i64> @test_x86_avx512_psllv_q_512_const() {
 ; X64-LABEL: test_x86_avx512_psllv_q_512_const:
 ; X64:       # %bb.0:
-; X64-NEXT:    vmovdqa64 {{.*#+}} zmm0 = [2,9,0,18446744073709551615,3,7,18446744073709551615,0]
+; X64-NEXT:    vpmovsxbq {{.*#+}} zmm0 = [2,9,0,18446744073709551615,3,7,18446744073709551615,0]
 ; X64-NEXT:    vpsllvq {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %zmm0, %zmm0
-; X64-NEXT:    vmovdqa64 {{.*#+}} zmm1 = [4,4,4,4,4,4,4,18446744073709551615]
+; X64-NEXT:    vpmovsxbq {{.*#+}} zmm1 = [4,4,4,4,4,4,4,18446744073709551615]
 ; X64-NEXT:    vpsllvq {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %zmm1, %zmm1
 ; X64-NEXT:    vpaddq %zmm1, %zmm0, %zmm0
 ; X64-NEXT:    retq
 ;
 ; X86-LABEL: test_x86_avx512_psllv_q_512_const:
 ; X86:       # %bb.0:
-; X86-NEXT:    vmovdqa64 {{.*#+}} zmm0 = [2,0,9,0,0,0,4294967295,4294967295,3,0,7,0,4294967295,4294967295,0,0]
+; X86-NEXT:    vpmovsxbq {{.*#+}} zmm0 = [2,9,0,18446744073709551615,3,7,18446744073709551615,0]
 ; X86-NEXT:    vpsllvq {{\.?LCPI[0-9]+_[0-9]+}}, %zmm0, %zmm0
-; X86-NEXT:    vmovdqa64 {{.*#+}} zmm1 = [4,0,4,0,4,0,4,0,4,0,4,0,4,0,4294967295,4294967295]
+; X86-NEXT:    vpmovsxbq {{.*#+}} zmm1 = [4,4,4,4,4,4,4,18446744073709551615]
 ; X86-NEXT:    vpsllvq {{\.?LCPI[0-9]+_[0-9]+}}, %zmm1, %zmm1
 ; X86-NEXT:    vpaddq %zmm1, %zmm0, %zmm0
 ; X86-NEXT:    retl
@@ -7355,18 +7355,18 @@ define <16 x i32> @test_x86_avx512_psrlv_d_512(<16 x i32> %a0, <16 x i32> %a1) {
 define <16 x i32> @test_x86_avx512_psrlv_d_512_const() {
 ; X64-LABEL: test_x86_avx512_psrlv_d_512_const:
 ; X64:       # %bb.0:
-; X64-NEXT:    vmovdqa64 {{.*#+}} zmm0 = [2,9,0,4294967295,3,7,4294967295,0,4,5,4294967294,0,5,3,4294967293,0]
+; X64-NEXT:    vpmovsxbd {{.*#+}} zmm0 = [2,9,0,4294967295,3,7,4294967295,0,4,5,4294967294,0,5,3,4294967293,0]
 ; X64-NEXT:    vpsrlvd {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %zmm0, %zmm0
-; X64-NEXT:    vmovdqa64 {{.*#+}} zmm1 = [4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4294967295]
+; X64-NEXT:    vpmovsxbd {{.*#+}} zmm1 = [4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4294967295]
 ; X64-NEXT:    vpsrlvd {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %zmm1, %zmm1
 ; X64-NEXT:    vpaddd %zmm1, %zmm0, %zmm0
 ; X64-NEXT:    retq
 ;
 ; X86-LABEL: test_x86_avx512_psrlv_d_512_const:
 ; X86:       # %bb.0:
-; X86-NEXT:    vmovdqa64 {{.*#+}} zmm0 = [2,9,0,4294967295,3,7,4294967295,0,4,5,4294967294,0,5,3,4294967293,0]
+; X86-NEXT:    vpmovsxbd {{.*#+}} zmm0 = [2,9,0,4294967295,3,7,4294967295,0,4,5,4294967294,0,5,3,4294967293,0]
 ; X86-NEXT:    vpsrlvd {{\.?LCPI[0-9]+_[0-9]+}}, %zmm0, %zmm0
-; X86-NEXT:    vmovdqa64 {{.*#+}} zmm1 = [4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4294967295]
+; X86-NEXT:    vpmovsxbd {{.*#+}} zmm1 = [4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4294967295]
 ; X86-NEXT:    vpsrlvd {{\.?LCPI[0-9]+_[0-9]+}}, %zmm1, %zmm1
 ; X86-NEXT:    vpaddd %zmm1, %zmm0, %zmm0
 ; X86-NEXT:    retl
@@ -7428,18 +7428,18 @@ define <8 x i64> @test_x86_avx512_psrlv_q_512(<8 x i64> %a0, <8 x i64> %a1) {
 define <8 x i64> @test_x86_avx512_psrlv_q_512_const() {
 ; X64-LABEL: test_x86_avx512_psrlv_q_512_const:
 ; X64:       # %bb.0:
-; X64-NEXT:    vmovdqa64 {{.*#+}} zmm0 = [2,9,0,18446744073709551615,3,7,18446744073709551615,0]
+; X64-NEXT:    vpmovsxbq {{.*#+}} zmm0 = [2,9,0,18446744073709551615,3,7,18446744073709551615,0]
 ; X64-NEXT:    vpsrlvq {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %zmm0, %zmm0
-; X64-NEXT:    vmovdqa64 {{.*#+}} zmm1 = [4,4,4,4,4,4,4,18446744073709551615]
+; X64-NEXT:    vpmovsxbq {{.*#+}} zmm1 = [4,4,4,4,4,4,4,18446744073709551615]
 ; X64-NEXT:    vpsrlvq {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %zmm1, %zmm1
 ; X64-NEXT:    vpaddq %zmm1, %zmm0, %zmm0
 ; X64-NEXT:    retq
 ;
 ; X86-LABEL: test_x86_avx512_psrlv_q_512_const:
 ; X86:       # %bb.0:
-; X86-NEXT:    vmovdqa64 {{.*#+}} zmm0 = [2,0,9,0,0,0,4294967295,4294967295,3,0,7,0,4294967295,4294967295,0,0]
+; X86-NEXT:    vpmovsxbq {{.*#+}} zmm0 = [2,9,0,18446744073709551615,3,7,18446744073709551615,0]
 ; X86-NEXT:    vpsrlvq {{\.?LCPI[0-9]+_[0-9]+}}, %zmm0, %zmm0
-; X86-NEXT:    vmovdqa64 {{.*#+}} zmm1 = [4,0,4,0,4,0,4,0,4,0,4,0,4,0,4294967295,4294967295]
+; X86-NEXT:    vpmovsxbq {{.*#+}} zmm1 = [4,4,4,4,4,4,4,18446744073709551615]
 ; X86-NEXT:    vpsrlvq {{\.?LCPI[0-9]+_[0-9]+}}, %zmm1, %zmm1
 ; X86-NEXT:    vpaddq %zmm1, %zmm0, %zmm0
 ; X86-NEXT:    retl
@@ -7495,10 +7495,7 @@ declare <8 x i64> @llvm.x86.avx512.psrlv.q.512(<8 x i64>, <8 x i64>) nounwind re
 define <8 x double> @test_mm256_castpd128_pd256_freeze(<2 x double> %a0) nounwind {
 ; CHECK-LABEL: test_mm256_castpd128_pd256_freeze:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    # kill: def $xmm0 killed $xmm0 def $ymm0
-; CHECK-NEXT:    vinsertf128 $1, %xmm0, %ymm0, %ymm1
-; CHECK-NEXT:    vinsertf128 $1, %xmm0, %ymm0, %ymm0
-; CHECK-NEXT:    vinsertf64x4 $1, %ymm1, %zmm0, %zmm0
+; CHECK-NEXT:    vmovaps %xmm0, %xmm0
 ; CHECK-NEXT:    ret{{[l|q]}}
   %a1 = freeze <2 x double> poison
   %res = shufflevector <2 x double> %a0, <2 x double> %a1, <8 x i32> <i32 0, i32 1, i32 2, i32 3, i32 2, i32 3, i32 2, i32 3>
@@ -7520,10 +7517,7 @@ define <8 x double> @test_mm256_castpd256_pd256_freeze(<4 x double> %a0) nounwin
 define <16 x float> @test_mm256_castps128_ps512_freeze(<4 x float> %a0) nounwind {
 ; CHECK-LABEL: test_mm256_castps128_ps512_freeze:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    # kill: def $xmm0 killed $xmm0 def $ymm0
-; CHECK-NEXT:    vinsertf128 $1, %xmm0, %ymm0, %ymm1
-; CHECK-NEXT:    vinsertf128 $1, %xmm0, %ymm0, %ymm0
-; CHECK-NEXT:    vinsertf64x4 $1, %ymm1, %zmm0, %zmm0
+; CHECK-NEXT:    vmovaps %xmm0, %xmm0
 ; CHECK-NEXT:    ret{{[l|q]}}
   %a1 = freeze <4 x float> poison
   %res = shufflevector <4 x float> %a0, <4 x float> %a1, <16x i32> <i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 4, i32 5, i32 6, i32 7, i32 4, i32 5, i32 6, i32 7>
@@ -7545,10 +7539,7 @@ define <16 x float> @test_mm256_castps256_ps512_freeze(<8 x float> %a0) nounwind
 define <8 x i64> @test_mm512_castsi128_si512_freeze(<2 x i64> %a0) nounwind {
 ; CHECK-LABEL: test_mm512_castsi128_si512_freeze:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    # kill: def $xmm0 killed $xmm0 def $ymm0
-; CHECK-NEXT:    vinsertf128 $1, %xmm0, %ymm0, %ymm1
-; CHECK-NEXT:    vinsertf128 $1, %xmm0, %ymm0, %ymm0
-; CHECK-NEXT:    vinsertf64x4 $1, %ymm1, %zmm0, %zmm0
+; CHECK-NEXT:    vmovaps %xmm0, %xmm0
 ; CHECK-NEXT:    ret{{[l|q]}}
   %a1 = freeze <2 x i64> poison
   %res = shufflevector <2 x i64> %a0, <2 x i64> %a1, <8 x i32> <i32 0, i32 1, i32 2, i32 3, i32 2, i32 3, i32 2, i32 3>

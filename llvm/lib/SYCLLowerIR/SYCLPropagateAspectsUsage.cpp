@@ -32,11 +32,13 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Path.h"
 
 #include <queue>
@@ -44,6 +46,17 @@
 #include <unordered_set>
 
 using namespace llvm;
+
+static cl::opt<std::string> ClSyclFixedTargets(
+    "sycl-propagate-aspects-usage-fixed-targets",
+    cl::desc("Specify target device(s) all device code in the translation unit "
+             "is expected to be runnable on"),
+    cl::Hidden, cl::init(""));
+
+static cl::opt<std::string> ClSyclExcludeAspects(
+    "sycl-propagate-aspects-usage-exclude-aspects",
+    cl::desc("Specify aspects to exclude when propagating aspect usage"),
+    cl::Hidden, cl::init(""));
 
 namespace {
 
@@ -212,6 +225,86 @@ const AspectsSetTy &getAspectsFromType(const Type *T,
   return Result;
 }
 
+/// Utility function to identify FP64 conversion instruction
+bool isFP64ConversionInstruction(const Instruction &I) {
+  switch (I.getOpcode()) {
+  default:
+    return false;
+  case Instruction::Alloca:
+  case Instruction::GetElementPtr:
+  case Instruction::Load:
+  case Instruction::Store:
+  case Instruction::FPExt:
+  case Instruction::FPTrunc:
+  case Instruction::SIToFP:
+  case Instruction::UIToFP:
+  case Instruction::FPToUI:
+  case Instruction::FPToSI:
+  case Instruction::FCmp:
+  case Instruction::PHI:
+  case Instruction::ExtractValue:
+  case Instruction::InsertValue:
+  case Instruction::Ret:
+    return true;
+  // In case of call instructions, we check if the definition of the called
+  // function is present inside the current module. If present, we conclude
+  // that the call instruction does not require FP64 computations and return
+  // 'true'. Otherwise, we return 'false'.
+  // In case of memory intrinsics, FP64 computations are not required and we
+  // return 'true'.
+  // TODO: Identify other cases similar to memory intrinsics.
+  // TODO: Try to handle FP64 usage in call instructions in sycl-post-link.
+  case Instruction::Call:
+    if (cast<CallInst>(&I)->getCalledFunction()->isDeclaration())
+      return isa<MemIntrinsic>(&I);
+    else
+      return true;
+  }
+}
+
+/// Returns 'true' if Type has double type
+bool hasDoubleType(const Type *T) {
+  if (T->isDoubleTy())
+    return true;
+  for (const Type *TT : T->subtypes())
+    if (hasDoubleType(TT))
+      return true;
+  return false;
+}
+
+/// Returns 'true' if Instruction has double type
+bool hasDoubleType(const Instruction &I) {
+  const Type *ReturnType = I.getType();
+  if (auto *AI = dyn_cast<const AllocaInst>(&I)) {
+    // Return type of an alloca is a pointer and in opaque pointers world we
+    // don't know which type it points to. Therefore, explicitly checking the
+    // allocated type instead
+    ReturnType = AI->getAllocatedType();
+  }
+  if (hasDoubleType(ReturnType))
+    return true;
+  for (const auto &OperandIt : I.operands()) {
+    if (const auto *GV =
+            dyn_cast<const GlobalValue>(OperandIt->stripPointerCasts())) {
+      if (hasDoubleType(GV->getValueType()))
+        return true;
+    } else {
+      if (hasDoubleType(OperandIt->getType()))
+        return true;
+    }
+  }
+
+  // Opaque pointer arguments may hide types of pointer arguments until elements
+  // inside the types are accessed through a GEP instruction. However, this will
+  // not be caught by the operands check above, so we must extract the
+  // information directly from the GEP.
+  if (auto *GEPI = dyn_cast<const GetElementPtrInst>(&I))
+    if (hasDoubleType(GEPI->getSourceElementType()))
+      return true;
+
+  return false;
+}
+
 /// Returns aspects which might be used in instruction @I.
 /// Function inspects return type and all operand's types.
 /// NB! This function inserts new records in @Types map for new discovered
@@ -226,10 +319,30 @@ AspectsSetTy getAspectsUsedByInstruction(const Instruction &I,
     ReturnType = AI->getAllocatedType();
   }
   AspectsSetTy Result = getAspectsFromType(ReturnType, Types);
-  for (const auto &OperandIt : I.operands()) {
-    const AspectsSetTy &Aspects =
-        getAspectsFromType(OperandIt->getType(), Types);
+  auto AddAspectsFromType = [&](Type *Ty) {
+    const AspectsSetTy &Aspects = getAspectsFromType(Ty, Types);
     Result.insert(Aspects.begin(), Aspects.end());
+  };
+  for (const auto &OperandIt : I.operands()) {
+    if (const auto *GV =
+            dyn_cast<const GlobalValue>(OperandIt->stripPointerCasts()))
+      AddAspectsFromType(GV->getValueType());
+    else
+      AddAspectsFromType(OperandIt->getType());
+  }
+
+  // Opaque pointer arguments may hide types of pointer arguments until elements
+  // inside the types are accessed through a GEP instruction. However, this will
+  // not be caught by the operands check above, so we must extract the
+  // information directly from the GEP.
+  if (auto *GEPI = dyn_cast<const GetElementPtrInst>(&I))
+    AddAspectsFromType(GEPI->getSourceElementType());
+
+  if (const MDNode *InstApsects = I.getMetadata("sycl_used_aspects")) {
+    for (const MDOperand &MDOp : InstApsects->operands()) {
+      const Constant *C = cast<ConstantAsMetadata>(MDOp)->getValue();
+      Result.insert(cast<ConstantInt>(C)->getSExtValue());
+    }
   }
 
   return Result;
@@ -238,20 +351,163 @@ AspectsSetTy getAspectsUsedByInstruction(const Instruction &I,
 using FunctionToAspectsMapTy = DenseMap<Function *, AspectsSetTy>;
 using CallGraphTy = DenseMap<Function *, SmallPtrSet<Function *, 8>>;
 
-void createUsedAspectsMetadataForFunctions(FunctionToAspectsMapTy &Map) {
-  for (auto &[F, Aspects] : Map) {
-    if (Aspects.empty())
+// Finds the first function in a list that uses a given aspect. Returns nullptr
+// if none of the functions satisfy the criteria.
+Function *findFirstAspectUsageCallee(
+    const SmallPtrSetImpl<Function *> &Callees,
+    const FunctionToAspectsMapTy &AspectsMap, int Aspect,
+    SmallPtrSetImpl<const Function *> *Visited = nullptr) {
+  for (Function *Callee : Callees) {
+    if (Visited && !Visited->insert(Callee).second)
       continue;
 
+    auto AspectIt = AspectsMap.find(Callee);
+    if (AspectIt != AspectsMap.end() && AspectIt->second.contains(Aspect))
+      return Callee;
+  }
+  return nullptr;
+}
+
+// Constructs an aspect usage chain for a given aspect from the function to the
+// last callee in the first found chain.
+void constructAspectUsageChain(const Function *F,
+                               const FunctionToAspectsMapTy &AspectsMap,
+                               const CallGraphTy &CG, int Aspect,
+                               SmallVectorImpl<Function *> &CallChain,
+                               SmallPtrSetImpl<const Function *> &Visited) {
+  const auto EdgeIt = CG.find(F);
+  if (EdgeIt == CG.end())
+    return;
+
+  if (Function *AspectUsingCallee = findFirstAspectUsageCallee(
+          EdgeIt->second, AspectsMap, Aspect, &Visited)) {
+    CallChain.push_back(AspectUsingCallee);
+    constructAspectUsageChain(AspectUsingCallee, AspectsMap, CG, Aspect,
+                              CallChain, Visited);
+  }
+}
+
+// Simplified function for getting the call chain of a given function. See
+// constructAspectUsageChain.
+SmallVector<Function *, 8>
+getAspectUsageChain(const Function *F, const FunctionToAspectsMapTy &AspectsMap,
+                    const CallGraphTy &CG, int Aspect) {
+  SmallVector<Function *, 8> CallChain;
+  SmallPtrSet<const Function *, 16> Visited;
+  constructAspectUsageChain(F, AspectsMap, CG, Aspect, CallChain, Visited);
+  return CallChain;
+}
+
+void createUsedAspectsMetadataForFunctions(
+    FunctionToAspectsMapTy &FunctionToUsedAspects,
+    FunctionToAspectsMapTy &FunctionToDeclaredAspects,
+    const AspectsSetTy &ExcludeAspectVals) {
+  for (auto &[F, Aspects] : FunctionToUsedAspects) {
     LLVMContext &C = F->getContext();
 
+    // Create a set of unique aspects. First we add the ones from the found
+    // aspects that have not been excluded.
+    AspectsSetTy UniqueAspects;
+    for (const int &A : Aspects)
+      if (!ExcludeAspectVals.contains(A))
+        UniqueAspects.insert(A);
+
+    // The aspects that were propagated via declared aspects are always
+    // added to the metadata.
+    for (const int &A : FunctionToDeclaredAspects[F])
+      UniqueAspects.insert(A);
+
+    // If there are no new aspects, we can just keep the old metadata.
+    if (UniqueAspects.empty())
+      continue;
+
+    // If there is new metadata, merge it with the old aspects. We preserve
+    // the excluded ones.
+    if (const MDNode *ExistingAspects = F->getMetadata("sycl_used_aspects")) {
+      for (const MDOperand &MDOp : ExistingAspects->operands()) {
+        const Constant *C = cast<ConstantAsMetadata>(MDOp)->getValue();
+        UniqueAspects.insert(cast<ConstantInt>(C)->getSExtValue());
+      }
+    }
+
+    // Create new metadata.
     SmallVector<Metadata *, 16> AspectsMetadata;
-    for (const auto &A : Aspects)
+    for (const int &A : UniqueAspects)
       AspectsMetadata.push_back(ConstantAsMetadata::get(
           ConstantInt::getSigned(Type::getInt32Ty(C), A)));
 
     MDNode *MDN = MDNode::get(C, AspectsMetadata);
     F->setMetadata("sycl_used_aspects", MDN);
+  }
+}
+
+/// Checks that all aspects determined to be used by a given function are in
+/// that function's sycl_declared_aspects metadata if present. A warning
+/// diagnostic is produced for each aspect this check fails for.
+void validateUsedAspectsForFunctions(const FunctionToAspectsMapTy &Map,
+                                     const AspectValueToNameMapTy &AspectValues,
+                                     const std::vector<Function *> &EntryPoints,
+                                     const CallGraphTy &CG) {
+  for (auto &It : Map) {
+    const AspectsSetTy &Aspects = It.second;
+    if (Aspects.empty())
+      continue;
+
+    Function *F = It.first;
+    AspectsSetTy DeviceHasAspectSet;
+    bool OriginatedFromAttribute = true;
+    if (const MDNode *DeviceHasMD = F->getMetadata("sycl_declared_aspects")) {
+      // Entry points will have their declared aspects from their kernel call.
+      // To avoid double warnings, we skip them.
+      if (is_contained(EntryPoints, F))
+        continue;
+      for (const MDOperand &DeviceHasMDOp : DeviceHasMD->operands()) {
+        const auto *CAM = cast<ConstantAsMetadata>(DeviceHasMDOp);
+        const Constant *C = CAM->getValue();
+        DeviceHasAspectSet.insert(cast<ConstantInt>(C)->getSExtValue());
+      }
+      OriginatedFromAttribute = true;
+    } else if (F->hasFnAttribute("sycl-device-has")) {
+      Attribute DeviceHasAttr = F->getFnAttribute("sycl-device-has");
+      SmallVector<StringRef, 4> AspectValStrs;
+      DeviceHasAttr.getValueAsString().split(
+          AspectValStrs, ',', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+      for (StringRef AspectValStr : AspectValStrs) {
+        int AspectVal = -1;
+        bool AspectValStrConverted = !AspectValStr.getAsInteger(10, AspectVal);
+        // Avoid unused warning when asserts are disabled.
+        std::ignore = AspectValStrConverted;
+        assert(AspectValStrConverted &&
+               "Aspect value in sycl-device-has is not an integer.");
+        DeviceHasAspectSet.insert(AspectVal);
+      }
+      OriginatedFromAttribute = false;
+    } else {
+      continue;
+    }
+
+    for (int Aspect : Aspects) {
+      if (!DeviceHasAspectSet.contains(Aspect)) {
+        auto AspectNameIt = std::find_if(
+            AspectValues.begin(), AspectValues.end(),
+            [=](auto AspectIt) { return Aspect == AspectIt.second; });
+        assert(AspectNameIt != AspectValues.end() &&
+               "Used aspect is not part of the existing aspects");
+        // We may encounter an entry point when using the device_has property.
+        // In this case we act like the usage came from the first callee to
+        // avoid repeat warnings on the same line.
+        Function *AdjustedOriginF =
+            is_contained(EntryPoints, F)
+                ? findFirstAspectUsageCallee(CG.find(F)->second, Map, Aspect)
+                : F;
+        assert(AdjustedOriginF &&
+               "Adjusted function pointer for aspect usage is null");
+        SmallVector<Function *, 8> CallChain =
+            getAspectUsageChain(AdjustedOriginF, Map, CG, Aspect);
+        diagnoseAspectsMismatch(AdjustedOriginF, CallChain, AspectNameIt->first,
+                                OriginatedFromAttribute);
+      }
+    }
   }
 }
 
@@ -282,39 +538,57 @@ void propagateAspectsThroughCG(Function *F, CallGraphTy &CG,
 ///  - checks if return and argument types are using any aspects
 ///  - checks if instructions are using any aspects
 ///  - updates call graph information
-///  - checks if function has "!sycl_used_aspects" metadata
-///
-void processFunction(Function &F, FunctionToAspectsMapTy &FunctionToAspects,
-                     TypeToAspectsMapTy &TypesWithAspects, CallGraphTy &CG) {
+///  - checks if function has "!sycl_used_aspects" and "!sycl_declared_aspects"
+/// metadata and if so collects aspects from this metadata
+void processFunction(Function &F, FunctionToAspectsMapTy &FunctionToUsedAspects,
+                     FunctionToAspectsMapTy &FunctionToDeclaredAspects,
+                     TypeToAspectsMapTy &TypesWithAspects, CallGraphTy &CG,
+                     const AspectValueToNameMapTy &AspectValues,
+                     bool FP64ConvEmu) {
+  auto FP64AspectIt = AspectValues.find("fp64");
+  assert(FP64AspectIt != AspectValues.end() &&
+         "fp64 aspect was not found in the aspect values.");
+  auto FP64Aspect = FP64AspectIt->second;
   const AspectsSetTy RetTyAspects =
       getAspectsFromType(F.getReturnType(), TypesWithAspects);
-  FunctionToAspects[&F].insert(RetTyAspects.begin(), RetTyAspects.end());
+  for (const auto &Aspect : RetTyAspects)
+    if (!FP64ConvEmu || (Aspect != FP64Aspect) ||
+        !hasDoubleType(F.getReturnType()))
+      FunctionToUsedAspects[&F].insert(Aspect);
   for (Argument &Arg : F.args()) {
     const AspectsSetTy ArgAspects =
         getAspectsFromType(Arg.getType(), TypesWithAspects);
-    FunctionToAspects[&F].insert(ArgAspects.begin(), ArgAspects.end());
+    for (const auto &Aspect : ArgAspects)
+      if (!FP64ConvEmu || (Aspect != FP64Aspect) ||
+          !hasDoubleType(Arg.getType()))
+        FunctionToUsedAspects[&F].insert(Aspect);
   }
 
   for (Instruction &I : instructions(F)) {
     const AspectsSetTy Aspects =
         getAspectsUsedByInstruction(I, TypesWithAspects);
-    FunctionToAspects[&F].insert(Aspects.begin(), Aspects.end());
-
+    for (const auto &Aspect : Aspects)
+      if (!FP64ConvEmu || (Aspect != FP64Aspect) || !hasDoubleType(I) ||
+          !isFP64ConversionInstruction(I))
+        FunctionToUsedAspects[&F].insert(Aspect);
     if (const auto *CI = dyn_cast<CallInst>(&I)) {
       if (!CI->isIndirectCall() && CI->getCalledFunction())
         CG[&F].insert(CI->getCalledFunction());
     }
   }
 
-  if (F.hasMetadata("sycl_used_aspects")) {
-    const MDNode *MD = F.getMetadata("sycl_used_aspects");
-    AspectsSetTy Aspects;
-    for (const MDOperand &Op : MD->operands()) {
-      Constant *C = cast<ConstantAsMetadata>(Op.get())->getValue();
-      Aspects.insert(cast<ConstantInt>(C)->getSExtValue());
+  auto CollectAspectsFromMD = [&F](const char* MDName, FunctionToAspectsMapTy &Map) {
+    if (const MDNode *MD = F.getMetadata(MDName)) {
+      AspectsSetTy Aspects;
+      for (const MDOperand &Op : MD->operands()) {
+        Constant *C = cast<ConstantAsMetadata>(Op.get())->getValue();
+        Aspects.insert(cast<ConstantInt>(C)->getSExtValue());
+      }
+      Map[&F].insert(Aspects.begin(), Aspects.end());
     }
-    FunctionToAspects[&F].insert(Aspects.begin(), Aspects.end());
-  }
+  };
+  CollectAspectsFromMD("sycl_used_aspects", FunctionToUsedAspects);
+  CollectAspectsFromMD("sycl_declared_aspects", FunctionToDeclaredAspects);
 }
 
 // Return true if the function is a SPIRV or SYCL builtin, e.g.
@@ -328,7 +602,7 @@ bool isSpirvSyclBuiltin(StringRef FName) {
   // now skip the digits
   FName = FName.drop_while([](char C) { return std::isdigit(C); });
 
-  return FName.startswith("__spirv_") || FName.startswith("__sycl_");
+  return FName.starts_with("__spirv_") || FName.starts_with("__sycl_");
 }
 
 bool isEntryPoint(const Function &F) {
@@ -348,27 +622,100 @@ bool isEntryPoint(const Function &F) {
   return F.hasFnAttribute("sycl-module-id") && !isSpirvSyclBuiltin(F.getName());
 }
 
+void setSyclFixedTargetsMD(const std::vector<Function *> &EntryPoints,
+                           const SmallVector<StringRef, 8> &Targets,
+                           AspectValueToNameMapTy &AspectValues) {
+  if (EntryPoints.empty())
+    return;
+
+  SmallVector<Metadata *, 8> TargetsMD;
+  LLVMContext &C = EntryPoints[0]->getContext();
+
+  for (const auto &Target : Targets) {
+    if (!Target.empty()) {
+      auto AspectIt = AspectValues.find(Target);
+      if (AspectIt != AspectValues.end()) {
+        auto ConstIntTarget =
+            ConstantInt::getSigned(Type::getInt32Ty(C), AspectIt->second);
+        TargetsMD.push_back(ConstantAsMetadata::get(ConstIntTarget));
+      }
+    }
+  }
+
+  MDNode *MDN = MDNode::get(C, TargetsMD);
+  for (Function *F : EntryPoints)
+    F->setMetadata("sycl_fixed_targets", MDN);
+}
+
+void collectVirtualFunctionSetInfo(
+    Function &F, StringMap<SmallVector<Function *, 4>> &VirtualFunctionSets) {
+  if (!F.hasFnAttribute("indirectly-callable"))
+    return;
+  Attribute IndirectlyCallableAttr = F.getFnAttribute("indirectly-callable");
+  StringRef SetName = IndirectlyCallableAttr.getValueAsString();
+  VirtualFunctionSets[SetName].push_back(&F);
+}
+
+// For each set S of virtual functions that F declares,
+// propagate S through the CG and then add the aspects
+// used by S to F.
+void processDeclaredVirtualFunctionSets(
+    Function *F, CallGraphTy &CG, FunctionToAspectsMapTy &AspectsMap,
+    SmallPtrSet<const Function *, 16> &Visited,
+    StringMap<SmallVector<Function *, 4>> &VirtualFunctionSets) {
+  if (!F->hasFnAttribute("calls-indirectly"))
+    return;
+  Attribute CallsIndirectlyAttr = F->getFnAttribute("calls-indirectly");
+  SmallVector<StringRef, 4> DeclaredVirtualFunctionSetNames;
+  CallsIndirectlyAttr.getValueAsString().split(DeclaredVirtualFunctionSetNames,
+                                               ",");
+  auto &AspectsF = AspectsMap[F];
+  for (auto Name : DeclaredVirtualFunctionSetNames) {
+    for (auto VFn : VirtualFunctionSets[Name]) {
+      propagateAspectsThroughCG(VFn, CG, AspectsMap, Visited);
+      for (auto Aspect : AspectsMap[VFn])
+        AspectsF.insert(Aspect);
+    }
+  }
+}
+
 /// Returns a map of functions with corresponding used aspects.
-FunctionToAspectsMapTy
-buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects) {
-  FunctionToAspectsMapTy FunctionToAspects;
+std::pair<FunctionToAspectsMapTy, FunctionToAspectsMapTy>
+buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects,
+                           const AspectValueToNameMapTy &AspectValues,
+                           const std::vector<Function *> &EntryPoints,
+                           bool ValidateAspects, bool FP64ConvEmu) {
+  FunctionToAspectsMapTy FunctionToUsedAspects;
+  FunctionToAspectsMapTy FunctionToDeclaredAspects;
+  StringMap<SmallVector<Function *, 4>> VirtualFunctionSets;
   CallGraphTy CG;
-  std::vector<Function *> EntryPoints;
+
   for (Function &F : M.functions()) {
-    if (F.isDeclaration())
-      continue;
-
-    if (isEntryPoint(F))
-      EntryPoints.push_back(&F);
-
-    processFunction(F, FunctionToAspects, TypesWithAspects, CG);
+    processFunction(F, FunctionToUsedAspects, FunctionToDeclaredAspects,
+                    TypesWithAspects, CG, AspectValues, FP64ConvEmu);
+    collectVirtualFunctionSetInfo(F, VirtualFunctionSets);
   }
 
   SmallPtrSet<const Function *, 16> Visited;
-  for (Function *F : EntryPoints)
-    propagateAspectsThroughCG(F, CG, FunctionToAspects, Visited);
+  for (Function *F : EntryPoints) {
+    propagateAspectsThroughCG(F, CG, FunctionToUsedAspects, Visited);
+    processDeclaredVirtualFunctionSets(F, CG, FunctionToUsedAspects, Visited,
+                                       VirtualFunctionSets);
+  }
 
-  return FunctionToAspects;
+  if (ValidateAspects)
+    validateUsedAspectsForFunctions(FunctionToUsedAspects, AspectValues,
+                                    EntryPoints, CG);
+
+  // The set of aspects from FunctionToDeclaredAspects should be merged to the
+  // set of FunctionToUsedAspects after validateUsedAspectsForFunctions call to
+  // avoid errors during validation.
+  Visited.clear();
+  for (Function *F : EntryPoints)
+    propagateAspectsThroughCG(F, CG, FunctionToDeclaredAspects, Visited);
+
+  return {std::move(FunctionToUsedAspects),
+          std::move(FunctionToDeclaredAspects)};
 }
 
 } // anonymous namespace
@@ -388,14 +735,41 @@ SYCLPropagateAspectsUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
     return PreservedAnalyses::all();
   }
 
+  if (ClSyclFixedTargets.getNumOccurrences() > 0)
+    StringRef(ClSyclFixedTargets)
+        .split(TargetFixedAspects, ',', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+
+  if (ClSyclExcludeAspects.getNumOccurrences() > 0) {
+    SmallVector<StringRef, 4> ExcludedAspectsVec;
+    StringRef(ClSyclExcludeAspects)
+        .split(ExcludedAspectsVec, ',', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+    ExcludedAspects.insert(ExcludedAspectsVec.begin(),
+                           ExcludedAspectsVec.end());
+  }
+
+  std::vector<Function *> EntryPoints;
+  for (Function &F : M.functions())
+    if (isEntryPoint(F))
+      EntryPoints.push_back(&F);
+
   propagateAspectsToOtherTypesInModule(M, TypesWithAspects, AspectValues);
 
-  FunctionToAspectsMapTy FunctionToAspects =
-      buildFunctionsToAspectsMap(M, TypesWithAspects);
+  auto [FunctionToUsedAspects, FunctionToDeclaredAspects] =
+      buildFunctionsToAspectsMap(M, TypesWithAspects, AspectValues, EntryPoints,
+                                 ValidateAspectUsage, FP64ConvEmu);
 
-  createUsedAspectsMetadataForFunctions(FunctionToAspects);
-  // FIXME: check and diagnose if a function uses an aspect which was not
-  // declared through [[sycl::device_has()]] attribute
+  // Create a set of excluded aspect values.
+  AspectsSetTy ExcludedAspectVals;
+  for (const StringRef &AspectName : ExcludedAspects) {
+    const auto AspectValIter = AspectValues.find(AspectName);
+    assert(AspectValIter != AspectValues.end() &&
+           "Excluded aspect does not have a corresponding value.");
+    ExcludedAspectVals.insert(AspectValIter->second);
+  }
 
+  createUsedAspectsMetadataForFunctions(
+      FunctionToUsedAspects, FunctionToDeclaredAspects, ExcludedAspectVals);
+
+  setSyclFixedTargetsMD(EntryPoints, TargetFixedAspects, AspectValues);
   return PreservedAnalyses::all();
 }

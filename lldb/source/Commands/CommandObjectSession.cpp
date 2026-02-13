@@ -19,25 +19,17 @@ public:
       : CommandObjectParsed(interpreter, "session save",
                             "Save the current session transcripts to a file.\n"
                             "If no file if specified, transcripts will be "
-                            "saved to a temporary file.",
+                            "saved to a temporary file.\n"
+                            "Note: transcripts will only be saved if "
+                            "interpreter.save-transcript is true.\n",
                             "session save [file]") {
-    CommandArgumentEntry arg1;
-    arg1.emplace_back(eArgTypePath, eArgRepeatOptional);
-    m_arguments.push_back(arg1);
+    AddSimpleArgumentList(eArgTypePath, eArgRepeatOptional);
   }
 
   ~CommandObjectSessionSave() override = default;
 
-  void
-  HandleArgumentCompletion(CompletionRequest &request,
-                           OptionElementVector &opt_element_vector) override {
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eDiskFileCompletion,
-        request, nullptr);
-  }
-
 protected:
-  bool DoExecute(Args &args, CommandReturnObject &result) override {
+  void DoExecute(Args &args, CommandReturnObject &result) override {
     llvm::StringRef file_path;
 
     if (!args.empty())
@@ -47,7 +39,6 @@ protected:
       result.SetStatus(eReturnStatusSuccessFinishNoResult);
     else
       result.SetStatus(eReturnStatusFailed);
-    return result.Succeeded();
   }
 };
 
@@ -117,7 +108,7 @@ protected:
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-      return llvm::makeArrayRef(g_history_options);
+      return llvm::ArrayRef(g_history_options);
     }
 
     // Instance variables to hold the values for command options.
@@ -128,7 +119,7 @@ protected:
     OptionValueBoolean m_clear;
   };
 
-  bool DoExecute(Args &command, CommandReturnObject &result) override {
+  void DoExecute(Args &command, CommandReturnObject &result) override {
     if (m_options.m_clear.GetCurrentValue() &&
         m_options.m_clear.OptionWasSet()) {
       m_interpreter.GetCommandHistory().Clear();
@@ -190,7 +181,6 @@ protected:
                      stop_idx.second);
       }
     }
-    return result.Succeeded();
   }
 
   CommandOptions m_options;

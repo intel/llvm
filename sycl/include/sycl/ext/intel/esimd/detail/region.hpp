@@ -18,10 +18,8 @@
 #include <utility>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace intel {
-namespace esimd {
+inline namespace _V1 {
+namespace ext::intel::esimd {
 
 /// @cond ESIMD_DETAIL
 // TODO move to detail?
@@ -97,20 +95,20 @@ template <typename Ty, int Size, int Stride>
 struct shape_type<region1d_t<Ty, Size, Stride>> {
   using element_type = Ty;
   using type = region1d_t<Ty, Size, Stride>;
-  static inline constexpr int length = type::length;
+  static constexpr int length = type::length;
 };
 
 template <typename Ty> struct shape_type<region1d_scalar_t<Ty>> {
   using element_type = Ty;
   using type = region1d_t<Ty, 1, 1>;
-  static inline constexpr int length = type::length;
+  static constexpr int length = type::length;
 };
 
 template <typename Ty, int SizeY, int StrideY, int SizeX, int StrideX>
 struct shape_type<region2d_t<Ty, SizeY, StrideY, SizeX, StrideX>> {
   using element_type = Ty;
   using type = region2d_t<Ty, SizeY, StrideY, SizeX, StrideX>;
-  static inline constexpr int length = type::length;
+  static constexpr int length = type::length;
 };
 
 // Forward the shape computation on the top region type.
@@ -135,10 +133,8 @@ template <typename T, typename U> T getBaseRegion(std::pair<T, U> Reg) {
 
 /// @endcond ESIMD_DETAIL
 
-} // namespace esimd
-} // namespace intel
-} // namespace ext
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace ext::intel::esimd
+} // namespace _V1
 } // namespace sycl
 
 /// @endcond ESIMD_DETAIL

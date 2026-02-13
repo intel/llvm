@@ -24,7 +24,7 @@ namespace llvm {
     bool allowsMisalignedMemoryAccesses(EVT VT, unsigned AddrSpace,
                                         Align Alignment,
                                         MachineMemOperand::Flags Flags,
-                                        bool *Fast) const override;
+                                        unsigned *Fast) const override;
 
     MachineBasicBlock *
     EmitInstrWithCustomInserter(MachineInstr &MI,
@@ -34,8 +34,6 @@ namespace llvm {
     bool isEligibleForTailCallOptimization(
         const CCState &CCInfo, unsigned NextStackOffset,
         const MipsFunctionInfo &FI) const override;
-
-    void setMips16HardFloatLibCalls();
 
     unsigned int
       getMips16HelperFunctionStubNumber(ArgListTy &Args) const;

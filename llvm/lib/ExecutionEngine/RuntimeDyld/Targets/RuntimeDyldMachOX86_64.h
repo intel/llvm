@@ -27,7 +27,7 @@ public:
 
   unsigned getMaxStubSize() const override { return 8; }
 
-  unsigned getStubAlignment() override { return 8; }
+  Align getStubAlignment() override { return Align(8); }
 
   Expected<relocation_iterator>
   processRelocationRef(unsigned SectionID, relocation_iterator RelI,
@@ -157,8 +157,7 @@ private:
   processSubtractRelocation(unsigned SectionID, relocation_iterator RelI,
                             const MachOObjectFile &BaseObj,
                             ObjSectionToIDMap &ObjSectionToID) {
-    const MachOObjectFile &Obj =
-        static_cast<const MachOObjectFile&>(BaseObj);
+    const MachOObjectFile &Obj = BaseObj;
     MachO::any_relocation_info RE =
         Obj.getRelocation(RelI->getRawDataRefImpl());
 

@@ -21,12 +21,8 @@
 
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
 
-#ifndef __SYCL_DEVICE_ONLY__
-#include <sycl/detail/iostream_proxy.hpp>
-#endif // __SYCL_DEVICE_ONLY__
-
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::esimd {
 
 /// @addtogroup sycl_esimd_core
@@ -81,13 +77,18 @@ public:
   }
 
   // Implicit conversion constructor from sycl::ext::oneapi::experimental::simd
-  template <
-      int N1 = N, class Ty1 = Ty,
-      class SFINAE = std::enable_if_t<
-          (N1 == N) && (N1 <= std::experimental::simd_abi::max_fixed_size<
-                                  Ty>)&&!detail::is_wrapper_elem_type_v<Ty1>>>
+  template <int N1 = N, class Ty1 = Ty,
+            class SFINAE = std::enable_if_t<
+                (N1 == N) &&
+                (N1 <= std::experimental::simd_abi::max_fixed_size<Ty>) &&
+                !detail::is_wrapper_elem_type_v<Ty1>>>
   simd(const sycl::ext::oneapi::experimental::simd<Ty, N1> &v)
       : simd(static_cast<raw_vector_type>(v)) {}
+
+  // Implicit conversion constructor from 1D simd_view
+  template <typename BaseTy, int Stride>
+  simd(simd_view<BaseTy, region_base<false, Ty, 1, 1, N, Stride>> &v)
+      : simd(v.read()) {}
 
   /// Broadcast constructor with conversion. Converts given value to
   /// #element_type and replicates it in all elements.
@@ -106,8 +107,8 @@ public:
   /// @tparam To the scalar type
   /// @return this object's single element value converted to the result type.
   template <class To, class T = simd,
-            class = sycl::detail::enable_if_t<
-                (T::length == 1) && detail::is_valid_simd_elem_type_v<To>>>
+            class = std::enable_if_t<(T::length == 1) &&
+                                     detail::is_valid_simd_elem_type_v<To>>>
   operator To() const {
     __esimd_dbg_print(operator To());
     return detail::convert_scalar<To, element_type>(base_type::data()[0]);
@@ -117,13 +118,18 @@ public:
   /// object. Available when the number of elements does not exceed maximum
   /// fixed size of the oneapi's simd_abi and (TODO, temporary limitation) the
   /// element type is a primitive type (e.g. can't be sycl::half).
-  template <
-      int N1, class Ty1 = Ty,
-      class SFINAE = std::enable_if_t<
-          (N1 == N) && (N1 <= std::experimental::simd_abi::max_fixed_size<
-                                  Ty>)&&!detail::is_wrapper_elem_type_v<Ty1>>>
+  template <int N1, class Ty1 = Ty,
+            class SFINAE = std::enable_if_t<
+                (N1 == N) &&
+                (N1 <= std::experimental::simd_abi::max_fixed_size<Ty>) &&
+                !detail::is_wrapper_elem_type_v<Ty1>>>
   operator sycl::ext::oneapi::experimental::simd<Ty, N1>() {
     return sycl::ext::oneapi::experimental::simd<Ty, N1>(base_type::data());
+  }
+
+  /// Copy assignment operator.
+  simd &operator=(const simd &other) noexcept {
+    return base_type::operator=(other);
   }
 
   /// Prefix increment, increments elements of this object.
@@ -200,7 +206,7 @@ template <int N> using simd_mask = detail::simd_mask_type<N>;
 /// @} sycl_esimd_core_vectors
 
 } // namespace ext::intel::esimd
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 /// @ingroup sycl_esimd_misc
@@ -209,16 +215,10 @@ template <int N> using simd_mask = detail::simd_mask_type<N>;
 template <typename Ty, int N>
 std::ostream &operator<<(std::ostream &OS, const __ESIMD_NS::simd<Ty, N> &V)
 #ifdef __SYCL_DEVICE_ONLY__
-    {}
+{
+}
 #else
 {
-  OS << "{";
-  for (int I = 0; I < N; I++) {
-    OS << V[I];
-    if (I < N - 1)
-      OS << ",";
-  }
-  OS << "}";
-  return OS;
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__

@@ -10,6 +10,7 @@
 :encoding: utf-8
 :lang: en
 :dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
 
 // Set the default source code type in this document to C++,
 // for syntax highlighting purposes.  This is needed because
@@ -20,7 +21,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (C) 2022-2022 Intel Corporation.  All rights reserved.
+Copyright (C) 2025 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -36,7 +37,7 @@ https://github.com/intel/llvm/issues
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 5 specification.  All
+This extension is written against the SYCL 2020 revision 11 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
@@ -96,19 +97,32 @@ This extension is no longer implemented in {dpcpp}.  This specification is
 being archived only for historical purposes.  *The APIs defined in this
 specification no longer exist and cannot be used.*
 
-_This is an example of a note which can be added if your extension is
-implemented only for certain backends.  A note like this is appropriate if the
-extension is implemented only on certain devices or backends._
 
-[NOTE]
-====
+== Backend support status
+
+_Sometimes an extension can be used only on certain backends. Your
+extension document should include this section when this is the case._
+
+_Our preference is to tie the extension to a device aspect when it is
+available only on certain backends because it results in a clear error
+if the application mistakenly tries to use it on an unsupported backend.
+When this is the case, include a paragraph like this:_
+
+The APIs in this extension may be used only on a device that has
+`aspect::ext_oneapi_foo`.  The application must check that the device has
+this aspect before submitting a kernel using any of the APIs in this
+extension.  If the application fails to do this, the implementation throws
+a synchronous exception with the `errc::kernel_not_supported` error code
+when the kernel is submitted to the queue.
+
+_Occasionally, an extension is limited to certain backends and there is no
+related device aspect. When this is the case, include a paragraph like:_
+
 This extension is currently implemented in {dpcpp} only for GPU devices and
 only when using the Level Zero backend.  Attempting to use this extension in
-kernels that run on other devices or backends may result in undefined behavior.
-Be aware that the compiler is not able to issue a diagnostic to warn you if
-this happens.
-====
-
+kernels that run on other devices or backends may result in undefined
+behavior.  Be aware that the compiler is not able to issue a diagnostic to
+warn you if this happens.
 
 == Overview
 
@@ -117,6 +131,21 @@ appropriate.  This is also a good place to show an example usage, but there is
 no need to exhaustively show all aspects of your extension.  Those details
 should be explained in the sections that follow.  This section is just an
 overview to introduce your readers to your extension._
+
+_It is also appropriate to give an indication of who the target audience is for
+the extension.  For example, if the extension is intended only for ninja
+programmers, we might say something like:_
+
+The properties described in this extension are advanced features that most
+applications should not need to use.  In most cases, applications get the best
+performance without using these properties.
+
+_Occasionally, we might add an extension as a stopgap measure for a limited
+audience.  When this happens, it's best to discourage general usage with a
+statement like:_
+
+This extension exists to solve a specific problem, and a general solution is
+still being evaluated.  It is not recommended for general usage.
 
 _Note that text should be wrapped at 80 columns as shown in this template.
 Extensions use AsciiDoc markup language (like this template).  If you need help

@@ -2,10 +2,11 @@
 // calculations. Emulate i16 ops with i8 ops.
 
 // RUN: mlir-opt %s --test-arith-emulate-wide-int="widest-int-supported=8" \
-// RUN:             --convert-scf-to-cf --convert-cf-to-llvm --convert-vector-to-llvm \
-// RUN:             --convert-func-to-llvm --convert-arith-to-llvm | \
-// RUN:   mlir-cpu-runner -e entry -entry-point-result=void \
-// RUN:      --shared-libs="%mlir_lib_dir/libmlir_c_runner_utils%shlibext,%mlir_lib_dir/libmlir_runner_utils%shlibext" | \
+// RUN:             --convert-vector-to-scf --convert-scf-to-cf --convert-cf-to-llvm \
+// RUN:             --convert-vector-to-llvm --convert-func-to-llvm --convert-arith-to-llvm \
+// RUN:             --reconcile-unrealized-casts | \
+// RUN:   mlir-runner -e entry -entry-point-result=void \
+// RUN:      --shared-libs="%mlir_c_runner_utils,%mlir_runner_utils" | \
 // RUN:   FileCheck %s
 
 // CHECK-NOT: Mismatch
@@ -13,18 +14,6 @@
 //===----------------------------------------------------------------------===//
 // Common Utility Functions
 //===----------------------------------------------------------------------===//
-
-llvm.mlir.global internal constant @str_mismatch("Mismatch\0A")
-func.func private @printCString(!llvm.ptr<i8>) -> ()
-// Prints 'Mismatch' to stdout.
-func.func @printMismatch() -> () {
-  %0 = llvm.mlir.addressof @str_mismatch : !llvm.ptr<array<9 x i8>>
-  %1 = llvm.mlir.constant(0 : index) : i64
-  %2 = llvm.getelementptr %0[%1, %1]
-    : (!llvm.ptr<array<9 x i8>>, i64, i64) -> !llvm.ptr<i8>
-  func.call @printCString(%2) : (!llvm.ptr<i8>) -> ()
-  return
-}
 
 // Prints both binary op operands and the first result. If the second result
 // does not match, prints the second result and a 'Mismatch' message.
@@ -37,7 +26,7 @@ func.func @check_results(%lhs : i16, %rhs : i16, %res0 : i16, %res1 : i16) -> ()
   %mismatch = arith.cmpi ne, %res0, %res1 : i16
   scf.if %mismatch -> () {
     vector.print %res1 : i16
-    func.call @printMismatch() : () -> ()
+    vector.print str "Mismatch\n"
   }
   return
 }
@@ -157,6 +146,100 @@ func.func @test_muli() -> () {
 }
 
 //===----------------------------------------------------------------------===//
+// Test arith.shli
+//===----------------------------------------------------------------------===//
+
+// Ops in this function will be emulated using i8 ops.
+func.func @emulate_shli(%lhs : i16, %rhs : i16) -> (i16) {
+  %res = arith.shli %lhs, %rhs : i16
+  return %res : i16
+}
+
+// Performs both wide and emulated `arith.shli`, and checks that the results
+// match.
+func.func @check_shli(%lhs : i16, %rhs : i16) -> () {
+  %wide = arith.shli %lhs, %rhs : i16
+  %emulated = func.call @emulate_shli(%lhs, %rhs) : (i16, i16) -> (i16)
+  func.call @check_results(%lhs, %rhs, %wide, %emulated) : (i16, i16, i16, i16) -> ()
+  return
+}
+
+// Checks that `arith.shli` is emulated properly by sampling the input space.
+// Checks all valid shift amounts for i16: 0 to 15.
+// In total, this test function checks 100 * 16 = 1.6k input pairs.
+func.func @test_shli() -> () {
+  %idx0 = arith.constant 0 : index
+  %idx1 = arith.constant 1 : index
+  %idx16 = arith.constant 16 : index
+  %idx100 = arith.constant 100 : index
+
+  %cst0 = arith.constant 0 : i16
+  %cst1 = arith.constant 1 : i16
+
+  scf.for %lhs_idx = %idx0 to %idx100 step %idx1 iter_args(%lhs = %cst0) -> (i16) {
+    %arg_lhs = func.call @xhash(%lhs) : (i16) -> (i16)
+
+    scf.for %rhs_idx = %idx0 to %idx16 step %idx1 iter_args(%rhs = %cst0) -> (i16) {
+        func.call @check_shli(%arg_lhs, %rhs) : (i16, i16) -> ()
+        %rhs_next = arith.addi %rhs, %cst1 : i16
+        scf.yield %rhs_next : i16
+    }
+
+    %lhs_next = arith.addi %lhs, %cst1 : i16
+    scf.yield %lhs_next : i16
+  }
+
+  return
+}
+
+//===----------------------------------------------------------------------===//
+// Test arith.shrsi
+//===----------------------------------------------------------------------===//
+
+// Ops in this function will be emulated using i8 ops.
+func.func @emulate_shrsi(%lhs : i16, %rhs : i16) -> (i16) {
+  %res = arith.shrsi %lhs, %rhs : i16
+  return %res : i16
+}
+
+// Performs both wide and emulated `arith.shrsi`, and checks that the results
+// match.
+func.func @check_shrsi(%lhs : i16, %rhs : i16) -> () {
+  %wide = arith.shrsi %lhs, %rhs : i16
+  %emulated = func.call @emulate_shrsi(%lhs, %rhs) : (i16, i16) -> (i16)
+  func.call @check_results(%lhs, %rhs, %wide, %emulated) : (i16, i16, i16, i16) -> ()
+  return
+}
+
+// Checks that `arith.shrus` is emulated properly by sampling the input space.
+// Checks all valid shift amounts for i16: 0 to 15.
+// In total, this test function checks 100 * 16 = 1.6k input pairs.
+func.func @test_shrsi() -> () {
+  %idx0 = arith.constant 0 : index
+  %idx1 = arith.constant 1 : index
+  %idx16 = arith.constant 16 : index
+  %idx100 = arith.constant 100 : index
+
+  %cst0 = arith.constant 0 : i16
+  %cst1 = arith.constant 1 : i16
+
+  scf.for %lhs_idx = %idx0 to %idx100 step %idx1 iter_args(%lhs = %cst0) -> (i16) {
+    %arg_lhs = func.call @xhash(%lhs) : (i16) -> (i16)
+
+    scf.for %rhs_idx = %idx0 to %idx16 step %idx1 iter_args(%rhs = %cst0) -> (i16) {
+        func.call @check_shrsi(%arg_lhs, %rhs) : (i16, i16) -> ()
+        %rhs_next = arith.addi %rhs, %cst1 : i16
+        scf.yield %rhs_next : i16
+    }
+
+    %lhs_next = arith.addi %lhs, %cst1 : i16
+    scf.yield %lhs_next : i16
+  }
+
+  return
+}
+
+//===----------------------------------------------------------------------===//
 // Test arith.shrui
 //===----------------------------------------------------------------------===//
 
@@ -210,6 +293,8 @@ func.func @test_shrui() -> () {
 func.func @entry() {
   func.call @test_addi() : () -> ()
   func.call @test_muli() : () -> ()
+  func.call @test_shli() : () -> ()
+  func.call @test_shrsi() : () -> ()
   func.call @test_shrui() : () -> ()
   return
 }

@@ -1,6 +1,7 @@
 /// Test that destructors and destructors whose priorities are greater than 100 are tracked.
+// XFAIL: target={{.*haiku.*}}
 // RUN: mkdir -p %t.dir && cd %t.dir
-// RUN: %clang --coverage %s -o %t
+// RUN: %clang --coverage %s -o %t -dumpdir ./
 // RUN: rm -f gcov-destructor.gcda && %run %t
 // RUN: llvm-cov gcov -t gcov-destructor.gcda | FileCheck %s
 // UNSUPPORTED: darwin

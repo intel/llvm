@@ -19,6 +19,7 @@ using namespace clang;
 using namespace clang::targets;
 
 const char *const SparcTargetInfo::GCCRegNames[] = {
+    // clang-format off
     // Integer registers
     "r0",  "r1",  "r2",  "r3",  "r4",  "r5",  "r6",  "r7",  "r8",  "r9",  "r10",
     "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21",
@@ -30,10 +31,14 @@ const char *const SparcTargetInfo::GCCRegNames[] = {
     "f22", "f23", "f24", "f25", "f26", "f27", "f28", "f29", "f30", "f31", "f32",
     "f34", "f36", "f38", "f40", "f42", "f44", "f46", "f48", "f50", "f52", "f54",
     "f56", "f58", "f60", "f62",
+
+    // Condition code registers
+    "icc", "fcc0", "fcc1", "fcc2", "fcc3",
+    // clang-format on
 };
 
 ArrayRef<const char *> SparcTargetInfo::getGCCRegNames() const {
-  return llvm::makeArrayRef(GCCRegNames);
+  return llvm::ArrayRef(GCCRegNames);
 }
 
 const TargetInfo::GCCRegAlias SparcTargetInfo::GCCRegAliases[] = {
@@ -48,7 +53,7 @@ const TargetInfo::GCCRegAlias SparcTargetInfo::GCCRegAliases[] = {
 };
 
 ArrayRef<TargetInfo::GCCRegAlias> SparcTargetInfo::getGCCRegAliases() const {
-  return llvm::makeArrayRef(GCCRegAliases);
+  return llvm::ArrayRef(GCCRegAliases);
 }
 
 bool SparcTargetInfo::hasFeature(StringRef Feature) const {
@@ -93,12 +98,6 @@ static constexpr SparcCPUInfo CPUInfo[] = {
     {{"ma2480"}, SparcTargetInfo::CK_MYRIAD2480, SparcTargetInfo::CG_V8},
     {{"ma2485"}, SparcTargetInfo::CK_MYRIAD2485, SparcTargetInfo::CG_V8},
     {{"ma2x8x"}, SparcTargetInfo::CK_MYRIAD2x8x, SparcTargetInfo::CG_V8},
-    // FIXME: the myriad2[.n] spellings are obsolete,
-    // but a grace period is needed to allow updating dependent builds.
-    {{"myriad2"}, SparcTargetInfo::CK_MYRIAD2x5x, SparcTargetInfo::CG_V8},
-    {{"myriad2.1"}, SparcTargetInfo::CK_MYRIAD2100, SparcTargetInfo::CG_V8},
-    {{"myriad2.2"}, SparcTargetInfo::CK_MYRIAD2x5x, SparcTargetInfo::CG_V8},
-    {{"myriad2.3"}, SparcTargetInfo::CK_MYRIAD2x8x, SparcTargetInfo::CG_V8},
     {{"leon2"}, SparcTargetInfo::CK_LEON2, SparcTargetInfo::CG_V8},
     {{"at697e"}, SparcTargetInfo::CK_LEON2_AT697E, SparcTargetInfo::CG_V8},
     {{"at697f"}, SparcTargetInfo::CK_LEON2_AT697F, SparcTargetInfo::CG_V8},
@@ -147,7 +146,7 @@ void SparcTargetInfo::getTargetDefines(const LangOptions &Opts,
 void SparcV8TargetInfo::getTargetDefines(const LangOptions &Opts,
                                          MacroBuilder &Builder) const {
   SparcTargetInfo::getTargetDefines(Opts, Builder);
-  if (getTriple().getOS() == llvm::Triple::Solaris)
+  if (getTriple().isOSSolaris())
     Builder.defineMacro("__sparcv8");
   else {
     switch (getCPUGeneration(CPU)) {
@@ -160,78 +159,13 @@ void SparcV8TargetInfo::getTargetDefines(const LangOptions &Opts,
       break;
     }
   }
-  if (getTriple().getVendor() == llvm::Triple::Myriad) {
-    std::string MyriadArchValue, Myriad2Value;
-    Builder.defineMacro("__sparc_v8__");
-    Builder.defineMacro("__leon__");
-    switch (CPU) {
-    case CK_MYRIAD2100:
-      MyriadArchValue = "__ma2100";
-      Myriad2Value = "1";
-      break;
-    case CK_MYRIAD2150:
-      MyriadArchValue = "__ma2150";
-      Myriad2Value = "2";
-      break;
-    case CK_MYRIAD2155:
-      MyriadArchValue = "__ma2155";
-      Myriad2Value = "2";
-      break;
-    case CK_MYRIAD2450:
-      MyriadArchValue = "__ma2450";
-      Myriad2Value = "2";
-      break;
-    case CK_MYRIAD2455:
-      MyriadArchValue = "__ma2455";
-      Myriad2Value = "2";
-      break;
-    case CK_MYRIAD2x5x:
-      Myriad2Value = "2";
-      break;
-    case CK_MYRIAD2080:
-      MyriadArchValue = "__ma2080";
-      Myriad2Value = "3";
-      break;
-    case CK_MYRIAD2085:
-      MyriadArchValue = "__ma2085";
-      Myriad2Value = "3";
-      break;
-    case CK_MYRIAD2480:
-      MyriadArchValue = "__ma2480";
-      Myriad2Value = "3";
-      break;
-    case CK_MYRIAD2485:
-      MyriadArchValue = "__ma2485";
-      Myriad2Value = "3";
-      break;
-    case CK_MYRIAD2x8x:
-      Myriad2Value = "3";
-      break;
-    default:
-      MyriadArchValue = "__ma2100";
-      Myriad2Value = "1";
-      break;
-    }
-    if (!MyriadArchValue.empty()) {
-      Builder.defineMacro(MyriadArchValue, "1");
-      Builder.defineMacro(MyriadArchValue + "__", "1");
-    }
-    if (Myriad2Value == "2") {
-      Builder.defineMacro("__ma2x5x", "1");
-      Builder.defineMacro("__ma2x5x__", "1");
-    } else if (Myriad2Value == "3") {
-      Builder.defineMacro("__ma2x8x", "1");
-      Builder.defineMacro("__ma2x8x__", "1");
-    }
-    Builder.defineMacro("__myriad2__", Myriad2Value);
-    Builder.defineMacro("__myriad2", Myriad2Value);
-  }
   if (getCPUGeneration(CPU) == CG_V9) {
     Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_1");
     Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_2");
     Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_4");
     Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_8");
   }
+  Builder.defineMacro("__LONG_DOUBLE_128__");
 }
 
 void SparcV9TargetInfo::getTargetDefines(const LangOptions &Opts,
@@ -240,7 +174,7 @@ void SparcV9TargetInfo::getTargetDefines(const LangOptions &Opts,
   Builder.defineMacro("__sparcv9");
   Builder.defineMacro("__arch64__");
   // Solaris doesn't need these variants, but the BSDs do.
-  if (getTriple().getOS() != llvm::Triple::Solaris) {
+  if (!getTriple().isOSSolaris()) {
     Builder.defineMacro("__sparc64__");
     Builder.defineMacro("__sparc_v9__");
     Builder.defineMacro("__sparcv9__");

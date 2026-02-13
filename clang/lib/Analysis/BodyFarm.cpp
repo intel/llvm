@@ -24,6 +24,7 @@
 #include "clang/Basic/OperatorKinds.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/Debug.h"
+#include <optional>
 
 #define DEBUG_TYPE "body-farm"
 
@@ -292,15 +293,14 @@ static CallExpr *create_call_once_lambda_call(ASTContext &C, ASTMaker M,
   FunctionDecl *callOperatorDecl = CallbackDecl->getLambdaCallOperator();
   assert(callOperatorDecl != nullptr);
 
-  DeclRefExpr *callOperatorDeclRef =
-      DeclRefExpr::Create(/* Ctx =*/ C,
-                          /* QualifierLoc =*/ NestedNameSpecifierLoc(),
-                          /* TemplateKWLoc =*/ SourceLocation(),
-                          const_cast<FunctionDecl *>(callOperatorDecl),
-                          /* RefersToEnclosingVariableOrCapture=*/ false,
-                          /* NameLoc =*/ SourceLocation(),
-                          /* T =*/ callOperatorDecl->getType(),
-                          /* VK =*/ VK_LValue);
+  DeclRefExpr *callOperatorDeclRef = DeclRefExpr::Create(
+      /* Ctx =*/C,
+      /* QualifierLoc =*/NestedNameSpecifierLoc(),
+      /* TemplateKWLoc =*/SourceLocation(), callOperatorDecl,
+      /* RefersToEnclosingVariableOrCapture=*/false,
+      /* NameLoc =*/SourceLocation(),
+      /* T =*/callOperatorDecl->getType(),
+      /* VK =*/VK_LValue);
 
   return CXXOperatorCallExpr::Create(
       /*AstContext=*/C, OO_Call, callOperatorDeclRef,
@@ -541,7 +541,7 @@ static Stmt *create_dispatch_once(ASTContext &C, const FunctionDecl *D) {
   CallExpr *CE = CallExpr::Create(
       /*ASTContext=*/C,
       /*StmtClass=*/M.makeLvalueToRvalue(/*Expr=*/Block),
-      /*Args=*/None,
+      /*Args=*/{},
       /*QualType=*/C.VoidTy,
       /*ExprValueType=*/VK_PRValue,
       /*SourceLocation=*/SourceLocation(), FPOptionsOverride());
@@ -609,7 +609,7 @@ static Stmt *create_dispatch_sync(ASTContext &C, const FunctionDecl *D) {
   ASTMaker M(C);
   DeclRefExpr *DR = M.makeDeclRefExpr(PV);
   ImplicitCastExpr *ICE = M.makeLvalueToRvalue(DR, Ty);
-  CallExpr *CE = CallExpr::Create(C, ICE, None, C.VoidTy, VK_PRValue,
+  CallExpr *CE = CallExpr::Create(C, ICE, {}, C.VoidTy, VK_PRValue,
                                   SourceLocation(), FPOptionsOverride());
   return CE;
 }
@@ -697,9 +697,9 @@ static Stmt *create_OSAtomicCompareAndSwap(ASTContext &C, const FunctionDecl *D)
 }
 
 Stmt *BodyFarm::getBody(const FunctionDecl *D) {
-  Optional<Stmt *> &Val = Bodies[D];
+  std::optional<Stmt *> &Val = Bodies[D];
   if (Val)
-    return Val.value();
+    return *Val;
 
   Val = nullptr;
 
@@ -716,6 +716,7 @@ Stmt *BodyFarm::getBody(const FunctionDecl *D) {
     switch (BuiltinID) {
     case Builtin::BIas_const:
     case Builtin::BIforward:
+    case Builtin::BIforward_like:
     case Builtin::BImove:
     case Builtin::BImove_if_noexcept:
       FF = create_std_move_forward;
@@ -724,8 +725,8 @@ Stmt *BodyFarm::getBody(const FunctionDecl *D) {
       FF = nullptr;
       break;
     }
-  } else if (Name.startswith("OSAtomicCompareAndSwap") ||
-             Name.startswith("objc_atomicCompareAndSwap")) {
+  } else if (Name.starts_with("OSAtomicCompareAndSwap") ||
+             Name.starts_with("objc_atomicCompareAndSwap")) {
     FF = create_OSAtomicCompareAndSwap;
   } else if (Name == "call_once" && D->getDeclContext()->isStdNamespace()) {
     FF = create_call_once;
@@ -804,7 +805,7 @@ static Stmt *createObjCPropertyGetter(ASTContext &Ctx,
 
   if (!IVar) {
     Prop = MD->findPropertyDecl();
-    IVar = findBackingIvar(Prop);
+    IVar = Prop ? findBackingIvar(Prop) : nullptr;
   }
 
   if (!IVar || !Prop)
@@ -872,9 +873,9 @@ Stmt *BodyFarm::getBody(const ObjCMethodDecl *D) {
   if (!D->isImplicit())
     return nullptr;
 
-  Optional<Stmt *> &Val = Bodies[D];
+  std::optional<Stmt *> &Val = Bodies[D];
   if (Val)
-    return Val.value();
+    return *Val;
   Val = nullptr;
 
   // For now, we only synthesize getters.

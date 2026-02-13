@@ -38,8 +38,8 @@ SBTypeNameSpecifier::SBTypeNameSpecifier(SBType type) {
   LLDB_INSTRUMENT_VA(this, type);
 
   if (type.IsValid())
-    m_opaque_sp = TypeNameSpecifierImplSP(
-        new TypeNameSpecifierImpl(type.m_opaque_sp->GetCompilerType(true)));
+    m_opaque_sp = std::make_shared<TypeNameSpecifierImpl>(
+        type.m_opaque_sp->GetCompilerType(true));
 }
 
 SBTypeNameSpecifier::SBTypeNameSpecifier(const lldb::SBTypeNameSpecifier &rhs)
@@ -65,7 +65,7 @@ const char *SBTypeNameSpecifier::GetName() {
   if (!IsValid())
     return nullptr;
 
-  return m_opaque_sp->GetName();
+  return ConstString(m_opaque_sp->GetName()).GetCString();
 }
 
 SBType SBTypeNameSpecifier::GetType() {
@@ -99,10 +99,14 @@ bool SBTypeNameSpecifier::GetDescription(
     lldb::SBStream &description, lldb::DescriptionLevel description_level) {
   LLDB_INSTRUMENT_VA(this, description, description_level);
 
+  lldb::FormatterMatchType match_type = GetMatchType();
+  const char *match_type_str =
+      (match_type == eFormatterMatchExact   ? "plain"
+       : match_type == eFormatterMatchRegex ? "regex"
+                                            : "callback");
   if (!IsValid())
     return false;
-  description.Printf("SBTypeNameSpecifier(%s,%s)", GetName(),
-                     IsRegex() ? "regex" : "plain");
+  description.Printf("SBTypeNameSpecifier(%s,%s)", GetName(), match_type_str);
   return true;
 }
 

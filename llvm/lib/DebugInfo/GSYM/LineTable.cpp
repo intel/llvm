@@ -137,9 +137,9 @@ llvm::Error LineTable::encode(FileWriter &Out, uint64_t BaseAddr) const {
     int64_t PrevLine = 1;
     bool First = true;
     for (const auto &line_entry : Lines) {
-      if (First)
+      if (First) {
         First = false;
-      else {
+      } else {
         int64_t LineDelta = (int64_t)line_entry.Line - PrevLine;
         auto End = DeltaInfos.end();
         auto Pos = std::lower_bound(DeltaInfos.begin(), End, LineDelta);
@@ -270,11 +270,6 @@ Expected<LineEntry> LineTable::lookup(DataExtractor &Data, uint64_t BaseAddr, ui
     if (Addr < Row.Addr)
       return false; // Stop parsing, result contains the line table row!
     Result = Row;
-    if (Addr == Row.Addr) {
-      // Stop parsing, this is the row we are looking for since the address
-      // matches.
-      return false;
-    }
     return true; // Keep parsing till we find the right row.
   });
   if (Err)

@@ -16,9 +16,10 @@ For general information on debugging OpenMP target offloading applications, see
 LLVM/OpenMP Host Runtime (``libomp``)
 -------------------------------------
 
-An `early (2015) design document <https://openmp.llvm.org/Reference.pdf>`_ for
-the LLVM/OpenMP host runtime, aka.  `libomp.so`, is available as a `pdf
-<https://openmp.llvm.org/Reference.pdf>`_.
+An `early (2015) design document
+<https://raw.githubusercontent.com/llvm/llvm-project/main/openmp/runtime/doc/Reference.pdf>`_
+for the LLVM/OpenMP host runtime, aka.  `libomp.so`, is available as a `pdf
+<https://raw.githubusercontent.com/llvm/llvm-project/main/openmp/runtime/doc/Reference.pdf>`_.
 
 .. _libomp_environment_vars:
 
@@ -374,6 +375,24 @@ The ``offset`` specifier indicates the starting position for thread assignment.
     across one socket, and ``granularity=socket`` the runtime will shift the
     granularity down to group since that is the largest granularity allowed by the OS.
 
+KMP_HIDDEN_HELPER_AFFINITY (Windows, Linux)
+"""""""""""""""""""""""""""""""""""""""""""
+
+Enables run-time library to bind hidden helper threads to physical processing units.
+This environment variable has the same syntax and semantics as ``KMP_AFFINIY`` but only
+applies to the hidden helper team.
+
+You must set this environment variable before the first parallel region, or
+certain API calls including ``omp_get_max_threads()``, ``omp_get_num_procs()``
+and any affinity API calls.
+
+**Syntax:** Same as ``KMP_AFFINITY``
+
+The following ``modifiers`` are ignored in ``KMP_HIDDEN_HELPER_AFFINITY`` and are only valid
+for ``KMP_AFFINITY``:
+* ``respect`` and ``norespect``
+* ``reset`` and ``noreset``
+
 KMP_ALL_THREADS
 """""""""""""""
 
@@ -390,17 +409,17 @@ threads in the team was reduced, but the program will continue execution.
 KMP_BLOCKTIME
 """""""""""""
 
-Sets the time, in milliseconds, that a thread should wait, after completing
-the execution of a parallel region, before sleeping.
+Sets the time that a thread should wait, after completing the
+execution of a parallel region, before sleeping.
 
-Use the optional character suffixes: ``s`` (seconds), ``m`` (minutes),
-``h`` (hours), or ``d`` (days) to specify the units.
+Use the optional suffixes: ``ms`` (milliseconds), or ``us`` (microseconds) to
+specify/change the units. Defaults units is milliseconds.
 
-Specify infinite for an unlimited wait time.
+Specify ``infinite`` for an unlimited wait time.
 
 | **Default:** 200 milliseconds
 | **Related Environment Variable:** ``KMP_LIBRARY``
-| **Example:** ``KMP_BLOCKTIME=1s``
+| **Example:** ``KMP_BLOCKTIME=1ms``
 
 KMP_CPUINFO_FILE
 """"""""""""""""
@@ -477,7 +496,9 @@ An extended syntax is available when ``KMP_TOPOLOGY_METHOD=hwloc``. Depending on
 resources are detected, you may be able to specify additional resources, such as
 NUMA domains and groups of hardware resources that share certain cache levels.
 
-**Basic syntax:** ``[num_units|*]ID[@offset][:attribute] [,[num_units|*]ID[@offset][:attribute]...]``
+**Basic syntax:** ``[:][num_units|*]ID[@offset][:attribute] [,[num_units|*]ID[@offset][:attribute]...]``
+
+An optional colon (:) can be specified at the beginning of the syntax to specify an explicit hardware subset. The default is an implicit hardware subset.
 
 Supported unit IDs are not case-insensitive.
 
@@ -528,6 +549,18 @@ When any numa or tile units are specified in ``KMP_HW_SUBSET`` and the hwloc
 topology method is available, the ``KMP_TOPOLOGY_METHOD`` will be automatically
 set to hwloc, so there is no need to set it explicitly.
 
+For an **explicit hardware subset**, if one or more topology layers detected by the
+runtime are omitted from the subset, then those topology layers are ignored.
+Only explicitly specified topology layers are used in the subset.
+
+For an **implicit hardware subset**, it is implied that the socket, core, and thread
+topology types should be included in the subset. Other topology layers are not
+implicitly included and are ignored if they are not specified in the subset.
+Because the socket, core and thread topology types are always included in
+implicit hardware subsets, when they are omitted, it is assumed that all
+available resources of that type should be used. Implicit hardware subsets are
+the default.
+
 If you don't specify one or more types of resource, such as socket or thread,
 all available resources of that type are used.
 
@@ -546,7 +579,7 @@ This variable does not work if ``KMP_AFFINITY=disabled``.
 **Default:** If omitted, the default value is to use all the
 available hardware resources.
 
-**Examples:**
+**Implicit Hardware Subset Examples:**
 
 * ``2s,4c,2t``: Use the first 2 sockets (s0 and s1), the first 4 cores on each
   socket (c0 - c3), and 2 threads per core.
@@ -570,6 +603,12 @@ available hardware resources.
   run-time library.
 * ``*c:eff1@3``: Use all available sockets, skip the first three cores of
   efficiency 1, and then use the rest of the available cores of efficiency 1.
+
+Explicit Hardware Subset Examples:
+
+* ``:2s,6t`` Use exactly the first two sockets and 6 threads per socket.
+* ``:1t@7`` Skip the first 7 threads (t0-t6) and use exactly one thread (t7).
+* ``:5c,1t`` Use exactly the first 5 cores (c0-c4) and the first thread on each core.
 
 To see the result of the setting, you can specify ``verbose`` modifier in
 ``KMP_AFFINITY`` environment variable. The OpenMP run-time library will output
@@ -689,18 +728,30 @@ variables is defined below.
 
     * ``LIBOMPTARGET_DEBUG=<Num>``
     * ``LIBOMPTARGET_PROFILE=<Filename>``
+    * ``LIBOMPTARGET_PROFILE_GRANULARITY=<Num> (default 500, in us)``
     * ``LIBOMPTARGET_MEMORY_MANAGER_THRESHOLD=<Num>``
     * ``LIBOMPTARGET_INFO=<Num>``
     * ``LIBOMPTARGET_HEAP_SIZE=<Num>``
     * ``LIBOMPTARGET_STACK_SIZE=<Num>``
     * ``LIBOMPTARGET_SHARED_MEMORY_SIZE=<Num>``
     * ``LIBOMPTARGET_MAP_FORCE_ATOMIC=[TRUE/FALSE] (default TRUE)``
+    * ``LIBOMPTARGET_TREAT_ATTACH_AUTO_AS_ALWAYS=[TRUE/FALSE] (default FALSE)``
+    * ``LIBOMPTARGET_JIT_OPT_LEVEL={0,1,2,3} (default 3)``
+    * ``LIBOMPTARGET_JIT_SKIP_OPT=[TRUE/FALSE] (default FALSE)``
+    * ``LIBOMPTARGET_JIT_REPLACEMENT_OBJECT=<in:Filename> (object file)``
+    * ``LIBOMPTARGET_JIT_REPLACEMENT_MODULE=<in:Filename> (LLVM-IR file)``
+    * ``LIBOMPTARGET_JIT_PRE_OPT_IR_MODULE=<out:Filename> (LLVM-IR file)``
+    * ``LIBOMPTARGET_JIT_POST_OPT_IR_MODULE=<out:Filename> (LLVM-IR file)``
+    * ``LIBOMPTARGET_MIN_THREADS_FOR_LOW_TRIP_COUNT=<Num> (default: 32)``
+    * ``LIBOMPTARGET_REUSE_BLOCKS_FOR_HIGH_TRIP_COUNT=[TRUE/FALSE] (default TRUE)``
+    * ``OFFLOAD_TRACK_ALLOCATION_TRACES=[TRUE/FALSE] (default FALSE)``
+    * ``OFFLOAD_TRACK_NUM_KERNEL_LAUNCH_TRACES=<Num> (default 0)``
 
 LIBOMPTARGET_DEBUG
 """"""""""""""""""
 
 ``LIBOMPTARGET_DEBUG`` controls whether or not debugging information will be
-displayed. This feature is only availible if ``libomptarget`` was built with
+displayed. This feature is only available if ``libomptarget`` was built with
 ``-DOMPTARGET_DEBUG``. The debugging output provided is intended for use by
 ``libomptarget`` developers. More user-friendly output is presented when using
 ``LIBOMPTARGET_INFO``.
@@ -722,6 +773,12 @@ for time trace output. Note that this will turn ``libomp`` into a C++ library.
 .. _`Speedscope App`: https://www.speedscope.app/
 
 .. _`LLVM Support Library`: https://llvm.org/docs/SupportLibrary.html
+
+LIBOMPTARGET_PROFILE_GRANULARITY
+""""""""""""""""""""""""""""""""
+
+``LIBOMPTARGET_PROFILE_GRANULARITY`` allows to change the time profile
+granularity measured in `us`. Default is 500 (`us`).
 
 LIBOMPTARGET_MEMORY_MANAGER_THRESHOLD
 """""""""""""""""""""""""""""""""""""
@@ -950,7 +1007,7 @@ going wrong.
     Libomptarget error: Consult https://openmp.llvm.org/design/Runtimes.html for debugging options.
     sum.cpp:5:1: Libomptarget error 1: failure of target construct while offloading is mandatory
 
-This shows that there is an illegal memory access occuring inside the OpenMP
+This shows that there is an illegal memory access occurring inside the OpenMP
 target region once execution has moved to the CUDA device, suggesting a
 segmentation fault. This then causes a chain reaction of failures in
 ``libomptarget``. Another message suggests using the ``LIBOMPTARGET_INFO``
@@ -990,9 +1047,9 @@ default. The solution is to add an explicit map clause in the target region.
 LIBOMPTARGET_STACK_SIZE
 """""""""""""""""""""""
 
-This environment variable sets the stack size in bytes for the CUDA plugin. This
-can be used to increase or decrease the standard amount of memory reserved for
-each thread's stack.
+This environment variable sets the stack size in bytes for the AMDGPU and CUDA
+plugins. This can be used to increase or decrease the standard amount of memory
+reserved for each thread's stack.
 
 LIBOMPTARGET_HEAP_SIZE
 """""""""""""""""""""""
@@ -1032,13 +1089,262 @@ value of the ``LIBOMPTARGET_MAP_FORCE_ATOMIC`` environment variable.
 The default behavior of LLVM 14 is to force atomic maps clauses, prior versions
 of LLVM did not.
 
+LIBOMPTARGET_TREAT_ATTACH_AUTO_AS_ALWAYS
+"""""""""""""""""""""""""""""""""""""""""
+
+By default, OpenMP attach operations only perform pointer attachment
+when mapping an expression with a base-pointer/base-referring-pointer,
+when either the pointer or the pointee was newly allocated on a
+map-entering directive (aka ``attach(auto)`` as per OpenMP 6.1 TR14).
+
+When  ``LIBOMPTARGET_TREAT_ATTACH_AUTO_AS_ALWAYS`` is set to ``true``,
+ATTACH map entries without the ALWAYS flag are implicitly treated as if
+the ALWAYS flag was set. This forces pointer attachments to occur even when
+the pointee/pointer were not newly allocated (similar to OpenMP 6.1
+TR14's ``attach(always)`` map-type-modifier), thereby treating
+``attach(auto))`` as ``attach(always)``. This can be used for
+experimentation, or as a workaround for programs compiled without
+``-fopenmp-version=61``.
+
+.. _libomptarget_jit_opt_level:
+
+LIBOMPTARGET_JIT_OPT_LEVEL
+""""""""""""""""""""""""""
+
+This environment variable can be used to change the optimization pipeline used
+to optimize the embedded device code as part of the device JIT. The value is
+corresponds to the ``-O{0,1,2,3}`` command line argument passed to ``clang``.
+
+LIBOMPTARGET_JIT_SKIP_OPT
+""""""""""""""""""""""""""
+
+This environment variable can be used to skip the optimization pipeline during
+JIT compilation. If set, the image will only be passed through the backend. The
+backend is invoked with the ``LIBOMPTARGET_JIT_OPT_LEVEL`` flag.
+
+LIBOMPTARGET_JIT_REPLACEMENT_OBJECT
+"""""""""""""""""""""""""""""""""""
+
+This environment variable can be used to replace the embedded device code
+before the device JIT finishes compilation for the target. The value is
+expected to be a filename to an object file, thus containing the output of the
+assembler in object format for the respective target. The JIT optimization
+pipeline and backend are skipped and only target specific post-processing is
+performed on the object file before it is loaded onto the device.
+
+.. _libomptarget_jit_replacement_module:
+
+LIBOMPTARGET_JIT_REPLACEMENT_MODULE
+"""""""""""""""""""""""""""""""""""
+
+This environment variable can be used to replace the embedded device code
+before the device JIT finishes compilation for the target. The value is
+expected to be a filename to an LLVM-IR file, thus containing an LLVM-IR module
+for the respective target. To obtain a device code image compatible with the
+embedded one it is recommended to extract the embedded one either before or
+after IR optimization. This can be done at compile time, after compile time via
+llvm tools (llvm-objdump), or, simply, by setting the
+:ref:`LIBOMPTARGET_JIT_PRE_OPT_IR_MODULE` or
+:ref:`LIBOMPTARGET_JIT_POST_OPT_IR_MODULE` environment variables.
+
+.. _libomptarget_jit_pre_opt_ir_module:
+
+LIBOMPTARGET_JIT_PRE_OPT_IR_MODULE
+""""""""""""""""""""""""""""""""""
+
+This environment variable can be used to extract the embedded device code
+before the device JIT runs additional IR optimizations on it (see
+:ref:`LIBOMPTARGET_JIT_OPT_LEVEL`). The value is expected to be a filename into
+which the LLVM-IR module is written. The module can be the analyzed, and
+transformed and loaded back into the JIT pipeline via
+:ref:`LIBOMPTARGET_JIT_REPLACEMENT_MODULE`.
+
+.. _libomptarget_jit_post_opt_ir_module:
+
+LIBOMPTARGET_JIT_POST_OPT_IR_MODULE
+"""""""""""""""""""""""""""""""""""
+
+This environment variable can be used to extract the embedded device code after
+the device JIT runs additional IR optimizations on it (see
+:ref:`LIBOMPTARGET_JIT_OPT_LEVEL`). The value is expected to be a filename into
+which the LLVM-IR module is written. The module can be the analyzed, and
+transformed and loaded back into the JIT pipeline via
+:ref:`LIBOMPTARGET_JIT_REPLACEMENT_MODULE`.
+
+
+LIBOMPTARGET_MIN_THREADS_FOR_LOW_TRIP_COUNT
+"""""""""""""""""""""""""""""""""""""""""""
+
+This environment variable defines a lower bound for the number of threads if a
+combined kernel, e.g., `target teams distribute parallel for`, has insufficient
+parallelism. Especially if the trip count of the loops is lower than the number
+of threads possible times the number of teams (aka. blocks) the device prefers
+(see also :ref:`LIBOMPTARGET_AMDGPU_TEAMS_PER_CU`), we will reduce the thread
+count to increase outer (team/block) parallelism. The thread count will never
+be reduced below the value passed for this environment variable though.
+
+LIBOMPTARGET_REUSE_BLOCKS_FOR_HIGH_TRIP_COUNT
+"""""""""""""""""""""""""""""""""""""""""""""
+
+This environment variable can be used to control how the OpenMP runtime assigns
+blocks to loops with high trip counts. By default we reuse existing blocks
+rather than spawning new blocks.
+
+OFFLOAD_TRACK_ALLOCATION_TRACES
+"""""""""""""""""""""""""""""""
+
+This environment variable determines if the stack traces of allocations and
+deallocations are tracked to aid in error reporting, e.g., in case of
+double-free.
+
+OFFLOAD_TRACK_KERNEL_LAUNCH_TRACES
+""""""""""""""""""""""""""""""""""
+
+This environment variable determines how manytstack traces of kernel launches
+are tracked to aid in error reporting, e.g., what asynchronous kernel failed.
+
 .. _libomptarget_plugin:
 
 LLVM/OpenMP Target Host Runtime Plugins (``libomptarget.rtl.XXXX``)
 -------------------------------------------------------------------
 
-.. _device_runtime:
+The LLVM/OpenMP target host runtime plugins were recently re-implemented,
+temporarily renamed as the NextGen plugins, and set as the default and only
+plugins' implementation. Currently, these plugins have support for the NVIDIA
+and AMDGPU devices as well as the GenericELF64bit host-simulated device.
 
+The source code of the common infrastructure and the vendor-specific plugins is
+in the ``openmp/libomptarget/nextgen-plugins`` directory in the LLVM project
+repository. The plugin infrastructure aims at unifying the plugin code and logic
+into a generic interface using object-oriented C++. There is a plugin interface
+composed by multiple generic C++ classes which implement the common logic that
+every vendor-specific plugin should provide. In turn, the specific plugins
+inherit from those generic classes and implement the required functions that
+depend on the specific vendor API. As an example, some generic classes that the
+plugin interface define are for representing a device, a device image, an
+efficient resource manager, etc.
+
+With this common plugin infrastructure, several tasks have been simplified:
+adding a new vendor-specific plugin, adding generic features or optimizations
+to all plugins, debugging plugins, etc.
+
+Environment Variables
+^^^^^^^^^^^^^^^^^^^^^
+
+There are several environment variables to change the behavior of the plugins:
+
+* ``LIBOMPTARGET_SHARED_MEMORY_SIZE``
+* ``LIBOMPTARGET_STACK_SIZE``
+* ``LIBOMPTARGET_HEAP_SIZE``
+* ``LIBOMPTARGET_NUM_INITIAL_STREAMS``
+* ``LIBOMPTARGET_NUM_INITIAL_EVENTS``
+* ``LIBOMPTARGET_LOCK_MAPPED_HOST_BUFFERS``
+* ``LIBOMPTARGET_AMDGPU_NUM_HSA_QUEUES``
+* ``LIBOMPTARGET_AMDGPU_HSA_QUEUE_SIZE``
+* ``LIBOMPTARGET_AMDGPU_HSA_QUEUE_BUSY_TRACKING``
+* ``LIBOMPTARGET_AMDGPU_TEAMS_PER_CU``
+* ``LIBOMPTARGET_AMDGPU_MAX_ASYNC_COPY_BYTES``
+* ``LIBOMPTARGET_AMDGPU_NUM_INITIAL_HSA_SIGNALS``
+* ``LIBOMPTARGET_AMDGPU_STREAM_BUSYWAIT``
+
+The environment variables ``LIBOMPTARGET_SHARED_MEMORY_SIZE``,
+``LIBOMPTARGET_STACK_SIZE`` and ``LIBOMPTARGET_HEAP_SIZE`` are described in
+:ref:`libopenmptarget_environment_vars`.
+
+LIBOMPTARGET_NUM_INITIAL_STREAMS
+""""""""""""""""""""""""""""""""
+
+This environment variable sets the number of pre-created streams in the plugin
+(if supported) at initialization. More streams will be created dynamically
+throughout the execution if needed. A stream is a queue of asynchronous
+operations (e.g., kernel launches and memory copies) that are executed
+sequentially. Parallelism is achieved by featuring multiple streams. The
+``libomptarget`` leverages streams to exploit parallelism between plugin
+operations. The default value is ``1``, more streams are created as needed.
+
+LIBOMPTARGET_NUM_INITIAL_EVENTS
+"""""""""""""""""""""""""""""""
+
+This environment variable sets the number of pre-created events in the
+plugin (if supported) at initialization. More events will be created
+dynamically throughout the execution if needed. An event is used to synchronize
+a stream with another efficiently. The default value is ``1``, more events are
+created as needed.
+
+LIBOMPTARGET_LOCK_MAPPED_HOST_BUFFERS
+"""""""""""""""""""""""""""""""""""""
+
+This environment variable indicates whether the host buffers mapped by the user
+should be automatically locked/pinned by the plugin. Pinned host buffers allow
+true asynchronous copies between the host and devices. Enabling this feature can
+increase the performance of applications that are intensive in host-device
+memory transfers. The default value is ``false``.
+
+LIBOMPTARGET_AMDGPU_NUM_HSA_QUEUES
+""""""""""""""""""""""""""""""""""
+
+This environment variable controls the number of HSA queues per device in the
+AMDGPU plugin. An HSA queue is a runtime-allocated resource that contains an
+AQL (Architected Queuing Language) packet buffer and is associated with an AQL
+packet processor. HSA queues are used for inserting kernel packets to launching
+kernel executions. A high number of HSA queues may degrade the performance. The
+default value is ``4``.
+
+LIBOMPTARGET_AMDGPU_HSA_QUEUE_SIZE
+""""""""""""""""""""""""""""""""""
+
+This environment variable controls the size of each HSA queue in the AMDGPU
+plugin. The size is the number of AQL packets an HSA queue is expected to hold.
+It is also the number of AQL packets that can be pushed into each queue without
+waiting the driver to process them. The default value is ``512``.
+
+LIBOMPTARGET_AMDGPU_HSA_QUEUE_BUSY_TRACKING
+"""""""""""""""""""""""""""""""""""""""""""
+
+This environment variable controls if idle HSA queues will be preferentially
+assigned to streams, for example when they are requested for a kernel launch.
+Should all queues be considered busy, a new queue is initialized and returned,
+until we reach the set maximum. Otherwise, we will select the least utilized
+queue. If this is disabled, each time a stream is requested a new HSA queue
+will be initialized, regardless of their utilization. Additionally, queues will
+be selected using round robin selection. The default value is ``true``.
+
+.. _libomptarget_amdgpu_teams_per_cu:
+
+LIBOMPTARGET_AMDGPU_TEAMS_PER_CU
+""""""""""""""""""""""""""""""""
+
+This environment variable controls the default number of teams relative to the
+number of compute units (CUs) of the AMDGPU device. The default number of teams
+is ``#default_teams = #teams_per_CU * #CUs``. The default value of teams per CU
+is ``4``.
+
+LIBOMPTARGET_AMDGPU_MAX_ASYNC_COPY_BYTES
+""""""""""""""""""""""""""""""""""""""""
+
+This environment variable specifies the maximum size in bytes where the memory
+copies are asynchronous operations in the AMDGPU plugin. Up to this transfer
+size, the memory copies are asynchronous operations pushed to the corresponding
+stream. For larger transfers, they are synchronous transfers. Memory copies
+involving already locked/pinned host buffers are always asynchronous. The default
+value is ``1*1024*1024`` bytes (1 MB).
+
+LIBOMPTARGET_AMDGPU_NUM_INITIAL_HSA_SIGNALS
+"""""""""""""""""""""""""""""""""""""""""""
+
+This environment variable controls the initial number of HSA signals per device
+in the AMDGPU plugin. There is one resource manager of signals per device
+managing several pre-created signals. These signals are mainly used by AMDGPU
+streams. More HSA signals will be created dynamically throughout the execution
+if needed. The default value is ``64``.
+
+LIBOMPTARGET_AMDGPU_STREAM_BUSYWAIT
+"""""""""""""""""""""""""""""""""""
+
+This environment variable controls the timeout hint in microseconds for the
+HSA wait state within the AMDGPU plugin. For the duration of this value
+the HSA runtime may busy wait. This can reduce overall latency.
+The default value is ``2000000``.
 
 .. _remote_offloading_plugin:
 
@@ -1081,7 +1387,7 @@ LIBOMPTARGET_RPC_ADDRESS
 The address and port at which the server is running. This needs to be set for
 the server and the application, the default is ``0.0.0.0:50051``. A single
 OpenMP executable can offload onto multiple remote hosts by setting this to
-comma-seperated values of the addresses.
+comma-separated values of the addresses.
 
 LIBOMPTARGET_RPC_ALLOCATOR_MAX
 """"""""""""""""""""""""""""""
@@ -1094,6 +1400,54 @@ This is the maximum size of a single message while streaming data transfers betw
 LIBOMPTARGET_RPC_LATENCY
 """"""""""""""""""""""""
 This is the maximum amount of time the client will wait for a response from the server.
+
+
+.. _libomptarget_libc:
+
+LLVM/OpenMP support for C library routines
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Support for calling standard C library routines on GPU targets is provided by
+the `LLVM C Library <https://libc.llvm.org/gpu/>`_. This project provides two
+static libraries, ``libcgpu.a`` and ``libllvmlibc_rpc_server.a``, which are used
+by the OpenMP runtime to provide ``libc`` support. The ``libcgpu.a`` library
+contains the GPU device code, while ``libllvmlibc_rpc_server.a`` provides the
+interface to the RPC interface. More information on the RPC construction can be
+found in the `associated documentation <https://libc.llvm.org/gpu/rpc.html>`_.
+
+To provide host services, we run an RPC server inside of the runtime. This
+allows the host to respond to requests made from the GPU asynchronously. For
+``libc`` calls that require an RPC server, such as printing, an external handle
+to the RPC client running on the GPU will be present in the GPU executable. If
+we find this symbol, we will initialize a client and server and run it in the
+background while the kernel is executing.
+
+For example, consider the following simple OpenMP offloading code. Here we will
+simply print a string to the user from the GPU.
+
+.. code-block:: c++
+
+   #include <stdio.h>
+
+   int main() {
+    #pragma omp target
+      { fputs("Hello World!\n", stderr); }
+   }
+
+We can compile this using the ``libcgpu.a`` library to resolve the symbols.
+Because this function requires RPC support, this will also pull in an externally
+visible symbol called ``__llvm_libc_rpc_client`` into the device image. When
+loading the device image, the runtime will check for this symbol and initialize
+an RPC interface if it is found. The following example shows the RPC server
+being used.
+
+.. code-block:: console
+
+    $ clang++ hello.c -fopenmp --offload-arch=gfx90a -lcgpu
+    $ env LIBOMPTARGET_DEBUG=1 ./a.out
+    PluginInterface --> Running an RPC server on device 0
+    ...
+    Hello World!
 
 .. _libomptarget_device:
 
@@ -1114,8 +1468,9 @@ buffer. This pointer can be obtained using the
 ``llvm_omp_target_dynamic_shared_alloc`` extension. If this function is called
 from the host it will simply return a null pointer. In order to use this buffer
 the kernel must be launched with an adequate amount of dynamic shared memory
-allocated. Currently this is done using the ``LIBOMPTARGET_SHARED_MEMORY_SIZE``
-environment variable. An example is given below.
+allocated. This can be done using the ``LIBOMPTARGET_SHARED_MEMORY_SIZE``
+environment variable or the ``ompx_dyn_cgroup_mem(<N>)`` target directive
+clause. Examples for both are given below.
 
 .. code-block:: c++
 
@@ -1124,19 +1479,49 @@ environment variable. An example is given below.
     #pragma omp target parallel map(from : x)
       {
         int *buf = llvm_omp_target_dynamic_shared_alloc();
-    #pragma omp barrier
         if (omp_get_thread_num() == 0)
           *buf = 1;
     #pragma omp barrier
         if (omp_get_thread_num() == 1)
           x = *buf;
       }
+      assert(x == 1);
     }
 
 .. code-block:: console
 
-    $ clang++ -fopenmp -fopenmp-targets=nvptx64 shared.c
+    $ clang++ -fopenmp --offload-arch=sm_80 -O3 shared.c
     $ env LIBOMPTARGET_SHARED_MEMORY_SIZE=256 ./shared
+
+.. code-block:: c++
+
+    void foo(int N) {
+      int x;
+    #pragma omp target parallel map(from : x) ompx_dyn_cgroup_mem(N * sizeof(int))
+      {
+        int *buf = llvm_omp_target_dynamic_shared_alloc();
+        if (omp_get_thread_num() == 0)
+          buf[N - 1] = 1;
+    #pragma omp barrier
+        if (omp_get_thread_num() == 1)
+          x = buf[N - 1];
+      }
+      assert(x == 1);
+    }
+
+.. code-block:: console
+
+    $ clang++ -fopenmp --offload-arch=gfx90a -O3 shared.c
+    $ env ./shared
+
+.. _libomptarget_device_allocator:
+
+Device Allocation
+^^^^^^^^^^^^^^^^^
+
+The device runtime supports basic runtime allocation via the ``omp_alloc`` 
+function. Currently, this allocates global memory for all default traits. Access 
+modifiers are currently not supported and return a null pointer.
 
 .. _libomptarget_device_debugging:
 
@@ -1153,34 +1538,5 @@ to selectively enable and disable different features.  Currently, the following
 debugging features are supported.
 
     * Enable debugging assertions in the device. ``0x01``
-    * Enable OpenMP runtime function traces in the device. ``0x2``
     * Enable diagnosing common problems during offloading . ``0x4``
-
-.. code-block:: c++
-
-    void copy(double *X, double *Y) {
-    #pragma omp target teams distribute parallel for
-      for (std::size_t i = 0; i < N; ++i)
-        Y[i] = X[i];
-    }
-
-Compiling this code targeting ``nvptx64`` with debugging enabled will
-provide the following output from the device runtime library.
-
-.. code-block:: console
-
-    $ clang++ -fopenmp -fopenmp-targets=nvptx64 -fopenmp-target-debug=3
-    $ env LIBOMPTARGET_DEVICE_RTL_DEBUG=3 ./zaxpy
-
-.. code-block:: text
-
-    Kernel.cpp:70: Thread 0 Entering int32_t __kmpc_target_init()
-    Parallelism.cpp:196: Thread 0 Entering int32_t __kmpc_global_thread_num()
-    Mapping.cpp:239: Thread 0 Entering uint32_t __kmpc_get_hardware_num_threads_in_block()
-    Workshare.cpp:616: Thread 0 Entering void __kmpc_distribute_static_init_4()
-    Parallelism.cpp:85: Thread 0 Entering void __kmpc_parallel_51()
-      Parallelism.cpp:69: Thread 0 Entering <OpenMP Outlined Function>
-        Workshare.cpp:575: Thread 0 Entering void __kmpc_for_static_init_4()
-        Workshare.cpp:660: Thread 0 Entering void __kmpc_distribute_static_fini()
-    Workshare.cpp:660: Thread 0 Entering void __kmpc_distribute_static_fini()
-    Kernel.cpp:103: Thread 0 Entering void __kmpc_target_deinit()
+    * Dump device PGO counters (only if PGO on GPU is enabled). ``0x10``

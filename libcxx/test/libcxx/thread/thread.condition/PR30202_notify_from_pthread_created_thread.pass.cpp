@@ -13,9 +13,6 @@
 // unique_lock.
 // UNSUPPORTED: c++03
 
-// PR30202 was fixed starting in macosx10.13.
-// UNSUPPORTED: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11|12}}
-
 // <condition_variable>
 
 // void notify_all_at_thread_exit(condition_variable& cond, unique_lock<mutex> lk);

@@ -1,10 +1,10 @@
-#===----------------------------------------------------------------------===##
+# ===----------------------------------------------------------------------===##
 #
 # Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
-#===----------------------------------------------------------------------===##
+# ===----------------------------------------------------------------------===##
 """GDB pretty-printers for libc++.
 
 These should work for objects compiled with either the stable ABI or the unstable ABI.
@@ -12,9 +12,9 @@ These should work for objects compiled with either the stable ABI or the unstabl
 
 from __future__ import print_function
 
-import math
 import re
 import gdb
+import gdb.printing
 
 # One under-documented feature of the gdb pretty-printer API
 # is that clients can call any other member of the API
@@ -28,6 +28,7 @@ _void_pointer_type = gdb.lookup_type("void").pointer()
 _long_int_type = gdb.lookup_type("unsigned long long")
 
 _libcpp_big_endian = False
+
 
 def addr_as_long(addr):
     return int(addr.cast(_long_int_type))
@@ -64,13 +65,34 @@ def _remove_generics(typename):
     return match.group(1)
 
 
+def _data_field(node):
+    """Previous versions of libcxx had inconsistent field naming naming. Handle
+    both types.
+    """
+    try:
+        return node["__data_"]
+    except:
+        return node["__data"]
+
+
+def _size_field(node):
+    """Previous versions of libcxx had inconsistent field naming naming. Handle
+    both types.
+    """
+    try:
+        return node["__size_"]
+    except:
+        return node["__size"]
+
+
 # Some common substitutions on the types to reduce visual clutter (A user who
 # wants to see the actual details can always use print/r).
 _common_substitutions = [
-    ("std::basic_string<char, std::char_traits<char>, std::allocator<char> >",
-     "std::string"),
-    ("std::basic_string_view<char, std::char_traits<char> >",
-     "std::string_view"),
+    (
+        "std::basic_string<char, std::char_traits<char>, std::allocator<char> >",
+        "std::string",
+    ),
+    ("std::basic_string_view<char, std::char_traits<char> >", "std::string_view"),
 ]
 
 
@@ -86,8 +108,11 @@ def _prettify_typename(gdb_type):
     """
 
     type_without_typedefs = gdb_type.strip_typedefs()
-    typename = type_without_typedefs.name or type_without_typedefs.tag or \
-        str(type_without_typedefs)
+    typename = (
+        type_without_typedefs.name
+        or type_without_typedefs.tag
+        or str(type_without_typedefs)
+    )
     result = _remove_cxx_namespace(typename)
     for find_str, subst_str in _common_substitutions:
         result = re.sub(find_str, subst_str, result)
@@ -120,11 +145,6 @@ def _typename_with_n_generic_arguments(gdb_type, n):
     result = (template[:-2] + ">") % tuple(arg_list)
     return result
 
-
-def _typename_with_first_generic_argument(gdb_type):
-    return _typename_with_n_generic_arguments(gdb_type, 1)
-
-
 class StdTuplePrinter(object):
     """Print a std::tuple."""
 
@@ -144,7 +164,7 @@ class StdTuplePrinter(object):
             field_name = next(self.child_iter)
             child = self.val["__base_"][field_name]["__value_"]
             self.count += 1
-            return ("[%d]" % self.count, child)
+            return ("[%d]" % (self.count - 1), child)
 
         next = __next__  # Needed for GDB built against Python 2.7.
 
@@ -162,33 +182,6 @@ class StdTuplePrinter(object):
             return iter(())
         return self._Children(self.val)
 
-
-def _get_base_subobject(child_class_value, index=0):
-    """Returns the object's value in the form of the parent class at index.
-
-    This function effectively casts the child_class_value to the base_class's
-    type, but the type-to-cast to is stored in the field at index, and once
-    we know the field, we can just return the data.
-
-    Args:
-      child_class_value: the value to cast
-      index: the parent class index
-
-    Raises:
-      Exception: field at index was not a base-class field.
-    """
-
-    field = child_class_value.type.fields()[index]
-    if not field.is_base_class:
-        raise Exception("Not a base-class field.")
-    return child_class_value[field]
-
-
-def _value_of_pair_first(value):
-    """Convenience for _get_base_subobject, for the common case."""
-    return _get_base_subobject(value, 0)["__value_"]
-
-
 class StdStringPrinter(object):
     """Print a std::string."""
 
@@ -197,12 +190,9 @@ class StdStringPrinter(object):
 
     def to_string(self):
         """Build a python string from the data whether stored inline or separately."""
-
-        value_field = _value_of_pair_first(self.val["__r_"])
+        value_field = self.val["__rep_"]
         short_field = value_field["__s"]
         short_size = short_field["__size_"]
-        if short_size == 0:
-            return ""
         if short_field["__is_long_"]:
             long_field = value_field["__l"]
             data = long_field["__data_"]
@@ -220,18 +210,18 @@ class StdStringViewPrinter(object):
     """Print a std::string_view."""
 
     def __init__(self, val):
-      self.val = val
+        self.val = val
 
     def display_hint(self):
-      return "string"
+        return "string"
 
     def to_string(self):  # pylint: disable=g-bad-name
-      """GDB calls this to compute the pretty-printed form."""
+        """GDB calls this to compute the pretty-printed form."""
 
-      ptr = self.val["__data"]
-      ptr = ptr.cast(ptr.type.target().strip_typedefs().pointer())
-      size = self.val["__size"]
-      return ptr.lazy_string(length=size)
+        ptr = _data_field(self.val)
+        ptr = ptr.cast(ptr.type.target().strip_typedefs().pointer())
+        size = _size_field(self.val)
+        return ptr.lazy_string(length=size)
 
 
 class StdUniquePtrPrinter(object):
@@ -239,16 +229,17 @@ class StdUniquePtrPrinter(object):
 
     def __init__(self, val):
         self.val = val
-        self.addr = _value_of_pair_first(self.val["__ptr_"])
+        self.addr = self.val["__ptr_"]
         self.pointee_type = self.val.type.template_argument(0)
 
     def to_string(self):
         typename = _remove_generics(_prettify_typename(self.val.type))
         if not self.addr:
             return "%s is nullptr" % typename
-        return ("%s<%s> containing" %
-                (typename,
-                 _remove_generics(_prettify_typename(self.pointee_type))))
+        return "%s<%s> containing" % (
+            typename,
+            _remove_generics(_prettify_typename(self.pointee_type)),
+        )
 
     def __iter__(self):
         if self.addr:
@@ -269,7 +260,8 @@ class StdSharedPointerPrinter(object):
         """Returns self as a string."""
         typename = _remove_generics(_prettify_typename(self.val.type))
         pointee_type = _remove_generics(
-            _prettify_typename(self.val.type.template_argument(0)))
+            _prettify_typename(self.val.type.template_argument(0))
+        )
         if not self.addr:
             return "%s is nullptr" % typename
         refcount = self.val["__cntrl_"]
@@ -330,7 +322,7 @@ class StdVectorPrinter(object):
             if self.offset >= self.bits_per_word:
                 self.item += 1
                 self.offset = 0
-            return ("[%d]" % self.count, outbit)
+            return ("[%d]" % (self.count - 1), outbit)
 
         next = __next__  # Needed for GDB built against Python 2.7.
 
@@ -351,7 +343,7 @@ class StdVectorPrinter(object):
                 raise StopIteration
             entry = self.item.dereference()
             self.item += 1
-            return ("[%d]" % self.count, entry)
+            return ("[%d]" % (self.count - 1), entry)
 
         next = __next__  # Needed for GDB built against Python 2.7.
 
@@ -364,20 +356,20 @@ class StdVectorPrinter(object):
             self.typename += "<bool>"
             self.length = self.val["__size_"]
             bits_per_word = self.val["__bits_per_word"]
-            self.capacity = _value_of_pair_first(
-                self.val["__cap_alloc_"]) * bits_per_word
-            self.iterator = self._VectorBoolIterator(
-                begin, self.length, bits_per_word)
+            self.capacity = self.val["__cap_"] * bits_per_word
+            self.iterator = self._VectorBoolIterator(begin, self.length, bits_per_word)
         else:
             end = self.val["__end_"]
             self.length = end - begin
-            self.capacity = _get_base_subobject(
-                self.val["__end_cap_"])["__value_"] - begin
+            self.capacity = self.val["__cap_"] - begin
             self.iterator = self._VectorIterator(begin, end)
 
     def to_string(self):
-        return ("%s of length %d, capacity %d" %
-                (self.typename, self.length, self.capacity))
+        return "%s of length %d, capacity %d" % (
+            self.typename,
+            self.length,
+            self.capacity,
+        )
 
     def children(self):
         return self.iterator
@@ -397,8 +389,9 @@ class StdBitsetPrinter(object):
         if self.n_words == 1:
             self.values = [int(self.val["__first_"])]
         else:
-            self.values = [int(self.val["__first_"][index])
-                           for index in range(self.n_words)]
+            self.values = [
+                int(self.val["__first_"][index]) for index in range(self.n_words)
+            ]
 
     def to_string(self):
         typename = _prettify_typename(self.val.type)
@@ -423,12 +416,11 @@ class StdDequePrinter(object):
 
     def __init__(self, val):
         self.val = val
-        self.size = int(_value_of_pair_first(val["__size_"]))
+        self.size = int(val["__size_"])
         self.start_ptr = self.val["__map_"]["__begin_"]
         self.first_block_start_index = int(self.val["__start_"])
         self.node_type = self.start_ptr.type
-        self.block_size = self._calculate_block_size(
-            val.type.template_argument(0))
+        self.block_size = self._calculate_block_size(val.type.template_argument(0))
 
     def _calculate_block_size(self, element_type):
         """Calculates the number of elements in a full block."""
@@ -445,14 +437,17 @@ class StdDequePrinter(object):
         num_emitted = 0
         current_addr = self.start_ptr
         start_index = self.first_block_start_index
+        i = 0
         while num_emitted < self.size:
-            end_index = min(start_index + self.size -
-                            num_emitted, self.block_size)
+            end_index = min(start_index + self.size - num_emitted, self.block_size)
             for _, elem in self._bucket_it(current_addr, start_index, end_index):
-                yield "", elem
+                key_name = "[%d]" % i
+                i += 1
+                yield key_name, elem
             num_emitted += end_index - start_index
-            current_addr = gdb.Value(addr_as_long(current_addr) + _pointer_size) \
-                              .cast(self.node_type)
+            current_addr = gdb.Value(addr_as_long(current_addr) + _pointer_size).cast(
+                self.node_type
+            )
             start_index = 0
 
     def to_string(self):
@@ -476,12 +471,13 @@ class StdListPrinter(object):
 
     def __init__(self, val):
         self.val = val
-        size_alloc_field = self.val["__size_alloc_"]
-        self.size = int(_value_of_pair_first(size_alloc_field))
+        self.size = int(self.val["__size_"])
         dummy_node = self.val["__end_"]
         self.nodetype = gdb.lookup_type(
-            re.sub("__list_node_base", "__list_node",
-                   str(dummy_node.type.strip_typedefs()))).pointer()
+            re.sub(
+                "__list_node_base", "__list_node", str(dummy_node.type.strip_typedefs())
+            )
+        ).pointer()
         self.first_node = dummy_node["__next_"]
 
     def to_string(self):
@@ -492,8 +488,8 @@ class StdListPrinter(object):
 
     def _list_iter(self):
         current_node = self.first_node
-        for _ in range(self.size):
-            yield "", current_node.cast(self.nodetype).dereference()["__value_"]
+        for i in range(self.size):
+            yield "[%d]" % i, current_node.cast(self.nodetype).dereference()["__value_"]
             current_node = current_node.dereference()["__next_"]
 
     def __iter__(self):
@@ -510,15 +506,14 @@ class StdQueueOrStackPrinter(object):
     """Print a std::queue or std::stack."""
 
     def __init__(self, val):
-        self.val = val
-        self.underlying = val["c"]
+        self.typename = _remove_generics(_prettify_typename(val.type))
+        self.visualizer = gdb.default_visualizer(val["c"])
 
     def to_string(self):
-        typename = _remove_generics(_prettify_typename(self.val.type))
-        return "%s wrapping" % typename
+        return "%s wrapping: %s" % (self.typename, self.visualizer.to_string())
 
     def children(self):
-        return iter([("", self.underlying)])
+        return self.visualizer.children()
 
     def display_hint(self):
         return "array"
@@ -528,19 +523,18 @@ class StdPriorityQueuePrinter(object):
     """Print a std::priority_queue."""
 
     def __init__(self, val):
-        self.val = val
-        self.underlying = val["c"]
+        self.typename = _remove_generics(_prettify_typename(val.type))
+        self.visualizer = gdb.default_visualizer(val["c"])
 
     def to_string(self):
         # TODO(tamur): It would be nice to print the top element. The technical
         # difficulty is that, the implementation refers to the underlying
         # container, which is a generic class. libstdcxx pretty printers do not
         # print the top element.
-        typename = _remove_generics(_prettify_typename(self.val.type))
-        return "%s wrapping" % typename
+        return "%s wrapping: %s" % (self.typename, self.visualizer.to_string())
 
     def children(self):
-        return iter([("", self.underlying)])
+        return self.visualizer.children()
 
     def display_hint(self):
         return "array"
@@ -607,9 +601,8 @@ class AbstractRBTreePrinter(object):
     def __init__(self, val):
         self.val = val
         tree = self.val["__tree_"]
-        self.size = int(_value_of_pair_first(tree["__pair3_"]))
-        dummy_root = tree["__pair1_"]
-        root = _value_of_pair_first(dummy_root)["__left_"]
+        self.size = int(tree["__size_"])
+        root = tree["__end_node_"]["__left_"]
         cast_type = self._init_cast_type(val.type)
         self.util = RBTreeUtils(cast_type, root)
 
@@ -621,13 +614,16 @@ class AbstractRBTreePrinter(object):
         """Traverses the binary search tree in order."""
         current = self.util.root
         skip_left_child = False
+        i = 0
         while True:
             if not skip_left_child and self.util.left_child(current):
                 current = self.util.left_child(current)
                 continue
             skip_left_child = False
             for key_value in self._get_key_value(current):
-                yield "", key_value
+                key_name = "[%d]" % i
+                i += 1
+                yield key_name, key_value
             right_child = self.util.right_child(current)
             if right_child:
                 current = right_child
@@ -658,7 +654,8 @@ class StdMapPrinter(AbstractRBTreePrinter):
 
     def _init_cast_type(self, val_type):
         map_it_type = gdb.lookup_type(
-            str(val_type.strip_typedefs()) + "::iterator").strip_typedefs()
+            str(val_type.strip_typedefs()) + "::iterator"
+        ).strip_typedefs()
         tree_it_type = map_it_type.template_argument(0)
         node_ptr_type = tree_it_type.template_argument(1)
         return node_ptr_type
@@ -667,8 +664,7 @@ class StdMapPrinter(AbstractRBTreePrinter):
         return "map"
 
     def _get_key_value(self, node):
-        key_value = node.cast(self.util.cast_type).dereference()[
-            "__value_"]["__cc"]
+        key_value = node.cast(self.util.cast_type).dereference()["__value_"]
         return [key_value["first"], key_value["second"]]
 
 
@@ -677,7 +673,8 @@ class StdSetPrinter(AbstractRBTreePrinter):
 
     def _init_cast_type(self, val_type):
         set_it_type = gdb.lookup_type(
-            str(val_type.strip_typedefs()) + "::iterator").strip_typedefs()
+            str(val_type.strip_typedefs()) + "::iterator"
+        ).strip_typedefs()
         node_ptr_type = set_it_type.template_argument(1)
         return node_ptr_type
 
@@ -704,8 +701,7 @@ class AbstractRBTreeIteratorPrinter(object):
     def _is_valid_node(self):
         if not self.util.parent(self.addr):
             return False
-        return self.util.is_left_child(self.addr) or \
-            self.util.is_right_child(self.addr)
+        return self.util.is_left_child(self.addr) or self.util.is_right_child(self.addr)
 
     def to_string(self):
         if not self.addr:
@@ -730,11 +726,10 @@ class MapIteratorPrinter(AbstractRBTreeIteratorPrinter):
     """Print a std::(multi)map iterator."""
 
     def __init__(self, val):
-        self._initialize(val["__i_"],
-                         _remove_generics(_prettify_typename(val.type)))
+        self._initialize(val["__i_"], _remove_generics(_prettify_typename(val.type)))
 
     def _get_node_value(self, node):
-        return node["__value_"]["__cc"]
+        return node["__value_"]
 
 
 class SetIteratorPrinter(AbstractRBTreeIteratorPrinter):
@@ -777,17 +772,20 @@ class AbstractUnorderedCollectionPrinter(object):
     def __init__(self, val):
         self.val = val
         self.table = val["__table_"]
-        self.sentinel = self.table["__p1_"]
-        self.size = int(_value_of_pair_first(self.table["__p2_"]))
-        node_base_type = self.sentinel.type.template_argument(0)
+        self.sentinel = self.table["__first_node_"]
+        self.size = int(self.table["__size_"])
+        node_base_type = self.sentinel.type
         self.cast_type = node_base_type.template_argument(0)
 
     def _list_it(self, sentinel_ptr):
-        next_ptr = _value_of_pair_first(sentinel_ptr)["__next_"]
+        next_ptr = sentinel_ptr["__next_"]
+        i = 0
         while str(next_ptr.cast(_void_pointer_type)) != "0x0":
             next_val = next_ptr.cast(self.cast_type).dereference()
             for key_value in self._get_key_value(next_val):
-                yield "", key_value
+                key_name = "[%d]" % i
+                i += 1
+                yield key_name, key_value
             next_ptr = next_val["__next_"]
 
     def to_string(self):
@@ -821,7 +819,7 @@ class StdUnorderedMapPrinter(AbstractUnorderedCollectionPrinter):
     """Print a std::unordered_(multi)map."""
 
     def _get_key_value(self, node):
-        key_value = node["__value_"]["__cc"]
+        key_value = node["__value_"]
         return [key_value["first"], key_value["second"]]
 
     def display_hint(self):
@@ -851,8 +849,8 @@ class AbstractHashMapIteratorPrinter(object):
         return self if self.addr else iter(())
 
     def __iter__(self):
-        for key_value in self._get_key_value():
-            yield "", key_value
+        for i, key_value in enumerate(self._get_key_value()):
+            yield "[%d]" % i, key_value
 
 
 class StdUnorderedSetIteratorPrinter(AbstractHashMapIteratorPrinter):
@@ -877,7 +875,7 @@ class StdUnorderedMapIteratorPrinter(AbstractHashMapIteratorPrinter):
         self._initialize(val, val["__i_"]["__node_"])
 
     def _get_key_value(self):
-        key_value = self.node["__value_"]["__cc"]
+        key_value = self.node["__value_"]
         return [key_value["first"], key_value["second"]]
 
     def display_hint(self):
@@ -950,10 +948,12 @@ class LibcxxPrettyPrinter(object):
         # Don't attempt types known to be inside libstdcxx.
         typename = val.type.name or val.type.tag or str(val.type)
         match = re.match("^std::(__.*?)::", typename)
-        if match is not None and match.group(1) in ["__cxx1998",
-                                                    "__debug",
-                                                    "__7",
-                                                    "__g"]:
+        if match is not None and match.group(1) in [
+            "__cxx1998",
+            "__debug",
+            "__7",
+            "__g",
+        ]:
             return None
 
         # Handle any using declarations or other typedefs.
@@ -979,13 +979,13 @@ def _register_libcxx_printers(event):
     # already generated as part of a larger data structure, and there is
     # no python api to get the endianness. Mixed-endianness debugging
     # rare enough that this workaround should be adequate.
-    _libcpp_big_endian = "big endian" in gdb.execute("show endian",
-                                                     to_string=True)
+    _libcpp_big_endian = "big endian" in gdb.execute("show endian", to_string=True)
 
     if not getattr(progspace, _libcxx_printer_name, False):
         print("Loading libc++ pretty-printers.")
         gdb.printing.register_pretty_printer(
-            progspace, LibcxxPrettyPrinter(_libcxx_printer_name))
+            progspace, LibcxxPrettyPrinter(_libcxx_printer_name)
+        )
         setattr(progspace, _libcxx_printer_name, True)
 
 

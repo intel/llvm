@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++03
+// UNSUPPORTED: c++03, c++11, c++14
 
 // <filesystem>
 
@@ -43,18 +43,19 @@
 // iterator end() const;
 
 
-#include "filesystem_include.h"
+#include <filesystem>
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <iterator>
+#include <string>
 #include <type_traits>
 #include <vector>
 
 #include "test_macros.h"
 #include "test_iterators.h"
 #include "count_new.h"
-#include "filesystem_test_helper.h"
+namespace fs = std::filesystem;
 
 struct ComparePathExact {
   bool operator()(fs::path const& LHS, std::string const& RHS) const {

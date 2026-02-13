@@ -8,14 +8,15 @@ add_lldb_library(lldbPluginProcessMinidump PLUGIN
   ProcessMinidump.cpp
   ThreadMinidump.cpp
 
+  LINK_COMPONENTS
+    BinaryFormat
+    Object
+    Support
   LINK_LIBS
     lldbCore
     lldbTarget
     lldbUtility
     lldbPluginProcessUtility
     lldbPluginProcessElfCore
-  LINK_COMPONENTS
-    BinaryFormat
-    Object
-    Support
+    lldbPluginObjectFilePlaceholder
   )

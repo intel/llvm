@@ -24,14 +24,23 @@ def Test_Dialect : Dialect {
   let useDefaultTypePrinterParser = 0;
   let useDefaultAttributePrinterParser = 1;
   let isExtensible = 1;
-  let dependentDialects = ["::mlir::DLTIDialect"];
+  let dependentDialects = [
+    "::mlir::DLTIDialect",
+    "::mlir::bufferization::BufferizationDialect"
+  ];
+  let discardableAttrs = (ins
+     "mlir::IntegerAttr":$discardable_attr_key,
+     "SimpleAAttr":$other_discardable_attr_key
+  );
 
   let extraClassDeclaration = [{
     void registerAttributes();
+    void registerInterfaces();
     void registerTypes();
+    void registerOpsSyntax();
 
     // Provides a custom printing/parsing for some operations.
-    ::llvm::Optional<ParseOpHook>
+    ::std::optional<ParseOpHook>
       getParseOperationHook(::llvm::StringRef opName) const override;
     ::llvm::unique_function<void(::mlir::Operation *,
                                  ::mlir::OpAsmPrinter &printer)>
@@ -44,11 +53,6 @@ def Test_Dialect : Dialect {
   private:
     // Storage for a custom fallback interface.
     void *fallbackEffectOpInterfaces;
-
-    ::mlir::Type parseTestType(::mlir::AsmParser &parser,
-                               ::llvm::SetVector<::mlir::Type> &stack) const;
-    void printTestType(::mlir::Type type, ::mlir::AsmPrinter &printer,
-                       ::llvm::SetVector<::mlir::Type> &stack) const;
   }];
 }
 

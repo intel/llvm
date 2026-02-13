@@ -1,4 +1,4 @@
-//===--- DispatchOnceNonstaticCheck.cpp - clang-tidy ----------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -16,9 +16,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace darwin {
+namespace clang::tidy::darwin {
 
 void DispatchOnceNonstaticCheck::registerMatchers(MatchFinder *Finder) {
   // Find variables without static or global storage. VarDecls do not include
@@ -57,6 +55,4 @@ void DispatchOnceNonstaticCheck::check(const MatchFinder::MatchResult &Result) {
   }
 }
 
-} // namespace darwin
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::darwin

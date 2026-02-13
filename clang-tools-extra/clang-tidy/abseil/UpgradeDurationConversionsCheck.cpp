@@ -1,4 +1,4 @@
-//===--- UpgradeDurationConversionsCheck.cpp - clang-tidy -----------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,9 +14,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace abseil {
+namespace clang::tidy::abseil {
 
 void UpgradeDurationConversionsCheck::registerMatchers(MatchFinder *Finder) {
   // For the arithmetic calls, we match only the uses of the templated operators
@@ -106,7 +104,7 @@ void UpgradeDurationConversionsCheck::registerMatchers(MatchFinder *Finder) {
                                       hasCastKind(CK_UserDefinedConversion)))),
                             hasParent(callExpr(
                                 callee(functionDecl(
-                                    DurationFactoryFunction(),
+                                    durationFactoryFunction(),
                                     unless(hasParent(functionTemplateDecl())))),
                                 hasArgument(0, expr().bind("arg")))))
                             .bind("OuterExpr")),
@@ -119,16 +117,16 @@ void UpgradeDurationConversionsCheck::check(
       "implicit conversion to 'int64_t' is deprecated in this context; use an "
       "explicit cast instead";
 
-  TraversalKindScope RAII(*Result.Context, TK_AsIs);
+  const TraversalKindScope RAII(*Result.Context, TK_AsIs);
 
   const auto *ArgExpr = Result.Nodes.getNodeAs<Expr>("arg");
-  SourceLocation Loc = ArgExpr->getBeginLoc();
+  const SourceLocation Loc = ArgExpr->getBeginLoc();
 
   const auto *OuterExpr = Result.Nodes.getNodeAs<Expr>("OuterExpr");
 
   if (!match(isInTemplateInstantiation(), *OuterExpr, *Result.Context)
            .empty()) {
-    if (MatchedTemplateLocations.count(Loc) == 0) {
+    if (!MatchedTemplateLocations.contains(Loc)) {
       // For each location matched in a template instantiation, we check if the
       // location can also be found in `MatchedTemplateLocations`. If it is not
       // found, that means the expression did not create a match without the
@@ -141,13 +139,13 @@ void UpgradeDurationConversionsCheck::check(
 
   // We gather source locations from template matches not in template
   // instantiations for future matches.
-  internal::Matcher<Stmt> IsInsideTemplate =
+  const internal::Matcher<Stmt> IsInsideTemplate =
       hasAncestor(decl(anyOf(classTemplateDecl(), functionTemplateDecl())));
   if (!match(IsInsideTemplate, *ArgExpr, *Result.Context).empty())
     MatchedTemplateLocations.insert(Loc);
 
-  DiagnosticBuilder Diag = diag(Loc, Message);
-  CharSourceRange SourceRange = Lexer::makeFileCharRange(
+  const DiagnosticBuilder Diag = diag(Loc, Message);
+  const CharSourceRange SourceRange = Lexer::makeFileCharRange(
       CharSourceRange::getTokenRange(ArgExpr->getSourceRange()),
       *Result.SourceManager, Result.Context->getLangOpts());
   if (SourceRange.isInvalid())
@@ -160,6 +158,4 @@ void UpgradeDurationConversionsCheck::check(
        << FixItHint::CreateInsertion(SourceRange.getEnd(), ")");
 }
 
-} // namespace abseil
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::abseil

@@ -1,4 +1,5 @@
 //===----------------------------------------------------------------------===//
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -6,7 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-has-no-incomplete-format
+// UNSUPPORTED: GCC-ALWAYS_INLINE-FIXME
+
+// TODO FMT This test should not require std::to_chars(floating-point)
+// XFAIL: availability-fp_to_chars-missing
 
 // Tests whether a move only type can be formatted. This is required by
 // P2418R2 "Add support for std::generator-like types to std::format"
@@ -28,8 +32,7 @@
 
 template <class CharT>
 struct std::formatter<MoveOnly, CharT> : std::formatter<int, CharT> {
-  // TODO FMT Make this a const member function after the base class has been adapted.
-  auto format(const MoveOnly& m, auto& ctx) -> decltype(ctx.out()) {
+  auto format(const MoveOnly& m, auto& ctx) const -> decltype(ctx.out()) {
     return std::formatter<int, CharT>::format(m.get(), ctx);
   }
 };

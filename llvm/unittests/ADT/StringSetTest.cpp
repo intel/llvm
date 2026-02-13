@@ -35,7 +35,7 @@ TEST_F(StringSetTest, InsertAndCountStringMapEntry) {
   // which are required for set_difference(StringSet, StringSet).
   StringSet<> Set;
   StringMapEntry<StringRef> *Element =
-      StringMapEntry<StringRef>::Create("A", Set.getAllocator());
+      StringMapEntry<StringRef>::create("A", Set.getAllocator());
   Set.insert(*Element);
   size_t Count = Set.count(*Element);
   size_t Expected = 1;
@@ -71,6 +71,33 @@ TEST_F(StringSetTest, Contains) {
   Set.erase("test");
   EXPECT_TRUE(Set.contains(""));
   EXPECT_FALSE(Set.contains("test"));
+}
+
+TEST_F(StringSetTest, Equal) {
+  StringSet<> A = {"A"};
+  StringSet<> B = {"B"};
+  ASSERT_TRUE(A != B);
+  ASSERT_FALSE(A == B);
+  ASSERT_TRUE(A == A);
+}
+
+TEST_F(StringSetTest, CtorRange) {
+  const char *Args[] = {"chair", "desk", "bed"};
+  StringSet<> Set(llvm::from_range, Args);
+  EXPECT_EQ(Set.size(), 3U);
+  EXPECT_TRUE(Set.contains("bed"));
+  EXPECT_TRUE(Set.contains("chair"));
+  EXPECT_TRUE(Set.contains("desk"));
+}
+
+TEST_F(StringSetTest, InsertRange) {
+  StringSet<> Set;
+  const char *Args[] = {"chair", "desk", "bed"};
+  Set.insert_range(Args);
+  EXPECT_EQ(Set.size(), 3U);
+  EXPECT_TRUE(Set.contains("bed"));
+  EXPECT_TRUE(Set.contains("chair"));
+  EXPECT_TRUE(Set.contains("desk"));
 }
 
 } // end anonymous namespace

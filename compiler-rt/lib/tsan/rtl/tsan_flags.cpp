@@ -10,19 +10,58 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "sanitizer_common/sanitizer_flags.h"
-#include "sanitizer_common/sanitizer_flag_parser.h"
-#include "sanitizer_common/sanitizer_libc.h"
 #include "tsan_flags.h"
-#include "tsan_rtl.h"
+
+#include "sanitizer_common/sanitizer_flag_parser.h"
+#include "sanitizer_common/sanitizer_flags.h"
+#include "sanitizer_common/sanitizer_libc.h"
+#include "tsan_interface.h"
 #include "tsan_mman.h"
+#include "tsan_rtl.h"
 #include "ubsan/ubsan_flags.h"
+
+#if SANITIZER_APPLE && !SANITIZER_GO
+namespace __sanitizer {
+
+template <>
+inline bool FlagHandler<LockDuringWriteSetting>::Parse(const char *value) {
+  if (internal_strcmp(value, "on") == 0) {
+    *t_ = kLockDuringAllWrites;
+    return true;
+  }
+  if (internal_strcmp(value, "disable_for_current_process") == 0) {
+    *t_ = kNoLockDuringWritesCurrentProcess;
+    return true;
+  }
+  if (internal_strcmp(value, "disable_for_all_processes") == 0) {
+    *t_ = kNoLockDuringWritesAllProcesses;
+    return true;
+  }
+  Printf("ERROR: Invalid value for signal handler option: '%s'\n", value);
+  return false;
+}
+
+template <>
+inline bool FlagHandler<LockDuringWriteSetting>::Format(char *buffer,
+                                                        uptr size) {
+  switch (*t_) {
+    case kLockDuringAllWrites:
+      return FormatString(buffer, size, "on");
+    case kNoLockDuringWritesCurrentProcess:
+      return FormatString(buffer, size, "disable_for_current_process");
+    case kNoLockDuringWritesAllProcesses:
+      return FormatString(buffer, size, "disable_for_all_processes");
+  }
+}
+
+}  // namespace __sanitizer
+#endif  // SANITIZER_APPLE && !SANITIZER_GO
 
 namespace __tsan {
 
 // Can be overriden in frontend.
 #ifdef TSAN_EXTERNAL_HOOKS
-extern "C" const char* __tsan_default_options();
+extern "C" const char *__tsan_default_options();
 #else
 SANITIZER_WEAK_DEFAULT_IMPL
 const char *__tsan_default_options() {

@@ -1,4 +1,4 @@
-//===--- DanglingHandleCheck.h - clang-tidy----------------------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,17 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MISC_OPTIONUTILS_H
-#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MISC_OPTIONUTILS_H
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_UTILS_OPTIONSUTILS_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_UTILS_OPTIONSUTILS_H
 
 #include "clang/Basic/LLVM.h"
 #include <string>
 #include <vector>
 
-namespace clang {
-namespace tidy {
-namespace utils {
-namespace options {
+namespace clang::tidy::utils::options {
 
 /// Parse a semicolon separated list of strings.
 std::vector<StringRef> parseStringList(StringRef Option);
@@ -27,9 +24,6 @@ std::vector<StringRef> parseListPair(StringRef L, StringRef R);
 /// ``parseStringList``.
 std::string serializeStringList(ArrayRef<StringRef> Strings);
 
-} // namespace options
-} // namespace utils
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::utils::options
 
-#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MISC_OPTIONUTILS_H
+#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_UTILS_OPTIONSUTILS_H

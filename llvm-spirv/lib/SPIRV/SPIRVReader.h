@@ -90,6 +90,11 @@ public:
   std::string transTypeToOCLTypeName(SPIRVType *BT, bool IsSigned = true);
   std::vector<Type *> transTypeVector(const std::vector<SPIRVType *> &,
                                       bool UseTypedPointerTypes = false);
+  // Build a typed LLVM pointer type for a SPIR-V untyped pointer operand by
+  // inferring an element LLVM type from the operand's SPIR-V value or from
+  // translated LLVM value. Returns nullptr if no element type can be found.
+  // This is needed to preserve correct mangling for builtins.
+  Type *getTypedPtrFromUntypedOperand(SPIRVValue *Op, Type *RetTy);
   bool translate();
   bool transAddressingModel();
 
@@ -100,9 +105,11 @@ public:
   bool transDecoration(SPIRVValue *, Value *);
   bool transAlign(SPIRVValue *, Value *);
   Instruction *transOCLBuiltinFromExtInst(SPIRVExtInst *BC, BasicBlock *BB);
+  void transAuxDataInst(SPIRVExtInst *BC);
   std::vector<Value *> transValue(const std::vector<SPIRVValue *> &,
                                   Function *F, BasicBlock *);
-  Function *transFunction(SPIRVFunction *F);
+  Function *transFunction(SPIRVFunction *F, unsigned AS = SPIRAS_Private);
+  void transFunctionAttrs(SPIRVFunction *BF, Function *F);
   Value *transBlockInvoke(SPIRVValue *Invoke, BasicBlock *BB);
   Instruction *transWGSizeQueryBI(SPIRVInstruction *BI, BasicBlock *BB);
   Instruction *transSGSizeQueryBI(SPIRVInstruction *BI, BasicBlock *BB);
@@ -149,10 +156,19 @@ public:
   // A SPIRV value may be translated to a load instruction of a placeholder
   // global variable. This map records load instruction of these placeholders
   // which are supposed to be replaced by the real values later.
-  typedef std::map<SPIRVValue *, LoadInst *> SPIRVToLLVMPlaceholderMap;
+  typedef std::unordered_map<SPIRVValue *, LoadInst *>
+      SPIRVToLLVMPlaceholderMap;
 
-  typedef std::map<const BasicBlock *, const SPIRVValue *>
+  typedef std::unordered_map<const BasicBlock *, const SPIRVValue *>
       SPIRVToLLVMLoopMetadataMap;
+
+  // Store all the allocations to Struct Types that are further
+  // accessed inside GetElementPtr instruction or in ptr.annotation intrinsics.
+  // For every structure we save the accessed structure field index and the
+  // last corresponding translated LLVM instruction.
+  typedef std::unordered_map<Value *,
+                             std::unordered_map<SPIRVWord, Instruction *>>
+      TypeToGEPOrUseMap;
 
 private:
   Module *M;
@@ -185,6 +201,8 @@ private:
   SPIRVToLLVMMDAliasInstMap MDAliasScopeMap;
   SPIRVToLLVMMDAliasInstMap MDAliasListMap;
 
+  TypeToGEPOrUseMap GEPOrUseMap;
+
   Type *mapType(SPIRVType *BT, Type *T);
 
   // If a value is mapped twice, the existing mapped value is a placeholder,
@@ -202,6 +220,13 @@ private:
 
   bool isDirectlyTranslatedToOCL(Op OpCode) const;
   MDString *transOCLKernelArgTypeName(SPIRVFunctionParameter *);
+
+  // Attempt to translate Id as a (specialization) constant.
+  std::optional<uint64_t> transIdAsConstant(SPIRVId Id);
+
+  // Return the value of an Alignment or AlignmentId decoration for V.
+  std::optional<uint64_t> getAlignment(SPIRVValue *V);
+
   Value *mapFunction(SPIRVFunction *BF, Function *F);
   Value *getTranslatedValue(SPIRVValue *BV);
   IntrinsicInst *getLifetimeStartIntrinsic(Instruction *I);
@@ -216,11 +241,6 @@ private:
   Instruction *transOCLBuiltinPostproc(SPIRVInstruction *BI, CallInst *CI,
                                        BasicBlock *BB,
                                        const std::string &DemangledName);
-  std::string transOCLImageTypeName(SPIRV::SPIRVTypeImage *ST);
-  std::string transOCLSampledImageTypeName(SPIRV::SPIRVTypeSampledImage *ST);
-  std::string transVMEImageTypeName(SPIRV::SPIRVTypeVmeImageINTEL *VT);
-  std::string transPipeTypeName(SPIRV::SPIRVTypePipe *ST);
-  std::string transOCLPipeStorageTypeName(SPIRV::SPIRVTypePipeStorage *PST);
   std::string transOCLImageTypeAccessQualifier(SPIRV::SPIRVTypeImage *ST);
   std::string transOCLPipeTypeAccessQualifier(SPIRV::SPIRVTypePipe *ST);
   std::string transVCTypeName(SPIRVTypeBufferSurfaceINTEL *PST);
@@ -244,12 +264,12 @@ private:
 
   void transUserSemantic(SPIRV::SPIRVFunction *Fun);
   void transGlobalAnnotations();
-  void transGlobalCtorDtors(SPIRVVariable *BV);
+  void transGlobalCtorDtors(SPIRVVariableBase *BV);
   void createCXXStructor(const char *ListName,
                          SmallVectorImpl<Function *> &Funcs);
   void transIntelFPGADecorations(SPIRVValue *BV, Value *V);
   void transMemAliasingINTELDecorations(SPIRVValue *BV, Value *V);
-  void transVarDecorationsToMetadata(SPIRVValue *BV, Value *V);
+  void transDecorationsToMetadata(SPIRVValue *BV, Value *V);
   void transFunctionDecorationsToMetadata(SPIRVFunction *BF, Function *F);
   void
   transFunctionPointerCallArgumentAttributes(SPIRVValue *BV, CallInst *CI,

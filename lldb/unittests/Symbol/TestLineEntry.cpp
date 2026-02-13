@@ -8,6 +8,7 @@
 
 #include "gtest/gtest.h"
 #include <iostream>
+#include <optional>
 
 #include "Plugins/ObjectFile/Mach-O/ObjectFileMachO.h"
 #include "Plugins/SymbolFile/DWARF/DWARFASTParserClang.h"
@@ -26,8 +27,9 @@
 #include "llvm/Support/Program.h"
 #include "llvm/Testing/Support/Error.h"
 
-using namespace lldb_private;
 using namespace lldb;
+using namespace lldb_private;
+using namespace lldb_private::plugin::dwarf;
 
 class LineEntryTest : public testing::Test {
   SubsystemRAII<FileSystem, HostInfo, ObjectFileMachO, SymbolFileDWARF,
@@ -39,8 +41,8 @@ public:
 
 protected:
   llvm::Expected<SymbolContextList>
-  GetLineEntriesForLine(uint32_t line, llvm::Optional<uint16_t> column);
-  llvm::Optional<TestFile> m_file;
+  GetLineEntriesForLine(uint32_t line, std::optional<uint16_t> column);
+  std::optional<TestFile> m_file;
   ModuleSP m_module_sp;
 };
 
@@ -53,7 +55,7 @@ void LineEntryTest::SetUp() {
 
   // TODO: Handle SourceLocationSpec column information
 llvm::Expected<SymbolContextList> LineEntryTest::GetLineEntriesForLine(
-    uint32_t line, llvm::Optional<uint16_t> column = llvm::None) {
+    uint32_t line, std::optional<uint16_t> column = std::nullopt) {
   SymbolContextList sc_comp_units;
   SymbolContextList sc_line_entries;
   FileSpec file_spec("inlined-functions.cpp");

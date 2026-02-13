@@ -27,7 +27,6 @@
 #include "llvm/DebugInfo/PDB/Native/SymbolStream.h"
 #include "llvm/Support/BinaryStreamReader.h"
 #include "llvm/Support/Error.h"
-#include <algorithm>
 
 using namespace llvm;
 using namespace llvm::msf;
@@ -156,7 +155,7 @@ readGSIHashBuckets(FixedStreamArray<support::ulittle32_t> &HashBuckets,
 
   uint32_t NumBuckets = 0;
   for (uint32_t B : HashBitmap)
-    NumBuckets += countPopulation(B);
+    NumBuckets += llvm::popcount(B);
 
   // Hash buckets follow.
   if (auto EC = Reader.readArray(HashBuckets, NumBuckets))

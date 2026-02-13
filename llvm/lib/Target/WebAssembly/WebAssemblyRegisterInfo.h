@@ -34,7 +34,7 @@ public:
   // Code Generation virtual methods.
   const MCPhysReg *getCalleeSavedRegs(const MachineFunction *MF) const override;
   BitVector getReservedRegs(const MachineFunction &MF) const override;
-  void eliminateFrameIndex(MachineBasicBlock::iterator MI, int SPAdj,
+  bool eliminateFrameIndex(MachineBasicBlock::iterator MI, int SPAdj,
                            unsigned FIOperandNum,
                            RegScavenger *RS = nullptr) const override;
 
@@ -42,8 +42,7 @@ public:
   Register getFrameRegister(const MachineFunction &MF) const override;
 
   const TargetRegisterClass *
-  getPointerRegClass(const MachineFunction &MF,
-                     unsigned Kind = 0) const override;
+  getPointerRegClass(unsigned Kind = 0) const override;
   // This does not apply to wasm.
   const uint32_t *getNoPreservedMask() const override { return nullptr; }
 };

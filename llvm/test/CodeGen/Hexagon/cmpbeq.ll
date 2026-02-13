@@ -1,4 +1,4 @@
-; RUN: llc -march=hexagon < %s | FileCheck %s
+; RUN: llc -mtriple=hexagon < %s | FileCheck %s
 ; Check that we generate 'cmpb.eq' instruction for a byte comparision.
 
 @g0 = common global i8 0, align 1
@@ -16,7 +16,7 @@ b0:
 
 b1:                                               ; preds = %b0
   %v3 = trunc i32 %a0 to i8
-  store i8 %v3, i8* @g0, align 1
+  store i8 %v3, ptr @g0, align 1
   br label %b2
 
 b2:                                               ; preds = %b1, %b0

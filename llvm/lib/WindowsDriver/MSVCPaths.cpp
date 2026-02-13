@@ -7,18 +7,19 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/WindowsDriver/MSVCPaths.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/ADT/Twine.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/VersionTuple.h"
 #include "llvm/Support/VirtualFileSystem.h"
+#include "llvm/TargetParser/Host.h"
+#include "llvm/TargetParser/Triple.h"
+#include <optional>
 #include <string>
 
 #ifdef _WIN32
@@ -94,9 +95,9 @@ static bool getWindows10SDKVersionFromPath(llvm::vfs::FileSystem &VFS,
 }
 
 static bool getWindowsSDKDirViaCommandLine(
-    llvm::vfs::FileSystem &VFS, llvm::Optional<llvm::StringRef> WinSdkDir,
-    llvm::Optional<llvm::StringRef> WinSdkVersion,
-    llvm::Optional<llvm::StringRef> WinSysRoot, std::string &Path, int &Major,
+    llvm::vfs::FileSystem &VFS, std::optional<llvm::StringRef> WinSdkDir,
+    std::optional<llvm::StringRef> WinSdkVersion,
+    std::optional<llvm::StringRef> WinSysRoot, std::string &Path, int &Major,
     std::string &Version) {
   if (WinSdkDir || WinSysRoot) {
     // Don't validate the input; trust the value supplied by the user.
@@ -113,7 +114,7 @@ static bool getWindowsSDKDirViaCommandLine(
       else
         llvm::sys::path::append(
             SDKPath, getHighestNumericTupleInDirectory(VFS, SDKPath));
-      Path = std::string(SDKPath.str());
+      Path = std::string(SDKPath);
     } else {
       Path = WinSdkDir->str();
     }
@@ -258,15 +259,14 @@ static bool getSystemRegistryString(const char *keyPath, const char *valueName,
 #endif // _WIN32
 }
 
-namespace llvm {
-
-const char *archToWindowsSDKArch(Triple::ArchType Arch) {
+const char *llvm::archToWindowsSDKArch(Triple::ArchType Arch) {
   switch (Arch) {
   case Triple::ArchType::x86:
     return "x86";
   case Triple::ArchType::x86_64:
     return "x64";
   case Triple::ArchType::arm:
+  case Triple::ArchType::thumb:
     return "arm";
   case Triple::ArchType::aarch64:
     return "arm64";
@@ -275,7 +275,7 @@ const char *archToWindowsSDKArch(Triple::ArchType Arch) {
   }
 }
 
-const char *archToLegacyVCArch(Triple::ArchType Arch) {
+const char *llvm::archToLegacyVCArch(Triple::ArchType Arch) {
   switch (Arch) {
   case Triple::ArchType::x86:
     // x86 is default in legacy VC toolchains.
@@ -284,6 +284,7 @@ const char *archToLegacyVCArch(Triple::ArchType Arch) {
   case Triple::ArchType::x86_64:
     return "amd64";
   case Triple::ArchType::arm:
+  case Triple::ArchType::thumb:
     return "arm";
   case Triple::ArchType::aarch64:
     return "arm64";
@@ -292,13 +293,14 @@ const char *archToLegacyVCArch(Triple::ArchType Arch) {
   }
 }
 
-const char *archToDevDivInternalArch(Triple::ArchType Arch) {
+const char *llvm::archToDevDivInternalArch(Triple::ArchType Arch) {
   switch (Arch) {
   case Triple::ArchType::x86:
     return "i386";
   case Triple::ArchType::x86_64:
     return "amd64";
   case Triple::ArchType::arm:
+  case Triple::ArchType::thumb:
     return "arm";
   case Triple::ArchType::aarch64:
     return "arm64";
@@ -307,8 +309,9 @@ const char *archToDevDivInternalArch(Triple::ArchType Arch) {
   }
 }
 
-bool appendArchToWindowsSDKLibPath(int SDKMajor, SmallString<128> LibPath,
-                                   Triple::ArchType Arch, std::string &path) {
+bool llvm::appendArchToWindowsSDKLibPath(int SDKMajor, SmallString<128> LibPath,
+                                         Triple::ArchType Arch,
+                                         std::string &path) {
   if (SDKMajor >= 8) {
     sys::path::append(LibPath, archToWindowsSDKArch(Arch));
   } else {
@@ -320,6 +323,7 @@ bool appendArchToWindowsSDKLibPath(int SDKMajor, SmallString<128> LibPath,
       sys::path::append(LibPath, "x64");
       break;
     case Triple::arm:
+    case Triple::thumb:
       // It is not necessary to link against Windows SDK 7.x when targeting ARM.
       return false;
     default:
@@ -327,14 +331,15 @@ bool appendArchToWindowsSDKLibPath(int SDKMajor, SmallString<128> LibPath,
     }
   }
 
-  path = std::string(LibPath.str());
+  path = std::string(LibPath);
   return true;
 }
 
-std::string getSubDirectoryPath(SubDirectoryType Type, ToolsetLayout VSLayout,
-                                const std::string &VCToolChainPath,
-                                Triple::ArchType TargetArch,
-                                StringRef SubdirParent) {
+std::string llvm::getSubDirectoryPath(SubDirectoryType Type,
+                                      ToolsetLayout VSLayout,
+                                      const std::string &VCToolChainPath,
+                                      Triple::ArchType TargetArch,
+                                      StringRef SubdirParent) {
   const char *SubdirName;
   const char *IncludeName;
   switch (VSLayout) {
@@ -382,22 +387,25 @@ std::string getSubDirectoryPath(SubDirectoryType Type, ToolsetLayout VSLayout,
     sys::path::append(Path, "lib", SubdirName);
     break;
   }
-  return std::string(Path.str());
+  return std::string(Path);
 }
 
-bool useUniversalCRT(ToolsetLayout VSLayout, const std::string &VCToolChainPath,
-                     Triple::ArchType TargetArch, vfs::FileSystem &VFS) {
+bool llvm::useUniversalCRT(ToolsetLayout VSLayout,
+                           const std::string &VCToolChainPath,
+                           Triple::ArchType TargetArch, vfs::FileSystem &VFS) {
   SmallString<128> TestPath(getSubDirectoryPath(
       SubDirectoryType::Include, VSLayout, VCToolChainPath, TargetArch));
   sys::path::append(TestPath, "stdlib.h");
   return !VFS.exists(TestPath);
 }
 
-bool getWindowsSDKDir(vfs::FileSystem &VFS, Optional<StringRef> WinSdkDir,
-                      Optional<StringRef> WinSdkVersion,
-                      Optional<StringRef> WinSysRoot, std::string &Path,
-                      int &Major, std::string &WindowsSDKIncludeVersion,
-                      std::string &WindowsSDKLibVersion) {
+bool llvm::getWindowsSDKDir(vfs::FileSystem &VFS,
+                            std::optional<StringRef> WinSdkDir,
+                            std::optional<StringRef> WinSdkVersion,
+                            std::optional<StringRef> WinSysRoot,
+                            std::string &Path, int &Major,
+                            std::string &WindowsSDKIncludeVersion,
+                            std::string &WindowsSDKLibVersion) {
   // Trust /winsdkdir and /winsdkversion if present.
   if (getWindowsSDKDirViaCommandLine(VFS, WinSdkDir, WinSdkVersion, WinSysRoot,
                                      Path, Major, WindowsSDKIncludeVersion)) {
@@ -439,6 +447,13 @@ bool getWindowsSDKDir(vfs::FileSystem &VFS, Optional<StringRef> WinSdkDir,
     return !WindowsSDKLibVersion.empty();
   }
   if (Major == 10) {
+    if (WinSdkVersion) {
+      // Use the user-provided version as-is.
+      WindowsSDKIncludeVersion = WinSdkVersion->str();
+      WindowsSDKLibVersion = WindowsSDKIncludeVersion;
+      return true;
+    }
+
     if (!getWindows10SDKVersionFromPath(VFS, Path, WindowsSDKIncludeVersion))
       return false;
     WindowsSDKLibVersion = WindowsSDKIncludeVersion;
@@ -448,10 +463,11 @@ bool getWindowsSDKDir(vfs::FileSystem &VFS, Optional<StringRef> WinSdkDir,
   return false;
 }
 
-bool getUniversalCRTSdkDir(vfs::FileSystem &VFS, Optional<StringRef> WinSdkDir,
-                           Optional<StringRef> WinSdkVersion,
-                           Optional<StringRef> WinSysRoot, std::string &Path,
-                           std::string &UCRTVersion) {
+bool llvm::getUniversalCRTSdkDir(vfs::FileSystem &VFS,
+                                 std::optional<StringRef> WinSdkDir,
+                                 std::optional<StringRef> WinSdkVersion,
+                                 std::optional<StringRef> WinSysRoot,
+                                 std::string &Path, std::string &UCRTVersion) {
   // If /winsdkdir is passed, use it as location for the UCRT too.
   // FIXME: Should there be a dedicated /ucrtdir to override /winsdkdir?
   int Major;
@@ -469,14 +485,20 @@ bool getUniversalCRTSdkDir(vfs::FileSystem &VFS, Optional<StringRef> WinSdkDir,
           Path, nullptr))
     return false;
 
+  if (WinSdkVersion) {
+    // Use the user-provided version as-is.
+    UCRTVersion = WinSdkVersion->str();
+    return true;
+  }
+
   return getWindows10SDKVersionFromPath(VFS, Path, UCRTVersion);
 }
 
-bool findVCToolChainViaCommandLine(vfs::FileSystem &VFS,
-                                   Optional<StringRef> VCToolsDir,
-                                   Optional<StringRef> VCToolsVersion,
-                                   Optional<StringRef> WinSysRoot,
-                                   std::string &Path, ToolsetLayout &VSLayout) {
+bool llvm::findVCToolChainViaCommandLine(
+    vfs::FileSystem &VFS, std::optional<StringRef> VCToolsDir,
+    std::optional<StringRef> VCToolsVersion,
+    std::optional<StringRef> WinSysRoot, std::string &Path,
+    ToolsetLayout &VSLayout) {
   // Don't validate the input; trust the value supplied by the user.
   // The primary motivation is to prevent unnecessary file and registry access.
   if (VCToolsDir || WinSysRoot) {
@@ -489,7 +511,7 @@ bool findVCToolChainViaCommandLine(vfs::FileSystem &VFS,
       else
         ToolsVersion = getHighestNumericTupleInDirectory(VFS, ToolsPath);
       sys::path::append(ToolsPath, ToolsVersion);
-      Path = std::string(ToolsPath.str());
+      Path = std::string(ToolsPath);
     } else {
       Path = VCToolsDir->str();
     }
@@ -499,11 +521,12 @@ bool findVCToolChainViaCommandLine(vfs::FileSystem &VFS,
   return false;
 }
 
-bool findVCToolChainViaEnvironment(vfs::FileSystem &VFS, std::string &Path,
-                                   ToolsetLayout &VSLayout) {
+bool llvm::findVCToolChainViaEnvironment(vfs::FileSystem &VFS,
+                                         std::string &Path,
+                                         ToolsetLayout &VSLayout) {
   // These variables are typically set by vcvarsall.bat
   // when launching a developer command prompt.
-  if (Optional<std::string> VCToolsInstallDir =
+  if (std::optional<std::string> VCToolsInstallDir =
           sys::Process::GetEnv("VCToolsInstallDir")) {
     // This is only set by newer Visual Studios, and it leads straight to
     // the toolchain directory.
@@ -511,7 +534,7 @@ bool findVCToolChainViaEnvironment(vfs::FileSystem &VFS, std::string &Path,
     VSLayout = ToolsetLayout::VS2017OrNewer;
     return true;
   }
-  if (Optional<std::string> VCInstallDir =
+  if (std::optional<std::string> VCInstallDir =
           sys::Process::GetEnv("VCINSTALLDIR")) {
     // If the previous variable isn't set but this one is, then we've found
     // an older Visual Studio. This variable is set by newer Visual Studios too,
@@ -525,7 +548,7 @@ bool findVCToolChainViaEnvironment(vfs::FileSystem &VFS, std::string &Path,
   // We couldn't find any VC environment variables. Let's walk through PATH and
   // see if it leads us to a VC toolchain bin directory. If it does, pick the
   // first one that we find.
-  if (Optional<std::string> PathEnv = sys::Process::GetEnv("PATH")) {
+  if (std::optional<std::string> PathEnv = sys::Process::GetEnv("PATH")) {
     SmallVector<StringRef, 8> PathEntries;
     StringRef(*PathEnv).split(PathEntries, sys::EnvPathSeparator);
     for (StringRef PathEntry : PathEntries) {
@@ -585,7 +608,7 @@ bool findVCToolChainViaEnvironment(vfs::FileSystem &VFS, std::string &Path,
         for (StringRef Prefix : ExpectedPrefixes) {
           if (It == End)
             goto NotAToolChain;
-          if (!It->startswith_insensitive(Prefix))
+          if (!It->starts_with_insensitive(Prefix))
             goto NotAToolChain;
           ++It;
         }
@@ -608,8 +631,9 @@ bool findVCToolChainViaEnvironment(vfs::FileSystem &VFS, std::string &Path,
   return false;
 }
 
-bool findVCToolChainViaSetupConfig(vfs::FileSystem &VFS, std::string &Path,
-                                   ToolsetLayout &VSLayout) {
+bool llvm::findVCToolChainViaSetupConfig(
+    vfs::FileSystem &VFS, std::optional<StringRef> VCToolsVersion,
+    std::string &Path, ToolsetLayout &VSLayout) {
 #if !defined(USE_MSVC_SETUP_API)
   return false;
 #else
@@ -649,7 +673,7 @@ bool findVCToolChainViaSetupConfig(vfs::FileSystem &VFS, std::string &Path,
     return false;
 
   ISetupInstancePtr NewestInstance;
-  Optional<uint64_t> NewestVersionNum;
+  std::optional<uint64_t> NewestVersionNum;
   do {
     bstr_t VersionString;
     uint64_t VersionNum;
@@ -676,17 +700,24 @@ bool findVCToolChainViaSetupConfig(vfs::FileSystem &VFS, std::string &Path,
   std::string VCRootPath;
   convertWideToUTF8(std::wstring(VCPathWide), VCRootPath);
 
-  SmallString<256> ToolsVersionFilePath(VCRootPath);
-  sys::path::append(ToolsVersionFilePath, "Auxiliary", "Build",
-                    "Microsoft.VCToolsVersion.default.txt");
+  std::string ToolsVersion;
+  if (VCToolsVersion.has_value()) {
+    ToolsVersion = *VCToolsVersion;
+  } else {
+    SmallString<256> ToolsVersionFilePath(VCRootPath);
+    sys::path::append(ToolsVersionFilePath, "Auxiliary", "Build",
+                      "Microsoft.VCToolsVersion.default.txt");
 
-  auto ToolsVersionFile = MemoryBuffer::getFile(ToolsVersionFilePath);
-  if (!ToolsVersionFile)
-    return false;
+    auto ToolsVersionFile = MemoryBuffer::getFile(ToolsVersionFilePath);
+    if (!ToolsVersionFile)
+      return false;
+
+    ToolsVersion = ToolsVersionFile->get()->getBuffer().rtrim();
+  }
+
 
   SmallString<256> ToolchainPath(VCRootPath);
-  sys::path::append(ToolchainPath, "Tools", "MSVC",
-                    ToolsVersionFile->get()->getBuffer().rtrim());
+  sys::path::append(ToolchainPath, "Tools", "MSVC", ToolsVersion);
   auto Status = VFS.status(ToolchainPath);
   if (!Status || !Status->isDirectory())
     return false;
@@ -697,23 +728,24 @@ bool findVCToolChainViaSetupConfig(vfs::FileSystem &VFS, std::string &Path,
 #endif
 }
 
-bool findVCToolChainViaRegistry(std::string &Path, ToolsetLayout &VSLayout) {
+bool llvm::findVCToolChainViaRegistry(std::string &Path,
+                                      ToolsetLayout &VSLayout) {
   std::string VSInstallPath;
   if (getSystemRegistryString(R"(SOFTWARE\Microsoft\VisualStudio\$VERSION)",
                               "InstallDir", VSInstallPath, nullptr) ||
       getSystemRegistryString(R"(SOFTWARE\Microsoft\VCExpress\$VERSION)",
                               "InstallDir", VSInstallPath, nullptr)) {
     if (!VSInstallPath.empty()) {
-      SmallString<256> VCPath(StringRef(VSInstallPath.c_str(),
-                                        VSInstallPath.find(R"(\Common7\IDE)")));
+      auto pos = VSInstallPath.find(R"(\Common7\IDE)");
+      if (pos == std::string::npos)
+        return false;
+      SmallString<256> VCPath(StringRef(VSInstallPath.c_str(), pos));
       sys::path::append(VCPath, "VC");
 
-      Path = std::string(VCPath.str());
+      Path = std::string(VCPath);
       VSLayout = ToolsetLayout::OlderVS;
       return true;
     }
   }
   return false;
 }
-
-} // namespace llvm

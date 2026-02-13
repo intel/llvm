@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
+
 // type_traits
 
 // aligned_union<size_t Len, class ...Types>
@@ -24,7 +26,8 @@ int main(int, char**)
 #if TEST_STD_VER > 11
     ASSERT_SAME_TYPE(T1, std::aligned_union_t<10, char>);
 #endif
-    static_assert(std::is_trivial<T1>::value, "");
+    static_assert(std::is_trivially_copyable<T1>::value, "");
+    static_assert(std::is_trivially_default_constructible<T1>::value, "");
     static_assert(std::is_standard_layout<T1>::value, "");
     static_assert(std::alignment_of<T1>::value == 1, "");
     static_assert(sizeof(T1) == 10, "");
@@ -34,7 +37,8 @@ int main(int, char**)
 #if TEST_STD_VER > 11
     ASSERT_SAME_TYPE(T1, std::aligned_union_t<10, short>);
 #endif
-    static_assert(std::is_trivial<T1>::value, "");
+    static_assert(std::is_trivially_copyable<T1>::value, "");
+    static_assert(std::is_trivially_default_constructible<T1>::value, "");
     static_assert(std::is_standard_layout<T1>::value, "");
     static_assert(std::alignment_of<T1>::value == 2, "");
     static_assert(sizeof(T1) == 10, "");
@@ -44,7 +48,8 @@ int main(int, char**)
 #if TEST_STD_VER > 11
     ASSERT_SAME_TYPE(T1, std::aligned_union_t<10, int>);
 #endif
-    static_assert(std::is_trivial<T1>::value, "");
+    static_assert(std::is_trivially_copyable<T1>::value, "");
+    static_assert(std::is_trivially_default_constructible<T1>::value, "");
     static_assert(std::is_standard_layout<T1>::value, "");
     static_assert(std::alignment_of<T1>::value == 4, "");
     static_assert(sizeof(T1) == 12, "");
@@ -54,7 +59,8 @@ int main(int, char**)
 #if TEST_STD_VER > 11
     ASSERT_SAME_TYPE(T1, std::aligned_union_t<10, double>);
 #endif
-    static_assert(std::is_trivial<T1>::value, "");
+    static_assert(std::is_trivially_copyable<T1>::value, "");
+    static_assert(std::is_trivially_default_constructible<T1>::value, "");
     static_assert(std::is_standard_layout<T1>::value, "");
     static_assert(std::alignment_of<T1>::value == 8, "");
     static_assert(sizeof(T1) == 16, "");
@@ -64,7 +70,8 @@ int main(int, char**)
 #if TEST_STD_VER > 11
     ASSERT_SAME_TYPE(T1, std::aligned_union_t<10, short, char>);
 #endif
-    static_assert(std::is_trivial<T1>::value, "");
+    static_assert(std::is_trivially_copyable<T1>::value, "");
+    static_assert(std::is_trivially_default_constructible<T1>::value, "");
     static_assert(std::is_standard_layout<T1>::value, "");
     static_assert(std::alignment_of<T1>::value == 2, "");
     static_assert(sizeof(T1) == 10, "");
@@ -74,7 +81,8 @@ int main(int, char**)
 #if TEST_STD_VER > 11
     ASSERT_SAME_TYPE(T1, std::aligned_union_t<10, char, short>);
 #endif
-    static_assert(std::is_trivial<T1>::value, "");
+    static_assert(std::is_trivially_copyable<T1>::value, "");
+    static_assert(std::is_trivially_default_constructible<T1>::value, "");
     static_assert(std::is_standard_layout<T1>::value, "");
     static_assert(std::alignment_of<T1>::value == 2, "");
     static_assert(sizeof(T1) == 10, "");
@@ -84,7 +92,8 @@ int main(int, char**)
 #if TEST_STD_VER > 11
     ASSERT_SAME_TYPE(T1, std::aligned_union_t<2, int, char, short>);
 #endif
-    static_assert(std::is_trivial<T1>::value, "");
+    static_assert(std::is_trivially_copyable<T1>::value, "");
+    static_assert(std::is_trivially_default_constructible<T1>::value, "");
     static_assert(std::is_standard_layout<T1>::value, "");
     static_assert(std::alignment_of<T1>::value == 4, "");
     static_assert(sizeof(T1) == 4, "");
@@ -94,7 +103,8 @@ int main(int, char**)
 #if TEST_STD_VER > 11
     ASSERT_SAME_TYPE(T1, std::aligned_union_t<2, char, int, short>);
 #endif
-    static_assert(std::is_trivial<T1>::value, "");
+    static_assert(std::is_trivially_copyable<T1>::value, "");
+    static_assert(std::is_trivially_default_constructible<T1>::value, "");
     static_assert(std::is_standard_layout<T1>::value, "");
     static_assert(std::alignment_of<T1>::value == 4, "");
     static_assert(sizeof(T1) == 4, "");
@@ -104,7 +114,8 @@ int main(int, char**)
 #if TEST_STD_VER > 11
     ASSERT_SAME_TYPE(T1, std::aligned_union_t<2, char, short, int>);
 #endif
-    static_assert(std::is_trivial<T1>::value, "");
+    static_assert(std::is_trivially_copyable<T1>::value, "");
+    static_assert(std::is_trivially_default_constructible<T1>::value, "");
     static_assert(std::is_standard_layout<T1>::value, "");
     static_assert(std::alignment_of<T1>::value == 4, "");
     static_assert(sizeof(T1) == 4, "");

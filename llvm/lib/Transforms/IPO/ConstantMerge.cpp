@@ -28,9 +28,8 @@
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
-#include "llvm/InitializePasses.h"
-#include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Transforms/IPO.h"
 #include <algorithm>
 #include <cassert>
@@ -86,7 +85,7 @@ static void copyDebugLocMetadata(const GlobalVariable *From,
 
 static Align getAlign(GlobalVariable *GV) {
   return GV->getAlign().value_or(
-      GV->getParent()->getDataLayout().getPreferredAlign(GV));
+      GV->getDataLayout().getPreferredAlign(GV));
 }
 
 static bool
@@ -227,9 +226,7 @@ static bool mergeConstants(Module &M) {
     // Now that we have figured out which replacements must be made, do them all
     // now.  This avoid invalidating the pointers in CMap, which are unneeded
     // now.
-    for (unsigned i = 0, e = SameContentReplacements.size(); i != e; ++i) {
-      GlobalVariable *Old = SameContentReplacements[i].first;
-      GlobalVariable *New = SameContentReplacements[i].second;
+    for (const auto &[Old, New] : SameContentReplacements) {
       replace(M, Old, New);
       ++ChangesMade;
       ++NumIdenticalMerged;
@@ -250,33 +247,4 @@ PreservedAnalyses ConstantMergePass::run(Module &M, ModuleAnalysisManager &) {
   if (!mergeConstants(M))
     return PreservedAnalyses::all();
   return PreservedAnalyses::none();
-}
-
-namespace {
-
-struct ConstantMergeLegacyPass : public ModulePass {
-  static char ID; // Pass identification, replacement for typeid
-
-  ConstantMergeLegacyPass() : ModulePass(ID) {
-    initializeConstantMergeLegacyPassPass(*PassRegistry::getPassRegistry());
-  }
-
-  // For this pass, process all of the globals in the module, eliminating
-  // duplicate constants.
-  bool runOnModule(Module &M) override {
-    if (skipModule(M))
-      return false;
-    return mergeConstants(M);
-  }
-};
-
-} // end anonymous namespace
-
-char ConstantMergeLegacyPass::ID = 0;
-
-INITIALIZE_PASS(ConstantMergeLegacyPass, "constmerge",
-                "Merge Duplicate Global Constants", false, false)
-
-ModulePass *llvm::createConstantMergePass() {
-  return new ConstantMergeLegacyPass();
 }

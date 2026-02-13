@@ -1,4 +1,4 @@
-//===--- OverloadedUnaryAndCheck.cpp - clang-tidy ---------------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,16 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "OverloadedUnaryAndCheck.h"
-#include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace google {
-namespace runtime {
+namespace clang::tidy::google::runtime {
 
 void OverloadedUnaryAndCheck::registerMatchers(
     ast_matchers::MatchFinder *Finder) {
@@ -39,7 +35,4 @@ void OverloadedUnaryAndCheck::check(const MatchFinder::MatchResult &Result) {
        "do not overload unary operator&, it is dangerous.");
 }
 
-} // namespace runtime
-} // namespace google
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::google::runtime

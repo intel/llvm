@@ -23,17 +23,15 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SetVector.h"
-#include "llvm/Analysis/RegionPass.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/PassManager.h"
 #include "llvm/IR/ValueHandle.h"
-#include "llvm/Pass.h"
 #include "isl/isl-noexceptions.h"
 #include <cassert>
 #include <cstddef>
 #include <forward_list>
+#include <optional>
 
 namespace polly {
 using llvm::AnalysisInfoMixin;
@@ -51,12 +49,9 @@ using llvm::LoadInst;
 using llvm::make_range;
 using llvm::MapVector;
 using llvm::MemIntrinsic;
-using llvm::Optional;
 using llvm::PassInfoMixin;
 using llvm::PHINode;
 using llvm::RegionNode;
-using llvm::RegionPass;
-using llvm::RGPassManager;
 using llvm::SetVector;
 using llvm::SmallPtrSetImpl;
 using llvm::SmallVector;
@@ -470,6 +465,8 @@ public:
     RT_BOR,  ///< Bitwise Or
     RT_BXOR, ///< Bitwise XOr
     RT_BAND, ///< Bitwise And
+
+    RT_BOTTOM, ///< Pseudo type for the data flow analysis
   };
 
   using SubscriptsTy = SmallVector<const SCEV *, 4>;
@@ -509,7 +506,7 @@ private:
   /// Here not all iterations access the same memory location, but iterations
   /// for which j = 0 holds do. After lifting the equality check in ScopBuilder,
   /// subsequent transformations do not only need check if a statement is
-  /// reduction like, but they also need to verify that that the reduction
+  /// reduction like, but they also need to verify that the reduction
   /// property is only exploited for statement instances that load from and
   /// store to the same data location. Doing so at dependence analysis time
   /// could allow us to handle the above example.
@@ -853,10 +850,10 @@ public:
   }
 
   /// Return a string representation of the access's reduction type.
-  const std::string getReductionOperatorStr() const;
+  std::string getReductionOperatorStr() const;
 
   /// Return a string representation of the reduction type @p RT.
-  static const std::string getReductionOperatorStr(ReductionType RT);
+  static std::string getReductionOperatorStr(ReductionType RT);
 
   /// Return the element type of the accessed array wrt. this access.
   Type *getElementType() const { return ElementType; }
@@ -1139,6 +1136,7 @@ class ScopStmt final {
   friend class ScopBuilder;
 
 public:
+  using MemoryAccessVec = llvm::SmallVector<MemoryAccess *, 8>;
   /// Create the ScopStmt from a BasicBlock.
   ScopStmt(Scop &parent, BasicBlock &bb, StringRef Name, Loop *SurroundingLoop,
            std::vector<Instruction *> Instructions);
@@ -1206,7 +1204,6 @@ private:
   /// The memory accesses of this statement.
   ///
   /// The only side effects of a statement are its memory accesses.
-  using MemoryAccessVec = llvm::SmallVector<MemoryAccess *, 8>;
   MemoryAccessVec MemAccs;
 
   /// Mapping from instructions to (scalar) memory accesses.
@@ -1492,7 +1489,7 @@ public:
   /// @param Access  The access to add.
   /// @param Prepend If true, will add @p Access before all other instructions
   ///                (instead of appending it).
-  void addAccess(MemoryAccess *Access, bool Preprend = false);
+  void addAccess(MemoryAccess *Access, bool Prepend = false);
 
   /// Remove a MemoryAccess from this statement.
   ///
@@ -1662,7 +1659,7 @@ private:
   Region &R;
 
   /// The name of the SCoP (identical to the regions name)
-  Optional<std::string> name;
+  std::optional<std::string> name;
 
   // Access functions of the SCoP.
   //
@@ -1683,9 +1680,6 @@ private:
 
   /// Number of copy statements.
   unsigned CopyStmtsNum = 0;
-
-  /// Flag to indicate if the Scop is to be skipped.
-  bool SkipScop = false;
 
   using StmtSet = std::list<ScopStmt>;
 
@@ -2143,12 +2137,6 @@ public:
 
   /// Check if the SCoP has been optimized by the scheduler.
   bool isOptimized() const { return IsOptimized; }
-
-  /// Mark the SCoP to be skipped by ScopPass passes.
-  void markAsToBeSkipped() { SkipScop = true; }
-
-  /// Check if the SCoP is to be skipped by ScopPass passes.
-  bool isToBeSkipped() const { return SkipScop; }
 
   /// Return the ID of the Scop
   int getID() const { return ID; }
@@ -2681,39 +2669,6 @@ public:
 /// Print Scop scop to raw_ostream OS.
 raw_ostream &operator<<(raw_ostream &OS, const Scop &scop);
 
-/// The legacy pass manager's analysis pass to compute scop information
-///        for a region.
-class ScopInfoRegionPass final : public RegionPass {
-  /// The Scop pointer which is used to construct a Scop.
-  std::unique_ptr<Scop> S;
-
-public:
-  static char ID; // Pass identification, replacement for typeid
-
-  ScopInfoRegionPass() : RegionPass(ID) {}
-  ~ScopInfoRegionPass() override = default;
-
-  /// Build Scop object, the Polly IR of static control
-  ///        part for the current SESE-Region.
-  ///
-  /// @return If the current region is a valid for a static control part,
-  ///         return the Polly IR representing this static control part,
-  ///         return null otherwise.
-  Scop *getScop() { return S.get(); }
-  const Scop *getScop() const { return S.get(); }
-
-  /// Calculate the polyhedral scop information for a given Region.
-  bool runOnRegion(Region *R, RGPassManager &RGM) override;
-
-  void releaseMemory() override { S.reset(); }
-
-  void print(raw_ostream &O, const Module *M = nullptr) const override;
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override;
-};
-
-llvm::Pass *createScopInfoPrinterLegacyRegionPass(raw_ostream &OS);
-
 class ScopInfo {
 public:
   using RegionToScopMapTy = MapVector<Region *, std::unique_ptr<Scop>>;
@@ -2788,45 +2743,6 @@ struct ScopInfoPrinterPass final : PassInfoMixin<ScopInfoPrinterPass> {
 
   raw_ostream &Stream;
 };
-
-//===----------------------------------------------------------------------===//
-/// The legacy pass manager's analysis pass to compute scop information
-///        for the whole function.
-///
-/// This pass will maintain a map of the maximal region within a scop to its
-/// scop object for all the feasible scops present in a function.
-/// This pass is an alternative to the ScopInfoRegionPass in order to avoid a
-/// region pass manager.
-class ScopInfoWrapperPass final : public FunctionPass {
-  std::unique_ptr<ScopInfo> Result;
-
-public:
-  ScopInfoWrapperPass() : FunctionPass(ID) {}
-  ~ScopInfoWrapperPass() override = default;
-
-  static char ID; // Pass identification, replacement for typeid
-
-  ScopInfo *getSI() { return Result.get(); }
-  const ScopInfo *getSI() const { return Result.get(); }
-
-  /// Calculate all the polyhedral scops for a given function.
-  bool runOnFunction(Function &F) override;
-
-  void releaseMemory() override { Result.reset(); }
-
-  void print(raw_ostream &O, const Module *M = nullptr) const override;
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override;
-};
-
-llvm::Pass *createScopInfoPrinterLegacyFunctionPass(llvm::raw_ostream &OS);
 } // end namespace polly
-
-namespace llvm {
-void initializeScopInfoRegionPassPass(PassRegistry &);
-void initializeScopInfoPrinterLegacyRegionPassPass(PassRegistry &);
-void initializeScopInfoWrapperPassPass(PassRegistry &);
-void initializeScopInfoPrinterLegacyFunctionPassPass(PassRegistry &);
-} // end namespace llvm
 
 #endif // POLLY_SCOPINFO_H

@@ -16,8 +16,6 @@
 #include "RuntimeDyldImpl.h"
 #include "llvm/ADT/DenseMap.h"
 
-using namespace llvm;
-
 namespace llvm {
 namespace object {
 class ELFObjectFileBase;
@@ -48,6 +46,18 @@ class RuntimeDyldELF : public RuntimeDyldImpl {
   void resolveARMRelocation(const SectionEntry &Section, uint64_t Offset,
                             uint32_t Value, uint32_t Type, int32_t Addend);
 
+  void resolveLoongArch64Relocation(const SectionEntry &Section,
+                                    uint64_t Offset, uint64_t Value,
+                                    uint32_t Type, int64_t Addend);
+
+  bool resolveLoongArch64ShortBranch(unsigned SectionID,
+                                     relocation_iterator RelI,
+                                     const RelocationValueRef &Value);
+
+  void resolveLoongArch64Branch(unsigned SectionID,
+                                const RelocationValueRef &Value,
+                                relocation_iterator RelI, StubMap &Stubs);
+
   void resolvePPC32Relocation(const SectionEntry &Section, uint64_t Offset,
                               uint64_t Value, uint32_t Type, int64_t Addend);
 
@@ -60,6 +70,10 @@ class RuntimeDyldELF : public RuntimeDyldImpl {
   void resolveBPFRelocation(const SectionEntry &Section, uint64_t Offset,
                             uint64_t Value, uint32_t Type, int64_t Addend);
 
+  void resolveRISCVRelocation(const SectionEntry &Section, uint64_t Offset,
+                              uint64_t Value, uint32_t Type, int64_t Addend,
+                              SID SectionID);
+
   unsigned getMaxStubSize() const override {
     if (Arch == Triple::aarch64 || Arch == Triple::aarch64_be)
       return 20; // movz; movk; movk; movk; br
@@ -69,6 +83,8 @@ class RuntimeDyldELF : public RuntimeDyldImpl {
       return 16;
     else if (IsMipsN64ABI)
       return 32;
+    if (Arch == Triple::loongarch64)
+      return 20; // lu12i.w; ori; lu32i.d; lu52i.d; jr
     else if (Arch == Triple::ppc64 || Arch == Triple::ppc64le)
       return 44;
     else if (Arch == Triple::x86_64)
@@ -79,11 +95,11 @@ class RuntimeDyldELF : public RuntimeDyldImpl {
       return 0;
   }
 
-  unsigned getStubAlignment() override {
+  Align getStubAlignment() override {
     if (Arch == Triple::systemz)
-      return 8;
+      return Align(8);
     else
-      return 1;
+      return Align(1);
   }
 
   void setMipsABI(const ObjectFile &Obj) override;
@@ -108,7 +124,7 @@ private:
   uint64_t findOrAllocGOTEntry(const RelocationValueRef &Value,
                                unsigned GOTRelType);
 
-  // Resolve the relvative address of GOTOffset in Section ID and place
+  // Resolve the relative address of GOTOffset in Section ID and place
   // it at the given Offset
   void resolveGOTOffsetRelocation(unsigned SectionID, uint64_t Offset,
                                   uint64_t GOTOffset, uint32_t Type);
@@ -121,8 +137,8 @@ private:
   // Compute the address in memory where we can find the placeholder
   void *computePlaceholderAddress(unsigned SectionID, uint64_t Offset) const;
 
-  // Split out common case for createing the RelocationEntry for when the relocation requires
-  // no particular advanced processing.
+  // Split out common case for creating the RelocationEntry for when the
+  // relocation requires no particular advanced processing.
   void processSimpleRelocation(unsigned SectionID, uint64_t Offset, unsigned RelType, RelocationValueRef Value);
 
   // Return matching *LO16 relocation (Mips specific)
@@ -148,6 +164,9 @@ private:
 
   // *HI16 relocations will be added for resolving when we find matching
   // *LO16 part. (Mips specific)
+  //
+  // *HI20 relocations will be added for resolving when we find matching
+  // *LO12 part. (RISC-V specific)
   SmallVector<std::pair<RelocationValueRef, RelocationEntry>, 8> PendingRelocs;
 
   // When a module is loaded we save the SectionID of the EH frame section
@@ -158,6 +177,40 @@ private:
   // Map between GOT relocation value and corresponding GOT offset
   std::map<RelocationValueRef, uint64_t> GOTOffsetMap;
 
+  /// The ID of the current IFunc stub section
+  unsigned IFuncStubSectionID = 0;
+  /// The current offset into the IFunc stub section
+  uint64_t IFuncStubOffset = 0;
+
+  /// A IFunc stub and its original symbol
+  struct IFuncStub {
+    /// The offset of this stub in the IFunc stub section
+    uint64_t StubOffset;
+    /// The symbol table entry of the original symbol
+    SymbolTableEntry OriginalSymbol;
+  };
+
+  /// The IFunc stubs
+  SmallVector<IFuncStub, 2> IFuncStubs;
+
+  /// Create the code for the IFunc resolver at the given address. This code
+  /// works together with the stubs created in createIFuncStub() to call the
+  /// resolver function and then jump to the real function address.
+  /// It must not be larger than 64B.
+  void createIFuncResolver(uint8_t *Addr) const;
+  /// Create the code for an IFunc stub for the IFunc that is defined in
+  /// section IFuncSectionID at offset IFuncOffset. The IFunc resolver created
+  /// by createIFuncResolver() is defined in the section IFuncStubSectionID at
+  /// offset IFuncResolverOffset. The code should be written into the section
+  /// with the id IFuncStubSectionID at the offset IFuncStubOffset.
+  void createIFuncStub(unsigned IFuncStubSectionID,
+                       uint64_t IFuncResolverOffset, uint64_t IFuncStubOffset,
+                       unsigned IFuncSectionID, uint64_t IFuncOffset);
+  /// Return the maximum size of a stub created by createIFuncStub()
+  unsigned getMaxIFuncStubSize() const;
+
+  void processNewSymbol(const SymbolRef &ObjSymbol,
+                        SymbolTableEntry &Entry) override;
   bool relocationNeedsGot(const RelocationRef &R) const override;
   bool relocationNeedsStub(const RelocationRef &R) const override;
 
@@ -199,4 +252,4 @@ public:
 
 } // end namespace llvm
 
-#endif
+#endif // LLVM_LIB_EXECUTIONENGINE_RUNTIMEDYLD_RUNTIMEDYLDELF_H

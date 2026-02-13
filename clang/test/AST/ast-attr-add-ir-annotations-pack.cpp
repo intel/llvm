@@ -53,7 +53,7 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:         ConstantExpr {{.*}} 'const char[6]' lvalue
   // CHECK-NEXT:           value: LValue
   // CHECK-NEXT:           StringLiteral {{.*}} 'const char[6]' lvalue "Attr3"
-  // CHECK-NEXT:         PackExpansionExpr {{.*}} '<dependent type>'
+  // CHECK-NEXT:         PackExpansionExpr {{.*}} 'int'
   // CHECK-NEXT:           DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'Is' 'int'
   // CHECK-NEXT:   ClassTemplateSpecializationDecl {{.*}} struct ClassWithAnnotFieldTemplate1 definition
   // CHECK-NEXT:     DefinitionData
@@ -64,9 +64,9 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument integral 1
-  // CHECK-NEXT:       TemplateArgument integral 2
-  // CHECK-NEXT:       TemplateArgument integral 3
+  // CHECK-NEXT:       TemplateArgument integral '1'
+  // CHECK-NEXT:       TemplateArgument integral '2'
+  // CHECK-NEXT:       TemplateArgument integral '3'
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct ClassWithAnnotFieldTemplate1
   // CHECK-NEXT:     FieldDecl {{.*}} referenced ptr 'int *'
   // CHECK-NEXT:       SYCLAddIRAnnotationsMemberAttr
@@ -109,8 +109,8 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument integral 1
-  // CHECK-NEXT:       TemplateArgument integral 2
+  // CHECK-NEXT:       TemplateArgument integral '1'
+  // CHECK-NEXT:       TemplateArgument integral '2'
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct ClassWithAnnotFieldTemplate1
   // CHECK-NEXT:     FieldDecl {{.*}} referenced ptr 'int *'
   // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit used ClassWithAnnotFieldTemplate1 'void () noexcept'
@@ -147,7 +147,7 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:         ConstantExpr {{.*}} 'const char[6]' lvalue
   // CHECK-NEXT:           value: LValue
   // CHECK-NEXT:           StringLiteral {{.*}} 'const char[6]' lvalue "Attr3"
-  // CHECK-NEXT:         PackExpansionExpr {{.*}} '<dependent type>'
+  // CHECK-NEXT:         PackExpansionExpr {{.*}} 'int'
   // CHECK-NEXT:           DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'Is' 'int'
   // CHECK-NEXT:   ClassTemplateSpecializationDecl {{.*}} struct ClassWithAnnotFieldTemplate2 definition
   // CHECK-NEXT:     DefinitionData
@@ -158,9 +158,9 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument integral 1
-  // CHECK-NEXT:       TemplateArgument integral 2
-  // CHECK-NEXT:       TemplateArgument integral 3
+  // CHECK-NEXT:       TemplateArgument integral '1'
+  // CHECK-NEXT:       TemplateArgument integral '2'
+  // CHECK-NEXT:       TemplateArgument integral '3'
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct ClassWithAnnotFieldTemplate2
   // CHECK-NEXT:     FieldDecl {{.*}} referenced ptr 'int *'
   // CHECK-NEXT:       SYCLAddIRAnnotationsMemberAttr
@@ -206,8 +206,8 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument integral 1
-  // CHECK-NEXT:       TemplateArgument integral 2
+  // CHECK-NEXT:       TemplateArgument integral '1'
+  // CHECK-NEXT:       TemplateArgument integral '2'
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct ClassWithAnnotFieldTemplate2
   // CHECK-NEXT:     FieldDecl {{.*}} referenced ptr 'int *'
   // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit used ClassWithAnnotFieldTemplate2 'void () noexcept'
@@ -232,7 +232,7 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct ClassWithAnnotFieldTemplate3
   // CHECK-NEXT:     FieldDecl {{.*}} ptr 'int *'
   // CHECK-NEXT:       SYCLAddIRAnnotationsMemberAttr
-  // CHECK-NEXT:         PackExpansionExpr {{.*}} '<dependent type>'
+  // CHECK-NEXT:         PackExpansionExpr {{.*}} 'const char *'
   // CHECK-NEXT:           DeclRefExpr {{.*}} 'const char *' NonTypeTemplateParm {{.*}} 'Names' 'const char *'
   // CHECK-NEXT:         ConstantExpr {{.*}} 'int'
   // CHECK-NEXT:           value: Int 1
@@ -334,7 +334,7 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:         InitListExpr {{.*}} 'void'
   // CHECK-NEXT:           StringLiteral {{.*}} 'const char[6]' lvalue "Attr1"
   // CHECK-NEXT:           StringLiteral {{.*}} 'const char[6]' lvalue "Attr3"
-  // CHECK-NEXT:         PackExpansionExpr {{.*}} '<dependent type>'
+  // CHECK-NEXT:         PackExpansionExpr {{.*}} 'const char *'
   // CHECK-NEXT:           DeclRefExpr {{.*}} 'const char *' NonTypeTemplateParm {{.*}} 'Names' 'const char *'
   // CHECK-NEXT:         ConstantExpr {{.*}} 'int'
   // CHECK-NEXT:           value: Int 1
@@ -436,7 +436,7 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct ClassWithAnnotFieldTemplate5
   // CHECK-NEXT:     FieldDecl {{.*}} ptr 'int *'
   // CHECK-NEXT:       SYCLAddIRAnnotationsMemberAttr
-  // CHECK-NEXT:         PackExpansionExpr {{.*}} '<dependent type>'
+  // CHECK-NEXT:         PackExpansionExpr {{.*}} 'const char *'
   // CHECK-NEXT:           DeclRefExpr {{.*}} 'const char *' NonTypeTemplateParm {{.*}} 'Strs' 'const char *'
   // CHECK-NEXT:   ClassTemplateSpecializationDecl {{.*}} struct ClassWithAnnotFieldTemplate5 definition
   // CHECK-NEXT:     DefinitionData
@@ -636,7 +636,7 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:         InitListExpr {{.*}} 'void'
   // CHECK-NEXT:           StringLiteral {{.*}} 'const char[6]' lvalue "Attr1"
   // CHECK-NEXT:           StringLiteral {{.*}} 'const char[6]' lvalue "Attr3"
-  // CHECK-NEXT:         PackExpansionExpr {{.*}} '<dependent type>'
+  // CHECK-NEXT:         PackExpansionExpr {{.*}} 'const char *'
   // CHECK-NEXT:           DeclRefExpr {{.*}} 'const char *' NonTypeTemplateParm {{.*}} 'Strs' 'const char *'
   // CHECK-NEXT:   ClassTemplateSpecializationDecl {{.*}} struct ClassWithAnnotFieldTemplate6 definition
   // CHECK-NEXT:     DefinitionData

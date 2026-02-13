@@ -9,20 +9,20 @@ target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f3
 ; CHECK:   min.iters.check = icmp ult i64 {{.*}}, 2, !dbg !{{[0-9]+}}
 ; CHECK: vector.body
 ; CHECK:   index {{.*}}, !dbg ![[LOC1:[0-9]+]]
-; CHECK:   getelementptr inbounds i32, i32* %a, {{.*}}, !dbg ![[LOC2:[0-9]+]]
-; CHECK:   getelementptr inbounds i32, i32* %b, {{.*}}, !dbg ![[LOC1]]
-; CHECK:   load <2 x i32>, <2 x i32>* {{.*}}, !dbg ![[LOC1]]
+; CHECK:   getelementptr inbounds i32, ptr %a, {{.*}}, !dbg ![[LOC2:[0-9]+]]
+; CHECK:   getelementptr inbounds i32, ptr %b, {{.*}}, !dbg ![[LOC1]]
+; CHECK:   load <2 x i32>, ptr {{.*}}, !dbg ![[LOC1]]
 ; CHECK:   add <2 x i32> {{.*}}, !dbg ![[LOC1]]
 ; CHECK:   add nuw i64 %index, 2, !dbg ![[LOC1]]
-; CHECK:   icmp eq i64 %index.next, %n.vec, !dbg ![[LOC1]]
+; CHECK:   icmp eq i64 %index.next, %n.vec, !dbg ![[BR_LOC:[0-9]+]]
 ; CHECK: middle.block
-; CHECK:   call i32 @llvm.vector.reduce.add.v2i32(<2 x i32> %{{.*}}), !dbg ![[BR_LOC:[0-9]+]]
+; CHECK:   call i32 @llvm.vector.reduce.add.v2i32(<2 x i32> %{{.*}}), !dbg ![[BR_LOC]]
 ; CHECK: for.body
 ; CHECK: br i1{{.*}}, label %for.body,{{.*}}, !dbg ![[BR_LOC]],
 
-define i32 @f(i32* nocapture %a, i32* %b, i32 %size) !dbg !4 {
+define i32 @f(ptr nocapture %a, ptr %b, i32 %size) !dbg !4 {
 entry:
-  call void @llvm.dbg.value(metadata i32* %a, metadata !13, metadata !DIExpression()), !dbg !19
+  call void @llvm.dbg.value(metadata ptr %a, metadata !13, metadata !DIExpression()), !dbg !19
   call void @llvm.dbg.value(metadata i32 %size, metadata !14, metadata !DIExpression()), !dbg !19
   call void @llvm.dbg.value(metadata i32 0, metadata !15, metadata !DIExpression()), !dbg !20
   call void @llvm.dbg.value(metadata i32 0, metadata !16, metadata !DIExpression()), !dbg !21
@@ -35,10 +35,10 @@ for.body.lr.ph:                                   ; preds = %entry
 for.body:                                         ; preds = %for.body.lr.ph, %for.body
   %indvars.iv = phi i64 [ 0, %for.body.lr.ph ], [ %indvars.iv.next, %for.body ]
   %sum = phi i32 [ 0, %for.body.lr.ph ], [ %sum.next, %for.body ]
-  %arrayidx.1 = getelementptr inbounds i32, i32* %a, i64 %indvars.iv, !dbg !19
-  %arrayidx.2 = getelementptr inbounds i32, i32* %b, i64 %indvars.iv, !dbg !22
-  %l.1 = load i32, i32* %arrayidx.1, align 4, !dbg !22
-  %l.2 = load i32, i32* %arrayidx.2, align 4, !dbg !22
+  %arrayidx.1 = getelementptr inbounds i32, ptr %a, i64 %indvars.iv, !dbg !19
+  %arrayidx.2 = getelementptr inbounds i32, ptr %b, i64 %indvars.iv, !dbg !22
+  %l.1 = load i32, ptr %arrayidx.1, align 4, !dbg !22
+  %l.2 = load i32, ptr %arrayidx.2, align 4, !dbg !22
   %add.1 = add i32 %l.1, %l.2
   %sum.next = add i32 %add.1, %sum, !dbg !22
   %indvars.iv.next = add i64 %indvars.iv, 1, !dbg !22
@@ -57,19 +57,18 @@ for.end:                                          ; preds = %entry, %for.cond.fo
   ret i32 %sum.0.lcssa, !dbg !26
 }
 
-define i32 @test_debug_loc_on_branch_in_loop(i32* noalias %src, i32* noalias %dst) {
+define i32 @test_debug_loc_on_branch_in_loop(ptr noalias %src, ptr noalias %dst) {
 ; CHECK-LABEL: define i32 @test_debug_loc_on_branch_in_loop(
 ; CHECK-LABEL: vector.body:
-; CHECK:        [[LOAD:%.+]] = load <2 x i32>, <2 x i32>* {{.+}}, align 4
-; CHECK-NEXT:   [[CMP:%.+]] = icmp eq <2 x i32> [[LOAD]], <i32 10, i32 10>
-; CHECK-NEXT:   [[XOR:%.+]] = xor <2 x i1> [[CMP:%.+]], <i1 true, i1 true>, !dbg [[LOC3:!.+]]
-; CHECK-NEXT:   [[EXT:%.+]] = extractelement <2 x i1> [[XOR]], i32 0, !dbg [[LOC3]]
-; CHECK-NEXT:   br i1 [[EXT]], label %pred.store.if, label %pred.store.continue
-; CHECK-NOT:  !dbg
+; CHECK:        [[LOAD:%.+]] = load <2 x i32>, ptr {{.+}}, align 4
+; CHECK-NEXT:   [[CMP:%.+]] = icmp ne <2 x i32> [[LOAD]], splat (i32 10), !dbg [[LOC3:!.+]]
+; CHECK-NEXT:   [[EXT:%.+]] = extractelement <2 x i1> [[CMP]], i32 0, !dbg [[LOC3]]
+; CHECK-NEXT:   br i1 [[EXT]], label %pred.store.if, label %pred.store.continue, !dbg [[LOC3]]
 ; CHECK-EMPTY:
 ; CHECK-NEXT: pred.store.if:
-; CHECK-NEXT:   [[GEP:%.+]] = getelementptr inbounds i32, i32* %dst, i64 {{.+}}, !dbg [[LOC3]]
-; CHECK-NEXT:   store i32 0, i32* [[GEP]], align 4, !dbg [[LOC3]]
+; CHECK-NEXT:   [[IDX:%.+]] = add i64 %index, 0
+; CHECK-NEXT:   [[GEP:%.+]] = getelementptr inbounds i32, ptr %dst, i64 [[IDX]]
+; CHECK-NEXT:   store i32 0, ptr [[GEP]], align 4
 ; CHECK-NEXT:   br label %pred.store.continue, !dbg [[LOC3]]
 ; CHECK-EMPTY:
 ;
@@ -78,14 +77,14 @@ entry:
 
 loop.header:
   %iv = phi i64 [ 0, %entry ], [ %iv.next, %loop.latch ]
-  %gep.src = getelementptr inbounds i32, i32* %src, i64 %iv
-  %l = load i32, i32* %gep.src, align 4
+  %gep.src = getelementptr inbounds i32, ptr %src, i64 %iv
+  %l = load i32, ptr %gep.src, align 4
   %cmp = icmp eq i32 %l, 10
   br i1 %cmp, label %loop.latch, label %if.then, !dbg !28
 
 if.then:
-  %gep.dst = getelementptr inbounds i32, i32* %dst, i64 %iv
-  store i32 0, i32* %gep.dst, align 4
+  %gep.dst = getelementptr inbounds i32, ptr %dst, i64 %iv
+  store i32 0, ptr %gep.dst, align 4
   br label %loop.latch
 
 loop.latch:
@@ -97,19 +96,18 @@ exit:
   ret i32 0
 }
 
-define i32 @test_different_debug_loc_on_replicate_recipe(i32* noalias %src, i32* noalias %dst) {
+define i32 @test_different_debug_loc_on_replicate_recipe(ptr noalias %src, ptr noalias %dst) {
 ; CHECK-LABEL: define i32 @test_different_debug_loc_on_replicate_recipe(
 ; CHECK-LABEL: vector.body:
-; CHECK:        [[LOAD:%.+]] = load <2 x i32>, <2 x i32>* {{.+}}, align 4
-; CHECK-NEXT:   [[CMP:%.+]] = icmp eq <2 x i32> [[LOAD]], <i32 10, i32 10>
-; CHECK-NEXT:   [[XOR:%.+]] = xor <2 x i1> [[CMP:%.+]], <i1 true, i1 true>, !dbg [[LOC4:!.+]]
-; CHECK-NEXT:   [[EXT:%.+]] = extractelement <2 x i1> [[XOR]], i32 0, !dbg [[LOC4]]
-; CHECK-NEXT:   br i1 [[EXT]], label %pred.store.if, label %pred.store.continue
-; CHECK-NOT:  !dbg
+; CHECK:        [[LOAD:%.+]] = load <2 x i32>, ptr {{.+}}, align 4
+; CHECK-NEXT:   [[CMP:%.+]] = icmp ne <2 x i32> [[LOAD]], splat (i32 10), !dbg [[LOC4:!.+]]
+; CHECK-NEXT:   [[EXT:%.+]] = extractelement <2 x i1> [[CMP]], i32 0, !dbg [[LOC4]]
+; CHECK-NEXT:   br i1 [[EXT]], label %pred.store.if, label %pred.store.continue, !dbg [[LOC4]]
 ; CHECK-EMPTY:
 ; CHECK-NEXT: pred.store.if:
-; CHECK-NEXT:   [[GEP:%.+]] = getelementptr inbounds i32, i32* %dst, i64 {{.+}}, !dbg [[LOC5:!.+]]
-; CHECK-NEXT:   store i32 0, i32* [[GEP]], align 4, !dbg [[LOC5]]
+; CHECK-NEXT:   [[IDX:%.+]] = add i64 %index, 0
+; CHECK-NEXT:   [[GEP:%.+]] = getelementptr inbounds i32, ptr %dst, i64 [[IDX]], !dbg [[LOC5:!.+]]
+; CHECK-NEXT:   store i32 0, ptr [[GEP]], align 4
 ; CHECK-NEXT:   br label %pred.store.continue, !dbg [[LOC4]]
 ; CHECK-EMPTY:
 ;
@@ -118,14 +116,14 @@ entry:
 
 loop.header:
   %iv = phi i64 [ 0, %entry ], [ %iv.next, %loop.latch ]
-  %gep.src = getelementptr inbounds i32, i32* %src, i64 %iv
-  %l = load i32, i32* %gep.src, align 4
+  %gep.src = getelementptr inbounds i32, ptr %src, i64 %iv
+  %l = load i32, ptr %gep.src, align 4
   %cmp = icmp eq i32 %l, 10
   br i1 %cmp, label %loop.latch, label %if.then, !dbg !33
 
 if.then:
-  %gep.dst = getelementptr inbounds i32, i32* %dst, i64 %iv, !dbg !34
-  store i32 0, i32* %gep.dst, align 4
+  %gep.dst = getelementptr inbounds i32, ptr %dst, i64 %iv, !dbg !34
+  store i32 0, ptr %gep.dst, align 4
   br label %loop.latch
 
 loop.latch:
@@ -137,12 +135,84 @@ exit:
   ret i32 0
 }
 
+define void @test_misc(ptr nocapture %a, ptr noalias %b, i64 %size) !dbg !35 {
+; CHECK-LABEL: define void @test_misc(
+; CHECK:       vector.body:
+; CHECK-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, %vector.ph ], [ [[INDEX_NEXT:%.*]], %vector.body ]
+; CHECK-NEXT:    [[TMP1:%.*]] = getelementptr inbounds i32, ptr %a, i64 [[INDEX]]
+; CHECK-NEXT:    [[TMP2:%.*]] = getelementptr inbounds i32, ptr %b, i64 [[INDEX]]
+; CHECK-NEXT:    [[WIDE_LOAD:%.*]] = load <2 x i32>, ptr [[TMP1]], align 4
+; CHECK-NEXT:    [[TMP4:%.*]] = icmp uge <2 x i32> [[WIDE_LOAD]], splat (i32 10)
+; CHECK-NEXT:    [[TMP5:%.*]] = select <2 x i1> [[TMP4]], <2 x i32> [[WIDE_LOAD]], <2 x i32> zeroinitializer, !dbg [[LOC6:![0-9]+]]
+; CHECK-NEXT:    store <2 x i32> [[TMP5]], ptr [[TMP2]], align 4, !dbg [[LOC7:![0-9]+]]
+; CHECK-NEXT:    [[INDEX_NEXT]] = add nuw i64 [[INDEX]], 2
+; CHECK-NEXT:    [[TMP7:%.*]] = icmp eq i64 [[INDEX_NEXT]],
+; CHECK-NEXT:    br i1 [[TMP7]], label %middle.block, label %vector.body
+;
+entry:
+  br label %loop
+
+loop:
+  %iv = phi i64 [ 0, %entry ], [ %iv.next, %loop ]
+  %arrayidx.1 = getelementptr inbounds i32, ptr %a, i64 %iv
+  %arrayidx.2 = getelementptr inbounds i32, ptr %b, i64 %iv
+  %l.1 = load i32, ptr %arrayidx.1, align 4
+  %c = icmp uge i32 %l.1, 10
+  %sel = select i1 %c, i32 %l.1, i32 0, !dbg !37
+  store i32 %sel, ptr %arrayidx.2, !dbg !38
+  %iv.next = add i64 %iv, 1
+  %exitcond = icmp ne i64 %iv.next, %size
+  br i1 %exitcond, label %loop, label %exit
+
+exit:
+  ret void
+}
+
+define void @test_scalar_steps(ptr nocapture %a, ptr noalias %b, i64 %size) !dbg !39 {
+; CHECK-LABEL: define void @test_scalar_steps(
+; CHECK:       vector.body:
+; CHECK-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, %vector.ph ], [ [[INDEX_NEXT:%.*]], %vector.body ]
+; CHECK-NEXT:    [[OFFSET_IDX:%.*]] = mul i64 [[INDEX]], 2
+; CHECK-NEXT:    [[TMP6:%.*]] = add i64 [[OFFSET_IDX]], 0, !dbg [[LOC8:!.+]]
+; CHECK-NEXT:    [[TMP7:%.*]] = add i64 [[OFFSET_IDX]], 2, !dbg [[LOC8]]
+; CHECK-NEXT:    [[TMP8:%.*]] = getelementptr inbounds i32, ptr [[A:%.*]], i64 [[TMP6]]
+; CHECK-NEXT:    [[TMP9:%.*]] = getelementptr inbounds i32, ptr [[A]], i64 [[TMP7]]
+; CHECK-NEXT:    [[TMP10:%.*]] = getelementptr inbounds i32, ptr [[B:%.*]], i64 [[TMP6]]
+; CHECK-NEXT:    [[TMP11:%.*]] = getelementptr inbounds i32, ptr [[B]], i64 [[TMP7]]
+; CHECK-NEXT:    [[TMP12:%.*]] = load i32, ptr [[TMP8]], align 4
+; CHECK-NEXT:    [[TMP13:%.*]] = load i32, ptr [[TMP9]], align 4
+; CHECK-NEXT:    store i32 [[TMP12]], ptr [[TMP10]], align 4
+; CHECK-NEXT:    store i32 [[TMP13]], ptr [[TMP11]], align 4
+; CHECK-NEXT:    [[INDEX_NEXT]] = add nuw i64 [[INDEX]], 2
+; CHECK-NEXT:    [[TMP20:%.*]] = icmp eq i64 [[INDEX_NEXT]], %n.vec
+; CHECK-NEXT:    br i1 [[TMP20]], label %middle.block, label %vector.body
+;
+entry:
+  br label %loop
+
+loop:
+  %iv = phi i64 [ 0, %entry ], [ %iv.next, %loop ], !dbg !41
+  %arrayidx.1 = getelementptr inbounds i32, ptr %a, i64 %iv
+  %arrayidx.2 = getelementptr inbounds i32, ptr %b, i64 %iv
+  %l.1 = load i32, ptr %arrayidx.1, align 4
+  store i32 %l.1, ptr %arrayidx.2
+  %iv.next = add i64 %iv, 2
+  %exitcond = icmp ne i64 %iv.next, %size
+  br i1 %exitcond, label %loop, label %exit
+
+exit:
+  ret void
+}
+
 ; CHECK: ![[LOC2]] = !DILocation(line: 3
 ; CHECK: ![[BR_LOC]] = !DILocation(line: 5,
 ; CHECK: ![[LOC1]] = !DILocation(line: 6
 ; CHECK: [[LOC3]] = !DILocation(line: 137
 ; CHECK: [[LOC4]] = !DILocation(line: 210
 ; CHECK: [[LOC5]] = !DILocation(line: 320
+; CHECK: [[LOC6]] = !DILocation(line: 430
+; CHECK: [[LOC7]] = !DILocation(line: 540
+; CHECK: [[LOC8]] = !DILocation(line: 650
 
 
 declare void @llvm.dbg.declare(metadata, metadata, metadata)
@@ -183,3 +253,10 @@ declare void @llvm.dbg.value(metadata, metadata, metadata)
 !32 = distinct !DILexicalBlock(scope: !31, file: !5, line: 137, column: 2)
 !33 = !DILocation(line: 210, column: 44, scope: !32)
 !34 = !DILocation(line: 320, column: 44, scope: !32)
+!35 = distinct !DISubprogram(name: "test_misc", line: 3, isLocal: false, isDefinition: true, virtualIndex: 6, flags: DIFlagPrototyped, isOptimized: true, unit: !0, scopeLine: 3, file: !5, scope: !6, type: !7, retainedNodes: !2)
+!36 = distinct !DILexicalBlock(scope: !35, file: !5, line: 137, column: 2)
+!37 = !DILocation(line: 430, column: 44, scope: !36)
+!38 = !DILocation(line: 540, column: 44, scope: !36)
+!39 = distinct !DISubprogram(name: "test_scalar_Steps", line: 3, isLocal: false, isDefinition: true, virtualIndex: 6, flags: DIFlagPrototyped, isOptimized: true, unit: !0, scopeLine: 3, file: !5, scope: !6, type: !7, retainedNodes: !2)
+!40 = distinct !DILexicalBlock(scope: !39, file: !5, line: 137, column: 2)
+!41 = !DILocation(line: 650, column: 44, scope: !40)

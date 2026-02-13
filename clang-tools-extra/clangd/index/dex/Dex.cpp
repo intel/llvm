@@ -23,6 +23,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/ScopedPrinter.h"
 #include <algorithm>
+#include <optional>
 #include <queue>
 #include <utility>
 #include <vector>
@@ -32,13 +33,14 @@ namespace clangd {
 namespace dex {
 
 std::unique_ptr<SymbolIndex> Dex::build(SymbolSlab Symbols, RefSlab Refs,
-                                        RelationSlab Rels) {
+                                        RelationSlab Rels,
+                                        bool SupportContainedRefs) {
   auto Size = Symbols.bytes() + Refs.bytes();
   // There is no need to include "Rels" in Data because the relations are self-
   // contained, without references into a backing store.
   auto Data = std::make_pair(std::move(Symbols), std::move(Refs));
   return std::make_unique<Dex>(Data.first, Data.second, Rels, std::move(Data),
-                                Size);
+                               Size, SupportContainedRefs);
 }
 
 namespace {
@@ -119,7 +121,7 @@ public:
 
 } // namespace
 
-void Dex::buildIndex() {
+void Dex::buildIndex(bool SupportContainedRefs) {
   this->Corpus = dex::Corpus(Symbols.size());
   std::vector<std::pair<float, const Symbol *>> ScoredSymbols(Symbols.size());
 
@@ -146,6 +148,20 @@ void Dex::buildIndex() {
   for (DocID SymbolRank = 0; SymbolRank < Symbols.size(); ++SymbolRank)
     Builder.add(*Symbols[SymbolRank], SymbolRank);
   InvertedIndex = std::move(Builder).build();
+
+  // If the containedRefs() operation is supported, build the RevRefs
+  // data structure used to implement it.
+  if (!SupportContainedRefs)
+    return;
+  for (const auto &[ID, RefList] : Refs)
+    for (const auto &R : RefList)
+      if ((R.Kind & ContainedRefsRequest::SupportedRefKinds) !=
+          RefKind::Unknown)
+        RevRefs.emplace_back(R, ID);
+  // Sort by container ID so we can use binary search for lookup.
+  llvm::sort(RevRefs, [](const RevRef &A, const RevRef &B) {
+    return A.ref().Container < B.ref().Container;
+  });
 }
 
 std::unique_ptr<Iterator> Dex::iterator(const Token &Tok) const {
@@ -163,10 +179,9 @@ std::unique_ptr<Iterator> Dex::createFileProximityIterator(
   llvm::StringMap<SourceParams> Sources;
   for (const auto &Path : ProximityPaths) {
     Sources[Path] = SourceParams();
-    auto PathURI = URI::create(Path);
-    const auto PathProximityURIs = generateProximityURIs(PathURI.toString());
-    for (const auto &ProximityURI : PathProximityURIs)
-      ParentURIs.insert(ProximityURI);
+    auto PathURI = URI::create(Path).toString();
+    const auto PathProximityURIs = generateProximityURIs(PathURI.c_str());
+    ParentURIs.insert_range(PathProximityURIs);
   }
   // Use SymbolRelevanceSignals for symbol relevance evaluation: use defaults
   // for all parameters except for Proximity Path distance signal.
@@ -263,11 +278,11 @@ bool Dex::fuzzyFind(const FuzzyFindRequest &Req,
     return LHS.second > RHS.second;
   };
   TopN<IDAndScore, decltype(Compare)> Top(
-      Req.Limit ? *Req.Limit : std::numeric_limits<size_t>::max(), Compare);
+      Req.Limit.value_or(std::numeric_limits<size_t>::max()), Compare);
   for (const auto &IDAndScore : IDAndScores) {
     const DocID SymbolDocID = IDAndScore.first;
     const auto *Sym = Symbols[SymbolDocID];
-    const llvm::Optional<float> Score = Filter.match(Sym->Name);
+    const std::optional<float> Score = Filter.match(Sym->Name);
     if (!Score)
       continue;
     // Combine Fuzzy Matching score, precomputed symbol quality and boosting
@@ -313,6 +328,36 @@ bool Dex::refs(const RefsRequest &Req,
   return false; // We reported all refs.
 }
 
+llvm::iterator_range<std::vector<Dex::RevRef>::const_iterator>
+Dex::lookupRevRefs(const SymbolID &Container) const {
+  // equal_range() requires an element of the same type as the elements of the
+  // range, so construct a dummy RevRef with the container of interest.
+  Ref QueryRef;
+  QueryRef.Container = Container;
+  RevRef Query(QueryRef, SymbolID{});
+
+  auto ItPair = std::equal_range(RevRefs.cbegin(), RevRefs.cend(), Query,
+                                 [](const RevRef &A, const RevRef &B) {
+                                   return A.ref().Container < B.ref().Container;
+                                 });
+  return {ItPair.first, ItPair.second};
+}
+
+bool Dex::containedRefs(
+    const ContainedRefsRequest &Req,
+    llvm::function_ref<void(const ContainedRefsResult &)> Callback) const {
+  trace::Span Tracer("Dex reversed refs");
+  uint32_t Remaining = Req.Limit.value_or(std::numeric_limits<uint32_t>::max());
+  for (const auto &Rev : lookupRevRefs(Req.ID)) {
+    // RevRefs are already filtered to ContainedRefsRequest::SupportedRefKinds
+    if (Remaining == 0)
+      return true; // More refs were available.
+    --Remaining;
+    Callback(Rev.containedRefsResult());
+  }
+  return false; // We reported all refs.
+}
+
 void Dex::relations(
     const RelationsRequest &Req,
     llvm::function_ref<void(const SymbolID &, const Symbol &)> Callback) const {
@@ -327,6 +372,28 @@ void Dex::relations(
         if (Remaining > 0) {
           --Remaining;
           LookupReq.IDs.insert(Object);
+        }
+      }
+    }
+    lookup(LookupReq, [&](const Symbol &Object) { Callback(Subject, Object); });
+  }
+}
+
+void Dex::reverseRelations(
+    const RelationsRequest &Req,
+    llvm::function_ref<void(const SymbolID &, const Symbol &)> Callback) const {
+  trace::Span Tracer("Dex reverseRelations");
+  assert(Req.Predicate == RelationKind::OverriddenBy);
+  uint32_t Remaining = Req.Limit.value_or(std::numeric_limits<uint32_t>::max());
+  for (const SymbolID &Subject : Req.Subjects) {
+    LookupRequest LookupReq;
+    auto It = ReverseRelations.find(
+        std::make_pair(Subject, static_cast<uint8_t>(Req.Predicate)));
+    if (It != ReverseRelations.end()) {
+      for (const auto &Obj : It->second) {
+        if (Remaining > 0) {
+          --Remaining;
+          LookupReq.IDs.insert(Obj);
         }
       }
     }
@@ -349,34 +416,55 @@ size_t Dex::estimateMemoryUsage() const {
   for (const auto &TokenToPostingList : InvertedIndex)
     Bytes += TokenToPostingList.second.bytes();
   Bytes += Refs.getMemorySize();
+  Bytes += RevRefs.size() * sizeof(RevRef);
   Bytes += Relations.getMemorySize();
+  Bytes += ReverseRelations.getMemorySize();
   return Bytes + BackingDataSize;
 }
 
-std::vector<std::string> generateProximityURIs(llvm::StringRef URIPath) {
-  std::vector<std::string> Result;
-  auto ParsedURI = URI::parse(URIPath);
-  assert(ParsedURI &&
-         "Non-empty argument of generateProximityURIs() should be a valid "
-         "URI.");
-  llvm::StringRef Body = ParsedURI->body();
-  // FIXME(kbobyrev): Currently, this is a heuristic which defines the maximum
-  // size of resulting vector. Some projects might want to have higher limit if
-  // the file hierarchy is deeper. For the generic case, it would be useful to
-  // calculate Limit in the index build stage by calculating the maximum depth
-  // of the project source tree at runtime.
-  size_t Limit = 5;
-  // Insert original URI before the loop: this would save a redundant iteration
-  // with a URI parse.
-  Result.emplace_back(ParsedURI->toString());
-  while (!Body.empty() && --Limit > 0) {
-    // FIXME(kbobyrev): Parsing and encoding path to URIs is not necessary and
-    // could be optimized.
-    Body = llvm::sys::path::parent_path(Body, llvm::sys::path::Style::posix);
-    if (!Body.empty())
-      Result.emplace_back(
-          URI(ParsedURI->scheme(), ParsedURI->authority(), Body).toString());
+// Given foo://bar/one/two
+// Returns        ~~~~~~~~  (or empty for bad URI)
+llvm::StringRef findPathInURI(llvm::StringRef S) {
+  S = S.split(':').second;   // Eat scheme.
+  if (S.consume_front("//")) // Eat authority.
+    S = S.drop_until([](char C) { return C == '/'; });
+  return S;
+}
+
+// FIXME(kbobyrev): Currently, this is a heuristic which defines the maximum
+// size of resulting vector. Some projects might want to have higher limit if
+// the file hierarchy is deeper. For the generic case, it would be useful to
+// calculate Limit in the index build stage by calculating the maximum depth
+// of the project source tree at runtime.
+constexpr unsigned ProximityURILimit = 5;
+
+llvm::SmallVector<llvm::StringRef, ProximityURILimit>
+generateProximityURIs(llvm::StringRef URI) {
+  // This function is hot when indexing, so don't parse/reserialize URIPath,
+  // just emit substrings of it instead.
+  //
+  // foo://bar/one/two
+  //          ~~~~~~~~
+  //            Path
+  llvm::StringRef Path = findPathInURI(URI);
+  if (Path.empty())
+    return {}; // Bad URI.
+  assert(Path.begin() >= URI.begin() && Path.begin() < URI.end() &&
+         Path.end() == URI.end());
+
+  // The original is a proximity URI.
+  llvm::SmallVector<llvm::StringRef, ProximityURILimit> Result = {URI};
+  // Form proximity URIs by chopping before each slash in the path part.
+  for (auto Slash = Path.rfind('/'); Slash > 0 && Slash != StringRef::npos;
+       Slash = Path.rfind('/')) {
+    Path = Path.substr(0, Slash);
+    Result.push_back(URI.substr(0, Path.end() - URI.data()));
+    if (Result.size() == ProximityURILimit)
+      return Result;
   }
+  // The root foo://bar/ is a proximity URI.
+  if (Path.starts_with("/"))
+    Result.push_back(URI.substr(0, Path.begin() + 1 - URI.data()));
   return Result;
 }
 

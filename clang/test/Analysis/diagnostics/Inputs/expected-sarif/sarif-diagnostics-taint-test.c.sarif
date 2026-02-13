@@ -1,11 +1,13 @@
 {
-  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+  "$schema": "https://docs.oasis-open.org/sarif/sarif/v2.1.0/cos02/schemas/sarif-schema-2.1.0.json",
   "runs": [
     {
       "artifacts": [
         {
-          "length": 434,
+          "length": -1,
           "location": {
+            "index": 0,
+            "uri": "file:///[...]/sarif-diagnostics-taint-test.c"
           },
           "mimeType": "text/plain",
           "roles": [
@@ -30,6 +32,7 @@
                         "physicalLocation": {
                           "artifactLocation": {
                             "index": 0,
+                            "uri": "file:///[...]/sarif-diagnostics-taint-test.c"
                           },
                           "region": {
                             "endColumn": 6,
@@ -49,6 +52,7 @@
                         "physicalLocation": {
                           "artifactLocation": {
                             "index": 0,
+                            "uri": "file:///[...]/sarif-diagnostics-taint-test.c"
                           },
                           "region": {
                             "endColumn": 18,
@@ -64,11 +68,13 @@
               ]
             }
           ],
+          "level": "warning",
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
                   "index": 0,
+                  "uri": "file:///[...]/sarif-diagnostics-taint-test.c"
                 },
                 "region": {
                   "endColumn": 18,
@@ -82,6 +88,9 @@
           "message": {
             "text": "tainted"
           },
+          "partialFingerprints": {
+            "clang/issueHash/v1": "5c964815b8d6db3989bacdd308e657d0"
+          },
           "ruleId": "debug.TaintTest",
           "ruleIndex": 0
         }
@@ -89,10 +98,16 @@
       "tool": {
         "driver": {
           "fullName": "clang static analyzer",
+          "informationUri": "https://clang.llvm.org/docs/UsersManual.html",
           "language": "en-US",
           "name": "clang",
           "rules": [
             {
+              "defaultConfiguration": {
+                "enabled": true,
+                "level": "warning",
+                "rank": -1
+              },
               "fullDescription": {
                 "text": "Mark tainted symbols as such."
               },
@@ -100,8 +115,10 @@
               "name": "debug.TaintTest"
             }
           ],
+          "version": "[clang version]"
         }
       }
     }
   ],
+  "version": "[SARIF version]"
 }

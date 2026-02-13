@@ -1687,6 +1687,21 @@ TEST(MemorySanitizer, stpcpy) {
   EXPECT_NOT_POISONED(y[2]);
 }
 
+TEST(MemorySanitizer, stpncpy) {
+  char *x = new char[3];
+  char *y = new char[5];
+  x[0] = 'a';
+  x[1] = *GetPoisoned<char>(1, 1);
+  x[2] = '\0';
+  char *res = stpncpy(y, x, 4);
+  ASSERT_EQ(res, y + 2);
+  EXPECT_NOT_POISONED(y[0]);
+  EXPECT_POISONED(y[1]);
+  EXPECT_NOT_POISONED(y[2]);
+  EXPECT_NOT_POISONED(y[3]);
+  EXPECT_POISONED(y[4]);
+}
+
 TEST(MemorySanitizer, strcat) {
   char a[10];
   char b[] = "def";
@@ -3155,19 +3170,21 @@ static void GetPathToLoadable(char *buf, size_t sz) {
   const char *last_slash = strrchr(program_path, '/');
   ASSERT_NE(nullptr, last_slash);
   size_t dir_len = (size_t)(last_slash - program_path);
-#if defined(__x86_64__)
+#  if defined(__x86_64__)
   static const char basename[] = "libmsan_loadable.x86_64.so";
-#elif defined(__MIPSEB__) || defined(MIPSEB)
+#  elif defined(__MIPSEB__) || defined(MIPSEB)
   static const char basename[] = "libmsan_loadable.mips64.so";
-#elif defined(__mips64)
+#  elif defined(__mips64)
   static const char basename[] = "libmsan_loadable.mips64el.so";
-#elif defined(__aarch64__)
+#  elif defined(__aarch64__)
   static const char basename[] = "libmsan_loadable.aarch64.so";
-#elif defined(__powerpc64__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+#  elif defined(__loongarch_lp64)
+  static const char basename[] = "libmsan_loadable.loongarch64.so";
+#  elif defined(__powerpc64__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
   static const char basename[] = "libmsan_loadable.powerpc64.so";
-#elif defined(__powerpc64__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#  elif defined(__powerpc64__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
   static const char basename[] = "libmsan_loadable.powerpc64le.so";
-#endif
+#  endif
   int res = snprintf(buf, sz, "%.*s/%s",
                      (int)dir_len, program_path, basename);
   ASSERT_GE(res, 0);
@@ -3224,7 +3241,7 @@ TEST(MemorySanitizer, dlopenFailed) {
 
 #endif // MSAN_TEST_DISABLE_DLOPEN
 
-#if !defined(__FreeBSD__) && !defined(__NetBSD__)
+#if !defined(__NetBSD__)
 TEST(MemorySanitizer, sched_getaffinity) {
   cpu_set_t mask;
   if (sched_getaffinity(getpid(), sizeof(mask), &mask) == 0)
@@ -4254,14 +4271,39 @@ TEST(VectorSadTest, sse2_psad_bw) {
 }
 
 TEST(VectorMaddTest, mmx_pmadd_wd) {
-  V4x16 a = {Poisoned<U2>(), 1, 2, 3};
+  V4x16 a = {Poisoned<U2>(0), 1, 2, 3};
   V4x16 b = {100, 101, 102, 103};
   V2x32 c = _mm_madd_pi16(a, b);
+  // Multiply step:
+  //    {Poison * 100, 1 * 101, 2 * 102, 3 * 103}
+  // == {Poison,       1 * 101, 2 * 102, 3 * 103}
+  //    Notice that for the poisoned value, we ignored the concrete zero value.
+  //
+  // Horizontal add step:
+  //    {Poison + 1 * 101, 2 * 102 + 3 * 103}
+  // == {Poison,           2 * 102 + 3 * 103}
 
   EXPECT_POISONED(c[0]);
   EXPECT_NOT_POISONED(c[1]);
 
   EXPECT_EQ((unsigned)(2 * 102 + 3 * 103), c[1]);
+
+  V4x16 d = {Poisoned<U2>(0), 1, 0, 3};
+  V4x16 e = {100, 101, Poisoned<U2>(102), 103};
+  V2x32 f = _mm_madd_pi16(d, e);
+  // Multiply step:
+  //    {Poison * 100, 1 * 101, 0 * Poison, 3 * 103}
+  // == {Poison,       1 * 101, 0         , 3 * 103}
+  //    Notice that 0 * Poison == 0.
+  //
+  // Horizontal add step:
+  //    {Poison + 1 * 101, 0 + 3 * 103}
+  // == {Poison,           3 * 103}
+
+  EXPECT_POISONED(f[0]);
+  EXPECT_NOT_POISONED(f[1]);
+
+  EXPECT_EQ((unsigned)(3 * 103), f[1]);
 }
 
 TEST(VectorCmpTest, mm_cmpneq_ps) {
@@ -4864,4 +4906,127 @@ TEST(MemorySanitizer, throw_catch) {
     // pass
   }
 }
+
+#if defined(__GLIBC__)
+TEST(MemorySanitizer, timer_create) {
+  timer_t timer;
+  EXPECT_POISONED(timer);
+  int res = timer_create(CLOCK_REALTIME, nullptr, &timer);
+  ASSERT_EQ(0, res);
+  EXPECT_NOT_POISONED(timer);
+
+  // Make sure the timer is usable.
+  struct itimerspec cur_value {};
+  cur_value.it_value.tv_sec = 1;
+  EXPECT_EQ(0, timer_settime(timer, 0, &cur_value, nullptr));
+
+  struct itimerspec read_value;
+  EXPECT_POISONED(read_value);
+  EXPECT_EQ(0, timer_gettime(timer, &read_value));
+  EXPECT_NOT_POISONED(read_value);
+
+  timer_t timer2;
+  EXPECT_POISONED(timer2);
+  // Use an invalid clock_id to make timer_create fail.
+  res = timer_create(INT_MAX, nullptr, &timer2);
+  ASSERT_EQ(-1, res);
+  EXPECT_POISONED(timer2);
+  timer_delete(timer);
+}
+
+TEST(MemorySanitizer, getservent_r) {
+  if (access("/etc/services", O_RDONLY) != 0)
+    GTEST_SKIP() << "Missing /etc/services";
+  struct servent result_buf;
+  struct servent *result;
+  char buf[1024];
+  EXPECT_POISONED(result_buf);
+  EXPECT_POISONED(result);
+  EXPECT_POISONED(buf);
+  ASSERT_EQ(getservent_r(&result_buf, buf, sizeof(buf), &result), 0);
+  EXPECT_NOT_POISONED(result);
+  ASSERT_NE(result, nullptr);
+  EXPECT_NOT_POISONED(result_buf);
+  EXPECT_NOT_POISONED(buf);
+}
+
+TEST(MemorySanitizer, getservbyname_r) {
+  if (access("/etc/services", O_RDONLY) != 0)
+    GTEST_SKIP() << "Missing /etc/services";
+  struct servent result_buf;
+  struct servent *result;
+  char buf[1024];
+  EXPECT_POISONED(result_buf);
+  EXPECT_POISONED(result);
+  EXPECT_POISONED(buf);
+  ASSERT_EQ(
+      getservbyname_r("ssh", nullptr, &result_buf, buf, sizeof(buf), &result),
+      0);
+  EXPECT_NOT_POISONED(result);
+  // If this fails, check /etc/services if "ssh" exists. I picked this because
+  // it should exist everywhere, if it doesn't, I am sorry. Disable the test
+  // then please.
+  ASSERT_NE(result, nullptr);
+  EXPECT_NOT_POISONED(result_buf);
+  EXPECT_NOT_POISONED(buf);
+}
+
+TEST(MemorySanitizer, getservbyname_r_unknown) {
+  if (access("/etc/services", O_RDONLY) != 0)
+    GTEST_SKIP() << "Missing /etc/services";
+  struct servent result_buf;
+  struct servent *result;
+  char buf[1024];
+  EXPECT_POISONED(result_buf);
+  EXPECT_POISONED(result);
+  EXPECT_POISONED(buf);
+  ASSERT_EQ(getservbyname_r("invalidhadfuiasdhi", nullptr, &result_buf, buf,
+                            sizeof(buf), &result),
+            0);
+  EXPECT_NOT_POISONED(result);
+  ASSERT_EQ(result, nullptr);
+  EXPECT_POISONED(result_buf);
+  EXPECT_POISONED(buf);
+}
+
+TEST(MemorySanitizer, getservbyport_r) {
+  if (access("/etc/services", O_RDONLY) != 0)
+    GTEST_SKIP() << "Missing /etc/services";
+  struct servent result_buf;
+  struct servent *result;
+  char buf[1024];
+  EXPECT_POISONED(result_buf);
+  EXPECT_POISONED(result);
+  EXPECT_POISONED(buf);
+  ASSERT_EQ(getservbyport_r(htons(22), nullptr, &result_buf, buf, sizeof(buf),
+                            &result),
+            0);
+  EXPECT_NOT_POISONED(result);
+  // If this fails, check /etc/services if "ssh" exists. I picked this because
+  // it should exist everywhere, if it doesn't, I am sorry. Disable the test
+  // then please.
+  ASSERT_NE(result, nullptr);
+  EXPECT_NOT_POISONED(result_buf);
+  EXPECT_NOT_POISONED(buf);
+}
+
+TEST(MemorySanitizer, getservbyport_r_smallbuf) {
+  if (access("/etc/services", O_RDONLY) != 0)
+    GTEST_SKIP() << "Missing /etc/services";
+  struct servent result_buf;
+  struct servent *result;
+  char buf[1];
+  EXPECT_POISONED(result_buf);
+  EXPECT_POISONED(result);
+  EXPECT_POISONED(buf);
+  ASSERT_EQ(getservbyport_r(htons(22), nullptr, &result_buf, buf, sizeof(buf),
+                            &result),
+            ERANGE);
+  EXPECT_NOT_POISONED(result);
+  ASSERT_EQ(result, nullptr);
+  EXPECT_POISONED(result_buf);
+  EXPECT_POISONED(buf);
+}
+
+#endif
 } // namespace

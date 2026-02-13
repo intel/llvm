@@ -8,15 +8,17 @@
 
 #include <detail/backend_impl.hpp>
 #include <detail/context_impl.hpp>
+#include <detail/ur.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>
+#include <sycl/ext/oneapi/experimental/async_alloc/memory_pool.hpp>
+#include <sycl/info/info_desc.hpp>
 #include <sycl/platform.hpp>
 #include <sycl/properties/all_properties.hpp>
-#include <sycl/stl.hpp>
 
 #include <algorithm>
 #include <memory>
@@ -25,13 +27,13 @@
 // 4.6.2 Context class
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
-context::context(const property_list &PropList)
-    : context(default_selector().select_device(), PropList) {}
+inline namespace _V1 {
+
+context::context(const property_list &PropList) : context(device{}, PropList) {}
 
 context::context(const async_handler &AsyncHandler,
                  const property_list &PropList)
-    : context(default_selector().select_device(), AsyncHandler, PropList) {}
+    : context(device{}, AsyncHandler, PropList) {}
 
 context::context(const device &Device, const property_list &PropList)
     : context(std::vector<device>(1, Device), PropList) {}
@@ -49,44 +51,37 @@ context::context(const platform &Platform, async_handler AsyncHandler,
 
 context::context(const std::vector<device> &DeviceList,
                  const property_list &PropList)
-    : context(DeviceList, async_handler{}, PropList) {}
+    : context(DeviceList, detail::defaultAsyncHandler, PropList) {}
 
 context::context(const std::vector<device> &DeviceList,
                  async_handler AsyncHandler, const property_list &PropList) {
   if (DeviceList.empty()) {
-    throw invalid_parameter_error("DeviceList is empty.",
-                                  PI_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid), "DeviceList is empty.");
   }
-  auto NonHostDeviceIter = std::find_if_not(
-      DeviceList.begin(), DeviceList.end(), [&](const device &CurrentDevice) {
-        return detail::getSyclObjImpl(CurrentDevice)->is_host();
-      });
-  if (NonHostDeviceIter == DeviceList.end())
-    impl = std::make_shared<detail::context_impl>(DeviceList[0], AsyncHandler,
-                                                  PropList);
-  else {
-    const device &NonHostDevice = *NonHostDeviceIter;
-    const auto &NonHostPlatform =
-        detail::getSyclObjImpl(NonHostDevice.get_platform())->getHandleRef();
-    if (std::any_of(DeviceList.begin(), DeviceList.end(),
-                    [&](const device &CurrentDevice) {
-                      return (
-                          detail::getSyclObjImpl(CurrentDevice)->is_host() ||
-                          (detail::getSyclObjImpl(CurrentDevice.get_platform())
-                               ->getHandleRef() != NonHostPlatform));
-                    }))
-      throw invalid_parameter_error(
-          "Can't add devices across platforms to a single context.",
-          PI_ERROR_INVALID_DEVICE);
-    else
-      impl = std::make_shared<detail::context_impl>(DeviceList, AsyncHandler,
-                                                    PropList);
-  }
+
+  const auto &RefPlatform =
+      detail::getSyclObjImpl(DeviceList[0].get_platform())->getHandleRef();
+  if (std::any_of(DeviceList.begin(), DeviceList.end(),
+                  [&](const device &CurrentDevice) {
+                    return (detail::getSyclObjImpl(CurrentDevice.get_platform())
+                                ->getHandleRef() != RefPlatform);
+                  }))
+    throw exception(make_error_code(errc::invalid),
+                    "Can't add devices across platforms to a single context.");
+  else
+    impl = detail::context_impl::create(DeviceList, AsyncHandler, PropList);
 }
 context::context(cl_context ClContext, async_handler AsyncHandler) {
-  const auto &Plugin = RT::getPlugin<backend::opencl>();
-  impl = std::make_shared<detail::context_impl>(
-      detail::pi::cast<detail::RT::PiContext>(ClContext), AsyncHandler, Plugin);
+  detail::adapter_impl &Adapter =
+      sycl::detail::ur::getAdapter<backend::opencl>();
+
+  ur_context_handle_t hContext = nullptr;
+  ur_native_handle_t nativeHandle =
+      reinterpret_cast<ur_native_handle_t>(ClContext);
+  Adapter.call<detail::UrApiKind::urContextCreateWithNativeHandle>(
+      nativeHandle, Adapter.getUrAdapter(), 0u, nullptr, nullptr, &hContext);
+
+  impl = detail::context_impl::create(hContext, AsyncHandler, Adapter);
 }
 
 template <typename Param>
@@ -103,33 +98,15 @@ context::get_info() const {
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-#define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
-  template <>                                                                  \
-  __SYCL_EXPORT bool context::has_property<param_type>() const noexcept {      \
-    return impl->has_property<param_type>();                                   \
-  }
-#include <sycl/detail/properties_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
-
-#define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
-  template <>                                                                  \
-  __SYCL_EXPORT param_type context::get_property<param_type>() const {         \
-    return impl->get_property<param_type>();                                   \
-  }
-#include <sycl/detail/properties_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
+template <typename Param>
+typename detail::is_backend_info_desc<Param>::return_type
+context::get_backend_info() const {
+  return impl->get_backend_info<Param>();
+}
 
 cl_context context::get() const { return impl->get(); }
 
-bool context::is_host() const {
-  bool IsHost = impl->is_host();
-  assert(!IsHost && "context::is_host should not be called in implementation.");
-  return IsHost;
-}
-
-backend context::get_backend() const noexcept { return getImplBackend(impl); }
+backend context::get_backend() const noexcept { return impl->getBackend(); }
 
 platform context::get_platform() const {
   return impl->get_info<info::context::platform>();
@@ -139,9 +116,31 @@ std::vector<device> context::get_devices() const {
   return impl->get_info<info::context::devices>();
 }
 
-context::context(std::shared_ptr<detail::context_impl> Impl) : impl(Impl) {}
+context::context(std::shared_ptr<detail::context_impl> Impl)
+    : impl(std::move(Impl)) {}
 
-pi_native_handle context::getNative() const { return impl->getNative(); }
+ur_native_handle_t context::getNative() const { return impl->getNative(); }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+const property_list &context::getPropList() const {
+  return impl->getPropList();
+}
+
+sycl::ext::oneapi::experimental::memory_pool
+context::ext_oneapi_get_default_memory_pool(const device &dev,
+                                            sycl::usm::alloc kind) const {
+  if (kind == sycl::usm::alloc::unknown)
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "Unknown allocation kinds are disallowed!");
+
+  if (kind != sycl::usm::alloc::device)
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Only device allocated memory pools are supported!");
+
+  return detail::createSyclObjFromImpl<
+      sycl::ext::oneapi::experimental::memory_pool>(
+      impl->get_default_memory_pool(*this, dev, kind));
+}
+
+} // namespace _V1
 } // namespace sycl

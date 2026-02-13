@@ -15,8 +15,8 @@
 
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TargetOptions.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Support/Compiler.h"
+#include "llvm/TargetParser/Triple.h"
 
 namespace clang {
 namespace targets {
@@ -33,20 +33,21 @@ public:
     PtrDiffType = SignedInt;
     IntPtrType = SignedInt;
     UseZeroLengthBitfieldAlignment = true;
-    resetDataLayout("e-m:e-p:32:32-i1:8:32-i8:8:32-i16:16:32-"
-                    "i32:32:32-f32:32:32-i64:32-f64:32-a:0:32-n32");
+    resetDataLayout();
   }
 
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override;
 
-  ArrayRef<Builtin::Info> getTargetBuiltins() const override { return None; }
+  llvm::SmallVector<Builtin::InfosShard> getTargetBuiltins() const override {
+    return {};
+  }
 
   BuiltinVaListKind getBuiltinVaListKind() const override {
     return TargetInfo::VoidPtrBuiltinVaList;
   }
 
-  const char *getClobbers() const override { return ""; }
+  std::string_view getClobbers() const override { return ""; }
 
   ArrayRef<const char *> getGCCRegNames() const override {
     static const char *const GCCRegNames[] = {
@@ -54,11 +55,11 @@ public:
         "r8",  "r9",  "r10", "r11", "r12", "r13",    "r14", "r15",
         "r16", "r17", "r18", "r19", "r20", "r21",    "r22", "r23",
         "r24", "r25", "gp",  "sp",  "fp",  "ilink1", "r30", "blink"};
-    return llvm::makeArrayRef(GCCRegNames);
+    return llvm::ArrayRef(GCCRegNames);
   }
 
   ArrayRef<TargetInfo::GCCRegAlias> getGCCRegAliases() const override {
-    return None;
+    return {};
   }
 
   bool validateAsmConstraint(const char *&Name,

@@ -1,5 +1,4 @@
-//===--- ConfusableIdentifierCheck.h - clang-tidy
-//-------------------------------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,14 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MISC_CONFUSABLE_IDENTIFIER_CHECK_H
-#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MISC_CONFUSABLE_IDENTIFIER_CHECK_H
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MISC_CONFUSABLEIDENTIFIERCHECK_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MISC_CONFUSABLEIDENTIFIERCHECK_H
 
 #include "../ClangTidyCheck.h"
+#include "llvm/ADT/DenseMap.h"
 
-namespace clang {
-namespace tidy {
-namespace misc {
+namespace clang::tidy::misc {
 
 /// Finds symbol which have confusable identifiers, i.e. identifiers that look
 /// the same visually but have a different Unicode representation.
@@ -23,18 +21,24 @@ namespace misc {
 class ConfusableIdentifierCheck : public ClangTidyCheck {
 public:
   ConfusableIdentifierCheck(StringRef Name, ClangTidyContext *Context);
-  ~ConfusableIdentifierCheck();
+  ~ConfusableIdentifierCheck() override;
 
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
+  void onEndOfTranslationUnit() override;
+  std::optional<TraversalKind> getCheckTraversalKind() const override {
+    return TK_IgnoreUnlessSpelledInSource;
+  }
 
 private:
-  std::string skeleton(StringRef);
-  llvm::StringMap<llvm::SmallVector<const NamedDecl *>> Mapper;
+  void addDeclToCheck(const NamedDecl *ND, const Decl *Parent);
+
+  llvm::DenseMap<
+      const IdentifierInfo *,
+      llvm::SmallVector<std::pair<const NamedDecl *, const Decl *>, 1>>
+      NameToDecls;
 };
 
-} // namespace misc
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::misc
 
-#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MISC_CONFUSABLE_IDENTIFIER_CHECK_H
+#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MISC_CONFUSABLEIDENTIFIERCHECK_H

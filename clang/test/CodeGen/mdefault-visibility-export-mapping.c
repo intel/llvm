@@ -1,17 +1,13 @@
-// RUN: %clang_cc1 -triple powerpc-ibm-aix %s -S -emit-llvm -o - | \
+// RUN: %clang_cc1 -triple powerpc-ibm-aix %s -emit-llvm -o - | \
 // RUN:   FileCheck -check-prefixes=UNSPECIFIED-DEF,EXPLICIT-DEF %s
-// RUN: %clang_cc1 -triple powerpc-ibm-aix %s -mdefault-visibility-export-mapping=none -S -emit-llvm -o - | \
+// RUN: %clang_cc1 -triple powerpc-ibm-aix %s -mdefault-visibility-export-mapping=none -emit-llvm -o - | \
 // RUN:   FileCheck -check-prefixes=UNSPECIFIED-DEF,EXPLICIT-DEF %s
-// RUN: %clang_cc1 -triple powerpc-ibm-aix %s -mdefault-visibility-export-mapping=explicit -S -emit-llvm -o - | \
+// RUN: %clang_cc1 -triple powerpc-ibm-aix %s -mdefault-visibility-export-mapping=explicit -emit-llvm -o - | \
 // RUN:   FileCheck -check-prefixes=UNSPECIFIED-DEF,EXPLICIT-EXP %s
-// RUN: %clang_cc1 -triple powerpc-ibm-aix %s -mdefault-visibility-export-mapping=all -S -emit-llvm -o - | \
+// RUN: %clang_cc1 -triple powerpc-ibm-aix %s -mdefault-visibility-export-mapping=all -emit-llvm -o - | \
 // RUN:   FileCheck -check-prefixes=UNSPECIFIED-EXP,EXPLICIT-EXP %s
 // RUN: %clang -target powerpc-ibm-aix %s -mdefault-visibility-export-mapping=all -fvisibility=hidden -S -emit-llvm -o - | \
 // RUN:   FileCheck -check-prefixes=UNSPECIFIED-HID,EXPLICIT-EXP %s
-
-// RUN: not %clang -mdefault-visibility-export-mapping=explicit -target powerpc-unknown-linux %s 2>&1 | \
-// RUN: FileCheck -check-prefix=ERROR %s
-// ERROR: unsupported option '-mdefault-visibility-export-mapping=explicit' for target 'powerpc-unknown-linux'
 
 // UNSPECIFIED-DEF: define void @func()
 // UNSPECIFIED-HID: define hidden void @func()

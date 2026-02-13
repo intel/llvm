@@ -8,10 +8,14 @@
 
 #pragma once
 
-#include <sycl/detail/aligned_allocator.hpp>
+#include <sycl/detail/aligned_allocator.hpp> // for aligned_allocator
+
+#include <algorithm>   // for max
+#include <cstddef>     // for size_t
+#include <type_traits> // for enable_if_t
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 template <typename DataT>
@@ -66,12 +70,12 @@ protected:
 
 private:
   template <typename T>
-  using EnableIfDefaultAllocator = enable_if_t<
-      std::is_same<T, sycl_memory_object_allocator<OwnerDataT>>::value>;
+  using EnableIfDefaultAllocator = std::enable_if_t<
+      std::is_same_v<T, sycl_memory_object_allocator<OwnerDataT>>>;
 
   template <typename T>
-  using EnableIfNonDefaultAllocator = enable_if_t<
-      !std::is_same<T, sycl_memory_object_allocator<OwnerDataT>>::value>;
+  using EnableIfNonDefaultAllocator = std::enable_if_t<
+      !std::is_same_v<T, sycl_memory_object_allocator<OwnerDataT>>>;
 
   template <typename T = AllocatorT>
   EnableIfNonDefaultAllocator<T> setAlignImpl(std::size_t) {
@@ -87,5 +91,5 @@ private:
   std::size_t MValueSize;
 };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

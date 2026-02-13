@@ -1,17 +1,36 @@
-// RUN: mlir-opt <%s | mlir-opt | FileCheck %s
+// RUN: mlir-opt --split-input-file %s | mlir-opt | FileCheck %s
 
 // CHECK-LABEL: func @cast(
 func.func @cast(%arg0: tensor<*xf32>, %arg1 : tensor<4x4xf32>, %arg2: tensor<?x?xf32>) {
-  // CHECK: tensor.cast %arg0 : tensor<*xf32> to tensor<?x?xf32>
+  // CHECK: tensor.cast %{{.*}} : tensor<*xf32> to tensor<?x?xf32>
   %0 = tensor.cast %arg0 : tensor<*xf32> to tensor<?x?xf32>
-  // CHECK: tensor.cast %arg1 : tensor<4x4xf32> to tensor<*xf32>
+  // CHECK: tensor.cast %{{.*}} : tensor<4x4xf32> to tensor<*xf32>
   %1 = tensor.cast %arg1 : tensor<4x4xf32> to tensor<*xf32>
-  // CHECK: tensor.cast %arg2 : tensor<?x?xf32> to tensor<4x?xf32>
+  // CHECK: tensor.cast %{{.*}} : tensor<?x?xf32> to tensor<4x?xf32>
   %2 = tensor.cast %arg2 : tensor<?x?xf32> to tensor<4x?xf32>
-  // CHECK: tensor.cast %2 : tensor<4x?xf32> to tensor<?x?xf32>
+  // CHECK: tensor.cast %{{.*}} : tensor<4x?xf32> to tensor<?x?xf32>
   %3 = tensor.cast %2 : tensor<4x?xf32> to tensor<?x?xf32>
   return
 }
+
+// -----
+
+// CHECK-LABEL: func @concat(
+func.func @concat(%arg0: tensor<4x7x3xf32>, %arg1 : tensor<4x4x3xf32>, %arg2: tensor<?x?x?xf32>) {
+  // CHECK: tensor.concat dim(0) %{{.*}} : (tensor<4x7x3xf32>) -> tensor<4x7x3xf32>
+  %0 = tensor.concat dim(0) %arg0 : (tensor<4x7x3xf32>) -> tensor<4x7x3xf32>
+  // CHECK: tensor.concat dim(1) %{{.*}} : (tensor<4x7x3xf32>, tensor<4x4x3xf32>) -> tensor<4x11x3xf32>
+  %1 = tensor.concat dim(1) %arg0, %arg1 : (tensor<4x7x3xf32>, tensor<4x4x3xf32>) -> tensor<4x11x3xf32>
+  // CHECK: tensor.concat dim(2) %{{.*}} : (tensor<4x7x3xf32>, tensor<?x?x?xf32>) -> tensor<?x?x?xf32>
+  %2 = tensor.concat dim(2) %arg0, %arg2 : (tensor<4x7x3xf32>, tensor<?x?x?xf32>) -> tensor<?x?x?xf32>
+  // CHECK: tensor.concat dim(1) %{{.*}} : (tensor<?x?x?xf32>, tensor<?x?x?xf32>) -> tensor<?x10x?xf32>
+  %3 = tensor.concat dim(1) %arg2, %arg2 : (tensor<?x?x?xf32>, tensor<?x?x?xf32>) -> tensor<?x10x?xf32>
+  // CHECK: tensor.concat dim(1) %{{.*}} : (tensor<?x?x?xf32>, tensor<4x4x3xf32>, tensor<4x7x3xf32>) -> tensor<4x?x3xf32>
+  %4 = tensor.concat dim(1) %arg2, %arg1, %arg0 : (tensor<?x?x?xf32>, tensor<4x4x3xf32>, tensor<4x7x3xf32>) -> tensor<4x?x3xf32>
+  return
+}
+
+// -----
 
 // CHECK-LABEL: func @empty(
 //  CHECK-SAME:             %[[sz:.*]]: index
@@ -20,6 +39,18 @@ func.func @empty(%sz: index) -> tensor<5x?x6xf32> {
   %0 = tensor.empty(%sz) : tensor<5x?x6xf32>
   return %0 : tensor<5x?x6xf32>
 }
+
+// -----
+
+// CHECK-LABEL: func @empty_with_encoding(
+//  CHECK-SAME:             %[[sz:.*]]: index
+func.func @empty_with_encoding(%sz: index) -> tensor<5x?x6xf32, "foo"> {
+  // CHECK: tensor.empty(%[[sz]]) : tensor<5x?x6xf32, "foo">
+  %0 = tensor.empty(%sz) : tensor<5x?x6xf32, "foo">
+  return %0 : tensor<5x?x6xf32, "foo">
+}
+
+// -----
 
 // CHECK-LABEL:   func @extract(
 // CHECK-SAME:                  %[[TENSOR:.*]]: tensor<?x?x?xf32>,
@@ -30,18 +61,19 @@ func.func @extract(%arg0: tensor<?x?x?xf32>, %arg1: index) {
   return
 }
 
+// -----
+
 // CHECK-LABEL:   func @insert(
 // CHECK-SAME:                  %[[SCALAR:.*]]: f32
 // CHECK-SAME:                  %[[INDEX:.*]]: index
 // CHECK-SAME:                  %[[DEST1:.*]]: tensor<?x?x?xf32>
-// CHECK-SAME:                  %[[DEST2:.*]]: tensor<*xf32>
-func.func @insert(%arg0: f32, %arg1: index, %arg2: tensor<?x?x?xf32>, %arg3: tensor<*xf32>) {
+func.func @insert(%arg0: f32, %arg1: index, %arg2: tensor<?x?x?xf32>) {
   // CHECK: tensor.insert %[[SCALAR]] into %[[DEST1]][%[[INDEX]], %[[INDEX]], %[[INDEX]]] : tensor<?x?x?xf32>
   %0 = tensor.insert %arg0 into %arg2[%arg1, %arg1, %arg1] : tensor<?x?x?xf32>
-  // CHECK: tensor.insert %[[SCALAR]] into %[[DEST2]][%[[INDEX]], %[[INDEX]], %[[INDEX]]] : tensor<*xf32>
-  %1 = tensor.insert %arg0 into %arg3[%arg1, %arg1, %arg1] : tensor<*xf32>
   return
 }
+
+// -----
 
 // CHECK-LABEL: func @tensor.from_elements() {
 func.func @tensor.from_elements() {
@@ -69,6 +101,8 @@ func.func @tensor.from_elements() {
   return
 }
 
+// -----
+
 // CHECK-LABEL: @tensor.generate
 func.func @tensor.generate(%m : index, %n : index)
     -> tensor<?x3x?xf32> {
@@ -79,6 +113,8 @@ func.func @tensor.generate(%m : index, %n : index)
   } : tensor<?x3x?xf32>
   return %tnsr : tensor<?x3x?xf32>
 }
+
+// -----
 
 // CHECK-LABEL: func @tensor_reshape
 func.func @tensor_reshape(%unranked: tensor<*xf32>, %shape1: tensor<1xi32>,
@@ -91,6 +127,8 @@ func.func @tensor_reshape(%unranked: tensor<*xf32>, %shape1: tensor<1xi32>,
                : (tensor<?x?xf32>, tensor<?xi32>) -> tensor<*xf32>
   return %new_unranked : tensor<*xf32>
 }
+
+// -----
 
 // CHECK-LABEL: func @slice({{.*}}) {
 func.func @slice(%t: tensor<8x16x4xf32>, %idx : index) {
@@ -156,12 +194,28 @@ func.func @insert_slice(
 func.func @tensor_reshape_zero_dim(%arg0 : tensor<1x1xf32>, %arg1 : tensor<f32>)
     -> (tensor<f32>, tensor<1x1xf32>) {
   %0 = tensor.collapse_shape %arg0 [] : tensor<1x1xf32> into tensor<f32>
-  %1 = tensor.expand_shape %0 [] : tensor<f32> into tensor<1x1xf32>
+  %1 = tensor.expand_shape %0 [] output_shape [1, 1] : tensor<f32> into tensor<1x1xf32>
   return %0, %1 : tensor<f32>, tensor<1x1xf32>
 }
 // CHECK-LABEL: func @tensor_reshape_zero_dim
 //       CHECK:   tensor.collapse_shape %{{.*}} [] : tensor<1x1xf32> into tensor<f32>
-//       CHECK:   tensor.expand_shape %{{.*}} [] : tensor<f32> into tensor<1x1xf32>
+//       CHECK:   tensor.expand_shape %{{.*}} [] output_shape [1, 1] : tensor<f32> into tensor<1x1xf32>
+
+// -----
+
+func.func @tensor_expand_shape_dynamic_dim(%arg0 : tensor<?x?xf32>, %sz0 : index, %sz1 : index, %sz2 : index)
+    -> (tensor<5x?x?x?xf32>) {
+  %1 = tensor.expand_shape %arg0 [[0, 1], [2, 3]] output_shape [5, %sz0, %sz1, %sz2] : tensor<?x?xf32> into tensor<5x?x?x?xf32>
+  return %1 : tensor<5x?x?x?xf32>
+}
+
+// CHECK-LABEL:  func.func @tensor_expand_shape_dynamic_dim(%arg0: tensor<?x?xf32>, %arg1: index, %arg2: index, %arg3: index) -> tensor<5x?x?x?xf32> {
+//       CHECK:    %expanded = tensor.expand_shape %arg0 {{\[\[}}0, 1], [2, 3{{\]\]}} output_shape [5, %arg1, %arg2, %arg3] : tensor<?x?xf32> into tensor<5x?x?x?xf32>
+//       CHECK:    return %expanded : tensor<5x?x?x?xf32>
+//       CHECK:  }
+
+
+// -----
 
 func.func @legal_collapsing_reshape_dynamic_tensor
   (%arg0: tensor<?x?x?x4x?xf32>) -> tensor<?x?x?xf32>
@@ -259,30 +313,51 @@ func.func @pad_to_static_size(%arg0: tensor<?x?xf32>, %ub0: index, %ub1: index,
 // -----
 
 // CHECK-LABEL: func @test_splat_op
-// CHECK-SAME: [[S:%arg[0-9]+]]: f32
-func.func @test_splat_op(%s : f32) {
-  // CHECK: tensor.splat [[S]] : tensor<8xf32>
+// CHECK-SAME: %[[S:.*]]: f32
+// CHECK-SAME: %[[P:.*]]: !llvm.ptr
+func.func @test_splat_op(%s : f32, %p : !llvm.ptr) {
+  // CHECK: tensor.splat %[[S]] : tensor<8xf32>
   %v = tensor.splat %s : tensor<8xf32>
-  
-  // CHECK: tensor.splat [[S]] : tensor<4xf32>
+
+  // CHECK: tensor.splat %[[S]] : tensor<4xf32>
   %u = "tensor.splat"(%s) : (f32) -> tensor<4xf32>
+
+  // CHECK: tensor.splat %[[P]] : tensor<8x!llvm.ptr>
+  %w = tensor.splat %p : tensor<8x!llvm.ptr>
+  return
+}
+
+// CHECK-LABEL: func @test_splat_op
+// CHECK-SAME: [[S:arg[0-9]+]]: f32
+// CHECK-SAME: [[M:arg[0-9]+]]: index
+// CHECK-SAME: [[N:arg[0-9]+]]: index
+func.func @test_splat_op_dynamic(%s: f32, %m: index, %n: index) {
+  // CHECK: tensor.splat %[[S]][%[[M]], %[[N]]] : tensor<?x8x?xf32>
+  %v = tensor.splat %s[%m, %n] : tensor<?x8x?xf32>
   return
 }
 
 // -----
 
-// CHECK-LABEL: func @gather_scatter
+// CHECK-LABEL: func.func @gather_scatter(
+// CHECK-SAME:  %[[ARG0:.*]]: tensor<4x5x6xf32>,
+// CHECK-SAME:  %[[ARG1:.*]]: tensor<1x3x2xindex>,
+// CHECK-SAME:  %[[ARG2:.*]]: tensor<1x3x2xi32>) {
 func.func @gather_scatter(
     %dest : tensor<4x5x6xf32>, %indices: tensor<1x3x2xindex>, %indices_i32: tensor<1x3x2xi32>) {
+  // CHECK: %[[GATHER:.*]] = tensor.gather %[[ARG0]][%[[ARG2]]] gather_dims([1, 2]) unique : (tensor<4x5x6xf32>, tensor<1x3x2xi32>) -> tensor<1x3x4x1x1xf32>
   %gathered = tensor.gather %dest[%indices_i32] gather_dims([1, 2]) unique:
     (tensor<4x5x6xf32>, tensor<1x3x2xi32>) -> tensor<1x3x4x1x1xf32>
+  // CHECK: %[[GATHER0:.*]] = tensor.gather %[[ARG0]][%[[ARG1]]] gather_dims([1, 2]) unique : (tensor<4x5x6xf32>, tensor<1x3x2xindex>) -> tensor<1x3x4xf32>
   %rank_reduced_gathered = tensor.gather %dest[%indices] gather_dims([1, 2]) unique:
     (tensor<4x5x6xf32>, tensor<1x3x2xindex>) -> tensor<1x3x4xf32>
 
-  %scattered = tensor.scatter %gathered into %dest[%indices] 
+  // CHECK: %{{.*}} = tensor.scatter %[[GATHER]] into %[[ARG0]][%[[ARG1]]] scatter_dims([1, 2]) unique : (tensor<1x3x4x1x1xf32>, tensor<4x5x6xf32>, tensor<1x3x2xindex>) -> tensor<4x5x6xf32>
+  %scattered = tensor.scatter %gathered into %dest[%indices]
       scatter_dims([1, 2]) unique:
     (tensor<1x3x4x1x1xf32>, tensor<4x5x6xf32>, tensor<1x3x2xindex>) -> tensor<4x5x6xf32>
-  %rank_reduced_scattered = tensor.scatter %rank_reduced_gathered into %dest[%indices_i32] 
+  // CHECK: %{{.*}} = tensor.scatter %[[GATHER0]] into %[[ARG0]][%[[ARG2]]] scatter_dims([1, 2]) unique : (tensor<1x3x4xf32>, tensor<4x5x6xf32>, tensor<1x3x2xi32>) -> tensor<4x5x6xf32>
+  %rank_reduced_scattered = tensor.scatter %rank_reduced_gathered into %dest[%indices_i32]
       scatter_dims([1, 2]) unique:
     (tensor<1x3x4xf32>, tensor<4x5x6xf32>, tensor<1x3x2xi32>) -> tensor<4x5x6xf32>
   return

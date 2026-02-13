@@ -20,37 +20,50 @@
 #include "llvm/CodeGen/GlobalISel/Combiner.h"
 #include "llvm/CodeGen/GlobalISel/CombinerHelper.h"
 #include "llvm/CodeGen/GlobalISel/CombinerInfo.h"
-#include "llvm/CodeGen/GlobalISel/GISelKnownBits.h"
+#include "llvm/CodeGen/GlobalISel/GIMatchTableExecutorImpl.h"
+#include "llvm/CodeGen/GlobalISel/GISelValueTracking.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
 #include "llvm/CodeGen/MachineDominators.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
-#include "llvm/IR/IntrinsicsAMDGPU.h"
 #include "llvm/Target/TargetMachine.h"
+
+#define GET_GICOMBINER_DEPS
+#include "AMDGPUGenPreLegalizeGICombiner.inc"
+#undef GET_GICOMBINER_DEPS
+
 #define DEBUG_TYPE "amdgpu-regbank-combiner"
 
 using namespace llvm;
 using namespace MIPatternMatch;
 
-class AMDGPURegBankCombinerHelper {
+namespace {
+#define GET_GICOMBINER_TYPES
+#include "AMDGPUGenRegBankGICombiner.inc"
+#undef GET_GICOMBINER_TYPES
+
+class AMDGPURegBankCombinerImpl : public Combiner {
 protected:
-  MachineIRBuilder &B;
-  MachineFunction &MF;
-  MachineRegisterInfo &MRI;
-  const GCNSubtarget &Subtarget;
+  const AMDGPURegBankCombinerImplRuleConfig &RuleConfig;
+  const GCNSubtarget &STI;
   const RegisterBankInfo &RBI;
   const TargetRegisterInfo &TRI;
   const SIInstrInfo &TII;
-  CombinerHelper &Helper;
+  const CombinerHelper Helper;
 
 public:
-  AMDGPURegBankCombinerHelper(MachineIRBuilder &B, CombinerHelper &Helper)
-      : B(B), MF(B.getMF()), MRI(*B.getMRI()),
-        Subtarget(MF.getSubtarget<GCNSubtarget>()),
-        RBI(*Subtarget.getRegBankInfo()), TRI(*Subtarget.getRegisterInfo()),
-        TII(*Subtarget.getInstrInfo()), Helper(Helper){};
+  AMDGPURegBankCombinerImpl(
+      MachineFunction &MF, CombinerInfo &CInfo, const TargetPassConfig *TPC,
+      GISelValueTracking &VT, GISelCSEInfo *CSEInfo,
+      const AMDGPURegBankCombinerImplRuleConfig &RuleConfig,
+      const GCNSubtarget &STI, MachineDominatorTree *MDT,
+      const LegalizerInfo *LI);
 
-  bool isVgprRegBank(Register Reg);
-  Register getAsVgpr(Register Reg);
+  static const char *getName() { return "AMDGPURegBankCombinerImpl"; }
+
+  bool tryCombineAll(MachineInstr &I) const override;
+
+  bool isVgprRegBank(Register Reg) const;
+  Register getAsVgpr(Register Reg) const;
 
   struct MinMaxMedOpc {
     unsigned Min, Max, Med;
@@ -61,33 +74,66 @@ public:
     Register Val0, Val1, Val2;
   };
 
-  MinMaxMedOpc getMinMaxPair(unsigned Opc);
+  MinMaxMedOpc getMinMaxPair(unsigned Opc) const;
 
   template <class m_Cst, typename CstTy>
   bool matchMed(MachineInstr &MI, MachineRegisterInfo &MRI, MinMaxMedOpc MMMOpc,
-                Register &Val, CstTy &K0, CstTy &K1);
+                Register &Val, CstTy &K0, CstTy &K1) const;
 
-  bool matchIntMinMaxToMed3(MachineInstr &MI, Med3MatchInfo &MatchInfo);
-  bool matchFPMinMaxToMed3(MachineInstr &MI, Med3MatchInfo &MatchInfo);
-  bool matchFPMinMaxToClamp(MachineInstr &MI, Register &Reg);
-  bool matchFPMed3ToClamp(MachineInstr &MI, Register &Reg);
-  void applyMed3(MachineInstr &MI, Med3MatchInfo &MatchInfo);
-  void applyClamp(MachineInstr &MI, Register &Reg);
+  bool matchIntMinMaxToMed3(MachineInstr &MI, Med3MatchInfo &MatchInfo) const;
+  bool matchFPMinMaxToMed3(MachineInstr &MI, Med3MatchInfo &MatchInfo) const;
+  bool matchFPMinMaxToClamp(MachineInstr &MI, Register &Reg) const;
+  bool matchFPMed3ToClamp(MachineInstr &MI, Register &Reg) const;
+  void applyMed3(MachineInstr &MI, Med3MatchInfo &MatchInfo) const;
+  void applyClamp(MachineInstr &MI, Register &Reg) const;
+
+  void applyCanonicalizeZextShiftAmt(MachineInstr &MI, MachineInstr &Ext) const;
+
+  bool combineD16Load(MachineInstr &MI) const;
+  bool applyD16Load(unsigned D16Opc, MachineInstr &DstMI,
+                    MachineInstr *SmallLoad, Register ToOverwriteD16) const;
 
 private:
-  AMDGPU::SIModeRegisterDefaults getMode();
-  bool getIEEE();
-  bool getDX10Clamp();
-  bool isFminnumIeee(const MachineInstr &MI);
-  bool isFCst(MachineInstr *MI);
-  bool isClampZeroToOne(MachineInstr *K0, MachineInstr *K1);
+  SIModeRegisterDefaults getMode() const;
+  bool getIEEE() const;
+  bool getDX10Clamp() const;
+  bool isFminnumIeee(const MachineInstr &MI) const;
+  bool isFCst(MachineInstr *MI) const;
+  bool isClampZeroToOne(MachineInstr *K0, MachineInstr *K1) const;
+
+#define GET_GICOMBINER_CLASS_MEMBERS
+#define AMDGPUSubtarget GCNSubtarget
+#include "AMDGPUGenRegBankGICombiner.inc"
+#undef GET_GICOMBINER_CLASS_MEMBERS
+#undef AMDGPUSubtarget
 };
 
-bool AMDGPURegBankCombinerHelper::isVgprRegBank(Register Reg) {
+#define GET_GICOMBINER_IMPL
+#define AMDGPUSubtarget GCNSubtarget
+#include "AMDGPUGenRegBankGICombiner.inc"
+#undef AMDGPUSubtarget
+#undef GET_GICOMBINER_IMPL
+
+AMDGPURegBankCombinerImpl::AMDGPURegBankCombinerImpl(
+    MachineFunction &MF, CombinerInfo &CInfo, const TargetPassConfig *TPC,
+    GISelValueTracking &VT, GISelCSEInfo *CSEInfo,
+    const AMDGPURegBankCombinerImplRuleConfig &RuleConfig,
+    const GCNSubtarget &STI, MachineDominatorTree *MDT, const LegalizerInfo *LI)
+    : Combiner(MF, CInfo, TPC, &VT, CSEInfo), RuleConfig(RuleConfig), STI(STI),
+      RBI(*STI.getRegBankInfo()), TRI(*STI.getRegisterInfo()),
+      TII(*STI.getInstrInfo()),
+      Helper(Observer, B, /*IsPreLegalize*/ false, &VT, MDT, LI),
+#define GET_GICOMBINER_CONSTRUCTOR_INITS
+#include "AMDGPUGenRegBankGICombiner.inc"
+#undef GET_GICOMBINER_CONSTRUCTOR_INITS
+{
+}
+
+bool AMDGPURegBankCombinerImpl::isVgprRegBank(Register Reg) const {
   return RBI.getRegBank(Reg, MRI, TRI)->getID() == AMDGPU::VGPRRegBankID;
 }
 
-Register AMDGPURegBankCombinerHelper::getAsVgpr(Register Reg) {
+Register AMDGPURegBankCombinerImpl::getAsVgpr(Register Reg) const {
   if (isVgprRegBank(Reg))
     return Reg;
 
@@ -104,8 +150,8 @@ Register AMDGPURegBankCombinerHelper::getAsVgpr(Register Reg) {
   return VgprReg;
 }
 
-AMDGPURegBankCombinerHelper::MinMaxMedOpc
-AMDGPURegBankCombinerHelper::getMinMaxPair(unsigned Opc) {
+AMDGPURegBankCombinerImpl::MinMaxMedOpc
+AMDGPURegBankCombinerImpl::getMinMaxPair(unsigned Opc) const {
   switch (Opc) {
   default:
     llvm_unreachable("Unsupported opcode");
@@ -126,10 +172,10 @@ AMDGPURegBankCombinerHelper::getMinMaxPair(unsigned Opc) {
 }
 
 template <class m_Cst, typename CstTy>
-bool AMDGPURegBankCombinerHelper::matchMed(MachineInstr &MI,
-                                           MachineRegisterInfo &MRI,
-                                           MinMaxMedOpc MMMOpc, Register &Val,
-                                           CstTy &K0, CstTy &K1) {
+bool AMDGPURegBankCombinerImpl::matchMed(MachineInstr &MI,
+                                         MachineRegisterInfo &MRI,
+                                         MinMaxMedOpc MMMOpc, Register &Val,
+                                         CstTy &K0, CstTy &K1) const {
   // 4 operand commutes of: min(max(Val, K0), K1).
   // Find K1 from outer instr: min(max(...), K1) or min(K1, max(...)).
   // Find K0 and Val from inner instr: max(K0, Val) or max(Val, K0).
@@ -147,21 +193,20 @@ bool AMDGPURegBankCombinerHelper::matchMed(MachineInstr &MI,
               m_Cst(K0))));
 }
 
-bool AMDGPURegBankCombinerHelper::matchIntMinMaxToMed3(
-    MachineInstr &MI, Med3MatchInfo &MatchInfo) {
+bool AMDGPURegBankCombinerImpl::matchIntMinMaxToMed3(
+    MachineInstr &MI, Med3MatchInfo &MatchInfo) const {
   Register Dst = MI.getOperand(0).getReg();
   if (!isVgprRegBank(Dst))
     return false;
 
   // med3 for i16 is only available on gfx9+, and not available for v2i16.
   LLT Ty = MRI.getType(Dst);
-  if ((Ty != LLT::scalar(16) || !Subtarget.hasMed3_16()) &&
-      Ty != LLT::scalar(32))
+  if ((Ty != LLT::scalar(16) || !STI.hasMed3_16()) && Ty != LLT::scalar(32))
     return false;
 
   MinMaxMedOpc OpcodeTriple = getMinMaxPair(MI.getOpcode());
   Register Val;
-  Optional<ValueAndVReg> K0, K1;
+  std::optional<ValueAndVReg> K0, K1;
   // Match min(max(Val, K0), K1) or max(min(Val, K1), K0). Then see if K0 <= K1.
   if (!matchMed<GCstAndRegMatch>(MI, MRI, OpcodeTriple, Val, K0, K1))
     return false;
@@ -193,20 +238,19 @@ bool AMDGPURegBankCombinerHelper::matchIntMinMaxToMed3(
 // fmed3(NaN, K0, K1) = min(min(NaN, K0), K1) = min(K0, K1) = K0
 // min(max(NaN, K0), K1) = min(K0, K1) = K0 (can clamp when dx10_clamp = true)
 // max(min(NaN, K1), K0) = max(K1, K0) = K1 != K0
-bool AMDGPURegBankCombinerHelper::matchFPMinMaxToMed3(
-    MachineInstr &MI, Med3MatchInfo &MatchInfo) {
+bool AMDGPURegBankCombinerImpl::matchFPMinMaxToMed3(
+    MachineInstr &MI, Med3MatchInfo &MatchInfo) const {
   Register Dst = MI.getOperand(0).getReg();
   LLT Ty = MRI.getType(Dst);
 
   // med3 for f16 is only available on gfx9+, and not available for v2f16.
-  if ((Ty != LLT::scalar(16) || !Subtarget.hasMed3_16()) &&
-      Ty != LLT::scalar(32))
+  if ((Ty != LLT::scalar(16) || !STI.hasMed3_16()) && Ty != LLT::scalar(32))
     return false;
 
   auto OpcodeTriple = getMinMaxPair(MI.getOpcode());
 
   Register Val;
-  Optional<FPValueAndVReg> K0, K1;
+  std::optional<FPValueAndVReg> K0, K1;
   // Match min(max(Val, K0), K1) or max(min(Val, K1), K0). Then see if K0 <= K1.
   if (!matchMed<GFCstAndRegMatch>(MI, MRI, OpcodeTriple, Val, K0, K1))
     return false;
@@ -233,12 +277,12 @@ bool AMDGPURegBankCombinerHelper::matchFPMinMaxToMed3(
   return false;
 }
 
-bool AMDGPURegBankCombinerHelper::matchFPMinMaxToClamp(MachineInstr &MI,
-                                                       Register &Reg) {
+bool AMDGPURegBankCombinerImpl::matchFPMinMaxToClamp(MachineInstr &MI,
+                                                     Register &Reg) const {
   // Clamp is available on all types after regbankselect (f16, f32, f64, v2f16).
   auto OpcodeTriple = getMinMaxPair(MI.getOpcode());
   Register Val;
-  Optional<FPValueAndVReg> K0, K1;
+  std::optional<FPValueAndVReg> K0, K1;
   // Match min(max(Val, K0), K1) or max(min(Val, K1), K0).
   if (!matchMed<GFCstOrSplatGFCstMatch>(MI, MRI, OpcodeTriple, Val, K0, K1))
     return false;
@@ -269,16 +313,13 @@ bool AMDGPURegBankCombinerHelper::matchFPMinMaxToClamp(MachineInstr &MI,
 // min(min(NaN, 0.0), 1.0) = min(0.0, 1.0) = 0.0
 // min(min(NaN, 1.0), 0.0) = min(1.0, 0.0) = 0.0
 // min(min(0.0, 1.0), NaN) = min(0.0, NaN) = 0.0
-bool AMDGPURegBankCombinerHelper::matchFPMed3ToClamp(MachineInstr &MI,
-                                                     Register &Reg) {
-  if (MI.getIntrinsicID() != Intrinsic::amdgcn_fmed3)
-    return false;
-
+bool AMDGPURegBankCombinerImpl::matchFPMed3ToClamp(MachineInstr &MI,
+                                                   Register &Reg) const {
   // In llvm-ir, clamp is often represented as an intrinsic call to
   // @llvm.amdgcn.fmed3.f32(%Val, 0.0, 1.0). Check for other operand orders.
-  MachineInstr *Src0 = getDefIgnoringCopies(MI.getOperand(2).getReg(), MRI);
-  MachineInstr *Src1 = getDefIgnoringCopies(MI.getOperand(3).getReg(), MRI);
-  MachineInstr *Src2 = getDefIgnoringCopies(MI.getOperand(4).getReg(), MRI);
+  MachineInstr *Src0 = getDefIgnoringCopies(MI.getOperand(1).getReg(), MRI);
+  MachineInstr *Src1 = getDefIgnoringCopies(MI.getOperand(2).getReg(), MRI);
+  MachineInstr *Src2 = getDefIgnoringCopies(MI.getOperand(3).getReg(), MRI);
 
   if (isFCst(Src0) && !isFCst(Src1))
     std::swap(Src0, Src1);
@@ -311,16 +352,15 @@ bool AMDGPURegBankCombinerHelper::matchFPMed3ToClamp(MachineInstr &MI,
   return false;
 }
 
-void AMDGPURegBankCombinerHelper::applyClamp(MachineInstr &MI, Register &Reg) {
-  B.setInstrAndDebugLoc(MI);
+void AMDGPURegBankCombinerImpl::applyClamp(MachineInstr &MI,
+                                           Register &Reg) const {
   B.buildInstr(AMDGPU::G_AMDGPU_CLAMP, {MI.getOperand(0)}, {Reg},
                MI.getFlags());
   MI.eraseFromParent();
 }
 
-void AMDGPURegBankCombinerHelper::applyMed3(MachineInstr &MI,
-                                            Med3MatchInfo &MatchInfo) {
-  B.setInstrAndDebugLoc(MI);
+void AMDGPURegBankCombinerImpl::applyMed3(MachineInstr &MI,
+                                          Med3MatchInfo &MatchInfo) const {
   B.buildInstr(MatchInfo.Opc, {MI.getOperand(0)},
                {getAsVgpr(MatchInfo.Val0), getAsVgpr(MatchInfo.Val1),
                 getAsVgpr(MatchInfo.Val2)},
@@ -328,24 +368,136 @@ void AMDGPURegBankCombinerHelper::applyMed3(MachineInstr &MI,
   MI.eraseFromParent();
 }
 
-AMDGPU::SIModeRegisterDefaults AMDGPURegBankCombinerHelper::getMode() {
+void AMDGPURegBankCombinerImpl::applyCanonicalizeZextShiftAmt(
+    MachineInstr &MI, MachineInstr &Ext) const {
+  unsigned ShOpc = MI.getOpcode();
+  assert(ShOpc == AMDGPU::G_SHL || ShOpc == AMDGPU::G_LSHR ||
+         ShOpc == AMDGPU::G_ASHR);
+  assert(Ext.getOpcode() == AMDGPU::G_ZEXT);
+
+  Register AmtReg = Ext.getOperand(1).getReg();
+  Register ShDst = MI.getOperand(0).getReg();
+  Register ShSrc = MI.getOperand(1).getReg();
+
+  LLT ExtAmtTy = MRI.getType(Ext.getOperand(0).getReg());
+  LLT AmtTy = MRI.getType(AmtReg);
+
+  auto &RB = *MRI.getRegBank(AmtReg);
+
+  auto NewExt = B.buildAnyExt(ExtAmtTy, AmtReg);
+  auto Mask = B.buildConstant(
+      ExtAmtTy, maskTrailingOnes<uint64_t>(AmtTy.getScalarSizeInBits()));
+  auto And = B.buildAnd(ExtAmtTy, NewExt, Mask);
+  B.buildInstr(ShOpc, {ShDst}, {ShSrc, And});
+
+  MRI.setRegBank(NewExt.getReg(0), RB);
+  MRI.setRegBank(Mask.getReg(0), RB);
+  MRI.setRegBank(And.getReg(0), RB);
+  MI.eraseFromParent();
+}
+
+bool AMDGPURegBankCombinerImpl::combineD16Load(MachineInstr &MI) const {
+  Register Dst;
+  MachineInstr *Load, *SextLoad;
+  const int64_t CleanLo16 = 0xFFFFFFFFFFFF0000;
+  const int64_t CleanHi16 = 0x000000000000FFFF;
+
+  // Load lo
+  if (mi_match(MI.getOperand(1).getReg(), MRI,
+               m_GOr(m_GAnd(m_GBitcast(m_Reg(Dst)),
+                            m_Copy(m_SpecificICst(CleanLo16))),
+                     m_MInstr(Load)))) {
+
+    if (Load->getOpcode() == AMDGPU::G_ZEXTLOAD) {
+      const MachineMemOperand *MMO = *Load->memoperands_begin();
+      unsigned LoadSize = MMO->getSizeInBits().getValue();
+      if (LoadSize == 8)
+        return applyD16Load(AMDGPU::G_AMDGPU_LOAD_D16_LO_U8, MI, Load, Dst);
+      if (LoadSize == 16)
+        return applyD16Load(AMDGPU::G_AMDGPU_LOAD_D16_LO, MI, Load, Dst);
+      return false;
+    }
+
+    if (mi_match(
+            Load, MRI,
+            m_GAnd(m_MInstr(SextLoad), m_Copy(m_SpecificICst(CleanHi16))))) {
+      if (SextLoad->getOpcode() != AMDGPU::G_SEXTLOAD)
+        return false;
+
+      const MachineMemOperand *MMO = *SextLoad->memoperands_begin();
+      if (MMO->getSizeInBits().getValue() != 8)
+        return false;
+
+      return applyD16Load(AMDGPU::G_AMDGPU_LOAD_D16_LO_I8, MI, SextLoad, Dst);
+    }
+
+    return false;
+  }
+
+  // Load hi
+  if (mi_match(MI.getOperand(1).getReg(), MRI,
+               m_GOr(m_GAnd(m_GBitcast(m_Reg(Dst)),
+                            m_Copy(m_SpecificICst(CleanHi16))),
+                     m_GShl(m_MInstr(Load), m_Copy(m_SpecificICst(16)))))) {
+
+    if (Load->getOpcode() == AMDGPU::G_ZEXTLOAD) {
+      const MachineMemOperand *MMO = *Load->memoperands_begin();
+      unsigned LoadSize = MMO->getSizeInBits().getValue();
+      if (LoadSize == 8)
+        return applyD16Load(AMDGPU::G_AMDGPU_LOAD_D16_HI_U8, MI, Load, Dst);
+      if (LoadSize == 16)
+        return applyD16Load(AMDGPU::G_AMDGPU_LOAD_D16_HI, MI, Load, Dst);
+      return false;
+    }
+
+    if (mi_match(
+            Load, MRI,
+            m_GAnd(m_MInstr(SextLoad), m_Copy(m_SpecificICst(CleanHi16))))) {
+      if (SextLoad->getOpcode() != AMDGPU::G_SEXTLOAD)
+        return false;
+      const MachineMemOperand *MMO = *SextLoad->memoperands_begin();
+      if (MMO->getSizeInBits().getValue() != 8)
+        return false;
+
+      return applyD16Load(AMDGPU::G_AMDGPU_LOAD_D16_HI_I8, MI, SextLoad, Dst);
+    }
+
+    return false;
+  }
+
+  return false;
+}
+
+bool AMDGPURegBankCombinerImpl::applyD16Load(
+    unsigned D16Opc, MachineInstr &DstMI, MachineInstr *SmallLoad,
+    Register SrcReg32ToOverwriteD16) const {
+  B.buildInstr(D16Opc, {DstMI.getOperand(0).getReg()},
+               {SmallLoad->getOperand(1).getReg(), SrcReg32ToOverwriteD16})
+      .setMemRefs(SmallLoad->memoperands());
+  DstMI.eraseFromParent();
+  return true;
+}
+
+SIModeRegisterDefaults AMDGPURegBankCombinerImpl::getMode() const {
   return MF.getInfo<SIMachineFunctionInfo>()->getMode();
 }
 
-bool AMDGPURegBankCombinerHelper::getIEEE() { return getMode().IEEE; }
+bool AMDGPURegBankCombinerImpl::getIEEE() const { return getMode().IEEE; }
 
-bool AMDGPURegBankCombinerHelper::getDX10Clamp() { return getMode().DX10Clamp; }
+bool AMDGPURegBankCombinerImpl::getDX10Clamp() const {
+  return getMode().DX10Clamp;
+}
 
-bool AMDGPURegBankCombinerHelper::isFminnumIeee(const MachineInstr &MI) {
+bool AMDGPURegBankCombinerImpl::isFminnumIeee(const MachineInstr &MI) const {
   return MI.getOpcode() == AMDGPU::G_FMINNUM_IEEE;
 }
 
-bool AMDGPURegBankCombinerHelper::isFCst(MachineInstr *MI) {
+bool AMDGPURegBankCombinerImpl::isFCst(MachineInstr *MI) const {
   return MI->getOpcode() == AMDGPU::G_FCONSTANT;
 }
 
-bool AMDGPURegBankCombinerHelper::isClampZeroToOne(MachineInstr *K0,
-                                                   MachineInstr *K1) {
+bool AMDGPURegBankCombinerImpl::isClampZeroToOne(MachineInstr *K0,
+                                                 MachineInstr *K1) const {
   if (isFCst(K0) && isFCst(K1)) {
     const ConstantFP *KO_FPImm = K0->getOperand(1).getFPImm();
     const ConstantFP *K1_FPImm = K1->getOperand(1).getFPImm();
@@ -354,65 +506,6 @@ bool AMDGPURegBankCombinerHelper::isClampZeroToOne(MachineInstr *K0,
   }
   return false;
 }
-
-class AMDGPURegBankCombinerHelperState {
-protected:
-  CombinerHelper &Helper;
-  AMDGPURegBankCombinerHelper &RegBankHelper;
-
-public:
-  AMDGPURegBankCombinerHelperState(CombinerHelper &Helper,
-                                   AMDGPURegBankCombinerHelper &RegBankHelper)
-      : Helper(Helper), RegBankHelper(RegBankHelper) {}
-};
-
-#define AMDGPUREGBANKCOMBINERHELPER_GENCOMBINERHELPER_DEPS
-#include "AMDGPUGenRegBankGICombiner.inc"
-#undef AMDGPUREGBANKCOMBINERHELPER_GENCOMBINERHELPER_DEPS
-
-namespace {
-#define AMDGPUREGBANKCOMBINERHELPER_GENCOMBINERHELPER_H
-#include "AMDGPUGenRegBankGICombiner.inc"
-#undef AMDGPUREGBANKCOMBINERHELPER_GENCOMBINERHELPER_H
-
-class AMDGPURegBankCombinerInfo final : public CombinerInfo {
-  GISelKnownBits *KB;
-  MachineDominatorTree *MDT;
-
-public:
-  AMDGPUGenRegBankCombinerHelperRuleConfig GeneratedRuleCfg;
-
-  AMDGPURegBankCombinerInfo(bool EnableOpt, bool OptSize, bool MinSize,
-                                  const AMDGPULegalizerInfo *LI,
-                                  GISelKnownBits *KB, MachineDominatorTree *MDT)
-      : CombinerInfo(/*AllowIllegalOps*/ false, /*ShouldLegalizeIllegal*/ true,
-                     /*LegalizerInfo*/ LI, EnableOpt, OptSize, MinSize),
-        KB(KB), MDT(MDT) {
-    if (!GeneratedRuleCfg.parseCommandLineOption())
-      report_fatal_error("Invalid rule identifier");
-  }
-
-  bool combine(GISelChangeObserver &Observer, MachineInstr &MI,
-               MachineIRBuilder &B) const override;
-};
-
-bool AMDGPURegBankCombinerInfo::combine(GISelChangeObserver &Observer,
-                                              MachineInstr &MI,
-                                              MachineIRBuilder &B) const {
-  CombinerHelper Helper(Observer, B, /* IsPreLegalize*/ false, KB, MDT);
-  AMDGPURegBankCombinerHelper RegBankHelper(B, Helper);
-  AMDGPUGenRegBankCombinerHelper Generated(GeneratedRuleCfg, Helper,
-                                           RegBankHelper);
-
-  if (Generated.tryCombineAll(Observer, MI, B))
-    return true;
-
-  return false;
-}
-
-#define AMDGPUREGBANKCOMBINERHELPER_GENCOMBINERHELPER_CPP
-#include "AMDGPUGenRegBankGICombiner.inc"
-#undef AMDGPUREGBANKCOMBINERHELPER_GENCOMBINERHELPER_CPP
 
 // Pass boilerplate
 // ================
@@ -423,15 +516,15 @@ public:
 
   AMDGPURegBankCombiner(bool IsOptNone = false);
 
-  StringRef getPassName() const override {
-    return "AMDGPURegBankCombiner";
-  }
+  StringRef getPassName() const override { return "AMDGPURegBankCombiner"; }
 
   bool runOnMachineFunction(MachineFunction &MF) override;
 
   void getAnalysisUsage(AnalysisUsage &AU) const override;
+
 private:
   bool IsOptNone;
+  AMDGPURegBankCombinerImplRuleConfig RuleConfig;
 };
 } // end anonymous namespace
 
@@ -439,40 +532,49 @@ void AMDGPURegBankCombiner::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetPassConfig>();
   AU.setPreservesCFG();
   getSelectionDAGFallbackAnalysisUsage(AU);
-  AU.addRequired<GISelKnownBitsAnalysis>();
-  AU.addPreserved<GISelKnownBitsAnalysis>();
+  AU.addRequired<GISelValueTrackingAnalysisLegacy>();
+  AU.addPreserved<GISelValueTrackingAnalysisLegacy>();
   if (!IsOptNone) {
-    AU.addRequired<MachineDominatorTree>();
-    AU.addPreserved<MachineDominatorTree>();
+    AU.addRequired<MachineDominatorTreeWrapperPass>();
+    AU.addPreserved<MachineDominatorTreeWrapperPass>();
   }
   MachineFunctionPass::getAnalysisUsage(AU);
 }
 
 AMDGPURegBankCombiner::AMDGPURegBankCombiner(bool IsOptNone)
-  : MachineFunctionPass(ID), IsOptNone(IsOptNone) {
-  initializeAMDGPURegBankCombinerPass(*PassRegistry::getPassRegistry());
+    : MachineFunctionPass(ID), IsOptNone(IsOptNone) {
+  if (!RuleConfig.parseCommandLineOption())
+    report_fatal_error("Invalid rule identifier");
 }
 
 bool AMDGPURegBankCombiner::runOnMachineFunction(MachineFunction &MF) {
-  if (MF.getProperties().hasProperty(
-          MachineFunctionProperties::Property::FailedISel))
+  if (MF.getProperties().hasFailedISel())
     return false;
   auto *TPC = &getAnalysis<TargetPassConfig>();
   const Function &F = MF.getFunction();
   bool EnableOpt =
-      MF.getTarget().getOptLevel() != CodeGenOpt::None && !skipFunction(F);
+      MF.getTarget().getOptLevel() != CodeGenOptLevel::None && !skipFunction(F);
 
   const GCNSubtarget &ST = MF.getSubtarget<GCNSubtarget>();
-  const AMDGPULegalizerInfo *LI
-    = static_cast<const AMDGPULegalizerInfo *>(ST.getLegalizerInfo());
+  GISelValueTracking *VT =
+      &getAnalysis<GISelValueTrackingAnalysisLegacy>().get(MF);
 
-  GISelKnownBits *KB = &getAnalysis<GISelKnownBitsAnalysis>().get(MF);
+  const auto *LI = ST.getLegalizerInfo();
   MachineDominatorTree *MDT =
-      IsOptNone ? nullptr : &getAnalysis<MachineDominatorTree>();
-  AMDGPURegBankCombinerInfo PCInfo(EnableOpt, F.hasOptSize(),
-                                         F.hasMinSize(), LI, KB, MDT);
-  Combiner C(PCInfo, TPC);
-  return C.combineMachineInstrs(MF, /*CSEInfo*/ nullptr);
+      IsOptNone ? nullptr
+                : &getAnalysis<MachineDominatorTreeWrapperPass>().getDomTree();
+
+  CombinerInfo CInfo(/*AllowIllegalOps*/ false, /*ShouldLegalizeIllegal*/ true,
+                     LI, EnableOpt, F.hasOptSize(), F.hasMinSize());
+  // Disable fixed-point iteration to reduce compile-time
+  CInfo.MaxIterations = 1;
+  CInfo.ObserverLvl = CombinerInfo::ObserverLevel::SinglePass;
+  // RegBankSelect seems not to leave dead instructions, so a full DCE pass is
+  // unnecessary.
+  CInfo.EnableFullDCE = false;
+  AMDGPURegBankCombinerImpl Impl(MF, CInfo, TPC, *VT, /*CSEInfo*/ nullptr,
+                                 RuleConfig, ST, MDT, LI);
+  return Impl.combineMachineInstrs();
 }
 
 char AMDGPURegBankCombiner::ID = 0;
@@ -480,13 +582,11 @@ INITIALIZE_PASS_BEGIN(AMDGPURegBankCombiner, DEBUG_TYPE,
                       "Combine AMDGPU machine instrs after regbankselect",
                       false, false)
 INITIALIZE_PASS_DEPENDENCY(TargetPassConfig)
-INITIALIZE_PASS_DEPENDENCY(GISelKnownBitsAnalysis)
+INITIALIZE_PASS_DEPENDENCY(GISelValueTrackingAnalysisLegacy)
 INITIALIZE_PASS_END(AMDGPURegBankCombiner, DEBUG_TYPE,
                     "Combine AMDGPU machine instrs after regbankselect", false,
                     false)
 
-namespace llvm {
-FunctionPass *createAMDGPURegBankCombiner(bool IsOptNone) {
+FunctionPass *llvm::createAMDGPURegBankCombiner(bool IsOptNone) {
   return new AMDGPURegBankCombiner(IsOptNone);
 }
-} // end namespace llvm

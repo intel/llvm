@@ -14,7 +14,6 @@
 #include "clang/Lex/Pragma.h"
 #include "clang/Basic/CLWarnings.h"
 #include "clang/Basic/Diagnostic.h"
-#include "clang/Basic/FileManager.h"
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/LangOptions.h"
@@ -36,8 +35,6 @@
 #include "clang/Lex/TokenLexer.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Compiler.h"
@@ -47,7 +44,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -223,11 +220,11 @@ void Preprocessor::Handle_Pragma(Token &Tok) {
   if (!tok::isStringLiteral(Tok.getKind())) {
     Diag(PragmaLoc, diag::err__Pragma_malformed);
     // Skip bad tokens, and the ')', if present.
-    if (Tok.isNot(tok::r_paren) && Tok.isNot(tok::eof))
+    if (Tok.isNot(tok::r_paren) && Tok.isNot(tok::eof) && Tok.isNot(tok::eod))
       Lex(Tok);
     while (Tok.isNot(tok::r_paren) &&
            !Tok.isAtStartOfLine() &&
-           Tok.isNot(tok::eof))
+           Tok.isNot(tok::eof) && Tok.isNot(tok::eod))
       Lex(Tok);
     if (Tok.is(tok::r_paren))
       Lex(Tok);
@@ -261,17 +258,48 @@ void Preprocessor::Handle_Pragma(Token &Tok) {
 
   SourceLocation RParenLoc = Tok.getLocation();
   bool Invalid = false;
-  std::string StrVal = getSpelling(StrTok, &Invalid);
+  SmallString<64> StrVal;
+  StrVal.resize(StrTok.getLength());
+  StringRef StrValRef = getSpelling(StrTok, StrVal, &Invalid);
   if (Invalid) {
     Diag(PragmaLoc, diag::err__Pragma_malformed);
     return;
   }
 
-  // The _Pragma is lexically sound.  Destringize according to C11 6.10.9.1:
-  // "The string literal is destringized by deleting any encoding prefix,
-  // deleting the leading and trailing double-quotes, replacing each escape
-  // sequence \" by a double-quote, and replacing each escape sequence \\ by a
-  // single backslash."
+  assert(StrValRef.size() <= StrVal.size());
+
+  // If the token was spelled somewhere else, copy it.
+  if (StrValRef.begin() != StrVal.begin())
+    StrVal.assign(StrValRef);
+  // Truncate if necessary.
+  else if (StrValRef.size() != StrVal.size())
+    StrVal.resize(StrValRef.size());
+
+  // The _Pragma is lexically sound.  Destringize according to C11 6.10.9.1.
+  prepare_PragmaString(StrVal);
+
+  // Plop the string (including the newline and trailing null) into a buffer
+  // where we can lex it.
+  Token TmpTok;
+  TmpTok.startToken();
+  CreateString(StrVal, TmpTok);
+  SourceLocation TokLoc = TmpTok.getLocation();
+
+  // Make and enter a lexer object so that we lex and expand the tokens just
+  // like any others.
+  Lexer *TL = Lexer::Create_PragmaLexer(TokLoc, PragmaLoc, RParenLoc,
+                                        StrVal.size(), *this);
+
+  EnterSourceFileWithLexer(TL, nullptr);
+
+  // With everything set up, lex this as a #pragma directive.
+  HandlePragmaDirective({PIK__Pragma, PragmaLoc});
+
+  // Finally, return whatever came after the pragma directive.
+  return Lex(Tok);
+}
+
+void clang::prepare_PragmaString(SmallVectorImpl<char> &StrVal) {
   if (StrVal[0] == 'L' || StrVal[0] == 'U' ||
       (StrVal[0] == 'u' && StrVal[1] != '8'))
     StrVal.erase(StrVal.begin());
@@ -295,8 +323,8 @@ void Preprocessor::Handle_Pragma(Token &Tok) {
 
     // Remove 'R " d-char-sequence' and 'd-char-sequence "'. We'll replace the
     // parens below.
-    StrVal.erase(0, 2 + NumDChars);
-    StrVal.erase(StrVal.size() - 1 - NumDChars);
+    StrVal.erase(StrVal.begin(), StrVal.begin() + 2 + NumDChars);
+    StrVal.erase(StrVal.end() - 1 - NumDChars, StrVal.end());
   } else {
     assert(StrVal[0] == '"' && StrVal[StrVal.size()-1] == '"' &&
            "Invalid string token!");
@@ -318,27 +346,7 @@ void Preprocessor::Handle_Pragma(Token &Tok) {
   StrVal[0] = ' ';
 
   // Replace the terminating quote with a \n.
-  StrVal[StrVal.size()-1] = '\n';
-
-  // Plop the string (including the newline and trailing null) into a buffer
-  // where we can lex it.
-  Token TmpTok;
-  TmpTok.startToken();
-  CreateString(StrVal, TmpTok);
-  SourceLocation TokLoc = TmpTok.getLocation();
-
-  // Make and enter a lexer object so that we lex and expand the tokens just
-  // like any others.
-  Lexer *TL = Lexer::Create_PragmaLexer(TokLoc, PragmaLoc, RParenLoc,
-                                        StrVal.size(), *this);
-
-  EnterSourceFileWithLexer(TL, nullptr);
-
-  // With everything set up, lex this as a #pragma directive.
-  HandlePragmaDirective({PIK__Pragma, PragmaLoc});
-
-  // Finally, return whatever came after the pragma directive.
-  return Lex(Tok);
+  StrVal[StrVal.size() - 1] = '\n';
 }
 
 /// HandleMicrosoft__pragma - Like Handle_Pragma except the pragma text
@@ -414,7 +422,7 @@ void Preprocessor::HandlePragmaOnce(Token &OnceTok) {
 
   // Get the current file lexer we're looking at.  Ignore _Pragma 'files' etc.
   // Mark the file as a once-only file now.
-  HeaderInfo.MarkFileIncludeOnce(getCurrentFileLexer()->getFileEntry());
+  HeaderInfo.MarkFileIncludeOnce(*getCurrentFileLexer()->getFileEntry());
 }
 
 void Preprocessor::HandlePragmaMark(Token &MarkTok) {
@@ -479,7 +487,7 @@ void Preprocessor::HandlePragmaSystemHeader(Token &SysHeaderTok) {
   PreprocessorLexer *TheLexer = getCurrentFileLexer();
 
   // Mark the file as a system header.
-  HeaderInfo.MarkFileSystemHeader(TheLexer->getFileEntry());
+  HeaderInfo.MarkFileSystemHeader(*TheLexer->getFileEntry());
 
   PresumedLoc PLoc = SourceMgr.getPresumedLoc(SysHeaderTok.getLocation());
   if (PLoc.isInvalid())
@@ -527,7 +535,7 @@ void Preprocessor::HandlePragmaDependency(Token &DependencyTok) {
     return;
 
   // Search include directories for this file.
-  Optional<FileEntryRef> File =
+  OptionalFileEntryRef File =
       LookupFile(FilenameTok.getLocation(), Filename, isAngled, nullptr,
                  nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
   if (!File) {
@@ -536,7 +544,7 @@ void Preprocessor::HandlePragmaDependency(Token &DependencyTok) {
     return;
   }
 
-  const FileEntry *CurFile = getCurrentFileLexer()->getFileEntry();
+  OptionalFileEntryRef CurFile = getCurrentFileLexer()->getFileEntry();
 
   // If this file is older than the file it depends on, emit a diagnostic.
   if (CurFile && CurFile->getModificationTime() < File->getModificationTime()) {
@@ -583,7 +591,8 @@ IdentifierInfo *Preprocessor::ParsePragmaPushOrPopMacro(Token &Tok) {
   }
 
   // Remember the macro string.
-  std::string StrVal = getSpelling(Tok);
+  Token StrTok = Tok;
+  std::string StrVal = getSpelling(StrTok);
 
   // Read the ')'.
   Lex(Tok);
@@ -595,6 +604,15 @@ IdentifierInfo *Preprocessor::ParsePragmaPushOrPopMacro(Token &Tok) {
 
   assert(StrVal[0] == '"' && StrVal[StrVal.size()-1] == '"' &&
          "Invalid string token!");
+
+  if (StrVal.size() <= 2) {
+    Diag(StrTok.getLocation(), diag::warn_pargma_push_pop_macro_empty_string)
+        << SourceRange(
+               StrTok.getLocation(),
+               StrTok.getLocation().getLocWithOffset(StrTok.getLength()))
+        << PragmaTok.getIdentifierInfo()->isStr("pop_macro");
+    return nullptr;
+  }
 
   // Create a Token from the string.
   Token MacroTok;
@@ -755,20 +773,19 @@ void Preprocessor::HandlePragmaIncludeAlias(Token &Tok) {
 
 // Lex a component of a module name: either an identifier or a string literal;
 // for components that can be expressed both ways, the two forms are equivalent.
-static bool LexModuleNameComponent(
-    Preprocessor &PP, Token &Tok,
-    std::pair<IdentifierInfo *, SourceLocation> &ModuleNameComponent,
-    bool First) {
+static bool LexModuleNameComponent(Preprocessor &PP, Token &Tok,
+                                   IdentifierLoc &ModuleNameComponent,
+                                   bool First) {
   PP.LexUnexpandedToken(Tok);
   if (Tok.is(tok::string_literal) && !Tok.hasUDSuffix()) {
     StringLiteralParser Literal(Tok, PP);
     if (Literal.hadError)
       return true;
-    ModuleNameComponent = std::make_pair(
-        PP.getIdentifierInfo(Literal.GetString()), Tok.getLocation());
+    ModuleNameComponent = IdentifierLoc(
+        Tok.getLocation(), PP.getIdentifierInfo(Literal.GetString()));
   } else if (!Tok.isAnnotation() && Tok.getIdentifierInfo()) {
     ModuleNameComponent =
-        std::make_pair(Tok.getIdentifierInfo(), Tok.getLocation());
+        IdentifierLoc(Tok.getLocation(), Tok.getIdentifierInfo());
   } else {
     PP.Diag(Tok.getLocation(), diag::err_pp_expected_module_name) << First;
     return true;
@@ -776,12 +793,10 @@ static bool LexModuleNameComponent(
   return false;
 }
 
-static bool LexModuleName(
-    Preprocessor &PP, Token &Tok,
-    llvm::SmallVectorImpl<std::pair<IdentifierInfo *, SourceLocation>>
-        &ModuleName) {
+static bool LexModuleName(Preprocessor &PP, Token &Tok,
+                          llvm::SmallVectorImpl<IdentifierLoc> &ModuleName) {
   while (true) {
-    std::pair<IdentifierInfo*, SourceLocation> NameComponent;
+    IdentifierLoc NameComponent;
     if (LexModuleNameComponent(PP, Tok, NameComponent, ModuleName.empty()))
       return true;
     ModuleName.push_back(NameComponent);
@@ -795,10 +810,10 @@ static bool LexModuleName(
 void Preprocessor::HandlePragmaModuleBuild(Token &Tok) {
   SourceLocation Loc = Tok.getLocation();
 
-  std::pair<IdentifierInfo *, SourceLocation> ModuleNameLoc;
+  IdentifierLoc ModuleNameLoc;
   if (LexModuleNameComponent(*this, Tok, ModuleNameLoc, true))
     return;
-  IdentifierInfo *ModuleName = ModuleNameLoc.first;
+  IdentifierInfo *ModuleName = ModuleNameLoc.getIdentifierInfo();
 
   LexUnexpandedToken(Tok);
   if (Tok.isNot(tok::eod)) {
@@ -1043,7 +1058,7 @@ struct PragmaDebugHandler : public PragmaHandler {
     Token Tok;
     PP.LexUnexpandedToken(Tok);
     if (Tok.isNot(tok::identifier)) {
-      PP.Diag(Tok, diag::warn_pragma_diagnostic_invalid);
+      PP.Diag(Tok, diag::warn_pragma_debug_missing_command);
       return;
     }
     IdentifierInfo *II = Tok.getIdentifierInfo();
@@ -1065,28 +1080,19 @@ struct PragmaDebugHandler : public PragmaHandler {
         PP.EnterToken(Crasher, /*IsReinject*/ false);
       }
     } else if (II->isStr("dump")) {
-      Token Identifier;
-      PP.LexUnexpandedToken(Identifier);
-      if (auto *DumpII = Identifier.getIdentifierInfo()) {
-        Token DumpAnnot;
-        DumpAnnot.startToken();
-        DumpAnnot.setKind(tok::annot_pragma_dump);
-        DumpAnnot.setAnnotationRange(
-            SourceRange(Tok.getLocation(), Identifier.getLocation()));
-        DumpAnnot.setAnnotationValue(DumpII);
-        PP.DiscardUntilEndOfDirective();
-        PP.EnterToken(DumpAnnot, /*IsReinject*/false);
-      } else {
-        PP.Diag(Identifier, diag::warn_pragma_debug_missing_argument)
-            << II->getName();
-      }
+      Token DumpAnnot;
+      DumpAnnot.startToken();
+      DumpAnnot.setKind(tok::annot_pragma_dump);
+      DumpAnnot.setAnnotationRange(SourceRange(Tok.getLocation()));
+      PP.EnterToken(DumpAnnot, /*IsReinject*/false);
     } else if (II->isStr("diag_mapping")) {
       Token DiagName;
       PP.LexUnexpandedToken(DiagName);
       if (DiagName.is(tok::eod))
         PP.getDiagnostics().dump();
       else if (DiagName.is(tok::string_literal) && !DiagName.hasUDSuffix()) {
-        StringLiteralParser Literal(DiagName, PP);
+        StringLiteralParser Literal(DiagName, PP,
+                                    StringLiteralEvalMethod::Unevaluated);
         if (Literal.hadError)
           return;
         PP.getDiagnostics().dump(Literal.GetString());
@@ -1110,19 +1116,35 @@ struct PragmaDebugHandler : public PragmaHandler {
         PP.Diag(MacroName, diag::warn_pragma_debug_missing_argument)
             << II->getName();
     } else if (II->isStr("module_map")) {
-      llvm::SmallVector<std::pair<IdentifierInfo *, SourceLocation>, 8>
-          ModuleName;
+      llvm::SmallVector<IdentifierLoc, 8> ModuleName;
       if (LexModuleName(PP, Tok, ModuleName))
         return;
       ModuleMap &MM = PP.getHeaderSearchInfo().getModuleMap();
       Module *M = nullptr;
       for (auto IIAndLoc : ModuleName) {
-        M = MM.lookupModuleQualified(IIAndLoc.first->getName(), M);
+        M = MM.lookupModuleQualified(IIAndLoc.getIdentifierInfo()->getName(),
+                                     M);
         if (!M) {
-          PP.Diag(IIAndLoc.second, diag::warn_pragma_debug_unknown_module)
-              << IIAndLoc.first;
+          PP.Diag(IIAndLoc.getLoc(), diag::warn_pragma_debug_unknown_module)
+              << IIAndLoc.getIdentifierInfo()->getName();
           return;
         }
+      }
+      M->dump();
+    } else if (II->isStr("module_lookup")) {
+      Token MName;
+      PP.LexUnexpandedToken(MName);
+      auto *MNameII = MName.getIdentifierInfo();
+      if (!MNameII) {
+        PP.Diag(MName, diag::warn_pragma_debug_missing_argument)
+            << II->getName();
+        return;
+      }
+      Module *M = PP.getHeaderSearchInfo().lookupModule(MNameII->getName());
+      if (!M) {
+        PP.Diag(MName, diag::warn_pragma_debug_unable_to_find_module)
+            << MNameII->getName();
+        return;
       }
       M->dump();
     } else if (II->isStr("overflow_stack")) {
@@ -1181,6 +1203,23 @@ struct PragmaDebugHandler : public PragmaHandler {
         PP.Diag(Tok, diag::warn_pragma_debug_unexpected_command)
           << DumpII->getName();
       }
+    } else if (II->isStr("sloc_usage")) {
+      // An optional integer literal argument specifies the number of files to
+      // specifically report information about.
+      std::optional<unsigned> MaxNotes;
+      Token ArgToken;
+      PP.Lex(ArgToken);
+      uint64_t Value;
+      if (ArgToken.is(tok::numeric_constant) &&
+          PP.parseSimpleIntegerLiteral(ArgToken, Value)) {
+        MaxNotes = Value;
+      } else if (ArgToken.isNot(tok::eod)) {
+        PP.Diag(ArgToken, diag::warn_pragma_debug_unexpected_argument);
+      }
+
+      PP.Diag(Tok, diag::remark_sloc_usage);
+      PP.getSourceManager().noteSLocAddressSpaceUsage(PP.getDiagnostics(),
+                                                      MaxNotes);
     } else {
       PP.Diag(Tok, diag::warn_pragma_debug_unexpected_command)
         << II->getName();
@@ -1225,6 +1264,32 @@ struct PragmaDebugHandler : public PragmaHandler {
 #endif
 };
 
+struct PragmaUnsafeBufferUsageHandler : public PragmaHandler {
+  PragmaUnsafeBufferUsageHandler() : PragmaHandler("unsafe_buffer_usage") {}
+  void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &FirstToken) override {
+    Token Tok;
+
+    PP.LexUnexpandedToken(Tok);
+    if (Tok.isNot(tok::identifier)) {
+      PP.Diag(Tok, diag::err_pp_pragma_unsafe_buffer_usage_syntax);
+      return;
+    }
+
+    IdentifierInfo *II = Tok.getIdentifierInfo();
+    SourceLocation Loc = Tok.getLocation();
+
+    if (II->isStr("begin")) {
+      if (PP.enterOrExitSafeBufferOptOutRegion(true, Loc))
+        PP.Diag(Loc, diag::err_pp_double_begin_pragma_unsafe_buffer_usage);
+    } else if (II->isStr("end")) {
+      if (PP.enterOrExitSafeBufferOptOutRegion(false, Loc))
+        PP.Diag(Loc, diag::err_pp_unmatched_end_begin_pragma_unsafe_buffer_usage);
+    } else
+      PP.Diag(Tok, diag::err_pp_pragma_unsafe_buffer_usage_syntax);
+  }
+};
+
 /// PragmaDiagnosticHandler - e.g. '\#pragma GCC diagnostic ignored "-Wformat"'
 struct PragmaDiagnosticHandler : public PragmaHandler {
 private:
@@ -1246,16 +1311,26 @@ public:
     IdentifierInfo *II = Tok.getIdentifierInfo();
     PPCallbacks *Callbacks = PP.getPPCallbacks();
 
+    // Get the next token, which is either an EOD or a string literal. We lex
+    // it now so that we can early return if the previous token was push or pop.
+    PP.LexUnexpandedToken(Tok);
+
     if (II->isStr("pop")) {
       if (!PP.getDiagnostics().popMappings(DiagLoc))
         PP.Diag(Tok, diag::warn_pragma_diagnostic_cannot_pop);
       else if (Callbacks)
         Callbacks->PragmaDiagnosticPop(DiagLoc, Namespace);
+
+      if (Tok.isNot(tok::eod))
+        PP.Diag(Tok.getLocation(), diag::warn_pragma_diagnostic_invalid_token);
       return;
     } else if (II->isStr("push")) {
       PP.getDiagnostics().pushMappings(DiagLoc);
       if (Callbacks)
         Callbacks->PragmaDiagnosticPush(DiagLoc, Namespace);
+
+      if (Tok.isNot(tok::eod))
+        PP.Diag(Tok.getLocation(), diag::warn_pragma_diagnostic_invalid_token);
       return;
     }
 
@@ -1271,9 +1346,8 @@ public:
       return;
     }
 
-    PP.LexUnexpandedToken(Tok);
+    // At this point, we expect a string literal.
     SourceLocation StringLoc = Tok.getLocation();
-
     std::string WarningName;
     if (!PP.FinishLexStringLiteral(Tok, WarningName, "pragma diagnostic",
                                    /*AllowMacroExpansion=*/false))
@@ -1389,7 +1463,8 @@ struct PragmaWarningHandler : public PragmaHandler {
                                  .Case("once", PPCallbacks::PWS_Once)
                                  .Case("suppress", PPCallbacks::PWS_Suppress)
                                  .Default(-1);
-          if ((SpecifierValid = SpecifierInt != -1))
+          SpecifierValid = SpecifierInt != -1;
+          if (SpecifierValid)
             Specifier =
                 static_cast<PPCallbacks::PragmaWarningSpecifier>(SpecifierInt);
 
@@ -1639,8 +1714,7 @@ struct PragmaModuleImportHandler : public PragmaHandler {
     SourceLocation ImportLoc = Tok.getLocation();
 
     // Read the module name.
-    llvm::SmallVector<std::pair<IdentifierInfo *, SourceLocation>, 8>
-        ModuleName;
+    llvm::SmallVector<IdentifierLoc, 8> ModuleName;
     if (LexModuleName(PP, Tok, ModuleName))
       return;
 
@@ -1655,7 +1729,7 @@ struct PragmaModuleImportHandler : public PragmaHandler {
       return;
 
     PP.makeModuleVisible(Imported, ImportLoc);
-    PP.EnterAnnotationToken(SourceRange(ImportLoc, ModuleName.back().second),
+    PP.EnterAnnotationToken(SourceRange(ImportLoc, ModuleName.back().getLoc()),
                             tok::annot_module_include, Imported);
     if (auto *CB = PP.getPPCallbacks())
       CB->moduleImport(ImportLoc, ModuleName, Imported);
@@ -1676,8 +1750,7 @@ struct PragmaModuleBeginHandler : public PragmaHandler {
     SourceLocation BeginLoc = Tok.getLocation();
 
     // Read the module name.
-    llvm::SmallVector<std::pair<IdentifierInfo *, SourceLocation>, 8>
-        ModuleName;
+    llvm::SmallVector<IdentifierLoc, 8> ModuleName;
     if (LexModuleName(PP, Tok, ModuleName))
       return;
 
@@ -1686,27 +1759,31 @@ struct PragmaModuleBeginHandler : public PragmaHandler {
 
     // We can only enter submodules of the current module.
     StringRef Current = PP.getLangOpts().CurrentModule;
-    if (ModuleName.front().first->getName() != Current) {
-      PP.Diag(ModuleName.front().second, diag::err_pp_module_begin_wrong_module)
-        << ModuleName.front().first << (ModuleName.size() > 1)
-        << Current.empty() << Current;
+    if (ModuleName.front().getIdentifierInfo()->getName() != Current) {
+      PP.Diag(ModuleName.front().getLoc(),
+              diag::err_pp_module_begin_wrong_module)
+          << ModuleName.front().getIdentifierInfo() << (ModuleName.size() > 1)
+          << Current.empty() << Current;
       return;
     }
 
     // Find the module we're entering. We require that a module map for it
     // be loaded or implicitly loadable.
     auto &HSI = PP.getHeaderSearchInfo();
-    Module *M = HSI.lookupModule(Current, ModuleName.front().second);
+    auto &MM = HSI.getModuleMap();
+    Module *M = HSI.lookupModule(Current, ModuleName.front().getLoc());
     if (!M) {
-      PP.Diag(ModuleName.front().second,
-              diag::err_pp_module_begin_no_module_map) << Current;
+      PP.Diag(ModuleName.front().getLoc(),
+              diag::err_pp_module_begin_no_module_map)
+          << Current;
       return;
     }
     for (unsigned I = 1; I != ModuleName.size(); ++I) {
-      auto *NewM = M->findOrInferSubmodule(ModuleName[I].first->getName());
+      auto *NewM = MM.findOrInferSubmodule(
+          M, ModuleName[I].getIdentifierInfo()->getName());
       if (!NewM) {
-        PP.Diag(ModuleName[I].second, diag::err_pp_module_begin_no_submodule)
-          << M->getFullModuleName() << ModuleName[I].first;
+        PP.Diag(ModuleName[I].getLoc(), diag::err_pp_module_begin_no_submodule)
+            << M->getFullModuleName() << ModuleName[I].getIdentifierInfo();
         return;
       }
       M = NewM;
@@ -1714,7 +1791,7 @@ struct PragmaModuleBeginHandler : public PragmaHandler {
 
     // If the module isn't available, it doesn't make sense to enter it.
     if (Preprocessor::checkModuleIsAvailable(
-            PP.getLangOpts(), PP.getTargetInfo(), PP.getDiagnostics(), M)) {
+            PP.getLangOpts(), PP.getTargetInfo(), *M, PP.getDiagnostics())) {
       PP.Diag(BeginLoc, diag::note_pp_module_begin_here)
         << M->getTopLevelModuleName();
       return;
@@ -1722,7 +1799,7 @@ struct PragmaModuleBeginHandler : public PragmaHandler {
 
     // Enter the scope of the submodule.
     PP.EnterSubmodule(M, BeginLoc, /*ForPragma*/true);
-    PP.EnterAnnotationToken(SourceRange(BeginLoc, ModuleName.back().second),
+    PP.EnterAnnotationToken(SourceRange(BeginLoc, ModuleName.back().getLoc()),
                             tok::annot_module_begin, M);
   }
 };
@@ -1766,8 +1843,7 @@ struct PragmaModuleLoadHandler : public PragmaHandler {
     SourceLocation Loc = Tok.getLocation();
 
     // Read the module name.
-    llvm::SmallVector<std::pair<IdentifierInfo *, SourceLocation>, 8>
-        ModuleName;
+    llvm::SmallVector<IdentifierLoc, 8> ModuleName;
     if (LexModuleName(PP, Tok, ModuleName))
       return;
 
@@ -1832,7 +1908,7 @@ struct PragmaARCCFCodeAuditedHandler : public PragmaHandler {
       PP.Diag(Tok, diag::ext_pp_extra_tokens_at_eol) << "pragma";
 
     // The start location of the active audit.
-    SourceLocation BeginLoc = PP.getPragmaARCCFCodeAuditedInfo().second;
+    SourceLocation BeginLoc = PP.getPragmaARCCFCodeAuditedInfo().getLoc();
 
     // The start location we want after processing this.
     SourceLocation NewLoc;
@@ -1938,6 +2014,15 @@ struct PragmaRegionHandler : public PragmaHandler {
     // _Pragma is not valid for MSVC, but there isn't any point
     // to handle a _Pragma differently.
   }
+};
+
+/// "\#pragma managed"
+/// "\#pragma managed(...)"
+/// "\#pragma unmanaged"
+/// MSVC ignores this pragma when not compiling using /clr, which clang doesn't
+/// support. We parse it and ignore it to avoid -Wunknown-pragma warnings.
+struct PragmaManagedHandler : public EmptyPragmaHandler {
+  PragmaManagedHandler(const char *pragma) : EmptyPragmaHandler(pragma) {}
 };
 
 /// This handles parsing pragmas that take a macro name and optional message
@@ -2101,6 +2186,9 @@ void Preprocessor::RegisterBuiltinPragmas() {
   ModuleHandler->AddPragma(new PragmaModuleBuildHandler());
   ModuleHandler->AddPragma(new PragmaModuleLoadHandler());
 
+  // Safe Buffers pragmas
+  AddPragmaHandler("clang", new PragmaUnsafeBufferUsageHandler);
+
   // Add region pragmas.
   AddPragmaHandler(new PragmaRegionHandler("region"));
   AddPragmaHandler(new PragmaRegionHandler("endregion"));
@@ -2112,6 +2200,8 @@ void Preprocessor::RegisterBuiltinPragmas() {
     AddPragmaHandler(new PragmaIncludeAliasHandler());
     AddPragmaHandler(new PragmaHdrstopHandler());
     AddPragmaHandler(new PragmaSystemHeaderHandler());
+    AddPragmaHandler(new PragmaManagedHandler("managed"));
+    AddPragmaHandler(new PragmaManagedHandler("unmanaged"));
   }
 
   // Pragmas added by plugins

@@ -2,7 +2,7 @@
 // RUN:  %t.so && \
 // RUN:   %clang_tsan -O1 %s %t.so -o %t && %run %t 2>&1 | FileCheck %s
 // RUN: llvm-objdump -t %t | FileCheck %s --check-prefix=CHECK-DUMP
-// CHECK-DUMP:  {{[.]preinit_array.*__local_tsan_preinit}}
+// CHECK-DUMP:  {{[.]preinit_array.*preinit}}
 
 // SANITIZER_CAN_USE_PREINIT_ARRAY is undefined on android.
 // UNSUPPORTED: android
@@ -12,6 +12,7 @@
 // constructors of the binary which are called after constructors of shared
 // library.
 
+#include <sanitizer/tsan_interface.h>
 #include <stdio.h>
 
 #if BUILD_SO

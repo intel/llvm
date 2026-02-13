@@ -39,6 +39,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Target/TargetMachine.h"
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
@@ -62,8 +63,8 @@ char RegBankSelect::ID = 0;
 INITIALIZE_PASS_BEGIN(RegBankSelect, DEBUG_TYPE,
                       "Assign register bank of generic virtual registers",
                       false, false);
-INITIALIZE_PASS_DEPENDENCY(MachineBlockFrequencyInfo)
-INITIALIZE_PASS_DEPENDENCY(MachineBranchProbabilityInfo)
+INITIALIZE_PASS_DEPENDENCY(MachineBlockFrequencyInfoWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(MachineBranchProbabilityInfoWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(TargetPassConfig)
 INITIALIZE_PASS_END(RegBankSelect, DEBUG_TYPE,
                     "Assign register bank of generic virtual registers", false,
@@ -83,10 +84,9 @@ void RegBankSelect::init(MachineFunction &MF) {
   assert(RBI && "Cannot work without RegisterBankInfo");
   MRI = &MF.getRegInfo();
   TRI = MF.getSubtarget().getRegisterInfo();
-  TPC = &getAnalysis<TargetPassConfig>();
   if (OptMode != Mode::Fast) {
-    MBFI = &getAnalysis<MachineBlockFrequencyInfo>();
-    MBPI = &getAnalysis<MachineBranchProbabilityInfo>();
+    MBFI = &getAnalysis<MachineBlockFrequencyInfoWrapperPass>().getMBFI();
+    MBPI = &getAnalysis<MachineBranchProbabilityInfoWrapperPass>().getMBPI();
   } else {
     MBFI = nullptr;
     MBPI = nullptr;
@@ -99,8 +99,8 @@ void RegBankSelect::getAnalysisUsage(AnalysisUsage &AU) const {
   if (OptMode != Mode::Fast) {
     // We could preserve the information from these two analysis but
     // the APIs do not allow to do so yet.
-    AU.addRequired<MachineBlockFrequencyInfo>();
-    AU.addRequired<MachineBranchProbabilityInfo>();
+    AU.addRequired<MachineBlockFrequencyInfoWrapperPass>();
+    AU.addRequired<MachineBranchProbabilityInfoWrapperPass>();
   }
   AU.addRequired<TargetPassConfig>();
   getSelectionDAGFallbackAnalysisUsage(AU);
@@ -153,8 +153,7 @@ bool RegBankSelect::repairReg(
     if (MO.isDef())
       std::swap(Src, Dst);
 
-    assert((RepairPt.getNumInsertPoints() == 1 ||
-            Register::isPhysicalRegister(Dst)) &&
+    assert((RepairPt.getNumInsertPoints() == 1 || Dst.isPhysical()) &&
            "We are about to create several defs for Dst");
 
     // Build the instruction used to repair, then clone it at the right
@@ -163,8 +162,10 @@ bool RegBankSelect::repairReg(
     MI = MIRBuilder.buildInstrNoInsert(TargetOpcode::COPY)
       .addDef(Dst)
       .addUse(Src);
-    LLVM_DEBUG(dbgs() << "Copy: " << printReg(Src) << " to: " << printReg(Dst)
-               << '\n');
+    LLVM_DEBUG(dbgs() << "Copy: " << printReg(Src) << ':'
+                      << printRegClassOrBank(Src, *MRI, TRI)
+                      << " to: " << printReg(Dst) << ':'
+                      << printRegClassOrBank(Dst, *MRI, TRI) << '\n');
   } else {
     // TODO: Support with G_IMPLICIT_DEF + G_INSERT sequence or G_EXTRACT
     // sequence.
@@ -307,7 +308,8 @@ const RegisterBankInfo::InstructionMapping &RegBankSelect::findBestMapping(
         RepairPts.emplace_back(std::move(RepairPt));
     }
   }
-  if (!BestMapping && !TPC->isGlobalISelAbortEnabled()) {
+  if (!BestMapping && MI.getMF()->getTarget().Options.GlobalISelAbort !=
+                          GlobalISelAbortMode::Enable) {
     // If none of the mapping worked that means they are all impossible.
     // Thus, pick the first one and set an impossible repairing point.
     // It will trigger the failed isel mode.
@@ -398,7 +400,7 @@ void RegBankSelect::tryAvoidingSplit(
 
   // Check if this is a physical or virtual register.
   Register Reg = MO.getReg();
-  if (Register::isPhysicalRegister(Reg)) {
+  if (Reg.isPhysical()) {
     // We are going to split every outgoing edges.
     // Check that this is possible.
     // FIXME: The machine representation is currently broken
@@ -419,7 +421,8 @@ void RegBankSelect::tryAvoidingSplit(
       // If the next terminator uses Reg, this means we have
       // to split right after MI and thus we need a way to ask
       // which outgoing edges are affected.
-      assert(!Next->readsRegister(Reg) && "Need to split between terminators");
+      assert(!Next->readsRegister(Reg, /*TRI=*/nullptr) &&
+             "Need to split between terminators");
     // We will split all the edges and repair there.
   } else {
     // This is a virtual register defined by a terminator.
@@ -448,7 +451,8 @@ RegBankSelect::MappingCost RegBankSelect::computeMapping(
     return MappingCost::ImpossibleCost();
 
   // If mapped with InstrMapping, MI will have the recorded cost.
-  MappingCost Cost(MBFI ? MBFI->getBlockFreq(MI.getParent()) : 1);
+  MappingCost Cost(MBFI ? MBFI->getBlockFreq(MI.getParent())
+                        : BlockFrequency(1));
   bool Saturated = Cost.addLocalCost(InstrMapping.getCost());
   assert(!Saturated && "Possible mapping saturated the cost");
   LLVM_DEBUG(dbgs() << "Evaluating mapping cost for: " << MI);
@@ -622,7 +626,7 @@ bool RegBankSelect::applyMapping(
 
   // Second, rewrite the instruction.
   LLVM_DEBUG(dbgs() << "Actual mapping of the operands: " << OpdMapper << '\n');
-  RBI->applyMapping(OpdMapper);
+  RBI->applyMapping(MIRBuilder, OpdMapper);
 
   return true;
 }
@@ -675,31 +679,7 @@ bool RegBankSelect::assignInstr(MachineInstr &MI) {
   return applyMapping(MI, *BestMapping, RepairPts);
 }
 
-bool RegBankSelect::runOnMachineFunction(MachineFunction &MF) {
-  // If the ISel pipeline failed, do not bother running that pass.
-  if (MF.getProperties().hasProperty(
-          MachineFunctionProperties::Property::FailedISel))
-    return false;
-
-  LLVM_DEBUG(dbgs() << "Assign register banks for: " << MF.getName() << '\n');
-  const Function &F = MF.getFunction();
-  Mode SaveOptMode = OptMode;
-  if (F.hasOptNone())
-    OptMode = Mode::Fast;
-  init(MF);
-
-#ifndef NDEBUG
-  // Check that our input is fully legal: we require the function to have the
-  // Legalized property, so it should be.
-  // FIXME: This should be in the MachineVerifier.
-  if (!DisableGISelLegalityCheck)
-    if (const MachineInstr *MI = machineFunctionIsIllegal(MF)) {
-      reportGISelFailure(MF, *TPC, *MORE, "gisel-regbankselect",
-                         "instruction is not legal", *MI);
-      return false;
-    }
-#endif
-
+bool RegBankSelect::assignRegisterBanks(MachineFunction &MF) {
   // Walk the function and assign register banks to all operands.
   // Use a RPOT to make sure all registers are assigned before we choose
   // the best mapping of the current instruction.
@@ -729,12 +709,47 @@ bool RegBankSelect::runOnMachineFunction(MachineFunction &MF) {
         continue;
 
       if (!assignInstr(MI)) {
-        reportGISelFailure(MF, *TPC, *MORE, "gisel-regbankselect",
+        reportGISelFailure(MF, *MORE, "gisel-regbankselect",
                            "unable to map instruction", MI);
         return false;
       }
     }
   }
+
+  return true;
+}
+
+bool RegBankSelect::checkFunctionIsLegal(MachineFunction &MF) const {
+#ifndef NDEBUG
+  if (!DisableGISelLegalityCheck) {
+    if (const MachineInstr *MI = machineFunctionIsIllegal(MF)) {
+      reportGISelFailure(MF, *MORE, "gisel-regbankselect",
+                         "instruction is not legal", *MI);
+      return false;
+    }
+  }
+#endif
+  return true;
+}
+
+bool RegBankSelect::runOnMachineFunction(MachineFunction &MF) {
+  // If the ISel pipeline failed, do not bother running that pass.
+  if (MF.getProperties().hasFailedISel())
+    return false;
+
+  LLVM_DEBUG(dbgs() << "Assign register banks for: " << MF.getName() << '\n');
+  const Function &F = MF.getFunction();
+  Mode SaveOptMode = OptMode;
+  if (F.hasOptNone())
+    OptMode = Mode::Fast;
+  init(MF);
+
+#ifndef NDEBUG
+  if (!checkFunctionIsLegal(MF))
+    return false;
+#endif
+
+  assignRegisterBanks(MF);
 
   OptMode = SaveOptMode;
   return false;
@@ -904,19 +919,19 @@ bool RegBankSelect::InstrInsertPoint::isSplit() const {
 uint64_t RegBankSelect::InstrInsertPoint::frequency(const Pass &P) const {
   // Even if we need to split, because we insert between terminators,
   // this split has actually the same frequency as the instruction.
-  const MachineBlockFrequencyInfo *MBFI =
-      P.getAnalysisIfAvailable<MachineBlockFrequencyInfo>();
-  if (!MBFI)
+  const auto *MBFIWrapper =
+      P.getAnalysisIfAvailable<MachineBlockFrequencyInfoWrapperPass>();
+  if (!MBFIWrapper)
     return 1;
-  return MBFI->getBlockFreq(Instr.getParent()).getFrequency();
+  return MBFIWrapper->getMBFI().getBlockFreq(Instr.getParent()).getFrequency();
 }
 
 uint64_t RegBankSelect::MBBInsertPoint::frequency(const Pass &P) const {
-  const MachineBlockFrequencyInfo *MBFI =
-      P.getAnalysisIfAvailable<MachineBlockFrequencyInfo>();
-  if (!MBFI)
+  const auto *MBFIWrapper =
+      P.getAnalysisIfAvailable<MachineBlockFrequencyInfoWrapperPass>();
+  if (!MBFIWrapper)
     return 1;
-  return MBFI->getBlockFreq(&MBB).getFrequency();
+  return MBFIWrapper->getMBFI().getBlockFreq(&MBB).getFrequency();
 }
 
 void RegBankSelect::EdgeInsertPoint::materialize() {
@@ -933,15 +948,18 @@ void RegBankSelect::EdgeInsertPoint::materialize() {
 }
 
 uint64_t RegBankSelect::EdgeInsertPoint::frequency(const Pass &P) const {
-  const MachineBlockFrequencyInfo *MBFI =
-      P.getAnalysisIfAvailable<MachineBlockFrequencyInfo>();
-  if (!MBFI)
+  const auto *MBFIWrapper =
+      P.getAnalysisIfAvailable<MachineBlockFrequencyInfoWrapperPass>();
+  if (!MBFIWrapper)
     return 1;
+  const auto *MBFI = &MBFIWrapper->getMBFI();
   if (WasMaterialized)
     return MBFI->getBlockFreq(DstOrSplit).getFrequency();
 
+  auto *MBPIWrapper =
+      P.getAnalysisIfAvailable<MachineBranchProbabilityInfoWrapperPass>();
   const MachineBranchProbabilityInfo *MBPI =
-      P.getAnalysisIfAvailable<MachineBranchProbabilityInfo>();
+      MBPIWrapper ? &MBPIWrapper->getMBPI() : nullptr;
   if (!MBPI)
     return 1;
   // The basic block will be on the edge.
@@ -958,7 +976,7 @@ bool RegBankSelect::EdgeInsertPoint::canMaterialize() const {
   return Src.canSplitCriticalEdge(DstOrSplit);
 }
 
-RegBankSelect::MappingCost::MappingCost(const BlockFrequency &LocalFreq)
+RegBankSelect::MappingCost::MappingCost(BlockFrequency LocalFreq)
     : LocalFreq(LocalFreq.getFrequency()) {}
 
 bool RegBankSelect::MappingCost::addLocalCost(uint64_t Cost) {

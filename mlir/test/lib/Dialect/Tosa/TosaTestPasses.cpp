@@ -42,20 +42,20 @@ ConvertTosaNegateOp::matchAndRewrite(Operation *op,
   auto tosaNegateOp = cast<tosa::NegateOp>(op);
 
   auto inputType =
-      tosaNegateOp.getInput1().getType().dyn_cast<mlir::RankedTensorType>();
+      dyn_cast<mlir::RankedTensorType>(tosaNegateOp.getInput1().getType());
   // skip if input is not ranked tensor type
   if (!inputType)
     return failure();
 
   // skip if it's not ranked tensor type.
   auto outputType =
-      tosaNegateOp.getResult().getType().dyn_cast<mlir::RankedTensorType>();
+      dyn_cast<mlir::RankedTensorType>(tosaNegateOp.getResult().getType());
   if (!outputType)
     return failure();
 
   // skip if output is not per-tensor quantized type.
   auto outputElementType =
-      outputType.getElementType().dyn_cast<mlir::quant::UniformQuantizedType>();
+      dyn_cast<mlir::quant::UniformQuantizedType>(outputType.getElementType());
   if (!outputElementType)
     return failure();
 
@@ -87,9 +87,9 @@ ConvertTosaNegateOp::matchAndRewrite(Operation *op,
     return failure();
 
   auto newConstOp =
-      rewriter.create<tosa::ConstOp>(op->getLoc(), dstQConstType, inputElems);
-  auto newNegateOp = rewriter.create<tosa::NegateOp>(
-      op->getLoc(), dstQConstType, newConstOp.getResult());
+      tosa::ConstOp::create(rewriter, op->getLoc(), dstQConstType, inputElems);
+  auto newNegateOp = tosa::NegateOp::create(
+      rewriter, op->getLoc(), dstQConstType, newConstOp.getResult());
 
   rewriter.replaceOp(op, {newNegateOp.getResult()});
   return success();
@@ -112,14 +112,14 @@ ConvertTosaConv2DOp::matchAndRewrite(Operation *op,
   auto tosaConv2DOp = cast<tosa::Conv2DOp>(op);
 
   auto inputType =
-      tosaConv2DOp.getInput().getType().dyn_cast<mlir::RankedTensorType>();
+      dyn_cast<mlir::RankedTensorType>(tosaConv2DOp.getInput().getType());
 
   // skip if input is not ranked tensor type
   if (!inputType)
     return failure();
 
   auto weightType =
-      tosaConv2DOp.getWeight().getType().dyn_cast<mlir::RankedTensorType>();
+      dyn_cast<mlir::RankedTensorType>(tosaConv2DOp.getWeight().getType());
 
   // skip if wt is not ranked tensor type
   if (!weightType)
@@ -127,16 +127,16 @@ ConvertTosaConv2DOp::matchAndRewrite(Operation *op,
 
   // skip if it's not ranked tensor type.
   auto outputType =
-      tosaConv2DOp.getResult().getType().dyn_cast<mlir::RankedTensorType>();
+      dyn_cast<mlir::RankedTensorType>(tosaConv2DOp.getResult().getType());
   if (!outputType)
     return failure();
 
   auto inputQType =
-      inputType.getElementType().dyn_cast<mlir::quant::UniformQuantizedType>();
+      dyn_cast<mlir::quant::UniformQuantizedType>(inputType.getElementType());
   auto weightQType =
-      weightType.getElementType().dyn_cast<mlir::quant::UniformQuantizedType>();
+      dyn_cast<mlir::quant::UniformQuantizedType>(weightType.getElementType());
   auto outputQType =
-      outputType.getElementType().dyn_cast<mlir::quant::UniformQuantizedType>();
+      dyn_cast<mlir::quant::UniformQuantizedType>(outputType.getElementType());
 
   // Works on quantized type only.
   if (!(inputQType && weightQType && outputQType))
@@ -145,16 +145,25 @@ ConvertTosaConv2DOp::matchAndRewrite(Operation *op,
   auto newTosaConv2DOpType =
       RankedTensorType::get(outputType.getShape(), rewriter.getIntegerType(32));
 
-  auto newTosaConv2DOp = rewriter.create<tosa::Conv2DOp>(
-      op->getLoc(), newTosaConv2DOpType, tosaConv2DOp.getInput(),
-      tosaConv2DOp.getWeight(), tosaConv2DOp.getBias(), tosaConv2DOp.getPad(),
-      tosaConv2DOp.getStride(), tosaConv2DOp.getDilation());
+  auto newTosaConv2DOp = tosa::Conv2DOp::create(
+      rewriter, op->getLoc(), newTosaConv2DOpType, tosaConv2DOp.getInput(),
+      tosaConv2DOp.getWeight(), tosaConv2DOp.getBias(),
+      tosaConv2DOp.getPadAttr(), tosaConv2DOp.getStrideAttr(),
+      tosaConv2DOp.getDilationAttr(), tosaConv2DOp.getAccTypeAttr());
 
   // Create rescale to quantized type
   double inputScale = inputQType.getScale();
   double weightScale = weightQType.getScale();
   double outputScale = outputQType.getScale();
-  int64_t outputZp = outputQType.getZeroPoint();
+  int64_t outputZpVal = outputQType.getZeroPoint();
+
+  auto inputZp =
+      createZeroPointTensor(rewriter, op->getLoc(), newTosaConv2DOpType, 0);
+  auto outputZp = createZeroPointTensor(
+      rewriter, op->getLoc(), tosaConv2DOp.getOutput().getType(), outputZpVal);
+
+  if (!inputZp || !outputZp)
+    return failure();
 
   double opTensorScale = (inputScale * weightScale) / outputScale;
 
@@ -162,14 +171,26 @@ ConvertTosaConv2DOp::matchAndRewrite(Operation *op,
   int32_t shift;
 
   // Obtain the quantized scale = multiplier and shift.
-  computeMultiplierAndShift(opTensorScale, multiplier, shift, 32);
+  if (!computeMultiplierAndShift(opTensorScale, multiplier, shift, 32))
+    return failure();
 
-  auto newTosaRescaleOp = rewriter.create<tosa::RescaleOp>(
-      op->getLoc(), outputType, newTosaConv2DOp.getResult(),
-      rewriter.getI32IntegerAttr(0), rewriter.getI32IntegerAttr(outputZp),
-      rewriter.getI32ArrayAttr({multiplier}), rewriter.getI32ArrayAttr({shift}),
-      rewriter.getBoolAttr(true), rewriter.getBoolAttr(true),
-      rewriter.getBoolAttr(false));
+  bool inputUnsigned =
+      newTosaConv2DOp.getResult().getType().isUnsignedInteger();
+  bool outputUnsigned = outputType.isUnsignedInteger();
+
+  RoundingModeAttr doubleRoundAttr =
+      RoundingModeAttr::get(rewriter.getContext(), RoundingMode::DOUBLE_ROUND);
+  auto newTosaRescaleOp = tosa::RescaleOp::create(
+      rewriter, op->getLoc(), outputType, newTosaConv2DOp.getResult(),
+      getConstTensorInt<int32_t>(rewriter, op->getLoc(), {multiplier}),
+      getConstTensorInt<int8_t>(rewriter, op->getLoc(),
+                                {static_cast<int8_t>(shift)}),
+      inputZp.value(), outputZp.value(),
+      /* scale32 = */ rewriter.getBoolAttr(true),
+      /* double_round = */ doubleRoundAttr,
+      /* per_channel = */ rewriter.getBoolAttr(false),
+      rewriter.getBoolAttr(inputUnsigned),
+      rewriter.getBoolAttr(outputUnsigned));
 
   rewriter.replaceOp(op, {newTosaRescaleOp.getResult()});
   return success();
@@ -195,7 +216,7 @@ void TosaTestQuantUtilAPI::runOnOperation() {
 
   patterns.add<ConvertTosaNegateOp>(ctx);
   patterns.add<ConvertTosaConv2DOp>(ctx);
-  (void)applyPatternsAndFoldGreedily(func, std::move(patterns));
+  (void)applyPatternsGreedily(func, std::move(patterns));
 }
 
 } // namespace

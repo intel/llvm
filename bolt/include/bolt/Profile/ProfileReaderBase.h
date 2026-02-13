@@ -23,32 +23,6 @@ class BinaryContext;
 class BinaryFunction;
 class BoltAddressTranslation;
 
-/// LTO-generated function names take a form:
-///
-///   <function_name>.lto_priv.<decimal_number>/...
-///     or
-///   <function_name>.constprop.<decimal_number>/...
-///
-/// they can also be:
-///
-///   <function_name>.lto_priv.<decimal_number1>.lto_priv.<decimal_number2>/...
-///
-/// The <decimal_number> is a global counter used for the whole program. As a
-/// result, a tiny change in a program may affect the naming of many LTO
-/// functions. For us this means that if we do a precise name matching, then
-/// a large set of functions could be left without a profile.
-///
-/// To solve this issue, we try to match a function to any profile:
-///
-///   <function_name>.(lto_priv|consprop).*
-///
-/// The name before an asterisk above represents a common LTO name for a family
-/// of functions. Later, out of all matching profiles we pick the one with the
-/// best match.
-///
-/// Return a common part of LTO name for a given \p Name.
-Optional<StringRef> getLTOCommonName(const StringRef Name);
-
 class ProfileReaderBase {
 protected:
   /// Name of the file with profile.
@@ -91,7 +65,7 @@ public:
   /// Return true if the function \p BF may have a profile available.
   /// The result is based on the name(s) of the function alone and the profile
   /// match is not guaranteed.
-  virtual bool mayHaveProfileData(const BinaryFunction &BF);
+  virtual bool mayHaveProfileData(const BinaryFunction &BF) { return true; }
 
   /// Return true if the profile contains an entry for a local object
   /// that has an associated file name.

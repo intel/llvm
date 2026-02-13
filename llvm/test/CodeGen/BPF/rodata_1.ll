@@ -1,5 +1,5 @@
-; RUN: llc < %s -march=bpfel -verify-machineinstrs | FileCheck %s
-; RUN: llc < %s -march=bpfeb -verify-machineinstrs | FileCheck %s
+; RUN: llc < %s -mtriple=bpfel -mcpu=v1 -verify-machineinstrs | FileCheck %s
+; RUN: llc < %s -mtriple=bpfeb -mcpu=v1 -verify-machineinstrs | FileCheck %s
 
 ; Source code:
 ; struct test_t1 {
@@ -33,8 +33,8 @@ define i32 @test() local_unnamed_addr #0 {
 ; CHECK-LABEL: test:
 
 entry:
-    tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* getelementptr inbounds (%struct.test_t1, %struct.test_t1* @g1, i64 0, i32 0), i8* getelementptr inbounds (%struct.test_t1, %struct.test_t1* @test.t1, i64 0, i32 0), i64 3, i1 false)
-    tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 4 bitcast (%struct.test_t2* @g2 to i8*), i8* align 4 bitcast (%struct.test_t2* @test.t2 to i8*), i64 20, i1 false)
+    tail call void @llvm.memcpy.p0.p0.i64(ptr @g1, ptr @test.t1, i64 3, i1 false)
+    tail call void @llvm.memcpy.p0.p0.i64(ptr align 4 @g2, ptr align 4 @test.t2, i64 20, i1 false)
 ; CHECK:  r1 = g1
 ; CHECK:  r2 = 0
 ; CHECK:  *(u8 *)(r1 + 1) = r2
@@ -46,7 +46,7 @@ entry:
 }
 ; CHECK: .section  .rodata,"a",@progbits
 
-declare void @llvm.memcpy.p0i8.p0i8.i64(i8* nocapture writeonly, i8* nocapture readonly, i64, i1) #1
+declare void @llvm.memcpy.p0.p0.i64(ptr nocapture writeonly, ptr nocapture readonly, i64, i1) #1
 
 attributes #0 = { nounwind }
 attributes #1 = { argmemonly nounwind }

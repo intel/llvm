@@ -38,7 +38,7 @@ entry:
 ; 8bit mul
 define i8 @slm-costs_8_scalar_mul(i8 %a, i8 %b)  {
 ; CHECK-LABEL: 'slm-costs_8_scalar_mul'
-; CHECK-NEXT:  Cost Model: Found an estimated cost of 1 for instruction: %res = mul nsw i8 %a, %b
+; CHECK-NEXT:  Cost Model: Found an estimated cost of 3 for instruction: %res = mul nsw i8 %a, %b
 ; CHECK-NEXT:  Cost Model: Found an estimated cost of 0 for instruction: ret i8 %res
 ;
 entry:
@@ -77,12 +77,12 @@ entry:
 define <4 x i32> @slm-costs_8_v4_zext_mul(<4 x i8> %a)  {
 ; SLM-LABEL: 'slm-costs_8_v4_zext_mul'
 ; SLM-NEXT:  Cost Model: Found an estimated cost of 1 for instruction: %zext = zext <4 x i8> %a to <4 x i32>
-; SLM-NEXT:  Cost Model: Found an estimated cost of 2 for instruction: %res = mul nsw <4 x i32> %zext, <i32 255, i32 255, i32 255, i32 255>
+; SLM-NEXT:  Cost Model: Found an estimated cost of 2 for instruction: %res = mul nsw <4 x i32> %zext, splat (i32 255)
 ; SLM-NEXT:  Cost Model: Found an estimated cost of 0 for instruction: ret <4 x i32> %res
 ;
 ; GLM-LABEL: 'slm-costs_8_v4_zext_mul'
 ; GLM-NEXT:  Cost Model: Found an estimated cost of 1 for instruction: %zext = zext <4 x i8> %a to <4 x i32>
-; GLM-NEXT:  Cost Model: Found an estimated cost of 1 for instruction: %res = mul nsw <4 x i32> %zext, <i32 255, i32 255, i32 255, i32 255>
+; GLM-NEXT:  Cost Model: Found an estimated cost of 1 for instruction: %res = mul nsw <4 x i32> %zext, splat (i32 255)
 ; GLM-NEXT:  Cost Model: Found an estimated cost of 0 for instruction: ret <4 x i32> %res
 ;
 entry:
@@ -191,13 +191,9 @@ entry:
 }
 
 define <16 x i8> @slm-costs_8_v16_mul(<16 x i8> %a, <16 x i8> %b)  {
-; SLM-LABEL: 'slm-costs_8_v16_mul'
-; SLM-NEXT:  Cost Model: Found an estimated cost of 9 for instruction: %res = mul nsw <16 x i8> %a, %b
-; SLM-NEXT:  Cost Model: Found an estimated cost of 0 for instruction: ret <16 x i8> %res
-;
-; GLM-LABEL: 'slm-costs_8_v16_mul'
-; GLM-NEXT:  Cost Model: Found an estimated cost of 7 for instruction: %res = mul nsw <16 x i8> %a, %b
-; GLM-NEXT:  Cost Model: Found an estimated cost of 0 for instruction: ret <16 x i8> %res
+; CHECK-LABEL: 'slm-costs_8_v16_mul'
+; CHECK-NEXT:  Cost Model: Found an estimated cost of 5 for instruction: %res = mul nsw <16 x i8> %a, %b
+; CHECK-NEXT:  Cost Model: Found an estimated cost of 0 for instruction: ret <16 x i8> %res
 ;
 entry:
   %res = mul nsw <16 x i8> %a, %b
@@ -207,7 +203,7 @@ entry:
 ; 16bit mul
 define i16 @slm-costs_16_scalar_mul(i16 %a, i16 %b)  {
 ; CHECK-LABEL: 'slm-costs_16_scalar_mul'
-; CHECK-NEXT:  Cost Model: Found an estimated cost of 1 for instruction: %res = mul nsw i16 %a, %b
+; CHECK-NEXT:  Cost Model: Found an estimated cost of 2 for instruction: %res = mul nsw i16 %a, %b
 ; CHECK-NEXT:  Cost Model: Found an estimated cost of 0 for instruction: ret i16 %res
 ;
 entry:
@@ -246,12 +242,12 @@ entry:
 define <4 x i32> @slm-costs_16_v4_zext_mul(<4 x i16> %a)  {
 ; SLM-LABEL: 'slm-costs_16_v4_zext_mul'
 ; SLM-NEXT:  Cost Model: Found an estimated cost of 1 for instruction: %zext = zext <4 x i16> %a to <4 x i32>
-; SLM-NEXT:  Cost Model: Found an estimated cost of 5 for instruction: %res = mul nsw <4 x i32> %zext, <i32 65535, i32 65535, i32 65535, i32 65535>
+; SLM-NEXT:  Cost Model: Found an estimated cost of 5 for instruction: %res = mul nsw <4 x i32> %zext, splat (i32 65535)
 ; SLM-NEXT:  Cost Model: Found an estimated cost of 0 for instruction: ret <4 x i32> %res
 ;
 ; GLM-LABEL: 'slm-costs_16_v4_zext_mul'
 ; GLM-NEXT:  Cost Model: Found an estimated cost of 1 for instruction: %zext = zext <4 x i16> %a to <4 x i32>
-; GLM-NEXT:  Cost Model: Found an estimated cost of 2 for instruction: %res = mul nsw <4 x i32> %zext, <i32 65535, i32 65535, i32 65535, i32 65535>
+; GLM-NEXT:  Cost Model: Found an estimated cost of 2 for instruction: %res = mul nsw <4 x i32> %zext, splat (i32 65535)
 ; GLM-NEXT:  Cost Model: Found an estimated cost of 0 for instruction: ret <4 x i32> %res
 ;
 entry:

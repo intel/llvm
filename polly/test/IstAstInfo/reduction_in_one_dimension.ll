@@ -1,13 +1,10 @@
-; RUN: opt %loadPolly -polly-print-ast -polly-ast-detect-parallel -disable-output < %s | FileCheck %s
-; RUN: opt %loadPolly -print-polyhedral-info -polly-check-parallel -disable-output < %s | FileCheck %s -check-prefix=PINFO
+; RUN: opt %loadNPMPolly '-passes=polly-custom<ast>' -polly-print-ast -polly-ast-detect-parallel -disable-output < %s | FileCheck %s
 ;
 ; Verify that we won't privatize anything in the outer dimension
 ;
 ; CHECK:    #pragma known-parallel
-; PINFO:    for.cond: Loop is parallel.
 ; CHECK:    for (int c0 = 0; c0 < 2 * n; c0 += 1)
 ; CHECK:      #pragma simd reduction
-; PINFO-NEXT: for.cond1: Loop is not parallel.
 ; CHECK:      for (int c1 = 0; c1 <= 1023; c1 += 1)
 ; CHECK:        Stmt_for_body3(c0, c1);
 ;
@@ -19,7 +16,7 @@
 ;
 target datalayout = "e-m:e-p:32:32-i64:64-v128:64:128-n32-S64"
 
-define void @foo(i32* %A, i32 %n) {
+define void @foo(ptr %A, i32 %n) {
 entry:
   br label %for.cond
 
@@ -38,10 +35,10 @@ for.cond1:                                        ; preds = %for.inc, %for.body
   br i1 %exitcond, label %for.body3, label %for.end
 
 for.body3:                                        ; preds = %for.cond1
-  %arrayidx = getelementptr inbounds i32, i32* %A, i32 %i.0
-  %tmp = load i32, i32* %arrayidx, align 4
+  %arrayidx = getelementptr inbounds i32, ptr %A, i32 %i.0
+  %tmp = load i32, ptr %arrayidx, align 4
   %add = add nsw i32 %tmp, %i.0
-  store i32 %add, i32* %arrayidx, align 4
+  store i32 %add, ptr %arrayidx, align 4
   br label %for.inc
 
 for.inc:                                          ; preds = %for.body3

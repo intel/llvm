@@ -9,6 +9,7 @@
 #ifndef LLVM_DEBUGINFO_GSYM_GSYMCREATOR_H
 #define LLVM_DEBUGINFO_GSYM_GSYMCREATOR_H
 
+#include "llvm/Support/Compiler.h"
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -28,6 +29,7 @@ namespace llvm {
 
 namespace gsym {
 class FileWriter;
+class OutputAggregator;
 
 /// GsymCreator is used to emit GSYM data to a stand alone file or section
 /// within a file.
@@ -137,29 +139,185 @@ class GsymCreator {
   StringTableBuilder StrTab;
   StringSet<> StringStorage;
   DenseMap<llvm::gsym::FileEntry, uint32_t> FileEntryToIndex;
+  // Needed for mapping string offsets back to the string stored in \a StrTab.
+  DenseMap<uint64_t, CachedHashStringRef> StringOffsetMap;
   std::vector<llvm::gsym::FileEntry> Files;
   std::vector<uint8_t> UUID;
-  Optional<AddressRanges> ValidTextRanges;
-  AddressRanges Ranges;
-  llvm::Optional<uint64_t> BaseAddress;
+  std::optional<AddressRanges> ValidTextRanges;
+  std::optional<uint64_t> BaseAddress;
+  bool IsSegment = false;
   bool Finalized = false;
   bool Quiet;
 
+
+  /// Get the first function start address.
+  ///
+  /// \returns The start address of the first FunctionInfo or std::nullopt if
+  /// there are no function infos.
+  std::optional<uint64_t> getFirstFunctionAddress() const;
+
+  /// Get the last function address.
+  ///
+  /// \returns The start address of the last FunctionInfo or std::nullopt if
+  /// there are no function infos.
+  std::optional<uint64_t> getLastFunctionAddress() const;
+
+  /// Get the base address to use for this GSYM file.
+  ///
+  /// \returns The base address to put into the header and to use when creating
+  ///          the address offset table or std::nullpt if there are no valid
+  ///          function infos or if the base address wasn't specified.
+  std::optional<uint64_t> getBaseAddress() const;
+
+  /// Get the size of an address offset in the address offset table.
+  ///
+  /// GSYM files store offsets from the base address in the address offset table
+  /// and we store the size of the address offsets in the GSYM header. This
+  /// function will calculate the size in bytes of these address offsets based
+  /// on the current contents of the GSYM file.
+  ///
+  /// \returns The size in byets of the address offsets.
+  uint8_t getAddressOffsetSize() const;
+
+  /// Get the maximum address offset for the current address offset size.
+  ///
+  /// This is used when creating the address offset table to ensure we have
+  /// values that are in range so we don't end up truncating address offsets
+  /// when creating GSYM files as the code evolves.
+  ///
+  /// \returns The maximum address offset value that will be encoded into a GSYM
+  /// file.
+  uint64_t getMaxAddressOffset() const;
+
+  /// Calculate the byte size of the GSYM header and tables sizes.
+  ///
+  /// This function will calculate the exact size in bytes of the encocded GSYM
+  /// for the following items:
+  /// - The GSYM header
+  /// - The Address offset table
+  /// - The Address info offset table
+  /// - The file table
+  /// - The string table
+  ///
+  /// This is used to help split GSYM files into segments.
+  ///
+  /// \returns Size in bytes the GSYM header and tables.
+  uint64_t calculateHeaderAndTableSize() const;
+
+  /// Copy a FunctionInfo from the \a SrcGC GSYM creator into this creator.
+  ///
+  /// Copy the function info and only the needed files and strings and add a
+  /// converted FunctionInfo into this object. This is used to segment GSYM
+  /// files into separate files while only transferring the files and strings
+  /// that are needed from \a SrcGC.
+  ///
+  /// \param SrcGC The source gsym creator to copy from.
+  /// \param FuncInfoIdx The function info index within \a SrcGC to copy.
+  /// \returns The number of bytes it will take to encode the function info in
+  /// this GsymCreator. This helps calculate the size of the current GSYM
+  /// segment file.
+  uint64_t copyFunctionInfo(const GsymCreator &SrcGC, size_t FuncInfoIdx);
+
+  /// Copy a string from \a SrcGC into this object.
+  ///
+  /// Copy a string from \a SrcGC by string table offset into this GSYM creator.
+  /// If a string has already been copied, the uniqued string table offset will
+  /// be returned, otherwise the string will be copied and a unique offset will
+  /// be returned.
+  ///
+  /// \param SrcGC The source gsym creator to copy from.
+  /// \param StrOff The string table offset from \a SrcGC to copy.
+  /// \returns The new string table offset of the string within this object.
+  uint32_t copyString(const GsymCreator &SrcGC, uint32_t StrOff);
+
+  /// Copy a file from \a SrcGC into this object.
+  ///
+  /// Copy a file from \a SrcGC by file index into this GSYM creator. Files
+  /// consist of two string table entries, one for the directory and one for the
+  /// filename, this function will copy any needed strings ensure the file is
+  /// uniqued within this object. If a file already exists in this GSYM creator
+  /// the uniqued index will be returned, else the stirngs will be copied and
+  /// the new file index will be returned.
+  ///
+  /// \param SrcGC The source gsym creator to copy from.
+  /// \param FileIdx The 1 based file table index within \a SrcGC to copy. A
+  /// file index of zero will always return zero as the zero is a reserved file
+  /// index that means no file.
+  /// \returns The new file index of the file within this object.
+  uint32_t copyFile(const GsymCreator &SrcGC, uint32_t FileIdx);
+
+  /// Inserts a FileEntry into the file table.
+  ///
+  /// This is used to insert a file entry in a thread safe way into this object.
+  ///
+  /// \param FE A file entry object that contains valid string table offsets
+  /// from this object already.
+  uint32_t insertFileEntry(FileEntry FE);
+
+  /// Fixup any string and file references by updating any file indexes and
+  /// strings offsets in the InlineInfo parameter.
+  ///
+  /// When copying InlineInfo entries, we can simply make a copy of the object
+  /// and then fixup the files and strings for efficiency.
+  ///
+  /// \param SrcGC The source gsym creator to copy from.
+  /// \param II The inline info that contains file indexes and string offsets
+  /// that come from \a SrcGC. The entries will be updated by coping any files
+  /// and strings over into this object.
+  void fixupInlineInfo(const GsymCreator &SrcGC, InlineInfo &II);
+
+  /// Save this GSYM file into segments that are roughly \a SegmentSize in size.
+  ///
+  /// When segemented GSYM files are saved to disk, they will use \a Path as a
+  /// prefix and then have the first function info address appended to the path
+  /// when each segment is saved. Each segmented GSYM file has a only the
+  /// strings and files that are needed to save the function infos that are in
+  /// each segment. These smaller files are easy to compress and download
+  /// separately and allow for efficient lookups with very large GSYM files and
+  /// segmenting them allows servers to download only the segments that are
+  /// needed.
+  ///
+  /// \param Path The path prefix to use when saving the GSYM files.
+  /// \param ByteOrder The endianness to use when saving the file.
+  /// \param SegmentSize The size in bytes to segment the GSYM file into.
+  llvm::Error saveSegments(StringRef Path, llvm::endianness ByteOrder,
+                           uint64_t SegmentSize) const;
+
+  /// Let this creator know that this is a segment of another GsymCreator.
+  ///
+  /// When we have a segment, we know that function infos will be added in
+  /// ascending address range order without having to be finalized. We also
+  /// don't need to sort and unique entries during the finalize function call.
+  void setIsSegment() {
+    IsSegment = true;
+  }
+
 public:
-  GsymCreator(bool Quiet = false);
+  LLVM_ABI GsymCreator(bool Quiet = false);
 
   /// Save a GSYM file to a stand alone file.
   ///
   /// \param Path The file path to save the GSYM file to.
   /// \param ByteOrder The endianness to use when saving the file.
+  /// \param SegmentSize The size in bytes to segment the GSYM file into. If
+  ///                    this option is set this function will create N segments
+  ///                    that are all around \a SegmentSize bytes in size. This
+  ///                    allows a very large GSYM file to be broken up into
+  ///                    shards. Each GSYM file will have its own file table,
+  ///                    and string table that only have the files and strings
+  ///                    needed for the shared. If this argument has no value,
+  ///                    a single GSYM file that contains all function
+  ///                    information will be created.
   /// \returns An error object that indicates success or failure of the save.
-  llvm::Error save(StringRef Path, llvm::support::endianness ByteOrder) const;
+  LLVM_ABI llvm::Error
+  save(StringRef Path, llvm::endianness ByteOrder,
+       std::optional<uint64_t> SegmentSize = std::nullopt) const;
 
   /// Encode a GSYM into the file writer stream at the current position.
   ///
   /// \param O The stream to save the binary data to
   /// \returns An error object that indicates success or failure of the save.
-  llvm::Error encode(FileWriter &O) const;
+  LLVM_ABI llvm::Error encode(FileWriter &O) const;
 
   /// Insert a string into the GSYM string table.
   ///
@@ -171,7 +329,17 @@ public:
   ///             the string is owned by another object that will stay around
   ///             long enough for the GsymCreator to save the GSYM file.
   /// \returns The unique 32 bit offset into the string table.
-  uint32_t insertString(StringRef S, bool Copy = true);
+  LLVM_ABI uint32_t insertString(StringRef S, bool Copy = true);
+
+  /// Retrieve a string from the GSYM string table given its offset.
+  ///
+  /// The offset is assumed to be a valid offset into the string table.
+  /// otherwise an assert will be triggered.
+  ///
+  /// \param Offset The offset of the string to retrieve, previously returned by
+  /// insertString.
+  /// \returns The string at the given offset in the string table.
+  LLVM_ABI StringRef getString(uint32_t Offset);
 
   /// Insert a file into this GSYM creator.
   ///
@@ -184,8 +352,8 @@ public:
   /// \param   Path The path to the file to insert.
   /// \param   Style The path style for the "Path" parameter.
   /// \returns The unique file index for the inserted file.
-  uint32_t insertFile(StringRef Path,
-                      sys::path::Style Style = sys::path::Style::native);
+  LLVM_ABI uint32_t
+  insertFile(StringRef Path, sys::path::Style Style = sys::path::Style::native);
 
   /// Add a function info to this GSYM creator.
   ///
@@ -194,7 +362,25 @@ public:
   /// offsets for names and other strings.
   ///
   /// \param   FI The function info object to emplace into our functions list.
-  void addFunctionInfo(FunctionInfo &&FI);
+  LLVM_ABI void addFunctionInfo(FunctionInfo &&FI);
+
+  /// Load call site information from a YAML file.
+  ///
+  /// This function reads call site information from a specified YAML file and
+  /// adds it to the GSYM data.
+  ///
+  /// \param YAMLFile The path to the YAML file containing call site
+  /// information.
+  LLVM_ABI llvm::Error loadCallSitesFromYAML(StringRef YAMLFile);
+
+  /// Organize merged FunctionInfo's
+  ///
+  /// This method processes the list of function infos (Funcs) to identify and
+  /// group functions with overlapping address ranges.
+  ///
+  /// \param  Out Output stream to report information about how merged
+  /// FunctionInfo's were handled.
+  LLVM_ABI void prepareMergedFunctions(OutputAggregator &Out);
 
   /// Finalize the data in the GSYM creator prior to saving the data out.
   ///
@@ -205,7 +391,7 @@ public:
   ///         function infos, and function infos that were merged or removed.
   /// \returns An error object that indicates success or failure of the
   ///          finalize.
-  llvm::Error finalize(llvm::raw_ostream &OS);
+  LLVM_ABI llvm::Error finalize(OutputAggregator &OS);
 
   /// Set the UUID value.
   ///
@@ -218,30 +404,19 @@ public:
   ///
   /// \param  Callback A callback function that will get called with each
   ///         FunctionInfo. If the callback returns false, stop iterating.
-  void forEachFunctionInfo(
-      std::function<bool(FunctionInfo &)> const &Callback);
+  LLVM_ABI void
+  forEachFunctionInfo(std::function<bool(FunctionInfo &)> const &Callback);
 
   /// Thread safe const iteration over all function infos.
   ///
   /// \param  Callback A callback function that will get called with each
   ///         FunctionInfo. If the callback returns false, stop iterating.
-  void forEachFunctionInfo(
+  LLVM_ABI void forEachFunctionInfo(
       std::function<bool(const FunctionInfo &)> const &Callback) const;
 
   /// Get the current number of FunctionInfo objects contained in this
   /// object.
-  size_t getNumFunctionInfos() const;
-
-  /// Check if an address has already been added as a function info.
-  ///
-  /// FunctionInfo data can come from many sources: debug info, symbol tables,
-  /// exception information, and more. Symbol tables should be added after
-  /// debug info and can use this function to see if a symbol's start address
-  /// has already been added to the GsymReader. Calling this before adding
-  /// a function info from a source other than debug info avoids clients adding
-  /// many redundant FunctionInfo objects from many sources only for them to be
-  /// removed during the finalize() call.
-  bool hasFunctionInfoForAddress(uint64_t Addr) const;
+  LLVM_ABI size_t getNumFunctionInfos() const;
 
   /// Set valid .text address ranges that all functions must be contained in.
   void SetValidTextRanges(AddressRanges &TextRanges) {
@@ -249,7 +424,7 @@ public:
   }
 
   /// Get the valid text ranges.
-  const Optional<AddressRanges> GetValidTextRanges() const {
+  const std::optional<AddressRanges> GetValidTextRanges() const {
     return ValidTextRanges;
   }
 
@@ -272,7 +447,7 @@ public:
   ///
   /// \returns True if the address is in the valid text ranges or if no valid
   ///          text ranges have been set, false otherwise.
-  bool IsValidTextAddress(uint64_t Addr) const;
+  LLVM_ABI bool IsValidTextAddress(uint64_t Addr) const;
 
   /// Set the base address to use for the GSYM file.
   ///
@@ -291,6 +466,28 @@ public:
 
   /// Whether the transformation should be quiet, i.e. not output warnings.
   bool isQuiet() const { return Quiet; }
+
+
+  /// Create a segmented GSYM creator starting with function info index
+  /// \a FuncIdx.
+  ///
+  /// This function will create a GsymCreator object that will encode into
+  /// roughly \a SegmentSize bytes and return it. It is used by the private
+  /// saveSegments(...) function and also is used by the GSYM unit tests to test
+  /// segmenting of GSYM files. The returned GsymCreator can be finalized and
+  /// encoded.
+  ///
+  /// \param [in] SegmentSize The size in bytes to roughly segment the GSYM file
+  /// into.
+  /// \param [in,out] FuncIdx The index of the first function info to encode
+  /// into the returned GsymCreator. This index will be updated so it can be
+  /// used in subsequent calls to this function to allow more segments to be
+  /// created.
+  /// \returns An expected unique pointer to a GsymCreator or an error. The
+  /// returned unique pointer can be NULL if there are no more functions to
+  /// encode.
+  LLVM_ABI llvm::Expected<std::unique_ptr<GsymCreator>>
+  createSegment(uint64_t SegmentSize, size_t &FuncIdx) const;
 };
 
 } // namespace gsym

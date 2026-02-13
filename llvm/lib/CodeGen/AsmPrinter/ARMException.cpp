@@ -19,7 +19,7 @@
 #include "llvm/MC/MCStreamer.h"
 using namespace llvm;
 
-ARMException::ARMException(AsmPrinter *A) : DwarfCFIExceptionBase(A) {}
+ARMException::ARMException(AsmPrinter *A) : EHStreamer(A) {}
 
 ARMException::~ARMException() = default;
 
@@ -39,13 +39,18 @@ void ARMException::beginFunction(const MachineFunction *MF) {
   if (CFISecType == AsmPrinter::CFISection::Debug) {
     if (!hasEmittedCFISections) {
       if (Asm->getModuleCFISectionType() == AsmPrinter::CFISection::Debug)
-        Asm->OutStreamer->emitCFISections(false, true);
+        Asm->OutStreamer->emitCFISections(false, true, false);
       hasEmittedCFISections = true;
     }
 
     shouldEmitCFI = true;
     Asm->OutStreamer->emitCFIStartProc(false);
   }
+}
+
+void ARMException::markFunctionEnd() {
+  if (shouldEmitCFI)
+    Asm->OutStreamer->emitCFIEndProc();
 }
 
 /// endFunction - Gather and emit post-function exception information.

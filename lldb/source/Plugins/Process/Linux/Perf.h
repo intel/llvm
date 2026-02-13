@@ -107,9 +107,9 @@ public:
   ///     If the perf_event_open syscall was successful, a minimal \a PerfEvent
   ///     instance, or an \a llvm::Error otherwise.
   static llvm::Expected<PerfEvent> Init(perf_event_attr &attr,
-                                        llvm::Optional<lldb::pid_t> pid,
-                                        llvm::Optional<lldb::cpu_id_t> cpu,
-                                        llvm::Optional<long> group_fd,
+                                        std::optional<lldb::pid_t> pid,
+                                        std::optional<lldb::cpu_id_t> cpu,
+                                        std::optional<long> group_fd,
                                         unsigned long flags);
 
   /// Create a new performance monitoring event via the perf_event_open syscall
@@ -122,11 +122,11 @@ public:
   ///     Configuration information for the event.
   ///
   /// \param[in] pid
-  ///     The process or thread to be monitored by the event. If \b None, then
-  ///     all threads and processes are monitored.
+  ///     The process or thread to be monitored by the event. If \b
+  ///     std::nullopt, then all threads and processes are monitored.
   static llvm::Expected<PerfEvent>
-  Init(perf_event_attr &attr, llvm::Optional<lldb::pid_t> pid,
-       llvm::Optional<lldb::cpu_id_t> core = llvm::None);
+  Init(perf_event_attr &attr, std::optional<lldb::pid_t> pid,
+       std::optional<lldb::cpu_id_t> core = std::nullopt);
 
   /// Mmap the metadata page and the data and aux buffers of the perf event and
   /// expose them through \a PerfEvent::GetMetadataPage() , \a

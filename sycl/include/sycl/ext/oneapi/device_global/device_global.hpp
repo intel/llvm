@@ -8,13 +8,16 @@
 
 #pragma once
 
-#include <cstddef>
-#include <type_traits>
+#include <sycl/access/access.hpp>                       // for address_space
+#include <sycl/exception.hpp>                           // for make_error_code
+#include <sycl/ext/oneapi/device_global/properties.hpp> // for device_image...
+#include <sycl/ext/oneapi/properties/properties.hpp>    // for properties_t
+#include <sycl/multi_ptr.hpp>                           // for multi_ptr
+#include <sycl/pointers.hpp>                            // for decorated_gl...
 
-#include <sycl/detail/stl_type_traits.hpp>
-#include <sycl/exception.hpp>
-#include <sycl/ext/oneapi/device_global/properties.hpp>
-#include <sycl/ext/oneapi/properties/properties.hpp>
+#include <cstddef>     // for ptrdiff_t
+#include <type_traits> // for enable_if_t
+#include <utility>     // for declval
 
 #ifdef __SYCL_DEVICE_ONLY__
 #define __SYCL_HOST_NOT_SUPPORTED(Op)
@@ -25,28 +28,115 @@
       Op " is not supported on host device.");
 #endif
 
+// Helper macro for conditional device_global property meta info filtering. This
+// lets us ignore certain properties under specified conditions, e.g. ignoring
+// host_access if device_image_scope isn't also present.
+#define __SYCL_DEVICE_GLOBAL_PROP_META_INFO(Props)                             \
+  detail::ConditionalPropertyMetaInfo<                                         \
+      Props, detail::DeviceGlobalMetaInfoFilter<                               \
+                 Props, detail::properties_t<Props...>>::value>
+
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace experimental {
+inline namespace _V1 {
+namespace ext::oneapi::experimental {
+
+template <typename T, typename PropertyListT> class device_global;
 
 namespace detail {
 // Type-trait for checking if a type defines `operator->`.
 template <typename T, typename = void>
 struct HasArrowOperator : std::false_type {};
 template <typename T>
-struct HasArrowOperator<
-    T, sycl::detail::void_t<decltype(std::declval<T>().operator->())>>
+struct HasArrowOperator<T,
+                        std::void_t<decltype(std::declval<T>().operator->())>>
+    : std::true_type {};
+
+template <typename T, typename PropertyListT, typename>
+class device_global_base;
+
+// Checks that T is a reference to either device_global or
+// device_global_base. This is used by the variadic ctor to allow copy ctors to
+// take preference.
+template <typename T> struct IsDeviceGlobalOrBaseRef : std::false_type {};
+template <typename T, typename PropertyListT>
+struct IsDeviceGlobalOrBaseRef<device_global_base<T, PropertyListT, void> &>
+    : std::true_type {};
+template <typename T, typename PropertyListT>
+struct IsDeviceGlobalOrBaseRef<device_global<T, PropertyListT> &>
     : std::true_type {};
 
 // Base class for device_global.
 template <typename T, typename PropertyListT, typename = void>
 class device_global_base {
 protected:
-  T *usmptr;
-  T *get_ptr() noexcept { return usmptr; }
-  const T *get_ptr() const noexcept { return usmptr; }
+  using pointer_t = typename decorated_global_ptr<T>::pointer;
+
+  // The pointer member is mutable to avoid the compiler optimizing it out when
+  // accessing const-qualified device_global variables.
+  mutable pointer_t usmptr{};
+  const T init_val{};
+
+  pointer_t get_ptr() noexcept { return usmptr; }
+  pointer_t get_ptr() const noexcept { return usmptr; }
+
+  template <typename, typename, typename> friend class device_global_base;
+
+#ifndef __SYCL_DEVICE_ONLY__
+  template <typename OtherT, typename OtherProps>
+  static constexpr const OtherT &
+  ExtractInitialVal(const device_global_base<OtherT, OtherProps> &Other) {
+    if constexpr (OtherProps::template has_property<device_image_scope_key>())
+      return Other.val;
+    else
+      return Other.init_val;
+  }
+#endif // __SYCL_DEVICE_ONLY__
+
+public:
+#if __cpp_consteval
+  // The SFINAE is to allow the copy constructors to take priority.
+  template <
+      typename... Args,
+      std::enable_if_t<
+          sizeof...(Args) != 1 ||
+              (!IsDeviceGlobalOrBaseRef<std::remove_cv_t<Args>>::value && ...),
+          int> = 0>
+  consteval explicit device_global_base(Args &&...args) : init_val{args...} {}
+#else
+  device_global_base() = default;
+#endif // __cpp_consteval
+
+#ifndef __SYCL_DEVICE_ONLY__
+  template <typename OtherT, typename OtherProps,
+            typename = std::enable_if_t<std::is_convertible_v<OtherT, T>>>
+  constexpr device_global_base(
+      const device_global_base<OtherT, OtherProps> &DGB)
+      : init_val{ExtractInitialVal(DGB)} {}
+  constexpr device_global_base(const device_global_base &DGB)
+      : init_val{DGB.init_val} {}
+#else
+  template <typename OtherT, typename OtherProps,
+            typename = std::enable_if_t<std::is_convertible_v<OtherT, T>>>
+  constexpr device_global_base(const device_global_base<OtherT, OtherProps> &) {
+  }
+  constexpr device_global_base(const device_global_base &) {}
+#endif // __SYCL_DEVICE_ONLY__
+
+  template <access::decorated IsDecorated>
+  multi_ptr<T, access::address_space::global_space, IsDecorated>
+  get_multi_ptr() noexcept {
+    __SYCL_HOST_NOT_SUPPORTED("get_multi_ptr()")
+    return multi_ptr<T, access::address_space::global_space, IsDecorated>{
+        get_ptr()};
+  }
+
+  template <access::decorated IsDecorated>
+  multi_ptr<const T, access::address_space::global_space, IsDecorated>
+  get_multi_ptr() const noexcept {
+    __SYCL_HOST_NOT_SUPPORTED("get_multi_ptr()")
+    return multi_ptr<const T, access::address_space::global_space, IsDecorated>{
+        get_ptr()};
+  }
 };
 
 // Specialization of device_global base class for when device_image_scope is in
@@ -54,16 +144,55 @@ protected:
 template <typename T, typename... Props>
 class device_global_base<
     T, properties_t<Props...>,
-    sycl::detail::enable_if_t<properties_t<Props...>::template has_property<
+    std::enable_if_t<properties_t<Props...>::template has_property<
         device_image_scope_key>()>> {
 protected:
   T val{};
   T *get_ptr() noexcept { return &val; }
   const T *get_ptr() const noexcept { return &val; }
+
+  template <typename, typename, typename> friend class device_global_base;
+
+public:
+#if __cpp_consteval
+  // The SFINAE is to allow the copy constructors to take priority.
+  template <
+      typename... Args,
+      std::enable_if_t<
+          sizeof...(Args) != 1 ||
+              (!IsDeviceGlobalOrBaseRef<std::remove_cv_t<Args>>::value && ...),
+          int> = 0>
+  consteval explicit device_global_base(Args &&...args) : val{args...} {}
+#else
+  device_global_base() = default;
+#endif // __cpp_consteval
+
+  template <typename OtherT, typename OtherProps,
+            typename = std::enable_if_t<std::is_convertible_v<OtherT, T>>>
+  constexpr device_global_base(const device_global_base<OtherT, OtherProps> &) =
+      delete;
+  constexpr device_global_base(const device_global_base &) = delete;
+
+  template <access::decorated IsDecorated>
+  multi_ptr<T, access::address_space::global_space, IsDecorated>
+  get_multi_ptr() noexcept {
+    __SYCL_HOST_NOT_SUPPORTED("get_multi_ptr()")
+    return address_space_cast<access::address_space::global_space, IsDecorated,
+                              T>(this->get_ptr());
+  }
+
+  template <access::decorated IsDecorated>
+  multi_ptr<const T, access::address_space::global_space, IsDecorated>
+  get_multi_ptr() const noexcept {
+    __SYCL_HOST_NOT_SUPPORTED("get_multi_ptr()")
+    return address_space_cast<access::address_space::global_space, IsDecorated,
+                              const T>(this->get_ptr());
+  }
 };
+
 } // namespace detail
 
-template <typename T, typename PropertyListT = detail::empty_properties_t>
+template <typename T, typename PropertyListT = empty_properties_t>
 class
 #ifdef __SYCL_DEVICE_ONLY__
     // FIXME: Temporary work-around. Remove when fixed.
@@ -80,56 +209,39 @@ class
 #ifdef __SYCL_DEVICE_ONLY__
     [[__sycl_detail__::global_variable_allowed, __sycl_detail__::device_global,
       __sycl_detail__::add_ir_attributes_global_variable(
-          "sycl-device-global-size", detail::PropertyMetaInfo<Props>::name...,
-          sizeof(T), detail::PropertyMetaInfo<Props>::value...)]]
+          "sycl-device-global-size",
+          __SYCL_DEVICE_GLOBAL_PROP_META_INFO(Props)::name..., sizeof(T),
+          __SYCL_DEVICE_GLOBAL_PROP_META_INFO(Props)::value...)]]
 #endif
     device_global<T, detail::properties_t<Props...>>
     : public detail::device_global_base<T, detail::properties_t<Props...>> {
 
   using property_list_t = detail::properties_t<Props...>;
+  using base_t = detail::device_global_base<T, property_list_t>;
 
 public:
   using element_type = std::remove_extent_t<T>;
 
-  static_assert(std::is_trivially_default_constructible<T>::value,
+#if !__cpp_consteval
+  static_assert(std::is_trivially_default_constructible_v<T>,
                 "Type T must be trivially default constructable (until C++20 "
                 "consteval is supported and enabled.)");
-
-  static_assert(std::is_trivially_destructible<T>::value,
+#endif // !__cpp_consteval
+  static_assert(std::is_trivially_destructible_v<T>,
                 "Type T must be trivially destructible.");
 
   static_assert(is_property_list<property_list_t>::value,
                 "Property list is invalid.");
 
-  // TODO: Remove when support has been added for device_global without the
-  // device_image_scope property.
-  static_assert(
-      property_list_t::template has_property<device_image_scope_key>(),
-      "device_global without the device_image_scope property is currently "
-      "unavailable.");
+  // Inherit the base class' constructors
+  using detail::device_global_base<T, property_list_t>::device_global_base;
 
-  device_global() = default;
+  constexpr device_global(const device_global &DG)
+      : base_t(static_cast<const base_t &>(DG)) {}
 
-  device_global(const device_global &) = delete;
   device_global(const device_global &&) = delete;
   device_global &operator=(const device_global &) = delete;
   device_global &operator=(const device_global &&) = delete;
-
-  template <access::decorated IsDecorated>
-  multi_ptr<T, access::address_space::global_space, IsDecorated>
-  get_multi_ptr() noexcept {
-    __SYCL_HOST_NOT_SUPPORTED("get_multi_ptr()")
-    return address_space_cast<access::address_space::global_space, IsDecorated>(
-        this->get_ptr());
-  }
-
-  template <access::decorated IsDecorated>
-  multi_ptr<const T, access::address_space::global_space, IsDecorated>
-  get_multi_ptr() const noexcept {
-    __SYCL_HOST_NOT_SUPPORTED("get_multi_ptr()")
-    return address_space_cast<access::address_space::global_space, IsDecorated,
-                              const T>(this->get_ptr());
-  }
 
   T &get() noexcept {
     __SYCL_HOST_NOT_SUPPORTED("get()")
@@ -159,34 +271,34 @@ public:
 
   template <class RelayT = T>
   std::remove_reference_t<
-      decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])>
-      &operator[](std::ptrdiff_t idx) noexcept {
+      decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])> &
+  operator[](std::ptrdiff_t idx) noexcept {
     __SYCL_HOST_NOT_SUPPORTED("Subscript operator")
     return (*this->get_ptr())[idx];
   }
 
   template <class RelayT = T>
   const std::remove_reference_t<
-      decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])>
-      &operator[](std::ptrdiff_t idx) const noexcept {
+      decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])> &
+  operator[](std::ptrdiff_t idx) const noexcept {
     __SYCL_HOST_NOT_SUPPORTED("Subscript operator")
     return (*this->get_ptr())[idx];
   }
 
   template <class RelayT = T>
   std::enable_if_t<detail::HasArrowOperator<RelayT>::value ||
-                       std::is_pointer<RelayT>::value,
-                   RelayT>
-      &operator->() noexcept {
+                       std::is_pointer_v<RelayT>,
+                   RelayT> &
+  operator->() noexcept {
     __SYCL_HOST_NOT_SUPPORTED("operator-> on a device_global")
     return *this->get_ptr();
   }
 
   template <class RelayT = T>
   std::enable_if_t<detail::HasArrowOperator<RelayT>::value ||
-                       std::is_pointer<RelayT>::value,
-                   const RelayT>
-      &operator->() const noexcept {
+                       std::is_pointer_v<RelayT>,
+                   const RelayT> &
+  operator->() const noexcept {
     __SYCL_HOST_NOT_SUPPORTED("operator-> on a device_global")
     return *this->get_ptr();
   }
@@ -200,10 +312,9 @@ public:
   }
 };
 
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace ext::oneapi::experimental
+} // namespace _V1
 } // namespace sycl
 
 #undef __SYCL_HOST_NOT_SUPPORTED
+#undef __SYCL_DEVICE_GLOBAL_PROP_META_INFO

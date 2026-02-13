@@ -1,4 +1,4 @@
-//===--- TimeSubtractionCheck.cpp - clang-tidy ----------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,13 +11,11 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Lex/Lexer.h"
-#include "clang/Tooling/FixIt.h"
+#include <optional>
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace abseil {
+namespace clang::tidy::abseil {
 
 // Returns `true` if `Range` is inside a macro definition.
 static bool insideMacroDefinition(const MatchFinder::MatchResult &Result,
@@ -95,8 +93,8 @@ void TimeSubtractionCheck::emitDiagnostic(const Expr *Node,
 void TimeSubtractionCheck::registerMatchers(MatchFinder *Finder) {
   for (const char *ScaleName :
        {"Hours", "Minutes", "Seconds", "Millis", "Micros", "Nanos"}) {
-    std::string TimeInverse = (llvm::Twine("ToUnix") + ScaleName).str();
-    llvm::Optional<DurationScale> Scale = getScaleForTimeInverse(TimeInverse);
+    const std::string TimeInverse = (llvm::Twine("ToUnix") + ScaleName).str();
+    std::optional<DurationScale> Scale = getScaleForTimeInverse(TimeInverse);
     assert(Scale && "Unknown scale encountered");
 
     auto TimeInverseMatcher = callExpr(callee(
@@ -129,12 +127,12 @@ void TimeSubtractionCheck::registerMatchers(MatchFinder *Finder) {
 
 void TimeSubtractionCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *BinOp = Result.Nodes.getNodeAs<BinaryOperator>("binop");
-  std::string InverseName =
+  const std::string InverseName =
       Result.Nodes.getNodeAs<FunctionDecl>("func_decl")->getNameAsString();
   if (insideMacroDefinition(Result, BinOp->getSourceRange()))
     return;
 
-  llvm::Optional<DurationScale> Scale = getScaleForTimeInverse(InverseName);
+  std::optional<DurationScale> Scale = getScaleForTimeInverse(InverseName);
   if (!Scale)
     return;
 
@@ -146,7 +144,7 @@ void TimeSubtractionCheck::check(const MatchFinder::MatchResult &Result) {
     // We're working with the first case of matcher, and need to replace the
     // entire 'Duration' factory call. (Which also means being careful about
     // our order-of-operations and optionally putting in some parenthesis.
-    bool NeedParens = parensRequired(Result, OuterCall);
+    const bool NeedParens = parensRequired(Result, OuterCall);
 
     emitDiagnostic(
         OuterCall,
@@ -171,7 +169,7 @@ void TimeSubtractionCheck::check(const MatchFinder::MatchResult &Result) {
       // converts it from the inverse to a Duration.  In this case, we replace
       // the outer with just the subtraction expression, which gives the right
       // type and scale, taking care again about parenthesis.
-      bool NeedParens = parensRequired(Result, MaybeCallArg);
+      const bool NeedParens = parensRequired(Result, MaybeCallArg);
 
       emitDiagnostic(
           MaybeCallArg,
@@ -196,6 +194,4 @@ void TimeSubtractionCheck::check(const MatchFinder::MatchResult &Result) {
   }
 }
 
-} // namespace abseil
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::abseil

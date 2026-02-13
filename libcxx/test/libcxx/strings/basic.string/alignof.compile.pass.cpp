@@ -10,6 +10,8 @@
 
 // UNSUPPORTED: c++03
 
+#include <cstdint>
+#include <iterator>
 #include <string>
 
 #include "test_macros.h"
@@ -18,16 +20,24 @@
 
 template <class T>
 class small_pointer {
-  uint16_t offset;
+public:
+  using value_type        = T;
+  using difference_type   = std::int16_t;
+  using pointer           = small_pointer;
+  using reference         = T&;
+  using iterator_category = std::random_access_iterator_tag;
+
+private:
+  std::uint16_t offset;
 };
 
 template <class T>
 class small_iter_allocator {
 public:
-  using value_type = T;
-  using pointer = small_pointer<T>;
-  using size_type = int16_t;
-  using difference_type = int16_t;
+  using value_type      = T;
+  using pointer         = small_pointer<T>;
+  using size_type       = std::int16_t;
+  using difference_type = std::int16_t;
 
   small_iter_allocator() TEST_NOEXCEPT {}
 
@@ -132,5 +142,5 @@ static_assert(alignof(small_string<char32_t>) == 4, "");
 #  endif
 
 #else
-#  error "size_t has an unexpected size"
+#  error "std::size_t has an unexpected size"
 #endif

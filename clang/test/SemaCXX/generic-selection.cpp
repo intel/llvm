@@ -3,7 +3,7 @@
 template <typename T, typename U = void*>
 struct A {
   enum {
-    id = _Generic(T(), // expected-error {{controlling expression type 'char' not compatible with any generic association type}}
+    id = _Generic(T{}, // expected-error {{controlling expression type 'char' not compatible with any generic association type}}
         int: 1, // expected-note {{compatible type 'int' specified here}}
         float: 2,
         U: 3) // expected-error {{type 'int' in generic association compatible with previously specified type 'int'}}
@@ -20,7 +20,7 @@ A<short, int> a2; // expected-note {{in instantiation of template class 'A<short
 template <typename T, typename U>
 struct B {
   enum {
-    id = _Generic(T(),
+    id = _Generic(T{},
         int: 1, // expected-note {{compatible type 'int' specified here}}
         int: 2, // expected-error {{type 'int' in generic association compatible with previously specified type 'int'}}
         U: 3)
@@ -37,7 +37,7 @@ template <unsigned Arg> struct Or<Arg> {
 
 template <class... Args> struct TypeMask {
   enum {
-   result = Or<_Generic(Args(), int: 1, long: 2, short: 4, float: 8)...>::result
+   result = Or<_Generic(Args{}, int: 1, long: 2, short: 4, float: 8)...>::result
   };
 };
 
@@ -81,10 +81,10 @@ void func(struct S s) {
   // is an elaborated type specifier followed by the association's value and
   // it should work the same as in C.
   (void)_Generic(s, struct S : 1);
+  (void)_Generic(s, struct T : 1); // expected-error {{controlling expression type 'struct S' not compatible with any generic association type}}
 
   // The rest of these cases test that we still produce a reasonable diagnostic
   // when referencing an unknown type or trying to define a type in other ways.
-  (void)_Generic(s, struct T : 1);            // expected-error {{type 'struct T' in generic association incomplete}}
   (void)_Generic(s, struct U { int a; } : 1); // expected-error {{'U' cannot be defined in a type specifier}}
   (void)_Generic(s, struct V : S);            // expected-error {{'S' does not refer to a value}}
   (void)_Generic(s, struct W : S { int b; } : 1); // expected-error {{expected '(' for function-style cast or type construction}}

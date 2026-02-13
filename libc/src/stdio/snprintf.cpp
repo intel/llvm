@@ -8,15 +8,19 @@
 
 #include "src/stdio/snprintf.h"
 
+#include "src/__support/CPP/limits.h"
 #include "src/__support/arg_list.h"
+#include "src/__support/libc_errno.h"
+#include "src/__support/macros/config.h"
+#include "src/stdio/printf_core/core_structs.h"
+#include "src/stdio/printf_core/error_mapper.h"
 #include "src/stdio/printf_core/printf_main.h"
-#include "src/stdio/printf_core/string_writer.h"
 #include "src/stdio/printf_core/writer.h"
 
 #include <stdarg.h>
 #include <stddef.h>
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE_DECL {
 
 LLVM_LIBC_FUNCTION(int, snprintf,
                    (char *__restrict buffer, size_t buffsz,
@@ -27,16 +31,24 @@ LLVM_LIBC_FUNCTION(int, snprintf,
                                  // and pointer semantics, as well as handling
                                  // destruction automatically.
   va_end(vlist);
-  printf_core::StringWriter str_writer(buffer, (buffsz > 0 ? buffsz - 1 : 0));
-  printf_core::Writer writer(reinterpret_cast<void *>(&str_writer),
-                             printf_core::StringWriter::write_str,
-                             printf_core::StringWriter::write_chars,
-                             printf_core::StringWriter::write_char);
+  printf_core::DropOverflowBuffer wb(buffer, (buffsz > 0 ? buffsz - 1 : 0));
+  printf_core::Writer writer(wb);
 
-  int ret_val = printf_core::printf_main(&writer, format, args);
+  auto ret_val = printf_core::printf_main(&writer, format, args);
+  if (!ret_val.has_value()) {
+    libc_errno = printf_core::internal_error_to_errno(ret_val.error());
+    return -1;
+  }
   if (buffsz > 0) // if the buffsz is 0 the buffer may be a null pointer.
-    str_writer.terminate();
-  return ret_val;
+    wb.buff[wb.buff_cur] = '\0';
+
+  if (ret_val.value() > static_cast<size_t>(cpp::numeric_limits<int>::max())) {
+    libc_errno =
+        printf_core::internal_error_to_errno(-printf_core::OVERFLOW_ERROR);
+    return -1;
+  }
+
+  return static_cast<int>(ret_val.value());
 }
 
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE_DECL

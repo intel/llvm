@@ -17,6 +17,7 @@
 #include "lldb/DataFormatters/TypeFormat.h"
 #include "lldb/DataFormatters/TypeSummary.h"
 #include "lldb/DataFormatters/TypeSynthetic.h"
+#include "lldb/Interpreter/ScriptInterpreter.h"
 #include "lldb/Symbol/CompilerType.h"
 #include "lldb/Symbol/Type.h"
 #include "lldb/lldb-enumerations.h"
@@ -73,18 +74,30 @@ public:
     }
   };
 
-  FormattersMatchCandidate(ConstString name, Flags flags)
-      : m_type_name(name), m_flags(flags) {}
+  FormattersMatchCandidate(ConstString name,
+                           ScriptInterpreter *script_interpreter, TypeImpl type,
+                           Flags flags, uint32_t ptr_stripped_depth = 0)
+      : m_type_name(name), m_script_interpreter(script_interpreter),
+        m_type(type), m_flags(flags), m_ptr_stripped_depth(ptr_stripped_depth) {
+  }
 
   ~FormattersMatchCandidate() = default;
 
   ConstString GetTypeName() const { return m_type_name; }
+
+  TypeImpl GetType() const { return m_type; }
+
+  ScriptInterpreter *GetScriptInterpreter() const {
+    return m_script_interpreter;
+  }
 
   bool DidStripPointer() const { return m_flags.stripped_pointer; }
 
   bool DidStripReference() const { return m_flags.stripped_reference; }
 
   bool DidStripTypedef() const { return m_flags.stripped_typedef; }
+
+  uint32_t GetPtrStrippedDepth() const { return m_ptr_stripped_depth; }
 
   template <class Formatter>
   bool IsMatch(const std::shared_ptr<Formatter> &formatter_sp) const {
@@ -94,6 +107,8 @@ public:
       return false;
     if (formatter_sp->SkipsPointers() && DidStripPointer())
       return false;
+    if (formatter_sp->GetPtrMatchDepth() < GetPtrStrippedDepth())
+      return false;
     if (formatter_sp->SkipsReferences() && DidStripReference())
       return false;
     return true;
@@ -101,7 +116,12 @@ public:
 
 private:
   ConstString m_type_name;
+  // If a formatter provides a matching callback function, we need the script
+  // interpreter and the type object (as an argument to the callback).
+  ScriptInterpreter *m_script_interpreter;
+  TypeImpl m_type;
   Flags m_flags;
+  uint32_t m_ptr_stripped_depth;
 };
 
 typedef std::vector<FormattersMatchCandidate> FormattersMatchVector;

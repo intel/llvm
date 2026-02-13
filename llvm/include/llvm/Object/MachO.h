@@ -19,18 +19,19 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/BinaryFormat/MachO.h"
 #include "llvm/BinaryFormat/Swift.h"
-#include "llvm/MC/SubtargetFeature.h"
 #include "llvm/Object/Binary.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Object/SymbolicFile.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/SubtargetFeature.h"
+#include "llvm/TargetParser/Triple.h"
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -72,18 +73,19 @@ using dice_iterator = content_iterator<DiceRef>;
 ///      if (Err) { report error ...
 class ExportEntry {
 public:
-  ExportEntry(Error *Err, const MachOObjectFile *O, ArrayRef<uint8_t> Trie);
+  LLVM_ABI ExportEntry(Error *Err, const MachOObjectFile *O,
+                       ArrayRef<uint8_t> Trie);
 
-  StringRef name() const;
-  uint64_t flags() const;
-  uint64_t address() const;
-  uint64_t other() const;
-  StringRef otherName() const;
-  uint32_t nodeOffset() const;
+  LLVM_ABI StringRef name() const;
+  LLVM_ABI uint64_t flags() const;
+  LLVM_ABI uint64_t address() const;
+  LLVM_ABI uint64_t other() const;
+  LLVM_ABI StringRef otherName() const;
+  LLVM_ABI uint32_t nodeOffset() const;
 
-  bool operator==(const ExportEntry &) const;
+  LLVM_ABI bool operator==(const ExportEntry &) const;
 
-  void moveNext();
+  LLVM_ABI void moveNext();
 
 private:
   friend class MachOObjectFile;
@@ -96,7 +98,7 @@ private:
 
   // Represents a node in the mach-o exports trie.
   struct NodeState {
-    NodeState(const uint8_t *Ptr);
+    LLVM_ABI NodeState(const uint8_t *Ptr);
 
     const uint8_t *Start;
     const uint8_t *Current;
@@ -119,9 +121,7 @@ private:
   NodeList Stack;
   bool Done = false;
 
-  iterator_range<node_iterator> nodes() const {
-    return make_range(Stack.begin(), Stack.end());
-  }
+  iterator_range<node_iterator> nodes() const { return Stack; }
 };
 using export_iterator = content_iterator<ExportEntry>;
 
@@ -131,16 +131,17 @@ using export_iterator = content_iterator<ExportEntry>;
 // address() methods below.
 class BindRebaseSegInfo {
 public:
-  BindRebaseSegInfo(const MachOObjectFile *Obj);
+  LLVM_ABI BindRebaseSegInfo(const MachOObjectFile *Obj);
 
   // Used to check a Mach-O Bind or Rebase entry for errors when iterating.
-  const char* checkSegAndOffsets(int32_t SegIndex, uint64_t SegOffset,
-                                 uint8_t PointerSize, uint32_t Count=1,
-                                 uint32_t Skip=0);
+  LLVM_ABI const char *checkSegAndOffsets(int32_t SegIndex, uint64_t SegOffset,
+                                          uint8_t PointerSize,
+                                          uint64_t Count = 1,
+                                          uint64_t Skip = 0);
   // Used with valid SegIndex/SegOffset values from checked entries.
-  StringRef segmentName(int32_t SegIndex);
-  StringRef sectionName(int32_t SegIndex, uint64_t SegOffset);
-  uint64_t address(uint32_t SegIndex, uint64_t SegOffset);
+  LLVM_ABI StringRef segmentName(int32_t SegIndex);
+  LLVM_ABI StringRef sectionName(int32_t SegIndex, uint64_t SegOffset);
+  LLVM_ABI uint64_t address(uint32_t SegIndex, uint64_t SegOffset);
 
 private:
   struct SectionInfo {
@@ -167,19 +168,19 @@ private:
 ///    if (Err) { report error ...
 class MachORebaseEntry {
 public:
-  MachORebaseEntry(Error *Err, const MachOObjectFile *O,
-                   ArrayRef<uint8_t> opcodes, bool is64Bit);
+  LLVM_ABI MachORebaseEntry(Error *Err, const MachOObjectFile *O,
+                            ArrayRef<uint8_t> opcodes, bool is64Bit);
 
-  int32_t segmentIndex() const;
-  uint64_t segmentOffset() const;
-  StringRef typeName() const;
-  StringRef segmentName() const;
-  StringRef sectionName() const;
-  uint64_t address() const;
+  LLVM_ABI int32_t segmentIndex() const;
+  LLVM_ABI uint64_t segmentOffset() const;
+  LLVM_ABI StringRef typeName() const;
+  LLVM_ABI StringRef segmentName() const;
+  LLVM_ABI StringRef sectionName() const;
+  LLVM_ABI uint64_t address() const;
 
-  bool operator==(const MachORebaseEntry &) const;
+  LLVM_ABI bool operator==(const MachORebaseEntry &) const;
 
-  void moveNext();
+  LLVM_ABI void moveNext();
 
 private:
   friend class MachOObjectFile;
@@ -213,24 +214,25 @@ class MachOBindEntry {
 public:
   enum class Kind { Regular, Lazy, Weak };
 
-  MachOBindEntry(Error *Err, const MachOObjectFile *O,
-                 ArrayRef<uint8_t> Opcodes, bool is64Bit, MachOBindEntry::Kind);
+  LLVM_ABI MachOBindEntry(Error *Err, const MachOObjectFile *O,
+                          ArrayRef<uint8_t> Opcodes, bool is64Bit,
+                          MachOBindEntry::Kind);
 
-  int32_t segmentIndex() const;
-  uint64_t segmentOffset() const;
-  StringRef typeName() const;
-  StringRef symbolName() const;
-  uint32_t flags() const;
-  int64_t addend() const;
-  int ordinal() const;
+  LLVM_ABI int32_t segmentIndex() const;
+  LLVM_ABI uint64_t segmentOffset() const;
+  LLVM_ABI StringRef typeName() const;
+  LLVM_ABI StringRef symbolName() const;
+  LLVM_ABI uint32_t flags() const;
+  LLVM_ABI int64_t addend() const;
+  LLVM_ABI int ordinal() const;
 
-  StringRef segmentName() const;
-  StringRef sectionName() const;
-  uint64_t address() const;
+  LLVM_ABI StringRef segmentName() const;
+  LLVM_ABI StringRef sectionName() const;
+  LLVM_ABI uint64_t address() const;
 
-  bool operator==(const MachOBindEntry &) const;
+  LLVM_ABI bool operator==(const MachOBindEntry &) const;
 
-  void moveNext();
+  LLVM_ABI void moveNext();
 
 private:
   friend class MachOObjectFile;
@@ -321,22 +323,22 @@ struct ChainedFixupsSegment {
 ///   MachOChainedFixupEntry - for pointer chains embedded in data pages.
 class MachOAbstractFixupEntry {
 public:
-  MachOAbstractFixupEntry(Error *Err, const MachOObjectFile *O);
+  LLVM_ABI MachOAbstractFixupEntry(Error *Err, const MachOObjectFile *O);
 
-  int32_t segmentIndex() const;
-  uint64_t segmentOffset() const;
-  uint64_t segmentAddress() const;
-  StringRef segmentName() const;
-  StringRef sectionName() const;
-  StringRef typeName() const;
-  StringRef symbolName() const;
-  uint32_t flags() const;
-  int64_t addend() const;
-  int ordinal() const;
+  LLVM_ABI int32_t segmentIndex() const;
+  LLVM_ABI uint64_t segmentOffset() const;
+  LLVM_ABI uint64_t segmentAddress() const;
+  LLVM_ABI StringRef segmentName() const;
+  LLVM_ABI StringRef sectionName() const;
+  LLVM_ABI StringRef typeName() const;
+  LLVM_ABI StringRef symbolName() const;
+  LLVM_ABI uint32_t flags() const;
+  LLVM_ABI int64_t addend() const;
+  LLVM_ABI int ordinal() const;
 
   /// \return the location of this fixup as a VM Address. For the VM
   /// Address this fixup is pointing to, use pointerValue().
-  uint64_t address() const;
+  LLVM_ABI uint64_t address() const;
 
   /// \return the VM Address pointed to by this fixup. Use
   /// pointerValue() to compare against other VM Addresses, such as
@@ -350,7 +352,7 @@ public:
   /// raw bits.
   uint64_t rawValue() const { return RawValue; }
 
-  void moveNext();
+  LLVM_ABI void moveNext();
 
 protected:
   Error *E;
@@ -365,8 +367,8 @@ protected:
   uint64_t RawValue = 0;
   bool Done = false;
 
-  void moveToFirst();
-  void moveToEnd();
+  LLVM_ABI void moveToFirst();
+  LLVM_ABI void moveToEnd();
 
   /// \return the vm address of the start of __TEXT segment.
   uint64_t textAddress() const { return TextAddress; }
@@ -379,16 +381,17 @@ class MachOChainedFixupEntry : public MachOAbstractFixupEntry {
 public:
   enum class FixupKind { Bind, Rebase };
 
-  MachOChainedFixupEntry(Error *Err, const MachOObjectFile *O, bool Parse);
+  LLVM_ABI MachOChainedFixupEntry(Error *Err, const MachOObjectFile *O,
+                                  bool Parse);
 
-  bool operator==(const MachOChainedFixupEntry &) const;
+  LLVM_ABI bool operator==(const MachOChainedFixupEntry &) const;
 
   bool isBind() const { return Kind == FixupKind::Bind; }
   bool isRebase() const { return Kind == FixupKind::Rebase; }
 
-  void moveNext();
-  void moveToFirst();
-  void moveToEnd();
+  LLVM_ABI void moveNext();
+  LLVM_ABI void moveToFirst();
+  LLVM_ABI void moveToEnd();
 
 private:
   void findNextPageWithFixups();
@@ -403,7 +406,7 @@ private:
 };
 using fixup_iterator = content_iterator<MachOChainedFixupEntry>;
 
-class MachOObjectFile : public ObjectFile {
+class LLVM_ABI MachOObjectFile : public ObjectFile {
 public:
   struct LoadCommandInfo {
     const char *Ptr;      // Where in memory the load command is.
@@ -414,7 +417,8 @@ public:
 
   static Expected<std::unique_ptr<MachOObjectFile>>
   create(MemoryBufferRef Object, bool IsLittleEndian, bool Is64Bits,
-         uint32_t UniversalCputype = 0, uint32_t UniversalIndex = 0);
+         uint32_t UniversalCputype = 0, uint32_t UniversalIndex = 0,
+         size_t MachOFilesetEntryOffset = 0);
 
   static bool isMachOPairedReloc(uint64_t RelocType, uint64_t Arch);
 
@@ -443,7 +447,7 @@ public:
   uint64_t getSectionAddress(DataRefImpl Sec) const override;
   uint64_t getSectionIndex(DataRefImpl Sec) const override;
   uint64_t getSectionSize(DataRefImpl Sec) const override;
-  ArrayRef<uint8_t> getSectionContents(uint32_t Offset, uint64_t Size) const;
+  ArrayRef<uint8_t> getSectionContents(uint64_t Offset, uint64_t Size) const;
   Expected<ArrayRef<uint8_t>>
   getSectionContents(DataRefImpl Sec) const override;
   uint64_t getSectionAlignment(DataRefImpl Sec) const override;
@@ -503,6 +507,8 @@ public:
   basic_symbol_iterator symbol_begin() const override;
   basic_symbol_iterator symbol_end() const override;
 
+  bool is64Bit() const override;
+
   // MachO specific.
   symbol_iterator getSymbolByIndex(unsigned Index) const;
   uint64_t getSymbolIndex(DataRefImpl Symb) const;
@@ -514,7 +520,9 @@ public:
 
   StringRef getFileFormatName() const override;
   Triple::ArchType getArch() const override;
-  SubtargetFeatures getFeatures() const override { return SubtargetFeatures(); }
+  Expected<SubtargetFeatures> getFeatures() const override {
+    return SubtargetFeatures();
+  }
   Triple getArchTriple(const char **McpuDefault = nullptr) const;
 
   relocation_iterator section_rel_begin(unsigned Index) const;
@@ -571,8 +579,9 @@ public:
   //
   // This is used by MachOBindEntry::moveNext() to validate a MachOBindEntry.
   const char *BindEntryCheckSegAndOffsets(int32_t SegIndex, uint64_t SegOffset,
-                                         uint8_t PointerSize, uint32_t Count=1,
-                                          uint32_t Skip=0) const {
+                                          uint8_t PointerSize,
+                                          uint64_t Count = 1,
+                                          uint64_t Skip = 0) const {
     return BindRebaseSectionTable->checkSegAndOffsets(SegIndex, SegOffset,
                                                      PointerSize, Count, Skip);
   }
@@ -586,8 +595,8 @@ public:
   const char *RebaseEntryCheckSegAndOffsets(int32_t SegIndex,
                                             uint64_t SegOffset,
                                             uint8_t PointerSize,
-                                            uint32_t Count=1,
-                                            uint32_t Skip=0) const {
+                                            uint64_t Count = 1,
+                                            uint64_t Skip = 0) const {
     return BindRebaseSectionTable->checkSegAndOffsets(SegIndex, SegOffset,
                                                       PointerSize, Count, Skip);
   }
@@ -693,6 +702,8 @@ public:
   getRoutinesCommand64(const LoadCommandInfo &L) const;
   MachO::thread_command
   getThreadCommand(const LoadCommandInfo &L) const;
+  MachO::fileset_entry_command
+  getFilesetEntryLoadCommand(const LoadCommandInfo &L) const;
 
   MachO::any_relocation_info getRelocation(DataRefImpl Rel) const;
   MachO::data_in_code_entry getDice(DataRefImpl Rel) const;
@@ -711,27 +722,29 @@ public:
   ArrayRef<uint8_t> getDyldInfoBindOpcodes() const;
   ArrayRef<uint8_t> getDyldInfoWeakBindOpcodes() const;
   ArrayRef<uint8_t> getDyldInfoLazyBindOpcodes() const;
-  /// If the optional is None, no header was found, but the object was
+  ArrayRef<uint8_t> getDyldInfoExportsTrie() const;
+
+  /// If the optional is std::nullopt, no header was found, but the object was
   /// well-formed.
-  Expected<Optional<MachO::dyld_chained_fixups_header>>
+  Expected<std::optional<MachO::dyld_chained_fixups_header>>
   getChainedFixupsHeader() const;
   Expected<std::vector<ChainedFixupTarget>> getDyldChainedFixupTargets() const;
 
   // Note: This is a limited, temporary API, which will be removed when Apple
   // upstreams their implementation. Please do not rely on this.
-  Expected<Optional<MachO::linkedit_data_command>>
+  Expected<std::optional<MachO::linkedit_data_command>>
   getChainedFixupsLoadCommand() const;
   // Returns the number of sections listed in dyld_chained_starts_in_image, and
   // a ChainedFixupsSegment for each segment that has fixups.
   Expected<std::pair<size_t, std::vector<ChainedFixupsSegment>>>
   getChainedFixupsSegments() const;
+  ArrayRef<uint8_t> getDyldExportsTrie() const;
 
-  ArrayRef<uint8_t> getDyldInfoExportsTrie() const;
   SmallVector<uint64_t> getFunctionStarts() const;
   ArrayRef<uint8_t> getUuid() const;
 
   StringRef getStringTableData() const;
-  bool is64Bit() const;
+
   void ReadULEB128s(uint64_t Index, SmallVectorImpl<uint64_t> &Out) const;
 
   static StringRef guessLibraryShortName(StringRef Name, bool &isFramework,
@@ -753,6 +766,8 @@ public:
   mapReflectionSectionNameToEnumValue(StringRef SectionName) const override;
 
   bool hasPageZeroSegment() const { return HasPageZeroSegment; }
+
+  size_t getMachOFilesetEntryOffset() const { return MachOFilesetEntryOffset; }
 
   static bool classof(const Binary *v) {
     return v->isMachO();
@@ -778,21 +793,16 @@ public:
 
   static std::string getBuildPlatform(uint32_t platform) {
     switch (platform) {
-    case MachO::PLATFORM_MACOS: return "macos";
-    case MachO::PLATFORM_IOS: return "ios";
-    case MachO::PLATFORM_TVOS: return "tvos";
-    case MachO::PLATFORM_WATCHOS: return "watchos";
-    case MachO::PLATFORM_BRIDGEOS: return "bridgeos";
-    case MachO::PLATFORM_MACCATALYST: return "macCatalyst";
-    case MachO::PLATFORM_IOSSIMULATOR: return "iossimulator";
-    case MachO::PLATFORM_TVOSSIMULATOR: return "tvossimulator";
-    case MachO::PLATFORM_WATCHOSSIMULATOR: return "watchossimulator";
-    case MachO::PLATFORM_DRIVERKIT: return "driverkit";
+#define PLATFORM(platform, id, name, build_name, target, tapi_target,          \
+                 marketing)                                                    \
+  case MachO::PLATFORM_##platform:                                             \
+    return #name;
+#include "llvm/BinaryFormat/MachO.def"
     default:
       std::string ret;
       raw_string_ostream ss(ret);
       ss << format_hex(platform, 8, true);
-      return ss.str();
+      return ret;
     }
   }
 
@@ -801,11 +811,13 @@ public:
     case MachO::TOOL_CLANG: return "clang";
     case MachO::TOOL_SWIFT: return "swift";
     case MachO::TOOL_LD: return "ld";
+    case MachO::TOOL_LLD:
+      return "lld";
     default:
       std::string ret;
       raw_string_ostream ss(ret);
       ss << format_hex(tools, 8, true);
-      return ss.str();
+      return ret;
     }
   }
 
@@ -818,7 +830,7 @@ public:
     Version = utostr(major) + "." + utostr(minor);
     if (update != 0)
       Version += "." + utostr(update);
-    return std::string(std::string(Version.str()));
+    return std::string(std::string(Version));
   }
 
   /// If the input path is a .dSYM bundle (as created by the dsymutil tool),
@@ -831,7 +843,8 @@ public:
 private:
   MachOObjectFile(MemoryBufferRef Object, bool IsLittleEndian, bool Is64Bits,
                   Error &Err, uint32_t UniversalCputype = 0,
-                  uint32_t UniversalIndex = 0);
+                  uint32_t UniversalIndex = 0,
+                  size_t MachOFilesetEntryOffset = 0);
 
   uint64_t getSymbolValueImpl(DataRefImpl Symb) const override;
 
@@ -856,8 +869,10 @@ private:
   const char *DyldInfoLoadCmd = nullptr;
   const char *FuncStartsLoadCmd = nullptr;
   const char *DyldChainedFixupsLoadCmd = nullptr;
+  const char *DyldExportsTrieLoadCmd = nullptr;
   const char *UuidLoadCmd = nullptr;
   bool HasPageZeroSegment = false;
+  size_t MachOFilesetEntryOffset = 0;
 };
 
 /// DiceRef

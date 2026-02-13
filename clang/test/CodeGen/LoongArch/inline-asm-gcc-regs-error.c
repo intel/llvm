@@ -8,15 +8,4 @@ void test(void) {
   register float a1 asm ("$f32");
 // CHECK: :[[#@LINE+1]]:24: error: unknown register name '$foo' in asm
   register int a2 asm ("$foo");
-
-/// Names not prefixed with '$' are invalid.
-
-// CHECK: :[[#@LINE+1]]:24: error: unknown register name 'r4' in asm
-  register int a3 asm ("r4");
-// CHECK: :[[#@LINE+1]]:24: error: unknown register name 'a0' in asm
-  register int a4 asm ("a0");
-// CHECK: :[[#@LINE+1]]:26: error: unknown register name 'f0' in asm
-  register float a5 asm ("f0");
-// CHECK: :[[#@LINE+1]]:26: error: unknown register name 'fa0' in asm
-  register float a6 asm ("fa0");
 }

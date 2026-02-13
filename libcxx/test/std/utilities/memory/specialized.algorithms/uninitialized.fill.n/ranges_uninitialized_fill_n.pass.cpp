@@ -33,7 +33,7 @@
 LIBCPP_STATIC_ASSERT(std::is_class_v<decltype(std::ranges::uninitialized_fill_n)>);
 
 struct NotConvertibleFromInt {};
-static_assert(!std::is_invocable_v<decltype(std::ranges::uninitialized_fill_n), NotConvertibleFromInt*, size_t, int>);
+static_assert(!std::is_invocable_v<decltype(std::ranges::uninitialized_fill_n), NotConvertibleFromInt*, std::size_t, int>);
 
 int main(int, char**) {
   constexpr int value = 42;
@@ -100,20 +100,6 @@ int main(int, char**) {
     Counted::reset();
   }
 #endif // TEST_HAS_NO_EXCEPTIONS
-
-  // Works with const iterators.
-  {
-    constexpr int N = 5;
-    Buffer<Counted, N> buf;
-
-    std::ranges::uninitialized_fill_n(buf.cbegin(), N, x);
-    assert(Counted::current_objects == N);
-    assert(Counted::total_objects == N);
-    assert(std::all_of(buf.begin(), buf.end(), pred));
-
-    std::destroy(buf.begin(), buf.end());
-    Counted::reset();
-  }
 
   return 0;
 }

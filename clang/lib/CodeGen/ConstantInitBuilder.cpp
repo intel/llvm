@@ -20,16 +20,16 @@ using namespace CodeGen;
 
 llvm::Type *ConstantInitFuture::getType() const {
   assert(Data && "dereferencing null future");
-  if (Data.is<llvm::Constant*>()) {
-    return Data.get<llvm::Constant*>()->getType();
+  if (const auto *C = dyn_cast<llvm::Constant *>(Data)) {
+    return C->getType();
   } else {
-    return Data.get<ConstantInitBuilderBase*>()->Buffer[0]->getType();
+    return cast<ConstantInitBuilderBase *>(Data)->Buffer[0]->getType();
   }
 }
 
 void ConstantInitFuture::abandon() {
   assert(Data && "abandoning null future");
-  if (auto builder = Data.dyn_cast<ConstantInitBuilderBase*>()) {
+  if (auto *builder = dyn_cast<ConstantInitBuilderBase *>(Data)) {
     builder->abandon(0);
   }
   Data = nullptr;
@@ -37,10 +37,10 @@ void ConstantInitFuture::abandon() {
 
 void ConstantInitFuture::installInGlobal(llvm::GlobalVariable *GV) {
   assert(Data && "installing null future");
-  if (Data.is<llvm::Constant*>()) {
-    GV->setInitializer(Data.get<llvm::Constant*>());
+  if (auto *C = dyn_cast<llvm::Constant *>(Data)) {
+    GV->setInitializer(C);
   } else {
-    auto &builder = *Data.get<ConstantInitBuilderBase*>();
+    auto &builder = *cast<ConstantInitBuilderBase *>(Data);
     assert(builder.Buffer.size() == 1);
     builder.setGlobalInitializer(GV, builder.Buffer[0]);
     builder.Buffer.clear();
@@ -160,7 +160,7 @@ ConstantAggregateBuilderBase::getAddrOfPosition(llvm::Type *type,
                                         nullptr, "");
   Builder.SelfReferences.emplace_back(dummy);
   auto &entry = Builder.SelfReferences.back();
-  (void)getGEPIndicesTo(entry.Indices, position + Begin);
+  getGEPIndicesTo(entry.Indices, position + Begin);
   return dummy;
 }
 
@@ -209,8 +209,7 @@ ConstantAggregateBuilderBase::addPlaceholderWithSize(llvm::Type *type) {
   // Advance the offset past that field.
   auto &layout = Builder.CGM.getDataLayout();
   if (!Packed)
-    offset = offset.alignTo(CharUnits::fromQuantity(
-                                layout.getABITypeAlignment(type)));
+    offset = offset.alignTo(CharUnits::fromQuantity(layout.getABITypeAlign(type)));
   offset += CharUnits::fromQuantity(layout.getTypeStoreSize(type));
 
   CachedOffsetEnd = Builder.Buffer.size();
@@ -249,8 +248,8 @@ CharUnits ConstantAggregateBuilderBase::getOffsetFromGlobalTo(size_t end) const{
              "cannot compute offset when a placeholder is present");
       llvm::Type *elementType = element->getType();
       if (!Packed)
-        offset = offset.alignTo(CharUnits::fromQuantity(
-                                  layout.getABITypeAlignment(elementType)));
+        offset = offset.alignTo(
+            CharUnits::fromQuantity(layout.getABITypeAlign(elementType)));
       offset += CharUnits::fromQuantity(layout.getTypeStoreSize(elementType));
     } while (++cacheEnd != end);
   }
@@ -268,7 +267,7 @@ llvm::Constant *ConstantAggregateBuilderBase::finishArray(llvm::Type *eltTy) {
   assert((Begin < buffer.size() ||
           (Begin == buffer.size() && eltTy))
          && "didn't add any array elements without element type");
-  auto elts = llvm::makeArrayRef(buffer).slice(Begin);
+  auto elts = llvm::ArrayRef(buffer).slice(Begin);
   if (!eltTy) eltTy = elts[0]->getType();
   auto type = llvm::ArrayType::get(eltTy, elts.size());
   auto constant = llvm::ConstantArray::get(type, elts);
@@ -281,7 +280,7 @@ ConstantAggregateBuilderBase::finishStruct(llvm::StructType *ty) {
   markFinished();
 
   auto &buffer = getBuffer();
-  auto elts = llvm::makeArrayRef(buffer).slice(Begin);
+  auto elts = llvm::ArrayRef(buffer).slice(Begin);
 
   if (ty == nullptr && elts.empty())
     ty = llvm::StructType::get(Builder.CGM.getLLVMContext(), {}, Packed);
@@ -296,4 +295,22 @@ ConstantAggregateBuilderBase::finishStruct(llvm::StructType *ty) {
 
   buffer.erase(buffer.begin() + Begin, buffer.end());
   return constant;
+}
+
+/// Sign the given pointer and add it to the constant initializer
+/// currently being built.
+void ConstantAggregateBuilderBase::addSignedPointer(
+    llvm::Constant *Pointer, const PointerAuthSchema &Schema,
+    GlobalDecl CalleeDecl, QualType CalleeType) {
+  if (!Schema || !Builder.CGM.shouldSignPointer(Schema))
+    return add(Pointer);
+
+  llvm::Constant *StorageAddress = nullptr;
+  if (Schema.isAddressDiscriminated()) {
+    StorageAddress = getAddrOfCurrentPosition(Pointer->getType());
+  }
+
+  llvm::Constant *SignedPointer = Builder.CGM.getConstantSignedPointer(
+      Pointer, Schema, StorageAddress, CalleeDecl, CalleeType);
+  add(SignedPointer);
 }

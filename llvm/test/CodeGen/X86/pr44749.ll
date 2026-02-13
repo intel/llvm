@@ -6,19 +6,20 @@ define i32 @a() {
 ; CHECK:       ## %bb.0: ## %entry
 ; CHECK-NEXT:    pushq %rax
 ; CHECK-NEXT:    .cfi_def_cfa_offset 16
-; CHECK-NEXT:    xorl %eax, %eax
-; CHECK-NEXT:    ## kill: def $al killed $al killed $eax
+; CHECK-NEXT:    movb $0, %al
 ; CHECK-NEXT:    callq _b
 ; CHECK-NEXT:    cvtsi2sd %eax, %xmm1
-; CHECK-NEXT:    movq _calloc@GOTPCREL(%rip), %rax
-; CHECK-NEXT:    subq $-1, %rax
-; CHECK-NEXT:    setne %al
-; CHECK-NEXT:    movzbl %al, %eax
-; CHECK-NEXT:    movl %eax, %ecx
-; CHECK-NEXT:    leaq {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %rax
-; CHECK-NEXT:    movsd {{.*#+}} xmm0 = mem[0],zero
-; CHECK-NEXT:    movsd {{.*#+}} xmm3 = mem[0],zero
-; CHECK-NEXT:    movsd {{.*#+}} xmm2 = mem[0],zero
+; CHECK-NEXT:    movq _calloc@GOTPCREL(%rip), %rdx
+; CHECK-NEXT:    addq $1, %rdx
+; CHECK-NEXT:    xorl %eax, %eax
+; CHECK-NEXT:    movl $1, %ecx
+; CHECK-NEXT:    cmpq $0, %rdx
+; CHECK-NEXT:    cmovnel %ecx, %eax
+; CHECK-NEXT:    cvtsi2sd %eax, %xmm0
+; CHECK-NEXT:    movsd {{.*#+}} xmm2 = [1.0E+2,0.0E+0]
+; CHECK-NEXT:    subsd %xmm2, %xmm0
+; CHECK-NEXT:    movsd {{.*#+}} xmm3 = [1.0E+0,0.0E+0]
+; CHECK-NEXT:    movsd {{.*#+}} xmm2 = [3.1400000000000001E+0,0.0E+0]
 ; CHECK-NEXT:    cmplesd %xmm1, %xmm0
 ; CHECK-NEXT:    movaps %xmm0, %xmm1
 ; CHECK-NEXT:    andpd %xmm3, %xmm1
@@ -30,13 +31,16 @@ define i32 @a() {
 entry:
   %call = call i32 (...) @b()
   %conv = sitofp i32 %call to double
-  %fsub = fsub double sitofp (i32 select (i1 icmp ne (i8* (i64, i64)* bitcast (i8* getelementptr (i8, i8* bitcast (i8* (i64, i64)* @calloc to i8*), i64 1) to i8* (i64, i64)*), i8* (i64, i64)* null), i32 1, i32 0) to double), 1.000000e+02
+  %cmp2 = icmp ne ptr getelementptr (i8, ptr @calloc, i64 1), null
+  %sel = select i1 %cmp2, i32 1, i32 0
+  %sitofp = sitofp i32 %sel to double
+  %fsub = fsub double %sitofp, 1.000000e+02
   %cmp = fcmp ole double %fsub, %conv
   %cond = select i1 %cmp, double 1.000000e+00, double 3.140000e+00
   %conv2 = fptosi double %cond to i32
   ret i32 %conv2
 }
 
-declare i8* @calloc(i64, i64)
+declare ptr @calloc(i64, i64)
 
 declare i32 @b(...)

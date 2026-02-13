@@ -139,36 +139,108 @@ template <typename EffectT>
 class EffectInstance {
 public:
   EffectInstance(EffectT *effect, Resource *resource = DefaultResource::get())
-      : effect(effect), resource(resource) {}
-  EffectInstance(EffectT *effect, Value value,
+      : effect(effect), resource(resource), stage(0),
+        effectOnFullRegion(false) {}
+  EffectInstance(EffectT *effect, int stage, bool effectOnFullRegion,
                  Resource *resource = DefaultResource::get())
-      : effect(effect), resource(resource), value(value) {}
+      : effect(effect), resource(resource), stage(stage),
+        effectOnFullRegion(effectOnFullRegion) {}
+  template <typename T,
+            std::enable_if_t<
+                llvm::is_one_of<T, OpOperand *, OpResult, BlockArgument>::value,
+                bool> = true>
+  EffectInstance(EffectT *effect, T value,
+                 Resource *resource = DefaultResource::get())
+      : effect(effect), resource(resource), value(value), stage(0),
+        effectOnFullRegion(false) {}
+  template <typename T,
+            std::enable_if_t<
+                llvm::is_one_of<T, OpOperand *, OpResult, BlockArgument>::value,
+                bool> = true>
+  EffectInstance(EffectT *effect, T value, int stage, bool effectOnFullRegion,
+                 Resource *resource = DefaultResource::get())
+      : effect(effect), resource(resource), value(value), stage(stage),
+        effectOnFullRegion(effectOnFullRegion) {}
   EffectInstance(EffectT *effect, SymbolRefAttr symbol,
                  Resource *resource = DefaultResource::get())
-      : effect(effect), resource(resource), value(symbol) {}
+      : effect(effect), resource(resource), value(symbol), stage(0),
+        effectOnFullRegion(false) {}
+  EffectInstance(EffectT *effect, SymbolRefAttr symbol, int stage,
+                 bool effectOnFullRegion,
+                 Resource *resource = DefaultResource::get())
+      : effect(effect), resource(resource), value(symbol), stage(stage),
+        effectOnFullRegion(effectOnFullRegion) {}
   EffectInstance(EffectT *effect, Attribute parameters,
                  Resource *resource = DefaultResource::get())
-      : effect(effect), resource(resource), parameters(parameters) {}
-  EffectInstance(EffectT *effect, Value value, Attribute parameters,
+      : effect(effect), resource(resource), parameters(parameters), stage(0),
+        effectOnFullRegion(false) {}
+  EffectInstance(EffectT *effect, Attribute parameters, int stage,
+                 bool effectOnFullRegion,
+                 Resource *resource = DefaultResource::get())
+      : effect(effect), resource(resource), parameters(parameters),
+        stage(stage), effectOnFullRegion(effectOnFullRegion) {}
+  template <typename T,
+            std::enable_if_t<
+                llvm::is_one_of<T, OpOperand *, OpResult, BlockArgument>::value,
+                bool> = true>
+  EffectInstance(EffectT *effect, T value, Attribute parameters,
                  Resource *resource = DefaultResource::get())
       : effect(effect), resource(resource), value(value),
-        parameters(parameters) {}
+        parameters(parameters), stage(0), effectOnFullRegion(false) {}
+  template <typename T,
+            std::enable_if_t<
+                llvm::is_one_of<T, OpOperand *, OpResult, BlockArgument>::value,
+                bool> = true>
+  EffectInstance(EffectT *effect, T value, Attribute parameters, int stage,
+                 bool effectOnFullRegion,
+                 Resource *resource = DefaultResource::get())
+      : effect(effect), resource(resource), value(value),
+        parameters(parameters), stage(stage),
+        effectOnFullRegion(effectOnFullRegion) {}
   EffectInstance(EffectT *effect, SymbolRefAttr symbol, Attribute parameters,
                  Resource *resource = DefaultResource::get())
       : effect(effect), resource(resource), value(symbol),
-        parameters(parameters) {}
+        parameters(parameters), stage(0), effectOnFullRegion(false) {}
+  EffectInstance(EffectT *effect, SymbolRefAttr symbol, Attribute parameters,
+                 int stage, bool effectOnFullRegion,
+                 Resource *resource = DefaultResource::get())
+      : effect(effect), resource(resource), value(symbol),
+        parameters(parameters), stage(stage),
+        effectOnFullRegion(effectOnFullRegion) {}
 
   /// Return the effect being applied.
   EffectT *getEffect() const { return effect; }
 
   /// Return the value the effect is applied on, or nullptr if there isn't a
   /// known value being affected.
-  Value getValue() const { return value ? value.dyn_cast<Value>() : Value(); }
+  Value getValue() const {
+    if (!value || llvm::isa_and_present<SymbolRefAttr>(value)) {
+      return Value();
+    }
+    if (OpOperand *operand = llvm::dyn_cast_if_present<OpOperand *>(value)) {
+      return operand->get();
+    }
+    if (OpResult result = llvm::dyn_cast_if_present<OpResult>(value)) {
+      return result;
+    }
+    return cast_if_present<BlockArgument>(value);
+  }
+
+  /// Returns the OpOperand effect is applied on, or nullptr if there isn't a
+  /// known value being effected.
+  template <typename T,
+            std::enable_if_t<
+                llvm::is_one_of<T, OpOperand *, OpResult, BlockArgument>::value,
+                bool> = true>
+  T getEffectValue() const {
+    return value ? dyn_cast_if_present<T>(value) : nullptr;
+  }
 
   /// Return the symbol reference the effect is applied on, or nullptr if there
   /// isn't a known smbol being affected.
   SymbolRefAttr getSymbolRef() const {
-    return value ? value.dyn_cast<SymbolRefAttr>() : SymbolRefAttr();
+    return value ? llvm::dyn_cast_if_present<SymbolRefAttr>(value)
+                 : SymbolRefAttr();
   }
 
   /// Return the resource that the effect applies to.
@@ -177,6 +249,12 @@ public:
   /// Return the parameters of the effect, if any.
   Attribute getParameters() const { return parameters; }
 
+  /// Return the effect happen stage.
+  int getStage() const { return stage; }
+
+  /// Return if this side effect act on every single value of resource.
+  bool getEffectOnFullRegion() const { return effectOnFullRegion; }
+
 private:
   /// The specific effect being applied.
   EffectT *effect;
@@ -184,28 +262,83 @@ private:
   /// The resource that the given value resides in.
   Resource *resource;
 
-  /// The Symbol or Value that the effect applies to. This is optionally null.
-  PointerUnion<SymbolRefAttr, Value> value;
+  /// The Symbol, OpOperand, OpResult or BlockArgument that the effect applies
+  /// to. This is optionally null.
+  PointerUnion<SymbolRefAttr, OpOperand *, OpResult, BlockArgument> value;
 
   /// Additional parameters of the effect instance. An attribute is used for
   /// type-safe structured storage and context-based uniquing. Concrete effects
   /// can use this at their convenience. This is optionally null.
   Attribute parameters;
+
+  // The stage side effect happen. Side effect with a lower stage
+  // number happen earlier than those with a higher stage number
+  int stage;
+
+  // Does this side effect act on every single value of resource.
+  bool effectOnFullRegion;
 };
 } // namespace SideEffects
+
+namespace Speculation {
+/// This enum is returned from the `getSpeculatability` method in the
+/// `ConditionallySpeculatable` op interface.
+enum class Speculatability {
+  /// The Operation in question cannot be speculatively executed.  This could be
+  /// because it may invoke undefined behavior or have other side effects.
+  NotSpeculatable,
+
+  // The Operation in question can be speculatively executed.  It does not have
+  // any side effects or undefined behavior.
+  Speculatable,
+
+  // The Operation in question can be speculatively executed if all the
+  // operations in all attached regions can also be speculatively executed.
+  RecursivelySpeculatable,
+};
+
+constexpr auto NotSpeculatable = Speculatability::NotSpeculatable;
+constexpr auto Speculatable = Speculatability::Speculatable;
+constexpr auto RecursivelySpeculatable =
+    Speculatability::RecursivelySpeculatable;
+} // namespace Speculation
 
 //===----------------------------------------------------------------------===//
 // SideEffect Traits
 //===----------------------------------------------------------------------===//
 
 namespace OpTrait {
-/// This trait indicates that the side effects of an operation includes the
+/// This trait indicates that the memory effects of an operation includes the
 /// effects of operations nested within its regions. If the operation has no
 /// derived effects interfaces, the operation itself can be assumed to have no
-/// side effects.
+/// memory effects.
 template <typename ConcreteType>
-class HasRecursiveSideEffects
-    : public TraitBase<ConcreteType, HasRecursiveSideEffects> {};
+class HasRecursiveMemoryEffects
+    : public TraitBase<ConcreteType, HasRecursiveMemoryEffects> {};
+
+/// This trait marks an op (which must be tagged as implementing the
+/// ConditionallySpeculatable interface) as being recursively speculatable.
+/// This means that said op can be speculated only if all the instructions in
+/// all the regions attached to the op can be speculated.
+template <typename ConcreteType>
+struct RecursivelySpeculatableImplTrait
+    : public TraitBase<ConcreteType, RecursivelySpeculatableImplTrait> {
+
+  Speculation::Speculatability getSpeculatability() {
+    return Speculation::RecursivelySpeculatable;
+  }
+};
+
+/// This trait marks an op (which must be tagged as implementing the
+/// ConditionallySpeculatable interface) as being always speculatable.
+template <typename ConcreteType>
+struct AlwaysSpeculatableImplTrait
+    : public TraitBase<ConcreteType, AlwaysSpeculatableImplTrait> {
+
+  Speculation::Speculatability getSpeculatability() {
+    return Speculation::Speculatable;
+  }
+};
 } // namespace OpTrait
 
 //===----------------------------------------------------------------------===//
@@ -250,17 +383,70 @@ struct Write : public Effect::Base<Write> {};
 // SideEffect Utilities
 //===----------------------------------------------------------------------===//
 
-/// Returns true if `op` has only an effect of type `EffectTy` (and of no other
-/// type) on `value`. If no value is provided, simply check if effects of that
-/// type and only of that type are present.
-template <typename EffectTy>
-bool hasSingleEffect(Operation *op, Value value = nullptr);
+/// Return "true" if `op` has unknown effects. I.e., the effects of the
+/// operation itself are unknown and the operation does not derive its effects
+/// from its nested operations. (`HasRecursiveMemoryEffects` trait is not
+/// implemented or it is unknown whether it is implemented or not.)
+bool hasUnknownEffects(Operation *op);
 
-/// Returns true if `op` has an effect of type `EffectTy` on `value`. If no
-/// `value` is provided, simply check if effects of the given type(s) are
-/// present.
+/// Returns "true" if `op` has only an effect of type `EffectTy`. Returns
+/// "false" if `op` has unknown effects or other/additional effects. Recursive
+/// effects are not taken into account.
+template <typename EffectTy>
+bool hasSingleEffect(Operation *op);
+
+/// Returns "true" if `op` has only an effect of type `EffectTy` on `value`.
+/// Returns "false" if `op` has unknown effects or other/additional effects.
+/// Recursive effects are not taken into account.
+template <typename EffectTy>
+bool hasSingleEffect(Operation *op, Value value);
+
+/// Returns "true" if `op` has only an effect of type `EffectTy` on `value` of
+/// type `ValueTy`. Returns "false" if `op` has unknown effects or
+/// other/additional effects. Recursive effects are not taken into account.
+template <typename ValueTy, typename EffectTy>
+bool hasSingleEffect(Operation *op, ValueTy value);
+
+/// Returns "true" if `op` has an effect of type `EffectTy`. Returns "false" if
+/// `op` has unknown effects. Recursive effects are not taken into account.
 template <typename... EffectTys>
-bool hasEffect(Operation *op, Value value = nullptr);
+bool hasEffect(Operation *op);
+
+/// Returns "true" if `op` has an effect of type `EffectTy` on `value`. Returns
+/// "false" if `op` has unknown effects. Recursive effects are not taken into
+/// account.
+template <typename... EffectTys>
+bool hasEffect(Operation *op, Value value);
+
+/// Returns "true" if `op` has an effect of type `EffectTy` on `value` of type
+/// `ValueTy`. Returns "false" if `op` has unknown effects. Recursive effects
+/// are not taken into account.
+template <typename ValueTy, typename... EffectTys>
+bool hasEffect(Operation *op, ValueTy value);
+
+/// Returns "true" if `op` might have an effect of type `EffectTy`. Returns
+/// "true" if the op has unknown effects. Recursive effects are not taken into
+/// account.
+template <typename... EffectTys>
+bool mightHaveEffect(Operation *op) {
+  return hasUnknownEffects(op) || hasEffect<EffectTys...>(op);
+}
+
+/// Returns "true" if `op` might have an effect of type `EffectTy` on `value`.
+/// Returns "true" if the op has unknown effects. Recursive effects are not
+/// taken into account.
+template <typename... EffectTys>
+bool mightHaveEffect(Operation *op, Value value) {
+  return hasUnknownEffects(op) || hasEffect<EffectTys...>(op, value);
+}
+
+/// Returns "true" if `op` might have an effect of type `EffectTy` on `value`
+/// of type `ValueTy`. Returns "true" if the op has unknown effects. Recursive
+/// effects are not taken into account.
+template <typename ValueTy, typename... EffectTys>
+bool mightHaveEffect(Operation *op, ValueTy value) {
+  return hasUnknownEffects(op) || hasEffect<EffectTys...>(op, value);
+}
 
 /// Return true if the given operation is unused, and has no side effects on
 /// memory that prevent erasing.
@@ -269,7 +455,45 @@ bool isOpTriviallyDead(Operation *op);
 /// Return true if the given operation would be dead if unused, and has no side
 /// effects on memory that would prevent erasing. This is equivalent to checking
 /// `isOpTriviallyDead` if `op` was unused.
+///
+/// Note: Terminators and symbols are never considered to be trivially dead.
 bool wouldOpBeTriviallyDead(Operation *op);
+
+/// Returns true if the given operation is free of memory effects.
+///
+/// An operation is free of memory effects if its implementation of
+/// `MemoryEffectOpInterface` indicates that it has no memory effects. For
+/// example, it may implement `NoMemoryEffect` in ODS. Alternatively, if the
+/// operation has the `HasRecursiveMemoryEffects` trait, then it is free of
+/// memory effects if all of its nested operations are free of memory effects.
+///
+/// If the operation has both, then it is free of memory effects if both
+/// conditions are satisfied.
+bool isMemoryEffectFree(Operation *op);
+
+/// Returns the side effects of an operation. If the operation has
+/// RecursiveMemoryEffects, include all side effects of child operations.
+///
+/// std::nullopt indicates that an option did not have a memory effect interface
+/// and so no result could be obtained. An empty vector indicates that there
+/// were no memory effects found (but every operation implemented the memory
+/// effect interface or has RecursiveMemoryEffects). If the vector contains
+/// multiple effects, these effects may be duplicates.
+std::optional<llvm::SmallVector<MemoryEffects::EffectInstance>>
+getEffectsRecursively(Operation *rootOp);
+
+/// Returns true if the given operation is speculatable, i.e. has no undefined
+/// behavior or other side effects.
+///
+/// An operation can indicate that it is speculatable by implementing the
+/// getSpeculatability hook in the ConditionallySpeculatable op interface.
+bool isSpeculatable(Operation *op);
+
+/// Returns true if the given operation is pure, i.e., is speculatable that does
+/// not touch memory.
+///
+/// This function is the C++ equivalent of the `Pure` trait.
+bool isPure(Operation *op);
 
 } // namespace mlir
 

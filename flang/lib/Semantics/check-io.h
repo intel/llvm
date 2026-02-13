@@ -125,9 +125,17 @@ private:
   void CheckForDefinableVariable(const A &var, const std::string &s) const;
 
   void CheckForPureSubprogram() const;
+  void CheckForUselessIomsg() const;
 
-  void CheckForBadIoComponent(
-      const SomeExpr &, GenericKind::DefinedIo, parser::CharBlock) const;
+  parser::Message *CheckForBadIoType(const evaluate::DynamicType &,
+      common::DefinedIo, parser::CharBlock) const;
+  void CheckForBadIoType(
+      const SomeExpr &, common::DefinedIo, parser::CharBlock) const;
+  parser::Message *CheckForBadIoType(
+      const Symbol &, common::DefinedIo, parser::CharBlock) const;
+
+  void CheckNamelist(
+      const Symbol &, common::DefinedIo, parser::CharBlock) const;
 
   void Init(IoStmtKind s) {
     stmt_ = s;

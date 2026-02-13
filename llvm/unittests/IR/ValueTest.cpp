@@ -7,17 +7,37 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/IR/Value.h"
+#include "llvm-c/Core.h"
 #include "llvm/AsmParser/Parser.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/ModuleSlotTracker.h"
+#include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/SourceMgr.h"
 #include "gtest/gtest.h"
 using namespace llvm;
 
 namespace {
+
+TEST(ValueTest, setNameShrink) {
+  LLVMContext C;
+
+  const char *ModuleString = "define void @f1() {\n"
+                             "bb0:\n"
+                             "  ret void\n"
+                             "}\n";
+  SMDiagnostic Err;
+  std::unique_ptr<Module> M = parseAssemblyString(ModuleString, Err, C);
+
+  Function *F = M->getFunction("f1");
+  StringRef FName = F->getName();
+  FName = FName.drop_back();
+  F->setName(FName);
+  EXPECT_EQ(F->getName(), "f");
+}
 
 TEST(ValueTest, UsedInBasicBlock) {
   LLVMContext C;
@@ -46,7 +66,6 @@ TEST(ValueTest, UsedInBasicBlock) {
 
 TEST(GlobalTest, CreateAddressSpace) {
   LLVMContext Ctx;
-  Ctx.setOpaquePointers(true);
   std::unique_ptr<Module> M(new Module("TestModule", Ctx));
   Type *Int8Ty = Type::getInt8Ty(Ctx);
   Type *Int32Ty = Type::getInt32Ty(Ctx);
@@ -62,9 +81,11 @@ TEST(GlobalTest, CreateAddressSpace) {
                          GlobalVariable::NotThreadLocal,
                          1);
 
-  EXPECT_TRUE(Value::MaximumAlignment == 4294967296ULL);
-  Dummy0->setAlignment(Align(4294967296ULL));
-  EXPECT_EQ(Dummy0->getAlignment(), 4294967296ULL);
+  const Align kMaxAlignment(Value::MaximumAlignment);
+  EXPECT_TRUE(kMaxAlignment.value() == 4294967296ULL);
+  Dummy0->setAlignment(kMaxAlignment);
+  EXPECT_TRUE(Dummy0->getAlign());
+  EXPECT_EQ(*Dummy0->getAlign(), kMaxAlignment);
 
   // Make sure the address space isn't dropped when returning this.
   Constant *Dummy1 = M->getOrInsertGlobal("dummy", Int32Ty);
@@ -112,7 +133,6 @@ TEST(ValueTest, printSlots) {
   // Check that Value::print() and Value::printAsOperand() work with and
   // without a slot tracker.
   LLVMContext C;
-  C.setOpaquePointers(true);
 
   const char *ModuleString = "@g0 = external global %500\n"
                              "@g1 = external global %900\n"
@@ -153,13 +173,13 @@ TEST(ValueTest, printSlots) {
       std::string S;                                                           \
       raw_string_ostream OS(S);                                                \
       INST->print(OS);                                                         \
-      EXPECT_EQ(STR, OS.str());                                                \
+      EXPECT_EQ(STR, S);                                                       \
     }                                                                          \
     {                                                                          \
       std::string S;                                                           \
       raw_string_ostream OS(S);                                                \
       INST->print(OS, MST);                                                    \
-      EXPECT_EQ(STR, OS.str());                                                \
+      EXPECT_EQ(STR, S);                                                       \
     }                                                                          \
   } while (false)
   CHECK_PRINT(I0, "  %0 = add i32 %y, 1");
@@ -172,13 +192,13 @@ TEST(ValueTest, printSlots) {
       std::string S;                                                           \
       raw_string_ostream OS(S);                                                \
       INST->printAsOperand(OS, TYPE);                                          \
-      EXPECT_EQ(StringRef(STR), StringRef(OS.str()));                          \
+      EXPECT_EQ(StringRef(STR), StringRef(S));                                 \
     }                                                                          \
     {                                                                          \
       std::string S;                                                           \
       raw_string_ostream OS(S);                                                \
       INST->printAsOperand(OS, TYPE, MST);                                     \
-      EXPECT_EQ(StringRef(STR), StringRef(OS.str()));                          \
+      EXPECT_EQ(StringRef(STR), StringRef(S));                                 \
     }                                                                          \
   } while (false)
   CHECK_PRINT_AS_OPERAND(I0, false, "%0");
@@ -252,7 +272,7 @@ TEST(ValueTest, getLocalSlotDeath) {
 
 TEST(ValueTest, replaceUsesOutsideBlock) {
   // Check that Value::replaceUsesOutsideBlock(New, BB) replaces uses outside
-  // BB, including dbg.* uses of MetadataAsValue(ValueAsMetadata(this)).
+  // BB, including DbgVariableRecords.
   const auto *IR = R"(
     define i32 @f() !dbg !6 {
     entry:
@@ -300,18 +320,47 @@ TEST(ValueTest, replaceUsesOutsideBlock) {
   Instruction *A = &Entry->front();
   Instruction *B = GetNext(A);
   Instruction *C = GetNext(B);
-  auto *EntryDbg = cast<DbgValueInst>(GetNext(C));
+  Instruction *Branch = GetNext(C);
   // Exit.
   BasicBlock *Exit = GetNext(Entry);
-  auto *ExitDbg = cast<DbgValueInst>(&Exit->front());
-  Instruction *Ret = GetNext(ExitDbg);
+  Instruction *Ret = &Exit->front();
+
+  EXPECT_TRUE(Branch->hasDbgRecords());
+  EXPECT_TRUE(Ret->hasDbgRecords());
+
+  DbgVariableRecord *DVR1 =
+      cast<DbgVariableRecord>(&*Branch->getDbgRecordRange().begin());
+  DbgVariableRecord *DVR2 =
+      cast<DbgVariableRecord>(&*Ret->getDbgRecordRange().begin());
 
   A->replaceUsesOutsideBlock(B, Entry);
   // These users are in Entry so shouldn't be changed.
-  ASSERT_TRUE(C->getOperand(0) == cast<Value>(A));
-  ASSERT_TRUE(EntryDbg->getValue(0) == cast<Value>(A));
+  EXPECT_TRUE(DVR1->getVariableLocationOp(0) == cast<Value>(A));
   // These users are outside Entry so should be changed.
-  ASSERT_TRUE(ExitDbg->getValue(0) == cast<Value>(B));
-  ASSERT_TRUE(Ret->getOperand(0) == cast<Value>(B));
+  EXPECT_TRUE(DVR2->getVariableLocationOp(0) == cast<Value>(B));
 }
+
+TEST(GlobalTest, Initializer) {
+  LLVMContext Ctx;
+  Module M("test", Ctx);
+  Type *Int8Ty = Type::getInt8Ty(Ctx);
+  Constant *Int8Null = Constant::getNullValue(Int8Ty);
+
+  GlobalVariable *GV = new GlobalVariable(
+      M, Int8Ty, false, GlobalValue::ExternalLinkage, nullptr, "GV");
+
+  EXPECT_FALSE(GV->hasInitializer());
+  GV->setInitializer(Int8Null);
+  EXPECT_TRUE(GV->hasInitializer());
+  EXPECT_EQ(GV->getInitializer(), Int8Null);
+  GV->setInitializer(nullptr);
+  EXPECT_FALSE(GV->hasInitializer());
+
+  EXPECT_EQ(LLVMGetInitializer(wrap(GV)), nullptr);
+  LLVMSetInitializer(wrap(GV), wrap(Int8Null));
+  EXPECT_EQ(LLVMGetInitializer(wrap(GV)), wrap(Int8Null));
+  LLVMSetInitializer(wrap(GV), nullptr);
+  EXPECT_EQ(LLVMGetInitializer(wrap(GV)), nullptr);
+}
+
 } // end anonymous namespace

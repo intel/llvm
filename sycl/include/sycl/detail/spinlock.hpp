@@ -14,7 +14,7 @@
 #include <thread>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 /// SpinLock is a synchronization primitive, that uses atomic variable and
 /// causes thread trying acquire lock wait in loop while repeatedly check if
@@ -26,6 +26,8 @@ namespace detail {
 /// std::mutex, that doesn't provide such guarantees).
 class SpinLock {
 public:
+  bool try_lock() { return !MLock.test_and_set(std::memory_order_acquire); }
+
   void lock() {
     while (MLock.test_and_set(std::memory_order_acquire))
       std::this_thread::yield();
@@ -36,5 +38,5 @@ private:
   std::atomic_flag MLock = ATOMIC_FLAG_INIT;
 };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

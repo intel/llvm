@@ -6,11 +6,16 @@ append_list_if(SANITIZER_LIMIT_FRAME_SIZE -Wframe-larger-than=530
                TSAN_RTL_CFLAGS)
 append_list_if(COMPILER_RT_HAS_WGLOBAL_CONSTRUCTORS_FLAG -Wglobal-constructors
                TSAN_RTL_CFLAGS)
+append_list_if(COMPILER_RT_INTERCEPT_LIBDISPATCH ${COMPILER_RT_LIBDISPATCH_CFLAGS}
+               TSAN_RTL_CFLAGS)
 
 set(TSAN_RTL_DYNAMIC_CFLAGS ${TSAN_RTL_CFLAGS})
 list(REMOVE_ITEM TSAN_RTL_DYNAMIC_CFLAGS -fPIE)
 
-set(TSAN_DYNAMIC_LINK_LIBS ${SANITIZER_CXX_ABI_LIBRARIES} ${SANITIZER_COMMON_LINK_LIBS})
+set(TSAN_DYNAMIC_LINK_LIBS
+  ${COMPILER_RT_UNWINDER_LINK_LIBS}
+  ${SANITIZER_CXX_ABI_LIBRARIES}
+  ${SANITIZER_COMMON_LINK_LIBS})
 
 append_list_if(COMPILER_RT_HAS_LIBDL dl TSAN_DYNAMIC_LINK_LIBS)
 append_list_if(COMPILER_RT_HAS_LIBM m TSAN_DYNAMIC_LINK_LIBS)
@@ -22,6 +27,7 @@ set(TSAN_SOURCES
   tsan_fd.cpp
   tsan_flags.cpp
   tsan_ignoreset.cpp
+  tsan_interceptors_memintrinsics.cpp
   tsan_interceptors_posix.cpp
   tsan_interface.cpp
   tsan_interface_ann.cpp
@@ -72,7 +78,6 @@ if(COMPILER_RT_INTERCEPT_LIBDISPATCH)
   list(APPEND TSAN_SOURCES
     tsan_interceptors_libdispatch.cpp
     )
-  list(APPEND TSAN_RTL_CFLAGS ${COMPILER_RT_LIBDISPATCH_CFLAGS})
 endif()
 
 set(TSAN_HEADERS
@@ -119,7 +124,7 @@ if(APPLE)
     message(FATAL_ERROR "Building the TSan runtime requires at least macOS SDK 10.12 (or aligned SDK on other platforms)")
   endif()
 
-  add_asm_sources(TSAN_ASM_SOURCES
+  set(TSAN_ASM_SOURCES
     tsan_rtl_amd64.S
     tsan_rtl_aarch64.S
     )
@@ -162,11 +167,11 @@ if(APPLE)
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../go
     COMMENT "Checking TSan Go runtime..."
     VERBATIM)
-  set_target_properties(GotsanRuntimeCheck PROPERTIES FOLDER "Compiler-RT Misc")
+  set_target_properties(GotsanRuntimeCheck PROPERTIES FOLDER "Compiler-RT/Misc")
 else()
   foreach(arch ${TSAN_SUPPORTED_ARCH})
     if(arch STREQUAL "x86_64")
-      add_asm_sources(TSAN_ASM_SOURCES
+      set(TSAN_ASM_SOURCES
         tsan_rtl_amd64.S
         )
       # Check for Go runtime.
@@ -180,7 +185,7 @@ else()
         COMMENT "Checking TSan Go runtime..."
         VERBATIM)
     elseif(arch STREQUAL "aarch64")
-      add_asm_sources(TSAN_ASM_SOURCES
+      set(TSAN_ASM_SOURCES
         tsan_rtl_aarch64.S
         )
       # Check for Go runtime.
@@ -194,7 +199,7 @@ else()
 	COMMENT "Checking TSan Go runtime..."
 	VERBATIM)
     elseif(arch MATCHES "powerpc64|powerpc64le")
-      add_asm_sources(TSAN_ASM_SOURCES
+      set(TSAN_ASM_SOURCES
         tsan_rtl_ppc64.S
         )
       # Check for Go runtime.
@@ -207,12 +212,20 @@ else()
 	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../go
 	COMMENT "Checking TSan Go runtime..."
 	VERBATIM)
+    elseif(arch MATCHES "loongarch64")
+      set(TSAN_ASM_SOURCES
+        tsan_rtl_loongarch64.S
+        )
     elseif(arch MATCHES "mips64|mips64le")
-      add_asm_sources(TSAN_ASM_SOURCES
+      set(TSAN_ASM_SOURCES
         tsan_rtl_mips64.S
         )
+    elseif(arch MATCHES "riscv64")
+      set(TSAN_ASM_SOURCES
+        tsan_rtl_riscv64.S
+        )
     elseif(arch MATCHES "s390x")
-      add_asm_sources(TSAN_ASM_SOURCES
+      set(TSAN_ASM_SOURCES
         tsan_rtl_s390x.S
         )
       # Check for Go runtime.
@@ -237,6 +250,7 @@ else()
               $<TARGET_OBJECTS:RTSanitizerCommonLibc.${arch}>
               $<TARGET_OBJECTS:RTSanitizerCommonCoverage.${arch}>
               $<TARGET_OBJECTS:RTSanitizerCommonSymbolizer.${arch}>
+              $<TARGET_OBJECTS:RTSanitizerCommonSymbolizerInternal.${arch}>
               $<TARGET_OBJECTS:RTUbsan.${arch}>
       ADDITIONAL_HEADERS ${TSAN_HEADERS}
       CFLAGS ${TSAN_RTL_CFLAGS}
@@ -245,7 +259,6 @@ else()
       STATIC
       ARCHS ${arch}
       SOURCES ${TSAN_CXX_SOURCES}
-              $<TARGET_OBJECTS:RTUbsan_cxx.${arch}>
       ADDITIONAL_HEADERS ${TSAN_HEADERS}
       CFLAGS ${TSAN_RTL_CFLAGS}
       PARENT_TARGET tsan)
@@ -260,9 +273,11 @@ else()
               $<TARGET_OBJECTS:RTSanitizerCommonLibc.${arch}>
               $<TARGET_OBJECTS:RTSanitizerCommonCoverage.${arch}>
               $<TARGET_OBJECTS:RTSanitizerCommonSymbolizer.${arch}>
+              $<TARGET_OBJECTS:RTSanitizerCommonSymbolizerInternal.${arch}>
               $<TARGET_OBJECTS:RTUbsan.${arch}>
       ADDITIONAL_HEADERS ${TSAN_HEADERS}
       CFLAGS ${TSAN_RTL_DYNAMIC_CFLAGS}
+      DEFS SANITIZER_SHARED
       LINK_LIBS ${TSAN_DYNAMIC_LINK_LIBS}
       LINK_FLAGS ${SANITIZER_COMMON_LINK_FLAGS}
       PARENT_TARGET tsan)

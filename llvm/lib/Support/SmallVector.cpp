@@ -108,12 +108,37 @@ static size_t getNewCapacity(size_t MinSize, size_t TSize, size_t OldCapacity) {
   return std::clamp(NewCapacity, MinSize, MaxSize);
 }
 
+/// If vector was first created with capacity 0, getFirstEl() points to the
+/// memory right after, an area unallocated. If a subsequent allocation,
+/// that grows the vector, happens to return the same pointer as getFirstEl(),
+/// get a new allocation, otherwise isSmall() will falsely return that no
+/// allocation was done (true) and the memory will not be freed in the
+/// destructor. If a VSize is given (vector size), also copy that many
+/// elements to the new allocation - used if realloca fails to increase
+/// space, and happens to allocate precisely at BeginX.
+/// This is unlikely to be called often, but resolves a memory leak when the
+/// situation does occur.
+static void *replaceAllocation(void *NewElts, size_t TSize, size_t NewCapacity,
+                               size_t VSize = 0) {
+  void *NewEltsReplace = llvm::safe_malloc(NewCapacity * TSize);
+  if (VSize)
+    memcpy(NewEltsReplace, NewElts, VSize * TSize);
+  free(NewElts);
+  return NewEltsReplace;
+}
+
 // Note: Moving this function into the header may cause performance regression.
 template <class Size_T>
-void *SmallVectorBase<Size_T>::mallocForGrow(size_t MinSize, size_t TSize,
+void *SmallVectorBase<Size_T>::mallocForGrow(void *FirstEl, size_t MinSize,
+                                             size_t TSize,
                                              size_t &NewCapacity) {
   NewCapacity = getNewCapacity<Size_T>(MinSize, TSize, this->capacity());
-  return llvm::safe_malloc(NewCapacity * TSize);
+  // Even if capacity is not 0 now, if the vector was originally created with
+  // capacity 0, it's possible for the malloc to return FirstEl.
+  void *NewElts = llvm::safe_malloc(NewCapacity * TSize);
+  if (NewElts == FirstEl)
+    NewElts = replaceAllocation(NewElts, TSize, NewCapacity);
+  return NewElts;
 }
 
 // Note: Moving this function into the header may cause performance regression.
@@ -123,17 +148,20 @@ void SmallVectorBase<Size_T>::grow_pod(void *FirstEl, size_t MinSize,
   size_t NewCapacity = getNewCapacity<Size_T>(MinSize, TSize, this->capacity());
   void *NewElts;
   if (BeginX == FirstEl) {
-    NewElts = safe_malloc(NewCapacity * TSize);
+    NewElts = llvm::safe_malloc(NewCapacity * TSize);
+    if (NewElts == FirstEl)
+      NewElts = replaceAllocation(NewElts, TSize, NewCapacity);
 
     // Copy the elements over.  No need to run dtors on PODs.
     memcpy(NewElts, this->BeginX, size() * TSize);
   } else {
     // If this wasn't grown from the inline copy, grow the allocated space.
-    NewElts = safe_realloc(this->BeginX, NewCapacity * TSize);
+    NewElts = llvm::safe_realloc(this->BeginX, NewCapacity * TSize);
+    if (NewElts == FirstEl)
+      NewElts = replaceAllocation(NewElts, TSize, NewCapacity, size());
   }
 
-  this->BeginX = NewElts;
-  this->Capacity = NewCapacity;
+  this->set_allocation_range(NewElts, NewCapacity);
 }
 
 template class llvm::SmallVectorBase<uint32_t>;

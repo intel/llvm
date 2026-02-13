@@ -12,12 +12,15 @@
 include "mlir/Dialect/Tensor/IR/TensorBase.td"
 include "mlir/Interfaces/CastInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
+include "mlir/Interfaces/DestinationStyleOpInterface.td"
+include "mlir/Interfaces/InferIntRangeInterface.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/ParallelCombiningOpInterface.td"
 include "mlir/Interfaces/ShapedOpInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/TilingInterface.td"
 include "mlir/Interfaces/ViewLikeInterface.td"
+include "mlir/IR/OpAsmInterface.td"
 
 class Tensor_Op<string mnemonic, list<Trait> traits = []>
     : Op<Tensor_Dialect, mnemonic, traits>;
@@ -28,7 +31,17 @@ class Tensor_OpWithOffsetSizesAndStrides<string mnemonic,
                                          list<Trait> traits = []>
     : Tensor_Op<mnemonic, traits> {
   code extraBaseClassDeclaration = [{
-    /// Returns the dynamic sizes for this subview operation if specified.
+    /// Return the type of the base tensor operand.
+    ::mlir::RankedTensorType getSourceType() {
+      return ::llvm::cast<RankedTensorType>(getSource().getType());
+    }
+
+    /// Return the type of the result tensor.
+    ::mlir::RankedTensorType getResultType() {
+      return ::llvm::cast<RankedTensorType>(getResult().getType());
+    }
+
+    /// Return the dynamic sizes for this subview operation if specified.
     ::mlir::Operation::operand_range getDynamicSizes() { return getSizes(); }
 
     /// Return the list of Range (i.e. offset, size, stride). Each
@@ -42,11 +55,44 @@ class Tensor_OpWithOffsetSizesAndStrides<string mnemonic,
 }
 
 //===----------------------------------------------------------------------===//
+// BitcastOp
+//===----------------------------------------------------------------------===//
+
+def Tensor_BitcastOp : Tensor_Op<"bitcast", [
+    DeclareOpInterfaceMethods<CastOpInterface>,
+    Pure
+  ]> {
+  let summary = "tensor bitcast operation";
+  let description = [{
+    Bitcast a tensor from one type to another type of equivalent element width.
+    If both are ranked, then the rank should be the same and static dimensions
+    should match.
+
+    Example:
+
+    ```mlir
+    // Bitcast from unsigned to signed or signless integer.
+    %2 = tensor.bitcast %1 : tensor<4xui32> to tensor<4xi32>
+    ```
+  }];
+
+  let arguments = (ins TensorOf<[AnySignlessInteger, AnyUnsignedInteger, 
+                                 AnySignedInteger, AnyFloat]>:$source);
+  let results = (outs TensorOf<[AnySignlessInteger, AnyUnsignedInteger,
+                                AnySignedInteger, AnyFloat]>:$dest);
+  let assemblyFormat = "$source attr-dict `:` type($source) `to` type($dest)";
+
+  let hasCanonicalizer = 1;
+}
+
+//===----------------------------------------------------------------------===//
 // CastOp
 //===----------------------------------------------------------------------===//
 
 def Tensor_CastOp : Tensor_Op<"cast", [
-    DeclareOpInterfaceMethods<CastOpInterface>, NoSideEffect
+    DeclareOpInterfaceMethods<CastOpInterface>,
+    DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
+    Pure
   ]> {
   let summary = "tensor cast operation";
   let description = [{
@@ -79,10 +125,83 @@ def Tensor_CastOp : Tensor_Op<"cast", [
 }
 
 //===----------------------------------------------------------------------===//
+// ConcatOp
+//===----------------------------------------------------------------------===//
+
+def Tensor_ConcatOp : Tensor_Op<"concat",
+    [Pure,
+     DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
+     DeclareOpInterfaceMethods<ReifyRankedShapedTypeOpInterface, [
+       "reifyResultShapes"]>,
+     ]> {
+  let summary = "tensor concatenation operation";
+  let description = [{
+    The "concat" operation constructs a tensor out of a variadic list of input
+    tensors, concatenated along a static dimension number. All inputs and the
+    result type must share the same rank.
+
+    `dim` specifies the dimension along which to concatenate. The size of the
+    concatenated dimension in the result must be equal to the sum of the sizes
+    of the inputs along that dimension. All other dimensions in both the inputs
+    and result must be the same size.
+
+    Example:
+
+    ```mlir
+    %0 = tensor.concat dim(0) %0, %1, %2 :
+        (tensor<3x6xf32>, tensor<3x6xf32>, tensor<1x6xf32) -> tensor<7x6xf32>
+
+    // Dynamic + dynamic -> static
+    %0 = tensor.concat dim(1) %0, %1, %2 :
+        (tensor<3x?xf32>, tensor<3x2xf32>, tensor<3x?xf32) -> tensor<3x10xf32>
+    ```
+  }];
+  let arguments = (ins I64Attr:$dim,
+                       Variadic<AnyRankedTensor>:$inputs);
+  let results = (outs AnyRankedTensor:$result);
+  let assemblyFormat = [{
+    `dim` `(` $dim `)` $inputs attr-dict
+    `:` functional-type(operands, results)
+  }];
+
+  let builders = [
+    // Builder with an inferred result type.
+    OpBuilder<(ins "int64_t":$dim, "ValueRange":$inputs)>,
+  ];
+
+  let extraClassDeclaration = [{
+    // Helper to infer the concatenated result type for the given list of input
+    // types, being concatenated along `dim`. Because concatenation can specify
+    // more static information than can automatically be inferred,
+    // InferTypeOpInterface is not used.
+    static RankedTensorType inferResultType(int64_t dim, TypeRange inputTypes);
+
+    RankedTensorType getResultType() {
+      return ::llvm::cast<RankedTensorType>(getResult().getType());
+    }
+
+    int64_t getRank() {
+      return ::llvm::cast<RankedTensorType>(getResult().getType()).getRank();
+    }
+
+    // Method to decompose the operation into a sequence of insert_slices.
+    FailureOr<SmallVector<Value>> decomposeOperation(OpBuilder &builder);
+  }];
+
+  let hasCanonicalizer = 1;
+  let hasFolder = 1;
+  let hasVerifier = 1;
+}
+
+//===----------------------------------------------------------------------===//
 // DimOp
 //===----------------------------------------------------------------------===//
 
-def Tensor_DimOp : Tensor_Op<"dim", [NoSideEffect, ShapedDimOpInterface]> {
+def Tensor_DimOp : Tensor_Op<"dim", [
+    DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
+    ConditionallySpeculatable, NoMemoryEffect,
+    ShapedDimOpInterface,
+    DeclareOpInterfaceMethods<InferIntRangeInterface, ["inferResultRangesFromOptional"]>]> {
   let summary = "dimension index operation";
   let description = [{
     The `tensor.dim` operation takes a tensor and a dimension operand of type
@@ -98,17 +217,17 @@ def Tensor_DimOp : Tensor_Op<"dim", [NoSideEffect, ShapedDimOpInterface]> {
     %c0 = arith.constant 0 : index
     %x = tensor.dim %A, %c0 : tensor<4x?xf32>
 
-    // Returns the dynamic dimension of %A.
+    // Return the dynamic dimension of %A.
     %c1 = arith.constant 1 : index
-    %y = tensor.dim %A, %c1 : memref<4x?xf32>
+    %y = tensor.dim %A, %c1 : tensor<4x?xf32>
 
     // Equivalent generic form:
-    %x = "tensor.dim"(%A, %c0) : (memref<4x?xf32>, index) -> index
-    %y = "tensor.dim"(%A, %c1) : (memref<4x?xf32>, index) -> index
+    %x = "tensor.dim"(%A, %c0) : (tensor<4x?xf32>, index) -> index
+    %y = "tensor.dim"(%A, %c1) : (tensor<4x?xf32>, index) -> index
     ```
   }];
 
-  let arguments = (ins AnyTensor:$source,
+  let arguments = (ins AnyNon0RankedOrUnrankedTensor:$source,
                        Index:$index);
   let results = (outs Index:$result);
 
@@ -122,18 +241,20 @@ def Tensor_DimOp : Tensor_Op<"dim", [NoSideEffect, ShapedDimOpInterface]> {
 
   let extraClassDeclaration = [{
     /// Helper function to get the index as a simple integer if it is constant.
-    Optional<int64_t> getConstantIndex();
+    std::optional<int64_t> getConstantIndex();
 
     /// Interface method of ShapedDimOpInterface: Return the source tensor.
     Value getShapedValue() { return getSource(); }
 
     /// Interface method of ShapedDimOpInterface: Return the dimension.
     OpFoldResult getDimension() { return getIndex(); }
+
+    /// Interface method for ConditionallySpeculatable.
+    Speculation::Speculatability getSpeculatability();
   }];
 
   let hasCanonicalizer = 1;
   let hasFolder = 1;
-  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -141,8 +262,9 @@ def Tensor_DimOp : Tensor_Op<"dim", [NoSideEffect, ShapedDimOpInterface]> {
 //===----------------------------------------------------------------------===//
 
 def Tensor_EmptyOp : Tensor_Op<"empty",
-    [NoSideEffect,
-     DeclareOpInterfaceMethods<ReifyRankedShapedTypeOpInterface>]> {
+    [Pure,
+     DeclareOpInterfaceMethods<ReifyRankedShapedTypeOpInterface, [
+       "reifyResultShapes"]>]> {
   let summary = "empty tensor operation";
 
   let description = [{
@@ -168,7 +290,7 @@ def Tensor_EmptyOp : Tensor_Op<"empty",
 
   let extraClassDeclaration = [{
     RankedTensorType getType() {
-      return getResult().getType().cast<RankedTensorType>();
+      return ::llvm::cast<RankedTensorType>(getResult().getType());
     }
 
     // Return both static and dynamic sizes as a list of `OpFoldResult`.
@@ -181,14 +303,17 @@ def Tensor_EmptyOp : Tensor_Op<"empty",
 
   let builders = [
     // Build with fully static sizes.
-    OpBuilder<(ins "ArrayRef<int64_t>":$staticShape, "Type":$elementType)>,
+    OpBuilder<(ins "ArrayRef<int64_t>":$staticShape, "Type":$elementType,
+                   CArg<"Attribute", "{}">:$encoding)>,
 
     // Build with mixed static/dynamic sizes.
     OpBuilder<(ins "ArrayRef<int64_t>":$staticShape, "Type":$elementType,
-                   "ValueRange":$dynamicSizes)>,
+                   "ValueRange":$dynamicSizes,
+                   CArg<"Attribute", "{}">:$encoding)>,
 
     // Build with mixed static/dynamic sizes.
-    OpBuilder<(ins "ArrayRef<OpFoldResult>":$sizes, "Type":$elementType)>
+    OpBuilder<(ins "ArrayRef<OpFoldResult>":$sizes, "Type":$elementType,
+                   CArg<"Attribute", "{}">:$encoding)>
   ];
 
   let hasCanonicalizer = 1;
@@ -199,39 +324,32 @@ def Tensor_EmptyOp : Tensor_Op<"empty",
 // ExtractOp
 //===----------------------------------------------------------------------===//
 
-def Tensor_ExtractOp : Tensor_Op<"extract",
-    [NoSideEffect,
-     TypesMatchWith<"result type matches element type of tensor",
-                    "tensor", "result",
-                    "$_self.cast<ShapedType>().getElementType()">]> {
+def Tensor_ExtractOp : Tensor_Op<"extract", [
+    DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
+    Pure,
+    TypesMatchWith<"result type matches element type of tensor",
+                   "tensor", "result",
+                   "::llvm::cast<TensorType>($_self).getElementType()">]> {
   let summary = "element extraction operation";
   let description = [{
-    The `tensor.extract` op reads a tensor and returns one
-    element from it specified by an index list. The output of the op is a
-    new value with the same type as the elements of the tensor. The
-    arity of indices must match the rank of the accessed value (i.e., if a
-    tensor is of rank 3, then 3 indices are required for the extract. The
-    indices should all be of `index` type.
+    The `tensor.extract` op reads a ranked tensor and returns one element as
+    specified by the given indices. The result of the op is a value with the
+    same type as the elements of the tensor. The arity of indices must match
+    the rank of the accessed value. All indices should all be of `index` type.
 
     Example:
 
     ```mlir
     %4 = tensor.extract %t[%1, %2] : tensor<4x4xi32>
     %5 = tensor.extract %rt[%1, %2] : tensor<?x?xi32>
-    %6 = tensor.extract %ut[%1, %2] : tensor<*xi32>
     ```
   }];
 
-  let arguments = (ins AnyTensor:$tensor, Variadic<Index>:$indices);
+  let arguments = (ins AnyRankedTensor:$tensor, Variadic<Index>:$indices);
   let results = (outs AnyType:$result);
   let assemblyFormat = "$tensor `[` $indices `]` attr-dict `:` type($tensor)";
 
-  let builders = [
-    OpBuilder<(ins "Value":$tensor, CArg<"ValueRange", "{}">:$indices), [{
-      auto resType = tensor.getType().cast<ShapedType>().getElementType();
-      build($_builder, $_state, resType, tensor, indices);
-    }]>];
-
+  let hasCanonicalizer = 1;
   let hasFolder = 1;
   let hasVerifier = 1;
 }
@@ -242,8 +360,11 @@ def Tensor_ExtractOp : Tensor_Op<"extract",
 //===----------------------------------------------------------------------===//
 
 def Tensor_ExtractSliceOp : Tensor_OpWithOffsetSizesAndStrides<"extract_slice", [
-    NoSideEffect, AttrSizedOperandSegments,
-    DeclareOpInterfaceMethods<ReifyRankedShapedTypeOpInterface>,
+    DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
+    DeclareOpInterfaceMethods<ReifyRankedShapedTypeOpInterface, [
+      "reifyResultShapes"]>,
+    AttrSizedOperandSegments,
+    Pure,
     OffsetSizeAndStrideOpInterface
   ]> {
   let summary = "extract slice operation";
@@ -264,8 +385,7 @@ def Tensor_ExtractSliceOp : Tensor_OpWithOffsetSizesAndStrides<"extract_slice", 
     The representation based on offsets, sizes and strides support a
     partially-static specification via attributes specified through the
     `static_offsets`, `static_sizes` and `static_strides` arguments. A special
-    sentinel value ShapedType::kDynamicSize and
-    ShapedType::kDynamicStrideOrOffset encodes that the corresponding entry has
+    sentinel value ShapedType::kDynamic encodes that the corresponding entry has
     a dynamic value.
 
     After buffer allocation, the "extract_slice" op is expected to lower into a
@@ -277,8 +397,8 @@ def Tensor_ExtractSliceOp : Tensor_OpWithOffsetSizesAndStrides<"extract_slice", 
     flexibility allows to progressively drop unit dimensions while lowering
     between different flavors of ops on that operate on tensors.
 
-    Verification vs Inference in the rank-reduced case:
-    ===================================================
+    #### Verification vs Inference in the rank-reduced case
+
     Note that there may be multiple ways to infer a resulting rank-reduced type.
       e.g. 1x6x1 could potentially rank-reduce to either 1x6 or 6x1 2-D shapes.
 
@@ -312,20 +432,17 @@ def Tensor_ExtractSliceOp : Tensor_OpWithOffsetSizesAndStrides<"extract_slice", 
     Variadic<Index>:$offsets,
     Variadic<Index>:$sizes,
     Variadic<Index>:$strides,
-    I64ArrayAttr:$static_offsets,
-    I64ArrayAttr:$static_sizes,
-    I64ArrayAttr:$static_strides
+    DenseI64ArrayAttr:$static_offsets,
+    DenseI64ArrayAttr:$static_sizes,
+    DenseI64ArrayAttr:$static_strides
   );
   let results = (outs AnyRankedTensor:$result);
 
   let assemblyFormat = [{
     $source ``
-    custom<DynamicIndexList>($offsets, $static_offsets,
-                               "ShapedType::kDynamicStrideOrOffset")
-    custom<DynamicIndexList>($sizes, $static_sizes,
-                               "ShapedType::kDynamicSize")
-    custom<DynamicIndexList>($strides, $static_strides,
-                               "ShapedType::kDynamicStrideOrOffset")
+    custom<DynamicIndexList>($offsets, $static_offsets)
+    custom<DynamicIndexList>($sizes, $static_sizes)
+    custom<DynamicIndexList>($strides, $static_strides)
     attr-dict `:` type($source) `to` type($result)
   }];
 
@@ -353,23 +470,24 @@ def Tensor_ExtractSliceOp : Tensor_OpWithOffsetSizesAndStrides<"extract_slice", 
     // Build an ExtractSliceOp with mixed static and dynamic entries packed in
     // a Range vector.
     OpBuilder<(ins "Value":$source, "ArrayRef<Range>":$ranges,
-      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,    
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
+    // Build an ExtractSliceOp with mixed static and dynamic sizes, inferred
+    // result type, offsets set to 0 and strides set to 1.
+    OpBuilder<(ins "RankedTensorType":$resultType, "Value":$source,
+      "ArrayRef<OpFoldResult>":$sizes,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
   ];
 
   let extraClassDeclaration = extraBaseClassDeclaration # [{
-    /// Returns the type of the base tensor operand.
-    RankedTensorType getSourceType() {
-      return getSource().getType().cast<RankedTensorType>();
-    }
-
     /// The result of an extract_slice is always a tensor.
+    // TODO: deprecate
     RankedTensorType getType() {
-      return getResult().getType().cast<RankedTensorType>();
+      return getResultType();
     }
 
     /// Compute the rank-reduction mask that can be applied to map the source
     /// tensor type to the result tensor type by dropping unit dims.
-    llvm::Optional<llvm::SmallDenseSet<unsigned>>
+    std::optional<llvm::SmallDenseSet<unsigned>>
     computeRankReductionMask() {
       return ::mlir::computeRankReductionMask(getSourceType().getShape(),
                                               getType().getShape());
@@ -377,17 +495,13 @@ def Tensor_ExtractSliceOp : Tensor_OpWithOffsetSizesAndStrides<"extract_slice", 
 
     /// An extract_slice result type can be inferred, when it is not
     /// rank-reduced, from the source type and the static representation of
-    /// offsets, sizes and strides. Special sentinels encode the dynamic case.
+    /// sizes. Special sentinels encode the dynamic case.
     static RankedTensorType inferResultType(
-      ShapedType sourceShapedTensorType,
-      ArrayRef<int64_t> staticOffsets,
-      ArrayRef<int64_t> staticSizes,
-      ArrayRef<int64_t> staticStrides);
+      RankedTensorType sourceTensorType,
+      ArrayRef<int64_t> staticSizes);
     static RankedTensorType inferResultType(
-      ShapedType sourceShapedTensorType,
-      ArrayRef<OpFoldResult> staticOffsets,
-      ArrayRef<OpFoldResult> staticSizes,
-      ArrayRef<OpFoldResult> staticStrides);
+      RankedTensorType sourceTensorType,
+      ArrayRef<OpFoldResult> staticSizes);
 
     /// If the rank is reduced (i.e. the desiredResultRank is smaller than the
     /// number of sizes), drop as many size 1 as needed to produce an inferred type
@@ -400,15 +514,11 @@ def Tensor_ExtractSliceOp : Tensor_OpWithOffsetSizesAndStrides<"extract_slice", 
     static RankedTensorType inferCanonicalRankReducedResultType(
       unsigned resultRank,
       RankedTensorType sourceRankedTensorType,
-      ArrayRef<int64_t> staticOffsets,
-      ArrayRef<int64_t> staticSizes,
-      ArrayRef<int64_t> staticStrides);
+      ArrayRef<int64_t> staticSizes);
     static RankedTensorType inferCanonicalRankReducedResultType(
       unsigned resultRank,
       RankedTensorType sourceRankedTensorType,
-      ArrayRef<OpFoldResult> staticOffsets,
-      ArrayRef<OpFoldResult> staticSizes,
-      ArrayRef<OpFoldResult> staticStrides);
+      ArrayRef<OpFoldResult> staticSizes);
 
     /// Return the expected rank of each of the`static_offsets`, `static_sizes`
     /// and `static_strides` attributes.
@@ -424,6 +534,15 @@ def Tensor_ExtractSliceOp : Tensor_OpWithOffsetSizesAndStrides<"extract_slice", 
     /// Return the dimensions of the source that are dropped in the
     /// result when the result is rank-reduced.
     llvm::SmallBitVector getDroppedDims();
+
+    /// Given a `value`, asserted to be of RankedTensorType, build an
+    /// ExtractSliceOp that results in a rank-reducing extract to the desired
+    /// tensor shape and return the new value created.
+    /// If the shape of `value` is already the `desiredShape`, just return
+    /// `value`.
+    /// If the shape of `value` cannot be rank-reduced to `desiredShape`, fail.
+    static FailureOr<Value> rankReduceIfNeeded(
+      OpBuilder &b, Location loc, Value value, ArrayRef<int64_t> desiredShape);
   }];
 
   let hasCanonicalizer = 1;
@@ -436,11 +555,12 @@ def Tensor_ExtractSliceOp : Tensor_OpWithOffsetSizesAndStrides<"extract_slice", 
 //===----------------------------------------------------------------------===//
 
 def Tensor_FromElementsOp : Tensor_Op<"from_elements", [
-    NoSideEffect,
+    DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
+    Pure,
     TypesMatchWith<"operand types match result element type",
                    "result", "elements", "SmallVector<Type, 2>("
-                   "$_self.cast<ShapedType>().getNumElements(), "
-                   "$_self.cast<ShapedType>().getElementType())">
+                   "::llvm::cast<RankedTensorType>($_self).getNumElements(), "
+                   "::llvm::cast<RankedTensorType>($_self).getElementType())">
   ]> {
   let summary = "tensor from elements operation.";
   let description = [{
@@ -465,9 +585,7 @@ def Tensor_FromElementsOp : Tensor_Op<"from_elements", [
 
   let assemblyFormat = "$elements attr-dict `:` type($result)";
 
-  let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<(ins "Type":$resultType, "ValueRange":$elements)>,
     // Special case builder for when `elements` has size >=1.
     OpBuilder<(ins "ValueRange":$elements)>
   ];
@@ -481,7 +599,8 @@ def Tensor_FromElementsOp : Tensor_Op<"from_elements", [
 //===----------------------------------------------------------------------===//
 
 def Tensor_GatherOp : Tensor_Op<"gather", [
-    NoSideEffect
+    DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
+    Pure
   ]> {
   let summary = "gather a subset of a tensor at specified indices";
   let description = [{
@@ -489,19 +608,19 @@ def Tensor_GatherOp : Tensor_Op<"gather", [
     tensor at the given indices.
 
     In its most general form, the tensor of indices specifies all the coordinates
-    of every element to extract (i.e. COO format, without the payload). 
+    of every element to extract (i.e. COO format, without the payload).
     The indices are expected to be confined to coordinate values that fit the
     range of the `source` tensor, otherwise the behavior is undefined.
 
     The leading dimensions of the index tensor give the result tensor its leading
-    dimensions. The trailing dimensions of the result tensor are obtained from 
-    the source tensor by omitting the dimensions specified in `gather_dims` 
+    dimensions. The trailing dimensions of the result tensor are obtained from
+    the source tensor by omitting the dimensions specified in `gather_dims`
     (rank-reducing semantics) or setting them to `1` (rank-preserving semantics)
     (see examples).
     The trailing dimension of the index tensor contains the coordinates and is
     expected to have its size equal to the number of dimensions being gathered.
     This convention allows an idiomatic specification and lowering of "gathering
-    multiple N-D slices from the source tensor". 
+    multiple N-D slices from the source tensor".
 
     Note: in the examples below, we separate out the indexing part of the tensor
     type by a whitespace for readability purposes.
@@ -509,7 +628,7 @@ def Tensor_GatherOp : Tensor_Op<"gather", [
     Example:
 
     ```mlir
-        // For each 1x2 triple of coordinates in %indices, extract the 
+        // For each 1x2 triple of coordinates in %indices, extract the
         // element (i.e. 0-D subset) at the coordinates triple in %source.
         //
         %out = tensor.gather %source[%indices] gather_dims([0, 1, 2]) :
@@ -528,20 +647,20 @@ def Tensor_GatherOp : Tensor_Op<"gather", [
         // slice %source[*, %indices[...]:%indices[...] + 1, *] with the indices
         // corresponding to the `gather_dims` attribute specified by %indices.
         //
-        %out = tensor.gather %source[%indices] gather_dims([1]) : 
+        %out = tensor.gather %source[%indices] gather_dims([1]) :
           (tensor<3x4x5xf32>, tensor<6x7x 1xindex>) -> tensor<6x7x 3x1x5xf32>
 
         // Note: result type may be further rank-reduced to tensor<6x7x 3x5xf32>.
     ```
 
     The dimensions specified in the gather_dims attribute are ones for which the
-    result tensor has size `1`. 
+    result tensor has size `1`.
     I.e. if the source type is `axbxcxd` and the coordinates are [1, 3], then
     the shape suffix is `ax1xcx1`.
     Gather also allows rank-reducing semantics where the shape `ax1xcx1` can be
     further simplified to `axc`.
 
-    The elemental type of the indices tensor can be any integer type. 
+    The elemental type of the indices tensor can be any integer type.
     In the absence of target-specific or problem specific information the default
     type one should use is `index`.
 
@@ -552,76 +671,79 @@ def Tensor_GatherOp : Tensor_Op<"gather", [
     Incorrectly setting the `unique` attribute when the coordinates are not truly
     unique is undefined behavior.
 
-    Only full slices are meant to be supported by this op, if one desires 
+    Only full slices are meant to be supported by this op, if one desires
     partial slices (e.g. strided windows) one should compose this op with other
     tensor ops (e.g. tensor.extract_slice). This is to avoid a slippery slope of
     complexity that would make the op unusable in practice.
 
-    At the tensor-level, the index tensor is specified in an AoS form (i.e. 
-    coordinate tuple is the most minor). It is the responsibility of further 
-    lowerings and bufferiation to implement various concrete layouts.
+    At the tensor-level, the index tensor is specified in an AoS form (i.e.
+    coordinate tuple is the most minor). It is the responsibility of further
+    lowerings and bufferization to implement various concrete layouts.
 
     Note: As currently specified, the operation must lower to an abstraction that
     performs copies to the output tensor. This is because the buffer type system
-    is currently not rich enough to allow multiple non-contiguous views in the 
+    is currently not rich enough to allow multiple non-contiguous views in the
     same type. This is visible more clearly in a notional buffer version of the
     op:
 
     ```mlir
         // memref<?x4x1xf32> is a contiguous buffer of ?x4x1 elements.
         // gather from random source slices must copy to the contiguous output.
-        %out = memref.gather %source[%indices] gather_dims([1]) : 
+        %out = memref.gather %source[%indices] gather_dims([1]) :
           (memref<4x4xf32>, memref<?x 1xindex>) -> memref<?x 4x1xf32>
 
-        // Nested buffer support would allow gather to directly index into the 
+        // Nested buffer support would allow gather to directly index into the
         // source buffer (i.e. represent a jagged view into the source).
-        %out = memref.gather %source[%indices] gather_dims([1]) : 
+        %out = memref.gather %source[%indices] gather_dims([1]) :
           (memref<4x4xf32>, memref<?x 1xindex>) -> memref<? x memref<4x1xf32>>
     ```
   }];
 
-  let arguments = (ins AnyRankedTensor:$source, 
+  let arguments = (ins AnyRankedTensor:$source,
                        RankedTensorOf<[AnySignlessIntegerOrIndex]>:$indices,
                        DenseI64ArrayAttr:$gather_dims,
                        UnitAttr:$unique);
   let results = (outs AnyRankedTensor:$result);
 
   let assemblyFormat = [{
-    $source `[` $indices `]` 
+    $source `[` $indices `]`
       `gather_dims` `(` $gather_dims `)`
-      (`unique` $unique^)?  
+      (`unique` $unique^)?
       attr-dict
     `:` functional-type(operands, results)
   }];
 
   let extraClassDeclaration = [{
-    // TODO: InferTypeOpInterface once enough confidence is built with 
-    // tensor<tensor> and its lwoering to memref<memref>.
+    // TODO: InferTypeOpInterface once enough confidence is built with
+    // tensor<tensor> and its lowering to memref<memref>.
     static RankedTensorType inferResultType(RankedTensorType sourceType,
                                             RankedTensorType indicesType,
                                             ArrayRef<int64_t> gatherDims,
                                             bool rankReduced);
     RankedTensorType getIndicesType() {
-      return getIndices().getType().cast<RankedTensorType>();
+      return ::llvm::cast<RankedTensorType>(getIndices().getType());
     }
     RankedTensorType getSourceType() {
-      return getSource().getType().cast<RankedTensorType>();
+      return ::llvm::cast<RankedTensorType>(getSource().getType());
     }
     RankedTensorType getResultType() {
-      return getResult().getType().cast<RankedTensorType>();
+      return ::llvm::cast<RankedTensorType>(getResult().getType());
     }
   }];
   let hasVerifier = 1;
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
 // GenerateOp
 //===----------------------------------------------------------------------===//
 
-def Tensor_GenerateOp : Tensor_Op<"generate",
-    [RecursiveSideEffects,
-     DeclareOpInterfaceMethods<ReifyRankedShapedTypeOpInterface>,
-     SingleBlockImplicitTerminator<"mlir::tensor::YieldOp">]> {
+def Tensor_GenerateOp : Tensor_Op<"generate", [
+    DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
+    RecursiveMemoryEffects,
+    DeclareOpInterfaceMethods<ReifyRankedShapedTypeOpInterface, [
+      "reifyResultShapes"]>,
+    SingleBlockImplicitTerminator<"mlir::tensor::YieldOp">]> {
   let summary = "Creates a dynamically sized tensor from elements";
   let description = [{
     This operation creates a dynamically sized tensor with elements of any type.
@@ -664,49 +786,46 @@ def Tensor_GenerateOp : Tensor_Op<"generate",
 // InsertOp
 //===----------------------------------------------------------------------===//
 
-def Tensor_InsertOp : Tensor_Op<"insert",
-    [NoSideEffect,
-     TypesMatchWith<"result type matches type of dest",
-                    "dest", "result",
-                    "$_self.cast<ShapedType>()">,
-     TypesMatchWith<"scalar type matches element type of dest",
-                    "dest", "scalar",
-                    "$_self.cast<ShapedType>().getElementType()">]> {
+def Tensor_InsertOp : Tensor_Op<"insert", [
+    DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
+    DestinationStyleOpInterface,
+    Pure,
+    TypesMatchWith<"result type matches type of dest",
+                   "dest", "result",
+                   "$_self">,
+    TypesMatchWith<"scalar type matches element type of dest",
+                   "dest", "scalar",
+                   "::llvm::cast<TensorType>($_self).getElementType()">]> {
   let summary = "element insertion operation";
   let description = [{
-    The `tensor.insert` op writes a tensor into a tensor `dest`as specified by
-    the operation's indices.
+    The `tensor.insert` op inserts a scalar into a ranked tensor `dest` as
+    specified by the operation's indices.
 
-    It returns a copy of `dest` with the proper slice updated with the value
+    It returns a copy of `dest` with the indexed position updated to the value
     of `scalar`.
 
-    The arity of indices must match the rank of the tensor `dest` (i.e., if a
-    tensor is of rank 3, then 3 indices are required for the extract. The
-    indices should all be of `index` type.
+    The arity of `indices `must match the rank of the tensor `dest`. All
+    indices should be of `index` type.
 
     Example:
 
     ```mlir
     %4 = tensor.insert %t into %dest[%1, %2] : tensor<4x4xi32>
     %5 = tensor.insert %rt into %dest[%1, %2] : tensor<?x?xi32>
-    %6 = tensor.insert %ut into %dest[%1, %2] : tensor<*xi32>
     ```
   }];
 
   let arguments = (ins AnyType:$scalar,
-                       AnyTensor:$dest,
+                       AnyRankedTensor:$dest,
                        Variadic<Index>:$indices);
-  let results = (outs AnyTensor:$result);
+  let results = (outs AnyRankedTensor:$result);
   let assemblyFormat = [{
     $scalar `into` $dest `[` $indices `]` attr-dict `:` type($dest)
   }];
 
-  let builders = [
-    OpBuilder<(ins "Value":$scalar, "Value":$dest,
-      CArg<"ValueRange", "{}">:$indices), [{
-      auto resType = dest.getType();
-      build($_builder, $_state, resType, scalar, dest, indices);
-    }]>];
+  let extraClassDeclaration = [{
+    MutableOperandRange getDpsInitsMutable() { return getDestMutable(); }
+  }];
 
   let hasFolder = 1;
   let hasVerifier = 1;
@@ -717,8 +836,13 @@ def Tensor_InsertOp : Tensor_Op<"insert",
 //===----------------------------------------------------------------------===//
 
 def Tensor_InsertSliceOp : Tensor_OpWithOffsetSizesAndStrides<"insert_slice", [
-    NoSideEffect, AttrSizedOperandSegments, OffsetSizeAndStrideOpInterface,
-    DeclareOpInterfaceMethods<ReifyRankedShapedTypeOpInterface>,
+    DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
+    DeclareOpInterfaceMethods<ReifyRankedShapedTypeOpInterface, [
+      "reifyResultShapes"]>,
+    AttrSizedOperandSegments,
+    DestinationStyleOpInterface,
+    Pure,
+    OffsetSizeAndStrideOpInterface,
     TypesMatchWith<"expected result type to match dest type",
                    "dest", "result", "$_self">
   ]> {
@@ -745,8 +869,7 @@ def Tensor_InsertSliceOp : Tensor_OpWithOffsetSizesAndStrides<"insert_slice", [
     The representation based on offsets, sizes and strides support a
     partially-static specification via attributes specified through the
     `static_offsets`, `static_sizes` and `static_strides` arguments. A special
-    sentinel value ShapedType::kDynamicSize and
-    ShapedType::kDynamicStrideOrOffset encodes that the corresponding entry has
+    sentinel value ShapedType::kDynamic encodes that the corresponding entry has
     a dynamic value.
 
     After buffer allocation, the "insert_slice" op is expected to lower into a
@@ -761,8 +884,8 @@ def Tensor_InsertSliceOp : Tensor_OpWithOffsetSizesAndStrides<"insert_slice", [
     The rank-altering behavior of tensor.insert_slice matches the rank-reducing
     behavior of tensor.extract_slice.
 
-    Verification in the rank-reduced case:
-    ======================================
+    #### Verification in the rank-reduced case
+
     The same verification discussion and mechanisms apply as for ExtractSliceOp.
     Unlike ExtractSliceOp however, there is no need for a specific inference.
 
@@ -783,66 +906,71 @@ def Tensor_InsertSliceOp : Tensor_OpWithOffsetSizesAndStrides<"insert_slice", [
     Variadic<Index>:$offsets,
     Variadic<Index>:$sizes,
     Variadic<Index>:$strides,
-    I64ArrayAttr:$static_offsets,
-    I64ArrayAttr:$static_sizes,
-    I64ArrayAttr:$static_strides
+    DenseI64ArrayAttr:$static_offsets,
+    DenseI64ArrayAttr:$static_sizes,
+    DenseI64ArrayAttr:$static_strides
   );
   let results = (outs AnyRankedTensor:$result);
 
   let assemblyFormat = [{
     $source `into` $dest ``
-    custom<DynamicIndexList>($offsets, $static_offsets,
-                               "ShapedType::kDynamicStrideOrOffset")
-    custom<DynamicIndexList>($sizes, $static_sizes,
-                               "ShapedType::kDynamicSize")
-    custom<DynamicIndexList>($strides, $static_strides,
-                               "ShapedType::kDynamicStrideOrOffset")
+    custom<DynamicIndexList>($offsets, $static_offsets)
+    custom<DynamicIndexList>($sizes, $static_sizes)
+    custom<DynamicIndexList>($strides, $static_strides)
     attr-dict `:` type($source) `into` type($dest)
   }];
 
   let builders = [
-    // Build a InsertSliceOp with mixed static and dynamic entries.
+    // Build a InsertSliceOp with mixed static and dynamic entries and inferred
+    // result type.
     OpBuilder<(ins "Value":$source, "Value":$dest,
       "ArrayRef<OpFoldResult>":$offsets, "ArrayRef<OpFoldResult>":$sizes,
       "ArrayRef<OpFoldResult>":$strides,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
-    // Build a InsertSliceOp with dynamic entries.
+    // Build a InsertSliceOp with dynamic entries and inferred result type.
     OpBuilder<(ins "Value":$source, "Value":$dest,
       "ValueRange":$offsets, "ValueRange":$sizes, "ValueRange":$strides,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
     // Build an InsertSliceOp with mixed static and dynamic entries packed in
-    // a Range vector.
+    // a Range vector and inferred result type.
     OpBuilder<(ins "Value":$source, "Value":$dest,
       "ArrayRef<Range>":$ranges,
-      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
+    // Build an InsertSliceOp with mixed static and dynamic sizes, offsets set
+    // to 0, strides set to 1 and inferred result type.
+    OpBuilder<(ins "Value":$source, "Value":$dest,
+      "ArrayRef<OpFoldResult>":$sizes,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
   ];
 
   let extraClassDeclaration = extraBaseClassDeclaration # [{
-    /// Returns the type of the base tensor operand.
-    RankedTensorType getSourceType() {
-      return getSource().getType().cast<RankedTensorType>();
-    }
-
     /// The result of a insert_slice is always a tensor.
+    // TODO: Deprecate this method.
     RankedTensorType getType() {
-      return getResult().getType().cast<RankedTensorType>();
+      return getResultType();
     }
 
     /// The `dest` type is the same as the result type.
     RankedTensorType getDestType() {
-      return getType();
+      return getResultType();
     }
 
     /// Return the expected rank of each of the`static_offsets`, `static_sizes`
     /// and `static_strides` attributes.
     std::array<unsigned, 3> getArrayAttrMaxRanks() {
-      unsigned rank = getType().getRank();
+      unsigned rank = getResultType().getRank();
       return {rank, rank, rank};
     }
+
+    /// Return the dimensions of the dest that are omitted to insert a source
+    /// when the result is rank-extended.
+    llvm::SmallBitVector getDroppedDims();
 
     /// Return the number of leading operands before the `offsets`, `sizes` and
     /// and `strides` operands.
     static unsigned getOffsetSizeAndStrideStartOperandIndex() { return 2; }
+
+    MutableOperandRange getDpsInitsMutable() { return getDestMutable(); }
   }];
 
   let hasCanonicalizer = 1;
@@ -854,7 +982,9 @@ def Tensor_InsertSliceOp : Tensor_OpWithOffsetSizesAndStrides<"insert_slice", [
 // RankOp
 //===----------------------------------------------------------------------===//
 
-def Tensor_RankOp : Tensor_Op<"rank", [NoSideEffect]> {
+def Tensor_RankOp : Tensor_Op<"rank", [
+    DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
+    Pure]> {
   let summary = "rank operation";
   let description = [{
     The `tensor.rank` operation takes a tensor operand and returns its rank.
@@ -878,7 +1008,9 @@ def Tensor_RankOp : Tensor_Op<"rank", [NoSideEffect]> {
 // ReshapeOp
 //===----------------------------------------------------------------------===//
 
-def Tensor_ReshapeOp: Tensor_Op<"reshape", [NoSideEffect]>  {
+def Tensor_ReshapeOp: Tensor_Op<"reshape", [
+    DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
+    Pure]>  {
   let summary = "tensor reshape operation";
   let description = [{
     The `reshape` operation converts a tensor from one type to an equivalent
@@ -927,13 +1059,14 @@ def Tensor_ReshapeOp: Tensor_Op<"reshape", [NoSideEffect]>  {
      }]>];
 
   let extraClassDeclaration = [{
-    TensorType getResultType() { return getResult().getType().cast<TensorType>(); }
+    TensorType getResultType() { return ::llvm::cast<TensorType>(getResult().getType()); }
   }];
 
   let assemblyFormat = [{
     $source `(` $shape `)` attr-dict `:` functional-type(operands, results)
   }];
   let hasVerifier = 1;
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -941,8 +1074,9 @@ def Tensor_ReshapeOp: Tensor_Op<"reshape", [NoSideEffect]>  {
 //===----------------------------------------------------------------------===//
 
 class Tensor_ReassociativeReshapeOp<string mnemonic, list<Trait> traits = []> :
-    Tensor_Op<mnemonic, !listconcat(traits, [NoSideEffect])>,
-    Arguments<(ins AnyTensor:$src, IndexListArrayAttr:$reassociation)>,
+    Tensor_Op<mnemonic, !listconcat(traits, [
+      DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
+      Pure])>,
     Results<(outs AnyTensor:$result)> {
 
   code commonExtraClassDeclaration = [{
@@ -953,21 +1087,17 @@ class Tensor_ReassociativeReshapeOp<string mnemonic, list<Trait> traits = []> :
       SmallVector<ReassociationIndices, 4> reassociationIndices;
       for (auto attr : getReassociation())
         reassociationIndices.push_back(llvm::to_vector<2>(
-            llvm::map_range(attr.cast<ArrayAttr>(), [&](Attribute indexAttr) {
-              return indexAttr.cast<IntegerAttr>().getInt();
+            llvm::map_range(::llvm::cast<ArrayAttr>(attr), [&](Attribute indexAttr) {
+              return ::llvm::cast<IntegerAttr>(indexAttr).getInt();
             })));
       return reassociationIndices;
-    };
+    }
     RankedTensorType getSrcType() {
-      return getSrc().getType().cast<RankedTensorType>();
+      return ::llvm::cast<RankedTensorType>(getSrc().getType());
     }
     RankedTensorType getResultType() {
-      return getResult().getType().cast<RankedTensorType>();
+      return ::llvm::cast<RankedTensorType>(getResult().getType());
     }
-  }];
-
-  let assemblyFormat = [{
-    $src $reassociation attr-dict `:` type($src) `into` type($result)
   }];
 
   let hasFolder = 1;
@@ -978,70 +1108,100 @@ class Tensor_ReassociativeReshapeOp<string mnemonic, list<Trait> traits = []> :
 def Tensor_ExpandShapeOp : Tensor_ReassociativeReshapeOp<"expand_shape"> {
   let summary = "operation to produce a tensor with a higher rank";
   let description = [{
-    The `tensor.expand_shape` op produces a new tensor with a higher
-    rank whose sizes are a reassociation of the original `src`.
+    The `tensor.expand_shape` op produces a tensor of higher (or equal)
+    rank than the operand `src` whose dimension sizes are a reassociation of
+    `src`.
 
     A reassociation is defined as a continuous grouping of dimensions and is
-    represented with an array of I64ArrayAttr attribute.
+    represented with an array of DenseI64ArrayAttr attribute.  The reassociation
+    maps applied to the result tensor with the higher rank must result in the
+    operand tensor with the smaller rank.
 
-    The verification rule is that the reassociation maps are applied to the
-    result tensor with the higher rank to obtain the operand tensor with the
-    smaller rank.
+    The representation for the output shape supports a partially-static
+    specification via attributes specified through the `static_output_shape`
+    argument.  A special sentinel value `ShapedType::kDynamic` encodes that the
+    corresponding entry has a dynamic value.  There must be exactly as many SSA
+    inputs in `output_shape` as there are `ShapedType::kDynamic` entries in
+    `static_output_shape`.
 
-    The operand tensor type of a reshape can be zero-ranked if the result
-    tensor type is statically shaped with all dimensions being unit extent. In
-    such cases the reassociation map is empty.
-
-    Examples:
+    Example:
 
     ```mlir
     // Dimension expansion i -> (i', j') and (k) -> (k')
-    %b = tensor.expand_shape %a [[0, 1], [2]]
-        : tensor<?x?xf32> into tensor<?x?x?xf32>
+    %b = tensor.expand_shape %a [[0, 1], [2]] output_shape [%sz0, %sz1, 32]
+        : tensor<?x32xf32> into tensor<?x?x32xf32>
     ```
   }];
+
+  let arguments = (ins AnyTensor:$src, IndexListArrayAttr:$reassociation,
+                       Variadic<Index>:$output_shape,
+                       DenseI64ArrayAttr:$static_output_shape);
+
+  let assemblyFormat = [{
+    $src $reassociation `output_shape`
+    custom<DynamicIndexList>($output_shape, $static_output_shape) attr-dict `:`
+    type($src) `into` type($result)
+  }];
+
   let builders = [
     // Builders using ReassociationIndices.
     OpBuilder<(ins "Type":$resultType, "Value":$src,
       "ArrayRef<ReassociationIndices>":$reassociation,
-      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs),
+      "ArrayRef<OpFoldResult>":$outputShape)>,
+
+    // It will infer output shape using inferOutputShape() method.
+    OpBuilder<(ins "Type":$resultType, "Value":$src,
+      "ArrayRef<ReassociationIndices>":$reassociation)>,
+
+    // Builder using ReassociationExprs.
+    OpBuilder<(ins "Type":$resultType, "Value":$src,
+      "ArrayRef<ReassociationExprs>":$reassociation),
     [{
-      build($_builder, $_state, resultType, src, attrs);
-      $_state.addAttribute("reassociation",
-          getReassociationIndicesAttribute($_builder, reassociation));
+      auto reassociationIndices =
+          convertReassociationMapsToIndices(reassociation);
+      build($_builder, $_state, resultType, src, reassociationIndices);
     }]>,
     OpBuilder<(ins "Type":$resultType, "Value":$src,
       "ArrayRef<ReassociationExprs>":$reassociation,
-      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs),
+      "ArrayRef<OpFoldResult>":$outputShape),
     [{
-      auto reassociationMaps =
-          convertReassociationMapsToIndices($_builder, reassociation);
-      build($_builder, $_state, resultType, src, reassociationMaps, attrs);
+      auto reassociationIndices =
+          convertReassociationMapsToIndices(reassociation);
+      build($_builder, $_state, resultType, src, reassociationIndices,
+            outputShape);
     }]>
   ];
 
-  let extraClassDeclaration = commonExtraClassDeclaration;
+  let extraClassDeclaration = commonExtraClassDeclaration # [{
+    int64_t getCorrespondingSourceDim(int64_t resultDim);
+
+    // Return output shape as mixes static/dynamic shapes.
+    SmallVector<OpFoldResult> getMixedOutputShape();
+
+    // Infer the output shape for a tensor.expand_shape when it is possible
+    // to do so.
+    static FailureOr<SmallVector<OpFoldResult>> inferOutputShape(
+        OpBuilder &b, Location loc, RankedTensorType expandedType,
+        ArrayRef<ReassociationIndices> reassociation,
+        ArrayRef<OpFoldResult> inputShape);
+  }];
+
   let hasVerifier = 1;
 }
 
 def Tensor_CollapseShapeOp : Tensor_ReassociativeReshapeOp<"collapse_shape"> {
   let summary = "operation to produce a tensor with a smaller rank";
+  let arguments = (ins AnyTensor:$src, IndexListArrayAttr:$reassociation);
   let description = [{
-    The `tensor.collapse_shape` op produces a new tensor with a smaller
-    rank whose sizes are a reassociation of the original `src`.
+    The `tensor.collapse_shape` op produces a new tensor of lower (or equal)
+    rank whose dimension sizes are a reassociation of the original `src` dimensions.
 
     A reassociation is defined as a continuous grouping of dimensions and is
-    represented with an array of I64ArrayAttr attribute.
+    represented by an array of DenseI64ArrayAttr attribute. The reassociation
+    maps are applied to the operand shape to obtain the result shape.
 
-    The verification rule is that the reassociation maps are applied to the
-    operand tensor with the higher rank to obtain the result tensor with the
-    smaller rank.
 
-    The result tensor type of a reshape can be zero-ranked if the operand
-    tensor type is statically shaped with all dimensions being unit extent. In
-    such case the reassociation map is empty.
-
-    Examples:
+    Example:
 
     ```mlir
     // Dimension collapse (i, j) -> i' and k -> k'
@@ -1049,6 +1209,11 @@ def Tensor_CollapseShapeOp : Tensor_ReassociativeReshapeOp<"collapse_shape"> {
         : tensor<?x?x?xf32> into tensor<?x?xf32>
     ```
   }];
+
+  let assemblyFormat = [{
+    $src $reassociation attr-dict `:` type($src) `into` type($result)
+  }];
+
   let builders = [
     // Builders for a contracting reshape whose result type is computed from
     // `src` and `reassociation`.
@@ -1060,7 +1225,7 @@ def Tensor_CollapseShapeOp : Tensor_ReassociativeReshapeOp<"collapse_shape"> {
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs),
     [{
       auto reassociationMaps =
-          convertReassociationMapsToIndices($_builder, reassociation);
+          convertReassociationMapsToIndices(reassociation);
       build($_builder, $_state, src, reassociationMaps, attrs);
     }]>,
 
@@ -1069,21 +1234,27 @@ def Tensor_CollapseShapeOp : Tensor_ReassociativeReshapeOp<"collapse_shape"> {
       "ArrayRef<ReassociationIndices>":$reassociation,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs),
     [{
-      build($_builder, $_state, resultType, src, attrs);
       $_state.addAttribute("reassociation",
           getReassociationIndicesAttribute($_builder, reassociation));
+      build($_builder, $_state, resultType, src, attrs);
     }]>,
     OpBuilder<(ins "Type":$resultType, "Value":$src,
       "ArrayRef<ReassociationExprs>":$reassociation,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs),
     [{
       auto reassociationMaps =
-          convertReassociationMapsToIndices($_builder, reassociation);
+          convertReassociationMapsToIndices(reassociation);
       build($_builder, $_state, resultType, src, reassociationMaps, attrs);
     }]>
   ];
 
-  let extraClassDeclaration = commonExtraClassDeclaration;
+  let extraClassDeclaration = commonExtraClassDeclaration # [{
+    static RankedTensorType
+    inferCollapsedType(RankedTensorType type, ArrayRef<AffineMap> reassociation);
+    static RankedTensorType
+    inferCollapsedType(RankedTensorType type,
+                       ArrayRef<ReassociationIndices> reassociation);
+  }];
   let hasVerifier = 1;
 }
 
@@ -1091,7 +1262,12 @@ def Tensor_CollapseShapeOp : Tensor_ReassociativeReshapeOp<"collapse_shape"> {
 // PadOp
 //===----------------------------------------------------------------------===//
 
-def Tensor_PadOp : Tensor_Op<"pad", [AttrSizedOperandSegments, NoSideEffect,
+def Tensor_PadOp : Tensor_Op<"pad", [
+    DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
+    DeclareOpInterfaceMethods<ReifyRankedShapedTypeOpInterface, [
+      "reifyResultShapes"]>,
+    AttrSizedOperandSegments,
+    Pure,
     SingleBlockImplicitTerminator<"mlir::tensor::YieldOp">]> {
   let summary = "tensor pad operation";
   let description = [{
@@ -1102,16 +1278,17 @@ def Tensor_PadOp : Tensor_Op<"pad", [AttrSizedOperandSegments, NoSideEffect,
 
     * source: the "base" tensor on which to pad.
     * low: A list contains the padding along the start of each
-           dimension, i.e `low`.
+           dimension, i.e., how many padded values are prepended
+           to the beginning of the tensor in each dimension.
     * high: A list contains the padding along the end of each
-            dimension, i.e. `high`.
+            dimension, i.e., how many padded values are appended
+            to the end of the tensor in each dimension.
     * nofold: indicates that the operation should not be folded when source and
               result types are equal.
 
-    The result tensor dimensions are `low` + `dim` + `high` along that
-    dimension. The number of elements of `low` and `high` must match
-    the rank of the input tensor. They can be either a constant or a
-    dynamic value.
+    The result tensor dimensions are `low[i]` + `dim[i]` + `high[i]` for each
+    dimension `i`. The number of elements of `low` and `high` must match the
+    rank of the input tensor. They can be either a constant or a dynamic value.
 
     The region of the `tensor.pad` operation returns the value to use
     for the padding. The arguments of the region represent the index
@@ -1123,7 +1300,21 @@ def Tensor_PadOp : Tensor_Op<"pad", [AttrSizedOperandSegments, NoSideEffect,
     if the source type and the padded type have the same static shape. This can
     be used, e.g., for packing or promotion to faster memory.
 
-    Example 1:
+    Example 1: add 3 zeros to the beginning and 5 zeros to the end of a 1D
+    tensor.
+
+    ```mlir
+      %arg0 = ... : tensor<10xi32>
+      %c0_i32 = arith.constant 0 : i32
+      %padded = tensor.pad %arg0 low[3] high[5] {
+      ^bb0(%arg1: index):
+        tensor.yield %c0_i32 : i32
+      } : tensor<10xi32> to tensor<18xi32>
+    ```
+
+    Example 2: add 1 value to the beginning of dimension 0, 2 values to the end
+    of dimension 0, 2 values to the start of dimension 1, and 3 values to the
+    end of dimension 1.
 
     ```mlir
       %pad_value = ... : f32
@@ -1133,7 +1324,7 @@ def Tensor_PadOp : Tensor_Op<"pad", [AttrSizedOperandSegments, NoSideEffect,
       } : tensor<?x?xf32> to tensor<?x?xf32>
     ```
 
-    Example 2:
+    Example 3:
 
     ```mlir
       %pad_value = ... : f32
@@ -1143,7 +1334,7 @@ def Tensor_PadOp : Tensor_Op<"pad", [AttrSizedOperandSegments, NoSideEffect,
       } : tensor<1x2x2x?xf32> to tensor<6x?x?x?xf32>
     ```
 
-    Example 3:
+    Example 4:
 
     ```mlir
       %pad_value = ... : f32
@@ -1153,10 +1344,11 @@ def Tensor_PadOp : Tensor_Op<"pad", [AttrSizedOperandSegments, NoSideEffect,
       } : tensor<2x3xf32> to tensor<?x?xf32>
     ```
 
-    Example 4:
+    Example 5: Force a padded value to be always exist with `nofold`, even
+    though the padding config specifies that no new elements will be added to
+    the tensor.
 
     ```mlir
-      // Force a padded value to be always exist with `nofold`.
       %pad_value = ... : f32
       %0 = tensor.pad %arg0 nofold low[0, 0] high[0, 0] {
       ^bb0(%arg1: index, %arg2: index):
@@ -1166,25 +1358,23 @@ def Tensor_PadOp : Tensor_Op<"pad", [AttrSizedOperandSegments, NoSideEffect,
   }];
 
   let arguments = (ins
-    AnyTensor:$source,
+    AnyRankedTensor:$source,
     Variadic<Index>:$low,
     Variadic<Index>:$high,
-    I64ArrayAttr:$static_low,
-    I64ArrayAttr:$static_high,
+    DenseI64ArrayAttr:$static_low,
+    DenseI64ArrayAttr:$static_high,
     UnitAttr:$nofold);
 
   let regions = (region SizedRegion<1>:$region);
 
-  let results = (outs AnyTensor:$result);
+  let results = (outs AnyRankedTensor:$result);
 
   // TODO: Remove custom<InferType> when AllTypesMatch supports opt. operands.
   let assemblyFormat = [{
     $source
     (`nofold` $nofold^)?
-    `low` `` custom<DynamicIndexList>($low, $static_low,
-                                        "ShapedType::kDynamicSize")
-    `high` `` custom<DynamicIndexList>($high, $static_high,
-                                         "ShapedType::kDynamicSize")
+    `low` `` custom<DynamicIndexList>($low, $static_low)
+    `high` `` custom<DynamicIndexList>($high, $static_high)
     $region attr-dict `:` type($source) `to` type($result)
   }];
 
@@ -1198,10 +1388,10 @@ def Tensor_PadOp : Tensor_Op<"pad", [AttrSizedOperandSegments, NoSideEffect,
     }
 
     RankedTensorType getSourceType() {
-      return getSource().getType().cast<RankedTensorType>();
+      return ::llvm::cast<RankedTensorType>(getSource().getType());
     }
     RankedTensorType getResultType() {
-      return getResult().getType().cast<RankedTensorType>();
+      return ::llvm::cast<RankedTensorType>(getResult().getType());
     }
 
     // Infer the shape of the result tensor given the type of the source tensor
@@ -1219,16 +1409,17 @@ def Tensor_PadOp : Tensor_Op<"pad", [AttrSizedOperandSegments, NoSideEffect,
 
     // Return a vector of all the static or dynamic values (low/high padding) of
     // the op.
-    inline SmallVector<OpFoldResult> getMixedPadImpl(ArrayAttr staticAttrs,
+    inline SmallVector<OpFoldResult> getMixedPadImpl(ArrayRef<int64_t> staticAttrs,
                                                      ValueRange values) {
+      Builder builder(*this);
       SmallVector<OpFoldResult> res;
       unsigned numDynamic = 0;
       unsigned count = staticAttrs.size();
       for (unsigned idx = 0; idx < count; ++idx) {
-        if (ShapedType::isDynamic(staticAttrs[idx].cast<IntegerAttr>().getInt()))
-          res.push_back(values[numDynamic++]);
+        if (ShapedType::isDynamic(staticAttrs[idx]))
+          res.push_back(getAsOpFoldResult(values[numDynamic++]));
         else
-          res.push_back(staticAttrs[idx]);
+          res.push_back(builder.getI64IntegerAttr(staticAttrs[idx]));
       }
       return res;
     }
@@ -1256,13 +1447,13 @@ def Tensor_PadOp : Tensor_Op<"pad", [AttrSizedOperandSegments, NoSideEffect,
 
   let builders = [
     // Build a PadOp with mixed static and dynamic entries.
-    OpBuilder<(ins "Value":$source, "ArrayRef<int64_t>":$staticLow,
-      "ArrayRef<int64_t>":$staticHigh, "ValueRange":$low, "ValueRange":$high,
-      CArg<"bool", "false">:$nofold,
+    OpBuilder<(ins "Type":$resultType, "Value":$source,
+      "ArrayRef<int64_t>":$staticLow, "ArrayRef<int64_t>":$staticHigh,
+      "ValueRange":$low, "ValueRange":$high, CArg<"bool", "false">:$nofold,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
     // Build a PadOp with all dynamic entries.
-    OpBuilder<(ins "Value":$source, "ValueRange":$low, "ValueRange":$high,
-      CArg<"bool", "false">:$nofold,
+    OpBuilder<(ins "Type":$resultType, "Value":$source, "ValueRange":$low,
+      "ValueRange":$high, CArg<"bool", "false">:$nofold,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
     // Build a PadOp with mixed static and dynamic entries and custom
     // result type. If the type passed is nullptr, it is inferred.
@@ -1270,6 +1461,12 @@ def Tensor_PadOp : Tensor_Op<"pad", [AttrSizedOperandSegments, NoSideEffect,
       "ArrayRef<OpFoldResult>":$low, "ArrayRef<OpFoldResult>":$high,
       CArg<"bool", "false">:$nofold,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
+    // Build a PadOp with constant padding,  mixed static and dynamic entries
+    // and custom result type. If the type passed is nullptr, it is inferred.
+    OpBuilder<(ins "Type":$resultType, "Value":$source,
+      "ArrayRef<OpFoldResult>":$low, "ArrayRef<OpFoldResult>":$high,
+      "Value":$constantPadValue, CArg<"bool", "false">:$nofold,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>
   ];
 
   let hasCanonicalizer = 1;
@@ -1282,24 +1479,25 @@ def Tensor_PadOp : Tensor_Op<"pad", [AttrSizedOperandSegments, NoSideEffect,
 // ParallelInsertSliceOp
 //===----------------------------------------------------------------------===//
 
-// TODO: Implement PerformConcurrentlyOpInterface.
 def Tensor_ParallelInsertSliceOp : Tensor_Op<"parallel_insert_slice", [
        AttrSizedOperandSegments,
        OffsetSizeAndStrideOpInterface,
+       DeclareOpInterfaceMethods<ParallelCombiningOpInterface,
+          ["getUpdatedDestinations", "getIteratingParent"]>,
        // TODO: Cannot use an interface here atm, verify this manually for now.
-       // HasParent<"ParallelCombiningOpInterface">
+       // HasParent<"InParallelOpInterface">
   ]> {
   let summary = [{
     Specify the tensor slice update of a single thread of a parent
-    ParallelCombiningOpInterface op.
+    InParallelOpInterface op.
   }];
   let description = [{
     The `parallel_insert_slice` yields a subset tensor value to its parent
-    ParallelCombiningOpInterface. These subset tensor values are aggregated to
+    InParallelOpInterface. These subset tensor values are aggregated to
     in some unspecified order into a full tensor value returned by the parent
     parallel iterating op.
     The `parallel_insert_slice` is one such op allowed in the
-    ParallelCombiningOpInterface op.
+    InParallelOpInterface op.
 
     Conflicting writes result in undefined semantics, in that the indices written
     to by multiple parallel updates might contain data from any of the updates,
@@ -1313,7 +1511,7 @@ def Tensor_ParallelInsertSliceOp : Tensor_Op<"parallel_insert_slice", [
     This op does not create a new value, which allows maintaining a clean
     separation between the subset and full tensor.
 
-    Note that we cannot mark this operation as pure (NoSideEffects), even
+    Note that we cannot mark this operation as pure (Pures), even
     though it has no side effects, because it will get DCEd during
     canonicalization.
 
@@ -1331,8 +1529,7 @@ def Tensor_ParallelInsertSliceOp : Tensor_Op<"parallel_insert_slice", [
     The representation based on offsets, sizes and strides support a
     partially-static specification via attributes specified through the
     `static_offsets`, `static_sizes` and `static_strides` arguments. A special
-    sentinel value ShapedType::kDynamicSize and
-    ShapedType::kDynamicStrideOrOffset encodes that the corresponding entry has
+    sentinel value ShapedType::kDynamic encodes that the corresponding entry has
     a dynamic value.
 
     After buffer allocation, the "parallel_insert_slice" op is expected to lower
@@ -1347,8 +1544,8 @@ def Tensor_ParallelInsertSliceOp : Tensor_Op<"parallel_insert_slice", [
     The rank-altering behavior of tensor.parallel_insert_slice matches the
     rank-reducing behavior of tensor.insert_slice and tensor.extract_slice.
 
-    Verification in the rank-reduced case:
-    ======================================
+    #### Verification in the rank-reduced case
+
     The same verification discussion and mechanisms apply as for ExtractSliceOp.
     Unlike ExtractSliceOp however, there is no need for a specific inference.
   }];
@@ -1359,18 +1556,15 @@ def Tensor_ParallelInsertSliceOp : Tensor_Op<"parallel_insert_slice", [
     Variadic<Index>:$offsets,
     Variadic<Index>:$sizes,
     Variadic<Index>:$strides,
-    I64ArrayAttr:$static_offsets,
-    I64ArrayAttr:$static_sizes,
-    I64ArrayAttr:$static_strides
+    DenseI64ArrayAttr:$static_offsets,
+    DenseI64ArrayAttr:$static_sizes,
+    DenseI64ArrayAttr:$static_strides
   );
   let assemblyFormat = [{
     $source `into` $dest ``
-    custom<DynamicIndexList>($offsets, $static_offsets,
-                               "ShapedType::kDynamicStrideOrOffset")
-    custom<DynamicIndexList>($sizes, $static_sizes,
-                               "ShapedType::kDynamicSize")
-    custom<DynamicIndexList>($strides, $static_strides,
-                               "ShapedType::kDynamicStrideOrOffset")
+    custom<DynamicIndexList>($offsets, $static_offsets)
+    custom<DynamicIndexList>($sizes, $static_sizes)
+    custom<DynamicIndexList>($strides, $static_strides)
     attr-dict `:` type($source) `into` type($dest)
   }];
 
@@ -1378,15 +1572,15 @@ def Tensor_ParallelInsertSliceOp : Tensor_Op<"parallel_insert_slice", [
     Type yieldedType() { return getDest().getType(); }
 
     RankedTensorType getSourceType() {
-      return getSource().getType().cast<RankedTensorType>();
+      return ::llvm::cast<RankedTensorType>(getSource().getType());
     }
 
     RankedTensorType getDestType() {
-      return getDest().getType().cast<RankedTensorType>();
+      return ::llvm::cast<RankedTensorType>(getDest().getType());
     }
 
-    ParallelCombiningOpInterface getParallelCombiningParent() {
-      return dyn_cast<ParallelCombiningOpInterface>(
+    InParallelOpInterface getParallelCombiningParent() {
+      return dyn_cast<InParallelOpInterface>(
         getOperation()->getParentOp());
     }
 
@@ -1401,9 +1595,13 @@ def Tensor_ParallelInsertSliceOp : Tensor_Op<"parallel_insert_slice", [
     /// `strides` operands.
     static unsigned getOffsetSizeAndStrideStartOperandIndex() { return 1; }
 
-    /// Return the OpResult of the enclosing ForeachThreadOp that is
+    /// Return the OpResult of the enclosing ForallOp that is
     /// corresponding to this ParallelInsertSliceOp.
     OpResult getTiedOpResult();
+
+    /// Return the dimensions of the dest that are omitted to insert a source
+    /// when the result is rank-extended.
+    llvm::SmallBitVector getDroppedDims();
   }];
 
   let builders = [
@@ -1433,9 +1631,10 @@ def Tensor_ParallelInsertSliceOp : Tensor_Op<"parallel_insert_slice", [
 //===----------------------------------------------------------------------===//
 
 def Tensor_ScatterOp : Tensor_Op<"scatter", [
-    NoSideEffect
+    DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
+    Pure
   ]> {
-  let summary = 
+  let summary =
     "scatter a tensor into a destination tensor at specified indices";
   let description = [{
     The `scatter` operation inserts a `source` tensor into a `dest` tensor at
@@ -1446,13 +1645,13 @@ def Tensor_ScatterOp : Tensor_Op<"scatter", [
     The indices are expected to be confined to coordinate values that fit the
     range of the `dest` tensor, otherwise the behavior is undefined.
 
-    The leading dimensions of the index tensor must match that of the dest 
+    The leading dimensions of the index tensor must match that of the dest
     tensor. The trailing dimensions of the dest tensor must match those of the
-    source tensor by omitting the dimensions specified in scatter_dims 
+    source tensor by omitting the dimensions specified in scatter_dims
     (rank-reducing semantics) or setting them to `1` (rank-preserving semantics)
-    (see examples). 
-    This convention allows an idiomatic specification and lowering of 
-    "scattering multiple N-D slices into the dest tensor". 
+    (see examples).
+    This convention allows an idiomatic specification and lowering of
+    "scattering multiple N-D slices into the dest tensor".
     The result type must match the type of the dest tensor.
 
     Note: in the examples below, we separate out the indexing part of the tensor
@@ -1461,7 +1660,7 @@ def Tensor_ScatterOp : Tensor_Op<"scatter", [
     Example:
 
     ```mlir
-        // For each 1x2 triple of coordinates in %indices, insert the 
+        // For each 1x2 triple of coordinates in %indices, insert the
         // element (i.e. 0-D subset) at the coordinates triple in %dest.
         //
         %out = tensor.scatter %source into %dest[%indices]
@@ -1483,19 +1682,19 @@ def Tensor_ScatterOp : Tensor_Op<"scatter", [
         // indices corresponding to the scatter_dims attribute specified by
         // %indices.
         //
-        %out = tensor.scatter %source into %dest[%indices] scatter_dims([1]) unique : 
+        %out = tensor.scatter %source into %dest[%indices] scatter_dims([1]) unique :
           (tensor<3x 4x1x6xf32>, tensor<4x5x6xf32>, tensor<3x 1xindex>)
             -> tensor<4x5x6xf32>
     ```
 
     The dimensions specified in the scatter_dims attribute are ones for which the
-    source tensor has size `1`. 
+    source tensor has size `1`.
     I.e. if the dest type is `axbxcxd` and the coordinates are [1, 3], then
     the source type suffix is `ax1xcx1`.
-    Sactter also allows rank-reducing semantics where the shape `ax1xcx1` can be
+    Scatter also allows rank-reducing semantics where the shape `ax1xcx1` can be
     further simplified to `axc`.
 
-    The elemental type of the indices tensor can be any integer type. 
+    The elemental type of the indices tensor can be any integer type.
     In the absence of target-specific or problem specific information the default
     type one should use is `index`.
 
@@ -1505,18 +1704,18 @@ def Tensor_ScatterOp : Tensor_Op<"scatter", [
     coordinates are statically guaranteed to be unique at runtime. If coordinates
     are not truly unique at runtime, the behavior is undefined.
 
-    Only full slices are meant to be supported by this op, if one desires 
+    Only full slices are meant to be supported by this op, if one desires
     partial slices (e.g. strided windows) one should compose this op with other
     tensor ops (e.g. tensor.insert_slice). This is to avoid a slippery slope of
     complexity that would make the op unusable in practice.
 
-    At the tensor-level, the index tensor is specified in an AoS form (i.e. 
-    coordinate tuple is the most minor). It is the responsibility of further 
-    lowerings and bufferiation to implement various concrete layouts.
+    At the tensor-level, the index tensor is specified in an AoS form (i.e.
+    coordinate tuple is the most minor). It is the responsibility of further
+    lowerings and bufferization to implement various concrete layouts.
 
     Note: As currently specified, the operation must lower to an abstraction that
     performs copies to the output tensor. This is because the buffer type system
-    is currently not rich enough to allow multiple non-contiguous views in the 
+    is currently not rich enough to allow multiple non-contiguous views in the
     same type. This is visible more clearly in a notional buffer version of the
     op:
 
@@ -1525,26 +1724,26 @@ def Tensor_ScatterOp : Tensor_Op<"scatter", [
         // random dest slices must copy to the contiguous dest.
         //
         some_side_effecting_op_writing_into %source, ...: memref<3x 4xf32>
-        memref.scatter %source into %dest[%indices] scatter_dims([1]) unique : 
+        memref.scatter %source into %dest[%indices] scatter_dims([1]) unique :
           (memref<3x 4xf32>, memref<?x 4xf32>, memref<?x 1xindex>)
 
         // Nested buffer support in the producing op would allow writing directly
         // into the dest buffer.
-        %v = some_nested_buffer_view_op %dest[%indices] scatter_dims([1]) unique : 
+        %v = some_nested_buffer_view_op %dest[%indices] scatter_dims([1]) unique :
           memref<? x memref<4xf32>>
         some_side_effecting_op_writing_into %v, ...: memref<? x memref<4xf32>>
     ```
   }];
 
-  let arguments = (ins AnyRankedTensor:$source, 
-                       AnyRankedTensor:$dest, 
+  let arguments = (ins AnyRankedTensor:$source,
+                       AnyRankedTensor:$dest,
                        RankedTensorOf<[AnySignlessIntegerOrIndex]>:$indices,
                        DenseI64ArrayAttr:$scatter_dims,
                        UnitAttr:$unique);
   let results = (outs AnyRankedTensor:$result);
 
   let assemblyFormat = [{
-    $source `into` $dest `[` $indices `]` 
+    $source `into` $dest `[` $indices `]`
       `scatter_dims` `(` $scatter_dims `)`
       (`unique` $unique^)?
       attr-dict
@@ -1553,16 +1752,16 @@ def Tensor_ScatterOp : Tensor_Op<"scatter", [
 
   let extraClassDeclaration = [{
     RankedTensorType getDestType() {
-      return getDest().getType().cast<RankedTensorType>();
+      return ::llvm::cast<RankedTensorType>(getDest().getType());
     }
     RankedTensorType getIndicesType() {
-      return getIndices().getType().cast<RankedTensorType>();
+      return ::llvm::cast<RankedTensorType>(getIndices().getType());
     }
     RankedTensorType getSourceType() {
-      return getSource().getType().cast<RankedTensorType>();
+      return ::llvm::cast<RankedTensorType>(getSource().getType());
     }
     RankedTensorType getResultType() {
-      return getResult().getType().cast<RankedTensorType>();
+      return ::llvm::cast<RankedTensorType>(getResult().getType());
     }
   }];
   let hasVerifier = 1;
@@ -1573,46 +1772,65 @@ def Tensor_ScatterOp : Tensor_Op<"scatter", [
 //===----------------------------------------------------------------------===//
 
 def Tensor_SplatOp : Tensor_Op<"splat", [
-    NoSideEffect,
+    DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
+    DeclareOpInterfaceMethods<ReifyRankedShapedTypeOpInterface, 
+      ["reifyResultShapes"]>,
+    Pure,
     TypesMatchWith<"operand type matches element type of result",
                    "aggregate", "input",
-                   "$_self.cast<TensorType>().getElementType()">
+                   "::llvm::cast<TensorType>($_self).getElementType()">
   ]> {
   let summary = "tensor splat or broadcast operation";
   let description = [{
-    Broadcast the operand to all elements of the result tensor. The operand is
-    required to be of integer/index/float type, and the result tensor must be
-    statically shaped.
+    Broadcast the operand to all elements of the result tensor.
 
-    Example:
+    An additional argument of type `index` must be provided for each dynamic
+    dimension present in the result type.
+
+    Example for a statically shaped tensor:
 
     ```mlir
-    %s = arith.constant 10.1 : f32
+    %s = arith.constant 1.0 : f32
     %t = tensor.splat %s : tensor<8x16xf32>
     ```
 
-    TODO: This operation is easy to extend to broadcast to dynamically shaped
-          tensors:
+    Example for a tensor containing dynamic dimensions:
 
     ```mlir
-    // Broadcasts %s to a 2-d dynamically shaped tensor, with %m, %n binding
-    // to the sizes of the two dynamic dimensions.
-    %m = "foo"() : () -> (index)
-    %n = "bar"() : () -> (index)
-    %t = tensor.splat %s [%m, %n] : tensor<?x?xf32>
+    // Broadcasts %s to a 3D dynamically shaped tensor, with %m and %n binding
+    // to dimensions 0 and 2 of the resulting tensor, respectively.
+    %m = arith.constant 10 : index
+    %n = arith.constant 30 : index
+    %t = tensor.splat %s[%m, %n] : tensor<?x20x?xf32>
     ```
   }];
 
-  let arguments = (ins AnyTypeOf<[AnySignlessInteger, Index, AnyFloat],
-                                 "integer/index/float type">:$input);
-  let results = (outs AnyStaticShapeTensor:$aggregate);
+  let arguments = (ins AnyType:$input,
+                       Variadic<Index>:$dynamicSizes);
+  let results = (outs AnyRankedTensor:$aggregate);
 
   let builders = [
-    OpBuilder<(ins "Value":$element, "Type":$aggregateType),
-    [{ build($_builder, $_state, aggregateType, element); }]>];
-  let assemblyFormat = "$input attr-dict `:` type($aggregate)";
+    // Build with an explicit result type and a list of values corresponding
+    // to the dynamic sizes present in the result type.
+    OpBuilder<(ins "Value":$element,
+                   "Type":$aggregateType,
+                   CArg<"ValueRange", "{}">:$dynamicSizes)>,
+
+    // Build with a result tensor shape and a list of values corresponding to
+    // the elements in the result tensor shape set to ShapedType::kDynamic.
+    OpBuilder<(ins "Value":$element,
+                   "ArrayRef<int64_t>":$staticShape,
+                   CArg<"ValueRange", "{}">:$dynamicSizes)>,
+
+    // Build with mixed static/dynamic sizes, where an attribute represents
+    // a static dimension and a value represents a dynamic dimension.
+    OpBuilder<(ins "Value":$element, "ArrayRef<OpFoldResult>":$sizes)>
+  ];
+
+  let assemblyFormat = "$input (`[` $dynamicSizes^ `]`)? attr-dict `:` type($aggregate)";
 
   let hasFolder = 1;
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1620,7 +1838,7 @@ def Tensor_SplatOp : Tensor_Op<"splat", [
 //===----------------------------------------------------------------------===//
 
 def Tensor_YieldOp : Tensor_Op<"yield",
-    [NoSideEffect, ReturnLike, Terminator,
+    [Pure, ReturnLike, Terminator,
      HasParent<"::mlir::tensor::GenerateOp, ::mlir::tensor::PadOp">]> {
   let summary = "Yield a value from a region";
   let description = [{

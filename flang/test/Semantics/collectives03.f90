@@ -83,7 +83,8 @@ program test_co_max
   !ERROR: Actual argument for 'a=' has bad type 'COMPLEX(4)'
   call co_max(complex_type)
 
-  !ERROR: Actual argument associated with INTENT(IN OUT) dummy argument 'a=' must be definable
+  !ERROR: Actual argument associated with INTENT(IN OUT) dummy argument 'a=' is not definable
+  !BECAUSE: '2_4' is not a variable or pointer
   call co_max(a=1+1)
 
   !ERROR: 'a' argument to 'co_max' may not be a coindexed object
@@ -105,7 +106,8 @@ program test_co_max
   !ERROR: 'stat=' argument has unacceptable rank 1
   call co_max(i, stat=integer_array)
 
-  !ERROR: Actual argument associated with INTENT(IN OUT) dummy argument 'errmsg=' must be definable
+  !ERROR: Actual argument associated with INTENT(IN OUT) dummy argument 'errmsg=' is not definable
+  !BECAUSE: '"c"' is not a variable or pointer
   call co_max(a=i, result_image=1, stat=status, errmsg='c')
 
   !ERROR: 'errmsg' argument to 'co_max' may not be a coindexed object
@@ -118,7 +120,7 @@ program test_co_max
   !ERROR: 'errmsg=' argument has unacceptable rank 1
   call co_max(d, errmsg=character_array)
 
-  !ERROR: too many actual arguments for intrinsic 'co_max'
+  !ERROR: actual argument #5 without a keyword may not follow an actual argument with a keyword
   call co_max(r, result_image=1, stat=status, errmsg=message, 3.4)
 
   !ERROR: unknown keyword argument to intrinsic 'co_max'

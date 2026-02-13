@@ -64,6 +64,12 @@ namespace clang {
         return CharUnits(Quantity);
       }
 
+      /// fromQuantity - Construct a CharUnits quantity from an llvm::Align
+      /// quantity.
+      static CharUnits fromQuantity(llvm::Align Quantity) {
+        return CharUnits(Quantity.value());
+      }
+
       // Compound assignment.
       CharUnits& operator+= (const CharUnits &Other) {
         Quantity += Other.Quantity;
@@ -135,7 +141,7 @@ namespace clang {
       /// Among other things, this promises that
       /// self.alignTo(N) will just return self.
       bool isMultipleOf(CharUnits N) const {
-        return (*this % N) == 0;
+        return (*this % N) == CharUnits::Zero();
       }
 
       // Arithmetic operators.
@@ -159,8 +165,8 @@ namespace clang {
       CharUnits operator% (QuantityType N) const {
         return CharUnits(Quantity % N);
       }
-      QuantityType operator% (const CharUnits &Other) const {
-        return Quantity % Other.Quantity;
+      CharUnits operator%(const CharUnits &Other) const {
+        return CharUnits(Quantity % Other.Quantity);
       }
       CharUnits operator+ (const CharUnits &Other) const {
         return CharUnits(Quantity + Other.Quantity);
@@ -183,7 +189,8 @@ namespace clang {
       llvm::Align getAsAlign() const { return llvm::Align(Quantity); }
 
       /// getAsMaybeAlign - Returns Quantity as a valid llvm::Align or
-      /// llvm::None, Beware llvm::MaybeAlign assumes power of two 8-bit bytes.
+      /// std::nullopt, Beware llvm::MaybeAlign assumes power of two 8-bit
+      /// bytes.
       llvm::MaybeAlign getAsMaybeAlign() const {
         return llvm::MaybeAlign(Quantity);
       }

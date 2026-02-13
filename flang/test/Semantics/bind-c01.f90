@@ -3,14 +3,14 @@
 
 module m1
   integer, bind(c, name="x1") :: x1
-  !ERROR: Two entities have the same BIND(C) name 'x1'
+  !ERROR: Two entities have the same global name 'x1'
   integer, bind(c, name=" x1 ") :: x2
  contains
   subroutine x3() bind(c, name="x3")
   end subroutine
 end module
 
-!ERROR: Two entities have the same BIND(C) name 'x3'
+!ERROR: Two entities have the same global name 'x3'
 subroutine x4() bind(c, name=" x3 ")
 end subroutine
 
@@ -28,4 +28,12 @@ end subroutine
 subroutine foo() bind(c, name="x6")
 end subroutine
 subroutine foo() bind(c, name="x7")
+end subroutine
+
+subroutine entries()
+
+entry e1() bind(C, name="e")
+
+!ERROR: Two entities have the same global name 'e'
+entry e2() bind(C, name="e")
 end subroutine

@@ -1,7 +1,7 @@
 // RUN: %check_clang_tidy %s performance-trivially-destructible %t
 // RUN: grep -Ev "// *[A-Z-]+:" %s > %t.cpp
-// RUN: clang-tidy %t.cpp -checks='-*,performance-trivially-destructible' -fix
-// RUN: clang-tidy %t.cpp -checks='-*,performance-trivially-destructible' -warnings-as-errors='-*,performance-trivially-destructible'
+// RUN: clang-tidy %t.cpp -checks='-*,performance-trivially-destructible' -fix --
+// RUN: clang-tidy %t.cpp -checks='-*,performance-trivially-destructible' -warnings-as-errors='-*,performance-trivially-destructible' --
 
 struct TriviallyDestructible1 {
   int a;
@@ -21,7 +21,7 @@ struct NotTriviallyDestructible1 : TriviallyDestructible2 {
 
 NotTriviallyDestructible1::~NotTriviallyDestructible1() = default; // to-be-removed
 // CHECK-MESSAGES: :[[@LINE-1]]:28: note: destructor definition is here
-// CHECK-FIXES: {{^}}// to-be-removed
+// CHECK-FIXES: // to-be-removed
 
 // Don't emit for class template with type-dependent fields.
 template <class T>
@@ -57,7 +57,7 @@ struct MaybeTriviallyDestructible1<T *> {
 template <class T>
 MaybeTriviallyDestructible1<T *>::~MaybeTriviallyDestructible1() noexcept = default; // to-be-removed
 // CHECK-MESSAGES: :[[@LINE-1]]:35: note: destructor definition is here
-// CHECK-FIXES: {{^}}// to-be-removed
+// CHECK-FIXES: // to-be-removed
 
 // Emit for explicit specializations.
 template <>
@@ -69,7 +69,7 @@ struct MaybeTriviallyDestructible1<double>: TriviallyDestructible1 {
 
 MaybeTriviallyDestructible1<double>::~MaybeTriviallyDestructible1() noexcept = default; // to-be-removed
 // CHECK-MESSAGES: :[[@LINE-1]]:38: note: destructor definition is here
-// CHECK-FIXES: {{^}}// to-be-removed
+// CHECK-FIXES: // to-be-removed
 
 struct NotTriviallyDestructible2 {
   virtual ~NotTriviallyDestructible2();

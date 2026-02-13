@@ -31,15 +31,15 @@ using namespace llvm;
 // Command-line options
 //===----------------------------------------------------------------------===//
 
-cl::opt<std::string>
-InputIR("input-IR",
-        cl::desc("Specify the name of an IR file to load for function definitions"),
-        cl::value_desc("input IR file name"));
+static cl::opt<std::string> InputIR(
+    "input-IR",
+    cl::desc("Specify the name of an IR file to load for function definitions"),
+    cl::value_desc("input IR file name"));
 
-cl::opt<bool>
-UseObjectCache("use-object-cache",
-               cl::desc("Enable use of the MCJIT object caching"),
-               cl::init(false));
+static cl::opt<bool>
+    UseObjectCache("use-object-cache",
+                   cl::desc("Enable use of the MCJIT object caching"),
+                   cl::init(false));
 
 //===----------------------------------------------------------------------===//
 // Lexer
@@ -571,7 +571,7 @@ static PrototypeAST *ParsePrototype() {
     // Read the precedence if present.
     if (CurTok == tok_number) {
       if (NumVal < 1 || NumVal > 100)
-        return ErrorP("Invalid precedecnce: must be 1..100");
+        return ErrorP("Invalid precedence: must be 1..100");
       BinaryPrecedence = (unsigned)NumVal;
       getNextToken();
     }
@@ -647,7 +647,7 @@ std::string MakeLegalFunctionName(std::string Name)
   // Start with what we have
   NewName = Name;
 
-  // Look for a numberic first character
+  // Look for a numeric first character
   if (NewName.find_first_of("0123456789") == 0) {
     NewName.insert(0, 1, 'n');
   }
@@ -1127,7 +1127,7 @@ Value *IfExprAST::Codegen() {
   ThenBB = Builder.GetInsertBlock();
 
   // Emit else block.
-  TheFunction->getBasicBlockList().push_back(ElseBB);
+  TheFunction->insert(TheFunction->end(), ElseBB);
   Builder.SetInsertPoint(ElseBB);
 
   Value *ElseV = Else->Codegen();
@@ -1138,7 +1138,7 @@ Value *IfExprAST::Codegen() {
   ElseBB = Builder.GetInsertBlock();
 
   // Emit merge block.
-  TheFunction->getBasicBlockList().push_back(MergeBB);
+  TheFunction->insert(TheFunction->end(), MergeBB);
   Builder.SetInsertPoint(MergeBB);
   PHINode *PN = Builder.CreatePHI(Type::getDoubleTy(TheContext), 2, "iftmp");
 

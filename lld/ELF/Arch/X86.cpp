@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "OutputSections.h"
 #include "Symbols.h"
 #include "SyntheticSections.h"
 #include "Target.h"
-#include "lld/Common/ErrorHandler.h"
 #include "llvm/Support/Endian.h"
 
 using namespace llvm;
@@ -21,7 +21,7 @@ using namespace lld::elf;
 namespace {
 class X86 : public TargetInfo {
 public:
-  X86();
+  X86(Ctx &);
   int getTlsGdRelaxSkip(RelType type) const override;
   RelExpr getRelExpr(RelType type, const Symbol &s,
                      const uint8_t *loc) const override;
@@ -37,18 +37,17 @@ public:
                 uint64_t val) const override;
 
   RelExpr adjustTlsExpr(RelType type, RelExpr expr) const override;
-  void relaxTlsGdToIe(uint8_t *loc, const Relocation &rel,
-                      uint64_t val) const override;
-  void relaxTlsGdToLe(uint8_t *loc, const Relocation &rel,
-                      uint64_t val) const override;
-  void relaxTlsIeToLe(uint8_t *loc, const Relocation &rel,
-                      uint64_t val) const override;
-  void relaxTlsLdToLe(uint8_t *loc, const Relocation &rel,
-                      uint64_t val) const override;
+  void relocateAlloc(InputSection &sec, uint8_t *buf) const override;
+
+private:
+  void relaxTlsGdToLe(uint8_t *loc, const Relocation &rel, uint64_t val) const;
+  void relaxTlsGdToIe(uint8_t *loc, const Relocation &rel, uint64_t val) const;
+  void relaxTlsLdToLe(uint8_t *loc, const Relocation &rel, uint64_t val) const;
+  void relaxTlsIeToLe(uint8_t *loc, const Relocation &rel, uint64_t val) const;
 };
 } // namespace
 
-X86::X86() {
+X86::X86(Ctx &ctx) : TargetInfo(ctx) {
   copyRel = R_386_COPY;
   gotRel = R_386_GLOB_DAT;
   pltRel = R_386_JUMP_SLOT;
@@ -77,9 +76,6 @@ int X86::getTlsGdRelaxSkip(RelType type) const {
 
 RelExpr X86::getRelExpr(RelType type, const Symbol &s,
                         const uint8_t *loc) const {
-  if (type == R_386_TLS_IE || type == R_386_TLS_GOTIE)
-    config->hasTlsIe = true;
-
   switch (type) {
   case R_386_8:
   case R_386_16:
@@ -154,8 +150,8 @@ RelExpr X86::getRelExpr(RelType type, const Symbol &s,
   case R_386_NONE:
     return R_NONE;
   default:
-    error(getErrorLocation(loc) + "unknown relocation (" + Twine(type) +
-          ") against symbol " + toString(s));
+    Err(ctx) << getErrorLoc(ctx, loc) << "unknown relocation (" << type.v
+             << ") against symbol " << &s;
     return R_NONE;
   }
 }
@@ -173,18 +169,18 @@ RelExpr X86::adjustTlsExpr(RelType type, RelExpr expr) const {
 }
 
 void X86::writeGotPltHeader(uint8_t *buf) const {
-  write32le(buf, mainPart->dynamic->getVA());
+  write32le(buf, ctx.mainPart->dynamic->getVA());
 }
 
 void X86::writeGotPlt(uint8_t *buf, const Symbol &s) const {
   // Entries in .got.plt initially points back to the corresponding
   // PLT entries with a fixed offset to skip the first instruction.
-  write32le(buf, s.getPltVA() + 6);
+  write32le(buf, s.getPltVA(ctx) + 6);
 }
 
 void X86::writeIgotPlt(uint8_t *buf, const Symbol &s) const {
   // An x86 entry is the address of the ifunc resolver function.
-  write32le(buf, s.getVA());
+  write32le(buf, s.getVA(ctx));
 }
 
 RelType X86::getDynRel(RelType type) const {
@@ -196,7 +192,7 @@ RelType X86::getDynRel(RelType type) const {
 }
 
 void X86::writePltHeader(uint8_t *buf) const {
-  if (config->isPic) {
+  if (ctx.arg.isPic) {
     const uint8_t v[] = {
         0xff, 0xb3, 0x04, 0x00, 0x00, 0x00, // pushl 4(%ebx)
         0xff, 0xa3, 0x08, 0x00, 0x00, 0x00, // jmp *8(%ebx)
@@ -212,22 +208,22 @@ void X86::writePltHeader(uint8_t *buf) const {
       0x90, 0x90, 0x90, 0x90, // nop
   };
   memcpy(buf, pltData, sizeof(pltData));
-  uint32_t gotPlt = in.gotPlt->getVA();
+  uint32_t gotPlt = ctx.in.gotPlt->getVA();
   write32le(buf + 2, gotPlt + 4);
   write32le(buf + 8, gotPlt + 8);
 }
 
 void X86::writePlt(uint8_t *buf, const Symbol &sym,
                    uint64_t pltEntryAddr) const {
-  unsigned relOff = in.relaPlt->entsize * sym.getPltIdx();
-  if (config->isPic) {
+  unsigned relOff = ctx.in.relaPlt->entsize * sym.getPltIdx(ctx);
+  if (ctx.arg.isPic) {
     const uint8_t inst[] = {
         0xff, 0xa3, 0, 0, 0, 0, // jmp *foo@GOT(%ebx)
         0x68, 0,    0, 0, 0,    // pushl $reloc_offset
         0xe9, 0,    0, 0, 0,    // jmp .PLT0@PC
     };
     memcpy(buf, inst, sizeof(inst));
-    write32le(buf + 2, sym.getGotPltVA() - in.gotPlt->getVA());
+    write32le(buf + 2, sym.getGotPltVA(ctx) - ctx.in.gotPlt->getVA());
   } else {
     const uint8_t inst[] = {
         0xff, 0x25, 0, 0, 0, 0, // jmp *foo@GOT
@@ -235,11 +231,11 @@ void X86::writePlt(uint8_t *buf, const Symbol &sym,
         0xe9, 0,    0, 0, 0,    // jmp .PLT0@PC
     };
     memcpy(buf, inst, sizeof(inst));
-    write32le(buf + 2, sym.getGotPltVA());
+    write32le(buf + 2, sym.getGotPltVA(ctx));
   }
 
   write32le(buf + 7, relOff);
-  write32le(buf + 12, in.plt->getVA() - pltEntryAddr - 16);
+  write32le(buf + 12, ctx.in.plt->getVA() - pltEntryAddr - 16);
 }
 
 int64_t X86::getImplicitAddend(const uint8_t *buf, RelType type) const {
@@ -283,8 +279,7 @@ int64_t X86::getImplicitAddend(const uint8_t *buf, RelType type) const {
     // These relocations are defined as not having an implicit addend.
     return 0;
   default:
-    internalLinkerError(getErrorLocation(buf),
-                        "cannot read addend for relocation " + toString(type));
+    InternalErr(ctx, buf) << "cannot read addend for relocation " << type;
     return 0;
   }
 }
@@ -295,15 +290,15 @@ void X86::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
     // R_386_{PC,}{8,16} are not part of the i386 psABI, but they are
     // being used for some 16-bit programs such as boot loaders, so
     // we want to support them.
-    checkIntUInt(loc, val, 8, rel);
+    checkIntUInt(ctx, loc, val, 8, rel);
     *loc = val;
     break;
   case R_386_PC8:
-    checkInt(loc, val, 8, rel);
+    checkInt(ctx, loc, val, 8, rel);
     *loc = val;
     break;
   case R_386_16:
-    checkIntUInt(loc, val, 16, rel);
+    checkIntUInt(ctx, loc, val, 16, rel);
     write16le(loc, val);
     break;
   case R_386_PC16:
@@ -317,7 +312,7 @@ void X86::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
     // current location subtracted from it.
     // We just check that Val fits in 17 bits. This misses some cases, but
     // should have no false positives.
-    checkInt(loc, val, 17, rel);
+    checkInt(ctx, loc, val, 17, rel);
     write16le(loc, val);
     break;
   case R_386_32:
@@ -341,7 +336,7 @@ void X86::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
   case R_386_TLS_LE_32:
   case R_386_TLS_TPOFF:
   case R_386_TLS_TPOFF32:
-    checkInt(loc, val, 32, rel);
+    checkInt(ctx, loc, val, 32, rel);
     write32le(loc, val);
     break;
   case R_386_TLS_DESC:
@@ -356,25 +351,28 @@ void X86::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
 void X86::relaxTlsGdToLe(uint8_t *loc, const Relocation &rel,
                          uint64_t val) const {
   if (rel.type == R_386_TLS_GD) {
-    // Convert
+    // Convert (loc[-2] == 0x04)
     //   leal x@tlsgd(, %ebx, 1), %eax
-    //   call __tls_get_addr@plt
+    //   call ___tls_get_addr@plt
+    // or
+    //   leal x@tlsgd(%reg), %eax
+    //   call *___tls_get_addr@got(%reg)
     // to
-    //   movl %gs:0, %eax
-    //   subl $x@tpoff, %eax
     const uint8_t inst[] = {
         0x65, 0xa1, 0x00, 0x00, 0x00, 0x00, // movl %gs:0, %eax
-        0x81, 0xe8, 0,    0,    0,    0,    // subl val(%ebx), %eax
+        0x81, 0xe8, 0,    0,    0,    0,    // subl x@ntpoff(%ebx), %eax
     };
-    memcpy(loc - 3, inst, sizeof(inst));
-    write32le(loc + 5, val);
+    uint8_t *w = loc[-2] == 0x04 ? loc - 3 : loc - 2;
+    memcpy(w, inst, sizeof(inst));
+    write32le(w + 8, val);
   } else if (rel.type == R_386_TLS_GOTDESC) {
     // Convert leal x@tlsdesc(%ebx), %eax to leal x@ntpoff, %eax.
     //
     // Note: call *x@tlsdesc(%eax) may not immediately follow this instruction.
     if (memcmp(loc - 2, "\x8d\x83", 2)) {
-      error(getErrorLocation(loc - 2) +
-            "R_386_TLS_GOTDESC must be used in leal x@tlsdesc(%ebx), %eax");
+      ErrAlways(ctx)
+          << getErrorLoc(ctx, loc - 2)
+          << "R_386_TLS_GOTDESC must be used in leal x@tlsdesc(%ebx), %eax";
       return;
     }
     loc[-1] = 0x05;
@@ -390,23 +388,25 @@ void X86::relaxTlsGdToLe(uint8_t *loc, const Relocation &rel,
 void X86::relaxTlsGdToIe(uint8_t *loc, const Relocation &rel,
                          uint64_t val) const {
   if (rel.type == R_386_TLS_GD) {
-    // Convert
+    // Convert (loc[-2] == 0x04)
     //   leal x@tlsgd(, %ebx, 1), %eax
-    //   call __tls_get_addr@plt
-    // to
-    //   movl %gs:0, %eax
-    //   addl x@gotntpoff(%ebx), %eax
+    //   call ___tls_get_addr@plt
+    // or
+    //   leal x@tlsgd(%reg), %eax
+    //   call *___tls_get_addr@got(%reg)
     const uint8_t inst[] = {
         0x65, 0xa1, 0x00, 0x00, 0x00, 0x00, // movl %gs:0, %eax
-        0x03, 0x83, 0,    0,    0,    0,    // addl val(%ebx), %eax
+        0x03, 0x83, 0,    0,    0,    0,    // addl x@gottpoff(%ebx), %eax
     };
-    memcpy(loc - 3, inst, sizeof(inst));
-    write32le(loc + 5, val);
+    uint8_t *w = loc[-2] == 0x04 ? loc - 3 : loc - 2;
+    memcpy(w, inst, sizeof(inst));
+    write32le(w + 8, val);
   } else if (rel.type == R_386_TLS_GOTDESC) {
     // Convert leal x@tlsdesc(%ebx), %eax to movl x@gotntpoff(%ebx), %eax.
     if (memcmp(loc - 2, "\x8d\x83", 2)) {
-      error(getErrorLocation(loc - 2) +
-            "R_386_TLS_GOTDESC must be used in leal x@tlsdesc(%ebx), %eax");
+      ErrAlways(ctx)
+          << getErrorLoc(ctx, loc - 2)
+          << "R_386_TLS_GOTDESC must be used in leal x@tlsdesc(%ebx), %eax";
       return;
     }
     loc[-2] = 0x8b;
@@ -466,19 +466,56 @@ void X86::relaxTlsLdToLe(uint8_t *loc, const Relocation &rel,
     return;
   }
 
+  if (loc[4] == 0xe8) {
+    // Convert
+    //   leal x(%reg),%eax
+    //   call ___tls_get_addr@plt
+    // to
+    const uint8_t inst[] = {
+        0x65, 0xa1, 0x00, 0x00, 0x00, 0x00, // movl %gs:0,%eax
+        0x90,                               // nop
+        0x8d, 0x74, 0x26, 0x00,             // leal 0(%esi,1),%esi
+    };
+    memcpy(loc - 2, inst, sizeof(inst));
+    return;
+  }
+
   // Convert
-  //   leal foo(%reg),%eax
-  //   call ___tls_get_addr
+  //   leal x(%reg),%eax
+  //   call *___tls_get_addr@got(%reg)
   // to
-  //   movl %gs:0,%eax
-  //   nop
-  //   leal 0(%esi,1),%esi
   const uint8_t inst[] = {
       0x65, 0xa1, 0x00, 0x00, 0x00, 0x00, // movl %gs:0,%eax
-      0x90,                               // nop
-      0x8d, 0x74, 0x26, 0x00,             // leal 0(%esi,1),%esi
+      0x8d, 0xb6, 0x00, 0x00, 0x00, 0x00, // leal (%esi),%esi
   };
   memcpy(loc - 2, inst, sizeof(inst));
+}
+
+void X86::relocateAlloc(InputSection &sec, uint8_t *buf) const {
+  uint64_t secAddr = sec.getOutputSection()->addr + sec.outSecOff;
+  for (const Relocation &rel : sec.relocs()) {
+    uint8_t *loc = buf + rel.offset;
+    const uint64_t val =
+        SignExtend64(sec.getRelocTargetVA(ctx, rel, secAddr + rel.offset), 32);
+    switch (rel.expr) {
+    case R_RELAX_TLS_GD_TO_IE_GOTPLT:
+      relaxTlsGdToIe(loc, rel, val);
+      continue;
+    case R_RELAX_TLS_GD_TO_LE:
+    case R_RELAX_TLS_GD_TO_LE_NEG:
+      relaxTlsGdToLe(loc, rel, val);
+      continue;
+    case R_RELAX_TLS_LD_TO_LE:
+      relaxTlsLdToLe(loc, rel, val);
+      break;
+    case R_RELAX_TLS_IE_TO_LE:
+      relaxTlsIeToLe(loc, rel, val);
+      continue;
+    default:
+      relocate(loc, rel, val);
+      break;
+    }
+  }
 }
 
 // If Intel Indirect Branch Tracking is enabled, we have to emit special PLT
@@ -487,7 +524,7 @@ void X86::relaxTlsLdToLe(uint8_t *loc, const Relocation &rel,
 namespace {
 class IntelIBT : public X86 {
 public:
-  IntelIBT();
+  IntelIBT(Ctx &ctx) : X86(ctx) { pltHeaderSize = 0; }
   void writeGotPlt(uint8_t *buf, const Symbol &s) const override;
   void writePlt(uint8_t *buf, const Symbol &sym,
                 uint64_t pltEntryAddr) const override;
@@ -497,24 +534,22 @@ public:
 };
 } // namespace
 
-IntelIBT::IntelIBT() { pltHeaderSize = 0; }
-
 void IntelIBT::writeGotPlt(uint8_t *buf, const Symbol &s) const {
-  uint64_t va =
-      in.ibtPlt->getVA() + IBTPltHeaderSize + s.getPltIdx() * pltEntrySize;
+  uint64_t va = ctx.in.ibtPlt->getVA() + IBTPltHeaderSize +
+                s.getPltIdx(ctx) * pltEntrySize;
   write32le(buf, va);
 }
 
 void IntelIBT::writePlt(uint8_t *buf, const Symbol &sym,
                         uint64_t /*pltEntryAddr*/) const {
-  if (config->isPic) {
+  if (ctx.arg.isPic) {
     const uint8_t inst[] = {
         0xf3, 0x0f, 0x1e, 0xfb,       // endbr32
         0xff, 0xa3, 0,    0,    0, 0, // jmp *name@GOT(%ebx)
         0x66, 0x0f, 0x1f, 0x44, 0, 0, // nop
     };
     memcpy(buf, inst, sizeof(inst));
-    write32le(buf + 6, sym.getGotPltVA() - in.gotPlt->getVA());
+    write32le(buf + 6, sym.getGotPltVA(ctx) - ctx.in.gotPlt->getVA());
     return;
   }
 
@@ -524,7 +559,7 @@ void IntelIBT::writePlt(uint8_t *buf, const Symbol &sym,
       0x66, 0x0f, 0x1f, 0x44, 0, 0, // nop
   };
   memcpy(buf, inst, sizeof(inst));
-  write32le(buf + 6, sym.getGotPltVA());
+  write32le(buf + 6, sym.getGotPltVA(ctx));
 }
 
 void IntelIBT::writeIBTPlt(uint8_t *buf, size_t numEntries) const {
@@ -549,7 +584,7 @@ void IntelIBT::writeIBTPlt(uint8_t *buf, size_t numEntries) const {
 namespace {
 class RetpolinePic : public X86 {
 public:
-  RetpolinePic();
+  RetpolinePic(Ctx &);
   void writeGotPlt(uint8_t *buf, const Symbol &s) const override;
   void writePltHeader(uint8_t *buf) const override;
   void writePlt(uint8_t *buf, const Symbol &sym,
@@ -558,7 +593,7 @@ public:
 
 class RetpolineNoPic : public X86 {
 public:
-  RetpolineNoPic();
+  RetpolineNoPic(Ctx &);
   void writeGotPlt(uint8_t *buf, const Symbol &s) const override;
   void writePltHeader(uint8_t *buf) const override;
   void writePlt(uint8_t *buf, const Symbol &sym,
@@ -566,14 +601,14 @@ public:
 };
 } // namespace
 
-RetpolinePic::RetpolinePic() {
+RetpolinePic::RetpolinePic(Ctx &ctx) : X86(ctx) {
   pltHeaderSize = 48;
   pltEntrySize = 32;
   ipltEntrySize = 32;
 }
 
 void RetpolinePic::writeGotPlt(uint8_t *buf, const Symbol &s) const {
-  write32le(buf, s.getPltVA() + 17);
+  write32le(buf, s.getPltVA(ctx) + 17);
 }
 
 void RetpolinePic::writePltHeader(uint8_t *buf) const {
@@ -599,7 +634,7 @@ void RetpolinePic::writePltHeader(uint8_t *buf) const {
 
 void RetpolinePic::writePlt(uint8_t *buf, const Symbol &sym,
                             uint64_t pltEntryAddr) const {
-  unsigned relOff = in.relaPlt->entsize * sym.getPltIdx();
+  unsigned relOff = ctx.in.relaPlt->entsize * sym.getPltIdx(ctx);
   const uint8_t insn[] = {
       0x50,                            // pushl %eax
       0x8b, 0x83, 0,    0,    0,    0, // mov foo@GOT(%ebx), %eax
@@ -611,23 +646,23 @@ void RetpolinePic::writePlt(uint8_t *buf, const Symbol &sym,
   };
   memcpy(buf, insn, sizeof(insn));
 
-  uint32_t ebx = in.gotPlt->getVA();
-  unsigned off = pltEntryAddr - in.plt->getVA();
-  write32le(buf + 3, sym.getGotPltVA() - ebx);
+  uint32_t ebx = ctx.in.gotPlt->getVA();
+  unsigned off = pltEntryAddr - ctx.in.plt->getVA();
+  write32le(buf + 3, sym.getGotPltVA(ctx) - ebx);
   write32le(buf + 8, -off - 12 + 32);
   write32le(buf + 13, -off - 17 + 18);
   write32le(buf + 18, relOff);
   write32le(buf + 23, -off - 27);
 }
 
-RetpolineNoPic::RetpolineNoPic() {
+RetpolineNoPic::RetpolineNoPic(Ctx &ctx) : X86(ctx) {
   pltHeaderSize = 48;
   pltEntrySize = 32;
   ipltEntrySize = 32;
 }
 
 void RetpolineNoPic::writeGotPlt(uint8_t *buf, const Symbol &s) const {
-  write32le(buf, s.getPltVA() + 16);
+  write32le(buf, s.getPltVA(ctx) + 16);
 }
 
 void RetpolineNoPic::writePltHeader(uint8_t *buf) const {
@@ -651,14 +686,14 @@ void RetpolineNoPic::writePltHeader(uint8_t *buf) const {
   };
   memcpy(buf, insn, sizeof(insn));
 
-  uint32_t gotPlt = in.gotPlt->getVA();
+  uint32_t gotPlt = ctx.in.gotPlt->getVA();
   write32le(buf + 2, gotPlt + 4);
   write32le(buf + 8, gotPlt + 8);
 }
 
 void RetpolineNoPic::writePlt(uint8_t *buf, const Symbol &sym,
                               uint64_t pltEntryAddr) const {
-  unsigned relOff = in.relaPlt->entsize * sym.getPltIdx();
+  unsigned relOff = ctx.in.relaPlt->entsize * sym.getPltIdx(ctx);
   const uint8_t insn[] = {
       0x50,                         // 0:  pushl %eax
       0xa1, 0,    0,    0,    0,    // 1:  mov foo_in_GOT, %eax
@@ -671,29 +706,25 @@ void RetpolineNoPic::writePlt(uint8_t *buf, const Symbol &sym,
   };
   memcpy(buf, insn, sizeof(insn));
 
-  unsigned off = pltEntryAddr - in.plt->getVA();
-  write32le(buf + 2, sym.getGotPltVA());
+  unsigned off = pltEntryAddr - ctx.in.plt->getVA();
+  write32le(buf + 2, sym.getGotPltVA(ctx));
   write32le(buf + 7, -off - 11 + 32);
   write32le(buf + 12, -off - 16 + 17);
   write32le(buf + 17, relOff);
   write32le(buf + 22, -off - 26);
 }
 
-TargetInfo *elf::getX86TargetInfo() {
-  if (config->zRetpolineplt) {
-    if (config->isPic) {
-      static RetpolinePic t;
-      return &t;
-    }
-    static RetpolineNoPic t;
-    return &t;
+void elf::setX86TargetInfo(Ctx &ctx) {
+  if (ctx.arg.zRetpolineplt) {
+    if (ctx.arg.isPic)
+      ctx.target.reset(new RetpolinePic(ctx));
+    else
+      ctx.target.reset(new RetpolineNoPic(ctx));
+    return;
   }
 
-  if (config->andFeatures & GNU_PROPERTY_X86_FEATURE_1_IBT) {
-    static IntelIBT t;
-    return &t;
-  }
-
-  static X86 t;
-  return &t;
+  if (ctx.arg.andFeatures & GNU_PROPERTY_X86_FEATURE_1_IBT)
+    ctx.target.reset(new IntelIBT(ctx));
+  else
+    ctx.target.reset(new X86(ctx));
 }

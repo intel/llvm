@@ -42,7 +42,7 @@ static StringRef getDIEStringAttr(const DIE &Die, uint16_t Attr) {
 void DIEHash::addString(StringRef Str) {
   LLVM_DEBUG(dbgs() << "Adding string " << Str << " to hash.\n");
   Hash.update(Str);
-  Hash.update(makeArrayRef((uint8_t)'\0'));
+  Hash.update(ArrayRef((uint8_t)'\0'));
 }
 
 // FIXME: The LEB128 routines are copied and only slightly modified out of
@@ -230,7 +230,7 @@ void DIEHash::hashBlockData(const DIE::const_value_range &Values) {
              "Base types referenced from DW_OP_convert should have a name");
       hashNestedType(C, Name);
     } else
-      Hash.update((uint64_t)V.getDIEInteger().getValue());
+      Hash.update(V.getDIEInteger().getValue());
 }
 
 // Hash the contents of a loclistptr class.
@@ -389,7 +389,7 @@ void DIEHash::computeHash(const DIE &Die) {
   }
 
   // Following the last (or if there are no children), append a zero byte.
-  Hash.update(makeArrayRef((uint8_t)'\0'));
+  Hash.update(ArrayRef((uint8_t)'\0'));
 }
 
 /// This is based on the type signature computation given in section 7.27 of the

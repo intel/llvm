@@ -5,17 +5,17 @@
 source_filename = "test/CodeGen/AArch64/arm64-2011-03-17-AsmPrinterCrash.ll"
 
 ; Function Attrs: nounwind ssp
-define void @drt_vsprintf() #0 {
+define void @drt_vsprintf(i1 %arg) #0 {
 entry:
   %do_tab_convert = alloca i32, align 4
-  br i1 undef, label %if.then24, label %if.else295, !dbg !11
+  br i1 %arg, label %if.then24, label %if.else295, !dbg !11
 
 if.then24:                                        ; preds = %entry
   unreachable
 
 if.else295:                                       ; preds = %entry
-  call void @llvm.dbg.declare(metadata i32* %do_tab_convert, metadata !14, metadata !16), !dbg !17
-  store i32 0, i32* %do_tab_convert, align 4, !dbg !18
+  call void @llvm.dbg.declare(metadata ptr %do_tab_convert, metadata !14, metadata !16), !dbg !17
+  store i32 0, ptr %do_tab_convert, align 4, !dbg !18
   unreachable
 }
 

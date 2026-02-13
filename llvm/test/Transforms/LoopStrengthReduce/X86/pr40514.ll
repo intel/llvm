@@ -9,7 +9,7 @@ define i32 @pluto(i32 %arg) #0 {
 ; CHECK-NEXT:  bb:
 ; CHECK-NEXT:    br label [[BB10:%.*]]
 ; CHECK:       bb1:
-; CHECK-NEXT:    store i64 [[LSR_IV_NEXT2:%.*]], i64 addrspace(1)* undef, align 8
+; CHECK-NEXT:    store i64 [[LSR_IV_NEXT2:%.*]], ptr addrspace(1) undef, align 8
 ; CHECK-NEXT:    ret i32 [[LSR_IV_NEXT:%.*]]
 ; CHECK:       bb10:
 ; CHECK-NEXT:    [[LSR_IV1:%.*]] = phi i64 [ [[LSR_IV_NEXT2]], [[BB10]] ], [ 9, [[BB:%.*]] ]
@@ -31,7 +31,7 @@ bb1:                                              ; preds = %bb10
   %tmp6 = add i64 %tmp5, undef
   %tmp7 = add i64 %tmp6, undef
   %tmp8 = add i64 undef, %tmp7
-  store i64 %tmp8, i64 addrspace(1)* undef, align 8
+  store i64 %tmp8, ptr addrspace(1) undef, align 8
   %tmp9 = trunc i64 %tmp7 to i32
   ret i32 %tmp9
 
@@ -50,8 +50,8 @@ bb10:                                             ; preds = %bb10, %bb
   %tmp22 = shl i64 %tmp21, 1
   %tmp23 = mul i64 %tmp22, %tmp22
   %tmp24 = add nuw nsw i64 %tmp11, 1
-  br i1 undef, label %bb1, label %bb10
+  br i1 true, label %bb1, label %bb10
 }
 
 
-attributes #0 = { "target-cpu"="broadwell" "target-features"="+sse2,+cx16,+sahf,-tbm,-avx512ifma,-sha,-gfni,-fma4,-vpclmulqdq,+prfchw,+bmi2,-cldemote,+fsgsbase,-ptwrite,-xsavec,+popcnt,+aes,-avx512bitalg,-movdiri,-xsaves,-avx512er,-avx512vnni,-avx512vpopcntdq,-pconfig,-clwb,-avx512f,-clzero,-pku,+mmx,-lwp,-rdpid,-xop,+rdseed,-waitpkg,-movdir64b,-sse4a,-avx512bw,-clflushopt,+xsave,-avx512vbmi2,+64bit,-avx512vl,+invpcid,-avx512cd,+avx,-vaes,+rtm,+fma,+bmi,+rdrnd,-mwaitx,+sse4.1,+sse4.2,+avx2,-wbnoinvd,+sse,+lzcnt,+pclmul,-prefetchwt1,+f16c,+ssse3,-sgx,-shstk,+cmov,-avx512vbmi,+movbe,+xsaveopt,-avx512dq,+adx,-avx512pf,+sse3" }
+attributes #0 = { "target-cpu"="broadwell" "target-features"="+sse2,+cx16,+sahf,-tbm,-avx512ifma,-sha,-gfni,-fma4,-vpclmulqdq,+prfchw,+bmi2,-cldemote,+fsgsbase,-ptwrite,-xsavec,+popcnt,+aes,-avx512bitalg,-movdiri,-xsaves,-avx512vnni,-avx512vpopcntdq,-pconfig,-clwb,-avx512f,-clzero,-pku,+mmx,-lwp,-rdpid,-xop,+rdseed,-waitpkg,-movdir64b,-sse4a,-avx512bw,-clflushopt,+xsave,-avx512vbmi2,+64bit,-avx512vl,+invpcid,-avx512cd,+avx,-vaes,+rtm,+fma,+bmi,+rdrnd,-mwaitx,+sse4.1,+sse4.2,+avx2,-wbnoinvd,+sse,+lzcnt,+pclmul,+f16c,+ssse3,-sgx,-shstk,+cmov,-avx512vbmi,+movbe,+xsaveopt,-avx512dq,+adx,-avx512pf,+sse3" }

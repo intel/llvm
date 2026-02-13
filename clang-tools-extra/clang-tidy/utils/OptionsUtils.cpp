@@ -1,4 +1,4 @@
-//===-- OptionsUtils.cpp - clang-tidy -------------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,12 +9,9 @@
 #include "OptionsUtils.h"
 #include "llvm/ADT/StringExtras.h"
 
-namespace clang {
-namespace tidy {
-namespace utils {
-namespace options {
+namespace clang::tidy::utils::options {
 
-static const char StringsDelimiter[] = ";";
+static constexpr char StringsDelimiter[] = ";";
 
 std::vector<StringRef> parseStringList(StringRef Option) {
   Option = Option.trim().trim(StringsDelimiter);
@@ -63,7 +60,4 @@ std::string serializeStringList(ArrayRef<StringRef> Strings) {
   return llvm::join(Strings, StringsDelimiter);
 }
 
-} // namespace options
-} // namespace utils
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::utils::options

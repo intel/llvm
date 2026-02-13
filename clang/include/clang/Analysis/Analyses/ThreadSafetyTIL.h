@@ -50,16 +50,16 @@
 #include "clang/Analysis/Analyses/ThreadSafetyUtil.h"
 #include "clang/Basic/LLVM.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -320,6 +320,7 @@ public:
 protected:
   SExpr(TIL_Opcode Op) : Opcode(Op) {}
   SExpr(const SExpr &E) : Opcode(E.Opcode), Flags(E.Flags) {}
+  SExpr &operator=(const SExpr &) = delete;
 
   const TIL_Opcode Opcode;
   unsigned char Reserved = 0;
@@ -489,6 +490,10 @@ public:
   Undefined(const Stmt *S = nullptr) : SExpr(COP_Undefined), Cstmt(S) {}
   Undefined(const Undefined &U) : SExpr(U), Cstmt(U.Cstmt) {}
 
+  // The copy assignment operator is defined as deleted pending further
+  // motivation.
+  Undefined &operator=(const Undefined &) = delete;
+
   static bool classof(const SExpr *E) { return E->opcode() == COP_Undefined; }
 
   template <class V>
@@ -567,6 +572,10 @@ public:
   LiteralT(T Dat) : Literal(ValueType::getValueType<T>()), Val(Dat) {}
   LiteralT(const LiteralT<T> &L) : Literal(L), Val(L.Val) {}
 
+  // The copy assignment operator is defined as deleted pending further
+  // motivation.
+  LiteralT &operator=(const LiteralT<T> &) = delete;
+
   T value() const { return Val;}
   T& value() { return Val; }
 
@@ -634,15 +643,14 @@ typename V::R_SExpr Literal::traverse(V &Vs, typename V::R_Ctx Ctx) {
 /// At compile time, pointer literals are represented by symbolic names.
 class LiteralPtr : public SExpr {
 public:
-  LiteralPtr(const ValueDecl *D) : SExpr(COP_LiteralPtr), Cvdecl(D) {
-    assert(D && "ValueDecl must not be null");
-  }
+  LiteralPtr(const ValueDecl *D) : SExpr(COP_LiteralPtr), Cvdecl(D) {}
   LiteralPtr(const LiteralPtr &) = default;
 
   static bool classof(const SExpr *E) { return E->opcode() == COP_LiteralPtr; }
 
   // The clang declaration for the value that this pointer points to.
   const ValueDecl *clangDecl() const { return Cvdecl; }
+  void setClangDecl(const ValueDecl *VD) { Cvdecl = VD; }
 
   template <class V>
   typename V::R_SExpr traverse(V &Vs, typename V::R_Ctx Ctx) {
@@ -651,6 +659,8 @@ public:
 
   template <class C>
   typename C::CType compare(const LiteralPtr* E, C& Cmp) const {
+    if (!Cvdecl || !E->Cvdecl)
+      return Cmp.comparePointers(this, E);
     return Cmp.comparePointers(Cvdecl, E->Cvdecl);
   }
 
@@ -957,7 +967,7 @@ public:
 
 private:
   SExpr* Rec;
-  mutable llvm::Optional<std::string> SlotName;
+  mutable std::optional<std::string> SlotName;
   const ValueDecl *Cvdecl;
 };
 
@@ -1354,11 +1364,7 @@ public:
   }
 
   /// Return the list of basic blocks that this terminator can branch to.
-  ArrayRef<BasicBlock *> successors();
-
-  ArrayRef<BasicBlock *> successors() const {
-    return const_cast<Terminator*>(this)->successors();
-  }
+  ArrayRef<BasicBlock *> successors() const;
 };
 
 /// Jump to another basic block.
@@ -1382,7 +1388,7 @@ public:
   unsigned index() const { return Index; }
 
   /// Return the list of basic blocks that this terminator can branch to.
-  ArrayRef<BasicBlock *> successors() { return TargetBlock; }
+  ArrayRef<BasicBlock *> successors() const { return TargetBlock; }
 
   template <class V>
   typename V::R_SExpr traverse(V &Vs, typename V::R_Ctx Ctx) {
@@ -1430,9 +1436,7 @@ public:
   BasicBlock *elseBlock() { return Branches[1]; }
 
   /// Return the list of basic blocks that this terminator can branch to.
-  ArrayRef<BasicBlock*> successors() {
-    return llvm::makeArrayRef(Branches);
-  }
+  ArrayRef<BasicBlock *> successors() const { return llvm::ArrayRef(Branches); }
 
   template <class V>
   typename V::R_SExpr traverse(V &Vs, typename V::R_Ctx Ctx) {
@@ -1463,7 +1467,7 @@ public:
   static bool classof(const SExpr *E) { return E->opcode() == COP_Return; }
 
   /// Return an empty list.
-  ArrayRef<BasicBlock *> successors() { return None; }
+  ArrayRef<BasicBlock *> successors() const { return {}; }
 
   SExpr *returnValue() { return Retval; }
   const SExpr *returnValue() const { return Retval; }
@@ -1483,13 +1487,13 @@ private:
   SExpr* Retval;
 };
 
-inline ArrayRef<BasicBlock*> Terminator::successors() {
+inline ArrayRef<BasicBlock *> Terminator::successors() const {
   switch (opcode()) {
     case COP_Goto:   return cast<Goto>(this)->successors();
     case COP_Branch: return cast<Branch>(this)->successors();
     case COP_Return: return cast<Return>(this)->successors();
     default:
-      return None;
+      return {};
   }
 }
 
@@ -1661,7 +1665,8 @@ private:
   unsigned BlockID : 31;
 
   // Bit to determine if a block has been visited during a traversal.
-  bool Visited : 1;
+  LLVM_PREFERRED_TYPE(bool)
+  unsigned Visited : 1;
 
   // Predecessor blocks in the CFG.
   BlockArray Predecessors;

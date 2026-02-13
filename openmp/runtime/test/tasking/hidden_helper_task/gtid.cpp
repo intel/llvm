@@ -1,5 +1,6 @@
 // RUN: %libomp-cxx-compile-and-run
 // RUN: %libomp-cxx-compile && env OMP_NUM_THREADS=1 %libomp-run
+// REQUIRES: hidden-helper
 
 /*
  * This test aims to check whether hidden helper thread has right gtid. We also
@@ -42,7 +43,7 @@ struct anon {
 };
 }
 
-kmp_int32 __kmp_hidden_helper_threads_num;
+static kmp_int32 __kmp_hidden_helper_threads_num;
 
 kmp_int32 omp_task_entry(kmp_int32 gtid, kmp_task_t_with_privates *task) {
   auto shareds = reinterpret_cast<anon *>(task->task.shareds);

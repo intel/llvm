@@ -13,10 +13,100 @@
 
 #include "llvm/ExecutionEngine/SectionMemoryManager.h"
 #include "llvm/Config/config.h"
-#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Process.h"
 
 namespace llvm {
+
+bool SectionMemoryManager::hasSpace(const MemoryGroup &MemGroup,
+                                    uintptr_t Size) const {
+  for (const FreeMemBlock &FreeMB : MemGroup.FreeMem) {
+    if (FreeMB.Free.allocatedSize() >= Size)
+      return true;
+  }
+  return false;
+}
+
+void SectionMemoryManager::reserveAllocationSpace(
+    uintptr_t CodeSize, Align CodeAlign, uintptr_t RODataSize,
+    Align RODataAlign, uintptr_t RWDataSize, Align RWDataAlign) {
+  if (CodeSize == 0 && RODataSize == 0 && RWDataSize == 0)
+    return;
+
+  static const size_t PageSize = sys::Process::getPageSizeEstimate();
+
+  // Code alignment needs to be at least the stub alignment - however, we
+  // don't have an easy way to get that here so as a workaround, we assume
+  // it's 8, which is the largest value I observed across all platforms.
+  constexpr uint64_t StubAlign = 8;
+  CodeAlign = Align(std::max(CodeAlign.value(), StubAlign));
+  RODataAlign = Align(std::max(RODataAlign.value(), StubAlign));
+  RWDataAlign = Align(std::max(RWDataAlign.value(), StubAlign));
+
+  // Get space required for each section. Use the same calculation as
+  // allocateSection because we need to be able to satisfy it.
+  uint64_t RequiredCodeSize = alignTo(CodeSize, CodeAlign) + CodeAlign.value();
+  uint64_t RequiredRODataSize =
+      alignTo(RODataSize, RODataAlign) + RODataAlign.value();
+  uint64_t RequiredRWDataSize =
+      alignTo(RWDataSize, RWDataAlign) + RWDataAlign.value();
+
+  if (hasSpace(CodeMem, RequiredCodeSize) &&
+      hasSpace(RODataMem, RequiredRODataSize) &&
+      hasSpace(RWDataMem, RequiredRWDataSize)) {
+    // Sufficient space in contiguous block already available.
+    return;
+  }
+
+  // MemoryManager does not have functions for releasing memory after it's
+  // allocated. Normally it tries to use any excess blocks that were allocated
+  // due to page alignment, but if we have insufficient free memory for the
+  // request this can lead to allocating disparate memory that can violate the
+  // ARM ABI. Clear free memory so only the new allocations are used, but do
+  // not release allocated memory as it may still be in-use.
+  CodeMem.FreeMem.clear();
+  RODataMem.FreeMem.clear();
+  RWDataMem.FreeMem.clear();
+
+  // Round up to the nearest page size. Blocks must be page-aligned.
+  RequiredCodeSize = alignTo(RequiredCodeSize, PageSize);
+  RequiredRODataSize = alignTo(RequiredRODataSize, PageSize);
+  RequiredRWDataSize = alignTo(RequiredRWDataSize, PageSize);
+  uint64_t RequiredSize =
+      RequiredCodeSize + RequiredRODataSize + RequiredRWDataSize;
+
+  std::error_code ec;
+  sys::MemoryBlock MB = MMapper->allocateMappedMemory(
+      AllocationPurpose::RWData, RequiredSize, nullptr,
+      sys::Memory::MF_READ | sys::Memory::MF_WRITE, ec);
+  if (ec) {
+    return;
+  }
+  // CodeMem will arbitrarily own this MemoryBlock to handle cleanup.
+  CodeMem.AllocatedMem.push_back(MB);
+  uintptr_t Addr = (uintptr_t)MB.base();
+  FreeMemBlock FreeMB;
+  FreeMB.PendingPrefixIndex = (unsigned)-1;
+
+  if (CodeSize > 0) {
+    assert(isAddrAligned(CodeAlign, (void *)Addr));
+    FreeMB.Free = sys::MemoryBlock((void *)Addr, RequiredCodeSize);
+    CodeMem.FreeMem.push_back(FreeMB);
+    Addr += RequiredCodeSize;
+  }
+
+  if (RODataSize > 0) {
+    assert(isAddrAligned(RODataAlign, (void *)Addr));
+    FreeMB.Free = sys::MemoryBlock((void *)Addr, RequiredRODataSize);
+    RODataMem.FreeMem.push_back(FreeMB);
+    Addr += RequiredRODataSize;
+  }
+
+  if (RWDataSize > 0) {
+    assert(isAddrAligned(RWDataAlign, (void *)Addr));
+    FreeMB.Free = sys::MemoryBlock((void *)Addr, RequiredRWDataSize);
+    RWDataMem.FreeMem.push_back(FreeMB);
+  }
+}
 
 uint8_t *SectionMemoryManager::allocateDataSection(uintptr_t Size,
                                                    unsigned Alignment,
@@ -101,7 +191,7 @@ uint8_t *SectionMemoryManager::allocateSection(
   // FIXME: Initialize the Near member for each memory group to avoid
   // interleaving.
   std::error_code ec;
-  sys::MemoryBlock MB = MMapper.allocateMappedMemory(
+  sys::MemoryBlock MB = MMapper->allocateMappedMemory(
       Purpose, RequiredSize, &MemGroup.Near,
       sys::Memory::MF_READ | sys::Memory::MF_WRITE, ec);
   if (ec) {
@@ -204,7 +294,7 @@ std::error_code
 SectionMemoryManager::applyMemoryGroupPermissions(MemoryGroup &MemGroup,
                                                   unsigned Permissions) {
   for (sys::MemoryBlock &MB : MemGroup.PendingMem)
-    if (std::error_code EC = MMapper.protectMappedMemory(MB, Permissions))
+    if (std::error_code EC = MMapper->protectMappedMemory(MB, Permissions))
       return EC;
 
   MemGroup.PendingMem.clear();
@@ -234,7 +324,7 @@ void SectionMemoryManager::invalidateInstructionCache() {
 SectionMemoryManager::~SectionMemoryManager() {
   for (MemoryGroup *Group : {&CodeMem, &RWDataMem, &RODataMem}) {
     for (sys::MemoryBlock &Block : Group->AllocatedMem)
-      MMapper.releaseMappedMemory(Block);
+      MMapper->releaseMappedMemory(Block);
   }
 }
 
@@ -263,11 +353,16 @@ public:
     return sys::Memory::releaseMappedMemory(M);
   }
 };
-
-DefaultMMapper DefaultMMapperInstance;
 } // namespace
 
-SectionMemoryManager::SectionMemoryManager(MemoryMapper *MM)
-    : MMapper(MM ? *MM : DefaultMMapperInstance) {}
+SectionMemoryManager::SectionMemoryManager(MemoryMapper *UnownedMM,
+                                           bool ReserveAlloc)
+    : MMapper(UnownedMM), OwnedMMapper(nullptr),
+      ReserveAllocation(ReserveAlloc) {
+  if (!MMapper) {
+    OwnedMMapper = std::make_unique<DefaultMMapper>();
+    MMapper = OwnedMMapper.get();
+  }
+}
 
 } // namespace llvm

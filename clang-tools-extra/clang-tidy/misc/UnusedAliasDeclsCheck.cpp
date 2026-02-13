@@ -1,4 +1,4 @@
-//===--- UnusedAliasDeclsCheck.cpp - clang-tidy----------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,9 +13,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace misc {
+namespace clang::tidy::misc {
 
 void UnusedAliasDeclsCheck::registerMatchers(MatchFinder *Finder) {
   // We cannot do anything about headers (yet), as the alias declarations
@@ -37,11 +35,12 @@ void UnusedAliasDeclsCheck::check(const MatchFinder::MatchResult &Result) {
   }
 
   if (const auto *NestedName =
-          Result.Nodes.getNodeAs<NestedNameSpecifier>("nns")) {
-    if (const auto *AliasDecl = NestedName->getAsNamespaceAlias()) {
+          Result.Nodes.getNodeAs<NestedNameSpecifier>("nns");
+      NestedName &&
+      NestedName->getKind() == NestedNameSpecifier::Kind::Namespace)
+    if (const auto *AliasDecl = dyn_cast<NamespaceAliasDecl>(
+            NestedName->getAsNamespaceAndPrefix().Namespace))
       FoundDecls[AliasDecl] = CharSourceRange();
-    }
-  }
 }
 
 void UnusedAliasDeclsCheck::onEndOfTranslationUnit() {
@@ -53,6 +52,4 @@ void UnusedAliasDeclsCheck::onEndOfTranslationUnit() {
   }
 }
 
-} // namespace misc
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::misc

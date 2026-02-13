@@ -8,20 +8,20 @@
 
 ; CHECK-LABEL: spir_kernel void @test
 
-; CHECK-SPV-IR: call spir_func i32 @_Z18__spirv_ocl_printfPU3AS2c(i8 addrspace(2)* {{.*}})
-; CHECK-SPV-IR: call spir_func i32 @_Z18__spirv_ocl_printfPU3AS2ci(i8 addrspace(2)* {{.*}}, i32 1)
+; CHECK-SPV-IR: call spir_func i32 @_Z18__spirv_ocl_printfPU3AS2c(ptr addrspace(2) {{.*}})
+; CHECK-SPV-IR: call spir_func i32 @_Z18__spirv_ocl_printfPU3AS2ci(ptr addrspace(2) {{.*}}, i32 1)
 
-; CHECK-SPV-IR: declare spir_func i32 @_Z18__spirv_ocl_printfPU3AS2c(i8 addrspace(2)*)
-; CHECK-SPV-IR: declare spir_func i32 @_Z18__spirv_ocl_printfPU3AS2ci(i8 addrspace(2)*, i32)
+; CHECK-SPV-IR: declare spir_func i32 @_Z18__spirv_ocl_printfPU3AS2c(ptr addrspace(2))
+; CHECK-SPV-IR: declare spir_func i32 @_Z18__spirv_ocl_printfPU3AS2ci(ptr addrspace(2), i32)
 
-; CHECK-CL20: call spir_func i32 (i8 addrspace(2)*, ...) @printf(i8 addrspace(2)* {{.*}})
-; CHECK-CL20: call spir_func i32 (i8 addrspace(2)*, ...) @printf(i8 addrspace(2)* {{.*}}, i32 1) 
+; CHECK-CL20: call spir_func i32 (ptr addrspace(2), ...) @printf(ptr addrspace(2) {{.*}})
+; CHECK-CL20: call spir_func i32 (ptr addrspace(2), ...) @printf(ptr addrspace(2) {{.*}}, i32 1)
 
-; CHECK-CL20: declare spir_func i32 @printf(i8 addrspace(2)*, ...)
+; CHECK-CL20: declare spir_func i32 @printf(ptr addrspace(2), ...)
 
 ; CHECK-SPV-BACK: ExtInstImport [[Set:[0-9]+]] "OpenCL.std"
-; CHECK-SPV-BACK: TypeInt [[Int8:[0-9]+]] 8
-; CHECK-SPV-BACK: TypeInt [[Int32:[0-9]+]] 32
+; CHECK-SPV-BACK-DAG: TypeInt [[Int8:[0-9]+]] 8
+; CHECK-SPV-BACK-DAG: TypeInt [[Int32:[0-9]+]] 32
 ; CHECK-SPV-BACK: Constant [[Int32]] [[One:[0-9]+]] 1{{[[:space:]]}}
 ; CHECK-SPV-BACK: TypePointer [[Int8PtrTy:[0-9]+]] 0 [[Int8]]{{[[:space:]]}}
 ; CHECK-SPV-BACK: InBoundsPtrAccessChain [[Int8PtrTy]] [[Int8Ptr:[0-9]+]]

@@ -23,7 +23,7 @@
 // RUN: %env_ubsan_opts=halt_on_error=1 not %run %t nN 2>&1 | FileCheck %s --check-prefix=CHECK-NULL-MEMFUN --strict-whitespace
 // RUN: %env_ubsan_opts=print_stacktrace=1 %run %t dT 2>&1 | FileCheck %s --check-prefix=CHECK-DYNAMIC --allow-unused-prefixes --check-prefix=CHECK-%os-DYNAMIC --strict-whitespace
 
-// RUN: (echo "vptr_check:S"; echo "vptr_check:T"; echo "vptr_check:U") > %t.supp
+// RUN: echo -e "vptr_check:S\nvptr_check:T\nvptr_check:U" > %t.supp
 // RUN: %env_ubsan_opts=halt_on_error=1:suppressions='"%t.supp"' %run %t mS
 // RUN: %env_ubsan_opts=halt_on_error=1:suppressions='"%t.supp"' %run %t fS
 // RUN: %env_ubsan_opts=halt_on_error=1:suppressions='"%t.supp"' %run %t cS
@@ -37,13 +37,17 @@
 // RUN: %env_ubsan_opts=halt_on_error=1:suppressions='"%t.loc-supp"' not %run %t x- 2>&1 | FileCheck %s --check-prefix=CHECK-LOC-SUPPRESS
 
 // REQUIRES: stable-runtime, cxxabi
-// UNSUPPORTED: windows-msvc
+// UNSUPPORTED: target={{.*windows-msvc.*}}
 // Suppressions file not pushed to the device.
 // UNSUPPORTED: android
 // Compilation error
-// UNSUPPORTED: openbsd
+// UNSUPPORTED: target={{.*openbsd.*}}
 // Compilation error
-// UNSUPPORTED: freebsd
+// UNSUPPORTED: target={{.*freebsd.*}}
+// FIXME: For MinGW targets, the vptr tests do generally work, but Itanium
+// demangling isn't done for the type names. The "(echo ..." line fails to
+// be handled by the shell.
+// XFAIL: target={{.*windows-gnu.*}}
 #include <new>
 #include <typeinfo>
 #include <assert.h>

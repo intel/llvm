@@ -1,6 +1,19 @@
 ; Test rounding functions for z14 and above.
 ;
-; RUN: llc < %s -mtriple=s390x-linux-gnu -mcpu=z14 | FileCheck %s
+; RUN: llc < %s -mtriple=s390x-linux-gnu -mcpu=z14 -verify-machineinstrs \
+; RUN:   | FileCheck %s
+
+; Test that an f16 intrinsic can be lowered with promotion to float.
+declare half @llvm.rint.f16(half %f)
+define half @f0(half %f) {
+; CHECK-LABEL: f0:
+; CHECK: brasl %r14, __extendhfsf2@PLT
+; CHECK: fiebra %f0, 0, %f0, 0
+; CHECK: brasl %r14, __truncsfhf2@PLT
+; CHECK: br %r14
+  %res = call half @llvm.rint.f16(half %f)
+  ret half %res
+}
 
 ; Test rint for f32.
 declare float @llvm.rint.f32(float %f)
@@ -24,15 +37,15 @@ define double @f2(double %f) {
 
 ; Test rint for f128.
 declare fp128 @llvm.rint.f128(fp128 %f)
-define void @f3(fp128 *%ptr) {
+define void @f3(ptr %ptr) {
 ; CHECK-LABEL: f3:
 ; CHECK: vl [[REG:%v[0-9]+]], 0(%r2)
 ; CHECK: wfixb [[RES:%v[0-9]+]], [[REG]], 0, 0
 ; CHECK: vst [[RES]], 0(%r2)
 ; CHECK: br %r14
-  %src = load fp128, fp128 *%ptr
+  %src = load fp128, ptr %ptr
   %res = call fp128 @llvm.rint.f128(fp128 %src)
-  store fp128 %res, fp128 *%ptr
+  store fp128 %res, ptr %ptr
   ret void
 }
 
@@ -58,15 +71,15 @@ define double @f5(double %f) {
 
 ; Test nearbyint for f128.
 declare fp128 @llvm.nearbyint.f128(fp128 %f)
-define void @f6(fp128 *%ptr) {
+define void @f6(ptr %ptr) {
 ; CHECK-LABEL: f6:
 ; CHECK: vl [[REG:%v[0-9]+]], 0(%r2)
 ; CHECK: wfixb [[RES:%v[0-9]+]], [[REG]], 4, 0
 ; CHECK: vst [[RES]], 0(%r2)
 ; CHECK: br %r14
-  %src = load fp128, fp128 *%ptr
+  %src = load fp128, ptr %ptr
   %res = call fp128 @llvm.nearbyint.f128(fp128 %src)
-  store fp128 %res, fp128 *%ptr
+  store fp128 %res, ptr %ptr
   ret void
 }
 
@@ -92,15 +105,15 @@ define double @f8(double %f) {
 
 ; Test floor for f128.
 declare fp128 @llvm.floor.f128(fp128 %f)
-define void @f9(fp128 *%ptr) {
+define void @f9(ptr %ptr) {
 ; CHECK-LABEL: f9:
 ; CHECK: vl [[REG:%v[0-9]+]], 0(%r2)
 ; CHECK: wfixb [[RES:%v[0-9]+]], [[REG]], 4, 7
 ; CHECK: vst [[RES]], 0(%r2)
 ; CHECK: br %r14
-  %src = load fp128, fp128 *%ptr
+  %src = load fp128, ptr %ptr
   %res = call fp128 @llvm.floor.f128(fp128 %src)
-  store fp128 %res, fp128 *%ptr
+  store fp128 %res, ptr %ptr
   ret void
 }
 
@@ -126,15 +139,15 @@ define double @f11(double %f) {
 
 ; Test ceil for f128.
 declare fp128 @llvm.ceil.f128(fp128 %f)
-define void @f12(fp128 *%ptr) {
+define void @f12(ptr %ptr) {
 ; CHECK-LABEL: f12:
 ; CHECK: vl [[REG:%v[0-9]+]], 0(%r2)
 ; CHECK: wfixb [[RES:%v[0-9]+]], [[REG]], 4, 6
 ; CHECK: vst [[RES]], 0(%r2)
 ; CHECK: br %r14
-  %src = load fp128, fp128 *%ptr
+  %src = load fp128, ptr %ptr
   %res = call fp128 @llvm.ceil.f128(fp128 %src)
-  store fp128 %res, fp128 *%ptr
+  store fp128 %res, ptr %ptr
   ret void
 }
 
@@ -160,15 +173,15 @@ define double @f14(double %f) {
 
 ; Test trunc for f128.
 declare fp128 @llvm.trunc.f128(fp128 %f)
-define void @f15(fp128 *%ptr) {
+define void @f15(ptr %ptr) {
 ; CHECK-LABEL: f15:
 ; CHECK: vl [[REG:%v[0-9]+]], 0(%r2)
 ; CHECK: wfixb [[RES:%v[0-9]+]], [[REG]], 4, 5
 ; CHECK: vst [[RES]], 0(%r2)
 ; CHECK: br %r14
-  %src = load fp128, fp128 *%ptr
+  %src = load fp128, ptr %ptr
   %res = call fp128 @llvm.trunc.f128(fp128 %src)
-  store fp128 %res, fp128 *%ptr
+  store fp128 %res, ptr %ptr
   ret void
 }
 
@@ -194,14 +207,48 @@ define double @f17(double %f) {
 
 ; Test round for f128.
 declare fp128 @llvm.round.f128(fp128 %f)
-define void @f18(fp128 *%ptr) {
+define void @f18(ptr %ptr) {
 ; CHECK-LABEL: f18:
 ; CHECK: vl [[REG:%v[0-9]+]], 0(%r2)
 ; CHECK: wfixb [[RES:%v[0-9]+]], [[REG]], 4, 1
 ; CHECK: vst [[RES]], 0(%r2)
 ; CHECK: br %r14
-  %src = load fp128, fp128 *%ptr
+  %src = load fp128, ptr %ptr
   %res = call fp128 @llvm.round.f128(fp128 %src)
-  store fp128 %res, fp128 *%ptr
+  store fp128 %res, ptr %ptr
+  ret void
+}
+
+; Test roundeven for f32.
+declare float @llvm.roundeven.f32(float %f)
+define float @f19(float %f) {
+; CHECK-LABEL: f19:
+; CHECK: fiebra %f0, 4, %f0, 4
+; CHECK: br %r14
+  %res = call float @llvm.roundeven.f32(float %f)
+  ret float %res
+}
+
+; Test roundeven for f64.
+declare double @llvm.roundeven.f64(double %f)
+define double @f20(double %f) {
+; CHECK-LABEL: f20:
+; CHECK: fidbra %f0, 4, %f0, 4
+; CHECK: br %r14
+  %res = call double @llvm.roundeven.f64(double %f)
+  ret double %res
+}
+
+; Test roundeven for f128.
+declare fp128 @llvm.roundeven.f128(fp128 %f)
+define void @f21(ptr %ptr) {
+; CHECK-LABEL: f21:
+; CHECK: vl [[REG:%v[0-9]+]], 0(%r2)
+; CHECK: wfixb [[RES:%v[0-9]+]], [[REG]], 4, 4
+; CHECK: vst [[RES]], 0(%r2)
+; CHECK: br %r14
+  %src = load fp128, ptr %ptr
+  %res = call fp128 @llvm.roundeven.f128(fp128 %src)
+  store fp128 %res, ptr %ptr
   ret void
 }

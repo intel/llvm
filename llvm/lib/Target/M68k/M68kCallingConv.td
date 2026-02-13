@@ -15,25 +15,20 @@
 // TODO Verify C convention follows SysV M68K ABI
 
 class CCIfSubtarget<string F, CCAction A>
-    : CCIf<!strconcat("static_cast<const M68kSubtarget &>"
-                      "(State.getMachineFunction().getSubtarget()).", F), A>;
+    : CCIf<!strconcat("State.getMachineFunction()."
+                      "getSubtarget<M68kSubtarget>().", F), A>;
 
 //===----------------------------------------------------------------------===//
 // Return Value Calling Conventions
 //===----------------------------------------------------------------------===//
 
-/// Return-value conventions common to all M68k CC's.
-def RetCC_M68kCommon : CallingConv<[
-]>;
-
 /// M68k C return convention.
-/// TODO: Return via address register
 def RetCC_M68k_C : CallingConv<[
+  CCIfPtr<CCAssignToReg<[A0]>>,
   CCIfType<[i1],   CCPromoteToType<i8>>,
   CCIfType<[i8],   CCAssignToReg<[BD0, BD1]>>,
   CCIfType<[i16],  CCAssignToReg<[WD0, WD1]>>,
   CCIfType<[i32],  CCAssignToReg<[D0, D1]>>,
-  CCDelegateTo<RetCC_M68kCommon>
 ]>;
 
 /// M68k fastcc return convention.
@@ -41,11 +36,11 @@ def RetCC_M68k_C : CallingConv<[
 /// split among 16 1-byte values or used for a single 16-byte value.
 /// TODO: Verify its functionality and write tests
 def RetCC_M68k_Fast : CallingConv<[
+  CCIfPtr<CCAssignToReg<[A0]>>,
   CCIfType<[i1],   CCPromoteToType<i8>>,
   CCIfType<[i8],   CCAssignToReg<[BD0, BD1]>>,
   CCIfType<[i16],  CCAssignToReg<[WD0, WD1, WA0, WA1]>>,
   CCIfType<[i32],  CCAssignToReg<[D0, D1, A0, A1]>>,
-  CCDelegateTo<RetCC_M68kCommon>
 ]>;
 
 /// This is the root return-value convention for the M68k backend.

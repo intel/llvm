@@ -1,8 +1,6 @@
-; RUN: opt %loadPolly -polly-print-detect -disable-output < %s \
-; RUN:  | FileCheck %s -check-prefix=DETECT
+; RUN: opt %loadNPMPolly '-passes=polly-custom<detect>' -polly-print-detect -disable-output < %s 2>&1 | FileCheck %s -check-prefix=DETECT
 
-; RUN: opt %loadPolly -polly-print-scops -disable-output < %s \
-; RUN:  | FileCheck %s -check-prefix=SCOPS
+; RUN: opt %loadNPMPolly '-passes=polly-custom<scops>' -polly-print-detect -polly-print-scops -disable-output < %s 2>&1 | FileCheck %s -check-prefix=SCOPS
 
 ; DETECT: Valid Region for Scop: if.end116 => for.inc216
 ; SCOPS-NOT: Statements
@@ -12,11 +10,11 @@
 ;
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
-%struct.tnode.1.7.13.67.121.175.217.307.325.337.349.367.379.391.433.445.667.727.733.739 = type { i32, i32, %struct.tnode.1.7.13.67.121.175.217.307.325.337.349.367.379.391.433.445.667.727.733.739*, %struct.tnode.1.7.13.67.121.175.217.307.325.337.349.367.379.391.433.445.667.727.733.739*, %struct.tnode.1.7.13.67.121.175.217.307.325.337.349.367.379.391.433.445.667.727.733.739*, %struct.tnode.1.7.13.67.121.175.217.307.325.337.349.367.379.391.433.445.667.727.733.739*, %struct.tnode.1.7.13.67.121.175.217.307.325.337.349.367.379.391.433.445.667.727.733.739*, i32, i32, %struct.plist.0.6.12.66.120.174.216.306.324.336.348.366.378.390.432.444.666.726.732.738* }
-%struct.plist.0.6.12.66.120.174.216.306.324.336.348.366.378.390.432.444.666.726.732.738 = type { i32, %struct.plist.0.6.12.66.120.174.216.306.324.336.348.366.378.390.432.444.666.726.732.738* }
+%struct.tnode.1.7.13.67.121.175.217.307.325.337.349.367.379.391.433.445.667.727.733.739 = type { i32, i32, ptr, ptr, ptr, ptr, ptr, i32, i32, ptr }
+%struct.plist.0.6.12.66.120.174.216.306.324.336.348.366.378.390.432.444.666.726.732.738 = type { i32, ptr }
 
-@vFixedEdgeRoot = external global %struct.tnode.1.7.13.67.121.175.217.307.325.337.349.367.379.391.433.445.667.727.733.739*, align 8
-@hEdgeRoot = external global %struct.tnode.1.7.13.67.121.175.217.307.325.337.349.367.379.391.433.445.667.727.733.739*, align 8
+@vFixedEdgeRoot = external global ptr, align 8
+@hEdgeRoot = external global ptr, align 8
 
 ; Function Attrs: nounwind uwtable
 define void @readgeo() #0 {
@@ -55,7 +53,7 @@ if.else154:                                       ; preds = %if.end116
   br label %if.end193
 
 if.end193:                                        ; preds = %if.else154, %if.then120
-  %0 = load i32, i32* %vx, align 4
+  %0 = load i32, ptr %vx, align 4
   br label %for.inc216
 
 for.inc216:                                       ; preds = %if.end193, %if.then93

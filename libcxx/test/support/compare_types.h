@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #ifndef TEST_SUPPORT_COMPARE_TYPES_H
 #define TEST_SUPPORT_COMPARE_TYPES_H
 
@@ -526,6 +527,32 @@ struct ForwardingTestObject {
 
   constexpr bool operator>=(ForwardingTestObject&&) && { return true; }
   constexpr bool operator>=(const ForwardingTestObject&) const& { return false; }
+};
+
+struct move_only_equality_with_int {
+  move_only_equality_with_int(int);
+
+  move_only_equality_with_int(move_only_equality_with_int&&)            = default;
+  move_only_equality_with_int& operator=(move_only_equality_with_int&&) = default;
+
+  move_only_equality_with_int(move_only_equality_with_int const&)            = delete;
+  move_only_equality_with_int& operator=(move_only_equality_with_int const&) = delete;
+
+  friend bool operator==(move_only_equality_with_int const&, move_only_equality_with_int const&) = default;
+  friend bool operator==(move_only_equality_with_int const&, int);
+};
+
+struct nonmovable_equality_with_int {
+  nonmovable_equality_with_int(int);
+
+  nonmovable_equality_with_int(nonmovable_equality_with_int&&)            = delete;
+  nonmovable_equality_with_int& operator=(nonmovable_equality_with_int&&) = delete;
+
+  nonmovable_equality_with_int(nonmovable_equality_with_int const&)            = delete;
+  nonmovable_equality_with_int& operator=(nonmovable_equality_with_int const&) = delete;
+
+  friend bool operator==(nonmovable_equality_with_int const&, nonmovable_equality_with_int const&) = default;
+  friend bool operator==(nonmovable_equality_with_int const&, int);
 };
 
 #endif // TEST_SUPPORT_COMPARE_TYPES_H

@@ -11,11 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "NVPTXMCAsmInfo.h"
-#include "llvm/ADT/Triple.h"
+#include "llvm/TargetParser/Triple.h"
 
 using namespace llvm;
-
-void NVPTXMCAsmInfo::anchor() {}
 
 NVPTXMCAsmInfo::NVPTXMCAsmInfo(const Triple &TheTriple,
                                const MCTargetOptions &Options) {
@@ -57,10 +55,6 @@ NVPTXMCAsmInfo::NVPTXMCAsmInfo(const Triple &TheTriple,
   GlobalDirective = "\t// .globl\t";
 
   UseIntegratedAssembler = false;
-
-  // Avoid using parens for identifiers starting with $ - ptxas does
-  // not expect them.
-  UseParensForDollarSignNames = false;
 
   // ptxas does not support DWARF `.file fileno directory filename'
   // syntax as of v11.X.

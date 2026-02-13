@@ -32,17 +32,38 @@ container images. Unlike Docker, Podman runs without a daemon and allows you
 to run containers without root permissions. The command line syntax is mostly
 identical for Docker and Podman. Choose whatever is available on your system.
 
-## SYCL Containers overview
+## SYCL Dockerfiles overview
 
-The following containers are publicly available for DPC++ compiler development:
+The following Dockerfiles are publicly available for creating DPC++ compiler
+development containers:
 
-- `ghcr.io/intel/llvm/ubuntu2004_base`: contains basic environment setup for
-   building DPC++ compiler from source.
-- `ghcr.io/intel/llvm/ubuntu2004_intel_drivers`: contains everything from the
-   base container + pre-installed Intel drivers.
-- `ghcr.io/intel/llvm/sycl_ubuntu2004_nightly`: contains the latest successfully
-   built nightly build of DPC++ compiler. The image comes in two flavors:
-   with pre-installed Intel drivers (`latest`) and without them (`no-drivers`).
+### Ubuntu 22.04-based Dockerfiles
+
+- `devops/containers/ubuntu2204_build`: has development kits installed for
+   NVidia/AMD and can be used for building DPC++
+   compiler from source with all backends enabled or for end-to-end testing
+   with HIP/CUDA on machines with corresponding GPUs available.
+- `devops/containers/ubuntu2204_intel_drivers`: contains everything from the
+   build Dockerfile + pre-installed Intel drivers.
+   Intel drivers are downloaded from release/tag and saved in
+   dependencies.json. The Intel drivers are tested/validated everytime we
+   upgrade the driver. NVidia/AMD drivers are installed as it is,
+   not tested or validated.
+
+### Ubuntu 24.04-based Dockerfiles
+
+- `devops/containers/ubuntu2404_build`: has development kits installed for
+   NVidia/AMD and can be used for building DPC++
+   compiler from source with all backends enabled or for end-to-end testing
+   with HIP/CUDA on machines with corresponding GPUs available.
+- `devops/containers/ubuntu2404_intel_drivers`: contains everything from the
+   build Dockerfile + pre-installed Intel drivers.
+   Intel drivers are downloaded from release/tag and saved in
+   dependencies.json. The Intel drivers are tested/validated everytime we
+   upgrade the driver. NVidia/AMD drivers are installed as it is,
+   not tested or validated.
+ - `devops/containers/nightly`: contains the latest successfully
+   built nightly build of DPC++ compiler.
 
 ## Running Docker container interactively
 
@@ -105,9 +126,13 @@ passthrough a host directory or a file.
 Add `--device=/dev/dri` argument to `run` command to passthrough you Intel GPU.
 Make sure you're a member of `video` group to be able to access GPU.
 
+In case the container is running under WSL, add `--device=/dev/dxg -v /usr/lib/wsl:/usr/lib/wsl` 
+argument to `run` command. See [official guide](https://github.com/microsoft/wslg/blob/main/samples/container/Containers.md#containerized-applications-access-to-the-vgpu) 
+for more information.
+
 ### AMD
 
-Follow the [official guide](https://rocmdocs.amd.com/en/latest/ROCm_Virtualization_Containers/ROCm-Virtualization-&-Containers.html).
+Follow the [official guide](https://rocm.docs.amd.com/projects/install-on-linux/en/latest/how-to/docker.html).
 
 ### Nvidia
 
@@ -116,10 +141,11 @@ instructions.
 
 ## Changing Docker user
 
-By default all processes inside Docker run as root. Some LLVM or Clang tests
-expect your user to be anything but root. You can change the user by specifying
-`-u <username or uid>` option. All Docker containers come with user `sycl`
-created.
+By default all processes within our containers are run as the `sycl` user which
+has password-less `sudo` access.
+
+If you want to change the user, you can do that by specifying the
+`-u <username or uid>` option when running the container.
 
 ## Managing downloaded Docker images
 
@@ -158,7 +184,7 @@ Docker containers can be built with the following command:
 docker build -f path/to/devops/containers/file.Dockerfile path/to/devops/
 ```
 
-The `ubuntu2004_preinstalled.Dockerfile` script expects `llvm_sycl.tar.xz` file
+The `nightly.Dockerfile` script expects `llvm_sycl.tar.xz` file
 to be present in `devops/` directory.
 
 Containers other than base provide several configurable arguments, the most

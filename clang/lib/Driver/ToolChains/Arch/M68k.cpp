@@ -7,16 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "M68k.h"
-#include "ToolChains/CommonArgs.h"
 #include "clang/Driver/Driver.h"
-#include "clang/Driver/DriverDiagnostic.h"
-#include "clang/Driver/Options.h"
-#include "llvm/ADT/SmallVector.h"
+#include "clang/Options/Options.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Option/ArgList.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/Regex.h"
-#include <sstream>
+#include "llvm/TargetParser/Host.h"
 
 using namespace clang::driver;
 using namespace clang::driver::tools;
@@ -25,7 +21,7 @@ using namespace llvm::opt;
 
 /// getM68kTargetCPU - Get the (LLVM) name of the 68000 cpu we are targeting.
 std::string m68k::getM68kTargetCPU(const ArgList &Args) {
-  if (Arg *A = Args.getLastArg(clang::driver::options::OPT_mcpu_EQ)) {
+  if (Arg *A = Args.getLastArg(options::OPT_mcpu_EQ)) {
     // The canonical CPU name is captalize. However, we allow
     // starting with lower case or numbers only
     StringRef CPUName = A->getValue();
@@ -40,38 +36,60 @@ std::string m68k::getM68kTargetCPU(const ArgList &Args) {
       return "generic";
 
     return llvm::StringSwitch<std::string>(CPUName)
-        .Cases("m68000", "68000", "M68000")
-        .Cases("m68010", "68010", "M68010")
-        .Cases("m68020", "68020", "M68020")
-        .Cases("m68030", "68030", "M68030")
-        .Cases("m68040", "68040", "M68040")
-        .Cases("m68060", "68060", "M68060")
+        .Cases({"m68000", "68000"}, "M68000")
+        .Cases({"m68010", "68010"}, "M68010")
+        .Cases({"m68020", "68020"}, "M68020")
+        .Cases({"m68030", "68030"}, "M68030")
+        .Cases({"m68040", "68040"}, "M68040")
+        .Cases({"m68060", "68060"}, "M68060")
         .Default(CPUName.str());
   }
   // FIXME: Throw error when multiple sub-architecture flag exist
-  if (Args.hasArg(clang::driver::options::OPT_m68000))
+  if (Args.hasArg(options::OPT_m68000))
     return "M68000";
-  if (Args.hasArg(clang::driver::options::OPT_m68010))
+  if (Args.hasArg(options::OPT_m68010))
     return "M68010";
-  if (Args.hasArg(clang::driver::options::OPT_m68020))
+  if (Args.hasArg(options::OPT_m68020))
     return "M68020";
-  if (Args.hasArg(clang::driver::options::OPT_m68030))
+  if (Args.hasArg(options::OPT_m68030))
     return "M68030";
-  if (Args.hasArg(clang::driver::options::OPT_m68040))
+  if (Args.hasArg(options::OPT_m68040))
     return "M68040";
-  if (Args.hasArg(clang::driver::options::OPT_m68060))
+  if (Args.hasArg(options::OPT_m68060))
     return "M68060";
 
   return "";
 }
 
+static void addFloatABIFeatures(const llvm::opt::ArgList &Args,
+                                std::vector<llvm::StringRef> &Features) {
+  Arg *A = Args.getLastArg(options::OPT_msoft_float, options::OPT_mhard_float,
+                           options::OPT_m68881);
+  // Opt out FPU even for newer CPUs.
+  if (A && A->getOption().matches(options::OPT_msoft_float)) {
+    Features.push_back("-isa-68881");
+    Features.push_back("-isa-68882");
+    return;
+  }
+
+  std::string CPU = m68k::getM68kTargetCPU(Args);
+  // Only enable M68881 for CPU < 68020 if the related flags are present.
+  if ((A && (CPU == "M68000" || CPU == "M68010")) ||
+      // Otherwise, by default we assume newer CPUs have M68881/2.
+      CPU == "M68020")
+    Features.push_back("+isa-68881");
+  else if (CPU == "M68030" || CPU == "M68040" || CPU == "M68060")
+    // Note that although CPU >= M68040 imply M68882, we still add `isa-68882`
+    // anyway so that it's easier to add or not add the corresponding macro
+    // definitions later, in case we want to disable 68881/2 in newer CPUs
+    // (with -msoft-float, for instance).
+    Features.push_back("+isa-68882");
+}
+
 void m68k::getM68kTargetFeatures(const Driver &D, const llvm::Triple &Triple,
                                  const ArgList &Args,
                                  std::vector<StringRef> &Features) {
-
-  m68k::FloatABI FloatABI = m68k::getM68kFloatABI(D, Args);
-  if (FloatABI == m68k::FloatABI::Soft)
-    Features.push_back("-hard-float");
+  addFloatABIFeatures(Args, Features);
 
   // Handle '-ffixed-<register>' flags
   if (Args.hasArg(options::OPT_ffixed_a0))
@@ -104,22 +122,4 @@ void m68k::getM68kTargetFeatures(const Driver &D, const llvm::Triple &Triple,
     Features.push_back("+reserve-d6");
   if (Args.hasArg(options::OPT_ffixed_d7))
     Features.push_back("+reserve-d7");
-}
-
-m68k::FloatABI m68k::getM68kFloatABI(const Driver &D, const ArgList &Args) {
-  m68k::FloatABI ABI = m68k::FloatABI::Invalid;
-  if (Arg *A =
-          Args.getLastArg(options::OPT_msoft_float, options::OPT_mhard_float)) {
-
-    if (A->getOption().matches(options::OPT_msoft_float))
-      ABI = m68k::FloatABI::Soft;
-    else if (A->getOption().matches(options::OPT_mhard_float))
-      ABI = m68k::FloatABI::Hard;
-  }
-
-  // If unspecified, choose the default based on the platform.
-  if (ABI == m68k::FloatABI::Invalid)
-    ABI = m68k::FloatABI::Hard;
-
-  return ABI;
 }

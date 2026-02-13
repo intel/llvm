@@ -2,7 +2,7 @@
 
 ; RUN: echo -e ".global variable\n.global DllMainCRTStartup\n.text\nDllMainCRTStartup:\nret\n.data\nvariable:\n.long 42" > %t-lib.s
 ; RUN: llvm-mc -triple=x86_64-windows-gnu %t-lib.s -filetype=obj -o %t-lib.obj
-; RUN: lld-link -out:%t-lib.dll -dll -entry:DllMainCRTStartup %t-lib.obj -lldmingw -implib:%t-lib.lib
+; RUN: lld-link -out:%t-lib.dll -dll %t-lib.obj -lldmingw -implib:%t-lib.lib
 
 ; RUN: llvm-as -o %t.obj %s
 ; RUN: lld-link -lldmingw -out:%t.exe -entry:entry %t.obj %t-lib.lib
@@ -23,6 +23,6 @@ target triple = "x86_64-w64-windows-gnu"
 
 define i32 @entry() {
 entry:
-  %0 = load i32, i32* @variable
+  %0 = load i32, ptr @variable
   ret i32 %0
 }

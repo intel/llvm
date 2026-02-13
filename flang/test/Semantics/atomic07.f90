@@ -4,7 +4,7 @@
 
 program test_atomic_fetch_or
   use iso_fortran_env, only: atomic_int_kind
-  implicit none
+  implicit none(external, type)
 
   integer(kind=atomic_int_kind) :: scalar_coarray[*], non_scalar_coarray(10)[*], val, old_val, non_coarray
   integer(kind=atomic_int_kind) :: repeated_atom[*], repeated_old, repeated_val, array(10), val_coarray[*], old_val_coarray[*]
@@ -34,7 +34,7 @@ program test_atomic_fetch_or
   call atomic_fetch_or(array, val, old_val)
 
   !ERROR: 'atom=' argument must be a scalar coarray or coindexed object for intrinsic 'atomic_fetch_or'
-  call atomic_fetch_or(non_scalar_coarray[1], val, old_val)
+  call atomic_fetch_or(non_scalar_coarray(:)[1], val, old_val)
 
   !ERROR: Actual argument for 'atom=' must have kind=atomic_int_kind, but is 'INTEGER(4)'
   call atomic_fetch_or(default_kind_coarray, val, old_val)
@@ -75,7 +75,8 @@ program test_atomic_fetch_or
   !ERROR: 'stat' argument to 'atomic_fetch_or' may not be a coindexed object
   call atomic_fetch_or(scalar_coarray[1], val_coarray[1], old_val_coarray[1], coindexed_status[1])
 
-  !ERROR: Actual argument associated with INTENT(OUT) dummy argument 'stat=' must be definable
+  !ERROR: Actual argument associated with INTENT(OUT) dummy argument 'stat=' is not definable
+  !BECAUSE: '1_4' is not a variable or pointer
   call atomic_fetch_or(scalar_coarray, val, old_val, 1)
 
   !ERROR: missing mandatory 'atom=' argument

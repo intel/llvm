@@ -16,8 +16,6 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/Hashing.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -27,6 +25,7 @@
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/CFGPrinter.h"
 #include "llvm/Analysis/IteratedDominanceFrontier.h"
+#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/MemoryLocation.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/IR/AssemblyAnnotationWriter.h"
@@ -72,12 +71,6 @@ INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(AAResultsWrapperPass)
 INITIALIZE_PASS_END(MemorySSAWrapperPass, "memoryssa", "Memory SSA", false,
                     true)
-
-INITIALIZE_PASS_BEGIN(MemorySSAPrinterLegacyPass, "print-memoryssa",
-                      "Memory SSA Printer", false, false)
-INITIALIZE_PASS_DEPENDENCY(MemorySSAWrapperPass)
-INITIALIZE_PASS_END(MemorySSAPrinterLegacyPass, "print-memoryssa",
-                    "Memory SSA Printer", false, false)
 
 static cl::opt<unsigned> MaxCheckLimit(
     "memssa-check-limit", cl::Hidden, cl::init(100),
@@ -125,10 +118,11 @@ public:
 class MemorySSAWalkerAnnotatedWriter : public AssemblyAnnotationWriter {
   MemorySSA *MSSA;
   MemorySSAWalker *Walker;
+  BatchAAResults BAA;
 
 public:
   MemorySSAWalkerAnnotatedWriter(MemorySSA *M)
-      : MSSA(M), Walker(M->getWalker()) {}
+      : MSSA(M), Walker(M->getWalker()), BAA(M->getAA()) {}
 
   void emitBasicBlockStartAnnot(const BasicBlock *BB,
                                 formatted_raw_ostream &OS) override {
@@ -139,7 +133,7 @@ public:
   void emitInstructionAnnot(const Instruction *I,
                             formatted_raw_ostream &OS) override {
     if (MemoryAccess *MA = MSSA->getMemoryAccess(I)) {
-      MemoryAccess *Clobber = Walker->getClobberingMemoryAccess(MA);
+      MemoryAccess *Clobber = Walker->getClobberingMemoryAccess(MA, BAA);
       OS << "; " << *MA;
       if (Clobber) {
         OS << " - clobbered by ";
@@ -299,13 +293,14 @@ instructionClobbersQuery(const MemoryDef *MD, const MemoryLocation &UseLoc,
     // clobbers where they don't really exist at all. Please see D43269 for
     // context.
     switch (II->getIntrinsicID()) {
+    case Intrinsic::allow_runtime_check:
+    case Intrinsic::allow_ubsan_check:
     case Intrinsic::invariant_start:
     case Intrinsic::invariant_end:
     case Intrinsic::assume:
     case Intrinsic::experimental_noalias_scope_decl:
     case Intrinsic::pseudoprobe:
       return false;
-    case Intrinsic::dbg_addr:
     case Intrinsic::dbg_declare:
     case Intrinsic::dbg_label:
     case Intrinsic::dbg_value:
@@ -359,7 +354,6 @@ struct UpwardsMemoryQuery {
   const Instruction *Inst = nullptr;
   // The MemoryAccess we actually got called with, used to test local domination
   const MemoryAccess *OriginalAccess = nullptr;
-  Optional<AliasResult> AR = AliasResult(AliasResult::MayAlias);
   bool SkipSelfAccess = false;
 
   UpwardsMemoryQuery() = default;
@@ -378,9 +372,10 @@ static bool isUseTriviallyOptimizableToLiveOnEntry(AliasAnalysisType &AA,
                                                    const Instruction *I) {
   // If the memory can't be changed, then loads of the memory can't be
   // clobbered.
-  if (auto *LI = dyn_cast<LoadInst>(I))
+  if (auto *LI = dyn_cast<LoadInst>(I)) {
     return I->hasMetadata(LLVMContext::MD_invariant_load) ||
-           AA.pointsToConstantMemory(MemoryLocation::get(LI));
+           !isModSet(AA.getModRefInfoMask(MemoryLocation::get(LI)));
+  }
   return false;
 }
 
@@ -398,11 +393,10 @@ static bool isUseTriviallyOptimizableToLiveOnEntry(AliasAnalysisType &AA,
 /// \param AA        The AliasAnalysis we used for our search.
 /// \param AllowImpreciseClobber Always false, unless we do relaxed verify.
 
-template <typename AliasAnalysisType>
-LLVM_ATTRIBUTE_UNUSED static void
+[[maybe_unused]] static void
 checkClobberSanity(const MemoryAccess *Start, MemoryAccess *ClobberAt,
                    const MemoryLocation &StartLoc, const MemorySSA &MSSA,
-                   const UpwardsMemoryQuery &Query, AliasAnalysisType &AA,
+                   const UpwardsMemoryQuery &Query, BatchAAResults &AA,
                    bool AllowImpreciseClobber = false) {
   assert(MSSA.dominates(ClobberAt, Start) && "Clobber doesn't dominate start?");
 
@@ -493,7 +487,7 @@ namespace {
 
 /// Our algorithm for walking (and trying to optimize) clobbers, all wrapped up
 /// in one class.
-template <class AliasAnalysisType> class ClobberWalker {
+class ClobberWalker {
   /// Save a few bytes by using unsigned instead of size_t.
   using ListIndex = unsigned;
 
@@ -505,20 +499,20 @@ template <class AliasAnalysisType> class ClobberWalker {
     // First. Also note that First and Last are inclusive.
     MemoryAccess *First;
     MemoryAccess *Last;
-    Optional<ListIndex> Previous;
+    std::optional<ListIndex> Previous;
 
     DefPath(const MemoryLocation &Loc, MemoryAccess *First, MemoryAccess *Last,
-            Optional<ListIndex> Previous)
+            std::optional<ListIndex> Previous)
         : Loc(Loc), First(First), Last(Last), Previous(Previous) {}
 
     DefPath(const MemoryLocation &Loc, MemoryAccess *Init,
-            Optional<ListIndex> Previous)
+            std::optional<ListIndex> Previous)
         : DefPath(Loc, Init, Init, Previous) {}
   };
 
   const MemorySSA &MSSA;
-  AliasAnalysisType &AA;
   DominatorTree &DT;
+  BatchAAResults *AA;
   UpwardsMemoryQuery *Query;
   unsigned *UpwardWalkLimit;
 
@@ -584,7 +578,7 @@ template <class AliasAnalysisType> class ClobberWalker {
         if (!--*UpwardWalkLimit)
           return {Current, true};
 
-        if (instructionClobbersQuery(MD, Desc.Loc, Query->Inst, AA))
+        if (instructionClobbersQuery(MD, Desc.Loc, Query->Inst, *AA))
           return {MD, true};
       }
     }
@@ -621,9 +615,10 @@ template <class AliasAnalysisType> class ClobberWalker {
   /// value is the indices of searches that stopped at the last phi optimization
   /// target. It's left in an unspecified state.
   ///
-  /// If this returns None, NewPaused is a vector of searches that terminated
-  /// at StopWhere. Otherwise, NewPaused is left in an unspecified state.
-  Optional<TerminatedPath>
+  /// If this returns std::nullopt, NewPaused is a vector of searches that
+  /// terminated at StopWhere. Otherwise, NewPaused is left in an unspecified
+  /// state.
+  std::optional<TerminatedPath>
   getBlockingAccess(const MemoryAccess *StopWhere,
                     SmallVectorImpl<ListIndex> &PausedSearches,
                     SmallVectorImpl<ListIndex> &NewPaused,
@@ -694,7 +689,7 @@ template <class AliasAnalysisType> class ClobberWalker {
       addSearches(cast<MemoryPhi>(Res.Result), PausedSearches, PathIndex);
     }
 
-    return None;
+    return std::nullopt;
   }
 
   template <typename T, typename Walker>
@@ -721,7 +716,7 @@ template <class AliasAnalysisType> class ClobberWalker {
     T &curNode() const { return W->Paths[*N]; }
 
     Walker *W = nullptr;
-    Optional<ListIndex> N = None;
+    std::optional<ListIndex> N;
   };
 
   using def_path_iterator = generic_def_path_iterator<DefPath, ClobberWalker>;
@@ -771,7 +766,7 @@ template <class AliasAnalysisType> class ClobberWalker {
     assert(Paths.empty() && VisitedPhis.empty() &&
            "Reset the optimization state.");
 
-    Paths.emplace_back(Loc, Start, Phi, None);
+    Paths.emplace_back(Loc, Start, Phi, std::nullopt);
     // Stores how many "valid" optimization nodes we had prior to calling
     // addSearches/getBlockingAccess. Necessary for caching if we had a blocker.
     auto PriorPathsSize = Paths.size();
@@ -810,7 +805,7 @@ template <class AliasAnalysisType> class ClobberWalker {
       // FIXME: This is broken, because the Blocker may be reported to be
       // liveOnEntry, and we'll happily wait for that to disappear (read: never)
       // For the moment, this is fine, since we do nothing with blocker info.
-      if (Optional<TerminatedPath> Blocker = getBlockingAccess(
+      if (std::optional<TerminatedPath> Blocker = getBlockingAccess(
               Target, PausedSearches, NewPaused, TerminatedPaths)) {
 
         // Find the node we started at. We can't search based on N->Last, since
@@ -927,14 +922,14 @@ template <class AliasAnalysisType> class ClobberWalker {
   }
 
 public:
-  ClobberWalker(const MemorySSA &MSSA, AliasAnalysisType &AA, DominatorTree &DT)
-      : MSSA(MSSA), AA(AA), DT(DT) {}
+  ClobberWalker(const MemorySSA &MSSA, DominatorTree &DT)
+      : MSSA(MSSA), DT(DT) {}
 
-  AliasAnalysisType *getAA() { return &AA; }
   /// Finds the nearest clobber for the given query, optimizing phis if
   /// possible.
-  MemoryAccess *findClobber(MemoryAccess *Start, UpwardsMemoryQuery &Q,
-                            unsigned &UpWalkLimit) {
+  MemoryAccess *findClobber(BatchAAResults &BAA, MemoryAccess *Start,
+                            UpwardsMemoryQuery &Q, unsigned &UpWalkLimit) {
+    AA = &BAA;
     Query = &Q;
     UpwardWalkLimit = &UpWalkLimit;
     // Starting limit must be > 0.
@@ -947,7 +942,7 @@ public:
     if (auto *MU = dyn_cast<MemoryUse>(Start))
       Current = MU->getDefiningAccess();
 
-    DefPath FirstDesc(Q.StartingLoc, Current, Current, None);
+    DefPath FirstDesc(Q.StartingLoc, Current, Current, std::nullopt);
     // Fast path for the overly-common case (no crazy phi optimization
     // necessary)
     UpwardsWalkResult WalkResult = walkToPhiOrClobber(FirstDesc);
@@ -964,7 +959,7 @@ public:
 
 #ifdef EXPENSIVE_CHECKS
     if (!Q.SkipSelfAccess && *UpwardWalkLimit > 0)
-      checkClobberSanity(Current, Result, Q.StartingLoc, MSSA, Q, AA);
+      checkClobberSanity(Current, Result, Q.StartingLoc, MSSA, Q, BAA);
 #endif
     return Result;
   }
@@ -990,63 +985,65 @@ struct RenamePassData {
 
 namespace llvm {
 
-template <class AliasAnalysisType> class MemorySSA::ClobberWalkerBase {
-  ClobberWalker<AliasAnalysisType> Walker;
+class MemorySSA::ClobberWalkerBase {
+  ClobberWalker Walker;
   MemorySSA *MSSA;
 
 public:
-  ClobberWalkerBase(MemorySSA *M, AliasAnalysisType *A, DominatorTree *D)
-      : Walker(*M, *A, *D), MSSA(M) {}
+  ClobberWalkerBase(MemorySSA *M, DominatorTree *D) : Walker(*M, *D), MSSA(M) {}
 
   MemoryAccess *getClobberingMemoryAccessBase(MemoryAccess *,
                                               const MemoryLocation &,
-                                              unsigned &);
+                                              BatchAAResults &, unsigned &);
   // Third argument (bool), defines whether the clobber search should skip the
   // original queried access. If true, there will be a follow-up query searching
   // for a clobber access past "self". Note that the Optimized access is not
   // updated if a new clobber is found by this SkipSelf search. If this
   // additional query becomes heavily used we may decide to cache the result.
   // Walker instantiations will decide how to set the SkipSelf bool.
-  MemoryAccess *getClobberingMemoryAccessBase(MemoryAccess *, unsigned &, bool,
+  MemoryAccess *getClobberingMemoryAccessBase(MemoryAccess *, BatchAAResults &,
+                                              unsigned &, bool,
                                               bool UseInvariantGroup = true);
 };
 
 /// A MemorySSAWalker that does AA walks to disambiguate accesses. It no
 /// longer does caching on its own, but the name has been retained for the
 /// moment.
-template <class AliasAnalysisType>
 class MemorySSA::CachingWalker final : public MemorySSAWalker {
-  ClobberWalkerBase<AliasAnalysisType> *Walker;
+  ClobberWalkerBase *Walker;
 
 public:
-  CachingWalker(MemorySSA *M, ClobberWalkerBase<AliasAnalysisType> *W)
+  CachingWalker(MemorySSA *M, ClobberWalkerBase *W)
       : MemorySSAWalker(M), Walker(W) {}
   ~CachingWalker() override = default;
 
   using MemorySSAWalker::getClobberingMemoryAccess;
 
-  MemoryAccess *getClobberingMemoryAccess(MemoryAccess *MA, unsigned &UWL) {
-    return Walker->getClobberingMemoryAccessBase(MA, UWL, false);
+  MemoryAccess *getClobberingMemoryAccess(MemoryAccess *MA, BatchAAResults &BAA,
+                                          unsigned &UWL) {
+    return Walker->getClobberingMemoryAccessBase(MA, BAA, UWL, false);
   }
   MemoryAccess *getClobberingMemoryAccess(MemoryAccess *MA,
                                           const MemoryLocation &Loc,
-                                          unsigned &UWL) {
-    return Walker->getClobberingMemoryAccessBase(MA, Loc, UWL);
+                                          BatchAAResults &BAA, unsigned &UWL) {
+    return Walker->getClobberingMemoryAccessBase(MA, Loc, BAA, UWL);
   }
   // This method is not accessible outside of this file.
-  MemoryAccess *getClobberingMemoryAccessWithoutInvariantGroup(MemoryAccess *MA,
-                                                               unsigned &UWL) {
-    return Walker->getClobberingMemoryAccessBase(MA, UWL, false, false);
+  MemoryAccess *getClobberingMemoryAccessWithoutInvariantGroup(
+      MemoryAccess *MA, BatchAAResults &BAA, unsigned &UWL) {
+    return Walker->getClobberingMemoryAccessBase(MA, BAA, UWL, false, false);
   }
 
-  MemoryAccess *getClobberingMemoryAccess(MemoryAccess *MA) override {
+  MemoryAccess *getClobberingMemoryAccess(MemoryAccess *MA,
+                                          BatchAAResults &BAA) override {
     unsigned UpwardWalkLimit = MaxCheckLimit;
-    return getClobberingMemoryAccess(MA, UpwardWalkLimit);
+    return getClobberingMemoryAccess(MA, BAA, UpwardWalkLimit);
   }
   MemoryAccess *getClobberingMemoryAccess(MemoryAccess *MA,
-                                          const MemoryLocation &Loc) override {
+                                          const MemoryLocation &Loc,
+                                          BatchAAResults &BAA) override {
     unsigned UpwardWalkLimit = MaxCheckLimit;
-    return getClobberingMemoryAccess(MA, Loc, UpwardWalkLimit);
+    return getClobberingMemoryAccess(MA, Loc, BAA, UpwardWalkLimit);
   }
 
   void invalidateInfo(MemoryAccess *MA) override {
@@ -1055,34 +1052,36 @@ public:
   }
 };
 
-template <class AliasAnalysisType>
 class MemorySSA::SkipSelfWalker final : public MemorySSAWalker {
-  ClobberWalkerBase<AliasAnalysisType> *Walker;
+  ClobberWalkerBase *Walker;
 
 public:
-  SkipSelfWalker(MemorySSA *M, ClobberWalkerBase<AliasAnalysisType> *W)
+  SkipSelfWalker(MemorySSA *M, ClobberWalkerBase *W)
       : MemorySSAWalker(M), Walker(W) {}
   ~SkipSelfWalker() override = default;
 
   using MemorySSAWalker::getClobberingMemoryAccess;
 
-  MemoryAccess *getClobberingMemoryAccess(MemoryAccess *MA, unsigned &UWL) {
-    return Walker->getClobberingMemoryAccessBase(MA, UWL, true);
+  MemoryAccess *getClobberingMemoryAccess(MemoryAccess *MA, BatchAAResults &BAA,
+                                          unsigned &UWL) {
+    return Walker->getClobberingMemoryAccessBase(MA, BAA, UWL, true);
   }
   MemoryAccess *getClobberingMemoryAccess(MemoryAccess *MA,
                                           const MemoryLocation &Loc,
-                                          unsigned &UWL) {
-    return Walker->getClobberingMemoryAccessBase(MA, Loc, UWL);
+                                          BatchAAResults &BAA, unsigned &UWL) {
+    return Walker->getClobberingMemoryAccessBase(MA, Loc, BAA, UWL);
   }
 
-  MemoryAccess *getClobberingMemoryAccess(MemoryAccess *MA) override {
+  MemoryAccess *getClobberingMemoryAccess(MemoryAccess *MA,
+                                          BatchAAResults &BAA) override {
     unsigned UpwardWalkLimit = MaxCheckLimit;
-    return getClobberingMemoryAccess(MA, UpwardWalkLimit);
+    return getClobberingMemoryAccess(MA, BAA, UpwardWalkLimit);
   }
   MemoryAccess *getClobberingMemoryAccess(MemoryAccess *MA,
-                                          const MemoryLocation &Loc) override {
+                                          const MemoryLocation &Loc,
+                                          BatchAAResults &BAA) override {
     unsigned UpwardWalkLimit = MaxCheckLimit;
-    return getClobberingMemoryAccess(MA, Loc, UpwardWalkLimit);
+    return getClobberingMemoryAccess(MA, Loc, BAA, UpwardWalkLimit);
   }
 
   void invalidateInfo(MemoryAccess *MA) override {
@@ -1232,7 +1231,7 @@ void MemorySSA::markUnreachableAsLiveOnEntry(BasicBlock *BB) {
 }
 
 MemorySSA::MemorySSA(Function &Func, AliasAnalysis *AA, DominatorTree *DT)
-    : DT(DT), F(Func), LiveOnEntryDef(nullptr), Walker(nullptr),
+    : DT(DT), F(&Func), LiveOnEntryDef(nullptr), Walker(nullptr),
       SkipWalker(nullptr) {
   // Build MemorySSA using a batch alias analysis. This reuses the internal
   // state that AA collects during an alias()/getModRefInfo() call. This is
@@ -1241,8 +1240,29 @@ MemorySSA::MemorySSA(Function &Func, AliasAnalysis *AA, DominatorTree *DT)
   // make queries about all the instructions in the Function.
   assert(AA && "No alias analysis?");
   BatchAAResults BatchAA(*AA);
-  buildMemorySSA(BatchAA);
-  // Intentionally leave AA to nullptr while building so we don't accidently
+  buildMemorySSA(BatchAA, iterator_range(F->begin(), F->end()));
+  // Intentionally leave AA to nullptr while building so we don't accidentally
+  // use non-batch AliasAnalysis.
+  this->AA = AA;
+  // Also create the walker here.
+  getWalker();
+}
+
+MemorySSA::MemorySSA(Loop &L, AliasAnalysis *AA, DominatorTree *DT)
+    : DT(DT), L(&L), LiveOnEntryDef(nullptr), Walker(nullptr),
+      SkipWalker(nullptr) {
+  // Build MemorySSA using a batch alias analysis. This reuses the internal
+  // state that AA collects during an alias()/getModRefInfo() call. This is
+  // safe because there are no CFG changes while building MemorySSA and can
+  // significantly reduce the time spent by the compiler in AA, because we will
+  // make queries about all the instructions in the Function.
+  assert(AA && "No alias analysis?");
+  BatchAAResults BatchAA(*AA);
+  buildMemorySSA(
+      BatchAA, map_range(L.blocks(), [](const BasicBlock *BB) -> BasicBlock & {
+        return *const_cast<BasicBlock *>(BB);
+      }));
+  // Intentionally leave AA to nullptr while building so we don't accidentally
   // use non-batch AliasAnalysis.
   this->AA = AA;
   // Also create the walker here.
@@ -1257,7 +1277,7 @@ MemorySSA::~MemorySSA() {
 }
 
 MemorySSA::AccessList *MemorySSA::getOrCreateAccessList(const BasicBlock *BB) {
-  auto Res = PerBlockAccesses.insert(std::make_pair(BB, nullptr));
+  auto Res = PerBlockAccesses.try_emplace(BB);
 
   if (Res.second)
     Res.first->second = std::make_unique<AccessList>();
@@ -1265,7 +1285,7 @@ MemorySSA::AccessList *MemorySSA::getOrCreateAccessList(const BasicBlock *BB) {
 }
 
 MemorySSA::DefsList *MemorySSA::getOrCreateDefsList(const BasicBlock *BB) {
-  auto Res = PerBlockDefs.insert(std::make_pair(BB, nullptr));
+  auto Res = PerBlockDefs.try_emplace(BB);
 
   if (Res.second)
     Res.first->second = std::make_unique<DefsList>();
@@ -1283,8 +1303,8 @@ namespace llvm {
 /// which is walking bottom-up.
 class MemorySSA::OptimizeUses {
 public:
-  OptimizeUses(MemorySSA *MSSA, CachingWalker<BatchAAResults> *Walker,
-               BatchAAResults *BAA, DominatorTree *DT)
+  OptimizeUses(MemorySSA *MSSA, CachingWalker *Walker, BatchAAResults *BAA,
+               DominatorTree *DT)
       : MSSA(MSSA), Walker(Walker), AA(BAA), DT(DT) {}
 
   void optimizeUses();
@@ -1305,7 +1325,6 @@ private:
     // This is where the last walk for this memory location ended.
     unsigned long LastKill;
     bool LastKillValid;
-    Optional<AliasResult> AR;
   };
 
   void optimizeUsesInBlock(const BasicBlock *, unsigned long &, unsigned long &,
@@ -1313,7 +1332,7 @@ private:
                            DenseMap<MemoryLocOrCall, MemlocStackInfo> &);
 
   MemorySSA *MSSA;
-  CachingWalker<BatchAAResults> *Walker;
+  CachingWalker *Walker;
   BatchAAResults *AA;
   DominatorTree *DT;
 };
@@ -1366,11 +1385,6 @@ void MemorySSA::OptimizeUses::optimizeUsesInBlock(
 
     if (MU->isOptimized())
       continue;
-
-    if (isUseTriviallyOptimizableToLiveOnEntry(*AA, MU->getMemoryInst())) {
-      MU->setDefiningAccess(MSSA->getLiveOnEntryDef(), true);
-      continue;
-    }
 
     MemoryLocOrCall UseMLOC(MU);
     auto &LocInfo = LocStackInfo[UseMLOC];
@@ -1441,7 +1455,7 @@ void MemorySSA::OptimizeUses::optimizeUsesInBlock(
         // support updates, so don't use it to optimize uses.
         MemoryAccess *Result =
             Walker->getClobberingMemoryAccessWithoutInvariantGroup(
-                MU, UpwardWalkLimit);
+                MU, *AA, UpwardWalkLimit);
         // We are guaranteed to find it or something is wrong.
         while (VersionStack[UpperBound] != Result) {
           assert(UpperBound != 0);
@@ -1458,8 +1472,6 @@ void MemorySSA::OptimizeUses::optimizeUsesInBlock(
       }
       --UpperBound;
     }
-
-    // Note: Phis always have AliasResult AR set to MayAlias ATM.
 
     // At the end of this loop, UpperBound is either a clobber, or lower bound
     // PHI walking may cause it to be < LowerBound, and in fact, < LastKill.
@@ -1503,16 +1515,17 @@ void MemorySSA::placePHINodes(
     createMemoryPhi(BB);
 }
 
-void MemorySSA::buildMemorySSA(BatchAAResults &BAA) {
+template <typename IterT>
+void MemorySSA::buildMemorySSA(BatchAAResults &BAA, IterT Blocks) {
   // We create an access to represent "live on entry", for things like
   // arguments or users of globals, where the memory they use is defined before
   // the beginning of the function. We do not actually insert it into the IR.
   // We do not define a live on exit for the immediate uses, and thus our
   // semantics do *not* imply that something with no immediate uses can simply
   // be removed.
-  BasicBlock &StartingPoint = F.getEntryBlock();
-  LiveOnEntryDef.reset(new MemoryDef(F.getContext(), nullptr, nullptr,
-                                     &StartingPoint, NextID++));
+  BasicBlock &StartingPoint = *Blocks.begin();
+  LiveOnEntryDef.reset(new MemoryDef(StartingPoint.getContext(), nullptr,
+                                     nullptr, &StartingPoint, NextID++));
 
   // We maintain lists of memory accesses per-block, trading memory for time. We
   // could just look up the memory access for every possible instruction in the
@@ -1520,7 +1533,7 @@ void MemorySSA::buildMemorySSA(BatchAAResults &BAA) {
   SmallPtrSet<BasicBlock *, 32> DefiningBlocks;
   // Go through each block, figure out where defs occur, and chain together all
   // the accesses.
-  for (BasicBlock &B : F) {
+  for (BasicBlock &B : Blocks) {
     bool InsertIntoDef = false;
     AccessList *Accesses = nullptr;
     DefsList *Defs = nullptr;
@@ -1547,27 +1560,43 @@ void MemorySSA::buildMemorySSA(BatchAAResults &BAA) {
   // Now do regular SSA renaming on the MemoryDef/MemoryUse. Visited will get
   // filled in with all blocks.
   SmallPtrSet<BasicBlock *, 16> Visited;
-  renamePass(DT->getRootNode(), LiveOnEntryDef.get(), Visited);
+  if (L) {
+    // Only building MemorySSA for a single loop. placePHINodes may have
+    // inserted a MemoryPhi in the loop's preheader. As this is outside the
+    // scope of the loop, set them to LiveOnEntry.
+    if (auto *P = getMemoryAccess(L->getLoopPreheader())) {
+      for (Use &U : make_early_inc_range(P->uses()))
+        U.set(LiveOnEntryDef.get());
+      removeFromLists(P);
+    }
+    // Now rename accesses in the loop. Populate Visited with the exit blocks of
+    // the loop, to limit the scope of the renaming.
+    SmallVector<BasicBlock *> ExitBlocks;
+    L->getExitBlocks(ExitBlocks);
+    Visited.insert_range(ExitBlocks);
+    renamePass(DT->getNode(L->getLoopPreheader()), LiveOnEntryDef.get(),
+               Visited);
+  } else {
+    renamePass(DT->getRootNode(), LiveOnEntryDef.get(), Visited);
+  }
 
   // Mark the uses in unreachable blocks as live on entry, so that they go
   // somewhere.
-  for (auto &BB : F)
+  for (auto &BB : Blocks)
     if (!Visited.count(&BB))
       markUnreachableAsLiveOnEntry(&BB);
 }
 
 MemorySSAWalker *MemorySSA::getWalker() { return getWalkerImpl(); }
 
-MemorySSA::CachingWalker<AliasAnalysis> *MemorySSA::getWalkerImpl() {
+MemorySSA::CachingWalker *MemorySSA::getWalkerImpl() {
   if (Walker)
     return Walker.get();
 
   if (!WalkerBase)
-    WalkerBase =
-        std::make_unique<ClobberWalkerBase<AliasAnalysis>>(this, AA, DT);
+    WalkerBase = std::make_unique<ClobberWalkerBase>(this, DT);
 
-  Walker =
-      std::make_unique<CachingWalker<AliasAnalysis>>(this, WalkerBase.get());
+  Walker = std::make_unique<CachingWalker>(this, WalkerBase.get());
   return Walker.get();
 }
 
@@ -1576,11 +1605,9 @@ MemorySSAWalker *MemorySSA::getSkipSelfWalker() {
     return SkipWalker.get();
 
   if (!WalkerBase)
-    WalkerBase =
-        std::make_unique<ClobberWalkerBase<AliasAnalysis>>(this, AA, DT);
+    WalkerBase = std::make_unique<ClobberWalkerBase>(this, DT);
 
-  SkipWalker =
-      std::make_unique<SkipSelfWalker<AliasAnalysis>>(this, WalkerBase.get());
+  SkipWalker = std::make_unique<SkipSelfWalker>(this, WalkerBase.get());
   return SkipWalker.get();
  }
 
@@ -1741,6 +1768,8 @@ MemoryUseOrDef *MemorySSA::createNewAccess(Instruction *I,
     switch (II->getIntrinsicID()) {
     default:
       break;
+    case Intrinsic::allow_runtime_check:
+    case Intrinsic::allow_ubsan_check:
     case Intrinsic::assume:
     case Intrinsic::experimental_noalias_scope_decl:
     case Intrinsic::pseudoprobe:
@@ -1759,15 +1788,22 @@ MemoryUseOrDef *MemorySSA::createNewAccess(Instruction *I,
     Def = isa<MemoryDef>(Template);
     Use = isa<MemoryUse>(Template);
 #if !defined(NDEBUG)
-    ModRefInfo ModRef = AAP->getModRefInfo(I, None);
+    ModRefInfo ModRef = AAP->getModRefInfo(I, std::nullopt);
     bool DefCheck, UseCheck;
     DefCheck = isModSet(ModRef) || isOrdered(I);
     UseCheck = isRefSet(ModRef);
-    assert(Def == DefCheck && (Def || Use == UseCheck) && "Invalid template");
+    // Memory accesses should only be reduced and can not be increased since AA
+    // just might return better results as a result of some transformations.
+    assert((Def == DefCheck || !DefCheck) &&
+           "Memory accesses should only be reduced");
+    if (!Def && Use != UseCheck) {
+      // New Access should not have more power than template access
+      assert(!UseCheck && "Invalid template");
+    }
 #endif
   } else {
     // Find out what affect this instruction has on memory.
-    ModRefInfo ModRef = AAP->getModRefInfo(I, None);
+    ModRefInfo ModRef = AAP->getModRefInfo(I, std::nullopt);
     // The isOrdered check is used to ensure that volatiles end up as defs
     // (atomics end up as ModRef right now anyway).  Until we separate the
     // ordering chain from the memory chain, this enables people to see at least
@@ -1786,10 +1822,15 @@ MemoryUseOrDef *MemorySSA::createNewAccess(Instruction *I,
     return nullptr;
 
   MemoryUseOrDef *MUD;
-  if (Def)
+  if (Def) {
     MUD = new MemoryDef(I->getContext(), nullptr, I, I->getParent(), NextID++);
-  else
+  } else {
     MUD = new MemoryUse(I->getContext(), nullptr, I, I->getParent());
+    if (isUseTriviallyOptimizableToLiveOnEntry(*AAP, I)) {
+      MemoryAccess *LiveOnEntry = getLiveOnEntryDef();
+      MUD->setOptimized(LiveOnEntry);
+    }
+  }
   ValueToMemoryAccess[I] = MUD;
   return MUD;
 }
@@ -1851,7 +1892,10 @@ void MemorySSA::removeFromLists(MemoryAccess *MA, bool ShouldDelete) {
 
 void MemorySSA::print(raw_ostream &OS) const {
   MemorySSAAnnotatedWriter Writer(this);
-  F.print(OS, &Writer);
+  Function *F = this->F;
+  if (L)
+    F = L->getHeader()->getParent();
+  F->print(OS, &Writer);
 }
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
@@ -1864,10 +1908,23 @@ void MemorySSA::verifyMemorySSA(VerificationLevel VL) const {
 #endif
 
 #ifndef NDEBUG
-  verifyOrderingDominationAndDefUses(F, VL);
-  verifyDominationNumbers(F);
-  if (VL == VerificationLevel::Full)
-    verifyPrevDefInPhis(F);
+  if (F) {
+    auto Blocks = iterator_range(F->begin(), F->end());
+    verifyOrderingDominationAndDefUses(Blocks, VL);
+    verifyDominationNumbers(Blocks);
+    if (VL == VerificationLevel::Full)
+      verifyPrevDefInPhis(Blocks);
+  } else {
+    assert(L && "must either have loop or function");
+    auto Blocks =
+        map_range(L->blocks(), [](const BasicBlock *BB) -> BasicBlock & {
+          return *const_cast<BasicBlock *>(BB);
+        });
+    verifyOrderingDominationAndDefUses(Blocks, VL);
+    verifyDominationNumbers(Blocks);
+    if (VL == VerificationLevel::Full)
+      verifyPrevDefInPhis(Blocks);
+  }
 #endif
   // Previously, the verification used to also verify that the clobberingAccess
   // cached by MemorySSA is the same as the clobberingAccess found at a later
@@ -1881,8 +1938,9 @@ void MemorySSA::verifyMemorySSA(VerificationLevel VL) const {
   // example, see test4 added in D51960.
 }
 
-void MemorySSA::verifyPrevDefInPhis(Function &F) const {
-  for (const BasicBlock &BB : F) {
+template <typename IterT>
+void MemorySSA::verifyPrevDefInPhis(IterT Blocks) const {
+  for (const BasicBlock &BB : Blocks) {
     if (MemoryPhi *Phi = getMemoryAccess(&BB)) {
       for (unsigned I = 0, E = Phi->getNumIncomingValues(); I != E; ++I) {
         auto *Pred = Phi->getIncomingBlock(I);
@@ -1917,12 +1975,13 @@ void MemorySSA::verifyPrevDefInPhis(Function &F) const {
 
 /// Verify that all of the blocks we believe to have valid domination numbers
 /// actually have valid domination numbers.
-void MemorySSA::verifyDominationNumbers(const Function &F) const {
+template <typename IterT>
+void MemorySSA::verifyDominationNumbers(IterT Blocks) const {
   if (BlockNumberingValid.empty())
     return;
 
   SmallPtrSet<const BasicBlock *, 16> ValidBlocks = BlockNumberingValid;
-  for (const BasicBlock &BB : F) {
+  for (const BasicBlock &BB : Blocks) {
     if (!ValidBlocks.count(&BB))
       continue;
 
@@ -1958,14 +2017,15 @@ void MemorySSA::verifyDominationNumbers(const Function &F) const {
 /// Verify def-uses: the immediate use information - walk all the memory
 /// accesses and verifying that, for each use, it appears in the appropriate
 /// def's use list
-void MemorySSA::verifyOrderingDominationAndDefUses(Function &F,
+template <typename IterT>
+void MemorySSA::verifyOrderingDominationAndDefUses(IterT Blocks,
                                                    VerificationLevel VL) const {
   // Walk all the blocks, comparing what the lookups think and what the access
   // lists think, as well as the order in the blocks vs the order in the access
   // lists.
   SmallVector<MemoryAccess *, 32> ActualAccesses;
   SmallVector<MemoryAccess *, 32> ActualDefs;
-  for (BasicBlock &B : F) {
+  for (BasicBlock &B : Blocks) {
     const AccessList *AL = getBlockAccesses(&B);
     const auto *DL = getBlockDefs(&B);
     MemoryPhi *Phi = getMemoryAccess(&B);
@@ -1980,8 +2040,7 @@ void MemorySSA::verifyOrderingDominationAndDefUses(Function &F,
       }
       // Verify def-uses for full verify.
       if (VL == VerificationLevel::Full) {
-        assert(Phi->getNumOperands() == static_cast<unsigned>(std::distance(
-                                            pred_begin(&B), pred_end(&B))) &&
+        assert(Phi->getNumOperands() == pred_size(&B) &&
                "Incomplete MemoryPhi Node");
         for (unsigned I = 0, E = Phi->getNumIncomingValues(); I != E; ++I) {
           verifyUseInDefs(Phi->getIncomingValue(I), Phi);
@@ -2143,8 +2202,8 @@ void MemorySSA::ensureOptimizedUses() {
     return;
 
   BatchAAResults BatchAA(*AA);
-  ClobberWalkerBase<BatchAAResults> WalkerBase(this, &BatchAA, DT);
-  CachingWalker<BatchAAResults> WalkerLocal(this, &WalkerBase);
+  ClobberWalkerBase WalkerBase(this, DT);
+  CachingWalker WalkerLocal(this, &WalkerBase);
   OptimizeUses(this, &WalkerLocal, &BatchAA, DT).optimizeUses();
   IsOptimized = true;
 }
@@ -2216,17 +2275,6 @@ void MemoryAccess::dump() const {
   print(dbgs());
   dbgs() << "\n";
 #endif
-}
-
-char MemorySSAPrinterLegacyPass::ID = 0;
-
-MemorySSAPrinterLegacyPass::MemorySSAPrinterLegacyPass() : FunctionPass(ID) {
-  initializeMemorySSAPrinterLegacyPassPass(*PassRegistry::getPassRegistry());
-}
-
-void MemorySSAPrinterLegacyPass::getAnalysisUsage(AnalysisUsage &AU) const {
-  AU.setPreservesAll();
-  AU.addRequired<MemorySSAWrapperPass>();
 }
 
 class DOTFuncMSSAInfo {
@@ -2313,20 +2361,6 @@ struct DOTGraphTraits<DOTFuncMSSAInfo *> : public DefaultDOTGraphTraits {
 
 } // namespace llvm
 
-bool MemorySSAPrinterLegacyPass::runOnFunction(Function &F) {
-  auto &MSSA = getAnalysis<MemorySSAWrapperPass>().getMSSA();
-  MSSA.ensureOptimizedUses();
-  if (DotCFGMSSA != "") {
-    DOTFuncMSSAInfo CFGInfo(F, MSSA);
-    WriteGraph(&CFGInfo, "", false, "MSSA", DotCFGMSSA);
-  } else
-    MSSA.print(dbgs());
-
-  if (VerifyMemorySSA)
-    MSSA.verifyMemorySSA();
-  return false;
-}
-
 AnalysisKey MemorySSAAnalysis::Key;
 
 MemorySSAAnalysis::Result MemorySSAAnalysis::run(Function &F,
@@ -2348,7 +2382,8 @@ bool MemorySSAAnalysis::Result::invalidate(
 PreservedAnalyses MemorySSAPrinterPass::run(Function &F,
                                             FunctionAnalysisManager &AM) {
   auto &MSSA = AM.getResult<MemorySSAAnalysis>(F).getMSSA();
-  MSSA.ensureOptimizedUses();
+  if (EnsureOptimizedUses)
+    MSSA.ensureOptimizedUses();
   if (DotCFGMSSA != "") {
     DOTFuncMSSAInfo CFGInfo(F, MSSA);
     WriteGraph(&CFGInfo, "", false, "MSSA", DotCFGMSSA);
@@ -2379,9 +2414,7 @@ PreservedAnalyses MemorySSAVerifierPass::run(Function &F,
 
 char MemorySSAWrapperPass::ID = 0;
 
-MemorySSAWrapperPass::MemorySSAWrapperPass() : FunctionPass(ID) {
-  initializeMemorySSAWrapperPassPass(*PassRegistry::getPassRegistry());
-}
+MemorySSAWrapperPass::MemorySSAWrapperPass() : FunctionPass(ID) {}
 
 void MemorySSAWrapperPass::releaseMemory() { MSSA.reset(); }
 
@@ -2413,12 +2446,14 @@ MemorySSAWalker::MemorySSAWalker(MemorySSA *M) : MSSA(M) {}
 /// the MemoryAccess that actually clobbers Loc.
 ///
 /// \returns our clobbering memory access
-template <typename AliasAnalysisType>
-MemoryAccess *
-MemorySSA::ClobberWalkerBase<AliasAnalysisType>::getClobberingMemoryAccessBase(
+MemoryAccess *MemorySSA::ClobberWalkerBase::getClobberingMemoryAccessBase(
     MemoryAccess *StartingAccess, const MemoryLocation &Loc,
-    unsigned &UpwardWalkLimit) {
+    BatchAAResults &BAA, unsigned &UpwardWalkLimit) {
   assert(!isa<MemoryUse>(StartingAccess) && "Use cannot be defining access");
+
+  // If location is undefined, conservatively return starting access.
+  if (Loc.Ptr == nullptr)
+    return StartingAccess;
 
   Instruction *I = nullptr;
   if (auto *StartingUseOrDef = dyn_cast<MemoryUseOrDef>(StartingAccess)) {
@@ -2443,7 +2478,7 @@ MemorySSA::ClobberWalkerBase<AliasAnalysisType>::getClobberingMemoryAccessBase(
   // handed something we already believe is the clobbering access.
   // We never set SkipSelf to true in Q in this method.
   MemoryAccess *Clobber =
-      Walker.findClobber(StartingAccess, Q, UpwardWalkLimit);
+      Walker.findClobber(BAA, StartingAccess, Q, UpwardWalkLimit);
   LLVM_DEBUG({
     dbgs() << "Clobber starting at access " << *StartingAccess << "\n";
     if (I)
@@ -2470,53 +2505,28 @@ getInvariantGroupClobberingInstruction(Instruction &I, DominatorTree &DT) {
   if (isa<Constant>(PointerOperand))
     return nullptr;
 
-  // Queue to process all pointers that are equivalent to load operand.
-  SmallVector<const Value *, 8> PointerUsesQueue;
-  PointerUsesQueue.push_back(PointerOperand);
-
   const Instruction *MostDominatingInstruction = &I;
 
-  // FIXME: This loop is O(n^2) because dominates can be O(n) and in worst case
-  // we will see all the instructions. It may not matter in practice. If it
-  // does, we will have to support MemorySSA construction and updates.
-  while (!PointerUsesQueue.empty()) {
-    const Value *Ptr = PointerUsesQueue.pop_back_val();
-    assert(Ptr && !isa<GlobalValue>(Ptr) &&
-           "Null or GlobalValue should not be inserted");
+  for (const User *Us : PointerOperand->users()) {
+    auto *U = dyn_cast<Instruction>(Us);
+    if (!U || U == &I || !DT.dominates(U, MostDominatingInstruction))
+      continue;
 
-    for (const User *Us : Ptr->users()) {
-      auto *U = dyn_cast<Instruction>(Us);
-      if (!U || U == &I || !DT.dominates(U, MostDominatingInstruction))
-        continue;
-
-      // Add bitcasts and zero GEPs to queue.
-      if (isa<BitCastInst>(U)) {
-        PointerUsesQueue.push_back(U);
-        continue;
-      }
-      if (auto *GEP = dyn_cast<GetElementPtrInst>(U)) {
-        if (GEP->hasAllZeroIndices())
-          PointerUsesQueue.push_back(U);
-        continue;
-      }
-
-      // If we hit a load/store with an invariant.group metadata and the same
-      // pointer operand, we can assume that value pointed to by the pointer
-      // operand didn't change.
-      if (U->hasMetadata(LLVMContext::MD_invariant_group) &&
-          getLoadStorePointerOperand(U) == Ptr && !U->isVolatile()) {
-        MostDominatingInstruction = U;
-      }
+    // If we hit a load/store with an invariant.group metadata and the same
+    // pointer operand, we can assume that value pointed to by the pointer
+    // operand didn't change.
+    if (U->hasMetadata(LLVMContext::MD_invariant_group) &&
+        getLoadStorePointerOperand(U) == PointerOperand && !U->isVolatile()) {
+      MostDominatingInstruction = U;
     }
   }
+
   return MostDominatingInstruction == &I ? nullptr : MostDominatingInstruction;
 }
 
-template <typename AliasAnalysisType>
-MemoryAccess *
-MemorySSA::ClobberWalkerBase<AliasAnalysisType>::getClobberingMemoryAccessBase(
-    MemoryAccess *MA, unsigned &UpwardWalkLimit, bool SkipSelf,
-    bool UseInvariantGroup) {
+MemoryAccess *MemorySSA::ClobberWalkerBase::getClobberingMemoryAccessBase(
+    MemoryAccess *MA, BatchAAResults &BAA, unsigned &UpwardWalkLimit,
+    bool SkipSelf, bool UseInvariantGroup) {
   auto *StartingAccess = dyn_cast<MemoryUseOrDef>(MA);
   // If this is a MemoryPhi, we can't do anything.
   if (!StartingAccess)
@@ -2555,7 +2565,7 @@ MemorySSA::ClobberWalkerBase<AliasAnalysisType>::getClobberingMemoryAccessBase(
 
   UpwardsMemoryQuery Q(I, StartingAccess);
 
-  if (isUseTriviallyOptimizableToLiveOnEntry(*Walker.getAA(), I)) {
+  if (isUseTriviallyOptimizableToLiveOnEntry(BAA, I)) {
     MemoryAccess *LiveOnEntry = MSSA->getLiveOnEntryDef();
     StartingAccess->setOptimized(LiveOnEntry);
     return LiveOnEntry;
@@ -2573,7 +2583,8 @@ MemorySSA::ClobberWalkerBase<AliasAnalysisType>::getClobberingMemoryAccessBase(
       return DefiningAccess;
     }
 
-    OptimizedAccess = Walker.findClobber(DefiningAccess, Q, UpwardWalkLimit);
+    OptimizedAccess =
+        Walker.findClobber(BAA, DefiningAccess, Q, UpwardWalkLimit);
     StartingAccess->setOptimized(OptimizedAccess);
   } else
     OptimizedAccess = StartingAccess->getOptimized();
@@ -2588,7 +2599,7 @@ MemorySSA::ClobberWalkerBase<AliasAnalysisType>::getClobberingMemoryAccessBase(
       isa<MemoryDef>(StartingAccess) && UpwardWalkLimit) {
     assert(isa<MemoryDef>(Q.OriginalAccess));
     Q.SkipSelfAccess = true;
-    Result = Walker.findClobber(OptimizedAccess, Q, UpwardWalkLimit);
+    Result = Walker.findClobber(BAA, OptimizedAccess, Q, UpwardWalkLimit);
   } else
     Result = OptimizedAccess;
 
@@ -2599,14 +2610,15 @@ MemorySSA::ClobberWalkerBase<AliasAnalysisType>::getClobberingMemoryAccessBase(
 }
 
 MemoryAccess *
-DoNothingMemorySSAWalker::getClobberingMemoryAccess(MemoryAccess *MA) {
+DoNothingMemorySSAWalker::getClobberingMemoryAccess(MemoryAccess *MA,
+                                                    BatchAAResults &) {
   if (auto *Use = dyn_cast<MemoryUseOrDef>(MA))
     return Use->getDefiningAccess();
   return MA;
 }
 
 MemoryAccess *DoNothingMemorySSAWalker::getClobberingMemoryAccess(
-    MemoryAccess *StartingAccess, const MemoryLocation &) {
+    MemoryAccess *StartingAccess, const MemoryLocation &, BatchAAResults &) {
   if (auto *Use = dyn_cast<MemoryUseOrDef>(StartingAccess))
     return Use->getDefiningAccess();
   return StartingAccess;

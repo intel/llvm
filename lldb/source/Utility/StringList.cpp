@@ -66,7 +66,7 @@ void StringList::AppendList(const char **strv, int strc) {
   }
 }
 
-void StringList::AppendList(StringList strings) {
+void StringList::AppendList(const StringList &strings) {
   m_strings.reserve(m_strings.size() + strings.GetSize());
   m_strings.insert(m_strings.end(), strings.begin(), strings.end());
 }
@@ -108,7 +108,7 @@ std::string StringList::LongestCommonPrefix() {
   if (m_strings.empty())
     return {};
 
-  auto args = llvm::makeArrayRef(m_strings);
+  auto args = llvm::ArrayRef(m_strings);
   llvm::StringRef prefix = args.front();
   for (auto arg : args.drop_front()) {
     size_t count = 0;

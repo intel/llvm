@@ -7,7 +7,7 @@
 ;; build of SYCL Clang with SYCLMutatePrintfAddrspacePass turned off):
 ;; clang++ -fsycl -fsycl-device-only Inputs/experimental-printf-compile-time-unknown.cpp -S -D__SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__
 
-; RUN: not opt < %s --SYCLMutatePrintfAddrspace -S --enable-new-pm=0 2>&1 | FileCheck %s
+; RUN: not opt < %s --SYCLMutatePrintfAddrspace -S -bugpoint-enable-legacy-pm 2>&1 | FileCheck %s
 ; RUN: not opt < %s --passes=SYCLMutatePrintfAddrspace -S 2>&1 | FileCheck %s
 ; CHECK: error: experimental::printf requires format string to reside in constant address space. The compiler wasn't able to automatically convert your format string into constant address space when processing builtin _Z18__spirv_ocl_printf{{.*}} called in function {{.*}}foo{{.*}}.
 ; CHECK-NEXT: Make sure each format string literal is known at compile time or use OpenCL constant address space literals for device-side printf calls.
@@ -24,22 +24,21 @@ $_ZTSZZ3fooiENKUlRN2cl4sycl7handlerEE_clES2_EUlvE_ = comdat any
 @.str.1 = private unnamed_addr addrspace(1) constant [10 x i8] c"String 1\0A\00", align 1
 
 ; Function Attrs: convergent norecurse
-define weak_odr dso_local spir_kernel void @_ZTSZZ3fooiENKUlRN2cl4sycl7handlerEE_clES2_EUlvE_(i32 addrspace(1)* %_arg_, %"class.cl::sycl::id"* byval(%"class.cl::sycl::id") align 8 %_arg_3) local_unnamed_addr #0 comdat !kernel_arg_buffer_location !5 !sycl_kernel_omit_args !6 {
+define weak_odr dso_local spir_kernel void @_ZTSZZ3fooiENKUlRN2cl4sycl7handlerEE_clES2_EUlvE_(ptr addrspace(1) %_arg_, ptr byval(%"class.cl::sycl::id") align 8 %_arg_3) local_unnamed_addr #0 comdat !kernel_arg_buffer_location !5 !sycl_kernel_omit_args !6 {
 entry:
-  %0 = getelementptr inbounds %"class.cl::sycl::id", %"class.cl::sycl::id"* %_arg_3, i64 0, i32 0, i32 0, i64 0
-  %1 = addrspacecast i64* %0 to i64 addrspace(4)*
-  %2 = load i64, i64 addrspace(4)* %1, align 8
-  %add.ptr.i = getelementptr inbounds i32, i32 addrspace(1)* %_arg_, i64 %2
-  %arrayidx.ascast.i.i = addrspacecast i32 addrspace(1)* %add.ptr.i to i32 addrspace(4)*
-  %3 = load i32, i32 addrspace(4)* %arrayidx.ascast.i.i, align 4, !tbaa !7
-  %cmp.i = icmp eq i32 %3, 0
-  %..i = select i1 %cmp.i, i8 addrspace(4)* getelementptr inbounds ([10 x i8], [10 x i8] addrspace(4)* addrspacecast ([10 x i8] addrspace(1)* @.str to [10 x i8] addrspace(4)*), i64 0, i64 0), i8 addrspace(4)* getelementptr inbounds ([10 x i8], [10 x i8] addrspace(4)* addrspacecast ([10 x i8] addrspace(1)* @.str.1 to [10 x i8] addrspace(4)*), i64 0, i64 0)
-  %call.i.i = tail call spir_func i32 @_Z18__spirv_ocl_printfIJEEiPKcDpT_(i8 addrspace(4)* %..i) #2
+  %0 = addrspacecast ptr %_arg_3 to ptr addrspace(4)
+  %1 = load i64, ptr addrspace(4) %0, align 8
+  %add.ptr.i = getelementptr inbounds i32, ptr addrspace(1) %_arg_, i64 %1
+  %arrayidx.ascast.i.i = addrspacecast ptr addrspace(1) %add.ptr.i to ptr addrspace(4)
+  %2 = load i32, ptr addrspace(4) %arrayidx.ascast.i.i, align 4, !tbaa !7
+  %cmp.i = icmp eq i32 %2, 0
+  %..i = select i1 %cmp.i, ptr addrspace(4) addrspacecast (ptr addrspace(1) @.str to ptr addrspace(4)), ptr addrspace(4) addrspacecast (ptr addrspace(1) @.str.1 to ptr addrspace(4))
+  %call.i.i = tail call spir_func i32 @_Z18__spirv_ocl_printfIJEEiPKcDpT_(ptr addrspace(4) %..i) #2
   ret void
 }
 
 ; Function Attrs: convergent
-declare dso_local spir_func i32 @_Z18__spirv_ocl_printfIJEEiPKcDpT_(i8 addrspace(4)*) local_unnamed_addr #1
+declare dso_local spir_func i32 @_Z18__spirv_ocl_printfIJEEiPKcDpT_(ptr addrspace(4)) local_unnamed_addr #1
 
 attributes #0 = { convergent norecurse "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="experimental-printf.cpp" "uniform-work-group-size"="true" }
 attributes #1 = { convergent "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }

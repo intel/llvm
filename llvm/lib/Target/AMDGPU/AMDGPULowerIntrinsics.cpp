@@ -1,23 +1,24 @@
-//===-- AMDGPULowerIntrinsics.cpp -----------------------------------------===//
+//===-- AMDGPULowerIntrinsics.cpp -------------------------------------------=//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+//
+// Lower intrinsics that would otherwise require separate handling in both
+// SelectionDAG and GlobalISel.
+//
+//===----------------------------------------------------------------------===//
 
 #include "AMDGPU.h"
-#include "AMDGPUSubtarget.h"
-#include "llvm/Analysis/TargetTransformInfo.h"
-#include "llvm/CodeGen/TargetPassConfig.h"
-#include "llvm/IR/Constants.h"
-#include "llvm/IR/Instructions.h"
+#include "AMDGPUTargetMachine.h"
+#include "GCNSubtarget.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/IntrinsicInst.h"
-#include "llvm/IR/IntrinsicsR600.h"
-#include "llvm/IR/Module.h"
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Target/TargetMachine.h"
-#include "llvm/Transforms/Utils/LowerMemIntrinsics.h"
+#include "llvm/IR/IntrinsicsAMDGPU.h"
+#include "llvm/InitializePasses.h"
+#include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 #define DEBUG_TYPE "amdgpu-lower-intrinsics"
 
@@ -25,146 +26,55 @@ using namespace llvm;
 
 namespace {
 
-static int MaxStaticSize;
+class AMDGPULowerIntrinsicsImpl {
+public:
+  Module &M;
+  const AMDGPUTargetMachine &TM;
 
-static cl::opt<int, true> MemIntrinsicExpandSizeThresholdOpt(
-  "amdgpu-mem-intrinsic-expand-size",
-  cl::desc("Set minimum mem intrinsic size to expand in IR"),
-  cl::location(MaxStaticSize),
-  cl::init(1024),
-  cl::Hidden);
+  AMDGPULowerIntrinsicsImpl(Module &M, const AMDGPUTargetMachine &TM)
+      : M(M), TM(TM) {}
 
+  bool run();
 
-class AMDGPULowerIntrinsics : public ModulePass {
 private:
-  bool makeLIDRangeMetadata(Function &F) const;
+  bool visitBarrier(IntrinsicInst &I);
+};
 
+class AMDGPULowerIntrinsicsLegacy : public ModulePass {
 public:
   static char ID;
 
-  AMDGPULowerIntrinsics() : ModulePass(ID) {}
+  AMDGPULowerIntrinsicsLegacy() : ModulePass(ID) {}
 
   bool runOnModule(Module &M) override;
-  bool expandMemIntrinsicUses(Function &F);
-  StringRef getPassName() const override {
-    return "AMDGPU Lower Intrinsics";
-  }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequired<TargetTransformInfoWrapperPass>();
+    AU.addRequired<TargetPassConfig>();
   }
 };
 
-}
-
-char AMDGPULowerIntrinsics::ID = 0;
-
-char &llvm::AMDGPULowerIntrinsicsID = AMDGPULowerIntrinsics::ID;
-
-INITIALIZE_PASS(AMDGPULowerIntrinsics, DEBUG_TYPE, "Lower intrinsics", false,
-                false)
-
-// TODO: Should refine based on estimated number of accesses (e.g. does it
-// require splitting based on alignment)
-static bool shouldExpandOperationWithSize(Value *Size) {
-  ConstantInt *CI = dyn_cast<ConstantInt>(Size);
-  return !CI || (CI->getSExtValue() > MaxStaticSize);
-}
-
-bool AMDGPULowerIntrinsics::expandMemIntrinsicUses(Function &F) {
-  Intrinsic::ID ID = F.getIntrinsicID();
-  bool Changed = false;
-
-  for (User *U : llvm::make_early_inc_range(F.users())) {
-    Instruction *Inst = cast<Instruction>(U);
-
-    switch (ID) {
-    case Intrinsic::memcpy: {
-      auto *Memcpy = cast<MemCpyInst>(Inst);
-      if (shouldExpandOperationWithSize(Memcpy->getLength())) {
-        Function *ParentFunc = Memcpy->getParent()->getParent();
-        const TargetTransformInfo &TTI =
-            getAnalysis<TargetTransformInfoWrapperPass>().getTTI(*ParentFunc);
-        expandMemCpyAsLoop(Memcpy, TTI);
-        Changed = true;
-        Memcpy->eraseFromParent();
-      }
-
-      break;
-    }
-    case Intrinsic::memmove: {
-      auto *Memmove = cast<MemMoveInst>(Inst);
-      if (shouldExpandOperationWithSize(Memmove->getLength())) {
-        expandMemMoveAsLoop(Memmove);
-        Changed = true;
-        Memmove->eraseFromParent();
-      }
-
-      break;
-    }
-    case Intrinsic::memset: {
-      auto *Memset = cast<MemSetInst>(Inst);
-      if (shouldExpandOperationWithSize(Memset->getLength())) {
-        expandMemSetAsLoop(Memset);
-        Changed = true;
-        Memset->eraseFromParent();
-      }
-
-      break;
-    }
-    default:
-      break;
-    }
+template <class T> static void forEachCall(Function &Intrin, T Callback) {
+  for (User *U : make_early_inc_range(Intrin.users())) {
+    if (auto *CI = dyn_cast<IntrinsicInst>(U))
+      Callback(CI);
   }
-
-  return Changed;
 }
 
-bool AMDGPULowerIntrinsics::makeLIDRangeMetadata(Function &F) const {
-  auto *TPC = getAnalysisIfAvailable<TargetPassConfig>();
-  if (!TPC)
-    return false;
+} // anonymous namespace
 
-  const TargetMachine &TM = TPC->getTM<TargetMachine>();
-  bool Changed = false;
-
-  for (auto *U : F.users()) {
-    auto *CI = dyn_cast<CallInst>(U);
-    if (!CI)
-      continue;
-
-    Function *Caller = CI->getParent()->getParent();
-    const AMDGPUSubtarget &ST = AMDGPUSubtarget::get(TM, *Caller);
-    Changed |= ST.makeLIDRangeMetadata(CI);
-  }
-  return Changed;
-}
-
-bool AMDGPULowerIntrinsics::runOnModule(Module &M) {
+bool AMDGPULowerIntrinsicsImpl::run() {
   bool Changed = false;
 
   for (Function &F : M) {
-    if (!F.isDeclaration())
-      continue;
-
     switch (F.getIntrinsicID()) {
-    case Intrinsic::memcpy:
-    case Intrinsic::memmove:
-    case Intrinsic::memset:
-      if (expandMemIntrinsicUses(F))
-        Changed = true;
-      break;
-
-    case Intrinsic::r600_read_tidig_x:
-    case Intrinsic::r600_read_tidig_y:
-    case Intrinsic::r600_read_tidig_z:
-    case Intrinsic::r600_read_local_size_x:
-    case Intrinsic::r600_read_local_size_y:
-    case Intrinsic::r600_read_local_size_z:
-      Changed |= makeLIDRangeMetadata(F);
-      break;
-
     default:
+      continue;
+    case Intrinsic::amdgcn_s_barrier:
+    case Intrinsic::amdgcn_s_barrier_signal:
+    case Intrinsic::amdgcn_s_barrier_signal_isfirst:
+    case Intrinsic::amdgcn_s_barrier_wait:
+    case Intrinsic::amdgcn_s_cluster_barrier:
+      forEachCall(F, [&](IntrinsicInst *II) { Changed |= visitBarrier(*II); });
       break;
     }
   }
@@ -172,6 +82,132 @@ bool AMDGPULowerIntrinsics::runOnModule(Module &M) {
   return Changed;
 }
 
-ModulePass *llvm::createAMDGPULowerIntrinsicsPass() {
-  return new AMDGPULowerIntrinsics();
+// Optimize barriers and lower s_(cluster_)barrier to a sequence of split
+// barrier intrinsics.
+bool AMDGPULowerIntrinsicsImpl::visitBarrier(IntrinsicInst &I) {
+  assert(I.getIntrinsicID() == Intrinsic::amdgcn_s_barrier ||
+         I.getIntrinsicID() == Intrinsic::amdgcn_s_barrier_signal ||
+         I.getIntrinsicID() == Intrinsic::amdgcn_s_barrier_signal_isfirst ||
+         I.getIntrinsicID() == Intrinsic::amdgcn_s_barrier_wait ||
+         I.getIntrinsicID() == Intrinsic::amdgcn_s_cluster_barrier);
+
+  const GCNSubtarget &ST = TM.getSubtarget<GCNSubtarget>(*I.getFunction());
+  bool IsSingleWaveWG = false;
+
+  if (TM.getOptLevel() > CodeGenOptLevel::None) {
+    unsigned WGMaxSize = ST.getFlatWorkGroupSizes(*I.getFunction()).second;
+    IsSingleWaveWG = WGMaxSize <= ST.getWavefrontSize();
+  }
+
+  IRBuilder<> B(&I);
+
+  // Lower the s_cluster_barrier intrinsic first. There is no corresponding
+  // hardware instruction in any subtarget.
+  if (I.getIntrinsicID() == Intrinsic::amdgcn_s_cluster_barrier) {
+    // The default cluster barrier expects one signal per workgroup. So we need
+    // a workgroup barrier first.
+    if (IsSingleWaveWG) {
+      B.CreateIntrinsic(B.getVoidTy(), Intrinsic::amdgcn_wave_barrier, {});
+    } else {
+      Value *BarrierID_32 = B.getInt32(AMDGPU::Barrier::WORKGROUP);
+      Value *BarrierID_16 = B.getInt16(AMDGPU::Barrier::WORKGROUP);
+      Value *IsFirst = B.CreateIntrinsic(
+          B.getInt1Ty(), Intrinsic::amdgcn_s_barrier_signal_isfirst,
+          {BarrierID_32});
+      B.CreateIntrinsic(B.getVoidTy(), Intrinsic::amdgcn_s_barrier_wait,
+                        {BarrierID_16});
+
+      Instruction *ThenTerm =
+          SplitBlockAndInsertIfThen(IsFirst, I.getIterator(), false);
+      B.SetInsertPoint(ThenTerm);
+    }
+
+    // Now we can signal the cluster barrier from a single wave and wait for the
+    // barrier in all waves.
+    Value *BarrierID_32 = B.getInt32(AMDGPU::Barrier::CLUSTER);
+    Value *BarrierID_16 = B.getInt16(AMDGPU::Barrier::CLUSTER);
+    B.CreateIntrinsic(B.getVoidTy(), Intrinsic::amdgcn_s_barrier_signal,
+                      {BarrierID_32});
+
+    B.SetInsertPoint(&I);
+    B.CreateIntrinsic(B.getVoidTy(), Intrinsic::amdgcn_s_barrier_wait,
+                      {BarrierID_16});
+
+    I.eraseFromParent();
+    return true;
+  }
+
+  bool IsWorkgroupScope = false;
+
+  if (I.getIntrinsicID() == Intrinsic::amdgcn_s_barrier_wait ||
+      I.getIntrinsicID() == Intrinsic::amdgcn_s_barrier_signal ||
+      I.getIntrinsicID() == Intrinsic::amdgcn_s_barrier_signal_isfirst) {
+    int BarrierID = cast<ConstantInt>(I.getArgOperand(0))->getSExtValue();
+    if (BarrierID == AMDGPU::Barrier::TRAP ||
+        BarrierID == AMDGPU::Barrier::WORKGROUP ||
+        (BarrierID >= AMDGPU::Barrier::NAMED_BARRIER_FIRST &&
+         BarrierID <= AMDGPU::Barrier::NAMED_BARRIER_LAST))
+      IsWorkgroupScope = true;
+  } else {
+    assert(I.getIntrinsicID() == Intrinsic::amdgcn_s_barrier);
+    IsWorkgroupScope = true;
+  }
+
+  if (IsWorkgroupScope && IsSingleWaveWG) {
+    // Down-grade waits, remove split signals.
+    if (I.getIntrinsicID() == Intrinsic::amdgcn_s_barrier ||
+        I.getIntrinsicID() == Intrinsic::amdgcn_s_barrier_wait) {
+      B.CreateIntrinsic(B.getVoidTy(), Intrinsic::amdgcn_wave_barrier, {});
+    } else if (I.getIntrinsicID() ==
+               Intrinsic::amdgcn_s_barrier_signal_isfirst) {
+      // If we're the only wave of the workgroup, we're always first.
+      I.replaceAllUsesWith(B.getInt1(true));
+    }
+    I.eraseFromParent();
+    return true;
+  }
+
+  if (I.getIntrinsicID() == Intrinsic::amdgcn_s_barrier &&
+      ST.hasSplitBarriers()) {
+    // Lower to split barriers.
+    Value *BarrierID_32 = B.getInt32(AMDGPU::Barrier::WORKGROUP);
+    Value *BarrierID_16 = B.getInt16(AMDGPU::Barrier::WORKGROUP);
+    B.CreateIntrinsic(B.getVoidTy(), Intrinsic::amdgcn_s_barrier_signal,
+                      {BarrierID_32});
+    B.CreateIntrinsic(B.getVoidTy(), Intrinsic::amdgcn_s_barrier_wait,
+                      {BarrierID_16});
+    I.eraseFromParent();
+    return true;
+  }
+
+  return false;
+}
+
+PreservedAnalyses AMDGPULowerIntrinsicsPass::run(Module &M,
+                                                 ModuleAnalysisManager &MAM) {
+  AMDGPULowerIntrinsicsImpl Impl(M, TM);
+  if (!Impl.run())
+    return PreservedAnalyses::all();
+  return PreservedAnalyses::none();
+}
+
+bool AMDGPULowerIntrinsicsLegacy::runOnModule(Module &M) {
+  auto &TPC = getAnalysis<TargetPassConfig>();
+  const AMDGPUTargetMachine &TM = TPC.getTM<AMDGPUTargetMachine>();
+
+  AMDGPULowerIntrinsicsImpl Impl(M, TM);
+  return Impl.run();
+}
+
+#define PASS_DESC "AMDGPU lower intrinsics"
+INITIALIZE_PASS_BEGIN(AMDGPULowerIntrinsicsLegacy, DEBUG_TYPE, PASS_DESC, false,
+                      false)
+INITIALIZE_PASS_DEPENDENCY(TargetPassConfig)
+INITIALIZE_PASS_END(AMDGPULowerIntrinsicsLegacy, DEBUG_TYPE, PASS_DESC, false,
+                    false)
+
+char AMDGPULowerIntrinsicsLegacy::ID = 0;
+
+ModulePass *llvm::createAMDGPULowerIntrinsicsLegacyPass() {
+  return new AMDGPULowerIntrinsicsLegacy;
 }

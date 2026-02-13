@@ -37,6 +37,7 @@ end module
 
 module m7
   interface
+    !WARNING: The external interface 'null' is not compatible with an earlier definition (function results have incompatible attributes) [-Wexternal-interface-mismatch]
     function null() result(p)
       integer, pointer :: p
     end function

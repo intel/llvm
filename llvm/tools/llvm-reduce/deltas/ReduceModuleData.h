@@ -1,4 +1,4 @@
-//===- ReduceModuleData.h --------------------------------------------===//
+//===- ReduceModuleData.h ---------------------------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,7 +12,7 @@
 #include "Delta.h"
 
 namespace llvm {
-void reduceModuleDataDeltaPass(TestRunner &Test);
+void reduceModuleDataDeltaPass(Oracle &O, ReducerWorkItem &WorkItem);
 } // namespace llvm
 
 #endif

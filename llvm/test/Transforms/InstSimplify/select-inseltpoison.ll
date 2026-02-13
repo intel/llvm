@@ -17,11 +17,11 @@ define <2 x i1> @bool_true_or_false_vec(<2 x i1> %cond) {
   ret <2 x i1> %s
 }
 
-define <2 x i1> @bool_true_or_false_vec_undef(<2 x i1> %cond) {
-; CHECK-LABEL: @bool_true_or_false_vec_undef(
+define <2 x i1> @bool_true_or_false_vec_poison(<2 x i1> %cond) {
+; CHECK-LABEL: @bool_true_or_false_vec_poison(
 ; CHECK-NEXT:    ret <2 x i1> [[COND:%.*]]
 ;
-  %s = select <2 x i1> %cond, <2 x i1> <i1 undef, i1 true>, <2 x i1> <i1 false, i1 undef>
+  %s = select <2 x i1> %cond, <2 x i1> <i1 poison, i1 true>, <2 x i1> <i1 false, i1 poison>
   ret <2 x i1> %s
 }
 
@@ -57,27 +57,27 @@ define <2 x i32> @equal_arms_vec(<2 x i1> %cond, <2 x i32> %x) {
   ret <2 x i32> %V
 }
 
-define <2 x i32> @equal_arms_vec_undef(<2 x i1> %cond) {
-; CHECK-LABEL: @equal_arms_vec_undef(
-; CHECK-NEXT:    ret <2 x i32> <i32 42, i32 42>
+define <2 x i32> @equal_arms_vec_poison(<2 x i1> %cond) {
+; CHECK-LABEL: @equal_arms_vec_poison(
+; CHECK-NEXT:    ret <2 x i32> splat (i32 42)
 ;
-  %V = select <2 x i1> %cond, <2 x i32> <i32 42, i32 undef>, <2 x i32> <i32 undef, i32 42>
+  %V = select <2 x i1> %cond, <2 x i32> <i32 42, i32 poison>, <2 x i32> <i32 poison, i32 42>
   ret <2 x i32> %V
 }
 
-define <3 x float> @equal_arms_vec_less_undef(<3 x i1> %cond) {
-; CHECK-LABEL: @equal_arms_vec_less_undef(
+define <3 x float> @equal_arms_vec_less_poison(<3 x i1> %cond) {
+; CHECK-LABEL: @equal_arms_vec_less_poison(
 ; CHECK-NEXT:    ret <3 x float> <float 4.200000e+01, float 4.200000e+01, float 4.300000e+01>
 ;
-  %V = select <3 x i1> %cond, <3 x float> <float 42.0, float undef, float 43.0>, <3 x float> <float 42.0, float 42.0, float 43.0>
+  %V = select <3 x i1> %cond, <3 x float> <float 42.0, float poison, float 43.0>, <3 x float> <float 42.0, float 42.0, float 43.0>
   ret <3 x float> %V
 }
 
-define <3 x float> @equal_arms_vec_more_undef(<3 x i1> %cond) {
-; CHECK-LABEL: @equal_arms_vec_more_undef(
-; CHECK-NEXT:    ret <3 x float> <float 4.200000e+01, float undef, float 4.300000e+01>
+define <3 x float> @equal_arms_vec_more_poison(<3 x i1> %cond) {
+; CHECK-LABEL: @equal_arms_vec_more_poison(
+; CHECK-NEXT:    ret <3 x float> <float 4.200000e+01, float poison, float 4.300000e+01>
 ;
-  %V = select <3 x i1> %cond, <3 x float> <float 42.0, float undef, float undef>, <3 x float> <float undef, float undef, float 43.0>
+  %V = select <3 x i1> %cond, <3 x float> <float 42.0, float poison, float poison>, <3 x float> <float poison, float poison, float 43.0>
   ret <3 x float> %V
 }
 
@@ -105,19 +105,19 @@ define <2 x i8> @vsel_mixedvec() {
   ret <2 x i8> %s
 }
 
-define <3 x i8> @vsel_undef_true_op(<3 x i8> %x, <3 x i8> %y) {
-; CHECK-LABEL: @vsel_undef_true_op(
+define <3 x i8> @vsel_poison_true_op(<3 x i8> %x, <3 x i8> %y) {
+; CHECK-LABEL: @vsel_poison_true_op(
 ; CHECK-NEXT:    ret <3 x i8> [[X:%.*]]
 ;
-  %s = select <3 x i1><i1 1, i1 undef, i1 1>, <3 x i8> %x, <3 x i8> %y
+  %s = select <3 x i1><i1 1, i1 poison, i1 1>, <3 x i8> %x, <3 x i8> %y
   ret <3 x i8> %s
 }
 
-define <3 x i4> @vsel_undef_false_op(<3 x i4> %x, <3 x i4> %y) {
-; CHECK-LABEL: @vsel_undef_false_op(
+define <3 x i4> @vsel_poison_false_op(<3 x i4> %x, <3 x i4> %y) {
+; CHECK-LABEL: @vsel_poison_false_op(
 ; CHECK-NEXT:    ret <3 x i4> [[Y:%.*]]
 ;
-  %s = select <3 x i1><i1 0, i1 undef, i1 undef>, <3 x i4> %x, <3 x i4> %y
+  %s = select <3 x i1><i1 0, i1 poison, i1 poison>, <3 x i4> %x, <3 x i4> %y
   ret <3 x i4> %s
 }
 
@@ -265,7 +265,7 @@ define i32 @test11(i32 %X) {
 
 define <2 x i8> @test11vec(<2 x i8> %X) {
 ; CHECK-LABEL: @test11vec(
-; CHECK-NEXT:    [[AND:%.*]] = and <2 x i8> [[X:%.*]], <i8 127, i8 127>
+; CHECK-NEXT:    [[AND:%.*]] = and <2 x i8> [[X:%.*]], splat (i8 127)
 ; CHECK-NEXT:    ret <2 x i8> [[AND]]
 ;
   %cmp = icmp sgt <2 x i8> %X, <i8 -1, i8 -1>
@@ -658,8 +658,8 @@ define i1 @and_cmps(i32 %x) {
 
 define <2 x i1> @and_cmps_vector(<2 x i32> %x) {
 ; CHECK-LABEL: @and_cmps_vector(
-; CHECK-NEXT:    [[CMP1:%.*]] = icmp slt <2 x i32> [[X:%.*]], <i32 92, i32 92>
-; CHECK-NEXT:    [[CMP2:%.*]] = icmp slt <2 x i32> [[X]], <i32 11, i32 11>
+; CHECK-NEXT:    [[CMP1:%.*]] = icmp slt <2 x i32> [[X:%.*]], splat (i32 92)
+; CHECK-NEXT:    [[CMP2:%.*]] = icmp slt <2 x i32> [[X]], splat (i32 11)
 ; CHECK-NEXT:    [[R:%.*]] = select <2 x i1> [[CMP1]], <2 x i1> [[CMP2]], <2 x i1> zeroinitializer
 ; CHECK-NEXT:    ret <2 x i1> [[R]]
 ;
@@ -684,9 +684,7 @@ define i1 @or_cmps(float %x) {
 
 define <2 x i1> @or_logic_vector(<2 x i1> %x, <2 x i1> %y) {
 ; CHECK-LABEL: @or_logic_vector(
-; CHECK-NEXT:    [[A:%.*]] = and <2 x i1> [[X:%.*]], [[Y:%.*]]
-; CHECK-NEXT:    [[R:%.*]] = select <2 x i1> [[X]], <2 x i1> <i1 true, i1 true>, <2 x i1> [[A]]
-; CHECK-NEXT:    ret <2 x i1> [[R]]
+; CHECK-NEXT:    ret <2 x i1> [[X:%.*]]
 ;
   %a = and <2 x i1> %x, %y
   %r = select <2 x i1> %x, <2 x i1> <i1 true, i1 true>, <2 x i1> %a
@@ -883,11 +881,19 @@ define <2 x float> @all_constant_false_undef_vec() {
   ret <2 x float> %s
 }
 
-; Negative tests. Don't fold if the non-undef operand is a constexpr.
+@a = external global [3 x ptr]
+define i32 @all_constant_false_undef_true_poison_gen_constexpr(i1 %a) {
+; CHECK-LABEL: @all_constant_false_undef_true_poison_gen_constexpr(
+; CHECK-NEXT:    [[S:%.*]] = select i1 [[A:%.*]], i32 ptrtoint (ptr getelementptr inbounds ([3 x ptr], ptr @a, i64 2) to i32), i32 undef
+; CHECK-NEXT:    ret i32 [[S]]
+;
+  %s = select i1 %a, i32 ptrtoint (ptr getelementptr inbounds ([3 x ptr], ptr @a, i64 2) to i32), i32 undef
+  ret i32 %s
+}
+
 define i32 @all_constant_false_undef_true_constexpr() {
 ; CHECK-LABEL: @all_constant_false_undef_true_constexpr(
-; CHECK-NEXT:    [[S:%.*]] = select i1 ptrtoint (ptr @all_constant_false_undef_true_constexpr to i1), i32 ptrtoint (ptr @all_constant_false_undef_true_constexpr to i32), i32 undef
-; CHECK-NEXT:    ret i32 [[S]]
+; CHECK-NEXT:    ret i32 ptrtoint (ptr @all_constant_false_undef_true_constexpr to i32)
 ;
   %s = select i1 ptrtoint (ptr @all_constant_false_undef_true_constexpr to i1), i32 ptrtoint (ptr @all_constant_false_undef_true_constexpr to i32), i32 undef
   ret i32 %s
@@ -895,8 +901,7 @@ define i32 @all_constant_false_undef_true_constexpr() {
 
 define i32 @all_constant_true_undef_false_constexpr() {
 ; CHECK-LABEL: @all_constant_true_undef_false_constexpr(
-; CHECK-NEXT:    [[S:%.*]] = select i1 ptrtoint (ptr @all_constant_true_undef_false_constexpr to i1), i32 undef, i32 ptrtoint (ptr @all_constant_true_undef_false_constexpr to i32)
-; CHECK-NEXT:    ret i32 [[S]]
+; CHECK-NEXT:    ret i32 ptrtoint (ptr @all_constant_true_undef_false_constexpr to i32)
 ;
   %s = select i1 ptrtoint (ptr @all_constant_true_undef_false_constexpr to i1), i32 undef, i32 ptrtoint (ptr @all_constant_true_undef_false_constexpr to i32)
   ret i32 %s
@@ -905,8 +910,7 @@ define i32 @all_constant_true_undef_false_constexpr() {
 ; Negative tests. Don't fold if the non-undef operand is a vector containing a constexpr.
 define <2 x i32> @all_constant_false_undef_true_constexpr_vec() {
 ; CHECK-LABEL: @all_constant_false_undef_true_constexpr_vec(
-; CHECK-NEXT:    [[S:%.*]] = select i1 ptrtoint (ptr @all_constant_false_undef_true_constexpr_vec to i1), <2 x i32> <i32 ptrtoint (ptr @all_constant_false_undef_true_constexpr_vec to i32), i32 -1>, <2 x i32> undef
-; CHECK-NEXT:    ret <2 x i32> [[S]]
+; CHECK-NEXT:    ret <2 x i32> <i32 ptrtoint (ptr @all_constant_false_undef_true_constexpr_vec to i32), i32 -1>
 ;
   %s = select i1 ptrtoint (ptr @all_constant_false_undef_true_constexpr_vec to i1), <2 x i32> <i32 ptrtoint (ptr @all_constant_false_undef_true_constexpr_vec to i32), i32 -1>, <2 x i32> undef
   ret <2 x i32> %s
@@ -914,8 +918,7 @@ define <2 x i32> @all_constant_false_undef_true_constexpr_vec() {
 
 define <2 x i32> @all_constant_true_undef_false_constexpr_vec() {
 ; CHECK-LABEL: @all_constant_true_undef_false_constexpr_vec(
-; CHECK-NEXT:    [[S:%.*]] = select i1 ptrtoint (ptr @all_constant_true_undef_false_constexpr_vec to i1), <2 x i32> undef, <2 x i32> <i32 -1, i32 ptrtoint (ptr @all_constant_true_undef_false_constexpr_vec to i32)>
-; CHECK-NEXT:    ret <2 x i32> [[S]]
+; CHECK-NEXT:    ret <2 x i32> <i32 -1, i32 ptrtoint (ptr @all_constant_true_undef_false_constexpr_vec to i32)>
 ;
   %s = select i1 ptrtoint (ptr @all_constant_true_undef_false_constexpr_vec to i1), <2 x i32> undef, <2 x i32><i32 -1, i32 ptrtoint (ptr @all_constant_true_undef_false_constexpr_vec to i32)>
   ret <2 x i32> %s
@@ -923,12 +926,8 @@ define <2 x i32> @all_constant_true_undef_false_constexpr_vec() {
 
 define i1 @expand_binop_undef(i32 %x, i32 %y) {
 ; CHECK-LABEL: @expand_binop_undef(
-; CHECK-NEXT:    [[CMP9_NOT_1:%.*]] = icmp eq i32 [[X:%.*]], [[Y:%.*]]
-; CHECK-NEXT:    [[CMP15:%.*]] = icmp slt i32 [[X]], [[Y]]
-; CHECK-NEXT:    [[SPEC_SELECT39:%.*]] = select i1 [[CMP9_NOT_1]], i1 undef, i1 [[CMP15]]
-; CHECK-NEXT:    [[SPEC_SELECT40:%.*]] = xor i1 [[CMP9_NOT_1]], true
-; CHECK-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[SPEC_SELECT39]], [[SPEC_SELECT40]]
-; CHECK-NEXT:    ret i1 [[SPEC_SELECT]]
+; CHECK-NEXT:    [[CMP15:%.*]] = icmp slt i32 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    ret i1 [[CMP15]]
 ;
   %cmp9.not.1 = icmp eq i32 %x, %y
   %cmp15 = icmp slt i32 %x, %y
@@ -941,13 +940,13 @@ define i1 @expand_binop_undef(i32 %x, i32 %y) {
 define i32 @pr47322_more_poisonous_replacement(i32 %arg) {
 ; CHECK-LABEL: @pr47322_more_poisonous_replacement(
 ; CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[ARG:%.*]], 0
-; CHECK-NEXT:    [[TRAILING:%.*]] = call i32 @llvm.cttz.i32(i32 [[ARG]], i1 immarg true)
+; CHECK-NEXT:    [[TRAILING:%.*]] = call i32 @llvm.cttz.i32(i32 [[ARG]], i1 true)
 ; CHECK-NEXT:    [[SHIFTED:%.*]] = lshr i32 [[ARG]], [[TRAILING]]
 ; CHECK-NEXT:    [[R1_SROA_0_1:%.*]] = select i1 [[CMP]], i32 0, i32 [[SHIFTED]]
 ; CHECK-NEXT:    ret i32 [[R1_SROA_0_1]]
 ;
   %cmp = icmp eq i32 %arg, 0
-  %trailing = call i32 @llvm.cttz.i32(i32 %arg, i1 immarg true)
+  %trailing = call i32 @llvm.cttz.i32(i32 %arg, i1 true)
   %shifted = lshr i32 %arg, %trailing
   %r1.sroa.0.1 = select i1 %cmp, i32 0, i32 %shifted
   ret i32 %r1.sroa.0.1

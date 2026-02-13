@@ -8,12 +8,9 @@
 
 #include "DebugMap.h"
 #include "BinaryHolder.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
-#include "llvm/ADT/iterator_range.h"
 #include "llvm/BinaryFormat/MachO.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/Chrono.h"
@@ -24,10 +21,12 @@
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Triple.h"
 #include <algorithm>
 #include <cinttypes>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -43,8 +42,14 @@ DebugMapObject::DebugMapObject(StringRef ObjectFilename,
                                uint8_t Type)
     : Filename(std::string(ObjectFilename)), Timestamp(Timestamp), Type(Type) {}
 
-bool DebugMapObject::addSymbol(StringRef Name, Optional<uint64_t> ObjectAddress,
+bool DebugMapObject::addSymbol(StringRef Name,
+                               std::optional<uint64_t> ObjectAddress,
                                uint64_t LinkedAddress, uint32_t Size) {
+  if (Symbols.count(Name)) {
+    // Symbol was previously added.
+    return true;
+  }
+
   auto InsertResult = Symbols.insert(
       std::make_pair(Name, SymbolMapping(ObjectAddress, LinkedAddress, Size)));
 
@@ -52,6 +57,12 @@ bool DebugMapObject::addSymbol(StringRef Name, Optional<uint64_t> ObjectAddress,
     AddressToMapping[*ObjectAddress] = &*InsertResult.first;
   return InsertResult.second;
 }
+
+void DebugMapObject::setRelocationMap(dsymutil::RelocationMap &RM) {
+  RelocMap.emplace(RM);
+}
+
+void DebugMapObject::setInstallName(StringRef IN) { InstallName.emplace(IN); }
 
 void DebugMapObject::print(raw_ostream &OS) const {
   OS << getObjectFilename() << ":\n";
@@ -115,22 +126,28 @@ void DebugMap::dump() const { print(errs()); }
 namespace {
 
 struct YAMLContext {
+  YAMLContext(BinaryHolder &BinHolder, StringRef PrependPath)
+      : BinHolder(BinHolder), PrependPath(PrependPath) {}
+  BinaryHolder &BinHolder;
   StringRef PrependPath;
   Triple BinaryTriple;
 };
 
 } // end anonymous namespace
 
+DebugMap::DebugMap(const Triple &BinaryTriple, StringRef BinaryPath,
+                   ArrayRef<uint8_t> BinaryUUID)
+    : BinaryTriple(BinaryTriple), BinaryPath(std::string(BinaryPath)),
+      BinaryUUID(BinaryUUID.begin(), BinaryUUID.end()) {}
+
 ErrorOr<std::vector<std::unique_ptr<DebugMap>>>
-DebugMap::parseYAMLDebugMap(StringRef InputFile, StringRef PrependPath,
-                            bool Verbose) {
+DebugMap::parseYAMLDebugMap(BinaryHolder &BinHolder, StringRef InputFile,
+                            StringRef PrependPath, bool Verbose) {
   auto ErrOrFile = MemoryBuffer::getFileOrSTDIN(InputFile);
   if (auto Err = ErrOrFile.getError())
     return Err;
 
-  YAMLContext Ctxt;
-
-  Ctxt.PrependPath = PrependPath;
+  YAMLContext Ctxt(BinHolder, PrependPath);
 
   std::unique_ptr<DebugMap> Res;
   yaml::Input yin((*ErrOrFile)->getBuffer(), &Ctxt);
@@ -149,17 +166,18 @@ namespace yaml {
 
 // Normalize/Denormalize between YAML and a DebugMapObject.
 struct MappingTraits<dsymutil::DebugMapObject>::YamlDMO {
-  YamlDMO(IO &io) { Timestamp = 0; }
+  YamlDMO(IO &io) {}
   YamlDMO(IO &io, dsymutil::DebugMapObject &Obj);
   dsymutil::DebugMapObject denormalize(IO &IO);
 
   std::string Filename;
-  int64_t Timestamp;
+  int64_t Timestamp = 0;
+  uint8_t Type = MachO::N_OSO;
   std::vector<dsymutil::DebugMapObject::YAMLSymbolMapping> Entries;
 };
 
-void MappingTraits<std::pair<std::string, DebugMapObject::SymbolMapping>>::
-    mapping(IO &io, std::pair<std::string, DebugMapObject::SymbolMapping> &s) {
+void MappingTraits<std::pair<std::string, SymbolMapping>>::mapping(
+    IO &io, std::pair<std::string, SymbolMapping> &s) {
   io.mapRequired("sym", s.first);
   io.mapOptional("objAddr", s.second.ObjectAddress);
   io.mapRequired("binAddr", s.second.BinaryAddress);
@@ -171,6 +189,7 @@ void MappingTraits<dsymutil::DebugMapObject>::mapping(
   MappingNormalization<YamlDMO, dsymutil::DebugMapObject> Norm(io, DMO);
   io.mapRequired("filename", Norm->Filename);
   io.mapOptional("timestamp", Norm->Timestamp);
+  io.mapOptional("type", Norm->Type);
   io.mapRequired("symbols", Norm->Entries);
 }
 
@@ -224,22 +243,23 @@ MappingTraits<dsymutil::DebugMapObject>::YamlDMO::YamlDMO(
     IO &io, dsymutil::DebugMapObject &Obj) {
   Filename = Obj.Filename;
   Timestamp = sys::toTimeT(Obj.getTimestamp());
+  Type = Obj.getType();
   Entries.reserve(Obj.Symbols.size());
   for (auto &Entry : Obj.Symbols)
     Entries.push_back(
         std::make_pair(std::string(Entry.getKey()), Entry.getValue()));
+  llvm::sort(Entries, llvm::less_first());
 }
 
 dsymutil::DebugMapObject
 MappingTraits<dsymutil::DebugMapObject>::YamlDMO::denormalize(IO &IO) {
-  BinaryHolder BinHolder(vfs::getRealFileSystem(), /* Verbose =*/false);
   const auto &Ctxt = *reinterpret_cast<YAMLContext *>(IO.getContext());
   SmallString<80> Path(Ctxt.PrependPath);
   StringMap<uint64_t> SymbolAddresses;
 
   sys::path::append(Path, Filename);
 
-  auto ObjectEntry = BinHolder.getObjectEntry(Path);
+  auto ObjectEntry = Ctxt.BinHolder.getObjectEntry(Path);
   if (!ObjectEntry) {
     auto Err = ObjectEntry.takeError();
     WithColor::warning() << "Unable to open " << Path << " "
@@ -274,10 +294,15 @@ MappingTraits<dsymutil::DebugMapObject>::YamlDMO::denormalize(IO &IO) {
     }
   }
 
-  dsymutil::DebugMapObject Res(Path, sys::toTimePoint(Timestamp), MachO::N_OSO);
+  if (Path.ends_with(".dylib")) {
+    // FIXME: find a more resilient way
+    Type = MachO::N_LIB;
+  }
+  dsymutil::DebugMapObject Res(Path, sys::toTimePoint(Timestamp), Type);
+
   for (auto &Entry : Entries) {
     auto &Mapping = Entry.second;
-    Optional<uint64_t> ObjAddress;
+    std::optional<uint64_t> ObjAddress;
     if (Mapping.ObjectAddress)
       ObjAddress = *Mapping.ObjectAddress;
     auto AddressIt = SymbolAddresses.find(Entry.first);

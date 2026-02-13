@@ -8,14 +8,18 @@
 
 #include "src/stdio/sprintf.h"
 
+#include "src/__support/CPP/limits.h"
 #include "src/__support/arg_list.h"
+#include "src/__support/libc_errno.h"
+#include "src/__support/macros/config.h"
+#include "src/stdio/printf_core/core_structs.h"
+#include "src/stdio/printf_core/error_mapper.h"
 #include "src/stdio/printf_core/printf_main.h"
-#include "src/stdio/printf_core/string_writer.h"
 #include "src/stdio/printf_core/writer.h"
 
 #include <stdarg.h>
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE_DECL {
 
 LLVM_LIBC_FUNCTION(int, sprintf,
                    (char *__restrict buffer, const char *__restrict format,
@@ -26,15 +30,25 @@ LLVM_LIBC_FUNCTION(int, sprintf,
                                  // and pointer semantics, as well as handling
                                  // destruction automatically.
   va_end(vlist);
-  printf_core::StringWriter str_writer(buffer);
-  printf_core::Writer writer(reinterpret_cast<void *>(&str_writer),
-                             printf_core::StringWriter::write_str,
-                             printf_core::StringWriter::write_chars,
-                             printf_core::StringWriter::write_char);
 
-  int ret_val = printf_core::printf_main(&writer, format, args);
-  str_writer.terminate();
-  return ret_val;
+  printf_core::DropOverflowBuffer wb(buffer,
+                                     cpp::numeric_limits<size_t>::max());
+  printf_core::Writer writer(wb);
+
+  auto ret_val = printf_core::printf_main(&writer, format, args);
+  if (!ret_val.has_value()) {
+    libc_errno = printf_core::internal_error_to_errno(ret_val.error());
+    return -1;
+  }
+  wb.buff[wb.buff_cur] = '\0';
+
+  if (ret_val.value() > static_cast<size_t>(cpp::numeric_limits<int>::max())) {
+    libc_errno =
+        printf_core::internal_error_to_errno(-printf_core::OVERFLOW_ERROR);
+    return -1;
+  }
+
+  return static_cast<int>(ret_val.value());
 }
 
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE_DECL

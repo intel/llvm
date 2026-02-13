@@ -1,13 +1,12 @@
 // Make sure we can handle reloading the same DLL multiple times.
-// RUN: %clang_cl_asan -LD -Od -DDLL %s -Fe%t.dll
-// RUN: %clang_cl_asan -Od -DEXE %s -Fe%te.exe
+// RUN: %clang_cl_asan %LD %Od -DDLL %s %Fe%t.dll
+// RUN: %clang_cl_asan %Od -DEXE %s %Fe%te.exe
 // RUN: %env_asan_opts=report_globals=1 %run %te.exe %t.dll 2>&1 | FileCheck %s
 
 #include <windows.h>
 #include <stdio.h>
 #include <string.h>
 
-extern "C" {
 #if defined(EXE)
 int main(int argc, char **argv) {
   if (argc != 2) {
@@ -40,12 +39,13 @@ int main(int argc, char **argv) {
   fflush(0);
 }
 #elif defined(DLL)
+extern "C" {
 BOOL WINAPI DllMain(HMODULE, DWORD reason, LPVOID) {
   printf("in DLL(reason=%d)\n", (int)reason);
   fflush(0);
   return TRUE;
 }
+}
 #else
 # error oops!
 #endif
-}

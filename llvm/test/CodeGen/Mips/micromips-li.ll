@@ -1,4 +1,4 @@
-; RUN: llc -march=mipsel -mcpu=mips32r2 -mattr=+micromips \
+; RUN: llc -mtriple=mipsel -mcpu=mips32r2 -mattr=+micromips \
 ; RUN:   -relocation-model=pic -O3 < %s | FileCheck %s
 
 @x = external global i32
@@ -7,9 +7,9 @@
 
 define i32 @main() nounwind {
 entry:
-  store i32 1, i32* @x, align 4
-  store i32 2148, i32* @y, align 4
-  store i32 33332, i32* @z, align 4
+  store i32 1, ptr @x, align 4
+  store i32 2148, ptr @y, align 4
+  store i32 33332, ptr @z, align 4
   ret i32 0
 }
 

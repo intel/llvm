@@ -19,9 +19,9 @@
 #include "index/SymbolID.h"
 #include "support/Path.h"
 #include "clang/AST/ASTTypeTraits.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/raw_ostream.h"
+#include <optional>
 #include <vector>
 
 namespace clang {
@@ -44,7 +44,7 @@ struct LocatedSymbol {
   // The canonical or best declaration: where most users find its interface.
   Location PreferredDeclaration;
   // Where the symbol is defined, if known. May equal PreferredDeclaration.
-  llvm::Optional<Location> Definition;
+  std::optional<Location> Definition;
   // SymbolID of the located symbol if available.
   SymbolID ID;
 };
@@ -88,7 +88,7 @@ struct ReferencesResult {
     Override = 1 << 2,
   };
   struct Reference {
-    Location Loc;
+    ReferenceLocation Loc;
     unsigned Attributes = 0;
   };
   std::vector<Reference> References;
@@ -107,12 +107,14 @@ std::vector<LocatedSymbol> findImplementations(ParsedAST &AST, Position Pos,
 ///
 /// For example, given `b^ar()` wher bar return Foo, this function returns the
 /// definition of class Foo.
-std::vector<LocatedSymbol> findType(ParsedAST &AST, Position Pos);
+std::vector<LocatedSymbol> findType(ParsedAST &AST, Position Pos,
+                                    const SymbolIndex *Index);
 
 /// Returns references of the symbol at a specified \p Pos.
 /// \p Limit limits the number of results returned (0 means no limit).
 ReferencesResult findReferences(ParsedAST &AST, Position Pos, uint32_t Limit,
-                                const SymbolIndex *Index = nullptr);
+                                const SymbolIndex *Index = nullptr,
+                                bool AddContext = false);
 
 /// Get info about symbols at \p Pos.
 std::vector<SymbolDetails> getSymbolInfo(ParsedAST &AST, Position Pos);
@@ -131,7 +133,7 @@ std::vector<TypeHierarchyItem> getTypeHierarchy(
 
 /// Returns direct parents of a TypeHierarchyItem using SymbolIDs stored inside
 /// the item.
-llvm::Optional<std::vector<TypeHierarchyItem>>
+std::optional<std::vector<TypeHierarchyItem>>
 superTypes(const TypeHierarchyItem &Item, const SymbolIndex *Index);
 /// Returns direct children of a TypeHierarchyItem.
 std::vector<TypeHierarchyItem> subTypes(const TypeHierarchyItem &Item,
@@ -147,6 +149,9 @@ prepareCallHierarchy(ParsedAST &AST, Position Pos, PathRef TUPath);
 
 std::vector<CallHierarchyIncomingCall>
 incomingCalls(const CallHierarchyItem &Item, const SymbolIndex *Index);
+
+std::vector<CallHierarchyOutgoingCall>
+outgoingCalls(const CallHierarchyItem &Item, const SymbolIndex *Index);
 
 /// Returns all decls that are referenced in the \p FD except local symbols.
 llvm::DenseSet<const Decl *> getNonLocalDeclRefs(ParsedAST &AST,

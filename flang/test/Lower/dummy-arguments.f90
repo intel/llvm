@@ -1,4 +1,4 @@
-! RUN: bbc %s -o - | FileCheck %s
+! RUN: bbc -hlfir=false %s -o - | FileCheck %s
 
 ! CHECK-LABEL: _QQmain
 program test1
@@ -9,7 +9,7 @@ program test1
   call foo(10)
 contains
 
-! CHECK-LABEL: func @_QFPfoo
+! CHECK-LABEL: func private @_QFPfoo
 subroutine foo(avar1)
   integer :: avar1
 !  integer :: my_data, my_data2
@@ -25,7 +25,7 @@ end program test1
 function sub2(r)
   real :: r(20)
   ! CHECK: %[[coor:.*]] = fir.coordinate_of %arg0
-  ! CHECK: = fir.call @_QPf(%[[coor]]) : (!fir.ref<f32>) -> f32
+  ! CHECK: = fir.call @_QPf(%[[coor]]) {{.*}}: (!fir.ref<f32>) -> f32
   sub2 = f(r(1))
   ! CHECK: return %{{.*}} : f32
 end function sub2

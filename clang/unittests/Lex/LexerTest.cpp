@@ -18,6 +18,7 @@
 #include "clang/Basic/TokenKinds.h"
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/HeaderSearchOptions.h"
+#include "clang/Lex/LiteralSupport.h"
 #include "clang/Lex/MacroArgs.h"
 #include "clang/Lex/MacroInfo.h"
 #include "clang/Lex/ModuleLoader.h"
@@ -25,9 +26,11 @@
 #include "clang/Lex/PreprocessorOptions.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Testing/Annotations/Annotations.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include <memory>
+#include <string>
 #include <vector>
 
 namespace {
@@ -38,14 +41,11 @@ using testing::ElementsAre;
 class LexerTest : public ::testing::Test {
 protected:
   LexerTest()
-    : FileMgr(FileMgrOpts),
-      DiagID(new DiagnosticIDs()),
-      Diags(DiagID, new DiagnosticOptions, new IgnoringDiagConsumer()),
-      SourceMgr(Diags, FileMgr),
-      TargetOpts(new TargetOptions)
-  {
+      : FileMgr(FileMgrOpts),
+        Diags(DiagnosticIDs::create(), DiagOpts, new IgnoringDiagConsumer()),
+        SourceMgr(Diags, FileMgr), TargetOpts(new TargetOptions) {
     TargetOpts->Triple = "x86_64-apple-darwin11.1.0";
-    Target = TargetInfo::CreateTargetInfo(Diags, TargetOpts);
+    Target = TargetInfo::CreateTargetInfo(Diags, *TargetOpts);
   }
 
   std::unique_ptr<Preprocessor> CreatePP(StringRef Source,
@@ -54,13 +54,15 @@ protected:
         llvm::MemoryBuffer::getMemBuffer(Source);
     SourceMgr.setMainFileID(SourceMgr.createFileID(std::move(Buf)));
 
-    HeaderSearch HeaderInfo(std::make_shared<HeaderSearchOptions>(), SourceMgr,
-                            Diags, LangOpts, Target.get());
+    HeaderSearchOptions HSOpts;
+    HeaderSearch HeaderInfo(HSOpts, SourceMgr, Diags, LangOpts, Target.get());
+    PreprocessorOptions PPOpts;
     std::unique_ptr<Preprocessor> PP = std::make_unique<Preprocessor>(
-        std::make_shared<PreprocessorOptions>(), Diags, LangOpts, SourceMgr,
-        HeaderInfo, ModLoader,
+        PPOpts, Diags, LangOpts, SourceMgr, HeaderInfo, ModLoader,
         /*IILookup =*/nullptr,
         /*OwnsHeaderSearch =*/false);
+    if (!PreDefines.empty())
+      PP->setPredefines(PreDefines);
     PP->Initialize(*Target);
     PP->EnterMainSourceFile();
     return PP;
@@ -71,13 +73,7 @@ protected:
     PP = CreatePP(Source, ModLoader);
 
     std::vector<Token> toks;
-    while (1) {
-      Token tok;
-      PP->Lex(tok);
-      if (tok.is(tok::eof))
-        break;
-      toks.push_back(tok);
-    }
+    PP->LexTokensUntilEOF(&toks);
 
     return toks;
   }
@@ -106,13 +102,14 @@ protected:
 
   FileSystemOptions FileMgrOpts;
   FileManager FileMgr;
-  IntrusiveRefCntPtr<DiagnosticIDs> DiagID;
+  DiagnosticOptions DiagOpts;
   DiagnosticsEngine Diags;
   SourceManager SourceMgr;
   LangOptions LangOpts;
   std::shared_ptr<TargetOptions> TargetOpts;
   IntrusiveRefCntPtr<TargetInfo> Target;
   std::unique_ptr<Preprocessor> PP;
+  std::string PreDefines;
 };
 
 TEST_F(LexerTest, GetSourceTextExpandsToMaximumInMacroArgument) {
@@ -524,15 +521,14 @@ TEST_F(LexerTest, GetBeginningOfTokenWithEscapedNewLine) {
   std::vector<Token> LexedTokens = CheckLex(TextToLex, ExpectedTokens);
 
   for (const Token &Tok : LexedTokens) {
-    std::pair<FileID, unsigned> OriginalLocation =
+    FileIDAndOffset OriginalLocation =
         SourceMgr.getDecomposedLoc(Tok.getLocation());
     for (unsigned Offset = 0; Offset < IdentifierLength; ++Offset) {
       SourceLocation LookupLocation =
           Tok.getLocation().getLocWithOffset(Offset);
 
-      std::pair<FileID, unsigned> FoundLocation =
-          SourceMgr.getDecomposedExpansionLoc(
-              Lexer::GetBeginningOfToken(LookupLocation, SourceMgr, LangOpts));
+      FileIDAndOffset FoundLocation = SourceMgr.getDecomposedExpansionLoc(
+          Lexer::GetBeginningOfToken(LookupLocation, SourceMgr, LangOpts));
 
       // Check that location returned by the GetBeginningOfToken
       // is the same as original token location reported by Lexer.
@@ -606,6 +602,7 @@ TEST_F(LexerTest, CharRangeOffByOne) {
 
 TEST_F(LexerTest, FindNextToken) {
   Lex("int abcd = 0;\n"
+      "// A comment.\n"
       "int xyz = abcd;\n");
   std::vector<std::string> GeneratedByNextToken;
   SourceLocation Loc =
@@ -622,15 +619,65 @@ TEST_F(LexerTest, FindNextToken) {
                                                 "xyz", "=", "abcd", ";"));
 }
 
+TEST_F(LexerTest, FindNextTokenIncludingComments) {
+  Lex("int abcd = 0;\n"
+      "// A comment.\n"
+      "int xyz = abcd;\n");
+  std::vector<std::string> GeneratedByNextToken;
+  SourceLocation Loc =
+      SourceMgr.getLocForStartOfFile(SourceMgr.getMainFileID());
+  while (true) {
+    auto T = Lexer::findNextToken(Loc, SourceMgr, LangOpts, true);
+    ASSERT_TRUE(T);
+    if (T->is(tok::eof))
+      break;
+    GeneratedByNextToken.push_back(getSourceText(*T, *T));
+    Loc = T->getLocation();
+  }
+  EXPECT_THAT(GeneratedByNextToken,
+              ElementsAre("abcd", "=", "0", ";", "// A comment.", "int", "xyz",
+                          "=", "abcd", ";"));
+}
+
+TEST_F(LexerTest, FindPreviousToken) {
+  Lex("int abcd = 0;\n"
+      "// A comment.\n"
+      "int xyz = abcd;\n");
+  std::vector<std::string> GeneratedByPrevToken;
+  SourceLocation Loc = SourceMgr.getLocForEndOfFile(SourceMgr.getMainFileID());
+  while (true) {
+    auto T = Lexer::findPreviousToken(Loc, SourceMgr, LangOpts, false);
+    if (!T.has_value())
+      break;
+    GeneratedByPrevToken.push_back(getSourceText(*T, *T));
+    Loc = Lexer::GetBeginningOfToken(T->getLocation(), SourceMgr, LangOpts);
+  }
+  EXPECT_THAT(GeneratedByPrevToken, ElementsAre(";", "abcd", "=", "xyz", "int",
+                                                ";", "0", "=", "abcd", "int"));
+}
+
+TEST_F(LexerTest, FindPreviousTokenIncludingComments) {
+  Lex("int abcd = 0;\n"
+      "// A comment.\n"
+      "int xyz = abcd;\n");
+  std::vector<std::string> GeneratedByPrevToken;
+  SourceLocation Loc = SourceMgr.getLocForEndOfFile(SourceMgr.getMainFileID());
+  while (true) {
+    auto T = Lexer::findPreviousToken(Loc, SourceMgr, LangOpts, true);
+    if (!T.has_value())
+      break;
+    GeneratedByPrevToken.push_back(getSourceText(*T, *T));
+    Loc = Lexer::GetBeginningOfToken(T->getLocation(), SourceMgr, LangOpts);
+  }
+  EXPECT_THAT(GeneratedByPrevToken,
+              ElementsAre(";", "abcd", "=", "xyz", "int", "// A comment.", ";",
+                          "0", "=", "abcd", "int"));
+}
+
 TEST_F(LexerTest, CreatedFIDCountForPredefinedBuffer) {
   TrivialModuleLoader ModLoader;
   auto PP = CreatePP("", ModLoader);
-  while (1) {
-    Token tok;
-    PP->Lex(tok);
-    if (tok.is(tok::eof))
-      break;
-  }
+  PP->LexTokensUntilEOF();
   EXPECT_EQ(SourceMgr.getNumCreatedFIDsForFileID(PP->getPredefinesFileID()),
             1U);
 }
@@ -649,7 +696,7 @@ TEST_F(LexerTest, RawAndNormalLexSameForLineComments) {
           SrcBuffer.data(), SrcBuffer.data(),
           SrcBuffer.data() + SrcBuffer.size());
 
-  auto ToksView = llvm::makeArrayRef(Toks);
+  auto ToksView = llvm::ArrayRef(Toks);
   clang::Token T;
   EXPECT_FALSE(ToksView.empty());
   while (!L.LexFromRawLexer(T)) {
@@ -658,5 +705,115 @@ TEST_F(LexerTest, RawAndNormalLexSameForLineComments) {
     ToksView = ToksView.drop_front();
   }
   EXPECT_TRUE(ToksView.empty());
+}
+
+TEST_F(LexerTest, GetRawTokenOnEscapedNewLineChecksWhitespace) {
+  const llvm::StringLiteral Source = R"cc(
+  #define ONE \
+  1
+
+  int i = ONE;
+  )cc";
+  std::vector<Token> Toks =
+      CheckLex(Source, {tok::kw_int, tok::identifier, tok::equal,
+                        tok::numeric_constant, tok::semi});
+
+  // Set up by getting the raw token for the `1` in the macro definition.
+  const Token &OneExpanded = Toks[3];
+  Token Tok;
+  ASSERT_FALSE(
+      Lexer::getRawToken(OneExpanded.getLocation(), Tok, SourceMgr, LangOpts));
+  // The `ONE`.
+  ASSERT_EQ(Tok.getKind(), tok::raw_identifier);
+  ASSERT_FALSE(
+      Lexer::getRawToken(SourceMgr.getSpellingLoc(OneExpanded.getLocation()),
+                         Tok, SourceMgr, LangOpts));
+  // The `1` in the macro definition.
+  ASSERT_EQ(Tok.getKind(), tok::numeric_constant);
+
+  // Go back 4 characters: two spaces, one newline, and the backslash.
+  SourceLocation EscapedNewLineLoc = Tok.getLocation().getLocWithOffset(-4);
+  // Expect true (=failure) because the whitespace immediately after the
+  // escaped newline is not ignored.
+  EXPECT_TRUE(Lexer::getRawToken(EscapedNewLineLoc, Tok, SourceMgr, LangOpts,
+                                 /*IgnoreWhiteSpace=*/false));
+}
+
+TEST(LexerPreambleTest, PreambleBounds) {
+  std::vector<std::string> Cases = {
+      R"cc([[
+        #include <foo>
+        ]]int bar;
+      )cc",
+      R"cc([[
+        #include <foo>
+      ]])cc",
+      R"cc([[
+        // leading comment
+        #include <foo>
+        ]]// trailing comment
+        int bar;
+      )cc",
+      R"cc([[
+        module;
+        #include <foo>
+        ]]module bar;
+        int x;
+      )cc",
+  };
+  for (const auto& Case : Cases) {
+    llvm::Annotations A(Case);
+    clang::LangOptions LangOpts;
+    LangOpts.CPlusPlusModules = true;
+    auto Bounds = Lexer::ComputePreamble(A.code(), LangOpts);
+    EXPECT_EQ(Bounds.Size, A.range().End) << Case;
+  }
+}
+
+TEST_F(LexerTest, CheckFirstPPToken) {
+  LangOpts.CPlusPlusModules = true;
+  {
+    TrivialModuleLoader ModLoader;
+    auto PP = CreatePP("// This is a comment\n"
+                       "int a;",
+                       ModLoader);
+    Token Tok;
+    PP->Lex(Tok);
+    EXPECT_TRUE(Tok.is(tok::kw_int));
+    EXPECT_TRUE(PP->getMainFileFirstPPTokenLoc().isValid());
+    EXPECT_EQ(PP->getMainFileFirstPPTokenLoc(), Tok.getLocation());
+  }
+  {
+    TrivialModuleLoader ModLoader;
+    auto PP = CreatePP("// This is a comment\n"
+                       "#define FOO int\n"
+                       "FOO a;",
+                       ModLoader);
+    Token Tok;
+    PP->Lex(Tok);
+    EXPECT_TRUE(Tok.is(tok::kw_int));
+    EXPECT_FALSE(Lexer::getRawToken(PP->getMainFileFirstPPTokenLoc(), Tok,
+                                    PP->getSourceManager(), PP->getLangOpts(),
+                                    /*IgnoreWhiteSpace=*/false));
+    EXPECT_TRUE(PP->getMainFileFirstPPTokenLoc() == Tok.getLocation());
+    EXPECT_TRUE(Tok.is(tok::hash));
+  }
+
+  {
+    PreDefines = "#define FOO int\n";
+    TrivialModuleLoader ModLoader;
+    auto PP = CreatePP("// This is a comment\n"
+                       "FOO a;",
+                       ModLoader);
+    Token Tok;
+    PP->Lex(Tok);
+    EXPECT_TRUE(Tok.is(tok::kw_int));
+    EXPECT_FALSE(Lexer::getRawToken(PP->getMainFileFirstPPTokenLoc(), Tok,
+                                    PP->getSourceManager(), PP->getLangOpts(),
+                                    /*IgnoreWhiteSpace=*/false));
+    EXPECT_TRUE(PP->getMainFileFirstPPTokenLoc() == Tok.getLocation());
+    EXPECT_TRUE(Tok.is(tok::raw_identifier));
+    EXPECT_TRUE(Tok.getRawIdentifier() == "FOO");
+  }
 }
 } // anonymous namespace

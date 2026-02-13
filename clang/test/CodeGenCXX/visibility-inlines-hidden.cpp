@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -no-opaque-pointers -triple i386-unknown-unknown -std=c++11 -fvisibility-inlines-hidden -emit-llvm -o - %s -O2 -disable-llvm-passes | FileCheck %s
+// RUN: %clang_cc1 -triple i386-unknown-unknown -std=c++11 -fvisibility-inlines-hidden -emit-llvm -o - %s -O2 -disable-llvm-passes | FileCheck %s
 
 // The trickery with optimization in the run line is to get IR
 // generation to emit available_externally function bodies, but not
@@ -65,7 +65,6 @@ void use(X0 *x0, X1<int> *x1, X2 *x2, X1<float> *x3) {
   x3->f2();
 }
 
-// rdar://problem/8614470
 namespace test1 {
   struct __attribute__((visibility("default"))) A {
     inline void foo();
@@ -166,7 +165,7 @@ namespace test6 {
 namespace PR34811 {
   template <typename T> void tf() {}
   
-  // CHECK-LABEL: define linkonce_odr hidden noundef i8* @_ZN7PR348111fEv(
+  // CHECK-LABEL: define linkonce_odr hidden noundef ptr @_ZN7PR348111fEv(
   inline void *f() {
     auto l = []() {};
     // CHECK-LABEL: define linkonce_odr hidden void @_ZN7PR348112tfIZNS_1fEvEUlvE_EEvv(

@@ -44,8 +44,8 @@ typedef struct _GUID
     unsigned char  Data4[8];
 } GUID;
 
-struct __declspec(uuid(L"00000000-0000-0000-1234-000000000047")) uuid_attr_bad1 { };// expected-error {{'uuid' attribute requires a string}}
-struct __declspec(uuid(3)) uuid_attr_bad2 { };// expected-error {{'uuid' attribute requires a string}}
+struct __declspec(uuid(L"00000000-0000-0000-1234-000000000047")) uuid_attr_bad1 { };// expected-warning {{encoding prefix 'L' on an unevaluated string literal has no effect and is incompatible with c++2c}}
+struct __declspec(uuid(3)) uuid_attr_bad2 { };// expected-error {{expected string literal as argument of 'uuid' attribute}}
 struct __declspec(uuid("0000000-0000-0000-1234-0000500000047")) uuid_attr_bad3 { };// expected-error {{uuid attribute contains a malformed GUID}}
 struct __declspec(uuid("0000000-0000-0000-Z234-000000000047")) uuid_attr_bad4 { };// expected-error {{uuid attribute contains a malformed GUID}}
 struct __declspec(uuid("000000000000-0000-1234-000000000047")) uuid_attr_bad5 { };// expected-error {{uuid attribute contains a malformed GUID}}
@@ -145,7 +145,7 @@ typedef COM_CLASS_TEMPLATE_REF<struct_with_uuid, __uuidof(struct_with_uuid)> COM
 
 COM_CLASS_TEMPLATE_REF<int, __uuidof(struct_with_uuid)> good_template_arg;
 
-COM_CLASS_TEMPLATE<int, __uuidof(struct_with_uuid)> bad_template_arg; // expected-error {{non-type template argument for template parameter of pointer type 'const GUID *' (aka 'const _GUID *') must have its address taken}}
+COM_CLASS_TEMPLATE<int, __uuidof(struct_with_uuid)> bad_template_arg; // expected-error {{non-type template argument for template parameter of pointer type 'const GUID *' (aka 'const struct _GUID *') must have its address taken}}
 
 namespace PR16911 {
 struct __declspec(uuid("{12345678-1234-1234-1234-1234567890aB}")) uuid;
@@ -426,7 +426,7 @@ bool f(int);
 template <typename T>
 struct A {
   constexpr A(T t) {
-    __assume(f(t)); // expected-warning{{the argument to '__assume' has side effects that will be discarded}}
+    __assume(f(t)); // expected-warning{{assumption is ignored because it contains (potential) side-effects}}
   }
   constexpr bool g() { return false; }
 };

@@ -8,55 +8,59 @@
 
 #include "file.h"
 
+#include "hdr/func/realloc.h"
+#include "hdr/stdio_macros.h"
+#include "hdr/types/off_t.h"
+#include "src/__support/CPP/new.h"
 #include "src/__support/CPP/span.h"
+#include "src/__support/alloc-checker.h"
+#include "src/__support/libc_errno.h" // For error macros
+#include "src/__support/macros/config.h"
+#include "src/string/memory_utils/inline_memcpy.h"
 
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
+namespace LIBC_NAMESPACE_DECL {
 
-namespace __llvm_libc {
-
-size_t File::write_unlocked(const void *data, size_t len) {
+FileIOResult File::write_unlocked(const void *data, size_t len) {
   if (!write_allowed()) {
-    errno = EBADF;
     err = true;
-    return 0;
+    return {0, EBADF};
   }
 
   prev_op = FileOp::WRITE;
 
-  if (bufmode == _IOFBF) { // fully buffered
-    return write_unlocked_fbf(static_cast<const uint8_t *>(data), len);
-  } else if (bufmode == _IOLBF) { // line buffered
-    return write_unlocked_lbf(static_cast<const uint8_t *>(data), len);
-  } else /*if (bufmode == _IONBF) */ { // unbuffered
+  if (bufmode == _IONBF) { // unbuffered.
     size_t ret_val =
         write_unlocked_nbf(static_cast<const uint8_t *>(data), len);
     flush_unlocked();
     return ret_val;
+  } else if (bufmode == _IOFBF) { // fully buffered
+    return write_unlocked_fbf(static_cast<const uint8_t *>(data), len);
+  } else /*if (bufmode == _IOLBF) */ { // line buffered
+    return write_unlocked_lbf(static_cast<const uint8_t *>(data), len);
   }
 }
 
-size_t File::write_unlocked_nbf(const uint8_t *data, size_t len) {
+FileIOResult File::write_unlocked_nbf(const uint8_t *data, size_t len) {
   if (pos > 0) { // If the buffer is not empty
     // Flush the buffer
     const size_t write_size = pos;
-    size_t bytes_written = platform_write(this, buf, write_size);
+    FileIOResult write_result = platform_write(this, buf, write_size);
     pos = 0; // Buffer is now empty so reset pos to the beginning.
     // If less bytes were written than expected, then an error occurred.
-    if (bytes_written < write_size) {
+    if (write_result < write_size) {
       err = true;
-      return 0; // No bytes from data were written, so return 0.
+      // No bytes from data were written, so return 0.
+      return {0, write_result.error};
     }
   }
 
-  size_t written = platform_write(this, data, len);
-  if (written < len)
+  FileIOResult write_result = platform_write(this, data, len);
+  if (write_result < len)
     err = true;
-  return written;
+  return write_result;
 }
 
-size_t File::write_unlocked_fbf(const uint8_t *data, size_t len) {
+FileIOResult File::write_unlocked_fbf(const uint8_t *data, size_t len) {
   const size_t init_pos = pos;
   const size_t bufspace = bufsize - pos;
 
@@ -83,9 +87,7 @@ size_t File::write_unlocked_fbf(const uint8_t *data, size_t len) {
   cpp::span<uint8_t> bufref(static_cast<uint8_t *>(buf), bufsize);
 
   // Copy the first piece into the buffer.
-  // TODO: Replace the for loop below with a call to internal memcpy.
-  for (size_t i = 0; i < primary.size(); ++i)
-    bufref[pos + i] = primary[i];
+  inline_memcpy(bufref.data() + pos, primary.data(), primary.size());
   pos += primary.size();
 
   // If there is no remainder, we can return early, since the first piece has
@@ -96,39 +98,43 @@ size_t File::write_unlocked_fbf(const uint8_t *data, size_t len) {
   // We need to flush the buffer now, since there is still data and the buffer
   // is full.
   const size_t write_size = pos;
-  size_t bytes_written = platform_write(this, buf, write_size);
+
+  FileIOResult buf_result = platform_write(this, buf, write_size);
+  size_t bytes_written = buf_result.value;
+
   pos = 0; // Buffer is now empty so reset pos to the beginning.
   // If less bytes were written than expected, then an error occurred. Return
   // the number of bytes that have been written from |data|.
-  if (bytes_written < write_size) {
+  if (buf_result.has_error() || bytes_written < write_size) {
     err = true;
-    return bytes_written <= init_pos ? 0 : bytes_written - init_pos;
+    return {bytes_written <= init_pos ? 0 : bytes_written - init_pos,
+            buf_result.error};
   }
 
   // The second piece is handled basically the same as the first, although we
   // know that if the second piece has data in it then the buffer has been
   // flushed, meaning that pos is always 0.
   if (remainder.size() < bufsize) {
-    // TODO: Replace the for loop below with a call to internal memcpy.
-    for (size_t i = 0; i < remainder.size(); ++i)
-      bufref[i] = remainder[i];
+    inline_memcpy(bufref.data(), remainder.data(), remainder.size());
     pos = remainder.size();
   } else {
-    size_t bytes_written =
+
+    FileIOResult result =
         platform_write(this, remainder.data(), remainder.size());
+    size_t bytes_written = result.value;
 
     // If less bytes were written than expected, then an error occurred. Return
     // the number of bytes that have been written from |data|.
-    if (bytes_written < remainder.size()) {
+    if (result.has_error() || bytes_written < remainder.size()) {
       err = true;
-      return primary.size() + bytes_written;
+      return {primary.size() + bytes_written, result.error};
     }
   }
 
   return len;
 }
 
-size_t File::write_unlocked_lbf(const uint8_t *data, size_t len) {
+FileIOResult File::write_unlocked_lbf(const uint8_t *data, size_t len) {
   constexpr uint8_t NEWLINE_CHAR = '\n';
   size_t last_newline = len;
   for (size_t i = len; i >= 1; --i) {
@@ -175,15 +181,25 @@ size_t File::write_unlocked_lbf(const uint8_t *data, size_t len) {
   return len;
 }
 
-size_t File::read_unlocked(void *data, size_t len) {
+FileIOResult File::read_unlocked(void *data, size_t len) {
   if (!read_allowed()) {
-    errno = EBADF;
     err = true;
-    return 0;
+    return {0, EBADF};
   }
 
   prev_op = FileOp::READ;
 
+  if (bufmode == _IONBF) { // unbuffered.
+    return read_unlocked_nbf(static_cast<uint8_t *>(data), len);
+  } else if (bufmode == _IOFBF) { // fully buffered
+    return read_unlocked_fbf(static_cast<uint8_t *>(data), len);
+  } else /*if (bufmode == _IOLBF) */ { // line buffered
+    // There is no line buffered mode for read. Use fully buffered instead.
+    return read_unlocked_fbf(static_cast<uint8_t *>(data), len);
+  }
+}
+
+size_t File::copy_data_from_buf(uint8_t *data, size_t len) {
   cpp::span<uint8_t> bufref(static_cast<uint8_t *>(buf), bufsize);
   cpp::span<uint8_t> dataref(static_cast<uint8_t *>(data), len);
 
@@ -191,9 +207,7 @@ size_t File::read_unlocked(void *data, size_t len) {
   // available_data is never a wrapped around value.
   size_t available_data = read_limit - pos;
   if (len <= available_data) {
-    // TODO: Replace the for loop below with a call to internal memcpy.
-    for (size_t i = 0; i < len; ++i)
-      dataref[i] = bufref[i + pos];
+    inline_memcpy(dataref.data(), bufref.data() + pos, len);
     pos += len;
     return len;
   }
@@ -204,42 +218,116 @@ size_t File::read_unlocked(void *data, size_t len) {
     dataref[i] = bufref[i + pos];
   read_limit = pos = 0; // Reset the pointers.
 
+  return available_data;
+}
+
+FileIOResult File::read_unlocked_fbf(uint8_t *data, size_t len) {
+  // Read data from the buffer first.
+  size_t available_data = copy_data_from_buf(data, len);
+  if (available_data == len)
+    return available_data;
+
+  // Update the dataref to reflect that fact that we have already
+  // copied |available_data| into |data|.
   size_t to_fetch = len - available_data;
+  cpp::span<uint8_t> dataref(static_cast<uint8_t *>(data) + available_data,
+                             to_fetch);
+
   if (to_fetch > bufsize) {
-    size_t fetched_size = platform_read(this, data, to_fetch);
-    if (fetched_size < to_fetch) {
-      if (errno == 0)
+    FileIOResult result = platform_read(this, dataref.data(), to_fetch);
+    size_t fetched_size = result.value;
+    if (result.has_error() || fetched_size < to_fetch) {
+      if (!result.has_error())
         eof = true;
       else
         err = true;
-      return available_data + fetched_size;
+      return {available_data + fetched_size, result.error};
     }
     return len;
   }
 
   // Fetch and buffer another buffer worth of data.
-  size_t fetched_size = platform_read(this, buf, bufsize);
+  FileIOResult result = platform_read(this, buf, bufsize);
+  size_t fetched_size = result.value;
   read_limit += fetched_size;
   size_t transfer_size = fetched_size >= to_fetch ? to_fetch : fetched_size;
-  for (size_t i = 0; i < transfer_size; ++i)
-    dataref[i] = bufref[i];
+  inline_memcpy(dataref.data(), buf, transfer_size);
   pos += transfer_size;
-  if (fetched_size < to_fetch) {
-    if (errno == 0)
+  if (result.has_error() || fetched_size < to_fetch) {
+    if (!result.has_error())
       eof = true;
     else
       err = true;
   }
-  return transfer_size + available_data;
+  return {transfer_size + available_data, result.error};
 }
 
-int File::seek(long offset, int whence) {
+FileIOResult File::read_unlocked_nbf(uint8_t *data, size_t len) {
+  // Check whether there is a character in the ungetc buffer.
+  size_t available_data = copy_data_from_buf(data, len);
+  if (available_data == len)
+    return available_data;
+
+  // Directly copy the data into |data|.
+  cpp::span<uint8_t> dataref(static_cast<uint8_t *>(data) + available_data,
+                             len - available_data);
+  FileIOResult result = platform_read(this, dataref.data(), dataref.size());
+
+  if (result.has_error() || result < dataref.size()) {
+    if (!result.has_error())
+      eof = true;
+    else
+      err = true;
+  }
+  return {result + available_data, result.error};
+}
+
+int File::ungetc_unlocked(int c) {
+  // There is no meaning to unget if:
+  // 1. You are trying to push back EOF.
+  // 2. Read operations are not allowed on this file.
+  // 3. The previous operation was a write operation.
+  if (c == EOF || !read_allowed() || (prev_op == FileOp::WRITE))
+    return EOF;
+
+  cpp::span<uint8_t> bufref(static_cast<uint8_t *>(buf), bufsize);
+  if (read_limit == 0) {
+    // If |read_limit| is zero, it can mean three things:
+    //   a. This file was just created.
+    //   b. The previous operation was a seek operation.
+    //   c. The previous operation was a read operation which emptied
+    //      the buffer.
+    // For all the above cases, we simply write |c| at the beginning
+    // of the buffer and bump |read_limit|. Note that |pos| will also
+    // be zero in this case, so we don't need to adjust it.
+    bufref[0] = static_cast<unsigned char>(c);
+    ++read_limit;
+  } else {
+    // If |read_limit| is non-zero, it means that there is data in the buffer
+    // from a previous read operation. Which would also mean that |pos| is not
+    // zero. So, we decrement |pos| and write |c| in to the buffer at the new
+    // |pos|. If too many ungetc operations are performed without reads, it
+    // can lead to (pos == 0 but read_limit != 0). We will just error out in
+    // such a case.
+    if (pos == 0)
+      return EOF;
+    --pos;
+    bufref[pos] = static_cast<unsigned char>(c);
+  }
+
+  eof = false; // There is atleast one character that can be read now.
+  err = false; // This operation was a success.
+  return c;
+}
+
+ErrorOr<int> File::seek(off_t offset, int whence) {
   FileLock lock(this);
   if (prev_op == FileOp::WRITE && pos > 0) {
-    size_t transferred_size = platform_write(this, buf, pos);
-    if (transferred_size < pos) {
+
+    FileIOResult buf_result = platform_write(this, buf, pos);
+    if (buf_result.has_error() || buf_result.value < pos) {
       err = true;
-      return -1;
+      return Error(buf_result.error);
     }
   } else if (prev_op == FileOp::READ && whence == SEEK_CUR) {
     // More data could have been read out from the platform file than was
@@ -252,48 +340,88 @@ int File::seek(long offset, int whence) {
   // Reset the eof flag as a seek might move the file positon to some place
   // readable.
   eof = false;
-  return platform_seek(this, offset, whence);
+  auto result = platform_seek(this, offset, whence);
+  if (!result.has_value())
+    return Error(result.error());
+  return 0;
+}
+
+ErrorOr<off_t> File::tell() {
+  FileLock lock(this);
+  auto seek_target = eof ? SEEK_END : SEEK_CUR;
+  auto result = platform_seek(this, 0, seek_target);
+  if (!result.has_value() || result.value() < 0)
+    return Error(result.error());
+  off_t platform_offset = result.value();
+  if (prev_op == FileOp::READ)
+    return platform_offset - (read_limit - pos);
+  if (prev_op == FileOp::WRITE)
+    return platform_offset + pos;
+  return platform_offset;
 }
 
 int File::flush_unlocked() {
   if (prev_op == FileOp::WRITE && pos > 0) {
-    size_t transferred_size = platform_write(this, buf, pos);
-    if (transferred_size < pos) {
+    FileIOResult buf_result = platform_write(this, buf, pos);
+    if (buf_result.has_error() || buf_result.value < pos) {
       err = true;
-      return -1;
+      return buf_result.error;
     }
     pos = 0;
-    return platform_flush(this);
   }
   // TODO: Add POSIX behavior for input streams.
   return 0;
 }
 
-int File::close() {
-  {
-    FileLock lock(this);
-    if (prev_op == FileOp::WRITE && pos > 0) {
-      size_t transferred_size = platform_write(this, buf, pos);
-      if (transferred_size < pos) {
-        err = true;
-        return -1;
-      }
-    }
-    if (platform_close(this) != 0)
-      return -1;
-    if (own_buf)
-      free(buf);
-  }
-  free(this);
-  return 0;
-}
+int File::set_buffer(void *buffer, size_t size, int buffer_mode) {
+  // We do not need to lock the file as this method should be called before
+  // other operations are performed on the file.
+  if (buffer != nullptr && size == 0)
+    return EINVAL;
 
-void File::set_buffer(void *buffer, size_t size, bool owned) {
-  if (own_buf)
-    free(buf);
-  buf = static_cast<uint8_t *>(buffer);
-  bufsize = size;
-  own_buf = owned;
+  switch (buffer_mode) {
+  case _IOFBF:
+  case _IOLBF:
+  case _IONBF:
+    break;
+  default:
+    return EINVAL;
+  }
+
+  if (buffer == nullptr && size != 0 && buffer_mode != _IONBF) {
+    // We exclude the case of buffer_mode == _IONBF in this branch
+    // because we don't need to allocate buffer in such a case.
+    if (own_buf) {
+      // This is one of the places where use a C allocation functon
+      // as C++ does not have an equivalent of realloc.
+      buf = reinterpret_cast<uint8_t *>(realloc(buf, size));
+      if (buf == nullptr)
+        return ENOMEM;
+    } else {
+      AllocChecker ac;
+      buf = new (ac) uint8_t[size];
+      if (!ac)
+        return ENOMEM;
+      own_buf = true;
+    }
+    bufsize = size;
+    // TODO: Handle allocation failures.
+  } else {
+    if (own_buf)
+      delete buf;
+    if (buffer_mode != _IONBF) {
+      buf = static_cast<uint8_t *>(buffer);
+      bufsize = size;
+    } else {
+      // We don't need any buffer.
+      buf = nullptr;
+      bufsize = 0;
+    }
+    own_buf = false;
+  }
+  bufmode = buffer_mode;
+  adjust_buf();
+  return 0;
 }
 
 File::ModeFlags File::mode_flags(const char *mode) {
@@ -341,4 +469,4 @@ File::ModeFlags File::mode_flags(const char *mode) {
   return flags;
 }
 
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE_DECL

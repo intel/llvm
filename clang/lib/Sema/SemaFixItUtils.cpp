@@ -24,7 +24,7 @@ bool ConversionFixItGenerator::compareTypesSimple(CanQualType From,
                                                   Sema &S,
                                                   SourceLocation Loc,
                                                   ExprValueKind FromVK) {
-  if (!To.isAtLeastAsQualifiedAs(From))
+  if (!To.isAtLeastAsQualifiedAs(From, S.getASTContext()))
     return false;
 
   From = From.getNonReferenceType();
@@ -41,8 +41,8 @@ bool ConversionFixItGenerator::compareTypesSimple(CanQualType From,
   const CanQualType FromUnq = From.getUnqualifiedType();
   const CanQualType ToUnq = To.getUnqualifiedType();
 
-  if ((FromUnq == ToUnq || (S.IsDerivedFrom(Loc, FromUnq, ToUnq)) ) &&
-      To.isAtLeastAsQualifiedAs(From))
+  if ((FromUnq == ToUnq || (S.IsDerivedFrom(Loc, FromUnq, ToUnq))) &&
+      To.isAtLeastAsQualifiedAs(From, S.getASTContext()))
     return true;
   return false;
 }
@@ -124,12 +124,16 @@ bool ConversionFixItGenerator::tryToFixConversion(const Expr *FullExpr,
 
   // Check if the pointer to the argument needs to be passed:
   //   (type -> type *) or (type & -> type *).
-  if (isa<PointerType>(ToQTy)) {
+  if (const auto *ToPtrTy = dyn_cast<PointerType>(ToQTy)) {
     bool CanConvert = false;
     OverloadFixItKind FixKind = OFIK_TakeAddress;
 
     // Only suggest taking address of L-values.
     if (!Expr->isLValue() || Expr->getObjectKind() != OK_Ordinary)
+      return false;
+
+    // Do no take address of const pointer to get void*
+    if (isa<PointerType>(FromQTy) && ToPtrTy->isVoidPointerType())
       return false;
 
     CanConvert = CompareTypes(S.Context.getPointerType(FromQTy), ToQTy, S,

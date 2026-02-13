@@ -1,14 +1,14 @@
-; RUN: opt -opaque-pointers < %s -passes=pgo-instr-gen -pgo-instrument-entry=false -S | FileCheck %s --check-prefixes=GEN,NOTENTRY
+; RUN: opt < %s -passes=pgo-instr-gen -pgo-instrument-entry=false -S | FileCheck %s --check-prefixes=GEN,NOTENTRY
 ; RUN: llvm-profdata merge %S/Inputs/switch.proftext -o %t.profdata
-; RUN: opt -opaque-pointers < %s -passes=pgo-instr-use -pgo-instrument-entry=false -pgo-test-profile-file=%t.profdata -S | FileCheck %s --check-prefix=USE
-; RUN: opt -opaque-pointers < %s -passes=pgo-instr-gen -pgo-instrument-entry=true -S | FileCheck %s --check-prefixes=GEN,ENTRY
+; RUN: opt < %s -passes=pgo-instr-use -pgo-instrument-entry=false -pgo-test-profile-file=%t.profdata -S | FileCheck %s --check-prefix=USE
+; RUN: opt < %s -passes=pgo-instr-gen -pgo-instrument-entry=true -S | FileCheck %s --check-prefixes=GEN,ENTRY
 ; RUN: llvm-profdata merge %S/Inputs/switch_entry.proftext -o %t.profdata
-; RUN: opt -opaque-pointers < %s -passes=pgo-instr-use -pgo-instrument-entry=true -pgo-test-profile-file=%t.profdata -S | FileCheck %s --check-prefix=USE
+; RUN: opt < %s -passes=pgo-instr-use -pgo-instrument-entry=true -pgo-test-profile-file=%t.profdata -S | FileCheck %s --check-prefix=USE
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
 ; GEN: $__llvm_profile_raw_version = comdat any
-; GEN: @__llvm_profile_raw_version = constant i64 {{[0-9]+}}, comdat
+; GEN: @__llvm_profile_raw_version = hidden constant i64 {{[0-9]+}}, comdat
 ; GEN: @__profn_test_switch = private constant [11 x i8] c"test_switch"
 
 define void @test_switch(i32 %i) {

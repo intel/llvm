@@ -3,14 +3,11 @@
 ; RUN:   -verify-machineinstrs | FileCheck %s
 ; RUN: sed 's/iXLen/i64/g' %s | llc -mtriple=riscv64 -mattr=+v \
 ; RUN:   -verify-machineinstrs | FileCheck %s
-declare iXLen @llvm.riscv.vcpop.iXLen.nxv1i1(
-  <vscale x 1 x i1>,
-  iXLen);
 
 define iXLen @intrinsic_vcpop_m_nxv1i1(<vscale x 1 x i1> %0, iXLen %1) nounwind {
 ; CHECK-LABEL: intrinsic_vcpop_m_nxv1i1:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    vsetvli zero, a0, e8, mf8, ta, mu
+; CHECK-NEXT:    vsetvli zero, a0, e8, mf8, ta, ma
 ; CHECK-NEXT:    vcpop.m a0, v0
 ; CHECK-NEXT:    ret
 entry:
@@ -34,16 +31,11 @@ entry:
   ret iXLen %a
 }
 
-declare iXLen @llvm.riscv.vcpop.mask.iXLen.nxv1i1(
-  <vscale x 1 x i1>,
-  <vscale x 1 x i1>,
-  iXLen);
-
 define iXLen @intrinsic_vcpop_mask_m_nxv1i1(<vscale x 1 x i1> %0, <vscale x 1 x i1> %1, iXLen %2) nounwind {
 ; CHECK-LABEL: intrinsic_vcpop_mask_m_nxv1i1:
 ; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    vsetvli zero, a0, e8, mf8, ta, ma
 ; CHECK-NEXT:    vmv1r.v v9, v0
-; CHECK-NEXT:    vsetvli zero, a0, e8, mf8, ta, mu
 ; CHECK-NEXT:    vmv1r.v v0, v8
 ; CHECK-NEXT:    vcpop.m a0, v9, v0.t
 ; CHECK-NEXT:    ret
@@ -70,14 +62,10 @@ entry:
   ret iXLen %a
 }
 
-declare iXLen @llvm.riscv.vcpop.iXLen.nxv2i1(
-  <vscale x 2 x i1>,
-  iXLen);
-
 define iXLen @intrinsic_vcpop_m_nxv2i1(<vscale x 2 x i1> %0, iXLen %1) nounwind {
 ; CHECK-LABEL: intrinsic_vcpop_m_nxv2i1:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    vsetvli zero, a0, e8, mf4, ta, mu
+; CHECK-NEXT:    vsetvli zero, a0, e8, mf4, ta, ma
 ; CHECK-NEXT:    vcpop.m a0, v0
 ; CHECK-NEXT:    ret
 entry:
@@ -88,16 +76,11 @@ entry:
   ret iXLen %a
 }
 
-declare iXLen @llvm.riscv.vcpop.mask.iXLen.nxv2i1(
-  <vscale x 2 x i1>,
-  <vscale x 2 x i1>,
-  iXLen);
-
 define iXLen @intrinsic_vcpop_mask_m_nxv2i1(<vscale x 2 x i1> %0, <vscale x 2 x i1> %1, iXLen %2) nounwind {
 ; CHECK-LABEL: intrinsic_vcpop_mask_m_nxv2i1:
 ; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    vsetvli zero, a0, e8, mf4, ta, ma
 ; CHECK-NEXT:    vmv1r.v v9, v0
-; CHECK-NEXT:    vsetvli zero, a0, e8, mf4, ta, mu
 ; CHECK-NEXT:    vmv1r.v v0, v8
 ; CHECK-NEXT:    vcpop.m a0, v9, v0.t
 ; CHECK-NEXT:    ret
@@ -110,14 +93,10 @@ entry:
   ret iXLen %a
 }
 
-declare iXLen @llvm.riscv.vcpop.iXLen.nxv4i1(
-  <vscale x 4 x i1>,
-  iXLen);
-
 define iXLen @intrinsic_vcpop_m_nxv4i1(<vscale x 4 x i1> %0, iXLen %1) nounwind {
 ; CHECK-LABEL: intrinsic_vcpop_m_nxv4i1:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    vsetvli zero, a0, e8, mf2, ta, mu
+; CHECK-NEXT:    vsetvli zero, a0, e8, mf2, ta, ma
 ; CHECK-NEXT:    vcpop.m a0, v0
 ; CHECK-NEXT:    ret
 entry:
@@ -128,16 +107,11 @@ entry:
   ret iXLen %a
 }
 
-declare iXLen @llvm.riscv.vcpop.mask.iXLen.nxv4i1(
-  <vscale x 4 x i1>,
-  <vscale x 4 x i1>,
-  iXLen);
-
 define iXLen @intrinsic_vcpop_mask_m_nxv4i1(<vscale x 4 x i1> %0, <vscale x 4 x i1> %1, iXLen %2) nounwind {
 ; CHECK-LABEL: intrinsic_vcpop_mask_m_nxv4i1:
 ; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    vsetvli zero, a0, e8, mf2, ta, ma
 ; CHECK-NEXT:    vmv1r.v v9, v0
-; CHECK-NEXT:    vsetvli zero, a0, e8, mf2, ta, mu
 ; CHECK-NEXT:    vmv1r.v v0, v8
 ; CHECK-NEXT:    vcpop.m a0, v9, v0.t
 ; CHECK-NEXT:    ret
@@ -150,14 +124,10 @@ entry:
   ret iXLen %a
 }
 
-declare iXLen @llvm.riscv.vcpop.iXLen.nxv8i1(
-  <vscale x 8 x i1>,
-  iXLen);
-
 define iXLen @intrinsic_vcpop_m_nxv8i1(<vscale x 8 x i1> %0, iXLen %1) nounwind {
 ; CHECK-LABEL: intrinsic_vcpop_m_nxv8i1:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    vsetvli zero, a0, e8, m1, ta, mu
+; CHECK-NEXT:    vsetvli zero, a0, e8, m1, ta, ma
 ; CHECK-NEXT:    vcpop.m a0, v0
 ; CHECK-NEXT:    ret
 entry:
@@ -168,16 +138,11 @@ entry:
   ret iXLen %a
 }
 
-declare iXLen @llvm.riscv.vcpop.mask.iXLen.nxv8i1(
-  <vscale x 8 x i1>,
-  <vscale x 8 x i1>,
-  iXLen);
-
 define iXLen @intrinsic_vcpop_mask_m_nxv8i1(<vscale x 8 x i1> %0, <vscale x 8 x i1> %1, iXLen %2) nounwind {
 ; CHECK-LABEL: intrinsic_vcpop_mask_m_nxv8i1:
 ; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    vsetvli zero, a0, e8, m1, ta, ma
 ; CHECK-NEXT:    vmv1r.v v9, v0
-; CHECK-NEXT:    vsetvli zero, a0, e8, m1, ta, mu
 ; CHECK-NEXT:    vmv1r.v v0, v8
 ; CHECK-NEXT:    vcpop.m a0, v9, v0.t
 ; CHECK-NEXT:    ret
@@ -190,14 +155,10 @@ entry:
   ret iXLen %a
 }
 
-declare iXLen @llvm.riscv.vcpop.iXLen.nxv16i1(
-  <vscale x 16 x i1>,
-  iXLen);
-
 define iXLen @intrinsic_vcpop_m_nxv16i1(<vscale x 16 x i1> %0, iXLen %1) nounwind {
 ; CHECK-LABEL: intrinsic_vcpop_m_nxv16i1:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    vsetvli zero, a0, e8, m2, ta, mu
+; CHECK-NEXT:    vsetvli zero, a0, e8, m2, ta, ma
 ; CHECK-NEXT:    vcpop.m a0, v0
 ; CHECK-NEXT:    ret
 entry:
@@ -208,16 +169,11 @@ entry:
   ret iXLen %a
 }
 
-declare iXLen @llvm.riscv.vcpop.mask.iXLen.nxv16i1(
-  <vscale x 16 x i1>,
-  <vscale x 16 x i1>,
-  iXLen);
-
 define iXLen @intrinsic_vcpop_mask_m_nxv16i1(<vscale x 16 x i1> %0, <vscale x 16 x i1> %1, iXLen %2) nounwind {
 ; CHECK-LABEL: intrinsic_vcpop_mask_m_nxv16i1:
 ; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    vsetvli zero, a0, e8, m2, ta, ma
 ; CHECK-NEXT:    vmv1r.v v9, v0
-; CHECK-NEXT:    vsetvli zero, a0, e8, m2, ta, mu
 ; CHECK-NEXT:    vmv1r.v v0, v8
 ; CHECK-NEXT:    vcpop.m a0, v9, v0.t
 ; CHECK-NEXT:    ret
@@ -230,14 +186,10 @@ entry:
   ret iXLen %a
 }
 
-declare iXLen @llvm.riscv.vcpop.iXLen.nxv32i1(
-  <vscale x 32 x i1>,
-  iXLen);
-
 define iXLen @intrinsic_vcpop_m_nxv32i1(<vscale x 32 x i1> %0, iXLen %1) nounwind {
 ; CHECK-LABEL: intrinsic_vcpop_m_nxv32i1:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    vsetvli zero, a0, e8, m4, ta, mu
+; CHECK-NEXT:    vsetvli zero, a0, e8, m4, ta, ma
 ; CHECK-NEXT:    vcpop.m a0, v0
 ; CHECK-NEXT:    ret
 entry:
@@ -248,16 +200,11 @@ entry:
   ret iXLen %a
 }
 
-declare iXLen @llvm.riscv.vcpop.mask.iXLen.nxv32i1(
-  <vscale x 32 x i1>,
-  <vscale x 32 x i1>,
-  iXLen);
-
 define iXLen @intrinsic_vcpop_mask_m_nxv32i1(<vscale x 32 x i1> %0, <vscale x 32 x i1> %1, iXLen %2) nounwind {
 ; CHECK-LABEL: intrinsic_vcpop_mask_m_nxv32i1:
 ; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    vsetvli zero, a0, e8, m4, ta, ma
 ; CHECK-NEXT:    vmv1r.v v9, v0
-; CHECK-NEXT:    vsetvli zero, a0, e8, m4, ta, mu
 ; CHECK-NEXT:    vmv1r.v v0, v8
 ; CHECK-NEXT:    vcpop.m a0, v9, v0.t
 ; CHECK-NEXT:    ret
@@ -270,14 +217,10 @@ entry:
   ret iXLen %a
 }
 
-declare iXLen @llvm.riscv.vcpop.iXLen.nxv64i1(
-  <vscale x 64 x i1>,
-  iXLen);
-
 define iXLen @intrinsic_vcpop_m_nxv64i1(<vscale x 64 x i1> %0, iXLen %1) nounwind {
 ; CHECK-LABEL: intrinsic_vcpop_m_nxv64i1:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    vsetvli zero, a0, e8, m8, ta, mu
+; CHECK-NEXT:    vsetvli zero, a0, e8, m8, ta, ma
 ; CHECK-NEXT:    vcpop.m a0, v0
 ; CHECK-NEXT:    ret
 entry:
@@ -288,16 +231,11 @@ entry:
   ret iXLen %a
 }
 
-declare iXLen @llvm.riscv.vcpop.mask.iXLen.nxv64i1(
-  <vscale x 64 x i1>,
-  <vscale x 64 x i1>,
-  iXLen);
-
 define iXLen @intrinsic_vcpop_mask_m_nxv64i1(<vscale x 64 x i1> %0, <vscale x 64 x i1> %1, iXLen %2) nounwind {
 ; CHECK-LABEL: intrinsic_vcpop_mask_m_nxv64i1:
 ; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    vsetvli zero, a0, e8, m8, ta, ma
 ; CHECK-NEXT:    vmv1r.v v9, v0
-; CHECK-NEXT:    vsetvli zero, a0, e8, m8, ta, mu
 ; CHECK-NEXT:    vmv1r.v v0, v8
 ; CHECK-NEXT:    vcpop.m a0, v9, v0.t
 ; CHECK-NEXT:    ret

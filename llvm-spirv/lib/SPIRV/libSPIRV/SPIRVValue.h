@@ -98,8 +98,10 @@ public:
 
   void setAlignment(SPIRVWord);
   void setVolatile(bool IsVolatile);
-  void setNoSignedWrap(bool HasNoSignedWrap);
-  void setNoUnsignedWrap(bool HasNoUnsignedWrap);
+
+  template <spv::Decoration NoIntegerWrapDecoration>
+  void setNoIntegerDecorationWrap(bool HasNoIntegerWrap);
+
   void setFPFastMathMode(SPIRVWord FPFastMathMode);
 
   void validate() const override {
@@ -109,8 +111,10 @@ public:
 
   void setType(SPIRVType *Ty) {
     Type = Ty;
-    assert(!Ty || !Ty->isTypeVoid() || OpCode == OpFunction);
-    if (Ty && (!Ty->isTypeVoid() || OpCode == OpFunction))
+    assert(!Ty || !Ty->isTypeVoid() || OpCode == OpFunction ||
+           OpCode == internal::OpTaskSequenceGetINTEL);
+    if (Ty && (!Ty->isTypeVoid() || OpCode == OpFunction ||
+               OpCode == internal::OpTaskSequenceGetINTEL))
       setHasType();
     else
       setHasNoType();
@@ -123,8 +127,8 @@ public:
     return Type->getRequiredCapability();
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
-    llvm::Optional<ExtensionID> EV;
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    std::optional<ExtensionID> EV;
     if (!hasType())
       return EV;
     EV = Type->getRequiredExtension();
@@ -176,6 +180,11 @@ protected:
 
   // Common method for getting values of size less or equal to 64 bits.
   template <typename T> T getValue() const {
+    if (OpCode == OpConstantNull) {
+      assert(std::is_arithmetic_v<T> &&
+             "OpConstantNull has no defined value for this type");
+      return 0;
+    }
     constexpr auto ValueSize = static_cast<unsigned>(sizeof(T));
     assert((ValueSize <= 8) && "Incorrect result type of requested value");
     T TheValue{};
@@ -267,7 +276,8 @@ public:
 protected:
   void validate() const override {
     SPIRVConstantEmpty::validate();
-    assert((Type->isTypeComposite() || Type->isTypeOpaque() ||
+    assert((Type->isTypeBool() || Type->isTypeInt() || Type->isTypeFloat() ||
+            Type->isTypeComposite() || Type->isTypeOpaque() ||
             Type->isTypeEvent() || Type->isTypePointer() ||
             Type->isTypeReserveId() || Type->isTypeDeviceEvent() ||
             (Type->isTypeSubgroupAvcINTEL() &&

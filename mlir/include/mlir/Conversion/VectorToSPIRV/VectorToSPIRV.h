@@ -20,8 +20,17 @@ class SPIRVTypeConverter;
 
 /// Appends to a pattern list additional patterns for translating Vector Ops to
 /// SPIR-V ops.
-void populateVectorToSPIRVPatterns(SPIRVTypeConverter &typeConverter,
+void populateVectorToSPIRVPatterns(const SPIRVTypeConverter &typeConverter,
                                    RewritePatternSet &patterns);
+
+/// Appends patterns to convert vector reduction of the form:
+/// ```
+///   vector.reduction <add>, (muli (ext %lhs), (ext %rhs)), [%acc]
+/// ```
+///
+/// to SPIR-V integer dot product ops.
+void populateVectorReductionToSPIRVDotProductPatterns(
+    RewritePatternSet &patterns);
 
 } // namespace mlir
 

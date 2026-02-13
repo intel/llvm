@@ -9,10 +9,12 @@
 #ifndef LLVM_LIBC_SRC_STRING_STRERROR_H
 #define LLVM_LIBC_SRC_STRING_STRERROR_H
 
-namespace __llvm_libc {
+#include "src/__support/macros/config.h"
 
-char *strerror(int errnum);
+namespace LIBC_NAMESPACE_DECL {
 
-} // namespace __llvm_libc
+char *strerror(int err_num);
+
+} // namespace LIBC_NAMESPACE_DECL
 
 #endif // LLVM_LIBC_SRC_STRING_STRERROR_H

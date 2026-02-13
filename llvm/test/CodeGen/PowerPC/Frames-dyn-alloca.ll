@@ -1,7 +1,7 @@
 ; RUN: llc < %s -mtriple=powerpc-unknown-linux-gnu | FileCheck %s -check-prefix=PPC32-LINUX
-; RUN: llc < %s -mtriple=powerpc64-unknown-linux-gnu | FileCheck %s -check-prefix=PPC64-LINUX
+; RUN: llc < %s -mtriple=powerpc64-unknown-linux-gnu -mcpu=ppc | FileCheck %s -check-prefix=PPC64-LINUX
 ; RUN: llc < %s -mtriple=powerpc-unknown-linux-gnu -frame-pointer=all | FileCheck %s -check-prefix=PPC32-LINUX
-; RUN: llc < %s -mtriple=powerpc64-unknown-linux-gnu -frame-pointer=all | FileCheck %s -check-prefix=PPC64-LINUX
+; RUN: llc < %s -mtriple=powerpc64-unknown-linux-gnu  -mcpu=ppc -frame-pointer=all | FileCheck %s -check-prefix=PPC64-LINUX
 ; RUN: llc < %s -mtriple=powerpc-unknown-linux-gnu | FileCheck %s -check-prefix=PPC32-LINUX
 
 ; RUN: llc < %s -mcpu=pwr4 -mattr=-altivec -verify-machineinstrs \
@@ -18,9 +18,9 @@
 ; RUN: -mtriple=powerpc64-ibm-aix-xcoff -frame-pointer=all | FileCheck %s \
 ; RUN: -check-prefix=PPC64-AIX
 
-define i32* @f1(i32 %n) nounwind {
-        %tmp = alloca i32, i32 %n               ; <i32*> [#uses=1]
-        ret i32* %tmp
+define ptr @f1(i32 %n) nounwind {
+        %tmp = alloca i32, i32 %n               ; <ptr> [#uses=1]
+        ret ptr %tmp
 }
 
 ; PPC32-LINUX-LABEL: f1

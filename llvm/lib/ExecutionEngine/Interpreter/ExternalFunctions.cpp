@@ -41,7 +41,6 @@
 #include <map>
 #include <mutex>
 #include <string>
-#include <utility>
 #include <vector>
 
 #ifdef HAVE_FFI_CALL
@@ -344,6 +343,12 @@ static GenericValue lle_X_abort(FunctionType *FT, ArrayRef<GenericValue> Args) {
   return GenericValue();
 }
 
+// Silence warnings about sprintf. (See also
+// https://github.com/llvm/llvm-project/issues/58086)
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
 // int sprintf(char *, const char *, ...) - a very rough implementation to make
 // output useful.
 static GenericValue lle_X_sprintf(FunctionType *FT,
@@ -425,6 +430,9 @@ static GenericValue lle_X_sprintf(FunctionType *FT,
   }
   return GV;
 }
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 
 // int printf(const char *, ...) - a very rough implementation to make output
 // useful.
@@ -476,7 +484,7 @@ static GenericValue lle_X_fprintf(FunctionType *FT,
   char Buffer[10000];
   std::vector<GenericValue> NewArgs;
   NewArgs.push_back(PTOGV(Buffer));
-  NewArgs.insert(NewArgs.end(), Args.begin()+1, Args.end());
+  llvm::append_range(NewArgs, llvm::drop_begin(Args));
   GenericValue GV = lle_X_sprintf(FT, NewArgs);
 
   fputs(Buffer, (FILE *) GVTOP(Args[0]));

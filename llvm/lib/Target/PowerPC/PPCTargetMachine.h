@@ -15,14 +15,15 @@
 
 #include "PPCInstrInfo.h"
 #include "PPCSubtarget.h"
+#include "llvm/CodeGen/CodeGenTargetMachineImpl.h"
 #include "llvm/IR/DataLayout.h"
-#include "llvm/Target/TargetMachine.h"
+#include <optional>
 
 namespace llvm {
 
 /// Common code between 32-bit and 64-bit PowerPC targets.
 ///
-class PPCTargetMachine final : public LLVMTargetMachine {
+class PPCTargetMachine final : public CodeGenTargetMachineImpl {
 public:
   enum PPCABI { PPC_ABI_UNKNOWN, PPC_ABI_ELFv1, PPC_ABI_ELFv2 };
   enum Endian { NOT_DETECTED, LITTLE, BIG };
@@ -31,14 +32,16 @@ private:
   std::unique_ptr<TargetLoweringObjectFile> TLOF;
   PPCABI TargetABI;
   Endian Endianness = Endian::NOT_DETECTED;
+  mutable bool HasGlibcHWCAPAccess = false;
 
   mutable StringMap<std::unique_ptr<PPCSubtarget>> SubtargetMap;
 
 public:
   PPCTargetMachine(const Target &T, const Triple &TT, StringRef CPU,
                    StringRef FS, const TargetOptions &Options,
-                   Optional<Reloc::Model> RM, Optional<CodeModel::Model> CM,
-                   CodeGenOpt::Level OL, bool JIT);
+                   std::optional<Reloc::Model> RM,
+                   std::optional<CodeModel::Model> CM, CodeGenOptLevel OL,
+                   bool JIT);
 
   ~PPCTargetMachine() override;
 
@@ -56,7 +59,18 @@ public:
   TargetLoweringObjectFile *getObjFileLowering() const override {
     return TLOF.get();
   }
+
+  MachineFunctionInfo *
+  createMachineFunctionInfo(BumpPtrAllocator &Allocator, const Function &F,
+                            const TargetSubtargetInfo *STI) const override;
+  ScheduleDAGInstrs *
+  createMachineScheduler(MachineSchedContext *C) const override;
+  ScheduleDAGInstrs *
+  createPostMachineScheduler(MachineSchedContext *C) const override;
+
   bool isELFv2ABI() const { return TargetABI == PPC_ABI_ELFv2; }
+  bool hasGlibcHWCAPAccess() const { return HasGlibcHWCAPAccess; }
+  void setGlibcHWCAPAccess(bool Val = true) const { HasGlibcHWCAPAccess = Val; }
   bool isPPC64() const {
     const Triple &TT = getTargetTriple();
     return (TT.getArch() == Triple::ppc64 || TT.getArch() == Triple::ppc64le);

@@ -7,19 +7,19 @@
 ; RUN:   < %s | FileCheck %s --check-prefixes=CHECK,CHECK-P10
 ; RUN: llc -verify-machineinstrs -mtriple=powerpc64le-unknown-linux-gnu \
 ; RUN:   -mcpu=pwr9  \
-; RUN:   < %s | FileCheck %s --check-prefixes=CHECK,CHECK-PREP10,CHECK-P9
+; RUN:   < %s | FileCheck %s --check-prefixes=CHECK,CHECK-PREP10
 ; RUN: llc -verify-machineinstrs -mtriple=powerpc64-unknown-linux-gnu \
 ; RUN:   -mcpu=pwr9  \
-; RUN:   < %s | FileCheck %s --check-prefixes=CHECK,CHECK-PREP10,CHECK-P9
+; RUN:   < %s | FileCheck %s --check-prefixes=CHECK,CHECK-PREP10
 ; RUN: llc -verify-machineinstrs -mtriple=powerpc64le-unknown-linux-gnu \
 ; RUN:   -mcpu=pwr8  \
-; RUN:   < %s | FileCheck %s --check-prefixes=CHECK,CHECK-PREP10,CHECK-P8
+; RUN:   < %s | FileCheck %s --check-prefixes=CHECK,CHECK-PREP10
 ; RUN: llc -verify-machineinstrs -mtriple=powerpc64-unknown-linux-gnu \
 ; RUN:   -mcpu=pwr8  \
-; RUN:   < %s | FileCheck %s --check-prefixes=CHECK,CHECK-PREP10,CHECK-P8
+; RUN:   < %s | FileCheck %s --check-prefixes=CHECK,CHECK-PREP10
 ; RUN: llc -verify-machineinstrs -mtriple=powerpc64-ibm-aix-xcoff \
 ; RUN:   -mcpu=pwr8  \
-; RUN:   < %s | FileCheck %s --check-prefixes=CHECK,CHECK-PREP10,CHECK-P8
+; RUN:   < %s | FileCheck %s --check-prefixes=CHECK,CHECK-PREP10
 
 ; Function Attrs: norecurse nounwind readonly uwtable willreturn
 define dso_local i128 @ld_0___int128___int128(i64 %ptr) {
@@ -30,13 +30,13 @@ define dso_local i128 @ld_0___int128___int128(i64 %ptr) {
 ; CHECK-NEXT:    mr 3, 5
 ; CHECK-NEXT:    blr
 entry:
-  %0 = inttoptr i64 %ptr to i128*
-  %1 = load i128, i128* %0, align 16
+  %0 = inttoptr i64 %ptr to ptr
+  %1 = load i128, ptr %0, align 16
   ret i128 %1
 }
 
 ; Function Attrs: norecurse nounwind readonly uwtable willreturn
-define dso_local i128 @ld_unalign16___int128___int128(i8* nocapture readonly %ptr) {
+define dso_local i128 @ld_unalign16___int128___int128(ptr nocapture readonly %ptr) {
 ; CHECK-P10-LABEL: ld_unalign16___int128___int128:
 ; CHECK-P10:       # %bb.0: # %entry
 ; CHECK-P10-NEXT:    pld 5, 1(3), 0
@@ -44,32 +44,22 @@ define dso_local i128 @ld_unalign16___int128___int128(i8* nocapture readonly %pt
 ; CHECK-P10-NEXT:    mr 3, 5
 ; CHECK-P10-NEXT:    blr
 ;
-; CHECK-P9-LABEL: ld_unalign16___int128___int128:
-; CHECK-P9:       # %bb.0: # %entry
-; CHECK-P9-NEXT:    li 4, 1
-; CHECK-P9-NEXT:    ldx 5, 3, 4
-; CHECK-P9-NEXT:    li 4, 9
-; CHECK-P9-NEXT:    ldx 4, 3, 4
-; CHECK-P9-NEXT:    mr 3, 5
-; CHECK-P9-NEXT:    blr
-;
-; CHECK-P8-LABEL: ld_unalign16___int128___int128:
-; CHECK-P8:       # %bb.0: # %entry
-; CHECK-P8-NEXT:    li 4, 1
-; CHECK-P8-NEXT:    li 6, 9
-; CHECK-P8-NEXT:    ldx 5, 3, 4
-; CHECK-P8-NEXT:    ldx 4, 3, 6
-; CHECK-P8-NEXT:    mr 3, 5
-; CHECK-P8-NEXT:    blr
+; CHECK-PREP10-LABEL: ld_unalign16___int128___int128:
+; CHECK-PREP10:       # %bb.0: # %entry
+; CHECK-PREP10-NEXT:    li 4, 1
+; CHECK-PREP10-NEXT:    ldx 5, 3, 4
+; CHECK-PREP10-NEXT:    li 4, 9
+; CHECK-PREP10-NEXT:    ldx 4, 3, 4
+; CHECK-PREP10-NEXT:    mr 3, 5
+; CHECK-PREP10-NEXT:    blr
 entry:
-  %add.ptr = getelementptr inbounds i8, i8* %ptr, i64 1
-  %0 = bitcast i8* %add.ptr to i128*
-  %1 = load i128, i128* %0, align 16
-  ret i128 %1
+  %add.ptr = getelementptr inbounds i8, ptr %ptr, i64 1
+  %0 = load i128, ptr %add.ptr, align 16
+  ret i128 %0
 }
 
 ; Function Attrs: norecurse nounwind readonly uwtable willreturn
-define dso_local i128 @ld_align16___int128___int128(i8* nocapture readonly %ptr) {
+define dso_local i128 @ld_align16___int128___int128(ptr nocapture readonly %ptr) {
 ; CHECK-LABEL: ld_align16___int128___int128:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    ld 5, 8(3)
@@ -77,14 +67,13 @@ define dso_local i128 @ld_align16___int128___int128(i8* nocapture readonly %ptr)
 ; CHECK-NEXT:    mr 3, 5
 ; CHECK-NEXT:    blr
 entry:
-  %add.ptr = getelementptr inbounds i8, i8* %ptr, i64 8
-  %0 = bitcast i8* %add.ptr to i128*
-  %1 = load i128, i128* %0, align 16
-  ret i128 %1
+  %add.ptr = getelementptr inbounds i8, ptr %ptr, i64 8
+  %0 = load i128, ptr %add.ptr, align 16
+  ret i128 %0
 }
 
 ; Function Attrs: norecurse nounwind readonly uwtable willreturn
-define dso_local i128 @ld_unalign32___int128___int128(i8* nocapture readonly %ptr) {
+define dso_local i128 @ld_unalign32___int128___int128(ptr nocapture readonly %ptr) {
 ; CHECK-P10-LABEL: ld_unalign32___int128___int128:
 ; CHECK-P10:       # %bb.0: # %entry
 ; CHECK-P10-NEXT:    pli 4, 99999
@@ -102,14 +91,13 @@ define dso_local i128 @ld_unalign32___int128___int128(i8* nocapture readonly %pt
 ; CHECK-PREP10-NEXT:    mr 3, 5
 ; CHECK-PREP10-NEXT:    blr
 entry:
-  %add.ptr = getelementptr inbounds i8, i8* %ptr, i64 99999
-  %0 = bitcast i8* %add.ptr to i128*
-  %1 = load i128, i128* %0, align 16
-  ret i128 %1
+  %add.ptr = getelementptr inbounds i8, ptr %ptr, i64 99999
+  %0 = load i128, ptr %add.ptr, align 16
+  ret i128 %0
 }
 
 ; Function Attrs: norecurse nounwind readonly uwtable willreturn
-define dso_local i128 @ld_align32___int128___int128(i8* nocapture readonly %ptr) {
+define dso_local i128 @ld_align32___int128___int128(ptr nocapture readonly %ptr) {
 ; CHECK-P10-LABEL: ld_align32___int128___int128:
 ; CHECK-P10:       # %bb.0: # %entry
 ; CHECK-P10-NEXT:    pli 4, 99999000
@@ -127,14 +115,13 @@ define dso_local i128 @ld_align32___int128___int128(i8* nocapture readonly %ptr)
 ; CHECK-PREP10-NEXT:    mr 3, 5
 ; CHECK-PREP10-NEXT:    blr
 entry:
-  %add.ptr = getelementptr inbounds i8, i8* %ptr, i64 99999000
-  %0 = bitcast i8* %add.ptr to i128*
-  %1 = load i128, i128* %0, align 16
-  ret i128 %1
+  %add.ptr = getelementptr inbounds i8, ptr %ptr, i64 99999000
+  %0 = load i128, ptr %add.ptr, align 16
+  ret i128 %0
 }
 
 ; Function Attrs: norecurse nounwind readonly uwtable willreturn
-define dso_local i128 @ld_unalign64___int128___int128(i8* nocapture readonly %ptr) {
+define dso_local i128 @ld_unalign64___int128___int128(ptr nocapture readonly %ptr) {
 ; CHECK-P10-LABEL: ld_unalign64___int128___int128:
 ; CHECK-P10:       # %bb.0: # %entry
 ; CHECK-P10-NEXT:    pli 4, 232
@@ -156,14 +143,13 @@ define dso_local i128 @ld_unalign64___int128___int128(i8* nocapture readonly %pt
 ; CHECK-PREP10-NEXT:    mr 3, 5
 ; CHECK-PREP10-NEXT:    blr
 entry:
-  %add.ptr = getelementptr inbounds i8, i8* %ptr, i64 1000000000001
-  %0 = bitcast i8* %add.ptr to i128*
-  %1 = load i128, i128* %0, align 16
-  ret i128 %1
+  %add.ptr = getelementptr inbounds i8, ptr %ptr, i64 1000000000001
+  %0 = load i128, ptr %add.ptr, align 16
+  ret i128 %0
 }
 
 ; Function Attrs: norecurse nounwind readonly uwtable willreturn
-define dso_local i128 @ld_align64___int128___int128(i8* nocapture readonly %ptr) {
+define dso_local i128 @ld_align64___int128___int128(ptr nocapture readonly %ptr) {
 ; CHECK-P10-LABEL: ld_align64___int128___int128:
 ; CHECK-P10:       # %bb.0: # %entry
 ; CHECK-P10-NEXT:    pli 4, 244140625
@@ -183,14 +169,13 @@ define dso_local i128 @ld_align64___int128___int128(i8* nocapture readonly %ptr)
 ; CHECK-PREP10-NEXT:    mr 3, 5
 ; CHECK-PREP10-NEXT:    blr
 entry:
-  %add.ptr = getelementptr inbounds i8, i8* %ptr, i64 1000000000000
-  %0 = bitcast i8* %add.ptr to i128*
-  %1 = load i128, i128* %0, align 16
-  ret i128 %1
+  %add.ptr = getelementptr inbounds i8, ptr %ptr, i64 1000000000000
+  %0 = load i128, ptr %add.ptr, align 16
+  ret i128 %0
 }
 
 ; Function Attrs: norecurse nounwind readonly uwtable willreturn
-define dso_local i128 @ld_reg___int128___int128(i8* nocapture readonly %ptr, i64 %off) {
+define dso_local i128 @ld_reg___int128___int128(ptr nocapture readonly %ptr, i64 %off) {
 ; CHECK-LABEL: ld_reg___int128___int128:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    ldux 5, 3, 4
@@ -198,10 +183,9 @@ define dso_local i128 @ld_reg___int128___int128(i8* nocapture readonly %ptr, i64
 ; CHECK-NEXT:    mr 3, 5
 ; CHECK-NEXT:    blr
 entry:
-  %add.ptr = getelementptr inbounds i8, i8* %ptr, i64 %off
-  %0 = bitcast i8* %add.ptr to i128*
-  %1 = load i128, i128* %0, align 16
-  ret i128 %1
+  %add.ptr = getelementptr inbounds i8, ptr %ptr, i64 %off
+  %0 = load i128, ptr %add.ptr, align 16
+  ret i128 %0
 }
 
 ; Function Attrs: norecurse nounwind readonly uwtable willreturn
@@ -215,8 +199,8 @@ define dso_local i128 @ld_or___int128___int128(i64 %ptr, i8 zeroext %off) {
 entry:
   %conv = zext i8 %off to i64
   %or = or i64 %conv, %ptr
-  %0 = inttoptr i64 %or to i128*
-  %1 = load i128, i128* %0, align 16
+  %0 = inttoptr i64 %or to ptr
+  %1 = load i128, ptr %0, align 16
   ret i128 %1
 }
 
@@ -234,8 +218,8 @@ entry:
   %and = and i64 %ptr, -4096
   %conv = zext i8 %off to i64
   %or = or i64 %and, %conv
-  %0 = inttoptr i64 %or to i128*
-  %1 = load i128, i128* %0, align 16
+  %0 = inttoptr i64 %or to ptr
+  %1 = load i128, ptr %0, align 16
   ret i128 %1
 }
 
@@ -249,8 +233,8 @@ define dso_local i128 @ld_not_disjoint16___int128___int128(i64 %ptr) {
 ; CHECK-NEXT:    blr
 entry:
   %or = or i64 %ptr, 6
-  %0 = inttoptr i64 %or to i128*
-  %1 = load i128, i128* %0, align 16
+  %0 = inttoptr i64 %or to ptr
+  %1 = load i128, ptr %0, align 16
   ret i128 %1
 }
 
@@ -263,28 +247,19 @@ define dso_local i128 @ld_disjoint_unalign16___int128___int128(i64 %ptr) {
 ; CHECK-P10-NEXT:    pld 4, 14(4), 0
 ; CHECK-P10-NEXT:    blr
 ;
-; CHECK-P9-LABEL: ld_disjoint_unalign16___int128___int128:
-; CHECK-P9:       # %bb.0: # %entry
-; CHECK-P9-NEXT:    rldicr 4, 3, 0, 51
-; CHECK-P9-NEXT:    li 3, 6
-; CHECK-P9-NEXT:    li 5, 14
-; CHECK-P9-NEXT:    ldx 3, 4, 3
-; CHECK-P9-NEXT:    ldx 4, 4, 5
-; CHECK-P9-NEXT:    blr
-;
-; CHECK-P8-LABEL: ld_disjoint_unalign16___int128___int128:
-; CHECK-P8:       # %bb.0: # %entry
-; CHECK-P8-NEXT:    li 4, 6
-; CHECK-P8-NEXT:    rldicr 5, 3, 0, 51
-; CHECK-P8-NEXT:    li 6, 14
-; CHECK-P8-NEXT:    ldx 3, 5, 4
-; CHECK-P8-NEXT:    ldx 4, 5, 6
-; CHECK-P8-NEXT:    blr
+; CHECK-PREP10-LABEL: ld_disjoint_unalign16___int128___int128:
+; CHECK-PREP10:       # %bb.0: # %entry
+; CHECK-PREP10-NEXT:    rldicr 4, 3, 0, 51
+; CHECK-PREP10-NEXT:    li 3, 6
+; CHECK-PREP10-NEXT:    li 5, 14
+; CHECK-PREP10-NEXT:    ldx 3, 4, 3
+; CHECK-PREP10-NEXT:    ldx 4, 4, 5
+; CHECK-PREP10-NEXT:    blr
 entry:
   %and = and i64 %ptr, -4096
   %or = or i64 %and, 6
-  %0 = inttoptr i64 %or to i128*
-  %1 = load i128, i128* %0, align 16
+  %0 = inttoptr i64 %or to ptr
+  %1 = load i128, ptr %0, align 16
   ret i128 %1
 }
 
@@ -299,8 +274,8 @@ define dso_local i128 @ld_disjoint_align16___int128___int128(i64 %ptr) {
 entry:
   %and = and i64 %ptr, -4096
   %or = or i64 %and, 24
-  %0 = inttoptr i64 %or to i128*
-  %1 = load i128, i128* %0, align 16
+  %0 = inttoptr i64 %or to ptr
+  %1 = load i128, ptr %0, align 16
   ret i128 %1
 }
 
@@ -315,8 +290,8 @@ define dso_local i128 @ld_not_disjoint32___int128___int128(i64 %ptr) {
 ; CHECK-NEXT:    blr
 entry:
   %or = or i64 %ptr, 99999
-  %0 = inttoptr i64 %or to i128*
-  %1 = load i128, i128* %0, align 16
+  %0 = inttoptr i64 %or to ptr
+  %1 = load i128, ptr %0, align 16
   ret i128 %1
 }
 
@@ -329,30 +304,20 @@ define dso_local i128 @ld_disjoint_unalign32___int128___int128(i64 %ptr) {
 ; CHECK-P10-NEXT:    pld 4, 100007(4), 0
 ; CHECK-P10-NEXT:    blr
 ;
-; CHECK-P9-LABEL: ld_disjoint_unalign32___int128___int128:
-; CHECK-P9:       # %bb.0: # %entry
-; CHECK-P9-NEXT:    lis 5, 1
-; CHECK-P9-NEXT:    rldicr 4, 3, 0, 43
-; CHECK-P9-NEXT:    ori 3, 5, 34463
-; CHECK-P9-NEXT:    ori 5, 5, 34471
-; CHECK-P9-NEXT:    ldx 3, 4, 3
-; CHECK-P9-NEXT:    ldx 4, 4, 5
-; CHECK-P9-NEXT:    blr
-;
-; CHECK-P8-LABEL: ld_disjoint_unalign32___int128___int128:
-; CHECK-P8:       # %bb.0: # %entry
-; CHECK-P8-NEXT:    lis 4, 1
-; CHECK-P8-NEXT:    rldicr 5, 3, 0, 43
-; CHECK-P8-NEXT:    ori 3, 4, 34463
-; CHECK-P8-NEXT:    ori 4, 4, 34471
-; CHECK-P8-NEXT:    ldx 3, 5, 3
-; CHECK-P8-NEXT:    ldx 4, 5, 4
-; CHECK-P8-NEXT:    blr
+; CHECK-PREP10-LABEL: ld_disjoint_unalign32___int128___int128:
+; CHECK-PREP10:       # %bb.0: # %entry
+; CHECK-PREP10-NEXT:    lis 5, 1
+; CHECK-PREP10-NEXT:    rldicr 4, 3, 0, 43
+; CHECK-PREP10-NEXT:    ori 3, 5, 34463
+; CHECK-PREP10-NEXT:    ori 5, 5, 34471
+; CHECK-PREP10-NEXT:    ldx 3, 4, 3
+; CHECK-PREP10-NEXT:    ldx 4, 4, 5
+; CHECK-PREP10-NEXT:    blr
 entry:
   %and = and i64 %ptr, -1048576
   %or = or i64 %and, 99999
-  %0 = inttoptr i64 %or to i128*
-  %1 = load i128, i128* %0, align 16
+  %0 = inttoptr i64 %or to ptr
+  %1 = load i128, ptr %0, align 16
   ret i128 %1
 }
 
@@ -379,8 +344,8 @@ define dso_local i128 @ld_disjoint_align32___int128___int128(i64 %ptr) {
 entry:
   %and = and i64 %ptr, -1000341504
   %or = or i64 %and, 999990000
-  %0 = inttoptr i64 %or to i128*
-  %1 = load i128, i128* %0, align 16
+  %0 = inttoptr i64 %or to ptr
+  %1 = load i128, ptr %0, align 16
   ret i128 %1
 }
 
@@ -408,8 +373,8 @@ define dso_local i128 @ld_not_disjoint64___int128___int128(i64 %ptr) {
 ; CHECK-PREP10-NEXT:    blr
 entry:
   %or = or i64 %ptr, 1000000000001
-  %0 = inttoptr i64 %or to i128*
-  %1 = load i128, i128* %0, align 16
+  %0 = inttoptr i64 %or to ptr
+  %1 = load i128, ptr %0, align 16
   ret i128 %1
 }
 
@@ -427,34 +392,22 @@ define dso_local i128 @ld_disjoint_unalign64___int128___int128(i64 %ptr) {
 ; CHECK-P10-NEXT:    ldx 4, 4, 6
 ; CHECK-P10-NEXT:    blr
 ;
-; CHECK-P9-LABEL: ld_disjoint_unalign64___int128___int128:
-; CHECK-P9:       # %bb.0: # %entry
-; CHECK-P9-NEXT:    rldicr 4, 3, 0, 23
-; CHECK-P9-NEXT:    li 3, 29
-; CHECK-P9-NEXT:    rldic 3, 3, 35, 24
-; CHECK-P9-NEXT:    oris 5, 3, 54437
-; CHECK-P9-NEXT:    ori 3, 5, 4097
-; CHECK-P9-NEXT:    ori 5, 5, 4105
-; CHECK-P9-NEXT:    ldx 3, 4, 3
-; CHECK-P9-NEXT:    ldx 4, 4, 5
-; CHECK-P9-NEXT:    blr
-;
-; CHECK-P8-LABEL: ld_disjoint_unalign64___int128___int128:
-; CHECK-P8:       # %bb.0: # %entry
-; CHECK-P8-NEXT:    li 4, 29
-; CHECK-P8-NEXT:    rldicr 5, 3, 0, 23
-; CHECK-P8-NEXT:    rldic 4, 4, 35, 24
-; CHECK-P8-NEXT:    oris 3, 4, 54437
-; CHECK-P8-NEXT:    ori 4, 3, 4097
-; CHECK-P8-NEXT:    ori 6, 3, 4105
-; CHECK-P8-NEXT:    ldx 3, 5, 4
-; CHECK-P8-NEXT:    ldx 4, 5, 6
-; CHECK-P8-NEXT:    blr
+; CHECK-PREP10-LABEL: ld_disjoint_unalign64___int128___int128:
+; CHECK-PREP10:       # %bb.0: # %entry
+; CHECK-PREP10-NEXT:    rldicr 4, 3, 0, 23
+; CHECK-PREP10-NEXT:    li 3, 29
+; CHECK-PREP10-NEXT:    rldic 3, 3, 35, 24
+; CHECK-PREP10-NEXT:    oris 5, 3, 54437
+; CHECK-PREP10-NEXT:    ori 3, 5, 4097
+; CHECK-PREP10-NEXT:    ori 5, 5, 4105
+; CHECK-PREP10-NEXT:    ldx 3, 4, 3
+; CHECK-PREP10-NEXT:    ldx 4, 4, 5
+; CHECK-PREP10-NEXT:    blr
 entry:
   %and = and i64 %ptr, -1099511627776
   %or = or i64 %and, 1000000000001
-  %0 = inttoptr i64 %or to i128*
-  %1 = load i128, i128* %0, align 16
+  %0 = inttoptr i64 %or to ptr
+  %1 = load i128, ptr %0, align 16
   ret i128 %1
 }
 
@@ -472,38 +425,24 @@ define dso_local i128 @ld_disjoint_align64___int128___int128(i64 %ptr) {
 ; CHECK-P10-NEXT:    ldx 4, 4, 6
 ; CHECK-P10-NEXT:    blr
 ;
-; CHECK-P9-LABEL: ld_disjoint_align64___int128___int128:
-; CHECK-P9:       # %bb.0: # %entry
-; CHECK-P9-NEXT:    li 5, 29
-; CHECK-P9-NEXT:    rldicr 4, 3, 0, 23
-; CHECK-P9-NEXT:    lis 3, 3725
-; CHECK-P9-NEXT:    rldic 5, 5, 35, 24
-; CHECK-P9-NEXT:    ori 3, 3, 19025
-; CHECK-P9-NEXT:    oris 5, 5, 54437
-; CHECK-P9-NEXT:    rldic 3, 3, 12, 24
-; CHECK-P9-NEXT:    ori 5, 5, 4104
-; CHECK-P9-NEXT:    ldx 3, 4, 3
-; CHECK-P9-NEXT:    ldx 4, 4, 5
-; CHECK-P9-NEXT:    blr
-;
-; CHECK-P8-LABEL: ld_disjoint_align64___int128___int128:
-; CHECK-P8:       # %bb.0: # %entry
-; CHECK-P8-NEXT:    li 4, 29
-; CHECK-P8-NEXT:    rldicr 5, 3, 0, 23
-; CHECK-P8-NEXT:    lis 3, 3725
-; CHECK-P8-NEXT:    rldic 4, 4, 35, 24
-; CHECK-P8-NEXT:    ori 3, 3, 19025
-; CHECK-P8-NEXT:    oris 4, 4, 54437
-; CHECK-P8-NEXT:    rldic 3, 3, 12, 24
-; CHECK-P8-NEXT:    ori 4, 4, 4104
-; CHECK-P8-NEXT:    ldx 3, 5, 3
-; CHECK-P8-NEXT:    ldx 4, 5, 4
-; CHECK-P8-NEXT:    blr
+; CHECK-PREP10-LABEL: ld_disjoint_align64___int128___int128:
+; CHECK-PREP10:       # %bb.0: # %entry
+; CHECK-PREP10-NEXT:    li 5, 29
+; CHECK-PREP10-NEXT:    rldicr 4, 3, 0, 23
+; CHECK-PREP10-NEXT:    lis 3, 3725
+; CHECK-PREP10-NEXT:    rldic 5, 5, 35, 24
+; CHECK-PREP10-NEXT:    ori 3, 3, 19025
+; CHECK-PREP10-NEXT:    oris 5, 5, 54437
+; CHECK-PREP10-NEXT:    rldic 3, 3, 12, 24
+; CHECK-PREP10-NEXT:    ori 5, 5, 4104
+; CHECK-PREP10-NEXT:    ldx 3, 4, 3
+; CHECK-PREP10-NEXT:    ldx 4, 4, 5
+; CHECK-PREP10-NEXT:    blr
 entry:
   %and = and i64 %ptr, -1099511627776
   %or = or i64 %and, 1000000000000
-  %0 = inttoptr i64 %or to i128*
-  %1 = load i128, i128* %0, align 4096
+  %0 = inttoptr i64 %or to ptr
+  %1 = load i128, ptr %0, align 4096
   ret i128 %1
 }
 
@@ -517,7 +456,7 @@ define dso_local i128 @ld_cst_unalign16___int128___int128() {
 ; CHECK-NEXT:    ld 4, 0(4)
 ; CHECK-NEXT:    blr
 entry:
-  %0 = load i128, i128* inttoptr (i64 255 to i128*), align 16
+  %0 = load i128, ptr inttoptr (i64 255 to ptr), align 16
   ret i128 %0
 }
 
@@ -529,7 +468,7 @@ define dso_local i128 @ld_cst_align16___int128___int128() {
 ; CHECK-NEXT:    ld 4, 4088(0)
 ; CHECK-NEXT:    blr
 entry:
-  %0 = load i128, i128* inttoptr (i64 4080 to i128*), align 16
+  %0 = load i128, ptr inttoptr (i64 4080 to ptr), align 16
   ret i128 %0
 }
 
@@ -543,25 +482,16 @@ define dso_local i128 @ld_cst_unalign32___int128___int128() {
 ; CHECK-P10-NEXT:    ld 4, 0(4)
 ; CHECK-P10-NEXT:    blr
 ;
-; CHECK-P9-LABEL: ld_cst_unalign32___int128___int128:
-; CHECK-P9:       # %bb.0: # %entry
-; CHECK-P9-NEXT:    lis 4, 1
-; CHECK-P9-NEXT:    ori 3, 4, 34463
-; CHECK-P9-NEXT:    ori 4, 4, 34471
-; CHECK-P9-NEXT:    ld 3, 0(3)
-; CHECK-P9-NEXT:    ld 4, 0(4)
-; CHECK-P9-NEXT:    blr
-;
-; CHECK-P8-LABEL: ld_cst_unalign32___int128___int128:
-; CHECK-P8:       # %bb.0: # %entry
-; CHECK-P8-NEXT:    lis 3, 1
-; CHECK-P8-NEXT:    ori 4, 3, 34463
-; CHECK-P8-NEXT:    ori 5, 3, 34471
-; CHECK-P8-NEXT:    ld 3, 0(4)
-; CHECK-P8-NEXT:    ld 4, 0(5)
-; CHECK-P8-NEXT:    blr
+; CHECK-PREP10-LABEL: ld_cst_unalign32___int128___int128:
+; CHECK-PREP10:       # %bb.0: # %entry
+; CHECK-PREP10-NEXT:    lis 4, 1
+; CHECK-PREP10-NEXT:    ori 3, 4, 34463
+; CHECK-PREP10-NEXT:    ori 4, 4, 34471
+; CHECK-PREP10-NEXT:    ld 3, 0(3)
+; CHECK-PREP10-NEXT:    ld 4, 0(4)
+; CHECK-PREP10-NEXT:    blr
 entry:
-  %0 = load i128, i128* inttoptr (i64 99999 to i128*), align 16
+  %0 = load i128, ptr inttoptr (i64 99999 to ptr), align 16
   ret i128 %0
 }
 
@@ -574,7 +504,7 @@ define dso_local i128 @ld_cst_align32___int128___int128() {
 ; CHECK-NEXT:    ld 4, -27100(4)
 ; CHECK-NEXT:    blr
 entry:
-  %0 = load i128, i128* inttoptr (i64 9999900 to i128*), align 16
+  %0 = load i128, ptr inttoptr (i64 9999900 to ptr), align 16
   ret i128 %0
 }
 
@@ -591,29 +521,18 @@ define dso_local i128 @ld_cst_unalign64___int128___int128() {
 ; CHECK-P10-NEXT:    ld 4, 0(5)
 ; CHECK-P10-NEXT:    blr
 ;
-; CHECK-P9-LABEL: ld_cst_unalign64___int128___int128:
-; CHECK-P9:       # %bb.0: # %entry
-; CHECK-P9-NEXT:    li 3, 29
-; CHECK-P9-NEXT:    rldic 3, 3, 35, 24
-; CHECK-P9-NEXT:    oris 4, 3, 54437
-; CHECK-P9-NEXT:    ori 3, 4, 4097
-; CHECK-P9-NEXT:    ori 4, 4, 4105
-; CHECK-P9-NEXT:    ld 3, 0(3)
-; CHECK-P9-NEXT:    ld 4, 0(4)
-; CHECK-P9-NEXT:    blr
-;
-; CHECK-P8-LABEL: ld_cst_unalign64___int128___int128:
-; CHECK-P8:       # %bb.0: # %entry
-; CHECK-P8-NEXT:    li 3, 29
-; CHECK-P8-NEXT:    rldic 3, 3, 35, 24
-; CHECK-P8-NEXT:    oris 3, 3, 54437
-; CHECK-P8-NEXT:    ori 4, 3, 4097
-; CHECK-P8-NEXT:    ori 5, 3, 4105
-; CHECK-P8-NEXT:    ld 3, 0(4)
-; CHECK-P8-NEXT:    ld 4, 0(5)
-; CHECK-P8-NEXT:    blr
+; CHECK-PREP10-LABEL: ld_cst_unalign64___int128___int128:
+; CHECK-PREP10:       # %bb.0: # %entry
+; CHECK-PREP10-NEXT:    li 3, 29
+; CHECK-PREP10-NEXT:    rldic 3, 3, 35, 24
+; CHECK-PREP10-NEXT:    oris 4, 3, 54437
+; CHECK-PREP10-NEXT:    ori 3, 4, 4097
+; CHECK-PREP10-NEXT:    ori 4, 4, 4105
+; CHECK-PREP10-NEXT:    ld 3, 0(3)
+; CHECK-PREP10-NEXT:    ld 4, 0(4)
+; CHECK-PREP10-NEXT:    blr
 entry:
-  %0 = load i128, i128* inttoptr (i64 1000000000001 to i128*), align 16
+  %0 = load i128, ptr inttoptr (i64 1000000000001 to ptr), align 16
   ret i128 %0
 }
 
@@ -630,33 +549,20 @@ define dso_local i128 @ld_cst_align64___int128___int128() {
 ; CHECK-P10-NEXT:    ld 3, 0(3)
 ; CHECK-P10-NEXT:    blr
 ;
-; CHECK-P9-LABEL: ld_cst_align64___int128___int128:
-; CHECK-P9:       # %bb.0: # %entry
-; CHECK-P9-NEXT:    li 4, 29
-; CHECK-P9-NEXT:    lis 3, 3725
-; CHECK-P9-NEXT:    rldic 4, 4, 35, 24
-; CHECK-P9-NEXT:    ori 3, 3, 19025
-; CHECK-P9-NEXT:    oris 4, 4, 54437
-; CHECK-P9-NEXT:    rldic 3, 3, 12, 24
-; CHECK-P9-NEXT:    ori 4, 4, 4104
-; CHECK-P9-NEXT:    ld 3, 0(3)
-; CHECK-P9-NEXT:    ld 4, 0(4)
-; CHECK-P9-NEXT:    blr
-;
-; CHECK-P8-LABEL: ld_cst_align64___int128___int128:
-; CHECK-P8:       # %bb.0: # %entry
-; CHECK-P8-NEXT:    li 3, 29
-; CHECK-P8-NEXT:    lis 4, 3725
-; CHECK-P8-NEXT:    rldic 3, 3, 35, 24
-; CHECK-P8-NEXT:    ori 4, 4, 19025
-; CHECK-P8-NEXT:    oris 3, 3, 54437
-; CHECK-P8-NEXT:    rldic 4, 4, 12, 24
-; CHECK-P8-NEXT:    ori 5, 3, 4104
-; CHECK-P8-NEXT:    ld 3, 0(4)
-; CHECK-P8-NEXT:    ld 4, 0(5)
-; CHECK-P8-NEXT:    blr
+; CHECK-PREP10-LABEL: ld_cst_align64___int128___int128:
+; CHECK-PREP10:       # %bb.0: # %entry
+; CHECK-PREP10-NEXT:    li 4, 29
+; CHECK-PREP10-NEXT:    lis 3, 3725
+; CHECK-PREP10-NEXT:    rldic 4, 4, 35, 24
+; CHECK-PREP10-NEXT:    ori 3, 3, 19025
+; CHECK-PREP10-NEXT:    oris 4, 4, 54437
+; CHECK-PREP10-NEXT:    rldic 3, 3, 12, 24
+; CHECK-PREP10-NEXT:    ori 4, 4, 4104
+; CHECK-PREP10-NEXT:    ld 3, 0(3)
+; CHECK-PREP10-NEXT:    ld 4, 0(4)
+; CHECK-PREP10-NEXT:    blr
 entry:
-  %0 = load i128, i128* inttoptr (i64 1000000000000 to i128*), align 4096
+  %0 = load i128, ptr inttoptr (i64 1000000000000 to ptr), align 4096
   ret i128 %0
 }
 
@@ -668,57 +574,47 @@ define dso_local void @st_0__int128___int128(i64 %ptr, i128 %str) {
 ; CHECK-NEXT:    std 4, 0(3)
 ; CHECK-NEXT:    blr
 entry:
-  %0 = inttoptr i64 %ptr to i128*
-  store i128 %str, i128* %0, align 16
+  %0 = inttoptr i64 %ptr to ptr
+  store i128 %str, ptr %0, align 16
   ret void
 }
 
 ; Function Attrs: nofree norecurse nounwind uwtable willreturn writeonly
-define dso_local void @st_unalign16__int128___int128(i8* nocapture %ptr, i128 %str) {
+define dso_local void @st_unalign16__int128___int128(ptr nocapture %ptr, i128 %str) {
 ; CHECK-P10-LABEL: st_unalign16__int128___int128:
 ; CHECK-P10:       # %bb.0: # %entry
 ; CHECK-P10-NEXT:    pstd 5, 9(3), 0
 ; CHECK-P10-NEXT:    pstd 4, 1(3), 0
 ; CHECK-P10-NEXT:    blr
 ;
-; CHECK-P9-LABEL: st_unalign16__int128___int128:
-; CHECK-P9:       # %bb.0: # %entry
-; CHECK-P9-NEXT:    li 6, 9
-; CHECK-P9-NEXT:    stdx 5, 3, 6
-; CHECK-P9-NEXT:    li 5, 1
-; CHECK-P9-NEXT:    stdx 4, 3, 5
-; CHECK-P9-NEXT:    blr
-;
-; CHECK-P8-LABEL: st_unalign16__int128___int128:
-; CHECK-P8:       # %bb.0: # %entry
-; CHECK-P8-NEXT:    li 6, 9
-; CHECK-P8-NEXT:    li 7, 1
-; CHECK-P8-NEXT:    stdx 5, 3, 6
-; CHECK-P8-NEXT:    stdx 4, 3, 7
-; CHECK-P8-NEXT:    blr
+; CHECK-PREP10-LABEL: st_unalign16__int128___int128:
+; CHECK-PREP10:       # %bb.0: # %entry
+; CHECK-PREP10-NEXT:    li 6, 9
+; CHECK-PREP10-NEXT:    stdx 5, 3, 6
+; CHECK-PREP10-NEXT:    li 5, 1
+; CHECK-PREP10-NEXT:    stdx 4, 3, 5
+; CHECK-PREP10-NEXT:    blr
 entry:
-  %add.ptr = getelementptr inbounds i8, i8* %ptr, i64 1
-  %0 = bitcast i8* %add.ptr to i128*
-  store i128 %str, i128* %0, align 16
+  %add.ptr = getelementptr inbounds i8, ptr %ptr, i64 1
+  store i128 %str, ptr %add.ptr, align 16
   ret void
 }
 
 ; Function Attrs: nofree norecurse nounwind uwtable willreturn writeonly
-define dso_local void @st_align16__int128___int128(i8* nocapture %ptr, i128 %str) {
+define dso_local void @st_align16__int128___int128(ptr nocapture %ptr, i128 %str) {
 ; CHECK-LABEL: st_align16__int128___int128:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    std 5, 16(3)
 ; CHECK-NEXT:    std 4, 8(3)
 ; CHECK-NEXT:    blr
 entry:
-  %add.ptr = getelementptr inbounds i8, i8* %ptr, i64 8
-  %0 = bitcast i8* %add.ptr to i128*
-  store i128 %str, i128* %0, align 16
+  %add.ptr = getelementptr inbounds i8, ptr %ptr, i64 8
+  store i128 %str, ptr %add.ptr, align 16
   ret void
 }
 
 ; Function Attrs: nofree norecurse nounwind uwtable willreturn writeonly
-define dso_local void @st_unalign32__int128___int128(i8* nocapture %ptr, i128 %str) {
+define dso_local void @st_unalign32__int128___int128(ptr nocapture %ptr, i128 %str) {
 ; CHECK-P10-LABEL: st_unalign32__int128___int128:
 ; CHECK-P10:       # %bb.0: # %entry
 ; CHECK-P10-NEXT:    pli 6, 99999
@@ -734,14 +630,13 @@ define dso_local void @st_unalign32__int128___int128(i8* nocapture %ptr, i128 %s
 ; CHECK-PREP10-NEXT:    std 5, 8(3)
 ; CHECK-PREP10-NEXT:    blr
 entry:
-  %add.ptr = getelementptr inbounds i8, i8* %ptr, i64 99999
-  %0 = bitcast i8* %add.ptr to i128*
-  store i128 %str, i128* %0, align 16
+  %add.ptr = getelementptr inbounds i8, ptr %ptr, i64 99999
+  store i128 %str, ptr %add.ptr, align 16
   ret void
 }
 
 ; Function Attrs: nofree norecurse nounwind uwtable willreturn writeonly
-define dso_local void @st_align32__int128___int128(i8* nocapture %ptr, i128 %str) {
+define dso_local void @st_align32__int128___int128(ptr nocapture %ptr, i128 %str) {
 ; CHECK-P10-LABEL: st_align32__int128___int128:
 ; CHECK-P10:       # %bb.0: # %entry
 ; CHECK-P10-NEXT:    pli 6, 99999000
@@ -757,14 +652,13 @@ define dso_local void @st_align32__int128___int128(i8* nocapture %ptr, i128 %str
 ; CHECK-PREP10-NEXT:    std 5, 8(3)
 ; CHECK-PREP10-NEXT:    blr
 entry:
-  %add.ptr = getelementptr inbounds i8, i8* %ptr, i64 99999000
-  %0 = bitcast i8* %add.ptr to i128*
-  store i128 %str, i128* %0, align 16
+  %add.ptr = getelementptr inbounds i8, ptr %ptr, i64 99999000
+  store i128 %str, ptr %add.ptr, align 16
   ret void
 }
 
 ; Function Attrs: nofree norecurse nounwind uwtable willreturn writeonly
-define dso_local void @st_unalign64__int128___int128(i8* nocapture %ptr, i128 %str) {
+define dso_local void @st_unalign64__int128___int128(ptr nocapture %ptr, i128 %str) {
 ; CHECK-P10-LABEL: st_unalign64__int128___int128:
 ; CHECK-P10:       # %bb.0: # %entry
 ; CHECK-P10-NEXT:    pli 6, 232
@@ -784,14 +678,13 @@ define dso_local void @st_unalign64__int128___int128(i8* nocapture %ptr, i128 %s
 ; CHECK-PREP10-NEXT:    std 5, 8(3)
 ; CHECK-PREP10-NEXT:    blr
 entry:
-  %add.ptr = getelementptr inbounds i8, i8* %ptr, i64 1000000000001
-  %0 = bitcast i8* %add.ptr to i128*
-  store i128 %str, i128* %0, align 16
+  %add.ptr = getelementptr inbounds i8, ptr %ptr, i64 1000000000001
+  store i128 %str, ptr %add.ptr, align 16
   ret void
 }
 
 ; Function Attrs: nofree norecurse nounwind uwtable willreturn writeonly
-define dso_local void @st_align64__int128___int128(i8* nocapture %ptr, i128 %str) {
+define dso_local void @st_align64__int128___int128(ptr nocapture %ptr, i128 %str) {
 ; CHECK-P10-LABEL: st_align64__int128___int128:
 ; CHECK-P10:       # %bb.0: # %entry
 ; CHECK-P10-NEXT:    pli 6, 244140625
@@ -809,23 +702,21 @@ define dso_local void @st_align64__int128___int128(i8* nocapture %ptr, i128 %str
 ; CHECK-PREP10-NEXT:    std 5, 8(3)
 ; CHECK-PREP10-NEXT:    blr
 entry:
-  %add.ptr = getelementptr inbounds i8, i8* %ptr, i64 1000000000000
-  %0 = bitcast i8* %add.ptr to i128*
-  store i128 %str, i128* %0, align 16
+  %add.ptr = getelementptr inbounds i8, ptr %ptr, i64 1000000000000
+  store i128 %str, ptr %add.ptr, align 16
   ret void
 }
 
 ; Function Attrs: nofree norecurse nounwind uwtable willreturn writeonly
-define dso_local void @st_reg__int128___int128(i8* nocapture %ptr, i64 %off, i128 %str) {
+define dso_local void @st_reg__int128___int128(ptr nocapture %ptr, i64 %off, i128 %str) {
 ; CHECK-LABEL: st_reg__int128___int128:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    stdux 5, 3, 4
 ; CHECK-NEXT:    std 6, 8(3)
 ; CHECK-NEXT:    blr
 entry:
-  %add.ptr = getelementptr inbounds i8, i8* %ptr, i64 %off
-  %0 = bitcast i8* %add.ptr to i128*
-  store i128 %str, i128* %0, align 16
+  %add.ptr = getelementptr inbounds i8, ptr %ptr, i64 %off
+  store i128 %str, ptr %add.ptr, align 16
   ret void
 }
 
@@ -840,8 +731,8 @@ define dso_local void @st_or1__int128___int128(i64 %ptr, i8 zeroext %off, i128 %
 entry:
   %conv = zext i8 %off to i64
   %or = or i64 %conv, %ptr
-  %0 = inttoptr i64 %or to i128*
-  store i128 %str, i128* %0, align 16
+  %0 = inttoptr i64 %or to ptr
+  store i128 %str, ptr %0, align 16
   ret void
 }
 
@@ -859,8 +750,8 @@ entry:
   %and = and i64 %ptr, -4096
   %conv = zext i8 %off to i64
   %or = or i64 %and, %conv
-  %0 = inttoptr i64 %or to i128*
-  store i128 %str, i128* %0, align 16
+  %0 = inttoptr i64 %or to ptr
+  store i128 %str, ptr %0, align 16
   ret void
 }
 
@@ -874,8 +765,8 @@ define dso_local void @st_not_disjoint16__int128___int128(i64 %ptr, i128 %str) {
 ; CHECK-NEXT:    blr
 entry:
   %or = or i64 %ptr, 6
-  %0 = inttoptr i64 %or to i128*
-  store i128 %str, i128* %0, align 16
+  %0 = inttoptr i64 %or to ptr
+  store i128 %str, ptr %0, align 16
   ret void
 }
 
@@ -888,28 +779,19 @@ define dso_local void @st_disjoint_unalign16__int128___int128(i64 %ptr, i128 %st
 ; CHECK-P10-NEXT:    pstd 4, 6(3), 0
 ; CHECK-P10-NEXT:    blr
 ;
-; CHECK-P9-LABEL: st_disjoint_unalign16__int128___int128:
-; CHECK-P9:       # %bb.0: # %entry
-; CHECK-P9-NEXT:    rldicr 3, 3, 0, 51
-; CHECK-P9-NEXT:    li 6, 14
-; CHECK-P9-NEXT:    stdx 5, 3, 6
-; CHECK-P9-NEXT:    li 5, 6
-; CHECK-P9-NEXT:    stdx 4, 3, 5
-; CHECK-P9-NEXT:    blr
-;
-; CHECK-P8-LABEL: st_disjoint_unalign16__int128___int128:
-; CHECK-P8:       # %bb.0: # %entry
-; CHECK-P8-NEXT:    li 6, 14
-; CHECK-P8-NEXT:    rldicr 3, 3, 0, 51
-; CHECK-P8-NEXT:    li 7, 6
-; CHECK-P8-NEXT:    stdx 5, 3, 6
-; CHECK-P8-NEXT:    stdx 4, 3, 7
-; CHECK-P8-NEXT:    blr
+; CHECK-PREP10-LABEL: st_disjoint_unalign16__int128___int128:
+; CHECK-PREP10:       # %bb.0: # %entry
+; CHECK-PREP10-NEXT:    rldicr 3, 3, 0, 51
+; CHECK-PREP10-NEXT:    li 6, 14
+; CHECK-PREP10-NEXT:    stdx 5, 3, 6
+; CHECK-PREP10-NEXT:    li 5, 6
+; CHECK-PREP10-NEXT:    stdx 4, 3, 5
+; CHECK-PREP10-NEXT:    blr
 entry:
   %and = and i64 %ptr, -4096
   %or = or i64 %and, 6
-  %0 = inttoptr i64 %or to i128*
-  store i128 %str, i128* %0, align 16
+  %0 = inttoptr i64 %or to ptr
+  store i128 %str, ptr %0, align 16
   ret void
 }
 
@@ -924,8 +806,8 @@ define dso_local void @st_disjoint_align16__int128___int128(i64 %ptr, i128 %str)
 entry:
   %and = and i64 %ptr, -4096
   %or = or i64 %and, 24
-  %0 = inttoptr i64 %or to i128*
-  store i128 %str, i128* %0, align 16
+  %0 = inttoptr i64 %or to ptr
+  store i128 %str, ptr %0, align 16
   ret void
 }
 
@@ -940,8 +822,8 @@ define dso_local void @st_not_disjoint32__int128___int128(i64 %ptr, i128 %str) {
 ; CHECK-NEXT:    blr
 entry:
   %or = or i64 %ptr, 99999
-  %0 = inttoptr i64 %or to i128*
-  store i128 %str, i128* %0, align 16
+  %0 = inttoptr i64 %or to ptr
+  store i128 %str, ptr %0, align 16
   ret void
 }
 
@@ -954,30 +836,20 @@ define dso_local void @st_disjoint_unalign32__int128___int128(i64 %ptr, i128 %st
 ; CHECK-P10-NEXT:    pstd 4, 99999(3), 0
 ; CHECK-P10-NEXT:    blr
 ;
-; CHECK-P9-LABEL: st_disjoint_unalign32__int128___int128:
-; CHECK-P9:       # %bb.0: # %entry
-; CHECK-P9-NEXT:    lis 6, 1
-; CHECK-P9-NEXT:    rldicr 3, 3, 0, 43
-; CHECK-P9-NEXT:    ori 7, 6, 34471
-; CHECK-P9-NEXT:    stdx 5, 3, 7
-; CHECK-P9-NEXT:    ori 5, 6, 34463
-; CHECK-P9-NEXT:    stdx 4, 3, 5
-; CHECK-P9-NEXT:    blr
-;
-; CHECK-P8-LABEL: st_disjoint_unalign32__int128___int128:
-; CHECK-P8:       # %bb.0: # %entry
-; CHECK-P8-NEXT:    lis 6, 1
-; CHECK-P8-NEXT:    rldicr 3, 3, 0, 43
-; CHECK-P8-NEXT:    ori 7, 6, 34471
-; CHECK-P8-NEXT:    ori 6, 6, 34463
-; CHECK-P8-NEXT:    stdx 5, 3, 7
-; CHECK-P8-NEXT:    stdx 4, 3, 6
-; CHECK-P8-NEXT:    blr
+; CHECK-PREP10-LABEL: st_disjoint_unalign32__int128___int128:
+; CHECK-PREP10:       # %bb.0: # %entry
+; CHECK-PREP10-NEXT:    lis 6, 1
+; CHECK-PREP10-NEXT:    rldicr 3, 3, 0, 43
+; CHECK-PREP10-NEXT:    ori 7, 6, 34471
+; CHECK-PREP10-NEXT:    stdx 5, 3, 7
+; CHECK-PREP10-NEXT:    ori 5, 6, 34463
+; CHECK-PREP10-NEXT:    stdx 4, 3, 5
+; CHECK-PREP10-NEXT:    blr
 entry:
   %and = and i64 %ptr, -1048576
   %or = or i64 %and, 99999
-  %0 = inttoptr i64 %or to i128*
-  store i128 %str, i128* %0, align 16
+  %0 = inttoptr i64 %or to ptr
+  store i128 %str, ptr %0, align 16
   ret void
 }
 
@@ -991,32 +863,21 @@ define dso_local void @st_disjoint_align32__int128___int128(i64 %ptr, i128 %str)
 ; CHECK-P10-NEXT:    pstd 4, 999990000(3), 0
 ; CHECK-P10-NEXT:    blr
 ;
-; CHECK-P9-LABEL: st_disjoint_align32__int128___int128:
-; CHECK-P9:       # %bb.0: # %entry
-; CHECK-P9-NEXT:    lis 6, -15264
-; CHECK-P9-NEXT:    and 3, 3, 6
-; CHECK-P9-NEXT:    lis 6, 15258
-; CHECK-P9-NEXT:    ori 7, 6, 41720
-; CHECK-P9-NEXT:    stdx 5, 3, 7
-; CHECK-P9-NEXT:    ori 5, 6, 41712
-; CHECK-P9-NEXT:    stdx 4, 3, 5
-; CHECK-P9-NEXT:    blr
-;
-; CHECK-P8-LABEL: st_disjoint_align32__int128___int128:
-; CHECK-P8:       # %bb.0: # %entry
-; CHECK-P8-NEXT:    lis 6, -15264
-; CHECK-P8-NEXT:    lis 7, 15258
-; CHECK-P8-NEXT:    and 3, 3, 6
-; CHECK-P8-NEXT:    ori 6, 7, 41720
-; CHECK-P8-NEXT:    ori 7, 7, 41712
-; CHECK-P8-NEXT:    stdx 5, 3, 6
-; CHECK-P8-NEXT:    stdx 4, 3, 7
-; CHECK-P8-NEXT:    blr
+; CHECK-PREP10-LABEL: st_disjoint_align32__int128___int128:
+; CHECK-PREP10:       # %bb.0: # %entry
+; CHECK-PREP10-NEXT:    lis 6, -15264
+; CHECK-PREP10-NEXT:    and 3, 3, 6
+; CHECK-PREP10-NEXT:    lis 6, 15258
+; CHECK-PREP10-NEXT:    ori 7, 6, 41720
+; CHECK-PREP10-NEXT:    stdx 5, 3, 7
+; CHECK-PREP10-NEXT:    ori 5, 6, 41712
+; CHECK-PREP10-NEXT:    stdx 4, 3, 5
+; CHECK-PREP10-NEXT:    blr
 entry:
   %and = and i64 %ptr, -1000341504
   %or = or i64 %and, 999990000
-  %0 = inttoptr i64 %or to i128*
-  store i128 %str, i128* %0, align 16
+  %0 = inttoptr i64 %or to ptr
+  store i128 %str, ptr %0, align 16
   ret void
 }
 
@@ -1044,8 +905,8 @@ define dso_local void @st_not_disjoint64__int128___int128(i64 %ptr, i128 %str) {
 ; CHECK-PREP10-NEXT:    blr
 entry:
   %or = or i64 %ptr, 1000000000001
-  %0 = inttoptr i64 %or to i128*
-  store i128 %str, i128* %0, align 16
+  %0 = inttoptr i64 %or to ptr
+  store i128 %str, ptr %0, align 16
   ret void
 }
 
@@ -1063,34 +924,22 @@ define dso_local void @st_disjoint_unalign64__int128___int128(i64 %ptr, i128 %st
 ; CHECK-P10-NEXT:    stdx 4, 3, 5
 ; CHECK-P10-NEXT:    blr
 ;
-; CHECK-P9-LABEL: st_disjoint_unalign64__int128___int128:
-; CHECK-P9:       # %bb.0: # %entry
-; CHECK-P9-NEXT:    li 6, 29
-; CHECK-P9-NEXT:    rldicr 3, 3, 0, 23
-; CHECK-P9-NEXT:    rldic 6, 6, 35, 24
-; CHECK-P9-NEXT:    oris 6, 6, 54437
-; CHECK-P9-NEXT:    ori 7, 6, 4105
-; CHECK-P9-NEXT:    stdx 5, 3, 7
-; CHECK-P9-NEXT:    ori 5, 6, 4097
-; CHECK-P9-NEXT:    stdx 4, 3, 5
-; CHECK-P9-NEXT:    blr
-;
-; CHECK-P8-LABEL: st_disjoint_unalign64__int128___int128:
-; CHECK-P8:       # %bb.0: # %entry
-; CHECK-P8-NEXT:    li 6, 29
-; CHECK-P8-NEXT:    rldicr 3, 3, 0, 23
-; CHECK-P8-NEXT:    rldic 6, 6, 35, 24
-; CHECK-P8-NEXT:    oris 6, 6, 54437
-; CHECK-P8-NEXT:    ori 7, 6, 4105
-; CHECK-P8-NEXT:    ori 6, 6, 4097
-; CHECK-P8-NEXT:    stdx 5, 3, 7
-; CHECK-P8-NEXT:    stdx 4, 3, 6
-; CHECK-P8-NEXT:    blr
+; CHECK-PREP10-LABEL: st_disjoint_unalign64__int128___int128:
+; CHECK-PREP10:       # %bb.0: # %entry
+; CHECK-PREP10-NEXT:    li 6, 29
+; CHECK-PREP10-NEXT:    rldicr 3, 3, 0, 23
+; CHECK-PREP10-NEXT:    rldic 6, 6, 35, 24
+; CHECK-PREP10-NEXT:    oris 6, 6, 54437
+; CHECK-PREP10-NEXT:    ori 7, 6, 4105
+; CHECK-PREP10-NEXT:    stdx 5, 3, 7
+; CHECK-PREP10-NEXT:    ori 5, 6, 4097
+; CHECK-PREP10-NEXT:    stdx 4, 3, 5
+; CHECK-PREP10-NEXT:    blr
 entry:
   %and = and i64 %ptr, -1099511627776
   %or = or i64 %and, 1000000000001
-  %0 = inttoptr i64 %or to i128*
-  store i128 %str, i128* %0, align 16
+  %0 = inttoptr i64 %or to ptr
+  store i128 %str, ptr %0, align 16
   ret void
 }
 
@@ -1108,68 +957,38 @@ define dso_local void @st_disjoint_align64__int128___int128(i64 %ptr, i128 %str)
 ; CHECK-P10-NEXT:    stdx 4, 3, 5
 ; CHECK-P10-NEXT:    blr
 ;
-; CHECK-P9-LABEL: st_disjoint_align64__int128___int128:
-; CHECK-P9:       # %bb.0: # %entry
-; CHECK-P9-NEXT:    lis 6, 3725
-; CHECK-P9-NEXT:    rldicr 3, 3, 0, 23
-; CHECK-P9-NEXT:    ori 6, 6, 19025
-; CHECK-P9-NEXT:    rldic 6, 6, 12, 24
-; CHECK-P9-NEXT:    stdx 4, 3, 6
-; CHECK-P9-NEXT:    li 4, 29
-; CHECK-P9-NEXT:    rldic 4, 4, 35, 24
-; CHECK-P9-NEXT:    oris 4, 4, 54437
-; CHECK-P9-NEXT:    ori 4, 4, 4104
-; CHECK-P9-NEXT:    stdx 5, 3, 4
-; CHECK-P9-NEXT:    blr
-;
-; CHECK-P8-LABEL: st_disjoint_align64__int128___int128:
-; CHECK-P8:       # %bb.0: # %entry
-; CHECK-P8-NEXT:    li 6, 29
-; CHECK-P8-NEXT:    lis 7, 3725
-; CHECK-P8-NEXT:    rldic 6, 6, 35, 24
-; CHECK-P8-NEXT:    ori 7, 7, 19025
-; CHECK-P8-NEXT:    oris 6, 6, 54437
-; CHECK-P8-NEXT:    rldicr 3, 3, 0, 23
-; CHECK-P8-NEXT:    rldic 7, 7, 12, 24
-; CHECK-P8-NEXT:    ori 6, 6, 4104
-; CHECK-P8-NEXT:    stdx 4, 3, 7
-; CHECK-P8-NEXT:    stdx 5, 3, 6
-; CHECK-P8-NEXT:    blr
+; CHECK-PREP10-LABEL: st_disjoint_align64__int128___int128:
+; CHECK-PREP10:       # %bb.0: # %entry
+; CHECK-PREP10-NEXT:    lis 6, 3725
+; CHECK-PREP10-NEXT:    rldicr 3, 3, 0, 23
+; CHECK-PREP10-NEXT:    ori 6, 6, 19025
+; CHECK-PREP10-NEXT:    rldic 6, 6, 12, 24
+; CHECK-PREP10-NEXT:    stdx 4, 3, 6
+; CHECK-PREP10-NEXT:    li 4, 29
+; CHECK-PREP10-NEXT:    rldic 4, 4, 35, 24
+; CHECK-PREP10-NEXT:    oris 4, 4, 54437
+; CHECK-PREP10-NEXT:    ori 4, 4, 4104
+; CHECK-PREP10-NEXT:    stdx 5, 3, 4
+; CHECK-PREP10-NEXT:    blr
 entry:
   %and = and i64 %ptr, -1099511627776
   %or = or i64 %and, 1000000000000
-  %0 = inttoptr i64 %or to i128*
-  store i128 %str, i128* %0, align 4096
+  %0 = inttoptr i64 %or to ptr
+  store i128 %str, ptr %0, align 4096
   ret void
 }
 
 ; Function Attrs: nofree norecurse nounwind uwtable willreturn writeonly
 define dso_local void @st_cst_unalign16__int128___int128(i128 %str) {
-; CHECK-P10-LABEL: st_cst_unalign16__int128___int128:
-; CHECK-P10:       # %bb.0: # %entry
-; CHECK-P10-NEXT:    li 5, 263
-; CHECK-P10-NEXT:    std 4, 0(5)
-; CHECK-P10-NEXT:    li 4, 255
-; CHECK-P10-NEXT:    std 3, 0(4)
-; CHECK-P10-NEXT:    blr
-;
-; CHECK-P9-LABEL: st_cst_unalign16__int128___int128:
-; CHECK-P9:       # %bb.0: # %entry
-; CHECK-P9-NEXT:    li 5, 263
-; CHECK-P9-NEXT:    std 4, 0(5)
-; CHECK-P9-NEXT:    li 4, 255
-; CHECK-P9-NEXT:    std 3, 0(4)
-; CHECK-P9-NEXT:    blr
-;
-; CHECK-P8-LABEL: st_cst_unalign16__int128___int128:
-; CHECK-P8:       # %bb.0: # %entry
-; CHECK-P8-NEXT:    li 5, 263
-; CHECK-P8-NEXT:    li 6, 255
-; CHECK-P8-NEXT:    std 4, 0(5)
-; CHECK-P8-NEXT:    std 3, 0(6)
-; CHECK-P8-NEXT:    blr
+; CHECK-LABEL: st_cst_unalign16__int128___int128:
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    li 5, 263
+; CHECK-NEXT:    std 4, 0(5)
+; CHECK-NEXT:    li 4, 255
+; CHECK-NEXT:    std 3, 0(4)
+; CHECK-NEXT:    blr
 entry:
-  store i128 %str, i128* inttoptr (i64 255 to i128*), align 16
+  store i128 %str, ptr inttoptr (i64 255 to ptr), align 16
   ret void
 }
 
@@ -1181,7 +1000,7 @@ define dso_local void @st_cst_align16__int128___int128(i128 %str) {
 ; CHECK-NEXT:    std 3, 4080(0)
 ; CHECK-NEXT:    blr
 entry:
-  store i128 %str, i128* inttoptr (i64 4080 to i128*), align 16
+  store i128 %str, ptr inttoptr (i64 4080 to ptr), align 16
   ret void
 }
 
@@ -1195,25 +1014,16 @@ define dso_local void @st_cst_unalign32__int128___int128(i128 %str) {
 ; CHECK-P10-NEXT:    std 3, 0(4)
 ; CHECK-P10-NEXT:    blr
 ;
-; CHECK-P9-LABEL: st_cst_unalign32__int128___int128:
-; CHECK-P9:       # %bb.0: # %entry
-; CHECK-P9-NEXT:    lis 5, 1
-; CHECK-P9-NEXT:    ori 6, 5, 34471
-; CHECK-P9-NEXT:    std 4, 0(6)
-; CHECK-P9-NEXT:    ori 4, 5, 34463
-; CHECK-P9-NEXT:    std 3, 0(4)
-; CHECK-P9-NEXT:    blr
-;
-; CHECK-P8-LABEL: st_cst_unalign32__int128___int128:
-; CHECK-P8:       # %bb.0: # %entry
-; CHECK-P8-NEXT:    lis 5, 1
-; CHECK-P8-NEXT:    ori 6, 5, 34471
-; CHECK-P8-NEXT:    ori 5, 5, 34463
-; CHECK-P8-NEXT:    std 4, 0(6)
-; CHECK-P8-NEXT:    std 3, 0(5)
-; CHECK-P8-NEXT:    blr
+; CHECK-PREP10-LABEL: st_cst_unalign32__int128___int128:
+; CHECK-PREP10:       # %bb.0: # %entry
+; CHECK-PREP10-NEXT:    lis 5, 1
+; CHECK-PREP10-NEXT:    ori 6, 5, 34471
+; CHECK-PREP10-NEXT:    std 4, 0(6)
+; CHECK-PREP10-NEXT:    ori 4, 5, 34463
+; CHECK-PREP10-NEXT:    std 3, 0(4)
+; CHECK-PREP10-NEXT:    blr
 entry:
-  store i128 %str, i128* inttoptr (i64 99999 to i128*), align 16
+  store i128 %str, ptr inttoptr (i64 99999 to ptr), align 16
   ret void
 }
 
@@ -1226,7 +1036,7 @@ define dso_local void @st_cst_align32__int128___int128(i128 %str) {
 ; CHECK-NEXT:    std 3, -27108(5)
 ; CHECK-NEXT:    blr
 entry:
-  store i128 %str, i128* inttoptr (i64 9999900 to i128*), align 16
+  store i128 %str, ptr inttoptr (i64 9999900 to ptr), align 16
   ret void
 }
 
@@ -1243,29 +1053,18 @@ define dso_local void @st_cst_unalign64__int128___int128(i128 %str) {
 ; CHECK-P10-NEXT:    std 3, 0(4)
 ; CHECK-P10-NEXT:    blr
 ;
-; CHECK-P9-LABEL: st_cst_unalign64__int128___int128:
-; CHECK-P9:       # %bb.0: # %entry
-; CHECK-P9-NEXT:    li 5, 29
-; CHECK-P9-NEXT:    rldic 5, 5, 35, 24
-; CHECK-P9-NEXT:    oris 5, 5, 54437
-; CHECK-P9-NEXT:    ori 6, 5, 4105
-; CHECK-P9-NEXT:    std 4, 0(6)
-; CHECK-P9-NEXT:    ori 4, 5, 4097
-; CHECK-P9-NEXT:    std 3, 0(4)
-; CHECK-P9-NEXT:    blr
-;
-; CHECK-P8-LABEL: st_cst_unalign64__int128___int128:
-; CHECK-P8:       # %bb.0: # %entry
-; CHECK-P8-NEXT:    li 5, 29
-; CHECK-P8-NEXT:    rldic 5, 5, 35, 24
-; CHECK-P8-NEXT:    oris 5, 5, 54437
-; CHECK-P8-NEXT:    ori 6, 5, 4105
-; CHECK-P8-NEXT:    ori 5, 5, 4097
-; CHECK-P8-NEXT:    std 4, 0(6)
-; CHECK-P8-NEXT:    std 3, 0(5)
-; CHECK-P8-NEXT:    blr
+; CHECK-PREP10-LABEL: st_cst_unalign64__int128___int128:
+; CHECK-PREP10:       # %bb.0: # %entry
+; CHECK-PREP10-NEXT:    li 5, 29
+; CHECK-PREP10-NEXT:    rldic 5, 5, 35, 24
+; CHECK-PREP10-NEXT:    oris 5, 5, 54437
+; CHECK-PREP10-NEXT:    ori 6, 5, 4105
+; CHECK-PREP10-NEXT:    std 4, 0(6)
+; CHECK-PREP10-NEXT:    ori 4, 5, 4097
+; CHECK-PREP10-NEXT:    std 3, 0(4)
+; CHECK-PREP10-NEXT:    blr
 entry:
-  store i128 %str, i128* inttoptr (i64 1000000000001 to i128*), align 16
+  store i128 %str, ptr inttoptr (i64 1000000000001 to ptr), align 16
   ret void
 }
 
@@ -1282,32 +1081,19 @@ define dso_local void @st_cst_align64__int128___int128(i128 %str) {
 ; CHECK-P10-NEXT:    std 3, 0(4)
 ; CHECK-P10-NEXT:    blr
 ;
-; CHECK-P9-LABEL: st_cst_align64__int128___int128:
-; CHECK-P9:       # %bb.0: # %entry
-; CHECK-P9-NEXT:    lis 5, 3725
-; CHECK-P9-NEXT:    ori 5, 5, 19025
-; CHECK-P9-NEXT:    rldic 5, 5, 12, 24
-; CHECK-P9-NEXT:    std 3, 0(5)
-; CHECK-P9-NEXT:    li 3, 29
-; CHECK-P9-NEXT:    rldic 3, 3, 35, 24
-; CHECK-P9-NEXT:    oris 3, 3, 54437
-; CHECK-P9-NEXT:    ori 3, 3, 4104
-; CHECK-P9-NEXT:    std 4, 0(3)
-; CHECK-P9-NEXT:    blr
-;
-; CHECK-P8-LABEL: st_cst_align64__int128___int128:
-; CHECK-P8:       # %bb.0: # %entry
-; CHECK-P8-NEXT:    li 5, 29
-; CHECK-P8-NEXT:    lis 6, 3725
-; CHECK-P8-NEXT:    rldic 5, 5, 35, 24
-; CHECK-P8-NEXT:    ori 6, 6, 19025
-; CHECK-P8-NEXT:    oris 5, 5, 54437
-; CHECK-P8-NEXT:    rldic 6, 6, 12, 24
-; CHECK-P8-NEXT:    ori 5, 5, 4104
-; CHECK-P8-NEXT:    std 3, 0(6)
-; CHECK-P8-NEXT:    std 4, 0(5)
-; CHECK-P8-NEXT:    blr
+; CHECK-PREP10-LABEL: st_cst_align64__int128___int128:
+; CHECK-PREP10:       # %bb.0: # %entry
+; CHECK-PREP10-NEXT:    lis 5, 3725
+; CHECK-PREP10-NEXT:    ori 5, 5, 19025
+; CHECK-PREP10-NEXT:    rldic 5, 5, 12, 24
+; CHECK-PREP10-NEXT:    std 3, 0(5)
+; CHECK-PREP10-NEXT:    li 3, 29
+; CHECK-PREP10-NEXT:    rldic 3, 3, 35, 24
+; CHECK-PREP10-NEXT:    oris 3, 3, 54437
+; CHECK-PREP10-NEXT:    ori 3, 3, 4104
+; CHECK-PREP10-NEXT:    std 4, 0(3)
+; CHECK-PREP10-NEXT:    blr
 entry:
-  store i128 %str, i128* inttoptr (i64 1000000000000 to i128*), align 4096
+  store i128 %str, ptr inttoptr (i64 1000000000000 to ptr), align 4096
   ret void
 }

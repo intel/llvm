@@ -8,9 +8,9 @@
 
 #include "clang/StaticAnalyzer/Frontend/CheckerRegistry.h"
 #include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/DiagnosticFrontend.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Driver/DriverDiagnostic.h"
-#include "clang/Frontend/FrontendDiagnostic.h"
 #include "clang/StaticAnalyzer/Checkers/BuiltinCheckerRegistration.h"
 #include "clang/StaticAnalyzer/Core/AnalyzerOptions.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
@@ -19,8 +19,6 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/DynamicLibrary.h"
 #include "llvm/Support/Path.h"
-#include "llvm/Support/raw_ostream.h"
-#include <algorithm>
 
 using namespace clang;
 using namespace ento;
@@ -223,7 +221,7 @@ void CheckerRegistry::initializeRegistry(const CheckerManager &Mgr) {
       continue;
     }
 
-    Tmp.insert(Deps.begin(), Deps.end());
+    Tmp.insert_range(Deps);
 
     // Enable the checker.
     Tmp.insert(&Checker);
@@ -233,7 +231,7 @@ void CheckerRegistry::initializeRegistry(const CheckerManager &Mgr) {
   // done recursively, its arguably cheaper, but for sure less error prone to
   // recalculate from scratch.
   auto IsEnabled = [&](const CheckerInfo *Checker) {
-    return llvm::is_contained(Tmp, Checker);
+    return Tmp.contains(Checker);
   };
   for (const CheckerInfo &Checker : Data.Checkers) {
     if (!Checker.isEnabled(Mgr))
@@ -310,8 +308,8 @@ template <bool IsWeak> void CheckerRegistry::resolveDependencies() {
            "Failed to find the dependency of a checker!");
 
     // We do allow diagnostics from unit test/example dependency checkers.
-    assert((DependencyIt->FullName.startswith("test") ||
-            DependencyIt->FullName.startswith("example") || IsWeak ||
+    assert((DependencyIt->FullName.starts_with("test") ||
+            DependencyIt->FullName.starts_with("example") || IsWeak ||
             DependencyIt->IsHidden) &&
            "Strong dependencies are modeling checkers, and as such "
            "non-user facing! Mark them hidden in Checkers.td!");
@@ -525,4 +523,3 @@ void CheckerRegistry::validateCheckerOptions() const {
         << SuppliedCheckerOrPackage;
   }
 }
-

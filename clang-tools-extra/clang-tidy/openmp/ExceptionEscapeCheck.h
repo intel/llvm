@@ -1,4 +1,4 @@
-//===--- ExceptionEscapeCheck.h - clang-tidy --------------------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,15 +12,13 @@
 #include "../ClangTidyCheck.h"
 #include "../utils/ExceptionAnalyzer.h"
 
-namespace clang {
-namespace tidy {
-namespace openmp {
+namespace clang::tidy::openmp {
 
 /// Analyzes OpenMP Structured Blocks and checks that no exception escapes
 /// out of the Structured Block it was thrown in.
 ///
 /// For the user-facing documentation see:
-/// http://clang.llvm.org/extra/clang-tidy/checks/openmp/exception-escape.html
+/// https://clang.llvm.org/extra/clang-tidy/checks/openmp/exception-escape.html
 class ExceptionEscapeCheck : public ClangTidyCheck {
 public:
   ExceptionEscapeCheck(StringRef Name, ClangTidyContext *Context);
@@ -32,13 +30,11 @@ public:
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
 
 private:
-  std::string RawIgnoredExceptions;
+  StringRef RawIgnoredExceptions;
 
   utils::ExceptionAnalyzer Tracer;
 };
 
-} // namespace openmp
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::openmp
 
 #endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_OPENMP_EXCEPTIONESCAPECHECK_H

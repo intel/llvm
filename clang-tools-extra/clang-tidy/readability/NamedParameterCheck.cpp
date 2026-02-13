@@ -1,4 +1,4 @@
-//===--- NamedParameterCheck.cpp - clang-tidy -------------------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,9 +13,18 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace readability {
+namespace clang::tidy::readability {
+
+NamedParameterCheck::NamedParameterCheck(StringRef Name,
+                                         ClangTidyContext *Context)
+    : ClangTidyCheck(Name, Context),
+      InsertPlainNamesInForwardDecls(
+          Options.get("InsertPlainNamesInForwardDecls", false)) {}
+
+void NamedParameterCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
+  Options.store(Opts, "InsertPlainNamesInForwardDecls",
+                InsertPlainNamesInForwardDecls);
+}
 
 void NamedParameterCheck::registerMatchers(ast_matchers::MatchFinder *Finder) {
   Finder->addMatcher(functionDecl().bind("decl"), this);
@@ -30,7 +39,7 @@ void NamedParameterCheck::check(const MatchFinder::MatchResult &Result) {
   // overriden method.
   const FunctionDecl *Definition = nullptr;
   if ((!Function->isDefined(Definition) || Function->isDefaulted() ||
-       Function->isDeleted()) &&
+       Definition->isDefaulted() || Function->isDeleted()) &&
       (!isa<CXXMethodDecl>(Function) ||
        cast<CXXMethodDecl>(Function)->size_overridden_methods() == 0))
     return;
@@ -70,11 +79,11 @@ void NamedParameterCheck::check(const MatchFinder::MatchResult &Result) {
     // void foo(int /*unused*/)
     const char *Begin = SM.getCharacterData(Parm->getBeginLoc());
     const char *End = SM.getCharacterData(Parm->getLocation());
-    StringRef Data(Begin, End - Begin);
+    const StringRef Data(Begin, End - Begin);
     if (Data.contains("/*"))
       continue;
 
-    UnnamedParams.push_back(std::make_pair(Function, I));
+    UnnamedParams.emplace_back(Function, I);
   }
 
   // Emit only one warning per function but fixits for all unnamed parameters.
@@ -86,7 +95,8 @@ void NamedParameterCheck::check(const MatchFinder::MatchResult &Result) {
 
     for (auto P : UnnamedParams) {
       // Fallback to an unused marker.
-      StringRef NewName = "unused";
+      static constexpr StringRef FallbackName = "unused";
+      StringRef NewName = FallbackName;
 
       // If the method is overridden, try to copy the name from the base method
       // into the overrider.
@@ -94,7 +104,7 @@ void NamedParameterCheck::check(const MatchFinder::MatchResult &Result) {
       if (M && M->size_overridden_methods() > 0) {
         const ParmVarDecl *OtherParm =
             (*M->begin_overridden_methods())->getParamDecl(P.second);
-        StringRef Name = OtherParm->getName();
+        const StringRef Name = OtherParm->getName();
         if (!Name.empty())
           NewName = Name;
       }
@@ -102,21 +112,32 @@ void NamedParameterCheck::check(const MatchFinder::MatchResult &Result) {
       // If the definition has a named parameter use that name.
       if (Definition) {
         const ParmVarDecl *DefParm = Definition->getParamDecl(P.second);
-        StringRef Name = DefParm->getName();
+        const StringRef Name = DefParm->getName();
         if (!Name.empty())
           NewName = Name;
       }
 
-      // Now insert the comment. Note that getLocation() points to the place
+      // Now insert the fix. Note that getLocation() points to the place
       // where the name would be, this allows us to also get complex cases like
       // function pointers right.
       const ParmVarDecl *Parm = P.first->getParamDecl(P.second);
-      D << FixItHint::CreateInsertion(Parm->getLocation(),
-                                      " /*" + NewName.str() + "*/");
+
+      // The fix depends on the InsertPlainNamesInForwardDecls option,
+      // whether this is a forward declaration and whether the parameter has
+      // a real name.
+      const bool IsForwardDeclaration = (!Definition || Function != Definition);
+      if (InsertPlainNamesInForwardDecls && IsForwardDeclaration &&
+          NewName != FallbackName) {
+        // For forward declarations with InsertPlainNamesInForwardDecls enabled,
+        // insert the parameter name without comments.
+        D << FixItHint::CreateInsertion(Parm->getLocation(),
+                                        " " + NewName.str());
+      } else {
+        D << FixItHint::CreateInsertion(Parm->getLocation(),
+                                        " /*" + NewName.str() + "*/");
+      }
     }
   }
 }
 
-} // namespace readability
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::readability

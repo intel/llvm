@@ -5,6 +5,7 @@
 ; CHECK-NEXT: DW_AT_name {{.*}}"top"
 ; CHECK-NEXT: DW_AT_decl_file [DW_FORM_data1] {{.*}}debug-label.c
 ; CHECK-NEXT: DW_AT_decl_line [DW_FORM_data1] {{.*}}4
+; CHECK-NEXT: DW_AT_decl_column [DW_FORM_data1] {{.*}}9
 ; CHECK-NEXT: DW_AT_low_pc [DW_FORM_addr] {{.*}}{{0x[0-9a-f]+}}
 ; CHECK: DW_TAG_label
 ; CHECK-NEXT: DW_AT_name {{.*}}"done"
@@ -22,6 +23,7 @@
 ; ASM-NEXT: DW_AT_name
 ; ASM: 1 {{.*}} DW_AT_decl_file
 ; ASM-NEXT: 4 {{.*}} DW_AT_decl_line
+; ASM-NEXT: 9 {{.*}} DW_AT_decl_column
 ; ASM-NEXT: [[TOP_LOW_PC]]{{.*}} DW_AT_low_pc
 ; ASM: DW_TAG_label
 ; ASM-NEXT: DW_AT_name
@@ -36,21 +38,21 @@ entry:
   %a.addr = alloca i32, align 4
   %b.addr = alloca i32, align 4
   %sum = alloca i32, align 4
-  store i32 %a, i32* %a.addr, align 4
-  store i32 %b, i32* %b.addr, align 4
+  store i32 %a, ptr %a.addr, align 4
+  store i32 %b, ptr %b.addr, align 4
   br label %top
 
 top:
   call void @llvm.dbg.label(metadata !10), !dbg !11
-  %0 = load i32, i32* %a.addr, align 4
-  %1 = load i32, i32* %b.addr, align 4
+  %0 = load i32, ptr %a.addr, align 4
+  %1 = load i32, ptr %b.addr, align 4
   %add = add nsw i32 %0, %1
-  store i32 %add, i32* %sum, align 4
+  store i32 %add, ptr %sum, align 4
   br label %done
 
 done:
   call void @llvm.dbg.label(metadata !12), !dbg !13
-  %2 = load i32, i32* %sum, align 4
+  %2 = load i32, ptr %sum, align 4
   ret i32 %2, !dbg !14
 }
 
@@ -68,7 +70,7 @@ declare void @llvm.dbg.label(metadata)
 !7 = !DISubroutineType(types: !8)
 !8 = !{!9, !9, !9}
 !9 = !DIBasicType(name: "int", size: 32, encoding: DW_ATE_signed)
-!10 = !DILabel(scope: !6, name: "top", file: !1, line: 4)
+!10 = !DILabel(scope: !6, name: "top", file: !1, line: 4, column: 9)
 !11 = !DILocation(line: 4, column: 1, scope: !6)
 !12 = !DILabel(scope: !15, name: "done", file: !1, line: 7)
 !13 = !DILocation(line: 7, column: 1, scope: !6)

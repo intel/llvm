@@ -1,4 +1,4 @@
-//===- ReduceInstructionFlagsMIR.h  - Specialized Delta Pass --------------===//
+//===- ReduceInstructionFlagsMIR.h  -----------------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -17,7 +17,7 @@
 #include "Delta.h"
 
 namespace llvm {
-void reduceInstructionFlagsMIRDeltaPass(TestRunner &Test);
+void reduceInstructionFlagsMIRDeltaPass(Oracle &O, ReducerWorkItem &WorkItem);
 } // namespace llvm
 
 #endif

@@ -14,51 +14,37 @@
 #ifndef LLVM_SUPPORT_PGOOPTIONS_H
 #define LLVM_SUPPORT_PGOOPTIONS_H
 
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Error.h"
 
 namespace llvm {
-
 /// A struct capturing PGO tunables.
 struct PGOOptions {
   enum PGOAction { NoAction, IRInstr, IRUse, SampleUse };
   enum CSPGOAction { NoCSAction, CSIRInstr, CSIRUse };
-  PGOOptions(std::string ProfileFile = "", std::string CSProfileGenFile = "",
-             std::string ProfileRemappingFile = "", PGOAction Action = NoAction,
-             CSPGOAction CSAction = NoCSAction,
-             bool DebugInfoForProfiling = false,
-             bool PseudoProbeForProfiling = false)
-      : ProfileFile(ProfileFile), CSProfileGenFile(CSProfileGenFile),
-        ProfileRemappingFile(ProfileRemappingFile), Action(Action),
-        CSAction(CSAction), DebugInfoForProfiling(DebugInfoForProfiling ||
-                                                  (Action == SampleUse &&
-                                                   !PseudoProbeForProfiling)),
-        PseudoProbeForProfiling(PseudoProbeForProfiling) {
-    // Note, we do allow ProfileFile.empty() for Action=IRUse LTO can
-    // callback with IRUse action without ProfileFile.
+  enum class ColdFuncOpt { Default, OptSize, MinSize, OptNone };
+  LLVM_ABI PGOOptions(std::string ProfileFile, std::string CSProfileGenFile,
+                      std::string ProfileRemappingFile,
+                      std::string MemoryProfile, PGOAction Action = NoAction,
+                      CSPGOAction CSAction = NoCSAction,
+                      ColdFuncOpt ColdType = ColdFuncOpt::Default,
+                      bool DebugInfoForProfiling = false,
+                      bool PseudoProbeForProfiling = false,
+                      bool AtomicCounterUpdate = false);
+  LLVM_ABI PGOOptions(const PGOOptions &);
+  LLVM_ABI ~PGOOptions();
+  LLVM_ABI PGOOptions &operator=(const PGOOptions &);
 
-    // If there is a CSAction, PGOAction cannot be IRInstr or SampleUse.
-    assert(this->CSAction == NoCSAction ||
-           (this->Action != IRInstr && this->Action != SampleUse));
-
-    // For CSIRInstr, CSProfileGenFile also needs to be nonempty.
-    assert(this->CSAction != CSIRInstr || !this->CSProfileGenFile.empty());
-
-    // If CSAction is CSIRUse, PGOAction needs to be IRUse as they share
-    // a profile.
-    assert(this->CSAction != CSIRUse || this->Action == IRUse);
-
-    // If neither Action nor CSAction, DebugInfoForProfiling or
-    // PseudoProbeForProfiling needs to be true.
-    assert(this->Action != NoAction || this->CSAction != NoCSAction ||
-           this->DebugInfoForProfiling || this->PseudoProbeForProfiling);
-  }
   std::string ProfileFile;
   std::string CSProfileGenFile;
   std::string ProfileRemappingFile;
+  std::string MemoryProfile;
   PGOAction Action;
   CSPGOAction CSAction;
+  ColdFuncOpt ColdOptType;
   bool DebugInfoForProfiling;
   bool PseudoProbeForProfiling;
+  bool AtomicCounterUpdate;
 };
 } // namespace llvm
 

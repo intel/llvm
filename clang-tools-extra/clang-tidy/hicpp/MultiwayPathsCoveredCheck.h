@@ -1,4 +1,4 @@
-//===--- MultiwayPathsCoveredCheck.h - clang-tidy----------------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,21 +6,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_HICPP_MULTIWAY_PATHS_COVERED_H
-#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_HICPP_MULTIWAY_PATHS_COVERED_H
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_HICPP_MULTIWAYPATHSCOVEREDCHECK_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_HICPP_MULTIWAYPATHSCOVEREDCHECK_H
 
 #include "../ClangTidyCheck.h"
 
-namespace clang {
-namespace tidy {
-namespace hicpp {
+namespace clang::tidy::hicpp {
 
 /// Find occasions where not all codepaths are explicitly covered in code.
 /// This includes 'switch' without a 'default'-branch and 'if'-'else if'-chains
 /// without a final 'else'-branch.
 ///
 /// For the user-facing documentation see:
-/// http://clang.llvm.org/extra/clang-tidy/checks/hicpp/multiway-paths-covered.html
+/// https://clang.llvm.org/extra/clang-tidy/checks/hicpp/multiway-paths-covered.html
 class MultiwayPathsCoveredCheck : public ClangTidyCheck {
 public:
   MultiwayPathsCoveredCheck(StringRef Name, ClangTidyContext *Context)
@@ -41,8 +39,6 @@ private:
   const bool WarnOnMissingElse;
 };
 
-} // namespace hicpp
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::hicpp
 
-#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_HICPP_MULTIWAY_PATHS_COVERED_H
+#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_HICPP_MULTIWAYPATHSCOVEREDCHECK_H

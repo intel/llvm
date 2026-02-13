@@ -14,14 +14,14 @@
 #define ATTRIBUTEDETAIL_H_
 
 #include "mlir/IR/AffineMap.h"
+#include "mlir/IR/AttributeSupport.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/MLIRContext.h"
-#include "mlir/Support/StorageUniquer.h"
 #include "llvm/ADT/APFloat.h"
-#include "llvm/ADT/PointerIntPair.h"
-#include "llvm/Support/TrailingObjects.h"
+#include "llvm/Support/Allocator.h"
+#include <mutex>
 
 namespace mlir {
 namespace detail {
@@ -33,7 +33,7 @@ namespace detail {
 /// Return the bit width which DenseElementsAttr should use for this type.
 inline size_t getDenseElementBitWidth(Type eltType) {
   // Align the width for complex to 8 to make storage and interpretation easier.
-  if (ComplexType comp = eltType.dyn_cast<ComplexType>())
+  if (ComplexType comp = llvm::dyn_cast<ComplexType>(eltType))
     return llvm::alignTo<8>(getDenseElementBitWidth(comp.getElementType())) * 2;
   if (eltType.isIndex())
     return IndexType::kInternalStorageBitWidth;
@@ -191,8 +191,11 @@ struct DenseIntOrFPElementsAttrStorage : public DenseElementsAttributeStorage {
   ArrayRef<char> data;
 
   /// The values used to denote a boolean splat value.
-  static constexpr char kSplatTrue = ~0;
-  static constexpr char kSplatFalse = 0;
+  // This is not using constexpr declaration due to compilation failure
+  // encountered with MSVC where it would inline these values, which makes it
+  // unsafe to refer by reference in KeyTy.
+  static const char kSplatTrue;
+  static const char kSplatFalse;
 };
 
 /// An attribute representing a reference to a dense vector or tensor object
@@ -256,7 +259,7 @@ struct DenseStringElementsAttrStorage : public DenseElementsAttributeStorage {
     // Check to see if this storage represents a splat. If it doesn't then
     // combine the hash for the data starting with the first non splat element.
     for (size_t i = 1, e = data.size(); i != e; i++)
-      if (!firstElt.equals(data[i]))
+      if (firstElt != data[i])
         return KeyTy(ty, data, llvm::hash_combine(hashVal, data.drop_front(i)));
 
     // Otherwise, this is a splat so just return the hash of the first element.
@@ -349,6 +352,73 @@ struct StringAttrStorage : public AttributeStorage {
   Dialect *referencedDialect;
 };
 
+//===----------------------------------------------------------------------===//
+// DistinctAttr
+//===----------------------------------------------------------------------===//
+
+/// An attribute to store a distinct reference to another attribute.
+struct DistinctAttrStorage : public AttributeStorage {
+  using KeyTy = Attribute;
+
+  DistinctAttrStorage(Attribute referencedAttr)
+      : referencedAttr(referencedAttr) {}
+
+  /// Returns the referenced attribute as key.
+  KeyTy getAsKey() const { return KeyTy(referencedAttr); }
+
+  /// The referenced attribute.
+  Attribute referencedAttr;
+};
+
+/// A specialized attribute uniquer for distinct attributes that always
+/// allocates since the distinct attribute instances use the address of their
+/// storage as unique identifier.
+class DistinctAttributeUniquer {
+public:
+  /// Creates a distinct attribute storage. Allocates every time since the
+  /// address of the storage serves as unique identifier.
+  template <typename T, typename... Args>
+  static T get(MLIRContext *context, Args &&...args) {
+    static_assert(std::is_same_v<typename T::ImplType, DistinctAttrStorage>,
+                  "expects a distinct attribute storage");
+    DistinctAttrStorage *storage = DistinctAttributeUniquer::allocateStorage(
+        context, std::forward<Args>(args)...);
+    storage->initializeAbstractAttribute(
+        AbstractAttribute::lookup(DistinctAttr::getTypeID(), context));
+    return storage;
+  }
+
+private:
+  /// Allocates a distinct attribute storage.
+  static DistinctAttrStorage *allocateStorage(MLIRContext *context,
+                                              Attribute referencedAttr);
+};
+
+/// An allocator for distinct attribute storage instances. Uses a synchronized
+/// BumpPtrAllocator to ensure thread-safety. The allocated storage is deleted
+/// when the DistinctAttributeAllocator is destroyed.
+class DistinctAttributeAllocator final {
+public:
+  DistinctAttributeAllocator() = default;
+  DistinctAttributeAllocator(DistinctAttributeAllocator &&) = delete;
+  DistinctAttributeAllocator(const DistinctAttributeAllocator &) = delete;
+  DistinctAttributeAllocator &
+  operator=(const DistinctAttributeAllocator &) = delete;
+
+  DistinctAttrStorage *allocate(Attribute referencedAttr) {
+    std::scoped_lock<std::mutex> guard(allocatorMutex);
+    return new (allocator.Allocate<DistinctAttrStorage>())
+        DistinctAttrStorage(referencedAttr);
+  };
+
+private:
+  /// Used to allocate distict attribute storages. The managed memory is freed
+  /// automatically when the allocator instance is destroyed.
+  llvm::BumpPtrAllocator allocator;
+
+  /// Used to lock access to the allocator.
+  std::mutex allocatorMutex;
+};
 } // namespace detail
 } // namespace mlir
 

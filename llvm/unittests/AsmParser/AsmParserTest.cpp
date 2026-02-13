@@ -6,14 +6,23 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/AsmParser/AsmParserContext.h"
 #include "llvm/AsmParser/Parser.h"
 #include "llvm/AsmParser/SlotMapping.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DataLayout.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/Value.h"
+#include "llvm/Support/Debug.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/SourceMgr.h"
 #include "gtest/gtest.h"
+
+#define DEBUG_TYPE "unittest-asm-parser-tests"
 
 using namespace llvm;
 
@@ -55,8 +64,8 @@ TEST(AsmParserTest, SlotMappingTest) {
   EXPECT_TRUE(Mod != nullptr);
   EXPECT_TRUE(Error.getMessage().empty());
 
-  ASSERT_EQ(Mapping.GlobalValues.size(), 1u);
-  EXPECT_TRUE(isa<GlobalVariable>(Mapping.GlobalValues[0]));
+  ASSERT_EQ(Mapping.GlobalValues.getNext(), 1u);
+  EXPECT_TRUE(isa<GlobalVariable>(Mapping.GlobalValues.get(0)));
 
   EXPECT_EQ(Mapping.MetadataNodes.size(), 2u);
   EXPECT_EQ(Mapping.MetadataNodes.count(0), 1u);
@@ -90,17 +99,37 @@ TEST(AsmParserTest, TypeAndConstantValueParsing) {
   EXPECT_TRUE(V->getType()->isVectorTy());
   ASSERT_TRUE(isa<ConstantDataVector>(V));
 
+  V = parseConstantValue("<4 x i32> splat (i32 -2)", Error, M);
+  ASSERT_TRUE(V);
+  EXPECT_TRUE(V->getType()->isVectorTy());
+  ASSERT_TRUE(isa<ConstantDataVector>(V));
+
+  V = parseConstantValue("<4 x i32> zeroinitializer", Error, M);
+  ASSERT_TRUE(V);
+  EXPECT_TRUE(V->getType()->isVectorTy());
+  ASSERT_TRUE(isa<Constant>(V));
+  EXPECT_TRUE(cast<Constant>(V)->isNullValue());
+
+  V = parseConstantValue("<4 x i32> poison", Error, M);
+  ASSERT_TRUE(V);
+  EXPECT_TRUE(V->getType()->isVectorTy());
+  ASSERT_TRUE(isa<PoisonValue>(V));
+
   V = parseConstantValue("i32 add (i32 1, i32 2)", Error, M);
   ASSERT_TRUE(V);
   ASSERT_TRUE(isa<ConstantInt>(V));
 
-  V = parseConstantValue("i8* blockaddress(@test, %entry)", Error, M);
+  V = parseConstantValue("ptr blockaddress(@test, %entry)", Error, M);
   ASSERT_TRUE(V);
   ASSERT_TRUE(isa<BlockAddress>(V));
 
-  V = parseConstantValue("i8** undef", Error, M);
+  V = parseConstantValue("ptr undef", Error, M);
   ASSERT_TRUE(V);
   ASSERT_TRUE(isa<UndefValue>(V));
+
+  V = parseConstantValue("ptr poison", Error, M);
+  ASSERT_TRUE(V);
+  ASSERT_TRUE(isa<PoisonValue>(V));
 
   EXPECT_FALSE(parseConstantValue("duble 3.25", Error, M));
   EXPECT_EQ(Error.getMessage(), "expected type");
@@ -108,7 +137,7 @@ TEST(AsmParserTest, TypeAndConstantValueParsing) {
   EXPECT_FALSE(parseConstantValue("i32 3.25", Error, M));
   EXPECT_EQ(Error.getMessage(), "floating point constant invalid for type");
 
-  EXPECT_FALSE(parseConstantValue("i32* @foo", Error, M));
+  EXPECT_FALSE(parseConstantValue("ptr @foo", Error, M));
   EXPECT_EQ(Error.getMessage(), "expected a constant value");
 
   EXPECT_FALSE(parseConstantValue("i32 3, ", Error, M));
@@ -126,10 +155,10 @@ TEST(AsmParserTest, TypeAndConstantValueWithSlotMappingParsing) {
       "define void @marker4(i64 %d) {\n"
       "entry:\n"
       "  %conv = trunc i64 %d to i32\n"
-      "  store i32 %conv, i32* getelementptr inbounds "
-      "    ([50 x %st], [50 x %st]* @v, i64 0, i64 0, i32 0), align 16\n"
-      "  store i32 %conv, i32* getelementptr inbounds "
-      "    ([50 x %0], [50 x %0]* @g, i64 0, i64 0, i32 0), align 16\n"
+      "  store i32 %conv, ptr getelementptr inbounds "
+      "    ([50 x %st], ptr @v, i64 0, i64 1, i32 0), align 16\n"
+      "  store i32 %conv, ptr getelementptr inbounds "
+      "    ([50 x %0], ptr @g, i64 0, i64 1, i32 0), align 16\n"
       "  ret void\n"
       "}";
   SlotMapping Mapping;
@@ -138,14 +167,14 @@ TEST(AsmParserTest, TypeAndConstantValueWithSlotMappingParsing) {
   auto &M = *Mod;
 
   const Value *V;
-  V = parseConstantValue("i32* getelementptr inbounds ([50 x %st], [50 x %st]* "
-                         "@v, i64 0, i64 0, i32 0)",
+  V = parseConstantValue("ptr getelementptr inbounds ([50 x %st], ptr "
+                         "@v, i64 0, i64 1, i32 0)",
                          Error, M, &Mapping);
   ASSERT_TRUE(V);
   ASSERT_TRUE(isa<ConstantExpr>(V));
 
-  V = parseConstantValue("i32* getelementptr inbounds ([50 x %0], [50 x %0]* "
-                         "@g, i64 0, i64 0, i32 0)",
+  V = parseConstantValue("ptr getelementptr inbounds ([50 x %0], ptr "
+                         "@g, i64 0, i64 1, i32 0)",
                          Error, M, &Mapping);
   ASSERT_TRUE(V);
   ASSERT_TRUE(isa<ConstantExpr>(V));
@@ -162,10 +191,10 @@ TEST(AsmParserTest, TypeWithSlotMappingParsing) {
       "define void @marker4(i64 %d) {\n"
       "entry:\n"
       "  %conv = trunc i64 %d to i32\n"
-      "  store i32 %conv, i32* getelementptr inbounds "
-      "    ([50 x %st], [50 x %st]* @v, i64 0, i64 0, i32 0), align 16\n"
-      "  store i32 %conv, i32* getelementptr inbounds "
-      "    ([50 x %0], [50 x %0]* @g, i64 0, i64 0, i32 0), align 16\n"
+      "  store i32 %conv, ptr getelementptr inbounds "
+      "    ([50 x %st], ptr @v, i64 0, i64 0, i32 0), align 16\n"
+      "  store i32 %conv, ptr getelementptr inbounds "
+      "    ([50 x %0], ptr @g, i64 0, i64 0, i32 0), align 16\n"
       "  ret void\n"
       "}";
   SlotMapping Mapping;
@@ -232,7 +261,7 @@ TEST(AsmParserTest, TypeWithSlotMappingParsing) {
   // Check the details of the vector.
   auto *VT = cast<FixedVectorType>(Ty);
   ASSERT_TRUE(VT->getNumElements() == 5);
-  ASSERT_TRUE(VT->getPrimitiveSizeInBits().getFixedSize() == 160);
+  ASSERT_TRUE(VT->getPrimitiveSizeInBits().getFixedValue() == 160);
   Ty = VT->getElementType();
   ASSERT_TRUE(Ty->isIntegerTy());
   ASSERT_TRUE(Ty->getPrimitiveSizeInBits() == 32);
@@ -246,22 +275,9 @@ TEST(AsmParserTest, TypeWithSlotMappingParsing) {
   ASSERT_TRUE(ST->isOpaque());
 
   // Check we properly parse pointer types.
-  // One indirection.
-  Ty = parseType("i32*", Error, M, &Mapping);
+  Ty = parseType("ptr", Error, M, &Mapping);
   ASSERT_TRUE(Ty);
   ASSERT_TRUE(Ty->isPointerTy());
-
-  PointerType *PT = cast<PointerType>(Ty);
-  ASSERT_TRUE(PT->isOpaqueOrPointeeTypeMatches(Type::getIntNTy(Ctx, 32)));
-
-  // Two indirections.
-  Ty = parseType("i32**", Error, M, &Mapping);
-  ASSERT_TRUE(Ty);
-  ASSERT_TRUE(Ty->isPointerTy());
-
-  PT = cast<PointerType>(Ty);
-  Type *ExpectedElemTy = PointerType::getUnqual(Type::getIntNTy(Ctx, 32));
-  ASSERT_TRUE(PT->isOpaqueOrPointeeTypeMatches(ExpectedElemTy));
 
   // Check that we reject types with garbage.
   Ty = parseType("i32 garbage", Error, M, &Mapping);
@@ -279,10 +295,10 @@ TEST(AsmParserTest, TypeAtBeginningWithSlotMappingParsing) {
       "define void @marker4(i64 %d) {\n"
       "entry:\n"
       "  %conv = trunc i64 %d to i32\n"
-      "  store i32 %conv, i32* getelementptr inbounds "
-      "    ([50 x %st], [50 x %st]* @v, i64 0, i64 0, i32 0), align 16\n"
-      "  store i32 %conv, i32* getelementptr inbounds "
-      "    ([50 x %0], [50 x %0]* @g, i64 0, i64 0, i32 0), align 16\n"
+      "  store i32 %conv, ptr getelementptr inbounds "
+      "    ([50 x %st], ptr @v, i64 0, i64 0, i32 0), align 16\n"
+      "  store i32 %conv, ptr getelementptr inbounds "
+      "    ([50 x %0], ptr @g, i64 0, i64 0, i32 0), align 16\n"
       "  ret void\n"
       "}";
   SlotMapping Mapping;
@@ -357,7 +373,7 @@ TEST(AsmParserTest, TypeAtBeginningWithSlotMappingParsing) {
   // Check the details of the vector.
   auto *VT = cast<FixedVectorType>(Ty);
   ASSERT_TRUE(VT->getNumElements() == 5);
-  ASSERT_TRUE(VT->getPrimitiveSizeInBits().getFixedSize() == 160);
+  ASSERT_TRUE(VT->getPrimitiveSizeInBits().getFixedValue() == 160);
   Ty = VT->getElementType();
   ASSERT_TRUE(Ty->isIntegerTy());
   ASSERT_TRUE(Ty->getPrimitiveSizeInBits() == 32);
@@ -373,23 +389,10 @@ TEST(AsmParserTest, TypeAtBeginningWithSlotMappingParsing) {
 
   // Check we properly parse pointer types.
   // One indirection.
-  Ty = parseTypeAtBeginning("i32*", Read, Error, M, &Mapping);
+  Ty = parseTypeAtBeginning("ptr", Read, Error, M, &Mapping);
   ASSERT_TRUE(Ty);
   ASSERT_TRUE(Ty->isPointerTy());
-  ASSERT_TRUE(Read == 4);
-
-  PointerType *PT = cast<PointerType>(Ty);
-  ASSERT_TRUE(PT->isOpaqueOrPointeeTypeMatches(Type::getIntNTy(Ctx, 32)));
-
-  // Two indirections.
-  Ty = parseTypeAtBeginning("i32**", Read, Error, M, &Mapping);
-  ASSERT_TRUE(Ty);
-  ASSERT_TRUE(Ty->isPointerTy());
-  ASSERT_TRUE(Read == 5);
-
-  PT = cast<PointerType>(Ty);
-  Type *ExpectedElemTy = PointerType::getUnqual(Type::getIntNTy(Ctx, 32));
-  ASSERT_TRUE(PT->isOpaqueOrPointeeTypeMatches(ExpectedElemTy));
+  ASSERT_TRUE(Read == 3);
 
   // Check that we reject types with garbage.
   Ty = parseTypeAtBeginning("i32 garbage", Read, Error, M, &Mapping);
@@ -398,6 +401,143 @@ TEST(AsmParserTest, TypeAtBeginningWithSlotMappingParsing) {
   ASSERT_TRUE(Ty->getPrimitiveSizeInBits() == 32);
   // We go to the next token, i.e., we read "i32" + ' '.
   ASSERT_TRUE(Read == 4);
+}
+
+TEST(AsmParserTest, InvalidDataLayoutStringCallback) {
+  LLVMContext Ctx;
+  SMDiagnostic Error;
+  // Note the invalid i8:7 part
+  // Overalign i32 as marker so we can check that indeed this DL was used,
+  // and not some default.
+  StringRef InvalidDLStr =
+      "e-m:e-p:64:64-i8:7-i16:16-i32:64-i64:64-f80:128-n8:16:32:64";
+  StringRef FixedDLStr =
+      "e-m:e-p:64:64-i8:8-i16:16-i32:64-i64:64-f80:128-n8:16:32:64";
+  Expected<DataLayout> ExpectedFixedDL = DataLayout::parse(FixedDLStr);
+  ASSERT_TRUE(!ExpectedFixedDL.takeError());
+  DataLayout FixedDL = ExpectedFixedDL.get();
+  std::string Source = ("target datalayout = \"" + InvalidDLStr + "\"\n").str();
+  MemoryBufferRef SourceBuffer(Source, "<string>");
+
+  // Check that we reject the source without a DL override.
+  SlotMapping Mapping1;
+  auto Mod1 = parseAssembly(SourceBuffer, Error, Ctx, &Mapping1);
+  EXPECT_TRUE(Mod1 == nullptr);
+
+  // Check that we pass the correct DL str to the callback,
+  // that fixing the DL str from the callback works,
+  // and that the resulting module has the correct DL.
+  SlotMapping Mapping2;
+  auto Mod2 = parseAssembly(
+      SourceBuffer, Error, Ctx, &Mapping2,
+      [&](StringRef Triple, StringRef DLStr) -> std::optional<std::string> {
+        EXPECT_EQ(DLStr, InvalidDLStr);
+        return std::string{FixedDLStr};
+      });
+  ASSERT_TRUE(Mod2 != nullptr);
+  EXPECT_EQ(Mod2->getDataLayout(), FixedDL);
+}
+
+TEST(AsmParserTest, DIExpressionBodyAtBeginningWithSlotMappingParsing) {
+  LLVMContext Ctx;
+  SMDiagnostic Error;
+  StringRef Source = "";
+  SlotMapping Mapping;
+  auto Mod = parseAssemblyString(Source, Error, Ctx, &Mapping);
+  ASSERT_TRUE(Mod != nullptr);
+  auto &M = *Mod;
+  unsigned Read;
+
+  ASSERT_EQ(Mapping.MetadataNodes.size(), 0u);
+
+  DIExpression *Expr;
+
+  Expr = parseDIExpressionBodyAtBeginning("()", Read, Error, M, &Mapping);
+  ASSERT_TRUE(Expr);
+  ASSERT_EQ(Expr->getNumElements(), 0u);
+
+  Expr = parseDIExpressionBodyAtBeginning("(0)", Read, Error, M, &Mapping);
+  ASSERT_TRUE(Expr);
+  ASSERT_EQ(Expr->getNumElements(), 1u);
+
+  Expr = parseDIExpressionBodyAtBeginning("(DW_OP_LLVM_fragment, 0, 1)", Read,
+                                          Error, M, &Mapping);
+  ASSERT_TRUE(Expr);
+  ASSERT_EQ(Expr->getNumElements(), 3u);
+
+  Expr = parseDIExpressionBodyAtBeginning(
+      "(DW_OP_LLVM_fragment, 0, 1)  trailing source", Read, Error, M, &Mapping);
+  ASSERT_TRUE(Expr);
+  ASSERT_EQ(Expr->getNumElements(), 3u);
+  ASSERT_EQ(Read, StringRef("(DW_OP_LLVM_fragment, 0, 1)  ").size());
+
+  Error = {};
+  Expr = parseDIExpressionBodyAtBeginning("i32", Read, Error, M, &Mapping);
+  ASSERT_FALSE(Expr);
+  ASSERT_EQ(Error.getMessage(), "expected '(' here");
+
+  Error = {};
+  Expr = parseDIExpressionBodyAtBeginning(
+      "!DIExpression(DW_OP_LLVM_fragment, 0, 1)", Read, Error, M, &Mapping);
+  ASSERT_FALSE(Expr);
+  ASSERT_EQ(Error.getMessage(), "expected '(' here");
+
+  ASSERT_EQ(Mapping.MetadataNodes.size(), 0u);
+}
+
+#define ASSERT_EQ_LOC(Loc1, Loc2)                                              \
+  do {                                                                         \
+    EXPECT_TRUE(Loc1.contains(Loc2) && Loc2.contains(Loc1))                    \
+        << #Loc1 " location: " << Loc1.Start.Line << ":" << Loc1.Start.Col     \
+        << " - " << Loc1.End.Line << ":" << Loc1.End.Col << "\n"               \
+        << #Loc2 " location: " << Loc2.Start.Line << ":" << Loc2.Start.Col     \
+        << " - " << Loc2.End.Line << ":" << Loc2.End.Col << "\n";              \
+  } while (false)
+
+TEST(AsmParserTest, ParserObjectLocations) {
+  StringRef Source = "define i32 @main() {\n"
+                     "entry:\n"
+                     "    %a = add i32 1, 2\n"
+                     "    ret i32 %a\n"
+                     "}\n";
+  LLVMContext Ctx;
+  SMDiagnostic Error;
+  SlotMapping Mapping;
+  AsmParserContext ParserContext;
+  auto Mod = parseAssemblyString(Source, Error, Ctx, &Mapping, &ParserContext);
+
+  auto *MainFn = Mod->getFunction("main");
+  ASSERT_TRUE(MainFn != nullptr);
+
+  auto MaybeMainLoc = ParserContext.getFunctionLocation(MainFn);
+  EXPECT_TRUE(MaybeMainLoc.has_value());
+  auto MainLoc = MaybeMainLoc.value();
+  auto ExpectedMainLoc = FileLocRange(FileLoc{0, 0}, FileLoc{4, 1});
+  ASSERT_EQ_LOC(MainLoc, ExpectedMainLoc);
+  ASSERT_EQ(ParserContext.getFunctionAtLocation(MainLoc.Start),
+            ParserContext.getFunctionAtLocation(MainLoc));
+
+  auto &EntryBB = MainFn->getEntryBlock();
+  auto MaybeEntryBBLoc = ParserContext.getBlockLocation(&EntryBB);
+  ASSERT_TRUE(MaybeEntryBBLoc.has_value());
+  auto EntryBBLoc = MaybeEntryBBLoc.value();
+  auto ExpectedEntryBBLoc = FileLocRange(FileLoc{1, 0}, FileLoc{3, 14});
+  ASSERT_EQ_LOC(EntryBBLoc, ExpectedEntryBBLoc);
+  ASSERT_EQ(ParserContext.getBlockAtLocation(MaybeEntryBBLoc->Start),
+            ParserContext.getBlockAtLocation(*MaybeEntryBBLoc));
+
+  SmallVector<FileLocRange> InstructionLocations = {
+      FileLocRange(FileLoc{2, 4}, FileLoc{2, 21}),
+      FileLocRange(FileLoc{3, 4}, FileLoc{3, 14})};
+
+  for (const auto &[Inst, ExpectedLoc] : zip(EntryBB, InstructionLocations)) {
+    auto MaybeInstLoc = ParserContext.getInstructionLocation(&Inst);
+    ASSERT_TRUE(MaybeMainLoc.has_value());
+    auto InstLoc = MaybeInstLoc.value();
+    ASSERT_EQ_LOC(InstLoc, ExpectedLoc);
+    ASSERT_EQ(ParserContext.getInstructionAtLocation(MaybeInstLoc->Start),
+              ParserContext.getInstructionAtLocation(*MaybeInstLoc));
+  }
 }
 
 } // end anonymous namespace

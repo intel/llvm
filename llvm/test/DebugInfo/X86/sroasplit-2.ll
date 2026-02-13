@@ -1,4 +1,4 @@
-; RUN: opt %s -sroa -verify -S -o - | FileCheck %s
+; RUN: opt %s -passes='sroa,verify' -S -o - | FileCheck %s
 ;
 ; Test that we can partial emit debug info for aggregates repeatedly
 ; split up by SROA.
@@ -20,10 +20,10 @@
 ;
 
 ; Verify that SROA creates a variable piece when splitting i1.
-; CHECK:  call void @llvm.dbg.value(metadata i64 %outer.coerce0, metadata ![[O:[0-9]+]], metadata !DIExpression(DW_OP_LLVM_fragment, 0, 64)),
-; CHECK:  call void @llvm.dbg.value(metadata i32 {{.*}}, metadata ![[O]], metadata !DIExpression(DW_OP_LLVM_fragment, 64, 32)),
-; CHECK:  call void @llvm.dbg.value(metadata i32 {{.*}}, metadata ![[O]], metadata !DIExpression(DW_OP_LLVM_fragment, 96, 32)),
-; CHECK:  call void @llvm.dbg.value({{.*}}, metadata ![[I1:[0-9]+]], metadata !DIExpression(DW_OP_LLVM_fragment, 0, 32)),
+; CHECK:  #dbg_value(i64 %outer.coerce0, ![[O:[0-9]+]], !DIExpression(DW_OP_LLVM_fragment, 0, 64),
+; CHECK:  #dbg_value(i32 {{.*}}, ![[O]], !DIExpression(DW_OP_LLVM_fragment, 64, 32),
+; CHECK:  #dbg_value(i32 {{.*}}, ![[O]], !DIExpression(DW_OP_LLVM_fragment, 96, 32),
+; CHECK:  #dbg_value({{.*}}, ![[I1:[0-9]+]], !DIExpression(DW_OP_LLVM_fragment, 0, 32),
 ; CHECK-DAG: ![[O]] = !DILocalVariable(name: "outer",{{.*}} line: 10
 ; CHECK-DAG: ![[I1]] = !DILocalVariable(name: "i1",{{.*}} line: 11
 
@@ -38,28 +38,23 @@ target triple = "x86_64-apple-macosx10.9.0"
 define i32 @foo(i64 %outer.coerce0, i64 %outer.coerce1) #0 !dbg !4 {
   %outer = alloca %struct.Outer, align 8
   %i1 = alloca %struct.Inner, align 4
-  %1 = bitcast %struct.Outer* %outer to { i64, i64 }*
-  %2 = getelementptr { i64, i64 }, { i64, i64 }* %1, i32 0, i32 0
-  store i64 %outer.coerce0, i64* %2
-  %3 = getelementptr { i64, i64 }, { i64, i64 }* %1, i32 0, i32 1
-  store i64 %outer.coerce1, i64* %3
-  call void @llvm.dbg.declare(metadata %struct.Outer* %outer, metadata !24, metadata !2), !dbg !25
-  call void @llvm.dbg.declare(metadata %struct.Inner* %i1, metadata !26, metadata !2), !dbg !27
-  %4 = getelementptr inbounds %struct.Outer, %struct.Outer* %outer, i32 0, i32 0, !dbg !27
-  %5 = getelementptr inbounds [2 x %struct.Inner], [2 x %struct.Inner]* %4, i32 0, i64 1, !dbg !27
-  %6 = bitcast %struct.Inner* %i1 to i8*, !dbg !27
-  %7 = bitcast %struct.Inner* %5 to i8*, !dbg !27
-  call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 4 %6, i8* align 4 %7, i64 8, i1 false), !dbg !27
-  %8 = getelementptr inbounds %struct.Inner, %struct.Inner* %i1, i32 0, i32 0, !dbg !28
-  %9 = load i32, i32* %8, align 4, !dbg !28
-  ret i32 %9, !dbg !28
+  %1 = getelementptr { i64, i64 }, ptr %outer, i32 0, i32 0
+  store i64 %outer.coerce0, ptr %1
+  %2 = getelementptr { i64, i64 }, ptr %outer, i32 0, i32 1
+  store i64 %outer.coerce1, ptr %2
+  call void @llvm.dbg.declare(metadata ptr %outer, metadata !24, metadata !2), !dbg !25
+  call void @llvm.dbg.declare(metadata ptr %i1, metadata !26, metadata !2), !dbg !27
+  %3 = getelementptr inbounds [2 x %struct.Inner], ptr %outer, i32 0, i64 1, !dbg !27
+  call void @llvm.memcpy.p0.p0.i64(ptr align 4 %i1, ptr align 4 %3, i64 8, i1 false), !dbg !27
+  %4 = load i32, ptr %i1, align 4, !dbg !28
+  ret i32 %4, !dbg !28
 }
 
 ; Function Attrs: nounwind readnone
 declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
 
 ; Function Attrs: nounwind
-declare void @llvm.memcpy.p0i8.p0i8.i64(i8* nocapture, i8* nocapture readonly, i64, i1) #2
+declare void @llvm.memcpy.p0.p0.i64(ptr nocapture, ptr nocapture readonly, i64, i1) #2
 
 attributes #0 = { nounwind ssp uwtable "frame-pointer"="all" }
 attributes #1 = { nounwind readnone }

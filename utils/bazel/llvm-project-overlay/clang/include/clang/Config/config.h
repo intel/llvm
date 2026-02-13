@@ -28,24 +28,6 @@
 /* Default linker to use. */
 #define CLANG_DEFAULT_LINKER ""
 
-/* Default C/ObjC standard to use. */
-/* #undef CLANG_DEFAULT_STD_C */
-/* Always #define something so that missing the config.h #include at use sites
- * becomes a compile error.
- */
-#ifndef CLANG_DEFAULT_STD_C
-#define CLANG_DEFAULT_STD_C LangStandard::lang_unspecified
-#endif
-
-/* Default C++/ObjC++ standard to use. */
-/* #undef CLANG_DEFAULT_STD_CXX */
-/* Always #define something so that missing the config.h #include at use sites
- * becomes a compile error.
- */
-#ifndef CLANG_DEFAULT_STD_CXX
-#define CLANG_DEFAULT_STD_CXX LangStandard::lang_unspecified
-#endif
-
 /* Default C++ stdlib to use. */
 #define CLANG_DEFAULT_CXX_STDLIB ""
 
@@ -60,9 +42,6 @@
 
 /* Default OpenMP runtime used by -fopenmp. */
 #define CLANG_DEFAULT_OPENMP_RUNTIME "libomp"
-
-/* Default architecture for OpenMP offloading to Nvidia GPUs. */
-#define CLANG_OPENMP_NVPTX_DEFAULT_ARCH "sm_35"
 
 /* Default architecture for SystemZ. */
 #define CLANG_SYSTEMZ_DEFAULT_ARCH "z10"
@@ -92,8 +71,11 @@
 /* Define if we have sys/resource.h (rlimits) */
 /* CLANG_HAVE_RLIMITS defined conditionally below */
 
-/* The LLVM product name and version */
-#define BACKEND_PACKAGE_STRING "LLVM 16.0.0git"
+/* Define if we have dlfcn.h */
+#define CLANG_HAVE_DLFCN_H 1
+
+/* Define if dladdr() is available on this platform. */
+#define CLANG_HAVE_DLADDR 1
 
 /* Linker version detected at compile time. */
 /* #undef HOST_LINK_VERSION */
@@ -111,8 +93,7 @@
 #define ENABLE_EXPERIMENTAL_NEW_PASS_MANAGER 0
 
 /* Enable each functionality of modules */
-#define CLANG_ENABLE_ARCMT 1
-#define CLANG_ENABLE_OBJC_REWRITER 1
+#define CLANG_ENABLE_OBJC_REWRITER 0
 #define CLANG_ENABLE_STATIC_ANALYZER 1
 
 /* Spawn a new process clang.exe for the CC1 tool invocation, when necessary */

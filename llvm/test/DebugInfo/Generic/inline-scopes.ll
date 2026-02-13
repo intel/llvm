@@ -20,16 +20,29 @@
 ; }
 
 ; Ensure that lexical_blocks within inlined_subroutines are preserved/emitted.
+; CHECK:      DW_TAG_subprogram
+; CHECK-NEXT: DW_AT_linkage_name ("_Z2f1v")
+; CHECK:      [[ADDR1:0x[0-9a-f]+]]: DW_TAG_lexical_block
+; CHECK:      DW_TAG_subprogram
+; CHECK-NEXT: DW_AT_linkage_name ("_Z2f2v")
+; CHECK:      [[ADDR2:0x[0-9a-f]+]]: DW_TAG_lexical_block
 ; CHECK: DW_TAG_inlined_subroutine
 ; CHECK-NOT: DW_TAG
 ; CHECK-NOT: NULL
-; CHECK: DW_TAG_lexical_block
+; CHECK:      DW_TAG_lexical_block
+; CHECK-NOT: {{DW_TAG|NULL}}
+; CHECK:      DW_AT_abstract_origin ([[ADDR1]]
 ; CHECK-NOT: DW_TAG
 ; CHECK-NOT: NULL
 ; CHECK: DW_TAG_variable
 ; Ensure that file changes don't interfere with creating inlined subroutines.
 ; (see the line directive inside 'f2' in thesource)
 ; CHECK: DW_TAG_inlined_subroutine
+; CHECK-NOT: {{DW_TAG|NULL}}
+; CHECK:      DW_TAG_lexical_block
+; CHECK-NOT: {{DW_TAG|NULL}}
+; CHECK:      DW_AT_abstract_origin ([[ADDR2]]
+; CHECK-NOT: {{DW_TAG|NULL}}
 ; CHECK:   DW_TAG_variable
 ; CHECK-NOT: DW_TAG
 ; CHECK:     DW_AT_abstract_origin
@@ -41,42 +54,42 @@ entry:
   %b.i3 = alloca i8, align 1
   %retval.i = alloca i32, align 4
   %b.i = alloca i8, align 1
-  call void @llvm.dbg.declare(metadata i8* %b.i, metadata !16, metadata !DIExpression()), !dbg !19
+  call void @llvm.dbg.declare(metadata ptr %b.i, metadata !16, metadata !DIExpression()), !dbg !19
   %call.i = call zeroext i1 @_Z1fv(), !dbg !19
   %frombool.i = zext i1 %call.i to i8, !dbg !19
-  store i8 %frombool.i, i8* %b.i, align 1, !dbg !19
-  %0 = load i8, i8* %b.i, align 1, !dbg !19
+  store i8 %frombool.i, ptr %b.i, align 1, !dbg !19
+  %0 = load i8, ptr %b.i, align 1, !dbg !19
   %tobool.i = trunc i8 %0 to i1, !dbg !19
   br i1 %tobool.i, label %if.then.i, label %if.end.i, !dbg !19
 
 if.then.i:                                        ; preds = %entry
-  store i32 1, i32* %retval.i, !dbg !21
+  store i32 1, ptr %retval.i, !dbg !21
   br label %_Z2f1v.exit, !dbg !21
 
 if.end.i:                                         ; preds = %entry
-  store i32 2, i32* %retval.i, !dbg !22
+  store i32 2, ptr %retval.i, !dbg !22
   br label %_Z2f1v.exit, !dbg !22
 
 _Z2f1v.exit:                                      ; preds = %if.then.i, %if.end.i
-  %1 = load i32, i32* %retval.i, !dbg !23
-  call void @llvm.dbg.declare(metadata i8* %b.i3, metadata !24, metadata !DIExpression()), !dbg !27
+  %1 = load i32, ptr %retval.i, !dbg !23
+  call void @llvm.dbg.declare(metadata ptr %b.i3, metadata !24, metadata !DIExpression()), !dbg !27
   %call.i4 = call zeroext i1 @_Z1fv(), !dbg !27
   %frombool.i5 = zext i1 %call.i4 to i8, !dbg !27
-  store i8 %frombool.i5, i8* %b.i3, align 1, !dbg !27
-  %2 = load i8, i8* %b.i3, align 1, !dbg !27
+  store i8 %frombool.i5, ptr %b.i3, align 1, !dbg !27
+  %2 = load i8, ptr %b.i3, align 1, !dbg !27
   %tobool.i6 = trunc i8 %2 to i1, !dbg !27
   br i1 %tobool.i6, label %if.then.i7, label %if.end.i8, !dbg !27
 
 if.then.i7:                                       ; preds = %_Z2f1v.exit
-  store i32 3, i32* %retval.i2, !dbg !29
+  store i32 3, ptr %retval.i2, !dbg !29
   br label %_Z2f2v.exit, !dbg !29
 
 if.end.i8:                                        ; preds = %_Z2f1v.exit
-  store i32 4, i32* %retval.i2, !dbg !30
+  store i32 4, ptr %retval.i2, !dbg !30
   br label %_Z2f2v.exit, !dbg !30
 
 _Z2f2v.exit:                                      ; preds = %if.then.i7, %if.end.i8
-  %3 = load i32, i32* %retval.i2, !dbg !31
+  %3 = load i32, ptr %retval.i2, !dbg !31
   ret i32 0, !dbg !32
 }
 
@@ -85,9 +98,9 @@ declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
 
 declare zeroext i1 @_Z1fv() #2
 
-attributes #0 = { uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone }
-attributes #2 = { "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #2 = { "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "use-soft-float"="false" }
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!13, !14}

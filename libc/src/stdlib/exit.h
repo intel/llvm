@@ -6,15 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <stdlib.h>
-
 #ifndef LLVM_LIBC_SRC_STDLIB_EXIT_H
 #define LLVM_LIBC_SRC_STDLIB_EXIT_H
 
-namespace __llvm_libc {
+#include "src/__support/macros/config.h"
 
-void exit(int status);
+namespace LIBC_NAMESPACE_DECL {
 
-} // namespace __llvm_libc
+[[noreturn]] void exit(int status);
+
+} // namespace LIBC_NAMESPACE_DECL
 
 #endif // LLVM_LIBC_SRC_STDLIB_EXIT_H

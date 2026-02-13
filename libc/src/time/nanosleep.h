@@ -1,5 +1,4 @@
-//===-- Implementation header of nanosleep -------------------------*- C++
-//-*-===//
+//===-- Implementation header of nanosleep -----------------------*- C++-*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,14 +9,13 @@
 #ifndef LLVM_LIBC_SRC_TIME_NANOSLEEP_H
 #define LLVM_LIBC_SRC_TIME_NANOSLEEP_H
 
-#include <time.h>
+#include "hdr/types/struct_timespec.h"
+#include "src/__support/macros/config.h"
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE_DECL {
 
-int nanosleep(const struct timespec *req, struct timespec *rem);
+int nanosleep(const timespec *req, timespec *rem);
 
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE_DECL
 
 #endif // LLVM_LIBC_SRC_TIME_NANOSLEEP_H
-
-#include "include/time.h"

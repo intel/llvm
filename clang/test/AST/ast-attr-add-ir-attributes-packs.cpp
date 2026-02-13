@@ -32,13 +32,13 @@ void InstantiateFunctionTemplates() {
   // CHECK-NEXT:       ConstantExpr {{.*}} 'const char[6]' lvalue
   // CHECK-NEXT:         value: LValue
   // CHECK-NEXT:         StringLiteral {{.*}} 'const char[6]' lvalue "Attr3"
-  // CHECK-NEXT:       PackExpansionExpr {{.*}} '<dependent type>'
+  // CHECK-NEXT:       PackExpansionExpr {{.*}} 'int'
   // CHECK-NEXT:         DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'Is' 'int'
   // CHECK-NEXT:   FunctionDecl {{.*}} used FunctionTemplate1 'void ()'
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument integral 1
-  // CHECK-NEXT:       TemplateArgument integral 2
-  // CHECK-NEXT:       TemplateArgument integral 3
+  // CHECK-NEXT:       TemplateArgument integral '1'
+  // CHECK-NEXT:       TemplateArgument integral '2'
+  // CHECK-NEXT:       TemplateArgument integral '3'
   // CHECK-NEXT:     CompoundStmt
   // CHECK-NEXT:     SYCLAddIRAttributesFunctionAttr
   // CHECK-NEXT:       ConstantExpr {{.*}} 'const char[6]' lvalue
@@ -67,8 +67,8 @@ void InstantiateFunctionTemplates() {
   // CHECK-NEXT:           IntegerLiteral {{.*}} 'int' 3
   // CHECK-NEXT:   FunctionDecl {{.*}} used FunctionTemplate1 'void ()'
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument integral 1
-  // CHECK-NEXT:       TemplateArgument integral 2
+  // CHECK-NEXT:       TemplateArgument integral '1'
+  // CHECK-NEXT:       TemplateArgument integral '2'
   // CHECK-NEXT:     CompoundStmt
   FunctionTemplate1<1, 2, 3>();
   FunctionTemplate1<1, 2>();
@@ -90,13 +90,13 @@ void InstantiateFunctionTemplates() {
   // CHECK-NEXT:       ConstantExpr {{.*}} 'const char[6]' lvalue
   // CHECK-NEXT:         value: LValue
   // CHECK-NEXT:         StringLiteral {{.*}} 'const char[6]' lvalue "Attr3"
-  // CHECK-NEXT:       PackExpansionExpr {{.*}} '<dependent type>'
+  // CHECK-NEXT:       PackExpansionExpr {{.*}} 'int'
   // CHECK-NEXT:         DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'Is' 'int'
   // CHECK-NEXT:   FunctionDecl {{.*}} used FunctionTemplate2 'void ()'
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument integral 1
-  // CHECK-NEXT:       TemplateArgument integral 2
-  // CHECK-NEXT:       TemplateArgument integral 3
+  // CHECK-NEXT:       TemplateArgument integral '1'
+  // CHECK-NEXT:       TemplateArgument integral '2'
+  // CHECK-NEXT:       TemplateArgument integral '3'
   // CHECK-NEXT:     CompoundStmt
   // CHECK-NEXT:     SYCLAddIRAttributesFunctionAttr
   // CHECK-NEXT:       InitListExpr {{.*}} 'void'
@@ -128,8 +128,8 @@ void InstantiateFunctionTemplates() {
   // CHECK-NEXT:           IntegerLiteral {{.*}} 'int' 3
   // CHECK-NEXT:   FunctionDecl {{.*}} used FunctionTemplate2 'void ()'
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument integral 1
-  // CHECK-NEXT:       TemplateArgument integral 2
+  // CHECK-NEXT:       TemplateArgument integral '1'
+  // CHECK-NEXT:       TemplateArgument integral '2'
   // CHECK-NEXT:     CompoundStmt
   FunctionTemplate2<1, 2, 3>();
   FunctionTemplate2<1, 2>();
@@ -139,7 +139,7 @@ void InstantiateFunctionTemplates() {
   // CHECK-NEXT:   FunctionDecl {{.*}} FunctionTemplate3 'void ()'
   // CHECK-NEXT:     CompoundStmt
   // CHECK-NEXT:     SYCLAddIRAttributesFunctionAttr
-  // CHECK-NEXT:       PackExpansionExpr {{.*}} '<dependent type>'
+  // CHECK-NEXT:       PackExpansionExpr {{.*}} 'const char *'
   // CHECK-NEXT:         DeclRefExpr {{.*}} 'const char *' NonTypeTemplateParm {{.*}} 'Names' 'const char *'
   // CHECK-NEXT:       ConstantExpr {{.*}} 'int'
   // CHECK-NEXT:         value: Int 1
@@ -205,7 +205,7 @@ void InstantiateFunctionTemplates() {
   // CHECK-NEXT:       InitListExpr {{.*}} 'void'
   // CHECK-NEXT:         StringLiteral {{.*}} 'const char[6]' lvalue "Attr1"
   // CHECK-NEXT:         StringLiteral {{.*}} 'const char[6]' lvalue "Attr3"
-  // CHECK-NEXT:       PackExpansionExpr {{.*}} '<dependent type>'
+  // CHECK-NEXT:       PackExpansionExpr {{.*}} 'const char *'
   // CHECK-NEXT:         DeclRefExpr {{.*}} 'const char *' NonTypeTemplateParm {{.*}} 'Names' 'const char *'
   // CHECK-NEXT:       ConstantExpr {{.*}} 'int'
   // CHECK-NEXT:         value: Int 1
@@ -271,7 +271,7 @@ void InstantiateFunctionTemplates() {
   // CHECK-NEXT:   FunctionDecl {{.*}} FunctionTemplate5 'void ()'
   // CHECK-NEXT:     CompoundStmt
   // CHECK-NEXT:     SYCLAddIRAttributesFunctionAttr
-  // CHECK-NEXT:       PackExpansionExpr {{.*}} '<dependent type>'
+  // CHECK-NEXT:       PackExpansionExpr {{.*}} 'const char *'
   // CHECK-NEXT:         DeclRefExpr {{.*}} 'const char *' NonTypeTemplateParm {{.*}} 'Strs' 'const char *'
   // CHECK-NEXT:   FunctionDecl {{.*}} used FunctionTemplate5 'void ()'
   // CHECK-NEXT:     TemplateArgument pack
@@ -407,7 +407,7 @@ void InstantiateFunctionTemplates() {
   // CHECK-NEXT:       InitListExpr {{.*}} 'void'
   // CHECK-NEXT:         StringLiteral {{.*}} 'const char[6]' lvalue "Attr1"
   // CHECK-NEXT:         StringLiteral {{.*}} 'const char[6]' lvalue "Attr3"
-  // CHECK-NEXT:       PackExpansionExpr {{.*}} '<dependent type>'
+  // CHECK-NEXT:       PackExpansionExpr {{.*}} 'const char *'
   // CHECK-NEXT:         DeclRefExpr {{.*}} 'const char *' NonTypeTemplateParm {{.*}} 'Strs' 'const char *'
   // CHECK-NEXT:   FunctionDecl {{.*}} used FunctionTemplate6 'void ()'
   // CHECK-NEXT:     TemplateArgument pack
@@ -572,7 +572,7 @@ template <const char *...Strs> struct [[__sycl_detail__::add_ir_attributes_globa
 // CHECK-NEXT:       ConstantExpr {{.*}} 'const char[6]' lvalue
 // CHECK-NEXT:         value: LValue
 // CHECK-NEXT:         StringLiteral {{.*}} 'const char[6]' lvalue "Attr3"
-// CHECK-NEXT:       PackExpansionExpr {{.*}} '<dependent type>'
+// CHECK-NEXT:       PackExpansionExpr {{.*}} 'int'
 // CHECK-NEXT:         DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'Is' 'int'
 // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct GlobalVarStructTemplate1
 // CHECK-NEXT:   ClassTemplateSpecializationDecl {{.*}} struct GlobalVarStructTemplate1 definition
@@ -584,9 +584,9 @@ template <const char *...Strs> struct [[__sycl_detail__::add_ir_attributes_globa
 // CHECK-NEXT:       MoveAssignment
 // CHECK-NEXT:       Destructor
 // CHECK-NEXT:     TemplateArgument pack
-// CHECK-NEXT:       TemplateArgument integral 1
-// CHECK-NEXT:       TemplateArgument integral 2
-// CHECK-NEXT:       TemplateArgument integral 3
+// CHECK-NEXT:       TemplateArgument integral '1'
+// CHECK-NEXT:       TemplateArgument integral '2'
+// CHECK-NEXT:       TemplateArgument integral '3'
 // CHECK-NEXT:     SYCLAddIRAttributesGlobalVariableAttr
 // CHECK-NEXT:       ConstantExpr {{.*}} 'const char[6]' lvalue
 // CHECK-NEXT:         value: LValue
@@ -628,8 +628,8 @@ template <const char *...Strs> struct [[__sycl_detail__::add_ir_attributes_globa
 // CHECK-NEXT:       MoveAssignment
 // CHECK-NEXT:       Destructor
 // CHECK-NEXT:     TemplateArgument pack
-// CHECK-NEXT:       TemplateArgument integral 1
-// CHECK-NEXT:       TemplateArgument integral 2
+// CHECK-NEXT:       TemplateArgument integral '1'
+// CHECK-NEXT:       TemplateArgument integral '2'
 // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct GlobalVarStructTemplate1
 // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit used constexpr GlobalVarStructTemplate1 'void () noexcept'
 // CHECK-NEXT:       CompoundStmt {{.*}}
@@ -663,7 +663,7 @@ GlobalVarStructTemplate1<1, 2> InstantiatedGV2;
 // CHECK-NEXT:       ConstantExpr {{.*}} 'const char[6]' lvalue
 // CHECK-NEXT:         value: LValue
 // CHECK-NEXT:         StringLiteral {{.*}} 'const char[6]' lvalue "Attr3"
-// CHECK-NEXT:       PackExpansionExpr {{.*}} '<dependent type>'
+// CHECK-NEXT:       PackExpansionExpr {{.*}} 'int'
 // CHECK-NEXT:         DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'Is' 'int'
 // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct GlobalVarStructTemplate2
 // CHECK-NEXT:   ClassTemplateSpecializationDecl {{.*}} struct GlobalVarStructTemplate2 definition
@@ -675,9 +675,9 @@ GlobalVarStructTemplate1<1, 2> InstantiatedGV2;
 // CHECK-NEXT:       MoveAssignment
 // CHECK-NEXT:       Destructor
 // CHECK-NEXT:     TemplateArgument pack
-// CHECK-NEXT:       TemplateArgument integral 1
-// CHECK-NEXT:       TemplateArgument integral 2
-// CHECK-NEXT:       TemplateArgument integral 3
+// CHECK-NEXT:       TemplateArgument integral '1'
+// CHECK-NEXT:       TemplateArgument integral '2'
+// CHECK-NEXT:       TemplateArgument integral '3'
 // CHECK-NEXT:     SYCLAddIRAttributesGlobalVariableAttr
 // CHECK-NEXT:       InitListExpr {{.*}} 'void'
 // CHECK-NEXT:         StringLiteral {{.*}} 'const char[6]' lvalue "Attr1"
@@ -722,8 +722,8 @@ GlobalVarStructTemplate1<1, 2> InstantiatedGV2;
 // CHECK-NEXT:       MoveAssignment
 // CHECK-NEXT:       Destructor
 // CHECK-NEXT:     TemplateArgument pack
-// CHECK-NEXT:       TemplateArgument integral 1
-// CHECK-NEXT:       TemplateArgument integral 2
+// CHECK-NEXT:       TemplateArgument integral '1'
+// CHECK-NEXT:       TemplateArgument integral '2'
 // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct GlobalVarStructTemplate2
 // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit used constexpr GlobalVarStructTemplate2 'void () noexcept'
 // CHECK-NEXT:       CompoundStmt {{.*}}
@@ -745,7 +745,7 @@ GlobalVarStructTemplate2<1, 2> InstantiatedGV4;
 // CHECK-NEXT:       MoveAssignment
 // CHECK-NEXT:       Destructor
 // CHECK-NEXT:     SYCLAddIRAttributesGlobalVariableAttr
-// CHECK-NEXT:       PackExpansionExpr {{.*}} '<dependent type>'
+// CHECK-NEXT:       PackExpansionExpr {{.*}} 'const char *'
 // CHECK-NEXT:         DeclRefExpr {{.*}} 'const char *' NonTypeTemplateParm {{.*}} 'Names' 'const char *'
 // CHECK-NEXT:       ConstantExpr {{.*}} 'int'
 // CHECK-NEXT:         value: Int 1
@@ -844,7 +844,7 @@ GlobalVarStructTemplate3<AttrName1, AttrName2> InstantiatedGV6;
 // CHECK-NEXT:       InitListExpr {{.*}} 'void'
 // CHECK-NEXT:         StringLiteral {{.*}} 'const char[6]' lvalue "Attr1"
 // CHECK-NEXT:         StringLiteral {{.*}} 'const char[6]' lvalue "Attr3"
-// CHECK-NEXT:       PackExpansionExpr {{.*}} '<dependent type>'
+// CHECK-NEXT:       PackExpansionExpr {{.*}} 'const char *'
 // CHECK-NEXT:         DeclRefExpr {{.*}} 'const char *' NonTypeTemplateParm {{.*}} 'Names' 'const char *'
 // CHECK-NEXT:       ConstantExpr {{.*}} 'int'
 // CHECK-NEXT:         value: Int 1
@@ -943,7 +943,7 @@ GlobalVarStructTemplate4<AttrName1, AttrName2> InstantiatedGV8;
 // CHECK-NEXT:       MoveAssignment
 // CHECK-NEXT:       Destructor
 // CHECK-NEXT:     SYCLAddIRAttributesGlobalVariableAttr
-// CHECK-NEXT:       PackExpansionExpr {{.*}} '<dependent type>'
+// CHECK-NEXT:       PackExpansionExpr {{.*}} 'const char *'
 // CHECK-NEXT:         DeclRefExpr {{.*}} 'const char *' NonTypeTemplateParm {{.*}} 'Strs' 'const char *'
 // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct GlobalVarStructTemplate5
 // CHECK-NEXT:   ClassTemplateSpecializationDecl {{.*}} struct GlobalVarStructTemplate5 definition
@@ -1138,7 +1138,7 @@ GlobalVarStructTemplate5<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2> In
 // CHECK-NEXT:       InitListExpr {{.*}} 'void'
 // CHECK-NEXT:         StringLiteral {{.*}} 'const char[6]' lvalue "Attr1"
 // CHECK-NEXT:         StringLiteral {{.*}} 'const char[6]' lvalue "Attr3"
-// CHECK-NEXT:       PackExpansionExpr {{.*}} '<dependent type>'
+// CHECK-NEXT:       PackExpansionExpr {{.*}} 'const char *'
 // CHECK-NEXT:         DeclRefExpr {{.*}} 'const char *' NonTypeTemplateParm {{.*}} 'Strs' 'const char *'
 // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct GlobalVarStructTemplate6
 // CHECK-NEXT:   ClassTemplateSpecializationDecl {{.*}} struct GlobalVarStructTemplate6 definition
@@ -1372,7 +1372,7 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:           ConstantExpr {{.*}} 'const char[6]' lvalue
   // CHECK-NEXT:             value: LValue
   // CHECK-NEXT:             StringLiteral {{.*}} 'const char[6]' lvalue "Attr3"
-  // CHECK-NEXT:           PackExpansionExpr {{.*}} '<dependent type>'
+  // CHECK-NEXT:           PackExpansionExpr {{.*}} 'int'
   // CHECK-NEXT:             DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'Is' 'int'
   // CHECK-NEXT:       CompoundStmt
   // CHECK-NEXT:   ClassTemplateSpecializationDecl {{.*}} struct SpecialClassStructTemplate1 definition
@@ -1384,9 +1384,9 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument integral 1
-  // CHECK-NEXT:       TemplateArgument integral 2
-  // CHECK-NEXT:       TemplateArgument integral 3
+  // CHECK-NEXT:       TemplateArgument integral '1'
+  // CHECK-NEXT:       TemplateArgument integral '2'
+  // CHECK-NEXT:       TemplateArgument integral '3'
   // CHECK-NEXT:     SYCLSpecialClassAttr
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct SpecialClassStructTemplate1
   // CHECK-NEXT:     CXXMethodDecl {{.*}} __init 'void (int)'
@@ -1431,8 +1431,8 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument integral 1
-  // CHECK-NEXT:       TemplateArgument integral 2
+  // CHECK-NEXT:       TemplateArgument integral '1'
+  // CHECK-NEXT:       TemplateArgument integral '2'
   // CHECK-NEXT:     SYCLSpecialClassAttr
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct SpecialClassStructTemplate1
   // CHECK-NEXT:     CXXMethodDecl {{.*}} __init 'void (int)'
@@ -1473,7 +1473,7 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:           ConstantExpr {{.*}} 'const char[6]' lvalue
   // CHECK-NEXT:             value: LValue
   // CHECK-NEXT:             StringLiteral {{.*}} 'const char[6]' lvalue "Attr3"
-  // CHECK-NEXT:           PackExpansionExpr {{.*}} '<dependent type>'
+  // CHECK-NEXT:           PackExpansionExpr {{.*}} 'int'
   // CHECK-NEXT:             DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'Is' 'int'
   // CHECK-NEXT:       CompoundStmt
   // CHECK-NEXT:   ClassTemplateSpecializationDecl {{.*}} struct SpecialClassStructTemplate2 definition
@@ -1485,9 +1485,9 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument integral 1
-  // CHECK-NEXT:       TemplateArgument integral 2
-  // CHECK-NEXT:       TemplateArgument integral 3
+  // CHECK-NEXT:       TemplateArgument integral '1'
+  // CHECK-NEXT:       TemplateArgument integral '2'
+  // CHECK-NEXT:       TemplateArgument integral '3'
   // CHECK-NEXT:     SYCLSpecialClassAttr
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct SpecialClassStructTemplate2
   // CHECK-NEXT:     CXXMethodDecl {{.*}} __init 'void (int)'
@@ -1535,8 +1535,8 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument integral 1
-  // CHECK-NEXT:       TemplateArgument integral 2
+  // CHECK-NEXT:       TemplateArgument integral '1'
+  // CHECK-NEXT:       TemplateArgument integral '2'
   // CHECK-NEXT:     SYCLSpecialClassAttr
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct SpecialClassStructTemplate2
   // CHECK-NEXT:     CXXMethodDecl {{.*}} __init 'void (int)'
@@ -1565,7 +1565,7 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:     CXXMethodDecl {{.*}} __init 'void (int)'
   // CHECK-NEXT:       ParmVarDecl {{.*}} x 'int'
   // CHECK-NEXT:         SYCLAddIRAttributesKernelParameterAttr
-  // CHECK-NEXT:           PackExpansionExpr {{.*}} '<dependent type>'
+  // CHECK-NEXT:           PackExpansionExpr {{.*}} 'const char *'
   // CHECK-NEXT:             DeclRefExpr {{.*}} 'const char *' NonTypeTemplateParm {{.*}} 'Names' 'const char *'
   // CHECK-NEXT:           ConstantExpr {{.*}} 'int'
   // CHECK-NEXT:             value: Int 1
@@ -1674,7 +1674,7 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:           InitListExpr {{.*}} 'void'
   // CHECK-NEXT:             StringLiteral {{.*}} 'const char[6]' lvalue "Attr1"
   // CHECK-NEXT:             StringLiteral {{.*}} 'const char[6]' lvalue "Attr3"
-  // CHECK-NEXT:           PackExpansionExpr {{.*}} '<dependent type>'
+  // CHECK-NEXT:           PackExpansionExpr {{.*}} 'const char *'
   // CHECK-NEXT:             DeclRefExpr {{.*}} 'const char *' NonTypeTemplateParm {{.*}} 'Names' 'const char *'
   // CHECK-NEXT:           ConstantExpr {{.*}} 'int'
   // CHECK-NEXT:             value: Int 1
@@ -1783,7 +1783,7 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:     CXXMethodDecl {{.*}} __init 'void (int)'
   // CHECK-NEXT:       ParmVarDecl {{.*}} x 'int'
   // CHECK-NEXT:         SYCLAddIRAttributesKernelParameterAttr
-  // CHECK-NEXT:           PackExpansionExpr {{.*}} '<dependent type>'
+  // CHECK-NEXT:           PackExpansionExpr {{.*}} 'const char *'
   // CHECK-NEXT:             DeclRefExpr {{.*}} 'const char *' NonTypeTemplateParm {{.*}} 'Strs' 'const char *'
   // CHECK-NEXT:       CompoundStmt
   // CHECK-NEXT:   ClassTemplateSpecializationDecl {{.*}} struct SpecialClassStructTemplate5 definition
@@ -1994,7 +1994,7 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:           InitListExpr {{.*}} 'void'
   // CHECK-NEXT:             StringLiteral {{.*}} 'const char[6]' lvalue "Attr1"
   // CHECK-NEXT:             StringLiteral {{.*}} 'const char[6]' lvalue "Attr3"
-  // CHECK-NEXT:           PackExpansionExpr {{.*}} '<dependent type>'
+  // CHECK-NEXT:           PackExpansionExpr {{.*}} 'const char *'
   // CHECK-NEXT:             DeclRefExpr {{.*}} 'const char *' NonTypeTemplateParm {{.*}} 'Strs' 'const char *'
   // CHECK-NEXT:       CompoundStmt
   // CHECK-NEXT:   ClassTemplateSpecializationDecl {{.*}} struct SpecialClassStructTemplate6 definition

@@ -1,4 +1,4 @@
-; RUN: opt < %s -S -simplifycfg | FileCheck %s
+; RUN: opt < %s -S -passes=simplifycfg | FileCheck %s
 
 ; When SimplifyCFG changes the PHI node into a select instruction, the debug
 ; information becomes ambiguous. It causes the debugger to display wrong
@@ -15,14 +15,14 @@
 ;   volatile int foo = 4;
 ;   int read = foo;
 ;   int read1 = foo;
-; 
+;
 ;   int result = 0;
 ;   if (read == 4) {
 ;     result = read1 + 2;
 ;   } else {
 ;     result = read1 - 2;
 ;   }
-; 
+;
 ;   return result;
 ; }
 
@@ -32,11 +32,11 @@
 ; CHECK-LABEL: entry
 ; CHECK:  %cmp = icmp eq i32 %foo.0., 4, !dbg !14
 ; CHECK:  %add = add nsw i32 %foo.0.4, 2, !dbg !16
-; CHECK-NOT: @llvm.dbg.value(metadata i32 %add
+; CHECK-NOT: #dbg_value(i32 %add
 ; CHECK:  %sub = add nsw i32 %foo.0.4, -2, !dbg !16
-; CHECK-NOT: @llvm.dbg.value(metadata i32 %sub
+; CHECK-NOT: #dbg_value(i32 %sub
 ; CHECK:  %result.0 = select i1 %cmp, i32 %add, i32 %sub
-; CHECK:  call void @llvm.dbg.value(metadata i32 %result.0, metadata !12, metadata !DIExpression()), !dbg !13
+; CHECK:  #dbg_value(i32 %result.0, !12, !DIExpression(), !13
 
 ; ModuleID = 'pr38763.cpp'
 source_filename = "pr38763.cpp"

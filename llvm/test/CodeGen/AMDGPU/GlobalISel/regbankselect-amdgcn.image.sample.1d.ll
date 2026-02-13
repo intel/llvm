@@ -24,9 +24,10 @@ define amdgpu_ps void @sample_1d_vgpr_vaddr__sgpr_rsrc__sgpr_samp(<8 x i32> inre
   ; FAST-NEXT:   [[BUILD_VECTOR1:%[0-9]+]]:sgpr(<4 x s32>) = G_BUILD_VECTOR [[COPY8]](s32), [[COPY9]](s32), [[COPY10]](s32), [[COPY11]](s32)
   ; FAST-NEXT:   [[COPY12:%[0-9]+]]:vgpr(s32) = COPY $vgpr0
   ; FAST-NEXT:   [[DEF:%[0-9]+]]:sgpr(p1) = G_IMPLICIT_DEF
-  ; FAST-NEXT:   [[AMDGPU_INTRIN_IMAGE_LOAD:%[0-9]+]]:vgpr(<4 x s32>) = G_AMDGPU_INTRIN_IMAGE_LOAD intrinsic(@llvm.amdgcn.image.sample.1d), 15, [[COPY12]](s32), [[BUILD_VECTOR]](<8 x s32>), [[BUILD_VECTOR1]](<4 x s32>), 0, 0, 0, 0 :: (dereferenceable load (<4 x s32>) from custom "ImageResource")
-  ; FAST-NEXT:   G_STORE [[AMDGPU_INTRIN_IMAGE_LOAD]](<4 x s32>), [[DEF]](p1) :: (store (<4 x s32>) into `<4 x float> addrspace(1)* undef`, addrspace 1)
+  ; FAST-NEXT:   [[AMDGPU_INTRIN_IMAGE_LOAD:%[0-9]+]]:vgpr(<4 x s32>) = G_AMDGPU_INTRIN_IMAGE_LOAD intrinsic(@llvm.amdgcn.image.sample.1d), 15, [[COPY12]](s32), [[BUILD_VECTOR]](<8 x s32>), [[BUILD_VECTOR1]](<4 x s32>), 0, 0, 0, 0 :: (dereferenceable load (<4 x s32>), addrspace 8)
+  ; FAST-NEXT:   G_STORE [[AMDGPU_INTRIN_IMAGE_LOAD]](<4 x s32>), [[DEF]](p1) :: (store (<4 x s32>) into `ptr addrspace(1) poison`, addrspace 1)
   ; FAST-NEXT:   S_ENDPGM 0
+  ;
   ; GREEDY-LABEL: name: sample_1d_vgpr_vaddr__sgpr_rsrc__sgpr_samp
   ; GREEDY: bb.1 (%ir-block.0):
   ; GREEDY-NEXT:   liveins: $sgpr2, $sgpr3, $sgpr4, $sgpr5, $sgpr6, $sgpr7, $sgpr8, $sgpr9, $sgpr10, $sgpr11, $sgpr12, $sgpr13, $vgpr0
@@ -47,11 +48,11 @@ define amdgpu_ps void @sample_1d_vgpr_vaddr__sgpr_rsrc__sgpr_samp(<8 x i32> inre
   ; GREEDY-NEXT:   [[BUILD_VECTOR1:%[0-9]+]]:sgpr(<4 x s32>) = G_BUILD_VECTOR [[COPY8]](s32), [[COPY9]](s32), [[COPY10]](s32), [[COPY11]](s32)
   ; GREEDY-NEXT:   [[COPY12:%[0-9]+]]:vgpr(s32) = COPY $vgpr0
   ; GREEDY-NEXT:   [[DEF:%[0-9]+]]:sgpr(p1) = G_IMPLICIT_DEF
-  ; GREEDY-NEXT:   [[AMDGPU_INTRIN_IMAGE_LOAD:%[0-9]+]]:vgpr(<4 x s32>) = G_AMDGPU_INTRIN_IMAGE_LOAD intrinsic(@llvm.amdgcn.image.sample.1d), 15, [[COPY12]](s32), [[BUILD_VECTOR]](<8 x s32>), [[BUILD_VECTOR1]](<4 x s32>), 0, 0, 0, 0 :: (dereferenceable load (<4 x s32>) from custom "ImageResource")
-  ; GREEDY-NEXT:   G_STORE [[AMDGPU_INTRIN_IMAGE_LOAD]](<4 x s32>), [[DEF]](p1) :: (store (<4 x s32>) into `<4 x float> addrspace(1)* undef`, addrspace 1)
+  ; GREEDY-NEXT:   [[AMDGPU_INTRIN_IMAGE_LOAD:%[0-9]+]]:vgpr(<4 x s32>) = G_AMDGPU_INTRIN_IMAGE_LOAD intrinsic(@llvm.amdgcn.image.sample.1d), 15, [[COPY12]](s32), [[BUILD_VECTOR]](<8 x s32>), [[BUILD_VECTOR1]](<4 x s32>), 0, 0, 0, 0 :: (dereferenceable load (<4 x s32>), addrspace 8)
+  ; GREEDY-NEXT:   G_STORE [[AMDGPU_INTRIN_IMAGE_LOAD]](<4 x s32>), [[DEF]](p1) :: (store (<4 x s32>) into `ptr addrspace(1) poison`, addrspace 1)
   ; GREEDY-NEXT:   S_ENDPGM 0
   %v = call <4 x float> @llvm.amdgcn.image.sample.1d.v4f32.f32(i32 15, float %s, <8 x i32> %rsrc, <4 x i32> %samp, i1 false, i32 0, i32 0)
-  store <4 x float> %v, <4 x float> addrspace(1)* undef
+  store <4 x float> %v, ptr addrspace(1) poison
   ret void
 }
 
@@ -78,9 +79,10 @@ define amdgpu_ps void @sample_1d_sgpr_vaddr__sgpr_rsrc__sgpr_samp(<8 x i32> inre
   ; FAST-NEXT:   [[COPY12:%[0-9]+]]:sgpr(s32) = COPY $sgpr14
   ; FAST-NEXT:   [[DEF:%[0-9]+]]:sgpr(p1) = G_IMPLICIT_DEF
   ; FAST-NEXT:   [[COPY13:%[0-9]+]]:vgpr(s32) = COPY [[COPY12]](s32)
-  ; FAST-NEXT:   [[AMDGPU_INTRIN_IMAGE_LOAD:%[0-9]+]]:vgpr(<4 x s32>) = G_AMDGPU_INTRIN_IMAGE_LOAD intrinsic(@llvm.amdgcn.image.sample.1d), 15, [[COPY13]](s32), [[BUILD_VECTOR]](<8 x s32>), [[BUILD_VECTOR1]](<4 x s32>), 0, 0, 0, 0 :: (dereferenceable load (<4 x s32>) from custom "ImageResource")
-  ; FAST-NEXT:   G_STORE [[AMDGPU_INTRIN_IMAGE_LOAD]](<4 x s32>), [[DEF]](p1) :: (store (<4 x s32>) into `<4 x float> addrspace(1)* undef`, addrspace 1)
+  ; FAST-NEXT:   [[AMDGPU_INTRIN_IMAGE_LOAD:%[0-9]+]]:vgpr(<4 x s32>) = G_AMDGPU_INTRIN_IMAGE_LOAD intrinsic(@llvm.amdgcn.image.sample.1d), 15, [[COPY13]](s32), [[BUILD_VECTOR]](<8 x s32>), [[BUILD_VECTOR1]](<4 x s32>), 0, 0, 0, 0 :: (dereferenceable load (<4 x s32>), addrspace 8)
+  ; FAST-NEXT:   G_STORE [[AMDGPU_INTRIN_IMAGE_LOAD]](<4 x s32>), [[DEF]](p1) :: (store (<4 x s32>) into `ptr addrspace(1) poison`, addrspace 1)
   ; FAST-NEXT:   S_ENDPGM 0
+  ;
   ; GREEDY-LABEL: name: sample_1d_sgpr_vaddr__sgpr_rsrc__sgpr_samp
   ; GREEDY: bb.1 (%ir-block.0):
   ; GREEDY-NEXT:   liveins: $sgpr2, $sgpr3, $sgpr4, $sgpr5, $sgpr6, $sgpr7, $sgpr8, $sgpr9, $sgpr10, $sgpr11, $sgpr12, $sgpr13, $sgpr14
@@ -102,11 +104,11 @@ define amdgpu_ps void @sample_1d_sgpr_vaddr__sgpr_rsrc__sgpr_samp(<8 x i32> inre
   ; GREEDY-NEXT:   [[COPY12:%[0-9]+]]:sgpr(s32) = COPY $sgpr14
   ; GREEDY-NEXT:   [[DEF:%[0-9]+]]:sgpr(p1) = G_IMPLICIT_DEF
   ; GREEDY-NEXT:   [[COPY13:%[0-9]+]]:vgpr(s32) = COPY [[COPY12]](s32)
-  ; GREEDY-NEXT:   [[AMDGPU_INTRIN_IMAGE_LOAD:%[0-9]+]]:vgpr(<4 x s32>) = G_AMDGPU_INTRIN_IMAGE_LOAD intrinsic(@llvm.amdgcn.image.sample.1d), 15, [[COPY13]](s32), [[BUILD_VECTOR]](<8 x s32>), [[BUILD_VECTOR1]](<4 x s32>), 0, 0, 0, 0 :: (dereferenceable load (<4 x s32>) from custom "ImageResource")
-  ; GREEDY-NEXT:   G_STORE [[AMDGPU_INTRIN_IMAGE_LOAD]](<4 x s32>), [[DEF]](p1) :: (store (<4 x s32>) into `<4 x float> addrspace(1)* undef`, addrspace 1)
+  ; GREEDY-NEXT:   [[AMDGPU_INTRIN_IMAGE_LOAD:%[0-9]+]]:vgpr(<4 x s32>) = G_AMDGPU_INTRIN_IMAGE_LOAD intrinsic(@llvm.amdgcn.image.sample.1d), 15, [[COPY13]](s32), [[BUILD_VECTOR]](<8 x s32>), [[BUILD_VECTOR1]](<4 x s32>), 0, 0, 0, 0 :: (dereferenceable load (<4 x s32>), addrspace 8)
+  ; GREEDY-NEXT:   G_STORE [[AMDGPU_INTRIN_IMAGE_LOAD]](<4 x s32>), [[DEF]](p1) :: (store (<4 x s32>) into `ptr addrspace(1) poison`, addrspace 1)
   ; GREEDY-NEXT:   S_ENDPGM 0
   %v = call <4 x float> @llvm.amdgcn.image.sample.1d.v4f32.f32(i32 15, float %s, <8 x i32> %rsrc, <4 x i32> %samp, i1 false, i32 0, i32 0)
-  store <4 x float> %v, <4 x float> addrspace(1)* undef
+  store <4 x float> %v, ptr addrspace(1) poison
   ret void
 }
 
@@ -141,14 +143,14 @@ define amdgpu_ps void @sample_1d_vgpr_vaddr__vgpr_rsrc__sgpr_samp(<8 x i32> %rsr
   ; FAST-NEXT: {{  $}}
   ; FAST-NEXT:   [[PHI:%[0-9]+]]:sreg_64_xexec = PHI [[DEF1]], %bb.1, %22, %bb.3
   ; FAST-NEXT:   [[UV:%[0-9]+]]:vgpr_32(s32), [[UV1:%[0-9]+]]:vgpr_32(s32), [[UV2:%[0-9]+]]:vgpr_32(s32), [[UV3:%[0-9]+]]:vgpr_32(s32), [[UV4:%[0-9]+]]:vgpr_32(s32), [[UV5:%[0-9]+]]:vgpr_32(s32), [[UV6:%[0-9]+]]:vgpr_32(s32), [[UV7:%[0-9]+]]:vgpr_32(s32) = G_UNMERGE_VALUES [[BUILD_VECTOR]](<8 x s32>)
-  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV]](s32), implicit $exec
-  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_1:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV1]](s32), implicit $exec
-  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_2:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV2]](s32), implicit $exec
-  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_3:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV3]](s32), implicit $exec
-  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_4:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV4]](s32), implicit $exec
-  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_5:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV5]](s32), implicit $exec
-  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_6:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV6]](s32), implicit $exec
-  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_7:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV7]](s32), implicit $exec
+  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV]](s32), implicit $exec
+  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_1:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV1]](s32), implicit $exec
+  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_2:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV2]](s32), implicit $exec
+  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_3:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV3]](s32), implicit $exec
+  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_4:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV4]](s32), implicit $exec
+  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_5:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV5]](s32), implicit $exec
+  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_6:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV6]](s32), implicit $exec
+  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_7:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV7]](s32), implicit $exec
   ; FAST-NEXT:   [[BUILD_VECTOR2:%[0-9]+]]:sgpr(<8 x s32>) = G_BUILD_VECTOR [[V_READFIRSTLANE_B32_]](s32), [[V_READFIRSTLANE_B32_1]](s32), [[V_READFIRSTLANE_B32_2]](s32), [[V_READFIRSTLANE_B32_3]](s32), [[V_READFIRSTLANE_B32_4]](s32), [[V_READFIRSTLANE_B32_5]](s32), [[V_READFIRSTLANE_B32_6]](s32), [[V_READFIRSTLANE_B32_7]](s32)
   ; FAST-NEXT:   [[UV8:%[0-9]+]]:vgpr(s64), [[UV9:%[0-9]+]]:vgpr(s64), [[UV10:%[0-9]+]]:vgpr(s64), [[UV11:%[0-9]+]]:vgpr(s64) = G_UNMERGE_VALUES [[BUILD_VECTOR]](<8 x s32>)
   ; FAST-NEXT:   [[UV12:%[0-9]+]]:sgpr(s64), [[UV13:%[0-9]+]]:sgpr(s64), [[UV14:%[0-9]+]]:sgpr(s64), [[UV15:%[0-9]+]]:sgpr(s64) = G_UNMERGE_VALUES [[BUILD_VECTOR2]](<8 x s32>)
@@ -159,13 +161,13 @@ define amdgpu_ps void @sample_1d_vgpr_vaddr__vgpr_rsrc__sgpr_samp(<8 x i32> %rsr
   ; FAST-NEXT:   [[AND1:%[0-9]+]]:vcc(s1) = G_AND [[AND]], [[ICMP2]]
   ; FAST-NEXT:   [[ICMP3:%[0-9]+]]:vcc(s1) = G_ICMP intpred(eq), [[UV15]](s64), [[UV11]]
   ; FAST-NEXT:   [[AND2:%[0-9]+]]:vcc(s1) = G_AND [[AND1]], [[ICMP3]]
-  ; FAST-NEXT:   [[INT:%[0-9]+]]:sreg_64_xexec(s64) = G_INTRINSIC intrinsic(@llvm.amdgcn.ballot), [[AND2]](s1)
-  ; FAST-NEXT:   [[S_AND_SAVEEXEC_B64_:%[0-9]+]]:sreg_64_xexec = S_AND_SAVEEXEC_B64 killed [[INT]](s64), implicit-def $exec, implicit-def $scc, implicit $exec
+  ; FAST-NEXT:   [[INTRINSIC_CONVERGENT:%[0-9]+]]:sreg_64_xexec(s64) = G_INTRINSIC_CONVERGENT intrinsic(@llvm.amdgcn.ballot), [[AND2]](s1)
+  ; FAST-NEXT:   [[S_AND_SAVEEXEC_B64_:%[0-9]+]]:sreg_64_xexec = S_AND_SAVEEXEC_B64 killed [[INTRINSIC_CONVERGENT]](s64), implicit-def $exec, implicit-def $scc, implicit $exec
   ; FAST-NEXT: {{  $}}
   ; FAST-NEXT: bb.3:
   ; FAST-NEXT:   successors: %bb.4(0x40000000), %bb.2(0x40000000)
   ; FAST-NEXT: {{  $}}
-  ; FAST-NEXT:   [[AMDGPU_INTRIN_IMAGE_LOAD:%[0-9]+]]:vgpr(<4 x s32>) = G_AMDGPU_INTRIN_IMAGE_LOAD intrinsic(@llvm.amdgcn.image.sample.1d), 15, [[COPY12]](s32), [[BUILD_VECTOR2]](<8 x s32>), [[BUILD_VECTOR1]](<4 x s32>), 0, 0, 0, 0 :: (dereferenceable load (<4 x s32>) from custom "ImageResource")
+  ; FAST-NEXT:   [[AMDGPU_INTRIN_IMAGE_LOAD:%[0-9]+]]:vgpr(<4 x s32>) = G_AMDGPU_INTRIN_IMAGE_LOAD intrinsic(@llvm.amdgcn.image.sample.1d), 15, [[COPY12]](s32), [[BUILD_VECTOR2]](<8 x s32>), [[BUILD_VECTOR1]](<4 x s32>), 0, 0, 0, 0 :: (dereferenceable load (<4 x s32>), addrspace 8)
   ; FAST-NEXT:   $exec = S_XOR_B64_term $exec, [[S_AND_SAVEEXEC_B64_]], implicit-def $scc
   ; FAST-NEXT:   SI_WATERFALL_LOOP %bb.2, implicit $exec
   ; FAST-NEXT: {{  $}}
@@ -175,8 +177,9 @@ define amdgpu_ps void @sample_1d_vgpr_vaddr__vgpr_rsrc__sgpr_samp(<8 x i32> %rsr
   ; FAST-NEXT:   $exec = S_MOV_B64_term [[S_MOV_B64_]]
   ; FAST-NEXT: {{  $}}
   ; FAST-NEXT: bb.5:
-  ; FAST-NEXT:   G_STORE [[AMDGPU_INTRIN_IMAGE_LOAD]](<4 x s32>), [[DEF]](p1) :: (store (<4 x s32>) into `<4 x float> addrspace(1)* undef`, addrspace 1)
+  ; FAST-NEXT:   G_STORE [[AMDGPU_INTRIN_IMAGE_LOAD]](<4 x s32>), [[DEF]](p1) :: (store (<4 x s32>) into `ptr addrspace(1) poison`, addrspace 1)
   ; FAST-NEXT:   S_ENDPGM 0
+  ;
   ; GREEDY-LABEL: name: sample_1d_vgpr_vaddr__vgpr_rsrc__sgpr_samp
   ; GREEDY: bb.1 (%ir-block.0):
   ; GREEDY-NEXT:   successors: %bb.2(0x80000000)
@@ -206,14 +209,14 @@ define amdgpu_ps void @sample_1d_vgpr_vaddr__vgpr_rsrc__sgpr_samp(<8 x i32> %rsr
   ; GREEDY-NEXT: {{  $}}
   ; GREEDY-NEXT:   [[PHI:%[0-9]+]]:sreg_64_xexec = PHI [[DEF1]], %bb.1, %22, %bb.3
   ; GREEDY-NEXT:   [[UV:%[0-9]+]]:vgpr_32(s32), [[UV1:%[0-9]+]]:vgpr_32(s32), [[UV2:%[0-9]+]]:vgpr_32(s32), [[UV3:%[0-9]+]]:vgpr_32(s32), [[UV4:%[0-9]+]]:vgpr_32(s32), [[UV5:%[0-9]+]]:vgpr_32(s32), [[UV6:%[0-9]+]]:vgpr_32(s32), [[UV7:%[0-9]+]]:vgpr_32(s32) = G_UNMERGE_VALUES [[BUILD_VECTOR]](<8 x s32>)
-  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV]](s32), implicit $exec
-  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_1:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV1]](s32), implicit $exec
-  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_2:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV2]](s32), implicit $exec
-  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_3:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV3]](s32), implicit $exec
-  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_4:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV4]](s32), implicit $exec
-  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_5:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV5]](s32), implicit $exec
-  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_6:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV6]](s32), implicit $exec
-  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_7:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV7]](s32), implicit $exec
+  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV]](s32), implicit $exec
+  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_1:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV1]](s32), implicit $exec
+  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_2:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV2]](s32), implicit $exec
+  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_3:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV3]](s32), implicit $exec
+  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_4:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV4]](s32), implicit $exec
+  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_5:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV5]](s32), implicit $exec
+  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_6:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV6]](s32), implicit $exec
+  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_7:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV7]](s32), implicit $exec
   ; GREEDY-NEXT:   [[BUILD_VECTOR2:%[0-9]+]]:sgpr(<8 x s32>) = G_BUILD_VECTOR [[V_READFIRSTLANE_B32_]](s32), [[V_READFIRSTLANE_B32_1]](s32), [[V_READFIRSTLANE_B32_2]](s32), [[V_READFIRSTLANE_B32_3]](s32), [[V_READFIRSTLANE_B32_4]](s32), [[V_READFIRSTLANE_B32_5]](s32), [[V_READFIRSTLANE_B32_6]](s32), [[V_READFIRSTLANE_B32_7]](s32)
   ; GREEDY-NEXT:   [[UV8:%[0-9]+]]:vgpr(s64), [[UV9:%[0-9]+]]:vgpr(s64), [[UV10:%[0-9]+]]:vgpr(s64), [[UV11:%[0-9]+]]:vgpr(s64) = G_UNMERGE_VALUES [[BUILD_VECTOR]](<8 x s32>)
   ; GREEDY-NEXT:   [[UV12:%[0-9]+]]:sgpr(s64), [[UV13:%[0-9]+]]:sgpr(s64), [[UV14:%[0-9]+]]:sgpr(s64), [[UV15:%[0-9]+]]:sgpr(s64) = G_UNMERGE_VALUES [[BUILD_VECTOR2]](<8 x s32>)
@@ -224,13 +227,13 @@ define amdgpu_ps void @sample_1d_vgpr_vaddr__vgpr_rsrc__sgpr_samp(<8 x i32> %rsr
   ; GREEDY-NEXT:   [[AND1:%[0-9]+]]:vcc(s1) = G_AND [[AND]], [[ICMP2]]
   ; GREEDY-NEXT:   [[ICMP3:%[0-9]+]]:vcc(s1) = G_ICMP intpred(eq), [[UV15]](s64), [[UV11]]
   ; GREEDY-NEXT:   [[AND2:%[0-9]+]]:vcc(s1) = G_AND [[AND1]], [[ICMP3]]
-  ; GREEDY-NEXT:   [[INT:%[0-9]+]]:sreg_64_xexec(s64) = G_INTRINSIC intrinsic(@llvm.amdgcn.ballot), [[AND2]](s1)
-  ; GREEDY-NEXT:   [[S_AND_SAVEEXEC_B64_:%[0-9]+]]:sreg_64_xexec = S_AND_SAVEEXEC_B64 killed [[INT]](s64), implicit-def $exec, implicit-def $scc, implicit $exec
+  ; GREEDY-NEXT:   [[INTRINSIC_CONVERGENT:%[0-9]+]]:sreg_64_xexec(s64) = G_INTRINSIC_CONVERGENT intrinsic(@llvm.amdgcn.ballot), [[AND2]](s1)
+  ; GREEDY-NEXT:   [[S_AND_SAVEEXEC_B64_:%[0-9]+]]:sreg_64_xexec = S_AND_SAVEEXEC_B64 killed [[INTRINSIC_CONVERGENT]](s64), implicit-def $exec, implicit-def $scc, implicit $exec
   ; GREEDY-NEXT: {{  $}}
   ; GREEDY-NEXT: bb.3:
   ; GREEDY-NEXT:   successors: %bb.4(0x40000000), %bb.2(0x40000000)
   ; GREEDY-NEXT: {{  $}}
-  ; GREEDY-NEXT:   [[AMDGPU_INTRIN_IMAGE_LOAD:%[0-9]+]]:vgpr(<4 x s32>) = G_AMDGPU_INTRIN_IMAGE_LOAD intrinsic(@llvm.amdgcn.image.sample.1d), 15, [[COPY12]](s32), [[BUILD_VECTOR2]](<8 x s32>), [[BUILD_VECTOR1]](<4 x s32>), 0, 0, 0, 0 :: (dereferenceable load (<4 x s32>) from custom "ImageResource")
+  ; GREEDY-NEXT:   [[AMDGPU_INTRIN_IMAGE_LOAD:%[0-9]+]]:vgpr(<4 x s32>) = G_AMDGPU_INTRIN_IMAGE_LOAD intrinsic(@llvm.amdgcn.image.sample.1d), 15, [[COPY12]](s32), [[BUILD_VECTOR2]](<8 x s32>), [[BUILD_VECTOR1]](<4 x s32>), 0, 0, 0, 0 :: (dereferenceable load (<4 x s32>), addrspace 8)
   ; GREEDY-NEXT:   $exec = S_XOR_B64_term $exec, [[S_AND_SAVEEXEC_B64_]], implicit-def $scc
   ; GREEDY-NEXT:   SI_WATERFALL_LOOP %bb.2, implicit $exec
   ; GREEDY-NEXT: {{  $}}
@@ -240,10 +243,10 @@ define amdgpu_ps void @sample_1d_vgpr_vaddr__vgpr_rsrc__sgpr_samp(<8 x i32> %rsr
   ; GREEDY-NEXT:   $exec = S_MOV_B64_term [[S_MOV_B64_]]
   ; GREEDY-NEXT: {{  $}}
   ; GREEDY-NEXT: bb.5:
-  ; GREEDY-NEXT:   G_STORE [[AMDGPU_INTRIN_IMAGE_LOAD]](<4 x s32>), [[DEF]](p1) :: (store (<4 x s32>) into `<4 x float> addrspace(1)* undef`, addrspace 1)
+  ; GREEDY-NEXT:   G_STORE [[AMDGPU_INTRIN_IMAGE_LOAD]](<4 x s32>), [[DEF]](p1) :: (store (<4 x s32>) into `ptr addrspace(1) poison`, addrspace 1)
   ; GREEDY-NEXT:   S_ENDPGM 0
   %v = call <4 x float> @llvm.amdgcn.image.sample.1d.v4f32.f32(i32 15, float %s, <8 x i32> %rsrc, <4 x i32> %samp, i1 false, i32 0, i32 0)
-  store <4 x float> %v, <4 x float> addrspace(1)* undef
+  store <4 x float> %v, ptr addrspace(1) poison
   ret void
 }
 
@@ -278,23 +281,23 @@ define amdgpu_ps void @sample_1d_vgpr_vaddr__sgpr_rsrc__vgpr_samp(<8 x i32> inre
   ; FAST-NEXT: {{  $}}
   ; FAST-NEXT:   [[PHI:%[0-9]+]]:sreg_64_xexec = PHI [[DEF1]], %bb.1, %22, %bb.3
   ; FAST-NEXT:   [[UV:%[0-9]+]]:vgpr_32(s32), [[UV1:%[0-9]+]]:vgpr_32(s32), [[UV2:%[0-9]+]]:vgpr_32(s32), [[UV3:%[0-9]+]]:vgpr_32(s32) = G_UNMERGE_VALUES [[BUILD_VECTOR1]](<4 x s32>)
-  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV]](s32), implicit $exec
-  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_1:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV1]](s32), implicit $exec
-  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_2:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV2]](s32), implicit $exec
-  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_3:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV3]](s32), implicit $exec
+  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV]](s32), implicit $exec
+  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_1:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV1]](s32), implicit $exec
+  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_2:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV2]](s32), implicit $exec
+  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_3:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV3]](s32), implicit $exec
   ; FAST-NEXT:   [[BUILD_VECTOR2:%[0-9]+]]:sgpr(<4 x s32>) = G_BUILD_VECTOR [[V_READFIRSTLANE_B32_]](s32), [[V_READFIRSTLANE_B32_1]](s32), [[V_READFIRSTLANE_B32_2]](s32), [[V_READFIRSTLANE_B32_3]](s32)
   ; FAST-NEXT:   [[UV4:%[0-9]+]]:vgpr(s64), [[UV5:%[0-9]+]]:vgpr(s64) = G_UNMERGE_VALUES [[BUILD_VECTOR1]](<4 x s32>)
   ; FAST-NEXT:   [[UV6:%[0-9]+]]:sgpr(s64), [[UV7:%[0-9]+]]:sgpr(s64) = G_UNMERGE_VALUES [[BUILD_VECTOR2]](<4 x s32>)
   ; FAST-NEXT:   [[ICMP:%[0-9]+]]:vcc(s1) = G_ICMP intpred(eq), [[UV6]](s64), [[UV4]]
   ; FAST-NEXT:   [[ICMP1:%[0-9]+]]:vcc(s1) = G_ICMP intpred(eq), [[UV7]](s64), [[UV5]]
   ; FAST-NEXT:   [[AND:%[0-9]+]]:vcc(s1) = G_AND [[ICMP]], [[ICMP1]]
-  ; FAST-NEXT:   [[INT:%[0-9]+]]:sreg_64_xexec(s64) = G_INTRINSIC intrinsic(@llvm.amdgcn.ballot), [[AND]](s1)
-  ; FAST-NEXT:   [[S_AND_SAVEEXEC_B64_:%[0-9]+]]:sreg_64_xexec = S_AND_SAVEEXEC_B64 killed [[INT]](s64), implicit-def $exec, implicit-def $scc, implicit $exec
+  ; FAST-NEXT:   [[INTRINSIC_CONVERGENT:%[0-9]+]]:sreg_64_xexec(s64) = G_INTRINSIC_CONVERGENT intrinsic(@llvm.amdgcn.ballot), [[AND]](s1)
+  ; FAST-NEXT:   [[S_AND_SAVEEXEC_B64_:%[0-9]+]]:sreg_64_xexec = S_AND_SAVEEXEC_B64 killed [[INTRINSIC_CONVERGENT]](s64), implicit-def $exec, implicit-def $scc, implicit $exec
   ; FAST-NEXT: {{  $}}
   ; FAST-NEXT: bb.3:
   ; FAST-NEXT:   successors: %bb.4(0x40000000), %bb.2(0x40000000)
   ; FAST-NEXT: {{  $}}
-  ; FAST-NEXT:   [[AMDGPU_INTRIN_IMAGE_LOAD:%[0-9]+]]:vgpr(<4 x s32>) = G_AMDGPU_INTRIN_IMAGE_LOAD intrinsic(@llvm.amdgcn.image.sample.1d), 15, [[COPY12]](s32), [[BUILD_VECTOR]](<8 x s32>), [[BUILD_VECTOR2]](<4 x s32>), 0, 0, 0, 0 :: (dereferenceable load (<4 x s32>) from custom "ImageResource")
+  ; FAST-NEXT:   [[AMDGPU_INTRIN_IMAGE_LOAD:%[0-9]+]]:vgpr(<4 x s32>) = G_AMDGPU_INTRIN_IMAGE_LOAD intrinsic(@llvm.amdgcn.image.sample.1d), 15, [[COPY12]](s32), [[BUILD_VECTOR]](<8 x s32>), [[BUILD_VECTOR2]](<4 x s32>), 0, 0, 0, 0 :: (dereferenceable load (<4 x s32>), addrspace 8)
   ; FAST-NEXT:   $exec = S_XOR_B64_term $exec, [[S_AND_SAVEEXEC_B64_]], implicit-def $scc
   ; FAST-NEXT:   SI_WATERFALL_LOOP %bb.2, implicit $exec
   ; FAST-NEXT: {{  $}}
@@ -304,8 +307,9 @@ define amdgpu_ps void @sample_1d_vgpr_vaddr__sgpr_rsrc__vgpr_samp(<8 x i32> inre
   ; FAST-NEXT:   $exec = S_MOV_B64_term [[S_MOV_B64_]]
   ; FAST-NEXT: {{  $}}
   ; FAST-NEXT: bb.5:
-  ; FAST-NEXT:   G_STORE [[AMDGPU_INTRIN_IMAGE_LOAD]](<4 x s32>), [[DEF]](p1) :: (store (<4 x s32>) into `<4 x float> addrspace(1)* undef`, addrspace 1)
+  ; FAST-NEXT:   G_STORE [[AMDGPU_INTRIN_IMAGE_LOAD]](<4 x s32>), [[DEF]](p1) :: (store (<4 x s32>) into `ptr addrspace(1) poison`, addrspace 1)
   ; FAST-NEXT:   S_ENDPGM 0
+  ;
   ; GREEDY-LABEL: name: sample_1d_vgpr_vaddr__sgpr_rsrc__vgpr_samp
   ; GREEDY: bb.1 (%ir-block.0):
   ; GREEDY-NEXT:   successors: %bb.2(0x80000000)
@@ -335,23 +339,23 @@ define amdgpu_ps void @sample_1d_vgpr_vaddr__sgpr_rsrc__vgpr_samp(<8 x i32> inre
   ; GREEDY-NEXT: {{  $}}
   ; GREEDY-NEXT:   [[PHI:%[0-9]+]]:sreg_64_xexec = PHI [[DEF1]], %bb.1, %22, %bb.3
   ; GREEDY-NEXT:   [[UV:%[0-9]+]]:vgpr_32(s32), [[UV1:%[0-9]+]]:vgpr_32(s32), [[UV2:%[0-9]+]]:vgpr_32(s32), [[UV3:%[0-9]+]]:vgpr_32(s32) = G_UNMERGE_VALUES [[BUILD_VECTOR1]](<4 x s32>)
-  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV]](s32), implicit $exec
-  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_1:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV1]](s32), implicit $exec
-  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_2:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV2]](s32), implicit $exec
-  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_3:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV3]](s32), implicit $exec
+  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV]](s32), implicit $exec
+  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_1:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV1]](s32), implicit $exec
+  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_2:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV2]](s32), implicit $exec
+  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_3:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV3]](s32), implicit $exec
   ; GREEDY-NEXT:   [[BUILD_VECTOR2:%[0-9]+]]:sgpr(<4 x s32>) = G_BUILD_VECTOR [[V_READFIRSTLANE_B32_]](s32), [[V_READFIRSTLANE_B32_1]](s32), [[V_READFIRSTLANE_B32_2]](s32), [[V_READFIRSTLANE_B32_3]](s32)
   ; GREEDY-NEXT:   [[UV4:%[0-9]+]]:vgpr(s64), [[UV5:%[0-9]+]]:vgpr(s64) = G_UNMERGE_VALUES [[BUILD_VECTOR1]](<4 x s32>)
   ; GREEDY-NEXT:   [[UV6:%[0-9]+]]:sgpr(s64), [[UV7:%[0-9]+]]:sgpr(s64) = G_UNMERGE_VALUES [[BUILD_VECTOR2]](<4 x s32>)
   ; GREEDY-NEXT:   [[ICMP:%[0-9]+]]:vcc(s1) = G_ICMP intpred(eq), [[UV6]](s64), [[UV4]]
   ; GREEDY-NEXT:   [[ICMP1:%[0-9]+]]:vcc(s1) = G_ICMP intpred(eq), [[UV7]](s64), [[UV5]]
   ; GREEDY-NEXT:   [[AND:%[0-9]+]]:vcc(s1) = G_AND [[ICMP]], [[ICMP1]]
-  ; GREEDY-NEXT:   [[INT:%[0-9]+]]:sreg_64_xexec(s64) = G_INTRINSIC intrinsic(@llvm.amdgcn.ballot), [[AND]](s1)
-  ; GREEDY-NEXT:   [[S_AND_SAVEEXEC_B64_:%[0-9]+]]:sreg_64_xexec = S_AND_SAVEEXEC_B64 killed [[INT]](s64), implicit-def $exec, implicit-def $scc, implicit $exec
+  ; GREEDY-NEXT:   [[INTRINSIC_CONVERGENT:%[0-9]+]]:sreg_64_xexec(s64) = G_INTRINSIC_CONVERGENT intrinsic(@llvm.amdgcn.ballot), [[AND]](s1)
+  ; GREEDY-NEXT:   [[S_AND_SAVEEXEC_B64_:%[0-9]+]]:sreg_64_xexec = S_AND_SAVEEXEC_B64 killed [[INTRINSIC_CONVERGENT]](s64), implicit-def $exec, implicit-def $scc, implicit $exec
   ; GREEDY-NEXT: {{  $}}
   ; GREEDY-NEXT: bb.3:
   ; GREEDY-NEXT:   successors: %bb.4(0x40000000), %bb.2(0x40000000)
   ; GREEDY-NEXT: {{  $}}
-  ; GREEDY-NEXT:   [[AMDGPU_INTRIN_IMAGE_LOAD:%[0-9]+]]:vgpr(<4 x s32>) = G_AMDGPU_INTRIN_IMAGE_LOAD intrinsic(@llvm.amdgcn.image.sample.1d), 15, [[COPY12]](s32), [[BUILD_VECTOR]](<8 x s32>), [[BUILD_VECTOR2]](<4 x s32>), 0, 0, 0, 0 :: (dereferenceable load (<4 x s32>) from custom "ImageResource")
+  ; GREEDY-NEXT:   [[AMDGPU_INTRIN_IMAGE_LOAD:%[0-9]+]]:vgpr(<4 x s32>) = G_AMDGPU_INTRIN_IMAGE_LOAD intrinsic(@llvm.amdgcn.image.sample.1d), 15, [[COPY12]](s32), [[BUILD_VECTOR]](<8 x s32>), [[BUILD_VECTOR2]](<4 x s32>), 0, 0, 0, 0 :: (dereferenceable load (<4 x s32>), addrspace 8)
   ; GREEDY-NEXT:   $exec = S_XOR_B64_term $exec, [[S_AND_SAVEEXEC_B64_]], implicit-def $scc
   ; GREEDY-NEXT:   SI_WATERFALL_LOOP %bb.2, implicit $exec
   ; GREEDY-NEXT: {{  $}}
@@ -361,10 +365,10 @@ define amdgpu_ps void @sample_1d_vgpr_vaddr__sgpr_rsrc__vgpr_samp(<8 x i32> inre
   ; GREEDY-NEXT:   $exec = S_MOV_B64_term [[S_MOV_B64_]]
   ; GREEDY-NEXT: {{  $}}
   ; GREEDY-NEXT: bb.5:
-  ; GREEDY-NEXT:   G_STORE [[AMDGPU_INTRIN_IMAGE_LOAD]](<4 x s32>), [[DEF]](p1) :: (store (<4 x s32>) into `<4 x float> addrspace(1)* undef`, addrspace 1)
+  ; GREEDY-NEXT:   G_STORE [[AMDGPU_INTRIN_IMAGE_LOAD]](<4 x s32>), [[DEF]](p1) :: (store (<4 x s32>) into `ptr addrspace(1) poison`, addrspace 1)
   ; GREEDY-NEXT:   S_ENDPGM 0
   %v = call <4 x float> @llvm.amdgcn.image.sample.1d.v4f32.f32(i32 15, float %s, <8 x i32> %rsrc, <4 x i32> %samp, i1 false, i32 0, i32 0)
-  store <4 x float> %v, <4 x float> addrspace(1)* undef
+  store <4 x float> %v, ptr addrspace(1) poison
   ret void
 }
 
@@ -399,14 +403,14 @@ define amdgpu_ps void @sample_1d_vgpr_vaddr__vgpr_rsrc__vgpr_samp(<8 x i32> %rsr
   ; FAST-NEXT: {{  $}}
   ; FAST-NEXT:   [[PHI:%[0-9]+]]:sreg_64_xexec = PHI [[DEF1]], %bb.1, %22, %bb.3
   ; FAST-NEXT:   [[UV:%[0-9]+]]:vgpr_32(s32), [[UV1:%[0-9]+]]:vgpr_32(s32), [[UV2:%[0-9]+]]:vgpr_32(s32), [[UV3:%[0-9]+]]:vgpr_32(s32), [[UV4:%[0-9]+]]:vgpr_32(s32), [[UV5:%[0-9]+]]:vgpr_32(s32), [[UV6:%[0-9]+]]:vgpr_32(s32), [[UV7:%[0-9]+]]:vgpr_32(s32) = G_UNMERGE_VALUES [[BUILD_VECTOR]](<8 x s32>)
-  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV]](s32), implicit $exec
-  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_1:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV1]](s32), implicit $exec
-  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_2:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV2]](s32), implicit $exec
-  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_3:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV3]](s32), implicit $exec
-  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_4:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV4]](s32), implicit $exec
-  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_5:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV5]](s32), implicit $exec
-  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_6:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV6]](s32), implicit $exec
-  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_7:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV7]](s32), implicit $exec
+  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV]](s32), implicit $exec
+  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_1:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV1]](s32), implicit $exec
+  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_2:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV2]](s32), implicit $exec
+  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_3:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV3]](s32), implicit $exec
+  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_4:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV4]](s32), implicit $exec
+  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_5:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV5]](s32), implicit $exec
+  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_6:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV6]](s32), implicit $exec
+  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_7:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV7]](s32), implicit $exec
   ; FAST-NEXT:   [[BUILD_VECTOR2:%[0-9]+]]:sgpr(<8 x s32>) = G_BUILD_VECTOR [[V_READFIRSTLANE_B32_]](s32), [[V_READFIRSTLANE_B32_1]](s32), [[V_READFIRSTLANE_B32_2]](s32), [[V_READFIRSTLANE_B32_3]](s32), [[V_READFIRSTLANE_B32_4]](s32), [[V_READFIRSTLANE_B32_5]](s32), [[V_READFIRSTLANE_B32_6]](s32), [[V_READFIRSTLANE_B32_7]](s32)
   ; FAST-NEXT:   [[UV8:%[0-9]+]]:vgpr(s64), [[UV9:%[0-9]+]]:vgpr(s64), [[UV10:%[0-9]+]]:vgpr(s64), [[UV11:%[0-9]+]]:vgpr(s64) = G_UNMERGE_VALUES [[BUILD_VECTOR]](<8 x s32>)
   ; FAST-NEXT:   [[UV12:%[0-9]+]]:sgpr(s64), [[UV13:%[0-9]+]]:sgpr(s64), [[UV14:%[0-9]+]]:sgpr(s64), [[UV15:%[0-9]+]]:sgpr(s64) = G_UNMERGE_VALUES [[BUILD_VECTOR2]](<8 x s32>)
@@ -418,10 +422,10 @@ define amdgpu_ps void @sample_1d_vgpr_vaddr__vgpr_rsrc__vgpr_samp(<8 x i32> %rsr
   ; FAST-NEXT:   [[ICMP3:%[0-9]+]]:vcc(s1) = G_ICMP intpred(eq), [[UV15]](s64), [[UV11]]
   ; FAST-NEXT:   [[AND2:%[0-9]+]]:vcc(s1) = G_AND [[AND1]], [[ICMP3]]
   ; FAST-NEXT:   [[UV16:%[0-9]+]]:vgpr_32(s32), [[UV17:%[0-9]+]]:vgpr_32(s32), [[UV18:%[0-9]+]]:vgpr_32(s32), [[UV19:%[0-9]+]]:vgpr_32(s32) = G_UNMERGE_VALUES [[BUILD_VECTOR1]](<4 x s32>)
-  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_8:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV16]](s32), implicit $exec
-  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_9:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV17]](s32), implicit $exec
-  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_10:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV18]](s32), implicit $exec
-  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_11:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV19]](s32), implicit $exec
+  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_8:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV16]](s32), implicit $exec
+  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_9:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV17]](s32), implicit $exec
+  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_10:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV18]](s32), implicit $exec
+  ; FAST-NEXT:   [[V_READFIRSTLANE_B32_11:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV19]](s32), implicit $exec
   ; FAST-NEXT:   [[BUILD_VECTOR3:%[0-9]+]]:sgpr(<4 x s32>) = G_BUILD_VECTOR [[V_READFIRSTLANE_B32_8]](s32), [[V_READFIRSTLANE_B32_9]](s32), [[V_READFIRSTLANE_B32_10]](s32), [[V_READFIRSTLANE_B32_11]](s32)
   ; FAST-NEXT:   [[UV20:%[0-9]+]]:vgpr(s64), [[UV21:%[0-9]+]]:vgpr(s64) = G_UNMERGE_VALUES [[BUILD_VECTOR1]](<4 x s32>)
   ; FAST-NEXT:   [[UV22:%[0-9]+]]:sgpr(s64), [[UV23:%[0-9]+]]:sgpr(s64) = G_UNMERGE_VALUES [[BUILD_VECTOR3]](<4 x s32>)
@@ -429,13 +433,13 @@ define amdgpu_ps void @sample_1d_vgpr_vaddr__vgpr_rsrc__vgpr_samp(<8 x i32> %rsr
   ; FAST-NEXT:   [[AND3:%[0-9]+]]:vcc(s1) = G_AND [[AND2]], [[ICMP4]]
   ; FAST-NEXT:   [[ICMP5:%[0-9]+]]:vcc(s1) = G_ICMP intpred(eq), [[UV23]](s64), [[UV21]]
   ; FAST-NEXT:   [[AND4:%[0-9]+]]:vcc(s1) = G_AND [[AND3]], [[ICMP5]]
-  ; FAST-NEXT:   [[INT:%[0-9]+]]:sreg_64_xexec(s64) = G_INTRINSIC intrinsic(@llvm.amdgcn.ballot), [[AND4]](s1)
-  ; FAST-NEXT:   [[S_AND_SAVEEXEC_B64_:%[0-9]+]]:sreg_64_xexec = S_AND_SAVEEXEC_B64 killed [[INT]](s64), implicit-def $exec, implicit-def $scc, implicit $exec
+  ; FAST-NEXT:   [[INTRINSIC_CONVERGENT:%[0-9]+]]:sreg_64_xexec(s64) = G_INTRINSIC_CONVERGENT intrinsic(@llvm.amdgcn.ballot), [[AND4]](s1)
+  ; FAST-NEXT:   [[S_AND_SAVEEXEC_B64_:%[0-9]+]]:sreg_64_xexec = S_AND_SAVEEXEC_B64 killed [[INTRINSIC_CONVERGENT]](s64), implicit-def $exec, implicit-def $scc, implicit $exec
   ; FAST-NEXT: {{  $}}
   ; FAST-NEXT: bb.3:
   ; FAST-NEXT:   successors: %bb.4(0x40000000), %bb.2(0x40000000)
   ; FAST-NEXT: {{  $}}
-  ; FAST-NEXT:   [[AMDGPU_INTRIN_IMAGE_LOAD:%[0-9]+]]:vgpr(<4 x s32>) = G_AMDGPU_INTRIN_IMAGE_LOAD intrinsic(@llvm.amdgcn.image.sample.1d), 15, [[COPY12]](s32), [[BUILD_VECTOR2]](<8 x s32>), [[BUILD_VECTOR3]](<4 x s32>), 0, 0, 0, 0 :: (dereferenceable load (<4 x s32>) from custom "ImageResource")
+  ; FAST-NEXT:   [[AMDGPU_INTRIN_IMAGE_LOAD:%[0-9]+]]:vgpr(<4 x s32>) = G_AMDGPU_INTRIN_IMAGE_LOAD intrinsic(@llvm.amdgcn.image.sample.1d), 15, [[COPY12]](s32), [[BUILD_VECTOR2]](<8 x s32>), [[BUILD_VECTOR3]](<4 x s32>), 0, 0, 0, 0 :: (dereferenceable load (<4 x s32>), addrspace 8)
   ; FAST-NEXT:   $exec = S_XOR_B64_term $exec, [[S_AND_SAVEEXEC_B64_]], implicit-def $scc
   ; FAST-NEXT:   SI_WATERFALL_LOOP %bb.2, implicit $exec
   ; FAST-NEXT: {{  $}}
@@ -445,8 +449,9 @@ define amdgpu_ps void @sample_1d_vgpr_vaddr__vgpr_rsrc__vgpr_samp(<8 x i32> %rsr
   ; FAST-NEXT:   $exec = S_MOV_B64_term [[S_MOV_B64_]]
   ; FAST-NEXT: {{  $}}
   ; FAST-NEXT: bb.5:
-  ; FAST-NEXT:   G_STORE [[AMDGPU_INTRIN_IMAGE_LOAD]](<4 x s32>), [[DEF]](p1) :: (store (<4 x s32>) into `<4 x float> addrspace(1)* undef`, addrspace 1)
+  ; FAST-NEXT:   G_STORE [[AMDGPU_INTRIN_IMAGE_LOAD]](<4 x s32>), [[DEF]](p1) :: (store (<4 x s32>) into `ptr addrspace(1) poison`, addrspace 1)
   ; FAST-NEXT:   S_ENDPGM 0
+  ;
   ; GREEDY-LABEL: name: sample_1d_vgpr_vaddr__vgpr_rsrc__vgpr_samp
   ; GREEDY: bb.1 (%ir-block.0):
   ; GREEDY-NEXT:   successors: %bb.2(0x80000000)
@@ -476,14 +481,14 @@ define amdgpu_ps void @sample_1d_vgpr_vaddr__vgpr_rsrc__vgpr_samp(<8 x i32> %rsr
   ; GREEDY-NEXT: {{  $}}
   ; GREEDY-NEXT:   [[PHI:%[0-9]+]]:sreg_64_xexec = PHI [[DEF1]], %bb.1, %22, %bb.3
   ; GREEDY-NEXT:   [[UV:%[0-9]+]]:vgpr_32(s32), [[UV1:%[0-9]+]]:vgpr_32(s32), [[UV2:%[0-9]+]]:vgpr_32(s32), [[UV3:%[0-9]+]]:vgpr_32(s32), [[UV4:%[0-9]+]]:vgpr_32(s32), [[UV5:%[0-9]+]]:vgpr_32(s32), [[UV6:%[0-9]+]]:vgpr_32(s32), [[UV7:%[0-9]+]]:vgpr_32(s32) = G_UNMERGE_VALUES [[BUILD_VECTOR]](<8 x s32>)
-  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV]](s32), implicit $exec
-  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_1:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV1]](s32), implicit $exec
-  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_2:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV2]](s32), implicit $exec
-  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_3:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV3]](s32), implicit $exec
-  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_4:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV4]](s32), implicit $exec
-  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_5:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV5]](s32), implicit $exec
-  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_6:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV6]](s32), implicit $exec
-  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_7:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV7]](s32), implicit $exec
+  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV]](s32), implicit $exec
+  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_1:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV1]](s32), implicit $exec
+  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_2:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV2]](s32), implicit $exec
+  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_3:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV3]](s32), implicit $exec
+  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_4:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV4]](s32), implicit $exec
+  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_5:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV5]](s32), implicit $exec
+  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_6:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV6]](s32), implicit $exec
+  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_7:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV7]](s32), implicit $exec
   ; GREEDY-NEXT:   [[BUILD_VECTOR2:%[0-9]+]]:sgpr(<8 x s32>) = G_BUILD_VECTOR [[V_READFIRSTLANE_B32_]](s32), [[V_READFIRSTLANE_B32_1]](s32), [[V_READFIRSTLANE_B32_2]](s32), [[V_READFIRSTLANE_B32_3]](s32), [[V_READFIRSTLANE_B32_4]](s32), [[V_READFIRSTLANE_B32_5]](s32), [[V_READFIRSTLANE_B32_6]](s32), [[V_READFIRSTLANE_B32_7]](s32)
   ; GREEDY-NEXT:   [[UV8:%[0-9]+]]:vgpr(s64), [[UV9:%[0-9]+]]:vgpr(s64), [[UV10:%[0-9]+]]:vgpr(s64), [[UV11:%[0-9]+]]:vgpr(s64) = G_UNMERGE_VALUES [[BUILD_VECTOR]](<8 x s32>)
   ; GREEDY-NEXT:   [[UV12:%[0-9]+]]:sgpr(s64), [[UV13:%[0-9]+]]:sgpr(s64), [[UV14:%[0-9]+]]:sgpr(s64), [[UV15:%[0-9]+]]:sgpr(s64) = G_UNMERGE_VALUES [[BUILD_VECTOR2]](<8 x s32>)
@@ -495,10 +500,10 @@ define amdgpu_ps void @sample_1d_vgpr_vaddr__vgpr_rsrc__vgpr_samp(<8 x i32> %rsr
   ; GREEDY-NEXT:   [[ICMP3:%[0-9]+]]:vcc(s1) = G_ICMP intpred(eq), [[UV15]](s64), [[UV11]]
   ; GREEDY-NEXT:   [[AND2:%[0-9]+]]:vcc(s1) = G_AND [[AND1]], [[ICMP3]]
   ; GREEDY-NEXT:   [[UV16:%[0-9]+]]:vgpr_32(s32), [[UV17:%[0-9]+]]:vgpr_32(s32), [[UV18:%[0-9]+]]:vgpr_32(s32), [[UV19:%[0-9]+]]:vgpr_32(s32) = G_UNMERGE_VALUES [[BUILD_VECTOR1]](<4 x s32>)
-  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_8:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV16]](s32), implicit $exec
-  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_9:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV17]](s32), implicit $exec
-  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_10:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV18]](s32), implicit $exec
-  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_11:%[0-9]+]]:sreg_32(s32) = V_READFIRSTLANE_B32 [[UV19]](s32), implicit $exec
+  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_8:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV16]](s32), implicit $exec
+  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_9:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV17]](s32), implicit $exec
+  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_10:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV18]](s32), implicit $exec
+  ; GREEDY-NEXT:   [[V_READFIRSTLANE_B32_11:%[0-9]+]]:sreg_32_xm0(s32) = V_READFIRSTLANE_B32 [[UV19]](s32), implicit $exec
   ; GREEDY-NEXT:   [[BUILD_VECTOR3:%[0-9]+]]:sgpr(<4 x s32>) = G_BUILD_VECTOR [[V_READFIRSTLANE_B32_8]](s32), [[V_READFIRSTLANE_B32_9]](s32), [[V_READFIRSTLANE_B32_10]](s32), [[V_READFIRSTLANE_B32_11]](s32)
   ; GREEDY-NEXT:   [[UV20:%[0-9]+]]:vgpr(s64), [[UV21:%[0-9]+]]:vgpr(s64) = G_UNMERGE_VALUES [[BUILD_VECTOR1]](<4 x s32>)
   ; GREEDY-NEXT:   [[UV22:%[0-9]+]]:sgpr(s64), [[UV23:%[0-9]+]]:sgpr(s64) = G_UNMERGE_VALUES [[BUILD_VECTOR3]](<4 x s32>)
@@ -506,13 +511,13 @@ define amdgpu_ps void @sample_1d_vgpr_vaddr__vgpr_rsrc__vgpr_samp(<8 x i32> %rsr
   ; GREEDY-NEXT:   [[AND3:%[0-9]+]]:vcc(s1) = G_AND [[AND2]], [[ICMP4]]
   ; GREEDY-NEXT:   [[ICMP5:%[0-9]+]]:vcc(s1) = G_ICMP intpred(eq), [[UV23]](s64), [[UV21]]
   ; GREEDY-NEXT:   [[AND4:%[0-9]+]]:vcc(s1) = G_AND [[AND3]], [[ICMP5]]
-  ; GREEDY-NEXT:   [[INT:%[0-9]+]]:sreg_64_xexec(s64) = G_INTRINSIC intrinsic(@llvm.amdgcn.ballot), [[AND4]](s1)
-  ; GREEDY-NEXT:   [[S_AND_SAVEEXEC_B64_:%[0-9]+]]:sreg_64_xexec = S_AND_SAVEEXEC_B64 killed [[INT]](s64), implicit-def $exec, implicit-def $scc, implicit $exec
+  ; GREEDY-NEXT:   [[INTRINSIC_CONVERGENT:%[0-9]+]]:sreg_64_xexec(s64) = G_INTRINSIC_CONVERGENT intrinsic(@llvm.amdgcn.ballot), [[AND4]](s1)
+  ; GREEDY-NEXT:   [[S_AND_SAVEEXEC_B64_:%[0-9]+]]:sreg_64_xexec = S_AND_SAVEEXEC_B64 killed [[INTRINSIC_CONVERGENT]](s64), implicit-def $exec, implicit-def $scc, implicit $exec
   ; GREEDY-NEXT: {{  $}}
   ; GREEDY-NEXT: bb.3:
   ; GREEDY-NEXT:   successors: %bb.4(0x40000000), %bb.2(0x40000000)
   ; GREEDY-NEXT: {{  $}}
-  ; GREEDY-NEXT:   [[AMDGPU_INTRIN_IMAGE_LOAD:%[0-9]+]]:vgpr(<4 x s32>) = G_AMDGPU_INTRIN_IMAGE_LOAD intrinsic(@llvm.amdgcn.image.sample.1d), 15, [[COPY12]](s32), [[BUILD_VECTOR2]](<8 x s32>), [[BUILD_VECTOR3]](<4 x s32>), 0, 0, 0, 0 :: (dereferenceable load (<4 x s32>) from custom "ImageResource")
+  ; GREEDY-NEXT:   [[AMDGPU_INTRIN_IMAGE_LOAD:%[0-9]+]]:vgpr(<4 x s32>) = G_AMDGPU_INTRIN_IMAGE_LOAD intrinsic(@llvm.amdgcn.image.sample.1d), 15, [[COPY12]](s32), [[BUILD_VECTOR2]](<8 x s32>), [[BUILD_VECTOR3]](<4 x s32>), 0, 0, 0, 0 :: (dereferenceable load (<4 x s32>), addrspace 8)
   ; GREEDY-NEXT:   $exec = S_XOR_B64_term $exec, [[S_AND_SAVEEXEC_B64_]], implicit-def $scc
   ; GREEDY-NEXT:   SI_WATERFALL_LOOP %bb.2, implicit $exec
   ; GREEDY-NEXT: {{  $}}
@@ -522,10 +527,10 @@ define amdgpu_ps void @sample_1d_vgpr_vaddr__vgpr_rsrc__vgpr_samp(<8 x i32> %rsr
   ; GREEDY-NEXT:   $exec = S_MOV_B64_term [[S_MOV_B64_]]
   ; GREEDY-NEXT: {{  $}}
   ; GREEDY-NEXT: bb.5:
-  ; GREEDY-NEXT:   G_STORE [[AMDGPU_INTRIN_IMAGE_LOAD]](<4 x s32>), [[DEF]](p1) :: (store (<4 x s32>) into `<4 x float> addrspace(1)* undef`, addrspace 1)
+  ; GREEDY-NEXT:   G_STORE [[AMDGPU_INTRIN_IMAGE_LOAD]](<4 x s32>), [[DEF]](p1) :: (store (<4 x s32>) into `ptr addrspace(1) poison`, addrspace 1)
   ; GREEDY-NEXT:   S_ENDPGM 0
   %v = call <4 x float> @llvm.amdgcn.image.sample.1d.v4f32.f32(i32 15, float %s, <8 x i32> %rsrc, <4 x i32> %samp, i1 false, i32 0, i32 0)
-  store <4 x float> %v, <4 x float> addrspace(1)* undef
+  store <4 x float> %v, ptr addrspace(1) poison
   ret void
 }
 

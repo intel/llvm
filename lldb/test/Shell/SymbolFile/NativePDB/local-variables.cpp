@@ -1,8 +1,8 @@
 // clang-format off
 
-// REQUIRES: system-windows
+// REQUIRES: target-windows
 // RUN: %build -o %t.exe -- %s
-// RUN: env LLDB_USE_NATIVE_PDB_READER=1 %lldb -f %t.exe -s \
+// RUN: %lldb -f %t.exe -s \
 // RUN:     %p/Inputs/local-variables.lldbinit 2>&1 | FileCheck %s
 
 int Function(int Param1, char Param2) {
@@ -25,6 +25,7 @@ int main(int argc, char **argv) {
 // CHECK-NEXT: (lldb) break set -f local-variables.cpp -l 17
 // CHECK-NEXT: Breakpoint 1: where = local-variables.cpp.tmp.exe`main + {{.*}} at local-variables.cpp:{{.*}}, address = {{.*}}
 // CHECK-NEXT: (lldb) run a b c d e f g
+// CHECK-NEXT: Process {{.*}} launched: '{{.*}}local-variables.cpp.tmp.exe'
 // CHECK-NEXT: Process {{.*}} stopped
 // CHECK-NEXT: * thread #1, stop reason = breakpoint 1.1
 // CHECK-NEXT:     frame #0: {{.*}} local-variables.cpp.tmp.exe`main(argc=8, argv={{.*}}) at local-variables.cpp:{{.*}}
@@ -36,8 +37,7 @@ int main(int argc, char **argv) {
 // CHECK-NEXT:    19   }
 // CHECK-NEXT:    20
 
-// CHECK:      Process {{.*}} launched: '{{.*}}local-variables.cpp.tmp.exe'
-// CHECK-NEXT: (lldb) p argc
+// CHECK:      (lldb) expression argc
 // CHECK-NEXT: (int) $0 = 8
 // CHECK-NEXT: (lldb) step
 // CHECK-NEXT: Process {{.*}} stopped
@@ -50,12 +50,12 @@ int main(int argc, char **argv) {
 // CHECK-NEXT:    19 }
 // CHECK-NEXT:    20
 
-// CHECK:      (lldb) p SomeLocal
+// CHECK:      (lldb) expression SomeLocal
 // CHECK-NEXT: (int) $1 = 16
 // CHECK-NEXT: (lldb) step
 // CHECK-NEXT: Process {{.*}} stopped
 // CHECK-NEXT: * thread #1, stop reason = step in
-// CHECK-NEXT:     frame #0: {{.*}} local-variables.cpp.tmp.exe`Function(Param1=16, Param2='a') at local-variables.cpp:{{.*}}
+// CHECK-NEXT:     frame #0: {{.*}} local-variables.cpp.tmp.exe`int Function(Param1=16, Param2='a') at local-variables.cpp:{{.*}}
 // CHECK-NEXT:    6
 // CHECK-NEXT:    7
 // CHECK-NEXT:    8 int Function(int Param1, char Param2) {
@@ -64,14 +64,14 @@ int main(int argc, char **argv) {
 // CHECK-NEXT:    11     ++Local1;
 // CHECK-NEXT:    12     ++Local2;
 
-// CHECK:      (lldb) p Param1
+// CHECK:      (lldb) expression Param1
 // CHECK-NEXT: (int) $2 = 16
-// CHECK-NEXT: (lldb) p Param2
+// CHECK-NEXT: (lldb) expression Param2
 // CHECK-NEXT: (char) $3 = 'a'
 // CHECK-NEXT: (lldb) step
 // CHECK-NEXT: Process {{.*}} stopped
 // CHECK-NEXT: * thread #1, stop reason = step in
-// CHECK-NEXT:     frame #0: {{.*}} local-variables.cpp.tmp.exe`Function(Param1=16, Param2='a') at local-variables.cpp:{{.*}}
+// CHECK-NEXT:     frame #0: {{.*}} local-variables.cpp.tmp.exe`int Function(Param1=16, Param2='a') at local-variables.cpp:{{.*}}
 // CHECK-NEXT:    7
 // CHECK-NEXT:    8    int Function(int Param1, char Param2) {
 // CHECK-NEXT:    9      unsigned Local1 = Param1 + 1;
@@ -80,16 +80,16 @@ int main(int argc, char **argv) {
 // CHECK-NEXT:    12     ++Local2;
 // CHECK-NEXT:    13     return Local1;
 
-// CHECK:      (lldb) p Param1
+// CHECK:      (lldb) expression Param1
 // CHECK-NEXT: (int) $4 = 16
-// CHECK-NEXT: (lldb) p Param2
+// CHECK-NEXT: (lldb) expression Param2
 // CHECK-NEXT: (char) $5 = 'a'
-// CHECK-NEXT: (lldb) p Local1
+// CHECK-NEXT: (lldb) expression Local1
 // CHECK-NEXT: (unsigned int) $6 = 17
 // CHECK-NEXT: (lldb) step
 // CHECK-NEXT: Process {{.*}} stopped
 // CHECK-NEXT: * thread #1, stop reason = step in
-// CHECK-NEXT:     frame #0: {{.*}} local-variables.cpp.tmp.exe`Function(Param1=16, Param2='a') at local-variables.cpp:{{.*}}
+// CHECK-NEXT:     frame #0: {{.*}} local-variables.cpp.tmp.exe`int Function(Param1=16, Param2='a') at local-variables.cpp:{{.*}}
 // CHECK-NEXT:    8    int Function(int Param1, char Param2) {
 // CHECK-NEXT:    9      unsigned Local1 = Param1 + 1;
 // CHECK-NEXT:    10     char Local2 = Param2 + 1;
@@ -98,18 +98,18 @@ int main(int argc, char **argv) {
 // CHECK-NEXT:    13     return Local1;
 // CHECK-NEXT:    14   }
 
-// CHECK:      (lldb) p Param1
+// CHECK:      (lldb) expression Param1
 // CHECK-NEXT: (int) $7 = 16
-// CHECK-NEXT: (lldb) p Param2
+// CHECK-NEXT: (lldb) expression Param2
 // CHECK-NEXT: (char) $8 = 'a'
-// CHECK-NEXT: (lldb) p Local1
+// CHECK-NEXT: (lldb) expression Local1
 // CHECK-NEXT: (unsigned int) $9 = 17
-// CHECK-NEXT: (lldb) p Local2
+// CHECK-NEXT: (lldb) expression Local2
 // CHECK-NEXT: (char) $10 = 'b'
 // CHECK-NEXT: (lldb) step
 // CHECK-NEXT: Process {{.*}} stopped
 // CHECK-NEXT: * thread #1, stop reason = step in
-// CHECK-NEXT:     frame #0: {{.*}} local-variables.cpp.tmp.exe`Function(Param1=16, Param2='a') at local-variables.cpp:{{.*}}
+// CHECK-NEXT:     frame #0: {{.*}} local-variables.cpp.tmp.exe`int Function(Param1=16, Param2='a') at local-variables.cpp:{{.*}}
 // CHECK-NEXT:    9      unsigned Local1 = Param1 + 1;
 // CHECK-NEXT:    10     char Local2 = Param2 + 1;
 // CHECK-NEXT:    11     ++Local1;
@@ -118,18 +118,18 @@ int main(int argc, char **argv) {
 // CHECK-NEXT:    14   }
 // CHECK-NEXT:    15
 
-// CHECK:      (lldb) p Param1
+// CHECK:      (lldb) expression Param1
 // CHECK-NEXT: (int) $11 = 16
-// CHECK-NEXT: (lldb) p Param2
+// CHECK-NEXT: (lldb) expression Param2
 // CHECK-NEXT: (char) $12 = 'a'
-// CHECK-NEXT: (lldb) p Local1
+// CHECK-NEXT: (lldb) expression Local1
 // CHECK-NEXT: (unsigned int) $13 = 18
-// CHECK-NEXT: (lldb) p Local2
+// CHECK-NEXT: (lldb) expression Local2
 // CHECK-NEXT: (char) $14 = 'b'
 // CHECK-NEXT: (lldb) step
 // CHECK-NEXT: Process {{.*}} stopped
 // CHECK-NEXT: * thread #1, stop reason = step in
-// CHECK-NEXT:     frame #0: {{.*}} local-variables.cpp.tmp.exe`Function(Param1=16, Param2='a') at local-variables.cpp:{{.*}}
+// CHECK-NEXT:     frame #0: {{.*}} local-variables.cpp.tmp.exe`int Function(Param1=16, Param2='a') at local-variables.cpp:{{.*}}
 // CHECK-NEXT:    10      char Local2 = Param2 + 1;
 // CHECK-NEXT:    11     ++Local1;
 // CHECK-NEXT:    12     ++Local2;
@@ -138,13 +138,13 @@ int main(int argc, char **argv) {
 // CHECK-NEXT:    15
 // CHECK-NEXT:    16   int main(int argc, char **argv) {
 
-// CHECK:      (lldb) p Param1
+// CHECK:      (lldb) expression Param1
 // CHECK-NEXT: (int) $15 = 16
-// CHECK-NEXT: (lldb) p Param2
+// CHECK-NEXT: (lldb) expression Param2
 // CHECK-NEXT: (char) $16 = 'a'
-// CHECK-NEXT: (lldb) p Local1
+// CHECK-NEXT: (lldb) expression Local1
 // CHECK-NEXT: (unsigned int) $17 = 18
-// CHECK-NEXT: (lldb) p Local2
+// CHECK-NEXT: (lldb) expression Local2
 // CHECK-NEXT: (char) $18 = 'c'
 // CHECK-NEXT: (lldb) continue
 // CHECK-NEXT: Process {{.*}} resuming

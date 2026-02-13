@@ -19,11 +19,11 @@ namespace {
 /// Check a callable type of the form `bool(const int &)`.
 template <typename CallableT> struct CheckFunctionTraits {
   static_assert(
-      std::is_same<typename function_traits<CallableT>::result_t, bool>::value,
+      std::is_same_v<typename function_traits<CallableT>::result_t, bool>,
       "expected result_t to be `bool`");
   static_assert(
-      std::is_same<typename function_traits<CallableT>::template arg_t<0>,
-                   const int &>::value,
+      std::is_same_v<typename function_traits<CallableT>::template arg_t<0>,
+                     const int &>,
       "expected arg_t<0> to be `const int &`");
   static_assert(function_traits<CallableT>::num_args == 1,
                 "expected num_args to be 1");
@@ -40,9 +40,7 @@ struct Foo {
 struct CheckMethodPointer : CheckFunctionTraits<decltype(&Foo::func)> {};
 
 /// Test lambda references.
-LLVM_ATTRIBUTE_UNUSED auto lambdaFunc = [](const int &v) -> bool {
-  return true;
-};
+[[maybe_unused]] auto lambdaFunc = [](const int &v) -> bool { return true; };
 struct CheckLambda : CheckFunctionTraits<decltype(lambdaFunc)> {};
 
 } // end anonymous namespace

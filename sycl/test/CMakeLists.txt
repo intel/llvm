@@ -13,6 +13,17 @@ set(DEPLOY_RT_TEST_ARGS ${DEPLOY_RT_TEST_ARGS} "-v -D SYCL_TOOLS_DIR=${CMAKE_INS
 find_package(Threads REQUIRED)
 set(SYCL_THREADS_LIB ${CMAKE_THREAD_LIBS_INIT})
 
+# TEST_INCLUDE_PATH is used for syntax-only verification of type information.
+list(APPEND test_includes ${SYCL_INCLUDE})
+list(APPEND test_includes ${SYCL_SOURCE_DIR}/source)
+if(SYCL_ENABLE_EXTENSION_JIT)
+  list(APPEND test_includes ${LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR}/jit-compiler/include)
+  list(APPEND test_includes ${LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR}/common/include)
+endif(SYCL_ENABLE_EXTENSION_JIT)
+get_target_property(EMHASH_INCLUDES emhash::emhash INTERFACE_INCLUDE_DIRECTORIES)
+list(APPEND test_includes ${EMHASH_INCLUDES})
+list(JOIN test_includes ":" TEST_INCLUDE_PATH)
+
 configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
   ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
@@ -42,62 +53,50 @@ list(APPEND SYCL_DEPLOY_TEST_DEPS
   deploy-sycl-toolchain
   )
 
+set(SYCL_TEST_EXCLUDE "")
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+  # Debug compiler is very slow on sycl tests, tests may timeout sporadically
+  set(SYCL_TEST_EXCLUDE EXCLUDE_FROM_CHECK_ALL)
+  message(STATUS "Note: SYCL tests are excluded in check-all for Debug compiler")
+endif()
+
 add_lit_testsuite(check-sycl-deploy "Running the SYCL regression tests"
   ${CMAKE_CURRENT_BINARY_DIR}
   ARGS ${DEPLOY_RT_TEST_ARGS}
-  PARAMS "SYCL_PLUGIN=opencl"
   DEPENDS ${SYCL_DEPLOY_TEST_DEPS}
   EXCLUDE_FROM_CHECK_ALL
   )
 set_target_properties(check-sycl-deploy PROPERTIES FOLDER "SYCL tests")
 
-add_lit_testsuite(check-sycl-spirv "Running device-agnostic SYCL regression tests for SPIR-V"
+set(TRIPLES "spir64-unknown-unknown")
+if (SYCL_BUILD_BACKEND_CUDA)
+  set(TRIPLES "${TRIPLES},nvptx64-nvidia-cuda")
+endif()
+if (SYCL_BUILD_BACKEND_HIP)
+  set(TRIPLES "${TRIPLES},amdgcn-amd-amdhsa")
+endif()
+
+add_lit_testsuite(check-sycl-combined-triples "Running device-agnostic SYCL regression tests for all available triples"
   ${CMAKE_CURRENT_BINARY_DIR}
   ARGS ${RT_TEST_ARGS}
-  PARAMS "SYCL_TRIPLE=spir64-unknown-unknown"
+  PARAMS "SYCL_TRIPLE=${TRIPLES}"
   DEPENDS ${SYCL_TEST_DEPS}
+  ${SYCL_TEST_EXCLUDE}
   )
 
 add_custom_target(check-sycl)
-add_dependencies(check-sycl check-sycl-spirv)
+add_dependencies(check-sycl check-sycl-combined-triples)
 set_target_properties(check-sycl PROPERTIES FOLDER "SYCL tests")
 
-if(SYCL_BUILD_PI_CUDA)
-  add_lit_testsuite(check-sycl-ptx "Running device-agnostic SYCL regression tests for NVidia PTX"
-    ${CMAKE_CURRENT_BINARY_DIR}
-    ARGS ${RT_TEST_ARGS}
-    PARAMS "SYCL_TRIPLE=nvptx64-nvidia-cuda;SYCL_PLUGIN=cuda"
-    DEPENDS ${SYCL_TEST_DEPS}
+add_lit_testsuite(check-sycl-dumps "Running ABI dump tests only"
+  ${CMAKE_CURRENT_BINARY_DIR}
+  ARGS ${RT_TEST_ARGS}
+  PARAMS "SYCL_LIB_DUMPS_ONLY=True"
+  DEPENDS FileCheck sycl-runtime-libraries llvm-readobj
+  EXCLUDE_FROM_CHECK_ALL
   )
 
-  add_custom_target(check-sycl-cuda)
-  add_dependencies(check-sycl-cuda check-sycl-ptx)
-  add_dependencies(check-sycl check-sycl-cuda)
-endif()
-
-if(SYCL_BUILD_PI_HIP)
-  add_custom_target(check-sycl-hip)
-  if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "NVIDIA")
-    add_lit_testsuite(check-sycl-hip-ptx "Running device-agnostic SYCL regression tests for HIP NVidia PTX"
-      ${CMAKE_CURRENT_BINARY_DIR}
-      ARGS ${RT_TEST_ARGS}
-      PARAMS "SYCL_TRIPLE=nvptx64-nvidia-cuda;SYCL_PLUGIN=hip"
-      DEPENDS ${SYCL_TEST_DEPS}
-    )
-
-    add_dependencies(check-sycl-hip check-sycl-hip-ptx)
-  elseif("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
-    add_lit_testsuite(check-sycl-hip-gcn "Running device-agnostic SYCL regression tests for HIP AMDGCN"
-      ${CMAKE_CURRENT_BINARY_DIR}
-      ARGS ${RT_TEST_ARGS}
-      PARAMS "SYCL_TRIPLE=amdgcn-amd-amdhsa;SYCL_PLUGIN=hip"
-      DEPENDS ${SYCL_TEST_DEPS}
-    )
-
-    add_dependencies(check-sycl-hip check-sycl-hip-gcn)
-  else()
-    message(FATAL_ERROR "SYCL_BUILD_PI_HIP_PLATFORM must be set to either 'AMD' or 'NVIDIA' (set to: '${SYCL_BUILD_PI_HIP_PLATFORM}')")
-  endif()
-
-  add_dependencies(check-sycl check-sycl-hip)
+if(NOT WIN32 AND SYCL_ENABLE_EXTENSION_JIT)
+  # lit-based testing of JIT passes isn't supported on Windows.
+  add_dependencies(check-sycl check-sycl-jit)
 endif()

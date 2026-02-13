@@ -20,40 +20,6 @@
 namespace llvm {
   class SparcSubtarget;
 
-  namespace SPISD {
-    enum NodeType : unsigned {
-      FIRST_NUMBER = ISD::BUILTIN_OP_END,
-      CMPICC,      // Compare two GPR operands, set icc+xcc.
-      CMPFCC,      // Compare two FP operands, set fcc.
-      BRICC,       // Branch to dest on icc condition
-      BRXCC,       // Branch to dest on xcc condition (64-bit only).
-      BRFCC,       // Branch to dest on fcc condition
-      SELECT_ICC,  // Select between two values using the current ICC flags.
-      SELECT_XCC,  // Select between two values using the current XCC flags.
-      SELECT_FCC,  // Select between two values using the current FCC flags.
-
-      Hi, Lo,      // Hi/Lo operations, typically on a global address.
-
-      FTOI,        // FP to Int within a FP register.
-      ITOF,        // Int to FP within a FP register.
-      FTOX,        // FP to Int64 within a FP register.
-      XTOF,        // Int64 to FP within a FP register.
-
-      CALL,        // A call instruction.
-      RET_FLAG,    // Return with a flag operand.
-      GLOBAL_BASE_REG, // Global base reg for PIC.
-      FLUSHW,      // FLUSH register windows to stack.
-
-      TAIL_CALL,   // Tail call
-
-      TLS_ADD,     // For Thread Local Storage (TLS).
-      TLS_LD,
-      TLS_CALL,
-
-      LOAD_GDOP,   // Load operation w/ gdop relocation.
-    };
-  }
-
   class SparcTargetLowering : public TargetLowering {
     const SparcSubtarget *Subtarget;
   public:
@@ -75,14 +41,11 @@ namespace llvm {
     EmitInstrWithCustomInserter(MachineInstr &MI,
                                 MachineBasicBlock *MBB) const override;
 
-    const char *getTargetNodeName(unsigned Opcode) const override;
-
     ConstraintType getConstraintType(StringRef Constraint) const override;
     ConstraintWeight
     getSingleConstraintMatchWeight(AsmOperandInfo &info,
                                    const char *constraint) const override;
-    void LowerAsmOperandForConstraint(SDValue Op,
-                                      std::string &Constraint,
+    void LowerAsmOperandForConstraint(SDValue Op, StringRef Constraint,
                                       std::vector<SDValue> &Ops,
                                       SelectionDAG &DAG) const override;
 
@@ -113,8 +76,7 @@ namespace llvm {
     }
 
     /// Override to support customized stack guard loading.
-    bool useLoadStackGuardNode() const override;
-    void insertSSPDeclarations(Module &M) const override;
+    bool useLoadStackGuardNode(const Module &M) const override;
 
     /// getSetCCResultType - Return the ISD::SETCC ValueType
     EVT getSetCCResultType(const DataLayout &DL, LLVMContext &Context,
@@ -143,6 +105,11 @@ namespace llvm {
                          SmallVectorImpl<SDValue> &InVals) const;
     SDValue LowerCall_64(TargetLowering::CallLoweringInfo &CLI,
                          SmallVectorImpl<SDValue> &InVals) const;
+
+    bool CanLowerReturn(CallingConv::ID CallConv, MachineFunction &MF,
+                        bool isVarArg,
+                        const SmallVectorImpl<ISD::OutputArg> &Outs,
+                        LLVMContext &Context, const Type *RetTy) const override;
 
     SDValue LowerReturn(SDValue Chain, CallingConv::ID CallConv, bool isVarArg,
                         const SmallVectorImpl<ISD::OutputArg> &Outs,
@@ -196,6 +163,29 @@ namespace llvm {
       return VT != MVT::f128;
     }
 
+    bool isFNegFree(EVT VT) const override;
+
+    bool isFPImmLegal(const APFloat &Imm, EVT VT,
+                      bool ForCodeSize) const override;
+
+    bool isCtlzFast() const override;
+
+    bool isCheapToSpeculateCtlz(Type *Ty) const override {
+      return isCtlzFast();
+    }
+
+    bool isCheapToSpeculateCttz(Type *Ty) const override;
+
+    bool enableAggressiveFMAFusion(EVT VT) const override { return true; };
+
+    bool isFMAFasterThanFMulAndFAdd(const MachineFunction &MF,
+                                    EVT VT) const override;
+
+    Instruction *emitLeadingFence(IRBuilderBase &Builder, Instruction *Inst,
+                                  AtomicOrdering Ord) const override;
+    Instruction *emitTrailingFence(IRBuilderBase &Builder, Instruction *Inst,
+                                   AtomicOrdering Ord) const override;
+
     bool shouldInsertFencesForAtomic(const Instruction *I) const override {
       // FIXME: We insert fences for each atomics and generate
       // sub-optimal code for PSO/TSO. (Approximately nobody uses any
@@ -211,7 +201,10 @@ namespace llvm {
 
     MachineBasicBlock *expandSelectCC(MachineInstr &MI, MachineBasicBlock *BB,
                                       unsigned BROpcode) const;
+
+    void AdjustInstrPostInstrSelection(MachineInstr &MI,
+                                       SDNode *Node) const override;
   };
 } // end namespace llvm
 
-#endif    // SPARC_ISELLOWERING_H
+#endif // LLVM_LIB_TARGET_SPARC_SPARCISELLOWERING_H

@@ -9,8 +9,8 @@
 #ifndef LLVM_CLANG_DRIVER_DISTRO_H
 #define LLVM_CLANG_DRIVER_DISTRO_H
 
-#include "llvm/ADT/Triple.h"
 #include "llvm/Support/VirtualFileSystem.h"
+#include "llvm/TargetParser/Triple.h"
 
 namespace clang {
 namespace driver {
@@ -30,31 +30,22 @@ public:
     // the first and last known member in the family, e.g. IsRedHat().
     AlpineLinux,
     ArchLinux,
-    DebianLenny,
-    DebianSqueeze,
-    DebianWheezy,
     DebianJessie,
     DebianStretch,
     DebianBuster,
     DebianBullseye,
     DebianBookworm,
     DebianTrixie,
+    DebianForky,
+    DebianDuke,
     Exherbo,
-    RHEL5,
-    RHEL6,
     RHEL7,
+    RHEL8,
+    RHEL9,
+    RHEL10,
     Fedora,
     Gentoo,
     OpenSUSE,
-    UbuntuHardy,
-    UbuntuIntrepid,
-    UbuntuJaunty,
-    UbuntuKarmic,
-    UbuntuLucid,
-    UbuntuMaverick,
-    UbuntuNatty,
-    UbuntuOneiric,
-    UbuntuPrecise,
     UbuntuQuantal,
     UbuntuRaring,
     UbuntuSaucy,
@@ -76,6 +67,13 @@ public:
     UbuntuImpish,
     UbuntuJammy,
     UbuntuKinetic,
+    UbuntuLunar,
+    UbuntuMantic,
+    UbuntuNoble,
+    UbuntuOracular,
+    UbuntuPlucky,
+    UbuntuQuesting,
+    UbuntuResolute,
     UnknownDistro
   };
 
@@ -117,17 +115,17 @@ public:
   /// @{
 
   bool IsRedhat() const {
-    return DistroVal == Fedora || (DistroVal >= RHEL5 && DistroVal <= RHEL7);
+    return DistroVal == Fedora || (DistroVal >= RHEL7 && DistroVal <= RHEL10);
   }
 
   bool IsOpenSUSE() const { return DistroVal == OpenSUSE; }
 
   bool IsDebian() const {
-    return DistroVal >= DebianLenny && DistroVal <= DebianTrixie;
+    return DistroVal >= DebianJessie && DistroVal <= DebianDuke;
   }
 
   bool IsUbuntu() const {
-    return DistroVal >= UbuntuHardy && DistroVal <= UbuntuKinetic;
+    return DistroVal >= UbuntuQuantal && DistroVal <= UbuntuResolute;
   }
 
   bool IsAlpineLinux() const { return DistroVal == AlpineLinux; }

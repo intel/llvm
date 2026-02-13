@@ -16,13 +16,13 @@
 #ifndef LLVM_BINARYFORMAT_AMDGPUMETADATAVERIFIER_H
 #define LLVM_BINARYFORMAT_AMDGPUMETADATAVERIFIER_H
 
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/MsgPackReader.h"
+#include "llvm/Support/Compiler.h"
 
 #include <cstddef>
+#include <optional>
 
 namespace llvm {
 
@@ -50,7 +50,7 @@ class MetadataVerifier {
   bool verifyInteger(msgpack::DocNode &Node);
   bool verifyArray(msgpack::DocNode &Node,
                    function_ref<bool(msgpack::DocNode &)> verifyNode,
-                   Optional<size_t> Size = None);
+                   std::optional<size_t> Size = std::nullopt);
   bool verifyEntry(msgpack::MapDocNode &MapNode, StringRef Key, bool Required,
                    function_ref<bool(msgpack::DocNode &)> verifyNode);
   bool
@@ -70,7 +70,7 @@ public:
   /// Verify given HSA metadata.
   ///
   /// \returns True when successful, false when metadata is invalid.
-  bool verify(msgpack::DocNode &HSAMetadataRoot);
+  LLVM_ABI bool verify(msgpack::DocNode &HSAMetadataRoot);
 };
 
 } // end namespace V3

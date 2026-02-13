@@ -1,4 +1,4 @@
-// RUN: %check_clang_tidy %s performance-unnecessary-copy-initialization %t -- -config="{CheckOptions: [{key: performance-unnecessary-copy-initialization.AllowedTypes, value: '[Pp]ointer$;[Pp]tr$;[Rr]ef(erence)?$'}]}" --
+// RUN: %check_clang_tidy %s performance-unnecessary-copy-initialization %t -- -config="{CheckOptions: {performance-unnecessary-copy-initialization.AllowedTypes: '[Pp]ointer$;[Pp]tr$;[Rr]ef(erence)?$'}}" --
 
 struct SmartPointer {
   ~SmartPointer();
@@ -88,7 +88,7 @@ void negative_smart_ref() {
 
 void positiveOtherType() {
   const auto O = getOtherType();
-  // CHECK-MESSAGES: [[@LINE-1]]:14: warning: the const qualified variable 'O' is copy-constructed from a const reference; consider making it a const reference [performance-unnecessary-copy-initialization]
+  // CHECK-MESSAGES: [[@LINE-1]]:14: warning: the const qualified variable 'O' of type 'const OtherType' is copy-constructed from a const reference; consider making it a const reference [performance-unnecessary-copy-initialization]
   // CHECK-FIXES: const auto& O = getOtherType();
   O.constMethod();
 }

@@ -97,10 +97,10 @@ public:
   /// Attempts to parse the object header.
   ///
   /// This function is used as a test to see if a given plug-in instance can
-  /// parse the header data already contained in ObjectContainer::m_data. If
-  /// an object file parser does not recognize that magic bytes in a header,
-  /// false should be returned and the next plug-in can attempt to parse an
-  /// object file.
+  /// parse the header data already contained in
+  /// ObjectContainer::m_extractor_sp. If an object file parser does not
+  /// recognize that magic bytes in a header, false should be returned and the
+  /// next plug-in can attempt to parse an object file.
   ///
   /// \return
   ///     Returns \b true if the header was parsed successfully, \b
@@ -110,7 +110,7 @@ public:
   /// Selects an architecture in an object file.
   ///
   /// Object files that contain a single architecture should verify that the
-  /// specified \a arch matches the architecture in in object file and return
+  /// specified \a arch matches the architecture in the object file and return
   /// \b true or \b false accordingly.
   ///
   /// Object files that contain more than one architecture should attempt to
@@ -140,7 +140,7 @@ protected:
   lldb::addr_t m_length;
 
   /// The data for this object file so things can be parsed lazily.
-  DataExtractor m_data;
+  lldb::DataExtractorSP m_extractor_sp;
 
 private:
   ObjectContainer(const ObjectContainer &) = delete;

@@ -15,7 +15,7 @@ set(SRC_LIST
   SPIRVLowerConstExpr.cpp
   SPIRVLowerMemmove.cpp
   SPIRVLowerOCLBlocks.cpp
-  SPIRVLowerSaddIntrinsics.cpp
+  SPIRVLowerLLVMIntrinsic.cpp
   SPIRVReader.cpp
   SPIRVRegularizeLLVM.cpp
   SPIRVToLLVMDbgTran.cpp
@@ -26,6 +26,7 @@ set(SRC_LIST
   SPIRVUtil.cpp
   SPIRVWriter.cpp
   SPIRVWriterPass.cpp
+  PassPlugin.cpp
   PreprocessMetadata.cpp
   libSPIRV/SPIRVBasicBlock.cpp
   libSPIRV/SPIRVDebug.cpp
@@ -37,41 +38,35 @@ set(SRC_LIST
   libSPIRV/SPIRVStream.cpp
   libSPIRV/SPIRVType.cpp
   libSPIRV/SPIRVValue.cpp
+  libSPIRV/SPIRVError.cpp
+  libSPIRV/SPIRVFnVar.cpp
 )
-if(LLVM_LINK_LLVM_DYLIB)
-  add_llvm_library(LLVMSPIRVLib STATIC DISABLE_LLVM_LINK_LLVM_DYLIB
-    ${SRC_LIST}
-    DEPENDS
-      intrinsics_gen
-      LLVMAnalysis
-      LLVMBitWriter
-      LLVMCodeGen
-      LLVMCore
-      LLVMDemangle
-      LLVMIRReader
-      LLVMLinker
-      LLVMPasses
-      LLVMSupport
-      LLVMTransformUtils
-  )
-else()
-  add_llvm_library(LLVMSPIRVLib
-    ${SRC_LIST}
-    LINK_COMPONENTS
-      Analysis
-      BitWriter
-      CodeGen
-      Core
-      Demangle
-      IRReader
-      Linker
-      Passes
-      Support
-      TransformUtils
+
+set(SPIRVLIB_LINK_COMPONENTS
+    Analysis
+    BitWriter
+    CodeGen
+    Core
+    Demangle
+    IRReader
+    Linker
+    Passes
+    Support
+    TargetParser
+    TransformUtils
+    )
+
+if(SPIRV_BACKEND_FOUND)
+  list(APPEND SPIRVLIB_LINK_COMPONENTS "SPIRVCodeGen")
+endif()
+
+add_llvm_library(LLVMSPIRVLib
+  ${SRC_LIST}
+  LINK_COMPONENTS
+    ${SPIRVLIB_LINK_COMPONENTS}
   DEPENDS
     intrinsics_gen
   )
-endif()
 
 target_include_directories(LLVMSPIRVLib
   PRIVATE

@@ -12,23 +12,20 @@
 #include <sycl/usm/usm_enums.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace detail {
-namespace usm {
+inline namespace _V1 {
+class device;
+class context;
+
+namespace detail::usm {
 
 __SYCL_EXPORT void *alignedAlloc(size_t Alignment, size_t Bytes,
                                  const context &Ctxt, const device &Dev,
                                  sycl::usm::alloc Kind,
                                  const code_location &CL);
 
-__SYCL_EXPORT void *alignedAllocHost(size_t Alignment, size_t Bytes,
-                                     const context &Ctxt, sycl::usm::alloc Kind,
-                                     const code_location &CL);
-
 __SYCL_EXPORT void free(void *Ptr, const context &Ctxt,
                         const code_location &CL);
 
-} // namespace usm
-} // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace detail::usm
+} // namespace _V1
 } // namespace sycl

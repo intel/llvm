@@ -1,18 +1,17 @@
-// RUN: %clang_cc1 -no-opaque-pointers -triple x86_64-apple-darwin10 -funknown-anytype -emit-llvm -o %t %s
+// RUN: %clang_cc1 -triple x86_64-apple-darwin10 -funknown-anytype -emit-llvm -o %t %s
 // RUN: FileCheck -check-prefix COMMON %s < %t
 // RUN: FileCheck -check-prefix X86_64 %s < %t
-// RUN: %clang_cc1 -no-opaque-pointers -triple i386-apple-darwin10 -funknown-anytype -emit-llvm -o %t %s
+// RUN: %clang_cc1 -triple i386-apple-darwin10 -funknown-anytype -emit-llvm -o %t %s
 // RUN: FileCheck -check-prefix COMMON %s < %t
 // RUN: FileCheck -check-prefix I386 %s < %t
 
 // x86-64 is the special case here because of its variadic convention.
 // We want to ensure that it always uses a variadic convention even if
 // other platforms do not.
-// rdar://13731520
 
 int test0() {
   extern __unknown_anytype test0_any;
-  // COMMON: load i32, i32* @test0_any
+  // COMMON: load i32, ptr @test0_any
   return (int) test0_any;
 }
 
@@ -38,7 +37,7 @@ float test2a() {
 
 float test3() {
   extern __unknown_anytype test3_any;
-  // COMMON: [[FN:%.*]] = load float (i32)*, float (i32)** @test3_any,
+  // COMMON: [[FN:%.*]] = load ptr, ptr @test3_any,
   // COMMON: call noundef float [[FN]](i32 noundef 5)
   return ((float(*)(int)) test3_any)(5);
 }
@@ -48,8 +47,8 @@ namespace test4 {
   extern __unknown_anytype test4_any2;
 
   int test() {
-    // COMMON: load i32, i32* @_ZN5test410test4_any1E
-    // COMMON: load i8, i8* @_ZN5test410test4_any2E
+    // COMMON: load i32, ptr @_ZN5test410test4_any1E
+    // COMMON: load i8, ptr @_ZN5test410test4_any2E
     return (int) test4_any1 + (char) test4_any2;
   }
 }
@@ -62,7 +61,7 @@ void test5() {
 
 extern "C" __unknown_anytype test6_any(float *);
 long test6() {
-  // COMMON: call i64 @test6_any(float* noundef null)
+  // COMMON: call i64 @test6_any(ptr noundef null)
   return (long long) test6_any(0);
 }
 
@@ -71,7 +70,7 @@ struct Test7 {
 };
 extern "C" __unknown_anytype test7_any(int);
 Test7 test7() {
-  // COMMON: call void @test7_any({{%.*}}* sret({{%.*}}) align 1 {{%.*}}, i32 noundef 5)
+  // COMMON: call void @test7_any(ptr dead_on_unwind writable sret({{%.*}}) align 1 {{%.*}}, i32 noundef 5)
   return (Test7) test7_any(5);
 }
 
@@ -106,7 +105,7 @@ void test8(Test8 *p) {
 
 extern "C" __unknown_anytype test9_foo;
 void *test9() {
-  // COMMON: ret i8* bitcast (i32* @test9_foo to i8*)
+  // COMMON: ret ptr @test9_foo
   return (int*) &test9_foo;
 }
 
@@ -119,7 +118,7 @@ void test10() {
 extern "C" __unknown_anytype malloc(...);
 void test11() {
   void *s = (void*)malloc(12);
-  // COMMON: call i8* (i32, ...) @malloc(i32 noundef 12)
+  // COMMON: call ptr (i32, ...) @malloc(i32 noundef 12)
   void *d = (void*)malloc(435);
-  // COMMON: call i8* (i32, ...) @malloc(i32 noundef 435)
+  // COMMON: call ptr (i32, ...) @malloc(i32 noundef 435)
 }

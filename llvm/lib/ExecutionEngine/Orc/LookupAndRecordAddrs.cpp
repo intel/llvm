@@ -31,8 +31,8 @@ void lookupAndRecordAddrs(
           return OnRec(Result.takeError());
         for (auto &KV : Pairs) {
           auto I = Result->find(KV.first);
-          KV.second->setValue((I != Result->end()) ? I->second.getAddress()
-                                                   : 0);
+          *KV.second =
+              I != Result->end() ? I->second.getAddress() : orc::ExecutorAddr();
         }
         OnRec(Error::success());
       },
@@ -60,8 +60,8 @@ Error lookupAndRecordAddrs(
   for (auto &KV : Pairs)
     Symbols.add(KV.first, LookupFlags);
 
-  ExecutorProcessControl::LookupRequest LR(H, Symbols);
-  auto Result = EPC.lookupSymbols(LR);
+  DylibManager::LookupRequest LR(H, Symbols);
+  auto Result = EPC.getDylibMgr().lookupSymbols(LR);
   if (!Result)
     return Result.takeError();
 
@@ -72,9 +72,10 @@ Error lookupAndRecordAddrs(
     return make_error<StringError>("Error in lookup result elements",
                                    inconvertibleErrorCode());
 
-  for (unsigned I = 0; I != Pairs.size(); ++I)
-    Pairs[I].second->setValue(Result->front()[I]);
-
+  for (unsigned I = 0; I != Pairs.size(); ++I) {
+    if (Result->front()[I])
+      *Pairs[I].second = Result->front()[I]->getAddress();
+  }
   return Error::success();
 }
 

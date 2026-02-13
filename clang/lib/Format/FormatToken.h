@@ -19,25 +19,35 @@
 #include "clang/Basic/OperatorPrecedence.h"
 #include "clang/Format/Format.h"
 #include "clang/Lex/Lexer.h"
-#include <memory>
 #include <unordered_set>
 
 namespace clang {
 namespace format {
 
 #define LIST_TOKEN_TYPES                                                       \
+  TYPE(AfterPPDirective)                                                       \
   TYPE(ArrayInitializerLSquare)                                                \
   TYPE(ArraySubscriptLSquare)                                                  \
   TYPE(AttributeColon)                                                         \
+  TYPE(AttributeLParen)                                                        \
+  TYPE(AttributeLSquare)                                                       \
   TYPE(AttributeMacro)                                                         \
-  TYPE(AttributeParen)                                                         \
-  TYPE(AttributeSquare)                                                        \
+  TYPE(AttributeRParen)                                                        \
+  TYPE(AttributeRSquare)                                                       \
   TYPE(BinaryOperator)                                                         \
   TYPE(BitFieldColon)                                                          \
   TYPE(BlockComment)                                                           \
+  /* l_brace of a block that is not the body of a (e.g. loop) statement. */    \
+  TYPE(BlockLBrace)                                                            \
   TYPE(BracedListLBrace)                                                       \
+  TYPE(CaseLabelArrow)                                                         \
+  /* The colon at the end of a case label. */                                  \
+  TYPE(CaseLabelColon)                                                         \
   TYPE(CastRParen)                                                             \
   TYPE(ClassLBrace)                                                            \
+  /* Name of class/struct/union/interface definition. */                       \
+  TYPE(ClassHeadName)                                                          \
+  TYPE(ClassRBrace)                                                            \
   TYPE(CompoundRequirementLBrace)                                              \
   /* ternary ?: expression */                                                  \
   TYPE(ConditionalExpr)                                                        \
@@ -46,8 +56,9 @@ namespace format {
   TYPE(ConflictAlternative)                                                    \
   TYPE(ConflictEnd)                                                            \
   TYPE(ConflictStart)                                                          \
-  /* l_brace of if/for/while */                                                \
+  /* l_brace of if/for/while/switch/catch */                                   \
   TYPE(ControlStatementLBrace)                                                 \
+  TYPE(ControlStatementRBrace)                                                 \
   TYPE(CppCastLParen)                                                          \
   TYPE(CSharpGenericTypeConstraint)                                            \
   TYPE(CSharpGenericTypeConstraintColon)                                       \
@@ -58,20 +69,27 @@ namespace format {
   TYPE(CSharpStringLiteral)                                                    \
   TYPE(CtorInitializerColon)                                                   \
   TYPE(CtorInitializerComma)                                                   \
+  TYPE(CtorDtorDeclName)                                                       \
   TYPE(DesignatedInitializerLSquare)                                           \
   TYPE(DesignatedInitializerPeriod)                                            \
   TYPE(DictLiteral)                                                            \
+  TYPE(DoWhile)                                                                \
   TYPE(ElseLBrace)                                                             \
+  TYPE(ElseRBrace)                                                             \
   TYPE(EnumLBrace)                                                             \
+  TYPE(EnumRBrace)                                                             \
   TYPE(FatArrow)                                                               \
   TYPE(ForEachMacro)                                                           \
   TYPE(FunctionAnnotationRParen)                                               \
   TYPE(FunctionDeclarationName)                                                \
+  TYPE(FunctionDeclarationLParen)                                              \
   TYPE(FunctionLBrace)                                                         \
+  TYPE(FunctionLikeMacro)                                                      \
   TYPE(FunctionLikeOrFreestandingMacro)                                        \
   TYPE(FunctionTypeLParen)                                                     \
-  /* The colon at the end of a goto label or a case label. Currently only used \
-   * for Verilog. */                                                           \
+  /* The colons as part of a C11 _Generic selection */                         \
+  TYPE(GenericSelectionColon)                                                  \
+  /* The colon at the end of a goto label. */                                  \
   TYPE(GotoLabelColon)                                                         \
   TYPE(IfMacro)                                                                \
   TYPE(ImplicitStringLiteral)                                                  \
@@ -91,6 +109,7 @@ namespace format {
   TYPE(JsTypeOperator)                                                         \
   TYPE(JsTypeOptionalQuestion)                                                 \
   TYPE(LambdaArrow)                                                            \
+  TYPE(LambdaDefinitionLParen)                                                 \
   TYPE(LambdaLBrace)                                                           \
   TYPE(LambdaLSquare)                                                          \
   TYPE(LeadingJavaAnnotation)                                                  \
@@ -98,7 +117,9 @@ namespace format {
   TYPE(MacroBlockBegin)                                                        \
   TYPE(MacroBlockEnd)                                                          \
   TYPE(ModulePartitionColon)                                                   \
+  TYPE(NamespaceLBrace)                                                        \
   TYPE(NamespaceMacro)                                                         \
+  TYPE(NamespaceRBrace)                                                        \
   TYPE(NonNullAssertion)                                                       \
   TYPE(NullCoalescingEqual)                                                    \
   TYPE(NullCoalescingOperator)                                                 \
@@ -107,29 +128,68 @@ namespace format {
   TYPE(ObjCBlockLParen)                                                        \
   TYPE(ObjCDecl)                                                               \
   TYPE(ObjCForIn)                                                              \
+  /* The square brackets surrounding a method call, the colon separating the   \
+   * method or parameter name and the argument inside the square brackets, and \
+   * the colon separating the method or parameter name and the type inside the \
+   * method declaration. */                                                    \
   TYPE(ObjCMethodExpr)                                                         \
+  /* The '+' or '-' at the start of the line. */                               \
   TYPE(ObjCMethodSpecifier)                                                    \
   TYPE(ObjCProperty)                                                           \
+  /* The parentheses following '@selector' and the colon following the method  \
+   * or parameter name inside the parentheses. */                              \
+  TYPE(ObjCSelector)                                                           \
   TYPE(ObjCStringLiteral)                                                      \
   TYPE(OverloadedOperator)                                                     \
   TYPE(OverloadedOperatorLParen)                                               \
   TYPE(PointerOrReference)                                                     \
   TYPE(ProtoExtensionLSquare)                                                  \
   TYPE(PureVirtualSpecifier)                                                   \
+  TYPE(QtProperty)                                                             \
   TYPE(RangeBasedForLoopColon)                                                 \
   TYPE(RecordLBrace)                                                           \
+  TYPE(RecordRBrace)                                                           \
   TYPE(RegexLiteral)                                                           \
   TYPE(RequiresClause)                                                         \
   TYPE(RequiresClauseInARequiresExpression)                                    \
   TYPE(RequiresExpression)                                                     \
   TYPE(RequiresExpressionLBrace)                                               \
   TYPE(RequiresExpressionLParen)                                               \
+  /* The hash key in languages that have hash literals, not including the      \
+   * field name in the C++ struct literal. Also the method or parameter name   \
+   * in the Objective-C method declaration or call. */                         \
   TYPE(SelectorName)                                                           \
   TYPE(StartOfName)                                                            \
   TYPE(StatementAttributeLikeMacro)                                            \
   TYPE(StatementMacro)                                                         \
+  /* A string that is part of a string concatenation. For C#, JavaScript, and  \
+   * Java, it is used for marking whether a string needs parentheses around it \
+   * if it is to be split into parts joined by `+`. For Verilog, whether       \
+   * braces need to be added to split it. Not used for other languages. */     \
+  TYPE(StringInConcatenation)                                                  \
   TYPE(StructLBrace)                                                           \
+  TYPE(StructRBrace)                                                           \
   TYPE(StructuredBindingLSquare)                                               \
+  TYPE(SwitchExpressionLabel)                                                  \
+  TYPE(SwitchExpressionLBrace)                                                 \
+  TYPE(TableGenBangOperator)                                                   \
+  TYPE(TableGenCondOperator)                                                   \
+  TYPE(TableGenCondOperatorColon)                                              \
+  TYPE(TableGenCondOperatorComma)                                              \
+  TYPE(TableGenDAGArgCloser)                                                   \
+  TYPE(TableGenDAGArgListColon)                                                \
+  TYPE(TableGenDAGArgListColonToAlign)                                         \
+  TYPE(TableGenDAGArgListComma)                                                \
+  TYPE(TableGenDAGArgListCommaToBreak)                                         \
+  TYPE(TableGenDAGArgOpener)                                                   \
+  TYPE(TableGenDAGArgOpenerToBreak)                                            \
+  TYPE(TableGenDAGArgOperatorID)                                               \
+  TYPE(TableGenDAGArgOperatorToBreak)                                          \
+  TYPE(TableGenListCloser)                                                     \
+  TYPE(TableGenListOpener)                                                     \
+  TYPE(TableGenMultiLineString)                                                \
+  TYPE(TableGenTrailingPasteOperator)                                          \
+  TYPE(TableGenValueSuffix)                                                    \
   TYPE(TemplateCloser)                                                         \
   TYPE(TemplateOpener)                                                         \
   TYPE(TemplateString)                                                         \
@@ -137,20 +197,36 @@ namespace format {
   TYPE(TrailingReturnArrow)                                                    \
   TYPE(TrailingUnaryOperator)                                                  \
   TYPE(TypeDeclarationParen)                                                   \
+  TYPE(TemplateName)                                                           \
+  TYPE(TypeName)                                                               \
   TYPE(TypenameMacro)                                                          \
   TYPE(UnaryOperator)                                                          \
   TYPE(UnionLBrace)                                                            \
+  TYPE(UnionRBrace)                                                            \
   TYPE(UntouchableMacroFunc)                                                   \
+  TYPE(VariableTemplate)                                                       \
+  /* Like in 'assign x = 0, y = 1;' . */                                       \
+  TYPE(VerilogAssignComma)                                                     \
   /* like in begin : block */                                                  \
   TYPE(VerilogBlockLabelColon)                                                 \
   /* The square bracket for the dimension part of the type name.               \
    * In 'logic [1:0] x[1:0]', only the first '['. This way we can have space   \
    * before the first bracket but not the second. */                           \
   TYPE(VerilogDimensionedTypeName)                                             \
+  /* list of port connections or parameters in a module instantiation */       \
+  TYPE(VerilogInstancePortComma)                                               \
+  TYPE(VerilogInstancePortLParen)                                              \
+  /* A parenthesized list within which line breaks are inserted by the         \
+   * formatter, for example the list of ports in a module header. */           \
+  TYPE(VerilogMultiLineListLParen)                                             \
   /* for the base in a number literal, not including the quote */              \
   TYPE(VerilogNumberBase)                                                      \
+  /* like `(strong1, pull0)` */                                                \
+  TYPE(VerilogStrength)                                                        \
   /* Things inside the table in user-defined primitives. */                    \
   TYPE(VerilogTableItem)                                                       \
+  /* those that separate ports of different types */                           \
+  TYPE(VerilogTypeComma)                                                       \
   TYPE(Unknown)
 
 /// Determines the semantic type of a syntactic token, e.g. whether "<" is a
@@ -243,13 +319,15 @@ class AnnotatedLine;
 struct FormatToken {
   FormatToken()
       : HasUnescapedNewline(false), IsMultiline(false), IsFirst(false),
-        MustBreakBefore(false), IsUnterminatedLiteral(false),
-        CanBreakBefore(false), ClosesTemplateDeclaration(false),
-        StartsBinaryExpression(false), EndsBinaryExpression(false),
-        PartOfMultiVariableDeclStmt(false), ContinuesLineCommentSection(false),
-        Finalized(false), ClosesRequiresClause(false), BlockKind(BK_Unknown),
-        Decision(FD_Unformatted), PackingKind(PPK_Inconclusive),
-        TypeIsFinalized(false), Type(TT_Unknown) {}
+        MustBreakBefore(false), MustBreakBeforeFinalized(false),
+        IsUnterminatedLiteral(false), CanBreakBefore(false),
+        ClosesTemplateDeclaration(false), StartsBinaryExpression(false),
+        EndsBinaryExpression(false), PartOfMultiVariableDeclStmt(false),
+        ContinuesLineCommentSection(false), Finalized(false),
+        ClosesRequiresClause(false), EndsCppAttributeGroup(false),
+        BlockKind(BK_Unknown), Decision(FD_Unformatted),
+        PackingKind(PPK_Inconclusive), TypeIsFinalized(false),
+        Type(TT_Unknown) {}
 
   /// The \c Token.
   Token Tok;
@@ -285,6 +363,10 @@ struct FormatToken {
   /// before the token.
   unsigned MustBreakBefore : 1;
 
+  /// Whether MustBreakBefore is finalized during parsing and must not
+  /// be reset between runs.
+  unsigned MustBreakBeforeFinalized : 1;
+
   /// Set to \c true if this token is an unterminated literal.
   unsigned IsUnterminatedLiteral : 1;
 
@@ -317,6 +399,9 @@ struct FormatToken {
 
   /// \c true if this is the last token within requires clause.
   unsigned ClosesRequiresClause : 1;
+
+  /// \c true if this token ends a group of C++ attributes.
+  unsigned EndsCppAttributeGroup : 1;
 
 private:
   /// Contains the kind of block if this token is a brace.
@@ -366,6 +451,11 @@ public:
   /// binary operator.
   TokenType getType() const { return Type; }
   void setType(TokenType T) {
+    // If this token is a macro argument while formatting an unexpanded macro
+    // call, we do not change its type any more - the type was deduced from
+    // formatting the expanded macro stream already.
+    if (MacroCtx && MacroCtx->Role == MR_UnexpandedArg)
+      return;
     assert((!TypeIsFinalized || T == Type) &&
            "Please use overwriteFixedType to change a fixed type.");
     Type = T;
@@ -375,10 +465,14 @@ public:
   /// to another one please use overwriteFixedType, or even better remove the
   /// need to reassign the type.
   void setFinalizedType(TokenType T) {
+    if (MacroCtx && MacroCtx->Role == MR_UnexpandedArg)
+      return;
     Type = T;
     TypeIsFinalized = true;
   }
   void overwriteFixedType(TokenType T) {
+    if (MacroCtx && MacroCtx->Role == MR_UnexpandedArg)
+      return;
     TypeIsFinalized = false;
     setType(T);
   }
@@ -392,6 +486,12 @@ public:
   /// This can be used to determine what the user wrote in the original code
   /// and thereby e.g. leave an empty line between two function definitions.
   unsigned NewlinesBefore = 0;
+
+  /// The number of newlines immediately before the \c Token after formatting.
+  ///
+  /// This is used to avoid overlapping whitespace replacements when \c Newlines
+  /// is recomputed for a finalized preprocessor branching directive.
+  int Newlines = -1;
 
   /// The offset just past the last '\n' in this token's leading
   /// whitespace (relative to \c WhiteSpaceStart). 0 if there is no '\n'.
@@ -502,6 +602,15 @@ public:
   /// Is optional and can be removed.
   bool Optional = false;
 
+  /// Might be function declaration open/closing paren.
+  bool MightBeFunctionDeclParen = false;
+
+  /// Has "\n\f\n" or "\n\f\r\n" before TokenText.
+  bool HasFormFeedBefore = false;
+
+  /// Is the first token after a preprocessor line.
+  bool FirstAfterPPLine = false;
+
   /// Number of optional braces to be inserted after this token:
   ///   -1: a single left brace
   ///    0: no braces
@@ -514,7 +623,7 @@ public:
 
   // Contains all attributes related to how this token takes part
   // in a configured macro expansion.
-  llvm::Optional<MacroExpansion> MacroCtx;
+  std::optional<MacroExpansion> MacroCtx;
 
   /// When macro expansion introduces nodes with children, those are marked as
   /// \c MacroParent.
@@ -526,6 +635,9 @@ public:
   bool MacroParent = false;
 
   bool is(tok::TokenKind Kind) const { return Tok.is(Kind); }
+  bool is(tok::ObjCKeywordKind Kind) const {
+    return Tok.getObjCKeywordID() == Kind;
+  }
   bool is(TokenType TT) const { return getType() == TT; }
   bool is(const IdentifierInfo *II) const {
     return II && II == Tok.getIdentifierInfo();
@@ -545,10 +657,19 @@ public:
     return is(K1) || isOneOf(K2, Ks...);
   }
   template <typename T> bool isNot(T Kind) const { return !is(Kind); }
+  template <typename... Ts> bool isNoneOf(Ts... Ks) const {
+    return !isOneOf(Ks...);
+  }
 
   bool isIf(bool AllowConstexprMacro = true) const {
     return is(tok::kw_if) || endsSequence(tok::kw_constexpr, tok::kw_if) ||
            (endsSequence(tok::identifier, tok::kw_if) && AllowConstexprMacro);
+  }
+
+  bool isLoop(const FormatStyle &Style) const {
+    return isOneOf(tok::kw_for, tok::kw_while) ||
+           (Style.isJavaScript() && isNot(tok::l_paren) && Previous &&
+            Previous->is(tok::kw_for));
   }
 
   bool closesScopeAfterBlock() const {
@@ -579,43 +700,55 @@ public:
 
   bool isStringLiteral() const { return tok::isStringLiteral(Tok.getKind()); }
 
-  bool isObjCAtKeyword(tok::ObjCKeywordKind Kind) const {
-    return Tok.isObjCAtKeyword(Kind);
+  bool isAttribute() const {
+    return isOneOf(tok::kw___attribute, tok::kw___declspec, TT_AttributeMacro);
+  }
+
+  bool isAccessSpecifierKeyword() const {
+    return isOneOf(tok::kw_public, tok::kw_protected, tok::kw_private);
   }
 
   bool isAccessSpecifier(bool ColonRequired = true) const {
-    if (!isOneOf(tok::kw_public, tok::kw_protected, tok::kw_private))
+    if (!isAccessSpecifierKeyword())
       return false;
     if (!ColonRequired)
       return true;
-    const auto NextNonComment = getNextNonComment();
+    const auto *NextNonComment = getNextNonComment();
     return NextNonComment && NextNonComment->is(tok::colon);
   }
 
   bool canBePointerOrReferenceQualifier() const {
     return isOneOf(tok::kw_const, tok::kw_restrict, tok::kw_volatile,
-                   tok::kw___attribute, tok::kw__Nonnull, tok::kw__Nullable,
+                   tok::kw__Nonnull, tok::kw__Nullable,
                    tok::kw__Null_unspecified, tok::kw___ptr32, tok::kw___ptr64,
-                   TT_AttributeMacro);
+                   tok::kw___funcref) ||
+           isAttribute();
   }
 
-  /// Determine whether the token is a simple-type-specifier.
-  [[nodiscard]] bool isSimpleTypeSpecifier() const;
-
-  [[nodiscard]] bool isTypeOrIdentifier() const;
+  [[nodiscard]] bool isQtProperty() const;
+  [[nodiscard]] bool isTypeName(const LangOptions &LangOpts) const;
+  [[nodiscard]] bool isTypeOrIdentifier(const LangOptions &LangOpts) const;
 
   bool isObjCAccessSpecifier() const {
     return is(tok::at) && Next &&
-           (Next->isObjCAtKeyword(tok::objc_public) ||
-            Next->isObjCAtKeyword(tok::objc_protected) ||
-            Next->isObjCAtKeyword(tok::objc_package) ||
-            Next->isObjCAtKeyword(tok::objc_private));
+           Next->isOneOf(tok::objc_public, tok::objc_protected,
+                         tok::objc_package, tok::objc_private);
+  }
+
+  bool isObjCLifetimeQualifier(const FormatStyle &Style) const {
+    if (Style.Language != FormatStyle::LK_ObjC || isNot(tok::identifier) ||
+        !TokenText.starts_with("__")) {
+      return false;
+    }
+    const auto Qualifier = TokenText.substr(2);
+    return Qualifier == "autoreleasing" || Qualifier == "strong" ||
+           Qualifier == "weak" || Qualifier == "unsafe_unretained";
   }
 
   /// Returns whether \p Tok is ([{ or an opening < of a template or in
   /// protos.
   bool opensScope() const {
-    if (is(TT_TemplateString) && TokenText.endswith("${"))
+    if (is(TT_TemplateString) && TokenText.ends_with("${"))
       return true;
     if (is(TT_DictLiteral) && is(tok::less))
       return true;
@@ -625,7 +758,7 @@ public:
   /// Returns whether \p Tok is )]} or a closing > of a template or in
   /// protos.
   bool closesScope() const {
-    if (is(TT_TemplateString) && TokenText.startswith("}"))
+    if (is(TT_TemplateString) && TokenText.starts_with("}"))
       return true;
     if (is(TT_DictLiteral) && is(tok::greater))
       return true;
@@ -636,8 +769,16 @@ public:
   /// Returns \c true if this is a "." or "->" accessing a member.
   bool isMemberAccess() const {
     return isOneOf(tok::arrow, tok::period, tok::arrowstar) &&
-           !isOneOf(TT_DesignatedInitializerPeriod, TT_TrailingReturnArrow,
+           isNoneOf(TT_DesignatedInitializerPeriod, TT_TrailingReturnArrow,
                     TT_LambdaArrow, TT_LeadingJavaAnnotation);
+  }
+
+  bool isPointerOrReference() const {
+    return isOneOf(tok::star, tok::amp, tok::ampamp);
+  }
+
+  bool isPlacementOperator() const {
+    return isOneOf(tok::kw_new, tok::kw_delete);
   }
 
   bool isUnaryOperator() const {
@@ -669,36 +810,27 @@ public:
   /// Returns \c true if this is a keyword that can be used
   /// like a function call (e.g. sizeof, typeid, ...).
   bool isFunctionLikeKeyword() const {
-    switch (Tok.getKind()) {
-    case tok::kw_throw:
-    case tok::kw_typeid:
-    case tok::kw_return:
-    case tok::kw_sizeof:
-    case tok::kw_alignof:
-    case tok::kw_alignas:
-    case tok::kw_decltype:
-    case tok::kw_noexcept:
-    case tok::kw_static_assert:
-    case tok::kw__Atomic:
-    case tok::kw___attribute:
-#define TRANSFORM_TYPE_TRAIT_DEF(_, Trait) case tok::kw___##Trait:
-#include "clang/Basic/TransformTypeTraits.def"
-    case tok::kw_requires:
+    if (isAttribute())
       return true;
-    default:
-      return false;
-    }
+
+    return isOneOf(tok::kw_throw, tok::kw_typeid, tok::kw_return,
+                   tok::kw_sizeof, tok::kw_alignof, tok::kw_alignas,
+                   tok::kw_decltype, tok::kw_noexcept, tok::kw_static_assert,
+                   tok::kw__Atomic,
+#define TRANSFORM_TYPE_TRAIT_DEF(_, Trait) tok::kw___##Trait,
+#include "clang/Basic/TransformTypeTraits.def"
+                   tok::kw_requires);
   }
 
   /// Returns \c true if this is a string literal that's like a label,
   /// e.g. ends with "=" or ":".
   bool isLabelString() const {
-    if (!is(tok::string_literal))
+    if (isNot(tok::string_literal))
       return false;
     StringRef Content = TokenText;
-    if (Content.startswith("\"") || Content.startswith("'"))
+    if (Content.starts_with("\"") || Content.starts_with("'"))
       Content = Content.drop_front(1);
-    if (Content.endswith("\"") || Content.endswith("'"))
+    if (Content.ends_with("\"") || Content.ends_with("'"))
       Content = Content.drop_back(1);
     Content = Content.trim();
     return Content.size() > 1 &&
@@ -736,12 +868,15 @@ public:
   }
 
   /// Returns the next token ignoring comments.
-  [[nodiscard]] const FormatToken *getNextNonComment() const {
-    const FormatToken *Tok = Next;
+  [[nodiscard]] FormatToken *getNextNonComment() const {
+    FormatToken *Tok = Next;
     while (Tok && Tok->is(tok::comment))
       Tok = Tok->Next;
     return Tok;
   }
+
+  /// Returns \c true if this token ends a block indented initializer list.
+  [[nodiscard]] bool isBlockIndentedInitRBrace(const FormatStyle &Style) const;
 
   /// Returns \c true if this tokens starts a block-type list, i.e. a
   /// list that should be indented with a block indent.
@@ -749,8 +884,8 @@ public:
 
   /// Returns whether the token is the left square bracket of a C++
   /// structured binding declaration.
-  bool isCppStructuredBinding(const FormatStyle &Style) const {
-    if (!Style.isCpp() || isNot(tok::l_square))
+  bool isCppStructuredBinding(bool IsCpp) const {
+    if (!IsCpp || isNot(tok::l_square))
       return false;
     const FormatToken *T = this;
     do {
@@ -928,6 +1063,7 @@ struct AdditionalKeywords {
     kw_CF_OPTIONS = &IdentTable.get("CF_OPTIONS");
     kw_NS_CLOSED_ENUM = &IdentTable.get("NS_CLOSED_ENUM");
     kw_NS_ENUM = &IdentTable.get("NS_ENUM");
+    kw_NS_ERROR_ENUM = &IdentTable.get("NS_ERROR_ENUM");
     kw_NS_OPTIONS = &IdentTable.get("NS_OPTIONS");
 
     kw_as = &IdentTable.get("as");
@@ -958,6 +1094,7 @@ struct AdditionalKeywords {
     kw_interface = &IdentTable.get("interface");
     kw_native = &IdentTable.get("native");
     kw_package = &IdentTable.get("package");
+    kw_record = &IdentTable.get("record");
     kw_synchronized = &IdentTable.get("synchronized");
     kw_throws = &IdentTable.get("throws");
     kw___except = &IdentTable.get("__except");
@@ -1033,6 +1170,7 @@ struct AdditionalKeywords {
     kw_checker = &IdentTable.get("checker");
     kw_clocking = &IdentTable.get("clocking");
     kw_constraint = &IdentTable.get("constraint");
+    kw_context = &IdentTable.get("context");
     kw_cover = &IdentTable.get("cover");
     kw_covergroup = &IdentTable.get("covergroup");
     kw_coverpoint = &IdentTable.get("coverpoint");
@@ -1045,6 +1183,7 @@ struct AdditionalKeywords {
     kw_delay_mode_zero = &IdentTable.get("delay_mode_zero");
     kw_disable = &IdentTable.get("disable");
     kw_dist = &IdentTable.get("dist");
+    kw_edge = &IdentTable.get("edge");
     kw_elsif = &IdentTable.get("elsif");
     kw_end = &IdentTable.get("end");
     kw_end_keywords = &IdentTable.get("end_keywords");
@@ -1090,10 +1229,12 @@ struct AdditionalKeywords {
     kw_macromodule = &IdentTable.get("macromodule");
     kw_matches = &IdentTable.get("matches");
     kw_medium = &IdentTable.get("medium");
+    kw_negedge = &IdentTable.get("negedge");
     kw_nounconnected_drive = &IdentTable.get("nounconnected_drive");
     kw_output = &IdentTable.get("output");
     kw_packed = &IdentTable.get("packed");
     kw_parameter = &IdentTable.get("parameter");
+    kw_posedge = &IdentTable.get("posedge");
     kw_primitive = &IdentTable.get("primitive");
     kw_priority = &IdentTable.get("priority");
     kw_program = &IdentTable.get("program");
@@ -1135,6 +1276,7 @@ struct AdditionalKeywords {
     kw_unique0 = &IdentTable.get("unique0");
     kw_uwire = &IdentTable.get("uwire");
     kw_vectored = &IdentTable.get("vectored");
+    kw_wait = &IdentTable.get("wait");
     kw_wand = &IdentTable.get("wand");
     kw_weak0 = &IdentTable.get("weak0");
     kw_weak1 = &IdentTable.get("weak1");
@@ -1148,8 +1290,22 @@ struct AdditionalKeywords {
     kw_verilogHashHash = &IdentTable.get("##");
     kw_apostrophe = &IdentTable.get("\'");
 
-    // Keep this at the end of the constructor to make sure everything here
-    // is
+    // TableGen keywords.
+    kw_bit = &IdentTable.get("bit");
+    kw_bits = &IdentTable.get("bits");
+    kw_code = &IdentTable.get("code");
+    kw_dag = &IdentTable.get("dag");
+    kw_def = &IdentTable.get("def");
+    kw_defm = &IdentTable.get("defm");
+    kw_defset = &IdentTable.get("defset");
+    kw_defvar = &IdentTable.get("defvar");
+    kw_dump = &IdentTable.get("dump");
+    kw_include = &IdentTable.get("include");
+    kw_list = &IdentTable.get("list");
+    kw_multiclass = &IdentTable.get("multiclass");
+    kw_then = &IdentTable.get("then");
+
+    // Keep this at the end of the constructor to make sure everything here is
     // already initialized.
     JsExtraKeywords = std::unordered_set<IdentifierInfo *>(
         {kw_as, kw_async, kw_await, kw_declare, kw_finally, kw_from,
@@ -1158,19 +1314,14 @@ struct AdditionalKeywords {
          // Keywords from the Java section.
          kw_abstract, kw_extends, kw_implements, kw_instanceof, kw_interface});
 
-    CSharpExtraKeywords = std::unordered_set<IdentifierInfo *>(
-        {kw_base, kw_byte, kw_checked, kw_decimal, kw_delegate, kw_event,
-         kw_fixed, kw_foreach, kw_implicit, kw_in, kw_init, kw_interface,
-         kw_internal, kw_is, kw_lock, kw_null, kw_object, kw_out, kw_override,
-         kw_params, kw_readonly, kw_ref, kw_string, kw_stackalloc, kw_sbyte,
-         kw_sealed, kw_uint, kw_ulong, kw_unchecked, kw_unsafe, kw_ushort,
-         kw_when, kw_where,
-         // Keywords from the JavaScript section.
-         kw_as, kw_async, kw_await, kw_declare, kw_finally, kw_from,
-         kw_function, kw_get, kw_import, kw_is, kw_let, kw_module, kw_readonly,
-         kw_set, kw_type, kw_typeof, kw_var, kw_yield,
-         // Keywords from the Java section.
-         kw_abstract, kw_extends, kw_implements, kw_instanceof, kw_interface});
+    CSharpExtraKeywords = JsExtraKeywords;
+    CSharpExtraKeywords.insert(
+        {kw_base,   kw_byte,     kw_checked, kw_decimal,  kw_delegate,
+         kw_event,  kw_fixed,    kw_foreach, kw_implicit, kw_in,
+         kw_init,   kw_internal, kw_lock,    kw_null,     kw_object,
+         kw_out,    kw_params,   kw_ref,     kw_string,   kw_stackalloc,
+         kw_sbyte,  kw_sealed,   kw_uint,    kw_ulong,    kw_unchecked,
+         kw_unsafe, kw_ushort,   kw_when,    kw_where});
 
     // Some keywords are not included here because they don't need special
     // treatment like `showcancelled` or they should be treated as identifiers
@@ -1194,11 +1345,13 @@ struct AdditionalKeywords {
                                               kw_checker,
                                               kw_clocking,
                                               kw_constraint,
+                                              kw_context,
                                               kw_cover,
                                               kw_covergroup,
                                               kw_coverpoint,
                                               kw_disable,
                                               kw_dist,
+                                              kw_edge,
                                               kw_end,
                                               kw_endcase,
                                               kw_endchecker,
@@ -1249,10 +1402,13 @@ struct AdditionalKeywords {
                                               kw_macromodule,
                                               kw_matches,
                                               kw_medium,
+                                              kw_module,
+                                              kw_negedge,
                                               kw_output,
                                               kw_package,
                                               kw_packed,
                                               kw_parameter,
+                                              kw_posedge,
                                               kw_primitive,
                                               kw_priority,
                                               kw_program,
@@ -1292,6 +1448,7 @@ struct AdditionalKeywords {
                                               kw_uwire,
                                               kw_var,
                                               kw_vectored,
+                                              kw_wait,
                                               kw_wand,
                                               kw_weak0,
                                               kw_weak1,
@@ -1301,6 +1458,27 @@ struct AdditionalKeywords {
                                               kw_wor,
                                               kw_verilogHash,
                                               kw_verilogHashHash});
+
+    TableGenExtraKeywords = std::unordered_set<IdentifierInfo *>({
+        kw_assert,
+        kw_bit,
+        kw_bits,
+        kw_code,
+        kw_dag,
+        kw_def,
+        kw_defm,
+        kw_defset,
+        kw_defvar,
+        kw_dump,
+        kw_foreach,
+        kw_in,
+        kw_include,
+        kw_let,
+        kw_list,
+        kw_multiclass,
+        kw_string,
+        kw_then,
+    });
   }
 
   // Context sensitive keywords.
@@ -1313,6 +1491,7 @@ struct AdditionalKeywords {
   IdentifierInfo *kw_CF_OPTIONS;
   IdentifierInfo *kw_NS_CLOSED_ENUM;
   IdentifierInfo *kw_NS_ENUM;
+  IdentifierInfo *kw_NS_ERROR_ENUM;
   IdentifierInfo *kw_NS_OPTIONS;
   IdentifierInfo *kw___except;
   IdentifierInfo *kw___has_include;
@@ -1348,6 +1527,7 @@ struct AdditionalKeywords {
   IdentifierInfo *kw_interface;
   IdentifierInfo *kw_native;
   IdentifierInfo *kw_package;
+  IdentifierInfo *kw_record;
   IdentifierInfo *kw_synchronized;
   IdentifierInfo *kw_throws;
 
@@ -1425,6 +1605,7 @@ struct AdditionalKeywords {
   IdentifierInfo *kw_checker;
   IdentifierInfo *kw_clocking;
   IdentifierInfo *kw_constraint;
+  IdentifierInfo *kw_context;
   IdentifierInfo *kw_cover;
   IdentifierInfo *kw_covergroup;
   IdentifierInfo *kw_coverpoint;
@@ -1438,6 +1619,7 @@ struct AdditionalKeywords {
   IdentifierInfo *kw_disable;
   IdentifierInfo *kw_dist;
   IdentifierInfo *kw_elsif;
+  IdentifierInfo *kw_edge;
   IdentifierInfo *kw_end;
   IdentifierInfo *kw_end_keywords;
   IdentifierInfo *kw_endcase;
@@ -1482,10 +1664,12 @@ struct AdditionalKeywords {
   IdentifierInfo *kw_macromodule;
   IdentifierInfo *kw_matches;
   IdentifierInfo *kw_medium;
+  IdentifierInfo *kw_negedge;
   IdentifierInfo *kw_nounconnected_drive;
   IdentifierInfo *kw_output;
   IdentifierInfo *kw_packed;
   IdentifierInfo *kw_parameter;
+  IdentifierInfo *kw_posedge;
   IdentifierInfo *kw_primitive;
   IdentifierInfo *kw_priority;
   IdentifierInfo *kw_program;
@@ -1527,6 +1711,7 @@ struct AdditionalKeywords {
   IdentifierInfo *kw_unique0;
   IdentifierInfo *kw_uwire;
   IdentifierInfo *kw_vectored;
+  IdentifierInfo *kw_wait;
   IdentifierInfo *kw_wand;
   IdentifierInfo *kw_weak0;
   IdentifierInfo *kw_weak1;
@@ -1542,11 +1727,26 @@ struct AdditionalKeywords {
   // Symbols in Verilog that don't exist in C++.
   IdentifierInfo *kw_apostrophe;
 
+  // TableGen keywords
+  IdentifierInfo *kw_bit;
+  IdentifierInfo *kw_bits;
+  IdentifierInfo *kw_code;
+  IdentifierInfo *kw_dag;
+  IdentifierInfo *kw_def;
+  IdentifierInfo *kw_defm;
+  IdentifierInfo *kw_defset;
+  IdentifierInfo *kw_defvar;
+  IdentifierInfo *kw_dump;
+  IdentifierInfo *kw_include;
+  IdentifierInfo *kw_list;
+  IdentifierInfo *kw_multiclass;
+  IdentifierInfo *kw_then;
+
   /// Returns \c true if \p Tok is a keyword or an identifier.
-  bool isWordLike(const FormatToken &Tok) const {
+  bool isWordLike(const FormatToken &Tok, bool IsVerilog = true) const {
     // getIdentifierinfo returns non-null for keywords as well as identifiers.
-    return Tok.Tok.getIdentifierInfo() != nullptr &&
-           !Tok.isOneOf(kw_verilogHash, kw_verilogHashHash, kw_apostrophe);
+    return Tok.Tok.getIdentifierInfo() &&
+           (!IsVerilog || !isVerilogKeywordSymbol(Tok));
   }
 
   /// Returns \c true if \p Tok is a true JavaScript identifier, returns
@@ -1554,10 +1754,12 @@ struct AdditionalKeywords {
   /// If \c AcceptIdentifierName is true, returns true not only for keywords,
   // but also for IdentifierName tokens (aka pseudo-keywords), such as
   // ``yield``.
-  bool IsJavaScriptIdentifier(const FormatToken &Tok,
+  bool isJavaScriptIdentifier(const FormatToken &Tok,
                               bool AcceptIdentifierName = true) const {
     // Based on the list of JavaScript & TypeScript keywords here:
     // https://github.com/microsoft/TypeScript/blob/main/src/compiler/scanner.ts#L74
+    if (Tok.isAccessSpecifierKeyword())
+      return false;
     switch (Tok.Tok.getKind()) {
     case tok::kw_break:
     case tok::kw_case:
@@ -1577,9 +1779,6 @@ struct AdditionalKeywords {
     case tok::kw_import:
     case tok::kw_module:
     case tok::kw_new:
-    case tok::kw_private:
-    case tok::kw_protected:
-    case tok::kw_public:
     case tok::kw_return:
     case tok::kw_static:
     case tok::kw_switch:
@@ -1619,9 +1818,11 @@ struct AdditionalKeywords {
     }
   }
 
-  /// Returns \c true if \p Tok is a C# keyword, returns
-  /// \c false if it is a anything else.
+  /// Returns \c true if \p Tok is a C# keyword, returns \c false if it is
+  /// anything else.
   bool isCSharpKeyword(const FormatToken &Tok) const {
+    if (Tok.isAccessSpecifierKeyword())
+      return true;
     switch (Tok.Tok.getKind()) {
     case tok::kw_bool:
     case tok::kw_break:
@@ -1648,9 +1849,6 @@ struct AdditionalKeywords {
     case tok::kw_namespace:
     case tok::kw_new:
     case tok::kw_operator:
-    case tok::kw_private:
-    case tok::kw_protected:
-    case tok::kw_public:
     case tok::kw_return:
     case tok::kw_short:
     case tok::kw_sizeof:
@@ -1675,6 +1873,10 @@ struct AdditionalKeywords {
     }
   }
 
+  bool isVerilogKeywordSymbol(const FormatToken &Tok) const {
+    return Tok.isOneOf(kw_verilogHash, kw_verilogHashHash, kw_apostrophe);
+  }
+
   bool isVerilogWordOperator(const FormatToken &Tok) const {
     return Tok.isOneOf(kw_before, kw_intersect, kw_dist, kw_iff, kw_inside,
                        kw_with);
@@ -1688,11 +1890,13 @@ struct AdditionalKeywords {
     case tok::kw_continue:
     case tok::kw_default:
     case tok::kw_do:
-    case tok::kw_extern:
     case tok::kw_else:
     case tok::kw_enum:
+    case tok::kw_export:
+    case tok::kw_extern:
     case tok::kw_for:
     case tok::kw_if:
+    case tok::kw_import:
     case tok::kw_restrict:
     case tok::kw_signed:
     case tok::kw_static:
@@ -1704,11 +1908,12 @@ struct AdditionalKeywords {
     case tok::kw_while:
       return false;
     case tok::identifier:
-      return VerilogExtraKeywords.find(Tok.Tok.getIdentifierInfo()) ==
-             VerilogExtraKeywords.end();
+      return isWordLike(Tok) &&
+             VerilogExtraKeywords.find(Tok.Tok.getIdentifierInfo()) ==
+                 VerilogExtraKeywords.end();
     default:
       // getIdentifierInfo returns non-null for both identifiers and keywords.
-      return Tok.Tok.getIdentifierInfo() != nullptr;
+      return Tok.Tok.getIdentifierInfo();
     }
   }
 
@@ -1744,8 +1949,12 @@ struct AdditionalKeywords {
   /// Returns whether \p Tok is a Verilog keyword that opens a block.
   bool isVerilogBegin(const FormatToken &Tok) const {
     // `table` is not included since it needs to be treated specially.
-    return !Tok.endsSequence(kw_fork, kw_disable) &&
-           Tok.isOneOf(kw_begin, kw_fork, kw_generate, kw_specify);
+    if (Tok.isOneOf(kw_begin, kw_generate, kw_specify))
+      return true;
+    if (Tok.isNot(kw_fork))
+      return false;
+    const auto *Prev = Tok.getPreviousNonComment();
+    return !(Prev && Prev->isOneOf(kw_disable, kw_wait));
   }
 
   /// Returns whether \p Tok is a Verilog keyword that closes a block.
@@ -1779,28 +1988,96 @@ struct AdditionalKeywords {
   bool isVerilogEndOfLabel(const FormatToken &Tok) const {
     const FormatToken *Next = Tok.getNextNonComment();
     // In Verilog the colon in a default label is optional.
-    return Tok.is(TT_GotoLabelColon) ||
+    return Tok.is(TT_CaseLabelColon) ||
            (Tok.is(tok::kw_default) &&
             !(Next && Next->isOneOf(tok::colon, tok::semi, kw_clocking, kw_iff,
                                     kw_input, kw_output, kw_sequence)));
   }
 
-  /// Whether the token begins a block.
-  bool isBlockBegin(const FormatToken &Tok, const FormatStyle &Style) const {
-    return Tok.is(TT_MacroBlockBegin) ||
-           (Style.isVerilog() ? isVerilogBegin(Tok) : Tok.is(tok::l_brace));
+  /// Returns whether \p Tok is a Verilog keyword that starts a
+  /// structured procedure like 'always'.
+  bool isVerilogStructuredProcedure(const FormatToken &Tok) const {
+    return Tok.isOneOf(kw_always, kw_always_comb, kw_always_ff, kw_always_latch,
+                       kw_final, kw_forever, kw_initial);
+  }
+
+  bool isVerilogQualifier(const FormatToken &Tok) const {
+    switch (Tok.Tok.getKind()) {
+    case tok::kw_extern:
+    case tok::kw_signed:
+    case tok::kw_static:
+    case tok::kw_unsigned:
+    case tok::kw_virtual:
+      return true;
+    case tok::identifier:
+      return Tok.isOneOf(
+          kw_let, kw_var, kw_ref, kw_automatic, kw_bins, kw_coverpoint,
+          kw_ignore_bins, kw_illegal_bins, kw_inout, kw_input, kw_interconnect,
+          kw_local, kw_localparam, kw_output, kw_parameter, kw_pure, kw_rand,
+          kw_randc, kw_scalared, kw_specparam, kw_tri, kw_tri0, kw_tri1,
+          kw_triand, kw_trior, kw_trireg, kw_uwire, kw_vectored, kw_wand,
+          kw_wildcard, kw_wire, kw_wor);
+    default:
+      return false;
+    }
+  }
+
+  bool isTableGenDefinition(const FormatToken &Tok) const {
+    return Tok.isOneOf(kw_def, kw_defm, kw_defset, kw_defvar, kw_multiclass,
+                       kw_let, tok::kw_class);
+  }
+
+  bool isTableGenKeyword(const FormatToken &Tok) const {
+    switch (Tok.Tok.getKind()) {
+    case tok::kw_class:
+    case tok::kw_else:
+    case tok::kw_false:
+    case tok::kw_if:
+    case tok::kw_int:
+    case tok::kw_true:
+      return true;
+    default:
+      return Tok.is(tok::identifier) &&
+             TableGenExtraKeywords.find(Tok.Tok.getIdentifierInfo()) !=
+                 TableGenExtraKeywords.end();
+    }
   }
 
 private:
   /// The JavaScript keywords beyond the C++ keyword set.
   std::unordered_set<IdentifierInfo *> JsExtraKeywords;
 
-  /// The C# keywords beyond the C++ keyword set
+  /// The C# keywords beyond the C++ keyword set.
   std::unordered_set<IdentifierInfo *> CSharpExtraKeywords;
 
   /// The Verilog keywords beyond the C++ keyword set.
   std::unordered_set<IdentifierInfo *> VerilogExtraKeywords;
+
+  /// The TableGen keywords beyond the C++ keyword set.
+  std::unordered_set<IdentifierInfo *> TableGenExtraKeywords;
 };
+
+inline bool isLineComment(const FormatToken &FormatTok) {
+  return FormatTok.is(tok::comment) && !FormatTok.TokenText.starts_with("/*");
+}
+
+// Checks if \p FormatTok is a line comment that continues the line comment
+// \p Previous. The original column of \p MinColumnToken is used to determine
+// whether \p FormatTok is indented enough to the right to continue \p Previous.
+inline bool continuesLineComment(const FormatToken &FormatTok,
+                                 const FormatToken *Previous,
+                                 const FormatToken *MinColumnToken) {
+  if (!Previous || !MinColumnToken)
+    return false;
+  unsigned MinContinueColumn =
+      MinColumnToken->OriginalColumn + (isLineComment(*MinColumnToken) ? 0 : 1);
+  return isLineComment(FormatTok) && FormatTok.NewlinesBefore == 1 &&
+         isLineComment(*Previous) &&
+         FormatTok.OriginalColumn >= MinContinueColumn;
+}
+
+// Returns \c true if \c Current starts a new parameter.
+bool startsNextParameter(const FormatToken &Current, const FormatStyle &Style);
 
 } // namespace format
 } // namespace clang

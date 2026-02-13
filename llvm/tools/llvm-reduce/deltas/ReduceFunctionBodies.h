@@ -1,4 +1,4 @@
-//===- ReduceFunctionBodies.h - Specialized Delta Pass --------------------===//
+//===- ReduceFunctionBodies.h - Specialized Delta Pass ----------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -17,7 +17,8 @@
 #include "Delta.h"
 
 namespace llvm {
-void reduceFunctionBodiesDeltaPass(TestRunner &Test);
+void reduceFunctionBodiesDeltaPass(Oracle &O, ReducerWorkItem &WorkItem);
+void reduceFunctionDataDeltaPass(Oracle &O, ReducerWorkItem &WorkItem);
 } // namespace llvm
 
 #endif

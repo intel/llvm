@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#pragma once
+
 // This file contains conversion routines from property_list to
 // accessor_property_list. A separate file helps to avoid cyclic dependencies
 // between header files.
@@ -14,11 +16,11 @@
 #include <sycl/property_list.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 template <typename... T>
 inline property_list::operator ext::oneapi::accessor_property_list<T...>() {
   return ext::oneapi::accessor_property_list<T...>(MDataLessProps,
                                                    MPropsWithData);
 }
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

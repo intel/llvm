@@ -16,6 +16,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Driver/Driver.h"
+#include "flang/Config/config.h"
 #include "flang/Frontend/CompilerInvocation.h"
 #include "flang/Frontend/TextDiagnosticPrinter.h"
 #include "clang/Basic/Diagnostic.h"
@@ -26,11 +27,11 @@
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/VirtualFileSystem.h"
-
-using llvm::StringRef;
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Host.h"
+#include <stdlib.h>
 
 // main frontend method. Lives inside fc1_main.cpp
 extern int fc1_main(llvm::ArrayRef<const char *> argv, const char *argv0);
@@ -43,17 +44,17 @@ std::string getExecutablePath(const char *argv0) {
 
 // This lets us create the DiagnosticsEngine with a properly-filled-out
 // DiagnosticOptions instance
-static clang::DiagnosticOptions *
+static std::unique_ptr<clang::DiagnosticOptions>
 createAndPopulateDiagOpts(llvm::ArrayRef<const char *> argv) {
-  auto *diagOpts = new clang::DiagnosticOptions;
+  auto diagOpts = std::make_unique<clang::DiagnosticOptions>();
 
   // Ignore missingArgCount and the return value of ParseDiagnosticArgs.
   // Any errors that would be diagnosed here will also be diagnosed later,
   // when the DiagnosticsEngine actually exists.
   unsigned missingArgIndex, missingArgCount;
-  llvm::opt::InputArgList args = clang::driver::getDriverOptTable().ParseArgs(
+  llvm::opt::InputArgList args = clang::getDriverOptTable().ParseArgs(
       argv.slice(1), missingArgIndex, missingArgCount,
-      /*FlagsToInclude=*/clang::driver::options::FlangOption);
+      llvm::opt::Visibility(clang::options::FlangOption));
 
   (void)Fortran::frontend::parseDiagnosticArgs(*diagOpts, args);
 
@@ -63,7 +64,7 @@ createAndPopulateDiagOpts(llvm::ArrayRef<const char *> argv) {
 static int executeFC1Tool(llvm::SmallVectorImpl<const char *> &argV) {
   llvm::StringRef tool = argV[1];
   if (tool == "-fc1")
-    return fc1_main(makeArrayRef(argV).slice(2), argV[0]);
+    return fc1_main(llvm::ArrayRef(argV).slice(2), argV[0]);
 
   // Reject unknown tools.
   // ATM it only supports fc1. Any fc1[*] is rejected.
@@ -72,12 +73,14 @@ static int executeFC1Tool(llvm::SmallVectorImpl<const char *> &argV) {
   return 1;
 }
 
-static void ExpandResponseFiles(
-    llvm::StringSaver &saver, llvm::SmallVectorImpl<const char *> &args) {
+static void ExpandResponseFiles(llvm::StringSaver &saver,
+                                llvm::SmallVectorImpl<const char *> &args) {
   // We're defaulting to the GNU syntax, since we don't have a CL mode.
   llvm::cl::TokenizerCallback tokenizer = &llvm::cl::TokenizeGNUCommandLine;
   llvm::cl::ExpansionContext ExpCtx(saver.getAllocator(), tokenizer);
-  ExpCtx.expandResponseFiles(args);
+  if (llvm::Error Err = ExpCtx.expandResponseFiles(args)) {
+    llvm::errs() << toString(std::move(Err)) << '\n';
+  }
 }
 
 int main(int argc, const char **argv) {
@@ -86,51 +89,85 @@ int main(int argc, const char **argv) {
   llvm::InitLLVM x(argc, argv);
   llvm::SmallVector<const char *, 256> args(argv, argv + argc);
 
-  clang::driver::ParsedClangName targetandMode("flang", "--driver-mode=flang");
+  clang::driver::ParsedClangName targetandMode =
+      clang::driver::ToolChain::getTargetAndModeFromProgramName(argv[0]);
   std::string driverPath = getExecutablePath(args[0]);
 
   llvm::BumpPtrAllocator a;
   llvm::StringSaver saver(a);
   ExpandResponseFiles(saver, args);
 
-  // Check if flang-new is in the frontend mode
-  auto firstArg = std::find_if(
-      args.begin() + 1, args.end(), [](const char *a) { return a != nullptr; });
+  // Check if flang is in the frontend mode
+  auto firstArg = std::find_if(args.begin() + 1, args.end(),
+                               [](const char *a) { return a != nullptr; });
   if (firstArg != args.end()) {
-    if (llvm::StringRef(args[1]).startswith("-cc1")) {
+    if (llvm::StringRef(args[1]).starts_with("-cc1")) {
       llvm::errs() << "error: unknown integrated tool '" << args[1] << "'. "
                    << "Valid tools include '-fc1'.\n";
       return 1;
     }
-    // Call flang-new frontend
-    if (llvm::StringRef(args[1]).startswith("-fc1")) {
+    // Call flang frontend
+    if (llvm::StringRef(args[1]).starts_with("-fc1")) {
       return executeFC1Tool(args);
     }
   }
 
+  llvm::StringSet<> savedStrings;
+  // Handle FCC_OVERRIDE_OPTIONS, used for editing a command line behind the
+  // scenes.
+  if (const char *overrideStr = ::getenv("FCC_OVERRIDE_OPTIONS"))
+    clang::driver::applyOverrideOptions(args, overrideStr, savedStrings,
+                                        "FCC_OVERRIDE_OPTIONS", &llvm::errs());
+
   // Not in the frontend mode - continue in the compiler driver mode.
 
   // Create DiagnosticsEngine for the compiler driver
-  llvm::IntrusiveRefCntPtr<clang::DiagnosticOptions> diagOpts =
+  std::unique_ptr<clang::DiagnosticOptions> diagOpts =
       createAndPopulateDiagOpts(args);
-  llvm::IntrusiveRefCntPtr<clang::DiagnosticIDs> diagID(
-      new clang::DiagnosticIDs());
   Fortran::frontend::TextDiagnosticPrinter *diagClient =
-      new Fortran::frontend::TextDiagnosticPrinter(llvm::errs(), &*diagOpts);
+      new Fortran::frontend::TextDiagnosticPrinter(llvm::errs(), *diagOpts);
 
   diagClient->setPrefix(
       std::string(llvm::sys::path::stem(getExecutablePath(args[0]))));
 
-  clang::DiagnosticsEngine diags(diagID, &*diagOpts, diagClient);
+  clang::DiagnosticsEngine diags(clang::DiagnosticIDs::create(), *diagOpts,
+                                 diagClient);
 
   // Prepare the driver
   clang::driver::Driver theDriver(driverPath,
-      llvm::sys::getDefaultTargetTriple(), diags, "flang LLVM compiler");
+                                  llvm::sys::getDefaultTargetTriple(), diags,
+                                  "flang LLVM compiler");
   theDriver.setTargetAndMode(targetandMode);
+  theDriver.setPreferredLinker(FLANG_DEFAULT_LINKER);
+#ifdef FLANG_RUNTIME_F128_MATH_LIB
+  theDriver.setFlangF128MathLibrary(FLANG_RUNTIME_F128_MATH_LIB);
+#endif
   std::unique_ptr<clang::driver::Compilation> c(
       theDriver.BuildCompilation(args));
   llvm::SmallVector<std::pair<int, const clang::driver::Command *>, 4>
       failingCommands;
+
+  // Set the environment variable, FLANG_COMPILER_OPTIONS_STRING, to contain all
+  // the compiler options. This is intended for the frontend driver,
+  // flang -fc1, to enable the implementation of the COMPILER_OPTIONS
+  // intrinsic. To this end, the frontend driver requires the list of the
+  // original compiler options, which is not available through other means.
+  // TODO: This way of passing information between the compiler and frontend
+  // drivers is discouraged. We should find a better way not involving env
+  // variables.
+  std::string compilerOptsGathered;
+  llvm::raw_string_ostream os(compilerOptsGathered);
+  for (int i = 0; i < argc; ++i) {
+    os << argv[i];
+    if (i < argc - 1) {
+      os << ' ';
+    }
+  }
+#ifdef _WIN32
+  _putenv_s("FLANG_COMPILER_OPTIONS_STRING", compilerOptsGathered.c_str());
+#else
+  setenv("FLANG_COMPILER_OPTIONS_STRING", compilerOptsGathered.c_str(), 1);
+#endif
 
   // Run the driver
   int res = 1;

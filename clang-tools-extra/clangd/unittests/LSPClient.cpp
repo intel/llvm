@@ -12,20 +12,36 @@
 #include "Transport.h"
 #include "support/Logger.h"
 #include "support/Threading.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringMap.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Error.h"
+#include "llvm/Support/JSON.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 #include "gtest/gtest.h"
 #include <condition_variable>
+#include <cstddef>
+#include <cstdint>
+#include <deque>
+#include <functional>
+#include <memory>
+#include <mutex>
+#include <optional>
 #include <queue>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace clang {
 namespace clangd {
 
 llvm::Expected<llvm::json::Value> clang::clangd::LSPClient::CallResult::take() {
   std::unique_lock<std::mutex> Lock(Mu);
-  if (!clangd::wait(Lock, CV, timeoutSeconds(10),
+  static constexpr size_t TimeoutSecs = 60;
+  if (!clangd::wait(Lock, CV, timeoutSeconds(TimeoutSecs),
                     [this] { return Value.has_value(); })) {
-    ADD_FAILURE() << "No result from call after 10 seconds!";
+    ADD_FAILURE() << "No result from call after " << TimeoutSecs << " seconds!";
     return llvm::json::Value(nullptr);
   }
   auto Res = std::move(*Value);
@@ -89,6 +105,20 @@ public:
     return Result;
   }
 
+  void expectCall(llvm::StringRef Method) {
+    std::lock_guard<std::mutex> Lock(Mu);
+    Calls[Method] = {};
+  }
+
+  std::vector<llvm::json::Value> takeCallParams(llvm::StringRef Method) {
+    std::vector<llvm::json::Value> Result;
+    {
+      std::lock_guard<std::mutex> Lock(Mu);
+      std::swap(Result, Calls[Method]);
+    }
+    return Result;
+  }
+
 private:
   void reply(llvm::json::Value ID,
              llvm::Expected<llvm::json::Value> V) override {
@@ -114,7 +144,12 @@ private:
   void call(llvm::StringRef Method, llvm::json::Value Params,
             llvm::json::Value ID) override {
     logBody(Method, Params, /*Send=*/false);
-    ADD_FAILURE() << "Unexpected server->client call " << Method;
+    std::lock_guard<std::mutex> Lock(Mu);
+    if (Calls.contains(Method)) {
+      Calls[Method].push_back(std::move(Params));
+    } else {
+      ADD_FAILURE() << "Unexpected server->client call " << Method;
+    }
   }
 
   llvm::Error loop(MessageHandler &H) override {
@@ -136,6 +171,7 @@ private:
   std::queue<std::function<void(Transport::MessageHandler &)>> Actions;
   std::condition_variable CV;
   llvm::StringMap<std::vector<llvm::json::Value>> Notifications;
+  llvm::StringMap<std::vector<llvm::json::Value>> Calls;
 };
 
 LSPClient::LSPClient() : T(std::make_unique<TransportImpl>()) {}
@@ -152,6 +188,10 @@ LSPClient::CallResult &LSPClient::call(llvm::StringRef Method,
   return *Slot.second;
 }
 
+void LSPClient::expectServerCall(llvm::StringRef Method) {
+  T->expectCall(Method);
+}
+
 void LSPClient::notify(llvm::StringRef Method, llvm::json::Value Params) {
   T->enqueue([Method(Method.str()),
               Params(std::move(Params))](Transport::MessageHandler &H) {
@@ -163,6 +203,11 @@ void LSPClient::notify(llvm::StringRef Method, llvm::json::Value Params) {
 std::vector<llvm::json::Value>
 LSPClient::takeNotifications(llvm::StringRef Method) {
   return T->takeNotifications(Method);
+}
+
+std::vector<llvm::json::Value>
+LSPClient::takeCallParams(llvm::StringRef Method) {
+  return T->takeCallParams(Method);
 }
 
 void LSPClient::stop() { T->enqueue(nullptr); }
@@ -198,7 +243,7 @@ void LSPClient::didClose(llvm::StringRef Path) {
 
 void LSPClient::sync() { call("sync", nullptr).takeValue(); }
 
-llvm::Optional<std::vector<llvm::json::Value>>
+std::optional<std::vector<llvm::json::Value>>
 LSPClient::diagnostics(llvm::StringRef Path) {
   sync();
   auto Notifications = takeNotifications("textDocument/publishDiagnostics");

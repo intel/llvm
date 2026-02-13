@@ -10,12 +10,13 @@
 #include "llvm/Demangle/Utility.h"
 #include "gtest/gtest.h"
 #include <string>
+#include <string_view>
 
 using namespace llvm;
 using llvm::itanium_demangle::OutputBuffer;
 
 static std::string toString(OutputBuffer &OB) {
-  StringView SV = OB;
+  std::string_view SV = OB;
   return {SV.begin(), SV.end()};
 }
 
@@ -89,6 +90,43 @@ TEST(OutputBufferTest, Extend) {
   Massive[sizeof(Massive) - 1] = 0;
   OB << Massive;
   EXPECT_EQ(Massive, toString(OB));
+
+  std::free(OB.getBuffer());
+}
+
+TEST(OutputBufferTest, Notifications) {
+  struct MyOutputBuffer : public OutputBuffer {
+    size_t Inserted = 0;
+    size_t LatestPos = 0;
+
+    void notifyDeletion(size_t OldPos, size_t NewPos) override {
+      LatestPos = NewPos;
+    }
+
+    void notifyInsertion(size_t Position, size_t Count) override {
+      Inserted += Count;
+      LatestPos = Position;
+    }
+  } OB;
+
+  OB.prepend("n");
+  EXPECT_EQ(OB.Inserted, 1U);
+  EXPECT_EQ(OB.LatestPos, 0U);
+
+  OB.prepend("");
+  EXPECT_EQ(OB.Inserted, 1U);
+  EXPECT_EQ(OB.LatestPos, 0U);
+
+  OB.prepend("abc");
+  EXPECT_EQ(OB.Inserted, 4U);
+  EXPECT_EQ(OB.LatestPos, 0U);
+
+  OB.insert(2, "abc", 3U);
+  EXPECT_EQ(OB.Inserted, 7U);
+  EXPECT_EQ(OB.LatestPos, 2U);
+
+  OB.setCurrentPosition(3U);
+  EXPECT_EQ(OB.LatestPos, 3U);
 
   std::free(OB.getBuffer());
 }

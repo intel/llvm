@@ -34,24 +34,24 @@
 ;   return sum;
 ; }
 ;
-define i64 @two_chain_same_offset_succ_i32(i8* %p, i32 %offset, i32 %base1, i64 %n) {
+define i64 @two_chain_same_offset_succ_i32(ptr %p, i32 %offset, i32 %base1, i64 %n) {
 ; CHECK-LABEL: two_chain_same_offset_succ_i32:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    cmplwi r6, 0
 ; CHECK-NEXT:    cmpwi cr1, r6, 0
-; CHECK-NEXT:    stw r30, -8(r1) # 4-byte Folded Spill
-; CHECK-NEXT:    stw r31, -4(r1) # 4-byte Folded Spill
 ; CHECK-NEXT:    crandc 4*cr5+lt, 4*cr1+lt, eq
 ; CHECK-NEXT:    cmpwi cr1, r7, 0
-; CHECK-NEXT:    bc 12, 4*cr5+lt, L..BB0_5
+; CHECK-NEXT:    bc 12, 4*cr5+lt, L..BB0_6
 ; CHECK-NEXT:  # %bb.1: # %entry
 ; CHECK-NEXT:    crand 4*cr5+lt, eq, 4*cr1+eq
-; CHECK-NEXT:    bc 12, 4*cr5+lt, L..BB0_5
+; CHECK-NEXT:    bc 12, 4*cr5+lt, L..BB0_6
 ; CHECK-NEXT:  # %bb.2: # %for.body.preheader
 ; CHECK-NEXT:    slwi r8, r4, 1
 ; CHECK-NEXT:    li r10, 0
 ; CHECK-NEXT:    li r11, 0
+; CHECK-NEXT:    stw r30, -8(r1) # 4-byte Folded Spill
 ; CHECK-NEXT:    add r8, r4, r8
+; CHECK-NEXT:    stw r31, -4(r1) # 4-byte Folded Spill
 ; CHECK-NEXT:    add r9, r5, r8
 ; CHECK-NEXT:    add r5, r5, r4
 ; CHECK-NEXT:    add r8, r3, r5
@@ -83,14 +83,14 @@ define i64 @two_chain_same_offset_succ_i32(i8* %p, i32 %offset, i32 %base1, i64 
 ; CHECK-NEXT:    #
 ; CHECK-NEXT:    crand 4*cr5+lt, eq, 4*cr1+lt
 ; CHECK-NEXT:    bc 12, 4*cr5+lt, L..BB0_3
-; CHECK-NEXT:    b L..BB0_6
-; CHECK-NEXT:  L..BB0_5:
-; CHECK-NEXT:    li r3, 0
-; CHECK-NEXT:    li r5, 0
-; CHECK-NEXT:  L..BB0_6: # %for.cond.cleanup
+; CHECK-NEXT:  # %bb.5:
 ; CHECK-NEXT:    lwz r31, -4(r1) # 4-byte Folded Reload
 ; CHECK-NEXT:    lwz r30, -8(r1) # 4-byte Folded Reload
 ; CHECK-NEXT:    mr r4, r5
+; CHECK-NEXT:    blr
+; CHECK-NEXT:  L..BB0_6:
+; CHECK-NEXT:    li r3, 0
+; CHECK-NEXT:    li r4, 0
 ; CHECK-NEXT:    blr
 entry:
   %add = add nsw i32 %base1, %offset
@@ -100,10 +100,10 @@ entry:
   %add3 = add nsw i32 %mul2, %base1
   %mul4 = shl nsw i32 %offset, 2
   %add5 = add nsw i32 %mul4, %base1
-  %add.ptr = getelementptr inbounds i8, i8* %p, i32 %add
-  %add.ptr6 = getelementptr inbounds i8, i8* %p, i32 %add1
-  %add.ptr7 = getelementptr inbounds i8, i8* %p, i32 %add3
-  %add.ptr8 = getelementptr inbounds i8, i8* %p, i32 %add5
+  %add.ptr = getelementptr inbounds i8, ptr %p, i32 %add
+  %add.ptr6 = getelementptr inbounds i8, ptr %p, i32 %add1
+  %add.ptr7 = getelementptr inbounds i8, ptr %p, i32 %add3
+  %add.ptr8 = getelementptr inbounds i8, ptr %p, i32 %add5
   %cmp49 = icmp sgt i64 %n, 0
   br i1 %cmp49, label %for.body, label %for.cond.cleanup
 
@@ -115,21 +115,17 @@ for.body:                                         ; preds = %entry, %for.body
   %sum.051 = phi i64 [ %add19, %for.body ], [ 0, %entry ]
   %i.050 = phi i64 [ %inc, %for.body ], [ 0, %entry ]
   %idx.ext = trunc i64 %i.050 to i32
-  %add.ptr9 = getelementptr inbounds i8, i8* %add.ptr, i32 %idx.ext
-  %0 = bitcast i8* %add.ptr9 to i32*
-  %1 = load i32, i32* %0, align 4
-  %add.ptr11 = getelementptr inbounds i8, i8* %add.ptr6, i32 %idx.ext
-  %2 = bitcast i8* %add.ptr11 to i32*
-  %3 = load i32, i32* %2, align 4
-  %add.ptr13 = getelementptr inbounds i8, i8* %add.ptr7, i32 %idx.ext
-  %4 = bitcast i8* %add.ptr13 to i32*
-  %5 = load i32, i32* %4, align 4
-  %add.ptr15 = getelementptr inbounds i8, i8* %add.ptr8, i32 %idx.ext
-  %6 = bitcast i8* %add.ptr15 to i32*
-  %7 = load i32, i32* %6, align 4
-  %mul16 = mul i32 %3, %1
-  %mul17 = mul i32 %mul16, %5
-  %mul18 = mul i32 %mul17, %7
+  %add.ptr9 = getelementptr inbounds i8, ptr %add.ptr, i32 %idx.ext
+  %0 = load i32, ptr %add.ptr9, align 4
+  %add.ptr11 = getelementptr inbounds i8, ptr %add.ptr6, i32 %idx.ext
+  %1 = load i32, ptr %add.ptr11, align 4
+  %add.ptr13 = getelementptr inbounds i8, ptr %add.ptr7, i32 %idx.ext
+  %2 = load i32, ptr %add.ptr13, align 4
+  %add.ptr15 = getelementptr inbounds i8, ptr %add.ptr8, i32 %idx.ext
+  %3 = load i32, ptr %add.ptr15, align 4
+  %mul16 = mul i32 %1, %0
+  %mul17 = mul i32 %mul16, %2
+  %mul18 = mul i32 %mul17, %3
   %conv = zext i32 %mul18 to i64
   %add19 = add nuw nsw i64 %sum.051, %conv
   %inc = add nuw nsw i64 %i.050, 1

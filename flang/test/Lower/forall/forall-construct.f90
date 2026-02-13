@@ -1,6 +1,6 @@
 ! Test forall lowering
 
-! RUN: bbc -emit-fir %s -o - | FileCheck %s
+! RUN: bbc -emit-fir -hlfir=false %s -o - | FileCheck %s
 
 !*** Test a FORALL construct
 subroutine test_forall_construct(a,b)
@@ -60,7 +60,7 @@ end subroutine test_forall_construct
 ! CHECK:             %[[VAL_48:.*]] = fir.coordinate_of %[[VAL_1]], %[[VAL_43]], %[[VAL_47]] : (!fir.box<!fir.array<?x?xf32>>, i64, i64) -> !fir.ref<f32>
 ! CHECK:             %[[VAL_49:.*]] = fir.load %[[VAL_48]] : !fir.ref<f32>
 ! CHECK:             %[[VAL_50:.*]] = arith.constant 0.000000e+00 : f32
-! CHECK:             %[[VAL_51:.*]] = arith.cmpf ogt, %[[VAL_49]], %[[VAL_50]] : f32
+! CHECK:             %[[VAL_51:.*]] = arith.cmpf ogt, %[[VAL_49]], %[[VAL_50]] {{.*}} : f32
 ! CHECK:             %[[VAL_52:.*]] = fir.if %[[VAL_51]] -> (!fir.array<?x?xf32>) {
 ! CHECK:               %[[VAL_53:.*]] = arith.constant 1 : index
 ! CHECK:               %[[VAL_54:.*]] = fir.load %[[VAL_2]] : !fir.ref<i32>
@@ -73,7 +73,7 @@ end subroutine test_forall_construct
 ! CHECK:               %[[VAL_61:.*]] = arith.subi %[[VAL_60]], %[[VAL_53]] : index
 ! CHECK-DAG:           %[[VAL_62:.*]] = arith.constant 3.140000e+00 : f32
 ! CHECK-DAG:           %[[VAL_63:.*]] = fir.array_fetch %[[VAL_31]], %[[VAL_57]], %[[VAL_61]] : (!fir.array<?x?xf32>, index, index) -> f32
-! CHECK:               %[[VAL_64:.*]] = arith.divf %[[VAL_63]], %[[VAL_62]] : f32
+! CHECK:               %[[VAL_64:.*]] = arith.divf %[[VAL_63]], %[[VAL_62]] {{.*}}: f32
 ! CHECK:               %[[VAL_65:.*]] = arith.constant 1 : index
 ! CHECK:               %[[VAL_66:.*]] = fir.load %[[VAL_3]] : !fir.ref<i32>
 ! CHECK:               %[[VAL_67:.*]] = fir.convert %[[VAL_66]] : (i32) -> i64

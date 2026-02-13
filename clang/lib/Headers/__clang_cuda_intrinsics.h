@@ -215,9 +215,7 @@ inline __device__ unsigned int __activemask() {
 #if CUDA_VERSION < 9020
   return __nvvm_vote_ballot(1);
 #else
-  unsigned int mask;
-  asm volatile("activemask.b32 %0;" : "=r"(mask));
-  return mask;
+  return __nvvm_activemask();
 #endif
 }
 
@@ -481,6 +479,293 @@ inline __device__ unsigned __funnelshift_rc(unsigned low32, unsigned high32,
   return ret;
 }
 
+#if defined(__cplusplus) && (__cplusplus >= 201103L)
+
+#pragma push_macro("__INTRINSIC_LOAD")
+#define __INTRINSIC_LOAD(__FnName, __AsmOp, __DeclType, __TmpType, __AsmType,  \
+                         __Clobber)                                            \
+  inline __device__ __DeclType __FnName(const __DeclType *__ptr) {             \
+    __TmpType __ret;                                                           \
+    asm(__AsmOp " %0, [%1];" : __AsmType(__ret) : "l"(__ptr)__Clobber);        \
+    return (__DeclType)__ret;                                                  \
+  }
+
+#pragma push_macro("__INTRINSIC_LOAD2")
+#define __INTRINSIC_LOAD2(__FnName, __AsmOp, __DeclType, __TmpType, __AsmType, \
+                          __Clobber)                                           \
+  inline __device__ __DeclType __FnName(const __DeclType *__ptr) {             \
+    __DeclType __ret;                                                          \
+    __TmpType __tmp;                                                           \
+    asm(__AsmOp " {%0,%1}, [%2];"                                              \
+        : __AsmType(__tmp.x), __AsmType(__tmp.y)                               \
+        : "l"(__ptr)__Clobber);                                                \
+    using __ElementType = decltype(__ret.x);                                   \
+    __ret.x = (__ElementType)(__tmp.x);                                        \
+    __ret.y = (__ElementType)__tmp.y;                                          \
+    return __ret;                                                              \
+  }
+
+#pragma push_macro("__INTRINSIC_LOAD4")
+#define __INTRINSIC_LOAD4(__FnName, __AsmOp, __DeclType, __TmpType, __AsmType, \
+                          __Clobber)                                           \
+  inline __device__ __DeclType __FnName(const __DeclType *__ptr) {             \
+    __DeclType __ret;                                                          \
+    __TmpType __tmp;                                                           \
+    asm(__AsmOp " {%0,%1,%2,%3}, [%4];"                                        \
+        : __AsmType(__tmp.x), __AsmType(__tmp.y), __AsmType(__tmp.z),          \
+          __AsmType(__tmp.w)                                                   \
+        : "l"(__ptr)__Clobber);                                                \
+    using __ElementType = decltype(__ret.x);                                   \
+    __ret.x = (__ElementType)__tmp.x;                                          \
+    __ret.y = (__ElementType)__tmp.y;                                          \
+    __ret.z = (__ElementType)__tmp.z;                                          \
+    __ret.w = (__ElementType)__tmp.w;                                          \
+    return __ret;                                                              \
+  }
+
+__INTRINSIC_LOAD(__ldcg, "ld.global.cg.s8", char, unsigned int, "=r", );
+__INTRINSIC_LOAD(__ldcg, "ld.global.cg.s8", signed char, unsigned int, "=r", );
+__INTRINSIC_LOAD(__ldcg, "ld.global.cg.s16", short, unsigned short, "=h", );
+__INTRINSIC_LOAD(__ldcg, "ld.global.cg.s32", int, unsigned int, "=r", );
+__INTRINSIC_LOAD(__ldcg, "ld.global.cg.s64", long long, unsigned long long,
+                 "=l", );
+
+__INTRINSIC_LOAD2(__ldcg, "ld.global.cg.v2.s8", char2, int2, "=r", );
+__INTRINSIC_LOAD4(__ldcg, "ld.global.cg.v4.s8", char4, int4, "=r", );
+__INTRINSIC_LOAD2(__ldcg, "ld.global.cg.v2.s16", short2, short2, "=h", );
+__INTRINSIC_LOAD4(__ldcg, "ld.global.cg.v4.s16", short4, short4, "=h", );
+__INTRINSIC_LOAD2(__ldcg, "ld.global.cg.v2.s32", int2, int2, "=r", );
+__INTRINSIC_LOAD4(__ldcg, "ld.global.cg.v4.s32", int4, int4, "=r", );
+__INTRINSIC_LOAD2(__ldcg, "ld.global.cg.v2.s64 ", longlong2, longlong2, "=l", );
+
+__INTRINSIC_LOAD(__ldcg, "ld.global.cg.u8", unsigned char, unsigned int,
+                 "=r", );
+__INTRINSIC_LOAD(__ldcg, "ld.global.cg.u16", unsigned short, unsigned short,
+                 "=h", );
+__INTRINSIC_LOAD(__ldcg, "ld.global.cg.u32", unsigned int, unsigned int,
+                 "=r", );
+__INTRINSIC_LOAD(__ldcg, "ld.global.cg.u64", unsigned long long,
+                 unsigned long long, "=l", );
+
+__INTRINSIC_LOAD2(__ldcg, "ld.global.cg.v2.u8", uchar2, int2, "=r", );
+__INTRINSIC_LOAD4(__ldcg, "ld.global.cg.v4.u8", uchar4, int4, "=r", );
+__INTRINSIC_LOAD2(__ldcg, "ld.global.cg.v2.u16", ushort2, ushort2, "=h", );
+__INTRINSIC_LOAD4(__ldcg, "ld.global.cg.v4.u16", ushort4, ushort4, "=h", );
+__INTRINSIC_LOAD2(__ldcg, "ld.global.cg.v2.u32", uint2, uint2, "=r", );
+__INTRINSIC_LOAD4(__ldcg, "ld.global.cg.v4.u32", uint4, uint4, "=r", );
+__INTRINSIC_LOAD2(__ldcg, "ld.global.cg.v2.u64", ulonglong2, ulonglong2,
+                  "=l", );
+
+__INTRINSIC_LOAD(__ldcg, "ld.global.cg.f32", float, float, "=f", );
+__INTRINSIC_LOAD(__ldcg, "ld.global.cg.f64", double, double, "=d", );
+__INTRINSIC_LOAD2(__ldcg, "ld.global.cg.v2.f32", float2, float2, "=f", );
+__INTRINSIC_LOAD4(__ldcg, "ld.global.cg.v4.f32", float4, float4, "=f", );
+__INTRINSIC_LOAD2(__ldcg, "ld.global.cg.v2.f64", double2, double2, "=d", );
+
+inline __device__ long __ldcg(const long *__ptr) {
+  unsigned long __ret;
+  if (sizeof(long) == 8) {
+    asm("ld.global.cg.s64 %0, [%1];" : "=l"(__ret) : "l"(__ptr));
+  } else {
+    asm("ld.global.cg.s32 %0, [%1];" : "=r"(__ret) : "l"(__ptr));
+  }
+  return (long)__ret;
+}
+
+__INTRINSIC_LOAD(__ldcv, "ld.global.cv.u8", unsigned char, unsigned int,
+                 "=r", : "memory");
+__INTRINSIC_LOAD(__ldcv, "ld.global.cv.u16", unsigned short, unsigned short,
+                 "=h", : "memory");
+__INTRINSIC_LOAD(__ldcv, "ld.global.cv.u32", unsigned int, unsigned int,
+                 "=r", : "memory");
+__INTRINSIC_LOAD(__ldcv, "ld.global.cv.u64", unsigned long long,
+                 unsigned long long, "=l", : "memory");
+
+__INTRINSIC_LOAD(__ldcv, "ld.global.cv.s8", char, unsigned int,
+                 "=r", : "memory");
+__INTRINSIC_LOAD(__ldcv, "ld.global.cv.s8", signed char, unsigned int,
+                 "=r", : "memory");
+__INTRINSIC_LOAD(__ldcv, "ld.global.cv.s16", short, unsigned short,
+                 "=h", : "memory");
+__INTRINSIC_LOAD(__ldcv, "ld.global.cv.s32", int, unsigned int,
+                 "=r", : "memory");
+__INTRINSIC_LOAD(__ldcv, "ld.global.cv.s64", long long, unsigned long long,
+                 "=l", : "memory");
+
+__INTRINSIC_LOAD2(__ldcv, "ld.global.cv.v2.u8", uchar2, uint2,
+                  "=r", : "memory");
+__INTRINSIC_LOAD4(__ldcv, "ld.global.cv.v4.u8", uchar4, uint4,
+                  "=r", : "memory");
+__INTRINSIC_LOAD2(__ldcv, "ld.global.cv.v2.u16", ushort2, ushort2,
+                  "=h", : "memory");
+__INTRINSIC_LOAD4(__ldcv, "ld.global.cv.v4.u16", ushort4, ushort4,
+                  "=h", : "memory");
+__INTRINSIC_LOAD2(__ldcv, "ld.global.cv.v2.u32", uint2, uint2,
+                  "=r", : "memory");
+__INTRINSIC_LOAD4(__ldcv, "ld.global.cv.v4.u32", uint4, uint4,
+                  "=r", : "memory");
+__INTRINSIC_LOAD2(__ldcv, "ld.global.cv.v2.u64", ulonglong2, ulonglong2,
+                  "=l", : "memory");
+
+__INTRINSIC_LOAD2(__ldcv, "ld.global.cv.v2.s8", char2, int2, "=r", : "memory");
+__INTRINSIC_LOAD4(__ldcv, "ld.global.cv.v4.s8", char4, int4, "=r", : "memory");
+__INTRINSIC_LOAD2(__ldcv, "ld.global.cv.v2.s16", short2, short2,
+                  "=h", : "memory");
+__INTRINSIC_LOAD4(__ldcv, "ld.global.cv.v4.s16", short4, short4,
+                  "=h", : "memory");
+__INTRINSIC_LOAD2(__ldcv, "ld.global.cv.v2.s32", int2, int2, "=r", : "memory");
+__INTRINSIC_LOAD4(__ldcv, "ld.global.cv.v4.s32", int4, int4, "=r", : "memory");
+__INTRINSIC_LOAD2(__ldcv, "ld.global.cv.v2.s64", longlong2, longlong2,
+                  "=l", : "memory");
+
+__INTRINSIC_LOAD(__ldcv, "ld.global.cv.f32", float, float, "=f", : "memory");
+__INTRINSIC_LOAD(__ldcv, "ld.global.cv.f64", double, double, "=d", : "memory");
+
+__INTRINSIC_LOAD2(__ldcv, "ld.global.cv.v2.f32", float2, float2,
+                  "=f", : "memory");
+__INTRINSIC_LOAD4(__ldcv, "ld.global.cv.v4.f32", float4, float4,
+                  "=f", : "memory");
+__INTRINSIC_LOAD2(__ldcv, "ld.global.cv.v2.f64", double2, double2,
+                  "=d", : "memory");
+
+inline __device__ long __ldcv(const long *__ptr) {
+  unsigned long __ret;
+  if (sizeof(long) == 8) {
+    asm("ld.global.cv.s64 %0, [%1];" : "=l"(__ret) : "l"(__ptr));
+  } else {
+    asm("ld.global.cv.s32 %0, [%1];" : "=r"(__ret) : "l"(__ptr));
+  }
+  return (long)__ret;
+}
+
+__INTRINSIC_LOAD(__ldcs, "ld.global.cs.s8", char, unsigned int, "=r", );
+__INTRINSIC_LOAD(__ldcs, "ld.global.cs.s8", signed char, signed int, "=r", );
+__INTRINSIC_LOAD(__ldcs, "ld.global.cs.s16", short, unsigned short, "=h", );
+__INTRINSIC_LOAD(__ldcs, "ld.global.cs.s32", int, unsigned int, "=r", );
+__INTRINSIC_LOAD(__ldcs, "ld.global.cs.s64", long long, unsigned long long,
+                 "=l", );
+
+__INTRINSIC_LOAD2(__ldcs, "ld.global.cs.v2.s8", char2, int2, "=r", );
+__INTRINSIC_LOAD4(__ldcs, "ld.global.cs.v4.s8", char4, int4, "=r", );
+__INTRINSIC_LOAD2(__ldcs, "ld.global.cs.v2.s16", short2, short2, "=h", );
+__INTRINSIC_LOAD4(__ldcs, "ld.global.cs.v4.s16", short4, short4, "=h", );
+__INTRINSIC_LOAD2(__ldcs, "ld.global.cs.v2.s32", int2, int2, "=r", );
+__INTRINSIC_LOAD4(__ldcs, "ld.global.cs.v4.s32", int4, int4, "=r", );
+__INTRINSIC_LOAD2(__ldcs, "ld.global.cs.v2.s64", longlong2, longlong2, "=l", );
+
+__INTRINSIC_LOAD(__ldcs, "ld.global.cs.u8", unsigned char, unsigned int,
+                 "=r", );
+__INTRINSIC_LOAD(__ldcs, "ld.global.cs.u16", unsigned short, unsigned short,
+                 "=h", );
+__INTRINSIC_LOAD(__ldcs, "ld.global.cs.u32", unsigned int, unsigned int,
+                 "=r", );
+__INTRINSIC_LOAD(__ldcs, "ld.global.cs.u64", unsigned long long,
+                 unsigned long long, "=l", );
+
+__INTRINSIC_LOAD2(__ldcs, "ld.global.cs.v2.u8", uchar2, uint2, "=r", );
+__INTRINSIC_LOAD4(__ldcs, "ld.global.cs.v4.u8", uchar4, uint4, "=r", );
+__INTRINSIC_LOAD2(__ldcs, "ld.global.cs.v2.u16", ushort2, ushort2, "=h", );
+__INTRINSIC_LOAD4(__ldcs, "ld.global.cs.v4.u16", ushort4, ushort4, "=h", );
+__INTRINSIC_LOAD2(__ldcs, "ld.global.cs.v2.u32", uint2, uint2, "=r", );
+__INTRINSIC_LOAD4(__ldcs, "ld.global.cs.v4.u32", uint4, uint4, "=r", );
+__INTRINSIC_LOAD2(__ldcs, "ld.global.cs.v2.u64", ulonglong2, ulonglong2,
+                  "=l", );
+
+__INTRINSIC_LOAD(__ldcs, "ld.global.cs.f32", float, float, "=f", );
+__INTRINSIC_LOAD(__ldcs, "ld.global.cs.f64", double, double, "=d", );
+__INTRINSIC_LOAD2(__ldcs, "ld.global.cs.v2.f32", float2, float2, "=f", );
+__INTRINSIC_LOAD4(__ldcs, "ld.global.cs.v4.f32", float4, float4, "=f", );
+__INTRINSIC_LOAD2(__ldcs, "ld.global.cs.v2.f64", double2, double2, "=d", );
+
+#pragma pop_macro("__INTRINSIC_LOAD")
+#pragma pop_macro("__INTRINSIC_LOAD2")
+#pragma pop_macro("__INTRINSIC_LOAD4")
+
+inline __device__ long __ldcs(const long *__ptr) {
+  unsigned long __ret;
+  if (sizeof(long) == 8) {
+    asm("ld.global.cs.s64 %0, [%1];" : "=l"(__ret) : "l"(__ptr));
+  } else {
+    asm("ld.global.cs.s32 %0, [%1];" : "=r"(__ret) : "l"(__ptr));
+  }
+  return (long)__ret;
+}
+
+#pragma push_macro("__INTRINSIC_STORE")
+#define __INTRINSIC_STORE(__FnName, __AsmOp, __DeclType, __TmpType, __AsmType) \
+  inline __device__ void __FnName(__DeclType *__ptr, __DeclType __value) {     \
+    __TmpType __tmp = (__TmpType)__value;                                      \
+    asm(__AsmOp " [%0], %1;" ::"l"(__ptr), __AsmType(__tmp) : "memory");       \
+  }
+
+#pragma push_macro("__INTRINSIC_STORE2")
+#define __INTRINSIC_STORE2(__FnName, __AsmOp, __DeclType, __TmpType,           \
+                           __AsmType)                                          \
+  inline __device__ void __FnName(__DeclType *__ptr, __DeclType __value) {     \
+    __TmpType __tmp;                                                           \
+    using __ElementType = decltype(__tmp.x);                                   \
+    __tmp.x = (__ElementType)(__value.x);                                      \
+    __tmp.y = (__ElementType)(__value.y);                                      \
+    asm(__AsmOp " [%0], {%1,%2};" ::"l"(__ptr), __AsmType(__tmp.x),            \
+        __AsmType(__tmp.y)                                                     \
+        : "memory");                                                           \
+  }
+
+#pragma push_macro("__INTRINSIC_STORE4")
+#define __INTRINSIC_STORE4(__FnName, __AsmOp, __DeclType, __TmpType,           \
+                           __AsmType)                                          \
+  inline __device__ void __FnName(__DeclType *__ptr, __DeclType __value) {     \
+    __TmpType __tmp;                                                           \
+    using __ElementType = decltype(__tmp.x);                                   \
+    __tmp.x = (__ElementType)(__value.x);                                      \
+    __tmp.y = (__ElementType)(__value.y);                                      \
+    __tmp.z = (__ElementType)(__value.z);                                      \
+    __tmp.w = (__ElementType)(__value.w);                                      \
+    asm(__AsmOp " [%0], {%1,%2,%3,%4};" ::"l"(__ptr), __AsmType(__tmp.x),      \
+        __AsmType(__tmp.y), __AsmType(__tmp.z), __AsmType(__tmp.w)             \
+        : "memory");                                                           \
+  }
+
+__INTRINSIC_STORE(__stwt, "st.global.wt.s8", char, int, "r");
+__INTRINSIC_STORE(__stwt, "st.global.wt.s8", signed char, int, "r");
+__INTRINSIC_STORE(__stwt, "st.global.wt.s16", short, short, "h");
+__INTRINSIC_STORE(__stwt, "st.global.wt.s32", int, int, "r");
+__INTRINSIC_STORE(__stwt, "st.global.wt.s64", long long, long long, "l");
+
+__INTRINSIC_STORE2(__stwt, "st.global.wt.v2.s8", char2, int2, "r");
+__INTRINSIC_STORE4(__stwt, "st.global.wt.v4.s8", char4, int4, "r");
+__INTRINSIC_STORE2(__stwt, "st.global.wt.v2.s16", short2, short2, "h");
+__INTRINSIC_STORE4(__stwt, "st.global.wt.v4.s16", short4, short4, "h");
+__INTRINSIC_STORE2(__stwt, "st.global.wt.v2.s32", int2, int2, "r");
+__INTRINSIC_STORE4(__stwt, "st.global.wt.v4.s32", int4, int4, "r");
+__INTRINSIC_STORE2(__stwt, "st.global.wt.v2.s64", longlong2, longlong2, "l");
+
+__INTRINSIC_STORE(__stwt, "st.global.wt.u8", unsigned char, int, "r");
+__INTRINSIC_STORE(__stwt, "st.global.wt.u16", unsigned short, unsigned short,
+                  "h");
+__INTRINSIC_STORE(__stwt, "st.global.wt.u32", unsigned int, unsigned int, "r");
+__INTRINSIC_STORE(__stwt, "st.global.wt.u64", unsigned long long,
+                  unsigned long long, "l");
+
+__INTRINSIC_STORE2(__stwt, "st.global.wt.v2.u8", uchar2, uchar2, "r");
+__INTRINSIC_STORE4(__stwt, "st.global.wt.v4.u8", uchar4, uint4, "r");
+__INTRINSIC_STORE2(__stwt, "st.global.wt.v2.u16", ushort2, ushort2, "h");
+__INTRINSIC_STORE4(__stwt, "st.global.wt.v4.u16", ushort4, ushort4, "h");
+__INTRINSIC_STORE2(__stwt, "st.global.wt.v2.u32", uint2, uint2, "r");
+__INTRINSIC_STORE4(__stwt, "st.global.wt.v4.u32", uint4, uint4, "r");
+__INTRINSIC_STORE2(__stwt, "st.global.wt.v2.u64", ulonglong2, ulonglong2, "l");
+
+__INTRINSIC_STORE(__stwt, "st.global.wt.f32", float, float, "f");
+__INTRINSIC_STORE(__stwt, "st.global.wt.f64", double, double, "d");
+__INTRINSIC_STORE2(__stwt, "st.global.wt.v2.f32", float2, float2, "f");
+__INTRINSIC_STORE4(__stwt, "st.global.wt.v4.f32", float4, float4, "f");
+__INTRINSIC_STORE2(__stwt, "st.global.wt.v2.f64", double2, double2, "d");
+
+#pragma pop_macro("__INTRINSIC_STORE")
+#pragma pop_macro("__INTRINSIC_STORE2")
+#pragma pop_macro("__INTRINSIC_STORE4")
+
+#endif // defined(__cplusplus) && (__cplusplus >= 201103L)
 #endif // !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 320
 
 #if CUDA_VERSION >= 11000
@@ -513,6 +798,197 @@ __device__ inline cuuint32_t __nvvm_get_smem_pointer(void *__ptr) {
   return __nv_cvta_generic_to_shared_impl(__ptr);
 }
 } // extern "C"
+
+#if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 800
+__device__ inline unsigned __reduce_add_sync(unsigned __mask,
+                                             unsigned __value) {
+  return __nvvm_redux_sync_add(__value, __mask);
+}
+__device__ inline unsigned __reduce_min_sync(unsigned __mask,
+                                             unsigned __value) {
+  return __nvvm_redux_sync_umin(__value, __mask);
+}
+__device__ inline unsigned __reduce_max_sync(unsigned __mask,
+                                             unsigned __value) {
+  return __nvvm_redux_sync_umax(__value, __mask);
+}
+__device__ inline int __reduce_min_sync(unsigned __mask, int __value) {
+  return __nvvm_redux_sync_min(__value, __mask);
+}
+__device__ inline int __reduce_max_sync(unsigned __mask, int __value) {
+  return __nvvm_redux_sync_max(__value, __mask);
+}
+__device__ inline unsigned __reduce_or_sync(unsigned __mask, unsigned __value) {
+  return __nvvm_redux_sync_or(__value, __mask);
+}
+__device__ inline unsigned __reduce_and_sync(unsigned __mask,
+                                             unsigned __value) {
+  return __nvvm_redux_sync_and(__value, __mask);
+}
+__device__ inline unsigned __reduce_xor_sync(unsigned __mask,
+                                             unsigned __value) {
+  return __nvvm_redux_sync_xor(__value, __mask);
+}
+
+__device__ inline void __nv_memcpy_async_shared_global_4(void *__dst,
+                                                         const void *__src,
+                                                         unsigned __src_size) {
+  __nvvm_cp_async_ca_shared_global_4(
+      (void __attribute__((address_space(3))) *)__dst,
+      (const void __attribute__((address_space(1))) *)__src, __src_size);
+}
+__device__ inline void __nv_memcpy_async_shared_global_8(void *__dst,
+                                                         const void *__src,
+                                                         unsigned __src_size) {
+  __nvvm_cp_async_ca_shared_global_8(
+      (void __attribute__((address_space(3))) *)__dst,
+      (const void __attribute__((address_space(1))) *)__src, __src_size);
+}
+__device__ inline void __nv_memcpy_async_shared_global_16(void *__dst,
+                                                          const void *__src,
+                                                          unsigned __src_size) {
+  __nvvm_cp_async_ca_shared_global_16(
+      (void __attribute__((address_space(3))) *)__dst,
+      (const void __attribute__((address_space(1))) *)__src, __src_size);
+}
+
+__device__ inline void *
+__nv_associate_access_property(const void *__ptr, unsigned long long __prop) {
+  // TODO: it appears to provide compiler with some sort of a hint. We do not
+  // know what exactly it is supposed to do. However, CUDA headers suggest that
+  // just passing through __ptr should not affect correctness. They do so on
+  // pre-sm80 GPUs where this builtin is not available.
+  return (void*)__ptr;
+}
+#endif // !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 800
+
+#if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 900
+__device__ inline unsigned __isCtaShared(const void *ptr) {
+  return __isShared(ptr);
+}
+
+__device__ inline unsigned __isClusterShared(const void *__ptr) {
+  return __nvvm_isspacep_shared_cluster(__ptr);
+}
+
+__device__ inline void *__cluster_map_shared_rank(const void *__ptr,
+                                                  unsigned __rank) {
+  return __nvvm_mapa((void *)__ptr, __rank);
+}
+
+__device__ inline unsigned __cluster_query_shared_rank(const void *__ptr) {
+  return __nvvm_getctarank((void *)__ptr);
+}
+
+__device__ inline uint2
+__cluster_map_shared_multicast(const void *__ptr,
+                               unsigned int __cluster_cta_mask) {
+  return make_uint2((unsigned)__cvta_generic_to_shared(__ptr),
+                    __cluster_cta_mask);
+}
+
+__device__ inline unsigned __clusterDimIsSpecified() {
+  return __nvvm_is_explicit_cluster();
+}
+
+__device__ inline dim3 __clusterDim() {
+  return dim3(__nvvm_read_ptx_sreg_cluster_nctaid_x(),
+              __nvvm_read_ptx_sreg_cluster_nctaid_y(),
+              __nvvm_read_ptx_sreg_cluster_nctaid_z());
+}
+
+__device__ inline dim3 __clusterRelativeBlockIdx() {
+  return dim3(__nvvm_read_ptx_sreg_cluster_ctaid_x(),
+              __nvvm_read_ptx_sreg_cluster_ctaid_y(),
+              __nvvm_read_ptx_sreg_cluster_ctaid_z());
+}
+
+__device__ inline dim3 __clusterGridDimInClusters() {
+  return dim3(__nvvm_read_ptx_sreg_nclusterid_x(),
+              __nvvm_read_ptx_sreg_nclusterid_y(),
+              __nvvm_read_ptx_sreg_nclusterid_z());
+}
+
+__device__ inline dim3 __clusterIdx() {
+  return dim3(__nvvm_read_ptx_sreg_clusterid_x(),
+              __nvvm_read_ptx_sreg_clusterid_y(),
+              __nvvm_read_ptx_sreg_clusterid_z());
+}
+
+__device__ inline unsigned __clusterRelativeBlockRank() {
+  return __nvvm_read_ptx_sreg_cluster_ctarank();
+}
+
+__device__ inline unsigned __clusterSizeInBlocks() {
+  return __nvvm_read_ptx_sreg_cluster_nctarank();
+}
+
+__device__ inline void __cluster_barrier_arrive() {
+  __nvvm_barrier_cluster_arrive();
+}
+
+__device__ inline void __cluster_barrier_arrive_relaxed() {
+  __nvvm_barrier_cluster_arrive_relaxed();
+}
+
+__device__ inline void __cluster_barrier_wait() {
+  __nvvm_barrier_cluster_wait();
+}
+
+__device__ inline void __threadfence_cluster() { __nvvm_fence_sc_cluster(); }
+
+__device__ inline float2 atomicAdd(float2 *__ptr, float2 __val) {
+  float2 __ret;
+  __asm__("atom.add.v2.f32         {%0, %1}, [%2], {%3, %4};"
+          : "=f"(__ret.x), "=f"(__ret.y)
+          : "l"(__ptr), "f"(__val.x), "f"(__val.y));
+  return __ret;
+}
+
+__device__ inline float2 atomicAdd_block(float2 *__ptr, float2 __val) {
+  float2 __ret;
+  __asm__("atom.cta.add.v2.f32         {%0, %1}, [%2], {%3, %4};"
+          : "=f"(__ret.x), "=f"(__ret.y)
+          : "l"(__ptr), "f"(__val.x), "f"(__val.y));
+  return __ret;
+}
+
+__device__ inline float2 atomicAdd_system(float2 *__ptr, float2 __val) {
+  float2 __ret;
+  __asm__("atom.sys.add.v2.f32         {%0, %1}, [%2], {%3, %4};"
+          : "=f"(__ret.x), "=f"(__ret.y)
+          : "l"(__ptr), "f"(__val.x), "f"(__val.y));
+  return __ret;
+}
+
+__device__ inline float4 atomicAdd(float4 *__ptr, float4 __val) {
+  float4 __ret;
+  __asm__("atom.add.v4.f32         {%0, %1, %2, %3}, [%4], {%5, %6, %7, %8};"
+          : "=f"(__ret.x), "=f"(__ret.y), "=f"(__ret.z), "=f"(__ret.w)
+          : "l"(__ptr), "f"(__val.x), "f"(__val.y), "f"(__val.z), "f"(__val.w));
+  return __ret;
+}
+
+__device__ inline float4 atomicAdd_block(float4 *__ptr, float4 __val) {
+  float4 __ret;
+  __asm__(
+      "atom.cta.add.v4.f32         {%0, %1, %2, %3}, [%4], {%5, %6, %7, %8};"
+      : "=f"(__ret.x), "=f"(__ret.y), "=f"(__ret.z), "=f"(__ret.w)
+      : "l"(__ptr), "f"(__val.x), "f"(__val.y), "f"(__val.z), "f"(__val.w));
+  return __ret;
+}
+
+__device__ inline float4 atomicAdd_system(float4 *__ptr, float4 __val) {
+  float4 __ret;
+  __asm__(
+      "atom.sys.add.v4.f32         {%0, %1, %2, %3}, [%4], {%5, %6, %7, %8};"
+      : "=f"(__ret.x), "=f"(__ret.y), "=f"(__ret.z), "=f"(__ret.w)
+      : "l"(__ptr), "f"(__val.x), "f"(__val.y), "f"(__val.z), "f"(__val.w)
+      :);
+  return __ret;
+}
+
+#endif // !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 900
 #endif // CUDA_VERSION >= 11000
 
 #endif // defined(__CLANG_CUDA_INTRINSICS_H__)

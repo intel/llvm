@@ -8,18 +8,25 @@
 
 #include "src/sys/stat/stat.h"
 #include "kernel_statx.h"
+#include "src/__support/libc_errno.h"
+#include "src/__support/macros/config.h"
 
 #include "src/__support/common.h"
 
-#include <fcntl.h>
+#include "hdr/fcntl_macros.h"
 #include <sys/stat.h>
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE_DECL {
 
 LLVM_LIBC_FUNCTION(int, stat,
                    (const char *__restrict path,
                     struct stat *__restrict statbuf)) {
-  return statx(AT_FDCWD, path, 0, statbuf);
+  int err = statx(AT_FDCWD, path, 0, statbuf);
+  if (err != 0) {
+    libc_errno = err;
+    return -1;
+  }
+  return 0;
 }
 
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE_DECL

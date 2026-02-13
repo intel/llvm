@@ -14,12 +14,10 @@
 
 #pragma once
 
-#include <sycl/accessor.hpp>
-#include <sycl/context.hpp>
 #include <sycl/detail/backend_traits.hpp>
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
-#include <sycl/kernel_bundle.hpp>
+#include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/queue.hpp>
 
 typedef int CUdevice;
@@ -27,6 +25,7 @@ typedef struct CUctx_st *CUcontext;
 typedef struct CUstream_st *CUstream;
 typedef struct CUevent_st *CUevent;
 typedef struct CUmod_st *CUmodule;
+typedef struct CUgraph_st *CUgraph;
 
 // As defined in the CUDA 10.1 header file. This requires CUDA version > 3.2
 #if defined(_WIN64) || defined(__LP64__)
@@ -36,14 +35,15 @@ typedef unsigned int CUdeviceptr;
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
+
+class context;
+
 namespace detail {
 
 // TODO the interops for context, device, event, platform and program
 // may be removed after removing the deprecated 'get_native()' methods
-// from the corresponding classes. The interop<backend, queue> specialization
-// is also used in the get_queue() method of the deprecated class
-// interop_handler and also can be removed after API cleanup.
+// from the corresponding classes.
 template <> struct interop<backend::ext_oneapi_cuda, context> {
   using type = CUcontext;
 };
@@ -58,23 +58,6 @@ template <> struct interop<backend::ext_oneapi_cuda, event> {
 
 template <> struct interop<backend::ext_oneapi_cuda, queue> {
   using type = CUstream;
-};
-
-// TODO the interops for accessor is used in the already deprecated class
-// interop_handler and can be removed after API cleanup.
-template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<backend::ext_oneapi_cuda,
-               accessor<DataT, Dimensions, AccessMode, access::target::device,
-                        access::placeholder::false_t>> {
-  using type = CUdeviceptr;
-};
-
-template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<
-    backend::ext_oneapi_cuda,
-    accessor<DataT, Dimensions, AccessMode, access::target::constant_buffer,
-             access::placeholder::false_t>> {
-  using type = CUdeviceptr;
 };
 
 template <typename DataT, int Dimensions, typename AllocatorT>
@@ -121,6 +104,12 @@ template <> struct BackendReturn<backend::ext_oneapi_cuda, queue> {
   using type = CUstream;
 };
 
+using graph = ext::oneapi::experimental::command_graph<
+    ext::oneapi::experimental::graph_state::executable>;
+template <> struct BackendReturn<backend::ext_oneapi_cuda, graph> {
+  using type = CUgraph;
+};
+
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

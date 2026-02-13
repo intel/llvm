@@ -16,6 +16,7 @@
 #define LLVM_LIB_TARGET_AMDGPU_AMDGPUMACHINEMODULEINFO_H
 
 #include "llvm/CodeGen/MachineModuleInfoImpls.h"
+#include "llvm/IR/LLVMContext.h"
 
 namespace llvm {
 
@@ -31,6 +32,8 @@ private:
   SyncScope::ID WorkgroupSSID;
   /// Wavefront synchronization scope ID (cross address space).
   SyncScope::ID WavefrontSSID;
+  /// Cluster synchronization scope ID (cross address space).
+  SyncScope::ID ClusterSSID;
   /// System synchronization scope ID (single address space).
   SyncScope::ID SystemOneAddressSpaceSSID;
   /// Agent synchronization scope ID (single address space).
@@ -41,14 +44,17 @@ private:
   SyncScope::ID WavefrontOneAddressSpaceSSID;
   /// Single thread synchronization scope ID (single address space).
   SyncScope::ID SingleThreadOneAddressSpaceSSID;
+  /// Cluster synchronization scope ID (single address space).
+  SyncScope::ID ClusterOneAddressSpaceSSID;
 
   /// In AMDGPU target synchronization scopes are inclusive, meaning a
   /// larger synchronization scope is inclusive of a smaller synchronization
   /// scope.
   ///
-  /// \returns \p SSID's inclusion ordering, or "None" if \p SSID is not
+  /// \returns \p SSID's inclusion ordering, or "std::nullopt" if \p SSID is not
   /// supported by the AMDGPU target.
-  Optional<uint8_t> getSyncScopeInclusionOrdering(SyncScope::ID SSID) const {
+  std::optional<uint8_t>
+  getSyncScopeInclusionOrdering(SyncScope::ID SSID) const {
     if (SSID == SyncScope::SingleThread ||
         SSID == getSingleThreadOneAddressSpaceSSID())
       return 0;
@@ -58,24 +64,28 @@ private:
     else if (SSID == getWorkgroupSSID() ||
              SSID == getWorkgroupOneAddressSpaceSSID())
       return 2;
+    else if (SSID == getClusterSSID() ||
+             SSID == getClusterOneAddressSpaceSSID())
+      return 3;
     else if (SSID == getAgentSSID() ||
              SSID == getAgentOneAddressSpaceSSID())
-      return 3;
+      return 4;
     else if (SSID == SyncScope::System ||
              SSID == getSystemOneAddressSpaceSSID())
-      return 4;
+      return 5;
 
-    return None;
+    return std::nullopt;
   }
 
   /// \returns True if \p SSID is restricted to single address space, false
   /// otherwise
   bool isOneAddressSpace(SyncScope::ID SSID) const {
-    return SSID == getSingleThreadOneAddressSpaceSSID() ||
-        SSID == getWavefrontOneAddressSpaceSSID() ||
-        SSID == getWorkgroupOneAddressSpaceSSID() ||
-        SSID == getAgentOneAddressSpaceSSID() ||
-        SSID == getSystemOneAddressSpaceSSID();
+    return SSID == getClusterOneAddressSpaceSSID() ||
+           SSID == getSingleThreadOneAddressSpaceSSID() ||
+           SSID == getWavefrontOneAddressSpaceSSID() ||
+           SSID == getWorkgroupOneAddressSpaceSSID() ||
+           SSID == getAgentOneAddressSpaceSSID() ||
+           SSID == getSystemOneAddressSpaceSSID();
   }
 
 public:
@@ -93,6 +103,8 @@ public:
   SyncScope::ID getWavefrontSSID() const {
     return WavefrontSSID;
   }
+  /// \returns Cluster synchronization scope ID (cross address space).
+  SyncScope::ID getClusterSSID() const { return ClusterSSID; }
   /// \returns System synchronization scope ID (single address space).
   SyncScope::ID getSystemOneAddressSpaceSSID() const {
     return SystemOneAddressSpaceSSID;
@@ -113,6 +125,10 @@ public:
   SyncScope::ID getSingleThreadOneAddressSpaceSSID() const {
     return SingleThreadOneAddressSpaceSSID;
   }
+  /// \returns Single thread synchronization scope ID (single address space).
+  SyncScope::ID getClusterOneAddressSpaceSSID() const {
+    return ClusterOneAddressSpaceSSID;
+  }
 
   /// In AMDGPU target synchronization scopes are inclusive, meaning a
   /// larger synchronization scope is inclusive of a smaller synchronization
@@ -120,18 +136,19 @@ public:
   ///
   /// \returns True if synchronization scope \p A is larger than or equal to
   /// synchronization scope \p B, false if synchronization scope \p A is smaller
-  /// than synchronization scope \p B, or "None" if either synchronization scope
-  /// \p A or \p B is not supported by the AMDGPU target.
-  Optional<bool> isSyncScopeInclusion(SyncScope::ID A, SyncScope::ID B) const {
+  /// than synchronization scope \p B, or "std::nullopt" if either
+  /// synchronization scope \p A or \p B is not supported by the AMDGPU target.
+  std::optional<bool> isSyncScopeInclusion(SyncScope::ID A,
+                                           SyncScope::ID B) const {
     const auto &AIO = getSyncScopeInclusionOrdering(A);
     const auto &BIO = getSyncScopeInclusionOrdering(B);
     if (!AIO || !BIO)
-      return None;
+      return std::nullopt;
 
     bool IsAOneAddressSpace = isOneAddressSpace(A);
     bool IsBOneAddressSpace = isOneAddressSpace(B);
 
-    return AIO.value() >= BIO.value() &&
+    return *AIO >= *BIO &&
            (IsAOneAddressSpace == IsBOneAddressSpace || !IsAOneAddressSpace);
   }
 };

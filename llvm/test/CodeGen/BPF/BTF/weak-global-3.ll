@@ -1,5 +1,5 @@
-; RUN: llc -march=bpfel -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
-; RUN: llc -march=bpfeb -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
+; RUN: llc -mtriple=bpfel -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
+; RUN: llc -mtriple=bpfeb -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
 ;
 ; Source code:
 ;   const volatile char g __attribute__((weak)) = 2;
@@ -14,7 +14,7 @@
 ; Function Attrs: nofree norecurse nounwind willreturn
 define dso_local i32 @test() local_unnamed_addr #0 !dbg !13 {
 entry:
-  %0 = load volatile i8, i8* @g, align 1, !dbg !17, !tbaa !18
+  %0 = load volatile i8, ptr @g, align 1, !dbg !17, !tbaa !18
   %conv = sext i8 %0 to i32, !dbg !17
   ret i32 %conv, !dbg !21
 }

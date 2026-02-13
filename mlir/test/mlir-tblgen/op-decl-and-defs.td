@@ -24,7 +24,7 @@ def NS_AOp : NS_Op<"a_op", [IsolatedFromAbove, IsolatedFromAbove]> {
     Variadic<F32>:$b,
 
     I32Attr:$attr1,
-    OptionalAttr<F32Attr>:$attr2
+    OptionalAttr<F32Attr>:$some_attr2
   );
 
   let results = (outs
@@ -37,7 +37,9 @@ def NS_AOp : NS_Op<"a_op", [IsolatedFromAbove, IsolatedFromAbove]> {
     VariadicRegion<AnyRegion>:$someRegions
   );
   let builders = [OpBuilder<(ins "Value":$val)>,
-                  OpBuilder<(ins CArg<"int", "0">:$integer)>];
+                  OpBuilder<(ins CArg<"int", "0">:$integer)>,
+                  DeprecatedOpBuilder<"the deprecation message",
+                            (ins "float":$something)>];
   let hasCustomAssemblyFormat = 1;
 
   let hasCanonicalizer = 1;
@@ -52,23 +54,44 @@ def NS_AOp : NS_Op<"a_op", [IsolatedFromAbove, IsolatedFromAbove]> {
 
 // CHECK-LABEL: NS::AOp declarations
 
-// CHECK: class AOpAdaptor {
+// CHECK: namespace detail {
+// CHECK: class AOpGenericAdaptorBase {
 // CHECK: public:
-// CHECK:   AOpAdaptor(::mlir::ValueRange values
-// CHECK:   ::mlir::ValueRange getODSOperands(unsigned index);
-// CHECK:   ::mlir::Value getA();
-// CHECK:   ::mlir::ValueRange getB();
-// CHECK:   ::mlir::IntegerAttr getAttr1Attr();
+// CHECK:   AOpGenericAdaptorBase(::mlir::DictionaryAttr attrs, const Properties &properties, ::mlir::RegionRange regions = {}) : odsAttrs(attrs), properties(properties), odsRegions(regions)
+// CHECK:   AOpGenericAdaptorBase(AOp op);
+// CHECK:   ::mlir::IntegerAttr getAttr1Attr() {
 // CHECK:   uint32_t getAttr1();
-// CHECK:   ::mlir::FloatAttr getAttr2Attr();
-// CHECK:   ::llvm::Optional< ::llvm::APFloat > getAttr2();
-// CHECK:   ::mlir::Region &getSomeRegion();
-// CHECK:   ::mlir::RegionRange getSomeRegions();
+// CHECK:   ::mlir::FloatAttr getSomeAttr2Attr() {
+// CHECK:   ::std::optional< ::llvm::APFloat > getSomeAttr2();
+// CHECK:   ::mlir::Region &getSomeRegion() {
+// CHECK:   ::mlir::RegionRange getSomeRegions() {
+// CHECK-NEXT:     return odsRegions.drop_front(1);
+// CHECK:   ::mlir::RegionRange getRegions() {
+// CHECK-NEXT:     return odsRegions;
+// CHECK: };
+// CHECK: }
+
+// CHECK: template <typename RangeT>
+// CHECK: class AOpGenericAdaptor : public detail::AOpGenericAdaptorBase {
+// CHECK: public:
+// CHECK:   AOpGenericAdaptor(RangeT values, ::mlir::DictionaryAttr attrs, const Properties &properties, ::mlir::RegionRange regions = {}) : Base(attrs, properties, regions), odsOperands(values) {}
+// CHECK:   AOpGenericAdaptor(RangeT values, ::mlir::DictionaryAttr attrs, ::mlir::OpaqueProperties properties, ::mlir::RegionRange regions = {}) : AOpGenericAdaptor(values, attrs, (properties ? *properties.as<Properties *>() : Properties{}), regions) {}
+// CHECK:   AOpGenericAdaptor(RangeT values, ::mlir::DictionaryAttr attrs = nullptr) : AOpGenericAdaptor(values, attrs, Properties{}, {}) {}
+// CHECK:   AOpGenericAdaptor(RangeT values, const AOpGenericAdaptorBase &base) : Base(base), odsOperands(values) {}
+// CHECK:   RangeT getODSOperands(unsigned index) {
+// CHECK:   ValueT getA() {
+// CHECK:   RangeT getB() {
 // CHECK: private:
-// CHECK:   ::mlir::ValueRange odsOperands;
+// CHECK:   RangeT odsOperands;
 // CHECK: };
 
-// CHECK: class AOp : public ::mlir::Op<AOp, ::mlir::OpTrait::AtLeastNRegions<1>::Impl, ::mlir::OpTrait::AtLeastNResults<1>::Impl, ::mlir::OpTrait::ZeroSuccessors, ::mlir::OpTrait::AtLeastNOperands<1>::Impl, ::mlir::OpTrait::OpInvariants, ::mlir::OpTrait::IsIsolatedFromAbove
+// CHECK: class AOpAdaptor : public AOpGenericAdaptor<::mlir::ValueRange> {
+// CHECK: public:
+// CHECK:   AOpAdaptor(AOp
+// CHECK:   ::llvm::LogicalResult verify(
+// CHECK: };
+
+// CHECK: class AOp : public ::mlir::Op<AOp, ::mlir::OpTrait::AtLeastNRegions<1>::Impl, ::mlir::OpTrait::AtLeastNResults<1>::Impl, ::mlir::OpTrait::ZeroSuccessors, ::mlir::OpTrait::AtLeastNOperands<1>::Impl, ::mlir::OpTrait::OpInvariants, ::mlir::BytecodeOpInterface::Trait, ::mlir::OpTrait::IsIsolatedFromAbove
 // CHECK-NOT: ::mlir::OpTrait::IsIsolatedFromAbove
 // CHECK: public:
 // CHECK:   using Op::Op;
@@ -76,42 +99,61 @@ def NS_AOp : NS_Op<"a_op", [IsolatedFromAbove, IsolatedFromAbove]> {
 // CHECK:   static constexpr ::llvm::StringLiteral getOperationName() {
 // CHECK:     return ::llvm::StringLiteral("test.a_op");
 // CHECK:   }
-// CHECK:   ::mlir::Operation::operand_range getODSOperands(unsigned index);
-// CHECK:   ::mlir::TypedValue<::mlir::IntegerType> getA();
-// CHECK:   ::mlir::Operation::operand_range getB();
-// CHECK:   ::mlir::MutableOperandRange getAMutable();
+// CHECK:   ::mlir::Operation::operand_range getODSOperands(unsigned index) {
+// CHECK:   ::mlir::TypedValue<::mlir::IntegerType> getA() {
+// CHECK:   ::mlir::Operation::operand_range getB() {
+// CHECK:   ::mlir::OpOperand &getAMutable() {
 // CHECK:   ::mlir::MutableOperandRange getBMutable();
-// CHECK:   ::mlir::Operation::result_range getODSResults(unsigned index);
-// CHECK:   ::mlir::TypedValue<::mlir::IntegerType> getR();
-// CHECK:   ::mlir::Region &getSomeRegion();
-// CHECK:   ::mlir::MutableArrayRef<::mlir::Region> getSomeRegions();
-// CHECK:   ::mlir::IntegerAttr getAttr1Attr()
+// CHECK:   ::mlir::Operation::result_range getODSResults(unsigned index) {
+// CHECK:   ::mlir::TypedValue<::mlir::IntegerType> getR() {
+// CHECK:   ::mlir::Region &getSomeRegion() {
+// CHECK:   ::mlir::MutableArrayRef<::mlir::Region> getSomeRegions() {
+// CHECK:   ::mlir::IntegerAttr getAttr1Attr() {
 // CHECK:   uint32_t getAttr1();
-// CHECK:   ::mlir::FloatAttr getAttr2Attr()
-// CHECK:   ::llvm::Optional< ::llvm::APFloat > getAttr2();
-// CHECK:   ::mlir::Attribute removeAttr2Attr();
+// CHECK:   ::mlir::FloatAttr getSomeAttr2Attr() {
+// CHECK:   ::std::optional< ::llvm::APFloat > getSomeAttr2();
+// CHECK:   ::mlir::Attribute removeSomeAttr2Attr() {
 // CHECK:   static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, Value val);
+// CHECK:   static AOp create(::mlir::OpBuilder &builder, ::mlir::Location location, Value val);
+// CHECK:   static AOp create(::mlir::ImplicitLocOpBuilder &builder, Value val);
 // CHECK:   static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, int integer = 0);
-// CHECK:   static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::Type r, ::mlir::TypeRange s, ::mlir::Value a, ::mlir::ValueRange b, ::mlir::IntegerAttr attr1, /*optional*/::mlir::FloatAttr attr2, unsigned someRegionsCount)
-// CHECK:   static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::TypeRange resultTypes, ::mlir::Value a, ::mlir::ValueRange b, ::mlir::IntegerAttr attr1, /*optional*/::mlir::FloatAttr attr2, unsigned someRegionsCount);
-// CHECK:   static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::Type r, ::mlir::TypeRange s, ::mlir::Value a, ::mlir::ValueRange b, uint32_t attr1, /*optional*/::mlir::FloatAttr attr2, unsigned someRegionsCount)
-// CHECK:   static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::TypeRange resultTypes, ::mlir::Value a, ::mlir::ValueRange b, uint32_t attr1, /*optional*/::mlir::FloatAttr attr2, unsigned someRegionsCount);
+// CHECK:   static AOp create(::mlir::OpBuilder &builder, ::mlir::Location location, int integer = 0);
+// CHECK:   static AOp create(::mlir::ImplicitLocOpBuilder &builder, int integer = 0);
+// CHECK{LITERAL}:   [[deprecated("the deprecation message")]]
+// CHECK:   static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, float something);
+// CHECK:   static AOp create(::mlir::OpBuilder &builder, ::mlir::Location location, float something);
+// CHECK:   static AOp create(::mlir::ImplicitLocOpBuilder &builder, float something);
+// CHECK:   static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::Type r, ::mlir::TypeRange s, ::mlir::Value a, ::mlir::ValueRange b, ::mlir::IntegerAttr attr1, /*optional*/::mlir::FloatAttr some_attr2, unsigned someRegionsCount)
+// CHECK:   static AOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::Type r, ::mlir::TypeRange s, ::mlir::Value a, ::mlir::ValueRange b, ::mlir::IntegerAttr attr1, /*optional*/::mlir::FloatAttr some_attr2, unsigned someRegionsCount)
+// CHECK:   static AOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::Type r, ::mlir::TypeRange s, ::mlir::Value a, ::mlir::ValueRange b, ::mlir::IntegerAttr attr1, /*optional*/::mlir::FloatAttr some_attr2, unsigned someRegionsCount)
+// CHECK:   static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::TypeRange resultTypes, ::mlir::Value a, ::mlir::ValueRange b, ::mlir::IntegerAttr attr1, /*optional*/::mlir::FloatAttr some_attr2, unsigned someRegionsCount);
+// CHECK:   static AOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::TypeRange resultTypes, ::mlir::Value a, ::mlir::ValueRange b, ::mlir::IntegerAttr attr1, /*optional*/::mlir::FloatAttr some_attr2, unsigned someRegionsCount);
+// CHECK:   static AOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::TypeRange resultTypes, ::mlir::Value a, ::mlir::ValueRange b, ::mlir::IntegerAttr attr1, /*optional*/::mlir::FloatAttr some_attr2, unsigned someRegionsCount);
+// CHECK:   static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::Type r, ::mlir::TypeRange s, ::mlir::Value a, ::mlir::ValueRange b, uint32_t attr1, /*optional*/::mlir::FloatAttr some_attr2, unsigned someRegionsCount)
+// CHECK:   static AOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::Type r, ::mlir::TypeRange s, ::mlir::Value a, ::mlir::ValueRange b, uint32_t attr1, /*optional*/::mlir::FloatAttr some_attr2, unsigned someRegionsCount)
+// CHECK:   static AOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::Type r, ::mlir::TypeRange s, ::mlir::Value a, ::mlir::ValueRange b, uint32_t attr1, /*optional*/::mlir::FloatAttr some_attr2, unsigned someRegionsCount)
+// CHECK:   static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::TypeRange resultTypes, ::mlir::Value a, ::mlir::ValueRange b, uint32_t attr1, /*optional*/::mlir::FloatAttr some_attr2, unsigned someRegionsCount);
+// CHECK:   static AOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::TypeRange resultTypes, ::mlir::Value a, ::mlir::ValueRange b, uint32_t attr1, /*optional*/::mlir::FloatAttr some_attr2, unsigned someRegionsCount);
+// CHECK:   static AOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::TypeRange resultTypes, ::mlir::Value a, ::mlir::ValueRange b, uint32_t attr1, /*optional*/::mlir::FloatAttr some_attr2, unsigned someRegionsCount);
 // CHECK:   static void build(::mlir::OpBuilder &, ::mlir::OperationState &odsState, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes, unsigned numRegions)
+// CHECK:   static AOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes, unsigned numRegions)
+// CHECK:   static AOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes, unsigned numRegions)
+// CHECK:   static void build(::mlir::OpBuilder &, ::mlir::OperationState &odsState, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, const Properties &properties, ::llvm::ArrayRef<::mlir::NamedAttribute> discardableAttributes, unsigned numRegions)
+// CHECK:   static AOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, const Properties &properties, ::llvm::ArrayRef<::mlir::NamedAttribute> discardableAttributes, unsigned numRegions)
+// CHECK:   static AOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, const Properties &properties, ::llvm::ArrayRef<::mlir::NamedAttribute> discardableAttributes, unsigned numRegions)
 // CHECK:   static ::mlir::ParseResult parse(::mlir::OpAsmParser &parser, ::mlir::OperationState &result);
 // CHECK:   void print(::mlir::OpAsmPrinter &p);
-// CHECK:   ::mlir::LogicalResult verifyInvariants();
+// CHECK:   ::llvm::LogicalResult verifyInvariants();
 // CHECK:   static void getCanonicalizationPatterns(::mlir::RewritePatternSet &results, ::mlir::MLIRContext *context);
-// CHECK:   ::mlir::LogicalResult fold(::llvm::ArrayRef<::mlir::Attribute> operands, ::llvm::SmallVectorImpl<::mlir::OpFoldResult> &results);
+// CHECK:   ::llvm::LogicalResult fold(FoldAdaptor adaptor, ::llvm::SmallVectorImpl<::mlir::OpFoldResult> &results);
+// CHECK:   static ::llvm::LogicalResult setPropertiesFromParsedAttr(Properties &prop, ::mlir::Attribute attr, ::llvm::function_ref<::mlir::InFlightDiagnostic()> emitError);
 // CHECK:   // Display a graph for debugging purposes.
 // CHECK:   void displayGraph();
 // CHECK: };
 
 // DEFS-LABEL: NS::AOp definitions
 
-// DEFS: AOpAdaptor::AOpAdaptor(::mlir::ValueRange values, ::mlir::DictionaryAttr attrs, ::mlir::RegionRange regions) : odsOperands(values), odsAttrs(attrs), odsRegions(regions)
-// DEFS: ::mlir::RegionRange AOpAdaptor::getRegions()
-// DEFS: ::mlir::RegionRange AOpAdaptor::getSomeRegions()
-// DEFS-NEXT: return odsRegions.drop_front(1);
+// Check that `getAttrDictionary()` is used when not using properties.
 
 // Check AttrSizedOperandSegments
 // ---
@@ -122,19 +164,20 @@ def NS_AttrSizedOperandOp : NS_Op<"attr_sized_operands",
     Variadic<I32>:$a,
     Variadic<I32>:$b,
     I32:$c,
-    Variadic<I32>:$d,
-    I32ElementsAttr:$operand_segment_sizes
+    Variadic<I32>:$d
   );
 }
 
-// CHECK-LABEL: AttrSizedOperandOpAdaptor(
-// CHECK-SAME:    ::mlir::ValueRange values
+// CHECK-LABEL: class AttrSizedOperandOpGenericAdaptorBase {
+// CHECK: ::llvm::ArrayRef<int32_t> getOperandSegmentSizes() const
+
+// CHECK-LABEL: AttrSizedOperandOpGenericAdaptor(
+// CHECK-SAME:    RangeT values
 // CHECK-SAME:    ::mlir::DictionaryAttr attrs
-// CHECK:  ::mlir::ValueRange getA();
-// CHECK:  ::mlir::ValueRange getB();
-// CHECK:  ::mlir::Value getC();
-// CHECK:  ::mlir::ValueRange getD();
-// CHECK:  ::mlir::DenseIntElementsAttr getOperandSegmentSizes();
+// CHECK:  RangeT getA() {
+// CHECK:  RangeT getB() {
+// CHECK:  ValueT getC() {
+// CHECK:  RangeT getD() {
 
 // Check op trait for different number of operands
 // ---
@@ -166,10 +209,12 @@ def NS_EOp : NS_Op<"op_with_optionals", []> {
 }
 
 // CHECK-LABEL: NS::EOp declarations
-// CHECK:   ::mlir::Value getA();
+// CHECK:   ::mlir::TypedValue<::mlir::IntegerType> getA() {
 // CHECK:   ::mlir::MutableOperandRange getAMutable();
-// CHECK:   ::mlir::TypedValue<::mlir::FloatType> getB();
+// CHECK:   ::mlir::TypedValue<::mlir::FloatType> getB() {
 // CHECK:   static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, /*optional*/::mlir::Type b, /*optional*/::mlir::Value a)
+// CHECK:   static EOp create(::mlir::OpBuilder &builder, ::mlir::Location location, /*optional*/::mlir::Type b, /*optional*/::mlir::Value a)
+// CHECK:   static EOp create(::mlir::ImplicitLocOpBuilder &builder, /*optional*/::mlir::Type b, /*optional*/::mlir::Value a)
 
 // Check that all types match constraint results in generating builder.
 // ---
@@ -181,7 +226,24 @@ def NS_FOp : NS_Op<"op_with_all_types_constraint",
 }
 
 // CHECK-LABEL: class FOp :
-// CHECK: static ::mlir::LogicalResult inferReturnTypes
+// CHECK: static ::llvm::LogicalResult inferReturnTypes
+
+// DEFS: void FOp::build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::Value a) {
+// DEFS:   if (::mlir::succeeded(FOp::inferReturnTypes(odsBuilder.getContext(),
+// DEFS:   else
+// DEFS:     ::mlir::detail::reportFatalInferReturnTypesError(odsState);
+
+// DEFS: FOp FOp::create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::Value a) {
+// DEFS:   ::mlir::OperationState __state__(location, getOperationName());
+// DEFS:   build(builder, __state__, std::forward<decltype(a)>(a));
+// DEFS:   auto __res__ = ::llvm::dyn_cast<FOp>(builder.create(__state__));
+// DEFS:   assert(__res__ && "builder didn't return the right type");
+// DEFS:   return __res__;
+// DEFS: }
+
+// DEFS: FOp FOp::create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::Value a) {
+// DEFS:   return create(builder, builder.getLoc(), std::forward<decltype(a)>(a));
+// DEFS: }
 
 def NS_GOp : NS_Op<"op_with_fixed_return_type", []> {
   let arguments = (ins AnyType:$a);
@@ -189,7 +251,7 @@ def NS_GOp : NS_Op<"op_with_fixed_return_type", []> {
 }
 
 // CHECK-LABEL: class GOp :
-// CHECK: static ::mlir::LogicalResult inferReturnTypes
+// CHECK: static ::llvm::LogicalResult inferReturnTypes
 
 // Check default value for collective params builder. Check that other builders
 // are generated as well.
@@ -200,8 +262,17 @@ def NS_HCollectiveParamsOp : NS_Op<"op_collective_params", []> {
 
 // CHECK-LABEL: class HCollectiveParamsOp :
 // CHECK: static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::Type b, ::mlir::Value a);
+// CHECK: static HCollectiveParamsOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::Type b, ::mlir::Value a);
+// CHECK: static HCollectiveParamsOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::Type b, ::mlir::Value a);
 // CHECK: static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::TypeRange resultTypes, ::mlir::Value a);
+// CHECK: static HCollectiveParamsOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::TypeRange resultTypes, ::mlir::Value a);
+// CHECK: static HCollectiveParamsOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::TypeRange resultTypes, ::mlir::Value a);
 // CHECK: static void build(::mlir::OpBuilder &, ::mlir::OperationState &odsState, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {})
+// CHECK: static HCollectiveParamsOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {})
+// CHECK: static HCollectiveParamsOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {})
+// CHECK: static void build(::mlir::OpBuilder &, ::mlir::OperationState &odsState, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, const Properties &properties, ::llvm::ArrayRef<::mlir::NamedAttribute> discardableAttributes = {})
+// CHECK: static HCollectiveParamsOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, const Properties &properties, ::llvm::ArrayRef<::mlir::NamedAttribute> discardableAttributes = {})
+// CHECK: static HCollectiveParamsOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, const Properties &properties, ::llvm::ArrayRef<::mlir::NamedAttribute> discardableAttributes = {})
 
 // Check suppression of "separate arg, separate result" build method for an op
 // with single variadic arg and single variadic result (since it will be
@@ -213,7 +284,11 @@ def NS_HCollectiveParamsSuppress0Op : NS_Op<"op_collective_suppress0", []> {
 
 // CHECK-LABEL: class HCollectiveParamsSuppress0Op :
 // CHECK-NOT: static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::TypeRange b, ::mlir::ValueRange a);
+// CHECK-NOT: static HCollectiveParamsSuppress0Op create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::TypeRange b, ::mlir::ValueRange a);
+// CHECK-NOT: static HCollectiveParamsSuppress0Op create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::TypeRange b, ::mlir::ValueRange a);
 // CHECK: static void build(::mlir::OpBuilder &, ::mlir::OperationState &odsState, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {});
+// CHECK: static HCollectiveParamsSuppress0Op create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {});
+// CHECK: static HCollectiveParamsSuppress0Op create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {});
 
 // Check suppression of "separate arg, collective result" build method for an op
 // with single variadic arg and non variadic result (since it will be
@@ -225,7 +300,11 @@ def NS_HCollectiveParamsSuppress1Op : NS_Op<"op_collective_suppress1", []> {
 
 // CHECK-LABEL: class HCollectiveParamsSuppress1Op :
 // CHECK-NOT: static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::TypeRange b, ::mlir::ValueRange a);
+// CHECK-NOT: static HCollectiveParamsSuppress1Op create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::TypeRange b, ::mlir::ValueRange a);
+// CHECK-NOT: static HCollectiveParamsSuppress1Op create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::TypeRange b, ::mlir::ValueRange a);
 // CHECK: static void build(::mlir::OpBuilder &, ::mlir::OperationState &odsState, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {});
+// CHECK: static HCollectiveParamsSuppress1Op create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {});
+// CHECK: static HCollectiveParamsSuppress1Op create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {});
 
 // Check suppression of "separate arg, collective result" build method for an op
 // with single variadic arg and > 1 variadic result (since it will be
@@ -238,8 +317,14 @@ def NS_HCollectiveParamsSuppress2Op : NS_Op<"op_collective_suppress2", [SameVari
 }
 // CHECK-LABEL: class HCollectiveParamsSuppress2Op :
 // CHECK: static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::TypeRange b, ::mlir::TypeRange c, ::mlir::ValueRange a);
+// CHECK: static HCollectiveParamsSuppress2Op create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::TypeRange b, ::mlir::TypeRange c, ::mlir::ValueRange a);
+// CHECK: static HCollectiveParamsSuppress2Op create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::TypeRange b, ::mlir::TypeRange c, ::mlir::ValueRange a);
 // CHECK-NOT: static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::TypeRange b, ::mlir::ValueRange a);
+// CHECK-NOT: static HCollectiveParamsSuppress2Op create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::TypeRange b, ::mlir::ValueRange a);
+// CHECK-NOT: static HCollectiveParamsSuppress2Op create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::TypeRange b, ::mlir::ValueRange a);
 // CHECK: static void build(::mlir::OpBuilder &, ::mlir::OperationState &odsState, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {});
+// CHECK: static HCollectiveParamsSuppress2Op create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {});
+// CHECK: static HCollectiveParamsSuppress2Op create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {});
 
 // Check default value of `attributes` for the `genUseOperandAsResultTypeCollectiveParamBuilder` builder
 def NS_IOp : NS_Op<"op_with_same_operands_and_result_types_trait", [SameOperandsAndResultType]> {
@@ -248,10 +333,32 @@ def NS_IOp : NS_Op<"op_with_same_operands_and_result_types_trait", [SameOperands
 }
 // CHECK-LABEL: class IOp :
 // CHECK: static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::Type r, ::mlir::Value a, ::mlir::Value b);
+// CHECK: static IOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::Type r, ::mlir::Value a, ::mlir::Value b);
+// CHECK: static IOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::Type r, ::mlir::Value a, ::mlir::Value b);
+
 // CHECK: static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::Value a, ::mlir::Value b);
+// CHECK: static IOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::Value a, ::mlir::Value b);
+// CHECK: static IOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::Value a, ::mlir::Value b);
+
 // CHECK: static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::TypeRange resultTypes, ::mlir::Value a, ::mlir::Value b);
+// CHECK: static IOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::TypeRange resultTypes, ::mlir::Value a, ::mlir::Value b);
+// CHECK: static IOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::TypeRange resultTypes, ::mlir::Value a, ::mlir::Value b);
+
 // CHECK: static void build(::mlir::OpBuilder &, ::mlir::OperationState &odsState, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {});
+// CHECK: static IOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {});
+// CHECK: static IOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {});
+
 // CHECK: static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {});
+// CHECK: static IOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {});
+// CHECK: static IOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {});
+
+// CHECK: static void build(::mlir::OpBuilder &, ::mlir::OperationState &odsState, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, const Properties &properties, ::llvm::ArrayRef<::mlir::NamedAttribute> discardableAttributes = {});
+// CHECK: static IOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, const Properties &properties, ::llvm::ArrayRef<::mlir::NamedAttribute> discardableAttributes = {});
+// CHECK: static IOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, const Properties &properties, ::llvm::ArrayRef<::mlir::NamedAttribute> discardableAttributes = {});
+
+// CHECK: static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::ValueRange operands, const Properties &properties, ::llvm::ArrayRef<::mlir::NamedAttribute> discardableAttributes = {});
+// CHECK: static IOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::ValueRange operands, const Properties &properties, ::llvm::ArrayRef<::mlir::NamedAttribute> discardableAttributes = {});
+// CHECK: static IOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::ValueRange operands, const Properties &properties, ::llvm::ArrayRef<::mlir::NamedAttribute> discardableAttributes = {});
 
 // Check default value of `attributes` for the `genInferredTypeCollectiveParamBuilder` builder
 def NS_JOp : NS_Op<"op_with_InferTypeOpInterface_interface", [DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
@@ -260,10 +367,32 @@ def NS_JOp : NS_Op<"op_with_InferTypeOpInterface_interface", [DeclareOpInterface
 }
 // CHECK-LABEL: class JOp :
 // CHECK: static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::Type r, ::mlir::Value a, ::mlir::Value b);
+// CHECK: static JOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::Type r, ::mlir::Value a, ::mlir::Value b);
+// CHECK: static JOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::Type r, ::mlir::Value a, ::mlir::Value b);
+
 // CHECK: static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::Value a, ::mlir::Value b);
+// CHECK: static JOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::Value a, ::mlir::Value b);
+// CHECK: static JOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::Value a, ::mlir::Value b);
+
 // CHECK: static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::TypeRange resultTypes, ::mlir::Value a, ::mlir::Value b);
+// CHECK: static JOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::TypeRange resultTypes, ::mlir::Value a, ::mlir::Value b);
+// CHECK: static JOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::TypeRange resultTypes, ::mlir::Value a, ::mlir::Value b);
+
 // CHECK: static void build(::mlir::OpBuilder &, ::mlir::OperationState &odsState, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {});
+// CHECK: static JOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {});
+// CHECK: static JOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {});
+
 // CHECK: static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {});
+// CHECK: static JOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {});
+// CHECK: static JOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {});
+
+// CHECK: static void build(::mlir::OpBuilder &, ::mlir::OperationState &odsState, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, const Properties &properties, ::llvm::ArrayRef<::mlir::NamedAttribute> discardableAttributes = {});
+// CHECK: static JOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, const Properties &properties, ::llvm::ArrayRef<::mlir::NamedAttribute> discardableAttributes = {});
+// CHECK: static JOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, const Properties &properties, ::llvm::ArrayRef<::mlir::NamedAttribute> discardableAttributes = {});
+
+// CHECK: static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::ValueRange operands, const Properties &properties, ::llvm::ArrayRef<::mlir::NamedAttribute> discardableAttributes = {});
+// CHECK: static JOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::ValueRange operands, const Properties &properties, ::llvm::ArrayRef<::mlir::NamedAttribute> discardableAttributes = {});
+// CHECK: static JOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::ValueRange operands, const Properties &properties, ::llvm::ArrayRef<::mlir::NamedAttribute> discardableAttributes = {});
 
 // Test usage of TraitList getting flattened during emission.
 def NS_KOp : NS_Op<"k_op", [IsolatedFromAbove,
@@ -293,14 +422,63 @@ def NS_LOp : NS_Op<"op_with_same_operands_and_result_types_unwrapped_attr", [Sam
 }
 // CHECK-LABEL: class LOp :
 // CHECK: static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::Type r, ::mlir::Value a, ::mlir::Value b, ::mlir::IntegerAttr attr1);
-// CHECK: static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::Value a, ::mlir::Value b, ::mlir::IntegerAttr attr1);
-// CHECK: static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::TypeRange resultTypes, ::mlir::Value a, ::mlir::Value b, ::mlir::IntegerAttr attr1);
-// CHECK: static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::Type r, ::mlir::Value a, ::mlir::Value b, uint32_t attr1);
-// CHECK: static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::Value a, ::mlir::Value b, uint32_t attr1);
-// CHECK: static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::TypeRange resultTypes, ::mlir::Value a, ::mlir::Value b, uint32_t attr1);
-// CHECK: static void build(::mlir::OpBuilder &, ::mlir::OperationState &odsState, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {});
-// CHECK: static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {});
+// CHECK: static LOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::Type r, ::mlir::Value a, ::mlir::Value b, ::mlir::IntegerAttr attr1);
+// CHECK: static LOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::Type r, ::mlir::Value a, ::mlir::Value b, ::mlir::IntegerAttr attr1);
 
+// CHECK: static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::Value a, ::mlir::Value b, ::mlir::IntegerAttr attr1);
+// CHECK: static LOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::Value a, ::mlir::Value b, ::mlir::IntegerAttr attr1);
+// CHECK: static LOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::Value a, ::mlir::Value b, ::mlir::IntegerAttr attr1);
+
+// CHECK: static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::TypeRange resultTypes, ::mlir::Value a, ::mlir::Value b, ::mlir::IntegerAttr attr1);
+// CHECK: static LOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::TypeRange resultTypes, ::mlir::Value a, ::mlir::Value b, ::mlir::IntegerAttr attr1);
+// CHECK: static LOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::TypeRange resultTypes, ::mlir::Value a, ::mlir::Value b, ::mlir::IntegerAttr attr1);
+
+// CHECK: static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::Type r, ::mlir::Value a, ::mlir::Value b, uint32_t attr1);
+// CHECK: static LOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::Type r, ::mlir::Value a, ::mlir::Value b, uint32_t attr1);
+// CHECK: static LOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::Type r, ::mlir::Value a, ::mlir::Value b, uint32_t attr1);
+
+// CHECK: static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::Value a, ::mlir::Value b, uint32_t attr1);
+// CHECK: static LOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::Value a, ::mlir::Value b, uint32_t attr1);
+// CHECK: static LOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::Value a, ::mlir::Value b, uint32_t attr1);
+
+// CHECK: static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::TypeRange resultTypes, ::mlir::Value a, ::mlir::Value b, uint32_t attr1);
+// CHECK: static LOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::TypeRange resultTypes, ::mlir::Value a, ::mlir::Value b, uint32_t attr1);
+// CHECK: static LOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::TypeRange resultTypes, ::mlir::Value a, ::mlir::Value b, uint32_t attr1);
+
+// CHECK: static void build(::mlir::OpBuilder &, ::mlir::OperationState &odsState, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {});
+// CHECK: static LOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {});
+// CHECK: static LOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {});
+
+// CHECK: static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {});
+// CHECK: static LOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {});
+// CHECK: static LOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {});
+
+// CHECK: static void build(::mlir::OpBuilder &, ::mlir::OperationState &odsState, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, const Properties &properties, ::llvm::ArrayRef<::mlir::NamedAttribute> discardableAttributes = {});
+// CHECK: static LOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, const Properties &properties, ::llvm::ArrayRef<::mlir::NamedAttribute> discardableAttributes = {});
+// CHECK: static LOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, const Properties &properties, ::llvm::ArrayRef<::mlir::NamedAttribute> discardableAttributes = {});
+
+// CHECK: static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::ValueRange operands, const Properties &properties, ::llvm::ArrayRef<::mlir::NamedAttribute> discardableAttributes = {});
+// CHECK: static LOp create(::mlir::OpBuilder &builder, ::mlir::Location location, ::mlir::ValueRange operands, const Properties &properties, ::llvm::ArrayRef<::mlir::NamedAttribute> discardableAttributes = {});
+// CHECK: static LOp create(::mlir::ImplicitLocOpBuilder &builder, ::mlir::ValueRange operands, const Properties &properties, ::llvm::ArrayRef<::mlir::NamedAttribute> discardableAttributes = {});
+
+def NS_MOp : NS_Op<"op_with_single_result_and_fold_adaptor_fold", []> {
+  let results = (outs AnyType:$res);
+
+  let hasFolder = 1;
+}
+
+// CHECK-LABEL: class MOp :
+// CHECK: ::mlir::OpFoldResult fold(FoldAdaptor adaptor);
+
+def NS_NOp : NS_Op<"op_with_properties", []> {
+  let arguments = (ins Property<"unsigned">:$value);
+}
+
+// DEFS: NOpGenericAdaptorBase::NOpGenericAdaptorBase(NOp op) :
+// DEFS-SAME: odsAttrs(op->getRawDictionaryAttrs())
+// DEFS-SAME: odsOpName(op->getName())
+// DEFS-SAME: properties(op.getProperties())
+// DEFS-SAME: odsRegions(op->getRegions())
 
 // Test that type defs have the proper namespaces when used as a constraint.
 // ---
@@ -309,7 +487,9 @@ def Test_Dialect2 : Dialect {
   let name = "test";
   let cppNamespace = "::mlir::dialect2";
 }
-def TestDialect2Type : TypeDef<Test_Dialect2, "Dialect2Type">;
+def TestDialect2Type : TypeDef<Test_Dialect2, "Dialect2Type"> {
+  let typeName = "test.type";
+}
 
 def NS_ResultWithDialectTypeOp : NS_Op<"op_with_dialect_type", []> {
   let results = (outs TestDialect2Type);
@@ -335,6 +515,18 @@ def NS_SkipDefaultBuildersOp : NS_Op<"skip_default_builders", []> {
 // Check leading underscore in op name
 // ---
 
+def NS_VarOfVarOperandOp : NS_Op<"var_of_var_operand", []> {
+  let arguments = (ins
+    VariadicOfVariadic<F32, "var_size">:$var_of_var_attr,
+    DenseI32ArrayAttr:$var_size
+  );
+}
+
+// CHECK-LABEL: class VarOfVarOperandOpGenericAdaptor
+// CHECK: public:
+// CHECK: ::llvm::SmallVector<RangeT> getVarOfVarAttr() {
+
+
 def NS__AOp : NS_Op<"_op_with_leading_underscore", []>;
 
 // CHECK-LABEL: NS::_AOp declarations
@@ -350,3 +542,12 @@ def _BOp : NS_Op<"_op_with_leading_underscore_and_no_namespace", []>;
 
 // REDUCE_EXC-NOT: NS::AOp declarations
 // REDUCE_EXC-LABEL: NS::BOp declarations
+
+// CHECK-LABEL: _TypeInferredPropOp declarations
+def _TypeInferredPropOp : NS_Op<"type_inferred_prop_op_with_properties", [
+    AllTypesMatch<["value", "result"]>
+  ]> {
+  let arguments = (ins Property<"unsigned">:$prop, AnyType:$value);
+  let results = (outs AnyType:$result);
+  let hasCustomAssemblyFormat = 1;
+}

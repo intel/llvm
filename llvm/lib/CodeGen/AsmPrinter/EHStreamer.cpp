@@ -13,7 +13,6 @@
 #include "EHStreamer.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Twine.h"
-#include "llvm/ADT/iterator_range.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/CodeGen/AsmPrinter.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -24,7 +23,6 @@
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSymbol.h"
-#include "llvm/MC/MCTargetOptions.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/LEB128.h"
 #include "llvm/Target/TargetLoweringObjectFile.h"
@@ -195,6 +193,12 @@ void EHStreamer::computePadMap(
     const LandingPadInfo *LandingPad = LandingPads[i];
     for (unsigned j = 0, E = LandingPad->BeginLabels.size(); j != E; ++j) {
       MCSymbol *BeginLabel = LandingPad->BeginLabels[j];
+      MCSymbol *EndLabel = LandingPad->BeginLabels[j];
+      // If we have deleted the code for a given invoke after registering it in
+      // the LandingPad label list, the associated symbols will not have been
+      // emitted. In that case, ignore this callsite entry.
+      if (!BeginLabel->isDefined() || !EndLabel->isDefined())
+        continue;
       assert(!PadMap.count(BeginLabel) && "Duplicate landing pad labels!");
       PadRange P = { i, j };
       PadMap[BeginLabel] = P;
@@ -247,10 +251,10 @@ void EHStreamer::computeCallSiteTable(
     if (&MBB == &Asm->MF->front() || MBB.isBeginSection()) {
       // We start a call-site range upon function entry and at the beginning of
       // every basic block section.
-      CallSiteRanges.push_back(
-          {Asm->MBBSectionRanges[MBB.getSectionIDNum()].BeginLabel,
-           Asm->MBBSectionRanges[MBB.getSectionIDNum()].EndLabel,
-           Asm->getMBBExceptionSym(MBB), CallSites.size()});
+      auto &Range = Asm->MBBSectionRanges[MBB.getSectionID()];
+      CallSiteRanges.push_back({Range.BeginLabel, Range.EndLabel,
+                                Asm->getMBBExceptionSym(MBB),
+                                CallSites.size()});
       PreviousIsInvoke = false;
       SawPotentiallyThrowing = false;
       LastLabel = nullptr;
@@ -383,8 +387,14 @@ MCSymbol *EHStreamer::emitExceptionTable() {
   SmallVector<const LandingPadInfo *, 64> LandingPads;
   LandingPads.reserve(PadInfos.size());
 
-  for (const LandingPadInfo &LPI : PadInfos)
+  for (const LandingPadInfo &LPI : PadInfos) {
+    // If a landing-pad has an associated label, but the label wasn't ever
+    // emitted, then skip it.  (This can occur if the landingpad's MBB was
+    // deleted).
+    if (LPI.LandingPadLabel && !LPI.LandingPadLabel->isDefined())
+      continue;
     LandingPads.push_back(&LPI);
+  }
 
   // Order landing pads lexicographically by type id.
   llvm::sort(LandingPads, [](const LandingPadInfo *L, const LandingPadInfo *R) {
@@ -398,7 +408,7 @@ MCSymbol *EHStreamer::emitExceptionTable() {
   computeActionsTable(LandingPads, Actions, FirstActions);
 
   // Compute the call-site table and call-site ranges. Normally, there is only
-  // one call-site-range which covers the whole funciton. With
+  // one call-site-range which covers the whole function. With
   // -basic-block-sections, there is one call-site-range per basic block
   // section.
   SmallVector<CallSiteEntry, 64> CallSites;

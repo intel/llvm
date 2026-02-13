@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-unnamed-lambda %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsyntax-only %s
 // The purpose of this test is to check that the following code can be
 // successfully compiled
 #include <sycl/sycl.hpp>
@@ -30,7 +30,7 @@ int main() {
 
   Q.wait_and_throw();
 
-  auto Acc = Buf.get_access<sycl::access::mode::read>();
+  auto Acc = Buf.get_host_access();
   for (size_t I = 0; I < Size; ++I) {
     if (ReferenceData[I] != Acc[I]) {
       std::cerr << "Incorrect result, got: " << Acc[I]

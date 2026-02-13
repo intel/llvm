@@ -14,7 +14,6 @@
 #include "clang/Lex/LexDiagnostic.h"
 #include "clang/Lex/MacroInfo.h"
 #include "clang/Lex/Preprocessor.h"
-#include "llvm/ADT/SmallString.h"
 #include "llvm/Support/SaveAndRestore.h"
 #include <algorithm>
 
@@ -62,12 +61,12 @@ MacroArgs *MacroArgs::create(const MacroInfo *MI,
 
   // Copy the actual unexpanded tokens to immediately after the result ptr.
   if (!UnexpArgTokens.empty()) {
-    static_assert(std::is_trivial<Token>::value,
+    static_assert(std::is_trivial_v<Token>,
                   "assume trivial copyability if copying into the "
                   "uninitialized array (as opposed to reusing a cached "
                   "MacroArgs)");
     std::copy(UnexpArgTokens.begin(), UnexpArgTokens.end(),
-              Result->getTrailingObjects<Token>());
+              Result->getTrailingObjects());
   }
 
   return Result;
@@ -94,7 +93,7 @@ MacroArgs *MacroArgs::deallocate() {
   // Run the dtor to deallocate the vectors.
   this->~MacroArgs();
   // Release the memory for the object.
-  static_assert(std::is_trivially_destructible<Token>::value,
+  static_assert(std::is_trivially_destructible_v<Token>,
                 "assume trivially destructible and forego destructors");
   free(this);
 
@@ -120,7 +119,7 @@ const Token *MacroArgs::getUnexpArgument(unsigned Arg) const {
   assert(Arg < getNumMacroArguments() && "Invalid arg #");
   // The unexpanded argument tokens start immediately after the MacroArgs object
   // in memory.
-  const Token *Start = getTrailingObjects<Token>();
+  const Token *Start = getTrailingObjects();
   const Token *Result = Start;
 
   // Scan to find Arg.
@@ -169,7 +168,7 @@ const std::vector<Token> &MacroArgs::getPreExpArgument(unsigned Arg,
   std::vector<Token> &Result = PreExpArgTokens[Arg];
   if (!Result.empty()) return Result;
 
-  SaveAndRestore<bool> PreExpandingMacroArgs(PP.InMacroArgPreExpansion, true);
+  SaveAndRestore PreExpandingMacroArgs(PP.InMacroArgPreExpansion, true);
 
   const Token *AT = getUnexpArgument(Arg);
   unsigned NumToks = getArgLength(AT)+1;  // Include the EOF.

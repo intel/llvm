@@ -96,7 +96,11 @@ Expected<FileAnalysis> FileAnalysis::Create(StringRef Filename) {
   }
 
   Analysis.ObjectTriple = Analysis.Object->makeTriple();
-  Analysis.Features = Analysis.Object->getFeatures();
+  Expected<SubtargetFeatures> Features = Analysis.Object->getFeatures();
+  if (!Features)
+    return Features.takeError();
+
+  Analysis.Features = *Features;
 
   // Init the rest of the object.
   if (auto InitResponse = Analysis.initialiseDisassemblyMembers())
@@ -274,8 +278,7 @@ Expected<DIInliningInfo>
 FileAnalysis::symbolizeInlinedCode(object::SectionedAddress Address) {
   assert(Symbolizer != nullptr && "Symbolizer is invalid.");
 
-  return Symbolizer->symbolizeInlinedCode(std::string(Object->getFileName()),
-                                          Address);
+  return Symbolizer->symbolizeInlinedCode(Object->getFileName(), Address);
 }
 
 CFIProtectionStatus
@@ -365,7 +368,7 @@ uint64_t FileAnalysis::indirectCFOperandClobber(const GraphResult &Graph) const 
 
 void FileAnalysis::printInstruction(const Instr &InstrMeta,
                                     raw_ostream &OS) const {
-  Printer->printInst(&InstrMeta.Instruction, 0, "", *SubtargetInfo.get(), OS);
+  Printer->printInst(&InstrMeta.Instruction, 0, "", *SubtargetInfo, OS);
 }
 
 Error FileAnalysis::initialiseDisassemblyMembers() {
@@ -373,6 +376,8 @@ Error FileAnalysis::initialiseDisassemblyMembers() {
   ArchName = "";
   MCPU = "";
   std::string ErrorString;
+
+  Triple TheTriple(TripleName);
 
   LLVMSymbolizer::Options Opt;
   Opt.UseSymbolTable = false;
@@ -386,19 +391,19 @@ Error FileAnalysis::initialiseDisassemblyMembers() {
          "\", failed with error: " + ErrorString)
             .str());
 
-  RegisterInfo.reset(ObjectTarget->createMCRegInfo(TripleName));
+  RegisterInfo.reset(ObjectTarget->createMCRegInfo(TheTriple));
   if (!RegisterInfo)
     return make_error<UnsupportedDisassembly>(
         "Failed to initialise RegisterInfo.");
 
   MCTargetOptions MCOptions;
   AsmInfo.reset(
-      ObjectTarget->createMCAsmInfo(*RegisterInfo, TripleName, MCOptions));
+      ObjectTarget->createMCAsmInfo(*RegisterInfo, TheTriple, MCOptions));
   if (!AsmInfo)
     return make_error<UnsupportedDisassembly>("Failed to initialise AsmInfo.");
 
   SubtargetInfo.reset(ObjectTarget->createMCSubtargetInfo(
-      TripleName, MCPU, Features.getString()));
+      TheTriple, MCPU, Features.getString()));
   if (!SubtargetInfo)
     return make_error<UnsupportedDisassembly>(
         "Failed to initialise SubtargetInfo.");
@@ -519,9 +524,8 @@ void FileAnalysis::parseSectionContents(ArrayRef<uint8_t> SectionBytes,
 
     // Check if this instruction exists in the range of the DWARF metadata.
     if (!IgnoreDWARFFlag) {
-      auto LineInfo =
-          Symbolizer->symbolizeCode(std::string(Object->getFileName()),
-                                    {VMAddress, Address.SectionIndex});
+      auto LineInfo = Symbolizer->symbolizeCode(
+          Object->getFileName(), {VMAddress, Address.SectionIndex});
       if (!LineInfo) {
         handleAllErrors(LineInfo.takeError(), [](const ErrorInfoBase &E) {
           errs() << "Symbolizer failed to get line: " << E.message() << "\n";
@@ -570,15 +574,15 @@ Error FileAnalysis::parseSymbolTable() {
     }
   }
   if (auto *ElfObject = dyn_cast<object::ELFObjectFileBase>(Object)) {
-    for (const auto &Addr : ElfObject->getPltAddresses()) {
-      if (!Addr.first)
+    for (const auto &Plt : ElfObject->getPltEntries(*SubtargetInfo)) {
+      if (!Plt.Symbol)
         continue;
-      object::SymbolRef Sym(*Addr.first, Object);
+      object::SymbolRef Sym(*Plt.Symbol, Object);
       auto SymNameOrErr = Sym.getName();
       if (!SymNameOrErr)
         consumeError(SymNameOrErr.takeError());
       else if (TrapOnFailFunctions.contains(*SymNameOrErr))
-        TrapOnFailFunctionAddresses.insert(Addr.second);
+        TrapOnFailFunctionAddresses.insert(Plt.Address);
     }
   }
   return Error::success();

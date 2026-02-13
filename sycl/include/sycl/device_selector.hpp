@@ -8,24 +8,26 @@
 
 #pragma once
 
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/export.hpp>
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 
-#include <vector>
+#include <functional>  // for function
+#include <type_traits> // for enable_if_t
+#include <vector>      // for vector
 
 // 4.6.1 Device selection class
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // Forward declarations
 class device;
+class context;
+enum class aspect;
 
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 class filter_selector;
-}
-} // namespace ext
+} // namespace ext::oneapi
 
 /// The SYCL 1.2.1 device_selector class provides ability to choose the
 /// best SYCL device based on heuristics specified by the user.
@@ -92,18 +94,6 @@ public:
   int operator()(const device &dev) const override;
 };
 
-/// Selects SYCL host device.
-///
-/// \sa device
-///
-/// \ingroup sycl_api_dev_sel
-class __SYCL_EXPORT
-__SYCL2020_DEPRECATED("Host device is no longer supported.") host_selector
-    : public device_selector {
-public:
-  int operator()(const device &dev) const override;
-};
-
 // -------------- SYCL 2020
 
 // SYCL 2020 standalone selectors
@@ -130,8 +120,6 @@ void fill_aspect_vector(std::vector<aspect> &V, FirstT F, OtherTs... O) {
   fill_aspect_vector(V, O...);
 }
 
-#if __cplusplus >= 201703L
-
 // Enable if DeviceSelector callable has matching signature, but
 // exclude if descended from filter_selector which is not purely callable or
 // if descended from it is descended from SYCL 1.2.1 device_selector.
@@ -141,7 +129,6 @@ using EnableIfSYCL2020DeviceSelectorInvocable = std::enable_if_t<
     std::is_invocable_r_v<int, DeviceSelector &, const device &> &&
     !std::is_base_of_v<ext::oneapi::filter_selector, DeviceSelector> &&
     !std::is_base_of_v<device_selector, DeviceSelector>>;
-#endif
 
 __SYCL_EXPORT device
 select_device(const DSelectorInvocableType &DeviceSelectorInvocable);
@@ -171,5 +158,5 @@ detail::DSelectorInvocableType aspect_selector() {
   return aspect_selector({AspectList...}, {});
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

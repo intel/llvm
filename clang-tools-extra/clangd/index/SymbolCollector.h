@@ -9,22 +9,31 @@
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_INDEX_SYMBOLCOLLECTOR_H
 
 #include "CollectMacros.h"
-#include "index/CanonicalIncludes.h"
+#include "clang-include-cleaner/Record.h"
+#include "clang-include-cleaner/Types.h"
 #include "index/Ref.h"
 #include "index/Relation.h"
 #include "index/Symbol.h"
 #include "index/SymbolID.h"
+#include "index/SymbolLocation.h"
 #include "index/SymbolOrigin.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
+#include "clang/Basic/LLVM.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Index/IndexDataConsumer.h"
 #include "clang/Index/IndexSymbol.h"
 #include "clang/Sema/CodeCompleteConsumer.h"
-#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
 #include <functional>
+#include <memory>
+#include <optional>
+#include <string>
+#include <utility>
 
 namespace clang {
 namespace clangd {
@@ -56,8 +65,8 @@ public:
     std::string FallbackDir;
     bool CollectIncludePath = false;
     /// If set, this is used to map symbol #include path to a potentially
-    /// different #include path.
-    const CanonicalIncludes *Includes = nullptr;
+    /// different #include path specified by IWYU pragmas.
+    const include_cleaner::PragmaIncludes *PragmaIncludes = nullptr;
     // Populate the Symbol.References field.
     bool CountReferences = false;
     /// The symbol ref kinds that will be collected.
@@ -86,6 +95,7 @@ public:
     bool CollectMainFileRefs = false;
     /// Collect symbols with reserved names, like __Vector_base.
     /// This does not currently affect macros (many like _WIN32 are important!)
+    /// This only affects system headers.
     bool CollectReserved = false;
     /// If set to true, SymbolCollector will collect doc for all symbols.
     /// Note that documents of symbols being indexed for completion will always
@@ -102,6 +112,21 @@ public:
   /// Returns true is \p ND should be collected.
   static bool shouldCollectSymbol(const NamedDecl &ND, const ASTContext &ASTCtx,
                                   const Options &Opts, bool IsMainFileSymbol);
+
+  // Given a ref contained in enclosing decl `Enclosing`, return
+  // the decl that should be used as that ref's Ref::Container. This is
+  // usually `Enclosing` itself, but in cases where `Enclosing` is not
+  // indexed, we walk further up because Ref::Container should always be
+  // an indexed symbol.
+  // Note: we don't use DeclContext as the container as in some cases
+  // it's useful to use a Decl which is not a DeclContext. For example,
+  // for a ref occurring in the initializer of a namespace-scope variable,
+  // it's useful to use that variable as the container, as otherwise the
+  // next enclosing DeclContext would be a NamespaceDecl or TranslationUnitDecl,
+  // which are both not indexed and less granular than we'd like for use cases
+  // like call hierarchy.
+  static const Decl *getRefContainer(const Decl *Enclosing,
+                                     const SymbolCollector::Options &Opts);
 
   void initialize(ASTContext &Ctx) override;
 
@@ -134,15 +159,22 @@ public:
   void finish() override;
 
 private:
+  // If D is an instantiation of a likely forwarding function, return the
+  // constructors it invokes so that we can record indirect references
+  // to those as well.
+  SmallVector<const CXXConstructorDecl *, 1>
+  findIndirectConstructors(const Decl *D);
+
   const Symbol *addDeclaration(const NamedDecl &, SymbolID,
                                bool IsMainFileSymbol);
-  void addDefinition(const NamedDecl &, const Symbol &DeclSymbol);
+  void addDefinition(const NamedDecl &, const Symbol &DeclSymbol,
+                     bool SkipDocCheck);
   void processRelations(const NamedDecl &ND, const SymbolID &ID,
                         ArrayRef<index::SymbolRelation> Relations);
 
-  llvm::Optional<SymbolLocation> getTokenLocation(SourceLocation TokLoc);
+  std::optional<SymbolLocation> getTokenLocation(SourceLocation TokLoc);
 
-  llvm::Optional<std::string> getIncludeHeader(const Symbol &S, FileID);
+  std::optional<std::string> getIncludeHeader(const Symbol &S, FileID);
 
   SymbolID getSymbolIDCached(const Decl *D);
   SymbolID getSymbolIDCached(const llvm::StringRef MacroName,
@@ -150,10 +182,21 @@ private:
 
   // All Symbols collected from the AST.
   SymbolSlab::Builder Symbols;
-  // File IDs for Symbol.IncludeHeaders.
-  // The final spelling is calculated in finish().
+  // File IDs used to determine if the code contains Obj-C constructs.
+  // For Obj-C symbols, these File IDs are used to compute the include
+  // headers.
   llvm::DenseMap<SymbolID, FileID> IncludeFiles;
-  void setIncludeLocation(const Symbol &S, SourceLocation);
+  void setIncludeLocation(const Symbol &S, SourceLocation,
+                          const include_cleaner::Symbol &Sym);
+
+  // Providers for Symbol.IncludeHeaders.
+  // The final spelling is calculated in finish().
+  llvm::DenseMap<SymbolID, llvm::SmallVector<include_cleaner::Header>>
+      SymbolProviders;
+  // Files which contain ObjC symbols.
+  // This is finalized and used in finish().
+  llvm::DenseSet<FileID> FilesWithObjCConstructs;
+
   // Indexed macros, to be erased if they turned out to be include guards.
   llvm::DenseSet<const IdentifierInfo *> IndexedMacros;
   // All refs collected from the AST. It includes:
@@ -172,6 +215,7 @@ private:
     SourceLocation Loc;
     FileID FID;
     index::SymbolRoleSet Roles;
+    index::SymbolKind Kind;
     const Decl *Container;
     bool Spelled;
   };
@@ -192,6 +236,9 @@ private:
   std::unique_ptr<HeaderFileURICache> HeaderFileURIs;
   llvm::DenseMap<const Decl *, SymbolID> DeclToIDCache;
   llvm::DenseMap<const MacroInfo *, SymbolID> MacroToIDCache;
+  llvm::DenseMap<const FunctionDecl *,
+                 SmallVector<const CXXConstructorDecl *, 1>>
+      ForwardingToConstructorCache;
 };
 
 } // namespace clangd

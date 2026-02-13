@@ -20,7 +20,10 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/BlockFrequencyInfo.h"
 #include "llvm/Analysis/BranchProbabilityInfo.h"
+#include "llvm/Analysis/DomTreeUpdater.h"
 #include "llvm/IR/ValueHandle.h"
+#include "llvm/Support/Compiler.h"
+#include "llvm/Transforms/Utils/ValueMapper.h"
 #include <utility>
 
 namespace llvm {
@@ -31,7 +34,6 @@ class BinaryOperator;
 class BranchInst;
 class CmpInst;
 class Constant;
-class DomTreeUpdater;
 class Function;
 class Instruction;
 class IntrinsicInst;
@@ -75,102 +77,148 @@ enum ConstantPreference { WantInteger, WantBlockAddress };
 /// In this case, the unconditional branch at the end of the first if can be
 /// revectored to the false side of the second if.
 class JumpThreadingPass : public PassInfoMixin<JumpThreadingPass> {
-  TargetLibraryInfo *TLI;
-  TargetTransformInfo *TTI;
-  LazyValueInfo *LVI;
-  AAResults *AA;
-  DomTreeUpdater *DTU;
-  std::unique_ptr<BlockFrequencyInfo> BFI;
-  std::unique_ptr<BranchProbabilityInfo> BPI;
-  bool HasProfileData = false;
+  Function *F = nullptr;
+  FunctionAnalysisManager *FAM = nullptr;
+  TargetLibraryInfo *TLI = nullptr;
+  TargetTransformInfo *TTI = nullptr;
+  LazyValueInfo *LVI = nullptr;
+  AAResults *AA = nullptr;
+  std::unique_ptr<DomTreeUpdater> DTU;
+  BlockFrequencyInfo *BFI = nullptr;
+  BranchProbabilityInfo *BPI = nullptr;
+  bool ChangedSinceLastAnalysisUpdate = false;
   bool HasGuards = false;
 #ifndef LLVM_ENABLE_ABI_BREAKING_CHECKS
-  SmallPtrSet<const BasicBlock *, 16> LoopHeaders;
-#else
   SmallSet<AssertingVH<const BasicBlock>, 16> LoopHeaders;
+#else
+  SmallPtrSet<const BasicBlock *, 16> LoopHeaders;
 #endif
+
+  // JumpThreading must not processes blocks unreachable from entry. It's a
+  // waste of compute time and can potentially lead to hangs.
+  SmallPtrSet<BasicBlock *, 16> Unreachable;
 
   unsigned BBDupThreshold;
   unsigned DefaultBBDupThreshold;
 
 public:
-  JumpThreadingPass(int T = -1);
+  LLVM_ABI JumpThreadingPass(int T = -1);
 
   // Glue for old PM.
-  bool runImpl(Function &F, TargetLibraryInfo *TLI, TargetTransformInfo *TTI,
-               LazyValueInfo *LVI, AAResults *AA, DomTreeUpdater *DTU,
-               bool HasProfileData, std::unique_ptr<BlockFrequencyInfo> BFI,
-               std::unique_ptr<BranchProbabilityInfo> BPI);
+  LLVM_ABI bool runImpl(Function &F, FunctionAnalysisManager *FAM,
+                        TargetLibraryInfo *TLI, TargetTransformInfo *TTI,
+                        LazyValueInfo *LVI, AAResults *AA,
+                        std::unique_ptr<DomTreeUpdater> DTU,
+                        BlockFrequencyInfo *BFI, BranchProbabilityInfo *BPI);
 
-  PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+  LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 
-  void releaseMemory() {
-    BFI.reset();
-    BPI.reset();
-  }
-
-  void findLoopHeaders(Function &F);
-  bool processBlock(BasicBlock *BB);
-  bool maybeMergeBasicBlockIntoOnlyPred(BasicBlock *BB);
-  void updateSSA(BasicBlock *BB, BasicBlock *NewBB,
-                 DenseMap<Instruction *, Value *> &ValueMapping);
-  DenseMap<Instruction *, Value *> cloneInstructions(BasicBlock::iterator BI,
-                                                     BasicBlock::iterator BE,
-                                                     BasicBlock *NewBB,
-                                                     BasicBlock *PredBB);
-  bool tryThreadEdge(BasicBlock *BB,
-                     const SmallVectorImpl<BasicBlock *> &PredBBs,
-                     BasicBlock *SuccBB);
-  void threadEdge(BasicBlock *BB, const SmallVectorImpl<BasicBlock *> &PredBBs,
-                  BasicBlock *SuccBB);
-  bool duplicateCondBranchOnPHIIntoPred(
+  DomTreeUpdater *getDomTreeUpdater() const { return DTU.get(); }
+  LLVM_ABI void findLoopHeaders(Function &F);
+  LLVM_ABI bool processBlock(BasicBlock *BB);
+  LLVM_ABI bool maybeMergeBasicBlockIntoOnlyPred(BasicBlock *BB);
+  LLVM_ABI void updateSSA(BasicBlock *BB, BasicBlock *NewBB,
+                          ValueToValueMapTy &ValueMapping);
+  LLVM_ABI void cloneInstructions(ValueToValueMapTy &ValueMapping,
+                                  BasicBlock::iterator BI,
+                                  BasicBlock::iterator BE, BasicBlock *NewBB,
+                                  BasicBlock *PredBB);
+  LLVM_ABI bool tryThreadEdge(BasicBlock *BB,
+                              const SmallVectorImpl<BasicBlock *> &PredBBs,
+                              BasicBlock *SuccBB);
+  LLVM_ABI void threadEdge(BasicBlock *BB,
+                           const SmallVectorImpl<BasicBlock *> &PredBBs,
+                           BasicBlock *SuccBB);
+  LLVM_ABI bool duplicateCondBranchOnPHIIntoPred(
       BasicBlock *BB, const SmallVectorImpl<BasicBlock *> &PredBBs);
 
-  bool computeValueKnownInPredecessorsImpl(
+  LLVM_ABI bool computeValueKnownInPredecessorsImpl(
       Value *V, BasicBlock *BB, jumpthreading::PredValueInfo &Result,
       jumpthreading::ConstantPreference Preference,
-      DenseSet<Value *> &RecursionSet, Instruction *CxtI = nullptr);
+      SmallPtrSet<Value *, 4> &RecursionSet, Instruction *CxtI = nullptr);
   bool
   computeValueKnownInPredecessors(Value *V, BasicBlock *BB,
                                   jumpthreading::PredValueInfo &Result,
                                   jumpthreading::ConstantPreference Preference,
                                   Instruction *CxtI = nullptr) {
-    DenseSet<Value *> RecursionSet;
+    SmallPtrSet<Value *, 4> RecursionSet;
     return computeValueKnownInPredecessorsImpl(V, BB, Result, Preference,
                                                RecursionSet, CxtI);
   }
 
-  Constant *evaluateOnPredecessorEdge(BasicBlock *BB, BasicBlock *PredPredBB,
-                                      Value *cond);
-  bool maybethreadThroughTwoBasicBlocks(BasicBlock *BB, Value *Cond);
-  void threadThroughTwoBasicBlocks(BasicBlock *PredPredBB, BasicBlock *PredBB,
-                                   BasicBlock *BB, BasicBlock *SuccBB);
-  bool processThreadableEdges(Value *Cond, BasicBlock *BB,
-                              jumpthreading::ConstantPreference Preference,
-                              Instruction *CxtI = nullptr);
+  LLVM_ABI Constant *evaluateOnPredecessorEdge(BasicBlock *BB,
+                                               BasicBlock *PredPredBB,
+                                               Value *cond,
+                                               const DataLayout &DL);
+  LLVM_ABI bool maybethreadThroughTwoBasicBlocks(BasicBlock *BB, Value *Cond);
+  LLVM_ABI void threadThroughTwoBasicBlocks(BasicBlock *PredPredBB,
+                                            BasicBlock *PredBB, BasicBlock *BB,
+                                            BasicBlock *SuccBB);
+  LLVM_ABI bool
+  processThreadableEdges(Value *Cond, BasicBlock *BB,
+                         jumpthreading::ConstantPreference Preference,
+                         Instruction *CxtI = nullptr);
 
-  bool processBranchOnPHI(PHINode *PN);
-  bool processBranchOnXOR(BinaryOperator *BO);
-  bool processImpliedCondition(BasicBlock *BB);
+  LLVM_ABI bool processBranchOnPHI(PHINode *PN);
+  LLVM_ABI bool processBranchOnXOR(BinaryOperator *BO);
+  LLVM_ABI bool processImpliedCondition(BasicBlock *BB);
 
-  bool simplifyPartiallyRedundantLoad(LoadInst *LI);
-  void unfoldSelectInstr(BasicBlock *Pred, BasicBlock *BB, SelectInst *SI,
-                         PHINode *SIUse, unsigned Idx);
+  LLVM_ABI bool simplifyPartiallyRedundantLoad(LoadInst *LI);
+  LLVM_ABI void unfoldSelectInstr(BasicBlock *Pred, BasicBlock *BB,
+                                  SelectInst *SI, PHINode *SIUse, unsigned Idx);
 
-  bool tryToUnfoldSelect(CmpInst *CondCmp, BasicBlock *BB);
-  bool tryToUnfoldSelect(SwitchInst *SI, BasicBlock *BB);
-  bool tryToUnfoldSelectInCurrBB(BasicBlock *BB);
+  LLVM_ABI bool tryToUnfoldSelect(CmpInst *CondCmp, BasicBlock *BB);
+  LLVM_ABI bool tryToUnfoldSelect(SwitchInst *SI, BasicBlock *BB);
+  LLVM_ABI bool tryToUnfoldSelectInCurrBB(BasicBlock *BB);
 
-  bool processGuards(BasicBlock *BB);
-  bool threadGuard(BasicBlock *BB, IntrinsicInst *Guard, BranchInst *BI);
+  LLVM_ABI bool processGuards(BasicBlock *BB);
+  LLVM_ABI bool threadGuard(BasicBlock *BB, IntrinsicInst *Guard,
+                            BranchInst *BI);
 
 private:
   BasicBlock *splitBlockPreds(BasicBlock *BB, ArrayRef<BasicBlock *> Preds,
                               const char *Suffix);
   void updateBlockFreqAndEdgeWeight(BasicBlock *PredBB, BasicBlock *BB,
-                                    BasicBlock *NewBB, BasicBlock *SuccBB);
+                                    BasicBlock *NewBB, BasicBlock *SuccBB,
+                                    BlockFrequencyInfo *BFI,
+                                    BranchProbabilityInfo *BPI,
+                                    bool HasProfile);
   /// Check if the block has profile metadata for its outgoing edges.
   bool doesBlockHaveProfileData(BasicBlock *BB);
+
+  /// Returns analysis preserved by the pass.
+  PreservedAnalyses getPreservedAnalysis() const;
+
+  /// Helper function to run "external" analysis in the middle of JumpThreading.
+  /// It takes care of updating/invalidating other existing analysis
+  /// before/after  running the "external" one.
+  template <typename AnalysisT>
+  typename AnalysisT::Result *runExternalAnalysis();
+
+  /// Returns an existing instance of BPI if any, otherwise nullptr. By
+  /// "existing" we mean either cached result provided by FunctionAnalysisManger
+  /// or created by preceding call to 'getOrCreateBPI'.
+  BranchProbabilityInfo *getBPI();
+
+  /// Returns an existing instance of BFI if any, otherwise nullptr. By
+  /// "existing" we mean either cached result provided by FunctionAnalysisManger
+  /// or created by preceding call to 'getOrCreateBFI'.
+  BlockFrequencyInfo *getBFI();
+
+  /// Returns an existing instance of BPI if any, otherwise:
+  ///   if 'HasProfile' is true creates new instance through
+  ///   FunctionAnalysisManager, otherwise nullptr.
+  BranchProbabilityInfo *getOrCreateBPI(bool Force = false);
+
+  /// Returns an existing instance of BFI if any, otherwise:
+  ///   if 'HasProfile' is true creates new instance through
+  ///   FunctionAnalysisManager, otherwise nullptr.
+  BlockFrequencyInfo *getOrCreateBFI(bool Force = false);
+
+  // Internal overload of evaluateOnPredecessorEdge().
+  Constant *evaluateOnPredecessorEdge(BasicBlock *BB, BasicBlock *PredPredBB,
+                                      Value *cond, const DataLayout &DL,
+                                      SmallPtrSet<Value *, 8> &Visited);
 };
 
 } // end namespace llvm

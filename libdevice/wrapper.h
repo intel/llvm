@@ -11,8 +11,7 @@
 
 #include "device.h"
 
-#if defined(__SPIR__) || defined(__NVPTX__)
-
+#ifdef __LIBDEVICE_TARGET_SUPPORT
 #include <cstddef>
 #include <cstdint>
 // We need the following header to ensure the definition of all spirv variables
@@ -29,5 +28,5 @@ void __devicelib_assert_fail(const char *expr, const char *file, int32_t line,
                              const char *func, uint64_t gid0, uint64_t gid1,
                              uint64_t gid2, uint64_t lid0, uint64_t lid1,
                              uint64_t lid2);
-#endif // __SPIR__ || __NVPTX__
+#endif // __LIBDEVICE_TARGET_SUPPORT
 #endif // __LIBDEVICE_WRAPPER_H__

@@ -1,4 +1,4 @@
-! RUN: %python %S/test_errors.py %s %flang_fc1
+! RUN: %python %S/test_errors.py %s %flang_fc1 -pedantic
 ! Check for 8.6.4(1)
 ! The BIND statement specifies the BIND attribute for a list of variables and
 ! common blocks.
@@ -6,18 +6,21 @@
 module m
 
   interface
-    subroutine proc() bind(c)
+    subroutine proc()
     end
   end interface
-  procedure(proc), bind(c) :: pc1
+  procedure(proc) :: pc1
   !ERROR: Only variable and named common block can be in BIND statement
   bind(c) :: proc
   !ERROR: Only variable and named common block can be in BIND statement
   bind(c) :: pc1
 
+  !ERROR: BIND_C attribute was already specified on 'sub'
   !ERROR: Only variable and named common block can be in BIND statement
   bind(c) :: sub
 
+  !PORTABILITY: Global name 'm' conflicts with a module [-Wbenign-name-clash]
+  !PORTABILITY: Name 'm' declared in a module should not have the same name as the module [-Wbenign-name-clash]
   bind(c) :: m ! no error for implicit type variable
 
   type my_type

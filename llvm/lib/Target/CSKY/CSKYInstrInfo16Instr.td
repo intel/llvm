@@ -97,9 +97,14 @@ let Constraints = "$rZ = $rz", isReMaterializable = 1, isAsCheapAsAMove = 1 in {
   def SUBI16 : I16_Z_8<0b101, (ins mGPR:$rZ, oimm8:$imm8), "subi16\t$rz, $imm8">;
 }
 
+def : Pat<(add GPR:$rs1, (oimm8_neg:$im)),
+          (SUBI16 GPR:$rs1, (imm_neg_XFORM oimm8_neg:$im))>;
+
 let isAdd = 1 in
 def ADDI16ZSP : I16_Z_8<0b011, (ins GPRSP:$sp, uimm8_2:$imm8),
-                        "addi16\t$rz, $sp, $imm8">;
+                        "addi16\t$rz, $sp, $imm8"> {
+  bits<0> sp;
+}
 
 let isAdd = 1 in
 def ADDI16SPSP : I16_SP_IMM7<0b000,"addi16">;
@@ -139,10 +144,14 @@ def ST16H : I16_XZ_LDST<AddrMode16H, 0b101, "st16.h",
 def ST16W : I16_XZ_LDST<AddrMode16W, 0b110, "st16.w",
   (outs), (ins mGPR:$rz, mGPR:$rx, uimm5_2:$imm)>;
 
-def LD16WSP : I16_ZSP_LDST<AddrMode16W, 0b011, "ld16.w",
-  (outs mGPR:$rz), (ins GPRSP:$sp, uimm8_2:$addr)>;
-def ST16WSP : I16_ZSP_LDST<AddrMode16W, 0b111, "st16.w",
-  (outs), (ins mGPR:$rz, GPRSP:$sp, uimm8_2:$addr)>;
+def LD16WSP : I16_ZSP_LDST<AddrMode16W, 0b011, "ld16.w", (outs mGPR:$rz),
+                           (ins GPRSP:$sp, uimm8_2:$addr)> {
+  bits<0> sp;
+}
+def ST16WSP : I16_ZSP_LDST<AddrMode16W, 0b111, "st16.w", (outs),
+                           (ins mGPR:$rz, GPRSP:$sp, uimm8_2:$addr)> {
+  bits<0> sp;
+}
 
 //===----------------------------------------------------------------------===//
 // Compare instructions.
@@ -184,8 +193,9 @@ def MOV16 : CSKY16Inst<AddrModeNone, (outs sGPR:$rz), (ins sGPR:$rx),
 }
 
 // MVC16 is not in "cskyv2 instructions reference manul"
-def MVCV16 : CSKY16Inst<AddrModeNone,
-  (outs sGPR:$rz), (ins CARRY:$ca), "mvcv16\t$rz", []> {
+def MVCV16 : CSKY16Inst<AddrModeNone, (outs sGPR:$rz), (ins CARRY:$ca),
+                        "mvcv16\t$rz", []> {
+  bits<0> ca;
   bits<4> rz;
   let Inst{15,14} = 0b01;
   let Inst{13 - 10} = 0b1001;
@@ -314,11 +324,14 @@ let Constraints = "$rZ = $rz" in {
 }
 
 let Predicates = [HasBTST16] in
-  def BTSTI16 : I16_Z_5<0b110, (outs CARRY:$ca), (ins mGPR:$rz, uimm5:$imm5),
-                        "btsti16">;
+def BTSTI16 : I16_Z_5<0b110, (outs CARRY:$ca), (ins mGPR:$rz, uimm5:$imm5),
+                      "btsti16"> {
+  bits<0> ca;
+}
 
 def TST16 : CSKY16Inst<AddrModeNone, (outs CARRY:$ca), (ins sGPR:$rx, sGPR:$ry),
-                        "tst16\t$rx, $ry", []> {
+                       "tst16\t$rx, $ry", []> {
+  bits<0> ca;
   bits<4> ry;
   bits<4> rx;
   let Inst{15,14} = 0b01;
@@ -331,6 +344,7 @@ def TST16 : CSKY16Inst<AddrModeNone, (outs CARRY:$ca), (ins sGPR:$rx, sGPR:$ry),
 
 def TSTNBZ16 : CSKY16Inst<AddrModeNone, (outs CARRY:$ca), (ins sGPR:$rx),
                           "tstnbz16\t$rx", []> {
+  bits<0> ca;
   bits<4> rx;
   let Inst{15,14} = 0b01;
   let Inst{13 - 10} = 0b1010;
@@ -472,6 +486,7 @@ def : Pat<(CSKY_LOAD_ADDR tglobaladdr, tconstpool:$src2), (LRW16 tconstpool:$src
 def : Pat<(CSKY_LOAD_ADDR tblockaddress, tconstpool:$src2), (LRW16 tconstpool:$src2)>;
 def : Pat<(CSKY_LOAD_ADDR tjumptable:$src1, tconstpool:$src2), (LRW16_Gen tjumptable:$src1, tconstpool:$src2)>;
 def : Pat<(CSKY_LOAD_ADDR texternalsym, tconstpool:$src2), (LRW16 tconstpool:$src2)>;
+def : Pat<(CSKY_LOAD_ADDR tconstpool:$src1, tconstpool:$src2), (LRW16_Gen tconstpool:$src1, tconstpool:$src2)>;
 
 def : Pat<(i32 (load constpool:$src)), (LRW16 (to_tconstpool tconstpool:$src))>;
 
@@ -482,39 +497,34 @@ def : Pat<(brcond CARRY:$ca, bb:$offset),
 
 def : Pat<(br bb:$offset), (BR16 bb:$offset)>;
 
-def : Pat<(brcond (i32 (setne mGPR:$rs1, uimm5:$rs2)), bb:$offset),
-          (BT16 (CMPNEI16 mGPR:$rs1, uimm5:$rs2), bb:$offset)>;
-def : Pat<(brcond (i32 (seteq mGPR:$rs1, uimm5:$rs2)), bb:$offset),
-          (BF16 (CMPNEI16 mGPR:$rs1, uimm5:$rs2), bb:$offset)>;
-def : Pat<(brcond (i32 (setuge mGPR:$rs1, oimm5:$rs2)), bb:$offset),
-          (BT16 (CMPHSI16 mGPR:$rs1, oimm5:$rs2), bb:$offset)>;
-def : Pat<(brcond (i32 (setult mGPR:$rs1, oimm5:$rs2)), bb:$offset),
-          (BF16 (CMPHSI16 mGPR:$rs1, oimm5:$rs2), bb:$offset)>;
-def : Pat<(brcond (i32 (setlt mGPR:$rs1, oimm5:$rs2)), bb:$offset),
-          (BT16 (CMPLTI16 mGPR:$rs1, oimm5:$rs2), bb:$offset)>;
-def : Pat<(brcond (i32 (setge mGPR:$rs1, oimm5:$rs2)), bb:$offset),
-          (BF16 (CMPLTI16 mGPR:$rs1, oimm5:$rs2), bb:$offset)>;
+multiclass BTF16Pat0<PatFrag cond0, PatFrag cond1, ImmLeaf imm_ty, Instruction inst> {
+  def : Pat<(brcond (i32 (cond0 mGPR:$rs1, imm_ty:$rs2)), bb:$offset),
+            (BT16 (inst mGPR:$rs1, imm_ty:$rs2), bb:$offset)>;
+  def : Pat<(brcond (i32 (cond1 mGPR:$rs1, imm_ty:$rs2)), bb:$offset),
+            (BF16 (inst mGPR:$rs1, imm_ty:$rs2), bb:$offset)>;
+}
+
+defm : BTF16Pat0<setne, seteq, uimm5, CMPNEI16>;
+defm : BTF16Pat0<setuge, setult, oimm5, CMPHSI16>;
+defm : BTF16Pat0<setlt, setge, oimm5, CMPLTI16>;
 
 def : Pat<(brcond (i32 (setne sGPR:$rs1, sGPR:$rs2)), bb:$offset),
           (BT16 (CMPNE16 sGPR:$rs1, sGPR:$rs2), bb:$offset)>;
 def : Pat<(brcond (i32 (seteq sGPR:$rs1, sGPR:$rs2)), bb:$offset),
           (BF16 (CMPNE16 sGPR:$rs1, sGPR:$rs2), bb:$offset)>;
-def : Pat<(brcond (i32 (setuge sGPR:$rs1, sGPR:$rs2)), bb:$offset),
-          (BT16 (CMPHS16 sGPR:$rs1, sGPR:$rs2), bb:$offset)>;
-def : Pat<(brcond (i32 (setule sGPR:$rs1, sGPR:$rs2)), bb:$offset),
-          (BT16 (CMPHS16 sGPR:$rs2, sGPR:$rs1), bb:$offset)>;
-def : Pat<(brcond (i32 (setult sGPR:$rs1, sGPR:$rs2)), bb:$offset),
-          (BF16 (CMPHS16 sGPR:$rs1, sGPR:$rs2), bb:$offset)>;
-def : Pat<(brcond (i32 (setugt sGPR:$rs1, sGPR:$rs2)), bb:$offset),
-          (BF16 (CMPHS16 sGPR:$rs2, sGPR:$rs1), bb:$offset)>;
-def : Pat<(brcond (i32 (setlt sGPR:$rs1, sGPR:$rs2)), bb:$offset),
-          (BT16 (CMPLT16 sGPR:$rs1, sGPR:$rs2), bb:$offset)>;
-def : Pat<(brcond (i32 (setgt sGPR:$rs1, sGPR:$rs2)), bb:$offset),
-          (BT16 (CMPLT16 sGPR:$rs2, sGPR:$rs1), bb:$offset)>;
-def : Pat<(brcond (i32 (setge sGPR:$rs1, sGPR:$rs2)), bb:$offset),
-          (BF16 (CMPLT16 sGPR:$rs1, sGPR:$rs2), bb:$offset)>;
-def : Pat<(brcond (i32 (setle sGPR:$rs1, sGPR:$rs2)), bb:$offset),
-          (BF16 (CMPLT16 sGPR:$rs2, sGPR:$rs1), bb:$offset)>;
+
+multiclass BTF16Pat1<PatFrag cond0, PatFrag cond1, Instruction cmp,
+                     Instruction br>  {
+  def : Pat<(brcond (i32 (cond0 sGPR:$rs1, sGPR:$rs2)), bb:$offset),
+            (br (cmp sGPR:$rs1, sGPR:$rs2), bb:$offset)>;
+  def : Pat<(brcond (i32 (cond1 sGPR:$rs1, sGPR:$rs2)), bb:$offset),
+            (br (cmp sGPR:$rs2, sGPR:$rs1), bb:$offset)>;
+}
+
+defm : BTF16Pat1<setuge, setule, CMPHS16, BT16>;
+defm : BTF16Pat1<setult, setugt, CMPHS16, BF16>;
+defm : BTF16Pat1<setlt, setgt, CMPLT16, BT16>;
+defm : BTF16Pat1<setge, setle, CMPLT16, BF16>;
 
 // Compare Patterns.
 def : Pat<(setne sGPR:$rs1, sGPR:$rs2),

@@ -17,7 +17,6 @@
 
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/Path.h"
-#include <utility>
 
 using namespace llvm;
 using namespace llvm::pdb;
@@ -64,7 +63,7 @@ std::string PDBSymbolCompiland::getSourceFileFullPath() const {
         auto Len = EnvWorkingDir.length();
         if (EnvWorkingDir[Len - 1] != '/' && EnvWorkingDir[Len - 1] != '\\') {
           std::string Path = EnvWorkingDir + "\\" + EnvSrc;
-          std::replace(Path.begin(), Path.end(), '/', '\\');
+          llvm::replace(Path, '/', '\\');
           // We will return it as full path if we can't find a better one.
           if (sys::path::is_absolute(Path))
             SourceFileFullPath = Path;
@@ -102,6 +101,8 @@ std::string PDBSymbolCompiland::getSourceFileFullPath() const {
               .Case(".asm", Lang == PDB_Lang::Masm)
               .Case(".swift", Lang == PDB_Lang::Swift)
               .Case(".rs", Lang == PDB_Lang::Rust)
+              .Case(".m", Lang == PDB_Lang::ObjC)
+              .Case(".mm", Lang == PDB_Lang::ObjCpp)
               .Default(false))
         return File->getFileName();
     }

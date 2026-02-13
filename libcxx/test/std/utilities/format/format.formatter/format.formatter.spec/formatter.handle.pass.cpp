@@ -1,4 +1,5 @@
 //===----------------------------------------------------------------------===//
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -6,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-has-no-incomplete-format
 
 // <format>
 
@@ -21,6 +21,8 @@
 #include <cmath>
 #include <charconv>
 #include <concepts>
+#include <iterator>
+#include <memory>
 #include <string>
 #include <type_traits>
 
@@ -32,16 +34,19 @@ const char* color_names[] = {"black", "red", "gold"};
 
 template <>
 struct std::formatter<color> : std::formatter<const char*> {
-  auto format(color c, auto& ctx) { return formatter<const char*>::format(color_names[static_cast<int>(c)], ctx); }
+  auto format(color c, auto& ctx) const {
+    return formatter<const char*>::format(color_names[static_cast<int>(c)], ctx);
+  }
 };
 
-void test(std::string expected, std::string_view fmt, color arg) {
+void test(std::string expected, std::string_view fmt, color arg, std::size_t offset) {
   auto parse_ctx = std::format_parse_context(fmt);
   std::formatter<color, char> formatter;
   static_assert(std::semiregular<decltype(formatter)>);
 
-  auto it = formatter.parse(parse_ctx);
-  assert(it == fmt.end() - (!fmt.empty() && fmt.back() == '}'));
+  std::same_as<typename std::string_view::iterator> auto it = formatter.parse(parse_ctx);
+  // std::to_address works around LWG3989 and MSVC STL's iterator debugging mechanism.
+  assert(std::to_address(it) == std::to_address(fmt.end()) - offset);
 
   std::string result;
   auto out = std::back_inserter(result);
@@ -61,9 +66,9 @@ void test_termination_condition(std::string expected, std::string f, color arg) 
   std::string_view fmt{f};
   assert(fmt.back() == '}' && "Pre-condition failure");
 
-  test(expected, fmt, arg);
+  test(expected, fmt, arg, 1);
   fmt.remove_suffix(1);
-  test(expected, fmt, arg);
+  test(expected, fmt, arg, 0);
 }
 
 int main(int, char**) {

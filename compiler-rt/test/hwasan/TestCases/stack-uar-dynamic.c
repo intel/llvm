@@ -5,7 +5,7 @@
 // objects.
 
 // Stack histories are currently not recorded on x86.
-// XFAIL: x86_64
+// XFAIL: target=x86_64{{.*}}
 
 __attribute((noinline))
 char *buggy(int b) {
@@ -21,6 +21,7 @@ char *buggy(int b) {
 int main() {
   char *p = buggy(1);
   // CHECK: Potentially referenced stack objects:
-  // CHECK-NEXT: c in buggy
+  // CHECK-NEXT: use-after-scope
+  // CHECK-NEXT: 0x{{.*}} is located 0 bytes inside a 64-byte local variable c [0x{{.*}},0x{{.*}}) in buggy
   p[0] = 0;
 }

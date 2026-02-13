@@ -1,4 +1,4 @@
-//===- SkeletonEmitter.cpp - Skeleton TableGen backend          -*- C++ -*-===//
+//===- TableGenBackendSkeleton.cpp - Skeleton TableGen backend --*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/TableGen/TableGenBackend.h"
 
@@ -30,10 +29,10 @@ namespace {
 
 class SkeletonEmitter {
 private:
-  RecordKeeper &Records;
+  const RecordKeeper &Records;
 
 public:
-  SkeletonEmitter(RecordKeeper &RK) : Records(RK) {}
+  SkeletonEmitter(const RecordKeeper &RK) : Records(RK) {}
 
   void run(raw_ostream &OS);
 }; // emitter class
@@ -46,14 +45,20 @@ void SkeletonEmitter::run(raw_ostream &OS) {
   (void)Records; // To suppress unused variable warning; remove on use.
 }
 
-namespace llvm {
+// Choose either option A or B.
 
-// The only thing that should be in the llvm namespace is the
-// emitter entry point function.
+//===----------------------------------------------------------------------===//
+// Option A: Register the backed as class <SkeletonEmitter>
+static TableGen::Emitter::OptClass<SkeletonEmitter>
+    X("gen-skeleton-class", "Generate example skeleton class");
 
-void EmitSkeleton(RecordKeeper &RK, raw_ostream &OS) {
+//===----------------------------------------------------------------------===//
+// Option B: Register "EmitSkeleton" directly
+// The emitter entry may be private scope.
+static void EmitSkeleton(const RecordKeeper &RK, raw_ostream &OS) {
   // Instantiate the emitter class and invoke run().
   SkeletonEmitter(RK).run(OS);
 }
 
-} // namespace llvm
+static TableGen::Emitter::Opt Y("gen-skeleton-entry", EmitSkeleton,
+                                "Generate example skeleton entry");

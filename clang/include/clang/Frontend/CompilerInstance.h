@@ -12,9 +12,11 @@
 #include "clang/AST/ASTConsumer.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/SourceManager.h"
+#include "clang/Basic/TargetInfo.h"
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Frontend/PCHContainerOperations.h"
 #include "clang/Frontend/Utils.h"
+#include "clang/Lex/DependencyDirectivesScanner.h"
 #include "clang/Lex/HeaderSearchOptions.h"
 #include "clang/Lex/ModuleLoader.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -23,14 +25,18 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/VirtualFileSystem.h"
+#include "llvm/Support/VirtualOutputBackend.h"
 #include <cassert>
 #include <list>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 
 namespace llvm {
 class raw_fd_ostream;
+class PassPlugin;
 class Timer;
 class TimerGroup;
 }
@@ -38,13 +44,18 @@ class TimerGroup;
 namespace clang {
 class ASTContext;
 class ASTReader;
+
+namespace serialization {
+class ModuleFile;
+}
+
 class CodeCompleteConsumer;
 class DiagnosticsEngine;
 class DiagnosticConsumer;
 class FileManager;
 class FrontendAction;
-class InMemoryModuleCache;
 class Module;
+class ModuleCache;
 class Preprocessor;
 class Sema;
 class SourceManager;
@@ -73,11 +84,17 @@ class CompilerInstance : public ModuleLoader {
   /// The options used in this compiler instance.
   std::shared_ptr<CompilerInvocation> Invocation;
 
+  /// The virtual file system instance.
+  IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS;
+
   /// The diagnostics engine instance.
   IntrusiveRefCntPtr<DiagnosticsEngine> Diagnostics;
 
   /// The target being compiled for.
   IntrusiveRefCntPtr<TargetInfo> Target;
+
+  /// Options for the auxiliary target.
+  std::unique_ptr<TargetOptions> AuxTargetOpts;
 
   /// Auxiliary Target info.
   IntrusiveRefCntPtr<TargetInfo> AuxTarget;
@@ -85,11 +102,17 @@ class CompilerInstance : public ModuleLoader {
   /// The file manager.
   IntrusiveRefCntPtr<FileManager> FileMgr;
 
+  /// The output manager.
+  IntrusiveRefCntPtr<llvm::vfs::OutputBackend> OutputMgr;
+
   /// The source manager.
   IntrusiveRefCntPtr<SourceManager> SourceMgr;
 
   /// The cache of PCM files.
-  IntrusiveRefCntPtr<InMemoryModuleCache> ModuleCache;
+  std::shared_ptr<ModuleCache> ModCache;
+
+  /// Functor for getting the dependency preprocessor directives of a file.
+  std::unique_ptr<DependencyDirectivesGetter> GetDependencyDirectives;
 
   /// The preprocessor.
   std::shared_ptr<Preprocessor> PP;
@@ -109,8 +132,11 @@ class CompilerInstance : public ModuleLoader {
   /// The semantic analysis object.
   std::unique_ptr<Sema> TheSema;
 
+  /// Back-end pass plugins.
+  std::vector<std::unique_ptr<llvm::PassPlugin>> PassPlugins;
+
   /// The frontend timer group.
-  std::unique_ptr<llvm::TimerGroup> FrontendTimerGroup;
+  std::unique_ptr<llvm::TimerGroup> timerGroup;
 
   /// The frontend timer.
   std::unique_ptr<llvm::Timer> FrontendTimer;
@@ -125,6 +151,14 @@ class CompilerInstance : public ModuleLoader {
   std::shared_ptr<PCHContainerOperations> ThePCHContainerOperations;
 
   std::vector<std::shared_ptr<DependencyCollector>> DependencyCollectors;
+
+  /// The set of modules that failed to build.
+  ///
+  /// This value will be passed among all of the compiler instances created
+  /// to (re)build modules, so that once a module fails to build anywhere,
+  /// other instances will see that the module has failed and won't try to
+  /// build it again.
+  llvm::StringSet<> FailedModules;
 
   /// The set of top-level modules that has already been built on the
   /// fly as part of this overall compilation action.
@@ -157,21 +191,8 @@ class CompilerInstance : public ModuleLoader {
   /// The stream for verbose output.
   raw_ostream *VerboseOutputStream = &llvm::errs();
 
-  /// Holds information about the output file.
-  ///
-  /// If TempFilename is not empty we must rename it to Filename at the end.
-  /// TempFilename may be empty and Filename non-empty if creating the temporary
-  /// failed.
-  struct OutputFile {
-    std::string Filename;
-    Optional<llvm::sys::fs::TempFile> File;
-
-    OutputFile(std::string filename, Optional<llvm::sys::fs::TempFile> file)
-        : Filename(std::move(filename)), File(std::move(file)) {}
-  };
-
   /// The list of active output files.
-  std::list<OutputFile> OutputFiles;
+  std::list<llvm::vfs::OutputFile> OutputFiles;
 
   /// Force an output buffer.
   std::unique_ptr<llvm::raw_pwrite_stream> OutputStream;
@@ -180,13 +201,15 @@ class CompilerInstance : public ModuleLoader {
   void operator=(const CompilerInstance &) = delete;
 public:
   explicit CompilerInstance(
+      std::shared_ptr<CompilerInvocation> Invocation =
+          std::make_shared<CompilerInvocation>(),
       std::shared_ptr<PCHContainerOperations> PCHContainerOps =
           std::make_shared<PCHContainerOperations>(),
-      InMemoryModuleCache *SharedModuleCache = nullptr);
+      std::shared_ptr<ModuleCache> ModCache = nullptr);
   ~CompilerInstance() override;
 
   /// @name High-Level Operations
-  /// {
+  /// @{
 
   /// ExecuteAction - Execute the provided action against the compiler's
   /// CompilerInvocation object.
@@ -217,22 +240,19 @@ public:
   // of the context or else not CompilerInstance specific.
   bool ExecuteAction(FrontendAction &Act);
 
+  /// At the end of a compilation, print the number of warnings/errors.
+  void printDiagnosticStats();
+
   /// Load the list of plugins requested in the \c FrontendOptions.
   void LoadRequestedPlugins();
 
-  /// }
+  /// @}
   /// @name Compiler Invocation and Options
-  /// {
+  /// @{
 
-  bool hasInvocation() const { return Invocation != nullptr; }
+  CompilerInvocation &getInvocation() { return *Invocation; }
 
-  CompilerInvocation &getInvocation() {
-    assert(Invocation && "Compiler instance has no invocation!");
-    return *Invocation;
-  }
-
-  /// setInvocation - Replace the current invocation.
-  void setInvocation(std::shared_ptr<CompilerInvocation> Value);
+  std::shared_ptr<CompilerInvocation> getInvocationPtr() { return Invocation; }
 
   /// Indicates whether we should (re)build the global module index.
   bool shouldBuildGlobalModuleIndex() const;
@@ -243,13 +263,11 @@ public:
     BuildGlobalModuleIndex = Build;
   }
 
-  /// }
+  /// @}
   /// @name Forwarding Methods
-  /// {
+  /// @{
 
-  AnalyzerOptionsRef getAnalyzerOpts() {
-    return Invocation->getAnalyzerOpts();
-  }
+  AnalyzerOptions &getAnalyzerOpts() { return Invocation->getAnalyzerOpts(); }
 
   CodeGenOptions &getCodeGenOpts() {
     return Invocation->getCodeGenOpts();
@@ -292,16 +310,14 @@ public:
   const HeaderSearchOptions &getHeaderSearchOpts() const {
     return Invocation->getHeaderSearchOpts();
   }
-  std::shared_ptr<HeaderSearchOptions> getHeaderSearchOptsPtr() const {
-    return Invocation->getHeaderSearchOptsPtr();
+
+  APINotesOptions &getAPINotesOpts() { return Invocation->getAPINotesOpts(); }
+  const APINotesOptions &getAPINotesOpts() const {
+    return Invocation->getAPINotesOpts();
   }
 
-  LangOptions &getLangOpts() {
-    return *Invocation->getLangOpts();
-  }
-  const LangOptions &getLangOpts() const {
-    return *Invocation->getLangOpts();
-  }
+  LangOptions &getLangOpts() { return Invocation->getLangOpts(); }
+  const LangOptions &getLangOpts() const { return Invocation->getLangOpts(); }
 
   PreprocessorOptions &getPreprocessorOpts() {
     return Invocation->getPreprocessorOpts();
@@ -324,9 +340,9 @@ public:
     return Invocation->getTargetOpts();
   }
 
-  /// }
+  /// @}
   /// @name Diagnostics Engine
-  /// {
+  /// @{
 
   bool hasDiagnostics() const { return Diagnostics != nullptr; }
 
@@ -336,8 +352,13 @@ public:
     return *Diagnostics;
   }
 
+  IntrusiveRefCntPtr<DiagnosticsEngine> getDiagnosticsPtr() const {
+    assert(Diagnostics && "Compiler instance has no diagnostics!");
+    return Diagnostics;
+  }
+
   /// setDiagnostics - Replace the current diagnostics engine.
-  void setDiagnostics(DiagnosticsEngine *Value);
+  void setDiagnostics(llvm::IntrusiveRefCntPtr<DiagnosticsEngine> Value);
 
   DiagnosticConsumer &getDiagnosticClient() const {
     assert(Diagnostics && Diagnostics->getClient() &&
@@ -345,9 +366,9 @@ public:
     return *Diagnostics->getClient();
   }
 
-  /// }
+  /// @}
   /// @name VerboseOutputStream
-  /// }
+  /// @{
 
   /// Replace the current stream for verbose output.
   void setVerboseOutputStream(raw_ostream &Value);
@@ -360,9 +381,9 @@ public:
     return *VerboseOutputStream;
   }
 
-  /// }
+  /// @}
   /// @name Target Info
-  /// {
+  /// @{
 
   bool hasTarget() const { return Target != nullptr; }
 
@@ -371,12 +392,17 @@ public:
     return *Target;
   }
 
+  IntrusiveRefCntPtr<TargetInfo> getTargetPtr() const {
+    assert(Target && "Compiler instance has no target!");
+    return Target;
+  }
+
   /// Replace the current Target.
   void setTarget(TargetInfo *Value);
 
-  /// }
+  /// @}
   /// @name AuxTarget Info
-  /// {
+  /// @{
 
   TargetInfo *getAuxTarget() const { return AuxTarget.get(); }
 
@@ -386,15 +412,39 @@ public:
   // Create Target and AuxTarget based on current options
   bool createTarget();
 
-  /// }
+  /// @}
   /// @name Virtual File System
-  /// {
+  /// @{
 
-  llvm::vfs::FileSystem &getVirtualFileSystem() const;
+  bool hasVirtualFileSystem() const { return VFS != nullptr; }
 
-  /// }
+  /// Create a virtual file system instance based on the invocation.
+  ///
+  /// @param BaseFS The file system that may be used when configuring the final
+  ///               file system, and act as the underlying file system. Must not
+  ///               be NULL.
+  /// @param DC If non-NULL, the diagnostic consumer to be used in case
+  ///           configuring the file system emits diagnostics. Note that the
+  ///           DiagnosticsEngine using the consumer won't obey the
+  ///           --warning-suppression-mappings= flag.
+  void createVirtualFileSystem(IntrusiveRefCntPtr<llvm::vfs::FileSystem>
+                                   BaseFS = llvm::vfs::getRealFileSystem(),
+                               DiagnosticConsumer *DC = nullptr);
+
+  /// Use the given file system.
+  void setVirtualFileSystem(IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS) {
+    VFS = std::move(FS);
+  }
+
+  llvm::vfs::FileSystem &getVirtualFileSystem() const { return *VFS; }
+
+  IntrusiveRefCntPtr<llvm::vfs::FileSystem> getVirtualFileSystemPtr() const {
+    return VFS;
+  }
+
+  /// @}
   /// @name File Manager
-  /// {
+  /// @{
 
   bool hasFileManager() const { return FileMgr != nullptr; }
 
@@ -404,17 +454,38 @@ public:
     return *FileMgr;
   }
 
+  IntrusiveRefCntPtr<FileManager> getFileManagerPtr() const {
+    assert(FileMgr && "Compiler instance has no file manager!");
+    return FileMgr;
+  }
+
   void resetAndLeakFileManager() {
     llvm::BuryPointer(FileMgr.get());
     FileMgr.resetWithoutRelease();
   }
 
-  /// Replace the current file manager and virtual file system.
-  void setFileManager(FileManager *Value);
+  /// Replace the current file manager.
+  void setFileManager(IntrusiveRefCntPtr<FileManager> Value);
 
-  /// }
+  /// @}
+  /// @name Output Manager
+  /// @{
+
+  /// Set the output manager.
+  void
+  setOutputManager(IntrusiveRefCntPtr<llvm::vfs::OutputBackend> NewOutputs);
+
+  /// Create an output manager.
+  void createOutputManager();
+
+  bool hasOutputManager() const { return bool(OutputMgr); }
+
+  llvm::vfs::OutputBackend &getOutputManager();
+  llvm::vfs::OutputBackend &getOrCreateOutputManager();
+
+  /// @}
   /// @name Source Manager
-  /// {
+  /// @{
 
   bool hasSourceManager() const { return SourceMgr != nullptr; }
 
@@ -424,17 +495,22 @@ public:
     return *SourceMgr;
   }
 
+  IntrusiveRefCntPtr<SourceManager> getSourceManagerPtr() const {
+    assert(SourceMgr && "Compiler instance has no source manager!");
+    return SourceMgr;
+  }
+
   void resetAndLeakSourceManager() {
     llvm::BuryPointer(SourceMgr.get());
     SourceMgr.resetWithoutRelease();
   }
 
   /// setSourceManager - Replace the current source manager.
-  void setSourceManager(SourceManager *Value);
+  void setSourceManager(llvm::IntrusiveRefCntPtr<SourceManager> Value);
 
-  /// }
+  /// @}
   /// @name Preprocessor
-  /// {
+  /// @{
 
   bool hasPreprocessor() const { return PP != nullptr; }
 
@@ -453,9 +529,9 @@ public:
   /// Replace the current preprocessor.
   void setPreprocessor(std::shared_ptr<Preprocessor> Value);
 
-  /// }
+  /// @}
   /// @name ASTContext
-  /// {
+  /// @{
 
   bool hasASTContext() const { return Context != nullptr; }
 
@@ -464,21 +540,26 @@ public:
     return *Context;
   }
 
+  IntrusiveRefCntPtr<ASTContext> getASTContextPtr() const {
+    assert(Context && "Compiler instance has no AST context!");
+    return Context;
+  }
+
   void resetAndLeakASTContext() {
     llvm::BuryPointer(Context.get());
     Context.resetWithoutRelease();
   }
 
   /// setASTContext - Replace the current AST context.
-  void setASTContext(ASTContext *Value);
+  void setASTContext(llvm::IntrusiveRefCntPtr<ASTContext> Value);
 
   /// Replace the current Sema; the compiler instance takes ownership
   /// of S.
   void setSema(Sema *S);
 
-  /// }
+  /// @}
   /// @name ASTConsumer
-  /// {
+  /// @{
 
   bool hasASTConsumer() const { return (bool)Consumer; }
 
@@ -495,9 +576,9 @@ public:
   /// takes ownership of \p Value.
   void setASTConsumer(std::unique_ptr<ASTConsumer> Value);
 
-  /// }
+  /// @}
   /// @name Semantic analysis
-  /// {
+  /// @{
   bool hasSema() const { return (bool)TheSema; }
 
   Sema &getSema() const {
@@ -508,9 +589,9 @@ public:
   std::unique_ptr<Sema> takeSema();
   void resetAndLeakSema();
 
-  /// }
+  /// @}
   /// @name Module Management
-  /// {
+  /// @{
 
   IntrusiveRefCntPtr<ASTReader> getASTReader() const;
   void setASTReader(IntrusiveRefCntPtr<ASTReader> Reader);
@@ -551,9 +632,9 @@ public:
     return *Reader;
   }
 
-  /// }
+  /// @}
   /// @name Code Completion
-  /// {
+  /// @{
 
   bool hasCodeCompletionConsumer() const { return (bool)CompletionConsumer; }
 
@@ -568,10 +649,18 @@ public:
   void setCodeCompletionConsumer(CodeCompleteConsumer *Value);
 
   /// }
-  /// @name Frontend timer
-  /// {
+  /// @name Back-end Pass Plugins
+  /// @{
 
-  bool hasFrontendTimer() const { return (bool)FrontendTimer; }
+  llvm::ArrayRef<std::unique_ptr<llvm::PassPlugin>> getPassPlugins() const {
+    return PassPlugins;
+  }
+
+  /// @}
+  /// @name Frontend timer
+  /// @{
+
+  llvm::TimerGroup &getTimerGroup() const { return *timerGroup; }
 
   llvm::Timer &getFrontendTimer() const {
     assert(FrontendTimer && "Compiler instance has no frontend timer!");
@@ -580,7 +669,7 @@ public:
 
   /// }
   /// @name Output Files
-  /// {
+  /// @{
 
   /// clearOutputFiles - Clear the output file list. The underlying output
   /// streams must have been closed beforehand.
@@ -588,9 +677,9 @@ public:
   /// \param EraseFiles - If true, attempt to erase the files from disk.
   void clearOutputFiles(bool EraseFiles);
 
-  /// }
+  /// @}
   /// @name Construction Utility Methods
-  /// {
+  /// @{
 
   /// Create the diagnostics engine using the invocation's diagnostic options
   /// and replace any existing one with it.
@@ -607,42 +696,47 @@ public:
   void createDiagnostics(DiagnosticConsumer *Client = nullptr,
                          bool ShouldOwnClient = true);
 
-  /// Create a DiagnosticsEngine object with a the TextDiagnosticPrinter.
+  /// Create a DiagnosticsEngine object.
   ///
   /// If no diagnostic client is provided, this creates a
   /// DiagnosticConsumer that is owned by the returned diagnostic
   /// object, if using directly the caller is responsible for
   /// releasing the returned DiagnosticsEngine's client eventually.
   ///
+  /// \param VFS The file system used to load the suppression mappings file.
+  ///
   /// \param Opts - The diagnostic options; note that the created text
   /// diagnostic object contains a reference to these options.
   ///
   /// \param Client If non-NULL, a diagnostic client that will be
   /// attached to (and, then, owned by) the returned DiagnosticsEngine
-  /// object.
+  /// object. If NULL, the returned DiagnosticsEngine will own a newly-created
+  /// client.
   ///
   /// \param CodeGenOpts If non-NULL, the code gen options in use, which may be
   /// used by some diagnostics printers (for logging purposes only).
   ///
   /// \return The new object on success, or null on failure.
   static IntrusiveRefCntPtr<DiagnosticsEngine>
-  createDiagnostics(DiagnosticOptions *Opts,
+  createDiagnostics(llvm::vfs::FileSystem &VFS, DiagnosticOptions &Opts,
                     DiagnosticConsumer *Client = nullptr,
                     bool ShouldOwnClient = true,
                     const CodeGenOptions *CodeGenOpts = nullptr);
 
   /// Create the file manager and replace any existing one with it.
-  ///
-  /// \return The new file manager on success, or null on failure.
-  FileManager *
-  createFileManager(IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS = nullptr);
+  void createFileManager();
 
   /// Create the source manager and replace any existing one with it.
-  void createSourceManager(FileManager &FileMgr);
+  void createSourceManager();
 
   /// Create the preprocessor, using the invocation, file, and source managers,
   /// and replace any existing one with it.
   void createPreprocessor(TranslationUnitKind TUKind);
+
+  void setDependencyDirectivesGetter(
+      std::unique_ptr<DependencyDirectivesGetter> Getter) {
+    GetDependencyDirectives = std::move(Getter);
+  }
 
   std::string getSpecificModuleCachePath(StringRef ModuleHash);
   std::string getSpecificModuleCachePath() {
@@ -665,9 +759,9 @@ public:
   static IntrusiveRefCntPtr<ASTReader> createPCHExternalASTSource(
       StringRef Path, StringRef Sysroot,
       DisableValidationForModuleKind DisableValidation,
-      bool AllowPCHWithCompilerErrors, Preprocessor &PP,
-      InMemoryModuleCache &ModuleCache, ASTContext &Context,
-      const PCHContainerReader &PCHContainerRdr,
+      bool AllowPCHWithCompilerErrors, Preprocessor &PP, ModuleCache &ModCache,
+      ASTContext &Context, const PCHContainerReader &PCHContainerRdr,
+      const CodeGenOptions &CodeGenOpts,
       ArrayRef<std::shared_ptr<ModuleFileExtension>> Extensions,
       ArrayRef<std::shared_ptr<DependencyCollector>> DependencyCollectors,
       void *DeserializationListener, bool OwnDeserializationListener,
@@ -739,9 +833,9 @@ private:
 public:
   std::unique_ptr<raw_pwrite_stream> createNullOutputFile();
 
-  /// }
+  /// @}
   /// @name Initialization Utility Methods
-  /// {
+  /// @{
 
   /// InitializeSourceManager - Initialize the source manager to set InputFile
   /// as the main file.
@@ -758,7 +852,7 @@ public:
                                       FileManager &FileMgr,
                                       SourceManager &SourceMgr);
 
-  /// }
+  /// @}
 
   void setOutputStream(std::unique_ptr<llvm::raw_pwrite_stream> OutStream) {
     OutputStream = std::move(OutStream);
@@ -770,7 +864,32 @@ public:
 
   void createASTReader();
 
-  bool loadModuleFile(StringRef FileName);
+  bool loadModuleFile(StringRef FileName,
+                      serialization::ModuleFile *&LoadedModuleFile);
+
+  /// Configuration object for making the result of \c cloneForModuleCompile()
+  /// thread-safe.
+  class ThreadSafeCloneConfig {
+    IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS;
+    DiagnosticConsumer &DiagConsumer;
+    std::shared_ptr<ModuleDependencyCollector> ModuleDepCollector;
+
+  public:
+    ThreadSafeCloneConfig(
+        IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS,
+        DiagnosticConsumer &DiagConsumer,
+        std::shared_ptr<ModuleDependencyCollector> ModuleDepCollector = nullptr)
+        : VFS(std::move(VFS)), DiagConsumer(DiagConsumer),
+          ModuleDepCollector(std::move(ModuleDepCollector)) {
+      assert(this->VFS && "Clone config requires non-null VFS");
+    }
+
+    IntrusiveRefCntPtr<llvm::vfs::FileSystem> getVFS() const { return VFS; }
+    DiagnosticConsumer &getDiagConsumer() const { return DiagConsumer; }
+    std::shared_ptr<ModuleDependencyCollector> getModuleDepCollector() const {
+      return ModuleDepCollector;
+    }
+  };
 
 private:
   /// Find a module, potentially compiling it, before reading its AST.  This is
@@ -789,7 +908,34 @@ private:
                                                  SourceLocation ModuleNameLoc,
                                                  bool IsInclusionDirective);
 
+  /// Creates a \c CompilerInstance for compiling a module.
+  ///
+  /// This expects a properly initialized \c FrontendInputFile.
+  std::unique_ptr<CompilerInstance> cloneForModuleCompileImpl(
+      SourceLocation ImportLoc, StringRef ModuleName, FrontendInputFile Input,
+      StringRef OriginalModuleMapFile, StringRef ModuleFileName,
+      std::optional<ThreadSafeCloneConfig> ThreadSafeConfig = std::nullopt);
+
 public:
+  /// Creates a new \c CompilerInstance for compiling a module.
+  ///
+  /// This takes care of creating appropriate \c FrontendInputFile for
+  /// public/private frameworks, inferred modules and such.
+  ///
+  /// The \c ThreadSafeConfig takes precedence over the \c DiagnosticConsumer
+  /// and \c FileSystem of this instance (and disables \c FileManager sharing).
+  std::unique_ptr<CompilerInstance> cloneForModuleCompile(
+      SourceLocation ImportLoc, const Module *Module, StringRef ModuleFileName,
+      std::optional<ThreadSafeCloneConfig> ThreadSafeConfig = std::nullopt);
+
+  /// Compile a module file for the given module, using the options
+  /// provided by the importing compiler instance. Returns true if the module
+  /// was built without errors.
+  // FIXME: This should be private, but it's called from static non-member
+  // functions in the implementation file.
+  bool compileModule(SourceLocation ImportLoc, StringRef ModuleName,
+                     StringRef ModuleFileName, CompilerInstance &Instance);
+
   ModuleLoadResult loadModule(SourceLocation ImportLoc, ModuleIdPath Path,
                               Module::NameVisibilityKind Visibility,
                               bool IsInclusionDirective) override;
@@ -812,9 +958,16 @@ public:
     DependencyCollectors.push_back(std::move(Listener));
   }
 
+  void clearDependencyCollectors() { DependencyCollectors.clear(); }
+
+  std::vector<std::shared_ptr<DependencyCollector>> &getDependencyCollectors() {
+    return DependencyCollectors;
+  }
+
   void setExternalSemaSource(IntrusiveRefCntPtr<ExternalSemaSource> ESS);
 
-  InMemoryModuleCache &getModuleCache() const { return *ModuleCache; }
+  ModuleCache &getModuleCache() const { return *ModCache; }
+  std::shared_ptr<ModuleCache> getModuleCachePtr() const { return ModCache; }
 };
 
 } // end namespace clang

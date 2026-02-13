@@ -1,5 +1,3 @@
-; RUN: opt -annotation-remarks -pass-remarks-missed='annotation-remarks' -disable-output -pass-remarks-output=%t.opt.yaml %s
-; RUN: FileCheck --input-file=%t.opt.yaml %s
 ; RUN: opt -passes='annotation-remarks' -pass-remarks-missed='annotation-remarks' -disable-output -pass-remarks-output=%t.opt.yaml %s
 ; RUN: FileCheck --input-file=%t.opt.yaml %s
 
@@ -74,5 +72,5 @@ entry:
 !14 = !{!15}
 !15 = !DILocalVariable(name: "a", arg: 1, scope: !7, file: !1, line: 1, type: !10)
 !16 = !DILocation(line: 400, column: 3, scope: !7)
-!17 = distinct !DISubprogram(name: "test2", scope: !1, file: !1, line: 21, type: !8, scopeLine: 20, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0, retainedNodes: !14)
+!17 = distinct !DISubprogram(name: "test2", scope: !1, file: !1, line: 21, type: !8, scopeLine: 20, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0, retainedNodes: !2)
 !18 = !DILocation(line: 200, column: 3, scope: !17)

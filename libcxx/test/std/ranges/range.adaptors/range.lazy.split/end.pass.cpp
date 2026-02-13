@@ -16,6 +16,7 @@
 #include <cassert>
 #include <utility>
 #include "test_iterators.h"
+#include "test_range.h"
 #include "types.h"
 
 struct ForwardViewCommonIfConst : std::ranges::view_base {
@@ -29,8 +30,8 @@ struct ForwardViewCommonIfConst : std::ranges::view_base {
   constexpr ForwardViewCommonIfConst& operator=(const ForwardViewCommonIfConst&) = default;
   constexpr forward_iterator<char*> begin() { return forward_iterator<char*>(nullptr); }
   constexpr std::default_sentinel_t end()  { return std::default_sentinel; }
-  constexpr forward_iterator<const char*> begin() const { return forward_iterator<const char*>(view_.begin()); }
-  constexpr forward_iterator<const char*> end() const { return forward_iterator<const char*>(view_.end()); }
+  constexpr forward_iterator<std::string_view::const_iterator> begin() const { return forward_iterator<std::string_view::const_iterator>(view_.begin()); }
+  constexpr forward_iterator<std::string_view::const_iterator> end() const { return forward_iterator<std::string_view::const_iterator>(view_.end()); }
 };
 bool operator==(forward_iterator<char*>, std::default_sentinel_t) { return false; }
 
@@ -45,10 +46,10 @@ struct ForwardViewNonCommonRange : std::ranges::view_base {
   constexpr ForwardViewNonCommonRange& operator=(const ForwardViewNonCommonRange&) = default;
   constexpr forward_iterator<char*> begin() { return forward_iterator<char*>(nullptr); }
   constexpr std::default_sentinel_t end()  { return std::default_sentinel; }
-  constexpr forward_iterator<const char*> begin() const { return forward_iterator<const char*>(view_.begin()); }
+  constexpr forward_iterator<std::string_view::const_iterator> begin() const { return forward_iterator<std::string_view::const_iterator>(view_.begin()); }
   constexpr std::default_sentinel_t end() const { return std::default_sentinel; }
 };
-bool operator==(forward_iterator<const char*>, std::default_sentinel_t) { return false; }
+bool operator==(forward_iterator<std::string_view::const_iterator>, std::default_sentinel_t) { return false; }
 
 constexpr bool test() {
   // non-const: forward_range<V> && simple_view<V> && simple_view<P> -> outer-iterator<Const = true>
@@ -59,8 +60,8 @@ constexpr bool test() {
 
     static_assert(std::ranges::forward_range<V>);
     static_assert(std::ranges::common_range<const V>);
-    LIBCPP_STATIC_ASSERT(std::ranges::__simple_view<V>);
-    LIBCPP_STATIC_ASSERT(std::ranges::__simple_view<P>);
+    static_assert(simple_view<V>);
+    static_assert(simple_view<P>);
 
     {
       std::ranges::lazy_split_view<V, P> v;
@@ -85,8 +86,8 @@ constexpr bool test() {
 
     static_assert(std::ranges::forward_range<V>);
     static_assert(std::ranges::common_range<V>);
-    LIBCPP_STATIC_ASSERT(std::ranges::__simple_view<V>);
-    LIBCPP_STATIC_ASSERT(!std::ranges::__simple_view<P>);
+    static_assert(simple_view<V>);
+    static_assert(!simple_view<P>);
     static_assert(std::ranges::forward_range<const V>);
     static_assert(std::ranges::common_range<const V>);
 

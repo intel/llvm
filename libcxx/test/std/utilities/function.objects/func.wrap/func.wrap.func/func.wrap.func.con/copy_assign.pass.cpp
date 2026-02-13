@@ -6,14 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: c++03
+
 // <functional>
 
 // class function<R(ArgTypes...)>
 
 // function& operator=(const function& f);
-
-// This test runs in C++03, but we have deprecated using std::function in C++03.
-// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS -D_LIBCPP_ENABLE_CXX03_FUNCTION
 
 #include <cassert>
 #include <functional>
@@ -58,13 +57,13 @@ int main(int, char**) {
   {
     std::function<int(int)> f = A();
     assert(A::count == 1);
-    assert(globalMemCounter.checkOutstandingNewEq(1));
+    assert(globalMemCounter.checkOutstandingNewLessThanOrEqual(1));
     RTTI_ASSERT(f.target<A>());
     RTTI_ASSERT(f.target<int (*)(int)>() == 0);
     std::function<int(int)> f2;
     f2 = f;
     assert(A::count == 2);
-    assert(globalMemCounter.checkOutstandingNewEq(2));
+    assert(globalMemCounter.checkOutstandingNewLessThanOrEqual(2));
     RTTI_ASSERT(f2.target<A>());
     RTTI_ASSERT(f2.target<int (*)(int)>() == 0);
   }
@@ -126,13 +125,13 @@ int main(int, char**) {
   {
     std::function<int(int)> f = A();
     assert(A::count == 1);
-    assert(globalMemCounter.checkOutstandingNewEq(1));
+    assert(globalMemCounter.checkOutstandingNewLessThanOrEqual(1));
     RTTI_ASSERT(f.target<A>());
     RTTI_ASSERT(f.target<int (*)(int)>() == 0);
     std::function<int(int)> f2;
     f2 = std::move(f);
     assert(A::count == 1);
-    assert(globalMemCounter.checkOutstandingNewEq(1));
+    assert(globalMemCounter.checkOutstandingNewLessThanOrEqual(1));
     RTTI_ASSERT(f2.target<A>());
     RTTI_ASSERT(f2.target<int (*)(int)>() == 0);
     RTTI_ASSERT(f.target<A>() == 0);

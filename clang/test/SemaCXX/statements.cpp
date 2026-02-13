@@ -43,12 +43,36 @@ T test7(T v) {
   return ({ // expected-warning{{use of GNU statement expression extension}}
     T a = v;
     a;
-    ;
-    ;
   });
 }
 
 void test8() {
   int a = test7(1);
   double b = test7(2.0);
+}
+
+template <typename T>
+T test9(T v) {
+  return ({ // expected-warning {{use of GNU statement expression extension}}
+    T a = v;
+    a; // expected-warning {{expression result unused}}
+    ;
+    ;
+  });
+}
+
+void test10() {
+  int a = test9(1);  // expected-note {{in instantiation of function template specialization 'test9<int>' requested here}}
+  // expected-error@-10 {{cannot initialize return object of type 'int' with an rvalue of type 'void'}}
+}
+
+namespace GH48405 {
+void foo() {
+  struct S {
+    int i;
+    int j = ({i;}); // expected-error {{invalid use of non-static data member 'i'}}
+                    // expected-error@-1 {{cannot initialize a member subobject of type 'int' with an rvalue of type 'void'}}
+		    // expected-warning@-2 {{use of GNU statement expression extension}}
+  };
+}
 }

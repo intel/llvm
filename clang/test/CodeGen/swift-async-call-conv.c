@@ -1,14 +1,14 @@
-// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -triple x86_64-apple-darwin10 -target-cpu core2 -emit-llvm -o - %s | FileCheck %s
-// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -triple arm64-apple-ios9 -target-cpu cyclone -emit-llvm -o - %s | FileCheck %s
-// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -triple armv7-apple-darwin9 -emit-llvm -o - %s | FileCheck %s
-// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -triple armv7s-apple-ios9 -emit-llvm -o - %s | FileCheck %s
-// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -triple armv7k-apple-ios9 -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -no-enable-noundef-analysis -triple x86_64-apple-darwin10 -target-cpu core2 -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -no-enable-noundef-analysis -triple arm64-apple-ios9 -target-cpu cyclone -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -no-enable-noundef-analysis -triple armv7-apple-darwin9 -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -no-enable-noundef-analysis -triple armv7s-apple-ios9 -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -no-enable-noundef-analysis -triple armv7k-apple-ios9 -emit-llvm -o - %s | FileCheck %s
 
-// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -x c++ -triple x86_64-apple-darwin10 -target-cpu core2 -emit-llvm -o - %s | FileCheck %s --check-prefix=CHECK --check-prefix=CPPONLY
-// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -x c++ -triple arm64-apple-ios9 -target-cpu cyclone -emit-llvm -o - %s | FileCheck %s --check-prefix=CHECK --check-prefix=CPPONLY
-// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -x c++ -triple armv7-apple-darwin9 -emit-llvm -o - %s | FileCheck %s --check-prefix=CHECK --check-prefix=CPPONLY
-// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -x c++ -triple armv7s-apple-ios9 -emit-llvm -o - %s | FileCheck %s --check-prefix=CHECK --check-prefix=CPPONLY
-// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -x c++ -triple armv7k-apple-ios9 -emit-llvm -o - %s | FileCheck %s --check-prefix=CHECK --check-prefix=CPPONLY
+// RUN: %clang_cc1 -no-enable-noundef-analysis -x c++ -triple x86_64-apple-darwin10 -target-cpu core2 -emit-llvm -o - %s | FileCheck %s --check-prefix=CHECK --check-prefix=CPPONLY
+// RUN: %clang_cc1 -no-enable-noundef-analysis -x c++ -triple arm64-apple-ios9 -target-cpu cyclone -emit-llvm -o - %s | FileCheck %s --check-prefix=CHECK --check-prefix=CPPONLY
+// RUN: %clang_cc1 -no-enable-noundef-analysis -x c++ -triple armv7-apple-darwin9 -emit-llvm -o - %s | FileCheck %s --check-prefix=CHECK --check-prefix=CPPONLY
+// RUN: %clang_cc1 -no-enable-noundef-analysis -x c++ -triple armv7s-apple-ios9 -emit-llvm -o - %s | FileCheck %s --check-prefix=CHECK --check-prefix=CPPONLY
+// RUN: %clang_cc1 -no-enable-noundef-analysis -x c++ -triple armv7k-apple-ios9 -emit-llvm -o - %s | FileCheck %s --check-prefix=CHECK --check-prefix=CPPONLY
 
 // Test tail call behavior when a swiftasynccall function is called
 // from another swiftasynccall function.
@@ -17,12 +17,12 @@
 #define SWIFTASYNCCALL __attribute__((swiftasynccall))
 #define ASYNC_CONTEXT __attribute__((swift_async_context))
 
-// CHECK-LABEL: swifttailcc void {{.*}}async_leaf1{{.*}}(i8* swiftasync
+// CHECK-LABEL: swifttailcc void {{.*}}async_leaf1{{.*}}(ptr swiftasync
 SWIFTASYNCCALL void async_leaf1(char * ASYNC_CONTEXT ctx) {
   *ctx += 1;
 }
 
-// CHECK-LABEL: swifttailcc void {{.*}}async_leaf2{{.*}}(i8* swiftasync
+// CHECK-LABEL: swifttailcc void {{.*}}async_leaf2{{.*}}(ptr swiftasync
 SWIFTASYNCCALL void async_leaf2(char * ASYNC_CONTEXT ctx) {
   *ctx += 2;
 }
@@ -33,7 +33,7 @@ SWIFTASYNCCALL void async_leaf2(char * ASYNC_CONTEXT ctx) {
   #define MYBOOL _Bool
 #endif
 
-// CHECK-LABEL: swifttailcc void {{.*}}async_branch{{.*}}i8* swiftasync
+// CHECK-LABEL: swifttailcc void {{.*}}async_branch{{.*}}ptr swiftasync
 // CHECK: musttail call swifttailcc void @{{.*}}async_leaf1
 // CHECK-NEXT: ret void
 // CHECK: musttail call swifttailcc void @{{.*}}async_leaf2
@@ -182,3 +182,19 @@ SWIFTASYNCCALL void async_struct_field_and_methods(int i, S &sref, S *sptr) {
 // CPPONLY-LABEL: define{{.*}} swifttailcc void @{{.*}}async_nonleaf_method2
 // CPPONLY: musttail call swifttailcc void @{{.*}}async_leaf_method
 #endif
+
+// Passing this as an argument requires a coerce-and-expand operation,
+// which requires a temporary.  Make sure that cleaning up that temporary
+// doesn't mess around with the musttail handling.
+struct coerce_and_expand {
+  char a,b,c,d;
+};
+struct coerce_and_expand return_coerced(void);
+SWIFTASYNCCALL void take_coerced_async(struct coerce_and_expand);
+
+// CHECK-LABEL: swifttailcc void @{{.*}}test_coerced
+SWIFTASYNCCALL void test_coerced() {
+  // CHECK:      musttail call swifttailcc void @{{.*}}take_coerced_async
+  // CHECK-NEXT: ret void
+  return take_coerced_async(return_coerced());
+}

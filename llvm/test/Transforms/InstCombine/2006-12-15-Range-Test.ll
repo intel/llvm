@@ -16,11 +16,11 @@ define i1 @print_pgm_cond_true(i32 %tmp12.reload, ptr %tmp16.out) {
 ; CHECK-NEXT:    store i32 [[TMP16]], ptr [[TMP16_OUT]], align 4
 ; CHECK-NEXT:    ret i1 false
 ; CHECK:       cond_true:
-; CHECK-NEXT:    [[TMP15:%.*]] = getelementptr [17 x i32], ptr @r, i32 0, i32 [[TMP12_RELOAD:%.*]]
+; CHECK-NEXT:    [[TMP15:%.*]] = getelementptr i32, ptr @r, i32 [[TMP12_RELOAD:%.*]]
 ; CHECK-NEXT:    [[TMP16]] = load i32, ptr [[TMP15]], align 4
 ; CHECK-NEXT:    [[TMP0:%.*]] = add i32 [[TMP16]], -32
-; CHECK-NEXT:    [[TMP1:%.*]] = icmp ult i32 [[TMP0]], -63
-; CHECK-NEXT:    br i1 [[TMP1]], label [[BB27_EXITSTUB:%.*]], label [[COND_NEXT23_EXITSTUB:%.*]]
+; CHECK-NEXT:    [[BOTHCOND:%.*]] = icmp ult i32 [[TMP0]], -63
+; CHECK-NEXT:    br i1 [[BOTHCOND]], label [[BB27_EXITSTUB:%.*]], label [[COND_NEXT23_EXITSTUB:%.*]]
 ;
 newFuncRoot:
   br label %cond_true
@@ -53,11 +53,11 @@ define i1 @print_pgm_cond_true_logical(i32 %tmp12.reload, ptr %tmp16.out) {
 ; CHECK-NEXT:    store i32 [[TMP16]], ptr [[TMP16_OUT]], align 4
 ; CHECK-NEXT:    ret i1 false
 ; CHECK:       cond_true:
-; CHECK-NEXT:    [[TMP15:%.*]] = getelementptr [17 x i32], ptr @r, i32 0, i32 [[TMP12_RELOAD:%.*]]
+; CHECK-NEXT:    [[TMP15:%.*]] = getelementptr i32, ptr @r, i32 [[TMP12_RELOAD:%.*]]
 ; CHECK-NEXT:    [[TMP16]] = load i32, ptr [[TMP15]], align 4
 ; CHECK-NEXT:    [[TMP0:%.*]] = add i32 [[TMP16]], -32
-; CHECK-NEXT:    [[TMP1:%.*]] = icmp ult i32 [[TMP0]], -63
-; CHECK-NEXT:    br i1 [[TMP1]], label [[BB27_EXITSTUB:%.*]], label [[COND_NEXT23_EXITSTUB:%.*]]
+; CHECK-NEXT:    [[BOTHCOND:%.*]] = icmp ult i32 [[TMP0]], -63
+; CHECK-NEXT:    br i1 [[BOTHCOND]], label [[BB27_EXITSTUB:%.*]], label [[COND_NEXT23_EXITSTUB:%.*]]
 ;
 newFuncRoot:
   br label %cond_true

@@ -13,7 +13,7 @@ target triple = "wasm32-unknown-emscripten"
 @tls_int = dso_local thread_local global i32 99
 
 define i32 @get_tls() #0 {
-  %val = load i32, i32* @tls_int
+  %val = load i32, ptr @tls_int
   ret i32 %val
 }
 
@@ -30,13 +30,13 @@ attributes #0 = { noinline nounwind optnone "target-features"="+atomics,+bulk-me
 ; CHECK-NEXT:         Mutable:         true
 ; CHECK-NEXT:         InitExpr:
 ; CHECK-NEXT:           Opcode:          I32_CONST
-; CHECK-NEXT:           Value:           66576
+; CHECK-NEXT:           Value:           65536
 ; CHECK-NEXT:       - Index:           1
 ; CHECK-NEXT:         Type:            I32
 ; CHECK-NEXT:         Mutable:         false
 ; CHECK-NEXT:         InitExpr:
 ; CHECK-NEXT:           Opcode:          I32_CONST
-; CHECK-NEXT:           Value:           1024
+; CHECK-NEXT:           Value:           65536
 
 ;      CHECK:     GlobalNames:
 ; CHECK-NEXT:       - Index:           0

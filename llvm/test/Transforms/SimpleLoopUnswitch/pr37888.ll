@@ -1,4 +1,4 @@
-; RUN: opt -simple-loop-unswitch -verify-memoryssa -loop-deletion -S < %s | FileCheck %s
+; RUN: opt -passes=simple-loop-unswitch,loop-deletion -verify-memoryssa -S < %s | FileCheck %s
 ;
 ; Check that when we do unswitching where we re-enqueue the loop to be processed
 ; again, but manage to delete the loop before ever getting to iterate on it, it
@@ -29,7 +29,7 @@ if.end:
   br label %for.inc
 
 for.inc:
-  br i1 undef, label %for.body, label %for.end
+  br i1 false, label %for.body, label %for.end
 
 for.end:
   ret void

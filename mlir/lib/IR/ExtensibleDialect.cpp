@@ -11,7 +11,7 @@
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/OperationSupport.h"
 #include "mlir/IR/StorageUniquerSupport.h"
-#include "mlir/Support/LogicalResult.h"
+#include "llvm/Support/InterleavedRange.h"
 
 using namespace mlir;
 
@@ -48,9 +48,7 @@ static void typeOrAttrPrinter(AsmPrinter &printer, ArrayRef<Attribute> params) {
   if (params.empty())
     return;
 
-  printer << "<";
-  interleaveComma(params, printer.getStream());
-  printer << ">";
+  printer << "<" << llvm::interleaved(params) << ">";
 }
 
 //===----------------------------------------------------------------------===//
@@ -294,16 +292,19 @@ DynamicOpDefinition::DynamicOpDefinition(
     OperationName::ParseAssemblyFn &&parseFn,
     OperationName::PrintAssemblyFn &&printFn,
     OperationName::FoldHookFn &&foldHookFn,
-    OperationName::GetCanonicalizationPatternsFn
-        &&getCanonicalizationPatternsFn,
+    GetCanonicalizationPatternsFn &&getCanonicalizationPatternsFn,
     OperationName::PopulateDefaultAttrsFn &&populateDefaultAttrsFn)
-    : typeID(dialect->allocateTypeID()),
-      name((dialect->getNamespace() + "." + name).str()), dialect(dialect),
+    : Impl(StringAttr::get(dialect->getContext(),
+                           (dialect->getNamespace() + "." + name).str()),
+           dialect, dialect->allocateTypeID(),
+           /*interfaceMap=*/detail::InterfaceMap()),
       verifyFn(std::move(verifyFn)), verifyRegionFn(std::move(verifyRegionFn)),
       parseFn(std::move(parseFn)), printFn(std::move(printFn)),
       foldHookFn(std::move(foldHookFn)),
       getCanonicalizationPatternsFn(std::move(getCanonicalizationPatternsFn)),
-      populateDefaultAttrsFn(std::move(populateDefaultAttrsFn)) {}
+      populateDefaultAttrsFn(std::move(populateDefaultAttrsFn)) {
+  typeID = dialect->allocateTypeID();
+}
 
 std::unique_ptr<DynamicOpDefinition> DynamicOpDefinition::get(
     StringRef name, ExtensibleDialect *dialect,
@@ -338,8 +339,7 @@ std::unique_ptr<DynamicOpDefinition> DynamicOpDefinition::get(
   auto getCanonicalizationPatternsFn = [](RewritePatternSet &, MLIRContext *) {
   };
 
-  auto populateDefaultAttrsFn = [](const RegisteredOperationName &,
-                                   NamedAttrList &) {};
+  auto populateDefaultAttrsFn = [](const OperationName &, NamedAttrList &) {};
 
   return DynamicOpDefinition::get(name, dialect, std::move(verifyFn),
                                   std::move(verifyRegionFn), std::move(parseFn),
@@ -355,8 +355,7 @@ std::unique_ptr<DynamicOpDefinition> DynamicOpDefinition::get(
     OperationName::ParseAssemblyFn &&parseFn,
     OperationName::PrintAssemblyFn &&printFn,
     OperationName::FoldHookFn &&foldHookFn,
-    OperationName::GetCanonicalizationPatternsFn
-        &&getCanonicalizationPatternsFn,
+    GetCanonicalizationPatternsFn &&getCanonicalizationPatternsFn,
     OperationName::PopulateDefaultAttrsFn &&populateDefaultAttrsFn) {
   return std::unique_ptr<DynamicOpDefinition>(new DynamicOpDefinition(
       name, dialect, std::move(verifyFn), std::move(verifyRegionFn),
@@ -406,9 +405,16 @@ void ExtensibleDialect::registerDynamicType(
   assert(registered &&
          "Trying to create a new dynamic type with an existing name");
 
-  auto abstractType =
-      AbstractType::get(*dialect, DynamicAttr::getInterfaceMap(),
-                        DynamicType::getHasTraitFn(), typeID);
+  // The StringAttr allocates the type name StringRef for the duration of the
+  // MLIR context.
+  MLIRContext *ctx = getContext();
+  auto nameAttr =
+      StringAttr::get(ctx, getNamespace() + "." + typePtr->getName());
+
+  auto abstractType = AbstractType::get(
+      *dialect, DynamicAttr::getInterfaceMap(), DynamicType::getHasTraitFn(),
+      DynamicType::getWalkImmediateSubElementsFn(),
+      DynamicType::getReplaceImmediateSubElementsFn(), typeID, nameAttr);
 
   /// Add the type to the dialect and the type uniquer.
   addType(typeID, std::move(abstractType));
@@ -435,9 +441,16 @@ void ExtensibleDialect::registerDynamicAttr(
   assert(registered &&
          "Trying to create a new dynamic attribute with an existing name");
 
-  auto abstractAttr =
-      AbstractAttribute::get(*dialect, DynamicAttr::getInterfaceMap(),
-                             DynamicAttr::getHasTraitFn(), typeID);
+  // The StringAttr allocates the attribute name StringRef for the duration of
+  // the MLIR context.
+  MLIRContext *ctx = getContext();
+  auto nameAttr =
+      StringAttr::get(ctx, getNamespace() + "." + attrPtr->getName());
+
+  auto abstractAttr = AbstractAttribute::get(
+      *dialect, DynamicAttr::getInterfaceMap(), DynamicAttr::getHasTraitFn(),
+      DynamicAttr::getWalkImmediateSubElementsFn(),
+      DynamicAttr::getReplaceImmediateSubElementsFn(), typeID, nameAttr);
 
   /// Add the type to the dialect and the type uniquer.
   addAttribute(typeID, std::move(abstractAttr));
@@ -448,15 +461,7 @@ void ExtensibleDialect::registerDynamicOp(
     std::unique_ptr<DynamicOpDefinition> &&op) {
   assert(op->dialect == this &&
          "trying to register a dynamic op in the wrong dialect");
-  auto hasTraitFn = [](TypeID traitId) { return false; };
-
-  RegisteredOperationName::insert(
-      op->name, *op->dialect, op->typeID, std::move(op->parseFn),
-      std::move(op->printFn), std::move(op->verifyFn),
-      std::move(op->verifyRegionFn), std::move(op->foldHookFn),
-      std::move(op->getCanonicalizationPatternsFn),
-      detail::InterfaceMap::get<>(), std::move(hasTraitFn), {},
-      std::move(op->populateDefaultAttrsFn));
+  RegisteredOperationName::insert(std::move(op), /*attrNames=*/{});
 }
 
 bool ExtensibleDialect::classof(const Dialect *dialect) {
@@ -468,7 +473,7 @@ OptionalParseResult ExtensibleDialect::parseOptionalDynamicType(
     StringRef typeName, AsmParser &parser, Type &resultType) const {
   DynamicTypeDefinition *typeDef = lookupTypeDefinition(typeName);
   if (!typeDef)
-    return llvm::None;
+    return std::nullopt;
 
   DynamicType dynType;
   if (DynamicType::parse(parser, typeDef, dynType))
@@ -479,7 +484,7 @@ OptionalParseResult ExtensibleDialect::parseOptionalDynamicType(
 
 LogicalResult ExtensibleDialect::printIfDynamicType(Type type,
                                                     AsmPrinter &printer) {
-  if (auto dynType = type.dyn_cast<DynamicType>()) {
+  if (auto dynType = llvm::dyn_cast<DynamicType>(type)) {
     dynType.print(printer);
     return success();
   }
@@ -490,7 +495,7 @@ OptionalParseResult ExtensibleDialect::parseOptionalDynamicAttr(
     StringRef attrName, AsmParser &parser, Attribute &resultAttr) const {
   DynamicAttrDefinition *attrDef = lookupAttrDefinition(attrName);
   if (!attrDef)
-    return llvm::None;
+    return std::nullopt;
 
   DynamicAttr dynAttr;
   if (DynamicAttr::parse(parser, attrDef, dynAttr))
@@ -501,7 +506,7 @@ OptionalParseResult ExtensibleDialect::parseOptionalDynamicAttr(
 
 LogicalResult ExtensibleDialect::printIfDynamicAttr(Attribute attribute,
                                                     AsmPrinter &printer) {
-  if (auto dynAttr = attribute.dyn_cast<DynamicAttr>()) {
+  if (auto dynAttr = llvm::dyn_cast<DynamicAttr>(attribute)) {
     dynAttr.print(printer);
     return success();
   }

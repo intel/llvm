@@ -1,4 +1,4 @@
-//===------------ IncludeSorter.h - clang-tidy ----------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,14 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_INCLUDESORTER_H
-#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_INCLUDESORTER_H
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_UTILS_INCLUDESORTER_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_UTILS_INCLUDESORTER_H
 
 #include "../ClangTidyCheck.h"
+#include <optional>
 #include <string>
 
-namespace clang {
-namespace tidy {
+namespace clang::tidy {
 namespace utils {
 
 /// Class used by ``IncludeInserterCallback`` to record the names of the
@@ -23,7 +23,7 @@ namespace utils {
 class IncludeSorter {
 public:
   /// Supported include styles.
-  enum IncludeStyle { IS_LLVM = 0, IS_Google = 1, IS_Google_ObjC };
+  enum IncludeStyle { IS_LLVM = 0, IS_Google = 1, IS_Google_ObjC = 2 };
 
   /// The classifications of inclusions, in the order they should be sorted.
   enum IncludeKinds {
@@ -37,19 +37,21 @@ public:
 
   /// ``IncludeSorter`` constructor; takes the FileID and name of the file to be
   /// processed by the sorter.
-  IncludeSorter(const SourceManager *SourceMgr, const FileID FileID,
+  IncludeSorter(const SourceManager *SourceMgr, FileID FileID,
                 StringRef FileName, IncludeStyle Style);
 
   /// Adds the given include directive to the sorter.
   void addInclude(StringRef FileName, bool IsAngled,
                   SourceLocation HashLocation, SourceLocation EndLocation);
 
-  /// Creates a quoted inclusion directive in the right sort order. Returns None
-  /// on error or if header inclusion directive for header already exists.
-  Optional<FixItHint> createIncludeInsertion(StringRef FileName, bool IsAngled);
+  /// Creates a quoted inclusion directive in the right sort order. Returns
+  /// std::nullopt on error or if header inclusion directive for header already
+  /// exists.
+  std::optional<FixItHint> createIncludeInsertion(StringRef FileName,
+                                                  bool IsAngled);
 
 private:
-  typedef SmallVector<SourceRange, 1> SourceRangeVector;
+  using SourceRangeVector = SmallVector<SourceRange, 1>;
 
   const SourceManager *SourceMgr;
   const IncludeStyle Style;
@@ -70,6 +72,5 @@ template <> struct OptionEnumMapping<utils::IncludeSorter::IncludeStyle> {
   static ArrayRef<std::pair<utils::IncludeSorter::IncludeStyle, StringRef>>
   getEnumMapping();
 };
-} // namespace tidy
-} // namespace clang
-#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_INCLUDESORTER_H
+} // namespace clang::tidy
+#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_UTILS_INCLUDESORTER_H

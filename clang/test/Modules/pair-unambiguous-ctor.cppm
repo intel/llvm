@@ -10,11 +10,22 @@
 // RUN: %clang_cc1 -std=c++20 %t/algorithm.cppm -I%t -emit-module-interface -o %t/std-algorithm.pcm
 // RUN: %clang_cc1 -std=c++20 %t/Use.cppm -I%t -fprebuilt-module-path=%t -emit-module-interface -verify -o %t/Use.pcm
 
+// Test again with reduced BMI.
+// RUN: rm -fr %t
+// RUN: mkdir %t
+// RUN: split-file %s %t
+//
+// RUN: %clang_cc1 -std=c++20 %t/string.cppm -I%t -emit-reduced-module-interface -o %t/std-string.pcm
+// RUN: %clang_cc1 -std=c++20 %t/algorithm.cppm -I%t -emit-reduced-module-interface -o %t/std-algorithm.pcm
+// RUN: %clang_cc1 -std=c++20 %t/Use.cppm -I%t -fprebuilt-module-path=%t -emit-reduced-module-interface -verify -o %t/Use.pcm
+
 //--- Use.cppm
 // expected-no-diagnostics
 module;
 #include "config.h"
+# 3 "pair-unambiguous-ctor.cppm" 1 3
 export module std:M;
+# 3 "pair-unambiguous-ctor.cppm" 2 3
 import :string;
 import :algorithm;
 
@@ -25,15 +36,19 @@ auto check() {
 //--- string.cppm
 module;
 #include "string.h"
+# 28 "pair-unambiguous-ctor.cppm" 1 3
 export module std:string;
 export namespace std {
     using std::string;
 }
+# 28 "pair-unambiguous-ctor.cppm" 2 3
 
 //--- algorithm.cppm
 module;
 #include "algorithm.h"
+# 38 "pair-unambiguous-ctor.cppm" 1 3
 export module std:algorithm;
+# 38 "pair-unambiguous-ctor.cppm" 2 3
 
 //--- pair.h
 namespace std __attribute__ ((__visibility__ ("default")))

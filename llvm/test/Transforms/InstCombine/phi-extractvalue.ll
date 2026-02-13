@@ -131,7 +131,7 @@ end:
   ret i32 %r
 }
 
-; But the indicies must match
+; But the indices must match
 define i32 @test4({ i32, i32 } %agg_left, { i32, i32 } %agg_right, i1 %c) {
 ; CHECK-LABEL: @test4(
 ; CHECK-NEXT:  entry:
@@ -162,7 +162,7 @@ end:
   ret i32 %r
 }
 
-; More complex aggregates are fine, too, as long as indicies match.
+; More complex aggregates are fine, too, as long as indices match.
 define i32 @test5({{ i32, i32 }, { i32, i32 }} %agg_left, {{ i32, i32 }, { i32, i32 }} %agg_right, i1 %c) {
 ; CHECK-LABEL: @test5(
 ; CHECK-NEXT:  entry:
@@ -192,7 +192,7 @@ end:
   ret i32 %r
 }
 
-; The indicies must fully match, on all levels.
+; The indices must fully match, on all levels.
 define i32 @test6({{ i32, i32 }, { i32, i32 }} %agg_left, {{ i32, i32 }, { i32, i32 }} %agg_right, i1 %c) {
 ; CHECK-LABEL: @test6(
 ; CHECK-NEXT:  entry:
@@ -282,7 +282,7 @@ end:
 }
 
 ; Also, unlike PHI-of-insertvalues, here the base aggregates of extractvalue
-; can have different types, and just checking the indicies is not enough.
+; can have different types, and just checking the indices is not enough.
 define i32 @test9({ i32, i32 } %agg_left, { i32, { i32, i32 } } %agg_right, i1 %c) {
 ; CHECK-LABEL: @test9(
 ; CHECK-NEXT:  entry:
@@ -414,12 +414,12 @@ define i32 @extractvalue_of_one_constant_phi(i1 %c, { i32, i32 } %arg) {
 ; CHECK-LABEL: @extractvalue_of_one_constant_phi(
 ; CHECK-NEXT:    br i1 [[C:%.*]], label [[IF:%.*]], label [[ELSE:%.*]]
 ; CHECK:       if:
-; CHECK-NEXT:    [[PHI_EV:%.*]] = extractvalue { i32, i32 } [[ARG:%.*]], 0
+; CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { i32, i32 } [[ARG:%.*]], 0
 ; CHECK-NEXT:    br label [[JOIN:%.*]]
 ; CHECK:       else:
 ; CHECK-NEXT:    br label [[JOIN]]
 ; CHECK:       join:
-; CHECK-NEXT:    [[PHI:%.*]] = phi i32 [ [[PHI_EV]], [[IF]] ], [ 3, [[ELSE]] ]
+; CHECK-NEXT:    [[PHI:%.*]] = phi i32 [ [[TMP1]], [[IF]] ], [ 3, [[ELSE]] ]
 ; CHECK-NEXT:    ret i32 [[PHI]]
 ;
   br i1 %c, label %if, label %else
@@ -465,12 +465,12 @@ define i32 @extractvalue_of_one_constant_phi_multi_index(i1 %c, { i32, { i32, i3
 ; CHECK-LABEL: @extractvalue_of_one_constant_phi_multi_index(
 ; CHECK-NEXT:    br i1 [[C:%.*]], label [[IF:%.*]], label [[ELSE:%.*]]
 ; CHECK:       if:
-; CHECK-NEXT:    [[PHI_EV:%.*]] = extractvalue { i32, { i32, i32 } } [[ARG:%.*]], 1, 1
+; CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { i32, { i32, i32 } } [[ARG:%.*]], 1, 1
 ; CHECK-NEXT:    br label [[JOIN:%.*]]
 ; CHECK:       else:
 ; CHECK-NEXT:    br label [[JOIN]]
 ; CHECK:       join:
-; CHECK-NEXT:    [[PHI:%.*]] = phi i32 [ [[PHI_EV]], [[IF]] ], [ 6, [[ELSE]] ]
+; CHECK-NEXT:    [[PHI:%.*]] = phi i32 [ [[TMP1]], [[IF]] ], [ 6, [[ELSE]] ]
 ; CHECK-NEXT:    ret i32 [[PHI]]
 ;
   br i1 %c, label %if, label %else

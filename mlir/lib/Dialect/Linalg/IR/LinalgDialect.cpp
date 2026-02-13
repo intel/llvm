@@ -11,23 +11,19 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Bufferization/IR/BufferizableOpInterface.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/Shard/Interfaces/ShardingInterface.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
-#include "mlir/IR/BuiltinTypes.h"
-#include "mlir/IR/Dialect.h"
 #include "mlir/IR/DialectImplementation.h"
-#include "mlir/IR/FunctionInterfaces.h"
-#include "mlir/Parser/Parser.h"
+#include "mlir/Interfaces/SubsetOpInterface.h"
+#include "mlir/Interfaces/ValueBoundsOpInterface.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/InliningUtils.h"
 
-#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/TypeSwitch.h"
-#include "llvm/Support/raw_ostream.h"
 
 using namespace mlir;
 using namespace mlir::linalg;
@@ -44,18 +40,16 @@ struct LinalgInlinerInterface : public DialectInlinerInterface {
   // We don't have any special restrictions on what can be inlined into
   // destination regions (e.g. while/conditional bodies). Always allow it.
   bool isLegalToInline(Region *dest, Region *src, bool wouldBeCloned,
-                       BlockAndValueMapping &valueMapping) const final {
+                       IRMapping &valueMapping) const final {
     return true;
   }
   // Operations in Linalg dialect are always legal to inline.
-  bool isLegalToInline(Operation *, Region *, bool,
-                       BlockAndValueMapping &) const final {
+  bool isLegalToInline(Operation *, Region *, bool, IRMapping &) const final {
     return true;
   }
   // Handle the given inlined terminator by replacing it with a new operation
   // as necessary. Required when the region has only one block.
-  void handleTerminator(Operation *op,
-                        ArrayRef<Value> valuesToRepl) const final {}
+  void handleTerminator(Operation *op, ValueRange valuesToRepl) const final {}
 };
 
 } // namespace
@@ -64,7 +58,7 @@ struct LinalgInlinerInterface : public DialectInlinerInterface {
 // LinalgDialect
 //===----------------------------------------------------------------------===//
 
-/// Attribute name used to to memoize indexing maps for named ops.
+/// Attribute name used to memoize indexing maps for named ops.
 constexpr const ::llvm::StringLiteral
     LinalgDialect::kMemoizedIndexingMapsAttrName;
 
@@ -112,6 +106,10 @@ void mlir::linalg::LinalgDialect::initialize() {
 #define GET_OP_LIST
 #include "mlir/Dialect/Linalg/IR/LinalgStructuredOps.cpp.inc"
       >();
+  addOperations<
+#define GET_OP_LIST
+#include "mlir/Dialect/Linalg/IR/LinalgRelayoutOps.cpp.inc"
+      >();
 
   // Fill the Linalg-specific OpName to RegionBuilder map.
   addNamedOpBuilders<
@@ -120,6 +118,38 @@ void mlir::linalg::LinalgDialect::initialize() {
       >(namedStructuredOpRegionBuilders);
 
   addInterfaces<LinalgInlinerInterface>();
+
+  declarePromisedInterface<shard::ShardingInterface, GenericOp>();
+  declarePromisedInterfaces<shard::ShardingInterface,
+#define GET_OP_LIST
+#include "mlir/Dialect/Linalg/IR/LinalgStructuredOps.cpp.inc"
+                            >();
+  declarePromisedInterface<SubsetOpInterface, CopyOp>();
+  declarePromisedInterface<SubsetInsertionOpInterface, CopyOp>();
+
+  // ValueBoundsOpInterface
+  declarePromisedInterface<ValueBoundsOpInterface, IndexOp>();
+
+  declarePromisedInterface<PartialReductionOpInterface, linalg::GenericOp>();
+
+  // Tiling Interface
+  declarePromisedInterface<TilingInterface, linalg::GenericOp>();
+  declarePromisedInterfaces<TilingInterface,
+#define GET_OP_LIST
+#include "mlir/Dialect/Linalg/IR/LinalgStructuredOps.cpp.inc"
+                            >();
+  declarePromisedInterfaces<TilingInterface,
+#define GET_OP_LIST
+#include "mlir/Dialect/Linalg/IR/LinalgRelayoutOps.cpp.inc"
+                            >();
+  declarePromisedInterfaces<PartialReductionOpInterface,
+#define GET_OP_LIST
+#include "mlir/Dialect/Linalg/IR/LinalgStructuredOps.cpp.inc"
+                            >();
+  declarePromisedInterfaces<bufferization::BufferizableOpInterface,
+#define GET_OP_LIST
+#include "mlir/Dialect/Linalg/IR/LinalgStructuredOps.cpp.inc"
+                            >();
 }
 
 LogicalResult LinalgDialect::verifyOperationAttribute(Operation *op,

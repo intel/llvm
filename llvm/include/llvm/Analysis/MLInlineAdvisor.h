@@ -15,21 +15,25 @@
 #include "llvm/Analysis/MLModelRunner.h"
 #include "llvm/IR/PassManager.h"
 
-#include <deque>
 #include <map>
 #include <memory>
+#include <optional>
 
 namespace llvm {
 class DiagnosticInfoOptimizationBase;
 class Module;
 class MLInlineAdvice;
+class ProfileSummaryInfo;
 
 class MLInlineAdvisor : public InlineAdvisor {
 public:
   MLInlineAdvisor(Module &M, ModuleAnalysisManager &MAM,
-                  std::unique_ptr<MLModelRunner> ModelRunner);
+                  std::function<std::unique_ptr<MLModelRunner>(
+                      const std::vector<TensorSpec> &)>
+                      GetModelRunner,
+                  std::function<bool(CallBase &)> GetDefaultAdvice);
 
-  virtual ~MLInlineAdvisor() = default;
+  ~MLInlineAdvisor() override = default;
 
   void onPassEntry(LazyCallGraph::SCC *SCC) override;
   void onPassExit(LazyCallGraph::SCC *SCC) override;
@@ -42,8 +46,10 @@ public:
 
   bool isForcedToStop() const { return ForceStop; }
   int64_t getLocalCalls(Function &F);
-  const MLModelRunner &getModelRunner() const { return *ModelRunner.get(); }
+  const MLModelRunner &getModelRunner() const { return *ModelRunner; }
   FunctionPropertiesInfo &getCachedFPI(Function &) const;
+  const std::vector<TensorSpec> &getFeatureMap() const { return FeatureMap; };
+  static const std::vector<TensorSpec> &getInitialFeatureMap();
 
 protected:
   std::unique_ptr<InlineAdvice> getAdviceImpl(CallBase &CB) override;
@@ -62,6 +68,8 @@ protected:
   unsigned getInitialFunctionLevel(const Function &F) const;
 
   std::unique_ptr<MLModelRunner> ModelRunner;
+  std::function<bool(CallBase &)> GetDefaultAdvice;
+  std::vector<TensorSpec> FeatureMap;
 
 private:
   int64_t getModuleIRSize() const;
@@ -69,20 +77,26 @@ private:
   getSkipAdviceIfUnreachableCallsite(CallBase &CB);
   void print(raw_ostream &OS) const override;
 
-  mutable DenseMap<const Function *, FunctionPropertiesInfo> FPICache;
+  // Using std::map to benefit from its iterator / reference non-invalidating
+  // semantics, which make it easy to use `getCachedFPI` results from multiple
+  // calls without needing to copy to avoid invalidation effects.
+  mutable std::map<const Function *, FunctionPropertiesInfo> FPICache;
 
   LazyCallGraph &CG;
 
   int64_t NodeCount = 0;
   int64_t EdgeCount = 0;
   int64_t EdgesOfLastSeenNodes = 0;
+  const bool UseIR2Vec;
 
   std::map<const LazyCallGraph::Node *, unsigned> FunctionLevels;
   const int32_t InitialIRSize = 0;
   int32_t CurrentIRSize = 0;
   llvm::SmallPtrSet<const LazyCallGraph::Node *, 1> NodesInLastSCC;
   DenseSet<const LazyCallGraph::Node *> AllNodes;
+  DenseSet<Function *> DeadFunctions;
   bool ForceStop = false;
+  ProfileSummaryInfo &PSI;
 };
 
 /// InlineAdvice that tracks changes post inlining. For that reason, it only
@@ -91,7 +105,7 @@ class MLInlineAdvice : public InlineAdvice {
 public:
   MLInlineAdvice(MLInlineAdvisor *Advisor, CallBase &CB,
                  OptimizationRemarkEmitter &ORE, bool Recommendation);
-  virtual ~MLInlineAdvice() = default;
+  ~MLInlineAdvice() override = default;
 
   void recordInliningImpl() override;
   void recordInliningWithCalleeDeletedImpl() override;
@@ -114,7 +128,7 @@ private:
   // Make a copy of the FPI of the caller right before inlining. If inlining
   // fails, we can just update the cache with that value.
   const FunctionPropertiesInfo PreInlineCallerFPI;
-  Optional<FunctionPropertiesUpdater> FPU;
+  std::optional<FunctionPropertiesUpdater> FPU;
 };
 
 } // namespace llvm

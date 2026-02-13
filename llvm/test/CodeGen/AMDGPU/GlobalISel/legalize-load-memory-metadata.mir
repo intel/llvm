@@ -3,26 +3,26 @@
 
 --- |
 
-  define i32 @widen_load_range0_tbaa(i24 addrspace(1)* %ptr) {
-    %load = load i24, i24 addrspace(1)* %ptr, !range !0, !tbaa !1
+  define i32 @widen_load_range0_tbaa(ptr addrspace(1) %ptr) {
+    %load = load i24, ptr addrspace(1) %ptr, !range !0, !tbaa !1
     %zext = zext i24 %load to i32
     ret i32 %zext
   }
 
-  define i32 @widen_load_range1_tbaa(i24 addrspace(1)* %ptr) {
-    %load = load i24, i24 addrspace(1)* %ptr, !range !0, !tbaa !1
+  define i32 @widen_load_range1_tbaa(ptr addrspace(1) %ptr) {
+    %load = load i24, ptr addrspace(1) %ptr, !range !0, !tbaa !1
     %zext = zext i24 %load to i32
     ret i32 %zext
   }
 
-  define i32 @widen_load_tbaa0(i24 addrspace(1)* %ptr) {
-    %load = load i24, i24 addrspace(1)* %ptr, !tbaa !1
+  define i32 @widen_load_tbaa0(ptr addrspace(1) %ptr) {
+    %load = load i24, ptr addrspace(1) %ptr, !tbaa !1
     %zext = zext i24 %load to i32
     ret i32 %zext
   }
 
-  define i32 @widen_load_tbaa1(i24 addrspace(1)* %ptr) {
-    %load = load i24, i24 addrspace(1)* %ptr, !tbaa !1
+  define i32 @widen_load_tbaa1(ptr addrspace(1) %ptr) {
+    %load = load i24, ptr addrspace(1) %ptr, !tbaa !1
     %zext = zext i24 %load to i32
     ret i32 %zext
   }
@@ -30,6 +30,7 @@
   !0 = !{i24 0, i24 1048575}
   !1 = !{!"omnipotent char", !2}
   !2 = !{!"Simple C/C++ TBAA"}
+  !3 = !{i24 0, i24 1048575}
 ...
 
 # Make sure range metadata is not preserved when widening loads, but
@@ -67,7 +68,7 @@ body: |
     ; SI-NEXT: [[LOAD:%[0-9]+]]:_(s32) = G_LOAD [[COPY]](p1) :: (load (s32), !tbaa !1, addrspace 1)
     ; SI-NEXT: $vgpr0 = COPY [[LOAD]](s32)
     %0:_(p1) = COPY $vgpr0_vgpr1
-    %1:_(s32) = G_LOAD %0 :: (load (s24), align 4, addrspace 1, !range !0, !tbaa !1)
+    %1:_(s32) = G_LOAD %0 :: (load (s24), align 4, addrspace 1, !range !3, !tbaa !1)
     $vgpr0 = COPY %1
 
 ...

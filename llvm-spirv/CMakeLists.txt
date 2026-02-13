@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.13.4)
 
 if(NOT DEFINED BASE_LLVM_VERSION)
-  set (BASE_LLVM_VERSION 16.0.0)
+  set (BASE_LLVM_VERSION 22.0.0)
 endif(NOT DEFINED BASE_LLVM_VERSION)
 set(LLVM_SPIRV_VERSION ${BASE_LLVM_VERSION}.0)
 
@@ -88,6 +88,7 @@ if(LLVM_SPIRV_BUILD_EXTERNAL)
       Core
       Passes
       Support
+      TargetParser
       TransformUtils
       ${LLVM_TEST_COMPONENTS}
   )
@@ -97,6 +98,7 @@ if(LLVM_SPIRV_BUILD_EXTERNAL)
   )
   include(AddLLVM)
   include(HandleLLVMOptions)
+  include(LLVM-Config)
 
   message(STATUS "Found LLVM: ${LLVM_VERSION}")
 
@@ -109,13 +111,46 @@ if(LLVM_SPIRV_BUILD_EXTERNAL)
   endif()
 endif()
 
+is_llvm_target_library("SPIRV" spirv_present_result INCLUDED_TARGETS)
+if(spirv_present_result)
+  message(STATUS "Found SPIR-V Backend")
+  set(SPIRV_BACKEND_FOUND TRUE)
+  add_compile_definitions(LLVM_SPIRV_BACKEND_TARGET_PRESENT)
+endif()
+
 set(LLVM_SPIRV_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
+# first try locating SPIRV-Tools via pkgconfig (the old way)
 pkg_search_module(SPIRV_TOOLS SPIRV-Tools)
-if(NOT SPIRV_TOOLS_FOUND)
+if (NOT SPIRV_TOOLS_FOUND)
+  # then try locating SPIRV-Tools via cmake (the new way)
+  find_package(SPIRV-Tools)
+  find_package(SPIRV-Tools-tools)
+  if (SPIRV-Tools_FOUND AND SPIRV-Tools-tools_FOUND)
+    set(SPIRV_TOOLS_FOUND TRUE)
+    # check for the existance of library targets in the found packages
+    if(TARGET SPIRV-Tools-shared)
+      # use the shared libary target if present
+      set(SPIRV-Tools-library SPIRV-Tools-shared)
+    elseif(TARGET SPIRV-Tools-static)
+      # otherwise fallback to the static library target
+      set(SPIRV-Tools-library SPIRV-Tools-static)
+    else()
+      message(FATAL_ERROR "Found SPIRV-Tools package but neither "
+              "SPIRV-Tools-shared or SPIRV-Tools-static targets exist.")
+    endif()
+    set(SPIRV_TOOLS_LDFLAGS ${SPIRV-Tools-library})
+    get_target_property(SPIRV_TOOLS_INCLUDE_DIRS ${SPIRV-Tools-library} INTERFACE_INCLUDE_DIRECTORIES)
+  endif()
+endif()
+
+option(LLVM_SPIRV_ENABLE_LIBSPIRV_DIS "Enable --spirv-tools-dis support.")
+
+if (NOT SPIRV_TOOLS_FOUND AND LLVM_SPIRV_ENABLE_LIBSPIRV_DIS)
   message(STATUS "SPIRV-Tools not found; project will be built without "
           "--spirv-tools-dis support.")
-endif(NOT SPIRV_TOOLS_FOUND)
+endif()
+
 
 add_subdirectory(lib/SPIRV)
 add_subdirectory(tools/llvm-spirv)

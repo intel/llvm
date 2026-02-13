@@ -3,7 +3,7 @@
 #include <sycl/detail/defines_elementary.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 #ifndef __SYCL_DEVICE_ONLY__
@@ -18,6 +18,8 @@ namespace detail {
     kind_pointer = 3,
     kind_specialization_constants_buffer = 4,
     kind_stream = 5,
+    kind_work_group_memory = 6,
+    kind_dynamic_work_group_memory = 7,
     kind_invalid = 0xf, // not a valid kernel kind
   };
 
@@ -57,5 +59,5 @@ namespace detail {
     static constexpr int64_t getKernelSize() { return 0; }
   };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

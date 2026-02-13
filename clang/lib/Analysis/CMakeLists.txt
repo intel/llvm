@@ -18,6 +18,8 @@ add_clang_library(clangAnalysis
   CodeInjector.cpp
   Dominators.cpp
   ExprMutationAnalyzer.cpp
+  FixitUtil.cpp
+  IntervalPartition.cpp
   IssueHash.cpp
   LiveVariables.cpp
   MacroExpansionContext.cpp
@@ -32,16 +34,22 @@ add_clang_library(clangAnalysis
   ThreadSafetyLogical.cpp
   ThreadSafetyTIL.cpp
   UninitializedValues.cpp
+  UnsafeBufferUsage.cpp
 
   LINK_LIBS
   clangAST
   clangASTMatchers
   clangBasic
+  clangFormat
   clangLex
+  clangToolingCore
 
   DEPENDS
   omp_gen
+  ClangDriverOptions
   )
 
 add_subdirectory(plugins)
 add_subdirectory(FlowSensitive)
+add_subdirectory(LifetimeSafety)
+add_subdirectory(Scalable)

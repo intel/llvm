@@ -1,4 +1,5 @@
 //===----------------------------------------------------------------------===//
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -6,9 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-has-no-incomplete-format
-// TODO FMT Fix this test using GCC, it currently times out.
-// UNSUPPORTED: gcc-12
+// UNSUPPORTED: libcpp-has-no-unicode
+// UNSUPPORTED: GCC-ALWAYS_INLINE-FIXME
 
 // <format>
 
@@ -40,20 +40,35 @@ constexpr int count_entries(cluster::__property property) {
       });
 }
 
-static_assert(count_entries(cluster::__property::__Prepend) == 26);
+static_assert(count_entries(cluster::__property::__Prepend) == 28);
 static_assert(count_entries(cluster::__property::__CR) == 1);
 static_assert(count_entries(cluster::__property::__LF) == 1);
-static_assert(count_entries(cluster::__property::__Control) == 3886);
-static_assert(count_entries(cluster::__property::__Extend) == 2095);
+static_assert(count_entries(cluster::__property::__Control) == 3893);
+static_assert(count_entries(cluster::__property::__Extend) == 2198);
 static_assert(count_entries(cluster::__property::__Regional_Indicator) == 26);
-static_assert(count_entries(cluster::__property::__SpacingMark) == 388);
+static_assert(count_entries(cluster::__property::__SpacingMark) == 378);
 static_assert(count_entries(cluster::__property::__L) == 125);
-static_assert(count_entries(cluster::__property::__V) == 95);
+static_assert(count_entries(cluster::__property::__V) == 100);
 static_assert(count_entries(cluster::__property::__T) == 137);
 static_assert(count_entries(cluster::__property::__LV) == 399);
 static_assert(count_entries(cluster::__property::__LVT) == 10773);
 static_assert(count_entries(cluster::__property::__ZWJ) == 1);
 static_assert(count_entries(cluster::__property::__Extended_Pictographic) == 3537);
+
+namespace inCB = std::__indic_conjunct_break;
+constexpr int count_entries(inCB::__property property) {
+  return std::transform_reduce(
+      std::begin(inCB::__entries), std::end(inCB::__entries), 0, std::plus{}, [property](auto entry) {
+        if (static_cast<inCB::__property>(entry & 0b11) != property)
+          return 0;
+
+        return 1 + static_cast<int>((entry >> 2) & 0b1'1111'1111);
+      });
+}
+
+static_assert(count_entries(inCB::__property::__Linker) == 6);
+static_assert(count_entries(inCB::__property::__Consonant) == 240);
+static_assert(count_entries(inCB::__property::__Extend) == 2192);
 
 } // namespace
 
@@ -62,11 +77,11 @@ constexpr void test(const Data& data) {
   for (const auto& d : data) {
     assert(d.code_points.size() == d.breaks.size());
 
-    std::__unicode::__extended_grapheme_cluster_view view{d.input.data(), d.input.data() + d.input.size()};
-    for (size_t i = 0; i < d.breaks.size(); ++i) {
+    std::__unicode::__extended_grapheme_cluster_view view{d.input.begin(), d.input.end()};
+    for (std::size_t i = 0; i < d.breaks.size(); ++i) {
       auto r = view.__consume();
       assert(r.__code_point_ == d.code_points[i]);
-      assert(r.__last_ == d.input.data() + d.breaks[i]);
+      assert(r.__last_ == d.input.begin() + d.breaks[i]);
     }
   }
 }

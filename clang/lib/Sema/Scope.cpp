@@ -37,18 +37,23 @@ void Scope::setFlags(Scope *parent, unsigned flags) {
     FnParent       = parent->FnParent;
     BlockParent    = parent->BlockParent;
     TemplateParamParent = parent->TemplateParamParent;
+    DeclParent = parent->DeclParent;
     MSLastManglingParent = parent->MSLastManglingParent;
     MSCurManglingNumber = getMSLastManglingNumber();
     if ((Flags & (FnScope | ClassScope | BlockScope | TemplateParamScope |
                   FunctionPrototypeScope | AtCatchScope | ObjCMethodScope)) ==
         0)
       Flags |= parent->getFlags() & OpenMPSimdDirectiveScope;
+    // transmit the parent's 'order' flag, if exists
+    if (parent->getFlags() & OpenMPOrderClauseScope)
+      Flags |= OpenMPOrderClauseScope;
   } else {
     Depth = 0;
     PrototypeDepth = 0;
     PrototypeIndex = 0;
     MSLastManglingParent = FnParent = BlockParent = nullptr;
     TemplateParamParent = nullptr;
+    DeclParent = nullptr;
     MSLastManglingNumber = 1;
     MSCurManglingNumber = 1;
   }
@@ -67,10 +72,13 @@ void Scope::setFlags(Scope *parent, unsigned flags) {
   if (flags & BlockScope)         BlockParent = this;
   if (flags & TemplateParamScope) TemplateParamParent = this;
 
-  // If this is a prototype scope, record that.
-  if (flags & FunctionPrototypeScope) PrototypeDepth++;
+  // If this is a prototype scope, record that. Lambdas have an extra prototype
+  // scope that doesn't add any depth.
+  if (flags & FunctionPrototypeScope && !(flags & LambdaScope))
+    PrototypeDepth++;
 
   if (flags & DeclScope) {
+    DeclParent = this;
     if (flags & FunctionPrototypeScope)
       ; // Prototype scopes are uninteresting.
     else if ((flags & ClassScope) && getParent()->isClassScope())
@@ -91,7 +99,8 @@ void Scope::Init(Scope *parent, unsigned flags) {
   UsingDirectives.clear();
   Entity = nullptr;
   ErrorTrap.reset();
-  NRVO = None;
+  PrecedingLabel = nullptr;
+  NRVO = std::nullopt;
 }
 
 bool Scope::containedInPrototypeScope() const {
@@ -160,7 +169,7 @@ void Scope::applyNRVO() {
     return;
 
   if (*NRVO && isDeclScope(*NRVO))
-    NRVO.value()->setNRVOVariable(true);
+    (*NRVO)->setNRVOVariable(true);
 
   // It's necessary to propagate NRVO candidate to the parent scope for cases
   // when the parent scope doesn't contain a return statement.
@@ -220,7 +229,14 @@ void Scope::dumpImpl(raw_ostream &OS) const {
       {CompoundStmtScope, "CompoundStmtScope"},
       {ClassInheritanceScope, "ClassInheritanceScope"},
       {CatchScope, "CatchScope"},
-  };
+      {ConditionVarScope, "ConditionVarScope"},
+      {OpenMPOrderClauseScope, "OpenMPOrderClauseScope"},
+      {LambdaScope, "LambdaScope"},
+      {OpenACCComputeConstructScope, "OpenACCComputeConstructScope"},
+      {TypeAliasScope, "TypeAliasScope"},
+      {FriendScope, "FriendScope"},
+      {OpenACCComputeConstructScope, "OpenACCComputeConstructScope"},
+      {OpenACCLoopConstructScope, "OpenACCLoopConstructScope"}};
 
   for (auto Info : FlagInfo) {
     if (Flags & Info.first) {

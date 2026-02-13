@@ -1,13 +1,13 @@
 ; Test whether the following functions, with vectors featuring negative or values larger than the element
 ; bit size have their results of operations generated correctly when placed into constant pools
 
-; RUN: llc -march=mips64 -mattr=+msa,+fp64 -relocation-model=pic < %s \
+; RUN: llc -mtriple=mips64-elf -mattr=+msa,+fp64 -relocation-model=pic < %s \
 ; RUN:   | FileCheck -check-prefixes=ALL,MIPS64 %s
-; RUN: llc -march=mips -mattr=+msa,+fp64,+mips32r2 -relocation-model=pic < %s \
+; RUN: llc -mtriple=mips-elf -mattr=+msa,+fp64,+mips32r2 -relocation-model=pic < %s \
 ; RUN:   | FileCheck -check-prefixes=ALL,MIPS32 %s
-; RUN: llc -march=mips64el -mattr=+msa,+fp64 -relocation-model=pic < %s \
+; RUN: llc -mtriple=mips64el-elf -mattr=+msa,+fp64 -relocation-model=pic < %s \
 ; RUN:   | FileCheck -check-prefixes=ALL,MIPS64 %s
-; RUN: llc -march=mipsel -mattr=+msa,+fp64,mips32r2 -relocation-model=pic < %s \
+; RUN: llc -mtriple=mipsel-elf -mattr=+msa,+fp64,mips32r2 -relocation-model=pic < %s \
 ; RUN:   | FileCheck -check-prefixes=ALL,MIPS32 %s
 
 @llvm_mips_bclr_w_test_const_vec_res = global <4 x i32> zeroinitializer, align 16
@@ -15,7 +15,7 @@
 define void @llvm_mips_bclr_w_test_const_vec() nounwind {
 entry:
   %0 = tail call <4 x i32> @llvm.mips.bclr.w(<4 x i32> <i32 2147483649, i32 2147483649, i32 7, i32 7>, <4 x i32> <i32 -1, i32 31, i32 2, i32 34>)
-  store <4 x i32> %0, <4 x i32>* @llvm_mips_bclr_w_test_const_vec_res
+  store <4 x i32> %0, ptr @llvm_mips_bclr_w_test_const_vec_res
   ret void
 }
 
@@ -43,7 +43,7 @@ declare <4 x i32> @llvm.mips.bclr.w(<4 x i32>, <4 x i32>) nounwind
 define void @llvm_mips_bneg_w_test_const_vec() nounwind {
 entry:
   %0 = tail call <4 x i32> @llvm.mips.bneg.w(<4 x i32> <i32 2147483649, i32 2147483649, i32 7, i32 7>, <4 x i32> <i32 -1, i32 31, i32 2, i32 34>)
-  store <4 x i32> %0, <4 x i32>* @llvm_mips_bneg_w_test_const_vec_res
+  store <4 x i32> %0, ptr @llvm_mips_bneg_w_test_const_vec_res
   ret void
 }
 
@@ -71,7 +71,7 @@ declare <4 x i32> @llvm.mips.bneg.w(<4 x i32>, <4 x i32>) nounwind
 define void @llvm_mips_bset_w_test_const_vec() nounwind {
 entry:
   %0 = tail call <4 x i32> @llvm.mips.bset.w(<4 x i32> <i32 0, i32 0, i32 0, i32 0>, <4 x i32> <i32 -1, i32 31, i32 2, i32 34>)
-  store <4 x i32> %0, <4 x i32>* @llvm_mips_bset_w_test_const_vec_res
+  store <4 x i32> %0, ptr @llvm_mips_bset_w_test_const_vec_res
   ret void
 }
 
@@ -98,7 +98,7 @@ declare <4 x i32> @llvm.mips.bset.w(<4 x i32>, <4 x i32>) nounwind
 define void @llvm_mips_sll_w_test_const_vec() nounwind {
 entry:
   %0 = tail call <4 x i32> @llvm.mips.sll.w(<4 x i32> <i32 1, i32 1, i32 1, i32 1>, <4 x i32> <i32 -1, i32 31, i32 2, i32 34>)
-  store <4 x i32> %0, <4 x i32>* @llvm_mips_sll_w_test_const_vec_res
+  store <4 x i32> %0, ptr @llvm_mips_sll_w_test_const_vec_res
   ret void
 }
 
@@ -125,7 +125,7 @@ declare <4 x i32> @llvm.mips.sll.w(<4 x i32>, <4 x i32>) nounwind
 define void @llvm_mips_sra_w_test_const_vec() nounwind {
 entry:
   %0 = tail call <4 x i32> @llvm.mips.sra.w(<4 x i32> <i32 -16, i32 16, i32 16, i32 16>, <4 x i32> <i32 2, i32 -30, i32 33, i32 1>)
-  store <4 x i32> %0, <4 x i32>* @llvm_mips_sra_w_test_const_vec_res
+  store <4 x i32> %0, ptr @llvm_mips_sra_w_test_const_vec_res
   ret void
 }
 
@@ -152,7 +152,7 @@ declare <4 x i32> @llvm.mips.sra.w(<4 x i32>, <4 x i32>) nounwind
 define void @llvm_mips_srl_w_test_const_vec() nounwind {
 entry:
   %0 = tail call <4 x i32> @llvm.mips.srl.w(<4 x i32> <i32 -16, i32 16, i32 16, i32 16>, <4 x i32> <i32 2, i32 -30, i32 33, i32 1>)
-  store <4 x i32> %0, <4 x i32>* @llvm_mips_srl_w_test_const_vec_res
+  store <4 x i32> %0, ptr @llvm_mips_srl_w_test_const_vec_res
   ret void
 }
 

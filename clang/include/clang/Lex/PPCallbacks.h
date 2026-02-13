@@ -15,6 +15,7 @@
 #define LLVM_CLANG_LEX_PPCALLBACKS_H
 
 #include "clang/Basic/DiagnosticIDs.h"
+#include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/ModuleLoader.h"
@@ -22,11 +23,12 @@
 #include "llvm/ADT/StringRef.h"
 
 namespace clang {
-  class Token;
-  class IdentifierInfo;
-  class MacroDefinition;
-  class MacroDirective;
-  class MacroArgs;
+class Token;
+class IdentifierInfo;
+class MacroDefinition;
+class MacroDirective;
+class MacroArgs;
+struct LexEmbedParametersResult;
 
 /// This interface provides a way to observe the actions of the
 /// preprocessor as it does its thing.
@@ -83,6 +85,44 @@ public:
                            const Token &FilenameTok,
                            SrcMgr::CharacteristicKind FileType) {}
 
+  /// Callback invoked whenever the preprocessor cannot find a file for an
+  /// embed directive.
+  ///
+  /// \param FileName The name of the file being included, as written in the
+  /// source code.
+  ///
+  /// \returns true to indicate that the preprocessor should skip this file
+  /// and not issue any diagnostic.
+  virtual bool EmbedFileNotFound(StringRef FileName) { return false; }
+
+  /// Callback invoked whenever an embed directive has been processed,
+  /// regardless of whether the embed will actually find a file.
+  ///
+  /// \param HashLoc The location of the '#' that starts the embed directive.
+  ///
+  /// \param FileName The name of the file being included, as written in the
+  /// source code.
+  ///
+  /// \param IsAngled Whether the file name was enclosed in angle brackets;
+  /// otherwise, it was enclosed in quotes.
+  ///
+  /// \param File The actual file that may be included by this embed directive.
+  ///
+  /// \param Params The parameters used by the directive.
+  virtual void EmbedDirective(SourceLocation HashLoc, StringRef FileName,
+                              bool IsAngled, OptionalFileEntryRef File,
+                              const LexEmbedParametersResult &Params) {}
+
+  /// Callback invoked whenever the preprocessor cannot find a file for an
+  /// inclusion directive.
+  ///
+  /// \param FileName The name of the file being included, as written in the
+  /// source code.
+  ///
+  /// \returns true to indicate that the preprocessor should skip this file
+  /// and not issue any diagnostic.
+  virtual bool FileNotFound(StringRef FileName) { return false; }
+
   /// Callback invoked whenever an inclusion directive of
   /// any kind (\c \#include, \c \#import, etc.) has been processed, regardless
   /// of whether the inclusion will actually result in an inclusion.
@@ -117,24 +157,23 @@ public:
   /// \param RelativePath The path relative to SearchPath, at which the include
   /// file was found. This is equal to FileName except for framework includes.
   ///
-  /// \param Imported The module, whenever an inclusion directive was
-  /// automatically turned into a module import or null otherwise.
+  /// \param SuggestedModule The module suggested for this header, if any.
+  ///
+  /// \param ModuleImported Whether this include was translated into import of
+  /// \p SuggestedModule.
   ///
   /// \param FileType The characteristic kind, indicates whether a file or
   /// directory holds normal user code, system code, or system code which is
   /// implicitly 'extern "C"' in C++ mode.
   ///
   virtual void InclusionDirective(SourceLocation HashLoc,
-                                  const Token &IncludeTok,
-                                  StringRef FileName,
-                                  bool IsAngled,
-                                  CharSourceRange FilenameRange,
-                                  Optional<FileEntryRef> File,
-                                  StringRef SearchPath,
-                                  StringRef RelativePath,
-                                  const Module *Imported,
-                                  SrcMgr::CharacteristicKind FileType) {
-  }
+                                  const Token &IncludeTok, StringRef FileName,
+                                  bool IsAngled, CharSourceRange FilenameRange,
+                                  OptionalFileEntryRef File,
+                                  StringRef SearchPath, StringRef RelativePath,
+                                  const Module *SuggestedModule,
+                                  bool ModuleImported,
+                                  SrcMgr::CharacteristicKind FileType) {}
 
   /// Callback invoked whenever a submodule was entered.
   ///
@@ -324,10 +363,14 @@ public:
                        SourceRange Range) {
   }
 
+  /// Hook called when a '__has_embed' directive is read.
+  virtual void HasEmbed(SourceLocation Loc, StringRef FileName, bool IsAngled,
+                        OptionalFileEntryRef File) {}
+
   /// Hook called when a '__has_include' or '__has_include_next' directive is
   /// read.
   virtual void HasInclude(SourceLocation Loc, StringRef FileName, bool IsAngled,
-                          Optional<FileEntryRef> File,
+                          OptionalFileEntryRef File,
                           SrcMgr::CharacteristicKind FileType);
 
   /// Hook called when a source range is skipped.
@@ -455,18 +498,42 @@ public:
     Second->FileSkipped(SkippedFile, FilenameTok, FileType);
   }
 
+  bool EmbedFileNotFound(StringRef FileName) override {
+    bool Skip = First->EmbedFileNotFound(FileName);
+    // Make sure to invoke the second callback, no matter if the first already
+    // returned true to skip the file.
+    Skip |= Second->EmbedFileNotFound(FileName);
+    return Skip;
+  }
+
+  void EmbedDirective(SourceLocation HashLoc, StringRef FileName, bool IsAngled,
+                      OptionalFileEntryRef File,
+                      const LexEmbedParametersResult &Params) override {
+    First->EmbedDirective(HashLoc, FileName, IsAngled, File, Params);
+    Second->EmbedDirective(HashLoc, FileName, IsAngled, File, Params);
+  }
+
+  bool FileNotFound(StringRef FileName) override {
+    bool Skip = First->FileNotFound(FileName);
+    // Make sure to invoke the second callback, no matter if the first already
+    // returned true to skip the file.
+    Skip |= Second->FileNotFound(FileName);
+    return Skip;
+  }
+
   void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
                           StringRef FileName, bool IsAngled,
                           CharSourceRange FilenameRange,
-                          Optional<FileEntryRef> File, StringRef SearchPath,
-                          StringRef RelativePath, const Module *Imported,
+                          OptionalFileEntryRef File, StringRef SearchPath,
+                          StringRef RelativePath, const Module *SuggestedModule,
+                          bool ModuleImported,
                           SrcMgr::CharacteristicKind FileType) override {
     First->InclusionDirective(HashLoc, IncludeTok, FileName, IsAngled,
                               FilenameRange, File, SearchPath, RelativePath,
-                              Imported, FileType);
+                              SuggestedModule, ModuleImported, FileType);
     Second->InclusionDirective(HashLoc, IncludeTok, FileName, IsAngled,
                                FilenameRange, File, SearchPath, RelativePath,
-                               Imported, FileType);
+                               SuggestedModule, ModuleImported, FileType);
   }
 
   void EnteredSubmodule(Module *M, SourceLocation ImportLoc,
@@ -547,8 +614,14 @@ public:
     Second->PragmaDiagnostic(Loc, Namespace, mapping, Str);
   }
 
+  void HasEmbed(SourceLocation Loc, StringRef FileName, bool IsAngled,
+                OptionalFileEntryRef File) override {
+    First->HasEmbed(Loc, FileName, IsAngled, File);
+    Second->HasEmbed(Loc, FileName, IsAngled, File);
+  }
+
   void HasInclude(SourceLocation Loc, StringRef FileName, bool IsAngled,
-                  Optional<FileEntryRef> File,
+                  OptionalFileEntryRef File,
                   SrcMgr::CharacteristicKind FileType) override;
 
   void PragmaOpenCLExtension(SourceLocation NameLoc, const IdentifierInfo *Name,

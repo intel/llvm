@@ -1,6 +1,3 @@
-// REQUIRES: x86-registered-target
-// REQUIRES: arm-registered-target
-
 // RUN: %clang -target x86_64-apple-darwin -save-temps -arch x86_64 %s -### 2>&1 \
 // RUN:   | FileCheck %s
 // CHECK: "-o" "save-temps.i"
@@ -93,3 +90,11 @@
 // CHECK-SAVE-TEMPS-CMSE: -cc1as
 // CHECK-SAVE-TEMPS-CMSE: +8msecext
 // CHECK-SAVE-TEMPS-CMSE-NOT: '+cmse' is not a recognized feature for this target (ignoring feature)
+
+// Usage of -save-temps with a file in $CWD should create the intermediate
+// files _not_ in /tmp.
+//
+// RUN: touch dummy.cc
+// RUN: %clang -save-temps dummy.cc -### 2>&1  \
+// RUN:   | FileCheck %s -check-prefix=CHECK-CWD-FILE
+// CHECK-CWD-FILE: clang{{.*}} "-o" "dummy.ii"

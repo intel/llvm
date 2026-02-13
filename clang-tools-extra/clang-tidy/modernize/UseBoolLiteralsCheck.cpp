@@ -1,4 +1,4 @@
-//===--- UseBoolLiteralsCheck.cpp - clang-tidy-----------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,14 +13,12 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace modernize {
+namespace clang::tidy::modernize {
 
 UseBoolLiteralsCheck::UseBoolLiteralsCheck(StringRef Name,
                                            ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
-      IgnoreMacros(Options.getLocalOrGlobal("IgnoreMacros", true)) {}
+      IgnoreMacros(Options.get("IgnoreMacros", true)) {}
 
 void UseBoolLiteralsCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
   Options.store(Opts, "IgnoreMacros", IgnoreMacros);
@@ -28,13 +26,12 @@ void UseBoolLiteralsCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
 
 void UseBoolLiteralsCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
-      traverse(
-          TK_AsIs,
-          implicitCastExpr(
-              has(ignoringParenImpCasts(integerLiteral().bind("literal"))),
-              hasImplicitDestinationType(qualType(booleanType())),
-              unless(isInTemplateInstantiation()),
-              anyOf(hasParent(explicitCastExpr().bind("cast")), anything()))),
+      traverse(TK_AsIs,
+               implicitCastExpr(
+                   has(ignoringParenImpCasts(integerLiteral().bind("literal"))),
+                   hasImplicitDestinationType(qualType(booleanType())),
+                   unless(isInTemplateInstantiation()),
+                   optionally(hasParent(explicitCastExpr().bind("cast"))))),
       this);
 
   Finder->addMatcher(
@@ -53,14 +50,14 @@ void UseBoolLiteralsCheck::registerMatchers(MatchFinder *Finder) {
 void UseBoolLiteralsCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *Literal = Result.Nodes.getNodeAs<IntegerLiteral>("literal");
   const auto *Cast = Result.Nodes.getNodeAs<Expr>("cast");
-  bool LiteralBooleanValue = Literal->getValue().getBoolValue();
+  const bool LiteralBooleanValue = Literal->getValue().getBoolValue();
 
   if (Literal->isInstantiationDependent())
     return;
 
   const Expr *Expression = Cast ? Cast : Literal;
 
-  bool InMacro = Expression->getBeginLoc().isMacroID();
+  const bool InMacro = Expression->getBeginLoc().isMacroID();
 
   if (InMacro && IgnoreMacros)
     return;
@@ -74,6 +71,4 @@ void UseBoolLiteralsCheck::check(const MatchFinder::MatchResult &Result) {
         Expression->getSourceRange(), LiteralBooleanValue ? "true" : "false");
 }
 
-} // namespace modernize
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::modernize

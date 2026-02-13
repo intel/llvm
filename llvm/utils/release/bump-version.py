@@ -12,6 +12,9 @@ from typing import Optional
 
 
 class Processor:
+    def __init__(self, args):
+        self.args = args
+
     def process_line(self, line: str) -> str:
         raise NotImplementedError()
 
@@ -23,6 +26,13 @@ class Processor:
             version.micro,
             version.pre,
         )
+
+        if self.args.rc:
+            self.suffix = f"-rc{self.args.rc}"
+
+        if self.args.git:
+            self.suffix = "git"
+
         data = fpath.read_text()
         new_data = []
 
@@ -64,11 +74,13 @@ class CMakeProcessor(Processor):
             if self.suffix:
                 nline = re.sub(
                     r"set\(LLVM_VERSION_SUFFIX(.*)\)",
-                    f"set(LLVM_VERSION_SUFFIX -{self.suffix[0]}{self.suffix[1]})",
+                    f"set(LLVM_VERSION_SUFFIX {self.suffix})",
                     line,
                 )
             else:
-                nline = re.sub(r"set\(LLVM_VERSION_SUFFIX(.*)\)", f"set(LLVM_VERSION_SUFFIX)", line)
+                nline = re.sub(
+                    r"set\(LLVM_VERSION_SUFFIX(.*)\)", f"set(LLVM_VERSION_SUFFIX)", line
+                )
 
         # Check the rest of the LLVM_VERSION_ lines.
         elif "set(LLVM_VERSION_" in line:
@@ -78,56 +90,12 @@ class CMakeProcessor(Processor):
                 ("PATCH", self.patch),
             ):
                 nline = re.sub(
-                    fr"set\(LLVM_VERSION_{c} (\d+)",
-                    fr"set(LLVM_VERSION_{c} {cver}",
+                    rf"set\(LLVM_VERSION_{c} (\d+)",
+                    rf"set(LLVM_VERSION_{c} {cver}",
                     line,
                 )
                 if nline != line:
                     break
-
-        return nline
-
-
-# Process the many bazel files.
-class BazelProcessor(Processor):
-    def process_line(self, line: str) -> str:
-        # This matches the CLANG_VERSION line of clang/Config/config.h
-        nline = line
-        if "CLANG_VERSION " in line:
-            nline = re.sub(
-                r"#define CLANG_VERSION (.*)'",
-                f"#define CLANG_VERSION {self.version_str(include_suffix=False)}'",
-                line,
-            )
-        # Match version strings of LLVM, Clang and LLD overlay headers
-        elif "LLVM_VERSION_STRING" in line or "CLANG_VERSION_STRING" in line or "LLD_VERSION_STRING" in line:
-            nline = re.sub(
-                r"#define (LLVM|CLANG|LLD)_VERSION_STRING ([\\\"]+)[0-9\.rcgit-]+([\\\"]+)",
-                rf"#define \g<1>_VERSION_STRING \g<2>{self.version_str()}\g<3>",
-                line,
-            )
-        # Match the split out MAJOR/MINOR/PATCH versions of LLVM and Clang overlay headers
-        # in LLVM the define is called _PATCH and in clang it's called _PATCHLEVEL
-        elif "LLVM_VERSION_" in line or "CLANG_VERSION_" in line:
-            for c, cver in (
-                ("(MAJOR)", self.major),
-                ("(MINOR)", self.minor),
-                ("(PATCH|PATCHLEVEL)", self.patch),
-            ):
-                nline = re.sub(
-                    fr"(LLVM|CLANG)_VERSION_{c} \d+",
-                    rf"\g<1>_VERSION_\g<2> {cver}",
-                    line,
-                )
-                if nline != line:
-                    break
-        # Match the BACKEND_PACKAGE_STRING in clang/config.h
-        elif "BACKEND_PACKAGE_STRING" in line:
-            nline = re.sub(
-                r'#define BACKEND_PACKAGE_STRING "LLVM ([0-9\.rcgit-]+)"',
-                f'#define BACKEND_PACKAGE_STRING "LLVM {self.version_str()}"',
-                line,
-            )
 
         return nline
 
@@ -141,7 +109,9 @@ class GNIProcessor(Processor):
                 ("minor", self.minor),
                 ("patch", self.patch),
             ):
-                nline = re.sub(fr"llvm_version_{c} = \d+", f"llvm_version_{c} = {cver}", line)
+                nline = re.sub(
+                    rf"llvm_version_{c} = \d+", f"llvm_version_{c} = {cver}", line
+                )
                 if nline != line:
                     return nline
 
@@ -153,7 +123,7 @@ class LitProcessor(Processor):
     def process_line(self, line: str) -> str:
         if "__versioninfo__" in line:
             nline = re.sub(
-                fr"__versioninfo__(.*)\((\d+), (\d+), (\d+)\)",
+                rf"__versioninfo__(.*)\((\d+), (\d+), (\d+)\)",
                 f"__versioninfo__\\1({self.major}, {self.minor}, {self.patch})",
                 line,
             )
@@ -170,7 +140,7 @@ class LibCXXProcessor(Processor):
             verstr = f"{str(self.major).zfill(2)}{str(self.minor).zfill(2)}{str(self.patch).zfill(2)}"
 
             nline = re.sub(
-                fr"_LIBCPP_VERSION (\d+)",
+                rf"_LIBCPP_VERSION (\d+)",
                 f"_LIBCPP_VERSION {verstr}",
                 line,
             )
@@ -184,6 +154,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("version", help="Version to bump to, e.g. 15.0.1", default=None)
     parser.add_argument("--rc", default=None, type=int, help="RC version")
+    parser.add_argument("--git", action="store_true", help="Git version")
     parser.add_argument(
         "-s",
         "--source-root",
@@ -193,11 +164,12 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    verstr = args.version
-    if args.rc:
-        verstr += f"-rc{args.rc}"
+    if args.rc and args.git:
+        raise RuntimeError("Can't specify --git and --rc at the same time!")
 
-    # parse the version string with distutils.
+    verstr = args.version
+
+    # parse the version string.
     # note that -rc will end up as version.pre here
     # since it's a prerelease
     version = packaging.version.parse(verstr)
@@ -210,37 +182,25 @@ if __name__ == "__main__":
 
     files_to_update = (
         # Main CMakeLists.
-        (source_root / "llvm" / "CMakeLists.txt", CMakeProcessor()),
+        (source_root / "cmake" / "Modules" / "LLVMVersion.cmake", CMakeProcessor(args)),
         # Lit configuration
         (
             "llvm/utils/lit/lit/__init__.py",
-            LitProcessor(),
+            LitProcessor(args),
+        ),
+        # mlgo-utils configuration
+        (
+            "llvm/utils/mlgo-utils/mlgo/__init__.py",
+            LitProcessor(args),
         ),
         # GN build system
         (
             "llvm/utils/gn/secondary/llvm/version.gni",
-            GNIProcessor(),
-        ),
-        # Bazel build system
-        (
-            "utils/bazel/llvm-project-overlay/llvm/include/llvm/Config/llvm-config.h",
-            BazelProcessor(),
-        ),
-        (
-            "utils/bazel/llvm-project-overlay/clang/BUILD.bazel",
-            BazelProcessor(),
-        ),
-        (
-            "utils/bazel/llvm-project-overlay/clang/include/clang/Config/config.h",
-            BazelProcessor(),
-        ),
-        (
-            "utils/bazel/llvm-project-overlay/lld/BUILD.bazel",
-            BazelProcessor(),
+            GNIProcessor(args),
         ),
         (
             "libcxx/include/__config",
-            LibCXXProcessor(),
+            LibCXXProcessor(args),
         ),
     )
 

@@ -8,7 +8,7 @@ set(LLVM_LINK_COMPONENTS
   LibDriver
   Object
   Support
-  TextAPI
+  TargetParser
   )
 
 add_llvm_tool(llvm-ar
@@ -18,6 +18,8 @@ add_llvm_tool(llvm-ar
   intrinsics_gen
   GENERATE_DRIVER
   )
+
+setup_host_tool(llvm-ar LLVM_AR llvm_ar_exe llvm_ar_target)
 
 add_llvm_tool_symlink(llvm-ranlib llvm-ar)
 add_llvm_tool_symlink(llvm-lib llvm-ar)

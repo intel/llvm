@@ -112,7 +112,7 @@ protected:
   bool runPrescan();
   // Parse the current input file. Return False if fatal errors are reported,
   // True otherwise.
-  bool runParse();
+  bool runParse(bool emitMessages);
   // Run semantic checks for the current input file. Return False if fatal
   // errors are reported, True otherwise.
   bool runSemanticChecks();
@@ -135,7 +135,8 @@ protected:
   }
 
 private:
-  template <unsigned N> bool reportFatalErrors(const char (&message)[N]);
+  template <unsigned N>
+  bool reportFatalErrors(const char (&message)[N]);
 };
 
 } // namespace Fortran::frontend

@@ -17,33 +17,32 @@ using namespace jitlink;
 
 #define DEBUG_TYPE "jitlink"
 
-// Create prefix string literals used in Options.td
-#define PREFIX(NAME, VALUE) const char *const NAME[] = VALUE;
+#define OPTTABLE_STR_TABLE_CODE
 #include "COFFOptions.inc"
-#undef PREFIX
+#undef OPTTABLE_STR_TABLE_CODE
+
+#define OPTTABLE_PREFIXES_TABLE_CODE
+#include "COFFOptions.inc"
+#undef OPTTABLE_PREFIXES_TABLE_CODE
+
+#define OPTTABLE_PREFIXES_UNION_CODE
+#include "COFFOptions.inc"
+#undef OPTTABLE_PREFIXES_UNION_CODE
 
 // Create table mapping all options defined in COFFOptions.td
-static const opt::OptTable::Info infoTable[] = {
-#define OPTION(X1, X2, ID, KIND, GROUP, ALIAS, X7, X8, X9, X10, X11, X12)      \
-  {X1,                                                                         \
-   X2,                                                                         \
-   X10,                                                                        \
-   X11,                                                                        \
-   COFF_OPT_##ID,                                                              \
-   opt::Option::KIND##Class,                                                   \
-   X9,                                                                         \
-   X8,                                                                         \
-   COFF_OPT_##GROUP,                                                           \
-   COFF_OPT_##ALIAS,                                                           \
-   X7,                                                                         \
-   X12},
+using namespace llvm::opt;
+static constexpr opt::OptTable::Info infoTable[] = {
+#define OPTION(...)                                                            \
+  LLVM_CONSTRUCT_OPT_INFO_WITH_ID_PREFIX(COFF_OPT_, __VA_ARGS__),
 #include "COFFOptions.inc"
 #undef OPTION
 };
 
-class COFFOptTable : public opt::OptTable {
+class COFFOptTable : public opt::PrecomputedOptTable {
 public:
-  COFFOptTable() : OptTable(infoTable, true) {}
+  COFFOptTable()
+      : PrecomputedOptTable(OptionStrTable, OptionPrefixesTable, infoTable,
+                            OptionPrefixesUnion, true) {}
 };
 
 static COFFOptTable optTable;

@@ -1,5 +1,7 @@
 // RUN: %clang_cc1 -DSIZE_T_64 -fsyntax-only -Wno-strict-prototypes -triple x86_64-linux -verify %s
 // RUN: %clang_cc1 -fsyntax-only -Wno-strict-prototypes -triple i386-freebsd -verify %s
+// RUN: %clang_cc1 -DSIZE_T_64 -fsyntax-only -Wno-strict-prototypes -triple x86_64-linux -verify %s -fexperimental-new-constant-interpreter
+// RUN: %clang_cc1 -fsyntax-only -Wno-strict-prototypes -triple i386-freebsd -verify %s -fexperimental-new-constant-interpreter
 
 // __builtin_assume_aligned's second parameter is size_t, which may be 32 bits,
 // so test differently when size_t is 32 bits and when it is 64 bits.
@@ -69,6 +71,25 @@ int test12(int *a) {
 int test13(int *a) {
   a = (int *)__builtin_assume_aligned(a, 2 * 2.0); // expected-error {{argument to '__builtin_assume_aligned' must be a constant integer}}
   return a[0];
+}
+
+int test14(int *a, int b) {
+  a = (int *)__builtin_assume_aligned(b, 32); // expected-error {{non-pointer argument to '__builtin_assume_aligned' is not allowed}}
+}
+
+int test15(int *b) {
+  int arr[3] = {1, 2, 3};
+  b = (int *)__builtin_assume_aligned(arr, 32);
+  return b[0];
+}
+
+int val(int x) {
+  return x;
+}
+
+int test16(int *b) {
+  b = (int *)__builtin_assume_aligned(val, 32);
+  return b[0];
 }
 
 void test_void_assume_aligned(void) __attribute__((assume_aligned(32))); // expected-warning {{'assume_aligned' attribute only applies to return values that are pointers}}

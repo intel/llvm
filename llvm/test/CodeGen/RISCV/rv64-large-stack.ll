@@ -14,7 +14,7 @@ define void @foo() nounwind {
 ; CHECK-NEXT:    addi a0, a0, -2000
 ; CHECK-NEXT:    sub sp, sp, a0
 ; CHECK-NEXT:    addi a0, sp, 16
-; CHECK-NEXT:    call baz@plt
+; CHECK-NEXT:    call baz
 ; CHECK-NEXT:    lui a0, 390625
 ; CHECK-NEXT:    slli a0, a0, 1
 ; CHECK-NEXT:    addi a0, a0, -2000
@@ -24,9 +24,9 @@ define void @foo() nounwind {
 ; CHECK-NEXT:    ret
 entry:
   %w = alloca [100000000 x { fp128, fp128 }], align 16
-  %arraydecay = getelementptr inbounds [100000000 x { fp128, fp128 }], [100000000 x { fp128, fp128 }]* %w, i64 0, i64 0
-  call void @baz({ fp128, fp128 }* nonnull %arraydecay)
+  %arraydecay = getelementptr inbounds [100000000 x { fp128, fp128 }], ptr %w, i64 0, i64 0
+  call void @baz(ptr nonnull %arraydecay)
   ret void
 }
 
-declare void @baz({ fp128, fp128 }*)
+declare void @baz(ptr)

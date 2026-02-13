@@ -13,9 +13,6 @@ set (CMAKE_MODULE_PATH
     ${CMAKE_MODULE_PATH}
 )
 
-find_package (Python3 COMPONENTS Interpreter Development)
-find_package (PythonLibs REQUIRED)
-
 include_directories (${OMPD_INCLUDE_PATH})
 include_directories (${LIBOMP_INCLUDE_DIR})
 add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/python-module/ompd/__init__.py
@@ -39,5 +36,5 @@ target_link_libraries (ompdModule ${CMAKE_DL_LIBS})
 set_target_properties (ompdModule PROPERTIES PREFIX "")
 set_target_properties (ompdModule PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/python-module/ompd/")
 
-install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/python-module/ompd DESTINATION ${CMAKE_INSTALL_PREFIX}/share/gdb/python/ PATTERN ompdModule.so PERMISSIONS OWNER_READ WORLD_READ GROUP_READ OWNER_EXECUTE GROUP_EXECUTE WORLD_EXECUTE)
+install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/python-module/ompd DESTINATION share/gdb/python/ PATTERN ompdModule.so PERMISSIONS OWNER_READ WORLD_READ GROUP_READ OWNER_EXECUTE GROUP_EXECUTE WORLD_EXECUTE)
 

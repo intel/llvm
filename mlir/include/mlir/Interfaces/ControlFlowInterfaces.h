@@ -15,10 +15,16 @@
 #define MLIR_INTERFACES_CONTROLFLOWINTERFACES_H
 
 #include "mlir/IR/OpDefinition.h"
+#include "mlir/IR/Operation.h"
+#include "mlir/IR/PatternMatch.h"
+#include "llvm/ADT/PointerUnion.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/Support/raw_ostream.h"
 
 namespace mlir {
 class BranchOpInterface;
 class RegionBranchOpInterface;
+class RegionBranchTerminatorOpInterface;
 
 /// This class models how operands are forwarded to block arguments in control
 /// flow. It consists of a number, denoting how many of the successors block
@@ -76,11 +82,16 @@ public:
   Value operator[](unsigned index) const {
     if (isOperandProduced(index))
       return Value();
-    return forwardedOperands[index - producedOperandCount];
+    return forwardedOperands[index - producedOperandCount].get();
   }
 
   /// Get the range of operands that are simply forwarded to the successor.
   OperandRange getForwardedOperands() const { return forwardedOperands; }
+
+  /// Get the range of operands that are simply forwarded to the successor.
+  MutableOperandRange getMutableForwardedOperands() const {
+    return forwardedOperands;
+  }
 
   /// Get a slice of the operands forwarded to the successor. The given range
   /// must not contain any operands produced by the operation.
@@ -126,9 +137,9 @@ private:
 
 namespace detail {
 /// Return the `BlockArgument` corresponding to operand `operandIndex` in some
-/// successor if `operandIndex` is within the range of `operands`, or None if
-/// `operandIndex` isn't a successor operand index.
-Optional<BlockArgument>
+/// successor if `operandIndex` is within the range of `operands`, or
+/// std::nullopt if `operandIndex` isn't a successor operand index.
+std::optional<BlockArgument>
 getBranchSuccessorArgument(const SuccessorOperands &operands,
                            unsigned operandIndex, Block *successor);
 
@@ -138,13 +149,48 @@ LogicalResult verifyBranchSuccessorOperands(Operation *op, unsigned succNo,
 } // namespace detail
 
 //===----------------------------------------------------------------------===//
+// WeightedBranchOpInterface
+//===----------------------------------------------------------------------===//
+
+namespace detail {
+/// Verify that the branch weights attached to an operation
+/// implementing WeightedBranchOpInterface are correct.
+LogicalResult verifyBranchWeights(Operation *op);
+} // namespace detail
+
+//===----------------------------------------------------------------------===//
+// WeightedRegiobBranchOpInterface
+//===----------------------------------------------------------------------===//
+
+namespace detail {
+/// Verify that the region weights attached to an operation
+/// implementing WeightedRegiobBranchOpInterface are correct.
+LogicalResult verifyRegionBranchWeights(Operation *op);
+} // namespace detail
+
+//===----------------------------------------------------------------------===//
 // RegionBranchOpInterface
 //===----------------------------------------------------------------------===//
 
 namespace detail {
 /// Verify that types match along control flow edges described the given op.
-LogicalResult verifyTypesAlongControlFlowEdges(Operation *op);
+LogicalResult verifyRegionBranchOpInterface(Operation *op);
 } //  namespace detail
+
+/// A mapping from successor operands to successor inputs.
+///
+/// * A successor operand is an operand of a region branch op or region
+///   branch terminator, that is forwarded to a successor input.
+/// * A successor input is a block argument of a region or a result of the
+///   region branch op, that is populated by a successor operand.
+///
+/// The mapping is 1:N. Each successor operand may be forwarded to multiple
+/// successor inputs. (Because the control flow can dispatch to multiple
+/// possible successors.) Operands that not forwarded at all are not present in
+/// the mapping.
+using RegionBranchSuccessorMapping = DenseMap<OpOperand *, SmallVector<Value>>;
+using RegionBranchInverseSuccessorMapping =
+    DenseMap<Value, SmallVector<OpOperand *>>;
 
 /// This class represents a successor of a region. A region successor can either
 /// be another region, or the parent operation. If the successor is a region,
@@ -161,27 +207,107 @@ class RegionSuccessor {
 public:
   /// Initialize a successor that branches to another region of the parent
   /// operation.
+  /// TODO: the default value for the regionInputs is somehow broken.
+  /// A region successor should have its input correctly set.
   RegionSuccessor(Region *region, Block::BlockArgListType regionInputs = {})
-      : region(region), inputs(regionInputs) {}
+      : successor(region), inputs(regionInputs) {
+    assert(region && "Region must not be null");
+  }
   /// Initialize a successor that branches back to/out of the parent operation.
-  RegionSuccessor(Optional<Operation::result_range> results = {})
-      : inputs(results ? ValueRange(*results) : ValueRange()) {}
+  /// The target must be one of the recursive parent operations.
+  RegionSuccessor(Operation *successorOp, Operation::result_range results)
+      : successor(successorOp), inputs(ValueRange(results)) {
+    assert(successorOp && "Successor op must not be null");
+  }
 
   /// Return the given region successor. Returns nullptr if the successor is the
   /// parent operation.
-  Region *getSuccessor() const { return region; }
+  Region *getSuccessor() const { return dyn_cast<Region *>(successor); }
 
   /// Return true if the successor is the parent operation.
-  bool isParent() const { return region == nullptr; }
+  bool isParent() const { return isa<Operation *>(successor); }
 
   /// Return the inputs to the successor that are remapped by the exit values of
   /// the current region.
   ValueRange getSuccessorInputs() const { return inputs; }
 
+  bool operator==(RegionSuccessor rhs) const {
+    return successor == rhs.successor && inputs == rhs.inputs;
+  }
+
+  friend bool operator!=(RegionSuccessor lhs, RegionSuccessor rhs) {
+    return !(lhs == rhs);
+  }
+
 private:
-  Region *region{nullptr};
+  llvm::PointerUnion<Region *, Operation *> successor{nullptr};
   ValueRange inputs;
 };
+
+/// This class represents a point being branched from in the methods of the
+/// `RegionBranchOpInterface`.
+/// One can branch from one of two kinds of places:
+/// * The parent operation (aka the `RegionBranchOpInterface` implementation)
+/// * A RegionBranchTerminatorOpInterface inside a region within the parent
+//    operation.
+class RegionBranchPoint {
+public:
+  /// Returns an instance of `RegionBranchPoint` representing the parent
+  /// operation.
+  static constexpr RegionBranchPoint parent() { return RegionBranchPoint(); }
+
+  /// Creates a `RegionBranchPoint` that branches from the given terminator.
+  inline RegionBranchPoint(RegionBranchTerminatorOpInterface predecessor);
+
+  /// Explicitly stops users from constructing with `nullptr`.
+  RegionBranchPoint(std::nullptr_t) = delete;
+
+  /// Returns true if branching from the parent op.
+  bool isParent() const { return predecessor == nullptr; }
+
+  /// Returns the terminator if branching from a region.
+  /// A null pointer otherwise.
+  Operation *getTerminatorPredecessorOrNull() const { return predecessor; }
+
+  /// Returns true if the two branch points are equal.
+  friend bool operator==(RegionBranchPoint lhs, RegionBranchPoint rhs) {
+    return lhs.predecessor == rhs.predecessor;
+  }
+
+private:
+  // Private constructor to encourage the use of `RegionBranchPoint::parent`.
+  constexpr RegionBranchPoint() = default;
+
+  /// Internal encoding. Uses nullptr for representing branching from the parent
+  /// op and the region terminator being branched from otherwise.
+  Operation *predecessor = nullptr;
+};
+
+inline bool operator!=(RegionBranchPoint lhs, RegionBranchPoint rhs) {
+  return !(lhs == rhs);
+}
+
+inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
+                                     RegionBranchPoint point) {
+  if (point.isParent())
+    return os << "<from parent>";
+  return os << "<region #"
+            << point.getTerminatorPredecessorOrNull()
+                   ->getParentRegion()
+                   ->getRegionNumber()
+            << ", terminator "
+            << OpWithFlags(point.getTerminatorPredecessorOrNull(),
+                           OpPrintingFlags().skipRegions())
+            << ">";
+}
+
+inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
+                                     RegionSuccessor successor) {
+  if (successor.isParent())
+    return os << "<to parent>";
+  return os << "<to region #" << successor.getSuccessor()->getRegionNumber()
+            << " with " << successor.getSuccessorInputs().size() << " inputs>";
+}
 
 /// This class represents upper and lower bounds on the number of times a region
 /// of a `RegionBranchOpInterface` can be invoked. The lower bound is at least
@@ -190,7 +316,8 @@ class InvocationBounds {
 public:
   /// Create invocation bounds. The lower bound must be at least 0 and only the
   /// upper bound can be unknown.
-  InvocationBounds(unsigned lb, Optional<unsigned> ub) : lower(lb), upper(ub) {
+  InvocationBounds(unsigned lb, std::optional<unsigned> ub)
+      : lower(lb), upper(ub) {
     assert((!ub || ub >= lb) && "upper bound cannot be less than lower bound");
   }
 
@@ -198,18 +325,18 @@ public:
   unsigned getLowerBound() const { return lower; }
 
   /// Return the upper bound.
-  Optional<unsigned> getUpperBound() const { return upper; }
+  std::optional<unsigned> getUpperBound() const { return upper; }
 
   /// Returns the unknown invocation bounds, i.e., there is no information on
   /// how many times a region may be invoked.
-  static InvocationBounds getUnknown() { return {0, llvm::None}; }
+  static InvocationBounds getUnknown() { return {0, std::nullopt}; }
 
 private:
   /// The minimum number of times the successor region will be invoked.
   unsigned lower;
-  /// The maximum number of times the successor region will be invoked or `None`
-  /// if an upper bound is not known.
-  Optional<unsigned> upper;
+  /// The maximum number of times the successor region will be invoked or
+  /// `std::nullopt` if an upper bound is not known.
+  std::optional<unsigned> upper;
 };
 
 /// Return `true` if `a` and `b` are in mutually exclusive regions as per
@@ -226,31 +353,11 @@ Region *getEnclosingRepetitiveRegion(Operation *op);
 /// exists.
 Region *getEnclosingRepetitiveRegion(Value value);
 
-//===----------------------------------------------------------------------===//
-// RegionBranchTerminatorOpInterface
-//===----------------------------------------------------------------------===//
-
-/// Returns true if the given operation is either annotated with the
-/// `ReturnLike` trait or implements the `RegionBranchTerminatorOpInterface`.
-bool isRegionReturnLike(Operation *operation);
-
-/// Returns the mutable operands that are passed to the region with the given
-/// `regionIndex`. If the operation does not implement the
-/// `RegionBranchTerminatorOpInterface` and is not marked as `ReturnLike`, the
-/// result will be `llvm::None`. In all other cases, the resulting
-/// `OperandRange` represents all operands that are passed to the specified
-/// successor region. If `regionIndex` is `llvm::None`, all operands that are
-/// passed to the parent operation will be returned.
-Optional<MutableOperandRange>
-getMutableRegionBranchSuccessorOperands(Operation *operation,
-                                        Optional<unsigned> regionIndex);
-
-/// Returns the read only operands that are passed to the region with the given
-/// `regionIndex`. See `getMutableRegionBranchSuccessorOperands` for more
-/// information.
-Optional<OperandRange>
-getRegionBranchSuccessorOperands(Operation *operation,
-                                 Optional<unsigned> regionIndex);
+/// Populate canonicalization patterns that simplify successor operands/inputs
+/// of region branch operations. Only operations with the given name are
+/// matched.
+void populateRegionBranchOpInterfaceCanonicalizationPatterns(
+    RewritePatternSet &patterns, StringRef opName, PatternBenefit benefit = 1);
 
 //===----------------------------------------------------------------------===//
 // ControlFlow Traits
@@ -283,5 +390,11 @@ struct ReturnLike : public TraitBase<ConcreteType, ReturnLike> {
 
 /// Include the generated interface declarations.
 #include "mlir/Interfaces/ControlFlowInterfaces.h.inc"
+
+namespace mlir {
+inline RegionBranchPoint::RegionBranchPoint(
+    RegionBranchTerminatorOpInterface predecessor)
+    : predecessor(predecessor.getOperation()) {}
+} // namespace mlir
 
 #endif // MLIR_INTERFACES_CONTROLFLOWINTERFACES_H

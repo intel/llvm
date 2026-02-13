@@ -43,12 +43,12 @@ define i32 @test1() {
 ; LINUX: ldr r0, .LCPI0_0
 ; LINUX: ldr r0, [pc, r0]
 ; LINUX: ldr r0, [r0]
-; LINUX: .long G(GOT_PREL)-((.LPC0_0+8)-.Ltmp0)
+; LINUX: .long G(GOT_PREL)-(.LPC0_0+8-.Ltmp0)
 
 ; LINUX_T: ldr r0, .LCPI0_0
 ; LINUX_T: add r0, pc
 ; LINUX_T: ldr r0, [r0]
 ; LINUX_T: ldr r0, [r0]
-	%tmp = load i32, i32* @G
+	%tmp = load i32, ptr @G
 	ret i32 %tmp
 }

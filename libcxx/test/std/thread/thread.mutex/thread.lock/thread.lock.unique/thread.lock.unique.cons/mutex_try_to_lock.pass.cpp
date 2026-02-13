@@ -6,64 +6,36 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: no-threads
-// ALLOW_RETRIES: 2
-
 // <mutex>
 
 // template <class Mutex> class unique_lock;
 
 // unique_lock(mutex_type& m, try_to_lock_t);
 
-#include <mutex>
-#include <thread>
-#include <cstdlib>
 #include <cassert>
+#include <mutex>
 
-#include "make_test_thread.h"
-#include "test_macros.h"
+#include "checking_mutex.h"
 
-std::mutex m;
+int main(int, char**) {
+  checking_mutex mux;
 
-typedef std::chrono::system_clock Clock;
-typedef Clock::time_point time_point;
-typedef Clock::duration duration;
-typedef std::chrono::milliseconds ms;
-typedef std::chrono::nanoseconds ns;
+  { // check successful lock
+    mux.reject = false;
+    std::unique_lock<checking_mutex> lock(mux, std::try_to_lock_t());
+    assert(mux.current_state == checking_mutex::locked_via_try_lock);
+    assert(lock.owns_lock());
+  }
+  assert(mux.current_state == checking_mutex::unlocked);
 
-void f()
-{
-    time_point t0 = Clock::now();
-    {
-        std::unique_lock<std::mutex> lk(m, std::try_to_lock);
-        assert(lk.owns_lock() == false);
-    }
-    {
-        std::unique_lock<std::mutex> lk(m, std::try_to_lock);
-        assert(lk.owns_lock() == false);
-    }
-    {
-        std::unique_lock<std::mutex> lk(m, std::try_to_lock);
-        assert(lk.owns_lock() == false);
-    }
-    while (true)
-    {
-        std::unique_lock<std::mutex> lk(m, std::try_to_lock);
-        if (lk.owns_lock())
-            break;
-    }
-    time_point t1 = Clock::now();
-    ns d = t1 - t0 - ms(250);
-    assert(d < ms(200));  // within 200ms
-}
-
-int main(int, char**)
-{
-    m.lock();
-    std::thread t = support::make_test_thread(f);
-    std::this_thread::sleep_for(ms(250));
-    m.unlock();
-    t.join();
+  { // check successful lock
+    mux.reject = true;
+    std::unique_lock<checking_mutex> lock(mux, std::try_to_lock_t());
+    assert(mux.last_try == checking_mutex::locked_via_try_lock);
+    assert(mux.current_state == checking_mutex::unlocked);
+    assert(!lock.owns_lock());
+  }
+  assert(mux.current_state == checking_mutex::unlocked);
 
   return 0;
 }

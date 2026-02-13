@@ -1,8 +1,8 @@
-; RUN: llc < %s -march=xcore | FileCheck %s
+; RUN: llc < %s -mtriple=xcore | FileCheck %s
 
 ; CHECK: .weak fd
 define weak void @fd() {
-  call void @fr(i32* @gd, i32* @gr)
+  call void @fr(ptr @gd, ptr @gr)
   ret void
 }
 
@@ -19,14 +19,14 @@ define protected void @test_protected() {
 }
 
 ; CHECK: .globl array.globound
-; CHECK: .set array.globound, 2
+; CHECK: array.globound = 2
 ; CHECK: .weak array.globound
 ; CHECK: .globl array
 ; CHECK: .weak array
 @array = weak global [2 x i32] zeroinitializer
 
 ; CHECK: .globl ac.globound
-; CHECK: .set ac.globound, 2
+; CHECK: ac.globound = 2
 ; CHECK: .weak ac.globound
 ; CHECK: .globl ac
 ; CHECK: .weak ac
@@ -43,7 +43,7 @@ define protected void @test_protected() {
 ; CHECK-NOT: .hidden test_hidden_declaration
 
 ; CHECK: .weak fr
-declare extern_weak void @fr(i32*, i32*)
+declare extern_weak void @fr(ptr, ptr)
 
 ; CHECK: .weak gr
 @gr = extern_weak global i32

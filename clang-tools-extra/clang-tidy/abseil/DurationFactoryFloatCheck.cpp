@@ -1,4 +1,4 @@
-//===--- DurationFactoryFloatCheck.cpp - clang-tidy -----------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,13 +11,11 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Lex/Lexer.h"
-#include "clang/Tooling/FixIt.h"
+#include <optional>
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace abseil {
+namespace clang::tidy::abseil {
 
 // Returns `true` if `Range` is inside a macro definition.
 static bool insideMacroDefinition(const MatchFinder::MatchResult &Result,
@@ -30,7 +28,7 @@ static bool insideMacroDefinition(const MatchFinder::MatchResult &Result,
 
 void DurationFactoryFloatCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
-      callExpr(callee(functionDecl(DurationFactoryFunction())),
+      callExpr(callee(functionDecl(durationFactoryFunction())),
                hasArgument(0, anyOf(cxxStaticCastExpr(hasDestinationType(
                                         realFloatingPointType())),
                                     cStyleCastExpr(hasDestinationType(
@@ -54,7 +52,7 @@ void DurationFactoryFloatCheck::check(const MatchFinder::MatchResult &Result) {
   if (Arg->getBeginLoc().isMacroID())
     return;
 
-  llvm::Optional<std::string> SimpleArg = stripFloatCast(Result, *Arg);
+  std::optional<std::string> SimpleArg = stripFloatCast(Result, *Arg);
   if (!SimpleArg)
     SimpleArg = stripFloatLiteralFraction(Result, *Arg);
 
@@ -65,6 +63,4 @@ void DurationFactoryFloatCheck::check(const MatchFinder::MatchResult &Result) {
   }
 }
 
-} // namespace abseil
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::abseil

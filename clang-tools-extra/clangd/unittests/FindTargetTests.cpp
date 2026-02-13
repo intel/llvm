@@ -15,7 +15,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Testing/Support/Annotations.h"
+#include "llvm/Testing/Annotations/Annotations.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include <initializer_list>
@@ -279,6 +279,21 @@ TEST_F(TargetDeclTest, UsingDecl) {
   )cpp";
   EXPECT_DECLS("UnresolvedUsingTypeLoc",
                {"using typename Foo<T>::foo", Rel::Alias});
+
+  // Using enum.
+  Flags.push_back("-std=c++20");
+  Code = R"cpp(
+    namespace ns { enum class A { X }; }
+    [[using enum ns::A]];
+  )cpp";
+  EXPECT_DECLS("UsingEnumDecl", "enum class A : int");
+
+  Code = R"cpp(
+    namespace ns { enum class A { X }; }
+    using enum ns::A;
+    auto m = [[X]];
+  )cpp";
+  EXPECT_DECLS("DeclRefExpr", "X");
 }
 
 TEST_F(TargetDeclTest, BaseSpecifier) {
@@ -412,7 +427,7 @@ TEST_F(TargetDeclTest, Types) {
     [[auto]] X = S{};
   )cpp";
   // FIXME: deduced type missing in AST. https://llvm.org/PR42914
-  EXPECT_DECLS("AutoTypeLoc");
+  EXPECT_DECLS("AutoTypeLoc", );
 
   Code = R"cpp(
     template <typename... E>
@@ -522,7 +537,7 @@ TEST_F(TargetDeclTest, Concept) {
     }
   )cpp";
   EXPECT_DECLS(
-      "ConceptSpecializationExpr",
+      "ConceptReference",
       {"template <typename T> concept Fooable = requires (T t) { t.foo(); }"});
 
   // trailing requires clause
@@ -533,7 +548,7 @@ TEST_F(TargetDeclTest, Concept) {
       template <typename T>
       void foo() requires [[Fooable]]<T>;
   )cpp";
-  EXPECT_DECLS("ConceptSpecializationExpr",
+  EXPECT_DECLS("ConceptReference",
                {"template <typename T> concept Fooable = true"});
 
   // constrained-parameter
@@ -544,7 +559,7 @@ TEST_F(TargetDeclTest, Concept) {
     template <[[Fooable]] T>
     void bar(T t);
   )cpp";
-  EXPECT_DECLS("ConceptSpecializationExpr",
+  EXPECT_DECLS("ConceptReference",
                {"template <typename T> concept Fooable = true"});
 
   // partial-concept-id
@@ -555,7 +570,7 @@ TEST_F(TargetDeclTest, Concept) {
     template <[[Fooable]]<int> T>
     void bar(T t);
   )cpp";
-  EXPECT_DECLS("ConceptSpecializationExpr",
+  EXPECT_DECLS("ConceptReference",
                {"template <typename T, typename U> concept Fooable = true"});
 }
 
@@ -563,14 +578,14 @@ TEST_F(TargetDeclTest, Coroutine) {
   Flags.push_back("-std=c++20");
 
   Code = R"cpp(
-    namespace std::experimental {
+    namespace std {
     template <typename, typename...> struct coroutine_traits;
     template <typename> struct coroutine_handle {
       template <typename U>
       coroutine_handle(coroutine_handle<U>&&) noexcept;
       static coroutine_handle from_address(void* __addr) noexcept;
     };
-    } // namespace std::experimental
+    } // namespace std
 
     struct executor {};
     struct awaitable {};
@@ -581,7 +596,7 @@ TEST_F(TargetDeclTest, Coroutine) {
       struct result_t {
         ~result_t();
         bool await_ready() const noexcept;
-        void await_suspend(std::experimental::coroutine_handle<void>) noexcept;
+        void await_suspend(std::coroutine_handle<void>) noexcept;
         void await_resume() const noexcept;
       };
       result_t initial_suspend() noexcept;
@@ -589,18 +604,45 @@ TEST_F(TargetDeclTest, Coroutine) {
       result_t await_transform(executor) noexcept;
     };
 
-    namespace std::experimental {
+    namespace std {
     template <>
     struct coroutine_traits<awaitable> {
       typedef awaitable_frame promise_type;
     };
-    } // namespace std::experimental
+    } // namespace std
 
     awaitable foo() {
       co_await [[executor]]();
     }
   )cpp";
   EXPECT_DECLS("RecordTypeLoc", "struct executor");
+}
+
+TEST_F(TargetDeclTest, RewrittenBinaryOperator) {
+  Flags.push_back("-std=c++20");
+
+  Code = R"cpp(
+  namespace std {
+    struct strong_ordering {
+      int n;
+      constexpr operator int() const { return n; }
+      static const strong_ordering equal, greater, less;
+    };
+    constexpr strong_ordering strong_ordering::equal = {0};
+    constexpr strong_ordering strong_ordering::greater = {1};
+    constexpr strong_ordering strong_ordering::less = {-1};
+    }
+
+    struct Foo
+    {
+      int x;
+      auto operator<=>(const Foo&) const = default;
+    };
+
+    bool x = (Foo(1) [[!=]] Foo(2));
+  )cpp";
+  EXPECT_DECLS("CXXRewrittenBinaryOperator",
+               {"bool operator==(const Foo &) const noexcept = default"});
 }
 
 TEST_F(TargetDeclTest, FunctionTemplate) {
@@ -662,6 +704,39 @@ TEST_F(TargetDeclTest, TypeAliasTemplate) {
                {"class SmallVector", Rel::TemplatePattern | Rel::Underlying},
                {"using TinyVector = SmallVector<U, 1>",
                 Rel::Alias | Rel::TemplatePattern});
+}
+
+TEST_F(TargetDeclTest, BuiltinTemplates) {
+  Code = R"cpp(
+    template <class T, T... Index> struct integer_sequence {};
+    [[__make_integer_seq]]<integer_sequence, int, 3> X;
+  )cpp";
+  EXPECT_DECLS(
+      "TemplateSpecializationTypeLoc",
+      {"struct integer_sequence", Rel::TemplatePattern | Rel::Underlying},
+      {"template<> struct integer_sequence<int, <0, 1, 2>>",
+       Rel::TemplateInstantiation | Rel::Underlying});
+
+  // Dependent context.
+  Code = R"cpp(
+    template <class T, T... Index> struct integer_sequence;
+
+    template <class T, int N>
+    using make_integer_sequence = [[__make_integer_seq]]<integer_sequence, T, N>;
+  )cpp";
+  EXPECT_DECLS("TemplateSpecializationTypeLoc", );
+
+  Code = R"cpp(
+    template <int N, class... Pack>
+    using type_pack_element = [[__type_pack_element]]<N, Pack...>;
+  )cpp";
+  EXPECT_DECLS("TemplateSpecializationTypeLoc", );
+
+  Code = R"cpp(
+    template <template <class...> class Templ, class... Types>
+    using dedup_types = Templ<[[__builtin_dedup_pack]]<Types...>...>;
+  )cpp";
+  EXPECT_DECLS("TemplateSpecializationTypeLoc", );
 }
 
 TEST_F(TargetDeclTest, MemberOfTemplate) {
@@ -767,10 +842,14 @@ TEST_F(TargetDeclTest, OverloadExpr) {
       [[delete]] x;
     }
   )cpp";
-  EXPECT_DECLS("CXXDeleteExpr", "void operator delete(void *) noexcept");
+  // Sized deallocation is enabled by default in C++14 onwards.
+  EXPECT_DECLS("CXXDeleteExpr",
+               "void operator delete(void *, __size_t) noexcept");
 }
 
 TEST_F(TargetDeclTest, DependentExprs) {
+  Flags.push_back("--std=c++20");
+
   // Heuristic resolution of method of dependent field
   Code = R"cpp(
         struct A { void foo() {} };
@@ -782,7 +861,7 @@ TEST_F(TargetDeclTest, DependentExprs) {
           }
         };
       )cpp";
-  EXPECT_DECLS("CXXDependentScopeMemberExpr", "void foo()");
+  EXPECT_DECLS("MemberExpr", "void foo()");
 
   // Similar to above but base expression involves a function call.
   Code = R"cpp(
@@ -800,7 +879,7 @@ TEST_F(TargetDeclTest, DependentExprs) {
           }
         };
       )cpp";
-  EXPECT_DECLS("CXXDependentScopeMemberExpr", "void foo()");
+  EXPECT_DECLS("MemberExpr", "void foo()");
 
   // Similar to above but uses a function pointer.
   Code = R"cpp(
@@ -819,7 +898,7 @@ TEST_F(TargetDeclTest, DependentExprs) {
           }
         };
       )cpp";
-  EXPECT_DECLS("CXXDependentScopeMemberExpr", "void foo()");
+  EXPECT_DECLS("MemberExpr", "void foo()");
 
   // Base expression involves a member access into this.
   Code = R"cpp(
@@ -848,6 +927,64 @@ TEST_F(TargetDeclTest, DependentExprs) {
       )cpp";
   EXPECT_DECLS("CXXDependentScopeMemberExpr",
                "template <typename T> T convert() const");
+
+  Code = R"cpp(
+        template <typename T>
+        struct Waldo {
+          void find();
+        };
+        template <typename T>
+        using Wally = Waldo<T>;
+        template <typename T>
+        void foo(Wally<T> w) {
+          w.[[find]]();
+        }
+  )cpp";
+  EXPECT_DECLS("CXXDependentScopeMemberExpr", "void find()");
+
+  Code = R"cpp(
+        template <typename T>
+        struct Waldo {
+          void find();
+        };
+        template <typename T>
+        struct MetaWaldo {
+          using Type = Waldo<T>;
+        };
+        template <typename T>
+        void foo(typename MetaWaldo<T>::Type w) {
+          w.[[find]]();
+        }
+  )cpp";
+  EXPECT_DECLS("CXXDependentScopeMemberExpr", "void find()");
+
+  Code = R"cpp(
+        struct Waldo {
+          void find();
+        };
+        template <typename T>
+        using Wally = Waldo;
+        template <typename>
+        struct S : Wally<int> {
+          void Foo() { this->[[find]](); }
+        };
+  )cpp";
+  EXPECT_DECLS("MemberExpr", "void find()");
+
+  // Base expression is the type of a non-type template parameter
+  // which is deduced using CTAD.
+  Code = R"cpp(
+        template <int N>
+        struct Waldo {
+          const int found = N;
+        };
+
+        template <Waldo W>
+        int test() {
+          return W.[[found]];
+        }
+  )cpp";
+  EXPECT_DECLS("CXXDependentScopeMemberExpr", "const int found = N");
 }
 
 TEST_F(TargetDeclTest, DependentTypes) {
@@ -861,7 +998,7 @@ TEST_F(TargetDeclTest, DependentTypes) {
       )cpp";
   EXPECT_DECLS("DependentNameTypeLoc", "struct B");
 
-  // Heuristic resolution of dependent type name which doesn't get a TypeLoc
+  // Heuristic resolution of dependent type name within a NestedNameSpecifierLoc
   Code = R"cpp(
         template <typename>
         struct A { struct B { struct C {}; }; };
@@ -869,7 +1006,7 @@ TEST_F(TargetDeclTest, DependentTypes) {
         template <typename T>
         void foo(typename A<T>::[[B]]::C);
       )cpp";
-  EXPECT_DECLS("NestedNameSpecifierLoc", "struct B");
+  EXPECT_DECLS("DependentNameTypeLoc", "struct B");
 
   // Heuristic resolution of dependent type name whose qualifier is also
   // dependent
@@ -892,8 +1029,34 @@ TEST_F(TargetDeclTest, DependentTypes) {
         template <typename T>
         void foo(typename A<T>::template [[B]]<int>);
       )cpp";
-  EXPECT_DECLS("DependentTemplateSpecializationTypeLoc",
-               "template <typename> struct B");
+  EXPECT_DECLS("TemplateSpecializationTypeLoc", "template <typename> struct B");
+
+  // Dependent name with recursive definition. We don't expect a
+  // result, but we shouldn't get into a stack overflow either.
+  Code = R"cpp(
+        template <int N>
+        struct waldo {
+          typedef typename waldo<N - 1>::type::[[next]] type;
+        };
+  )cpp";
+  EXPECT_DECLS("DependentNameTypeLoc", );
+
+  // Similar to above but using mutually recursive templates.
+  Code = R"cpp(
+        template <int N>
+        struct odd;
+
+        template <int N>
+        struct even {
+          using type = typename odd<N - 1>::type::next;
+        };
+
+        template <int N>
+        struct odd {
+          using type = typename even<N - 1>::type::[[next]];
+        };
+  )cpp";
+  EXPECT_DECLS("DependentNameTypeLoc", );
 }
 
 TEST_F(TargetDeclTest, TypedefCascade) {
@@ -1040,6 +1203,16 @@ TEST_F(TargetDeclTest, ObjC) {
   EXPECT_DECLS("ObjCCategoryImplDecl", "@interface Foo(Ext)");
 
   Code = R"cpp(
+    @interface Foo
+    @end
+    @interface Foo (Ext)
+    @end
+    @implementation Foo ([[Ext]])
+    @end
+  )cpp";
+  EXPECT_DECLS("ObjCCategoryImplDecl", "@interface Foo(Ext)");
+
+  Code = R"cpp(
     void test(id</*error-ok*/[[InvalidProtocol]]> p);
   )cpp";
   EXPECT_DECLS("ParmVarDecl", "id p");
@@ -1111,14 +1284,14 @@ TEST_F(TargetDeclTest, ObjC) {
     + ([[id]])sharedInstance;
     @end
   )cpp";
-  EXPECT_DECLS("TypedefTypeLoc");
+  EXPECT_DECLS("TypedefTypeLoc", );
 
   Code = R"cpp(
     @interface Foo
     + ([[instancetype]])sharedInstance;
     @end
   )cpp";
-  EXPECT_DECLS("TypedefTypeLoc");
+  EXPECT_DECLS("TypedefTypeLoc", );
 }
 
 class FindExplicitReferencesTest : public ::testing::Test {
@@ -1128,10 +1301,7 @@ protected:
     std::string DumpedReferences;
   };
 
-  /// Parses \p Code, finds function or namespace '::foo' and annotates its body
-  /// with results of findExplicitReferences.
-  /// See actual tests for examples of annotation format.
-  AllRefs annotateReferencesInFoo(llvm::StringRef Code) {
+  TestTU newTU(llvm::StringRef Code) {
     TestTU TU;
     TU.Code = std::string(Code);
 
@@ -1140,32 +1310,13 @@ protected:
     TU.ExtraArgs.push_back("-std=c++20");
     TU.ExtraArgs.push_back("-xobjective-c++");
 
-    auto AST = TU.build();
-    auto *TestDecl = &findDecl(AST, "foo");
-    if (auto *T = llvm::dyn_cast<FunctionTemplateDecl>(TestDecl))
-      TestDecl = T->getTemplatedDecl();
+    return TU;
+  }
 
-    std::vector<ReferenceLoc> Refs;
-    if (const auto *Func = llvm::dyn_cast<FunctionDecl>(TestDecl))
-      findExplicitReferences(
-          Func->getBody(),
-          [&Refs](ReferenceLoc R) { Refs.push_back(std::move(R)); },
-          AST.getHeuristicResolver());
-    else if (const auto *NS = llvm::dyn_cast<NamespaceDecl>(TestDecl))
-      findExplicitReferences(
-          NS,
-          [&Refs, &NS](ReferenceLoc R) {
-            // Avoid adding the namespace foo decl to the results.
-            if (R.Targets.size() == 1 && R.Targets.front() == NS)
-              return;
-            Refs.push_back(std::move(R));
-          },
-          AST.getHeuristicResolver());
-    else
-      ADD_FAILURE() << "Failed to find ::foo decl for test";
-
+  AllRefs annotatedReferences(llvm::StringRef Code, ParsedAST &AST,
+                              std::vector<ReferenceLoc> Refs) {
     auto &SM = AST.getSourceManager();
-    llvm::sort(Refs, [&](const ReferenceLoc &L, const ReferenceLoc &R) {
+    llvm::stable_sort(Refs, [&](const ReferenceLoc &L, const ReferenceLoc &R) {
       return SM.isBeforeInTranslationUnit(L.NameLoc, R.NameLoc);
     });
 
@@ -1200,9 +1351,60 @@ protected:
 
     return AllRefs{std::move(AnnotatedCode), std::move(DumpedReferences)};
   }
+
+  /// Parses \p Code, and annotates its body with results of
+  /// findExplicitReferences on all top level decls.
+  /// See actual tests for examples of annotation format.
+  AllRefs annotateAllReferences(llvm::StringRef Code) {
+    TestTU TU = newTU(Code);
+    auto AST = TU.build();
+
+    std::vector<ReferenceLoc> Refs;
+    for (auto *TopLevel : AST.getLocalTopLevelDecls())
+      findExplicitReferences(
+          TopLevel, [&Refs](ReferenceLoc R) { Refs.push_back(std::move(R)); },
+          AST.getHeuristicResolver());
+    return annotatedReferences(Code, AST, std::move(Refs));
+  }
+
+  /// Parses \p Code, finds function or namespace '::foo' and annotates its body
+  /// with results of findExplicitReferences.
+  /// See actual tests for examples of annotation format.
+  AllRefs annotateReferencesInFoo(llvm::StringRef Code) {
+    TestTU TU = newTU(Code);
+    auto AST = TU.build();
+    auto *TestDecl = &findDecl(AST, "foo");
+    if (auto *T = llvm::dyn_cast<FunctionTemplateDecl>(TestDecl))
+      TestDecl = T->getTemplatedDecl();
+
+    std::vector<ReferenceLoc> Refs;
+    if (const auto *Func = llvm::dyn_cast<FunctionDecl>(TestDecl))
+      findExplicitReferences(
+          Func->getBody(),
+          [&Refs](ReferenceLoc R) { Refs.push_back(std::move(R)); },
+          AST.getHeuristicResolver());
+    else if (const auto *NS = llvm::dyn_cast<NamespaceDecl>(TestDecl))
+      findExplicitReferences(
+          NS,
+          [&Refs, &NS](ReferenceLoc R) {
+            // Avoid adding the namespace foo decl to the results.
+            if (R.Targets.size() == 1 && R.Targets.front() == NS)
+              return;
+            Refs.push_back(std::move(R));
+          },
+          AST.getHeuristicResolver());
+    else if (const auto *OC = llvm::dyn_cast<ObjCContainerDecl>(TestDecl))
+      findExplicitReferences(
+          OC, [&Refs](ReferenceLoc R) { Refs.push_back(std::move(R)); },
+          AST.getHeuristicResolver());
+    else
+      ADD_FAILURE() << "Failed to find ::foo decl for test";
+
+    return annotatedReferences(Code, AST, std::move(Refs));
+  }
 };
 
-TEST_F(FindExplicitReferencesTest, All) {
+TEST_F(FindExplicitReferencesTest, AllRefsInFoo) {
   std::pair</*Code*/ llvm::StringRef, /*References*/ llvm::StringRef> Cases[] =
       {// Simple expressions.
        {R"cpp(
@@ -1252,6 +1454,15 @@ TEST_F(FindExplicitReferencesTest, All) {
         )cpp",
         "0: targets = {ns}\n"
         "1: targets = {ns::global}, qualifier = 'ns::'\n"},
+       // Using enum declarations.
+       {R"cpp(
+          namespace ns { enum class A {}; }
+          void foo() {
+            using enum $0^ns::$1^A;
+          }
+        )cpp",
+        "0: targets = {ns}\n"
+        "1: targets = {ns::A}, qualifier = 'ns::'\n"},
        // Simple types.
        {R"cpp(
          struct Struct { int a; };
@@ -1283,7 +1494,7 @@ TEST_F(FindExplicitReferencesTest, All) {
         "4: targets = {a}\n"
         "5: targets = {a::b}, qualifier = 'a::'\n"
         "6: targets = {a::b::S}\n"
-        "7: targets = {a::b::S::type}, qualifier = 'struct S::'\n"
+        "7: targets = {a::b::S::type}, qualifier = 'S::'\n"
         "8: targets = {y}, decl\n"},
        {R"cpp(
          void foo() {
@@ -1616,7 +1827,7 @@ TEST_F(FindExplicitReferencesTest, All) {
               int (*$2^fptr)(int $3^a, int) = nullptr;
              }
            )cpp",
-           "0: targets = {}\n"
+           "0: targets = {(unnamed class)}\n"
            "1: targets = {x}, decl\n"
            "2: targets = {fptr}, decl\n"
            "3: targets = {a}, decl\n"},
@@ -1920,6 +2131,42 @@ TEST_F(FindExplicitReferencesTest, All) {
 
     auto Actual =
         annotateReferencesInFoo(llvm::Annotations(ExpectedCode).code());
+    EXPECT_EQ(ExpectedCode, Actual.AnnotatedCode);
+    EXPECT_EQ(ExpectedRefs, Actual.DumpedReferences) << ExpectedCode;
+  }
+}
+
+TEST_F(FindExplicitReferencesTest, AllRefs) {
+  std::pair</*Code*/ llvm::StringRef, /*References*/ llvm::StringRef> Cases[] =
+      {{R"cpp(
+      @interface $0^MyClass
+      @end
+      @implementation $1^$2^MyClass
+      @end
+      )cpp",
+        "0: targets = {MyClass}, decl\n"
+        "1: targets = {MyClass}\n"
+        "2: targets = {MyClass}, decl\n"},
+       {R"cpp(
+      @interface $0^MyClass
+      @end
+      @interface $1^MyClass ($2^Category)
+      @end
+      @implementation $3^MyClass ($4^$5^Category)
+      @end
+      )cpp",
+        "0: targets = {MyClass}, decl\n"
+        "1: targets = {MyClass}\n"
+        "2: targets = {Category}, decl\n"
+        "3: targets = {MyClass}\n"
+        "4: targets = {Category}\n"
+        "5: targets = {Category}, decl\n"}};
+
+  for (const auto &C : Cases) {
+    llvm::StringRef ExpectedCode = C.first;
+    llvm::StringRef ExpectedRefs = C.second;
+
+    auto Actual = annotateAllReferences(llvm::Annotations(ExpectedCode).code());
     EXPECT_EQ(ExpectedCode, Actual.AnnotatedCode);
     EXPECT_EQ(ExpectedRefs, Actual.DumpedReferences) << ExpectedCode;
   }

@@ -2,13 +2,21 @@ set(CLANGD_TEST_DEPS
   clangd
   ClangdTests
   clangd-indexer
-  # No tests for it, but we should still make sure they build.
-  dexp
+  split-file
   )
+
+if (LLVM_INCLUDE_BENCHMARKS)
+  list(APPEND CLANGD_TEST_DEPS IndexBenchmark)
+endif()
 
 if(CLANGD_BUILD_XPC)
   list(APPEND CLANGD_TEST_DEPS clangd-xpc-test-client)
   list(APPEND CLANGD_TEST_DEPS ClangdXpcUnitTests)
+endif()
+
+if(CLANGD_BUILD_DEXP)
+  # No tests for it, but we should still make sure they build.
+  list(APPEND CLANGD_TEST_DEPS dexp)
 endif()
 
 if(CLANGD_ENABLE_REMOTE)
@@ -27,6 +35,13 @@ configure_lit_site_cfg(
   MAIN_CONFIG
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py
   )
+
+# Copy an empty compile_flags.txt to make sure tests don't pick up arbitrary
+# commands from parents.
+file(
+  TOUCH
+  ${CMAKE_CURRENT_BINARY_DIR}/compile_flags.txt
+)
 
 add_lit_testsuite(check-clangd "Running the Clangd regression tests"
   # clangd doesn't put unittest configs in test/unit like every other project.

@@ -2,7 +2,7 @@
 
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -mtriple=%triple -O0 -filetype=obj < %t.ll | llvm-dwarfdump -v -debug-info - | FileCheck --implicit-check-not "{{DW_TAG|NULL}}" %s
 
@@ -29,14 +29,12 @@ target triple = "spir64-unknown-unknown"
 ; CHECK:     DW_AT_name {{.*}} "f1"
 ; CHECK:     DW_TAG_imported_declaration
 ; CHECK:     NULL
-; CHECK:   DW_TAG_namespace
-; CHECK:     DW_TAG_subprogram
-; CHECK:     NULL
 ; CHECK:   DW_TAG_subprogram
 ; CHECK:     DW_AT_name {{.*}} "f2"
 ; CHECK:     DW_TAG_inlined_subroutine
-; CHECK:       DW_TAG_imported_declaration
-; CHECK:       NULL
+; CHECK:     NULL
+; CHECK:   DW_TAG_namespace
+; CHECK:     DW_TAG_subprogram
 ; CHECK:     NULL
 ; CHECK:   NULL
 

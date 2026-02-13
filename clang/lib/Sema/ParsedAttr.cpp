@@ -16,25 +16,12 @@
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Sema/SemaInternal.h"
-#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/StringRef.h"
-#include "llvm/Support/ManagedStatic.h"
 #include <cassert>
 #include <cstddef>
 #include <utility>
 
 using namespace clang;
-
-LLVM_INSTANTIATE_REGISTRY(ParsedAttrInfoRegistry)
-
-IdentifierLoc *IdentifierLoc::create(ASTContext &Ctx, SourceLocation Loc,
-                                     IdentifierInfo *Ident) {
-  IdentifierLoc *Result = new (Ctx) IdentifierLoc;
-  Result->Loc = Loc;
-  Result->Ident = Ident;
-  return Result;
-}
 
 size_t ParsedAttr::allocated_size() const {
   if (IsAvailability) return AttributeFactory::AvailabilityAllocSize;
@@ -67,8 +54,7 @@ void *AttributeFactory::allocate(size_t size) {
   // Check for a previously reclaimed attribute.
   size_t index = getFreeListIndexForSize(size);
   if (index < FreeLists.size() && !FreeLists[index].empty()) {
-    ParsedAttr *attr = FreeLists[index].back();
-    FreeLists[index].pop_back();
+    ParsedAttr *attr = FreeLists[index].pop_back_val();
     return attr;
   }
 
@@ -99,8 +85,15 @@ void AttributeFactory::reclaimPool(AttributePool &cur) {
 }
 
 void AttributePool::takePool(AttributePool &pool) {
-  Attrs.insert(Attrs.end(), pool.Attrs.begin(), pool.Attrs.end());
+  llvm::append_range(Attrs, pool.Attrs);
   pool.Attrs.clear();
+}
+
+void AttributePool::takeFrom(ParsedAttributesView &List, AttributePool &Pool) {
+  assert(&Pool != this && "AttributePool can't take attributes from itself");
+  for (ParsedAttr *A : List.AttrList)
+    Pool.remove(A);
+  llvm::append_range(Attrs, List.AttrList);
 }
 
 namespace {
@@ -120,13 +113,7 @@ const ParsedAttrInfo &ParsedAttrInfo::get(const AttributeCommonInfo &A) {
   if (A.getParsedKind() == AttributeCommonInfo::IgnoredAttribute)
     return IgnoredParsedAttrInfo;
 
-  // Otherwise this may be an attribute defined by a plugin. First instantiate
-  // all plugin attributes if we haven't already done so.
-  static llvm::ManagedStatic<std::list<std::unique_ptr<ParsedAttrInfo>>>
-      PluginAttrInstances;
-  if (PluginAttrInstances->empty())
-    for (auto It : ParsedAttrInfoRegistry::entries())
-      PluginAttrInstances->emplace_back(It.instantiate());
+  // Otherwise this may be an attribute defined by a plugin.
 
   // Search for a ParsedAttrInfo whose name and syntax match.
   std::string FullName = A.getNormalizedFullName();
@@ -134,10 +121,9 @@ const ParsedAttrInfo &ParsedAttrInfo::get(const AttributeCommonInfo &A) {
   if (SyntaxUsed == AttributeCommonInfo::AS_ContextSensitiveKeyword)
     SyntaxUsed = AttributeCommonInfo::AS_Keyword;
 
-  for (auto &Ptr : *PluginAttrInstances)
-    for (auto &S : Ptr->Spellings)
-      if (S.Syntax == SyntaxUsed && S.NormalizedFullName == FullName)
-        return *Ptr;
+  for (auto &Ptr : getAttributePluginInstances())
+    if (Ptr->hasSpelling(SyntaxUsed, FullName))
+      return *Ptr;
 
   // If we failed to find a match then return a default ParsedAttrInfo.
   static const ParsedAttrInfo DefaultParsedAttrInfo(
@@ -146,7 +132,7 @@ const ParsedAttrInfo &ParsedAttrInfo::get(const AttributeCommonInfo &A) {
 }
 
 ArrayRef<const ParsedAttrInfo *> ParsedAttrInfo::getAllBuiltin() {
-  return llvm::makeArrayRef(AttrInfoMap);
+  return llvm::ArrayRef(AttrInfoMap);
 }
 
 unsigned ParsedAttr::getMinArgs() const { return getInfo().NumArgs; }
@@ -203,7 +189,18 @@ bool ParsedAttr::isTypeAttr() const { return getInfo().IsType; }
 bool ParsedAttr::isStmtAttr() const { return getInfo().IsStmt; }
 
 bool ParsedAttr::existsInTarget(const TargetInfo &Target) const {
-  return getInfo().existsInTarget(Target);
+  Kind K = getParsedKind();
+
+  // If the attribute has a target-specific spelling, check that it exists.
+  // Only call this if the attr is not ignored/unknown. For most targets, this
+  // function just returns true.
+  bool HasSpelling = K != IgnoredAttribute && K != UnknownAttribute &&
+                     K != NoSemaHandlerAttribute;
+  bool TargetSpecificSpellingExists =
+      !HasSpelling ||
+      getInfo().spellingExistsInTarget(Target, getAttributeSpellingListIndex());
+
+  return getInfo().existsInTarget(Target) && TargetSpecificSpellingExists;
 }
 
 bool ParsedAttr::isKnownToGCC() const { return getInfo().IsKnownToGCC; }
@@ -217,7 +214,12 @@ bool ParsedAttr::supportsNonconformingLambdaSyntax() const {
 }
 
 bool ParsedAttr::slidesFromDeclToDeclSpecLegacyBehavior() const {
-  assert(isStandardAttributeSyntax());
+  if (isRegularKeywordAttribute())
+    // The appurtenance rules are applied strictly for all regular keyword
+    // atributes.
+    return false;
+
+  assert(isStandardAttributeSyntax() || isAlignas());
 
   // We have historically allowed some type attributes with standard attribute
   // syntax to slide to the decl-specifier-seq, so we have to keep supporting
@@ -304,18 +306,13 @@ bool ParsedAttr::checkAtMostNumArgs(Sema &S, unsigned Num) const {
 }
 
 void clang::takeAndConcatenateAttrs(ParsedAttributes &First,
-                                    ParsedAttributes &Second,
-                                    ParsedAttributes &Result) {
-  // Note that takeAllFrom() puts the attributes at the beginning of the list,
-  // so to obtain the correct ordering, we add `Second`, then `First`.
-  Result.takeAllFrom(Second);
-  Result.takeAllFrom(First);
-  if (First.Range.getBegin().isValid())
-    Result.Range.setBegin(First.Range.getBegin());
-  else
-    Result.Range.setBegin(Second.Range.getBegin());
+                                    ParsedAttributes &&Second) {
+
+  First.takeAllAppendingFrom(Second);
+
+  if (!First.Range.getBegin().isValid())
+    First.Range.setBegin(Second.Range.getBegin());
+
   if (Second.Range.getEnd().isValid())
-    Result.Range.setEnd(Second.Range.getEnd());
-  else
-    Result.Range.setEnd(First.Range.getEnd());
+    First.Range.setEnd(Second.Range.getEnd());
 }

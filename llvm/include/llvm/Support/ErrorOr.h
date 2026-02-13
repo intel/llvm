@@ -15,8 +15,8 @@
 #ifndef LLVM_SUPPORT_ERROROR_H
 #define LLVM_SUPPORT_ERROROR_H
 
-#include "llvm/Support/AlignOf.h"
 #include <cassert>
+#include <functional> // for std::reference_wrapper
 #include <system_error>
 #include <type_traits>
 #include <utility>
@@ -56,7 +56,7 @@ template<class T>
 class ErrorOr {
   template <class OtherT> friend class ErrorOr;
 
-  static constexpr bool isRef = std::is_reference<T>::value;
+  static constexpr bool isRef = std::is_reference_v<T>;
 
   using wrap = std::reference_wrapper<std::remove_reference_t<T>>;
 
@@ -85,7 +85,7 @@ public:
 
   template <class OtherT>
   ErrorOr(OtherT &&Val,
-          std::enable_if_t<std::is_convertible<OtherT, T>::value> * = nullptr)
+          std::enable_if_t<std::is_convertible_v<OtherT, T>> * = nullptr)
       : HasError(false) {
     new (getStorage()) storage_type(std::forward<OtherT>(Val));
   }
@@ -96,15 +96,14 @@ public:
 
   template <class OtherT>
   ErrorOr(const ErrorOr<OtherT> &Other,
-          std::enable_if_t<std::is_convertible<OtherT, T>::value> * = nullptr) {
+          std::enable_if_t<std::is_convertible_v<OtherT, T>> * = nullptr) {
     copyConstruct(Other);
   }
 
   template <class OtherT>
   explicit ErrorOr(
       const ErrorOr<OtherT> &Other,
-      std::enable_if_t<!std::is_convertible<OtherT, const T &>::value> * =
-          nullptr) {
+      std::enable_if_t<!std::is_convertible_v<OtherT, const T &>> * = nullptr) {
     copyConstruct(Other);
   }
 
@@ -114,7 +113,7 @@ public:
 
   template <class OtherT>
   ErrorOr(ErrorOr<OtherT> &&Other,
-          std::enable_if_t<std::is_convertible<OtherT, T>::value> * = nullptr) {
+          std::enable_if_t<std::is_convertible_v<OtherT, T>> * = nullptr) {
     moveConstruct(std::move(Other));
   }
 
@@ -123,7 +122,7 @@ public:
   template <class OtherT>
   explicit ErrorOr(
       ErrorOr<OtherT> &&Other,
-      std::enable_if_t<!std::is_convertible<OtherT, T>::value> * = nullptr) {
+      std::enable_if_t<!std::is_convertible_v<OtherT, T>> * = nullptr) {
     moveConstruct(std::move(Other));
   }
 
@@ -186,7 +185,7 @@ private:
   }
 
   template <class T1, class T2>
-  static bool compareThisIfSameType(const T1 &a, const T2 &b) {
+  static bool compareThisIfSameType(const T1 &, const T2 &) {
     return false;
   }
 
@@ -235,26 +234,27 @@ private:
 
   storage_type *getStorage() {
     assert(!HasError && "Cannot get value when an error exists!");
-    return reinterpret_cast<storage_type *>(&TStorage);
+    return &TStorage;
   }
 
   const storage_type *getStorage() const {
     assert(!HasError && "Cannot get value when an error exists!");
-    return reinterpret_cast<const storage_type *>(&TStorage);
+    return &TStorage;
   }
 
   std::error_code *getErrorStorage() {
     assert(HasError && "Cannot get error when a value exists!");
-    return reinterpret_cast<std::error_code *>(&ErrorStorage);
+    return &ErrorStorage;
   }
 
   const std::error_code *getErrorStorage() const {
-    return const_cast<ErrorOr<T> *>(this)->getErrorStorage();
+    assert(HasError && "Cannot get error when a value exists!");
+    return &ErrorStorage;
   }
 
   union {
-    AlignedCharArrayUnion<storage_type> TStorage;
-    AlignedCharArrayUnion<std::error_code> ErrorStorage;
+    storage_type TStorage;
+    std::error_code ErrorStorage;
   };
   bool HasError : 1;
 };

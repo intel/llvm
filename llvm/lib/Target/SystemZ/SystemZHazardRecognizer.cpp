@@ -115,12 +115,10 @@ SystemZHazardRecognizer::fitsIntoCurrentGroup(SUnit *SU) const {
 }
 
 bool SystemZHazardRecognizer::has4RegOps(const MachineInstr *MI) const {
-  const MachineFunction &MF = *MI->getParent()->getParent();
-  const TargetRegisterInfo *TRI = &TII->getRegisterInfo();
   const MCInstrDesc &MID = MI->getDesc();
   unsigned Count = 0;
   for (unsigned OpIdx = 0; OpIdx < MID.getNumOperands(); OpIdx++) {
-    const TargetRegisterClass *RC = TII->getRegClass(MID, OpIdx, TRI, MF);
+    const TargetRegisterClass *RC = TII->getRegClass(MID, OpIdx);
     if (RC == nullptr)
       continue;
     if (OpIdx >= MID.getNumDefs() &&
@@ -187,8 +185,8 @@ void SystemZHazardRecognizer::dumpSU(SUnit *SU, raw_ostream &OS) const {
       FU = "LSU";
     OS << "/" << FU;
 
-    if (PI->Cycles > 1)
-      OS << "(" << PI->Cycles << "cyc)";
+    if (PI->ReleaseAtCycle> 1)
+      OS << "(" << PI->ReleaseAtCycle << "cyc)";
   }
 
   if (SC->NumMicroOps > 1)
@@ -301,7 +299,7 @@ EmitInstruction(SUnit *SU) {
       continue;
     int &CurrCounter =
       ProcResourceCounters[PI->ProcResourceIdx];
-    CurrCounter += PI->Cycles;
+    CurrCounter += PI->ReleaseAtCycle;
     // Check if this is now the new critical resource.
     if ((CurrCounter > ProcResCostLim) &&
         (CriticalResourceIdx == UINT_MAX ||
@@ -353,10 +351,9 @@ int SystemZHazardRecognizer::groupingCost(SUnit *SU) const {
   // Similarly, a group-ending SU may either fit well (last in group), or
   // end the group prematurely.
   if (SC->EndGroup) {
-    unsigned resultingGroupSize =
-      (CurrGroupSize + getNumDecoderSlots(SU));
-    if (resultingGroupSize < 3)
-      return (3 - resultingGroupSize);
+    unsigned ResultingGroupSize = (CurrGroupSize + getNumDecoderSlots(SU));
+    if (ResultingGroupSize < 3)
+      return (3 - ResultingGroupSize);
     return -1;
   }
 
@@ -401,7 +398,7 @@ resourcesCost(SUnit *SU) {
            PI = SchedModel->getWriteProcResBegin(SC),
            PE = SchedModel->getWriteProcResEnd(SC); PI != PE; ++PI)
       if (PI->ProcResourceIdx == CriticalResourceIdx)
-        Cost = PI->Cycles;
+        Cost = PI->ReleaseAtCycle;
   }
 
   return Cost;

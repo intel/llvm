@@ -31,19 +31,15 @@ define <4 x i1> @test2(ptr %in) nounwind {
 ; CHECK-NEXT:    movl %eax, %ecx
 ; CHECK-NEXT:    shrb %cl
 ; CHECK-NEXT:    andb $1, %cl
-; CHECK-NEXT:    movzbl %cl, %ecx
 ; CHECK-NEXT:    movl %eax, %edx
 ; CHECK-NEXT:    andb $1, %dl
-; CHECK-NEXT:    movzbl %dl, %edx
 ; CHECK-NEXT:    vmovd %edx, %xmm0
 ; CHECK-NEXT:    vpinsrb $4, %ecx, %xmm0, %xmm0
 ; CHECK-NEXT:    movl %eax, %ecx
 ; CHECK-NEXT:    shrb $2, %cl
 ; CHECK-NEXT:    andb $1, %cl
-; CHECK-NEXT:    movzbl %cl, %ecx
 ; CHECK-NEXT:    vpinsrb $8, %ecx, %xmm0, %xmm0
 ; CHECK-NEXT:    shrb $3, %al
-; CHECK-NEXT:    movzbl %al, %eax
 ; CHECK-NEXT:    vpinsrb $12, %eax, %xmm0, %xmm0
 ; CHECK-NEXT:    retq
   %ret = load <4 x i1>, ptr %in, align 1
@@ -75,8 +71,7 @@ define <4 x i64> @test3(ptr %in) nounwind {
 ; CHECK-NEXT:    negl %eax
 ; CHECK-NEXT:    vpinsrd $3, %eax, %xmm0, %xmm0
 ; CHECK-NEXT:    vpmovsxdq %xmm0, %xmm1
-; CHECK-NEXT:    vpshufd {{.*#+}} xmm0 = xmm0[2,3,2,3]
-; CHECK-NEXT:    vpmovsxdq %xmm0, %xmm0
+; CHECK-NEXT:    vpshufd {{.*#+}} xmm0 = xmm0[2,2,3,3]
 ; CHECK-NEXT:    vinsertf128 $1, %xmm0, %ymm1, %ymm0
 ; CHECK-NEXT:    retq
   %wide.load35 = load <4 x i1>, ptr %in, align 1

@@ -18,7 +18,7 @@
 /// @cond ESIMD_DETAIL
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::esimd::detail {
 
 // Standalone definitions to use w/o instantiating element_type_traits.
@@ -28,8 +28,8 @@ template <> struct element_type_traits<tfloat32> {
   using RawT = unsigned int;
   using EnclosingCppT = float;
 
-  static inline constexpr bool use_native_cpp_ops = false;
-  static inline constexpr bool is_floating_point = true;
+  static constexpr bool use_native_cpp_ops = false;
+  static constexpr bool is_floating_point = true;
 };
 
 // ------------------- Type conversion traits
@@ -81,7 +81,7 @@ inline std::ostream &operator<<(std::ostream &O, tfloat32 const &rhs) {
 template <> struct is_esimd_arithmetic_type<tfloat32, void> : std::true_type {};
 
 } // namespace ext::intel::esimd::detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 /// @endcond ESIMD_DETAIL

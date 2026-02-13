@@ -21,6 +21,7 @@
 #include "llvm/ExecutionEngine/Orc/Shared/WrapperFunctionUtils.h"
 #include "llvm/ExecutionEngine/Orc/TargetProcess/ExecutorBootstrapService.h"
 #include "llvm/ExecutionEngine/Orc/TargetProcess/SimpleExecutorDylibManager.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/DynamicLibrary.h"
 #include "llvm/Support/Error.h"
 
@@ -33,12 +34,12 @@ namespace llvm {
 namespace orc {
 
 /// A simple EPC server implementation.
-class SimpleRemoteEPCServer : public SimpleRemoteEPCTransportClient {
+class LLVM_ABI SimpleRemoteEPCServer : public SimpleRemoteEPCTransportClient {
 public:
   using ReportErrorFunction = unique_function<void(Error)>;
 
   /// Dispatches calls to runWrapper.
-  class Dispatcher {
+  class LLVM_ABI Dispatcher {
   public:
     virtual ~Dispatcher();
     virtual void dispatch(unique_function<void()> Work) = 0;
@@ -46,7 +47,7 @@ public:
   };
 
 #if LLVM_ENABLE_THREADS
-  class ThreadDispatcher : public Dispatcher {
+  class LLVM_ABI ThreadDispatcher : public Dispatcher {
   public:
     void dispatch(unique_function<void()> Work) override;
     void shutdown() override;
@@ -64,6 +65,17 @@ public:
 
   public:
     SimpleRemoteEPCServer &server() { return S; }
+    StringMap<std::vector<char>> &bootstrapMap() { return BootstrapMap; }
+    template <typename T, typename SPSTagT>
+    void setBootstrapMapValue(std::string Key, const T &Value) {
+      std::vector<char> Buffer;
+      Buffer.resize(shared::SPSArgList<SPSTagT>::size(Value));
+      shared::SPSOutputBuffer OB(Buffer.data(), Buffer.size());
+      bool Success = shared::SPSArgList<SPSTagT>::serialize(OB, Value);
+      (void)Success;
+      assert(Success && "Bootstrap map value serialization failed");
+      BootstrapMap[std::move(Key)] = std::move(Buffer);
+    }
     StringMap<ExecutorAddr> &bootstrapSymbols() { return BootstrapSymbols; }
     std::vector<std::unique_ptr<ExecutorBootstrapService>> &services() {
       return Services;
@@ -76,6 +88,7 @@ public:
   private:
     Setup(SimpleRemoteEPCServer &S) : S(S) {}
     SimpleRemoteEPCServer &S;
+    StringMap<std::vector<char>> BootstrapMap;
     StringMap<ExecutorAddr> BootstrapSymbols;
     std::vector<std::unique_ptr<ExecutorBootstrapService>> Services;
   };
@@ -114,7 +127,8 @@ public:
     for (auto &Service : Server->Services)
       Service->addBootstrapSymbols(S.bootstrapSymbols());
 
-    if (auto Err = Server->sendSetupMessage(std::move(S.BootstrapSymbols)))
+    if (auto Err = Server->sendSetupMessage(std::move(S.BootstrapMap),
+                                            std::move(S.BootstrapSymbols)))
       return std::move(Err);
     return std::move(Server);
   }
@@ -131,7 +145,7 @@ public:
   /// returns an error, which should be reported and treated as a 'Disconnect'.
   Expected<HandleMessageAction>
   handleMessage(SimpleRemoteEPCOpcode OpC, uint64_t SeqNo, ExecutorAddr TagAddr,
-                SimpleRemoteEPCArgBytesVector ArgBytes) override;
+                shared::WrapperFunctionBuffer ArgBytes) override;
 
   Error waitForDisconnect();
 
@@ -141,17 +155,18 @@ private:
   Error sendMessage(SimpleRemoteEPCOpcode OpC, uint64_t SeqNo,
                     ExecutorAddr TagAddr, ArrayRef<char> ArgBytes);
 
-  Error sendSetupMessage(StringMap<ExecutorAddr> BootstrapSymbols);
+  Error sendSetupMessage(StringMap<std::vector<char>> BootstrapMap,
+                         StringMap<ExecutorAddr> BootstrapSymbols);
 
   Error handleResult(uint64_t SeqNo, ExecutorAddr TagAddr,
-                     SimpleRemoteEPCArgBytesVector ArgBytes);
+                     shared::WrapperFunctionBuffer ArgBytes);
   void handleCallWrapper(uint64_t RemoteSeqNo, ExecutorAddr TagAddr,
-                         SimpleRemoteEPCArgBytesVector ArgBytes);
+                         shared::WrapperFunctionBuffer ArgBytes);
 
-  shared::WrapperFunctionResult
+  shared::WrapperFunctionBuffer
   doJITDispatch(const void *FnTag, const char *ArgData, size_t ArgSize);
 
-  static shared::CWrapperFunctionResult jitDispatchEntry(void *DispatchCtx,
+  static shared::CWrapperFunctionBuffer jitDispatchEntry(void *DispatchCtx,
                                                          const void *FnTag,
                                                          const char *ArgData,
                                                          size_t ArgSize);
@@ -160,7 +175,7 @@ private:
   void releaseSeqNo(uint64_t) {}
 
   using PendingJITDispatchResultsMap =
-      DenseMap<uint64_t, std::promise<shared::WrapperFunctionResult> *>;
+      DenseMap<uint64_t, std::promise<shared::WrapperFunctionBuffer> *>;
 
   std::mutex ServerStateMutex;
   std::condition_variable ShutdownCV;

@@ -66,7 +66,7 @@
 ; SPLIT-NEXT:               DW_AT_language    (DW_LANG_C99)
 ; SPLIT-NEXT:               DW_AT_name        ("test.c")
 ; SPLIT-NEXT:               DW_AT_GNU_dwo_name        ("{{.*}}dwarfdump.ll.tmp.dwo")
-; SPLIT-NEXT:               DW_AT_GNU_dwo_id  (0xad3151f12153fa17)
+; SPLIT-NEXT:               DW_AT_GNU_dwo_id  ({{.*}})
 
 ; SPLIT:      0x00000019:   DW_TAG_variable
 ; SPLIT-NEXT:                 DW_AT_name      ("foo")
@@ -116,8 +116,8 @@ target triple = "wasm32-unknown-unknown"
 source_filename = "test.c"
 
 @myextern = external global i32, align 4
-@foo = hidden global i32* @myextern, align 4, !dbg !0
-@ptr2 = hidden global void ()* @f2, align 4, !dbg !6
+@foo = hidden global ptr @myextern, align 4, !dbg !0
+@ptr2 = hidden global ptr @f2, align 4, !dbg !6
 
 ; Function Attrs: noinline nounwind optnone
 define hidden void @f2() #0 !dbg !17 {

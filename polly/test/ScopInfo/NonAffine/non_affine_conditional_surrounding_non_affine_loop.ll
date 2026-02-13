@@ -1,16 +1,6 @@
-; RUN: opt %loadPolly -polly-allow-nonaffine-branches \
-; RUN:     -polly-invariant-load-hoisting=true \
-; RUN:     -polly-allow-nonaffine-loops=true \
-; RUN:     -polly-print-scops -disable-output < %s | FileCheck %s --check-prefix=INNERMOST
-; RUN: opt %loadPolly -polly-allow-nonaffine \
-; RUN:     -polly-invariant-load-hoisting=true \
-; RUN:     -polly-allow-nonaffine-branches -polly-allow-nonaffine-loops=true \
-; RUN:     -polly-print-scops -disable-output < %s | FileCheck %s --check-prefix=ALL
-; RUN: opt %loadPolly -polly-allow-nonaffine \
-; RUN:     -polly-invariant-load-hoisting=true \
-; RUN:     -polly-process-unprofitable=false \
-; RUN:     -polly-allow-nonaffine-branches -polly-allow-nonaffine-loops=true \
-; RUN:     -polly-print-scops -disable-output < %s | FileCheck %s --check-prefix=PROFIT
+; RUN: opt %loadNPMPolly -polly-allow-nonaffine-branches -polly-invariant-load-hoisting=true -polly-allow-nonaffine-loops=true '-passes=polly-custom<scops>' -polly-print-detect -polly-print-scops -disable-output < %s 2>&1 | FileCheck %s --check-prefix=INNERMOST
+; RUN: opt %loadNPMPolly -polly-allow-nonaffine -polly-invariant-load-hoisting=true -polly-allow-nonaffine-branches -polly-allow-nonaffine-loops=true '-passes=polly-custom<scops>' -polly-print-detect -polly-print-scops -disable-output < %s 2>&1 | FileCheck %s --check-prefix=ALL
+; RUN: opt %loadNPMPolly -polly-allow-nonaffine -polly-invariant-load-hoisting=true -polly-process-unprofitable=false -polly-allow-nonaffine-branches -polly-allow-nonaffine-loops=true '-passes=polly-custom<scops>' -polly-print-detect -polly-print-scops -disable-output < %s 2>&1 | FileCheck %s --check-prefix=PROFIT
 ;
 ; Negative test for INNERMOST.
 ; At the moment we will optimistically assume A[i] in the conditional before the inner
@@ -113,7 +103,7 @@
 ;
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
-define void @f(i32* %A, i32 %N) {
+define void @f(ptr %A, i32 %N) {
 bb:
   %tmp = sext i32 %N to i64
   br label %bb3
@@ -124,8 +114,8 @@ bb3:                                              ; preds = %bb19, %bb
   br i1 %exitcond, label %bb4, label %bb20
 
 bb4:                                              ; preds = %bb3
-  %tmp5 = getelementptr inbounds i32, i32* %A, i64 %indvars.iv1
-  %tmp6 = load i32, i32* %tmp5, align 4
+  %tmp5 = getelementptr inbounds i32, ptr %A, i64 %indvars.iv1
+  %tmp6 = load i32, ptr %tmp5, align 4
   %tmp7 = icmp eq i32 %tmp6, 0
   br i1 %tmp7, label %bb18, label %bb8
 
@@ -139,10 +129,10 @@ bb9:                                              ; preds = %bb16, %bb8
   br i1 %tmp11, label %bb12, label %bb17
 
 bb12:                                             ; preds = %bb9
-  %tmp13 = getelementptr inbounds i32, i32* %A, i64 %indvars.iv
-  %tmp14 = load i32, i32* %tmp13, align 4
+  %tmp13 = getelementptr inbounds i32, ptr %A, i64 %indvars.iv
+  %tmp14 = load i32, ptr %tmp13, align 4
   %tmp15 = add nsw i32 %tmp14, 1
-  store i32 %tmp15, i32* %tmp13, align 4
+  store i32 %tmp15, ptr %tmp13, align 4
   br label %bb16
 
 bb16:                                             ; preds = %bb12

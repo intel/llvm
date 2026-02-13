@@ -19,11 +19,14 @@
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstrInfo.h"
+#include "llvm/MC/MCRegister.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/Target/TargetMachine.h"
 #include <memory>
 #include <string>
+
+static constexpr llvm::StringLiteral kNoRegister("%noreg");
 
 namespace llvm {
 namespace exegesis {
@@ -38,12 +41,15 @@ public:
   // Factory function.
   // If `Triple` is empty, uses the host triple.
   // If `CpuName` is empty, uses the host CPU.
-  // `Features` is intended for tests.
-  static Expected<LLVMState> Create(std::string Triple, std::string CpuName,
-                                    StringRef Features = "");
+  // If `UseDummyPerfCounters` is set, does not query the kernel
+  // for event counts.
+  // `UseDummyPerfCounters` and `Features` are intended for tests.
+  static Expected<LLVMState> Create(std::string TripleName, std::string CpuName,
+                                    StringRef Features = "",
+                                    bool UseDummyPerfCounters = false);
 
   const TargetMachine &getTargetMachine() const { return *TheTargetMachine; }
-  std::unique_ptr<LLVMTargetMachine> createTargetMachine() const;
+  std::unique_ptr<TargetMachine> createTargetMachine() const;
 
   const ExegesisTarget &getExegesisTarget() const { return *TheExegesisTarget; }
 
@@ -65,15 +71,32 @@ public:
 
   const PfmCountersInfo &getPfmCounters() const { return *PfmCounters; }
 
+  const DenseMap<StringRef, unsigned> &getOpcodeNameToOpcodeIdxMapping() const {
+    assert(OpcodeNameToOpcodeIdxMapping);
+    return *OpcodeNameToOpcodeIdxMapping;
+  };
+
+  std::optional<MCRegister>
+  getRegisterNumberFromName(StringRef RegisterName) const;
+
 private:
+  std::unique_ptr<const DenseMap<StringRef, unsigned>>
+  createOpcodeNameToOpcodeIdxMapping() const;
+
+  std::unique_ptr<const DenseMap<StringRef, MCRegister>>
+  createRegNameToRegNoMapping() const;
+
   LLVMState(std::unique_ptr<const TargetMachine> TM, const ExegesisTarget *ET,
-            StringRef CpuName);
+            const PfmCountersInfo *PCI);
 
   const ExegesisTarget *TheExegesisTarget;
   std::unique_ptr<const TargetMachine> TheTargetMachine;
   std::unique_ptr<const RegisterAliasingTrackerCache> RATC;
   std::unique_ptr<const InstructionsCache> IC;
   const PfmCountersInfo *PfmCounters;
+  std::unique_ptr<const DenseMap<StringRef, unsigned>>
+      OpcodeNameToOpcodeIdxMapping;
+  std::unique_ptr<const DenseMap<StringRef, MCRegister>> RegNameToRegNoMapping;
 };
 
 } // namespace exegesis

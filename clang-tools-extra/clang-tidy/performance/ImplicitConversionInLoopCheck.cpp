@@ -1,4 +1,4 @@
-//===--- ImplicitConversionInLoopCheck.cpp - clang-tidy--------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -16,9 +16,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace performance {
+namespace clang::tidy::performance {
 
 // Checks if the stmt is a ImplicitCastExpr with a CastKind that is not a NoOp.
 // The subtlety is that in some cases (user defined conversions), we can
@@ -67,8 +65,7 @@ void ImplicitConversionInLoopCheck::check(
     const MatchFinder::MatchResult &Result) {
   const auto *VD = Result.Nodes.getNodeAs<VarDecl>("faulty-var");
   const auto *Init = Result.Nodes.getNodeAs<Expr>("init");
-  const auto *OperatorCall =
-      Result.Nodes.getNodeAs<Expr>("operator-call");
+  const auto *OperatorCall = Result.Nodes.getNodeAs<Expr>("operator-call");
 
   if (const auto *Cleanup = dyn_cast<ExprWithCleanups>(Init))
     Init = Cleanup->getSubExpr();
@@ -90,8 +87,8 @@ void ImplicitConversionInLoopCheck::reportAndFix(const ASTContext *Context,
                                                  const Expr *OperatorCall) {
   // We only match on const ref, so we should print a const ref version of the
   // type.
-  QualType ConstType = OperatorCall->getType().withConst();
-  QualType ConstRefType = Context->getLValueReferenceType(ConstType);
+  const QualType ConstType = OperatorCall->getType().withConst();
+  const QualType ConstRefType = Context->getLValueReferenceType(ConstType);
   const char Message[] =
       "the type of the loop variable %0 is different from the one returned "
       "by the iterator and generates an implicit conversion; you can either "
@@ -101,6 +98,4 @@ void ImplicitConversionInLoopCheck::reportAndFix(const ASTContext *Context,
   diag(VD->getBeginLoc(), Message) << VD << ConstRefType;
 }
 
-} // namespace performance
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::performance

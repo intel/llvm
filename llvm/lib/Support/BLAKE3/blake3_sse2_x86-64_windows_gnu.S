@@ -1,3 +1,5 @@
+#include "llvm_blake3_prefix.h"
+
 .intel_syntax noprefix
 .global blake3_hash_many_sse2
 .global _blake3_hash_many_sse2
@@ -2301,7 +2303,7 @@ blake3_compress_xof_sse2:
         ret
 
 
-.section .rodata
+.section .rdata
 .p2align  6
 BLAKE3_IV:
         .long  0x6A09E667, 0xBB67AE85

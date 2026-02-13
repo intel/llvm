@@ -57,12 +57,8 @@ protected:
   llvm::Value *getThisValue(CodeGenFunction &CGF) {
     return CGF.CXXABIThisValue;
   }
-  Address getThisAddress(CodeGenFunction &CGF) {
-    return Address(
-        CGF.CXXABIThisValue,
-        CGF.ConvertTypeForMem(CGF.CXXABIThisDecl->getType()->getPointeeType()),
-        CGF.CXXABIThisAlignment);
-  }
+
+  Address getThisAddress(CodeGenFunction &CGF);
 
   /// Issue a diagnostic about unsupported features in the ABI.
   void ErrorUnsupportedABI(CodeGenFunction &CGF, StringRef S);
@@ -196,7 +192,7 @@ public:
   virtual llvm::Value *
   EmitMemberDataPointerAddress(CodeGenFunction &CGF, const Expr *E,
                                Address Base, llvm::Value *MemPtr,
-                               const MemberPointerType *MPT);
+                               const MemberPointerType *MPT, bool IsInBounds);
 
   /// Perform a derived-to-base, base-to-derived, or bitcast member
   /// pointer conversion.
@@ -278,8 +274,7 @@ public:
   getAddrOfCXXCatchHandlerType(QualType Ty, QualType CatchHandlerType) = 0;
   virtual CatchTypeInfo getCatchAllTypeInfo();
 
-  virtual bool shouldTypeidBeNullChecked(bool IsDeref,
-                                         QualType SrcRecordTy) = 0;
+  virtual bool shouldTypeidBeNullChecked(QualType SrcRecordTy) = 0;
   virtual void EmitBadTypeidCall(CodeGenFunction &CGF) = 0;
   virtual llvm::Value *EmitTypeid(CodeGenFunction &CGF, QualType SrcRecordTy,
                                   Address ThisPtr,
@@ -287,16 +282,34 @@ public:
 
   virtual bool shouldDynamicCastCallBeNullChecked(bool SrcIsPtr,
                                                   QualType SrcRecordTy) = 0;
+  virtual bool shouldEmitExactDynamicCast(QualType DestRecordTy) = 0;
 
-  virtual llvm::Value *
-  EmitDynamicCastCall(CodeGenFunction &CGF, Address Value,
-                      QualType SrcRecordTy, QualType DestTy,
-                      QualType DestRecordTy, llvm::BasicBlock *CastEnd) = 0;
+  virtual llvm::Value *emitDynamicCastCall(CodeGenFunction &CGF, Address Value,
+                                           QualType SrcRecordTy,
+                                           QualType DestTy,
+                                           QualType DestRecordTy,
+                                           llvm::BasicBlock *CastEnd) = 0;
 
-  virtual llvm::Value *EmitDynamicCastToVoid(CodeGenFunction &CGF,
+  virtual llvm::Value *emitDynamicCastToVoid(CodeGenFunction &CGF,
                                              Address Value,
-                                             QualType SrcRecordTy,
-                                             QualType DestTy) = 0;
+                                             QualType SrcRecordTy) = 0;
+
+  struct ExactDynamicCastInfo {
+    bool RequiresCastToPrimaryBase;
+    CharUnits Offset;
+  };
+
+  virtual std::optional<ExactDynamicCastInfo>
+  getExactDynamicCastInfo(QualType SrcRecordTy, QualType DestTy,
+                          QualType DestRecordTy) = 0;
+
+  /// Emit a dynamic_cast from SrcRecordTy to DestRecordTy. The cast fails if
+  /// the dynamic type of Value is not exactly DestRecordTy.
+  virtual llvm::Value *emitExactDynamicCast(
+      CodeGenFunction &CGF, Address Value, QualType SrcRecordTy,
+      QualType DestTy, QualType DestRecordTy,
+      const ExactDynamicCastInfo &CastInfo, llvm::BasicBlock *CastSuccess,
+      llvm::BasicBlock *CastFail) = 0;
 
   virtual bool EmitBadCastCall(CodeGenFunction &CGF) = 0;
 
@@ -379,9 +392,8 @@ public:
   /// zero if no specific type is applicable, e.g. if the ABI expects the "this"
   /// parameter to point to some artificial offset in a complete object due to
   /// vbases being reordered.
-  virtual const CXXRecordDecl *
-  getThisArgumentTypeForMethod(const CXXMethodDecl *MD) {
-    return MD->getParent();
+  virtual const CXXRecordDecl *getThisArgumentTypeForMethod(GlobalDecl GD) {
+    return cast<CXXMethodDecl>(GD.getDecl())->getParent();
   }
 
   /// Perform ABI-specific "this" argument adjustment required prior to
@@ -466,12 +478,6 @@ public:
                                   BaseSubobject Base,
                                   const CXXRecordDecl *NearestVBase) = 0;
 
-  /// Get the address point of the vtable for the given base subobject while
-  /// building a constexpr.
-  virtual llvm::Constant *
-  getVTableAddressPointForConstExpr(BaseSubobject Base,
-                                    const CXXRecordDecl *VTableClass) = 0;
-
   /// Get the address of the vtable for the given record decl which should be
   /// used for the vptr at the given offset in RD.
   virtual llvm::GlobalVariable *getAddrOfVTable(const CXXRecordDecl *RD,
@@ -487,11 +493,11 @@ public:
       llvm::PointerUnion<const CXXDeleteExpr *, const CXXMemberCallExpr *>;
 
   /// Emit the ABI-specific virtual destructor call.
-  virtual llvm::Value *EmitVirtualDestructorCall(CodeGenFunction &CGF,
-                                                 const CXXDestructorDecl *Dtor,
-                                                 CXXDtorType DtorType,
-                                                 Address This,
-                                                 DeleteOrMemberCallExpr E) = 0;
+  virtual llvm::Value *
+  EmitVirtualDestructorCall(CodeGenFunction &CGF, const CXXDestructorDecl *Dtor,
+                            CXXDtorType DtorType, Address This,
+                            DeleteOrMemberCallExpr E,
+                            llvm::CallBase **CallOrInvoke) = 0;
 
   virtual void adjustCallArgsForDestructorThunk(CodeGenFunction &CGF,
                                                 GlobalDecl GD,
@@ -506,13 +512,15 @@ public:
   virtual void setThunkLinkage(llvm::Function *Thunk, bool ForVTable,
                                GlobalDecl GD, bool ReturnAdjustment) = 0;
 
-  virtual llvm::Value *performThisAdjustment(CodeGenFunction &CGF,
-                                             Address This,
-                                             const ThisAdjustment &TA) = 0;
+  virtual llvm::Value *
+  performThisAdjustment(CodeGenFunction &CGF, Address This,
+                        const CXXRecordDecl *UnadjustedClass,
+                        const ThunkInfo &TI) = 0;
 
-  virtual llvm::Value *performReturnAdjustment(CodeGenFunction &CGF,
-                                               Address Ret,
-                                               const ReturnAdjustment &RA) = 0;
+  virtual llvm::Value *
+  performReturnAdjustment(CodeGenFunction &CGF, Address Ret,
+                          const CXXRecordDecl *UnadjustedClass,
+                          const ReturnAdjustment &RA) = 0;
 
   virtual void EmitReturnFromThunk(CodeGenFunction &CGF,
                                    RValue RV, QualType ResultType);
@@ -574,6 +582,12 @@ public:
                                const CXXDeleteExpr *expr,
                                QualType ElementType, llvm::Value *&NumElements,
                                llvm::Value *&AllocPtr, CharUnits &CookieSize);
+
+  /// Reads the array cookie associated with the given pointer,
+  /// that should have one.
+  void ReadArrayCookie(CodeGenFunction &CGF, Address Ptr, QualType ElementType,
+                       llvm::Value *&NumElements, llvm::Value *&AllocPtr,
+                       CharUnits &CookieSize);
 
   /// Return whether the given global decl needs a VTT parameter.
   virtual bool NeedsVTTParameter(GlobalDecl GD);

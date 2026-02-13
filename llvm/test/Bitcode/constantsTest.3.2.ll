@@ -9,14 +9,14 @@
 @X = global i32 0
 ; CHECK: @Y = global i32 1
 @Y = global i32 1
-; CHECK: @Z = global [2 x i32*] [i32* @X, i32* @Y]
+; CHECK: @Z = global [2 x ptr] [ptr @X, ptr @Y]
 @Z = global [2 x i32*] [i32* @X, i32* @Y]
 
 
 define void @SimpleConstants(i32 %x) {
 entry:
 ; null
-; CHECK: store i32 %x, i32* null
+; CHECK: store i32 %x, ptr null
   store i32 %x, i32* null
  
 ; boolean
@@ -47,7 +47,7 @@ entry:
   %res2 = extractvalue [2 x i32] [i32 1, i32 2], 0
   
 ;const vector
-; CHECK-NEXT: %res3 = add <2 x i32> <i32 1, i32 1>, <i32 1, i32 1>
+; CHECK-NEXT: %res3 = add <2 x i32> splat (i32 1)
   %res3 = add <2 x i32> <i32 1, i32 1>, <i32 1, i32 1>
   
 ;zeroinitializer
@@ -68,7 +68,7 @@ entry:
   %poison = sub nuw i32 0, 1
   
   ;address of basic block
-  ; CHECK-NEXT: %res2 = icmp eq i8* blockaddress(@OtherConstants, %Next), null
+  ; CHECK-NEXT: %res2 = icmp eq ptr blockaddress(@OtherConstants, %Next), null
   %res2 = icmp eq i8* blockaddress(@OtherConstants, %Next), null
   br label %Next
   Next: 
@@ -93,15 +93,15 @@ entry:
   uitofp i32 1 to float
   ; CHECK-NEXT: sitofp i32 -1 to float
   sitofp i32 -1 to float
-  ; CHECK-NEXT: ptrtoint i32* @X to i32
+  ; CHECK-NEXT: ptrtoint ptr @X to i32
   ptrtoint i32* @X to i32
-  ; CHECK-NEXT: inttoptr i8 1 to i8*
+  ; CHECK-NEXT: inttoptr i8 1 to ptr
   inttoptr i8 1 to i8*
   ; CHECK-NEXT: bitcast i32 1 to <2 x i16>
   bitcast i32 1 to <2 x i16>
-  ; CHECK-NEXT: getelementptr i32, i32* @X, i32 0
+  ; CHECK-NEXT: getelementptr i32, ptr @X, i32 0
   getelementptr i32, i32* @X, i32 0
-  ; CHECK-NEXT: getelementptr inbounds i32, i32* @X, i32 0
+  ; CHECK-NEXT: getelementptr inbounds i32, ptr @X, i32 0
   getelementptr inbounds i32, i32* @X, i32 0
   ; CHECK: select i1 true, i32 1, i32 0
   select i1 true ,i32 1, i32 0
@@ -109,11 +109,11 @@ entry:
   icmp eq i32 1, 0
   ; CHECK-NEXT: fcmp oeq float 1.000000e+00, 0.000000e+00
   fcmp oeq float 1.0, 0.0
-  ; CHECK-NEXT: extractelement <2 x i32> <i32 1, i32 1>, i32 1
+  ; CHECK-NEXT: extractelement <2 x i32> splat (i32 1)
   extractelement <2 x i32> <i32 1, i32 1>, i32 1
-  ; CHECK-NEXT: insertelement <2 x i32> <i32 1, i32 1>, i32 0, i32 1
+  ; CHECK-NEXT: insertelement <2 x i32> splat (i32 1), i32 0, i32 1
   insertelement <2 x i32> <i32 1, i32 1>, i32 0, i32 1
-  ; CHECK-NEXT: shufflevector <2 x i32> <i32 1, i32 1>, <2 x i32> zeroinitializer, <4 x i32> <i32 0, i32 2, i32 1, i32 3>
+  ; CHECK-NEXT: shufflevector <2 x i32> splat (i32 1), <2 x i32> zeroinitializer, <4 x i32> <i32 0, i32 2, i32 1, i32 3>
   shufflevector <2 x i32> <i32 1, i32 1>, <2 x i32> zeroinitializer, <4 x i32> <i32 0, i32 2, i32 1, i32 3>
   ; CHECK-NEXT: extractvalue { i32, float } { i32 1, float 2.000000e+00 }, 0
   extractvalue { i32, float } { i32 1, float 2.0 }, 0

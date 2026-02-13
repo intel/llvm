@@ -50,8 +50,9 @@ CharSourceRange clang::tooling::maybeExtendRange(CharSourceRange Range,
   return CharSourceRange::getTokenRange(Range.getBegin(), Tok.getLocation());
 }
 
-llvm::Error clang::tooling::validateEditRange(const CharSourceRange &Range,
-                                              const SourceManager &SM) {
+llvm::Error clang::tooling::validateRange(const CharSourceRange &Range,
+                                          const SourceManager &SM,
+                                          bool AllowSystemHeaders) {
   if (Range.isInvalid())
     return llvm::make_error<StringError>(errc::invalid_argument,
                                          "Invalid range");
@@ -60,45 +61,155 @@ llvm::Error clang::tooling::validateEditRange(const CharSourceRange &Range,
     return llvm::make_error<StringError>(
         errc::invalid_argument, "Range starts or ends in a macro expansion");
 
-  if (SM.isInSystemHeader(Range.getBegin()) ||
-      SM.isInSystemHeader(Range.getEnd()))
-    return llvm::make_error<StringError>(errc::invalid_argument,
-                                         "Range is in system header");
+  if (!AllowSystemHeaders) {
+    if (SM.isInSystemHeader(Range.getBegin()) ||
+        SM.isInSystemHeader(Range.getEnd()))
+      return llvm::make_error<StringError>(errc::invalid_argument,
+                                           "Range is in system header");
+  }
 
-  std::pair<FileID, unsigned> BeginInfo = SM.getDecomposedLoc(Range.getBegin());
-  std::pair<FileID, unsigned> EndInfo = SM.getDecomposedLoc(Range.getEnd());
+  FileIDAndOffset BeginInfo = SM.getDecomposedLoc(Range.getBegin());
+  FileIDAndOffset EndInfo = SM.getDecomposedLoc(Range.getEnd());
   if (BeginInfo.first != EndInfo.first)
     return llvm::make_error<StringError>(
         errc::invalid_argument, "Range begins and ends in different files");
 
   if (BeginInfo.second > EndInfo.second)
-    return llvm::make_error<StringError>(
-        errc::invalid_argument, "Range's begin is past its end");
+    return llvm::make_error<StringError>(errc::invalid_argument,
+                                         "Range's begin is past its end");
 
   return llvm::Error::success();
 }
 
-llvm::Optional<CharSourceRange>
-clang::tooling::getRangeForEdit(const CharSourceRange &EditRange,
+llvm::Error clang::tooling::validateEditRange(const CharSourceRange &Range,
+                                              const SourceManager &SM) {
+  return validateRange(Range, SM, /*AllowSystemHeaders=*/false);
+}
+
+// Returns the full set of expansion locations of `Loc` from bottom to top-most
+// macro, if `Loc` is spelled in a macro argument. If `Loc` is spelled in the
+// macro definition, returns an empty vector.
+static llvm::SmallVector<SourceLocation, 2>
+getMacroArgumentExpansionLocs(SourceLocation Loc, const SourceManager &SM) {
+  assert(Loc.isMacroID() && "Location must be in a macro");
+  llvm::SmallVector<SourceLocation, 2> ArgLocs;
+  while (Loc.isMacroID()) {
+    const auto &Expansion = SM.getSLocEntry(SM.getFileID(Loc)).getExpansion();
+    if (Expansion.isMacroArgExpansion()) {
+      // Check the spelling location of the macro arg, in case the arg itself is
+      // in a macro expansion.
+      Loc = Expansion.getSpellingLoc();
+      ArgLocs.push_back(Expansion.getExpansionLocStart());
+    } else {
+      return {};
+    }
+  }
+  return ArgLocs;
+}
+
+static bool spelledInMacroDefinition(CharSourceRange Range,
+                                     const SourceManager &SM) {
+  if (Range.getBegin().isMacroID() && Range.getEnd().isMacroID()) {
+    // Check whether the range is entirely within a single macro argument by
+    // checking if they are in the same macro argument at every level.
+    auto B = getMacroArgumentExpansionLocs(Range.getBegin(), SM);
+    auto E = getMacroArgumentExpansionLocs(Range.getEnd(), SM);
+    return B.empty() || B != E;
+  }
+
+  return Range.getBegin().isMacroID() || Range.getEnd().isMacroID();
+}
+
+// Returns the expansion char-range of `Loc` if `Loc` is a split token. For
+// example, `>>` in nested templates needs the first `>` to be split, otherwise
+// the `SourceLocation` of the token would lex as `>>` instead of `>`.
+static std::optional<CharSourceRange>
+getExpansionForSplitToken(SourceLocation Loc, const SourceManager &SM,
+                          const LangOptions &LangOpts) {
+  if (Loc.isMacroID()) {
+    bool Invalid = false;
+    auto &SLoc = SM.getSLocEntry(SM.getFileID(Loc), &Invalid);
+    if (Invalid)
+      return std::nullopt;
+    if (auto &Expansion = SLoc.getExpansion();
+        !Expansion.isExpansionTokenRange()) {
+      // A char-range expansion is only used where a token-range would be
+      // incorrect, and so identifies this as a split token (and importantly,
+      // not as a macro).
+      return Expansion.getExpansionLocRange();
+    }
+  }
+  return std::nullopt;
+}
+
+// If `Range` covers a split token, returns the expansion range, otherwise
+// returns `Range`.
+static CharSourceRange getRangeForSplitTokens(CharSourceRange Range,
+                                              const SourceManager &SM,
+                                              const LangOptions &LangOpts) {
+  if (Range.isTokenRange()) {
+    auto BeginToken = getExpansionForSplitToken(Range.getBegin(), SM, LangOpts);
+    auto EndToken = getExpansionForSplitToken(Range.getEnd(), SM, LangOpts);
+    if (EndToken) {
+      SourceLocation BeginLoc =
+          BeginToken ? BeginToken->getBegin() : Range.getBegin();
+      // We can't use the expansion location with a token-range, because that
+      // will incorrectly lex the end token, so use a char-range that ends at
+      // the split.
+      return CharSourceRange::getCharRange(BeginLoc, EndToken->getEnd());
+    } else if (BeginToken) {
+      // Since the end token is not split, the whole range covers the split, so
+      // the only adjustment we make is to use the expansion location of the
+      // begin token.
+      return CharSourceRange::getTokenRange(BeginToken->getBegin(),
+                                            Range.getEnd());
+    }
+  }
+  return Range;
+}
+
+static CharSourceRange getRange(const CharSourceRange &EditRange,
                                 const SourceManager &SM,
-                                const LangOptions &LangOpts) {
-  // FIXME: makeFileCharRange() has the disadvantage of stripping off "identity"
-  // macros. For example, if we're looking to rewrite the int literal 3 to 6,
-  // and we have the following definition:
-  //    #define DO_NOTHING(x) x
-  // then
-  //    foo(DO_NOTHING(3))
-  // will be rewritten to
-  //    foo(6)
-  // rather than the arguably better
-  //    foo(DO_NOTHING(6))
-  // Decide whether the current behavior is desirable and modify if not.
-  CharSourceRange Range = Lexer::makeFileCharRange(EditRange, SM, LangOpts);
+                                const LangOptions &LangOpts,
+                                bool IncludeMacroExpansion) {
+  CharSourceRange Range;
+  if (IncludeMacroExpansion) {
+    Range = Lexer::makeFileCharRange(EditRange, SM, LangOpts);
+  } else {
+    auto AdjustedRange = getRangeForSplitTokens(EditRange, SM, LangOpts);
+    if (spelledInMacroDefinition(AdjustedRange, SM))
+      return {};
+
+    auto B = SM.getSpellingLoc(AdjustedRange.getBegin());
+    auto E = SM.getSpellingLoc(AdjustedRange.getEnd());
+    if (AdjustedRange.isTokenRange())
+      E = Lexer::getLocForEndOfToken(E, 0, SM, LangOpts);
+    Range = CharSourceRange::getCharRange(B, E);
+  }
+  return Range;
+}
+
+std::optional<CharSourceRange> clang::tooling::getFileRangeForEdit(
+    const CharSourceRange &EditRange, const SourceManager &SM,
+    const LangOptions &LangOpts, bool IncludeMacroExpansion) {
+  CharSourceRange Range =
+      getRange(EditRange, SM, LangOpts, IncludeMacroExpansion);
   bool IsInvalid = llvm::errorToBool(validateEditRange(Range, SM));
   if (IsInvalid)
-    return llvm::None;
+    return std::nullopt;
   return Range;
+}
 
+std::optional<CharSourceRange> clang::tooling::getFileRange(
+    const CharSourceRange &EditRange, const SourceManager &SM,
+    const LangOptions &LangOpts, bool IncludeMacroExpansion) {
+  CharSourceRange Range =
+      getRange(EditRange, SM, LangOpts, IncludeMacroExpansion);
+  bool IsInvalid =
+      llvm::errorToBool(validateRange(Range, SM, /*AllowSystemHeaders=*/true));
+  if (IsInvalid)
+    return std::nullopt;
+  return Range;
 }
 
 static bool startsWithNewline(const SourceManager &SM, const Token &Tok) {
@@ -381,7 +492,7 @@ CharSourceRange tooling::getAssociatedRange(const Decl &Decl,
 
     for (llvm::StringRef Prefix : {"[[", "__attribute__(("}) {
       // Handle whitespace between attribute prefix and attribute value.
-      if (BeforeAttrStripped.endswith(Prefix)) {
+      if (BeforeAttrStripped.ends_with(Prefix)) {
         // Move start to start position of prefix, which is
         // length(BeforeAttr) - length(BeforeAttrStripped) + length(Prefix)
         // positions to the left.

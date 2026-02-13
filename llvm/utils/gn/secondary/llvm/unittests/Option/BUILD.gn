@@ -1,7 +1,12 @@
 import("//llvm/utils/TableGen/tablegen.gni")
-import("//llvm/utils/unittest/unittest.gni")
+import("//third-party/unittest/unittest.gni")
 
 tablegen("Opts") {
+  visibility = [ ":OptionTests" ]
+  args = [ "-gen-opt-parser-defs" ]
+}
+
+tablegen("SubCommandOpts") {
   visibility = [ ":OptionTests" ]
   args = [ "-gen-opt-parser-defs" ]
 }
@@ -9,11 +14,13 @@ tablegen("Opts") {
 unittest("OptionTests") {
   deps = [
     ":Opts",
+    ":SubCommandOpts",
     "//llvm/lib/Option",
     "//llvm/lib/Support",
   ]
   sources = [
     "OptionMarshallingTest.cpp",
     "OptionParsingTest.cpp",
+    "OptionSubCommandsTest.cpp",
   ]
 }

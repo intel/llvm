@@ -4,11 +4,11 @@
 ; RUN: llc < %s -mtriple armv7a-none-linux-gnueabihf -mcpu=cortex-a15 | FileCheck %s -check-prefix=CHECK-LINUXA15
 ; RUN: llc < %s -mtriple armv7a-none-linux-gnueabihf -mcpu=swift | FileCheck %s -check-prefix=CHECK-LINUXSWIFT
 
-; RUN: llc < %s -mtriple armv7a-none-linux-gnueabihf -mcpu=cortex-a5 --enable-unsafe-fp-math | FileCheck %s -check-prefix=CHECK-UNSAFEA5
-; RUN: llc < %s -mtriple armv7a-none-linux-gnueabihf -mcpu=cortex-a8 --enable-unsafe-fp-math | FileCheck %s -check-prefix=CHECK-UNSAFEA8
-; RUN: llc < %s -mtriple armv7a-none-linux-gnueabihf -mcpu=cortex-a9 --enable-unsafe-fp-math | FileCheck %s -check-prefix=CHECK-UNSAFEA9
-; RUN: llc < %s -mtriple armv7a-none-linux-gnueabihf -mcpu=cortex-a15 --enable-unsafe-fp-math | FileCheck %s -check-prefix=CHECK-UNSAFEA15
-; RUN: llc < %s -mtriple armv7a-none-linux-gnueabihf -mcpu=swift --enable-unsafe-fp-math | FileCheck %s -check-prefix=CHECK-UNSAFESWIFT
+; RUN: llc < %s -mtriple armv7a-none-linux-gnueabihf -mcpu=cortex-a5 --denormal-fp-math=preserve-sign | FileCheck %s -check-prefix=CHECK-UNSAFEA5
+; RUN: llc < %s -mtriple armv7a-none-linux-gnueabihf -mcpu=cortex-a8 --denormal-fp-math=preserve-sign | FileCheck %s -check-prefix=CHECK-UNSAFEA8
+; RUN: llc < %s -mtriple armv7a-none-linux-gnueabihf -mcpu=cortex-a9 --denormal-fp-math=preserve-sign | FileCheck %s -check-prefix=CHECK-UNSAFEA9
+; RUN: llc < %s -mtriple armv7a-none-linux-gnueabihf -mcpu=cortex-a15 --denormal-fp-math=preserve-sign| FileCheck %s -check-prefix=CHECK-UNSAFEA15
+; RUN: llc < %s -mtriple armv7a-none-linux-gnueabihf -mcpu=swift --denormal-fp-math=preserve-sign | FileCheck %s -check-prefix=CHECK-UNSAFESWIFT
 
 ; RUN: llc < %s -mtriple armv7a-none-darwin -mcpu=cortex-a5 | FileCheck %s -check-prefix=CHECK-DARWINA5
 ; RUN: llc < %s -mtriple armv7a-none-darwin -mcpu=cortex-a8 | FileCheck %s -check-prefix=CHECK-DARWINA8
@@ -64,7 +64,7 @@ for.body:                                         ; preds = %for.body, %entry
 ; CHECK-DARWINA15: vmul.f32 s{{[0-9]*}}
 ; CHECK-DARWINSWIFT: vmul.f32 d{{[0-9]*}}
   %conv = fpext float %mul to double
-  %call = tail call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([12 x i8], [12 x i8]* @.str, i32 0, i32 0), double %conv) #1
+  %call = tail call i32 (ptr, ...) @printf(ptr @.str, double %conv) #1
   %inc = add nsw i32 %i.04, 1
   %exitcond = icmp eq i32 %inc, 16000
   br i1 %exitcond, label %for.end, label %for.body
@@ -73,4 +73,4 @@ for.end:                                          ; preds = %for.body
   ret i32 0
 }
 
-declare i32 @printf(i8* nocapture, ...)
+declare i32 @printf(ptr nocapture, ...)

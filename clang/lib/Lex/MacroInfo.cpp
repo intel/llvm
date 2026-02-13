@@ -18,13 +18,10 @@
 #include "clang/Basic/TokenKinds.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Lex/Token.h"
-#include "llvm/ADT/Optional.h"
-#include "llvm/ADT/StringRef.h"
-#include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cassert>
-#include <utility>
+#include <optional>
 
 using namespace clang;
 
@@ -34,11 +31,11 @@ namespace {
 // and 4 byte SourceLocation.
 template <int> class MacroInfoSizeChecker {
 public:
-  constexpr static bool AsExpected = true;
+  [[maybe_unused]] constexpr static bool AsExpected = true;
 };
 template <> class MacroInfoSizeChecker<8> {
 public:
-  constexpr static bool AsExpected =
+  [[maybe_unused]] constexpr static bool AsExpected =
       sizeof(MacroInfo) == (32 + sizeof(SourceLocation) * 2);
 };
 
@@ -71,10 +68,8 @@ unsigned MacroInfo::getDefinitionLengthSlow(const SourceManager &SM) const {
          "Macro defined in macro?");
   assert((macroEnd.isFileID() || lastToken.is(tok::comment)) &&
          "Macro defined in macro?");
-  std::pair<FileID, unsigned>
-      startInfo = SM.getDecomposedExpansionLoc(macroStart);
-  std::pair<FileID, unsigned>
-      endInfo = SM.getDecomposedExpansionLoc(macroEnd);
+  FileIDAndOffset startInfo = SM.getDecomposedExpansionLoc(macroStart);
+  FileIDAndOffset endInfo = SM.getDecomposedExpansionLoc(macroEnd);
   assert(startInfo.first == endInfo.first &&
          "Macro definition spanning multiple FileIDs ?");
   assert(startInfo.second <= endInfo.second);
@@ -118,7 +113,7 @@ bool MacroInfo::isIdenticalTo(const MacroInfo &Other, Preprocessor &PP,
     if (A.getKind() != B.getKind())
       return false;
 
-    // If this isn't the first first token, check that the whitespace and
+    // If this isn't the first token, check that the whitespace and
     // start-of-line characteristics match.
     if (i != 0 &&
         (A.isAtStartOfLine() != B.isAtStartOfLine() ||
@@ -198,7 +193,7 @@ LLVM_DUMP_METHOD void MacroInfo::dump() const {
 MacroDirective::DefInfo MacroDirective::getDefinition() {
   MacroDirective *MD = this;
   SourceLocation UndefLoc;
-  Optional<bool> isPublic;
+  std::optional<bool> isPublic;
   for (; MD; MD = MD->getPrevious()) {
     if (DefMacroDirective *DefMD = dyn_cast<DefMacroDirective>(MD))
       return DefInfo(DefMD, UndefLoc, !isPublic || *isPublic);
@@ -213,7 +208,7 @@ MacroDirective::DefInfo MacroDirective::getDefinition() {
       isPublic = VisMD->isPublic();
   }
 
-  return DefInfo(nullptr, UndefLoc, !isPublic || isPublic.value());
+  return DefInfo(nullptr, UndefLoc, !isPublic || *isPublic);
 }
 
 const MacroDirective::DefInfo
@@ -257,7 +252,7 @@ LLVM_DUMP_METHOD void MacroDirective::dump() const {
 }
 
 ModuleMacro *ModuleMacro::create(Preprocessor &PP, Module *OwningModule,
-                                 IdentifierInfo *II, MacroInfo *Macro,
+                                 const IdentifierInfo *II, MacroInfo *Macro,
                                  ArrayRef<ModuleMacro *> Overrides) {
   void *Mem = PP.getPreprocessorAllocator().Allocate(
       sizeof(ModuleMacro) + sizeof(ModuleMacro *) * Overrides.size(),

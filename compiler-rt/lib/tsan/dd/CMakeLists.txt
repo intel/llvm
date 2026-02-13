@@ -10,14 +10,17 @@ set(DD_SOURCES
   dd_interceptors.cpp
   )
 
-set(DD_LINKLIBS ${SANITIZER_CXX_ABI_LIBRARIES} ${SANITIZER_COMMON_LINK_LIBS})
+set(DD_LINKLIBS
+  ${COMPILER_RT_UNWINDER_LINK_LIBS}
+  ${SANITIZER_CXX_ABI_LIBRARIES}
+  ${SANITIZER_COMMON_LINK_LIBS})
 
 append_list_if(COMPILER_RT_HAS_LIBDL dl DD_LINKLIBS)
 append_list_if(COMPILER_RT_HAS_LIBRT rt DD_LINKLIBS)
 append_list_if(COMPILER_RT_HAS_LIBPTHREAD pthread DD_LINKLIBS)
 
 add_custom_target(dd)
-set_target_properties(dd PROPERTIES FOLDER "Compiler-RT Misc")
+set_target_properties(dd PROPERTIES FOLDER "Compiler-RT/Metatargets")
 
 # Deadlock detector is currently supported on 64-bit Linux only.
 if(CAN_TARGET_x86_64 AND UNIX AND NOT APPLE AND NOT ANDROID)

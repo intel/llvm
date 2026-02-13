@@ -24,9 +24,10 @@ namespace spirv {
 class ArrayType;
 class RuntimeArrayType;
 class StructType;
+class MatrixType;
 } // namespace spirv
 
-/// According to the Vulkan spec "14.5.4. Offset and Stride Assignment":
+/// According to the Vulkan spec "15.6.4. Offset and Stride Assignment":
 /// "There are different alignment requirements depending on the specific
 /// resources and on the features enabled on the device."
 ///
@@ -66,6 +67,8 @@ private:
 
   static Type decorateType(VectorType vectorType, Size &size, Size &alignment);
   static Type decorateType(spirv::ArrayType arrayType, Size &size,
+                           Size &alignment);
+  static Type decorateType(spirv::MatrixType matrixType, Size &size,
                            Size &alignment);
   static Type decorateType(spirv::RuntimeArrayType arrayType, Size &alignment);
   static spirv::StructType decorateType(spirv::StructType structType,

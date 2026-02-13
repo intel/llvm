@@ -66,10 +66,25 @@ std::string getUnescapedName(const StringRef &Name) {
   return Output;
 }
 
-Optional<uint8_t> readDWARFExpressionTargetReg(StringRef ExprBytes) {
+std::optional<StringRef> getCommonName(const StringRef Name, bool KeepSuffix,
+                                       ArrayRef<StringRef> Suffixes) {
+  for (StringRef Suffix : Suffixes) {
+    size_t LTOSuffixPos = Name.find(Suffix);
+    if (LTOSuffixPos != StringRef::npos)
+      return Name.substr(0, LTOSuffixPos + (KeepSuffix ? Suffix.size() : 0));
+  }
+  return std::nullopt;
+}
+
+std::optional<StringRef> getLTOCommonName(const StringRef Name) {
+  return getCommonName(Name, true,
+                       {".__uniq.", ".lto_priv.", ".constprop.", ".llvm."});
+}
+
+std::optional<uint8_t> readDWARFExpressionTargetReg(StringRef ExprBytes) {
   uint8_t Opcode = ExprBytes[0];
   if (Opcode == dwarf::DW_CFA_def_cfa_expression)
-    return NoneType();
+    return std::nullopt;
   assert((Opcode == dwarf::DW_CFA_expression ||
           Opcode == dwarf::DW_CFA_val_expression) &&
          "invalid DWARF expression CFI");

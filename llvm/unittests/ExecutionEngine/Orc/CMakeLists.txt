@@ -5,16 +5,21 @@ set(LLVM_LINK_COMPONENTS
   IRReader
   JITLink
   Object
+  ObjectYAML
+  OrcDebugging
   OrcJIT
   OrcShared
   OrcTargetProcess
   Passes
   RuntimeDyld
   Support
+  TargetParser
   native
   )
 
 add_llvm_unittest(OrcJITTests
+  CallableTraitsHelperTest.cpp
+  CallSPSViaEPCTest.cpp
   CoreAPIsTest.cpp
   ExecutorAddressTest.cpp
   ExecutionSessionWrapperFunctionCallsTest.cpp
@@ -23,9 +28,13 @@ add_llvm_unittest(OrcJITTests
   IndirectionUtilsTest.cpp
   JITTargetMachineBuilderTest.cpp
   LazyCallThroughAndReexportsTest.cpp
+  LibraryResolverTest.cpp
   LookupAndRecordAddrsTest.cpp
+  MachOPlatformTest.cpp
   MapperJITLinkMemoryManagerTest.cpp
+  MemoryFlagsTest.cpp
   MemoryMapperTest.cpp
+  ObjectFormatsTest.cpp
   ObjectLinkingLayerTest.cpp
   OrcCAPITest.cpp
   OrcTestCommon.cpp
@@ -37,11 +46,14 @@ add_llvm_unittest(OrcJITTests
   SymbolStringPoolTest.cpp
   TaskDispatchTest.cpp
   ThreadSafeModuleTest.cpp
+  WaitingOnGraphTest.cpp
   WrapperFunctionUtilsTest.cpp
+  JITLinkRedirectionManagerTest.cpp
+  ReOptimizeLayerTest.cpp
+
+  EXPORT_SYMBOLS
   )
 
 target_link_libraries(OrcJITTests PRIVATE
                         LLVMTestingSupport
                         ${ORC_JIT_TEST_LIBS})
-
-set_property(TARGET OrcJITTests PROPERTY FOLDER "Tests/UnitTests/ExecutionTests")

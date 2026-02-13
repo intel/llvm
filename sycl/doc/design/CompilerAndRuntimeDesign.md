@@ -250,7 +250,7 @@ the filetable to get a new filetable:
 construct a wrapper object which embeds all those files.
 
 Note that the graph does not change when more rows (clusters) or columns
-(e.g. a "manifest" file) are added to the table.
+ are added to the table.
 
 #### Enable SYCL offload
 
@@ -267,7 +267,7 @@ assumed, and single device compiler for this target is invoked.
 
 The option `-sycl-std` allows specifying which version of
 the SYCL standard will be used for the compilation.
-The default value for this option is `1.2.1`.
+The default value for this option is `2020`.
 
 #### Ahead of time (AOT) compilation
 
@@ -387,8 +387,8 @@ when the parent fat binary is unloaded. The registration function basically
 takes the pointer to the offload descriptor and invokes SYCL runtime library's
 registration function passing it as a parameter.
 
-The offload descriptor type hierarchy is described in the `pi.h` header. The
-top-level structure is `pi_device_binaries_struct`.
+The offload descriptor type hierarchy is described in the `compiler.hpp`
+header. The top-level structure is `sycl_device_binaries_struct`.
 
 #### Device Link
 
@@ -423,18 +423,34 @@ Case 1 can be identified in the device binary generation stage (step 1) by
 scanning the known kernels. Case 2 must be verified by the driver by checking
 for newly introduced kernels in the final link stage (step 3).
 
-The llvm-no-spir-kernel tool was introduced to facilitate checking for case 2 in
-the driver. It detects if a module includes kernels and is invoked as follows:
+#### Device Link during compilation
 
-```bash
-llvm-no-spir-kernel host.bc
-```
+The `-fno-sycl-rdc` flag can be used in combination with the `-c` option
+when generating fat objects. This option combination informs the compiler to
+perform a full device link stage against the device object, creating a fat
+object that contains the corresponding host object and a fully compiled device
+binary. It is expected that usage of `-fno-sycl-rdc` coincide with
+ahead of time compiling.
 
-It returns 0 if no kernels are present and 1 otherwise.
+When using the generated fat object in this case, the compiler will recognize
+the fat object that contains the fully linked device binary. The device binary
+will be unbundled and linked during the final host link and will not be sent
+through any additional device linking steps.
+
+1. Generation of fat object: a.cpp -> a_fat.o (contains host object and full
+device image)
+2. Linking: a_fat.o -> executable
+
+The generation of the full device image during the compilation (-c) step of
+creating the object allows for library creation that does not require full
+device linking steps which can be a burden to the user.  Providing these early
+device linking steps give the provider of the archives/objects a better user
+experience.
 
 #### Device code post-link step
 
-At link time all the device code is always linked into a single LLVM IR module.
+At link time all the device code is linked into
+a single LLVM IR module unless `-fno-sycl-rdc` is specified.
 `sycl-post-link` tool performs a number of final transformations on this LLVM IR
 module before handing it off to the offload wrapper. Those include:
 
@@ -468,9 +484,12 @@ list coming either from `llvm-spirv` or from the AOT backend.
 Targeting PTX currently only accepts a single input file for processing, so
 `file-table-tform` is used to extract the code file from the file table, which
 is then processed by the
-["PTX target processing" step](#device-code-post-link-step-for-CUDA).
+["PTX target processing" step](#device-code-post-link-step-for-cuda).
 The resulting device binary is inserted back into the file table in place of the
-extracted code file using `file-table-tform`.
+extracted code file using `file-table-tform`. If `-fno-sycl-rdc` is specified,
+all shown tools are invoked multiple times, once per translation unit rather than
+once total. See [Non-Relocatable Device Code](NonRelocatableDeviceCode.md) for
+more information.
 
 ##### Device code splitting
 
@@ -490,12 +509,17 @@ ones. The following features is supported:
 - Emitting a separate module for source (translation unit)
 - Emitting a separate module for each kernel
 
+If the device code does not use `SYCL_EXTERNAL` functions, device code splitting
+can be combined with the `-fno-sycl-rdc` option for improved compiler performance.
+
 The current approach is:
 
 - Generate special meta-data with translation unit ID for each kernel in SYCL
 front-end. This ID will be used to group kernels on per-translation unit basis
 - Link all device LLVM modules using llvm-link
-- Perform split on a fully linked module
+- Perform split on a fully linked module, unless `-fno-sycl-rdc` is specified,
+  where splits are performed on a module containing only current translation unit and
+  linked device libraries
 - Generate a symbol table (list of kernels) for each produced device module for
 proper module selection in runtime
 - Perform SPIR-V translation and AOT compilation (if requested) on each produced
@@ -505,6 +529,9 @@ image
 
 Device code splitting process:
 ![Device code splitting](images/DeviceCodeSplit.svg)
+
+The `llvm-link` box does not occur when `-fno-sycl-rdc` is specified. Rather,
+all subsequent boxes occur per-source.
 
 The "split" box is implemented as functionality of the dedicated tool
 `sycl-post-link`. The tool runs a set of LLVM passes to split input module and
@@ -520,7 +547,8 @@ There are three possible values for this option:
 - `per_source` - enables emitting a separate module for each source (translation
 unit)
 - `per_kernel` - enables emitting a separate module for each kernel
-- `off` - disables device code split
+- `off` - disables device code split. If `-fno-sycl-rdc` is specified, the behavior is
+   the same as `per_source`
 
 ##### Symbol table generation
 
@@ -528,7 +556,7 @@ TBD
 
 ##### Specialization constants lowering
 
-See [corresponding documentation](SpecializationConstants.md)
+See corresponding documentation
 
 #### CUDA support
 
@@ -539,8 +567,8 @@ Unlike other AOT targets, the bitcode module linked from intermediate compiled
 objects never goes through SPIR-V. Instead it is passed directly in bitcode form
 down to the NVPTX Back End. All produced bitcode depends on two libraries,
 `libdevice.bc` (provided by the CUDA SDK) and `libspirv-nvptx64--nvidiacl.bc` variants
-(built by the libclc project). `libspirv-nvptx64--nvidiacl.bc` is not used directly. 
-Instead it is used to generate remangled variants 
+(built by the libclc project). `libspirv-nvptx64--nvidiacl.bc` is not used directly.
+Instead it is used to generate remangled variants
 `remangled-l64-signed_char.libspirv-nvptx64--nvidiacl.bc` and
 `remangled-l32-signed_char.libspirv-nvptx64--nvidiacl.bc` to handle primitive type
 differences between Linux and Windows.
@@ -572,14 +600,14 @@ path in SYCL kernels.
 
 ##### NVPTX Builtins
 
-Builtins are implemented in OpenCL C within libclc. OpenCL C treats `long` 
+Builtins are implemented in OpenCL C within libclc. OpenCL C treats `long`
 types as 64 bit and has no `long long` types while Windows DPC++ treats `long`
-types like 32-bit integers and `long long` types like 64-bit integers. 
-Differences between the primitive types can cause applications to use 
-incompatible libclc built-ins. A remangler creates multiple libspriv files 
-with different remangled function names to support both Windows and Linux. 
-When building a SYCL application targeting the CUDA backend the driver 
-will link the device code with 
+types like 32-bit integers and `long long` types like 64-bit integers.
+Differences between the primitive types can cause applications to use
+incompatible libclc built-ins. A remangler creates multiple libspirv files
+with different remangled function names to support both Windows and Linux.
+When building a SYCL application targeting the CUDA backend the driver
+will link the device code with
 `remangled-l32-signed_char.libspirv-nvptx64--nvidiacl.bc` if the host target is
 Windows or it will link the device code with
 `remangled-l64-signed_char.libspirv-nvptx64--nvidiacl.bc` if the host target is
@@ -649,7 +677,7 @@ define void @SYCL_generated_kernel(i32 %local_ptr_offset, i32 %arg, i32 %local_p
 }
 ```
 
-On the runtime side, when setting local memory arguments, the CUDA PI
+On the runtime side, when setting local memory arguments, the CUDA UR
 implementation will internally set the argument as the offset with respect to
 the accumulated size of used local memory. This approach preserves the existing
 PI interface.
@@ -745,6 +773,31 @@ entry:
 
 Note: Kernel naming is not fully stable for now.
 
+##### JIT compilation support
+
+CUBIN, PTX and AMDGCN assembly cannot be loaded as input formats for JIT
+compilation for the CUDA or HIP backends. Hence, the user needs to specify the
+additional flag `-fsycl-embed-ir` during compilation, to add LLVM IR as an
+additional device binary. When the flag `-fsycl-embed-ir` is specified, the LLVM
+IR produced by Clang for the CUDA/HIP backend device compilation is added to the
+fat binary file. To this end, the resulting file-table from `sycl-post-link` is
+additionally passed to the `clang-offload-wrapper`, creating a wrapper object
+with target `llvm_nvptx64` for the CUDA backend and `llvm_amdgcn` for the HIP
+backend.
+
+This device binary in LLVM IR format can be retrieved by the SYCL runtime and
+used by the JIT compiler. For the CUDA backend, the resulting LLVM module is
+compiled to PTX assembly by the JIT compiler at runtime. For the HIP backend,
+the resulting LLVM module is compiled to an AMDGCN binary by the JIT compiler
+at runtime, however this output requires finalization by `lld`. Rather than
+adding another dependency to the JIT library, a `Requires finalization` property
+is added the binary. The HIP UR adapter will then use the AMD Compiler Object
+Manager library (`comgr`, part of the ROCm package) in order to finalize it into
+a loadable format.
+
+Note that the device binary in LLVM IR does not replace the device binary in
+target format, but is embed in addition to it.
+
 ### Integration with SPIR-V format
 
 This section explains how to generate SPIR-V specific types and operations from
@@ -837,9 +890,6 @@ The SPIR-V specific C++ enumerators and classes are declared in the file:
 The SPIR-V specific C++ function declarations are in the file:
 `sycl/include/CL/__spirv/spirv_ops.hpp`.
 
-The SPIR-V specific functions are implemented in for the SYCL host device here:
-`sycl/source/spirv_ops.cpp`.
-
 ### Address spaces handling
 
 SYCL specification uses C++ classes to represent pointers to disjoint memory
@@ -857,7 +907,7 @@ template <typename T, address_space AS> class multi_ptr {
   // DecoratedType<T, global_space>::type == "__attribute__((opencl_global)) T"
   // See sycl/include/sycl/access/access.hpp for more details
   using pointer_t = typename DecoratedType<T, AS>::type *;
- 
+
   pointer_t m_Pointer;
   public:
   pointer_t get() { return m_Pointer; }
@@ -933,8 +983,6 @@ space attributes in SYCL mode:
 | Address space attribute | SYCL address_space enumeration |
 |-------------------------|--------------------------------|
 | `__attribute__((opencl_global))` | global_space, constant_space |
-| `__attribute__((opencl_global_host))` | ext_intel_global_host_space |
-| `__attribute__((opencl_global_device))` | ext_intel_global_device_space |
 | `__attribute__((opencl_local))` | local_space |
 | `__attribute__((opencl_private))` | private_space |
 | `__attribute__((opencl_constant))` | N/A
@@ -952,4 +1000,4 @@ with any other address space (including default).
 
 ## DPC++ Language extensions to SYCL
 
-List of language extensions can be found at [extensions](../extensions)
+List of language extensions can be found at [extensions](https://github.com/intel/llvm/blob/sycl/doc/extensions/)

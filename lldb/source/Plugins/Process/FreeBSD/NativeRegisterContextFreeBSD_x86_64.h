@@ -19,6 +19,7 @@
 // clang-format on
 
 #include <array>
+#include <optional>
 
 #include "Plugins/Process/FreeBSD/NativeRegisterContextFreeBSD.h"
 #include "Plugins/Process/Utility/RegisterContext_x86.h"
@@ -37,7 +38,7 @@ class NativeRegisterContextFreeBSD_x86_64
       public NativeRegisterContextDBReg_x86 {
 public:
   NativeRegisterContextFreeBSD_x86_64(const ArchSpec &target_arch,
-                                      NativeThreadProtocol &native_thread);
+                                      NativeThreadFreeBSD &native_thread);
   uint32_t GetRegisterSetCount() const override;
 
   const RegisterSet *GetRegisterSet(uint32_t set_index) const override;
@@ -74,7 +75,7 @@ private:
   std::array<uint32_t, MaxRegSet + 1> m_xsave_offsets;
   std::array<size_t, MaxRegSet + 1> m_regset_offsets;
 
-  llvm::Optional<RegSetKind> GetSetForNativeRegNum(uint32_t reg_num) const;
+  std::optional<RegSetKind> GetSetForNativeRegNum(uint32_t reg_num) const;
 
   Status ReadRegisterSet(RegSetKind set);
   Status WriteRegisterSet(RegSetKind set);
@@ -85,7 +86,7 @@ private:
     void *xmm;
     void *ymm_hi;
   };
-  llvm::Optional<YMMSplitPtr> GetYMMSplitReg(uint32_t reg);
+  std::optional<YMMSplitPtr> GetYMMSplitReg(uint32_t reg);
 };
 
 } // namespace process_freebsd

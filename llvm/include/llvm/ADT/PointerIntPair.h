@@ -19,9 +19,43 @@
 #include "llvm/Support/type_traits.h"
 #include <cassert>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 
 namespace llvm {
+
+namespace detail {
+template <typename Ptr> struct PunnedPointer {
+  static_assert(sizeof(Ptr) == sizeof(intptr_t), "");
+
+  // Asserts that allow us to let the compiler implement the destructor and
+  // copy/move constructors
+  static_assert(std::is_trivially_destructible<Ptr>::value, "");
+  static_assert(std::is_trivially_copy_constructible<Ptr>::value, "");
+  static_assert(std::is_trivially_move_constructible<Ptr>::value, "");
+
+  explicit constexpr PunnedPointer(intptr_t i = 0) { *this = i; }
+
+  constexpr intptr_t asInt() const {
+    intptr_t R = 0;
+    std::memcpy(&R, Data, sizeof(R));
+    return R;
+  }
+
+  constexpr operator intptr_t() const { return asInt(); }
+
+  constexpr PunnedPointer &operator=(intptr_t V) {
+    std::memcpy(Data, &V, sizeof(Data));
+    return *this;
+  }
+
+  Ptr *getPointerAddress() { return reinterpret_cast<Ptr *>(Data); }
+  const Ptr *getPointerAddress() const { return reinterpret_cast<Ptr *>(Data); }
+
+private:
+  alignas(Ptr) unsigned char Data[sizeof(Ptr)];
+};
+} // namespace detail
 
 template <typename T, typename Enable> struct DenseMapInfo;
 template <typename PointerT, unsigned IntBits, typename PtrTraits>
@@ -46,7 +80,7 @@ template <typename PointerTy, unsigned IntBits, typename IntType = unsigned,
 class PointerIntPair {
   // Used by MSVC visualizer and generally helpful for debugging/visualizing.
   using InfoTy = Info;
-  intptr_t Value = 0;
+  detail::PunnedPointer<PointerTy> Value;
 
 public:
   constexpr PointerIntPair() = default;
@@ -86,10 +120,12 @@ public:
     assert(Value == reinterpret_cast<intptr_t>(getPointer()) &&
            "Can only return the address if IntBits is cleared and "
            "PtrTraits doesn't change the pointer");
-    return reinterpret_cast<PointerTy *>(&Value);
+    return Value.getPointerAddress();
   }
 
-  void *getOpaqueValue() const { return reinterpret_cast<void *>(Value); }
+  void *getOpaqueValue() const {
+    return reinterpret_cast<void *>(Value.asInt());
+  }
 
   void setFromOpaqueValue(void *Val) & {
     Value = reinterpret_cast<intptr_t>(Val);
@@ -137,15 +173,14 @@ struct PointerIntPairInfo {
                 "PointerIntPair with integer size too large for pointer");
   enum MaskAndShiftConstants : uintptr_t {
     /// PointerBitMask - The bits that come from the pointer.
-    PointerBitMask =
-        ~(uintptr_t)(((intptr_t)1 << PtrTraits::NumLowBitsAvailable) - 1),
+    PointerBitMask = (~(uintptr_t)0) << PtrTraits::NumLowBitsAvailable,
 
     /// IntShift - The number of low bits that we reserve for other uses, and
     /// keep zero.
     IntShift = (uintptr_t)PtrTraits::NumLowBitsAvailable - IntBits,
 
     /// IntMask - This is the unshifted mask for valid bits of the int type.
-    IntMask = (uintptr_t)(((intptr_t)1 << IntBits) - 1),
+    IntMask = ((uintptr_t)1 << IntBits) - 1,
 
     // ShiftedIntMask - This is the bits for the integer shifted in place.
     ShiftedIntMask = (uintptr_t)(IntMask << IntShift)
@@ -170,11 +205,10 @@ struct PointerIntPairInfo {
   }
 
   static intptr_t updateInt(intptr_t OrigValue, intptr_t Int) {
-    intptr_t IntWord = static_cast<intptr_t>(Int);
-    assert((IntWord & ~IntMask) == 0 && "Integer too large for field");
+    assert((Int & ~IntMask) == 0 && "Integer too large for field");
 
     // Preserve all bits other than the ones we are updating.
-    return (OrigValue & ~ShiftedIntMask) | IntWord << IntShift;
+    return (OrigValue & ~ShiftedIntMask) | Int << IntShift;
   }
 };
 
@@ -227,6 +261,32 @@ struct PointerLikeTypeTraits<
       PtrTraits::NumLowBitsAvailable - IntBits;
 };
 
+// Allow structured bindings on PointerIntPair.
+template <std::size_t I, typename PointerTy, unsigned IntBits, typename IntType,
+          typename PtrTraits, typename Info>
+decltype(auto)
+get(const PointerIntPair<PointerTy, IntBits, IntType, PtrTraits, Info> &Pair) {
+  static_assert(I < 2);
+  if constexpr (I == 0)
+    return Pair.getPointer();
+  else
+    return Pair.getInt();
+}
+
 } // end namespace llvm
+
+namespace std {
+template <typename PointerTy, unsigned IntBits, typename IntType,
+          typename PtrTraits, typename Info>
+struct tuple_size<
+    llvm::PointerIntPair<PointerTy, IntBits, IntType, PtrTraits, Info>>
+    : std::integral_constant<std::size_t, 2> {};
+
+template <std::size_t I, typename PointerTy, unsigned IntBits, typename IntType,
+          typename PtrTraits, typename Info>
+struct tuple_element<
+    I, llvm::PointerIntPair<PointerTy, IntBits, IntType, PtrTraits, Info>>
+    : std::conditional<I == 0, PointerTy, IntType> {};
+} // namespace std
 
 #endif // LLVM_ADT_POINTERINTPAIR_H

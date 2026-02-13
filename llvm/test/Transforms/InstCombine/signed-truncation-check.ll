@@ -142,8 +142,8 @@ define i1 @positive_with_aggressive_icmp_logical(i32 %arg) {
 define i1 @positive_with_extra_and(i32 %arg, i1 %z) {
 ; CHECK-LABEL: @positive_with_extra_and(
 ; CHECK-NEXT:    [[T5_SIMPLIFIED:%.*]] = icmp ult i32 [[ARG:%.*]], 128
-; CHECK-NEXT:    [[TMP1:%.*]] = and i1 [[T5_SIMPLIFIED]], [[Z:%.*]]
-; CHECK-NEXT:    ret i1 [[TMP1]]
+; CHECK-NEXT:    [[T5:%.*]] = and i1 [[T5_SIMPLIFIED]], [[Z:%.*]]
+; CHECK-NEXT:    ret i1 [[T5]]
 ;
   %t1 = icmp sgt i32 %arg, -1
   %t2 = add i32 %arg, 128
@@ -173,7 +173,7 @@ define i1 @positive_with_extra_and_logical(i32 %arg, i1 %z) {
 
 define <2 x i1> @positive_vec_splat(<2 x i32> %arg) {
 ; CHECK-LABEL: @positive_vec_splat(
-; CHECK-NEXT:    [[T4_SIMPLIFIED:%.*]] = icmp ult <2 x i32> [[ARG:%.*]], <i32 128, i32 128>
+; CHECK-NEXT:    [[T4_SIMPLIFIED:%.*]] = icmp ult <2 x i32> [[ARG:%.*]], splat (i32 128)
 ; CHECK-NEXT:    ret <2 x i1> [[T4_SIMPLIFIED]]
 ;
   %t1 = icmp sgt <2 x i32> %arg, <i32 -1, i32 -1>
@@ -185,7 +185,7 @@ define <2 x i1> @positive_vec_splat(<2 x i32> %arg) {
 
 define <2 x i1> @positive_vec_nonsplat(<2 x i32> %arg) {
 ; CHECK-LABEL: @positive_vec_nonsplat(
-; CHECK-NEXT:    [[T1:%.*]] = icmp sgt <2 x i32> [[ARG:%.*]], <i32 -1, i32 -1>
+; CHECK-NEXT:    [[T1:%.*]] = icmp sgt <2 x i32> [[ARG:%.*]], splat (i32 -1)
 ; CHECK-NEXT:    [[T2:%.*]] = add <2 x i32> [[ARG]], <i32 128, i32 256>
 ; CHECK-NEXT:    [[T3:%.*]] = icmp ult <2 x i32> [[T2]], <i32 256, i32 512>
 ; CHECK-NEXT:    [[T4:%.*]] = and <2 x i1> [[T1]], [[T3]]
@@ -198,107 +198,86 @@ define <2 x i1> @positive_vec_nonsplat(<2 x i32> %arg) {
   ret <2 x i1> %t4
 }
 
-define <3 x i1> @positive_vec_undef0(<3 x i32> %arg) {
-; CHECK-LABEL: @positive_vec_undef0(
-; CHECK-NEXT:    [[T1:%.*]] = icmp sgt <3 x i32> [[ARG:%.*]], <i32 -1, i32 undef, i32 -1>
-; CHECK-NEXT:    [[T2:%.*]] = add <3 x i32> [[ARG]], <i32 128, i32 128, i32 128>
-; CHECK-NEXT:    [[T3:%.*]] = icmp ult <3 x i32> [[T2]], <i32 256, i32 256, i32 256>
-; CHECK-NEXT:    [[T4:%.*]] = and <3 x i1> [[T1]], [[T3]]
-; CHECK-NEXT:    ret <3 x i1> [[T4]]
+define <3 x i1> @positive_vec_poison0(<3 x i32> %arg) {
+; CHECK-LABEL: @positive_vec_poison0(
+; CHECK-NEXT:    [[T4_SIMPLIFIED:%.*]] = icmp ult <3 x i32> [[ARG:%.*]], splat (i32 128)
+; CHECK-NEXT:    ret <3 x i1> [[T4_SIMPLIFIED]]
 ;
-  %t1 = icmp sgt <3 x i32> %arg, <i32 -1, i32 undef, i32 -1>
+  %t1 = icmp sgt <3 x i32> %arg, <i32 -1, i32 poison, i32 -1>
   %t2 = add <3 x i32> %arg, <i32 128, i32 128, i32 128>
   %t3 = icmp ult <3 x i32> %t2, <i32 256, i32 256, i32 256>
   %t4 = and <3 x i1> %t1, %t3
   ret <3 x i1> %t4
 }
 
-define <3 x i1> @positive_vec_undef1(<3 x i32> %arg) {
-; CHECK-LABEL: @positive_vec_undef1(
-; CHECK-NEXT:    [[T1:%.*]] = icmp sgt <3 x i32> [[ARG:%.*]], <i32 -1, i32 -1, i32 -1>
-; CHECK-NEXT:    [[T2:%.*]] = add <3 x i32> [[ARG]], <i32 128, i32 undef, i32 128>
-; CHECK-NEXT:    [[T3:%.*]] = icmp ult <3 x i32> [[T2]], <i32 256, i32 256, i32 256>
-; CHECK-NEXT:    [[T4:%.*]] = and <3 x i1> [[T1]], [[T3]]
-; CHECK-NEXT:    ret <3 x i1> [[T4]]
+define <3 x i1> @positive_vec_poison1(<3 x i32> %arg) {
+; CHECK-LABEL: @positive_vec_poison1(
+; CHECK-NEXT:    [[T4_SIMPLIFIED:%.*]] = icmp ult <3 x i32> [[ARG:%.*]], splat (i32 128)
+; CHECK-NEXT:    ret <3 x i1> [[T4_SIMPLIFIED]]
 ;
   %t1 = icmp sgt <3 x i32> %arg, <i32 -1, i32 -1, i32 -1>
-  %t2 = add <3 x i32> %arg, <i32 128, i32 undef, i32 128>
+  %t2 = add <3 x i32> %arg, <i32 128, i32 poison, i32 128>
   %t3 = icmp ult <3 x i32> %t2, <i32 256, i32 256, i32 256>
   %t4 = and <3 x i1> %t1, %t3
   ret <3 x i1> %t4
 }
 
-define <3 x i1> @positive_vec_undef2(<3 x i32> %arg) {
-; CHECK-LABEL: @positive_vec_undef2(
-; CHECK-NEXT:    [[T1:%.*]] = icmp sgt <3 x i32> [[ARG:%.*]], <i32 -1, i32 -1, i32 -1>
-; CHECK-NEXT:    [[T2:%.*]] = add <3 x i32> [[ARG]], <i32 128, i32 128, i32 128>
-; CHECK-NEXT:    [[T3:%.*]] = icmp ult <3 x i32> [[T2]], <i32 256, i32 undef, i32 256>
-; CHECK-NEXT:    [[T4:%.*]] = and <3 x i1> [[T1]], [[T3]]
-; CHECK-NEXT:    ret <3 x i1> [[T4]]
+define <3 x i1> @positive_vec_poison2(<3 x i32> %arg) {
+; CHECK-LABEL: @positive_vec_poison2(
+; CHECK-NEXT:    [[T4_SIMPLIFIED:%.*]] = icmp ult <3 x i32> [[ARG:%.*]], splat (i32 128)
+; CHECK-NEXT:    ret <3 x i1> [[T4_SIMPLIFIED]]
 ;
   %t1 = icmp sgt <3 x i32> %arg, <i32 -1, i32 -1, i32 -1>
   %t2 = add <3 x i32> %arg, <i32 128, i32 128, i32 128>
-  %t3 = icmp ult <3 x i32> %t2, <i32 256, i32 undef, i32 256>
+  %t3 = icmp ult <3 x i32> %t2, <i32 256, i32 poison, i32 256>
   %t4 = and <3 x i1> %t1, %t3
   ret <3 x i1> %t4
 }
 
-define <3 x i1> @positive_vec_undef3(<3 x i32> %arg) {
-; CHECK-LABEL: @positive_vec_undef3(
-; CHECK-NEXT:    [[T1:%.*]] = icmp sgt <3 x i32> [[ARG:%.*]], <i32 -1, i32 undef, i32 -1>
-; CHECK-NEXT:    [[T2:%.*]] = add <3 x i32> [[ARG]], <i32 128, i32 undef, i32 128>
-; CHECK-NEXT:    [[T3:%.*]] = icmp ult <3 x i32> [[T2]], <i32 256, i32 256, i32 256>
-; CHECK-NEXT:    [[T4:%.*]] = and <3 x i1> [[T1]], [[T3]]
-; CHECK-NEXT:    ret <3 x i1> [[T4]]
+define <3 x i1> @positive_vec_poison3(<3 x i32> %arg) {
+; CHECK-LABEL: @positive_vec_poison3(
+; CHECK-NEXT:    [[T4_SIMPLIFIED:%.*]] = icmp ult <3 x i32> [[ARG:%.*]], splat (i32 128)
+; CHECK-NEXT:    ret <3 x i1> [[T4_SIMPLIFIED]]
 ;
-  %t1 = icmp sgt <3 x i32> %arg, <i32 -1, i32 undef, i32 -1>
-  %t2 = add <3 x i32> %arg, <i32 128, i32 undef, i32 128>
+  %t1 = icmp sgt <3 x i32> %arg, <i32 -1, i32 poison, i32 -1>
+  %t2 = add <3 x i32> %arg, <i32 128, i32 poison, i32 128>
   %t3 = icmp ult <3 x i32> %t2, <i32 256, i32 256, i32 256>
   %t4 = and <3 x i1> %t1, %t3
   ret <3 x i1> %t4
 }
 
-define <3 x i1> @positive_vec_undef4(<3 x i32> %arg) {
-; CHECK-LABEL: @positive_vec_undef4(
-; CHECK-NEXT:    [[T1:%.*]] = icmp sgt <3 x i32> [[ARG:%.*]], <i32 -1, i32 undef, i32 -1>
-; CHECK-NEXT:    [[T2:%.*]] = add <3 x i32> [[ARG]], <i32 128, i32 128, i32 128>
-; CHECK-NEXT:    [[T3:%.*]] = icmp ult <3 x i32> [[T2]], <i32 256, i32 undef, i32 256>
-; CHECK-NEXT:    [[T4:%.*]] = and <3 x i1> [[T1]], [[T3]]
-; CHECK-NEXT:    ret <3 x i1> [[T4]]
+define <3 x i1> @positive_vec_poison4(<3 x i32> %arg) {
+; CHECK-LABEL: @positive_vec_poison4(
+; CHECK-NEXT:    [[T4_SIMPLIFIED:%.*]] = icmp ult <3 x i32> [[ARG:%.*]], splat (i32 128)
+; CHECK-NEXT:    ret <3 x i1> [[T4_SIMPLIFIED]]
 ;
-  %t1 = icmp sgt <3 x i32> %arg, <i32 -1, i32 undef, i32 -1>
+  %t1 = icmp sgt <3 x i32> %arg, <i32 -1, i32 poison, i32 -1>
   %t2 = add <3 x i32> %arg, <i32 128, i32 128, i32 128>
-  %t3 = icmp ult <3 x i32> %t2, <i32 256, i32 undef, i32 256>
+  %t3 = icmp ult <3 x i32> %t2, <i32 256, i32 poison, i32 256>
   %t4 = and <3 x i1> %t1, %t3
   ret <3 x i1> %t4
 }
 
-define <3 x i1> @positive_vec_undef5(<3 x i32> %arg) {
-; CHECK-LABEL: @positive_vec_undef5(
-; CHECK-NEXT:    [[T1:%.*]] = icmp sgt <3 x i32> [[ARG:%.*]], <i32 -1, i32 -1, i32 -1>
-; CHECK-NEXT:    [[T2:%.*]] = add <3 x i32> [[ARG]], <i32 128, i32 undef, i32 128>
-; CHECK-NEXT:    [[T3:%.*]] = icmp ult <3 x i32> [[T2]], <i32 256, i32 undef, i32 256>
-; CHECK-NEXT:    [[T4:%.*]] = and <3 x i1> [[T1]], [[T3]]
-; CHECK-NEXT:    ret <3 x i1> [[T4]]
+define <3 x i1> @positive_vec_poison5(<3 x i32> %arg) {
+; CHECK-LABEL: @positive_vec_poison5(
+; CHECK-NEXT:    [[T4_SIMPLIFIED:%.*]] = icmp ult <3 x i32> [[ARG:%.*]], splat (i32 128)
+; CHECK-NEXT:    ret <3 x i1> [[T4_SIMPLIFIED]]
 ;
   %t1 = icmp sgt <3 x i32> %arg, <i32 -1, i32 -1, i32 -1>
-  %t2 = add <3 x i32> %arg, <i32 128, i32 undef, i32 128>
-  %t3 = icmp ult <3 x i32> %t2, <i32 256, i32 undef, i32 256>
+  %t2 = add <3 x i32> %arg, <i32 128, i32 poison, i32 128>
+  %t3 = icmp ult <3 x i32> %t2, <i32 256, i32 poison, i32 256>
   %t4 = and <3 x i1> %t1, %t3
   ret <3 x i1> %t4
 }
 
-define <3 x i1> @positive_vec_undef6(<3 x i32> %arg) {
-; CHECK-LABEL: @positive_vec_undef6(
-; CHECK-NEXT:    [[T1:%.*]] = icmp sgt <3 x i32> [[ARG:%.*]], <i32 -1, i32 undef, i32 -1>
-; CHECK-NEXT:    [[T2:%.*]] = add <3 x i32> [[ARG]], <i32 128, i32 undef, i32 128>
-; CHECK-NEXT:    [[T3:%.*]] = icmp ult <3 x i32> [[T2]], <i32 256, i32 undef, i32 256>
-; CHECK-NEXT:    [[T4:%.*]] = and <3 x i1> [[T1]], [[T3]]
-; CHECK-NEXT:    ret <3 x i1> [[T4]]
+define <3 x i1> @positive_vec_poison6(<3 x i32> %arg) {
+; CHECK-LABEL: @positive_vec_poison6(
+; CHECK-NEXT:    [[T4_SIMPLIFIED:%.*]] = icmp ult <3 x i32> [[ARG:%.*]], splat (i32 128)
+; CHECK-NEXT:    ret <3 x i1> [[T4_SIMPLIFIED]]
 ;
-  %t1 = icmp sgt <3 x i32> %arg, <i32 -1, i32 undef, i32 -1>
-  %t2 = add <3 x i32> %arg, <i32 128, i32 undef, i32 128>
-  %t3 = icmp ult <3 x i32> %t2, <i32 256, i32 undef, i32 256>
+  %t1 = icmp sgt <3 x i32> %arg, <i32 -1, i32 poison, i32 -1>
+  %t2 = add <3 x i32> %arg, <i32 128, i32 poison, i32 128>
+  %t3 = icmp ult <3 x i32> %t2, <i32 256, i32 poison, i32 256>
   %t4 = and <3 x i1> %t1, %t3
   ret <3 x i1> %t4
 }
@@ -633,7 +612,7 @@ define zeroext i1 @oneuse_trunc_sext(i32 %arg) {
 ; CHECK-NEXT:    call void @use8(i8 [[T3]])
 ; CHECK-NEXT:    [[T4:%.*]] = sext i8 [[T3]] to i32
 ; CHECK-NEXT:    call void @use32(i32 [[T4]])
-; CHECK-NEXT:    [[T5:%.*]] = icmp eq i32 [[T4]], [[ARG]]
+; CHECK-NEXT:    [[T5:%.*]] = icmp eq i32 [[ARG]], [[T4]]
 ; CHECK-NEXT:    call void @use1(i1 [[T5]])
 ; CHECK-NEXT:    [[T6:%.*]] = and i1 [[T2]], [[T5]]
 ; CHECK-NEXT:    ret i1 [[T6]]
@@ -662,7 +641,7 @@ define zeroext i1 @oneuse_trunc_sext_logical(i32 %arg) {
 ; CHECK-NEXT:    call void @use8(i8 [[T3]])
 ; CHECK-NEXT:    [[T4:%.*]] = sext i8 [[T3]] to i32
 ; CHECK-NEXT:    call void @use32(i32 [[T4]])
-; CHECK-NEXT:    [[T5:%.*]] = icmp eq i32 [[T4]], [[ARG]]
+; CHECK-NEXT:    [[T5:%.*]] = icmp eq i32 [[ARG]], [[T4]]
 ; CHECK-NEXT:    call void @use1(i1 [[T5]])
 ; CHECK-NEXT:    [[T6:%.*]] = select i1 [[T2]], i1 [[T5]], i1 false
 ; CHECK-NEXT:    ret i1 [[T6]]
@@ -909,8 +888,8 @@ define i1 @negative_not_less_than_logical(i32 %arg) {
 
 define i1 @negative_not_power_of_two(i32 %arg) {
 ; CHECK-LABEL: @negative_not_power_of_two(
-; CHECK-NEXT:    [[TMP1:%.*]] = icmp eq i32 [[ARG:%.*]], 0
-; CHECK-NEXT:    ret i1 [[TMP1]]
+; CHECK-NEXT:    [[T4:%.*]] = icmp eq i32 [[ARG:%.*]], 0
+; CHECK-NEXT:    ret i1 [[T4]]
 ;
   %t1 = icmp sgt i32 %arg, -1
   %t2 = add i32 %arg, 255 ; should be power of two
@@ -921,8 +900,8 @@ define i1 @negative_not_power_of_two(i32 %arg) {
 
 define i1 @negative_not_power_of_two_logical(i32 %arg) {
 ; CHECK-LABEL: @negative_not_power_of_two_logical(
-; CHECK-NEXT:    [[TMP1:%.*]] = icmp eq i32 [[ARG:%.*]], 0
-; CHECK-NEXT:    ret i1 [[TMP1]]
+; CHECK-NEXT:    [[T4:%.*]] = icmp eq i32 [[ARG:%.*]], 0
+; CHECK-NEXT:    ret i1 [[T4]]
 ;
   %t1 = icmp sgt i32 %arg, -1
   %t2 = add i32 %arg, 255 ; should be power of two
@@ -933,8 +912,8 @@ define i1 @negative_not_power_of_two_logical(i32 %arg) {
 
 define i1 @negative_not_next_power_of_two(i32 %arg) {
 ; CHECK-LABEL: @negative_not_next_power_of_two(
-; CHECK-NEXT:    [[TMP1:%.*]] = icmp ult i32 [[ARG:%.*]], 192
-; CHECK-NEXT:    ret i1 [[TMP1]]
+; CHECK-NEXT:    [[T4:%.*]] = icmp ult i32 [[ARG:%.*]], 192
+; CHECK-NEXT:    ret i1 [[T4]]
 ;
   %t1 = icmp sgt i32 %arg, -1
   %t2 = add i32 %arg, 64 ; should be 256 >> 1
@@ -945,8 +924,8 @@ define i1 @negative_not_next_power_of_two(i32 %arg) {
 
 define i1 @negative_not_next_power_of_two_logical(i32 %arg) {
 ; CHECK-LABEL: @negative_not_next_power_of_two_logical(
-; CHECK-NEXT:    [[TMP1:%.*]] = icmp ult i32 [[ARG:%.*]], 192
-; CHECK-NEXT:    ret i1 [[TMP1]]
+; CHECK-NEXT:    [[T4:%.*]] = icmp ult i32 [[ARG:%.*]], 192
+; CHECK-NEXT:    ret i1 [[T4]]
 ;
   %t1 = icmp sgt i32 %arg, -1
   %t2 = add i32 %arg, 64 ; should be 256 >> 1
@@ -958,8 +937,8 @@ define i1 @negative_not_next_power_of_two_logical(i32 %arg) {
 define i1 @two_signed_truncation_checks(i32 %arg) {
 ; CHECK-LABEL: @two_signed_truncation_checks(
 ; CHECK-NEXT:    [[TMP1:%.*]] = add i32 [[ARG:%.*]], 128
-; CHECK-NEXT:    [[TMP2:%.*]] = icmp ult i32 [[TMP1]], 256
-; CHECK-NEXT:    ret i1 [[TMP2]]
+; CHECK-NEXT:    [[T5:%.*]] = icmp ult i32 [[TMP1]], 256
+; CHECK-NEXT:    ret i1 [[T5]]
 ;
   %t1 = add i32 %arg, 512
   %t2 = icmp ult i32 %t1, 1024
@@ -972,8 +951,8 @@ define i1 @two_signed_truncation_checks(i32 %arg) {
 define i1 @two_signed_truncation_checks_logical(i32 %arg) {
 ; CHECK-LABEL: @two_signed_truncation_checks_logical(
 ; CHECK-NEXT:    [[TMP1:%.*]] = add i32 [[ARG:%.*]], 128
-; CHECK-NEXT:    [[TMP2:%.*]] = icmp ult i32 [[TMP1]], 256
-; CHECK-NEXT:    ret i1 [[TMP2]]
+; CHECK-NEXT:    [[T5:%.*]] = icmp ult i32 [[TMP1]], 256
+; CHECK-NEXT:    ret i1 [[T5]]
 ;
   %t1 = add i32 %arg, 512
   %t2 = icmp ult i32 %t1, 1024

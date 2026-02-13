@@ -47,9 +47,9 @@ define void @basic(i32 %v) {
   ret void
 }
 
-define void @nonnull(i32* %v) {
+define void @nonnull(ptr %v) {
 ; CHECK-LABEL: @nonnull(
-; CHECK-NEXT:    [[A:%.*]] = icmp ne i32* [[V:%.*]], null
+; CHECK-NEXT:    [[A:%.*]] = icmp ne ptr [[V:%.*]], null
 ; CHECK-NEXT:    call void @llvm.assume(i1 [[A]])
 ; CHECK-NEXT:    call void @use(i1 false)
 ; CHECK-NEXT:    call void @use(i1 true)
@@ -57,15 +57,65 @@ define void @nonnull(i32* %v) {
 ; CHECK-NEXT:    call void @use(i1 true)
 ; CHECK-NEXT:    ret void
 ;
-  %a = icmp ne i32* %v, null
+  %a = icmp ne ptr %v, null
   call void @llvm.assume(i1 %a)
-  %c1 = icmp eq i32* %v, null
+  %c1 = icmp eq ptr %v, null
   call void @use(i1 %c1)
-  %c2 = icmp ne i32* %v, null
+  %c2 = icmp ne ptr %v, null
   call void @use(i1 %c2)
-  %c3 = icmp eq i32* null, %v
+  %c3 = icmp eq ptr null, %v
   call void @use(i1 %c3)
-  %c4 = icmp ne i32* null, %v
+  %c4 = icmp ne ptr null, %v
+  call void @use(i1 %c4)
+  ret void
+}
+
+define void @trunc_nuw(i8 %v) {
+; CHECK-LABEL: @trunc_nuw(
+; CHECK-NEXT:    [[A:%.*]] = trunc nuw i8 [[V:%.*]] to i1
+; CHECK-NEXT:    call void @llvm.assume(i1 [[A]])
+; CHECK-NEXT:    call void @use(i1 false)
+; CHECK-NEXT:    call void @use(i1 true)
+; CHECK-NEXT:    call void @use(i1 false)
+; CHECK-NEXT:    call void @use(i1 true)
+; CHECK-NEXT:    ret void
+;
+  %a = trunc nuw i8 %v to i1
+  call void @llvm.assume(i1 %a)
+  %c1 = icmp eq i8 %v, 0
+  call void @use(i1 %c1)
+  %c2 = icmp ne i8 %v, 0
+  call void @use(i1 %c2)
+  %c3 = icmp eq i8 0, %v
+  call void @use(i1 %c3)
+  %c4 = icmp ne i8 0, %v
+  call void @use(i1 %c4)
+  ret void
+}
+
+define void @neg_trunc(i8 %v) {
+; CHECK-LABEL: @neg_trunc(
+; CHECK-NEXT:    [[A:%.*]] = trunc i8 [[V:%.*]] to i1
+; CHECK-NEXT:    call void @llvm.assume(i1 [[A]])
+; CHECK-NEXT:    [[C1:%.*]] = icmp eq i8 [[V]], 0
+; CHECK-NEXT:    call void @use(i1 [[C1]])
+; CHECK-NEXT:    [[C2:%.*]] = icmp ne i8 [[V]], 0
+; CHECK-NEXT:    call void @use(i1 [[C2]])
+; CHECK-NEXT:    [[C3:%.*]] = icmp eq i8 0, [[V]]
+; CHECK-NEXT:    call void @use(i1 [[C3]])
+; CHECK-NEXT:    [[C4:%.*]] = icmp ne i8 0, [[V]]
+; CHECK-NEXT:    call void @use(i1 [[C4]])
+; CHECK-NEXT:    ret void
+;
+  %a = trunc i8 %v to i1
+  call void @llvm.assume(i1 %a)
+  %c1 = icmp eq i8 %v, 0
+  call void @use(i1 %c1)
+  %c2 = icmp ne i8 %v, 0
+  call void @use(i1 %c2)
+  %c3 = icmp eq i8 0, %v
+  call void @use(i1 %c3)
+  %c4 = icmp ne i8 0, %v
   call void @use(i1 %c4)
   ret void
 }

@@ -1,16 +1,17 @@
-<!--===- docs/ArrayComposition.md 
-  
+<!--===- docs/ArrayComposition.md
+
    Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
    See https://llvm.org/LICENSE.txt for license information.
    SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-  
+
 -->
 
 # Array Composition
 
-```eval_rst
-.. contents::
-   :local:
+```{contents}
+---
+local:
+---
 ```
 
 This note attempts to describe the motivation for and design of an

@@ -9,6 +9,7 @@
 #include "IntelPTMultiCoreTrace.h"
 #include "Plugins/Process/POSIX/ProcessPOSIXLog.h"
 #include "Procfs.h"
+#include <optional>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -35,7 +36,7 @@ static Error IncludePerfEventParanoidMessageInError(Error &&error) {
 Expected<std::unique_ptr<IntelPTMultiCoreTrace>>
 IntelPTMultiCoreTrace::StartOnAllCores(const TraceIntelPTStartRequest &request,
                                        NativeProcessProtocol &process,
-                                       Optional<int> cgroup_fd) {
+                                       std::optional<int> cgroup_fd) {
   Expected<ArrayRef<cpu_id_t>> cpu_ids = GetAvailableLogicalCoreIDs();
   if (!cpu_ids)
     return cpu_ids.takeError();
@@ -51,7 +52,7 @@ IntelPTMultiCoreTrace::StartOnAllCores(const TraceIntelPTStartRequest &request,
 
   for (cpu_id_t cpu_id : *cpu_ids) {
     Expected<IntelPTSingleBufferTrace> core_trace =
-        IntelPTSingleBufferTrace::Start(request, /*tid=*/None, cpu_id,
+        IntelPTSingleBufferTrace::Start(request, /*tid=*/std::nullopt, cpu_id,
                                         /*disabled=*/true, cgroup_fd);
     if (!core_trace)
       return IncludePerfEventParanoidMessageInError(core_trace.takeError());
@@ -145,11 +146,11 @@ Error IntelPTMultiCoreTrace::TraceStop(lldb::tid_t tid) {
                            "per-cpu process tracing is enabled.");
 }
 
-Expected<Optional<std::vector<uint8_t>>>
+Expected<std::optional<std::vector<uint8_t>>>
 IntelPTMultiCoreTrace::TryGetBinaryData(
     const TraceGetBinaryDataRequest &request) {
   if (!request.cpu_id)
-    return None;
+    return std::nullopt;
   auto it = m_traces_per_core.find(*request.cpu_id);
   if (it == m_traces_per_core.end())
     return createStringError(
@@ -160,5 +161,5 @@ IntelPTMultiCoreTrace::TryGetBinaryData(
     return it->second.first.GetIptTrace();
   if (request.kind == IntelPTDataKinds::kPerfContextSwitchTrace)
     return it->second.second.GetReadOnlyDataBuffer();
-  return None;
+  return std::nullopt;
 }

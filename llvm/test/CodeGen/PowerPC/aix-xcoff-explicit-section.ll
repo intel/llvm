@@ -13,10 +13,10 @@
 
 define dso_local signext i32 @ext_fun() section ".ext_fun_sec" {
 entry:
-  %0 = load i32, i32* @ext_const, align 4
-  %1 = load i32, i32* @ext_var, align 4
+  %0 = load i32, ptr @ext_const, align 4
+  %1 = load i32, ptr @ext_var, align 4
   %add = add nsw i32 %0, %1
-  %2 = load i32, i32* @ext_zvar, align 4
+  %2 = load i32, ptr @ext_zvar, align 4
   %add1 = add nsw i32 %add, %2
   ret i32 %add1
 }
@@ -48,7 +48,7 @@ entry:
 ; CHECK-NEXT: L..C1:
 ; CHECK-NEXT:         .tc ext_zvar[TC],ext_zvar
 
-; CHECKOBJ:        00000000 (idx: 5) .ext_fun:
+; CHECKOBJ:        00000000 (idx: [[#INDX:]]) .ext_fun:
 ; CHECKOBJ-NEXT:          0: 80 62 00 00   lwz 3, 0(2)
 ; CHECKOBJ-NEXT:          4: 80 82 00 04   lwz 4, 4(2)
 ; CHECKOBJ-NEXT:          8: 80 63 00 00   lwz 3, 0(3)
@@ -57,26 +57,26 @@ entry:
 ; CHECKOBJ-NEXT:         14: 38 63 00 01   addi 3, 3, 1
 ; CHECKOBJ-NEXT:         18: 4e 80 00 20   blr
 ; CHECKOBJ-EMPTY:
-; CHECKOBJ-NEXT:   0000001c (idx: 9) ext_const:
+; CHECKOBJ-NEXT:   0000001c (idx: [[#INDX+4]]) ext_const:
 ; CHECKOBJ-NEXT:         1c: 00 00 00 01   <unknown>
 ; CHECKOBJ-EMPTY:
 ; CHECKOBJ-NEXT:   Disassembly of section .data:
 ; CHECKOBJ-EMPTY:
-; CHECKOBJ-NEXT:   00000020 (idx: 13) ext_var:
+; CHECKOBJ-NEXT:   00000020 (idx: [[#INDX+8]]) ext_var:
 ; CHECKOBJ-NEXT:         20: 00 00 00 01   <unknown>
 ; CHECKOBJ-EMPTY:
-; CHECKOBJ-NEXT:   00000024 (idx: 17) ext_zvar:
+; CHECKOBJ-NEXT:   00000024 (idx: [[#INDX+12]]) ext_zvar:
 ; CHECKOBJ-NEXT:         24: 00 00 00 00   <unknown>
 ; CHECKOBJ-EMPTY:
-; CHECKOBJ-NEXT:   00000028 (idx: 19) ext_fun[DS]:
+; CHECKOBJ-NEXT:   00000028 (idx: [[#INDX+14]]) ext_fun[DS]:
 ; CHECKOBJ-NEXT:         28: 00 00 00 00   <unknown>
 ; CHECKOBJ-NEXT:         2c: 00 00 00 34   <unknown>
 ; CHECKOBJ-NEXT:         30: 00 00 00 00   <unknown>
 ; CHECKOBJ-EMPTY:
-; CHECKOBJ-NEXT:   00000034 (idx: 23) ext_var[TC]:
+; CHECKOBJ-NEXT:   00000034 (idx: [[#INDX+18]]) ext_var[TC]:
 ; CHECKOBJ-NEXT:         34: 00 00 00 20   <unknown>
 ; CHECKOBJ-EMPTY:
-; CHECKOBJ-NEXT:   00000038 (idx: 25) ext_zvar[TC]:
+; CHECKOBJ-NEXT:   00000038 (idx: [[#INDX+20]]) ext_zvar[TC]:
 ; CHECKOBJ-NEXT:         38: 00 00 00 24   <unknown>
 
 ; CHECKSYM:       Symbol {{[{][[:space:]] *}}Index: [[#INDX:]]{{[[:space:]] *}}Name: .ext_fun_sec

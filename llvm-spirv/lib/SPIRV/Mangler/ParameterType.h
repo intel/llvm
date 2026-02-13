@@ -45,6 +45,7 @@ enum TypePrimitiveEnum {
   PRIMITIVE_HALF,
   PRIMITIVE_FLOAT,
   PRIMITIVE_DOUBLE,
+  PRIMITIVE_BFLOAT,
   PRIMITIVE_VOID,
   PRIMITIVE_VAR_ARG,
   PRIMITIVE_STRUCT_FIRST,
@@ -153,10 +154,10 @@ struct TypeVisitor;
 struct ParamType {
   /// @brief Constructor.
   /// @param TypeEnum type id.
-  ParamType(TypeEnum TypeId) : TypeId(TypeId){};
+  ParamType(TypeEnum TypeId) : TypeId(TypeId) {}
 
   /// @brief Destructor.
-  virtual ~ParamType(){};
+  virtual ~ParamType() {}
 
   /// Abstract Methods ///
 

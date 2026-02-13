@@ -8,12 +8,14 @@
 
 #pragma once
 
+#include <sycl/access/access.hpp> // for mode, placeholder, target
+#include <sycl/buffer.hpp>        // for range
+#include <sycl/detail/fwd/accessor.hpp>
 #include <sycl/id.hpp>
 
-#include <cstddef>
-#include <iterator>
-#include <ostream>
-#include <type_traits>
+#include <cstddef>  // for size_t
+#include <iterator> // for random_access_iterator_tag
+#include <ostream>  // for operator<<, ostream, ptrdiff_t
 
 /// \file accessor_iterator.hpp
 /// The file contains implementation of accessor iterator class.
@@ -35,15 +37,8 @@
 /// > over the elements that are within the sub-range.
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
-
-template <typename AccessorDataT, int AccessorDimensions,
-          access::mode AccessMode, access::target AccessTarget,
-          access::placeholder IsPlaceholder, typename PropertyListT>
-class accessor;
-
+inline namespace _V1 {
 namespace detail {
-
 template <typename DataT, int Dimensions> class accessor_iterator {
 public:
   using difference_type = std::ptrdiff_t;
@@ -55,7 +50,9 @@ public:
 
   accessor_iterator() = default;
 
-  reference operator*() { return *(MDataPtr + getAbsoluteOffsetToBuffer()); }
+  reference operator*() const {
+    return *(MDataPtr + getAbsoluteOffsetToBuffer());
+  }
 
   accessor_iterator &operator++() {
     ++MLinearId;
@@ -85,9 +82,8 @@ public:
     return *this;
   }
 
-  friend accessor_iterator operator+(const accessor_iterator &Lhs,
-                                     difference_type N) {
-    auto Ret = Lhs;
+  accessor_iterator operator+(difference_type N) const {
+    auto Ret = *this;
     Ret += N;
     return Ret;
   }
@@ -105,13 +101,12 @@ public:
     return *this;
   }
 
-  friend accessor_iterator operator-(accessor_iterator &Lhs,
-                                     difference_type N) {
-    Lhs -= N;
-    return Lhs;
+  accessor_iterator operator-(difference_type N) const {
+    auto Temp = *this;
+    return Temp -= N;
   }
 
-  reference &operator[](difference_type N) {
+  reference &operator[](difference_type N) const {
     auto Copy = *this;
     Copy += N;
     return *Copy;
@@ -139,7 +134,7 @@ public:
     return !(*this == Other);
   }
 
-  difference_type operator-(const accessor_iterator &Rhs) {
+  difference_type operator-(const accessor_iterator &Rhs) const {
     return MLinearId - Rhs.MLinearId;
   }
 
@@ -170,7 +165,7 @@ private:
   // Fields below are used (and changed to be non-zero) only if we deal with
   // a ranged accessor.
   //
-  // TODO: consider making their existance dependable on Dimensions template
+  // TODO: consider making their existence dependable on Dimensions template
   // parameter, because not all of them are needed for all possible dimensions.
 
   // Three field below allow us to calculate an absolute offset to an accessor's
@@ -232,7 +227,7 @@ private:
   //
   // This function performs necessary calculations to make sure that all
   // access ranges and offsets are taken into account.
-  size_t getAbsoluteOffsetToBuffer() {
+  size_t getAbsoluteOffsetToBuffer() const {
     // For 1D case, any possible offsets are already incorporated into
     // MLinearId, so 1D is always treated as a non-ranged accessor
     if (!MAccessorIsRanged || Dimensions == 1)
@@ -347,5 +342,5 @@ public:
 #endif // NDEBUG
 };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

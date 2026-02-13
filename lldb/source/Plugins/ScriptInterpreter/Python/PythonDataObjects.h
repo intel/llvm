@@ -185,22 +185,37 @@ inline const char *py2_const_cast(const char *s) { return s; }
 
 enum class PyInitialValue { Invalid, Empty };
 
+// DOC: https://docs.python.org/3/c-api/arg.html#building-values
 template <typename T, typename Enable = void> struct PythonFormat;
 
-template <> struct PythonFormat<unsigned long long> {
-  static constexpr char format = 'K';
-  static auto get(unsigned long long value) { return value; }
+template <typename T, char F> struct PassthroughFormat {
+  static constexpr char format = F;
+  static constexpr T get(T t) { return t; }
 };
 
-template <> struct PythonFormat<long long> {
-  static constexpr char format = 'L';
-  static auto get(long long value) { return value; }
-};
-
-template <> struct PythonFormat<PyObject *> {
-  static constexpr char format = 'O';
-  static auto get(PyObject *value) { return value; }
-};
+template <> struct PythonFormat<char *> : PassthroughFormat<char *, 's'> {};
+template <>
+struct PythonFormat<const char *> : PassthroughFormat<const char *, 's'> {};
+template <> struct PythonFormat<char> : PassthroughFormat<char, 'b'> {};
+template <>
+struct PythonFormat<unsigned char> : PassthroughFormat<unsigned char, 'B'> {};
+template <> struct PythonFormat<short> : PassthroughFormat<short, 'h'> {};
+template <>
+struct PythonFormat<unsigned short> : PassthroughFormat<unsigned short, 'H'> {};
+template <> struct PythonFormat<int> : PassthroughFormat<int, 'i'> {};
+template <> struct PythonFormat<bool> : PassthroughFormat<bool, 'p'> {};
+template <>
+struct PythonFormat<unsigned int> : PassthroughFormat<unsigned int, 'I'> {};
+template <> struct PythonFormat<long> : PassthroughFormat<long, 'l'> {};
+template <>
+struct PythonFormat<unsigned long> : PassthroughFormat<unsigned long, 'k'> {};
+template <>
+struct PythonFormat<long long> : PassthroughFormat<long long, 'L'> {};
+template <>
+struct PythonFormat<unsigned long long>
+    : PassthroughFormat<unsigned long long, 'K'> {};
+template <>
+struct PythonFormat<PyObject *> : PassthroughFormat<PyObject *, 'O'> {};
 
 template <typename T>
 struct PythonFormat<
@@ -234,13 +249,6 @@ public:
   ~PythonObject() { Reset(); }
 
   void Reset();
-
-  void Dump() const {
-    if (m_py_obj)
-      _PyObject_Dump(m_py_obj);
-    else
-      puts("NULL");
-  }
 
   void Dump(Stream &strm) const;
 
@@ -330,6 +338,15 @@ public:
     return python::Take<PythonObject>(obj);
   }
 
+  llvm::Expected<PythonObject> GetType() const {
+    if (!m_py_obj)
+      return nullDeref();
+    PyObject *obj = PyObject_Type(m_py_obj);
+    if (!obj)
+      return exception();
+    return python::Take<PythonObject>(obj);
+  }
+
   llvm::Expected<bool> IsTrue() {
     if (!m_py_obj)
       return nullDeref();
@@ -341,7 +358,7 @@ public:
 
   llvm::Expected<long long> AsLongLong() const;
 
-  llvm::Expected<long long> AsUnsignedLongLong() const;
+  llvm::Expected<unsigned long long> AsUnsignedLongLong() const;
 
   // wraps on overflow, instead of raising an error.
   llvm::Expected<unsigned long long> AsModuloUnsignedLongLong() const;
@@ -467,6 +484,10 @@ public:
   void SetInteger(int64_t value);
 
   StructuredData::IntegerSP CreateStructuredInteger() const;
+
+  StructuredData::UnsignedIntegerSP CreateStructuredUnsignedInteger() const;
+
+  StructuredData::SignedIntegerSP CreateStructuredSignedInteger() const;
 };
 
 class PythonBoolean : public TypedPythonObject<PythonBoolean> {
@@ -535,6 +556,8 @@ public:
   explicit PythonDictionary(PyInitialValue value);
 
   static bool Check(PyObject *py_obj);
+
+  bool HasKey(const llvm::Twine &key) const;
 
   uint32_t GetSize() const;
 
@@ -749,6 +772,10 @@ private:
   const StructuredPythonObject &
   operator=(const StructuredPythonObject &) = delete;
 };
+
+PyObject *RunString(const char *str, int start, PyObject *globals,
+                    PyObject *locals);
+int RunSimpleString(const char *str);
 
 } // namespace python
 } // namespace lldb_private

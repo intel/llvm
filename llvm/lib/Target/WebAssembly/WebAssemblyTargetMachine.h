@@ -16,20 +16,31 @@
 #define LLVM_LIB_TARGET_WEBASSEMBLY_WEBASSEMBLYTARGETMACHINE_H
 
 #include "WebAssemblySubtarget.h"
-#include "llvm/Target/TargetMachine.h"
+#include "llvm/CodeGen/CodeGenTargetMachineImpl.h"
+#include <optional>
 
 namespace llvm {
 
-class WebAssemblyTargetMachine final : public LLVMTargetMachine {
+namespace WebAssembly {
+// Exception handling / setjmp-longjmp handling command-line options
+extern cl::opt<bool> WasmEnableEmEH;   // asm.js-style EH
+extern cl::opt<bool> WasmEnableEmSjLj; // asm.js-style SjLJ
+extern cl::opt<bool> WasmEnableEH;     // EH using Wasm EH instructions
+extern cl::opt<bool> WasmEnableSjLj;   // SjLj using Wasm EH instructions
+extern cl::opt<bool> WasmUseLegacyEH;  // Legacy Wasm EH
+} // namespace WebAssembly
+
+class WebAssemblyTargetMachine final : public CodeGenTargetMachineImpl {
   std::unique_ptr<TargetLoweringObjectFile> TLOF;
   mutable StringMap<std::unique_ptr<WebAssemblySubtarget>> SubtargetMap;
+  bool UsesMultivalueABI = false;
 
 public:
   WebAssemblyTargetMachine(const Target &T, const Triple &TT, StringRef CPU,
                            StringRef FS, const TargetOptions &Options,
-                           Optional<Reloc::Model> RM,
-                           Optional<CodeModel::Model> CM, CodeGenOpt::Level OL,
-                           bool JIT);
+                           std::optional<Reloc::Model> RM,
+                           std::optional<CodeModel::Model> CM,
+                           CodeGenOptLevel OL, bool JIT);
 
   ~WebAssemblyTargetMachine() override;
 
@@ -46,6 +57,10 @@ public:
     return TLOF.get();
   }
 
+  MachineFunctionInfo *
+  createMachineFunctionInfo(BumpPtrAllocator &Allocator, const Function &F,
+                            const TargetSubtargetInfo *STI) const override;
+
   TargetTransformInfo getTargetTransformInfo(const Function &F) const override;
 
   bool usesPhysRegsForValues() const override { return false; }
@@ -57,6 +72,8 @@ public:
                                 PerFunctionMIParsingState &PFS,
                                 SMDiagnostic &Error,
                                 SMRange &SourceRange) const override;
+
+  bool usesMultivalueABI() const { return UsesMultivalueABI; }
 };
 
 } // end namespace llvm

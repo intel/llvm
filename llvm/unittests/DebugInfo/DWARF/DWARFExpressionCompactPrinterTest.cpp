@@ -10,7 +10,8 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
 #include "llvm/DebugInfo/DWARF/DWARFDie.h"
-#include "llvm/DebugInfo/DWARF/DWARFExpression.h"
+#include "llvm/DebugInfo/DWARF/DWARFExpressionPrinter.h"
+#include "llvm/DebugInfo/DWARF/LowLevel/DWARFExpression.h"
 #include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/TargetRegistry.h"
@@ -32,16 +33,15 @@ public:
     InitializeAllTargetMCs();
     InitializeAllAsmPrinters();
 
-    std::string TripleName = "armv8a-linux-gnueabi";
+    Triple TT("armv8a-linux-gnueabi");
     std::string ErrorStr;
 
-    const Target *TheTarget =
-        TargetRegistry::lookupTarget(TripleName, ErrorStr);
+    const Target *TheTarget = TargetRegistry::lookupTarget(TT, ErrorStr);
 
     if (!TheTarget)
       return;
 
-    MRI.reset(TheTarget->createMCRegInfo(TripleName));
+    MRI.reset(TheTarget->createMCRegInfo(TT));
   }
 
   void TestExprPrinter(ArrayRef<uint8_t> ExprData, StringRef Expected);
@@ -60,7 +60,17 @@ void DWARFExpressionCompactPrinterTest::TestExprPrinter(
   raw_string_ostream OS(Result);
   DataExtractor DE(ExprData, true, 8);
   DWARFExpression Expr(DE, 8);
-  Expr.printCompact(OS, *MRI);
+
+  auto GetRegName = [&](uint64_t DwarfRegNum, bool IsEH) -> StringRef {
+    if (std::optional<MCRegister> LLVMRegNum =
+            this->MRI->getLLVMRegNum(DwarfRegNum, IsEH))
+      if (const char *RegName = this->MRI->getName(*LLVMRegNum))
+        return llvm::StringRef(RegName);
+    OS << "<unknown register " << DwarfRegNum << ">";
+    return {};
+  };
+
+  printDwarfExpressionCompact(&Expr, OS, GetRegName);
   EXPECT_EQ(OS.str(), Expected);
 }
 
@@ -113,4 +123,27 @@ TEST_F(DWARFExpressionCompactPrinterTest, Test_OP_entry_value_mem) {
   TestExprPrinter(
       {DW_OP_entry_value, 0x02, DW_OP_breg13, 0x10, DW_OP_stack_value},
       "entry([SP+16])");
+}
+
+TEST_F(DWARFExpressionCompactPrinterTest, Test_OP_nop) {
+  TestExprPrinter({DW_OP_nop}, "<stack of size 0, expected 1>");
+}
+
+TEST_F(DWARFExpressionCompactPrinterTest, Test_OP_LLVM_nop) {
+  TestExprPrinter({DW_OP_LLVM_user, DW_OP_LLVM_nop},
+                  "<stack of size 0, expected 1>");
+}
+
+TEST_F(DWARFExpressionCompactPrinterTest, Test_OP_nop_OP_reg) {
+  TestExprPrinter({DW_OP_nop, DW_OP_reg0}, "R0");
+}
+
+TEST_F(DWARFExpressionCompactPrinterTest, Test_OP_LLVM_nop_OP_reg) {
+  TestExprPrinter({DW_OP_LLVM_user, DW_OP_LLVM_nop, DW_OP_reg0}, "R0");
+}
+
+TEST_F(DWARFExpressionCompactPrinterTest, Test_OP_LLVM_user_unknown_subop) {
+  TestExprPrinter({DW_OP_LLVM_user, DW_OP_LLVM_form_aspace_address},
+                  "<unknown op DW_OP_LLVM_user (233) subop "
+                  "DW_OP_LLVM_form_aspace_address (2)>");
 }

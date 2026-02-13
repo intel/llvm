@@ -28,13 +28,11 @@
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/ADT/FoldingSet.h"
-#include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cassert>
-#include <cstdint>
 #include <string>
 
 using namespace clang;
@@ -72,15 +70,9 @@ int DeclarationName::compare(DeclarationName LHS, DeclarationName RHS) {
     }
     unsigned LN = LHSSelector.getNumArgs(), RN = RHSSelector.getNumArgs();
     for (unsigned I = 0, N = std::min(LN, RN); I != N; ++I) {
-      switch (LHSSelector.getNameForSlot(I).compare(
-          RHSSelector.getNameForSlot(I))) {
-      case -1:
-        return -1;
-      case 1:
-        return 1;
-      default:
-        break;
-      }
+      if (int Compare = LHSSelector.getNameForSlot(I).compare(
+              RHSSelector.getNameForSlot(I)))
+        return Compare;
     }
 
     return compareInt(LN, RN);
@@ -121,14 +113,15 @@ static void printCXXConstructorDestructorName(QualType ClassType,
                                               PrintingPolicy Policy) {
   // We know we're printing C++ here. Ensure we print types properly.
   Policy.adjustForCPlusPlus();
+  Policy.SuppressScope = true;
 
-  if (const RecordType *ClassRec = ClassType->getAs<RecordType>()) {
-    OS << *ClassRec->getDecl();
+  if (const RecordType *ClassRec = ClassType->getAsCanonical<RecordType>()) {
+    ClassRec->getDecl()->printName(OS, Policy);
     return;
   }
   if (Policy.SuppressTemplateArgsInCXXConstructors) {
-    if (auto *InjTy = ClassType->getAs<InjectedClassNameType>()) {
-      OS << *InjTy->getDecl();
+    if (auto *InjTy = ClassType->getAsCanonical<InjectedClassNameType>()) {
+      InjTy->getDecl()->printName(OS, Policy);
       return;
     }
   }
@@ -371,7 +364,7 @@ DeclarationNameTable::getCXXSpecialName(DeclarationName::NameKind Kind,
 }
 
 DeclarationName
-DeclarationNameTable::getCXXLiteralOperatorName(IdentifierInfo *II) {
+DeclarationNameTable::getCXXLiteralOperatorName(const IdentifierInfo *II) {
   llvm::FoldingSetNodeID ID;
   ID.AddPointer(II);
 

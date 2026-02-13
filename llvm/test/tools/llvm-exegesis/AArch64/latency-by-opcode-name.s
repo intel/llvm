@@ -1,4 +1,5 @@
 # RUN: llvm-exegesis -mode=latency -opcode-name=ADDXrr | FileCheck %s
+# REQUIRES: exegesis-can-execute-aarch64, exegesis-can-measure-latency
 
 CHECK:      ---
 CHECK-NEXT: mode: latency
@@ -9,4 +10,4 @@ CHECK-NEXT: config: ''
 CHECK-NEXT: register_initial_values:
 CHECK-DAG: - '[[REG2]]=0x0'
 # We don't check REG3 because in the case that REG2=REG3 the check would fail
-CHECK-LAST: ...
+CHECK-DAG: ...

@@ -1,10 +1,10 @@
-; RUN: opt %loadPolly -polly-print-opt-isl -disable-output < %s | FileCheck %s --check-prefix=OPT --match-full-lines
-; RUN: opt %loadPolly -polly-opt-isl -polly-print-ast -disable-output < %s | FileCheck %s --check-prefix=AST --match-full-lines
-; RUN: opt %loadPolly -polly-opt-isl -polly-codegen -simplifycfg -S < %s | FileCheck %s --check-prefix=CODEGEN
+; RUN: opt %loadNPMPolly '-passes=polly-custom<opt-isl>' -polly-print-opt-isl -disable-output < %s | FileCheck %s --check-prefix=OPT --match-full-lines
+; RUN: opt %loadNPMPolly '-passes=polly-custom<opt-isl;ast>' -polly-print-ast -disable-output < %s | FileCheck %s --check-prefix=AST --match-full-lines
+; RUN: opt %loadNPMPolly '-passes=polly<no-default-opts;opt-isl>' -S < %s | FileCheck %s --check-prefix=CODEGEN
 ;
 ; Partial unroll by a factor of 4.
 ;
-define void @func(i32 %n, double* noalias nonnull %A) {
+define void @func(i32 %n, ptr noalias nonnull %A) {
 entry:
   br label %for
 
@@ -14,7 +14,7 @@ for:
   br i1 %j.cmp, label %body, label %exit
 
     body:
-      store double 42.0, double* %A
+      store double 42.0, ptr %A
       br label %inc
 
 inc:
@@ -49,11 +49,11 @@ return:
 ; OPT-NEXT:        - filter: "[n] -> { Stmt_body[i0] : (1 + i0) mod 4 = 0 }"
 
 
-; AST-LABEL: Printing analysis 'Polly - Generate an AST of the SCoP (isl)'for => return' in function 'func':
+; AST-LABEL: :: isl ast :: func :: %for---%return
 ; AST:       // Loop with Metadata
 ; AST-NEXT:  for (int c0 = 0; c0 < n; c0 += 4) {
 
 
-; CODEGEN: br i1 %polly.loop_cond, label %polly.loop_header, label %polly.exiting, !llvm.loop ![[LOOPID:[0-9]+]]
+; CODEGEN: br i1 %polly.loop_cond, label %polly.loop_header, label %polly.loop_exit, !llvm.loop ![[LOOPID:[0-9]+]]
 ; CODEGEN: ![[LOOPID]] = distinct !{![[LOOPID]], ![[LOOPNAME:[0-9]+]]}
 ; CODEGEN: ![[LOOPNAME]] = !{!"llvm.loop.id", !"This-is-the-unrolled-loop"}

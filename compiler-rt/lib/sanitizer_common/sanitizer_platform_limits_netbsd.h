@@ -36,6 +36,7 @@ extern unsigned pid_t_sz;
 extern unsigned timeval_sz;
 extern unsigned uid_t_sz;
 extern unsigned gid_t_sz;
+extern unsigned fpos_t_sz;
 extern unsigned mbstate_t_sz;
 extern unsigned struct_timezone_sz;
 extern unsigned struct_tms_sz;
@@ -2195,8 +2196,6 @@ extern unsigned IOCTL_TIOCDRAIN;
 extern unsigned IOCTL_TIOCGFLAGS;
 extern unsigned IOCTL_TIOCSFLAGS;
 extern unsigned IOCTL_TIOCDCDTIMESTAMP;
-extern unsigned IOCTL_TIOCRCVFRAME;
-extern unsigned IOCTL_TIOCXMTFRAME;
 extern unsigned IOCTL_TIOCPTMGET;
 extern unsigned IOCTL_TIOCGRANTPT;
 extern unsigned IOCTL_TIOCPTSNAME;
@@ -2336,8 +2335,6 @@ extern const unsigned RMD160_return_length;
 
 extern const unsigned MD5_CTX_sz;
 extern const unsigned MD5_return_length;
-
-extern const unsigned fpos_t_sz;
 
 extern const unsigned MD2_CTX_sz;
 extern const unsigned MD2_return_length;

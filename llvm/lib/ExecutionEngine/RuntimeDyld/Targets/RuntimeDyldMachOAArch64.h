@@ -28,7 +28,7 @@ public:
 
   unsigned getMaxStubSize() const override { return 8; }
 
-  unsigned getStubAlignment() override { return 8; }
+  Align getStubAlignment() override { return Align(8); }
 
   /// Extract the addend encoded in the instruction / memory location.
   Expected<int64_t> decodeAddend(const RelocationEntry &RE) const {
@@ -445,21 +445,21 @@ private:
             (RE.Size == 2 || RE.Size == 3)) ||
            RE.Size == 2);
     SectionEntry &Section = Sections[RE.SectionID];
-    StubMap::const_iterator i = Stubs.find(Value);
+    auto [It, Inserted] = Stubs.try_emplace(Value);
     int64_t Offset;
-    if (i != Stubs.end())
-      Offset = static_cast<int64_t>(i->second);
+    if (!Inserted)
+      Offset = static_cast<int64_t>(It->second);
     else {
       // FIXME: There must be a better way to do this then to check and fix the
       // alignment every time!!!
       uintptr_t BaseAddress = uintptr_t(Section.getAddress());
-      uintptr_t StubAlignment = getStubAlignment();
+      uintptr_t StubAlignment = getStubAlignment().value();
       uintptr_t StubAddress =
           (BaseAddress + Section.getStubOffset() + StubAlignment - 1) &
           -StubAlignment;
       unsigned StubOffset = StubAddress - BaseAddress;
-      Stubs[Value] = StubOffset;
-      assert(((StubAddress % getStubAlignment()) == 0) &&
+      It->second = StubOffset;
+      assert(isAligned(getStubAlignment(), StubAddress) &&
              "GOT entry not aligned");
       RelocationEntry GOTRE(RE.SectionID, StubOffset,
                             MachO::ARM64_RELOC_UNSIGNED, Value.Offset,

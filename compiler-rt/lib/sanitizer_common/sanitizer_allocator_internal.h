@@ -23,7 +23,7 @@ namespace __sanitizer {
 typedef CompactSizeClassMap InternalSizeClassMap;
 
 struct AP32 {
-  static const uptr kSpaceBeg = 0;
+  static const uptr kSpaceBeg = SANITIZER_MMAP_BEGIN;
   static const u64 kSpaceSize = SANITIZER_MMAP_RANGE_SIZE;
   static const uptr kMetadataSize = 0;
   typedef InternalSizeClassMap SizeClassMap;
@@ -51,7 +51,6 @@ void InternalFree(void *p, InternalAllocatorCache *cache = nullptr);
 void InternalAllocatorLock();
 void InternalAllocatorUnlock();
 InternalAllocator *internal_allocator();
-
 } // namespace __sanitizer
 
 #endif // SANITIZER_ALLOCATOR_INTERNAL_H

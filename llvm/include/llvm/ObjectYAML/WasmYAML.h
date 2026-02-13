@@ -48,6 +48,7 @@ struct Limits {
   LimitFlags Flags;
   yaml::Hex32 Minimum;
   yaml::Hex32 Maximum;
+  yaml::Hex32 PageSize;
 };
 
 struct Table {
@@ -189,6 +190,7 @@ struct Section {
 
   SectionType Type;
   std::vector<Relocation> Relocations;
+  std::optional<uint8_t> HeaderSecSizeEncodingLen;
 };
 
 struct CustomSection : Section {
@@ -229,6 +231,7 @@ struct DylinkSection : CustomSection {
   std::vector<StringRef> Needed;
   std::vector<DylinkImportInfo> ImportInfo;
   std::vector<DylinkExportInfo> ExportInfo;
+  std::vector<StringRef> RuntimePath;
 };
 
 struct NameSection : CustomSection {

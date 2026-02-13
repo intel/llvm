@@ -21,8 +21,6 @@
 #include "EHFrameSupportImpl.h"
 #include "JITLinkGeneric.h"
 
-#include <list>
-
 namespace llvm {
 namespace jitlink {
 
@@ -37,8 +35,9 @@ protected:
     friend class MachOLinkGraphBuilder;
 
   private:
-    NormalizedSymbol(Optional<StringRef> Name, uint64_t Value, uint8_t Type,
-                     uint8_t Sect, uint16_t Desc, Linkage L, Scope S)
+    NormalizedSymbol(std::optional<StringRef> Name, uint64_t Value,
+                     uint8_t Type, uint8_t Sect, uint16_t Desc, Linkage L,
+                     Scope S)
         : Name(Name), Value(Value), Type(Type), Sect(Sect), Desc(Desc), L(L),
           S(S) {
       assert((!Name || !Name->empty()) && "Name must be none or non-empty");
@@ -50,7 +49,7 @@ protected:
     NormalizedSymbol(NormalizedSymbol &&) = delete;
     NormalizedSymbol &operator=(NormalizedSymbol &&) = delete;
 
-    Optional<StringRef> Name;
+    std::optional<StringRef> Name;
     uint64_t Value = 0;
     uint8_t Type = 0;
     uint8_t Sect = 0;
@@ -82,9 +81,10 @@ protected:
 
   using SectionParserFunction = std::function<Error(NormalizedSection &S)>;
 
-  MachOLinkGraphBuilder(const object::MachOObjectFile &Obj, Triple TT,
+  MachOLinkGraphBuilder(const object::MachOObjectFile &Obj,
+                        std::shared_ptr<orc::SymbolStringPool> SSP, Triple TT,
+                        SubtargetFeatures Features,
                         LinkGraph::GetEdgeKindNameFunction GetEdgeKindName);
-
   LinkGraph &getGraph() const { return *G; }
 
   const object::MachOObjectFile &getObject() const { return Obj; }
@@ -179,7 +179,7 @@ protected:
 
 private:
   static unsigned getPointerSize(const object::MachOObjectFile &Obj);
-  static support::endianness getEndianness(const object::MachOObjectFile &Obj);
+  static llvm::endianness getEndianness(const object::MachOObjectFile &Obj);
 
   void setCanonicalSymbol(NormalizedSection &NSec, Symbol &Sym) {
     auto *&CanonicalSymEntry = NSec.CanonicalSymbols[Sym.getAddress()];
@@ -232,17 +232,6 @@ private:
 
   DenseMap<uint32_t, NormalizedSymbol *> IndexToSymbol;
   StringMap<SectionParserFunction> CustomSectionParserFunctions;
-};
-
-/// A pass to split up __LD,__compact_unwind sections.
-class CompactUnwindSplitter {
-public:
-  CompactUnwindSplitter(StringRef CompactUnwindSectionName)
-      : CompactUnwindSectionName(CompactUnwindSectionName) {}
-  Error operator()(LinkGraph &G);
-
-private:
-  StringRef CompactUnwindSectionName;
 };
 
 } // end namespace jitlink

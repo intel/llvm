@@ -9,15 +9,16 @@
 #include "pthread_attr_setstacksize.h"
 
 #include "src/__support/common.h"
+#include "src/__support/libc_errno.h"
+#include "src/__support/macros/config.h"
 
-#include <errno.h>
-#include <linux/param.h> // For EXEC_PAGESIZE.
 #include <pthread.h>
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE_DECL {
 
 LLVM_LIBC_FUNCTION(int, pthread_attr_setstacksize,
                    (pthread_attr_t *__restrict attr, size_t stacksize)) {
+  // TODO: Should we also ensure stacksize % EXEC_PAGESIZE == 0?
   if (stacksize < PTHREAD_STACK_MIN)
     return EINVAL;
   attr->__stack = nullptr;
@@ -25,4 +26,4 @@ LLVM_LIBC_FUNCTION(int, pthread_attr_setstacksize,
   return 0;
 }
 
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE_DECL

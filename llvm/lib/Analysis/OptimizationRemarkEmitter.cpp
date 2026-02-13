@@ -20,6 +20,7 @@
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/InitializePasses.h"
+#include <optional>
 
 using namespace llvm;
 
@@ -60,9 +61,10 @@ bool OptimizationRemarkEmitter::invalidate(
   return false;
 }
 
-Optional<uint64_t> OptimizationRemarkEmitter::computeHotness(const Value *V) {
+std::optional<uint64_t>
+OptimizationRemarkEmitter::computeHotness(const Value *V) {
   if (!BFI)
-    return None;
+    return std::nullopt;
 
   return BFI->getBlockProfileCount(cast<BasicBlock>(V));
 }
@@ -89,10 +91,7 @@ void OptimizationRemarkEmitter::emit(
 }
 
 OptimizationRemarkEmitterWrapperPass::OptimizationRemarkEmitterWrapperPass()
-    : FunctionPass(ID) {
-  initializeOptimizationRemarkEmitterWrapperPassPass(
-      *PassRegistry::getPassRegistry());
-}
+    : FunctionPass(ID) {}
 
 bool OptimizationRemarkEmitterWrapperPass::runOnFunction(Function &Fn) {
   BlockFrequencyInfo *BFI;

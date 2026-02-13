@@ -1,5 +1,5 @@
 add_custom_target(LLDBUnitTests)
-set_target_properties(LLDBUnitTests PROPERTIES FOLDER "lldb tests")
+set_target_properties(LLDBUnitTests PROPERTIES FOLDER "LLDB/Tests")
 
 add_dependencies(lldb-unit-test-deps LLDBUnitTests)
 
@@ -10,22 +10,19 @@ if (CXX_SUPPORTS_SUGGEST_OVERRIDE_FLAG)
   add_compile_options("-Wno-suggest-override")
 endif()
 
-set(LLDB_GTEST_COMMON_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/gtest_common.h)
-if (MSVC)
-  list(APPEND LLVM_COMPILE_FLAGS /FI ${LLDB_GTEST_COMMON_INCLUDE})
-else ()
-  list(APPEND LLVM_COMPILE_FLAGS -include ${LLDB_GTEST_COMMON_INCLUDE})
-endif ()
-
 function(add_lldb_unittest test_name)
   cmake_parse_arguments(ARG
-    ""
+    "SBAPITEST"
     ""
     "LINK_LIBS;LINK_COMPONENTS"
     ${ARGN})
 
   if (NOT ${test_name} MATCHES "Tests$")
     message(FATAL_ERROR "Unit test name must end with 'Tests' for lit to find it.")
+  endif()
+
+  if ("liblldb" IN_LIST ARG_LINK_LIBS AND NOT ARG_SBAPITEST)
+    message(FATAL_ERROR "The ${test_name} are not allowed to link liblldb.")
   endif()
 
   list(APPEND LLVM_LINK_COMPONENTS ${ARG_LINK_COMPONENTS})
@@ -55,31 +52,36 @@ endfunction()
 
 add_subdirectory(TestingSupport)
 if (NOT CMAKE_SYSTEM_NAME MATCHES "Windows")
-  # FIXME: APITests.exe is not a valid googletest binary.
+  # FIXME: Tests linking against libLLDB don't work on Windows.
   add_subdirectory(API)
+  add_subdirectory(DAP)
 endif()
+add_subdirectory(ABI)
 add_subdirectory(Breakpoint)
+add_subdirectory(Callback)
 add_subdirectory(Core)
 add_subdirectory(DataFormatter)
 add_subdirectory(Disassembler)
 add_subdirectory(Editline)
 add_subdirectory(Expression)
 add_subdirectory(Host)
-add_subdirectory(Interpreter)
 add_subdirectory(Instruction)
+add_subdirectory(Interpreter)
 add_subdirectory(Language)
 add_subdirectory(ObjectFile)
 add_subdirectory(Platform)
 add_subdirectory(Process)
+add_subdirectory(Protocol)
 add_subdirectory(ScriptInterpreter)
 add_subdirectory(Signals)
 add_subdirectory(Symbol)
 add_subdirectory(SymbolFile)
 add_subdirectory(Target)
-add_subdirectory(tools)
+add_subdirectory(Thread)
 add_subdirectory(UnwindAssembly)
 add_subdirectory(Utility)
-add_subdirectory(Thread)
+add_subdirectory(ValueObject)
+add_subdirectory(tools)
 
 if(LLDB_CAN_USE_DEBUGSERVER AND LLDB_TOOL_DEBUGSERVER_BUILD AND NOT LLDB_USE_SYSTEM_DEBUGSERVER)
   add_subdirectory(debugserver)

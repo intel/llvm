@@ -8,8 +8,13 @@
 
 #pragma once
 
+#include <sycl/detail/defines.hpp>      // for __SYCL_TYPE
+#include <sycl/kernel_bundle_enums.hpp> // for bundle_state
+
+#include <utility> // for forward
+
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 /// Declaring a specialization constant
 ///
@@ -34,5 +39,5 @@ private:
   T MDefaultValue;
 };
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

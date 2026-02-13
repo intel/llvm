@@ -9,8 +9,6 @@
 #include "lldb/Host/FileSystem.h"
 
 #include "lldb/Utility/DataBufferLLVM.h"
-#include "lldb/Utility/LLDBAssert.h"
-#include "lldb/Utility/TildeExpressionResolver.h"
 
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Errno.h"
@@ -37,6 +35,8 @@
 
 #include <algorithm>
 #include <fstream>
+#include <memory>
+#include <optional>
 #include <vector>
 
 using namespace lldb;
@@ -45,23 +45,13 @@ using namespace llvm;
 
 FileSystem &FileSystem::Instance() { return *InstanceImpl(); }
 
-void FileSystem::Initialize() {
-  lldbassert(!InstanceImpl() && "Already initialized.");
-  InstanceImpl().emplace();
-}
-
-void FileSystem::Initialize(IntrusiveRefCntPtr<vfs::FileSystem> fs) {
-  lldbassert(!InstanceImpl() && "Already initialized.");
-  InstanceImpl().emplace(fs);
-}
-
 void FileSystem::Terminate() {
   lldbassert(InstanceImpl() && "Already terminated.");
   InstanceImpl().reset();
 }
 
-Optional<FileSystem> &FileSystem::InstanceImpl() {
-  static Optional<FileSystem> g_fs;
+std::optional<FileSystem> &FileSystem::InstanceImpl() {
+  static std::optional<FileSystem> g_fs;
   return g_fs;
 }
 
@@ -191,7 +181,7 @@ void FileSystem::EnumerateDirectory(Twine path, bool find_directories,
     const auto &Item = *Iter;
     ErrorOr<vfs::Status> Status = m_fs->status(Item.path());
     if (!Status)
-      break;
+      continue;
     if (!find_files && Status->isRegularFile())
       continue;
     if (!find_directories && Status->isDirectory())
@@ -238,9 +228,9 @@ void FileSystem::Resolve(SmallVectorImpl<char> &path) {
 
   // Resolve tilde in path.
   SmallString<128> resolved(path.begin(), path.end());
-  StandardTildeExpressionResolver Resolver;
-  Resolver.ResolveFullPath(llvm::StringRef(path.begin(), path.size()),
-                           resolved);
+  assert(m_tilde_resolver && "must initialize tilde resolver in constructor");
+  m_tilde_resolver->ResolveFullPath(llvm::StringRef(path.begin(), path.size()),
+                                    resolved);
 
   // Try making the path absolute if it exists.
   SmallString<128> absolute(resolved.begin(), resolved.end());
@@ -270,7 +260,6 @@ void FileSystem::Resolve(FileSpec &file_spec) {
     file_spec.SetDirectory(path);
   else
     file_spec.SetPath(path);
-  file_spec.SetIsResolved(true);
 }
 
 template <typename T>
@@ -300,8 +289,7 @@ FileSystem::CreateWritableDataBuffer(const llvm::Twine &path, uint64_t size,
                                                             is_volatile);
   if (!buffer)
     return {};
-  return std::shared_ptr<WritableDataBufferLLVM>(
-      new WritableDataBufferLLVM(std::move(buffer)));
+  return std::make_shared<WritableDataBufferLLVM>(std::move(buffer));
 }
 
 std::shared_ptr<DataBuffer>
@@ -312,7 +300,7 @@ FileSystem::CreateDataBuffer(const llvm::Twine &path, uint64_t size,
       GetMemoryBuffer<llvm::MemoryBuffer>(path, size, offset, is_volatile);
   if (!buffer)
     return {};
-  return std::shared_ptr<DataBufferLLVM>(new DataBufferLLVM(std::move(buffer)));
+  return std::make_shared<DataBufferLLVM>(std::move(buffer));
 }
 
 std::shared_ptr<WritableDataBuffer>

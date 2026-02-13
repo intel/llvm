@@ -7,7 +7,8 @@
 ; RUN: cat %t/main.ll %t/f.ll > %t/f2.ll
 ; RUN: cat %t/main.ll %t/g.ll > %t/g2.ll
 ; RUN: cat %t/main.ll %t/h.ll > %t/h2.ll
-; RUN: cat %t/existedGV.ll %t/main.ll %t/h.ll > %t/i2.ll
+; RUN: cat %t/existedGV.ll %t/main.ll %t/h.ll > %t/h3.ll
+; RUN: cat %t/main.ll %t/i.ll > %t/i2.ll
 ; RUN: llc -mtriple=x86_64-pc-linux-gnu -o - < %t/a2.ll | FileCheck --check-prefix=CHECK-TLS-FS-40 %s
 ; RUN: llc -mtriple=x86_64-pc-linux-gnu -o - < %t/b2.ll | FileCheck --check-prefix=CHECK-TLS-FS-40 %s
 ; RUN: llc -mtriple=x86_64-pc-linux-gnu -o - < %t/c2.ll | FileCheck --check-prefix=CHECK-GLOBAL %s
@@ -16,7 +17,8 @@
 ; RUN: llc -mtriple=x86_64-pc-linux-gnu -o - < %t/f2.ll | FileCheck --check-prefix=CHECK-OFFSET %s
 ; RUN: llc -mtriple=x86_64-pc-linux-gnu -o - < %t/g2.ll | FileCheck --check-prefix=CHECK-NEGATIVE-OFFSET %s
 ; RUN: llc -mtriple=x86_64-pc-linux-gnu -o - < %t/h2.ll | FileCheck --check-prefix=CHECK-SYM %s
-; RUN: llc -mtriple=x86_64-pc-linux-gnu -o - < %t/i2.ll | FileCheck --check-prefix=CHECK-SYMGV %s
+; RUN: llc -mtriple=x86_64-pc-linux-gnu -o - < %t/h3.ll | FileCheck --check-prefix=CHECK-SYMGV %s
+; RUN: llc -mtriple=x86_64-pc-linux-gnu -o - < %t/i2.ll | FileCheck --check-prefix=CHECK-SYM2 %s
 
 ; CHECK-TLS-FS-40:       movq    %fs:40, %rax
 ; CHECK-TLS-FS-40:       movq    %fs:40, %rax
@@ -67,7 +69,7 @@
 ; CHECK-SYM-NEXT:    jne     .LBB0_2
 ; CHECK-SYM:         .LBB0_2:
 ; CHECK-SYM-NEXT:    .cfi_def_cfa_offset 32
-; CHECK-SYM-NEXT:    callq   __stack_chk_fai
+; CHECK-SYM-NEXT:    callq   __stack_chk_fail
 
 ; CHECK-SYMGV:       movq    __woof(%rip), %rax
 ; CHECK-SYMGV-NEXT:  movq    %rax, 16(%rsp)
@@ -76,6 +78,15 @@
 ; CHECK-SYMGV:       .LBB0_2:
 ; CHECK-SYMGV-NEXT:  .cfi_def_cfa_offset 32
 ; CHECK-SYMGV-NEXT:  callq   __stack_chk_fail
+
+; CHECK-SYM2:         movq    %fs:__woof(%rip), %rax
+; CHECK-SYM2-NEXT:    movq    %rax, 16(%rsp)
+; CHECK-SYM2:         movq    %fs:__woof(%rip), %rax
+; CHECK-SYM2-NEXT:    cmpq    16(%rsp), %rax
+; CHECK-SYM2-NEXT:    jne     .LBB0_2
+; CHECK-SYM2:         .LBB0_2:
+; CHECK-SYM2-NEXT:    .cfi_def_cfa_offset 32
+; CHECK-SYM2-NEXT:    callq   __stack_chk_fai
 
 ; ModuleID = 't.c'
 ;--- existedGV.ll
@@ -107,7 +118,7 @@ declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #1
 ; Function Attrs: argmemonly nounwind willreturn
 declare void @llvm.memcpy.p0.p0.i64(ptr noalias nocapture writeonly, ptr noalias nocapture readonly, i64, i1 immarg) #1
 
-attributes #0 = { nounwind sspreq uwtable writeonly "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="none" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind sspreq uwtable writeonly "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="none" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" "use-soft-float"="false" }
 attributes #1 = { argmemonly nounwind willreturn }
 attributes #2 = { nounwind }
 
@@ -116,7 +127,8 @@ attributes #2 = { nounwind }
 !llvm.module.flags = !{!1}
 !1 = !{i32 2, !"stack-protector-guard", !"tls"}
 ;--- c.ll
-!llvm.module.flags = !{!1}
+!llvm.module.flags = !{!0,!1}
+!0 = !{i32 7, !"direct-access-external-data", i32 1}
 !1 = !{i32 2, !"stack-protector-guard", !"global"}
 ;--- d.ll
 !llvm.module.flags = !{!1}
@@ -131,5 +143,10 @@ attributes #2 = { nounwind }
 !llvm.module.flags = !{!1}
 !1 = !{i32 2, !"stack-protector-guard-offset", i32 -20}
 ;--- h.ll
-!llvm.module.flags = !{!1}
+!llvm.module.flags = !{!0,!1}
+!0 = !{i32 7, !"direct-access-external-data", i32 0}
+!1 = !{i32 2, !"stack-protector-guard-symbol", !"__woof"}
+;--- i.ll
+!llvm.module.flags = !{!0,!1}
+!0 = !{i32 7, !"direct-access-external-data", i32 1}
 !1 = !{i32 2, !"stack-protector-guard-symbol", !"__woof"}

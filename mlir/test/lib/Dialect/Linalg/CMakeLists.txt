@@ -1,15 +1,17 @@
 # Exclude tests from libMLIR.so
 add_mlir_library(MLIRLinalgTestPasses
+  TestDataLayoutPropagation.cpp
   TestLinalgDecomposeOps.cpp
+  TestLinalgDropUnitDims.cpp
   TestLinalgElementwiseFusion.cpp
   TestLinalgFusionTransforms.cpp
-  TestLinalgHoisting.cpp
+  TestLinalgRankReduceContractionOps.cpp
   TestLinalgTransforms.cpp
   TestPadFusion.cpp
 
   EXCLUDE_FROM_LIBMLIR
-
-  LINK_LIBS PUBLIC
+  )
+mlir_target_link_libraries(MLIRLinalgTestPasses PUBLIC
   MLIRAffineDialect
   MLIRArithDialect
   MLIRArithTransforms

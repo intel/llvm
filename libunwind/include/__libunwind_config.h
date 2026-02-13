@@ -30,10 +30,14 @@
 #define _LIBUNWIND_HIGHEST_DWARF_REGISTER_RISCV     64
 #define _LIBUNWIND_HIGHEST_DWARF_REGISTER_VE        143
 #define _LIBUNWIND_HIGHEST_DWARF_REGISTER_S390X     83
+#define _LIBUNWIND_HIGHEST_DWARF_REGISTER_LOONGARCH 64
 
 #if defined(_LIBUNWIND_IS_NATIVE_ONLY)
 # if defined(__linux__)
 #  define _LIBUNWIND_TARGET_LINUX 1
+# endif
+# if defined(__HAIKU__)
+#  define _LIBUNWIND_TARGET_HAIKU 1
 # endif
 # if defined(__i386__)
 #  define _LIBUNWIND_TARGET_I386
@@ -49,6 +53,9 @@
 #    else
 #      define _LIBUNWIND_CURSOR_SIZE 66
 #    endif
+#  elif defined(__ILP32__)
+#    define _LIBUNWIND_CONTEXT_SIZE 21
+#    define _LIBUNWIND_CURSOR_SIZE 28
 #  else
 #    define _LIBUNWIND_CONTEXT_SIZE 21
 #    define _LIBUNWIND_CURSOR_SIZE 33
@@ -66,11 +73,11 @@
 #  define _LIBUNWIND_HIGHEST_DWARF_REGISTER _LIBUNWIND_HIGHEST_DWARF_REGISTER_PPC
 # elif defined(__aarch64__)
 #  define _LIBUNWIND_TARGET_AARCH64 1
-#  define _LIBUNWIND_CONTEXT_SIZE 66
+#define _LIBUNWIND_CONTEXT_SIZE 67
 #  if defined(__SEH__)
 #    define _LIBUNWIND_CURSOR_SIZE 164
 #  else
-#    define _LIBUNWIND_CURSOR_SIZE 78
+#define _LIBUNWIND_CURSOR_SIZE 79
 #  endif
 #  define _LIBUNWIND_HIGHEST_DWARF_REGISTER _LIBUNWIND_HIGHEST_DWARF_REGISTER_ARM64
 # elif defined(__arm__)
@@ -166,6 +173,20 @@
 #  define _LIBUNWIND_CONTEXT_SIZE 34
 #  define _LIBUNWIND_CURSOR_SIZE 46
 #  define _LIBUNWIND_HIGHEST_DWARF_REGISTER _LIBUNWIND_HIGHEST_DWARF_REGISTER_S390X
+#elif defined(__loongarch__)
+#define _LIBUNWIND_TARGET_LOONGARCH 1
+#if __loongarch_grlen == 64
+#define _LIBUNWIND_CONTEXT_SIZE 65
+#define _LIBUNWIND_CURSOR_SIZE 77
+#else
+#error "Unsupported LoongArch ABI"
+#endif
+#define _LIBUNWIND_HIGHEST_DWARF_REGISTER                                      \
+  _LIBUNWIND_HIGHEST_DWARF_REGISTER_LOONGARCH
+#elif defined(__wasm__)
+// Unused
+#define _LIBUNWIND_CONTEXT_SIZE 0
+#define _LIBUNWIND_CURSOR_SIZE 0
 # else
 #  error "Unsupported architecture."
 # endif
@@ -185,9 +206,19 @@
 # define _LIBUNWIND_TARGET_RISCV 1
 # define _LIBUNWIND_TARGET_VE 1
 # define _LIBUNWIND_TARGET_S390X 1
+# define _LIBUNWIND_TARGET_LOONGARCH 1
 # define _LIBUNWIND_CONTEXT_SIZE 167
-# define _LIBUNWIND_CURSOR_SIZE 179
+# define _LIBUNWIND_CURSOR_SIZE 204
 # define _LIBUNWIND_HIGHEST_DWARF_REGISTER 287
 #endif // _LIBUNWIND_IS_NATIVE_ONLY
+
+#if defined(__has_feature)
+#  if __has_feature(ptrauth_calls) && __has_feature(ptrauth_returns)
+#    define _LIBUNWIND_TARGET_AARCH64_AUTHENTICATED_UNWINDING 1
+#  elif __has_feature(ptrauth_calls) != __has_feature(ptrauth_returns)
+#    error "Either both or none of ptrauth_calls and ptrauth_returns "\
+           "is allowed to be enabled"
+#  endif
+#endif
 
 #endif // ____LIBUNWIND_CONFIG_H__

@@ -222,12 +222,28 @@ const char *SBTypeSummary::GetData() {
     const char *fname = script_summary_ptr->GetFunctionName();
     const char *ftext = script_summary_ptr->GetPythonScript();
     if (ftext && *ftext)
-      return ftext;
-    return fname;
+      return ConstString(ftext).GetCString();
+    return ConstString(fname).GetCString();
   } else if (StringSummaryFormat *string_summary_ptr =
                  llvm::dyn_cast<StringSummaryFormat>(m_opaque_sp.get()))
-    return string_summary_ptr->GetSummaryString();
+    return ConstString(string_summary_ptr->GetSummaryString()).GetCString();
   return nullptr;
+}
+
+uint32_t SBTypeSummary::GetPtrMatchDepth() {
+  LLDB_INSTRUMENT_VA(this);
+
+  if (!IsValid())
+    return 0;
+  return m_opaque_sp->GetPtrMatchDepth();
+}
+
+void SBTypeSummary::SetPtrMatchDepth(uint32_t ptr_match_depth) {
+  LLDB_INSTRUMENT_VA(this);
+
+  if (!IsValid())
+    return;
+  return m_opaque_sp->SetPtrMatchDepth(ptr_match_depth);
 }
 
 uint32_t SBTypeSummary::GetOptions() {
@@ -343,6 +359,7 @@ bool SBTypeSummary::IsEqualTo(lldb::SBTypeSummary &rhs) {
   case TypeSummaryImpl::Kind::eCallback:
     return llvm::dyn_cast<CXXFunctionSummaryFormat>(m_opaque_sp.get()) ==
            llvm::dyn_cast<CXXFunctionSummaryFormat>(rhs.m_opaque_sp.get());
+  case TypeSummaryImpl::Kind::eBytecode:
   case TypeSummaryImpl::Kind::eScript:
     if (IsFunctionCode() != rhs.IsFunctionCode())
       return false;
@@ -381,7 +398,7 @@ bool SBTypeSummary::CopyOnWrite_Impl() {
   if (!IsValid())
     return false;
 
-  if (m_opaque_sp.unique())
+  if (m_opaque_sp.use_count() == 1)
     return true;
 
   TypeSummaryImplSP new_sp;

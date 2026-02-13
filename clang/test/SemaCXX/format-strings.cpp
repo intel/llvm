@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -fsyntax-only -verify -Wformat-nonliteral -Wformat-non-iso -fblocks %s
+// RUN: %clang_cc1 -fsyntax-only -verify -Wformat-nonliteral -Wformat-non-iso -Wformat-pedantic -fblocks %s
 // RUN: %clang_cc1 -fsyntax-only -verify -Wformat-nonliteral -Wformat-non-iso -fblocks -std=c++98 %s
-// RUN: %clang_cc1 -fsyntax-only -verify -Wformat-nonliteral -Wformat-non-iso -fblocks -std=c++11 %s
+// RUN: %clang_cc1 -fsyntax-only -verify -Wformat-nonliteral -Wformat-non-iso -Wformat-pedantic -fblocks -std=c++11 %s
 
 #include <stdarg.h>
 
@@ -33,7 +33,7 @@ public:
 
   int scanf(const char *, ...) __attribute__((format(scanf, 2, 3)));
   int printf(const char *, ...) __attribute__((format(printf, 2, 3)));
-  int printf2(const char *, ...);
+  int printf2(const char *, ...); // #Foo_printf2
 
   static const char *gettext_static(const char *fmt) __attribute__((format_arg(1)));
   static int printf_static(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
@@ -86,8 +86,8 @@ int Foo::printf(const char *fmt, ...) {
 int Foo::printf2(const char *fmt, ...) {
   va_list ap;
   va_start(ap,fmt);
-  vprintf(fmt, ap); // expected-warning{{format string is not a string literal}}
-
+  vprintf(fmt, ap); // expected-warning{{diagnostic behavior may be improved by adding the 'format(printf, 2, 3)' attribute to the declaration of 'printf2'}}
+  // expected-note@#Foo_printf2 {{'printf2' declared here}}
   return 0;
 }
 
@@ -203,8 +203,38 @@ void f() {
   printf(string_linebreak(), 1, 2, 3, 4); // expected-warning {{format specifies type 'char *' but the argument has type 'int'}}
   printf(not_literal(), 1, 2, 3, 4); // expected-warning {{format string is not a string literal}}
   printf(wrap_constexpr(), 1, 2); // expected-warning {{format specifies type 'char *' but the argument has type 'int'}}
+
+  constexpr const char *fmt {"%d%d"};
+  printf(fmt, 1, 1); // no-warning
+
+  constexpr const char *fmt2 {"%d"}; // expected-note{{format string is defined here}}
+  printf(fmt2, "oops"); // expected-warning{{format specifies type 'int' but the argument has type}}
 }
 
 
 }
+
+namespace ScopedEnumerations {
+enum class Scoped1 { One };
+enum class Scoped2 : unsigned short { Two };
+
+void f(Scoped1 S1, Scoped2 S2) {
+  printf("%hhd", S1); // expected-warning {{format specifies type 'char' but the argument has type 'Scoped1'}}
+  printf("%hd", S1);  // expected-warning {{format specifies type 'short' but the argument has type 'Scoped1'}}
+  printf("%d", S1);   // expected-warning {{format specifies type 'int' but the argument has type 'Scoped1'}}
+
+  printf("%hhd", S2); // expected-warning {{format specifies type 'char' but the argument has type 'Scoped2'}}
+  printf("%hd", S2);  // expected-warning {{format specifies type 'short' but the argument has type 'Scoped2'}}
+  printf("%d", S2);   // expected-warning {{format specifies type 'int' but the argument has type 'Scoped2'}}
+
+  scanf("%hhd", &S1); // expected-warning {{format specifies type 'char *' but the argument has type 'Scoped1 *'}}
+  scanf("%hd", &S1);  // expected-warning {{format specifies type 'short *' but the argument has type 'Scoped1 *'}}
+  scanf("%d", &S1);  // expected-warning {{format specifies type 'int *' but the argument has type 'Scoped1 *'}}
+
+  scanf("%hhd", &S2); // expected-warning {{format specifies type 'char *' but the argument has type 'Scoped2 *'}}
+  scanf("%hd", &S2);  // expected-warning {{format specifies type 'short *' but the argument has type 'Scoped2 *'}}
+  scanf("%d", &S2);  // expected-warning {{format specifies type 'int *' but the argument has type 'Scoped2 *'}}
+}
+}
+
 #endif

@@ -9,6 +9,8 @@
 // UNSUPPORTED: no-threads
 // UNSUPPORTED: c++03
 
+// ALLOW_RETRIES: 3
+
 // <future>
 
 // template <class F, class... Args>
@@ -25,6 +27,7 @@
 #include <chrono>
 #include <future>
 #include <memory>
+#include <thread>
 
 #include "test_macros.h"
 
@@ -76,31 +79,31 @@ void f5(int j)
     TEST_THROW(j);
 }
 
-template <class Ret, class CheckLamdba, class ...Args>
-void test(CheckLamdba&& getAndCheckFn, bool IsDeferred, Args&&... args) {
-    // Reset global state.
-    invoked = false;
+template <class Ret, class CheckLambda, class... Args>
+void test(CheckLambda&& getAndCheckFn, bool IsDeferred, Args&&... args) {
+  // Reset global state.
+  invoked = false;
 
-    // Create the future and wait
-    std::future<Ret> f = std::async(std::forward<Args>(args)...);
-    std::this_thread::sleep_for(ms(300));
+  // Create the future and wait
+  std::future<Ret> f = std::async(std::forward<Args>(args)...);
+  std::this_thread::sleep_for(ms(300));
 
-    // Check that deferred async's have not invoked the function.
-    assert(invoked == !IsDeferred);
+  // Check that deferred async's have not invoked the function.
+  assert(invoked == !IsDeferred);
 
-    // Time the call to f.get() and check that the returned value matches
-    // what is expected.
-    Clock::time_point t0 = Clock::now();
-    assert(getAndCheckFn(f));
-    Clock::time_point t1 = Clock::now();
+  // Time the call to f.get() and check that the returned value matches
+  // what is expected.
+  Clock::time_point t0 = Clock::now();
+  assert(getAndCheckFn(f));
+  Clock::time_point t1 = Clock::now();
 
-    // If the async is deferred it should take more than 100ms, otherwise
-    // it should take less than 100ms.
-    if (IsDeferred) {
-        assert(t1-t0 > ms(100));
-    } else {
-        assert(t1-t0 < ms(100));
-    }
+  // If the async is deferred it should take more than 100ms, otherwise
+  // it should take less than 100ms.
+  if (IsDeferred) {
+    assert(t1 - t0 > ms(100));
+  } else {
+    assert(t1 - t0 < ms(100));
+  }
 }
 
 int main(int, char**)
@@ -152,5 +155,30 @@ int main(int, char**)
         try { f.get(); assert (false); } catch ( int ) {}
     }
 #endif
+    {
+      class CopyOnly {
+      public:
+        CopyOnly() {}
+        CopyOnly(const CopyOnly&) = default;
+        CopyOnly(CopyOnly&&)      = delete;
+
+        void operator()(const CopyOnly&) const {}
+      };
+      CopyOnly c;
+      std::future<void> f = std::async(c, c);
+      f.wait();
+    }
+    {
+      class MoveOnly {
+      public:
+        MoveOnly() {}
+        MoveOnly(const MoveOnly&) = delete;
+        MoveOnly(MoveOnly&&)      = default;
+
+        void operator()(MoveOnly&&) const {}
+      };
+      std::future<void> f = std::async(MoveOnly{}, MoveOnly{});
+      f.wait();
+    }
     return 0;
 }

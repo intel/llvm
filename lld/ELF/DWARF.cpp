@@ -16,9 +16,6 @@
 #include "DWARF.h"
 #include "InputSection.h"
 #include "Symbols.h"
-#include "lld/Common/Memory.h"
-#include "llvm/DebugInfo/DWARF/DWARFDebugPubTable.h"
-#include "llvm/Object/ELFObjectFile.h"
 
 using namespace llvm;
 using namespace llvm::object;
@@ -38,23 +35,24 @@ template <class ELFT> LLDDwarfObj<ELFT>::LLDDwarfObj(ObjFile<ELFT> *obj) {
                 .Case(".debug_addr", &addrSection)
                 .Case(".debug_gnu_pubnames", &gnuPubnamesSection)
                 .Case(".debug_gnu_pubtypes", &gnuPubtypesSection)
+                .Case(".debug_line", &lineSection)
                 .Case(".debug_loclists", &loclistsSection)
+                .Case(".debug_names", &namesSection)
                 .Case(".debug_ranges", &rangesSection)
                 .Case(".debug_rnglists", &rnglistsSection)
                 .Case(".debug_str_offsets", &strOffsetsSection)
-                .Case(".debug_line", &lineSection)
                 .Default(nullptr)) {
-      m->Data = toStringRef(sec->data());
+      m->Data = toStringRef(sec->contentMaybeDecompress());
       m->sec = sec;
       continue;
     }
 
     if (sec->name == ".debug_abbrev")
-      abbrevSection = toStringRef(sec->data());
+      abbrevSection = toStringRef(sec->contentMaybeDecompress());
     else if (sec->name == ".debug_str")
-      strSection = toStringRef(sec->data());
+      strSection = toStringRef(sec->contentMaybeDecompress());
     else if (sec->name == ".debug_line_str")
-      lineStrSection = toStringRef(sec->data());
+      lineStrSection = toStringRef(sec->contentMaybeDecompress());
     else if (sec->name == ".debug_info" &&
              !(objSections[i].sh_flags & ELF::SHF_GROUP)) {
       // In DWARF v5, -fdebug-types-section places type units in .debug_info
@@ -66,7 +64,7 @@ template <class ELFT> LLDDwarfObj<ELFT>::LLDDwarfObj(ObjFile<ELFT> *obj) {
       // need to perform a lightweight parsing. We drop the SHF_GROUP flag when
       // the InputSection was created, so we need to retrieve sh_flags from the
       // associated ELF section header.
-      infoSection.Data = toStringRef(sec->data());
+      infoSection.Data = toStringRef(sec->contentMaybeDecompress());
       infoSection.sec = sec;
     }
   }
@@ -101,17 +99,18 @@ template <class ELFT> struct LLDRelocationResolver<Elf_Rel_Impl<ELFT, false>> {
 // to llvm since it has no idea about InputSection.
 template <class ELFT>
 template <class RelTy>
-Optional<RelocAddrEntry>
+std::optional<RelocAddrEntry>
 LLDDwarfObj<ELFT>::findAux(const InputSectionBase &sec, uint64_t pos,
                            ArrayRef<RelTy> rels) const {
   auto it =
       partition_point(rels, [=](const RelTy &a) { return a.r_offset < pos; });
   if (it == rels.end() || it->r_offset != pos)
-    return None;
+    return std::nullopt;
   const RelTy &rel = *it;
 
   const ObjFile<ELFT> *file = sec.getFile<ELFT>();
-  uint32_t symIndex = rel.getSymbol(config->isMips64EL);
+  Ctx &ctx = sec.getCtx();
+  uint32_t symIndex = rel.getSymbol(ctx.arg.isMips64EL);
   const typename ELFT::Sym &sym = file->template getELFSyms<ELFT>()[symIndex];
   uint32_t secIndex = file->getSectionIndex(sym);
 
@@ -127,15 +126,16 @@ LLDDwarfObj<ELFT>::findAux(const InputSectionBase &sec, uint64_t pos,
   DataRefImpl d;
   d.p = getAddend<ELFT>(rel);
   return RelocAddrEntry{secIndex, RelocationRef(d, nullptr),
-                        val,      Optional<object::RelocationRef>(),
+                        val,      std::optional<object::RelocationRef>(),
                         0,        LLDRelocationResolver<RelTy>::resolve};
 }
 
 template <class ELFT>
-Optional<RelocAddrEntry> LLDDwarfObj<ELFT>::find(const llvm::DWARFSection &s,
-                                                 uint64_t pos) const {
+std::optional<RelocAddrEntry>
+LLDDwarfObj<ELFT>::find(const llvm::DWARFSection &s, uint64_t pos) const {
   auto &sec = static_cast<const LLDDWARFSection &>(s);
-  const RelsOrRelas<ELFT> rels = sec.sec->template relsOrRelas<ELFT>();
+  const RelsOrRelas<ELFT> rels =
+      sec.sec->template relsOrRelas<ELFT>(/*supportsCrel=*/false);
   if (rels.areRelocsRel())
     return findAux(*sec.sec, pos, rels.rels);
   return findAux(*sec.sec, pos, rels.relas);

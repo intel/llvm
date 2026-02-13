@@ -7,13 +7,18 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <functional>
-#include <stdexcept>
-#include <sycl/detail/type_traits.hpp>
+
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
+
+#ifndef __SYCL_DEVICE_ONLY__
 #include <sycl/exception.hpp>
+#endif
+
+#include <stddef.h>    // for size_t
+#include <type_traits> // for enable_if_t
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 template <int dimensions> class id;
 template <int dimensions> class range;
 namespace detail {
@@ -25,39 +30,31 @@ public:
   /* The following constructor is only available in the array struct
    * specialization where: dimensions==1 */
   template <int N = dimensions>
-  array(typename detail::enable_if_t<(N == 1), size_t> dim0 = 0)
+  array(typename std::enable_if_t<(N == 1), size_t> dim0 = 0)
       : common_array{dim0} {}
 
   /* The following constructors are only available in the array struct
    * specialization where: dimensions==2 */
   template <int N = dimensions>
-  array(typename detail::enable_if_t<(N == 2), size_t> dim0, size_t dim1)
+  array(typename std::enable_if_t<(N == 2), size_t> dim0, size_t dim1)
       : common_array{dim0, dim1} {}
 
-  template <int N = dimensions, detail::enable_if_t<(N == 2), size_t> = 0>
+  template <int N = dimensions, std::enable_if_t<(N == 2), size_t> = 0>
   array() : array(0, 0) {}
 
   /* The following constructors are only available in the array struct
    * specialization where: dimensions==3 */
   template <int N = dimensions>
-  array(typename detail::enable_if_t<(N == 3), size_t> dim0, size_t dim1,
+  array(typename std::enable_if_t<(N == 3), size_t> dim0, size_t dim1,
         size_t dim2)
       : common_array{dim0, dim1, dim2} {}
 
-  template <int N = dimensions, detail::enable_if_t<(N == 3), size_t> = 0>
+  template <int N = dimensions, std::enable_if_t<(N == 3), size_t> = 0>
   array() : array(0, 0, 0) {}
 
   // Conversion operators to derived classes
   operator sycl::id<dimensions>() const {
     sycl::id<dimensions> result;
-    for (int i = 0; i < dimensions; ++i) {
-      result[i] = common_array[i];
-    }
-    return result;
-  }
-
-  operator sycl::range<dimensions>() const {
-    sycl::range<dimensions> result;
     for (int i = 0; i < dimensions; ++i) {
       result[i] = common_array[i];
     }
@@ -111,8 +108,8 @@ protected:
   __SYCL_ALWAYS_INLINE void check_dimension(int dimension) const {
 #ifndef __SYCL_DEVICE_ONLY__
     if (dimension >= dimensions || dimension < 0) {
-      throw sycl::invalid_parameter_error("Index out of range",
-                                          PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Index out of range");
     }
 #endif
     (void)dimension;
@@ -120,5 +117,5 @@ protected:
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

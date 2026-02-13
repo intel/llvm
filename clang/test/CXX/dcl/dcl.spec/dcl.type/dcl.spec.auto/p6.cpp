@@ -82,18 +82,14 @@ namespace PR48617 {
   template <typename...> class A {};
 
   template <typename... Ts> C<Ts...> auto e(A<Ts...>) { return 0; }
+  // expected-note@-1 {{could not match 'C auto (A<>)' against 'auto (A<>)'}}
+  // expected-note@-2 {{could not match 'C<int> auto (A<int>)' against 'auto (A<int>)'}}
+  template auto e<>(A<>); // expected-error {{does not refer to a function template}}
+  template auto e<int>(A<int>); // expected-error {{does not refer to a function template}}
 
-  // FIXME: The error here does not make sense.
-  template auto e<>(A<>);
-  // expected-error@-1 {{explicit instantiation of 'e' does not refer to a function template}}
-  // expected-note@-5  {{candidate template ignored: failed template argument deduction}}
-
-  // FIXME: Should be able to instantiate this with no errors.
-  template C<int> auto e<int>(A<int>);
-  // expected-error@-1 {{explicit instantiation of 'e' does not refer to a function template}}
-  // expected-note@-10 {{candidate template ignored: could not match 'C<int, Ts...> auto' against 'C<int> auto'}}
-  
-  template C<> auto e<>(A<>);
+  template <typename... Ts> C<Ts...> auto d(A<Ts...>) { return 0; }
+  template C<> auto d<>(A<>);
+  template C<int> auto d<int>(A<int>);
 
   template <typename... Ts> A<Ts...> c(Ts...);
   int f = e(c(1, 2));

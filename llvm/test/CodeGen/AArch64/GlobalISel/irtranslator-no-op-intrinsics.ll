@@ -4,28 +4,43 @@
 define i64 @expect_i64(i64 %arg0) {
   ; CHECK-LABEL: name: expect_i64
   ; CHECK: bb.1 (%ir-block.0):
-  ; CHECK:   liveins: $x0
-  ; CHECK:   [[COPY:%[0-9]+]]:_(s64) = COPY $x0
-  ; CHECK:   [[COPY1:%[0-9]+]]:_(s64) = COPY [[COPY]](s64)
-  ; CHECK:   $x0 = COPY [[COPY1]](s64)
-  ; CHECK:   RET_ReallyLR implicit $x0
+  ; CHECK-NEXT:   liveins: $x0
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   [[COPY:%[0-9]+]]:_(s64) = COPY $x0
+  ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:_(s64) = COPY [[COPY]](s64)
+  ; CHECK-NEXT:   $x0 = COPY [[COPY1]](s64)
+  ; CHECK-NEXT:   RET_ReallyLR implicit $x0
   %expval = call i64 @llvm.expect.i64(i64 %arg0, i64 1)
   ret i64 %expval
 }
 
-define i8* @ptr_annotate(i8* %arg0, i8* %arg1, i8* %arg2, i32 %arg3) {
+define i64 @expect_with_probability_i64(i64 %arg0) {
+  ; CHECK-LABEL: name: expect_with_probability_i64
+  ; CHECK: bb.1 (%ir-block.0):
+  ; CHECK-NEXT:   liveins: $x0
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   [[COPY:%[0-9]+]]:_(s64) = COPY $x0
+  ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:_(s64) = COPY [[COPY]](s64)
+  ; CHECK-NEXT:   $x0 = COPY [[COPY1]](s64)
+  ; CHECK-NEXT:   RET_ReallyLR implicit $x0
+  %expval = call i64 @llvm.expect.with.probability.i64(i64 %arg0, i64 1, double 0.5)
+  ret i64 %expval
+}
+
+define ptr @ptr_annotate(ptr %arg0, ptr %arg1, ptr %arg2, i32 %arg3) {
   ; CHECK-LABEL: name: ptr_annotate
   ; CHECK: bb.1 (%ir-block.0):
-  ; CHECK:   liveins: $w3, $x0, $x1, $x2
-  ; CHECK:   [[COPY:%[0-9]+]]:_(p0) = COPY $x0
-  ; CHECK:   [[COPY1:%[0-9]+]]:_(p0) = COPY $x1
-  ; CHECK:   [[COPY2:%[0-9]+]]:_(p0) = COPY $x2
-  ; CHECK:   [[COPY3:%[0-9]+]]:_(s32) = COPY $w3
-  ; CHECK:   [[COPY4:%[0-9]+]]:_(p0) = COPY [[COPY]](p0)
-  ; CHECK:   $x0 = COPY [[COPY4]](p0)
-  ; CHECK:   RET_ReallyLR implicit $x0
-  %call = call i8* @llvm.ptr.annotation.p0i8(i8* %arg0, i8* %arg1, i8* %arg2, i32 %arg3, i8* null)
-  ret i8* %call
+  ; CHECK-NEXT:   liveins: $w3, $x0, $x1, $x2
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   [[COPY:%[0-9]+]]:_(p0) = COPY $x0
+  ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:_(p0) = COPY $x1
+  ; CHECK-NEXT:   [[COPY2:%[0-9]+]]:_(p0) = COPY $x2
+  ; CHECK-NEXT:   [[COPY3:%[0-9]+]]:_(s32) = COPY $w3
+  ; CHECK-NEXT:   [[COPY4:%[0-9]+]]:_(p0) = COPY [[COPY]](p0)
+  ; CHECK-NEXT:   $x0 = COPY [[COPY4]](p0)
+  ; CHECK-NEXT:   RET_ReallyLR implicit $x0
+  %call = call ptr @llvm.ptr.annotation.p0(ptr %arg0, ptr %arg1, ptr %arg2, i32 %arg3, ptr null)
+  ret ptr %call
 }
 
 @.str = private unnamed_addr constant [4 x i8] c"sth\00", section "llvm.metadata"
@@ -34,44 +49,48 @@ define i8* @ptr_annotate(i8* %arg0, i8* %arg1, i8* %arg2, i32 %arg3) {
 define i32 @annotation(i32 %a) {
   ; CHECK-LABEL: name: annotation
   ; CHECK: bb.1 (%ir-block.0):
-  ; CHECK:   liveins: $w0
-  ; CHECK:   [[COPY:%[0-9]+]]:_(s32) = COPY $w0
-  ; CHECK:   [[COPY1:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
-  ; CHECK:   $w0 = COPY [[COPY1]](s32)
-  ; CHECK:   RET_ReallyLR implicit $w0
-  %call = call i32 @llvm.annotation.i32(i32 %a, i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str1, i32 0, i32 0), i32 2)
+  ; CHECK-NEXT:   liveins: $w0
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   [[COPY:%[0-9]+]]:_(s32) = COPY $w0
+  ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
+  ; CHECK-NEXT:   $w0 = COPY [[COPY1]](s32)
+  ; CHECK-NEXT:   RET_ReallyLR implicit $w0
+  %call = call i32 @llvm.annotation.i32(i32 %a, ptr @.str, ptr @.str1, i32 2)
   ret i32 %call
 }
 
-define i8* @launder_invariant_group(i8* %p) {
+define ptr @launder_invariant_group(ptr %p) {
   ; CHECK-LABEL: name: launder_invariant_group
   ; CHECK: bb.1 (%ir-block.0):
-  ; CHECK:   liveins: $x0
-  ; CHECK:   [[COPY:%[0-9]+]]:_(p0) = COPY $x0
-  ; CHECK:   [[COPY1:%[0-9]+]]:_(p0) = COPY [[COPY]](p0)
-  ; CHECK:   $x0 = COPY [[COPY1]](p0)
-  ; CHECK:   RET_ReallyLR implicit $x0
-  %q = call i8* @llvm.launder.invariant.group.p0i8(i8* %p)
-  ret i8* %q
+  ; CHECK-NEXT:   liveins: $x0
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   [[COPY:%[0-9]+]]:_(p0) = COPY $x0
+  ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:_(p0) = COPY [[COPY]](p0)
+  ; CHECK-NEXT:   $x0 = COPY [[COPY1]](p0)
+  ; CHECK-NEXT:   RET_ReallyLR implicit $x0
+  %q = call ptr @llvm.launder.invariant.group.p0(ptr %p)
+  ret ptr %q
 }
 
-define i8* @strip_invariant_group(i8* %p) {
+define ptr @strip_invariant_group(ptr %p) {
   ; CHECK-LABEL: name: strip_invariant_group
   ; CHECK: bb.1 (%ir-block.0):
-  ; CHECK:   liveins: $x0
-  ; CHECK:   [[COPY:%[0-9]+]]:_(p0) = COPY $x0
-  ; CHECK:   [[COPY1:%[0-9]+]]:_(p0) = COPY [[COPY]](p0)
-  ; CHECK:   $x0 = COPY [[COPY1]](p0)
-  ; CHECK:   RET_ReallyLR implicit $x0
-  %q = call i8* @llvm.strip.invariant.group.p0i8(i8* %p)
-  ret i8* %q
+  ; CHECK-NEXT:   liveins: $x0
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   [[COPY:%[0-9]+]]:_(p0) = COPY $x0
+  ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:_(p0) = COPY [[COPY]](p0)
+  ; CHECK-NEXT:   $x0 = COPY [[COPY1]](p0)
+  ; CHECK-NEXT:   RET_ReallyLR implicit $x0
+  %q = call ptr @llvm.strip.invariant.group.p0(ptr %p)
+  ret ptr %q
 }
 
 declare i64 @llvm.expect.i64(i64, i64) #0
-declare i8* @llvm.ptr.annotation.p0i8(i8*, i8*, i8*, i32, i8*) #1
-declare i32 @llvm.annotation.i32(i32, i8*, i8*, i32) #1
-declare i8* @llvm.launder.invariant.group.p0i8(i8*) #2
-declare i8* @llvm.strip.invariant.group.p0i8(i8*) #3
+declare i64 @llvm.expect.with.probability.i64(i64, i64, double) #0
+declare ptr @llvm.ptr.annotation.p0(ptr, ptr, ptr, i32, ptr) #1
+declare i32 @llvm.annotation.i32(i32, ptr, ptr, i32) #1
+declare ptr @llvm.launder.invariant.group.p0(ptr) #2
+declare ptr @llvm.strip.invariant.group.p0(ptr) #3
 
 attributes #0 = { nounwind readnone willreturn }
 attributes #1 = { nounwind willreturn }

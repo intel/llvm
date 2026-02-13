@@ -1,0 +1,13 @@
+{
+  global:
+    /* Export the library entry points */
+    materializeSpecConstants;
+    calculateHash;
+    compileSYCL;
+    destroyBinary;
+    resetJITConfiguration;
+    addToJITConfiguration;
+
+  local:
+    *;
+};

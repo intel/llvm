@@ -11,9 +11,9 @@
 
 #include "Config.h"
 #include "lld/Common/LLVM.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Object/Wasm.h"
+#include <optional>
 
 namespace lld {
 namespace wasm {
@@ -25,6 +25,9 @@ extern const char *defaultModule;
 
 // The name under which to import or export the wasm table.
 extern const char *functionTableName;
+
+// The name under which to import or export the wasm memory.
+extern const char *memoryName;
 
 using llvm::wasm::WasmSymbolType;
 
@@ -57,6 +60,8 @@ public:
     UndefinedTableKind,
     UndefinedTagKind,
     LazyKind,
+    SharedFunctionKind,
+    SharedDataKind,
   };
 
   Kind kind() const { return symbolKind; }
@@ -71,6 +76,9 @@ public:
   }
 
   bool isLazy() const { return symbolKind == LazyKind; }
+  bool isShared() const {
+    return symbolKind == SharedFunctionKind || symbolKind == SharedDataKind;
+  }
 
   bool isLocal() const;
   bool isWeak() const;
@@ -111,6 +119,7 @@ public:
   void setOutputSymbolIndex(uint32_t index);
 
   WasmSymbolType getWasmType() const;
+  bool isImported() const;
   bool isExported() const;
   bool isExportedExplicit() const;
 
@@ -130,9 +139,10 @@ public:
 
 protected:
   Symbol(StringRef name, Kind k, uint32_t flags, InputFile *f)
-      : name(name), file(f), symbolKind(k), referenced(!config->gcSections),
+      : name(name), file(f), symbolKind(k), referenced(!ctx.arg.gcSections),
         requiresGOT(false), isUsedInRegularObj(false), forceExport(false),
-        canInline(false), traced(false), isStub(false), flags(flags) {}
+        forceImport(false), canInline(false), traced(false), isStub(false),
+        flags(flags) {}
 
   StringRef name;
   InputFile *file;
@@ -157,6 +167,8 @@ public:
   // -e/--export command line flag)
   bool forceExport : 1;
 
+  bool forceImport : 1;
+
   // False if LTO shouldn't inline whatever this symbol points to. If a symbol
   // is overwritten after LTO, LTO shouldn't inline the symbol because it
   // doesn't know the final contents of the symbol.
@@ -175,14 +187,15 @@ public:
 
   uint32_t flags;
 
-  llvm::Optional<StringRef> importName;
-  llvm::Optional<StringRef> importModule;
+  std::optional<StringRef> importName;
+  std::optional<StringRef> importModule;
 };
 
 class FunctionSymbol : public Symbol {
 public:
   static bool classof(const Symbol *s) {
     return s->kind() == DefinedFunctionKind ||
+           s->kind() == SharedFunctionKind ||
            s->kind() == UndefinedFunctionKind;
   }
 
@@ -227,8 +240,8 @@ public:
 
 class UndefinedFunction : public FunctionSymbol {
 public:
-  UndefinedFunction(StringRef name, llvm::Optional<StringRef> importName,
-                    llvm::Optional<StringRef> importModule, uint32_t flags,
+  UndefinedFunction(StringRef name, std::optional<StringRef> importName,
+                    std::optional<StringRef> importModule, uint32_t flags,
                     InputFile *file = nullptr,
                     const WasmSignature *type = nullptr,
                     bool isCalledDirectly = true)
@@ -278,7 +291,8 @@ public:
 class DataSymbol : public Symbol {
 public:
   static bool classof(const Symbol *s) {
-    return s->kind() == DefinedDataKind || s->kind() == UndefinedDataKind;
+    return s->kind() == DefinedDataKind || s->kind() == UndefinedDataKind ||
+           s->kind() == SharedDataKind;
   }
 
 protected:
@@ -301,7 +315,9 @@ public:
   static bool classof(const Symbol *s) { return s->kind() == DefinedDataKind; }
 
   // Returns the output virtual address of a defined data symbol.
-  uint64_t getVA() const;
+  // For TLS symbols, by default (unless absolute is set), this returns an
+  // address relative the `__tls_base`.
+  uint64_t getVA(bool absolute = false) const;
   void setVA(uint64_t va);
 
   // Returns the offset of a defined data symbol within its OutputSegment.
@@ -314,6 +330,12 @@ public:
 
 protected:
   uint64_t size = 0;
+};
+
+class SharedData : public DataSymbol {
+public:
+  SharedData(StringRef name, uint32_t flags, InputFile *f)
+      : DataSymbol(name, SharedDataKind, flags, f) {}
 };
 
 class UndefinedData : public DataSymbol {
@@ -361,8 +383,8 @@ public:
 
 class UndefinedGlobal : public GlobalSymbol {
 public:
-  UndefinedGlobal(StringRef name, llvm::Optional<StringRef> importName,
-                  llvm::Optional<StringRef> importModule, uint32_t flags,
+  UndefinedGlobal(StringRef name, std::optional<StringRef> importName,
+                  std::optional<StringRef> importModule, uint32_t flags,
                   InputFile *file = nullptr,
                   const WasmGlobalType *type = nullptr)
       : GlobalSymbol(name, UndefinedGlobalKind, flags, file, type) {
@@ -410,8 +432,8 @@ public:
 
 class UndefinedTable : public TableSymbol {
 public:
-  UndefinedTable(StringRef name, llvm::Optional<StringRef> importName,
-                 llvm::Optional<StringRef> importModule, uint32_t flags,
+  UndefinedTable(StringRef name, std::optional<StringRef> importName,
+                 std::optional<StringRef> importModule, uint32_t flags,
                  InputFile *file, const WasmTableType *type)
       : TableSymbol(name, UndefinedTableKind, flags, file, type) {
     this->importName = importName;
@@ -468,8 +490,8 @@ public:
 
 class UndefinedTag : public TagSymbol {
 public:
-  UndefinedTag(StringRef name, llvm::Optional<StringRef> importName,
-               llvm::Optional<StringRef> importModule, uint32_t flags,
+  UndefinedTag(StringRef name, std::optional<StringRef> importName,
+               std::optional<StringRef> importModule, uint32_t flags,
                InputFile *file = nullptr, const WasmSignature *sig = nullptr)
       : TagSymbol(name, UndefinedTagKind, flags, file, sig) {
     this->importName = importName;
@@ -479,9 +501,19 @@ public:
   static bool classof(const Symbol *s) { return s->kind() == UndefinedTagKind; }
 };
 
-// LazySymbol represents a symbol that is not yet in the link, but we know where
-// to find it if needed. If the resolver finds both Undefined and Lazy for the
-// same name, it will ask the Lazy to load a file.
+class SharedFunctionSymbol : public FunctionSymbol {
+public:
+  SharedFunctionSymbol(StringRef name, uint32_t flags, InputFile *file,
+                       const WasmSignature *sig)
+      : FunctionSymbol(name, SharedFunctionKind, flags, file, sig) {}
+  static bool classof(const Symbol *s) {
+    return s->kind() == SharedFunctionKind;
+  }
+};
+
+// LazySymbol symbols represent symbols in object files between --start-lib and
+// --end-lib options. LLD also handles traditional archives as if all the files
+// in the archive are surrounded by --start-lib and --end-lib.
 //
 // A special complication is the handling of weak undefined symbols. They should
 // not load a file, but we have to remember we have seen both the weak undefined
@@ -490,14 +522,12 @@ public:
 // symbols into consideration.
 class LazySymbol : public Symbol {
 public:
-  LazySymbol(StringRef name, uint32_t flags, InputFile *file,
-             const llvm::object::Archive::Symbol &sym)
-      : Symbol(name, LazyKind, flags, file), archiveSymbol(sym) {}
+  LazySymbol(StringRef name, uint32_t flags, InputFile *file)
+      : Symbol(name, LazyKind, flags, file) {}
 
   static bool classof(const Symbol *s) { return s->kind() == LazyKind; }
-  void fetch();
+  void extract();
   void setWeak();
-  MemoryBufferRef getMemberBuffer();
 
   // Lazy symbols can have a signature because they can replace an
   // UndefinedFunction in which case we need to be able to preserve the
@@ -505,106 +535,6 @@ public:
   // TODO(sbc): This repetition of the signature field is inelegant.  Revisit
   // the use of class hierarchy to represent symbol taxonomy.
   const WasmSignature *signature = nullptr;
-
-private:
-  llvm::object::Archive::Symbol archiveSymbol;
-};
-
-// linker-generated symbols
-struct WasmSym {
-  // __global_base
-  // Symbol marking the start of the global section.
-  static DefinedData *globalBase;
-
-  // __stack_pointer
-  // Global that holds the address of the top of the explicit value stack in
-  // linear memory.
-  static GlobalSymbol *stackPointer;
-
-  // __tls_base
-  // Global that holds the address of the base of the current thread's
-  // TLS block.
-  static GlobalSymbol *tlsBase;
-
-  // __tls_size
-  // Symbol whose value is the size of the TLS block.
-  static GlobalSymbol *tlsSize;
-
-  // __tls_size
-  // Symbol whose value is the alignment of the TLS block.
-  static GlobalSymbol *tlsAlign;
-
-  // __data_end
-  // Symbol marking the end of the data and bss.
-  static DefinedData *dataEnd;
-
-  // __heap_base
-  // Symbol marking the end of the data, bss and explicit stack.  Any linear
-  // memory following this address is not used by the linked code and can
-  // therefore be used as a backing store for brk()/malloc() implementations.
-  static DefinedData *heapBase;
-
-  // __wasm_init_memory_flag
-  // Symbol whose contents are nonzero iff memory has already been initialized.
-  static DefinedData *initMemoryFlag;
-
-  // __wasm_init_memory
-  // Function that initializes passive data segments during instantiation.
-  static DefinedFunction *initMemory;
-
-  // __wasm_call_ctors
-  // Function that directly calls all ctors in priority order.
-  static DefinedFunction *callCtors;
-
-  // __wasm_call_dtors
-  // Function that calls the libc/etc. cleanup function.
-  static DefinedFunction *callDtors;
-
-  // __wasm_apply_data_relocs
-  // Function that applies relocations to data segment post-instantiation.
-  static DefinedFunction *applyDataRelocs;
-
-  // __wasm_apply_global_relocs
-  // Function that applies relocations to wasm globals post-instantiation.
-  // Unlike __wasm_apply_data_relocs this needs to run on every thread.
-  static DefinedFunction *applyGlobalRelocs;
-
-  // __wasm_apply_global_tls_relocs
-  // Like applyGlobalRelocs but for globals that hold TLS addresses.  These
-  // must be delayed until __wasm_init_tls.
-  static DefinedFunction *applyGlobalTLSRelocs;
-
-  // __wasm_init_tls
-  // Function that allocates thread-local storage and initializes it.
-  static DefinedFunction *initTLS;
-
-  // Pointer to the function that is to be used in the start section.
-  // (normally an alias of initMemory, or applyGlobalRelocs).
-  static DefinedFunction *startFunction;
-
-  // __dso_handle
-  // Symbol used in calls to __cxa_atexit to determine current DLL
-  static DefinedData *dsoHandle;
-
-  // __table_base
-  // Used in PIC code for offset of indirect function table
-  static UndefinedGlobal *tableBase;
-  static DefinedData *definedTableBase;
-  // 32-bit copy in wasm64 to work around init expr limitations.
-  // These can potentially be removed again once we have
-  // https://github.com/WebAssembly/extended-const 
-  static UndefinedGlobal *tableBase32;
-  static DefinedData *definedTableBase32;
-
-  // __memory_base
-  // Used in PIC code for offset of global data
-  static UndefinedGlobal *memoryBase;
-  static DefinedData *definedMemoryBase;
-
-  // __indirect_function_table
-  // Used as an address space for function pointers, with each function that is
-  // used as a function pointer being allocated a slot.
-  static TableSymbol *indirectFunctionTable;
 };
 
 // A buffer class that is large enough to hold any Symbol-derived
@@ -622,6 +552,7 @@ union SymbolUnion {
   alignas(UndefinedGlobal) char i[sizeof(UndefinedGlobal)];
   alignas(UndefinedTable) char j[sizeof(UndefinedTable)];
   alignas(SectionSymbol) char k[sizeof(SectionSymbol)];
+  alignas(SharedFunctionSymbol) char l[sizeof(SharedFunctionSymbol)];
 };
 
 // It is important to keep the size of SymbolUnion small for performance and
@@ -647,6 +578,7 @@ T *replaceSymbol(Symbol *s, ArgT &&... arg) {
   T *s2 = new (s) T(std::forward<ArgT>(arg)...);
   s2->isUsedInRegularObj = symCopy.isUsedInRegularObj;
   s2->forceExport = symCopy.forceExport;
+  s2->forceImport = symCopy.forceImport;
   s2->canInline = symCopy.canInline;
   s2->traced = symCopy.traced;
   s2->referenced = symCopy.referenced;

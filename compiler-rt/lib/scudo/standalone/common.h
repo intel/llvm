@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 #include <string.h>
+#include <unistd.h>
 
 namespace scudo {
 
@@ -27,16 +28,34 @@ template <class Dest, class Source> inline Dest bit_cast(const Source &S) {
   return D;
 }
 
-inline constexpr uptr roundUpTo(uptr X, uptr Boundary) {
-  return (X + Boundary - 1) & ~(Boundary - 1);
+inline constexpr bool isPowerOfTwo(uptr X) {
+  if (X == 0)
+    return false;
+  return (X & (X - 1)) == 0;
 }
 
-inline constexpr uptr roundDownTo(uptr X, uptr Boundary) {
+inline constexpr uptr roundUp(uptr X, uptr Boundary) {
+  DCHECK(isPowerOfTwo(Boundary));
+  return (X + Boundary - 1) & ~(Boundary - 1);
+}
+inline constexpr uptr roundUpSlow(uptr X, uptr Boundary) {
+  return ((X + Boundary - 1) / Boundary) * Boundary;
+}
+
+inline constexpr uptr roundDown(uptr X, uptr Boundary) {
+  DCHECK(isPowerOfTwo(Boundary));
   return X & ~(Boundary - 1);
+}
+inline constexpr uptr roundDownSlow(uptr X, uptr Boundary) {
+  return (X / Boundary) * Boundary;
 }
 
 inline constexpr bool isAligned(uptr X, uptr Alignment) {
+  DCHECK(isPowerOfTwo(Alignment));
   return (X & (Alignment - 1)) == 0;
+}
+inline constexpr bool isAlignedSlow(uptr X, uptr Alignment) {
+  return X % Alignment == 0;
 }
 
 template <class T> constexpr T Min(T A, T B) { return A < B ? A : B; }
@@ -49,14 +68,12 @@ template <class T> void Swap(T &A, T &B) {
   B = Tmp;
 }
 
-inline bool isPowerOfTwo(uptr X) { return (X & (X - 1)) == 0; }
-
 inline uptr getMostSignificantSetBitIndex(uptr X) {
   DCHECK_NE(X, 0U);
   return SCUDO_WORDSIZE - 1U - static_cast<uptr>(__builtin_clzl(X));
 }
 
-inline uptr roundUpToPowerOfTwo(uptr Size) {
+inline uptr roundUpPowerOfTwo(uptr Size) {
   DCHECK(Size);
   if (isPowerOfTwo(Size))
     return Size;
@@ -99,33 +116,60 @@ template <typename T> inline void shuffle(T *A, u32 N, u32 *RandState) {
   *RandState = State;
 }
 
-// Hardware specific inlinable functions.
+inline void computePercentage(uptr Numerator, uptr Denominator, uptr *Integral,
+                              uptr *Fractional) {
+  constexpr uptr Digits = 100;
+  if (Denominator == 0) {
+    *Integral = 100;
+    *Fractional = 0;
+    return;
+  }
 
-inline void yieldProcessor(u8 Count) {
-#if defined(__i386__) || defined(__x86_64__)
-  __asm__ __volatile__("" ::: "memory");
-  for (u8 I = 0; I < Count; I++)
-    __asm__ __volatile__("pause");
-#elif defined(__aarch64__) || defined(__arm__)
-  __asm__ __volatile__("" ::: "memory");
-  for (u8 I = 0; I < Count; I++)
-    __asm__ __volatile__("yield");
-#endif
-  __asm__ __volatile__("" ::: "memory");
+  *Integral = Numerator * Digits / Denominator;
+  *Fractional =
+      (((Numerator * Digits) % Denominator) * Digits + Denominator / 2) /
+      Denominator;
 }
 
 // Platform specific functions.
 
+#if defined(SCUDO_PAGE_SIZE)
+
+inline constexpr uptr getPageSizeCached() { return SCUDO_PAGE_SIZE; }
+
+inline constexpr uptr getPageSizeSlow() { return getPageSizeCached(); }
+
+inline constexpr uptr getPageSizeLogCached() {
+  return static_cast<uptr>(__builtin_ctzl(SCUDO_PAGE_SIZE));
+}
+
+#else
+
 extern uptr PageSizeCached;
+extern uptr PageSizeLogCached;
+
+// Must be defined in platform specific code.
+uptr getPageSize();
+
+// Always calls getPageSize(), but caches the results for get*Cached(), below.
 uptr getPageSizeSlow();
+
 inline uptr getPageSizeCached() {
-  // Bionic uses a hardcoded value.
-  if (SCUDO_ANDROID)
-    return 4096U;
   if (LIKELY(PageSizeCached))
     return PageSizeCached;
   return getPageSizeSlow();
 }
+
+inline uptr getPageSizeLogCached() {
+  if (LIKELY(PageSizeLogCached))
+    return PageSizeLogCached;
+  // PageSizeLogCached and PageSizeCached are both set in getPageSizeSlow()
+  getPageSizeSlow();
+  DCHECK_NE(PageSizeLogCached, 0);
+  return PageSizeLogCached;
+}
+
+#endif
 
 // Returns 0 if the number of CPUs could not be determined.
 u32 getNumberOfCPUs();
@@ -133,6 +177,9 @@ u32 getNumberOfCPUs();
 const char *getEnv(const char *Name);
 
 u64 getMonotonicTime();
+// Gets the time faster but with less accuracy. Can call getMonotonicTime
+// if no fast version is available.
+u64 getMonotonicTimeFast();
 
 u32 getThreadID();
 
@@ -141,12 +188,18 @@ u32 getThreadID();
 constexpr uptr MaxRandomLength = 256U;
 bool getRandom(void *Buffer, uptr Length, bool Blocking = false);
 
+// Get the total number of resident pages for BaseAddress to BaseAddress + Size.
+// This function can run slowly, and is only expected to be called
+// from getStats functions where performance does not matter.
+u64 getResidentPages(uptr BaseAddress, uptr Size);
+
 // Platform memory mapping functions.
 
 #define MAP_ALLOWNOMEM (1U << 0)
 #define MAP_NOACCESS (1U << 1)
 #define MAP_RESIZABLE (1U << 2)
 #define MAP_MEMTAG (1U << 3)
+#define MAP_PRECOMMIT (1U << 4)
 
 // Our platform memory mapping use is restricted to 3 scenarios:
 // - reserve memory at a random address (MAP_NOACCESS);
@@ -172,10 +225,6 @@ void setMemoryPermission(uptr Addr, uptr Size, uptr Flags,
 void releasePagesToOS(uptr BaseAddress, uptr Offset, uptr Size,
                       MapPlatformData *Data = nullptr);
 
-// Internal map & unmap fatal error. This must not call map(). SizeIfOOM shall
-// hold the requested size on an out-of-memory error, 0 otherwise.
-void NORETURN dieOnMapUnmapError(uptr SizeIfOOM = 0);
-
 // Logging related functions.
 
 void setAbortMessage(const char *Message);
@@ -195,6 +244,13 @@ enum class Option : u8 {
   MaxCacheEntriesCount, // Maximum number of blocks that can be cached.
   MaxCacheEntrySize,    // Maximum size of a block that can be cached.
   MaxTSDsCount,         // Number of usable TSDs for the shared registry.
+};
+
+enum class ReleaseToOS : u8 {
+  Normal, // Follow the normal rules for releasing pages to the OS
+  Force,  // Force release pages to the OS, but avoid cases that take too long.
+  ForceAll, // Force release every page possible regardless of how long it will
+            // take.
 };
 
 constexpr unsigned char PatternFillByte = 0xAB;

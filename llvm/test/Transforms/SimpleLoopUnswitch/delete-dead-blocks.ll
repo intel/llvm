@@ -1,4 +1,3 @@
-; RUN: opt < %s -simple-loop-unswitch -enable-nontrivial-unswitch -S 2>&1 | FileCheck %s
 ; RUN: opt < %s -passes='simple-loop-unswitch<nontrivial>' -S 2>&1 | FileCheck %s
 ; RUN: opt < %s -passes='loop-mssa(simple-loop-unswitch<nontrivial>)' -S 2>&1 | FileCheck %s
 ;
@@ -15,7 +14,7 @@ outer:
   br label %inner
 inner:
   %ii = phi i32 [ 0, %outer ], [ %iinc, %continue]
-  call void @foo() 
+  call void @foo()
   switch i32 %0, label %get_out2 [
     i32 0, label %continue
     i32 1, label %case1
@@ -48,7 +47,7 @@ get_out2:
 ;
 ; This comes from PR38778
 ; CHECK-LABEL: @Test2
-define void @Test2(i32) {
+define void @Test2(i32, i1 %arg) {
 header:
   br label %loop
 loop:
@@ -59,12 +58,12 @@ loop:
   ]
 ; CHECK-NOT: {{^}}guarded1:
 guarded1:
-  br i1 undef, label %continue, label %leave
+  br i1 %arg, label %continue, label %leave
 guarded2:
   br label %continue
 check:
   %val = add i32 0, 1
-  br i1 undef, label %continue, label %leave
+  br i1 %arg, label %continue, label %leave
 continue:
   br label %loop
 leave:
@@ -76,7 +75,7 @@ leave:
 ; Yet another test from PR38778
 ;
 ; CHECK-LABEL: @Test3
-define void @Test3(i32) {
+define void @Test3(i32, i1 %arg) {
 header:
   br label %outer
 outer:
@@ -96,7 +95,7 @@ case2:
   br label %continue
 continue:
   %local_11_92 = phi i32 [ 0, %switchme ], [ 18, %case2 ], [ 0, %overflow ]
-  br i1 undef, label %outer, label %inner
+  br i1 %arg, label %outer, label %inner
 go_out:
   unreachable
 }

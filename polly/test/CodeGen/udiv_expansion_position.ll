@@ -1,4 +1,4 @@
-; RUN: opt %loadPolly -polly-codegen -S < %s | FileCheck %s
+; RUN: opt %loadNPMPolly '-passes=polly<no-default-opts>' -S < %s | FileCheck %s
 ;
 ; Verify we do not crash when we synthezise code for the udiv in the SCoP.
 ;
@@ -27,7 +27,7 @@ for.body50:                                       ; preds = %for.body35
 
 for.cond62:                                       ; preds = %for.body50.7
   %conv46.lcssa = phi i16 [ %conv46, %for.body50.7 ]
-  store i16 %conv46.lcssa, i16* undef, align 2
+  store i16 %conv46.lcssa, ptr undef, align 2
   br label %for.end83
 
 for.end83:                                        ; preds = %for.cond62

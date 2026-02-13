@@ -17,34 +17,274 @@
 #define MLIR_DIALECT_AFFINE_ANALYSIS_UTILS_H
 
 #include "mlir/Dialect/Affine/Analysis/AffineStructures.h"
-#include "mlir/IR/AffineMap.h"
-#include "mlir/IR/Block.h"
-#include "mlir/IR/Location.h"
-#include "mlir/Support/LLVM.h"
-#include "llvm/ADT/SmallVector.h"
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include <memory>
+#include <optional>
 
 namespace mlir {
-
-class AffineForOp;
 class Block;
 class Location;
-struct MemRefAccess;
 class Operation;
 class Value;
 
-/// Populates 'loops' with IVs of the loops surrounding 'op' ordered from
-/// the outermost 'affine.for' operation to the innermost one.
-//  TODO: handle 'affine.if' ops.
-void getLoopIVs(Operation &op, SmallVectorImpl<AffineForOp> *loops);
+namespace affine {
+class AffineForOp;
+class AffineValueMap;
+struct MemRefAccess;
+
+// LoopNestStateCollector walks loop nests and collects load and store
+// operations, and whether or not a region holding op other than ForOp and IfOp
+// was encountered in the loop nest.
+struct LoopNestStateCollector {
+  SmallVector<AffineForOp, 4> forOps;
+  // Affine loads.
+  SmallVector<Operation *, 4> loadOpInsts;
+  // Affine stores.
+  SmallVector<Operation *, 4> storeOpInsts;
+  // Non-affine loads.
+  SmallVector<Operation *, 4> memrefLoads;
+  // Non-affine stores.
+  SmallVector<Operation *, 4> memrefStores;
+  // Free operations.
+  SmallVector<Operation *, 4> memrefFrees;
+
+  // Collects load and store operations, and whether or not a region holding op
+  // other than ForOp and IfOp was encountered in the loop nest.
+  void collect(Operation *opToWalk);
+};
+
+// MemRefDependenceGraph is a graph data structure where graph nodes are
+// top-level operations in a `Block` and edges are memref dependences or SSA
+// dependences (on memrefs) between the nodes. Nodes are created for all
+// top-level operations except in certain cases (see `init` method). Edges are
+// created between nodes with a dependence (see `Edge` documentation). Edges
+// aren't created from/to nodes that have no memory effects.
+struct MemRefDependenceGraph {
+public:
+  // Node represents a node in the graph. A Node is either an entire loop nest
+  // rooted at the top level which contains loads/stores, or a top level
+  // load/store.
+  struct Node {
+    // The unique identifier of this node in the graph.
+    unsigned id;
+    // The top-level statement which is (or contains) a load/store.
+    Operation *op;
+    // List of affine loads.
+    SmallVector<Operation *, 4> loads;
+    // List of non-affine loads.
+    SmallVector<Operation *, 4> memrefLoads;
+    // List of affine store ops.
+    SmallVector<Operation *, 4> stores;
+    // List of non-affine stores.
+    SmallVector<Operation *, 4> memrefStores;
+    // List of free operations.
+    SmallVector<Operation *, 4> memrefFrees;
+    // Set of private memrefs used in this node.
+    DenseSet<Value> privateMemrefs;
+
+    Node(unsigned id, Operation *op) : id(id), op(op) {}
+
+    // Returns the load op count for 'memref'.
+    unsigned getLoadOpCount(Value memref) const;
+
+    // Returns the store op count for 'memref'.
+    unsigned getStoreOpCount(Value memref) const;
+
+    /// Returns true if there exists an operation with a write memory effect to
+    /// `memref` in this node.
+    unsigned hasStore(Value memref) const;
+
+    // Returns true if the node has a free op on `memref`.
+    unsigned hasFree(Value memref) const;
+
+    // Returns all store ops in 'storeOps' which access 'memref'.
+    void getStoreOpsForMemref(Value memref,
+                              SmallVectorImpl<Operation *> *storeOps) const;
+
+    // Returns all load ops in 'loadOps' which access 'memref'.
+    void getLoadOpsForMemref(Value memref,
+                             SmallVectorImpl<Operation *> *loadOps) const;
+
+    // Returns all memrefs in 'loadAndStoreMemrefSet' for which this node
+    // has at least one load and store operation.
+    void getLoadAndStoreMemrefSet(DenseSet<Value> *loadAndStoreMemrefSet) const;
+  };
+
+  // Edge represents a data dependence between nodes in the graph. It can either
+  // be a memory dependence or an SSA dependence. In the former case, it
+  // corresponds to a pair of memory accesses to the same memref or aliasing
+  // memrefs where at least one of them has a write or free memory effect. The
+  // memory accesses need not be affine load/store operations. Operations are
+  // checked for read/write effects and edges may be added conservatively. Edges
+  // are not created to/from nodes that have no memory effect. An exception to
+  // this are SSA dependences between operations that define memrefs (like
+  // alloc's, view-like ops) and their memory-effecting users that are enclosed
+  // in loops.
+  struct Edge {
+    // The id of the node at the other end of the edge.
+    // If this edge is stored in Edge = Node.inEdges[i], then
+    // 'Node.inEdges[i].id' is the identifier of the source node of the edge.
+    // If this edge is stored in Edge = Node.outEdges[i], then
+    // 'Node.outEdges[i].id' is the identifier of the dest node of the edge.
+    unsigned id;
+    // The SSA value on which this edge represents a dependence.
+    // If the value is a memref, then the dependence is between graph nodes
+    // which contain accesses to the same memref 'value'. If the value is a
+    // non-memref value, then the dependence is between a graph node which
+    // defines an SSA value and another graph node which uses the SSA value
+    // (e.g. a constant or load operation defining a value which is used inside
+    // a loop nest).
+    Value value;
+  };
+
+  // Map from node id to Node.
+  DenseMap<unsigned, Node> nodes;
+  // Map from node id to list of input edges. The absence of an entry for a key
+  // is also equivalent to the absence of any edges.
+  DenseMap<unsigned, SmallVector<Edge, 2>> inEdges;
+  // Map from node id to list of output edges. The absence of an entry for a
+  // node is also equivalent to the absence of any edges.
+  DenseMap<unsigned, SmallVector<Edge, 2>> outEdges;
+  // Map from memref to a count on the dependence edges associated with that
+  // memref.
+  DenseMap<Value, unsigned> memrefEdgeCount;
+  // The next unique identifier to use for newly created graph nodes.
+  unsigned nextNodeId = 0;
+
+  MemRefDependenceGraph(Block &block) : block(block) {}
+
+  // Initializes the data dependence graph by iterating over the operations of
+  // the MDG's `block`. A `Node` is created for every top-level op except for
+  // side-effect-free operations with zero results and no regions. Assigns each
+  // node in the graph a node id based on the order in block. Fails if certain
+  // kinds of operations, for which `Node` creation isn't supported, are
+  // encountered (unknown region holding ops). If `fullAffineDependences` is
+  // set, affine memory dependence analysis is performed before concluding that
+  // conflicting affine memory accesses lead to a dependence check; otherwise, a
+  // pair of conflicting affine memory accesses (where one of them is a store
+  // and they are to the same memref) always leads to an edge (conservatively).
+  bool init(bool fullAffineDependences = true);
+
+  // Returns the graph node for 'id'.
+  const Node *getNode(unsigned id) const;
+  Node *getNode(unsigned id) {
+    return const_cast<Node *>(
+        static_cast<const MemRefDependenceGraph *>(this)->getNode(id));
+  }
+
+  // Returns true if the graph has node with ID `id`.
+  bool hasNode(unsigned id) const { return nodes.contains(id); }
+
+  // Returns the graph node for 'forOp'.
+  const Node *getForOpNode(AffineForOp forOp) const;
+  Node *getForOpNode(AffineForOp forOp) {
+    return const_cast<Node *>(
+        static_cast<const MemRefDependenceGraph *>(this)->getForOpNode(forOp));
+  }
+
+  // Adds a node with 'op' to the graph and returns its unique identifier.
+  unsigned addNode(Operation *op);
+
+  // Remove node 'id' (and its associated edges) from graph.
+  void removeNode(unsigned id);
+
+  // Returns true if node 'id' writes to any memref which escapes (or is an
+  // argument to) the block. Returns false otherwise.
+  bool writesToLiveInOrEscapingMemrefs(unsigned id) const;
+
+  // Returns true iff there is an edge from node 'srcId' to node 'dstId' which
+  // is for 'value' if non-null, or for any value otherwise. Returns false
+  // otherwise.
+  bool hasEdge(unsigned srcId, unsigned dstId, Value value = nullptr) const;
+
+  // Adds an edge from node 'srcId' to node 'dstId' for 'value'.
+  void addEdge(unsigned srcId, unsigned dstId, Value value);
+
+  // Removes an edge from node 'srcId' to node 'dstId' for 'value'.
+  void removeEdge(unsigned srcId, unsigned dstId, Value value);
+
+  // Returns true if there is a path in the dependence graph from node 'srcId'
+  // to node 'dstId'. Returns false otherwise. `srcId`, `dstId`, and the
+  // operations that the edges connected are expected to be from the same block.
+  bool hasDependencePath(unsigned srcId, unsigned dstId) const;
+
+  // Returns the input edge count for node 'id' and 'memref' from src nodes
+  // which access 'memref' with a store operation.
+  unsigned getIncomingMemRefAccesses(unsigned id, Value memref) const;
+
+  // Returns the output edge count for node 'id' and 'memref' (if non-null),
+  // otherwise returns the total output edge count from node 'id'.
+  unsigned getOutEdgeCount(unsigned id, Value memref = nullptr) const;
+
+  /// Return all nodes which define SSA values used in node 'id'.
+  void gatherDefiningNodes(unsigned id,
+                           DenseSet<unsigned> &definingNodes) const;
+
+  // Computes and returns an insertion point operation, before which the
+  // the fused <srcId, dstId> loop nest can be inserted while preserving
+  // dependences. Returns nullptr if no such insertion point is found.
+  Operation *getFusedLoopNestInsertionPoint(unsigned srcId,
+                                            unsigned dstId) const;
+
+  // Updates edge mappings from node 'srcId' to node 'dstId' after fusing them,
+  // taking into account that:
+  //   *) if 'removeSrcId' is true, 'srcId' will be removed after fusion,
+  //   *) memrefs in 'privateMemRefs' has been replaced in node at 'dstId' by a
+  //      private memref.
+  void updateEdges(unsigned srcId, unsigned dstId,
+                   const DenseSet<Value> &privateMemRefs, bool removeSrcId);
+
+  // Update edge mappings for nodes 'sibId' and 'dstId' to reflect fusion
+  // of sibling node 'sibId' into node 'dstId'.
+  void updateEdges(unsigned sibId, unsigned dstId);
+
+  // Adds the specified ops to lists of node at 'id'.
+  void addToNode(unsigned id, ArrayRef<Operation *> loads,
+                 ArrayRef<Operation *> stores,
+                 ArrayRef<Operation *> memrefLoads,
+                 ArrayRef<Operation *> memrefStores,
+                 ArrayRef<Operation *> memrefFrees);
+
+  void clearNodeLoadAndStores(unsigned id);
+
+  // Calls 'callback' for each input edge incident to node 'id' which carries a
+  // memref dependence.
+  void forEachMemRefInputEdge(unsigned id,
+                              const std::function<void(Edge)> &callback);
+
+  // Calls 'callback' for each output edge from node 'id' which carries a
+  // memref dependence.
+  void forEachMemRefOutputEdge(unsigned id,
+                               const std::function<void(Edge)> &callback);
+
+  // Calls 'callback' for each edge in 'edges' which carries a memref
+  // dependence.
+  void forEachMemRefEdge(ArrayRef<Edge> edges,
+                         const std::function<void(Edge)> &callback);
+
+  void print(raw_ostream &os) const;
+
+  void dump() const { print(llvm::errs()); }
+
+  /// The block for which this graph is created to perform fusion.
+  Block &block;
+};
+
+/// Populates 'loops' with IVs of the affine.for ops surrounding 'op' ordered
+/// from the outermost 'affine.for' operation to the innermost one while not
+/// traversing outside of the surrounding affine scope.
+void getAffineForIVs(Operation &op, SmallVectorImpl<AffineForOp> *loops);
+
+/// Populates 'ivs' with IVs of the surrounding affine.for and affine.parallel
+/// ops ordered from the outermost one to the innermost while not traversing
+/// outside of the surrounding affine scope.
+void getAffineIVs(Operation &op, SmallVectorImpl<Value> &ivs);
 
 /// Populates 'ops' with affine operations enclosing `op` ordered from outermost
-/// to innermost. affine.for, affine.if, or affine.parallel ops comprise such
-/// surrounding affine ops.
-/// TODO: Change this to return a list of enclosing ops up until the op that
-/// starts an `AffineScope`. In such a case, `ops` is guaranteed by design to
-/// have a successive chain of affine parent ops, and this is primarily what is
-/// needed for most analyses.
+/// to innermost while stopping at the boundary of the affine scope. affine.for,
+/// affine.if, or affine.parallel ops comprise such surrounding affine ops.
+/// `ops` is guaranteed by design to have a successive chain of affine parent
+/// ops.
 void getEnclosingAffineOps(Operation &op, SmallVectorImpl<Operation *> *ops);
 
 /// Returns the nesting depth of this operation, i.e., the number of loops
@@ -95,13 +335,13 @@ struct ComputationSliceState {
   // Constraints are added for all loop IV bounds (dim or symbol), and
   // constraints are added for slice bounds in 'lbs'/'ubs'.
   // Returns failure if we cannot add loop bounds because of unsupported cases.
-  LogicalResult getAsConstraints(FlatAffineValueConstraints *cst);
+  LogicalResult getAsConstraints(FlatAffineValueConstraints *cst) const;
 
   /// Adds to 'cst' constraints which represent the original loop bounds on
   /// 'ivs' in 'this'. This corresponds to the original domain of the loop nest
   /// from which the slice is being computed. Returns failure if we cannot add
   /// loop bounds because of unsupported cases.
-  LogicalResult getSourceAsConstraints(FlatAffineValueConstraints &cst);
+  LogicalResult getSourceAsConstraints(FlatAffineValueConstraints &cst) const;
 
   // Clears all bounds and operands in slice state.
   void clearBounds();
@@ -110,11 +350,11 @@ struct ComputationSliceState {
   bool isEmpty() const { return ivs.empty(); }
 
   /// Returns true if the computation slice encloses all the iterations of the
-  /// sliced loop nest. Returns false if it does not. Returns llvm::None if it
+  /// sliced loop nest. Returns false if it does not. Returns std::nullopt if it
   /// cannot determine if the slice is maximal or not.
   // TODO: Cache 'isMaximal' so that we don't recompute it when the slice
   // information hasn't changed.
-  Optional<bool> isMaximal() const;
+  std::optional<bool> isMaximal() const;
 
   /// Checks the validity of the slice computed. This is done using the
   /// following steps:
@@ -129,8 +369,8 @@ struct ComputationSliceState {
   /// If this difference is empty, the slice is declared to be valid. Otherwise,
   /// return false as it implies that the effective fusion results in at least
   /// one iteration of the slice that was not originally in the source's domain.
-  /// If the validity cannot be determined, returns llvm:None.
-  Optional<bool> isSliceValid();
+  /// If the validity cannot be determined, returns std::nullopt.
+  std::optional<bool> isSliceValid() const;
 
   void dump() const;
 
@@ -139,8 +379,8 @@ private:
   /// if each slice dimension maps to an existing dst dimension and both the src
   /// and the dst loops for those dimensions have the same bounds. Returns false
   /// if both the src and the dst loops don't have the same bounds. Returns
-  /// llvm::None if none of the above can be proven.
-  Optional<bool> isSliceMaximalFastCheck() const;
+  /// std::nullopt if none of the above can be proven.
+  std::optional<bool> isSliceMaximalFastCheck() const;
 };
 
 /// Computes the computation slice loop bounds for one loop nest as affine maps
@@ -184,10 +424,10 @@ private:
 //      %v = affine.load %0[%i1] : memref<100xf32>    // 'depSinkAccess'
 //    }
 //
-void getComputationSliceState(Operation *depSourceOp, Operation *depSinkOp,
-                              FlatAffineValueConstraints *dependenceConstraints,
-                              unsigned loopDepth, bool isBackwardSlice,
-                              ComputationSliceState *sliceState);
+void getComputationSliceState(
+    Operation *depSourceOp, Operation *depSinkOp,
+    const FlatAffineValueConstraints &dependenceConstraints, unsigned loopDepth,
+    bool isBackwardSlice, ComputationSliceState *sliceState);
 
 /// Return the number of iterations for the `slicetripCountMap` provided.
 uint64_t getSliceIterationCount(
@@ -212,7 +452,6 @@ bool buildSliceTripCountMap(
 /// nest surrounding ops in 'opsA' at 'loopDepth'. Returns
 /// 'SliceComputationResult::Success' if union was computed correctly, an
 /// appropriate 'failure' otherwise.
-// TODO: Change this API to take 'forOpA'/'forOpB'.
 SliceComputationResult
 computeSliceUnion(ArrayRef<Operation *> opsA, ArrayRef<Operation *> opsB,
                   unsigned loopDepth, unsigned numCommonLoops,
@@ -269,6 +508,8 @@ struct MemRefRegion {
   ///    to slice operands (which correspond to symbols).
   /// If 'addMemRefDimBounds' is true, constant upper/lower bounds
   /// [0, memref.getDimSize(i)) are added for each MemRef dimension 'i'.
+  /// If `dropLocalVars` is true, all local variables in `cst` are projected
+  /// out.
   ///
   ///  For example, the memref region for this operation at loopDepth = 1 will
   ///  be:
@@ -282,9 +523,14 @@ struct MemRefRegion {
   ///   {memref = %A, write = false, {%i <= m0 <= %i + 7} }
   /// The last field is a 2-d FlatAffineValueConstraints symbolic in %i.
   ///
+  /// If `dropOuterIVs` is true, project out any IVs other than those among
+  /// `loopDepth` surrounding IVs, which would be symbols. If `dropOuterIVs`
+  /// is false, the IVs would be turned into local variables instead of being
+  /// projected out.
   LogicalResult compute(Operation *op, unsigned loopDepth,
                         const ComputationSliceState *sliceState = nullptr,
-                        bool addMemRefDimBounds = true);
+                        bool addMemRefDimBounds = true,
+                        bool dropLocalVars = true, bool dropOuterIVs = true);
 
   FlatAffineValueConstraints *getConstraints() { return &cst; }
   const FlatAffineValueConstraints *getConstraints() const { return &cst; }
@@ -292,39 +538,27 @@ struct MemRefRegion {
   void setWrite(bool flag) { write = flag; }
 
   /// Returns a constant upper bound on the number of elements in this region if
-  /// bounded by a known constant (always possible for static shapes), None
-  /// otherwise. Note that the symbols of the region are treated specially,
-  /// i.e., the returned bounding constant holds for *any given* value of the
-  /// symbol variables. The 'shape' vector is set to the corresponding
-  /// dimension-wise bounds major to minor. The number of elements and all the
-  /// dimension-wise bounds are guaranteed to be non-negative. We use int64_t
-  /// instead of uint64_t since index types can be at most int64_t. `lbs` are
-  /// set to the lower bounds for each of the rank dimensions, and lbDivisors
-  /// contains the corresponding denominators for floorDivs.
-  Optional<int64_t> getConstantBoundingSizeAndShape(
+  /// bounded by a known constant (always possible for static shapes),
+  /// std::nullopt otherwise. Note that the symbols of the region are treated
+  /// specially, i.e., the returned bounding constant holds for *any given*
+  /// value of the symbol variables. The 'shape' vector is set to the
+  /// corresponding dimension-wise bounds major to minor. The number of elements
+  /// and all the dimension-wise bounds are guaranteed to be non-negative. We
+  /// use int64_t instead of uint64_t since index types can be at most
+  /// int64_t. `lbs` are set to the lower bound maps for each of the rank
+  /// dimensions where each of these maps is purely symbolic in the constraints
+  /// set's symbols.
+  std::optional<int64_t> getConstantBoundingSizeAndShape(
       SmallVectorImpl<int64_t> *shape = nullptr,
-      std::vector<SmallVector<int64_t, 4>> *lbs = nullptr,
-      SmallVectorImpl<int64_t> *lbDivisors = nullptr) const;
+      SmallVectorImpl<AffineMap> *lbs = nullptr) const;
 
   /// Gets the lower and upper bound map for the dimensional variable at
   /// `pos`.
   void getLowerAndUpperBound(unsigned pos, AffineMap &lbMap,
                              AffineMap &ubMap) const;
 
-  /// A wrapper around FlatAffineValueConstraints::getConstantBoundOnDimSize().
-  /// 'pos' corresponds to the position of the memref shape's dimension (major
-  /// to minor) which matches 1:1 with the dimensional variable positions in
-  /// 'cst'.
-  Optional<int64_t>
-  getConstantBoundOnDimSize(unsigned pos,
-                            SmallVectorImpl<int64_t> *lb = nullptr,
-                            int64_t *lbFloorDivisor = nullptr) const {
-    assert(pos < getRank() && "invalid position");
-    return cst.getConstantBoundOnDimSize64(pos, lb);
-  }
-
   /// Returns the size of this MemRefRegion in bytes.
-  Optional<int64_t> getRegionSize();
+  std::optional<int64_t> getRegionSize();
 
   // Wrapper around FlatAffineValueConstraints::unionBoundingBox.
   LogicalResult unionBoundingBox(const MemRefRegion &other);
@@ -349,13 +583,12 @@ struct MemRefRegion {
   /// variables since getMemRefRegion() is called with a specific loop depth,
   /// and thus the region is symbolic in the outer surrounding loops at that
   /// depth.
-  // TODO: Replace this to exploit HyperRectangularSet.
   FlatAffineValueConstraints cst;
 };
 
-/// Returns the size of memref data in bytes if it's statically shaped, None
-/// otherwise.
-Optional<uint64_t> getMemRefSizeInBytes(MemRefType memRefType);
+/// Returns the size of a memref with element type int or float in bytes if it's
+/// statically shaped, std::nullopt otherwise.
+std::optional<uint64_t> getIntOrFloatMemRefSizeInBytes(MemRefType memRefType);
 
 /// Checks a load or store op for an out of bound access; returns failure if the
 /// access is out of bounds along any of the dimensions, success otherwise.
@@ -369,8 +602,12 @@ unsigned getNumCommonSurroundingLoops(Operation &a, Operation &b);
 
 /// Gets the memory footprint of all data touched in the specified memory space
 /// in bytes; if the memory space is unspecified, considers all memory spaces.
-Optional<int64_t> getMemoryFootprintBytes(AffineForOp forOp,
-                                          int memorySpace = -1);
+std::optional<int64_t> getMemoryFootprintBytes(AffineForOp forOp,
+                                               int memorySpace = -1);
+
+/// Returns the memref's element type's size in bytes where the elemental type
+/// is an int or float or a vector of such types.
+std::optional<int64_t> getMemRefIntOrFloatEltSizeInBytes(MemRefType memRefType);
 
 /// Simplify the integer set by simplifying the underlying affine expressions by
 /// flattening and some simple inference. Also, drop any duplicate constraints.
@@ -383,6 +620,22 @@ unsigned getInnermostCommonLoopDepth(
     ArrayRef<Operation *> ops,
     SmallVectorImpl<AffineForOp> *surroundingLoops = nullptr);
 
+/// Try to simplify the given affine.min or affine.max op to an affine map with
+/// a single result and operands, taking into account the specified constraint
+/// set. Return failure if no simplified version could be found.
+FailureOr<AffineValueMap>
+simplifyConstrainedMinMaxOp(Operation *op,
+                            FlatAffineValueConstraints constraints);
+
+/// Find the innermost common `Block` of `a` and `b` in the affine scope
+/// that `a` and `b` are part of. Return nullptr if they belong to different
+/// affine scopes. Also, return nullptr if they do not have a common `Block`
+/// ancestor (for eg., when they are part of the `then` and `else` regions
+/// of an op that itself starts an affine scope.
+mlir::Block *findInnermostCommonBlockInScope(mlir::Operation *a,
+                                             mlir::Operation *b);
+
+} // namespace affine
 } // namespace mlir
 
 #endif // MLIR_DIALECT_AFFINE_ANALYSIS_UTILS_H

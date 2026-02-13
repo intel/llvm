@@ -201,12 +201,12 @@ public:
 
   /// Get the MDString metadata for this block.
   ArrayRef<const Metadata *> getMDStrings() const {
-    return makeArrayRef(MDs).slice(NumModuleMDs, NumMDStrings);
+    return ArrayRef(MDs).slice(NumModuleMDs, NumMDStrings);
   }
 
   /// Get the non-MDString metadata for this block.
   ArrayRef<const Metadata *> getNonMDStrings() const {
-    return makeArrayRef(MDs).slice(NumModuleMDs).slice(NumMDStrings);
+    return ArrayRef(MDs).slice(NumModuleMDs).slice(NumMDStrings);
   }
 
   const TypeList &getTypes() const { return Types; }
@@ -236,7 +236,7 @@ public:
   void incorporateFunction(const Function &F);
 
   void purgeFunction();
-  uint64_t computeBitsRequiredForTypeIndicies() const;
+  uint64_t computeBitsRequiredForTypeIndices() const;
 
   void EnumerateType(Type *T);
 

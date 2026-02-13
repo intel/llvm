@@ -10,6 +10,7 @@
 #include "SourceCode.h"
 #include "TestTU.h"
 #include "support/TestTracer.h"
+#include "clang/AST/ASTConcept.h"
 #include "clang/AST/Decl.h"
 #include "llvm/Support/Casting.h"
 #include "gmock/gmock.h"
@@ -103,9 +104,9 @@ TEST(SelectionTest, CommonAncestor) {
       {
           R"cpp(
             template <typename T>
-            int x = [[T::^U::]]ccc();
+            int x = T::[[^U]]::ccc();
           )cpp",
-          "NestedNameSpecifierLoc",
+          "DependentNameTypeLoc",
       },
       {
           R"cpp(
@@ -310,6 +311,19 @@ TEST(SelectionTest, CommonAncestor) {
       {"[[void foo^()]];", "FunctionProtoTypeLoc"},
       {"[[^void foo^()]];", "FunctionDecl"},
       {"[[void ^foo()]];", "FunctionDecl"},
+      // Tricky case: with function attributes, the AttributedTypeLoc's range
+      // includes the function name, but we want the name to be associated with
+      // the CXXMethodDecl.
+      {"struct X { [[const int* ^Get() const <:[clang::lifetimebound]:> "
+       "{return nullptr;}]]; };",
+       "CXXMethodDecl"},
+      // When the cursor is on the attribute itself, we should select the
+      // AttributedTypeLoc. Note: Due to a bug or deliberate quirk in the AST
+      // modeling of AttributedTypeLoc, its range ends at the attribute name
+      // token, not including the closing brackets ":>:>".
+      {"struct X { const [[int* Foo() const <:<:clang::life^timebound]]:>:> "
+       "{return nullptr;}; };",
+       "AttributedTypeLoc"},
       // Tricky case: two VarDecls share a specifier.
       {"[[int ^a]], b;", "VarDecl"},
       {"[[int a, ^b]];", "VarDecl"},
@@ -466,7 +480,10 @@ TEST(SelectionTest, CommonAncestor) {
       {"struct foo { [[int has^h<:32:>]]; };", "FieldDecl"},
       {"struct foo { [[op^erator int()]]; };", "CXXConversionDecl"},
       {"struct foo { [[^~foo()]]; };", "CXXDestructorDecl"},
-      // FIXME: The following to should be class itself instead.
+      {"struct foo { [[~^foo()]]; };", "CXXDestructorDecl"},
+      {"template <class T> struct foo { ~foo<[[^T]]>(){} };",
+       "TemplateTypeParmTypeLoc"},
+      {"struct foo {}; void bar(foo *f) { [[f->~^foo]](); }", "MemberExpr"},
       {"struct foo { [[fo^o(){}]] };", "CXXConstructorDecl"},
 
       {R"cpp(
@@ -531,6 +548,66 @@ TEST(SelectionTest, CommonAncestor) {
         void func() { [[__^func__]]; }
         )cpp",
        "PredefinedExpr"},
+
+      // using enum
+      {R"cpp(
+        namespace ns { enum class A {}; };
+        using enum ns::[[^A]];
+        )cpp",
+       "EnumTypeLoc"},
+      {R"cpp(
+        namespace ns { enum class A {}; using B = A; };
+        using enum ns::[[^B]];
+        )cpp",
+       "TypedefTypeLoc"},
+      {R"cpp(
+        namespace ns { enum class A {}; };
+        using enum [[^ns::]]A;
+        )cpp",
+       "NestedNameSpecifierLoc"},
+      {R"cpp(
+        namespace ns { enum class A {}; };
+        [[using ^enum ns::A]];
+        )cpp",
+       "UsingEnumDecl"},
+      {R"cpp(
+        namespace ns { enum class A {}; };
+        [[^using enum ns::A]];
+        )cpp",
+       "UsingEnumDecl"},
+
+      // concepts
+      {R"cpp(
+        template <class> concept C = true;
+        auto x = [[^C<int>]];
+      )cpp",
+       "ConceptReference"},
+      {R"cpp(
+        template <class> concept C = true;
+        [[^C]] auto x = 0;
+      )cpp",
+       "ConceptReference"},
+      {R"cpp(
+        template <class> concept C = true;
+        void foo([[^C]] auto x) {}
+      )cpp",
+       "ConceptReference"},
+      {R"cpp(
+        template <class> concept C = true;
+        template <[[^C]] x> int i = 0;
+      )cpp",
+       "ConceptReference"},
+      {R"cpp(
+        namespace ns { template <class> concept C = true; }
+        auto x = [[ns::^C<int>]];
+      )cpp",
+       "ConceptReference"},
+      {R"cpp(
+        template <typename T, typename K>
+        concept D = true;
+        template <typename T> void g(D<[[^T]]> auto abc) {}
+      )cpp",
+       "TemplateTypeParmTypeLoc"},
   };
 
   for (const Case &C : Cases) {
@@ -541,6 +618,7 @@ TEST(SelectionTest, CommonAncestor) {
     TU.Code = std::string(Test.code());
 
     TU.ExtraArgs.push_back("-xobjective-c++");
+    TU.ExtraArgs.push_back("-std=c++20");
 
     auto AST = TU.build();
     auto T = makeSelectionTree(C.Code, AST);
@@ -659,7 +737,7 @@ TEST(SelectionTest, PathologicalPreprocessor) {
   auto TU = TestTU::withCode(Test.code());
   TU.AdditionalFiles["Expand.inc"] = "MACRO\n";
   auto AST = TU.build();
-  EXPECT_THAT(*AST.getDiagnostics(), ::testing::IsEmpty());
+  EXPECT_THAT(AST.getDiagnostics(), ::testing::IsEmpty());
   auto T = makeSelectionTree(Case, AST);
 
   EXPECT_EQ("BreakStmt", T.commonAncestor()->kind());
@@ -706,8 +784,24 @@ TEST(SelectionTest, MacroArgExpansion) {
   Test = Annotations(Case);
   AST = TestTU::withCode(Test.code()).build();
   T = makeSelectionTree(Case, AST);
-
   EXPECT_EQ("IntegerLiteral", T.commonAncestor()->kind());
+
+  // Reduced from private bug involving RETURN_IF_ERROR.
+  // Due to >>-splitting and a bug in isBeforeInTranslationUnit, the inner
+  // S<int> would claim way too many tokens.
+  Case = R"cpp(
+    #define ID(x) x
+    template <typename T> class S {};
+    ID(
+      ID(S<S<int>> x);
+      int ^y;
+    )
+  )cpp";
+  Test = Annotations(Case);
+  AST = TestTU::withCode(Test.code()).build();
+  T = makeSelectionTree(Case, AST);
+  // not TemplateSpecializationTypeLoc!
+  EXPECT_EQ("VarDecl", T.commonAncestor()->kind());
 }
 
 TEST(SelectionTest, Implicit) {
@@ -803,6 +897,46 @@ TEST(SelectionTest, DeclContextIsLexical) {
     auto ST = SelectionTree::createRight(AST.getASTContext(), AST.getTokens(),
                                          Test.point("2"), Test.point("2"));
     EXPECT_TRUE(ST.commonAncestor()->getDeclContext().isTranslationUnit());
+  }
+}
+
+TEST(SelectionTest, DeclContextLambda) {
+  llvm::Annotations Test(R"cpp(
+    void foo();
+    auto lambda = [] {
+      return $1^foo();
+    };
+  )cpp");
+  auto AST = TestTU::withCode(Test.code()).build();
+  auto ST = SelectionTree::createRight(AST.getASTContext(), AST.getTokens(),
+                                       Test.point("1"), Test.point("1"));
+  EXPECT_TRUE(ST.commonAncestor()->getDeclContext().isFunctionOrMethod());
+}
+
+TEST(SelectionTest, UsingConcepts) {
+  llvm::Annotations Test(R"cpp(
+namespace ns {
+template <typename T>
+concept Foo = true;
+}
+
+using ns::Foo;
+
+template <Fo^o... T, Fo^o auto U>
+auto Func(Fo^o auto V) -> Fo^o decltype(auto) {
+  Fo^o auto W = V;
+  return W;
+}
+)cpp");
+  auto TU = TestTU::withCode(Test.code());
+  TU.ExtraArgs.emplace_back("-std=c++2c");
+  auto AST = TU.build();
+  for (auto Point : Test.points()) {
+    auto ST = SelectionTree::createRight(AST.getASTContext(), AST.getTokens(),
+                                         Point, Point);
+    auto *C = ST.commonAncestor()->ASTNode.get<ConceptReference>();
+    EXPECT_TRUE(C && C->getFoundDecl() &&
+                C->getFoundDecl()->getKind() == Decl::UsingShadow);
   }
 }
 

@@ -11,13 +11,14 @@
 #include "Config.h"
 #include "InputFiles.h"
 #include "OutputSegment.h"
+#include "Sections.h"
 #include "Symbols.h"
 #include "SyntheticSections.h"
 #include "Target.h"
-#include "UnwindInfoSection.h"
 #include "Writer.h"
+
+#include "lld/Common/ErrorHandler.h"
 #include "lld/Common/Memory.h"
-#include "llvm/Support/Endian.h"
 #include "llvm/Support/xxhash.h"
 
 using namespace llvm;
@@ -29,12 +30,56 @@ using namespace lld::macho;
 // Verify ConcatInputSection's size on 64-bit builds. The size of std::vector
 // can differ based on STL debug levels (e.g. iterator debugging on MSVC's STL),
 // so account for that.
-static_assert(sizeof(void *) != 8 ||
-                  sizeof(ConcatInputSection) == sizeof(std::vector<Reloc>) + 88,
+static_assert(sizeof(void *) != 8 || sizeof(ConcatInputSection) ==
+                                         sizeof(std::vector<Relocation>) + 88,
               "Try to minimize ConcatInputSection's size, we create many "
               "instances of it");
 
 std::vector<ConcatInputSection *> macho::inputSections;
+int macho::inputSectionsOrder = 0;
+
+// Call this function to add a new InputSection and have it routed to the
+// appropriate container. Depending on its type and current config, it will
+// either be added to 'inputSections' vector or to a synthetic section.
+void lld::macho::addInputSection(InputSection *inputSection) {
+  if (auto *isec = dyn_cast<ConcatInputSection>(inputSection)) {
+    if (isec->isCoalescedWeak())
+      return;
+    if (config->emitRelativeMethodLists &&
+        ObjCMethListSection::isMethodList(isec)) {
+      if (in.objcMethList->inputOrder == UnspecifiedInputOrder)
+        in.objcMethList->inputOrder = inputSectionsOrder++;
+      in.objcMethList->addInput(isec);
+      isec->parent = in.objcMethList;
+      return;
+    }
+    if (config->emitInitOffsets &&
+        sectionType(isec->getFlags()) == S_MOD_INIT_FUNC_POINTERS) {
+      in.initOffsets->addInput(isec);
+      return;
+    }
+    isec->outSecOff = inputSectionsOrder++;
+    auto *osec = ConcatOutputSection::getOrCreateForInput(isec);
+    isec->parent = osec;
+    inputSections.push_back(isec);
+  } else if (auto *isec = dyn_cast<CStringInputSection>(inputSection)) {
+    bool useSectionName = config->separateCstringLiteralSections ||
+                          isec->getName() == section_names::objcMethname;
+    auto *osec = in.getOrCreateCStringSection(
+        useSectionName ? isec->getName() : section_names::cString);
+    if (osec->inputOrder == UnspecifiedInputOrder)
+      osec->inputOrder = inputSectionsOrder++;
+    osec->addInput(isec);
+  } else if (auto *isec = dyn_cast<WordLiteralInputSection>(inputSection)) {
+    if (in.wordLiteralSection->inputOrder == UnspecifiedInputOrder)
+      in.wordLiteralSection->inputOrder = inputSectionsOrder++;
+    in.wordLiteralSection->addInput(isec);
+  } else {
+    llvm_unreachable("unexpected input section kind");
+  }
+
+  assert(inputSectionsOrder <= UnspecifiedInputOrder);
+}
 
 uint64_t InputSection::getFileSize() const {
   return isZeroFill(getFlags()) ? 0 : getSize();
@@ -109,7 +154,7 @@ std::string InputSection::getSourceLocation(uint64_t off) const {
   };
 
   // First, look up a function for a given offset.
-  if (Optional<DILineInfo> li = dwarf->getDILineInfo(
+  if (std::optional<DILineInfo> li = dwarf->getDILineInfo(
           section.addr + off, object::SectionedAddress::UndefSection))
     return createMsg(li->FileName, li->Line);
 
@@ -118,10 +163,9 @@ std::string InputSection::getSourceLocation(uint64_t off) const {
     // Symbols are generally prefixed with an underscore, which is not included
     // in the debug information.
     StringRef symName = sym->getName();
-    if (!symName.empty() && symName[0] == '_')
-      symName = symName.substr(1);
+    symName.consume_front("_");
 
-    if (Optional<std::pair<std::string, unsigned>> fileLine =
+    if (std::optional<std::pair<std::string, unsigned>> fileLine =
             dwarf->getVariableLoc(symName))
       return createMsg(fileLine->first, fileLine->second);
   }
@@ -133,39 +177,32 @@ std::string InputSection::getSourceLocation(uint64_t off) const {
   return {};
 }
 
-void ConcatInputSection::foldIdentical(ConcatInputSection *copy) {
+const Relocation *InputSection::getRelocAt(uint32_t off) const {
+  auto it = llvm::find_if(relocs,
+                          [=](const Relocation &r) { return r.offset == off; });
+  if (it == relocs.end())
+    return nullptr;
+  return &*it;
+}
+
+void ConcatInputSection::foldIdentical(ConcatInputSection *copy,
+                                       Symbol::ICFFoldKind foldKind) {
   align = std::max(align, copy->align);
   copy->live = false;
   copy->wasCoalesced = true;
   copy->replacement = this;
   for (auto &copySym : copy->symbols)
-    copySym->wasIdenticalCodeFolded = true;
+    copySym->identicalCodeFoldingKind = foldKind;
 
-  // Merge the sorted vectors of symbols together.
-  auto it = symbols.begin();
-  for (auto copyIt = copy->symbols.begin(); copyIt != copy->symbols.end();) {
-    if (it == symbols.end()) {
-      symbols.push_back(*copyIt++);
-      it = symbols.end();
-    } else if ((*it)->value > (*copyIt)->value) {
-      std::swap(*it++, *copyIt);
-    } else {
-      ++it;
-    }
-  }
+  symbols.insert(symbols.end(), copy->symbols.begin(), copy->symbols.end());
   copy->symbols.clear();
 
   // Remove duplicate compact unwind info for symbols at the same address.
   if (symbols.empty())
     return;
-  it = symbols.begin();
-  uint64_t v = (*it)->value;
-  for (++it; it != symbols.end(); ++it) {
-    Defined *d = *it;
-    if (d->value == v)
-      d->unwindEntry = nullptr;
-    else
-      v = d->value;
+  for (auto it = symbols.begin() + 1; it != symbols.end(); ++it) {
+    assert((*it)->value == 0);
+    (*it)->originalUnwindEntry = nullptr;
   }
 }
 
@@ -178,20 +215,20 @@ void ConcatInputSection::writeTo(uint8_t *buf) {
   memcpy(buf, data.data(), data.size());
 
   for (size_t i = 0; i < relocs.size(); i++) {
-    const Reloc &r = relocs[i];
+    const Relocation &r = relocs[i];
     uint8_t *loc = buf + r.offset;
     uint64_t referentVA = 0;
 
     const bool needsFixup = config->emitChainedFixups &&
                             target->hasAttr(r.type, RelocAttrBits::UNSIGNED);
     if (target->hasAttr(r.type, RelocAttrBits::SUBTRAHEND)) {
-      const Symbol *fromSym = r.referent.get<Symbol *>();
-      const Reloc &minuend = relocs[++i];
+      const Symbol *fromSym = cast<Symbol *>(r.referent);
+      const Relocation &minuend = relocs[++i];
       uint64_t minuendVA;
       if (const Symbol *toSym = minuend.referent.dyn_cast<Symbol *>())
         minuendVA = toSym->getVA() + minuend.addend;
       else {
-        auto *referentIsec = minuend.referent.get<InputSection *>();
+        auto *referentIsec = cast<InputSection *>(minuend.referent);
         assert(!::shouldOmitFromOutput(referentIsec));
         minuendVA = referentIsec->getVA(minuend.addend);
       }
@@ -201,7 +238,7 @@ void ConcatInputSection::writeTo(uint8_t *buf) {
           !referentSym->isInGot())
         target->relaxGotLoad(loc, r.type);
       // For dtrace symbols, do not handle them as normal undefined symbols
-      if (referentSym->getName().startswith("___dtrace_")) {
+      if (referentSym->getName().starts_with("___dtrace_")) {
         // Change dtrace call site to pre-defined instructions
         target->handleDtraceReloc(referentSym, r, loc);
         continue;
@@ -239,6 +276,9 @@ ConcatInputSection *macho::makeSyntheticInputSection(StringRef segName,
   Section &section =
       *make<Section>(/*file=*/nullptr, segName, sectName, flags, /*addr=*/0);
   auto isec = make<ConcatInputSection>(section, data, align);
+  // Since this is an explicitly created 'fake' input section,
+  // it should not be dead stripped.
+  isec->live = true;
   section.subsections.push_back({0, isec});
   return isec;
 }
@@ -250,7 +290,7 @@ void CStringInputSection::splitIntoPieces() {
     size_t end = s.find(0);
     if (end == StringRef::npos)
       fatal(getLocation(off) + ": string is not null terminated");
-    uint32_t hash = deduplicateLiterals ? xxHash64(s.take_front(end)) : 0;
+    uint32_t hash = deduplicateLiterals ? xxh3_64bits(s.take_front(end)) : 0;
     pieces.emplace_back(off, hash);
     size_t size = end + 1; // include null terminator
     s = s.substr(size);
@@ -269,6 +309,15 @@ StringPiece &CStringInputSection::getStringPiece(uint64_t off) {
 
 const StringPiece &CStringInputSection::getStringPiece(uint64_t off) const {
   return const_cast<CStringInputSection *>(this)->getStringPiece(off);
+}
+
+size_t CStringInputSection::getStringPieceIndex(uint64_t off) const {
+  if (off >= data.size())
+    fatal(toString(this) + ": offset is outside the section");
+
+  auto it =
+      partition_point(pieces, [=](StringPiece p) { return p.inSecOff <= off; });
+  return std::distance(pieces.begin(), it) - 1;
 }
 
 uint64_t CStringInputSection::getOffset(uint64_t off) const {
@@ -299,6 +348,9 @@ WordLiteralInputSection::WordLiteralInputSection(const Section &section,
 }
 
 uint64_t WordLiteralInputSection::getOffset(uint64_t off) const {
+  if (off >= data.size())
+    fatal(toString(this) + ": offset is outside the section");
+
   auto *osec = cast<WordLiteralSection>(parent);
   const uintptr_t buf = reinterpret_cast<uintptr_t>(data.data());
   switch (sectionType(getFlags())) {
@@ -314,20 +366,8 @@ uint64_t WordLiteralInputSection::getOffset(uint64_t off) const {
 }
 
 bool macho::isCodeSection(const InputSection *isec) {
-  uint32_t type = sectionType(isec->getFlags());
-  if (type != S_REGULAR && type != S_COALESCED)
-    return false;
-
-  uint32_t attr = isec->getFlags() & SECTION_ATTRIBUTES_USR;
-  if (attr == S_ATTR_PURE_INSTRUCTIONS)
-    return true;
-
-  if (isec->getSegName() == segment_names::text)
-    return StringSwitch<bool>(isec->getName())
-        .Cases(section_names::textCoalNt, section_names::staticInit, true)
-        .Default(false);
-
-  return false;
+  return sections::isCodeSection(isec->getName(), isec->getSegName(),
+                                 isec->getFlags());
 }
 
 bool macho::isCfStringSection(const InputSection *isec) {

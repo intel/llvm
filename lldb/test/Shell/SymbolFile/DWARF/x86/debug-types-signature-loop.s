@@ -4,7 +4,7 @@
 # RUN: ld.lld %t.o -o %t
 # RUN: %lldb %t -o "target variable e" -b | FileCheck %s
 
-# CHECK: e = <could not resolve type>
+# CHECK: error: Invalid type: Cannot determine size
 
         .type   e,@object               # @e
         .section        .rodata,"a",@progbits

@@ -7,9 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ExecutionEngine/Orc/COFFPlatform.h"
+
+#include "llvm/ExecutionEngine/Orc/AbsoluteSymbols.h"
+#include "llvm/ExecutionEngine/Orc/COFF.h"
 #include "llvm/ExecutionEngine/Orc/DebugUtils.h"
 #include "llvm/ExecutionEngine/Orc/LookupAndRecordAddrs.h"
 #include "llvm/ExecutionEngine/Orc/ObjectFileInterface.h"
+#include "llvm/ExecutionEngine/Orc/Shared/ObjectFormats.h"
 
 #include "llvm/Object/COFF.h"
 
@@ -52,22 +56,9 @@ public:
   StringRef getName() const override { return "COFFHeaderMU"; }
 
   void materialize(std::unique_ptr<MaterializationResponsibility> R) override {
-    unsigned PointerSize;
-    support::endianness Endianness;
-    const auto &TT =
-        CP.getExecutionSession().getExecutorProcessControl().getTargetTriple();
-
-    switch (TT.getArch()) {
-    case Triple::x86_64:
-      PointerSize = 8;
-      Endianness = support::endianness::little;
-      break;
-    default:
-      llvm_unreachable("Unrecognized architecture");
-    }
-
     auto G = std::make_unique<jitlink::LinkGraph>(
-        "<COFFHeaderMU>", TT, PointerSize, Endianness,
+        "<COFFHeaderMU>", CP.getExecutionSession().getSymbolStringPool(),
+        CP.getExecutionSession().getTargetTriple(), SubtargetFeatures(),
         jitlink::getGenericEdgeKindName);
     auto &HeaderSection = G->createSection("__header", MemProt::Read);
     auto &HeaderBlock = createHeaderBlock(*G, HeaderSection);
@@ -125,8 +116,8 @@ private:
       llvm_unreachable("Unrecognized architecture");
     }
 
-    auto HeaderContent = G.allocateString(
-        StringRef(reinterpret_cast<const char *>(&Hdr), sizeof(Hdr)));
+    auto HeaderContent = G.allocateContent(
+        ArrayRef<char>(reinterpret_cast<const char *>(&Hdr), sizeof(Hdr)));
 
     return G.createContentBlock(HeaderSection, HeaderContent, ExecutorAddr(), 8,
                                 0);
@@ -160,18 +151,39 @@ namespace llvm {
 namespace orc {
 
 Expected<std::unique_ptr<COFFPlatform>>
-COFFPlatform::Create(ExecutionSession &ES, ObjectLinkingLayer &ObjLinkingLayer,
-                     JITDylib &PlatformJD, const char *OrcRuntimePath,
+COFFPlatform::Create(ObjectLinkingLayer &ObjLinkingLayer, JITDylib &PlatformJD,
+                     std::unique_ptr<MemoryBuffer> OrcRuntimeArchiveBuffer,
                      LoadDynamicLibrary LoadDynLibrary, bool StaticVCRuntime,
                      const char *VCRuntimePath,
-                     Optional<SymbolAliasMap> RuntimeAliases) {
-  auto &EPC = ES.getExecutorProcessControl();
+                     std::optional<SymbolAliasMap> RuntimeAliases) {
+
+  auto &ES = ObjLinkingLayer.getExecutionSession();
 
   // If the target is not supported then bail out immediately.
-  if (!supportedTarget(EPC.getTargetTriple()))
+  if (!supportedTarget(ES.getTargetTriple()))
     return make_error<StringError>("Unsupported COFFPlatform triple: " +
-                                       EPC.getTargetTriple().str(),
+                                       ES.getTargetTriple().str(),
                                    inconvertibleErrorCode());
+
+  auto &EPC = ES.getExecutorProcessControl();
+
+  auto GeneratorArchive =
+      object::Archive::create(OrcRuntimeArchiveBuffer->getMemBufferRef());
+  if (!GeneratorArchive)
+    return GeneratorArchive.takeError();
+
+  std::set<std::string> DylibsToPreload;
+  auto OrcRuntimeArchiveGenerator = StaticLibraryDefinitionGenerator::Create(
+      ObjLinkingLayer, nullptr, std::move(*GeneratorArchive),
+      COFFImportFileScanner(DylibsToPreload));
+  if (!OrcRuntimeArchiveGenerator)
+    return OrcRuntimeArchiveGenerator.takeError();
+
+  // We need a second instance of the archive (for now) for the Platform. We
+  // can `cantFail` this call, since if it were going to fail it would have
+  // failed above.
+  auto RuntimeArchive = cantFail(
+      object::Archive::create(OrcRuntimeArchiveBuffer->getMemBufferRef()));
 
   // Create default aliases if the caller didn't supply any.
   if (!RuntimeAliases)
@@ -184,13 +196,13 @@ COFFPlatform::Create(ExecutionSession &ES, ObjectLinkingLayer &ObjLinkingLayer,
   auto &HostFuncJD = ES.createBareJITDylib("$<PlatformRuntimeHostFuncJD>");
 
   // Add JIT-dispatch function support symbols.
-  if (auto Err = HostFuncJD.define(absoluteSymbols(
-          {{ES.intern("__orc_rt_jit_dispatch"),
-            {EPC.getJITDispatchInfo().JITDispatchFunction.getValue(),
-             JITSymbolFlags::Exported}},
-           {ES.intern("__orc_rt_jit_dispatch_ctx"),
-            {EPC.getJITDispatchInfo().JITDispatchContext.getValue(),
-             JITSymbolFlags::Exported}}})))
+  if (auto Err = HostFuncJD.define(
+          absoluteSymbols({{ES.intern("__orc_rt_jit_dispatch"),
+                            {EPC.getJITDispatchInfo().JITDispatchFunction,
+                             JITSymbolFlags::Exported}},
+                           {ES.intern("__orc_rt_jit_dispatch_ctx"),
+                            {EPC.getJITDispatchInfo().JITDispatchContext,
+                             JITSymbolFlags::Exported}}})))
     return std::move(Err);
 
   PlatformJD.addToLinkOrder(HostFuncJD);
@@ -198,11 +210,29 @@ COFFPlatform::Create(ExecutionSession &ES, ObjectLinkingLayer &ObjLinkingLayer,
   // Create the instance.
   Error Err = Error::success();
   auto P = std::unique_ptr<COFFPlatform>(new COFFPlatform(
-      ES, ObjLinkingLayer, PlatformJD, OrcRuntimePath,
-      std::move(LoadDynLibrary), StaticVCRuntime, VCRuntimePath, Err));
+      ObjLinkingLayer, PlatformJD, std::move(*OrcRuntimeArchiveGenerator),
+      std::move(DylibsToPreload), std::move(OrcRuntimeArchiveBuffer),
+      std::move(RuntimeArchive), std::move(LoadDynLibrary), StaticVCRuntime,
+      VCRuntimePath, Err));
   if (Err)
     return std::move(Err);
   return std::move(P);
+}
+
+Expected<std::unique_ptr<COFFPlatform>>
+COFFPlatform::Create(ObjectLinkingLayer &ObjLinkingLayer, JITDylib &PlatformJD,
+                     const char *OrcRuntimePath,
+                     LoadDynamicLibrary LoadDynLibrary, bool StaticVCRuntime,
+                     const char *VCRuntimePath,
+                     std::optional<SymbolAliasMap> RuntimeAliases) {
+
+  auto ArchiveBuffer = MemoryBuffer::getFile(OrcRuntimePath);
+  if (!ArchiveBuffer)
+    return createFileError(OrcRuntimePath, ArchiveBuffer.getError());
+
+  return Create(ObjLinkingLayer, PlatformJD, std::move(*ArchiveBuffer),
+                std::move(LoadDynLibrary), StaticVCRuntime, VCRuntimePath,
+                std::move(RuntimeAliases));
 }
 
 Expected<MemoryBufferRef> COFFPlatform::getPerJDObjectFile() {
@@ -331,6 +361,7 @@ COFFPlatform::standardRuntimeUtilityAliases() {
           {"__orc_rt_run_program", "__orc_rt_coff_run_program"},
           {"__orc_rt_jit_dlerror", "__orc_rt_coff_jit_dlerror"},
           {"__orc_rt_jit_dlopen", "__orc_rt_coff_jit_dlopen"},
+          {"__orc_rt_jit_dlupdate", "__orc_rt_coff_jit_dlupdate"},
           {"__orc_rt_jit_dlclose", "__orc_rt_coff_jit_dlclose"},
           {"__orc_rt_jit_dlsym", "__orc_rt_coff_jit_dlsym"},
           {"__orc_rt_log_error", "__orc_rt_log_error_to_stderr"}};
@@ -348,36 +379,22 @@ bool COFFPlatform::supportedTarget(const Triple &TT) {
   }
 }
 
-COFFPlatform::COFFPlatform(ExecutionSession &ES,
-                           ObjectLinkingLayer &ObjLinkingLayer,
-                           JITDylib &PlatformJD, const char *OrcRuntimePath,
-                           LoadDynamicLibrary LoadDynLibrary,
-                           bool StaticVCRuntime, const char *VCRuntimePath,
-                           Error &Err)
-    : ES(ES), ObjLinkingLayer(ObjLinkingLayer),
+COFFPlatform::COFFPlatform(
+    ObjectLinkingLayer &ObjLinkingLayer, JITDylib &PlatformJD,
+    std::unique_ptr<StaticLibraryDefinitionGenerator> OrcRuntimeGenerator,
+    std::set<std::string> DylibsToPreload,
+    std::unique_ptr<MemoryBuffer> OrcRuntimeArchiveBuffer,
+    std::unique_ptr<object::Archive> OrcRuntimeArchive,
+    LoadDynamicLibrary LoadDynLibrary, bool StaticVCRuntime,
+    const char *VCRuntimePath, Error &Err)
+    : ES(ObjLinkingLayer.getExecutionSession()),
+      ObjLinkingLayer(ObjLinkingLayer),
       LoadDynLibrary(std::move(LoadDynLibrary)),
+      OrcRuntimeArchiveBuffer(std::move(OrcRuntimeArchiveBuffer)),
+      OrcRuntimeArchive(std::move(OrcRuntimeArchive)),
       StaticVCRuntime(StaticVCRuntime),
       COFFHeaderStartSymbol(ES.intern("__ImageBase")) {
-  ErrorAsOutParameter _(&Err);
-
-  // Create a generator for the ORC runtime archive.
-  auto OrcRuntimeArchiveGenerator =
-      StaticLibraryDefinitionGenerator::Load(ObjLinkingLayer, OrcRuntimePath);
-  if (!OrcRuntimeArchiveGenerator) {
-    Err = OrcRuntimeArchiveGenerator.takeError();
-    return;
-  }
-
-  auto ArchiveBuffer = MemoryBuffer::getFile(OrcRuntimePath);
-  if (!ArchiveBuffer) {
-    Err = createFileError(OrcRuntimePath, ArchiveBuffer.getError());
-    return;
-  }
-  OrcRuntimeArchiveBuffer = std::move(*ArchiveBuffer);
-  OrcRuntimeArchive =
-      std::make_unique<object::Archive>(*OrcRuntimeArchiveBuffer, Err);
-  if (Err)
-    return;
+  ErrorAsOutParameter _(Err);
 
   Bootstrapping.store(true);
   ObjLinkingLayer.addPlugin(std::make_unique<COFFPlatformPlugin>(*this));
@@ -391,9 +408,6 @@ COFFPlatform::COFFPlatform(ExecutionSession &ES,
   }
   VCRuntimeBootstrap = std::move(*VCRT);
 
-  for (auto &Lib : (*OrcRuntimeArchiveGenerator)->getImportedDynamicLibraries())
-    DylibsToPreload.insert(Lib);
-
   auto ImportedLibs =
       StaticVCRuntime ? VCRuntimeBootstrap->loadStaticVCRuntime(PlatformJD)
                       : VCRuntimeBootstrap->loadDynamicVCRuntime(PlatformJD);
@@ -405,7 +419,7 @@ COFFPlatform::COFFPlatform(ExecutionSession &ES,
   for (auto &Lib : *ImportedLibs)
     DylibsToPreload.insert(Lib);
 
-  PlatformJD.addGenerator(std::move(*OrcRuntimeArchiveGenerator));
+  PlatformJD.addGenerator(std::move(OrcRuntimeGenerator));
 
   // PlatformJD hasn't been set up by the platform yet (since we're creating
   // the platform now), so set it up.
@@ -415,10 +429,10 @@ COFFPlatform::COFFPlatform(ExecutionSession &ES,
   }
 
   for (auto& Lib : DylibsToPreload)
-      if (auto E2 = LoadDynLibrary(PlatformJD, Lib)) {
-          Err = std::move(E2);
-          return;
-      }
+    if (auto E2 = this->LoadDynLibrary(PlatformJD, Lib)) {
+      Err = std::move(E2);
+      return;
+    }
 
   if (StaticVCRuntime)
       if (auto E2 = VCRuntimeBootstrap->initializeStaticVCRuntime(PlatformJD)) {
@@ -474,10 +488,8 @@ COFFPlatform::buildJDDepMap(JITDylib &JD) {
           }
           DM.push_back(KV.first);
           // Push unvisited entry.
-          if (!JDDepMap.count(KV.first)) {
+          if (JDDepMap.try_emplace(KV.first).second)
             Worklist.push_back(KV.first);
-            JDDepMap[KV.first] = {};
-          }
         }
       });
     }
@@ -503,10 +515,8 @@ void COFFPlatform::pushInitializersLoop(PushInitializersSendResultFn SendResult,
       }
 
       for (auto *DepJD : JDDepMap[CurJD])
-        if (!Visited.count(DepJD)) {
+        if (Visited.insert(DepJD).second)
           Worklist.push_back(DepJD);
-          Visited.insert(DepJD);
-        }
     }
   });
 
@@ -561,10 +571,9 @@ void COFFPlatform::rt_pushInitializers(PushInitializersSendResultFn SendResult,
   });
 
   if (!JD) {
-    SendResult(
-        make_error<StringError>("No JITDylib with header addr " +
-                                    formatv("{0:x}", JDHeaderAddr.getValue()),
-                                inconvertibleErrorCode()));
+    SendResult(make_error<StringError>("No JITDylib with header addr " +
+                                           formatv("{0:x}", JDHeaderAddr),
+                                       inconvertibleErrorCode()));
     return;
   }
 
@@ -579,10 +588,7 @@ void COFFPlatform::rt_pushInitializers(PushInitializersSendResultFn SendResult,
 
 void COFFPlatform::rt_lookupSymbol(SendSymbolAddressFn SendResult,
                                    ExecutorAddr Handle, StringRef SymbolName) {
-  LLVM_DEBUG({
-    dbgs() << "COFFPlatform::rt_lookupSymbol(\""
-           << formatv("{0:x}", Handle.getValue()) << "\")\n";
-  });
+  LLVM_DEBUG(dbgs() << "COFFPlatform::rt_lookupSymbol(\"" << Handle << "\")\n");
 
   JITDylib *JD = nullptr;
 
@@ -594,12 +600,9 @@ void COFFPlatform::rt_lookupSymbol(SendSymbolAddressFn SendResult,
   }
 
   if (!JD) {
-    LLVM_DEBUG({
-      dbgs() << "  No JITDylib for handle "
-             << formatv("{0:x}", Handle.getValue()) << "\n";
-    });
+    LLVM_DEBUG(dbgs() << "  No JITDylib for handle " << Handle << "\n");
     SendResult(make_error<StringError>("No JITDylib associated with handle " +
-                                           formatv("{0:x}", Handle.getValue()),
+                                           formatv("{0:x}", Handle),
                                        inconvertibleErrorCode()));
     return;
   }
@@ -612,7 +615,7 @@ void COFFPlatform::rt_lookupSymbol(SendSymbolAddressFn SendResult,
     void operator()(Expected<SymbolMap> Result) {
       if (Result) {
         assert(Result->size() == 1 && "Unexpected result map count");
-        SendResult(ExecutorAddr(Result->begin()->second.getAddress()));
+        SendResult(Result->begin()->second.getAddress());
       } else {
         SendResult(Result.takeError());
       }
@@ -775,25 +778,11 @@ void COFFPlatform::COFFPlatformPlugin::modifyPassConfig(
         });
 }
 
-ObjectLinkingLayer::Plugin::SyntheticSymbolDependenciesMap
-COFFPlatform::COFFPlatformPlugin::getSyntheticSymbolDependencies(
-    MaterializationResponsibility &MR) {
-  std::lock_guard<std::mutex> Lock(PluginMutex);
-  auto I = InitSymbolDeps.find(&MR);
-  if (I != InitSymbolDeps.end()) {
-    SyntheticSymbolDependenciesMap Result;
-    Result[MR.getInitializerSymbol()] = std::move(I->second);
-    InitSymbolDeps.erase(&MR);
-    return Result;
-  }
-  return SyntheticSymbolDependenciesMap();
-}
-
 Error COFFPlatform::COFFPlatformPlugin::associateJITDylibHeaderSymbol(
     jitlink::LinkGraph &G, MaterializationResponsibility &MR,
     bool IsBootstraping) {
   auto I = llvm::find_if(G.defined_symbols(), [this](jitlink::Symbol *Sym) {
-    return Sym->getName() == *CP.COFFHeaderStartSymbol;
+    return *Sym->getName() == *CP.COFFHeaderStartSymbol;
   });
   assert(I != G.defined_symbols().end() && "Missing COFF header start symbol");
 
@@ -848,16 +837,37 @@ Error COFFPlatform::COFFPlatformPlugin::registerObjectPlatformSections(
 
 Error COFFPlatform::COFFPlatformPlugin::preserveInitializerSections(
     jitlink::LinkGraph &G, MaterializationResponsibility &MR) {
-  JITLinkSymbolSet InitSectionSymbols;
-  for (auto &Sec : G.sections())
-    if (COFFPlatform::isInitializerSection(Sec.getName()))
-      for (auto *B : Sec.blocks())
-        if (!B->edges_empty())
-          InitSectionSymbols.insert(
-              &G.addAnonymousSymbol(*B, 0, 0, false, true));
 
-  std::lock_guard<std::mutex> Lock(PluginMutex);
-  InitSymbolDeps[&MR] = InitSectionSymbols;
+  if (const auto &InitSymName = MR.getInitializerSymbol()) {
+
+    jitlink::Symbol *InitSym = nullptr;
+
+    for (auto &InitSection : G.sections()) {
+      // Skip non-init sections.
+      if (!isCOFFInitializerSection(InitSection.getName()) ||
+          InitSection.empty())
+        continue;
+
+      // Create the init symbol if it has not been created already and attach it
+      // to the first block.
+      if (!InitSym) {
+        auto &B = **InitSection.blocks().begin();
+        InitSym = &G.addDefinedSymbol(
+            B, 0, *InitSymName, B.getSize(), jitlink::Linkage::Strong,
+            jitlink::Scope::SideEffectsOnly, false, true);
+      }
+
+      // Add keep-alive edges to anonymous symbols in all other init blocks.
+      for (auto *B : InitSection.blocks()) {
+        if (B == &InitSym->getBlock())
+          continue;
+
+        auto &S = G.addAnonymousSymbol(*B, 0, B->getSize(), false, true);
+        InitSym->getBlock().addEdge(jitlink::Edge::KeepAlive, 0, S, 0);
+      }
+    }
+  }
+
   return Error::success();
 }
 
@@ -885,14 +895,13 @@ Error COFFPlatform::COFFPlatformPlugin::
 
   // Collect static initializers
   for (auto &S : G.sections())
-    if (COFFPlatform::isInitializerSection(S.getName()))
+    if (isCOFFInitializerSection(S.getName()))
       for (auto *B : S.blocks()) {
         if (B->edges_empty())
           continue;
         for (auto &E : B->edges())
           BState.Initializers.push_back(std::make_pair(
-              S.getName().str(),
-              ExecutorAddr(E.getTarget().getAddress() + E.getAddend())));
+              S.getName().str(), E.getTarget().getAddress() + E.getAddend()));
       }
 
   return Error::success();

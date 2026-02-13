@@ -1,8 +1,5 @@
 // REQUIRES: x86-registered-target
 
-// FIXME: enable opaque pointers support
-// UNSUPPORTED: enable-opaque-pointers
-
 //
 // Check help message.
 //
@@ -29,28 +26,16 @@
 // RUN: clang-offload-deps -targets=openmp-x86_64-pc-linux-gnu,sycl-spir64 -outputs=%t.deps.x86_64,%t.deps.spir64 %t.fat
 // RUN: llvm-dis -o - %t.deps.x86_64 | FileCheck %s --check-prefixes=CHECK-DEPS-X86_64
 // RUN: llvm-dis -o - %t.deps.spir64 | FileCheck %s --check-prefixes=CHECK-DEPS-SPIR64 -DSPIRTriple=spir64
-//
-// Check that the legacy 'sycldevice' symbols are still identified correctly
-// when 'unknown' environment has been specified/implied for SYCL via
-// clang-offload-bundler's -targets
-//
-// RUN: clang-offload-bundler -type=o -targets=host-%itanium_abi_triple,openmp-x86_64-pc-linux-gnu,sycl-spir64-unknown-unknown-sycldevice -input=%t.host -input=%t.x86_64 -input=%t.spir64 -output=%t.legacy-sycldevice.fat
-// Check correct behavior for multiple targets
-// RUN: clang-offload-deps -targets=openmp-x86_64-pc-linux-gnu,sycl-spir64-unknown-unknown -outputs=%t.deps.legacy.x86_64,%t.deps.legacy.spir64 %t.legacy-sycldevice.fat
-// RUN: llvm-dis -o - %t.deps.legacy.spir64 | FileCheck %s --check-prefixes=CHECK-DEPS-SPIR64 -DSPIRTriple=spir64-unknown-unknown
-// Check correct behavior for shortened triple
-// RUN: clang-offload-deps -targets=sycl-spir64 -outputs=%t.deps.legacy.spir64-short %t.legacy-sycldevice.fat
-// RUN: llvm-dis -o - %t.deps.legacy.spir64-short | FileCheck %s --check-prefixes=CHECK-DEPS-SPIR64 -DSPIRTriple=spir64
 
 // CHECK-DEPS-X86_64: target triple = "x86_64-pc-linux-gnu"
-// CHECK-DEPS-X86_64: @bar = external global i8*
-// CHECK-DEPS-X86_64: @foo = external global i8*
-// CHECK-DEPS-X86_64: @offload.symbols = hidden local_unnamed_addr global [2 x i8*] [i8* bitcast (i8** @bar to i8*), i8* bitcast (i8** @foo to i8*)]
+// CHECK-DEPS-X86_64: @[[BAR:.*]] = external global ptr
+// CHECK-DEPS-X86_64: @[[FOO:.*]] = external global ptr
+// CHECK-DEPS-X86_64: @offload.symbols = hidden local_unnamed_addr global [2 x ptr] [ptr @[[BAR]], ptr @[[FOO]]]
 
 // CHECK-DEPS-SPIR64: target triple = "[[SPIRTriple]]"
-// CHECK-DEPS-SPIR64: @bar = external global i8*
-// CHECK-DEPS-SPIR64: @foo = external global i8*
-// CHECK-DEPS-SPIR64: @llvm.used = appending global [2 x i8*] [i8* bitcast (i8** @bar to i8*), i8* bitcast (i8** @foo to i8*)], section "llvm.metadata"
+// CHECK-DEPS-SPIR64: @[[BAR:.*]] = external global ptr
+// CHECK-DEPS-SPIR64: @[[FOO:.*]] = external global ptr
+// CHECK-DEPS-SPIR64: @llvm.used = appending global [2 x ptr] [ptr @[[BAR]], ptr @[[FOO]]], section "llvm.metadata"
 
 //
 // Check that input with no .tgtsym section is handled correctly.

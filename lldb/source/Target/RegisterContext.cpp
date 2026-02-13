@@ -109,6 +109,12 @@ uint64_t RegisterContext::GetPC(uint64_t fail_value) {
   return pc;
 }
 
+uint64_t RegisterContext::GetThreadPointer(uint64_t fail_value) {
+  uint32_t reg = ConvertRegisterKindToRegisterNumber(eRegisterKindGeneric,
+                                                     LLDB_REGNUM_GENERIC_TP);
+  return ReadRegisterAsUnsigned(reg, fail_value);
+}
+
 bool RegisterContext::SetPC(uint64_t pc) {
   uint32_t reg = ConvertRegisterKindToRegisterNumber(eRegisterKindGeneric,
                                                      LLDB_REGNUM_GENERIC_PC);
@@ -299,10 +305,8 @@ Status RegisterContext::ReadRegisterValueFromMemory(
     const RegisterInfo *reg_info, lldb::addr_t src_addr, uint32_t src_len,
     RegisterValue &reg_value) {
   Status error;
-  if (reg_info == nullptr) {
-    error.SetErrorString("invalid register info argument.");
-    return error;
-  }
+  if (!reg_info)
+    return Status::FromErrorString("invalid register info argument.");
 
   // Moving from addr into a register
   //
@@ -320,15 +324,10 @@ Status RegisterContext::ReadRegisterValueFromMemory(
   //   |AABB| Address contents
   //   |AABB0000| Register contents [on little-endian hardware]
   //   |0000AABB| Register contents [on big-endian hardware]
-  if (src_len > RegisterValue::kMaxRegisterByteSize) {
-    error.SetErrorString("register too small to receive memory data");
-    return error;
-  }
-
   const uint32_t dst_len = reg_info->byte_size;
 
   if (src_len > dst_len) {
-    error.SetErrorStringWithFormat(
+    return Status::FromErrorStringWithFormat(
         "%u bytes is too big to store in register %s (%u bytes)", src_len,
         reg_info->name, dst_len);
     return error;
@@ -336,18 +335,18 @@ Status RegisterContext::ReadRegisterValueFromMemory(
 
   ProcessSP process_sp(m_thread.GetProcess());
   if (process_sp) {
-    uint8_t src[RegisterValue::kMaxRegisterByteSize];
+    RegisterValue::BytesContainer src(src_len);
 
     // Read the memory
     const uint32_t bytes_read =
-        process_sp->ReadMemory(src_addr, src, src_len, error);
+        process_sp->ReadMemory(src_addr, src.data(), src_len, error);
 
     // Make sure the memory read succeeded...
     if (bytes_read != src_len) {
       if (error.Success()) {
         // This might happen if we read _some_ bytes but not all
-        error.SetErrorStringWithFormat("read %u of %u bytes", bytes_read,
-                                       src_len);
+        return Status::FromErrorStringWithFormat("read %u of %u bytes",
+                                                 bytes_read, src_len);
       }
       return error;
     }
@@ -357,10 +356,10 @@ Status RegisterContext::ReadRegisterValueFromMemory(
     // TODO: we might need to add a parameter to this function in case the byte
     // order of the memory data doesn't match the process. For now we are
     // assuming they are the same.
-    reg_value.SetFromMemoryData(reg_info, src, src_len,
+    reg_value.SetFromMemoryData(*reg_info, src.data(), src_len,
                                 process_sp->GetByteOrder(), error);
   } else
-    error.SetErrorString("invalid process");
+    return Status::FromErrorString("invalid process");
 
   return error;
 }
@@ -368,37 +367,41 @@ Status RegisterContext::ReadRegisterValueFromMemory(
 Status RegisterContext::WriteRegisterValueToMemory(
     const RegisterInfo *reg_info, lldb::addr_t dst_addr, uint32_t dst_len,
     const RegisterValue &reg_value) {
-  uint8_t dst[RegisterValue::kMaxRegisterByteSize];
-
   Status error;
-
   ProcessSP process_sp(m_thread.GetProcess());
-  if (process_sp) {
 
-    // TODO: we might need to add a parameter to this function in case the byte
-    // order of the memory data doesn't match the process. For now we are
-    // assuming they are the same.
+  if (!process_sp) {
+    return Status::FromErrorString("invalid process");
+    return error;
+  }
 
-    const uint32_t bytes_copied = reg_value.GetAsMemoryData(
-        reg_info, dst, dst_len, process_sp->GetByteOrder(), error);
+  if (reg_info == nullptr) {
+    return Status::FromErrorString("Invalid register info argument.");
+    return error;
+  }
 
-    if (error.Success()) {
-      if (bytes_copied == 0) {
-        error.SetErrorString("byte copy failed.");
-      } else {
-        const uint32_t bytes_written =
-            process_sp->WriteMemory(dst_addr, dst, bytes_copied, error);
-        if (bytes_written != bytes_copied) {
-          if (error.Success()) {
-            // This might happen if we read _some_ bytes but not all
-            error.SetErrorStringWithFormat("only wrote %u of %u bytes",
-                                           bytes_written, bytes_copied);
-          }
+  // TODO: we might need to add a parameter to this function in case the byte
+  // order of the memory data doesn't match the process. For now we are
+  // assuming they are the same.
+  RegisterValue::BytesContainer dst(dst_len);
+  const uint32_t bytes_copied = reg_value.GetAsMemoryData(
+      *reg_info, dst.data(), dst_len, process_sp->GetByteOrder(), error);
+
+  if (error.Success()) {
+    if (bytes_copied == 0) {
+      return Status::FromErrorString("byte copy failed.");
+    } else {
+      const uint32_t bytes_written =
+          process_sp->WriteMemory(dst_addr, dst.data(), bytes_copied, error);
+      if (bytes_written != bytes_copied) {
+        if (error.Success()) {
+          // This might happen if we read _some_ bytes but not all
+          return Status::FromErrorStringWithFormat("only wrote %u of %u bytes",
+                                                   bytes_written, bytes_copied);
         }
       }
     }
-  } else
-    error.SetErrorString("invalid process");
+  }
 
   return error;
 }

@@ -10,7 +10,7 @@
 /// the configure-time CLANG_DEFAULT_RTLIB option when choosing the runtime lib.
 
 // RUN: env "PATH=" %clang -### %s -fuse-ld=ld -no-pie -mabi=lp64d \
-// RUN:   --target=loongarch64-unknown-linux-gnu --rtlib=platform \
+// RUN:   --target=loongarch64-unknown-linux-gnu --rtlib=platform --unwindlib=platform \
 // RUN:   --gcc-toolchain=%S/Inputs/multilib_loongarch_linux_sdk \
 // RUN:   --sysroot=%S/Inputs/multilib_loongarch_linux_sdk/sysroot 2>&1 \
 // RUN:   | FileCheck --check-prefix=LA64 %s
@@ -22,6 +22,6 @@
 // LA64-SAME: "{{.*}}/Inputs/multilib_loongarch_linux_sdk/lib/gcc/loongarch64-unknown-linux-gnu/12.1.0/crtbegin.o"
 // LA64-SAME: "-L{{.*}}/Inputs/multilib_loongarch_linux_sdk/lib/gcc/loongarch64-unknown-linux-gnu/12.1.0"
 // LA64-SAME: {{^}} "-L{{.*}}/Inputs/multilib_loongarch_linux_sdk/lib/gcc/loongarch64-unknown-linux-gnu/12.1.0/../../../../loongarch64-unknown-linux-gnu/lib/../lib64"
-// LA64-SAME: {{^}} "-L{{.*}}/Inputs/multilib_loongarch_linux_sdk/sysroot/usr/lib/../lib64"
+// LA64-SAME: {{^}} "-L{{.*}}/Inputs/multilib_loongarch_linux_sdk/sysroot/usr{{/|\\\\}}lib64"
 // LA64-SAME: {{^}} "-L{{.*}}/Inputs/multilib_loongarch_linux_sdk/lib/gcc/loongarch64-unknown-linux-gnu/12.1.0/../../../../loongarch64-unknown-linux-gnu/lib"
 // LA64-SAME: {{^}} "-L{{.*}}/Inputs/multilib_loongarch_linux_sdk/sysroot/usr/lib"

@@ -1,5 +1,5 @@
-! RUN: bbc -emit-fir %s -o - | FileCheck %s
-! RUN: bbc %s -o - | FileCheck --check-prefix=POSTOPT %s
+! RUN: bbc -emit-fir -hlfir=false %s -o - | FileCheck %s
+! RUN: bbc -hlfir=false %s -o - | FileCheck --check-prefix=POSTOPT %s
 
 ! CHECK-LABEL: func @_QPimplied_iters_allocatable(
 ! CHECK-SAME: %[[VAL_0:.*]]: !fir.box<!fir.array<?x!fir.type<_QFimplied_iters_allocatableTt{oui:!fir.logical<4>,arr:!fir.box<!fir.heap<!fir.array<?xf32>>>}>>>{{.*}}, %[[VAL_1:.*]]: !fir.box<!fir.array<?xf32>>{{.*}}) {
@@ -16,7 +16,7 @@ subroutine implied_iters_allocatable(thing, a1)
   end type t
   type(t) :: thing(:)
   integer :: i
-  
+
   forall (i=5:13)
   ! commenting out this test for the moment (hits assert)
   !  thing(i)%arr = a1
@@ -32,7 +32,7 @@ subroutine conflicting_allocatable(thing, lo, hi)
   end type t
   type(t) :: thing(:)
   integer :: i
-  
+
   forall (i = lo:hi)
   ! commenting out this test for the moment (hits assert)
   !  thing(i)%arr = thing(hi-i)%arr
@@ -185,7 +185,7 @@ end subroutine slice_with_explicit_iters
 ! CHECK:           %[[VAL_26:.*]] = fir.shape %[[VAL_4]], %[[VAL_5]] : (index, index) -> !fir.shape<2>
 ! CHECK:           %[[VAL_27:.*]] = fir.slice %[[VAL_18]], %[[VAL_22]], %[[VAL_20]], %[[VAL_24]], %[[VAL_25]], %[[VAL_25]] : (index, index, index, i64, index, index) -> !fir.slice<2>
 ! CHECK:           %[[VAL_28:.*]] = fir.embox %[[VAL_1]](%[[VAL_26]]) {{\[}}%[[VAL_27]]] : (!fir.ref<!fir.array<2x2xi32>>, !fir.shape<2>, !fir.slice<2>) -> !fir.box<!fir.array<?xi32>>
-! CHECK:           %[[VAL_29:.*]] = fir.call @_QPe(%[[VAL_28]]) : (!fir.box<!fir.array<?xi32>>) -> i32
+! CHECK:           %[[VAL_29:.*]] = fir.call @_QPe(%[[VAL_28]]) {{.*}}: (!fir.box<!fir.array<?xi32>>) -> i32
 ! CHECK:           %[[VAL_17:.*]] = arith.constant 1 : i32
 ! CHECK:           %[[VAL_30:.*]] = arith.addi %[[VAL_29]], %[[VAL_17]] : i32
 ! CHECK:           %[[VAL_31:.*]] = arith.constant 1 : index

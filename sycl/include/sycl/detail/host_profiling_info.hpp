@@ -8,19 +8,27 @@
 
 #pragma once
 
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/export.hpp>
+#include <sycl/detail/export.hpp> // for __SYCL_EXPORT
+
+#include <stdint.h> // for uint64_t
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
+
+class device_impl;
 
 /// Profiling info for the host execution.
 class __SYCL_EXPORT HostProfilingInfo {
   uint64_t StartTime = 0;
   uint64_t EndTime = 0;
+  device_impl *Device = nullptr;
 
 public:
+  // Sets the device associated with a queue that was used to submit the host
+  // task.
+  void setDevice(device_impl *Dev) { Device = Dev; }
+
   /// Returns event's start time.
   ///
   /// \return event's start time in nanoseconds.
@@ -36,5 +44,5 @@ public:
   void end();
 };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

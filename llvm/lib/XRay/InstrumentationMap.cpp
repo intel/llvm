@@ -12,10 +12,8 @@
 
 #include "llvm/XRay/InstrumentationMap.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Object/Binary.h"
 #include "llvm/Object/ELFObjectFile.h"
@@ -25,7 +23,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/YAMLTraits.h"
-#include <algorithm>
+#include "llvm/TargetParser/Triple.h"
 #include <cstddef>
 #include <cstdint>
 #include <system_error>
@@ -34,18 +32,19 @@
 using namespace llvm;
 using namespace xray;
 
-Optional<int32_t> InstrumentationMap::getFunctionId(uint64_t Addr) const {
+std::optional<int32_t> InstrumentationMap::getFunctionId(uint64_t Addr) const {
   auto I = FunctionIds.find(Addr);
   if (I != FunctionIds.end())
     return I->second;
-  return None;
+  return std::nullopt;
 }
 
-Optional<uint64_t> InstrumentationMap::getFunctionAddr(int32_t FuncId) const {
+std::optional<uint64_t>
+InstrumentationMap::getFunctionAddr(int32_t FuncId) const {
   auto I = FunctionAddresses.find(FuncId);
   if (I != FunctionAddresses.end())
     return I->second;
-  return None;
+  return std::nullopt;
 }
 
 using RelocMap = DenseMap<uint64_t, uint64_t>;
@@ -60,9 +59,11 @@ loadObj(StringRef Filename, object::OwningBinary<object::ObjectFile> &ObjFile,
   // Find the section named "xray_instr_map".
   if ((!ObjFile.getBinary()->isELF() && !ObjFile.getBinary()->isMachO()) ||
       !(ObjFile.getBinary()->getArch() == Triple::x86_64 ||
+        ObjFile.getBinary()->getArch() == Triple::loongarch64 ||
         ObjFile.getBinary()->getArch() == Triple::ppc64le ||
         ObjFile.getBinary()->getArch() == Triple::arm ||
-        ObjFile.getBinary()->getArch() == Triple::aarch64))
+        ObjFile.getBinary()->getArch() == Triple::aarch64 ||
+        ObjFile.getBinary()->getArch() == Triple::riscv64))
     return make_error<StringError>(
         "File format not supported (only does ELF and Mach-O little endian "
         "64-bit).",
@@ -188,7 +189,7 @@ loadObj(StringRef Filename, object::OwningBinary<object::ObjectFile> &ObjFile,
         SledEntry::FunctionKinds::TAIL,
         SledEntry::FunctionKinds::LOG_ARGS_ENTER,
         SledEntry::FunctionKinds::CUSTOM_EVENT};
-    if (Kind >= sizeof(Kinds) / sizeof(Kinds[0]))
+    if (Kind >= std::size(Kinds))
       return errorCodeToError(
           std::make_error_code(std::errc::executable_format_error));
     Entry.Kind = Kinds[Kind];

@@ -38,6 +38,7 @@
 
 // Include some standard headers to avoid CUDA headers including them
 // while some required macros (like __THROW) are in a weird state.
+#include <climits>
 #include <cmath>
 #include <cstdlib>
 #include <stdlib.h>
@@ -196,12 +197,12 @@ inline __host__ double __signbitd(double x) {
 
 // math_function.hpp uses the __USE_FAST_MATH__ macro to determine whether we
 // get the slow-but-accurate or fast-but-inaccurate versions of functions like
-// sin and exp.  This is controlled in clang by -fcuda-approx-transcendentals.
+// sin and exp.  This is controlled in clang by -fgpu-approx-transcendentals.
 //
 // device_functions.hpp uses __USE_FAST_MATH__ for a different purpose (fast vs.
 // slow divides), so we need to scope our define carefully here.
 #pragma push_macro("__USE_FAST_MATH__")
-#if defined(__CLANG_CUDA_APPROX_TRANSCENDENTALS__)
+#if defined(__CLANG_GPU_APPROX_TRANSCENDENTALS__)
 #define __USE_FAST_MATH__ 1
 #endif
 
@@ -384,7 +385,13 @@ __host__ __device__ void __nv_tex_surf_handler(const char *name, T *ptr,
 // will continue to fail as it does now.
 #endif // CUDA_VERSION
 #endif // __cplusplus >= 201103L && CUDA_VERSION >= 9000
+#include "surface_indirect_functions.h"
+#if CUDA_VERSION < 13000
+// Direct texture fetch functions had been deprecated since CUDA-11.
+// The file in CUDA-12 only carried unused texture types, and is no longer
+// needed.
 #include "texture_fetch_functions.h"
+#endif // CUDA_VERSION < 13000
 #include "texture_indirect_functions.h"
 
 // Restore state of __CUDA_ARCH__ and __THROW we had on entry.

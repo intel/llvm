@@ -5,48 +5,38 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+//
+// Standalone string utility functions. Utilities requiring memory allocations
+// should be placed in allocating_string_utils.h instead.
+//
+//===----------------------------------------------------------------------===//
 
-#ifndef LIBC_SRC_STRING_STRING_UTILS_H
-#define LIBC_SRC_STRING_STRING_UTILS_H
+#ifndef LLVM_LIBC_SRC_STRING_STRING_UTILS_H
+#define LLVM_LIBC_SRC_STRING_STRING_UTILS_H
 
+#include "hdr/types/size_t.h"
 #include "src/__support/CPP/bitset.h"
-#include "src/__support/common.h"
-#include "src/string/memory_utils/memcpy_implementations.h"
-#include "src/string/memory_utils/bzero_implementations.h"
-#include <stddef.h> // size_t
+#include "src/__support/macros/attributes.h"
+#include "src/__support/macros/config.h"
+#include "src/__support/macros/optimization.h" // LIBC_UNLIKELY
+#include "src/string/memory_utils/inline_memcpy.h"
+#include "src/string/string_length.h"
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE_DECL {
 namespace internal {
-
-// Returns the length of a string, denoted by the first occurrence
-// of a null terminator.
-static inline size_t string_length(const char *src) {
-  size_t length;
-  for (length = 0; *src; ++src, ++length)
-    ;
-  return length;
-}
-
-// Returns the first occurrence of 'ch' within the first 'n' characters of
-// 'src'. If 'ch' is not found, returns nullptr.
-static inline void *find_first_character(const unsigned char *src,
-                                         unsigned char ch, size_t n) {
-  for (; n && *src != ch; --n, ++src)
-    ;
-  return n ? const_cast<unsigned char *>(src) : nullptr;
-}
 
 // Returns the maximum length span that contains only characters not found in
 // 'segment'. If no characters are found, returns the length of 'src'.
-static inline size_t complementary_span(const char *src, const char *segment) {
+LIBC_INLINE size_t complementary_span(const char *src, const char *segment) {
   const char *initial = src;
   cpp::bitset<256> bitset;
 
   for (; *segment; ++segment)
-    bitset.set(*segment);
-  for (; *src && !bitset.test(*src); ++src)
+    bitset.set(*reinterpret_cast<const unsigned char *>(segment));
+  for (; *src && !bitset.test(*reinterpret_cast<const unsigned char *>(src));
+       ++src)
     ;
-  return src - initial;
+  return static_cast<size_t>(src - initial);
 }
 
 // Given the similarities between strtok and strtok_r, we can implement both
@@ -58,47 +48,83 @@ static inline size_t complementary_span(const char *src, const char *segment) {
 // is found is then stored within 'context' for subsequent calls. Subsequent
 // calls will use 'context' when a nullptr is passed in for 'src'. Once the null
 // terminating character is reached, returns a nullptr.
-static inline char *string_token(char *__restrict src,
-                                 const char *__restrict delimiter_string,
-                                 char **__restrict saveptr) {
-  // Return nullptr immediately if both src AND saveptr are nullptr
-  if (unlikely(src == nullptr && ((src = *saveptr) == nullptr)))
+template <bool SkipDelim = true>
+LIBC_INLINE char *string_token(char *__restrict src,
+                               const char *__restrict delimiter_string,
+                               char **__restrict context) {
+  // Return nullptr immediately if both src AND context are nullptr
+  if (LIBC_UNLIKELY(src == nullptr && ((src = *context) == nullptr)))
     return nullptr;
 
-  cpp::bitset<256> delimiter_set;
+  static_assert(CHAR_BIT == 8, "bitset of 256 assumes char is 8 bits");
+  cpp::bitset<256> delims;
   for (; *delimiter_string != '\0'; ++delimiter_string)
-    delimiter_set.set(*delimiter_string);
+    delims.set(*reinterpret_cast<const unsigned char *>(delimiter_string));
 
-  for (; *src != '\0' && delimiter_set.test(*src); ++src)
-    ;
-  if (*src == '\0') {
-    *saveptr = src;
+  unsigned char *tok_start = reinterpret_cast<unsigned char *>(src);
+  if constexpr (SkipDelim)
+    while (*tok_start != '\0' && delims.test(*tok_start))
+      ++tok_start;
+  if (*tok_start == '\0' && SkipDelim) {
+    *context = nullptr;
     return nullptr;
   }
-  char *token = src;
-  for (; *src != '\0'; ++src) {
-    if (delimiter_set.test(*src)) {
-      *src = '\0';
-      ++src;
-      break;
-    }
+
+  unsigned char *tok_end = tok_start;
+  while (*tok_end != '\0' && !delims.test(*tok_end))
+    ++tok_end;
+
+  if (*tok_end == '\0') {
+    *context = nullptr;
+  } else {
+    *tok_end = '\0';
+    *context = reinterpret_cast<char *>(tok_end + 1);
   }
-  *saveptr = src;
-  return token;
+  return reinterpret_cast<char *>(tok_start);
 }
 
-static inline size_t strlcpy(char *__restrict dst, const char *__restrict src,
-                             size_t size) {
+LIBC_INLINE size_t strlcpy(char *__restrict dst, const char *__restrict src,
+                           size_t size) {
   size_t len = internal::string_length(src);
   if (!size)
     return len;
   size_t n = len < size - 1 ? len : size - 1;
   inline_memcpy(dst, src, n);
-  inline_bzero(dst + n, size - n);
+  dst[n] = '\0';
   return len;
 }
 
-} // namespace internal
-} // namespace __llvm_libc
+template <bool ReturnNull = true>
+LIBC_INLINE constexpr static char *strchr_implementation(const char *src,
+                                                         int c) {
+  char ch = static_cast<char>(c);
+  for (; *src && *src != ch; ++src)
+    ;
+  char *ret = ReturnNull ? nullptr : const_cast<char *>(src);
+  return *src == ch ? const_cast<char *>(src) : ret;
+}
 
-#endif //  LIBC_SRC_STRING_STRING_UTILS_H
+LIBC_INLINE constexpr static char *strrchr_implementation(const char *src,
+                                                          int c) {
+  char ch = static_cast<char>(c);
+  char *last_occurrence = nullptr;
+  while (true) {
+    if (*src == ch)
+      last_occurrence = const_cast<char *>(src);
+    if (!*src)
+      return last_occurrence;
+    ++src;
+  }
+}
+
+// Returns the first occurrence of 'ch' within the first 'n' characters of
+// 'src'. If 'ch' is not found, returns nullptr.
+LIBC_INLINE void *find_first_character(const unsigned char *src,
+                                       unsigned char ch, size_t max_strlen) {
+  return find_first_character_impl(src, ch, max_strlen);
+}
+
+} // namespace internal
+} // namespace LIBC_NAMESPACE_DECL
+
+#endif //  LLVM_LIBC_SRC_STRING_STRING_UTILS_H

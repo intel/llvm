@@ -1,6 +1,7 @@
 ; RUN: llc -mtriple=x86_64-unknown-unknown -start-after=codegenprepare -stop-before=finalize-isel %s -o - -experimental-debug-variable-locations=false | FileCheck %s --check-prefixes=COMMON,CHECK
 ; RUN: llc -mtriple=x86_64-unknown-unknown -start-after=codegenprepare -stop-before=finalize-isel %s -o - -experimental-debug-variable-locations=true | FileCheck %s --check-prefixes=COMMON,INSTRREF
 
+
 ; Test the movement of dbg.values of arguments. SelectionDAG tries to be
 ; helpful and places DBG_VALUEs of Arguments at the start of functions.
 ; Unfortunately, this doesn't necessarily make sense, as one can specify an
@@ -61,7 +62,7 @@
 ; INSTRREF: DBG_PHI $edi, 1
 ; INSTRREF: DBG_VALUE $edi, $noreg, [[BAZVAR]]
 ; INSTRREF-LABEL: bb.1.next
-; INSTRREF: DBG_INSTR_REF 1, 0, [[XYZVAR]],
+; INSTRREF: DBG_INSTR_REF [[XYZVAR]], {{.+}}, dbg-instr-ref(1, 0)
 
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"

@@ -25,26 +25,26 @@
 ; 	}
 ; }
 
-@A = internal global [16 x [16 x i32]] zeroinitializer, align 32		; <[16 x [16 x i32]]*> [#uses=2]
+@A = internal global [16 x [16 x i32]] zeroinitializer, align 32		; <ptr> [#uses=2]
 
 define void @test(i32 signext %row, i32 signext %N.in) nounwind {
 ; RV32-LABEL: test:
 ; RV32:       # %bb.0: # %entry
 ; RV32-NEXT:    blez a1, .LBB0_3
 ; RV32-NEXT:  # %bb.1: # %cond_true.preheader
-; RV32-NEXT:    slli a0, a0, 6
-; RV32-NEXT:    lui a2, %hi(A)
-; RV32-NEXT:    addi a2, a2, %lo(A)
-; RV32-NEXT:    add a0, a2, a0
-; RV32-NEXT:    addi a0, a0, 8
-; RV32-NEXT:    li a2, 4
+; RV32-NEXT:    slli a2, a0, 6
+; RV32-NEXT:    lui a3, %hi(A)
+; RV32-NEXT:    addi a3, a3, %lo(A)
+; RV32-NEXT:    li a0, 4
+; RV32-NEXT:    add a2, a2, a3
+; RV32-NEXT:    addi a2, a2, 8
 ; RV32-NEXT:    li a3, 5
 ; RV32-NEXT:  .LBB0_2: # %cond_true
 ; RV32-NEXT:    # =>This Inner Loop Header: Depth=1
-; RV32-NEXT:    sw a2, -4(a0)
-; RV32-NEXT:    sw a3, 0(a0)
+; RV32-NEXT:    sw a0, -4(a2)
+; RV32-NEXT:    sw a3, 0(a2)
 ; RV32-NEXT:    addi a1, a1, -1
-; RV32-NEXT:    addi a0, a0, 4
+; RV32-NEXT:    addi a2, a2, 4
 ; RV32-NEXT:    bnez a1, .LBB0_2
 ; RV32-NEXT:  .LBB0_3: # %return
 ; RV32-NEXT:    ret
@@ -53,25 +53,24 @@ define void @test(i32 signext %row, i32 signext %N.in) nounwind {
 ; RV64:       # %bb.0: # %entry
 ; RV64-NEXT:    blez a1, .LBB0_3
 ; RV64-NEXT:  # %bb.1: # %cond_true.preheader
-; RV64-NEXT:    li a4, 0
-; RV64-NEXT:    slli a0, a0, 6
-; RV64-NEXT:    lui a2, %hi(A)
-; RV64-NEXT:    addi a2, a2, %lo(A)
-; RV64-NEXT:    add a0, a2, a0
+; RV64-NEXT:    slli a3, a0, 6
+; RV64-NEXT:    lui a4, %hi(A)
+; RV64-NEXT:    addi a4, a4, %lo(A)
+; RV64-NEXT:    addiw a1, a1, 2
+; RV64-NEXT:    li a0, 2
 ; RV64-NEXT:    li a2, 4
-; RV64-NEXT:    li a3, 5
+; RV64-NEXT:    add a3, a3, a4
+; RV64-NEXT:    addi a4, a3, 4
+; RV64-NEXT:    li a5, 5
 ; RV64-NEXT:  .LBB0_2: # %cond_true
 ; RV64-NEXT:    # =>This Inner Loop Header: Depth=1
-; RV64-NEXT:    addiw a5, a4, 1
-; RV64-NEXT:    slli a6, a5, 2
-; RV64-NEXT:    add a6, a0, a6
-; RV64-NEXT:    sw a2, 0(a6)
-; RV64-NEXT:    addiw a4, a4, 2
-; RV64-NEXT:    slli a4, a4, 2
-; RV64-NEXT:    add a4, a0, a4
-; RV64-NEXT:    sw a3, 0(a4)
-; RV64-NEXT:    mv a4, a5
-; RV64-NEXT:    bne a5, a1, .LBB0_2
+; RV64-NEXT:    sw a2, 0(a4)
+; RV64-NEXT:    slli a6, a0, 2
+; RV64-NEXT:    addiw a0, a0, 1
+; RV64-NEXT:    add a6, a3, a6
+; RV64-NEXT:    sw a5, 0(a6)
+; RV64-NEXT:    addi a4, a4, 4
+; RV64-NEXT:    bne a0, a1, .LBB0_2
 ; RV64-NEXT:  .LBB0_3: # %return
 ; RV64-NEXT:    ret
 entry:
@@ -82,11 +81,11 @@ entry:
 cond_true:
 	%indvar = phi i32 [ 0, %entry ], [ %indvar.next, %cond_true ]
 	%tmp2 = add i32 %indvar, 1
-	%tmp = getelementptr [16 x [16 x i32]], [16 x [16 x i32]]* @A, i32 0, i32 %row, i32 %tmp2
-	store i32 4, i32* %tmp
+	%tmp = getelementptr [16 x [16 x i32]], ptr @A, i32 0, i32 %row, i32 %tmp2
+	store i32 4, ptr %tmp
 	%tmp5.upgrd.1 = add i32 %indvar, 2
-	%tmp7 = getelementptr [16 x [16 x i32]], [16 x [16 x i32]]* @A, i32 0, i32 %row, i32 %tmp5.upgrd.1
-	store i32 5, i32* %tmp7
+	%tmp7 = getelementptr [16 x [16 x i32]], ptr @A, i32 0, i32 %row, i32 %tmp5.upgrd.1
+	store i32 5, ptr %tmp7
 	%indvar.next = add i32 %indvar, 1
 	%exitcond = icmp eq i32 %indvar.next, %N
 	br i1 %exitcond, label %return, label %cond_true

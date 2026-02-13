@@ -10,19 +10,19 @@ define void @_Z3foov() {
 ; CHECK-NEXT:    br label [[FOR_COND:%.*]]
 ; CHECK:       for.cond:
 ; CHECK-NEXT:    [[I_0:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC:%.*]], [[FOR_BODY:%.*]] ]
-; CHECK-NEXT:    [[CMP:%.*]] = icmp ult i32 [[I_0]], 1000
+; CHECK-NEXT:    [[CMP:%.*]] = icmp samesign ult i32 [[I_0]], 1000
 ; CHECK-NEXT:    br i1 [[CMP]], label [[FOR_BODY]], label [[FOR_COND_CLEANUP:%.*]]
 ; CHECK:       for.cond.cleanup:
 ; CHECK-NEXT:    ret void
 ; CHECK:       for.body:
-; CHECK-NEXT:    [[TMP0:%.*]] = zext i32 [[I_0]] to i64
-; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds [1000 x float], ptr @a, i64 0, i64 [[TMP0]]
-; CHECK-NEXT:    [[ARRAYIDX2:%.*]] = getelementptr inbounds [1000 x float], ptr @b, i64 0, i64 [[TMP0]]
+; CHECK-NEXT:    [[TMP0:%.*]] = zext nneg i32 [[I_0]] to i64
+; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds nuw float, ptr @a, i64 [[TMP0]]
+; CHECK-NEXT:    [[ARRAYIDX2:%.*]] = getelementptr inbounds nuw float, ptr @b, i64 [[TMP0]]
 ; CHECK-NEXT:    [[TMP1:%.*]] = load float, ptr [[ARRAYIDX]], align 4
 ; CHECK-NEXT:    [[TMP2:%.*]] = load float, ptr [[ARRAYIDX2]], align 4
 ; CHECK-NEXT:    [[CMP_I:%.*]] = fcmp fast olt float [[TMP1]], [[TMP2]]
-; CHECK-NEXT:    [[TMP3:%.*]] = select i1 [[CMP_I]], float [[TMP2]], float [[TMP1]]
-; CHECK-NEXT:    store float [[TMP3]], ptr [[ARRAYIDX]], align 4
+; CHECK-NEXT:    [[DOTV:%.*]] = select i1 [[CMP_I]], float [[TMP2]], float [[TMP1]]
+; CHECK-NEXT:    store float [[DOTV]], ptr [[ARRAYIDX]], align 4
 ; CHECK-NEXT:    [[INC]] = add nuw nsw i32 [[I_0]], 1
 ; CHECK-NEXT:    br label [[FOR_COND]]
 ;
@@ -80,8 +80,8 @@ define void @bitcasted_minmax_with_select_of_pointers(ptr %loadaddr1, ptr %loada
 ; CHECK-NEXT:    [[LD1:%.*]] = load float, ptr [[LOADADDR1:%.*]], align 4
 ; CHECK-NEXT:    [[LD2:%.*]] = load float, ptr [[LOADADDR2:%.*]], align 4
 ; CHECK-NEXT:    [[COND:%.*]] = fcmp ogt float [[LD1]], [[LD2]]
-; CHECK-NEXT:    [[LD3:%.*]] = select i1 [[COND]], float [[LD1]], float [[LD2]]
-; CHECK-NEXT:    store float [[LD3]], ptr [[STOREADDR:%.*]], align 4
+; CHECK-NEXT:    [[LD_V:%.*]] = select i1 [[COND]], float [[LD1]], float [[LD2]]
+; CHECK-NEXT:    store float [[LD_V]], ptr [[STOREADDR:%.*]], align 4
 ; CHECK-NEXT:    ret void
 ;
   %ld1 = load float, ptr %loadaddr1, align 4

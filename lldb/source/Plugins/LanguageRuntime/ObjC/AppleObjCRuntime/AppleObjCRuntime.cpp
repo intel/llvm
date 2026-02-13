@@ -18,8 +18,6 @@
 #include "lldb/Core/ModuleList.h"
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/Section.h"
-#include "lldb/Core/ValueObject.h"
-#include "lldb/Core/ValueObjectConstResult.h"
 #include "lldb/DataFormatters/FormattersHelpers.h"
 #include "lldb/Expression/DiagnosticManager.h"
 #include "lldb/Expression/FunctionCaller.h"
@@ -31,11 +29,14 @@
 #include "lldb/Target/Target.h"
 #include "lldb/Target/Thread.h"
 #include "lldb/Utility/ConstString.h"
+#include "lldb/Utility/ErrorMessages.h"
 #include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Scalar.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/StreamString.h"
+#include "lldb/ValueObject/ValueObject.h"
+#include "lldb/ValueObject/ValueObjectConstResult.h"
 #include "clang/AST/Type.h"
 
 #include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
@@ -67,20 +68,21 @@ void AppleObjCRuntime::Terminate() {
   AppleObjCRuntimeV1::Terminate();
 }
 
-bool AppleObjCRuntime::GetObjectDescription(Stream &str, ValueObject &valobj) {
+llvm::Error AppleObjCRuntime::GetObjectDescription(Stream &str,
+                                                   ValueObject &valobj) {
   CompilerType compiler_type(valobj.GetCompilerType());
   bool is_signed;
   // ObjC objects can only be pointers (or numbers that actually represents
   // pointers but haven't been typecast, because reasons..)
   if (!compiler_type.IsIntegerType(is_signed) && !compiler_type.IsPointerType())
-    return false;
+    return llvm::createStringError("not a pointer type");
 
   // Make the argument list: we pass one arg, the address of our pointer, to
   // the print function.
   Value val;
 
   if (!valobj.ResolveValue(val.GetScalar()))
-    return false;
+    return llvm::createStringError("pointer value could not be resolved");
 
   // Value Objects may not have a process in their ExecutionContextRef.  But we
   // need to have one in the ref we pass down to eventually call description.
@@ -91,20 +93,22 @@ bool AppleObjCRuntime::GetObjectDescription(Stream &str, ValueObject &valobj) {
   } else {
     exe_ctx.SetContext(valobj.GetTargetSP(), true);
     if (!exe_ctx.HasProcessScope())
-      return false;
+      return llvm::createStringError("no process");
   }
   return GetObjectDescription(str, val, exe_ctx.GetBestExecutionContextScope());
 }
-bool AppleObjCRuntime::GetObjectDescription(Stream &strm, Value &value,
-                                            ExecutionContextScope *exe_scope) {
+
+llvm::Error
+AppleObjCRuntime::GetObjectDescription(Stream &strm, Value &value,
+                                       ExecutionContextScope *exe_scope) {
   if (!m_read_objc_library)
-    return false;
+    return llvm::createStringError("Objective-C runtime not loaded");
 
   ExecutionContext exe_ctx;
   exe_scope->CalculateExecutionContext(exe_ctx);
   Process *process = exe_ctx.GetProcessPtr();
   if (!process)
-    return false;
+    return llvm::createStringError("no process");
 
   // We need other parts of the exe_ctx, but the processes have to match.
   assert(m_process == process);
@@ -112,25 +116,25 @@ bool AppleObjCRuntime::GetObjectDescription(Stream &strm, Value &value,
   // Get the function address for the print function.
   const Address *function_address = GetPrintForDebuggerAddr();
   if (!function_address)
-    return false;
+    return llvm::createStringError("no print function");
 
   Target *target = exe_ctx.GetTargetPtr();
   CompilerType compiler_type = value.GetCompilerType();
   if (compiler_type) {
-    if (!TypeSystemClang::IsObjCObjectPointerType(compiler_type)) {
-      strm.Printf("Value doesn't point to an ObjC object.\n");
-      return false;
-    }
+    if (!TypeSystemClang::IsObjCObjectPointerType(compiler_type))
+      return llvm::createStringError(
+          "Value doesn't point to an ObjC object.\n");
   } else {
     // If it is not a pointer, see if we can make it into a pointer.
-    TypeSystemClang *ast_context =
+    TypeSystemClangSP scratch_ts_sp =
         ScratchTypeSystemClang::GetForTarget(*target);
-    if (!ast_context)
-      return false;
+    if (!scratch_ts_sp)
+      return llvm::createStringError("no scratch type system");
 
-    CompilerType opaque_type = ast_context->GetBasicType(eBasicTypeObjCID);
+    CompilerType opaque_type = scratch_ts_sp->GetBasicType(eBasicTypeObjCID);
     if (!opaque_type)
-      opaque_type = ast_context->GetBasicType(eBasicTypeVoid).GetPointerType();
+      opaque_type =
+          scratch_ts_sp->GetBasicType(eBasicTypeVoid).GetPointerType();
     // value.SetContext(Value::eContextTypeClangType, opaque_type_ptr);
     value.SetCompilerType(opaque_type);
   }
@@ -139,23 +143,24 @@ bool AppleObjCRuntime::GetObjectDescription(Stream &strm, Value &value,
   arg_value_list.PushValue(value);
 
   // This is the return value:
-  TypeSystemClang *ast_context = ScratchTypeSystemClang::GetForTarget(*target);
-  if (!ast_context)
-    return false;
+  TypeSystemClangSP scratch_ts_sp =
+      ScratchTypeSystemClang::GetForTarget(*target);
+  if (!scratch_ts_sp)
+    return llvm::createStringError("no scratch type system");
 
-  CompilerType return_compiler_type = ast_context->GetCStringType(true);
+  CompilerType return_compiler_type = scratch_ts_sp->GetCStringType(true);
   Value ret;
   //    ret.SetContext(Value::eContextTypeClangType, return_compiler_type);
   ret.SetCompilerType(return_compiler_type);
 
-  if (exe_ctx.GetFramePtr() == nullptr) {
+  if (!exe_ctx.GetFramePtr()) {
     Thread *thread = exe_ctx.GetThreadPtr();
     if (thread == nullptr) {
       exe_ctx.SetThreadSP(process->GetThreadList().GetSelectedThread());
       thread = exe_ctx.GetThreadPtr();
     }
     if (thread) {
-      exe_ctx.SetFrameSP(thread->GetSelectedFrame());
+      exe_ctx.SetFrameSP(thread->GetSelectedFrame(DoNoSelectMostRelevantFrame));
     }
   }
 
@@ -172,10 +177,11 @@ bool AppleObjCRuntime::GetObjectDescription(Stream &strm, Value &value,
             arg_value_list, "objc-object-description", error));
     if (error.Fail()) {
       m_print_object_caller_up.reset();
-      strm.Printf("Could not get function runner to call print for debugger "
-                  "function: %s.",
-                  error.AsCString());
-      return false;
+      return llvm::createStringError(
+          llvm::Twine(
+              "could not get function runner to call print for debugger "
+              "function: ") +
+          error.AsCString());
     }
     m_print_object_caller_up->InsertFunction(exe_ctx, wrapper_struct_addr,
                                              diagnostics);
@@ -194,10 +200,9 @@ bool AppleObjCRuntime::GetObjectDescription(Stream &strm, Value &value,
 
   ExpressionResults results = m_print_object_caller_up->ExecuteFunction(
       exe_ctx, &wrapper_struct_addr, options, diagnostics, ret);
-  if (results != eExpressionCompleted) {
-    strm.Printf("Error evaluating Print Object function: %d.\n", results);
-    return false;
-  }
+  if (results != eExpressionCompleted)
+    return llvm::createStringError(
+        "could not evaluate print object function: " + toString(results));
 
   addr_t result_ptr = ret.GetScalar().ULongLong(LLDB_INVALID_ADDRESS);
 
@@ -212,7 +217,9 @@ bool AppleObjCRuntime::GetObjectDescription(Stream &strm, Value &value,
     strm.Write(buf, curr_len);
     cstr_len += curr_len;
   }
-  return cstr_len > 0;
+  if (cstr_len > 0)
+    return llvm::Error::success();
+  return llvm::createStringError("empty object description");
 }
 
 lldb::ModuleSP AppleObjCRuntime::GetObjCModule() {
@@ -269,7 +276,7 @@ bool AppleObjCRuntime::CouldHaveDynamicValue(ValueObject &in_value) {
 bool AppleObjCRuntime::GetDynamicTypeAndAddress(
     ValueObject &in_value, lldb::DynamicValueType use_dynamic,
     TypeAndOrName &class_type_or_name, Address &address,
-    Value::ValueType &value_type) {
+    Value::ValueType &value_type, llvm::ArrayRef<uint8_t> &local_buffer) {
   return false;
 }
 
@@ -444,7 +451,7 @@ bool AppleObjCRuntime::ExceptionBreakpointsExplainStop(
     return false;
 
   uint64_t break_site_id = stop_reason->GetValue();
-  return m_process->GetBreakpointSiteList().BreakpointSiteContainsBreakpoint(
+  return m_process->GetBreakpointSiteList().StopPointSiteContainsBreakpoint(
       break_site_id, m_objc_exception_bp_sp->GetID());
 }
 
@@ -513,7 +520,7 @@ static ThreadSP FailExceptionParsing(llvm::StringRef msg) {
 ThreadSP AppleObjCRuntime::GetBacktraceThreadFromException(
     lldb::ValueObjectSP exception_sp) {
   ValueObjectSP reserved_dict =
-      exception_sp->GetChildMemberWithName(ConstString("reserved"), true);
+      exception_sp->GetChildMemberWithName("reserved");
   if (!reserved_dict)
     return FailExceptionParsing("Failed to get 'reserved' member.");
 
@@ -521,12 +528,11 @@ ThreadSP AppleObjCRuntime::GetBacktraceThreadFromException(
   if (!reserved_dict)
     return FailExceptionParsing("Failed to get synthetic value.");
 
-  TypeSystemClang *clang_ast_context =
+  TypeSystemClangSP scratch_ts_sp =
       ScratchTypeSystemClang::GetForTarget(*exception_sp->GetTargetSP());
-  if (!clang_ast_context)
+  if (!scratch_ts_sp)
     return FailExceptionParsing("Failed to get scratch AST.");
-  CompilerType objc_id =
-      clang_ast_context->GetBasicType(lldb::eBasicTypeObjCID);
+  CompilerType objc_id = scratch_ts_sp->GetBasicType(lldb::eBasicTypeObjCID);
   ValueObjectSP return_addresses;
 
   auto objc_object_from_address = [&exception_sp, &objc_id](uint64_t addr,
@@ -539,8 +545,9 @@ ThreadSP AppleObjCRuntime::GetBacktraceThreadFromException(
     return object;
   };
 
-  for (size_t idx = 0; idx < reserved_dict->GetNumChildren(); idx++) {
-    ValueObjectSP dict_entry = reserved_dict->GetChildAtIndex(idx, true);
+  for (size_t idx = 0; idx < reserved_dict->GetNumChildrenIgnoringErrors();
+       idx++) {
+    ValueObjectSP dict_entry = reserved_dict->GetChildAtIndex(idx);
 
     DataExtractor data;
     data.SetAddressByteSize(dict_entry->GetProcessSP()->GetAddressByteSize());
@@ -567,18 +574,15 @@ ThreadSP AppleObjCRuntime::GetBacktraceThreadFromException(
 
   if (!return_addresses)
     return FailExceptionParsing("Failed to get return addresses.");
-  auto frames_value =
-      return_addresses->GetChildMemberWithName(ConstString("_frames"), true);
+  auto frames_value = return_addresses->GetChildMemberWithName("_frames");
   if (!frames_value)
     return FailExceptionParsing("Failed to get frames_value.");
   addr_t frames_addr = frames_value->GetValueAsUnsigned(0);
-  auto count_value =
-      return_addresses->GetChildMemberWithName(ConstString("_cnt"), true);
+  auto count_value = return_addresses->GetChildMemberWithName("_cnt");
   if (!count_value)
     return FailExceptionParsing("Failed to get count_value.");
   size_t count = count_value->GetValueAsUnsigned(0);
-  auto ignore_value =
-      return_addresses->GetChildMemberWithName(ConstString("_ignore"), true);
+  auto ignore_value = return_addresses->GetChildMemberWithName("_ignore");
   if (!ignore_value)
     return FailExceptionParsing("Failed to get ignore_value.");
   size_t ignore = ignore_value->GetValueAsUnsigned(0);

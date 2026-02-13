@@ -8,16 +8,13 @@
 ; RUN: llc -mtriple=riscv64 -mattr=+zbb < %s \
 ; RUN:   | FileCheck %s --check-prefixes=CHECK,CHECK-ZBB,RV64,RV64ZBB
 
-; TODO: Should we convert these to X ^ ((X ^ Y) & M) form when Zbb isn't
-; present?
 
 define i8 @out8(i8 %x, i8 %y, i8 %mask) {
 ; CHECK-I-LABEL: out8:
 ; CHECK-I:       # %bb.0:
+; CHECK-I-NEXT:    xor a0, a0, a1
 ; CHECK-I-NEXT:    and a0, a0, a2
-; CHECK-I-NEXT:    not a2, a2
-; CHECK-I-NEXT:    and a1, a1, a2
-; CHECK-I-NEXT:    or a0, a0, a1
+; CHECK-I-NEXT:    xor a0, a0, a1
 ; CHECK-I-NEXT:    ret
 ;
 ; CHECK-ZBB-LABEL: out8:
@@ -36,10 +33,9 @@ define i8 @out8(i8 %x, i8 %y, i8 %mask) {
 define i16 @out16(i16 %x, i16 %y, i16 %mask) {
 ; CHECK-I-LABEL: out16:
 ; CHECK-I:       # %bb.0:
+; CHECK-I-NEXT:    xor a0, a0, a1
 ; CHECK-I-NEXT:    and a0, a0, a2
-; CHECK-I-NEXT:    not a2, a2
-; CHECK-I-NEXT:    and a1, a1, a2
-; CHECK-I-NEXT:    or a0, a0, a1
+; CHECK-I-NEXT:    xor a0, a0, a1
 ; CHECK-I-NEXT:    ret
 ;
 ; CHECK-ZBB-LABEL: out16:
@@ -58,10 +54,9 @@ define i16 @out16(i16 %x, i16 %y, i16 %mask) {
 define i32 @out32(i32 %x, i32 %y, i32 %mask) {
 ; CHECK-I-LABEL: out32:
 ; CHECK-I:       # %bb.0:
+; CHECK-I-NEXT:    xor a0, a0, a1
 ; CHECK-I-NEXT:    and a0, a0, a2
-; CHECK-I-NEXT:    not a2, a2
-; CHECK-I-NEXT:    and a1, a1, a2
-; CHECK-I-NEXT:    or a0, a0, a1
+; CHECK-I-NEXT:    xor a0, a0, a1
 ; CHECK-I-NEXT:    ret
 ;
 ; CHECK-ZBB-LABEL: out32:
@@ -80,22 +75,19 @@ define i32 @out32(i32 %x, i32 %y, i32 %mask) {
 define i64 @out64(i64 %x, i64 %y, i64 %mask) {
 ; RV32I-LABEL: out64:
 ; RV32I:       # %bb.0:
-; RV32I-NEXT:    and a1, a1, a5
+; RV32I-NEXT:    xor a0, a0, a2
+; RV32I-NEXT:    xor a1, a1, a3
 ; RV32I-NEXT:    and a0, a0, a4
-; RV32I-NEXT:    not a4, a4
-; RV32I-NEXT:    not a5, a5
-; RV32I-NEXT:    and a3, a3, a5
-; RV32I-NEXT:    and a2, a2, a4
-; RV32I-NEXT:    or a0, a0, a2
-; RV32I-NEXT:    or a1, a1, a3
+; RV32I-NEXT:    and a1, a1, a5
+; RV32I-NEXT:    xor a0, a0, a2
+; RV32I-NEXT:    xor a1, a1, a3
 ; RV32I-NEXT:    ret
 ;
 ; RV64I-LABEL: out64:
 ; RV64I:       # %bb.0:
+; RV64I-NEXT:    xor a0, a0, a1
 ; RV64I-NEXT:    and a0, a0, a2
-; RV64I-NEXT:    not a2, a2
-; RV64I-NEXT:    and a1, a1, a2
-; RV64I-NEXT:    or a0, a0, a1
+; RV64I-NEXT:    xor a0, a0, a1
 ; RV64I-NEXT:    ret
 ;
 ; RV32ZBB-LABEL: out64:
@@ -208,10 +200,10 @@ define i64 @in64(i64 %x, i64 %y, i64 %mask) {
 ; RV32ZBB:       # %bb.0:
 ; RV32ZBB-NEXT:    andn a2, a2, a4
 ; RV32ZBB-NEXT:    and a0, a0, a4
-; RV32ZBB-NEXT:    or a0, a0, a2
-; RV32ZBB-NEXT:    andn a2, a3, a5
+; RV32ZBB-NEXT:    andn a3, a3, a5
 ; RV32ZBB-NEXT:    and a1, a1, a5
-; RV32ZBB-NEXT:    or a1, a1, a2
+; RV32ZBB-NEXT:    or a0, a0, a2
+; RV32ZBB-NEXT:    or a1, a1, a3
 ; RV32ZBB-NEXT:    ret
 ;
 ; RV64ZBB-LABEL: in64:
@@ -478,18 +470,18 @@ define i32 @in_complex_y0_m0(i32 %x, i32 %y_hi, i32 %y_low, i32 %m_a, i32 %m_b) 
 ; CHECK-I-LABEL: in_complex_y0_m0:
 ; CHECK-I:       # %bb.0:
 ; CHECK-I-NEXT:    and a1, a1, a2
-; CHECK-I-NEXT:    xor a2, a3, a4
+; CHECK-I-NEXT:    xor a3, a3, a4
 ; CHECK-I-NEXT:    xor a0, a0, a1
-; CHECK-I-NEXT:    and a0, a0, a2
+; CHECK-I-NEXT:    and a0, a0, a3
 ; CHECK-I-NEXT:    xor a0, a0, a1
 ; CHECK-I-NEXT:    ret
 ;
 ; CHECK-ZBB-LABEL: in_complex_y0_m0:
 ; CHECK-ZBB:       # %bb.0:
 ; CHECK-ZBB-NEXT:    and a1, a1, a2
-; CHECK-ZBB-NEXT:    xor a2, a3, a4
-; CHECK-ZBB-NEXT:    andn a1, a1, a2
-; CHECK-ZBB-NEXT:    and a0, a0, a2
+; CHECK-ZBB-NEXT:    xor a3, a3, a4
+; CHECK-ZBB-NEXT:    andn a1, a1, a3
+; CHECK-ZBB-NEXT:    and a0, a0, a3
 ; CHECK-ZBB-NEXT:    or a0, a0, a1
 ; CHECK-ZBB-NEXT:    ret
   %y = and i32 %y_hi, %y_low
@@ -504,18 +496,18 @@ define i32 @in_complex_y1_m0(i32 %x, i32 %y_hi, i32 %y_low, i32 %m_a, i32 %m_b) 
 ; CHECK-I-LABEL: in_complex_y1_m0:
 ; CHECK-I:       # %bb.0:
 ; CHECK-I-NEXT:    and a1, a1, a2
-; CHECK-I-NEXT:    xor a2, a3, a4
+; CHECK-I-NEXT:    xor a3, a3, a4
 ; CHECK-I-NEXT:    xor a0, a0, a1
-; CHECK-I-NEXT:    and a0, a0, a2
+; CHECK-I-NEXT:    and a0, a0, a3
 ; CHECK-I-NEXT:    xor a0, a1, a0
 ; CHECK-I-NEXT:    ret
 ;
 ; CHECK-ZBB-LABEL: in_complex_y1_m0:
 ; CHECK-ZBB:       # %bb.0:
 ; CHECK-ZBB-NEXT:    and a1, a1, a2
-; CHECK-ZBB-NEXT:    xor a2, a3, a4
-; CHECK-ZBB-NEXT:    andn a1, a1, a2
-; CHECK-ZBB-NEXT:    and a0, a0, a2
+; CHECK-ZBB-NEXT:    xor a3, a3, a4
+; CHECK-ZBB-NEXT:    andn a1, a1, a3
+; CHECK-ZBB-NEXT:    and a0, a0, a3
 ; CHECK-ZBB-NEXT:    or a0, a0, a1
 ; CHECK-ZBB-NEXT:    ret
   %y = and i32 %y_hi, %y_low
@@ -530,18 +522,18 @@ define i32 @in_complex_y0_m1(i32 %x, i32 %y_hi, i32 %y_low, i32 %m_a, i32 %m_b) 
 ; CHECK-I-LABEL: in_complex_y0_m1:
 ; CHECK-I:       # %bb.0:
 ; CHECK-I-NEXT:    and a1, a1, a2
-; CHECK-I-NEXT:    xor a2, a3, a4
+; CHECK-I-NEXT:    xor a3, a3, a4
 ; CHECK-I-NEXT:    xor a0, a0, a1
-; CHECK-I-NEXT:    and a0, a2, a0
+; CHECK-I-NEXT:    and a0, a3, a0
 ; CHECK-I-NEXT:    xor a0, a0, a1
 ; CHECK-I-NEXT:    ret
 ;
 ; CHECK-ZBB-LABEL: in_complex_y0_m1:
 ; CHECK-ZBB:       # %bb.0:
 ; CHECK-ZBB-NEXT:    and a1, a1, a2
-; CHECK-ZBB-NEXT:    xor a2, a3, a4
-; CHECK-ZBB-NEXT:    andn a1, a1, a2
-; CHECK-ZBB-NEXT:    and a0, a0, a2
+; CHECK-ZBB-NEXT:    xor a3, a3, a4
+; CHECK-ZBB-NEXT:    andn a1, a1, a3
+; CHECK-ZBB-NEXT:    and a0, a0, a3
 ; CHECK-ZBB-NEXT:    or a0, a0, a1
 ; CHECK-ZBB-NEXT:    ret
   %y = and i32 %y_hi, %y_low
@@ -556,18 +548,18 @@ define i32 @in_complex_y1_m1(i32 %x, i32 %y_hi, i32 %y_low, i32 %m_a, i32 %m_b) 
 ; CHECK-I-LABEL: in_complex_y1_m1:
 ; CHECK-I:       # %bb.0:
 ; CHECK-I-NEXT:    and a1, a1, a2
-; CHECK-I-NEXT:    xor a2, a3, a4
+; CHECK-I-NEXT:    xor a3, a3, a4
 ; CHECK-I-NEXT:    xor a0, a0, a1
-; CHECK-I-NEXT:    and a0, a2, a0
+; CHECK-I-NEXT:    and a0, a3, a0
 ; CHECK-I-NEXT:    xor a0, a1, a0
 ; CHECK-I-NEXT:    ret
 ;
 ; CHECK-ZBB-LABEL: in_complex_y1_m1:
 ; CHECK-ZBB:       # %bb.0:
 ; CHECK-ZBB-NEXT:    and a1, a1, a2
-; CHECK-ZBB-NEXT:    xor a2, a3, a4
-; CHECK-ZBB-NEXT:    andn a1, a1, a2
-; CHECK-ZBB-NEXT:    and a0, a0, a2
+; CHECK-ZBB-NEXT:    xor a3, a3, a4
+; CHECK-ZBB-NEXT:    andn a1, a1, a3
+; CHECK-ZBB-NEXT:    and a0, a0, a3
 ; CHECK-ZBB-NEXT:    or a0, a0, a1
 ; CHECK-ZBB-NEXT:    ret
   %y = and i32 %y_hi, %y_low
@@ -660,10 +652,9 @@ define i32 @in_constant_varx_mone_invmask(i32 %x, i32 %y, i32 %mask) {
 define i32 @out_constant_varx_42(i32 %x, i32 %y, i32 %mask) {
 ; CHECK-I-LABEL: out_constant_varx_42:
 ; CHECK-I:       # %bb.0:
-; CHECK-I-NEXT:    not a1, a2
-; CHECK-I-NEXT:    and a0, a2, a0
-; CHECK-I-NEXT:    andi a1, a1, 42
-; CHECK-I-NEXT:    or a0, a0, a1
+; CHECK-I-NEXT:    xori a0, a0, 42
+; CHECK-I-NEXT:    and a0, a0, a2
+; CHECK-I-NEXT:    xori a0, a0, 42
 ; CHECK-I-NEXT:    ret
 ;
 ; CHECK-ZBB-LABEL: out_constant_varx_42:
@@ -704,10 +695,9 @@ define i32 @in_constant_varx_42(i32 %x, i32 %y, i32 %mask) {
 define i32 @out_constant_varx_42_invmask(i32 %x, i32 %y, i32 %mask) {
 ; CHECK-I-LABEL: out_constant_varx_42_invmask:
 ; CHECK-I:       # %bb.0:
-; CHECK-I-NEXT:    not a1, a2
-; CHECK-I-NEXT:    and a0, a1, a0
-; CHECK-I-NEXT:    andi a1, a2, 42
-; CHECK-I-NEXT:    or a0, a0, a1
+; CHECK-I-NEXT:    xori a1, a0, 42
+; CHECK-I-NEXT:    and a1, a1, a2
+; CHECK-I-NEXT:    xor a0, a1, a0
 ; CHECK-I-NEXT:    ret
 ;
 ; CHECK-ZBB-LABEL: out_constant_varx_42_invmask:
@@ -759,18 +749,10 @@ define i32 @out_constant_mone_vary(i32 %x, i32 %y, i32 %mask) {
 }
 
 define i32 @in_constant_mone_vary(i32 %x, i32 %y, i32 %mask) {
-; CHECK-I-LABEL: in_constant_mone_vary:
-; CHECK-I:       # %bb.0:
-; CHECK-I-NEXT:    not a0, a1
-; CHECK-I-NEXT:    and a0, a0, a2
-; CHECK-I-NEXT:    xor a0, a0, a1
-; CHECK-I-NEXT:    ret
-;
-; CHECK-ZBB-LABEL: in_constant_mone_vary:
-; CHECK-ZBB:       # %bb.0:
-; CHECK-ZBB-NEXT:    andn a0, a2, a1
-; CHECK-ZBB-NEXT:    xor a0, a0, a1
-; CHECK-ZBB-NEXT:    ret
+; CHECK-LABEL: in_constant_mone_vary:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    or a0, a2, a1
+; CHECK-NEXT:    ret
   %n0 = xor i32 -1, %y ; %x
   %n1 = and i32 %n0, %mask
   %r = xor i32 %n1, %y
@@ -788,8 +770,8 @@ define i32 @out_constant_mone_vary_invmask(i32 %x, i32 %y, i32 %mask) {
 ;
 ; CHECK-ZBB-LABEL: out_constant_mone_vary_invmask:
 ; CHECK-ZBB:       # %bb.0:
-; CHECK-ZBB-NEXT:    and a0, a2, a1
-; CHECK-ZBB-NEXT:    orn a0, a0, a2
+; CHECK-ZBB-NEXT:    and a1, a2, a1
+; CHECK-ZBB-NEXT:    orn a0, a1, a2
 ; CHECK-ZBB-NEXT:    ret
   %notmask = xor i32 %mask, -1
   %mx = and i32 %notmask, -1
@@ -803,16 +785,12 @@ define i32 @in_constant_mone_vary_invmask(i32 %x, i32 %y, i32 %mask) {
 ; CHECK-I-LABEL: in_constant_mone_vary_invmask:
 ; CHECK-I:       # %bb.0:
 ; CHECK-I-NEXT:    not a0, a2
-; CHECK-I-NEXT:    not a2, a1
-; CHECK-I-NEXT:    and a0, a2, a0
-; CHECK-I-NEXT:    xor a0, a0, a1
+; CHECK-I-NEXT:    or a0, a0, a1
 ; CHECK-I-NEXT:    ret
 ;
 ; CHECK-ZBB-LABEL: in_constant_mone_vary_invmask:
 ; CHECK-ZBB:       # %bb.0:
-; CHECK-ZBB-NEXT:    not a0, a1
-; CHECK-ZBB-NEXT:    andn a0, a0, a2
-; CHECK-ZBB-NEXT:    xor a0, a0, a1
+; CHECK-ZBB-NEXT:    orn a0, a1, a2
 ; CHECK-ZBB-NEXT:    ret
   %notmask = xor i32 %mask, -1
   %n0 = xor i32 -1, %y ; %x
@@ -824,10 +802,9 @@ define i32 @in_constant_mone_vary_invmask(i32 %x, i32 %y, i32 %mask) {
 define i32 @out_constant_42_vary(i32 %x, i32 %y, i32 %mask) {
 ; CHECK-I-LABEL: out_constant_42_vary:
 ; CHECK-I:       # %bb.0:
-; CHECK-I-NEXT:    not a0, a2
-; CHECK-I-NEXT:    andi a2, a2, 42
-; CHECK-I-NEXT:    and a0, a0, a1
-; CHECK-I-NEXT:    or a0, a2, a0
+; CHECK-I-NEXT:    xori a0, a1, 42
+; CHECK-I-NEXT:    and a0, a0, a2
+; CHECK-I-NEXT:    xor a0, a0, a1
 ; CHECK-I-NEXT:    ret
 ;
 ; CHECK-ZBB-LABEL: out_constant_42_vary:
@@ -867,10 +844,9 @@ define i32 @in_constant_42_vary(i32 %x, i32 %y, i32 %mask) {
 define i32 @out_constant_42_vary_invmask(i32 %x, i32 %y, i32 %mask) {
 ; CHECK-I-LABEL: out_constant_42_vary_invmask:
 ; CHECK-I:       # %bb.0:
-; CHECK-I-NEXT:    not a0, a2
-; CHECK-I-NEXT:    andi a0, a0, 42
-; CHECK-I-NEXT:    and a1, a2, a1
-; CHECK-I-NEXT:    or a0, a0, a1
+; CHECK-I-NEXT:    xori a0, a1, 42
+; CHECK-I-NEXT:    and a0, a0, a2
+; CHECK-I-NEXT:    xori a0, a0, 42
 ; CHECK-I-NEXT:    ret
 ;
 ; CHECK-ZBB-LABEL: out_constant_42_vary_invmask:
@@ -927,7 +903,7 @@ define i32 @in_multiuse_A(i32 %x, i32 %y, i32 %z, i32 %mask) nounwind {
 ; RV32-NEXT:    xor a0, a0, a1
 ; RV32-NEXT:    and s1, a0, a3
 ; RV32-NEXT:    mv a0, s1
-; RV32-NEXT:    call use32@plt
+; RV32-NEXT:    call use32
 ; RV32-NEXT:    xor a0, s1, s0
 ; RV32-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
 ; RV32-NEXT:    lw s0, 8(sp) # 4-byte Folded Reload
@@ -945,7 +921,7 @@ define i32 @in_multiuse_A(i32 %x, i32 %y, i32 %z, i32 %mask) nounwind {
 ; RV64-NEXT:    xor a0, a0, a1
 ; RV64-NEXT:    and s1, a0, a3
 ; RV64-NEXT:    mv a0, s1
-; RV64-NEXT:    call use32@plt
+; RV64-NEXT:    call use32
 ; RV64-NEXT:    xor a0, s1, s0
 ; RV64-NEXT:    ld ra, 24(sp) # 8-byte Folded Reload
 ; RV64-NEXT:    ld s0, 16(sp) # 8-byte Folded Reload
@@ -969,7 +945,7 @@ define i32 @in_multiuse_B(i32 %x, i32 %y, i32 %z, i32 %mask) nounwind {
 ; RV32-NEXT:    mv s0, a1
 ; RV32-NEXT:    xor a0, a0, a1
 ; RV32-NEXT:    and s1, a0, a3
-; RV32-NEXT:    call use32@plt
+; RV32-NEXT:    call use32
 ; RV32-NEXT:    xor a0, s1, s0
 ; RV32-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
 ; RV32-NEXT:    lw s0, 8(sp) # 4-byte Folded Reload
@@ -986,7 +962,7 @@ define i32 @in_multiuse_B(i32 %x, i32 %y, i32 %z, i32 %mask) nounwind {
 ; RV64-NEXT:    mv s0, a1
 ; RV64-NEXT:    xor a0, a0, a1
 ; RV64-NEXT:    and s1, a0, a3
-; RV64-NEXT:    call use32@plt
+; RV64-NEXT:    call use32
 ; RV64-NEXT:    xor a0, s1, s0
 ; RV64-NEXT:    ld ra, 24(sp) # 8-byte Folded Reload
 ; RV64-NEXT:    ld s0, 16(sp) # 8-byte Folded Reload

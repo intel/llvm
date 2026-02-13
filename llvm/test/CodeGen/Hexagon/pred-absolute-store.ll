@@ -1,4 +1,4 @@
-; RUN: llc -march=hexagon < %s | FileCheck %s
+; RUN: llc -mtriple=hexagon < %s | FileCheck %s
 ; Check that we are able to predicate instructions with absolute
 ; addressing mode.
 ; CHECK: if ({{!?}}p{{[0-3]}}.new) memw(##gvar) = r{{[0-9]+}}
@@ -10,7 +10,7 @@ entry:
   br i1 %cmp, label %if.then, label %if.end
 
 if.then:
-  store i32 %a, i32* @gvar, align 4
+  store i32 %a, ptr @gvar, align 4
   br label %if.end
 
 if.end:

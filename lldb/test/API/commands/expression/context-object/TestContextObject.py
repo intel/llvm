@@ -6,13 +6,15 @@ import lldb
 import lldbsuite.test.lldbutil as lldbutil
 from lldbsuite.test.lldbtest import *
 
-class ContextObjectTestCase(TestBase):
 
+class ContextObjectTestCase(TestBase):
     def test_context_object(self):
         """Tests expression evaluation in context of an object."""
         self.build()
 
-        (target, process, thread, bkpt) = lldbutil.run_to_source_breakpoint(self, '// Break here', self.main_source_spec)
+        (target, process, thread, bkpt) = lldbutil.run_to_source_breakpoint(
+            self, "// Break here", self.main_source_spec
+        )
         frame = thread.GetFrameAtIndex(0)
 
         #
@@ -67,7 +69,7 @@ class ContextObjectTestCase(TestBase):
 
         # Test an expression evaluation
         value = obj_val.EvaluateExpression("1")
-        self.assertFalse(value.IsValid())
+        self.assertTrue(value.IsValid())
         self.assertFalse(value.GetError().Success())
 
         #
@@ -79,7 +81,7 @@ class ContextObjectTestCase(TestBase):
 
         # Test an expression evaluation
         value = obj_val.EvaluateExpression("1")
-        self.assertFalse(value.IsValid())
+        self.assertTrue(value.IsValid())
         self.assertFalse(value.GetError().Success())
 
         # Test retrieveing of an element's field
@@ -97,7 +99,7 @@ class ContextObjectTestCase(TestBase):
 
         # Test an expression evaluation
         value = obj_val.EvaluateExpression("1")
-        self.assertFalse(value.IsValid())
+        self.assertTrue(value.IsValid())
         self.assertFalse(value.GetError().Success())
 
         # Test retrieveing of a dereferenced object's field
@@ -127,7 +129,7 @@ class ContextObjectTestCase(TestBase):
 
         # Test an expression evaluation
         value = obj_val.EvaluateExpression("1")
-        self.assertFalse(value.IsValid())
+        self.assertTrue(value.IsValid())
         self.assertFalse(value.GetError().Success())
 
         # Test retrieveing of a dereferenced object's field

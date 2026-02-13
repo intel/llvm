@@ -6,7 +6,8 @@ declare extern_weak void @foo(...)
 
 define void @bar() {
 entry:
-  br i1 icmp ne (ptr @foo, ptr null), label %if.then, label %if.end
+  %cmp = icmp ne ptr @foo, null
+  br i1 %cmp, label %if.then, label %if.end
 
 if.then:
   tail call void (...) @foo( )
@@ -18,7 +19,7 @@ if.end:
 
 ; DARWIN-LABEL: _bar:
 ; DARWIN: cmpl $0, L_foo$non_lazy_ptr
-; DARWIN: jmp _foo ## TAILCALL
+; DARWIN: jne _foo ## TAILCALL
 
 ; WIN32-LABEL: _bar:
 ; WIN32: cmpl $0, .refptr._foo

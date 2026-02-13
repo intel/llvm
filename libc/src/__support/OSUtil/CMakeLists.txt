@@ -8,12 +8,10 @@ if(NOT TARGET ${target_os_util})
   return()
 endif()
 
-add_header_library(
+add_object_library(
   osutil
-  HDRS
-    io.h
-    quick_exit.h
-    syscall.h
+  ALIAS
+    ${target_os_util}
   DEPENDS
     ${target_os_util}
 )

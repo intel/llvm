@@ -38,13 +38,13 @@ define dso_local x86_regcallcc i64 @test_argv64i1(<64 x i1> %x0, <64 x i1> %x1, 
 ; WIN64-NEXT:    addq %rcx, %rax
 ; WIN64-NEXT:    addq %rdx, %rax
 ; WIN64-NEXT:    addq %rdi, %rax
-; WIN64-NEXT:    addq %rsi, %rax
-; WIN64-NEXT:    addq %r8, %rax
-; WIN64-NEXT:    addq %r9, %rax
-; WIN64-NEXT:    addq %r10, %rax
-; WIN64-NEXT:    addq %r11, %rax
-; WIN64-NEXT:    addq %r12, %rax
-; WIN64-NEXT:    addq %r14, %rax
+; WIN64-NEXT:    leaq (%rsi,%r8), %rcx
+; WIN64-NEXT:    addq %r9, %rcx
+; WIN64-NEXT:    addq %rcx, %rax
+; WIN64-NEXT:    leaq (%r10,%r11), %rcx
+; WIN64-NEXT:    addq %r12, %rcx
+; WIN64-NEXT:    addq %r14, %rcx
+; WIN64-NEXT:    addq %rcx, %rax
 ; WIN64-NEXT:    addq %r15, %rax
 ; WIN64-NEXT:    addq {{[0-9]+}}(%rsp), %rax
 ; WIN64-NEXT:    retq
@@ -54,13 +54,13 @@ define dso_local x86_regcallcc i64 @test_argv64i1(<64 x i1> %x0, <64 x i1> %x1, 
 ; LINUXOSX64-NEXT:    addq %rcx, %rax
 ; LINUXOSX64-NEXT:    addq %rdx, %rax
 ; LINUXOSX64-NEXT:    addq %rdi, %rax
-; LINUXOSX64-NEXT:    addq %rsi, %rax
-; LINUXOSX64-NEXT:    addq %r8, %rax
-; LINUXOSX64-NEXT:    addq %r9, %rax
-; LINUXOSX64-NEXT:    addq %r12, %rax
-; LINUXOSX64-NEXT:    addq %r13, %rax
-; LINUXOSX64-NEXT:    addq %r14, %rax
-; LINUXOSX64-NEXT:    addq %r15, %rax
+; LINUXOSX64-NEXT:    leaq (%rsi,%r8), %rcx
+; LINUXOSX64-NEXT:    addq %r9, %rcx
+; LINUXOSX64-NEXT:    addq %rcx, %rax
+; LINUXOSX64-NEXT:    leaq (%r12,%r13), %rcx
+; LINUXOSX64-NEXT:    addq %r14, %rcx
+; LINUXOSX64-NEXT:    addq %r15, %rcx
+; LINUXOSX64-NEXT:    addq %rcx, %rax
 ; LINUXOSX64-NEXT:    addq {{[0-9]+}}(%rsp), %rax
 ; LINUXOSX64-NEXT:    addq {{[0-9]+}}(%rsp), %rax
 ; LINUXOSX64-NEXT:    retq
@@ -98,9 +98,8 @@ define dso_local i64 @caller_argv64i1() #0 {
 ; X32:       # %bb.0: # %entry
 ; X32-NEXT:    pushl %edi
 ; X32-NEXT:    subl $88, %esp
-; X32-NEXT:    vmovaps {{.*#+}} xmm0 = [2,1,2,1]
+; X32-NEXT:    vbroadcastsd {{.*#+}} zmm0 = [2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1]
 ; X32-NEXT:    vmovups %xmm0, {{[0-9]+}}(%esp)
-; X32-NEXT:    vmovaps {{.*#+}} zmm0 = [2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1]
 ; X32-NEXT:    vmovups %zmm0, (%esp)
 ; X32-NEXT:    movl $1, {{[0-9]+}}(%esp)
 ; X32-NEXT:    movl $2, {{[0-9]+}}(%esp)
@@ -150,12 +149,14 @@ define dso_local i64 @caller_argv64i1() #0 {
 ; WIN64-NEXT:    callq test_argv64i1
 ; WIN64-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %xmm6 # 16-byte Reload
 ; WIN64-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %xmm7 # 16-byte Reload
+; WIN64-NEXT:    .seh_startepilogue
 ; WIN64-NEXT:    addq $48, %rsp
 ; WIN64-NEXT:    popq %rdi
 ; WIN64-NEXT:    popq %rsi
 ; WIN64-NEXT:    popq %r12
 ; WIN64-NEXT:    popq %r14
 ; WIN64-NEXT:    popq %r15
+; WIN64-NEXT:    .seh_endepilogue
 ; WIN64-NEXT:    retq
 ; WIN64-NEXT:    .seh_endproc
 ;
@@ -257,9 +258,11 @@ define dso_local <64 x i1> @caller_retv64i1() #0 {
 ; WIN64-NEXT:    vpmovm2b %k0, %zmm0
 ; WIN64-NEXT:    vmovaps (%rsp), %xmm6 # 16-byte Reload
 ; WIN64-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %xmm7 # 16-byte Reload
+; WIN64-NEXT:    .seh_startepilogue
 ; WIN64-NEXT:    addq $40, %rsp
 ; WIN64-NEXT:    popq %rdi
 ; WIN64-NEXT:    popq %rsi
+; WIN64-NEXT:    .seh_endepilogue
 ; WIN64-NEXT:    retq
 ; WIN64-NEXT:    .seh_endproc
 ;
@@ -335,10 +338,12 @@ define dso_local x86_regcallcc i32 @test_argv32i1(<32 x i1> %x0, <32 x i1> %x1, 
 ; WIN64-NEXT:    vzeroupper
 ; WIN64-NEXT:    callq test_argv32i1helper
 ; WIN64-NEXT:    nop
+; WIN64-NEXT:    .seh_startepilogue
 ; WIN64-NEXT:    movq %rbp, %rsp
 ; WIN64-NEXT:    popq %r10
 ; WIN64-NEXT:    popq %r11
 ; WIN64-NEXT:    popq %rbp
+; WIN64-NEXT:    .seh_endepilogue
 ; WIN64-NEXT:    retq
 ; WIN64-NEXT:    .seh_endproc
 ;
@@ -418,9 +423,11 @@ define dso_local i32 @caller_argv32i1() #0 {
 ; WIN64-NEXT:    callq test_argv32i1
 ; WIN64-NEXT:    vmovaps (%rsp), %xmm6 # 16-byte Reload
 ; WIN64-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %xmm7 # 16-byte Reload
+; WIN64-NEXT:    .seh_startepilogue
 ; WIN64-NEXT:    addq $40, %rsp
 ; WIN64-NEXT:    popq %rdi
 ; WIN64-NEXT:    popq %rsi
+; WIN64-NEXT:    .seh_endepilogue
 ; WIN64-NEXT:    retq
 ; WIN64-NEXT:    .seh_endproc
 ;
@@ -481,9 +488,11 @@ define dso_local i32 @caller_retv32i1() #0 {
 ; WIN64-NEXT:    incl %eax
 ; WIN64-NEXT:    vmovaps (%rsp), %xmm6 # 16-byte Reload
 ; WIN64-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %xmm7 # 16-byte Reload
+; WIN64-NEXT:    .seh_startepilogue
 ; WIN64-NEXT:    addq $40, %rsp
 ; WIN64-NEXT:    popq %rdi
 ; WIN64-NEXT:    popq %rsi
+; WIN64-NEXT:    .seh_endepilogue
 ; WIN64-NEXT:    retq
 ; WIN64-NEXT:    .seh_endproc
 ;
@@ -555,9 +564,11 @@ define dso_local x86_regcallcc i16 @test_argv16i1(<16 x i1> %x0, <16 x i1> %x1, 
 ; WIN64-NEXT:    vzeroupper
 ; WIN64-NEXT:    callq test_argv16i1helper
 ; WIN64-NEXT:    nop
+; WIN64-NEXT:    .seh_startepilogue
 ; WIN64-NEXT:    addq $88, %rsp
 ; WIN64-NEXT:    popq %r10
 ; WIN64-NEXT:    popq %r11
+; WIN64-NEXT:    .seh_endepilogue
 ; WIN64-NEXT:    retq
 ; WIN64-NEXT:    .seh_endproc
 ;
@@ -636,9 +647,11 @@ define dso_local i16 @caller_argv16i1() #0 {
 ; WIN64-NEXT:    callq test_argv16i1
 ; WIN64-NEXT:    vmovaps (%rsp), %xmm6 # 16-byte Reload
 ; WIN64-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %xmm7 # 16-byte Reload
+; WIN64-NEXT:    .seh_startepilogue
 ; WIN64-NEXT:    addq $40, %rsp
 ; WIN64-NEXT:    popq %rdi
 ; WIN64-NEXT:    popq %rsi
+; WIN64-NEXT:    .seh_endepilogue
 ; WIN64-NEXT:    retq
 ; WIN64-NEXT:    .seh_endproc
 ;
@@ -703,9 +716,11 @@ define dso_local i16 @caller_retv16i1() #0 {
 ; WIN64-NEXT:    # kill: def $ax killed $ax killed $eax
 ; WIN64-NEXT:    vmovaps (%rsp), %xmm6 # 16-byte Reload
 ; WIN64-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %xmm7 # 16-byte Reload
+; WIN64-NEXT:    .seh_startepilogue
 ; WIN64-NEXT:    addq $40, %rsp
 ; WIN64-NEXT:    popq %rdi
 ; WIN64-NEXT:    popq %rsi
+; WIN64-NEXT:    .seh_endepilogue
 ; WIN64-NEXT:    retq
 ; WIN64-NEXT:    .seh_endproc
 ;
@@ -779,9 +794,11 @@ define dso_local x86_regcallcc i8 @test_argv8i1(<8 x i1> %x0, <8 x i1> %x1, <8 x
 ; WIN64-NEXT:    vzeroupper
 ; WIN64-NEXT:    callq test_argv8i1helper
 ; WIN64-NEXT:    nop
+; WIN64-NEXT:    .seh_startepilogue
 ; WIN64-NEXT:    addq $88, %rsp
 ; WIN64-NEXT:    popq %r10
 ; WIN64-NEXT:    popq %r11
+; WIN64-NEXT:    .seh_endepilogue
 ; WIN64-NEXT:    retq
 ; WIN64-NEXT:    .seh_endproc
 ;
@@ -860,9 +877,11 @@ define dso_local i8 @caller_argv8i1() #0 {
 ; WIN64-NEXT:    callq test_argv8i1
 ; WIN64-NEXT:    vmovaps (%rsp), %xmm6 # 16-byte Reload
 ; WIN64-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %xmm7 # 16-byte Reload
+; WIN64-NEXT:    .seh_startepilogue
 ; WIN64-NEXT:    addq $40, %rsp
 ; WIN64-NEXT:    popq %rdi
 ; WIN64-NEXT:    popq %rsi
+; WIN64-NEXT:    .seh_endepilogue
 ; WIN64-NEXT:    retq
 ; WIN64-NEXT:    .seh_endproc
 ;
@@ -930,9 +949,11 @@ define dso_local <8 x i1> @caller_retv8i1() #0 {
 ; WIN64-NEXT:    # kill: def $xmm0 killed $xmm0 killed $zmm0
 ; WIN64-NEXT:    vmovaps (%rsp), %xmm6 # 16-byte Reload
 ; WIN64-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %xmm7 # 16-byte Reload
+; WIN64-NEXT:    .seh_startepilogue
 ; WIN64-NEXT:    addq $40, %rsp
 ; WIN64-NEXT:    popq %rdi
 ; WIN64-NEXT:    popq %rsi
+; WIN64-NEXT:    .seh_endepilogue
 ; WIN64-NEXT:    vzeroupper
 ; WIN64-NEXT:    retq
 ; WIN64-NEXT:    .seh_endproc

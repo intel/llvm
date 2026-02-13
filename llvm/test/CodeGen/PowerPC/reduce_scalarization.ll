@@ -19,7 +19,7 @@
 ; RUN: FileCheck %s --check-prefix=AIX-32
 
 ; Function Attrs: norecurse nounwind readonly
-define dso_local <2 x double> @test1(<2 x float>* nocapture readonly %Ptr) {
+define dso_local <2 x double> @test1(ptr nocapture readonly %Ptr) {
 ; CHECK-LABEL: test1:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lfd f0, 0(r3)
@@ -41,13 +41,13 @@ define dso_local <2 x double> @test1(<2 x float>* nocapture readonly %Ptr) {
 ; AIX-32-NEXT:    xxmrghd v2, vs1, vs0
 ; AIX-32-NEXT:    blr
 entry:
-  %0 = load <2 x float>, <2 x float>* %Ptr, align 8
+  %0 = load <2 x float>, ptr %Ptr, align 8
   %1 = fpext <2 x float> %0 to <2 x double>
   ret <2 x double> %1
 }
 
 ; Function Attrs: norecurse nounwind readonly
-define dso_local <2 x double> @test2(<2 x float>* nocapture readonly %a, <2 x float>* nocapture readonly %b) {
+define dso_local <2 x double> @test2(ptr nocapture readonly %a, ptr nocapture readonly %b) {
 ; CHECK-LABEL: test2:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lfd f0, 0(r4)
@@ -70,11 +70,11 @@ define dso_local <2 x double> @test2(<2 x float>* nocapture readonly %a, <2 x fl
 ; AIX-32:       # %bb.0: # %entry
 ; AIX-32-NEXT:    li r5, 4
 ; AIX-32-NEXT:    lxsiwzx v3, 0, r3
-; AIX-32-NEXT:    lxsiwzx v5, 0, r4
+; AIX-32-NEXT:    lxsiwzx v4, 0, r4
 ; AIX-32-NEXT:    lxsiwzx v2, r3, r5
-; AIX-32-NEXT:    lxsiwzx v4, r4, r5
 ; AIX-32-NEXT:    vmrgow v2, v3, v2
-; AIX-32-NEXT:    vmrgow v3, v5, v4
+; AIX-32-NEXT:    lxsiwzx v3, r4, r5
+; AIX-32-NEXT:    vmrgow v3, v4, v3
 ; AIX-32-NEXT:    xvsubsp vs0, v2, v3
 ; AIX-32-NEXT:    xxsldwi vs1, vs0, vs0, 1
 ; AIX-32-NEXT:    xscvspdpn f0, vs0
@@ -82,8 +82,8 @@ define dso_local <2 x double> @test2(<2 x float>* nocapture readonly %a, <2 x fl
 ; AIX-32-NEXT:    xxmrghd v2, vs0, vs1
 ; AIX-32-NEXT:    blr
 entry:
-  %0 = load <2 x float>, <2 x float>* %a, align 8
-  %1 = load <2 x float>, <2 x float>* %b, align 8
+  %0 = load <2 x float>, ptr %a, align 8
+  %1 = load <2 x float>, ptr %b, align 8
   %sub = fsub <2 x float> %0, %1
   %2 = fpext <2 x float> %sub to <2 x double>
   ret <2 x double> %2
@@ -91,7 +91,7 @@ entry:
 
 ; Function Attrs: norecurse nounwind readonly
 ; Function Attrs: norecurse nounwind readonly
-define dso_local <2 x double> @test3(<2 x float>* nocapture readonly %a, <2 x float>* nocapture readonly %b) {
+define dso_local <2 x double> @test3(ptr nocapture readonly %a, ptr nocapture readonly %b) {
 ; CHECK-LABEL: test3:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lfd f0, 0(r4)
@@ -114,11 +114,11 @@ define dso_local <2 x double> @test3(<2 x float>* nocapture readonly %a, <2 x fl
 ; AIX-32:       # %bb.0: # %entry
 ; AIX-32-NEXT:    li r5, 4
 ; AIX-32-NEXT:    lxsiwzx v3, 0, r3
-; AIX-32-NEXT:    lxsiwzx v5, 0, r4
+; AIX-32-NEXT:    lxsiwzx v4, 0, r4
 ; AIX-32-NEXT:    lxsiwzx v2, r3, r5
-; AIX-32-NEXT:    lxsiwzx v4, r4, r5
 ; AIX-32-NEXT:    vmrgow v2, v3, v2
-; AIX-32-NEXT:    vmrgow v3, v5, v4
+; AIX-32-NEXT:    lxsiwzx v3, r4, r5
+; AIX-32-NEXT:    vmrgow v3, v4, v3
 ; AIX-32-NEXT:    xvaddsp vs0, v2, v3
 ; AIX-32-NEXT:    xxsldwi vs1, vs0, vs0, 1
 ; AIX-32-NEXT:    xscvspdpn f0, vs0
@@ -126,8 +126,8 @@ define dso_local <2 x double> @test3(<2 x float>* nocapture readonly %a, <2 x fl
 ; AIX-32-NEXT:    xxmrghd v2, vs0, vs1
 ; AIX-32-NEXT:    blr
 entry:
-  %0 = load <2 x float>, <2 x float>* %a, align 8
-  %1 = load <2 x float>, <2 x float>* %b, align 8
+  %0 = load <2 x float>, ptr %a, align 8
+  %1 = load <2 x float>, ptr %b, align 8
   %sub = fadd <2 x float> %0, %1
   %2 = fpext <2 x float> %sub to <2 x double>
   ret <2 x double> %2
@@ -135,7 +135,7 @@ entry:
 
 ; Function Attrs: norecurse nounwind readonly
 ; Function Attrs: norecurse nounwind readonly
-define dso_local <2 x double> @test4(<2 x float>* nocapture readonly %a, <2 x float>* nocapture readonly %b) {
+define dso_local <2 x double> @test4(ptr nocapture readonly %a, ptr nocapture readonly %b) {
 ; CHECK-LABEL: test4:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lfd f0, 0(r4)
@@ -158,11 +158,11 @@ define dso_local <2 x double> @test4(<2 x float>* nocapture readonly %a, <2 x fl
 ; AIX-32:       # %bb.0: # %entry
 ; AIX-32-NEXT:    li r5, 4
 ; AIX-32-NEXT:    lxsiwzx v3, 0, r3
-; AIX-32-NEXT:    lxsiwzx v5, 0, r4
+; AIX-32-NEXT:    lxsiwzx v4, 0, r4
 ; AIX-32-NEXT:    lxsiwzx v2, r3, r5
-; AIX-32-NEXT:    lxsiwzx v4, r4, r5
 ; AIX-32-NEXT:    vmrgow v2, v3, v2
-; AIX-32-NEXT:    vmrgow v3, v5, v4
+; AIX-32-NEXT:    lxsiwzx v3, r4, r5
+; AIX-32-NEXT:    vmrgow v3, v4, v3
 ; AIX-32-NEXT:    xvmulsp vs0, v2, v3
 ; AIX-32-NEXT:    xxsldwi vs1, vs0, vs0, 1
 ; AIX-32-NEXT:    xscvspdpn f0, vs0
@@ -170,8 +170,8 @@ define dso_local <2 x double> @test4(<2 x float>* nocapture readonly %a, <2 x fl
 ; AIX-32-NEXT:    xxmrghd v2, vs0, vs1
 ; AIX-32-NEXT:    blr
 entry:
-  %0 = load <2 x float>, <2 x float>* %a, align 8
-  %1 = load <2 x float>, <2 x float>* %b, align 8
+  %0 = load <2 x float>, ptr %a, align 8
+  %1 = load <2 x float>, ptr %b, align 8
   %sub = fmul <2 x float> %0, %1
   %2 = fpext <2 x float> %sub to <2 x double>
   ret <2 x double> %2
@@ -216,7 +216,7 @@ define dso_local <2 x double> @test5(<2 x double> %a) {
 ; AIX-32-NEXT:    xvadddp v2, vs0, v2
 ; AIX-32-NEXT:    blr
 entry:
-  %0 = load <2 x float>, <2 x float>* @G, align 8
+  %0 = load <2 x float>, ptr @G, align 8
   %1 = fpext <2 x float> %0 to <2 x double>
   %add = fadd <2 x double> %1, %a
   ret <2 x double> %add
@@ -260,8 +260,8 @@ define dso_local i32 @test6() #0 {
 ;
 ; AIX-64-LABEL: test6:
 ; AIX-64:       # %bb.0: # %bb
-; AIX-64-NEXT:    ld r3, L..C1(r2) # @Glob1
 ; AIX-64-NEXT:    lis r4, 8
+; AIX-64-NEXT:    ld r3, L..C1(r2) # @Glob1
 ; AIX-64-NEXT:    xxlxor vs1, vs1, vs1
 ; AIX-64-NEXT:    ori r4, r4, 38248
 ; AIX-64-NEXT:    lfdx f0, r3, r4
@@ -278,8 +278,8 @@ define dso_local i32 @test6() #0 {
 ;
 ; AIX-32-LABEL: test6:
 ; AIX-32:       # %bb.0: # %bb
-; AIX-32-NEXT:    lwz r3, L..C1(r2) # @Glob1
 ; AIX-32-NEXT:    lis r4, 8
+; AIX-32-NEXT:    lwz r3, L..C1(r2) # @Glob1
 ; AIX-32-NEXT:    ori r4, r4, 38248
 ; AIX-32-NEXT:    lfsux f0, r3, r4
 ; AIX-32-NEXT:    lfs f1, 4(r3)
@@ -299,7 +299,7 @@ bb:
   br label %bb1
 
 bb1:                                              ; preds = %bb
-  %i = load <2 x float>, <2 x float>* bitcast (i8* getelementptr inbounds ([25 x %0], [25 x %0]* @Glob1, i64 0, i64 6, i32 20, i64 22392) to <2 x float>*), align 8
+  %i = load <2 x float>, ptr getelementptr inbounds ([25 x %0], ptr @Glob1, i64 0, i64 6, i32 20, i64 22392), align 8
   %i2 = fpext <2 x float> %i to <2 x double>
   %i3 = fcmp contract oeq <2 x double> zeroinitializer, %i2
   %i4 = shufflevector <2 x i1> %i3, <2 x i1> poison, <2 x i32> <i32 1, i32 undef>

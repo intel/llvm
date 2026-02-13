@@ -101,6 +101,8 @@
 // using std::atomic_fetch_sub_explicit                   // see below
 // using std::atomic_fetch_or                             // see below
 // using std::atomic_fetch_or_explicit                    // see below
+// using std::atomic_fetch_xor                            // see below
+// using std::atomic_fetch_xor_explicit                   // see below
 // using std::atomic_fetch_and                            // see below
 // using std::atomic_fetch_and_explicit                   // see below
 // using std::atomic_flag_test_and_set                    // see below
@@ -112,6 +114,8 @@
 // using std::atomic_signal_fence                         // see below
 
 #include <stdatomic.h>
+#include <cstddef>
+#include <cstdint>
 #include <type_traits>
 
 #include "test_macros.h"
@@ -164,7 +168,7 @@ void f() {
   static_assert(std::is_same_v<std::atomic<long long>, ::atomic_llong>);
   static_assert(std::is_same_v<std::atomic<unsigned long long>, ::atomic_ullong>);
 
-#ifndef _LIBCPP_HAS_NO_CHAR8_T
+#if _LIBCPP_HAS_CHAR8_T
   static_assert(std::is_same_v<std::atomic<char8_t>,  ::atomic_char8_t>);
 #endif
   static_assert(std::is_same_v<std::atomic<char16_t>, ::atomic_char16_t>);
@@ -200,12 +204,12 @@ void f() {
   static_assert(std::is_same_v<std::atomic<int_fast64_t>,   ::atomic_int_fast64_t>);
   static_assert(std::is_same_v<std::atomic<uint_fast64_t>,  ::atomic_uint_fast64_t>);
 
-  static_assert(std::is_same_v<std::atomic<intptr_t>,  ::atomic_intptr_t>);
-  static_assert(std::is_same_v<std::atomic<uintptr_t>, ::atomic_uintptr_t>);
-  static_assert(std::is_same_v<std::atomic<size_t>,    ::atomic_size_t>);
-  static_assert(std::is_same_v<std::atomic<ptrdiff_t>, ::atomic_ptrdiff_t>);
-  static_assert(std::is_same_v<std::atomic<intmax_t>,  ::atomic_intmax_t>);
-  static_assert(std::is_same_v<std::atomic<uintmax_t>, ::atomic_uintmax_t>);
+  static_assert(std::is_same_v<std::atomic<std::intptr_t>,  ::atomic_intptr_t>);
+  static_assert(std::is_same_v<std::atomic<std::uintptr_t>, ::atomic_uintptr_t>);
+  static_assert(std::is_same_v<std::atomic<std::size_t>,    ::atomic_size_t>);
+  static_assert(std::is_same_v<std::atomic<std::ptrdiff_t>, ::atomic_ptrdiff_t>);
+  static_assert(std::is_same_v<std::atomic<std::intmax_t>,  ::atomic_intmax_t>);
+  static_assert(std::is_same_v<std::atomic<std::uintmax_t>, ::atomic_uintmax_t>);
 
   // Just check that the symbols in the global namespace are visible.
   using ::atomic_compare_exchange_strong;
@@ -222,6 +226,8 @@ void f() {
   using ::atomic_fetch_or_explicit;
   using ::atomic_fetch_sub;
   using ::atomic_fetch_sub_explicit;
+  using ::atomic_fetch_xor;
+  using ::atomic_fetch_xor_explicit;
   using ::atomic_flag_clear;
   using ::atomic_flag_clear_explicit;
   using ::atomic_flag_test_and_set;

@@ -23,14 +23,12 @@ template <typename T> IllegalCast *cast(...) { return nullptr; }
 // with conversion facility
 //
 struct bar {
-  bar() {}
+  bar() = default;
+  bar(const bar &) = delete;
   struct foo *baz();
   struct foo *caz();
   struct foo *daz();
   struct foo *naz();
-
-private:
-  bar(const bar &);
 };
 struct foo {
   foo(const bar &) {}
@@ -38,11 +36,15 @@ struct foo {
 };
 
 struct base {
-  virtual ~base() {}
+  virtual ~base() = default;
 };
 
 struct derived : public base {
   static bool classof(const base *B) { return true; }
+};
+
+struct derived_nocast : public base {
+  static bool classof(const base *B) { return false; }
 };
 
 template <> struct isa_impl<foo, bar> {
@@ -122,15 +124,15 @@ template <> struct CastInfo<T4, T3> {
 using namespace llvm;
 
 // Test the peculiar behavior of Use in simplify_type.
-static_assert(std::is_same<simplify_type<Use>::SimpleType, Value *>::value,
+static_assert(std::is_same_v<simplify_type<Use>::SimpleType, Value *>,
               "Use doesn't simplify correctly!");
-static_assert(std::is_same<simplify_type<Use *>::SimpleType, Value *>::value,
+static_assert(std::is_same_v<simplify_type<Use *>::SimpleType, Value *>,
               "Use doesn't simplify correctly!");
 
 // Test that a regular class behaves as expected.
-static_assert(std::is_same<simplify_type<foo>::SimpleType, int>::value,
+static_assert(std::is_same_v<simplify_type<foo>::SimpleType, int>,
               "Unexpected simplify_type result!");
-static_assert(std::is_same<simplify_type<foo *>::SimpleType, foo *>::value,
+static_assert(std::is_same_v<simplify_type<foo *>::SimpleType, foo *>,
               "Unexpected simplify_type result!");
 
 namespace {
@@ -177,7 +179,7 @@ TEST(CastingTest, cast) {
 
   std::unique_ptr<const bar> BP(B2);
   auto FP = cast<foo>(std::move(BP));
-  static_assert(std::is_same<std::unique_ptr<const foo>, decltype(FP)>::value,
+  static_assert(std::is_same_v<std::unique_ptr<const foo>, decltype(FP)>,
                 "Incorrect deduced return type!");
   EXPECT_NE(FP.get(), null_foo);
   FP.release();
@@ -212,6 +214,18 @@ TEST(CastingTest, dyn_cast) {
   // EXPECT_EQ(F4, null_foo);
   foo *F5 = B1.daz();
   EXPECT_NE(F5, null_foo);
+
+  auto BP = std::make_unique<const bar>();
+  auto FP = dyn_cast<foo>(BP);
+  static_assert(std::is_same_v<std::unique_ptr<const foo>, decltype(FP)>,
+                "Incorrect deduced return type!");
+  EXPECT_NE(FP.get(), nullptr);
+  EXPECT_EQ(BP.get(), nullptr);
+
+  auto BP2 = std::make_unique<base>();
+  auto DP = dyn_cast<derived_nocast>(BP2);
+  EXPECT_EQ(DP.get(), nullptr);
+  EXPECT_NE(BP2.get(), nullptr);
 }
 
 // All these tests forward to dyn_cast_if_present, so they also provde an
@@ -235,7 +249,7 @@ TEST(CastingTest, dyn_cast_or_null) {
 
 TEST(CastingTest, dyn_cast_value_types) {
   T1 t1;
-  Optional<T2> t2 = dyn_cast<T2>(t1);
+  std::optional<T2> t2 = dyn_cast<T2>(t1);
   EXPECT_TRUE(t2);
 
   T2 *t2ptr = dyn_cast<T2>(&t1);
@@ -246,12 +260,12 @@ TEST(CastingTest, dyn_cast_value_types) {
 }
 
 TEST(CastingTest, dyn_cast_if_present) {
-  Optional<T1> empty{};
-  Optional<T2> F1 = dyn_cast_if_present<T2>(empty);
+  std::optional<T1> empty{};
+  std::optional<T2> F1 = dyn_cast_if_present<T2>(empty);
   EXPECT_FALSE(F1.has_value());
 
   T1 t1;
-  Optional<T2> F2 = dyn_cast_if_present<T2>(t1);
+  std::optional<T2> F2 = dyn_cast_if_present<T2>(t1);
   EXPECT_TRUE(F2.has_value());
 
   T1 *t1Null = nullptr;
@@ -264,6 +278,21 @@ TEST(CastingTest, dyn_cast_if_present) {
   // FallibleCastTraits, which default-constructs a T4, which has no value.
   T4 t4 = dyn_cast_if_present<T4>(t3);
   EXPECT_FALSE(t4.hasValue);
+}
+
+TEST(CastingTest, isa_check_predicates) {
+  auto IsaFoo = IsaPred<foo>;
+  EXPECT_TRUE(IsaFoo(B1));
+  EXPECT_TRUE(IsaFoo(B2));
+  EXPECT_TRUE(IsaFoo(B3));
+  EXPECT_TRUE(IsaPred<foo>(B4));
+  EXPECT_TRUE((IsaPred<foo, bar>(B4)));
+
+  auto IsaAndPresentFoo = IsaAndPresentPred<foo>;
+  EXPECT_TRUE(IsaAndPresentFoo(B2));
+  EXPECT_TRUE(IsaAndPresentFoo(B4));
+  EXPECT_FALSE(IsaAndPresentPred<foo>(fub()));
+  EXPECT_FALSE((IsaAndPresentPred<foo, bar>(fub())));
 }
 
 std::unique_ptr<derived> newd() { return std::make_unique<derived>(); }
@@ -346,12 +375,12 @@ namespace inferred_upcasting {
 class Base {
 public:
   // No classof. We are testing that the upcast is inferred.
-  Base() {}
+  Base() = default;
 };
 
 class Derived : public Base {
 public:
-  Derived() {}
+  Derived() = default;
 };
 
 // Even with no explicit classof() in Base, we should still be able to cast
@@ -500,7 +529,7 @@ TEST(CastingTest, smart_dyn_cast_or_null) {
 #ifndef NDEBUG
 namespace assertion_checks {
 struct Base {
-  virtual ~Base() {}
+  virtual ~Base() = default;
 };
 
 struct Derived : public Base {
@@ -530,6 +559,47 @@ TEST(CastingTest, assertion_check_unique_ptr) {
   EXPECT_DEATH((void)cast<Derived>(std::move(B)),
                "argument of incompatible type")
       << "Invalid cast of const ref did not cause an abort()";
+}
+
+TEST(Casting, StaticCastPredicate) {
+  uint32_t Value = 1;
+
+  static_assert(
+      std::is_same_v<decltype(StaticCastTo<uint64_t>(Value)), uint64_t>);
+}
+
+TEST(Casting, LLVMRTTIPredicates) {
+  struct Base {
+    enum Kind { BK_Base, BK_Derived };
+    const Kind K;
+    Base(Kind K = BK_Base) : K(K) {}
+    Kind getKind() const { return K; }
+    virtual ~Base() = default;
+  };
+
+  struct Derived : Base {
+    Derived() : Base(BK_Derived) {}
+    static bool classof(const Base *B) { return B->getKind() == BK_Derived; }
+    bool Field = false;
+  };
+
+  Base B;
+  Derived D;
+  Base *BD = &D;
+  Base *Null = nullptr;
+
+  // Pointers.
+  EXPECT_EQ(DynCastTo<Derived>(BD), &D);
+  EXPECT_EQ(CastTo<Derived>(BD), &D);
+  EXPECT_EQ(DynCastTo<Derived>(&B), nullptr);
+  EXPECT_EQ(CastIfPresentTo<Derived>(BD), &D);
+  EXPECT_EQ(CastIfPresentTo<Derived>(Null), nullptr);
+  EXPECT_EQ(DynCastIfPresentTo<Derived>(BD), &D);
+  EXPECT_EQ(DynCastIfPresentTo<Derived>(Null), nullptr);
+
+  Base &R = D;
+  CastTo<Derived>(R).Field = true;
+  EXPECT_TRUE(D.Field);
 }
 
 } // end namespace assertion_checks

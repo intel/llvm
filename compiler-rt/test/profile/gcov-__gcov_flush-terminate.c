@@ -1,14 +1,13 @@
 /// https://bugs.llvm.org/show_bug.cgi?id=38067
 /// An abnormal exit does not clear execution counts of subsequent instructions.
 // RUN: mkdir -p %t.dir && cd %t.dir
-// RUN: %clang --coverage %s -o %t
+// RUN: %clang --coverage %s -o %t -dumpdir ./
 // RUN: test -f gcov-__gcov_flush-terminate.gcno
 
 // RUN: rm -f gcov-__gcov_flush-terminate.gcda && %expect_crash %run %t
 // RUN: llvm-cov gcov -t gcov-__gcov_flush-terminate.gcda | FileCheck %s
 
 // CHECK:             -:    0:Runs:1
-// CHECK-NEXT:        -:    0:Programs:1
 
 void __gcov_dump(void);
 void __gcov_reset(void);

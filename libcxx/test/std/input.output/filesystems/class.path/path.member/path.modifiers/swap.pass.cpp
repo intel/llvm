@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++03
+// UNSUPPORTED: c++03, c++11, c++14
 
 // <filesystem>
 
@@ -14,15 +14,14 @@
 
 // void swap(path& rhs) noexcept;
 
-#include "filesystem_include.h"
-#include <type_traits>
+#include <filesystem>
 #include <cassert>
+#include <type_traits>
 
-#include "test_macros.h"
-#include "test_iterators.h"
+#include "assert_macros.h"
 #include "count_new.h"
-#include "filesystem_test_helper.h"
-
+#include "test_iterators.h"
+namespace fs = std::filesystem;
 
 struct SwapTestcase {
   const char* value1;

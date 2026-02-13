@@ -1,13 +1,13 @@
 ; Test the MSA intrinsics that are encoded with the ELM instruction format and
 ; are element extraction operations.
 
-; RUN: llc -march=mips -mattr=+msa,+fp64,+mips32r2 -relocation-model=pic < %s | \
+; RUN: llc -mtriple=mips-elf -mattr=+msa,+fp64,+mips32r2 -relocation-model=pic < %s | \
 ; RUN:   FileCheck %s -check-prefixes=MIPS-ANY,MIPS32
-; RUN: llc -march=mipsel -mattr=+msa,+fp64,+mips32r2 -relocation-model=pic < %s | \
+; RUN: llc -mtriple=mipsel-elf -mattr=+msa,+fp64,+mips32r2 -relocation-model=pic < %s | \
 ; RUN:   FileCheck %s -check-prefixes=MIPS-ANY,MIPS32
-; RUN: llc -march=mips64 -mcpu=mips64r2 -mattr=+msa,+fp64 -relocation-model=pic < %s | \
+; RUN: llc -mtriple=mips64-elf -mcpu=mips64r2 -mattr=+msa,+fp64 -relocation-model=pic < %s | \
 ; RUN:   FileCheck %s -check-prefixes=MIPS-ANY,MIPS64
-; RUN: llc -march=mips64el -mcpu=mips64r2 -mattr=+msa,+fp64 -relocation-model=pic < %s | \
+; RUN: llc -mtriple=mips64el-elf -mcpu=mips64r2 -mattr=+msa,+fp64 -relocation-model=pic < %s | \
 ; RUN:   FileCheck %s -check-prefixes=MIPS-ANY,MIPS64
 
 @llvm_mips_copy_s_b_ARG1 = global <16 x i8> <i8 0, i8 1, i8 2, i8 3, i8 4, i8 5, i8 6, i8 7, i8 8, i8 9, i8 10, i8 11, i8 12, i8 13, i8 14, i8 15>, align 16
@@ -15,9 +15,9 @@
 
 define void @llvm_mips_copy_s_b_test() nounwind {
 entry:
-  %0 = load <16 x i8>, <16 x i8>* @llvm_mips_copy_s_b_ARG1
+  %0 = load <16 x i8>, ptr @llvm_mips_copy_s_b_ARG1
   %1 = tail call i32 @llvm.mips.copy.s.b(<16 x i8> %0, i32 1)
-  store i32 %1, i32* @llvm_mips_copy_s_b_RES
+  store i32 %1, ptr @llvm_mips_copy_s_b_RES
   ret void
 }
 
@@ -38,9 +38,9 @@ declare i32 @llvm.mips.copy.s.b(<16 x i8>, i32) nounwind
 
 define void @llvm_mips_copy_s_h_test() nounwind {
 entry:
-  %0 = load <8 x i16>, <8 x i16>* @llvm_mips_copy_s_h_ARG1
+  %0 = load <8 x i16>, ptr @llvm_mips_copy_s_h_ARG1
   %1 = tail call i32 @llvm.mips.copy.s.h(<8 x i16> %0, i32 1)
-  store i32 %1, i32* @llvm_mips_copy_s_h_RES
+  store i32 %1, ptr @llvm_mips_copy_s_h_RES
   ret void
 }
 
@@ -61,9 +61,9 @@ declare i32 @llvm.mips.copy.s.h(<8 x i16>, i32) nounwind
 
 define void @llvm_mips_copy_s_w_test() nounwind {
 entry:
-  %0 = load <4 x i32>, <4 x i32>* @llvm_mips_copy_s_w_ARG1
+  %0 = load <4 x i32>, ptr @llvm_mips_copy_s_w_ARG1
   %1 = tail call i32 @llvm.mips.copy.s.w(<4 x i32> %0, i32 1)
-  store i32 %1, i32* @llvm_mips_copy_s_w_RES
+  store i32 %1, ptr @llvm_mips_copy_s_w_RES
   ret void
 }
 
@@ -84,9 +84,9 @@ declare i32 @llvm.mips.copy.s.w(<4 x i32>, i32) nounwind
 
 define void @llvm_mips_copy_s_d_test() nounwind {
 entry:
-  %0 = load <2 x i64>, <2 x i64>* @llvm_mips_copy_s_d_ARG1
+  %0 = load <2 x i64>, ptr @llvm_mips_copy_s_d_ARG1
   %1 = tail call i64 @llvm.mips.copy.s.d(<2 x i64> %0, i32 1)
-  store i64 %1, i64* @llvm_mips_copy_s_d_RES
+  store i64 %1, ptr @llvm_mips_copy_s_d_RES
   ret void
 }
 
@@ -112,9 +112,9 @@ declare i64 @llvm.mips.copy.s.d(<2 x i64>, i32) nounwind
 
 define void @llvm_mips_copy_u_b_test() nounwind {
 entry:
-  %0 = load <16 x i8>, <16 x i8>* @llvm_mips_copy_u_b_ARG1
+  %0 = load <16 x i8>, ptr @llvm_mips_copy_u_b_ARG1
   %1 = tail call i32 @llvm.mips.copy.u.b(<16 x i8> %0, i32 1)
-  store i32 %1, i32* @llvm_mips_copy_u_b_RES
+  store i32 %1, ptr @llvm_mips_copy_u_b_RES
   ret void
 }
 
@@ -135,9 +135,9 @@ declare i32 @llvm.mips.copy.u.b(<16 x i8>, i32) nounwind
 
 define void @llvm_mips_copy_u_h_test() nounwind {
 entry:
-  %0 = load <8 x i16>, <8 x i16>* @llvm_mips_copy_u_h_ARG1
+  %0 = load <8 x i16>, ptr @llvm_mips_copy_u_h_ARG1
   %1 = tail call i32 @llvm.mips.copy.u.h(<8 x i16> %0, i32 1)
-  store i32 %1, i32* @llvm_mips_copy_u_h_RES
+  store i32 %1, ptr @llvm_mips_copy_u_h_RES
   ret void
 }
 
@@ -158,9 +158,9 @@ declare i32 @llvm.mips.copy.u.h(<8 x i16>, i32) nounwind
 
 define void @llvm_mips_copy_u_w_test() nounwind {
 entry:
-  %0 = load <4 x i32>, <4 x i32>* @llvm_mips_copy_u_w_ARG1
+  %0 = load <4 x i32>, ptr @llvm_mips_copy_u_w_ARG1
   %1 = tail call i32 @llvm.mips.copy.u.w(<4 x i32> %0, i32 1)
-  store i32 %1, i32* @llvm_mips_copy_u_w_RES
+  store i32 %1, ptr @llvm_mips_copy_u_w_RES
   ret void
 }
 
@@ -182,9 +182,9 @@ declare i32 @llvm.mips.copy.u.w(<4 x i32>, i32) nounwind
 
 define void @llvm_mips_copy_u_d_test() nounwind {
 entry:
-  %0 = load <2 x i64>, <2 x i64>* @llvm_mips_copy_u_d_ARG1
+  %0 = load <2 x i64>, ptr @llvm_mips_copy_u_d_ARG1
   %1 = tail call i64 @llvm.mips.copy.u.d(<2 x i64> %0, i32 1)
-  store i64 %1, i64* @llvm_mips_copy_u_d_RES
+  store i64 %1, ptr @llvm_mips_copy_u_d_RES
   ret void
 }
 

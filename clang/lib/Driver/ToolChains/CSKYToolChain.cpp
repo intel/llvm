@@ -7,14 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "CSKYToolChain.h"
-#include "CommonArgs.h"
+#include "clang/Driver/CommonArgs.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/InputInfo.h"
-#include "clang/Driver/Options.h"
+#include "clang/Options/Options.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
-#include "llvm/Support/raw_ostream.h"
 
 using namespace clang::driver;
 using namespace clang::driver::toolchains;
@@ -38,13 +37,13 @@ CSKYToolChain::CSKYToolChain(const Driver &D, const llvm::Triple &Triple,
   GCCInstallation.init(Triple, Args);
   if (GCCInstallation.isValid()) {
     Multilibs = GCCInstallation.getMultilibs();
-    SelectedMultilib = GCCInstallation.getMultilib();
+    SelectedMultilibs.assign({GCCInstallation.getMultilib()});
     path_list &Paths = getFilePaths();
     // Add toolchain/multilib specific file paths.
-    addMultilibsFilePaths(D, Multilibs, SelectedMultilib,
+    addMultilibsFilePaths(D, Multilibs, SelectedMultilibs.back(),
                           GCCInstallation.getInstallPath(), Paths);
     getFilePaths().push_back(GCCInstallation.getInstallPath().str() +
-                             SelectedMultilib.osSuffix());
+                             SelectedMultilibs.back().osSuffix());
     ToolChain::path_list &PPaths = getProgramPaths();
     // Multilib cross-compiler GCC installations put ld in a triple-prefixed
     // directory off of the parent of the GCC installation.
@@ -52,11 +51,12 @@ CSKYToolChain::CSKYToolChain(const Driver &D, const llvm::Triple &Triple,
                            GCCInstallation.getTriple().str() + "/bin")
                          .str());
     PPaths.push_back((GCCInstallation.getParentLibPath() + "/../bin").str());
+    getFilePaths().push_back(computeSysRoot() + "/lib" +
+                             SelectedMultilibs.back().osSuffix());
   } else {
     getProgramPaths().push_back(D.Dir);
+    getFilePaths().push_back(computeSysRoot() + "/lib");
   }
-  getFilePaths().push_back(computeSysRoot() + "/lib" +
-                           SelectedMultilib.osSuffix());
 }
 
 Tool *CSKYToolChain::buildLinker() const {
@@ -124,7 +124,7 @@ std::string CSKYToolChain::computeSysRoot() const {
   if (!llvm::sys::fs::exists(SysRootDir))
     return std::string();
 
-  return std::string(SysRootDir.str());
+  return std::string(SysRootDir);
 }
 
 void CSKY::Linker::ConstructJob(Compilation &C, const JobAction &JA,
@@ -168,9 +168,8 @@ void CSKY::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   Args.AddAllArgs(CmdArgs, options::OPT_L);
   ToolChain.AddFilePathLibArgs(Args, CmdArgs);
-  Args.AddAllArgs(CmdArgs,
-                  {options::OPT_T_Group, options::OPT_e, options::OPT_s,
-                   options::OPT_t, options::OPT_Z_Flag, options::OPT_r});
+  Args.addAllArgs(CmdArgs, {options::OPT_T_Group, options::OPT_s,
+                            options::OPT_t, options::OPT_r});
 
   AddLinkerInputs(ToolChain, Inputs, Args, CmdArgs, JA);
 

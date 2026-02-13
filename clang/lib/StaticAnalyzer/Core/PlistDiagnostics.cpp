@@ -10,10 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "PlistDiagnostics.h"
 #include "clang/Analysis/IssueHash.h"
 #include "clang/Analysis/MacroExpansionContext.h"
 #include "clang/Analysis/PathDiagnostic.h"
-#include "clang/Basic/FileManager.h"
 #include "clang/Basic/PlistSupport.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Version.h"
@@ -23,11 +23,10 @@
 #include "clang/Lex/TokenConcatenation.h"
 #include "clang/Rewrite/Core/HTMLRewrite.h"
 #include "clang/StaticAnalyzer/Core/PathDiagnosticConsumers.h"
-#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
-#include "llvm/Support/Casting.h"
 #include <memory>
+#include <optional>
 
 using namespace clang;
 using namespace ento;
@@ -165,7 +164,7 @@ static void printCoverage(const PathDiagnostic *D,
                           FIDMap &FM,
                           llvm::raw_fd_ostream &o);
 
-static Optional<StringRef> getExpandedMacro(
+static std::optional<StringRef> getExpandedMacro(
     SourceLocation MacroLoc, const cross_tu::CrossTranslationUnitContext &CTU,
     const MacroExpansionContext &MacroExpansions, const SourceManager &SM);
 
@@ -366,10 +365,8 @@ void PlistPrinter::ReportMacroSubPieces(raw_ostream &o,
                                         unsigned indent, unsigned depth) {
   MacroPieces.push_back(&P);
 
-  for (PathPieces::const_iterator I = P.subPieces.begin(),
-                                  E = P.subPieces.end();
-       I != E; ++I) {
-    ReportPiece(o, **I, indent, depth, /*includeControlFlow*/ false);
+  for (const auto &SubPiece : P.subPieces) {
+    ReportPiece(o, *SubPiece, indent, depth, /*includeControlFlow*/ false);
   }
 
   assert(P.getFixits().size() == 0 &&
@@ -384,9 +381,9 @@ void PlistPrinter::ReportMacroExpansions(raw_ostream &o, unsigned indent) {
     SourceLocation MacroExpansionLoc =
         P->getLocation().asLocation().getExpansionLoc();
 
-    const Optional<StringRef> MacroName =
+    const std::optional<StringRef> MacroName =
         MacroExpansions.getOriginalText(MacroExpansionLoc);
-    const Optional<StringRef> ExpansionText =
+    const std::optional<StringRef> ExpansionText =
         getExpandedMacro(MacroExpansionLoc, CTU, MacroExpansions, SM);
 
     if (!MacroName || !ExpansionText)
@@ -407,11 +404,11 @@ void PlistPrinter::ReportMacroExpansions(raw_ostream &o, unsigned indent) {
 
     // Output the macro name.
     Indent(o, indent) << "<key>name</key>";
-    EmitString(o, MacroName.value()) << '\n';
+    EmitString(o, *MacroName) << '\n';
 
     // Output what it expands into.
     Indent(o, indent) << "<key>expansion</key>";
-    EmitString(o, ExpansionText.value()) << '\n';
+    EmitString(o, *ExpansionText) << '\n';
 
     // Finish up.
     --indent;
@@ -499,12 +496,12 @@ static void printCoverage(const PathDiagnostic *D,
 
   // Mapping from file IDs to executed lines.
   const FilesToLineNumsMap &ExecutedLines = D->getExecutedLines();
-  for (auto I = ExecutedLines.begin(), E = ExecutedLines.end(); I != E; ++I) {
-    unsigned FileKey = AddFID(FM, Fids, I->first);
+  for (const auto &[FID, Lines] : ExecutedLines) {
+    unsigned FileKey = AddFID(FM, Fids, FID);
     Indent(o, IndentLevel) << "<key>" << FileKey << "</key>\n";
     Indent(o, IndentLevel) << "<array>\n";
     IndentLevel++;
-    for (unsigned LineNo : I->second) {
+    for (unsigned LineNo : Lines) {
       Indent(o, IndentLevel);
       EmitInteger(o, LineNo) << "\n";
     }
@@ -532,19 +529,31 @@ PlistDiagnostics::PlistDiagnostics(
   (void)this->CTU;
 }
 
+/// Creates and registers a Plist diagnostic consumer, without any additional
+/// text consumer.
+void ento::createPlistDiagnosticConsumerImpl(
+    PathDiagnosticConsumerOptions DiagOpts, PathDiagnosticConsumers &C,
+    const std::string &OutputFile, const Preprocessor &PP,
+    const cross_tu::CrossTranslationUnitContext &CTU,
+    const MacroExpansionContext &MacroExpansions, bool SupportsMultipleFiles) {
+
+  // TODO: Emit an error here.
+  if (OutputFile.empty())
+    return;
+
+  C.push_back(std::make_unique<PlistDiagnostics>(
+      DiagOpts, OutputFile, PP, CTU, MacroExpansions, SupportsMultipleFiles));
+}
+
 void ento::createPlistDiagnosticConsumer(
     PathDiagnosticConsumerOptions DiagOpts, PathDiagnosticConsumers &C,
     const std::string &OutputFile, const Preprocessor &PP,
     const cross_tu::CrossTranslationUnitContext &CTU,
     const MacroExpansionContext &MacroExpansions) {
 
-  // TODO: Emit an error here.
-  if (OutputFile.empty())
-    return;
-
-  C.push_back(new PlistDiagnostics(DiagOpts, OutputFile, PP, CTU,
-                                   MacroExpansions,
-                                   /*supportsMultipleFiles=*/false));
+  createPlistDiagnosticConsumerImpl(DiagOpts, C, OutputFile, PP, CTU,
+                                    MacroExpansions,
+                                    /*SupportsMultipleFiles=*/false);
   createTextMinimalPathDiagnosticConsumer(std::move(DiagOpts), C, OutputFile,
                                           PP, CTU, MacroExpansions);
 }
@@ -555,13 +564,10 @@ void ento::createPlistMultiFileDiagnosticConsumer(
     const cross_tu::CrossTranslationUnitContext &CTU,
     const MacroExpansionContext &MacroExpansions) {
 
-  // TODO: Emit an error here.
-  if (OutputFile.empty())
-    return;
+  createPlistDiagnosticConsumerImpl(DiagOpts, C, OutputFile, PP, CTU,
+                                    MacroExpansions,
+                                    /*SupportsMultipleFiles=*/true);
 
-  C.push_back(new PlistDiagnostics(DiagOpts, OutputFile, PP, CTU,
-                                   MacroExpansions,
-                                   /*supportsMultipleFiles=*/true));
   createTextMinimalPathDiagnosticConsumer(std::move(DiagOpts), C, OutputFile,
                                           PP, CTU, MacroExpansions);
 }
@@ -575,8 +581,8 @@ void PlistDiagnostics::printBugPath(llvm::raw_ostream &o, const FIDMap &FM,
                              }) &&
          "PathDiagnostic is not partitioned so that notes precede the rest");
 
-  PathPieces::const_iterator FirstNonNote = std::partition_point(
-      Path.begin(), Path.end(), [](const PathDiagnosticPieceRef &E) {
+  PathPieces::const_iterator FirstNonNote =
+      llvm::partition_point(Path, [](const PathDiagnosticPieceRef &E) {
         return E->getKind() == PathDiagnosticPiece::Note;
       });
 
@@ -596,8 +602,8 @@ void PlistDiagnostics::printBugPath(llvm::raw_ostream &o, const FIDMap &FM,
 
   o << "   <array>\n";
 
-  for (PathPieces::const_iterator E = Path.end(); I != E; ++I)
-    Printer.ReportDiag(o, **I);
+  for (const auto &Piece : llvm::make_range(I, Path.end()))
+    Printer.ReportDiag(o, *Piece);
 
   o << "   </array>\n";
 
@@ -700,13 +706,11 @@ void PlistDiagnostics::FlushDiagnosticsImpl(
     o << "   <key>issue_hash_content_of_line_in_context</key>";
     PathDiagnosticLocation UPDLoc = D->getUniqueingLoc();
     FullSourceLoc L(SM.getExpansionLoc(UPDLoc.isValid()
-                                            ? UPDLoc.asLocation()
-                                            : D->getLocation().asLocation()),
+                                           ? UPDLoc.asLocation()
+                                           : D->getLocation().asLocation()),
                     SM);
-    const Decl *DeclWithIssue = D->getDeclWithIssue();
-    EmitString(o, getIssueHash(L, D->getCheckerName(), D->getBugType(),
-                               DeclWithIssue, LangOpts))
-        << '\n';
+
+    EmitString(o, D->getIssueHash(SM, LangOpts)) << '\n';
 
     // Output information about the semantic context where
     // the issue occurred.
@@ -805,7 +809,7 @@ void PlistDiagnostics::FlushDiagnosticsImpl(
   o << " <key>files</key>\n"
        " <array>\n";
   for (FileID FID : Fids)
-    EmitString(o << "  ", SM.getFileEntryForID(FID)->getName()) << '\n';
+    EmitString(o << "  ", SM.getFileEntryRefForID(FID)->getName()) << '\n';
   o << " </array>\n";
 
   if (llvm::AreStatisticsEnabled() && DiagOpts.ShouldSerializeStats) {
@@ -813,7 +817,6 @@ void PlistDiagnostics::FlushDiagnosticsImpl(
     std::string stats;
     llvm::raw_string_ostream os(stats);
     llvm::PrintStatisticsJSON(os);
-    os.flush();
     EmitString(o, html::EscapeText(stats)) << '\n';
   }
 
@@ -825,14 +828,14 @@ void PlistDiagnostics::FlushDiagnosticsImpl(
 // Definitions of helper functions and methods for expanding macros.
 //===----------------------------------------------------------------------===//
 
-static Optional<StringRef>
+static std::optional<StringRef>
 getExpandedMacro(SourceLocation MacroExpansionLoc,
                  const cross_tu::CrossTranslationUnitContext &CTU,
                  const MacroExpansionContext &MacroExpansions,
                  const SourceManager &SM) {
   if (auto CTUMacroExpCtx =
           CTU.getMacroExpansionContextForSourceLocation(MacroExpansionLoc)) {
-    return CTUMacroExpCtx->getExpandedText(MacroExpansionLoc);
+    return CTUMacroExpCtx->getFormattedExpandedText(MacroExpansionLoc);
   }
-  return MacroExpansions.getExpandedText(MacroExpansionLoc);
+  return MacroExpansions.getFormattedExpandedText(MacroExpansionLoc);
 }

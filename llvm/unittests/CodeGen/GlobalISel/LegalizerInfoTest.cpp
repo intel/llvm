@@ -321,6 +321,27 @@ TEST(LegalizerInfoTest, RuleSets) {
     EXPECT_ACTION(Unsupported, 0, LLT(), LegalityQuery(G_OR, {v2s16}));
   }
 
+  // Test minScalarIf
+  {
+    bool IfCond = true;
+    LegalizerInfo LI;
+    auto &LegacyInfo = LI.getLegacyLegalizerInfo();
+    LI.getActionDefinitionsBuilder(G_OR)
+      .legalFor({s32})
+      .minScalarIf([&](const LegalityQuery &Query) {
+                     return IfCond;
+                   }, 0, s32);
+    LegacyInfo.computeTables();
+
+    // Only handle scalars, ignore vectors.
+    EXPECT_ACTION(WidenScalar, 0, s32, LegalityQuery(G_OR, {s16}));
+    EXPECT_ACTION(Unsupported, 0, LLT(), LegalityQuery(G_OR, {v2s16}));
+
+    IfCond = false;
+    EXPECT_ACTION(Unsupported, 0, LLT(), LegalityQuery(G_OR, {s16}));
+    EXPECT_ACTION(Unsupported, 0, LLT(), LegalityQuery(G_OR, {v2s16}));
+  }
+
   // Test maxScalar
   {
     LegalizerInfo LI;
@@ -399,12 +420,14 @@ TEST(LegalizerInfoTest, RuleSets) {
 
     // Raw type form
     LI.getActionDefinitionsBuilder(G_ADD)
-      .fewerElementsIf(typeIs(0, v4s32), changeElementCountTo(0, v2s32))
-      .fewerElementsIf(typeIs(0, v8s32), changeElementCountTo(0, s32))
-      .fewerElementsIf(typeIs(0, LLT::scalable_vector(4, 16)),
-                       changeElementCountTo(0, LLT::scalable_vector(2, 16)))
-      .fewerElementsIf(typeIs(0, LLT::scalable_vector(8, 16)),
-                       changeElementCountTo(0, s16));
+        .fewerElementsIf(typeIs(0, v4s32),
+                         changeElementCountTo(0, ElementCount::getFixed(2)))
+        .fewerElementsIf(typeIs(0, v8s32),
+                         changeElementCountTo(0, ElementCount::getFixed(1)))
+        .fewerElementsIf(typeIs(0, LLT::scalable_vector(4, s16)),
+                         changeElementCountTo(0, ElementCount::getScalable(2)))
+        .fewerElementsIf(typeIs(0, LLT::scalable_vector(8, s16)),
+                         changeElementCountTo(0, ElementCount::getFixed(1)));
 
     LegacyInfo.computeTables();
 
@@ -459,18 +482,21 @@ TEST(LegalizerInfoTest, MMOAlignment) {
 
     LegacyInfo.computeTables();
 
-    EXPECT_ACTION(Legal, 0, LLT(),
-                  LegalityQuery(G_LOAD, {s32, p0},
-                                LegalityQuery::MemDesc{
-                                  s32, 32, AtomicOrdering::NotAtomic}));
-    EXPECT_ACTION(Unsupported, 0, LLT(),
-                  LegalityQuery(G_LOAD, {s32, p0},
-                                LegalityQuery::MemDesc{
-                                  s32, 16, AtomicOrdering::NotAtomic }));
-    EXPECT_ACTION(Unsupported, 0, LLT(),
-                  LegalityQuery(G_LOAD, {s32, p0},
-                                LegalityQuery::MemDesc{
-                                  s32, 8, AtomicOrdering::NotAtomic}));
+    EXPECT_ACTION(
+        Legal, 0, LLT(),
+        LegalityQuery(G_LOAD, {s32, p0},
+                      LegalityQuery::MemDesc{s32, 32, AtomicOrdering::NotAtomic,
+                                             AtomicOrdering::NotAtomic}));
+    EXPECT_ACTION(
+        Unsupported, 0, LLT(),
+        LegalityQuery(G_LOAD, {s32, p0},
+                      LegalityQuery::MemDesc{s32, 16, AtomicOrdering::NotAtomic,
+                                             AtomicOrdering::NotAtomic}));
+    EXPECT_ACTION(
+        Unsupported, 0, LLT(),
+        LegalityQuery(G_LOAD, {s32, p0},
+                      LegalityQuery::MemDesc{s32, 8, AtomicOrdering::NotAtomic,
+                                             AtomicOrdering::NotAtomic}));
   }
 
   // Test that the maximum supported alignment value isn't truncated
@@ -485,14 +511,17 @@ TEST(LegalizerInfoTest, MMOAlignment) {
 
     LegacyInfo.computeTables();
 
-    EXPECT_ACTION(Legal, 0, LLT(),
-                  LegalityQuery(G_LOAD, {s32, p0},
-                                LegalityQuery::MemDesc{s32,
-                                    MaxAlignInBits, AtomicOrdering::NotAtomic}));
-    EXPECT_ACTION(Unsupported, 0, LLT(),
-                  LegalityQuery(G_LOAD, {s32, p0},
-                                LegalityQuery::MemDesc{
-                                  s32, 8, AtomicOrdering::NotAtomic }));
+    EXPECT_ACTION(
+        Legal, 0, LLT(),
+        LegalityQuery(G_LOAD, {s32, p0},
+                      LegalityQuery::MemDesc{s32, MaxAlignInBits,
+                                             AtomicOrdering::NotAtomic,
+                                             AtomicOrdering::NotAtomic}));
+    EXPECT_ACTION(
+        Unsupported, 0, LLT(),
+        LegalityQuery(G_LOAD, {s32, p0},
+                      LegalityQuery::MemDesc{s32, 8, AtomicOrdering::NotAtomic,
+                                             AtomicOrdering::NotAtomic}));
   }
 }
 

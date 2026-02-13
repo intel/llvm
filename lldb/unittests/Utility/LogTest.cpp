@@ -100,6 +100,7 @@ protected:
   Log *getLog() { return m_log; }
   llvm::StringRef takeOutput();
   llvm::StringRef logAndTakeOutput(llvm::StringRef Message);
+  llvm::StringRef logAndTakeOutputf(llvm::StringRef Message);
 
 public:
   void SetUp() override;
@@ -136,6 +137,12 @@ LogChannelEnabledTest::logAndTakeOutput(llvm::StringRef Message) {
   return takeOutput();
 }
 
+llvm::StringRef
+LogChannelEnabledTest::logAndTakeOutputf(llvm::StringRef Message) {
+  LLDB_LOGF(m_log, "%s", Message.str().c_str());
+  return takeOutput();
+}
+
 TEST(LogTest, LLDB_LOG_nullptr) {
   Log *log = nullptr;
   LLDB_LOG(log, "{0}", 0); // Shouldn't crash
@@ -153,7 +160,6 @@ TEST(LogTest, Unregister) {
   llvm::llvm_shutdown_obj obj;
   Log::Register("chan", test_channel);
   EXPECT_EQ(nullptr, GetLog(TestChannel::FOO));
-  std::string message;
   auto log_handler_sp = std::make_shared<TestLogHandler>();
   EXPECT_TRUE(
       Log::EnableLogChannel(log_handler_sp, 0, "chan", {"foo"}, llvm::nulls()));
@@ -193,9 +199,20 @@ TEST(LogHandlerTest, RotatingLogHandler) {
   EXPECT_EQ(GetDumpAsString(handler), "bazquxquux");
 }
 
+TEST(LogHandlerTest, TeeLogHandler) {
+  auto handler1 = std::make_shared<RotatingLogHandler>(2);
+  auto handler2 = std::make_shared<RotatingLogHandler>(2);
+  TeeLogHandler handler(handler1, handler2);
+
+  handler.Emit("foo");
+  handler.Emit("bar");
+
+  EXPECT_EQ(GetDumpAsString(*handler1), "foobar");
+  EXPECT_EQ(GetDumpAsString(*handler2), "foobar");
+}
+
 TEST_F(LogChannelTest, Enable) {
   EXPECT_EQ(nullptr, GetLog(TestChannel::FOO));
-  std::string message;
   auto log_handler_sp = std::make_shared<TestLogHandler>();
   std::string error;
   ASSERT_FALSE(EnableChannel(log_handler_sp, 0, "chanchan", {}, error));
@@ -217,7 +234,6 @@ TEST_F(LogChannelTest, Enable) {
 
 TEST_F(LogChannelTest, EnableOptions) {
   EXPECT_EQ(nullptr, GetLog(TestChannel::FOO));
-  std::string message;
   auto log_handler_sp = std::make_shared<TestLogHandler>();
   std::string error;
   EXPECT_TRUE(EnableChannel(log_handler_sp, LLDB_LOG_OPTION_VERBOSE, "chan", {},
@@ -230,7 +246,6 @@ TEST_F(LogChannelTest, EnableOptions) {
 
 TEST_F(LogChannelTest, Disable) {
   EXPECT_EQ(nullptr, GetLog(TestChannel::FOO));
-  std::string message;
   auto log_handler_sp = std::make_shared<TestLogHandler>();
   std::string error;
   EXPECT_TRUE(EnableChannel(log_handler_sp, 0, "chan", {"foo", "bar"}, error));
@@ -294,6 +309,21 @@ TEST_F(LogChannelEnabledTest, log_options) {
            Function);
     EXPECT_STRCASEEQ("LogTest.cpp", File);
     EXPECT_STREQ("logAndTakeOutput", Function);
+  }
+
+  {
+    EXPECT_TRUE(EnableChannel(getLogHandler(),
+                              LLDB_LOG_OPTION_PREPEND_FILE_FUNCTION, "chan", {},
+                              Err));
+    llvm::StringRef Msg = logAndTakeOutputf("Hello World");
+    char File[12];
+    char Function[18];
+
+    sscanf(Msg.str().c_str(),
+           "%[^:]:%s                                 Hello World", File,
+           Function);
+    EXPECT_STRCASEEQ("LogTest.cpp", File);
+    EXPECT_STREQ("logAndTakeOutputf", Function);
   }
 
   EXPECT_TRUE(EnableChannel(getLogHandler(),

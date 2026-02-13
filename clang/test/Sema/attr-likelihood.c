@@ -1,11 +1,11 @@
-// RUN: %clang_cc1 %s -fsyntax-only -fdouble-square-bracket-attributes -verify
+// RUN: %clang_cc1 %s -fsyntax-only -verify
 
 void g(void) {
   if (1)
     [[clang::likely]] {}
 }
 void m(void) {
-  [[clang::likely]] int x = 42; // expected-error {{'likely' attribute cannot be applied to a declaration}}
+  [[clang::likely]] int x = 42; // expected-error {{'clang::likely' attribute cannot be applied to a declaration}}
 
   if (x)
     [[clang::unlikely]] {}
@@ -44,7 +44,7 @@ void m(void) {
     goto lbl;
 
   // FIXME: allow the attribute on the label
-  [[clang::unlikely]] lbl : // expected-error {{'unlikely' attribute cannot be applied to a declaration}}
+  [[clang::unlikely]] lbl : // expected-error {{'clang::unlikely' attribute cannot be applied to a declaration}}
   [[clang::likely]] x = x + 1;
 
   [[clang::likely]]++ x;

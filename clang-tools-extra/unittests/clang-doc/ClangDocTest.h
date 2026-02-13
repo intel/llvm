@@ -12,6 +12,8 @@
 #include "ClangDocTest.h"
 #include "Representation.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/DiagnosticOptions.h"
 #include "gtest/gtest.h"
 
 namespace clang {
@@ -27,6 +29,7 @@ NamespaceInfo *InfoAsNamespace(Info *I);
 RecordInfo *InfoAsRecord(Info *I);
 FunctionInfo *InfoAsFunction(Info *I);
 EnumInfo *InfoAsEnum(Info *I);
+TypedefInfo *InfoAsTypedef(Info *I);
 
 // Unlike the operator==, these functions explicitly does not check USRs, as
 // that may change and it would be better to not rely on its implementation.
@@ -41,11 +44,27 @@ void CheckBaseInfo(Info *Expected, Info *Actual);
 void CheckSymbolInfo(SymbolInfo *Expected, SymbolInfo *Actual);
 void CheckFunctionInfo(FunctionInfo *Expected, FunctionInfo *Actual);
 void CheckEnumInfo(EnumInfo *Expected, EnumInfo *Actual);
+void CheckTypedefInfo(TypedefInfo *Expected, TypedefInfo *Actual);
 void CheckNamespaceInfo(NamespaceInfo *Expected, NamespaceInfo *Actual);
 void CheckRecordInfo(RecordInfo *Expected, RecordInfo *Actual);
 void CheckBaseRecordInfo(BaseRecordInfo *Expected, BaseRecordInfo *Actual);
 
 void CheckIndex(Index &Expected, Index &Actual);
+
+class ClangDocContextTest : public ::testing::Test {
+protected:
+  ClangDocContextTest();
+  ~ClangDocContextTest() override;
+
+  ClangDocContext
+  getClangDocContext(std::vector<std::string> UserStylesheets = {},
+                     StringRef RepositoryUrl = "",
+                     StringRef RepositoryLinePrefix = "", StringRef Base = "");
+
+  DiagnosticOptions DiagOpts;
+  llvm::IntrusiveRefCntPtr<DiagnosticIDs> DiagID;
+  DiagnosticsEngine Diags;
+};
 
 } // namespace doc
 } // namespace clang

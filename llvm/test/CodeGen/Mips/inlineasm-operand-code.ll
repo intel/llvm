@@ -1,14 +1,14 @@
 ; Positive test for inline register constraints
 ;
-; RUN: llc -no-integrated-as -march=mipsel -relocation-model=pic < %s | \
+; RUN: llc -no-integrated-as -mtriple=mipsel -relocation-model=pic < %s | \
 ; RUN:     FileCheck -check-prefixes=ALL,LE32,GAS %s
-; RUN: llc -no-integrated-as -march=mips -relocation-model=pic < %s | \
+; RUN: llc -no-integrated-as -mtriple=mips -relocation-model=pic < %s | \
 ; RUN:     FileCheck -check-prefixes=ALL,BE32,GAS %s
 
 ; IAS might not print in the same way since it parses the assembly.
-; RUN: llc -march=mipsel -relocation-model=pic < %s | \
+; RUN: llc -mtriple=mipsel -relocation-model=pic < %s | \
 ; RUN:     FileCheck -check-prefixes=ALL,LE32,IAS %s
-; RUN: llc -march=mips -relocation-model=pic < %s | \
+; RUN: llc -mtriple=mips -relocation-model=pic < %s | \
 ; RUN:     FileCheck -check-prefixes=ALL,BE32,IAS %s
 
 %union.u_tag = type { i64 }
@@ -168,7 +168,7 @@ entry:
 ; LE32:          or ${{[0-9]+}}, $[[SECOND]], ${{[0-9]+}}
 ; BE32:          or ${{[0-9]+}}, $[[SECOND]], ${{[0-9]+}}
 ; ALL:           #NO_APP
-  %bosco = load i64, i64* getelementptr inbounds (%union.u_tag, %union.u_tag* @uval, i32 0, i32 0), align 8
+  %bosco = load i64, ptr @uval, align 8
   %trunc1 = trunc i64 %bosco to i32
   tail call i32 asm sideeffect "or $0, ${1:D}, $2", "=r,r,r"(i64 %bosco, i32 %trunc1) nounwind
   ret i32 0
@@ -186,7 +186,7 @@ entry:
 ; LE32:          or ${{[0-9]+}}, $[[FIRST]], ${{[0-9]+}}
 ; BE32:          or ${{[0-9]+}}, $[[SECOND]], ${{[0-9]+}}
 ; ALL:           #NO_APP
-  %bosco = load i64, i64* getelementptr inbounds (%union.u_tag, %union.u_tag* @uval, i32 0, i32 0), align 8
+  %bosco = load i64, ptr @uval, align 8
   %trunc1 = trunc i64 %bosco to i32
   tail call i32 asm sideeffect "or $0, ${1:L}, $2", "=r,r,r"(i64 %bosco, i32 %trunc1) nounwind
   ret i32 0
@@ -204,7 +204,7 @@ entry:
 ; LE32:          or ${{[0-9]+}}, $[[SECOND]], ${{[0-9]+}}
 ; BE32:          or ${{[0-9]+}}, $[[FIRST]], ${{[0-9]+}}
 ; ALL:           #NO_APP
-  %bosco = load i64, i64* getelementptr inbounds (%union.u_tag, %union.u_tag* @uval, i32 0, i32 0), align 8
+  %bosco = load i64, ptr @uval, align 8
   %trunc1 = trunc i64 %bosco to i32
   tail call i32 asm sideeffect "or $0, ${1:M}, $2", "=r,r,r"(i64 %bosco, i32 %trunc1) nounwind
   ret i32 0

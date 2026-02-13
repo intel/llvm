@@ -8,38 +8,30 @@
 
 #include <detail/context_impl.hpp>
 #include <detail/kernel_program_cache.hpp>
-#include <detail/plugin.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
-KernelProgramCache::~KernelProgramCache() {
-  for (auto &ProgIt : MCachedPrograms) {
-    ProgramWithBuildStateT &ProgWithState = ProgIt.second;
-    PiProgramT *ToBeDeleted = ProgWithState.Ptr.load();
 
-    if (!ToBeDeleted)
-      continue;
+void KernelProgramCache::traceKernelImpl(const char *Msg,
+                                         std::string_view KernelName,
+                                         bool IsFastKernelCache) {
+  std::string Identifier =
+      "[IsFastCache: " + std::to_string(IsFastKernelCache) +
+      "][Key:{Name = " + KernelName.data() + "}]: ";
 
-    auto KernIt = MKernelsPerProgramCache.find(ToBeDeleted);
-
-    if (KernIt != MKernelsPerProgramCache.end()) {
-      for (auto &p : KernIt->second) {
-        KernelWithBuildStateT &KernelWithState = p.second;
-        PiKernelT *Kern = KernelWithState.Ptr.load();
-
-        if (Kern) {
-          const detail::plugin &Plugin = MParentContext->getPlugin();
-          Plugin.call<PiApiKind::piKernelRelease>(Kern);
-        }
-      }
-      MKernelsPerProgramCache.erase(KernIt);
-    }
-
-    const detail::plugin &Plugin = MParentContext->getPlugin();
-    Plugin.call<PiApiKind::piProgramRelease>(ToBeDeleted);
-  }
+  std::cerr << "[In-Memory Cache][Thread Id:" << std::this_thread::get_id()
+            << "][Kernel Cache]" << Identifier << Msg << std::endl;
 }
+
+adapter_impl &KernelProgramCache::getAdapter() {
+  return MParentContext.getAdapter();
+}
+
+ur_context_handle_t KernelProgramCache::getURContext() const {
+  return MParentContext.getHandleRef();
+}
+
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

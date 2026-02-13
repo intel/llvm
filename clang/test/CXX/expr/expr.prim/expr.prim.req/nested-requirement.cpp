@@ -41,9 +41,16 @@ namespace std_example {
   template<typename T>
   concept C2 = requires (T a) {
       requires sizeof(a) == 4; // OK
-      requires a == 0; // expected-note{{because 'a == 0' would be invalid: constraint variable 'a' cannot be used in an evaluated context}}
+      requires a == 0; // expected-error{{substitution into constraint expression resulted in a non-constant expression}}
+      // expected-note@-1{{while checking the satisfaction of nested requirement requested here}}
+      // expected-note@-2{{while checking the satisfaction of nested requirement requested here}}
+      // expected-note@-5{{while substituting template arguments into constraint expression here}}
+      // expected-note@-4{{function parameter 'a' with unknown value cannot be used in a constant expression}}
+      // expected-note@-7{{declared here}}
     };
-  static_assert(C2<int>); // expected-note{{because 'int' does not satisfy 'C2'}} expected-error{{static assertion failed}}
+    static_assert(C2<int>); // expected-error{{static assertion failed}}
+    // expected-note@-1{{while checking the satisfaction of concept 'C2<int>' requested here}}
+    // expected-note@-2{{because 'int' does not satisfy 'C2'}}
 }
 
 template<typename T>
@@ -51,3 +58,128 @@ concept K = requires (T::Type X) {
   X.next();
 };
 
+namespace SubstitutionFailureNestedRequires {
+template<class T>  concept True = true;
+template<class T>  concept False = false;
+
+struct S { double value; };
+
+template <class T>
+concept Pipes = requires (T x) {
+   requires True<decltype(x.value)> || True<T> || False<T>;
+   requires False<T> || True<T> || True<decltype(x.value)>;
+};
+
+template <class T>
+concept Amps1 = requires (T x) {
+   requires True<decltype(x.value)> && True<T> && !False<T>; // #Amps1
+};
+template <class T>
+concept Amps2 = requires (T x) {
+   requires True<T> && True<decltype(x.value)>;
+};
+
+static_assert(Pipes<S>);
+static_assert(Pipes<double>);
+
+static_assert(Amps1<S>);
+static_assert(Amps1<double>);
+
+static_assert(Amps2<S>);
+static_assert(Amps2<double>);
+
+template<class T>
+void foo1() requires requires (T x) {
+  requires
+  True<decltype(x.value)>
+  && True<T>;
+} {}
+template<class T> void fooPipes() requires Pipes<T> {}
+template<class T> void fooAmps1() requires Amps1<T> {}
+void foo() {
+  foo1<S>();
+  foo1<int>();
+  fooPipes<S>();
+  fooPipes<int>();
+  fooAmps1<S>();
+  fooAmps1<int>();
+}
+
+template<class T>
+concept HasNoValue = requires (T x) {
+  requires !True<decltype(x.value)> && True<T>;
+};
+// FIXME: 'int' does not satisfy 'HasNoValue' currently since `!True<decltype(x.value)>` is an invalid expression.
+// But, in principle, it should be constant-evaluated to true.
+// This happens also for requires expression and is not restricted to nested requirement.
+static_assert(!HasNoValue<int>);
+static_assert(!HasNoValue<S>);
+
+template<class T> constexpr bool NotAConceptTrue = true;
+template <class T>
+concept SFinNestedRequires = requires (T x) {
+    // SF in a non-concept specialisation should also be evaluated to false.
+   requires NotAConceptTrue<decltype(x.value)> || NotAConceptTrue<T>;
+};
+static_assert(SFinNestedRequires<int>);
+static_assert(SFinNestedRequires<S>);
+template <class T>
+void foo() requires SFinNestedRequires<T> {}
+void bar() {
+  foo<int>();
+  foo<S>();
+}
+namespace ErrorExpressions_NotSF {
+template<typename T> struct X { static constexpr bool value = T::value; }; // #X_Value
+struct True { static constexpr bool value = true; };
+struct False { static constexpr bool value = false; };
+template<typename T> concept C = true;
+template<typename T> concept F = false;
+
+template<typename T> requires requires(T) { requires C<T> || X<T>::value; } void foo();
+
+template<typename T> requires requires(T) { requires C<T> && X<T>::value; } void bar(); // #bar
+template<typename T> requires requires(T) { requires F<T> || (X<T>::value && C<T>); } void baz();
+
+void func() {
+  foo<True>();
+  foo<False>();
+  foo<int>();
+
+  bar<True>();
+  bar<False>();
+  // expected-error@-1 {{no matching function for call to 'bar'}}
+  // expected-note@#bar {{while substituting template arguments into constraint expression here}}
+  // expected-note@#bar {{while checking the satisfaction of nested requirement requested here}}
+  // expected-note@#bar {{candidate template ignored: constraints not satisfied [with T = False]}}
+  // expected-note@#bar {{because 'X<False>::value' evaluated to false}}
+
+  bar<int>();
+  // expected-error@-1 {{no matching function for call to 'bar'}} \
+  // expected-note@-1 {{while checking constraint satisfaction for template 'bar<int>' required here}} \
+  // expected-note@-1 {{while substituting deduced template arguments into function template 'bar' [with T = int]}} \
+  // expected-note@#bar {{in instantiation of static data member}}
+  // expected-note@#bar {{while checking the satisfaction of nested requirement requested here}}
+  // expected-note@#bar {{while substituting template arguments into constraint expression here}}
+  // expected-note@#bar {{candidate template ignored}}
+  // expected-error@#X_Value {{type 'int' cannot be used prior to '::' because it has no members}}
+}
+}
+}
+
+namespace no_crash_D138914 {
+// https://reviews.llvm.org/D138914
+template <class a, a> struct b;
+template <bool c> using d = b<bool, c>;
+template <class a, class e> using f = d<__is_same(a, e)>;
+template <class a, class e>
+concept g = f<a, e>::h;
+template <class a, class e>
+concept i = g<e, a>;
+template <typename> class j {
+  template <typename k>
+  requires requires { requires i<j, k>; }
+  j();
+};
+template <> j(); // expected-error {{deduction guide declaration without trailing return type}}
+}

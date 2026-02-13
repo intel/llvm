@@ -39,6 +39,7 @@
 #include "error.h"
 #include "stl_extras.h"
 
+#include <optional>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -47,7 +48,7 @@
 #include <utility>
 #include <vector>
 
-namespace __orc_rt {
+namespace orc_rt {
 
 /// Output char buffer with overflow check.
 class SPSOutputBuffer {
@@ -189,6 +190,14 @@ public:
   typedef SPSArgList<SPSTagTs...> AsArgList;
 };
 
+/// SPS tag type for optionals.
+///
+/// SPSOptionals should be serialized as a bool with true indicating that an
+/// SPSTagT value is present, and false indicating that there is no value.
+/// If the boolean is true then the serialized SPSTagT will follow immediately
+/// after it.
+template <typename SPSTagT> class SPSOptional {};
+
 /// SPS tag type for sequences.
 ///
 /// SPSSequences should be serialized as a uint64_t sequence length,
@@ -268,6 +277,13 @@ public:
 /// Trivial std::vector<T> -> SPSSequence<SPSElementTagT> serialization.
 template <typename SPSElementTagT, typename T>
 class TrivialSPSSequenceSerialization<SPSElementTagT, std::vector<T>> {
+public:
+  static constexpr bool available = true;
+};
+
+/// Trivial span<T> -> SPSSequence<SPSElementTagT> serialization.
+template <typename SPSElementTagT, typename T>
+class TrivialSPSSequenceSerialization<SPSElementTagT, span<T>> {
 public:
   static constexpr bool available = true;
 };
@@ -376,6 +392,44 @@ public:
   }
 };
 
+/// SPSTuple serialization for std::tuple.
+template <typename... SPSTagTs, typename... Ts>
+class SPSSerializationTraits<SPSTuple<SPSTagTs...>, std::tuple<Ts...>> {
+private:
+  using TupleArgList = typename SPSTuple<SPSTagTs...>::AsArgList;
+  using ArgIndices = std::make_index_sequence<sizeof...(Ts)>;
+
+  template <std::size_t... I>
+  static size_t size(const std::tuple<Ts...> &T, std::index_sequence<I...>) {
+    return TupleArgList::size(std::get<I>(T)...);
+  }
+
+  template <std::size_t... I>
+  static bool serialize(SPSOutputBuffer &OB, const std::tuple<Ts...> &T,
+                        std::index_sequence<I...>) {
+    return TupleArgList::serialize(OB, std::get<I>(T)...);
+  }
+
+  template <std::size_t... I>
+  static bool deserialize(SPSInputBuffer &IB, std::tuple<Ts...> &T,
+                          std::index_sequence<I...>) {
+    return TupleArgList::deserialize(IB, std::get<I>(T)...);
+  }
+
+public:
+  static size_t size(const std::tuple<Ts...> &T) {
+    return size(T, ArgIndices{});
+  }
+
+  static bool serialize(SPSOutputBuffer &OB, const std::tuple<Ts...> &T) {
+    return serialize(OB, T, ArgIndices{});
+  }
+
+  static bool deserialize(SPSInputBuffer &IB, std::tuple<Ts...> &T) {
+    return deserialize(IB, T, ArgIndices{});
+  }
+};
+
 /// SPSTuple serialization for std::pair.
 template <typename SPSTagT1, typename SPSTagT2, typename T1, typename T2>
 class SPSSerializationTraits<SPSTuple<SPSTagT1, SPSTagT2>, std::pair<T1, T2>> {
@@ -393,6 +447,38 @@ public:
   static bool deserialize(SPSInputBuffer &IB, std::pair<T1, T2> &P) {
     return SPSArgList<SPSTagT1>::deserialize(IB, P.first) &&
            SPSArgList<SPSTagT2>::deserialize(IB, P.second);
+  }
+};
+
+/// SPSOptional serialization for std::optional.
+template <typename SPSTagT, typename T>
+class SPSSerializationTraits<SPSOptional<SPSTagT>, std::optional<T>> {
+public:
+  static size_t size(const std::optional<T> &Value) {
+    size_t Size = SPSArgList<bool>::size(!!Value);
+    if (Value)
+      Size += SPSArgList<SPSTagT>::size(*Value);
+    return Size;
+  }
+
+  static bool serialize(SPSOutputBuffer &OB, const std::optional<T> &Value) {
+    if (!SPSArgList<bool>::serialize(OB, !!Value))
+      return false;
+    if (Value)
+      return SPSArgList<SPSTagT>::serialize(OB, *Value);
+    return true;
+  }
+
+  static bool deserialize(SPSInputBuffer &IB, std::optional<T> &Value) {
+    bool HasValue;
+    if (!SPSArgList<bool>::deserialize(IB, HasValue))
+      return false;
+    if (HasValue) {
+      Value = T();
+      return SPSArgList<SPSTagT>::deserialize(IB, *Value);
+    } else
+      Value = std::optional<T>();
+    return true;
   }
 };
 
@@ -490,7 +576,7 @@ Expected<T> fromSPSSerializable(SPSSerializableExpected<T> BSE) {
     return make_error<StringError>(BSE.ErrMsg);
 }
 
-} // end namespace detail
+} // namespace detail
 
 /// Serialize to a SPSError from a detail::SPSSerializableError.
 template <>
@@ -598,6 +684,6 @@ public:
   }
 };
 
-} // end namespace __orc_rt
+} // namespace orc_rt
 
 #endif // ORC_RT_SIMPLE_PACKED_SERIALIZATION_H

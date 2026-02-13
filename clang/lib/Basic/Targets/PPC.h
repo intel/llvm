@@ -16,9 +16,9 @@
 #include "OSTargets.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TargetOptions.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/Compiler.h"
+#include "llvm/TargetParser/Triple.h"
 
 namespace clang {
 namespace targets {
@@ -44,13 +44,13 @@ class LLVM_LIBRARY_VISIBILITY PPCTargetInfo : public TargetInfo {
     ArchDefinePwr8 = 1 << 12,
     ArchDefinePwr9 = 1 << 13,
     ArchDefinePwr10 = 1 << 14,
-    ArchDefineFuture = 1 << 15,
-    ArchDefineA2 = 1 << 16,
+    ArchDefinePwr11 = 1 << 15,
+    ArchDefineFuture = 1 << 16,
+    ArchDefineA2 = 1 << 17,
     ArchDefineE500 = 1 << 18
   } ArchDefineTypes;
 
   ArchDefineTypes ArchDefs = ArchDefineNone;
-  static const Builtin::Info BuiltinInfo[];
   static const char *const GCCRegNames[];
   static const TargetInfo::GCCRegAlias GCCRegAliases[];
   std::string CPU;
@@ -60,26 +60,18 @@ class LLVM_LIBRARY_VISIBILITY PPCTargetInfo : public TargetInfo {
   bool HasAltivec = false;
   bool HasMMA = false;
   bool HasROPProtect = false;
-  bool HasPrivileged = false;
   bool HasVSX = false;
-  bool UseCRBits = false;
   bool HasP8Vector = false;
   bool HasP8Crypto = false;
-  bool HasDirectMove = false;
   bool HasHTM = false;
-  bool HasBPERMD = false;
-  bool HasExtDiv = false;
   bool HasP9Vector = false;
   bool HasSPE = false;
-  bool PairedVectorMemops = false;
+  bool HasFrsqrte = false;
+  bool HasFrsqrtes = false;
   bool HasP10Vector = false;
   bool HasPCRelativeMemops = false;
-  bool HasPrefixInstrs = false;
-  bool IsISA2_06 = false;
-  bool IsISA2_07 = false;
-  bool IsISA3_0 = false;
-  bool IsISA3_1 = false;
   bool HasQuadwordAtomics = false;
+  bool UseLongCalls = false;
 
 protected:
   std::string ABI;
@@ -88,15 +80,16 @@ public:
   PPCTargetInfo(const llvm::Triple &Triple, const TargetOptions &)
       : TargetInfo(Triple) {
     SuitableAlign = 128;
-    SimdDefaultAlign = 128;
     LongDoubleWidth = LongDoubleAlign = 128;
     LongDoubleFormat = &llvm::APFloat::PPCDoubleDouble();
     HasStrictFP = true;
     HasIbm128 = true;
+    HasUnalignedAccess = true;
   }
 
   // Set the language option for altivec based on our value.
-  void adjust(DiagnosticsEngine &Diags, LangOptions &Opts) override;
+  void adjust(DiagnosticsEngine &Diags, LangOptions &Opts,
+              const TargetInfo *Aux) override;
 
   // Note: GCC recognizes the following additional cpus:
   //  401, 403, 405, 405fp, 440fp, 464, 464fp, 476, 476fp, 505, 740, 801,
@@ -129,46 +122,50 @@ public:
               .Case("970", ArchDefineName | ArchDefinePwr4 | ArchDefinePpcgr |
                                ArchDefinePpcsq)
               .Case("a2", ArchDefineA2)
-              .Cases("power3", "pwr3", ArchDefinePpcgr)
-              .Cases("power4", "pwr4",
+              .Cases({"power3", "pwr3"}, ArchDefinePpcgr)
+              .Cases({"power4", "pwr4"},
                      ArchDefinePwr4 | ArchDefinePpcgr | ArchDefinePpcsq)
-              .Cases("power5", "pwr5",
-                     ArchDefinePwr5 | ArchDefinePwr4 | ArchDefinePpcgr |
-                         ArchDefinePpcsq)
-              .Cases("power5x", "pwr5x",
+              .Cases({"power5", "pwr5"}, ArchDefinePwr5 | ArchDefinePwr4 |
+                                             ArchDefinePpcgr | ArchDefinePpcsq)
+              .Cases({"power5x", "pwr5x"},
                      ArchDefinePwr5x | ArchDefinePwr5 | ArchDefinePwr4 |
                          ArchDefinePpcgr | ArchDefinePpcsq)
-              .Cases("power6", "pwr6",
-                     ArchDefinePwr6 | ArchDefinePwr5x | ArchDefinePwr5 |
-                         ArchDefinePwr4 | ArchDefinePpcgr | ArchDefinePpcsq)
-              .Cases("power6x", "pwr6x",
+              .Cases({"power6", "pwr6"}, ArchDefinePwr6 | ArchDefinePwr5x |
+                                             ArchDefinePwr5 | ArchDefinePwr4 |
+                                             ArchDefinePpcgr | ArchDefinePpcsq)
+              .Cases({"power6x", "pwr6x"},
                      ArchDefinePwr6x | ArchDefinePwr6 | ArchDefinePwr5x |
                          ArchDefinePwr5 | ArchDefinePwr4 | ArchDefinePpcgr |
                          ArchDefinePpcsq)
-              .Cases("power7", "pwr7",
-                     ArchDefinePwr7 | ArchDefinePwr6 | ArchDefinePwr5x |
-                         ArchDefinePwr5 | ArchDefinePwr4 | ArchDefinePpcgr |
-                         ArchDefinePpcsq)
+              .Cases({"power7", "pwr7"}, ArchDefinePwr7 | ArchDefinePwr6 |
+                                             ArchDefinePwr5x | ArchDefinePwr5 |
+                                             ArchDefinePwr4 | ArchDefinePpcgr |
+                                             ArchDefinePpcsq)
               // powerpc64le automatically defaults to at least power8.
-              .Cases("power8", "pwr8", "ppc64le",
+              .Cases({"power8", "pwr8", "ppc64le"},
                      ArchDefinePwr8 | ArchDefinePwr7 | ArchDefinePwr6 |
                          ArchDefinePwr5x | ArchDefinePwr5 | ArchDefinePwr4 |
                          ArchDefinePpcgr | ArchDefinePpcsq)
-              .Cases("power9", "pwr9",
+              .Cases({"power9", "pwr9"},
                      ArchDefinePwr9 | ArchDefinePwr8 | ArchDefinePwr7 |
                          ArchDefinePwr6 | ArchDefinePwr5x | ArchDefinePwr5 |
                          ArchDefinePwr4 | ArchDefinePpcgr | ArchDefinePpcsq)
-              .Cases("power10", "pwr10",
+              .Cases({"power10", "pwr10"},
                      ArchDefinePwr10 | ArchDefinePwr9 | ArchDefinePwr8 |
                          ArchDefinePwr7 | ArchDefinePwr6 | ArchDefinePwr5x |
                          ArchDefinePwr5 | ArchDefinePwr4 | ArchDefinePpcgr |
                          ArchDefinePpcsq)
+              .Cases({"power11", "pwr11"},
+                     ArchDefinePwr11 | ArchDefinePwr10 | ArchDefinePwr9 |
+                         ArchDefinePwr8 | ArchDefinePwr7 | ArchDefinePwr6 |
+                         ArchDefinePwr5x | ArchDefinePwr5 | ArchDefinePwr4 |
+                         ArchDefinePpcgr | ArchDefinePpcsq)
               .Case("future",
-                    ArchDefineFuture | ArchDefinePwr10 | ArchDefinePwr9 |
-                        ArchDefinePwr8 | ArchDefinePwr7 | ArchDefinePwr6 |
-                        ArchDefinePwr5x | ArchDefinePwr5 | ArchDefinePwr4 |
-                        ArchDefinePpcgr | ArchDefinePpcsq)
-              .Cases("8548", "e500", ArchDefineE500)
+                    ArchDefineFuture | ArchDefinePwr11 | ArchDefinePwr10 |
+                        ArchDefinePwr9 | ArchDefinePwr8 | ArchDefinePwr7 |
+                        ArchDefinePwr6 | ArchDefinePwr5x | ArchDefinePwr5 |
+                        ArchDefinePwr4 | ArchDefinePpcgr | ArchDefinePpcsq)
+              .Cases({"8548", "e500"}, ArchDefineE500)
               .Default(ArchDefineNone);
     }
     return CPUKnown;
@@ -176,7 +173,7 @@ public:
 
   StringRef getABI() const override { return ABI; }
 
-  ArrayRef<Builtin::Info> getTargetBuiltins() const override;
+  llvm::SmallVector<Builtin::InfosShard> getTargetBuiltins() const override;
 
   bool isCLZForZeroUndef() const override { return false; }
 
@@ -189,6 +186,7 @@ public:
                  const std::vector<std::string> &FeaturesVec) const override;
 
   void addP10SpecificFeatures(llvm::StringMap<bool> &Features) const;
+  void addP11SpecificFeatures(llvm::StringMap<bool> &Features) const;
   void addFutureSpecificFeatures(llvm::StringMap<bool> &Features) const;
 
   bool handleTargetFeatures(std::vector<std::string> &Features,
@@ -198,6 +196,8 @@ public:
 
   void setFeatureEnabled(llvm::StringMap<bool> &Features, StringRef Name,
                          bool Enabled) const override;
+
+  bool supportsTargetAttributeTune() const override { return true; }
 
   ArrayRef<const char *> getGCCRegNames() const override;
 
@@ -301,9 +301,11 @@ public:
               // asm statements)
       Info.setAllowsMemory();
       break;
-    case 'R': // AIX TOC entry
     case 'a': // Address operand that is an indexed or indirect from a
               // register (`p' is preferable for asm statements)
+              // TODO: Add full support for this constraint
+      return false;
+    case 'R': // AIX TOC entry
     case 'S': // Constant suitable as a 64-bit mask operand
     case 'T': // Constant suitable as a 32-bit mask operand
     case 'U': // System V Release 4 small data area reference
@@ -332,7 +334,7 @@ public:
     return R;
   }
 
-  const char *getClobbers() const override { return ""; }
+  std::string_view getClobbers() const override { return ""; }
   int getEHDataRegisterNumber(unsigned RegNo) const override {
     if (RegNo == 0)
       return 3;
@@ -356,20 +358,37 @@ public:
   bool hasBitIntType() const override { return true; }
 
   bool isSPRegName(StringRef RegName) const override {
-    return RegName.equals("r1") || RegName.equals("x1");
+    return RegName == "r1" || RegName == "x1";
   }
+
+  // We support __builtin_cpu_supports/__builtin_cpu_is on targets that
+  // have Glibc since it is Glibc that provides the HWCAP[2] in the auxv.
+  static constexpr int MINIMUM_AIX_OS_MAJOR = 7;
+  static constexpr int MINIMUM_AIX_OS_MINOR = 2;
+  bool supportsCpuSupports() const override {
+    llvm::Triple Triple = getTriple();
+    // AIX 7.2 is the minimum requirement to support __builtin_cpu_supports().
+    return Triple.isOSGlibc() || Triple.isMusl() ||
+           (Triple.isOSAIX() &&
+            !Triple.isOSVersionLT(MINIMUM_AIX_OS_MAJOR, MINIMUM_AIX_OS_MINOR));
+  }
+
+  bool supportsCpuIs() const override {
+    llvm::Triple Triple = getTriple();
+    // AIX 7.2 is the minimum requirement to support __builtin_cpu_is().
+    return Triple.isOSGlibc() || Triple.isMusl() ||
+           (Triple.isOSAIX() &&
+            !Triple.isOSVersionLT(MINIMUM_AIX_OS_MAJOR, MINIMUM_AIX_OS_MINOR));
+  }
+  bool validateCpuSupports(StringRef Feature) const override;
+  bool validateCpuIs(StringRef Name) const override;
 };
 
 class LLVM_LIBRARY_VISIBILITY PPC32TargetInfo : public PPCTargetInfo {
 public:
   PPC32TargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
       : PPCTargetInfo(Triple, Opts) {
-    if (Triple.isOSAIX())
-      resetDataLayout("E-m:a-p:32:32-i64:64-n32");
-    else if (Triple.getArch() == llvm::Triple::ppcle)
-      resetDataLayout("e-m:e-p:32:32-i64:64-n32");
-    else
-      resetDataLayout("E-m:e-p:32:32-i64:64-n32");
+    resetDataLayout();
 
     switch (getTriple().getOS()) {
     case llvm::Triple::Linux:
@@ -402,8 +421,12 @@ public:
   }
 
   BuiltinVaListKind getBuiltinVaListKind() const override {
-    // This is the ELF definition, and is overridden by the Darwin sub-target
+    // This is the ELF definition
     return TargetInfo::PowerABIBuiltinVaList;
+  }
+
+  std::pair<unsigned, unsigned> hardwareInterferenceSizes() const override {
+    return std::make_pair(32, 32);
   }
 };
 
@@ -416,19 +439,16 @@ public:
     LongWidth = LongAlign = PointerWidth = PointerAlign = 64;
     IntMaxType = SignedLong;
     Int64Type = SignedLong;
-    std::string DataLayout;
 
     if (Triple.isOSAIX()) {
       // TODO: Set appropriate ABI for AIX platform.
-      DataLayout = "E-m:a-i64:64-n32:64";
       LongDoubleWidth = 64;
       LongDoubleAlign = DoubleAlign = 32;
       LongDoubleFormat = &llvm::APFloat::IEEEdouble();
-    } else if ((Triple.getArch() == llvm::Triple::ppc64le)) {
-      DataLayout = "e-m:e-i64:64-n32:64";
+    } else if ((Triple.getArch() == llvm::Triple::ppc64le) ||
+               Triple.isPPC64ELFv2ABI()) {
       ABI = "elfv2";
     } else {
-      DataLayout = "E-m:e-i64:64-n32:64";
       ABI = "elfv1";
     }
 
@@ -437,14 +457,12 @@ public:
       LongDoubleFormat = &llvm::APFloat::IEEEdouble();
     }
 
-    if (Triple.isOSAIX() || Triple.isOSLinux())
-      DataLayout += "-S128-v256:256:256-v512:512:512";
-    resetDataLayout(DataLayout);
-
     // Newer PPC64 instruction sets support atomics up to 16 bytes.
     MaxAtomicPromoteWidth = 128;
     // Baseline PPC64 supports inlining atomics up to 8 bytes.
     MaxAtomicInlineWidth = 64;
+
+    resetDataLayout();
   }
 
   void setMaxAtomicWidth() override {
@@ -463,6 +481,7 @@ public:
   bool setABI(const std::string &Name) override {
     if (Name == "elfv1" || Name == "elfv2") {
       ABI = Name;
+      resetDataLayout();
       return true;
     }
     return false;
@@ -478,32 +497,9 @@ public:
       return CCCR_Warning;
     }
   }
-};
 
-class LLVM_LIBRARY_VISIBILITY DarwinPPC32TargetInfo
-    : public DarwinTargetInfo<PPC32TargetInfo> {
-public:
-  DarwinPPC32TargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
-      : DarwinTargetInfo<PPC32TargetInfo>(Triple, Opts) {
-    HasAlignMac68kSupport = true;
-    BoolWidth = BoolAlign = 32; // XXX support -mone-byte-bool?
-    PtrDiffType = SignedInt; // for http://llvm.org/bugs/show_bug.cgi?id=15726
-    LongLongAlign = 32;
-    resetDataLayout("E-m:o-p:32:32-f64:32:64-n32", "_");
-  }
-
-  BuiltinVaListKind getBuiltinVaListKind() const override {
-    return TargetInfo::CharPtrBuiltinVaList;
-  }
-};
-
-class LLVM_LIBRARY_VISIBILITY DarwinPPC64TargetInfo
-    : public DarwinTargetInfo<PPC64TargetInfo> {
-public:
-  DarwinPPC64TargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
-      : DarwinTargetInfo<PPC64TargetInfo>(Triple, Opts) {
-    HasAlignMac68kSupport = true;
-    resetDataLayout("E-m:o-i64:64-n32:64", "_");
+  std::pair<unsigned, unsigned> hardwareInterferenceSizes() const override {
+    return std::make_pair(128, 128);
   }
 };
 

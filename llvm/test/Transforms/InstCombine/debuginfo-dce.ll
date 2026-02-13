@@ -21,77 +21,75 @@ source_filename = "test.c"
 target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-apple-macosx10.12.0"
 
-%struct.entry = type { %struct.entry* }
+%struct.entry = type { ptr }
 
 ; This salvage can't currently occur safely (PR40628), however if/when that's
 ; ever fixed, then this is definitely a piece of test coverage that should
 ; be maintained.
-define void @salvage_load(%struct.entry** %queue) local_unnamed_addr #0 !dbg !14 {
+define void @salvage_load(ptr %queue) local_unnamed_addr #0 !dbg !14 {
 entry:
-  %im_not_dead = alloca %struct.entry*
-  %0 = load %struct.entry*, %struct.entry** %queue, align 8, !dbg !19
-  %1 = load %struct.entry*, %struct.entry** %queue, align 8, !dbg !19
-  call void @llvm.dbg.value(metadata %struct.entry* %1, metadata !18, metadata !20), !dbg !19
+  %im_not_dead = alloca ptr
+  %0 = load ptr, ptr %queue, align 8, !dbg !19
+  %1 = load ptr, ptr %queue, align 8, !dbg !19
+  call void @llvm.dbg.value(metadata ptr %1, metadata !18, metadata !20), !dbg !19
 ; CHECK: define void @salvage_load
 ; CHECK-NEXT: entry:
-; CHECK-NEXT: call void @llvm.dbg.value(metadata %struct.entry* undef
-  store %struct.entry* %1, %struct.entry** %im_not_dead, align 8
+; CHECK-NEXT: #dbg_value(ptr poison
+  store ptr %1, ptr %im_not_dead, align 8
   ret void, !dbg !21
 }
 
-define void @salvage_bitcast(%struct.entry* %queue) local_unnamed_addr #0 !dbg !22 {
+define void @salvage_bitcast(ptr %queue) local_unnamed_addr #0 !dbg !22 {
 entry:
-  %im_not_dead = alloca i8*
-  %0 = bitcast %struct.entry* %queue to i8*, !dbg !23
-  %1 = bitcast %struct.entry* %queue to i8*, !dbg !23
-  call void @llvm.dbg.value(metadata i8* %1, metadata !24, metadata !20), !dbg !23
+  %im_not_dead = alloca ptr
+  call void @llvm.dbg.value(metadata ptr %queue, metadata !24, metadata !20), !dbg !23
 ; CHECK: define void @salvage_bitcast
 ; CHECK-NEXT: entry:
-; CHECK-NEXT: call void @llvm.dbg.value(metadata %struct.entry* %queue,
-; CHECK-SAME:                           metadata !DIExpression(DW_OP_plus_uconst, 0))
-  store i8* %1, i8** %im_not_dead, align 8
+; CHECK-NEXT: #dbg_value(ptr %queue,
+; CHECK-SAME:                           !DIExpression(DW_OP_plus_uconst, 0),
+  store ptr %queue, ptr %im_not_dead, align 8
   ret void, !dbg !23
 }
 
-define void @salvage_gep0(%struct.entry* %queue, %struct.entry* %end) local_unnamed_addr #0 !dbg !25 {
+define void @salvage_gep0(ptr %queue, ptr %end) local_unnamed_addr #0 !dbg !25 {
 entry:
-  %im_not_dead = alloca %struct.entry**
-  %0 = getelementptr inbounds %struct.entry, %struct.entry* %queue, i32 -1, i32 0, !dbg !26
-  %1 = getelementptr inbounds %struct.entry, %struct.entry* %queue, i32 -1, i32 0, !dbg !26
-  call void @llvm.dbg.value(metadata %struct.entry** %1, metadata !27, metadata !20), !dbg !26
+  %im_not_dead = alloca ptr
+  %0 = getelementptr inbounds %struct.entry, ptr %queue, i32 -1, i32 0, !dbg !26
+  %1 = getelementptr inbounds %struct.entry, ptr %queue, i32 -1, i32 0, !dbg !26
+  call void @llvm.dbg.value(metadata ptr %1, metadata !27, metadata !20), !dbg !26
 ; CHECK: define void @salvage_gep0
 ; CHECK-NEXT: entry:
-; CHECK-NEXT: call void @llvm.dbg.value(metadata %struct.entry* %queue,
-; CHECK-SAME:                           metadata !DIExpression(DW_OP_constu, 8, DW_OP_minus, DW_OP_plus_uconst, 0, DW_OP_stack_value))
-  store %struct.entry** %1, %struct.entry*** %im_not_dead, align 8
+; CHECK-NEXT: #dbg_value(ptr %queue,
+; CHECK-SAME:                           !DIExpression(DW_OP_constu, 8, DW_OP_minus, DW_OP_stack_value),
+  store ptr %1, ptr %im_not_dead, align 8
   ret void, !dbg !26
 }
 
-define void @salvage_gep1(%struct.entry* %queue, %struct.entry* %end) local_unnamed_addr #0 !dbg !28 {
+define void @salvage_gep1(ptr %queue, ptr %end) local_unnamed_addr #0 !dbg !28 {
 entry:
-  %im_not_dead = alloca %struct.entry**
-  %0 = getelementptr inbounds %struct.entry, %struct.entry* %queue, i32 -1, i32 0, !dbg !29
-  %1 = getelementptr inbounds %struct.entry, %struct.entry* %queue, i32 -1, i32 0, !dbg !29
-  call void @llvm.dbg.value(metadata %struct.entry** %1, metadata !30, metadata !DIExpression(DW_OP_LLVM_fragment, 0, 32)), !dbg !29
+  %im_not_dead = alloca ptr
+  %0 = getelementptr inbounds %struct.entry, ptr %queue, i32 -1, i32 0, !dbg !29
+  %1 = getelementptr inbounds %struct.entry, ptr %queue, i32 -1, i32 0, !dbg !29
+  call void @llvm.dbg.value(metadata ptr %1, metadata !30, metadata !DIExpression(DW_OP_LLVM_fragment, 0, 32)), !dbg !29
 ; CHECK: define void @salvage_gep1
 ; CHECK-NEXT: entry:
-; CHECK-NEXT: call void @llvm.dbg.value(metadata %struct.entry* %queue,
-; CHECK-SAME:     metadata !DIExpression(DW_OP_constu, 8, DW_OP_minus, DW_OP_stack_value, DW_OP_LLVM_fragment, 0, 32))
-  store %struct.entry** %1, %struct.entry*** %im_not_dead, align 8
+; CHECK-NEXT: #dbg_value(ptr %queue,
+; CHECK-SAME:     !DIExpression(DW_OP_constu, 8, DW_OP_minus, DW_OP_stack_value, DW_OP_LLVM_fragment, 0, 32),
+  store ptr %1, ptr %im_not_dead, align 8
   ret void, !dbg !29
 }
 
-define void @salvage_gep2(%struct.entry* %queue, %struct.entry* %end) local_unnamed_addr #0 !dbg !31 {
+define void @salvage_gep2(ptr %queue, ptr %end) local_unnamed_addr #0 !dbg !31 {
 entry:
-  %im_not_dead = alloca %struct.entry**
-  %0 = getelementptr inbounds %struct.entry, %struct.entry* %queue, i32 -1, i32 0, !dbg !32
-  %1 = getelementptr inbounds %struct.entry, %struct.entry* %queue, i32 -1, i32 0, !dbg !32
-  call void @llvm.dbg.value(metadata %struct.entry** %1, metadata !33, metadata !DIExpression(DW_OP_stack_value)), !dbg !32
+  %im_not_dead = alloca ptr
+  %0 = getelementptr inbounds %struct.entry, ptr %queue, i32 -1, i32 0, !dbg !32
+  %1 = getelementptr inbounds %struct.entry, ptr %queue, i32 -1, i32 0, !dbg !32
+  call void @llvm.dbg.value(metadata ptr %1, metadata !33, metadata !DIExpression(DW_OP_stack_value)), !dbg !32
 ; CHECK: define void @salvage_gep2
 ; CHECK-NEXT: entry:
-; CHECK-NEXT: call void @llvm.dbg.value(metadata %struct.entry* %queue,
-; CHECK-SAME:     metadata !DIExpression(DW_OP_constu, 8, DW_OP_minus, DW_OP_stack_value))
-  store %struct.entry** %1, %struct.entry*** %im_not_dead, align 8
+; CHECK-NEXT: #dbg_value(ptr %queue,
+; CHECK-SAME:     !DIExpression(DW_OP_constu, 8, DW_OP_minus, DW_OP_stack_value),
+  store ptr %1, ptr %im_not_dead, align 8
   ret void, !dbg !32
 }
 
@@ -127,15 +125,15 @@ attributes #1 = { nounwind readnone }
 !19 = !DILocation(line: 6, column: 17, scope: !14)
 !20 = !DIExpression(DW_OP_plus_uconst, 0)
 !21 = !DILocation(line: 11, column: 1, scope: !14)
-!22 = distinct !DISubprogram(name: "scan", scope: !1, file: !1, line: 4, type: !15, isLocal: false, isDefinition: true, scopeLine: 5, flags: DIFlagPrototyped, isOptimized: true, unit: !0, retainedNodes: !17)
+!22 = distinct !DISubprogram(name: "scan", scope: !1, file: !1, line: 4, type: !15, isLocal: false, isDefinition: true, scopeLine: 5, flags: DIFlagPrototyped, isOptimized: true, unit: !0, retainedNodes: !2)
 !23 = !DILocation(line: 6, column: 17, scope: !22)
 !24 = !DILocalVariable(name: "entry", scope: !22, file: !1, line: 6, type: !4)
-!25 = distinct !DISubprogram(name: "scan", scope: !1, file: !1, line: 4, type: !15, isLocal: false, isDefinition: true, scopeLine: 5, flags: DIFlagPrototyped, isOptimized: true, unit: !0, retainedNodes: !17)
+!25 = distinct !DISubprogram(name: "scan", scope: !1, file: !1, line: 4, type: !15, isLocal: false, isDefinition: true, scopeLine: 5, flags: DIFlagPrototyped, isOptimized: true, unit: !0, retainedNodes: !2)
 !26 = !DILocation(line: 6, column: 17, scope: !25)
 !27 = !DILocalVariable(name: "entry", scope: !25, file: !1, line: 6, type: !4)
-!28 = distinct !DISubprogram(name: "scan", scope: !1, file: !1, line: 4, type: !15, isLocal: false, isDefinition: true, scopeLine: 5, flags: DIFlagPrototyped, isOptimized: true, unit: !0, retainedNodes: !17)
+!28 = distinct !DISubprogram(name: "scan", scope: !1, file: !1, line: 4, type: !15, isLocal: false, isDefinition: true, scopeLine: 5, flags: DIFlagPrototyped, isOptimized: true, unit: !0, retainedNodes: !2)
 !29 = !DILocation(line: 6, column: 17, scope: !28)
 !30 = !DILocalVariable(name: "entry", scope: !28, file: !1, line: 6, type: !4)
-!31 = distinct !DISubprogram(name: "scan", scope: !1, file: !1, line: 4, type: !15, isLocal: false, isDefinition: true, scopeLine: 5, flags: DIFlagPrototyped, isOptimized: true, unit: !0, retainedNodes: !17)
+!31 = distinct !DISubprogram(name: "scan", scope: !1, file: !1, line: 4, type: !15, isLocal: false, isDefinition: true, scopeLine: 5, flags: DIFlagPrototyped, isOptimized: true, unit: !0, retainedNodes: !2)
 !32 = !DILocation(line: 6, column: 17, scope: !31)
 !33 = !DILocalVariable(name: "entry", scope: !31, file: !1, line: 6, type: !4)

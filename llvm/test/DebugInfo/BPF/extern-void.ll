@@ -3,14 +3,14 @@
 ;
 ; Source code:
 ;   extern void bla1;
-;   void *test1() {
-;     void *x = &bla1;
+;   ptr test1() {
+;     ptr x = &bla1;
 ;     return x;
 ;   }
 ;
 ;   extern const void bla2;
-;   const void *test2() {
-;     const void *x = &bla2;
+;   const ptr test2() {
+;     const ptr x = &bla2;
 ;     return x;
 ;   }
 ; Compilation flag:
@@ -20,30 +20,29 @@
 @bla2 = external dso_local constant i8, align 1, !dbg !6
 
 ; Function Attrs: norecurse nounwind readnone
-define dso_local nonnull i8* @test1() local_unnamed_addr #0 !dbg !13 {
+define dso_local nonnull ptr @test1() local_unnamed_addr #0 !dbg !13 {
 entry:
-  call void @llvm.dbg.value(metadata i8* @bla1, metadata !18, metadata !DIExpression()), !dbg !19
-  ret i8* @bla1, !dbg !20
+  call void @llvm.dbg.value(metadata ptr @bla1, metadata !18, metadata !DIExpression()), !dbg !19
+  ret ptr @bla1, !dbg !20
 }
 
 ; Function Attrs: norecurse nounwind readnone
-define dso_local nonnull i8* @test2() local_unnamed_addr #0 !dbg !21 {
+define dso_local nonnull ptr @test2() local_unnamed_addr #0 !dbg !21 {
 entry:
-  call void @llvm.dbg.value(metadata i8* @bla2, metadata !26, metadata !DIExpression()), !dbg !27
-  ret i8* @bla2, !dbg !28
+  call void @llvm.dbg.value(metadata ptr @bla2, metadata !26, metadata !DIExpression()), !dbg !27
+  ret ptr @bla2, !dbg !28
 }
 
 ; CHECK:        .quad bla1
 ; CHECK-NEXT:   DW_TAG_variable
 ;
-; CHECK:        .quad   bla2
+; CHECK:        .quad bla2
 ; CHECK-NEXT:   DW_TAG_const_type
-; CHECK-NEXT:   DW_TAG_subprogram
 
 ; Function Attrs: nounwind readnone speculatable willreturn
 declare void @llvm.dbg.value(metadata, metadata, metadata) #1
 
-attributes #0 = { norecurse nounwind readnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { norecurse nounwind readnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone speculatable willreturn }
 
 !llvm.dbg.cu = !{!2}

@@ -41,6 +41,8 @@ class MachODumper {
   void dumpExportTrie(std::unique_ptr<MachOYAML::Object> &Y);
   void dumpSymbols(std::unique_ptr<MachOYAML::Object> &Y);
   void dumpIndirectSymbols(std::unique_ptr<MachOYAML::Object> &Y);
+  void dumpChainedFixups(std::unique_ptr<MachOYAML::Object> &Y);
+  void dumpDataInCode(std::unique_ptr<MachOYAML::Object> &Y);
 
   template <typename SectionType>
   Expected<MachOYAML::Section> constructSectionCommon(SectionType Sec,
@@ -137,10 +139,8 @@ MachODumper::constructSection(MachO::section_64 Sec, size_t SecIndex) {
 
 static Error dumpDebugSection(StringRef SecName, DWARFContext &DCtx,
                               DWARFYAML::Data &DWARF) {
-  if (SecName == "__debug_abbrev") {
-    dumpDebugAbbrev(DCtx, DWARF);
-    return Error::success();
-  }
+  if (SecName == "__debug_abbrev")
+    return dumpDebugAbbrev(DCtx, DWARF);
   if (SecName == "__debug_aranges")
     return dumpDebugARanges(DCtx, DWARF);
   if (SecName == "__debug_info") {
@@ -151,7 +151,7 @@ static Error dumpDebugSection(StringRef SecName, DWARFContext &DCtx,
     dumpDebugLines(DCtx, DWARF);
     return Error::success();
   }
-  if (SecName.startswith("__debug_pub")) {
+  if (SecName.starts_with("__debug_pub")) {
     // FIXME: We should extract pub-section dumpers from this function.
     dumpDebugPubSections(DCtx, DWARF);
     return Error::success();
@@ -183,14 +183,14 @@ Expected<const char *> MachODumper::extractSections(
 
       // Copy data sections if requested.
       if ((RawSegment & ::RawSegments::data) &&
-          StringRef(S->segname).startswith("__DATA"))
+          StringRef(S->segname).starts_with("__DATA"))
         S->content =
             yaml::BinaryRef(Obj.getSectionContents(Sec.offset, Sec.size));
 
-      if (SecName.startswith("__debug_")) {
+      if (SecName.starts_with("__debug_")) {
         // If the DWARF section cannot be successfully parsed, emit raw content
         // instead of an entry in the DWARF section of the YAML.
-        if (Error Err = dumpDebugSection(SecName, *DWARFCtx.get(), Y.DWARF))
+        if (Error Err = dumpDebugSection(SecName, *DWARFCtx, Y.DWARF))
           consumeError(std::move(Err));
         else
           S->content.reset();
@@ -324,8 +324,7 @@ Error MachODumper::dumpLoadCommands(std::unique_ptr<MachOYAML::Object> &Y) {
       if (Obj.isLittleEndian() != sys::IsLittleEndianHost)
         MachO::swapStruct(LC.Data.load_command_data);
       if (Expected<const char *> ExpectedEndPtr =
-              processLoadCommandData<MachO::load_command>(LC, LoadCmd,
-                                                          *Y.get()))
+              processLoadCommandData<MachO::load_command>(LC, LoadCmd, *Y))
         EndPtr = *ExpectedEndPtr;
       else
         return ExpectedEndPtr.takeError();
@@ -356,14 +355,15 @@ void MachODumper::dumpLinkEdit(std::unique_ptr<MachOYAML::Object> &Y) {
   dumpSymbols(Y);
   dumpIndirectSymbols(Y);
   dumpFunctionStarts(Y);
+  dumpChainedFixups(Y);
+  dumpDataInCode(Y);
 }
 
 void MachODumper::dumpFunctionStarts(std::unique_ptr<MachOYAML::Object> &Y) {
   MachOYAML::LinkEditData &LEData = Y->LinkEdit;
 
   auto FunctionStarts = Obj.getFunctionStarts();
-  for (auto Addr : FunctionStarts)
-    LEData.FunctionStarts.push_back(Addr);
+  llvm::append_range(LEData.FunctionStarts, FunctionStarts);
 }
 
 void MachODumper::dumpRebaseOpcodes(std::unique_ptr<MachOYAML::Object> &Y) {
@@ -530,7 +530,7 @@ void MachODumper::dumpBindOpcodes(
  * terminal.
 */
 
-const uint8_t *processExportNode(const uint8_t *CurrPtr,
+const uint8_t *processExportNode(const uint8_t *Start, const uint8_t *CurrPtr,
                                  const uint8_t *const End,
                                  MachOYAML::ExportEntry &Entry) {
   if (CurrPtr >= End)
@@ -569,15 +569,19 @@ const uint8_t *processExportNode(const uint8_t *CurrPtr,
     CurrPtr += Count;
   }
   for (auto &Child : Entry.Children) {
-    CurrPtr = processExportNode(CurrPtr, End, Child);
+    CurrPtr = processExportNode(Start, Start + Child.NodeOffset, End, Child);
   }
   return CurrPtr;
 }
 
 void MachODumper::dumpExportTrie(std::unique_ptr<MachOYAML::Object> &Y) {
   MachOYAML::LinkEditData &LEData = Y->LinkEdit;
+  // The exports trie can be in LC_DYLD_INFO or LC_DYLD_EXPORTS_TRIE
   auto ExportsTrie = Obj.getDyldInfoExportsTrie();
-  processExportNode(ExportsTrie.begin(), ExportsTrie.end(), LEData.ExportTrie);
+  if (ExportsTrie.empty())
+    ExportsTrie = Obj.getDyldExportsTrie();
+  processExportNode(ExportsTrie.begin(), ExportsTrie.begin(), ExportsTrie.end(),
+                    LEData.ExportTrie);
 }
 
 template <typename nlist_t>
@@ -618,6 +622,37 @@ void MachODumper::dumpIndirectSymbols(std::unique_ptr<MachOYAML::Object> &Y) {
   MachO::dysymtab_command DLC = Obj.getDysymtabLoadCommand();
   for (unsigned i = 0; i < DLC.nindirectsyms; ++i)
     LEData.IndirectSymbols.push_back(Obj.getIndirectSymbolTableEntry(DLC, i));
+}
+
+void MachODumper::dumpChainedFixups(std::unique_ptr<MachOYAML::Object> &Y) {
+  MachOYAML::LinkEditData &LEData = Y->LinkEdit;
+
+  for (const auto &LC : Y->LoadCommands) {
+    if (LC.Data.load_command_data.cmd == llvm::MachO::LC_DYLD_CHAINED_FIXUPS) {
+      const MachO::linkedit_data_command &DC =
+          LC.Data.linkedit_data_command_data;
+      if (DC.dataoff) {
+        assert(DC.dataoff < Obj.getData().size());
+        assert(DC.dataoff + DC.datasize <= Obj.getData().size());
+        const char *Bytes = Obj.getData().data() + DC.dataoff;
+        llvm::append_range(LEData.ChainedFixups, ArrayRef(Bytes, DC.datasize));
+      }
+      break;
+    }
+  }
+}
+
+void MachODumper::dumpDataInCode(std::unique_ptr<MachOYAML::Object> &Y) {
+  MachOYAML::LinkEditData &LEData = Y->LinkEdit;
+
+  MachO::linkedit_data_command DIC = Obj.getDataInCodeLoadCommand();
+  uint32_t NumEntries = DIC.datasize / sizeof(MachO::data_in_code_entry);
+  for (uint32_t Idx = 0; Idx < NumEntries; ++Idx) {
+    MachO::data_in_code_entry DICE =
+        Obj.getDataInCodeTableEntry(DIC.dataoff, Idx);
+    MachOYAML::DataInCodeEntry Entry{DICE.offset, DICE.length, DICE.kind};
+    LEData.DataInCode.emplace_back(Entry);
+  }
 }
 
 Error macho2yaml(raw_ostream &Out, const object::MachOObjectFile &Obj,

@@ -23,5 +23,6 @@ sycl::detail::Requirement getMockRequirement() {
           /*AccessMode*/ sycl::access::mode::read_write,
           /*SYCLMemObj*/ nullptr,
           /*Dims*/ 0,
-          /*ElementSize*/ 0};
+          /*ElementSize*/ 0,
+          /*Offset*/ size_t(0)};
 }

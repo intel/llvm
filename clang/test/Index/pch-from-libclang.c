@@ -1,7 +1,7 @@
 // Check that clang can use a PCH created from libclang.
 
 // https://PR46644
-// XFAIL: arm64-apple
+// XFAIL: target=arm64-apple-{{.*}}
 
 // This test doesn't use -fdisable-module-hash and hence requires that
 // CompilerInvocation::getModuleHash() computes exactly the same hash
@@ -18,7 +18,7 @@
 // RUN: c-index-test -test-load-source local %s -include %t.clang.h -fmodules -fmodules-cache-path=%t.mcp -Xclang -triple -Xclang x86_64-apple-darwin | FileCheck %s
 
 // FIXME: Still fails on at least some linux boxen.
-// REQUIRES: system-darwin
+// REQUIRES: system-darwin && target={{.*}}-{{darwin|macos}}{{.*}}
 
 #ifndef HEADER
 #define HEADER

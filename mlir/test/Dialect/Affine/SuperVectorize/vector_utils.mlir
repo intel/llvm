@@ -1,6 +1,6 @@
-// RUN: mlir-opt %s -affine-super-vectorizer-test -vector-shape-ratio 4 -vector-shape-ratio 8 2>&1 | FileCheck %s
-// RUN: mlir-opt %s -affine-super-vectorizer-test -vector-shape-ratio 2 -vector-shape-ratio 5 -vector-shape-ratio 2 2>&1 | FileCheck %s -check-prefix=TEST-3x4x5x8
-// RUN: mlir-opt %s -affine-super-vectorizer-test -vectorize-affine-loop-nest 2>&1 | FileCheck %s -check-prefix=VECNEST
+// RUN: mlir-opt %s -affine-super-vectorizer-test="vector-shape-ratio=4,8" 2>&1 | FileCheck %s
+// RUN: mlir-opt %s -affine-super-vectorizer-test="vector-shape-ratio=2,5,2" 2>&1 | FileCheck %s -check-prefix=TEST-3x4x5x8
+// RUN: mlir-opt %s -affine-super-vectorizer-test=vectorize-affine-loop-nest 2>&1 | FileCheck %s -check-prefix=VECNEST
 
 func.func @vector_add_2d(%arg0: index, %arg1: index) -> f32 {
   // Nothing should be matched in this first block.
@@ -21,9 +21,9 @@ func.func @vector_add_2d(%arg0: index, %arg1: index) -> f32 {
   %cst_b = arith.constant dense<1.000000e+00> : vector<1x3x7x4x4xf32>
   // TEST-3x4x5x8:matched: {{.*}} arith.constant dense{{.*}} with shape ratio: 3, 2, 1, 4
   %cst_c = arith.constant dense<1.000000e+00> : vector<3x4x5x8xf32>
-  // TEST-3x4x4x8-NOT:matched: {{.*}} arith.constant dense{{.*}} with shape ratio{{.*}}
+  // TEST-3x4x5x8-NOT:matched: {{.*}} arith.constant dense{{.*}} with shape ratio{{.*}}
   %cst_d = arith.constant dense<1.000000e+00> : vector<3x4x4x8xf32>
-  // TEST-3x4x4x8:matched: {{.*}} arith.constant dense{{.*}} with shape ratio: 1, 1, 2, 16
+  // TEST-3x4x5x8:matched: {{.*}} arith.constant dense{{.*}} with shape ratio: 1, 1, 2, 16
   %cst_e = arith.constant dense<1.000000e+00> : vector<1x2x10x32xf32>
 
   // Nothing should be matched in this last block.

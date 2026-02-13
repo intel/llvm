@@ -10,14 +10,12 @@
 #define LLVM_TOOLS_LLVM_REDUCE_TESTRUNNER_H
 
 #include "ReducerWorkItem.h"
-#include "llvm/ADT/SmallString.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Target/TargetMachine.h"
-#include <vector>
 
 namespace llvm {
 
@@ -26,29 +24,42 @@ namespace llvm {
 // respective filename.
 class TestRunner {
 public:
-  TestRunner(StringRef TestName, const std::vector<std::string> &TestArgs,
+  TestRunner(StringRef TestName, ArrayRef<std::string> TestArgs,
              std::unique_ptr<ReducerWorkItem> Program,
-             std::unique_ptr<TargetMachine> TM, const char *ToolName);
+             std::unique_ptr<TargetMachine> TM, StringRef ToolName,
+             StringRef OutputFilename, bool InputIsBitcode, bool OutputBitcode);
 
   /// Runs the interesting-ness test for the specified file
   /// @returns 0 if test was successful, 1 if otherwise
-  int run(StringRef Filename);
+  int run(StringRef Filename) const;
 
   /// Returns the most reduced version of the original testcase
   ReducerWorkItem &getProgram() const { return *Program; }
 
-  void setProgram(std::unique_ptr<ReducerWorkItem> P);
+  void setProgram(std::unique_ptr<ReducerWorkItem> &&P) {
+    assert(P && "Setting null program?");
+    Program = std::move(P);
+  }
 
   const TargetMachine *getTargetMachine() const { return TM.get(); }
 
-  const char *getToolName() const { return ToolName; }
+  StringRef getToolName() const { return ToolName; }
+
+  void writeOutput(StringRef Message);
+
+  bool inputIsBitcode() const {
+    return InputIsBitcode;
+  }
 
 private:
   StringRef TestName;
-  const char *ToolName;
-  const std::vector<std::string> &TestArgs;
+  StringRef ToolName;
+  SmallVector<StringRef> TestArgs;
   std::unique_ptr<ReducerWorkItem> Program;
   std::unique_ptr<TargetMachine> TM;
+  StringRef OutputFilename;
+  const bool InputIsBitcode;
+  bool EmitBitcode;
 };
 
 } // namespace llvm

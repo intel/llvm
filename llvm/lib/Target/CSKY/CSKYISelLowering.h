@@ -14,30 +14,13 @@
 #ifndef LLVM_LIB_TARGET_CSKY_CSKYISELLOWERING_H
 #define LLVM_LIB_TARGET_CSKY_CSKYISELLOWERING_H
 
+#include "CSKYSelectionDAGInfo.h"
 #include "MCTargetDesc/CSKYBaseInfo.h"
 #include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/TargetLowering.h"
 
 namespace llvm {
 class CSKYSubtarget;
-
-namespace CSKYISD {
-enum NodeType : unsigned {
-  FIRST_NUMBER = ISD::BUILTIN_OP_END,
-  NIE,
-  NIR,
-  RET,
-  CALL,
-  CALLReg,
-  TAIL,
-  TAILReg,
-  LOAD_ADDR,
-  // i32, i32 <-- f64
-  BITCAST_TO_LOHI,
-  // f64 < -- i32, i32
-  BITCAST_FROM_LOHI,
-};
-}
 
 class CSKYTargetLowering : public TargetLowering {
   const CSKYSubtarget &Subtarget;
@@ -61,7 +44,7 @@ private:
   bool CanLowerReturn(CallingConv::ID CallConv, MachineFunction &MF,
                       bool IsVarArg,
                       const SmallVectorImpl<ISD::OutputArg> &Outs,
-                      LLVMContext &Context) const override;
+                      LLVMContext &Context, const Type *RetTy) const override;
 
   SDValue LowerReturn(SDValue Chain, CallingConv::ID CallConv, bool IsVarArg,
                       const SmallVectorImpl<ISD::OutputArg> &Outs,
@@ -70,8 +53,6 @@ private:
 
   SDValue LowerCall(TargetLowering::CallLoweringInfo &CLI,
                     SmallVectorImpl<SDValue> &InVals) const override;
-
-  const char *getTargetNodeName(unsigned Opcode) const override;
 
   /// If a physical register, this returns the register that receives the
   /// exception address on entry to an EH pad.
@@ -110,6 +91,9 @@ private:
   SDValue getTargetNode(BlockAddressSDNode *N, SDLoc DL, EVT Ty,
                         SelectionDAG &DAG, unsigned Flags) const;
 
+  SDValue getTargetNode(ConstantPoolSDNode *N, SDLoc DL, EVT Ty,
+                        SelectionDAG &DAG, unsigned Flags) const;
+
   SDValue getTargetConstantPoolValue(GlobalAddressSDNode *N, EVT Ty,
                                      SelectionDAG &DAG, unsigned Flags) const;
 
@@ -120,6 +104,9 @@ private:
                                      SelectionDAG &DAG, unsigned Flags) const;
 
   SDValue getTargetConstantPoolValue(BlockAddressSDNode *N, EVT Ty,
+                                     SelectionDAG &DAG, unsigned Flags) const;
+
+  SDValue getTargetConstantPoolValue(ConstantPoolSDNode *N, EVT Ty,
                                      SelectionDAG &DAG, unsigned Flags) const;
 
   template <class NodeTy, bool IsCall = false>
@@ -155,6 +142,7 @@ private:
   SDValue LowerExternalSymbol(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerGlobalTLSAddress(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerBlockAddress(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerConstantPool(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerJumpTable(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerVASTART(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFRAMEADDR(SDValue Op, SelectionDAG &DAG) const;
@@ -166,6 +154,11 @@ private:
 
   CCAssignFn *CCAssignFnForCall(CallingConv::ID CC, bool IsVarArg) const;
   CCAssignFn *CCAssignFnForReturn(CallingConv::ID CC, bool IsVarArg) const;
+
+  bool decomposeMulByConstant(LLVMContext &Context, EVT VT,
+                              SDValue C) const override;
+  bool isCheapToSpeculateCttz(Type *Ty) const override;
+  bool isCheapToSpeculateCtlz(Type *Ty) const override;
 };
 
 } // namespace llvm

@@ -44,7 +44,6 @@ define void @memset_4(ptr %a, i8 %value) nounwind {
 define void @memset_8(ptr %a, i8 %value) nounwind {
 ; GPR-LABEL: memset_8:
 ; GPR:       # %bb.0:
-; GPR-NEXT:    # kill: def $esi killed $esi def $rsi
 ; GPR-NEXT:    movzbl %sil, %eax
 ; GPR-NEXT:    movabsq $72340172838076673, %rcx # imm = 0x101010101010101
 ; GPR-NEXT:    imulq %rax, %rcx
@@ -57,7 +56,6 @@ define void @memset_8(ptr %a, i8 %value) nounwind {
 define void @memset_16(ptr %a, i8 %value) nounwind {
 ; SSE2-LABEL: memset_16:
 ; SSE2:       # %bb.0:
-; SSE2-NEXT:    # kill: def $esi killed $esi def $rsi
 ; SSE2-NEXT:    movzbl %sil, %eax
 ; SSE2-NEXT:    movabsq $72340172838076673, %rcx # imm = 0x101010101010101
 ; SSE2-NEXT:    imulq %rax, %rcx
@@ -94,7 +92,6 @@ define void @memset_16(ptr %a, i8 %value) nounwind {
 define void @memset_32(ptr %a, i8 %value) nounwind {
 ; SSE2-LABEL: memset_32:
 ; SSE2:       # %bb.0:
-; SSE2-NEXT:    # kill: def $esi killed $esi def $rsi
 ; SSE2-NEXT:    movzbl %sil, %eax
 ; SSE2-NEXT:    movabsq $72340172838076673, %rcx # imm = 0x101010101010101
 ; SSE2-NEXT:    imulq %rax, %rcx
@@ -136,7 +133,6 @@ define void @memset_32(ptr %a, i8 %value) nounwind {
 define void @memset_64(ptr %a, i8 %value) nounwind {
 ; SSE2-LABEL: memset_64:
 ; SSE2:       # %bb.0:
-; SSE2-NEXT:    # kill: def $esi killed $esi def $rsi
 ; SSE2-NEXT:    movzbl %sil, %eax
 ; SSE2-NEXT:    movabsq $72340172838076673, %rcx # imm = 0x101010101010101
 ; SSE2-NEXT:    imulq %rax, %rcx
@@ -192,7 +188,7 @@ define void @aligned_memset_16(ptr align 16 %a, i8 %value) nounwind {
 ; SSE2-NEXT:    movd %esi, %xmm0
 ; SSE2-NEXT:    punpcklbw {{.*#+}} xmm0 = xmm0[0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7]
 ; SSE2-NEXT:    pshuflw {{.*#+}} xmm0 = xmm0[0,0,0,0,4,5,6,7]
-; SSE2-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[0,0,0,0]
+; SSE2-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[0,1,0,1]
 ; SSE2-NEXT:    movdqa %xmm0, (%rdi)
 ; SSE2-NEXT:    retq
 ;
@@ -228,7 +224,7 @@ define void @aligned_memset_32(ptr align 32 %a, i8 %value) nounwind {
 ; SSE2-NEXT:    movd %esi, %xmm0
 ; SSE2-NEXT:    punpcklbw {{.*#+}} xmm0 = xmm0[0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7]
 ; SSE2-NEXT:    pshuflw {{.*#+}} xmm0 = xmm0[0,0,0,0,4,5,6,7]
-; SSE2-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[0,0,0,0]
+; SSE2-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[0,1,0,1]
 ; SSE2-NEXT:    movdqa %xmm0, 16(%rdi)
 ; SSE2-NEXT:    movdqa %xmm0, (%rdi)
 ; SSE2-NEXT:    retq
@@ -268,7 +264,7 @@ define void @aligned_memset_64(ptr align 64 %a, i8 %value) nounwind {
 ; SSE2-NEXT:    movd %esi, %xmm0
 ; SSE2-NEXT:    punpcklbw {{.*#+}} xmm0 = xmm0[0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7]
 ; SSE2-NEXT:    pshuflw {{.*#+}} xmm0 = xmm0[0,0,0,0,4,5,6,7]
-; SSE2-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[0,0,0,0]
+; SSE2-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[0,1,0,1]
 ; SSE2-NEXT:    movdqa %xmm0, 48(%rdi)
 ; SSE2-NEXT:    movdqa %xmm0, 32(%rdi)
 ; SSE2-NEXT:    movdqa %xmm0, 16(%rdi)

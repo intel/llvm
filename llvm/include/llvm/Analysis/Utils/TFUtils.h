@@ -1,4 +1,4 @@
-//===- TFUtils.h - utilities for tensorflow C API ---------------*- C++ -*-===//
+//===- TFUtils.h - utilities for TFLite -------------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,7 +11,7 @@
 
 #include "llvm/Config/llvm-config.h"
 
-#ifdef LLVM_HAVE_TF_API
+#ifdef LLVM_HAVE_TFLITE
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Analysis/TensorSpec.h"
 #include "llvm/IR/LLVMContext.h"
@@ -77,27 +77,23 @@ public:
                    const std::vector<TensorSpec> &InputSpecs,
                    const std::vector<TensorSpec> &OutputSpecs,
                    const char *Tags = "serve");
-  TFModelEvaluator(StringRef SavedModelPath,
-                   const std::vector<TensorSpec> &InputSpecs,
-                   function_ref<TensorSpec(size_t)> GetOutputSpecs,
-                   size_t OutputSpecsSize, const char *Tags = "serve");
 
   ~TFModelEvaluator();
   TFModelEvaluator(const TFModelEvaluator &) = delete;
   TFModelEvaluator(TFModelEvaluator &&) = delete;
 
-  /// Evaluate the model, assuming it is valid. Returns None if the evaluation
-  /// fails or the model is invalid, or an EvaluationResult otherwise. The
-  /// inputs are assumed to have been already provided via getInput(). When
-  /// returning None, it also invalidates this object.
-  Optional<EvaluationResult> evaluate();
+  /// Evaluate the model, assuming it is valid. Returns std::nullopt if the
+  /// evaluation fails or the model is invalid, or an EvaluationResult
+  /// otherwise. The inputs are assumed to have been already provided via
+  /// getInput(). When returning std::nullopt, it also invalidates this object.
+  std::optional<EvaluationResult> evaluate();
 
   /// Provides access to the input vector.
   template <typename T> T *getInput(size_t Index) {
     return static_cast<T *>(getUntypedInput(Index));
   }
 
-  /// Returns true if the tensorflow model was loaded successfully, false
+  /// Returns true if the model was loaded successfully, false
   /// otherwise.
   bool isValid() const { return !!Impl; }
 
@@ -110,5 +106,5 @@ private:
 
 } // namespace llvm
 
-#endif // LLVM_HAVE_TF_API
+#endif // LLVM_HAVE_TFLITE
 #endif // LLVM_ANALYSIS_UTILS_TFUTILS_H

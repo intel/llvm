@@ -1,4 +1,4 @@
-; RUN: llc -march=hexagon < %s 2>&1 | FileCheck %s
+; RUN: llc -mtriple=hexagon < %s 2>&1 | FileCheck %s
 
 ; Check that the misaligned store is diagnosed.
 ; CHECK: remark: Misaligned constant address: 0x00012345 has alignment 1, but the memory access requires 4, at misaligned-const-store.c:2:10. The instruction has been replaced with a trap.
@@ -7,7 +7,7 @@ target triple = "hexagon"
 
 define void @bad_store(i32 %a0) #0 !dbg !10 {
 entry:
-  store i32 %a0, i32* inttoptr (i32 74565 to i32*), align 4, !dbg !13, !tbaa !14
+  store i32 %a0, ptr inttoptr (i32 74565 to ptr), align 4, !dbg !13, !tbaa !14
   ret void, !dbg !18
 }
 

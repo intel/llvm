@@ -6,49 +6,21 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "FormatTestUtils.h"
-#include "clang/Format/Format.h"
-#include "llvm/Support/Debug.h"
-#include "gtest/gtest.h"
+#include "FormatTestBase.h"
 
-#define DEBUG_TYPE "format-test"
+#define DEBUG_TYPE "format-test-text-proto"
 
 namespace clang {
 namespace format {
+namespace test {
+namespace {
 
-class FormatTestTextProto : public ::testing::Test {
+class FormatTestTextProto : public FormatTestBase {
 protected:
-  static std::string format(llvm::StringRef Code, unsigned Offset,
-                            unsigned Length, const FormatStyle &Style) {
-    LLVM_DEBUG(llvm::errs() << "---\n");
-    LLVM_DEBUG(llvm::errs() << Code << "\n\n");
-    std::vector<tooling::Range> Ranges(1, tooling::Range(Offset, Length));
-    tooling::Replacements Replaces = reformat(Style, Code, Ranges);
-    auto Result = applyAllReplacements(Code, Replaces);
-    EXPECT_TRUE(static_cast<bool>(Result));
-    LLVM_DEBUG(llvm::errs() << "\n" << *Result << "\n\n");
-    return *Result;
-  }
-
-  static std::string format(llvm::StringRef Code, const FormatStyle &Style) {
-    return format(Code, 0, Code.size(), Style);
-  }
-
-  static void _verifyFormat(const char *File, int Line, llvm::StringRef Code,
-                            const FormatStyle &Style) {
-    ::testing::ScopedTrace t(File, Line, ::testing::Message() << Code.str());
-    EXPECT_EQ(Code.str(), format(Code, Style)) << "Expected code is not stable";
-    EXPECT_EQ(Code.str(), format(test::messUp(Code), Style));
-  }
-
-  static void _verifyFormat(const char *File, int Line, llvm::StringRef Code) {
-    FormatStyle Style = getGoogleStyle(FormatStyle::LK_TextProto);
-    Style.ColumnLimit = 60; // To make writing tests easier.
-    _verifyFormat(File, Line, Code, Style);
+  virtual FormatStyle getDefaultStyle() const override {
+    return getTextProtoStyleWithColumns(60);
   }
 };
-
-#define verifyFormat(...) _verifyFormat(__FILE__, __LINE__, __VA_ARGS__)
 
 TEST_F(FormatTestTextProto, KeepsTopLevelEntriesFittingALine) {
   verifyFormat("field_a: OK field_b: OK field_c: OK field_d: OK field_e: OK");
@@ -152,7 +124,8 @@ TEST_F(FormatTestTextProto, ImplicitStringLiteralConcatenation) {
                "         'bbbbb'");
   verifyFormat("field_a: \"aaaaa\"\n"
                "         \"bbbbb\"");
-  FormatStyle Style = getGoogleStyle(FormatStyle::LK_TextProto);
+
+  auto Style = getDefaultStyle();
   Style.AlwaysBreakBeforeMultilineStrings = true;
   verifyFormat("field_a:\n"
                "    'aaaaa'\n"
@@ -385,46 +358,40 @@ TEST_F(FormatTestTextProto, KeepsCommentsIndentedInList) {
 }
 
 TEST_F(FormatTestTextProto, UnderstandsHashComments) {
-  FormatStyle Style = getGoogleStyle(FormatStyle::LK_TextProto);
-  Style.ColumnLimit = 60; // To make writing tests easier.
-  EXPECT_EQ("aaa: 100\n"
-            "## this is a double-hash comment.\n"
-            "bb: 100\n"
-            "## another double-hash comment.\n"
-            "### a triple-hash comment\n"
-            "cc: 200\n"
-            "### another triple-hash comment\n"
-            "#### a quadriple-hash comment\n"
-            "dd: 100\n"
-            "#### another quadriple-hash comment\n",
-            format("aaa: 100\n"
-                   "##this is a double-hash comment.\n"
-                   "bb: 100\n"
-                   "## another double-hash comment.\n"
-                   "###a triple-hash comment\n"
-                   "cc: 200\n"
-                   "### another triple-hash comment\n"
-                   "####a quadriple-hash comment\n"
-                   "dd: 100\n"
-                   "#### another quadriple-hash comment\n",
-                   Style));
+  auto Style = getDefaultStyle();
+
+  verifyFormat("aaa: 100\n"
+               "## this is a double-hash comment.\n"
+               "bb: 100\n"
+               "## another double-hash comment.\n"
+               "### a triple-hash comment\n"
+               "cc: 200\n"
+               "### another triple-hash comment\n"
+               "#### a quadriple-hash comment\n"
+               "dd: 100\n"
+               "#### another quadriple-hash comment",
+               "aaa: 100\n"
+               "##this is a double-hash comment.\n"
+               "bb: 100\n"
+               "## another double-hash comment.\n"
+               "###a triple-hash comment\n"
+               "cc: 200\n"
+               "### another triple-hash comment\n"
+               "####a quadriple-hash comment\n"
+               "dd: 100\n"
+               "#### another quadriple-hash comment",
+               Style);
 
   // Ensure we support a common pattern for naming sections.
-  EXPECT_EQ("##############\n"
-            "# section name\n"
-            "##############",
-            format("##############\n"
-                   "# section name\n"
-                   "##############",
-                   Style));
+  verifyFormat("##############\n"
+               "# section name\n"
+               "##############",
+               Style);
 
-  EXPECT_EQ("///////////////\n"
-            "// section name\n"
-            "///////////////",
-            format("///////////////\n"
-                   "// section name\n"
-                   "///////////////",
-                   Style));
+  verifyFormat("///////////////\n"
+               "// section name\n"
+               "///////////////",
+               Style);
 }
 
 TEST_F(FormatTestTextProto, FormatsExtensions) {
@@ -545,9 +512,9 @@ TEST_F(FormatTestTextProto, FormatsRepeatedListInitializers) {
                "  ]\n"
                "}\n"
                "key: value");
-  FormatStyle Style = getGoogleStyle(FormatStyle::LK_TextProto);
-  Style.ColumnLimit = 60; // To make writing tests easier.
-  Style.Cpp11BracedListStyle = true;
+
+  auto Style = getDefaultStyle();
+  Style.Cpp11BracedListStyle = FormatStyle::BLS_AlignFirstComment;
   verifyFormat("keys: [1]", Style);
 }
 
@@ -566,11 +533,10 @@ TEST_F(FormatTestTextProto, AcceptsOperatorAsKey) {
 
 TEST_F(FormatTestTextProto, BreaksConsecutiveStringLiterals) {
   verifyFormat("ala: \"str1\"\n"
-               "     \"str2\"\n");
+               "     \"str2\"");
 }
 
 TEST_F(FormatTestTextProto, PutsMultipleEntriesInExtensionsOnNewlines) {
-  FormatStyle Style = getGoogleStyle(FormatStyle::LK_TextProto);
   verifyFormat("pppppppppp: {\n"
                "  ssssss: \"http://example.com/blahblahblah\"\n"
                "  ppppppp: \"sssss/MMMMMMMMMMMM\"\n"
@@ -582,12 +548,10 @@ TEST_F(FormatTestTextProto, PutsMultipleEntriesInExtensionsOnNewlines) {
                "    key: value\n"
                "  }\n"
                "}",
-               Style);
+               getGoogleStyle(FormatStyle::LK_TextProto));
 }
 
 TEST_F(FormatTestTextProto, BreaksAfterBraceFollowedByClosingBraceOnNextLine) {
-  FormatStyle Style = getGoogleStyle(FormatStyle::LK_TextProto);
-  Style.ColumnLimit = 60;
   verifyFormat("keys: [\n"
                "  data: { item: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' }\n"
                "]");
@@ -597,10 +561,6 @@ TEST_F(FormatTestTextProto, BreaksAfterBraceFollowedByClosingBraceOnNextLine) {
 }
 
 TEST_F(FormatTestTextProto, BreaksEntriesOfSubmessagesContainingSubmessages) {
-  FormatStyle Style = getGoogleStyle(FormatStyle::LK_TextProto);
-  Style.ColumnLimit = 60;
-  // The column limit allows for the keys submessage to be put on 1 line, but we
-  // break it since it contains a submessage an another entry.
   verifyFormat("key: valueeeeeeee\n"
                "keys: {\n"
                "  item: 'aaaaaaaaaaaaaaaa'\n"
@@ -695,7 +655,7 @@ TEST_F(FormatTestTextProto, BreaksEntriesOfSubmessagesContainingSubmessages) {
                "  key: 1\n"
                "  sub: {}\n"
                "}\n"
-               "# comment\n");
+               "# comment");
   verifyFormat("sub: {\n"
                "  key: 1\n"
                "  # comment\n"
@@ -761,5 +721,7 @@ TEST_F(FormatTestTextProto, KeepsAmpersandsNextToKeys) {
                "}");
 }
 
+} // namespace
+} // namespace test
 } // namespace format
 } // end namespace clang

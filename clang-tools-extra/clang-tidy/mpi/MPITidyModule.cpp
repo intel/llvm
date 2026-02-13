@@ -1,4 +1,4 @@
-//===--- MPITidyModule.cpp - clang-tidy -----------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,13 +8,12 @@
 
 #include "../ClangTidy.h"
 #include "../ClangTidyModule.h"
-#include "../ClangTidyModuleRegistry.h"
 #include "BufferDerefCheck.h"
 #include "TypeMismatchCheck.h"
 
-namespace clang {
-namespace tidy {
+namespace clang::tidy {
 namespace mpi {
+namespace {
 
 class MPIModule : public ClangTidyModule {
 public:
@@ -24,6 +23,7 @@ public:
   }
 };
 
+} // namespace
 } // namespace mpi
 
 // Register the MPITidyModule using this statically initialized variable.
@@ -32,7 +32,6 @@ static ClangTidyModuleRegistry::Add<mpi::MPIModule>
 
 // This anchor is used to force the linker to link in the generated object file
 // and thus register the MPIModule.
-volatile int MPIModuleAnchorSource = 0;
+volatile int MPIModuleAnchorSource = 0; // NOLINT(misc-use-internal-linkage)
 
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy

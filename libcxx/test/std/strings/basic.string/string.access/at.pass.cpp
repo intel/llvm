@@ -17,63 +17,61 @@
 
 #include "min_allocator.h"
 
+#include "make_string.h"
 #include "test_macros.h"
+#include "type_algorithms.h"
 
 template <class S>
-TEST_CONSTEXPR_CXX20 void
-test(S s, typename S::size_type pos)
-{
-    const S& cs = s;
-    if (pos < s.size())
-    {
-        assert(s.at(pos) == s[pos]);
-        assert(cs.at(pos) == cs[pos]);
-    }
+TEST_CONSTEXPR_CXX20 void test(S s, typename S::size_type pos) {
+  const S& cs = s;
+  if (pos < s.size()) {
+    assert(s.at(pos) == s[pos]);
+    assert(cs.at(pos) == cs[pos]);
+  }
 #ifndef TEST_HAS_NO_EXCEPTIONS
-    else if (!TEST_IS_CONSTANT_EVALUATED)
-    {
-        try
-        {
-            TEST_IGNORE_NODISCARD s.at(pos);
-            assert(false);
-        }
-        catch (std::out_of_range&)
-        {
-            assert(pos >= s.size());
-        }
-        try
-        {
-            TEST_IGNORE_NODISCARD cs.at(pos);
-            assert(false);
-        }
-        catch (std::out_of_range&)
-        {
-            assert(pos >= s.size());
-        }
+  else if (!TEST_IS_CONSTANT_EVALUATED) {
+    try {
+      TEST_IGNORE_NODISCARD s.at(pos);
+      assert(false);
+    } catch (std::out_of_range&) {
+      assert(pos >= s.size());
     }
+    try {
+      TEST_IGNORE_NODISCARD cs.at(pos);
+      assert(false);
+    } catch (std::out_of_range&) {
+      assert(pos >= s.size());
+    }
+  }
 #endif
 }
 
 template <class S>
 TEST_CONSTEXPR_CXX20 void test_string() {
   test(S(), 0);
-  test(S("123"), 0);
-  test(S("123"), 1);
-  test(S("123"), 2);
-  test(S("123"), 3);
+  test(S(MAKE_CSTRING(typename S::value_type, "123")), 0);
+  test(S(MAKE_CSTRING(typename S::value_type, "123")), 1);
+  test(S(MAKE_CSTRING(typename S::value_type, "123")), 2);
+  test(S(MAKE_CSTRING(typename S::value_type, "123")), 3);
 }
 
-TEST_CONSTEXPR_CXX20 bool test() {
-  test_string<std::string>();
+struct TestCaller {
+  template <class T>
+  TEST_CONSTEXPR_CXX20 void operator()() {
+    test_string<std::basic_string<T> >();
 #if TEST_STD_VER >= 11
-  test_string<std::basic_string<char, std::char_traits<char>, min_allocator<char>>>();
+    test_string<std::basic_string<T, std::char_traits<T>, min_allocator<T> > >();
 #endif
+  }
+};
+
+TEST_CONSTEXPR_CXX20 bool test() {
+  types::for_each(types::character_types(), TestCaller());
 
   return true;
 }
 
-int main(int, char**)
-{
+int main(int, char**) {
   test();
 #if TEST_STD_VER > 17
   static_assert(test());

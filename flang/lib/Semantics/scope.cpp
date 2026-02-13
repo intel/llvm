@@ -8,6 +8,7 @@
 
 #include "flang/Semantics/scope.h"
 #include "flang/Parser/characters.h"
+#include "flang/Semantics/semantics.h"
 #include "flang/Semantics/symbol.h"
 #include "flang/Semantics/type.h"
 #include "llvm/Support/raw_ostream.h"
@@ -46,7 +47,7 @@ std::string EquivalenceObject::AsFortran() const {
   if (substringStart) {
     ss << '(' << *substringStart << ":)";
   }
-  return ss.str();
+  return buf;
 }
 
 Scope &Scope::MakeScope(Kind kind, Symbol *symbol) {
@@ -55,7 +56,7 @@ Scope &Scope::MakeScope(Kind kind, Symbol *symbol) {
 
 template <typename T>
 static std::vector<common::Reference<T>> GetSortedSymbols(
-    std::map<SourceName, MutableSymbolRef> symbols) {
+    const std::map<SourceName, MutableSymbolRef> &symbols) {
   std::vector<common::Reference<T>> result;
   result.reserve(symbols.size());
   for (auto &pair : symbols) {
@@ -88,8 +89,11 @@ Symbol *Scope::FindSymbol(const SourceName &name) const {
   auto it{find(name)};
   if (it != end()) {
     return &*it->second;
+  } else if (IsSubmodule()) {
+    const Scope *parent{symbol_->get<ModuleDetails>().parent()};
+    return parent ? parent->FindSymbol(name) : nullptr;
   } else if (CanImport(name)) {
-    return parent_.FindSymbol(name);
+    return parent_->FindSymbol(name);
   } else {
     return nullptr;
   }
@@ -139,19 +143,35 @@ void Scope::add_crayPointer(const SourceName &name, Symbol &pointer) {
   crayPointers_.emplace(name, pointer);
 }
 
-Symbol &Scope::MakeCommonBlock(const SourceName &name) {
-  const auto it{commonBlocks_.find(name)};
-  if (it != commonBlocks_.end()) {
-    return *it->second;
+Symbol &Scope::MakeCommonBlock(SourceName name, SourceName location) {
+  if (auto *cb{FindCommonBlock(name)}) {
+    return *cb;
   } else {
-    Symbol &symbol{MakeSymbol(name, Attrs{}, CommonBlockDetails{})};
+    Symbol &symbol{MakeSymbol(
+        name, Attrs{}, CommonBlockDetails{name.empty() ? location : name})};
     commonBlocks_.emplace(name, symbol);
     return symbol;
   }
 }
-Symbol *Scope::FindCommonBlock(const SourceName &name) const {
-  const auto it{commonBlocks_.find(name)};
-  return it != commonBlocks_.end() ? &*it->second : nullptr;
+
+Symbol *Scope::FindCommonBlockInVisibleScopes(const SourceName &name) const {
+  if (Symbol * cb{FindCommonBlock(name)}) {
+    return cb;
+  } else if (Symbol * cb{FindCommonBlockUse(name)}) {
+    return &cb->GetUltimate();
+  } else if (IsSubmodule()) {
+    if (const Scope *parent{
+            symbol_ ? symbol_->get<ModuleDetails>().parent() : nullptr}) {
+      if (auto *cb{parent->FindCommonBlockInVisibleScopes(name)}) {
+        return cb;
+      }
+    }
+  } else if (!IsTopLevel() && parent_) {
+    if (auto *cb{parent_->FindCommonBlockInVisibleScopes(name)}) {
+      return cb;
+    }
+  }
+  return nullptr;
 }
 
 Scope *Scope::FindSubmodule(const SourceName &name) const {
@@ -162,6 +182,31 @@ Scope *Scope::FindSubmodule(const SourceName &name) const {
     return &*it->second;
   }
 }
+
+bool Scope::AddCommonBlockUse(
+    const SourceName &name, Attrs attrs, Symbol &cbUltimate) {
+  CHECK(cbUltimate.has<CommonBlockDetails>());
+  // Make a symbol, but don't add it to the Scope, since it needs to
+  // be added to the USE-associated COMMON blocks
+  Symbol &useCB{MakeSymbol(name, attrs, UseDetails{name, cbUltimate})};
+  return commonBlockUses_.emplace(name, useCB).second;
+}
+
+Symbol *Scope::FindCommonBlock(const SourceName &name) const {
+  if (const auto it{commonBlocks_.find(name)}; it != commonBlocks_.end()) {
+    return &*it->second;
+  }
+  return nullptr;
+}
+
+Symbol *Scope::FindCommonBlockUse(const SourceName &name) const {
+  if (const auto it{commonBlockUses_.find(name)};
+      it != commonBlockUses_.end()) {
+    return &*it->second;
+  }
+  return nullptr;
+}
+
 bool Scope::AddSubmodule(const SourceName &name, Scope &submodule) {
   return submodules_.emplace(name, submodule).second;
 }
@@ -211,6 +256,7 @@ const DeclTypeSpec *Scope::GetType(const SomeExpr &expr) {
     } else {
       switch (dyType->category()) {
       case TypeCategory::Integer:
+      case TypeCategory::Unsigned:
       case TypeCategory::Real:
       case TypeCategory::Complex:
         return &MakeNumericType(dyType->category(), KindExpr{dyType->kind()});
@@ -272,7 +318,7 @@ std::optional<parser::MessageFixedText> Scope::SetImportKind(ImportKind kind) {
         ? "IMPORT,NONE must be the only IMPORT statement in a scope"_err_en_US
         : "IMPORT,ALL must be the only IMPORT statement in a scope"_err_en_US;
   } else if (kind != *importKind_ &&
-      (kind != ImportKind::Only || kind != ImportKind::Only)) {
+      (kind != ImportKind::Only && *importKind_ != ImportKind::Only)) {
     return "Every IMPORT must have ONLY specifier if one of them does"_err_en_US;
   } else {
     return std::nullopt;
@@ -285,7 +331,7 @@ void Scope::add_importName(const SourceName &name) {
 
 // true if name can be imported or host-associated from parent scope.
 bool Scope::CanImport(const SourceName &name) const {
-  if (IsTopLevel() || parent_.IsTopLevel()) {
+  if (IsTopLevel() || parent_->IsTopLevel()) {
     return false;
   }
   switch (GetImportKind()) {
@@ -300,26 +346,59 @@ bool Scope::CanImport(const SourceName &name) const {
   }
 }
 
-const Scope *Scope::FindScope(parser::CharBlock source) const {
-  return const_cast<Scope *>(this)->FindScope(source);
-}
-
-Scope *Scope::FindScope(parser::CharBlock source) {
-  bool isContained{sourceRange_.Contains(source)};
-  if (!isContained && !IsTopLevel() && !IsModuleFile()) {
-    return nullptr;
+void Scope::AddSourceRange(parser::CharBlock source) {
+  if (source.empty()) {
+    return;
   }
-  for (auto &child : children_) {
-    if (auto *scope{child.FindScope(source)}) {
-      return scope;
+  const parser::AllCookedSources &allCookedSources{context_.allCookedSources()};
+  const parser::CookedSource *cooked{allCookedSources.Find(source)};
+  if (!cooked) {
+    CHECK(context_.IsTempName(source.ToString()));
+    return;
+  }
+  for (auto *scope{this}; !scope->IsTopLevel(); scope = &scope->parent()) {
+    CHECK(scope->sourceRange_.empty() == (scope->cookedSource_ == nullptr));
+    if (!scope->cookedSource_) {
+      context_.UpdateScopeIndex(*scope, source);
+      scope->cookedSource_ = cooked;
+      scope->sourceRange_ = source;
+    } else if (scope->cookedSource_ == cooked) {
+      auto combined{scope->sourceRange()};
+      combined.ExtendToCover(source);
+      context_.UpdateScopeIndex(*scope, combined);
+      scope->sourceRange_ = combined;
+    } else {
+      // There's a bug that will be hard to fix; crash informatively
+      const parser::AllSources &allSources{allCookedSources.allSources()};
+      const auto describe{[&](parser::CharBlock src) {
+        if (auto range{allCookedSources.GetProvenanceRange(src)}) {
+          std::size_t offset;
+          if (const parser::SourceFile *
+              file{allSources.GetSourceFile(range->start(), &offset)}) {
+            return "'"s + file->path() + "' at " + std::to_string(offset) +
+                " for " + std::to_string(range->size());
+          } else {
+            return "(GetSourceFile failed)"s;
+          }
+        } else {
+          return "(GetProvenanceRange failed)"s;
+        }
+      }};
+      std::string scopeDesc{describe(scope->sourceRange_)};
+      std::string newDesc{describe(source)};
+      common::die("AddSourceRange would have combined ranges from distinct "
+                  "source files \"%s\" and \"%s\"",
+          scopeDesc.c_str(), newDesc.c_str());
     }
-  }
-  return isContained && !IsTopLevel() ? this : nullptr;
-}
-
-void Scope::AddSourceRange(const parser::CharBlock &source) {
-  for (auto *scope{this}; !scope->IsGlobal(); scope = &scope->parent()) {
-    scope->sourceRange_.ExtendToCover(source);
+    // Note: If the "break;" here were unconditional (or, equivalently, if
+    // there were no loop at all) then the source ranges of parent scopes
+    // would not enclose the source ranges of their children.  Timing
+    // shows that it's cheap to maintain this property, with the exceptions
+    // of top-level scopes and for (sub)modules and their descendant
+    // submodules.
+    if (scope->IsSubmodule()) {
+      break; // Submodules are child scopes but not contained ranges
+    }
   }
 }
 

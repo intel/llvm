@@ -1,4 +1,4 @@
-; RUN: llc -march=hexagon < %s | FileCheck %s
+; RUN: llc -mtriple=hexagon < %s | FileCheck %s
 ;
 ; Bug 6714. Use sign-extend to promote the arguments for compare
 ; equal/not-equal for 8- and 16-bit types with negative constants.
@@ -64,7 +64,7 @@ entry:
 ; CHECK: cmp.eq{{.*}}#-12
 define i32 @foo8() nounwind readonly {
 entry:
-  %0 = load i16, i16* @g, align 2
+  %0 = load i16, ptr @g, align 2
   %cmp = icmp eq i16 %0, -12
   %res.0 = select i1 %cmp, i32 0, i32 8
   ret i32 %res.0

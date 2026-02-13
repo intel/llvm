@@ -1,4 +1,4 @@
-; RUN: llc -march=hexagon < %s | FileCheck %s
+; RUN: llc -mtriple=hexagon < %s | FileCheck %s
 
 ; This test case is little iffy. It checks for line_table_start,
 ; which in future may be completely replaced with some other label name.
@@ -11,7 +11,7 @@
 define i32 @f0() #0 !dbg !5 {
 b0:
   %v0 = alloca i32, align 4
-  store i32 0, i32* %v0, align 4
+  store i32 0, ptr %v0, align 4
   ret i32 0, !dbg !9
 }
 

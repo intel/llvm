@@ -16,20 +16,21 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
-#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
-#include "mlir/Dialect/GPU/Transforms/Utils.h"
+#include "mlir/Dialect/GPU/Utils/GPUUtils.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinAttributes.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/RegionUtils.h"
+#include <limits>
 
 namespace mlir {
-#define GEN_PASS_DEF_GPULAUNCHSINKINDEXCOMPUTATIONS
-#define GEN_PASS_DEF_GPUKERNELOUTLINING
+#define GEN_PASS_DEF_GPULAUNCHSINKINDEXCOMPUTATIONSPASS
+#define GEN_PASS_DEF_GPUKERNELOUTLININGPASS
 #include "mlir/Dialect/GPU/Transforms/Passes.h.inc"
 } // namespace mlir
 
@@ -39,7 +40,7 @@ template <typename OpTy>
 static void createForAllDimensions(OpBuilder &builder, Location loc,
                                    SmallVectorImpl<Value> &values) {
   for (auto dim : {gpu::Dimension::x, gpu::Dimension::y, gpu::Dimension::z})
-    values.push_back(builder.create<OpTy>(loc, builder.getIndexType(), dim));
+    values.push_back(OpTy::create(builder, loc, builder.getIndexType(), dim));
 }
 
 /// Adds operations generating block/thread ids and grid/block dimensions at the
@@ -47,16 +48,21 @@ static void createForAllDimensions(OpBuilder &builder, Location loc,
 /// entry block of `launchOpBody`, to the corresponding result value of the
 /// added operations.
 static void injectGpuIndexOperations(Location loc, Region &launchFuncOpBody,
-                                     Region &launchOpBody,
-                                     BlockAndValueMapping &map) {
+                                     Region &launchOpBody, IRMapping &map,
+                                     bool hasCluster = false) {
   OpBuilder builder(loc->getContext());
   Block &firstBlock = launchOpBody.front();
   builder.setInsertionPointToStart(&launchFuncOpBody.front());
-  SmallVector<Value, 12> indexOps;
+  SmallVector<Value> indexOps;
+  // The order is important here, as it must match the order of the arguments
   createForAllDimensions<gpu::BlockIdOp>(builder, loc, indexOps);
   createForAllDimensions<gpu::ThreadIdOp>(builder, loc, indexOps);
   createForAllDimensions<gpu::GridDimOp>(builder, loc, indexOps);
   createForAllDimensions<gpu::BlockDimOp>(builder, loc, indexOps);
+  if (hasCluster) {
+    createForAllDimensions<gpu::ClusterIdOp>(builder, loc, indexOps);
+    createForAllDimensions<gpu::ClusterDimOp>(builder, loc, indexOps);
+  }
   // Replace the leading 12 function args with the respective thread/block index
   // operations. Iterate backwards since args are erased and indices change.
   for (const auto &indexOp : enumerate(indexOps))
@@ -135,7 +141,7 @@ LogicalResult mlir::sinkOperationsIntoLaunchOp(
   }
 
   // Insert operations so that the defs get cloned before uses.
-  BlockAndValueMapping map;
+  IRMapping map;
   OpBuilder builder(launchOpBody);
   for (Operation *op : toBeSunk) {
     Operation *clonedOp = builder.clone(*op, map);
@@ -147,8 +153,27 @@ LogicalResult mlir::sinkOperationsIntoLaunchOp(
   return success();
 }
 
+/// Return the provided KernelDim3 as an array of i32 constants if possible.
+static DenseI32ArrayAttr maybeConstantDimsAttr(gpu::KernelDim3 dims) {
+  SmallVector<int32_t, 3> constants;
+  MLIRContext *ctx = dims.x.getContext();
+  for (Value v : {dims.x, dims.y, dims.z}) {
+    APInt constValue;
+    if (!matchPattern(v, m_ConstantInt(&constValue)))
+      return nullptr;
+    // In the event someone called for a too-large block or grid dimension,
+    // don't set bounds as it is likely to cause more confusing behavior.
+    if (constValue.ugt(std::numeric_limits<uint32_t>::max()))
+      return nullptr;
+    constants.push_back(
+        constValue.getLimitedValue(std::numeric_limits<uint32_t>::max()));
+  }
+  return DenseI32ArrayAttr::get(ctx, constants);
+}
+
 /// Outline the `gpu.launch` operation body into a kernel function. Replace
 /// `gpu.terminator` operations by `gpu.return` in the generated function.
+/// Set block and grid size bounds if known.
 static gpu::GPUFuncOp outlineKernelFuncImpl(gpu::LaunchOp launchOp,
                                             StringRef kernelFnName,
                                             SetVector<Value> &operands) {
@@ -170,15 +195,41 @@ static gpu::GPUFuncOp outlineKernelFuncImpl(gpu::LaunchOp launchOp,
   }
   FunctionType type =
       FunctionType::get(launchOp.getContext(), kernelOperandTypes, {});
-  auto outlinedFunc = builder.create<gpu::GPUFuncOp>(loc, kernelFnName, type);
+  auto outlinedFunc = gpu::GPUFuncOp::create(
+      builder, loc, kernelFnName, type,
+      TypeRange(ValueRange(launchOp.getWorkgroupAttributions())),
+      TypeRange(ValueRange(launchOp.getPrivateAttributions())));
   outlinedFunc->setAttr(gpu::GPUDialect::getKernelFuncAttrName(),
                         builder.getUnitAttr());
-  BlockAndValueMapping map;
+
+  // If we can infer bounds on the grid and/or block sizes from the arguments
+  // to the launch op, propagate them to the generated kernel. This is safe
+  // because multiple launches with the same body are not deduplicated.
+  if (auto blockBounds =
+          maybeConstantDimsAttr(launchOp.getBlockSizeOperandValues()))
+    outlinedFunc.setKnownBlockSizeAttr(blockBounds);
+  if (auto gridBounds =
+          maybeConstantDimsAttr(launchOp.getGridSizeOperandValues()))
+    outlinedFunc.setKnownGridSizeAttr(gridBounds);
+
+  IRMapping map;
 
   // Map the arguments corresponding to the launch parameters like blockIdx,
-  // threadIdx, etc.
+  // threadIdx, etc. If cluster is present, then we also generate clusterIdx and
+  // clusterDim.
   Region &outlinedFuncBody = outlinedFunc.getBody();
-  injectGpuIndexOperations(loc, outlinedFuncBody, launchOpBody, map);
+  injectGpuIndexOperations(loc, outlinedFuncBody, launchOpBody, map,
+                           launchOp.hasClusterSize());
+
+  // Map memory attributions from the LaunOp op to the GPUFuncOp attributions.
+  for (const auto &[launchArg, funcArg] :
+       llvm::zip(launchOp.getWorkgroupAttributions(),
+                 outlinedFunc.getWorkgroupAttributions()))
+    map.map(launchArg, funcArg);
+  for (const auto &[launchArg, funcArg] :
+       llvm::zip(launchOp.getPrivateAttributions(),
+                 outlinedFunc.getPrivateAttributions()))
+    map.map(launchArg, funcArg);
 
   // Map arguments from gpu.launch region to the arguments of the gpu.func
   // operation.
@@ -187,24 +238,26 @@ static gpu::GPUFuncOp outlineKernelFuncImpl(gpu::LaunchOp launchOp,
     map.map(operand.value(), entryBlock.getArgument(operand.index()));
 
   // Clone the region of the gpu.launch operation into the gpu.func operation.
-  // TODO: If cloneInto can be modified such that if a mapping for
-  // a block exists, that block will be used to clone operations into (at the
-  // end of the block), instead of creating a new block, this would be much
-  // cleaner.
   launchOpBody.cloneInto(&outlinedFuncBody, map);
 
-  // Branch from entry of the gpu.func operation to the block that is cloned
-  // from the entry block of the gpu.launch operation.
-  Block &launchOpEntry = launchOpBody.front();
-  Block *clonedLaunchOpEntry = map.lookup(&launchOpEntry);
-  builder.setInsertionPointToEnd(&entryBlock);
-  builder.create<cf::BranchOp>(loc, clonedLaunchOpEntry);
+  // Replace the terminator op with returns.
+  for (Block &block : launchOpBody) {
+    Block *clonedBlock = map.lookup(&block);
+    auto terminator = dyn_cast<gpu::TerminatorOp>(clonedBlock->getTerminator());
+    if (!terminator)
+      continue;
+    OpBuilder replacer(terminator);
+    gpu::ReturnOp::create(replacer, terminator->getLoc());
+    terminator->erase();
+  }
 
-  outlinedFunc.walk([](gpu::TerminatorOp op) {
-    OpBuilder replacer(op);
-    replacer.create<gpu::ReturnOp>(op.getLoc());
-    op.erase();
-  });
+  // Splice now the entry block of the gpu.launch operation at the end of the
+  // gpu.func entry block and erase the redundant block.
+  Block *clonedLaunchOpEntry = map.lookup(&launchOpBody.front());
+  entryBlock.getOperations().splice(entryBlock.getOperations().end(),
+                                    clonedLaunchOpEntry->getOperations());
+  clonedLaunchOpEntry->erase();
+
   return outlinedFunc;
 }
 
@@ -212,8 +265,8 @@ gpu::GPUFuncOp mlir::outlineKernelFunc(gpu::LaunchOp launchOp,
                                        StringRef kernelFnName,
                                        llvm::SmallVectorImpl<Value> &operands) {
   DenseSet<Value> inputOperandSet;
-  inputOperandSet.insert(operands.begin(), operands.end());
-  SetVector<Value> operandSet(operands.begin(), operands.end());
+  inputOperandSet.insert_range(operands);
+  SetVector<Value> operandSet(llvm::from_range, operands);
   auto funcOp = outlineKernelFuncImpl(launchOp, kernelFnName, operandSet);
   for (auto operand : operandSet) {
     if (!inputOperandSet.count(operand))
@@ -232,12 +285,14 @@ static void convertToLaunchFuncOp(gpu::LaunchOp launchOp,
   // The launch op has an optional dynamic shared memory size. If it doesn't
   // exist, we use zero.
   Value asyncToken = launchOp.getAsyncToken();
-  auto launchFunc = builder.create<gpu::LaunchFuncOp>(
-      launchOp.getLoc(), kernelFunc, launchOp.getGridSizeOperandValues(),
-      launchOp.getBlockSizeOperandValues(),
+  std::optional<gpu::KernelDim3> clusterSize =
+      launchOp.getClusterSizeOperandValues();
+  auto launchFunc = gpu::LaunchFuncOp::create(
+      builder, launchOp.getLoc(), kernelFunc,
+      launchOp.getGridSizeOperandValues(), launchOp.getBlockSizeOperandValues(),
       launchOp.getDynamicSharedMemorySize(), operands,
       asyncToken ? asyncToken.getType() : nullptr,
-      launchOp.getAsyncDependencies());
+      launchOp.getAsyncDependencies(), clusterSize);
   launchOp.replaceAllUsesWith(launchFunc);
   launchOp.erase();
 }
@@ -246,7 +301,7 @@ namespace {
 /// Pass that moves ops which are likely an index computation into gpu.launch
 /// body.
 class GpuLaunchSinkIndexComputationsPass
-    : public impl::GpuLaunchSinkIndexComputationsBase<
+    : public impl::GpuLaunchSinkIndexComputationsPassBase<
           GpuLaunchSinkIndexComputationsPass> {
 public:
   void runOnOperation() override {
@@ -273,17 +328,9 @@ public:
 /// a separate pass. The external functions can then be annotated with the
 /// symbol of the cubin accessor function.
 class GpuKernelOutliningPass
-    : public impl::GpuKernelOutliningBase<GpuKernelOutliningPass> {
+    : public impl::GpuKernelOutliningPassBase<GpuKernelOutliningPass> {
 public:
-  GpuKernelOutliningPass(StringRef dlStr) {
-    if (!dlStr.empty() && !dataLayoutStr.hasValue())
-      dataLayoutStr = dlStr.str();
-  }
-
-  GpuKernelOutliningPass(const GpuKernelOutliningPass &other)
-      : GpuKernelOutliningBase(other), dataLayoutSpec(other.dataLayoutSpec) {
-    dataLayoutStr = other.dataLayoutStr.getValue();
-  }
+  using Base::Base;
 
   LogicalResult initialize(MLIRContext *context) override {
     // Initialize the data layout specification from the data layout string.
@@ -292,7 +339,7 @@ public:
       if (!resultAttr)
         return failure();
 
-      dataLayoutSpec = resultAttr.dyn_cast<DataLayoutSpecInterface>();
+      dataLayoutSpec = dyn_cast<DataLayoutSpecInterface>(resultAttr);
       if (!dataLayoutSpec)
         return failure();
     }
@@ -303,14 +350,20 @@ public:
   void runOnOperation() override {
     SymbolTable symbolTable(getOperation());
     bool modified = false;
-    for (auto func : getOperation().getOps<func::FuncOp>()) {
+    for (auto func : getOperation().getOps<SymbolOpInterface>()) {
       // Insert just after the function.
       Block::iterator insertPt(func->getNextNode());
       auto funcWalkResult = func.walk([&](gpu::LaunchOp op) {
         SetVector<Value> operands;
-        std::string kernelFnName =
-            Twine(op->getParentOfType<func::FuncOp>().getName(), "_kernel")
-                .str();
+        std::string kernelFnName;
+        if (op.getFunction()) {
+          kernelFnName = op.getFunction()->str();
+        } else {
+          kernelFnName =
+              Twine(op->getParentOfType<SymbolOpInterface>().getName(),
+                    "_kernel")
+                  .str();
+        }
 
         gpu::GPUFuncOp outlinedFunc =
             outlineKernelFuncImpl(op, kernelFnName, operands);
@@ -318,7 +371,7 @@ public:
         // Create nested module and insert outlinedFunc. The module will
         // originally get the same name as the function, but may be renamed on
         // insertion into the parent module.
-        auto kernelModule = createKernelModule(outlinedFunc, symbolTable);
+        auto kernelModule = createKernelModule(op, outlinedFunc, symbolTable);
         symbolTable.insert(kernelModule, insertPt);
 
         // Potentially changes signature, pulling in constants.
@@ -339,7 +392,8 @@ public:
 
 private:
   /// Returns a gpu.module containing kernelFunc and all callees (recursive).
-  gpu::GPUModuleOp createKernelModule(gpu::GPUFuncOp kernelFunc,
+  gpu::GPUModuleOp createKernelModule(gpu::LaunchOp gpuLaunchOp,
+                                      gpu::GPUFuncOp kernelFunc,
                                       const SymbolTable &parentSymbolTable) {
     // TODO: This code cannot use an OpBuilder because it must be inserted into
     // a SymbolTable by the caller. SymbolTable needs to be refactored to
@@ -347,8 +401,22 @@ private:
     // and then this needs to use the OpBuilder.
     auto *context = getOperation().getContext();
     OpBuilder builder(context);
-    auto kernelModule = builder.create<gpu::GPUModuleOp>(kernelFunc.getLoc(),
-                                                         kernelFunc.getName());
+    std::string kernelModuleName;
+    gpu::GPUModuleOp kernelModule;
+    if (gpuLaunchOp.getModule()) {
+      kernelModuleName = gpuLaunchOp.getModule()->str();
+      kernelModule =
+          parentSymbolTable.lookup<gpu::GPUModuleOp>(kernelModuleName);
+    } else {
+      kernelModuleName = kernelFunc.getName();
+    }
+
+    // Check if the module already exists in the symbol table
+    if (!kernelModule) {
+      // If not found, create a new GPU module
+      kernelModule = gpu::GPUModuleOp::create(builder, kernelFunc.getLoc(),
+                                              kernelModuleName);
+    }
 
     // If a valid data layout spec was provided, attach it to the kernel module.
     // Otherwise, the default data layout will be used.
@@ -360,11 +428,10 @@ private:
 
     SmallVector<Operation *, 8> symbolDefWorklist = {kernelFunc};
     while (!symbolDefWorklist.empty()) {
-      if (Optional<SymbolTable::UseRange> symbolUses =
+      if (std::optional<SymbolTable::UseRange> symbolUses =
               SymbolTable::getSymbolUses(symbolDefWorklist.pop_back_val())) {
         for (SymbolTable::SymbolUse symbolUse : *symbolUses) {
-          StringRef symbolName =
-              symbolUse.getSymbolRef().cast<FlatSymbolRefAttr>().getValue();
+          StringAttr symbolName = symbolUse.getSymbolRef().getLeafReference();
           if (symbolTable.lookup(symbolName))
             continue;
 
@@ -379,21 +446,7 @@ private:
     return kernelModule;
   }
 
-  Option<std::string> dataLayoutStr{
-      *this, "data-layout-str",
-      llvm::cl::desc("String containing the data layout specification to be "
-                     "attached to the GPU kernel module")};
-
   DataLayoutSpecInterface dataLayoutSpec;
 };
 
 } // namespace
-
-std::unique_ptr<Pass> mlir::createGpuLauchSinkIndexComputationsPass() {
-  return std::make_unique<GpuLaunchSinkIndexComputationsPass>();
-}
-
-std::unique_ptr<OperationPass<ModuleOp>>
-mlir::createGpuKernelOutliningPass(StringRef dataLayoutStr) {
-  return std::make_unique<GpuKernelOutliningPass>(dataLayoutStr);
-}

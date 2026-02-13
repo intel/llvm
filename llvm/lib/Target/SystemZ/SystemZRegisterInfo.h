@@ -24,10 +24,10 @@ namespace SystemZ {
 // Return the subreg to use for referring to the even and odd registers
 // in a GR128 pair.  Is32Bit says whether we want a GR32 or GR64.
 inline unsigned even128(bool Is32bit) {
-  return Is32bit ? subreg_hl32 : subreg_h64;
+  return Is32bit ? subreg_l32 : subreg_h64;
 }
 inline unsigned odd128(bool Is32bit) {
-  return Is32bit ? subreg_l32 : subreg_l64;
+  return Is32bit ? subreg_ll32 : subreg_l64;
 }
 
 // Reg should be a 32-bit GPR.  Return true if it is a high register rather
@@ -89,6 +89,8 @@ public:
 
   int getAddressOfCalleeRegister() { return SystemZ::R6D; };
 
+  int getADARegister() { return SystemZ::R5D; }
+
   const MCPhysReg *getCalleeSavedRegs(const MachineFunction *MF) const final;
 
   const uint32_t *getCallPreservedMask(const MachineFunction &MF,
@@ -99,7 +101,7 @@ public:
   int getStackPointerBias() final { return 2048; }
 
   /// Destroys the object. Bogus destructor overriding base class destructor
-  ~SystemZXPLINK64Registers() = default;
+  ~SystemZXPLINK64Registers() override = default;
 };
 
 /// ELF calling convention specific use registers
@@ -122,19 +124,18 @@ public:
   int getStackPointerBias() final { return 0; }
 
   /// Destroys the object. Bogus destructor overriding base class destructor
-  ~SystemZELFRegisters() = default;
+  ~SystemZELFRegisters() override = default;
 };
 
 struct SystemZRegisterInfo : public SystemZGenRegisterInfo {
 public:
-  SystemZRegisterInfo(unsigned int RA);
+  SystemZRegisterInfo(unsigned int RA, unsigned int HwMode);
 
   /// getPointerRegClass - Return the register class to use to hold pointers.
   /// This is currently only used by LOAD_STACK_GUARD, which requires a non-%r0
   /// register, hence ADDR64.
   const TargetRegisterClass *
-  getPointerRegClass(const MachineFunction &MF,
-                     unsigned Kind=0) const override {
+  getPointerRegClass(unsigned Kind = 0) const override {
     return &SystemZ::ADDR64BitRegClass;
   }
 
@@ -159,8 +160,9 @@ public:
   const MCPhysReg *getCalleeSavedRegs(const MachineFunction *MF) const override;
   const uint32_t *getCallPreservedMask(const MachineFunction &MF,
                                        CallingConv::ID CC) const override;
+  const uint32_t *getNoPreservedMask() const override;
   BitVector getReservedRegs(const MachineFunction &MF) const override;
-  void eliminateFrameIndex(MachineBasicBlock::iterator MI,
+  bool eliminateFrameIndex(MachineBasicBlock::iterator MI,
                            int SPAdj, unsigned FIOperandNum,
                            RegScavenger *RS) const override;
 

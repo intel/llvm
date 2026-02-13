@@ -1,3 +1,5 @@
+import("//lldb/utils/TableGen/lldb_tablegen.gni")
+
 static_library("MacOSX-DYLD") {
   output_name = "lldbPluginDynamicLoaderMacOSXDYLD"
   configs += [
@@ -14,6 +16,7 @@ static_library("MacOSX-DYLD") {
     "//lldb/source/Target",
     "//lldb/source/Utility",
     "//llvm/lib/Support",
+    "//llvm/lib/TargetParser",
   ]
 
   # Reaches into Plugins/LanguageRuntime/ObjC.

@@ -8,19 +8,17 @@
 
 #pragma once
 
-#include <sycl/context.hpp>
-#include <sycl/detail/property_helper.hpp>
-#include <sycl/properties/property_traits.hpp>
+#include <sycl/detail/property_helper.hpp> // for DataLessPropKind, DataLes...
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace property {
-namespace reduction {
-class initialize_to_identity
-    : public detail::DataLessProperty<detail::InitializeToIdentity> {};
-} // namespace reduction
-} // namespace property
+inline namespace _V1 {
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
+  namespace NS_QUALIFIER {                                                     \
+  class PROP_NAME                                                              \
+      : public sycl::detail::DataLessProperty<sycl::detail::ENUM_VAL> {};      \
+  }
+#include <sycl/properties/reduction_properties.def>
 
 // Reduction property trait specializations
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

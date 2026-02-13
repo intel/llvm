@@ -30,10 +30,13 @@ enum {
   ELF_IsSignature_Shift = 10,
 
   // One bit.
-  ELF_WeakrefUsedInReloc_Shift = 11,
+  ELF_Weakref_Shift = 11,
 
   // One bit.
-  ELF_BindingSet_Shift = 12
+  ELF_BindingSet_Shift = 12,
+
+  // One bit.
+  ELF_IsMemoryTagged_Shift = 13,
 };
 }
 
@@ -81,8 +84,6 @@ unsigned MCSymbolELF::getBinding() const {
     return ELF::STB_LOCAL;
   if (isUsedInReloc())
     return ELF::STB_GLOBAL;
-  if (isWeakrefUsedInReloc())
-    return ELF::STB_WEAK;
   if (isSignature())
     return ELF::STB_LOCAL;
   return ELF::STB_GLOBAL;
@@ -167,13 +168,13 @@ unsigned MCSymbolELF::getOther() const {
   return Other << 5;
 }
 
-void MCSymbolELF::setIsWeakrefUsedInReloc() const {
-  uint32_t OtherFlags = getFlags() & ~(0x1 << ELF_WeakrefUsedInReloc_Shift);
-  setFlags(OtherFlags | (1 << ELF_WeakrefUsedInReloc_Shift));
+void MCSymbolELF::setIsWeakref() const {
+  uint32_t OtherFlags = getFlags() & ~(0x1 << ELF_Weakref_Shift);
+  setFlags(OtherFlags | (1 << ELF_Weakref_Shift));
 }
 
-bool MCSymbolELF::isWeakrefUsedInReloc() const {
-  return getFlags() & (0x1 << ELF_WeakrefUsedInReloc_Shift);
+bool MCSymbolELF::isWeakref() const {
+  return getFlags() & (0x1 << ELF_Weakref_Shift);
 }
 
 void MCSymbolELF::setIsSignature() const {
@@ -192,5 +193,17 @@ void MCSymbolELF::setIsBindingSet() const {
 
 bool MCSymbolELF::isBindingSet() const {
   return getFlags() & (0x1 << ELF_BindingSet_Shift);
+}
+
+bool MCSymbolELF::isMemtag() const {
+  return getFlags() & (0x1 << ELF_IsMemoryTagged_Shift);
+}
+
+void MCSymbolELF::setMemtag(bool Tagged) {
+  uint32_t OtherFlags = getFlags() & ~(1 << ELF_IsMemoryTagged_Shift);
+  if (Tagged)
+    setFlags(OtherFlags | (1 << ELF_IsMemoryTagged_Shift));
+  else
+    setFlags(OtherFlags);
 }
 }

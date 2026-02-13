@@ -18,14 +18,15 @@
 #include "lldb/Utility/StreamString.h"
 
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/ADT/Triple.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/ScopedPrinter.h"
 #include "llvm/Support/Threading.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Host.h"
+#include "llvm/TargetParser/Triple.h"
 
 #include <mutex>
+#include <optional>
 #include <thread>
 
 using namespace lldb;
@@ -60,6 +61,10 @@ struct HostInfoBaseFields {
   FileSpec m_lldb_clang_resource_dir;
   llvm::once_flag m_lldb_system_plugin_dir_once;
   FileSpec m_lldb_system_plugin_dir;
+  llvm::once_flag m_lldb_user_home_dir_once;
+  FileSpec m_lldb_user_home_dir;
+  llvm::once_flag m_lldb_user_lldb_dir_once;
+  FileSpec m_lldb_user_lldb_dir;
   llvm::once_flag m_lldb_user_plugin_dir_once;
   FileSpec m_lldb_user_plugin_dir;
   llvm::once_flag m_lldb_process_tmp_dir_once;
@@ -75,9 +80,11 @@ static HostInfoBase::SharedLibraryDirectoryHelper *g_shlib_dir_helper = nullptr;
 void HostInfoBase::Initialize(SharedLibraryDirectoryHelper *helper) {
   g_shlib_dir_helper = helper;
   g_fields = new HostInfoBaseFields();
+  LogChannelSystem::Initialize();
 }
 
 void HostInfoBase::Terminate() {
+  LogChannelSystem::Terminate();
   g_shlib_dir_helper = nullptr;
   delete g_fields;
   g_fields = nullptr;
@@ -107,13 +114,13 @@ const ArchSpec &HostInfoBase::GetArchitecture(ArchitectureKind arch_kind) {
                                               : g_fields->m_host_arch_32;
 }
 
-llvm::Optional<HostInfoBase::ArchitectureKind>
+std::optional<HostInfoBase::ArchitectureKind>
 HostInfoBase::ParseArchitectureKind(llvm::StringRef kind) {
-  return llvm::StringSwitch<llvm::Optional<ArchitectureKind>>(kind)
+  return llvm::StringSwitch<std::optional<ArchitectureKind>>(kind)
       .Case(LLDB_ARCH_DEFAULT, eArchKindDefault)
       .Case(LLDB_ARCH_DEFAULT_32BIT, eArchKind32)
       .Case(LLDB_ARCH_DEFAULT_64BIT, eArchKind64)
-      .Default(llvm::None);
+      .Default(std::nullopt);
 }
 
 FileSpec HostInfoBase::GetShlibDir() {
@@ -156,6 +163,26 @@ FileSpec HostInfoBase::GetSystemPluginDir() {
              g_fields->m_lldb_system_plugin_dir);
   });
   return g_fields->m_lldb_system_plugin_dir;
+}
+
+FileSpec HostInfoBase::GetUserHomeDir() {
+  llvm::call_once(g_fields->m_lldb_user_home_dir_once, []() {
+    if (!HostInfo::ComputeUserHomeDirectory(g_fields->m_lldb_user_home_dir))
+      g_fields->m_lldb_user_home_dir = FileSpec();
+    LLDB_LOG(GetLog(LLDBLog::Host), "user home dir -> `{0}`",
+             g_fields->m_lldb_user_home_dir);
+  });
+  return g_fields->m_lldb_user_home_dir;
+}
+
+FileSpec HostInfoBase::GetUserLLDBDir() {
+  llvm::call_once(g_fields->m_lldb_user_lldb_dir_once, []() {
+    if (!HostInfo::ComputeUserLLDBHomeDirectory(g_fields->m_lldb_user_lldb_dir))
+      g_fields->m_lldb_user_lldb_dir = FileSpec();
+    LLDB_LOG(GetLog(LLDBLog::Host), "user lldb home dir -> `{0}`",
+             g_fields->m_lldb_user_lldb_dir);
+  });
+  return g_fields->m_lldb_user_lldb_dir;
 }
 
 FileSpec HostInfoBase::GetUserPluginDir() {
@@ -224,24 +251,20 @@ bool HostInfoBase::ComputePathRelativeToLibrary(FileSpec &file_spec,
     return false;
 
   std::string raw_path = lldb_file_spec.GetPath();
-  LLDB_LOGF(log,
-            "HostInfo::%s() attempting to "
-            "derive the path %s relative to liblldb install path: %s",
-            __FUNCTION__, dir.data(), raw_path.c_str());
+  LLDB_LOG(
+      log,
+      "Attempting to derive the path {0} relative to liblldb install path: {1}",
+      dir, raw_path);
 
   // Drop bin (windows) or lib
   llvm::StringRef parent_path = llvm::sys::path::parent_path(raw_path);
   if (parent_path.empty()) {
-    LLDB_LOGF(log,
-              "HostInfo::%s() failed to find liblldb within the shared "
-              "lib path",
-              __FUNCTION__);
+    LLDB_LOG(log, "Failed to find liblldb within the shared lib path");
     return false;
   }
 
   raw_path = (parent_path + dir).str();
-  LLDB_LOGF(log, "HostInfo::%s() derived the path as: %s", __FUNCTION__,
-            raw_path.c_str());
+  LLDB_LOG(log, "Derived the path as: {0}", raw_path);
   file_spec.SetDirectory(raw_path);
   return (bool)file_spec.GetDirectory();
 }
@@ -317,6 +340,20 @@ bool HostInfoBase::ComputeSystemPluginsDirectory(FileSpec &file_spec) {
   return false;
 }
 
+bool HostInfoBase::ComputeUserHomeDirectory(FileSpec &file_spec) {
+  FileSpec temp_file("~");
+  FileSystem::Instance().Resolve(temp_file);
+  file_spec.SetDirectory(temp_file.GetPathAsConstString());
+  return true;
+}
+
+bool HostInfoBase::ComputeUserLLDBHomeDirectory(FileSpec &file_spec) {
+  FileSpec home_dir_spec = GetUserHomeDir();
+  home_dir_spec.AppendPathComponent(".lldb");
+  file_spec.SetDirectory(home_dir_spec.GetPathAsConstString());
+  return true;
+}
+
 bool HostInfoBase::ComputeUserPluginsDirectory(FileSpec &file_spec) {
   // TODO(zturner): Figure out how to compute the user plugins directory for
   // all platforms.
@@ -340,6 +377,7 @@ void HostInfoBase::ComputeHostArchitectureSupport(ArchSpec &arch_32,
   case llvm::Triple::ppc64le:
   case llvm::Triple::x86_64:
   case llvm::Triple::riscv64:
+  case llvm::Triple::loongarch64:
     arch_64.SetTriple(triple);
     arch_32.SetTriple(triple.get32BitArchVariant());
     break;

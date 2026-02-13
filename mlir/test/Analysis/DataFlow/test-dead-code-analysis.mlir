@@ -8,7 +8,7 @@
 // CHECK:    from ^bb0 = live
 // CHECK:   ^bb2 = live
 // CHECK:    from ^bb1 = live
-func.func @test_cfg(%cond: i1) -> () 
+func.func @test_cfg(%cond: i1) -> ()
     attributes {tag = "test_cfg"} {
   cf.br ^bb1
 
@@ -23,10 +23,10 @@ func.func @test_region_control_flow(%cond: i1, %arg0: i64, %arg1: i64) -> () {
   // CHECK: test_if:
   // CHECK:  region #0
   // CHECK: region_preds: (all) predecessors:
-  // CHECK:   scf.if 
+  // CHECK:   scf.if
   // CHECK:  region #1
   // CHECK: region_preds: (all) predecessors:
-  // CHECK:   scf.if 
+  // CHECK:   scf.if
   // CHECK: op_preds: (all) predecessors:
   // CHECK:   scf.yield {then}
   // CHECK:   scf.yield {else}
@@ -34,13 +34,13 @@ func.func @test_region_control_flow(%cond: i1, %arg0: i64, %arg1: i64) -> () {
     scf.yield {then}
   } else {
     scf.yield {else}
-  } {tag = "test_if"} 
+  } {tag = "test_if"}
 
   // test_while:
   //  region #0
   // region_preds: (all) predecessors:
-  //   scf.while 
-  //   scf.yield 
+  //   scf.while
+  //   scf.yield
   //  region #1
   // region_preds: (all) predecessors:
   //   scf.condition
@@ -65,9 +65,9 @@ func.func @test_region_control_flow(%cond: i1, %arg0: i64, %arg1: i64) -> () {
 // CHECK: op_preds: (all) predecessors:
 // CHECK:   func.call @foo(%{{.*}}) {tag = "a"}
 // CHECK:   func.call @foo(%{{.*}}) {tag = "b"}
-func.func private @foo(%arg0: i32) -> i32 
+func.func private @foo(%arg0: i32) -> i32
     attributes {tag = "foo"} {
-  return {a} %arg0 : i32 
+  return {a} %arg0 : i32
 }
 
 // CHECK: bar:
@@ -75,7 +75,7 @@ func.func private @foo(%arg0: i32) -> i32
 // CHECK:   ^bb0 = live
 // CHECK: op_preds: predecessors:
 // CHECK:   func.call @bar(%{{.*}}) {tag = "c"}
-func.func @bar(%cond: i1) -> i32 
+func.func @bar(%cond: i1) -> i32
     attributes {tag = "bar"} {
   cf.cond_br %cond, ^bb1, ^bb2
 
@@ -118,6 +118,18 @@ func.func @test_callgraph(%cond: i1, %arg0: i32) -> i32 {
   return %2 : i32
 }
 
+func.func private @bax(%arg0: i32) {
+  return {void_return}
+}
+
+func.func @test_callgraph_void_return(%arg0: i32) -> i32 {
+  // CHECK: call_void_return:
+  // CHECK: op_preds: (all) predecessors:
+  // CHECK:   func.return {void_return}
+  func.call @bax(%arg0) {tag = "call_void_return"}: (i32) -> ()
+  return %arg0 : i32
+}
+
 // CHECK: test_unknown_branch:
 // CHECK:  region #0
 // CHECK:   ^bb0 = live
@@ -125,7 +137,7 @@ func.func @test_callgraph(%cond: i1, %arg0: i32) -> i32 {
 // CHECK:    from ^bb0 = live
 // CHECK:   ^bb2 = live
 // CHECK:    from ^bb0 = live
-func.func @test_unknown_branch() -> () 
+func.func @test_unknown_branch() -> ()
     attributes {tag = "test_unknown_branch"} {
   "test.unknown_br"() [^bb1, ^bb2] : () -> ()
 
@@ -145,7 +157,7 @@ func.func @test_unknown_region() -> () {
   "test.unknown_region_br"() ({
   ^bb0:
     "test.unknown_region_end"() : () -> ()
-  }, {    
+  }, {
   ^bb0:
     "test.unknown_region_end"() : () -> ()
   }) {tag = "test_unknown_region"} : () -> ()
@@ -157,7 +169,7 @@ func.func @test_unknown_region() -> () {
 // CHECK:   ^bb0 = live
 // CHECK:   ^bb1 = live
 // CHECK:   ^bb2 = dead
-func.func @test_known_dead_block() -> () 
+func.func @test_known_dead_block() -> ()
     attributes {tag = "test_known_dead_block"} {
   %true = arith.constant true
   cf.cond_br %true, ^bb1, ^bb2
@@ -178,7 +190,7 @@ func.func @test_known_dead_edge(%arg0: i1) -> ()
   cf.cond_br %arg0, ^bb1, ^bb2
 
 ^bb1:
-  %true = arith.constant true 
+  %true = arith.constant true
   cf.cond_br %true, ^bb3, ^bb2
 
 ^bb2:
@@ -196,14 +208,14 @@ func.func @test_known_region_predecessors() -> () {
   // CHECK:  region #1
   // CHECK:   ^bb0 = live
   // CHECK: region_preds: (all) predecessors:
-  // CHECK:   scf.if 
+  // CHECK:   scf.if
   // CHECK: op_preds: (all) predecessors:
   // CHECK:   scf.yield {else}
   scf.if %false {
     scf.yield {then}
   } else {
     scf.yield {else}
-  } {tag = "test_known_if"} 
+  } {tag = "test_known_if"}
   return
 }
 
@@ -220,10 +232,10 @@ func.func @test_dead_callsite() -> () {
   %true = arith.constant true
   scf.if %true {
     func.call @callable() {then} : () -> ()
-    scf.yield 
+    scf.yield
   } else {
     func.call @callable() {else} : () -> ()
-    scf.yield 
+    scf.yield
   }
   return
 }
@@ -245,4 +257,15 @@ func.func @test_call_dead_return(%arg0: i32) -> () {
   // CHECK:   func.return {true}
   %0 = func.call @test_dead_return(%arg0) {tag = "test_dead_return"} : (i32) -> i32
   return
+}
+
+func.func @test_dca_doesnt_crash() -> () {
+  %0 = scf.execute_region -> tensor<5x16xi16> {
+    llvm.unreachable
+  }  
+  return
+}
+
+func.func @test_dca_doesnt_crash_2() -> () attributes {symbol = @notexistant} {
+   return
 }

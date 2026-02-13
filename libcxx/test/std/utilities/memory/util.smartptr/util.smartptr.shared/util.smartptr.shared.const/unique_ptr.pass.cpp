@@ -12,6 +12,8 @@
 
 // template <class Y, class D> shared_ptr(unique_ptr<Y, D>&&r);
 
+// XFAIL: FROZEN-CXX03-HEADERS-FIXME
+
 #include <memory>
 #include <new>
 #include <cstdlib>
@@ -90,6 +92,16 @@ struct MovingDeleter {
   int *moves_;
 };
 
+// https://llvm.org/PR53368
+// Bogus unique_ptr-to-shared_ptr conversions should be forbidden
+#if TEST_STD_VER >= 17
+static_assert( std::is_constructible<std::shared_ptr<A>,   std::unique_ptr<A>&&>::value, "");
+static_assert( std::is_constructible<std::shared_ptr<A[]>, std::unique_ptr<A[]>&&>::value, "");
+static_assert(!std::is_constructible<std::shared_ptr<A>,   std::unique_ptr<A[]>&&>::value, "");
+static_assert(!std::is_constructible<std::shared_ptr<B[]>, std::unique_ptr<A[]>&&>::value, "");
+static_assert(!std::is_constructible<std::shared_ptr<B>,   std::unique_ptr<A[]>&&>::value, "");
+#endif
+
 int main(int, char**)
 {
     {
@@ -155,12 +167,10 @@ int main(int, char**)
     { // LWG 2399
         fn(std::unique_ptr<int>(new int));
     }
-#if TEST_STD_VER >= 14
     { // LWG 2415
         std::unique_ptr<int, void (*)(int*)> p(nullptr, assert_deleter<int>);
         std::shared_ptr<int> p2(std::move(p)); // should not call deleter when going out of scope
     }
-#endif
 
     {
     adl::D d;
@@ -169,36 +179,6 @@ int main(int, char**)
     }
 
     assert(A::count == 0);
-#ifdef _LIBCPP_VERSION // https://llvm.org/PR53368
-    {
-      std::unique_ptr<A[]> ptr(new A[8]);
-      A* raw_ptr = ptr.get();
-      std::shared_ptr<B> p(std::move(ptr));
-      assert(A::count == 8);
-      assert(B::count == 8);
-      assert(p.use_count() == 1);
-      assert(p.get() == raw_ptr);
-      assert(ptr.get() == 0);
-    }
-    assert(A::count == 0);
-    assert(B::count == 0);
-
-    {
-      std::unique_ptr<A[]> ptr(new A[8]);
-      A* raw_ptr = ptr.get();
-      std::shared_ptr<A> p(std::move(ptr));
-      assert(A::count == 8);
-      assert(p.use_count() == 1);
-      assert(p.get() == raw_ptr);
-      assert(ptr.get() == 0);
-    }
-    assert(A::count == 0);
-
-    {
-      std::unique_ptr<int[]> ptr(new int[8]);
-      std::shared_ptr<int> p(std::move(ptr));
-    }
-#endif // _LIBCPP_VERSION
 
 #if TEST_STD_VER > 14
     {
@@ -210,21 +190,6 @@ int main(int, char**)
     }
     assert(A::count == 0);
     assert(B::count == 0);
-
-#ifdef _LIBCPP_VERSION // https://llvm.org/PR53368
-    {
-      std::unique_ptr<A[]> ptr(new A[8]);
-      A* raw_ptr = ptr.get();
-      std::shared_ptr<B[]> p(std::move(ptr));
-      assert(A::count == 8);
-      assert(B::count == 8);
-      assert(p.use_count() == 1);
-      assert(p.get() == raw_ptr);
-      assert(ptr.get() == 0);
-    }
-    assert(A::count == 0);
-    assert(B::count == 0);
-#endif // _LIBCPP_VERSION
 
     {
       std::unique_ptr<A[]> ptr(new A[8]);

@@ -16,6 +16,7 @@
 
 #include "M68kMCInstLower.h"
 #include "M68kTargetMachine.h"
+#include "MCTargetDesc/M68kMemOperandPrinter.h"
 
 #include "llvm/CodeGen/AsmPrinter.h"
 #include "llvm/MC/MCStreamer.h"
@@ -34,20 +35,29 @@ class raw_ostream;
 class M68kSubtarget;
 class M68kMachineFunctionInfo;
 
-class LLVM_LIBRARY_VISIBILITY M68kAsmPrinter : public AsmPrinter {
+class LLVM_LIBRARY_VISIBILITY M68kAsmPrinter
+    : public AsmPrinter,
+      public M68kMemOperandPrinter<M68kAsmPrinter, MachineInstr> {
+
+  friend class M68kMemOperandPrinter;
 
   void EmitInstrWithMacroNoAT(const MachineInstr *MI);
 
   void printOperand(const MachineInstr *MI, int OpNum, raw_ostream &OS);
 
+  void printDisp(const MachineInstr *MI, unsigned OpNum, raw_ostream &OS);
+  void printAbsMem(const MachineInstr *MI, unsigned OpNum, raw_ostream &OS);
+
 public:
+  static char ID;
+
   const M68kSubtarget *Subtarget;
   const M68kMachineFunctionInfo *MMFI;
   std::unique_ptr<M68kMCInstLower> MCInstLowering;
 
   explicit M68kAsmPrinter(TargetMachine &TM,
                           std::unique_ptr<MCStreamer> Streamer)
-      : AsmPrinter(TM, std::move(Streamer)) {
+      : AsmPrinter(TM, std::move(Streamer), ID) {
     Subtarget = static_cast<M68kTargetMachine &>(TM).getSubtargetImpl();
   }
 
@@ -57,6 +67,8 @@ public:
 
   bool PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
                        const char *ExtraCode, raw_ostream &OS) override;
+  bool PrintAsmMemoryOperand(const MachineInstr *MI, unsigned OpNo,
+                             const char *ExtraCode, raw_ostream &OS) override;
 
   void emitInstruction(const MachineInstr *MI) override;
   void emitFunctionBodyStart() override;

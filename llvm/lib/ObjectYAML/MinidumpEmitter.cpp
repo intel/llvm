@@ -10,6 +10,7 @@
 #include "llvm/ObjectYAML/yaml2obj.h"
 #include "llvm/Support/ConvertUTF.h"
 #include "llvm/Support/raw_ostream.h"
+#include <optional>
 
 using namespace llvm;
 using namespace llvm::minidump;
@@ -59,7 +60,7 @@ public:
   allocateNewArray(const iterator_range<RangeType> &Range);
 
   template <typename T> size_t allocateObject(const T &Data) {
-    return allocateArray(makeArrayRef(Data));
+    return allocateArray(ArrayRef(Data));
   }
 
   template <typename T, typename... Types>
@@ -83,9 +84,9 @@ private:
 template <typename T, typename RangeType>
 std::pair<size_t, MutableArrayRef<T>>
 BlobAllocator::allocateNewArray(const iterator_range<RangeType> &Range) {
-  size_t Num = std::distance(Range.begin(), Range.end());
+  size_t Num = llvm::size(Range);
   MutableArrayRef<T> Array(Temporaries.Allocate<T>(Num), Num);
-  std::uninitialized_copy(Range.begin(), Range.end(), Array.begin());
+  llvm::uninitialized_copy(Range, Array.begin());
   return {allocateArray(Array), Array};
 }
 
@@ -135,6 +136,30 @@ static size_t layout(BlobAllocator &File, MinidumpYAML::ExceptionStream &S) {
   return DataEnd;
 }
 
+static size_t layout(BlobAllocator &File, MinidumpYAML::Memory64ListStream &S) {
+  size_t BaseRVA = File.tell() + sizeof(minidump::Memory64ListHeader);
+  BaseRVA += S.Entries.size() * sizeof(minidump::MemoryDescriptor_64);
+  S.Header.BaseRVA = BaseRVA;
+  S.Header.NumberOfMemoryRanges = S.Entries.size();
+  File.allocateObject(S.Header);
+  for (auto &E : S.Entries)
+    File.allocateObject(E.Entry);
+
+  // Save the new offset for the stream size.
+  size_t DataEnd = File.tell();
+  for (auto &E : S.Entries) {
+    File.allocateBytes(E.Content);
+    if (E.Entry.DataSize > E.Content.binary_size()) {
+      size_t Padding = E.Entry.DataSize - E.Content.binary_size();
+      File.allocateCallback(Padding, [Padding](raw_ostream &OS) {
+        OS << std::string(Padding, '\0');
+      });
+    }
+  }
+
+  return DataEnd;
+}
+
 static void layout(BlobAllocator &File, MemoryListStream::entry_type &Range) {
   Range.Entry.Memory = layout(File, Range.Content);
 }
@@ -173,7 +198,7 @@ static Directory layout(BlobAllocator &File, Stream &S) {
   Directory Result;
   Result.Type = S.Type;
   Result.Location.RVA = File.tell();
-  Optional<size_t> DataEnd;
+  std::optional<size_t> DataEnd;
   switch (S.Kind) {
   case Stream::StreamKind::Exception:
     DataEnd = layout(File, cast<MinidumpYAML::ExceptionStream>(S));
@@ -183,11 +208,14 @@ static Directory layout(BlobAllocator &File, Stream &S) {
     File.allocateNewObject<minidump::MemoryInfoListHeader>(
         sizeof(minidump::MemoryInfoListHeader), sizeof(minidump::MemoryInfo),
         InfoList.Infos.size());
-    File.allocateArray(makeArrayRef(InfoList.Infos));
+    File.allocateArray(ArrayRef(InfoList.Infos));
     break;
   }
   case Stream::StreamKind::MemoryList:
     DataEnd = layout(File, cast<MemoryListStream>(S));
+    break;
+  case Stream::StreamKind::Memory64List:
+    DataEnd = layout(File, cast<Memory64ListStream>(S));
     break;
   case Stream::StreamKind::ModuleList:
     DataEnd = layout(File, cast<ModuleListStream>(S));
@@ -232,12 +260,11 @@ bool yaml2minidump(MinidumpYAML::Object &Obj, raw_ostream &Out,
   File.allocateObject(Obj.Header);
 
   std::vector<Directory> StreamDirectory(Obj.Streams.size());
-  Obj.Header.StreamDirectoryRVA =
-      File.allocateArray(makeArrayRef(StreamDirectory));
+  Obj.Header.StreamDirectoryRVA = File.allocateArray(ArrayRef(StreamDirectory));
   Obj.Header.NumberOfStreams = StreamDirectory.size();
 
-  for (auto &Stream : enumerate(Obj.Streams))
-    StreamDirectory[Stream.index()] = layout(File, *Stream.value());
+  for (const auto &[Index, Stream] : enumerate(Obj.Streams))
+    StreamDirectory[Index] = layout(File, *Stream);
 
   File.writeTo(Out);
   return true;

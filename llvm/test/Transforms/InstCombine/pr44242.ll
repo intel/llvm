@@ -12,7 +12,7 @@ define float @sitofp(float %x) {
 ; CHECK:       loop_header:
 ; CHECK-NEXT:    [[VAL:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[VAL_INCR_CASTED:%.*]], [[LOOP:%.*]] ]
 ; CHECK-NEXT:    [[VAL_CASTED:%.*]] = bitcast i32 [[VAL]] to float
-; CHECK-NEXT:    [[CMP:%.*]] = fcmp ogt float [[VAL_CASTED]], [[X:%.*]]
+; CHECK-NEXT:    [[CMP:%.*]] = fcmp olt float [[X:%.*]], [[VAL_CASTED]]
 ; CHECK-NEXT:    br i1 [[CMP]], label [[END:%.*]], label [[LOOP]]
 ; CHECK:       loop:
 ; CHECK-NEXT:    [[VAL_INCR:%.*]] = fadd float [[VAL_CASTED]], 1.000000e+00
@@ -46,7 +46,7 @@ define <2 x i16> @bitcast(float %x) {
 ; CHECK:       loop_header:
 ; CHECK-NEXT:    [[VAL:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[VAL_INCR_CASTED:%.*]], [[LOOP:%.*]] ]
 ; CHECK-NEXT:    [[VAL_CASTED:%.*]] = bitcast i32 [[VAL]] to float
-; CHECK-NEXT:    [[CMP:%.*]] = fcmp ogt float [[VAL_CASTED]], [[X:%.*]]
+; CHECK-NEXT:    [[CMP:%.*]] = fcmp olt float [[X:%.*]], [[VAL_CASTED]]
 ; CHECK-NEXT:    br i1 [[CMP]], label [[END:%.*]], label [[LOOP]]
 ; CHECK:       loop:
 ; CHECK-NEXT:    [[VAL_INCR:%.*]] = fadd float [[VAL_CASTED]], 1.000000e+00
@@ -82,14 +82,14 @@ define void @store_volatile(float %x) {
 ; CHECK:       loop_header:
 ; CHECK-NEXT:    [[VAL:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[VAL_INCR_CASTED:%.*]], [[LOOP:%.*]] ]
 ; CHECK-NEXT:    [[VAL_CASTED:%.*]] = bitcast i32 [[VAL]] to float
-; CHECK-NEXT:    [[CMP:%.*]] = fcmp ogt float [[VAL_CASTED]], [[X:%.*]]
+; CHECK-NEXT:    [[CMP:%.*]] = fcmp olt float [[X:%.*]], [[VAL_CASTED]]
 ; CHECK-NEXT:    br i1 [[CMP]], label [[END:%.*]], label [[LOOP]]
 ; CHECK:       loop:
 ; CHECK-NEXT:    [[VAL_INCR:%.*]] = fadd float [[VAL_CASTED]], 1.000000e+00
 ; CHECK-NEXT:    [[VAL_INCR_CASTED]] = bitcast float [[VAL_INCR]] to i32
 ; CHECK-NEXT:    br label [[LOOP_HEADER]]
 ; CHECK:       end:
-; CHECK-NEXT:    store volatile i32 [[VAL]], i32* @global, align 4
+; CHECK-NEXT:    store volatile i32 [[VAL]], ptr @global, align 4
 ; CHECK-NEXT:    ret void
 ;
 entry:
@@ -104,7 +104,7 @@ loop:
   %val_incr_casted = bitcast float %val_incr to i32
   br label %loop_header
 end:
-  store volatile i32 %val, i32* @global
+  store volatile i32 %val, ptr @global
   ret void
 }
 
@@ -114,31 +114,29 @@ define void @store_address(i32 %x) {
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    br label [[LOOP_HEADER:%.*]]
 ; CHECK:       loop_header:
-; CHECK-NEXT:    [[VAL:%.*]] = phi i32* [ @global, [[ENTRY:%.*]] ], [ [[VAL_INCR1:%.*]], [[LOOP:%.*]] ]
+; CHECK-NEXT:    [[VAL:%.*]] = phi ptr [ @global, [[ENTRY:%.*]] ], [ [[VAL_INCR:%.*]], [[LOOP:%.*]] ]
 ; CHECK-NEXT:    [[CMP:%.*]] = icmp slt i32 [[X:%.*]], 0
 ; CHECK-NEXT:    br i1 [[CMP]], label [[END:%.*]], label [[LOOP]]
 ; CHECK:       loop:
-; CHECK-NEXT:    [[VAL_INCR1]] = getelementptr i32, i32* [[VAL]], i64 1
+; CHECK-NEXT:    [[VAL_INCR]] = getelementptr i8, ptr [[VAL]], i64 4
 ; CHECK-NEXT:    br label [[LOOP_HEADER]]
 ; CHECK:       end:
-; CHECK-NEXT:    store i32 0, i32* [[VAL]], align 4
+; CHECK-NEXT:    store i32 0, ptr [[VAL]], align 4
 ; CHECK-NEXT:    ret void
 ;
 entry:
   br label %loop_header
 loop_header:
-  %val = phi i32* [ @global, %entry ], [ %val_incr_casted, %loop ]
+  %val = phi ptr [ @global, %entry ], [ %val_incr, %loop ]
   %i = phi i32 [ 0, %entry ], [ %i_incr, %loop ]
-  %val_casted = bitcast i32* %val to float*
   %cmp = icmp sgt i32 %i, %x
   br i1 %cmp, label %end, label %loop
 loop:
   %i_incr = add i32 %i, 0
-  %val_incr = getelementptr float, float* %val_casted, i32 1
-  %val_incr_casted = bitcast float* %val_incr to i32*
+  %val_incr = getelementptr float, ptr %val, i32 1
   br label %loop_header
 end:
-  store i32 0, i32* %val
+  store i32 0, ptr %val
   ret void
 }
 
@@ -151,7 +149,7 @@ define i32 @multiple_phis(float %x) {
 ; CHECK:       loop_header:
 ; CHECK-NEXT:    [[VAL:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[VAL2:%.*]], [[LOOP_END:%.*]] ]
 ; CHECK-NEXT:    [[VAL_CASTED:%.*]] = bitcast i32 [[VAL]] to float
-; CHECK-NEXT:    [[CMP:%.*]] = fcmp ogt float [[VAL_CASTED]], [[X:%.*]]
+; CHECK-NEXT:    [[CMP:%.*]] = fcmp olt float [[X:%.*]], [[VAL_CASTED]]
 ; CHECK-NEXT:    br i1 [[CMP]], label [[END:%.*]], label [[LOOP:%.*]]
 ; CHECK:       loop:
 ; CHECK-NEXT:    [[CMP2:%.*]] = fcmp ogt float [[VAL_CASTED]], 2.000000e+00
@@ -162,7 +160,7 @@ define i32 @multiple_phis(float %x) {
 ; CHECK-NEXT:    br label [[LOOP_END]]
 ; CHECK:       loop_end:
 ; CHECK-NEXT:    [[VAL2]] = phi i32 [ [[VAL]], [[LOOP]] ], [ [[VAL_INCR_CASTED]], [[IF]] ]
-; CHECK-NEXT:    store volatile i32 [[VAL2]], i32* @global, align 4
+; CHECK-NEXT:    store volatile i32 [[VAL2]], ptr @global, align 4
 ; CHECK-NEXT:    br label [[LOOP_HEADER]]
 ; CHECK:       end:
 ; CHECK-NEXT:    ret i32 [[VAL]]
@@ -183,7 +181,7 @@ if:
   br label %loop_end
 loop_end:
   %val2 = phi i32 [ %val, %loop ], [ %val_incr_casted, %if ]
-  store volatile i32 %val2, i32* @global ; the incompatible use
+  store volatile i32 %val2, ptr @global ; the incompatible use
   br label %loop_header
 end:
   ret i32 %val

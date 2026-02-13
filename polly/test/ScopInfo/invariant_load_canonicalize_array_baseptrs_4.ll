@@ -1,6 +1,4 @@
-; RUN: opt %loadPolly -polly-print-scops -disable-output < %s \
-; RUN:  -polly-invariant-load-hoisting \
-; RUN:  | FileCheck %s
+; RUN: opt %loadNPMPolly '-passes=polly-custom<scops>' -polly-print-scops -disable-output -polly-invariant-load-hoisting < %s 2>&1 | FileCheck %s
 
 ; Verify that a delinearized and a not delinearized access are not
 ; canonicalized.
@@ -22,7 +20,7 @@
 ; CHECK-NEXT: }
 
 
-define void @foo(float** %A, i64 %n, i64 %m) {
+define void @foo(ptr %A, i64 %n, i64 %m) {
 start:
   br label %loop
 
@@ -33,16 +31,16 @@ loop:
   br i1 %icmp, label %body1, label %exit
 
 body1:
-  %baseB = load float*, float** %A
-  store float 42.0, float* %baseB
+  %baseB = load ptr, ptr %A
+  store float 42.0, ptr %baseB
   br label %body2
 
 body2:
-  %baseA = load float*, float** %A
+  %baseA = load ptr, ptr %A
   %offsetA = mul i64 %indvar, %n
   %offsetA2 = add i64 %offsetA, %indvar
-  %ptrA = getelementptr float, float* %baseA, i64 %offsetA2
-  store float 42.0, float* %ptrA
+  %ptrA = getelementptr float, ptr %baseA, i64 %offsetA2
+  store float 42.0, ptr %ptrA
   br label %latch
 
 latch:

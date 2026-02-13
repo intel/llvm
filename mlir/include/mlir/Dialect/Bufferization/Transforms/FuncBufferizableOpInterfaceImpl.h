@@ -10,6 +10,9 @@
 #define MLIR_BUFFERIZATION_TRANSFORMS_FUNCBUFFERIZABLEOPINTERFACEIMPL_H
 
 #include "mlir/Dialect/Bufferization/IR/BufferizableOpInterface.h"
+#include "mlir/Dialect/Bufferization/Transforms/OneShotAnalysis.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "llvm/ADT/SmallVector.h"
 
 namespace mlir {
 class DialectRegistry;
@@ -19,6 +22,9 @@ class FuncOp;
 } // namespace func
 
 namespace bufferization {
+/// Helper function that returns all func.return ops in the given function.
+SmallVector<func::ReturnOp> getReturnOps(func::FuncOp funcOp);
+
 namespace func_ext {
 /// The state of analysis of a FuncOp.
 enum class FuncOpAnalysisState { NotAnalyzed, InProgress, Analyzed };
@@ -27,7 +33,10 @@ using func::FuncOp;
 
 /// Extra analysis state that is required for bufferization of function
 /// boundaries.
-struct FuncAnalysisState : public DialectAnalysisState {
+struct FuncAnalysisState : public OneShotAnalysisState::Extension {
+  FuncAnalysisState(OneShotAnalysisState &state)
+      : OneShotAnalysisState::Extension(state) {}
+
   // Note: Function arguments and/or function return values may disappear during
   // bufferization. Functions and their CallOps are analyzed and bufferized
   // separately. To ensure that a CallOp analysis/bufferization can access an
@@ -47,9 +56,6 @@ struct FuncAnalysisState : public DialectAnalysisState {
   /// indices.
   DenseMap<FuncOp, IndexMapping> equivalentFuncArgs;
 
-  /// A mapping of ReturnOp OpOperand indices to aliasing FuncOp BBArg indices.
-  DenseMap<FuncOp, IndexToIndexListMapping> aliasingFuncArgs;
-
   /// A mapping of FuncOp BBArg indices to aliasing ReturnOp OpOperand indices.
   DenseMap<FuncOp, IndexToIndexListMapping> aliasingReturnVals;
 
@@ -62,6 +68,9 @@ struct FuncAnalysisState : public DialectAnalysisState {
   /// Keep track of which FuncOps are fully analyzed or currently being
   /// analyzed.
   DenseMap<FuncOp, FuncOpAnalysisState> analyzedFuncOps;
+
+  /// A collection of cached SymbolTables used for faster function lookup.
+  mutable SymbolTableCollection symbolTables;
 
   /// This function is called right before analyzing the given FuncOp. It
   /// initializes the data structures for the FuncOp in this state object.

@@ -12,9 +12,9 @@ using namespace llvm;
 
 namespace {
 
-typedef PointerUnion<int *, float *> PU;
-typedef PointerUnion<int *, float *, long long *> PU3;
-typedef PointerUnion<int *, float *, long long *, double *> PU4;
+using PU = PointerUnion<int *, float *>;
+using PU3 = PointerUnion<int *, float *, long long *>;
+using PU4 = PointerUnion<int *, float *, long long *, double *>;
 
 struct PointerUnionTest : public testing::Test {
   float f;
@@ -89,63 +89,63 @@ TEST_F(PointerUnionTest, Null) {
 }
 
 TEST_F(PointerUnionTest, Is) {
-  EXPECT_FALSE(a.is<int *>());
-  EXPECT_TRUE(a.is<float *>());
-  EXPECT_TRUE(b.is<int *>());
-  EXPECT_FALSE(b.is<float *>());
-  EXPECT_TRUE(n.is<int *>());
-  EXPECT_FALSE(n.is<float *>());
-  EXPECT_TRUE(i3.is<int *>());
-  EXPECT_TRUE(f3.is<float *>());
-  EXPECT_TRUE(l3.is<long long *>());
-  EXPECT_TRUE(i4.is<int *>());
-  EXPECT_TRUE(f4.is<float *>());
-  EXPECT_TRUE(l4.is<long long *>());
-  EXPECT_TRUE(d4.is<double *>());
-  EXPECT_TRUE(i4null.is<int *>());
-  EXPECT_TRUE(f4null.is<float *>());
-  EXPECT_TRUE(l4null.is<long long *>());
-  EXPECT_TRUE(d4null.is<double *>());
+  EXPECT_FALSE(isa<int *>(a));
+  EXPECT_TRUE(isa<float *>(a));
+  EXPECT_TRUE(isa<int *>(b));
+  EXPECT_FALSE(isa<float *>(b));
+  EXPECT_TRUE(isa<int *>(n));
+  EXPECT_FALSE(isa<float *>(n));
+  EXPECT_TRUE(isa<int *>(i3));
+  EXPECT_TRUE(isa<float *>(f3));
+  EXPECT_TRUE(isa<long long *>(l3));
+  EXPECT_TRUE(isa<int *>(i4));
+  EXPECT_TRUE(isa<float *>(f4));
+  EXPECT_TRUE(isa<long long *>(l4));
+  EXPECT_TRUE(isa<double *>(d4));
+  EXPECT_TRUE(isa<int *>(i4null));
+  EXPECT_TRUE(isa<float *>(f4null));
+  EXPECT_TRUE(isa<long long *>(l4null));
+  EXPECT_TRUE(isa<double *>(d4null));
 }
 
 TEST_F(PointerUnionTest, Get) {
-  EXPECT_EQ(a.get<float *>(), &f);
-  EXPECT_EQ(b.get<int *>(), &i);
-  EXPECT_EQ(n.get<int *>(), (int *)nullptr);
+  EXPECT_EQ(cast<float *>(a), &f);
+  EXPECT_EQ(cast<int *>(b), &i);
+  EXPECT_EQ(cast<int *>(n), (int *)nullptr);
 }
 
 template<int I> struct alignas(8) Aligned {};
 
-typedef PointerUnion<Aligned<0> *, Aligned<1> *, Aligned<2> *, Aligned<3> *,
-                     Aligned<4> *, Aligned<5> *, Aligned<6> *, Aligned<7> *>
-    PU8;
+using PU8 =
+    PointerUnion<Aligned<0> *, Aligned<1> *, Aligned<2> *, Aligned<3> *,
+                 Aligned<4> *, Aligned<5> *, Aligned<6> *, Aligned<7> *>;
 
 TEST_F(PointerUnionTest, ManyElements) {
   Aligned<0> a0;
   Aligned<7> a7;
 
   PU8 a = &a0;
-  EXPECT_TRUE(a.is<Aligned<0>*>());
-  EXPECT_FALSE(a.is<Aligned<1>*>());
-  EXPECT_FALSE(a.is<Aligned<2>*>());
-  EXPECT_FALSE(a.is<Aligned<3>*>());
-  EXPECT_FALSE(a.is<Aligned<4>*>());
-  EXPECT_FALSE(a.is<Aligned<5>*>());
-  EXPECT_FALSE(a.is<Aligned<6>*>());
-  EXPECT_FALSE(a.is<Aligned<7>*>());
-  EXPECT_EQ(a.dyn_cast<Aligned<0>*>(), &a0);
+  EXPECT_TRUE(isa<Aligned<0> *>(a));
+  EXPECT_FALSE(isa<Aligned<1> *>(a));
+  EXPECT_FALSE(isa<Aligned<2> *>(a));
+  EXPECT_FALSE(isa<Aligned<3> *>(a));
+  EXPECT_FALSE(isa<Aligned<4> *>(a));
+  EXPECT_FALSE(isa<Aligned<5> *>(a));
+  EXPECT_FALSE(isa<Aligned<6> *>(a));
+  EXPECT_FALSE(isa<Aligned<7> *>(a));
+  EXPECT_EQ(dyn_cast_if_present<Aligned<0> *>(a), &a0);
   EXPECT_EQ(*a.getAddrOfPtr1(), &a0);
 
   a = &a7;
-  EXPECT_FALSE(a.is<Aligned<0>*>());
-  EXPECT_FALSE(a.is<Aligned<1>*>());
-  EXPECT_FALSE(a.is<Aligned<2>*>());
-  EXPECT_FALSE(a.is<Aligned<3>*>());
-  EXPECT_FALSE(a.is<Aligned<4>*>());
-  EXPECT_FALSE(a.is<Aligned<5>*>());
-  EXPECT_FALSE(a.is<Aligned<6>*>());
-  EXPECT_TRUE(a.is<Aligned<7>*>());
-  EXPECT_EQ(a.dyn_cast<Aligned<7>*>(), &a7);
+  EXPECT_FALSE(isa<Aligned<0> *>(a));
+  EXPECT_FALSE(isa<Aligned<1> *>(a));
+  EXPECT_FALSE(isa<Aligned<2> *>(a));
+  EXPECT_FALSE(isa<Aligned<3> *>(a));
+  EXPECT_FALSE(isa<Aligned<4> *>(a));
+  EXPECT_FALSE(isa<Aligned<5> *>(a));
+  EXPECT_FALSE(isa<Aligned<6> *>(a));
+  EXPECT_TRUE(isa<Aligned<7> *>(a));
+  EXPECT_EQ(dyn_cast_if_present<Aligned<7> *>(a), &a7);
 
   EXPECT_TRUE(a == PU8(&a7));
   EXPECT_TRUE(a != PU8(&a0));
@@ -279,13 +279,13 @@ TEST_F(PointerUnionTest, NewCastInfra) {
   EXPECT_EQ(dyn_cast<long long *>(constd4), nullptr);
 
   auto *result1 = cast<double *>(constd4);
-  static_assert(std::is_same<double *, decltype(result1)>::value,
+  static_assert(std::is_same_v<double *, decltype(result1)>,
                 "type mismatch for cast with PointerUnion");
 
   PointerUnion<int *, const double *> constd2(&d);
   auto *result2 = cast<const double *>(constd2);
   EXPECT_EQ(result2, &d);
-  static_assert(std::is_same<const double *, decltype(result2)>::value,
+  static_assert(std::is_same_v<const double *, decltype(result2)>,
                 "type mismatch for cast with PointerUnion");
 }
 

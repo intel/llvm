@@ -7,11 +7,11 @@
 // RUN: %clang_asan -O3 -xc %s -o %t && not %run %t 2>&1 | FileCheck %s
 
 // Unwind problem on arm: "main" is missing from the allocation stack trace.
-// UNSUPPORTED: windows-msvc,s390,arm && !fast-unwinder-works
+// UNSUPPORTED: target={{.*windows-msvc.*}},target=s390{{.*}},target=arm{{.*}} && !fast-unwinder-works
 
 #include <string.h>
 
-char kChars[] = { 'f', 'o', 'o' };
+char kChars[] = {'f', 'o', 'o'};
 
 int main(int argc, char **argv) {
   char *copy = strndup(kChars, 3);

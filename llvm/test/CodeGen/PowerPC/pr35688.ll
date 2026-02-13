@@ -8,10 +8,9 @@ define void @ec_GFp_nistp256_points_mul() {
 ; CHECK-LABEL: ec_GFp_nistp256_points_mul:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    ld 3, 0(3)
+; CHECK-NEXT:    subfic 4, 3, 0
 ; CHECK-NEXT:    li 4, 0
-; CHECK-NEXT:    subfic 5, 3, 0
 ; CHECK-NEXT:    subfze 5, 4
-; CHECK-NEXT:    sradi 5, 5, 63
 ; CHECK-NEXT:    subc 3, 5, 3
 ; CHECK-NEXT:    subfe 3, 4, 5
 ; CHECK-NEXT:    sradi 3, 3, 63
@@ -25,8 +24,8 @@ entry:
   br label %fe_cmovznz.exit.i534.i.15
 
 fe_cmovznz.exit.i534.i.15:                        ; preds = %fe_cmovznz.exit.i534.i.15, %entry
-  %0 = load i64, i64* undef, align 8
-  %1 = load i64, i64* undef, align 8
+  %0 = load i64, ptr undef, align 8
+  %1 = load i64, ptr undef, align 8
   %conv.i69.i.i = zext i64 %0 to i128
   %sub.i72.i.i = sub nsw i128 0, %conv.i69.i.i
   %conv.i63.i.i = zext i64 %1 to i128
@@ -36,7 +35,7 @@ fe_cmovznz.exit.i534.i.15:                        ; preds = %fe_cmovznz.exit.i53
   %conv1.i58.i.i = and i128 %sub.i65.lobit.i.i, 18446744073709551615
   %add3.i59.i.i = add nuw nsw i128 %conv1.i58.i.i, 0
   %conv4.i60.i.i = trunc i128 %add3.i59.i.i to i64
-  store i64 %conv4.i60.i.i, i64* undef, align 16
+  store i64 %conv4.i60.i.i, ptr undef, align 16
   br label %fe_cmovznz.exit.i534.i.15
 }
 

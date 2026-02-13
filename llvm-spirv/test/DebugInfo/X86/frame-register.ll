@@ -1,8 +1,16 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu %t.ll -filetype=obj -o - | llvm-dwarfdump -v --debug-info - | FileCheck %s
 
-; RUN: llc -mtriple=%triple %t.ll -filetype=obj -o - | llvm-dwarfdump -v --debug-info - | FileCheck %s
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu %t.ll -filetype=obj -o - | llvm-dwarfdump -v --debug-info - | FileCheck %s
+
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu %t.ll -filetype=obj -o - | llvm-dwarfdump -v --debug-info - | FileCheck %s
+
 ; CHECK: DW_TAG_variable
 ; CHECK-NEXT: DW_AT_location [DW_FORM_exprloc]      (DW_OP_fbreg +0)
 ; CHECK-NEXT: DW_AT_name {{.*}}"i"
@@ -21,10 +29,10 @@ define i32 @main() #0 !dbg !9 {
 entry:
   %retval = alloca i32, align 4
   %i = alloca i32, align 4
-  store i32 0, i32* %retval
-  call void @llvm.dbg.declare(metadata i32* %i, metadata !20, metadata !16), !dbg !21
-  store i32 20, i32* %i, align 4, !dbg !21
-  %0 = load i32, i32* %i, align 4, !dbg !22
+  store i32 0, ptr %retval
+  call void @llvm.dbg.declare(metadata ptr %i, metadata !20, metadata !16), !dbg !21
+  store i32 20, ptr %i, align 4, !dbg !21
+  %0 = load i32, ptr %i, align 4, !dbg !22
   %call = call i32 @foo(i32 %0), !dbg !23
   ret i32 %call, !dbg !24
 }

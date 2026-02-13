@@ -1,6 +1,5 @@
 // RUN: %clang_cc1 -fsyntax-only -verify %s
 
-// <rdar://problem/7971948>
 struct A {};
 struct B {
   void foo(int b) {
@@ -105,7 +104,7 @@ void test9(int x) { // expected-note {{'x' declared here}}
               expected-error {{expected expression}}
     8:: x; // expected-error {{expected ';' after expression}} \
               expected-error {{no member named 'x' in the global namespace; did you mean simply 'x'?}} \
-              expected-warning {{expression result unused}}
+              expected-warning 2 {{expression result unused}}
     9:: :y; // expected-error {{expected ';' after expression}} \
                expected-error {{expected unqualified-id}} \
                expected-warning {{expression result unused}}
@@ -161,14 +160,14 @@ void missing_statement_case(int x) {
   switch (x) {
     case 1:
     case 0:
-  } // expected-warning {{label at end of compound statement is a C++2b extension}}
+  } // expected-warning {{label at end of compound statement is a C++23 extension}}
 }
 
 void missing_statement_default(int x) {
   switch (x) {
     case 0:
     default:
-  } // expected-warning {{label at end of compound statement is a C++2b extension}}
+  } // expected-warning {{label at end of compound statement is a C++23 extension}}
 }
 
 void pr19022_1() {
@@ -179,7 +178,7 @@ void pr19022_1() {
 void pr19022_1a(int x) {
   switch(x) {
   case 1  // expected-error{{expected ':' after 'case'}}
-  } // expected-warning {{label at end of compound statement is a C++2b extension}}
+  } // expected-warning {{label at end of compound statement is a C++23 extension}}
 }
 
 void pr19022_1b(int x) {
@@ -211,7 +210,7 @@ void pr19022_5(int x) {
   switch(x) {
   case 1: case // expected-error{{expected ':' after 'case'}}
   }  // expected-error{{expected expression}} \
-     // expected-warning {{label at end of compound statement is a C++2b extension}}
+     // expected-warning {{label at end of compound statement is a C++23 extension}}
 }
 
 namespace pr19022 {
@@ -229,4 +228,17 @@ void fn1() {
     {  // expected-error{{expected ')'}}
     }
 } // expected-error{{expected statement}}
+}
+
+namespace GH143216 {
+#define FOO 1 case 3:
+
+int f(int x) {
+  switch (x) {
+  case FOO // expected-error {{expected ':' after 'case'}}
+    return 0;
+  default:
+    return 1;
+  }
+}
 }

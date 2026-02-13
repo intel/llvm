@@ -11,7 +11,6 @@
 #include "mlir/Dialect/Bufferization/IR/BufferizableOpInterface.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/Shape/IR/Shape.h"
-#include "mlir/IR/Dialect.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/PatternMatch.h"
 
@@ -27,58 +26,47 @@ namespace {
 struct AssumingOpInterface
     : public BufferizableOpInterface::ExternalModel<AssumingOpInterface,
                                                     shape::AssumingOp> {
-  SmallVector<OpOperand *>
-  getAliasingOpOperand(Operation *op, OpResult opResult,
-                       const AnalysisState &state) const {
+  AliasingOpOperandList
+  getAliasingOpOperands(Operation *op, Value value,
+                        const AnalysisState &state) const {
     // AssumingOps do not have tensor OpOperands. The yielded value can be any
     // SSA value that is in scope. To allow for use-def chain traversal through
     // AssumingOps in the analysis, the corresponding yield value is considered
     // to be aliasing with the result.
     auto assumingOp = cast<shape::AssumingOp>(op);
     size_t resultNum = std::distance(op->getOpResults().begin(),
-                                     llvm::find(op->getOpResults(), opResult));
+                                     llvm::find(op->getOpResults(), value));
     // TODO: Support multiple blocks.
-    assert(assumingOp.getDoRegion().getBlocks().size() == 1 &&
+    assert(assumingOp.getDoRegion().hasOneBlock() &&
            "expected exactly 1 block");
     auto yieldOp = dyn_cast<shape::AssumingYieldOp>(
         assumingOp.getDoRegion().front().getTerminator());
     assert(yieldOp && "expected shape.assuming_yield terminator");
-    return {&yieldOp->getOpOperand(resultNum)};
-  }
-
-  // TODO: For better bufferization results, this could return `true` only if
-  // there is a memory write in the region.
-  bool isMemoryWrite(Operation *op, OpResult opResult,
-                     const AnalysisState &state) const {
-    // Similar to scf.if, results of this op are always considered memory writes
-    // in the analysis. This is a useful pattern for all ops that have tensor
-    // OpResults but no tensor OpOperands. By default, `isMemoryWrite` is
-    // implemented in terms of `bufferizesToMemoryWrite`, which does not work on
-    // ops without OpOperands.
-    return true;
+    return {{&yieldOp->getOpOperand(resultNum), BufferRelation::Equivalent}};
   }
 
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
-                          const BufferizationOptions &options) const {
+                          const BufferizationOptions &options,
+                          BufferizationState &state) const {
     auto assumingOp = cast<shape::AssumingOp>(op);
-    assert(assumingOp.getDoRegion().getBlocks().size() == 1 &&
-           "only 1 block supported");
+    assert(assumingOp.getDoRegion().hasOneBlock() && "only 1 block supported");
     auto yieldOp = cast<shape::AssumingYieldOp>(
         assumingOp.getDoRegion().front().getTerminator());
 
     // Create new op and move over region.
-    TypeRange newResultTypes(yieldOp.operands());
-    auto newOp = rewriter.create<shape::AssumingOp>(
-        op->getLoc(), newResultTypes, assumingOp.getWitness());
+    TypeRange newResultTypes(yieldOp.getOperands());
+    auto newOp = shape::AssumingOp::create(
+        rewriter, op->getLoc(), newResultTypes, assumingOp.getWitness());
     newOp.getDoRegion().takeBody(assumingOp.getRegion());
 
     // Update all uses of the old op.
     rewriter.setInsertionPointAfter(newOp);
     SmallVector<Value> newResults;
     for (const auto &it : llvm::enumerate(assumingOp->getResultTypes())) {
-      if (it.value().isa<TensorType>()) {
-        newResults.push_back(rewriter.create<bufferization::ToTensorOp>(
-            assumingOp.getLoc(), newOp->getResult(it.index())));
+      if (isa<TensorType>(it.value())) {
+        newResults.push_back(bufferization::ToTensorOp::create(
+            rewriter, assumingOp.getLoc(), it.value(),
+            newOp->getResult(it.index())));
       } else {
         newResults.push_back(newOp->getResult(it.index()));
       }
@@ -88,11 +76,6 @@ struct AssumingOpInterface
     rewriter.replaceOp(assumingOp, newResults);
 
     return success();
-  }
-
-  BufferRelation bufferRelation(Operation *op, OpResult opResult,
-                                const AnalysisState &state) const {
-    return BufferRelation::Equivalent;
   }
 };
 
@@ -111,11 +94,13 @@ struct AssumingYieldOpInterface
     return false;
   }
 
-  SmallVector<OpResult> getAliasingOpResult(Operation *op, OpOperand &opOperand,
-                                            const AnalysisState &state) const {
+  AliasingValueList getAliasingValues(Operation *op, OpOperand &opOperand,
+                                      const AnalysisState &state) const {
     assert(isa<shape::AssumingOp>(op->getParentOp()) &&
            "expected that parent is an AssumingOp");
-    return {op->getParentOp()->getResult(opOperand.getOperandNumber())};
+    OpResult opResult =
+        op->getParentOp()->getResult(opOperand.getOperandNumber());
+    return {{opResult, BufferRelation::Equivalent}};
   }
 
   bool mustBufferizeInPlace(Operation *op, OpOperand &opOperand,
@@ -127,12 +112,13 @@ struct AssumingYieldOpInterface
   }
 
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
-                          const BufferizationOptions &options) const {
+                          const BufferizationOptions &options,
+                          BufferizationState &state) const {
     auto yieldOp = cast<shape::AssumingYieldOp>(op);
     SmallVector<Value> newResults;
-    for (Value value : yieldOp.operands()) {
-      if (value.getType().isa<TensorType>()) {
-        FailureOr<Value> buffer = getBuffer(rewriter, value, options);
+    for (Value value : yieldOp.getOperands()) {
+      if (isa<TensorType>(value.getType())) {
+        FailureOr<Value> buffer = getBuffer(rewriter, value, options, state);
         if (failed(buffer))
           return failure();
         newResults.push_back(*buffer);

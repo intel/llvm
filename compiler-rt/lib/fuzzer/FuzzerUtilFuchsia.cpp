@@ -68,6 +68,9 @@ void ExitOnErr(zx_status_t Status, const char *Syscall) {
 }
 
 void AlarmHandler(int Seconds) {
+  // Signal the alarm thread started.
+  ExitOnErr(_zx_object_signal(SignalHandlerEvent, 0, ZX_USER_SIGNAL_0),
+            "_zx_object_signal alarm");
   while (true) {
     SleepSeconds(Seconds);
     Fuzzer::StaticAlarmCallback();
@@ -87,6 +90,7 @@ void AlarmHandler(int Seconds) {
 // Alternatively, Fuchsia may in future actually implement basic signal
 // handling for the machine trap signals.
 #if defined(__x86_64__)
+
 #define FOREACH_REGISTER(OP_REG, OP_NUM) \
   OP_REG(rax)                            \
   OP_REG(rbx)                            \
@@ -107,6 +111,7 @@ void AlarmHandler(int Seconds) {
   OP_REG(rip)
 
 #elif defined(__aarch64__)
+
 #define FOREACH_REGISTER(OP_REG, OP_NUM) \
   OP_NUM(0)                              \
   OP_NUM(1)                              \
@@ -139,6 +144,41 @@ void AlarmHandler(int Seconds) {
   OP_NUM(28)                             \
   OP_NUM(29)                             \
   OP_REG(sp)
+
+#elif defined(__riscv)
+
+#define FOREACH_REGISTER(OP_REG, OP_NUM)                                      \
+  OP_REG(ra)                                                                  \
+  OP_REG(sp)                                                                  \
+  OP_REG(gp)                                                                  \
+  OP_REG(tp)                                                                  \
+  OP_REG(t0)                                                                  \
+  OP_REG(t1)                                                                  \
+  OP_REG(t2)                                                                  \
+  OP_REG(s0)                                                                  \
+  OP_REG(s1)                                                                  \
+  OP_REG(a0)                                                                  \
+  OP_REG(a1)                                                                  \
+  OP_REG(a2)                                                                  \
+  OP_REG(a3)                                                                  \
+  OP_REG(a4)                                                                  \
+  OP_REG(a5)                                                                  \
+  OP_REG(a6)                                                                  \
+  OP_REG(a7)                                                                  \
+  OP_REG(s2)                                                                  \
+  OP_REG(s3)                                                                  \
+  OP_REG(s4)                                                                  \
+  OP_REG(s5)                                                                  \
+  OP_REG(s6)                                                                  \
+  OP_REG(s7)                                                                  \
+  OP_REG(s8)                                                                  \
+  OP_REG(s9)                                                                  \
+  OP_REG(s10)                                                                 \
+  OP_REG(s11)                                                                 \
+  OP_REG(t3)                                                                  \
+  OP_REG(t4)                                                                  \
+  OP_REG(t5)                                                                  \
+  OP_REG(t6)                                                                  \
 
 #else
 #error "Unsupported architecture for fuzzing on Fuchsia"
@@ -200,6 +240,13 @@ void MakeTrampoline() {
       ".cfi_offset 30, %c[lr]\n"
       "bl %c[StaticCrashHandler]\n"
       "brk 1\n"
+#elif defined(__riscv)
+      ".cfi_return_column 64\n"
+      ".cfi_def_cfa sp, 0\n"
+      ".cfi_offset 64, %[pc]\n"
+      FOREACH_REGISTER(CFI_OFFSET_REG, CFI_OFFSET_NUM)
+      "call %c[StaticCrashHandler]\n"
+      "unimp\n"
 #else
 #error "Unsupported architecture for fuzzing on Fuchsia"
 #endif
@@ -209,8 +256,11 @@ void MakeTrampoline() {
      ".cfi_startproc\n"
       : // No outputs
       : FOREACH_REGISTER(ASM_OPERAND_REG, ASM_OPERAND_NUM)
+#if defined(__aarch64__) || defined(__riscv)
+        ASM_OPERAND_REG(pc)
+#endif
 #if defined(__aarch64__)
-        ASM_OPERAND_REG(pc) ASM_OPERAND_REG(lr)
+        ASM_OPERAND_REG(lr)
 #endif
         [StaticCrashHandler] "i"(StaticCrashHandler));
 }
@@ -235,6 +285,7 @@ void CrashHandler() {
                 Self, ZX_EXCEPTION_CHANNEL_DEBUGGER, &Channel.Handle),
             "_zx_task_create_exception_channel");
 
+  // Signal the crash thread started.
   ExitOnErr(_zx_object_signal(SignalHandlerEvent, 0, ZX_USER_SIGNAL_0),
             "_zx_object_signal");
 
@@ -245,7 +296,7 @@ void CrashHandler() {
     zx_wait_item_t WaitItems[] = {
         {
             .handle = SignalHandlerEvent,
-            .waitfor = ZX_SIGNAL_HANDLE_CLOSED,
+            .waitfor = ZX_USER_SIGNAL_1,
             .pending = 0,
         },
         {
@@ -294,6 +345,7 @@ void CrashHandler() {
     // onto the stack and jump into a trampoline with CFI instructions on how
     // to restore it.
 #if defined(__x86_64__)
+
     uintptr_t StackPtr =
         (GeneralRegisters.rsp - (128 + sizeof(GeneralRegisters))) &
         -(uintptr_t)16;
@@ -302,7 +354,8 @@ void CrashHandler() {
     GeneralRegisters.rsp = StackPtr;
     GeneralRegisters.rip = reinterpret_cast<zx_vaddr_t>(CrashTrampolineAsm);
 
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
+
     uintptr_t StackPtr =
         (GeneralRegisters.sp - sizeof(GeneralRegisters)) & -(uintptr_t)16;
     __unsanitized_memcpy(reinterpret_cast<void *>(StackPtr), &GeneralRegisters,
@@ -329,16 +382,56 @@ void CrashHandler() {
 }
 
 void StopSignalHandler() {
-  _zx_handle_close(SignalHandlerEvent);
+  _zx_object_signal(SignalHandlerEvent, 0, ZX_USER_SIGNAL_1);
   if (SignalHandler.joinable()) {
     SignalHandler.join();
+  }
+  _zx_handle_close(SignalHandlerEvent);
+}
+
+void RssThread(Fuzzer *F, size_t RssLimitMb) {
+  // Signal the rss thread started.
+  //
+  // We must wait for this thread to start because we could accidentally suspend
+  // it while the crash handler is attempting to handle the
+  // ZX_EXCP_THREAD_STARTING exception. If the crash handler is suspended by the
+  // lsan machinery, then there's no way for this thread to indicate it's
+  // suspended because it's blocked on waiting for the exception to be handled.
+  ExitOnErr(_zx_object_signal(SignalHandlerEvent, 0, ZX_USER_SIGNAL_0),
+            "_zx_object_signal rss");
+  while (true) {
+    SleepSeconds(1);
+    size_t Peak = GetPeakRSSMb();
+    if (Peak > RssLimitMb)
+      F->RssLimitCallback();
   }
 }
 
 } // namespace
 
+void StartRssThread(Fuzzer *F, size_t RssLimitMb) {
+  // Set up the crash handler and wait until it is ready before proceeding.
+  assert(SignalHandlerEvent == ZX_HANDLE_INVALID);
+  ExitOnErr(_zx_event_create(0, &SignalHandlerEvent), "_zx_event_create");
+
+  if (!RssLimitMb)
+    return;
+  std::thread T(RssThread, F, RssLimitMb);
+  T.detach();
+
+  // Wait for the rss thread to start.
+  ExitOnErr(_zx_object_wait_one(SignalHandlerEvent, ZX_USER_SIGNAL_0,
+                                ZX_TIME_INFINITE, nullptr),
+            "_zx_object_wait_one rss");
+  ExitOnErr(_zx_object_signal(SignalHandlerEvent, ZX_USER_SIGNAL_0, 0),
+            "_zx_object_signal rss clear");
+}
+
 // Platform specific functions.
 void SetSignalHandler(const FuzzingOptions &Options) {
+  assert(SignalHandlerEvent != ZX_HANDLE_INVALID &&
+         "This should've been setup by StartRssThread.");
+
   // Make sure information from libFuzzer and the sanitizers are easy to
   // reassemble. `__sanitizer_log_write` has the added benefit of ensuring the
   // DSO map is always available for the symbolizer.
@@ -354,17 +447,28 @@ void SetSignalHandler(const FuzzingOptions &Options) {
   if (Options.HandleAlrm && Options.UnitTimeoutSec > 0) {
     std::thread T(AlarmHandler, Options.UnitTimeoutSec / 2 + 1);
     T.detach();
+
+    // Wait for the alarm thread to start.
+    //
+    // We must wait for this thread to start because we could accidentally
+    // suspend it while the crash handler is attempting to handle the
+    // ZX_EXCP_THREAD_STARTING exception. If the crash handler is suspended by
+    // the lsan machinery, then there's no way for this thread to indicate it's
+    // suspended because it's blocked on waiting for the exception to be
+    // handled.
+    ExitOnErr(_zx_object_wait_one(SignalHandlerEvent, ZX_USER_SIGNAL_0,
+                                  ZX_TIME_INFINITE, nullptr),
+              "_zx_object_wait_one alarm");
+    ExitOnErr(_zx_object_signal(SignalHandlerEvent, ZX_USER_SIGNAL_0, 0),
+              "_zx_object_signal alarm clear");
   }
 
   // Options.HandleInt and Options.HandleTerm are not supported on Fuchsia
 
   // Early exit if no crash handler needed.
   if (!Options.HandleSegv && !Options.HandleBus && !Options.HandleIll &&
-      !Options.HandleFpe && !Options.HandleAbrt)
+      !Options.HandleFpe && !Options.HandleAbrt && !Options.HandleTrap)
     return;
-
-  // Set up the crash handler and wait until it is ready before proceeding.
-  ExitOnErr(_zx_event_create(0, &SignalHandlerEvent), "_zx_event_create");
 
   SignalHandler = std::thread(CrashHandler);
   zx_status_t Status = _zx_object_wait_one(SignalHandlerEvent, ZX_USER_SIGNAL_0,
@@ -549,6 +653,19 @@ void DiscardOutput(int Fd) {
   int nullfd = fdio_bind_to_fd(fdio_null, -1, 0);
   if (nullfd < 0) return;
   dup2(nullfd, Fd);
+}
+
+size_t PageSize() {
+  static size_t PageSizeCached = _zx_system_get_page_size();
+  return PageSizeCached;
+}
+
+void SetThreadName(std::thread &thread, const std::string &name) {
+  if (zx_status_t s = zx_object_set_property(
+          thread.native_handle(), ZX_PROP_NAME, name.data(), name.size());
+      s != ZX_OK)
+    Printf("SetThreadName for name %s failed: %s", name.c_str(),
+           zx_status_get_string(s));
 }
 
 } // namespace fuzzer

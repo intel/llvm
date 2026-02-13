@@ -26,6 +26,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/CodeGen/RenameIndependentSubregs.h"
 #include "LiveRangeUtils.h"
 #include "PHIEliminationUtils.h"
 #include "llvm/CodeGen/LiveInterval.h"
@@ -43,25 +44,11 @@ using namespace llvm;
 
 namespace {
 
-class RenameIndependentSubregs : public MachineFunctionPass {
+class RenameIndependentSubregs {
 public:
-  static char ID;
-  RenameIndependentSubregs() : MachineFunctionPass(ID) {}
+  RenameIndependentSubregs(LiveIntervals *LIS) : LIS(LIS) {}
 
-  StringRef getPassName() const override {
-    return "Rename Disconnected Subregister Components";
-  }
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.setPreservesCFG();
-    AU.addRequired<LiveIntervals>();
-    AU.addPreserved<LiveIntervals>();
-    AU.addRequired<SlotIndexes>();
-    AU.addPreserved<SlotIndexes>();
-    MachineFunctionPass::getAnalysisUsage(AU);
-  }
-
-  bool runOnMachineFunction(MachineFunction &MF) override;
+  bool run(MachineFunction &MF);
 
 private:
   struct SubRangeInfo {
@@ -101,22 +88,41 @@ private:
                        const SmallVectorImpl<LiveInterval*> &Intervals) const;
 
 
-  LiveIntervals *LIS;
-  MachineRegisterInfo *MRI;
-  const TargetInstrInfo *TII;
+  LiveIntervals *LIS = nullptr;
+  MachineRegisterInfo *MRI = nullptr;
+  const TargetInstrInfo *TII = nullptr;
+};
+
+class RenameIndependentSubregsLegacy : public MachineFunctionPass {
+public:
+  static char ID;
+  RenameIndependentSubregsLegacy() : MachineFunctionPass(ID) {}
+  bool runOnMachineFunction(MachineFunction &MF) override;
+  StringRef getPassName() const override {
+    return "Rename Disconnected Subregister Components";
+  }
+
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.setPreservesCFG();
+    AU.addRequired<LiveIntervalsWrapperPass>();
+    AU.addPreserved<LiveIntervalsWrapperPass>();
+    AU.addRequired<SlotIndexesWrapperPass>();
+    AU.addPreserved<SlotIndexesWrapperPass>();
+    MachineFunctionPass::getAnalysisUsage(AU);
+  }
 };
 
 } // end anonymous namespace
 
-char RenameIndependentSubregs::ID;
+char RenameIndependentSubregsLegacy::ID;
 
-char &llvm::RenameIndependentSubregsID = RenameIndependentSubregs::ID;
+char &llvm::RenameIndependentSubregsID = RenameIndependentSubregsLegacy::ID;
 
-INITIALIZE_PASS_BEGIN(RenameIndependentSubregs, DEBUG_TYPE,
+INITIALIZE_PASS_BEGIN(RenameIndependentSubregsLegacy, DEBUG_TYPE,
                       "Rename Independent Subregisters", false, false)
-INITIALIZE_PASS_DEPENDENCY(SlotIndexes)
-INITIALIZE_PASS_DEPENDENCY(LiveIntervals)
-INITIALIZE_PASS_END(RenameIndependentSubregs, DEBUG_TYPE,
+INITIALIZE_PASS_DEPENDENCY(SlotIndexesWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(LiveIntervalsWrapperPass)
+INITIALIZE_PASS_END(RenameIndependentSubregsLegacy, DEBUG_TYPE,
                     "Rename Independent Subregisters", false, false)
 
 bool RenameIndependentSubregs::renameComponents(LiveInterval &LI) const {
@@ -130,7 +136,7 @@ bool RenameIndependentSubregs::renameComponents(LiveInterval &LI) const {
     return false;
 
   // Create a new VReg for each class.
-  unsigned Reg = LI.reg();
+  Register Reg = LI.reg();
   const TargetRegisterClass *RegClass = MRI->getRegClass(Reg);
   SmallVector<LiveInterval*, 4> Intervals;
   Intervals.push_back(&LI);
@@ -175,7 +181,7 @@ bool RenameIndependentSubregs::findComponents(IntEqClasses &Classes,
   // across subranges when they are affected by the same MachineOperand.
   const TargetRegisterInfo &TRI = *MRI->getTargetRegisterInfo();
   Classes.grow(NumComponents);
-  unsigned Reg = LI.reg();
+  Register Reg = LI.reg();
   for (const MachineOperand &MO : MRI->reg_nodbg_operands(Reg)) {
     if (!MO.isDef() && !MO.readsReg())
       continue;
@@ -212,7 +218,7 @@ void RenameIndependentSubregs::rewriteOperands(const IntEqClasses &Classes,
     const SmallVectorImpl<SubRangeInfo> &SubRangeInfos,
     const SmallVectorImpl<LiveInterval*> &Intervals) const {
   const TargetRegisterInfo &TRI = *MRI->getTargetRegisterInfo();
-  unsigned Reg = Intervals[0]->reg();
+  Register Reg = Intervals[0]->reg();
   for (MachineRegisterInfo::reg_nodbg_iterator I = MRI->reg_nodbg_begin(Reg),
        E = MRI->reg_nodbg_end(); I != E; ) {
     MachineOperand &MO = *I++;
@@ -242,14 +248,14 @@ void RenameIndependentSubregs::rewriteOperands(const IntEqClasses &Classes,
       break;
     }
 
-    unsigned VReg = Intervals[ID]->reg();
+    Register VReg = Intervals[ID]->reg();
     MO.setReg(VReg);
 
     if (MO.isTied() && Reg != VReg) {
       /// Undef use operands are not tracked in the equivalence class,
       /// but need to be updated if they are tied; take care to only
       /// update the tied operand.
-      unsigned OperandNo = MI->getOperandNo(&MO);
+      unsigned OperandNo = MO.getOperandNo();
       unsigned TiedIdx = MI->findTiedOperandIdx(OperandNo);
       MI->getOperand(TiedIdx).setReg(VReg);
 
@@ -300,13 +306,33 @@ void RenameIndependentSubregs::computeMainRangesFixFlags(
     const IntEqClasses &Classes,
     const SmallVectorImpl<SubRangeInfo> &SubRangeInfos,
     const SmallVectorImpl<LiveInterval*> &Intervals) const {
+  const TargetRegisterInfo &TRI = TII->getRegisterInfo();
   BumpPtrAllocator &Allocator = LIS->getVNInfoAllocator();
   const SlotIndexes &Indexes = *LIS->getSlotIndexes();
   for (size_t I = 0, E = Intervals.size(); I < E; ++I) {
     LiveInterval &LI = *Intervals[I];
-    unsigned Reg = LI.reg();
+    Register Reg = LI.reg();
 
     LI.removeEmptySubRanges();
+
+    // Try to establish a single subregister which covers all uses.
+    // Note: this is assuming the selected subregister will only be
+    // used for fixing up live intervals issues created by this pass.
+    LaneBitmask UsedMask, UnusedMask;
+    for (LiveInterval::SubRange &SR : LI.subranges())
+      UsedMask |= SR.LaneMask;
+    SmallVector<unsigned> SubRegIdxs;
+    unsigned Flags = 0;
+    unsigned SubReg = 0;
+    // TODO: Handle SubRegIdxs.size() > 1
+    if (TRI.getCoveringSubRegIndexes(MRI->getRegClass(Reg), UsedMask,
+                                     SubRegIdxs) &&
+        SubRegIdxs.size() == 1) {
+      SubReg = SubRegIdxs.front();
+      Flags = RegState::Undef;
+    } else {
+      UnusedMask = MRI->getMaxLaneMaskForVReg(Reg) & ~UsedMask;
+    }
 
     // There must be a def (or live-in) before every use. Splitting vregs may
     // violate this principle as the splitted vreg may not have a definition on
@@ -330,13 +356,19 @@ void RenameIndependentSubregs::computeMainRangesFixFlags(
           MachineBasicBlock::iterator InsertPos =
             llvm::findPHICopyInsertPoint(PredMBB, &MBB, Reg);
           const MCInstrDesc &MCDesc = TII->get(TargetOpcode::IMPLICIT_DEF);
-          MachineInstrBuilder ImpDef = BuildMI(*PredMBB, InsertPos,
-                                               DebugLoc(), MCDesc, Reg);
+          MachineInstrBuilder ImpDef =
+              BuildMI(*PredMBB, InsertPos, DebugLoc(), MCDesc)
+                  .addDef(Reg, Flags, SubReg);
           SlotIndex DefIdx = LIS->InsertMachineInstrInMaps(*ImpDef);
           SlotIndex RegDefIdx = DefIdx.getRegSlot();
           for (LiveInterval::SubRange &SR : LI.subranges()) {
             VNInfo *SRVNI = SR.getNextValue(RegDefIdx, Allocator);
             SR.addSegment(LiveRange::Segment(RegDefIdx, PredEnd, SRVNI));
+          }
+          if (!UnusedMask.none()) {
+            LiveInterval::SubRange *SR =
+                LI.createSubRange(Allocator, UnusedMask);
+            SR->createDeadDef(RegDefIdx, Allocator);
           }
         }
       }
@@ -374,7 +406,25 @@ void RenameIndependentSubregs::computeMainRangesFixFlags(
   }
 }
 
-bool RenameIndependentSubregs::runOnMachineFunction(MachineFunction &MF) {
+PreservedAnalyses
+RenameIndependentSubregsPass::run(MachineFunction &MF,
+                                  MachineFunctionAnalysisManager &MFAM) {
+  auto &LIS = MFAM.getResult<LiveIntervalsAnalysis>(MF);
+  if (!RenameIndependentSubregs(&LIS).run(MF))
+    return PreservedAnalyses::all();
+  auto PA = getMachineFunctionPassPreservedAnalyses();
+  PA.preserveSet<CFGAnalyses>();
+  PA.preserve<LiveIntervalsAnalysis>();
+  PA.preserve<SlotIndexesAnalysis>();
+  return PA;
+}
+
+bool RenameIndependentSubregsLegacy::runOnMachineFunction(MachineFunction &MF) {
+  auto &LIS = getAnalysis<LiveIntervalsWrapperPass>().getLIS();
+  return RenameIndependentSubregs(&LIS).run(MF);
+}
+
+bool RenameIndependentSubregs::run(MachineFunction &MF) {
   // Skip renaming if liveness of subregister is not tracked.
   MRI = &MF.getRegInfo();
   if (!MRI->subRegLivenessEnabled())
@@ -383,7 +433,6 @@ bool RenameIndependentSubregs::runOnMachineFunction(MachineFunction &MF) {
   LLVM_DEBUG(dbgs() << "Renaming independent subregister live ranges in "
                     << MF.getName() << '\n');
 
-  LIS = &getAnalysis<LiveIntervals>();
   TII = MF.getSubtarget().getInstrInfo();
 
   // Iterate over all vregs. Note that we query getNumVirtRegs() the newly
@@ -391,7 +440,7 @@ bool RenameIndependentSubregs::runOnMachineFunction(MachineFunction &MF) {
   // there can't be any further splitting.
   bool Changed = false;
   for (size_t I = 0, E = MRI->getNumVirtRegs(); I < E; ++I) {
-    unsigned Reg = Register::index2VirtReg(I);
+    Register Reg = Register::index2VirtReg(I);
     if (!LIS->hasInterval(Reg))
       continue;
     LiveInterval &LI = LIS->getInterval(Reg);

@@ -10,7 +10,7 @@
 # RUN:         . = 0x30000; .data                : { *(.data) } \
 # RUN:       }" > %t.script
 # RUN: ld.lld %t1.o %t2.o -script %t.script -o %t.exe
-# RUN: llvm-objdump --mcpu=mips32r6 -d -t -s --no-show-raw-insn %t.exe \
+# RUN: llvm-objdump --no-print-imm-hex --mcpu=mips32r6 -d -t -s --no-show-raw-insn %t.exe \
 # RUN:   | FileCheck %s
 
   .text
@@ -40,11 +40,13 @@ __start:
 #                                         ^-- (0x20020-0x20000)>>2
 # CHECK-NEXT:    20004:       beqc    $5, $6, 0x20020
 #                                             ^-- (0x20020-4-0x20004)>>2
-# CHECK-NEXT:    20008:       beqzc   $9, 0x20020
-#                                         ^-- (0x20020-4-0x20008)>>2
-# CHECK-NEXT:    2000c:       bc      0x20020
-#                                     ^-- (0x20020-4-0x2000c)>>2
-# CHECK-NEXT:    20010:       aluipc  $2, 0
-#                                         ^-- %hi(0x20020-0x20010)
-# CHECK-NEXT:    20014:       addiu   $2, $2, 12
-#                                             ^-- %lo(0x20020-0x20014)
+# CHECK-NEXT:    20008:       nop
+# CHECK-NEXT:    2000c:       beqzc   $9, 0x20020
+#                                         ^-- (0x20020-4-0x2000c)>>2
+# CHECK-NEXT:    20010:       nop
+# CHECK-NEXT:    20014:       bc      0x20020
+#                                     ^-- (0x20020-4-0x200014)>>2
+# CHECK-NEXT:    20018:       aluipc  $2, 0
+#                                         ^-- %hi(0x20020-0x20018)
+# CHECK-NEXT:    2001c:       addiu   $2, $2, 4
+#                                             ^-- %lo(0x20020-0x2001c)

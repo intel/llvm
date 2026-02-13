@@ -11,19 +11,13 @@
 
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OperationSupport.h"
-#include "mlir/Support/LogicalResult.h"
 #include "mlir/Support/Timing.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/iterator.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <functional>
-#include <vector>
-
-namespace llvm {
-class Any;
-} // namespace llvm
+#include <optional>
 
 namespace mlir {
 class AnalysisManager;
@@ -75,6 +69,7 @@ public:
   OpPassManager(const OpPassManager &rhs);
   ~OpPassManager();
   OpPassManager &operator=(const OpPassManager &rhs);
+  OpPassManager &operator=(OpPassManager &&rhs);
 
   /// Iterator over the passes in this pass manager.
   using pass_iterator =
@@ -124,13 +119,13 @@ public:
   /// Returns the number of passes held by this manager.
   size_t size() const;
 
-  /// Return the operation name that this pass manager operates on, or None if
-  /// this is an op-agnostic pass manager.
-  Optional<OperationName> getOpName(MLIRContext &context) const;
+  /// Return the operation name that this pass manager operates on, or
+  /// std::nullopt if this is an op-agnostic pass manager.
+  std::optional<OperationName> getOpName(MLIRContext &context) const;
 
-  /// Return the operation name that this pass manager operates on, or None if
-  /// this is an op-agnostic pass manager.
-  Optional<StringRef> getOpName() const;
+  /// Return the operation name that this pass manager operates on, or
+  /// std::nullopt if this is an op-agnostic pass manager.
+  std::optional<StringRef> getOpName() const;
 
   /// Return the name used to anchor this pass manager. This is either the name
   /// of an operation, or the result of `getAnyOpAnchorName()` in the case of an
@@ -145,10 +140,12 @@ public:
   detail::OpPassManagerImpl &getImpl();
 
   /// Prints out the passes of the pass manager as the textual representation
-  /// of pipelines.
+  /// of pipelines. When `pretty` is true, the printed pipeline is formatted
+  /// for readability.
+  ///
   /// Note: The quality of the string representation depends entirely on the
   /// the correctness of per-pass overrides of Pass::printAsTextualPipeline.
-  void printAsTextualPipeline(raw_ostream &os) const;
+  void printAsTextualPipeline(raw_ostream &os, bool pretty = false) const;
 
   /// Raw dump of the pass manager to llvm::errs().
   void dump();
@@ -174,6 +171,10 @@ private:
   /// initialization generation. The initialization generation is used to detect
   /// if a pass manager has already been initialized.
   LogicalResult initialize(MLIRContext *context, unsigned newInitGeneration);
+
+  /// Compute a hash of the pipeline, so that we can detect changes (a pass is
+  /// added...).
+  llvm::hash_code hash();
 
   /// A pointer to an internal implementation instance.
   std::unique_ptr<detail::OpPassManagerImpl> impl;
@@ -206,19 +207,46 @@ enum class PassDisplayMode {
   Pipeline,
 };
 
+/// Streams on which to output crash reproducer.
+struct ReproducerStream {
+  virtual ~ReproducerStream() = default;
+
+  /// Description of the reproducer stream.
+  virtual StringRef description() = 0;
+
+  /// Stream on which to output reproducer.
+  virtual raw_ostream &os() = 0;
+};
+
+/// Method type for constructing ReproducerStream.
+using ReproducerStreamFactory =
+    std::function<std::unique_ptr<ReproducerStream>(std::string &error)>;
+
+std::string
+makeReproducer(StringRef anchorName,
+               const llvm::iterator_range<OpPassManager::pass_iterator> &passes,
+               Operation *op, StringRef outputFile, bool disableThreads = false,
+               bool verifyPasses = false);
+
 /// The main pass manager and pipeline builder.
 class PassManager : public OpPassManager {
 public:
   /// Create a new pass manager under the given context with a specific nesting
   /// style. The created pass manager can schedule operations that match
   /// `operationName`.
-  /// FIXME: We should make the specification of `builtin.module` explicit here,
-  /// so that we can have top-level op-agnostic pass managers.
-  PassManager(MLIRContext *ctx, Nesting nesting = Nesting::Explicit,
-              StringRef operationName = "builtin.module");
-  PassManager(MLIRContext *ctx, StringRef operationName)
-      : PassManager(ctx, Nesting::Explicit, operationName) {}
+  PassManager(MLIRContext *ctx,
+              StringRef operationName = PassManager::getAnyOpAnchorName(),
+              Nesting nesting = Nesting::Explicit);
+  PassManager(OperationName operationName, Nesting nesting = Nesting::Explicit);
   ~PassManager();
+
+  /// Create a new pass manager under the given context with a specific nesting
+  /// style. The created pass manager can schedule operations that match
+  /// `OperationTy`.
+  template <typename OperationTy>
+  static PassManager on(MLIRContext *ctx, Nesting nesting = Nesting::Explicit) {
+    return PassManager(ctx, OperationTy::getOperationName(), nesting);
+  }
 
   /// Run the passes within this manager on the provided operation. The
   /// specified operation must have the same name as the one provided the pass
@@ -235,21 +263,6 @@ public:
   /// smallest pipeline.
   void enableCrashReproducerGeneration(StringRef outputFile,
                                        bool genLocalReproducer = false);
-
-  /// Streams on which to output crash reproducer.
-  struct ReproducerStream {
-    virtual ~ReproducerStream() = default;
-
-    /// Description of the reproducer stream.
-    virtual StringRef description() = 0;
-
-    /// Stream on which to output reproducer.
-    virtual raw_ostream &os() = 0;
-  };
-
-  /// Method type for constructing ReproducerStream.
-  using ReproducerStreamFactory =
-      std::function<std::unique_ptr<ReproducerStream>(std::string &error)>;
 
   /// Enable support for the pass manager to generate a reproducer on the event
   /// of a crash or a pass failure. `factory` is used to construct the streams
@@ -374,6 +387,43 @@ public:
       bool printAfterOnlyOnFailure = false, raw_ostream &out = llvm::errs(),
       OpPrintingFlags opPrintingFlags = OpPrintingFlags());
 
+  /// Similar to `enableIRPrinting` above, except that instead of printing
+  /// the IR to a single output stream, the instrumentation will print the
+  /// output of each pass to a separate file. The files will be organized into a
+  /// directory tree rooted at `printTreeDir`. The directories mirror the
+  /// nesting structure of the IR. For example, if the IR is congruent to the
+  /// pass-pipeline "builtin.module(passA,passB,func.func(passC,passD),passE)",
+  /// and `printTreeDir=/tmp/pipeline_output`, then then the tree file tree
+  /// created will look like:
+  ///
+  /// ```
+  /// /tmp/pass_output
+  /// ├── builtin_module_the_symbol_name
+  /// │   ├── 0_passA.mlir
+  /// │   ├── 1_passB.mlir
+  /// │   ├── 2_passE.mlir
+  /// │   ├── func_func_my_func_name
+  /// │   │   ├── 1_0_passC.mlir
+  /// │   │   ├── 1_1__passD.mlir
+  /// │   ├── func_func_my_other_func_name
+  /// │   │   ├── 1_0_passC.mlir
+  /// │   │   ├── 1_1_passD.mlir
+  /// ```
+  ///
+  /// The subdirectories are given names that reflect the parent operation name
+  /// and symbol name (if present). The output MLIR files are prefixed using an
+  /// atomic counter to indicate the order the passes were printed in and to
+  /// prevent any potential name collisions.
+  void enableIRPrintingToFileTree(
+      std::function<bool(Pass *, Operation *)> shouldPrintBeforePass =
+          [](Pass *, Operation *) { return true; },
+      std::function<bool(Pass *, Operation *)> shouldPrintAfterPass =
+          [](Pass *, Operation *) { return true; },
+      bool printModuleScope = true, bool printAfterOnlyOnChange = true,
+      bool printAfterOnlyOnFailure = false,
+      llvm::StringRef printTreeDir = ".pass_manager_output",
+      OpPrintingFlags opPrintingFlags = OpPrintingFlags());
+
   //===--------------------------------------------------------------------===//
   // Pass Timing
 
@@ -427,7 +477,7 @@ private:
   MLIRContext *context;
 
   /// Flag that specifies if pass statistics should be dumped.
-  Optional<PassDisplayMode> passStatisticsMode;
+  std::optional<PassDisplayMode> passStatisticsMode;
 
   /// A manager for pass instrumentations.
   std::unique_ptr<PassInstrumentor> instrumentor;
@@ -436,8 +486,11 @@ private:
   /// generate reproducers.
   std::unique_ptr<detail::PassCrashReproducerGenerator> crashReproGenerator;
 
-  /// A hash key used to detect when reinitialization is necessary.
-  llvm::hash_code initializationKey;
+  /// Hash keys used to detect when reinitialization is necessary.
+  llvm::hash_code initializationKey =
+      DenseMapInfo<llvm::hash_code>::getTombstoneKey();
+  llvm::hash_code pipelineInitializationKey =
+      DenseMapInfo<llvm::hash_code>::getTombstoneKey();
 
   /// Flag that specifies if pass timing is enabled.
   bool passTiming : 1;
@@ -453,7 +506,7 @@ void registerPassManagerCLOptions();
 
 /// Apply any values provided to the pass manager options that were registered
 /// with 'registerPassManagerOptions'.
-void applyPassManagerCLOptions(PassManager &pm);
+LogicalResult applyPassManagerCLOptions(PassManager &pm);
 
 /// Apply any values provided to the timing manager options that were registered
 /// with `registerDefaultTimingManagerOptions`. This is a handy helper function

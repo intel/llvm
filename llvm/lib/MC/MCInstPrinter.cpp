@@ -8,6 +8,7 @@
 
 #include "llvm/MC/MCInstPrinter.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCInst.h"
@@ -22,17 +23,11 @@
 
 using namespace llvm;
 
-void llvm::dumpBytes(ArrayRef<uint8_t> bytes, raw_ostream &OS) {
-  static const char hex_rep[] = "0123456789abcdef";
-  bool First = true;
-  for (char i: bytes) {
-    if (First)
-      First = false;
-    else
-      OS << ' ';
-    OS << hex_rep[(i & 0xF0) >> 4];
-    OS << hex_rep[i & 0xF];
-  }
+void llvm::dumpBytes(ArrayRef<uint8_t> Bytes, raw_ostream &OS) {
+  static const char HexRep[] = "0123456789abcdef";
+  ListSeparator LS(" ");
+  for (char Byte : Bytes)
+    OS << LS << HexRep[(Byte & 0xF0) >> 4] << HexRep[Byte & 0xF];
 }
 
 MCInstPrinter::~MCInstPrinter() = default;
@@ -43,7 +38,7 @@ StringRef MCInstPrinter::getOpcodeName(unsigned Opcode) const {
   return MII.getName(Opcode);
 }
 
-void MCInstPrinter::printRegName(raw_ostream &OS, unsigned RegNo) const {
+void MCInstPrinter::printRegName(raw_ostream &OS, MCRegister Reg) {
   llvm_unreachable("Target should implement this");
 }
 
@@ -61,6 +56,7 @@ void MCInstPrinter::printAnnotation(raw_ostream &OS, StringRef Annot) {
 }
 
 static bool matchAliasCondition(const MCInst &MI, const MCSubtargetInfo *STI,
+                                const MCInstrInfo &MII,
                                 const MCRegisterInfo &MRI, unsigned &OpIdx,
                                 const AliasMatchingData &M,
                                 const AliasPatternCond &C,
@@ -102,6 +98,12 @@ static bool matchAliasCondition(const MCInst &MI, const MCSubtargetInfo *STI,
   case AliasPatternCond::K_TiedReg:
     // Operand must match the register of another operand.
     return Opnd.isReg() && Opnd.getReg() == MI.getOperand(C.Value).getReg();
+  case AliasPatternCond::K_RegClassByHwMode: {
+    // Operand must be RegisterByHwMode. Value is RegClassByHwMode index.
+    unsigned HwModeId = STI->getHwMode(MCSubtargetInfo::HwMode_RegInfo);
+    int16_t RCID = MII.getRegClassByHwModeTable(HwModeId)[C.Value];
+    return Opnd.isReg() && MRI.getRegClass(RCID).contains(Opnd.getReg());
+  }
   case AliasPatternCond::K_RegClass:
     // Operand must be a register in this class. Value is a register class id.
     return Opnd.isReg() && MRI.getRegClass(C.Value).contains(Opnd.getReg());
@@ -148,7 +150,7 @@ const char *MCInstPrinter::matchAliasPatterns(const MCInst *MI,
     unsigned OpIdx = 0;
     bool OrPredicateResult = false;
     if (llvm::all_of(Conds, [&](const AliasPatternCond &C) {
-          return matchAliasCondition(*MI, STI, MRI, OpIdx, M, C,
+          return matchAliasCondition(*MI, STI, MII, MRI, OpIdx, M, C,
                                      OrPredicateResult);
         })) {
       // If all conditions matched, use this asm string.
@@ -168,14 +170,6 @@ const char *MCInstPrinter::matchAliasPatterns(const MCInst *MI,
          (AsmStrOffset == 0 || M.AsmStrings[AsmStrOffset - 1] == '\0') &&
          "bad asm string offset");
   return M.AsmStrings.data() + AsmStrOffset;
-}
-
-/// Utility functions to make adding mark ups simpler.
-StringRef MCInstPrinter::markup(StringRef s) const {
-  if (getUseMarkup())
-    return s;
-  else
-    return "";
 }
 
 // For asm-style hex (e.g. 0ffh) the first digit always has to be a number.
@@ -230,4 +224,59 @@ format_object<uint64_t> MCInstPrinter::formatHex(uint64_t Value) const {
       return format("%" PRIx64 "h", Value);
   }
   llvm_unreachable("unsupported print style");
+}
+
+MCInstPrinter::WithMarkup MCInstPrinter::markup(raw_ostream &OS, Markup S) {
+  return WithMarkup(*this, OS, S, getUseMarkup(), getUseColor());
+}
+
+MCInstPrinter::WithMarkup::WithMarkup(MCInstPrinter &IP, raw_ostream &OS,
+                                      Markup M, bool EnableMarkup,
+                                      bool EnableColor)
+    : IP(IP), OS(OS), EnableMarkup(EnableMarkup), EnableColor(EnableColor) {
+  if (EnableColor) {
+    raw_ostream::Colors Color = raw_ostream::Colors::RESET;
+    switch (M) {
+    case Markup::Immediate:
+      Color = raw_ostream::RED;
+      break;
+    case Markup::Register:
+      Color = raw_ostream::CYAN;
+      break;
+    case Markup::Target:
+      Color = raw_ostream::YELLOW;
+      break;
+    case Markup::Memory:
+      Color = raw_ostream::GREEN;
+      break;
+    }
+    IP.ColorStack.push_back(Color);
+    OS.changeColor(Color);
+  }
+
+  if (EnableMarkup) {
+    switch (M) {
+    case Markup::Immediate:
+      OS << "<imm:";
+      break;
+    case Markup::Register:
+      OS << "<reg:";
+      break;
+    case Markup::Target:
+      OS << "<target:";
+      break;
+    case Markup::Memory:
+      OS << "<mem:";
+      break;
+    }
+  }
+}
+
+MCInstPrinter::WithMarkup::~WithMarkup() {
+  if (EnableMarkup)
+    OS << '>';
+  if (!EnableColor)
+    return;
+  IP.ColorStack.pop_back();
+  OS << IP.ColorStack.back();
 }

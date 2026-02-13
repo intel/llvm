@@ -19,7 +19,6 @@
 ; CHECK-NEXT:    <FLAGS
 ; See if the call to func is registered, using the expected hotness type.
 ; CHECK-NEXT:    <PERMODULE_PROFILE {{.*}} op7=1 op8=2/>
-; CHECK-NEXT:    <BLOCK_COUNT op0=1/>
 ; CHECK-NEXT:  </GLOBALVAL_SUMMARY_BLOCK>
 ; CHECK: <STRTAB_BLOCK
 ; CHECK-NEXT: blob data = 'mainfunc{{.*}}'
@@ -27,13 +26,12 @@
 ; COMBINED:       <GLOBALVAL_SUMMARY_BLOCK
 ; COMBINED-NEXT:    <VERSION
 ; COMBINED-NEXT:    <FLAGS
-; COMBINED-NEXT:    <VALUE_GUID op0=[[FUNCID:[0-9]+]] op1=7289175272376759421/>
+; COMBINED-NEXT:    <VALUE_GUID {{.*}} op0=[[FUNCID:[0-9]+]] op1=1697143370 op2=1603531901/>
 ; COMBINED-NEXT:    <VALUE_GUID
 ; COMBINED-NEXT:    <COMBINED
 ; See if the call to func is registered, using the expected hotness type.
 ; op6=2 which is hotnessType::None.
 ; COMBINED-NEXT:    <COMBINED_PROFILE {{.*}} op9=[[FUNCID]] op10=2/>
-; COMBINED-NEXT:    <BLOCK_COUNT op0=2/>
 ; COMBINED-NEXT:  </GLOBALVAL_SUMMARY_BLOCK>
 
 ; ModuleID = 'thinlto-function-summary-callgraph.ll'

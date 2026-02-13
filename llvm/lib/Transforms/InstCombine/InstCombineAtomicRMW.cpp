@@ -15,13 +15,12 @@
 
 using namespace llvm;
 
-namespace {
 /// Return true if and only if the given instruction does not modify the memory
 /// location referenced.  Note that an idemptent atomicrmw may still have
 /// ordering effects on nearby instructions, or be volatile.
 /// TODO: Common w/ the version in AtomicExpandPass, and change the term used.
 /// Idemptotent is confusing in this context.
-bool isIdempotentRMW(AtomicRMWInst& RMWI) {
+static bool isIdempotentRMW(AtomicRMWInst &RMWI) {
   if (auto CF = dyn_cast<ConstantFP>(RMWI.getValOperand()))
     switch(RMWI.getOperation()) {
     case AtomicRMWInst::FAdd: // -0.0
@@ -59,7 +58,7 @@ bool isIdempotentRMW(AtomicRMWInst& RMWI) {
 
 /// Return true if the given instruction always produces a value in memory
 /// equivalent to its value operand.
-bool isSaturating(AtomicRMWInst& RMWI) {
+static bool isSaturating(AtomicRMWInst &RMWI) {
   if (auto CF = dyn_cast<ConstantFP>(RMWI.getValOperand()))
     switch (RMWI.getOperation()) {
     case AtomicRMWInst::FMax:
@@ -98,7 +97,6 @@ bool isSaturating(AtomicRMWInst& RMWI) {
     return C->isMaxValue(false);
   };
 }
-} // namespace
 
 Instruction *InstCombinerImpl::visitAtomicRMWInst(AtomicRMWInst &RMWI) {
 
@@ -116,24 +114,9 @@ Instruction *InstCombinerImpl::visitAtomicRMWInst(AtomicRMWInst &RMWI) {
     return &RMWI;
   }
 
-  AtomicOrdering Ordering = RMWI.getOrdering();
-  assert(Ordering != AtomicOrdering::NotAtomic &&
-         Ordering != AtomicOrdering::Unordered &&
+  assert(RMWI.getOrdering() != AtomicOrdering::NotAtomic &&
+         RMWI.getOrdering() != AtomicOrdering::Unordered &&
          "AtomicRMWs don't make sense with Unordered or NotAtomic");
-
-  // Any atomicrmw xchg with no uses can be converted to a atomic store if the
-  // ordering is compatible.
-  if (RMWI.getOperation() == AtomicRMWInst::Xchg &&
-      RMWI.use_empty()) {
-    if (Ordering != AtomicOrdering::Release &&
-        Ordering != AtomicOrdering::Monotonic)
-      return nullptr;
-    auto *SI = new StoreInst(RMWI.getValOperand(),
-                             RMWI.getPointerOperand(), &RMWI);
-    SI->setAtomic(Ordering, RMWI.getSyncScopeID());
-    SI->setAlignment(DL.getABITypeAlign(RMWI.getType()));
-    return eraseInstFromFunction(RMWI);
-  }
 
   if (!isIdempotentRMW(RMWI))
     return nullptr;
@@ -152,13 +135,5 @@ Instruction *InstCombinerImpl::visitAtomicRMWInst(AtomicRMWInst &RMWI) {
     return replaceOperand(RMWI, 1, ConstantFP::getNegativeZero(RMWI.getType()));
   }
 
-  // Check if the required ordering is compatible with an atomic load.
-  if (Ordering != AtomicOrdering::Acquire &&
-      Ordering != AtomicOrdering::Monotonic)
-    return nullptr;
-
-  LoadInst *Load = new LoadInst(RMWI.getType(), RMWI.getPointerOperand(), "",
-                                false, DL.getABITypeAlign(RMWI.getType()),
-                                Ordering, RMWI.getSyncScopeID());
-  return Load;
+  return nullptr;
 }

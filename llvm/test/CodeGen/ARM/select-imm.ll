@@ -295,15 +295,13 @@ define i32 @t7(i32 %a, i32 %b) nounwind readnone {
 ; ARM-LABEL: t7:
 ; ARM:       @ %bb.0: @ %entry
 ; ARM-NEXT:    subs r0, r0, r1
-; ARM-NEXT:    movne r0, #1
-; ARM-NEXT:    lsl r0, r0, #2
+; ARM-NEXT:    movne r0, #4
 ; ARM-NEXT:    mov pc, lr
 ;
 ; ARMT2-LABEL: t7:
 ; ARMT2:       @ %bb.0: @ %entry
 ; ARMT2-NEXT:    subs r0, r0, r1
-; ARMT2-NEXT:    movwne r0, #1
-; ARMT2-NEXT:    lsl r0, r0, #2
+; ARMT2-NEXT:    movwne r0, #4
 ; ARMT2-NEXT:    bx lr
 ;
 ; THUMB1-LABEL: t7:
@@ -318,8 +316,7 @@ define i32 @t7(i32 %a, i32 %b) nounwind readnone {
 ; THUMB2:       @ %bb.0: @ %entry
 ; THUMB2-NEXT:    subs r0, r0, r1
 ; THUMB2-NEXT:    it ne
-; THUMB2-NEXT:    movne r0, #1
-; THUMB2-NEXT:    lsls r0, r0, #2
+; THUMB2-NEXT:    movne r0, #4
 ; THUMB2-NEXT:    bx lr
 ;
 ; V8MBASE-LABEL: t7:
@@ -422,7 +419,7 @@ entry:
 }
 
 ; ARM scheduler emits icmp/zext before both calls, so isn't relevant
-define void @t9(i8* %a, i8 %b) {
+define void @t9(ptr %a, i8 %b) {
 ; ARM-LABEL: t9:
 ; ARM:       @ %bb.0: @ %entry
 ; ARM-NEXT:    .save {r4, lr}
@@ -542,7 +539,7 @@ define void @t9(i8* %a, i8 %b) {
 ; V8MBASE-NEXT:  .LBB8_3: @ %while.end
 ; V8MBASE-NEXT:    pop {r4, pc}
 entry:
-  %0 = load i8, i8* %a
+  %0 = load i8, ptr %a
   %conv = sext i8 %0 to i32
   %conv119 = zext i8 %0 to i32
   %conv522 = and i32 %conv, 255
@@ -655,11 +652,11 @@ define i1 @t10() {
 ; V8MBASE-NEXT:    .pad #8
 ; V8MBASE-NEXT:    sub sp, #8
 ; V8MBASE-NEXT:    movs r0, #7
-; V8MBASE-NEXT:    mvns r0, r0
-; V8MBASE-NEXT:    str r0, [sp]
-; V8MBASE-NEXT:    adds r0, r0, #5
+; V8MBASE-NEXT:    mvns r1, r0
+; V8MBASE-NEXT:    str r1, [sp]
+; V8MBASE-NEXT:    adds r0, r1, #5
 ; V8MBASE-NEXT:    str r0, [sp, #4]
-; V8MBASE-NEXT:    movs r1, #0
+; V8MBASE-NEXT:    adds r1, #8
 ; V8MBASE-NEXT:    rsbs r0, r1, #0
 ; V8MBASE-NEXT:    adcs r0, r1
 ; V8MBASE-NEXT:    add sp, #8
@@ -667,10 +664,10 @@ define i1 @t10() {
 entry:
   %q = alloca i32
   %p = alloca i32
-  store i32 -3, i32* %q
-  store i32 -8, i32* %p
-  %0 = load i32, i32* %q
-  %1 = load i32, i32* %p
+  store i32 -3, ptr %q
+  store i32 -8, ptr %p
+  %0 = load i32, ptr %q
+  %1 = load i32, ptr %p
   %div = sdiv i32 %0, %1
   %mul = mul nsw i32 %div, %1
   %rem = srem i32 %0, %1
@@ -701,23 +698,22 @@ define i1 @t11() {
 ; ARMT2-NEXT:    sub sp, sp, #4
 ; ARMT2-NEXT:    ldr r1, [sp]
 ; ARMT2-NEXT:    mov r0, #33
-; ARMT2-NEXT:    movw r2, #52429
-; ARMT2-NEXT:    movt r2, #52428
+; ARMT2-NEXT:    movw r2, #39322
+; ARMT2-NEXT:    movt r2, #6553
 ; ARMT2-NEXT:    bfi r1, r0, #0, #12
 ; ARMT2-NEXT:    mov r0, #10
 ; ARMT2-NEXT:    bfi r1, r0, #12, #13
 ; ARMT2-NEXT:    mov r0, r1
 ; ARMT2-NEXT:    bfc r0, #12, #20
 ; ARMT2-NEXT:    umull r2, r3, r0, r2
-; ARMT2-NEXT:    lsr r2, r3, #3
-; ARMT2-NEXT:    add r2, r2, r2, lsl #2
+; ARMT2-NEXT:    add r2, r3, r3, lsl #2
 ; ARMT2-NEXT:    sub r0, r0, r2, lsl #1
 ; ARMT2-NEXT:    movw r2, #40960
 ; ARMT2-NEXT:    movt r2, #65024
 ; ARMT2-NEXT:    and r1, r1, r2
 ; ARMT2-NEXT:    orr r0, r1, r0
 ; ARMT2-NEXT:    str r0, [sp]
-; ARMT2-NEXT:    bfc r0, #12, #20
+; ARMT2-NEXT:    and r0, r0, #15
 ; ARMT2-NEXT:    sub r0, r0, #3
 ; ARMT2-NEXT:    clz r0, r0
 ; ARMT2-NEXT:    lsr r0, r0, #5
@@ -764,23 +760,22 @@ define i1 @t11() {
 ; THUMB2-NEXT:    sub sp, #4
 ; THUMB2-NEXT:    ldr r1, [sp]
 ; THUMB2-NEXT:    movs r0, #33
-; THUMB2-NEXT:    movw r2, #52429
+; THUMB2-NEXT:    movw r2, #39322
 ; THUMB2-NEXT:    bfi r1, r0, #0, #12
 ; THUMB2-NEXT:    movs r0, #10
 ; THUMB2-NEXT:    bfi r1, r0, #12, #13
 ; THUMB2-NEXT:    mov r0, r1
-; THUMB2-NEXT:    movt r2, #52428
+; THUMB2-NEXT:    movt r2, #6553
 ; THUMB2-NEXT:    bfc r0, #12, #20
 ; THUMB2-NEXT:    umull r2, r3, r0, r2
-; THUMB2-NEXT:    lsrs r2, r3, #3
-; THUMB2-NEXT:    add.w r2, r2, r2, lsl #2
+; THUMB2-NEXT:    add.w r2, r3, r3, lsl #2
 ; THUMB2-NEXT:    sub.w r0, r0, r2, lsl #1
 ; THUMB2-NEXT:    movw r2, #40960
 ; THUMB2-NEXT:    movt r2, #65024
 ; THUMB2-NEXT:    ands r1, r2
 ; THUMB2-NEXT:    orrs r0, r1
 ; THUMB2-NEXT:    str r0, [sp]
-; THUMB2-NEXT:    bfc r0, #12, #20
+; THUMB2-NEXT:    and r0, r0, #15
 ; THUMB2-NEXT:    subs r0, #3
 ; THUMB2-NEXT:    clz r0, r0
 ; THUMB2-NEXT:    lsrs r0, r0, #5
@@ -805,18 +800,18 @@ define i1 @t11() {
 ; V8MBASE-NEXT:    bx lr
 entry:
   %bit = alloca i32
-  %load = load i32, i32* %bit
+  %load = load i32, ptr %bit
   %clear = and i32 %load, -4096
   %set = or i32 %clear, 33
-  store i32 %set, i32* %bit
-  %load1 = load i32, i32* %bit
+  store i32 %set, ptr %bit
+  %load1 = load i32, ptr %bit
   %clear2 = and i32 %load1, -33550337
   %set3 = or i32 %clear2, 40960
   %clear5 = and i32 %set3, 4095
   %rem = srem i32 %clear5, 10
   %clear9 = and i32 %set3, -4096
   %set10 = or i32 %clear9, %rem
-  store i32 %set10, i32* %bit
+  store i32 %set10, ptr %bit
   %clear12 = and i32 %set10, 4095
   %cmp = icmp eq i32 %clear12, 3
   ret i1 %cmp
@@ -826,15 +821,13 @@ define i32 @t12(i32 %a) nounwind {
 ; ARM-LABEL: t12:
 ; ARM:       @ %bb.0: @ %entry
 ; ARM-NEXT:    cmp r0, #0
-; ARM-NEXT:    movne r0, #1
-; ARM-NEXT:    lsl r0, r0, #1
+; ARM-NEXT:    movne r0, #2
 ; ARM-NEXT:    mov pc, lr
 ;
 ; ARMT2-LABEL: t12:
 ; ARMT2:       @ %bb.0: @ %entry
 ; ARMT2-NEXT:    cmp r0, #0
-; ARMT2-NEXT:    movwne r0, #1
-; ARMT2-NEXT:    lsl r0, r0, #1
+; ARMT2-NEXT:    movwne r0, #2
 ; ARMT2-NEXT:    bx lr
 ;
 ; THUMB1-LABEL: t12:
@@ -848,8 +841,7 @@ define i32 @t12(i32 %a) nounwind {
 ; THUMB2:       @ %bb.0: @ %entry
 ; THUMB2-NEXT:    cmp r0, #0
 ; THUMB2-NEXT:    it ne
-; THUMB2-NEXT:    movne r0, #1
-; THUMB2-NEXT:    lsls r0, r0, #1
+; THUMB2-NEXT:    movne r0, #2
 ; THUMB2-NEXT:    bx lr
 ;
 ; V8MBASE-LABEL: t12:

@@ -33,11 +33,11 @@ template <class T> void test_simd_class_traits() SYCL_ESIMD_FUNCTION {
                 "type trait mismatch");
   static_assert(std::is_copy_assignable<simd<T, 4>>::value,
                 "type trait mismatch");
-  static_assert(std::is_trivially_copy_assignable<simd<T, 4>>::value,
+  static_assert(!std::is_trivially_copy_assignable<simd<T, 4>>::value,
                 "type trait mismatch");
   static_assert(std::is_move_assignable<simd<T, 4>>::value,
                 "type trait mismatch");
-  static_assert(std::is_trivially_move_assignable<simd<T, 4>>::value,
+  static_assert(!std::is_trivially_move_assignable<simd<T, 4>>::value,
                 "type trait mismatch");
 }
 
@@ -190,7 +190,7 @@ template bool test_format_1d_read<int, short>() SYCL_ESIMD_FUNCTION;
 template bool test_format_1d_read<sycl::half, uint8_t>() SYCL_ESIMD_FUNCTION;
 
 template <class T1, class T2> bool test_format_1d_write() SYCL_ESIMD_FUNCTION {
-  simd<T1, 8> r;
+  simd<T1, 32> r;
   auto rl = r.template bit_cast_view<T2>();
   auto rl2 = rl.template select<8, 2>(0);
   auto rh = r.template bit_cast_view<T2>();
@@ -358,7 +358,7 @@ template <class T1, class T2> bool test_simd_iselect() SYCL_ESIMD_FUNCTION {
   simd<T2, 8> a(0, 2);
   auto data = v.iselect(a);
   data += 16;
-  v.template iupdate(a, data, simd_mask<8>(1));
+  v.iupdate(a, data, simd_mask<8>(1));
   auto ref = v.template select<8, 2>(0);
   return ref[0] == 16 && ref[14] == 32;
 }
@@ -376,3 +376,15 @@ void test_simd_binop_honor_int_promo() SYCL_ESIMD_FUNCTION {
   static_assert(std::is_same<decltype(c + c), simd<int, 32>>::value, "");
   static_assert(std::is_same<decltype(d + d), simd<int, 32>>::value, "");
 }
+
+template <class T> bool test_simd_view_ctors() SYCL_ESIMD_FUNCTION {
+  simd<T, 8> vec8;
+  auto view4 = vec8.template select<4, 1>(0);
+
+  simd<T, 4> vec4 = view4;
+  simd vec41 = view4;
+  return true;
+}
+
+template bool test_simd_view_ctors<int>() SYCL_ESIMD_FUNCTION;
+template bool test_simd_view_ctors<sycl::half>() SYCL_ESIMD_FUNCTION;

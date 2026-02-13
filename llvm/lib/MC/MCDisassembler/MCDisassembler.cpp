@@ -13,11 +13,11 @@ using namespace llvm;
 
 MCDisassembler::~MCDisassembler() = default;
 
-Optional<MCDisassembler::DecodeStatus>
-MCDisassembler::onSymbolStart(SymbolInfoTy &Symbol, uint64_t &Size,
-                              ArrayRef<uint8_t> Bytes, uint64_t Address,
-                              raw_ostream &CStream) const {
-  return None;
+Expected<bool> MCDisassembler::onSymbolStart(SymbolInfoTy &Symbol,
+                                             uint64_t &Size,
+                                             ArrayRef<uint8_t> Bytes,
+                                             uint64_t Address) const {
+  return false;
 }
 
 uint64_t MCDisassembler::suggestBytesToSkip(ArrayRef<uint8_t> Bytes,
@@ -29,17 +29,21 @@ bool MCDisassembler::tryAddingSymbolicOperand(MCInst &Inst, int64_t Value,
                                               uint64_t Address, bool IsBranch,
                                               uint64_t Offset, uint64_t OpSize,
                                               uint64_t InstSize) const {
-  if (Symbolizer)
+  if (Symbolizer) {
+    assert(CommentStream && "CommentStream is not set.");
     return Symbolizer->tryAddingSymbolicOperand(Inst, *CommentStream, Value,
                                                 Address, IsBranch, Offset,
                                                 OpSize, InstSize);
+  }
   return false;
 }
 
 void MCDisassembler::tryAddingPcLoadReferenceComment(int64_t Value,
                                                      uint64_t Address) const {
-  if (Symbolizer)
+  if (Symbolizer) {
+    assert(CommentStream && "CommentStream is not set.");
     Symbolizer->tryAddingPcLoadReferenceComment(*CommentStream, Value, Address);
+  }
 }
 
 void MCDisassembler::setSymbolizer(std::unique_ptr<MCSymbolizer> Symzer) {
@@ -82,7 +86,7 @@ static uint8_t getSMCPriority(XCOFF::StorageMappingClass SMC) {
 /// The symbols in the same section are sorted in ascending order.
 /// llvm-objdump -D will choose the highest priority symbol to display when
 /// there are symbols with the same address.
-bool XCOFFSymbolInfo::operator<(const XCOFFSymbolInfo &SymInfo) const {
+bool XCOFFSymbolInfoTy::operator<(const XCOFFSymbolInfoTy &SymInfo) const {
   // Label symbols have higher priority than non-label symbols.
   if (IsLabel != SymInfo.IsLabel)
     return SymInfo.IsLabel;
@@ -93,8 +97,8 @@ bool XCOFFSymbolInfo::operator<(const XCOFFSymbolInfo &SymInfo) const {
     return SymInfo.StorageMappingClass.has_value();
 
   if (StorageMappingClass) {
-    return getSMCPriority(StorageMappingClass.value()) <
-           getSMCPriority(SymInfo.StorageMappingClass.value());
+    return getSMCPriority(*StorageMappingClass) <
+           getSMCPriority(*SymInfo.StorageMappingClass);
   }
 
   return false;

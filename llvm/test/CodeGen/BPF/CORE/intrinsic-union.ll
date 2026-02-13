@@ -5,7 +5,7 @@
 ; Source code:
 ;   union u { int a; int b; };
 ;   #define _(x) (__builtin_preserve_access_index(x))
-;   int get_value(const void *addr);
+;   int get_value(const ptr addr);
 ;   int test(union u *arg) { return get_value(_(&arg->b)); }
 ; Compiler flag to generate IR:
 ;   clang -target bpf -S -O2 -g -emit-llvm -Xclang -disable-llvm-passes test.c
@@ -15,12 +15,11 @@ target triple = "bpf"
 %union.u = type { i32 }
 
 ; Function Attrs: nounwind
-define dso_local i32 @test(%union.u* %arg) local_unnamed_addr #0 !dbg !7 {
+define dso_local i32 @test(ptr %arg) local_unnamed_addr !dbg !7 {
 entry:
-  call void @llvm.dbg.value(metadata %union.u* %arg, metadata !17, metadata !DIExpression()), !dbg !18
-  %0 = tail call %union.u* @llvm.preserve.union.access.index.p0s_union.us.p0s_union.us(%union.u* %arg, i32 1), !dbg !19, !llvm.preserve.access.index !12
-  %1 = bitcast %union.u* %0 to i8*, !dbg !19
-  %call = tail call i32 @get_value(i8* %1) #4, !dbg !20
+  call void @llvm.dbg.value(metadata ptr %arg, metadata !17, metadata !DIExpression()), !dbg !18
+  %0 = tail call ptr @llvm.preserve.union.access.index.p0.us.p0.us(ptr %arg, i32 1), !dbg !19, !llvm.preserve.access.index !12
+  %call = tail call i32 @get_value(ptr %0), !dbg !20
   ret i32 %call, !dbg !21
 }
 ; CHECK-LABEL: test
@@ -39,19 +38,13 @@ entry:
 ; CHECK-NEXT: .long   26
 ; CHECK-NEXT: .long   0
 
-declare dso_local i32 @get_value(i8*) local_unnamed_addr #1
+declare dso_local i32 @get_value(ptr) local_unnamed_addr
 
 ; Function Attrs: nounwind readnone
-declare %union.u* @llvm.preserve.union.access.index.p0s_union.us.p0s_union.us(%union.u*, i32 immarg) #2
+declare ptr @llvm.preserve.union.access.index.p0.us.p0.us(ptr, i32 immarg)
 
 ; Function Attrs: nounwind readnone speculatable
-declare void @llvm.dbg.value(metadata, metadata, metadata) #3
-
-attributes #0 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "frame-pointer"="all" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #2 = { nounwind readnone }
-attributes #3 = { nounwind readnone speculatable }
-attributes #4 = { nounwind }
+declare void @llvm.dbg.value(metadata, metadata, metadata)
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!3, !4, !5}

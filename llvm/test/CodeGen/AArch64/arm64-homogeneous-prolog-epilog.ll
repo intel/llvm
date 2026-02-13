@@ -37,19 +37,17 @@ declare i32 @_Z3gooi(i32);
 define i32 @foo(i32 %c) nounwind minsize {
 entry:
   %buffer = alloca [1 x i32], align 4
-  %0 = bitcast [1 x i32]* %buffer to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* nonnull %0)
-  %arraydecay = getelementptr inbounds [1 x i32], [1 x i32]* %buffer, i64 0, i64 0
-  %call = call i32 @goo(i32* nonnull %arraydecay)
+  call void @llvm.lifetime.start.p0(i64 4, ptr nonnull %buffer)
+  %call = call i32 @goo(ptr nonnull %buffer)
   %sub = sub nsw i32 %c, %call
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* nonnull %0)
+  call void @llvm.lifetime.end.p0(i64 4, ptr nonnull %buffer)
 
   ret i32 %sub
 }
 
-declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture)
-declare i32 @goo(i32*)
-declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture)
+declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture)
+declare i32 @goo(ptr)
+declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture)
 
 ; CHECK-LABEL: _OUTLINED_FUNCTION_PROLOG_x30x29x19x20x21x22:
 ; CHECK:      stp     x22, x21, [sp, #-32]!
@@ -69,8 +67,13 @@ declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture)
 ; CHECK-LINUX-NEXT: ret
 
 ; CHECK-LINUX-LABEL: OUTLINED_FUNCTION_EPILOG_x19x20x21x22x30x29:
-; CHECK-LINUX:      mov     x16, x30
-; CHECK-LINUX-NEXT: ldp     x20, x19, [sp, #32]
+; CHECK-LINUX:      ldp     x20, x19, [sp, #32]
+; CHECK-LINUX-NEXT: mov     x16, x30
 ; CHECK-LINUX-NEXT: ldp     x22, x21, [sp, #16]
 ; CHECK-LINUX-NEXT: ldp     x29, x30, [sp], #48
 ; CHECK-LINUX-NEXT: ret     x16
+
+; nothing to check - hit assert if not bailing out for swiftasync
+define void @swift_async(ptr swiftasync %ctx) minsize "frame-pointer"="all" {
+  ret void
+}

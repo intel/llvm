@@ -1,4 +1,4 @@
-; RUN: llc  -march=mipsel -mattr=mips16 -relocation-model=pic -O3 < %s | FileCheck %s -check-prefix=16
+; RUN: llc  -mtriple=mipsel -mattr=mips16 -relocation-model=pic -O3 < %s | FileCheck %s -check-prefix=16
 
 @x = global i32 65504, align 4
 @y = global i32 60929, align 4
@@ -6,12 +6,12 @@
 
 define i32 @main() nounwind {
 entry:
-  %0 = load i32, i32* @x, align 4
-  %1 = load i32, i32* @y, align 4
+  %0 = load i32, ptr @x, align 4
+  %1 = load i32, ptr @y, align 4
   %or = or i32 %0, %1
 ; 16:	or	${{[0-9]+}}, ${{[0-9]+}}
-  %call = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str, i32 0, i32 0), i32 %or)
+  %call = call i32 (ptr, ...) @printf(ptr @.str, i32 %or)
   ret i32 0
 }
 
-declare i32 @printf(i8*, ...)
+declare i32 @printf(ptr, ...)

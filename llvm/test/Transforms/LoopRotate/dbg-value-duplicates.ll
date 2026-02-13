@@ -1,17 +1,17 @@
-; RUN: opt -S -loop-rotate -verify-memoryssa < %s | FileCheck %s
+; RUN: opt -S -passes=loop-rotate -verify-memoryssa < %s | FileCheck %s
 source_filename = "/tmp/loop.c"
 target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-apple-macosx10.13.0"
 
 ; Function Attrs: nounwind ssp uwtable
-define void @f(float* %input, i64 %n, i64 %s) local_unnamed_addr #0 !dbg !8 {
+define void @f(ptr %input, i64 %n, i64 %s) local_unnamed_addr #0 !dbg !8 {
 entry:
-  call void @llvm.dbg.value(metadata float* %input, metadata !15, metadata !DIExpression()), !dbg !20
+  call void @llvm.dbg.value(metadata ptr %input, metadata !15, metadata !DIExpression()), !dbg !20
   call void @llvm.dbg.value(metadata i64 %n, metadata !16, metadata !DIExpression()), !dbg !21
   call void @llvm.dbg.value(metadata i64 %s, metadata !17, metadata !DIExpression()), !dbg !22
   call void @llvm.dbg.value(metadata i64 0, metadata !18, metadata !DIExpression()), !dbg !23
-  ; CHECK:   call void @llvm.dbg.value(metadata i64 0, metadata !18, metadata !DIExpression()), !dbg !23
-  ; CHECK-NOT:   call void @llvm.dbg.value(metadata i64 0, metadata !18, metadata !DIExpression()), !dbg !23
+  ; CHECK:   #dbg_value(i64 0, !18, !DIExpression(), !23
+  ; CHECK-NOT:   #dbg_value(i64 0, !18, !DIExpression(), !23
   br label %for.cond, !dbg !24
 
 for.cond:                                         ; preds = %for.body, %entry
@@ -25,13 +25,13 @@ for.cond.cleanup:                                 ; preds = %for.cond
   ret void, !dbg !28
 
 for.body:                                         ; preds = %for.cond
-  %arrayidx = getelementptr inbounds float, float* %input, i64 %i.0, !dbg !29
-  %0 = load float, float* %arrayidx, align 4, !dbg !29, !tbaa !30
+  %arrayidx = getelementptr inbounds float, ptr %input, i64 %i.0, !dbg !29
+  %0 = load float, ptr %arrayidx, align 4, !dbg !29, !tbaa !30
   call void @bar(float %0), !dbg !34
   %add = add nsw i64 %i.0, %s, !dbg !35
   call void @llvm.dbg.value(metadata i64 %add, metadata !18, metadata !DIExpression()), !dbg !23
-  ; CHECK:   call void @llvm.dbg.value(metadata i64 %add, metadata !18, metadata !DIExpression()), !dbg !23
-  ; CHECK-NOT:   call void @llvm.dbg.value(metadata i64 %add, metadata !18, metadata !DIExpression()), !dbg !23
+  ; CHECK:   #dbg_value(i64 %add, !18, !DIExpression(), !23
+  ; CHECK-NOT:   #dbg_value(i64 %add, !18, !DIExpression(), !23
   br label %for.cond, !dbg !36, !llvm.loop !37
 }
 

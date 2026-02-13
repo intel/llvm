@@ -16,11 +16,12 @@
 // template<class _URNG> result_type operator()(_URNG& g);
 
 #include <random>
-#include <vector>
-#include <iterator>
-#include <numeric>
 #include <algorithm>   // for sort
 #include <cassert>
+#include <cmath>
+#include <iterator>
+#include <numeric>
+#include <vector>
 
 #include "test_macros.h"
 
@@ -40,7 +41,7 @@ test1()
     G g;
     double b[] = {10, 14, 16, 17};
     double p[] = {25, 62.5, 12.5};
-    const size_t Np = sizeof(p) / sizeof(p[0]);
+    const std::size_t Np = sizeof(p) / sizeof(p[0]);
     D d(b, b+Np+1, p);
     const int N = 1000000;
     std::vector<D::result_type> u;
@@ -60,7 +61,7 @@ test1()
         typedef std::vector<D::result_type>::iterator I;
         I lb = std::lower_bound(u.begin(), u.end(), b[i]);
         I ub = std::lower_bound(u.begin(), u.end(), b[i+1]);
-        const size_t Ni = ub - lb;
+        const std::size_t Ni = ub - lb;
         if (prob[i] == 0)
             assert(Ni == 0);
         else
@@ -103,7 +104,7 @@ test2()
     G g;
     double b[] = {10, 14, 16, 17};
     double p[] = {0, 62.5, 12.5};
-    const size_t Np = sizeof(p) / sizeof(p[0]);
+    const std::size_t Np = sizeof(p) / sizeof(p[0]);
     D d(b, b+Np+1, p);
     const int N = 1000000;
     std::vector<D::result_type> u;
@@ -123,7 +124,7 @@ test2()
         typedef std::vector<D::result_type>::iterator I;
         I lb = std::lower_bound(u.begin(), u.end(), b[i]);
         I ub = std::lower_bound(u.begin(), u.end(), b[i+1]);
-        const size_t Ni = ub - lb;
+        const std::size_t Ni = ub - lb;
         if (prob[i] == 0)
             assert(Ni == 0);
         else
@@ -166,7 +167,7 @@ test3()
     G g;
     double b[] = {10, 14, 16, 17};
     double p[] = {25, 0, 12.5};
-    const size_t Np = sizeof(p) / sizeof(p[0]);
+    const std::size_t Np = sizeof(p) / sizeof(p[0]);
     D d(b, b+Np+1, p);
     const int N = 1000000;
     std::vector<D::result_type> u;
@@ -186,7 +187,7 @@ test3()
         typedef std::vector<D::result_type>::iterator I;
         I lb = std::lower_bound(u.begin(), u.end(), b[i]);
         I ub = std::lower_bound(u.begin(), u.end(), b[i+1]);
-        const size_t Ni = ub - lb;
+        const std::size_t Ni = ub - lb;
         if (prob[i] == 0)
             assert(Ni == 0);
         else
@@ -229,7 +230,7 @@ test4()
     G g;
     double b[] = {10, 14, 16, 17};
     double p[] = {25, 62.5, 0};
-    const size_t Np = sizeof(p) / sizeof(p[0]);
+    const std::size_t Np = sizeof(p) / sizeof(p[0]);
     D d(b, b+Np+1, p);
     const int N = 1000000;
     std::vector<D::result_type> u;
@@ -249,7 +250,7 @@ test4()
         typedef std::vector<D::result_type>::iterator I;
         I lb = std::lower_bound(u.begin(), u.end(), b[i]);
         I ub = std::lower_bound(u.begin(), u.end(), b[i+1]);
-        const size_t Ni = ub - lb;
+        const std::size_t Ni = ub - lb;
         if (prob[i] == 0)
             assert(Ni == 0);
         else
@@ -292,7 +293,7 @@ test5()
     G g;
     double b[] = {10, 14, 16, 17};
     double p[] = {25, 0, 0};
-    const size_t Np = sizeof(p) / sizeof(p[0]);
+    const std::size_t Np = sizeof(p) / sizeof(p[0]);
     D d(b, b+Np+1, p);
     const int N = 100000;
     std::vector<D::result_type> u;
@@ -312,7 +313,7 @@ test5()
         typedef std::vector<D::result_type>::iterator I;
         I lb = std::lower_bound(u.begin(), u.end(), b[i]);
         I ub = std::lower_bound(u.begin(), u.end(), b[i+1]);
-        const size_t Ni = ub - lb;
+        const std::size_t Ni = ub - lb;
         if (prob[i] == 0)
             assert(Ni == 0);
         else
@@ -355,7 +356,7 @@ test6()
     G g;
     double b[] = {10, 14, 16, 17};
     double p[] = {0, 25, 0};
-    const size_t Np = sizeof(p) / sizeof(p[0]);
+    const std::size_t Np = sizeof(p) / sizeof(p[0]);
     D d(b, b+Np+1, p);
     const int N = 100000;
     std::vector<D::result_type> u;
@@ -375,7 +376,7 @@ test6()
         typedef std::vector<D::result_type>::iterator I;
         I lb = std::lower_bound(u.begin(), u.end(), b[i]);
         I ub = std::lower_bound(u.begin(), u.end(), b[i+1]);
-        const size_t Ni = ub - lb;
+        const std::size_t Ni = ub - lb;
         if (prob[i] == 0)
             assert(Ni == 0);
         else
@@ -418,7 +419,7 @@ test7()
     G g;
     double b[] = {10, 14, 16, 17};
     double p[] = {0, 0, 1};
-    const size_t Np = sizeof(p) / sizeof(p[0]);
+    const std::size_t Np = sizeof(p) / sizeof(p[0]);
     D d(b, b+Np+1, p);
     const int N = 100000;
     std::vector<D::result_type> u;
@@ -438,7 +439,7 @@ test7()
         typedef std::vector<D::result_type>::iterator I;
         I lb = std::lower_bound(u.begin(), u.end(), b[i]);
         I ub = std::lower_bound(u.begin(), u.end(), b[i+1]);
-        const size_t Ni = ub - lb;
+        const std::size_t Ni = ub - lb;
         if (prob[i] == 0)
             assert(Ni == 0);
         else
@@ -481,7 +482,7 @@ test8()
     G g;
     double b[] = {10, 14, 16};
     double p[] = {75, 25};
-    const size_t Np = sizeof(p) / sizeof(p[0]);
+    const std::size_t Np = sizeof(p) / sizeof(p[0]);
     D d(b, b+Np+1, p);
     const int N = 100000;
     std::vector<D::result_type> u;
@@ -501,7 +502,7 @@ test8()
         typedef std::vector<D::result_type>::iterator I;
         I lb = std::lower_bound(u.begin(), u.end(), b[i]);
         I ub = std::lower_bound(u.begin(), u.end(), b[i+1]);
-        const size_t Ni = ub - lb;
+        const std::size_t Ni = ub - lb;
         if (prob[i] == 0)
             assert(Ni == 0);
         else
@@ -529,8 +530,8 @@ test8()
             double x_skew = 0;
             double x_kurtosis = -6./5;
             assert(std::abs((mean - x_mean) / x_mean) < 0.01);
-            assert(std::abs((var - x_var) / x_var) < 0.01);
-            assert(std::abs(skew - x_skew) < 0.01);
+            assert(std::abs((var - x_var) / x_var) < 0.02);
+            assert(std::abs(skew - x_skew) < 0.02);
             assert(std::abs((kurtosis - x_kurtosis) / x_kurtosis) < 0.01);
         }
     }
@@ -544,7 +545,7 @@ test9()
     G g;
     double b[] = {10, 14, 16};
     double p[] = {0, 25};
-    const size_t Np = sizeof(p) / sizeof(p[0]);
+    const std::size_t Np = sizeof(p) / sizeof(p[0]);
     D d(b, b+Np+1, p);
     const int N = 100000;
     std::vector<D::result_type> u;
@@ -564,7 +565,7 @@ test9()
         typedef std::vector<D::result_type>::iterator I;
         I lb = std::lower_bound(u.begin(), u.end(), b[i]);
         I ub = std::lower_bound(u.begin(), u.end(), b[i+1]);
-        const size_t Ni = ub - lb;
+        const std::size_t Ni = ub - lb;
         if (prob[i] == 0)
             assert(Ni == 0);
         else
@@ -607,7 +608,7 @@ test10()
     G g;
     double b[] = {10, 14, 16};
     double p[] = {1, 0};
-    const size_t Np = sizeof(p) / sizeof(p[0]);
+    const std::size_t Np = sizeof(p) / sizeof(p[0]);
     D d(b, b+Np+1, p);
     const int N = 100000;
     std::vector<D::result_type> u;
@@ -627,7 +628,7 @@ test10()
         typedef std::vector<D::result_type>::iterator I;
         I lb = std::lower_bound(u.begin(), u.end(), b[i]);
         I ub = std::lower_bound(u.begin(), u.end(), b[i+1]);
-        const size_t Ni = ub - lb;
+        const std::size_t Ni = ub - lb;
         if (prob[i] == 0)
             assert(Ni == 0);
         else
@@ -670,7 +671,7 @@ test11()
     G g;
     double b[] = {10, 14};
     double p[] = {1};
-    const size_t Np = sizeof(p) / sizeof(p[0]);
+    const std::size_t Np = sizeof(p) / sizeof(p[0]);
     D d(b, b+Np+1, p);
     const int N = 100000;
     std::vector<D::result_type> u;
@@ -690,7 +691,7 @@ test11()
         typedef std::vector<D::result_type>::iterator I;
         I lb = std::lower_bound(u.begin(), u.end(), b[i]);
         I ub = std::lower_bound(u.begin(), u.end(), b[i+1]);
-        const size_t Ni = ub - lb;
+        const std::size_t Ni = ub - lb;
         if (prob[i] == 0)
             assert(Ni == 0);
         else

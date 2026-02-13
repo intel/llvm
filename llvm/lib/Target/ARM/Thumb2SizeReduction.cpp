@@ -29,13 +29,11 @@
 #include "llvm/IR/Function.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCInstrDesc.h"
-#include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
-#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <functional>
@@ -169,8 +167,7 @@ namespace {
     bool runOnMachineFunction(MachineFunction &MF) override;
 
     MachineFunctionProperties getRequiredProperties() const override {
-      return MachineFunctionProperties().set(
-          MachineFunctionProperties::Property::NoVRegs);
+      return MachineFunctionProperties().setNoVRegs();
     }
 
     StringRef getPassName() const override {
@@ -253,10 +250,7 @@ Thumb2SizeReduce::Thumb2SizeReduce(std::function<bool(const Function &)> Ftor)
 }
 
 static bool HasImplicitCPSRDef(const MCInstrDesc &MCID) {
-  for (const MCPhysReg *Regs = MCID.getImplicitDefs(); *Regs; ++Regs)
-    if (*Regs == ARM::CPSR)
-      return true;
-  return false;
+  return is_contained(MCID.implicit_defs(), ARM::CPSR);
 }
 
 // Check for a likely high-latency flag def.
@@ -758,6 +752,9 @@ Thumb2SizeReduce::ReduceTo2Addr(MachineBasicBlock &MBB, MachineInstr *MI,
   Register Reg1 = MI->getOperand(1).getReg();
   // t2MUL is "special". The tied source operand is second, not first.
   if (MI->getOpcode() == ARM::t2MUL) {
+    // MULS can be slower than MUL
+    if (!MinimizeSize && STI->avoidMULS())
+      return false;
     Register Reg2 = MI->getOperand(2).getReg();
     // Early exit if the regs aren't all low regs.
     if (!isARMLowRegister(Reg0) || !isARMLowRegister(Reg1)
@@ -839,9 +836,9 @@ Thumb2SizeReduce::ReduceTo2Addr(MachineBasicBlock &MBB, MachineInstr *MI,
   // Transfer the rest of operands.
   unsigned NumOps = MCID.getNumOperands();
   for (unsigned i = 1, e = MI->getNumOperands(); i != e; ++i) {
-    if (i < NumOps && MCID.OpInfo[i].isOptionalDef())
+    if (i < NumOps && MCID.operands()[i].isOptionalDef())
       continue;
-    if (SkipPred && MCID.OpInfo[i].isPredicate())
+    if (SkipPred && MCID.operands()[i].isPredicate())
       continue;
     MIB.add(MI->getOperand(i));
   }
@@ -875,7 +872,7 @@ Thumb2SizeReduce::ReduceToNarrow(MachineBasicBlock &MBB, MachineInstr *MI,
 
   const MCInstrDesc &MCID = MI->getDesc();
   for (unsigned i = 0, e = MCID.getNumOperands(); i != e; ++i) {
-    if (MCID.OpInfo[i].isPredicate())
+    if (MCID.operands()[i].isPredicate())
       continue;
     const MachineOperand &MO = MI->getOperand(i);
     if (MO.isReg()) {
@@ -884,8 +881,7 @@ Thumb2SizeReduce::ReduceToNarrow(MachineBasicBlock &MBB, MachineInstr *MI,
         continue;
       if (Entry.LowRegs1 && !isARMLowRegister(Reg))
         return false;
-    } else if (MO.isImm() &&
-               !MCID.OpInfo[i].isPredicate()) {
+    } else if (MO.isImm() && !MCID.operands()[i].isPredicate()) {
       if (((unsigned)MO.getImm()) > Limit)
         return false;
     }
@@ -946,7 +942,7 @@ Thumb2SizeReduce::ReduceToNarrow(MachineBasicBlock &MBB, MachineInstr *MI,
   // Transfer the rest of operands.
   unsigned NumOps = MCID.getNumOperands();
   for (unsigned i = 1, e = MI->getNumOperands(); i != e; ++i) {
-    if (i < NumOps && MCID.OpInfo[i].isOptionalDef())
+    if (i < NumOps && MCID.operands()[i].isOptionalDef())
       continue;
     if ((MCID.getOpcode() == ARM::t2RSBSri ||
          MCID.getOpcode() == ARM::t2RSBri ||
@@ -956,7 +952,7 @@ Thumb2SizeReduce::ReduceToNarrow(MachineBasicBlock &MBB, MachineInstr *MI,
          MCID.getOpcode() == ARM::t2UXTH) && i == 2)
       // Skip the zero immediate operand, it's now implicit.
       continue;
-    bool isPred = (i < NumOps && MCID.OpInfo[i].isPredicate());
+    bool isPred = (i < NumOps && MCID.operands()[i].isPredicate());
     if (SkipPred && isPred)
         continue;
     const MachineOperand &MO = MI->getOperand(i);
@@ -1101,12 +1097,13 @@ bool Thumb2SizeReduce::ReduceMBB(MachineBasicBlock &MBB,
       // marker is only on the BUNDLE instruction. Process the BUNDLE
       // instruction as we finish with the bundled instruction to work around
       // the inconsistency.
-      if (BundleMI->killsRegister(ARM::CPSR))
+      if (BundleMI->killsRegister(ARM::CPSR, /*TRI=*/nullptr))
         LiveCPSR = false;
-      MachineOperand *MO = BundleMI->findRegisterDefOperand(ARM::CPSR);
+      MachineOperand *MO =
+          BundleMI->findRegisterDefOperand(ARM::CPSR, /*TRI=*/nullptr);
       if (MO && !MO->isDead())
         LiveCPSR = true;
-      MO = BundleMI->findRegisterUseOperand(ARM::CPSR);
+      MO = BundleMI->findRegisterUseOperand(ARM::CPSR, /*TRI=*/nullptr);
       if (MO && !MO->isKill())
         LiveCPSR = true;
     }

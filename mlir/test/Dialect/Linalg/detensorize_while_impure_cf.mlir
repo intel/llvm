@@ -1,5 +1,5 @@
-// RUN: mlir-opt %s -pass-pipeline="func.func(linalg-detensorize{aggressive-mode})" | FileCheck %s -check-prefix=DET-ALL
-// RUN: mlir-opt %s -pass-pipeline="func.func(linalg-detensorize)" | FileCheck %s -check-prefix=DET-CF
+// RUN: mlir-opt %s -pass-pipeline="builtin.module(func.func(linalg-detensorize{aggressive-mode}))" | FileCheck %s -check-prefix=DET-ALL
+// RUN: mlir-opt %s -pass-pipeline="builtin.module(func.func(linalg-detensorize))" | FileCheck %s -check-prefix=DET-CF
 
 #map0 = affine_map<() -> ()>
 #map1 = affine_map<(i) -> ()>
@@ -38,7 +38,7 @@ func.func @main(%farg0: tensor<10xi32>, %farg1: tensor<i32>) -> tensor<i32> attr
   %4 = linalg.generic #attrs
     ins(%2, %farg1 : tensor<i32>, tensor<i32>)
     outs(%3 : tensor<i1>) {
-    ^bb0(%arg0: i32, %arg1: i32, %arg2: i1):  
+    ^bb0(%arg0: i32, %arg1: i32, %arg2: i1):
       %8 = arith.cmpi slt, %arg0, %arg1 : i32
       linalg.yield %8 : i1
   } -> tensor<i1>
@@ -68,14 +68,14 @@ func.func @main(%farg0: tensor<10xi32>, %farg1: tensor<i32>) -> tensor<i32> attr
 // DET-ALL:       ^[[bb1]](%{{.*}}: tensor<10xi32>)
 // DET-ALL:         tensor.empty() : tensor<i32>
 // DET-ALL:         linalg.generic {{{.*}}} ins(%{{.*}} : tensor<10xi32>) outs(%{{.*}} : tensor<i32>) {
-// DET-ALL:         ^bb0(%{{.*}}: i32, %{{.*}}: i32):  
+// DET-ALL:         ^bb0(%{{.*}}: i32, %{{.*}}: i32):
 // DET-ALL:           %{{.*}} = arith.addi %{{.*}}, %{{.*}}
 // DET-ALL:           linalg.yield %{{.*}} : i32
 // DET-ALL:         } -> tensor<i32>
 // DET-ALL:         tensor.extract %{{.*}}[] : tensor<i32>
 // DET-ALL:         cmpi slt, %{{.*}}, %{{.*}} : i32
-// DET-ALL:         cf.cond_br %{{.*}}, ^[[bb2:.*]](%{{.*}} : i32), ^[[bb3:.*]](%{{.*}} : i32)
-// DET-ALL:       ^[[bb2]](%{{.*}}: i32)
+// DET-ALL:         cf.cond_br %{{.*}}, ^[[bb2:.*]], ^[[bb3:.*]]
+// DET-ALL:       ^[[bb2]]:
 // DET-ALL:         tensor.from_elements %{{.*}} : tensor<i32>
 // DET-ALL:         tensor.empty() : tensor<10xi32>
 // DET-ALL:         linalg.generic {{{.*}}} ins(%{{.*}} : tensor<i32>) outs(%{{.*}} : tensor<10xi32>) {
@@ -83,7 +83,7 @@ func.func @main(%farg0: tensor<10xi32>, %farg1: tensor<i32>) -> tensor<i32> attr
 // DET-ALL:           linalg.yield %{{.*}} : i32
 // DET-ALL:         } -> tensor<10xi32>
 // DET-ALL:         cf.br ^[[bb1]](%{{.*}} : tensor<10xi32>)
-// DET-ALL:       ^[[bb3]](%{{.*}}: i32)
+// DET-ALL:       ^[[bb3]]
 // DET-ALL:         tensor.from_elements %{{.*}} : tensor<i32>
 // DET-ALL:         return %{{.*}} : tensor<i32>
 // DET-ALL:       }
@@ -95,10 +95,10 @@ func.func @main(%farg0: tensor<10xi32>, %farg1: tensor<i32>) -> tensor<i32> attr
 // DET-CF:         %{{.*}} = linalg.generic {{{.*}}} ins(%{{.*}} : tensor<10xi32>) outs(%{{.*}} : tensor<i32>) {
 // DET-CF:         tensor.extract %{{.*}}[] : tensor<i32>
 // DET-CF:         cmpi slt, %{{.*}}, %{{.*}} : i32
-// DET-CF:         cf.cond_br %{{.*}}, ^bb2(%{{.*}} : tensor<i32>), ^bb3(%{{.*}} : tensor<i32>)
-// DET-CF:       ^bb2(%{{.*}}: tensor<i32>)
+// DET-CF:         cf.cond_br %{{.*}}, ^bb2, ^bb3
+// DET-CF:       ^bb2:
 // DET-CF:         %{{.*}} = linalg.generic {{{.*}}} ins(%{{.*}} : tensor<i32>) outs(%{{.*}} : tensor<10xi32>) {
 // DET-CF:         cf.br ^bb1(%{{.*}} : tensor<10xi32>)
-// DET-CF:       ^bb3(%{{.*}}: tensor<i32>)
+// DET-CF:       ^bb3:
 // DET-CF:         return %{{.*}} : tensor<i32>
 // DET-CF:       }

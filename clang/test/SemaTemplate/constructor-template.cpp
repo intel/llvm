@@ -73,7 +73,7 @@ struct X3 {
   template<typename T> X3(T);
 };
 
-template<> X3::X3(X3); // expected-error{{must pass its first argument by reference}}
+template<> X3::X3(X3); // No error (template constructor)
 
 struct X4 {
   X4();
@@ -135,18 +135,16 @@ namespace PR8182 {
 // Don't blow out the stack trying to call an illegal constructor
 // instantiation.  We intentionally allow implicit instantiations to
 // exist, so make sure they're unusable.
-//
-// rdar://19199836
 namespace self_by_value {
   template <class T, class U> struct A {
     A() {}
     A(const A<T,U> &o) {}
-    A(A<T,T> o) {}
+    A(A<T,T> o) {} // expected-error{{copy constructor must pass its first argument by reference}}
   };
 
   void helper(A<int,float>);
 
-  void test1(A<int,int> a) {
+  void test1(A<int,int> a) { // expected-note{{in instantiation of template class 'self_by_value::A<int, int>'}}
     helper(a);
   }
   void test2() {
@@ -158,12 +156,13 @@ namespace self_by_value_2 {
   template <class T, class U> struct A {
     A() {} // precxx17-note {{not viable: requires 0 arguments}}
     A(A<T,U> &o) {} // precxx17-note {{not viable: expects an lvalue}}
-    A(A<T,T> o) {} // precxx17-note {{ignored: instantiation takes its own class type by value}}
+    A(A<T,T> o) {} // expected-error{{copy constructor must pass its first argument by reference}}
   };
 
   void helper_A(A<int,int>); // precxx17-note {{passing argument to parameter here}}
   void test_A() {
-    helper_A(A<int,int>()); // precxx17-error {{no matching constructor}}
+    helper_A(A<int,int>()); // precxx17-error {{no matching constructor}} \
+                            // expected-note{{in instantiation of template class 'self_by_value_2::A<int, int>'}}
   }
 }
 
@@ -171,11 +170,11 @@ namespace self_by_value_3 {
   template <class T, class U> struct A {
     A() {}
     A(A<T,U> &o) {}
-    A(A<T,T> o) {}
+    A(A<T,T> o) {} // expected-error{{copy constructor must pass its first argument by reference}}
   };
 
   void helper_A(A<int,int>);
-  void test_A(A<int,int> b) {
+  void test_A(A<int,int> b) { // expected-note{{in instantiation of template class 'self_by_value_3::A<int, int>'}}
     helper_A(b);
   }
 }

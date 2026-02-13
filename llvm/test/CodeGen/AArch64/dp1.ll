@@ -14,9 +14,9 @@ define void @rev_i32() {
 ; CHECK-NEXT:    rev w9, w9
 ; CHECK-NEXT:    str w9, [x8]
 ; CHECK-NEXT:    ret
-  %val0_tmp = load i32, i32* @var32
+  %val0_tmp = load i32, ptr @var32
   %val1_tmp = call i32 @llvm.bswap.i32(i32 %val0_tmp)
-  store volatile i32 %val1_tmp, i32* @var32
+  store volatile i32 %val1_tmp, ptr @var32
   ret void
 }
 
@@ -29,9 +29,9 @@ define void @rev_i64() {
 ; CHECK-NEXT:    rev x9, x9
 ; CHECK-NEXT:    str x9, [x8]
 ; CHECK-NEXT:    ret
-  %val0_tmp = load i64, i64* @var64
+  %val0_tmp = load i64, ptr @var64
   %val1_tmp = call i64 @llvm.bswap.i64(i64 %val0_tmp)
-  store volatile i64 %val1_tmp, i64* @var64
+  store volatile i64 %val1_tmp, ptr @var64
   ret void
 }
 
@@ -44,13 +44,13 @@ define void @rev32_i64() {
 ; CHECK-NEXT:    rev32 x9, x9
 ; CHECK-NEXT:    str x9, [x8]
 ; CHECK-NEXT:    ret
-  %val0_tmp = load i64, i64* @var64
+  %val0_tmp = load i64, ptr @var64
   %val1_tmp = shl i64 %val0_tmp, 32
   %val5_tmp = sub i64 64, 32
   %val2_tmp = lshr i64 %val0_tmp, %val5_tmp
   %val3_tmp = or i64 %val1_tmp, %val2_tmp
   %val4_tmp = call i64 @llvm.bswap.i64(i64 %val3_tmp)
-  store volatile i64 %val4_tmp, i64* @var64
+  store volatile i64 %val4_tmp, ptr @var64
   ret void
 }
 
@@ -63,12 +63,12 @@ define void @rev16_i32() {
 ; CHECK-NEXT:    rev16 w9, w9
 ; CHECK-NEXT:    str w9, [x8]
 ; CHECK-NEXT:    ret
-  %val0_tmp = load i32, i32* @var32
+  %val0_tmp = load i32, ptr @var32
   %val1_tmp = shl i32 %val0_tmp, 16
   %val2_tmp = lshr i32 %val0_tmp, 16
   %val3_tmp = or i32 %val1_tmp, %val2_tmp
   %val4_tmp = call i32 @llvm.bswap.i32(i32 %val3_tmp)
-  store volatile i32 %val4_tmp, i32* @var32
+  store volatile i32 %val4_tmp, ptr @var32
   ret void
 }
 
@@ -81,9 +81,9 @@ define void @clz_zerodef_i32() {
 ; CHECK-NEXT:    clz w9, w9
 ; CHECK-NEXT:    str w9, [x8]
 ; CHECK-NEXT:    ret
-  %val0_tmp = load i32, i32* @var32
+  %val0_tmp = load i32, ptr @var32
   %val4_tmp = call i32 @llvm.ctlz.i32(i32 %val0_tmp, i1 0)
-  store volatile i32 %val4_tmp, i32* @var32
+  store volatile i32 %val4_tmp, ptr @var32
   ret void
 }
 
@@ -96,9 +96,9 @@ define void @clz_zerodef_i64() {
 ; CHECK-NEXT:    clz x9, x9
 ; CHECK-NEXT:    str x9, [x8]
 ; CHECK-NEXT:    ret
-  %val0_tmp = load i64, i64* @var64
+  %val0_tmp = load i64, ptr @var64
   %val4_tmp = call i64 @llvm.ctlz.i64(i64 %val0_tmp, i1 0)
-  store volatile i64 %val4_tmp, i64* @var64
+  store volatile i64 %val4_tmp, ptr @var64
   ret void
 }
 
@@ -111,9 +111,9 @@ define void @clz_zeroundef_i32() {
 ; CHECK-NEXT:    clz w9, w9
 ; CHECK-NEXT:    str w9, [x8]
 ; CHECK-NEXT:    ret
-  %val0_tmp = load i32, i32* @var32
+  %val0_tmp = load i32, ptr @var32
   %val4_tmp = call i32 @llvm.ctlz.i32(i32 %val0_tmp, i1 1)
-  store volatile i32 %val4_tmp, i32* @var32
+  store volatile i32 %val4_tmp, ptr @var32
   ret void
 }
 
@@ -126,9 +126,9 @@ define void @clz_zeroundef_i64() {
 ; CHECK-NEXT:    clz x9, x9
 ; CHECK-NEXT:    str x9, [x8]
 ; CHECK-NEXT:    ret
-  %val0_tmp = load i64, i64* @var64
+  %val0_tmp = load i64, ptr @var64
   %val4_tmp = call i64 @llvm.ctlz.i64(i64 %val0_tmp, i1 1)
-  store volatile i64 %val4_tmp, i64* @var64
+  store volatile i64 %val4_tmp, ptr @var64
   ret void
 }
 
@@ -142,9 +142,9 @@ define void @cttz_zerodef_i32() {
 ; CHECK-NEXT:    clz w9, w9
 ; CHECK-NEXT:    str w9, [x8]
 ; CHECK-NEXT:    ret
-  %val0_tmp = load i32, i32* @var32
+  %val0_tmp = load i32, ptr @var32
   %val4_tmp = call i32 @llvm.cttz.i32(i32 %val0_tmp, i1 0)
-  store volatile i32 %val4_tmp, i32* @var32
+  store volatile i32 %val4_tmp, ptr @var32
   ret void
 }
 
@@ -158,9 +158,9 @@ define void @cttz_zerodef_i64() {
 ; CHECK-NEXT:    clz x9, x9
 ; CHECK-NEXT:    str x9, [x8]
 ; CHECK-NEXT:    ret
-  %val0_tmp = load i64, i64* @var64
+  %val0_tmp = load i64, ptr @var64
   %val4_tmp = call i64 @llvm.cttz.i64(i64 %val0_tmp, i1 0)
-  store volatile i64 %val4_tmp, i64* @var64
+  store volatile i64 %val4_tmp, ptr @var64
   ret void
 }
 
@@ -174,9 +174,9 @@ define void @cttz_zeroundef_i32() {
 ; CHECK-NEXT:    clz w9, w9
 ; CHECK-NEXT:    str w9, [x8]
 ; CHECK-NEXT:    ret
-  %val0_tmp = load i32, i32* @var32
+  %val0_tmp = load i32, ptr @var32
   %val4_tmp = call i32 @llvm.cttz.i32(i32 %val0_tmp, i1 1)
-  store volatile i32 %val4_tmp, i32* @var32
+  store volatile i32 %val4_tmp, ptr @var32
   ret void
 }
 
@@ -190,9 +190,9 @@ define void @cttz_zeroundef_i64() {
 ; CHECK-NEXT:    clz x9, x9
 ; CHECK-NEXT:    str x9, [x8]
 ; CHECK-NEXT:    ret
-  %val0_tmp = load i64, i64* @var64
+  %val0_tmp = load i64, ptr @var64
   %val4_tmp = call i64 @llvm.cttz.i64(i64 %val0_tmp, i1 1)
-  store volatile i64 %val4_tmp, i64* @var64
+  store volatile i64 %val4_tmp, ptr @var64
   ret void
 }
 
@@ -204,9 +204,8 @@ define void @ctpop_i32() {
 ; CHECK-SDAG-NEXT:    ldr w9, [x8]
 ; CHECK-SDAG-NEXT:    fmov d0, x9
 ; CHECK-SDAG-NEXT:    cnt v0.8b, v0.8b
-; CHECK-SDAG-NEXT:    uaddlv h0, v0.8b
-; CHECK-SDAG-NEXT:    fmov w9, s0
-; CHECK-SDAG-NEXT:    str w9, [x8]
+; CHECK-SDAG-NEXT:    addv b0, v0.8b
+; CHECK-SDAG-NEXT:    str s0, [x8]
 ; CHECK-SDAG-NEXT:    ret
 ;
 ; CHECK-GISEL-LABEL: ctpop_i32:
@@ -219,41 +218,35 @@ define void @ctpop_i32() {
 ; CHECK-GISEL-NEXT:    uaddlv h0, v0.8b
 ; CHECK-GISEL-NEXT:    str s0, [x8]
 ; CHECK-GISEL-NEXT:    ret
-  %val0_tmp = load i32, i32* @var32
+  %val0_tmp = load i32, ptr @var32
   %val4_tmp = call i32 @llvm.ctpop.i32(i32 %val0_tmp)
-  store volatile i32 %val4_tmp, i32* @var32
+  store volatile i32 %val4_tmp, ptr @var32
   ret void
 }
 
-define void @ctpop_i64() {
-; CHECK-SDAG-LABEL: ctpop_i64:
+define i64 @popcnt(i64 %a, ptr %p) {
+; CHECK-SDAG-LABEL: popcnt:
 ; CHECK-SDAG:       // %bb.0:
-; CHECK-SDAG-NEXT:    adrp x8, :got:var64
-; CHECK-SDAG-NEXT:    ldr x8, [x8, :got_lo12:var64]
-; CHECK-SDAG-NEXT:    ldr d0, [x8]
+; CHECK-SDAG-NEXT:    fmov d0, x0
+; CHECK-SDAG-NEXT:    mov x0, xzr
 ; CHECK-SDAG-NEXT:    cnt v0.8b, v0.8b
-; CHECK-SDAG-NEXT:    uaddlv h0, v0.8b
-; CHECK-SDAG-NEXT:    fmov w9, s0
-; CHECK-SDAG-NEXT:    str x9, [x8]
+; CHECK-SDAG-NEXT:    addv b0, v0.8b
+; CHECK-SDAG-NEXT:    str d0, [x1]
 ; CHECK-SDAG-NEXT:    ret
 ;
-; CHECK-GISEL-LABEL: ctpop_i64:
+; CHECK-GISEL-LABEL: popcnt:
 ; CHECK-GISEL:       // %bb.0:
-; CHECK-GISEL-NEXT:    adrp x8, :got:var64
-; CHECK-GISEL-NEXT:    ldr x8, [x8, :got_lo12:var64]
-; CHECK-GISEL-NEXT:    ldr x9, [x8]
-; CHECK-GISEL-NEXT:    fmov d0, x9
+; CHECK-GISEL-NEXT:    fmov d0, x0
+; CHECK-GISEL-NEXT:    mov x0, xzr
 ; CHECK-GISEL-NEXT:    cnt v0.8b, v0.8b
 ; CHECK-GISEL-NEXT:    uaddlv h0, v0.8b
-; CHECK-GISEL-NEXT:    fmov w9, s0
-; CHECK-GISEL-NEXT:    str x9, [x8]
+; CHECK-GISEL-NEXT:    mov w8, v0.s[0]
+; CHECK-GISEL-NEXT:    str x8, [x1]
 ; CHECK-GISEL-NEXT:    ret
-  %val0_tmp = load i64, i64* @var64
-  %val4_tmp = call i64 @llvm.ctpop.i64(i64 %val0_tmp)
-  store volatile i64 %val4_tmp, i64* @var64
-  ret void
+  %2 = call i64 @llvm.ctpop(i64 %a)
+  store i64 %2, ptr %p
+  ret i64 0
 }
-
 
 declare i32 @llvm.bswap.i32(i32)
 declare i64 @llvm.bswap.i64(i64)

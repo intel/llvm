@@ -6,7 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++03, c++11, c++14
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_ENABLE_CXX26_REMOVED_WSTRING_CONVERT
+
+// REQUIRES: c++17 || c++20 || c++23
 // UNSUPPORTED: no-wide-characters
 
 // <codecvt>
@@ -16,5 +18,5 @@
 #include <codecvt>
 #include <locale>
 
-std::wstring_convert<std::codecvt_utf8<wchar_t>> c1; // expected-warning {{'wstring_convert<std::codecvt_utf8<wchar_t, 1114111, 0>>' is deprecated}}
-// expected-warning@-1 {{'codecvt_utf8<wchar_t, 1114111, 0>' is deprecated}}
+std::wstring_convert<std::codecvt_utf8<wchar_t>> c1; // expected-warning-re {{'wstring_convert<std::codecvt_utf8<wchar_t{{.*}}>>' is deprecated}}
+// expected-warning-re@-1 {{'codecvt_utf8<wchar_t{{.*}}>' is deprecated}}

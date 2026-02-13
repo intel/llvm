@@ -9,10 +9,12 @@
 #ifndef LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_DARWIN_H
 #define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_DARWIN_H
 
-#include "Cuda.h"
-#include "ROCm.h"
 #include "clang/Basic/DarwinSDKInfo.h"
 #include "clang/Basic/LangOptions.h"
+#include "clang/Driver/CudaInstallationDetector.h"
+#include "clang/Driver/LazyDetector.h"
+#include "clang/Driver/RocmInstallationDetector.h"
+#include "clang/Driver/SyclInstallationDetector.h"
 #include "clang/Driver/Tool.h"
 #include "clang/Driver/ToolChain.h"
 #include "clang/Driver/XRayArgs.h"
@@ -28,7 +30,8 @@ namespace tools {
 
 namespace darwin {
 llvm::Triple::ArchType getArchTypeForMachOArchName(StringRef Str);
-void setTripleTypeForMachOArchName(llvm::Triple &T, StringRef Str);
+void setTripleTypeForMachOArchName(llvm::Triple &T, StringRef Str,
+                                   const llvm::opt::ArgList &Args);
 
 class LLVM_LIBRARY_VISIBILITY MachOTool : public Tool {
   virtual void anchor();
@@ -64,7 +67,7 @@ class LLVM_LIBRARY_VISIBILITY Linker : public MachOTool {
   void AddLinkArgs(Compilation &C, const llvm::opt::ArgList &Args,
                    llvm::opt::ArgStringList &CmdArgs,
                    const InputInfoList &Inputs, VersionTuple Version,
-                   bool LinkerIsLLD) const;
+                   bool LinkerIsLLD, bool UsePlatformVersion) const;
 
 public:
   Linker(const ToolChain &TC) : MachOTool("darwin::Linker", "linker", TC) {}
@@ -142,13 +145,18 @@ protected:
   Tool *buildStaticLibTool() const override;
   Tool *getTool(Action::ActionClass AC) const override;
 
+  void
+  addClangTargetOptions(const llvm::opt::ArgList &DriverArgs,
+                        llvm::opt::ArgStringList &CC1Args,
+                        Action::OffloadKind DeviceOffloadKind) const override;
+
 private:
   mutable std::unique_ptr<tools::darwin::Lipo> Lipo;
   mutable std::unique_ptr<tools::darwin::Dsymutil> Dsymutil;
   mutable std::unique_ptr<tools::darwin::VerifyDebug> VerifyDebug;
 
   /// The version of the linker known to be available in the tool chain.
-  mutable Optional<VersionTuple> LinkerVersion;
+  mutable std::optional<VersionTuple> LinkerVersion;
 
 public:
   MachO(const Driver &D, const llvm::Triple &Triple,
@@ -189,6 +197,11 @@ public:
                                       llvm::opt::ArgStringList &CmdArgs) const {
   }
 
+  virtual bool HasPlatformPrefix(const llvm::Triple &T) const { return false; }
+
+  virtual void AppendPlatformPrefix(SmallString<128> &Path,
+                                    const llvm::Triple &T) const {}
+
   /// On some iOS platforms, kernel and kernel modules were built statically. Is
   /// this such a target?
   virtual bool isKernelStatic() const { return false; }
@@ -221,6 +234,13 @@ public:
     // There aren't any profiling libs for embedded targets currently.
   }
 
+  // Return the full path of the compiler-rt library on a non-Darwin MachO
+  // system. Those are under
+  // <resourcedir>/lib/darwin/macho_embedded/<...>(.dylib|.a).
+  std::string getCompilerRT(const llvm::opt::ArgList &Args, StringRef Component,
+                            FileType Type = ToolChain::FT_Static,
+                            bool IsFortran = false) const override;
+
   /// }
   /// @name ToolChain Implementation
   /// {
@@ -236,10 +256,6 @@ public:
   bool IsBlocksDefault() const override {
     // Always allow blocks on Apple; users interested in versioning are
     // expected to use /usr/include/Block.h.
-    return true;
-  }
-  bool IsIntegratedAssemblerDefault() const override {
-    // Default integrated assembler to on for Apple's MachO targets.
     return true;
   }
 
@@ -285,8 +301,52 @@ public:
   /// }
 };
 
+/// Apple specific MachO extensions
+class LLVM_LIBRARY_VISIBILITY AppleMachO : public MachO {
+public:
+  AppleMachO(const Driver &D, const llvm::Triple &Triple,
+             const llvm::opt::ArgList &Args);
+  ~AppleMachO() override;
+
+  /// }
+  /// @name Apple Specific ToolChain Implementation
+  /// {
+  void
+  AddClangSystemIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+                            llvm::opt::ArgStringList &CC1Args) const override;
+
+  void AddCudaIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+                          llvm::opt::ArgStringList &CC1Args) const override;
+  void AddHIPIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+                         llvm::opt::ArgStringList &CC1Args) const override;
+  void addSYCLIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+                          llvm::opt::ArgStringList &CC1Args) const override;
+
+  void AddClangCXXStdlibIncludeArgs(
+      const llvm::opt::ArgList &DriverArgs,
+      llvm::opt::ArgStringList &CC1Args) const override;
+  void AddCXXStdlibLibArgs(const llvm::opt::ArgList &Args,
+                           llvm::opt::ArgStringList &CmdArgs) const override;
+
+  void printVerboseInfo(raw_ostream &OS) const override;
+  /// }
+
+  LazyDetector<CudaInstallationDetector> CudaInstallation;
+  LazyDetector<RocmInstallationDetector> RocmInstallation;
+  LazyDetector<SYCLInstallationDetector> SYCLInstallation;
+
+protected:
+  llvm::SmallString<128>
+  GetEffectiveSysroot(const llvm::opt::ArgList &DriverArgs) const;
+
+private:
+  virtual void
+  AddGnuCPlusPlusIncludePaths(const llvm::opt::ArgList &DriverArgs,
+                              llvm::opt::ArgStringList &CC1Args) const;
+};
+
 /// Darwin - The base Darwin tool chain.
-class LLVM_LIBRARY_VISIBILITY Darwin : public MachO {
+class LLVM_LIBRARY_VISIBILITY Darwin : public AppleMachO {
 public:
   /// Whether the information on the target has been initialized.
   //
@@ -301,7 +361,8 @@ public:
     TvOS,
     WatchOS,
     DriverKit,
-    LastDarwinPlatform = DriverKit
+    XROS,
+    LastDarwinPlatform = XROS
   };
   enum DarwinEnvironmentKind {
     NativeEnvironment,
@@ -318,13 +379,10 @@ public:
   mutable VersionTuple OSTargetVersion;
 
   /// The information about the darwin SDK that was used.
-  mutable Optional<DarwinSDKInfo> SDKInfo;
+  mutable std::optional<DarwinSDKInfo> SDKInfo;
 
   /// The target variant triple that was specified (if any).
-  mutable Optional<llvm::Triple> TargetVariantTriple;
-
-  CudaInstallationDetector CudaInstallation;
-  RocmInstallationDetector RocmInstallation;
+  mutable std::optional<llvm::Triple> TargetVariantTriple;
 
 private:
   void AddDeploymentTarget(llvm::opt::DerivedArgList &Args) const;
@@ -337,7 +395,7 @@ public:
   std::string ComputeEffectiveClangTriple(const llvm::opt::ArgList &Args,
                                           types::ID InputType) const override;
 
-  /// @name Apple Specific Toolchain Implementation
+  /// @name Darwin Specific Toolchain Implementation
   /// {
 
   void addMinVersionArgs(const llvm::opt::ArgList &Args,
@@ -356,6 +414,12 @@ public:
 
   void addProfileRTLibs(const llvm::opt::ArgList &Args,
                         llvm::opt::ArgStringList &CmdArgs) const override;
+
+  // Return the full path of the compiler-rt library on a Darwin MachO system.
+  // Those are under <resourcedir>/lib/darwin/<...>(.dylib|.a).
+  std::string getCompilerRT(const llvm::opt::ArgList &Args, StringRef Component,
+                            FileType Type = ToolChain::FT_Static,
+                            bool IsFortran = false) const override;
 
 protected:
   /// }
@@ -406,6 +470,16 @@ public:
     assert(TargetInitialized && "Target not initialized!");
     return isTargetIPhoneOS() || isTargetIOSSimulator();
   }
+
+  bool isTargetXROSDevice() const {
+    return TargetPlatform == XROS && TargetEnvironment == NativeEnvironment;
+  }
+
+  bool isTargetXROSSimulator() const {
+    return TargetPlatform == XROS && TargetEnvironment == Simulator;
+  }
+
+  bool isTargetXROS() const { return TargetPlatform == XROS; }
 
   bool isTargetTvOS() const {
     assert(TargetInitialized && "Target not initialized!");
@@ -496,21 +570,23 @@ public:
                 : TargetVersion) < VersionTuple(V0, V1, V2);
   }
 
-  /// Returns the darwin target variant triple, the variant of the deployment
-  /// target for which the code is being compiled.
-  Optional<llvm::Triple> getTargetVariantTriple() const override {
-    return TargetVariantTriple;
-  }
-
 protected:
   /// Return true if c++17 aligned allocation/deallocation functions are not
   /// implemented in the c++ standard library of the deployment target we are
   /// targeting.
   bool isAlignedAllocationUnavailable() const;
 
+  /// Return true if c++14 sized deallocation functions are not implemented in
+  /// the c++ standard library of the deployment target we are targeting.
+  bool isSizedDeallocationUnavailable() const;
+
   void addClangTargetOptions(const llvm::opt::ArgList &DriverArgs,
                              llvm::opt::ArgStringList &CC1Args,
                              Action::OffloadKind DeviceOffloadKind) const override;
+
+  void addClangCC1ASTargetOptions(
+      const llvm::opt::ArgList &Args,
+      llvm::opt::ArgStringList &CC1ASArgs) const override;
 
   StringRef getPlatformFamily() const;
   StringRef getOSLibraryNameSuffix(bool IgnoreSim = false) const override;
@@ -535,11 +611,6 @@ public:
   ObjCRuntime getDefaultObjCRuntime(bool isNonFragile) const override;
   bool hasBlocksRuntime() const override;
 
-  void AddCudaIncludeArgs(const llvm::opt::ArgList &DriverArgs,
-                          llvm::opt::ArgStringList &CC1Args) const override;
-  void AddHIPIncludeArgs(const llvm::opt::ArgList &DriverArgs,
-                         llvm::opt::ArgStringList &CC1Args) const override;
-
   bool UseObjCMixedDispatch() const override {
     // This is only used with the non-fragile ABI and non-legacy dispatch.
 
@@ -551,7 +622,8 @@ public:
   GetDefaultStackProtectorLevel(bool KernelOrKext) const override {
     // Stack protectors default to on for user code on 10.5,
     // and for everything in 10.6 and beyond
-    if (isTargetIOSBased() || isTargetWatchOSBased() || isTargetDriverKit())
+    if (isTargetIOSBased() || isTargetWatchOSBased() || isTargetDriverKit() ||
+        isTargetXROS())
       return LangOptions::SSPOn;
     else if (isTargetMacOSBased() && !isMacosxVersionLT(10, 6))
       return LangOptions::SSPOn;
@@ -569,8 +641,6 @@ public:
   bool SupportsEmbeddedBitcode() const override;
 
   SanitizerMask getSupportedSanitizers() const override;
-
-  void printVerboseInfo(raw_ostream &OS) const override;
 };
 
 /// DarwinClang - The Darwin toolchain used by Clang.
@@ -582,29 +652,33 @@ public:
   /// @name Apple ToolChain Implementation
   /// {
 
+  void
+  AddClangSystemIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+                            llvm::opt::ArgStringList &CC1Args) const override;
+
   RuntimeLibType GetRuntimeLibType(const llvm::opt::ArgList &Args) const override;
 
   void AddLinkRuntimeLibArgs(const llvm::opt::ArgList &Args,
                              llvm::opt::ArgStringList &CmdArgs,
                              bool ForceLinkBuiltinRT = false) const override;
 
-  void AddClangCXXStdlibIncludeArgs(
-      const llvm::opt::ArgList &DriverArgs,
-      llvm::opt::ArgStringList &CC1Args) const override;
-
-  void AddClangSystemIncludeArgs(const llvm::opt::ArgList &DriverArgs,
-                                 llvm::opt::ArgStringList &CC1Args) const override;
-
-  void AddCXXStdlibLibArgs(const llvm::opt::ArgList &Args,
-                           llvm::opt::ArgStringList &CmdArgs) const override;
-
   void AddCCKextLibArgs(const llvm::opt::ArgList &Args,
                         llvm::opt::ArgStringList &CmdArgs) const override;
 
   void addClangWarningOptions(llvm::opt::ArgStringList &CC1Args) const override;
 
+  void
+  addClangTargetOptions(const llvm::opt::ArgList &DriverArgs,
+                        llvm::opt::ArgStringList &CC1Args,
+                        Action::OffloadKind DeviceOffloadKind) const override;
+
   void AddLinkARCArgs(const llvm::opt::ArgList &Args,
                       llvm::opt::ArgStringList &CmdArgs) const override;
+
+  bool HasPlatformPrefix(const llvm::Triple &T) const override;
+
+  void AppendPlatformPrefix(SmallString<128> &Path,
+                            const llvm::Triple &T) const override;
 
   unsigned GetDefaultDwarfVersion() const override;
   // Until dtrace (via CTF) and LLDB can deal with distributed debug info,
@@ -622,15 +696,16 @@ private:
                                StringRef Sanitizer,
                                bool shared = true) const;
 
+  void
+  AddGnuCPlusPlusIncludePaths(const llvm::opt::ArgList &DriverArgs,
+                              llvm::opt::ArgStringList &CC1Args) const override;
+
   bool AddGnuCPlusPlusIncludePaths(const llvm::opt::ArgList &DriverArgs,
                                    llvm::opt::ArgStringList &CC1Args,
                                    llvm::SmallString<128> Base,
                                    llvm::StringRef Version,
                                    llvm::StringRef ArchDir,
                                    llvm::StringRef BitDir) const;
-
-  llvm::SmallString<128>
-  GetEffectiveSysroot(const llvm::opt::ArgList &DriverArgs) const;
 };
 
 } // end namespace toolchains

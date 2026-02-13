@@ -8,15 +8,15 @@ from lldbsuite.test import lldbutil
 
 
 class TestCase(TestBase):
-
     @add_test_categories(["libc++"])
     @skipIf(compiler=no_match("clang"))
+    @skipIf(macos_version=["<", "15.0"])
     def test(self):
         self.build()
 
-        lldbutil.run_to_source_breakpoint(self,
-                                          "// Set break point at this line.",
-                                          lldb.SBFileSpec("main.cpp"))
+        lldbutil.run_to_source_breakpoint(
+            self, "// Set break point at this line.", lldb.SBFileSpec("main.cpp")
+        )
 
         self.runCmd("settings set target.import-std-module true")
 

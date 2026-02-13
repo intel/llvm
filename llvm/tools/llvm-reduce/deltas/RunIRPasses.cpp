@@ -7,21 +7,24 @@
 //===----------------------------------------------------------------------===//
 
 #include "RunIRPasses.h"
-#include "Delta.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 
 using namespace llvm;
 
-static cl::opt<std::string> PassPipeline(
-    "ir-passes",
-    cl::desc("A textual description of the pass pipeline, same as "
-             "what's passed to `opt -passes`."),
-    cl::init(
-        "function(sroa,instcombine,gvn,simplifycfg,infer-address-spaces)"));
+extern cl::OptionCategory LLVMReduceOptions;
 
-static void runPasses(Oracle &O, Module &Program) {
+static cl::opt<std::string>
+    PassPipeline("ir-passes",
+                 cl::desc("A textual description of the pass pipeline, same as "
+                          "what's passed to `opt -passes`."),
+                 cl::init("function(sroa,instcombine<no-verify-fixpoint>,gvn,"
+                          "simplifycfg,infer-address-spaces)"),
+                 cl::cat(LLVMReduceOptions));
+
+void llvm::runIRPassesDeltaPass(Oracle &O, ReducerWorkItem &WorkItem) {
+  Module &Program = WorkItem.getModule();
   LoopAnalysisManager LAM;
   FunctionAnalysisManager FAM;
   CGSCCAnalysisManager CGAM;
@@ -30,7 +33,7 @@ static void runPasses(Oracle &O, Module &Program) {
   PassInstrumentationCallbacks PIC;
   PIC.registerShouldRunOptionalPassCallback(
       [&](StringRef, Any) { return !O.shouldKeep(); });
-  PassBuilder PB(nullptr, PipelineTuningOptions(), None, &PIC);
+  PassBuilder PB(nullptr, PipelineTuningOptions(), std::nullopt, &PIC);
 
   PB.registerModuleAnalyses(MAM);
   PB.registerCGSCCAnalyses(CGAM);
@@ -39,15 +42,7 @@ static void runPasses(Oracle &O, Module &Program) {
   PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
 
   ModulePassManager MPM;
-  if (auto Err = PB.parsePassPipeline(MPM, PassPipeline)) {
-    errs() << toString(std::move(Err)) << "\n";
-    report_fatal_error("Error constructing pass pipeline");
-  }
+  if (auto Err = PB.parsePassPipeline(MPM, PassPipeline))
+    report_fatal_error(std::move(Err), false);
   MPM.run(Program, MAM);
-}
-
-void llvm::runIRPassesDeltaPass(TestRunner &Test) {
-  errs() << "*** Running passes ...\n";
-  runDeltaPass(Test, runPasses);
-  errs() << "----------------------------\n";
 }

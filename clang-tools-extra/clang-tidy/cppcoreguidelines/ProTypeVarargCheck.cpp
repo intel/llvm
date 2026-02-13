@@ -1,4 +1,4 @@
-//===--- ProTypeVarargCheck.cpp - clang-tidy-------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "ProTypeVarargCheck.h"
+#include "../utils/Matchers.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
@@ -17,44 +18,42 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace cppcoreguidelines {
+namespace clang::tidy::cppcoreguidelines {
 
 const internal::VariadicDynCastAllOfMatcher<Stmt, VAArgExpr> VAArgExpr;
 
 static constexpr StringRef AllowedVariadics[] = {
     // clang-format off
-    "__builtin_isgreater", 
-    "__builtin_isgreaterequal", 
+    "__builtin_isgreater",
+    "__builtin_isgreaterequal",
     "__builtin_isless",
-    "__builtin_islessequal", 
-    "__builtin_islessgreater", 
+    "__builtin_islessequal",
+    "__builtin_islessgreater",
     "__builtin_isunordered",
-    "__builtin_fpclassify", 
-    "__builtin_isfinite", 
+    "__builtin_fpclassify",
+    "__builtin_isfinite",
     "__builtin_isinf",
-    "__builtin_isinf_sign", 
-    "__builtin_isnan", 
+    "__builtin_isinf_sign",
+    "__builtin_isnan",
     "__builtin_isnormal",
-    "__builtin_signbit", 
-    "__builtin_constant_p", 
+    "__builtin_signbit",
+    "__builtin_constant_p",
     "__builtin_classify_type",
     "__builtin_va_start",
-    "__builtin_assume_aligned", // Documented as variadic to support default 
+    "__builtin_assume_aligned", // Documented as variadic to support default
                                 // parameters.
     "__builtin_prefetch",       // Documented as variadic to support default
                                 // parameters.
     "__builtin_shufflevector",  // Documented as variadic but with a defined
                                 // number of args based on vector size.
-    "__builtin_convertvector", 
+    "__builtin_convertvector",
     "__builtin_call_with_static_chain",
-    "__builtin_annotation", 
-    "__builtin_add_overflow", 
+    "__builtin_annotation",
+    "__builtin_add_overflow",
     "__builtin_sub_overflow",
-    "__builtin_mul_overflow", 
+    "__builtin_mul_overflow",
     "__builtin_preserve_access_index",
-    "__builtin_nontemporal_store", 
+    "__builtin_nontemporal_store",
     "__builtin_nontemporal_load",
     "__builtin_ms_va_start",
     // clang-format on
@@ -66,9 +65,9 @@ static constexpr StringRef VaArgWarningMessage =
 
 namespace {
 AST_MATCHER(QualType, isVAList) {
-  ASTContext &Context = Finder->getASTContext();
-  QualType Desugar = Node.getDesugaredType(Context);
-  QualType NodeTy = Node.getUnqualifiedType();
+  const ASTContext &Context = Finder->getASTContext();
+  const QualType Desugar = Node.getDesugaredType(Context);
+  const QualType NodeTy = Node.getUnqualifiedType();
 
   auto CheckVaList = [](QualType NodeTy, QualType Expected,
                         const ASTContext &Context) {
@@ -89,7 +88,8 @@ AST_MATCHER(QualType, isVAList) {
   // type. Some targets implements va_list as 'char *' or 'void *'.
   // In these cases we need to remove all typedefs one by one to check this.
   using BuiltinVaListKind = TargetInfo::BuiltinVaListKind;
-  BuiltinVaListKind VaListKind = Context.getTargetInfo().getBuiltinVaListKind();
+  const BuiltinVaListKind VaListKind =
+      Context.getTargetInfo().getBuiltinVaListKind();
   if (VaListKind == BuiltinVaListKind::CharPtrBuiltinVaList ||
       VaListKind == BuiltinVaListKind::VoidPtrBuiltinVaList) {
     if (CheckVaList(NodeTy, Context.getBuiltinVaListType(), Context))
@@ -120,9 +120,8 @@ public:
 
   void MacroExpands(const Token &MacroNameTok, const MacroDefinition &MD,
                     SourceRange Range, const MacroArgs *Args) override {
-    if (MacroNameTok.getIdentifierInfo()->getName() == "va_arg") {
+    if (MacroNameTok.getIdentifierInfo()->getName() == "va_arg")
       Check->diag(MacroNameTok.getLocation(), VaArgWarningMessage);
-    }
   }
 
 private:
@@ -135,7 +134,9 @@ void ProTypeVarargCheck::registerMatchers(MatchFinder *Finder) {
 
   Finder->addMatcher(
       callExpr(callee(functionDecl(isVariadic(),
-                                   unless(hasAnyName(AllowedVariadics)))))
+                                   unless(hasAnyName(AllowedVariadics)))),
+               unless(hasAncestor(expr(matchers::hasUnevaluatedContext()))),
+               unless(hasAncestor(typeLoc())))
           .bind("callvararg"),
       this);
 
@@ -180,9 +181,8 @@ void ProTypeVarargCheck::check(const MatchFinder::MatchResult &Result) {
     diag(Matched->getExprLoc(), "do not call c-style vararg functions");
   }
 
-  if (const auto *Matched = Result.Nodes.getNodeAs<Expr>("va_use")) {
+  if (const auto *Matched = Result.Nodes.getNodeAs<Expr>("va_use"))
     diag(Matched->getExprLoc(), VaArgWarningMessage);
-  }
 
   if (const auto *Matched = Result.Nodes.getNodeAs<VarDecl>("va_list")) {
     auto SR = Matched->getSourceRange();
@@ -193,6 +193,4 @@ void ProTypeVarargCheck::check(const MatchFinder::MatchResult &Result) {
   }
 }
 
-} // namespace cppcoreguidelines
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::cppcoreguidelines

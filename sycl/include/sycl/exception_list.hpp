@@ -10,18 +10,20 @@
 
 // 4.9.2 Exception Class Interface
 
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/stl.hpp>
+#include <sycl/detail/export.hpp>         // for __SYCL_EXPORT
+#include <sycl/detail/iostream_proxy.hpp> // for cerr
 
-#include <cstddef>
+#include <cstddef>   // for size_t
+#include <exception> // for exception_ptr, exception
+#include <ostream>   // for operator<<, basic_ostream
+#include <vector>    // for vector
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // Forward declaration
 namespace detail {
-class queue_impl;
+class Scheduler;
 }
 
 /// A list of asynchronous exceptions.
@@ -43,14 +45,30 @@ public:
   iterator end() const;
 
 private:
-  friend class detail::queue_impl;
+  friend class detail::Scheduler;
   void PushBack(const_reference Value);
   void PushBack(value_type &&Value);
   void Clear() noexcept;
   std::vector<std::exception_ptr> MList;
 };
 
-using async_handler = std::function<void(sycl::exception_list)>;
-
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+namespace detail {
+// Default implementation of async_handler used by queue and context when no
+// user-defined async_handler is specified.
+inline void defaultAsyncHandler(exception_list Exceptions) {
+  std::cerr << "Default async_handler caught exceptions:";
+  for (auto &EIt : Exceptions) {
+    try {
+      if (EIt) {
+        std::rethrow_exception(EIt);
+      }
+    } catch (const std::exception &E) {
+      std::cerr << "\n\t" << E.what();
+    }
+  }
+  std::cerr << std::endl;
+  std::terminate();
+}
+} // namespace detail
+} // namespace _V1
 } // namespace sycl

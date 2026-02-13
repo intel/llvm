@@ -25,23 +25,23 @@ template <class RangeOrSet> static std::string toString(const RangeOrSet &Obj) {
   std::string ObjRepresentation;
   llvm::raw_string_ostream SS(ObjRepresentation);
   Obj.dump(SS);
-  return SS.str();
+  return ObjRepresentation;
 }
-LLVM_ATTRIBUTE_UNUSED static std::string toString(const llvm::APSInt &Point) {
+[[maybe_unused]] static std::string toString(const llvm::APSInt &Point) {
   return toString(Point, 10);
 }
 // We need it here for better fail diagnostics from gtest.
-LLVM_ATTRIBUTE_UNUSED static std::ostream &operator<<(std::ostream &OS,
-                                                      const RangeSet &Set) {
+[[maybe_unused]] static std::ostream &operator<<(std::ostream &OS,
+                                                 const RangeSet &Set) {
   return OS << toString(Set);
 }
 // We need it here for better fail diagnostics from gtest.
-LLVM_ATTRIBUTE_UNUSED static std::ostream &operator<<(std::ostream &OS,
-                                                      const Range &R) {
+[[maybe_unused]] static std::ostream &operator<<(std::ostream &OS,
+                                                 const Range &R) {
   return OS << toString(R);
 }
-LLVM_ATTRIBUTE_UNUSED static std::ostream &operator<<(std::ostream &OS,
-                                                      APSIntType Ty) {
+[[maybe_unused]] static std::ostream &operator<<(std::ostream &OS,
+                                                 APSIntType Ty) {
   return OS << (Ty.isUnsigned() ? "u" : "s") << Ty.getBitWidth();
 }
 
@@ -724,14 +724,14 @@ using TruncationConversionCastTypes =
                      CastType<int64_t, uint8_t>, CastType<uint64_t, int32_t>,
                      CastType<uint64_t, int16_t>, CastType<uint64_t, int8_t>>;
 
-TYPED_TEST_SUITE(RangeSetCastToNoopTest, NoopCastTypes);
-TYPED_TEST_SUITE(RangeSetCastToPromotionTest, PromotionCastTypes);
-TYPED_TEST_SUITE(RangeSetCastToTruncationTest, TruncationCastTypes);
-TYPED_TEST_SUITE(RangeSetCastToConversionTest, ConversionCastTypes);
+TYPED_TEST_SUITE(RangeSetCastToNoopTest, NoopCastTypes, );
+TYPED_TEST_SUITE(RangeSetCastToPromotionTest, PromotionCastTypes, );
+TYPED_TEST_SUITE(RangeSetCastToTruncationTest, TruncationCastTypes, );
+TYPED_TEST_SUITE(RangeSetCastToConversionTest, ConversionCastTypes, );
 TYPED_TEST_SUITE(RangeSetCastToPromotionConversionTest,
-                 PromotionConversionCastTypes);
+                 PromotionConversionCastTypes, );
 TYPED_TEST_SUITE(RangeSetCastToTruncationConversionTest,
-                 TruncationConversionCastTypes);
+                 TruncationConversionCastTypes, );
 
 TYPED_TEST(RangeSetCastToNoopTest, RangeSetCastToNoopTest) {
   // Just to reduce the verbosity.

@@ -1,19 +1,8 @@
 ; RUN: opt < %s -passes="print<cost-model>" 2>&1 -disable-output | FileCheck %s -D#VBITS=128
 ; RUN: opt < %s -passes="print<cost-model>" 2>&1 -disable-output -aarch64-sve-vector-bits-min=128 | FileCheck %s -D#VBITS=128
 ; RUN: opt < %s -passes="print<cost-model>" 2>&1 -disable-output -aarch64-sve-vector-bits-min=256 | FileCheck %s -D#VBITS=256
-; RUN: opt < %s -passes="print<cost-model>" 2>&1 -disable-output -aarch64-sve-vector-bits-min=384 | FileCheck %s -D#VBITS=256
 ; RUN: opt < %s -passes="print<cost-model>" 2>&1 -disable-output -aarch64-sve-vector-bits-min=512 | FileCheck %s -D#VBITS=512
-; RUN: opt < %s -passes="print<cost-model>" 2>&1 -disable-output -aarch64-sve-vector-bits-min=640 | FileCheck %s -D#VBITS=512
-; RUN: opt < %s -passes="print<cost-model>" 2>&1 -disable-output -aarch64-sve-vector-bits-min=768 | FileCheck %s -D#VBITS=512
-; RUN: opt < %s -passes="print<cost-model>" 2>&1 -disable-output -aarch64-sve-vector-bits-min=896 | FileCheck %s -D#VBITS=512
 ; RUN: opt < %s -passes="print<cost-model>" 2>&1 -disable-output -aarch64-sve-vector-bits-min=1024 | FileCheck %s -D#VBITS=1024
-; RUN: opt < %s -passes="print<cost-model>" 2>&1 -disable-output -aarch64-sve-vector-bits-min=1152 | FileCheck %s -D#VBITS=1024
-; RUN: opt < %s -passes="print<cost-model>" 2>&1 -disable-output -aarch64-sve-vector-bits-min=1280 | FileCheck %s -D#VBITS=1024
-; RUN: opt < %s -passes="print<cost-model>" 2>&1 -disable-output -aarch64-sve-vector-bits-min=1408 | FileCheck %s -D#VBITS=1024
-; RUN: opt < %s -passes="print<cost-model>" 2>&1 -disable-output -aarch64-sve-vector-bits-min=1536 | FileCheck %s -D#VBITS=1024
-; RUN: opt < %s -passes="print<cost-model>" 2>&1 -disable-output -aarch64-sve-vector-bits-min=1664 | FileCheck %s -D#VBITS=1024
-; RUN: opt < %s -passes="print<cost-model>" 2>&1 -disable-output -aarch64-sve-vector-bits-min=1792 | FileCheck %s -D#VBITS=1024
-; RUN: opt < %s -passes="print<cost-model>" 2>&1 -disable-output -aarch64-sve-vector-bits-min=1920 | FileCheck %s -D#VBITS=1024
 ; RUN: opt < %s -passes="print<cost-model>" 2>&1 -disable-output -aarch64-sve-vector-bits-min=2048 | FileCheck %s -D#VBITS=2048
 
 ; VBITS represents the useful bit size of a vector register from the code
@@ -44,9 +33,9 @@ define void @add() #0 {
 ; CHECK: cost of [[#div(511,VBITS)+1]] for instruction:   %add512.i16 = add <32 x i16> undef, undef
 ; CHECK: cost of [[#div(511,VBITS)+1]] for instruction:   %add512.i32 = add <16 x i32> undef, undef
 ; CHECK: cost of [[#div(511,VBITS)+1]] for instruction:   %add512.i64 = add <8 x i64> undef, undef
-; CHECK: cost of [[#mul(div(511,VBITS)+1,2)]] for instruction:   %add512.f16 = fadd <32 x half> undef, undef
-; CHECK: cost of [[#mul(div(511,VBITS)+1,2)]] for instruction:   %add512.f32 = fadd <16 x float> undef, undef
-; CHECK: cost of [[#mul(div(511,VBITS)+1,2)]] for instruction:   %add512.f64 = fadd <8 x double> undef, undef
+; CHECK: cost of [[#div(511,VBITS)+1]] for instruction:   %add512.f16 = fadd <32 x half> undef, undef
+; CHECK: cost of [[#div(511,VBITS)+1]] for instruction:   %add512.f32 = fadd <16 x float> undef, undef
+; CHECK: cost of [[#div(511,VBITS)+1]] for instruction:   %add512.f64 = fadd <8 x double> undef, undef
   %add512.i8 = add <64 x i8> undef, undef
   %add512.i16 = add <32 x i16> undef, undef
   %add512.i32 = add <16 x i32> undef, undef

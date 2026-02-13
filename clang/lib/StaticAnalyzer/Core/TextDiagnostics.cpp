@@ -13,26 +13,21 @@
 #include "clang/Analysis/MacroExpansionContext.h"
 #include "clang/Analysis/PathDiagnostic.h"
 #include "clang/Basic/SourceManager.h"
-#include "clang/Basic/Version.h"
 #include "clang/CrossTU/CrossTranslationUnit.h"
 #include "clang/Frontend/ASTUnit.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Rewrite/Core/Rewriter.h"
-#include "clang/StaticAnalyzer/Core/AnalyzerOptions.h"
 #include "clang/StaticAnalyzer/Core/PathDiagnosticConsumers.h"
 #include "clang/Tooling/Core/Replacement.h"
 #include "clang/Tooling/Tooling.h"
-#include "llvm/ADT/SmallPtrSet.h"
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/Support/Casting.h"
 
 using namespace clang;
 using namespace ento;
 using namespace tooling;
 
 namespace {
-/// Emitsd minimal diagnostics (report message + notes) for the 'none' output
-/// type to the standard error, or to to compliment many others. Emits detailed
+/// Emits minimal diagnostics (report message + notes) for the 'none' output
+/// type to the standard error, or to complement many others. Emits detailed
 /// diagnostics in textual format for the 'text' output type.
 class TextDiagnostics : public PathDiagnosticConsumer {
   PathDiagnosticConsumerOptions DiagOpts;
@@ -81,20 +76,16 @@ public:
 
         if (llvm::Error Err = Repls.add(Repl)) {
           llvm::errs() << "Error applying replacement " << Repl.toString()
-                       << ": " << Err << "\n";
+                       << ": " << llvm::toString(std::move(Err)) << "\n";
         }
       }
     };
 
-    for (std::vector<const PathDiagnostic *>::iterator I = Diags.begin(),
-         E = Diags.end();
-         I != E; ++I) {
-      const PathDiagnostic *PD = *I;
+    for (const PathDiagnostic *PD : Diags) {
       std::string WarningMsg = (DiagOpts.ShouldDisplayDiagnosticName
                                     ? " [" + PD->getCheckerName() + "]"
                                     : "")
                                    .str();
-
       reportPiece(WarnID, PD->getLocation().asLocation(),
                   (PD->getShortDescription() + WarningMsg).str(),
                   PD->path.back()->getRanges(), PD->path.back()->getFixits());

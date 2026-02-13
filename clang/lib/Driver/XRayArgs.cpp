@@ -6,15 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 #include "clang/Driver/XRayArgs.h"
-#include "ToolChains/CommonArgs.h"
+#include "clang/Driver/CommonArgs.h"
 #include "clang/Driver/Driver.h"
-#include "clang/Driver/DriverDiagnostic.h"
-#include "clang/Driver/Options.h"
 #include "clang/Driver/ToolChain.h"
+#include "clang/Options/Options.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/Support/Path.h"
-#include "llvm/Support/ScopedPrinter.h"
 #include "llvm/Support/SpecialCaseList.h"
 #include "llvm/Support/VirtualFileSystem.h"
 
@@ -22,12 +19,7 @@ using namespace clang;
 using namespace clang::driver;
 using namespace llvm::opt;
 
-namespace {
-constexpr char XRayInstrumentOption[] = "-fxray-instrument";
-constexpr char XRayInstructionThresholdOption[] =
-    "-fxray-instruction-threshold=";
-constexpr const char *const XRaySupportedModes[] = {"xray-fdr", "xray-basic"};
-} // namespace
+constexpr const char *XRaySupportedModes[] = {"xray-fdr", "xray-basic"};
 
 XRayArgs::XRayArgs(const ToolChain &TC, const ArgList &Args) {
   const Driver &D = TC.getDriver();
@@ -35,78 +27,72 @@ XRayArgs::XRayArgs(const ToolChain &TC, const ArgList &Args) {
   if (!Args.hasFlag(options::OPT_fxray_instrument,
                     options::OPT_fno_xray_instrument, false))
     return;
-  if (Triple.getOS() == llvm::Triple::Linux) {
+  XRayInstrument = Args.getLastArg(options::OPT_fxray_instrument);
+  if (Triple.isMacOSX()) {
+    switch (Triple.getArch()) {
+    case llvm::Triple::aarch64:
+    case llvm::Triple::x86_64:
+      break;
+    default:
+      D.Diag(diag::err_drv_unsupported_opt_for_target)
+          << XRayInstrument->getSpelling() << Triple.str();
+      break;
+    }
+  } else if (Triple.isOSBinFormatELF()) {
     switch (Triple.getArch()) {
     case llvm::Triple::x86_64:
     case llvm::Triple::arm:
     case llvm::Triple::aarch64:
     case llvm::Triple::hexagon:
     case llvm::Triple::ppc64le:
+    case llvm::Triple::loongarch64:
     case llvm::Triple::mips:
     case llvm::Triple::mipsel:
     case llvm::Triple::mips64:
     case llvm::Triple::mips64el:
+    case llvm::Triple::systemz:
+    case llvm::Triple::riscv32:
+    case llvm::Triple::riscv64:
       break;
     default:
-      D.Diag(diag::err_drv_clang_unsupported)
-          << (std::string(XRayInstrumentOption) + " on " + Triple.str());
-    }
-  } else if (Triple.isOSFreeBSD() || Triple.isOSOpenBSD() ||
-             Triple.isOSNetBSD() || Triple.isMacOSX()) {
-    if (Triple.getArch() != llvm::Triple::x86_64) {
-      D.Diag(diag::err_drv_clang_unsupported)
-          << (std::string(XRayInstrumentOption) + " on " + Triple.str());
-    }
-  } else if (Triple.getOS() == llvm::Triple::Fuchsia) {
-    switch (Triple.getArch()) {
-    case llvm::Triple::x86_64:
-    case llvm::Triple::aarch64:
-      break;
-    default:
-      D.Diag(diag::err_drv_clang_unsupported)
-          << (std::string(XRayInstrumentOption) + " on " + Triple.str());
+      D.Diag(diag::err_drv_unsupported_opt_for_target)
+          << XRayInstrument->getSpelling() << Triple.str();
     }
   } else {
-    D.Diag(diag::err_drv_clang_unsupported)
-        << (std::string(XRayInstrumentOption) + " on " + Triple.str());
+    D.Diag(diag::err_drv_unsupported_opt_for_target)
+        << XRayInstrument->getSpelling() << Triple.str();
+  }
+
+  if (Args.hasFlag(options::OPT_fxray_shared, options::OPT_fno_xray_shared,
+                   false)) {
+    XRayShared = true;
+
+    // Certain targets support DSO instrumentation
+    switch (Triple.getArch()) {
+    case llvm::Triple::aarch64:
+    case llvm::Triple::x86_64:
+      break;
+    default:
+      D.Diag(diag::err_drv_unsupported_opt_for_target)
+          << "-fxray-shared" << Triple.str();
+    }
+
+    unsigned PICLvl = std::get<1>(tools::ParsePICArgs(TC, Args));
+    if (!PICLvl) {
+      D.Diag(diag::err_opt_not_valid_without_opt) << "-fxray-shared"
+                                                  << "-fPIC";
+    }
   }
 
   // Both XRay and -fpatchable-function-entry use
   // TargetOpcode::PATCHABLE_FUNCTION_ENTER.
   if (Arg *A = Args.getLastArg(options::OPT_fpatchable_function_entry_EQ))
     D.Diag(diag::err_drv_argument_not_allowed_with)
-        << "-fxray-instrument" << A->getSpelling();
-
-  XRayInstrument = true;
-  if (const Arg *A =
-          Args.getLastArg(options::OPT_fxray_instruction_threshold_EQ)) {
-    StringRef S = A->getValue();
-    if (S.getAsInteger(0, InstructionThreshold) || InstructionThreshold < 0)
-      D.Diag(clang::diag::err_drv_invalid_value) << A->getAsString(Args) << S;
-  }
-
-  // By default, the back-end will not emit the lowering for XRay customevent
-  // calls if the function is not instrumented. In the future we will change
-  // this default to be the reverse, but in the meantime we're going to
-  // introduce the new functionality behind a flag.
-  if (Args.hasFlag(options::OPT_fxray_always_emit_customevents,
-                   options::OPT_fno_xray_always_emit_customevents, false))
-    XRayAlwaysEmitCustomEvents = true;
-
-  if (Args.hasFlag(options::OPT_fxray_always_emit_typedevents,
-                   options::OPT_fno_xray_always_emit_typedevents, false))
-    XRayAlwaysEmitTypedEvents = true;
+        << XRayInstrument->getSpelling() << A->getSpelling();
 
   if (!Args.hasFlag(options::OPT_fxray_link_deps,
-                    options::OPT_fnoxray_link_deps, true))
+                    options::OPT_fno_xray_link_deps, true))
     XRayRT = false;
-
-  if (Args.hasFlag(options::OPT_fxray_ignore_loops,
-                   options::OPT_fno_xray_ignore_loops, false))
-    XRayIgnoreLoops = true;
-
-  XRayFunctionIndex = Args.hasFlag(options::OPT_fxray_function_index,
-                                   options::OPT_fno_xray_function_index, true);
 
   auto Bundles =
       Args.getAllArgValues(options::OPT_fxray_instrumentation_bundle);
@@ -119,8 +105,9 @@ XRayArgs::XRayArgs(const ToolChain &TC, const ArgList &Args) {
       for (const auto &P : BundleParts) {
         // TODO: Automate the generation of the string case table.
         auto Valid = llvm::StringSwitch<bool>(P)
-                         .Cases("none", "all", "function", "function-entry",
-                                "function-exit", "custom", true)
+                         .Cases({"none", "all", "function", "function-entry",
+                                 "function-exit", "custom"},
+                                true)
                          .Default(false);
 
         if (!Valid) {
@@ -171,7 +158,7 @@ XRayArgs::XRayArgs(const ToolChain &TC, const ArgList &Args) {
   // Get the list of modes we want to support.
   auto SpecifiedModes = Args.getAllArgValues(options::OPT_fxray_modes);
   if (SpecifiedModes.empty())
-    llvm::copy(XRaySupportedModes, std::back_inserter(Modes));
+    llvm::append_range(Modes, XRaySupportedModes);
   else
     for (const auto &Arg : SpecifiedModes) {
       // Parse CSV values for -fxray-modes=...
@@ -181,17 +168,60 @@ XRayArgs::XRayArgs(const ToolChain &TC, const ArgList &Args) {
         if (M == "none")
           Modes.clear();
         else if (M == "all")
-          llvm::copy(XRaySupportedModes, std::back_inserter(Modes));
+          llvm::append_range(Modes, XRaySupportedModes);
         else
           Modes.push_back(std::string(M));
     }
 
+  // Then we want to sort and unique the modes we've collected.
+  llvm::sort(Modes);
+  Modes.erase(llvm::unique(Modes), Modes.end());
+}
+
+void XRayArgs::addArgs(const ToolChain &TC, const ArgList &Args,
+                       ArgStringList &CmdArgs, types::ID InputType) const {
+  if (!XRayInstrument)
+    return;
+  const Driver &D = TC.getDriver();
+  XRayInstrument->render(Args, CmdArgs);
+
+  // By default, the back-end will not emit the lowering for XRay customevent
+  // calls if the function is not instrumented. In the future we will change
+  // this default to be the reverse, but in the meantime we're going to
+  // introduce the new functionality behind a flag.
+  Args.addOptInFlag(CmdArgs, options::OPT_fxray_always_emit_customevents,
+                    options::OPT_fno_xray_always_emit_customevents);
+
+  Args.addOptInFlag(CmdArgs, options::OPT_fxray_always_emit_typedevents,
+                    options::OPT_fno_xray_always_emit_typedevents);
+  Args.addOptInFlag(CmdArgs, options::OPT_fxray_ignore_loops,
+                    options::OPT_fno_xray_ignore_loops);
+  Args.addOptOutFlag(CmdArgs, options::OPT_fxray_function_index,
+                     options::OPT_fno_xray_function_index);
+
+  if (XRayShared)
+    Args.addOptInFlag(CmdArgs, options::OPT_fxray_shared,
+                      options::OPT_fno_xray_shared);
+
+  if (const Arg *A =
+          Args.getLastArg(options::OPT_fxray_instruction_threshold_EQ)) {
+    int Value;
+    StringRef S = A->getValue();
+    if (S.getAsInteger(0, Value) || Value < 0)
+      D.Diag(clang::diag::err_drv_invalid_value) << A->getAsString(Args) << S;
+    else
+      A->render(Args, CmdArgs);
+  }
+
+  int XRayFunctionGroups = 1;
+  int XRaySelectedFunctionGroup = 0;
   if (const Arg *A = Args.getLastArg(options::OPT_fxray_function_groups)) {
     StringRef S = A->getValue();
     if (S.getAsInteger(0, XRayFunctionGroups) || XRayFunctionGroups < 1)
       D.Diag(clang::diag::err_drv_invalid_value) << A->getAsString(Args) << S;
+    if (XRayFunctionGroups > 1)
+      A->render(Args, CmdArgs);
   }
-
   if (const Arg *A =
           Args.getLastArg(options::OPT_fxray_selected_function_group)) {
     StringRef S = A->getValue();
@@ -199,45 +229,9 @@ XRayArgs::XRayArgs(const ToolChain &TC, const ArgList &Args) {
         XRaySelectedFunctionGroup < 0 ||
         XRaySelectedFunctionGroup >= XRayFunctionGroups)
       D.Diag(clang::diag::err_drv_invalid_value) << A->getAsString(Args) << S;
+    if (XRaySelectedFunctionGroup != 0)
+      A->render(Args, CmdArgs);
   }
-
-  // Then we want to sort and unique the modes we've collected.
-  llvm::sort(Modes);
-  Modes.erase(std::unique(Modes.begin(), Modes.end()), Modes.end());
-}
-
-void XRayArgs::addArgs(const ToolChain &TC, const ArgList &Args,
-                       ArgStringList &CmdArgs, types::ID InputType) const {
-  if (!XRayInstrument)
-    return;
-
-  CmdArgs.push_back(XRayInstrumentOption);
-
-  if (XRayAlwaysEmitCustomEvents)
-    CmdArgs.push_back("-fxray-always-emit-customevents");
-
-  if (XRayAlwaysEmitTypedEvents)
-    CmdArgs.push_back("-fxray-always-emit-typedevents");
-
-  if (XRayIgnoreLoops)
-    CmdArgs.push_back("-fxray-ignore-loops");
-
-  if (!XRayFunctionIndex)
-    CmdArgs.push_back("-fno-xray-function-index");
-
-  if (XRayFunctionGroups > 1) {
-    CmdArgs.push_back(Args.MakeArgString(Twine("-fxray-function-groups=") +
-                                         Twine(XRayFunctionGroups)));
-  }
-
-  if (XRaySelectedFunctionGroup != 0) {
-    CmdArgs.push_back(
-        Args.MakeArgString(Twine("-fxray-selected-function-group=") +
-                           Twine(XRaySelectedFunctionGroup)));
-  }
-
-  CmdArgs.push_back(Args.MakeArgString(Twine(XRayInstructionThresholdOption) +
-                                       Twine(InstructionThreshold)));
 
   for (const auto &Always : AlwaysInstrumentFiles) {
     SmallString<64> AlwaysInstrumentOpt("-fxray-always-instrument=");

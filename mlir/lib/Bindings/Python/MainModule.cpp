@@ -6,87 +6,39 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <tuple>
-
-#include "PybindUtils.h"
-
-#include "Globals.h"
-#include "IRModule.h"
 #include "Pass.h"
+#include "Rewrite.h"
+#include "mlir/Bindings/Python/Globals.h"
+#include "mlir/Bindings/Python/IRAttributes.h"
+#include "mlir/Bindings/Python/IRCore.h"
+#include "mlir/Bindings/Python/IRTypes.h"
+#include "mlir/Bindings/Python/Nanobind.h"
 
-namespace py = pybind11;
-using namespace mlir;
-using namespace mlir::python;
+namespace nb = nanobind;
+using namespace mlir::python::MLIR_BINDINGS_PYTHON_DOMAIN;
+
+namespace mlir {
+namespace python {
+namespace MLIR_BINDINGS_PYTHON_DOMAIN {
+void populateIRAffine(nb::module_ &m);
+void populateIRAttributes(nb::module_ &m);
+void populateIRInterfaces(nb::module_ &m);
+void populateIRTypes(nb::module_ &m);
+void populateIRCore(nb::module_ &m);
+void populateRoot(nb::module_ &m);
+} // namespace MLIR_BINDINGS_PYTHON_DOMAIN
+} // namespace python
+} // namespace mlir
 
 // -----------------------------------------------------------------------------
 // Module initialization.
 // -----------------------------------------------------------------------------
+NB_MODULE(_mlir, m) {
+  // disable leak warnings which tend to be false positives.
+  nb::set_leak_warnings(false);
 
-PYBIND11_MODULE(_mlir, m) {
   m.doc() = "MLIR Python Native Extension";
-
-  py::class_<PyGlobals>(m, "_Globals", py::module_local())
-      .def_property("dialect_search_modules",
-                    &PyGlobals::getDialectSearchPrefixes,
-                    &PyGlobals::setDialectSearchPrefixes)
-      .def(
-          "append_dialect_search_prefix",
-          [](PyGlobals &self, std::string moduleName) {
-            self.getDialectSearchPrefixes().push_back(std::move(moduleName));
-            self.clearImportCache();
-          },
-          py::arg("module_name"))
-      .def("_register_dialect_impl", &PyGlobals::registerDialectImpl,
-           py::arg("dialect_namespace"), py::arg("dialect_class"),
-           "Testing hook for directly registering a dialect")
-      .def("_register_operation_impl", &PyGlobals::registerOperationImpl,
-           py::arg("operation_name"), py::arg("operation_class"),
-           py::arg("raw_opview_class"),
-           "Testing hook for directly registering an operation");
-
-  // Aside from making the globals accessible to python, having python manage
-  // it is necessary to make sure it is destroyed (and releases its python
-  // resources) properly.
-  m.attr("globals") =
-      py::cast(new PyGlobals, py::return_value_policy::take_ownership);
-
-  // Registration decorators.
-  m.def(
-      "register_dialect",
-      [](py::object pyClass) {
-        std::string dialectNamespace =
-            pyClass.attr("DIALECT_NAMESPACE").cast<std::string>();
-        PyGlobals::get().registerDialectImpl(dialectNamespace, pyClass);
-        return pyClass;
-      },
-      py::arg("dialect_class"),
-      "Class decorator for registering a custom Dialect wrapper");
-  m.def(
-      "register_operation",
-      [](py::object dialectClass) -> py::cpp_function {
-        return py::cpp_function(
-            [dialectClass](py::object opClass) -> py::object {
-              std::string operationName =
-                  opClass.attr("OPERATION_NAME").cast<std::string>();
-              auto rawSubclass = PyOpView::createRawSubclass(opClass);
-              PyGlobals::get().registerOperationImpl(operationName, opClass,
-                                                     rawSubclass);
-
-              // Dict-stuff the new opClass by name onto the dialect class.
-              py::object opClassName = opClass.attr("__name__");
-              dialectClass.attr(opClassName) = opClass;
-
-              // Now create a special "Raw" subclass that passes through
-              // construction to the OpView parent (bypasses the intermediate
-              // child's __init__).
-              opClass.attr("_Raw") = rawSubclass;
-              return opClass;
-            });
-      },
-      py::arg("dialect_class"),
-      "Produce a class decorator for registering an Operation class as part of "
-      "a dialect");
-
+  populateRoot(m);
   // Define and populate IR submodule.
   auto irModule = m.def_submodule("ir", "MLIR IR Bindings");
   populateIRCore(irModule);
@@ -95,8 +47,25 @@ PYBIND11_MODULE(_mlir, m) {
   populateIRInterfaces(irModule);
   populateIRTypes(irModule);
 
+  auto rewriteModule = m.def_submodule("rewrite", "MLIR Rewrite Bindings");
+  populateRewriteSubmodule(rewriteModule);
+
   // Define and populate PassManager submodule.
-  auto passModule =
+  auto passManagerModule =
       m.def_submodule("passmanager", "MLIR Pass Management Bindings");
-  populatePassManagerSubmodule(passModule);
+  populatePassManagerSubmodule(passManagerModule);
+  nanobind::register_exception_translator(
+      [](const std::exception_ptr &p, void *payload) {
+        // We can't define exceptions with custom fields through pybind, so
+        // instead the exception class is defined in python and imported here.
+        try {
+          if (p)
+            std::rethrow_exception(p);
+        } catch (const MLIRError &e) {
+          nanobind::object obj =
+              nanobind::module_::import_(MAKE_MLIR_PYTHON_QUALNAME("ir"))
+                  .attr("MLIRError")(e.message, e.errorDiagnostics);
+          PyErr_SetObject(PyExc_Exception, obj.ptr());
+        }
+      });
 }

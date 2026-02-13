@@ -9,24 +9,22 @@
 #include "src/string/strncmp.h"
 
 #include "src/__support/common.h"
+#include "src/__support/macros/config.h"
+#include "src/__support/macros/null_check.h"
+#include "src/string/memory_utils/inline_strcmp.h"
+
 #include <stddef.h>
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE_DECL {
 
-// TODO: Look at benefits for comparing words at a time.
 LLVM_LIBC_FUNCTION(int, strncmp,
                    (const char *left, const char *right, size_t n)) {
-
-  if (n == 0)
-    return 0;
-
-  for (; n > 1; --n, ++left, ++right) {
-    char lc = *left;
-    if (lc == '\0' || lc != *right)
-      break;
+  if (n) {
+    LIBC_CRASH_ON_NULLPTR(left);
+    LIBC_CRASH_ON_NULLPTR(right);
   }
-  return *reinterpret_cast<const unsigned char *>(left) -
-         *reinterpret_cast<const unsigned char *>(right);
+  auto comp = [](char l, char r) -> int { return l - r; };
+  return inline_strncmp(left, right, n, comp);
 }
 
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE_DECL

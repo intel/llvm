@@ -30,14 +30,18 @@ GWP-ASan vs. ASan
 Unlike `AddressSanitizer <https://clang.llvm.org/docs/AddressSanitizer.html>`_,
 GWP-ASan does not induce a significant performance overhead. ASan often requires
 the use of dedicated canaries to be viable in production environments, and as
-such is often impractical.
+such is often impractical. Moreover, ASan's runtime is not developed with
+security considerations in mind, making compiled binaries more vulnerable to
+exploits.
 
-GWP-ASan is only capable of finding a subset of the memory issues detected by
-ASan. Furthermore, GWP-ASan's bug detection capabilities are only probabilistic.
-As such, we recommend using ASan over GWP-ASan in testing, as well as anywhere
-else that guaranteed error detection is more valuable than the 2x execution
-slowdown/binary size bloat. For the majority of production environments, this
-impact is too high, and GWP-ASan proves extremely useful.
+However, GWP-ASan is only capable of finding a subset of the memory issues
+detected by ASan. Furthermore, GWP-ASan's bug detection capabilities are
+only probabilistic. As such, we recommend using ASan over GWP-ASan in testing,
+as well as anywhere else that guaranteed error detection is more valuable than
+the 2x execution slowdown/binary size bloat. For the majority of production
+environments, this impact is too high and security is indispensable, so GWP-ASan
+proves extremely useful.
+
 
 Design
 ======
@@ -143,9 +147,10 @@ several aspects of GWP-ASan to be configured through the following methods:
   default visibility. This will override the compile time define;
 
 - Depending on allocator support (Scudo has support for this mechanism): Through
-  the environment variable ``GWP_ASAN_OPTIONS``, containing the options string
-  to be parsed. Options defined this way will override any definition made
-  through ``__gwp_asan_default_options``.
+  an environment variable, containing the options string to be parsed. In Scudo,
+  this is through `SCUDO_OPTIONS=GWP_ASAN_${OPTION_NAME}=${VALUE}` (e.g.
+  `SCUDO_OPTIONS=GWP_ASAN_SampleRate=100`). Options defined this way will
+  override any definition made through ``__gwp_asan_default_options``.
 
 The options string follows a syntax similar to ASan, where distinct options
 can be assigned in the same string, separated by colons.
@@ -216,9 +221,9 @@ and provide us a detailed error report:
 
 .. code:: console
 
-  $ clang++ -fsanitize=scudo -std=c++17 -g buggy_code.cpp
-  $ for i in `seq 1 200`; do
-      GWP_ASAN_OPTIONS="SampleRate=100" ./a.out > /dev/null;
+  $ clang++ -fsanitize=scudo -g buggy_code.cpp
+  $ for i in `seq 1 500`; do
+      SCUDO_OPTIONS="GWP_ASAN_SampleRate=100" ./a.out > /dev/null;
     done
   |
   | *** GWP-ASan detected a memory error ***
@@ -255,6 +260,7 @@ attempt to symbolize each possible line, falling back to the previous output if
 anything fails. This results in the following output:
 
 .. code:: console
+
 
   $ cat my_gwp_asan_error.txt | symbolize.sh
   |

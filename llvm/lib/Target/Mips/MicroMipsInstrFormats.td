@@ -45,7 +45,6 @@ class MicroMipsInst16<dag outs, dag ins, string asmstr, list<dag> pattern,
 {
   let Size = 2;
   field bits<16> Inst;
-  field bits<16> SoftFail = 0;
   bits<6> Opcode = 0x0;
 }
 
@@ -271,14 +270,15 @@ class B16_FM {
 }
 
 class MOVEP_FM_MM16 {
-  bits<3> dst_regs;
   bits<3> rt;
   bits<3> rs;
 
   bits<16> Inst;
 
   let Inst{15-10} = 0x21;
-  let Inst{9-7}   = dst_regs;
+  // bits 7-9 are populated by MipsMCCodeEmitter::encodeInstruction, with a
+  // special encoding of both rd1 and rd2.
+  let Inst{9-7}   = ?;
   let Inst{6-4}   = rt;
   let Inst{3-1}   = rs;
   let Inst{0}     = 0;

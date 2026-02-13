@@ -11,7 +11,7 @@
 
 #include "device.h"
 
-#ifdef __SPIR__
+#if defined(__SPIR__) || defined(__SPIRV__)
 
 #define SPIR_GLOBAL __attribute__((opencl_global))
 
@@ -57,23 +57,38 @@ struct MemorySemanticsMask {
 };
 } // namespace __spv
 
-extern DEVICE_EXTERNAL int
-__spirv_AtomicCompareExchange(int SPIR_GLOBAL *, __spv::Scope::Flag,
-                              __spv::MemorySemanticsMask::Flag,
-                              __spv::MemorySemanticsMask::Flag, int, int);
+extern DEVICE_EXTERNAL int __spirv_AtomicCompareExchange(int SPIR_GLOBAL *, int,
+                                                         int, int, int,
+                                                         int) noexcept;
 
-extern DEVICE_EXTERNAL int __spirv_AtomicLoad(const int SPIR_GLOBAL *,
-                                              __spv::Scope::Flag,
-                                              __spv::MemorySemanticsMask::Flag);
+extern DEVICE_EXTERNAL int __spirv_AtomicCompareExchange(int *, int, int, int,
+                                                         int, int) noexcept;
 
-extern DEVICE_EXTERNAL void
-__spirv_AtomicStore(int SPIR_GLOBAL *, __spv::Scope::Flag,
-                    __spv::MemorySemanticsMask::Flag, int);
+extern DEVICE_EXTERNAL int __spirv_AtomicLoad(const int SPIR_GLOBAL *, int,
+                                              int) noexcept;
+
+extern DEVICE_EXTERNAL void __spirv_AtomicStore(int SPIR_GLOBAL *, int, int,
+                                                int) noexcept;
+
+extern DEVICE_EXTERNAL void __spirv_AtomicStore(int *, int, int, int) noexcept;
+
+extern DEVICE_EXTERNAL int __spirv_AtomicIAdd(SPIR_GLOBAL int *, int, int,
+                                              int) noexcept;
+
+extern DEVICE_EXTERNAL int __spirv_AtomicIAdd(SPIR_GLOBAL unsigned int *, int,
+                                              int, int) noexcept;
 
 /// Atomically set the value in *Ptr with Desired if and only if it is Expected
 /// Return the value which already was in *Ptr
 static inline int atomicCompareAndSet(SPIR_GLOBAL int *Ptr, int Desired,
                                       int Expected) {
+  return __spirv_AtomicCompareExchange(
+      Ptr, __spv::Scope::Device,
+      __spv::MemorySemanticsMask::SequentiallyConsistent,
+      __spv::MemorySemanticsMask::SequentiallyConsistent, Desired, Expected);
+}
+
+static inline int atomicCompareAndSet(int *Ptr, int Desired, int Expected) {
   return __spirv_AtomicCompareExchange(
       Ptr, __spv::Scope::Device,
       __spv::MemorySemanticsMask::SequentiallyConsistent,
@@ -90,4 +105,21 @@ static inline void atomicStore(SPIR_GLOBAL int *Ptr, int V) {
                       __spv::MemorySemanticsMask::SequentiallyConsistent, V);
 }
 
-#endif // __SPIR__
+static inline void atomicStore(int *Ptr, int V) {
+  __spirv_AtomicStore(Ptr, __spv::Scope::Device,
+                      __spv::MemorySemanticsMask::SequentiallyConsistent, V);
+}
+
+static inline int atomicAdd(SPIR_GLOBAL int *Ptr, int V) {
+  return __spirv_AtomicIAdd(Ptr, __spv::Scope::Device,
+                            __spv::MemorySemanticsMask::SequentiallyConsistent,
+                            V);
+}
+
+static inline int atomicAdd(SPIR_GLOBAL unsigned int *Ptr, int V) {
+  return __spirv_AtomicIAdd(Ptr, __spv::Scope::Device,
+                            __spv::MemorySemanticsMask::SequentiallyConsistent,
+                            V);
+}
+
+#endif // __SPIR__ || __SPIRV__

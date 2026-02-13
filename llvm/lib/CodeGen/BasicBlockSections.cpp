@@ -57,10 +57,10 @@
 //    function into potentially several disjoint pieces, and CFI needs to be
 //    emitted per cluster. This also bloats the object file and binary sizes.
 //
-// Basic Block Labels
+// Basic Block Address Map
 // ==================
 //
-// With -fbasic-block-sections=labels, we encode the offsets of BB addresses of
+// With -fbasic-block-address-map, we emit the offsets of BB addresses of
 // every function into the .llvm_bb_addr_map section. Along with the function
 // symbols, this allows for mapping of virtual addresses in PMU profiles back to
 // the corresponding basic blocks. This logic is implemented in AsmPrinter. This
@@ -68,17 +68,22 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/CodeGen/BasicBlockSectionsProfileReader.h"
+#include "llvm/CodeGen/BasicBlockMatchingAndInference.h"
 #include "llvm/CodeGen/BasicBlockSectionUtils.h"
+#include "llvm/CodeGen/BasicBlockSectionsProfileReader.h"
+#include "llvm/CodeGen/MachineDominators.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
+#include "llvm/CodeGen/MachinePostDominators.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/InitializePasses.h"
+#include "llvm/Support/UniqueBBID.h"
 #include "llvm/Target/TargetMachine.h"
+#include "llvm/Transforms/Utils/CodeLayout.h"
+#include <optional>
 
 using namespace llvm;
 
@@ -91,7 +96,7 @@ cl::opt<std::string> llvm::BBSectionsColdTextPrefix(
     cl::desc("The text prefix to use for cold basic block clusters"),
     cl::init(".text.split."), cl::Hidden);
 
-cl::opt<bool> BBSectionsDetectSourceDrift(
+static cl::opt<bool> BBSectionsDetectSourceDrift(
     "bbsections-detect-source-drift",
     cl::desc("This checks if there is a fdo instr. profile hash "
              "mismatch for this function"),
@@ -103,7 +108,7 @@ class BasicBlockSections : public MachineFunctionPass {
 public:
   static char ID;
 
-  BasicBlockSectionsProfileReader *BBSectionsProfileReader = nullptr;
+  BasicBlockSectionsProfileReaderWrapperPass *BBSectionsProfileReader = nullptr;
 
   BasicBlockSections() : MachineFunctionPass(ID) {
     initializeBasicBlockSectionsPass(*PassRegistry::getPassRegistry());
@@ -118,21 +123,31 @@ public:
   /// Identify basic blocks that need separate sections and prepare to emit them
   /// accordingly.
   bool runOnMachineFunction(MachineFunction &MF) override;
+
+private:
+  bool handleBBSections(MachineFunction &MF);
+  bool handleBBAddrMap(MachineFunction &MF);
 };
 
 } // end anonymous namespace
 
 char BasicBlockSections::ID = 0;
-INITIALIZE_PASS(BasicBlockSections, "bbsections-prepare",
-                "Prepares for basic block sections, by splitting functions "
-                "into clusters of basic blocks.",
-                false, false)
+INITIALIZE_PASS_BEGIN(
+    BasicBlockSections, "bbsections-prepare",
+    "Prepares for basic block sections, by splitting functions "
+    "into clusters of basic blocks.",
+    false, false)
+INITIALIZE_PASS_DEPENDENCY(BasicBlockSectionsProfileReaderWrapperPass)
+INITIALIZE_PASS_END(BasicBlockSections, "bbsections-prepare",
+                    "Prepares for basic block sections, by splitting functions "
+                    "into clusters of basic blocks.",
+                    false, false)
 
 // This function updates and optimizes the branching instructions of every basic
 // block in a given function to account for changes in the layout.
-static void updateBranches(
-    MachineFunction &MF,
-    const SmallVector<MachineBasicBlock *, 4> &PreLayoutFallThroughs) {
+static void
+updateBranches(MachineFunction &MF,
+               const SmallVector<MachineBasicBlock *> &PreLayoutFallThroughs) {
   const TargetInstrInfo *TII = MF.getSubtarget().getInstrInfo();
   SmallVector<MachineOperand, 4> Cond;
   for (auto &MBB : MF) {
@@ -162,34 +177,75 @@ static void updateBranches(
   }
 }
 
-// This function provides the BBCluster information associated with a function.
-// Returns true if a valid association exists and false otherwise.
-bool getBBClusterInfoForFunction(
-    const MachineFunction &MF,
-    BasicBlockSectionsProfileReader *BBSectionsProfileReader,
-    std::vector<Optional<BBClusterInfo>> &V) {
+// This function generates the machine basic block clusters of "hot" blocks.
+// Currently, only support one cluster creation.
+// TODO: Support multi-cluster creation and path cloning.
+static SmallVector<BBClusterInfo>
+createBBClusterInfoForFunction(MachineFunction &MF,
+                               const BasicBlockMatchingAndInference &BMI) {
+  SmallVector<BBClusterInfo> BBClusterInfos;
+  auto OptWeightInfo = BMI.getWeightInfo(MF.getName());
+  if (!OptWeightInfo)
+    return BBClusterInfos;
+  auto BlockWeights = OptWeightInfo->BlockWeights;
+  auto EdgeWeights = OptWeightInfo->EdgeWeights;
 
-  // Find the assoicated cluster information.
-  std::pair<bool, SmallVector<BBClusterInfo, 4>> P =
-      BBSectionsProfileReader->getBBClusterInfoForFunction(MF.getName());
-  if (!P.first)
-    return false;
+  SmallVector<const MachineBasicBlock *, 4> HotMBBs;
+  if (MF.size() <= 2) {
+    for (auto &MBB : MF) {
+      if (MBB.isEntryBlock() || BlockWeights[&MBB] > 0) {
+        HotMBBs.push_back(&MBB);
+      }
+    }
+  } else {
+    SmallVector<uint64_t, 0> BlockSizes(MF.size());
+    SmallVector<uint64_t, 0> BlockCounts(MF.size());
+    std::vector<const MachineBasicBlock *> OrigOrder;
+    OrigOrder.reserve(MF.size());
+    SmallVector<codelayout::EdgeCount, 0> JumpCounts;
 
-  if (P.second.empty()) {
-    // This indicates that sections are desired for all basic blocks of this
-    // function. We clear the BBClusterInfo vector to denote this.
-    V.clear();
-    return true;
+    // Renumber blocks for running the layout algorithm.
+    MF.RenumberBlocks();
+
+    // Init the MBB size and count.
+    for (auto &MBB : MF) {
+      auto NonDbgInsts =
+          instructionsWithoutDebug(MBB.instr_begin(), MBB.instr_end());
+      int NumInsts = std::distance(NonDbgInsts.begin(), NonDbgInsts.end());
+      BlockSizes[MBB.getNumber()] = 4 * NumInsts;
+      BlockCounts[MBB.getNumber()] = BlockWeights[&MBB];
+      OrigOrder.push_back(&MBB);
+    }
+
+    // Init the edge count.
+    for (auto &MBB : MF) {
+      for (auto *Succ : MBB.successors()) {
+        auto EdgeWeight = EdgeWeights[std::make_pair(&MBB, Succ)];
+        JumpCounts.push_back({static_cast<uint64_t>(MBB.getNumber()),
+                              static_cast<uint64_t>(Succ->getNumber()),
+                              EdgeWeight});
+      }
+    }
+
+    // Run the layout algorithm.
+    auto Result = computeExtTspLayout(BlockSizes, BlockCounts, JumpCounts);
+    for (uint64_t R : Result) {
+      auto Block = OrigOrder[R];
+      if (Block->isEntryBlock() || BlockWeights[Block] > 0)
+        HotMBBs.push_back(Block);
+    }
   }
 
-  V.resize(MF.getNumBlockIDs());
-  for (auto bbClusterInfo : P.second) {
-    // Bail out if the cluster information contains invalid MBB numbers.
-    if (bbClusterInfo.MBBNumber >= MF.getNumBlockIDs())
-      return false;
-    V[bbClusterInfo.MBBNumber] = bbClusterInfo;
+  // Generate the "hot" basic block cluster.
+  if (!HotMBBs.empty()) {
+    unsigned CurrentPosition = 0;
+    for (auto &MBB : HotMBBs) {
+      if (MBB->getBBID()) {
+        BBClusterInfos.push_back({*(MBB->getBBID()), 0, CurrentPosition++});
+      }
+    }
   }
-  return true;
+  return BBClusterInfos;
 }
 
 // This function sorts basic blocks according to the cluster's information.
@@ -199,34 +255,41 @@ bool getBBClusterInfoForFunction(
 // clusters, they are moved into a single "Exception" section. Eventually,
 // clusters are ordered in increasing order of their IDs, with the "Exception"
 // and "Cold" succeeding all other clusters.
-// FuncBBClusterInfo represent the cluster information for basic blocks. If this
-// is empty, it means unique sections for all basic blocks in the function.
+// FuncClusterInfo represents the cluster information for basic blocks. It
+// maps from BBID of basic blocks to their cluster information.
 static void
 assignSections(MachineFunction &MF,
-               const std::vector<Optional<BBClusterInfo>> &FuncBBClusterInfo) {
+               const DenseMap<UniqueBBID, BBClusterInfo> &FuncClusterInfo) {
   assert(MF.hasBBSections() && "BB Sections is not set for function.");
   // This variable stores the section ID of the cluster containing eh_pads (if
   // all eh_pads are one cluster). If more than one cluster contain eh_pads, we
   // set it equal to ExceptionSectionID.
-  Optional<MBBSectionID> EHPadsSectionID;
+  std::optional<MBBSectionID> EHPadsSectionID;
 
   for (auto &MBB : MF) {
     // With the 'all' option, every basic block is placed in a unique section.
     // With the 'list' option, every basic block is placed in a section
-    // associated with its cluster, unless we want individual unique sections
-    // for every basic block in this function (if FuncBBClusterInfo is empty).
-    if (MF.getTarget().getBBSectionsType() == llvm::BasicBlockSection::All ||
-        FuncBBClusterInfo.empty()) {
+    // associated with its cluster.
+    if (MF.getTarget().getBBSectionsType() == llvm::BasicBlockSection::All) {
       // If unique sections are desired for all basic blocks of the function, we
-      // set every basic block's section ID equal to its number (basic block
-      // id). This further ensures that basic blocks are ordered canonically.
-      MBB.setSectionID({static_cast<unsigned int>(MBB.getNumber())});
-    } else if (FuncBBClusterInfo[MBB.getNumber()])
-      MBB.setSectionID(FuncBBClusterInfo[MBB.getNumber()]->ClusterID);
-    else {
-      // BB goes into the special cold section if it is not specified in the
-      // cluster info map.
-      MBB.setSectionID(MBBSectionID::ColdSectionID);
+      // set every basic block's section ID equal to its original position in
+      // the layout (which is equal to its number). This ensures that basic
+      // blocks are ordered canonically.
+      MBB.setSectionID(MBB.getNumber());
+    } else {
+      auto I = FuncClusterInfo.find(*MBB.getBBID());
+      if (I != FuncClusterInfo.end()) {
+        MBB.setSectionID(I->second.ClusterID);
+      } else {
+        const TargetInstrInfo &TII =
+            *MBB.getParent()->getSubtarget().getInstrInfo();
+
+        if (TII.isMBBSafeToSplitToCold(MBB)) {
+          // BB goes into the special cold section if it is not specified in the
+          // cluster info map.
+          MBB.setSectionID(MBBSectionID::ColdSectionID);
+        }
+      }
     }
 
     if (MBB.isEHPad() && EHPadsSectionID != MBB.getSectionID() &&
@@ -249,12 +312,15 @@ assignSections(MachineFunction &MF,
 
 void llvm::sortBasicBlocksAndUpdateBranches(
     MachineFunction &MF, MachineBasicBlockComparator MBBCmp) {
-  SmallVector<MachineBasicBlock *, 4> PreLayoutFallThroughs(
-      MF.getNumBlockIDs());
+  [[maybe_unused]] const MachineBasicBlock *EntryBlock = &MF.front();
+  SmallVector<MachineBasicBlock *> PreLayoutFallThroughs(MF.getNumBlockIDs());
   for (auto &MBB : MF)
-    PreLayoutFallThroughs[MBB.getNumber()] = MBB.getFallThrough();
+    PreLayoutFallThroughs[MBB.getNumber()] =
+        MBB.getFallThrough(/*JumpToFallThrough=*/false);
 
   MF.sort(MBBCmp);
+  assert(&MF.front() == EntryBlock &&
+         "Entry block should not be displaced by basic block sections");
 
   // Set IsBeginSection and IsEndSection according to the assigned section IDs.
   MF.assignBeginEndSections();
@@ -270,24 +336,25 @@ void llvm::sortBasicBlocksAndUpdateBranches(
 // zero implies "no landing pad." This function inserts a NOP just before the EH
 // pad label to ensure a nonzero offset.
 void llvm::avoidZeroOffsetLandingPad(MachineFunction &MF) {
+  std::optional<MBBSectionID> CurrentSection;
+  auto IsFirstNonEmptyBBInSection = [&](const MachineBasicBlock &MBB) {
+    if (MBB.empty() || MBB.getSectionID() == CurrentSection)
+      return false;
+    CurrentSection = MBB.getSectionID();
+    return true;
+  };
+
   for (auto &MBB : MF) {
-    if (MBB.isBeginSection() && MBB.isEHPad()) {
+    if (IsFirstNonEmptyBBInSection(MBB) && MBB.isEHPad()) {
       MachineBasicBlock::iterator MI = MBB.begin();
       while (!MI->isEHLabel())
         ++MI;
-      MCInst Nop = MF.getSubtarget().getInstrInfo()->getNop();
-      BuildMI(MBB, MI, DebugLoc(),
-              MF.getSubtarget().getInstrInfo()->get(Nop.getOpcode()));
+      MF.getSubtarget().getInstrInfo()->insertNoop(MBB, MI);
     }
   }
 }
 
-// This checks if the source of this function has drifted since this binary was
-// profiled previously.  For now, we are piggy backing on what PGO does to
-// detect this with instrumented profiles.  PGO emits an hash of the IR and
-// checks if the hash has changed.  Advanced basic block layout is usually done
-// on top of PGO optimized binaries and hence this check works well in practice.
-static bool hasInstrProfHashMismatch(MachineFunction &MF) {
+bool llvm::hasInstrProfHashMismatch(MachineFunction &MF) {
   if (!BBSectionsDetectSourceDrift)
     return false;
 
@@ -296,19 +363,21 @@ static bool hasInstrProfHashMismatch(MachineFunction &MF) {
   if (Existing) {
     MDTuple *Tuple = cast<MDTuple>(Existing);
     for (const auto &N : Tuple->operands())
-      if (cast<MDString>(N.get())->getString() == MetadataName)
+      if (N.equalsStr(MetadataName))
         return true;
   }
 
   return false;
 }
 
-bool BasicBlockSections::runOnMachineFunction(MachineFunction &MF) {
+// Identify, arrange, and modify basic blocks which need separate sections
+// according to the specification provided by the -fbasic-block-sections flag.
+bool BasicBlockSections::handleBBSections(MachineFunction &MF) {
   auto BBSectionsType = MF.getTarget().getBBSectionsType();
-  assert(BBSectionsType != BasicBlockSection::None &&
-         "BB Sections not enabled!");
+  if (BBSectionsType == BasicBlockSection::None)
+    return false;
 
-  // Check for source drift.  If the source has changed since the profiles
+  // Check for source drift. If the source has changed since the profiles
   // were obtained, optimizing basic blocks might be sub-optimal.
   // This only applies to BasicBlockSection::List as it creates
   // clusters of basic blocks using basic block ids. Source drift can
@@ -316,32 +385,33 @@ bool BasicBlockSections::runOnMachineFunction(MachineFunction &MF) {
   // regards to performance.
   if (BBSectionsType == BasicBlockSection::List &&
       hasInstrProfHashMismatch(MF))
-    return true;
+    return false;
 
-  // Renumber blocks before sorting them for basic block sections.  This is
-  // useful during sorting, basic blocks in the same section will retain the
-  // default order.  This renumbering should also be done for basic block
-  // labels to match the profiles with the correct blocks.
-  MF.RenumberBlocks();
-
-  if (BBSectionsType == BasicBlockSection::Labels) {
-    MF.setBBSectionsType(BBSectionsType);
-    return true;
+  DenseMap<UniqueBBID, BBClusterInfo> FuncClusterInfo;
+  if (BBSectionsType == BasicBlockSection::List) {
+    SmallVector<BBClusterInfo> ClusterInfo;
+    if (auto *BMI = getAnalysisIfAvailable<BasicBlockMatchingAndInference>()) {
+      ClusterInfo = createBBClusterInfoForFunction(MF, *BMI);
+    } else {
+      ClusterInfo = getAnalysis<BasicBlockSectionsProfileReaderWrapperPass>()
+                        .getClusterInfoForFunction(MF.getName());
+    }
+    if (ClusterInfo.empty())
+      return false;
+    for (auto &BBClusterInfo : ClusterInfo) {
+      FuncClusterInfo.try_emplace(BBClusterInfo.BBID, BBClusterInfo);
+    }
   }
 
-  BBSectionsProfileReader = &getAnalysis<BasicBlockSectionsProfileReader>();
+  // Renumber blocks before sorting them. This is useful for accessing the
+  // original layout positions and finding the original fallthroughs.
+  MF.RenumberBlocks();
 
-  std::vector<Optional<BBClusterInfo>> FuncBBClusterInfo;
-  if (BBSectionsType == BasicBlockSection::List &&
-      !getBBClusterInfoForFunction(MF, BBSectionsProfileReader,
-                                   FuncBBClusterInfo))
-    return true;
   MF.setBBSectionsType(BBSectionsType);
-  assignSections(MF, FuncBBClusterInfo);
+  assignSections(MF, FuncClusterInfo);
 
-  // We make sure that the cluster including the entry basic block precedes all
-  // other clusters.
-  auto EntryBBSectionID = MF.front().getSectionID();
+  const MachineBasicBlock &EntryBB = MF.front();
+  auto EntryBBSectionID = EntryBB.getSectionID();
 
   // Helper function for ordering BB sections as follows:
   //   * Entry section (section including the entry block).
@@ -362,17 +432,22 @@ bool BasicBlockSections::runOnMachineFunction(MachineFunction &MF) {
   // contiguous and ordered accordingly. Furthermore, clusters are ordered in
   // increasing order of their section IDs, with the exception and the
   // cold section placed at the end of the function.
+  // Also, we force the entry block of the function to be placed at the
+  // beginning of the function, regardless of the requested order.
   auto Comparator = [&](const MachineBasicBlock &X,
                         const MachineBasicBlock &Y) {
     auto XSectionID = X.getSectionID();
     auto YSectionID = Y.getSectionID();
     if (XSectionID != YSectionID)
       return MBBSectionOrder(XSectionID, YSectionID);
+    // Make sure that the entry block is placed at the beginning.
+    if (&X == &EntryBB || &Y == &EntryBB)
+      return &X == &EntryBB;
     // If the two basic block are in the same section, the order is decided by
     // their position within the section.
     if (XSectionID.Type == MBBSectionID::SectionType::Default)
-      return FuncBBClusterInfo[X.getNumber()]->PositionInCluster <
-             FuncBBClusterInfo[Y.getNumber()]->PositionInCluster;
+      return FuncClusterInfo.lookup(*X.getBBID()).PositionInCluster <
+             FuncClusterInfo.lookup(*Y.getBBID()).PositionInCluster;
     return X.getNumber() < Y.getNumber();
   };
 
@@ -381,9 +456,38 @@ bool BasicBlockSections::runOnMachineFunction(MachineFunction &MF) {
   return true;
 }
 
+// When the BB address map needs to be generated, this renumbers basic blocks to
+// make them appear in increasing order of their IDs in the function. This
+// avoids the need to store basic block IDs in the BB address map section, since
+// they can be determined implicitly.
+bool BasicBlockSections::handleBBAddrMap(MachineFunction &MF) {
+  if (!MF.getTarget().Options.BBAddrMap)
+    return false;
+  MF.RenumberBlocks();
+  return true;
+}
+
+bool BasicBlockSections::runOnMachineFunction(MachineFunction &MF) {
+  // First handle the basic block sections.
+  auto R1 = handleBBSections(MF);
+  // Handle basic block address map after basic block sections are finalized.
+  auto R2 = handleBBAddrMap(MF);
+
+  // We renumber blocks, so update the dominator tree we want to preserve.
+  if (auto *WP = getAnalysisIfAvailable<MachineDominatorTreeWrapperPass>())
+    WP->getDomTree().updateBlockNumbers();
+  if (auto *WP = getAnalysisIfAvailable<MachinePostDominatorTreeWrapperPass>())
+    WP->getPostDomTree().updateBlockNumbers();
+
+  return R1 || R2;
+}
+
 void BasicBlockSections::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
-  AU.addRequired<BasicBlockSectionsProfileReader>();
+  AU.addRequired<BasicBlockSectionsProfileReaderWrapperPass>();
+  AU.addUsedIfAvailable<BasicBlockMatchingAndInference>();
+  AU.addUsedIfAvailable<MachineDominatorTreeWrapperPass>();
+  AU.addUsedIfAvailable<MachinePostDominatorTreeWrapperPass>();
   MachineFunctionPass::getAnalysisUsage(AU);
 }
 

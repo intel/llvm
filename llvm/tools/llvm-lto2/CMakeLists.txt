@@ -12,8 +12,10 @@ set(LLVM_LINK_COMPONENTS
   Object
   Passes
   SYCLLowerIR
+  Plugins
   Support
   Target
+  TargetParser
   )
 
 add_llvm_tool(llvm-lto2

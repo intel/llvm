@@ -13,8 +13,6 @@
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Tooling/Transformer/SourceCode.h"
-#include "llvm/ADT/Optional.h"
-#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
 #include <map>
@@ -39,8 +37,8 @@ translateEdits(const MatchResult &Result, ArrayRef<ASTEdit> ASTEdits) {
     Expected<CharSourceRange> Range = E.TargetRange(Result);
     if (!Range)
       return Range.takeError();
-    llvm::Optional<CharSourceRange> EditRange =
-        tooling::getRangeForEdit(*Range, *Result.Context);
+    std::optional<CharSourceRange> EditRange =
+        tooling::getFileRangeForEdit(*Range, *Result.Context);
     // FIXME: let user specify whether to treat this case as an error or ignore
     // it as is currently done. This behavior is problematic in that it hides
     // failures from bad ranges. Also, the behavior here differs from
@@ -260,9 +258,9 @@ template <typename T>
 ast_matchers::internal::Matcher<T>
 forEachDescendantDynamically(ast_matchers::BoundNodes Nodes,
                              DynTypedMatcher M) {
-  return ast_matchers::internal::makeMatcher(new BindingsMatcher<T>(
+  return ast_matchers::internal::Matcher(new BindingsMatcher<T>(
       std::move(Nodes),
-      ast_matchers::internal::makeMatcher(
+      ast_matchers::internal::Matcher(
           new DynamicForEachDescendantMatcher<T>(std::move(M)))));
 }
 
@@ -450,7 +448,7 @@ SourceLocation transformer::detail::getRuleMatchLoc(const MatchResult &Result) {
   auto &NodesMap = Result.Nodes.getMap();
   auto Root = NodesMap.find(RootID);
   assert(Root != NodesMap.end() && "Transformation failed: missing root node.");
-  llvm::Optional<CharSourceRange> RootRange = tooling::getRangeForEdit(
+  std::optional<CharSourceRange> RootRange = tooling::getFileRangeForEdit(
       CharSourceRange::getTokenRange(Root->second.getSourceRange()),
       *Result.Context);
   if (RootRange)

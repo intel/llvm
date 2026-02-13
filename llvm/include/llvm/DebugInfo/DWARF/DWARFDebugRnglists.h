@@ -9,11 +9,11 @@
 #ifndef LLVM_DEBUGINFO_DWARF_DWARFDEBUGRNGLISTS_H
 #define LLVM_DEBUGINFO_DWARF_DWARFDEBUGRNGLISTS_H
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/DebugInfo/DWARF/DWARFAddressRange.h"
 #include "llvm/DebugInfo/DWARF/DWARFListTable.h"
+#include "llvm/Support/Compiler.h"
 #include <cstdint>
 
 namespace llvm {
@@ -36,11 +36,12 @@ struct RangeListEntry : public DWARFListEntryBase {
   uint64_t Value0;
   uint64_t Value1;
 
-  Error extract(DWARFDataExtractor Data, uint64_t *OffsetPtr);
-  void dump(raw_ostream &OS, uint8_t AddrSize, uint8_t MaxEncodingStringLength,
-            uint64_t &CurrentBase, DIDumpOptions DumpOpts,
-            llvm::function_ref<Optional<object::SectionedAddress>(uint32_t)>
-                LookupPooledAddress) const;
+  LLVM_ABI Error extract(DWARFDataExtractor Data, uint64_t *OffsetPtr);
+  LLVM_ABI void
+  dump(raw_ostream &OS, uint8_t AddrSize, uint8_t MaxEncodingStringLength,
+       uint64_t &CurrentBase, DIDumpOptions DumpOpts,
+       llvm::function_ref<std::optional<object::SectionedAddress>(uint32_t)>
+           LookupPooledAddress) const;
   bool isSentinel() const { return EntryKind == dwarf::DW_RLE_end_of_list; }
 };
 
@@ -48,16 +49,14 @@ struct RangeListEntry : public DWARFListEntryBase {
 class DWARFDebugRnglist : public DWARFListType<RangeListEntry> {
 public:
   /// Build a DWARFAddressRangesVector from a rangelist.
-  DWARFAddressRangesVector
-  getAbsoluteRanges(Optional<object::SectionedAddress> BaseAddr,
-                    uint8_t AddressByteSize,
-                    function_ref<Optional<object::SectionedAddress>(uint32_t)>
-                        LookupPooledAddress) const;
+  LLVM_ABI DWARFAddressRangesVector getAbsoluteRanges(
+      std::optional<object::SectionedAddress> BaseAddr, uint8_t AddressByteSize,
+      function_ref<std::optional<object::SectionedAddress>(uint32_t)>
+          LookupPooledAddress) const;
 
   /// Build a DWARFAddressRangesVector from a rangelist.
-  DWARFAddressRangesVector
-  getAbsoluteRanges(llvm::Optional<object::SectionedAddress> BaseAddr,
-                    DWARFUnit &U) const;
+  LLVM_ABI DWARFAddressRangesVector getAbsoluteRanges(
+      std::optional<object::SectionedAddress> BaseAddr, DWARFUnit &U) const;
 };
 
 class DWARFDebugRnglistTable : public DWARFListTableBase<DWARFDebugRnglist> {

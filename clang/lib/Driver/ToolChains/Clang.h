@@ -10,13 +10,13 @@
 #define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_CLANG_H
 
 #include "MSVC.h"
-#include "clang/Basic/DebugInfoOptions.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/Tool.h"
 #include "clang/Driver/Types.h"
-#include "llvm/ADT/Triple.h"
+#include "llvm/Frontend/Debug/Options.h"
 #include "llvm/Option/Option.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Triple.h"
 
 namespace clang {
 class ObjCRuntime;
@@ -90,9 +90,7 @@ private:
                                  RewriteKind rewrite) const;
 
   void AddClangCLArgs(const llvm::opt::ArgList &Args, types::ID InputType,
-                      llvm::opt::ArgStringList &CmdArgs,
-                      codegenoptions::DebugInfoKind *DebugInfoKind,
-                      bool *EmitCodeView) const;
+                      llvm::opt::ArgStringList &CmdArgs) const;
 
   void ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
                                 const InputInfo &Output,
@@ -130,6 +128,8 @@ class LLVM_LIBRARY_VISIBILITY ClangAs : public Tool {
 public:
   ClangAs(const ToolChain &TC)
       : Tool("clang::as", "clang integrated assembler", TC) {}
+  void AddLoongArchTargetArgs(const llvm::opt::ArgList &Args,
+                              llvm::opt::ArgStringList &CmdArgs) const;
   void AddMIPSTargetArgs(const llvm::opt::ArgList &Args,
                          llvm::opt::ArgStringList &CmdArgs) const;
   void AddX86TargetArgs(const llvm::opt::ArgList &Args,
@@ -181,7 +181,20 @@ public:
 class LLVM_LIBRARY_VISIBILITY OffloadPackager final : public Tool {
 public:
   OffloadPackager(const ToolChain &TC)
-      : Tool("Offload::Packager", "clang-offload-packager", TC) {}
+      : Tool("Offload::Packager", "llvm-offload-binary", TC) {}
+
+  bool hasIntegratedCPP() const override { return false; }
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
+};
+
+/// Offload binary extract tool.
+class LLVM_LIBRARY_VISIBILITY OffloadPackagerExtract final : public Tool {
+public:
+  OffloadPackagerExtract(const ToolChain &TC)
+      : Tool("Offload::PackagerExtract", "llvm-offload-binary", TC) {}
 
   bool hasIntegratedCPP() const override { return false; }
   void ConstructJob(Compilation &C, const JobAction &JA,
@@ -218,19 +231,6 @@ class LLVM_LIBRARY_VISIBILITY SPIRVTranslator final : public Tool {
 public:
   SPIRVTranslator(const ToolChain &TC)
       : Tool("SPIR-V translator", "llvm-spirv", TC) {}
-
-  bool hasIntegratedCPP() const override { return false; }
-  void ConstructJob(Compilation &C, const JobAction &JA,
-                    const InputInfo &Output, const InputInfoList &Inputs,
-                    const llvm::opt::ArgList &TCArgs,
-                    const char *LinkingOutput) const override;
-};
-
-/// SPIR Checking tool.
-class LLVM_LIBRARY_VISIBILITY SPIRCheck final : public Tool {
-public:
-  SPIRCheck(const ToolChain &TC)
-      : Tool("SPIR Checker", "llvm-no-spir-kernel", TC) {}
 
   bool hasIntegratedCPP() const override { return false; }
   void ConstructJob(Compilation &C, const JobAction &JA,
@@ -311,11 +311,20 @@ public:
                     const char *LinkingOutput) const override;
 };
 
-enum class DwarfFissionKind { None, Split, Single };
-
-DwarfFissionKind getDebugFissionKind(const Driver &D,
-                                     const llvm::opt::ArgList &Args,
-                                     llvm::opt::Arg *&Arg);
+// Calculate the output path of the module file when compiling a module unit
+// with the `-fmodule-output` option or `-fmodule-output=` option specified.
+// The behavior is:
+// - If `-fmodule-output=` is specfied, then the module file is
+//   writing to the value.
+// - Otherwise if the output object file of the module unit is specified, the
+// output path
+//   of the module file should be the same with the output object file except
+//   the corresponding suffix. This requires both `-o` and `-c` are specified.
+// - Otherwise, the output path of the module file will be the same with the
+//   input with the corresponding suffix.
+llvm::SmallString<256>
+getCXX20NamedModuleOutputPath(const llvm::opt::ArgList &Args,
+                              const char *BaseInput);
 
 } // end namespace tools
 

@@ -1,4 +1,4 @@
-//===--- UseEmplaceCheck.h - clang-tidy--------------------------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,16 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MODERNIZE_USE_EMPLACE_H
-#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MODERNIZE_USE_EMPLACE_H
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MODERNIZE_USEEMPLACECHECK_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MODERNIZE_USEEMPLACECHECK_H
 
 #include "../ClangTidyCheck.h"
 #include <string>
 #include <vector>
 
-namespace clang {
-namespace tidy {
-namespace modernize {
+namespace clang::tidy::modernize {
 
 /// This check looks for cases when inserting new element into std::vector but
 /// the element is constructed temporarily.
@@ -23,7 +21,7 @@ namespace modernize {
 /// constructor of temporary object.
 ///
 /// For the user-facing documentation see:
-/// http://clang.llvm.org/extra/clang-tidy/checks/modernize/use-emplace.html
+/// https://clang.llvm.org/extra/clang-tidy/checks/modernize/use-emplace.html
 class UseEmplaceCheck : public ClangTidyCheck {
 public:
   UseEmplaceCheck(StringRef Name, ClangTidyContext *Context);
@@ -45,8 +43,6 @@ private:
   const std::vector<StringRef> EmplacyFunctions;
 };
 
-} // namespace modernize
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::modernize
 
-#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MODERNIZE_USE_EMPLACE_H
+#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MODERNIZE_USEEMPLACECHECK_H

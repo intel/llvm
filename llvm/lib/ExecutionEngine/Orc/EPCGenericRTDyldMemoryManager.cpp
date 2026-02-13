@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ExecutionEngine/Orc/EPCGenericRTDyldMemoryManager.h"
-#include "llvm/ExecutionEngine/Orc/EPCGenericMemoryAccess.h"
 #include "llvm/ExecutionEngine/Orc/Shared/OrcRTBridge.h"
 #include "llvm/Support/Alignment.h"
 #include "llvm/Support/FormatVariadic.h"
@@ -26,11 +25,12 @@ EPCGenericRTDyldMemoryManager::CreateWithDefaultBootstrapSymbols(
   if (auto Err = EPC.getBootstrapSymbols(
           {{SAs.Instance, rt::SimpleExecutorMemoryManagerInstanceName},
            {SAs.Reserve, rt::SimpleExecutorMemoryManagerReserveWrapperName},
-           {SAs.Finalize, rt::SimpleExecutorMemoryManagerFinalizeWrapperName},
-           {SAs.Deallocate,
-            rt::SimpleExecutorMemoryManagerDeallocateWrapperName},
-           {SAs.RegisterEHFrame, rt::RegisterEHFrameSectionWrapperName},
-           {SAs.DeregisterEHFrame, rt::DeregisterEHFrameSectionWrapperName}}))
+           {SAs.Initialize,
+            rt::SimpleExecutorMemoryManagerInitializeWrapperName},
+           {SAs.Release, rt::SimpleExecutorMemoryManagerReleaseWrapperName},
+           {SAs.RegisterEHFrame, rt::RegisterEHFrameSectionAllocActionName},
+           {SAs.DeregisterEHFrame,
+            rt::DeregisterEHFrameSectionAllocActionName}}))
     return std::move(Err);
   return std::make_unique<EPCGenericRTDyldMemoryManager>(EPC, std::move(SAs));
 }
@@ -48,7 +48,7 @@ EPCGenericRTDyldMemoryManager::~EPCGenericRTDyldMemoryManager() {
 
   Error Err = Error::success();
   if (auto Err2 = EPC.callSPSWrapper<
-                  rt::SPSSimpleExecutorMemoryManagerDeallocateSignature>(
+                  rt::SPSSimpleExecutorMemoryManagerReleaseSignature>(
           SAs.Reserve, Err, SAs.Instance, FinalizedAllocs)) {
     // FIXME: Report errors through EPC once that functionality is available.
     logAllUnhandledErrors(std::move(Err2), errs(), "");
@@ -94,8 +94,8 @@ uint8_t *EPCGenericRTDyldMemoryManager::allocateDataSection(
 }
 
 void EPCGenericRTDyldMemoryManager::reserveAllocationSpace(
-    uintptr_t CodeSize, uint32_t CodeAlign, uintptr_t RODataSize,
-    uint32_t RODataAlign, uintptr_t RWDataSize, uint32_t RWDataAlign) {
+    uintptr_t CodeSize, Align CodeAlign, uintptr_t RODataSize,
+    Align RODataAlign, uintptr_t RWDataSize, Align RWDataAlign) {
 
   {
     std::lock_guard<std::mutex> Lock(M);
@@ -103,15 +103,15 @@ void EPCGenericRTDyldMemoryManager::reserveAllocationSpace(
     if (!ErrMsg.empty())
       return;
 
-    if (!isPowerOf2_32(CodeAlign) || CodeAlign > EPC.getPageSize()) {
+    if (CodeAlign > EPC.getPageSize()) {
       ErrMsg = "Invalid code alignment in reserveAllocationSpace";
       return;
     }
-    if (!isPowerOf2_32(RODataAlign) || RODataAlign > EPC.getPageSize()) {
+    if (RODataAlign > EPC.getPageSize()) {
       ErrMsg = "Invalid ro-data alignment in reserveAllocationSpace";
       return;
     }
-    if (!isPowerOf2_32(RWDataAlign) || RWDataAlign > EPC.getPageSize()) {
+    if (RWDataAlign > EPC.getPageSize()) {
       ErrMsg = "Invalid rw-data alignment in reserveAllocationSpace";
       return;
     }
@@ -235,7 +235,7 @@ bool EPCGenericRTDyldMemoryManager::finalizeMemory(std::string *ErrMsg) {
     for (unsigned I = 0; I != 3; ++I) {
       FR.Segments.push_back({});
       auto &Seg = FR.Segments.back();
-      Seg.AG = SegMemProts[I];
+      Seg.RAG = SegMemProts[I];
       Seg.Addr = RemoteAddrs[I]->Start;
       for (auto &SecAlloc : *SegSections[I]) {
         Seg.Size = alignTo(Seg.Size, SecAlloc.Align);
@@ -267,10 +267,10 @@ bool EPCGenericRTDyldMemoryManager::finalizeMemory(std::string *ErrMsg) {
 
     // We'll also need to make an extra allocation for the eh-frame wrapper call
     // arguments.
-    Error FinalizeErr = Error::success();
+    Expected<ExecutorAddr> InitializeKey((ExecutorAddr()));
     if (auto Err = EPC.callSPSWrapper<
-                   rt::SPSSimpleExecutorMemoryManagerFinalizeSignature>(
-            SAs.Finalize, FinalizeErr, SAs.Instance, std::move(FR))) {
+                   rt::SPSSimpleExecutorMemoryManagerInitializeSignature>(
+            SAs.Initialize, InitializeKey, SAs.Instance, std::move(FR))) {
       std::lock_guard<std::mutex> Lock(M);
       this->ErrMsg = toString(std::move(Err));
       dbgs() << "Serialization error: " << this->ErrMsg << "\n";
@@ -278,9 +278,9 @@ bool EPCGenericRTDyldMemoryManager::finalizeMemory(std::string *ErrMsg) {
         *ErrMsg = this->ErrMsg;
       return true;
     }
-    if (FinalizeErr) {
+    if (!InitializeKey) {
       std::lock_guard<std::mutex> Lock(M);
-      this->ErrMsg = toString(std::move(FinalizeErr));
+      this->ErrMsg = toString(InitializeKey.takeError());
       dbgs() << "Finalization error: " << this->ErrMsg << "\n";
       if (ErrMsg)
         *ErrMsg = this->ErrMsg;

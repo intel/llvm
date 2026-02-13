@@ -1,18 +1,18 @@
-// RUN: %clang_cc1 -verify -fopenmp -ast-print %s | FileCheck %s
-// RUN: %clang_cc1 -fopenmp -x c++ -std=c++11 -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp -std=c++11 -include-pch %t -fsyntax-only -verify %s -ast-print | FileCheck %s
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=50 -ast-print %s | FileCheck %s
+// RUN: %clang_cc1 -fopenmp -fopenmp-version=50 -x c++ -std=c++11 -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp -fopenmp-version=50 -std=c++11 -include-pch %t -verify %s -ast-print | FileCheck %s
 
-// RUN: %clang_cc1 -verify -fopenmp-simd -ast-print %s | FileCheck %s
-// RUN: %clang_cc1 -fopenmp-simd -x c++ -std=c++11 -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp-simd -std=c++11 -include-pch %t -fsyntax-only -verify %s -ast-print | FileCheck %s
+// RUN: %clang_cc1 -verify -fopenmp-simd -fopenmp-version=50 -ast-print %s | FileCheck %s
+// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=50 -x c++ -std=c++11 -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=50 -std=c++11 -include-pch %t -verify %s -ast-print | FileCheck %s
 
-// RUN: %clang_cc1 -DOMP51 -verify -fopenmp -fopenmp-version=51 -ast-print %s | FileCheck --check-prefixes=CHECK,CHECK-51 %s
-// RUN: %clang_cc1 -DOMP51 -fopenmp -fopenmp-version=51 -x c++ -std=c++11 -emit-pch -o %t %s
-// RUN: %clang_cc1 -DOMP51 -fopenmp -fopenmp-version=51 -std=c++11 -include-pch %t -fsyntax-only -verify %s -ast-print | FileCheck --check-prefixes=CHECK,CHECK-51 %s
+// RUN: %clang_cc1 -DOMP51 -verify -fopenmp -ast-print %s | FileCheck --check-prefixes=CHECK,CHECK-51 %s
+// RUN: %clang_cc1 -DOMP51 -fopenmp -x c++ -std=c++11 -emit-pch -o %t %s
+// RUN: %clang_cc1 -DOMP51 -fopenmp -std=c++11 -include-pch %t -verify %s -ast-print | FileCheck --check-prefixes=CHECK,CHECK-51 %s
 
-// RUN: %clang_cc1 -DOMP51 -verify -fopenmp-simd -fopenmp-version=51 -ast-print %s | FileCheck --check-prefixes=CHECK,CHECK-51 %s
-// RUN: %clang_cc1 -DOMP51 -fopenmp-simd -fopenmp-version=51 -x c++ -std=c++11 -emit-pch -o %t %s
-// RUN: %clang_cc1 -DOMP51 -fopenmp-simd -fopenmp-version=51 -std=c++11 -include-pch %t -fsyntax-only -verify %s -ast-print | FileCheck --check-prefixes=CHECK,CHECK-51 %s
+// RUN: %clang_cc1 -DOMP51 -verify -fopenmp-simd -ast-print %s | FileCheck --check-prefixes=CHECK,CHECK-51 %s
+// RUN: %clang_cc1 -DOMP51 -fopenmp-simd -x c++ -std=c++11 -emit-pch -o %t %s
+// RUN: %clang_cc1 -DOMP51 -fopenmp-simd -std=c++11 -include-pch %t -verify %s -ast-print | FileCheck --check-prefixes=CHECK,CHECK-51 %s
 // expected-no-diagnostics
 
 #ifndef HEADER
@@ -226,6 +226,14 @@ T foo(T argc) {
   { v = a; if (a < b) { a = b; } }
 #pragma omp atomic compare capture hint(6)
   { v = a == b; if (v) a = c; }
+#pragma omp atomic compare fail(acquire)
+  { if (a < c) { a = c; } }
+#pragma omp atomic compare fail(relaxed)
+  { if (a < c) { a = c; } }
+#pragma omp atomic compare fail(seq_cst)
+  { if (a < c) { a = c; } }
+#pragma omp atomic compare seq_cst weak
+  { if(a == b) { a = c; } }
 #endif
   return T();
 }
@@ -1099,6 +1107,14 @@ int main(int argc, char **argv) {
   { v = a; if (a < b) { a = b; } }
 #pragma omp atomic compare capture hint(6)
   { v = a == b; if (v) a = c; }
+#pragma omp atomic compare fail(acquire)
+  if(a < b) { a = b; }
+#pragma omp atomic compare fail(relaxed)
+  if(a < b) { a = b; }
+#pragma omp atomic compare fail(seq_cst)
+  if(a < b) { a = b; }
+#pragma omp atomic compare seq_cst weak
+  if(a == b) { a = c; }
 #endif
   // CHECK-NEXT: #pragma omp atomic
   // CHECK-NEXT: a++;
@@ -1429,8 +1445,5384 @@ int main(int argc, char **argv) {
   // CHECK-51-NEXT: if (v)
   // CHECK-51-NEXT: a = c;
   // CHECK-51-NEXT: }
+  // CHECK-51-NEXT: #pragma omp atomic compare fail(acquire)
+  // CHECK-51-NEXT: if (a < b) {
+  // CHECK-51-NEXT: a = b;
+  // CHECK-51-NEXT: }
+  // CHECK-51-NEXT: #pragma omp atomic compare fail(relaxed)
+  // CHECK-51-NEXT: if (a < b) {
+  // CHECK-51-NEXT: a = b;
+  // CHECK-51-NEXT: }
+  // CHECK-51-NEXT: #pragma omp atomic compare fail(seq_cst)
+  // CHECK-51-NEXT: if (a < b) {
+  // CHECK-51-NEXT: a = b;
+  // CHECK-51-NEXT: }
+  // CHECK-51-NEXT: #pragma omp atomic compare seq_cst weak
+  // CHECK-51-NEXT: if (a == b) {
+  // CHECK-51-NEXT: a = c;
+  // CHECK-51-NEXT: }
   // expect-note@+1 {{in instantiation of function template specialization 'foo<int>' requested here}}
   return foo(a);
 }
+
+#ifdef OMP51
+
+template <typename Ty> Ty ffoo(Ty *x, Ty e, Ty d) {
+  Ty v;
+  bool r;
+
+#pragma omp atomic compare capture
+  {
+    v = *x;
+    if (*x > e)
+      *x = e;
+  }
+#pragma omp atomic compare capture
+  {
+    v = *x;
+    if (*x < e)
+      *x = e;
+  }
+#pragma omp atomic compare capture
+  {
+    v = *x;
+    if (*x == e)
+      *x = d;
+  }
+#pragma omp atomic compare capture
+  {
+    if (*x > e)
+      *x = e;
+    v = *x;
+  }
+#pragma omp atomic compare capture
+  {
+    if (*x < e)
+      *x = e;
+    v = *x;
+  }
+#pragma omp atomic compare capture
+  {
+    if (*x == e)
+      *x = d;
+    v = *x;
+  }
+#pragma omp atomic compare capture
+  {
+    if (*x == e)
+      *x = d;
+    else
+      v = *x;
+  }
+#pragma omp atomic compare capture
+  {
+    r = *x == e;
+    if (r)
+      *x = d;
+  }
+#pragma omp atomic compare capture
+  {
+    r = *x == e;
+    if (r)
+      *x = d;
+    else
+      v = *x;
+  }
+
+#pragma omp atomic compare capture acq_rel
+  {
+    v = *x;
+    if (*x > e)
+      *x = e;
+  }
+#pragma omp atomic compare capture acq_rel
+  {
+    v = *x;
+    if (*x < e)
+      *x = e;
+  }
+#pragma omp atomic compare capture acq_rel
+  {
+    v = *x;
+    if (*x == e)
+      *x = d;
+  }
+#pragma omp atomic compare capture acq_rel
+  {
+    if (*x > e)
+      *x = e;
+    v = *x;
+  }
+#pragma omp atomic compare capture acq_rel
+  {
+    if (*x < e)
+      *x = e;
+    v = *x;
+  }
+#pragma omp atomic compare capture acq_rel
+  {
+    if (*x == e)
+      *x = d;
+    v = *x;
+  }
+#pragma omp atomic compare capture acq_rel
+  {
+    if (*x == e)
+      *x = d;
+    else
+      v = *x;
+  }
+#pragma omp atomic compare capture acq_rel
+  {
+    r = *x == e;
+    if (r)
+      *x = d;
+  }
+#pragma omp atomic compare capture acq_rel
+  {
+    r = *x == e;
+    if (r)
+      *x = d;
+    else
+      v = *x;
+  }
+
+#pragma omp atomic compare capture acquire
+  {
+    v = *x;
+    if (*x > e)
+      *x = e;
+  }
+#pragma omp atomic compare capture acquire
+  {
+    v = *x;
+    if (*x < e)
+      *x = e;
+  }
+#pragma omp atomic compare capture acquire
+  {
+    v = *x;
+    if (*x == e)
+      *x = d;
+  }
+#pragma omp atomic compare capture acquire
+  {
+    if (*x > e)
+      *x = e;
+    v = *x;
+  }
+#pragma omp atomic compare capture acquire
+  {
+    if (*x < e)
+      *x = e;
+    v = *x;
+  }
+#pragma omp atomic compare capture acquire
+  {
+    if (*x == e)
+      *x = d;
+    v = *x;
+  }
+#pragma omp atomic compare capture acquire
+  {
+    if (*x == e)
+      *x = d;
+    else
+      v = *x;
+  }
+#pragma omp atomic compare capture acquire
+  {
+    r = *x == e;
+    if (r)
+      *x = d;
+  }
+#pragma omp atomic compare capture acquire
+  {
+    r = *x == e;
+    if (r)
+      *x = d;
+    else
+      v = *x;
+  }
+
+#pragma omp atomic compare capture relaxed
+  {
+    v = *x;
+    if (*x > e)
+      *x = e;
+  }
+#pragma omp atomic compare capture relaxed
+  {
+    v = *x;
+    if (*x < e)
+      *x = e;
+  }
+#pragma omp atomic compare capture relaxed
+  {
+    v = *x;
+    if (*x == e)
+      *x = d;
+  }
+#pragma omp atomic compare capture relaxed
+  {
+    if (*x > e)
+      *x = e;
+    v = *x;
+  }
+#pragma omp atomic compare capture relaxed
+  {
+    if (*x < e)
+      *x = e;
+    v = *x;
+  }
+#pragma omp atomic compare capture relaxed
+  {
+    if (*x == e)
+      *x = d;
+    v = *x;
+  }
+#pragma omp atomic compare capture relaxed
+  {
+    if (*x == e)
+      *x = d;
+    else
+      v = *x;
+  }
+#pragma omp atomic compare capture relaxed
+  {
+    r = *x == e;
+    if (r)
+      *x = d;
+  }
+#pragma omp atomic compare capture relaxed
+  {
+    r = *x == e;
+    if (r)
+      *x = d;
+    else
+      v = *x;
+  }
+
+#pragma omp atomic compare capture release
+  {
+    v = *x;
+    if (*x > e)
+      *x = e;
+  }
+#pragma omp atomic compare capture release
+  {
+    v = *x;
+    if (*x < e)
+      *x = e;
+  }
+#pragma omp atomic compare capture release
+  {
+    v = *x;
+    if (*x == e)
+      *x = d;
+  }
+#pragma omp atomic compare capture release
+  {
+    if (*x > e)
+      *x = e;
+    v = *x;
+  }
+#pragma omp atomic compare capture release
+  {
+    if (*x < e)
+      *x = e;
+    v = *x;
+  }
+#pragma omp atomic compare capture release
+  {
+    if (*x == e)
+      *x = d;
+    v = *x;
+  }
+#pragma omp atomic compare capture release
+  {
+    if (*x == e)
+      *x = d;
+    else
+      v = *x;
+  }
+#pragma omp atomic compare capture release
+  {
+    r = *x == e;
+    if (r)
+      *x = d;
+  }
+#pragma omp atomic compare capture release
+  {
+    r = *x == e;
+    if (r)
+      *x = d;
+    else
+      v = *x;
+  }
+
+#pragma omp atomic compare capture seq_cst
+  {
+    v = *x;
+    if (*x > e)
+      *x = e;
+  }
+#pragma omp atomic compare capture seq_cst
+  {
+    v = *x;
+    if (*x < e)
+      *x = e;
+  }
+#pragma omp atomic compare capture seq_cst
+  {
+    v = *x;
+    if (*x == e)
+      *x = d;
+  }
+#pragma omp atomic compare capture seq_cst
+  {
+    if (*x > e)
+      *x = e;
+    v = *x;
+  }
+#pragma omp atomic compare capture seq_cst
+  {
+    if (*x < e)
+      *x = e;
+    v = *x;
+  }
+#pragma omp atomic compare capture seq_cst
+  {
+    if (*x == e)
+      *x = d;
+    v = *x;
+  }
+#pragma omp atomic compare capture seq_cst
+  {
+    if (*x == e)
+      *x = d;
+    else
+      v = *x;
+  }
+#pragma omp atomic compare capture seq_cst
+  {
+    r = *x == e;
+    if (r)
+      *x = d;
+  }
+#pragma omp atomic compare capture seq_cst
+  {
+    r = *x == e;
+    if (r)
+      *x = d;
+    else
+      v = *x;
+  }
+
+  return v;
+}
+
+void bbaarr() {
+  {
+    char x, e, d;
+    ffoo(&x, e, d);
+  }
+
+  {
+    unsigned char x, e, d;
+    ffoo(&x, e, d);
+  }
+
+  {
+    short x, e, d;
+    ffoo(&x, e, d);
+  }
+
+  {
+    unsigned short x, e, d;
+    ffoo(&x, e, d);
+  }
+
+  {
+    int x, e, d;
+    ffoo(&x, e, d);
+  }
+
+  {
+    unsigned int x, e, d;
+    ffoo(&x, e, d);
+  }
+
+  {
+    long x, e, d;
+    ffoo(&x, e, d);
+  }
+
+  {
+    unsigned long x, e, d;
+    ffoo(&x, e, d);
+  }
+
+  {
+    long long x, e, d;
+    ffoo(&x, e, d);
+  }
+
+  {
+    unsigned long long x, e, d;
+    ffoo(&x, e, d);
+  }
+
+  {
+    float x, e, d;
+    ffoo(&x, e, d);
+  }
+
+  {
+    double x, e, d;
+    ffoo(&x, e, d);
+  }
+}
+
+// CHECK-51: template <typename Ty> Ty ffoo(Ty *x, Ty e, Ty d) {
+// CHECK-51-NEXT: Ty v;
+// CHECK-51-NEXT: bool r;
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: return v;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: template<> char ffoo<char>(char *x, char e, char d) {
+// CHECK-51-NEXT: char v;
+// CHECK-51-NEXT: bool r;
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: return v;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: template<> unsigned char ffoo<unsigned char>(unsigned char *x, unsigned char e, unsigned char d) {
+// CHECK-51-NEXT: unsigned char v;
+// CHECK-51-NEXT: bool r;
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: return v;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: template<> short ffoo<short>(short *x, short e, short d) {
+// CHECK-51-NEXT: short v;
+// CHECK-51-NEXT: bool r;
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: return v;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: template<> unsigned short ffoo<unsigned short>(unsigned short *x, unsigned short e, unsigned short d) {
+// CHECK-51-NEXT: unsigned short v;
+// CHECK-51-NEXT: bool r;
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: return v;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: template<> int ffoo<int>(int *x, int e, int d) {
+// CHECK-51-NEXT: int v;
+// CHECK-51-NEXT: bool r;
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: return v;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: template<> unsigned int ffoo<unsigned int>(unsigned int *x, unsigned int e, unsigned int d) {
+// CHECK-51-NEXT: unsigned int v;
+// CHECK-51-NEXT: bool r;
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: return v;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: template<> long ffoo<long>(long *x, long e, long d) {
+// CHECK-51-NEXT: long v;
+// CHECK-51-NEXT: bool r;
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: return v;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: template<> unsigned long ffoo<unsigned long>(unsigned long *x, unsigned long e, unsigned long d) {
+// CHECK-51-NEXT: unsigned long v;
+// CHECK-51-NEXT: bool r;
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: return v;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: template<> long long ffoo<long long>(long long *x, long long e, long long d) {
+// CHECK-51-NEXT: long long v;
+// CHECK-51-NEXT: bool r;
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: return v;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: template<> unsigned long long ffoo<unsigned long long>(unsigned long long *x, unsigned long long e, unsigned long long d) {
+// CHECK-51-NEXT: unsigned long long v;
+// CHECK-51-NEXT: bool r;
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: return v;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: template<> float ffoo<float>(float *x, float e, float d) {
+// CHECK-51-NEXT: float v;
+// CHECK-51-NEXT: bool r;
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: return v;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: template<> double ffoo<double>(double *x, double e, double d) {
+// CHECK-51-NEXT: double v;
+// CHECK-51-NEXT: bool r;
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x > e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x < e)
+// CHECK-51-NEXT: *x = e;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: if (*x == e)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: r = *x == e;
+// CHECK-51-NEXT: if (r)
+// CHECK-51-NEXT: *x = d;
+// CHECK-51-NEXT: else
+// CHECK-51-NEXT: v = *x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: return v;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: void bbaarr() {
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: char x, e, d;
+// CHECK-51-NEXT: ffoo(&x, e, d);
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: unsigned char x, e, d;
+// CHECK-51-NEXT: ffoo(&x, e, d);
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: short x, e, d;
+// CHECK-51-NEXT: ffoo(&x, e, d);
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: unsigned short x, e, d;
+// CHECK-51-NEXT: ffoo(&x, e, d);
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: int x, e, d;
+// CHECK-51-NEXT: ffoo(&x, e, d);
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: unsigned int x, e, d;
+// CHECK-51-NEXT: ffoo(&x, e, d);
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: long x, e, d;
+// CHECK-51-NEXT: ffoo(&x, e, d);
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: unsigned long x, e, d;
+// CHECK-51-NEXT: ffoo(&x, e, d);
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: long long x, e, d;
+// CHECK-51-NEXT: ffoo(&x, e, d);
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: unsigned long long x, e, d;
+// CHECK-51-NEXT: ffoo(&x, e, d);
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: float x, e, d;
+// CHECK-51-NEXT: ffoo(&x, e, d);
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: double x, e, d;
+// CHECK-51-NEXT: ffoo(&x, e, d);
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: }
+
+int xevd() {
+  int x, v, e, d;
+
+#pragma omp atomic compare capture
+  {
+    v = x;
+    x = x > e ? e : x;
+  }
+#pragma omp atomic compare capture
+  {
+    v = x;
+    x = x < e ? e : x;
+  }
+#pragma omp atomic compare capture
+  {
+    v = x;
+    x = x == e ? d : x;
+  }
+#pragma omp atomic compare capture
+  {
+    x = x > e ? e : x;
+    v = x;
+  }
+#pragma omp atomic compare capture
+  {
+    x = x < e ? e : x;
+    v = x;
+  }
+#pragma omp atomic compare capture
+  {
+    x = x == e ? d : x;
+    v = x;
+  }
+
+#pragma omp atomic compare capture acq_rel
+  {
+    v = x;
+    x = x > e ? e : x;
+  }
+#pragma omp atomic compare capture acq_rel
+  {
+    v = x;
+    x = x < e ? e : x;
+  }
+#pragma omp atomic compare capture acq_rel
+  {
+    v = x;
+    x = x == e ? d : x;
+  }
+#pragma omp atomic compare capture acq_rel
+  {
+    x = x > e ? e : x;
+    v = x;
+  }
+#pragma omp atomic compare capture acq_rel
+  {
+    x = x < e ? e : x;
+    v = x;
+  }
+#pragma omp atomic compare capture acq_rel
+  {
+    x = x == e ? d : x;
+    v = x;
+  }
+
+#pragma omp atomic compare capture acquire
+  {
+    v = x;
+    x = x > e ? e : x;
+  }
+#pragma omp atomic compare capture acquire
+  {
+    v = x;
+    x = x < e ? e : x;
+  }
+#pragma omp atomic compare capture acquire
+  {
+    v = x;
+    x = x == e ? d : x;
+  }
+#pragma omp atomic compare capture acquire
+  {
+    x = x > e ? e : x;
+    v = x;
+  }
+#pragma omp atomic compare capture acquire
+  {
+    x = x < e ? e : x;
+    v = x;
+  }
+#pragma omp atomic compare capture acquire
+  {
+    x = x == e ? d : x;
+    v = x;
+  }
+
+#pragma omp atomic compare capture relaxed
+  {
+    v = x;
+    x = x > e ? e : x;
+  }
+#pragma omp atomic compare capture relaxed
+  {
+    v = x;
+    x = x < e ? e : x;
+  }
+#pragma omp atomic compare capture relaxed
+  {
+    v = x;
+    x = x == e ? d : x;
+  }
+#pragma omp atomic compare capture relaxed
+  {
+    x = x > e ? e : x;
+    v = x;
+  }
+#pragma omp atomic compare capture relaxed
+  {
+    x = x < e ? e : x;
+    v = x;
+  }
+#pragma omp atomic compare capture relaxed
+  {
+    x = x == e ? d : x;
+    v = x;
+  }
+
+#pragma omp atomic compare capture release
+  {
+    v = x;
+    x = x > e ? e : x;
+  }
+#pragma omp atomic compare capture release
+  {
+    v = x;
+    x = x < e ? e : x;
+  }
+#pragma omp atomic compare capture release
+  {
+    v = x;
+    x = x == e ? d : x;
+  }
+#pragma omp atomic compare capture release
+  {
+    x = x > e ? e : x;
+    v = x;
+  }
+#pragma omp atomic compare capture release
+  {
+    x = x < e ? e : x;
+    v = x;
+  }
+#pragma omp atomic compare capture release
+  {
+    x = x == e ? d : x;
+    v = x;
+  }
+
+#pragma omp atomic compare capture seq_cst
+  {
+    v = x;
+    x = x > e ? e : x;
+  }
+#pragma omp atomic compare capture seq_cst
+  {
+    v = x;
+    x = x < e ? e : x;
+  }
+#pragma omp atomic compare capture seq_cst
+  {
+    v = x;
+    x = x == e ? d : x;
+  }
+#pragma omp atomic compare capture seq_cst
+  {
+    x = x > e ? e : x;
+    v = x;
+  }
+#pragma omp atomic compare capture seq_cst
+  {
+    x = x < e ? e : x;
+    v = x;
+  }
+#pragma omp atomic compare capture seq_cst
+  {
+    x = x == e ? d : x;
+    v = x;
+  }
+
+  return v;
+}
+
+// CHECK-51: int xevd() {
+// CHECK-51-NEXT: int x, v, e, d;
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: x = x > e ? e : x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: x = x < e ? e : x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: x = x == e ? d : x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: x = x > e ? e : x;
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: x = x < e ? e : x;
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: x = x == e ? d : x;
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: x = x > e ? e : x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: x = x < e ? e : x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: x = x == e ? d : x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: x = x > e ? e : x;
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: x = x < e ? e : x;
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acq_rel
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: x = x == e ? d : x;
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: x = x > e ? e : x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: x = x < e ? e : x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: x = x == e ? d : x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: x = x > e ? e : x;
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: x = x < e ? e : x;
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture acquire
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: x = x == e ? d : x;
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: x = x > e ? e : x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: x = x < e ? e : x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: x = x == e ? d : x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: x = x > e ? e : x;
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: x = x < e ? e : x;
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture relaxed
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: x = x == e ? d : x;
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: x = x > e ? e : x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: x = x < e ? e : x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: x = x == e ? d : x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: x = x > e ? e : x;
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: x = x < e ? e : x;
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture release
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: x = x == e ? d : x;
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: x = x > e ? e : x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: x = x < e ? e : x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: x = x == e ? d : x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: x = x > e ? e : x;
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: #pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: x = x < e ? e : x;
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: pragma omp atomic compare capture seq_cst
+// CHECK-51-NEXT: {
+// CHECK-51-NEXT: x = x == e ? d : x;
+// CHECK-51-NEXT: v = x;
+// CHECK-51-NEXT: }
+// CHECK-51-NEXT: return v;
+// CHECK-51-NEXT: }
+
+#endif
 
 #endif

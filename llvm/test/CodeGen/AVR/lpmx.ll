@@ -20,14 +20,14 @@ define i16 @foo0(i16 %a) addrspace(1) {
 ; CHECK-O0-NEXT:    out 62, r29
 ; CHECK-O0-NEXT:    out 63, r0
 ; CHECK-O0-NEXT:    out 61, r28
-; CHECK-O0-NEXT:    std Y+1, r24
 ; CHECK-O0-NEXT:    std Y+2, r25
+; CHECK-O0-NEXT:    std Y+1, r24
 ; CHECK-O0-NEXT:    ldd r30, Y+1
 ; CHECK-O0-NEXT:    ldd r31, Y+2
 ; CHECK-O0-NEXT:    lsl r30
 ; CHECK-O0-NEXT:    rol r31
-; CHECK-O0-NEXT:    subi r30, -lo8(arr0)
-; CHECK-O0-NEXT:    sbci r31, -hi8(arr0)
+; CHECK-O0-NEXT:    subi r30, lo8(-(arr0))
+; CHECK-O0-NEXT:    sbci r31, hi8(-(arr0))
 ; CHECK-O0-NEXT:    lpm r24, Z+
 ; CHECK-O0-NEXT:    lpm r25, Z
 ; CHECK-O0-NEXT:    adiw r28, 2
@@ -52,12 +52,12 @@ define i16 @foo0(i16 %a) addrspace(1) {
 ; CHECK-O3-NEXT:    out 62, r29
 ; CHECK-O3-NEXT:    out 63, r0
 ; CHECK-O3-NEXT:    out 61, r28
-; CHECK-O3-NEXT:    std Y+1, r24
 ; CHECK-O3-NEXT:    std Y+2, r25
+; CHECK-O3-NEXT:    std Y+1, r24
 ; CHECK-O3-NEXT:    lsl r24
 ; CHECK-O3-NEXT:    rol r25
-; CHECK-O3-NEXT:    subi r24, -lo8(arr0)
-; CHECK-O3-NEXT:    sbci r25, -hi8(arr0)
+; CHECK-O3-NEXT:    subi r24, lo8(-(arr0))
+; CHECK-O3-NEXT:    sbci r25, hi8(-(arr0))
 ; CHECK-O3-NEXT:    movw r30, r24
 ; CHECK-O3-NEXT:    lpm r24, Z+
 ; CHECK-O3-NEXT:    lpm r25, Z
@@ -72,10 +72,10 @@ define i16 @foo0(i16 %a) addrspace(1) {
 ; CHECK-O3-NEXT:    ret
 entry:
   %a.addr = alloca i16, align 1
-  store i16 %a, i16* %a.addr, align 1
-  %0 = load i16, i16* %a.addr, align 1
-  %arrayidx = getelementptr inbounds [4 x i16], [4 x i16] addrspace(1)* @arr0, i16 0, i16 %0
-  %1 = load i16, i16 addrspace(1)* %arrayidx, align 1
+  store i16 %a, ptr %a.addr, align 1
+  %0 = load i16, ptr %a.addr, align 1
+  %arrayidx = getelementptr inbounds [4 x i16], ptr addrspace(1) @arr0, i16 0, i16 %0
+  %1 = load i16, ptr addrspace(1) %arrayidx, align 1
   ret i16 %1
 }
 
@@ -92,12 +92,12 @@ define i8 @foo1(i16 %a) addrspace(1) {
 ; CHECK-O0-NEXT:    out 62, r29
 ; CHECK-O0-NEXT:    out 63, r0
 ; CHECK-O0-NEXT:    out 61, r28
-; CHECK-O0-NEXT:    std Y+1, r24
 ; CHECK-O0-NEXT:    std Y+2, r25
+; CHECK-O0-NEXT:    std Y+1, r24
 ; CHECK-O0-NEXT:    ldd r30, Y+1
 ; CHECK-O0-NEXT:    ldd r31, Y+2
-; CHECK-O0-NEXT:    subi r30, -lo8(arr1)
-; CHECK-O0-NEXT:    sbci r31, -hi8(arr1)
+; CHECK-O0-NEXT:    subi r30, lo8(-(arr1))
+; CHECK-O0-NEXT:    sbci r31, hi8(-(arr1))
 ; CHECK-O0-NEXT:    lpm r24, Z
 ; CHECK-O0-NEXT:    adiw r28, 2
 ; CHECK-O0-NEXT:    in r0, 63
@@ -121,10 +121,10 @@ define i8 @foo1(i16 %a) addrspace(1) {
 ; CHECK-O3-NEXT:    out 62, r29
 ; CHECK-O3-NEXT:    out 63, r0
 ; CHECK-O3-NEXT:    out 61, r28
-; CHECK-O3-NEXT:    std Y+1, r24
 ; CHECK-O3-NEXT:    std Y+2, r25
-; CHECK-O3-NEXT:    subi r24, -lo8(arr1)
-; CHECK-O3-NEXT:    sbci r25, -hi8(arr1)
+; CHECK-O3-NEXT:    std Y+1, r24
+; CHECK-O3-NEXT:    subi r24, lo8(-(arr1))
+; CHECK-O3-NEXT:    sbci r25, hi8(-(arr1))
 ; CHECK-O3-NEXT:    movw r30, r24
 ; CHECK-O3-NEXT:    lpm r24, Z
 ; CHECK-O3-NEXT:    adiw r28, 2
@@ -138,9 +138,9 @@ define i8 @foo1(i16 %a) addrspace(1) {
 ; CHECK-O3-NEXT:    ret
 entry:
   %a.addr = alloca i16, align 1
-  store i16 %a, i16* %a.addr, align 1
-  %0 = load i16, i16* %a.addr, align 1
-  %arrayidx = getelementptr inbounds [4 x i8], [4 x i8] addrspace(1)* @arr1, i16 0, i16 %0
-  %1 = load i8, i8 addrspace(1)* %arrayidx, align 1
+  store i16 %a, ptr %a.addr, align 1
+  %0 = load i16, ptr %a.addr, align 1
+  %arrayidx = getelementptr inbounds [4 x i8], ptr addrspace(1) @arr1, i16 0, i16 %0
+  %1 = load i8, ptr addrspace(1) %arrayidx, align 1
   ret i8 %1
 }

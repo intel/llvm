@@ -1,6 +1,6 @@
 ! Test forall lowering
 
-! RUN: bbc -emit-fir %s -o - | FileCheck %s
+! RUN: bbc -emit-fir -hlfir=false %s -o - | FileCheck %s
 
 ! CHECK-LABEL: func @_QPtest_forall_with_slice(
 ! CHECK-SAME:       %[[VAL_0:.*]]: !fir.ref<i32>{{.*}}, %[[VAL_1:.*]]: !fir.ref<i32>{{.*}}) {
@@ -53,7 +53,7 @@
 ! CHECK:             %[[VAL_50:.*]] = arith.divsi %[[VAL_49]], %[[VAL_43]] : index
 ! CHECK:             %[[VAL_51:.*]] = arith.cmpi sgt, %[[VAL_50]], %[[VAL_47]] : index
 ! CHECK:             %[[VAL_52:.*]] = arith.select %[[VAL_51]], %[[VAL_50]], %[[VAL_47]] : index
-! CHECK:             %[[VAL_59:.*]] = fir.call @_QPf(%[[VAL_3]]) : (!fir.ref<i32>) -> i32
+! CHECK:             %[[VAL_59:.*]] = fir.call @_QPf(%[[VAL_3]]) {{.*}}: (!fir.ref<i32>) -> i32
 ! CHECK:             %[[VAL_53:.*]] = arith.constant 1 : index
 ! CHECK:             %[[VAL_54:.*]] = arith.constant 0 : index
 ! CHECK:             %[[VAL_55:.*]] = arith.subi %[[VAL_52]], %[[VAL_53]] : index

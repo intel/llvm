@@ -1,7 +1,5 @@
-; RUN: opt %loadPolly -polly-print-scops -disable-output \
-; RUN: -polly-invariant-load-hoisting=true < %s | FileCheck %s
-; RUN: opt %loadPolly -polly-codegen -S \
-; RUN: -polly-invariant-load-hoisting=true < %s | FileCheck %s --check-prefix=IR
+; RUN: opt %loadNPMPolly '-passes=polly-custom<scops>' -polly-print-scops -disable-output -polly-invariant-load-hoisting=true < %s 2>&1 | FileCheck %s
+; RUN: opt %loadNPMPolly '-passes=polly<no-default-opts>' -S -polly-invariant-load-hoisting=true < %s 2>&1 | FileCheck %s --check-prefix=IR
 ;
 ; Verify we do not create assumptions based on the parameter p_1 which is the
 ; load %0 and due to error-assumptions not "part of the SCoP".
@@ -23,7 +21,7 @@ entry.split:                                      ; preds = %entry
 
 if.end:                                           ; preds = %entry.split
   tail call void @_ZN8NWindows16NSynchronization8CSynchro5EnterEv()
-  %0 = load i32, i32* null, align 8
+  %0 = load i32, ptr null, align 8
   %add = add nsw i32 %0, %releaseCount
   %cmp2 = icmp sgt i32 %add, 0
   br i1 %cmp2, label %if.then3, label %if.end5

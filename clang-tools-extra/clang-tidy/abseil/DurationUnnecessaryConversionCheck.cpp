@@ -1,5 +1,4 @@
-//===--- DurationUnnecessaryConversionCheck.cpp - clang-tidy
-//-----------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -15,17 +14,15 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace abseil {
+namespace clang::tidy::abseil {
 
 void DurationUnnecessaryConversionCheck::registerMatchers(MatchFinder *Finder) {
   for (const auto &Scale : {"Hours", "Minutes", "Seconds", "Milliseconds",
                             "Microseconds", "Nanoseconds"}) {
-    std::string DurationFactory = (llvm::Twine("::absl::") + Scale).str();
-    std::string FloatConversion =
+    const std::string DurationFactory = (llvm::Twine("::absl::") + Scale).str();
+    const std::string FloatConversion =
         (llvm::Twine("::absl::ToDouble") + Scale).str();
-    std::string IntegerConversion =
+    const std::string IntegerConversion =
         (llvm::Twine("::absl::ToInt64") + Scale).str();
 
     // Matcher which matches the current scale's factory with a `1` argument,
@@ -113,6 +110,4 @@ void DurationUnnecessaryConversionCheck::check(
       << Hint;
 }
 
-} // namespace abseil
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::abseil

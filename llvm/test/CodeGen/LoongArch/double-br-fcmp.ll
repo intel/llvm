@@ -7,29 +7,26 @@ declare void @abort()
 define void @br_fcmp_oeq_bcnez(double %a, double %b) nounwind {
 ; LA32-LABEL: br_fcmp_oeq_bcnez:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
 ; LA32-NEXT:    fcmp.ceq.d $fcc0, $fa0, $fa1
 ; LA32-NEXT:    bcnez $fcc0, .LBB0_2
 ; LA32-NEXT:  # %bb.1: # %if.else
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
 ; LA32-NEXT:    ret
 ; LA32-NEXT:  .LBB0_2: # %if.then
-; LA32-NEXT:    bl %plt(abort)
+; LA32-NEXT:    addi.w $sp, $sp, -16
+; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
+; LA32-NEXT:    bl abort
 ;
 ; LA64-LABEL: br_fcmp_oeq_bcnez:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
 ; LA64-NEXT:    fcmp.ceq.d $fcc0, $fa0, $fa1
 ; LA64-NEXT:    bcnez $fcc0, .LBB0_2
 ; LA64-NEXT:  # %bb.1: # %if.else
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
 ; LA64-NEXT:    ret
 ; LA64-NEXT:  .LBB0_2: # %if.then
-; LA64-NEXT:    bl %plt(abort)
+; LA64-NEXT:    addi.d $sp, $sp, -16
+; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
+; LA64-NEXT:    pcaddu18i $ra, %call36(abort)
+; LA64-NEXT:    jirl $ra, $ra, 0
   %1 = fcmp oeq double %a, %b
   br i1 %1, label %if.then, label %if.else
 if.else:
@@ -42,29 +39,26 @@ if.then:
 define void @br_fcmp_oeq_bceqz(double %a, double %b) nounwind {
 ; LA32-LABEL: br_fcmp_oeq_bceqz:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
 ; LA32-NEXT:    fcmp.cune.d $fcc0, $fa0, $fa1
 ; LA32-NEXT:    bceqz $fcc0, .LBB1_2
 ; LA32-NEXT:  # %bb.1: # %if.else
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
 ; LA32-NEXT:    ret
 ; LA32-NEXT:  .LBB1_2: # %if.then
-; LA32-NEXT:    bl %plt(abort)
+; LA32-NEXT:    addi.w $sp, $sp, -16
+; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
+; LA32-NEXT:    bl abort
 ;
 ; LA64-LABEL: br_fcmp_oeq_bceqz:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
 ; LA64-NEXT:    fcmp.cune.d $fcc0, $fa0, $fa1
 ; LA64-NEXT:    bceqz $fcc0, .LBB1_2
 ; LA64-NEXT:  # %bb.1: # %if.else
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
 ; LA64-NEXT:    ret
 ; LA64-NEXT:  .LBB1_2: # %if.then
-; LA64-NEXT:    bl %plt(abort)
+; LA64-NEXT:    addi.d $sp, $sp, -16
+; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
+; LA64-NEXT:    pcaddu18i $ra, %call36(abort)
+; LA64-NEXT:    jirl $ra, $ra, 0
   %1 = fcmp oeq double %a, %b
   br i1 %1, label %if.then, label %if.else
 if.then:
@@ -77,29 +71,26 @@ if.else:
 define void @br_fcmp_ogt_bcnez(double %a, double %b) nounwind {
 ; LA32-LABEL: br_fcmp_ogt_bcnez:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
 ; LA32-NEXT:    fcmp.clt.d $fcc0, $fa1, $fa0
 ; LA32-NEXT:    bcnez $fcc0, .LBB2_2
 ; LA32-NEXT:  # %bb.1: # %if.else
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
 ; LA32-NEXT:    ret
 ; LA32-NEXT:  .LBB2_2: # %if.then
-; LA32-NEXT:    bl %plt(abort)
+; LA32-NEXT:    addi.w $sp, $sp, -16
+; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
+; LA32-NEXT:    bl abort
 ;
 ; LA64-LABEL: br_fcmp_ogt_bcnez:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
 ; LA64-NEXT:    fcmp.clt.d $fcc0, $fa1, $fa0
 ; LA64-NEXT:    bcnez $fcc0, .LBB2_2
 ; LA64-NEXT:  # %bb.1: # %if.else
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
 ; LA64-NEXT:    ret
 ; LA64-NEXT:  .LBB2_2: # %if.then
-; LA64-NEXT:    bl %plt(abort)
+; LA64-NEXT:    addi.d $sp, $sp, -16
+; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
+; LA64-NEXT:    pcaddu18i $ra, %call36(abort)
+; LA64-NEXT:    jirl $ra, $ra, 0
   %1 = fcmp ogt double %a, %b
   br i1 %1, label %if.then, label %if.else
 if.else:
@@ -112,29 +103,26 @@ if.then:
 define void @br_fcmp_ogt_bceqz(double %a, double %b) nounwind {
 ; LA32-LABEL: br_fcmp_ogt_bceqz:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
 ; LA32-NEXT:    fcmp.cule.d $fcc0, $fa0, $fa1
 ; LA32-NEXT:    bceqz $fcc0, .LBB3_2
 ; LA32-NEXT:  # %bb.1: # %if.else
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
 ; LA32-NEXT:    ret
 ; LA32-NEXT:  .LBB3_2: # %if.then
-; LA32-NEXT:    bl %plt(abort)
+; LA32-NEXT:    addi.w $sp, $sp, -16
+; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
+; LA32-NEXT:    bl abort
 ;
 ; LA64-LABEL: br_fcmp_ogt_bceqz:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
 ; LA64-NEXT:    fcmp.cule.d $fcc0, $fa0, $fa1
 ; LA64-NEXT:    bceqz $fcc0, .LBB3_2
 ; LA64-NEXT:  # %bb.1: # %if.else
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
 ; LA64-NEXT:    ret
 ; LA64-NEXT:  .LBB3_2: # %if.then
-; LA64-NEXT:    bl %plt(abort)
+; LA64-NEXT:    addi.d $sp, $sp, -16
+; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
+; LA64-NEXT:    pcaddu18i $ra, %call36(abort)
+; LA64-NEXT:    jirl $ra, $ra, 0
   %1 = fcmp ogt double %a, %b
   br i1 %1, label %if.then, label %if.else
 if.then:
@@ -147,29 +135,26 @@ if.else:
 define void @br_fcmp_oge_bcnez(double %a, double %b) nounwind {
 ; LA32-LABEL: br_fcmp_oge_bcnez:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
 ; LA32-NEXT:    fcmp.cle.d $fcc0, $fa1, $fa0
 ; LA32-NEXT:    bcnez $fcc0, .LBB4_2
 ; LA32-NEXT:  # %bb.1: # %if.else
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
 ; LA32-NEXT:    ret
 ; LA32-NEXT:  .LBB4_2: # %if.then
-; LA32-NEXT:    bl %plt(abort)
+; LA32-NEXT:    addi.w $sp, $sp, -16
+; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
+; LA32-NEXT:    bl abort
 ;
 ; LA64-LABEL: br_fcmp_oge_bcnez:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
 ; LA64-NEXT:    fcmp.cle.d $fcc0, $fa1, $fa0
 ; LA64-NEXT:    bcnez $fcc0, .LBB4_2
 ; LA64-NEXT:  # %bb.1: # %if.else
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
 ; LA64-NEXT:    ret
 ; LA64-NEXT:  .LBB4_2: # %if.then
-; LA64-NEXT:    bl %plt(abort)
+; LA64-NEXT:    addi.d $sp, $sp, -16
+; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
+; LA64-NEXT:    pcaddu18i $ra, %call36(abort)
+; LA64-NEXT:    jirl $ra, $ra, 0
   %1 = fcmp oge double %a, %b
   br i1 %1, label %if.then, label %if.else
 if.else:
@@ -182,29 +167,26 @@ if.then:
 define void @br_fcmp_oge_bceqz(double %a, double %b) nounwind {
 ; LA32-LABEL: br_fcmp_oge_bceqz:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
 ; LA32-NEXT:    fcmp.cult.d $fcc0, $fa0, $fa1
 ; LA32-NEXT:    bceqz $fcc0, .LBB5_2
 ; LA32-NEXT:  # %bb.1: # %if.else
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
 ; LA32-NEXT:    ret
 ; LA32-NEXT:  .LBB5_2: # %if.then
-; LA32-NEXT:    bl %plt(abort)
+; LA32-NEXT:    addi.w $sp, $sp, -16
+; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
+; LA32-NEXT:    bl abort
 ;
 ; LA64-LABEL: br_fcmp_oge_bceqz:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
 ; LA64-NEXT:    fcmp.cult.d $fcc0, $fa0, $fa1
 ; LA64-NEXT:    bceqz $fcc0, .LBB5_2
 ; LA64-NEXT:  # %bb.1: # %if.else
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
 ; LA64-NEXT:    ret
 ; LA64-NEXT:  .LBB5_2: # %if.then
-; LA64-NEXT:    bl %plt(abort)
+; LA64-NEXT:    addi.d $sp, $sp, -16
+; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
+; LA64-NEXT:    pcaddu18i $ra, %call36(abort)
+; LA64-NEXT:    jirl $ra, $ra, 0
   %1 = fcmp oge double %a, %b
   br i1 %1, label %if.then, label %if.else
 if.then:
@@ -217,29 +199,26 @@ if.else:
 define void @br_fcmp_olt_bcnez(double %a, double %b) nounwind {
 ; LA32-LABEL: br_fcmp_olt_bcnez:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
 ; LA32-NEXT:    fcmp.clt.d $fcc0, $fa0, $fa1
 ; LA32-NEXT:    bcnez $fcc0, .LBB6_2
 ; LA32-NEXT:  # %bb.1: # %if.else
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
 ; LA32-NEXT:    ret
 ; LA32-NEXT:  .LBB6_2: # %if.then
-; LA32-NEXT:    bl %plt(abort)
+; LA32-NEXT:    addi.w $sp, $sp, -16
+; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
+; LA32-NEXT:    bl abort
 ;
 ; LA64-LABEL: br_fcmp_olt_bcnez:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
 ; LA64-NEXT:    fcmp.clt.d $fcc0, $fa0, $fa1
 ; LA64-NEXT:    bcnez $fcc0, .LBB6_2
 ; LA64-NEXT:  # %bb.1: # %if.else
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
 ; LA64-NEXT:    ret
 ; LA64-NEXT:  .LBB6_2: # %if.then
-; LA64-NEXT:    bl %plt(abort)
+; LA64-NEXT:    addi.d $sp, $sp, -16
+; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
+; LA64-NEXT:    pcaddu18i $ra, %call36(abort)
+; LA64-NEXT:    jirl $ra, $ra, 0
   %1 = fcmp olt double %a, %b
   br i1 %1, label %if.then, label %if.else
 if.else:
@@ -252,29 +231,26 @@ if.then:
 define void @br_fcmp_olt_bceqz(double %a, double %b) nounwind {
 ; LA32-LABEL: br_fcmp_olt_bceqz:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
 ; LA32-NEXT:    fcmp.cule.d $fcc0, $fa1, $fa0
 ; LA32-NEXT:    bceqz $fcc0, .LBB7_2
 ; LA32-NEXT:  # %bb.1: # %if.else
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
 ; LA32-NEXT:    ret
 ; LA32-NEXT:  .LBB7_2: # %if.then
-; LA32-NEXT:    bl %plt(abort)
+; LA32-NEXT:    addi.w $sp, $sp, -16
+; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
+; LA32-NEXT:    bl abort
 ;
 ; LA64-LABEL: br_fcmp_olt_bceqz:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
 ; LA64-NEXT:    fcmp.cule.d $fcc0, $fa1, $fa0
 ; LA64-NEXT:    bceqz $fcc0, .LBB7_2
 ; LA64-NEXT:  # %bb.1: # %if.else
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
 ; LA64-NEXT:    ret
 ; LA64-NEXT:  .LBB7_2: # %if.then
-; LA64-NEXT:    bl %plt(abort)
+; LA64-NEXT:    addi.d $sp, $sp, -16
+; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
+; LA64-NEXT:    pcaddu18i $ra, %call36(abort)
+; LA64-NEXT:    jirl $ra, $ra, 0
   %1 = fcmp olt double %a, %b
   br i1 %1, label %if.then, label %if.else
 if.then:
@@ -287,29 +263,26 @@ if.else:
 define void @br_fcmp_ole_bcnez(double %a, double %b) nounwind {
 ; LA32-LABEL: br_fcmp_ole_bcnez:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
 ; LA32-NEXT:    fcmp.cle.d $fcc0, $fa0, $fa1
 ; LA32-NEXT:    bcnez $fcc0, .LBB8_2
 ; LA32-NEXT:  # %bb.1: # %if.else
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
 ; LA32-NEXT:    ret
 ; LA32-NEXT:  .LBB8_2: # %if.then
-; LA32-NEXT:    bl %plt(abort)
+; LA32-NEXT:    addi.w $sp, $sp, -16
+; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
+; LA32-NEXT:    bl abort
 ;
 ; LA64-LABEL: br_fcmp_ole_bcnez:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
 ; LA64-NEXT:    fcmp.cle.d $fcc0, $fa0, $fa1
 ; LA64-NEXT:    bcnez $fcc0, .LBB8_2
 ; LA64-NEXT:  # %bb.1: # %if.else
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
 ; LA64-NEXT:    ret
 ; LA64-NEXT:  .LBB8_2: # %if.then
-; LA64-NEXT:    bl %plt(abort)
+; LA64-NEXT:    addi.d $sp, $sp, -16
+; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
+; LA64-NEXT:    pcaddu18i $ra, %call36(abort)
+; LA64-NEXT:    jirl $ra, $ra, 0
   %1 = fcmp ole double %a, %b
   br i1 %1, label %if.then, label %if.else
 if.else:
@@ -322,29 +295,26 @@ if.then:
 define void @br_fcmp_ole_bceqz(double %a, double %b) nounwind {
 ; LA32-LABEL: br_fcmp_ole_bceqz:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
 ; LA32-NEXT:    fcmp.cult.d $fcc0, $fa1, $fa0
 ; LA32-NEXT:    bceqz $fcc0, .LBB9_2
 ; LA32-NEXT:  # %bb.1: # %if.else
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
 ; LA32-NEXT:    ret
 ; LA32-NEXT:  .LBB9_2: # %if.then
-; LA32-NEXT:    bl %plt(abort)
+; LA32-NEXT:    addi.w $sp, $sp, -16
+; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
+; LA32-NEXT:    bl abort
 ;
 ; LA64-LABEL: br_fcmp_ole_bceqz:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
 ; LA64-NEXT:    fcmp.cult.d $fcc0, $fa1, $fa0
 ; LA64-NEXT:    bceqz $fcc0, .LBB9_2
 ; LA64-NEXT:  # %bb.1: # %if.else
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
 ; LA64-NEXT:    ret
 ; LA64-NEXT:  .LBB9_2: # %if.then
-; LA64-NEXT:    bl %plt(abort)
+; LA64-NEXT:    addi.d $sp, $sp, -16
+; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
+; LA64-NEXT:    pcaddu18i $ra, %call36(abort)
+; LA64-NEXT:    jirl $ra, $ra, 0
   %1 = fcmp ole double %a, %b
   br i1 %1, label %if.then, label %if.else
 if.then:
@@ -357,29 +327,26 @@ if.else:
 define void @br_fcmp_one_bcnez(double %a, double %b) nounwind {
 ; LA32-LABEL: br_fcmp_one_bcnez:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
 ; LA32-NEXT:    fcmp.cne.d $fcc0, $fa0, $fa1
 ; LA32-NEXT:    bcnez $fcc0, .LBB10_2
 ; LA32-NEXT:  # %bb.1: # %if.else
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
 ; LA32-NEXT:    ret
 ; LA32-NEXT:  .LBB10_2: # %if.then
-; LA32-NEXT:    bl %plt(abort)
+; LA32-NEXT:    addi.w $sp, $sp, -16
+; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
+; LA32-NEXT:    bl abort
 ;
 ; LA64-LABEL: br_fcmp_one_bcnez:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
 ; LA64-NEXT:    fcmp.cne.d $fcc0, $fa0, $fa1
 ; LA64-NEXT:    bcnez $fcc0, .LBB10_2
 ; LA64-NEXT:  # %bb.1: # %if.else
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
 ; LA64-NEXT:    ret
 ; LA64-NEXT:  .LBB10_2: # %if.then
-; LA64-NEXT:    bl %plt(abort)
+; LA64-NEXT:    addi.d $sp, $sp, -16
+; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
+; LA64-NEXT:    pcaddu18i $ra, %call36(abort)
+; LA64-NEXT:    jirl $ra, $ra, 0
   %1 = fcmp one double %a, %b
   br i1 %1, label %if.then, label %if.else
 if.else:
@@ -392,29 +359,26 @@ if.then:
 define void @br_fcmp_one_bceqz(double %a, double %b) nounwind {
 ; LA32-LABEL: br_fcmp_one_bceqz:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
 ; LA32-NEXT:    fcmp.cueq.d $fcc0, $fa0, $fa1
 ; LA32-NEXT:    bceqz $fcc0, .LBB11_2
 ; LA32-NEXT:  # %bb.1: # %if.else
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
 ; LA32-NEXT:    ret
 ; LA32-NEXT:  .LBB11_2: # %if.then
-; LA32-NEXT:    bl %plt(abort)
+; LA32-NEXT:    addi.w $sp, $sp, -16
+; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
+; LA32-NEXT:    bl abort
 ;
 ; LA64-LABEL: br_fcmp_one_bceqz:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
 ; LA64-NEXT:    fcmp.cueq.d $fcc0, $fa0, $fa1
 ; LA64-NEXT:    bceqz $fcc0, .LBB11_2
 ; LA64-NEXT:  # %bb.1: # %if.else
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
 ; LA64-NEXT:    ret
 ; LA64-NEXT:  .LBB11_2: # %if.then
-; LA64-NEXT:    bl %plt(abort)
+; LA64-NEXT:    addi.d $sp, $sp, -16
+; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
+; LA64-NEXT:    pcaddu18i $ra, %call36(abort)
+; LA64-NEXT:    jirl $ra, $ra, 0
   %1 = fcmp one double %a, %b
   br i1 %1, label %if.then, label %if.else
 if.then:
@@ -427,29 +391,26 @@ if.else:
 define void @br_fcmp_ord_bcnez(double %a, double %b) nounwind {
 ; LA32-LABEL: br_fcmp_ord_bcnez:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
 ; LA32-NEXT:    fcmp.cor.d $fcc0, $fa0, $fa1
 ; LA32-NEXT:    bcnez $fcc0, .LBB12_2
 ; LA32-NEXT:  # %bb.1: # %if.else
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
 ; LA32-NEXT:    ret
 ; LA32-NEXT:  .LBB12_2: # %if.then
-; LA32-NEXT:    bl %plt(abort)
+; LA32-NEXT:    addi.w $sp, $sp, -16
+; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
+; LA32-NEXT:    bl abort
 ;
 ; LA64-LABEL: br_fcmp_ord_bcnez:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
 ; LA64-NEXT:    fcmp.cor.d $fcc0, $fa0, $fa1
 ; LA64-NEXT:    bcnez $fcc0, .LBB12_2
 ; LA64-NEXT:  # %bb.1: # %if.else
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
 ; LA64-NEXT:    ret
 ; LA64-NEXT:  .LBB12_2: # %if.then
-; LA64-NEXT:    bl %plt(abort)
+; LA64-NEXT:    addi.d $sp, $sp, -16
+; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
+; LA64-NEXT:    pcaddu18i $ra, %call36(abort)
+; LA64-NEXT:    jirl $ra, $ra, 0
   %1 = fcmp ord double %a, %b
   br i1 %1, label %if.then, label %if.else
 if.else:
@@ -462,29 +423,26 @@ if.then:
 define void @br_fcmp_ord_bceqz(double %a, double %b) nounwind {
 ; LA32-LABEL: br_fcmp_ord_bceqz:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
 ; LA32-NEXT:    fcmp.cun.d $fcc0, $fa0, $fa1
 ; LA32-NEXT:    bceqz $fcc0, .LBB13_2
 ; LA32-NEXT:  # %bb.1: # %if.else
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
 ; LA32-NEXT:    ret
 ; LA32-NEXT:  .LBB13_2: # %if.then
-; LA32-NEXT:    bl %plt(abort)
+; LA32-NEXT:    addi.w $sp, $sp, -16
+; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
+; LA32-NEXT:    bl abort
 ;
 ; LA64-LABEL: br_fcmp_ord_bceqz:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
 ; LA64-NEXT:    fcmp.cun.d $fcc0, $fa0, $fa1
 ; LA64-NEXT:    bceqz $fcc0, .LBB13_2
 ; LA64-NEXT:  # %bb.1: # %if.else
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
 ; LA64-NEXT:    ret
 ; LA64-NEXT:  .LBB13_2: # %if.then
-; LA64-NEXT:    bl %plt(abort)
+; LA64-NEXT:    addi.d $sp, $sp, -16
+; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
+; LA64-NEXT:    pcaddu18i $ra, %call36(abort)
+; LA64-NEXT:    jirl $ra, $ra, 0
   %1 = fcmp ord double %a, %b
   br i1 %1, label %if.then, label %if.else
 if.then:
@@ -497,29 +455,26 @@ if.else:
 define void @br_fcmp_ueq_bcnez(double %a, double %b) nounwind {
 ; LA32-LABEL: br_fcmp_ueq_bcnez:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
 ; LA32-NEXT:    fcmp.cueq.d $fcc0, $fa0, $fa1
 ; LA32-NEXT:    bcnez $fcc0, .LBB14_2
 ; LA32-NEXT:  # %bb.1: # %if.else
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
 ; LA32-NEXT:    ret
 ; LA32-NEXT:  .LBB14_2: # %if.then
-; LA32-NEXT:    bl %plt(abort)
+; LA32-NEXT:    addi.w $sp, $sp, -16
+; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
+; LA32-NEXT:    bl abort
 ;
 ; LA64-LABEL: br_fcmp_ueq_bcnez:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
 ; LA64-NEXT:    fcmp.cueq.d $fcc0, $fa0, $fa1
 ; LA64-NEXT:    bcnez $fcc0, .LBB14_2
 ; LA64-NEXT:  # %bb.1: # %if.else
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
 ; LA64-NEXT:    ret
 ; LA64-NEXT:  .LBB14_2: # %if.then
-; LA64-NEXT:    bl %plt(abort)
+; LA64-NEXT:    addi.d $sp, $sp, -16
+; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
+; LA64-NEXT:    pcaddu18i $ra, %call36(abort)
+; LA64-NEXT:    jirl $ra, $ra, 0
   %1 = fcmp ueq double %a, %b
   br i1 %1, label %if.then, label %if.else
 if.else:
@@ -532,29 +487,26 @@ if.then:
 define void @br_fcmp_ueq_bceqz(double %a, double %b) nounwind {
 ; LA32-LABEL: br_fcmp_ueq_bceqz:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
 ; LA32-NEXT:    fcmp.cne.d $fcc0, $fa0, $fa1
 ; LA32-NEXT:    bceqz $fcc0, .LBB15_2
 ; LA32-NEXT:  # %bb.1: # %if.else
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
 ; LA32-NEXT:    ret
 ; LA32-NEXT:  .LBB15_2: # %if.then
-; LA32-NEXT:    bl %plt(abort)
+; LA32-NEXT:    addi.w $sp, $sp, -16
+; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
+; LA32-NEXT:    bl abort
 ;
 ; LA64-LABEL: br_fcmp_ueq_bceqz:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
 ; LA64-NEXT:    fcmp.cne.d $fcc0, $fa0, $fa1
 ; LA64-NEXT:    bceqz $fcc0, .LBB15_2
 ; LA64-NEXT:  # %bb.1: # %if.else
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
 ; LA64-NEXT:    ret
 ; LA64-NEXT:  .LBB15_2: # %if.then
-; LA64-NEXT:    bl %plt(abort)
+; LA64-NEXT:    addi.d $sp, $sp, -16
+; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
+; LA64-NEXT:    pcaddu18i $ra, %call36(abort)
+; LA64-NEXT:    jirl $ra, $ra, 0
   %1 = fcmp ueq double %a, %b
   br i1 %1, label %if.then, label %if.else
 if.then:
@@ -567,29 +519,26 @@ if.else:
 define void @br_fcmp_ugt_bcnez(double %a, double %b) nounwind {
 ; LA32-LABEL: br_fcmp_ugt_bcnez:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
 ; LA32-NEXT:    fcmp.cult.d $fcc0, $fa1, $fa0
 ; LA32-NEXT:    bcnez $fcc0, .LBB16_2
 ; LA32-NEXT:  # %bb.1: # %if.else
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
 ; LA32-NEXT:    ret
 ; LA32-NEXT:  .LBB16_2: # %if.then
-; LA32-NEXT:    bl %plt(abort)
+; LA32-NEXT:    addi.w $sp, $sp, -16
+; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
+; LA32-NEXT:    bl abort
 ;
 ; LA64-LABEL: br_fcmp_ugt_bcnez:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
 ; LA64-NEXT:    fcmp.cult.d $fcc0, $fa1, $fa0
 ; LA64-NEXT:    bcnez $fcc0, .LBB16_2
 ; LA64-NEXT:  # %bb.1: # %if.else
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
 ; LA64-NEXT:    ret
 ; LA64-NEXT:  .LBB16_2: # %if.then
-; LA64-NEXT:    bl %plt(abort)
+; LA64-NEXT:    addi.d $sp, $sp, -16
+; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
+; LA64-NEXT:    pcaddu18i $ra, %call36(abort)
+; LA64-NEXT:    jirl $ra, $ra, 0
   %1 = fcmp ugt double %a, %b
   br i1 %1, label %if.then, label %if.else
 if.else:
@@ -602,29 +551,26 @@ if.then:
 define void @br_fcmp_ugt_bceqz(double %a, double %b) nounwind {
 ; LA32-LABEL: br_fcmp_ugt_bceqz:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
 ; LA32-NEXT:    fcmp.cle.d $fcc0, $fa0, $fa1
 ; LA32-NEXT:    bceqz $fcc0, .LBB17_2
 ; LA32-NEXT:  # %bb.1: # %if.else
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
 ; LA32-NEXT:    ret
 ; LA32-NEXT:  .LBB17_2: # %if.then
-; LA32-NEXT:    bl %plt(abort)
+; LA32-NEXT:    addi.w $sp, $sp, -16
+; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
+; LA32-NEXT:    bl abort
 ;
 ; LA64-LABEL: br_fcmp_ugt_bceqz:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
 ; LA64-NEXT:    fcmp.cle.d $fcc0, $fa0, $fa1
 ; LA64-NEXT:    bceqz $fcc0, .LBB17_2
 ; LA64-NEXT:  # %bb.1: # %if.else
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
 ; LA64-NEXT:    ret
 ; LA64-NEXT:  .LBB17_2: # %if.then
-; LA64-NEXT:    bl %plt(abort)
+; LA64-NEXT:    addi.d $sp, $sp, -16
+; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
+; LA64-NEXT:    pcaddu18i $ra, %call36(abort)
+; LA64-NEXT:    jirl $ra, $ra, 0
   %1 = fcmp ugt double %a, %b
   br i1 %1, label %if.then, label %if.else
 if.then:
@@ -637,29 +583,26 @@ if.else:
 define void @br_fcmp_uge_bcnez(double %a, double %b) nounwind {
 ; LA32-LABEL: br_fcmp_uge_bcnez:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
 ; LA32-NEXT:    fcmp.cule.d $fcc0, $fa1, $fa0
 ; LA32-NEXT:    bcnez $fcc0, .LBB18_2
 ; LA32-NEXT:  # %bb.1: # %if.else
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
 ; LA32-NEXT:    ret
 ; LA32-NEXT:  .LBB18_2: # %if.then
-; LA32-NEXT:    bl %plt(abort)
+; LA32-NEXT:    addi.w $sp, $sp, -16
+; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
+; LA32-NEXT:    bl abort
 ;
 ; LA64-LABEL: br_fcmp_uge_bcnez:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
 ; LA64-NEXT:    fcmp.cule.d $fcc0, $fa1, $fa0
 ; LA64-NEXT:    bcnez $fcc0, .LBB18_2
 ; LA64-NEXT:  # %bb.1: # %if.else
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
 ; LA64-NEXT:    ret
 ; LA64-NEXT:  .LBB18_2: # %if.then
-; LA64-NEXT:    bl %plt(abort)
+; LA64-NEXT:    addi.d $sp, $sp, -16
+; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
+; LA64-NEXT:    pcaddu18i $ra, %call36(abort)
+; LA64-NEXT:    jirl $ra, $ra, 0
   %1 = fcmp uge double %a, %b
   br i1 %1, label %if.then, label %if.else
 if.else:
@@ -672,29 +615,26 @@ if.then:
 define void @br_fcmp_uge_bceqz(double %a, double %b) nounwind {
 ; LA32-LABEL: br_fcmp_uge_bceqz:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
 ; LA32-NEXT:    fcmp.clt.d $fcc0, $fa0, $fa1
 ; LA32-NEXT:    bceqz $fcc0, .LBB19_2
 ; LA32-NEXT:  # %bb.1: # %if.else
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
 ; LA32-NEXT:    ret
 ; LA32-NEXT:  .LBB19_2: # %if.then
-; LA32-NEXT:    bl %plt(abort)
+; LA32-NEXT:    addi.w $sp, $sp, -16
+; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
+; LA32-NEXT:    bl abort
 ;
 ; LA64-LABEL: br_fcmp_uge_bceqz:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
 ; LA64-NEXT:    fcmp.clt.d $fcc0, $fa0, $fa1
 ; LA64-NEXT:    bceqz $fcc0, .LBB19_2
 ; LA64-NEXT:  # %bb.1: # %if.else
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
 ; LA64-NEXT:    ret
 ; LA64-NEXT:  .LBB19_2: # %if.then
-; LA64-NEXT:    bl %plt(abort)
+; LA64-NEXT:    addi.d $sp, $sp, -16
+; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
+; LA64-NEXT:    pcaddu18i $ra, %call36(abort)
+; LA64-NEXT:    jirl $ra, $ra, 0
   %1 = fcmp uge double %a, %b
   br i1 %1, label %if.then, label %if.else
 if.then:
@@ -707,29 +647,26 @@ if.else:
 define void @br_fcmp_ult_bcnez(double %a, double %b) nounwind {
 ; LA32-LABEL: br_fcmp_ult_bcnez:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
 ; LA32-NEXT:    fcmp.cult.d $fcc0, $fa0, $fa1
 ; LA32-NEXT:    bcnez $fcc0, .LBB20_2
 ; LA32-NEXT:  # %bb.1: # %if.else
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
 ; LA32-NEXT:    ret
 ; LA32-NEXT:  .LBB20_2: # %if.then
-; LA32-NEXT:    bl %plt(abort)
+; LA32-NEXT:    addi.w $sp, $sp, -16
+; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
+; LA32-NEXT:    bl abort
 ;
 ; LA64-LABEL: br_fcmp_ult_bcnez:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
 ; LA64-NEXT:    fcmp.cult.d $fcc0, $fa0, $fa1
 ; LA64-NEXT:    bcnez $fcc0, .LBB20_2
 ; LA64-NEXT:  # %bb.1: # %if.else
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
 ; LA64-NEXT:    ret
 ; LA64-NEXT:  .LBB20_2: # %if.then
-; LA64-NEXT:    bl %plt(abort)
+; LA64-NEXT:    addi.d $sp, $sp, -16
+; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
+; LA64-NEXT:    pcaddu18i $ra, %call36(abort)
+; LA64-NEXT:    jirl $ra, $ra, 0
   %1 = fcmp ult double %a, %b
   br i1 %1, label %if.then, label %if.else
 if.else:
@@ -742,29 +679,26 @@ if.then:
 define void @br_fcmp_ult_bceqz(double %a, double %b) nounwind {
 ; LA32-LABEL: br_fcmp_ult_bceqz:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
 ; LA32-NEXT:    fcmp.cle.d $fcc0, $fa1, $fa0
 ; LA32-NEXT:    bceqz $fcc0, .LBB21_2
 ; LA32-NEXT:  # %bb.1: # %if.else
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
 ; LA32-NEXT:    ret
 ; LA32-NEXT:  .LBB21_2: # %if.then
-; LA32-NEXT:    bl %plt(abort)
+; LA32-NEXT:    addi.w $sp, $sp, -16
+; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
+; LA32-NEXT:    bl abort
 ;
 ; LA64-LABEL: br_fcmp_ult_bceqz:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
 ; LA64-NEXT:    fcmp.cle.d $fcc0, $fa1, $fa0
 ; LA64-NEXT:    bceqz $fcc0, .LBB21_2
 ; LA64-NEXT:  # %bb.1: # %if.else
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
 ; LA64-NEXT:    ret
 ; LA64-NEXT:  .LBB21_2: # %if.then
-; LA64-NEXT:    bl %plt(abort)
+; LA64-NEXT:    addi.d $sp, $sp, -16
+; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
+; LA64-NEXT:    pcaddu18i $ra, %call36(abort)
+; LA64-NEXT:    jirl $ra, $ra, 0
   %1 = fcmp ult double %a, %b
   br i1 %1, label %if.then, label %if.else
 if.then:
@@ -777,29 +711,26 @@ if.else:
 define void @br_fcmp_ule_bcnez(double %a, double %b) nounwind {
 ; LA32-LABEL: br_fcmp_ule_bcnez:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
 ; LA32-NEXT:    fcmp.cule.d $fcc0, $fa0, $fa1
 ; LA32-NEXT:    bcnez $fcc0, .LBB22_2
 ; LA32-NEXT:  # %bb.1: # %if.else
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
 ; LA32-NEXT:    ret
 ; LA32-NEXT:  .LBB22_2: # %if.then
-; LA32-NEXT:    bl %plt(abort)
+; LA32-NEXT:    addi.w $sp, $sp, -16
+; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
+; LA32-NEXT:    bl abort
 ;
 ; LA64-LABEL: br_fcmp_ule_bcnez:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
 ; LA64-NEXT:    fcmp.cule.d $fcc0, $fa0, $fa1
 ; LA64-NEXT:    bcnez $fcc0, .LBB22_2
 ; LA64-NEXT:  # %bb.1: # %if.else
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
 ; LA64-NEXT:    ret
 ; LA64-NEXT:  .LBB22_2: # %if.then
-; LA64-NEXT:    bl %plt(abort)
+; LA64-NEXT:    addi.d $sp, $sp, -16
+; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
+; LA64-NEXT:    pcaddu18i $ra, %call36(abort)
+; LA64-NEXT:    jirl $ra, $ra, 0
   %1 = fcmp ule double %a, %b
   br i1 %1, label %if.then, label %if.else
 if.else:
@@ -812,29 +743,26 @@ if.then:
 define void @br_fcmp_ule_bceqz(double %a, double %b) nounwind {
 ; LA32-LABEL: br_fcmp_ule_bceqz:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
 ; LA32-NEXT:    fcmp.clt.d $fcc0, $fa1, $fa0
 ; LA32-NEXT:    bceqz $fcc0, .LBB23_2
 ; LA32-NEXT:  # %bb.1: # %if.else
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
 ; LA32-NEXT:    ret
 ; LA32-NEXT:  .LBB23_2: # %if.then
-; LA32-NEXT:    bl %plt(abort)
+; LA32-NEXT:    addi.w $sp, $sp, -16
+; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
+; LA32-NEXT:    bl abort
 ;
 ; LA64-LABEL: br_fcmp_ule_bceqz:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
 ; LA64-NEXT:    fcmp.clt.d $fcc0, $fa1, $fa0
 ; LA64-NEXT:    bceqz $fcc0, .LBB23_2
 ; LA64-NEXT:  # %bb.1: # %if.else
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
 ; LA64-NEXT:    ret
 ; LA64-NEXT:  .LBB23_2: # %if.then
-; LA64-NEXT:    bl %plt(abort)
+; LA64-NEXT:    addi.d $sp, $sp, -16
+; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
+; LA64-NEXT:    pcaddu18i $ra, %call36(abort)
+; LA64-NEXT:    jirl $ra, $ra, 0
   %1 = fcmp ule double %a, %b
   br i1 %1, label %if.then, label %if.else
 if.then:
@@ -847,29 +775,26 @@ if.else:
 define void @br_fcmp_une_bcnez(double %a, double %b) nounwind {
 ; LA32-LABEL: br_fcmp_une_bcnez:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
 ; LA32-NEXT:    fcmp.cune.d $fcc0, $fa0, $fa1
 ; LA32-NEXT:    bcnez $fcc0, .LBB24_2
 ; LA32-NEXT:  # %bb.1: # %if.else
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
 ; LA32-NEXT:    ret
 ; LA32-NEXT:  .LBB24_2: # %if.then
-; LA32-NEXT:    bl %plt(abort)
+; LA32-NEXT:    addi.w $sp, $sp, -16
+; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
+; LA32-NEXT:    bl abort
 ;
 ; LA64-LABEL: br_fcmp_une_bcnez:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
 ; LA64-NEXT:    fcmp.cune.d $fcc0, $fa0, $fa1
 ; LA64-NEXT:    bcnez $fcc0, .LBB24_2
 ; LA64-NEXT:  # %bb.1: # %if.else
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
 ; LA64-NEXT:    ret
 ; LA64-NEXT:  .LBB24_2: # %if.then
-; LA64-NEXT:    bl %plt(abort)
+; LA64-NEXT:    addi.d $sp, $sp, -16
+; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
+; LA64-NEXT:    pcaddu18i $ra, %call36(abort)
+; LA64-NEXT:    jirl $ra, $ra, 0
   %1 = fcmp une double %a, %b
   br i1 %1, label %if.then, label %if.else
 if.else:
@@ -882,29 +807,26 @@ if.then:
 define void @br_fcmp_une_bceqz(double %a, double %b) nounwind {
 ; LA32-LABEL: br_fcmp_une_bceqz:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
 ; LA32-NEXT:    fcmp.ceq.d $fcc0, $fa0, $fa1
 ; LA32-NEXT:    bceqz $fcc0, .LBB25_2
 ; LA32-NEXT:  # %bb.1: # %if.else
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
 ; LA32-NEXT:    ret
 ; LA32-NEXT:  .LBB25_2: # %if.then
-; LA32-NEXT:    bl %plt(abort)
+; LA32-NEXT:    addi.w $sp, $sp, -16
+; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
+; LA32-NEXT:    bl abort
 ;
 ; LA64-LABEL: br_fcmp_une_bceqz:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
 ; LA64-NEXT:    fcmp.ceq.d $fcc0, $fa0, $fa1
 ; LA64-NEXT:    bceqz $fcc0, .LBB25_2
 ; LA64-NEXT:  # %bb.1: # %if.else
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
 ; LA64-NEXT:    ret
 ; LA64-NEXT:  .LBB25_2: # %if.then
-; LA64-NEXT:    bl %plt(abort)
+; LA64-NEXT:    addi.d $sp, $sp, -16
+; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
+; LA64-NEXT:    pcaddu18i $ra, %call36(abort)
+; LA64-NEXT:    jirl $ra, $ra, 0
   %1 = fcmp une double %a, %b
   br i1 %1, label %if.then, label %if.else
 if.then:
@@ -917,29 +839,26 @@ if.else:
 define void @br_fcmp_uno_bcnez(double %a, double %b) nounwind {
 ; LA32-LABEL: br_fcmp_uno_bcnez:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
 ; LA32-NEXT:    fcmp.cun.d $fcc0, $fa0, $fa1
 ; LA32-NEXT:    bcnez $fcc0, .LBB26_2
 ; LA32-NEXT:  # %bb.1: # %if.else
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
 ; LA32-NEXT:    ret
 ; LA32-NEXT:  .LBB26_2: # %if.then
-; LA32-NEXT:    bl %plt(abort)
+; LA32-NEXT:    addi.w $sp, $sp, -16
+; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
+; LA32-NEXT:    bl abort
 ;
 ; LA64-LABEL: br_fcmp_uno_bcnez:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
 ; LA64-NEXT:    fcmp.cun.d $fcc0, $fa0, $fa1
 ; LA64-NEXT:    bcnez $fcc0, .LBB26_2
 ; LA64-NEXT:  # %bb.1: # %if.else
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
 ; LA64-NEXT:    ret
 ; LA64-NEXT:  .LBB26_2: # %if.then
-; LA64-NEXT:    bl %plt(abort)
+; LA64-NEXT:    addi.d $sp, $sp, -16
+; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
+; LA64-NEXT:    pcaddu18i $ra, %call36(abort)
+; LA64-NEXT:    jirl $ra, $ra, 0
   %1 = fcmp uno double %a, %b
   br i1 %1, label %if.then, label %if.else
 if.else:
@@ -952,29 +871,26 @@ if.then:
 define void @br_fcmp_uno_bceqz(double %a, double %b) nounwind {
 ; LA32-LABEL: br_fcmp_uno_bceqz:
 ; LA32:       # %bb.0:
-; LA32-NEXT:    addi.w $sp, $sp, -16
-; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
 ; LA32-NEXT:    fcmp.cor.d $fcc0, $fa0, $fa1
 ; LA32-NEXT:    bceqz $fcc0, .LBB27_2
 ; LA32-NEXT:  # %bb.1: # %if.else
-; LA32-NEXT:    ld.w $ra, $sp, 12 # 4-byte Folded Reload
-; LA32-NEXT:    addi.w $sp, $sp, 16
 ; LA32-NEXT:    ret
 ; LA32-NEXT:  .LBB27_2: # %if.then
-; LA32-NEXT:    bl %plt(abort)
+; LA32-NEXT:    addi.w $sp, $sp, -16
+; LA32-NEXT:    st.w $ra, $sp, 12 # 4-byte Folded Spill
+; LA32-NEXT:    bl abort
 ;
 ; LA64-LABEL: br_fcmp_uno_bceqz:
 ; LA64:       # %bb.0:
-; LA64-NEXT:    addi.d $sp, $sp, -16
-; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
 ; LA64-NEXT:    fcmp.cor.d $fcc0, $fa0, $fa1
 ; LA64-NEXT:    bceqz $fcc0, .LBB27_2
 ; LA64-NEXT:  # %bb.1: # %if.else
-; LA64-NEXT:    ld.d $ra, $sp, 8 # 8-byte Folded Reload
-; LA64-NEXT:    addi.d $sp, $sp, 16
 ; LA64-NEXT:    ret
 ; LA64-NEXT:  .LBB27_2: # %if.then
-; LA64-NEXT:    bl %plt(abort)
+; LA64-NEXT:    addi.d $sp, $sp, -16
+; LA64-NEXT:    st.d $ra, $sp, 8 # 8-byte Folded Spill
+; LA64-NEXT:    pcaddu18i $ra, %call36(abort)
+; LA64-NEXT:    jirl $ra, $ra, 0
   %1 = fcmp uno double %a, %b
   br i1 %1, label %if.then, label %if.else
 if.then:

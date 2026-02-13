@@ -174,7 +174,7 @@ define <2 x double> @buildd() {
 ; CHECK-AIX-NEXT:    lxvdsx 34, 0, 3
 ; CHECK-AIX-NEXT:    blr
 entry:
-  %0 = load double, double* @d, align 8
+  %0 = load double, ptr @d, align 8
   %splat.splatinsert = insertelement <2 x double> undef, double %0, i32 0
   %splat.splat = shufflevector <2 x double> %splat.splatinsert, <2 x double> undef, <2 x i32> zeroinitializer
   ret <2 x double> %splat.splat
@@ -1112,10 +1112,11 @@ entry:
 define signext i8 @getvelsc(<16 x i8> %vsc, i32 signext %i) {
 ; CHECK-LABEL: getvelsc:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    andi. r4, r5, 8
-; CHECK-NEXT:    li r3, 7
+; CHECK-NEXT:    clrldi r3, r5, 32
+; CHECK-NEXT:    andi. r4, r3, 8
 ; CHECK-NEXT:    lvsl v3, 0, r4
-; CHECK-NEXT:    andc r3, r3, r5
+; CHECK-NEXT:    li r4, 7
+; CHECK-NEXT:    andc r3, r4, r3
 ; CHECK-NEXT:    sldi r3, r3, 3
 ; CHECK-NEXT:    vperm v2, v2, v2, v3
 ; CHECK-NEXT:    mfvsrd r4, v2
@@ -1125,13 +1126,14 @@ define signext i8 @getvelsc(<16 x i8> %vsc, i32 signext %i) {
 ;
 ; CHECK-LE-LABEL: getvelsc:
 ; CHECK-LE:       # %bb.0: # %entry
-; CHECK-LE-NEXT:    li r3, 8
-; CHECK-LE-NEXT:    andc r3, r3, r5
-; CHECK-LE-NEXT:    lvsl v3, 0, r3
-; CHECK-LE-NEXT:    li r3, 7
-; CHECK-LE-NEXT:    and r3, r3, r5
-; CHECK-LE-NEXT:    vperm v2, v2, v2, v3
+; CHECK-LE-NEXT:    clrldi r3, r5, 32
+; CHECK-LE-NEXT:    li r4, 8
+; CHECK-LE-NEXT:    andc r4, r4, r3
+; CHECK-LE-NEXT:    lvsl v3, 0, r4
+; CHECK-LE-NEXT:    li r4, 7
+; CHECK-LE-NEXT:    and r3, r4, r3
 ; CHECK-LE-NEXT:    sldi r3, r3, 3
+; CHECK-LE-NEXT:    vperm v2, v2, v2, v3
 ; CHECK-LE-NEXT:    mfvsrd r4, v2
 ; CHECK-LE-NEXT:    srd r3, r4, r3
 ; CHECK-LE-NEXT:    extsb r3, r3
@@ -1139,9 +1141,10 @@ define signext i8 @getvelsc(<16 x i8> %vsc, i32 signext %i) {
 ;
 ; CHECK-AIX-LABEL: getvelsc:
 ; CHECK-AIX:       # %bb.0: # %entry
-; CHECK-AIX-NEXT:    andi. 5, 3, 8
+; CHECK-AIX-NEXT:    clrldi 3, 3, 32
+; CHECK-AIX-NEXT:    andi. 4, 3, 8
+; CHECK-AIX-NEXT:    lvsl 3, 0, 4
 ; CHECK-AIX-NEXT:    li 4, 7
-; CHECK-AIX-NEXT:    lvsl 3, 0, 5
 ; CHECK-AIX-NEXT:    andc 3, 4, 3
 ; CHECK-AIX-NEXT:    sldi 3, 3, 3
 ; CHECK-AIX-NEXT:    vperm 2, 2, 2, 3
@@ -1160,10 +1163,11 @@ entry:
 define zeroext i8 @getveluc(<16 x i8> %vuc, i32 signext %i) {
 ; CHECK-LABEL: getveluc:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    andi. r4, r5, 8
-; CHECK-NEXT:    li r3, 7
+; CHECK-NEXT:    clrldi r3, r5, 32
+; CHECK-NEXT:    andi. r4, r3, 8
 ; CHECK-NEXT:    lvsl v3, 0, r4
-; CHECK-NEXT:    andc r3, r3, r5
+; CHECK-NEXT:    li r4, 7
+; CHECK-NEXT:    andc r3, r4, r3
 ; CHECK-NEXT:    sldi r3, r3, 3
 ; CHECK-NEXT:    vperm v2, v2, v2, v3
 ; CHECK-NEXT:    mfvsrd r4, v2
@@ -1173,13 +1177,14 @@ define zeroext i8 @getveluc(<16 x i8> %vuc, i32 signext %i) {
 ;
 ; CHECK-LE-LABEL: getveluc:
 ; CHECK-LE:       # %bb.0: # %entry
-; CHECK-LE-NEXT:    li r3, 8
-; CHECK-LE-NEXT:    andc r3, r3, r5
-; CHECK-LE-NEXT:    lvsl v3, 0, r3
-; CHECK-LE-NEXT:    li r3, 7
-; CHECK-LE-NEXT:    and r3, r3, r5
-; CHECK-LE-NEXT:    vperm v2, v2, v2, v3
+; CHECK-LE-NEXT:    clrldi r3, r5, 32
+; CHECK-LE-NEXT:    li r4, 8
+; CHECK-LE-NEXT:    andc r4, r4, r3
+; CHECK-LE-NEXT:    lvsl v3, 0, r4
+; CHECK-LE-NEXT:    li r4, 7
+; CHECK-LE-NEXT:    and r3, r4, r3
 ; CHECK-LE-NEXT:    sldi r3, r3, 3
+; CHECK-LE-NEXT:    vperm v2, v2, v2, v3
 ; CHECK-LE-NEXT:    mfvsrd r4, v2
 ; CHECK-LE-NEXT:    srd r3, r4, r3
 ; CHECK-LE-NEXT:    clrldi r3, r3, 56
@@ -1187,9 +1192,10 @@ define zeroext i8 @getveluc(<16 x i8> %vuc, i32 signext %i) {
 ;
 ; CHECK-AIX-LABEL: getveluc:
 ; CHECK-AIX:       # %bb.0: # %entry
-; CHECK-AIX-NEXT:    andi. 5, 3, 8
+; CHECK-AIX-NEXT:    clrldi 3, 3, 32
+; CHECK-AIX-NEXT:    andi. 4, 3, 8
+; CHECK-AIX-NEXT:    lvsl 3, 0, 4
 ; CHECK-AIX-NEXT:    li 4, 7
-; CHECK-AIX-NEXT:    lvsl 3, 0, 5
 ; CHECK-AIX-NEXT:    andc 3, 4, 3
 ; CHECK-AIX-NEXT:    sldi 3, 3, 3
 ; CHECK-AIX-NEXT:    vperm 2, 2, 2, 3
@@ -1672,11 +1678,12 @@ entry:
 define signext i16 @getvelss(<8 x i16> %vss, i32 signext %i) {
 ; CHECK-LABEL: getvelss:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    andi. r4, r5, 4
-; CHECK-NEXT:    li r3, 3
+; CHECK-NEXT:    clrldi r3, r5, 32
+; CHECK-NEXT:    andi. r4, r3, 4
 ; CHECK-NEXT:    sldi r4, r4, 1
-; CHECK-NEXT:    andc r3, r3, r5
 ; CHECK-NEXT:    lvsl v3, 0, r4
+; CHECK-NEXT:    li r4, 3
+; CHECK-NEXT:    andc r3, r4, r3
 ; CHECK-NEXT:    sldi r3, r3, 4
 ; CHECK-NEXT:    vperm v2, v2, v2, v3
 ; CHECK-NEXT:    mfvsrd r4, v2
@@ -1686,14 +1693,15 @@ define signext i16 @getvelss(<8 x i16> %vss, i32 signext %i) {
 ;
 ; CHECK-LE-LABEL: getvelss:
 ; CHECK-LE:       # %bb.0: # %entry
-; CHECK-LE-NEXT:    li r3, 4
-; CHECK-LE-NEXT:    andc r3, r3, r5
-; CHECK-LE-NEXT:    sldi r3, r3, 1
-; CHECK-LE-NEXT:    lvsl v3, 0, r3
-; CHECK-LE-NEXT:    li r3, 3
-; CHECK-LE-NEXT:    and r3, r3, r5
-; CHECK-LE-NEXT:    vperm v2, v2, v2, v3
+; CHECK-LE-NEXT:    clrldi r3, r5, 32
+; CHECK-LE-NEXT:    li r4, 4
+; CHECK-LE-NEXT:    andc r4, r4, r3
+; CHECK-LE-NEXT:    sldi r4, r4, 1
+; CHECK-LE-NEXT:    lvsl v3, 0, r4
+; CHECK-LE-NEXT:    li r4, 3
+; CHECK-LE-NEXT:    and r3, r4, r3
 ; CHECK-LE-NEXT:    sldi r3, r3, 4
+; CHECK-LE-NEXT:    vperm v2, v2, v2, v3
 ; CHECK-LE-NEXT:    mfvsrd r4, v2
 ; CHECK-LE-NEXT:    srd r3, r4, r3
 ; CHECK-LE-NEXT:    extsh r3, r3
@@ -1701,11 +1709,12 @@ define signext i16 @getvelss(<8 x i16> %vss, i32 signext %i) {
 ;
 ; CHECK-AIX-LABEL: getvelss:
 ; CHECK-AIX:       # %bb.0: # %entry
-; CHECK-AIX-NEXT:    andi. 5, 3, 4
+; CHECK-AIX-NEXT:    clrldi 3, 3, 32
+; CHECK-AIX-NEXT:    andi. 4, 3, 4
+; CHECK-AIX-NEXT:    sldi 4, 4, 1
+; CHECK-AIX-NEXT:    lvsl 3, 0, 4
 ; CHECK-AIX-NEXT:    li 4, 3
-; CHECK-AIX-NEXT:    sldi 5, 5, 1
 ; CHECK-AIX-NEXT:    andc 3, 4, 3
-; CHECK-AIX-NEXT:    lvsl 3, 0, 5
 ; CHECK-AIX-NEXT:    sldi 3, 3, 4
 ; CHECK-AIX-NEXT:    vperm 2, 2, 2, 3
 ; CHECK-AIX-NEXT:    mfvsrd 4, 34
@@ -1723,11 +1732,12 @@ entry:
 define zeroext i16 @getvelus(<8 x i16> %vus, i32 signext %i) {
 ; CHECK-LABEL: getvelus:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    andi. r4, r5, 4
-; CHECK-NEXT:    li r3, 3
+; CHECK-NEXT:    clrldi r3, r5, 32
+; CHECK-NEXT:    andi. r4, r3, 4
 ; CHECK-NEXT:    sldi r4, r4, 1
-; CHECK-NEXT:    andc r3, r3, r5
 ; CHECK-NEXT:    lvsl v3, 0, r4
+; CHECK-NEXT:    li r4, 3
+; CHECK-NEXT:    andc r3, r4, r3
 ; CHECK-NEXT:    sldi r3, r3, 4
 ; CHECK-NEXT:    vperm v2, v2, v2, v3
 ; CHECK-NEXT:    mfvsrd r4, v2
@@ -1737,14 +1747,15 @@ define zeroext i16 @getvelus(<8 x i16> %vus, i32 signext %i) {
 ;
 ; CHECK-LE-LABEL: getvelus:
 ; CHECK-LE:       # %bb.0: # %entry
-; CHECK-LE-NEXT:    li r3, 4
-; CHECK-LE-NEXT:    andc r3, r3, r5
-; CHECK-LE-NEXT:    sldi r3, r3, 1
-; CHECK-LE-NEXT:    lvsl v3, 0, r3
-; CHECK-LE-NEXT:    li r3, 3
-; CHECK-LE-NEXT:    and r3, r3, r5
-; CHECK-LE-NEXT:    vperm v2, v2, v2, v3
+; CHECK-LE-NEXT:    clrldi r3, r5, 32
+; CHECK-LE-NEXT:    li r4, 4
+; CHECK-LE-NEXT:    andc r4, r4, r3
+; CHECK-LE-NEXT:    sldi r4, r4, 1
+; CHECK-LE-NEXT:    lvsl v3, 0, r4
+; CHECK-LE-NEXT:    li r4, 3
+; CHECK-LE-NEXT:    and r3, r4, r3
 ; CHECK-LE-NEXT:    sldi r3, r3, 4
+; CHECK-LE-NEXT:    vperm v2, v2, v2, v3
 ; CHECK-LE-NEXT:    mfvsrd r4, v2
 ; CHECK-LE-NEXT:    srd r3, r4, r3
 ; CHECK-LE-NEXT:    clrldi r3, r3, 48
@@ -1752,11 +1763,12 @@ define zeroext i16 @getvelus(<8 x i16> %vus, i32 signext %i) {
 ;
 ; CHECK-AIX-LABEL: getvelus:
 ; CHECK-AIX:       # %bb.0: # %entry
-; CHECK-AIX-NEXT:    andi. 5, 3, 4
+; CHECK-AIX-NEXT:    clrldi 3, 3, 32
+; CHECK-AIX-NEXT:    andi. 4, 3, 4
+; CHECK-AIX-NEXT:    sldi 4, 4, 1
+; CHECK-AIX-NEXT:    lvsl 3, 0, 4
 ; CHECK-AIX-NEXT:    li 4, 3
-; CHECK-AIX-NEXT:    sldi 5, 5, 1
 ; CHECK-AIX-NEXT:    andc 3, 4, 3
-; CHECK-AIX-NEXT:    lvsl 3, 0, 5
 ; CHECK-AIX-NEXT:    sldi 3, 3, 4
 ; CHECK-AIX-NEXT:    vperm 2, 2, 2, 3
 ; CHECK-AIX-NEXT:    mfvsrd 4, 34
@@ -1988,11 +2000,12 @@ entry:
 define signext i32 @getvelsi(<4 x i32> %vsi, i32 signext %i) {
 ; CHECK-LABEL: getvelsi:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    andi. r4, r5, 2
-; CHECK-NEXT:    li r3, 1
+; CHECK-NEXT:    clrldi r3, r5, 32
+; CHECK-NEXT:    andi. r4, r3, 2
 ; CHECK-NEXT:    sldi r4, r4, 2
-; CHECK-NEXT:    andc r3, r3, r5
 ; CHECK-NEXT:    lvsl v3, 0, r4
+; CHECK-NEXT:    li r4, 1
+; CHECK-NEXT:    andc r3, r4, r3
 ; CHECK-NEXT:    sldi r3, r3, 5
 ; CHECK-NEXT:    vperm v2, v2, v2, v3
 ; CHECK-NEXT:    mfvsrd r4, v2
@@ -2002,14 +2015,15 @@ define signext i32 @getvelsi(<4 x i32> %vsi, i32 signext %i) {
 ;
 ; CHECK-LE-LABEL: getvelsi:
 ; CHECK-LE:       # %bb.0: # %entry
-; CHECK-LE-NEXT:    li r3, 2
-; CHECK-LE-NEXT:    andc r3, r3, r5
-; CHECK-LE-NEXT:    sldi r3, r3, 2
-; CHECK-LE-NEXT:    lvsl v3, 0, r3
-; CHECK-LE-NEXT:    li r3, 1
-; CHECK-LE-NEXT:    and r3, r3, r5
-; CHECK-LE-NEXT:    vperm v2, v2, v2, v3
+; CHECK-LE-NEXT:    clrldi r3, r5, 32
+; CHECK-LE-NEXT:    li r4, 2
+; CHECK-LE-NEXT:    andc r4, r4, r3
+; CHECK-LE-NEXT:    sldi r4, r4, 2
+; CHECK-LE-NEXT:    lvsl v3, 0, r4
+; CHECK-LE-NEXT:    li r4, 1
+; CHECK-LE-NEXT:    and r3, r4, r3
 ; CHECK-LE-NEXT:    sldi r3, r3, 5
+; CHECK-LE-NEXT:    vperm v2, v2, v2, v3
 ; CHECK-LE-NEXT:    mfvsrd r4, v2
 ; CHECK-LE-NEXT:    srd r3, r4, r3
 ; CHECK-LE-NEXT:    extsw r3, r3
@@ -2017,11 +2031,12 @@ define signext i32 @getvelsi(<4 x i32> %vsi, i32 signext %i) {
 ;
 ; CHECK-AIX-LABEL: getvelsi:
 ; CHECK-AIX:       # %bb.0: # %entry
-; CHECK-AIX-NEXT:    andi. 5, 3, 2
+; CHECK-AIX-NEXT:    clrldi 3, 3, 32
+; CHECK-AIX-NEXT:    andi. 4, 3, 2
+; CHECK-AIX-NEXT:    sldi 4, 4, 2
+; CHECK-AIX-NEXT:    lvsl 3, 0, 4
 ; CHECK-AIX-NEXT:    li 4, 1
-; CHECK-AIX-NEXT:    sldi 5, 5, 2
 ; CHECK-AIX-NEXT:    andc 3, 4, 3
-; CHECK-AIX-NEXT:    lvsl 3, 0, 5
 ; CHECK-AIX-NEXT:    sldi 3, 3, 5
 ; CHECK-AIX-NEXT:    vperm 2, 2, 2, 3
 ; CHECK-AIX-NEXT:    mfvsrd 4, 34
@@ -2038,11 +2053,12 @@ entry:
 define zeroext i32 @getvelui(<4 x i32> %vui, i32 signext %i) {
 ; CHECK-LABEL: getvelui:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    andi. r4, r5, 2
-; CHECK-NEXT:    li r3, 1
+; CHECK-NEXT:    clrldi r3, r5, 32
+; CHECK-NEXT:    andi. r4, r3, 2
 ; CHECK-NEXT:    sldi r4, r4, 2
-; CHECK-NEXT:    andc r3, r3, r5
 ; CHECK-NEXT:    lvsl v3, 0, r4
+; CHECK-NEXT:    li r4, 1
+; CHECK-NEXT:    andc r3, r4, r3
 ; CHECK-NEXT:    sldi r3, r3, 5
 ; CHECK-NEXT:    vperm v2, v2, v2, v3
 ; CHECK-NEXT:    mfvsrd r4, v2
@@ -2052,14 +2068,15 @@ define zeroext i32 @getvelui(<4 x i32> %vui, i32 signext %i) {
 ;
 ; CHECK-LE-LABEL: getvelui:
 ; CHECK-LE:       # %bb.0: # %entry
-; CHECK-LE-NEXT:    li r3, 2
-; CHECK-LE-NEXT:    andc r3, r3, r5
-; CHECK-LE-NEXT:    sldi r3, r3, 2
-; CHECK-LE-NEXT:    lvsl v3, 0, r3
-; CHECK-LE-NEXT:    li r3, 1
-; CHECK-LE-NEXT:    and r3, r3, r5
-; CHECK-LE-NEXT:    vperm v2, v2, v2, v3
+; CHECK-LE-NEXT:    clrldi r3, r5, 32
+; CHECK-LE-NEXT:    li r4, 2
+; CHECK-LE-NEXT:    andc r4, r4, r3
+; CHECK-LE-NEXT:    sldi r4, r4, 2
+; CHECK-LE-NEXT:    lvsl v3, 0, r4
+; CHECK-LE-NEXT:    li r4, 1
+; CHECK-LE-NEXT:    and r3, r4, r3
 ; CHECK-LE-NEXT:    sldi r3, r3, 5
+; CHECK-LE-NEXT:    vperm v2, v2, v2, v3
 ; CHECK-LE-NEXT:    mfvsrd r4, v2
 ; CHECK-LE-NEXT:    srd r3, r4, r3
 ; CHECK-LE-NEXT:    clrldi r3, r3, 32
@@ -2067,11 +2084,12 @@ define zeroext i32 @getvelui(<4 x i32> %vui, i32 signext %i) {
 ;
 ; CHECK-AIX-LABEL: getvelui:
 ; CHECK-AIX:       # %bb.0: # %entry
-; CHECK-AIX-NEXT:    andi. 5, 3, 2
+; CHECK-AIX-NEXT:    clrldi 3, 3, 32
+; CHECK-AIX-NEXT:    andi. 4, 3, 2
+; CHECK-AIX-NEXT:    sldi 4, 4, 2
+; CHECK-AIX-NEXT:    lvsl 3, 0, 4
 ; CHECK-AIX-NEXT:    li 4, 1
-; CHECK-AIX-NEXT:    sldi 5, 5, 2
 ; CHECK-AIX-NEXT:    andc 3, 4, 3
-; CHECK-AIX-NEXT:    lvsl 3, 0, 5
 ; CHECK-AIX-NEXT:    sldi 3, 3, 5
 ; CHECK-AIX-NEXT:    vperm 2, 2, 2, 3
 ; CHECK-AIX-NEXT:    mfvsrd 4, 34
@@ -2195,8 +2213,9 @@ define i64 @getvelsl(<2 x i64> %vsl, i32 signext %i) {
 ;
 ; CHECK-LE-LABEL: getvelsl:
 ; CHECK-LE:       # %bb.0: # %entry
-; CHECK-LE-NEXT:    li r3, 1
-; CHECK-LE-NEXT:    andc r3, r3, r5
+; CHECK-LE-NEXT:    clrldi r3, r5, 32
+; CHECK-LE-NEXT:    li r4, 1
+; CHECK-LE-NEXT:    andc r3, r4, r3
 ; CHECK-LE-NEXT:    sldi r3, r3, 3
 ; CHECK-LE-NEXT:    lvsl v3, 0, r3
 ; CHECK-LE-NEXT:    vperm v2, v2, v2, v3
@@ -2230,8 +2249,9 @@ define i64 @getvelul(<2 x i64> %vul, i32 signext %i) {
 ;
 ; CHECK-LE-LABEL: getvelul:
 ; CHECK-LE:       # %bb.0: # %entry
-; CHECK-LE-NEXT:    li r3, 1
-; CHECK-LE-NEXT:    andc r3, r3, r5
+; CHECK-LE-NEXT:    clrldi r3, r5, 32
+; CHECK-LE-NEXT:    li r4, 1
+; CHECK-LE-NEXT:    andc r3, r4, r3
 ; CHECK-LE-NEXT:    sldi r3, r3, 3
 ; CHECK-LE-NEXT:    lvsl v3, 0, r3
 ; CHECK-LE-NEXT:    vperm v2, v2, v2, v3
@@ -2357,7 +2377,7 @@ entry:
 define float @getvelf(<4 x float> %vf, i32 signext %i) {
 ; CHECK-LABEL: getvelf:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    sldi r3, r5, 2
+; CHECK-NEXT:    rldic r3, r5, 2, 30
 ; CHECK-NEXT:    lvsl v3, 0, r3
 ; CHECK-NEXT:    vperm v2, v2, v2, v3
 ; CHECK-NEXT:    xscvspdpn f1, v2
@@ -2365,7 +2385,8 @@ define float @getvelf(<4 x float> %vf, i32 signext %i) {
 ;
 ; CHECK-LE-LABEL: getvelf:
 ; CHECK-LE:       # %bb.0: # %entry
-; CHECK-LE-NEXT:    xori r3, r5, 3
+; CHECK-LE-NEXT:    clrldi r3, r5, 32
+; CHECK-LE-NEXT:    xori r3, r3, 3
 ; CHECK-LE-NEXT:    sldi r3, r3, 2
 ; CHECK-LE-NEXT:    lvsl v3, 0, r3
 ; CHECK-LE-NEXT:    vperm v2, v2, v2, v3
@@ -2374,7 +2395,7 @@ define float @getvelf(<4 x float> %vf, i32 signext %i) {
 ;
 ; CHECK-AIX-LABEL: getvelf:
 ; CHECK-AIX:       # %bb.0: # %entry
-; CHECK-AIX-NEXT:    sldi 3, 3, 2
+; CHECK-AIX-NEXT:    rldic 3, 3, 2, 30
 ; CHECK-AIX-NEXT:    lvsl 3, 0, 3
 ; CHECK-AIX-NEXT:    vperm 2, 2, 2, 3
 ; CHECK-AIX-NEXT:    xscvspdpn 1, 34
@@ -2395,7 +2416,6 @@ define double @getd0(<2 x double> %vd) {
 ; CHECK-LE-LABEL: getd0:
 ; CHECK-LE:       # %bb.0: # %entry
 ; CHECK-LE-NEXT:    xxswapd vs1, v2
-; CHECK-LE-NEXT:    # kill: def $f1 killed $f1 killed $vsl1
 ; CHECK-LE-NEXT:    blr
 ;
 ; CHECK-AIX-LABEL: getd0:
@@ -2414,7 +2434,6 @@ define double @getd1(<2 x double> %vd) {
 ; CHECK-LABEL: getd1:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    xxswapd vs1, v2
-; CHECK-NEXT:    # kill: def $f1 killed $f1 killed $vsl1
 ; CHECK-NEXT:    blr
 ;
 ; CHECK-LE-LABEL: getd1:
@@ -2425,7 +2444,6 @@ define double @getd1(<2 x double> %vd) {
 ; CHECK-AIX-LABEL: getd1:
 ; CHECK-AIX:       # %bb.0: # %entry
 ; CHECK-AIX-NEXT:    xxswapd 1, 34
-; CHECK-AIX-NEXT:    # kill: def $f1 killed $f1 killed $vsl1
 ; CHECK-AIX-NEXT:    blr
 entry:
   %vecext = extractelement <2 x double> %vd, i32 1
@@ -2441,18 +2459,17 @@ define double @getveld(<2 x double> %vd, i32 signext %i) {
 ; CHECK-NEXT:    lvsl v3, 0, r3
 ; CHECK-NEXT:    vperm v2, v2, v2, v3
 ; CHECK-NEXT:    xxlor vs1, v2, v2
-; CHECK-NEXT:    # kill: def $f1 killed $f1 killed $vsl1
 ; CHECK-NEXT:    blr
 ;
 ; CHECK-LE-LABEL: getveld:
 ; CHECK-LE:       # %bb.0: # %entry
-; CHECK-LE-NEXT:    li r3, 1
-; CHECK-LE-NEXT:    andc r3, r3, r5
+; CHECK-LE-NEXT:    clrldi r3, r5, 32
+; CHECK-LE-NEXT:    li r4, 1
+; CHECK-LE-NEXT:    andc r3, r4, r3
 ; CHECK-LE-NEXT:    sldi r3, r3, 3
 ; CHECK-LE-NEXT:    lvsl v3, 0, r3
 ; CHECK-LE-NEXT:    vperm v2, v2, v2, v3
 ; CHECK-LE-NEXT:    xxlor vs1, v2, v2
-; CHECK-LE-NEXT:    # kill: def $f1 killed $f1 killed $vsl1
 ; CHECK-LE-NEXT:    blr
 ;
 ; CHECK-AIX-LABEL: getveld:
@@ -2462,7 +2479,6 @@ define double @getveld(<2 x double> %vd, i32 signext %i) {
 ; CHECK-AIX-NEXT:    lvsl 3, 0, 3
 ; CHECK-AIX-NEXT:    vperm 2, 2, 2, 3
 ; CHECK-AIX-NEXT:    xxlor 1, 34, 34
-; CHECK-AIX-NEXT:    # kill: def $f1 killed $f1 killed $vsl1
 ; CHECK-AIX-NEXT:    blr
 entry:
   %vecext = extractelement <2 x double> %vd, i32 %i
@@ -2483,11 +2499,9 @@ define <2 x i64> @buildi2(i64 %arg, i32 %arg1) {
 ;
 ; CHECK-LE-LABEL: buildi2:
 ; CHECK-LE:       # %bb.0: # %entry
-; CHECK-LE-NEXT:    mtfprd f0, r4
+; CHECK-LE-NEXT:    mtfprwz f0, r4
 ; CHECK-LE-NEXT:    mtfprd f1, r3
-; CHECK-LE-NEXT:    xxswapd vs0, vs0
-; CHECK-LE-NEXT:    xxswapd v2, vs1
-; CHECK-LE-NEXT:    xxmrgld v2, v2, vs0
+; CHECK-LE-NEXT:    xxmrghd v2, vs1, vs0
 ; CHECK-LE-NEXT:    blr
 ;
 ; CHECK-AIX-LABEL: buildi2:

@@ -11,7 +11,7 @@
   }
 
   ; Function Attrs: nounwind
-  declare void @llvm.stackprotector(i8*, i8**) #2
+  declare void @llvm.stackprotector(ptr, ptr) #2
 
   attributes #0 = { nounwind readnone speculatable "target-features"="+vfp4" }
   attributes #1 = { "target-features"="+vfp4" }
@@ -31,7 +31,7 @@ body:             |
     ; CHECK: [[COPY:%[0-9]+]]:dpr = COPY $d0
     ; CHECK: [[COPY1:%[0-9]+]]:dpr = COPY $d1
     ; CHECK: [[COPY2:%[0-9]+]]:dpr = COPY $d2
-    ; CHECK: [[VFNMSD:%[0-9]+]]:dpr = VFNMSD [[COPY2]], [[COPY1]], [[COPY]], 14 /* CC::al */, $noreg
+    ; CHECK: [[VFNMSD:%[0-9]+]]:dpr = nofpexcept VFNMSD [[COPY2]], [[COPY1]], [[COPY]], 14 /* CC::al */, $noreg, implicit $fpscr
     ; CHECK: $d0 = COPY [[VFNMSD]]
     ; CHECK: MOVPCLR 14 /* CC::al */, $noreg, implicit $d0
     %0:fprb(s64) = COPY $d0

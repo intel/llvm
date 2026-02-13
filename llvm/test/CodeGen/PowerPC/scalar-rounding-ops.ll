@@ -5,15 +5,12 @@
 ; RUN: llc -mcpu=pwr8 -ppc-asm-full-reg-names -ppc-vsr-nums-as-vr \
 ; RUN:   -mtriple=powerpc64le-unknown-unknown -verify-machineinstrs < %s | \
 ; RUN:   FileCheck %s
-; RUN: llc -mcpu=pwr8 -ppc-asm-full-reg-names -ppc-vsr-nums-as-vr \
-; RUN:   -mtriple=powerpc64le-unknown-unknown -verify-machineinstrs < %s \
-; RUN:   --enable-unsafe-fp-math | FileCheck %s --check-prefix=FAST
 define dso_local i64 @test_lrint(double %d) local_unnamed_addr {
 ; BE-LABEL: test_lrint:
 ; BE:       # %bb.0: # %entry
 ; BE-NEXT:    mflr r0
-; BE-NEXT:    std r0, 16(r1)
 ; BE-NEXT:    stdu r1, -112(r1)
+; BE-NEXT:    std r0, 128(r1)
 ; BE-NEXT:    .cfi_def_cfa_offset 112
 ; BE-NEXT:    .cfi_offset lr, 16
 ; BE-NEXT:    bl lrint
@@ -26,8 +23,8 @@ define dso_local i64 @test_lrint(double %d) local_unnamed_addr {
 ; CHECK-LABEL: test_lrint:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    mflr r0
-; CHECK-NEXT:    std r0, 16(r1)
 ; CHECK-NEXT:    stdu r1, -32(r1)
+; CHECK-NEXT:    std r0, 48(r1)
 ; CHECK-NEXT:    .cfi_def_cfa_offset 32
 ; CHECK-NEXT:    .cfi_offset lr, 16
 ; CHECK-NEXT:    bl lrint
@@ -36,14 +33,33 @@ define dso_local i64 @test_lrint(double %d) local_unnamed_addr {
 ; CHECK-NEXT:    ld r0, 16(r1)
 ; CHECK-NEXT:    mtlr r0
 ; CHECK-NEXT:    blr
-;
-; FAST-LABEL: test_lrint:
-; FAST:       # %bb.0: # %entry
-; FAST-NEXT:    fctid f0, f1
-; FAST-NEXT:    mffprd r3, f0
-; FAST-NEXT:    blr
 entry:
   %0 = tail call i64 @llvm.lrint.i64.f64(double %d)
+  ret i64 %0
+}
+
+define dso_local i64 @test_constrained_lrint(double %d) local_unnamed_addr {
+; BE-LABEL: test_constrained_lrint:
+; BE:       # %bb.0: # %entry
+; BE-NEXT:    mflr r0
+; BE-NEXT:    stdu r1, -112(r1)
+; BE-NEXT:    std r0, 128(r1)
+; BE-NEXT:    .cfi_def_cfa_offset 112
+; BE-NEXT:    .cfi_offset lr, 16
+; BE-NEXT:    bl lrint
+; BE-NEXT:    nop
+; BE-NEXT:    addi r1, r1, 112
+; BE-NEXT:    ld r0, 16(r1)
+; BE-NEXT:    mtlr r0
+; BE-NEXT:    blr
+;
+; CHECK-LABEL: test_constrained_lrint:
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    fctid f0, f1
+; CHECK-NEXT:    mffprd r3, f0
+; CHECK-NEXT:    blr
+entry:
+  %0 = tail call i64 @llvm.experimental.constrained.lrint(double %d, metadata !"round.dynamic", metadata !"fpexcept.ignore")
   ret i64 %0
 }
 
@@ -53,8 +69,8 @@ define dso_local i64 @test_lrintf(float %f) local_unnamed_addr {
 ; BE-LABEL: test_lrintf:
 ; BE:       # %bb.0: # %entry
 ; BE-NEXT:    mflr r0
-; BE-NEXT:    std r0, 16(r1)
 ; BE-NEXT:    stdu r1, -112(r1)
+; BE-NEXT:    std r0, 128(r1)
 ; BE-NEXT:    .cfi_def_cfa_offset 112
 ; BE-NEXT:    .cfi_offset lr, 16
 ; BE-NEXT:    bl lrintf
@@ -67,8 +83,8 @@ define dso_local i64 @test_lrintf(float %f) local_unnamed_addr {
 ; CHECK-LABEL: test_lrintf:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    mflr r0
-; CHECK-NEXT:    std r0, 16(r1)
 ; CHECK-NEXT:    stdu r1, -32(r1)
+; CHECK-NEXT:    std r0, 48(r1)
 ; CHECK-NEXT:    .cfi_def_cfa_offset 32
 ; CHECK-NEXT:    .cfi_offset lr, 16
 ; CHECK-NEXT:    bl lrintf
@@ -77,14 +93,33 @@ define dso_local i64 @test_lrintf(float %f) local_unnamed_addr {
 ; CHECK-NEXT:    ld r0, 16(r1)
 ; CHECK-NEXT:    mtlr r0
 ; CHECK-NEXT:    blr
-;
-; FAST-LABEL: test_lrintf:
-; FAST:       # %bb.0: # %entry
-; FAST-NEXT:    fctid f0, f1
-; FAST-NEXT:    mffprd r3, f0
-; FAST-NEXT:    blr
 entry:
   %0 = tail call i64 @llvm.lrint.i64.f32(float %f)
+  ret i64 %0
+}
+
+define dso_local i64 @test_constrained_lrintf(float %f) local_unnamed_addr {
+; BE-LABEL: test_constrained_lrintf:
+; BE:       # %bb.0: # %entry
+; BE-NEXT:    mflr r0
+; BE-NEXT:    stdu r1, -112(r1)
+; BE-NEXT:    std r0, 128(r1)
+; BE-NEXT:    .cfi_def_cfa_offset 112
+; BE-NEXT:    .cfi_offset lr, 16
+; BE-NEXT:    bl lrintf
+; BE-NEXT:    nop
+; BE-NEXT:    addi r1, r1, 112
+; BE-NEXT:    ld r0, 16(r1)
+; BE-NEXT:    mtlr r0
+; BE-NEXT:    blr
+;
+; CHECK-LABEL: test_constrained_lrintf:
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    fctid f0, f1
+; CHECK-NEXT:    mffprd r3, f0
+; CHECK-NEXT:    blr
+entry:
+  %0 = tail call i64 @llvm.experimental.constrained.lrint(float %f, metadata !"round.dynamic", metadata !"fpexcept.ignore")
   ret i64 %0
 }
 
@@ -94,8 +129,8 @@ define dso_local i64 @test_llrint(double %d) local_unnamed_addr {
 ; BE-LABEL: test_llrint:
 ; BE:       # %bb.0: # %entry
 ; BE-NEXT:    mflr r0
-; BE-NEXT:    std r0, 16(r1)
 ; BE-NEXT:    stdu r1, -112(r1)
+; BE-NEXT:    std r0, 128(r1)
 ; BE-NEXT:    .cfi_def_cfa_offset 112
 ; BE-NEXT:    .cfi_offset lr, 16
 ; BE-NEXT:    bl llrint
@@ -108,8 +143,8 @@ define dso_local i64 @test_llrint(double %d) local_unnamed_addr {
 ; CHECK-LABEL: test_llrint:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    mflr r0
-; CHECK-NEXT:    std r0, 16(r1)
 ; CHECK-NEXT:    stdu r1, -32(r1)
+; CHECK-NEXT:    std r0, 48(r1)
 ; CHECK-NEXT:    .cfi_def_cfa_offset 32
 ; CHECK-NEXT:    .cfi_offset lr, 16
 ; CHECK-NEXT:    bl llrint
@@ -118,14 +153,33 @@ define dso_local i64 @test_llrint(double %d) local_unnamed_addr {
 ; CHECK-NEXT:    ld r0, 16(r1)
 ; CHECK-NEXT:    mtlr r0
 ; CHECK-NEXT:    blr
-;
-; FAST-LABEL: test_llrint:
-; FAST:       # %bb.0: # %entry
-; FAST-NEXT:    fctid f0, f1
-; FAST-NEXT:    mffprd r3, f0
-; FAST-NEXT:    blr
 entry:
   %0 = tail call i64 @llvm.llrint.i64.f64(double %d)
+  ret i64 %0
+}
+
+define dso_local i64 @test_constrained_llrint(double %d) local_unnamed_addr {
+; BE-LABEL: test_constrained_llrint:
+; BE:       # %bb.0: # %entry
+; BE-NEXT:    mflr r0
+; BE-NEXT:    stdu r1, -112(r1)
+; BE-NEXT:    std r0, 128(r1)
+; BE-NEXT:    .cfi_def_cfa_offset 112
+; BE-NEXT:    .cfi_offset lr, 16
+; BE-NEXT:    bl llrint
+; BE-NEXT:    nop
+; BE-NEXT:    addi r1, r1, 112
+; BE-NEXT:    ld r0, 16(r1)
+; BE-NEXT:    mtlr r0
+; BE-NEXT:    blr
+;
+; CHECK-LABEL: test_constrained_llrint:
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    fctid f0, f1
+; CHECK-NEXT:    mffprd r3, f0
+; CHECK-NEXT:    blr
+entry:
+  %0 = tail call i64 @llvm.experimental.constrained.llrint(double %d, metadata !"round.dynamic", metadata !"fpexcept.ignore")
   ret i64 %0
 }
 
@@ -135,8 +189,8 @@ define dso_local i64 @test_llrintf(float %f) local_unnamed_addr {
 ; BE-LABEL: test_llrintf:
 ; BE:       # %bb.0: # %entry
 ; BE-NEXT:    mflr r0
-; BE-NEXT:    std r0, 16(r1)
 ; BE-NEXT:    stdu r1, -112(r1)
+; BE-NEXT:    std r0, 128(r1)
 ; BE-NEXT:    .cfi_def_cfa_offset 112
 ; BE-NEXT:    .cfi_offset lr, 16
 ; BE-NEXT:    bl llrintf
@@ -149,8 +203,8 @@ define dso_local i64 @test_llrintf(float %f) local_unnamed_addr {
 ; CHECK-LABEL: test_llrintf:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    mflr r0
-; CHECK-NEXT:    std r0, 16(r1)
 ; CHECK-NEXT:    stdu r1, -32(r1)
+; CHECK-NEXT:    std r0, 48(r1)
 ; CHECK-NEXT:    .cfi_def_cfa_offset 32
 ; CHECK-NEXT:    .cfi_offset lr, 16
 ; CHECK-NEXT:    bl llrintf
@@ -159,14 +213,33 @@ define dso_local i64 @test_llrintf(float %f) local_unnamed_addr {
 ; CHECK-NEXT:    ld r0, 16(r1)
 ; CHECK-NEXT:    mtlr r0
 ; CHECK-NEXT:    blr
-;
-; FAST-LABEL: test_llrintf:
-; FAST:       # %bb.0: # %entry
-; FAST-NEXT:    fctid f0, f1
-; FAST-NEXT:    mffprd r3, f0
-; FAST-NEXT:    blr
 entry:
   %0 = tail call i64 @llvm.llrint.i64.f32(float %f)
+  ret i64 %0
+}
+
+define dso_local i64 @test_constrained_llrintf(float %f) local_unnamed_addr {
+; BE-LABEL: test_constrained_llrintf:
+; BE:       # %bb.0: # %entry
+; BE-NEXT:    mflr r0
+; BE-NEXT:    stdu r1, -112(r1)
+; BE-NEXT:    std r0, 128(r1)
+; BE-NEXT:    .cfi_def_cfa_offset 112
+; BE-NEXT:    .cfi_offset lr, 16
+; BE-NEXT:    bl llrintf
+; BE-NEXT:    nop
+; BE-NEXT:    addi r1, r1, 112
+; BE-NEXT:    ld r0, 16(r1)
+; BE-NEXT:    mtlr r0
+; BE-NEXT:    blr
+;
+; CHECK-LABEL: test_constrained_llrintf:
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    fctid f0, f1
+; CHECK-NEXT:    mffprd r3, f0
+; CHECK-NEXT:    blr
+entry:
+  %0 = tail call i64 @llvm.experimental.constrained.llrint(float %f, metadata !"round.dynamic", metadata !"fpexcept.ignore")
   ret i64 %0
 }
 
@@ -176,8 +249,8 @@ define dso_local i64 @test_lround(double %d) local_unnamed_addr {
 ; BE-LABEL: test_lround:
 ; BE:       # %bb.0: # %entry
 ; BE-NEXT:    mflr r0
-; BE-NEXT:    std r0, 16(r1)
 ; BE-NEXT:    stdu r1, -112(r1)
+; BE-NEXT:    std r0, 128(r1)
 ; BE-NEXT:    .cfi_def_cfa_offset 112
 ; BE-NEXT:    .cfi_offset lr, 16
 ; BE-NEXT:    bl lround
@@ -190,8 +263,8 @@ define dso_local i64 @test_lround(double %d) local_unnamed_addr {
 ; CHECK-LABEL: test_lround:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    mflr r0
-; CHECK-NEXT:    std r0, 16(r1)
 ; CHECK-NEXT:    stdu r1, -32(r1)
+; CHECK-NEXT:    std r0, 48(r1)
 ; CHECK-NEXT:    .cfi_def_cfa_offset 32
 ; CHECK-NEXT:    .cfi_offset lr, 16
 ; CHECK-NEXT:    bl lround
@@ -200,26 +273,106 @@ define dso_local i64 @test_lround(double %d) local_unnamed_addr {
 ; CHECK-NEXT:    ld r0, 16(r1)
 ; CHECK-NEXT:    mtlr r0
 ; CHECK-NEXT:    blr
-;
-; FAST-LABEL: test_lround:
-; FAST:       # %bb.0: # %entry
-; FAST-NEXT:    xsrdpi f0, f1
-; FAST-NEXT:    fctid f0, f0
-; FAST-NEXT:    mffprd r3, f0
-; FAST-NEXT:    blr
 entry:
   %0 = tail call i64 @llvm.lround.i64.f64(double %d)
   ret i64 %0
 }
 
+define dso_local i64 @test_constrained_lround(double %d) local_unnamed_addr {
+; BE-LABEL: test_constrained_lround:
+; BE:       # %bb.0: # %entry
+; BE-NEXT:    mflr r0
+; BE-NEXT:    stdu r1, -112(r1)
+; BE-NEXT:    std r0, 128(r1)
+; BE-NEXT:    .cfi_def_cfa_offset 112
+; BE-NEXT:    .cfi_offset lr, 16
+; BE-NEXT:    bl lround
+; BE-NEXT:    nop
+; BE-NEXT:    addi r1, r1, 112
+; BE-NEXT:    ld r0, 16(r1)
+; BE-NEXT:    mtlr r0
+; BE-NEXT:    blr
+;
+; CHECK-LABEL: test_constrained_lround:
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    xsrdpi f0, f1
+; CHECK-NEXT:    fctid f0, f0
+; CHECK-NEXT:    mffprd r3, f0
+; CHECK-NEXT:    blr
+entry:
+  %0 = tail call i64 @llvm.experimental.constrained.lround(double %d, metadata !"fpexcept.ignore")
+  ret i64 %0
+}
+
 declare i64 @llvm.lround.i64.f64(double)
+
+define dso_local i32 @test_lroundi32f64(double %d) local_unnamed_addr {
+; BE-LABEL: test_lroundi32f64:
+; BE:       # %bb.0: # %entry
+; BE-NEXT:    mflr r0
+; BE-NEXT:    stdu r1, -112(r1)
+; BE-NEXT:    std r0, 128(r1)
+; BE-NEXT:    .cfi_def_cfa_offset 112
+; BE-NEXT:    .cfi_offset lr, 16
+; BE-NEXT:    bl lround
+; BE-NEXT:    nop
+; BE-NEXT:    addi r1, r1, 112
+; BE-NEXT:    ld r0, 16(r1)
+; BE-NEXT:    mtlr r0
+; BE-NEXT:    blr
+;
+; CHECK-LABEL: test_lroundi32f64:
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    mflr r0
+; CHECK-NEXT:    stdu r1, -32(r1)
+; CHECK-NEXT:    std r0, 48(r1)
+; CHECK-NEXT:    .cfi_def_cfa_offset 32
+; CHECK-NEXT:    .cfi_offset lr, 16
+; CHECK-NEXT:    bl lround
+; CHECK-NEXT:    nop
+; CHECK-NEXT:    addi r1, r1, 32
+; CHECK-NEXT:    ld r0, 16(r1)
+; CHECK-NEXT:    mtlr r0
+; CHECK-NEXT:    blr
+entry:
+  %0 = tail call i32 @llvm.lround.i32.f64(double %d)
+  ret i32 %0
+}
+
+define dso_local i32 @test_constrained_lroundi32f64(double %d) local_unnamed_addr {
+; BE-LABEL: test_constrained_lroundi32f64:
+; BE:       # %bb.0: # %entry
+; BE-NEXT:    mflr r0
+; BE-NEXT:    stdu r1, -112(r1)
+; BE-NEXT:    std r0, 128(r1)
+; BE-NEXT:    .cfi_def_cfa_offset 112
+; BE-NEXT:    .cfi_offset lr, 16
+; BE-NEXT:    bl lround
+; BE-NEXT:    nop
+; BE-NEXT:    addi r1, r1, 112
+; BE-NEXT:    ld r0, 16(r1)
+; BE-NEXT:    mtlr r0
+; BE-NEXT:    blr
+;
+; CHECK-LABEL: test_constrained_lroundi32f64:
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    xsrdpi f0, f1
+; CHECK-NEXT:    fctiw f0, f0
+; CHECK-NEXT:    mffprwz r3, f0
+; CHECK-NEXT:    blr
+entry:
+  %0 = tail call i32 @llvm.experimental.constrained.lround(double %d, metadata !"fpexcept.ignore")
+  ret i32 %0
+}
+
+declare i32 @llvm.lround.i32.f64(double)
 
 define dso_local i64 @test_lroundf(float %f) local_unnamed_addr {
 ; BE-LABEL: test_lroundf:
 ; BE:       # %bb.0: # %entry
 ; BE-NEXT:    mflr r0
-; BE-NEXT:    std r0, 16(r1)
 ; BE-NEXT:    stdu r1, -112(r1)
+; BE-NEXT:    std r0, 128(r1)
 ; BE-NEXT:    .cfi_def_cfa_offset 112
 ; BE-NEXT:    .cfi_offset lr, 16
 ; BE-NEXT:    bl lroundf
@@ -232,8 +385,8 @@ define dso_local i64 @test_lroundf(float %f) local_unnamed_addr {
 ; CHECK-LABEL: test_lroundf:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    mflr r0
-; CHECK-NEXT:    std r0, 16(r1)
 ; CHECK-NEXT:    stdu r1, -32(r1)
+; CHECK-NEXT:    std r0, 48(r1)
 ; CHECK-NEXT:    .cfi_def_cfa_offset 32
 ; CHECK-NEXT:    .cfi_offset lr, 16
 ; CHECK-NEXT:    bl lroundf
@@ -242,26 +395,106 @@ define dso_local i64 @test_lroundf(float %f) local_unnamed_addr {
 ; CHECK-NEXT:    ld r0, 16(r1)
 ; CHECK-NEXT:    mtlr r0
 ; CHECK-NEXT:    blr
-;
-; FAST-LABEL: test_lroundf:
-; FAST:       # %bb.0: # %entry
-; FAST-NEXT:    xsrdpi f0, f1
-; FAST-NEXT:    fctid f0, f0
-; FAST-NEXT:    mffprd r3, f0
-; FAST-NEXT:    blr
 entry:
   %0 = tail call i64 @llvm.lround.i64.f32(float %f)
   ret i64 %0
 }
 
+define dso_local i64 @test_constrained_lroundf(float %f) local_unnamed_addr {
+; BE-LABEL: test_constrained_lroundf:
+; BE:       # %bb.0: # %entry
+; BE-NEXT:    mflr r0
+; BE-NEXT:    stdu r1, -112(r1)
+; BE-NEXT:    std r0, 128(r1)
+; BE-NEXT:    .cfi_def_cfa_offset 112
+; BE-NEXT:    .cfi_offset lr, 16
+; BE-NEXT:    bl lroundf
+; BE-NEXT:    nop
+; BE-NEXT:    addi r1, r1, 112
+; BE-NEXT:    ld r0, 16(r1)
+; BE-NEXT:    mtlr r0
+; BE-NEXT:    blr
+;
+; CHECK-LABEL: test_constrained_lroundf:
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    xsrdpi f0, f1
+; CHECK-NEXT:    fctid f0, f0
+; CHECK-NEXT:    mffprd r3, f0
+; CHECK-NEXT:    blr
+entry:
+  %0 = tail call i64 @llvm.experimental.constrained.lround(float %f, metadata !"fpexcept.ignore")
+  ret i64 %0
+}
+
 declare i64 @llvm.lround.i64.f32(float)
+
+define dso_local i32 @test_lroundi32f32(float %d) local_unnamed_addr {
+; BE-LABEL: test_lroundi32f32:
+; BE:       # %bb.0: # %entry
+; BE-NEXT:    mflr r0
+; BE-NEXT:    stdu r1, -112(r1)
+; BE-NEXT:    std r0, 128(r1)
+; BE-NEXT:    .cfi_def_cfa_offset 112
+; BE-NEXT:    .cfi_offset lr, 16
+; BE-NEXT:    bl lroundf
+; BE-NEXT:    nop
+; BE-NEXT:    addi r1, r1, 112
+; BE-NEXT:    ld r0, 16(r1)
+; BE-NEXT:    mtlr r0
+; BE-NEXT:    blr
+;
+; CHECK-LABEL: test_lroundi32f32:
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    mflr r0
+; CHECK-NEXT:    stdu r1, -32(r1)
+; CHECK-NEXT:    std r0, 48(r1)
+; CHECK-NEXT:    .cfi_def_cfa_offset 32
+; CHECK-NEXT:    .cfi_offset lr, 16
+; CHECK-NEXT:    bl lroundf
+; CHECK-NEXT:    nop
+; CHECK-NEXT:    addi r1, r1, 32
+; CHECK-NEXT:    ld r0, 16(r1)
+; CHECK-NEXT:    mtlr r0
+; CHECK-NEXT:    blr
+entry:
+  %0 = tail call i32 @llvm.lround.i32.f32(float %d)
+  ret i32 %0
+}
+
+define dso_local i32 @test_constrained_lroundi32f32(float %f) local_unnamed_addr {
+; BE-LABEL: test_constrained_lroundi32f32:
+; BE:       # %bb.0: # %entry
+; BE-NEXT:    mflr r0
+; BE-NEXT:    stdu r1, -112(r1)
+; BE-NEXT:    std r0, 128(r1)
+; BE-NEXT:    .cfi_def_cfa_offset 112
+; BE-NEXT:    .cfi_offset lr, 16
+; BE-NEXT:    bl lroundf
+; BE-NEXT:    nop
+; BE-NEXT:    addi r1, r1, 112
+; BE-NEXT:    ld r0, 16(r1)
+; BE-NEXT:    mtlr r0
+; BE-NEXT:    blr
+;
+; CHECK-LABEL: test_constrained_lroundi32f32:
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    xsrdpi f0, f1
+; CHECK-NEXT:    fctiw f0, f0
+; CHECK-NEXT:    mffprwz r3, f0
+; CHECK-NEXT:    blr
+entry:
+  %0 = tail call i32 @llvm.experimental.constrained.lround(float %f, metadata !"fpexcept.ignore")
+  ret i32 %0
+}
+
+declare i32 @llvm.lround.i32.f32(float)
 
 define dso_local i64 @test_llround(double %d) local_unnamed_addr {
 ; BE-LABEL: test_llround:
 ; BE:       # %bb.0: # %entry
 ; BE-NEXT:    mflr r0
-; BE-NEXT:    std r0, 16(r1)
 ; BE-NEXT:    stdu r1, -112(r1)
+; BE-NEXT:    std r0, 128(r1)
 ; BE-NEXT:    .cfi_def_cfa_offset 112
 ; BE-NEXT:    .cfi_offset lr, 16
 ; BE-NEXT:    bl llround
@@ -274,8 +507,8 @@ define dso_local i64 @test_llround(double %d) local_unnamed_addr {
 ; CHECK-LABEL: test_llround:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    mflr r0
-; CHECK-NEXT:    std r0, 16(r1)
 ; CHECK-NEXT:    stdu r1, -32(r1)
+; CHECK-NEXT:    std r0, 48(r1)
 ; CHECK-NEXT:    .cfi_def_cfa_offset 32
 ; CHECK-NEXT:    .cfi_offset lr, 16
 ; CHECK-NEXT:    bl llround
@@ -284,15 +517,34 @@ define dso_local i64 @test_llround(double %d) local_unnamed_addr {
 ; CHECK-NEXT:    ld r0, 16(r1)
 ; CHECK-NEXT:    mtlr r0
 ; CHECK-NEXT:    blr
-;
-; FAST-LABEL: test_llround:
-; FAST:       # %bb.0: # %entry
-; FAST-NEXT:    xsrdpi f0, f1
-; FAST-NEXT:    fctid f0, f0
-; FAST-NEXT:    mffprd r3, f0
-; FAST-NEXT:    blr
 entry:
   %0 = tail call i64 @llvm.llround.i64.f64(double %d)
+  ret i64 %0
+}
+
+define dso_local i64 @test_constrained_llround(double %d) local_unnamed_addr {
+; BE-LABEL: test_constrained_llround:
+; BE:       # %bb.0: # %entry
+; BE-NEXT:    mflr r0
+; BE-NEXT:    stdu r1, -112(r1)
+; BE-NEXT:    std r0, 128(r1)
+; BE-NEXT:    .cfi_def_cfa_offset 112
+; BE-NEXT:    .cfi_offset lr, 16
+; BE-NEXT:    bl llround
+; BE-NEXT:    nop
+; BE-NEXT:    addi r1, r1, 112
+; BE-NEXT:    ld r0, 16(r1)
+; BE-NEXT:    mtlr r0
+; BE-NEXT:    blr
+;
+; CHECK-LABEL: test_constrained_llround:
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    xsrdpi f0, f1
+; CHECK-NEXT:    fctid f0, f0
+; CHECK-NEXT:    mffprd r3, f0
+; CHECK-NEXT:    blr
+entry:
+  %0 = tail call i64 @llvm.experimental.constrained.llround(double %d, metadata !"fpexcept.ignore")
   ret i64 %0
 }
 
@@ -302,8 +554,8 @@ define dso_local i64 @test_llroundf(float %f) local_unnamed_addr {
 ; BE-LABEL: test_llroundf:
 ; BE:       # %bb.0: # %entry
 ; BE-NEXT:    mflr r0
-; BE-NEXT:    std r0, 16(r1)
 ; BE-NEXT:    stdu r1, -112(r1)
+; BE-NEXT:    std r0, 128(r1)
 ; BE-NEXT:    .cfi_def_cfa_offset 112
 ; BE-NEXT:    .cfi_offset lr, 16
 ; BE-NEXT:    bl llroundf
@@ -316,8 +568,8 @@ define dso_local i64 @test_llroundf(float %f) local_unnamed_addr {
 ; CHECK-LABEL: test_llroundf:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    mflr r0
-; CHECK-NEXT:    std r0, 16(r1)
 ; CHECK-NEXT:    stdu r1, -32(r1)
+; CHECK-NEXT:    std r0, 48(r1)
 ; CHECK-NEXT:    .cfi_def_cfa_offset 32
 ; CHECK-NEXT:    .cfi_offset lr, 16
 ; CHECK-NEXT:    bl llroundf
@@ -326,15 +578,34 @@ define dso_local i64 @test_llroundf(float %f) local_unnamed_addr {
 ; CHECK-NEXT:    ld r0, 16(r1)
 ; CHECK-NEXT:    mtlr r0
 ; CHECK-NEXT:    blr
-;
-; FAST-LABEL: test_llroundf:
-; FAST:       # %bb.0: # %entry
-; FAST-NEXT:    xsrdpi f0, f1
-; FAST-NEXT:    fctid f0, f0
-; FAST-NEXT:    mffprd r3, f0
-; FAST-NEXT:    blr
 entry:
   %0 = tail call i64 @llvm.llround.i64.f32(float %f)
+  ret i64 %0
+}
+
+define dso_local i64 @test_constrained_llroundf(float %f) local_unnamed_addr {
+; BE-LABEL: test_constrained_llroundf:
+; BE:       # %bb.0: # %entry
+; BE-NEXT:    mflr r0
+; BE-NEXT:    stdu r1, -112(r1)
+; BE-NEXT:    std r0, 128(r1)
+; BE-NEXT:    .cfi_def_cfa_offset 112
+; BE-NEXT:    .cfi_offset lr, 16
+; BE-NEXT:    bl llroundf
+; BE-NEXT:    nop
+; BE-NEXT:    addi r1, r1, 112
+; BE-NEXT:    ld r0, 16(r1)
+; BE-NEXT:    mtlr r0
+; BE-NEXT:    blr
+;
+; CHECK-LABEL: test_constrained_llroundf:
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    xsrdpi f0, f1
+; CHECK-NEXT:    fctid f0, f0
+; CHECK-NEXT:    mffprd r3, f0
+; CHECK-NEXT:    blr
+entry:
+  %0 = tail call i64 @llvm.experimental.constrained.llround(float %f, metadata !"fpexcept.ignore")
   ret i64 %0
 }
 
@@ -344,8 +615,8 @@ define dso_local double @test_nearbyint(double %d) local_unnamed_addr {
 ; BE-LABEL: test_nearbyint:
 ; BE:       # %bb.0: # %entry
 ; BE-NEXT:    mflr r0
-; BE-NEXT:    std r0, 16(r1)
 ; BE-NEXT:    stdu r1, -112(r1)
+; BE-NEXT:    std r0, 128(r1)
 ; BE-NEXT:    .cfi_def_cfa_offset 112
 ; BE-NEXT:    .cfi_offset lr, 16
 ; BE-NEXT:    bl nearbyint
@@ -358,8 +629,8 @@ define dso_local double @test_nearbyint(double %d) local_unnamed_addr {
 ; CHECK-LABEL: test_nearbyint:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    mflr r0
-; CHECK-NEXT:    std r0, 16(r1)
 ; CHECK-NEXT:    stdu r1, -32(r1)
+; CHECK-NEXT:    std r0, 48(r1)
 ; CHECK-NEXT:    .cfi_def_cfa_offset 32
 ; CHECK-NEXT:    .cfi_offset lr, 16
 ; CHECK-NEXT:    bl nearbyint
@@ -368,13 +639,23 @@ define dso_local double @test_nearbyint(double %d) local_unnamed_addr {
 ; CHECK-NEXT:    ld r0, 16(r1)
 ; CHECK-NEXT:    mtlr r0
 ; CHECK-NEXT:    blr
-;
-; FAST-LABEL: test_nearbyint:
-; FAST:       # %bb.0: # %entry
-; FAST-NEXT:    xsrdpic f1, f1
-; FAST-NEXT:    blr
 entry:
   %0 = tail call double @llvm.nearbyint.f64(double %d)
+  ret double %0
+}
+
+define dso_local double @test_constrained_nearbyint(double %d) local_unnamed_addr {
+; BE-LABEL: test_constrained_nearbyint:
+; BE:       # %bb.0: # %entry
+; BE-NEXT:    xsrdpic f1, f1
+; BE-NEXT:    blr
+;
+; CHECK-LABEL: test_constrained_nearbyint:
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    xsrdpic f1, f1
+; CHECK-NEXT:    blr
+entry:
+  %0 = tail call double @llvm.experimental.constrained.nearbyint(double %d, metadata !"round.dynamic", metadata !"fpexcept.ignore")
   ret double %0
 }
 
@@ -384,8 +665,8 @@ define dso_local float @test_nearbyintf(float %f) local_unnamed_addr {
 ; BE-LABEL: test_nearbyintf:
 ; BE:       # %bb.0: # %entry
 ; BE-NEXT:    mflr r0
-; BE-NEXT:    std r0, 16(r1)
 ; BE-NEXT:    stdu r1, -112(r1)
+; BE-NEXT:    std r0, 128(r1)
 ; BE-NEXT:    .cfi_def_cfa_offset 112
 ; BE-NEXT:    .cfi_offset lr, 16
 ; BE-NEXT:    bl nearbyintf
@@ -398,8 +679,8 @@ define dso_local float @test_nearbyintf(float %f) local_unnamed_addr {
 ; CHECK-LABEL: test_nearbyintf:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    mflr r0
-; CHECK-NEXT:    std r0, 16(r1)
 ; CHECK-NEXT:    stdu r1, -32(r1)
+; CHECK-NEXT:    std r0, 48(r1)
 ; CHECK-NEXT:    .cfi_def_cfa_offset 32
 ; CHECK-NEXT:    .cfi_offset lr, 16
 ; CHECK-NEXT:    bl nearbyintf
@@ -408,13 +689,23 @@ define dso_local float @test_nearbyintf(float %f) local_unnamed_addr {
 ; CHECK-NEXT:    ld r0, 16(r1)
 ; CHECK-NEXT:    mtlr r0
 ; CHECK-NEXT:    blr
-;
-; FAST-LABEL: test_nearbyintf:
-; FAST:       # %bb.0: # %entry
-; FAST-NEXT:    xsrdpic f1, f1
-; FAST-NEXT:    blr
 entry:
   %0 = tail call float @llvm.nearbyint.f32(float %f)
+  ret float %0
+}
+
+define dso_local float @test_constrained_nearbyintf(float %f) local_unnamed_addr {
+; BE-LABEL: test_constrained_nearbyintf:
+; BE:       # %bb.0: # %entry
+; BE-NEXT:    xsrdpic f1, f1
+; BE-NEXT:    blr
+;
+; CHECK-LABEL: test_constrained_nearbyintf:
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    xsrdpic f1, f1
+; CHECK-NEXT:    blr
+entry:
+  %0 = tail call float @llvm.experimental.constrained.nearbyint(float %f, metadata !"round.dynamic", metadata !"fpexcept.ignore")
   ret float %0
 }
 
@@ -430,13 +721,23 @@ define dso_local double @test_round(double %d) local_unnamed_addr {
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    xsrdpi f1, f1
 ; CHECK-NEXT:    blr
-;
-; FAST-LABEL: test_round:
-; FAST:       # %bb.0: # %entry
-; FAST-NEXT:    xsrdpi f1, f1
-; FAST-NEXT:    blr
 entry:
   %0 = tail call double @llvm.round.f64(double %d)
+  ret double %0
+}
+
+define dso_local double @test_constrained_round(double %d) local_unnamed_addr {
+; BE-LABEL: test_constrained_round:
+; BE:       # %bb.0: # %entry
+; BE-NEXT:    xsrdpi f1, f1
+; BE-NEXT:    blr
+;
+; CHECK-LABEL: test_constrained_round:
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    xsrdpi f1, f1
+; CHECK-NEXT:    blr
+entry:
+  %0 = tail call double @llvm.experimental.constrained.round(double %d, metadata !"fpexcept.ignore")
   ret double %0
 }
 
@@ -452,13 +753,23 @@ define dso_local float @test_roundf(float %f) local_unnamed_addr {
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    xsrdpi f1, f1
 ; CHECK-NEXT:    blr
-;
-; FAST-LABEL: test_roundf:
-; FAST:       # %bb.0: # %entry
-; FAST-NEXT:    xsrdpi f1, f1
-; FAST-NEXT:    blr
 entry:
   %0 = tail call float @llvm.round.f32(float %f)
+  ret float %0
+}
+
+define dso_local float @test_constrained_roundf(float %f) local_unnamed_addr {
+; BE-LABEL: test_constrained_roundf:
+; BE:       # %bb.0: # %entry
+; BE-NEXT:    xsrdpi f1, f1
+; BE-NEXT:    blr
+;
+; CHECK-LABEL: test_constrained_roundf:
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    xsrdpi f1, f1
+; CHECK-NEXT:    blr
+entry:
+  %0 = tail call float @llvm.experimental.constrained.round(float %f, metadata !"fpexcept.ignore")
   ret float %0
 }
 
@@ -474,11 +785,6 @@ define dso_local double @test_trunc(double %d) local_unnamed_addr {
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    xsrdpiz f1, f1
 ; CHECK-NEXT:    blr
-;
-; FAST-LABEL: test_trunc:
-; FAST:       # %bb.0: # %entry
-; FAST-NEXT:    xsrdpiz f1, f1
-; FAST-NEXT:    blr
 entry:
   %0 = tail call double @llvm.trunc.f64(double %d)
   ret double %0
@@ -496,11 +802,6 @@ define dso_local float @test_truncf(float %f) local_unnamed_addr {
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    xsrdpiz f1, f1
 ; CHECK-NEXT:    blr
-;
-; FAST-LABEL: test_truncf:
-; FAST:       # %bb.0: # %entry
-; FAST-NEXT:    xsrdpiz f1, f1
-; FAST-NEXT:    blr
 entry:
   %0 = tail call float @llvm.trunc.f32(float %f)
   ret float %0
@@ -518,11 +819,6 @@ define dso_local double @test_floor(double %d) local_unnamed_addr {
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    xsrdpim f1, f1
 ; CHECK-NEXT:    blr
-;
-; FAST-LABEL: test_floor:
-; FAST:       # %bb.0: # %entry
-; FAST-NEXT:    xsrdpim f1, f1
-; FAST-NEXT:    blr
 entry:
   %0 = tail call double @llvm.floor.f64(double %d)
   ret double %0
@@ -540,11 +836,6 @@ define dso_local float @test_floorf(float %f) local_unnamed_addr {
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    xsrdpim f1, f1
 ; CHECK-NEXT:    blr
-;
-; FAST-LABEL: test_floorf:
-; FAST:       # %bb.0: # %entry
-; FAST-NEXT:    xsrdpim f1, f1
-; FAST-NEXT:    blr
 entry:
   %0 = tail call float @llvm.floor.f32(float %f)
   ret float %0
@@ -562,11 +853,6 @@ define dso_local double @test_ceil(double %d) local_unnamed_addr {
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    xsrdpip f1, f1
 ; CHECK-NEXT:    blr
-;
-; FAST-LABEL: test_ceil:
-; FAST:       # %bb.0: # %entry
-; FAST-NEXT:    xsrdpip f1, f1
-; FAST-NEXT:    blr
 entry:
   %0 = tail call double @llvm.ceil.f64(double %d)
   ret double %0
@@ -584,11 +870,6 @@ define dso_local float @test_ceilf(float %f) local_unnamed_addr {
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    xsrdpip f1, f1
 ; CHECK-NEXT:    blr
-;
-; FAST-LABEL: test_ceilf:
-; FAST:       # %bb.0: # %entry
-; FAST-NEXT:    xsrdpip f1, f1
-; FAST-NEXT:    blr
 entry:
   %0 = tail call float @llvm.ceil.f32(float %f)
   ret float %0
@@ -606,11 +887,6 @@ define dso_local double @test_rint(double %d) local_unnamed_addr {
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    xsrdpic f1, f1
 ; CHECK-NEXT:    blr
-;
-; FAST-LABEL: test_rint:
-; FAST:       # %bb.0: # %entry
-; FAST-NEXT:    xsrdpic f1, f1
-; FAST-NEXT:    blr
 entry:
   %0 = tail call double @llvm.rint.f64(double %d)
   ret double %0
@@ -628,11 +904,6 @@ define dso_local float @test_rintf(float %f) local_unnamed_addr {
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    xsrdpic f1, f1
 ; CHECK-NEXT:    blr
-;
-; FAST-LABEL: test_rintf:
-; FAST:       # %bb.0: # %entry
-; FAST-NEXT:    xsrdpic f1, f1
-; FAST-NEXT:    blr
 entry:
   %0 = tail call float @llvm.rint.f32(float %f)
   ret float %0

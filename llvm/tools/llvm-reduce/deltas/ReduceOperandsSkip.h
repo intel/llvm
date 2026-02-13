@@ -1,4 +1,4 @@
-//===----------------------------------------------------------------------===//
+//===------------------------------------------------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,7 +12,7 @@
 #include "Delta.h"
 
 namespace llvm {
-void reduceOperandsSkipDeltaPass(TestRunner &Test);
+void reduceOperandsSkipDeltaPass(Oracle &O, ReducerWorkItem &WorkItem);
 } // namespace llvm
 
 #endif /* LLVM_TOOLS_LLVM_REDUCE_DELTAS_REDUCEOPERANDSSKIP_H */

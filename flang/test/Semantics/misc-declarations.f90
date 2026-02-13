@@ -29,7 +29,7 @@ module m
     volatile :: coarrayComponent
   end subroutine
   subroutine C868(coarray,coarrayComponent)
-    real, volatile :: coarray[*]
+    real :: coarray[*]
     type(hasCoarray) :: coarrayComponent
     block
       !ERROR: VOLATILE attribute may not apply to a coarray accessed by USE or host association
@@ -38,4 +38,8 @@ module m
       volatile :: coarrayComponent
     end block
   end subroutine
+  subroutine C839(x)
+    !ERROR: Coarray 'x' may not be an assumed-rank array
+    real, intent(in) :: x(..)[*]
+  end
 end module

@@ -9,6 +9,7 @@
 #ifndef LLD_COFF_TYPEMERGER_H
 #define LLD_COFF_TYPEMERGER_H
 
+#include "COFFLinkerContext.h"
 #include "Config.h"
 #include "DebugTypes.h"
 #include "lld/Common/Timer.h"
@@ -32,13 +33,13 @@ public:
 
   /// Get the type table or the global type table if /DEBUG:GHASH is enabled.
   inline llvm::codeview::TypeCollection &getTypeTable() {
-    assert(!config->debugGHashes);
+    assert(!ctx.config.debugGHashes);
     return typeTable;
   }
 
   /// Get the ID table or the global ID table if /DEBUG:GHASH is enabled.
   inline llvm::codeview::TypeCollection &getIDTable() {
-    assert(!config->debugGHashes);
+    assert(!ctx.config.debugGHashes);
     return idTable;
   }
 

@@ -47,8 +47,8 @@
 #endif
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Support/CommandLine.h>
-#include <llvm/Support/Host.h>
 #include <llvm/Support/ManagedStatic.h>
+#include <llvm/TargetParser/Host.h>
 #include <clang/AST/ASTContext.h>
 #include <clang/AST/ASTConsumer.h>
 #include <clang/Basic/Builtins.h>
@@ -428,7 +428,7 @@ static void set_lang_defaults(CompilerInstance *Clang)
 	PreprocessorOptions &PO = Clang->getPreprocessorOpts();
 	TargetOptions &TO = Clang->getTargetOpts();
 	llvm::Triple T(TO.Triple);
-	CompilerInvocation::setLangDefaults(Clang->getLangOpts(), IK_C, T,
+	SETLANGDEFAULTS::setLangDefaults(Clang->getLangOpts(), IK_C, T,
 					    setLangDefaultsArg4(PO),
 					    LangStandard::lang_unspecified);
 }

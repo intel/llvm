@@ -13,7 +13,7 @@
 #ifndef TOY_OPS
 #define TOY_OPS
 
-include "mlir/IR/FunctionInterfaces.td"
+include "mlir/Interfaces/FunctionInterfaces.td"
 include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
@@ -42,9 +42,9 @@ class Toy_Op<string mnemonic, list<Trait> traits = []> :
 
 // We define a toy operation by inheriting from our base 'Toy_Op' class above.
 // Here we provide the mnemonic and a list of traits for the operation. The
-// constant operation is marked as 'NoSideEffect' as it is a pure operation
+// constant operation is marked as 'Pure' as it is a pure operation
 // and may be removed if dead.
-def ConstantOp : Toy_Op<"constant", [NoSideEffect]> {
+def ConstantOp : Toy_Op<"constant", [Pure]> {
   // Provide a summary and description for this operation. This can be used to
   // auto-generate documentation of the operations within our dialect.
   let summary = "constant";
@@ -69,7 +69,7 @@ def ConstantOp : Toy_Op<"constant", [NoSideEffect]> {
 
   // Add custom build methods for the constant operation. These method populates
   // the `state` that MLIR uses to create operations, i.e. these are used when
-  // using `builder.create<ConstantOp>(...)`.
+  // using `ConstantOp::create(builder, ...)`.
   let builders = [
     // Build a constant with a given constant tensor value.
     OpBuilder<(ins "DenseElementsAttr":$value), [{
@@ -88,7 +88,7 @@ def ConstantOp : Toy_Op<"constant", [NoSideEffect]> {
 // AddOp
 //===----------------------------------------------------------------------===//
 
-def AddOp : Toy_Op<"add", [NoSideEffect]> {
+def AddOp : Toy_Op<"add", [Pure]> {
   let summary = "element-wise addition operation";
   let description = [{
     The "add" operation performs element-wise addition between two tensors.
@@ -112,7 +112,7 @@ def AddOp : Toy_Op<"add", [NoSideEffect]> {
 //===----------------------------------------------------------------------===//
 
 def FuncOp : Toy_Op<"func", [
-    FunctionOpInterface, IsolatedFromAbove, Symbol
+    FunctionOpInterface, IsolatedFromAbove
   ]> {
   let summary = "user defined function operation";
   let description = [{
@@ -133,7 +133,9 @@ def FuncOp : Toy_Op<"func", [
 
   let arguments = (ins
     SymbolNameAttr:$sym_name,
-    TypeAttrOf<FunctionType>:$function_type
+    TypeAttrOf<FunctionType>:$function_type,
+    OptionalAttr<DictArrayAttr>:$arg_attrs,
+    OptionalAttr<DictArrayAttr>:$res_attrs
   );
   let regions = (region AnyRegion:$body);
 
@@ -151,6 +153,9 @@ def FuncOp : Toy_Op<"func", [
 
     /// Returns the result types of this function.
     ArrayRef<Type> getResultTypes() { return getFunctionType().getResults(); }
+
+    /// Returns the region on the current operation that is callable.
+    ::mlir::Region *getCallableRegion() { return &getBody(); }
   }];
   let hasCustomAssemblyFormat = 1;
   let skipDefaultBuilders = 1;
@@ -199,7 +204,7 @@ def GenericCallOp : Toy_Op<"generic_call"> {
 // MulOp
 //===----------------------------------------------------------------------===//
 
-def MulOp : Toy_Op<"mul", [NoSideEffect]> {
+def MulOp : Toy_Op<"mul", [Pure]> {
   let summary = "element-wise multiplication operation";
   let description = [{
     The "mul" operation performs element-wise multiplication between two
@@ -239,7 +244,7 @@ def PrintOp : Toy_Op<"print"> {
 // ReshapeOp
 //===----------------------------------------------------------------------===//
 
-def ReshapeOp : Toy_Op<"reshape", [NoSideEffect]> {
+def ReshapeOp : Toy_Op<"reshape", [Pure]> {
   let summary = "tensor reshape operation";
   let description = [{
     Reshape operation is transforming its input tensor into a new tensor with
@@ -267,7 +272,7 @@ def ReshapeOp : Toy_Op<"reshape", [NoSideEffect]> {
 // ReturnOp
 //===----------------------------------------------------------------------===//
 
-def ReturnOp : Toy_Op<"return", [NoSideEffect, HasParent<"FuncOp">,
+def ReturnOp : Toy_Op<"return", [Pure, HasParent<"FuncOp">,
                                  Terminator]> {
   let summary = "return operation";
   let description = [{
@@ -293,7 +298,7 @@ def ReturnOp : Toy_Op<"return", [NoSideEffect, HasParent<"FuncOp">,
 
   // Allow building a ReturnOp with no return operand.
   let builders = [
-    OpBuilder<(ins), [{ build($_builder, $_state, llvm::None); }]>
+    OpBuilder<(ins), [{ build($_builder, $_state, {}); }]>
   ];
 
   // Provide extra utility definitions on the c++ operation class definition.
@@ -309,7 +314,7 @@ def ReturnOp : Toy_Op<"return", [NoSideEffect, HasParent<"FuncOp">,
 // TransposeOp
 //===----------------------------------------------------------------------===//
 
-def TransposeOp : Toy_Op<"transpose", [NoSideEffect]> {
+def TransposeOp : Toy_Op<"transpose", [Pure]> {
   let summary = "transpose operation";
 
   let arguments = (ins F64Tensor:$input);

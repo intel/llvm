@@ -10,9 +10,6 @@
 // UNSUPPORTED: c++03, c++11, c++14
 // UNSUPPORTED: no-exceptions
 
-// Support for catching a function pointer including noexcept was shipped in macOS 10.13
-// XFAIL: use_system_cxx_lib && {{.+}}-apple-macosx10.{{9|10|11|12}}
-
 #include <cassert>
 
 template<bool Noexcept> void f() noexcept(Noexcept) {}

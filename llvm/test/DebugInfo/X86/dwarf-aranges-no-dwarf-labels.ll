@@ -45,7 +45,7 @@ entry:
   %call = tail call i32 @_Z3fooi(i32 2), !dbg !23
   %call1 = tail call i32 @_Z4foo2i(i32 1), !dbg !23
   %add = add nsw i32 %call1, %call, !dbg !23
-  %0 = load i32, i32* @global, align 4, !dbg !23, !tbaa !24
+  %0 = load i32, ptr @global, align 4, !dbg !23, !tbaa !24
   %add2 = add nsw i32 %add, %0, !dbg !23
   ret i32 %add2, !dbg !23
 }
@@ -53,8 +53,8 @@ entry:
 ; Function Attrs: nounwind readnone
 declare void @llvm.dbg.value(metadata, metadata, metadata) #2
 
-attributes #0 = { nounwind readnone uwtable "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { nounwind readonly uwtable "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind readnone uwtable "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "use-soft-float"="false" }
+attributes #1 = { nounwind readonly uwtable "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "use-soft-float"="false" }
 attributes #2 = { nounwind readnone }
 
 !llvm.dbg.cu = !{!4}

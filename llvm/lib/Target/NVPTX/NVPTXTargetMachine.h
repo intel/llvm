@@ -13,42 +13,40 @@
 #ifndef LLVM_LIB_TARGET_NVPTX_NVPTXTARGETMACHINE_H
 #define LLVM_LIB_TARGET_NVPTX_NVPTXTARGETMACHINE_H
 
-#include "ManagedStringPool.h"
 #include "NVPTXSubtarget.h"
-#include "llvm/Target/TargetMachine.h"
+#include "llvm/CodeGen/CodeGenTargetMachineImpl.h"
+#include <optional>
 #include <utility>
 
 namespace llvm {
 
 /// NVPTXTargetMachine
 ///
-class NVPTXTargetMachine : public LLVMTargetMachine {
+class NVPTXTargetMachine : public CodeGenTargetMachineImpl {
   bool is64bit;
-  // Use 32-bit pointers for accessing const/local/short AS.
-  bool UseShortPointers;
   std::unique_ptr<TargetLoweringObjectFile> TLOF;
   NVPTX::DrvInterface drvInterface;
   NVPTXSubtarget Subtarget;
 
   // Hold Strings that can be free'd all together with NVPTXTargetMachine
-  ManagedStringPool ManagedStrPool;
+  BumpPtrAllocator StrAlloc;
+  UniqueStringSaver StrPool;
 
 public:
   NVPTXTargetMachine(const Target &T, const Triple &TT, StringRef CPU,
                      StringRef FS, const TargetOptions &Options,
-                     Optional<Reloc::Model> RM, Optional<CodeModel::Model> CM,
-                     CodeGenOpt::Level OP, bool is64bit);
-
+                     std::optional<Reloc::Model> RM,
+                     std::optional<CodeModel::Model> CM, CodeGenOptLevel OP,
+                     bool is64bit);
   ~NVPTXTargetMachine() override;
   const NVPTXSubtarget *getSubtargetImpl(const Function &) const override {
     return &Subtarget;
   }
   const NVPTXSubtarget *getSubtargetImpl() const { return &Subtarget; }
   bool is64Bit() const { return is64bit; }
-  bool useShortPointers() const { return UseShortPointers; }
   NVPTX::DrvInterface getDrvInterface() const { return drvInterface; }
-  ManagedStringPool *getManagedStrPool() const {
-    return const_cast<ManagedStringPool *>(&ManagedStrPool);
+  UniqueStringSaver &getStrPool() const {
+    return const_cast<UniqueStringSaver &>(StrPool);
   }
 
   TargetPassConfig *createPassConfig(PassManagerBase &PM) override;
@@ -62,7 +60,12 @@ public:
     return TLOF.get();
   }
 
-  void adjustPassManager(PassManagerBuilder &) override;
+  MachineFunctionInfo *
+  createMachineFunctionInfo(BumpPtrAllocator &Allocator, const Function &F,
+                            const TargetSubtargetInfo *STI) const override;
+
+  void registerEarlyDefaultAliasAnalyses(AAManager &AAM) override;
+
   void registerPassBuilderCallbacks(PassBuilder &PB) override;
 
   TargetTransformInfo getTargetTransformInfo(const Function &F) const override;
@@ -77,20 +80,24 @@ public:
 
 class NVPTXTargetMachine32 : public NVPTXTargetMachine {
   virtual void anchor();
+
 public:
   NVPTXTargetMachine32(const Target &T, const Triple &TT, StringRef CPU,
                        StringRef FS, const TargetOptions &Options,
-                       Optional<Reloc::Model> RM, Optional<CodeModel::Model> CM,
-                       CodeGenOpt::Level OL, bool JIT);
+                       std::optional<Reloc::Model> RM,
+                       std::optional<CodeModel::Model> CM, CodeGenOptLevel OL,
+                       bool JIT);
 };
 
 class NVPTXTargetMachine64 : public NVPTXTargetMachine {
   virtual void anchor();
+
 public:
   NVPTXTargetMachine64(const Target &T, const Triple &TT, StringRef CPU,
                        StringRef FS, const TargetOptions &Options,
-                       Optional<Reloc::Model> RM, Optional<CodeModel::Model> CM,
-                       CodeGenOpt::Level OL, bool JIT);
+                       std::optional<Reloc::Model> RM,
+                       std::optional<CodeModel::Model> CM, CodeGenOptLevel OL,
+                       bool JIT);
 };
 
 } // end namespace llvm

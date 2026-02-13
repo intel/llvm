@@ -14,66 +14,135 @@
 #include "llvm/MC/MCFixup.h"
 #include "llvm/MC/MCObjectFileInfo.h"
 #include "llvm/MC/TargetRegistry.h"
-#include "llvm/Support/Host.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
+#include "llvm/TargetParser/Host.h"
 
 namespace llvm {
 namespace exegesis {
 
-Expected<LLVMState> LLVMState::Create(std::string Triple, std::string CpuName,
-                                      const StringRef Features) {
-  if (Triple.empty())
-    Triple = sys::getProcessTriple();
-  if (CpuName.empty())
-    CpuName = sys::getHostCPUName().str();
+Expected<LLVMState> LLVMState::Create(std::string TripleName,
+                                      std::string CpuName,
+                                      const StringRef Features,
+                                      bool UseDummyPerfCounters) {
+  if (TripleName.empty())
+    TripleName = Triple::normalize(sys::getDefaultTargetTriple());
+
+  Triple TheTriple(TripleName);
+
+  // Get the target specific parser.
   std::string Error;
-  const Target *const TheTarget = TargetRegistry::lookupTarget(Triple, Error);
+  const Target *TheTarget =
+      TargetRegistry::lookupTarget(/*MArch=*/"", TheTriple, Error);
   if (!TheTarget) {
-    return llvm::make_error<llvm::StringError>(
-        "no LLVM target for triple " + Triple, llvm::inconvertibleErrorCode());
+    return make_error<StringError>("no LLVM target for triple " + TripleName,
+                                   inconvertibleErrorCode());
+  }
+
+  // Update Triple with the updated triple from the target lookup.
+  TripleName = TheTriple.str();
+
+  if (CpuName == "native") {
+    // case for cross generating, when native arch and target mismatch
+    if ((Triple(sys::getProcessTriple()).getArch() !=
+         Triple(TripleName).getArch()))
+      return make_error<StringError>(
+          "A CPU must be explicitly specified when cross compiling. To see all "
+          "possible options for " +
+              TripleName + " triple use -mcpu=help",
+          inconvertibleErrorCode());
+    CpuName = std::string(sys::getHostCPUName());
+  }
+
+  std::unique_ptr<MCSubtargetInfo> STI(
+      TheTarget->createMCSubtargetInfo(TheTriple, CpuName, ""));
+  if (!STI) {
+    return make_error<StringError>("unable to create subtarget info",
+                                   inconvertibleErrorCode());
+  }
+
+  assert(STI && "Unable to create subtarget info!");
+  if (!STI->isCPUStringValid(CpuName)) {
+    return make_error<StringError>(Twine("invalid CPU name (")
+                                       .concat(CpuName)
+                                       .concat(") for triple ")
+                                       .concat(TripleName),
+                                   inconvertibleErrorCode());
   }
   const TargetOptions Options;
-  std::unique_ptr<const TargetMachine> TM(
-      static_cast<LLVMTargetMachine *>(TheTarget->createTargetMachine(
-          Triple, CpuName, Features, Options, Reloc::Model::Static)));
+  std::unique_ptr<const TargetMachine> TM(TheTarget->createTargetMachine(
+      TheTriple, CpuName, Features, Options, Reloc::Model::Static));
   if (!TM) {
-    return llvm::make_error<llvm::StringError>(
-        "unable to create target machine", llvm::inconvertibleErrorCode());
+    return make_error<StringError>("unable to create target machine",
+                                   inconvertibleErrorCode());
   }
 
   const ExegesisTarget *ET =
-      Triple.empty() ? &ExegesisTarget::getDefault()
-                     : ExegesisTarget::lookup(TM->getTargetTriple());
+      TripleName.empty() ? &ExegesisTarget::getDefault()
+                         : ExegesisTarget::lookup(TM->getTargetTriple());
   if (!ET) {
-    return llvm::make_error<llvm::StringError>(
-        "no Exegesis target for triple " + Triple,
-        llvm::inconvertibleErrorCode());
+    return make_error<StringError>("no Exegesis target for triple " +
+                                       TripleName,
+                                   inconvertibleErrorCode());
   }
-  return LLVMState(std::move(TM), ET, CpuName);
+  const PfmCountersInfo &PCI = UseDummyPerfCounters
+                                   ? ET->getDummyPfmCounters()
+                                   : ET->getPfmCounters(CpuName);
+  return LLVMState(std::move(TM), ET, &PCI);
 }
 
 LLVMState::LLVMState(std::unique_ptr<const TargetMachine> TM,
-                     const ExegesisTarget *ET, const StringRef CpuName)
-    : TheExegesisTarget(ET), TheTargetMachine(std::move(TM)) {
-  PfmCounters = &TheExegesisTarget->getPfmCounters(CpuName);
-
+                     const ExegesisTarget *ET, const PfmCountersInfo *PCI)
+    : TheExegesisTarget(ET), TheTargetMachine(std::move(TM)), PfmCounters(PCI),
+      OpcodeNameToOpcodeIdxMapping(createOpcodeNameToOpcodeIdxMapping()),
+      RegNameToRegNoMapping(createRegNameToRegNoMapping()) {
   BitVector ReservedRegs = getFunctionReservedRegs(getTargetMachine());
-  for (const unsigned Reg : TheExegesisTarget->getUnavailableRegisters())
+  for (const MCPhysReg Reg : TheExegesisTarget->getUnavailableRegisters())
     ReservedRegs.set(Reg);
   RATC.reset(
       new RegisterAliasingTrackerCache(getRegInfo(), std::move(ReservedRegs)));
   IC.reset(new InstructionsCache(getInstrInfo(), getRATC()));
 }
 
-std::unique_ptr<LLVMTargetMachine> LLVMState::createTargetMachine() const {
-  return std::unique_ptr<LLVMTargetMachine>(static_cast<LLVMTargetMachine *>(
+std::unique_ptr<TargetMachine> LLVMState::createTargetMachine() const {
+  return std::unique_ptr<TargetMachine>(
       TheTargetMachine->getTarget().createTargetMachine(
-          TheTargetMachine->getTargetTriple().normalize(),
+          Triple(TheTargetMachine->getTargetTriple().normalize()),
           TheTargetMachine->getTargetCPU(),
           TheTargetMachine->getTargetFeatureString(), TheTargetMachine->Options,
-          Reloc::Model::Static)));
+          Reloc::Model::Static));
+}
+
+std::optional<MCRegister>
+LLVMState::getRegisterNumberFromName(StringRef RegisterName) const {
+  auto RegisterIt = RegNameToRegNoMapping->find(RegisterName);
+  if (RegisterIt == RegNameToRegNoMapping->end())
+    return std::nullopt;
+  return RegisterIt->second;
+}
+
+std::unique_ptr<const DenseMap<StringRef, unsigned>>
+LLVMState::createOpcodeNameToOpcodeIdxMapping() const {
+  const MCInstrInfo &InstrInfo = getInstrInfo();
+  auto Map = std::make_unique<DenseMap<StringRef, unsigned>>(
+      InstrInfo.getNumOpcodes());
+  for (unsigned I = 0, E = InstrInfo.getNumOpcodes(); I < E; ++I)
+    (*Map)[InstrInfo.getName(I)] = I;
+  assert(Map->size() == InstrInfo.getNumOpcodes() && "Size prediction failed");
+  return std::move(Map);
+}
+
+std::unique_ptr<const DenseMap<StringRef, MCRegister>>
+LLVMState::createRegNameToRegNoMapping() const {
+  const MCRegisterInfo &RegInfo = getRegInfo();
+  auto Map =
+      std::make_unique<DenseMap<StringRef, MCRegister>>(RegInfo.getNumRegs());
+  // Special-case RegNo 0, which would otherwise be spelled as ''.
+  (*Map)[kNoRegister] = 0;
+  for (unsigned I = 1, E = RegInfo.getNumRegs(); I < E; ++I)
+    (*Map)[RegInfo.getName(I)] = I;
+  assert(Map->size() == RegInfo.getNumRegs() && "Size prediction failed");
+  return std::move(Map);
 }
 
 bool LLVMState::canAssemble(const MCInst &Inst) const {
@@ -86,9 +155,8 @@ bool LLVMState::canAssemble(const MCInst &Inst) const {
           *TheTargetMachine->getMCInstrInfo(), Context));
   assert(CodeEmitter && "unable to create code emitter");
   SmallVector<char, 16> Tmp;
-  raw_svector_ostream OS(Tmp);
   SmallVector<MCFixup, 4> Fixups;
-  CodeEmitter->encodeInstruction(Inst, OS, Fixups,
+  CodeEmitter->encodeInstruction(Inst, Tmp, Fixups,
                                  *TheTargetMachine->getMCSubtargetInfo());
   return Tmp.size() > 0;
 }

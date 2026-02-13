@@ -1,4 +1,4 @@
-; RUN: opt %loadPolly -polly-codegen -S < %s | FileCheck %s
+; RUN: opt %loadNPMPolly '-passes=polly<no-default-opts>' -S < %s | FileCheck %s
 
 ; PR25241 (https://llvm.org/bugs/show_bug.cgi?id=25241)
 ; Ensure that synthesized values of a PHI node argument are generated in the
@@ -13,21 +13,20 @@
 ; CHECK:         br label %polly.stmt.polly.merge_new_and_old.exit
 
 ; CHECK-LABEL: polly.stmt.polly.merge_new_and_old.exit:
-; CHECK:         store i32 %polly.curr.3, i32* %curr.3.s2a
+; CHECK:         store i32 %polly.curr.3, ptr %curr.3.s2a
 ; CHECK:         br label %polly.exiting
 
 ; CHECK-LABEL: polly.exiting:
-; CHECK:         %curr.3.ph.final_reload = load i32, i32* %curr.3.s2a
+; CHECK:         %curr.3.ph.final_reload = load i32, ptr %curr.3.s2a
 ; CHECK:         br label
-
 
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
 ; Function Attrs: nounwind uwtable
-define void @BZ2_decompress() #0 {
+define void @BZ2_decompress() {
 entry:
-  %tmp = load i32, i32* undef, align 4, !tbaa !1
+  %tmp = load i32, ptr undef, align 4, !tbaa !1
   switch i32 undef, label %save_state_and_return [
     i32 34, label %sw.bb.748
     i32 35, label %if.then.813
@@ -55,8 +54,6 @@ if.else.864:                                      ; preds = %if.then.813
 save_state_and_return:                            ; preds = %entry
   ret void
 }
-
-attributes #0 = { nounwind uwtable "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+mmx,+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.ident = !{!0}
 

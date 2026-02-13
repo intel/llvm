@@ -28,14 +28,14 @@ TimelineView::TimelineView(const MCSubtargetInfo &sti, MCInstPrinter &Printer,
   NumInstructions *= Iterations;
   Timeline.resize(NumInstructions);
   TimelineViewEntry InvalidTVEntry = {-1, 0, 0, 0, 0};
-  std::fill(Timeline.begin(), Timeline.end(), InvalidTVEntry);
+  llvm::fill(Timeline, InvalidTVEntry);
 
   WaitTimeEntry NullWTEntry = {0, 0, 0};
-  std::fill(WaitTime.begin(), WaitTime.end(), NullWTEntry);
+  llvm::fill(WaitTime, NullWTEntry);
 
   std::pair<unsigned, int> NullUsedBufferEntry = {/* Invalid resource ID*/ 0,
                                                   /* unknown buffer size */ -1};
-  std::fill(UsedBuffer.begin(), UsedBuffer.end(), NullUsedBufferEntry);
+  llvm::fill(UsedBuffer, NullUsedBufferEntry);
 }
 
 void TimelineView::onReservedBuffers(const InstRef &IR,
@@ -315,6 +315,10 @@ json::Value TimelineView::toJSON() const {
   json::Array TimelineInfo;
 
   for (const TimelineViewEntry &TLE : Timeline) {
+    // Check if the timeline-max-cycles has been reached.
+    if (!TLE.CycleRetired && TLE.CycleExecuted)
+      break;
+
     TimelineInfo.push_back(
         json::Object({{"CycleDispatched", TLE.CycleDispatched},
                       {"CycleReady", TLE.CycleReady},

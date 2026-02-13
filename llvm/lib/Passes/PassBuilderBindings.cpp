@@ -12,6 +12,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm-c/Transforms/PassBuilder.h"
+#include "llvm/Analysis/AliasAnalysis.h"
+#include "llvm/IR/Module.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/StandardInstrumentations.h"
@@ -27,11 +29,14 @@ class LLVMPassBuilderOptions {
 public:
   explicit LLVMPassBuilderOptions(
       bool DebugLogging = false, bool VerifyEach = false,
+      const char *AAPipeline = nullptr,
       PipelineTuningOptions PTO = PipelineTuningOptions())
-      : DebugLogging(DebugLogging), VerifyEach(VerifyEach), PTO(PTO) {}
+      : DebugLogging(DebugLogging), VerifyEach(VerifyEach),
+        AAPipeline(AAPipeline), PTO(PTO) {}
 
   bool DebugLogging;
   bool VerifyEach;
+  const char *AAPipeline;
   PipelineTuningOptions PTO;
 };
 } // namespace llvm
@@ -43,40 +48,72 @@ static TargetMachine *unwrap(LLVMTargetMachineRef P) {
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(LLVMPassBuilderOptions,
                                    LLVMPassBuilderOptionsRef)
 
-LLVMErrorRef LLVMRunPasses(LLVMModuleRef M, const char *Passes,
-                           LLVMTargetMachineRef TM,
-                           LLVMPassBuilderOptionsRef Options) {
-  TargetMachine *Machine = unwrap(TM);
-  LLVMPassBuilderOptions *PassOpts = unwrap(Options);
+static LLVMErrorRef runPasses(Module *Mod, Function *Fun, const char *Passes,
+                              TargetMachine *Machine,
+                              LLVMPassBuilderOptions *PassOpts) {
   bool Debug = PassOpts->DebugLogging;
   bool VerifyEach = PassOpts->VerifyEach;
 
-  Module *Mod = unwrap(M);
   PassInstrumentationCallbacks PIC;
-  PassBuilder PB(Machine, PassOpts->PTO, None, &PIC);
+  PassBuilder PB(Machine, PassOpts->PTO, std::nullopt, &PIC);
 
   LoopAnalysisManager LAM;
   FunctionAnalysisManager FAM;
   CGSCCAnalysisManager CGAM;
   ModuleAnalysisManager MAM;
+  if (PassOpts->AAPipeline) {
+    // If we have a custom AA pipeline, we need to register it _before_ calling
+    // registerFunctionAnalyses, or the default alias analysis pipeline is used.
+    AAManager AA;
+    if (auto Err = PB.parseAAPipeline(AA, PassOpts->AAPipeline))
+      return wrap(std::move(Err));
+    FAM.registerPass([&] { return std::move(AA); });
+  }
   PB.registerLoopAnalyses(LAM);
   PB.registerFunctionAnalyses(FAM);
   PB.registerCGSCCAnalyses(CGAM);
   PB.registerModuleAnalyses(MAM);
   PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
 
-  StandardInstrumentations SI(Debug, VerifyEach);
-  SI.registerCallbacks(PIC, &FAM);
-  ModulePassManager MPM;
-  if (VerifyEach) {
-    MPM.addPass(VerifierPass());
-  }
-  if (auto Err = PB.parsePassPipeline(MPM, Passes)) {
-    return wrap(std::move(Err));
+  StandardInstrumentations SI(Mod->getContext(), Debug, VerifyEach);
+  SI.registerCallbacks(PIC, &MAM);
+
+  // Run the pipeline.
+  if (Fun) {
+    FunctionPassManager FPM;
+    if (VerifyEach)
+      FPM.addPass(VerifierPass());
+    if (auto Err = PB.parsePassPipeline(FPM, Passes))
+      return wrap(std::move(Err));
+    FPM.run(*Fun, FAM);
+  } else {
+    ModulePassManager MPM;
+    if (VerifyEach)
+      MPM.addPass(VerifierPass());
+    if (auto Err = PB.parsePassPipeline(MPM, Passes))
+      return wrap(std::move(Err));
+    MPM.run(*Mod, MAM);
   }
 
-  MPM.run(*Mod, MAM);
   return LLVMErrorSuccess;
+}
+
+LLVMErrorRef LLVMRunPasses(LLVMModuleRef M, const char *Passes,
+                           LLVMTargetMachineRef TM,
+                           LLVMPassBuilderOptionsRef Options) {
+  TargetMachine *Machine = unwrap(TM);
+  LLVMPassBuilderOptions *PassOpts = unwrap(Options);
+  Module *Mod = unwrap(M);
+  return runPasses(Mod, nullptr, Passes, Machine, PassOpts);
+}
+
+LLVMErrorRef LLVMRunPassesOnFunction(LLVMValueRef F, const char *Passes,
+                                     LLVMTargetMachineRef TM,
+                                     LLVMPassBuilderOptionsRef Options) {
+  TargetMachine *Machine = unwrap(TM);
+  LLVMPassBuilderOptions *PassOpts = unwrap(Options);
+  Function *Fun = unwrap<Function>(F);
+  return runPasses(Fun->getParent(), Fun, Passes, Machine, PassOpts);
 }
 
 LLVMPassBuilderOptionsRef LLVMCreatePassBuilderOptions() {
@@ -91,6 +128,11 @@ void LLVMPassBuilderOptionsSetVerifyEach(LLVMPassBuilderOptionsRef Options,
 void LLVMPassBuilderOptionsSetDebugLogging(LLVMPassBuilderOptionsRef Options,
                                            LLVMBool DebugLogging) {
   unwrap(Options)->DebugLogging = DebugLogging;
+}
+
+void LLVMPassBuilderOptionsSetAAPipeline(LLVMPassBuilderOptionsRef Options,
+                                         const char *AAPipeline) {
+  unwrap(Options)->AAPipeline = AAPipeline;
 }
 
 void LLVMPassBuilderOptionsSetLoopInterleaving(
@@ -137,6 +179,11 @@ void LLVMPassBuilderOptionsSetCallGraphProfile(
 void LLVMPassBuilderOptionsSetMergeFunctions(LLVMPassBuilderOptionsRef Options,
                                              LLVMBool MergeFunctions) {
   unwrap(Options)->PTO.MergeFunctions = MergeFunctions;
+}
+
+void LLVMPassBuilderOptionsSetInlinerThreshold(
+    LLVMPassBuilderOptionsRef Options, int Threshold) {
+  unwrap(Options)->PTO.InlinerThreshold = Threshold;
 }
 
 void LLVMDisposePassBuilderOptions(LLVMPassBuilderOptionsRef Options) {

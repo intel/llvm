@@ -3,7 +3,7 @@
 // At the moment the whole of the destination array content is invalidated.
 // If a.s1 region has a symbolic offset, the whole region of 'a' is invalidated.
 // Specific triple set to test structures of size 0.
-// RUN: %clang_analyze_cc1 -triple x86_64-pc-linux-gnu -analyzer-checker=core,unix.Malloc,debug.ExprInspection -Wno-error=int-conversion -verify -analyzer-config eagerly-assume=false %s
+// RUN: %clang_analyze_cc1 -triple x86_64-pc-linux-gnu -analyzer-checker=core,unix.Malloc,debug.ExprInspection -analyzer-disable-checker=core.FixedAddressDereference -Wno-error=int-conversion -verify -analyzer-config eagerly-assume=false %s
 
 typedef __typeof(sizeof(int)) size_t;
 
@@ -556,12 +556,13 @@ int f263(int n, char * len) {
   x263.s2 = strdup("hello");
   char input[] = {'a', 'b', 'c', 'd'};
   memcpy(x263.s1, input, *(len + n));
-  clang_analyzer_eval(x263.s1[0] == 0); // expected-warning{{UNKNOWN}}
+  clang_analyzer_eval(x263.s1[0] == 0); // expected-warning{{UNKNOWN}}\
+  expected-warning{{Potential leak of memory pointed to by 'x263.s2'}}
   clang_analyzer_eval(x263.s1[1] == 0); // expected-warning{{UNKNOWN}}
   clang_analyzer_eval(x263.s1[2] == 0); // expected-warning{{UNKNOWN}}
   clang_analyzer_eval(x263.s1[3] == 0); // expected-warning{{UNKNOWN}}
   clang_analyzer_eval(x263.s2 == 0); // expected-warning{{UNKNOWN}}
-  return 0; // expected-warning{{Potential leak of memory pointed to by 'x263.s2'}}
+  return 0;
 }
 
 

@@ -9,7 +9,6 @@
 #include "llvm/DebugInfo/PDB/Native/LinePrinter.h"
 
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/DebugInfo/CodeView/LazyRandomTypeCollection.h"
 #include "llvm/DebugInfo/MSF/MSFCommon.h"
 #include "llvm/DebugInfo/MSF/MappedBlockStream.h"
 #include "llvm/DebugInfo/PDB/IPDBLineNumber.h"
@@ -251,7 +250,7 @@ void LinePrinter::formatMsfStreamData(StringRef Label, PDBFile &File,
 
 void LinePrinter::formatMsfStreamBlocks(
     PDBFile &File, const msf::MSFStreamLayout &StreamLayout) {
-  auto Blocks = makeArrayRef(StreamLayout.Blocks);
+  auto Blocks = ArrayRef(StreamLayout.Blocks);
   uint64_t L = StreamLayout.Length;
 
   while (L > 0) {

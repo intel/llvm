@@ -1,4 +1,4 @@
-; RUN: llc -O2 -march=hexagon < %s | FileCheck %s
+; RUN: llc -O2 -mtriple=hexagon < %s | FileCheck %s
 ; CHECK: cmp.eq(r{{[0-9]+}},#0)
 ; Check that the result of the builtin is not stored directly, i.e. that
 ; there is an instruction that converts it to {0,1} from {0,-1}. Right now
@@ -14,6 +14,6 @@ entry:
   %a102 = zext i1 %tobool250 to i8
   %detected.0 = xor i8 %a102, 1
   %conv253 = zext i8 %detected.0 to i32
-  store i32 %conv253, i32* @var, align 4
+  store i32 %conv253, ptr @var, align 4
   ret void
 }

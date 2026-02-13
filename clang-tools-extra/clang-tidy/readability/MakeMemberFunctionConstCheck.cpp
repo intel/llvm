@@ -1,4 +1,4 @@
-//===--- MakeMemberFunctionConstCheck.cpp - clang-tidy --------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -15,9 +15,9 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace readability {
+namespace clang::tidy::readability {
+
+namespace {
 
 AST_MATCHER(CXXMethodDecl, isStatic) { return Node.isStatic(); }
 
@@ -59,7 +59,7 @@ public:
   UsageKind Usage = Unused;
 
   template <class T> const T *getParent(const Expr *E) {
-    DynTypedNodeList Parents = Ctxt.getParents(*E);
+    const DynTypedNodeList Parents = Ctxt.getParents(*E);
     if (Parents.size() != 1)
       return nullptr;
 
@@ -178,9 +178,8 @@ public:
 
     // Look through deref of this.
     if (const auto *UnOp = dyn_cast_or_null<UnaryOperator>(Parent)) {
-      if (UnOp->getOpcode() == UO_Deref) {
+      if (UnOp->getOpcode() == UO_Deref)
         Parent = getParentExprIgnoreParens(UnOp);
-      }
     }
 
     // It's okay to
@@ -211,10 +210,12 @@ AST_MATCHER(CXXMethodDecl, usesThisAsConst) {
   FindUsageOfThis UsageOfThis(Finder->getASTContext());
 
   // TraverseStmt does not modify its argument.
-  UsageOfThis.TraverseStmt(const_cast<Stmt *>(Node.getBody()));
+  UsageOfThis.TraverseStmt(Node.getBody());
 
   return UsageOfThis.Usage == Const;
 }
+
+} // namespace
 
 void MakeMemberFunctionConstCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
@@ -239,12 +240,11 @@ void MakeMemberFunctionConstCheck::registerMatchers(MatchFinder *Finder) {
 }
 
 static SourceLocation getConstInsertionPoint(const CXXMethodDecl *M) {
-  TypeSourceInfo *TSI = M->getTypeSourceInfo();
+  const TypeSourceInfo *TSI = M->getTypeSourceInfo();
   if (!TSI)
     return {};
 
-  FunctionTypeLoc FTL =
-      TSI->getTypeLoc().IgnoreParens().getAs<FunctionTypeLoc>();
+  auto FTL = TSI->getTypeLoc().IgnoreParens().getAs<FunctionTypeLoc>();
   if (!FTL)
     return {};
 
@@ -267,6 +267,4 @@ void MakeMemberFunctionConstCheck::check(
   }
 }
 
-} // namespace readability
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::readability

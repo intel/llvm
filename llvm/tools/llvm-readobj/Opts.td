@@ -19,16 +19,21 @@ def all : FF<"all", "Equivalent to setting: --file-header, --program-headers, --
              "--section-groups and --histogram">;
 def arch_specific : FF<"arch-specific", "Display architecture-specific information">;
 def bb_addr_map : FF<"bb-addr-map", "Display the BB address map section">;
+def pretty_pgo_analysis_map : FF<"pretty-pgo-analysis-map", "Display PGO analysis values with formatting rather than raw numbers">;
+def call_graph_info : FF<"call-graph-info", "Display call graph information">;
 def cg_profile : FF<"cg-profile", "Display call graph profile section">;
+def decompress : FF<"decompress", "Dump decompressed section content when used with -x or -p">;
 defm demangle : BB<"demangle", "Demangle symbol names", "Do not demangle symbol names (default)">;
 def dependent_libraries : FF<"dependent-libraries", "Display the dependent libraries section">;
 def dyn_relocations : FF<"dyn-relocations", "Display the dynamic relocation entries in the file">;
 def dyn_syms : FF<"dyn-syms", "Display the dynamic symbol table">;
 def expand_relocs : FF<"expand-relocs", "Expand each shown relocation to multiple lines">;
+def extra_sym_info : FF<"extra-sym-info", "Display extra information when showing symbols">;
 def file_header : FF<"file-header", "Display file header">;
 def headers : FF<"headers", "Equivalent to setting: --file-header, --program-headers, --section-headers">;
 defm hex_dump : Eq<"hex-dump", "Display the specified section(s) as hexadecimal bytes">, MetaVarName<"<name or index>">;
 def pretty_print : FF<"pretty-print", "Pretty print JSON output">;
+def offloading : FF<"offloading", "Display the content of the offloading section">;
 def relocs : FF<"relocs", "Display the relocation entries in the file">;
 def section_data : FF<"section-data", "Display section data for each section shown. This option has no effect for GNU style output">;
 def section_details : FF<"section-details", "Display the section details">;
@@ -41,7 +46,7 @@ defm sort_symbols : Eq<"sort-symbols", "Specify the keys to sort the symbols bef
 def stack_sizes : FF<"stack-sizes", "Display contents of all stack sizes sections. This option has no effect for GNU style output">;
 def stackmap : FF<"stackmap", "Display contents of stackmap section">;
 defm string_dump : Eq<"string-dump", "Display the specified section(s) as a list of strings">, MetaVarName<"<name or index>">;
-def string_table : FF<"string-table", "Display the string table (only for XCOFF now)">;
+def string_table : FF<"string-table", "Display the string table (only for XCOFF/COFF now)">;
 def symbols : FF<"symbols", "Display the symbol table. Also display the dynamic symbol table when using GNU output style for ELF">;
 def unwind : FF<"unwind", "Display unwind information">;
 
@@ -55,10 +60,12 @@ def section_groups : FF<"section-groups", "Display section groups">, Group<grp_e
 def gnu_hash_table : FF<"gnu-hash-table", "Display the GNU hash table for dynamic symbols">, Group<grp_elf>;
 def hash_symbols : FF<"hash-symbols", "Display the dynamic symbols derived from the hash section">, Group<grp_elf>;
 def hash_table : FF<"hash-table", "Display .hash section">, Group<grp_elf>;
+def memtag : FF<"memtag", "Display memory tagging metadata (modes, Android notes, global descriptors)">, Group<grp_elf>;
 def needed_libs : FF<"needed-libs", "Display the needed libraries">, Group<grp_elf>;
 def notes : FF<"notes", "Display notes">, Group<grp_elf>;
 def program_headers : FF<"program-headers", "Display program headers">, Group<grp_elf>;
-def raw_relr : FF<"raw-relr", "Do not decode relocations in SHT_RELR section, display raw contents">, Group<grp_elf>;
+def sframe_EQ : Joined<["--"], "sframe=">, HelpText<"Display SFrame section <name>">, MetaVarName<"<name>">, Group<grp_elf>;
+def sframe: FF<"sframe", "Alias for --sframe=.sframe">, Alias<sframe_EQ>, AliasArgs<[".sframe"]>, Group<grp_elf>;
 def version_info : FF<"version-info", "Display version sections">, Group<grp_elf>;
 
 // Mach-O specific options.
@@ -82,6 +89,10 @@ def coff_directives : FF<"coff-directives", "Display .drectve section">, Group<g
 def coff_exports : FF<"coff-exports", "Display export table">, Group<grp_coff>;
 def coff_imports : FF<"coff-imports", "Display import table">, Group<grp_coff>;
 def coff_load_config : FF<"coff-load-config", "Display load config">, Group<grp_coff>;
+def coff_pseudoreloc
+    : FF<"coff-pseudoreloc",
+         "Display runtime pseudo-relocations (Cygwin/MinGW specific)">,
+      Group<grp_coff>;
 def coff_resources : FF<"coff-resources", "Display .rsrc section">, Group<grp_coff>;
 def coff_tls_directory : FF<"coff-tls-directory", "Display TLS directory">, Group<grp_coff>;
 
@@ -89,6 +100,9 @@ def coff_tls_directory : FF<"coff-tls-directory", "Display TLS directory">, Grou
 def grp_xcoff : OptionGroup<"kind">, HelpText<"OPTIONS (XCOFF specific)">;
 def auxiliary_header : FF<"auxiliary-header" , "Display the auxiliary header">, Group<grp_xcoff>;
 def exception_section : FF<"exception-section" , "Display the exception section entries">, Group<grp_xcoff>;
+def loader_section_header : FF<"loader-section-header" , "Display the loader section header">, Group<grp_xcoff>;
+def loader_section_symbols : FF<"loader-section-symbols" , "Display the loader section symbol table">, Group<grp_xcoff>;
+def loader_section_relocations : FF<"loader-section-relocations" , "Display the loader section relocation entries">, Group<grp_xcoff>;
 
 def help : FF<"help", "Display this help">;
 def version : FF<"version", "Display the version">;
@@ -131,5 +145,7 @@ def : F<"S", "Alias for --section-headers">, Alias<section_headers>;
 def : F<"s", "Alias for --symbols">, Alias<symbols>;
 def : F<"t", "Alias for --section-details">, Alias<section_details>;
 def : F<"u", "Alias for --unwind">, Alias<unwind>;
+def : F<"X", "Alias for --extra-sym-info">, Alias<extra_sym_info>, Group<grp_elf>;
 def : F<"V", "Alias for --version-info">, Alias<version_info>, Group<grp_elf>;
 def : JoinedOrSeparate<["-"], "x">, Alias<hex_dump_EQ>, HelpText<"Alias for --hex-dump">, MetaVarName<"<name or index>">;
+def : F<"z", "Alias for --decompress">, Alias<decompress>;

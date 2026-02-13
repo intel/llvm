@@ -1,9 +1,9 @@
-; RUN: llc -march=mipsel < %s | FileCheck %s -check-prefixes=NO-MFHC1,ALL
-; RUN: llc -march=mips  < %s | FileCheck %s -check-prefixes=NO-MFHC1,ALL
-; RUN: llc -march=mipsel -mcpu=mips32r2 < %s | FileCheck %s -check-prefixes=HAS-MFHC1,ALL
-; RUN: llc -march=mips -mcpu=mips32r2 < %s | FileCheck %s -check-prefixes=HAS-MFHC1,ALL
-; RUN: llc -march=mipsel -mcpu=mips32r2 -mattr=+fp64 < %s | FileCheck %s -check-prefixes=HAS-MFHC1,ALL
-; RUN: llc -march=mips -mcpu=mips32r2 -mattr=+fp64 < %s | FileCheck %s -check-prefixes=HAS-MFHC1,ALL
+; RUN: llc -mtriple=mipsel < %s | FileCheck %s -check-prefixes=NO-MFHC1,ALL
+; RUN: llc -mtriple=mips  < %s | FileCheck %s -check-prefixes=NO-MFHC1,ALL
+; RUN: llc -mtriple=mipsel -mcpu=mips32r2 < %s | FileCheck %s -check-prefixes=HAS-MFHC1,ALL
+; RUN: llc -mtriple=mips -mcpu=mips32r2 < %s | FileCheck %s -check-prefixes=HAS-MFHC1,ALL
+; RUN: llc -mtriple=mipsel -mcpu=mips32r2 -mattr=+fp64 < %s | FileCheck %s -check-prefixes=HAS-MFHC1,ALL
+; RUN: llc -mtriple=mips -mcpu=mips32r2 -mattr=+fp64 < %s | FileCheck %s -check-prefixes=HAS-MFHC1,ALL
 
 @a = external global i32
 
@@ -17,7 +17,7 @@
 
 define double @f(i32 %a1, double %d) nounwind {
 entry:
-  store i32 %a1, i32* @a, align 4
+  store i32 %a1, ptr @a, align 4
   %add = fadd double %d, 2.000000e+00
   ret double %add
 }

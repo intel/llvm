@@ -19,14 +19,14 @@ target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:
 target triple = "spir64"
 
 %opencl.image2d_ro_t = type opaque
-%spirv.Image._void_1_0_0_0_0_0_0 = type opaque
+
+declare spir_func <4 x float> @_Z11read_imagef14ocl_image2d_ro11ocl_samplerDv2_ff(ptr addrspace(1), ptr addrspace(2), <2 x float>, float)
 
 ; Function Attrs: convergent noinline nounwind optnone
-define spir_kernel void @read_image(%opencl.image2d_ro_t addrspace(1)* %srcimg) #0 !kernel_arg_addr_space !5 !kernel_arg_access_qual !6 !kernel_arg_type !7 !kernel_arg_base_type !8 !kernel_arg_type_qual !9 {
+define spir_kernel void @read_image(ptr addrspace(1) %srcimg, ptr addrspace(2) %sampler) #0 !kernel_arg_addr_space !5 !kernel_arg_access_qual !6 !kernel_arg_type !7 !kernel_arg_base_type !8 !kernel_arg_type_qual !9 {
 entry:
-  %srcimg.addr = alloca %opencl.image2d_ro_t addrspace(1)*, align 8
-  %spirvimg.addr = alloca %spirv.Image._void_1_0_0_0_0_0_0 addrspace(1)*, align 8
-  store %opencl.image2d_ro_t addrspace(1)* %srcimg, %opencl.image2d_ro_t addrspace(1)** %srcimg.addr, align 8
+  %spirvimg.addr = alloca target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0), align 8
+  %val = call <4 x float> @_Z11read_imagef14ocl_image2d_ro11ocl_samplerDv2_ff(ptr addrspace(1) %srcimg, ptr addrspace(2) %sampler, <2 x float> zeroinitializer, float 0.0)
   ret void
 }
 
@@ -46,8 +46,8 @@ attributes #0 = { convergent noinline nounwind optnone "correctly-rounded-divide
 !2 = !{}
 !3 = !{!"cl_images"}
 !4 = !{!"clang version 6.0.0"}
-!5 = !{i32 1}
-!6 = !{!"read_only"}
-!7 = !{!"image2d_t"}
-!8 = !{!"image2d_t"}
-!9 = !{!""}
+!5 = !{i32 1, i32 1}
+!6 = !{!"read_only", !""}
+!7 = !{!"image2d_t", !""}
+!8 = !{!"image2d_t", !""}
+!9 = !{!"", !""}

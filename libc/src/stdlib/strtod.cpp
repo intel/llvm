@@ -8,13 +8,22 @@
 
 #include "src/stdlib/strtod.h"
 #include "src/__support/common.h"
+#include "src/__support/libc_errno.h"
+#include "src/__support/macros/config.h"
 #include "src/__support/str_to_float.h"
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE_DECL {
 
 LLVM_LIBC_FUNCTION(double, strtod,
                    (const char *__restrict str, char **__restrict str_end)) {
-  return internal::strtofloatingpoint<double>(str, str_end);
+  auto result = internal::strtofloatingpoint<double>(str);
+  if (result.has_error())
+    libc_errno = result.error;
+
+  if (str_end != nullptr)
+    *str_end = const_cast<char *>(str + result.parsed_len);
+
+  return result.value;
 }
 
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE_DECL

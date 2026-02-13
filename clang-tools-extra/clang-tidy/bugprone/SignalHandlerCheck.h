@@ -1,4 +1,4 @@
-//===--- SignalHandlerCheck.h - clang-tidy ----------------------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,14 +14,12 @@
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/StringSet.h"
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 /// Checker for signal handler functions.
 ///
 /// For the user-facing documentation see:
-/// http://clang.llvm.org/extra/clang-tidy/checks/bugprone/signal-handler-check.html
+/// https://clang.llvm.org/extra/clang-tidy/checks/bugprone/signal-handler.html
 class SignalHandlerCheck : public ClangTidyCheck {
 public:
   enum class AsyncSafeFunctionSetKind { Minimal, POSIX };
@@ -50,10 +48,10 @@ private:
   /// The bool parameter is used like \c SkipPathEnd in \c reportHandlerChain .
   /// \return Returns true if a diagnostic was emitted for this function.
   bool checkFunction(const FunctionDecl *FD, const Expr *CallOrRef,
-                     std::function<void(bool)> ChainReporter);
+                     llvm::function_ref<void(bool)> ChainReporter);
   /// Similar as \c checkFunction but only check for C++14 rules.
   bool checkFunctionCPP14(const FunctionDecl *FD, const Expr *CallOrRef,
-                          std::function<void(bool)> ChainReporter);
+                          llvm::function_ref<void(bool)> ChainReporter);
   /// Returns true if a standard library function is considered
   /// asynchronous-safe.
   bool isStandardFunctionAsyncSafe(const FunctionDecl *FD) const;
@@ -67,8 +65,9 @@ private:
   /// registered as signal handler.
   /// @param SkipPathEnd If true the last item of the call chain (farthest away
   /// from the \c signal call) is omitted from note generation.
-  void reportHandlerChain(const llvm::df_iterator<clang::CallGraphNode *> &Itr,
-                          const DeclRefExpr *HandlerRef, bool SkipPathEnd);
+  void
+  reportHandlerChain(const llvm::df_iterator<const clang::CallGraphNode *> &Itr,
+                     const DeclRefExpr *HandlerRef, bool SkipPathEnd);
 
   clang::CallGraph CG;
 
@@ -76,8 +75,6 @@ private:
   llvm::StringSet<> ConformingFunctions;
 };
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone
 
 #endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_BUGPRONE_SIGNALHANDLERCHECK_H

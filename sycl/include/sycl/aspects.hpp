@@ -7,10 +7,11 @@
 // ===--------------------------------------------------------------------=== //
 #pragma once
 
-#include <sycl/detail/defines.hpp>
+#include <sycl/detail/defines.hpp>            // for __SYCL_TYPE
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 #define __SYCL_ASPECT(ASPECT, ID) ASPECT = ID,
 #define __SYCL_ASPECT_DEPRECATED(ASPECT, ID, MESSAGE)                          \
@@ -25,5 +26,5 @@ enum class __SYCL_TYPE(aspect) aspect {
 #undef __SYCL_ASPECT_DEPRECATED
 #undef __SYCL_ASPECT
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

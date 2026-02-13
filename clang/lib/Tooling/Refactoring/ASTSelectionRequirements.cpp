@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Tooling/Refactoring/RefactoringActionRuleRequirements.h"
-#include "clang/AST/Attr.h"
+#include <optional>
 
 using namespace clang;
 using namespace tooling;
@@ -20,7 +20,7 @@ ASTSelectionRequirement::evaluate(RefactoringRuleContext &Context) const {
   if (!Range)
     return Range.takeError();
 
-  Optional<SelectedASTNode> Selection =
+  std::optional<SelectedASTNode> Selection =
       findSelectedASTNodes(Context.getASTContext(), *Range);
   if (!Selection)
     return Context.createDiagnosticError(
@@ -37,8 +37,9 @@ Expected<CodeRangeASTSelection> CodeRangeASTSelectionRequirement::evaluate(
     return ASTSelection.takeError();
   std::unique_ptr<SelectedASTNode> StoredSelection =
       std::make_unique<SelectedASTNode>(std::move(*ASTSelection));
-  Optional<CodeRangeASTSelection> CodeRange = CodeRangeASTSelection::create(
-      Context.getSelectionRange(), *StoredSelection);
+  std::optional<CodeRangeASTSelection> CodeRange =
+      CodeRangeASTSelection::create(Context.getSelectionRange(),
+                                    *StoredSelection);
   if (!CodeRange)
     return Context.createDiagnosticError(
         Context.getSelectionRange().getBegin(),

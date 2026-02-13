@@ -19,6 +19,7 @@ include "TestAttrDefs.td"
 include "TestInterfaces.td"
 include "mlir/IR/BuiltinTypes.td"
 include "mlir/Interfaces/DataLayoutInterfaces.td"
+include "mlir/Dialect/Bufferization/IR/BufferizationTypeInterfaces.td"
 
 // All of the types will extend this class.
 class Test_Type<string name, list<Trait> traits = []>
@@ -148,16 +149,17 @@ def TestType : Test_Type<"Test", [
 }
 
 def TestTypeWithLayoutType : Test_Type<"TestTypeWithLayout", [
-  DeclareTypeInterfaceMethods<DataLayoutTypeInterface, ["areCompatible"]>
+  DeclareTypeInterfaceMethods<DataLayoutTypeInterface,
+    ["getIndexBitwidth", "areCompatible", "getPreferredAlignment"]>
 ]> {
   let mnemonic = "test_type_with_layout";
   let parameters = (ins "unsigned":$key);
   let extraClassDeclaration = [{
-    ::mlir::LogicalResult verifyEntries(::mlir::DataLayoutEntryListRef params,
+    ::llvm::LogicalResult verifyEntries(::mlir::DataLayoutEntryListRef params,
                                 ::mlir::Location loc) const;
 
   private:
-    unsigned extractKind(::mlir::DataLayoutEntryListRef params,
+    uint64_t extractKind(::mlir::DataLayoutEntryListRef params,
                          ::llvm::StringRef expectedKind) const;
 
   public:
@@ -218,13 +220,18 @@ def TestTypeStructCaptureAll : Test_Type<"TestStructTypeCaptureAll"> {
 }
 
 def TestTypeOptionalParam : Test_Type<"TestTypeOptionalParam"> {
-  let parameters = (ins OptionalParameter<"mlir::Optional<int>">:$a, "int":$b);
+  let parameters = (ins
+    OptionalParameter<"std::optional<int>">:$a,
+    "int":$b,
+    DefaultValuedParameter<"std::optional<::mlir::Attribute>",
+                           "std::nullopt">:$c
+  );
   let mnemonic = "optional_param";
-  let assemblyFormat = "`<` $a `,` $b `>`";
+  let assemblyFormat = "`<` $a `,` $b ( `,` $c^)? `>`";
 }
 
 def TestTypeOptionalParams : Test_Type<"TestTypeOptionalParams"> {
-  let parameters = (ins OptionalParameter<"mlir::Optional<int>">:$a,
+  let parameters = (ins OptionalParameter<"std::optional<int>">:$a,
                         StringRefParameter<>:$b);
   let mnemonic = "optional_params";
   let assemblyFormat = "`<` params `>`";
@@ -233,48 +240,48 @@ def TestTypeOptionalParams : Test_Type<"TestTypeOptionalParams"> {
 def TestTypeOptionalParamsAfterRequired
     : Test_Type<"TestTypeOptionalParamsAfterRequired"> {
   let parameters = (ins StringRefParameter<>:$a,
-                        OptionalParameter<"mlir::Optional<int>">:$b);
+                        OptionalParameter<"std::optional<int>">:$b);
   let mnemonic = "optional_params_after";
   let assemblyFormat = "`<` params `>`";
 }
 
 def TestTypeOptionalStruct : Test_Type<"TestTypeOptionalStruct"> {
-  let parameters = (ins OptionalParameter<"mlir::Optional<int>">:$a,
+  let parameters = (ins OptionalParameter<"std::optional<int>">:$a,
                         StringRefParameter<>:$b);
   let mnemonic = "optional_struct";
   let assemblyFormat = "`<` struct(params) `>`";
 }
 
 def TestTypeAllOptionalParams : Test_Type<"TestTypeAllOptionalParams"> {
-  let parameters = (ins OptionalParameter<"mlir::Optional<int>">:$a,
-                        OptionalParameter<"mlir::Optional<int>">:$b);
+  let parameters = (ins OptionalParameter<"std::optional<int>">:$a,
+                        OptionalParameter<"std::optional<int>">:$b);
   let mnemonic = "all_optional_params";
   let assemblyFormat = "`<` params `>`";
 }
 
 def TestTypeAllOptionalStruct : Test_Type<"TestTypeAllOptionalStruct"> {
-  let parameters = (ins OptionalParameter<"mlir::Optional<int>">:$a,
-                        OptionalParameter<"mlir::Optional<int>">:$b);
+  let parameters = (ins OptionalParameter<"std::optional<int>">:$a,
+                        OptionalParameter<"std::optional<int>">:$b);
   let mnemonic = "all_optional_struct";
   let assemblyFormat = "`<` struct(params) `>`";
 }
 
 def TestTypeOptionalGroup : Test_Type<"TestTypeOptionalGroup"> {
-  let parameters = (ins "int":$a, OptionalParameter<"mlir::Optional<int>">:$b);
+  let parameters = (ins "int":$a, OptionalParameter<"std::optional<int>">:$b);
   let mnemonic = "optional_group";
   let assemblyFormat = "`<` (`(` $b^ `)`) : (`x`)? $a `>`";
 }
 
 def TestTypeOptionalGroupParams : Test_Type<"TestTypeOptionalGroupParams"> {
-  let parameters = (ins DefaultValuedParameter<"mlir::Optional<int>", "10">:$a,
-                        OptionalParameter<"mlir::Optional<int>">:$b);
+  let parameters = (ins DefaultValuedParameter<"std::optional<int>", "10">:$a,
+                        OptionalParameter<"std::optional<int>">:$b);
   let mnemonic = "optional_group_params";
   let assemblyFormat = "`<` (`(` params^ `)`) : (`x`)? `>`";
 }
 
 def TestTypeOptionalGroupStruct : Test_Type<"TestTypeOptionalGroupStruct"> {
-  let parameters = (ins OptionalParameter<"mlir::Optional<int>">:$a,
-                        OptionalParameter<"mlir::Optional<int>">:$b);
+  let parameters = (ins OptionalParameter<"std::optional<int>">:$a,
+                        OptionalParameter<"std::optional<int>">:$b);
   let mnemonic = "optional_group_struct";
   let assemblyFormat = "`<` (`(` struct(params)^ `)`) : (`x`)? `>`";
 }
@@ -307,6 +314,14 @@ def TestTypeAPFloat : Test_Type<"TestTypeAPFloat"> {
   let assemblyFormat = "`<` $a `>`";
 }
 
+def TestTypeOptionalValueType : Test_Type<"TestTypeOptionalValueType"> {
+  let parameters = (ins
+    OptionalParameter<"std::optional<int>">:$value
+  );
+  let mnemonic = "optional_value_type";
+  let assemblyFormat = "(`<` $value^ `>`)?";
+}
+
 def TestTypeDefaultValuedType : Test_Type<"TestTypeDefaultValuedType"> {
   let parameters = (ins
     DefaultValuedParameter<"mlir::IntegerType",
@@ -317,10 +332,17 @@ def TestTypeDefaultValuedType : Test_Type<"TestTypeDefaultValuedType"> {
 }
 
 def TestTypeCustom : Test_Type<"TestTypeCustom"> {
-  let parameters = (ins "int":$a, OptionalParameter<"mlir::Optional<int>">:$b);
+  let parameters = (ins "int":$a, OptionalParameter<"std::optional<int>">:$b);
   let mnemonic = "custom_type";
-  let assemblyFormat = [{ `<` custom<CustomTypeA>($a)
+  let assemblyFormat = [{ `<` custom<CustomTypeA>($a) ``
                               custom<CustomTypeB>(ref($a), $b) `>` }];
+}
+
+def TestTypeCustomSpacing : Test_Type<"TestTypeCustomSpacing"> {
+  let parameters = (ins "int":$a, "int":$b);
+  let mnemonic = "custom_type_spacing";
+  let assemblyFormat = [{ `<` custom<CustomTypeA>($a)
+                              custom<CustomTypeA>($b) `>` }];
 }
 
 def TestTypeCustomString : Test_Type<"TestTypeCustomString"> {
@@ -330,17 +352,134 @@ def TestTypeCustomString : Test_Type<"TestTypeCustomString"> {
                               custom<BarString>(ref($foo)) `>` }];
 }
 
+def TestCustomStorageCtor : Test_Type<"TestCustomStorageCtor"> {
+    let mnemonic = "custom_storage_ctor_type";
+    let parameters = (ins "int":$value);
+    let assemblyFormat = "`<` $value `>`";
+    let hasStorageCustomConstructor = 1;
+}
+
+def TestTypeOptionalString : Test_Type<"TestTypeOptionalString"> {
+  let parameters = (ins StringRefParameter<"description", [{"default"}]>:$str);
+  let mnemonic = "optional_type_string";
+  let assemblyFormat = [{ (`<` $str^ `>`)? }];
+}
+
 def TestTypeElseAnchor : Test_Type<"TestTypeElseAnchor"> {
-  let parameters = (ins OptionalParameter<"mlir::Optional<int>">:$a);
+  let parameters = (ins OptionalParameter<"std::optional<int>">:$a);
   let mnemonic = "else_anchor";
   let assemblyFormat = "`<` (`?`) : ($a^)? `>`";
 }
 
 def TestTypeElseAnchorStruct : Test_Type<"TestTypeElseAnchorStruct"> {
-  let parameters = (ins OptionalParameter<"mlir::Optional<int>">:$a,
-                        OptionalParameter<"mlir::Optional<int>">:$b);
+  let parameters = (ins OptionalParameter<"std::optional<int>">:$a,
+                        OptionalParameter<"std::optional<int>">:$b);
   let mnemonic = "else_anchor_struct";
   let assemblyFormat = "`<` (`?`) : (struct($a, $b)^)? `>`";
+}
+
+def TestI32 : Test_Type<"TestI32"> {
+  let mnemonic = "i32";
+}
+
+def TestRecursiveAlias
+    : Test_Type<"TestRecursiveAlias", [MutableType]> {
+  let mnemonic = "test_rec_alias";
+  let storageClass = "TestRecursiveTypeStorage";
+  let storageNamespace = "test";
+  let genStorageClass = 0;
+
+  let parameters = (ins "llvm::StringRef":$name);
+
+  let hasCustomAssemblyFormat = 1;
+
+  let extraClassDeclaration = [{
+    Type getBody() const;
+
+    void setBody(Type type);
+  }];
+}
+
+def TestTypeVerification : Test_Type<"TestTypeVerification"> {
+  let parameters = (ins AnyTypeOf<[I16, I32]>:$param);
+  let mnemonic = "type_verification";
+  let assemblyFormat = "`<` $param `>`";
+}
+
+def TestTypeOpAsmTypeInterface : Test_Type<"TestTypeOpAsmTypeInterface",
+    [DeclareTypeInterfaceMethods<OpAsmTypeInterface, ["getAsmName", "getAlias"]>]> {
+  let mnemonic = "op_asm_type_interface";
+}
+
+def TestTypeOpAsmTypeInterfaceTablegenDefault : Test_Type<"TestTypeOpAsmTypeInterfaceTablegenDefault"> {
+  let mnemonic = "op_asm_type_interface_tablegen_default";
+  let genMnemonicAlias = 1;
+}
+
+def TestTensorType : Test_Type<"TestTensor",
+    [Bufferization_TensorLikeTypeInterface, ShapedTypeInterface]> {
+  let mnemonic = "test_tensor";
+  let parameters = (ins
+    ArrayRefParameter<"int64_t">:$shape,
+    "mlir::Type":$elementType
+  );
+  let assemblyFormat = "`<` `[` $shape `]` `,` $elementType `>`";
+
+  let extraClassDeclaration = [{
+    // ShapedTypeInterface:
+    bool hasRank() const {
+      return true;
+    }
+    test::TestTensorType cloneWith(std::optional<llvm::ArrayRef<int64_t>> shape,
+                                   mlir::Type elementType) const {
+      return test::TestTensorType::get(
+        getContext(), shape.value_or(getShape()), elementType);
+    }
+
+    // TensorLikeTypeInterface:
+    ::mlir::FailureOr<::mlir::bufferization::BufferLikeType>
+    getBufferType(const ::mlir::bufferization::BufferizationOptions& options,
+                  ::llvm::function_ref<::mlir::InFlightDiagnostic()> emitError);
+
+    ::mlir::LogicalResult verifyCompatibleBufferType(
+        ::mlir::bufferization::BufferLikeType bufferType,
+        ::llvm::function_ref<::mlir::InFlightDiagnostic()> emitError);
+  }];
+}
+
+def TestMemrefType : Test_Type<"TestMemref",
+    [Bufferization_BufferLikeTypeInterface, ShapedTypeInterface]> {
+  let mnemonic = "test_memref";
+  let parameters = (ins
+    ArrayRefParameter<"int64_t">:$shape,
+    "mlir::Type":$elementType,
+    DefaultValuedParameter<"mlir::Attribute", "nullptr">:$memSpace
+  );
+  let assemblyFormat = "`<` `[` $shape `]` `,` $elementType (`,` $memSpace^)? `>`";
+
+  let extraClassDeclaration = [{
+    // ShapedTypeInterface:
+    bool hasRank() const {
+      return true;
+    }
+    test::TestMemrefType cloneWith(std::optional<llvm::ArrayRef<int64_t>> shape,
+                                   mlir::Type elementType) const {
+      return test::TestMemrefType::get(
+        getContext(), shape.value_or(getShape()), elementType, getMemSpace());
+    }
+  }];
+}
+
+// Test implementation of an interface with methods specifying a
+// method body
+def TestBaseBody : Test_Type<"TestBaseBody",
+    [DeclareTypeInterfaceMethods<TestBaseTypeInterfacePrintTypeA>]> {
+  let mnemonic = "test_base_body";
+}
+
+def TestTypeNewlineAndIndent : Test_Type<"TestTypeNewlineAndIndent"> {
+  let mnemonic = "newline_and_indent";
+  let hasCustomAssemblyFormat = 1;
 }
 
 #endif // TEST_TYPEDEFS

@@ -16,10 +16,47 @@
 include "mlir/IR/OpBase.td"
 
 //===----------------------------------------------------------------------===//
+// TypedAttrInterface
+//===----------------------------------------------------------------------===//
+
+def TypedAttrInterface : AttrInterface<"TypedAttr"> {
+  let cppNamespace = "::mlir";
+
+  let description = [{
+    This interface is used for attributes that have a type. The type of an
+    attribute is understood to represent the type of the data contained in the
+    attribute and is often used as the type of a value with this data.
+  }];
+
+  let methods = [InterfaceMethod<
+    "Get the attribute's type",
+    "::mlir::Type", "getType"
+  >];
+}
+
+//===----------------------------------------------------------------------===//
+// BlobAttrInterface
+//===----------------------------------------------------------------------===//
+
+def BlobAttrInterface : AttrInterface<"BlobAttr"> {
+  let cppNamespace = "::mlir";
+  let description = [{
+    This interface allows an attribute to expose a blob of data without more
+    information. The data must be stored so that it can be accessed as a
+    contiguous ArrayRef.
+  }];
+
+  let methods = [InterfaceMethod<
+    "Get the attribute's data",
+    "::llvm::ArrayRef<char>", "getData"
+  >];
+}
+
+//===----------------------------------------------------------------------===//
 // ElementsAttrInterface
 //===----------------------------------------------------------------------===//
 
-def ElementsAttrInterface : AttrInterface<"ElementsAttr"> {
+def ElementsAttrInterface : AttrInterface<"ElementsAttr", [TypedAttrInterface]> {
   let cppNamespace = "::mlir";
   let description = [{
     This interface is used for attributes that contain the constant elements of
@@ -78,7 +115,7 @@ def ElementsAttrInterface : AttrInterface<"ElementsAttr"> {
     }
     /// * Attribute
     auto value_begin_impl(OverloadToken<mlir::Attribute>) const {
-      mlir::Type elementType = getType().getElementType();
+      mlir::Type elementType = getShapedType().getElementType();
       auto it = llvm::map_range(getElements(), [=](uint64_t value) {
         return mlir::IntegerAttr::get(elementType,
                                       llvm::APInt(/*numBits=*/64, value));
@@ -154,13 +191,15 @@ def ElementsAttrInterface : AttrInterface<"ElementsAttr"> {
     InterfaceMethod<[{
       Returns true if the attribute elements correspond to a splat, i.e. that
       all elements of the attribute are the same value.
-    }], "bool", "isSplat", (ins), /*defaultImplementation=*/[{}], [{
+    }], "bool", "isSplat", (ins), [{}], /*defaultImplementation=*/[{
         // By default, only check for a single element splat.
         return $_attr.getNumElements() == 1;
     }]>,
     InterfaceMethod<[{
       Returns the shaped type of the elements attribute.
-    }], "::mlir::ShapedType", "getType">
+    }], "::mlir::ShapedType", "getShapedType", (ins), [{}], /*defaultImplementation=*/[{
+        return $_attr.getType();
+    }]>
   ];
 
   string ElementsAttrInterfaceAccessors = [{
@@ -325,7 +364,7 @@ def ElementsAttrInterface : AttrInterface<"ElementsAttr"> {
                                       ArrayRef<uint64_t> index);
     static uint64_t getFlattenedIndex(ElementsAttr elementsAttr,
                                       ArrayRef<uint64_t> index) {
-      return getFlattenedIndex(elementsAttr.getType(), index);
+      return getFlattenedIndex(elementsAttr.getShapedType(), index);
     }
 
     /// Returns the number of elements held by this attribute.
@@ -338,13 +377,13 @@ def ElementsAttrInterface : AttrInterface<"ElementsAttr"> {
 
     template <typename T>
     using DerivedAttrValueCheckT =
-        typename std::enable_if_t<std::is_base_of<Attribute, T>::value &&
-                                  !std::is_same<Attribute, T>::value>;
+        std::enable_if_t<std::is_base_of<Attribute, T>::value &&
+                         !std::is_same<Attribute, T>::value>;
     template <typename T, typename ResultT>
     using DefaultValueCheckT =
-        typename std::enable_if_t<std::is_same<Attribute, T>::value ||
-                                  !std::is_base_of<Attribute, T>::value,
-                                  ResultT>;
+        std::enable_if_t<std::is_same<Attribute, T>::value ||
+                             !std::is_base_of<Attribute, T>::value,
+                         ResultT>;
 
     /// Return the splat value for this attribute. This asserts that the
     /// attribute corresponds to a splat.
@@ -357,7 +396,7 @@ def ElementsAttrInterface : AttrInterface<"ElementsAttr"> {
     /// Return the elements of this attribute as a value of type 'T'.
     template <typename T>
     DefaultValueCheckT<T, iterator_range<T>> getValues() const {
-      return {getType(), value_begin<T>(), value_end<T>()};
+      return {getShapedType(), value_begin<T>(), value_end<T>()};
     }
     template <typename T>
     DefaultValueCheckT<T, iterator<T>> value_begin() const;
@@ -376,8 +415,8 @@ def ElementsAttrInterface : AttrInterface<"ElementsAttr"> {
       detail::ElementsAttrRange<DerivedAttrValueIterator<T>>;
     template <typename T, typename = DerivedAttrValueCheckT<T>>
     DerivedAttrValueIteratorRange<T> getValues() const {
-      auto castFn = [](Attribute attr) { return attr.template cast<T>(); };
-      return {getType(), llvm::map_range(getValues<Attribute>(),
+      auto castFn = [](Attribute attr) { return ::llvm::cast<T>(attr); };
+      return {getShapedType(), llvm::map_range(getValues<Attribute>(),
               static_cast<T (*)(Attribute)>(castFn))};
     }
     template <typename T, typename = DerivedAttrValueCheckT<T>>
@@ -393,35 +432,35 @@ def ElementsAttrInterface : AttrInterface<"ElementsAttr"> {
     // Failable Value Iteration
 
     /// If this attribute supports iterating over element values of type `T`,
-    /// return the iterable range. Otherwise, return llvm::None.
+    /// return the iterable range. Otherwise, return std::nullopt.
     template <typename T>
-    DefaultValueCheckT<T, Optional<iterator_range<T>>> tryGetValues() const {
-      if (Optional<iterator<T>> beginIt = try_value_begin<T>())
-        return iterator_range<T>(getType(), *beginIt, value_end<T>());
-      return llvm::None;
+    DefaultValueCheckT<T, std::optional<iterator_range<T>>> tryGetValues() const {
+      if (std::optional<iterator<T>> beginIt = try_value_begin<T>())
+        return iterator_range<T>(getShapedType(), *beginIt, value_end<T>());
+      return std::nullopt;
     }
     template <typename T>
-    DefaultValueCheckT<T, Optional<iterator<T>>> try_value_begin() const;
+    DefaultValueCheckT<T, std::optional<iterator<T>>> try_value_begin() const;
 
     /// If this attribute supports iterating over element values of type `T`,
-    /// return the iterable range. Otherwise, return llvm::None.
+    /// return the iterable range. Otherwise, return std::nullopt.
     template <typename T, typename = DerivedAttrValueCheckT<T>>
-    Optional<DerivedAttrValueIteratorRange<T>> tryGetValues() const {
+    std::optional<DerivedAttrValueIteratorRange<T>> tryGetValues() const {
       auto values = tryGetValues<Attribute>();
       if (!values)
-        return llvm::None;
+        return std::nullopt;
 
-      auto castFn = [](Attribute attr) { return attr.template cast<T>(); };
+      auto castFn = [](Attribute attr) { return ::llvm::cast<T>(attr); };
       return DerivedAttrValueIteratorRange<T>(
-        getType(),
+        getShapedType(),
         llvm::map_range(*values, static_cast<T (*)(Attribute)>(castFn))
       );
     }
     template <typename T, typename = DerivedAttrValueCheckT<T>>
-    Optional<DerivedAttrValueIterator<T>> try_value_begin() const {
+    std::optional<DerivedAttrValueIterator<T>> try_value_begin() const {
       if (auto values = tryGetValues<T>())
         return values->begin();
-      return llvm::None;
+      return std::nullopt;
     }
   }] # ElementsAttrInterfaceAccessors;
 }
@@ -441,8 +480,8 @@ def MemRefLayoutAttrInterface : AttrInterface<"MemRefLayoutAttrInterface"> {
 
     Note: the MemRef type's layout is assumed to represent simple strided buffer
     layout. For more complicated case, like sparse storage buffers,
-    it is preferable to use separate type with more specic layout, rather then
-    introducing extra complexity to the builin MemRef type.
+    it is preferable to use a separate type with a more specific layout, rather
+    than introducing extra complexity to the builtin MemRef type.
   }];
 
   let methods = [
@@ -462,7 +501,7 @@ def MemRefLayoutAttrInterface : AttrInterface<"MemRefLayoutAttrInterface"> {
 
     InterfaceMethod<
       "Check if the current layout is applicable to the provided shape",
-      "::mlir::LogicalResult", "verifyLayout",
+      "::llvm::LogicalResult", "verifyLayout",
       (ins "::llvm::ArrayRef<int64_t>":$shape,
            "::llvm::function_ref<::mlir::InFlightDiagnostic()>":$emitError),
       [{}],
@@ -470,27 +509,25 @@ def MemRefLayoutAttrInterface : AttrInterface<"MemRefLayoutAttrInterface"> {
         return ::mlir::detail::verifyAffineMapAsLayout($_attr.getAffineMap(),
                                                        shape, emitError);
       }]
+    >,
+
+    InterfaceMethod<
+      [{Return the strides (using ShapedType::kDynamic for the dynamic case)
+      that this layout corresponds to into `strides` and `offset` if such exist
+      and can be determined from a combination of the layout and the given
+      `shape`. If these strides cannot be inferred, return failure().
+      The values of `strides` and `offset` are undefined on failure.}],
+      "::llvm::LogicalResult", "getStridesAndOffset",
+      (ins "::llvm::ArrayRef<int64_t>":$shape,
+           "::llvm::SmallVectorImpl<int64_t>&":$strides,
+           "int64_t&":$offset),
+           [{}],
+           [{
+            return ::mlir::detail::getAffineMapStridesAndOffset(
+              $_attr.getAffineMap(), shape, strides, offset);
+           }]
     >
   ];
-}
-
-//===----------------------------------------------------------------------===//
-// TypedAttrInterface
-//===----------------------------------------------------------------------===//
-
-def TypedAttrInterface : AttrInterface<"TypedAttr"> {
-  let cppNamespace = "::mlir";
-
-  let description = [{
-    This interface is used for attributes that have a type. The type of an
-    attribute is understood to represent the type of the data contained in the
-    attribute and is often used as the type of a value with this data.
-  }];
-
-  let methods = [InterfaceMethod<
-    "Get the attribute's type",
-    "::mlir::Type", "getType"
-  >];
 }
 
 #endif // MLIR_IR_BUILTINATTRIBUTEINTERFACES_TD_

@@ -1,4 +1,4 @@
-//===--- DurationComparisonCheck.cpp - clang-tidy -------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,19 +8,16 @@
 
 #include "DurationComparisonCheck.h"
 #include "DurationRewriter.h"
-#include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
-#include "clang/Tooling/FixIt.h"
+#include <optional>
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace abseil {
+namespace clang::tidy::abseil {
 
 void DurationComparisonCheck::registerMatchers(MatchFinder *Finder) {
   auto Matcher = expr(comparisonOperatorWithCallee(functionDecl(
-                          functionDecl(DurationConversionFunction())
+                          functionDecl(durationConversionFunction())
                               .bind("function_decl"))))
                      .bind("binop");
 
@@ -30,7 +27,7 @@ void DurationComparisonCheck::registerMatchers(MatchFinder *Finder) {
 void DurationComparisonCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *Binop = Result.Nodes.getNodeAs<BinaryOperator>("binop");
 
-  llvm::Optional<DurationScale> Scale = getScaleForDurationInverse(
+  std::optional<DurationScale> Scale = getScaleForDurationInverse(
       Result.Nodes.getNodeAs<FunctionDecl>("function_decl")->getName());
   if (!Scale)
     return;
@@ -41,9 +38,9 @@ void DurationComparisonCheck::check(const MatchFinder::MatchResult &Result) {
   // if nothing needs to be done.
   if (isInMacro(Result, Binop->getLHS()) || isInMacro(Result, Binop->getRHS()))
     return;
-  std::string LhsReplacement =
+  const std::string LhsReplacement =
       rewriteExprFromNumberToDuration(Result, *Scale, Binop->getLHS());
-  std::string RhsReplacement =
+  const std::string RhsReplacement =
       rewriteExprFromNumberToDuration(Result, *Scale, Binop->getRHS());
 
   diag(Binop->getBeginLoc(), "perform comparison in the duration domain")
@@ -54,6 +51,4 @@ void DurationComparisonCheck::check(const MatchFinder::MatchResult &Result) {
                                           .str());
 }
 
-} // namespace abseil
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::abseil

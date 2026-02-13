@@ -9,18 +9,14 @@
 ;   useint(x);
 ; }
 
-; FIXME: Find a way to describe variables optimized to constants.
-
 ; OBJ:        {{.*}}Proc{{.*}}Sym {
 ; OBJ:           DisplayName: constant_var
 ; OBJ:         }
-; OBJ:         LocalSym {
-; OBJ-NEXT:      Kind:
+; OBJ:         ConstantSym {
+; OBJ-NEXT:      Kind: S_CONSTANT
 ; OBJ-NEXT:      Type: int (0x74)
-; OBJ-NEXT:      Flags [ (0x100)
-; OBJ-NEXT:        IsOptimizedOut (0x100)
-; OBJ-NEXT:      ]
-; OBJ-NEXT:      VarName: x
+; OBJ-NEXT:      Value: 42
+; OBJ-NEXT:      Name: x
 ; OBJ-NEXT:    }
 ; OBJ-NOT:     DefRange
 ; OBJ:         ProcEnd
@@ -43,8 +39,8 @@ declare void @"\01?useint@@YAXH@Z"(i32) #1
 ; Function Attrs: nounwind readnone
 declare void @llvm.dbg.value(metadata, metadata, metadata) #2
 
-attributes #0 = { nounwind uwtable "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind uwtable "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2" "use-soft-float"="false" }
+attributes #1 = { "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2" "use-soft-float"="false" }
 attributes #2 = { nounwind readnone }
 attributes #3 = { nounwind }
 

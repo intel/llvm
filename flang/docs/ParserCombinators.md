@@ -1,16 +1,17 @@
-<!--===- docs/ParserCombinators.md 
-  
+<!--===- docs/ParserCombinators.md
+
    Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
    See https://llvm.org/LICENSE.txt for license information.
    SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-  
+
 -->
 
 # Parser Combinators
 
-```eval_rst
-.. contents::
-   :local:
+```{contents}
+---
+local:
+---
 ```
 
 This document is a primer on Parser Combinators and their use in Flang.
@@ -62,6 +63,7 @@ These objects and functions are (or return) the fundamental parsers:
   the value that the parser never returns.
 * `nextCh` consumes the next character and returns its location,
   and fails at EOF.
+* `consumedAllInput` is equivalent, but preferable, to `!nextCh`.
 * `"xyz"_ch` succeeds if the next character consumed matches any of those
   in the string and returns its location.  Be advised that the source
   will have been normalized to lower case (miniscule) letters outside
@@ -97,8 +99,9 @@ They are `constexpr`, so they should be viewed as type-safe macros.
 * `nonemptySeparated(p, q)` repeatedly matches "p q p q p q ... p",
   returning a `std::list<>` of only the values of the p's.  It fails if
   p immediately fails.
-* `extension(p)` parses p if strict standard compliance is disabled,
-   or with a warning if nonstandard usage warnings are enabled.
+* `extension<feature>([msg,]p)` parses p if strict standard compliance is
+  disabled, or with an optional warning when nonstandard usage warnings
+  are enabled.
 * `deprecated(p)` parses p if strict standard compliance is disabled,
   with a warning if deprecated usage warnings are enabled.
 * `inContext(msg, p)` runs p within an error message context; any
@@ -139,7 +142,7 @@ collect the values that they return.
 * `applyLambda([](&&x){}, p1, p2, ...)` is the same thing, but for lambdas
   and other function objects.
 * `applyMem(mf, p1, p2, ...)` is the same thing, but invokes a member
-  function of the result of the first parser for updates in place.
+  function of the result of the first parser.
 
 ### Token Parsers
 Last, we have these basic parsers on which the actual grammar of the Fortran
@@ -165,9 +168,9 @@ is built.  All of the following parsers consume characters acquired from
    a longer identifier or keyword).
 * `parenthesized(p)` is shorthand for `"(" >> p / ")"`.
 * `bracketed(p)` is shorthand for `"[" >> p / "]"`.
-* `nonEmptyList(p)` matches a comma-separated list of one or more
+* `nonemptyList(p)` matches a comma-separated list of one or more
   instances of p.
-* `nonEmptyList(errorMessage, p)` is equivalent to
+* `nonemptyList(errorMessage, p)` is equivalent to
   `withMessage(errorMessage, nonemptyList(p))`, which allows one to supply
   a meaningful error message in the event of an empty list.
 * `optionalList(p)` is the same thing, but can be empty, and always succeeds.
@@ -176,3 +179,16 @@ is built.  All of the following parsers consume characters acquired from
 Last, a string literal `"..."_debug` denotes a parser that emits the string to
 `llvm::errs` and succeeds.  It is useful for tracing while debugging a parser but should
 obviously not be committed for production code.
+
+### Messages
+A list of generated error and warning messages is maintained in the `ParseState`.
+The parser combinator that handles alternatives (`||` and `first()`) will
+discard the messages from alternatives that fail when there is an alternative
+that succeeds.
+But when no alternative succeeds, and the alternative parser as a whole is
+failing, the messages that survive are chosen from the alternative that
+recognized any input tokens, if only one alternative did so;
+and when multiple alternatives recognized tokens, the messages from the
+alternative that proceeded the furthest into the input are retained.
+This strategy tends to show the most useful error messages to the user
+in situations where a statement fails to parse.

@@ -93,8 +93,8 @@ static const char *ARCCondCodeToString(ARCCC::CondCode CC) {
   return BadConditionCode(CC);
 }
 
-void ARCInstPrinter::printRegName(raw_ostream &OS, unsigned RegNo) const {
-  OS << StringRef(getRegisterName(RegNo)).lower();
+void ARCInstPrinter::printRegName(raw_ostream &OS, MCRegister Reg) {
+  OS << StringRef(getRegisterName(Reg)).lower();
 }
 
 void ARCInstPrinter::printInst(const MCInst *MI, uint64_t Address,
@@ -124,7 +124,7 @@ static void printExpr(const MCExpr *Expr, const MCAsmInfo *MAI,
     SRE = dyn_cast<MCSymbolRefExpr>(Expr);
     assert(SRE && "Unexpected MCExpr type.");
   }
-  assert(SRE->getKind() == MCSymbolRefExpr::VK_None);
+  assert(SRE->getSpecifier() == 0);
 
   // Symbols are prefixed with '@'
   OS << '@';

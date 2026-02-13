@@ -10,6 +10,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "OSTargets.h"
+#include "AArch64.h"
 #include "clang/Basic/MacroBuilder.h"
 #include "llvm/ADT/StringRef.h"
 
@@ -19,19 +20,17 @@ using namespace clang::targets;
 namespace clang {
 namespace targets {
 
-void getDarwinDefines(MacroBuilder &Builder, const LangOptions &Opts,
-                      const llvm::Triple &Triple, StringRef &PlatformName,
-                      VersionTuple &PlatformMinVersion) {
+void getAppleMachODefines(MacroBuilder &Builder, const LangOptions &Opts,
+                          const llvm::Triple &Triple) {
   Builder.defineMacro("__APPLE_CC__", "6000");
   Builder.defineMacro("__APPLE__");
-  Builder.defineMacro("__STDC_NO_THREADS__");
 
   // AddressSanitizer doesn't play well with source fortification, which is on
-  // by default on Darwin.
+  // by default on Apple platforms.
   if (Opts.Sanitize.has(SanitizerKind::Address))
     Builder.defineMacro("_FORTIFY_SOURCE", "0");
 
-  // Darwin defines __weak, __strong, and __unsafe_unretained even in C mode.
+  // Apple defines __weak, __strong, and __unsafe_unretained even in C mode.
   if (!Opts.ObjC) {
     // __weak is always defined, for use in blocks and with objc pointers.
     Builder.defineMacro("__weak", "__attribute__((objc_gc(weak)))");
@@ -46,6 +45,22 @@ void getDarwinDefines(MacroBuilder &Builder, const LangOptions &Opts,
 
   if (Opts.POSIXThreads)
     Builder.defineMacro("_REENTRANT");
+
+  // __MACH__ originally meant "will run in a Mach kernel based OS", but it has
+  // come to also mean "uses Apple Mach-O linking/symbol visibility semantics".
+  // Notably libc++'s __configuration/platform.h and Swift's shims/Visibility.h
+  // take __MACH__ for the more general meaning.
+  if (Triple.isAppleMachO() || Triple.isOSDarwin())
+    Builder.defineMacro("__MACH__");
+}
+
+void getDarwinDefines(MacroBuilder &Builder, const LangOptions &Opts,
+                      const llvm::Triple &Triple, StringRef &PlatformName,
+                      VersionTuple &PlatformMinVersion) {
+  getAppleMachODefines(Builder, Opts, Triple);
+
+  // Darwin's libc doesn't have threads.h
+  Builder.defineMacro("__STDC_NO_THREADS__");
 
   // Get the platform type and version number from the triple.
   VersionTuple OsVersion;
@@ -67,48 +82,23 @@ void getDarwinDefines(MacroBuilder &Builder, const LangOptions &Opts,
     return;
   }
 
-  // Set the appropriate OS version define.
-  if (Triple.isiOS()) {
-    assert(OsVersion < VersionTuple(100) && "Invalid version!");
-    char Str[7];
-    if (OsVersion.getMajor() < 10) {
-      Str[0] = '0' + OsVersion.getMajor();
-      Str[1] = '0' + (OsVersion.getMinor().value_or(0) / 10);
-      Str[2] = '0' + (OsVersion.getMinor().value_or(0) % 10);
-      Str[3] = '0' + (OsVersion.getSubminor().value_or(0) / 10);
-      Str[4] = '0' + (OsVersion.getSubminor().value_or(0) % 10);
-      Str[5] = '\0';
-    } else {
-      // Handle versions >= 10.
-      Str[0] = '0' + (OsVersion.getMajor() / 10);
-      Str[1] = '0' + (OsVersion.getMajor() % 10);
-      Str[2] = '0' + (OsVersion.getMinor().value_or(0) / 10);
-      Str[3] = '0' + (OsVersion.getMinor().value_or(0) % 10);
-      Str[4] = '0' + (OsVersion.getSubminor().value_or(0) / 10);
-      Str[5] = '0' + (OsVersion.getSubminor().value_or(0) % 10);
-      Str[6] = '\0';
-    }
-    if (Triple.isTvOS())
-      Builder.defineMacro("__ENVIRONMENT_TV_OS_VERSION_MIN_REQUIRED__", Str);
-    else
-      Builder.defineMacro("__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__",
-                          Str);
-
-  } else if (Triple.isWatchOS()) {
-    assert(OsVersion < VersionTuple(10) && "Invalid version!");
-    char Str[6];
+  assert(OsVersion < VersionTuple(100) && "Invalid version!");
+  char Str[7];
+  if (Triple.isMacOSX() && OsVersion < VersionTuple(10, 10)) {
+    Str[0] = '0' + (OsVersion.getMajor() / 10);
+    Str[1] = '0' + (OsVersion.getMajor() % 10);
+    Str[2] = '0' + std::min(OsVersion.getMinor().value_or(0), 9U);
+    Str[3] = '0' + std::min(OsVersion.getSubminor().value_or(0), 9U);
+    Str[4] = '\0';
+  } else if (!Triple.isMacOSX() && OsVersion.getMajor() < 10) {
     Str[0] = '0' + OsVersion.getMajor();
     Str[1] = '0' + (OsVersion.getMinor().value_or(0) / 10);
     Str[2] = '0' + (OsVersion.getMinor().value_or(0) % 10);
     Str[3] = '0' + (OsVersion.getSubminor().value_or(0) / 10);
     Str[4] = '0' + (OsVersion.getSubminor().value_or(0) % 10);
     Str[5] = '\0';
-    Builder.defineMacro("__ENVIRONMENT_WATCH_OS_VERSION_MIN_REQUIRED__", Str);
-  } else if (Triple.isDriverKit()) {
-    assert(OsVersion.getMajor() < 100 &&
-           OsVersion.getMinor().value_or(0) < 100 &&
-           OsVersion.getSubminor().value_or(0) < 100 && "Invalid version!");
-    char Str[7];
+  } else {
+    // Handle versions >= 10.
     Str[0] = '0' + (OsVersion.getMajor() / 10);
     Str[1] = '0' + (OsVersion.getMajor() % 10);
     Str[2] = '0' + (OsVersion.getMinor().value_or(0) / 10);
@@ -116,36 +106,30 @@ void getDarwinDefines(MacroBuilder &Builder, const LangOptions &Opts,
     Str[4] = '0' + (OsVersion.getSubminor().value_or(0) / 10);
     Str[5] = '0' + (OsVersion.getSubminor().value_or(0) % 10);
     Str[6] = '\0';
+  }
+
+  // Set the appropriate OS version define.
+  if (Triple.isTvOS()) {
+    Builder.defineMacro("__ENVIRONMENT_TV_OS_VERSION_MIN_REQUIRED__", Str);
+  } else if (Triple.isiOS()) {
+    Builder.defineMacro("__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__", Str);
+  } else if (Triple.isWatchOS()) {
+    Builder.defineMacro("__ENVIRONMENT_WATCH_OS_VERSION_MIN_REQUIRED__", Str);
+  } else if (Triple.isDriverKit()) {
+    assert(OsVersion.getMinor().value_or(0) < 100 &&
+           OsVersion.getSubminor().value_or(0) < 100 && "Invalid version!");
     Builder.defineMacro("__ENVIRONMENT_DRIVERKIT_VERSION_MIN_REQUIRED__", Str);
   } else if (Triple.isMacOSX()) {
-    // Note that the Driver allows versions which aren't representable in the
-    // define (because we only get a single digit for the minor and micro
-    // revision numbers). So, we limit them to the maximum representable
-    // version.
-    assert(OsVersion < VersionTuple(100) && "Invalid version!");
-    char Str[7];
-    if (OsVersion < VersionTuple(10, 10)) {
-      Str[0] = '0' + (OsVersion.getMajor() / 10);
-      Str[1] = '0' + (OsVersion.getMajor() % 10);
-      Str[2] = '0' + std::min(OsVersion.getMinor().value_or(0), 9U);
-      Str[3] = '0' + std::min(OsVersion.getSubminor().value_or(0), 9U);
-      Str[4] = '\0';
-    } else {
-      // Handle versions > 10.9.
-      Str[0] = '0' + (OsVersion.getMajor() / 10);
-      Str[1] = '0' + (OsVersion.getMajor() % 10);
-      Str[2] = '0' + (OsVersion.getMinor().value_or(0) / 10);
-      Str[3] = '0' + (OsVersion.getMinor().value_or(0) % 10);
-      Str[4] = '0' + (OsVersion.getSubminor().value_or(0) / 10);
-      Str[5] = '0' + (OsVersion.getSubminor().value_or(0) % 10);
-      Str[6] = '\0';
-    }
     Builder.defineMacro("__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__", Str);
   }
 
-  // Tell users about the kernel if there is one.
-  if (Triple.isOSDarwin())
-    Builder.defineMacro("__MACH__");
+  if (Triple.isOSDarwin()) {
+    // Any darwin OS defines a general darwin OS version macro in addition
+    // to the other OS specific macros.
+    assert(OsVersion.getMinor().value_or(0) < 100 &&
+           OsVersion.getSubminor().value_or(0) < 100 && "Invalid version!");
+    Builder.defineMacro("__ENVIRONMENT_OS_VERSION_MIN_REQUIRED__", Str);
+  }
 
   PlatformMinVersion = OsVersion;
 }
@@ -201,10 +185,10 @@ static void addVisualCDefines(const LangOptions &Opts, MacroBuilder &Builder) {
   // "Under /fp:precise and /fp:strict, the compiler doesn't do any mathematical
   // transformation unless the transformation is guaranteed to produce a bitwise
   // identical result."
-  const bool any_imprecise_flags =
-      Opts.FastMath || Opts.FiniteMathOnly || Opts.UnsafeFPMath ||
-      Opts.AllowFPReassoc || Opts.NoHonorNaNs || Opts.NoHonorInfs ||
-      Opts.NoSignedZero || Opts.AllowRecip || Opts.ApproxFunc;
+  const bool any_imprecise_flags = Opts.FastMath || Opts.UnsafeFPMath ||
+                                   Opts.AllowFPReassoc || Opts.NoHonorNaNs ||
+                                   Opts.NoHonorInfs || Opts.NoSignedZero ||
+                                   Opts.AllowRecip || Opts.ApproxFunc;
 
   // "Under both /fp:precise and /fp:fast, the compiler generates code intended
   // to run in the default floating-point environment."
@@ -237,13 +221,18 @@ static void addVisualCDefines(const LangOptions &Opts, MacroBuilder &Builder) {
     Builder.defineMacro("_MSC_FULL_VER", Twine(Opts.MSCompatibilityVersion));
     // FIXME We cannot encode the revision information into 32-bits
     Builder.defineMacro("_MSC_BUILD", Twine(1));
+    // Exposed by MSVC, used in their stddef.h.
+    Builder.defineMacro("_CRT_USE_BUILTIN_OFFSETOF", Twine(1));
 
     if (Opts.CPlusPlus11 && Opts.isCompatibleWithMSVC(LangOptions::MSVC2015))
       Builder.defineMacro("_HAS_CHAR16_T_LANGUAGE_SUPPORT", Twine(1));
 
     if (Opts.isCompatibleWithMSVC(LangOptions::MSVC2015)) {
-      if (Opts.CPlusPlus2b)
-        Builder.defineMacro("_MSVC_LANG", "202004L");
+      if (Opts.CPlusPlus26)
+        // TODO update to the proper value.
+        Builder.defineMacro("_MSVC_LANG", "202400L");
+      else if (Opts.CPlusPlus23)
+        Builder.defineMacro("_MSVC_LANG", "202302L");
       else if (Opts.CPlusPlus20)
         Builder.defineMacro("_MSVC_LANG", "202002L");
       else if (Opts.CPlusPlus17)
@@ -251,6 +240,9 @@ static void addVisualCDefines(const LangOptions &Opts, MacroBuilder &Builder) {
       else if (Opts.CPlusPlus14)
         Builder.defineMacro("_MSVC_LANG", "201402L");
     }
+
+    if (Opts.isCompatibleWithMSVC(LangOptions::MSVC2022_3))
+      Builder.defineMacro("_MSVC_CONSTEXPR_ATTRIBUTE");
   }
 
   if (Opts.MicrosoftExt) {
@@ -270,8 +262,10 @@ static void addVisualCDefines(const LangOptions &Opts, MacroBuilder &Builder) {
     Builder.defineMacro("_KERNEL_MODE");
 
   Builder.defineMacro("_INTEGRAL_MAX_BITS", "64");
-  Builder.defineMacro("__STDC_NO_THREADS__");
-
+  // Define __STDC_NO_THREADS__ based on MSVC version, threads.h availability,
+  // and language standard.
+  if (!(Opts.isCompatibleWithMSVC(LangOptions::MSVC2022_9) && Opts.C11))
+    Builder.defineMacro("__STDC_NO_THREADS__");
   // Starting with VS 2022 17.1, MSVC predefines the below macro to inform
   // users of the execution character set defined at compile time.
   // The value given is the Windows Code Page Identifier:

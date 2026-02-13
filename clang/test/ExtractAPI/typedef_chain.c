@@ -2,7 +2,7 @@
 // RUN: split-file %s %t
 // RUN: sed -e "s@INPUT_DIR@%{/t:regex_replacement}@g" \
 // RUN: %t/reference.output.json.in >> %t/reference.output.json
-// RUN: %clang -extract-api --product-name=TypedefChain -target arm64-apple-macosx \
+// RUN: %clang -extract-api --pretty-sgf --product-name=TypedefChain -target arm64-apple-macosx \
 // RUN: -x objective-c-header %t/input.h -o %t/output.json | FileCheck -allow-empty %s
 
 // Generator version is not consistent across test runs, normalize it.
@@ -68,6 +68,10 @@ typedef MyIntInt MyIntIntInt;
         {
           "kind": "identifier",
           "spelling": "MyInt"
+        },
+        {
+          "kind": "text",
+          "spelling": ";"
         }
       ],
       "identifier": {
@@ -80,8 +84,8 @@ typedef MyIntInt MyIntIntInt;
       },
       "location": {
         "position": {
-          "character": 13,
-          "line": 1
+          "character": 12,
+          "line": 0
         },
         "uri": "file://INPUT_DIR/input.h"
       },
@@ -128,6 +132,10 @@ typedef MyIntInt MyIntIntInt;
         {
           "kind": "identifier",
           "spelling": "MyIntInt"
+        },
+        {
+          "kind": "text",
+          "spelling": ";"
         }
       ],
       "identifier": {
@@ -140,8 +148,8 @@ typedef MyIntInt MyIntIntInt;
       },
       "location": {
         "position": {
-          "character": 15,
-          "line": 2
+          "character": 14,
+          "line": 1
         },
         "uri": "file://INPUT_DIR/input.h"
       },
@@ -188,6 +196,10 @@ typedef MyIntInt MyIntIntInt;
         {
           "kind": "identifier",
           "spelling": "MyIntIntInt"
+        },
+        {
+          "kind": "text",
+          "spelling": ";"
         }
       ],
       "identifier": {
@@ -200,8 +212,8 @@ typedef MyIntInt MyIntIntInt;
       },
       "location": {
         "position": {
-          "character": 18,
-          "line": 3
+          "character": 17,
+          "line": 2
         },
         "uri": "file://INPUT_DIR/input.h"
       },

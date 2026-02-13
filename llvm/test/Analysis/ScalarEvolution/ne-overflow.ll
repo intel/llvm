@@ -11,10 +11,9 @@ define void @test(i32 %N) mustprogress {
 ; CHECK-LABEL: 'test'
 ; CHECK-NEXT:  Determining loop execution counts for: @test
 ; CHECK-NEXT:  Loop %for.body: backedge-taken count is ((-2 + %N) /u 2)
-; CHECK-NEXT:  Loop %for.body: max backedge-taken count is 2147483647
-; CHECK-NEXT:  Loop %for.body: Predicated backedge-taken count is ((-2 + %N) /u 2)
-; CHECK-NEXT:   Predicates:
-; CHECK:       Loop %for.body: Trip multiple is 1
+; CHECK-NEXT:  Loop %for.body: constant max backedge-taken count is i32 2147483647
+; CHECK-NEXT:  Loop %for.body: symbolic max backedge-taken count is ((-2 + %N) /u 2)
+; CHECK-NEXT:  Loop %for.body: Trip multiple is 1
 ;
 entry:
   br label %for.body
@@ -33,10 +32,9 @@ define void @test_preinc(i32 %N) mustprogress {
 ; CHECK-LABEL: 'test_preinc'
 ; CHECK-NEXT:  Determining loop execution counts for: @test_preinc
 ; CHECK-NEXT:  Loop %for.body: backedge-taken count is (%N /u 2)
-; CHECK-NEXT:  Loop %for.body: max backedge-taken count is 2147483647
-; CHECK-NEXT:  Loop %for.body: Predicated backedge-taken count is (%N /u 2)
-; CHECK-NEXT:   Predicates:
-; CHECK:       Loop %for.body: Trip multiple is 1
+; CHECK-NEXT:  Loop %for.body: constant max backedge-taken count is i32 2147483647
+; CHECK-NEXT:  Loop %for.body: symbolic max backedge-taken count is (%N /u 2)
+; CHECK-NEXT:  Loop %for.body: Trip multiple is 1
 ;
 entry:
   br label %for.body
@@ -58,8 +56,17 @@ define void @test_well_defined_infinite_st(i32 %N) mustprogress {
 ; CHECK-LABEL: 'test_well_defined_infinite_st'
 ; CHECK-NEXT:  Determining loop execution counts for: @test_well_defined_infinite_st
 ; CHECK-NEXT:  Loop %for.body: Unpredictable backedge-taken count.
-; CHECK-NEXT:  Loop %for.body: Unpredictable max backedge-taken count.
-; CHECK-NEXT:  Loop %for.body: Unpredictable predicated backedge-taken count.
+; CHECK-NEXT:  Loop %for.body: Unpredictable constant max backedge-taken count.
+; CHECK-NEXT:  Loop %for.body: Unpredictable symbolic max backedge-taken count.
+; CHECK-NEXT:  Loop %for.body: Predicated backedge-taken count is ((-2 + %N) /u 2)
+; CHECK-NEXT:   Predicates:
+; CHECK-NEXT:      Equal predicate: (zext i1 (trunc i32 %N to i1) to i32) == 0
+; CHECK-NEXT:  Loop %for.body: Predicated constant max backedge-taken count is i32 2147483647
+; CHECK-NEXT:   Predicates:
+; CHECK-NEXT:      Equal predicate: (zext i1 (trunc i32 %N to i1) to i32) == 0
+; CHECK-NEXT:  Loop %for.body: Predicated symbolic max backedge-taken count is ((-2 + %N) /u 2)
+; CHECK-NEXT:   Predicates:
+; CHECK-NEXT:      Equal predicate: (zext i1 (trunc i32 %N to i1) to i32) == 0
 ;
 entry:
   br label %for.body
@@ -67,7 +74,7 @@ entry:
 for.body:
   %iv = phi i32 [ %iv.next, %for.body ], [ 0, %entry ]
   %iv.next = add i32 %iv, 2
-  store volatile i32 0, i32* @G
+  store volatile i32 0, ptr @G
   %cmp = icmp ne i32 %iv.next, %N
   br i1 %cmp, label %for.body, label %for.cond.cleanup
 
@@ -79,8 +86,17 @@ define void @test_well_defined_infinite_ld(i32 %N) mustprogress {
 ; CHECK-LABEL: 'test_well_defined_infinite_ld'
 ; CHECK-NEXT:  Determining loop execution counts for: @test_well_defined_infinite_ld
 ; CHECK-NEXT:  Loop %for.body: Unpredictable backedge-taken count.
-; CHECK-NEXT:  Loop %for.body: Unpredictable max backedge-taken count.
-; CHECK-NEXT:  Loop %for.body: Unpredictable predicated backedge-taken count.
+; CHECK-NEXT:  Loop %for.body: Unpredictable constant max backedge-taken count.
+; CHECK-NEXT:  Loop %for.body: Unpredictable symbolic max backedge-taken count.
+; CHECK-NEXT:  Loop %for.body: Predicated backedge-taken count is ((-2 + %N) /u 2)
+; CHECK-NEXT:   Predicates:
+; CHECK-NEXT:      Equal predicate: (zext i1 (trunc i32 %N to i1) to i32) == 0
+; CHECK-NEXT:  Loop %for.body: Predicated constant max backedge-taken count is i32 2147483647
+; CHECK-NEXT:   Predicates:
+; CHECK-NEXT:      Equal predicate: (zext i1 (trunc i32 %N to i1) to i32) == 0
+; CHECK-NEXT:  Loop %for.body: Predicated symbolic max backedge-taken count is ((-2 + %N) /u 2)
+; CHECK-NEXT:   Predicates:
+; CHECK-NEXT:      Equal predicate: (zext i1 (trunc i32 %N to i1) to i32) == 0
 ;
 entry:
   br label %for.body
@@ -88,7 +104,7 @@ entry:
 for.body:
   %iv = phi i32 [ %iv.next, %for.body ], [ 0, %entry ]
   %iv.next = add i32 %iv, 2
-  %val = load volatile i32, i32* @G
+  %val = load volatile i32, ptr @G
   %cmp = icmp ne i32 %iv.next, %N
   br i1 %cmp, label %for.body, label %for.cond.cleanup
 
@@ -100,8 +116,17 @@ define void @test_no_mustprogress(i32 %N) {
 ; CHECK-LABEL: 'test_no_mustprogress'
 ; CHECK-NEXT:  Determining loop execution counts for: @test_no_mustprogress
 ; CHECK-NEXT:  Loop %for.body: Unpredictable backedge-taken count.
-; CHECK-NEXT:  Loop %for.body: Unpredictable max backedge-taken count.
-; CHECK-NEXT:  Loop %for.body: Unpredictable predicated backedge-taken count.
+; CHECK-NEXT:  Loop %for.body: Unpredictable constant max backedge-taken count.
+; CHECK-NEXT:  Loop %for.body: Unpredictable symbolic max backedge-taken count.
+; CHECK-NEXT:  Loop %for.body: Predicated backedge-taken count is ((-2 + %N) /u 2)
+; CHECK-NEXT:   Predicates:
+; CHECK-NEXT:      Equal predicate: (zext i1 (trunc i32 %N to i1) to i32) == 0
+; CHECK-NEXT:  Loop %for.body: Predicated constant max backedge-taken count is i32 2147483647
+; CHECK-NEXT:   Predicates:
+; CHECK-NEXT:      Equal predicate: (zext i1 (trunc i32 %N to i1) to i32) == 0
+; CHECK-NEXT:  Loop %for.body: Predicated symbolic max backedge-taken count is ((-2 + %N) /u 2)
+; CHECK-NEXT:   Predicates:
+; CHECK-NEXT:      Equal predicate: (zext i1 (trunc i32 %N to i1) to i32) == 0
 ;
 entry:
   br label %for.body
@@ -122,10 +147,9 @@ define void @test_1024(i32 %N) mustprogress {
 ; CHECK-LABEL: 'test_1024'
 ; CHECK-NEXT:  Determining loop execution counts for: @test_1024
 ; CHECK-NEXT:  Loop %for.body: backedge-taken count is ((-1024 + %N) /u 1024)
-; CHECK-NEXT:  Loop %for.body: max backedge-taken count is 4194303
-; CHECK-NEXT:  Loop %for.body: Predicated backedge-taken count is ((-1024 + %N) /u 1024)
-; CHECK-NEXT:   Predicates:
-; CHECK:       Loop %for.body: Trip multiple is 1
+; CHECK-NEXT:  Loop %for.body: constant max backedge-taken count is i32 4194303
+; CHECK-NEXT:  Loop %for.body: symbolic max backedge-taken count is ((-1024 + %N) /u 1024)
+; CHECK-NEXT:  Loop %for.body: Trip multiple is 1
 ;
 entry:
   br label %for.body
@@ -144,10 +168,9 @@ define void @test_uneven_divide(i32 %N) mustprogress {
 ; CHECK-LABEL: 'test_uneven_divide'
 ; CHECK-NEXT:  Determining loop execution counts for: @test_uneven_divide
 ; CHECK-NEXT:  Loop %for.body: backedge-taken count is (-1 + (-1431655765 * %N))
-; CHECK-NEXT:  Loop %for.body: max backedge-taken count is -1
-; CHECK-NEXT:  Loop %for.body: Predicated backedge-taken count is (-1 + (-1431655765 * %N))
-; CHECK-NEXT:   Predicates:
-; CHECK:       Loop %for.body: Trip multiple is 1
+; CHECK-NEXT:  Loop %for.body: constant max backedge-taken count is i32 -1
+; CHECK-NEXT:  Loop %for.body: symbolic max backedge-taken count is (-1 + (-1431655765 * %N))
+; CHECK-NEXT:  Loop %for.body: Trip multiple is 1
 ;
 entry:
   br label %for.body
@@ -166,8 +189,8 @@ define void @test_non_invariant_rhs() mustprogress {
 ; CHECK-LABEL: 'test_non_invariant_rhs'
 ; CHECK-NEXT:  Determining loop execution counts for: @test_non_invariant_rhs
 ; CHECK-NEXT:  Loop %for.body: Unpredictable backedge-taken count.
-; CHECK-NEXT:  Loop %for.body: Unpredictable max backedge-taken count.
-; CHECK-NEXT:  Loop %for.body: Unpredictable predicated backedge-taken count.
+; CHECK-NEXT:  Loop %for.body: Unpredictable constant max backedge-taken count.
+; CHECK-NEXT:  Loop %for.body: Unpredictable symbolic max backedge-taken count.
 ;
 entry:
   br label %for.body
@@ -175,7 +198,7 @@ entry:
 for.body:
   %iv = phi i32 [ %iv.next, %for.body ], [ 0, %entry ]
   %iv.next = add i32 %iv, 2
-  %N = load i32, i32* @G
+  %N = load i32, ptr @G
   %cmp = icmp ne i32 %iv.next, %N
   br i1 %cmp, label %for.body, label %for.cond.cleanup
 
@@ -189,8 +212,17 @@ define void @test_abnormal_exit(i32 %N) mustprogress {
 ; CHECK-LABEL: 'test_abnormal_exit'
 ; CHECK-NEXT:  Determining loop execution counts for: @test_abnormal_exit
 ; CHECK-NEXT:  Loop %for.body: Unpredictable backedge-taken count.
-; CHECK-NEXT:  Loop %for.body: Unpredictable max backedge-taken count.
-; CHECK-NEXT:  Loop %for.body: Unpredictable predicated backedge-taken count.
+; CHECK-NEXT:  Loop %for.body: Unpredictable constant max backedge-taken count.
+; CHECK-NEXT:  Loop %for.body: Unpredictable symbolic max backedge-taken count.
+; CHECK-NEXT:  Loop %for.body: Predicated backedge-taken count is ((-2 + %N) /u 2)
+; CHECK-NEXT:   Predicates:
+; CHECK-NEXT:      Equal predicate: (zext i1 (trunc i32 %N to i1) to i32) == 0
+; CHECK-NEXT:  Loop %for.body: Predicated constant max backedge-taken count is i32 2147483647
+; CHECK-NEXT:   Predicates:
+; CHECK-NEXT:      Equal predicate: (zext i1 (trunc i32 %N to i1) to i32) == 0
+; CHECK-NEXT:  Loop %for.body: Predicated symbolic max backedge-taken count is ((-2 + %N) /u 2)
+; CHECK-NEXT:   Predicates:
+; CHECK-NEXT:      Equal predicate: (zext i1 (trunc i32 %N to i1) to i32) == 0
 ;
 entry:
   br label %for.body
@@ -211,10 +243,26 @@ define void @test_other_exit(i32 %N) mustprogress {
 ; CHECK-LABEL: 'test_other_exit'
 ; CHECK-NEXT:  Determining loop execution counts for: @test_other_exit
 ; CHECK-NEXT:  Loop %for.body: <multiple exits> Unpredictable backedge-taken count.
-; CHECK-NEXT:    exit count for for.body: 9
+; CHECK-NEXT:    exit count for for.body: i32 9
 ; CHECK-NEXT:    exit count for for.latch: ***COULDNOTCOMPUTE***
-; CHECK-NEXT:  Loop %for.body: max backedge-taken count is 9
-; CHECK-NEXT:  Loop %for.body: Unpredictable predicated backedge-taken count.
+; CHECK-NEXT:    predicated exit count for for.latch: ((-2 + %N) /u 2)
+; CHECK-NEXT:     Predicates:
+; CHECK-NEXT:      Equal predicate: (zext i1 (trunc i32 %N to i1) to i32) == 0
+; CHECK-EMPTY:
+; CHECK-NEXT:  Loop %for.body: constant max backedge-taken count is i32 9
+; CHECK-NEXT:  Loop %for.body: symbolic max backedge-taken count is i32 9
+; CHECK-NEXT:    symbolic max exit count for for.body: i32 9
+; CHECK-NEXT:    symbolic max exit count for for.latch: ***COULDNOTCOMPUTE***
+; CHECK-NEXT:    predicated symbolic max exit count for for.latch: ((-2 + %N) /u 2)
+; CHECK-NEXT:     Predicates:
+; CHECK-NEXT:      Equal predicate: (zext i1 (trunc i32 %N to i1) to i32) == 0
+; CHECK-EMPTY:
+; CHECK-NEXT:  Loop %for.body: Predicated backedge-taken count is (9 umin ((-2 + %N) /u 2))
+; CHECK-NEXT:   Predicates:
+; CHECK-NEXT:      Equal predicate: (zext i1 (trunc i32 %N to i1) to i32) == 0
+; CHECK-NEXT:  Loop %for.body: Predicated symbolic max backedge-taken count is (9 umin ((-2 + %N) /u 2))
+; CHECK-NEXT:   Predicates:
+; CHECK-NEXT:      Equal predicate: (zext i1 (trunc i32 %N to i1) to i32) == 0
 ;
 entry:
   br label %for.body
@@ -237,10 +285,17 @@ define void @test_zext(i64 %N) mustprogress {
 ; CHECK-LABEL: 'test_zext'
 ; CHECK-NEXT:  Determining loop execution counts for: @test_zext
 ; CHECK-NEXT:  Loop %for.body: Unpredictable backedge-taken count.
-; CHECK-NEXT:  Loop %for.body: Unpredictable max backedge-taken count.
+; CHECK-NEXT:  Loop %for.body: Unpredictable constant max backedge-taken count.
+; CHECK-NEXT:  Loop %for.body: Unpredictable symbolic max backedge-taken count.
 ; CHECK-NEXT:  Loop %for.body: Predicated backedge-taken count is (%N /u 2)
 ; CHECK-NEXT:   Predicates:
-; CHECK-NEXT:    {0,+,2}<nuw><%for.body> Added Flags: <nusw>
+; CHECK-NEXT:      {0,+,2}<nuw><%for.body> Added Flags: <nusw>
+; CHECK-NEXT:  Loop %for.body: Predicated constant max backedge-taken count is i64 9223372036854775807
+; CHECK-NEXT:   Predicates:
+; CHECK-NEXT:      {0,+,2}<nuw><%for.body> Added Flags: <nusw>
+; CHECK-NEXT:  Loop %for.body: Predicated symbolic max backedge-taken count is (%N /u 2)
+; CHECK-NEXT:   Predicates:
+; CHECK-NEXT:      {0,+,2}<nuw><%for.body> Added Flags: <nusw>
 ;
 entry:
   br label %for.body
@@ -260,8 +315,20 @@ define void @test_sext(i64 %N) mustprogress {
 ; CHECK-LABEL: 'test_sext'
 ; CHECK-NEXT:  Determining loop execution counts for: @test_sext
 ; CHECK-NEXT:  Loop %for.body: Unpredictable backedge-taken count.
-; CHECK-NEXT:  Loop %for.body: Unpredictable max backedge-taken count.
-; CHECK-NEXT:  Loop %for.body: Unpredictable predicated backedge-taken count.
+; CHECK-NEXT:  Loop %for.body: Unpredictable constant max backedge-taken count.
+; CHECK-NEXT:  Loop %for.body: Unpredictable symbolic max backedge-taken count.
+; CHECK-NEXT:  Loop %for.body: Predicated backedge-taken count is (%N /u 2)
+; CHECK-NEXT:   Predicates:
+; CHECK-NEXT:      {0,+,2}<%for.body> Added Flags: <nssw>
+; CHECK-NEXT:      Equal predicate: (zext i1 (trunc i64 %N to i1) to i64) == 0
+; CHECK-NEXT:  Loop %for.body: Predicated constant max backedge-taken count is i64 9223372036854775807
+; CHECK-NEXT:   Predicates:
+; CHECK-NEXT:      {0,+,2}<%for.body> Added Flags: <nssw>
+; CHECK-NEXT:      Equal predicate: (zext i1 (trunc i64 %N to i1) to i64) == 0
+; CHECK-NEXT:  Loop %for.body: Predicated symbolic max backedge-taken count is (%N /u 2)
+; CHECK-NEXT:   Predicates:
+; CHECK-NEXT:      {0,+,2}<%for.body> Added Flags: <nssw>
+; CHECK-NEXT:      Equal predicate: (zext i1 (trunc i64 %N to i1) to i64) == 0
 ;
 entry:
   br label %for.body
@@ -281,8 +348,23 @@ define void @test_zext_of_sext(i64 %N) mustprogress {
 ; CHECK-LABEL: 'test_zext_of_sext'
 ; CHECK-NEXT:  Determining loop execution counts for: @test_zext_of_sext
 ; CHECK-NEXT:  Loop %for.body: Unpredictable backedge-taken count.
-; CHECK-NEXT:  Loop %for.body: Unpredictable max backedge-taken count.
-; CHECK-NEXT:  Loop %for.body: Unpredictable predicated backedge-taken count.
+; CHECK-NEXT:  Loop %for.body: Unpredictable constant max backedge-taken count.
+; CHECK-NEXT:  Loop %for.body: Unpredictable symbolic max backedge-taken count.
+; CHECK-NEXT:  Loop %for.body: Predicated backedge-taken count is (%N /u 2)
+; CHECK-NEXT:   Predicates:
+; CHECK-NEXT:      {0,+,2}<%for.body> Added Flags: <nssw>
+; CHECK-NEXT:      {0,+,2}<%for.body> Added Flags: <nusw>
+; CHECK-NEXT:      Equal predicate: (zext i1 (trunc i64 %N to i1) to i64) == 0
+; CHECK-NEXT:  Loop %for.body: Predicated constant max backedge-taken count is i64 9223372036854775807
+; CHECK-NEXT:   Predicates:
+; CHECK-NEXT:      {0,+,2}<%for.body> Added Flags: <nssw>
+; CHECK-NEXT:      {0,+,2}<%for.body> Added Flags: <nusw>
+; CHECK-NEXT:      Equal predicate: (zext i1 (trunc i64 %N to i1) to i64) == 0
+; CHECK-NEXT:  Loop %for.body: Predicated symbolic max backedge-taken count is (%N /u 2)
+; CHECK-NEXT:   Predicates:
+; CHECK-NEXT:      {0,+,2}<%for.body> Added Flags: <nssw>
+; CHECK-NEXT:      {0,+,2}<%for.body> Added Flags: <nusw>
+; CHECK-NEXT:      Equal predicate: (zext i1 (trunc i64 %N to i1) to i64) == 0
 ;
 entry:
   br label %for.body
@@ -303,8 +385,20 @@ define void @test_zext_offset(i64 %N) mustprogress {
 ; CHECK-LABEL: 'test_zext_offset'
 ; CHECK-NEXT:  Determining loop execution counts for: @test_zext_offset
 ; CHECK-NEXT:  Loop %for.body: Unpredictable backedge-taken count.
-; CHECK-NEXT:  Loop %for.body: Unpredictable max backedge-taken count.
-; CHECK-NEXT:  Loop %for.body: Unpredictable predicated backedge-taken count.
+; CHECK-NEXT:  Loop %for.body: Unpredictable constant max backedge-taken count.
+; CHECK-NEXT:  Loop %for.body: Unpredictable symbolic max backedge-taken count.
+; CHECK-NEXT:  Loop %for.body: Predicated backedge-taken count is ((-21 + %N) /u 2)
+; CHECK-NEXT:   Predicates:
+; CHECK-NEXT:      {0,+,2}<%for.body> Added Flags: <nusw>
+; CHECK-NEXT:      Equal predicate: (zext i1 (true + (trunc i64 %N to i1)) to i64) == 0
+; CHECK-NEXT:  Loop %for.body: Predicated constant max backedge-taken count is i64 9223372036854775807
+; CHECK-NEXT:   Predicates:
+; CHECK-NEXT:      {0,+,2}<%for.body> Added Flags: <nusw>
+; CHECK-NEXT:      Equal predicate: (zext i1 (true + (trunc i64 %N to i1)) to i64) == 0
+; CHECK-NEXT:  Loop %for.body: Predicated symbolic max backedge-taken count is ((-21 + %N) /u 2)
+; CHECK-NEXT:   Predicates:
+; CHECK-NEXT:      {0,+,2}<%for.body> Added Flags: <nusw>
+; CHECK-NEXT:      Equal predicate: (zext i1 (true + (trunc i64 %N to i1)) to i64) == 0
 ;
 entry:
   br label %for.body
@@ -325,8 +419,20 @@ define void @test_sext_offset(i64 %N) mustprogress {
 ; CHECK-LABEL: 'test_sext_offset'
 ; CHECK-NEXT:  Determining loop execution counts for: @test_sext_offset
 ; CHECK-NEXT:  Loop %for.body: Unpredictable backedge-taken count.
-; CHECK-NEXT:  Loop %for.body: Unpredictable max backedge-taken count.
-; CHECK-NEXT:  Loop %for.body: Unpredictable predicated backedge-taken count.
+; CHECK-NEXT:  Loop %for.body: Unpredictable constant max backedge-taken count.
+; CHECK-NEXT:  Loop %for.body: Unpredictable symbolic max backedge-taken count.
+; CHECK-NEXT:  Loop %for.body: Predicated backedge-taken count is ((-21 + %N) /u 2)
+; CHECK-NEXT:   Predicates:
+; CHECK-NEXT:      {0,+,2}<%for.body> Added Flags: <nssw>
+; CHECK-NEXT:      Equal predicate: (zext i1 (true + (trunc i64 %N to i1)) to i64) == 0
+; CHECK-NEXT:  Loop %for.body: Predicated constant max backedge-taken count is i64 9223372036854775807
+; CHECK-NEXT:   Predicates:
+; CHECK-NEXT:      {0,+,2}<%for.body> Added Flags: <nssw>
+; CHECK-NEXT:      Equal predicate: (zext i1 (true + (trunc i64 %N to i1)) to i64) == 0
+; CHECK-NEXT:  Loop %for.body: Predicated symbolic max backedge-taken count is ((-21 + %N) /u 2)
+; CHECK-NEXT:   Predicates:
+; CHECK-NEXT:      {0,+,2}<%for.body> Added Flags: <nssw>
+; CHECK-NEXT:      Equal predicate: (zext i1 (true + (trunc i64 %N to i1)) to i64) == 0
 ;
 entry:
   br label %for.body

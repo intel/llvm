@@ -1,6 +1,6 @@
 ; RUN: opt -O2 %s | llvm-dis > %t1
-; RUN: llc -filetype=asm -o - %t1 | FileCheck -check-prefixes=CHECK,CHECK-ALU64 %s
-; RUN: llc -mattr=+alu32 -filetype=asm -o - %t1 | FileCheck -check-prefixes=CHECK,CHECK-ALU32 %s
+; RUN: llc -mcpu=v1 -filetype=asm -o - %t1 | FileCheck -check-prefixes=CHECK,CHECK-ALU64 %s
+; RUN: llc -mcpu=v1 -mattr=+alu32 -filetype=asm -o - %t1 | FileCheck -check-prefixes=CHECK,CHECK-ALU32 %s
 ; Source code:
 ;   typedef struct s1 { char a1 [5][5]; } __s1;
 ;   union u1 { int b1; __s1 b2; };
@@ -20,17 +20,16 @@ target triple = "bpf"
 %struct.s1 = type { [5 x [5 x i8]] }
 
 ; Function Attrs: nounwind readnone
-define dso_local i32 @test(%union.u1* %arg) local_unnamed_addr #0 !dbg !18 {
+define dso_local i32 @test(ptr %arg) local_unnamed_addr !dbg !18 {
 entry:
-  call void @llvm.dbg.value(metadata %union.u1* %arg, metadata !32, metadata !DIExpression()), !dbg !35
-  %0 = tail call %union.u1* @llvm.preserve.union.access.index.p0s_union.u1s.p0s_union.u1s(%union.u1* %arg, i32 1), !dbg !36, !llvm.preserve.access.index !23
-  %b2 = bitcast %union.u1* %0 to %struct.s1*, !dbg !36
-  %1 = tail call [5 x [5 x i8]]* @llvm.preserve.struct.access.index.p0a5a5i8.p0s_struct.s1s(%struct.s1* elementtype(%struct.s1) %b2, i32 0, i32 0), !dbg !37, !llvm.preserve.access.index !28
-  %2 = tail call [5 x i8]* @llvm.preserve.array.access.index.p0a5i8.p0a5a5i8([5 x [5 x i8]]* elementtype([5 x [5 x i8]]) %1, i32 1, i32 3), !dbg !38, !llvm.preserve.access.index !8
-  %3 = tail call i32 @llvm.bpf.preserve.field.info.p0a5i8([5 x i8]* %2, i64 5), !dbg !39
+  call void @llvm.dbg.value(metadata ptr %arg, metadata !32, metadata !DIExpression()), !dbg !35
+  %0 = tail call ptr @llvm.preserve.union.access.index.p0.u1s.p0.u1s(ptr %arg, i32 1), !dbg !36, !llvm.preserve.access.index !23
+  %1 = tail call ptr @llvm.preserve.struct.access.index.p0.p0.s1s(ptr elementtype(%struct.s1) %0, i32 0, i32 0), !dbg !37, !llvm.preserve.access.index !28
+  %2 = tail call ptr @llvm.preserve.array.access.index.p0.p0(ptr elementtype([5 x [5 x i8]]) %1, i32 1, i32 3), !dbg !38, !llvm.preserve.access.index !8
+  %3 = tail call i32 @llvm.bpf.preserve.field.info.p0(ptr %2, i64 5), !dbg !39
   call void @llvm.dbg.value(metadata i32 %3, metadata !33, metadata !DIExpression()), !dbg !35
-  %4 = tail call i8* @llvm.preserve.array.access.index.p0i8.p0a5i8([5 x i8]* elementtype([5 x i8]) %2, i32 1, i32 3), !dbg !40, !llvm.preserve.access.index !12
-  %5 = tail call i32 @llvm.bpf.preserve.field.info.p0i8(i8* %4, i64 5), !dbg !41
+  %4 = tail call ptr @llvm.preserve.array.access.index.p0.p0(ptr elementtype([5 x i8]) %2, i32 1, i32 3), !dbg !40, !llvm.preserve.access.index !12
+  %5 = tail call i32 @llvm.bpf.preserve.field.info.p0(ptr %4, i64 5), !dbg !41
   call void @llvm.dbg.value(metadata i32 %5, metadata !34, metadata !DIExpression()), !dbg !35
   %add = add i32 %5, %3, !dbg !42
   ret i32 %add, !dbg !43
@@ -61,29 +60,23 @@ entry:
 ; CHECK-NEXT:        .long   5
 
 ; Function Attrs: nounwind readnone
-declare %union.u1* @llvm.preserve.union.access.index.p0s_union.u1s.p0s_union.u1s(%union.u1*, i32) #1
+declare ptr @llvm.preserve.union.access.index.p0.u1s.p0.u1s(ptr, i32)
 
 ; Function Attrs: nounwind readnone
-declare [5 x [5 x i8]]* @llvm.preserve.struct.access.index.p0a5a5i8.p0s_struct.s1s(%struct.s1*, i32, i32) #1
+declare ptr @llvm.preserve.struct.access.index.p0.p0.s1s(ptr, i32, i32)
 
 ; Function Attrs: nounwind readnone
-declare [5 x i8]* @llvm.preserve.array.access.index.p0a5i8.p0a5a5i8([5 x [5 x i8]]*, i32, i32) #1
+declare ptr @llvm.preserve.array.access.index.p0.p0(ptr, i32, i32)
 
 ; Function Attrs: nounwind readnone
-declare i32 @llvm.bpf.preserve.field.info.p0a5i8([5 x i8]*, i64) #1
+declare i32 @llvm.bpf.preserve.field.info.p0(ptr, i64)
 
 ; Function Attrs: nounwind readnone
-declare i8* @llvm.preserve.array.access.index.p0i8.p0a5i8([5 x i8]*, i32, i32) #1
 
 ; Function Attrs: nounwind readnone
-declare i32 @llvm.bpf.preserve.field.info.p0i8(i8*, i64) #1
 
 ; Function Attrs: nounwind readnone speculatable willreturn
-declare void @llvm.dbg.value(metadata, metadata, metadata) #2
-
-attributes #0 = { nounwind readnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { nounwind readnone }
-attributes #2 = { nounwind readnone speculatable willreturn }
+declare void @llvm.dbg.value(metadata, metadata, metadata)
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!14, !15, !16}

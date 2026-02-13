@@ -1,18 +1,18 @@
-; RUN: llc  -mtriple=mipsel-linux-gnu -march=mipsel -mattr=mips16 -relocation-model=pic -O3 < %s | FileCheck %s -check-prefix=C1
-; RUN: llc  -mtriple=mipsel-linux-gnu -march=mipsel -mattr=mips16 -relocation-model=pic -O3 < %s | FileCheck %s -check-prefix=C2
-; RUN: llc  -mtriple=mipsel-linux-gnu -march=mipsel -mattr=mips16 -relocation-model=pic -O3 < %s | FileCheck %s -check-prefix=PE
-; RUN: llc  -mtriple=mipsel-linux-gnu -march=mipsel -mattr=mips16 -relocation-model=static -O3 < %s | FileCheck %s -check-prefix=ST1
-; RUN: llc  -mtriple=mipsel-linux-gnu -march=mipsel -mattr=mips16 -relocation-model=static -O3 < %s | FileCheck %s -check-prefix=ST2
+; RUN: llc -mtriple=mipsel-linux-gnu -mattr=mips16 -relocation-model=pic -O3 < %s | FileCheck %s -check-prefix=C1
+; RUN: llc -mtriple=mipsel-linux-gnu -mattr=mips16 -relocation-model=pic -O3 < %s | FileCheck %s -check-prefix=C2
+; RUN: llc -mtriple=mipsel-linux-gnu -mattr=mips16 -relocation-model=pic -O3 < %s | FileCheck %s -check-prefix=PE
+; RUN: llc -mtriple=mipsel-linux-gnu -mattr=mips16 -relocation-model=static -O3 < %s | FileCheck %s -check-prefix=ST1
+; RUN: llc -mtriple=mipsel-linux-gnu -mattr=mips16 -relocation-model=static -O3 < %s | FileCheck %s -check-prefix=ST2
 ;
-; RUN: llc  -mtriple=mipsel-linux-gnu -march=mipsel -mattr=mips16 -relocation-model=pic -O3 < %s | FileCheck %s -check-prefix=SR
-; RUN: llc  -mtriple=mipsel-linux-gnu -march=mipsel -mcpu=mips32  -relocation-model=pic -O3 < %s | FileCheck %s -check-prefix=SR32
+; RUN: llc -mtriple=mipsel-linux-gnu -mattr=mips16 -relocation-model=pic -O3 < %s | FileCheck %s -check-prefix=SR
+; RUN: llc -mtriple=mipsel-linux-gnu -mcpu=mips32 -relocation-model=pic -O3 < %s | FileCheck %s -check-prefix=SR32
 
 
 @.str = private unnamed_addr constant [13 x i8] c"hello world\0A\00", align 1
 
 define i32 @main() nounwind {
 entry:
-  %call = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([13 x i8], [13 x i8]* @.str, i32 0, i32 0))
+  %call = call i32 (ptr, ...) @printf(ptr @.str)
   ret i32 0
 
 ; SR: 	.set	mips16
@@ -55,4 +55,4 @@ entry:
 ;  SR32:  .set reorder
 ; SR:   .end main
 ; SR32:   .end main
-declare i32 @printf(i8*, ...)
+declare i32 @printf(ptr, ...)

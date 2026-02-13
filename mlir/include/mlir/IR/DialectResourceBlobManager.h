@@ -21,6 +21,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/RWMutex.h"
 #include "llvm/Support/SMLoc.h"
+#include <optional>
 
 namespace mlir {
 //===----------------------------------------------------------------------===//
@@ -52,7 +53,7 @@ public:
     BlobEntry &operator=(BlobEntry &&) = delete;
 
     /// Initialize this entry with the given key and blob.
-    void initialize(StringRef newKey, Optional<AsmResourceBlob> newBlob) {
+    void initialize(StringRef newKey, std::optional<AsmResourceBlob> newBlob) {
       key = newKey;
       blob = std::move(newBlob);
     }
@@ -61,7 +62,7 @@ public:
     StringRef key;
 
     /// The blob that is referenced by this entry if it is valid.
-    Optional<AsmResourceBlob> blob;
+    std::optional<AsmResourceBlob> blob;
 
     /// Allow access to the constructors.
     friend DialectResourceBlobManager;
@@ -82,19 +83,24 @@ public:
   /// Insert a new entry with the provided name and optional blob data. The name
   /// may be modified during insertion if another entry already exists with that
   /// name. Returns the inserted entry.
-  BlobEntry &insert(StringRef name, Optional<AsmResourceBlob> blob = {});
+  BlobEntry &insert(StringRef name, std::optional<AsmResourceBlob> blob = {});
   /// Insertion method that returns a dialect specific handle to the inserted
   /// entry.
   template <typename HandleT>
   HandleT insert(typename HandleT::Dialect *dialect, StringRef name,
-                 Optional<AsmResourceBlob> blob = {}) {
+                 std::optional<AsmResourceBlob> blob = {}) {
     BlobEntry &entry = insert(name, std::move(blob));
     return HandleT(&entry, dialect);
   }
 
+  /// Provide access to all the registered blobs via a callable. During access
+  /// the blob map is guaranteed to remain unchanged.
+  void getBlobMap(llvm::function_ref<void(const llvm::StringMap<BlobEntry> &)>
+                      accessor) const;
+
 private:
   /// A mutex to protect access to the blob map.
-  llvm::sys::SmartRWMutex<true> blobMapLock;
+  mutable llvm::sys::SmartRWMutex<true> blobMapLock;
 
   /// The internal map of tracked blobs. StringMap stores entries in distinct
   /// allocations, so we can freely take references to the data without fear of
@@ -153,7 +159,7 @@ public:
   /// data. The name may be modified during insertion if another entry already
   /// exists with that name. Returns a dialect specific handle to the inserted
   /// entry.
-  HandleT insert(StringRef name, Optional<AsmResourceBlob> blob = {}) {
+  HandleT insert(StringRef name, std::optional<AsmResourceBlob> blob = {}) {
     return getBlobManager().template insert<HandleT>(
         cast<typename HandleT::Dialect>(getDialect()), name, std::move(blob));
   }

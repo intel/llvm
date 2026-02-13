@@ -12,13 +12,8 @@
 
 #include "mlir/Dialect/SPIRV/IR/SPIRVEnums.h"
 
-#include "mlir/IR/BuiltinTypes.h"
-
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/ADT/StringRef.h"
-
-#include <iterator>
 
 using namespace mlir;
 
@@ -54,25 +49,37 @@ ArrayRef<spirv::Extension> spirv::getImpliedExtensions(spirv::Version version) {
       Extension::SPV_KHR_physical_storage_buffer,                              \
       Extension::SPV_KHR_vulkan_memory_model
 
+#define V_1_6_IMPLIED_EXTS                                                     \
+  Extension::SPV_KHR_non_semantic_info,                                        \
+      Extension::SPV_KHR_integer_dot_product,                                  \
+      Extension::SPV_KHR_terminate_invocation,                                 \
+      Extension::SPV_EXT_demote_to_helper_invocation
+
   switch (version) {
   default:
     return {};
   case Version::V_1_3: {
     // The following manual ArrayRef constructor call is to satisfy GCC 5.
     static const Extension exts[] = {V_1_3_IMPLIED_EXTS};
-    return ArrayRef<spirv::Extension>(exts, std::size(exts));
+    return exts;
   }
   case Version::V_1_4: {
     static const Extension exts[] = {V_1_3_IMPLIED_EXTS, V_1_4_IMPLIED_EXTS};
-    return ArrayRef<spirv::Extension>(exts, std::size(exts));
+    return exts;
   }
   case Version::V_1_5: {
     static const Extension exts[] = {V_1_3_IMPLIED_EXTS, V_1_4_IMPLIED_EXTS,
                                      V_1_5_IMPLIED_EXTS};
-    return ArrayRef<spirv::Extension>(exts, std::size(exts));
+    return exts;
+  }
+  case Version::V_1_6: {
+    static const Extension exts[] = {V_1_3_IMPLIED_EXTS, V_1_4_IMPLIED_EXTS,
+                                     V_1_5_IMPLIED_EXTS, V_1_6_IMPLIED_EXTS};
+    return exts;
   }
   }
 
+#undef V_1_6_IMPLIED_EXTS
 #undef V_1_5_IMPLIED_EXTS
 #undef V_1_4_IMPLIED_EXTS
 #undef V_1_3_IMPLIED_EXTS
@@ -85,13 +92,12 @@ SmallVector<spirv::Capability, 0>
 spirv::getRecursiveImpliedCapabilities(spirv::Capability cap) {
   ArrayRef<spirv::Capability> directCaps = getDirectImpliedCapabilities(cap);
   SetVector<spirv::Capability, SmallVector<spirv::Capability, 0>> allCaps(
-      directCaps.begin(), directCaps.end());
+      llvm::from_range, directCaps);
 
   // TODO: This is insufficient; find a better way to handle this
   // (e.g., using static lists) if this turns out to be a bottleneck.
   for (unsigned i = 0; i < allCaps.size(); ++i)
-    for (Capability c : getDirectImpliedCapabilities(allCaps[i]))
-      allCaps.insert(c);
+    allCaps.insert_range(getDirectImpliedCapabilities(allCaps[i]));
 
   return allCaps.takeVector();
 }

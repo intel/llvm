@@ -9,6 +9,8 @@
 // NetBSD does not support LC_TIME at the moment
 // XFAIL: netbsd
 
+// XFAIL: LIBCXX-FREEBSD-FIXME
+
 // REQUIRES: locale.en_US.UTF-8
 // REQUIRES: locale.fr_FR.UTF-8
 // REQUIRES: locale.ru_RU.UTF-8
@@ -21,8 +23,10 @@
 // iter_type get(iter_type s, iter_type end, ios_base& f,
 //               ios_base::iostate& err, tm *t, char format, char modifier = 0) const;
 
-#include <locale>
 #include <cassert>
+#include <ctime>
+#include <locale>
+
 #include "test_macros.h"
 #include "test_iterators.h"
 

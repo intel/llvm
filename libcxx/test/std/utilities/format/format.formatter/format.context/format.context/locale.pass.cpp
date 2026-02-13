@@ -1,4 +1,5 @@
 //===----------------------------------------------------------------------===//
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -7,7 +8,7 @@
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: no-localization
-// UNSUPPORTED: libcpp-has-no-incomplete-format
+// UNSUPPORTED: GCC-ALWAYS_INLINE-FIXME
 
 // REQUIRES: locale.en_US.UTF-8
 // REQUIRES: locale.fr_FR.UTF-8
@@ -17,6 +18,7 @@
 // std::locale locale();
 
 #include <format>
+#include <iterator>
 #include <cassert>
 
 #include "make_string.h"
@@ -31,15 +33,18 @@ void test() {
   std::locale fr_FR{LOCALE_fr_FR_UTF_8};
   std::basic_string<CharT> string = MAKE_STRING(CharT, "string");
   // The type of the object is an exposition only type. The temporary is needed
-  // to extend the lifetype of the object since args stores a pointer to the
+  // to extend the lifetime of the object since args stores a pointer to the
   // data in this object.
-  auto format_arg_store = std::make_format_args<std::basic_format_context<OutIt, CharT>>(true, CharT('a'), 42, string);
+  int a                       = 42;
+  bool b                      = true;
+  CharT c                     = CharT('a');
+  auto format_arg_store       = std::make_format_args<std::basic_format_context<OutIt, CharT>>(b, c, a, string);
   std::basic_format_args args = format_arg_store;
 
   {
     std::basic_string<CharT> output;
     OutIt out_it{output};
-    std::basic_format_context<OutIt, CharT> context = test_format_context_create(out_it, args, en_US);
+    std::basic_format_context context = test_format_context_create(out_it, args, en_US);
     assert(args.__size() == 4);
     assert(test_basic_format_arg(context.arg(0), true));
     assert(test_basic_format_arg(context.arg(1), CharT('a')));
@@ -58,7 +63,7 @@ void test() {
   {
     std::basic_string<CharT> output;
     OutIt out_it{output};
-    std::basic_format_context<OutIt, CharT> context = test_format_context_create(out_it, args, fr_FR);
+    std::basic_format_context context = test_format_context_create(out_it, args, fr_FR);
     assert(args.__size() == 4);
     assert(test_basic_format_arg(context.arg(0), true));
     assert(test_basic_format_arg(context.arg(1), CharT('a')));

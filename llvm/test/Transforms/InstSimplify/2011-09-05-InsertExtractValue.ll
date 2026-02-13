@@ -7,12 +7,12 @@ define void @test1() personality ptr @__gxx_personality_v0 {
 ; CHECK-LABEL: @test1(
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    invoke void @bar()
-; CHECK-NEXT:    to label [[CONT:%.*]] unwind label [[LPAD:%.*]]
+; CHECK-NEXT:            to label [[CONT:%.*]] unwind label [[LPAD:%.*]]
 ; CHECK:       cont:
 ; CHECK-NEXT:    ret void
 ; CHECK:       lpad:
 ; CHECK-NEXT:    [[EX:%.*]] = landingpad { ptr, i32 }
-; CHECK-NEXT:    cleanup
+; CHECK-NEXT:            cleanup
 ; CHECK-NEXT:    resume { ptr, i32 } [[EX]]
 ;
 entry:
@@ -23,7 +23,7 @@ lpad:
   %ex = landingpad { ptr, i32 } cleanup
   %exc_ptr = extractvalue { ptr, i32 } %ex, 0
   %filter = extractvalue { ptr, i32 } %ex, 1
-  %exc_ptr2 = insertvalue { ptr, i32 } undef, ptr %exc_ptr, 0
+  %exc_ptr2 = insertvalue { ptr, i32 } poison, ptr %exc_ptr, 0
   %filter2 = insertvalue { ptr, i32 } %exc_ptr2, i32 %filter, 1
   resume { ptr, i32 } %filter2
 }
@@ -53,7 +53,7 @@ define i32 @test3(i32 %a, float %b) {
 
 define i8 @test4(<8 x i8> %V) {
 ; CHECK-LABEL: @test4(
-; CHECK-NEXT:    [[ADD:%.*]] = add <8 x i8> [[V:%.*]], bitcast (<1 x double> <double 0x319BEB8FD172E36> to <8 x i8>)
+; CHECK-NEXT:    [[ADD:%.*]] = add <8 x i8> [[V:%.*]], bitcast (<1 x double> splat (double 0x319BEB8FD172E36) to <8 x i8>)
 ; CHECK-NEXT:    [[EXTRACT:%.*]] = extractelement <8 x i8> [[ADD]], i32 6
 ; CHECK-NEXT:    ret i8 [[EXTRACT]]
 ;

@@ -1,5 +1,4 @@
-//===--- IdentifierLengthCheck.cpp - clang-tidy
-//-----------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,15 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "IdentifierLengthCheck.h"
-#include "../utils/OptionsUtils.h"
-#include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace readability {
+namespace clang::tidy::readability {
 
 const unsigned DefaultMinimumVariableNameLength = 3;
 const unsigned DefaultMinimumLoopCounterNameLength = 2;
@@ -96,7 +91,7 @@ void IdentifierLengthCheck::check(const MatchFinder::MatchResult &Result) {
     if (!StandaloneVar->getIdentifier())
       return;
 
-    StringRef VarName = StandaloneVar->getName();
+    const StringRef VarName = StandaloneVar->getName();
 
     if (VarName.size() >= MinimumVariableNameLength ||
         IgnoredVariableNames.match(VarName))
@@ -111,7 +106,7 @@ void IdentifierLengthCheck::check(const MatchFinder::MatchResult &Result) {
     if (!ExceptionVarName->getIdentifier())
       return;
 
-    StringRef VarName = ExceptionVarName->getName();
+    const StringRef VarName = ExceptionVarName->getName();
     if (VarName.size() >= MinimumExceptionNameLength ||
         IgnoredExceptionVariableNames.match(VarName))
       return;
@@ -125,7 +120,7 @@ void IdentifierLengthCheck::check(const MatchFinder::MatchResult &Result) {
     if (!LoopVar->getIdentifier())
       return;
 
-    StringRef VarName = LoopVar->getName();
+    const StringRef VarName = LoopVar->getName();
 
     if (VarName.size() >= MinimumLoopCounterNameLength ||
         IgnoredLoopCounterNames.match(VarName))
@@ -140,7 +135,7 @@ void IdentifierLengthCheck::check(const MatchFinder::MatchResult &Result) {
     if (!ParamVar->getIdentifier())
       return;
 
-    StringRef VarName = ParamVar->getName();
+    const StringRef VarName = ParamVar->getName();
 
     if (VarName.size() >= MinimumParameterNameLength ||
         IgnoredParameterNames.match(VarName))
@@ -151,6 +146,4 @@ void IdentifierLengthCheck::check(const MatchFinder::MatchResult &Result) {
   }
 }
 
-} // namespace readability
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::readability

@@ -34,26 +34,31 @@
 // S390X:#define __FLT_MIN_EXP__ (-125)
 // S390X:#define __FLT_MIN__ 1.17549435e-38F
 // S390X:#define __FLT_RADIX__ 2
+// S390X:#define __INT16_C(c) c
 // S390X:#define __INT16_C_SUFFIX__
 // S390X:#define __INT16_FMTd__ "hd"
 // S390X:#define __INT16_FMTi__ "hi"
 // S390X:#define __INT16_MAX__ 32767
 // S390X:#define __INT16_TYPE__ short
+// S390X:#define __INT32_C(c) c
 // S390X:#define __INT32_C_SUFFIX__
 // S390X:#define __INT32_FMTd__ "d"
 // S390X:#define __INT32_FMTi__ "i"
 // S390X:#define __INT32_MAX__ 2147483647
 // S390X:#define __INT32_TYPE__ int
+// S390X:#define __INT64_C(c) c##L
 // S390X:#define __INT64_C_SUFFIX__ L
 // S390X:#define __INT64_FMTd__ "ld"
 // S390X:#define __INT64_FMTi__ "li"
 // S390X:#define __INT64_MAX__ 9223372036854775807L
 // S390X:#define __INT64_TYPE__ long int
+// S390X:#define __INT8_C(c) c
 // S390X:#define __INT8_C_SUFFIX__
 // S390X:#define __INT8_FMTd__ "hhd"
 // S390X:#define __INT8_FMTi__ "hhi"
 // S390X:#define __INT8_MAX__ 127
 // S390X:#define __INT8_TYPE__ signed char
+// S390X:#define __INTMAX_C(c) c##L
 // S390X:#define __INTMAX_C_SUFFIX__ L
 // S390X:#define __INTMAX_FMTd__ "ld"
 // S390X:#define __INTMAX_FMTi__ "li"
@@ -136,18 +141,23 @@
 // S390X:#define __SIZE_TYPE__ long unsigned int
 // S390X:#define __SIZE_WIDTH__ 64
 // S390X-CXX:#define __STDCPP_DEFAULT_NEW_ALIGNMENT__ 8UL
+// S390X:#define __UINT16_C(c) c
 // S390X:#define __UINT16_C_SUFFIX__
 // S390X:#define __UINT16_MAX__ 65535
 // S390X:#define __UINT16_TYPE__ unsigned short
+// S390X:#define __UINT32_C(c) c##U
 // S390X:#define __UINT32_C_SUFFIX__ U
 // S390X:#define __UINT32_MAX__ 4294967295U
 // S390X:#define __UINT32_TYPE__ unsigned int
+// S390X:#define __UINT64_C(c) c##UL
 // S390X:#define __UINT64_C_SUFFIX__ UL
 // S390X:#define __UINT64_MAX__ 18446744073709551615UL
 // S390X:#define __UINT64_TYPE__ long unsigned int
+// S390X:#define __UINT8_C(c) c
 // S390X:#define __UINT8_C_SUFFIX__
 // S390X:#define __UINT8_MAX__ 255
 // S390X:#define __UINT8_TYPE__ unsigned char
+// S390X:#define __UINTMAX_C(c) c##UL
 // S390X:#define __UINTMAX_C_SUFFIX__ UL
 // S390X:#define __UINTMAX_MAX__ 18446744073709551615UL
 // S390X:#define __UINTMAX_TYPE__ long unsigned int
@@ -183,17 +193,12 @@
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=s390x-none-zos -fno-signed-char < /dev/null | FileCheck -match-full-lines -check-prefix S390X-ZOS %s
 // RUN: %clang_cc1 -x c++ -std=gnu++14 -E -dM -ffreestanding -triple=s390x-none-zos -fno-signed-char < /dev/null | FileCheck -match-full-lines -check-prefix S390X-ZOS -check-prefix S390X-ZOS-GNUXX %s
 
-// S390X-ZOS-GNUXX: #define _EXT 1
 // S390X-ZOS:       #define _LONG_LONG 1
-// S390X-ZOS-GNUXX: #define _MI_BUILTIN 1
-// S390X-ZOS:       #define _OPEN_DEFAULT 1
-// S390X-ZOS:       #define _UNIX03_WITHDRAWN 1
-// S390X-ZOS-GNUXX: #define _XOPEN_SOURCE 600
 // S390X-ZOS:       #define __370__ 1
 // S390X-ZOS:       #define __64BIT__ 1
 // S390X-ZOS:       #define __BFP__ 1
 // S390X-ZOS:       #define __BOOL__ 1
-// S390X-ZOS-GNUXX: #define __DLL__ 1
+// S390X-ZOS:       #define __COMPILER_VER__ 0x50000000
 // S390X-ZOS:       #define __LONGNAME__ 1
 // S390X-ZOS:       #define __MVS__ 1
 // S390X-ZOS:       #define __THW_370__ 1

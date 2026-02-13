@@ -48,7 +48,7 @@ module module1
  type :: derived1
   !REF: /module1/abstract1
   !DEF: /module1/derived1/p1 NOPASS, POINTER (Function) ProcEntity REAL(4)
-  !DEF: /module1/nested1 PUBLIC (Function) Subprogram REAL(4)
+  !DEF: /module1/nested1 PUBLIC, PURE (Function) Subprogram REAL(4)
   procedure(abstract1), pointer, nopass :: p1 => nested1
   !REF: /module1/explicit1
   !DEF: /module1/derived1/p2 NOPASS, POINTER (Function) ProcEntity REAL(4)
@@ -81,7 +81,7 @@ contains
 
  !REF: /module1/nested1
  !DEF: /module1/nested1/x INTENT(IN) ObjectEntity REAL(4)
- real function nested1(x)
+ pure real function nested1(x)
   !REF: /module1/nested1/x
   real, intent(in) :: x
   !DEF: /module1/nested1/nested1 ObjectEntity REAL(4)
@@ -130,9 +130,9 @@ contains
  end function nested5
 end module module1
 
-!DEF: /explicit1 ELEMENTAL (Function) Subprogram REAL(4)
+!DEF: /explicit1 (Function) Subprogram REAL(4)
 !DEF: /explicit1/x INTENT(IN) ObjectEntity REAL(4)
-real elemental function explicit1(x)
+real function explicit1(x)
  !REF: /explicit1/x
  real, intent(in) :: x
  !DEF: /explicit1/explicit1 ObjectEntity REAL(4)
@@ -150,45 +150,44 @@ integer function logical(x)
  logical = x+3.
 end function logical
 
-!DEF: /tan (Function) Subprogram REAL(4)
+!DEF: /tan (Function) Subprogram CHARACTER(1_8,1)
 !DEF: /tan/x INTENT(IN) ObjectEntity REAL(4)
-real function tan(x)
+character*1 function tan(x)
  !REF: /tan/x
  real, intent(in) :: x
- !DEF: /tan/tan ObjectEntity REAL(4)
- !REF: /tan/x
- tan = x+5.
+ !DEF: /tan/tan ObjectEntity CHARACTER(1_8,1)
+ tan = "?"
 end function tan
 
-!DEF: /main MainProgram
-program main
+!DEF: /MAIN MainProgram
+program MAIN
  !REF: /module1
  use :: module1
- !DEF: /main/derived1 Use
- !DEF: /main/instance ObjectEntity TYPE(derived1)
+ !DEF: /MAIN/derived1 Use
+ !DEF: /MAIN/instance ObjectEntity TYPE(derived1)
  type(derived1) :: instance
- !REF: /main/instance
+ !REF: /MAIN/instance
  !REF: /module1/derived1/p1
  if (instance%p1(1.)/=2.) print *, "p1 failed"
- !REF: /main/instance
+ !REF: /MAIN/instance
  !REF: /module1/derived1/p2
  if (instance%p2(1.)/=2.) print *, "p2 failed"
- !REF: /main/instance
+ !REF: /MAIN/instance
  !REF: /module1/derived1/p3
  if (.not.instance%p3(1.)) print *, "p3 failed"
- !REF: /main/instance
+ !REF: /MAIN/instance
  !REF: /module1/derived1/p4
  if (.not.instance%p4(1.)) print *, "p4 failed"
- !REF: /main/instance
+ !REF: /MAIN/instance
  !REF: /module1/derived1/p5
  if (instance%p5(1.)/=(5.,6.)) print *, "p5 failed"
- !REF: /main/instance
+ !REF: /MAIN/instance
  !REF: /module1/derived1/p6
  if (instance%p6(1.)/=2.) print *, "p6 failed"
- !REF: /main/instance
+ !REF: /MAIN/instance
  !REF: /module1/derived1/p7
  if (instance%p7(0.)/=1.) print *, "p7 failed"
- !REF: /main/instance
+ !REF: /MAIN/instance
  !REF: /module1/derived1/p8
  if (instance%p8(1.)/="a") print *, "p8 failed"
-end program main
+end program MAIN

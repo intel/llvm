@@ -94,7 +94,7 @@ uint32_t SBExpressionOptions::GetTimeoutInMicroSeconds() const {
 void SBExpressionOptions::SetTimeoutInMicroSeconds(uint32_t timeout) {
   LLDB_INSTRUMENT_VA(this, timeout);
 
-  m_opaque_up->SetTimeout(timeout == 0 ? Timeout<std::micro>(llvm::None)
+  m_opaque_up->SetTimeout(timeout == 0 ? Timeout<std::micro>(std::nullopt)
                                        : std::chrono::microseconds(timeout));
 }
 
@@ -110,7 +110,7 @@ void SBExpressionOptions::SetOneThreadTimeoutInMicroSeconds(uint32_t timeout) {
   LLDB_INSTRUMENT_VA(this, timeout);
 
   m_opaque_up->SetOneThreadTimeout(timeout == 0
-                                       ? Timeout<std::micro>(llvm::None)
+                                       ? Timeout<std::micro>(std::nullopt)
                                        : std::chrono::microseconds(timeout));
 }
 
@@ -156,6 +156,13 @@ void SBExpressionOptions::SetLanguage(lldb::LanguageType language) {
   m_opaque_up->SetLanguage(language);
 }
 
+void SBExpressionOptions::SetLanguage(lldb::SBSourceLanguageName name,
+                                      uint32_t version) {
+  LLDB_INSTRUMENT_VA(this, name, version);
+
+  m_opaque_up->SetLanguage(name, version);
+}
+
 void SBExpressionOptions::SetCancelCallback(
     lldb::ExpressionCancelCallback callback, void *baton) {
   LLDB_INSTRUMENT_VA(this, callback, baton);
@@ -178,19 +185,19 @@ void SBExpressionOptions::SetGenerateDebugInfo(bool b) {
 bool SBExpressionOptions::GetSuppressPersistentResult() {
   LLDB_INSTRUMENT_VA(this);
 
-  return m_opaque_up->GetResultIsInternal();
+  return m_opaque_up->GetSuppressPersistentResult();
 }
 
 void SBExpressionOptions::SetSuppressPersistentResult(bool b) {
   LLDB_INSTRUMENT_VA(this, b);
 
-  return m_opaque_up->SetResultIsInternal(b);
+  return m_opaque_up->SetSuppressPersistentResult(b);
 }
 
 const char *SBExpressionOptions::GetPrefix() const {
   LLDB_INSTRUMENT_VA(this);
 
-  return m_opaque_up->GetPrefix();
+  return ConstString(m_opaque_up->GetPrefix()).GetCString();
 }
 
 void SBExpressionOptions::SetPrefix(const char *prefix) {
@@ -254,5 +261,5 @@ EvaluateExpressionOptions *SBExpressionOptions::get() const {
 }
 
 EvaluateExpressionOptions &SBExpressionOptions::ref() const {
-  return *(m_opaque_up.get());
+  return *m_opaque_up;
 }

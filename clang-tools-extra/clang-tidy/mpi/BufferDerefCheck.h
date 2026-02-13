@@ -1,4 +1,4 @@
-//===--- BufferDerefCheck.h - clang-tidy-------------------------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,15 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MPI_BUFFER_DEREF_H
-#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MPI_BUFFER_DEREF_H
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MPI_BUFFERDEREFCHECK_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MPI_BUFFERDEREFCHECK_H
 
 #include "../ClangTidyCheck.h"
 #include "clang/StaticAnalyzer/Checkers/MPIFunctionClassifier.h"
+#include <optional>
 
-namespace clang {
-namespace tidy {
-namespace mpi {
+namespace clang::tidy::mpi {
 
 /// This check verifies if a buffer passed to an MPI (Message Passing Interface)
 /// function is sufficiently dereferenced. Buffers should be passed as a single
@@ -24,7 +23,7 @@ namespace mpi {
 /// emitted.
 ///
 /// For the user-facing documentation see:
-/// http://clang.llvm.org/extra/clang-tidy/checks/mpi/buffer-deref.html
+/// https://clang.llvm.org/extra/clang-tidy/checks/mpi/buffer-deref.html
 class BufferDerefCheck : public ClangTidyCheck {
 public:
   BufferDerefCheck(StringRef Name, ClangTidyContext *Context)
@@ -44,11 +43,9 @@ private:
 
   enum class IndirectionType : unsigned char { Pointer, Array };
 
-  Optional<ento::mpi::MPIFunctionClassifier> FuncClassifier;
+  std::optional<ento::mpi::MPIFunctionClassifier> FuncClassifier;
 };
 
-} // namespace mpi
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::mpi
 
-#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MPI_BUFFER_DEREF_H
+#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MPI_BUFFERDEREFCHECK_H

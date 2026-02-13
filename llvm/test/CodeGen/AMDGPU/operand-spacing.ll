@@ -1,5 +1,5 @@
-; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck -strict-whitespace -check-prefix=SI -check-prefix=GCN %s
-; RUN: llc -march=amdgcn -mcpu=tonga -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck -strict-whitespace -check-prefix=VI -check-prefix=GCN %s
+; RUN: llc -mtriple=amdgcn < %s | FileCheck -strict-whitespace -check-prefix=SI -check-prefix=GCN %s
+; RUN: llc -mtriple=amdgcn -mcpu=tonga -mattr=-flat-for-global < %s | FileCheck -strict-whitespace -check-prefix=VI -check-prefix=GCN %s
 
 ; Make sure there isn't an extra space between the instruction name and first operands.
 
@@ -15,8 +15,8 @@
 ; VI: v_add_f32_e32 [[RESULT:v[0-9]+]], [[SREGA]], [[VREGB]]
 
 ; GCN: buffer_store_dword [[RESULT]],
-define amdgpu_kernel void @add_f32(float addrspace(1)* %out, [8 x i32], float %a, [8 x i32], float %b) {
+define amdgpu_kernel void @add_f32(ptr addrspace(1) %out, [8 x i32], float %a, [8 x i32], float %b) {
   %result = fadd float %a, %b
-  store float %result, float addrspace(1)* %out
+  store float %result, ptr addrspace(1) %out
   ret void
 }

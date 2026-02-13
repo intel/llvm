@@ -169,7 +169,7 @@ Status NativeRegisterContextLinux_ppc64le::ReadRegister(
   Status error;
 
   if (!reg_info) {
-    error.SetErrorString("reg_info NULL");
+    error = Status::FromErrorString("reg_info NULL");
     return error;
   }
 
@@ -184,7 +184,7 @@ Status NativeRegisterContextLinux_ppc64le::ReadRegister(
     uint32_t fpr_offset = CalculateFprOffset(reg_info);
     assert(fpr_offset < sizeof m_fpr_ppc64le);
     uint8_t *src = (uint8_t *)&m_fpr_ppc64le + fpr_offset;
-    reg_value.SetFromMemoryData(reg_info, src, reg_info->byte_size,
+    reg_value.SetFromMemoryData(*reg_info, src, reg_info->byte_size,
                                 eByteOrderLittle, error);
   } else if (IsVSX(reg)) {
     uint32_t vsx_offset = CalculateVsxOffset(reg_info);
@@ -207,7 +207,7 @@ Status NativeRegisterContextLinux_ppc64le::ReadRegister(
       dst += 8;
       src = (uint8_t *)&m_fpr_ppc64le + vsx_offset / 2;
       ::memcpy(dst, src, 8);
-      reg_value.SetFromMemoryData(reg_info, &value, reg_info->byte_size,
+      reg_value.SetFromMemoryData(*reg_info, &value, reg_info->byte_size,
                                   eByteOrderLittle, error);
     } else {
       error = ReadVMX();
@@ -217,7 +217,7 @@ Status NativeRegisterContextLinux_ppc64le::ReadRegister(
       // Get pointer to m_vmx_ppc64le variable and set the data from it.
       uint32_t vmx_offset = vsx_offset - sizeof(m_vsx_ppc64le) / 2;
       uint8_t *src = (uint8_t *)&m_vmx_ppc64le + vmx_offset;
-      reg_value.SetFromMemoryData(reg_info, src, reg_info->byte_size,
+      reg_value.SetFromMemoryData(*reg_info, src, reg_info->byte_size,
                                   eByteOrderLittle, error);
     }
   } else if (IsVMX(reg)) {
@@ -229,7 +229,7 @@ Status NativeRegisterContextLinux_ppc64le::ReadRegister(
     uint32_t vmx_offset = CalculateVmxOffset(reg_info);
     assert(vmx_offset < sizeof m_vmx_ppc64le);
     uint8_t *src = (uint8_t *)&m_vmx_ppc64le + vmx_offset;
-    reg_value.SetFromMemoryData(reg_info, src, reg_info->byte_size,
+    reg_value.SetFromMemoryData(*reg_info, src, reg_info->byte_size,
                                 eByteOrderLittle, error);
   } else if (IsGPR(reg)) {
     error = ReadGPR();
@@ -237,11 +237,12 @@ Status NativeRegisterContextLinux_ppc64le::ReadRegister(
       return error;
 
     uint8_t *src = (uint8_t *) &m_gpr_ppc64le + reg_info->byte_offset;
-    reg_value.SetFromMemoryData(reg_info, src, reg_info->byte_size,
+    reg_value.SetFromMemoryData(*reg_info, src, reg_info->byte_size,
                                 eByteOrderLittle, error);
   } else {
-    return Status("failed - register wasn't recognized to be a GPR, FPR, VSX "
-                  "or VMX, read strategy unknown");
+    return Status::FromErrorString(
+        "failed - register wasn't recognized to be a GPR, FPR, VSX "
+        "or VMX, read strategy unknown");
   }
 
   return error;
@@ -251,13 +252,13 @@ Status NativeRegisterContextLinux_ppc64le::WriteRegister(
     const RegisterInfo *reg_info, const RegisterValue &reg_value) {
   Status error;
   if (!reg_info)
-    return Status("reg_info NULL");
+    return Status::FromErrorString("reg_info NULL");
 
   const uint32_t reg_index = reg_info->kinds[lldb::eRegisterKindLLDB];
   if (reg_index == LLDB_INVALID_REGNUM)
-    return Status("no lldb regnum for %s", reg_info && reg_info->name
-                                               ? reg_info->name
-                                               : "<unknown register>");
+    return Status::FromErrorStringWithFormat(
+        "no lldb regnum for %s",
+        reg_info && reg_info->name ? reg_info->name : "<unknown register>");
 
   if (IsGPR(reg_index)) {
     error = ReadGPR();
@@ -350,8 +351,9 @@ Status NativeRegisterContextLinux_ppc64le::WriteRegister(
     return Status();
   }
 
-  return Status("failed - register wasn't recognized to be a GPR, FPR, VSX "
-                "or VMX, write strategy unknown");
+  return Status::FromErrorString(
+      "failed - register wasn't recognized to be a GPR, FPR, VSX "
+      "or VMX, write strategy unknown");
 }
 
 Status NativeRegisterContextLinux_ppc64le::ReadAllRegisterValues(
@@ -392,14 +394,14 @@ Status NativeRegisterContextLinux_ppc64le::WriteAllRegisterValues(
   Status error;
 
   if (!data_sp) {
-    error.SetErrorStringWithFormat(
+    error = Status::FromErrorStringWithFormat(
         "NativeRegisterContextLinux_ppc64le::%s invalid data_sp provided",
         __FUNCTION__);
     return error;
   }
 
   if (data_sp->GetByteSize() != REG_CONTEXT_SIZE) {
-    error.SetErrorStringWithFormat(
+    error = Status::FromErrorStringWithFormat(
         "NativeRegisterContextLinux_ppc64le::%s data_sp contained mismatched "
         "data size, expected %" PRIu64 ", actual %" PRIu64,
         __FUNCTION__, REG_CONTEXT_SIZE, data_sp->GetByteSize());
@@ -408,10 +410,11 @@ Status NativeRegisterContextLinux_ppc64le::WriteAllRegisterValues(
 
   const uint8_t *src = data_sp->GetBytes();
   if (src == nullptr) {
-    error.SetErrorStringWithFormat("NativeRegisterContextLinux_ppc64le::%s "
-                                   "DataBuffer::GetBytes() returned a null "
-                                   "pointer",
-                                   __FUNCTION__);
+    error = Status::FromErrorStringWithFormat(
+        "NativeRegisterContextLinux_ppc64le::%s "
+        "DataBuffer::GetBytes() returned a null "
+        "pointer",
+        __FUNCTION__);
     return error;
   }
 
@@ -651,7 +654,7 @@ NativeRegisterContextLinux_ppc64le::GetWatchpointSize(uint32_t wp_index) {
 
   unsigned control = (m_hwp_regs[wp_index].control >> 5) & 0xff;
   if (llvm::isPowerOf2_32(control + 1)) {
-    return llvm::countPopulation(control);
+    return llvm::popcount(control);
   }
 
   return 0;

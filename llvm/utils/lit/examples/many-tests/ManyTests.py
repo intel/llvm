@@ -1,7 +1,8 @@
 from lit import Test
+from lit.formats import TestFormat
 
 
-class ManyTests(object):
+class ManyTests(TestFormat):
     def __init__(self, N=10000):
         self.N = N
 

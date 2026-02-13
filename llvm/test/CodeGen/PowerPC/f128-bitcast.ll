@@ -55,7 +55,7 @@ entry:
 }
 
 ; Function Attrs: norecurse nounwind readnone
-define i64 @checkBitcast(fp128 %in, <2 x i64> %in2, <2 x i64> *%out) local_unnamed_addr {
+define i64 @checkBitcast(fp128 %in, <2 x i64> %in2, ptr %out) local_unnamed_addr {
 ; CHECK-LABEL: checkBitcast:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    mfvsrld r3, v2
@@ -75,14 +75,36 @@ define i64 @checkBitcast(fp128 %in, <2 x i64> %in2, <2 x i64> *%out) local_unnam
 ; CHECK-P8-NEXT:    xxswapd vs0, v2
 ; CHECK-P8-NEXT:    vaddudm v2, v2, v3
 ; CHECK-P8-NEXT:    mffprd r3, f0
-; CHECK-P8-NEXT:    xxswapd vs0, v2
-; CHECK-P8-NEXT:    stxvd2x vs0, 0, r7
+; CHECK-P8-NEXT:    xxswapd vs1, v2
+; CHECK-P8-NEXT:    stxvd2x vs1, 0, r7
 ; CHECK-P8-NEXT:    blr
 entry:
   %0 = bitcast fp128 %in to <2 x i64>
   %1 = extractelement <2 x i64> %0, i64 0
   %2 = add <2 x i64> %0, %in2
-  store <2 x i64> %2, <2 x i64> *%out, align 16
+  store <2 x i64> %2, ptr %out, align 16
   ret i64 %1
 }
 
+define <4 x i32> @truncBitcast(i512 %a) {
+; CHECK-LABEL: truncBitcast:
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    mtvsrdd v2, r4, r3
+; CHECK-NEXT:    blr
+;
+; CHECK-BE-LABEL: truncBitcast:
+; CHECK-BE:       # %bb.0: # %entry
+; CHECK-BE-NEXT:    mtvsrdd v2, r9, r10
+; CHECK-BE-NEXT:    blr
+;
+; CHECK-P8-LABEL: truncBitcast:
+; CHECK-P8:       # %bb.0: # %entry
+; CHECK-P8-NEXT:    mtfprd f0, r3
+; CHECK-P8-NEXT:    mtfprd f1, r4
+; CHECK-P8-NEXT:    xxmrghd v2, vs1, vs0
+; CHECK-P8-NEXT:    blr
+entry:
+  %0 = trunc i512 %a to i128
+  %1 = bitcast i128 %0 to <4 x i32>
+  ret <4 x i32> %1
+}

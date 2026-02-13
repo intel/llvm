@@ -148,7 +148,7 @@ lldb::addr_t AppleGetItemInfoHandler::SetupGetItemInfoFunction(
             eLanguageTypeObjC, exe_ctx);
         if (!utility_fn_or_error) {
           LLDB_LOG_ERROR(log, utility_fn_or_error.takeError(),
-                         "Failed to create utility function: {0}.");
+                         "Failed to create utility function: {0}");
         }
         m_get_item_info_impl_code = std::move(*utility_fn_or_error);
       } else {
@@ -162,11 +162,15 @@ lldb::addr_t AppleGetItemInfoHandler::SetupGetItemInfoFunction(
               eLanguageTypeC);
       if (auto err = type_system_or_err.takeError()) {
         LLDB_LOG_ERROR(log, std::move(err),
-                       "Error inseting get-item-info function");
+                       "Error inserting get-item-info function: {0}");
         return args_addr;
       }
+      auto ts = *type_system_or_err;
+      if (!ts)
+        return args_addr;
+
       CompilerType get_item_info_return_type =
-          type_system_or_err->GetBasicTypeFromAST(eBasicTypeVoid)
+          ts->GetBasicTypeFromAST(eBasicTypeVoid)
               .GetPointerType();
 
       Status error;
@@ -174,7 +178,7 @@ lldb::addr_t AppleGetItemInfoHandler::SetupGetItemInfoFunction(
           get_item_info_return_type, get_item_info_arglist,
           thread.shared_from_this(), error);
       if (error.Fail() || get_item_info_caller == nullptr) {
-        LLDB_LOGF(log, "Error Inserting get-item-info function: \"%s\".",
+        LLDB_LOGF(log, "Error inserting get-item-info function: \"%s\".",
                   error.AsCString());
         return args_addr;
       }
@@ -217,7 +221,7 @@ AppleGetItemInfoHandler::GetItemInfo(Thread &thread, uint64_t item,
   lldb::StackFrameSP thread_cur_frame = thread.GetStackFrameAtIndex(0);
   ProcessSP process_sp(thread.CalculateProcess());
   TargetSP target_sp(thread.CalculateTarget());
-  TypeSystemClang *clang_ast_context =
+  TypeSystemClangSP scratch_ts_sp =
       ScratchTypeSystemClang::GetForTarget(*target_sp);
   Log *log = GetLog(LLDBLog::SystemRuntime);
 
@@ -230,7 +234,8 @@ AppleGetItemInfoHandler::GetItemInfo(Thread &thread, uint64_t item,
   if (!thread.SafeToCallFunctions()) {
     LLDB_LOGF(log, "Not safe to call functions on thread 0x%" PRIx64,
               thread.GetID());
-    error.SetErrorString("Not safe to call functions on this thread.");
+    error =
+        Status::FromErrorString("Not safe to call functions on this thread.");
     return return_value;
   }
 
@@ -257,18 +262,18 @@ AppleGetItemInfoHandler::GetItemInfo(Thread &thread, uint64_t item,
   // already allocated by lldb in the inferior process.
 
   CompilerType clang_void_ptr_type =
-      clang_ast_context->GetBasicType(eBasicTypeVoid).GetPointerType();
+      scratch_ts_sp->GetBasicType(eBasicTypeVoid).GetPointerType();
   Value return_buffer_ptr_value;
   return_buffer_ptr_value.SetValueType(Value::ValueType::Scalar);
   return_buffer_ptr_value.SetCompilerType(clang_void_ptr_type);
 
-  CompilerType clang_int_type = clang_ast_context->GetBasicType(eBasicTypeInt);
+  CompilerType clang_int_type = scratch_ts_sp->GetBasicType(eBasicTypeInt);
   Value debug_value;
   debug_value.SetValueType(Value::ValueType::Scalar);
   debug_value.SetCompilerType(clang_int_type);
 
   CompilerType clang_uint64_type =
-      clang_ast_context->GetBasicType(eBasicTypeUnsignedLongLong);
+      scratch_ts_sp->GetBasicType(eBasicTypeUnsignedLongLong);
   Value item_value;
   item_value.SetValueType(Value::ValueType::Scalar);
   item_value.SetCompilerType(clang_uint64_type);
@@ -332,8 +337,9 @@ AppleGetItemInfoHandler::GetItemInfo(Thread &thread, uint64_t item,
   thread.CalculateExecutionContext(exe_ctx);
 
   if (!m_get_item_info_impl_code) {
-    error.SetErrorString("Unable to compile function to call "
-                         "__introspection_dispatch_queue_item_get_info");
+    error =
+        Status::FromErrorString("Unable to compile function to call "
+                                "__introspection_dispatch_queue_item_get_info");
     return return_value;
   }
 
@@ -343,8 +349,9 @@ AppleGetItemInfoHandler::GetItemInfo(Thread &thread, uint64_t item,
   if (!func_caller) {
     LLDB_LOGF(log, "Could not retrieve function caller for "
                    "__introspection_dispatch_queue_item_get_info.");
-    error.SetErrorString("Could not retrieve function caller for "
-                         "__introspection_dispatch_queue_item_get_info.");
+    error = Status::FromErrorString(
+        "Could not retrieve function caller for "
+        "__introspection_dispatch_queue_item_get_info.");
     return return_value;
   }
 
@@ -356,9 +363,10 @@ AppleGetItemInfoHandler::GetItemInfo(Thread &thread, uint64_t item,
               "__introspection_dispatch_queue_item_get_info(), got "
               "ExpressionResults %d, error contains %s",
               func_call_ret, error.AsCString(""));
-    error.SetErrorString("Unable to call "
-                         "__introspection_dispatch_queue_get_item_info() for "
-                         "list of queues");
+    error = Status::FromErrorString(
+        "Unable to call "
+        "__introspection_dispatch_queue_get_item_info() for "
+        "list of queues");
     return return_value;
   }
 

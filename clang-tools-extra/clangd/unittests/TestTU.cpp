@@ -12,6 +12,7 @@
 #include "Diagnostics.h"
 #include "TestFS.h"
 #include "index/FileIndex.h"
+#include "index/SymbolOrigin.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Frontend/CompilerInvocation.h"
@@ -54,7 +55,7 @@ ParseInputs TestTU::inputs(MockFS &FS) const {
     Argv.push_back("-include");
     Argv.push_back(ImplicitHeaderGuard ? ImportThunk : FullHeaderName);
     // ms-compatibility changes the meaning of #import.
-    // The default is OS-dependent (on on windows), ensure it's off.
+    // The default is OS-dependent (on windows), ensure it's off.
     if (ImplicitHeaderGuard)
       Inputs.CompileCommand.CommandLine.push_back("-fno-ms-compatibility");
   }
@@ -64,7 +65,7 @@ ParseInputs TestTU::inputs(MockFS &FS) const {
   Argv.push_back(FullFilename);
 
   auto Mangler = CommandMangler::forTests();
-  Mangler.adjust(Inputs.CompileCommand.CommandLine, FullFilename);
+  Mangler(Inputs.CompileCommand, FullFilename);
   Inputs.CompileCommand.Filename = FullFilename;
   Inputs.CompileCommand.Directory = testRoot();
   Inputs.Contents = Code;
@@ -105,7 +106,7 @@ TestTU::preamble(PreambleParsedCallback PreambleCallback) const {
   assert(CI && "Failed to build compilation invocation.");
   if (OverlayRealFileSystemForModules)
     initializeModuleCache(*CI);
-  auto ModuleCacheDeleter = llvm::make_scope_exit(
+  llvm::scope_exit ModuleCacheDeleter(
       std::bind(deleteModuleCache, CI->getHeaderSearchOpts().ModuleCachePath));
   return clang::clangd::buildPreamble(testPath(Filename), *CI, Inputs,
                                       /*StoreInMemory=*/true, PreambleCallback);
@@ -120,7 +121,7 @@ ParsedAST TestTU::build() const {
   assert(CI && "Failed to build compilation invocation.");
   if (OverlayRealFileSystemForModules)
     initializeModuleCache(*CI);
-  auto ModuleCacheDeleter = llvm::make_scope_exit(
+  llvm::scope_exit ModuleCacheDeleter(
       std::bind(deleteModuleCache, CI->getHeaderSearchOpts().ModuleCachePath));
 
   auto Preamble = clang::clangd::buildPreamble(testPath(Filename), *CI, Inputs,
@@ -132,8 +133,6 @@ ParsedAST TestTU::build() const {
     llvm::errs() << "Failed to build code:\n" << Code;
     std::abort();
   }
-  assert(AST->getDiagnostics() &&
-         "TestTU should always build an AST with a fresh Preamble");
   // Check for error diagnostics and report gtest failures (unless expected).
   // This guards against accidental syntax errors silently subverting tests.
   // error-ok is awfully primitive - using clang -verify would be nicer.
@@ -150,7 +149,7 @@ ParsedAST TestTU::build() const {
   }();
   if (!ErrorOk) {
     // We always build AST with a fresh preamble in TestTU.
-    for (const auto &D : *AST->getDiagnostics())
+    for (const auto &D : AST->getDiagnostics())
       if (D.Severity >= DiagnosticsEngine::Error) {
         llvm::errs()
             << "TestTU failed to build (suppress with /*error-ok*/): \n"
@@ -164,9 +163,9 @@ ParsedAST TestTU::build() const {
 
 SymbolSlab TestTU::headerSymbols() const {
   auto AST = build();
-  return std::get<0>(indexHeaderSymbols(/*Version=*/"null", AST.getASTContext(),
-                                        AST.getPreprocessor(),
-                                        AST.getCanonicalIncludes()));
+  return std::get<0>(indexHeaderSymbols(
+      /*Version=*/"null", AST.getASTContext(), AST.getPreprocessor(),
+      AST.getPragmaIncludes(), SymbolOrigin::Preamble));
 }
 
 RefSlab TestTU::headerRefs() const {
@@ -176,10 +175,10 @@ RefSlab TestTU::headerRefs() const {
 
 std::unique_ptr<SymbolIndex> TestTU::index() const {
   auto AST = build();
-  auto Idx = std::make_unique<FileIndex>();
+  auto Idx = std::make_unique<FileIndex>(/*SupportContainedRefs=*/true);
   Idx->updatePreamble(testPath(Filename), /*Version=*/"null",
                       AST.getASTContext(), AST.getPreprocessor(),
-                      AST.getCanonicalIncludes());
+                      AST.getPragmaIncludes());
   Idx->updateMain(testPath(Filename), AST);
   return std::move(Idx);
 }

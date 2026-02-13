@@ -10,47 +10,20 @@
 #define __LIBDEVICE_HALF_EMUL_H__
 
 #include "device.h"
+#include "imf_impl_utils.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <type_traits>
 #ifdef __LIBDEVICE_IMF_ENABLED__
 
-#if defined(__SPIR__)
+#if defined(__SPIR__) || defined(__SPIRV__)
 typedef _Float16 _iml_half_internal;
 #else
 typedef uint16_t _iml_half_internal;
 #endif
 
-template <typename Ty> struct __iml_get_unsigned {};
-template <> struct __iml_get_unsigned<short> {
-  using utype = uint16_t;
-};
-
-template <> struct __iml_get_unsigned<int> {
-  using utype = uint32_t;
-};
-
-template <> struct __iml_get_unsigned<long long> {
-  using utype = uint64_t;
-};
-
 static uint16_t __iml_half_exp_mask = 0x7C00;
-
-template <typename Ty> struct __iml_fp_config {};
-
-template <> struct __iml_fp_config<float> {
-  // signed/unsigned integral type with same size
-  using utype = uint32_t;
-  using stype = int32_t;
-  const static uint32_t exp_mask = 0xFF;
-};
-
-template <> struct __iml_fp_config<double> {
-  using utype = uint64_t;
-  using stype = int64_t;
-  const static uint64_t exp_mask = 0x7FF;
-};
 
 static uint16_t __iml_half_overflow_handle(__iml_rounding_mode rounding_mode,
                                            uint16_t sign) {
@@ -311,19 +284,6 @@ static Ty __iml_half2integral_s(uint16_t h, __iml_rounding_mode rounding_mode) {
   return !h_sign ? x_val : (~x_val + 1);
 }
 
-// pre assumes input value is not 0.
-template <typename Ty> static size_t get_msb_pos(Ty x) {
-  size_t idx = 0;
-  Ty mask = ((Ty)1 << (sizeof(Ty) * 8 - 1));
-  for (idx = 0; idx < (sizeof(Ty) * 8); ++idx) {
-    if ((x & mask) == mask)
-      break;
-    mask >>= 1;
-  }
-
-  return (sizeof(Ty) * 8 - 1 - idx);
-}
-
 template <typename Ty>
 static uint16_t __iml_integral2half_u(Ty u, __iml_rounding_mode rounding_mode) {
   static_assert(std::is_unsigned<Ty>::value && std::is_integral<Ty>::value,
@@ -367,13 +327,12 @@ static uint16_t __iml_integral2half_u(Ty u, __iml_rounding_mode rounding_mode) {
         break;
       }
     }
-  }
-
-  if (h_mant == 0x400) {
-    h_exp++;
-    h_mant = 0;
-    if (h_exp > 15)
-      is_overflow = true;
+    if (h_mant == 0x400) {
+      h_exp++;
+      h_mant = 0;
+      if (h_exp > 15)
+        is_overflow = true;
+    }
   }
 
   if (is_overflow) {
@@ -437,13 +396,12 @@ static uint16_t __iml_integral2half_s(Ty i, __iml_rounding_mode rounding_mode) {
         break;
       }
     }
-  }
-
-  if (h_mant == 0x400) {
-    h_exp++;
-    h_mant = 0;
-    if (h_exp > 15)
-      is_overflow = true;
+    if (h_mant == 0x400) {
+      h_exp++;
+      h_mant = 0;
+      if (h_exp > 15)
+        is_overflow = true;
+    }
   }
 
   if (is_overflow) {
@@ -468,7 +426,7 @@ static uint16_t __iml_integral2half_s(Ty i, __iml_rounding_mode rounding_mode) {
 static inline _iml_half_internal __float2half(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __iml_fp2half<float>(x, __IML_RTE);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_FConvert_Rhalf_rte(x);
 #endif
 }
@@ -511,7 +469,7 @@ static inline float __half2float(_iml_half_internal x) {
   fp32_bits |= (exp32 << 23);
   fp32_bits |= frac32;
   return __builtin_bit_cast(float, fp32_bits);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_FConvert_Rfloat_rte(x);
 #endif
 }
@@ -534,7 +492,7 @@ public:
     return _half_internal == rh._half_internal;
   }
   bool operator!=(const _iml_half &rh) { return !operator==(rh); }
-#if (__SPIR__)
+#if defined(__SPIR__) || defined(__SPIRV__)
   _iml_half &operator+=(const _iml_half &rh) {
     _half_internal += rh._half_internal;
     return *this;

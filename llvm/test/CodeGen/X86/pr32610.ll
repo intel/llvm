@@ -15,18 +15,18 @@ define void @pr32610(i32 %a0, i32 %a1) #0 {
 ; CHECK-NEXT:    pushl %esi
 ; CHECK-NEXT:    movl 8(%ebp), %edx
 ; CHECK-NEXT:    movl L_b$non_lazy_ptr, %eax
+; CHECK-NEXT:    movl (%eax), %eax
 ; CHECK-NEXT:    xorl %ecx, %ecx
-; CHECK-NEXT:    cmpl (%eax), %edx
+; CHECK-NEXT:    cmpl %eax, %edx
 ; CHECK-NEXT:    sete %cl
 ; CHECK-NEXT:    xorl %esi, %esi
 ; CHECK-NEXT:    incl %esi
 ; CHECK-NEXT:    cmpl $0, 12(%ebp)
 ; CHECK-NEXT:    cmovel %esi, %ecx
-; CHECK-NEXT:    cmpl (%eax), %edx
+; CHECK-NEXT:    cmpl %eax, %edx
 ; CHECK-NEXT:    cmovnel %esi, %ecx
 ; CHECK-NEXT:    movl L_c$non_lazy_ptr, %edx
 ; CHECK-NEXT:    movl %ecx, (%edx)
-; CHECK-NEXT:    movl (%eax), %eax
 ; CHECK-NEXT:    testl %eax, %eax
 ; CHECK-NEXT:    movl $2, %ecx
 ; CHECK-NEXT:    cmovnel %eax, %ecx
@@ -36,21 +36,21 @@ define void @pr32610(i32 %a0, i32 %a1) #0 {
 ; CHECK-NEXT:    popl %ebp
 ; CHECK-NEXT:    retl
 entry:
-  %0 = load i32, i32* getelementptr ([1 x i32], [1 x i32]* @b, i32 0, i32 undef), align 4, !tbaa !1
+  %0 = load i32, ptr getelementptr ([1 x i32], ptr @b, i32 0, i32 undef), align 4, !tbaa !1
   %cmp = icmp eq i32 %a0, %0
   %conv = zext i1 %cmp to i32
   %tobool1.i = icmp ne i32 %a1, 0
   %or.cond.i = and i1 %cmp, %tobool1.i
   %cond.i = select i1 %or.cond.i, i32 %conv, i32 1
-  store i32 %cond.i, i32* @c, align 4, !tbaa !1
-  %1 = load i32, i32* getelementptr inbounds ([1 x i32], [1 x i32]* @b, i32 0, i32 0), align 4
+  store i32 %cond.i, ptr @c, align 4, !tbaa !1
+  %1 = load i32, ptr @b, align 4
   %tobool = icmp ne i32 %1, 0
   %2 = select i1 %tobool, i32 %1, i32 2
-  store i32 %2, i32* @d, align 4, !tbaa !1
+  store i32 %2, ptr @d, align 4, !tbaa !1
   ret void
 }
 
-attributes #0 = { norecurse nounwind optsize ssp "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="penryn" "target-features"="+cx16,+fxsr,+mmx,+sse,+sse2,+sse3,+sse4.1,+ssse3,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { norecurse nounwind optsize ssp "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="penryn" "target-features"="+cx16,+fxsr,+mmx,+sse,+sse2,+sse3,+sse4.1,+ssse3,+x87" "use-soft-float"="false" }
 
 !llvm.ident = !{!0}
 

@@ -8,7 +8,7 @@
 
 // BitVectorTest tests fail on PowerPC for unknown reasons, so disable this
 // as well since it depends on a BitVector.
-#ifndef __ppc__
+#ifndef __powerpc__
 
 #include "llvm/ADT/PackedVector.h"
 #include "gtest/gtest.h"
@@ -59,6 +59,24 @@ TEST(PackedVectorTest, Operation) {
   Vec2[1] = 2;
   Vec |= Vec2;
   EXPECT_EQ(3U, Vec[1]);
+}
+
+TEST(PackedVectorTest, RawBitsSize) {
+  PackedVector<unsigned, 3> Vec;
+  EXPECT_EQ(0u, Vec.raw_bits().size());
+  Vec.push_back(2);
+  Vec.push_back(0);
+  Vec.push_back(1);
+  Vec.push_back(3);
+  EXPECT_EQ(12u, Vec.raw_bits().size());
+}
+
+TEST(PackedVectorTest, SignedValueOverwrite) {
+  PackedVector<signed, 4> Vec(1);
+  Vec[0] = -1;
+  EXPECT_EQ(-1, Vec[0]);
+  Vec[0] = 1;
+  EXPECT_EQ(1, Vec[0]);
 }
 
 #ifdef EXPECT_DEBUG_DEATH

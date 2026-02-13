@@ -13,17 +13,16 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Tools/PDLL/CodeGen/CPPGen.h"
-#include "mlir/Dialect/PDL/IR/PDL.h"
 #include "mlir/Dialect/PDL/IR/PDLOps.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Tools/PDLL/AST/Nodes.h"
 #include "mlir/Tools/PDLL/ODS/Operation.h"
-#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FormatVariadic.h"
+#include <optional>
 
 using namespace mlir;
 using namespace mlir::pdll;
@@ -79,7 +78,7 @@ void CodeGen::generate(const ast::Module &astModule, ModuleOp module) {
   int patternIndex = 0;
   for (pdl::PatternOp pattern : module.getOps<pdl::PatternOp>()) {
     // If the pattern has a name, use that. Otherwise, generate a unique name.
-    if (Optional<StringRef> patternName = pattern.getSymName()) {
+    if (std::optional<StringRef> patternName = pattern.getSymName()) {
       patternNames.insert(patternName->str());
     } else {
       std::string name;
@@ -93,10 +92,12 @@ void CodeGen::generate(const ast::Module &astModule, ModuleOp module) {
   os << "} // end namespace\n\n";
 
   // Emit function to add the generated matchers to the pattern list.
-  os << "static void LLVM_ATTRIBUTE_UNUSED populateGeneratedPDLLPatterns("
-        "::mlir::RewritePatternSet &patterns) {\n";
+  os << "template <typename... ConfigsT>\n"
+        "[[maybe_unused]] static void populateGeneratedPDLLPatterns("
+        "::mlir::RewritePatternSet &patterns, ConfigsT &&...configs) {\n";
   for (const auto &name : patternNames)
-    os << "  patterns.add<" << name << ">(patterns.getContext());\n";
+    os << "  patterns.add<" << name
+       << ">(patterns.getContext(), configs...);\n";
   os << "}\n";
 }
 
@@ -104,14 +105,15 @@ void CodeGen::generate(pdl::PatternOp pattern, StringRef patternName,
                        StringSet<> &nativeFunctions) {
   const char *patternClassStartStr = R"(
 struct {0} : ::mlir::PDLPatternModule {{
-  {0}(::mlir::MLIRContext *context)
+  template <typename... ConfigsT>
+  {0}(::mlir::MLIRContext *context, ConfigsT &&...configs)
     : ::mlir::PDLPatternModule(::mlir::parseSourceString<::mlir::ModuleOp>(
 )";
   os << llvm::formatv(patternClassStartStr, patternName);
 
   os << "R\"mlir(";
   pattern->print(os, OpPrintingFlags().enableDebugInfo());
-  os << "\n    )mlir\", context)) {\n";
+  os << "\n    )mlir\", context), std::forward<ConfigsT>(configs)...) {\n";
 
   // Register any native functions used within the pattern.
   StringSet<> registeredNativeFunctions;
@@ -187,7 +189,7 @@ StringRef CodeGen::getNativeTypeName(ast::VariableDecl *decl) {
   // Try to extract a type name from the variable's constraints.
   for (ast::ConstraintRef &cst : decl->getConstraints()) {
     if (auto *userCst = dyn_cast<ast::UserConstraintDecl>(cst.constraint)) {
-      if (Optional<StringRef> name = userCst->getNativeInputType(0))
+      if (std::optional<StringRef> name = userCst->getNativeInputType(0))
         return *name;
       return getNativeTypeName(userCst->getInputs()[0]);
     }
@@ -212,7 +214,7 @@ void CodeGen::generateConstraintOrRewrite(const ast::CallableDecl *decl,
   // TODO: This will need to change if we allow Constraints to return values as
   // well.
   if (isConstraint) {
-    os << "::mlir::LogicalResult";
+    os << "::llvm::LogicalResult";
   } else {
     // Otherwise, generate a type based on the results of the callable.
     // If the callable has explicit results, use those to build the result.

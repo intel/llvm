@@ -14,19 +14,23 @@
 #include "BPFISelLowering.h"
 #include "BPF.h"
 #include "BPFSubtarget.h"
-#include "BPFTargetMachine.h"
 #include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
+#include "llvm/CodeGen/MachineJumpTableInfo.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
 #include "llvm/CodeGen/ValueTypes.h"
+#include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/DiagnosticPrinter.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
+
 using namespace llvm;
 
 #define DEBUG_TYPE "bpf-lower"
@@ -35,27 +39,26 @@ static cl::opt<bool> BPFExpandMemcpyInOrder("bpf-expand-memcpy-in-order",
   cl::Hidden, cl::init(false),
   cl::desc("Expand memcpy into load/store pairs in order"));
 
-static void fail(const SDLoc &DL, SelectionDAG &DAG, const Twine &Msg) {
-  MachineFunction &MF = DAG.getMachineFunction();
-  DAG.getContext()->diagnose(
-      DiagnosticInfoUnsupported(MF.getFunction(), Msg, DL.getDebugLoc()));
-}
+static cl::opt<unsigned> BPFMinimumJumpTableEntries(
+    "bpf-min-jump-table-entries", cl::init(13), cl::Hidden,
+    cl::desc("Set minimum number of entries to use a jump table on BPF"));
 
-static void fail(const SDLoc &DL, SelectionDAG &DAG, const char *Msg,
-                 SDValue Val) {
-  MachineFunction &MF = DAG.getMachineFunction();
+static void fail(const SDLoc &DL, SelectionDAG &DAG, const Twine &Msg,
+                 SDValue Val = {}) {
   std::string Str;
-  raw_string_ostream OS(Str);
-  OS << Msg;
-  Val->print(OS);
-  OS.flush();
-  DAG.getContext()->diagnose(
-      DiagnosticInfoUnsupported(MF.getFunction(), Str, DL.getDebugLoc()));
+  if (Val) {
+    raw_string_ostream OS(Str);
+    Val->print(OS);
+    OS << ' ';
+  }
+  MachineFunction &MF = DAG.getMachineFunction();
+  DAG.getContext()->diagnose(DiagnosticInfoUnsupported(
+      MF.getFunction(), Twine(Str).concat(Msg), DL.getDebugLoc()));
 }
 
 BPFTargetLowering::BPFTargetLowering(const TargetMachine &TM,
                                      const BPFSubtarget &STI)
-    : TargetLowering(TM) {
+    : TargetLowering(TM, STI) {
 
   // Set up the register classes.
   addRegisterClass(MVT::i64, &BPF::GPRRegClass);
@@ -69,10 +72,16 @@ BPFTargetLowering::BPFTargetLowering(const TargetMachine &TM,
 
   setOperationAction(ISD::BR_CC, MVT::i64, Custom);
   setOperationAction(ISD::BR_JT, MVT::Other, Expand);
-  setOperationAction(ISD::BRIND, MVT::Other, Expand);
   setOperationAction(ISD::BRCOND, MVT::Other, Expand);
 
-  setOperationAction(ISD::GlobalAddress, MVT::i64, Custom);
+  if (!STI.hasGotox())
+    setOperationAction(ISD::BRIND, MVT::Other, Expand);
+
+  setOperationAction(ISD::TRAP, MVT::Other, Custom);
+
+  setOperationAction({ISD::GlobalAddress, ISD::ConstantPool}, MVT::i64, Custom);
+  if (STI.hasGotox())
+    setOperationAction({ISD::JumpTable, ISD::BlockAddress}, MVT::i64, Custom);
 
   setOperationAction(ISD::DYNAMIC_STACKALLOC, MVT::i64, Custom);
   setOperationAction(ISD::STACKSAVE, MVT::Other, Expand);
@@ -96,13 +105,21 @@ BPFTargetLowering::BPFTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::ATOMIC_CMP_SWAP_WITH_SUCCESS, VT, Custom);
   }
 
+  for (auto VT : {MVT::i32, MVT::i64}) {
+    setOperationAction(ISD::ATOMIC_LOAD, VT, Custom);
+    setOperationAction(ISD::ATOMIC_STORE, VT, Custom);
+  }
+
   for (auto VT : { MVT::i32, MVT::i64 }) {
     if (VT == MVT::i32 && !STI.getHasAlu32())
       continue;
 
     setOperationAction(ISD::SDIVREM, VT, Expand);
     setOperationAction(ISD::UDIVREM, VT, Expand);
-    setOperationAction(ISD::SREM, VT, Expand);
+    if (!STI.hasSdivSmod()) {
+      setOperationAction(ISD::SDIV, VT, Custom);
+      setOperationAction(ISD::SREM, VT, Custom);
+    }
     setOperationAction(ISD::MULHU, VT, Expand);
     setOperationAction(ISD::MULHS, VT, Expand);
     setOperationAction(ISD::UMUL_LOHI, VT, Expand);
@@ -113,6 +130,10 @@ BPFTargetLowering::BPFTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::SRL_PARTS, VT, Expand);
     setOperationAction(ISD::SRA_PARTS, VT, Expand);
     setOperationAction(ISD::CTPOP, VT, Expand);
+    setOperationAction(ISD::CTTZ, VT, Expand);
+    setOperationAction(ISD::CTLZ, VT, Expand);
+    setOperationAction(ISD::CTTZ_ZERO_UNDEF, VT, Expand);
+    setOperationAction(ISD::CTLZ_ZERO_UNDEF, VT, Expand);
 
     setOperationAction(ISD::SETCC, VT, Expand);
     setOperationAction(ISD::SELECT, VT, Expand);
@@ -125,15 +146,12 @@ BPFTargetLowering::BPFTargetLowering(const TargetMachine &TM,
                        STI.getHasJmp32() ? Custom : Promote);
   }
 
-  setOperationAction(ISD::CTTZ, MVT::i64, Custom);
-  setOperationAction(ISD::CTLZ, MVT::i64, Custom);
-  setOperationAction(ISD::CTTZ_ZERO_UNDEF, MVT::i64, Custom);
-  setOperationAction(ISD::CTLZ_ZERO_UNDEF, MVT::i64, Custom);
-
   setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i1, Expand);
-  setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i8, Expand);
-  setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i16, Expand);
-  setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i32, Expand);
+  if (!STI.hasMovsx()) {
+    setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i8, Expand);
+    setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i16, Expand);
+    setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i32, Expand);
+  }
 
   // Extended load operations for i1 types must be promoted
   for (MVT VT : MVT::integer_valuetypes()) {
@@ -141,12 +159,16 @@ BPFTargetLowering::BPFTargetLowering(const TargetMachine &TM,
     setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::i1, Promote);
     setLoadExtAction(ISD::SEXTLOAD, VT, MVT::i1, Promote);
 
-    setLoadExtAction(ISD::SEXTLOAD, VT, MVT::i8, Expand);
-    setLoadExtAction(ISD::SEXTLOAD, VT, MVT::i16, Expand);
-    setLoadExtAction(ISD::SEXTLOAD, VT, MVT::i32, Expand);
+    if (!STI.hasLdsx()) {
+      setLoadExtAction(ISD::SEXTLOAD, VT, MVT::i8, Expand);
+      setLoadExtAction(ISD::SEXTLOAD, VT, MVT::i16, Expand);
+      setLoadExtAction(ISD::SEXTLOAD, VT, MVT::i32, Expand);
+    }
   }
 
   setBooleanContents(ZeroOrOneBooleanContent);
+  setMaxAtomicSizeInBitsSupported(64);
+  setMinimumJumpTableEntries(BPFMinimumJumpTableEntries);
 
   // Function alignments
   setMinFunctionAlignment(Align(8));
@@ -183,6 +205,27 @@ BPFTargetLowering::BPFTargetLowering(const TargetMachine &TM,
   HasAlu32 = STI.getHasAlu32();
   HasJmp32 = STI.getHasJmp32();
   HasJmpExt = STI.getHasJmpExt();
+  HasMovsx = STI.hasMovsx();
+
+  AllowsMisalignedMemAccess = STI.getAllowsMisalignedMemAccess();
+}
+
+bool BPFTargetLowering::allowsMisalignedMemoryAccesses(EVT VT, unsigned, Align,
+                                                       MachineMemOperand::Flags,
+                                                       unsigned *Fast) const {
+  // allows-misaligned-mem-access is disabled
+  if (!AllowsMisalignedMemAccess)
+    return false;
+
+  // only allow misalignment for simple value types
+  if (!VT.isSimple())
+    return false;
+
+  // always assume fast mode when misalignment is allowed
+  if (Fast)
+    *Fast = true;
+
+  return true;
 }
 
 bool BPFTargetLowering::isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const {
@@ -221,6 +264,22 @@ bool BPFTargetLowering::isZExtFree(EVT VT1, EVT VT2) const {
   return NumBits1 == 32 && NumBits2 == 64;
 }
 
+bool BPFTargetLowering::isZExtFree(SDValue Val, EVT VT2) const {
+  EVT VT1 = Val.getValueType();
+  if (Val.getOpcode() == ISD::LOAD && VT1.isSimple() && VT2.isSimple()) {
+    MVT MT1 = VT1.getSimpleVT().SimpleTy;
+    MVT MT2 = VT2.getSimpleVT().SimpleTy;
+    if ((MT1 == MVT::i8 || MT1 == MVT::i16 || MT1 == MVT::i32) &&
+        (MT2 == MVT::i32 || MT2 == MVT::i64))
+      return true;
+  }
+  return TargetLoweringBase::isZExtFree(Val, VT2);
+}
+
+unsigned BPFTargetLowering::getJumpTableEncoding() const {
+  return MachineJumpTableInfo::EK_BlockAddress;
+}
+
 BPFTargetLowering::ConstraintType
 BPFTargetLowering::getConstraintType(StringRef Constraint) const {
   if (Constraint.size() == 1) {
@@ -239,7 +298,7 @@ std::pair<unsigned, const TargetRegisterClass *>
 BPFTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
                                                 StringRef Constraint,
                                                 MVT VT) const {
-  if (Constraint.size() == 1)
+  if (Constraint.size() == 1) {
     // GCC Constraint Letters
     switch (Constraint[0]) {
     case 'r': // GENERAL_REGS
@@ -251,17 +310,18 @@ BPFTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
     default:
       break;
     }
+  }
 
   return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
 }
 
 void BPFTargetLowering::ReplaceNodeResults(
   SDNode *N, SmallVectorImpl<SDValue> &Results, SelectionDAG &DAG) const {
-  const char *err_msg;
+  const char *Msg;
   uint32_t Opcode = N->getOpcode();
   switch (Opcode) {
   default:
-    report_fatal_error("Unhandled custom legalization");
+    report_fatal_error("unhandled custom legalization: " + Twine(Opcode));
   case ISD::ATOMIC_LOAD_ADD:
   case ISD::ATOMIC_LOAD_AND:
   case ISD::ATOMIC_LOAD_OR:
@@ -269,28 +329,47 @@ void BPFTargetLowering::ReplaceNodeResults(
   case ISD::ATOMIC_SWAP:
   case ISD::ATOMIC_CMP_SWAP_WITH_SUCCESS:
     if (HasAlu32 || Opcode == ISD::ATOMIC_LOAD_ADD)
-      err_msg = "Unsupported atomic operations, please use 32/64 bit version";
+      Msg = "unsupported atomic operation, please use 32/64 bit version";
     else
-      err_msg = "Unsupported atomic operations, please use 64 bit version";
+      Msg = "unsupported atomic operation, please use 64 bit version";
     break;
+  case ISD::ATOMIC_LOAD:
+  case ISD::ATOMIC_STORE:
+    return;
   }
 
   SDLoc DL(N);
-  fail(DL, DAG, err_msg);
+  // We'll still produce a fatal error downstream, but this diagnostic is more
+  // user-friendly.
+  fail(DL, DAG, Msg);
 }
 
 SDValue BPFTargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   switch (Op.getOpcode()) {
+  default:
+    report_fatal_error("unimplemented opcode: " + Twine(Op.getOpcode()));
   case ISD::BR_CC:
     return LowerBR_CC(Op, DAG);
+  case ISD::JumpTable:
+    return LowerJumpTable(Op, DAG);
   case ISD::GlobalAddress:
     return LowerGlobalAddress(Op, DAG);
+  case ISD::ConstantPool:
+    return LowerConstantPool(Op, DAG);
+  case ISD::BlockAddress:
+    return LowerBlockAddress(Op, DAG);
   case ISD::SELECT_CC:
     return LowerSELECT_CC(Op, DAG);
+  case ISD::SDIV:
+  case ISD::SREM:
+    return LowerSDIVSREM(Op, DAG);
   case ISD::DYNAMIC_STACKALLOC:
-    report_fatal_error("Unsupported dynamic stack allocation");
-  default:
-    llvm_unreachable("unimplemented operand");
+    return LowerDYNAMIC_STACKALLOC(Op, DAG);
+  case ISD::ATOMIC_LOAD:
+  case ISD::ATOMIC_STORE:
+    return LowerATOMIC_LOAD_STORE(Op, DAG);
+  case ISD::TRAP:
+    return LowerTRAP(Op, DAG);
   }
 }
 
@@ -303,7 +382,7 @@ SDValue BPFTargetLowering::LowerFormalArguments(
     SelectionDAG &DAG, SmallVectorImpl<SDValue> &InVals) const {
   switch (CallConv) {
   default:
-    report_fatal_error("Unsupported calling convention");
+    report_fatal_error("unimplemented calling convention: " + Twine(CallConv));
   case CallingConv::C:
   case CallingConv::Fast:
     break;
@@ -317,16 +396,22 @@ SDValue BPFTargetLowering::LowerFormalArguments(
   CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
   CCInfo.AnalyzeFormalArguments(Ins, getHasAlu32() ? CC_BPF32 : CC_BPF64);
 
-  for (auto &VA : ArgLocs) {
+  bool HasMemArgs = false;
+  for (size_t I = 0; I < ArgLocs.size(); ++I) {
+    auto &VA = ArgLocs[I];
+
     if (VA.isRegLoc()) {
       // Arguments passed in registers
       EVT RegVT = VA.getLocVT();
       MVT::SimpleValueType SimpleTy = RegVT.getSimpleVT().SimpleTy;
       switch (SimpleTy) {
       default: {
-        errs() << "LowerFormalArguments Unhandled argument type: "
-               << RegVT.getEVTString() << '\n';
-        llvm_unreachable(nullptr);
+        std::string Str;
+        {
+          raw_string_ostream OS(Str);
+          RegVT.print(OS);
+        }
+        report_fatal_error("unhandled argument type: " + Twine(Str));
       }
       case MVT::i32:
       case MVT::i64:
@@ -349,22 +434,42 @@ SDValue BPFTargetLowering::LowerFormalArguments(
 
         InVals.push_back(ArgValue);
 
-	break;
+        break;
       }
     } else {
-      fail(DL, DAG, "defined with too many args");
+      if (VA.isMemLoc())
+        HasMemArgs = true;
+      else
+        report_fatal_error("unhandled argument location");
       InVals.push_back(DAG.getConstant(0, DL, VA.getLocVT()));
     }
   }
-
-  if (IsVarArg || MF.getFunction().hasStructRetAttr()) {
-    fail(DL, DAG, "functions with VarArgs or StructRet are not supported");
-  }
+  if (HasMemArgs)
+    fail(DL, DAG, "stack arguments are not supported");
+  if (IsVarArg)
+    fail(DL, DAG, "variadic functions are not supported");
+  if (MF.getFunction().hasStructRetAttr())
+    fail(DL, DAG, "aggregate returns are not supported");
 
   return Chain;
 }
 
-const unsigned BPFTargetLowering::MaxArgs = 5;
+const size_t BPFTargetLowering::MaxArgs = 5;
+
+static void resetRegMaskBit(const TargetRegisterInfo *TRI, uint32_t *RegMask,
+                            MCRegister Reg) {
+  for (MCPhysReg SubReg : TRI->subregs_inclusive(Reg))
+    RegMask[SubReg / 32] &= ~(1u << (SubReg % 32));
+}
+
+static uint32_t *regMaskFromTemplate(const TargetRegisterInfo *TRI,
+                                     MachineFunction &MF,
+                                     const uint32_t *BaseRegMask) {
+  uint32_t *RegMask = MF.allocateRegMask();
+  unsigned RegMaskSize = MachineOperand::getRegMaskSize(TRI->getNumRegs());
+  memcpy(RegMask, BaseRegMask, sizeof(RegMask[0]) * RegMaskSize);
+  return RegMask;
+}
 
 SDValue BPFTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
                                      SmallVectorImpl<SDValue> &InVals) const {
@@ -384,7 +489,7 @@ SDValue BPFTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
 
   switch (CallConv) {
   default:
-    report_fatal_error("Unsupported calling convention");
+    report_fatal_error("unsupported calling convention: " + Twine(CallConv));
   case CallingConv::Fast:
   case CallingConv::C:
     break;
@@ -396,17 +501,17 @@ SDValue BPFTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
 
   CCInfo.AnalyzeCallOperands(Outs, getHasAlu32() ? CC_BPF32 : CC_BPF64);
 
-  unsigned NumBytes = CCInfo.getNextStackOffset();
+  unsigned NumBytes = CCInfo.getStackSize();
 
   if (Outs.size() > MaxArgs)
-    fail(CLI.DL, DAG, "too many args to ", Callee);
+    fail(CLI.DL, DAG, "too many arguments", Callee);
 
   for (auto &Arg : Outs) {
     ISD::ArgFlagsTy Flags = Arg.Flags;
     if (!Flags.isByVal())
       continue;
-
-    fail(CLI.DL, DAG, "pass by value not supported ", Callee);
+    fail(CLI.DL, DAG, "pass by value not supported", Callee);
+    break;
   }
 
   auto PtrVT = getPointerTy(MF.getDataLayout());
@@ -415,16 +520,14 @@ SDValue BPFTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   SmallVector<std::pair<unsigned, SDValue>, MaxArgs> RegsToPass;
 
   // Walk arg assignments
-  for (unsigned i = 0,
-                e = std::min(static_cast<unsigned>(ArgLocs.size()), MaxArgs);
-       i != e; ++i) {
+  for (size_t i = 0; i < std::min(ArgLocs.size(), MaxArgs); ++i) {
     CCValAssign &VA = ArgLocs[i];
-    SDValue Arg = OutVals[i];
+    SDValue &Arg = OutVals[i];
 
     // Promote the value if needed.
     switch (VA.getLocInfo()) {
     default:
-      llvm_unreachable("Unknown loc info");
+      report_fatal_error("unhandled location info: " + Twine(VA.getLocInfo()));
     case CCValAssign::Full:
       break;
     case CCValAssign::SExt:
@@ -442,17 +545,17 @@ SDValue BPFTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     if (VA.isRegLoc())
       RegsToPass.push_back(std::make_pair(VA.getLocReg(), Arg));
     else
-      llvm_unreachable("call arg pass bug");
+      report_fatal_error("stack arguments are not supported");
   }
 
-  SDValue InFlag;
+  SDValue InGlue;
 
   // Build a sequence of copy-to-reg nodes chained together with token chain and
-  // flag operands which copy the outgoing args into registers.  The InFlag in
+  // flag operands which copy the outgoing args into registers.  The InGlue in
   // necessary since all emitted instructions must be stuck together.
   for (auto &Reg : RegsToPass) {
-    Chain = DAG.getCopyToReg(Chain, CLI.DL, Reg.first, Reg.second, InFlag);
-    InFlag = Chain.getValue(1);
+    Chain = DAG.getCopyToReg(Chain, CLI.DL, Reg.first, Reg.second, InGlue);
+    InGlue = Chain.getValue(1);
   }
 
   // If the callee is a GlobalAddress node (quite common, every direct call is)
@@ -462,10 +565,12 @@ SDValue BPFTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     Callee = DAG.getTargetGlobalAddress(G->getGlobal(), CLI.DL, PtrVT,
                                         G->getOffset(), 0);
   } else if (ExternalSymbolSDNode *E = dyn_cast<ExternalSymbolSDNode>(Callee)) {
-    Callee = DAG.getTargetExternalSymbol(E->getSymbol(), PtrVT, 0);
-    fail(CLI.DL, DAG, Twine("A call to built-in function '"
-                            + StringRef(E->getSymbol())
-                            + "' is not supported."));
+    if (StringRef(E->getSymbol()) != BPF_TRAP) {
+      Callee = DAG.getTargetExternalSymbol(E->getSymbol(), PtrVT, 0);
+      fail(CLI.DL, DAG,
+           Twine("A call to built-in function '" + StringRef(E->getSymbol()) +
+                 "' is not supported."));
+    }
   }
 
   // Returns a chain & a flag for retval copy to use.
@@ -479,19 +584,37 @@ SDValue BPFTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   for (auto &Reg : RegsToPass)
     Ops.push_back(DAG.getRegister(Reg.first, Reg.second.getValueType()));
 
-  if (InFlag.getNode())
-    Ops.push_back(InFlag);
+  bool HasFastCall =
+      (CLI.CB && isa<CallInst>(CLI.CB) && CLI.CB->hasFnAttr("bpf_fastcall"));
+  const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
+  if (HasFastCall) {
+    uint32_t *RegMask = regMaskFromTemplate(
+        TRI, MF, TRI->getCallPreservedMask(MF, CallingConv::PreserveAll));
+    for (auto const &RegPair : RegsToPass)
+      resetRegMaskBit(TRI, RegMask, RegPair.first);
+    if (!CLI.CB->getType()->isVoidTy())
+      resetRegMaskBit(TRI, RegMask, BPF::R0);
+    Ops.push_back(DAG.getRegisterMask(RegMask));
+  } else {
+    Ops.push_back(
+        DAG.getRegisterMask(TRI->getCallPreservedMask(MF, CLI.CallConv)));
+  }
+
+  if (InGlue.getNode())
+    Ops.push_back(InGlue);
 
   Chain = DAG.getNode(BPFISD::CALL, CLI.DL, NodeTys, Ops);
-  InFlag = Chain.getValue(1);
+  InGlue = Chain.getValue(1);
+
+  DAG.addNoMergeSiteInfo(Chain.getNode(), CLI.NoMerge);
 
   // Create the CALLSEQ_END node.
-  Chain = DAG.getCALLSEQ_END(Chain, NumBytes, 0, InFlag, CLI.DL);
-  InFlag = Chain.getValue(1);
+  Chain = DAG.getCALLSEQ_END(Chain, NumBytes, 0, InGlue, CLI.DL);
+  InGlue = Chain.getValue(1);
 
   // Handle result values, copying them out of physregs into vregs that we
   // return.
-  return LowerCallResult(Chain, InFlag, CallConv, IsVarArg, Ins, CLI.DL, DAG,
+  return LowerCallResult(Chain, InGlue, CallConv, IsVarArg, Ins, CLI.DL, DAG,
                          InVals);
 }
 
@@ -501,7 +624,7 @@ BPFTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
                                const SmallVectorImpl<ISD::OutputArg> &Outs,
                                const SmallVectorImpl<SDValue> &OutVals,
                                const SDLoc &DL, SelectionDAG &DAG) const {
-  unsigned Opc = BPFISD::RET_FLAG;
+  unsigned Opc = BPFISD::RET_GLUE;
 
   // CCValAssign - represent the assignment of the return value to a location
   SmallVector<CCValAssign, 16> RVLocs;
@@ -511,40 +634,41 @@ BPFTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
   CCState CCInfo(CallConv, IsVarArg, MF, RVLocs, *DAG.getContext());
 
   if (MF.getFunction().getReturnType()->isAggregateType()) {
-    fail(DL, DAG, "only integer returns supported");
+    fail(DL, DAG, "aggregate returns are not supported");
     return DAG.getNode(Opc, DL, MVT::Other, Chain);
   }
 
   // Analize return values.
   CCInfo.AnalyzeReturn(Outs, getHasAlu32() ? RetCC_BPF32 : RetCC_BPF64);
 
-  SDValue Flag;
+  SDValue Glue;
   SmallVector<SDValue, 4> RetOps(1, Chain);
 
   // Copy the result values into the output registers.
-  for (unsigned i = 0; i != RVLocs.size(); ++i) {
+  for (size_t i = 0; i != RVLocs.size(); ++i) {
     CCValAssign &VA = RVLocs[i];
-    assert(VA.isRegLoc() && "Can only return in registers!");
+    if (!VA.isRegLoc())
+      report_fatal_error("stack return values are not supported");
 
-    Chain = DAG.getCopyToReg(Chain, DL, VA.getLocReg(), OutVals[i], Flag);
+    Chain = DAG.getCopyToReg(Chain, DL, VA.getLocReg(), OutVals[i], Glue);
 
     // Guarantee that all emitted copies are stuck together,
     // avoiding something bad.
-    Flag = Chain.getValue(1);
+    Glue = Chain.getValue(1);
     RetOps.push_back(DAG.getRegister(VA.getLocReg(), VA.getLocVT()));
   }
 
   RetOps[0] = Chain; // Update chain.
 
-  // Add the flag if we have it.
-  if (Flag.getNode())
-    RetOps.push_back(Flag);
+  // Add the glue if we have it.
+  if (Glue.getNode())
+    RetOps.push_back(Glue);
 
   return DAG.getNode(Opc, DL, MVT::Other, RetOps);
 }
 
 SDValue BPFTargetLowering::LowerCallResult(
-    SDValue Chain, SDValue InFlag, CallingConv::ID CallConv, bool IsVarArg,
+    SDValue Chain, SDValue InGlue, CallingConv::ID CallConv, bool IsVarArg,
     const SmallVectorImpl<ISD::InputArg> &Ins, const SDLoc &DL,
     SelectionDAG &DAG, SmallVectorImpl<SDValue> &InVals) const {
 
@@ -553,11 +677,11 @@ SDValue BPFTargetLowering::LowerCallResult(
   SmallVector<CCValAssign, 16> RVLocs;
   CCState CCInfo(CallConv, IsVarArg, MF, RVLocs, *DAG.getContext());
 
-  if (Ins.size() >= 2) {
+  if (Ins.size() > 1) {
     fail(DL, DAG, "only small returns supported");
-    for (unsigned i = 0, e = Ins.size(); i != e; ++i)
-      InVals.push_back(DAG.getConstant(0, DL, Ins[i].VT));
-    return DAG.getCopyFromReg(Chain, DL, 1, Ins[0].VT, InFlag).getValue(1);
+    for (auto &In : Ins)
+      InVals.push_back(DAG.getConstant(0, DL, In.VT));
+    return DAG.getCopyFromReg(Chain, DL, 1, Ins[0].VT, InGlue).getValue(1);
   }
 
   CCInfo.AnalyzeCallResult(Ins, getHasAlu32() ? RetCC_BPF32 : RetCC_BPF64);
@@ -565,8 +689,8 @@ SDValue BPFTargetLowering::LowerCallResult(
   // Copy all of the result registers out of their specified physreg.
   for (auto &Val : RVLocs) {
     Chain = DAG.getCopyFromReg(Chain, DL, Val.getLocReg(),
-                               Val.getValVT(), InFlag).getValue(1);
-    InFlag = Chain.getValue(2);
+                               Val.getValVT(), InGlue).getValue(1);
+    InGlue = Chain.getValue(2);
     InVals.push_back(Chain.getValue(0));
   }
 
@@ -585,6 +709,21 @@ static void NegateCC(SDValue &LHS, SDValue &RHS, ISD::CondCode &CC) {
     std::swap(LHS, RHS);
     break;
   }
+}
+
+SDValue BPFTargetLowering::LowerSDIVSREM(SDValue Op, SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  fail(DL, DAG,
+       "unsupported signed division, please convert to unsigned div/mod.");
+  return DAG.getUNDEF(Op->getValueType(0));
+}
+
+SDValue BPFTargetLowering::LowerDYNAMIC_STACKALLOC(SDValue Op,
+                                                   SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  fail(DL, DAG, "unsupported dynamic stack allocation");
+  auto Ops = {DAG.getConstant(0, SDLoc(), Op.getValueType()), Op.getOperand(0)};
+  return DAG.getMergeValues(Ops, SDLoc());
 }
 
 SDValue BPFTargetLowering::LowerBR_CC(SDValue Op, SelectionDAG &DAG) const {
@@ -614,42 +753,131 @@ SDValue BPFTargetLowering::LowerSELECT_CC(SDValue Op, SelectionDAG &DAG) const {
     NegateCC(LHS, RHS, CC);
 
   SDValue TargetCC = DAG.getConstant(CC, DL, LHS.getValueType());
-  SDVTList VTs = DAG.getVTList(Op.getValueType(), MVT::Glue);
   SDValue Ops[] = {LHS, RHS, TargetCC, TrueV, FalseV};
 
-  return DAG.getNode(BPFISD::SELECT_CC, DL, VTs, Ops);
+  return DAG.getNode(BPFISD::SELECT_CC, DL, Op.getValueType(), Ops);
 }
 
-const char *BPFTargetLowering::getTargetNodeName(unsigned Opcode) const {
-  switch ((BPFISD::NodeType)Opcode) {
-  case BPFISD::FIRST_NUMBER:
-    break;
-  case BPFISD::RET_FLAG:
-    return "BPFISD::RET_FLAG";
-  case BPFISD::CALL:
-    return "BPFISD::CALL";
-  case BPFISD::SELECT_CC:
-    return "BPFISD::SELECT_CC";
-  case BPFISD::BR_CC:
-    return "BPFISD::BR_CC";
-  case BPFISD::Wrapper:
-    return "BPFISD::Wrapper";
-  case BPFISD::MEMCPY:
-    return "BPFISD::MEMCPY";
-  }
-  return nullptr;
+SDValue BPFTargetLowering::LowerATOMIC_LOAD_STORE(SDValue Op,
+                                                  SelectionDAG &DAG) const {
+  SDNode *N = Op.getNode();
+  SDLoc DL(N);
+
+  if (cast<AtomicSDNode>(N)->getMergedOrdering() ==
+      AtomicOrdering::SequentiallyConsistent)
+    fail(DL, DAG,
+         "sequentially consistent (seq_cst) "
+         "atomic load/store is not supported");
+
+  return Op;
+}
+
+static Function *createBPFUnreachable(Module *M) {
+  if (auto *Fn = M->getFunction(BPF_TRAP))
+    return Fn;
+
+  FunctionType *FT = FunctionType::get(Type::getVoidTy(M->getContext()), false);
+  Function *NewF =
+      Function::Create(FT, GlobalValue::ExternalWeakLinkage, BPF_TRAP, M);
+  NewF->setDSOLocal(true);
+  NewF->setCallingConv(CallingConv::C);
+  NewF->setSection(".ksyms");
+
+  if (M->debug_compile_units().empty())
+    return NewF;
+
+  DIBuilder DBuilder(*M);
+  DITypeRefArray ParamTypes =
+      DBuilder.getOrCreateTypeArray({nullptr /*void return*/});
+  DISubroutineType *FuncType = DBuilder.createSubroutineType(ParamTypes);
+  DICompileUnit *CU = *M->debug_compile_units_begin();
+  DISubprogram *SP =
+      DBuilder.createFunction(CU, BPF_TRAP, BPF_TRAP, nullptr, 0, FuncType, 0,
+                              DINode::FlagZero, DISubprogram::SPFlagZero);
+  NewF->setSubprogram(SP);
+  return NewF;
+}
+
+SDValue BPFTargetLowering::LowerTRAP(SDValue Op, SelectionDAG &DAG) const {
+  MachineFunction &MF = DAG.getMachineFunction();
+  TargetLowering::CallLoweringInfo CLI(DAG);
+  SmallVector<SDValue> InVals;
+  SDNode *N = Op.getNode();
+  SDLoc DL(N);
+
+  Function *Fn = createBPFUnreachable(MF.getFunction().getParent());
+  auto PtrVT = getPointerTy(MF.getDataLayout());
+  CLI.Callee = DAG.getTargetGlobalAddress(Fn, DL, PtrVT);
+  CLI.Chain = N->getOperand(0);
+  CLI.IsTailCall = false;
+  CLI.CallConv = CallingConv::C;
+  CLI.IsVarArg = false;
+  CLI.DL = DL;
+  CLI.NoMerge = false;
+  CLI.DoesNotReturn = true;
+  return LowerCall(CLI, InVals);
+}
+
+SDValue BPFTargetLowering::LowerJumpTable(SDValue Op, SelectionDAG &DAG) const {
+  JumpTableSDNode *N = cast<JumpTableSDNode>(Op);
+  return getAddr(N, DAG);
+}
+
+static SDValue getTargetNode(ConstantPoolSDNode *N, const SDLoc &DL, EVT Ty,
+                             SelectionDAG &DAG, unsigned Flags) {
+  return DAG.getTargetConstantPool(N->getConstVal(), Ty, N->getAlign(),
+                                   N->getOffset(), Flags);
+}
+
+static SDValue getTargetNode(JumpTableSDNode *N, const SDLoc &DL, EVT Ty,
+                             SelectionDAG &DAG, unsigned Flags) {
+  return DAG.getTargetJumpTable(N->getIndex(), Ty, Flags);
+}
+
+template <class NodeTy>
+SDValue BPFTargetLowering::getAddr(NodeTy *N, SelectionDAG &DAG,
+                                   unsigned Flags) const {
+  SDLoc DL(N);
+
+  SDValue GA = getTargetNode(N, DL, MVT::i64, DAG, Flags);
+
+  return DAG.getNode(BPFISD::Wrapper, DL, MVT::i64, GA);
 }
 
 SDValue BPFTargetLowering::LowerGlobalAddress(SDValue Op,
                                               SelectionDAG &DAG) const {
-  auto N = cast<GlobalAddressSDNode>(Op);
-  assert(N->getOffset() == 0 && "Invalid offset for global address");
+  GlobalAddressSDNode *N = cast<GlobalAddressSDNode>(Op);
+  if (N->getOffset() != 0)
+    report_fatal_error("invalid offset for global address: " +
+                       Twine(N->getOffset()));
 
+  const GlobalValue *GVal = N->getGlobal();
   SDLoc DL(Op);
-  const GlobalValue *GV = N->getGlobal();
-  SDValue GA = DAG.getTargetGlobalAddress(GV, DL, MVT::i64);
 
-  return DAG.getNode(BPFISD::Wrapper, DL, MVT::i64, GA);
+  // Wrap it in a TargetGlobalAddress
+  SDValue Addr = DAG.getTargetGlobalAddress(GVal, DL, MVT::i64);
+
+  // Emit pseudo instruction
+  return SDValue(DAG.getMachineNode(BPF::LDIMM64, DL, MVT::i64, Addr), 0);
+}
+
+SDValue BPFTargetLowering::LowerConstantPool(SDValue Op,
+                                             SelectionDAG &DAG) const {
+  ConstantPoolSDNode *N = cast<ConstantPoolSDNode>(Op);
+
+  return getAddr(N, DAG);
+}
+
+SDValue BPFTargetLowering::LowerBlockAddress(SDValue Op,
+                                             SelectionDAG &DAG) const {
+  const BlockAddress *BA = cast<BlockAddressSDNode>(Op)->getBlockAddress();
+  SDLoc DL(Op);
+
+  // Wrap it in a TargetBlockAddress
+  SDValue Addr = DAG.getTargetBlockAddress(BA, MVT::i64);
+
+  // Emit pseudo instruction
+  return SDValue(DAG.getMachineNode(BPF::LDIMM64, DL, MVT::i64, Addr), 0);
 }
 
 unsigned
@@ -671,11 +899,15 @@ BPFTargetLowering::EmitSubregExt(MachineInstr &MI, MachineBasicBlock *BB,
   Register PromotedReg0 = RegInfo.createVirtualRegister(RC);
   Register PromotedReg1 = RegInfo.createVirtualRegister(RC);
   Register PromotedReg2 = RegInfo.createVirtualRegister(RC);
-  BuildMI(BB, DL, TII.get(BPF::MOV_32_64), PromotedReg0).addReg(Reg);
-  BuildMI(BB, DL, TII.get(BPF::SLL_ri), PromotedReg1)
-    .addReg(PromotedReg0).addImm(32);
-  BuildMI(BB, DL, TII.get(RShiftOp), PromotedReg2)
-    .addReg(PromotedReg1).addImm(32);
+  if (HasMovsx) {
+    BuildMI(BB, DL, TII.get(BPF::MOVSX_rr_32), PromotedReg0).addReg(Reg);
+  } else {
+    BuildMI(BB, DL, TII.get(BPF::MOV_32_64), PromotedReg0).addReg(Reg);
+    BuildMI(BB, DL, TII.get(BPF::SLL_ri), PromotedReg1)
+      .addReg(PromotedReg0).addImm(32);
+    BuildMI(BB, DL, TII.get(RShiftOp), PromotedReg2)
+      .addReg(PromotedReg1).addImm(32);
+  }
 
   return PromotedReg2;
 }
@@ -711,6 +943,86 @@ BPFTargetLowering::EmitInstrWithCustomInserterMemcpy(MachineInstr &MI,
   return BB;
 }
 
+MachineBasicBlock *BPFTargetLowering::EmitInstrWithCustomInserterLDimm64(
+    MachineInstr &MI, MachineBasicBlock *BB) const {
+  MachineFunction *MF = BB->getParent();
+  const BPFInstrInfo *TII = MF->getSubtarget<BPFSubtarget>().getInstrInfo();
+  const TargetRegisterClass *RC = getRegClassFor(MVT::i64);
+  MachineRegisterInfo &RegInfo = MF->getRegInfo();
+  DebugLoc DL = MI.getDebugLoc();
+
+  // Build address taken map for Global Varaibles and BlockAddresses
+  DenseMap<const BasicBlock *, MachineBasicBlock *> AddressTakenBBs;
+  for (MachineBasicBlock &MBB : *MF) {
+    if (const BasicBlock *BB = MBB.getBasicBlock())
+      if (BB->hasAddressTaken())
+        AddressTakenBBs[BB] = &MBB;
+  }
+
+  MachineOperand &MO = MI.getOperand(1);
+  assert(MO.isBlockAddress() || MO.isGlobal());
+
+  Register ResultReg = MI.getOperand(0).getReg();
+  Register TmpReg = RegInfo.createVirtualRegister(RC);
+
+  std::vector<MachineBasicBlock *> Targets;
+  unsigned JTI;
+
+  if (MO.isBlockAddress()) {
+    auto *BA = MO.getBlockAddress();
+    MachineBasicBlock *TgtMBB = AddressTakenBBs[BA->getBasicBlock()];
+    assert(TgtMBB);
+
+    Targets.push_back(TgtMBB);
+    JTI = MF->getOrCreateJumpTableInfo(getJumpTableEncoding())
+              ->createJumpTableIndex(Targets);
+
+    BuildMI(*BB, MI, DL, TII->get(BPF::LD_imm64), TmpReg)
+        .addJumpTableIndex(JTI);
+    BuildMI(*BB, MI, DL, TII->get(BPF::LDD), ResultReg)
+        .addReg(TmpReg)
+        .addImm(0);
+    MI.eraseFromParent();
+    return BB;
+  }
+
+  // Helper: emit LD_imm64 with operand GlobalAddress or JumpTable
+  auto emitLDImm64 = [&](const GlobalValue *GV = nullptr, unsigned JTI = -1) {
+    auto MIB = BuildMI(*BB, MI, DL, TII->get(BPF::LD_imm64), ResultReg);
+    if (GV)
+      MIB.addGlobalAddress(GV);
+    else
+      MIB.addJumpTableIndex(JTI);
+    MI.eraseFromParent();
+    return BB;
+  };
+
+  // Must be a global at this point
+  const GlobalValue *GVal = MO.getGlobal();
+  const auto *GV = dyn_cast<GlobalVariable>(GVal);
+
+  if (!GV || GV->getLinkage() != GlobalValue::PrivateLinkage ||
+      !GV->isConstant() || !GV->hasInitializer())
+    return emitLDImm64(GVal);
+
+  const auto *CA = dyn_cast<ConstantArray>(GV->getInitializer());
+  if (!CA)
+    return emitLDImm64(GVal);
+
+  for (const Use &Op : CA->operands()) {
+    if (!isa<BlockAddress>(Op))
+      return emitLDImm64(GVal);
+    auto *BA = cast<BlockAddress>(Op);
+    MachineBasicBlock *TgtMBB = AddressTakenBBs[BA->getBasicBlock()];
+    assert(TgtMBB);
+    Targets.push_back(TgtMBB);
+  }
+
+  JTI = MF->getOrCreateJumpTableInfo(getJumpTableEncoding())
+            ->createJumpTableIndex(Targets);
+  return emitLDImm64(nullptr, JTI);
+}
+
 MachineBasicBlock *
 BPFTargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
                                                MachineBasicBlock *BB) const {
@@ -723,6 +1035,7 @@ BPFTargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
                        Opc == BPF::Select_32_64);
 
   bool isMemcpyOp = Opc == BPF::MEMCPY;
+  bool isLDimm64Op = Opc == BPF::LDIMM64;
 
 #ifndef NDEBUG
   bool isSelectRIOp = (Opc == BPF::Select_Ri ||
@@ -730,13 +1043,15 @@ BPFTargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
                        Opc == BPF::Select_Ri_32 ||
                        Opc == BPF::Select_Ri_32_64);
 
-
-  assert((isSelectRROp || isSelectRIOp || isMemcpyOp) &&
-         "Unexpected instr type to insert");
+  if (!(isSelectRROp || isSelectRIOp || isMemcpyOp || isLDimm64Op))
+    report_fatal_error("unhandled instruction type: " + Twine(Opc));
 #endif
 
   if (isMemcpyOp)
     return EmitInstrWithCustomInserterMemcpy(MI, BB);
+
+  if (isLDimm64Op)
+    return EmitInstrWithCustomInserterLDimm64(MI, BB);
 
   bool is32BitCmp = (Opc == BPF::Select_32 ||
                      Opc == BPF::Select_32_64 ||
@@ -822,7 +1137,8 @@ BPFTargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
   } else {
     int64_t imm32 = MI.getOperand(2).getImm();
     // Check before we build J*_ri instruction.
-    assert (isInt<32>(imm32));
+    if (!isInt<32>(imm32))
+      report_fatal_error("immediate overflows 32 bits: " + Twine(imm32));
     BuildMI(BB, DL, TII.get(NewCC))
         .addReg(LHS).addImm(imm32).addMBB(Copy1MBB);
   }

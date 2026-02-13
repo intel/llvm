@@ -13,9 +13,12 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Compiler.h"
+#include "llvm/Support/SourceMgr.h"
 #include <cassert>
 #include <functional>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -23,8 +26,12 @@
 namespace clang {
 namespace driver {
 
+class Driver;
+
 /// This corresponds to a single GCC Multilib, or a segment of one controlled
-/// by a command line flag
+/// by a command line flag.
+/// See also MultilibBuilder for building a multilib by mutating it
+/// incrementally.
 class Multilib {
 public:
   using flags_list = std::vector<std::string>;
@@ -34,139 +41,152 @@ private:
   std::string OSSuffix;
   std::string IncludeSuffix;
   flags_list Flags;
-  int Priority;
+
+  // Optionally, a multilib can be assigned a string tag indicating that it's
+  // part of a group of mutually exclusive possibilities. If two or more
+  // multilibs have the same non-empty value of ExclusiveGroup, then only the
+  // last matching one of them will be selected.
+  //
+  // Setting this to the empty string is a special case, indicating that the
+  // directory is not mutually exclusive with anything else.
+  std::string ExclusiveGroup;
+
+  // Some Multilib objects don't actually represent library directories you can
+  // select. Instead, they represent failures of multilib selection, of the
+  // form 'Sorry, we don't have any library compatible with these constraints'.
+  std::optional<std::string> Error;
 
 public:
+  /// GCCSuffix, OSSuffix & IncludeSuffix will be appended directly to the
+  /// sysroot string so they must either be empty or begin with a '/' character.
+  /// This is enforced with an assert in the constructor.
   Multilib(StringRef GCCSuffix = {}, StringRef OSSuffix = {},
-           StringRef IncludeSuffix = {}, int Priority = 0);
+           StringRef IncludeSuffix = {}, const flags_list &Flags = flags_list(),
+           StringRef ExclusiveGroup = {},
+           std::optional<StringRef> Error = std::nullopt);
 
   /// Get the detected GCC installation path suffix for the multi-arch
   /// target variant. Always starts with a '/', unless empty
-  const std::string &gccSuffix() const {
-    assert(GCCSuffix.empty() ||
-           (StringRef(GCCSuffix).front() == '/' && GCCSuffix.size() > 1));
-    return GCCSuffix;
-  }
-
-  /// Set the GCC installation path suffix.
-  Multilib &gccSuffix(StringRef S);
+  const std::string &gccSuffix() const { return GCCSuffix; }
 
   /// Get the detected os path suffix for the multi-arch
   /// target variant. Always starts with a '/', unless empty
-  const std::string &osSuffix() const {
-    assert(OSSuffix.empty() ||
-           (StringRef(OSSuffix).front() == '/' && OSSuffix.size() > 1));
-    return OSSuffix;
-  }
-
-  /// Set the os path suffix.
-  Multilib &osSuffix(StringRef S);
+  const std::string &osSuffix() const { return OSSuffix; }
 
   /// Get the include directory suffix. Always starts with a '/', unless
   /// empty
-  const std::string &includeSuffix() const {
-    assert(IncludeSuffix.empty() ||
-           (StringRef(IncludeSuffix).front() == '/' && IncludeSuffix.size() > 1));
-    return IncludeSuffix;
-  }
-
-  /// Set the include directory suffix
-  Multilib &includeSuffix(StringRef S);
+  const std::string &includeSuffix() const { return IncludeSuffix; }
 
   /// Get the flags that indicate or contraindicate this multilib's use
-  /// All elements begin with either '+' or '-'
+  /// All elements begin with either '-' or '!'
   const flags_list &flags() const { return Flags; }
-  flags_list &flags() { return Flags; }
 
-  /// Returns the multilib priority. When more than one multilib matches flags,
-  /// the one with the highest priority is selected, with 0 being the default.
-  int priority() const { return Priority; }
-
-  /// Add a flag to the flags list
-  /// \p Flag must be a flag accepted by the driver with its leading '-' removed,
-  ///     and replaced with either:
-  ///       '-' which contraindicates using this multilib with that flag
-  ///     or:
-  ///       '+' which promotes using this multilib in the presence of that flag
-  ///     otherwise '-print-multi-lib' will not emit them correctly.
-  Multilib &flag(StringRef F) {
-    assert(F.front() == '+' || F.front() == '-');
-    Flags.push_back(std::string(F));
-    return *this;
-  }
+  /// Get the exclusive group label.
+  const std::string &exclusiveGroup() const { return ExclusiveGroup; }
 
   LLVM_DUMP_METHOD void dump() const;
   /// print summary of the Multilib
   void print(raw_ostream &OS) const;
-
-  /// Check whether any of the 'against' flags contradict the 'for' flags.
-  bool isValid() const;
 
   /// Check whether the default is selected
   bool isDefault() const
   { return GCCSuffix.empty() && OSSuffix.empty() && IncludeSuffix.empty(); }
 
   bool operator==(const Multilib &Other) const;
+
+  bool isError() const { return Error.has_value(); }
+
+  const std::string &getErrorMessage() const { return Error.value(); }
 };
 
 raw_ostream &operator<<(raw_ostream &OS, const Multilib &M);
 
+namespace custom_flag {
+struct Declaration;
+
+struct ValueDetail {
+  std::string Name;
+  std::optional<SmallVector<std::string>> MacroDefines;
+  Declaration *Decl;
+};
+
+struct Declaration {
+  std::string Name;
+  SmallVector<ValueDetail> ValueList;
+  std::optional<size_t> DefaultValueIdx;
+
+  Declaration() = default;
+  Declaration(const Declaration &);
+  Declaration(Declaration &&);
+  Declaration &operator=(const Declaration &);
+  Declaration &operator=(Declaration &&);
+};
+
+static constexpr StringRef Prefix = "-fmultilib-flag=";
+} // namespace custom_flag
+
+/// See also MultilibSetBuilder for combining multilibs into a set.
 class MultilibSet {
 public:
   using multilib_list = std::vector<Multilib>;
-  using iterator = multilib_list::iterator;
   using const_iterator = multilib_list::const_iterator;
   using IncludeDirsFunc =
       std::function<std::vector<std::string>(const Multilib &M)>;
   using FilterCallback = llvm::function_ref<bool(const Multilib &)>;
 
+  /// Uses regular expressions to simplify flags used for multilib selection.
+  /// For example, we may wish both -mfloat-abi=soft and -mfloat-abi=softfp to
+  /// be treated as -mfloat-abi=soft.
+  struct FlagMatcher {
+    std::string Match;
+    std::vector<std::string> Flags;
+  };
+
 private:
   multilib_list Multilibs;
+  SmallVector<FlagMatcher> FlagMatchers;
+  SmallVector<custom_flag::Declaration> CustomFlagDecls;
   IncludeDirsFunc IncludeCallback;
   IncludeDirsFunc FilePathsCallback;
 
 public:
   MultilibSet() = default;
+  MultilibSet(multilib_list &&Multilibs,
+              SmallVector<FlagMatcher> &&FlagMatchers = {},
+              SmallVector<custom_flag::Declaration> &&CustomFlagDecls = {})
+      : Multilibs(std::move(Multilibs)), FlagMatchers(std::move(FlagMatchers)),
+        CustomFlagDecls(std::move(CustomFlagDecls)) {}
 
-  /// Add an optional Multilib segment
-  MultilibSet &Maybe(const Multilib &M);
-
-  /// Add a set of mutually incompatible Multilib segments
-  MultilibSet &Either(const Multilib &M1, const Multilib &M2);
-  MultilibSet &Either(const Multilib &M1, const Multilib &M2,
-                      const Multilib &M3);
-  MultilibSet &Either(const Multilib &M1, const Multilib &M2,
-                      const Multilib &M3, const Multilib &M4);
-  MultilibSet &Either(const Multilib &M1, const Multilib &M2,
-                      const Multilib &M3, const Multilib &M4,
-                      const Multilib &M5);
-  MultilibSet &Either(ArrayRef<Multilib> Ms);
+  const multilib_list &getMultilibs() { return Multilibs; }
 
   /// Filter out some subset of the Multilibs using a user defined callback
   MultilibSet &FilterOut(FilterCallback F);
 
-  /// Filter out those Multilibs whose gccSuffix matches the given expression
-  MultilibSet &FilterOut(const char *Regex);
-
   /// Add a completed Multilib to the set
   void push_back(const Multilib &M);
 
-  /// Union this set of multilibs with another
-  void combineWith(const MultilibSet &MS);
-
-  /// Remove all of the multilibs from the set
-  void clear() { Multilibs.clear(); }
-
-  iterator begin() { return Multilibs.begin(); }
   const_iterator begin() const { return Multilibs.begin(); }
-
-  iterator end() { return Multilibs.end(); }
   const_iterator end() const { return Multilibs.end(); }
 
-  /// Pick the best multilib in the set, \returns false if none are compatible
-  bool select(const Multilib::flags_list &Flags, Multilib &M) const;
+  /// Process custom flags from \p Flags and returns an expanded flags list and
+  /// a list of macro defines.
+  /// Returns a pair where:
+  ///  - first: the new flags list including custom flags after processing.
+  ///  - second: the extra macro defines to be fed to the driver.
+  std::pair<Multilib::flags_list, SmallVector<StringRef>>
+  processCustomFlags(const Driver &D, const Multilib::flags_list &Flags) const;
+
+  /// Select compatible variants, \returns false if none are compatible
+  bool select(const Driver &D, const Multilib::flags_list &Flags,
+              llvm::SmallVectorImpl<Multilib> &,
+              llvm::SmallVector<StringRef> * = nullptr) const;
 
   unsigned size() const { return Multilibs.size(); }
+
+  /// Get the given flags plus flags found by matching them against the
+  /// FlagMatchers and choosing the Flags of each accordingly. The select method
+  /// calls this method so in most cases it's not necessary to call it directly.
+  llvm::StringSet<> expandFlags(const Multilib::flags_list &) const;
 
   LLVM_DUMP_METHOD void dump() const;
   void print(raw_ostream &OS) const;
@@ -185,12 +205,9 @@ public:
 
   const IncludeDirsFunc &filePathsCallback() const { return FilePathsCallback; }
 
-private:
-  /// Apply the filter to Multilibs and return the subset that remains
-  static multilib_list filterCopy(FilterCallback F, const multilib_list &Ms);
-
-  /// Apply the filter to the multilib_list, removing those that don't match
-  static void filterInPlace(FilterCallback F, multilib_list &Ms);
+  static llvm::ErrorOr<MultilibSet>
+  parseYaml(llvm::MemoryBufferRef, llvm::SourceMgr::DiagHandlerTy = nullptr,
+            void *DiagHandlerCtxt = nullptr);
 };
 
 raw_ostream &operator<<(raw_ostream &OS, const MultilibSet &MS);

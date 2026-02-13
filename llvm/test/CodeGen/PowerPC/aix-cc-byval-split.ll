@@ -9,12 +9,12 @@
 %struct.Spill = type { [12 x i64 ] }
 @GS = external global %struct.Spill, align 4
 
-define i64 @test(%struct.Spill* byval(%struct.Spill) align 4 %s) {
+define i64 @test(ptr byval(%struct.Spill) align 4 %s) {
 entry:
-  %arrayidx_a = getelementptr inbounds %struct.Spill, %struct.Spill* %s, i32 0, i32 0, i32 2
-  %arrayidx_b = getelementptr inbounds %struct.Spill, %struct.Spill* %s, i32 0, i32 0, i32 10
-  %a = load i64, i64* %arrayidx_a
-  %b = load i64, i64* %arrayidx_b
+  %arrayidx_a = getelementptr inbounds %struct.Spill, ptr %s, i32 0, i32 0, i32 2
+  %arrayidx_b = getelementptr inbounds %struct.Spill, ptr %s, i32 0, i32 0, i32 10
+  %a = load i64, ptr %arrayidx_a
+  %b = load i64, ptr %arrayidx_b
   %add = add i64 %a, %b
   ret i64 %add
 }
@@ -36,17 +36,17 @@ entry:
 ; CHECK32:      bb.0.entry:
 ; CHECK32-NEXT:   liveins: $r3, $r4, $r5, $r6, $r7, $r8, $r9, $r10
 
-; CHECK32:     renamable $r[[REG1:[0-9]+]] = LWZ 84, %fixed-stack.0
+; CHECK32:     renamable $r[[REG1:[0-9]+]] = LWZ 80, %fixed-stack.0
 ; CHECK32-DAG: STW killed renamable $r3, 0, %fixed-stack.0 :: (store (s32) into %fixed-stack.0
 ; CHECK32-DAG: STW killed renamable $r4, 4, %fixed-stack.0 :: (store (s32) into %fixed-stack.0 + 4
-; CHECK32:     renamable $r[[REG2:[0-9]+]] = LWZ 80, %fixed-stack.0
+; CHECK32:     renamable $r[[REG2:[0-9]+]] = LWZ 84, %fixed-stack.0
 ; CHECK32-DAG: STW killed renamable $r5, 8, %fixed-stack.0 :: (store (s32) into %fixed-stack.0 + 8
 ; CHECK32-DAG: STW killed renamable $r6, 12, %fixed-stack.0 :: (store (s32) into %fixed-stack.0 + 12
 ; CHECK32-DAG: STW        renamable $r7, 16, %fixed-stack.0 :: (store (s32) into %fixed-stack.0 + 16
 ; CHECK32-DAG: STW        renamable $r8, 20, %fixed-stack.0 :: (store (s32) into %fixed-stack.0 + 20
 ; CHECK32-DAG: STW killed renamable $r9, 24, %fixed-stack.0 :: (store (s32) into %fixed-stack.0 + 24
-; CHECK32:     renamable $r4 = ADDC killed renamable $r8, killed renamable $r[[REG1]], implicit-def $carry
-; CHECK32:     renamable $r3 = ADDE killed renamable $r7, killed renamable $r[[REG2]], implicit-def dead $carry, implicit killed $carry
+; CHECK32:     renamable $r4 = ADDC killed renamable $r8, killed renamable $r[[REG2]], implicit-def $carry
+; CHECK32:     renamable $r3 = ADDE killed renamable $r7, killed renamable $r[[REG1]], implicit-def dead $carry, implicit killed $carry
 ; CHECK32      STW killed renamable $r10, 28, %fixed-stack.0 :: (store (s32) into %fixed-stack.0 + 28
 ; CHECK32:     BLR implicit $lr, implicit $rm, implicit $r3, implicit $r4
 

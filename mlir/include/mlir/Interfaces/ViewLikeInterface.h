@@ -18,42 +18,9 @@
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/OpImplementation.h"
+#include "mlir/IR/PatternMatch.h"
 
 namespace mlir {
-
-/// Return a vector of OpFoldResults given the special value
-/// that indicates whether of the value is dynamic or not.
-SmallVector<OpFoldResult, 4> getMixedValues(ArrayAttr staticValues,
-                                            ValueRange dynamicValues,
-                                            int64_t dynamicValueIndicator);
-
-/// Return a vector of all the static and dynamic offsets/strides.
-SmallVector<OpFoldResult, 4> getMixedStridesOrOffsets(ArrayAttr staticValues,
-                                                      ValueRange dynamicValues);
-
-/// Return a vector of all the static and dynamic sizes.
-SmallVector<OpFoldResult, 4> getMixedSizes(ArrayAttr staticValues,
-                                           ValueRange dynamicValues);
-
-/// Decompose a vector of mixed static or dynamic values into the corresponding
-/// pair of arrays. This is the inverse function of `getMixedValues`.
-std::pair<ArrayAttr, SmallVector<Value>>
-decomposeMixedValues(Builder &b,
-                     const SmallVectorImpl<OpFoldResult> &mixedValues,
-                     const int64_t dynamicValueIndicator);
-
-/// Decompose a vector of mixed static and dynamic strides/offsets into the
-/// corresponding pair of arrays. This is the inverse function of
-/// `getMixedStridesOrOffsets`.
-std::pair<ArrayAttr, SmallVector<Value>> decomposeMixedStridesOrOffsets(
-    OpBuilder &b, const SmallVectorImpl<OpFoldResult> &mixedValues);
-
-/// Decompose a vector of mixed static or dynamic strides/offsets into the
-/// corresponding pair of arrays. This is the inverse function of
-/// `getMixedSizes`.
-std::pair<ArrayAttr, SmallVector<Value>>
-decomposeMixedSizes(OpBuilder &b,
-                    const SmallVectorImpl<OpFoldResult> &mixedValues);
 
 class OffsetSizeAndStrideOpInterface;
 
@@ -65,6 +32,11 @@ bool sameOffsetsSizesAndStrides(
     OffsetSizeAndStrideOpInterface a, OffsetSizeAndStrideOpInterface b,
     llvm::function_ref<bool(OpFoldResult, OpFoldResult)> cmp);
 
+/// Helper method to compute the number of dynamic entries of `staticVals`,
+/// up to `idx`.
+unsigned getNumDynamicEntriesUpToIdx(ArrayRef<int64_t> staticVals,
+                                     unsigned idx);
+
 } // namespace detail
 } // namespace mlir
 
@@ -73,42 +45,206 @@ bool sameOffsetsSizesAndStrides(
 
 namespace mlir {
 
-/// Printer hook for custom directive in assemblyFormat.
-///
-///   custom<DynamicIndexList>($values, $integers)
-///
-/// where `values` is of ODS type `Variadic<Index>` and `integers` is of ODS
-/// type `I64ArrayAttr`. Prints a list with either (1) the static integer value
-/// in `integers` is `dynVal` or (2) the next value otherwise. This allows
-/// idiomatic printing of mixed value and integer attributes in a list. E.g.
-/// `[%arg0, 7, 42, %arg42]`.
-void printDynamicIndexList(OpAsmPrinter &printer, Operation *op,
-                           OperandRange values, ArrayAttr integers,
-                           int64_t dynVal);
+/// Result for slice bounds verification;
+struct SliceBoundsVerificationResult {
+  /// If set to "true", the slice bounds verification was successful.
+  bool isValid;
+  /// An error message that can be printed during op verification.
+  std::string errorMessage;
+};
 
-/// Pasrer hook for custom directive in assemblyFormat.
+/// Verify that the offsets/sizes/strides-style access into the given shape
+/// is in-bounds. Only static values are verified. If `generateErrorMessage`
+/// is set to "true", an error message is produced that can be printed by the
+///  op verifier.
+SliceBoundsVerificationResult
+verifyInBoundsSlice(ArrayRef<int64_t> shape, ArrayRef<int64_t> staticOffsets,
+                    ArrayRef<int64_t> staticSizes,
+                    ArrayRef<int64_t> staticStrides,
+                    bool generateErrorMessage = false);
+SliceBoundsVerificationResult verifyInBoundsSlice(
+    ArrayRef<int64_t> shape, ArrayRef<OpFoldResult> mixedOffsets,
+    ArrayRef<OpFoldResult> mixedSizes, ArrayRef<OpFoldResult> mixedStrides,
+    bool generateErrorMessage = false);
+
+/// Pattern to rewrite dynamic offsets/sizes/strides of view/slice-like ops as
+/// constant arguments. This pattern assumes that the op has a suitable builder
+/// that takes a result type, a "source" operand and mixed offsets, sizes and
+/// strides.
+///
+/// `OpType` is the type of op to which this pattern is applied. `ResultTypeFn`
+/// returns the new result type of the op, based on the new offsets, sizes and
+/// strides. `CastOpFunc` is used to generate a cast op if the result type of
+/// the op has changed.
+template <typename OpType, typename ResultTypeFn, typename CastOpFunc>
+class OpWithOffsetSizesAndStridesConstantArgumentFolder final
+    : public OpRewritePattern<OpType> {
+public:
+  using OpRewritePattern<OpType>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(OpType op,
+                                PatternRewriter &rewriter) const override {
+    SmallVector<OpFoldResult> mixedOffsets(op.getMixedOffsets());
+    SmallVector<OpFoldResult> mixedSizes(op.getMixedSizes());
+    SmallVector<OpFoldResult> mixedStrides(op.getMixedStrides());
+
+    // No constant operands were folded, just return;
+    if (failed(foldDynamicIndexList(mixedOffsets, /*onlyNonNegative=*/true)) &&
+        failed(foldDynamicIndexList(mixedSizes, /*onlyNonNegative=*/true)) &&
+        failed(foldDynamicIndexList(mixedStrides)))
+      return failure();
+
+    // Pattern does not apply if the produced op would not verify.
+    SliceBoundsVerificationResult sliceResult = verifyInBoundsSlice(
+        cast<ShapedType>(op.getSource().getType()).getShape(), mixedOffsets,
+        mixedSizes, mixedStrides);
+    if (!sliceResult.isValid)
+      return failure();
+
+    // Compute the new result type.
+    auto resultType =
+        ResultTypeFn()(op, mixedOffsets, mixedSizes, mixedStrides);
+    if (!resultType)
+      return failure();
+
+    // Create the new op in canonical form.
+    auto newOp =
+        OpType::create(rewriter, op.getLoc(), resultType, op.getSource(),
+                       mixedOffsets, mixedSizes, mixedStrides);
+    CastOpFunc()(rewriter, op, newOp);
+
+    return success();
+  }
+};
+
+/// Printer hooks for custom directive in assemblyFormat.
 ///
 ///   custom<DynamicIndexList>($values, $integers)
+///   custom<DynamicIndexList>($values, $integers, type($values))
 ///
-/// where `values` is of ODS type `Variadic<Index>` and `integers` is of ODS
-/// type `I64ArrayAttr`. Parse a mixed list with either (1) static integer
-/// values or (2) SSA values. Fill `integers` with the integer ArrayAttr, where
-/// `dynVal` encodes the position of SSA values. Add the parsed SSA values
-/// to `values` in-order.
-//
-/// E.g. after parsing "[%arg0, 7, 42, %arg42]":
-///   1. `result` is filled with the i64 ArrayAttr "[`dynVal`, 7, 42, `dynVal`]"
-///   2. `ssa` is filled with "[%arg0, %arg1]".
-ParseResult
-parseDynamicIndexList(OpAsmParser &parser,
-                      SmallVectorImpl<OpAsmParser::UnresolvedOperand> &values,
-                      ArrayAttr &integers, int64_t dynVal);
+/// where `values` is of ODS type `Variadic<*>` and `integers` is of ODS type
+/// `I64ArrayAttr`. Print a list where each element is either:
+///    1. the static integer value in `integers`, if it's not `kDynamic` or,
+///    2. the next value in `values`, otherwise.
+///
+/// If `valueTypes` is provided, the corresponding type of each dynamic value is
+/// printed. Otherwise, the type is not printed. Each type must match the type
+/// of the corresponding value in `values`. `valueTypes` is redundant for
+/// printing as we can retrieve the types from the actual `values`. However,
+/// `valueTypes` is needed for parsing and we must keep the API symmetric for
+/// parsing and printing. The type for integer elements is `i64` by default and
+/// never printed.
+///
+/// Integer indices can also be scalable in the context of scalable vectors,
+/// denoted by square brackets (e.g., "[2, [4], 8]"). For each value in
+/// `integers`, the corresponding `bool` in `scalableFlags` encodes whether it's
+/// a scalable index. If `scalableFlags` is empty then assume that all indices
+/// are non-scalable.
+///
+/// Examples:
+///
+///   * Input: `integers = [kDynamic, 7, 42, kDynamic]`,
+///            `values = [%arg0, %arg42]` and
+///            `valueTypes = [index, index]`
+///     prints:
+///       `[%arg0 : index, 7, 42, %arg42 : i32]`
+///
+///   * Input: `integers = [kDynamic, 7, 42, kDynamic]`,
+///            `values = [%arg0, %arg42]` and
+///            `valueTypes = []`
+///     prints:
+///       `[%arg0, 7, 42, %arg42]`
+///
+///   * Input: `integers = [2, 4, 8]`,
+///            `values = []` and
+///            `scalableFlags = [false, true, false]`
+///     prints:
+///       `[2, [4], 8]`
+///
+void printDynamicIndexList(
+    OpAsmPrinter &printer, Operation *op, OperandRange values,
+    ArrayRef<int64_t> integers, ArrayRef<bool> scalableFlags,
+    TypeRange valueTypes = TypeRange(),
+    AsmParser::Delimiter delimiter = AsmParser::Delimiter::Square);
+inline void printDynamicIndexList(
+    OpAsmPrinter &printer, Operation *op, OperandRange values,
+    ArrayRef<int64_t> integers, TypeRange valueTypes = TypeRange(),
+    AsmParser::Delimiter delimiter = AsmParser::Delimiter::Square) {
+  return printDynamicIndexList(printer, op, values, integers,
+                               /*scalableFlags=*/{}, valueTypes, delimiter);
+}
+
+/// Parser hooks for custom directive in assemblyFormat.
+///
+///   custom<DynamicIndexList>($values, $integers)
+///   custom<DynamicIndexList>($values, $integers, type($values))
+///
+/// where `values` is of ODS type `Variadic<*>` and `integers` is of ODS
+/// type `I64ArrayAttr`. Parse a mixed list where each element is either a
+/// static integer or an SSA value. Fill `integers` with the integer ArrayAttr,
+/// where `kDynamic` encodes the position of SSA values. Add the parsed SSA
+/// values to `values` in-order.
+///
+/// If `valueTypes` is provided, fill it with the types corresponding to each
+/// value in `values`. Otherwise, the caller must handle the types and parsing
+/// will fail if the type of the value is found (e.g., `[%arg0 : index, 3, %arg1
+/// : index]`).
+///
+/// Integer indices can also be scalable in the context of scalable vectors,
+/// denoted by square brackets (e.g., "[2, [4], 8]"). For each value in
+/// `integers`, the corresponding `bool` in `scalableFlags` encodes whether it's
+/// a scalable index.
+///
+/// Examples:
+///
+///   * After parsing "[%arg0 : index, 7, 42, %arg42 : i32]":
+///       1. `result` is filled with `[kDynamic, 7, 42, kDynamic]`
+///       2. `values` is filled with "[%arg0, %arg1]".
+///       3. `scalableFlags` is filled with `[false, true, false]`.
+///
+///   * After parsing `[2, [4], 8]`:
+///       1. `result` is filled with `[2, 4, 8]`
+///       2. `values` is empty.
+///       3. `scalableFlags` is filled with `[false, true, false]`.
+///
+ParseResult parseDynamicIndexList(
+    OpAsmParser &parser,
+    SmallVectorImpl<OpAsmParser::UnresolvedOperand> &values,
+    DenseI64ArrayAttr &integers, DenseBoolArrayAttr &scalableFlags,
+    SmallVectorImpl<Type> *valueTypes = nullptr,
+    AsmParser::Delimiter delimiter = AsmParser::Delimiter::Square);
+inline ParseResult parseDynamicIndexList(
+    OpAsmParser &parser,
+    SmallVectorImpl<OpAsmParser::UnresolvedOperand> &values,
+    DenseI64ArrayAttr &integers, SmallVectorImpl<Type> *valueTypes = nullptr,
+    AsmParser::Delimiter delimiter = AsmParser::Delimiter::Square) {
+  DenseBoolArrayAttr scalableFlags;
+  return parseDynamicIndexList(parser, values, integers, scalableFlags,
+                               valueTypes, delimiter);
+}
 
 /// Verify that a the `values` has as many elements as the number of entries in
 /// `attr` for which `isDynamic` evaluates to true.
-LogicalResult verifyListOfOperandsOrIntegers(
-    Operation *op, StringRef name, unsigned expectedNumElements, ArrayAttr attr,
-    ValueRange values, function_ref<bool(int64_t)> isDynamic);
+LogicalResult verifyListOfOperandsOrIntegers(Operation *op, StringRef name,
+                                             unsigned expectedNumElements,
+                                             ArrayRef<int64_t> attr,
+                                             ValueRange values);
+
+namespace OpTrait {
+/// This trai indicates that pointer-like objects (such as memrefs) returned
+/// from this operation will never alias with each other. This provides a
+/// guarantee to optimization passes that accesses through different results
+/// of this operation can be safely reordered, as they will never reference
+/// overlapping memory locations.
+///
+/// Operations with this trait take multiple pointer-like operands
+/// and return the same operands with additional non-aliasing guarantees.
+/// If the access to the results of this operation aliases at runtime, the
+/// behavior of such access is undefined.
+template <typename ConcreteType>
+class DistinctObjectsTrait
+    : public TraitBase<ConcreteType, DistinctObjectsTrait> {};
+} // namespace OpTrait
 
 } // namespace mlir
 

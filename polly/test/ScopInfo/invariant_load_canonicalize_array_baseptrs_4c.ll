@@ -1,6 +1,4 @@
-; RUN: opt %loadPolly -polly-print-scops -disable-output < %s \
-; RUN:  -polly-invariant-load-hoisting \
-; RUN:  | FileCheck %s
+; RUN: opt %loadNPMPolly '-passes=polly-custom<scops>' -polly-print-scops -disable-output -polly-invariant-load-hoisting < %s 2>&1 | FileCheck %s
 
 ; Verify that arrays with different element types are not coalesced.
 
@@ -21,7 +19,7 @@
 ; CHECK-NEXT:             { Stmt_body2[i0] -> MemRef_baseA[0] };
 ; CHECK-NEXT: }
 
-define void @foo(float** %A, i64 %n, i64 %m) {
+define void @foo(ptr %A, i64 %n, i64 %m) {
 start:
   br label %loop
 
@@ -32,14 +30,13 @@ loop:
   br i1 %icmp, label %body1, label %exit
 
 body1:
-  %baseB = load float*, float** %A
-  store float 42.0, float* %baseB
+  %baseB = load ptr, ptr %A
+  store float 42.0, ptr %baseB
   br label %body2
 
 body2:
-  %baseA = load float*, float** %A
-  %ptrcast = bitcast float* %baseA to i64*
-  store i64 42, i64* %ptrcast
+  %baseA = load ptr, ptr %A
+  store i64 42, ptr %baseA
   br label %latch
 
 latch:

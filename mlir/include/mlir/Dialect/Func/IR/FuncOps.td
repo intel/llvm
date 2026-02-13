@@ -14,14 +14,13 @@ include "mlir/IR/OpAsmInterface.td"
 include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Interfaces/CallInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
-include "mlir/IR/FunctionInterfaces.td"
+include "mlir/Interfaces/FunctionInterfaces.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
 def Func_Dialect : Dialect {
   let name = "func";
   let cppNamespace = "::mlir::func";
-  let dependentDialects = ["cf::ControlFlowDialect"];
   let hasConstantMaterializer = 1;
 }
 
@@ -50,7 +49,14 @@ def CallOp : Func_Op<"call",
     ```
   }];
 
-  let arguments = (ins FlatSymbolRefAttr:$callee, Variadic<AnyType>:$operands);
+  let arguments = (ins
+    FlatSymbolRefAttr:$callee,
+    Variadic<AnyType>:$operands,
+    OptionalAttr<DictArrayAttr>:$arg_attrs,
+    OptionalAttr<DictArrayAttr>:$res_attrs, 
+    UnitAttr:$no_inline
+  );
+
   let results = (outs Variadic<AnyType>);
 
   let builders = [
@@ -73,6 +79,18 @@ def CallOp : Func_Op<"call",
       CArg<"ValueRange", "{}">:$operands), [{
       build($_builder, $_state, StringAttr::get($_builder.getContext(), callee),
             results, operands);
+    }]>,
+    OpBuilder<(ins "TypeRange":$results, "FlatSymbolRefAttr":$callee,
+      CArg<"ValueRange", "{}">:$operands), [{
+      build($_builder, $_state, callee, results, operands);
+    }]>,
+    OpBuilder<(ins "TypeRange":$results, "StringAttr":$callee,
+      CArg<"ValueRange", "{}">:$operands), [{
+      build($_builder, $_state, callee, results, operands);
+    }]>,
+    OpBuilder<(ins "TypeRange":$results, "StringRef":$callee,
+      CArg<"ValueRange", "{}">:$operands), [{
+      build($_builder, $_state, callee, results, operands);
     }]>];
 
   let extraClassDeclaration = [{
@@ -83,12 +101,21 @@ def CallOp : Func_Op<"call",
       return {arg_operand_begin(), arg_operand_end()};
     }
 
+    MutableOperandRange getArgOperandsMutable() {
+      return getOperandsMutable();
+    }
+
     operand_iterator arg_operand_begin() { return operand_begin(); }
     operand_iterator arg_operand_end() { return operand_end(); }
 
     /// Return the callee of this operation.
     CallInterfaceCallable getCallableForCallee() {
       return (*this)->getAttrOfType<SymbolRefAttr>("callee");
+    }
+
+    /// Set the callee for this operation.
+    void setCalleeFromCallable(CallInterfaceCallable callee) {
+      (*this)->setAttr("callee", cast<SymbolRefAttr>(callee));
     }
   }];
 
@@ -105,10 +132,10 @@ def CallIndirectOp : Func_Op<"call_indirect", [
       CallOpInterface,
       TypesMatchWith<"callee input types match argument types",
                      "callee", "callee_operands",
-                     "$_self.cast<FunctionType>().getInputs()">,
+                     "::llvm::cast<FunctionType>($_self).getInputs()">,
       TypesMatchWith<"callee result types match result types",
                      "callee", "results",
-                     "$_self.cast<FunctionType>().getResults()">
+                     "::llvm::cast<FunctionType>($_self).getResults()">
     ]> {
   let summary = "indirect call operation";
   let description = [{
@@ -127,15 +154,20 @@ def CallIndirectOp : Func_Op<"call_indirect", [
     ```
   }];
 
-  let arguments = (ins FunctionType:$callee,
-                       Variadic<AnyType>:$callee_operands);
+  let arguments = (ins
+    FunctionType:$callee,
+    Variadic<AnyType>:$callee_operands,
+    OptionalAttr<DictArrayAttr>:$arg_attrs,
+    OptionalAttr<DictArrayAttr>:$res_attrs
+  );
+
   let results = (outs Variadic<AnyType>:$results);
 
   let builders = [
     OpBuilder<(ins "Value":$callee, CArg<"ValueRange", "{}">:$operands), [{
       $_state.operands.push_back(callee);
       $_state.addOperands(operands);
-      $_state.addTypes(callee.getType().cast<FunctionType>().getResults());
+      $_state.addTypes(::llvm::cast<FunctionType>(callee.getType()).getResults());
     }]>];
 
   let extraClassDeclaration = [{
@@ -147,11 +179,20 @@ def CallIndirectOp : Func_Op<"call_indirect", [
       return {arg_operand_begin(), arg_operand_end()};
     }
 
+    MutableOperandRange getArgOperandsMutable() {
+      return getCalleeOperandsMutable();
+    }
+
     operand_iterator arg_operand_begin() { return ++operand_begin(); }
     operand_iterator arg_operand_end() { return operand_end(); }
 
     /// Return the callee of this operation.
     CallInterfaceCallable getCallableForCallee() { return getCallee(); }
+
+    /// Set the callee for this operation.
+    void setCalleeFromCallable(CallInterfaceCallable callee) {
+      setOperand(0, cast<Value>(callee));
+    }
   }];
 
   let hasCanonicalizeMethod = 1;
@@ -165,7 +206,8 @@ def CallIndirectOp : Func_Op<"call_indirect", [
 //===----------------------------------------------------------------------===//
 
 def ConstantOp : Func_Op<"constant",
-    [ConstantLike, NoSideEffect,
+    [ConstantLike, Pure,
+     DeclareOpInterfaceMethods<SymbolUserOpInterface>,
      DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>]> {
   let summary = "constant";
   let description = [{
@@ -199,7 +241,6 @@ def ConstantOp : Func_Op<"constant",
   }];
 
   let hasFolder = 1;
-  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -207,8 +248,8 @@ def ConstantOp : Func_Op<"constant",
 //===----------------------------------------------------------------------===//
 
 def FuncOp : Func_Op<"func", [
-  AffineScope, AutomaticAllocationScope, CallableOpInterface,
-  FunctionOpInterface, IsolatedFromAbove, OpAsmOpInterface, Symbol
+  AffineScope, AutomaticAllocationScope,
+  FunctionOpInterface, IsolatedFromAbove, OpAsmOpInterface
 ]> {
   let summary = "An operation with a name containing a single `SSACFG` region";
   let description = [{
@@ -229,29 +270,32 @@ def FuncOp : Func_Op<"func", [
 
     ```mlir
     // External function definitions.
-    func.func @abort()
-    func.func @scribble(i32, i64, memref<? x 128 x f32, #layout_map0>) -> f64
+    func.func private @abort()
+    func.func private @scribble(i32, i64, memref<? x 128 x f32, #layout_map0>) -> f64
 
     // A function that returns its argument twice:
     func.func @count(%x: i64) -> (i64, i64)
-      attributes {fruit: "banana"} {
+      attributes {fruit = "banana"} {
       return %x, %x: i64, i64
     }
 
     // A function with an argument attribute
-    func.func @example_fn_arg(%x: i32 {swift.self = unit})
+    func.func private @example_fn_arg(%x: i32 {swift.self = unit})
 
     // A function with a result attribute
-    func.func @example_fn_result() -> (f64 {dialectName.attrName = 0 : i64})
+    func.func private @example_fn_result() -> (f64 {dialectName.attrName = 0 : i64})
 
     // A function with an attribute
-    func.func @example_fn_attr() attributes {dialectName.attrName = false}
+    func.func private @example_fn_attr() attributes {dialectName.attrName = false}
     ```
   }];
 
   let arguments = (ins SymbolNameAttr:$sym_name,
                        TypeAttrOf<FunctionType>:$function_type,
-                       OptionalAttr<StrAttr>:$sym_visibility);
+                       OptionalAttr<StrAttr>:$sym_visibility,
+                       OptionalAttr<DictArrayAttr>:$arg_attrs,
+                       OptionalAttr<DictArrayAttr>:$res_attrs,
+                       UnitAttr:$no_inline);
   let regions = (region AnyRegion:$body);
 
   let builders = [OpBuilder<(ins
@@ -275,31 +319,23 @@ def FuncOp : Func_Op<"func", [
     /// included in the new function. Replaces references to cloned sub-values
     /// with the corresponding value that is copied, and adds those mappings to
     /// the mapper.
-    FuncOp clone(BlockAndValueMapping &mapper);
+    FuncOp clone(IRMapping &mapper);
     FuncOp clone();
 
     /// Clone the internal blocks and attributes from this function into dest.
     /// Any cloned blocks are appended to the back of dest. This function
     /// asserts that the attributes of the current function and dest are
     /// compatible.
-    void cloneInto(FuncOp dest, BlockAndValueMapping &mapper);
+    void cloneInto(FuncOp dest, IRMapping &mapper);
 
     //===------------------------------------------------------------------===//
-    // CallableOpInterface
+    // FunctionOpInterface Methods
     //===------------------------------------------------------------------===//
 
     /// Returns the region on the current operation that is callable. This may
     /// return null in the case of an external callable object, e.g. an external
     /// function.
     ::mlir::Region *getCallableRegion() { return isExternal() ? nullptr : &getBody(); }
-
-    /// Returns the results types that the callable region produces when
-    /// executed.
-    ArrayRef<Type> getCallableResults() { return getFunctionType().getResults(); }
-
-    //===------------------------------------------------------------------===//
-    // FunctionOpInterface Methods
-    //===------------------------------------------------------------------===//
 
     /// Returns the argument types of this function.
     ArrayRef<Type> getArgumentTypes() { return getFunctionType().getInputs(); }
@@ -327,7 +363,7 @@ def FuncOp : Func_Op<"func", [
 // ReturnOp
 //===----------------------------------------------------------------------===//
 
-def ReturnOp : Func_Op<"return", [NoSideEffect, HasParent<"FuncOp">,
+def ReturnOp : Func_Op<"return", [Pure, HasParent<"FuncOp">,
                                 MemRefsNormalizable, ReturnLike, Terminator]> {
   let summary = "Function return operation";
   let description = [{
@@ -339,7 +375,7 @@ def ReturnOp : Func_Op<"return", [NoSideEffect, HasParent<"FuncOp">,
     Example:
 
     ```mlir
-    func.func @foo() : (i32, f8) {
+    func.func @foo() -> (i32, f8) {
       ...
       return %0, %1 : i32, f8
     }
@@ -349,7 +385,7 @@ def ReturnOp : Func_Op<"return", [NoSideEffect, HasParent<"FuncOp">,
   let arguments = (ins Variadic<AnyType>:$operands);
 
   let builders = [OpBuilder<(ins), [{
-    build($_builder, $_state, llvm::None);
+    build($_builder, $_state, {});
   }]>];
 
   let assemblyFormat = "attr-dict ($operands^ `:` type($operands))?";

@@ -23,27 +23,28 @@ using namespace sys;
 //===----------------------------------------------------------------------===//
 
 static bool Execute(ProcessInfo &PI, StringRef Program,
-                    ArrayRef<StringRef> Args, Optional<ArrayRef<StringRef>> Env,
-                    ArrayRef<Optional<StringRef>> Redirects,
+                    ArrayRef<StringRef> Args,
+                    std::optional<ArrayRef<StringRef>> Env,
+                    ArrayRef<std::optional<StringRef>> Redirects,
                     unsigned MemoryLimit, std::string *ErrMsg,
-                    BitVector *AffinityMask);
+                    BitVector *AffinityMask, bool DetachProcess);
 
 int sys::ExecuteAndWait(StringRef Program, ArrayRef<StringRef> Args,
-                        Optional<ArrayRef<StringRef>> Env,
-                        ArrayRef<Optional<StringRef>> Redirects,
+                        std::optional<ArrayRef<StringRef>> Env,
+                        ArrayRef<std::optional<StringRef>> Redirects,
                         unsigned SecondsToWait, unsigned MemoryLimit,
                         std::string *ErrMsg, bool *ExecutionFailed,
-                        Optional<ProcessStatistics> *ProcStat,
+                        std::optional<ProcessStatistics> *ProcStat,
                         BitVector *AffinityMask) {
   assert(Redirects.empty() || Redirects.size() == 3);
   ProcessInfo PI;
   if (Execute(PI, Program, Args, Env, Redirects, MemoryLimit, ErrMsg,
-              AffinityMask)) {
+              AffinityMask, /*DetachProcess=*/false)) {
     if (ExecutionFailed)
       *ExecutionFailed = false;
-    ProcessInfo Result =
-        Wait(PI, SecondsToWait, /*WaitUntilTerminates=*/SecondsToWait == 0,
-             ErrMsg, ProcStat);
+    ProcessInfo Result = Wait(
+        PI, SecondsToWait == 0 ? std::nullopt : std::optional(SecondsToWait),
+        ErrMsg, ProcStat);
     return Result.ReturnCode;
   }
 
@@ -54,16 +55,17 @@ int sys::ExecuteAndWait(StringRef Program, ArrayRef<StringRef> Args,
 }
 
 ProcessInfo sys::ExecuteNoWait(StringRef Program, ArrayRef<StringRef> Args,
-                               Optional<ArrayRef<StringRef>> Env,
-                               ArrayRef<Optional<StringRef>> Redirects,
+                               std::optional<ArrayRef<StringRef>> Env,
+                               ArrayRef<std::optional<StringRef>> Redirects,
                                unsigned MemoryLimit, std::string *ErrMsg,
-                               bool *ExecutionFailed, BitVector *AffinityMask) {
+                               bool *ExecutionFailed, BitVector *AffinityMask,
+                               bool DetachProcess) {
   assert(Redirects.empty() || Redirects.size() == 3);
   ProcessInfo PI;
   if (ExecutionFailed)
     *ExecutionFailed = false;
   if (!Execute(PI, Program, Args, Env, Redirects, MemoryLimit, ErrMsg,
-               AffinityMask))
+               AffinityMask, DetachProcess))
     if (ExecutionFailed)
       *ExecutionFailed = true;
 
@@ -72,10 +74,7 @@ ProcessInfo sys::ExecuteNoWait(StringRef Program, ArrayRef<StringRef> Args,
 
 bool sys::commandLineFitsWithinSystemLimits(StringRef Program,
                                             ArrayRef<const char *> Args) {
-  SmallVector<StringRef, 8> StringRefArgs;
-  StringRefArgs.reserve(Args.size());
-  for (const char *A : Args)
-    StringRefArgs.emplace_back(A);
+  SmallVector<StringRef, 8> StringRefArgs(Args);
   return commandLineFitsWithinSystemLimits(Program, StringRefArgs);
 }
 

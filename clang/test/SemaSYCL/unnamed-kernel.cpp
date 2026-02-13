@@ -63,7 +63,7 @@ public:
       h.single_task<ValidAlias>([] {});
     });
 
-    // expected-error@#KernelSingleTask {{'std::max_align_t' is an invalid kernel name, 'std::(anonymous)' is declared in the 'std' namespace}}
+    // expected-error@#KernelSingleTask {{'std::max_align_t' is an invalid kernel name, 'std::max_align_t' is declared in the 'std' namespace}}
     // expected-note@+2{{in instantiation of function template specialization}}
     q.submit([&](sycl::handler &h) {
       h.single_task<std::max_align_t>([] {});

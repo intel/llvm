@@ -10,7 +10,6 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/ConvertUTF.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/SwapByteOrder.h"
 #include <string>
 #include <vector>
 
@@ -102,7 +101,7 @@ bool convertUTF16ToUTF8String(ArrayRef<char> SrcBytes, std::string &Out) {
   if (Src[0] == UNI_UTF16_BYTE_ORDER_MARK_SWAPPED) {
     ByteSwapped.insert(ByteSwapped.end(), Src, SrcEnd);
     for (UTF16 &I : ByteSwapped)
-      I = llvm::ByteSwap_16(I);
+      I = llvm::byteswap<uint16_t>(I);
     Src = &ByteSwapped[0];
     SrcEnd = &ByteSwapped[ByteSwapped.size() - 1] + 1;
   }
@@ -160,7 +159,7 @@ bool convertUTF32ToUTF8String(ArrayRef<char> SrcBytes, std::string &Out) {
   if (Src[0] == UNI_UTF32_BYTE_ORDER_MARK_SWAPPED) {
     ByteSwapped.insert(ByteSwapped.end(), Src, SrcEnd);
     for (UTF32 &I : ByteSwapped)
-      I = llvm::ByteSwap_32(I);
+      I = llvm::byteswap<uint32_t>(I);
     Src = &ByteSwapped[0];
     SrcEnd = &ByteSwapped[ByteSwapped.size() - 1] + 1;
   }
@@ -302,6 +301,16 @@ bool convertWideToUTF8(const std::wstring &Source, std::string &Result) {
     llvm_unreachable(
         "Control should never reach this point; see static_assert further up");
   }
+}
+
+bool IsSingleCodeUnitUTF8Codepoint(unsigned V) { return V <= 0x7F; }
+
+bool IsSingleCodeUnitUTF16Codepoint(unsigned V) {
+  return V <= 0xD7FF || (V >= 0xE000 && V <= 0xFFFF);
+}
+
+bool IsSingleCodeUnitUTF32Codepoint(unsigned V) {
+  return V <= 0xD7FF || (V >= 0xE000 && V <= 0x10FFFF);
 }
 
 } // end namespace llvm

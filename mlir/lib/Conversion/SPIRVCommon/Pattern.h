@@ -9,30 +9,50 @@
 #ifndef MLIR_CONVERSION_SPIRVCOMMON_PATTERN_H
 #define MLIR_CONVERSION_SPIRVCOMMON_PATTERN_H
 
+#include "mlir/Dialect/SPIRV/IR/SPIRVEnums.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVOpTraits.h"
+#include "mlir/IR/TypeUtilities.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "llvm/ADT/StringExtras.h"
+#include "llvm/Support/FormatVariadic.h"
+#include <string>
 
 namespace mlir {
 namespace spirv {
 
+//===----------------------------------------------------------------------===//
+// Utility Functions
+//===----------------------------------------------------------------------===//
+
+/// Converts a SPIR-V Decoration enum value to its snake_case string
+/// representation for use in MLIR attributes.
+inline std::string getDecorationString(spirv::Decoration decor) {
+  return llvm::convertToSnakeFromCamelCase(stringifyDecoration(decor));
+}
+
 /// Converts elementwise unary, binary and ternary standard operations to SPIR-V
 /// operations.
 template <typename Op, typename SPIRVOp>
-class ElementwiseOpPattern final : public OpConversionPattern<Op> {
-public:
+struct ElementwiseOpPattern : public OpConversionPattern<Op> {
   using OpConversionPattern<Op>::OpConversionPattern;
 
   LogicalResult
   matchAndRewrite(Op op, typename Op::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     assert(adaptor.getOperands().size() <= 3);
-    auto dstType = this->getTypeConverter()->convertType(op.getType());
-    if (!dstType)
-      return failure();
+    Type dstType = this->getTypeConverter()->convertType(op.getType());
+    if (!dstType) {
+      return rewriter.notifyMatchFailure(
+          op->getLoc(),
+          llvm::formatv("failed to convert type {0} for SPIR-V", op.getType()));
+    }
+
     if (SPIRVOp::template hasTrait<OpTrait::spirv::UnsignedOp>() &&
-        !op.getType().isIndex() && dstType != op.getType()) {
-      return op.emitError(
-          "bitwidth emulation is not implemented yet on unsigned op");
+        !getElementTypeOrSelf(op.getType()).isIndex() &&
+        dstType != op.getType()) {
+      op.dump();
+      return op.emitError("bitwidth emulation is not implemented yet on "
+                          "unsigned op pattern version");
     }
     rewriter.template replaceOpWithNewOp<SPIRVOp>(op, dstType,
                                                   adaptor.getOperands());

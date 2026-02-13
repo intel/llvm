@@ -6,27 +6,28 @@
 //
 //===----------------------------------------------------------------------===/
 
-#include "gtest/gtest.h"
+// Use the umbrella header for -Wdocumentation.
+#include "lldb/API/LLDB.h"
 
-#include "lldb/API/SBCommandInterpreter.h"
-#include "lldb/API/SBCommandReturnObject.h"
+#include "TestingSupport/SubsystemRAII.h"
 #include "lldb/API/SBDebugger.h"
-
+#include "gtest/gtest.h"
 #include <cstring>
 #include <string>
 
 using namespace lldb;
+using namespace lldb_private;
 
 class SBCommandInterpreterTest : public testing::Test {
 protected:
   void SetUp() override {
-    SBDebugger::Initialize();
-    m_dbg = SBDebugger::Create(/*source_init_files=*/false);
-    m_interp = m_dbg.GetCommandInterpreter();
+    debugger = SBDebugger::Create(/*source_init_files=*/false);
   }
 
-  SBDebugger m_dbg;
-  SBCommandInterpreter m_interp;
+  void TearDown() override { SBDebugger::Destroy(debugger); }
+
+  SubsystemRAII<lldb::SBDebugger> subsystems;
+  SBDebugger debugger;
 };
 
 class DummyCommand : public SBCommandPluginInterface {
@@ -47,55 +48,57 @@ private:
 TEST_F(SBCommandInterpreterTest, SingleWordCommand) {
   // We first test a command without autorepeat
   DummyCommand dummy("It worked");
-  m_interp.AddCommand("dummy", &dummy, /*help=*/nullptr);
+  SBCommandInterpreter interp = debugger.GetCommandInterpreter();
+  interp.AddCommand("dummy", &dummy, /*help=*/nullptr);
   {
     SBCommandReturnObject result;
-    m_interp.HandleCommand("dummy", result, /*add_to_history=*/true);
+    interp.HandleCommand("dummy", result, /*add_to_history=*/true);
     EXPECT_TRUE(result.Succeeded());
     EXPECT_STREQ(result.GetOutput(), "It worked\n");
   }
   {
     SBCommandReturnObject result;
-    m_interp.HandleCommand("", result);
+    interp.HandleCommand("", result);
     EXPECT_FALSE(result.Succeeded());
-    EXPECT_STREQ(result.GetError(), "error: No auto repeat.\n");
+    EXPECT_STREQ(result.GetError(), "error: no auto repeat\n");
   }
 
   // Now we test a command with autorepeat
-  m_interp.AddCommand("dummy_with_autorepeat", &dummy, /*help=*/nullptr,
-                      /*syntax=*/nullptr, /*auto_repeat_command=*/nullptr);
+  interp.AddCommand("dummy_with_autorepeat", &dummy, /*help=*/nullptr,
+                    /*syntax=*/nullptr, /*auto_repeat_command=*/nullptr);
   {
     SBCommandReturnObject result;
-    m_interp.HandleCommand("dummy_with_autorepeat", result,
-                           /*add_to_history=*/true);
+    interp.HandleCommand("dummy_with_autorepeat", result,
+                         /*add_to_history=*/true);
     EXPECT_TRUE(result.Succeeded());
     EXPECT_STREQ(result.GetOutput(), "It worked\n");
   }
   {
     SBCommandReturnObject result;
-    m_interp.HandleCommand("", result);
+    interp.HandleCommand("", result);
     EXPECT_TRUE(result.Succeeded());
     EXPECT_STREQ(result.GetOutput(), "It worked\n");
   }
 }
 
 TEST_F(SBCommandInterpreterTest, MultiWordCommand) {
-  auto command = m_interp.AddMultiwordCommand("multicommand", /*help=*/nullptr);
+  SBCommandInterpreter interp = debugger.GetCommandInterpreter();
+  auto command = interp.AddMultiwordCommand("multicommand", /*help=*/nullptr);
   // We first test a subcommand without autorepeat
   DummyCommand subcommand("It worked again");
   command.AddCommand("subcommand", &subcommand, /*help=*/nullptr);
   {
     SBCommandReturnObject result;
-    m_interp.HandleCommand("multicommand subcommand", result,
-                           /*add_to_history=*/true);
+    interp.HandleCommand("multicommand subcommand", result,
+                         /*add_to_history=*/true);
     EXPECT_TRUE(result.Succeeded());
     EXPECT_STREQ(result.GetOutput(), "It worked again\n");
   }
   {
     SBCommandReturnObject result;
-    m_interp.HandleCommand("", result);
+    interp.HandleCommand("", result);
     EXPECT_FALSE(result.Succeeded());
-    EXPECT_STREQ(result.GetError(), "error: No auto repeat.\n");
+    EXPECT_STREQ(result.GetError(), "error: no auto repeat\n");
   }
 
   // We first test a subcommand with autorepeat
@@ -104,14 +107,14 @@ TEST_F(SBCommandInterpreterTest, MultiWordCommand) {
                      /*auto_repeat_command=*/nullptr);
   {
     SBCommandReturnObject result;
-    m_interp.HandleCommand("multicommand subcommand_with_autorepeat", result,
-                           /*add_to_history=*/true);
+    interp.HandleCommand("multicommand subcommand_with_autorepeat", result,
+                         /*add_to_history=*/true);
     EXPECT_TRUE(result.Succeeded());
     EXPECT_STREQ(result.GetOutput(), "It worked again\n");
   }
   {
     SBCommandReturnObject result;
-    m_interp.HandleCommand("", result);
+    interp.HandleCommand("", result);
     EXPECT_TRUE(result.Succeeded());
     EXPECT_STREQ(result.GetOutput(), "It worked again\n");
   }
@@ -124,14 +127,14 @@ TEST_F(SBCommandInterpreterTest, MultiWordCommand) {
       /*auto_repeat_command=*/"multicommand subcommand_with_autorepeat");
   {
     SBCommandReturnObject result;
-    m_interp.HandleCommand("multicommand subcommand_with_custom_autorepeat",
-                           result, /*add_to_history=*/true);
+    interp.HandleCommand("multicommand subcommand_with_custom_autorepeat",
+                         result, /*add_to_history=*/true);
     EXPECT_TRUE(result.Succeeded());
     EXPECT_STREQ(result.GetOutput(), "It worked again 2\n");
   }
   {
     SBCommandReturnObject result;
-    m_interp.HandleCommand("", result);
+    interp.HandleCommand("", result);
     EXPECT_TRUE(result.Succeeded());
     EXPECT_STREQ(result.GetOutput(), "It worked again\n");
   }

@@ -1,4 +1,4 @@
-//===--- SpuriouslyWakeUpFunctionsCheck.cpp - clang-tidy ------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,12 +12,9 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 void SpuriouslyWakeUpFunctionsCheck::registerMatchers(MatchFinder *Finder) {
-
   auto HasUniqueLock = hasDescendant(declRefExpr(
       hasDeclaration(varDecl(hasType(recordDecl(classTemplateSpecializationDecl(
           hasName("::std::unique_lock"),
@@ -27,30 +24,27 @@ void SpuriouslyWakeUpFunctionsCheck::registerMatchers(MatchFinder *Finder) {
 
   auto HasWaitDescendantCpp = hasDescendant(
       cxxMemberCallExpr(
-          anyOf(
-              allOf(hasDescendant(memberExpr(hasDeclaration(functionDecl(
-                        allOf(hasName("::std::condition_variable::wait"),
-                              parameterCountIs(1)))))),
-                    onImplicitObjectArgument(
-                        declRefExpr(to(varDecl(hasType(references(recordDecl(
-                            hasName("::std::condition_variable")))))))),
-                    HasUniqueLock),
-              allOf(hasDescendant(memberExpr(hasDeclaration(functionDecl(
-                        allOf(hasName("::std::condition_variable::wait_for"),
-                              parameterCountIs(2)))))),
-                    onImplicitObjectArgument(
-                        declRefExpr(to(varDecl(hasType(references(recordDecl(
-                            hasName("::std::condition_variable")))))))),
-                    HasUniqueLock),
-              allOf(hasDescendant(memberExpr(hasDeclaration(functionDecl(
-                        allOf(hasName("::std::condition_variable::wait_until"),
-                              parameterCountIs(2)))))),
-                    onImplicitObjectArgument(
-                        declRefExpr(to(varDecl(hasType(references(recordDecl(
-                            hasName("::std::condition_variable")))))))),
-                    HasUniqueLock)
-
-                  ))
+          anyOf(allOf(hasDescendant(memberExpr(hasDeclaration(functionDecl(
+                          hasName("::std::condition_variable::wait"),
+                          parameterCountIs(1))))),
+                      onImplicitObjectArgument(
+                          declRefExpr(to(varDecl(hasType(references(recordDecl(
+                              hasName("::std::condition_variable")))))))),
+                      HasUniqueLock),
+                allOf(hasDescendant(memberExpr(hasDeclaration(functionDecl(
+                          hasName("::std::condition_variable::wait_for"),
+                          parameterCountIs(2))))),
+                      onImplicitObjectArgument(
+                          declRefExpr(to(varDecl(hasType(references(recordDecl(
+                              hasName("::std::condition_variable")))))))),
+                      HasUniqueLock),
+                allOf(hasDescendant(memberExpr(hasDeclaration(functionDecl(
+                          hasName("::std::condition_variable::wait_until"),
+                          parameterCountIs(2))))),
+                      onImplicitObjectArgument(
+                          declRefExpr(to(varDecl(hasType(references(recordDecl(
+                              hasName("::std::condition_variable")))))))),
+                      HasUniqueLock)))
           .bind("wait"));
 
   auto HasWaitDescendantC = hasDescendant(
@@ -80,12 +74,10 @@ void SpuriouslyWakeUpFunctionsCheck::registerMatchers(MatchFinder *Finder) {
 void SpuriouslyWakeUpFunctionsCheck::check(
     const MatchFinder::MatchResult &Result) {
   const auto *MatchedWait = Result.Nodes.getNodeAs<CallExpr>("wait");
-  StringRef WaitName = MatchedWait->getDirectCallee()->getName();
+  const StringRef WaitName = MatchedWait->getDirectCallee()->getName();
   diag(MatchedWait->getExprLoc(),
        "'%0' should be placed inside a while statement %select{|or used with a "
        "conditional parameter}1")
       << WaitName << (WaitName != "cnd_wait" && WaitName != "cnd_timedwait");
 }
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

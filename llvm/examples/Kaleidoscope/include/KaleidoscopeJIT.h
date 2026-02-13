@@ -22,6 +22,8 @@
 #include "llvm/ExecutionEngine/Orc/IRCompileLayer.h"
 #include "llvm/ExecutionEngine/Orc/JITTargetMachineBuilder.h"
 #include "llvm/ExecutionEngine/Orc/RTDyldObjectLinkingLayer.h"
+#include "llvm/ExecutionEngine/Orc/SelfExecutorProcessControl.h"
+#include "llvm/ExecutionEngine/Orc/Shared/ExecutorSymbolDef.h"
 #include "llvm/ExecutionEngine/SectionMemoryManager.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/LLVMContext.h"
@@ -47,7 +49,9 @@ public:
                   JITTargetMachineBuilder JTMB, DataLayout DL)
       : ES(std::move(ES)), DL(std::move(DL)), Mangle(*this->ES, this->DL),
         ObjectLayer(*this->ES,
-                    []() { return std::make_unique<SectionMemoryManager>(); }),
+                    [](const MemoryBuffer &) {
+                      return std::make_unique<SectionMemoryManager>();
+                    }),
         CompileLayer(*this->ES, ObjectLayer,
                      std::make_unique<ConcurrentIRCompiler>(std::move(JTMB))),
         MainJD(this->ES->createBareJITDylib("<main>")) {
@@ -93,7 +97,7 @@ public:
     return CompileLayer.add(RT, std::move(TSM));
   }
 
-  Expected<JITEvaluatedSymbol> lookup(StringRef Name) {
+  Expected<ExecutorSymbolDef> lookup(StringRef Name) {
     return ES->lookup({&MainJD}, Mangle(Name.str()));
   }
 };

@@ -14,6 +14,7 @@
 #include "SourceCode.h"
 #include "index/Index.h"
 #include "support/Logger.h"
+#include "clang/AST/DeclFriend.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/Index/IndexSymbol.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -21,6 +22,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include <limits>
+#include <optional>
 #include <tuple>
 
 #define DEBUG_TYPE "FindSymbols"
@@ -40,8 +42,8 @@ struct ScoredSymbolGreater {
 
 // Returns true if \p Query can be found as a sub-sequence inside \p Scope.
 bool approximateScopeMatch(llvm::StringRef Scope, llvm::StringRef Query) {
-  assert(Scope.empty() || Scope.endswith("::"));
-  assert(Query.empty() || Query.endswith("::"));
+  assert(Scope.empty() || Scope.ends_with("::"));
+  assert(Query.empty() || Query.ends_with("::"));
   while (!Scope.empty() && !Query.empty()) {
     auto Colons = Scope.find("::");
     assert(Colons != llvm::StringRef::npos);
@@ -110,7 +112,7 @@ getWorkspaceSymbols(llvm::StringRef Query, int Limit,
       *Req.Limit *= 5;
   }
   TopN<ScoredSymbolInfo, ScoredSymbolGreater> Top(
-      Req.Limit ? *Req.Limit : std::numeric_limits<size_t>::max());
+      Req.Limit.value_or(std::numeric_limits<size_t>::max()));
   FuzzyMatcher Filter(Req.Query);
 
   Index->fuzzyFind(Req, [HintPath, &Top, &Filter, AnyScope = Req.AnyScope,
@@ -181,7 +183,6 @@ std::string getSymbolName(ASTContext &Ctx, const NamedDecl &ND) {
     OS << (Method->isInstanceMethod() ? '-' : '+');
     Method->getSelector().print(OS);
 
-    OS.flush();
     return Name;
   }
   return printName(Ctx, ND);
@@ -219,15 +220,15 @@ std::string getSymbolDetail(ASTContext &Ctx, const NamedDecl &ND) {
   return std::move(OS.str());
 }
 
-llvm::Optional<DocumentSymbol> declToSym(ASTContext &Ctx, const NamedDecl &ND) {
+std::optional<DocumentSymbol> declToSym(ASTContext &Ctx, const NamedDecl &ND) {
   auto &SM = Ctx.getSourceManager();
 
-  SourceLocation BeginLoc = SM.getSpellingLoc(SM.getFileLoc(ND.getBeginLoc()));
-  SourceLocation EndLoc = SM.getSpellingLoc(SM.getFileLoc(ND.getEndLoc()));
+  SourceLocation BeginLoc = ND.getBeginLoc();
+  SourceLocation EndLoc = ND.getEndLoc();
   const auto SymbolRange =
       toHalfOpenFileRange(SM, Ctx.getLangOpts(), {BeginLoc, EndLoc});
   if (!SymbolRange)
-    return llvm::None;
+    return std::nullopt;
 
   index::SymbolInfo SymInfo = index::getSymbolInfo(&ND);
   // FIXME: This is not classifying constructors, destructors and operators
@@ -325,7 +326,7 @@ class DocumentOutline {
     //  - a macro symbol child of this (either new or previously created)
     //  - this scope itself, if it *is* the macro symbol or is nested within it
     SymBuilder &inMacro(const syntax::Token &Tok, const SourceManager &SM,
-                        llvm::Optional<syntax::TokenBuffer::Expansion> Exp) {
+                        std::optional<syntax::TokenBuffer::Expansion> Exp) {
       if (llvm::is_contained(EnclosingMacroLoc, Tok.location()))
         return *this;
       // If there's an existing child for this macro, we expect it to be last.
@@ -391,6 +392,17 @@ private:
         D = TD;
     }
 
+    // FriendDecls don't act as DeclContexts, but they might wrap a function
+    // definition that won't be visible through other means in the AST. Hence
+    // unwrap it here instead.
+    if (auto *Friend = llvm::dyn_cast<FriendDecl>(D)) {
+      if (auto *Func =
+              llvm::dyn_cast_or_null<FunctionDecl>(Friend->getFriendDecl())) {
+        if (Func->isThisDeclarationADefinition())
+          D = Func;
+      }
+    }
+
     VisitKind Visit = shouldVisit(D);
     if (Visit == VisitKind::No)
       return;
@@ -453,7 +465,7 @@ private:
       if (!MacroName.isValid() || !MacroName.isFileID())
         continue;
       // All conditions satisfied, add the macro.
-      if (auto *Tok = AST.getTokens().spelledTokenAt(MacroName))
+      if (auto *Tok = AST.getTokens().spelledTokenContaining(MacroName))
         CurParent = &CurParent->inMacro(
             *Tok, SM, AST.getTokens().expansionStartingAt(Tok));
     }
@@ -643,7 +655,7 @@ std::vector<DocumentSymbol> collectDocSymbols(ParsedAST &AST) {
   DocumentSymbol Root;
   Root.children = std::move(Syms);
   Root.range = EntireFile;
-  mergePragmas(Root, llvm::makeArrayRef(Pragmas));
+  mergePragmas(Root, llvm::ArrayRef(Pragmas));
   return Root.children;
 }
 

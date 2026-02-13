@@ -24,6 +24,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <iterator>
 #include <utility>
 
 namespace llvm {
@@ -39,7 +40,21 @@ template <typename BitVectorT> class const_set_bits_iterator_impl {
     Current = Parent.find_next(Current);
   }
 
+  void retreat() {
+    if (Current == -1) {
+      Current = Parent.find_last();
+    } else {
+      Current = Parent.find_prev(Current);
+    }
+  }
+
 public:
+  using iterator_category = std::bidirectional_iterator_tag;
+  using difference_type = std::ptrdiff_t;
+  using value_type = unsigned;
+  using pointer = const value_type *;
+  using reference = value_type;
+
   const_set_bits_iterator_impl(const BitVectorT &Parent, int Current)
       : Parent(Parent), Current(Current) {}
   explicit const_set_bits_iterator_impl(const BitVectorT &Parent)
@@ -54,6 +69,17 @@ public:
 
   const_set_bits_iterator_impl &operator++() {
     advance();
+    return *this;
+  }
+
+  const_set_bits_iterator_impl operator--(int) {
+    auto Prev = *this;
+    retreat();
+    return Prev;
+  }
+
+  const_set_bits_iterator_impl &operator--() {
+    retreat();
     return *this;
   }
 
@@ -73,7 +99,7 @@ public:
 };
 
 class BitVector {
-  typedef uintptr_t BitWord;
+  using BitWord = uintptr_t;
 
   enum { BITWORD_SIZE = (unsigned)sizeof(BitWord) * CHAR_BIT };
 
@@ -121,8 +147,8 @@ public:
     }
   };
 
-  typedef const_set_bits_iterator_impl<BitVector> const_set_bits_iterator;
-  typedef const_set_bits_iterator set_iterator;
+  using const_set_bits_iterator = const_set_bits_iterator_impl<BitVector>;
+  using set_iterator = const_set_bits_iterator;
 
   const_set_bits_iterator set_bits_begin() const {
     return const_set_bits_iterator(*this);
@@ -155,7 +181,7 @@ public:
   size_type count() const {
     unsigned NumBits = 0;
     for (auto Bit : Bits)
-      NumBits += countPopulation(Bit);
+      NumBits += llvm::popcount(Bit);
     return NumBits;
   }
 
@@ -213,7 +239,7 @@ public:
         Copy &= maskTrailingOnes<BitWord>(LastBit + 1);
       }
       if (Copy != 0)
-        return i * BITWORD_SIZE + countTrailingZeros(Copy);
+        return i * BITWORD_SIZE + llvm::countr_zero(Copy);
     }
     return -1;
   }
@@ -243,7 +269,7 @@ public:
       }
 
       if (Copy != 0)
-        return (CurrentWord + 1) * BITWORD_SIZE - countLeadingZeros(Copy) - 1;
+        return (CurrentWord + 1) * BITWORD_SIZE - llvm::countl_zero(Copy) - 1;
     }
 
     return -1;
@@ -281,7 +307,7 @@ public:
 
       if (Copy != ~BitWord(0)) {
         unsigned Result =
-            (CurrentWord + 1) * BITWORD_SIZE - countLeadingOnes(Copy) - 1;
+            (CurrentWord + 1) * BITWORD_SIZE - llvm::countl_one(Copy) - 1;
         return Result < Size ? Result : -1;
       }
     }
@@ -320,7 +346,7 @@ public:
 
   /// find_prev_unset - Returns the index of the first unset bit that precedes
   /// the bit at \p PriorTo.  Returns -1 if all previous bits are set.
-  int find_prev_unset(unsigned PriorTo) {
+  int find_prev_unset(unsigned PriorTo) const {
     return find_last_unset_in(0, PriorTo);
   }
 
@@ -524,7 +550,7 @@ public:
     return *this;
   }
 
-  /// test - Check if (This - RHS) is zero.
+  /// test - Check if (This - RHS) is non-zero.
   /// This is the same as reset(RHS) and any().
   bool test(const BitVector &RHS) const {
     unsigned ThisWords = Bits.size();
@@ -541,13 +567,13 @@ public:
     return false;
   }
 
+  /// subsetOf - Check if This is a subset of RHS.
+  bool subsetOf(const BitVector &RHS) const { return !test(RHS); }
+
   template <class F, class... ArgTys>
   static BitVector &apply(F &&f, BitVector &Out, BitVector const &Arg,
                           ArgTys const &...Args) {
-    assert(llvm::all_of(
-               std::initializer_list<unsigned>{Args.size()...},
-               [&Arg](auto const &BV) { return Arg.size() == BV; }) &&
-           "consistent sizes");
+    assert(((Arg.size() == Args.size()) && ...) && "consistent sizes");
     Out.resize(Arg.size());
     for (size_type I = 0, E = Arg.Bits.size(); I != E; ++I)
       Out.Bits[I] = f(Arg.Bits[I], Args.Bits[I]...);
@@ -681,7 +707,7 @@ public:
   }
   bool isInvalid() const { return Size == (unsigned)-1; }
 
-  ArrayRef<BitWord> getData() const { return {&Bits[0], Bits.size()}; }
+  ArrayRef<BitWord> getData() const { return {Bits.data(), Bits.size()}; }
 
   //===--------------------------------------------------------------------===//
   // Portable bit mask operations.
@@ -762,11 +788,6 @@ private:
     std::fill(Bits.begin() + NumWords - Count, Bits.begin() + NumWords, 0);
   }
 
-  int next_unset_in_word(int WordIndex, BitWord Word) const {
-    unsigned Result = WordIndex * BITWORD_SIZE + countTrailingOnes(Word);
-    return Result < size() ? Result : -1;
-  }
-
   unsigned NumBitWords(unsigned S) const {
     return (S + BITWORD_SIZE-1) / BITWORD_SIZE;
   }
@@ -788,9 +809,7 @@ private:
     set_unused_bits(false);
   }
 
-  void init_words(bool t) {
-    std::fill(Bits.begin(), Bits.end(), 0 - (BitWord)t);
-  }
+  void init_words(bool t) { llvm::fill(Bits, 0 - (BitWord)t); }
 
   template<bool AddBits, bool InvertMask>
   void applyMask(const uint32_t *Mask, unsigned MaskWords) {

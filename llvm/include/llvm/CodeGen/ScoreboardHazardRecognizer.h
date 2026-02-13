@@ -49,7 +49,8 @@ class ScoreboardHazardRecognizer : public ScheduleHazardRecognizer {
 
   public:
     Scoreboard() = default;
-
+    Scoreboard &operator=(const Scoreboard &other) = delete;
+    Scoreboard(const Scoreboard &other) = delete;
     ~Scoreboard() {
       delete[] Data;
     }
@@ -58,7 +59,7 @@ class ScoreboardHazardRecognizer : public ScheduleHazardRecognizer {
 
     InstrStage::FuncUnits& operator[](size_t idx) const {
       // Depth is expected to be a power-of-2.
-      assert(Depth && !(Depth & (Depth - 1)) &&
+      assert(llvm::has_single_bit(Depth) &&
              "Scoreboard was not initialized properly!");
 
       return Data[(Head + idx) & (Depth-1)];

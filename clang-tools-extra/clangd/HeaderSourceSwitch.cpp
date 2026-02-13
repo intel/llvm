@@ -13,30 +13,35 @@
 #include "support/Logger.h"
 #include "support/Path.h"
 #include "clang/AST/Decl.h"
+#include <optional>
 
 namespace clang {
 namespace clangd {
 
-llvm::Optional<Path> getCorrespondingHeaderOrSource(
+std::optional<Path> getCorrespondingHeaderOrSource(
     PathRef OriginalFile, llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS) {
-  llvm::StringRef SourceExtensions[] = {".cpp", ".c", ".cc", ".cxx",
-                                        ".c++", ".m", ".mm"};
-  llvm::StringRef HeaderExtensions[] = {".h", ".hh", ".hpp", ".hxx", ".inc"};
+  static constexpr llvm::StringRef SourceExtensions[] = {
+      ".cpp", ".c", ".cc", ".cxx", ".c++", ".m", ".mm"};
+  static constexpr llvm::StringRef HeaderExtensions[] = {
+      ".h",    ".hh",  ".hpp",  ".hxx",  ".inc",
+      ".cppm", ".ccm", ".cxxm", ".c++m", ".ixx"};
 
   llvm::StringRef PathExt = llvm::sys::path::extension(OriginalFile);
 
   // Lookup in a list of known extensions.
-  bool IsSource = llvm::any_of(SourceExtensions, [&PathExt](PathRef SourceExt) {
-    return SourceExt.equals_insensitive(PathExt);
-  });
+  const bool IsSource =
+      llvm::any_of(SourceExtensions, [&PathExt](PathRef SourceExt) {
+        return SourceExt.equals_insensitive(PathExt);
+      });
 
-  bool IsHeader = llvm::any_of(HeaderExtensions, [&PathExt](PathRef HeaderExt) {
-    return HeaderExt.equals_insensitive(PathExt);
-  });
+  const bool IsHeader =
+      llvm::any_of(HeaderExtensions, [&PathExt](PathRef HeaderExt) {
+        return HeaderExt.equals_insensitive(PathExt);
+      });
 
   // We can only switch between the known extensions.
   if (!IsSource && !IsHeader)
-    return None;
+    return std::nullopt;
 
   // Array to lookup extensions for the switch. An opposite of where original
   // extension was found.
@@ -60,15 +65,15 @@ llvm::Optional<Path> getCorrespondingHeaderOrSource(
     if (VFS->exists(NewPath))
       return Path(NewPath);
   }
-  return None;
+  return std::nullopt;
 }
 
-llvm::Optional<Path> getCorrespondingHeaderOrSource(PathRef OriginalFile,
-                                                    ParsedAST &AST,
-                                                    const SymbolIndex *Index) {
+std::optional<Path> getCorrespondingHeaderOrSource(PathRef OriginalFile,
+                                                   ParsedAST &AST,
+                                                   const SymbolIndex *Index) {
   if (!Index) {
     // FIXME: use the AST to do the inference.
-    return None;
+    return std::nullopt;
   }
   LookupRequest Request;
   // Find all symbols present in the original file.
@@ -91,7 +96,7 @@ llvm::Optional<Path> getCorrespondingHeaderOrSource(PathRef OriginalFile,
   //
   // For each symbol in the original file, we get its target location (decl or
   // def) from the index, then award that target file.
-  bool IsHeader = isHeaderFile(OriginalFile, AST.getLangOpts());
+  const bool IsHeader = isHeaderFile(OriginalFile, AST.getLangOpts());
   Index->lookup(Request, [&](const Symbol &Sym) {
     if (IsHeader)
       AwardTarget(Sym.Definition.FileURI);
@@ -102,7 +107,7 @@ llvm::Optional<Path> getCorrespondingHeaderOrSource(PathRef OriginalFile,
   // that the background-index is not finished), we should use the decl/def
   // locations from the AST to do the inference (from .cc to .h).
   if (Candidates.empty())
-    return None;
+    return std::nullopt;
 
   // Pickup the winner, who contains most of symbols.
   // FIXME: should we use other signals (file proximity) to help score?

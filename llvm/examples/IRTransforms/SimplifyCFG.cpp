@@ -27,20 +27,18 @@
 //     predecessor, if that block has a single successor.
 //
 // TODOs
-//  * Hook up pass to the new pass manager.
 //  * Preserve LoopInfo.
 //  * Add fixed point iteration to delete all dead blocks
 //  * Add implementation using reachability to discover dead blocks.
 //===----------------------------------------------------------------------===//
 
-#include "SimplifyCFG.h"
-#include "InitializePasses.h"
 #include "llvm/Analysis/DomTreeUpdater.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/PatternMatch.h"
-#include "llvm/InitializePasses.h"
+#include "llvm/Passes/PassBuilder.h"
+#include "llvm/Plugins/PassPlugin.h"
 #include "llvm/Support/CommandLine.h"
 
 using namespace llvm;
@@ -160,7 +158,7 @@ static bool eliminateCondBranches_v1(Function &F) {
     // Replace the conditional branch with an unconditional one, by creating
     // a new unconditional branch to the selected successor and removing the
     // conditional one.
-    BranchInst::Create(BI->getSuccessor(CI->isZero()), BI);
+    BranchInst::Create(BI->getSuccessor(CI->isZero()), BI->getIterator());
     BI->eraseFromParent();
     Changed = true;
   }
@@ -197,7 +195,7 @@ static bool eliminateCondBranches_v2(Function &F, DominatorTree &DT) {
     // a new unconditional branch to the selected successor and removing the
     // conditional one.
     BranchInst *NewBranch =
-        BranchInst::Create(BI->getSuccessor(CI->isZero()), BI);
+        BranchInst::Create(BI->getSuccessor(CI->isZero()), BI->getIterator());
     BI->eraseFromParent();
 
     // Delete the edge between BB and RemovedSucc in the DominatorTree, iff
@@ -244,7 +242,8 @@ static bool eliminateCondBranches_v3(Function &F, DominatorTree &DT) {
     // a new unconditional branch to the selected successor and removing the
     // conditional one.
 
-    BranchInst *NewBranch = BranchInst::Create(TakenSucc, BB.getTerminator());
+    BranchInst *NewBranch =
+        BranchInst::Create(TakenSucc, BB.getTerminator()->getIterator());
     BB.getTerminator()->eraseFromParent();
 
     // Delete the edge between BB and RemovedSucc in the DominatorTree, iff
@@ -287,7 +286,7 @@ static bool mergeIntoSinglePredecessor_v1(Function &F) {
     }
     // Move all instructions from BB to Pred.
     for (Instruction &I : make_early_inc_range(BB))
-      I.moveBefore(Pred->getTerminator());
+      I.moveBefore(Pred->getTerminator()->getIterator());
 
     // Remove the Pred's terminator (which jumped to BB). BB's terminator
     // will become Pred's terminator.
@@ -338,7 +337,7 @@ static bool mergeIntoSinglePredecessor_v2(Function &F, DominatorTree &DT) {
     }
     // Move all instructions from BB to Pred.
     for (Instruction &I : make_early_inc_range(BB))
-      I.moveBefore(Pred->getTerminator());
+      I.moveBefore(Pred->getTerminator()->getIterator());
 
     // Remove the Pred's terminator (which jumped to BB). BB's terminator
     // will become Pred's terminator.
@@ -369,46 +368,48 @@ static bool doSimplify_v3(Function &F, DominatorTree &DT) {
 }
 
 namespace {
-struct SimplifyCFGLegacyPass : public FunctionPass {
-  static char ID;
-  SimplifyCFGLegacyPass() : FunctionPass(ID) {
-    initializeSimplifyCFGLegacyPassPass(*PassRegistry::getPassRegistry());
-  }
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequired<DominatorTreeWrapperPass>();
-    // Version 1 of the implementation does not preserve the dominator tree.
-    if (Version != V1)
-      AU.addPreserved<DominatorTreeWrapperPass>();
-
-    FunctionPass::getAnalysisUsage(AU);
-  }
-
-  bool runOnFunction(Function &F) override {
-    if (skipFunction(F))
-      return false;
-
+struct SimplifyCFGPass : public PassInfoMixin<SimplifyCFGPass> {
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM) {
     switch (Version) {
     case V1:
-      return doSimplify_v1(F);
+      doSimplify_v1(F);
+      break;
     case V2: {
-      auto &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
-      return doSimplify_v2(F, DT);
+      DominatorTree &DT = FAM.getResult<DominatorTreeAnalysis>(F);
+      doSimplify_v2(F, DT);
+      break;
     }
     case V3: {
-      auto &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
-      return doSimplify_v3(F, DT);
+      DominatorTree &DT = FAM.getResult<DominatorTreeAnalysis>(F);
+      doSimplify_v3(F, DT);
+      break;
     }
     }
 
-    llvm_unreachable("Unsupported version");
+    return PreservedAnalyses::none();
   }
 };
 } // namespace
 
-char SimplifyCFGLegacyPass::ID = 0;
-INITIALIZE_PASS_BEGIN(SimplifyCFGLegacyPass, DEBUG_TYPE,
-                      "Tutorial CFG simplification", false, false)
-INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
-INITIALIZE_PASS_END(SimplifyCFGLegacyPass, DEBUG_TYPE,
-                    "Tutorial CFG simplifications", false, false)
+/* New PM Registration */
+llvm::PassPluginLibraryInfo getExampleIRTransformsPluginInfo() {
+  return {LLVM_PLUGIN_API_VERSION, "SimplifyCFG", LLVM_VERSION_STRING,
+          [](PassBuilder &PB) {
+            PB.registerPipelineParsingCallback(
+                [](StringRef Name, llvm::FunctionPassManager &PM,
+                   ArrayRef<llvm::PassBuilder::PipelineElement>) {
+                  if (Name == "tut-simplifycfg") {
+                    PM.addPass(SimplifyCFGPass());
+                    return true;
+                  }
+                  return false;
+                });
+          }};
+}
+
+#ifndef LLVM_EXAMPLEIRTRANSFORMS_LINK_INTO_TOOLS
+extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo
+llvmGetPassPluginInfo() {
+  return getExampleIRTransformsPluginInfo();
+}
+#endif

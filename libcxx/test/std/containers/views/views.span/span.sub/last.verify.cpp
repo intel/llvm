@@ -12,7 +12,7 @@
 // template<size_t Count>
 //  constexpr span<element_type, Count> last() const;
 //
-//  Requires: Count <= size().
+// Mandates: Count <= Extent is true.
 
 #include <span>
 #include <cstddef>
@@ -25,5 +25,6 @@ void f() {
   [[maybe_unused]] auto s1 = sp.last<5>(); // expected-error@span:* {{span<T, N>::last<Count>(): Count out of range}}
 
   //  Count numeric_limits
-  [[maybe_unused]] auto s2 = sp.last<std::size_t(-1)>(); // expected-error@span:* {{span<T, N>::last<Count>(): Count out of range}}
+  [[maybe_unused]] auto s2 =
+      sp.last<std::size_t(-1)>(); // expected-error@span:* {{span<T, N>::last<Count>(): Count out of range}}
 }

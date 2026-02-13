@@ -87,7 +87,7 @@ public:
 
   /// FrameIndex represent objects inside a abstract stack. We must replace
   /// FrameIndex with an stack/frame pointer direct reference.
-  void eliminateFrameIndex(MachineBasicBlock::iterator II, int SPAdj,
+  bool eliminateFrameIndex(MachineBasicBlock::iterator II, int SPAdj,
                            unsigned FIOperandNum,
                            RegScavenger *RS = nullptr) const override;
 
@@ -101,7 +101,7 @@ public:
   const TargetRegisterClass *
   getCrossCopyRegClass(const TargetRegisterClass *RC) const override {
     if (RC == &M68k::CCRCRegClass)
-      return &M68k::DR32RegClass;
+      return &M68k::DR16RegClass;
     return RC;
   }
 

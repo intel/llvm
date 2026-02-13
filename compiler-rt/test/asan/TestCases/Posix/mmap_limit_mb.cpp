@@ -1,5 +1,8 @@
 // Test the mmap_limit_mb flag.
 //
+// Unstable on watchOS devices under memory pressure.
+// UNSUPPORTED: watchos
+//
 // RUN: %clangxx_asan -O2 %s -o %t
 // RUN: %run %t 20 16
 // RUN: %run %t 30 1000000
@@ -9,7 +12,7 @@
 // RUN: %env_asan_opts=mmap_limit_mb=300 not %run %t 500 1000000 2>&1 | FileCheck %s
 //
 // FIXME: Windows doesn't implement mmap_limit_mb.
-// XFAIL: windows-msvc
+// XFAIL: target={{.*windows-msvc.*}}
 
 #include <assert.h>
 #include <stdlib.h>

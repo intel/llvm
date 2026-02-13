@@ -44,10 +44,7 @@ public:
 
   void EmitByte(unsigned char C, raw_ostream &OS) const;
 
-  void emitInstruction(uint64_t Val, unsigned Size, const MCSubtargetInfo &STI,
-                       raw_ostream &OS) const;
-
-  void encodeInstruction(const MCInst &MI, raw_ostream &OS,
+  void encodeInstruction(const MCInst &MI, SmallVectorImpl<char> &CB,
                          SmallVectorImpl<MCFixup> &Fixups,
                          const MCSubtargetInfo &STI) const override;
 
@@ -180,6 +177,9 @@ public:
   unsigned getMachineOpValue(const MCInst &MI, const MCOperand &MO,
                              SmallVectorImpl<MCFixup> &Fixups,
                              const MCSubtargetInfo &STI) const;
+  unsigned getImmOpValue(const MCInst &MI, const MCOperand &MO,
+                         SmallVectorImpl<MCFixup> &Fixups,
+                         const MCSubtargetInfo &STI) const;
 
   unsigned getMSAMemEncoding(const MCInst &MI, unsigned OpNo,
                              SmallVectorImpl<MCFixup> &Fixups,

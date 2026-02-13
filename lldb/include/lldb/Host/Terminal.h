@@ -8,7 +8,6 @@
 
 #ifndef LLDB_HOST_TERMINAL_H
 #define LLDB_HOST_TERMINAL_H
-#if defined(__cplusplus)
 
 #include "lldb/lldb-private.h"
 #include "llvm/Support/Error.h"
@@ -68,6 +67,18 @@ public:
   llvm::Error SetParityCheck(ParityCheck parity_check);
 
   llvm::Error SetHardwareFlowControl(bool enabled);
+
+  /// Returns whether or not the current terminal supports Unicode rendering.
+  ///
+  /// The value is cached after the first computation.
+  ///
+  /// On POSIX systems, we check if the LANG environment variable contains the
+  /// substring "UTF-8", case insensitive.
+  ///
+  /// On Windows, we always return true since we use the `WriteConsoleW` API
+  /// internally. Note that the default Windows codepage (437) does not support
+  /// all Unicode characters. This function does not check the codepage.
+  static bool SupportsUnicode();
 
 protected:
   struct Data;
@@ -172,5 +183,4 @@ protected:
 
 } // namespace lldb_private
 
-#endif // #if defined(__cplusplus)
 #endif // LLDB_HOST_TERMINAL_H

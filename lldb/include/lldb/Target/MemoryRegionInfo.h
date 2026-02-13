@@ -10,11 +10,11 @@
 #ifndef LLDB_TARGET_MEMORYREGIONINFO_H
 #define LLDB_TARGET_MEMORYREGIONINFO_H
 
+#include <optional>
 #include <vector>
 
 #include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/RangeMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/Support/FormatProviders.h"
 
 namespace lldb_private {
@@ -27,13 +27,13 @@ public:
   MemoryRegionInfo() = default;
   MemoryRegionInfo(RangeType range, OptionalBool read, OptionalBool write,
                    OptionalBool execute, OptionalBool shared,
-                   OptionalBool mapped, ConstString name,
-                   OptionalBool flash, lldb::offset_t blocksize,
-                   OptionalBool memory_tagged, OptionalBool stack_memory)
+                   OptionalBool mapped, ConstString name, OptionalBool flash,
+                   lldb::offset_t blocksize, OptionalBool memory_tagged,
+                   OptionalBool stack_memory, OptionalBool shadow_stack)
       : m_range(range), m_read(read), m_write(write), m_execute(execute),
         m_shared(shared), m_mapped(mapped), m_name(name), m_flash(flash),
         m_blocksize(blocksize), m_memory_tagged(memory_tagged),
-        m_is_stack_memory(stack_memory) {}
+        m_is_stack_memory(stack_memory), m_is_shadow_stack(shadow_stack) {}
 
   RangeType &GetRange() { return m_range; }
 
@@ -54,6 +54,8 @@ public:
   ConstString GetName() const { return m_name; }
 
   OptionalBool GetMemoryTagged() const { return m_memory_tagged; }
+
+  OptionalBool IsShadowStack() const { return m_is_shadow_stack; }
 
   void SetReadable(OptionalBool val) { m_read = val; }
 
@@ -77,15 +79,17 @@ public:
 
   void SetMemoryTagged(OptionalBool val) { m_memory_tagged = val; }
 
+  void SetIsShadowStack(OptionalBool val) { m_is_shadow_stack = val; }
+
   // Get permissions as a uint32_t that is a mask of one or more bits from the
   // lldb::Permissions
   uint32_t GetLLDBPermissions() const {
     uint32_t permissions = 0;
-    if (m_read)
+    if (m_read == eYes)
       permissions |= lldb::ePermissionsReadable;
-    if (m_write)
+    if (m_write == eYes)
       permissions |= lldb::ePermissionsWritable;
-    if (m_execute)
+    if (m_execute == eYes)
       permissions |= lldb::ePermissionsExecutable;
     return permissions;
   }
@@ -101,12 +105,13 @@ public:
   bool operator==(const MemoryRegionInfo &rhs) const {
     return m_range == rhs.m_range && m_read == rhs.m_read &&
            m_write == rhs.m_write && m_execute == rhs.m_execute &&
-           m_shared == rhs.m_shared &&
-           m_mapped == rhs.m_mapped && m_name == rhs.m_name &&
-           m_flash == rhs.m_flash && m_blocksize == rhs.m_blocksize &&
+           m_shared == rhs.m_shared && m_mapped == rhs.m_mapped &&
+           m_name == rhs.m_name && m_flash == rhs.m_flash &&
+           m_blocksize == rhs.m_blocksize &&
            m_memory_tagged == rhs.m_memory_tagged &&
            m_pagesize == rhs.m_pagesize &&
-           m_is_stack_memory == rhs.m_is_stack_memory;
+           m_is_stack_memory == rhs.m_is_stack_memory &&
+           m_is_shadow_stack == rhs.m_is_shadow_stack;
   }
 
   bool operator!=(const MemoryRegionInfo &rhs) const { return !(*this == rhs); }
@@ -120,7 +125,7 @@ public:
   /// modified -- within this memory region.  This is an Optional return
   /// value; it will only be available if the remote stub was able to
   /// detail this.
-  const llvm::Optional<std::vector<lldb::addr_t>> &GetDirtyPageList() const {
+  const std::optional<std::vector<lldb::addr_t>> &GetDirtyPageList() const {
     return m_dirty_pages;
   }
 
@@ -132,7 +137,7 @@ public:
 
   void SetDirtyPageList(std::vector<lldb::addr_t> pagelist) {
     if (m_dirty_pages)
-      m_dirty_pages.value().clear();
+      m_dirty_pages->clear();
     m_dirty_pages = std::move(pagelist);
   }
 
@@ -148,10 +153,11 @@ protected:
   lldb::offset_t m_blocksize = 0;
   OptionalBool m_memory_tagged = eDontKnow;
   OptionalBool m_is_stack_memory = eDontKnow;
+  OptionalBool m_is_shadow_stack = eDontKnow;
   int m_pagesize = 0;
-  llvm::Optional<std::vector<lldb::addr_t>> m_dirty_pages;
+  std::optional<std::vector<lldb::addr_t>> m_dirty_pages;
 };
-  
+
 inline bool operator<(const MemoryRegionInfo &lhs,
                       const MemoryRegionInfo &rhs) {
   return lhs.GetRange() < rhs.GetRange();
@@ -174,7 +180,7 @@ public:
   using std::vector<lldb_private::MemoryRegionInfo>::vector;
 };
 
-}
+} // namespace lldb_private
 
 namespace llvm {
 template <>
@@ -186,6 +192,6 @@ struct format_provider<lldb_private::MemoryRegionInfo::OptionalBool> {
   static void format(const lldb_private::MemoryRegionInfo::OptionalBool &B,
                      raw_ostream &OS, StringRef Options);
 };
-}
+} // namespace llvm
 
 #endif // LLDB_TARGET_MEMORYREGIONINFO_H

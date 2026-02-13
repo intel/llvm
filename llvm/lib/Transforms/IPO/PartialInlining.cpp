@@ -14,7 +14,7 @@
 #include "llvm/Transforms/IPO/PartialInlining.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/Optional.h"
+#include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
@@ -42,8 +42,6 @@
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/ProfDataUtils.h"
 #include "llvm/IR/User.h"
-#include "llvm/InitializePasses.h"
-#include "llvm/Pass.h"
 #include "llvm/Support/BlockFrequency.h"
 #include "llvm/Support/BranchProbability.h"
 #include "llvm/Support/Casting.h"
@@ -111,7 +109,7 @@ static cl::opt<float> MinRegionSizeRatio(
              "outline candidate and original function"));
 // Used to tune the minimum number of execution counts needed in the predecessor
 // block to the cold edge. ie. confidence interval.
-static cl::opt<unsigned>
+cl::opt<unsigned>
     MinBlockCounterExecution("min-block-execution", cl::init(100), cl::Hidden,
                              cl::desc("Minimum block executions to consider "
                                       "its BranchProbabilityInfo valid"));
@@ -163,7 +161,7 @@ struct FunctionOutliningInfo {
   // The dominating block of the region to be outlined.
   BasicBlock *NonReturnBlock = nullptr;
 
-  // The set of blocks in Entries that that are predecessors to ReturnBlock
+  // The set of blocks in Entries that are predecessors to ReturnBlock
   SmallVector<BasicBlock *, 4> ReturnBlockPreds;
 };
 
@@ -172,11 +170,10 @@ struct FunctionOutliningMultiRegionInfo {
 
   // Container for outline regions
   struct OutlineRegionInfo {
-    OutlineRegionInfo(ArrayRef<BasicBlock *> Region,
-                      BasicBlock *EntryBlock, BasicBlock *ExitBlock,
-                      BasicBlock *ReturnBlock)
-        : Region(Region.begin(), Region.end()), EntryBlock(EntryBlock),
-          ExitBlock(ExitBlock), ReturnBlock(ReturnBlock) {}
+    OutlineRegionInfo(ArrayRef<BasicBlock *> Region, BasicBlock *EntryBlock,
+                      BasicBlock *ExitBlock, BasicBlock *ReturnBlock)
+        : Region(Region), EntryBlock(EntryBlock), ExitBlock(ExitBlock),
+          ReturnBlock(ReturnBlock) {}
     SmallVector<BasicBlock *, 8> Region;
     BasicBlock *EntryBlock;
     BasicBlock *ExitBlock;
@@ -343,52 +340,6 @@ private:
                                   OptimizationRemarkEmitter &ORE) const;
 };
 
-struct PartialInlinerLegacyPass : public ModulePass {
-  static char ID; // Pass identification, replacement for typeid
-
-  PartialInlinerLegacyPass() : ModulePass(ID) {
-    initializePartialInlinerLegacyPassPass(*PassRegistry::getPassRegistry());
-  }
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequired<AssumptionCacheTracker>();
-    AU.addRequired<ProfileSummaryInfoWrapperPass>();
-    AU.addRequired<TargetTransformInfoWrapperPass>();
-    AU.addRequired<TargetLibraryInfoWrapperPass>();
-  }
-
-  bool runOnModule(Module &M) override {
-    if (skipModule(M))
-      return false;
-
-    AssumptionCacheTracker *ACT = &getAnalysis<AssumptionCacheTracker>();
-    TargetTransformInfoWrapperPass *TTIWP =
-        &getAnalysis<TargetTransformInfoWrapperPass>();
-    ProfileSummaryInfo &PSI =
-        getAnalysis<ProfileSummaryInfoWrapperPass>().getPSI();
-
-    auto GetAssumptionCache = [&ACT](Function &F) -> AssumptionCache & {
-      return ACT->getAssumptionCache(F);
-    };
-
-    auto LookupAssumptionCache = [ACT](Function &F) -> AssumptionCache * {
-      return ACT->lookupAssumptionCache(F);
-    };
-
-    auto GetTTI = [&TTIWP](Function &F) -> TargetTransformInfo & {
-      return TTIWP->getTTI(F);
-    };
-
-    auto GetTLI = [this](Function &F) -> TargetLibraryInfo & {
-      return this->getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
-    };
-
-    return PartialInlinerImpl(GetAssumptionCache, LookupAssumptionCache, GetTTI,
-                              GetTLI, PSI)
-        .run(M);
-  }
-};
-
 } // end anonymous namespace
 
 std::unique_ptr<FunctionOutliningMultiRegionInfo>
@@ -461,9 +412,9 @@ PartialInlinerImpl::computeOutliningColdRegionsInfo(
   bool ColdCandidateFound = false;
   BasicBlock *CurrEntry = EntryBlock;
   std::vector<BasicBlock *> DFS;
-  DenseMap<BasicBlock *, bool> VisitedMap;
+  SmallPtrSet<BasicBlock *, 8> VisitedSet;
   DFS.push_back(CurrEntry);
-  VisitedMap[CurrEntry] = true;
+  VisitedSet.insert(CurrEntry);
 
   // Use Depth First Search on the basic blocks to find CFG edges that are
   // considered cold.
@@ -481,9 +432,8 @@ PartialInlinerImpl::computeOutliningColdRegionsInfo(
         BBProfileCount(ThisBB) < MinBlockCounterExecution)
       continue;
     for (auto SI = succ_begin(ThisBB); SI != succ_end(ThisBB); ++SI) {
-      if (VisitedMap[*SI])
+      if (!VisitedSet.insert(*SI).second)
         continue;
-      VisitedMap[*SI] = true;
       DFS.push_back(*SI);
       // If branch isn't cold, we skip to the next one.
       BranchProbability SuccProb = BPI.getEdgeProbability(ThisBB, *SI);
@@ -540,8 +490,7 @@ PartialInlinerImpl::computeOutliningColdRegionsInfo(
       // candidate for outlining.  In the future, we may want to look
       // at inner regions because the outer region may have live-exit
       // variables.
-      for (auto *BB : DominateVector)
-        VisitedMap[BB] = true;
+      VisitedSet.insert_range(DominateVector);
 
       // ReturnBlock here means the block after the outline call
       BasicBlock *ReturnBlock = ExitBlock->getSingleSuccessor();
@@ -643,9 +592,7 @@ PartialInlinerImpl::computeOutliningInfo(Function &F) const {
   // {ReturnBlock, NonReturnBlock}
   assert(OutliningInfo->Entries[0] == &F.front() &&
          "Function Entry must be the first in Entries vector");
-  DenseSet<BasicBlock *> Entries;
-  for (BasicBlock *E : OutliningInfo->Entries)
-    Entries.insert(E);
+  DenseSet<BasicBlock *> Entries(llvm::from_range, OutliningInfo->Entries);
 
   // Returns true of BB has Predecessor which is not
   // in Entries set.
@@ -717,8 +664,7 @@ static bool hasProfileData(const Function &F, const FunctionOutliningInfo &OI) {
     BranchInst *BR = dyn_cast<BranchInst>(E->getTerminator());
     if (!BR || BR->isUnconditional())
       continue;
-    uint64_t T, F;
-    if (extractBranchWeights(*BR, T, F))
+    if (hasBranchWeightMD(*BR))
       return true;
   }
   return false;
@@ -813,10 +759,10 @@ bool PartialInlinerImpl::shouldPartialInline(
     });
     return false;
   }
-  const DataLayout &DL = Caller->getParent()->getDataLayout();
+  const DataLayout &DL = Caller->getDataLayout();
 
   // The savings of eliminating the call:
-  int NonWeightedSavings = getCallsiteCost(CB, DL);
+  int NonWeightedSavings = getCallsiteCost(CalleeTTI, CB, DL);
   BlockFrequency NormWeightedSavings(NonWeightedSavings);
 
   // Weighted saving is smaller than weighted cost, return false
@@ -853,7 +799,7 @@ InstructionCost
 PartialInlinerImpl::computeBBInlineCost(BasicBlock *BB,
                                         TargetTransformInfo *TTI) {
   InstructionCost InlineCost = 0;
-  const DataLayout &DL = BB->getParent()->getParent()->getDataLayout();
+  const DataLayout &DL = BB->getDataLayout();
   int InstrCost = InlineConstants::getInstrCost();
   for (Instruction &I : BB->instructionsWithoutDebug()) {
     // Skip free instructions.
@@ -891,12 +837,12 @@ PartialInlinerImpl::computeBBInlineCost(BasicBlock *BB,
     }
 
     if (CallInst *CI = dyn_cast<CallInst>(&I)) {
-      InlineCost += getCallsiteCost(*CI, DL);
+      InlineCost += getCallsiteCost(*TTI, *CI, DL);
       continue;
     }
 
     if (InvokeInst *II = dyn_cast<InvokeInst>(&I)) {
-      InlineCost += getCallsiteCost(*II, DL);
+      InlineCost += getCallsiteCost(*TTI, *II, DL);
       continue;
     }
 
@@ -970,9 +916,6 @@ void PartialInlinerImpl::computeCallsiteToProfCountMap(
   };
 
   for (User *User : Users) {
-    // Don't bother with BlockAddress used by CallBr for asm goto.
-    if (isa<BlockAddress>(User))
-      continue;
     CallBase *CB = getSupportedCallBase(User);
     Function *Caller = CB->getCaller();
     if (CurrentCaller != Caller) {
@@ -1029,7 +972,7 @@ PartialInlinerImpl::FunctionCloner::FunctionCloner(
 
   // Go through all Outline Candidate Regions and update all BasicBlock
   // information.
-  for (FunctionOutliningMultiRegionInfo::OutlineRegionInfo RegionInfo :
+  for (const FunctionOutliningMultiRegionInfo::OutlineRegionInfo &RegionInfo :
        OI->ORI) {
     SmallVector<BasicBlock *, 8> Region;
     for (BasicBlock *BB : RegionInfo.Region)
@@ -1089,9 +1032,9 @@ void PartialInlinerImpl::FunctionCloner::normalizeReturnBlock() const {
   };
 
   ClonedOI->ReturnBlock = ClonedOI->ReturnBlock->splitBasicBlock(
-      ClonedOI->ReturnBlock->getFirstNonPHI()->getIterator());
+      ClonedOI->ReturnBlock->getFirstNonPHIIt());
   BasicBlock::iterator I = PreReturn->begin();
-  Instruction *Ins = &ClonedOI->ReturnBlock->front();
+  BasicBlock::iterator Ins = ClonedOI->ReturnBlock->begin();
   SmallVector<Instruction *, 4> DeadPhis;
   while (I != PreReturn->end()) {
     PHINode *OldPhi = dyn_cast<PHINode>(I);
@@ -1099,9 +1042,10 @@ void PartialInlinerImpl::FunctionCloner::normalizeReturnBlock() const {
       break;
 
     PHINode *RetPhi =
-        PHINode::Create(OldPhi->getType(), NumPredsFromEntries + 1, "", Ins);
+        PHINode::Create(OldPhi->getType(), NumPredsFromEntries + 1, "");
+    RetPhi->insertBefore(Ins);
     OldPhi->replaceAllUsesWith(RetPhi);
-    Ins = ClonedOI->ReturnBlock->getFirstNonPHI();
+    Ins = ClonedOI->ReturnBlock->getFirstNonPHIIt();
 
     RetPhi->addIncoming(&*I, PreReturn);
     for (BasicBlock *E : ClonedOI->ReturnBlockPreds) {
@@ -1228,14 +1172,14 @@ PartialInlinerImpl::FunctionCloner::doSingleRegionFunctionOutlining() {
   ToExtract.push_back(ClonedOI->NonReturnBlock);
   OutlinedRegionCost += PartialInlinerImpl::computeBBInlineCost(
       ClonedOI->NonReturnBlock, ClonedFuncTTI);
-  for (BasicBlock &BB : *ClonedFunc)
-    if (!ToBeInlined(&BB) && &BB != ClonedOI->NonReturnBlock) {
-      ToExtract.push_back(&BB);
+  for (BasicBlock *BB : depth_first(&ClonedFunc->getEntryBlock()))
+    if (!ToBeInlined(BB) && BB != ClonedOI->NonReturnBlock) {
+      ToExtract.push_back(BB);
       // FIXME: the code extractor may hoist/sink more code
       // into the outlined function which may make the outlining
       // overhead (the difference of the outlined function cost
       // and OutliningRegionCost) look larger.
-      OutlinedRegionCost += computeBBInlineCost(&BB, ClonedFuncTTI);
+      OutlinedRegionCost += computeBBInlineCost(BB, ClonedFuncTTI);
     }
 
   // Extract the body of the if.
@@ -1373,7 +1317,7 @@ bool PartialInlinerImpl::tryPartialInline(FunctionCloner &Cloner) {
     RelativeToEntryFreq = BranchProbability(0, 1);
 
   BlockFrequency WeightedRcost =
-      BlockFrequency(*NonWeightedRcost.getValue()) * RelativeToEntryFreq;
+      BlockFrequency(NonWeightedRcost.getValue()) * RelativeToEntryFreq;
 
   // The call sequence(s) to the outlined function(s) are larger than the sum of
   // the original outlined region size(s), it does not increase the chances of
@@ -1412,10 +1356,6 @@ bool PartialInlinerImpl::tryPartialInline(FunctionCloner &Cloner) {
 
   bool AnyInline = false;
   for (User *User : Users) {
-    // Don't bother with BlockAddress used by CallBr for asm goto.
-    if (isa<BlockAddress>(User))
-      continue;
-
     CallBase *CB = getSupportedCallBase(User);
 
     if (isLimitReached())
@@ -1431,7 +1371,7 @@ bool PartialInlinerImpl::tryPartialInline(FunctionCloner &Cloner) {
     OR << ore::NV("Callee", Cloner.OrigFunc) << " partially inlined into "
        << ore::NV("Caller", CB->getCaller());
 
-    InlineFunctionInfo IFI(nullptr, GetAssumptionCache, &PSI);
+    InlineFunctionInfo IFI(GetAssumptionCache, &PSI);
     // We can only forward varargs when we outlined a single region, else we
     // bail on vararg functions.
     if (!InlineFunction(*CB, IFI, /*MergeAttributes=*/false, nullptr, true,
@@ -1443,9 +1383,12 @@ bool PartialInlinerImpl::tryPartialInline(FunctionCloner &Cloner) {
     CallerORE.emit(OR);
 
     // Now update the entry count:
-    if (CalleeEntryCountV && CallSiteToProfCountMap.count(User)) {
-      uint64_t CallSiteCount = CallSiteToProfCountMap[User];
-      CalleeEntryCountV -= std::min(CalleeEntryCountV, CallSiteCount);
+    if (CalleeEntryCountV) {
+      if (auto It = CallSiteToProfCountMap.find(User);
+          It != CallSiteToProfCountMap.end()) {
+        uint64_t CallSiteCount = It->second;
+        CalleeEntryCountV -= std::min(CalleeEntryCountV, CallSiteCount);
+      }
     }
 
     AnyInline = true;
@@ -1490,16 +1433,6 @@ bool PartialInlinerImpl::run(Module &M) {
     if (CurrFunc->use_empty())
       continue;
 
-    bool Recursive = false;
-    for (User *U : CurrFunc->users())
-      if (Instruction *I = dyn_cast<Instruction>(U))
-        if (I->getParent()->getParent() == CurrFunc) {
-          Recursive = true;
-          break;
-        }
-    if (Recursive)
-      continue;
-
     std::pair<bool, Function *> Result = unswitchFunction(*CurrFunc);
     if (Result.second)
       Worklist.push_back(Result.second);
@@ -1507,21 +1440,6 @@ bool PartialInlinerImpl::run(Module &M) {
   }
 
   return Changed;
-}
-
-char PartialInlinerLegacyPass::ID = 0;
-
-INITIALIZE_PASS_BEGIN(PartialInlinerLegacyPass, "partial-inliner",
-                      "Partial Inliner", false, false)
-INITIALIZE_PASS_DEPENDENCY(AssumptionCacheTracker)
-INITIALIZE_PASS_DEPENDENCY(ProfileSummaryInfoWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(TargetTransformInfoWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
-INITIALIZE_PASS_END(PartialInlinerLegacyPass, "partial-inliner",
-                    "Partial Inliner", false, false)
-
-ModulePass *llvm::createPartialInliningPass() {
-  return new PartialInlinerLegacyPass();
 }
 
 PreservedAnalyses PartialInlinerPass::run(Module &M,

@@ -1,5 +1,4 @@
-; RUN: opt %loadPolly -polly-stmt-granularity=bb -polly-print-simplify -disable-output < %s | FileCheck %s -match-full-lines
-; RUN: opt %loadNPMPolly -polly-stmt-granularity=bb "-passes=scop(print<polly-simplify>)" -disable-output -aa-pipeline=basic-aa < %s | FileCheck %s -match-full-lines
+; RUN: opt %loadNPMPolly -polly-stmt-granularity=bb '-passes=polly-custom<simplify>' -polly-print-simplify -disable-output -aa-pipeline=basic-aa < %s | FileCheck %s -match-full-lines
 ;
 ; Remove a dead PHI write/read pair
 ; (accesses that are effectively not used)
@@ -12,7 +11,7 @@
 ;   A[0] = 42.0;
 ; }
 ;
-define void @func(i32 %n, double* noalias nonnull %A) {
+define void @func(i32 %n, ptr noalias nonnull %A) {
 entry:
   br label %for
 
@@ -26,7 +25,7 @@ for:
 
     body_succ:
       %phi = phi double [42.0, %body]
-      store double 42.0, double* %A
+      store double 42.0, ptr %A
       br label %inc
 
 inc:

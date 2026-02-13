@@ -34,7 +34,7 @@ public:
   using ValueType = void;
   using AbstractTy = AbstractAttribute;
 
-  constexpr Attribute() {}
+  constexpr Attribute() = default;
   /* implicit */ Attribute(const ImplType *impl)
       : impl(const_cast<ImplType *>(impl)) {}
 
@@ -46,22 +46,6 @@ public:
   explicit operator bool() const { return impl; }
 
   bool operator!() const { return impl == nullptr; }
-
-  /// Casting utility functions. These are deprecated and will be removed,
-  /// please prefer using the `llvm` namespace variants instead.
-  template <typename... Tys>
-  bool isa() const;
-  template <typename... Tys>
-  bool isa_and_nonnull() const;
-  template <typename U>
-  U dyn_cast() const;
-  template <typename U>
-  U dyn_cast_or_null() const;
-  template <typename U>
-  U cast() const;
-
-  // Support dyn_cast'ing Attribute to itself.
-  static bool classof(Attribute) { return true; }
 
   /// Return a unique identifier for the concrete attribute type. This is used
   /// to support dynamic type casting.
@@ -81,6 +65,10 @@ public:
   void print(raw_ostream &os, AsmState &state, bool elideType = false) const;
   void dump() const;
 
+  /// Print the attribute without dialect wrapping.
+  void printStripped(raw_ostream &os) const;
+  void printStripped(raw_ostream &os, AsmState &state) const;
+
   /// Get an opaque pointer to the attribute.
   const void *getAsOpaquePointer() const { return impl; }
   /// Construct an attribute from the opaque pointer representation.
@@ -89,6 +77,15 @@ public:
   }
 
   friend ::llvm::hash_code hash_value(Attribute arg);
+
+  /// Returns true if `InterfaceT` has been promised by the dialect or
+  /// implemented.
+  template <typename InterfaceT>
+  bool hasPromiseOrImplementsInterface() {
+    return dialect_extension_detail::hasPromisedInterface(
+               getDialect(), getTypeID(), InterfaceT::getInterfaceID()) ||
+           mlir::isa<InterfaceT>(*this);
+  }
 
   /// Returns true if the type was registered with a particular trait.
   template <template <typename T> class Trait>
@@ -99,6 +96,48 @@ public:
   /// Return the abstract descriptor for this attribute.
   const AbstractTy &getAbstractAttribute() const {
     return impl->getAbstractAttribute();
+  }
+
+  /// Walk all of the immediately nested sub-attributes and sub-types. This
+  /// method does not recurse into sub elements.
+  void walkImmediateSubElements(function_ref<void(Attribute)> walkAttrsFn,
+                                function_ref<void(Type)> walkTypesFn) const {
+    getAbstractAttribute().walkImmediateSubElements(*this, walkAttrsFn,
+                                                    walkTypesFn);
+  }
+
+  /// Replace the immediately nested sub-attributes and sub-types with those
+  /// provided. The order of the provided elements is derived from the order of
+  /// the elements returned by the callbacks of `walkImmediateSubElements`. The
+  /// element at index 0 would replace the very first attribute given by
+  /// `walkImmediateSubElements`. On success, the new instance with the values
+  /// replaced is returned. If replacement fails, nullptr is returned.
+  auto replaceImmediateSubElements(ArrayRef<Attribute> replAttrs,
+                                   ArrayRef<Type> replTypes) const {
+    return getAbstractAttribute().replaceImmediateSubElements(*this, replAttrs,
+                                                              replTypes);
+  }
+
+  /// Walk this attribute and all attibutes/types nested within using the
+  /// provided walk functions. See `AttrTypeWalker` for information on the
+  /// supported walk function types.
+  template <WalkOrder Order = WalkOrder::PostOrder, typename... WalkFns>
+  auto walk(WalkFns &&...walkFns) {
+    AttrTypeWalker walker;
+    (walker.addWalk(std::forward<WalkFns>(walkFns)), ...);
+    return walker.walk<Order>(*this);
+  }
+
+  /// Recursively replace all of the nested sub-attributes and sub-types using
+  /// the provided map functions. Returns nullptr in the case of failure. See
+  /// `AttrTypeReplacer` for information on the support replacement function
+  /// types.
+  template <typename... ReplacementFns>
+  auto replace(ReplacementFns &&...replacementFns) {
+    AttrTypeReplacer replacer;
+    (replacer.addReplacement(std::forward<ReplacementFns>(replacementFns)),
+     ...);
+    return replacer.replace(*this);
   }
 
   /// Return the internal Attribute implementation.
@@ -113,31 +152,6 @@ inline raw_ostream &operator<<(raw_ostream &os, Attribute attr) {
   return os;
 }
 
-template <typename... Tys>
-bool Attribute::isa() const {
-  return llvm::isa<Tys...>(*this);
-}
-
-template <typename... Tys>
-bool Attribute::isa_and_nonnull() const {
-  return llvm::isa_and_present<Tys...>(*this);
-}
-
-template <typename U>
-U Attribute::dyn_cast() const {
-  return llvm::dyn_cast<U>(*this);
-}
-
-template <typename U>
-U Attribute::dyn_cast_or_null() const {
-  return llvm::dyn_cast_if_present<U>(*this);
-}
-
-template <typename U>
-U Attribute::cast() const {
-  return llvm::cast<U>(*this);
-}
-
 inline ::llvm::hash_code hash_value(Attribute arg) {
   return DenseMapInfo<const Attribute::ImplType *>::getHashValue(arg.impl);
 }
@@ -150,6 +164,7 @@ inline ::llvm::hash_code hash_value(Attribute arg) {
 class NamedAttribute {
 public:
   NamedAttribute(StringAttr name, Attribute value);
+  NamedAttribute(StringRef name, Attribute value);
 
   /// Return the name of the attribute.
   StringAttr getName() const;
@@ -201,6 +216,22 @@ inline ::llvm::hash_code hash_value(const NamedAttribute &arg) {
   return DenseMapInfo<AttrPairT>::getHashValue(AttrPairT(arg.name, arg.value));
 }
 
+/// Allow walking and replacing the subelements of a NamedAttribute.
+template <>
+struct AttrTypeSubElementHandler<NamedAttribute> {
+  template <typename T>
+  static void walk(T param, AttrTypeImmediateSubElementWalker &walker) {
+    walker.walk(param.getName());
+    walker.walk(param.getValue());
+  }
+  template <typename T>
+  static T replace(T param, AttrSubElementReplacements &attrRepls,
+                   TypeSubElementReplacements &typeRepls) {
+    ArrayRef<Attribute> paramRepls = attrRepls.take_front(2);
+    return T(cast<decltype(param.getName())>(paramRepls[0]), paramRepls[1]);
+  }
+};
+
 //===----------------------------------------------------------------------===//
 // AttributeTraitBase
 //===----------------------------------------------------------------------===//
@@ -227,9 +258,17 @@ public:
                                           Attribute, AttributeTrait::TraitBase>;
   using InterfaceBase::InterfaceBase;
 
-private:
+protected:
   /// Returns the impl interface instance for the given type.
   static typename InterfaceBase::Concept *getInterfaceFor(Attribute attr) {
+#ifndef NDEBUG
+    // Check that the current interface isn't an unresolved promise for the
+    // given attribute.
+    dialect_extension_detail::handleUseOfUndefinedPromisedInterface(
+        attr.getDialect(), attr.getTypeID(), ConcreteType::getInterfaceID(),
+        llvm::getTypeName<ConcreteType>());
+#endif
+
     return attr.getAbstractAttribute().getInterface<ConcreteType>();
   }
 
@@ -241,12 +280,19 @@ private:
 // Core AttributeTrait
 //===----------------------------------------------------------------------===//
 
-/// This trait is used to determine if an attribute is mutable or not. It is
-/// attached on an attribute if the corresponding ImplType defines a `mutate`
-/// function with proper signature.
 namespace AttributeTrait {
+/// This trait is used to determine if an attribute is mutable or not. It is
+/// attached on an attribute if the corresponding ConcreteType defines a
+/// `mutate` function with proper signature.
 template <typename ConcreteType>
 using IsMutable = detail::StorageUserTrait::IsMutable<ConcreteType>;
+
+/// This trait is used to determine if an attribute is a location or not. It is
+/// attached to an attribute by the user if they intend the attribute to be used
+/// as a location.
+template <typename ConcreteType>
+struct IsLocation : public AttributeTrait::TraitBase<ConcreteType, IsLocation> {
+};
 } // namespace AttributeTrait
 
 } // namespace mlir.
@@ -336,8 +382,11 @@ struct CastInfo<To, From,
   static inline bool isPossible(mlir::Attribute ty) {
     /// Return a constant true instead of a dynamic true when casting to self or
     /// up the hierarchy.
-    return std::is_same_v<To, std::remove_const_t<From>> ||
-           std::is_base_of_v<To, From> || To::classof(ty);
+    if constexpr (std::is_base_of_v<To, From>) {
+      return true;
+    } else {
+      return To::classof(ty);
+    }
   }
   static inline To doCast(mlir::Attribute attr) { return To(attr.getImpl()); }
 };

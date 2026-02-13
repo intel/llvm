@@ -19,10 +19,12 @@
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Lex/LexDiagnostic.h"
 #include "clang/Lex/Lexer.h"
+#include "clang/Lex/Pragma.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringSwitch.h"
+#include <optional>
 
 using namespace clang;
 using namespace clang::dependency_directives_scan;
@@ -71,6 +73,8 @@ struct Scanner {
     // Set the lexer to use 'tok::at' for '@', instead of 'tok::unknown'.
     LangOpts.ObjC = true;
     LangOpts.LineComment = true;
+    LangOpts.RawStringLiterals = true;
+    // FIXME: we do not enable C11 or C++11, so we are missing u/u8/U"".
     return LangOpts;
   }
 
@@ -84,18 +88,22 @@ private:
   [[nodiscard]] dependency_directives_scan::Token &
   lexToken(const char *&First, const char *const End);
 
-  dependency_directives_scan::Token &lexIncludeFilename(const char *&First,
-                                                        const char *const End);
+  [[nodiscard]] dependency_directives_scan::Token &
+  lexIncludeFilename(const char *&First, const char *const End);
 
   void skipLine(const char *&First, const char *const End);
   void skipDirective(StringRef Name, const char *&First, const char *const End);
 
+  /// Returns the spelling of a string literal or identifier after performing
+  /// any processing needed to handle \c clang::Token::NeedsCleaning.
+  StringRef cleanStringIfNeeded(const dependency_directives_scan::Token &Tok);
+
   /// Lexes next token and if it is identifier returns its string, otherwise
-  /// it skips the current line and returns \p None.
+  /// it skips the current line and returns \p std::nullopt.
   ///
   /// In any case (whatever the token kind) \p First and the \p Lexer will
   /// advance beyond the token.
-  [[nodiscard]] Optional<StringRef>
+  [[nodiscard]] std::optional<StringRef>
   tryLexIdentifierOrSkipLine(const char *&First, const char *const End);
 
   /// Used when it is certain that next token is an identifier.
@@ -111,6 +119,22 @@ private:
                                                 const char *&First,
                                                 const char *const End);
 
+  /// Lexes next token and returns true iff it matches the kind \p K.
+  /// Otherwise it skips the current line and returns false.
+  ///
+  /// In any case (whatever the token kind) \p First and the \p Lexer will
+  /// advance beyond the token.
+  [[nodiscard]] bool isNextTokenOrSkipLine(tok::TokenKind K, const char *&First,
+                                           const char *const End);
+
+  /// Lexes next token and if it is string literal, returns its string.
+  /// Otherwise, it skips the current line and returns \p std::nullopt.
+  ///
+  /// In any case (whatever the token kind) \p First and the \p Lexer will
+  /// advance beyond the token.
+  [[nodiscard]] std::optional<StringRef>
+  tryLexStringLiteralOrSkipLine(const char *&First, const char *const End);
+
   [[nodiscard]] bool scanImpl(const char *First, const char *const End);
   [[nodiscard]] bool lexPPLine(const char *&First, const char *const End);
   [[nodiscard]] bool lexAt(const char *&First, const char *const End);
@@ -118,6 +142,7 @@ private:
   [[nodiscard]] bool lexDefine(const char *HashLoc, const char *&First,
                                const char *const End);
   [[nodiscard]] bool lexPragma(const char *&First, const char *const End);
+  [[nodiscard]] bool lex_Pragma(const char *&First, const char *const End);
   [[nodiscard]] bool lexEndif(const char *&First, const char *const End);
   [[nodiscard]] bool lexDefault(DirectiveKind Kind, const char *&First,
                                 const char *const End);
@@ -181,6 +206,30 @@ static void skipOverSpaces(const char *&First, const char *const End) {
     ++First;
 }
 
+// Move back by one character, skipping escaped newlines (backslash + \n)
+static char previousChar(const char *First, const char *&Current) {
+  assert(Current > First);
+  --Current;
+  while (Current > First && isVerticalWhitespace(*Current)) {
+    // Check if the previous character is a backslash
+    if (Current > First && *(Current - 1) == '\\') {
+      // Use Lexer's getEscapedNewLineSize to get the size of the escaped
+      // newline
+      unsigned EscapeSize = Lexer::getEscapedNewLineSize(Current);
+      if (EscapeSize > 0) {
+        // Skip back over the entire escaped newline sequence (backslash +
+        // newline)
+        Current -= (1 + EscapeSize);
+      } else {
+        break;
+      }
+    } else {
+      break;
+    }
+  }
+  return *Current;
+}
+
 [[nodiscard]] static bool isRawStringLiteral(const char *First,
                                              const char *Current) {
   assert(First <= Current);
@@ -190,25 +239,27 @@ static void skipOverSpaces(const char *&First, const char *const End) {
     return false;
 
   // Check for an "R".
-  --Current;
-  if (*Current != 'R')
+  if (previousChar(First, Current) != 'R')
     return false;
-  if (First == Current || !isAsciiIdentifierContinue(*--Current))
+  if (First == Current ||
+      !isAsciiIdentifierContinue(previousChar(First, Current)))
     return true;
 
   // Check for a prefix of "u", "U", or "L".
   if (*Current == 'u' || *Current == 'U' || *Current == 'L')
-    return First == Current || !isAsciiIdentifierContinue(*--Current);
+    return First == Current ||
+           !isAsciiIdentifierContinue(previousChar(First, Current));
 
   // Check for a prefix of "u8".
-  if (*Current != '8' || First == Current || *Current-- != 'u')
+  if (*Current != '8' || First == Current ||
+      previousChar(First, Current) != 'u')
     return false;
-  return First == Current || !isAsciiIdentifierContinue(*--Current);
+  return First == Current ||
+         !isAsciiIdentifierContinue(previousChar(First, Current));
 }
 
 static void skipRawString(const char *&First, const char *const End) {
   assert(First[0] == '"');
-  assert(First[-1] == 'R');
 
   const char *Last = ++First;
   while (Last != End && *Last != '(')
@@ -298,10 +349,6 @@ static unsigned skipNewline(const char *&First, const char *End) {
   return Len;
 }
 
-static bool wasLineContinuation(const char *First, unsigned EOLLen) {
-  return *(First - (int)EOLLen - 1) == '\\';
-}
-
 static void skipToNewlineRaw(const char *&First, const char *const End) {
   for (;;) {
     if (First == End)
@@ -311,13 +358,16 @@ static void skipToNewlineRaw(const char *&First, const char *const End) {
     if (Len)
       return;
 
+    char LastNonWhitespace = ' ';
     do {
+      if (!isHorizontalWhitespace(*First))
+        LastNonWhitespace = *First;
       if (++First == End)
         return;
       Len = isEOL(First, End);
     } while (!Len);
 
-    if (First[-1] != '\\')
+    if (LastNonWhitespace != '\\')
       return;
 
     First += Len;
@@ -344,7 +394,7 @@ static void skipBlockComment(const char *&First, const char *const End) {
     }
 }
 
-/// \returns True if the current single quotation mark character is a C++ 14
+/// \returns True if the current single quotation mark character is a C++14
 /// digit separator.
 static bool isQuoteCppDigitSeparator(const char *const Start,
                                      const char *const Cur,
@@ -379,6 +429,9 @@ void Scanner::skipLine(const char *&First, const char *const End) {
       return;
     }
     const char *Start = First;
+    // Use `LastNonWhitespace`to track if a line-continuation has ever been seen
+    // before a new-line character:
+    char LastNonWhitespace = ' ';
     while (First != End && !isVerticalWhitespace(*First)) {
       // Iterate over strings correctly to avoid comments and newlines.
       if (*First == '"' ||
@@ -391,9 +444,19 @@ void Scanner::skipLine(const char *&First, const char *const End) {
         continue;
       }
 
+      // Continue on the same line if an EOL is preceded with backslash
+      if (First + 1 < End && *First == '\\') {
+        if (unsigned Len = isEOL(First + 1, End)) {
+          First += 1 + Len;
+          continue;
+        }
+      }
+
       // Iterate over comments correctly.
       if (*First != '/' || End - First < 2) {
         LastTokenPtr = First;
+        if (!isWhitespace(*First))
+          LastNonWhitespace = *First;
         ++First;
         continue;
       }
@@ -406,6 +469,8 @@ void Scanner::skipLine(const char *&First, const char *const End) {
 
       if (First[1] != '*') {
         LastTokenPtr = First;
+        if (!isWhitespace(*First))
+          LastNonWhitespace = *First;
         ++First;
         continue;
       }
@@ -417,8 +482,9 @@ void Scanner::skipLine(const char *&First, const char *const End) {
       return;
 
     // Skip over the newline.
-    unsigned Len = skipNewline(First, End);
-    if (!wasLineContinuation(First, Len)) // Continue past line-continuations.
+    skipNewline(First, End);
+
+    if (LastNonWhitespace != '\\')
       break;
   }
 }
@@ -443,9 +509,16 @@ static void skipWhitespace(const char *&First, const char *const End) {
     if (End - First < 2)
       return;
 
-    if (First[0] == '\\' && isVerticalWhitespace(First[1])) {
-      skipNewline(++First, End);
-      continue;
+    if (*First == '\\') {
+      const char *Ptr = First + 1;
+      while (Ptr < End && isHorizontalWhitespace(*Ptr))
+        ++Ptr;
+      if (Ptr != End && isVerticalWhitespace(*Ptr)) {
+        skipNewline(Ptr, End);
+        First = Ptr;
+        continue;
+      }
+      return;
     }
 
     // Check for a non-comment character.
@@ -471,7 +544,15 @@ bool Scanner::lexModuleDirectiveBody(DirectiveKind Kind, const char *&First,
                                      const char *const End) {
   const char *DirectiveLoc = Input.data() + CurDirToks.front().Offset;
   for (;;) {
+    // Keep a copy of the First char incase it needs to be reset.
+    const char *Previous = First;
     const dependency_directives_scan::Token &Tok = lexToken(First, End);
+    if ((Tok.is(tok::hash) || Tok.is(tok::at)) &&
+        (Tok.Flags & clang::Token::StartOfLine)) {
+      CurDirToks.pop_back();
+      First = Previous;
+      return false;
+    }
     if (Tok.is(tok::eof))
       return reportError(
           DirectiveLoc,
@@ -479,15 +560,13 @@ bool Scanner::lexModuleDirectiveBody(DirectiveKind Kind, const char *&First,
     if (Tok.is(tok::semi))
       break;
   }
+
+  const auto &Tok = lexToken(First, End);
   pushDirective(Kind);
-  skipWhitespace(First, End);
-  if (First == End)
+  if (Tok.is(tok::eof) || Tok.is(tok::eod))
     return false;
-  if (!isVerticalWhitespace(*First))
-    return reportError(
-        DirectiveLoc, diag::err_dep_source_scanner_unexpected_tokens_at_import);
-  skipNewline(First, End);
-  return false;
+  return reportError(DirectiveLoc,
+                     diag::err_dep_source_scanner_unexpected_tokens_at_import);
 }
 
 dependency_directives_scan::Token &Scanner::lexToken(const char *&First,
@@ -519,20 +598,13 @@ Scanner::lexIncludeFilename(const char *&First, const char *const End) {
 void Scanner::lexPPDirectiveBody(const char *&First, const char *const End) {
   while (true) {
     const dependency_directives_scan::Token &Tok = lexToken(First, End);
-    if (Tok.is(tok::eod))
+    if (Tok.is(tok::eod) || Tok.is(tok::eof))
       break;
   }
 }
 
-[[nodiscard]] Optional<StringRef>
-Scanner::tryLexIdentifierOrSkipLine(const char *&First, const char *const End) {
-  const dependency_directives_scan::Token &Tok = lexToken(First, End);
-  if (Tok.isNot(tok::raw_identifier)) {
-    if (!Tok.is(tok::eod))
-      skipLine(First, End);
-    return None;
-  }
-
+StringRef
+Scanner::cleanStringIfNeeded(const dependency_directives_scan::Token &Tok) {
   bool NeedsCleaning = Tok.Flags & clang::Token::NeedsCleaning;
   if (LLVM_LIKELY(!NeedsCleaning))
     return Input.slice(Tok.Offset, Tok.getEnd());
@@ -540,13 +612,15 @@ Scanner::tryLexIdentifierOrSkipLine(const char *&First, const char *const End) {
   SmallString<64> Spelling;
   Spelling.resize(Tok.Length);
 
+  // FIXME: C++11 raw string literals need special handling (see getSpellingSlow
+  // in the Lexer). Currently we cannot see them due to our LangOpts.
+
   unsigned SpellingLength = 0;
   const char *BufPtr = Input.begin() + Tok.Offset;
   const char *AfterIdent = Input.begin() + Tok.getEnd();
   while (BufPtr < AfterIdent) {
-    unsigned Size;
-    Spelling[SpellingLength++] =
-        Lexer::getCharAndSizeNoWarn(BufPtr, Size, LangOpts);
+    auto [Char, Size] = Lexer::getCharAndSizeNoWarn(BufPtr, LangOpts);
+    Spelling[SpellingLength++] = Char;
     BufPtr += Size;
   }
 
@@ -554,20 +628,55 @@ Scanner::tryLexIdentifierOrSkipLine(const char *&First, const char *const End) {
       .first->first();
 }
 
+std::optional<StringRef>
+Scanner::tryLexIdentifierOrSkipLine(const char *&First, const char *const End) {
+  const dependency_directives_scan::Token &Tok = lexToken(First, End);
+  if (Tok.isNot(tok::raw_identifier)) {
+    if (!Tok.is(tok::eod))
+      skipLine(First, End);
+    return std::nullopt;
+  }
+
+  return cleanStringIfNeeded(Tok);
+}
+
 StringRef Scanner::lexIdentifier(const char *&First, const char *const End) {
-  Optional<StringRef> Id = tryLexIdentifierOrSkipLine(First, End);
+  std::optional<StringRef> Id = tryLexIdentifierOrSkipLine(First, End);
   assert(Id && "expected identifier token");
-  return Id.value();
+  return *Id;
 }
 
 bool Scanner::isNextIdentifierOrSkipLine(StringRef Id, const char *&First,
                                          const char *const End) {
-  if (Optional<StringRef> FoundId = tryLexIdentifierOrSkipLine(First, End)) {
+  if (std::optional<StringRef> FoundId =
+          tryLexIdentifierOrSkipLine(First, End)) {
     if (*FoundId == Id)
       return true;
     skipLine(First, End);
   }
   return false;
+}
+
+bool Scanner::isNextTokenOrSkipLine(tok::TokenKind K, const char *&First,
+                                    const char *const End) {
+  const dependency_directives_scan::Token &Tok = lexToken(First, End);
+  if (Tok.is(K))
+    return true;
+  skipLine(First, End);
+  return false;
+}
+
+std::optional<StringRef>
+Scanner::tryLexStringLiteralOrSkipLine(const char *&First,
+                                       const char *const End) {
+  const dependency_directives_scan::Token &Tok = lexToken(First, End);
+  if (!tok::isStringLiteral(Tok.Kind)) {
+    if (!Tok.is(tok::eod))
+      skipLine(First, End);
+    return std::nullopt;
+  }
+
+  return cleanStringIfNeeded(Tok);
 }
 
 bool Scanner::lexAt(const char *&First, const char *const End) {
@@ -588,7 +697,7 @@ bool Scanner::lexModule(const char *&First, const char *const End) {
   bool Export = false;
   if (Id == "export") {
     Export = true;
-    Optional<StringRef> NextId = tryLexIdentifierOrSkipLine(First, End);
+    std::optional<StringRef> NextId = tryLexIdentifierOrSkipLine(First, End);
     if (!NextId)
       return false;
     Id = *NextId;
@@ -605,7 +714,32 @@ bool Scanner::lexModule(const char *&First, const char *const End) {
   // an import.
 
   switch (*First) {
-  case ':':
+  case ':': {
+    // `module :` is never the start of a valid module declaration.
+    if (Id == "module") {
+      skipLine(First, End);
+      return false;
+    }
+    // A module partition starts with exactly one ':'. If we have '::', this is
+    // a scope resolution instead and shouldn't be recognized as a directive
+    // per P1857R3.
+    if (First + 1 != End && First[1] == ':') {
+      skipLine(First, End);
+      return false;
+    }
+    // `import:(type)name` is a valid ObjC method decl, so check one more token.
+    (void)lexToken(First, End);
+    if (!tryLexIdentifierOrSkipLine(First, End))
+      return false;
+    break;
+  }
+  case ';': {
+    // Handle the global module fragment `module;`.
+    if (Id == "module" && !Export)
+      break;
+    skipLine(First, End);
+    return false;
+  }
   case '<':
   case '"':
     break;
@@ -627,8 +761,43 @@ bool Scanner::lexModule(const char *&First, const char *const End) {
   return lexModuleDirectiveBody(Kind, First, End);
 }
 
+bool Scanner::lex_Pragma(const char *&First, const char *const End) {
+  if (!isNextTokenOrSkipLine(tok::l_paren, First, End))
+    return false;
+
+  std::optional<StringRef> Str = tryLexStringLiteralOrSkipLine(First, End);
+
+  if (!Str || !isNextTokenOrSkipLine(tok::r_paren, First, End))
+    return false;
+
+  SmallString<64> Buffer(*Str);
+  prepare_PragmaString(Buffer);
+
+  // Use a new scanner instance since the tokens will be inside the allocated
+  // string. We should already have captured all the relevant tokens in the
+  // current scanner.
+  SmallVector<dependency_directives_scan::Token> DiscardTokens;
+  const char *Begin = Buffer.c_str();
+  Scanner PragmaScanner{StringRef(Begin, Buffer.size()), DiscardTokens, Diags,
+                        InputSourceLoc};
+
+  PragmaScanner.TheLexer.setParsingPreprocessorDirective(true);
+  if (PragmaScanner.lexPragma(Begin, Buffer.end()))
+    return true;
+
+  DirectiveKind K = PragmaScanner.topDirective();
+  if (K == pp_none) {
+    skipLine(First, End);
+    return false;
+  }
+
+  assert(Begin == Buffer.end());
+  pushDirective(K);
+  return false;
+}
+
 bool Scanner::lexPragma(const char *&First, const char *const End) {
-  Optional<StringRef> FoundId = tryLexIdentifierOrSkipLine(First, End);
+  std::optional<StringRef> FoundId = tryLexIdentifierOrSkipLine(First, End);
   if (!FoundId)
     return false;
 
@@ -650,9 +819,22 @@ bool Scanner::lexPragma(const char *&First, const char *const End) {
     return false;
   }
 
-  // #pragma clang.
-  if (!isNextIdentifierOrSkipLine("module", First, End))
+  FoundId = tryLexIdentifierOrSkipLine(First, End);
+  if (!FoundId)
     return false;
+  Id = *FoundId;
+
+  // #pragma clang system_header
+  if (Id == "system_header") {
+    lexPPDirectiveBody(First, End);
+    pushDirective(pp_pragma_system_header);
+    return false;
+  }
+
+  if (Id != "module") {
+    skipLine(First, End);
+    return false;
+  }
 
   // #pragma clang module.
   if (!isNextIdentifierOrSkipLine("import", First, End))
@@ -698,6 +880,7 @@ static bool isStartOfRelevantLine(char First) {
   case 'i':
   case 'e':
   case 'm':
+  case '_':
     return true;
   }
   return false;
@@ -721,24 +904,31 @@ bool Scanner::lexPPLine(const char *&First, const char *const End) {
 
   TheLexer.seek(getOffsetAt(First), /*IsAtStartOfLine*/ true);
 
-  auto ScEx1 = make_scope_exit([&]() {
+  llvm::scope_exit ScEx1([&]() {
     /// Clear Scanner's CurDirToks before returning, in case we didn't push a
     /// new directive.
     CurDirToks.clear();
   });
 
-  // Handle "@import".
-  if (*First == '@')
-    return lexAt(First, End);
-
-  if (*First == 'i' || *First == 'e' || *First == 'm')
-    return lexModule(First, End);
+  if (*First == '_') {
+    if (isNextIdentifierOrSkipLine("_Pragma", First, End))
+      return lex_Pragma(First, End);
+    return false;
+  }
 
   // Handle preprocessing directives.
 
   TheLexer.setParsingPreprocessorDirective(true);
-  auto ScEx2 = make_scope_exit(
+  llvm::scope_exit ScEx2(
       [&]() { TheLexer.setParsingPreprocessorDirective(false); });
+
+  // Handle "@import".
+  if (*First == '@')
+    return lexAt(First, End);
+
+  // Handle module directives for C++20 modules.
+  if (*First == 'i' || *First == 'e' || *First == 'm')
+    return lexModule(First, End);
 
   // Lex '#'.
   const dependency_directives_scan::Token &HashTok = lexToken(First, End);
@@ -753,7 +943,7 @@ bool Scanner::lexPPLine(const char *&First, const char *const End) {
   assert(HashTok.is(tok::hash));
   (void)HashTok;
 
-  Optional<StringRef> FoundId = tryLexIdentifierOrSkipLine(First, End);
+  std::optional<StringRef> FoundId = tryLexIdentifierOrSkipLine(First, End);
   if (!FoundId)
     return false;
 
@@ -791,7 +981,10 @@ bool Scanner::lexPPLine(const char *&First, const char *const End) {
   case pp___include_macros:
   case pp_include_next:
   case pp_import:
-    lexIncludeFilename(First, End);
+    // Ignore missing filenames in include or import directives.
+    if (lexIncludeFilename(First, End).is(tok::eod)) {
+      return false;
+    }
     break;
   default:
     break;
@@ -873,7 +1066,7 @@ void clang::printDependencyDirectivesAsSource(
   for (const dependency_directives_scan::Directive &Directive : Directives) {
     if (Directive.Kind == tokens_present_before_eof)
       OS << "<TokBeforeEOF>";
-    Optional<tok::TokenKind> PrevTokenKind;
+    std::optional<tok::TokenKind> PrevTokenKind;
     for (const dependency_directives_scan::Token &Tok : Directive.Tokens) {
       if (PrevTokenKind && needsSpaceSeparator(*PrevTokenKind, Tok))
         OS << ' ';

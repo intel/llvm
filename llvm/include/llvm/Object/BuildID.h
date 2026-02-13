@@ -17,6 +17,7 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Compiler.h"
 
 namespace llvm {
 namespace object {
@@ -29,18 +30,21 @@ typedef ArrayRef<uint8_t> BuildIDRef;
 
 class ObjectFile;
 
+/// Parses a build ID from a hex string.
+LLVM_ABI BuildID parseBuildID(StringRef Str);
+
 /// Returns the build ID, if any, contained in the given object file.
-Optional<BuildIDRef> getBuildID(const ObjectFile *Obj);
+LLVM_ABI BuildIDRef getBuildID(const ObjectFile *Obj);
 
 /// BuildIDFetcher searches local cache directories for debug info.
-class BuildIDFetcher {
+class LLVM_ABI BuildIDFetcher {
 public:
   BuildIDFetcher(std::vector<std::string> DebugFileDirectories)
       : DebugFileDirectories(std::move(DebugFileDirectories)) {}
   virtual ~BuildIDFetcher() = default;
 
   /// Returns the path to the debug file with the given build ID.
-  virtual Optional<std::string> fetch(BuildIDRef BuildID) const;
+  virtual std::optional<std::string> fetch(BuildIDRef BuildID) const;
 
 private:
   const std::vector<std::string> DebugFileDirectories;

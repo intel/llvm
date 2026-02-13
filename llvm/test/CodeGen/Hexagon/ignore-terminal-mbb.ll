@@ -1,4 +1,4 @@
-; RUN: llc -march=hexagon -hexagon-initial-cfg-cleanup=0 < %s | FileCheck %s
+; RUN: llc -mtriple=hexagon -hexagon-initial-cfg-cleanup=0 < %s | FileCheck %s
 
 ; CHECK-NOT: if{{.*}}jump{{.*}}-1
 ; CHECK: memw
@@ -11,7 +11,7 @@ b0:
   br i1 undef, label %b2, label %b1
 
 b1:                                               ; preds = %b0
-  store i32 0, i32* undef, align 4, !tbaa !0
+  store i32 0, ptr undef, align 4, !tbaa !0
   unreachable
 
 b2:                                               ; preds = %b0

@@ -7,45 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "src/math/coshf.h"
-#include "src/__support/FPUtil/FPBits.h"
-#include "src/__support/FPUtil/multiply_add.h"
-#include "src/math/generic/explogxf.h"
+#include "src/__support/math/coshf.h"
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE_DECL {
 
-LLVM_LIBC_FUNCTION(float, coshf, (float x)) {
-  using FPBits = typename fputil::FPBits<float>;
-  FPBits xbits(x);
-  xbits.set_sign(false);
-  x = xbits.get_val();
+LLVM_LIBC_FUNCTION(float, coshf, (float x)) { return math::coshf(x); }
 
-  uint32_t x_u = xbits.uintval();
-
-  // |x| <= 2^-26
-  if (unlikely(x_u <= 0x3280'0000U)) {
-    return 1.0f + x;
-  }
-
-  // When |x| >= 90, or x is inf or nan
-  if (unlikely(x_u >= 0x42b4'0000U)) {
-    if (xbits.is_inf_or_nan())
-      return x + FPBits::inf().get_val();
-
-    int rounding = fputil::get_round();
-    if (unlikely(rounding == FE_DOWNWARD || rounding == FE_TOWARDZERO))
-      return FPBits(FPBits::MAX_NORMAL).get_val();
-
-    errno = ERANGE;
-
-    return x + FPBits::inf().get_val();
-  }
-
-  // TODO: We should be able to reduce the latency and reciprocal throughput
-  // further by using a low degree (maybe 3-7 ?) minimax polynomial for small
-  // but not too small inputs, such as |x| < 2^-2, or |x| < 2^-3.
-
-  // cosh(x) = (e^x + e^(-x)) / 2.
-  return exp_pm_eval</*is_sinh*/ false>(x);
-}
-
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE_DECL

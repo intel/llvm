@@ -1,9 +1,15 @@
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  # We append -fno-lifetime-dse in HandleLLVMOptions.cmake
+  # append("-fno-lifetime-dse" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+  # But it is causing link failure with llvm::StdThreadPool::asyncEnqueue
+  string(REPLACE "-fno-lifetime-dse" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+endif ()
+
 add_llvm_component_library(LLVMLTO
   LTO.cpp
   LTOBackend.cpp
   LTOModule.cpp
   LTOCodeGenerator.cpp
-  SummaryBasedOptimizations.cpp
   UpdateCompilerUsed.cpp
   ThinLTOCodeGenerator.cpp
 
@@ -13,13 +19,18 @@ add_llvm_component_library(LLVMLTO
   intrinsics_gen
   llvm_vcsrevision_h
 
+  LINK_LIBS
+  ${LLVM_PTHREAD_LIB}
+
   LINK_COMPONENTS
   AggressiveInstCombine
   Analysis
   BinaryFormat
   BitReader
   BitWriter
+  CGData
   CodeGen
+  CodeGenTypes
   Core
   Extensions
   IPO
@@ -30,10 +41,12 @@ add_llvm_component_library(LLVMLTO
   ObjCARC
   Object
   Passes
+  Plugins
   Remarks
   Scalar
   Support
   SYCLLowerIR
   Target
+  TargetParser
   TransformUtils
-)
+  )

@@ -1,4 +1,4 @@
-//===--- SimplifyBooleanExpr.h clang-tidy -----------------------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,28 +6,26 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_SIMPLIFY_BOOLEAN_EXPR_H
-#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_SIMPLIFY_BOOLEAN_EXPR_H
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_SIMPLIFYBOOLEANEXPRCHECK_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_SIMPLIFYBOOLEANEXPRCHECK_H
 
 #include "../ClangTidyCheck.h"
 
-namespace clang {
-namespace tidy {
-namespace readability {
+namespace clang::tidy::readability {
 
 /// Looks for boolean expressions involving boolean constants and simplifies
 /// them to use the appropriate boolean expression directly.
 ///
 /// For the user-facing documentation see:
-/// http://clang.llvm.org/extra/clang-tidy/checks/readability/simplify-boolean-expr.html
+/// https://clang.llvm.org/extra/clang-tidy/checks/readability/simplify-boolean-expr.html
 class SimplifyBooleanExprCheck : public ClangTidyCheck {
 public:
   SimplifyBooleanExprCheck(StringRef Name, ClangTidyContext *Context);
 
-  void storeOptions(ClangTidyOptions::OptionMap &Options) override;
+  void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
-  llvm::Optional<TraversalKind> getCheckTraversalKind() const override {
+  std::optional<TraversalKind> getCheckTraversalKind() const override {
     return TK_IgnoreUnlessSpelledInSource;
   }
 
@@ -62,18 +60,19 @@ private:
                       const BinaryOperator *Inner, bool TryOfferFix,
                       const Stmt *Parent, const ParenExpr *Parens);
 
-  void issueDiag(const ASTContext &Result, SourceLocation Loc,
+  bool issueDiag(const ASTContext &Context, SourceLocation Loc,
                  StringRef Description, SourceRange ReplacementRange,
                  StringRef Replacement);
 
+  bool canBeBypassed(const Stmt *S) const;
+
+  const bool IgnoreMacros;
   const bool ChainedConditionalReturn;
   const bool ChainedConditionalAssignment;
   const bool SimplifyDeMorgan;
   const bool SimplifyDeMorganRelaxed;
 };
 
-} // namespace readability
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::readability
 
-#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_SIMPLIFY_BOOLEAN_EXPR_H
+#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_SIMPLIFYBOOLEANEXPRCHECK_H

@@ -16,6 +16,7 @@
 #include "llvm/DebugInfo/CodeView/TypeCollection.h"
 #include "llvm/DebugInfo/CodeView/TypeIndex.h"
 #include "llvm/Support/Allocator.h"
+#include "llvm/Support/Compiler.h"
 #include <cstdint>
 
 namespace llvm {
@@ -23,7 +24,7 @@ namespace codeview {
 
 class ContinuationRecordBuilder;
 
-class AppendingTypeTableBuilder : public TypeCollection {
+class LLVM_ABI AppendingTypeTableBuilder : public TypeCollection {
 
   BumpPtrAllocator &RecordStorage;
   SimpleTypeSerializer SimpleSerializer;
@@ -33,11 +34,11 @@ class AppendingTypeTableBuilder : public TypeCollection {
 
 public:
   explicit AppendingTypeTableBuilder(BumpPtrAllocator &Storage);
-  ~AppendingTypeTableBuilder();
+  ~AppendingTypeTableBuilder() override;
 
   // TypeCollection overrides
-  Optional<TypeIndex> getFirst() override;
-  Optional<TypeIndex> getNext(TypeIndex Prev) override;
+  std::optional<TypeIndex> getFirst() override;
+  std::optional<TypeIndex> getNext(TypeIndex Prev) override;
   CVType getType(TypeIndex Index) override;
   StringRef getTypeName(TypeIndex Index) override;
   bool contains(TypeIndex Index) override;

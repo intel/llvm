@@ -22,7 +22,7 @@ define void @test2(i32 signext %x, i64 %v) #0 {
 ; CHECK-LABEL: @test2(
 ; CHECK-NEXT:    [[P:%.*]] = alloca i64, align 8
 ; CHECK-NEXT:    store i64 [[V:%.*]], ptr [[P]], align 8
-; CHECK-NEXT:    call void @foo(ptr nonnull [[P]]) #1
+; CHECK-NEXT:    call void @foo(ptr nonnull [[P]]) #[[ATTR1:[0-9]+]]
 ; CHECK-NEXT:    ret void
 ;
   %p = alloca i64
@@ -48,7 +48,7 @@ define signext i32 @test3(i32 signext %x, i1 %y) #0 {
 define signext i32 @test4(i32 signext %x, i1 %y) #0 {
 ; CHECK-LABEL: @test4(
 ; CHECK-NEXT:    [[IDXPROM:%.*]] = sext i32 [[X:%.*]] to i64
-; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds [1 x i32], ptr @f.c, i64 0, i64 [[IDXPROM]]
+; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds i32, ptr @f.c, i64 [[IDXPROM]]
 ; CHECK-NEXT:    [[R:%.*]] = load i32, ptr [[ARRAYIDX]], align 4
 ; CHECK-NEXT:    ret i32 [[R]]
 ;

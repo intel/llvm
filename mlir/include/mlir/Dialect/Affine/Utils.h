@@ -13,16 +13,17 @@
 #ifndef MLIR_DIALECT_AFFINE_UTILS_H
 #define MLIR_DIALECT_AFFINE_UTILS_H
 
+#include "mlir/Analysis/AliasAnalysis.h"
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/IR/OpDefinition.h"
+#include <optional>
 
 namespace mlir {
-
-class AffineForOp;
-class AffineIfOp;
-class AffineParallelOp;
 class DominanceInfo;
 class Operation;
 class PostDominanceInfo;
+class ImplicitLocOpBuilder;
 
 namespace func {
 class FuncOp;
@@ -30,9 +31,14 @@ class FuncOp;
 
 namespace memref {
 class AllocOp;
+class AllocaOp;
+class ReinterpretCastOp;
 } // namespace memref
 
-struct LogicalResult;
+namespace affine {
+class AffineForOp;
+class AffineIfOp;
+class AffineParallelOp;
 
 using ReductionLoopMap = DenseMap<Operation *, SmallVector<LoopReduction, 2>>;
 
@@ -41,10 +47,11 @@ using ReductionLoopMap = DenseMap<Operation *, SmallVector<LoopReduction, 2>>;
 /// (mlir::isLoopParallel can be used to detect a parallel affine.for op.) The
 /// reductions specified in `parallelReductions` are also parallelized.
 /// Parallelization will fail in the presence of loop iteration arguments that
-/// are not listed in `parallelReductions`.
-LogicalResult
-affineParallelize(AffineForOp forOp,
-                  ArrayRef<LoopReduction> parallelReductions = {});
+/// are not listed in `parallelReductions`. `resOp` if non-null is set to the
+/// newly created affine.parallel op.
+LogicalResult affineParallelize(AffineForOp forOp,
+                                ArrayRef<LoopReduction> parallelReductions = {},
+                                AffineParallelOp *resOp = nullptr);
 
 /// Hoists out affine.if/else to as high as possible, i.e., past all invariant
 /// affine.fors/parallel's. Returns success if any hoisting happened; folded` is
@@ -100,7 +107,8 @@ struct VectorizationStrategy {
 /// loads and eliminate invariant affine loads; consequently, eliminate dead
 /// allocs.
 void affineScalarReplace(func::FuncOp f, DominanceInfo &domInfo,
-                         PostDominanceInfo &postDomInfo);
+                         PostDominanceInfo &postDomInfo,
+                         AliasAnalysis &analysis);
 
 /// Vectorizes affine loops in 'loops' using the n-D vectorization factors in
 /// 'vectorSizes'. By default, each vectorization factor is applied
@@ -159,14 +167,15 @@ vectorizeAffineLoopNest(std::vector<SmallVector<AffineForOp, 2>> &loops,
 /// early if the op is already in a normalized form.
 void normalizeAffineParallel(AffineParallelOp op);
 
-/// Normalize an affine.for op. If the affine.for op has only a single iteration
-/// only then it is simply promoted, else it is normalized in the traditional
-/// way, by converting the lower bound to zero and loop step to one. The upper
-/// bound is set to the trip count of the loop. Original loops must have a
-/// lower bound with only a single result. There is no such restriction on upper
-/// bounds. Returns success if the loop has been normalized (or is already in
-/// the normal form).
-LogicalResult normalizeAffineFor(AffineForOp op);
+/// Normalize an affine.for op. An affine.for op is normalized by converting the
+/// lower bound to zero and loop step to one. The upper bound is set to the trip
+/// count of the loop. Original loops must have a lower bound with only a single
+/// result. There is no such restriction on upper bounds. Returns success if the
+/// loop has been normalized (or is already in the normal form). If
+/// `promoteSingleIter` is true, the loop is simply promoted if it has a single
+/// iteration.
+LogicalResult normalizeAffineFor(AffineForOp op,
+                                 bool promoteSingleIter = false);
 
 /// Traverse `e` and return an AffineExpr where all occurrences of `dim` have
 /// been replaced by either:
@@ -189,10 +198,9 @@ AffineExpr substWithMin(AffineExpr e, AffineExpr dim, AffineExpr min,
 /// of its input list. `indexRemap`'s dimensional inputs are expected to
 /// correspond to memref's indices, and its symbolic inputs if any should be
 /// provided in `symbolOperands`.
-///
-/// `domOpFilter`, if non-null, restricts the replacement to only those
-/// operations that are dominated by the former; similarly, `postDomOpFilter`
-/// restricts replacement to only those operations that are postdominated by it.
+//
+/// If `userFilterFn` is specified, restrict replacement to only those users
+/// that pass the specified filter (i.e., the filter returns true).
 ///
 /// 'allowNonDereferencingOps', if set, allows replacement of non-dereferencing
 /// uses of a memref without any requirement for access index rewrites as long
@@ -215,13 +223,14 @@ AffineExpr substWithMin(AffineExpr e, AffineExpr dim, AffineExpr min,
 //  d1, d2) -> (d0 - d1, d2), and %ii will be the extra operand. Without any
 //  extra operands, note that 'indexRemap' would just be applied to existing
 //  indices (%i, %j).
+//
 //  TODO: allow extraIndices to be added at any position.
 LogicalResult replaceAllMemRefUsesWith(
     Value oldMemRef, Value newMemRef, ArrayRef<Value> extraIndices = {},
     AffineMap indexRemap = AffineMap(), ArrayRef<Value> extraOperands = {},
-    ArrayRef<Value> symbolOperands = {}, Operation *domOpFilter = nullptr,
-    Operation *postDomOpFilter = nullptr, bool allowNonDereferencingOps = false,
-    bool replaceInDeallocOp = false);
+    ArrayRef<Value> symbolOperands = {},
+    llvm::function_ref<bool(Operation *)> userFilterFn = nullptr,
+    bool allowNonDereferencingOps = false, bool replaceInDeallocOp = false);
 
 /// Performs the same replacement as the other version above but only for the
 /// dereferencing uses of `oldMemRef` in `op`, except in cases where
@@ -235,30 +244,22 @@ LogicalResult replaceAllMemRefUsesWith(Value oldMemRef, Value newMemRef,
                                        ArrayRef<Value> symbolOperands = {},
                                        bool allowNonDereferencingOps = false);
 
-/// Rewrites the memref defined by this alloc op to have an identity layout map
-/// and updates all its indexing uses. Returns failure if any of its uses
-/// escape (while leaving the IR in a valid state).
-LogicalResult normalizeMemRef(memref::AllocOp *op);
+/// Rewrites the memref defined by alloc or reinterpret_cast op to have an
+/// identity layout map and updates all its indexing uses. Returns failure if
+/// any of its uses escape (while leaving the IR in a valid state).
+template <typename AllocLikeOp>
+LogicalResult normalizeMemRef(AllocLikeOp op);
+extern template LogicalResult
+normalizeMemRef<memref::AllocaOp>(memref::AllocaOp op);
+extern template LogicalResult
+normalizeMemRef<memref::AllocOp>(memref::AllocOp op);
+LogicalResult normalizeMemRef(memref::ReinterpretCastOp op);
 
-/// Uses the old memref type map layout and computes the new memref type to have
-/// a new shape and a layout map, where the old layout map has been normalized
-/// to an identity layout map. It returns the old memref in case no
-/// normalization was needed or a failure occurs while transforming the old map
-/// layout to an identity layout map.
-MemRefType normalizeMemRefType(MemRefType memrefType, OpBuilder builder,
-                               unsigned numSymbolicOperands);
-
-/// Creates and inserts into 'builder' a new AffineApplyOp, with the number of
-/// its results equal to the number of operands, as a composition
-/// of all other AffineApplyOps reachable from input parameter 'operands'. If
-/// different operands were drawing results from multiple affine apply ops,
-/// these will also be collected into a single (multi-result) affine apply op.
-/// The final results of the composed AffineApplyOp are returned in output
-/// parameter 'results'. Returns the affine apply op created.
-Operation *createComposedAffineApplyOp(OpBuilder &builder, Location loc,
-                                       ArrayRef<Value> operands,
-                                       ArrayRef<Operation *> affineApplyOps,
-                                       SmallVectorImpl<Value> *results);
+/// Normalizes `memrefType` so that the affine layout map of the memref is
+/// transformed to an identity map with a new shape being computed for the
+/// normalized memref type and returns it. The old memref type is simplify
+/// returned if the normalization failed.
+MemRefType normalizeMemRefType(MemRefType memrefType);
 
 /// Given an operation, inserts one or more single result affine apply
 /// operations, results of which are exclusively used by this operation.
@@ -299,10 +300,10 @@ Value expandAffineExpr(OpBuilder &builder, Location loc, AffineExpr expr,
 
 /// Create a sequence of operations that implement the `affineMap` applied to
 /// the given `operands` (as it it were an AffineApplyOp).
-Optional<SmallVector<Value, 8>> expandAffineMap(OpBuilder &builder,
-                                                Location loc,
-                                                AffineMap affineMap,
-                                                ValueRange operands);
+std::optional<SmallVector<Value, 8>> expandAffineMap(OpBuilder &builder,
+                                                     Location loc,
+                                                     AffineMap affineMap,
+                                                     ValueRange operands);
 
 /// Holds the result of (div a, b)  and (mod a, b).
 struct DivModValue {
@@ -314,10 +315,30 @@ struct DivModValue {
 DivModValue getDivMod(OpBuilder &b, Location loc, Value lhs, Value rhs);
 
 /// Generate the IR to delinearize `linearIndex` given the `basis` and return
-/// the multi-index.
+/// the multi-index. `hasOuterBound` indicates whether `basis` has an entry
+/// given the size of the first multi-index result - if it is true, the function
+/// will return `basis.size()` values, otherwise, it will return `basis.size() +
+/// 1`.
 FailureOr<SmallVector<Value>> delinearizeIndex(OpBuilder &b, Location loc,
                                                Value linearIndex,
-                                               ArrayRef<Value> basis);
+                                               ArrayRef<Value> basis,
+                                               bool hasOuterBound = true);
+
+FailureOr<SmallVector<Value>> delinearizeIndex(OpBuilder &b, Location loc,
+                                               Value linearIndex,
+                                               ArrayRef<OpFoldResult> basis,
+                                               bool hasOuterBound = true);
+
+// Generate IR that extracts the linear index from a multi-index according to
+// a basis/shape. The basis may contain either `multiIndex.size()` or
+// `multiIndex.size() - 1` elements.
+OpFoldResult linearizeIndex(ArrayRef<OpFoldResult> multiIndex,
+                            ArrayRef<OpFoldResult> basis,
+                            ImplicitLocOpBuilder &builder);
+
+OpFoldResult linearizeIndex(OpBuilder &builder, Location loc,
+                            ArrayRef<OpFoldResult> multiIndex,
+                            ArrayRef<OpFoldResult> basis);
 
 /// Ensure that all operations that could be executed after `start`
 /// (noninclusive) and prior to `memOp` (e.g. on a control flow/op path
@@ -327,7 +348,63 @@ FailureOr<SmallVector<Value>> delinearizeIndex(OpBuilder &b, Location loc,
 /// will check if there is no write to the memory between `start` and `memOp`
 /// that would change the read within `memOp`.
 template <typename EffectType, typename T>
-bool hasNoInterveningEffect(Operation *start, T memOp);
+bool hasNoInterveningEffect(Operation *start, T memOp,
+                            llvm::function_ref<bool(Value, Value)> mayAlias);
+
+struct AffineValueExpr {
+  explicit AffineValueExpr(AffineExpr e) : e(e) {}
+  AffineValueExpr bind(Value v) {
+    this->v = v;
+    return *this;
+  }
+  AffineValueExpr bind(OpFoldResult v) {
+    this->v = v;
+    return *this;
+  }
+  operator AffineExpr() const { return e; }
+  operator OpFoldResult() const { return v; }
+  AffineExpr e;
+  OpFoldResult v;
+};
+
+/// Helper struct to build simple AffineValueExprs with minimal type inference
+/// support.
+struct AffineBuilder {
+  AffineBuilder(OpBuilder &b, Location loc) : b(b), loc(loc) {}
+  OpFoldResult add(AffineValueExpr lhs, AffineValueExpr rhs) {
+    return makeComposedFoldedAffineApply(b, loc, {lhs.e + rhs.e}, {lhs, rhs});
+  }
+  OpFoldResult sub(AffineValueExpr lhs, AffineValueExpr rhs) {
+    return makeComposedFoldedAffineApply(b, loc, {lhs.e - rhs.e}, {lhs, rhs});
+  }
+  OpFoldResult mul(AffineValueExpr lhs, AffineValueExpr rhs) {
+    return makeComposedFoldedAffineApply(b, loc, {lhs.e * rhs.e}, {lhs, rhs});
+  }
+  OpFoldResult floor(AffineValueExpr lhs, AffineValueExpr rhs) {
+    return makeComposedFoldedAffineApply(b, loc, {lhs.e.floorDiv(rhs.e)},
+                                         {lhs, rhs});
+  }
+  OpFoldResult ceil(AffineValueExpr lhs, AffineValueExpr rhs) {
+    return makeComposedFoldedAffineApply(b, loc, {lhs.e.ceilDiv(rhs.e)},
+                                         {lhs, rhs});
+  }
+  OpFoldResult min(ArrayRef<OpFoldResult> vals) {
+    return makeComposedFoldedAffineMin(
+        b, loc, AffineMap::getMultiDimIdentityMap(vals.size(), b.getContext()),
+        vals);
+  }
+  OpFoldResult max(ArrayRef<OpFoldResult> vals) {
+    return makeComposedFoldedAffineMax(
+        b, loc, AffineMap::getMultiDimIdentityMap(vals.size(), b.getContext()),
+        vals);
+  }
+
+private:
+  OpBuilder &b;
+  Location loc;
+};
+
+} // namespace affine
 } // namespace mlir
 
 #endif // MLIR_DIALECT_AFFINE_UTILS_H

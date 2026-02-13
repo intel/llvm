@@ -10,6 +10,7 @@ tablegen(LLVM LanaiGenDisassemblerTables.inc -gen-disassembler)
 tablegen(LLVM LanaiGenInstrInfo.inc -gen-instr-info)
 tablegen(LLVM LanaiGenMCCodeEmitter.inc -gen-emitter)
 tablegen(LLVM LanaiGenRegisterInfo.inc -gen-register-info)
+tablegen(LLVM LanaiGenSDNodeInfo.inc -gen-sd-node-info)
 tablegen(LLVM LanaiGenSubtargetInfo.inc -gen-subtarget)
 
 add_public_tablegen_target(LanaiCommonTableGen)
@@ -34,6 +35,7 @@ add_llvm_target(LanaiCodeGen
   Analysis
   AsmPrinter
   CodeGen
+  CodeGenTypes
   Core
   LanaiAsmParser
   LanaiDesc
@@ -42,11 +44,12 @@ add_llvm_target(LanaiCodeGen
   SelectionDAG
   Support
   Target
+  TargetParser
   TransformUtils
 
   ADD_TO_COMPONENT
   Lanai
-)
+  )
 
 add_subdirectory(AsmParser)
 add_subdirectory(Disassembler)

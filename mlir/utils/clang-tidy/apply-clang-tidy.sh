@@ -72,8 +72,8 @@ find $SRCS | grep ".cpp$" | sort | while read file ; do
 
   echo "-----------------------------------"
   echo "-- Apply all checks on file $file"
-  echo "$TIMING_TIDY $CLANG_TIDY -p $BUILD_DIR $file -fix"
-  $TIMING_TIDY $CLANG_TIDY -p $BUILD_DIR $file -fix \
+  echo "$TIMING_TIDY $CLANG_TIDY -p $BUILD_DIR $file -fix -fix-errors"
+  $TIMING_TIDY $CLANG_TIDY -p $BUILD_DIR $file -fix -fix-errors \
     | grep "warning:.*\]$" | sed -r 's#.*\[(.*)]$#\1#' | sort -u > $tmpfile
   git clang-format -f
   if [[ $(git diff --stat) == '' ]]; then
@@ -89,8 +89,9 @@ find $SRCS | grep ".cpp$" | sort | while read file ; do
 
     echo "-----------------------------------"
     echo "-- Apply check $check on file $file"
-    echo "$TIMING_TIDY $CLANG_TIDY -p $BUILD_DIR $file --checks="-*,$check" -fix"
-    { $TIMING_TIDY $CLANG_TIDY -p $BUILD_DIR $file --checks="-*,$check" -fix ; } 2>&1
+    COMMAND=$(echo "$TIMING_TIDY $CLANG_TIDY -p $BUILD_DIR $file --checks="-*,$check" -fix -fix-errors")
+    echo $COMMAND
+    { $TIMING_TIDY $CLANG_TIDY -p $BUILD_DIR $file --checks="-*,$check" -fix -fix-errors ; } 2>&1
     git clang-format -f
     if [[ $(git diff --stat) == '' ]]; then
       echo 'Nothing was applied, skip'
@@ -101,16 +102,19 @@ find $SRCS | grep ".cpp$" | sort | while read file ; do
     # Clang-tidy sometimes update files in the build directory, erase the .inc file generate by tablegen
     # to force them to be regenerated now.
     find $BUILD_DIR/tools/mlir/ | grep '\.inc' | while read file ; do rm $file ; done
-    ninja -C $BUILD_DIR check-mlir > ${REJECT_DIR}/ninja.${check}.$(basename $file).log 2>&1
+    echo $COMMAND > ${REJECT_DIR}/ninja.${check}.$(basename $file).log
+    ninja -C $BUILD_DIR --quiet check-mlir >> ${REJECT_DIR}/${check}.$(basename $file).ninja.log 2>&1
     if [[ $? != 0 ]] ; then
       echo "check-mlir failed! (see ninja.${check}.${file}.log)"
       [[ ! -z "$REJECT_DIR" ]] && git diff > "${REJECT_DIR}/${check}_$(basename ${file}).reject.diff"
       continue
     fi
+    rm -f ${REJECT_DIR}/ninja.${check}.$(basename $file).log
+
     echo "-----------------------------------"
     echo "-- Success, commit changes for check $check on file $file"
     git clang-format -f
 
-    git commit -a -m "Apply clang-tidy fixes for $check in $(basename $file) (NFC)"
+    git commit -a -m "[MLIR] Apply clang-tidy fixes for $check in $(basename $file) (NFC)"
   done
 done

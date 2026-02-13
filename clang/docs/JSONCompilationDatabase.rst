@@ -40,21 +40,21 @@ works) with the option ``CMAKE_EXPORT_COMPILE_COMMANDS``.
 For projects on Linux, there is an alternative to intercept compiler
 calls with a tool called `Bear <https://github.com/rizsotto/Bear>`_.
 
-`Bazel <https://bazel.build>`_ can export a compilation database via 
-`this extractor extension 
+`Bazel <https://bazel.build>`_ can export a compilation database via
+`this extractor extension
 <https://github.com/hedronvision/bazel-compile-commands-extractor>`_.
 Bazel is otherwise resistant to Bear and other compiler-intercept
 techniques.
 
 Clang's tooling interface supports reading compilation databases; see
 the :doc:`LibTooling documentation <LibTooling>`. libclang and its
-python bindings also support this (since clang 3.2); see
+Python bindings also support this (since clang 3.2); see
 `CXCompilationDatabase.h </doxygen/group__COMPILATIONDB.html>`_.
 
 Format
 ======
 
-A compilation database is a JSON file, which consist of an array of
+A compilation database is a JSON file, which consists of an array of
 "command objects", where each command object specifies one way a
 translation unit is compiled in the project.
 
@@ -126,4 +126,3 @@ Example:
 
 Here ``-I libwidget/include`` is two arguments, and so becomes two lines.
 Paths are relative to the directory containing ``compile_flags.txt``.
-

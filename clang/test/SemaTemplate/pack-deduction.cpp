@@ -134,14 +134,14 @@ namespace partial_full_mix {
   template<typename ...T> struct tuple {};
   template<typename ...T> struct A {
     template<typename ...U> static pair<tuple<T...>, tuple<U...>> f(pair<T, U> ...p);
-    // expected-note@-1 {{[with U = <char, double, long>]: pack expansion contains parameter packs 'T' and 'U' that have different lengths (2 vs. 3)}}
+    // expected-note@-1 {{[with U = <char, double, long>]: pack expansion contains parameter pack 'U' that has a different length (2 vs. 3) from outer parameter packs}}
     // expected-note@-2 {{[with U = <char, double, void>]: pack expansion contains parameter pack 'U' that has a different length (at least 3 vs. 2) from outer parameter packs}}
 
     template<typename ...U> static pair<tuple<T...>, tuple<U...>> g(pair<T, U> ...p, ...);
-    // expected-note@-1 {{[with U = <char, double, long>]: pack expansion contains parameter packs 'T' and 'U' that have different lengths (2 vs. 3)}}
+    // expected-note@-1 {{[with U = <char, double, long>]: pack expansion contains parameter pack 'U' that has a different length (2 vs. 3) from outer parameter packs}}
 
     template<typename ...U> static tuple<U...> h(tuple<pair<T, U>..., pair<int, int>>);
-    // expected-note@-1 {{[with U = <int[2]>]: pack expansion contains parameter packs 'T' and 'U' that have different lengths (2 vs. 1)}}
+    // expected-note@-1 {{[with U = <int[2]>]: pack expansion contains parameter pack 'U' that has a different length (2 vs. 1) from outer parameter packs}}
   };
 
   pair<tuple<int, float>, tuple<char, double>> k1 = A<int, float>().f<char>(pair<int, char>(), pair<float, double>());
@@ -184,4 +184,77 @@ struct Outer {
 void Run() {
   Outer<void>::Inner<0>().Test(1,1);
 }
+}
+
+namespace GH107560 {
+int bar(...);
+
+template <int> struct Int {};
+
+template <class ...T>
+constexpr auto foo(T... x) -> decltype(bar(T(x)...)) { return 10; }
+
+template <class ...T>
+constexpr auto baz(Int<foo<T>(T())>... x) -> int { return 1; }
+
+static_assert(baz<Int<1>, Int<2>, Int<3>>(Int<10>(), Int<10>(), Int<10>()) == 1, "");
+}
+
+namespace GH17042 {
+
+template <class... Ts> struct X {
+  template <class... Us> using Y = X<void(Ts, Us)...>; // #GH17042_Y
+};
+
+template <class... T>
+using any_pairs_list = X<int, int>::Y<T...>; // #any_pairs_list
+
+template <class... T>
+using any_pairs_list_2 = X<int, int>::Y<>;
+// expected-error@#GH17042_Y {{different length (2 vs. 0)}} \
+// expected-note@-1 {{requested here}}
+
+template <class A, class B, class... P>
+using any_pairs_list_3 = X<int, int>::Y<A, B, P...>; // #any_pairs_list_3
+
+template <class A, class B, class C, class... P>
+using any_pairs_list_4 = X<int, int>::Y<A, B, C, P...>;
+// expected-error@#GH17042_Y {{different length (2 vs. at least 3)}} \
+// expected-note@-1 {{requested here}}
+
+static_assert(__is_same(any_pairs_list<char, char>, X<void(int, char), void(int, char)>), "");
+
+static_assert(!__is_same(any_pairs_list<char, char, char>, X<void(int, char), void(int, char)>), "");
+// expected-error@#GH17042_Y {{different length (2 vs. 3)}} \
+// expected-note@#any_pairs_list {{requested here}} \
+// expected-note@-1 {{requested here}}
+
+static_assert(__is_same(any_pairs_list_3<char, char>, X<void(int, char), void(int, char)>), "");
+
+static_assert(!__is_same(any_pairs_list_3<char, char, float>, X<void(int, char), void(int, char)>), "");
+// expected-error@#GH17042_Y {{different length (2 vs. 3)}} \
+// expected-note@#any_pairs_list_3 {{requested here}} \
+// expected-note@-1 {{requested here}}
+
+namespace TemplateTemplateParameters {
+template <class... T> struct C {};
+
+template <class T, template <class> class... Args1> struct Ttp {
+  template <template <class> class... Args2>
+  using B = C<void(Args1<T>, Args2<T>)...>;
+};
+template <class> struct D {};
+
+template <template <class> class... Args>
+using Alias = Ttp<int, D, D>::B<Args...>;
+}
+
+namespace NTTP {
+template <int... Args1> struct Nttp {
+  template <int... Args2> using B = Nttp<(Args1 + Args2)...>;
+};
+
+template <int... Args> using Alias = Nttp<1, 2, 3>::B<Args...>;
+}
+
 }

@@ -13,9 +13,10 @@
 #include <cstdlib>
 #include <functional>
 #include <stdlib.h>
+#include <string>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace unittest {
 inline void set_env(const char *Name, const char *Value) {
@@ -64,5 +65,5 @@ private:
   std::function<void()> MConfigReset;
 };
 } // namespace unittest
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

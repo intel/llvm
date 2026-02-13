@@ -1,13 +1,12 @@
 ; RUN: llvm-as -disable-output <%s 2>&1 | FileCheck %s
-; CHECK: invalid llvm.dbg.declare intrinsic expression
-; CHECK-NEXT: call void @llvm.dbg.declare({{.*}})
-; CHECK-NEXT: !""
+; CHECK: invalid #dbg record expression
+; CHECK-NEXT: #dbg_declare({{.*}})
 ; CHECK: warning: ignoring invalid debug info
 
 define void @foo(i32 %a) {
 entry:
   %s = alloca i32
-  call void @llvm.dbg.declare(metadata i32* %s, metadata !DILocalVariable(scope: !1), metadata !"")
+  call void @llvm.dbg.declare(metadata ptr %s, metadata !DILocalVariable(scope: !1), metadata !"")
   ret void
 }
 

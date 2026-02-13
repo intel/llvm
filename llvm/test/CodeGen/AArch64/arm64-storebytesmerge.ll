@@ -11,36 +11,31 @@
 ; CHECK: stp     xzr, xzr, [x8] 
 ; CHECK: bl f
 
-@q = external dso_local unnamed_addr global i16*, align 8
+@q = external dso_local unnamed_addr global ptr, align 8
 
 ; Function Attrs: nounwind
-define void @test() local_unnamed_addr #0 {
+define void @test(i1 %arg) local_unnamed_addr #0 {
 entry:
   br label %for.body453.i
 
 for.body453.i:                                    ; preds = %for.body453.i, %entry
-  br i1 undef, label %for.body453.i, label %for.end705.i
+  br i1 %arg, label %for.body453.i, label %for.end705.i
 
 for.end705.i:                                     ; preds = %for.body453.i
-  %0 = load i16*, i16** @q, align 8
-  %1 = getelementptr inbounds i16, i16* %0, i64 0
-  %2 = bitcast i16* %1 to <2 x i16>*
-  store <2 x i16> zeroinitializer, <2 x i16>* %2, align 2
-  %3 = getelementptr i16, i16* %1, i64 2
-  %4 = bitcast i16* %3 to <2 x i16>*
-  store <2 x i16> zeroinitializer, <2 x i16>* %4, align 2
-  %5 = getelementptr i16, i16* %1, i64 4
-  %6 = bitcast i16* %5 to <2 x i16>*
-  store <2 x i16> zeroinitializer, <2 x i16>* %6, align 2
-  %7 = getelementptr i16, i16* %1, i64 6
-  %8 = bitcast i16* %7 to <2 x i16>*
-  store <2 x i16> zeroinitializer, <2 x i16>* %8, align 2
+  %0 = load ptr, ptr @q, align 8
+  store <2 x i16> zeroinitializer, ptr %0, align 2
+  %1 = getelementptr i16, ptr %0, i64 2
+  store <2 x i16> zeroinitializer, ptr %1, align 2
+  %2 = getelementptr i16, ptr %0, i64 4
+  store <2 x i16> zeroinitializer, ptr %2, align 2
+  %3 = getelementptr i16, ptr %0, i64 6
+  store <2 x i16> zeroinitializer, ptr %3, align 2
   call void @f() #2
   unreachable
 }
 
 declare void @f() local_unnamed_addr #1
 
-attributes #0 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="true" "no-jump-tables"="false" "no-nans-fp-math"="true" "no-signed-zeros-fp-math"="true" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="cortex-a57" "target-features"="+crc,+crypto,+fp-armv8,+neon" "unsafe-fp-math"="true" "use-soft-float"="false" }
-attributes #1 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="true" "no-nans-fp-math"="true" "no-signed-zeros-fp-math"="true" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="cortex-a57" "target-features"="+crc,+crypto,+fp-armv8,+neon" "unsafe-fp-math"="true" "use-soft-float"="false" }
+attributes #0 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="true" "no-jump-tables"="false" "no-nans-fp-math"="true" "no-signed-zeros-fp-math"="true" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="cortex-a57" "target-features"="+crc,+crypto,+fp-armv8,+neon" "use-soft-float"="false" }
+attributes #1 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="true" "no-nans-fp-math"="true" "no-signed-zeros-fp-math"="true" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="cortex-a57" "target-features"="+crc,+crypto,+fp-armv8,+neon" "use-soft-float"="false" }
 attributes #2 = { nounwind }

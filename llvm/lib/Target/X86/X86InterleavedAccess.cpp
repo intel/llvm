@@ -18,21 +18,18 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/VectorUtils.h"
-#include "llvm/IR/Constants.h"
+#include "llvm/CodeGenTypes/MachineValueType.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Casting.h"
-#include "llvm/Support/MachineValueType.h"
 #include <algorithm>
 #include <cassert>
 #include <cmath>
-#include <cstdint>
 
 using namespace llvm;
 
@@ -112,7 +109,7 @@ public:
                                      const X86Subtarget &STarget,
                                      IRBuilder<> &B)
       : Inst(I), Shuffles(Shuffs), Indices(Ind), Factor(F), Subtarget(STarget),
-        DL(Inst->getModule()->getDataLayout()), Builder(B) {}
+        DL(Inst->getDataLayout()), Builder(B) {}
 
   /// Returns true if this interleaved access group can be lowered into
   /// x86-specific instructions/intrinsics, false otherwise.
@@ -193,29 +190,25 @@ void X86InterleavedAccessGroup::decompose(
 
   // Decompose the load instruction.
   LoadInst *LI = cast<LoadInst>(VecInst);
-  Type *VecBaseTy, *VecBasePtrTy;
-  Value *VecBasePtr;
+  Type *VecBaseTy;
   unsigned int NumLoads = NumSubVectors;
   // In the case of stride 3 with a vector of 32 elements load the information
   // in the following way:
   // [0,1...,VF/2-1,VF/2+VF,VF/2+VF+1,...,2VF-1]
   unsigned VecLength = DL.getTypeSizeInBits(VecWidth);
+  Value *VecBasePtr = LI->getPointerOperand();
   if (VecLength == 768 || VecLength == 1536) {
     VecBaseTy = FixedVectorType::get(Type::getInt8Ty(LI->getContext()), 16);
-    VecBasePtrTy = VecBaseTy->getPointerTo(LI->getPointerAddressSpace());
-    VecBasePtr = Builder.CreateBitCast(LI->getPointerOperand(), VecBasePtrTy);
     NumLoads = NumSubVectors * (VecLength / 384);
   } else {
     VecBaseTy = SubVecTy;
-    VecBasePtrTy = VecBaseTy->getPointerTo(LI->getPointerAddressSpace());
-    VecBasePtr = Builder.CreateBitCast(LI->getPointerOperand(), VecBasePtrTy);
   }
   // Generate N loads of T type.
   assert(VecBaseTy->getPrimitiveSizeInBits().isKnownMultipleOf(8) &&
          "VecBaseTy's size must be a multiple of 8");
   const Align FirstAlignment = LI->getAlign();
   const Align SubsequentAlignment = commonAlignment(
-      FirstAlignment, VecBaseTy->getPrimitiveSizeInBits().getFixedSize() / 8);
+      FirstAlignment, VecBaseTy->getPrimitiveSizeInBits().getFixedValue() / 8);
   Align Alignment = FirstAlignment;
   for (unsigned i = 0; i < NumLoads; i++) {
     // TODO: Support inbounds GEP.
@@ -423,8 +416,8 @@ void X86InterleavedAccessGroup::interleave8bitStride4(
     return;
   }
 
-  reorderSubVector(VT, TransposedMatrix, VecOut, makeArrayRef(Concat, 16),
-                   NumOfElm, 4, Builder);
+  reorderSubVector(VT, TransposedMatrix, VecOut, ArrayRef(Concat, 16), NumOfElm,
+                   4, Builder);
 }
 
 //  createShuffleStride returns shuffle mask of size N.
@@ -534,7 +527,7 @@ static void concatSubVector(Value **Vec, ArrayRef<Instruction *> InVec,
   for (unsigned j = 0; j < VecElems / 32; j++)
     for (int i = 0; i < 3; i++)
       Vec[i + j * 3] = Builder.CreateShuffleVector(
-          InVec[j * 6 + i], InVec[j * 6 + i + 3], makeArrayRef(Concat, 32));
+          InVec[j * 6 + i], InVec[j * 6 + i + 3], ArrayRef(Concat, 32));
 
   if (VecElems == 32)
     return;
@@ -693,25 +686,25 @@ void X86InterleavedAccessGroup::transpose_4x4(
 
   // dst = src1[0,1],src2[0,1]
   static constexpr int IntMask1[] = {0, 1, 4, 5};
-  ArrayRef<int> Mask = makeArrayRef(IntMask1, 4);
+  ArrayRef<int> Mask = ArrayRef(IntMask1, 4);
   Value *IntrVec1 = Builder.CreateShuffleVector(Matrix[0], Matrix[2], Mask);
   Value *IntrVec2 = Builder.CreateShuffleVector(Matrix[1], Matrix[3], Mask);
 
   // dst = src1[2,3],src2[2,3]
   static constexpr int IntMask2[] = {2, 3, 6, 7};
-  Mask = makeArrayRef(IntMask2, 4);
+  Mask = ArrayRef(IntMask2, 4);
   Value *IntrVec3 = Builder.CreateShuffleVector(Matrix[0], Matrix[2], Mask);
   Value *IntrVec4 = Builder.CreateShuffleVector(Matrix[1], Matrix[3], Mask);
 
   // dst = src1[0],src2[0],src1[2],src2[2]
   static constexpr int IntMask3[] = {0, 4, 2, 6};
-  Mask = makeArrayRef(IntMask3, 4);
+  Mask = ArrayRef(IntMask3, 4);
   TransposedMatrix[0] = Builder.CreateShuffleVector(IntrVec1, IntrVec2, Mask);
   TransposedMatrix[2] = Builder.CreateShuffleVector(IntrVec3, IntrVec4, Mask);
 
   // dst = src1[1],src2[1],src1[3],src2[3]
   static constexpr int IntMask4[] = {1, 5, 3, 7};
-  Mask = makeArrayRef(IntMask4, 4);
+  Mask = ArrayRef(IntMask4, 4);
   TransposedMatrix[1] = Builder.CreateShuffleVector(IntrVec1, IntrVec2, Mask);
   TransposedMatrix[3] = Builder.CreateShuffleVector(IntrVec3, IntrVec4, Mask);
 }
@@ -808,13 +801,18 @@ bool X86InterleavedAccessGroup::lowerIntoOptimizedSequence() {
 // number of shuffles and ISA.
 // Currently, lowering is supported for 4x64 bits with Factor = 4 on AVX.
 bool X86TargetLowering::lowerInterleavedLoad(
-    LoadInst *LI, ArrayRef<ShuffleVectorInst *> Shuffles,
-    ArrayRef<unsigned> Indices, unsigned Factor) const {
+    Instruction *Load, Value *Mask, ArrayRef<ShuffleVectorInst *> Shuffles,
+    ArrayRef<unsigned> Indices, unsigned Factor, const APInt &GapMask) const {
   assert(Factor >= 2 && Factor <= getMaxSupportedInterleaveFactor() &&
          "Invalid interleave factor");
   assert(!Shuffles.empty() && "Empty shufflevector input");
   assert(Shuffles.size() == Indices.size() &&
          "Unmatched number of shufflevectors and indices");
+
+  auto *LI = dyn_cast<LoadInst>(Load);
+  if (!LI)
+    return false;
+  assert(!Mask && GapMask.popcount() == Factor && "Unexpected mask on a load");
 
   // Create an interleaved access group.
   IRBuilder<> Builder(LI);
@@ -824,9 +822,11 @@ bool X86TargetLowering::lowerInterleavedLoad(
   return Grp.isSupported() && Grp.lowerIntoOptimizedSequence();
 }
 
-bool X86TargetLowering::lowerInterleavedStore(StoreInst *SI,
+bool X86TargetLowering::lowerInterleavedStore(Instruction *Store,
+                                              Value *LaneMask,
                                               ShuffleVectorInst *SVI,
-                                              unsigned Factor) const {
+                                              unsigned Factor,
+                                              const APInt &GapMask) const {
   assert(Factor >= 2 && Factor <= getMaxSupportedInterleaveFactor() &&
          "Invalid interleave factor");
 
@@ -834,14 +834,18 @@ bool X86TargetLowering::lowerInterleavedStore(StoreInst *SI,
              0 &&
          "Invalid interleaved store");
 
+  auto *SI = dyn_cast<StoreInst>(Store);
+  if (!SI)
+    return false;
+  assert(!LaneMask && GapMask.popcount() == Factor &&
+         "Unexpected mask on store");
+
   // Holds the indices of SVI that correspond to the starting index of each
   // interleaved shuffle.
-  SmallVector<unsigned, 4> Indices;
   auto Mask = SVI->getShuffleMask();
-  for (unsigned i = 0; i < Factor; i++)
-    Indices.push_back(Mask[i]);
+  SmallVector<unsigned, 4> Indices(Mask.take_front(Factor));
 
-  ArrayRef<ShuffleVectorInst *> Shuffles = makeArrayRef(SVI);
+  ArrayRef<ShuffleVectorInst *> Shuffles = ArrayRef(SVI);
 
   // Create an interleaved access group.
   IRBuilder<> Builder(SI);

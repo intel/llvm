@@ -16,8 +16,8 @@ define float @test_fminf(float %x, float %y) {
 ; CHECK-LABEL: test_fminf:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    mflr 0
-; CHECK-NEXT:    stw 0, 4(1)
 ; CHECK-NEXT:    stwu 1, -16(1)
+; CHECK-NEXT:    stw 0, 20(1)
 ; CHECK-NEXT:    .cfi_def_cfa_offset 16
 ; CHECK-NEXT:    .cfi_offset lr, 4
 ; CHECK-NEXT:    bl fminf
@@ -33,8 +33,8 @@ define double @test_fmin(double %x, double %y) {
 ; CHECK-LABEL: test_fmin:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    mflr 0
-; CHECK-NEXT:    stw 0, 4(1)
 ; CHECK-NEXT:    stwu 1, -16(1)
+; CHECK-NEXT:    stw 0, 20(1)
 ; CHECK-NEXT:    .cfi_def_cfa_offset 16
 ; CHECK-NEXT:    .cfi_offset lr, 4
 ; CHECK-NEXT:    bl fmin
@@ -50,47 +50,47 @@ define ppc_fp128 @test_fminl(ppc_fp128 %x, ppc_fp128 %y) {
 ; CHECK-LABEL: test_fminl:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    mflr 0
-; CHECK-NEXT:    stw 0, 4(1)
 ; CHECK-NEXT:    stwu 1, -112(1)
+; CHECK-NEXT:    stw 0, 116(1)
 ; CHECK-NEXT:    .cfi_def_cfa_offset 112
 ; CHECK-NEXT:    .cfi_offset lr, 4
-; CHECK-NEXT:    stfd 1, 40(1)
-; CHECK-NEXT:    lwz 3, 44(1)
-; CHECK-NEXT:    stfd 2, 32(1)
-; CHECK-NEXT:    stw 3, 60(1)
-; CHECK-NEXT:    lwz 3, 40(1)
-; CHECK-NEXT:    stfd 3, 72(1)
-; CHECK-NEXT:    stw 3, 56(1)
-; CHECK-NEXT:    lwz 3, 36(1)
-; CHECK-NEXT:    stfd 4, 64(1)
-; CHECK-NEXT:    stw 3, 52(1)
-; CHECK-NEXT:    lwz 3, 32(1)
-; CHECK-NEXT:    lfd 1, 56(1)
-; CHECK-NEXT:    stw 3, 48(1)
-; CHECK-NEXT:    lwz 3, 76(1)
-; CHECK-NEXT:    lfd 2, 48(1)
-; CHECK-NEXT:    stw 3, 92(1)
-; CHECK-NEXT:    lwz 3, 72(1)
-; CHECK-NEXT:    stw 3, 88(1)
-; CHECK-NEXT:    lwz 3, 68(1)
-; CHECK-NEXT:    lfd 3, 88(1)
-; CHECK-NEXT:    stw 3, 84(1)
-; CHECK-NEXT:    lwz 3, 64(1)
-; CHECK-NEXT:    stw 3, 80(1)
-; CHECK-NEXT:    lfd 4, 80(1)
-; CHECK-NEXT:    bl fminl
-; CHECK-NEXT:    stfd 1, 16(1)
-; CHECK-NEXT:    lwz 3, 20(1)
-; CHECK-NEXT:    stfd 2, 24(1)
+; CHECK-NEXT:    stfd 1, 88(1)
+; CHECK-NEXT:    lwz 3, 92(1)
+; CHECK-NEXT:    stfd 2, 80(1)
 ; CHECK-NEXT:    stw 3, 108(1)
-; CHECK-NEXT:    lwz 3, 16(1)
+; CHECK-NEXT:    lwz 3, 88(1)
+; CHECK-NEXT:    stfd 3, 56(1)
 ; CHECK-NEXT:    stw 3, 104(1)
-; CHECK-NEXT:    lwz 3, 28(1)
-; CHECK-NEXT:    lfd 1, 104(1)
+; CHECK-NEXT:    lwz 3, 84(1)
+; CHECK-NEXT:    stfd 4, 48(1)
 ; CHECK-NEXT:    stw 3, 100(1)
-; CHECK-NEXT:    lwz 3, 24(1)
+; CHECK-NEXT:    lwz 3, 80(1)
+; CHECK-NEXT:    lfd 1, 104(1)
 ; CHECK-NEXT:    stw 3, 96(1)
+; CHECK-NEXT:    lwz 3, 60(1)
 ; CHECK-NEXT:    lfd 2, 96(1)
+; CHECK-NEXT:    stw 3, 76(1)
+; CHECK-NEXT:    lwz 3, 56(1)
+; CHECK-NEXT:    stw 3, 72(1)
+; CHECK-NEXT:    lwz 3, 52(1)
+; CHECK-NEXT:    lfd 3, 72(1)
+; CHECK-NEXT:    stw 3, 68(1)
+; CHECK-NEXT:    lwz 3, 48(1)
+; CHECK-NEXT:    stw 3, 64(1)
+; CHECK-NEXT:    lfd 4, 64(1)
+; CHECK-NEXT:    bl fminl
+; CHECK-NEXT:    stfd 1, 24(1)
+; CHECK-NEXT:    lwz 3, 28(1)
+; CHECK-NEXT:    stfd 2, 16(1)
+; CHECK-NEXT:    stw 3, 44(1)
+; CHECK-NEXT:    lwz 3, 24(1)
+; CHECK-NEXT:    stw 3, 40(1)
+; CHECK-NEXT:    lwz 3, 20(1)
+; CHECK-NEXT:    lfd 1, 40(1)
+; CHECK-NEXT:    stw 3, 36(1)
+; CHECK-NEXT:    lwz 3, 16(1)
+; CHECK-NEXT:    stw 3, 32(1)
+; CHECK-NEXT:    lfd 2, 32(1)
 ; CHECK-NEXT:    lwz 0, 116(1)
 ; CHECK-NEXT:    addi 1, 1, 112
 ; CHECK-NEXT:    mtlr 0
@@ -103,8 +103,8 @@ define float @test_intrinsic_fmin_f32(float %x, float %y) {
 ; CHECK-LABEL: test_intrinsic_fmin_f32:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    mflr 0
-; CHECK-NEXT:    stw 0, 4(1)
 ; CHECK-NEXT:    stwu 1, -16(1)
+; CHECK-NEXT:    stw 0, 20(1)
 ; CHECK-NEXT:    .cfi_def_cfa_offset 16
 ; CHECK-NEXT:    .cfi_offset lr, 4
 ; CHECK-NEXT:    bl fminf
@@ -120,8 +120,8 @@ define double @test_intrinsic_fmin_f64(double %x, double %y) {
 ; CHECK-LABEL: test_intrinsic_fmin_f64:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    mflr 0
-; CHECK-NEXT:    stw 0, 4(1)
 ; CHECK-NEXT:    stwu 1, -16(1)
+; CHECK-NEXT:    stw 0, 20(1)
 ; CHECK-NEXT:    .cfi_def_cfa_offset 16
 ; CHECK-NEXT:    .cfi_offset lr, 4
 ; CHECK-NEXT:    bl fmin
@@ -137,8 +137,8 @@ define ppc_fp128 @test_intrinsic_fmin_f128(ppc_fp128 %x, ppc_fp128 %y) {
 ; CHECK-LABEL: test_intrinsic_fmin_f128:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    mflr 0
-; CHECK-NEXT:    stw 0, 4(1)
 ; CHECK-NEXT:    stwu 1, -112(1)
+; CHECK-NEXT:    stw 0, 116(1)
 ; CHECK-NEXT:    .cfi_def_cfa_offset 112
 ; CHECK-NEXT:    .cfi_offset lr, 4
 ; CHECK-NEXT:    stfd 1, 40(1)
@@ -190,8 +190,8 @@ define <2 x float> @test_intrinsic_fminf_v2f32(<2 x float> %x, <2 x float> %y) {
 ; CHECK-LABEL: test_intrinsic_fminf_v2f32:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    mflr 0
-; CHECK-NEXT:    stw 0, 4(1)
 ; CHECK-NEXT:    stwu 1, -32(1)
+; CHECK-NEXT:    stw 0, 36(1)
 ; CHECK-NEXT:    .cfi_def_cfa_offset 32
 ; CHECK-NEXT:    .cfi_offset lr, 4
 ; CHECK-NEXT:    .cfi_offset f29, -24
@@ -225,8 +225,8 @@ define <4 x float> @test_intrinsic_fmin_v4f32(<4 x float> %x, <4 x float> %y) {
 ; CHECK-LABEL: test_intrinsic_fmin_v4f32:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    mflr 0
-; CHECK-NEXT:    stw 0, 4(1)
 ; CHECK-NEXT:    stwu 1, -64(1)
+; CHECK-NEXT:    stw 0, 68(1)
 ; CHECK-NEXT:    .cfi_def_cfa_offset 64
 ; CHECK-NEXT:    .cfi_offset lr, 4
 ; CHECK-NEXT:    .cfi_offset f25, -56
@@ -286,8 +286,8 @@ define <8 x float> @test_intrinsic_fmin_v8f32(<8 x float> %x, <8 x float> %y) {
 ; CHECK-LABEL: test_intrinsic_fmin_v8f32:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    mflr 0
-; CHECK-NEXT:    stw 0, 4(1)
 ; CHECK-NEXT:    stwu 1, -128(1)
+; CHECK-NEXT:    stw 0, 132(1)
 ; CHECK-NEXT:    .cfi_def_cfa_offset 128
 ; CHECK-NEXT:    .cfi_offset lr, 4
 ; CHECK-NEXT:    .cfi_offset f17, -120
@@ -399,8 +399,8 @@ define ppc_fp128 @fminnum_const(ppc_fp128 %0) {
 ; CHECK-LABEL: fminnum_const:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    mflr 0
-; CHECK-NEXT:    stw 0, 4(1)
 ; CHECK-NEXT:    stwu 1, -96(1)
+; CHECK-NEXT:    stw 0, 100(1)
 ; CHECK-NEXT:    .cfi_def_cfa_offset 96
 ; CHECK-NEXT:    .cfi_offset lr, 4
 ; CHECK-NEXT:    stfd 1, 40(1)

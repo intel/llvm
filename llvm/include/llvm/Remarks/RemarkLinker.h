@@ -16,8 +16,10 @@
 #include "llvm/Remarks/Remark.h"
 #include "llvm/Remarks/RemarkFormat.h"
 #include "llvm/Remarks/RemarkStringTable.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Error.h"
 #include <memory>
+#include <optional>
 #include <set>
 
 namespace llvm {
@@ -51,32 +53,45 @@ private:
   std::set<std::unique_ptr<Remark>, RemarkPtrCompare> Remarks;
 
   /// A path to append before the external file path found in remark metadata.
-  Optional<std::string> PrependPath;
+  std::optional<std::string> PrependPath;
+
+  /// If true, keep all remarks, otherwise only keep remarks with valid debug
+  /// locations.
+  bool KeepAllRemarks = true;
 
   /// Keep this remark. If it's already in the set, discard it.
   Remark &keep(std::unique_ptr<Remark> Remark);
 
+  /// Returns true if \p R should be kept. If KeepAllRemarks is false, only
+  /// return true if \p R has a valid debug location.
+  bool shouldKeepRemark(const Remark &R) {
+    return KeepAllRemarks ? true : R.Loc.has_value();
+  }
+
 public:
   /// Set a path to prepend to the external file path.
-  void setExternalFilePrependPath(StringRef PrependPath);
+  LLVM_ABI void setExternalFilePrependPath(StringRef PrependPath);
+
+  /// Set KeepAllRemarks to \p B.
+  void setKeepAllRemarks(bool B) { KeepAllRemarks = B; }
 
   /// Link the remarks found in \p Buffer.
   /// If \p RemarkFormat is not provided, try to deduce it from the metadata in
   /// \p Buffer.
   /// \p Buffer can be either a standalone remark container or just
   /// metadata. This takes care of uniquing and merging the remarks.
-  Error link(StringRef Buffer, Optional<Format> RemarkFormat = None);
+  LLVM_ABI Error link(StringRef Buffer, Format RemarkFormat = Format::Auto);
 
   /// Link the remarks found in \p Obj by looking for the right section and
   /// calling the method above.
-  Error link(const object::ObjectFile &Obj,
-             Optional<Format> RemarkFormat = None);
+  LLVM_ABI Error link(const object::ObjectFile &Obj,
+                      Format RemarkFormat = Format::Auto);
 
   /// Serialize the linked remarks to the stream \p OS, using the format \p
   /// RemarkFormat.
   /// This clears internal state such as the string table.
   /// Note: this implies that the serialization mode is standalone.
-  Error serialize(raw_ostream &OS, Format RemarksFormat) const;
+  LLVM_ABI Error serialize(raw_ostream &OS, Format RemarksFormat) const;
 
   /// Check whether there are any remarks linked.
   bool empty() const { return Remarks.empty(); }
@@ -86,15 +101,13 @@ public:
   /// for (const Remark &R : RL.remarks() { [...] }
   using iterator = pointee_iterator<decltype(Remarks)::const_iterator>;
 
-  iterator_range<iterator> remarks() const {
-    return {Remarks.begin(), Remarks.end()};
-  }
+  iterator_range<iterator> remarks() const { return Remarks; }
 };
 
 /// Returns a buffer with the contents of the remarks section depending on the
 /// format of the file. If the section doesn't exist, this returns an empty
 /// optional.
-Expected<Optional<StringRef>>
+LLVM_ABI Expected<std::optional<StringRef>>
 getRemarksSectionContents(const object::ObjectFile &Obj);
 
 } // end namespace remarks

@@ -1,13 +1,21 @@
-// RUN: %clang_cl_asan -Od %p/dll_host.cpp -Fe%t
-// RUN: %clang_cl_asan -LD -Od %s -Fe%t.dll
+// RUN: %clang_cl_asan %Od %p/dll_host.cpp %Fe%t
+// RUN: %clang_cl_asan %LD %Od %s %Fe%t.dll
 // RUN: not %run %t %t.dll 2>&1 | FileCheck %s
+
+#include "../defines.h"
 
 struct C {
   int x;
   ~C() {}
 };
 
-int __attribute__((noinline, optnone)) hide(int x) { return x; }
+int ATTRIBUTE_NOINLINE
+#if defined(__clang__) || !defined(_MSC_VER)
+    __attribute__((optnone))
+#endif
+    hide(int x) {
+  return x;
+}
 
 extern "C" __declspec(dllexport)
 int test_function() {

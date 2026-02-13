@@ -1,4 +1,4 @@
-//===--- UndelegatedConstructorCheck.cpp - clang-tidy --------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,13 +8,10 @@
 
 #include "UndelegatedConstructorCheck.h"
 #include "clang/AST/ASTContext.h"
-#include "clang/Lex/Lexer.h"
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 namespace {
 AST_MATCHER_P(Stmt, ignoringTemporaryExpr,
@@ -75,6 +72,4 @@ void UndelegatedConstructorCheck::check(
                          "A temporary object is created here instead");
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

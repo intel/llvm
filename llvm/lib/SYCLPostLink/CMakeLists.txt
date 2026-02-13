@@ -1,0 +1,33 @@
+add_llvm_component_library(LLVMSYCLPostLink
+  ComputeModuleRuntimeInfo.cpp
+  ESIMDPostSplitProcessing.cpp
+  ModuleSplitter.cpp
+  SpecializationConstants.cpp
+
+  ADDITIONAL_HEADER_DIRS
+  ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLPostLink
+
+  DEPENDS
+  intrinsics_gen
+  LLVMDemangle
+  LLVMTransformUtils
+
+  LINK_LIBS
+  LLVMDemangle
+  LLVMTargetParser
+  LLVMTransformUtils
+  LLVMSYCLLowerIR
+
+  LINK_COMPONENTS
+  Analysis
+  BitWriter
+  Core
+  Demangle
+  InstCombine
+  IRPrinter
+  Linker
+  Passes
+  ScalarOpts
+  Support
+  ipo
+  )

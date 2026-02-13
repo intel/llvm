@@ -1,4 +1,4 @@
-; RUN: llc -march=hexagon < %s | FileCheck %s
+; RUN: llc -mtriple=hexagon < %s | FileCheck %s
 
 @g = global i128 zeroinitializer, align 8
 
@@ -8,7 +8,7 @@
 ; CHECK: add({{.*}},{{.*}},p[[P0]]):carry
 define void @addc(i128 %a0, i128 %a1) #0 {
   %v0 = add i128 %a0, %a1
-  store i128 %v0, i128* @g, align 8
+  store i128 %v0, ptr @g, align 8
   ret void
 }
 
@@ -18,7 +18,7 @@ define void @addc(i128 %a0, i128 %a1) #0 {
 ; CHECK: sub({{.*}},{{.*}},p[[P0]]):carry
 define void @subc(i128 %a0, i128 %a1) #0 {
   %v0 = sub i128 %a0, %a1
-  store i128 %v0, i128* @g, align 8
+  store i128 %v0, ptr @g, align 8
   ret void
 }
 

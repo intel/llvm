@@ -50,7 +50,7 @@ TEST_F(BranchProbabilityInfoTest, StressUnreachableHeuristic) {
 
   // define void @f() {
   // entry:
-  //   switch i32 undef, label %exit, [
+  //   switch i32 poison, label %exit, [
   //      i32 0, label %preexit
   //      ...                   ;;< Add lots of cases to stress the heuristic.
   //   ]
@@ -69,8 +69,8 @@ TEST_F(BranchProbabilityInfoTest, StressUnreachableHeuristic) {
 
   unsigned NumCases = 4096;
   auto *I32 = IntegerType::get(C, 32);
-  auto *Undef = UndefValue::get(I32);
-  auto *Switch = SwitchInst::Create(Undef, ExitBB, NumCases, EntryBB);
+  auto *Poison = PoisonValue::get(I32);
+  auto *Switch = SwitchInst::Create(Poison, ExitBB, NumCases, EntryBB);
   for (unsigned I = 0; I < NumCases; ++I)
     Switch->addCase(ConstantInt::get(I32, I), PreExitBB);
 
@@ -81,6 +81,45 @@ TEST_F(BranchProbabilityInfoTest, StressUnreachableHeuristic) {
   // hot one? I'd expect the results to be reversed here...
   EXPECT_FALSE(BPI.isEdgeHot(EntryBB, PreExitBB));
   EXPECT_TRUE(BPI.isEdgeHot(EntryBB, ExitBB));
+}
+
+TEST_F(BranchProbabilityInfoTest, SwapProbabilities) {
+  StringRef Assembly = R"(
+    define void @f() {
+    entry:
+      br label %loop
+
+    loop:
+      %iv = phi i32 [ 0, %entry ], [ %iv.next, %loop ]
+      %iv.next = add i32 %iv, 1
+      %cond = icmp slt i32 %iv.next, 10
+      br i1 %cond, label %exit, label %loop
+
+    exit:
+      ret void
+    }
+  )";
+  LLVMContext Context;
+  SMDiagnostic Error;
+  auto M = parseAssemblyString(Assembly, Error, Context);
+  ASSERT_TRUE(M) << "Bad assembly?";
+
+  Function *F = M->getFunction("f");
+  auto *LoopHeaderBB = F->front().getSingleSuccessor();
+  ASSERT_TRUE(LoopHeaderBB != nullptr);
+  BranchInst *Branch = dyn_cast<BranchInst>(LoopHeaderBB->getTerminator());
+  ASSERT_TRUE(Branch != nullptr);
+  // Save the probabilities before successors swapping
+  BranchProbabilityInfo *BPI = &buildBPI(*F);
+  auto ProbEdge0 = BPI->getEdgeProbability(LoopHeaderBB, 0U);
+  auto ProbEdge1 = BPI->getEdgeProbability(LoopHeaderBB, 1U);
+  EXPECT_LT(ProbEdge0, ProbEdge1);
+
+  Branch->swapSuccessors();
+  BPI->swapSuccEdgesProbabilities(LoopHeaderBB);
+  // TODO: Check the probabilities are swapped as well as the edges
+  EXPECT_EQ(ProbEdge0, BPI->getEdgeProbability(LoopHeaderBB, 1U));
+  EXPECT_EQ(ProbEdge1, BPI->getEdgeProbability(LoopHeaderBB, 0U));
 }
 
 } // end anonymous namespace

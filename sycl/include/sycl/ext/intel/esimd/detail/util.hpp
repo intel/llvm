@@ -18,13 +18,22 @@
 #include <type_traits>
 
 #ifdef __SYCL_DEVICE_ONLY__
-#define __ESIMD_INTRIN SYCL_EXTERNAL SYCL_ESIMD_FUNCTION
+#define __ESIMD_INTRIN __DPCPP_SYCL_EXTERNAL SYCL_ESIMD_FUNCTION
+#elif !defined(__ESIMD_BUILD_HOST_CODE)
+#define __ESIMD_INTRIN ESIMD_NOINLINE __attribute__((internal_linkage))
 #else
 #define __ESIMD_INTRIN inline
 #endif // __SYCL_DEVICE_ONLY__
 
+#ifdef __SYCL_DEVICE_ONLY__
+#define __ESIMD_INTRIN_END ;
+#else
+#define __ESIMD_INTRIN_END                                                     \
+  { __ESIMD_UNSUPPORTED_ON_HOST; }
+#endif // __SYCL_DEVICE_ONLY__
+
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::esimd::detail {
 
 /// ESIMD intrinsic operand size in bytes.
@@ -51,6 +60,11 @@ template <unsigned int N> constexpr unsigned int getNextPowerOf2() {
 }
 
 template <> constexpr unsigned int getNextPowerOf2<0>() { return 0; }
+
+template <unsigned int N, unsigned int M>
+constexpr unsigned int roundUpNextMultiple() {
+  return ((N + M - 1) / M) * M;
+}
 
 /// Compute binary logarithm of a constexpr with guaranteed compile-time
 /// evaluation.
@@ -165,7 +179,7 @@ template <> struct word_type<uint> {
 
 // Utility for compile time loop unrolling.
 template <unsigned N> class ForHelper {
-  template <unsigned I, typename Action> static inline void repeat(Action A) {
+  template <unsigned I, typename Action> static void repeat(Action A) {
     if constexpr (I < N)
       A(I);
     if constexpr (I + 1 < N)
@@ -173,7 +187,7 @@ template <unsigned N> class ForHelper {
   }
 
 public:
-  template <typename Action> static inline void unroll(Action A) {
+  template <typename Action> static void unroll(Action A) {
     ForHelper::template repeat<0, Action>(A);
   }
 };
@@ -181,15 +195,117 @@ public:
 #ifdef __ESIMD_FORCE_STATELESS_MEM
 /// Returns the address referenced by the accessor \p Acc and
 /// the byte offset \p Offset.
-template <typename T, typename AccessorTy>
-T *accessorToPointer(AccessorTy Acc, uint32_t Offset = 0) {
-  auto BytePtr = reinterpret_cast<char *>(Acc.get_pointer().get()) + Offset;
-  return reinterpret_cast<T *>(BytePtr);
+template <typename T, typename AccessorTy, typename OffsetTy = uint32_t>
+auto accessorToPointer(AccessorTy Acc, OffsetTy Offset = 0) {
+  using QualCharPtrType =
+      std::conditional_t<std::is_const_v<typename AccessorTy::value_type>,
+                         const char *, char *>;
+  using QualTPtrType =
+      std::conditional_t<std::is_const_v<typename AccessorTy::value_type>,
+                         const T *, T *>;
+  auto BytePtr =
+      reinterpret_cast<QualCharPtrType>(
+          Acc.template get_multi_ptr<access::decorated::yes>().get()) +
+      Offset;
+  return reinterpret_cast<QualTPtrType>(BytePtr);
 }
 #endif // __ESIMD_FORCE_STATELESS_MEM
 
+/// @brief Checks parameters for read region intrinsic API. The checks were
+/// refactored from simd_obj API.
+/// @tparam N the input vector size.
+/// @tparam M the return vector size.
+/// @tparam VStride the vertical stride in elements between rows.
+/// @tparam Width the size or each row, non-zero and even divides `M`.
+/// @tparam Stride horizontal stride in elements within each row.
+// The rdregion intrinsics computes a result vector using following algorithm:
+//
+// \code{.cpp}
+// uint16_t EltOffset = Offset / sizeof(T);
+// assert(Offset % sizeof(T) == 0);
+//
+// int NumRows = M / Width;
+// assert(M % Width == 0);
+//
+// int Index = 0;
+// for (int i = 0; i < NumRows; ++i) {
+//   for (int j = 0; j < Width; ++j) {
+//     Result[Index++] = Input[i * VStride +  j * Stride +
+//     EltOffset];
+//   }
+// }
+// \endcode
+// Hence the checks are to prevent reading beyond the input vector.
+template <int N, int M, int VStride, int Width, int Stride>
+constexpr void check_rdregion_params() {
+  static_assert(Width > 0 && M % Width == 0, "Malformed RHS region.");
+  static_assert(Width == M ||
+                    ((M / Width) - 1) * VStride + (Width - 1) * Stride < N,
+                "Malformed RHS region - too big vertical and/or "
+                "horizontal stride.");
+}
+
+/// @brief Checks parameters for write region intrinsic API. The checks were
+/// refactored from simd_obj API.
+/// @tparam N the input vector size.
+/// @tparam M the return vector size.
+/// @tparam VStride the vertical stride in elements between rows.
+/// @tparam Width the size or each row, non-zero and even divides `M`.
+/// @tparam Stride horizontal stride in elements within each row.
+// The wrregion intrinsics computes a result vector using following algorithm:
+//
+// \code{.cpp}
+// uint16_t EltOffset = Offset / sizeof(T);
+// assert(Offset % sizeof(T) == 0);
+//
+// int NumRows = M / Width;
+// assert(M % Width == 0);
+//
+// Result = OldValue;
+// int Index = 0;
+// for (int i = 0; i < NumRows; ++i) {
+//   for (int j = 0; j < Width; ++j) {
+//       if (Mask[Index])
+//           Result[i * VStride +  j * Stride + EltOffset] = NewVal[Index];
+//       ++Index;
+//   }
+// }
+// \endcode
+// Hence the checks are to prevent reading beyond the input array and prevent
+// writing beyond destination vector.
+template <int N, int M, int VStride, int Width, int Stride>
+constexpr void check_wrregion_params() {
+  static_assert(M <= N, "Attempt to access beyond viewed area: The "
+                        "viewed object in LHS does not fit RHS.");
+  static_assert((M - 1) * Stride < N, "Malformed RHS region - too big stride.");
+  check_rdregion_params<N, M, VStride, Width, Stride>();
+}
+
+// Generate an array of bitmasks for compressed load/store -- all 1 bits
+// strictly less than i -- [0 1 3 7 15 31 63 127 255 511 1023 2047 ... ]
+template <uint32_t... args> struct CompressedBitmask {
+  static const uint32_t value[sizeof...(args)];
+};
+
+template <uint32_t... args>
+const uint32_t CompressedBitmask<args...>::value[sizeof...(args)] = {args...};
+
+template <int N, unsigned... args> struct GenerateCompressedBitmaskImpl {
+  using value =
+      typename GenerateCompressedBitmaskImpl<N - 1, ~(((uint32_t)(~0)) << N),
+                                             args...>::value;
+};
+
+template <unsigned... args> struct GenerateCompressedBitmaskImpl<0, args...> {
+  using value = CompressedBitmask<0, args...>;
+};
+
+template <int N> struct GenerateCompressedBitmask {
+  using value = typename GenerateCompressedBitmaskImpl<N - 1>::value;
+};
+
 } // namespace ext::intel::esimd::detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 /// @endcond ESIMD_DETAIL

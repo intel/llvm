@@ -1,5 +1,5 @@
 ; REQUIRES: asserts
-; RUN: opt < %s -indvars -disable-output -stats -info-output-file - | FileCheck %s
+; RUN: opt < %s -passes=indvars -disable-output -stats -info-output-file - | FileCheck %s
 ; Check that IndVarSimplify is not creating unnecessary canonical IVs
 ; that will never be used.
 ; CHECK-NOT: indvars
@@ -8,15 +8,15 @@ target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f3
 
 @ue = external global i64
 
-define i32 @foo() nounwind {
+define i32 @foo(i1 %arg) nounwind {
 entry:
 	br label %bb38.i
 
 bb14.i27:
-	%t0 = load i64, i64* @ue, align 8
+	%t0 = load i64, ptr @ue, align 8
 	%t1 = sub i64 %t0, %i.0.i35
 	%t2 = add i64 %t1, 1
-	br i1 undef, label %bb15.i28, label %bb19.i31
+	br i1 %arg, label %bb15.i28, label %bb19.i31
 
 bb15.i28:
 	br label %bb19.i31
@@ -26,7 +26,7 @@ bb19.i31:
 	br label %bb35.i
 
 bb35.i:
-	br i1 undef, label %bb37.i, label %bb14.i27
+	br i1 %arg, label %bb37.i, label %bb14.i27
 
 bb37.i:
 	%t3 = add i64 %i.0.i35, 1

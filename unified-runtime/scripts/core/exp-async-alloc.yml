@@ -1,0 +1,509 @@
+#
+# Copyright (C) 2025 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime Experimental API for asynchronous allocations"
+ordinal: "99"
+
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+typed_etors: true
+desc: "Extension enums to $x_device_info_t to support async allocations."
+name: $x_device_info_t
+etors:
+    - name: ASYNC_USM_ALLOCATIONS_SUPPORT_EXP
+      value: "0x2050"
+      desc: |
+            [$x_bool_t] returns true if the device supports enqueueing of
+            allocations and frees.
+
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+name: $x_usm_pool_flags_t
+desc: "USM memory property flag for creating a native USM pool"
+etors:
+    - name: USE_NATIVE_MEMORY_POOL_EXP
+      value: "$X_BIT(1)"
+      desc: "Use the native memory pool API"
+    - name: READ_ONLY_EXP
+      value: "$X_BIT(2)"
+      desc: |
+            Performance hint asserting that all memory allocations from the
+            memory pool will only ever be read from within SYCL kernel functions
+
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+typed_etors: true
+name: $x_usm_pool_info_t
+desc: "Extension enums for named memory pool info retrieval."
+etors:
+    - name: RELEASE_THRESHOLD_EXP
+      value: "0x2050"
+      desc: "[size_t] Memory pool release threshold"
+    - name: MAXIMUM_SIZE_EXP
+      value: "0x2051"
+      desc: "[size_t] Memory pool maximum size"
+    - name: RESERVED_CURRENT_EXP
+      value: "0x2052"
+      desc: "[size_t] Amount of backing memory currently allocated for the memory pool"
+    - name: RESERVED_HIGH_EXP
+      value: "0x2053"
+      desc: "[size_t] High watermark of backing memory allocated for the memory pool"
+    - name: USED_CURRENT_EXP
+      value: "0x2054"
+      desc: "[size_t] Amount of memory from the pool that is currently in use"
+    - name: USED_HIGH_EXP
+      value: "0x2055"
+      desc: "[size_t] High watermark of the amount of memory from the pool that was in use"
+
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+desc: "Command Type experimental enumerations."
+name: $x_command_t
+etors:
+    - name: ENQUEUE_USM_DEVICE_ALLOC_EXP
+      value: "0x2050"
+      desc: "Event created by $xEnqueueUSMDeviceAllocExp"
+    - name: ENQUEUE_USM_SHARED_ALLOC_EXP
+      value: "0x2051"
+      desc: "Event created by $xEnqueueUSMSharedAllocExp"
+    - name: ENQUEUE_USM_HOST_ALLOC_EXP
+      value: "0x2052"
+      desc: "Event created by $xEnqueueUSMHostAllocExp"
+    - name: ENQUEUE_USM_FREE_EXP
+      value: "0x2053"
+      desc: "Event created by $xEnqueueUSMFreeExp"
+
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+desc: "Structure type experimental enumerations"
+name: $x_structure_type_t
+etors:
+    - name: EXP_ASYNC_USM_ALLOC_PROPERTIES
+      desc: "$x_exp_async_usm_alloc_properties_t"
+      value: "0x2050"
+
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Async alloc properties"
+name: $x_exp_async_usm_alloc_flags_t
+etors:
+    - name: TBD
+      desc: "Reserved for future use."
+      value: "$X_BIT(0)"
+
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Async alloc properties"
+name: $x_exp_async_usm_alloc_properties_t
+base: $x_base_properties_t
+members:
+    - type: $x_exp_async_usm_alloc_flags_t
+      name: flags
+      desc: "[in] async alloc flags"
+
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "USM pool buffer descriptor type"
+details:
+  - Used for pool creation from USM memory object. Specify these properties in
+    $xUSMPoolCreate or $xUSMPoolCreateExp via $x_usm_pool_desc_t as part of a `pNext` chain.
+class: $xUSM
+name: $x_usm_pool_buffer_desc_t
+base: $x_base_desc_t
+members:
+    - type: "void*"
+      name:  pMem
+      desc: "[in] USM memory object"
+    - type: "size_t"
+      name:  size
+      desc: "[in] size of USM memory object"
+    - type: "$x_usm_type_t"
+      name:  memType
+      desc: "[in] type of USM memory object"
+    - type: "$x_device_handle_t"
+      name:  device
+      desc: "[in][optional] device associated with the USM memory object"
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue an async device allocation"
+class: $xEnqueue
+name: USMDeviceAllocExp
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_usm_pool_handle_t
+      desc: "[in][optional] USM pool descriptor"
+      name: pPool
+    - type: const size_t
+      desc: "[in] minimum size in bytes of the USM memory object to be allocated"
+      name: size
+    - type: const $x_exp_async_usm_alloc_properties_t*
+      name: pProperties
+      desc: "[in][optional] pointer to the enqueue async alloc properties"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: const $x_event_handle_t*
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
+            If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
+    - type: void**
+      name: ppMem
+      desc: "[out] pointer to USM memory object"
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: "[out][optional] return an event object that identifies the async alloc"
+returns:
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue an async shared allocation"
+class: $xEnqueue
+name: USMSharedAllocExp
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_usm_pool_handle_t
+      desc: "[in][optional] USM pool descriptor"
+      name: pPool
+    - type: const size_t
+      desc: "[in] minimum size in bytes of the USM memory object to be allocated"
+      name: size
+    - type: const $x_exp_async_usm_alloc_properties_t*
+      name: pProperties
+      desc: "[in][optional] pointer to the enqueue async alloc properties"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: const $x_event_handle_t*
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
+            If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
+    - type: void**
+      name: ppMem
+      desc: "[out] pointer to USM memory object"
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: "[out][optional] return an event object that identifies the async alloc"
+returns:
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue an async host allocation"
+class: $xEnqueue
+name: USMHostAllocExp
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_usm_pool_handle_t
+      desc: "[in][optional] USM pool descriptor"
+      name: pPool
+    - type: const size_t
+      desc: "[in] minimum size in bytes of the USM memory object to be allocated"
+      name: size
+    - type: const $x_exp_async_usm_alloc_properties_t*
+      name: pProperties
+      desc: "[in][optional] pointer to the enqueue async alloc properties"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: const $x_event_handle_t*
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
+            If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
+    - type: void**
+      name: ppMem
+      desc: "[out] pointer to USM memory object"
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: "[out][optional] return an event object that identifies the async alloc"
+returns:
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue an async free"
+class: $xEnqueue
+name: USMFreeExp
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_usm_pool_handle_t
+      desc: "[in][optional] USM pool descriptor"
+      name: pPool
+    - type: void*
+      name: pMem
+      desc: "[in] pointer to USM memory object"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: const $x_event_handle_t*
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
+            If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: "[out][optional] return an event object that identifies the async alloc"
+returns:
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create USM memory pool with desired properties."
+class: $xUSM
+name: PoolCreateExp
+ordinal: "0"
+details:
+  - "Create a memory pool associated with a single device."
+  - "See also $xUSMPoolCreate and $x_usm_pool_limits_desc_t."
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: $x_usm_pool_desc_t*
+      name: pPoolDesc
+      desc: "[in] pointer to USM pool descriptor. Can be chained with $x_usm_pool_limits_desc_t"
+    - type: $x_usm_pool_handle_t*
+      name: pPool
+      desc: "[out] pointer to USM memory pool"
+returns:
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If any device associated with `hContext` reports `false` for $X_DEVICE_INFO_USM_POOL_SUPPORT"
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Destroy a USM memory pool."
+class: $xUSM
+name: PoolDestroyExp
+ordinal: "0"
+details:
+  - "Destroy a memory pool associated with a single device."
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: $x_usm_pool_handle_t
+      name: hPool
+      desc: "[in] handle to USM memory pool to be destroyed"
+returns:
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If any device associated with `hContext` reports `false` for $X_DEVICE_INFO_USM_POOL_SUPPORT"
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Get the default pool for a device."
+class: $xUSM
+name: PoolGetDefaultDevicePoolExp
+ordinal: "0"
+details:
+  - "Get the default pool for a device."
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: $x_usm_pool_handle_t*
+      name: pPool
+      desc: "[out] pointer to USM memory pool"
+returns:
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If any device associated with `hContext` reports `false` for $X_DEVICE_INFO_USM_POOL_SUPPORT"
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Query a pool for specific properties."
+class: $xUSM
+name: PoolGetInfoExp
+ordinal: "0"
+details:
+  - "Query a memory pool for specific properties."
+params:
+    - type: $x_usm_pool_handle_t
+      name: hPool
+      desc: "[in] handle to USM memory pool for property retrieval"
+    - type: $x_usm_pool_info_t
+      name: propName
+      desc: "[in] queried property name"
+    - type: void*
+      name: pPropValue
+      desc: "[out][optional] returned query value"
+    - type: size_t*
+      name: pPropSizeRet
+      desc: "[out][optional] returned query value size"
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
+        - "If `propName` is not supported by the adapter."
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`pPropValue == NULL && pPropSizeRet == NULL`"
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Set a property for a USM memory pool."
+class: $xUSM
+name: PoolSetInfoExp
+ordinal: "0"
+details:
+  - "Set a property for a USM memory pool."
+params:
+    - type: $x_usm_pool_handle_t
+      name: hPool
+      desc: "[in] handle to USM memory pool for the property to be set"
+    - type: $x_usm_pool_info_t
+      name: propName
+      desc: "[in] setting property name"
+    - type: void*
+      name: pPropValue
+      desc: "[in] pointer to value to assign"
+    - type: size_t
+      name: propSize
+      desc: "[in] size of value to assign"
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
+        - "If `propName` is not supported by the adapter."
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If any device associated with `hContext` reports `false` for $X_DEVICE_INFO_USM_POOL_SUPPORT"
+    - $X_RESULT_ERROR_INVALID_DEVICE
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Set the current pool for a device."
+class: $xUSM
+name: PoolSetDevicePoolExp
+ordinal: "0"
+details:
+  - "Set the current pool for a device."
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: $x_usm_pool_handle_t
+      name: hPool
+      desc: "[in] handle to USM memory pool to set for a device"
+returns:
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If any device associated with `hContext` reports `false` for $X_DEVICE_INFO_USM_POOL_SUPPORT"
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Get the currently set pool for a device."
+class: $xUSM
+name: PoolGetDevicePoolExp
+ordinal: "0"
+details:
+  - "Get the currently set pool for a device."
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: $x_usm_pool_handle_t*
+      name: pPool
+      desc: "[out] pointer to USM memory pool"
+returns:
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If any device associated with `hContext` reports `false` for $X_DEVICE_INFO_USM_POOL_SUPPORT"
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Attempt to release a pool's memory back to the OS"
+class: $xUSM
+name: PoolTrimToExp
+ordinal: "0"
+details:
+  - "Attempt to release a pool's memory back to the OS"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: $x_usm_pool_handle_t
+      name: hPool
+      desc: "[in] handle to USM memory pool for trimming"
+    - type: size_t
+      name: minBytesToKeep
+      desc: "[in] minimum number of bytes to keep in the pool"
+returns:
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If any device associated with `hContext` reports `false` for $X_DEVICE_INFO_USM_POOL_SUPPORT"

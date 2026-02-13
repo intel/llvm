@@ -1,0 +1,20 @@
+// REQUIRES: linux
+// UNSUPPORTED: libcxx
+// RUN: sort %S/sycl_symbols_linux.dump | FileCheck %s --implicit-check-not=cxx11
+
+// The purpose of this test is to check that all symbols that are visible from
+// SYCL library are ABI neutral (see
+// https://gcc.gnu.org/onlinedocs/libstdc++/manual/using_dual_abi.html). It
+// means that SYCL library must not export symbols in "__cxx11" namespace or
+// with "cxx11" tag because such symbols correspond to the new ABI entries
+// (_GLIBCXX_USE_CXX11_ABI=1, default) and won't work with a program that uses
+// the old ABI (_GLIBCXX_USE_CXX11_ABI=0). All APIs exported from SYCL RT must
+// avoid using classes like std::string and std::list impacted by the dual ABI
+// issue and have to use their ABI-neutral counterparts provided by SYCL RT (e.g
+// sycl::detail::string, etc.).
+
+// New exclusions are NOT ALLOWED to this file. Some entry points were not fixed
+// in time during the last ABI breaking window, so we have to keep providing the
+// entry points for them even if newer version of the headers stops using those
+// old entry points. Others were exported unnecessarily but only actually used
+// inside DSO, yet we have to keep the entry points as well.

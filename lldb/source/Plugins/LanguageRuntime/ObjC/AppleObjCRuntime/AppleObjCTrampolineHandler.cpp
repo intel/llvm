@@ -13,7 +13,6 @@
 #include "lldb/Breakpoint/StoppointCallbackContext.h"
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/Module.h"
-#include "lldb/Core/StreamFile.h"
 #include "lldb/Core/Value.h"
 #include "lldb/Expression/DiagnosticManager.h"
 #include "lldb/Expression/FunctionCaller.h"
@@ -416,15 +415,15 @@ bool AppleObjCTrampolineHandler::AppleObjCVTables::RefreshTrampolines(
     Process *process = exe_ctx.GetProcessPtr();
     const ABI *abi = process->GetABI().get();
 
-    TypeSystemClang *clang_ast_context =
+    TypeSystemClangSP scratch_ts_sp =
         ScratchTypeSystemClang::GetForTarget(process->GetTarget());
-    if (!clang_ast_context)
+    if (!scratch_ts_sp)
       return false;
 
     ValueList argument_values;
     Value input_value;
     CompilerType clang_void_ptr_type =
-        clang_ast_context->GetBasicType(eBasicTypeVoid).GetPointerType();
+        scratch_ts_sp->GetBasicType(eBasicTypeVoid).GetPointerType();
 
     input_value.SetValueType(Value::ValueType::Scalar);
     // input_value.SetContext (Value::eContextTypeClangType,
@@ -623,14 +622,14 @@ AppleObjCTrampolineHandler::AppleObjCTrampolineHandler(
     // step through any method dispatches.  Warn to that effect and get out of
     // here.
     if (process_sp->CanJIT()) {
-      process_sp->GetTarget().GetDebugger().GetErrorStream().Printf(
+      process_sp->GetTarget().GetDebugger().GetAsyncErrorStream()->Printf(
           "Could not find implementation lookup function \"%s\""
           " step in through ObjC method dispatch will not work.\n",
           get_impl_name.AsCString());
     }
     return;
   }
-  
+
   // We will either set the implementation to the _stret or non_stret version,
   // so either way it's safe to start filling the m_lookup_..._code here.
   m_lookup_implementation_function_code.assign(
@@ -730,13 +729,13 @@ AppleObjCTrampolineHandler::SetupDispatchFunction(Thread &thread,
       }
 
       // Next make the runner function for our implementation utility function.
-      TypeSystemClang *clang_ast_context = ScratchTypeSystemClang::GetForTarget(
+      TypeSystemClangSP scratch_ts_sp = ScratchTypeSystemClang::GetForTarget(
           thread.GetProcess()->GetTarget());
-      if (!clang_ast_context)
+      if (!scratch_ts_sp)
         return LLDB_INVALID_ADDRESS;
 
       CompilerType clang_void_ptr_type =
-          clang_ast_context->GetBasicType(eBasicTypeVoid).GetPointerType();
+          scratch_ts_sp->GetBasicType(eBasicTypeVoid).GetPointerType();
       Status error;
 
       impl_function_caller = m_impl_code->MakeFunctionCaller(
@@ -866,15 +865,15 @@ AppleObjCTrampolineHandler::GetStepThroughDispatchPlan(Thread &thread,
 
     TargetSP target_sp(thread.CalculateTarget());
 
-    TypeSystemClang *clang_ast_context =
+    TypeSystemClangSP scratch_ts_sp =
         ScratchTypeSystemClang::GetForTarget(*target_sp);
-    if (!clang_ast_context)
+    if (!scratch_ts_sp)
       return ret_plan_sp;
 
     ValueList argument_values;
     Value void_ptr_value;
     CompilerType clang_void_ptr_type =
-        clang_ast_context->GetBasicType(eBasicTypeVoid).GetPointerType();
+        scratch_ts_sp->GetBasicType(eBasicTypeVoid).GetPointerType();
     void_ptr_value.SetValueType(Value::ValueType::Scalar);
     // void_ptr_value.SetContext (Value::eContextTypeClangType,
     // clang_void_ptr_type);
@@ -1089,7 +1088,7 @@ AppleObjCTrampolineHandler::GetStepThroughDispatchPlan(Thread &thread,
 
       Value flag_value;
       CompilerType clang_int_type =
-          clang_ast_context->GetBuiltinTypeForEncodingAndBitSize(
+          scratch_ts_sp->GetBuiltinTypeForEncodingAndBitSize(
               lldb::eEncodingSint, 32);
       flag_value.SetValueType(Value::ValueType::Scalar);
       // flag_value.SetContext (Value::eContextTypeClangType, clang_int_type);

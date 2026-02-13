@@ -4,8 +4,11 @@
 // RUN: %clang %s -target x86_64-unknown-linux-gnu -emit-llvm -S -fsanitize=memory     -fsanitize-coverage=trace-pc,trace-cmp -o - | FileCheck %s --check-prefixes=CHECK,MSAN
 // RUN: %clang %s -target x86_64-unknown-linux-gnu -emit-llvm -S -fsanitize=thread     -fsanitize-coverage=trace-pc,trace-cmp -o - | FileCheck %s --check-prefixes=CHECK,TSAN
 // RUN: %clang %s -target x86_64-unknown-linux-gnu -emit-llvm -S -fsanitize=undefined  -fsanitize-coverage=trace-pc,trace-cmp -o - | FileCheck %s --check-prefixes=CHECK,UBSAN
+// RUN: %clang %s -target x86_64-unknown-linux-gnu -emit-llvm -S -fsanitize=kcfi       -fsanitize-coverage=trace-pc,trace-cmp -o - | FileCheck %s --check-prefixes=CHECK,KCFI
+// RUN: %clang %s -target x86_64-unknown-linux-gnu -emit-llvm -S -fsanitize=cfi        -fsanitize-coverage=trace-pc,trace-cmp -flto -fvisibility=default -fno-sanitize-trap=cfi -fno-sanitize-ignorelist -resource-dir=/dev/null -o - | FileCheck %s --check-prefixes=CHECK,CFI
 
 int x[10];
+extern void (*f)(void);
 
 // CHECK-LABEL: define dso_local void @foo(
 void foo(int n) {
@@ -18,6 +21,9 @@ void foo(int n) {
   // UBSAN-DAG: call void @__ubsan_handle
   if (n)
     x[n] = 42;
+  // KCFI-DAG: call void %[[#]]() [ "kcfi"(i32 {{.*}}) ]
+  // CFI-DAG: call void @__ubsan_handle_cfi_check_fail_abort
+  f();
 }
 
 static inline __attribute__((__always_inline__)) void always_inlined_fn(int n) {
@@ -42,6 +48,9 @@ __attribute__((no_sanitize("coverage"))) void test_no_sanitize_coverage(int n) {
   // UBSAN-DAG: call void @__ubsan_handle
   if (n)
     x[n] = 42;
+  // KCFI-DAG: call void %[[#]]() [ "kcfi"(i32 {{.*}}) ]
+  // CFI-DAG: call void @__ubsan_handle_cfi_check_fail_abort
+  f();
 }
 
 
@@ -78,6 +87,22 @@ void test_no_sanitize_separate(int n) {
   // UBSAN-NOT: call void @__ubsan_handle
   if (n)
     x[n] = 42;
+}
+
+// CHECK-LABEL: define dso_local void @test_no_sanitize_kcfi(
+__attribute__((no_sanitize("kcfi", "coverage")))
+void test_no_sanitize_kcfi(void) {
+  // CHECK-NOT: call void @__sanitizer_cov_trace
+  // KCFI-NOT: call void %[[#]]() [ "kcfi"(i32 {{.*}}) ]
+  f();
+}
+
+// CHECK-LABEL: define dso_local void @test_no_sanitize_cfi(
+__attribute__((no_sanitize("cfi", "coverage")))
+void test_no_sanitize_cfi(void) {
+  // CHECK-NOT: call void @__sanitizer_cov_trace
+  // CFI-NOT: call void @__ubsan_handle_cfi_check_fail_abort
+  f();
 }
 
 // CHECK-LABEL: define dso_local void @test_no_sanitize_always_inline(

@@ -21,7 +21,8 @@
 #ifndef FORTRAN_LOWER_CONVERT_TYPE_H
 #define FORTRAN_LOWER_CONVERT_TYPE_H
 
-#include "flang/Common/Fortran.h"
+#include "flang/Evaluate/type.h"
+#include "flang/Support/Fortran.h"
 #include "mlir/IR/BuiltinTypes.h"
 
 namespace mlir {
@@ -39,12 +40,16 @@ class Reference;
 namespace evaluate {
 template <typename>
 class Expr;
+template <typename>
+class FunctionRef;
 struct SomeType;
 } // namespace evaluate
 
 namespace semantics {
 class Symbol;
 class DerivedTypeSpec;
+class DerivedTypeDetails;
+class Scope;
 } // namespace semantics
 
 namespace lower {
@@ -83,6 +88,48 @@ mlir::Type translateVariableToFIRType(Fortran::lower::AbstractConverter &,
 /// Translate a REAL of KIND to the mlir::Type.
 mlir::Type convertReal(mlir::MLIRContext *ctxt, int KIND);
 
+bool isDerivedTypeWithLenParameters(const semantics::Symbol &);
+
+template <typename T>
+class TypeBuilder {
+public:
+  static mlir::Type genType(Fortran::lower::AbstractConverter &,
+                            const Fortran::evaluate::FunctionRef<T> &);
+};
+using namespace evaluate;
+FOR_EACH_SPECIFIC_TYPE(extern template class TypeBuilder, )
+
+/// A helper class to reverse iterate through the component names of a derived
+/// type, including the parent component and the component of the parents. This
+/// is useful to deal with StructureConstructor lowering.
+class ComponentReverseIterator {
+public:
+  ComponentReverseIterator(const Fortran::semantics::DerivedTypeSpec &derived) {
+    setCurrentType(derived);
+  }
+  /// Does the current type has a component with \name (does not look-up the
+  /// components of the parent if any)? If there is a match, the iterator
+  /// is advanced to the search result.
+  bool lookup(const Fortran::parser::CharBlock &name) {
+    componentIt = std::find(componentIt, componentItEnd, name);
+    return componentIt != componentItEnd;
+  };
+
+  /// Advance iterator to the last components of the current type parent.
+  const Fortran::semantics::DerivedTypeSpec &advanceToParentType();
+
+  /// Get the parent component symbol for the current type.
+  const Fortran::semantics::Symbol *getParentComponent() const;
+
+private:
+  void setCurrentType(const Fortran::semantics::DerivedTypeSpec &derived);
+  const Fortran::semantics::DerivedTypeSpec *currentParentType = nullptr;
+  const Fortran::semantics::DerivedTypeDetails *currentTypeDetails = nullptr;
+  using name_iterator =
+      std::list<Fortran::parser::CharBlock>::const_reverse_iterator;
+  name_iterator componentIt{};
+  name_iterator componentItEnd{};
+};
 } // namespace lower
 } // namespace Fortran
 

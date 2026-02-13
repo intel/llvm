@@ -1,19 +1,22 @@
-; Tests that we would convert coro.resume to a musttail call if the target is
-; Wasm64 with tail-call support.
-; RUN: opt < %s -passes='cgscc(coro-split),simplifycfg,early-cse' -S | FileCheck %s
+; Tests that coro-split will convert coro.await.suspend.handle to a musttail call if the target is
+; Wasm64 or Wasm32 with tail-call support.
+; REQUIRES: webassembly-registered-target
 
-target triple = "wasm64-unknown-unknown"
+; RUN: opt -mtriple=wasm64-unknown-unknown < %s -passes='cgscc(coro-split),simplifycfg,early-cse' -S | FileCheck %s
+; RUN: opt -mtriple=wasm64-unknown-unknown < %s -passes='pgo-instr-gen,cgscc(coro-split),simplifycfg,early-cse' -S | FileCheck %s
+
+; RUN: opt -mtriple=wasm32-unknown-unknown < %s -passes='cgscc(coro-split),simplifycfg,early-cse' -S | FileCheck %s
+; RUN: opt -mtriple=wasm32-unknown-unknown < %s -passes='pgo-instr-gen,cgscc(coro-split),simplifycfg,early-cse' -S | FileCheck %s
 
 define void @f() #0 {
 entry:
-  %id = call token @llvm.coro.id(i32 0, i8* null, i8* null, i8* null)
-  %alloc = call i8* @malloc(i64 16) #3
-  %vFrame = call noalias nonnull i8* @llvm.coro.begin(token %id, i8* %alloc)
+  %id = call token @llvm.coro.id(i32 0, ptr null, ptr null, ptr null)
+  %alloc = call ptr @malloc(i64 16) #3
+  %vFrame = call noalias nonnull ptr @llvm.coro.begin(token %id, ptr %alloc)
 
-  %save = call token @llvm.coro.save(i8* null)
-  %addr1 = call i8* @llvm.coro.subfn.addr(i8* null, i8 0)
-  %pv1 = bitcast i8* %addr1 to void (i8*)*
-  call fastcc void %pv1(i8* null)
+  %save = call token @llvm.coro.save(ptr null)
+  %addr1 = call ptr @llvm.coro.subfn.addr(ptr null, i8 0)
+  call fastcc void %addr1(ptr null)
 
   %suspend = call i8 @llvm.coro.suspend(token %save, i1 false)
   switch i8 %suspend, label %exit [
@@ -21,10 +24,8 @@ entry:
     i8 1, label %exit
   ]
 await.ready:
-  %save2 = call token @llvm.coro.save(i8* null)
-  %addr2 = call i8* @llvm.coro.subfn.addr(i8* null, i8 0)
-  %pv2 = bitcast i8* %addr2 to void (i8*)*
-  call fastcc void %pv2(i8* null)
+  %save2 = call token @llvm.coro.save(ptr null)
+  call void @llvm.coro.await.suspend.handle(ptr null, ptr null, ptr @await_suspend_function)
 
   %suspend2 = call i8 @llvm.coro.suspend(token %save2, i1 false)
   switch i8 %suspend2, label %exit [
@@ -32,23 +33,24 @@ await.ready:
     i8 1, label %exit
   ]
 exit:
-  call i1 @llvm.coro.end(i8* null, i1 false)
+  call void @llvm.coro.end(ptr null, i1 false, token none)
   ret void
 }
 
 ; CHECK: musttail call
 
-declare token @llvm.coro.id(i32, i8* readnone, i8* nocapture readonly, i8*) #1
+declare token @llvm.coro.id(i32, ptr readnone, ptr nocapture readonly, ptr) #1
 declare i1 @llvm.coro.alloc(token) #2
 declare i64 @llvm.coro.size.i64() #3
-declare i8* @llvm.coro.begin(token, i8* writeonly) #2
-declare token @llvm.coro.save(i8*) #2
-declare i8* @llvm.coro.frame() #3
+declare ptr @llvm.coro.begin(token, ptr writeonly) #2
+declare token @llvm.coro.save(ptr) #2
+declare ptr @llvm.coro.frame() #3
 declare i8 @llvm.coro.suspend(token, i1) #2
-declare i8* @llvm.coro.free(token, i8* nocapture readonly) #1
-declare i1 @llvm.coro.end(i8*, i1) #2
-declare i8* @llvm.coro.subfn.addr(i8* nocapture readonly, i8) #1
-declare i8* @malloc(i64)
+declare ptr @llvm.coro.free(token, ptr nocapture readonly) #1
+declare void @llvm.coro.end(ptr, i1, token) #2
+declare ptr @llvm.coro.subfn.addr(ptr nocapture readonly, i8) #1
+declare ptr @malloc(i64)
+declare ptr @await_suspend_function(ptr %awaiter, ptr %hdl)
 
 attributes #0 = { presplitcoroutine "target-features"="+tail-call" }
 attributes #1 = { argmemonly nounwind readonly }

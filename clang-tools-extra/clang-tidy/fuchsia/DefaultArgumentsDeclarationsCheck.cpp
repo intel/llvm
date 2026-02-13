@@ -1,4 +1,4 @@
-//===--- DefaultArgumentsDeclarationsCheck.cpp - clang-tidy ---------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,9 +11,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace fuchsia {
+namespace clang::tidy::fuchsia {
 
 void DefaultArgumentsDeclarationsCheck::registerMatchers(MatchFinder *Finder) {
   // Declaring default parameters is disallowed.
@@ -26,7 +24,7 @@ void DefaultArgumentsDeclarationsCheck::check(
   if (!D)
     return;
 
-  SourceRange DefaultArgRange = D->getDefaultArgRange();
+  const SourceRange DefaultArgRange = D->getDefaultArgRange();
 
   if (DefaultArgRange.getEnd() != D->getEndLoc())
     return;
@@ -37,10 +35,10 @@ void DefaultArgumentsDeclarationsCheck::check(
     return;
   }
 
-  SourceLocation StartLocation =
+  const SourceLocation StartLocation =
       D->getName().empty() ? D->getBeginLoc() : D->getLocation();
 
-  SourceRange RemovalRange(
+  const SourceRange RemovalRange(
       Lexer::getLocForEndOfToken(StartLocation, 0, *Result.SourceManager,
                                  Result.Context->getLangOpts()),
       DefaultArgRange.getEnd());
@@ -50,6 +48,4 @@ void DefaultArgumentsDeclarationsCheck::check(
       << D << FixItHint::CreateRemoval(RemovalRange);
 }
 
-} // namespace fuchsia
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::fuchsia

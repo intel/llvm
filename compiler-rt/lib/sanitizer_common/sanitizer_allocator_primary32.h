@@ -278,7 +278,7 @@ class SizeClassAllocator32 {
   static const uptr kRegionSize = 1 << kRegionSizeLog;
   static const uptr kNumPossibleRegions = kSpaceSize / kRegionSize;
 
-  struct ALIGNED(SANITIZER_CACHE_LINE_SIZE) SizeClassInfo {
+  struct alignas(SANITIZER_CACHE_LINE_SIZE) SizeClassInfo {
     StaticSpinMutex mutex;
     IntrusiveList<TransferBatch> free_list;
     u32 rand_state;
@@ -288,6 +288,7 @@ class SizeClassAllocator32 {
   uptr ComputeRegionId(uptr mem) const {
     if (SANITIZER_SIGN_EXTENDED_ADDRESSES)
       mem &= (kSpaceSize - 1);
+    mem -= kSpaceBeg;
     const uptr res = mem >> kRegionSizeLog;
     CHECK_LT(res, kNumPossibleRegions);
     return res;
@@ -353,7 +354,7 @@ class SizeClassAllocator32 {
     DCHECK_GT(max_count, 0);
     TransferBatch *b = nullptr;
     constexpr uptr kShuffleArraySize = 48;
-    uptr shuffle_array[kShuffleArraySize];
+    UNINITIALIZED uptr shuffle_array[kShuffleArraySize];
     uptr count = 0;
     for (uptr i = region; i < region + n_chunks * size; i += size) {
       shuffle_array[count++] = i;

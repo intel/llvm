@@ -22,11 +22,8 @@
 #include "llvm/CodeGen/RegisterScavenging.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/IR/DebugLoc.h"
-#include "llvm/MC/MCAsmInfo.h"
-#include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
-#include "llvm/Support/raw_ostream.h"
 #include <cassert>
 #include <cctype>
 #include <cstdint>
@@ -40,18 +37,14 @@ using namespace llvm;
 #define DEBUG_TYPE "mips16-instrinfo"
 
 Mips16InstrInfo::Mips16InstrInfo(const MipsSubtarget &STI)
-    : MipsInstrInfo(STI, Mips::Bimm16) {}
-
-const MipsRegisterInfo &Mips16InstrInfo::getRegisterInfo() const {
-  return RI;
-}
+    : MipsInstrInfo(STI, RI, Mips::Bimm16), RI(STI) {}
 
 /// isLoadFromStackSlot - If the specified machine instruction is a direct
 /// load from a stack slot, return the virtual or physical register number of
 /// the destination along with the FrameIndex of the loaded stack slot.  If
 /// not, return 0.  This predicate must return 0 if the instruction has
 /// any side effects other than loading from the stack slot.
-unsigned Mips16InstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
+Register Mips16InstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
                                               int &FrameIndex) const {
   return 0;
 }
@@ -61,15 +54,16 @@ unsigned Mips16InstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
 /// the source reg along with the FrameIndex of the loaded stack slot.  If
 /// not, return 0.  This predicate must return 0 if the instruction has
 /// any side effects other than storing to the stack slot.
-unsigned Mips16InstrInfo::isStoreToStackSlot(const MachineInstr &MI,
+Register Mips16InstrInfo::isStoreToStackSlot(const MachineInstr &MI,
                                              int &FrameIndex) const {
   return 0;
 }
 
 void Mips16InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                   MachineBasicBlock::iterator I,
-                                  const DebugLoc &DL, MCRegister DestReg,
-                                  MCRegister SrcReg, bool KillSrc) const {
+                                  const DebugLoc &DL, Register DestReg,
+                                  Register SrcReg, bool KillSrc,
+                                  bool RenamableDest, bool RenamableSrc) const {
   unsigned Opc = 0;
 
   if (Mips::CPU16RegsRegClass.contains(DestReg) &&
@@ -96,19 +90,19 @@ void Mips16InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     MIB.addReg(SrcReg, getKillRegState(KillSrc));
 }
 
-Optional<DestSourcePair>
+std::optional<DestSourcePair>
 Mips16InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
   if (MI.isMoveReg())
     return DestSourcePair{MI.getOperand(0), MI.getOperand(1)};
-  return None;
+  return std::nullopt;
 }
 
 void Mips16InstrInfo::storeRegToStack(MachineBasicBlock &MBB,
                                       MachineBasicBlock::iterator I,
                                       Register SrcReg, bool isKill, int FI,
                                       const TargetRegisterClass *RC,
-                                      const TargetRegisterInfo *TRI,
-                                      int64_t Offset) const {
+                                      int64_t Offset,
+                                      MachineInstr::MIFlag Flags) const {
   DebugLoc DL;
   if (I != MBB.end()) DL = I->getDebugLoc();
   MachineMemOperand *MMO = GetMemOperand(MBB, FI, MachineMemOperand::MOStore);
@@ -125,8 +119,8 @@ void Mips16InstrInfo::loadRegFromStack(MachineBasicBlock &MBB,
                                        MachineBasicBlock::iterator I,
                                        Register DestReg, int FI,
                                        const TargetRegisterClass *RC,
-                                       const TargetRegisterInfo *TRI,
-                                       int64_t Offset) const {
+                                       int64_t Offset,
+                                       MachineInstr::MIFlag Flags) const {
   DebugLoc DL;
   if (I != MBB.end()) DL = I->getDebugLoc();
   MachineMemOperand *MMO = GetMemOperand(MBB, FI, MachineMemOperand::MOLoad);
@@ -340,8 +334,8 @@ unsigned Mips16InstrInfo::loadImmediate(unsigned FrameReg, int64_t Imm,
   int Reg =0;
   int SpReg = 0;
 
-  rs.enterBasicBlock(MBB);
-  rs.forward(II);
+  rs.enterBasicBlockEnd(MBB);
+  rs.backward(std::next(II));
   //
   // We need to know which registers can be used, in the case where there
   // are not enough free registers. We exclude all registers that
@@ -351,10 +345,9 @@ unsigned Mips16InstrInfo::loadImmediate(unsigned FrameReg, int64_t Imm,
       RI.getAllocatableSet
       (*II->getParent()->getParent(), &Mips::CPU16RegsRegClass);
   // Exclude all the registers being used by the instruction.
-  for (unsigned i = 0, e = II->getNumOperands(); i != e; ++i) {
-    MachineOperand &MO = II->getOperand(i);
+  for (MachineOperand &MO : II->operands()) {
     if (MO.isReg() && MO.getReg() != 0 && !MO.isDef() &&
-        !Register::isVirtualRegister(MO.getReg()))
+        !MO.getReg().isVirtual())
       Candidates.reset(MO.getReg());
   }
 
@@ -367,8 +360,7 @@ unsigned Mips16InstrInfo::loadImmediate(unsigned FrameReg, int64_t Imm,
   // whether the register is live before the instruction. if it's not
   // then we don't need to save it in case there are no free registers.
   int DefReg = 0;
-  for (unsigned i = 0, e = II->getNumOperands(); i != e; ++i) {
-    MachineOperand &MO = II->getOperand(i);
+  for (MachineOperand &MO : II->operands()) {
     if (MO.isReg() && MO.isDef()) {
       DefReg = MO.getReg();
       break;
@@ -410,9 +402,9 @@ unsigned Mips16InstrInfo::loadImmediate(unsigned FrameReg, int64_t Imm,
       }
       if (SecondRegSaved)
         copyPhysReg(MBB, II, DL, SecondRegSavedTo, SecondRegSaved, true);
+    } else {
+      Available.reset(SpReg);
     }
-   else
-     Available.reset(SpReg);
     copyPhysReg(MBB, II, DL, SpReg, Mips::SP, false);
     BuildMI(MBB, II, DL, get(Mips::AdduRxRyRz16), Reg)
         .addReg(SpReg, RegState::Kill)

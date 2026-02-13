@@ -91,6 +91,10 @@ public:
     /// or vector.
     EK_VectorElement,
 
+    /// The entity being initialized is an element of a matrix.
+    /// or matrix.
+    EK_MatrixElement,
+
     /// The entity being initialized is a field of block descriptor for
     /// the copied-in c++ object.
     EK_BlockElement,
@@ -122,6 +126,10 @@ public:
     /// The entity being initialized is a structured binding of a
     /// decomposition declaration.
     EK_Binding,
+
+    /// The entity being initialized is a non-static data member subobject of an
+    /// object initialized via parenthesized aggregate initialization.
+    EK_ParenAggInitMember,
 
     // Note: err_init_conversion_failed in DiagnosticSemaKinds.td uses this
     // enum as an index for its first %select.  When modifying this list,
@@ -155,8 +163,9 @@ private:
   };
 
   struct VD {
-    /// The VarDecl, FieldDecl, or BindingDecl being initialized.
-    ValueDecl *VariableOrMember;
+    /// The VarDecl, FieldDecl, TemplateParmDecl, or BindingDecl being
+    /// initialized.
+    NamedDecl *VariableOrMember;
 
     /// When Kind == EK_Member, whether this is an implicit member
     /// initialization in a copy or move constructor. These can perform array
@@ -200,15 +209,15 @@ private:
     /// virtual base.
     llvm::PointerIntPair<const CXXBaseSpecifier *, 1> Base;
 
-    /// When Kind == EK_ArrayElement, EK_VectorElement, or
-    /// EK_ComplexElement, the index of the array or vector element being
+    /// When Kind == EK_ArrayElement, EK_VectorElement, EK_MatrixElement,
+    /// or EK_ComplexElement, the index of the array or vector element being
     /// initialized.
     unsigned Index;
 
     struct C Capture;
   };
 
-  InitializedEntity() {};
+  InitializedEntity() {}
 
   /// Create the initialization entity for a variable.
   InitializedEntity(VarDecl *Var, EntityKind EK = EK_Variable)
@@ -227,8 +236,10 @@ private:
 
   /// Create the initialization entity for a member subobject.
   InitializedEntity(FieldDecl *Member, const InitializedEntity *Parent,
-                    bool Implicit, bool DefaultMemberInit)
-      : Kind(EK_Member), Parent(Parent), Type(Member->getType()),
+                    bool Implicit, bool DefaultMemberInit,
+                    bool IsParenAggInit = false)
+      : Kind(IsParenAggInit ? EK_ParenAggInitMember : EK_Member),
+        Parent(Parent), Type(Member->getType()),
         Variable{Member, Implicit, DefaultMemberInit} {}
 
   /// Create the initialization entity for an array element.
@@ -285,8 +296,8 @@ public:
   }
 
   /// Create the initialization entity for a template parameter.
-  static InitializedEntity
-  InitializeTemplateParameter(QualType T, NonTypeTemplateParmDecl *Param) {
+  static InitializedEntity InitializeTemplateParameter(QualType T,
+                                                       NamedDecl *Param) {
     InitializedEntity Entity;
     Entity.Kind = EK_TemplateParameter;
     Entity.Type = T;
@@ -386,6 +397,14 @@ public:
                    const InitializedEntity *Parent = nullptr,
                    bool Implicit = false) {
     return InitializedEntity(Member->getAnonField(), Parent, Implicit, false);
+  }
+
+  /// Create the initialization entity for a member subobject initialized via
+  /// parenthesized aggregate init.
+  static InitializedEntity InitializeMemberFromParenAggInit(FieldDecl *Member) {
+    return InitializedEntity(Member, /*Parent=*/nullptr, /*Implicit=*/false,
+                             /*DefaultMemberInit=*/false,
+                             /*IsParenAggInit=*/true);
   }
 
   /// Create the initialization entity for a default member initializer.
@@ -521,7 +540,7 @@ public:
   /// element's index.
   unsigned getElementIndex() const {
     assert(getKind() == EK_ArrayElement || getKind() == EK_VectorElement ||
-           getKind() == EK_ComplexElement);
+           getKind() == EK_MatrixElement || getKind() == EK_ComplexElement);
     return Index;
   }
 
@@ -529,7 +548,7 @@ public:
   /// element, sets the element index.
   void setElementIndex(unsigned Index) {
     assert(getKind() == EK_ArrayElement || getKind() == EK_VectorElement ||
-           getKind() == EK_ComplexElement);
+           getKind() == EK_MatrixElement || getKind() == EK_ComplexElement);
     this->Index = Index;
   }
 
@@ -589,7 +608,7 @@ private:
     /// Normal context
     IC_Normal,
 
-    /// Normal context, but allows explicit conversion functionss
+    /// Normal context, but allows explicit conversion functions
     IC_ExplicitConvs,
 
     /// Implicit context (value initialization)
@@ -662,11 +681,12 @@ public:
   }
 
   /// Create a direct initialization for a functional cast.
-  static InitializationKind CreateFunctionalCast(SourceRange TypeRange,
+  static InitializationKind CreateFunctionalCast(SourceLocation StartLoc,
+                                                 SourceRange ParenRange,
                                                  bool InitList) {
     return InitializationKind(InitList ? IK_DirectList : IK_Direct,
-                              IC_FunctionalCast, TypeRange.getBegin(),
-                              TypeRange.getBegin(), TypeRange.getEnd());
+                              IC_FunctionalCast, StartLoc,
+                              ParenRange.getBegin(), ParenRange.getEnd());
   }
 
   /// Create a copy initialization.
@@ -923,7 +943,11 @@ public:
     SK_OCLSamplerInit,
 
     /// Initialize an opaque OpenCL type (event_t, queue_t, etc.) with zero
-    SK_OCLZeroOpaqueType
+    SK_OCLZeroOpaqueType,
+
+    /// Initialize an aggreagate with parenthesized list of values.
+    /// This is a C++20 feature.
+    SK_ParenthesizedListInit
   };
 
   /// A single step in the initialization sequence.
@@ -1099,6 +1123,16 @@ public:
 
     /// List-copy-initialization chose an explicit constructor.
     FK_ExplicitConstructor,
+
+    /// Parenthesized list initialization failed at some point.
+    /// This is a C++20 feature.
+    FK_ParenthesizedListInitFailed,
+
+    // A designated initializer was provided for a non-aggregate type.
+    FK_DesignatedInitForNonAggregate,
+
+    /// HLSL intialization list flattening failed.
+    FK_HLSLInitListFlatteningFailed,
   };
 
 private:
@@ -1356,6 +1390,13 @@ public:
   /// Add a step to initialzie an OpenCL opaque type (event_t, queue_t, etc.)
   /// from a zero constant.
   void AddOCLZeroOpaqueTypeStep(QualType T);
+
+  void AddParenthesizedListInitStep(QualType T);
+
+  /// Only used when initializing structured bindings from an array with
+  /// direct-list-initialization. Unwrap the initializer list to get the array
+  /// for array copy.
+  void AddUnwrapInitListInitStep(InitListExpr *Syntactic);
 
   /// Add steps to unwrap a initializer list for a reference around a
   /// single element and rewrap it at the end.

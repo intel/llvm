@@ -1,2 +1,2 @@
-if config.root.host_os != 'FreeBSD':
-  config.unsupported = True
+if config.root.target_os != "FreeBSD":
+    config.unsupported = True

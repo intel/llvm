@@ -15,7 +15,6 @@
 #include "LanaiMCAsmInfo.h"
 #include "TargetInfo/LanaiTargetInfo.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstrAnalysis.h"
 #include "llvm/MC/MCInstrInfo.h"
@@ -23,7 +22,9 @@
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/TargetParser/Triple.h"
 #include <cstdint>
 #include <string>
 
@@ -63,13 +64,12 @@ createLanaiMCSubtargetInfo(const Triple &TT, StringRef CPU, StringRef FS) {
 static MCStreamer *createMCStreamer(const Triple &T, MCContext &Context,
                                     std::unique_ptr<MCAsmBackend> &&MAB,
                                     std::unique_ptr<MCObjectWriter> &&OW,
-                                    std::unique_ptr<MCCodeEmitter> &&Emitter,
-                                    bool RelaxAll) {
+                                    std::unique_ptr<MCCodeEmitter> &&Emitter) {
   if (!T.isOSBinFormatELF())
     llvm_unreachable("OS not supported");
 
   return createELFStreamer(Context, std::move(MAB), std::move(OW),
-                           std::move(Emitter), RelaxAll);
+                           std::move(Emitter));
 }
 
 static MCInstPrinter *createLanaiMCInstPrinter(const Triple & /*T*/,
@@ -102,7 +102,7 @@ public:
         !isCall(Inst))
       return false;
 
-    if (Info->get(Inst.getOpcode()).OpInfo[0].OperandType ==
+    if (Info->get(Inst.getOpcode()).operands()[0].OperandType ==
         MCOI::OPERAND_PCREL) {
       int64_t Imm = Inst.getOperand(0).getImm();
       Target = Addr + Size + Imm;
@@ -127,7 +127,8 @@ static MCInstrAnalysis *createLanaiInstrAnalysis(const MCInstrInfo *Info) {
   return new LanaiMCInstrAnalysis(Info);
 }
 
-extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeLanaiTargetMC() {
+extern "C" LLVM_ABI LLVM_EXTERNAL_VISIBILITY void
+LLVMInitializeLanaiTargetMC() {
   // Register the MC asm info.
   RegisterMCAsmInfo<LanaiMCAsmInfo> X(getTheLanaiTarget());
 

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -no-opaque-pointers -ffreestanding -triple i386-apple-darwin9 -O1 -target-cpu corei7 -debug-info-kind=limited -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -ffreestanding -triple i386-apple-darwin9 -O1 -target-cpu corei7 -debug-info-kind=limited -emit-llvm %s -o - | FileCheck %s
 typedef short __v4hi __attribute__ ((__vector_size__ (8)));
 
 void test1(void) {
@@ -7,6 +7,10 @@ void test1(void) {
 
 __v4hi x = {1,2,3};
 __v4hi y = {1,2,3,4};
+
+
+// CHECK: @z = local_unnamed_addr global <8 x float> zeroinitializer
+float z __attribute__((ext_vector_type(8)));
 
 typedef int vty __attribute((vector_size(16)));
 int test2(void) { vty b; return b[2LL]; }
@@ -17,9 +21,6 @@ typedef float vec4 __attribute__((vector_size(16)));
 void test3 ( vec4* a, char b, float c ) {
   (*a)[b] = c;
 }
-
-
-
 
 #include <mmintrin.h>
 
@@ -78,5 +79,5 @@ vec_int2 lax_vector_compare2(long long x, vec_int2 y) {
   return y;
 }
 
-// CHECK: define{{.*}} void @lax_vector_compare2(<2 x i32>* {{.*sret.*}}, i64 {{.*}}, i64 {{.*}})
+// CHECK: define{{.*}} void @lax_vector_compare2(ptr {{.*sret.*}}, i64 {{.*}}, i64 {{.*}})
 // CHECK: icmp eq <2 x i32>

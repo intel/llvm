@@ -31,17 +31,11 @@
 #include "X86Subtarget.h"
 #include "llvm/CodeGen/IndirectThunks.h"
 #include "llvm/CodeGen/MachineFunction.h"
-#include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/Module.h"
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Debug.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 
 using namespace llvm;
@@ -67,7 +61,8 @@ struct RetpolineThunkInserter : ThunkInserter<RetpolineThunkInserter> {
             STI.useRetpolineIndirectBranches()) &&
            !STI.useRetpolineExternalThunk();
   }
-  void insertThunks(MachineModuleInfo &MMI);
+  bool insertThunks(MachineModuleInfo &MMI, MachineFunction &MF,
+                    bool ExistingThunks);
   void populateThunk(MachineFunction &MF);
 };
 
@@ -76,8 +71,12 @@ struct LVIThunkInserter : ThunkInserter<LVIThunkInserter> {
   bool mayUseThunk(const MachineFunction &MF) {
     return MF.getSubtarget<X86Subtarget>().useLVIControlFlowIntegrity();
   }
-  void insertThunks(MachineModuleInfo &MMI) {
+  bool insertThunks(MachineModuleInfo &MMI, MachineFunction &MF,
+                    bool ExistingThunks) {
+    if (ExistingThunks)
+      return false;
     createThunkFunction(MMI, R11LVIThunkName);
+    return true;
   }
   void populateThunk(MachineFunction &MF) {
     assert (MF.size() == 1);
@@ -99,50 +98,34 @@ struct LVIThunkInserter : ThunkInserter<LVIThunkInserter> {
   }
 };
 
-class X86IndirectThunks : public MachineFunctionPass {
+class X86IndirectThunks
+    : public ThunkInserterPass<RetpolineThunkInserter, LVIThunkInserter> {
 public:
   static char ID;
 
-  X86IndirectThunks() : MachineFunctionPass(ID) {}
+  X86IndirectThunks() : ThunkInserterPass(ID) {}
 
   StringRef getPassName() const override { return "X86 Indirect Thunks"; }
-
-  bool doInitialization(Module &M) override;
-  bool runOnMachineFunction(MachineFunction &MF) override;
-
-private:
-  std::tuple<RetpolineThunkInserter, LVIThunkInserter> TIs;
-
-  // FIXME: When LLVM moves to C++17, these can become folds
-  template <typename... ThunkInserterT>
-  static void initTIs(Module &M,
-                      std::tuple<ThunkInserterT...> &ThunkInserters) {
-    (void)std::initializer_list<int>{
-        (std::get<ThunkInserterT>(ThunkInserters).init(M), 0)...};
-  }
-  template <typename... ThunkInserterT>
-  static bool runTIs(MachineModuleInfo &MMI, MachineFunction &MF,
-                     std::tuple<ThunkInserterT...> &ThunkInserters) {
-    bool Modified = false;
-    (void)std::initializer_list<int>{
-        Modified |= std::get<ThunkInserterT>(ThunkInserters).run(MMI, MF)...};
-    return Modified;
-  }
 };
 
 } // end anonymous namespace
 
-void RetpolineThunkInserter::insertThunks(MachineModuleInfo &MMI) {
-  if (MMI.getTarget().getTargetTriple().getArch() == Triple::x86_64)
+bool RetpolineThunkInserter::insertThunks(MachineModuleInfo &MMI,
+                                          MachineFunction &MF,
+                                          bool ExistingThunks) {
+  if (ExistingThunks)
+    return false;
+  if (MMI.getTarget().getTargetTriple().isX86_64())
     createThunkFunction(MMI, R11RetpolineName);
   else
     for (StringRef Name : {EAXRetpolineName, ECXRetpolineName, EDXRetpolineName,
                            EDIRetpolineName})
       createThunkFunction(MMI, Name);
+  return true;
 }
 
 void RetpolineThunkInserter::populateThunk(MachineFunction &MF) {
-  bool Is64Bit = MF.getTarget().getTargetTriple().getArch() == Triple::x86_64;
+  bool Is64Bit = MF.getTarget().getTargetTriple().isX86_64();
   Register ThunkReg;
   if (Is64Bit) {
     assert(MF.getName() == "__llvm_retpoline_r11" &&
@@ -257,14 +240,3 @@ FunctionPass *llvm::createX86IndirectThunksPass() {
 }
 
 char X86IndirectThunks::ID = 0;
-
-bool X86IndirectThunks::doInitialization(Module &M) {
-  initTIs(M, TIs);
-  return false;
-}
-
-bool X86IndirectThunks::runOnMachineFunction(MachineFunction &MF) {
-  LLVM_DEBUG(dbgs() << getPassName() << '\n');
-  auto &MMI = getAnalysis<MachineModuleInfoWrapperPass>().getMMI();
-  return runTIs(MMI, MF, TIs);
-}

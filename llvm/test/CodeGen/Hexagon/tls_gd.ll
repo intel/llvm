@@ -1,4 +1,4 @@
-; RUN: llc -march=hexagon -O2 -relocation-model=pic < %s | FileCheck %s
+; RUN: llc -mtriple=hexagon -O2 -relocation-model=pic < %s | FileCheck %s
 ; CHECK: add({{pc|PC}},##_GLOBAL_OFFSET_TABLE_@PCREL)
 ; CHECK: call g1@GDPLT
 ; CHECK: call g0@GDPLT
@@ -9,8 +9,8 @@
 ; Function Attrs: nounwind
 define i32 @f0() #0 {
 b0:
-  %v0 = load i32, i32* @g1, align 4, !tbaa !0
-  store i32 %v0, i32* @g0, align 4, !tbaa !0
+  %v0 = load i32, ptr @g1, align 4, !tbaa !0
+  store i32 %v0, ptr @g0, align 4, !tbaa !0
   tail call void @f1(i32 %v0) #0
   ret i32 0
 }

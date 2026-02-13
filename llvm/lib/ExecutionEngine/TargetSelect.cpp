@@ -13,13 +13,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/ADT/Triple.h"
 #include "llvm/ExecutionEngine/ExecutionEngine.h"
 #include "llvm/IR/Module.h"
-#include "llvm/MC/SubtargetFeature.h"
 #include "llvm/MC/TargetRegistry.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Target/TargetMachine.h"
+#include "llvm/TargetParser/Host.h"
+#include "llvm/TargetParser/SubtargetFeature.h"
+#include "llvm/TargetParser/Triple.h"
 
 using namespace llvm;
 
@@ -29,7 +29,7 @@ TargetMachine *EngineBuilder::selectTarget() {
   // MCJIT can generate code for remote targets, but the old JIT and Interpreter
   // must use the host architecture.
   if (WhichEngine != EngineKind::Interpreter && M)
-    TT.setTriple(M->getTargetTriple());
+    TT = M->getTargetTriple();
 
   return selectTarget(TT, MArch, MCPU, MAttrs);
 }
@@ -66,7 +66,7 @@ TargetMachine *EngineBuilder::selectTarget(const Triple &TargetTriple,
       TheTriple.setArch(Type);
   } else {
     std::string Error;
-    TheTarget = TargetRegistry::lookupTarget(TheTriple.getTriple(), Error);
+    TheTarget = TargetRegistry::lookupTarget(TheTriple, Error);
     if (!TheTarget) {
       if (ErrorStr)
         *ErrorStr = Error;
@@ -84,12 +84,10 @@ TargetMachine *EngineBuilder::selectTarget(const Triple &TargetTriple,
   }
 
   // Allocate a target...
-  TargetMachine *Target =
-      TheTarget->createTargetMachine(TheTriple.getTriple(), MCPU, FeaturesStr,
-                                     Options, RelocModel, CMModel, OptLevel,
-				     /*JIT*/ true);
+  TargetMachine *Target = TheTarget->createTargetMachine(
+      TheTriple, MCPU, FeaturesStr, Options, RelocModel, CMModel, OptLevel,
+      /*JIT=*/true);
   Target->Options.EmulatedTLS = EmulatedTLS;
-  Target->Options.ExplicitEmulatedTLS = true;
 
   assert(Target && "Could not allocate target machine!");
   return Target;

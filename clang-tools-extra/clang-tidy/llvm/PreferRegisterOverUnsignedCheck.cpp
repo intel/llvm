@@ -1,4 +1,4 @@
-//===--- PreferRegisterOverUnsignedCheck.cpp - clang-tidy -----------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,14 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "PreferRegisterOverUnsignedCheck.h"
-#include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace llvm_check {
+namespace clang::tidy::llvm_check {
 
 void PreferRegisterOverUnsignedCheck::registerMatchers(MatchFinder *Finder) {
   auto RegisterClassMatch = hasType(
@@ -22,14 +19,13 @@ void PreferRegisterOverUnsignedCheck::registerMatchers(MatchFinder *Finder) {
 
   Finder->addMatcher(
       traverse(TK_AsIs,
-               valueDecl(allOf(
-                   hasType(qualType(isUnsignedInteger()).bind("varType")),
-                   varDecl(hasInitializer(exprWithCleanups(
-                               has(implicitCastExpr(has(cxxMemberCallExpr(
-                                   allOf(on(RegisterClassMatch),
+               valueDecl(hasType(qualType(isUnsignedInteger()).bind("varType")),
+                         varDecl(hasInitializer(exprWithCleanups(
+                                     has(implicitCastExpr(has(cxxMemberCallExpr(
+                                         on(RegisterClassMatch),
                                          has(memberExpr(hasDeclaration(
-                                             cxxConversionDecl())))))))))))
-                       .bind("var")))),
+                                             cxxConversionDecl()))))))))))
+                             .bind("var"))),
       this);
 }
 
@@ -61,6 +57,4 @@ void PreferRegisterOverUnsignedCheck::check(
              NeedsQualification ? "llvm::Register" : "Register");
 }
 
-} // namespace llvm_check
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::llvm_check

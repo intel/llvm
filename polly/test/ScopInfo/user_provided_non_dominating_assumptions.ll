@@ -1,5 +1,4 @@
-; RUN: opt %loadPolly -pass-remarks-analysis="polly-scops" -polly-scops \
-; RUN:    -polly-precise-inbounds -disable-output < %s 2>&1 | FileCheck %s
+; RUN: opt %loadNPMPolly -pass-remarks-analysis=polly-scops '-passes=polly-custom<scops>' -polly-print-scops -polly-precise-inbounds -disable-output < %s 2>&1 | FileCheck %s
 ;
 ; CHECK:      remark: <unknown>:0:0: SCoP begins here.
 ; CHECK-NEXT: remark: <unknown>:0:0: Use user assumption: [i, N, M] -> {  : N <= i or (N > i and N >= 0) }
@@ -18,8 +17,7 @@
 ;
 
 
-; RUN: opt %loadPolly -pass-remarks-analysis="polly-scops" -polly-scops \
-; RUN:    -polly-precise-inbounds -disable-output < %s 2>&1 -pass-remarks-output=%t.yaml
+; RUN: opt %loadNPMPolly -pass-remarks-analysis=polly-scops '-passes=polly-custom<scops>' -polly-print-scops -polly-precise-inbounds -disable-output -pass-remarks-output=%t.yaml < %s 2>&1
 ; RUN: cat %t.yaml | FileCheck -check-prefix=YAML %s
 ; YAML: --- !Analysis
 ; YAML: Pass:            polly-scops
@@ -53,7 +51,7 @@
 
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
-define void @f(i32* noalias %A, i32* noalias %B, i32 %i, i32 %N, i32 %M, [100 x i32]* %C) {
+define void @f(ptr noalias %A, ptr noalias %B, i32 %i, i32 %N, i32 %M, ptr %C) {
 entry:
   %tmp = zext i32 %M to i64
   %tmp6 = sext i32 %i to i64
@@ -79,16 +77,16 @@ for.cond.2:                                       ; preds = %for.inc, %for.body
 for.body.4:                                       ; preds = %for.cond.2
   %tmp9 = mul nsw i64 %indvars.iv3, %tmp8
   %tmp10 = add nsw i64 %tmp9, %indvars.iv
-  %arrayidx = getelementptr inbounds i32, i32* %A, i64 %tmp10
-  %tmp11 = load i32, i32* %arrayidx, align 4
+  %arrayidx = getelementptr inbounds i32, ptr %A, i64 %tmp10
+  %tmp11 = load i32, ptr %arrayidx, align 4
   %tmp12 = add nsw i64 %indvars.iv3, %indvars.iv
-  %arrayidx8 = getelementptr inbounds i32, i32* %B, i64 %tmp12
-  %tmp13 = load i32, i32* %arrayidx8, align 4
+  %arrayidx8 = getelementptr inbounds i32, ptr %B, i64 %tmp12
+  %tmp13 = load i32, ptr %arrayidx8, align 4
   %add9 = add nsw i32 %tmp11, %tmp13
-  %arrayidx13 = getelementptr inbounds [100 x i32], [100 x i32]* %C, i64 %indvars.iv3, i64 %indvars.iv
-  %tmp14 = load i32, i32* %arrayidx13, align 4
+  %arrayidx13 = getelementptr inbounds [100 x i32], ptr %C, i64 %indvars.iv3, i64 %indvars.iv
+  %tmp14 = load i32, ptr %arrayidx13, align 4
   %add14 = add nsw i32 %tmp14, %add9
-  store i32 %add14, i32* %arrayidx13, align 4
+  store i32 %add14, ptr %arrayidx13, align 4
   br label %for.inc
 
 for.inc:                                          ; preds = %for.body.4

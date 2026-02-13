@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -no-opaque-pointers %s -triple i386-unknown-unknown -Wno-strict-prototypes -emit-llvm -o - -verify | FileCheck %s
+// RUN: %clang_cc1 %s -triple i386-unknown-unknown -Wno-strict-prototypes -emit-llvm -o - -verify | FileCheck %s
 
 int g();
 
@@ -10,7 +10,6 @@ int g(int i) {
   return g(i);
 }
 
-// rdar://6110827
 typedef void T(void);
 void test3(T f) {
   f();
@@ -52,8 +51,8 @@ void f8_user(void (*callback)(struct Incomplete));
 void f8_test(void) {
   f8_user(&f8_callback);
 // CHECK-LABEL: define{{.*}} void @f8_test()
-// CHECK: call void @f8_user({{.*}}* noundef bitcast (void ()* @f8_callback to {{.*}}*))
-// CHECK: declare void @f8_user({{.*}}* noundef)
+// CHECK: call void @f8_user(ptr noundef @f8_callback)
+// CHECK: declare void @f8_user(ptr noundef)
 // CHECK: declare void @f8_callback()
 }
 
@@ -62,3 +61,15 @@ static void test9_helper(void) {}
 void test9(void) {
   (void) test9_helper;
 }
+
+// PR88917: don't crash
+int b();
+
+int main() {
+	return b(b);
+	// CHECK: call i32 @b(ptr noundef @b)
+}
+int b(int (*f)()){
+  return 0;
+}
+// CHECK-LABEL: define{{.*}} i32 @b(ptr noundef %f)

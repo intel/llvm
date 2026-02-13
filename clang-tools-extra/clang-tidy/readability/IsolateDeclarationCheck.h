@@ -1,4 +1,4 @@
-//===--- IsolateDeclarationCheck.h - clang-tidy -----------------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,20 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_ISOLATEDECLCHECK_H
-#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_ISOLATEDECLCHECK_H
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_ISOLATEDECLARATIONCHECK_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_ISOLATEDECLARATIONCHECK_H
 
 #include "../ClangTidyCheck.h"
 
-namespace clang {
-namespace tidy {
-namespace readability {
+namespace clang::tidy::readability {
 
 /// This check diagnoses all DeclStmt's declaring more than one variable and
 /// tries to refactor the code to one statement per declaration.
 ///
 /// For the user-facing documentation see:
-/// http://clang.llvm.org/extra/clang-tidy/checks/readability/isolate-declaration.html
+/// https://clang.llvm.org/extra/clang-tidy/checks/readability/isolate-declaration.html
 class IsolateDeclarationCheck : public ClangTidyCheck {
 public:
   IsolateDeclarationCheck(StringRef Name, ClangTidyContext *Context)
@@ -28,8 +26,6 @@ public:
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
 };
 
-} // namespace readability
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::readability
 
-#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_ISOLATEDECLCHECK_H
+#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_ISOLATEDECLARATIONCHECK_H

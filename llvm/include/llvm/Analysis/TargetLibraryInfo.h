@@ -9,35 +9,121 @@
 #ifndef LLVM_ANALYSIS_TARGETLIBRARYINFO_H
 #define LLVM_ANALYSIS_TARGETLIBRARYINFO_H
 
-#include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
+#include "llvm/Analysis/TargetTransformInfo.h"
+#include "llvm/ADT/StringTable.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/InstrTypes.h"
+#include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/IR/SystemLibraries.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/Compiler.h"
+#include "llvm/TargetParser/Triple.h"
+#include <bitset>
+#include <optional>
 
 namespace llvm {
 
 template <typename T> class ArrayRef;
-class Function;
-class Module;
-class Triple;
 
-/// Describes a possible vectorization of a function.
-/// Function 'VectorFnName' is equivalent to 'ScalarFnName' vectorized
-/// by a factor 'VectorizationFactor'.
-struct VecDesc {
+/// Describes a possible implementation of a floating point builtin operation.
+struct AltMathDesc {
+  Intrinsic::ID IntrinID;
+  Type::TypeID BaseFPType;
+  ElementCount VectorizationFactor;
+  StringRef FnImplName;
+  float Accuracy;
+};
+
+/// Provides info so a possible vectorization of a function can be
+/// computed. Function 'VectorFnName' is equivalent to 'ScalarFnName'
+/// vectorized by a factor 'VectorizationFactor'.
+/// The VABIPrefix string holds information about isa, mask, vlen,
+/// and vparams so a scalar-to-vector mapping of the form:
+///    _ZGV<isa><mask><vlen><vparams>_<scalarname>(<vectorname>)
+/// can be constructed where:
+///
+/// <isa> = "_LLVM_"
+/// <mask> = "M" if masked, "N" if no mask.
+/// <vlen> = Number of concurrent lanes, stored in the `VectorizationFactor`
+///          field of the `VecDesc` struct. If the number of lanes is scalable
+///          then 'x' is printed instead.
+/// <vparams> = "v", as many as are the numArgs.
+/// <scalarname> = the name of the scalar function.
+/// <vectorname> = the name of the vector function.
+class VecDesc {
   StringRef ScalarFnName;
   StringRef VectorFnName;
   ElementCount VectorizationFactor;
+  bool Masked;
+  StringRef VABIPrefix;
+  std::optional<CallingConv::ID> CC;
+
+public:
+  VecDesc() = delete;
+  VecDesc(StringRef ScalarFnName, StringRef VectorFnName,
+          ElementCount VectorizationFactor, bool Masked, StringRef VABIPrefix,
+          std::optional<CallingConv::ID> Conv)
+      : ScalarFnName(ScalarFnName), VectorFnName(VectorFnName),
+        VectorizationFactor(VectorizationFactor), Masked(Masked),
+        VABIPrefix(VABIPrefix), CC(Conv) {}
+
+  StringRef getScalarFnName() const { return ScalarFnName; }
+  StringRef getVectorFnName() const { return VectorFnName; }
+  ElementCount getVectorizationFactor() const { return VectorizationFactor; }
+  bool isMasked() const { return Masked; }
+  StringRef getVABIPrefix() const { return VABIPrefix; }
+  std::optional<CallingConv::ID> getCallingConv() const { return CC; }
+
+  /// Returns a vector function ABI variant string on the form:
+  ///    _ZGV<isa><mask><vlen><vparams>_<scalarname>(<vectorname>)
+  LLVM_ABI std::string getVectorFunctionABIVariantString() const;
 };
 
-  enum LibFunc : unsigned {
-#define TLI_DEFINE_ENUM
-#include "llvm/Analysis/TargetLibraryInfo.def"
+#define GET_TARGET_LIBRARY_INFO_ENUM
+#include "llvm/Analysis/TargetLibraryInfo.inc"
 
-    NumLibFuncs,
-    NotLibFunc
+  /// Contains all possible FPBuiltin replacement choices by
+  /// selectFnForFPBuiltinCalls function.
+  struct FPBuiltinReplacement {
+    enum Kind {
+      Unexpected0dot5,
+      UnrecognizedFPAttrs,
+      NoSuitableReplacement,
+      ReplaceWithLLVMIR,
+      ReplaceWithAltMathFunction,
+      ReplaceWithApproxNVPTXCallsOrFallback
+    };
+
+    FPBuiltinReplacement(Kind K, const StringRef &ImplName = StringRef())
+        : RepKind(K), AltMathFunctionImplName(ImplName) {
+      // Check that ImplName is non-empty only if K is
+      // ReplaceWithAltMathFunction.
+      assert((K != Kind::ReplaceWithAltMathFunction || !ImplName.empty()) &&
+             "Expected non-empty function name");
+    }
+    FPBuiltinReplacement(const FPBuiltinReplacement &O)
+        : RepKind(O()), AltMathFunctionImplName(O.altMathFunctionImplName()) {}
+    FPBuiltinReplacement &operator=(const FPBuiltinReplacement &O) {
+      this->RepKind = O();
+      this->AltMathFunctionImplName = O.altMathFunctionImplName();
+      return *this;
+    }
+    ~FPBuiltinReplacement() {}
+    Kind operator()() const { return RepKind; }
+    bool isReplaceble() const { return RepKind > Kind::NoSuitableReplacement; }
+    const StringRef &altMathFunctionImplName() const {
+      return AltMathFunctionImplName;
+    }
+
+  private:
+    /// In case of RepKind = Kind::ReplaceWithAltMathFunction
+    /// AltMathFunctionImplName also contains the name of the alternate math
+    /// function implementation.
+    Kind RepKind;
+    StringRef AltMathFunctionImplName;
   };
 
 /// Implementation of the target library information.
@@ -51,8 +137,9 @@ class TargetLibraryInfoImpl {
 
   unsigned char AvailableArray[(NumLibFuncs+3)/4];
   DenseMap<unsigned, std::string> CustomNames;
-  static StringLiteral const StandardNames[NumLibFuncs];
-  bool ShouldExtI32Param, ShouldExtI32Return, ShouldSignExtI32Param;
+#define GET_TARGET_LIBRARY_INFO_IMPL_DECL
+#include "llvm/Analysis/TargetLibraryInfo.inc"
+  bool ShouldExtI32Param, ShouldExtI32Return, ShouldSignExtI32Param, ShouldSignExtI32Return;
   unsigned SizeOfInt;
 
   enum AvailabilityState {
@@ -68,6 +155,10 @@ class TargetLibraryInfoImpl {
     return static_cast<AvailabilityState>((AvailableArray[F/4] >> 2*(F&3)) & 3);
   }
 
+  /// Alternate math library functions - sorted by intrinsic ID, then type,
+  /// then vector size, then accuracy
+  std::vector<AltMathDesc> AltMathFuncDescs;
+
   /// Vectorization descriptors - sorted by ScalarFnName.
   std::vector<VecDesc> VectorDescs;
   /// Scalarization descriptors - same content as VectorDescs but sorted based
@@ -76,40 +167,39 @@ class TargetLibraryInfoImpl {
 
   /// Return true if the function type FTy is valid for the library function
   /// F, regardless of whether the function is available.
-  bool isValidProtoForLibFunc(const FunctionType &FTy, LibFunc F,
-                              const Module &M) const;
+  LLVM_ABI bool isValidProtoForLibFunc(const FunctionType &FTy, LibFunc F,
+                                       const Module &M) const;
 
 public:
-  /// List of known vector-functions libraries.
+  /// List of known alternate math libraries.
   ///
-  /// The vector-functions library defines, which functions are vectorizable
-  /// and with which factor. The library can be specified by either frontend,
-  /// or a commandline option, and then used by
-  /// addVectorizableFunctionsFromVecLib for filling up the tables of
-  /// vectorizable functions.
-  enum VectorLibrary {
-    NoLibrary,        // Don't use any vector library.
-    Accelerate,       // Use Accelerate framework.
-    DarwinLibSystemM, // Use Darwin's libsystem_m.
-    LIBMVEC_X86,      // GLIBC Vector Math library.
-    MASSV,            // IBM MASS vector library.
-    SVML              // Intel short vector math library.
+  /// The alternate math library provides a set of functions that can ve used
+  /// to replace llvm.fpbuiltin intrinsic calls when one or more constraining
+  /// attributes are specified.
+  /// The library can be specified by either frontend or a commandline option,
+  /// and then used by addAltMathFunctionsFromLib for populating the tables of
+  /// math function implementations.
+  enum AltMathLibrary {
+    NoAltMathLibrary,   // Don't use any alternate math library
+    SVMLAltMathLibrary, // Intel SVML Library
+    TestAltMathLibrary  // Use a fake alternate math library for testing
   };
 
-  TargetLibraryInfoImpl();
-  explicit TargetLibraryInfoImpl(const Triple &T);
+  TargetLibraryInfoImpl() = delete;
+  LLVM_ABI explicit TargetLibraryInfoImpl(
+      const Triple &T, VectorLibrary VecLib = VectorLibrary::NoLibrary);
 
   // Provide value semantics.
-  TargetLibraryInfoImpl(const TargetLibraryInfoImpl &TLI);
-  TargetLibraryInfoImpl(TargetLibraryInfoImpl &&TLI);
-  TargetLibraryInfoImpl &operator=(const TargetLibraryInfoImpl &TLI);
-  TargetLibraryInfoImpl &operator=(TargetLibraryInfoImpl &&TLI);
+  LLVM_ABI TargetLibraryInfoImpl(const TargetLibraryInfoImpl &TLI);
+  LLVM_ABI TargetLibraryInfoImpl(TargetLibraryInfoImpl &&TLI);
+  LLVM_ABI TargetLibraryInfoImpl &operator=(const TargetLibraryInfoImpl &TLI);
+  LLVM_ABI TargetLibraryInfoImpl &operator=(TargetLibraryInfoImpl &&TLI);
 
   /// Searches for a particular function name.
   ///
   /// If it is one of the known library functions, return true and set F to the
   /// corresponding value.
-  bool getLibFunc(StringRef funcName, LibFunc &F) const;
+  LLVM_ABI bool getLibFunc(StringRef funcName, LibFunc &F) const;
 
   /// Searches for a particular function name, also checking that its type is
   /// valid for the library function matching that name.
@@ -118,7 +208,11 @@ public:
   /// corresponding value.
   ///
   /// FDecl is assumed to have a parent Module when using this function.
-  bool getLibFunc(const Function &FDecl, LibFunc &F) const;
+  LLVM_ABI bool getLibFunc(const Function &FDecl, LibFunc &F) const;
+
+  /// Searches for a function name using an Instruction \p Opcode.
+  /// Currently, only the frem instruction is supported.
+  LLVM_ABI bool getLibFunc(unsigned int Opcode, Type *Ty, LibFunc &F) const;
 
   /// Forces a function to be marked as unavailable.
   void setUnavailable(LibFunc F) {
@@ -133,10 +227,11 @@ public:
   /// Forces a function to be marked as available and provide an alternate name
   /// that must be used.
   void setAvailableWithName(LibFunc F, StringRef Name) {
-    if (StandardNames[F] != Name) {
+    if (StringRef(StandardNamesStrTable.getCString(StandardNamesOffsets[F]),
+                  StandardNamesSizeTable[F]) != Name) {
       setState(F, CustomName);
       CustomNames[F] = std::string(Name);
-      assert(CustomNames.find(F) != CustomNames.end());
+      assert(CustomNames.contains(F));
     } else {
       setState(F, StandardName);
     }
@@ -145,29 +240,62 @@ public:
   /// Disables all builtins.
   ///
   /// This can be used for options like -fno-builtin.
-  void disableAllFunctions();
+  LLVM_ABI void disableAllFunctions();
+
+  /// Add a set of alternate math library function implementations with
+  /// attributes that can be used to select an implementation for an
+  /// llvm.fpbuiltin intrinsic
+  void addAltMathFunctions(ArrayRef<AltMathDesc> Fns);
+
+  /// Calls addAltMathFunctions with a known preset of functions for the
+  /// given alternate math library.
+  void addAltMathFunctionsFromLib(enum AltMathLibrary AltLib);
+
+  // Select an alternate math library implementation that meets the criteria
+  // described by an FPBuiltinIntrinsic call.
+  StringRef
+  selectFPBuiltinImplementation(const FPBuiltinIntrinsic *Builtin) const;
+
+  /// Returns the replacement choice for the given FPBuiltinIntrinsic call.
+  FPBuiltinReplacement
+  selectFnForFPBuiltinCalls(const FPBuiltinIntrinsic &BuiltinCall,
+                            const TargetTransformInfo &TTI) const;
+
+  /// Select an alternate math library implementation that meets the criteria
+  /// described by an FPBuiltinIntrinsic call.
+  StringRef selectFPBuiltinImplementation(FPBuiltinIntrinsic *Builtin) const;
 
   /// Add a set of scalar -> vector mappings, queryable via
   /// getVectorizedFunction and getScalarizedFunction.
-  void addVectorizableFunctions(ArrayRef<VecDesc> Fns);
+  LLVM_ABI void addVectorizableFunctions(ArrayRef<VecDesc> Fns);
 
   /// Calls addVectorizableFunctions with a known preset of functions for the
   /// given vector library.
-  void addVectorizableFunctionsFromVecLib(enum VectorLibrary VecLib);
+  LLVM_ABI void
+  addVectorizableFunctionsFromVecLib(enum VectorLibrary VecLib,
+                                     const llvm::Triple &TargetTriple);
 
   /// Return true if the function F has a vector equivalent with vectorization
   /// factor VF.
   bool isFunctionVectorizable(StringRef F, const ElementCount &VF) const {
-    return !getVectorizedFunction(F, VF).empty();
+    return !(getVectorizedFunction(F, VF, false).empty() &&
+             getVectorizedFunction(F, VF, true).empty());
   }
 
   /// Return true if the function F has a vector equivalent with any
   /// vectorization factor.
-  bool isFunctionVectorizable(StringRef F) const;
+  LLVM_ABI bool isFunctionVectorizable(StringRef F) const;
 
   /// Return the name of the equivalent of F, vectorized with factor VF. If no
   /// such mapping exists, return the empty string.
-  StringRef getVectorizedFunction(StringRef F, const ElementCount &VF) const;
+  LLVM_ABI StringRef getVectorizedFunction(StringRef F, const ElementCount &VF,
+                                           bool Masked) const;
+
+  /// Return a pointer to a VecDesc object holding all info for scalar to vector
+  /// mappings in TLI for the equivalent of F, vectorized with factor VF.
+  /// If no such mapping exists, return nullpointer.
+  LLVM_ABI const VecDesc *
+  getVectorMappingInfo(StringRef F, const ElementCount &VF, bool Masked) const;
 
   /// Set to true iff i32 parameters to library functions should have signext
   /// or zeroext attributes if they correspond to C-level int or unsigned int,
@@ -189,12 +317,18 @@ public:
     ShouldSignExtI32Param = Val;
   }
 
+  /// Set to true iff i32 results from library functions should have signext
+  /// attribute if they correspond to C-level int or unsigned int.
+  void setShouldSignExtI32Return(bool Val) {
+    ShouldSignExtI32Return = Val;
+  }
+
   /// Returns the size of the wchar_t type in bytes or 0 if the size is unknown.
   /// This queries the 'wchar_size' metadata.
-  unsigned getWCharSize(const Module &M) const;
+  LLVM_ABI unsigned getWCharSize(const Module &M) const;
 
   /// Returns the size of the size_t type in bits.
-  unsigned getSizeTSize(const Module &M) const;
+  LLVM_ABI unsigned getSizeTSize(const Module &M) const;
 
   /// Get size of a C-level int or unsigned int, in bits.
   unsigned getIntSize() const {
@@ -208,13 +342,13 @@ public:
 
   /// Returns the largest vectorization factor used in the list of
   /// vector functions.
-  void getWidestVF(StringRef ScalarF, ElementCount &FixedVF,
-                   ElementCount &Scalable) const;
+  LLVM_ABI void getWidestVF(StringRef ScalarF, ElementCount &FixedVF,
+                            ElementCount &Scalable) const;
 
   /// Returns true if call site / callee has cdecl-compatible calling
   /// conventions.
-  static bool isCallingConvCCompatible(CallBase *CI);
-  static bool isCallingConvCCompatible(Function *Callee);
+  LLVM_ABI static bool isCallingConvCCompatible(CallBase *CI);
+  LLVM_ABI static bool isCallingConvCCompatible(Function *Callee);
 };
 
 /// Provides information about what library functions are available for
@@ -231,12 +365,14 @@ class TargetLibraryInfo {
 
   /// Support for -fno-builtin* options as function attributes, overrides
   /// information in global TargetLibraryInfoImpl.
-  BitVector OverrideAsUnavailable;
+  std::bitset<NumLibFuncs> OverrideAsUnavailable;
 
 public:
+  TargetLibraryInfo() = delete;
+
   explicit TargetLibraryInfo(const TargetLibraryInfoImpl &Impl,
-                             Optional<const Function *> F = None)
-      : Impl(&Impl), OverrideAsUnavailable(NumLibFuncs) {
+                             std::optional<const Function *> F = std::nullopt)
+      : Impl(&Impl) {
     if (!F)
       return;
     if ((*F)->hasFnAttribute("no-builtins"))
@@ -259,14 +395,9 @@ public:
 
   // Provide value semantics.
   TargetLibraryInfo(const TargetLibraryInfo &TLI) = default;
-  TargetLibraryInfo(TargetLibraryInfo &&TLI)
-      : Impl(TLI.Impl), OverrideAsUnavailable(TLI.OverrideAsUnavailable) {}
+  TargetLibraryInfo(TargetLibraryInfo &&TLI) = default;
   TargetLibraryInfo &operator=(const TargetLibraryInfo &TLI) = default;
-  TargetLibraryInfo &operator=(TargetLibraryInfo &&TLI) {
-    Impl = TLI.Impl;
-    OverrideAsUnavailable = TLI.OverrideAsUnavailable;
-    return *this;
-  }
+  TargetLibraryInfo &operator=(TargetLibraryInfo &&TLI) = default;
 
   /// Determine whether a callee with the given TLI can be inlined into
   /// caller with this TLI, based on 'nobuiltin' attributes. When requested,
@@ -276,11 +407,9 @@ public:
                            bool AllowCallerSuperset) const {
     if (!AllowCallerSuperset)
       return OverrideAsUnavailable == CalleeTLI.OverrideAsUnavailable;
-    BitVector B = OverrideAsUnavailable;
-    B |= CalleeTLI.OverrideAsUnavailable;
-    // We can inline if the union of the caller and callee's nobuiltin
-    // attributes is no stricter than the caller's nobuiltin attributes.
-    return B == OverrideAsUnavailable;
+    // We can inline if the callee's nobuiltin attributes are no stricter than
+    // the caller's.
+    return (CalleeTLI.OverrideAsUnavailable & ~OverrideAsUnavailable).none();
   }
 
   /// Return true if the function type FTy is valid for the library function
@@ -309,19 +438,25 @@ public:
            getLibFunc(*(CB.getCalledFunction()), F);
   }
 
+  /// Searches for a function name using an Instruction \p Opcode.
+  /// Currently, only the frem instruction is supported.
+  bool getLibFunc(unsigned int Opcode, Type *Ty, LibFunc &F) const {
+    return Impl->getLibFunc(Opcode, Ty, F);
+  }
+
   /// Disables all builtins.
   ///
   /// This can be used for options like -fno-builtin.
-  void disableAllFunctions() LLVM_ATTRIBUTE_UNUSED {
-    OverrideAsUnavailable.set();
-  }
+  [[maybe_unused]] void disableAllFunctions() { OverrideAsUnavailable.set(); }
 
   /// Forces a function to be marked as unavailable.
-  void setUnavailable(LibFunc F) LLVM_ATTRIBUTE_UNUSED {
+  [[maybe_unused]] void setUnavailable(LibFunc F) {
+    assert(F < OverrideAsUnavailable.size() && "out-of-bounds LibFunc");
     OverrideAsUnavailable.set(F);
   }
 
   TargetLibraryInfoImpl::AvailabilityState getState(LibFunc F) const {
+    assert(F < OverrideAsUnavailable.size() && "out-of-bounds LibFunc");
     if (OverrideAsUnavailable[F])
       return TargetLibraryInfoImpl::Unavailable;
     return Impl->getState(F);
@@ -337,8 +472,16 @@ public:
   bool isFunctionVectorizable(StringRef F) const {
     return Impl->isFunctionVectorizable(F);
   }
-  StringRef getVectorizedFunction(StringRef F, const ElementCount &VF) const {
-    return Impl->getVectorizedFunction(F, VF);
+  StringRef selectFPBuiltinImplementation(FPBuiltinIntrinsic *Builtin) const {
+    return Impl->selectFPBuiltinImplementation(Builtin);
+  }
+  StringRef getVectorizedFunction(StringRef F, const ElementCount &VF,
+                                  bool Masked = false) const {
+    return Impl->getVectorizedFunction(F, VF, Masked);
+  }
+  const VecDesc *getVectorMappingInfo(StringRef F, const ElementCount &VF,
+                                      bool Masked) const {
+    return Impl->getVectorMappingInfo(F, VF, Masked);
   }
 
   /// Tests if the function is both available and a candidate for optimized code
@@ -348,30 +491,50 @@ public:
       return false;
     switch (F) {
     default: break;
+      // clang-format off
+    case LibFunc_acos:         case LibFunc_acosf:      case LibFunc_acosl:
+    case LibFunc_asin:         case LibFunc_asinf:      case LibFunc_asinl:
+    case LibFunc_atan2:        case LibFunc_atan2f:     case LibFunc_atan2l:
+    case LibFunc_atan:         case LibFunc_atanf:      case LibFunc_atanl:
+    case LibFunc_ceil:         case LibFunc_ceilf:      case LibFunc_ceill:
     case LibFunc_copysign:     case LibFunc_copysignf:  case LibFunc_copysignl:
-    case LibFunc_fabs:         case LibFunc_fabsf:      case LibFunc_fabsl:
-    case LibFunc_sin:          case LibFunc_sinf:       case LibFunc_sinl:
     case LibFunc_cos:          case LibFunc_cosf:       case LibFunc_cosl:
+    case LibFunc_cosh:         case LibFunc_coshf:      case LibFunc_coshl:
+    case LibFunc_exp2:         case LibFunc_exp2f:      case LibFunc_exp2l:
+    case LibFunc_exp10:        case LibFunc_exp10f:     case LibFunc_exp10l:
+    case LibFunc_fabs:         case LibFunc_fabsf:      case LibFunc_fabsl:
+    case LibFunc_floor:        case LibFunc_floorf:     case LibFunc_floorl:
+    case LibFunc_fmax:         case LibFunc_fmaxf:      case LibFunc_fmaxl:
+    case LibFunc_fmin:         case LibFunc_fminf:      case LibFunc_fminl:
+    case LibFunc_ldexp:        case LibFunc_ldexpf:     case LibFunc_ldexpl:
+    case LibFunc_log2:         case LibFunc_log2f:      case LibFunc_log2l:
+    case LibFunc_memcmp:       case LibFunc_bcmp:       case LibFunc_strcmp:
+    case LibFunc_memcpy:       case LibFunc_memset:     case LibFunc_memmove:
+    case LibFunc_nearbyint:    case LibFunc_nearbyintf: case LibFunc_nearbyintl:
+    case LibFunc_rint:         case LibFunc_rintf:      case LibFunc_rintl:
+    case LibFunc_round:        case LibFunc_roundf:     case LibFunc_roundl:
+    case LibFunc_sin:          case LibFunc_sinf:       case LibFunc_sinl:
+    case LibFunc_sinh:         case LibFunc_sinhf:      case LibFunc_sinhl:
     case LibFunc_sqrt:         case LibFunc_sqrtf:      case LibFunc_sqrtl:
     case LibFunc_sqrt_finite:  case LibFunc_sqrtf_finite:
                                                    case LibFunc_sqrtl_finite:
-    case LibFunc_fmax:         case LibFunc_fmaxf:      case LibFunc_fmaxl:
-    case LibFunc_fmin:         case LibFunc_fminf:      case LibFunc_fminl:
-    case LibFunc_floor:        case LibFunc_floorf:     case LibFunc_floorl:
-    case LibFunc_nearbyint:    case LibFunc_nearbyintf: case LibFunc_nearbyintl:
-    case LibFunc_ceil:         case LibFunc_ceilf:      case LibFunc_ceill:
-    case LibFunc_rint:         case LibFunc_rintf:      case LibFunc_rintl:
-    case LibFunc_round:        case LibFunc_roundf:     case LibFunc_roundl:
-    case LibFunc_trunc:        case LibFunc_truncf:     case LibFunc_truncl:
-    case LibFunc_log2:         case LibFunc_log2f:      case LibFunc_log2l:
-    case LibFunc_exp2:         case LibFunc_exp2f:      case LibFunc_exp2l:
-    case LibFunc_memcpy:       case LibFunc_memset:     case LibFunc_memmove:
-    case LibFunc_memcmp:       case LibFunc_bcmp:       case LibFunc_strcmp:
     case LibFunc_strcpy:       case LibFunc_stpcpy:     case LibFunc_strlen:
     case LibFunc_strnlen:      case LibFunc_memchr:     case LibFunc_mempcpy:
+    case LibFunc_tan:          case LibFunc_tanf:       case LibFunc_tanl:
+    case LibFunc_tanh:         case LibFunc_tanhf:      case LibFunc_tanhl:
+    case LibFunc_trunc:        case LibFunc_truncf:     case LibFunc_truncl:
+      // clang-format on
       return true;
     }
     return false;
+  }
+
+  /// Return the canonical name for a LibFunc. This should not be used for
+  /// semantic purposes, use getName instead.
+  static StringRef getStandardName(LibFunc F) {
+    return StringRef(TargetLibraryInfoImpl::StandardNamesStrTable.getCString(
+                         TargetLibraryInfoImpl::StandardNamesOffsets[F]),
+                     TargetLibraryInfoImpl::StandardNamesSizeTable[F]);
   }
 
   StringRef getName(LibFunc F) const {
@@ -379,29 +542,113 @@ public:
     if (State == TargetLibraryInfoImpl::Unavailable)
       return StringRef();
     if (State == TargetLibraryInfoImpl::StandardName)
-      return Impl->StandardNames[F];
+      return StringRef(
+          Impl->StandardNamesStrTable.getCString(Impl->StandardNamesOffsets[F]),
+          Impl->StandardNamesSizeTable[F]);
     assert(State == TargetLibraryInfoImpl::CustomName);
     return Impl->CustomNames.find(F)->second;
+  }
+
+  static void initExtensionsForTriple(bool &ShouldExtI32Param,
+                                      bool &ShouldExtI32Return,
+                                      bool &ShouldSignExtI32Param,
+                                      bool &ShouldSignExtI32Return,
+                                      const Triple &T) {
+    ShouldExtI32Param     = ShouldExtI32Return     = false;
+    ShouldSignExtI32Param = ShouldSignExtI32Return = false;
+
+    // PowerPC64, Sparc64, SystemZ need signext/zeroext on i32 parameters and
+    // returns corresponding to C-level ints and unsigned ints.
+    if (T.isPPC64() || T.getArch() == Triple::sparcv9 ||
+        T.getArch() == Triple::systemz) {
+      ShouldExtI32Param = true;
+      ShouldExtI32Return = true;
+    }
+    // LoongArch, Mips, and riscv64, on the other hand, need signext on i32
+    // parameters corresponding to both signed and unsigned ints.
+    if (T.isLoongArch() || T.isMIPS() || T.isRISCV64()) {
+      ShouldSignExtI32Param = true;
+    }
+    // LoongArch and riscv64 need signext on i32 returns corresponding to both
+    // signed and unsigned ints.
+    if (T.isLoongArch() || T.isRISCV64()) {
+      ShouldSignExtI32Return = true;
+    }
   }
 
   /// Returns extension attribute kind to be used for i32 parameters
   /// corresponding to C-level int or unsigned int.  May be zeroext, signext,
   /// or none.
-  Attribute::AttrKind getExtAttrForI32Param(bool Signed = true) const {
-    if (Impl->ShouldExtI32Param)
+private:
+  static Attribute::AttrKind getExtAttrForI32Param(bool ShouldExtI32Param_,
+                                                   bool ShouldSignExtI32Param_,
+                                                   bool Signed = true) {
+    if (ShouldExtI32Param_)
       return Signed ? Attribute::SExt : Attribute::ZExt;
-    if (Impl->ShouldSignExtI32Param)
+    if (ShouldSignExtI32Param_)
       return Attribute::SExt;
     return Attribute::None;
+  }
+
+public:
+  static Attribute::AttrKind getExtAttrForI32Param(const Triple &T,
+                                                   bool Signed = true) {
+    bool ShouldExtI32Param, ShouldExtI32Return;
+    bool ShouldSignExtI32Param, ShouldSignExtI32Return;
+    initExtensionsForTriple(ShouldExtI32Param, ShouldExtI32Return,
+                            ShouldSignExtI32Param, ShouldSignExtI32Return, T);
+    return getExtAttrForI32Param(ShouldExtI32Param, ShouldSignExtI32Param,
+                                 Signed);
+  }
+
+  Attribute::AttrKind getExtAttrForI32Param(bool Signed = true) const {
+    return getExtAttrForI32Param(Impl->ShouldExtI32Param,
+                                 Impl->ShouldSignExtI32Param, Signed);
   }
 
   /// Returns extension attribute kind to be used for i32 return values
   /// corresponding to C-level int or unsigned int.  May be zeroext, signext,
   /// or none.
-  Attribute::AttrKind getExtAttrForI32Return(bool Signed = true) const {
-    if (Impl->ShouldExtI32Return)
+private:
+  static Attribute::AttrKind getExtAttrForI32Return(bool ShouldExtI32Return_,
+                                                    bool ShouldSignExtI32Return_,
+                                                    bool Signed) {
+    if (ShouldExtI32Return_)
       return Signed ? Attribute::SExt : Attribute::ZExt;
+    if (ShouldSignExtI32Return_)
+      return Attribute::SExt;
     return Attribute::None;
+  }
+
+public:
+  static Attribute::AttrKind getExtAttrForI32Return(const Triple &T,
+                                                   bool Signed = true) {
+    bool ShouldExtI32Param, ShouldExtI32Return;
+    bool ShouldSignExtI32Param, ShouldSignExtI32Return;
+    initExtensionsForTriple(ShouldExtI32Param, ShouldExtI32Return,
+                            ShouldSignExtI32Param, ShouldSignExtI32Return, T);
+    return getExtAttrForI32Return(ShouldExtI32Return, ShouldSignExtI32Return,
+                                  Signed);
+  }
+
+  Attribute::AttrKind getExtAttrForI32Return(bool Signed = true) const {
+    return getExtAttrForI32Return(Impl->ShouldExtI32Return,
+                                  Impl->ShouldSignExtI32Return, Signed);
+  }
+
+  // Helper to create an AttributeList for args (and ret val) which all have
+  // the same signedness. Attributes in AL may be passed in to include them
+  // as well in the returned AttributeList.
+  AttributeList getAttrList(LLVMContext *C, ArrayRef<unsigned> ArgNos,
+                            bool Signed, bool Ret = false,
+                            AttributeList AL = AttributeList()) const {
+    if (auto AK = getExtAttrForI32Param(Signed))
+      for (auto ArgNo : ArgNos)
+        AL = AL.addParamAttribute(*C, ArgNo, AK);
+    if (Ret)
+      if (auto AK = getExtAttrForI32Return(Signed))
+        AL = AL.addRetAttribute(*C, AK);
+    return AL;
   }
 
   /// \copydoc TargetLibraryInfoImpl::getWCharSize()
@@ -411,6 +658,16 @@ public:
 
   /// \copydoc TargetLibraryInfoImpl::getSizeTSize()
   unsigned getSizeTSize(const Module &M) const { return Impl->getSizeTSize(M); }
+
+  /// Returns an IntegerType corresponding to size_t.
+  IntegerType *getSizeTType(const Module &M) const {
+    return IntegerType::get(M.getContext(), getSizeTSize(M));
+  }
+
+  /// Returns a constant materialized as a size_t type.
+  ConstantInt *getAsSizeT(uint64_t V, const Module &M) const {
+    return ConstantInt::get(getSizeTType(M), V);
+  }
 
   /// \copydoc TargetLibraryInfoImpl::getIntSize()
   unsigned getIntSize() const {
@@ -440,6 +697,13 @@ public:
   bool isKnownVectorFunctionInLibrary(StringRef F) const {
     return this->isFunctionVectorizable(F);
   }
+
+  /// Returns the replacement choice for the given FPBuiltinIntrinsic call.
+  FPBuiltinReplacement
+  selectFnForFPBuiltinCalls(const FPBuiltinIntrinsic &BuiltinCall,
+                            const TargetTransformInfo &TTI) const {
+    return Impl->selectFnForFPBuiltinCalls(BuiltinCall, TTI);
+  }
 };
 
 /// Analysis pass providing the \c TargetLibraryInfo.
@@ -462,26 +726,34 @@ public:
   TargetLibraryAnalysis(TargetLibraryInfoImpl BaselineInfoImpl)
       : BaselineInfoImpl(std::move(BaselineInfoImpl)) {}
 
-  TargetLibraryInfo run(const Function &F, FunctionAnalysisManager &);
+  LLVM_ABI TargetLibraryInfo run(const Function &F, FunctionAnalysisManager &);
 
 private:
   friend AnalysisInfoMixin<TargetLibraryAnalysis>;
-  static AnalysisKey Key;
+  LLVM_ABI static AnalysisKey Key;
 
-  Optional<TargetLibraryInfoImpl> BaselineInfoImpl;
+  std::optional<TargetLibraryInfoImpl> BaselineInfoImpl;
 };
 
-class TargetLibraryInfoWrapperPass : public ImmutablePass {
+class LLVM_ABI TargetLibraryInfoWrapperPass : public ImmutablePass {
   TargetLibraryAnalysis TLA;
-  Optional<TargetLibraryInfo> TLI;
+  std::optional<TargetLibraryInfo> TLI;
 
   virtual void anchor();
 
 public:
   static char ID;
+
+  /// The default constructor should not be used and is only for pass manager
+  /// initialization purposes.
   TargetLibraryInfoWrapperPass();
+
   explicit TargetLibraryInfoWrapperPass(const Triple &T);
   explicit TargetLibraryInfoWrapperPass(const TargetLibraryInfoImpl &TLI);
+
+  // FIXME: This should be removed when PlaceSafepoints is fixed to not create a
+  // PassManager inside a pass.
+  explicit TargetLibraryInfoWrapperPass(const TargetLibraryInfo &TLI);
 
   TargetLibraryInfo &getTLI(const Function &F) {
     FunctionAnalysisManager DummyFAM;

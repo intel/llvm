@@ -1,4 +1,4 @@
-//===--- SignedBitwiseCheck.cpp - clang-tidy-------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,13 +9,12 @@
 #include "SignedBitwiseCheck.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
+#include "clang/ASTMatchers/ASTMatchers.h"
 
 using namespace clang::ast_matchers;
 using namespace clang::ast_matchers::internal;
 
-namespace clang {
-namespace tidy {
-namespace hicpp {
+namespace clang::tidy::hicpp {
 
 SignedBitwiseCheck::SignedBitwiseCheck(StringRef Name,
                                        ClangTidyContext *Context)
@@ -31,8 +30,8 @@ void SignedBitwiseCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
 void SignedBitwiseCheck::registerMatchers(MatchFinder *Finder) {
   const auto SignedIntegerOperand =
       (IgnorePositiveIntegerLiterals
-           ? expr(ignoringImpCasts(hasType(isSignedInteger())),
-                  unless(integerLiteral()))
+           ? expr(ignoringImpCasts(
+                 allOf(hasType(isSignedInteger()), unless(integerLiteral()))))
            : expr(ignoringImpCasts(hasType(isSignedInteger()))))
           .bind("signed-operand");
 
@@ -100,6 +99,4 @@ void SignedBitwiseCheck::check(const MatchFinder::MatchResult &Result) {
       << IsUnary << SignedOperand->getSourceRange() << OperatorLoc;
 }
 
-} // namespace hicpp
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::hicpp

@@ -6,14 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: windows
-// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s -I %sycl_include
+// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s
 // expected-no-diagnostics
 
 // The tests validates an ability to build ESIMD code on windows platform
 
-#include <CL/sycl.hpp>
 #include <iostream>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 
 class Kernel;
 
@@ -31,8 +31,8 @@ int main() {
     using namespace sycl::ext::intel::experimental::esimd;
 
     simd<int, 32> blk;
-    simd<sycl::ext::oneapi::experimental::bfloat16, 16> A;
-    simd<sycl::ext::oneapi::experimental::bfloat16, 256> B;
+    simd<sycl::ext::oneapi::bfloat16, 16> A;
+    simd<sycl::ext::oneapi::bfloat16, 256> B;
     simd<float, 16> C;
     lzd<uint>(blk);
     lzd<uint>(35);

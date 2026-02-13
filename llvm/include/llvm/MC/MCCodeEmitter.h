@@ -9,16 +9,17 @@
 #ifndef LLVM_MC_MCCODEEMITTER_H
 #define LLVM_MC_MCCODEEMITTER_H
 
+#include "llvm/Support/Compiler.h"
+
 namespace llvm {
 
 class MCFixup;
 class MCInst;
 class MCSubtargetInfo;
-class raw_ostream;
 template<typename T> class SmallVectorImpl;
 
 /// MCCodeEmitter - Generic instruction encoding interface.
-class MCCodeEmitter {
+class LLVM_ABI MCCodeEmitter {
 protected: // Can only create subclasses.
   MCCodeEmitter();
 
@@ -30,17 +31,16 @@ public:
   /// Lifetime management
   virtual void reset() {}
 
-  /// Emit the prefixes of given instruction on the output stream.
-  ///
-  /// \param Inst a single low-level machine instruction.
-  /// \param OS output stream.
-  virtual void emitPrefix(const MCInst &Inst, raw_ostream &OS,
-                          const MCSubtargetInfo &STI) const {}
-  /// EncodeInstruction - Encode the given \p Inst to bytes on the output
-  /// stream \p OS.
-  virtual void encodeInstruction(const MCInst &Inst, raw_ostream &OS,
+  /// Encode the given \p Inst to bytes and append to \p CB.
+  virtual void encodeInstruction(const MCInst &Inst, SmallVectorImpl<char> &CB,
                                  SmallVectorImpl<MCFixup> &Fixups,
                                  const MCSubtargetInfo &STI) const = 0;
+
+protected:
+  // Helper function used by CodeEmitterGen for error reporting.
+  [[noreturn]] static void reportUnsupportedInst(const MCInst &Inst);
+  [[noreturn]] static void reportUnsupportedOperand(const MCInst &Inst,
+                                                    unsigned OpNum);
 };
 
 } // end namespace llvm

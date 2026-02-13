@@ -1,21 +1,17 @@
-; RUN: opt %loadPolly -polly-print-ast -polly-ast-detect-parallel -disable-output < %s | FileCheck %s
-; RUN: opt %loadPolly -print-polyhedral-info -polly-check-parallel -disable-output < %s | FileCheck %s -check-prefix=PINFO
+; RUN: opt %loadNPMPolly '-passes=polly-custom<ast>' -polly-print-ast -polly-ast-detect-parallel -disable-output < %s | FileCheck %s
 ;
 ; CHECK: #pragma known-parallel reduction (^ : MemRef_sum)
 ;        void f(int N, int M, int P, int sum[P][M]) {
-; PINFO:   for.cond: Loop is not parallel.
 ;          for (int i = 0; i < N; i++)
-; PINFO-NEXT: for.cond1: Loop is parallel.
 ;             for (int j = 0; j < P; j++)
 ; CHECK:        #pragma simd
-; PINFO-NEXT:   for.cond4: Loop is parallel.
 ;               for (int k = 0; k < M; k++)
 ;                 sum[j][k] ^= j;
 ;        }
 ;
 target datalayout = "e-m:e-p:32:32-i64:64-v128:64:128-n32-S64"
 
-define void @f(i32 %N, i32 %M, i32 %P, i32* %sum) {
+define void @f(i32 %N, i32 %M, i32 %P, ptr %sum) {
 entry:
   br label %for.cond
 
@@ -43,10 +39,10 @@ for.cond4:                                        ; preds = %for.inc, %for.body3
 for.body6:                                        ; preds = %for.cond4
   %tmp = mul nsw i32 %j.0, %M
   %arrayidx.sum = add i32 %tmp, %k.0
-  %arrayidx7 = getelementptr inbounds i32, i32* %sum, i32 %arrayidx.sum
-  %tmp1 = load i32, i32* %arrayidx7, align 4
+  %arrayidx7 = getelementptr inbounds i32, ptr %sum, i32 %arrayidx.sum
+  %tmp1 = load i32, ptr %arrayidx7, align 4
   %xor = xor i32 %tmp1, %j.0
-  store i32 %xor, i32* %arrayidx7, align 4
+  store i32 %xor, ptr %arrayidx7, align 4
   br label %for.inc
 
 for.inc:                                          ; preds = %for.body6

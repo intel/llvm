@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "obj2yaml.h"
-#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
@@ -18,6 +17,7 @@
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/YAMLTraits.h"
+#include <optional>
 
 using namespace llvm;
 
@@ -32,7 +32,7 @@ class ELFDumper {
 
   DenseMap<StringRef, uint32_t> UsedSectionNames;
   std::vector<std::string> SectionNames;
-  Optional<uint32_t> ShStrTabIndex;
+  std::optional<uint32_t> ShStrTabIndex;
 
   DenseMap<StringRef, uint32_t> UsedSymbolNames;
   std::vector<std::string> SymbolNames;
@@ -53,11 +53,11 @@ class ELFDumper {
   Expected<std::vector<ELFYAML::ProgramHeader>>
   dumpProgramHeaders(ArrayRef<std::unique_ptr<ELFYAML::Chunk>> Sections);
 
-  Optional<DWARFYAML::Data>
+  std::optional<DWARFYAML::Data>
   dumpDWARFSections(std::vector<std::unique_ptr<ELFYAML::Chunk>> &Sections);
 
   Error dumpSymbols(const Elf_Shdr *Symtab,
-                    Optional<std::vector<ELFYAML::Symbol>> &Symbols);
+                    std::optional<std::vector<ELFYAML::Symbol>> &Symbols);
   Error dumpSymbol(const Elf_Sym *Sym, const Elf_Shdr *SymTab,
                    StringRef StrTable, ELFYAML::Symbol &S);
   Expected<std::vector<std::unique_ptr<ELFYAML::Chunk>>> dumpSections();
@@ -101,7 +101,7 @@ class ELFDumper {
   dumpPlaceholderSection(const Elf_Shdr *Shdr);
 
   bool shouldPrintSection(const ELFYAML::Section &S, const Elf_Shdr &SHdr,
-                          Optional<DWARFYAML::Data> DWARF);
+                          std::optional<DWARFYAML::Data> DWARF);
 
 public:
   ELFDumper(const object::ELFFile<ELFT> &O, std::unique_ptr<DWARFContext> DCtx);
@@ -182,7 +182,7 @@ ELFDumper<ELFT>::getUniquedSymbolName(const Elf_Sym *Sym, StringRef StrTable,
 template <class ELFT>
 bool ELFDumper<ELFT>::shouldPrintSection(const ELFYAML::Section &S,
                                          const Elf_Shdr &SHdr,
-                                         Optional<DWARFYAML::Data> DWARF) {
+                                         std::optional<DWARFYAML::Data> DWARF) {
   // We only print the SHT_NULL section at index 0 when it
   // has at least one non-null field, because yaml2obj
   // normally creates the zero section at index 0 implicitly.
@@ -246,8 +246,7 @@ static void dumpSectionOffsets(const typename ELFT::Ehdr &Header,
   else
     ExpectedOffset = sizeof(typename ELFT::Ehdr);
 
-  for (const std::unique_ptr<ELFYAML::Chunk> &C :
-       makeArrayRef(V).drop_front()) {
+  for (const std::unique_ptr<ELFYAML::Chunk> &C : ArrayRef(V).drop_front()) {
     ELFYAML::Section &Sec = *cast<ELFYAML::Section>(C.get());
     const typename ELFT::Shdr &SecHdr = S[Sec.OriginalSecNdx];
 
@@ -282,7 +281,8 @@ template <class ELFT> Expected<ELFYAML::Object *> ELFDumper<ELFT>::dump() {
   Y->Header.Type = Obj.getHeader().e_type;
   if (Obj.getHeader().e_machine != 0)
     Y->Header.Machine = ELFYAML::ELF_EM(Obj.getHeader().e_machine);
-  Y->Header.Flags = Obj.getHeader().e_flags;
+  if (Obj.getHeader().e_flags != 0)
+    Y->Header.Flags = ELFYAML::ELF_EF(Obj.getHeader().e_flags);
   Y->Header.Entry = Obj.getHeader().e_entry;
 
   // Dump sections
@@ -300,7 +300,7 @@ template <class ELFT> Expected<ELFYAML::Object *> ELFDumper<ELFT>::dump() {
   }
 
   // Normally an object that does not have sections has e_shnum == 0.
-  // Also, e_shnum might be 0, when the the number of entries in the section
+  // Also, e_shnum might be 0, when the number of entries in the section
   // header table is larger than or equal to SHN_LORESERVE (0xff00). In this
   // case the real number of entries is held in the sh_size member of the
   // initial entry. We have a section header table when `e_shoff` is not 0.
@@ -359,7 +359,7 @@ template <class ELFT> Expected<ELFYAML::Object *> ELFDumper<ELFT>::dump() {
   std::vector<ELFYAML::Section *> OriginalOrder;
   if (!Chunks.empty())
     for (const std::unique_ptr<ELFYAML::Chunk> &C :
-         makeArrayRef(Chunks).drop_front())
+         ArrayRef(Chunks).drop_front())
       OriginalOrder.push_back(cast<ELFYAML::Section>(C.get()));
 
   // Sometimes the order of sections in the section header table does not match
@@ -401,10 +401,10 @@ template <class ELFT> Expected<ELFYAML::Object *> ELFDumper<ELFT>::dump() {
   }
 
   llvm::erase_if(Chunks, [this, &Y](const std::unique_ptr<ELFYAML::Chunk> &C) {
-    if (isa<ELFYAML::SectionHeaderTable>(*C.get()))
+    if (isa<ELFYAML::SectionHeaderTable>(*C))
       return false;
 
-    const ELFYAML::Section &S = cast<ELFYAML::Section>(*C.get());
+    const ELFYAML::Section &S = cast<ELFYAML::Section>(*C);
     return !shouldPrintSection(S, Sections[S.OriginalSecNdx], Y->DWARF);
   });
 
@@ -484,6 +484,7 @@ ELFDumper<ELFT>::dumpProgramHeaders(
     PH.Flags = Phdr.p_flags;
     PH.VAddr = Phdr.p_vaddr;
     PH.PAddr = Phdr.p_paddr;
+    PH.Offset = Phdr.p_offset;
 
     // yaml2obj sets the alignment of a segment to 1 by default.
     // We do not print the default alignment to reduce noise in the output.
@@ -494,7 +495,7 @@ ELFDumper<ELFT>::dumpProgramHeaders(
     // It is not possible to have a non-Section chunk, because
     // obj2yaml does not create Fill chunks.
     for (const std::unique_ptr<ELFYAML::Chunk> &C : Chunks) {
-      ELFYAML::Section &S = cast<ELFYAML::Section>(*C.get());
+      ELFYAML::Section &S = cast<ELFYAML::Section>(*C);
       if (isInSegment<ELFT>(S, Sections[S.OriginalSecNdx], Phdr)) {
         if (!PH.FirstSec)
           PH.FirstSec = S.Name;
@@ -510,11 +511,11 @@ ELFDumper<ELFT>::dumpProgramHeaders(
 }
 
 template <class ELFT>
-Optional<DWARFYAML::Data> ELFDumper<ELFT>::dumpDWARFSections(
+std::optional<DWARFYAML::Data> ELFDumper<ELFT>::dumpDWARFSections(
     std::vector<std::unique_ptr<ELFYAML::Chunk>> &Sections) {
   DWARFYAML::Data DWARF;
   for (std::unique_ptr<ELFYAML::Chunk> &C : Sections) {
-    if (!C->Name.startswith(".debug_"))
+    if (!C->Name.starts_with(".debug_"))
       continue;
 
     if (ELFYAML::RawContentSection *RawSec =
@@ -529,13 +530,13 @@ Optional<DWARFYAML::Data> ELFDumper<ELFT>::dumpDWARFSections(
       cantFail(std::move(Err));
 
       if (RawSec->Name == ".debug_aranges")
-        Err = dumpDebugARanges(*DWARFCtx.get(), DWARF);
+        Err = dumpDebugARanges(*DWARFCtx, DWARF);
       else if (RawSec->Name == ".debug_str")
-        Err = dumpDebugStrings(*DWARFCtx.get(), DWARF);
+        Err = dumpDebugStrings(*DWARFCtx, DWARF);
       else if (RawSec->Name == ".debug_ranges")
-        Err = dumpDebugRanges(*DWARFCtx.get(), DWARF);
+        Err = dumpDebugRanges(*DWARFCtx, DWARF);
       else if (RawSec->Name == ".debug_addr")
-        Err = dumpDebugAddr(*DWARFCtx.get(), DWARF);
+        Err = dumpDebugAddr(*DWARFCtx, DWARF);
       else
         continue;
 
@@ -549,7 +550,7 @@ Optional<DWARFYAML::Data> ELFDumper<ELFT>::dumpDWARFSections(
   }
 
   if (DWARF.getNonEmptySectionNames().empty())
-    return None;
+    return std::nullopt;
   return DWARF;
 }
 
@@ -596,6 +597,7 @@ ELFDumper<ELFT>::dumpSections() {
       return [this](const Elf_Shdr *S) { return dumpSymtabShndxSection(S); };
     case ELF::SHT_REL:
     case ELF::SHT_RELA:
+    case ELF::SHT_CREL:
       return [this](const Elf_Shdr *S) { return dumpRelocSection(S); };
     case ELF::SHT_RELR:
       return [this](const Elf_Shdr *S) { return dumpRelrSection(S); };
@@ -626,7 +628,6 @@ ELFDumper<ELFT>::dumpSections() {
     case ELF::SHT_LLVM_CALL_GRAPH_PROFILE:
       return
           [this](const Elf_Shdr *S) { return dumpCallGraphProfileSection(S); };
-    case ELF::SHT_LLVM_BB_ADDR_MAP_V0:
     case ELF::SHT_LLVM_BB_ADDR_MAP:
       return [this](const Elf_Shdr *S) { return dumpBBAddrMapSection(S); };
     case ELF::SHT_STRTAB:
@@ -673,7 +674,8 @@ ELFDumper<ELFT>::dumpSections() {
 
 template <class ELFT>
 Error ELFDumper<ELFT>::dumpSymbols(
-    const Elf_Shdr *Symtab, Optional<std::vector<ELFYAML::Symbol>> &Symbols) {
+    const Elf_Shdr *Symtab,
+    std::optional<std::vector<ELFYAML::Symbol>> &Symbols) {
   if (!Symtab)
     return Error::success();
 
@@ -889,31 +891,108 @@ ELFDumper<ELFT>::dumpBBAddrMapSection(const Elf_Shdr *Shdr) {
   DataExtractor Data(Content, Obj.isLE(), ELFT::Is64Bits ? 8 : 4);
 
   std::vector<ELFYAML::BBAddrMapEntry> Entries;
+  bool HasAnyPGOAnalysisMapEntry = false;
+  std::vector<ELFYAML::PGOAnalysisMapEntry> PGOAnalyses;
   DataExtractor::Cursor Cur(0);
   uint8_t Version = 0;
-  uint8_t Feature = 0;
+  uint16_t Feature = 0;
+  uint64_t Address = 0;
   while (Cur && Cur.tell() < Content.size()) {
     if (Shdr->sh_type == ELF::SHT_LLVM_BB_ADDR_MAP) {
       Version = Data.getU8(Cur);
-      if (Cur && Version > 1)
+      if (Cur && Version > 4)
         return createStringError(
             errc::invalid_argument,
             "invalid SHT_LLVM_BB_ADDR_MAP section version: " +
                 Twine(static_cast<int>(Version)));
-      Feature = Data.getU8(Cur);
+      Feature = Version < 5 ? Data.getU8(Cur) : Data.getU16(Cur);
     }
-    uint64_t Address = Data.getAddress(Cur);
-    uint64_t NumBlocks = Data.getULEB128(Cur);
-    std::vector<ELFYAML::BBAddrMapEntry::BBEntry> BBEntries;
-    // Read the specified number of BB entries, or until decoding fails.
-    for (uint64_t BlockID = 0; Cur && BlockID < NumBlocks; ++BlockID) {
-      uint64_t Offset = Data.getULEB128(Cur);
-      uint64_t Size = Data.getULEB128(Cur);
-      uint64_t Metadata = Data.getULEB128(Cur);
-      BBEntries.push_back({Offset, Size, Metadata});
+    uint64_t NumBBRanges = 1;
+    uint64_t NumBlocks = 0;
+    uint32_t TotalNumBlocks = 0;
+    auto FeatureOrErr = llvm::object::BBAddrMap::Features::decode(Feature);
+    if (!FeatureOrErr)
+      return FeatureOrErr.takeError();
+    if (FeatureOrErr->MultiBBRange) {
+      NumBBRanges = Data.getULEB128(Cur);
+    } else {
+      Address = Data.getAddress(Cur);
+      NumBlocks = Data.getULEB128(Cur);
+    }
+    std::vector<ELFYAML::BBAddrMapEntry::BBRangeEntry> BBRanges;
+    uint64_t BaseAddress = 0;
+    for (uint64_t BBRangeN = 0; Cur && BBRangeN != NumBBRanges; ++BBRangeN) {
+      if (FeatureOrErr->MultiBBRange) {
+        BaseAddress = Data.getAddress(Cur);
+        NumBlocks = Data.getULEB128(Cur);
+      } else {
+        BaseAddress = Address;
+      }
+
+      std::vector<ELFYAML::BBAddrMapEntry::BBEntry> BBEntries;
+      // Read the specified number of BB entries, or until decoding fails.
+      for (uint64_t BlockIndex = 0; Cur && BlockIndex < NumBlocks;
+           ++BlockIndex) {
+        uint32_t ID = Version >= 2 ? Data.getULEB128(Cur) : BlockIndex;
+        uint64_t Offset = Data.getULEB128(Cur);
+        std::optional<std::vector<llvm::yaml::Hex64>> CallsiteEndOffsets;
+        if (FeatureOrErr->CallsiteEndOffsets) {
+          uint32_t NumCallsites = Data.getULEB128(Cur);
+          CallsiteEndOffsets = std::vector<llvm::yaml::Hex64>(NumCallsites, 0);
+          for (uint32_t CallsiteIndex = 0; Cur && CallsiteIndex < NumCallsites;
+               ++CallsiteIndex) {
+            (*CallsiteEndOffsets)[CallsiteIndex] = Data.getULEB128(Cur);
+          }
+        }
+        uint64_t Size = Data.getULEB128(Cur);
+        uint64_t Metadata = Data.getULEB128(Cur);
+        std::optional<llvm::yaml::Hex64> Hash;
+        if (FeatureOrErr->BBHash)
+          Hash = Data.getU64(Cur);
+        BBEntries.push_back(
+            {ID, Offset, Size, Metadata, std::move(CallsiteEndOffsets), Hash});
+      }
+      TotalNumBlocks += BBEntries.size();
+      BBRanges.push_back({BaseAddress, /*NumBlocks=*/{}, BBEntries});
     }
     Entries.push_back(
-        {Version, Feature, Address, /*NumBlocks=*/{}, std::move(BBEntries)});
+        {Version, Feature, /*NumBBRanges=*/{}, std::move(BBRanges)});
+
+    ELFYAML::PGOAnalysisMapEntry &PGOAnalysis = PGOAnalyses.emplace_back();
+    if (FeatureOrErr->hasPGOAnalysis()) {
+      HasAnyPGOAnalysisMapEntry = true;
+
+      if (FeatureOrErr->FuncEntryCount)
+        PGOAnalysis.FuncEntryCount = Data.getULEB128(Cur);
+
+      if (FeatureOrErr->hasPGOAnalysisBBData()) {
+        auto &PGOBBEntries = PGOAnalysis.PGOBBEntries.emplace();
+        for (uint64_t BlockIndex = 0; Cur && BlockIndex < TotalNumBlocks;
+             ++BlockIndex) {
+          auto &PGOBBEntry = PGOBBEntries.emplace_back();
+          if (FeatureOrErr->BBFreq) {
+            PGOBBEntry.BBFreq = Data.getULEB128(Cur);
+            if (FeatureOrErr->PostLinkCfg)
+              PGOBBEntry.PostLinkBBFreq = Data.getULEB128(Cur);
+            if (!Cur)
+              break;
+          }
+
+          if (FeatureOrErr->BrProb) {
+            auto &SuccEntries = PGOBBEntry.Successors.emplace();
+            uint64_t SuccCount = Data.getULEB128(Cur);
+            for (uint64_t SuccIdx = 0; Cur && SuccIdx < SuccCount; ++SuccIdx) {
+              uint32_t ID = Data.getULEB128(Cur);
+              uint32_t BrProb = Data.getULEB128(Cur);
+              std::optional<uint32_t> PostLinkBrFreq;
+              if (FeatureOrErr->PostLinkCfg)
+                PostLinkBrFreq = Data.getULEB128(Cur);
+              SuccEntries.push_back({ID, BrProb, PostLinkBrFreq});
+            }
+          }
+        }
+      }
+    }
   }
 
   if (!Cur) {
@@ -922,6 +1001,8 @@ ELFDumper<ELFT>::dumpBBAddrMapSection(const Elf_Shdr *Shdr) {
     S->Content = yaml::BinaryRef(Content);
   } else {
     S->Entries = std::move(Entries);
+    if (HasAnyPGOAnalysisMapEntry)
+      S->PGOAnalyses = std::move(PGOAnalyses);
   }
 
   return S.release();
@@ -1104,27 +1185,41 @@ ELFDumper<ELFT>::dumpRelocSection(const Elf_Shdr *Shdr) {
   if (Shdr->sh_size != 0)
     S->Relocations.emplace();
 
-  if (Shdr->sh_type == ELF::SHT_REL) {
-    auto Rels = Obj.rels(*Shdr);
-    if (!Rels)
-      return Rels.takeError();
-    for (const Elf_Rel &Rel : *Rels) {
-      ELFYAML::Relocation R;
-      if (Error E = dumpRelocation(&Rel, *SymTabOrErr, R))
-        return std::move(E);
-      S->Relocations->push_back(R);
-    }
+  std::vector<Elf_Rel> Rels;
+  std::vector<Elf_Rela> Relas;
+  if (Shdr->sh_type == ELF::SHT_CREL) {
+    Expected<ArrayRef<uint8_t>> ContentOrErr = Obj.getSectionContents(*Shdr);
+    if (!ContentOrErr)
+      return ContentOrErr.takeError();
+    auto Crel = Obj.decodeCrel(*ContentOrErr);
+    if (!Crel)
+      return Crel.takeError();
+    Rels = std::move(Crel->first);
+    Relas = std::move(Crel->second);
+  } else if (Shdr->sh_type == ELF::SHT_REL) {
+    auto R = Obj.rels(*Shdr);
+    if (!R)
+      return R.takeError();
+    Rels = std::move(*R);
   } else {
-    auto Rels = Obj.relas(*Shdr);
-    if (!Rels)
-      return Rels.takeError();
-    for (const Elf_Rela &Rel : *Rels) {
-      ELFYAML::Relocation R;
-      if (Error E = dumpRelocation(&Rel, *SymTabOrErr, R))
-        return std::move(E);
-      R.Addend = Rel.r_addend;
-      S->Relocations->push_back(R);
-    }
+    auto R = Obj.relas(*Shdr);
+    if (!R)
+      return R.takeError();
+    Relas = std::move(*R);
+  }
+
+  for (const Elf_Rel &Rel : Rels) {
+    ELFYAML::Relocation R;
+    if (Error E = dumpRelocation(&Rel, *SymTabOrErr, R))
+      return std::move(E);
+    S->Relocations->push_back(R);
+  }
+  for (const Elf_Rela &Rel : Relas) {
+    ELFYAML::Relocation R;
+    if (Error E = dumpRelocation(&Rel, *SymTabOrErr, R))
+      return std::move(E);
+    R.Addend = Rel.r_addend;
+    S->Relocations->push_back(R);
   }
 
   return S.release();
@@ -1190,8 +1285,7 @@ ELFDumper<ELFT>::dumpSymtabShndxSection(const Elf_Shdr *Shdr) {
     return EntriesOrErr.takeError();
 
   S->Entries.emplace();
-  for (const Elf_Word &E : *EntriesOrErr)
-    S->Entries->push_back(E);
+  llvm::append_range(*S->Entries, *EntriesOrErr);
   return S.release();
 }
 
@@ -1219,6 +1313,7 @@ ELFDumper<ELFT>::dumpNoteSection(const Elf_Shdr *Shdr) {
 
   std::vector<ELFYAML::NoteEntry> Entries;
   ArrayRef<uint8_t> Content = *ContentOrErr;
+  size_t Align = std::max<size_t>(Shdr->sh_addralign, 4);
   while (!Content.empty()) {
     if (Content.size() < sizeof(Elf_Nhdr)) {
       S->Content = yaml::BinaryRef(*ContentOrErr);
@@ -1226,16 +1321,16 @@ ELFDumper<ELFT>::dumpNoteSection(const Elf_Shdr *Shdr) {
     }
 
     const Elf_Nhdr *Header = reinterpret_cast<const Elf_Nhdr *>(Content.data());
-    if (Content.size() < Header->getSize()) {
+    if (Content.size() < Header->getSize(Align)) {
       S->Content = yaml::BinaryRef(*ContentOrErr);
       return S.release();
     }
 
     Elf_Note Note(*Header);
     Entries.push_back(
-        {Note.getName(), Note.getDesc(), (ELFYAML::ELF_NT)Note.getType()});
+        {Note.getName(), Note.getDesc(Align), (ELFYAML::ELF_NT)Note.getType()});
 
-    Content = Content.drop_front(Header->getSize());
+    Content = Content.drop_front(Header->getSize(Align));
   }
 
   S->Notes = std::move(Entries);
@@ -1374,7 +1469,15 @@ ELFDumper<ELFT>::dumpVerdefSection(const Elf_Shdr *Shdr) {
     if (Verdef->vd_hash != 0)
       Entry.Hash = Verdef->vd_hash;
 
+    if (Verdef->vd_aux != sizeof(Elf_Verdef))
+      Entry.VDAux = Verdef->vd_aux;
+
     const uint8_t *BufAux = Buf + Verdef->vd_aux;
+    if (BufAux > Data.end())
+      return createStringError(
+          errc::invalid_argument,
+          "corrupted section: vd_aux value " + Twine(Verdef->vd_aux) +
+              " in section verdef points past end of the section");
     while (BufAux) {
       const Elf_Verdaux *Verdaux =
           reinterpret_cast<const Elf_Verdaux *>(BufAux);
@@ -1405,8 +1508,7 @@ ELFDumper<ELFT>::dumpSymverSection(const Elf_Shdr *Shdr) {
     return VersionsOrErr.takeError();
 
   S->Entries.emplace();
-  for (const Elf_Half &E : *VersionsOrErr)
-    S->Entries->push_back(E);
+  llvm::append_range(*S->Entries, *VersionsOrErr);
 
   return S.release();
 }

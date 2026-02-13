@@ -12,8 +12,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "RetainCountChecker.h"
-#include "clang/StaticAnalyzer/Core/Checker.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h"
+#include <optional>
 
 using namespace clang;
 using namespace ento;
@@ -154,10 +154,8 @@ void RetainCountChecker::checkPostStmt(const BlockExpr *BE,
   ProgramStateRef state = C.getState();
   auto *R = cast<BlockDataRegion>(C.getSVal(BE).getAsRegion());
 
-  BlockDataRegion::referenced_vars_iterator I = R->referenced_vars_begin(),
-                                            E = R->referenced_vars_end();
-
-  if (I == E)
+  auto ReferencedVars = R->referenced_vars();
+  if (ReferencedVars.empty())
     return;
 
   // FIXME: For now we invalidate the tracking of all symbols passed to blocks
@@ -167,8 +165,8 @@ void RetainCountChecker::checkPostStmt(const BlockExpr *BE,
   const LocationContext *LC = C.getLocationContext();
   MemRegionManager &MemMgr = C.getSValBuilder().getRegionManager();
 
-  for ( ; I != E; ++I) {
-    const VarRegion *VR = I.getCapturedRegion();
+  for (auto Var : ReferencedVars) {
+    const VarRegion *VR = Var.getCapturedRegion();
     if (VR->getSuperRegion() == R) {
       VR = MemMgr.getVarRegion(VR->getDecl(), LC);
     }
@@ -284,7 +282,7 @@ void RetainCountChecker::checkPostStmt(const ObjCBoxedExpr *Ex,
 
 void RetainCountChecker::checkPostStmt(const ObjCIvarRefExpr *IRE,
                                        CheckerContext &C) const {
-  Optional<Loc> IVarLoc = C.getSVal(IRE).getAs<Loc>();
+  std::optional<Loc> IVarLoc = C.getSVal(IRE).getAs<Loc>();
   if (!IVarLoc)
     return;
 
@@ -412,15 +410,15 @@ static QualType GetReturnType(const Expr *RetE, ASTContext &Ctx) {
   return RetTy;
 }
 
-static Optional<RefVal> refValFromRetEffect(RetEffect RE,
-                                            QualType ResultTy) {
+static std::optional<RefVal> refValFromRetEffect(RetEffect RE,
+                                                 QualType ResultTy) {
   if (RE.isOwned()) {
     return RefVal::makeOwned(RE.getObjKind(), ResultTy);
   } else if (RE.notOwned()) {
     return RefVal::makeNotOwned(RE.getObjKind(), ResultTy);
   }
 
-  return None;
+  return std::nullopt;
 }
 
 static bool isPointerToObject(QualType QT) {
@@ -502,13 +500,13 @@ static bool isSmartPtrField(const MemRegion *MR) {
 /// assigned to a struct field, unless it is a known smart pointer
 /// implementation, about which we know that it is inlined.
 /// FIXME: This could definitely be improved upon.
-static bool shouldEscapeRegion(const MemRegion *R) {
+static bool shouldEscapeRegion(ProgramStateRef State, const MemRegion *R) {
   if (isSmartPtrField(R))
     return false;
 
   const auto *VR = dyn_cast<VarRegion>(R);
 
-  if (!R->hasStackStorage() || !VR)
+  if (!R->hasMemorySpace<StackSpaceRegion>(State) || !VR)
     return true;
 
   const VarDecl *VD = VR->getDecl();
@@ -562,7 +560,7 @@ updateOutParameters(ProgramStateRef State, const RetainSummary &Summ,
     if (!Pointee)
       continue;
 
-    if (shouldEscapeRegion(ArgRegion))
+    if (shouldEscapeRegion(State, ArgRegion))
       continue;
 
     auto makeNotOwnedParameter = [&](ProgramStateRef St) {
@@ -692,7 +690,7 @@ void RetainCountChecker::checkSummary(const RetainSummary &Summ,
       assert(Ex);
       ResultTy = GetReturnType(Ex, C.getASTContext());
     }
-    if (Optional<RefVal> updatedRefVal = refValFromRetEffect(RE, ResultTy))
+    if (std::optional<RefVal> updatedRefVal = refValFromRetEffect(RE, ResultTy))
       state = setRefBinding(state, Sym, *updatedRefVal);
   }
 
@@ -842,18 +840,25 @@ ProgramStateRef RetainCountChecker::updateSymbol(ProgramStateRef state,
 const RefCountBug &
 RetainCountChecker::errorKindToBugKind(RefVal::Kind ErrorKind,
                                        SymbolRef Sym) const {
+  const RefCountFrontend &FE = getPreferredFrontend();
+
   switch (ErrorKind) {
     case RefVal::ErrorUseAfterRelease:
-      return *UseAfterRelease;
+      return FE.UseAfterRelease;
     case RefVal::ErrorReleaseNotOwned:
-      return *ReleaseNotOwned;
+      return FE.ReleaseNotOwned;
     case RefVal::ErrorDeallocNotOwned:
       if (Sym->getType()->getPointeeCXXRecordDecl())
-        return *FreeNotOwned;
-      return *DeallocNotOwned;
+        return FE.FreeNotOwned;
+      return FE.DeallocNotOwned;
     default:
       llvm_unreachable("Unhandled error.");
   }
+}
+
+bool RetainCountChecker::isReleaseUnownedError(RefVal::Kind ErrorKind) const {
+  return ErrorKind == RefVal::ErrorReleaseNotOwned ||
+         ErrorKind == RefVal::ErrorDeallocNotOwned;
 }
 
 void RetainCountChecker::processNonLeakError(ProgramStateRef St,
@@ -876,8 +881,8 @@ void RetainCountChecker::processNonLeakError(ProgramStateRef St,
     return;
 
   auto report = std::make_unique<RefCountReport>(
-      errorKindToBugKind(ErrorKind, Sym),
-      C.getASTContext().getLangOpts(), N, Sym);
+      errorKindToBugKind(ErrorKind, Sym), C.getASTContext().getLangOpts(), N,
+      Sym, /*isLeak=*/false, isReleaseUnownedError(ErrorKind));
   report->addRange(ErrorRange);
   C.emitReport(std::move(report));
 }
@@ -907,7 +912,7 @@ bool RetainCountChecker::evalCall(const CallEvent &Call,
   const LocationContext *LCtx = C.getLocationContext();
 
   using BehaviorSummary = RetainSummaryManager::BehaviorSummary;
-  Optional<BehaviorSummary> BSmr =
+  std::optional<BehaviorSummary> BSmr =
       SmrMgr.canEval(CE, FD, hasTrustedImplementationAnnotation);
 
   // See if it's one of the specific functions we know how to eval.
@@ -932,8 +937,7 @@ bool RetainCountChecker::evalCall(const CallEvent &Call,
     if (RetVal.isUnknown() ||
         (hasTrustedImplementationAnnotation && !ResultTy.isNull())) {
       SValBuilder &SVB = C.getSValBuilder();
-      RetVal =
-          SVB.conjureSymbolVal(nullptr, CE, LCtx, ResultTy, C.blockCount());
+      RetVal = SVB.conjureSymbolVal(Call, C.blockCount());
     }
 
     // Bind the value.
@@ -1033,8 +1037,7 @@ ExplodedNode * RetainCountChecker::processReturn(const ReturnStmt *S,
     return nullptr;
 
   // Update the autorelease counts.
-  static CheckerProgramPointTag AutoreleaseTag(this, "Autorelease");
-  state = handleAutoreleaseCounts(state, Pred, &AutoreleaseTag, C, Sym, X, S);
+  state = handleAutoreleaseCounts(state, Pred, C, Sym, X, S);
 
   // Have we generated a sink node?
   if (!state)
@@ -1091,12 +1094,11 @@ ExplodedNode * RetainCountChecker::checkReturnWithRetEffect(const ReturnStmt *S,
         // Generate an error node.
         state = setRefBinding(state, Sym, X);
 
-        static CheckerProgramPointTag ReturnOwnLeakTag(this, "ReturnsOwnLeak");
-        ExplodedNode *N = C.addTransition(state, Pred, &ReturnOwnLeakTag);
+        ExplodedNode *N = C.addTransition(state, Pred);
         if (N) {
           const LangOptions &LOpts = C.getASTContext().getLangOpts();
-          auto R =
-              std::make_unique<RefLeakReport>(*LeakAtReturn, LOpts, N, Sym, C);
+          auto R = std::make_unique<RefLeakReport>(
+              getPreferredFrontend().LeakAtReturn, LOpts, N, Sym, C);
           C.emitReport(std::move(R));
         }
         return N;
@@ -1115,13 +1117,11 @@ ExplodedNode * RetainCountChecker::checkReturnWithRetEffect(const ReturnStmt *S,
         // owned object.
         state = setRefBinding(state, Sym, X ^ RefVal::ErrorReturnedNotOwned);
 
-        static CheckerProgramPointTag
-            ReturnNotOwnedTag(this, "ReturnNotOwnedForOwned");
-
-        ExplodedNode *N = C.addTransition(state, Pred, &ReturnNotOwnedTag);
+        ExplodedNode *N = C.addTransition(state, Pred);
         if (N) {
           auto R = std::make_unique<RefCountReport>(
-              *ReturnNotOwnedForOwned, C.getASTContext().getLangOpts(), N, Sym);
+              getPreferredFrontend().ReturnNotOwnedForOwned,
+              C.getASTContext().getLangOpts(), N, Sym);
           C.emitReport(std::move(R));
         }
         return N;
@@ -1136,13 +1136,13 @@ ExplodedNode * RetainCountChecker::checkReturnWithRetEffect(const ReturnStmt *S,
 //===----------------------------------------------------------------------===//
 
 void RetainCountChecker::checkBind(SVal loc, SVal val, const Stmt *S,
-                                   CheckerContext &C) const {
+                                   bool AtDeclInit, CheckerContext &C) const {
   ProgramStateRef state = C.getState();
   const MemRegion *MR = loc.getAsRegion();
 
   // Find all symbols referenced by 'val' that we are tracking
   // and stop tracking them.
-  if (MR && shouldEscapeRegion(MR)) {
+  if (MR && shouldEscapeRegion(state, MR)) {
     state = state->scanReachableSymbols<StopTrackingCallback>(val).getState();
     C.addTransition(state);
   }
@@ -1204,14 +1204,9 @@ ProgramStateRef RetainCountChecker::checkRegionChanges(
   return state;
 }
 
-ProgramStateRef
-RetainCountChecker::handleAutoreleaseCounts(ProgramStateRef state,
-                                            ExplodedNode *Pred,
-                                            const ProgramPointTag *Tag,
-                                            CheckerContext &Ctx,
-                                            SymbolRef Sym,
-                                            RefVal V,
-                                            const ReturnStmt *S) const {
+ProgramStateRef RetainCountChecker::handleAutoreleaseCounts(
+    ProgramStateRef state, ExplodedNode *Pred, CheckerContext &Ctx,
+    SymbolRef Sym, RefVal V, const ReturnStmt *S) const {
   unsigned ACnt = V.getAutoreleaseCount();
 
   // No autorelease counts?  Nothing to be done.
@@ -1262,7 +1257,7 @@ RetainCountChecker::handleAutoreleaseCounts(ProgramStateRef state,
   V = V ^ RefVal::ErrorOverAutorelease;
   state = setRefBinding(state, Sym, V);
 
-  ExplodedNode *N = Ctx.generateSink(state, Pred, Tag);
+  ExplodedNode *N = Ctx.generateSink(state, Pred);
   if (N) {
     SmallString<128> sbuf;
     llvm::raw_svector_ostream os(sbuf);
@@ -1274,8 +1269,8 @@ RetainCountChecker::handleAutoreleaseCounts(ProgramStateRef state,
     os << "has a +" << V.getCount() << " retain count";
 
     const LangOptions &LOpts = Ctx.getASTContext().getLangOpts();
-    auto R = std::make_unique<RefCountReport>(*OverAutorelease, LOpts, N, Sym,
-                                              os.str());
+    auto R = std::make_unique<RefCountReport>(
+        getPreferredFrontend().OverAutorelease, LOpts, N, Sym, os.str());
     Ctx.emitReport(std::move(R));
   }
 
@@ -1320,8 +1315,10 @@ RetainCountChecker::processLeaks(ProgramStateRef state,
   const LangOptions &LOpts = Ctx.getASTContext().getLangOpts();
 
   if (N) {
+    const RefCountFrontend &FE = getPreferredFrontend();
+    const RefCountBug &BT = Pred ? FE.LeakWithinFunction : FE.LeakAtReturn;
+
     for (SymbolRef L : Leaked) {
-      const RefCountBug &BT = Pred ? *LeakWithinFunction : *LeakAtReturn;
       Ctx.emitReport(std::make_unique<RefLeakReport>(BT, LOpts, N, L, Ctx));
     }
   }
@@ -1336,7 +1333,7 @@ void RetainCountChecker::checkBeginFunction(CheckerContext &Ctx) const {
   RetainSummaryManager &SmrMgr = getSummaryManager(Ctx);
   const LocationContext *LCtx = Ctx.getLocationContext();
   const Decl *D = LCtx->getDecl();
-  Optional<AnyCall> C = AnyCall::forDecl(D);
+  std::optional<AnyCall> C = AnyCall::forDecl(D);
 
   if (!C || SmrMgr.isTrustedReferenceCountImplementation(D))
     return;
@@ -1385,8 +1382,7 @@ void RetainCountChecker::checkEndFunction(const ReturnStmt *RS,
   }
 
   for (auto &I : B) {
-    state = handleAutoreleaseCounts(state, Pred, /*Tag=*/nullptr, Ctx,
-                                    I.first, I.second);
+    state = handleAutoreleaseCounts(state, Pred, Ctx, I.first, I.second);
     if (!state)
       return;
   }
@@ -1418,9 +1414,8 @@ void RetainCountChecker::checkDeadSymbols(SymbolReaper &SymReaper,
   for (const auto &I: state->get<RefBindings>()) {
     SymbolRef Sym = I.first;
     if (SymReaper.isDead(Sym)) {
-      static CheckerProgramPointTag Tag(this, "DeadSymbolAutorelease");
       const RefVal &V = I.second;
-      state = handleAutoreleaseCounts(state, Pred, &Tag, C, Sym, V);
+      state = handleAutoreleaseCounts(state, Pred, C, Sym, V);
       if (!state)
         return;
 
@@ -1474,48 +1469,35 @@ void RetainCountChecker::printState(raw_ostream &Out, ProgramStateRef State,
 // Checker registration.
 //===----------------------------------------------------------------------===//
 
-std::unique_ptr<CheckerProgramPointTag> RetainCountChecker::DeallocSentTag;
-std::unique_ptr<CheckerProgramPointTag> RetainCountChecker::CastFailTag;
+std::unique_ptr<SimpleProgramPointTag> RetainCountChecker::DeallocSentTag;
+std::unique_ptr<SimpleProgramPointTag> RetainCountChecker::CastFailTag;
 
 void ento::registerRetainCountBase(CheckerManager &Mgr) {
-  auto *Chk = Mgr.registerChecker<RetainCountChecker>();
-  Chk->DeallocSentTag =
-      std::make_unique<CheckerProgramPointTag>(Chk, "DeallocSent");
-  Chk->CastFailTag =
-      std::make_unique<CheckerProgramPointTag>(Chk, "DynamicCastFail");
+  auto *Chk = Mgr.getChecker<RetainCountChecker>();
+  Chk->DeallocSentTag = std::make_unique<SimpleProgramPointTag>(
+      "RetainCountChecker", "DeallocSent");
+  Chk->CastFailTag = std::make_unique<SimpleProgramPointTag>(
+      "RetainCountChecker", "DynamicCastFail");
 }
 
-bool ento::shouldRegisterRetainCountBase(const CheckerManager &mgr) {
+bool ento::shouldRegisterRetainCountBase(const CheckerManager &) {
   return true;
 }
+
 void ento::registerRetainCountChecker(CheckerManager &Mgr) {
   auto *Chk = Mgr.getChecker<RetainCountChecker>();
-  Chk->TrackObjCAndCFObjects = true;
+  Chk->RetainCount.enable(Mgr);
   Chk->TrackNSCFStartParam = Mgr.getAnalyzerOptions().getCheckerBooleanOption(
       Mgr.getCurrentCheckerName(), "TrackNSCFStartParam");
-
-#define INIT_BUGTYPE(KIND)                                                     \
-  Chk->KIND = std::make_unique<RefCountBug>(Mgr.getCurrentCheckerName(),       \
-                                            RefCountBug::KIND);
-  // TODO: Ideally, we should have a checker for each of these bug types.
-  INIT_BUGTYPE(UseAfterRelease)
-  INIT_BUGTYPE(ReleaseNotOwned)
-  INIT_BUGTYPE(DeallocNotOwned)
-  INIT_BUGTYPE(FreeNotOwned)
-  INIT_BUGTYPE(OverAutorelease)
-  INIT_BUGTYPE(ReturnNotOwnedForOwned)
-  INIT_BUGTYPE(LeakWithinFunction)
-  INIT_BUGTYPE(LeakAtReturn)
-#undef INIT_BUGTYPE
 }
 
-bool ento::shouldRegisterRetainCountChecker(const CheckerManager &mgr) {
+bool ento::shouldRegisterRetainCountChecker(const CheckerManager &) {
   return true;
 }
 
 void ento::registerOSObjectRetainCountChecker(CheckerManager &Mgr) {
   auto *Chk = Mgr.getChecker<RetainCountChecker>();
-  Chk->TrackOSObjects = true;
+  Chk->OSObjectRetainCount.enable(Mgr);
 
   // FIXME: We want bug reports to always have the same checker name associated
   // with them, yet here, if RetainCountChecker is disabled but
@@ -1526,21 +1508,8 @@ void ento::registerOSObjectRetainCountChecker(CheckerManager &Mgr) {
   // diagnostics, and **hidden checker options** with the fine-tuning of
   // modeling. Following this logic, OSObjectRetainCountChecker should be the
   // latter, but we can't just remove it for backward compatibility reasons.
-#define LAZY_INIT_BUGTYPE(KIND)                                                \
-  if (!Chk->KIND)                                                              \
-    Chk->KIND = std::make_unique<RefCountBug>(Mgr.getCurrentCheckerName(),     \
-                                              RefCountBug::KIND);
-  LAZY_INIT_BUGTYPE(UseAfterRelease)
-  LAZY_INIT_BUGTYPE(ReleaseNotOwned)
-  LAZY_INIT_BUGTYPE(DeallocNotOwned)
-  LAZY_INIT_BUGTYPE(FreeNotOwned)
-  LAZY_INIT_BUGTYPE(OverAutorelease)
-  LAZY_INIT_BUGTYPE(ReturnNotOwnedForOwned)
-  LAZY_INIT_BUGTYPE(LeakWithinFunction)
-  LAZY_INIT_BUGTYPE(LeakAtReturn)
-#undef LAZY_INIT_BUGTYPE
 }
 
-bool ento::shouldRegisterOSObjectRetainCountChecker(const CheckerManager &mgr) {
+bool ento::shouldRegisterOSObjectRetainCountChecker(const CheckerManager &) {
   return true;
 }

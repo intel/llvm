@@ -35,7 +35,7 @@ end function
 ! Module modEq2 defines data that is equivalenced
 module modEq2
   ! Equivalence, no initialization
-  real :: x1(10), x2(10), x3(10) 
+  real :: x1(10), x2(10), x3(10)
   ! Equivalence with initialization
   real :: y1 = 42.
   real :: y2(10)
@@ -79,26 +79,26 @@ module modCommon2
 contains
   ! CHECK-LABEL: func @_QMmodcommon2Pfoo()
   real function foo()
-   ! CHECK-DAG: fir.address_of(@_QBnamed2) : !fir.ref<tuple<i32>>
-   ! CHECK-DAG: fir.address_of(@_QB) : !fir.ref<!fir.array<4xi8>>
-   ! CHECK-DAG: fir.address_of(@_QBnamed1) : !fir.ref<!fir.array<40xi8>>
+   ! CHECK-DAG: fir.address_of(@named2_) : !fir.ref<tuple<i32>>
+   ! CHECK-DAG: fir.address_of(@__BLNK__) : !fir.ref<!fir.array<4xi8>>
+   ! CHECK-DAG: fir.address_of(@named1_) : !fir.ref<!fir.array<40xi8>>
    foo = x_blank + x_named1(5) + i_named2
   end function
 end module
 ! CHECK-LABEL: func @_QPmodcommon2use()
 real function modCommon2use()
  use modCommon2
- ! CHECK-DAG: fir.address_of(@_QBnamed2) : !fir.ref<tuple<i32>>
- ! CHECK-DAG: fir.address_of(@_QB) : !fir.ref<!fir.array<4xi8>>
- ! CHECK-DAG: fir.address_of(@_QBnamed1) : !fir.ref<!fir.array<40xi8>>
+ ! CHECK-DAG: fir.address_of(@named2_) : !fir.ref<tuple<i32>>
+ ! CHECK-DAG: fir.address_of(@__BLNK__) : !fir.ref<!fir.array<4xi8>>
+ ! CHECK-DAG: fir.address_of(@named1_) : !fir.ref<!fir.array<40xi8>>
  modCommon2use = x_blank + x_named1(5) + i_named2
 end function
 ! CHECK-LABEL: func @_QPmodcommon2use_rename()
 real function modCommon2use_rename()
  use modCommon2, only : renamed0 => x_blank, renamed1 => x_named1, renamed2 => i_named2
- ! CHECK-DAG: fir.address_of(@_QBnamed2) : !fir.ref<tuple<i32>>
- ! CHECK-DAG: fir.address_of(@_QB) : !fir.ref<!fir.array<4xi8>>
- ! CHECK-DAG: fir.address_of(@_QBnamed1) : !fir.ref<!fir.array<40xi8>>
+ ! CHECK-DAG: fir.address_of(@named2_) : !fir.ref<tuple<i32>>
+ ! CHECK-DAG: fir.address_of(@__BLNK__) : !fir.ref<!fir.array<4xi8>>
+ ! CHECK-DAG: fir.address_of(@named1_) : !fir.ref<!fir.array<40xi8>>
  modCommon2use_rename = renamed0 + renamed1(5) + renamed2
 end function
 
@@ -109,7 +109,7 @@ real function test_no_equiv_conflicts()
   use modEq2
   ! Same equivalences as in modEq2. Test that lowering does not mixes
   ! up the equivalence based on the similar offset inside the scope.
-  real :: x1l(10), x2l(10), x3l(10) 
+  real :: x1l(10), x2l(10), x3l(10)
   real :: y1l = 42.
   real :: y2l(10)
   save :: x1l, x2l, x3l, y1l, y2l

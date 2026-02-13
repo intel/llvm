@@ -8,6 +8,7 @@
 #include "LibiptDecoder.h"
 #include "TraceIntelPT.h"
 #include "lldb/Target/Process.h"
+#include <optional>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -128,6 +129,183 @@ CreateQueryDecoder(TraceIntelPT &trace_intel_pt, ArrayRef<uint8_t> buffer) {
   return PtQueryDecoderUP(decoder_ptr, QueryDecoderDeleter);
 }
 
+/// Class used to identify anomalies in traces, which should often indicate a
+/// fatal error in the trace.
+class PSBBlockAnomalyDetector {
+public:
+  PSBBlockAnomalyDetector(pt_insn_decoder &decoder,
+                          TraceIntelPT &trace_intel_pt,
+                          DecodedThread &decoded_thread)
+      : m_decoder(decoder), m_decoded_thread(decoded_thread) {
+    m_infinite_decoding_loop_threshold =
+        trace_intel_pt.GetGlobalProperties()
+            .GetInfiniteDecodingLoopVerificationThreshold();
+    m_extremely_large_decoding_threshold =
+        trace_intel_pt.GetGlobalProperties()
+            .GetExtremelyLargeDecodingThreshold();
+    m_next_infinite_decoding_loop_threshold =
+        m_infinite_decoding_loop_threshold;
+  }
+
+  /// \return
+  ///   An \a llvm::Error if an anomaly that includes the last instruction item
+  ///   in the trace, or \a llvm::Error::success otherwise.
+  Error DetectAnomaly() {
+    RefreshPacketOffset();
+    uint64_t insn_added_since_last_packet_offset =
+        m_decoded_thread.GetTotalInstructionCount() -
+        m_insn_count_at_last_packet_offset;
+
+    // We want to check if we might have fallen in an infinite loop. As this
+    // check is not a no-op, we want to do it when we have a strong suggestion
+    // that things went wrong. First, we check how many instructions we have
+    // decoded since we processed an Intel PT packet for the last time. This
+    // number should be low, because at some point we should see branches, jumps
+    // or interrupts that require a new packet to be processed. Once we reach
+    // certain threshold we start analyzing the trace.
+    //
+    // We use the number of decoded instructions since the last Intel PT packet
+    // as a proxy because, in fact, we don't expect a single packet to give,
+    // say, 100k instructions. That would mean that there are 100k sequential
+    // instructions without any single branch, which is highly unlikely, or that
+    // we found an infinite loop using direct jumps, e.g.
+    //
+    //   0x0A: nop or pause
+    //   0x0C: jump to 0x0A
+    //
+    // which is indeed code that is found in the kernel. I presume we reach
+    // this kind of code in the decoder because we don't handle self-modified
+    // code in post-mortem kernel traces.
+    //
+    // We are right now only signaling the anomaly as a trace error, but it
+    // would be more conservative to also discard all the trace items found in
+    // this PSB. I prefer not to do that for the time being to give more
+    // exposure to this kind of anomalies and help debugging. Discarding the
+    // trace items would just make investigation harded.
+    //
+    // Finally, if the user wants to see if a specific thread has an anomaly,
+    // it's enough to run the `thread trace dump info` command and look for the
+    // count of this kind of errors.
+
+    if (insn_added_since_last_packet_offset >=
+        m_extremely_large_decoding_threshold) {
+      // In this case, we have decoded a massive amount of sequential
+      // instructions that don't loop. Honestly I wonder if this will ever
+      // happen, but better safe than sorry.
+      return createStringError(
+          inconvertibleErrorCode(),
+          "anomalous trace: possible infinite trace detected");
+    }
+    if (insn_added_since_last_packet_offset ==
+        m_next_infinite_decoding_loop_threshold) {
+      if (std::optional<uint64_t> loop_size = TryIdentifyInfiniteLoop()) {
+        return createStringError(
+            inconvertibleErrorCode(),
+            "anomalous trace: possible infinite loop detected of size %" PRIu64,
+            *loop_size);
+      }
+      m_next_infinite_decoding_loop_threshold *= 2;
+    }
+    return Error::success();
+  }
+
+private:
+  std::optional<uint64_t> TryIdentifyInfiniteLoop() {
+    // The infinite decoding loops we'll encounter are due to sequential
+    // instructions that repeat themselves due to direct jumps, therefore in a
+    // cycle each individual address will only appear once. We use this
+    // information to detect cycles by finding the last 2 ocurrences of the last
+    // instruction added to the trace. Then we traverse the trace making sure
+    // that these two instructions where the ends of a repeating loop.
+
+    // This is a utility that returns the most recent instruction index given a
+    // position in the trace. If the given position is an instruction, that
+    // position is returned. It skips non-instruction items.
+    auto most_recent_insn_index =
+        [&](uint64_t item_index) -> std::optional<uint64_t> {
+      while (true) {
+        if (m_decoded_thread.GetItemKindByIndex(item_index) ==
+            lldb::eTraceItemKindInstruction) {
+          return item_index;
+        }
+        if (item_index == 0)
+          return std::nullopt;
+        item_index--;
+      }
+      return std::nullopt;
+    };
+    // Similar to most_recent_insn_index but skips the starting position.
+    auto prev_insn_index = [&](uint64_t item_index) -> std::optional<uint64_t> {
+      if (item_index == 0)
+        return std::nullopt;
+      return most_recent_insn_index(item_index - 1);
+    };
+
+    // We first find the most recent instruction.
+    std::optional<uint64_t> last_insn_index_opt =
+        *prev_insn_index(m_decoded_thread.GetItemsCount());
+    if (!last_insn_index_opt)
+      return std::nullopt;
+    uint64_t last_insn_index = *last_insn_index_opt;
+
+    // We then find the most recent previous occurrence of that last
+    // instruction.
+    std::optional<uint64_t> last_insn_copy_index =
+        prev_insn_index(last_insn_index);
+    uint64_t loop_size = 1;
+    while (last_insn_copy_index &&
+           m_decoded_thread.GetInstructionLoadAddress(*last_insn_copy_index) !=
+               m_decoded_thread.GetInstructionLoadAddress(last_insn_index)) {
+      last_insn_copy_index = prev_insn_index(*last_insn_copy_index);
+      loop_size++;
+    }
+    if (!last_insn_copy_index)
+      return std::nullopt;
+
+    // Now we check if the segment between these last positions of the last
+    // instruction address is in fact a repeating loop.
+    uint64_t loop_elements_visited = 1;
+    uint64_t insn_index_a = last_insn_index,
+             insn_index_b = *last_insn_copy_index;
+    while (loop_elements_visited < loop_size) {
+      if (std::optional<uint64_t> prev = prev_insn_index(insn_index_a))
+        insn_index_a = *prev;
+      else
+        return std::nullopt;
+      if (std::optional<uint64_t> prev = prev_insn_index(insn_index_b))
+        insn_index_b = *prev;
+      else
+        return std::nullopt;
+      if (m_decoded_thread.GetInstructionLoadAddress(insn_index_a) !=
+          m_decoded_thread.GetInstructionLoadAddress(insn_index_b))
+        return std::nullopt;
+      loop_elements_visited++;
+    }
+    return loop_size;
+  }
+
+  // Refresh the internal counters if a new packet offset has been visited
+  void RefreshPacketOffset() {
+    lldb::addr_t new_packet_offset;
+    if (!IsLibiptError(pt_insn_get_offset(&m_decoder, &new_packet_offset)) &&
+        new_packet_offset != m_last_packet_offset) {
+      m_last_packet_offset = new_packet_offset;
+      m_next_infinite_decoding_loop_threshold =
+          m_infinite_decoding_loop_threshold;
+      m_insn_count_at_last_packet_offset =
+          m_decoded_thread.GetTotalInstructionCount();
+    }
+  }
+
+  pt_insn_decoder &m_decoder;
+  DecodedThread &m_decoded_thread;
+  lldb::addr_t m_last_packet_offset = LLDB_INVALID_ADDRESS;
+  uint64_t m_insn_count_at_last_packet_offset = 0;
+  uint64_t m_infinite_decoding_loop_threshold;
+  uint64_t m_next_infinite_decoding_loop_threshold;
+  uint64_t m_extremely_large_decoding_threshold;
+};
+
 /// Class that decodes a raw buffer for a single PSB block using the low level
 /// libipt library. It assumes that kernel and user mode instructions are not
 /// mixed in the same PSB block.
@@ -153,11 +331,18 @@ public:
   /// \param[in] decoded_thread
   ///     A \a DecodedThread object where the decoded instructions will be
   ///     appended to. It might have already some instructions.
+  ///
+  /// \param[in] tsc_upper_bound
+  ///   Maximum allowed value of TSCs decoded from this PSB block.
+  ///   Any of this PSB's data occurring after this TSC will be excluded.
   PSBBlockDecoder(PtInsnDecoderUP &&decoder_up, const PSBBlock &psb_block,
-                  Optional<lldb::addr_t> next_block_ip,
-                  DecodedThread &decoded_thread)
+                  std::optional<lldb::addr_t> next_block_ip,
+                  DecodedThread &decoded_thread, TraceIntelPT &trace_intel_pt,
+                  std::optional<DecodedThread::TSC> tsc_upper_bound)
       : m_decoder_up(std::move(decoder_up)), m_psb_block(psb_block),
-        m_next_block_ip(next_block_ip), m_decoded_thread(decoded_thread) {}
+        m_next_block_ip(next_block_ip), m_decoded_thread(decoded_thread),
+        m_anomaly_detector(*m_decoder_up, trace_intel_pt, decoded_thread),
+        m_tsc_upper_bound(tsc_upper_bound) {}
 
   /// \param[in] trace_intel_pt
   ///     The main Trace object that own the PSB block.
@@ -185,14 +370,16 @@ public:
   static Expected<PSBBlockDecoder>
   Create(TraceIntelPT &trace_intel_pt, const PSBBlock &psb_block,
          ArrayRef<uint8_t> buffer, Process &process,
-         Optional<lldb::addr_t> next_block_ip, DecodedThread &decoded_thread) {
+         std::optional<lldb::addr_t> next_block_ip,
+         DecodedThread &decoded_thread,
+         std::optional<DecodedThread::TSC> tsc_upper_bound) {
     Expected<PtInsnDecoderUP> decoder_up =
         CreateInstructionDecoder(trace_intel_pt, buffer, process);
     if (!decoder_up)
       return decoder_up.takeError();
 
     return PSBBlockDecoder(std::move(*decoder_up), psb_block, next_block_ip,
-                           decoded_thread);
+                           decoded_thread, trace_intel_pt, tsc_upper_bound);
   }
 
   void DecodePSBBlock() {
@@ -213,12 +400,24 @@ public:
   }
 
 private:
-  /// Decode all the instructions and events of the given PSB block.
-  ///
-  /// \param[in] status
-  ///   The status that was result of synchronizing to the most recent PSB.
+  /// Append an instruction and return \b false if and only if a serious anomaly
+  /// has been detected.
+  bool AppendInstructionAndDetectAnomalies(const pt_insn &insn) {
+    m_decoded_thread.AppendInstruction(insn);
+
+    if (Error err = m_anomaly_detector.DetectAnomaly()) {
+      m_decoded_thread.AppendCustomError(toString(std::move(err)),
+                                         /*fatal=*/true);
+      return false;
+    }
+    return true;
+  }
+  /// Decode all the instructions and events of the given PSB block. The
+  /// decoding loop might stop abruptly if an infinite decoding loop is
+  /// detected.
   void DecodeInstructionsAndEvents(int status) {
     pt_insn insn;
+
     while (true) {
       status = ProcessPTEvents(status);
 
@@ -238,7 +437,9 @@ private:
       } else if (IsEndOfStream(status)) {
         break;
       }
-      m_decoded_thread.AppendInstruction(insn);
+
+      if (!AppendInstructionAndDetectAnomalies(insn))
+        return;
     }
 
     // We need to keep querying non-branching instructions until we hit the
@@ -247,7 +448,8 @@ private:
     // https://github.com/intel/libipt/blob/master/doc/howto_libipt.md#parallel-decode
     if (m_next_block_ip && insn.ip != 0) {
       while (insn.ip != *m_next_block_ip) {
-        m_decoded_thread.AppendInstruction(insn);
+        if (!AppendInstructionAndDetectAnomalies(insn))
+          return;
 
         status = pt_insn_next(m_decoder_up.get(), &insn, sizeof(insn));
 
@@ -256,6 +458,41 @@ private:
           return;
         }
       }
+    }
+  }
+
+  /// Process the TSC of a decoded PT event. Specifically, check if this TSC
+  /// is below the TSC upper bound for this PSB. If the TSC exceeds the upper
+  /// bound, return an error to abort decoding. Otherwise add the it to the
+  /// underlying DecodedThread and decoding should continue as expected.
+  ///
+  /// \param[in] tsc
+  ///   The TSC of the a decoded event.
+  Error ProcessPTEventTSC(DecodedThread::TSC tsc) {
+    if (m_tsc_upper_bound && tsc >= *m_tsc_upper_bound) {
+      // This event and all the remaining events of this PSB have a TSC
+      // outside the range of the "owning" ThreadContinuousExecution. For
+      // now we drop all of these events/instructions, future work can
+      // improve upon this by determining the "owning"
+      // ThreadContinuousExecution of the remaining PSB data.
+      std::string err_msg = formatv("decoding truncated: TSC {0} exceeds "
+                                    "maximum TSC value {1}, will skip decoding"
+                                    " the remaining data of the PSB",
+                                    tsc, *m_tsc_upper_bound)
+                                .str();
+
+      uint64_t offset;
+      int status = pt_insn_get_offset(m_decoder_up.get(), &offset);
+      if (!IsLibiptError(status)) {
+        err_msg = formatv("{2} (skipping {0} of {1} bytes)", offset,
+                          m_psb_block.size, err_msg)
+                      .str();
+      }
+      m_decoded_thread.AppendCustomError(err_msg);
+      return createStringError(inconvertibleErrorCode(), err_msg);
+    } else {
+      m_decoded_thread.NotifyTsc(tsc);
+      return Error::success();
     }
   }
 
@@ -279,8 +516,12 @@ private:
         return status;
       }
 
-      if (event.has_tsc)
-        m_decoded_thread.NotifyTsc(event.tsc);
+      if (event.has_tsc) {
+        if (Error err = ProcessPTEventTSC(event.tsc)) {
+          consumeError(std::move(err));
+          return -pte_internal;
+        }
+      }
 
       switch (event.type) {
       case ptev_disabled:
@@ -311,8 +552,10 @@ private:
 private:
   PtInsnDecoderUP m_decoder_up;
   PSBBlock m_psb_block;
-  Optional<lldb::addr_t> m_next_block_ip;
+  std::optional<lldb::addr_t> m_next_block_ip;
   DecodedThread &m_decoded_thread;
+  PSBBlockAnomalyDetector m_anomaly_detector;
+  std::optional<DecodedThread::TSC> m_tsc_upper_bound;
 };
 
 Error lldb_private::trace_intel_pt::DecodeSingleTraceForThread(
@@ -329,8 +572,8 @@ Error lldb_private::trace_intel_pt::DecodeSingleTraceForThread(
     Expected<PSBBlockDecoder> decoder = PSBBlockDecoder::Create(
         trace_intel_pt, block, buffer.slice(block.psb_offset, block.size),
         *decoded_thread.GetThread()->GetProcess(),
-        i + 1 < blocks->size() ? blocks->at(i + 1).starting_ip : None,
-        decoded_thread);
+        i + 1 < blocks->size() ? blocks->at(i + 1).starting_ip : std::nullopt,
+        decoded_thread, std::nullopt);
     if (!decoder)
       return decoder.takeError();
 
@@ -392,13 +635,13 @@ Error lldb_private::trace_intel_pt::DecodeSystemWideTraceForThread(
 
       Expected<PSBBlockDecoder> decoder = PSBBlockDecoder::Create(
           trace_intel_pt, psb_block,
-          buffers.lookup(executions[i].thread_execution.cpu_id)
+          buffers.lookup(execution.thread_execution.cpu_id)
               .slice(psb_block.psb_offset, psb_block.size),
           *decoded_thread.GetThread()->GetProcess(),
           j + 1 < execution.psb_blocks.size()
               ? execution.psb_blocks[j + 1].starting_ip
-              : None,
-          decoded_thread);
+              : std::nullopt,
+          decoded_thread, execution.thread_execution.GetEndTSC());
       if (!decoder)
         return decoder.takeError();
 
@@ -466,11 +709,11 @@ lldb_private::trace_intel_pt::SplitTraceIntoPSBBlock(
     assert(offset_status >= 0 &&
            "This can't fail because we were able to synchronize");
 
-    Optional<uint64_t> ip;
+    std::optional<uint64_t> ip;
     if (!(pts_ip_suppressed & decoding_status))
       ip = maybe_ip;
 
-    Optional<uint64_t> tsc;
+    std::optional<uint64_t> tsc;
     // Now we fetch the first TSC that comes after the PSB.
     while (HasEvents(decoding_status)) {
       pt_event event;
@@ -514,7 +757,7 @@ lldb_private::trace_intel_pt::SplitTraceIntoPSBBlock(
   return executions;
 }
 
-Expected<Optional<uint64_t>>
+Expected<std::optional<uint64_t>>
 lldb_private::trace_intel_pt::FindLowestTSCInTrace(TraceIntelPT &trace_intel_pt,
                                                    ArrayRef<uint8_t> buffer) {
   Expected<PtQueryDecoderUP> decoder_up =
@@ -526,15 +769,15 @@ lldb_private::trace_intel_pt::FindLowestTSCInTrace(TraceIntelPT &trace_intel_pt,
   uint64_t ip = LLDB_INVALID_ADDRESS;
   int status = pt_qry_sync_forward(decoder, &ip);
   if (IsLibiptError(status))
-    return None;
+    return std::nullopt;
 
   while (HasEvents(status)) {
     pt_event event;
     status = pt_qry_event(decoder, &event, sizeof(event));
     if (IsLibiptError(status))
-      return None;
+      return std::nullopt;
     if (event.has_tsc)
       return event.tsc;
   }
-  return None;
+  return std::nullopt;
 }

@@ -77,15 +77,16 @@ void test() {
   // CHECK-FIXES-NEXT: do_something("for");
   // CHECK-FIXES-NEXT: }
 
-  for (;;) {
-    do_something("for-ok");
-  }
   for (;;)
     ;
   // CHECK-MESSAGES: :[[@LINE-2]]:11: warning: statement should be inside braces
   // CHECK-FIXES: for (;;) {
   // CHECK-FIXES-NEXT: ;
   // CHECK-FIXES-NEXT: }
+
+  for (;;) {
+    do_something("for-ok");
+  }
 
   int arr[4] = {1, 2, 3, 4};
   for (int a : arr)
@@ -378,7 +379,7 @@ int test_macros(bool b) {
 
   #define WRAP(X) { X; }
   // This is to ensure no other CHECK-FIXES matches the macro definition:
-  // CHECK-FIXES: WRAP
+  // CHECK-FIXES: #define WRAP(X) { X; }
 
   // Use-case: LLVM_DEBUG({ for(...) do_something(); });
   WRAP({
@@ -456,4 +457,26 @@ int test_macros(bool b) {
   // CHECK-FIXES-NEXT: M(return 2);
   // CHECK-FIXES-NEXT: }
 
+}
+
+template <bool A>
+auto constexpr_lambda_1 = [] {
+  if constexpr (A) {
+    1;
+  }
+};
+
+template <bool A>
+auto constexpr_lambda_2 = [] {
+  // CHECK-MESSAGES: :[[@LINE+1]]:19: warning: statement should be inside braces
+  if constexpr (A)
+    1;
+  // CHECK-FIXES:if constexpr (A) {
+  // CHECK-FIXES-NEXT:1;
+  // CHECK-FIXES-NEXT:}
+};
+
+void test_constexpr() {
+  constexpr_lambda_1<false>();
+  constexpr_lambda_2<false>();
 }

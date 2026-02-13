@@ -28,6 +28,7 @@
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Support/CrashRecoveryContext.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/VirtualFileSystem.h"
@@ -56,11 +57,9 @@ createVFSOverlayForPreamblePCH(StringRef PCHFilename,
                                IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS) {
   // We want only the PCH file from the real filesystem to be available,
   // so we create an in-memory VFS with just that and overlay it on top.
-  IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> PCHFS(
-      new llvm::vfs::InMemoryFileSystem());
+  auto PCHFS = llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
   PCHFS->addFile(PCHFilename, 0, std::move(PCHBuffer));
-  IntrusiveRefCntPtr<llvm::vfs::OverlayFileSystem> Overlay(
-      new llvm::vfs::OverlayFileSystem(VFS));
+  auto Overlay = llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(VFS);
   Overlay->pushOverlay(PCHFS);
   return Overlay;
 }
@@ -97,10 +96,11 @@ public:
   void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
                           StringRef FileName, bool IsAngled,
                           CharSourceRange FilenameRange,
-                          Optional<FileEntryRef> File, StringRef SearchPath,
-                          StringRef RelativePath, const Module *Imported,
+                          OptionalFileEntryRef File, StringRef SearchPath,
+                          StringRef RelativePath, const Module *SuggestedModule,
+                          bool ModuleImported,
                           SrcMgr::CharacteristicKind FileType) override {
-    // File is None if it wasn't found.
+    // File is std::nullopt if it wasn't found.
     // (We have some false negatives if PP recovered e.g. <foo> -> "foo")
     if (File)
       return;
@@ -113,16 +113,16 @@ public:
 
     // Reconstruct the filenames that would satisfy this directive...
     llvm::SmallString<256> Buf;
-    auto NotFoundRelativeTo = [&](const DirectoryEntry *DE) {
-      Buf = DE->getName();
+    auto NotFoundRelativeTo = [&](DirectoryEntryRef DE) {
+      Buf = DE.getName();
       llvm::sys::path::append(Buf, FileName);
       llvm::sys::path::remove_dots(Buf, /*remove_dot_dot=*/true);
       Out.insert(Buf);
     };
     // ...relative to the including file.
     if (!IsAngled) {
-      if (const FileEntry *IncludingFile =
-              SM.getFileEntryForID(SM.getFileID(IncludeTok.getLocation())))
+      if (OptionalFileEntryRef IncludingFile =
+              SM.getFileEntryRefForID(SM.getFileID(IncludeTok.getLocation())))
         if (IncludingFile->getDir())
           NotFoundRelativeTo(IncludingFile->getDir());
     }
@@ -132,7 +132,7 @@ public:
              Search.search_dir_end())) {
       // No support for frameworks or header maps yet.
       if (Dir.isNormalDir())
-        NotFoundRelativeTo(Dir.getDir());
+        NotFoundRelativeTo(*Dir.getDirRef());
     }
   }
 };
@@ -197,20 +197,32 @@ void TemporaryFiles::removeFile(StringRef File) {
 class TempPCHFile {
 public:
   // A main method used to construct TempPCHFile.
-  static std::unique_ptr<TempPCHFile> create() {
+  static std::unique_ptr<TempPCHFile> create(StringRef StoragePath) {
     // FIXME: This is a hack so that we can override the preamble file during
     // crash-recovery testing, which is the only case where the preamble files
     // are not necessarily cleaned up.
     if (const char *TmpFile = ::getenv("CINDEXTEST_PREAMBLE_FILE"))
       return std::unique_ptr<TempPCHFile>(new TempPCHFile(TmpFile));
 
-    llvm::SmallString<64> File;
-    // Using a version of createTemporaryFile with a file descriptor guarantees
+    llvm::SmallString<128> File;
+    // Using the versions of createTemporaryFile() and
+    // createUniqueFile() with a file descriptor guarantees
     // that we would never get a race condition in a multi-threaded setting
     // (i.e., multiple threads getting the same temporary path).
     int FD;
-    if (auto EC =
-            llvm::sys::fs::createTemporaryFile("preamble", "pch", FD, File))
+    std::error_code EC;
+    if (StoragePath.empty())
+      EC = llvm::sys::fs::createTemporaryFile("preamble", "pch", FD, File);
+    else {
+      llvm::SmallString<128> TempPath = StoragePath;
+      // Use the same filename model as fs::createTemporaryFile().
+      llvm::sys::path::append(TempPath, "preamble-%%%%%%.pch");
+      namespace fs = llvm::sys::fs;
+      // Use the same owner-only file permissions as fs::createTemporaryFile().
+      EC = fs::createUniqueFile(TempPath, FD, File, fs::OF_None,
+                                fs::owner_read | fs::owner_write);
+    }
+    if (EC)
       return nullptr;
     // We only needed to make sure the file exists, close the file right away.
     llvm::sys::Process::SafelyCloseFileDescriptor(FD);
@@ -235,9 +247,10 @@ private:
 class PrecompilePreambleAction : public ASTFrontendAction {
 public:
   PrecompilePreambleAction(std::shared_ptr<PCHBuffer> Buffer, bool WritePCHFile,
-                           PreambleCallbacks &Callbacks)
+                           PreambleCallbacks &Callbacks,
+                           bool AllowASTWithErrors = true)
       : Buffer(std::move(Buffer)), WritePCHFile(WritePCHFile),
-        Callbacks(Callbacks) {}
+        Callbacks(Callbacks), AllowASTWithErrors(AllowASTWithErrors) {}
 
   std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
                                                  StringRef InFile) override;
@@ -273,18 +286,19 @@ private:
   bool WritePCHFile; // otherwise the PCH is written into the PCHBuffer only.
   std::unique_ptr<llvm::raw_pwrite_stream> FileOS; // null if in-memory
   PreambleCallbacks &Callbacks;
+  bool AllowASTWithErrors;
 };
 
 class PrecompilePreambleConsumer : public PCHGenerator {
 public:
-  PrecompilePreambleConsumer(PrecompilePreambleAction &Action,
-                             const Preprocessor &PP,
-                             InMemoryModuleCache &ModuleCache,
-                             StringRef isysroot,
-                             std::shared_ptr<PCHBuffer> Buffer)
-      : PCHGenerator(PP, ModuleCache, "", isysroot, std::move(Buffer),
+  PrecompilePreambleConsumer(PrecompilePreambleAction &Action, Preprocessor &PP,
+                             ModuleCache &ModCache, StringRef isysroot,
+                             std::shared_ptr<PCHBuffer> Buffer,
+                             const CodeGenOptions &CodeGenOpts,
+                             bool AllowASTWithErrors = true)
+      : PCHGenerator(PP, ModCache, "", isysroot, std::move(Buffer), CodeGenOpts,
                      ArrayRef<std::shared_ptr<ModuleFileExtension>>(),
-                     /*AllowASTWithErrors=*/true),
+                     AllowASTWithErrors),
         Action(Action) {}
 
   bool HandleTopLevelDecl(DeclGroupRef DG) override {
@@ -325,7 +339,8 @@ PrecompilePreambleAction::CreateASTConsumer(CompilerInstance &CI,
     Sysroot.clear();
 
   return std::make_unique<PrecompilePreambleConsumer>(
-      *this, CI.getPreprocessor(), CI.getModuleCache(), Sysroot, Buffer);
+      *this, CI.getPreprocessor(), CI.getModuleCache(), Sysroot, Buffer,
+      CI.getCodeGenOpts(), AllowASTWithErrors);
 }
 
 template <class T> bool moveOnNoError(llvm::ErrorOr<T> Val, T &Output) {
@@ -400,10 +415,11 @@ PrecompiledPreamble::operator=(PrecompiledPreamble &&) = default;
 llvm::ErrorOr<PrecompiledPreamble> PrecompiledPreamble::Build(
     const CompilerInvocation &Invocation,
     const llvm::MemoryBuffer *MainFileBuffer, PreambleBounds Bounds,
-    DiagnosticsEngine &Diagnostics,
+    IntrusiveRefCntPtr<DiagnosticsEngine> Diagnostics,
     IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS,
     std::shared_ptr<PCHContainerOperations> PCHContainerOps, bool StoreInMemory,
-    PreambleCallbacks &Callbacks) {
+    StringRef StoragePath, PreambleCallbacks &Callbacks,
+    bool AllowASTWithErrors) {
   assert(VFS && "VFS is null");
 
   auto PreambleInvocation = std::make_shared<CompilerInvocation>(Invocation);
@@ -418,7 +434,8 @@ llvm::ErrorOr<PrecompiledPreamble> PrecompiledPreamble::Build(
   } else {
     // Create a temporary file for the precompiled preamble. In rare
     // circumstances, this can fail.
-    std::unique_ptr<TempPCHFile> PreamblePCHFile = TempPCHFile::create();
+    std::unique_ptr<TempPCHFile> PreamblePCHFile =
+        TempPCHFile::create(StoragePath);
     if (!PreamblePCHFile)
       return BuildPreambleError::CouldntCreateTempFile;
     Storage = PCHStorage::file(std::move(PreamblePCHFile));
@@ -441,15 +458,14 @@ llvm::ErrorOr<PrecompiledPreamble> PrecompiledPreamble::Build(
   PreprocessorOpts.GeneratePreamble = true;
 
   // Create the compiler instance to use for building the precompiled preamble.
-  std::unique_ptr<CompilerInstance> Clang(
-      new CompilerInstance(std::move(PCHContainerOps)));
+  auto Clang = std::make_unique<CompilerInstance>(std::move(PreambleInvocation),
+                                                  std::move(PCHContainerOps));
 
   // Recover resources if we crash before exiting this method.
   llvm::CrashRecoveryContextCleanupRegistrar<CompilerInstance> CICleanup(
       Clang.get());
 
-  Clang->setInvocation(std::move(PreambleInvocation));
-  Clang->setDiagnostics(&Diagnostics);
+  Clang->setDiagnostics(Diagnostics);
 
   // Create the target instance.
   if (!Clang->createTarget())
@@ -464,18 +480,15 @@ llvm::ErrorOr<PrecompiledPreamble> PrecompiledPreamble::Build(
   }
 
   // Clear out old caches and data.
-  Diagnostics.Reset();
-  ProcessWarningOptions(Diagnostics, Clang->getDiagnosticOpts());
-
-  VFS =
-      createVFSFromCompilerInvocation(Clang->getInvocation(), Diagnostics, VFS);
+  Diagnostics->Reset();
+  ProcessWarningOptions(*Diagnostics, Clang->getDiagnosticOpts(), *VFS);
 
   // Create a file manager object to provide access to and cache the filesystem.
-  Clang->setFileManager(new FileManager(Clang->getFileSystemOpts(), VFS));
+  Clang->createVirtualFileSystem(VFS);
+  Clang->createFileManager();
 
   // Create the source manager.
-  Clang->setSourceManager(
-      new SourceManager(Diagnostics, Clang->getFileManager()));
+  Clang->createSourceManager();
 
   auto PreambleDepCollector = std::make_shared<PreambleDependencyCollector>();
   Clang->addDependencyCollector(PreambleDepCollector);
@@ -499,8 +512,8 @@ llvm::ErrorOr<PrecompiledPreamble> PrecompiledPreamble::Build(
   auto Act = std::make_unique<PrecompilePreambleAction>(
       std::move(Buffer),
       /*WritePCHFile=*/Storage->getKind() == PCHStorage::Kind::TempFile,
-      Callbacks);
-  if (!Act->BeginSourceFile(*Clang.get(), Clang->getFrontendOpts().Inputs[0]))
+      Callbacks, AllowASTWithErrors);
+  if (!Act->BeginSourceFile(*Clang, Clang->getFrontendOpts().Inputs[0]))
     return BuildPreambleError::BeginSourceFileFailed;
 
   // Performed after BeginSourceFile to ensure Clang->Preprocessor can be
@@ -537,19 +550,19 @@ llvm::ErrorOr<PrecompiledPreamble> PrecompiledPreamble::Build(
 
   SourceManager &SourceMgr = Clang->getSourceManager();
   for (auto &Filename : PreambleDepCollector->getDependencies()) {
-    auto FileOrErr = Clang->getFileManager().getFile(Filename);
-    if (!FileOrErr ||
-        *FileOrErr == SourceMgr.getFileEntryForID(SourceMgr.getMainFileID()))
+    auto MaybeFile = Clang->getFileManager().getOptionalFileRef(Filename);
+    if (!MaybeFile ||
+        MaybeFile == SourceMgr.getFileEntryRefForID(SourceMgr.getMainFileID()))
       continue;
-    auto File = *FileOrErr;
-    if (time_t ModTime = File->getModificationTime()) {
-      FilesInPreamble[File->getName()] =
-          PrecompiledPreamble::PreambleFileHash::createForFile(File->getSize(),
+    auto File = *MaybeFile;
+    if (time_t ModTime = File.getModificationTime()) {
+      FilesInPreamble[File.getName()] =
+          PrecompiledPreamble::PreambleFileHash::createForFile(File.getSize(),
                                                                ModTime);
     } else {
       llvm::MemoryBufferRef Buffer =
           SourceMgr.getMemoryBufferForFileOrFake(File);
-      FilesInPreamble[File->getName()] =
+      FilesInPreamble[File.getName()] =
           PrecompiledPreamble::PreambleFileHash::createForMemoryBuffer(Buffer);
     }
   }
@@ -706,8 +719,12 @@ void PrecompiledPreamble::AddImplicitPreamble(
 void PrecompiledPreamble::OverridePreamble(
     CompilerInvocation &CI, IntrusiveRefCntPtr<llvm::vfs::FileSystem> &VFS,
     llvm::MemoryBuffer *MainFileBuffer) const {
-  auto Bounds = ComputePreambleBounds(*CI.getLangOpts(), *MainFileBuffer, 0);
+  auto Bounds = ComputePreambleBounds(CI.getLangOpts(), *MainFileBuffer, 0);
   configurePreamble(Bounds, CI, VFS, MainFileBuffer);
+}
+
+llvm::StringRef PrecompiledPreamble::memoryContents() const {
+  return Storage->memoryContents();
 }
 
 PrecompiledPreamble::PrecompiledPreamble(

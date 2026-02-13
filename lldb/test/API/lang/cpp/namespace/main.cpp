@@ -102,6 +102,47 @@ int Foo::myfunc(int a)
     return myfunc2(3) + j + i + a + 2 + anon_uint + a_uint + b_uint + y_uint; // Set break point at this line.
 }
 
+namespace B {
+struct Bar {
+    int x() { return 42; }
+};
+Bar bar;
+} // namespace B
+
+namespace A::B {
+struct Bar {
+    int y() { return 137; }
+};
+} // namespace A::B
+
+namespace NS1::NS2 {
+struct Foo {
+    int bar() { return -2; }
+};
+} // namespace NS1::NS2
+
+namespace NS2 {
+struct Foo {
+    int bar() { return -3; }
+};
+} // namespace NS2
+
+namespace {
+namespace InAnon1 {
+int var_in_anon = 10;
+namespace {
+inline namespace inline_ns {
+int var_in_anon = 15;
+namespace InAnon2 {
+namespace {
+int var_in_anon = 5;
+} // namespace
+} // namespace InAnon2
+} // namespace inline_ns
+} // namespace
+} // namespace InAnon1
+} // namespace
+
 int
 main (int argc, char const *argv[])
 {
@@ -112,5 +153,9 @@ main (int argc, char const *argv[])
     A::B::test_lookup_at_nested_ns_scope_after_using();
     test_lookup_before_using_directive();
     test_lookup_after_using_directive();
-    return Foo::myfunc(12);
+    ::B::Bar bb;
+    A::B::Bar ab;
+    return Foo::myfunc(12) + bb.x() + ab.y() + NS1::NS2::Foo{}.bar() +
+           NS2::Foo{}.bar() + InAnon1::var_in_anon +
+           InAnon1::InAnon2::var_in_anon + InAnon1::inline_ns::var_in_anon;
 }

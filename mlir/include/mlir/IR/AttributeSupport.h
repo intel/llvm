@@ -20,9 +20,6 @@
 #include "llvm/ADT/Twine.h"
 
 namespace mlir {
-class MLIRContext;
-class Type;
-
 //===----------------------------------------------------------------------===//
 // AbstractAttribute
 //===----------------------------------------------------------------------===//
@@ -32,28 +29,43 @@ class Type;
 class AbstractAttribute {
 public:
   using HasTraitFn = llvm::unique_function<bool(TypeID) const>;
+  using WalkImmediateSubElementsFn = function_ref<void(
+      Attribute, function_ref<void(Attribute)>, function_ref<void(Type)>)>;
+  using ReplaceImmediateSubElementsFn =
+      function_ref<Attribute(Attribute, ArrayRef<Attribute>, ArrayRef<Type>)>;
 
   /// Look up the specified abstract attribute in the MLIRContext and return a
   /// reference to it.
   static const AbstractAttribute &lookup(TypeID typeID, MLIRContext *context);
+
+  /// Look up the specified abstract attribute in the MLIRContext and return a
+  /// reference to it if it exists.
+  static std::optional<std::reference_wrapper<const AbstractAttribute>>
+  lookup(StringRef name, MLIRContext *context);
 
   /// This method is used by Dialect objects when they register the list of
   /// attributes they contain.
   template <typename T>
   static AbstractAttribute get(Dialect &dialect) {
     return AbstractAttribute(dialect, T::getInterfaceMap(), T::getHasTraitFn(),
-                             T::getTypeID());
+                             T::getWalkImmediateSubElementsFn(),
+                             T::getReplaceImmediateSubElementsFn(),
+                             T::getTypeID(), T::name);
   }
 
   /// This method is used by Dialect objects to register attributes with
   /// custom TypeIDs.
   /// The use of this method is in general discouraged in favor of
   /// 'get<CustomAttribute>(dialect)'.
-  static AbstractAttribute get(Dialect &dialect,
-                               detail::InterfaceMap &&interfaceMap,
-                               HasTraitFn &&hasTrait, TypeID typeID) {
+  static AbstractAttribute
+  get(Dialect &dialect, detail::InterfaceMap &&interfaceMap,
+      HasTraitFn &&hasTrait,
+      WalkImmediateSubElementsFn walkImmediateSubElementsFn,
+      ReplaceImmediateSubElementsFn replaceImmediateSubElementsFn,
+      TypeID typeID, StringRef name) {
     return AbstractAttribute(dialect, std::move(interfaceMap),
-                             std::move(hasTrait), typeID);
+                             std::move(hasTrait), walkImmediateSubElementsFn,
+                             replaceImmediateSubElementsFn, typeID, name);
   }
 
   /// Return the dialect this attribute was registered to.
@@ -82,14 +94,33 @@ public:
   /// Returns true if the attribute has a particular trait.
   bool hasTrait(TypeID traitID) const { return hasTraitFn(traitID); }
 
+  /// Walk the immediate sub-elements of this attribute.
+  void walkImmediateSubElements(Attribute attr,
+                                function_ref<void(Attribute)> walkAttrsFn,
+                                function_ref<void(Type)> walkTypesFn) const;
+
+  /// Replace the immediate sub-elements of this attribute.
+  Attribute replaceImmediateSubElements(Attribute attr,
+                                        ArrayRef<Attribute> replAttrs,
+                                        ArrayRef<Type> replTypes) const;
+
   /// Return the unique identifier representing the concrete attribute class.
   TypeID getTypeID() const { return typeID; }
 
+  /// Return the unique name representing the type.
+  StringRef getName() const { return name; }
+
 private:
   AbstractAttribute(Dialect &dialect, detail::InterfaceMap &&interfaceMap,
-                    HasTraitFn &&hasTrait, TypeID typeID)
+                    HasTraitFn &&hasTraitFn,
+                    WalkImmediateSubElementsFn walkImmediateSubElementsFn,
+                    ReplaceImmediateSubElementsFn replaceImmediateSubElementsFn,
+                    TypeID typeID, StringRef name)
       : dialect(dialect), interfaceMap(std::move(interfaceMap)),
-        hasTraitFn(std::move(hasTrait)), typeID(typeID) {}
+        hasTraitFn(std::move(hasTraitFn)),
+        walkImmediateSubElementsFn(walkImmediateSubElementsFn),
+        replaceImmediateSubElementsFn(replaceImmediateSubElementsFn),
+        typeID(typeID), name(name) {}
 
   /// Give StorageUserBase access to the mutable lookup.
   template <typename ConcreteT, typename BaseT, typename StorageT,
@@ -110,8 +141,18 @@ private:
   /// Function to check if the attribute has a particular trait.
   HasTraitFn hasTraitFn;
 
+  /// Function to walk the immediate sub-elements of this attribute.
+  WalkImmediateSubElementsFn walkImmediateSubElementsFn;
+
+  /// Function to replace the immediate sub-elements of this attribute.
+  ReplaceImmediateSubElementsFn replaceImmediateSubElementsFn;
+
   /// The unique identifier of the derived Attribute class.
   const TypeID typeID;
+
+  /// The unique name of this attribute. The string is not owned by the context,
+  /// so the lifetime of this string should outlive the MLIR context.
+  const StringRef name;
 };
 
 //===----------------------------------------------------------------------===//
@@ -120,12 +161,14 @@ private:
 
 namespace detail {
 class AttributeUniquer;
+class DistinctAttributeUniquer;
 } // namespace detail
 
 /// Base storage class appearing in an attribute. Derived storage classes should
 /// only be constructed within the context of the AttributeUniquer.
 class alignas(8) AttributeStorage : public StorageUniquer::BaseStorage {
   friend detail::AttributeUniquer;
+  friend detail::DistinctAttributeUniquer;
   friend StorageUniquer;
 
 public:
@@ -182,7 +225,7 @@ public:
   /// The use of this method is in general discouraged in favor of
   /// 'get<T, Args>(ctx, args)'.
   template <typename T, typename... Args>
-  static typename std::enable_if_t<
+  static std::enable_if_t<
       !std::is_same<typename T::ImplType, AttributeStorage>::value, T>
   getWithTypeID(MLIRContext *ctx, TypeID typeID, Args &&...args) {
 #ifndef NDEBUG
@@ -207,7 +250,7 @@ public:
   /// The use of this method is in general discouraged in favor of
   /// 'get<T, Args>(ctx, args)'.
   template <typename T>
-  static typename std::enable_if_t<
+  static std::enable_if_t<
       std::is_same<typename T::ImplType, AttributeStorage>::value, T>
   getWithTypeID(MLIRContext *ctx, TypeID typeID) {
 #ifndef NDEBUG
@@ -239,7 +282,7 @@ public:
   /// The use of this method is in general discouraged in favor of
   /// 'registerAttribute<T>(ctx)'.
   template <typename T>
-  static typename std::enable_if_t<
+  static std::enable_if_t<
       !std::is_same<typename T::ImplType, AttributeStorage>::value>
   registerAttribute(MLIRContext *ctx, TypeID typeID) {
     ctx->getAttributeUniquer()
@@ -249,7 +292,7 @@ public:
   /// The use of this method is in general discouraged in favor of
   /// 'registerAttribute<T>(ctx)'.
   template <typename T>
-  static typename std::enable_if_t<
+  static std::enable_if_t<
       std::is_same<typename T::ImplType, AttributeStorage>::value>
   registerAttribute(MLIRContext *ctx, TypeID typeID) {
     ctx->getAttributeUniquer()
@@ -264,6 +307,19 @@ private:
   static void initializeAttributeStorage(AttributeStorage *storage,
                                          MLIRContext *ctx, TypeID attrID);
 };
+
+// Internal function called by ODS generated code.
+// Default initializes the type within a FailureOr<T> if T is default
+// constructible and returns a reference to the instance.
+// Otherwise, returns a reference to the FailureOr<T>.
+template <class T>
+decltype(auto) unwrapForCustomParse(FailureOr<T> &failureOr) {
+  if constexpr (std::is_default_constructible_v<T>)
+    return failureOr.emplace();
+  else
+    return failureOr;
+}
+
 } // namespace detail
 
 } // namespace mlir

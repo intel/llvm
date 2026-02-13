@@ -15,23 +15,23 @@ define void @func(i32 %n) {
 
 ; CHECK: [[CP1]]:
 ; CHECK-NEXT: [[CP1_TMP:.Ltmp[0-9]+]]:
-; CHECK-NEXT:     .long var(TLSGD)-(([[PCPOS1]]+4)-[[CP1_TMP]])
+; CHECK-NEXT:     .long var(TLSGD)-([[PCPOS1]]+4-[[CP1_TMP]])
 
 ; CHECK: [[CP2]]:
 ; CHECK-NEXT: [[CP2_TMP:.Ltmp[0-9]+]]:
-; CHECK-NEXT:     .long var(TLSGD)-(([[PCPOS2]]+4)-[[CP2_TMP]])
+; CHECK-NEXT:     .long var(TLSGD)-([[PCPOS2]]+4-[[CP2_TMP]])
 
 entry:
   br label %loop
 
 loop:
   %i = phi i32 [ %inc, %next ], [ 0, %entry ]
-  %val = load i32, i32* @var
+  %val = load i32, ptr @var
   %tst = icmp eq i32 %val, 0
   br i1 %tst, label %next, label %call
 
 call:
-  tail call void @foo(i32* nonnull @var) #2
+  tail call void @foo(ptr nonnull @var) #2
   br label %next
 
 next:
@@ -43,4 +43,4 @@ done:
   ret void
 }
 
-declare void @foo(i32*)
+declare void @foo(ptr)

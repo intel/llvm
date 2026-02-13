@@ -1,5 +1,5 @@
-; RUN: llc  -march=mipsel -mattr=mips16 -relocation-model=pic -O3 < %s | FileCheck %s -check-prefix=16
-; RUN: llc  -march=mips -mattr=micromips -mcpu=mips32r6 -relocation-model=pic -O3 < %s | FileCheck %s -check-prefix=MMR6
+; RUN: llc  -mtriple=mipsel -mattr=mips16 -relocation-model=pic -O3 < %s | FileCheck %s -check-prefix=16
+; RUN: llc  -mtriple=mips -mattr=micromips -mcpu=mips32r6 -relocation-model=pic -O3 < %s | FileCheck %s -check-prefix=MMR6
 
 @j = global i32 -5, align 4
 @k = global i32 10, align 4
@@ -11,10 +11,10 @@
 
 define void @test() nounwind {
 entry:
-  %0 = load i32, i32* @j, align 4
+  %0 = load i32, ptr @j, align 4
   %cmp = icmp slt i32 %0, 10
   %conv = zext i1 %cmp to i32
-  store i32 %conv, i32* @r1, align 4
+  store i32 %conv, ptr @r1, align 4
 ; 16:   slti    $[[REGISTER:[0-9]+]], 10
 ; MMR6: slti    $[[REGISTER:[0-9]+]], $[[REGISTER:[0-9]+]], 10
 ; 16:   move    $[[REGISTER]], $24

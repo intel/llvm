@@ -11,6 +11,9 @@
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "gtest/gtest.h"
+#include <optional>
+
+#include "../../test/lib/Dialect/Test/TestDialect.h"
 
 using namespace mlir;
 using namespace mlir::detail;
@@ -28,7 +31,7 @@ static void testSplat(Type eltType, const EltTy &splatElt) {
   EXPECT_TRUE(splat.isSplat());
 
   auto detectedSplat =
-      DenseElementsAttr::get(shape, llvm::makeArrayRef({splatElt, splatElt}));
+      DenseElementsAttr::get(shape, llvm::ArrayRef({splatElt, splatElt}));
   EXPECT_EQ(detectedSplat, splat);
 
   for (auto newValue : detectedSplat.template getValues<EltTy>())
@@ -70,6 +73,20 @@ TEST(DenseSplatTest, BoolSplatRawRoundtrip) {
       DenseElementsAttr::getFromRawBuffer(shape, trueSplat.getRawData());
   EXPECT_TRUE(trueSplatFromRaw.isSplat());
 
+  EXPECT_EQ(trueSplat, trueSplatFromRaw);
+}
+
+TEST(DenseSplatTest, BoolSplatSmall) {
+  MLIRContext context;
+  Builder builder(&context);
+
+  // Check that splats that don't fill entire byte are handled properly.
+  auto tensorType = RankedTensorType::get({4}, builder.getI1Type());
+  std::vector<char> data{0b00001111};
+  auto trueSplatFromRaw =
+      DenseIntOrFPElementsAttr::getFromRawBuffer(tensorType, data);
+  EXPECT_TRUE(trueSplatFromRaw.isSplat());
+  DenseElementsAttr trueSplat = DenseElementsAttr::get(tensorType, true);
   EXPECT_EQ(trueSplat, trueSplatFromRaw);
 }
 
@@ -137,7 +154,7 @@ TEST(DenseSplatTest, IntAttrSplat) {
 
 TEST(DenseSplatTest, F32Splat) {
   MLIRContext context;
-  FloatType floatTy = FloatType::getF32(&context);
+  FloatType floatTy = Float32Type::get(&context);
   float value = 10.0;
 
   testSplat(floatTy, value);
@@ -145,7 +162,7 @@ TEST(DenseSplatTest, F32Splat) {
 
 TEST(DenseSplatTest, F64Splat) {
   MLIRContext context;
-  FloatType floatTy = FloatType::getF64(&context);
+  FloatType floatTy = Float64Type::get(&context);
   double value = 10.0;
 
   testSplat(floatTy, APFloat(value));
@@ -153,7 +170,7 @@ TEST(DenseSplatTest, F64Splat) {
 
 TEST(DenseSplatTest, FloatAttrSplat) {
   MLIRContext context;
-  FloatType floatTy = FloatType::getF32(&context);
+  FloatType floatTy = Float32Type::get(&context);
   Attribute value = FloatAttr::get(floatTy, 10.0);
 
   testSplat(floatTy, value);
@@ -161,7 +178,7 @@ TEST(DenseSplatTest, FloatAttrSplat) {
 
 TEST(DenseSplatTest, BF16Splat) {
   MLIRContext context;
-  FloatType floatTy = FloatType::getBF16(&context);
+  FloatType floatTy = BFloat16Type::get(&context);
   Attribute value = FloatAttr::get(floatTy, 10.0);
 
   testSplat(floatTy, value);
@@ -187,7 +204,7 @@ TEST(DenseSplatTest, StringAttrSplat) {
 
 TEST(DenseComplexTest, ComplexFloatSplat) {
   MLIRContext context;
-  ComplexType complexType = ComplexType::get(FloatType::getF32(&context));
+  ComplexType complexType = ComplexType::get(Float32Type::get(&context));
   std::complex<float> value(10.0, 15.0);
   testSplat(complexType, value);
 }
@@ -201,7 +218,7 @@ TEST(DenseComplexTest, ComplexIntSplat) {
 
 TEST(DenseComplexTest, ComplexAPFloatSplat) {
   MLIRContext context;
-  ComplexType complexType = ComplexType::get(FloatType::getF32(&context));
+  ComplexType complexType = ComplexType::get(Float32Type::get(&context));
   std::complex<APFloat> value(APFloat(10.0f), APFloat(15.0f));
   testSplat(complexType, value);
 }
@@ -220,7 +237,7 @@ TEST(DenseScalarTest, ExtractZeroRankElement) {
   Attribute value = IntegerAttr::get(intTy, elementValue);
   RankedTensorType shape = RankedTensorType::get({}, intTy);
 
-  auto attr = DenseElementsAttr::get(shape, llvm::makeArrayRef({elementValue}));
+  auto attr = DenseElementsAttr::get(shape, llvm::ArrayRef({elementValue}));
   EXPECT_TRUE(attr.getValues<Attribute>()[0] == value);
 }
 
@@ -232,7 +249,7 @@ TEST(DenseSplatMapValuesTest, I32ToTrue) {
   RankedTensorType shape = RankedTensorType::get({4}, intTy);
 
   auto attr =
-      DenseElementsAttr::get(shape, llvm::makeArrayRef({elementValue}))
+      DenseElementsAttr::get(shape, llvm::ArrayRef({elementValue}))
           .mapValues(boolTy, [](const APInt &x) {
             return x.isZero() ? APInt::getZero(1) : APInt::getAllOnes(1);
           });
@@ -249,7 +266,7 @@ TEST(DenseSplatMapValuesTest, I32ToFalse) {
   RankedTensorType shape = RankedTensorType::get({4}, intTy);
 
   auto attr =
-      DenseElementsAttr::get(shape, llvm::makeArrayRef({elementValue}))
+      DenseElementsAttr::get(shape, llvm::ArrayRef({elementValue}))
           .mapValues(boolTy, [](const APInt &x) {
             return x.isZero() ? APInt::getZero(1) : APInt::getAllOnes(1);
           });
@@ -271,18 +288,18 @@ static void checkNativeAccess(MLIRContext *ctx, ArrayRef<T> data,
                          UnmanagedAsmResourceBlob::allocateInferAlign(data));
 
   // Check that we can access and iterate the data properly.
-  Optional<ArrayRef<T>> attrData = attr.tryGetAsArrayRef();
+  std::optional<ArrayRef<T>> attrData = attr.tryGetAsArrayRef();
   EXPECT_TRUE(attrData.has_value());
   EXPECT_EQ(*attrData, data);
 
   // Check that we cast to this attribute when possible.
   Attribute genericAttr = attr;
-  EXPECT_TRUE(genericAttr.template isa<AttrT>());
+  EXPECT_TRUE(isa<AttrT>(genericAttr));
 }
 template <typename AttrT, typename T>
 static void checkNativeIntAccess(Builder &builder, size_t intWidth) {
   T data[] = {0, 1, 2};
-  checkNativeAccess<AttrT, T>(builder.getContext(), llvm::makeArrayRef(data),
+  checkNativeAccess<AttrT, T>(builder.getContext(), llvm::ArrayRef(data),
                               builder.getIntegerType(intWidth));
 }
 
@@ -294,7 +311,7 @@ TEST(DenseResourceElementsAttrTest, CheckNativeAccess) {
   // Bool
   bool boolData[] = {true, false, true};
   checkNativeAccess<DenseBoolResourceElementsAttr>(
-      &context, llvm::makeArrayRef(boolData), builder.getI1Type());
+      &context, llvm::ArrayRef(boolData), builder.getI1Type());
 
   // Unsigned integers
   checkNativeIntAccess<DenseUI8ResourceElementsAttr, uint8_t>(builder, 8);
@@ -311,12 +328,12 @@ TEST(DenseResourceElementsAttrTest, CheckNativeAccess) {
   // Float
   float floatData[] = {0, 1, 2};
   checkNativeAccess<DenseF32ResourceElementsAttr>(
-      &context, llvm::makeArrayRef(floatData), builder.getF32Type());
+      &context, llvm::ArrayRef(floatData), builder.getF32Type());
 
   // Double
   double doubleData[] = {0, 1, 2};
   checkNativeAccess<DenseF64ResourceElementsAttr>(
-      &context, llvm::makeArrayRef(doubleData), builder.getF64Type());
+      &context, llvm::ArrayRef(doubleData), builder.getF64Type());
 }
 
 TEST(DenseResourceElementsAttrTest, CheckNoCast) {
@@ -329,9 +346,24 @@ TEST(DenseResourceElementsAttrTest, CheckNoCast) {
   Attribute i32ResourceAttr = DenseI32ResourceElementsAttr::get(
       type, "resource", UnmanagedAsmResourceBlob::allocateInferAlign(data));
 
-  EXPECT_TRUE(i32ResourceAttr.isa<DenseI32ResourceElementsAttr>());
-  EXPECT_FALSE(i32ResourceAttr.isa<DenseF32ResourceElementsAttr>());
-  EXPECT_FALSE(i32ResourceAttr.isa<DenseBoolResourceElementsAttr>());
+  EXPECT_TRUE(isa<DenseI32ResourceElementsAttr>(i32ResourceAttr));
+  EXPECT_FALSE(isa<DenseF32ResourceElementsAttr>(i32ResourceAttr));
+  EXPECT_FALSE(isa<DenseBoolResourceElementsAttr>(i32ResourceAttr));
+}
+
+TEST(DenseResourceElementsAttrTest, CheckNotMutableAllocateAndCopy) {
+  MLIRContext context;
+  Builder builder(&context);
+
+  // Create a i32 attribute.
+  std::vector<int32_t> data = {10, 20, 30};
+  auto type = RankedTensorType::get(data.size(), builder.getI32Type());
+  Attribute i32ResourceAttr = DenseI32ResourceElementsAttr::get(
+      type, "resource",
+      HeapAsmResourceBlob::allocateAndCopyInferAlign<int32_t>(
+          data, /*is_mutable=*/false));
+
+  EXPECT_TRUE(isa<DenseI32ResourceElementsAttr>(i32ResourceAttr));
 }
 
 TEST(DenseResourceElementsAttrTest, CheckInvalidData) {
@@ -377,7 +409,7 @@ TEST(SparseElementsAttrTest, GetZero) {
   context.allowUnregisteredDialects();
 
   IntegerType intTy = IntegerType::get(&context, 32);
-  FloatType floatTy = FloatType::getF32(&context);
+  FloatType floatTy = Float32Type::get(&context);
   Type stringTy = OpaqueType::get(StringAttr::get(&context, "test"), "string");
 
   ShapedType tensorI32 = RankedTensorType::get({2, 2}, intTy);
@@ -406,19 +438,103 @@ TEST(SparseElementsAttrTest, GetZero) {
   // Only index (0, 0) contains an element, others are supposed to return
   // the zero/empty value.
   auto zeroIntValue =
-      sparseInt.getValues<Attribute>()[{1, 1}].cast<IntegerAttr>();
+      cast<IntegerAttr>(sparseInt.getValues<Attribute>()[{1, 1}]);
   EXPECT_EQ(zeroIntValue.getInt(), 0);
   EXPECT_TRUE(zeroIntValue.getType() == intTy);
 
   auto zeroFloatValue =
-      sparseFloat.getValues<Attribute>()[{1, 1}].cast<FloatAttr>();
+      cast<FloatAttr>(sparseFloat.getValues<Attribute>()[{1, 1}]);
   EXPECT_EQ(zeroFloatValue.getValueAsDouble(), 0.0f);
   EXPECT_TRUE(zeroFloatValue.getType() == floatTy);
 
   auto zeroStringValue =
-      sparseString.getValues<Attribute>()[{1, 1}].cast<StringAttr>();
-  EXPECT_TRUE(zeroStringValue.getValue().empty());
+      cast<StringAttr>(sparseString.getValues<Attribute>()[{1, 1}]);
+  EXPECT_TRUE(zeroStringValue.empty());
   EXPECT_TRUE(zeroStringValue.getType() == stringTy);
+}
+
+//===----------------------------------------------------------------------===//
+// SubElements
+//===----------------------------------------------------------------------===//
+
+TEST(SubElementTest, Nested) {
+  MLIRContext context;
+  Builder builder(&context);
+
+  BoolAttr trueAttr = builder.getBoolAttr(true);
+  BoolAttr falseAttr = builder.getBoolAttr(false);
+  ArrayAttr boolArrayAttr =
+      builder.getArrayAttr({trueAttr, falseAttr, trueAttr});
+  StringAttr strAttr = builder.getStringAttr("array");
+  DictionaryAttr dictAttr =
+      builder.getDictionaryAttr(builder.getNamedAttr(strAttr, boolArrayAttr));
+
+  SmallVector<Attribute> subAttrs;
+  dictAttr.walk([&](Attribute attr) { subAttrs.push_back(attr); });
+  // Note that trueAttr appears only once, identical subattributes are skipped.
+  EXPECT_EQ(llvm::ArrayRef(subAttrs),
+            ArrayRef<Attribute>(
+                {strAttr, trueAttr, falseAttr, boolArrayAttr, dictAttr}));
+}
+
+// Test how many times we call copy-ctor when building an attribute with the
+// 'get' method.
+TEST(CopyCountAttr, CopyCountGet) {
+  MLIRContext context;
+  context.loadDialect<test::TestDialect>();
+
+  test::CopyCount::counter = 0;
+  test::CopyCount copyCount("hello");
+  test::TestCopyCountAttr::get(&context, std::move(copyCount));
+  int counter1 = test::CopyCount::counter;
+  test::CopyCount::counter = 0;
+  test::TestCopyCountAttr::get(&context, std::move(copyCount));
+#ifndef NDEBUG
+  // One verification enabled only in assert-mode requires two copies: one for
+  // calling 'verifyInvariants' and one for calling 'verify' inside
+  // 'verifyInvariants'.
+  EXPECT_EQ(counter1, 2);
+  EXPECT_EQ(test::CopyCount::counter, 2);
+#else
+  EXPECT_EQ(counter1, 0);
+  EXPECT_EQ(test::CopyCount::counter, 0);
+#endif
+}
+
+// Test how many times we call copy-ctor when building an attribute with the
+// 'getChecked' method.
+TEST(CopyCountAttr, CopyCountGetChecked) {
+  MLIRContext context;
+  context.loadDialect<test::TestDialect>();
+  test::CopyCount::counter = 0;
+  test::CopyCount copyCount("hello");
+  auto loc = UnknownLoc::get(&context);
+  test::TestCopyCountAttr::getChecked(loc, &context, std::move(copyCount));
+  int counter1 = test::CopyCount::counter;
+  test::CopyCount::counter = 0;
+  test::TestCopyCountAttr::getChecked(loc, &context, std::move(copyCount));
+  // The verifiers require two copies: one for calling 'verifyInvariants' and
+  // one for calling 'verify' inside 'verifyInvariants'.
+  EXPECT_EQ(counter1, 2);
+  EXPECT_EQ(test::CopyCount::counter, 2);
+}
+
+// Test stripped printing using test dialect attribute.
+TEST(CopyCountAttr, PrintStripped) {
+  MLIRContext context;
+  context.loadDialect<test::TestDialect>();
+  // Doesn't matter which dialect attribute is used, just chose TestCopyCount
+  // given proximity.
+  test::CopyCount::counter = 0;
+  test::CopyCount copyCount("hello");
+  Attribute res = test::TestCopyCountAttr::get(&context, std::move(copyCount));
+
+  std::string str;
+  llvm::raw_string_ostream os(str);
+  os << "|" << res << "|";
+  res.printStripped(os << "[");
+  os << "]";
+  EXPECT_EQ(str, "|#test.copy_count<hello>|[copy_count<hello>]");
 }
 
 } // namespace

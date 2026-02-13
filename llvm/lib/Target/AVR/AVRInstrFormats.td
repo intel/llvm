@@ -19,8 +19,6 @@ class AVRInst<dag outs, dag ins, string asmstr, list<dag> pattern>
   dag InOperandList = ins;
   let AsmString = asmstr;
   let Pattern = pattern;
-
-  field bits<32> SoftFail = 0;
 }
 
 /// A 16-bit AVR instruction.
@@ -75,23 +73,13 @@ class FRdRr<bits<4> opcode, bits<2> f, dag outs, dag ins, string asmstr,
   let Inst{3 - 0} = rr{3 - 0};
 }
 
-class FTST<bits<4> opcode, bits<2> f, dag outs, dag ins, string asmstr,
-           list<dag> pattern> : AVRInst16<outs, ins, asmstr, pattern> {
-  bits<5> rd;
-
-  let Inst{15 - 12} = opcode;
-  let Inst{11 - 10} = f;
-  let Inst{9} = rd{4};
-  let Inst{8 - 4} = rd;
-  let Inst{3 - 0} = rd{3 - 0};
-}
-
 //===----------------------------------------------------------------------===//
 // Instruction of the format `<mnemonic> Z, Rd`
 // <|1001|001r|rrrr|0ttt>
 //===----------------------------------------------------------------------===//
 class FZRd<bits<3> t, dag outs, dag ins, string asmstr, list<dag> pattern>
     : AVRInst16<outs, ins, asmstr, pattern> {
+  bits<0> z;
   bits<5> rd;
 
   let Inst{15 - 12} = 0b1001;
@@ -140,8 +128,6 @@ class FRd<bits<4> opcode, bits<7> f, dag outs, dag ins, string asmstr,
   let Inst{11 - 9} = f{6 - 4};
   let Inst{8 - 4} = rd;
   let Inst{3 - 0} = f{3 - 0};
-
-  let DecoderMethod = "decodeFRd";
 }
 
 //===----------------------------------------------------------------------===//
@@ -184,7 +170,6 @@ class FSTDLDD<bit type, dag outs, dag ins, string asmstr, list<dag> pattern>
 //===---------------------------------------------------------------------===//
 class FSTLD<bit type, bits<2> mode, dag outs, dag ins, string asmstr,
             list<dag> pattern> : AVRInst16<outs, ins, asmstr, pattern> {
-  bits<2> ptrreg;
   bits<5> reg;
 
   let Inst{15 - 13} = 0b100;
@@ -198,7 +183,6 @@ class FSTLD<bit type, bits<2> mode, dag outs, dag ins, string asmstr,
 
   let Inst{7 - 4} = reg{3 - 0};
 
-  let Inst{3 - 2} = ptrreg{1 - 0};
   let Inst{1 - 0} = mode{1 - 0};
 
   let DecoderMethod = "decodeLoadStore";
@@ -215,57 +199,64 @@ class FSTLD<bit type, bits<2> mode, dag outs, dag ins, string asmstr,
 //===---------------------------------------------------------------------===//
 class FLPMX<bit e, bit p, dag outs, dag ins, string asmstr, list<dag> pattern>
     : AVRInst16<outs, ins, asmstr, pattern> {
+  bits<0> z;
   bits<5> rd;
 
-  let Inst{15 - 12} = 0b1001;
-
-  let Inst{11 - 9} = 0b000;
-  let Inst{8} = rd{4};
-
-  let Inst{7 - 4} = rd{3 - 0};
-
+  let Inst{15 - 9} = 0b1001000;
+  let Inst{8 - 4} = rd;
   let Inst{3 - 2} = 0b01;
   let Inst{1} = e;
   let Inst{0} = p;
-
-  let DecoderMethod = "decodeFLPMX";
 }
 
 //===----------------------------------------------------------------------===//
 // MOVWRdRr special encoding: <|0000|0001|dddd|rrrr|>
 // d = destination = 4 bits
 // r = source = 4 bits
-// (Only accepts even registers)
+// (Only accepts register pairs)
 //===----------------------------------------------------------------------===//
 class FMOVWRdRr<dag outs, dag ins, string asmstr, list<dag> pattern>
     : AVRInst16<outs, ins, asmstr, pattern> {
-  bits<5> rd;
-  bits<5> rr;
+  bits<4> rd;
+  bits<4> rr;
 
   let Inst{15 - 8} = 0b00000001;
-  let Inst{7 - 4} = rd{4 - 1};
-  let Inst{3 - 0} = rr{4 - 1};
-
-  let DecoderMethod = "decodeFMOVWRdRr";
+  let Inst{7 - 4} = rd;
+  let Inst{3 - 0} = rr;
 }
 
 //===----------------------------------------------------------------------===//
-// MULSrr special encoding: <|0000|0010|dddd|rrrr|>
+// MULS special encoding: <|0000|0010|dddd|rrrr|>
 // d = multiplicand = 4 bits
 // r = multiplier = 4 bits
 // (Only accepts r16-r31)
 //===----------------------------------------------------------------------===//
-class FMUL2RdRr<bit f, dag outs, dag ins, string asmstr, list<dag> pattern>
+class FMULSRdRr<dag outs, dag ins, string asmstr, list<dag> pattern>
     : AVRInst16<outs, ins, asmstr, pattern> {
-  bits<5> rd; // accept 5 bits but only encode the lower 4
-  bits<5> rr; // accept 5 bits but only encode the lower 4
+  bits<4> rd;
+  bits<4> rr;
 
-  let Inst{15 - 9} = 0b0000001;
-  let Inst{8} = f;
-  let Inst{7 - 4} = rd{3 - 0};
-  let Inst{3 - 0} = rr{3 - 0};
+  let Inst{15 - 8} = 0b00000010;
+  let Inst{7 - 4} = rd;
+  let Inst{3 - 0} = rr;
+}
 
-  let DecoderMethod = "decodeFMUL2RdRr";
+//===----------------------------------------------------------------------===//
+// MULSU special encoding: <|0000|0011|0ddd|0rrr|>
+// d = multiplicand = 3 bits
+// r = multiplier = 3 bits
+// (Only accepts r16-r23)
+//===----------------------------------------------------------------------===//
+class FMULSURdRr<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : AVRInst16<outs, ins, asmstr, pattern> {
+  bits<3> rd;
+  bits<3> rr;
+
+  let Inst{15 - 8} = 0b00000011;
+  let Inst{7} = 0;
+  let Inst{6 - 4} = rd;
+  let Inst{3} = 0;
+  let Inst{2 - 0} = rr;
 }
 
 // Special encoding for the FMUL family of instructions.
@@ -288,8 +279,6 @@ class FFMULRdRr<bits<2> f, dag outs, dag ins, string asmstr, list<dag> pattern>
   let Inst{6 - 4} = rd;
   let Inst{3} = f{0};
   let Inst{2 - 0} = rr;
-
-  let DecoderMethod = "decodeFFMULRdRr";
 }
 
 //===----------------------------------------------------------------------===//
@@ -301,16 +290,14 @@ class FFMULRdRr<bits<2> f, dag outs, dag ins, string asmstr, list<dag> pattern>
 //===----------------------------------------------------------------------===//
 class FWRdK<bit f, dag outs, dag ins, string asmstr, list<dag> pattern>
     : AVRInst16<outs, ins, asmstr, pattern> {
-  bits<5> rd; // accept 5 bits but only encode bits 1 and 2
+  bits<2> rd;
   bits<6> k;
 
   let Inst{15 - 9} = 0b1001011;
   let Inst{8} = f;
   let Inst{7 - 6} = k{5 - 4};
-  let Inst{5 - 4} = rd{2 - 1};
+  let Inst{5 - 4} = rd;
   let Inst{3 - 0} = k{3 - 0};
-
-  let DecoderMethod = "decodeFWRdK";
 }
 
 //===----------------------------------------------------------------------===//
@@ -328,8 +315,6 @@ class FIORdA<dag outs, dag ins, string asmstr, list<dag> pattern>
   let Inst{10 - 9} = A{5 - 4};
   let Inst{8 - 4} = rd;
   let Inst{3 - 0} = A{3 - 0};
-
-  let DecoderMethod = "decodeFIORdA";
 }
 
 //===----------------------------------------------------------------------===//
@@ -347,8 +332,6 @@ class FIOARr<dag outs, dag ins, string asmstr, list<dag> pattern>
   let Inst{10 - 9} = A{5 - 4};
   let Inst{8 - 4} = rr;
   let Inst{3 - 0} = A{3 - 0};
-
-  let DecoderMethod = "decodeFIOARr";
 }
 
 //===----------------------------------------------------------------------===//
@@ -363,17 +346,10 @@ class FIOBIT<bits<2> t, dag outs, dag ins, string asmstr, list<dag> pattern>
   bits<5> addr;
   bits<3> b;
 
-  let Inst{15 - 12} = 0b1001;
-
-  let Inst{11 - 10} = 0b10;
+  let Inst{15 - 10} = 0b100110;
   let Inst{9 - 8} = t;
-
-  let Inst{7 - 4} = addr{4 - 1};
-
-  let Inst{3} = addr{0};
+  let Inst{7 - 3} = addr;
   let Inst{2 - 0} = b{2 - 0};
-
-  let DecoderMethod = "decodeFIOBIT";
 }
 
 //===----------------------------------------------------------------------===//
@@ -443,11 +419,6 @@ class F16<bits<16> opcode, dag outs, dag ins, string asmstr, list<dag> pattern>
   let Inst = opcode;
 }
 
-class F32<bits<32> opcode, dag outs, dag ins, string asmstr, list<dag> pattern>
-    : AVRInst32<outs, ins, asmstr, pattern> {
-  let Inst = opcode;
-}
-
 //===----------------------------------------------------------------------===//
 // Branching instructions with immediate12: <|110f|kkkk|kkkk|kkkk|>
 // f = secondary opcode = 1 bit
@@ -502,6 +473,29 @@ class F32DM<bit f, dag outs, dag ins, string asmstr, list<dag> pattern>
   let Inst{15 - 0} = k;
 }
 
+//===---------------------------------------------------------------------===//
+// Special format for the LDS/STS instructions on AVRTiny.
+// <|1010|ikkk|dddd|kkkk>
+// d = R16 ~ R31
+// i = 0 - lds, 1 - sts
+// k = 7-bit data space address
+//===---------------------------------------------------------------------===//
+class FLDSSTSTINY<bit i, dag outs, dag ins, string asmstr, list<dag> pattern>
+    : AVRInst16<outs, ins, asmstr, pattern> {
+  bits<5> rd;
+  bits<7> k;
+
+  let Inst{15 - 12} = 0b1010;
+
+  let Inst{11} = i;
+
+  let Inst{10 - 8} = k{6 - 4};
+  let Inst{7 - 4} = rd{3 - 0};
+  let Inst{3 - 0} = k{3 - 0};
+
+  let DecoderNamespace = "AVRTiny";
+}
+
 // <|1001|0100|bfff|1000>
 class FS<bit b, dag outs, dag ins, string asmstr, list<dag> pattern>
     : AVRInst16<outs, ins, asmstr, pattern> {
@@ -530,17 +524,14 @@ class FSK<bit f, dag outs, dag ins, string asmstr, list<dag> pattern>
 
   let Inst{11} = 0;
   let Inst{10} = f;
-  let Inst{9 - 8} = k{6 - 5};
-
-  let Inst{7 - 4} = k{4 - 1};
-
-  let Inst{3} = k{0};
+  let Inst{9 - 3} = k;
   let Inst{2 - 0} = s;
 }
 
 class ExtensionPseudo<dag outs, dag ins, string asmstr, list<dag> pattern>
     : Pseudo<outs, ins, asmstr, pattern> {
   let Defs = [SREG];
+  let hasSideEffects = 0;
 }
 
 class StorePseudo<dag outs, dag ins, string asmstr, list<dag> pattern>
@@ -558,6 +549,6 @@ class SelectPseudo<dag outs, dag ins, string asmstr, list<dag> pattern>
 class ShiftPseudo<dag outs, dag ins, string asmstr, list<dag> pattern>
     : Pseudo<outs, ins, asmstr, pattern> {
   let usesCustomInserter = 1;
-
+  let hasSideEffects = 0;
   let Defs = [SREG];
 }

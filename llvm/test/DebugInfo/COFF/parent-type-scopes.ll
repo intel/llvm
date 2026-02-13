@@ -63,18 +63,18 @@ entry:
   %v3 = alloca %"class.WrapClass::Inner", align 4
   %v4 = alloca i32, align 4
   %v5 = alloca %"union.WrapUnion::Inner", align 4
-  call void @llvm.dbg.declare(metadata i32* %v1, metadata !19, metadata !DIExpression()), !dbg !23
-  call void @llvm.dbg.declare(metadata %"struct.WrapStruct::Inner"* %v2, metadata !24, metadata !DIExpression()), !dbg !30
-  call void @llvm.dbg.declare(metadata %"class.WrapClass::Inner"* %v3, metadata !31, metadata !DIExpression()), !dbg !37
-  call void @llvm.dbg.declare(metadata i32* %v4, metadata !38, metadata !DIExpression()), !dbg !39
-  call void @llvm.dbg.declare(metadata %"union.WrapUnion::Inner"* %v5, metadata !40, metadata !DIExpression()), !dbg !48
+  call void @llvm.dbg.declare(metadata ptr %v1, metadata !19, metadata !DIExpression()), !dbg !23
+  call void @llvm.dbg.declare(metadata ptr %v2, metadata !24, metadata !DIExpression()), !dbg !30
+  call void @llvm.dbg.declare(metadata ptr %v3, metadata !31, metadata !DIExpression()), !dbg !37
+  call void @llvm.dbg.declare(metadata ptr %v4, metadata !38, metadata !DIExpression()), !dbg !39
+  call void @llvm.dbg.declare(metadata ptr %v5, metadata !40, metadata !DIExpression()), !dbg !48
   ret void, !dbg !49
 }
 
 ; Function Attrs: nounwind readnone speculatable willreturn
 declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
 
-attributes #0 = { noinline nounwind optnone uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="none" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { noinline nounwind optnone uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="none" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone speculatable willreturn }
 
 !llvm.dbg.cu = !{!0}

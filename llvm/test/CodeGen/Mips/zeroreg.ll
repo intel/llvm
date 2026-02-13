@@ -1,10 +1,10 @@
-; RUN: llc < %s -march=mipsel -mcpu=mips32   -relocation-model=pic | FileCheck %s -check-prefixes=ALL,32-CMOV
-; RUN: llc < %s -march=mipsel -mcpu=mips32r2 -relocation-model=pic | FileCheck %s -check-prefixes=ALL,32-CMOV
-; RUN: llc < %s -march=mipsel -mcpu=mips32r6 -relocation-model=pic | FileCheck %s -check-prefixes=ALL,32R6
-; RUN: llc < %s -march=mipsel -mcpu=mips4    -target-abi n64 -relocation-model=pic | FileCheck %s -check-prefixes=ALL,64-CMOV
-; RUN: llc < %s -march=mipsel -mcpu=mips64   -target-abi n64 -relocation-model=pic | FileCheck %s -check-prefixes=ALL,64-CMOV
-; RUN: llc < %s -march=mipsel -mcpu=mips64r2 -target-abi n64 -relocation-model=pic | FileCheck %s -check-prefixes=ALL,64-CMOV
-; RUN: llc < %s -march=mipsel -mcpu=mips64r6 -target-abi n64 -relocation-model=pic | FileCheck %s -check-prefixes=ALL,64R6
+; RUN: llc < %s -mtriple=mipsel -mcpu=mips32   -relocation-model=pic | FileCheck %s -check-prefixes=ALL,32-CMOV
+; RUN: llc < %s -mtriple=mipsel -mcpu=mips32r2 -relocation-model=pic | FileCheck %s -check-prefixes=ALL,32-CMOV
+; RUN: llc < %s -mtriple=mipsel -mcpu=mips32r6 -relocation-model=pic | FileCheck %s -check-prefixes=ALL,32R6
+; RUN: llc < %s -mtriple=mipsel -mcpu=mips4    -target-abi n64 -relocation-model=pic | FileCheck %s -check-prefixes=ALL,64-CMOV
+; RUN: llc < %s -mtriple=mipsel -mcpu=mips64   -target-abi n64 -relocation-model=pic | FileCheck %s -check-prefixes=ALL,64-CMOV
+; RUN: llc < %s -mtriple=mipsel -mcpu=mips64r2 -target-abi n64 -relocation-model=pic | FileCheck %s -check-prefixes=ALL,64-CMOV
+; RUN: llc < %s -mtriple=mipsel -mcpu=mips64r6 -target-abi n64 -relocation-model=pic | FileCheck %s -check-prefixes=ALL,64R6
 
 @g1 = external global i32
 
@@ -25,7 +25,7 @@ entry:
 ; 64R6:          seleqz $2, $[[R0]], $4
 
   %tobool = icmp ne i32 %s, 0
-  %0 = load i32, i32* @g1, align 4
+  %0 = load i32, ptr @g1, align 4
   %cond = select i1 %tobool, i32 0, i32 %0
   ret i32 %cond
 }
@@ -47,7 +47,7 @@ entry:
 ; 64R6:          selnez $2, $[[R0]], $4
 
   %tobool = icmp ne i32 %s, 0
-  %0 = load i32, i32* @g1, align 4
+  %0 = load i32, ptr @g1, align 4
   %cond = select i1 %tobool, i32 %0, i32 0
   ret i32 %cond
 }
@@ -76,7 +76,7 @@ entry:
 ; 64R6:          seleqz $2, $[[R0]], $4
 
   %tobool = icmp ne i64 %s, 0
-  %0 = load i64, i64* @g2, align 4
+  %0 = load i64, ptr @g2, align 4
   %cond = select i1 %tobool, i64 0, i64 %0
   ret i64 %cond
 }
@@ -103,7 +103,7 @@ entry:
 ; 64R6:          selnez $2, $[[R0]], $4
 
   %tobool = icmp ne i64 %s, 0
-  %0 = load i64, i64* @g2, align 4
+  %0 = load i64, ptr @g2, align 4
   %cond = select i1 %tobool, i64 %0, i64 0
   ret i64 %cond
 }

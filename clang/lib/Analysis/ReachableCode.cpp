@@ -12,6 +12,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Analysis/Analyses/ReachableCode.h"
+#include "clang/AST/Attr.h"
+#include "clang/AST/DynamicRecursiveASTVisitor.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/ExprObjC.h"
@@ -23,7 +25,7 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Preprocessor.h"
 #include "llvm/ADT/BitVector.h"
-#include "llvm/ADT/SmallVector.h"
+#include <optional>
 
 using namespace clang;
 
@@ -73,7 +75,7 @@ static bool isBuiltinAssumeFalse(const CFGBlock *B, const Stmt *S,
     // (e.g. a CFGBlock containing only a goto).
     return false;
   }
-  if (Optional<CFGStmt> CS = B->back().getAs<CFGStmt>()) {
+  if (std::optional<CFGStmt> CS = B->back().getAs<CFGStmt>()) {
     if (const auto *CE = dyn_cast<CallExpr>(CS->getStmt())) {
       return CE->getCallee()->IgnoreCasts() == S && CE->isBuiltinAssumeFalse(C);
     }
@@ -88,7 +90,7 @@ static bool isDeadReturn(const CFGBlock *B, const Stmt *S) {
   const CFGBlock *Current = B;
   while (true) {
     for (const CFGElement &CE : llvm::reverse(*Current)) {
-      if (Optional<CFGStmt> CS = CE.getAs<CFGStmt>()) {
+      if (std::optional<CFGStmt> CS = CE.getAs<CFGStmt>()) {
         if (const ReturnStmt *RS = dyn_cast<ReturnStmt>(CS->getStmt())) {
           if (RS == S)
             return true;
@@ -339,7 +341,7 @@ static unsigned scanFromBlock(const CFGBlock *Start,
     // This allows us to potentially uncover some "always unreachable" code
     // within the "sometimes unreachable" code.
     // Look at the successors and mark then reachable.
-    Optional<bool> TreatAllSuccessorsAsReachable;
+    std::optional<bool> TreatAllSuccessorsAsReachable;
     if (!IncludeSometimesUnreachableEdges)
       TreatAllSuccessorsAsReachable = false;
 
@@ -451,26 +453,69 @@ bool DeadCodeScan::isDeadCodeRoot(const clang::CFGBlock *Block) {
   return isDeadRoot;
 }
 
-static bool isValidDeadStmt(const Stmt *S) {
+// Check if the given `DeadStmt` is a coroutine statement and is a substmt of
+// the coroutine statement. `Block` is the CFGBlock containing the `DeadStmt`.
+static bool isInCoroutineStmt(const Stmt *DeadStmt, const CFGBlock *Block) {
+  // The coroutine statement, co_return, co_await, or co_yield.
+  const Stmt *CoroStmt = nullptr;
+  // Find the first coroutine statement after the DeadStmt in the block.
+  bool AfterDeadStmt = false;
+  for (const CFGElement &Elem : *Block)
+    if (std::optional<CFGStmt> CS = Elem.getAs<CFGStmt>()) {
+      const Stmt *S = CS->getStmt();
+      if (S == DeadStmt)
+        AfterDeadStmt = true;
+      if (AfterDeadStmt &&
+          // For simplicity, we only check simple coroutine statements.
+          (llvm::isa<CoreturnStmt>(S) || llvm::isa<CoroutineSuspendExpr>(S))) {
+        CoroStmt = S;
+        break;
+      }
+    }
+  if (!CoroStmt)
+    return false;
+  struct Checker : DynamicRecursiveASTVisitor {
+    const Stmt *DeadStmt;
+    bool CoroutineSubStmt = false;
+    Checker(const Stmt *S) : DeadStmt(S) {
+      // Statements captured in the CFG can be implicit.
+      ShouldVisitImplicitCode = true;
+    }
+
+    bool VisitStmt(Stmt *S) override {
+      if (S == DeadStmt)
+        CoroutineSubStmt = true;
+      return true;
+    }
+  };
+  Checker checker(DeadStmt);
+  checker.TraverseStmt(const_cast<Stmt *>(CoroStmt));
+  return checker.CoroutineSubStmt;
+}
+
+static bool isValidDeadStmt(const Stmt *S, const clang::CFGBlock *Block) {
   if (S->getBeginLoc().isInvalid())
     return false;
   if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(S))
     return BO->getOpcode() != BO_Comma;
-  return true;
+  // Coroutine statements are never considered dead statements, because removing
+  // them may change the function semantic if it is the only coroutine statement
+  // of the coroutine.
+  return !isInCoroutineStmt(S, Block);
 }
 
 const Stmt *DeadCodeScan::findDeadCode(const clang::CFGBlock *Block) {
   for (CFGBlock::const_iterator I = Block->begin(), E = Block->end(); I!=E; ++I)
-    if (Optional<CFGStmt> CS = I->getAs<CFGStmt>()) {
+    if (std::optional<CFGStmt> CS = I->getAs<CFGStmt>()) {
       const Stmt *S = CS->getStmt();
-      if (isValidDeadStmt(S))
+      if (isValidDeadStmt(S, Block))
         return S;
     }
 
   CFGTerminator T = Block->getTerminator();
   if (T.isStmtBranch()) {
     const Stmt *S = T.getStmt();
-    if (S && isValidDeadStmt(S))
+    if (S && isValidDeadStmt(S, Block))
       return S;
   }
 
@@ -628,6 +673,10 @@ void DeadCodeScan::reportDeadCode(const CFGBlock *B,
     UK = reachable_code::UK_Return;
   }
 
+  const auto *AS = dyn_cast<AttributedStmt>(S);
+  bool HasFallThroughAttr =
+      AS && hasSpecificAttr<FallThroughAttr>(AS->getAttrs());
+
   SourceRange SilenceableCondVal;
 
   if (UK == reachable_code::UK_Other) {
@@ -644,8 +693,9 @@ void DeadCodeScan::reportDeadCode(const CFGBlock *B,
         R2 = Inc->getSourceRange();
       }
 
-      CB.HandleUnreachable(reachable_code::UK_Loop_Increment,
-                           Loc, SourceRange(), SourceRange(Loc, Loc), R2);
+      CB.HandleUnreachable(reachable_code::UK_Loop_Increment, Loc,
+                           SourceRange(), SourceRange(Loc, Loc), R2,
+                           HasFallThroughAttr);
       return;
     }
 
@@ -664,7 +714,7 @@ void DeadCodeScan::reportDeadCode(const CFGBlock *B,
 
   SourceRange R1, R2;
   SourceLocation Loc = GetUnreachableLoc(S, R1, R2);
-  CB.HandleUnreachable(UK, Loc, SilenceableCondVal, R1, R2);
+  CB.HandleUnreachable(UK, Loc, SilenceableCondVal, R1, R2, HasFallThroughAttr);
 }
 
 //===----------------------------------------------------------------------===//

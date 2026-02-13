@@ -15,13 +15,14 @@
 #include "polly/Options.h"
 #include "polly/ScheduleTreeTransform.h"
 #include "polly/Support/ScopHelper.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/Transforms/Utils/LoopUtils.h"
+#include <optional>
 
+#include "polly/Support/PollyDebug.h"
 #define DEBUG_TYPE "polly-opt-manual"
 
 using namespace polly;
@@ -40,10 +41,10 @@ static TransformationMode hasUnrollTransformation(MDNode *LoopID) {
   if (getBooleanLoopAttribute(LoopID, "llvm.loop.unroll.disable"))
     return TM_SuppressedByUser;
 
-  Optional<int> Count =
+  std::optional<int> Count =
       getOptionalIntLoopAttribute(LoopID, "llvm.loop.unroll.count");
   if (Count)
-    return Count.value() == 1 ? TM_SuppressedByUser : TM_ForcedByUser;
+    return *Count == 1 ? TM_SuppressedByUser : TM_ForcedByUser;
 
   if (getBooleanLoopAttribute(LoopID, "llvm.loop.unroll.enable"))
     return TM_ForcedByUser;
@@ -148,10 +149,10 @@ private:
   // transformed in innermost-first order.
   isl::schedule Result;
 
-  /// Check wether a schedule after a  transformation is legal. Return the old
+  /// Check whether a schedule after a  transformation is legal. Return the old
   /// schedule without the transformation.
   isl::schedule
-  checkDependencyViolation(llvm::MDNode *LoopMD, llvm::Value *CodeRegion,
+  checkDependencyViolation(llvm::MDNode *LoopMD, llvm::BasicBlock *CodeRegion,
                            const isl::schedule_node &OrigBand,
                            StringRef DebugLocAttr, StringRef TransPrefix,
                            StringRef RemarkName, StringRef TransformationName) {
@@ -159,13 +160,13 @@ private:
       return Result;
 
     LLVMContext &Ctx = LoopMD->getContext();
-    LLVM_DEBUG(dbgs() << "Dependency violation detected\n");
+    POLLY_DEBUG(dbgs() << "Dependency violation detected\n");
 
     DebugLoc TransformLoc = findTransformationDebugLoc(LoopMD, DebugLocAttr);
 
     if (IgnoreDepcheck) {
-      LLVM_DEBUG(dbgs() << "Still accepting transformation due to "
-                           "-polly-pragma-ignore-depcheck\n");
+      POLLY_DEBUG(dbgs() << "Still accepting transformation due to "
+                            "-polly-pragma-ignore-depcheck\n");
       if (ORE) {
         ORE->emit(
             OptimizationRemark(DEBUG_TYPE, RemarkName, TransformLoc, CodeRegion)
@@ -177,7 +178,7 @@ private:
       return Result;
     }
 
-    LLVM_DEBUG(dbgs() << "Rolling back transformation\n");
+    POLLY_DEBUG(dbgs() << "Rolling back transformation\n");
 
     if (ORE) {
       ORE->emit(DiagnosticInfoOptimizationFailure(DEBUG_TYPE, RemarkName,
@@ -234,7 +235,7 @@ public:
     // TODO: Works only for original loop; for transformed loops, should track
     // where the loop's body code comes from.
     Loop *Loop = Attr->OriginalLoop;
-    Value *CodeRegion = nullptr;
+    BasicBlock *CodeRegion = nullptr;
     if (Loop)
       CodeRegion = Loop->getHeader();
 

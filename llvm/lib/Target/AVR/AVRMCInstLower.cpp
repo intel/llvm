@@ -12,9 +12,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "AVRMCInstLower.h"
-
 #include "AVRInstrInfo.h"
-#include "MCTargetDesc/AVRMCExpr.h"
+#include "MCTargetDesc/AVRMCAsmInfo.h"
 
 #include "llvm/CodeGen/AsmPrinter.h"
 #include "llvm/IR/Mangler.h"
@@ -23,8 +22,9 @@
 
 namespace llvm {
 
-MCOperand AVRMCInstLower::lowerSymbolOperand(const MachineOperand &MO,
-                                             MCSymbol *Sym) const {
+MCOperand
+AVRMCInstLower::lowerSymbolOperand(const MachineOperand &MO, MCSymbol *Sym,
+                                   const AVRSubtarget &Subtarget) const {
   unsigned char TF = MO.getTargetFlags();
   const MCExpr *Expr = MCSymbolRefExpr::create(Sym, Ctx);
 
@@ -42,17 +42,19 @@ MCOperand AVRMCInstLower::lowerSymbolOperand(const MachineOperand &MO,
 
   if (TF & AVRII::MO_LO) {
     if (IsFunction) {
-      // N.B. Should we use _GS fixups here to cope with >128k progmem?
-      Expr = AVRMCExpr::create(AVRMCExpr::VK_AVR_PM_LO8, Expr, IsNegated, Ctx);
+      Expr = AVRMCExpr::create(Subtarget.hasEIJMPCALL() ? AVR::S_LO8_GS
+                                                        : AVR::S_PM_LO8,
+                               Expr, IsNegated, Ctx);
     } else {
-      Expr = AVRMCExpr::create(AVRMCExpr::VK_AVR_LO8, Expr, IsNegated, Ctx);
+      Expr = AVRMCExpr::create(AVR::S_LO8, Expr, IsNegated, Ctx);
     }
   } else if (TF & AVRII::MO_HI) {
     if (IsFunction) {
-      // N.B. Should we use _GS fixups here to cope with >128k progmem?
-      Expr = AVRMCExpr::create(AVRMCExpr::VK_AVR_PM_HI8, Expr, IsNegated, Ctx);
+      Expr = AVRMCExpr::create(Subtarget.hasEIJMPCALL() ? AVR::S_HI8_GS
+                                                        : AVR::S_PM_HI8,
+                               Expr, IsNegated, Ctx);
     } else {
-      Expr = AVRMCExpr::create(AVRMCExpr::VK_AVR_HI8, Expr, IsNegated, Ctx);
+      Expr = AVRMCExpr::create(AVR::S_HI8, Expr, IsNegated, Ctx);
     }
   } else if (TF != 0) {
     llvm_unreachable("Unknown target flag on symbol operand");
@@ -63,6 +65,7 @@ MCOperand AVRMCInstLower::lowerSymbolOperand(const MachineOperand &MO,
 
 void AVRMCInstLower::lowerInstruction(const MachineInstr &MI,
                                       MCInst &OutMI) const {
+  auto &Subtarget = MI.getParent()->getParent()->getSubtarget<AVRSubtarget>();
   OutMI.setOpcode(MI.getOpcode());
 
   for (MachineOperand const &MO : MI.operands()) {
@@ -82,11 +85,12 @@ void AVRMCInstLower::lowerInstruction(const MachineInstr &MI,
       MCOp = MCOperand::createImm(MO.getImm());
       break;
     case MachineOperand::MO_GlobalAddress:
-      MCOp = lowerSymbolOperand(MO, Printer.getSymbol(MO.getGlobal()));
+      MCOp =
+          lowerSymbolOperand(MO, Printer.getSymbol(MO.getGlobal()), Subtarget);
       break;
     case MachineOperand::MO_ExternalSymbol:
       MCOp = lowerSymbolOperand(
-          MO, Printer.GetExternalSymbolSymbol(MO.getSymbolName()));
+          MO, Printer.GetExternalSymbolSymbol(MO.getSymbolName()), Subtarget);
       break;
     case MachineOperand::MO_MachineBasicBlock:
       MCOp = MCOperand::createExpr(
@@ -96,13 +100,15 @@ void AVRMCInstLower::lowerInstruction(const MachineInstr &MI,
       continue;
     case MachineOperand::MO_BlockAddress:
       MCOp = lowerSymbolOperand(
-          MO, Printer.GetBlockAddressSymbol(MO.getBlockAddress()));
+          MO, Printer.GetBlockAddressSymbol(MO.getBlockAddress()), Subtarget);
       break;
     case MachineOperand::MO_JumpTableIndex:
-      MCOp = lowerSymbolOperand(MO, Printer.GetJTISymbol(MO.getIndex()));
+      MCOp = lowerSymbolOperand(MO, Printer.GetJTISymbol(MO.getIndex()),
+                                Subtarget);
       break;
     case MachineOperand::MO_ConstantPoolIndex:
-      MCOp = lowerSymbolOperand(MO, Printer.GetCPISymbol(MO.getIndex()));
+      MCOp = lowerSymbolOperand(MO, Printer.GetCPISymbol(MO.getIndex()),
+                                Subtarget);
       break;
     }
 

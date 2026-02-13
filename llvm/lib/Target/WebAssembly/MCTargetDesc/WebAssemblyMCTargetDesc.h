@@ -14,9 +14,10 @@
 #ifndef LLVM_LIB_TARGET_WEBASSEMBLY_MCTARGETDESC_WEBASSEMBLYMCTARGETDESC_H
 #define LLVM_LIB_TARGET_WEBASSEMBLY_MCTARGETDESC_WEBASSEMBLYMCTARGETDESC_H
 
-#include "../WebAssemblySubtarget.h"
 #include "llvm/BinaryFormat/Wasm.h"
+#include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCInstrDesc.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/DataTypes.h"
 #include <memory>
 
@@ -28,7 +29,8 @@ class MCInstrInfo;
 class MCObjectTargetWriter;
 class Triple;
 
-MCCodeEmitter *createWebAssemblyMCCodeEmitter(const MCInstrInfo &MCII);
+MCCodeEmitter *createWebAssemblyMCCodeEmitter(const MCInstrInfo &MCII,
+                                              MCContext &Ctx);
 
 MCAsmBackend *createWebAssemblyAsmBackend(const Triple &TT);
 
@@ -36,6 +38,7 @@ std::unique_ptr<MCObjectTargetWriter>
 createWebAssemblyWasmObjectWriter(bool Is64Bit, bool IsEmscripten);
 
 namespace WebAssembly {
+
 enum OperandType {
   /// Basic block label in a branch construct.
   OPERAND_BASIC_BLOCK = MCOI::OPERAND_FIRST_TARGET,
@@ -77,6 +80,8 @@ enum OperandType {
   OPERAND_BRLIST,
   /// 32-bit unsigned table number.
   OPERAND_TABLE,
+  /// A list of catch clauses for try_table.
+  OPERAND_CATCH_LIST,
 };
 } // end namespace WebAssembly
 
@@ -109,6 +114,10 @@ enum TOF {
   // address relative the __table_base wasm global.
   // Only applicable to function symbols.
   MO_TABLE_BASE_REL,
+
+  // On a block signature operand this indicates that this is a destination
+  // block of a (catch_ref) clause in try_table.
+  MO_CATCH_BLOCK_SIG,
 };
 
 } // end namespace WebAssemblyII
@@ -167,7 +176,7 @@ inline unsigned GetDefaultP2AlignAny(unsigned Opc) {
   WASM_LOAD_STORE(ATOMIC_RMW8_U_CMPXCHG_I32)
   WASM_LOAD_STORE(ATOMIC_RMW8_U_CMPXCHG_I64)
   WASM_LOAD_STORE(LOAD8_SPLAT)
-  WASM_LOAD_STORE(LOAD_LANE_I8x16)
+  WASM_LOAD_STORE(LOAD_LANE_8)
   WASM_LOAD_STORE(STORE_LANE_I8x16)
   return 0;
   WASM_LOAD_STORE(LOAD16_S_I32)
@@ -195,8 +204,10 @@ inline unsigned GetDefaultP2AlignAny(unsigned Opc) {
   WASM_LOAD_STORE(ATOMIC_RMW16_U_CMPXCHG_I32)
   WASM_LOAD_STORE(ATOMIC_RMW16_U_CMPXCHG_I64)
   WASM_LOAD_STORE(LOAD16_SPLAT)
-  WASM_LOAD_STORE(LOAD_LANE_I16x8)
+  WASM_LOAD_STORE(LOAD_LANE_16)
   WASM_LOAD_STORE(STORE_LANE_I16x8)
+  WASM_LOAD_STORE(LOAD_F16_F32)
+  WASM_LOAD_STORE(STORE_F16_F32)
   return 1;
   WASM_LOAD_STORE(LOAD_I32)
   WASM_LOAD_STORE(LOAD_F32)
@@ -226,8 +237,8 @@ inline unsigned GetDefaultP2AlignAny(unsigned Opc) {
   WASM_LOAD_STORE(MEMORY_ATOMIC_NOTIFY)
   WASM_LOAD_STORE(MEMORY_ATOMIC_WAIT32)
   WASM_LOAD_STORE(LOAD32_SPLAT)
-  WASM_LOAD_STORE(LOAD_ZERO_I32x4)
-  WASM_LOAD_STORE(LOAD_LANE_I32x4)
+  WASM_LOAD_STORE(LOAD_ZERO_32)
+  WASM_LOAD_STORE(LOAD_LANE_32)
   WASM_LOAD_STORE(STORE_LANE_I32x4)
   return 2;
   WASM_LOAD_STORE(LOAD_I64)
@@ -251,8 +262,8 @@ inline unsigned GetDefaultP2AlignAny(unsigned Opc) {
   WASM_LOAD_STORE(LOAD_EXTEND_U_I32x4)
   WASM_LOAD_STORE(LOAD_EXTEND_S_I64x2)
   WASM_LOAD_STORE(LOAD_EXTEND_U_I64x2)
-  WASM_LOAD_STORE(LOAD_ZERO_I64x2)
-  WASM_LOAD_STORE(LOAD_LANE_I64x2)
+  WASM_LOAD_STORE(LOAD_ZERO_64)
+  WASM_LOAD_STORE(LOAD_LANE_64)
   WASM_LOAD_STORE(STORE_LANE_I64x2)
   return 3;
   WASM_LOAD_STORE(LOAD_V128)
@@ -270,6 +281,50 @@ inline unsigned GetDefaultP2Align(unsigned Opc) {
     llvm_unreachable("Only loads and stores have p2align values");
   }
   return Align;
+}
+
+inline bool isConst(unsigned Opc) {
+  switch (Opc) {
+  case WebAssembly::CONST_I32:
+  case WebAssembly::CONST_I32_S:
+  case WebAssembly::CONST_I64:
+  case WebAssembly::CONST_I64_S:
+  case WebAssembly::CONST_F32:
+  case WebAssembly::CONST_F32_S:
+  case WebAssembly::CONST_F64:
+  case WebAssembly::CONST_F64_S:
+  case WebAssembly::CONST_V128_I8x16:
+  case WebAssembly::CONST_V128_I8x16_S:
+  case WebAssembly::CONST_V128_I16x8:
+  case WebAssembly::CONST_V128_I16x8_S:
+  case WebAssembly::CONST_V128_I32x4:
+  case WebAssembly::CONST_V128_I32x4_S:
+  case WebAssembly::CONST_V128_I64x2:
+  case WebAssembly::CONST_V128_I64x2_S:
+  case WebAssembly::CONST_V128_F32x4:
+  case WebAssembly::CONST_V128_F32x4_S:
+  case WebAssembly::CONST_V128_F64x2:
+  case WebAssembly::CONST_V128_F64x2_S:
+    return true;
+  default:
+    return false;
+  }
+}
+
+inline bool isScalarConst(unsigned Opc) {
+  switch (Opc) {
+  case WebAssembly::CONST_I32:
+  case WebAssembly::CONST_I32_S:
+  case WebAssembly::CONST_I64:
+  case WebAssembly::CONST_I64_S:
+  case WebAssembly::CONST_F32:
+  case WebAssembly::CONST_F32_S:
+  case WebAssembly::CONST_F64:
+  case WebAssembly::CONST_F64_S:
+    return true;
+  default:
+    return false;
+  }
 }
 
 inline bool isArgument(unsigned Opc) {
@@ -290,6 +345,8 @@ inline bool isArgument(unsigned Opc) {
   case WebAssembly::ARGUMENT_v4i32_S:
   case WebAssembly::ARGUMENT_v2i64:
   case WebAssembly::ARGUMENT_v2i64_S:
+  case WebAssembly::ARGUMENT_v8f16:
+  case WebAssembly::ARGUMENT_v8f16_S:
   case WebAssembly::ARGUMENT_v4f32:
   case WebAssembly::ARGUMENT_v4f32_S:
   case WebAssembly::ARGUMENT_v2f64:
@@ -298,6 +355,8 @@ inline bool isArgument(unsigned Opc) {
   case WebAssembly::ARGUMENT_funcref_S:
   case WebAssembly::ARGUMENT_externref:
   case WebAssembly::ARGUMENT_externref_S:
+  case WebAssembly::ARGUMENT_exnref:
+  case WebAssembly::ARGUMENT_exnref_S:
     return true;
   default:
     return false;
@@ -320,6 +379,8 @@ inline bool isCopy(unsigned Opc) {
   case WebAssembly::COPY_FUNCREF_S:
   case WebAssembly::COPY_EXTERNREF:
   case WebAssembly::COPY_EXTERNREF_S:
+  case WebAssembly::COPY_EXNREF:
+  case WebAssembly::COPY_EXNREF_S:
     return true;
   default:
     return false;
@@ -342,6 +403,8 @@ inline bool isTee(unsigned Opc) {
   case WebAssembly::TEE_FUNCREF_S:
   case WebAssembly::TEE_EXTERNREF:
   case WebAssembly::TEE_EXTERNREF_S:
+  case WebAssembly::TEE_EXNREF:
+  case WebAssembly::TEE_EXNREF_S:
     return true;
   default:
     return false;
@@ -372,8 +435,8 @@ inline bool isCallIndirect(unsigned Opc) {
   }
 }
 
-inline bool isBrTable(const MachineInstr &MI) {
-  switch (MI.getOpcode()) {
+inline bool isBrTable(unsigned Opc) {
+  switch (Opc) {
   case WebAssembly::BR_TABLE_I32:
   case WebAssembly::BR_TABLE_I32_S:
   case WebAssembly::BR_TABLE_I64:
@@ -398,6 +461,38 @@ inline bool isMarker(unsigned Opc) {
   case WebAssembly::TRY_S:
   case WebAssembly::END_TRY:
   case WebAssembly::END_TRY_S:
+  case WebAssembly::TRY_TABLE:
+  case WebAssembly::TRY_TABLE_S:
+  case WebAssembly::END_TRY_TABLE:
+  case WebAssembly::END_TRY_TABLE_S:
+    return true;
+  default:
+    return false;
+  }
+}
+
+inline bool isEndMarker(unsigned Opc) {
+  switch (Opc) {
+  case WebAssembly::END_BLOCK:
+  case WebAssembly::END_BLOCK_S:
+  case WebAssembly::END_LOOP:
+  case WebAssembly::END_LOOP_S:
+  case WebAssembly::END_TRY:
+  case WebAssembly::END_TRY_S:
+  case WebAssembly::END_TRY_TABLE:
+  case WebAssembly::END_TRY_TABLE_S:
+    return true;
+  default:
+    return false;
+  }
+}
+
+inline bool isTry(unsigned Opc) {
+  switch (Opc) {
+  case WebAssembly::TRY:
+  case WebAssembly::TRY_S:
+  case WebAssembly::TRY_TABLE:
+  case WebAssembly::TRY_TABLE_S:
     return true;
   default:
     return false;
@@ -406,17 +501,122 @@ inline bool isMarker(unsigned Opc) {
 
 inline bool isCatch(unsigned Opc) {
   switch (Opc) {
+  case WebAssembly::CATCH_LEGACY:
+  case WebAssembly::CATCH_LEGACY_S:
+  case WebAssembly::CATCH_ALL_LEGACY:
+  case WebAssembly::CATCH_ALL_LEGACY_S:
   case WebAssembly::CATCH:
   case WebAssembly::CATCH_S:
+  case WebAssembly::CATCH_REF:
+  case WebAssembly::CATCH_REF_S:
   case WebAssembly::CATCH_ALL:
   case WebAssembly::CATCH_ALL_S:
+  case WebAssembly::CATCH_ALL_REF:
+  case WebAssembly::CATCH_ALL_REF_S:
     return true;
   default:
     return false;
   }
 }
 
+inline bool isCatchAll(unsigned Opc) {
+  switch (Opc) {
+  case WebAssembly::CATCH_ALL_LEGACY:
+  case WebAssembly::CATCH_ALL_LEGACY_S:
+  case WebAssembly::CATCH_ALL:
+  case WebAssembly::CATCH_ALL_S:
+  case WebAssembly::CATCH_ALL_REF:
+  case WebAssembly::CATCH_ALL_REF_S:
+    return true;
+  default:
+    return false;
+  }
+}
+
+inline bool isLocalGet(unsigned Opc) {
+  switch (Opc) {
+  case WebAssembly::LOCAL_GET_I32:
+  case WebAssembly::LOCAL_GET_I32_S:
+  case WebAssembly::LOCAL_GET_I64:
+  case WebAssembly::LOCAL_GET_I64_S:
+  case WebAssembly::LOCAL_GET_F32:
+  case WebAssembly::LOCAL_GET_F32_S:
+  case WebAssembly::LOCAL_GET_F64:
+  case WebAssembly::LOCAL_GET_F64_S:
+  case WebAssembly::LOCAL_GET_V128:
+  case WebAssembly::LOCAL_GET_V128_S:
+  case WebAssembly::LOCAL_GET_FUNCREF:
+  case WebAssembly::LOCAL_GET_FUNCREF_S:
+  case WebAssembly::LOCAL_GET_EXTERNREF:
+  case WebAssembly::LOCAL_GET_EXTERNREF_S:
+  case WebAssembly::LOCAL_GET_EXNREF:
+  case WebAssembly::LOCAL_GET_EXNREF_S:
+    return true;
+  default:
+    return false;
+  }
+}
+
+inline bool isLocalSet(unsigned Opc) {
+  switch (Opc) {
+  case WebAssembly::LOCAL_SET_I32:
+  case WebAssembly::LOCAL_SET_I32_S:
+  case WebAssembly::LOCAL_SET_I64:
+  case WebAssembly::LOCAL_SET_I64_S:
+  case WebAssembly::LOCAL_SET_F32:
+  case WebAssembly::LOCAL_SET_F32_S:
+  case WebAssembly::LOCAL_SET_F64:
+  case WebAssembly::LOCAL_SET_F64_S:
+  case WebAssembly::LOCAL_SET_V128:
+  case WebAssembly::LOCAL_SET_V128_S:
+  case WebAssembly::LOCAL_SET_FUNCREF:
+  case WebAssembly::LOCAL_SET_FUNCREF_S:
+  case WebAssembly::LOCAL_SET_EXTERNREF:
+  case WebAssembly::LOCAL_SET_EXTERNREF_S:
+  case WebAssembly::LOCAL_SET_EXNREF:
+  case WebAssembly::LOCAL_SET_EXNREF_S:
+    return true;
+  default:
+    return false;
+  }
+}
+
+inline bool isLocalTee(unsigned Opc) {
+  switch (Opc) {
+  case WebAssembly::LOCAL_TEE_I32:
+  case WebAssembly::LOCAL_TEE_I32_S:
+  case WebAssembly::LOCAL_TEE_I64:
+  case WebAssembly::LOCAL_TEE_I64_S:
+  case WebAssembly::LOCAL_TEE_F32:
+  case WebAssembly::LOCAL_TEE_F32_S:
+  case WebAssembly::LOCAL_TEE_F64:
+  case WebAssembly::LOCAL_TEE_F64_S:
+  case WebAssembly::LOCAL_TEE_V128:
+  case WebAssembly::LOCAL_TEE_V128_S:
+  case WebAssembly::LOCAL_TEE_FUNCREF:
+  case WebAssembly::LOCAL_TEE_FUNCREF_S:
+  case WebAssembly::LOCAL_TEE_EXTERNREF:
+  case WebAssembly::LOCAL_TEE_EXTERNREF_S:
+  case WebAssembly::LOCAL_TEE_EXNREF:
+  case WebAssembly::LOCAL_TEE_EXNREF_S:
+    return true;
+  default:
+    return false;
+  }
+}
+
+static const unsigned UnusedReg = -1u;
+
+// For a given stackified WAReg, return the id number to print with push/pop.
+unsigned inline getWARegStackId(MCRegister Reg) {
+  assert(Reg.id() & INT32_MIN);
+  return Reg.id() & INT32_MAX;
+}
+
 } // end namespace WebAssembly
 } // end namespace llvm
+
+#define GET_SUBTARGETINFO_ENUM
+#include "WebAssemblyGenSubtargetInfo.inc"
 
 #endif

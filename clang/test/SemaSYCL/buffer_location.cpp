@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -fsycl-is-device -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
-// RUN: %clang_cc1 -fsycl-is-device -Wno-sycl-2017-compat -verify -pedantic -DTRIGGER_ERROR %s
+// RUN: %clang_cc1 -fsycl-is-device -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -verify -pedantic -DTRIGGER_ERROR %s
 
 #include "Inputs/sycl.hpp"
 

@@ -1,6 +1,6 @@
-; RUN: llc -march=sparc -O0 <%s
-; RUN: llc -march=sparc   <%s | FileCheck %s --check-prefix=V8
-; RUN: llc -march=sparcv9 <%s | FileCheck %s --check-prefix=V9
+; RUN: llc -mtriple=sparc -O0 <%s
+; RUN: llc -mtriple=sparc <%s | FileCheck %s --check-prefix=V8
+; RUN: llc -mtriple=sparcv9 <%s | FileCheck %s --check-prefix=V9
 
 ; V8-LABEL: test
 ; V8:       save %sp
@@ -37,11 +37,9 @@ declare void @bar(...)
 ; V8-NEXT:  mov %g1, %o7
 
 ; V9-LABEL: test_tail_call_with_return
-; V9:       save %sp
-; V9:       call foo
-; V9-NEXT:  nop
-; V9:       ret
-; V9-NEXT:  restore %g0, %o0, %o0
+; V9:       mov %o7, %g1
+; V9-NEXT:  call foo
+; V9-NEXT:  mov %g1, %o7
 
 define i32 @test_tail_call_with_return() nounwind {
 entry:

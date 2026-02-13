@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <functional>
 #include <iterator>
+#include <type_traits>
 
 #include "test_macros.h"
 
@@ -140,12 +141,19 @@ TEST_CONSTEXPR_CXX20 bool all_the_algorithms()
     (void)std::is_sorted(first, last, std::less<void*>());
     (void)std::is_sorted_until(first, last);
     (void)std::is_sorted_until(first, last, std::less<void*>());
-    if (!TEST_IS_CONSTANT_EVALUATED) (void)std::inplace_merge(first, mid, last);
-    if (!TEST_IS_CONSTANT_EVALUATED) (void)std::inplace_merge(first, mid, last, std::less<void*>());
+    if (TEST_STD_AT_LEAST_26_OR_RUNTIME_EVALUATED) {
+      (void)std::inplace_merge(first, mid, last);
+      (void)std::inplace_merge(first, mid, last, std::less<void*>());
+    }
     (void)std::iter_swap(first, mid);
     (void)std::lexicographical_compare(first, last, first2, last2);
     (void)std::lexicographical_compare(first, last, first2, last2, std::less<void*>());
-    // TODO: lexicographical_compare_three_way
+#if TEST_STD_VER > 17
+    // `lexicographical_compare_three_way` static_asserts that the difference type is an integer, as
+    // required by https://eel.is/c++draft/iterator.iterators#2.2
+    //(void)std::lexicographical_compare_three_way(first, last, first2, last2);
+    //(void)std::lexicographical_compare_three_way(first, last, first2, last2, std::compare_three_way());
+#endif
     (void)std::lower_bound(first, last, value);
     (void)std::lower_bound(first, last, value, std::less<void*>());
     (void)std::make_heap(first, last);
@@ -234,9 +242,11 @@ TEST_CONSTEXPR_CXX20 bool all_the_algorithms()
     (void)std::sort(first, last, std::less<void*>());
     (void)std::sort_heap(first, last);
     (void)std::sort_heap(first, last, std::less<void*>());
-    if (!TEST_IS_CONSTANT_EVALUATED) (void)std::stable_partition(first, last, UnaryTrue());
-    if (!TEST_IS_CONSTANT_EVALUATED) (void)std::stable_sort(first, last);
-    if (!TEST_IS_CONSTANT_EVALUATED) (void)std::stable_sort(first, last, std::less<void*>());
+    if (TEST_STD_AT_LEAST_26_OR_RUNTIME_EVALUATED) {
+      (void)std::stable_partition(first, last, UnaryTrue());
+      (void)std::stable_sort(first, last);
+      (void)std::stable_sort(first, last, std::less<void*>());
+    }
     (void)std::swap_ranges(first, last, first2);
     (void)std::transform(first, last, first2, UnaryTransform());
     (void)std::transform(first, mid, mid, first2, BinaryTransform());

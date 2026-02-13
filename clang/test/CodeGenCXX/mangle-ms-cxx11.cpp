@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -no-opaque-pointers -std=c++11 -fms-extensions -emit-llvm %s -o - -triple=i386-pc-win32 -fms-compatibility-version=19.00 | FileCheck %s --check-prefix=CHECK --check-prefix=MSVC2015
-// RUN: %clang_cc1 -no-opaque-pointers -std=c++11 -fms-extensions -emit-llvm %s -o - -triple=i386-pc-win32 -fms-compatibility-version=18.00 | FileCheck %s --check-prefix=CHECK --check-prefix=MSVC2013
-// RUN: %clang_cc1 -no-opaque-pointers -std=c++11 -fms-extensions -emit-llvm %s -o - -triple=i386-pc-win32 -gcodeview -debug-info-kind=limited | FileCheck %s --check-prefix=DBG
+// RUN: %clang_cc1 -std=c++11 -fms-extensions -emit-llvm %s -o - -triple=i386-pc-win32 -fms-compatibility-version=19.00 | FileCheck %s --check-prefix=CHECK --check-prefix=MSVC2015
+// RUN: %clang_cc1 -std=c++11 -fms-extensions -emit-llvm %s -o - -triple=i386-pc-win32 -fms-compatibility-version=18.00 | FileCheck %s --check-prefix=CHECK --check-prefix=MSVC2013
+// RUN: %clang_cc1 -std=c++11 -fms-extensions -emit-llvm %s -o - -triple=i386-pc-win32 -gcodeview -debug-info-kind=limited | FileCheck %s --check-prefix=DBG
 
 namespace FTypeWithQuals {
 template <typename T>
@@ -323,13 +323,13 @@ void unaligned_foo8_S::unaligned_foo8() volatile __unaligned {}
 
 namespace PR31197 {
 struct A {
-  // CHECK-DAG: define linkonce_odr dso_local x86_thiscallcc noundef i32* @"??R<lambda_1>@x@A@PR31197@@QBE@XZ"(
+  // CHECK-DAG: define linkonce_odr dso_local x86_thiscallcc noundef ptr @"??R<lambda_1>@x@A@PR31197@@QBE@XZ"(
   int *x = []() {
     static int white;
     // CHECK-DAG: @"?white@?1???R<lambda_1>@x@A@PR31197@@QBE@XZ@4HA"
     return &white;
   }();
-  // CHECK-DAG: define linkonce_odr dso_local x86_thiscallcc noundef i32* @"??R<lambda_1>@y@A@PR31197@@QBE@XZ"(
+  // CHECK-DAG: define linkonce_odr dso_local x86_thiscallcc noundef ptr @"??R<lambda_1>@y@A@PR31197@@QBE@XZ"(
   int *y = []() {
     static int black;
     // CHECK-DAG: @"?black@?1???R<lambda_1>@y@A@PR31197@@QBE@XZ@4HA"
@@ -358,3 +358,42 @@ struct s { enum {}; enum {}; };
 // DBG-DAG: DW_TAG_enumeration_type{{.*}}identifier: ".?AW4<unnamed-type-$S3>@s@pr37723@@"
 s x;
 }
+
+namespace InconsistentTagKinds {
+  namespace t1 {
+    class A;
+    struct A;
+    void f(A*) {}
+    // CHECK-DAG: @"?f@t1@InconsistentTagKinds@@YAXPAVA@12@@Z"
+  } // namespace t1
+  namespace t2 {
+    struct A;
+    class A;
+    void f(A*) {}
+    // CHECK-DAG: @"?f@t2@InconsistentTagKinds@@YAXPAUA@12@@Z"
+  } // namespace t2
+  namespace t3 {
+    class A {};
+    struct A;
+    void f(A*) {}
+    // CHECK-DAG: @"?f@t3@InconsistentTagKinds@@YAXPAVA@12@@Z"
+  } // namespace t3
+  namespace t4 {
+    struct A {};
+    class A;
+    void f(A*) {}
+    // CHECK-DAG: @"?f@t4@InconsistentTagKinds@@YAXPAUA@12@@Z"
+  } // namespace t4
+  namespace t5 {
+    class A;
+    struct A {};
+    void f(A*) {}
+    // CHECK-DAG: @"?f@t5@InconsistentTagKinds@@YAXPAUA@12@@Z"
+  } // namespace t5
+  namespace t6 {
+    struct A;
+    class A {};
+    void f(A*) {}
+    // CHECK-DAG: @"?f@t6@InconsistentTagKinds@@YAXPAVA@12@@Z"
+  } // namespace t6
+} // namespace InconsistentTagKinds

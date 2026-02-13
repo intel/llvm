@@ -134,6 +134,24 @@ pdl.pattern @apply_rewrite_with_no_results : benefit(1) {
 
 // -----
 
+pdl.pattern @apply_constraint_with_no_results : benefit(1) {
+  %root = operation
+  apply_native_constraint "NativeConstraint"(%root : !pdl.operation)
+  rewrite %root with "rewriter"
+}
+
+// -----
+
+pdl.pattern @apply_constraint_with_results : benefit(1) {
+  %root = operation
+  %attr = apply_native_constraint "NativeConstraint"(%root : !pdl.operation) : !pdl.attribute
+  rewrite %root {
+    apply_native_rewrite "NativeRewrite"(%attr : !pdl.attribute)
+  }
+}
+
+// -----
+
 pdl.pattern @attribute_with_dict : benefit(1) {
   %root = operation
   rewrite %root {
@@ -151,7 +169,7 @@ pdl.pattern @attribute_with_loc : benefit(1) {
   // CHECK-GENERIC: "pdl.attribute"
   // CHECK-GENERIC-NOT: value = loc
   %attr = attribute loc("bar")
-  
+
   %root = operation {"attribute" = %attr}
   rewrite %root with "rewriter"
 }

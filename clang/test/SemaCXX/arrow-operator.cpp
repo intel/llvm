@@ -4,11 +4,13 @@ struct T {
 };
 
 struct A {
-  T* operator->(); // expected-note{{candidate function}}
+  T* operator->();
+                   // expected-note@-1 {{member found by ambiguous name lookup}}
 };
 
 struct B {
-  T* operator->(); // expected-note{{candidate function}}
+  T* operator->();
+                   // expected-note@-1 {{member found by ambiguous name lookup}}
 };
 
 struct C : A, B {
@@ -19,12 +21,12 @@ struct D : A { };
 struct E; // expected-note {{forward declaration of 'E'}}
 
 void f(C &c, D& d, E& e) {
-  c->f(); // expected-error{{use of overloaded operator '->' is ambiguous}}
+  c->f();
+          // expected-error@-1 {{member 'operator->' found in multiple base classes of different types}}
   d->f();
   e->f(); // expected-error{{incomplete definition of type}}
 }
 
-// rdar://8875304
 namespace rdar8875304 {
 class Point {};
 class Line_Segment{ public: Line_Segment(const Point&){} };
@@ -45,23 +47,22 @@ class wrapped_ptr {
  public:
   wrapped_ptr(T* ptr) : ptr_(ptr) {}
   T* operator->() { return ptr_; }
-  void Check(); // expected-note {{'Check' declared here}}
+  void Check();
  private:
   T *ptr_;
 };
 
 class Worker {
  public:
-  void DoSomething(); // expected-note {{'DoSomething' declared here}}
+  void DoSomething();
   void Chuck();
 };
 
 void test() {
   wrapped_ptr<Worker> worker(new Worker);
   worker.DoSomething(); // expected-error {{no member named 'DoSomething' in 'arrow_suggest::wrapped_ptr<arrow_suggest::Worker>'; did you mean to use '->' instead of '.'?}}
-  worker.DoSamething(); // expected-error {{no member named 'DoSamething' in 'arrow_suggest::wrapped_ptr<arrow_suggest::Worker>'; did you mean to use '->' instead of '.'?}} \
-                        // expected-error {{no member named 'DoSamething' in 'arrow_suggest::Worker'; did you mean 'DoSomething'?}}
-  worker.Chuck(); // expected-error {{no member named 'Chuck' in 'arrow_suggest::wrapped_ptr<arrow_suggest::Worker>'; did you mean 'Check'?}}
+  worker.DoSamething(); // expected-error {{no member named 'DoSamething' in 'arrow_suggest::wrapped_ptr<arrow_suggest::Worker>'}}
+  worker.Chuck(); // expected-error {{no member named 'Chuck' in 'arrow_suggest::wrapped_ptr<arrow_suggest::Worker>'}}
 }
 
 } // namespace arrow_suggest

@@ -10,7 +10,7 @@
 #include <detail/platform_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <gtest/gtest.h>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 
 #include <memory>
@@ -20,86 +20,75 @@ using namespace sycl;
 
 struct TestCtx {
   bool SupportOOO = true;
-  bool PiQueueFinishCalled = false;
+  bool UrQueueFinishCalled = false;
   int NEventsWaitedFor = 0;
   int EventReferenceCount = 0;
 };
 static TestCtx TestContext;
 
-pi_result redefinedQueueCreate(pi_context context, pi_device device,
-                               pi_queue_properties properties,
-                               pi_queue *queue) {
+ur_result_t redefinedQueueCreate(void *pParams) {
+  auto params = *static_cast<ur_queue_create_params_t *>(pParams);
   if (!TestContext.SupportOOO &&
-      properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
-    return PI_ERROR_INVALID_QUEUE_PROPERTIES;
+      (*params.ppProperties)->flags &
+          UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
+    return UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES;
   }
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-pi_result redefinedQueueRelease(pi_queue Queue) { return PI_SUCCESS; }
-
-pi_result redefinedUSMEnqueueMemset(pi_queue Queue, void *Ptr, pi_int32 Value,
-                                    size_t Count,
-                                    pi_uint32 Num_events_in_waitlist,
-                                    const pi_event *Events_waitlist,
-                                    pi_event *Event) {
-  // Provide a dummy non-nullptr value
+ur_result_t redefinedEnqueueUSMFill(void *) {
   TestContext.EventReferenceCount = 1;
-  *Event = reinterpret_cast<pi_event>(1);
-  return PI_SUCCESS;
-}
-pi_result redefinedEnqueueMemBufferFill(pi_queue Queue, pi_mem Buffer,
-                                        const void *Pattern, size_t PatternSize,
-                                        size_t Offset, size_t Size,
-                                        pi_uint32 NumEventsInWaitList,
-                                        const pi_event *EventWaitList,
-                                        pi_event *Event) {
-  // Provide a dummy non-nullptr value
-  TestContext.EventReferenceCount = 1;
-  *Event = reinterpret_cast<pi_event>(1);
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-pi_result redefinedQueueFinish(pi_queue Queue) {
-  TestContext.PiQueueFinishCalled = true;
-  return PI_SUCCESS;
+ur_result_t redefinedEnqueueMemBufferFill(void *) {
+  TestContext.EventReferenceCount = 1;
+  return UR_RESULT_SUCCESS;
 }
-pi_result redefinedEventsWait(pi_uint32 num_events,
-                              const pi_event *event_list) {
+
+ur_result_t redefinedQueueFinish(void *) {
+  TestContext.UrQueueFinishCalled = true;
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t redefinedEventWait(void *) {
   ++TestContext.NEventsWaitedFor;
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-pi_result redefinedEventGetInfo(pi_event event, pi_event_info param_name,
-                                size_t param_value_size, void *param_value,
-                                size_t *param_value_size_ret) {
-  return PI_SUCCESS;
-}
-
-pi_result redefinedEventRetain(pi_event event) {
+ur_result_t redefinedEventRetain(void *) {
   ++TestContext.EventReferenceCount;
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-pi_result redefinedEventRelease(pi_event event) {
+ur_result_t redefinedEventRelease(void *) {
   --TestContext.EventReferenceCount;
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
+}
+
+event submitTask(queue &Q, buffer<int, 1> &Buf) {
+  return Q.submit([&](handler &Cgh) {
+    auto Acc = Buf.template get_access<access::mode::read_write>(Cgh);
+    Cgh.fill(Acc, 42);
+  });
 }
 
 TEST(QueueWait, QueueWaitTest) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  Mock.redefine<detail::PiApiKind::piQueueCreate>(redefinedQueueCreate);
-  Mock.redefine<detail::PiApiKind::piQueueRelease>(redefinedQueueRelease);
-  Mock.redefine<detail::PiApiKind::piQueueFinish>(redefinedQueueFinish);
-  Mock.redefine<detail::PiApiKind::piextUSMEnqueueMemset>(
-      redefinedUSMEnqueueMemset);
-  Mock.redefine<detail::PiApiKind::piEventsWait>(redefinedEventsWait);
-  Mock.redefine<detail::PiApiKind::piEnqueueMemBufferFill>(
-      redefinedEnqueueMemBufferFill);
-  Mock.redefine<detail::PiApiKind::piEventGetInfo>(redefinedEventGetInfo);
-  Mock.redefine<detail::PiApiKind::piEventRetain>(redefinedEventRetain);
-  Mock.redefine<detail::PiApiKind::piEventRelease>(redefinedEventRelease);
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  mock::getCallbacks().set_before_callback("urQueueCreate",
+                                           &redefinedQueueCreate);
+  mock::getCallbacks().set_before_callback("urQueueFinish",
+                                           &redefinedQueueFinish);
+  mock::getCallbacks().set_before_callback("urEnqueueUSMFill",
+                                           &redefinedEnqueueUSMFill);
+  mock::getCallbacks().set_before_callback("urEventWait", &redefinedEventWait);
+  mock::getCallbacks().set_before_callback("urEnqueueMemBufferFill",
+                                           &redefinedEnqueueMemBufferFill);
+  mock::getCallbacks().set_before_callback("urEventRetain",
+                                           &redefinedEventRetain);
+  mock::getCallbacks().set_before_callback("urEventRelease",
+                                           &redefinedEventRelease);
   context Ctx{Plt.get_devices()[0]};
   queue Q{Ctx, default_selector()};
 
@@ -108,74 +97,46 @@ TEST(QueueWait, QueueWaitTest) {
   // USM API event
   TestContext = {};
   Q.memset(HostAlloc, 42, 1);
-  // No need to keep the event since we'll use piQueueFinish.
+  // No need to keep the event since we'll use urQueueFinish.
   ASSERT_EQ(TestContext.EventReferenceCount, 0);
   Q.wait();
   ASSERT_EQ(TestContext.NEventsWaitedFor, 0);
-  ASSERT_TRUE(TestContext.PiQueueFinishCalled);
+  ASSERT_TRUE(TestContext.UrQueueFinishCalled);
 
   // Events with temporary ownership
   {
     TestContext = {};
-    buffer<int, 1> buf{range<1>(1)};
-    Q.submit([&](handler &Cgh) {
-      auto acc = buf.template get_access<access::mode::read_write>(Cgh);
-      Cgh.fill(acc, 42);
-    });
+    buffer<int, 1> Buf{range<1>(1)};
+    submitTask(Q, Buf);
     Q.wait();
     // Still owned by the execution graph
     ASSERT_EQ(TestContext.EventReferenceCount, 1);
     ASSERT_EQ(TestContext.NEventsWaitedFor, 0);
-    ASSERT_TRUE(TestContext.PiQueueFinishCalled);
+    ASSERT_TRUE(TestContext.UrQueueFinishCalled);
   }
 
   // Blocked commands
   {
     TestContext = {};
-    buffer<int, 1> buf{range<1>(1)};
-    event HostTaskEvent = Q.submit([&](handler &Cgh) {
-      auto acc = buf.template get_access<access::mode::read>(Cgh);
-      Cgh.host_task([=]() { (void)acc; });
-    });
-    std::shared_ptr<detail::event_impl> HostTaskEventImpl =
-        detail::getSyclObjImpl(HostTaskEvent);
-    auto *Cmd = static_cast<detail::Command *>(HostTaskEventImpl->getCommand());
-    detail::Command *EmptyTask = *Cmd->MUsers.begin();
-    ASSERT_EQ(EmptyTask->getType(), detail::Command::EMPTY_TASK);
-    HostTaskEvent.wait();
-    // Use the empty task produced by the host task to block the next commands
-    while (EmptyTask->MEnqueueStatus !=
-           detail::EnqueueResultT::SyclEnqueueSuccess)
-      continue;
-    EmptyTask->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
-    Q.submit([&](handler &Cgh) {
-      auto acc = buf.template get_access<access::mode::discard_write>(Cgh);
-      Cgh.fill(acc, 42);
-    });
-    Q.submit([&](handler &Cgh) {
-      auto acc = buf.template get_access<access::mode::discard_write>(Cgh);
-      Cgh.fill(acc, 42);
-    });
-    // Unblock the empty task to allow the submitted events to complete once
-    // enqueued.
-    EmptyTask->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueSuccess;
+    buffer<int, 1> Buf{range<1>(1)};
+
+    event DepEvent = submitTask(Q, Buf);
+
+    // Manually block the next commands.
+    detail::event_impl &DepEventImpl = *detail::getSyclObjImpl(DepEvent);
+    auto *Cmd = static_cast<detail::Command *>(DepEventImpl.getCommand());
+    Cmd->MIsBlockable = true;
+    Cmd->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
+
+    submitTask(Q, Buf);
+    submitTask(Q, Buf);
+
+    Cmd->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueSuccess;
     Q.wait();
     // Only a single event (the last one) should be waited for here.
     ASSERT_EQ(TestContext.NEventsWaitedFor, 1);
-    ASSERT_TRUE(TestContext.PiQueueFinishCalled);
+    ASSERT_TRUE(TestContext.UrQueueFinishCalled);
   }
-
-  // Test behaviour for emulating an OOO queue with multiple in-order ones.
-  TestContext = {};
-  TestContext.SupportOOO = false;
-  Q = queue{Ctx, default_selector()};
-  Q.memset(HostAlloc, 42, 1);
-  // The event is kept alive in this case to call wait.
-  ASSERT_EQ(TestContext.EventReferenceCount, 1);
-  Q.wait();
-  ASSERT_EQ(TestContext.EventReferenceCount, 0);
-  ASSERT_EQ(TestContext.NEventsWaitedFor, 1);
-  ASSERT_FALSE(TestContext.PiQueueFinishCalled);
 }
 
 } // namespace

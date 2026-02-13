@@ -17,6 +17,7 @@
 #include <cstdio>
 #ifdef HAVE_LIBEDIT
 #include <histedit.h>
+constexpr int DefaultHistorySize = 800;
 #endif
 
 using namespace llvm;
@@ -25,7 +26,7 @@ std::string LineEditor::getDefaultHistoryPath(StringRef ProgName) {
   SmallString<32> Path;
   if (sys::path::home_directory(Path)) {
     sys::path::append(Path, "." + ProgName + "-history");
-    return std::string(Path.str());
+    return std::string(Path);
   }
   return std::string();
 }
@@ -220,8 +221,8 @@ LineEditor::LineEditor(StringRef ProgName, StringRef HistoryPath, FILE *In,
            NULL); // Fix the delete key.
   ::el_set(Data->EL, EL_CLIENTDATA, Data.get());
 
+  setHistorySize(DefaultHistorySize);
   HistEvent HE;
-  ::history(Data->Hist, &HE, H_SETSIZE, 800);
   ::history(Data->Hist, &HE, H_SETUNIQUE, 1);
   loadHistory();
 }
@@ -248,14 +249,19 @@ void LineEditor::loadHistory() {
   }
 }
 
-Optional<std::string> LineEditor::readLine() const {
+void LineEditor::setHistorySize(int size) {
+  HistEvent HE;
+  ::history(Data->Hist, &HE, H_SETSIZE, size);
+}
+
+std::optional<std::string> LineEditor::readLine() const {
   // Call el_gets to prompt the user and read the user's input.
   int LineLen = 0;
   const char *Line = ::el_gets(Data->EL, &LineLen);
 
   // Either of these may mean end-of-file.
   if (!Line || LineLen == 0)
-    return Optional<std::string>();
+    return std::nullopt;
 
   // Strip any newlines off the end of the string.
   while (LineLen > 0 &&
@@ -291,8 +297,9 @@ LineEditor::~LineEditor() {
 
 void LineEditor::saveHistory() {}
 void LineEditor::loadHistory() {}
+void LineEditor::setHistorySize(int size) {}
 
-Optional<std::string> LineEditor::readLine() const {
+std::optional<std::string> LineEditor::readLine() const {
   ::fprintf(Data->Out, "%s", Prompt.c_str());
 
   std::string Line;
@@ -301,7 +308,7 @@ Optional<std::string> LineEditor::readLine() const {
     char *Res = ::fgets(Buf, sizeof(Buf), Data->In);
     if (!Res) {
       if (Line.empty())
-        return Optional<std::string>();
+        return std::nullopt;
       else
         return Line;
     }

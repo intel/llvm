@@ -31,29 +31,28 @@ public:
     llvm::InitializeAllTargetInfos();
     llvm::InitializeAllTargetMCs();
 
-    std::string TripleName = "x86_64-pc-linux";
+    StringRef TripleName = "x86_64-pc-linux";
+    Triple TT(TripleName);
     std::string ErrorStr;
 
-    const Target *TheTarget =
-        TargetRegistry::lookupTarget(TripleName, ErrorStr);
+    const Target *TheTarget = TargetRegistry::lookupTarget(TT, ErrorStr);
 
     // If we didn't build x86, do not run the test.
     if (!TheTarget)
       return;
 
-    MRI.reset(TheTarget->createMCRegInfo(TripleName));
+    MRI.reset(TheTarget->createMCRegInfo(TT));
     MCTargetOptions MCOptions;
-    MAI.reset(TheTarget->createMCAsmInfo(*MRI, TripleName, MCOptions));
+    MAI.reset(TheTarget->createMCAsmInfo(*MRI, TT, MCOptions));
     MII.reset(TheTarget->createMCInstrInfo());
-    Printer.reset(TheTarget->createMCInstPrinter(
-        Triple(TripleName), MAI->getAssemblerDialect(), *MAI, *MII, *MRI));
+    Printer.reset(TheTarget->createMCInstPrinter(TT, MAI->getAssemblerDialect(),
+                                                 *MAI, *MII, *MRI));
   }
 
   template <typename T> std::string formatHex(T i) {
     std::string Buffer;
     raw_string_ostream OS(Buffer);
     OS << Printer->formatHex(i);
-    OS.flush();
     return Buffer;
   }
 };
@@ -61,7 +60,7 @@ public:
 
 TEST_F(MCInstPrinterTest, formatHex) {
   if (!Printer)
-    return;
+    GTEST_SKIP();
 
   EXPECT_EQ("0x1", formatHex<int64_t>(1));
   EXPECT_EQ("0x7fffffffffffffff",

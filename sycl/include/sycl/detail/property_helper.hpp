@@ -8,10 +8,8 @@
 
 #pragma once
 
-#include <sycl/detail/common.hpp>
-
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace detail {
 
@@ -35,8 +33,19 @@ enum DataLessPropKind {
   UseDefaultStream = 8,
   DiscardEvents = 9,
   DeviceReadOnly = 10,
+  QueuePriorityNormal = 11,
+  QueuePriorityLow = 12,
+  QueuePriorityHigh = 13,
+  GraphNoCycleCheck = 14,
+  QueueSubmissionBatched = 15,
+  QueueSubmissionImmediate = 16,
+  GraphAssumeDataOutlivesBuffer = 17,
+  GraphAssumeBufferOutlivesGraph = 18,
+  GraphDependOnAllLeaves = 19,
+  GraphUpdatable = 20,
+  GraphEnableProfiling = 21,
   // Indicates the last known dataless property.
-  LastKnownDataLessPropKind = 10,
+  LastKnownDataLessPropKind = 21,
   // Exceeding 32 may cause ABI breaking change on some of OSes.
   DataLessPropKindSize = 32
 };
@@ -49,7 +58,9 @@ enum PropWithDataKind {
   ImageContextBound = 3,
   BufferMemChannel = 4,
   AccPropBufferLocation = 5,
-  PropWithDataKindSize = 6,
+  QueueComputeIndex = 6,
+  GraphNodeDependencies = 7,
+  PropWithDataKindSize = 8
 };
 
 // Base class for dataless properties, needed to check that the type of an
@@ -72,6 +83,7 @@ public:
   PropertyWithDataBase(int ID) : MID(ID) {}
   bool isSame(int ID) const { return ID == MID; }
   virtual ~PropertyWithDataBase() = default;
+  int getKind() const { return MID; }
 
 private:
   int MID = -1;
@@ -83,10 +95,10 @@ private:
 template <int ID> class PropertyWithData : public PropertyWithDataBase {
 public:
   PropertyWithData() : PropertyWithDataBase(ID) {}
-  static int getKind() { return ID; }
+  static constexpr int getKind() { return ID; }
 };
 
 } // namespace detail
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

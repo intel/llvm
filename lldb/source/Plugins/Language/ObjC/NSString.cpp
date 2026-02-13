@@ -8,8 +8,6 @@
 
 #include "NSString.h"
 
-#include "lldb/Core/ValueObject.h"
-#include "lldb/Core/ValueObjectConstResult.h"
 #include "lldb/DataFormatters/FormattersHelpers.h"
 #include "lldb/DataFormatters/StringPrinter.h"
 #include "lldb/Target/Language.h"
@@ -19,6 +17,8 @@
 #include "lldb/Utility/Endian.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/Stream.h"
+#include "lldb/ValueObject/ValueObject.h"
+#include "lldb/ValueObject/ValueObjectConstResult.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -33,7 +33,7 @@ NSString_Additionals::GetAdditionalSummaries() {
 bool lldb_private::formatters::NSStringSummaryProvider(
     ValueObject &valobj, Stream &stream,
     const TypeSummaryOptions &summary_options) {
-  static ConstString g_TypeHint("NSString");
+  static constexpr llvm::StringLiteral g_TypeHint("NSString");
 
   ProcessSP process_sp = valobj.GetProcessSP();
   if (!process_sp)
@@ -63,12 +63,17 @@ bool lldb_private::formatters::NSStringSummaryProvider(
   if (class_name.empty())
     return false;
 
-  bool is_tagged_ptr = class_name == "NSTaggedPointerString" &&
-                       descriptor->GetTaggedPointerInfo();
-  // for a tagged pointer, the descriptor has everything we need
-  if (is_tagged_ptr)
-    return NSTaggedString_SummaryProvider(valobj, descriptor, stream,
-                                          summary_options);
+  // For tagged pointers, the descriptor has everything needed.
+  bool is_tagged = descriptor->GetTaggedPointerInfo();
+  if (is_tagged) {
+    if (class_name == "NSTaggedPointerString")
+      return NSTaggedString_SummaryProvider(valobj, descriptor, stream,
+                                            summary_options);
+
+    if (class_name == "NSIndirectTaggedPointerString")
+      return NSIndirectTaggedString_SummaryProvider(valobj, descriptor, stream,
+                                                    summary_options);
+  }
 
   auto &additionals_map(NSString_Additionals::GetAdditionalSummaries());
   auto iter = additionals_map.find(class_name_cs), end = additionals_map.end();
@@ -126,19 +131,13 @@ bool lldb_private::formatters::NSStringSummaryProvider(
     return true;
   }
 
-  std::string prefix, suffix;
-  if (Language *language =
-          Language::FindPlugin(summary_options.GetLanguage())) {
-    if (!language->GetFormatterPrefixSuffix(valobj, g_TypeHint, prefix,
-                                            suffix)) {
-      prefix.clear();
-      suffix.clear();
-    }
-  }
+  llvm::StringRef prefix, suffix;
+  if (Language *language = Language::FindPlugin(summary_options.GetLanguage()))
+    std::tie(prefix, suffix) = language->GetFormatterPrefixSuffix(g_TypeHint);
 
   StringPrinter::ReadStringAndDumpToStreamOptions options(valobj);
-  options.SetPrefixToken(prefix);
-  options.SetSuffixToken(suffix);
+  options.SetPrefixToken(prefix.str());
+  options.SetSuffixToken(suffix.str());
 
   if (is_mutable) {
     uint64_t location = 2 * ptr_size + valobj_addr;
@@ -318,7 +317,7 @@ bool lldb_private::formatters::NSMutableAttributedStringSummaryProvider(
 bool lldb_private::formatters::NSTaggedString_SummaryProvider(
     ValueObject &valobj, ObjCLanguageRuntime::ClassDescriptorSP descriptor,
     Stream &stream, const TypeSummaryOptions &summary_options) {
-  static ConstString g_TypeHint("NSString");
+  static constexpr llvm::StringLiteral g_TypeHint("NSString");
 
   if (!descriptor)
     return false;
@@ -336,23 +335,17 @@ bool lldb_private::formatters::NSTaggedString_SummaryProvider(
   if (len_bits > g_fiveBitMaxLen)
     return false;
 
-  std::string prefix, suffix;
-  if (Language *language =
-          Language::FindPlugin(summary_options.GetLanguage())) {
-    if (!language->GetFormatterPrefixSuffix(valobj, g_TypeHint, prefix,
-                                            suffix)) {
-      prefix.clear();
-      suffix.clear();
-    }
-  }
+  llvm::StringRef prefix, suffix;
+  if (Language *language = Language::FindPlugin(summary_options.GetLanguage()))
+    std::tie(prefix, suffix) = language->GetFormatterPrefixSuffix(g_TypeHint);
 
   // this is a fairly ugly trick - pretend that the numeric value is actually a
   // char* this works under a few assumptions: little endian architecture
   // sizeof(uint64_t) > g_MaxNonBitmaskedLen
   if (len_bits <= g_MaxNonBitmaskedLen) {
-    stream.Printf("%s", prefix.c_str());
+    stream << prefix;
     stream.Printf("\"%s\"", (const char *)&data_bits);
-    stream.Printf("%s", suffix.c_str());
+    stream << suffix;
     return true;
   }
 
@@ -375,8 +368,42 @@ bool lldb_private::formatters::NSTaggedString_SummaryProvider(
     bytes.insert(bytes.begin(), sixBitToCharLookup[packed]);
   }
 
-  stream.Printf("%s", prefix.c_str());
+  stream << prefix;
   stream.Printf("\"%s\"", &bytes[0]);
-  stream.Printf("%s", suffix.c_str());
+  stream << suffix;
   return true;
+}
+
+bool lldb_private::formatters::NSIndirectTaggedString_SummaryProvider(
+    ValueObject &valobj, ObjCLanguageRuntime::ClassDescriptorSP descriptor,
+    Stream &stream, const TypeSummaryOptions &summary_options) {
+  if (!descriptor)
+    return false;
+
+  uint64_t payload = 0;
+  if (!descriptor->GetTaggedPointerInfo(nullptr, nullptr, &payload))
+    return false;
+
+  // First 47 bits are the address of the contents.
+  addr_t ptr = payload & 0x7fffffffffffULL;
+  // Next 13 bits are the string's length.
+  size_t size = (payload >> 47) & 0x1fff;
+
+  Status status;
+  std::vector<char> buf(size);
+  if (auto process_sp = valobj.GetProcessSP())
+    if (process_sp->ReadMemory(ptr, buf.data(), size, status)) {
+      llvm::StringRef prefix, suffix;
+      if (auto *language = Language::FindPlugin(summary_options.GetLanguage()))
+        std::tie(prefix, suffix) =
+            language->GetFormatterPrefixSuffix("NSString");
+      stream << prefix << '"';
+      stream.PutCString({buf.data(), size});
+      stream << '"' << suffix;
+      return true;
+    }
+
+  if (status.Fail())
+    stream.Format("<{0}>", status);
+  return false;
 }

@@ -27,9 +27,9 @@ class StructBuilder {
 public:
   /// Construct a helper for the given value.
   explicit StructBuilder(Value v);
-  /// Builds IR creating an `undef` value of the descriptor type.
-  static StructBuilder undef(OpBuilder &builder, Location loc,
-                             Type descriptorType);
+  /// Builds IR creating a `poison` value of the descriptor type.
+  static StructBuilder poison(OpBuilder &builder, Location loc,
+                              Type descriptorType);
 
   /*implicit*/ operator Value() { return value; }
 
@@ -41,7 +41,7 @@ protected:
 
 protected:
   /// Builds IR to extract a value from the struct at position pos
-  Value extractPtr(OpBuilder &builder, Location loc, unsigned pos);
+  Value extractPtr(OpBuilder &builder, Location loc, unsigned pos) const;
   /// Builds IR to set a value in the struct at position pos
   void setPtr(OpBuilder &builder, Location loc, unsigned pos, Value ptr);
 };

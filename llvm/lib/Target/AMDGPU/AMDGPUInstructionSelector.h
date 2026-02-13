@@ -13,6 +13,7 @@
 #ifndef LLVM_LIB_TARGET_AMDGPU_AMDGPUINSTRUCTIONSELECTOR_H
 #define LLVM_LIB_TARGET_AMDGPU_AMDGPUINSTRUCTIONSELECTOR_H
 
+#include "SIDefines.h"
 #include "llvm/CodeGen/GlobalISel/InstructionSelector.h"
 #include "llvm/IR/InstrTypes.h"
 
@@ -57,8 +58,8 @@ public:
   bool select(MachineInstr &I) override;
   static const char *getName();
 
-  void setupMF(MachineFunction &MF, GISelKnownBits *KB,
-               CodeGenCoverage &CoverageInfo, ProfileSummaryInfo *PSI,
+  void setupMF(MachineFunction &MF, GISelValueTracking *VT,
+               CodeGenCoverage *CoverageInfo, ProfileSummaryInfo *PSI,
                BlockFrequencyInfo *BFI) override;
 
 private:
@@ -86,10 +87,13 @@ private:
 
   bool constrainCopyLikeIntrin(MachineInstr &MI, unsigned NewOpc) const;
   bool selectCOPY(MachineInstr &I) const;
+  bool selectCOPY_SCC_VCC(MachineInstr &I) const;
+  bool selectCOPY_VCC_SCC(MachineInstr &I) const;
+  bool selectReadAnyLane(MachineInstr &I) const;
   bool selectPHI(MachineInstr &I) const;
   bool selectG_TRUNC(MachineInstr &I) const;
   bool selectG_SZA_EXT(MachineInstr &I) const;
-  bool selectG_CONSTANT(MachineInstr &I) const;
+  bool selectG_FPEXT(MachineInstr &I) const;
   bool selectG_FNEG(MachineInstr &I) const;
   bool selectG_FABS(MachineInstr &I) const;
   bool selectG_AND_OR_XOR(MachineInstr &I) const;
@@ -97,10 +101,10 @@ private:
   bool selectG_UADDO_USUBO_UADDE_USUBE(MachineInstr &I) const;
   bool selectG_AMDGPU_MAD_64_32(MachineInstr &I) const;
   bool selectG_EXTRACT(MachineInstr &I) const;
+  bool selectG_FMA_FMAD(MachineInstr &I) const;
   bool selectG_MERGE_VALUES(MachineInstr &I) const;
   bool selectG_UNMERGE_VALUES(MachineInstr &I) const;
   bool selectG_BUILD_VECTOR(MachineInstr &I) const;
-  bool selectG_PTR_ADD(MachineInstr &I) const;
   bool selectG_IMPLICIT_DEF(MachineInstr &I) const;
   bool selectG_INSERT(MachineInstr &I) const;
   bool selectG_SBFX_UBFX(MachineInstr &I) const;
@@ -108,7 +112,7 @@ private:
   bool selectInterpP1F16(MachineInstr &MI) const;
   bool selectWritelane(MachineInstr &MI) const;
   bool selectDivScale(MachineInstr &MI) const;
-  bool selectIntrinsicIcmp(MachineInstr &MI) const;
+  bool selectIntrinsicCmp(MachineInstr &MI) const;
   bool selectBallot(MachineInstr &I) const;
   bool selectRelocConstant(MachineInstr &I) const;
   bool selectGroupStaticSize(MachineInstr &I) const;
@@ -119,14 +123,14 @@ private:
   bool selectDSOrderedIntrinsic(MachineInstr &MI, Intrinsic::ID IID) const;
   bool selectDSGWSIntrinsic(MachineInstr &MI, Intrinsic::ID IID) const;
   bool selectDSAppendConsume(MachineInstr &MI, bool IsAppend) const;
-  bool selectSBarrier(MachineInstr &MI) const;
+  bool selectInitWholeWave(MachineInstr &MI) const;
   bool selectDSBvhStackIntrinsic(MachineInstr &MI) const;
 
   bool selectImageIntrinsic(MachineInstr &MI,
                             const AMDGPU::ImageDimIntrinsicInfo *Intr) const;
   bool selectG_INTRINSIC_W_SIDE_EFFECTS(MachineInstr &I) const;
   int getS_CMPOpcode(CmpInst::Predicate P, unsigned Size) const;
-  bool selectG_ICMP(MachineInstr &I) const;
+  bool selectG_ICMP_or_FCMP(MachineInstr &I) const;
   bool hasVgprParts(ArrayRef<GEPInfo> AddrInfo) const;
   void getAddrModeInfo(const MachineInstr &Load, const MachineRegisterInfo &MRI,
                        SmallVectorImpl<GEPInfo> &AddrInfo) const;
@@ -139,16 +143,29 @@ private:
   bool selectG_PTRMASK(MachineInstr &I) const;
   bool selectG_EXTRACT_VECTOR_ELT(MachineInstr &I) const;
   bool selectG_INSERT_VECTOR_ELT(MachineInstr &I) const;
-  bool selectG_SHUFFLE_VECTOR(MachineInstr &I) const;
   bool selectBufferLoadLds(MachineInstr &MI) const;
   bool selectGlobalLoadLds(MachineInstr &MI) const;
-  bool selectBVHIntrinsic(MachineInstr &I) const;
+  bool selectBVHIntersectRayIntrinsic(MachineInstr &I) const;
   bool selectSMFMACIntrin(MachineInstr &I) const;
+  bool selectPermlaneSwapIntrin(MachineInstr &I, Intrinsic::ID IntrID) const;
   bool selectWaveAddress(MachineInstr &I) const;
+  bool selectBITOP3(MachineInstr &I) const;
+  bool selectStackRestore(MachineInstr &MI) const;
+  bool selectNamedBarrierInit(MachineInstr &I, Intrinsic::ID IID) const;
+  bool selectNamedBarrierInst(MachineInstr &I, Intrinsic::ID IID) const;
+  bool selectSBarrierSignalIsfirst(MachineInstr &I, Intrinsic::ID IID) const;
+  bool selectSGetBarrierState(MachineInstr &I, Intrinsic::ID IID) const;
+  bool selectSBarrierLeave(MachineInstr &I) const;
+  bool selectWaveShuffleIntrin(MachineInstr &I) const;
 
-  std::pair<Register, unsigned>
-  selectVOP3ModsImpl(MachineOperand &Root, bool AllowAbs = true,
-                     bool OpSel = false, bool ForceVGPR = false) const;
+  std::pair<Register, unsigned> selectVOP3ModsImpl(Register Src,
+                                                   bool IsCanonicalizing = true,
+                                                   bool AllowAbs = true,
+                                                   bool OpSel = false) const;
+
+  Register copyToVGPRIfSrcFolded(Register Src, unsigned Mods,
+                                 MachineOperand Root, MachineInstr *InsertPt,
+                                 bool ForceVGPR = false) const;
 
   InstructionSelector::ComplexRendererFns
   selectVCSRC(MachineOperand &Root) const;
@@ -165,16 +182,17 @@ private:
   InstructionSelector::ComplexRendererFns
   selectVOP3Mods(MachineOperand &Root) const;
   InstructionSelector::ComplexRendererFns
+  selectVOP3ModsNonCanonicalizing(MachineOperand &Root) const;
+  InstructionSelector::ComplexRendererFns
   selectVOP3BMods(MachineOperand &Root) const;
 
   ComplexRendererFns selectVOP3NoMods(MachineOperand &Root) const;
 
-  InstructionSelector::ComplexRendererFns
-  selectVOP3Mods_nnan(MachineOperand &Root) const;
-
   std::pair<Register, unsigned>
-  selectVOP3PModsImpl(Register Src, const MachineRegisterInfo &MRI,
+  selectVOP3PModsImpl(Register RootReg, const MachineRegisterInfo &MRI,
                       bool IsDOT = false) const;
+  InstructionSelector::ComplexRendererFns
+  selectVOP3PRetHelper(MachineOperand &Root, bool IsDOT = false) const;
 
   InstructionSelector::ComplexRendererFns
   selectVOP3PMods(MachineOperand &Root) const;
@@ -183,10 +201,22 @@ private:
   selectVOP3PModsDOT(MachineOperand &Root) const;
 
   InstructionSelector::ComplexRendererFns
-  selectDotIUVOP3PMods(MachineOperand &Root) const;
+  selectWMMAOpSelVOP3PMods(MachineOperand &Root) const;
 
   InstructionSelector::ComplexRendererFns
-  selectWMMAOpSelVOP3PMods(MachineOperand &Root) const;
+  selectWMMAModsF32NegAbs(MachineOperand &Root) const;
+  InstructionSelector::ComplexRendererFns
+  selectWMMAModsF16Neg(MachineOperand &Root) const;
+  InstructionSelector::ComplexRendererFns
+  selectWMMAModsF16NegAbs(MachineOperand &Root) const;
+  InstructionSelector::ComplexRendererFns
+  selectWMMAVISrc(MachineOperand &Root) const;
+  InstructionSelector::ComplexRendererFns
+  selectSWMMACIndex8(MachineOperand &Root) const;
+  InstructionSelector::ComplexRendererFns
+  selectSWMMACIndex16(MachineOperand &Root) const;
+  InstructionSelector::ComplexRendererFns
+  selectSWMMACIndex32(MachineOperand &Root) const;
 
   InstructionSelector::ComplexRendererFns
   selectVOP3OpSelMods(MachineOperand &Root) const;
@@ -196,8 +226,10 @@ private:
   InstructionSelector::ComplexRendererFns
   selectVINTERPModsHi(MachineOperand &Root) const;
 
+  bool selectScaleOffset(MachineOperand &Root, Register &Offset,
+                         bool IsSigned) const;
   bool selectSmrdOffset(MachineOperand &Root, Register &Base, Register *SOffset,
-                        int64_t *Offset) const;
+                        int64_t *Offset, bool *ScaleOffset) const;
   InstructionSelector::ComplexRendererFns
   selectSmrdImm(MachineOperand &Root) const;
   InstructionSelector::ComplexRendererFns
@@ -218,7 +250,20 @@ private:
   selectScratchOffset(MachineOperand &Root) const;
 
   InstructionSelector::ComplexRendererFns
+  selectGlobalSAddr(MachineOperand &Root, unsigned CPolBits,
+                    bool NeedIOffset = true) const;
+  InstructionSelector::ComplexRendererFns
   selectGlobalSAddr(MachineOperand &Root) const;
+  InstructionSelector::ComplexRendererFns
+  selectGlobalSAddrCPol(MachineOperand &Root) const;
+  InstructionSelector::ComplexRendererFns
+  selectGlobalSAddrCPolM0(MachineOperand &Root) const;
+  InstructionSelector::ComplexRendererFns
+  selectGlobalSAddrGLC(MachineOperand &Root) const;
+  InstructionSelector::ComplexRendererFns
+  selectGlobalSAddrNoIOffset(MachineOperand &Root) const;
+  InstructionSelector::ComplexRendererFns
+  selectGlobalSAddrNoIOffsetM0(MachineOperand &Root) const;
 
   InstructionSelector::ComplexRendererFns
   selectScratchSAddr(MachineOperand &Root) const;
@@ -235,6 +280,9 @@ private:
   bool isDSOffsetLegal(Register Base, int64_t Offset) const;
   bool isDSOffset2Legal(Register Base, int64_t Offset0, int64_t Offset1,
                         unsigned Size) const;
+  bool isFlatScratchBaseLegal(Register Addr) const;
+  bool isFlatScratchBaseLegalSV(Register Addr) const;
+  bool isFlatScratchBaseLegalSVImm(Register Addr) const;
 
   std::pair<Register, unsigned>
   selectDS1Addr1OffsetImpl(MachineOperand &Root) const;
@@ -252,7 +300,7 @@ private:
   InstructionSelector::ComplexRendererFns
   selectDSReadWrite2(MachineOperand &Root, unsigned size) const;
 
-  std::pair<Register, int64_t>
+  std::tuple<Register, int64_t, bool>
   getPtrBaseWithConstantOffset(Register Root,
                                const MachineRegisterInfo &MRI) const;
 
@@ -279,32 +327,77 @@ private:
                              Register &SOffset, int64_t &Offset) const;
 
   InstructionSelector::ComplexRendererFns
+  selectBUFSOffset(MachineOperand &Root) const;
+
+  InstructionSelector::ComplexRendererFns
   selectMUBUFAddr64(MachineOperand &Root) const;
 
   InstructionSelector::ComplexRendererFns
   selectMUBUFOffset(MachineOperand &Root) const;
 
-  InstructionSelector::ComplexRendererFns
-  selectMUBUFOffsetAtomic(MachineOperand &Root) const;
-
-  InstructionSelector::ComplexRendererFns
-  selectMUBUFAddr64Atomic(MachineOperand &Root) const;
-
   ComplexRendererFns selectSMRDBufferImm(MachineOperand &Root) const;
   ComplexRendererFns selectSMRDBufferImm32(MachineOperand &Root) const;
   ComplexRendererFns selectSMRDBufferSgprImm(MachineOperand &Root) const;
+
+  std::pair<Register, unsigned> selectVOP3PMadMixModsImpl(MachineOperand &Root,
+                                                          bool &Matched) const;
+  ComplexRendererFns selectVOP3PMadMixModsExt(MachineOperand &Root) const;
+  ComplexRendererFns selectVOP3PMadMixMods(MachineOperand &Root) const;
 
   void renderTruncImm32(MachineInstrBuilder &MIB, const MachineInstr &MI,
                         int OpIdx = -1) const;
 
   void renderTruncTImm(MachineInstrBuilder &MIB, const MachineInstr &MI,
                        int OpIdx) const;
+  void renderZextBoolTImm(MachineInstrBuilder &MIB, const MachineInstr &MI,
+                          int OpIdx) const;
+
+  void renderOpSelTImm(MachineInstrBuilder &MIB, const MachineInstr &MI,
+                       int OpIdx) const;
+
+  void renderSrcAndDstSelToOpSelXForm_0_0(MachineInstrBuilder &MIB,
+                                          const MachineInstr &MI,
+                                          int OpIdx) const;
+
+  void renderSrcAndDstSelToOpSelXForm_0_1(MachineInstrBuilder &MIB,
+                                          const MachineInstr &MI,
+                                          int OpIdx) const;
+
+  void renderSrcAndDstSelToOpSelXForm_1_0(MachineInstrBuilder &MIB,
+                                          const MachineInstr &MI,
+                                          int OpIdx) const;
+
+  void renderSrcAndDstSelToOpSelXForm_1_1(MachineInstrBuilder &MIB,
+                                          const MachineInstr &MI,
+                                          int OpIdx) const;
+
+  void renderDstSelToOpSelXForm(MachineInstrBuilder &MIB,
+                                const MachineInstr &MI, int OpIdx) const;
+
+  void renderSrcSelToOpSelXForm(MachineInstrBuilder &MIB,
+                                const MachineInstr &MI, int OpIdx) const;
+
+  void renderSrcAndDstSelToOpSelXForm_2_0(MachineInstrBuilder &MIB,
+                                          const MachineInstr &MI,
+                                          int OpIdx) const;
+
+  void renderDstSelToOpSel3XFormXForm(MachineInstrBuilder &MIB,
+                                const MachineInstr &MI, int OpIdx) const;
 
   void renderNegateImm(MachineInstrBuilder &MIB, const MachineInstr &MI,
                        int OpIdx) const;
 
-  void renderBitcastImm(MachineInstrBuilder &MIB, const MachineInstr &MI,
-                        int OpIdx) const;
+  void renderBitcastFPImm(MachineInstrBuilder &MIB, const MachineInstr &MI,
+                          int OpIdx) const;
+
+  void renderBitcastFPImm32(MachineInstrBuilder &MIB, const MachineInstr &MI,
+                            int OpIdx) const {
+    renderBitcastFPImm(MIB, MI, OpIdx);
+  }
+  void renderBitcastFPImm64(MachineInstrBuilder &MIB, const MachineInstr &MI,
+                            int OpIdx) const {
+    renderBitcastFPImm(MIB, MI, OpIdx);
+  }
 
   void renderPopcntImm(MachineInstrBuilder &MIB, const MachineInstr &MI,
                        int OpIdx) const;
@@ -312,27 +405,59 @@ private:
                          int OpIdx) const;
   void renderExtractSWZ(MachineInstrBuilder &MIB, const MachineInstr &MI,
                         int OpIdx) const;
-  void renderSetGLC(MachineInstrBuilder &MIB, const MachineInstr &MI,
-                    int OpIdx) const;
+  void renderExtractCpolSetGLC(MachineInstrBuilder &MIB, const MachineInstr &MI,
+                               int OpIdx) const;
 
   void renderFrameIndex(MachineInstrBuilder &MIB, const MachineInstr &MI,
                         int OpIdx) const;
 
-  bool isInlineImmediate16(int64_t Imm) const;
-  bool isInlineImmediate32(int64_t Imm) const;
-  bool isInlineImmediate64(int64_t Imm) const;
+  void renderFPPow2ToExponent(MachineInstrBuilder &MIB, const MachineInstr &MI,
+                              int OpIdx) const;
+
+  void renderRoundMode(MachineInstrBuilder &MIB, const MachineInstr &MI,
+                       int OpIdx) const;
+
+  void renderVOP3PModsNeg(MachineInstrBuilder &MIB, const MachineInstr &MI,
+                          int OpIdx) const;
+  void renderVOP3PModsNegs(MachineInstrBuilder &MIB, const MachineInstr &MI,
+                           int OpIdx) const;
+  void renderVOP3PModsNegAbs(MachineInstrBuilder &MIB, const MachineInstr &MI,
+                             int OpIdx) const;
+
+  void renderPrefetchLoc(MachineInstrBuilder &MIB, const MachineInstr &MI,
+                         int OpIdx) const;
+
+  void renderScaledMAIIntrinsicOperand(MachineInstrBuilder &MIB,
+                                       const MachineInstr &MI, int OpIdx) const;
+
+  bool isInlineImmediate(const APInt &Imm) const;
   bool isInlineImmediate(const APFloat &Imm) const;
 
   // Returns true if TargetOpcode::G_AND MachineInstr `MI`'s masking of the
   // shift amount operand's `ShAmtBits` bits is unneeded.
   bool isUnneededShiftMask(const MachineInstr &MI, unsigned ShAmtBits) const;
 
+  /// Match a zero extend from a 32-bit value to 64-bits.
+  Register matchZeroExtendFromS32(Register Reg) const;
+  /// Match a sign extend from a 32-bit value to 64-bits.
+  Register matchSignExtendFromS32(Register Reg) const;
+  /// Match a zero extend from a 32-bit value to 64-bits, or \p Reg itself if it
+  /// is 32-bit.
+  Register matchZeroExtendFromS32OrS32(Register Reg) const;
+  /// Match a sign extend from a 32-bit value to 64-bits, or \p Reg itself if it
+  /// is 32-bit.
+  Register matchSignExtendFromS32OrS32(Register Reg) const;
+  /// Match either sign or zero extend depending on the \p IsSigned from a
+  /// 32-bit value to 64-bits, or \p Reg itself if it is 32-bit.
+  Register matchExtendFromS32OrS32(Register Reg, bool IsSigned) const;
+  /// Match an any extend from a 32-bit value to 64-bit.
+  Register matchAnyExtendFromS32(Register Reg) const;
+
   const SIInstrInfo &TII;
   const SIRegisterInfo &TRI;
   const AMDGPURegisterBankInfo &RBI;
   const AMDGPUTargetMachine &TM;
   const GCNSubtarget &STI;
-  bool EnableLateStructurizeCFG;
 #define GET_GLOBALISEL_PREDICATES_DECL
 #define AMDGPUSubtarget GCNSubtarget
 #include "AMDGPUGenGlobalISel.inc"

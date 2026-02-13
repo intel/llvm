@@ -123,13 +123,13 @@ func.func private @test_type_syntax_error() -> !test.type_with_format<42, two = 
 
 func.func private @test_verifier_fails() -> () attributes {
   // expected-error@+1 {{expected 'one' to equal 'four.size()'}}
-  attr = #test.attr_with_format<42 : two = "hello", four = [1, 2, 3] : 42 : i64, [10 : i16]>
+  attr = #test.attr_with_format<42 : two = "hello", four = [1, 2, 3] : 42 : i64 : 0 : [4, 5, 6], [10 : i16]>
 }
 
 // -----
 
 func.func private @test_attr_with_type_failed_to_parse_type() -> () attributes {
-  // expected-error@+2 {{invalid kind of type specified}}
+  // expected-error@+2 {{invalid kind of type specified: expected builtin.integer, but found 'vector<4xi32>'}}
   // expected-error@+1 {{failed to parse TestAttrWithTypeParam parameter 'int_type'}}
   attr = #test.attr_with_type<vector<4xi32>, vector<4xi32>>
 }

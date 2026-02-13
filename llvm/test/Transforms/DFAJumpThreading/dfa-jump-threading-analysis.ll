@@ -1,15 +1,16 @@
 ; REQUIRES: asserts
-; RUN: opt -S -dfa-jump-threading -debug-only=dfa-jump-threading -disable-output %s 2>&1 | FileCheck %s
+; RUN: opt -S -passes=dfa-jump-threading -verify-dom-info=1 -debug-only=dfa-jump-threading -disable-output %s 2>&1 | FileCheck %s
+; RUN: opt -S -passes=dfa-jump-threading -verify-dom-info=1 -print-prof-data %s -o - | FileCheck %s --check-prefix=PROFILE
 
 ; This test checks that the analysis identifies all threadable paths in a
 ; simple CFG. A threadable path includes a list of basic blocks, the exit
 ; state, and the block that determines the next state.
 ; < path of BBs that form a cycle > [ state, determinator ]
-define i32 @test1(i32 %num) {
-; CHECK: < for.body for.inc > [ 1, for.inc ]
-; CHECK-NEXT: < for.body case1 for.inc > [ 2, for.inc ]
-; CHECK-NEXT: < for.body case2 for.inc > [ 1, for.inc ]
-; CHECK-NEXT: < for.body case2 si.unfold.false for.inc > [ 2, for.inc ]
+define i32 @test1(i32 %num) !prof !0{
+; CHECK: < case2, for.inc, for.body > [ 1, for.inc ]
+; CHECK-NEXT: < for.inc, for.body > [ 1, for.inc ]
+; CHECK-NEXT: < case1, for.inc, for.body > [ 2, for.inc ]
+; CHECK-NEXT: < case2, sel.si.unfold.false, for.inc, for.body > [ 2, sel.si.unfold.false ]
 entry:
   br label %for.body
 
@@ -25,8 +26,11 @@ case1:
   br label %for.inc
 
 case2:
+  ; PROFILE-LABEL: @test1
+  ; PROFILE-LABEL: case2:
+  ; PROFILE: br i1 %cmp, label %for.inc.jt1, label %sel.si.unfold.false.jt2, !prof !1 ; !1 = !{!"branch_weights", i32 3, i32 5}
   %cmp = icmp eq i32 %count, 50
-  %sel = select i1 %cmp, i32 1, i32 2
+  %sel = select i1 %cmp, i32 1, i32 2, !prof !1
   br label %for.inc
 
 for.inc:
@@ -43,16 +47,12 @@ for.end:
 ; complicated CFG. Here the FSM is represented as a nested loop, with
 ; fallthrough cases.
 define i32 @test2(i32 %init) {
-; CHECK: < loop.3 case2 > [ 3, loop.3 ]
-; CHECK-NEXT: < loop.3 case2 loop.1.backedge loop.1 loop.2 > [ 1, loop.1 ]
-; CHECK-NEXT: < loop.3 case2 loop.1.backedge si.unfold.false loop.1 loop.2 > [ 4, loop.1.backedge ]
-; CHECK-NEXT: < loop.3 case3 loop.2.backedge loop.2 > [ 0, loop.2.backedge ]
-; CHECK-NEXT: < loop.3 case3 case4 loop.2.backedge loop.2 > [ 3, loop.2.backedge ]
-; CHECK-NEXT: < loop.3 case3 case4 loop.1.backedge loop.1 loop.2 > [ 1, loop.1 ]
-; CHECK-NEXT: < loop.3 case3 case4 loop.1.backedge si.unfold.false loop.1 loop.2 > [ 2, loop.1.backedge ]
-; CHECK-NEXT: < loop.3 case4 loop.2.backedge loop.2 > [ 3, loop.2.backedge ]
-; CHECK-NEXT: < loop.3 case4 loop.1.backedge loop.1 loop.2 > [ 1, loop.1 ]
-; CHECK-NEXT: < loop.3 case4 loop.1.backedge si.unfold.false loop.1 loop.2 > [ 2, loop.1.backedge ]
+; CHECK: < loop.1.backedge, loop.1, loop.2, loop.3 > [ 1, loop.1 ]
+; CHECK-NEXT: < case4, loop.1.backedge, state.1.be2.si.unfold.false, loop.1, loop.2, loop.3 > [ 2, loop.1.backedge ]
+; CHECK-NEXT: < case2, loop.1.backedge, state.1.be2.si.unfold.false, loop.1, loop.2, loop.3 > [ 4, loop.1.backedge ]
+; CHECK-NEXT: < case4, loop.2.backedge, loop.2, loop.3 > [ 3, loop.2.backedge ]
+; CHECK-NEXT: < case3, loop.2.backedge, loop.2, loop.3 > [ 0, loop.2.backedge ]
+; CHECK-NEXT: < case2, loop.3 > [ 3, loop.3 ]
 entry:
   %cmp = icmp eq i32 %init, 0
   %sel = select i1 %cmp, i32 0, i32 2
@@ -117,15 +117,15 @@ declare void @baz()
 ; current one.
 define i32 @wrong_bb_order() {
 ; CHECK-LABEL: DFA Jump threading: wrong_bb_order
-; CHECK-NOT: < bb43 bb59 bb3 bb31 bb41 > [ 77, bb43 ]
-; CHECK-NOT: < bb43 bb49 bb59 bb3 bb31 bb41 > [ 77, bb43 ]
+; CHECK-NOT: [ 77, bb43 ]
+; CHECK-NOT: [ 77, bb43 ]
 bb:
   %i = alloca [420 x i8], align 1
-  %i2 = getelementptr inbounds [420 x i8], [420 x i8]* %i, i64 0, i64 390
+  %i2 = getelementptr inbounds [420 x i8], ptr %i, i64 0, i64 390
   br label %bb3
 
 bb3:                                              ; preds = %bb59, %bb
-  %i4 = phi i8* [ %i2, %bb ], [ %i60, %bb59 ]
+  %i4 = phi ptr [ %i2, %bb ], [ %i60, %bb59 ]
   %i5 = phi i8 [ 77, %bb ], [ %i64, %bb59 ]
   %i6 = phi i32 [ 2, %bb ], [ %i63, %bb59 ]
   %i7 = phi i32 [ 26, %bb ], [ %i62, %bb59 ]
@@ -137,8 +137,8 @@ bb3:                                              ; preds = %bb59, %bb
   %i13 = mul nsw i32 %i12, 3
   %i14 = add nsw i32 %i13, %i6
   %i15 = sext i32 %i14 to i64
-  %i16 = getelementptr inbounds i8, i8* %i4, i64 %i15
-  %i17 = load i8, i8* %i16, align 1
+  %i16 = getelementptr inbounds i8, ptr %i4, i64 %i15
+  %i17 = load i8, ptr %i16, align 1
   %i18 = icmp sgt i8 %i17, 0
   br i1 %i18, label %bb21, label %bb31
 
@@ -146,7 +146,7 @@ bb21:                                             ; preds = %bb3
   br i1 true, label %bb59, label %bb43
 
 bb59:                                             ; preds = %bb49, %bb43, %bb31, %bb21
-  %i60 = phi i8* [ %i44, %bb49 ], [ %i44, %bb43 ], [ %i34, %bb31 ], [ %i4, %bb21 ]
+  %i60 = phi ptr [ %i44, %bb49 ], [ %i44, %bb43 ], [ %i34, %bb31 ], [ %i4, %bb21 ]
   %i61 = phi i32 [ %i45, %bb49 ], [ %i45, %bb43 ], [ %i33, %bb31 ], [ %i8, %bb21 ]
   %i62 = phi i32 [ %i47, %bb49 ], [ %i47, %bb43 ], [ %i32, %bb31 ], [ %i7, %bb21 ]
   %i63 = phi i32 [ %i48, %bb49 ], [ %i48, %bb43 ], [ 2, %bb31 ], [ %i6, %bb21 ]
@@ -157,7 +157,7 @@ bb59:                                             ; preds = %bb49, %bb43, %bb31,
 bb31:                                             ; preds = %bb3
   %i32 = add nsw i32 %i7, -1
   %i33 = add nsw i32 %i8, -1
-  %i34 = getelementptr inbounds i8, i8* %i4, i64 -15
+  %i34 = getelementptr inbounds i8, ptr %i4, i64 -15
   %i35 = icmp eq i8 %i5, 77
   br i1 %i35, label %bb59, label %bb41
 
@@ -166,7 +166,7 @@ bb41:                                             ; preds = %bb31
   br label %bb43
 
 bb43:                                             ; preds = %bb41, %bb21
-  %i44 = phi i8* [ %i34, %bb41 ], [ %i4, %bb21 ]
+  %i44 = phi ptr [ %i34, %bb41 ], [ %i4, %bb21 ]
   %i45 = phi i32 [ %i33, %bb41 ], [ %i8, %bb21 ]
   %i46 = phi i8 [ 77, %bb41 ], [ %i5, %bb21 ]
   %i47 = phi i32 [ %i32, %bb41 ], [ %i7, %bb21 ]
@@ -186,17 +186,13 @@ bb66:                                             ; preds = %bb59
 }
 
 ; Value %init is not predictable but it's okay since it is the value initial to the switch.
-define i32 @initial.value.positive1(i32 %init) {
-; CHECK: < loop.3 case2 > [ 3, loop.3 ]
-; CHECK-NEXT: < loop.3 case2 loop.1.backedge loop.1 loop.2 > [ 1, loop.1 ]
-; CHECK-NEXT: < loop.3 case2 loop.1.backedge si.unfold.false loop.1 loop.2 > [ 4, loop.1.backedge ]
-; CHECK-NEXT: < loop.3 case3 loop.2.backedge loop.2 > [ 0, loop.2.backedge ]
-; CHECK-NEXT: < loop.3 case3 case4 loop.2.backedge loop.2 > [ 3, loop.2.backedge ]
-; CHECK-NEXT: < loop.3 case3 case4 loop.1.backedge loop.1 loop.2 > [ 1, loop.1 ]
-; CHECK-NEXT: < loop.3 case3 case4 loop.1.backedge si.unfold.false loop.1 loop.2 > [ 2, loop.1.backedge ]
-; CHECK-NEXT: < loop.3 case4 loop.2.backedge loop.2 > [ 3, loop.2.backedge ]
-; CHECK-NEXT: < loop.3 case4 loop.1.backedge loop.1 loop.2 > [ 1, loop.1 ]
-; CHECK-NEXT: < loop.3 case4 loop.1.backedge si.unfold.false loop.1 loop.2 > [ 2, loop.1.backedge ]
+define i32 @initial.value.positive1(i32 %init) !prof !0 {
+; CHECK: < loop.1.backedge, loop.1, loop.2, loop.3 > [ 1, loop.1 ]
+; CHECK-NEXT: < case4, loop.1.backedge, state.1.be2.si.unfold.false, loop.1, loop.2, loop.3 > [ 2, loop.1.backedge ]
+; CHECK-NEXT: < case2, loop.1.backedge, state.1.be2.si.unfold.false, loop.1, loop.2, loop.3 > [ 4, loop.1.backedge ]
+; CHECK-NEXT: < case4, loop.2.backedge, loop.2, loop.3 > [ 3, loop.2.backedge ]
+; CHECK-NEXT: < case3, loop.2.backedge, loop.2, loop.3 > [ 0, loop.2.backedge ]
+; CHECK-NEXT: < case2, loop.3 > [ 3, loop.3 ]
 entry:
   %cmp = icmp eq i32 %init, 0
   br label %loop.1
@@ -249,3 +245,83 @@ infloop.i:
 exit:
   ret i32 0
 }
+
+define i8 @cyclesInPaths1(i1 %call12, i1 %cmp18) {
+; CHECK-LABEL: DFA Jump threading: cyclesInPaths1
+; CHECK-NOT: <{{.*}}> [{{.*}}]
+
+entry:
+  br label %switchPhiDef.for.body
+
+switchPhiDef.for.body:                                         ; preds = %detBB2, %entry
+  %switchPhi.curState = phi i32 [ %curState.1, %detBB2 ], [ 0, %entry ]
+  br i1 %call12, label %detBB1, label %if.else
+
+if.else:                                          ; preds = %switchPhiDef.for.body
+  br label %detBB1
+
+detBB1:                                         ; preds = %if.else, %switchPhiDef.for.body
+  %newState.02 = phi i32 [ 2, %switchPhiDef.for.body ], [ 4, %if.else ]
+  br i1 %cmp18, label %detBB2, label %if.end20
+
+if.end20:                                         ; preds = %detBB1
+  br i1 %call12, label %if.end23, label %switchBB
+
+switchBB:                                        ; preds = %if.end20
+  switch i32 %switchPhi.curState, label %if.end23 [
+    i32 4, label %ret1
+    i32 0, label %ret2
+  ]
+
+ret1:                                       ; preds = %switchBB
+  ret i8 1
+
+ret2:                                       ; preds = %switchBB
+  ret i8 2
+
+if.end23:                                         ; preds = %switchBB, %if.end20
+  br label %detBB2
+
+detBB2:                                          ; preds = %if.end23, %detBB1
+  %curState.1 = phi i32 [ %newState.02, %if.end23 ], [ 0, %detBB1 ]
+  br label %switchPhiDef.for.body
+}
+
+define void @cyclesInPaths2(i1 %tobool5.not.i) {
+; CHECK-LABEL: DFA Jump threading: cyclesInPaths2
+; CHECK: < sw.bb.i, bb.exit, if.end5, if.end.i > [ 1, bb.exit ]
+; CHECK-NEXT: < bb.exit, if.end5, if.end.i > [ 0, bb.exit ]
+
+entry:
+  br label %if.end5
+
+if.end5:                                          ; preds = %bb.exit, %entry
+  %P.sroa.8.051 = phi i16 [ %retval.sroa.6.0.i, %bb.exit ], [ 0, %entry ]
+  call void @foo3()
+  br i1 %tobool5.not.i, label %if.end.i, label %bb.exit
+
+if.end.i:                                         ; preds = %if.end5
+  switch i16 %P.sroa.8.051, label %sw.default.i [
+    i16 1, label %sw.bb.i
+    i16 0, label %bb.exit
+  ]
+
+sw.bb.i:                                          ; preds = %if.end.i
+  call void @foo1()
+  br label %bb.exit
+
+sw.default.i:                                     ; preds = %if.end.i
+  unreachable
+
+bb.exit: ; preds = %sw.bb.i, %if.end.i, %if.end5
+  %retval.sroa.6.0.i = phi i16 [ 1, %sw.bb.i ], [ 0, %if.end5 ], [ 0, %if.end.i ]
+  call void @foo2()
+  br label %if.end5
+}
+
+declare void @foo1()
+declare void @foo2()
+declare void @foo3()
+
+!0 = !{!"function_entry_count", i32 10}
+!1 = !{!"branch_weights", i32 3, i32 5}

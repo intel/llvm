@@ -1,7 +1,7 @@
 # Make lldb-dotest a custom target.
 add_custom_target(lldb-dotest)
 add_dependencies(lldb-dotest lldb-test-depends)
-set_target_properties(lldb-dotest PROPERTIES FOLDER "lldb utils")
+set_target_properties(lldb-dotest PROPERTIES FOLDER "LLDB/Utils")
 
 get_property(LLDB_TEST_USER_ARGS GLOBAL PROPERTY LLDB_TEST_USER_ARGS_PROPERTY)
 get_property(LLDB_TEST_COMMON_ARGS GLOBAL PROPERTY LLDB_TEST_COMMON_ARGS_PROPERTY)
@@ -9,7 +9,25 @@ set(LLDB_LIBS_DIR "${LLVM_LIBRARY_OUTPUT_INTDIR}")
 
 llvm_canonicalize_cmake_booleans(
   LLDB_BUILD_INTEL_PT
+  LLDB_HAS_LIBCXX
 )
+
+if ("libcxx" IN_LIST LLVM_ENABLE_RUNTIMES)
+  set(LLDB_HAS_LIBCXX ON)
+  if(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR AND NOT APPLE)
+    set(LIBCXX_TARGET_SUBDIR ${LLVM_DEFAULT_TARGET_TRIPLE})
+    if(LIBCXX_LIBDIR_SUBDIR)
+      string(APPEND LIBCXX_TARGET_SUBDIR /${LIBCXX_LIBDIR_SUBDIR})
+    endif()
+    cmake_path(NORMAL_PATH LIBCXX_TARGET_SUBDIR)
+    set(LIBCXX_LIBRARY_DIR ${LLVM_LIBRARY_OUTPUT_INTDIR}/${LIBCXX_TARGET_SUBDIR})
+    set(LIBCXX_GENERATED_INCLUDE_DIR "${LLVM_BINARY_DIR}/include/c++/v1")
+    set(LIBCXX_GENERATED_INCLUDE_TARGET_DIR "${LLVM_BINARY_DIR}/include/${LIBCXX_TARGET_SUBDIR}/c++/v1")
+  else()
+    set(LIBCXX_LIBRARY_DIR ${CMAKE_BINARY_DIR}/lib${LIBCXX_LIBDIR_SUFFIX})
+    set(LIBCXX_GENERATED_INCLUDE_DIR "${CMAKE_BINARY_DIR}/include/c++/v1")
+  endif()
+endif()
 
 set(LLVM_TOOLS_DIR "${LLVM_TOOLS_BINARY_DIR}")
 set(vars
@@ -21,9 +39,15 @@ set(vars
   LLDB_TEST_EXECUTABLE
   LLDB_TEST_COMPILER
   LLDB_TEST_DSYMUTIL
+  LLDB_TEST_MAKE
   LLDB_LIBS_DIR
   LLVM_TOOLS_DIR
+  LIBCXX_LIBRARY_DIR
+  LIBCXX_GENERATED_INCLUDE_DIR
+  LIBCXX_GENERATED_INCLUDE_TARGET_DIR
   )
+
+llvm_canonicalize_cmake_booleans(LLDB_HAS_LIBCXX)
 
 # Generate lldb-dotest Python driver script for each build mode.
 if(LLDB_BUILT_STANDALONE)

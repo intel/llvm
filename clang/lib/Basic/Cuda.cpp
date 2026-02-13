@@ -1,263 +1,166 @@
 #include "clang/Basic/Cuda.h"
 
-#include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/VersionTuple.h"
 
 namespace clang {
 
-const char *CudaVersionToString(CudaVersion V) {
-  switch (V) {
-  case CudaVersion::UNKNOWN:
-    return "unknown";
-  case CudaVersion::CUDA_70:
-    return "7.0";
-  case CudaVersion::CUDA_75:
-    return "7.5";
-  case CudaVersion::CUDA_80:
-    return "8.0";
-  case CudaVersion::CUDA_90:
-    return "9.0";
-  case CudaVersion::CUDA_91:
-    return "9.1";
-  case CudaVersion::CUDA_92:
-    return "9.2";
-  case CudaVersion::CUDA_100:
-    return "10.0";
-  case CudaVersion::CUDA_101:
-    return "10.1";
-  case CudaVersion::CUDA_102:
-    return "10.2";
-  case CudaVersion::CUDA_110:
-    return "11.0";
-  case CudaVersion::CUDA_111:
-    return "11.1";
-  case CudaVersion::CUDA_112:
-    return "11.2";
-  case CudaVersion::CUDA_113:
-    return "11.3";
-  case CudaVersion::CUDA_114:
-    return "11.4";
-  case CudaVersion::CUDA_115:
-    return "11.5";
-  case CudaVersion::NEW:
-    return "";
+struct CudaVersionMapEntry {
+  const char *Name;
+  CudaVersion Version;
+  llvm::VersionTuple TVersion;
+};
+#define CUDA_ENTRY(major, minor)                                               \
+  {                                                                            \
+    #major "." #minor, CudaVersion::CUDA_##major##minor,                       \
+        llvm::VersionTuple(major, minor)                                       \
   }
-  llvm_unreachable("invalid enum");
+
+static const CudaVersionMapEntry CudaNameVersionMap[] = {
+    CUDA_ENTRY(7, 0),
+    CUDA_ENTRY(7, 5),
+    CUDA_ENTRY(8, 0),
+    CUDA_ENTRY(9, 0),
+    CUDA_ENTRY(9, 1),
+    CUDA_ENTRY(9, 2),
+    CUDA_ENTRY(10, 0),
+    CUDA_ENTRY(10, 1),
+    CUDA_ENTRY(10, 2),
+    CUDA_ENTRY(11, 0),
+    CUDA_ENTRY(11, 1),
+    CUDA_ENTRY(11, 2),
+    CUDA_ENTRY(11, 3),
+    CUDA_ENTRY(11, 4),
+    CUDA_ENTRY(11, 5),
+    CUDA_ENTRY(11, 6),
+    CUDA_ENTRY(11, 7),
+    CUDA_ENTRY(11, 8),
+    CUDA_ENTRY(12, 0),
+    CUDA_ENTRY(12, 1),
+    CUDA_ENTRY(12, 2),
+    CUDA_ENTRY(12, 3),
+    CUDA_ENTRY(12, 4),
+    CUDA_ENTRY(12, 5),
+    CUDA_ENTRY(12, 6),
+    CUDA_ENTRY(12, 8),
+    CUDA_ENTRY(12, 9),
+    CUDA_ENTRY(13, 0),
+    {"", CudaVersion::NEW, llvm::VersionTuple(std::numeric_limits<int>::max())},
+    {"unknown", CudaVersion::UNKNOWN, {}} // End of list tombstone.
+};
+#undef CUDA_ENTRY
+
+const char *CudaVersionToString(CudaVersion V) {
+  for (auto *I = CudaNameVersionMap; I->Version != CudaVersion::UNKNOWN; ++I)
+    if (I->Version == V)
+      return I->Name;
+
+  return CudaVersionToString(CudaVersion::UNKNOWN);
 }
 
 CudaVersion CudaStringToVersion(const llvm::Twine &S) {
-  return llvm::StringSwitch<CudaVersion>(S.str())
-      .Case("7.0", CudaVersion::CUDA_70)
-      .Case("7.5", CudaVersion::CUDA_75)
-      .Case("8.0", CudaVersion::CUDA_80)
-      .Case("9.0", CudaVersion::CUDA_90)
-      .Case("9.1", CudaVersion::CUDA_91)
-      .Case("9.2", CudaVersion::CUDA_92)
-      .Case("10.0", CudaVersion::CUDA_100)
-      .Case("10.1", CudaVersion::CUDA_101)
-      .Case("10.2", CudaVersion::CUDA_102)
-      .Case("11.0", CudaVersion::CUDA_110)
-      .Case("11.1", CudaVersion::CUDA_111)
-      .Case("11.2", CudaVersion::CUDA_112)
-      .Case("11.3", CudaVersion::CUDA_113)
-      .Case("11.4", CudaVersion::CUDA_114)
-      .Case("11.5", CudaVersion::CUDA_115)
-      .Default(CudaVersion::UNKNOWN);
+  std::string VS = S.str();
+  for (auto *I = CudaNameVersionMap; I->Version != CudaVersion::UNKNOWN; ++I)
+    if (I->Name == VS)
+      return I->Version;
+  return CudaVersion::UNKNOWN;
 }
 
-namespace {
-struct CudaArchToStringMap {
-  CudaArch arch;
-  const char *arch_name;
-  const char *virtual_arch_name;
-};
-} // namespace
-
-#define SM2(sm, ca)                                                            \
-  { CudaArch::SM_##sm, "sm_" #sm, ca }
-#define SM(sm) SM2(sm, "compute_" #sm)
-#define GFX(gpu)                                                               \
-  { CudaArch::GFX##gpu, "gfx" #gpu, "compute_amdgcn" }
-static const CudaArchToStringMap arch_names[] = {
-    // clang-format off
-    {CudaArch::UNUSED, "", ""},
-    SM2(20, "compute_20"), SM2(21, "compute_20"), // Fermi
-    SM(30), SM(32), SM(35), SM(37),  // Kepler
-    SM(50), SM(52), SM(53),          // Maxwell
-    SM(60), SM(61), SM(62),          // Pascal
-    SM(70), SM(72),                  // Volta
-    SM(75),                          // Turing
-    SM(80), SM(86),                  // Ampere
-    GFX(600),  // gfx600
-    GFX(601),  // gfx601
-    GFX(602),  // gfx602
-    GFX(700),  // gfx700
-    GFX(701),  // gfx701
-    GFX(702),  // gfx702
-    GFX(703),  // gfx703
-    GFX(704),  // gfx704
-    GFX(705),  // gfx705
-    GFX(801),  // gfx801
-    GFX(802),  // gfx802
-    GFX(803),  // gfx803
-    GFX(805),  // gfx805
-    GFX(810),  // gfx810
-    GFX(900),  // gfx900
-    GFX(902),  // gfx902
-    GFX(904),  // gfx903
-    GFX(906),  // gfx906
-    GFX(908),  // gfx908
-    GFX(909),  // gfx909
-    GFX(90a),  // gfx90a
-    GFX(90c),  // gfx90c
-    GFX(940),  // gfx940
-    GFX(1010), // gfx1010
-    GFX(1011), // gfx1011
-    GFX(1012), // gfx1012
-    GFX(1013), // gfx1013
-    GFX(1030), // gfx1030
-    GFX(1031), // gfx1031
-    GFX(1032), // gfx1032
-    GFX(1033), // gfx1033
-    GFX(1034), // gfx1034
-    GFX(1035), // gfx1035
-    GFX(1036), // gfx1036
-    GFX(1100), // gfx1100
-    GFX(1101), // gfx1101
-    GFX(1102), // gfx1102
-    GFX(1103), // gfx1103
-    {CudaArch::Generic, "generic", ""},
-    // clang-format on
-};
-#undef SM
-#undef SM2
-#undef GFX
-
-const char *CudaArchToString(CudaArch A) {
-  auto result = std::find_if(
-      std::begin(arch_names), std::end(arch_names),
-      [A](const CudaArchToStringMap &map) { return A == map.arch; });
-  if (result == std::end(arch_names))
-    return "unknown";
-  return result->arch_name;
+CudaVersion ToCudaVersion(llvm::VersionTuple Version) {
+  for (auto *I = CudaNameVersionMap; I->Version != CudaVersion::UNKNOWN; ++I)
+    if (I->TVersion == Version)
+      return I->Version;
+  return CudaVersion::UNKNOWN;
 }
 
-const char *CudaArchToVirtualArchString(CudaArch A) {
-  auto result = std::find_if(
-      std::begin(arch_names), std::end(arch_names),
-      [A](const CudaArchToStringMap &map) { return A == map.arch; });
-  if (result == std::end(arch_names))
-    return "unknown";
-  return result->virtual_arch_name;
-}
-
-CudaArch StringToCudaArch(llvm::StringRef S) {
-  auto result = std::find_if(
-      std::begin(arch_names), std::end(arch_names),
-      [S](const CudaArchToStringMap &map) { return S == map.arch_name; });
-  if (result == std::end(arch_names))
-    return CudaArch::UNKNOWN;
-  return result->arch;
-}
-
-CudaVersion MinVersionForCudaArch(CudaArch A) {
-  if (A == CudaArch::UNKNOWN)
+CudaVersion MinVersionForOffloadArch(OffloadArch A) {
+  if (A == OffloadArch::UNKNOWN)
     return CudaVersion::UNKNOWN;
 
   // AMD GPUs do not depend on CUDA versions.
-  if (IsAMDGpuArch(A))
+  if (IsAMDOffloadArch(A))
     return CudaVersion::CUDA_70;
 
   switch (A) {
-  case CudaArch::SM_20:
-  case CudaArch::SM_21:
-  case CudaArch::SM_30:
-  case CudaArch::SM_32:
-  case CudaArch::SM_35:
-  case CudaArch::SM_37:
-  case CudaArch::SM_50:
-  case CudaArch::SM_52:
-  case CudaArch::SM_53:
+  case OffloadArch::SM_20:
+  case OffloadArch::SM_21:
+  case OffloadArch::SM_30:
+  case OffloadArch::SM_32_:
+  case OffloadArch::SM_35:
+  case OffloadArch::SM_37:
+  case OffloadArch::SM_50:
+  case OffloadArch::SM_52:
+  case OffloadArch::SM_53:
     return CudaVersion::CUDA_70;
-  case CudaArch::SM_60:
-  case CudaArch::SM_61:
-  case CudaArch::SM_62:
+  case OffloadArch::SM_60:
+  case OffloadArch::SM_61:
+  case OffloadArch::SM_62:
     return CudaVersion::CUDA_80;
-  case CudaArch::SM_70:
+  case OffloadArch::SM_70:
     return CudaVersion::CUDA_90;
-  case CudaArch::SM_72:
+  case OffloadArch::SM_72:
     return CudaVersion::CUDA_91;
-  case CudaArch::SM_75:
+  case OffloadArch::SM_75:
     return CudaVersion::CUDA_100;
-  case CudaArch::SM_80:
+  case OffloadArch::SM_80:
     return CudaVersion::CUDA_110;
-  case CudaArch::SM_86:
+  case OffloadArch::SM_86:
     return CudaVersion::CUDA_111;
+  case OffloadArch::SM_87:
+    return CudaVersion::CUDA_114;
+  case OffloadArch::SM_89:
+  case OffloadArch::SM_90:
+    return CudaVersion::CUDA_118;
+  case OffloadArch::SM_90a:
+    return CudaVersion::CUDA_120;
+  case OffloadArch::SM_100:
+  case OffloadArch::SM_100a:
+  case OffloadArch::SM_101:
+  case OffloadArch::SM_101a:
+  case OffloadArch::SM_120:
+  case OffloadArch::SM_120a:
+    return CudaVersion::CUDA_128;
+  case OffloadArch::SM_103:
+  case OffloadArch::SM_103a:
+  case OffloadArch::SM_121:
+  case OffloadArch::SM_121a:
+    return CudaVersion::CUDA_129;
+  case OffloadArch::SM_88:
+  case OffloadArch::SM_110:
+  case OffloadArch::SM_110a:
+    return CudaVersion::CUDA_130;
   default:
     llvm_unreachable("invalid enum");
   }
 }
 
-CudaVersion MaxVersionForCudaArch(CudaArch A) {
+CudaVersion MaxVersionForOffloadArch(OffloadArch A) {
   // AMD GPUs do not depend on CUDA versions.
-  if (IsAMDGpuArch(A))
+  if (IsAMDOffloadArch(A))
     return CudaVersion::NEW;
 
   switch (A) {
-  case CudaArch::UNKNOWN:
+  case OffloadArch::UNKNOWN:
     return CudaVersion::UNKNOWN;
-  case CudaArch::SM_20:
-  case CudaArch::SM_21:
+  case OffloadArch::SM_20:
+  case OffloadArch::SM_21:
     return CudaVersion::CUDA_80;
-  case CudaArch::SM_30:
-    return CudaVersion::CUDA_110;
+  case OffloadArch::SM_30:
+  case OffloadArch::SM_32_:
+    return CudaVersion::CUDA_102;
+  case OffloadArch::SM_35:
+  case OffloadArch::SM_37:
+    return CudaVersion::CUDA_118;
+  case OffloadArch::SM_101:
+  case OffloadArch::SM_101a:
+    return CudaVersion::CUDA_129;
   default:
     return CudaVersion::NEW;
   }
 }
 
-CudaVersion ToCudaVersion(llvm::VersionTuple Version) {
-  int IVer = Version.getMajor() * 10 + Version.getMinor().value_or(0);
-  switch(IVer) {
-  case 70:
-    return CudaVersion::CUDA_70;
-  case 75:
-    return CudaVersion::CUDA_75;
-  case 80:
-    return CudaVersion::CUDA_80;
-  case 90:
-    return CudaVersion::CUDA_90;
-  case 91:
-    return CudaVersion::CUDA_91;
-  case 92:
-    return CudaVersion::CUDA_92;
-  case 100:
-    return CudaVersion::CUDA_100;
-  case 101:
-    return CudaVersion::CUDA_101;
-  case 102:
-    return CudaVersion::CUDA_102;
-  case 110:
-    return CudaVersion::CUDA_110;
-  case 111:
-    return CudaVersion::CUDA_111;
-  case 112:
-    return CudaVersion::CUDA_112;
-  case 113:
-    return CudaVersion::CUDA_113;
-  case 114:
-    return CudaVersion::CUDA_114;
-  case 115:
-    return CudaVersion::CUDA_115;
-  default:
-    return CudaVersion::UNKNOWN;
-  }
-}
-
-bool CudaFeatureEnabled(llvm::VersionTuple  Version, CudaFeature Feature) {
+bool CudaFeatureEnabled(llvm::VersionTuple Version, CudaFeature Feature) {
   return CudaFeatureEnabled(ToCudaVersion(Version), Feature);
 }
 
@@ -269,5 +172,89 @@ bool CudaFeatureEnabled(CudaVersion Version, CudaFeature Feature) {
     return Version >= CudaVersion::CUDA_101;
   }
   llvm_unreachable("Unknown CUDA feature.");
+}
+
+unsigned CudaArchToID(OffloadArch Arch) {
+  switch (Arch) {
+  case OffloadArch::SM_20:
+    return 200;
+  case OffloadArch::SM_21:
+    return 210;
+  case OffloadArch::SM_30:
+    return 300;
+  case OffloadArch::SM_32_:
+    return 320;
+  case OffloadArch::SM_35:
+    return 350;
+  case OffloadArch::SM_37:
+    return 370;
+  case OffloadArch::SM_50:
+    return 500;
+  case OffloadArch::SM_52:
+    return 520;
+  case OffloadArch::SM_53:
+    return 530;
+  case OffloadArch::SM_60:
+    return 600;
+  case OffloadArch::SM_61:
+    return 610;
+  case OffloadArch::SM_62:
+    return 620;
+  case OffloadArch::SM_70:
+    return 700;
+  case OffloadArch::SM_72:
+    return 720;
+  case OffloadArch::SM_75:
+    return 750;
+  case OffloadArch::SM_80:
+    return 800;
+  case OffloadArch::SM_86:
+    return 860;
+  case OffloadArch::SM_87:
+    return 870;
+  case OffloadArch::SM_88:
+    return 880;
+  case OffloadArch::SM_89:
+    return 890;
+  case OffloadArch::SM_90:
+  case OffloadArch::SM_90a:
+    return 900;
+  case OffloadArch::SM_100:
+  case OffloadArch::SM_100a:
+    return 1000;
+  case OffloadArch::SM_101:
+  case OffloadArch::SM_101a:
+    return 1010;
+  case OffloadArch::SM_103:
+  case OffloadArch::SM_103a:
+    return 1030;
+  case OffloadArch::SM_110:
+  case OffloadArch::SM_110a:
+    return 1100;
+  case OffloadArch::SM_120:
+  case OffloadArch::SM_120a:
+    return 1200;
+  case OffloadArch::SM_121:
+  case OffloadArch::SM_121a:
+    return 1210;
+  default:
+    break;
+  }
+  llvm_unreachable("invalid NVIDIA GPU architecture");
+}
+
+bool IsNVIDIAAcceleratedOffloadArch(OffloadArch Arch) {
+  switch (Arch) {
+  case OffloadArch::SM_90a:
+  case OffloadArch::SM_100a:
+  case OffloadArch::SM_101a:
+  case OffloadArch::SM_103a:
+  case OffloadArch::SM_110a:
+  case OffloadArch::SM_120a:
+  case OffloadArch::SM_121a:
+    return true;
+  default:
+    return false;
+  }
 }
 } // namespace clang

@@ -7,15 +7,22 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/IR/Operation.h"
-#include "mlir/IR/BlockAndValueMapping.h"
+#include "mlir/IR/Attributes.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
+#include "mlir/IR/IRMapping.h"
+#include "mlir/IR/Matchers.h"
 #include "mlir/IR/OpImplementation.h"
+#include "mlir/IR/OperationSupport.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Interfaces/FoldInterfaces.h"
-#include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/ErrorHandling.h"
 #include <numeric>
+#include <optional>
 
 using namespace mlir;
 
@@ -25,30 +32,57 @@ using namespace mlir;
 
 /// Create a new Operation from operation state.
 Operation *Operation::create(const OperationState &state) {
-  return create(state.location, state.name, state.types, state.operands,
-                state.attributes.getDictionary(state.getContext()),
-                state.successors, state.regions);
+  Operation *op =
+      create(state.location, state.name, state.types, state.operands,
+             state.attributes.getDictionary(state.getContext()),
+             state.properties, state.successors, state.regions);
+  if (LLVM_UNLIKELY(state.propertiesAttr)) {
+    assert(!state.properties);
+    LogicalResult result =
+        op->setPropertiesFromAttribute(state.propertiesAttr,
+                                       /*diagnostic=*/nullptr);
+    assert(result.succeeded() && "invalid properties in op creation");
+    (void)result;
+  }
+  return op;
 }
 
 /// Create a new Operation with the specific fields.
 Operation *Operation::create(Location location, OperationName name,
                              TypeRange resultTypes, ValueRange operands,
-                             NamedAttrList &&attributes, BlockRange successors,
+                             NamedAttrList &&attributes,
+                             OpaqueProperties properties, BlockRange successors,
                              RegionRange regions) {
   unsigned numRegions = regions.size();
-  Operation *op = create(location, name, resultTypes, operands,
-                         std::move(attributes), successors, numRegions);
+  Operation *op =
+      create(location, name, resultTypes, operands, std::move(attributes),
+             properties, successors, numRegions);
   for (unsigned i = 0; i < numRegions; ++i)
     if (regions[i])
       op->getRegion(i).takeBody(*regions[i]);
   return op;
 }
 
+/// Create a new Operation with the specific fields.
+Operation *Operation::create(Location location, OperationName name,
+                             TypeRange resultTypes, ValueRange operands,
+                             NamedAttrList &&attributes,
+                             OpaqueProperties properties, BlockRange successors,
+                             unsigned numRegions) {
+  // Populate default attributes.
+  name.populateDefaultAttrs(attributes);
+
+  return create(location, name, resultTypes, operands,
+                attributes.getDictionary(location.getContext()), properties,
+                successors, numRegions);
+}
+
 /// Overload of create that takes an existing DictionaryAttr to avoid
 /// unnecessarily uniquing a list of attributes.
 Operation *Operation::create(Location location, OperationName name,
                              TypeRange resultTypes, ValueRange operands,
-                             NamedAttrList &&attributes, BlockRange successors,
+                             DictionaryAttr attributes,
+                             OpaqueProperties properties, BlockRange successors,
                              unsigned numRegions) {
   assert(llvm::all_of(resultTypes, [](Type t) { return t; }) &&
          "unexpected null result type");
@@ -59,6 +93,7 @@ Operation *Operation::create(Location location, OperationName name,
   unsigned numSuccessors = successors.size();
   unsigned numOperands = operands.size();
   unsigned numResults = resultTypes.size();
+  int opPropertiesAllocSize = llvm::alignTo<8>(name.getOpPropertyByteSize());
 
   // If the operation is known to have no operands, don't allocate an operand
   // storage.
@@ -69,22 +104,20 @@ Operation *Operation::create(Location location, OperationName name,
   // into account the size of the operation, its trailing objects, and its
   // prefixed objects.
   size_t byteSize =
-      totalSizeToAlloc<detail::OperandStorage, BlockOperand, Region, OpOperand>(
-          needsOperandStorage ? 1 : 0, numSuccessors, numRegions, numOperands);
+      totalSizeToAlloc<detail::OperandStorage, detail::OpProperties,
+                       BlockOperand, Region, OpOperand>(
+          needsOperandStorage ? 1 : 0, opPropertiesAllocSize, numSuccessors,
+          numRegions, numOperands);
   size_t prefixByteSize = llvm::alignTo(
       Operation::prefixAllocSize(numTrailingResults, numInlineResults),
       alignof(Operation));
   char *mallocMem = reinterpret_cast<char *>(malloc(byteSize + prefixByteSize));
   void *rawMem = mallocMem + prefixByteSize;
 
-  // Populate default attributes.
-  if (Optional<RegisteredOperationName> info = name.getRegisteredInfo())
-    info->populateDefaultAttrs(attributes);
-
   // Create the new Operation.
   Operation *op = ::new (rawMem) Operation(
       location, name, numResults, numSuccessors, numRegions,
-      attributes.getDictionary(location.getContext()), needsOperandStorage);
+      opPropertiesAllocSize, attributes, properties, needsOperandStorage);
 
   assert((numSuccessors == 0 || op->mightHaveTrait<OpTrait::IsTerminator>()) &&
          "unexpected successors in a non-terminator operation");
@@ -113,16 +146,22 @@ Operation *Operation::create(Location location, OperationName name,
   for (unsigned i = 0; i != numSuccessors; ++i)
     new (&blockOperands[i]) BlockOperand(op, successors[i]);
 
+  // This must be done after properties are initalized.
+  op->setAttrs(attributes);
+
   return op;
 }
 
 Operation::Operation(Location location, OperationName name, unsigned numResults,
                      unsigned numSuccessors, unsigned numRegions,
-                     DictionaryAttr attributes, bool hasOperandStorage)
+                     int fullPropertiesStorageSize, DictionaryAttr attributes,
+                     OpaqueProperties properties, bool hasOperandStorage)
     : location(location), numResults(numResults), numSuccs(numSuccessors),
-      numRegions(numRegions), hasOperandStorage(hasOperandStorage), name(name),
-      attrs(attributes) {
+      numRegions(numRegions), hasOperandStorage(hasOperandStorage),
+      propertiesStorageSize((fullPropertiesStorageSize + 7) / 8), name(name) {
   assert(attributes && "unexpected null attribute dictionary");
+  assert(fullPropertiesStorageSize <= propertiesCapacity &&
+         "Properties size overflow");
 #ifndef NDEBUG
   if (!getDialect() && !getContext()->allowsUnregisteredDialects())
     llvm::report_fatal_error(
@@ -131,6 +170,8 @@ Operation::Operation(Location location, OperationName name, unsigned numResults,
         "allowUnregisteredDialects() on the MLIRContext, or use "
         "-allow-unregistered-dialect with the MLIR tool used.");
 #endif
+  if (fullPropertiesStorageSize)
+    name.initOpProperties(getPropertiesStorage(), properties);
 }
 
 // Operations are deleted through the destroy() member because they are
@@ -159,6 +200,8 @@ Operation::~Operation() {
   // Explicitly destroy the regions.
   for (auto &region : getRegions())
     region.~Region();
+  if (propertiesStorageSize)
+    name.destroyOpProperties(getPropertiesStorage());
 }
 
 /// Destroy this operation or one of its subclasses.
@@ -250,12 +293,87 @@ InFlightDiagnostic Operation::emitRemark(const Twine &message) {
   return diag;
 }
 
+DictionaryAttr Operation::getAttrDictionary() {
+  if (getPropertiesStorageSize()) {
+    NamedAttrList attrsList = attrs;
+    getName().populateInherentAttrs(this, attrsList);
+    return attrsList.getDictionary(getContext());
+  }
+  return attrs;
+}
+
+void Operation::setAttrs(DictionaryAttr newAttrs) {
+  assert(newAttrs && "expected valid attribute dictionary");
+  if (getPropertiesStorageSize()) {
+    // We're spliting the providing DictionaryAttr by removing the inherentAttr
+    // which will be stored in the properties.
+    SmallVector<NamedAttribute> discardableAttrs;
+    discardableAttrs.reserve(newAttrs.size());
+    for (NamedAttribute attr : newAttrs) {
+      if (getInherentAttr(attr.getName()))
+        setInherentAttr(attr.getName(), attr.getValue());
+      else
+        discardableAttrs.push_back(attr);
+    }
+    if (discardableAttrs.size() != newAttrs.size())
+      newAttrs = DictionaryAttr::get(getContext(), discardableAttrs);
+  }
+  attrs = newAttrs;
+}
+void Operation::setAttrs(ArrayRef<NamedAttribute> newAttrs) {
+  if (getPropertiesStorageSize()) {
+    // We're spliting the providing array of attributes by removing the
+    // inherentAttr which will be stored in the properties.
+    SmallVector<NamedAttribute> discardableAttrs;
+    discardableAttrs.reserve(newAttrs.size());
+    for (NamedAttribute attr : newAttrs) {
+      if (getInherentAttr(attr.getName()))
+        setInherentAttr(attr.getName(), attr.getValue());
+      else
+        discardableAttrs.push_back(attr);
+    }
+    attrs = DictionaryAttr::get(getContext(), discardableAttrs);
+    return;
+  }
+  attrs = DictionaryAttr::get(getContext(), newAttrs);
+}
+
+std::optional<Attribute> Operation::getInherentAttr(StringRef name) {
+  return getName().getInherentAttr(this, name);
+}
+
+void Operation::setInherentAttr(StringAttr name, Attribute value) {
+  getName().setInherentAttr(this, name, value);
+}
+
+Attribute Operation::getPropertiesAsAttribute() {
+  std::optional<RegisteredOperationName> info = getRegisteredInfo();
+  if (LLVM_UNLIKELY(!info))
+    return *getPropertiesStorage().as<Attribute *>();
+  return info->getOpPropertiesAsAttribute(this);
+}
+LogicalResult Operation::setPropertiesFromAttribute(
+    Attribute attr, function_ref<InFlightDiagnostic()> emitError) {
+  std::optional<RegisteredOperationName> info = getRegisteredInfo();
+  if (LLVM_UNLIKELY(!info)) {
+    *getPropertiesStorage().as<Attribute *>() = attr;
+    return success();
+  }
+  return info->setOpPropertiesFromAttribute(
+      this->getName(), this->getPropertiesStorage(), attr, emitError);
+}
+
+void Operation::copyProperties(OpaqueProperties rhs) {
+  name.copyOpProperties(getPropertiesStorage(), rhs);
+}
+
+llvm::hash_code Operation::hashProperties() {
+  return name.hashOpProperties(getPropertiesStorage());
+}
+
 //===----------------------------------------------------------------------===//
 // Operation Ordering
 //===----------------------------------------------------------------------===//
-
-constexpr unsigned Operation::kInvalidOrderIdx;
-constexpr unsigned Operation::kOrderStride;
 
 /// Given an operation 'other' that is within the same parent block, return
 /// whether the current operation is before 'other' in the operation list
@@ -285,7 +403,7 @@ void Operation::updateOrderIfNecessary() {
   assert(block && "expected valid parent");
 
   // If the order is valid for this operation there is nothing to do.
-  if (hasValidOrder())
+  if (hasValidOrder() || llvm::hasSingleElement(*block))
     return;
   Operation *blockFront = &block->front();
   Operation *blockBack = &block->back();
@@ -342,28 +460,26 @@ void Operation::updateOrderIfNecessary() {
 //===----------------------------------------------------------------------===//
 
 auto llvm::ilist_detail::SpecificNodeAccess<
-    typename llvm::ilist_detail::compute_node_options<
-        ::mlir::Operation>::type>::getNodePtr(pointer n) -> node_type * {
+    llvm::ilist_detail::compute_node_options<::mlir::Operation>::type>::
+    getNodePtr(pointer n) -> node_type * {
   return NodeAccess::getNodePtr<OptionsT>(n);
 }
 
 auto llvm::ilist_detail::SpecificNodeAccess<
-    typename llvm::ilist_detail::compute_node_options<
-        ::mlir::Operation>::type>::getNodePtr(const_pointer n)
-    -> const node_type * {
+    llvm::ilist_detail::compute_node_options<::mlir::Operation>::type>::
+    getNodePtr(const_pointer n) -> const node_type * {
   return NodeAccess::getNodePtr<OptionsT>(n);
 }
 
 auto llvm::ilist_detail::SpecificNodeAccess<
-    typename llvm::ilist_detail::compute_node_options<
-        ::mlir::Operation>::type>::getValuePtr(node_type *n) -> pointer {
+    llvm::ilist_detail::compute_node_options<::mlir::Operation>::type>::
+    getValuePtr(node_type *n) -> pointer {
   return NodeAccess::getValuePtr<OptionsT>(n);
 }
 
 auto llvm::ilist_detail::SpecificNodeAccess<
-    typename llvm::ilist_detail::compute_node_options<
-        ::mlir::Operation>::type>::getValuePtr(const node_type *n)
-    -> const_pointer {
+    llvm::ilist_detail::compute_node_options<::mlir::Operation>::type>::
+    getValuePtr(const node_type *n) -> const_pointer {
   return NodeAccess::getValuePtr<OptionsT>(n);
 }
 
@@ -439,6 +555,8 @@ void Operation::moveBefore(Operation *existingOp) {
 /// before `iterator` in the specified basic block.
 void Operation::moveBefore(Block *block,
                            llvm::iplist<Operation>::iterator iterator) {
+  assert(getBlock() &&
+         "cannot move an operation that isn't contained in a block");
   block->getOperations().splice(iterator, getBlock()->getOperations(),
                                 getIterator());
 }
@@ -486,14 +604,38 @@ void Operation::setSuccessor(Block *block, unsigned index) {
   getBlockOperands()[index].set(block);
 }
 
+#ifndef NDEBUG
+/// Assert that the folded results (in case of values) have the same type as
+/// the results of the given op.
+static void checkFoldResultTypes(Operation *op,
+                                 SmallVectorImpl<OpFoldResult> &results) {
+  if (results.empty())
+    return;
+
+  for (auto [ofr, opResult] : llvm::zip_equal(results, op->getResults())) {
+    if (auto value = dyn_cast<Value>(ofr)) {
+      if (value.getType() != opResult.getType()) {
+        op->emitOpError() << "folder produced a value of incorrect type: "
+                          << value.getType()
+                          << ", expected: " << opResult.getType();
+        assert(false && "incorrect fold result type");
+      }
+    }
+  }
+}
+#endif // NDEBUG
+
 /// Attempt to fold this operation using the Op's registered foldHook.
 LogicalResult Operation::fold(ArrayRef<Attribute> operands,
                               SmallVectorImpl<OpFoldResult> &results) {
   // If we have a registered operation definition matching this one, use it to
   // try to constant fold the operation.
-  Optional<RegisteredOperationName> info = getRegisteredInfo();
-  if (info && succeeded(info->foldHook(this, operands, results)))
+  if (succeeded(name.foldHook(this, operands, results))) {
+#ifndef NDEBUG
+    checkFoldResultTypes(this, results);
+#endif // NDEBUG
     return success();
+  }
 
   // Otherwise, fall back on the dialect hook to handle it.
   Dialect *dialect = getDialect();
@@ -504,7 +646,21 @@ LogicalResult Operation::fold(ArrayRef<Attribute> operands,
   if (!interface)
     return failure();
 
-  return interface->fold(this, operands, results);
+  LogicalResult status = interface->fold(this, operands, results);
+#ifndef NDEBUG
+  if (succeeded(status))
+    checkFoldResultTypes(this, results);
+#endif // NDEBUG
+  return status;
+}
+
+LogicalResult Operation::fold(SmallVectorImpl<OpFoldResult> &results) {
+  // Check if any operands are constants.
+  SmallVector<Attribute> constants;
+  constants.assign(getNumOperands(), Attribute());
+  for (unsigned i = 0, e = getNumOperands(); i != e; ++i)
+    matchPattern(getOperand(i), m_Constant(&constants[i]));
+  return fold(constants, results);
 }
 
 /// Emit an error with the op name prefixed, like "'dim' op " which is
@@ -541,12 +697,12 @@ Operation::CloneOptions &Operation::CloneOptions::cloneOperands(bool enable) {
 /// Operands are remapped using `mapper` (if present), and `mapper` is updated
 /// to contain the results. The `mapResults` flag specifies whether the results
 /// of the cloned operation should be added to the map.
-Operation *Operation::cloneWithoutRegions(BlockAndValueMapping &mapper) {
+Operation *Operation::cloneWithoutRegions(IRMapping &mapper) {
   return clone(mapper, CloneOptions::all().cloneRegions(false));
 }
 
 Operation *Operation::cloneWithoutRegions() {
-  BlockAndValueMapping mapper;
+  IRMapping mapper;
   return cloneWithoutRegions(mapper);
 }
 
@@ -555,8 +711,7 @@ Operation *Operation::cloneWithoutRegions() {
 /// them alone if no entry is present).  Replaces references to cloned
 /// sub-operations to the corresponding operation that is copied, and adds
 /// those mappings to the map.
-Operation *Operation::clone(BlockAndValueMapping &mapper,
-                            CloneOptions options) {
+Operation *Operation::clone(IRMapping &mapper, CloneOptions options) {
   SmallVector<Value, 8> operands;
   SmallVector<Block *, 2> successors;
 
@@ -574,7 +729,8 @@ Operation *Operation::clone(BlockAndValueMapping &mapper,
 
   // Create the new operation.
   auto *newOp = create(getLoc(), getName(), getResultTypes(), operands, attrs,
-                       successors, getNumRegions());
+                       getPropertiesStorage(), successors, getNumRegions());
+  mapper.map(this, newOp);
 
   // Clone the regions.
   if (options.shouldCloneRegions()) {
@@ -590,7 +746,7 @@ Operation *Operation::clone(BlockAndValueMapping &mapper,
 }
 
 Operation *Operation::clone(CloneOptions options) {
-  BlockAndValueMapping mapper;
+  IRMapping mapper;
   return clone(mapper, options);
 }
 
@@ -623,9 +779,46 @@ void OpState::print(Operation *op, OpAsmPrinter &p, StringRef defaultDialect) {
 void OpState::printOpName(Operation *op, OpAsmPrinter &p,
                           StringRef defaultDialect) {
   StringRef name = op->getName().getStringRef();
-  if (name.startswith((defaultDialect + ".").str()) && name.count('.') == 1)
+  if (name.starts_with((defaultDialect + ".").str()) && name.count('.') == 1)
     name = name.drop_front(defaultDialect.size() + 1);
   p.getStream() << name;
+}
+
+/// Parse properties as a Attribute.
+ParseResult OpState::genericParseProperties(OpAsmParser &parser,
+                                            Attribute &result) {
+  if (succeeded(parser.parseOptionalLess())) { // The less is optional.
+    if (parser.parseAttribute(result) || parser.parseGreater())
+      return failure();
+  }
+  return success();
+}
+
+/// Print the properties as a Attribute with names not included within
+/// 'elidedProps'
+void OpState::genericPrintProperties(OpAsmPrinter &p, Attribute properties,
+                                     ArrayRef<StringRef> elidedProps) {
+  if (!properties)
+    return;
+  auto dictAttr = dyn_cast_or_null<::mlir::DictionaryAttr>(properties);
+  if (dictAttr && !elidedProps.empty()) {
+    ArrayRef<NamedAttribute> attrs = dictAttr.getValue();
+    llvm::SmallDenseSet<StringRef> elidedAttrsSet(elidedProps.begin(),
+                                                  elidedProps.end());
+    auto filteredAttrs =
+        llvm::make_filter_range(attrs, [&](NamedAttribute attr) {
+          return !elidedAttrsSet.contains(attr.getName().strref());
+        });
+    if (!filteredAttrs.empty()) {
+      p << "<{";
+      interleaveComma(filteredAttrs, p, [&](NamedAttribute attr) {
+        p.printNamedAttribute(attr);
+      });
+      p << "}>";
+    }
+  } else {
+    p << "<" << properties << ">";
+  }
 }
 
 /// Emit an error about fatal conditions with this operation, reporting up to
@@ -655,6 +848,24 @@ InFlightDiagnostic OpState::emitRemark(const Twine &message) {
 //===----------------------------------------------------------------------===//
 // Op Trait implementations
 //===----------------------------------------------------------------------===//
+
+LogicalResult
+OpTrait::impl::foldCommutative(Operation *op, ArrayRef<Attribute> operands,
+                               SmallVectorImpl<OpFoldResult> &results) {
+  // Nothing to fold if there are not at least 2 operands.
+  if (op->getNumOperands() < 2)
+    return failure();
+  // Move all constant operands to the end.
+  OpOperand *operandsBegin = op->getOpOperands().begin();
+  auto isNonConstant = [&](OpOperand &o) {
+    return !static_cast<bool>(operands[std::distance(operandsBegin, &o)]);
+  };
+  auto *firstConstantIt = llvm::find_if_not(op->getOpOperands(), isNonConstant);
+  auto *newConstantIt = std::stable_partition(
+      firstConstantIt, op->getOpOperands().end(), isNonConstant);
+  // Return success if the op was modified.
+  return success(firstConstantIt != newConstantIt);
+}
 
 OpFoldResult OpTrait::impl::foldIdempotent(Operation *op) {
   if (op->getNumOperands() == 1) {
@@ -713,11 +924,11 @@ LogicalResult OpTrait::impl::verifyAtLeastNOperands(Operation *op,
 /// If this is a vector type, or a tensor type, return the scalar element type
 /// that it is built around, otherwise return the type unmodified.
 static Type getTensorOrVectorElementType(Type type) {
-  if (auto vec = type.dyn_cast<VectorType>())
+  if (auto vec = llvm::dyn_cast<VectorType>(type))
     return vec.getElementType();
 
   // Look through tensor<vector<...>> to find the underlying element type.
-  if (auto tensor = type.dyn_cast<TensorType>())
+  if (auto tensor = llvm::dyn_cast<TensorType>(type))
     return getTensorOrVectorElementType(tensor.getElementType());
   return type;
 }
@@ -751,7 +962,7 @@ OpTrait::impl::verifyOperandsAreSignlessIntegerLike(Operation *op) {
 LogicalResult OpTrait::impl::verifyOperandsAreFloatLike(Operation *op) {
   for (auto opType : op->getOperandTypes()) {
     auto type = getTensorOrVectorElementType(opType);
-    if (!type.isa<FloatType>())
+    if (!llvm::isa<FloatType>(type))
       return op->emitOpError("requires a float type");
   }
   return success();
@@ -893,18 +1104,76 @@ LogicalResult OpTrait::impl::verifySameOperandsAndResultType(Operation *op) {
 
   auto type = op->getResult(0).getType();
   auto elementType = getElementTypeOrSelf(type);
+  Attribute encoding = nullptr;
+  if (auto rankedType = dyn_cast<RankedTensorType>(type))
+    encoding = rankedType.getEncoding();
   for (auto resultType : llvm::drop_begin(op->getResultTypes())) {
     if (getElementTypeOrSelf(resultType) != elementType ||
         failed(verifyCompatibleShape(resultType, type)))
       return op->emitOpError()
              << "requires the same type for all operands and results";
+    if (encoding)
+      if (auto rankedType = dyn_cast<RankedTensorType>(resultType);
+          encoding != rankedType.getEncoding())
+        return op->emitOpError()
+               << "requires the same encoding for all operands and results";
   }
   for (auto opType : op->getOperandTypes()) {
     if (getElementTypeOrSelf(opType) != elementType ||
         failed(verifyCompatibleShape(opType, type)))
       return op->emitOpError()
              << "requires the same type for all operands and results";
+    if (encoding)
+      if (auto rankedType = dyn_cast<RankedTensorType>(opType);
+          encoding != rankedType.getEncoding())
+        return op->emitOpError()
+               << "requires the same encoding for all operands and results";
   }
+  return success();
+}
+
+LogicalResult OpTrait::impl::verifySameOperandsAndResultRank(Operation *op) {
+  if (failed(verifyAtLeastNOperands(op, 1)))
+    return failure();
+
+  // delegate function that returns true if type is a shaped type with known
+  // rank
+  auto hasRank = [](const Type type) {
+    if (auto shapedType = dyn_cast<ShapedType>(type))
+      return shapedType.hasRank();
+
+    return false;
+  };
+
+  auto rankedOperandTypes =
+      llvm::make_filter_range(op->getOperandTypes(), hasRank);
+  auto rankedResultTypes =
+      llvm::make_filter_range(op->getResultTypes(), hasRank);
+
+  // If all operands and results are unranked, then no further verification.
+  if (rankedOperandTypes.empty() && rankedResultTypes.empty())
+    return success();
+
+  // delegate function that returns rank of shaped type with known rank
+  auto getRank = [](const Type type) {
+    return cast<ShapedType>(type).getRank();
+  };
+
+  auto rank = !rankedOperandTypes.empty() ? getRank(*rankedOperandTypes.begin())
+                                          : getRank(*rankedResultTypes.begin());
+
+  for (const auto type : rankedOperandTypes) {
+    if (rank != getRank(type)) {
+      return op->emitOpError("operands don't have matching ranks");
+    }
+  }
+
+  for (const auto type : rankedResultTypes) {
+    if (rank != getRank(type)) {
+      return op->emitOpError("result type has different rank than operands");
+    }
+  }
+
   return success();
 }
 
@@ -973,7 +1242,7 @@ LogicalResult OpTrait::impl::verifyResultsAreBoolLike(Operation *op) {
 
 LogicalResult OpTrait::impl::verifyResultsAreFloatLike(Operation *op) {
   for (auto resultType : op->getResultTypes())
-    if (!getTensorOrVectorElementType(resultType).isa<FloatType>())
+    if (!llvm::isa<FloatType>(getTensorOrVectorElementType(resultType)))
       return op->emitOpError() << "requires a floating point type";
 
   return success();
@@ -1001,10 +1270,7 @@ LogicalResult OpTrait::impl::verifyValueSizeAttr(Operation *op,
     return op->emitOpError("'")
            << attrName << "' attribute cannot have negative elements";
 
-  size_t totalCount =
-      std::accumulate(sizes.begin(), sizes.end(), 0,
-                      [](unsigned all, int32_t one) { return all + one; });
-
+  size_t totalCount = llvm::sum_of(sizes, size_t(0));
   if (totalCount != expectedCount)
     return op->emitOpError()
            << valueGroupName << " count (" << expectedCount
@@ -1039,13 +1305,11 @@ LogicalResult OpTrait::impl::verifyNoRegionArguments(Operation *op) {
 }
 
 LogicalResult OpTrait::impl::verifyElementwise(Operation *op) {
-  auto isMappableType = [](Type type) {
-    return type.isa<VectorType, TensorType>();
-  };
-  auto resultMappableTypes = llvm::to_vector<1>(
-      llvm::make_filter_range(op->getResultTypes(), isMappableType));
-  auto operandMappableTypes = llvm::to_vector<2>(
-      llvm::make_filter_range(op->getOperandTypes(), isMappableType));
+  auto isMappableType = llvm::IsaPred<VectorType, TensorType>;
+  auto resultMappableTypes =
+      llvm::filter_to_vector<1>(op->getResultTypes(), isMappableType);
+  auto operandMappableTypes =
+      llvm::filter_to_vector<2>(op->getOperandTypes(), isMappableType);
 
   // If the op only has scalar operand/result types, then we have nothing to
   // check.
@@ -1126,52 +1390,6 @@ LogicalResult OpTrait::impl::verifyIsIsolatedFromAbove(Operation *isolatedOp) {
 bool OpTrait::hasElementwiseMappableTraits(Operation *op) {
   return op->hasTrait<Elementwise>() && op->hasTrait<Scalarizable>() &&
          op->hasTrait<Vectorizable>() && op->hasTrait<Tensorizable>();
-}
-
-//===----------------------------------------------------------------------===//
-// CastOpInterface
-//===----------------------------------------------------------------------===//
-
-/// Attempt to fold the given cast operation.
-LogicalResult
-impl::foldCastInterfaceOp(Operation *op, ArrayRef<Attribute> attrOperands,
-                          SmallVectorImpl<OpFoldResult> &foldResults) {
-  OperandRange operands = op->getOperands();
-  if (operands.empty())
-    return failure();
-  ResultRange results = op->getResults();
-
-  // Check for the case where the input and output types match 1-1.
-  if (operands.getTypes() == results.getTypes()) {
-    foldResults.append(operands.begin(), operands.end());
-    return success();
-  }
-
-  return failure();
-}
-
-/// Attempt to verify the given cast operation.
-LogicalResult impl::verifyCastInterfaceOp(
-    Operation *op, function_ref<bool(TypeRange, TypeRange)> areCastCompatible) {
-  auto resultTypes = op->getResultTypes();
-  if (resultTypes.empty())
-    return op->emitOpError()
-           << "expected at least one result for cast operation";
-
-  auto operandTypes = op->getOperandTypes();
-  if (!areCastCompatible(operandTypes, resultTypes)) {
-    InFlightDiagnostic diag = op->emitOpError("operand type");
-    if (operandTypes.empty())
-      diag << "s []";
-    else if (llvm::size(operandTypes) == 1)
-      diag << " " << *operandTypes.begin();
-    else
-      diag << "s " << operandTypes;
-    return diag << " and result type" << (resultTypes.size() == 1 ? " " : "s ")
-                << resultTypes << " are cast incompatible";
-  }
-
-  return success();
 }
 
 //===----------------------------------------------------------------------===//

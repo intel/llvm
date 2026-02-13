@@ -21,6 +21,7 @@ class NVPTXFloatMCExpr : public MCTargetExpr {
 public:
   enum VariantKind {
     VK_NVPTX_None,
+    VK_NVPTX_BFLOAT_PREC_FLOAT, // FP constant in bfloat-precision
     VK_NVPTX_HALF_PREC_FLOAT,   // FP constant in half-precision
     VK_NVPTX_SINGLE_PREC_FLOAT, // FP constant in single-precision
     VK_NVPTX_DOUBLE_PREC_FLOAT  // FP constant in double-precision
@@ -39,6 +40,11 @@ public:
 
   static const NVPTXFloatMCExpr *create(VariantKind Kind, const APFloat &Flt,
                                         MCContext &Ctx);
+
+  static const NVPTXFloatMCExpr *createConstantBFPHalf(const APFloat &Flt,
+                                                       MCContext &Ctx) {
+    return create(VK_NVPTX_BFLOAT_PREC_FLOAT, Flt, Ctx);
+  }
 
   static const NVPTXFloatMCExpr *createConstantFPHalf(const APFloat &Flt,
                                                         MCContext &Ctx) {
@@ -69,15 +75,11 @@ public:
 
   void printImpl(raw_ostream &OS, const MCAsmInfo *MAI) const override;
   bool evaluateAsRelocatableImpl(MCValue &Res,
-                                 const MCAsmLayout *Layout,
-                                 const MCFixup *Fixup) const override {
+                                 const MCAssembler *Asm) const override {
     return false;
   }
   void visitUsedExpr(MCStreamer &Streamer) const override {};
   MCFragment *findAssociatedFragment() const override { return nullptr; }
-
-  // There are no TLS NVPTXMCExprs at the moment.
-  void fixELFSymbolsInTLSFixups(MCAssembler &Asm) const override {}
 
   static bool classof(const MCExpr *E) {
     return E->getKind() == MCExpr::Target;
@@ -111,15 +113,11 @@ public:
 
   void printImpl(raw_ostream &OS, const MCAsmInfo *MAI) const override;
   bool evaluateAsRelocatableImpl(MCValue &Res,
-                                 const MCAsmLayout *Layout,
-                                 const MCFixup *Fixup) const override {
+                                 const MCAssembler *Asm) const override {
     return false;
   }
   void visitUsedExpr(MCStreamer &Streamer) const override {};
   MCFragment *findAssociatedFragment() const override { return nullptr; }
-
-  // There are no TLS NVPTXMCExprs at the moment.
-  void fixELFSymbolsInTLSFixups(MCAssembler &Asm) const override {}
 
   static bool classof(const MCExpr *E) {
     return E->getKind() == MCExpr::Target;

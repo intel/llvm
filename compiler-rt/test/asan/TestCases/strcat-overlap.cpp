@@ -31,14 +31,15 @@
 // depending on how strcat() is implemented. For now only run
 // on platforms where we know the test passes.
 // REQUIRES: x86_64h-darwin || x86_64-darwin || i386-darwin || x86_64-linux || i386-linux
-// UNSUPPORTED: windows-msvc
+// UNSUPPORTED: target={{.*windows-msvc.*}}
 // UNSUPPORTED: android
 
+#include "defines.h"
 #include <string.h>
 
 
 // Don't inline function otherwise stacktrace changes.
-__attribute__((noinline)) void bad_function() {
+ATTRIBUTE_NOINLINE void bad_function() {
   char buffer[] = "hello\0XXX";
   // CHECK: strcat-param-overlap: memory ranges
   // CHECK: [{{0x.*,[ ]*0x.*}}) and [{{0x.*,[ ]*0x.*}}) overlap

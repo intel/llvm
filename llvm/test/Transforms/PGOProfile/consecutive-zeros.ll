@@ -1,12 +1,11 @@
-; REQUIRES: asserts
 ; RUN: llvm-profdata merge %S/Inputs/consecutive-zeros.proftext -o %t.profdata
-; RUN: opt < %s -debug -passes=pgo-instr-use,pgo-memop-opt -pgo-memop-count-threshold=0 -pgo-memop-percent-threshold=0 -pgo-test-profile-file=%t.profdata -S 2>&1 | FileCheck %s
+; RUN: opt < %s -passes=pgo-instr-use,pgo-memop-opt -pgo-memop-count-threshold=0 -pgo-memop-percent-threshold=0 -pgo-test-profile-file=%t.profdata -S 2>&1 | FileCheck %s
 
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
 define void @foo(ptr %dst, ptr %src, ptr %a, i32 %n) {
-; CHECK: Invalid Profile
+; CHECK: warning: Invalid Profile
 entry:
   br label %for.cond
 
@@ -49,11 +48,11 @@ for.end6:
   ret void
 }
 
-declare void @llvm.lifetime.start(i64, ptr nocapture)
+declare void @llvm.lifetime.start(ptr nocapture)
 
 declare void @llvm.memcpy.p0.p0.i64(ptr nocapture writeonly, ptr nocapture readonly, i64, i1)
 
 declare i32 @memcmp(ptr, ptr, i64)
 declare i32 @bcmp(ptr, ptr, i64)
 
-declare void @llvm.lifetime.end(i64, ptr nocapture)
+declare void @llvm.lifetime.end(ptr nocapture)

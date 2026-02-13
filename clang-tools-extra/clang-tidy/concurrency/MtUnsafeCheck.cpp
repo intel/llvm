@@ -1,4 +1,4 @@
-//===--- MtUnsafeCheck.cpp - clang-tidy -----------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "MtUnsafeCheck.h"
-#include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 
 using namespace clang::ast_matchers;
@@ -153,7 +152,6 @@ static const clang::StringRef GlibcFunctions[] = {
     "::sigsuspend",
     "::sleep",
     "::srand48",
-    "::strerror",
     "::strsignal",
     "::strtok",
     "::tcflow",
@@ -258,8 +256,7 @@ static const clang::StringRef PosixFunctions[] = {
     "::wctomb",
 };
 
-namespace clang {
-namespace tidy {
+namespace clang::tidy {
 
 template <> struct OptionEnumMapping<concurrency::MtUnsafeCheck::FunctionSet> {
   static llvm::ArrayRef<
@@ -270,7 +267,7 @@ template <> struct OptionEnumMapping<concurrency::MtUnsafeCheck::FunctionSet> {
         Mapping[] = {{concurrency::MtUnsafeCheck::FunctionSet::Posix, "posix"},
                      {concurrency::MtUnsafeCheck::FunctionSet::Glibc, "glibc"},
                      {concurrency::MtUnsafeCheck::FunctionSet::Any, "any"}};
-    return makeArrayRef(Mapping);
+    return {Mapping};
   }
 };
 
@@ -312,5 +309,4 @@ void MtUnsafeCheck::check(const MatchFinder::MatchResult &Result) {
 }
 
 } // namespace concurrency
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy

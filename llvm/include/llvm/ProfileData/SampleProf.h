@@ -15,13 +15,16 @@
 #define LLVM_PROFILEDATA_SAMPLEPROF_H
 
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalValue.h"
+#include "llvm/ProfileData/FunctionId.h"
+#include "llvm/ProfileData/HashKeyMap.h"
 #include "llvm/Support/Allocator.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/MathExtras.h"
@@ -41,7 +44,7 @@ namespace llvm {
 class DILocation;
 class raw_ostream;
 
-const std::error_category &sampleprof_category();
+LLVM_ABI const std::error_category &sampleprof_category();
 
 enum class sampleprof_error {
   success = 0,
@@ -58,15 +61,16 @@ enum class sampleprof_error {
   ostream_seek_unsupported,
   uncompress_failed,
   zlib_unavailable,
-  hash_mismatch
+  hash_mismatch,
+  illegal_line_offset,
 };
 
 inline std::error_code make_error_code(sampleprof_error E) {
   return std::error_code(static_cast<int>(E), sampleprof_category());
 }
 
-inline sampleprof_error MergeResult(sampleprof_error &Accumulator,
-                                    sampleprof_error Result) {
+inline sampleprof_error mergeSampleProfErrors(sampleprof_error &Accumulator,
+                                              sampleprof_error Result) {
   // Prefer first error encountered as later errors may be secondary effects of
   // the initial problem.
   if (Accumulator == sampleprof_error::success &&
@@ -87,13 +91,21 @@ struct is_error_code_enum<llvm::sampleprof_error> : std::true_type {};
 namespace llvm {
 namespace sampleprof {
 
+constexpr char kVTableProfPrefix[] = "vtables ";
+
 enum SampleProfileFormat {
   SPF_None = 0,
   SPF_Text = 0x1,
-  SPF_Compact_Binary = 0x2,
+  SPF_Compact_Binary = 0x2, // Deprecated
   SPF_GCC = 0x3,
   SPF_Ext_Binary = 0x4,
   SPF_Binary = 0xff
+};
+
+enum SampleProfileLayout {
+  SPL_None = 0,
+  SPL_Nest = 0x1,
+  SPL_Flat = 0x2,
 };
 
 static inline uint64_t SPMagic(SampleProfileFormat Format = SPF_Binary) {
@@ -101,16 +113,6 @@ static inline uint64_t SPMagic(SampleProfileFormat Format = SPF_Binary) {
          uint64_t('R') << (64 - 24) | uint64_t('O') << (64 - 32) |
          uint64_t('F') << (64 - 40) | uint64_t('4') << (64 - 48) |
          uint64_t('2') << (64 - 56) | uint64_t(Format);
-}
-
-/// Get the proper representation of a string according to whether the
-/// current Format uses MD5 to represent the string.
-static inline StringRef getRepInFormat(StringRef Name, bool UseMD5,
-                                       std::string &GUIDBuf) {
-  if (Name.empty() || !UseMD5)
-    return Name;
-  GUIDBuf = std::to_string(Function::getGUID(Name));
-  return GUIDBuf;
 }
 
 static inline uint64_t SPVersion() { return 103; }
@@ -132,7 +134,7 @@ enum SecType {
 };
 
 static inline std::string getSecName(SecType Type) {
-  switch ((int)Type) { // Avoid -Wcovered-switch-default
+  switch (static_cast<int>(Type)) { // Avoid -Wcovered-switch-default
   case SecInValid:
     return "InvalidSection";
   case SecProfSummary:
@@ -163,7 +165,7 @@ struct SecHdrTableEntry {
   uint64_t Size;
   // The index indicating the location of the current entry in
   // SectionHdrLayout table.
-  uint32_t LayoutIndex;
+  uint64_t LayoutIndex;
 };
 
 // Flags common for all sections are defined here. In SecHdrTableEntry::Flags,
@@ -204,6 +206,9 @@ enum class SecProfSummaryFlags : uint32_t {
   /// SecFlagIsPreInlined means this profile contains ShouldBeInlined
   /// contexts thus this is CS preinliner computed.
   SecFlagIsPreInlined = (1 << 4),
+
+  /// SecFlagHasVTableTypeProf means this profile contains vtable type profiles.
+  SecFlagHasVTableTypeProf = (1 << 5),
 };
 
 enum class SecFuncMetadataFlags : uint32_t {
@@ -283,12 +288,15 @@ static inline bool hasSecFlag(const SecHdrTableEntry &Entry, SecFlagType Flag) {
 struct LineLocation {
   LineLocation(uint32_t L, uint32_t D) : LineOffset(L), Discriminator(D) {}
 
-  void print(raw_ostream &OS) const;
-  void dump() const;
+  LLVM_ABI void print(raw_ostream &OS) const;
+  LLVM_ABI void dump() const;
+
+  // Serialize the line location to the output stream using ULEB128 encoding.
+  LLVM_ABI void serialize(raw_ostream &OS) const;
 
   bool operator<(const LineLocation &O) const {
-    return LineOffset < O.LineOffset ||
-           (LineOffset == O.LineOffset && Discriminator < O.Discriminator);
+    return std::tie(LineOffset, Discriminator) <
+           std::tie(O.LineOffset, O.Discriminator);
   }
 
   bool operator==(const LineLocation &O) const {
@@ -299,11 +307,34 @@ struct LineLocation {
     return LineOffset != O.LineOffset || Discriminator != O.Discriminator;
   }
 
+  uint64_t getHashCode() const {
+    return ((uint64_t)Discriminator << 32) | LineOffset;
+  }
+
   uint32_t LineOffset;
   uint32_t Discriminator;
 };
 
-raw_ostream &operator<<(raw_ostream &OS, const LineLocation &Loc);
+struct LineLocationHash {
+  uint64_t operator()(const LineLocation &Loc) const {
+    return Loc.getHashCode();
+  }
+};
+
+LLVM_ABI raw_ostream &operator<<(raw_ostream &OS, const LineLocation &Loc);
+
+/// Key represents type of a C++ polymorphic class type by its vtable and value
+/// represents its counter.
+/// TODO: The class name FunctionId should be renamed to SymbolId in a refactor
+/// change.
+using TypeCountMap = std::map<FunctionId, uint64_t>;
+
+/// Write \p Map to the output stream. Keys are linearized using \p NameTable
+/// and written as ULEB128. Values are written as ULEB128 as well.
+std::error_code
+serializeTypeMap(const TypeCountMap &Map,
+                 const MapVector<FunctionId, uint32_t> &NameTable,
+                 raw_ostream &OS);
 
 /// Representation of a single sample record.
 ///
@@ -311,13 +342,14 @@ raw_ostream &operator<<(raw_ostream &OS, const LineLocation &Loc);
 /// indicates how frequently was the associated line location executed.
 ///
 /// Additionally, if the associated location contains a function call,
-/// the record will hold a list of all the possible called targets. For
-/// direct calls, this will be the exact function being invoked. For
-/// indirect calls (function pointers, virtual table dispatch), this
-/// will be a list of one or more functions.
+/// the record will hold a list of all the possible called targets and the types
+/// for virtual table dispatches. For direct calls, this will be the exact
+/// function being invoked. For indirect calls (function pointers, virtual table
+/// dispatch), this will be a list of one or more functions. For virtual table
+/// dispatches, this record will also hold the type of the object.
 class SampleRecord {
 public:
-  using CallTarget = std::pair<StringRef, uint64_t>;
+  using CallTarget = std::pair<FunctionId, uint64_t>;
   struct CallTargetComparator {
     bool operator()(const CallTarget &LHS, const CallTarget &RHS) const {
       if (LHS.second != RHS.second)
@@ -328,7 +360,7 @@ public:
   };
 
   using SortedCallTargetSet = std::set<CallTarget, CallTargetComparator>;
-  using CallTargetMap = StringMap<uint64_t>;
+  using CallTargetMap = std::unordered_map<FunctionId, uint64_t>;
   SampleRecord() = default;
 
   /// Increment the number of samples for this record by \p S.
@@ -357,7 +389,7 @@ public:
   ///
   /// Sample counts accumulate using saturating arithmetic, to avoid wrapping
   /// around unsigned integers.
-  sampleprof_error addCalledTarget(StringRef F, uint64_t S,
+  sampleprof_error addCalledTarget(FunctionId F, uint64_t S,
                                    uint64_t Weight = 1) {
     uint64_t &TargetSamples = CallTargets[F];
     bool Overflowed;
@@ -369,7 +401,7 @@ public:
 
   /// Remove called function from the call target map. Return the target sample
   /// count of the called function.
-  uint64_t removeCalledTarget(StringRef F) {
+  uint64_t removeCalledTarget(FunctionId F) {
     uint64_t Count = 0;
     auto I = CallTargets.find(F);
     if (I != CallTargets.end()) {
@@ -385,7 +417,7 @@ public:
   uint64_t getSamples() const { return NumSamples; }
   const CallTargetMap &getCallTargets() const { return CallTargets; }
   const SortedCallTargetSet getSortedCallTargets() const {
-    return SortCallTargets(CallTargets);
+    return sortCallTargets(CallTargets);
   }
 
   uint64_t getCallTargetSum() const {
@@ -396,10 +428,11 @@ public:
   }
 
   /// Sort call targets in descending order of call frequency.
-  static const SortedCallTargetSet SortCallTargets(const CallTargetMap &Targets) {
+  static const SortedCallTargetSet
+  sortCallTargets(const CallTargetMap &Targets) {
     SortedCallTargetSet SortedTargets;
-    for (const auto &I : Targets) {
-      SortedTargets.emplace(I.first(), I.second);
+    for (const auto &[Target, Frequency] : Targets) {
+      SortedTargets.emplace(Target, Frequency);
     }
     return SortedTargets;
   }
@@ -408,24 +441,38 @@ public:
   static const CallTargetMap adjustCallTargets(const CallTargetMap &Targets,
                                                float DistributionFactor) {
     CallTargetMap AdjustedTargets;
-    for (const auto &I : Targets) {
-      AdjustedTargets[I.first()] = I.second * DistributionFactor;
+    for (const auto &[Target, Frequency] : Targets) {
+      AdjustedTargets[Target] = Frequency * DistributionFactor;
     }
     return AdjustedTargets;
   }
 
   /// Merge the samples in \p Other into this record.
   /// Optionally scale sample counts by \p Weight.
-  sampleprof_error merge(const SampleRecord &Other, uint64_t Weight = 1);
-  void print(raw_ostream &OS, unsigned Indent) const;
-  void dump() const;
+  LLVM_ABI sampleprof_error merge(const SampleRecord &Other,
+                                  uint64_t Weight = 1);
+  LLVM_ABI void print(raw_ostream &OS, unsigned Indent) const;
+  LLVM_ABI void dump() const;
+  /// Serialize the sample record to the output stream using ULEB128 encoding.
+  /// The \p NameTable is used to map function names to their IDs.
+  LLVM_ABI std::error_code
+  serialize(raw_ostream &OS,
+            const MapVector<FunctionId, uint32_t> &NameTable) const;
+
+  bool operator==(const SampleRecord &Other) const {
+    return NumSamples == Other.NumSamples && CallTargets == Other.CallTargets;
+  }
+
+  bool operator!=(const SampleRecord &Other) const {
+    return !(*this == Other);
+  }
 
 private:
   uint64_t NumSamples = 0;
   CallTargetMap CallTargets;
 };
 
-raw_ostream &operator<<(raw_ostream &OS, const SampleRecord &Sample);
+LLVM_ABI raw_ostream &operator<<(raw_ostream &OS, const SampleRecord &Sample);
 
 // State of context associated with FunctionSamples
 enum ContextStateMask {
@@ -445,18 +492,18 @@ enum ContextAttributeMask {
       0x4, // Leaf of context is duplicated into the base profile
 };
 
-// Represents a context frame with function name and line location
+// Represents a context frame with profile function and line location
 struct SampleContextFrame {
-  StringRef FuncName;
+  FunctionId Func;
   LineLocation Location;
 
   SampleContextFrame() : Location(0, 0) {}
 
-  SampleContextFrame(StringRef FuncName, LineLocation Location)
-      : FuncName(FuncName), Location(Location) {}
+  SampleContextFrame(FunctionId Func, LineLocation Location)
+      : Func(Func), Location(Location) {}
 
   bool operator==(const SampleContextFrame &That) const {
-    return Location == That.Location && FuncName == That.FuncName;
+    return Location == That.Location && Func == That.Func;
   }
 
   bool operator!=(const SampleContextFrame &That) const {
@@ -465,7 +512,7 @@ struct SampleContextFrame {
 
   std::string toString(bool OutputLineLocation) const {
     std::ostringstream OContextStr;
-    OContextStr << FuncName.str();
+    OContextStr << Func.str();
     if (OutputLineLocation) {
       OContextStr << ":" << Location.LineOffset;
       if (Location.Discriminator)
@@ -473,11 +520,16 @@ struct SampleContextFrame {
     }
     return OContextStr.str();
   }
+
+  uint64_t getHashCode() const {
+    uint64_t NameHash = Func.getHashCode();
+    uint64_t LocId = Location.getHashCode();
+    return NameHash + (LocId << 5) + LocId;
+  }
 };
 
 static inline hash_code hash_value(const SampleContextFrame &arg) {
-  return hash_combine(arg.FuncName, arg.Location.LineOffset,
-                      arg.Location.Discriminator);
+  return arg.getHashCode();
 }
 
 using SampleContextFrameVector = SmallVector<SampleContextFrame, 1>;
@@ -485,7 +537,7 @@ using SampleContextFrames = ArrayRef<SampleContextFrame>;
 
 struct SampleContextFrameHash {
   uint64_t operator()(const SampleContextFrameVector &S) const {
-    return hash_combine_range(S.begin(), S.end());
+    return hash_combine_range(S);
   }
 };
 
@@ -504,7 +556,12 @@ public:
   SampleContext() : State(UnknownContext), Attributes(ContextNone) {}
 
   SampleContext(StringRef Name)
-      : Name(Name), State(UnknownContext), Attributes(ContextNone) {}
+      : Func(Name), State(UnknownContext), Attributes(ContextNone) {
+        assert(!Name.empty() && "Name is empty");
+      }
+
+  SampleContext(FunctionId Func)
+      : Func(Func), State(UnknownContext), Attributes(ContextNone) {}
 
   SampleContext(SampleContextFrames Context,
                 ContextStateMask CState = RawContext)
@@ -523,10 +580,10 @@ public:
     assert(!ContextStr.empty());
     // Note that `[]` wrapped input indicates a full context string, otherwise
     // it's treated as context-less function name only.
-    bool HasContext = ContextStr.startswith("[");
+    bool HasContext = ContextStr.starts_with("[");
     if (!HasContext) {
       State = UnknownContext;
-      Name = ContextStr;
+      Func = FunctionId(ContextStr);
     } else {
       CSNameTable.emplace_back();
       SampleContextFrameVector &Context = CSNameTable.back();
@@ -543,24 +600,25 @@ public:
     ContextStr = ContextStr.substr(1, ContextStr.size() - 2);
     StringRef ContextRemain = ContextStr;
     StringRef ChildContext;
-    StringRef CalleeName;
+    FunctionId Callee;
     while (!ContextRemain.empty()) {
       auto ContextSplit = ContextRemain.split(" @ ");
       ChildContext = ContextSplit.first;
       ContextRemain = ContextSplit.second;
       LineLocation CallSiteLoc(0, 0);
-      decodeContextString(ChildContext, CalleeName, CallSiteLoc);
-      Context.emplace_back(CalleeName, CallSiteLoc);
+      decodeContextString(ChildContext, Callee, CallSiteLoc);
+      Context.emplace_back(Callee, CallSiteLoc);
     }
   }
 
   // Decode context string for a frame to get function name and location.
   // `ContextStr` is in the form of `FuncName:StartLine.Discriminator`.
-  static void decodeContextString(StringRef ContextStr, StringRef &FName,
+  static void decodeContextString(StringRef ContextStr,
+                                  FunctionId &Func,
                                   LineLocation &LineLoc) {
     // Get function name
     auto EntrySplit = ContextStr.split(':');
-    FName = EntrySplit.first;
+    Func = FunctionId(EntrySplit.first);
 
     LineLoc = {0, 0};
     if (!EntrySplit.second.empty()) {
@@ -587,7 +645,7 @@ public:
   void clearState(ContextStateMask S) { State &= (uint32_t)~S; }
   bool hasContext() const { return State != UnknownContext; }
   bool isBaseContext() const { return FullContext.size() == 1; }
-  StringRef getName() const { return Name; }
+  FunctionId getFunction() const { return Func; }
   SampleContextFrames getContextFrames() const { return FullContext; }
 
   static std::string getContextString(SampleContextFrames Context,
@@ -605,18 +663,19 @@ public:
 
   std::string toString() const {
     if (!hasContext())
-      return Name.str();
+      return Func.str();
     return getContextString(FullContext, false);
   }
 
   uint64_t getHashCode() const {
-    return hasContext() ? hash_value(getContextFrames())
-                        : hash_value(getName());
+    if (hasContext())
+      return hash_value(getContextFrames());
+    return getFunction().getHashCode();
   }
 
   /// Set the name of the function and clear the current context.
-  void setName(StringRef FunctionName) {
-    Name = FunctionName;
+  void setFunction(FunctionId NewFunctionID) {
+    Func = NewFunctionID;
     FullContext = SampleContextFrames();
     State = UnknownContext;
   }
@@ -625,12 +684,12 @@ public:
                   ContextStateMask CState = RawContext) {
     assert(CState != UnknownContext);
     FullContext = Context;
-    Name = Context.back().FuncName;
+    Func = Context.back().Func;
     State = CState;
   }
 
   bool operator==(const SampleContext &That) const {
-    return State == That.State && Name == That.Name &&
+    return State == That.State && Func == That.Func &&
            FullContext == That.FullContext;
   }
 
@@ -641,16 +700,16 @@ public:
       return State < That.State;
 
     if (!hasContext()) {
-      return (Name.compare(That.Name)) == -1;
+      return Func < That.Func;
     }
 
     uint64_t I = 0;
     while (I < std::min(FullContext.size(), That.FullContext.size())) {
       auto &Context1 = FullContext[I];
       auto &Context2 = That.FullContext[I];
-      auto V = Context1.FuncName.compare(Context2.FuncName);
+      auto V = Context1.Func.compare(Context2.Func);
       if (V)
-        return V == -1;
+        return V < 0;
       if (Context1.Location != Context2.Location)
         return Context1.Location < Context2.Location;
       I++;
@@ -665,22 +724,23 @@ public:
     }
   };
 
-  bool IsPrefixOf(const SampleContext &That) const {
+  bool isPrefixOf(const SampleContext &That) const {
     auto ThisContext = FullContext;
     auto ThatContext = That.FullContext;
     if (ThatContext.size() < ThisContext.size())
       return false;
     ThatContext = ThatContext.take_front(ThisContext.size());
     // Compare Leaf frame first
-    if (ThisContext.back().FuncName != ThatContext.back().FuncName)
+    if (ThisContext.back().Func != ThatContext.back().Func)
       return false;
     // Compare leading context
     return ThisContext.drop_back() == ThatContext.drop_back();
   }
 
 private:
-  /// Mangled name of the function.
-  StringRef Name;
+  // The function associated with this context. If CS profile, this is the leaf
+  // function.
+  FunctionId Func;
   // Full context including calling context and leaf function name
   SampleContextFrames FullContext;
   // State of the associated sample profile
@@ -689,9 +749,12 @@ private:
   uint32_t Attributes;
 };
 
-static inline hash_code hash_value(const SampleContext &arg) {
-  return arg.hasContext() ? hash_value(arg.getContextFrames())
-                          : hash_value(arg.getName());
+static inline hash_code hash_value(const SampleContext &Context) {
+  return Context.getHashCode();
+}
+
+inline raw_ostream &operator<<(raw_ostream &OS, const SampleContext &Context) {
+  return OS << Context.toString();
 }
 
 class FunctionSamples;
@@ -700,8 +763,11 @@ class SampleProfileReaderItaniumRemapper;
 using BodySampleMap = std::map<LineLocation, SampleRecord>;
 // NOTE: Using a StringMap here makes parsed profiles consume around 17% more
 // memory, which is *very* significant for large profiles.
-using FunctionSamplesMap = std::map<std::string, FunctionSamples, std::less<>>;
+using FunctionSamplesMap = std::map<FunctionId, FunctionSamples>;
 using CallsiteSampleMap = std::map<LineLocation, FunctionSamplesMap>;
+using CallsiteTypeMap = std::map<LineLocation, TypeCountMap>;
+using LocToLocMap =
+    std::unordered_map<LineLocation, LineLocation, LineLocationHash>;
 
 /// Representation of the samples collected for a function.
 ///
@@ -712,8 +778,8 @@ class FunctionSamples {
 public:
   FunctionSamples() = default;
 
-  void print(raw_ostream &OS = dbgs(), unsigned Indent = 0) const;
-  void dump() const;
+  LLVM_ABI void print(raw_ostream &OS = dbgs(), unsigned Indent = 0) const;
+  LLVM_ABI void dump() const;
 
   sampleprof_error addTotalSamples(uint64_t Num, uint64_t Weight = 1) {
     bool Overflowed;
@@ -732,6 +798,8 @@ public:
 
   void setTotalSamples(uint64_t Num) { TotalSamples = Num; }
 
+  void setHeadSamples(uint64_t Num) { TotalHeadSamples = Num; }
+
   sampleprof_error addHeadSamples(uint64_t Num, uint64_t Weight = 1) {
     bool Overflowed;
     TotalHeadSamples =
@@ -748,21 +816,28 @@ public:
 
   sampleprof_error addCalledTargetSamples(uint32_t LineOffset,
                                           uint32_t Discriminator,
-                                          StringRef FName, uint64_t Num,
+                                          FunctionId Func,
+                                          uint64_t Num,
                                           uint64_t Weight = 1) {
     return BodySamples[LineLocation(LineOffset, Discriminator)].addCalledTarget(
-        FName, Num, Weight);
+        Func, Num, Weight);
+  }
+
+  sampleprof_error addSampleRecord(LineLocation Location,
+                                   const SampleRecord &SampleRecord,
+                                   uint64_t Weight = 1) {
+    return BodySamples[Location].merge(SampleRecord, Weight);
   }
 
   // Remove a call target and decrease the body sample correspondingly. Return
   // the number of body samples actually decreased.
   uint64_t removeCalledTargetAndBodySample(uint32_t LineOffset,
                                            uint32_t Discriminator,
-                                           StringRef FName) {
+                                           FunctionId Func) {
     uint64_t Count = 0;
     auto I = BodySamples.find(LineLocation(LineOffset, Discriminator));
     if (I != BodySamples.end()) {
-      Count = I->second.removeCalledTarget(FName);
+      Count = I->second.removeCalledTarget(Func);
       Count = I->second.removeSamples(Count);
       if (!I->second.getSamples())
         BodySamples.erase(I);
@@ -770,11 +845,10 @@ public:
     return Count;
   }
 
-  sampleprof_error addBodySamplesForProbe(uint32_t Index, uint64_t Num,
-                                          uint64_t Weight = 1) {
-    SampleRecord S;
-    S.addSamples(Num, Weight);
-    return BodySamples[LineLocation(Index, 0)].merge(S, Weight);
+  // Remove all call site samples for inlinees. This is needed when flattening
+  // a nested profile.
+  void removeAllCallsiteSamples() {
+    CallsiteSamples.clear();
   }
 
   // Accumulate all call target samples to update the body samples.
@@ -805,13 +879,36 @@ public:
   }
 
   // Set current context and all callee contexts to be synthetic.
-  void SetContextSynthetic() {
+  void setContextSynthetic() {
     Context.setState(SyntheticContext);
     for (auto &I : CallsiteSamples) {
       for (auto &CS : I.second) {
-        CS.second.SetContextSynthetic();
+        CS.second.setContextSynthetic();
       }
     }
+  }
+
+  // Propagate the given attribute to this profile context and all callee
+  // contexts.
+  void setContextAttribute(ContextAttributeMask Attr) {
+    Context.setAttribute(Attr);
+    for (auto &I : CallsiteSamples) {
+      for (auto &CS : I.second) {
+        CS.second.setContextAttribute(Attr);
+      }
+    }
+  }
+
+  // Query the stale profile matching results and remap the location.
+  const LineLocation &mapIRLocToProfileLoc(const LineLocation &IRLoc) const {
+    // There is no remapping if the profile is not stale or the matching gives
+    // the same location.
+    if (!IRToProfileLocationMap)
+      return IRLoc;
+    const auto &ProfileLoc = IRToProfileLocationMap->find(IRLoc);
+    if (ProfileLoc != IRToProfileLocationMap->end())
+      return ProfileLoc->second;
+    return IRLoc;
   }
 
   /// Return the number of samples collected at the given location.
@@ -819,28 +916,30 @@ public:
   /// If the location is not found in profile, return error.
   ErrorOr<uint64_t> findSamplesAt(uint32_t LineOffset,
                                   uint32_t Discriminator) const {
-    const auto &ret = BodySamples.find(LineLocation(LineOffset, Discriminator));
-    if (ret == BodySamples.end())
+    const auto &Ret = BodySamples.find(
+        mapIRLocToProfileLoc(LineLocation(LineOffset, Discriminator)));
+    if (Ret == BodySamples.end())
       return std::error_code();
-    return ret->second.getSamples();
+    return Ret->second.getSamples();
   }
 
   /// Returns the call target map collected at a given location.
   /// Each location is specified by \p LineOffset and \p Discriminator.
   /// If the location is not found in profile, return error.
-  ErrorOr<SampleRecord::CallTargetMap>
+  ErrorOr<const SampleRecord::CallTargetMap &>
   findCallTargetMapAt(uint32_t LineOffset, uint32_t Discriminator) const {
-    const auto &ret = BodySamples.find(LineLocation(LineOffset, Discriminator));
-    if (ret == BodySamples.end())
+    const auto &Ret = BodySamples.find(
+        mapIRLocToProfileLoc(LineLocation(LineOffset, Discriminator)));
+    if (Ret == BodySamples.end())
       return std::error_code();
-    return ret->second.getCallTargets();
+    return Ret->second.getCallTargets();
   }
 
   /// Returns the call target map collected at a given location specified by \p
   /// CallSite. If the location is not found in profile, return error.
-  ErrorOr<SampleRecord::CallTargetMap>
+  ErrorOr<const SampleRecord::CallTargetMap &>
   findCallTargetMapAt(const LineLocation &CallSite) const {
-    const auto &Ret = BodySamples.find(CallSite);
+    const auto &Ret = BodySamples.find(mapIRLocToProfileLoc(CallSite));
     if (Ret == BodySamples.end())
       return std::error_code();
     return Ret->second.getCallTargets();
@@ -848,27 +947,37 @@ public:
 
   /// Return the function samples at the given callsite location.
   FunctionSamplesMap &functionSamplesAt(const LineLocation &Loc) {
-    return CallsiteSamples[Loc];
+    return CallsiteSamples[mapIRLocToProfileLoc(Loc)];
   }
 
   /// Returns the FunctionSamplesMap at the given \p Loc.
   const FunctionSamplesMap *
   findFunctionSamplesMapAt(const LineLocation &Loc) const {
-    auto iter = CallsiteSamples.find(Loc);
-    if (iter == CallsiteSamples.end())
+    auto Iter = CallsiteSamples.find(mapIRLocToProfileLoc(Loc));
+    if (Iter == CallsiteSamples.end())
       return nullptr;
-    return &iter->second;
+    return &Iter->second;
+  }
+
+  /// Returns the TypeCountMap for inlined callsites at the given \p Loc.
+  const TypeCountMap *findCallsiteTypeSamplesAt(const LineLocation &Loc) const {
+    auto Iter = VirtualCallsiteTypeCounts.find(mapIRLocToProfileLoc(Loc));
+    if (Iter == VirtualCallsiteTypeCounts.end())
+      return nullptr;
+    return &Iter->second;
   }
 
   /// Returns a pointer to FunctionSamples at the given callsite location
   /// \p Loc with callee \p CalleeName. If no callsite can be found, relax
   /// the restriction to return the FunctionSamples at callsite location
-  /// \p Loc with the maximum total sample count. If \p Remapper is not
-  /// nullptr, use \p Remapper to find FunctionSamples with equivalent name
-  /// as \p CalleeName.
-  const FunctionSamples *
-  findFunctionSamplesAt(const LineLocation &Loc, StringRef CalleeName,
-                        SampleProfileReaderItaniumRemapper *Remapper) const;
+  /// \p Loc with the maximum total sample count. If \p Remapper or \p
+  /// FuncNameToProfNameMap is not nullptr, use them to find FunctionSamples
+  /// with equivalent name as \p CalleeName.
+  LLVM_ABI const FunctionSamples *findFunctionSamplesAt(
+      const LineLocation &Loc, StringRef CalleeName,
+      SampleProfileReaderItaniumRemapper *Remapper,
+      const HashKeyMap<std::unordered_map, FunctionId, FunctionId>
+          *FuncNameToProfNameMap = nullptr) const;
 
   bool empty() const { return TotalSamples == 0; }
 
@@ -904,8 +1013,8 @@ public:
     else if (!CallsiteSamples.empty()) {
       // An indirect callsite may be promoted to several inlined direct calls.
       // We need to get the sum of them.
-      for (const auto &N_FS : CallsiteSamples.begin()->second)
-        Count += N_FS.second.getHeadSamplesEstimate();
+      for (const auto &FuncSamples : CallsiteSamples.begin()->second)
+        Count += FuncSamples.second.getHeadSamplesEstimate();
     }
     // Return at least 1 if total sample is not 0.
     return Count ? Count : TotalSamples > 0;
@@ -919,12 +1028,71 @@ public:
     return CallsiteSamples;
   }
 
-  /// Return the maximum of sample counts in a function body including functions
-  /// inlined in it.
-  uint64_t getMaxCountInside() const {
+  /// Returns vtable access samples for the C++ types collected in this
+  /// function.
+  const CallsiteTypeMap &getCallsiteTypeCounts() const {
+    return VirtualCallsiteTypeCounts;
+  }
+
+  /// Returns the vtable access samples for the C++ types for \p Loc.
+  /// Under the hood, the caller-specified \p Loc will be un-drifted before the
+  /// type sample lookup if possible.
+  TypeCountMap &getTypeSamplesAt(const LineLocation &Loc) {
+    return VirtualCallsiteTypeCounts[mapIRLocToProfileLoc(Loc)];
+  }
+
+  /// At location \p Loc, add a type sample for the given \p Type with
+  /// \p Count. This function uses saturating add which clamp the result to
+  /// maximum uint64_t (the counter type), and inserts the saturating add result
+  /// to map.  Returns counter_overflow to caller if the actual result is larger
+  /// than maximum uint64_t.
+  sampleprof_error addTypeSamplesAt(const LineLocation &Loc, FunctionId Type,
+                                    uint64_t Count) {
+    auto &TypeCounts = getTypeSamplesAt(Loc);
+    bool Overflowed = false;
+    TypeCounts[Type] = SaturatingMultiplyAdd(Count, /* Weight= */ (uint64_t)1,
+                                             TypeCounts[Type], &Overflowed);
+    return Overflowed ? sampleprof_error::counter_overflow
+                      : sampleprof_error::success;
+  }
+
+  /// Scale \p Other sample counts by \p Weight and add the scaled result to the
+  /// type samples for \p Loc. Under the hoold, the caller-provided \p Loc will
+  /// be un-drifted before the type sample lookup if possible.
+  /// typename T is either a std::map or a DenseMap.
+  template <typename T>
+  sampleprof_error addCallsiteVTableTypeProfAt(const LineLocation &Loc,
+                                               const T &Other,
+                                               uint64_t Weight = 1) {
+    static_assert((std::is_same_v<typename T::key_type, StringRef> ||
+                   std::is_same_v<typename T::key_type, FunctionId>) &&
+                      std::is_same_v<typename T::mapped_type, uint64_t>,
+                  "T must be a map with StringRef or FunctionId as key and "
+                  "uint64_t as value");
+    TypeCountMap &TypeCounts = getTypeSamplesAt(Loc);
+    bool Overflowed = false;
+
+    for (const auto &[Type, Count] : Other) {
+      FunctionId TypeId(Type);
+      bool RowOverflow = false;
+      TypeCounts[TypeId] = SaturatingMultiplyAdd(
+          Count, Weight, TypeCounts[TypeId], &RowOverflow);
+      Overflowed |= RowOverflow;
+    }
+    return Overflowed ? sampleprof_error::counter_overflow
+                      : sampleprof_error::success;
+  }
+
+  /// Return the maximum of sample counts in a function body. When SkipCallSite
+  /// is false, which is the default, the return count includes samples in the
+  /// inlined functions. When SkipCallSite is true, the return count only
+  /// considers the body samples.
+  uint64_t getMaxCountInside(bool SkipCallSite = false) const {
     uint64_t MaxCount = 0;
     for (const auto &L : getBodySamples())
       MaxCount = std::max(MaxCount, L.second.getSamples());
+    if (SkipCallSite)
+      return MaxCount;
     for (const auto &C : getCallsiteSamples())
       for (const FunctionSamplesMap::value_type &F : C.second)
         MaxCount = std::max(MaxCount, F.second.getMaxCountInside());
@@ -937,7 +1105,7 @@ public:
     sampleprof_error Result = sampleprof_error::success;
     if (!GUIDToFuncNameMap)
       GUIDToFuncNameMap = Other.GUIDToFuncNameMap;
-    if (Context.getName().empty())
+    if (Context.getFunction().empty())
       Context = Other.getContext();
     if (FunctionHash == 0) {
       // Set the function hash code for the target profile.
@@ -953,19 +1121,26 @@ public:
       return sampleprof_error::hash_mismatch;
     }
 
-    MergeResult(Result, addTotalSamples(Other.getTotalSamples(), Weight));
-    MergeResult(Result, addHeadSamples(Other.getHeadSamples(), Weight));
+    mergeSampleProfErrors(Result,
+                          addTotalSamples(Other.getTotalSamples(), Weight));
+    mergeSampleProfErrors(Result,
+                          addHeadSamples(Other.getHeadSamples(), Weight));
     for (const auto &I : Other.getBodySamples()) {
       const LineLocation &Loc = I.first;
       const SampleRecord &Rec = I.second;
-      MergeResult(Result, BodySamples[Loc].merge(Rec, Weight));
+      mergeSampleProfErrors(Result, BodySamples[Loc].merge(Rec, Weight));
     }
     for (const auto &I : Other.getCallsiteSamples()) {
       const LineLocation &Loc = I.first;
       FunctionSamplesMap &FSMap = functionSamplesAt(Loc);
       for (const auto &Rec : I.second)
-        MergeResult(Result, FSMap[Rec.first].merge(Rec.second, Weight));
+        mergeSampleProfErrors(Result,
+                              FSMap[Rec.first].merge(Rec.second, Weight));
     }
+    for (const auto &[Loc, OtherTypeMap] : Other.getCallsiteTypeCounts())
+      mergeSampleProfErrors(
+          Result, addCallsiteVTableTypeProfAt(Loc, OtherTypeMap, Weight));
+
     return Result;
   }
 
@@ -974,25 +1149,26 @@ public:
   /// GUID to \p S. Also traverse the BodySamples to add hot CallTarget's GUID
   /// to \p S.
   void findInlinedFunctions(DenseSet<GlobalValue::GUID> &S,
-                            const StringMap<Function *> &SymbolMap,
+                            const HashKeyMap<std::unordered_map, FunctionId,
+                                             Function *>  &SymbolMap,
                             uint64_t Threshold) const {
     if (TotalSamples <= Threshold)
       return;
-    auto isDeclaration = [](const Function *F) {
+    auto IsDeclaration = [](const Function *F) {
       return !F || F->isDeclaration();
     };
-    if (isDeclaration(SymbolMap.lookup(getFuncName()))) {
+    if (IsDeclaration(SymbolMap.lookup(getFunction()))) {
       // Add to the import list only when it's defined out of module.
-      S.insert(getGUID(getName()));
+      S.insert(getGUID());
     }
     // Import hot CallTargets, which may not be available in IR because full
     // profile annotation cannot be done until backend compilation in ThinLTO.
     for (const auto &BS : BodySamples)
       for (const auto &TS : BS.second.getCallTargets())
-        if (TS.getValue() > Threshold) {
-          const Function *Callee = SymbolMap.lookup(getFuncName(TS.getKey()));
-          if (isDeclaration(Callee))
-            S.insert(getGUID(TS.getKey()));
+        if (TS.second > Threshold) {
+          const Function *Callee = SymbolMap.lookup(TS.first);
+          if (IsDeclaration(Callee))
+            S.insert(TS.first.getHashCode());
         }
     for (const auto &CS : CallsiteSamples)
       for (const auto &NameFS : CS.second)
@@ -1000,22 +1176,29 @@ public:
   }
 
   /// Set the name of the function.
-  void setName(StringRef FunctionName) { Context.setName(FunctionName); }
+  void setFunction(FunctionId NewFunctionID) {
+    Context.setFunction(NewFunctionID);
+  }
 
   /// Return the function name.
-  StringRef getName() const { return Context.getName(); }
+  FunctionId getFunction() const { return Context.getFunction(); }
 
   /// Return the original function name.
-  StringRef getFuncName() const { return getFuncName(getName()); }
+  StringRef getFuncName() const { return getFuncName(getFunction()); }
 
   void setFunctionHash(uint64_t Hash) { FunctionHash = Hash; }
 
   uint64_t getFunctionHash() const { return FunctionHash; }
 
+  void setIRToProfileLocationMap(const LocToLocMap *LTLM) {
+    assert(IRToProfileLocationMap == nullptr && "this should be set only once");
+    IRToProfileLocationMap = LTLM;
+  }
+
   /// Return the canonical name for a function, taking into account
   /// suffix elision policy attributes.
   static StringRef getCanonicalFnName(const Function &F) {
-    auto AttrName = "sample-profile-suffix-elision-policy";
+    const char *AttrName = "sample-profile-suffix-elision-policy";
     auto Attr = F.getFnAttribute(AttrName).getValueAsString();
     return getCanonicalFnName(F.getName(), Attr);
   }
@@ -1031,13 +1214,26 @@ public:
     // Note the sequence of the suffixes in the knownSuffixes array matters.
     // If suffix "A" is appended after the suffix "B", "A" should be in front
     // of "B" in knownSuffixes.
-    const char *knownSuffixes[] = {LLVMSuffix, PartSuffix, UniqSuffix};
-    if (Attr == "" || Attr == "all") {
+    const SmallVector<StringRef> KnownSuffixes{LLVMSuffix, PartSuffix,
+                                               UniqSuffix};
+    return getCanonicalFnName(FnName, KnownSuffixes, Attr);
+  }
+
+  static StringRef getCanonicalCoroFnName(StringRef FnName,
+                                          StringRef Attr = "selected") {
+    const SmallVector<StringRef, 3> CoroSuffixes{".cleanup", ".destroy",
+                                                 ".resume"};
+    return getCanonicalFnName(FnName, CoroSuffixes, Attr);
+  }
+
+  static StringRef getCanonicalFnName(StringRef FnName,
+                                      ArrayRef<StringRef> Suffixes,
+                                      StringRef Attr = "selected") {
+    if (Attr == "" || Attr == "all")
       return FnName.split('.').first;
-    } else if (Attr == "selected") {
+    if (Attr == "selected") {
       StringRef Cand(FnName);
-      for (const auto &Suf : knownSuffixes) {
-        StringRef Suffix(Suf);
+      for (const auto Suffix : Suffixes) {
         // If the profile contains ".__uniq." suffix, don't strip the
         // suffix for names in the IR.
         if (Suffix == UniqSuffix && FunctionSamples::HasUniqSuffix)
@@ -1046,48 +1242,51 @@ public:
         if (It == StringRef::npos)
           continue;
         auto Dit = Cand.rfind('.');
-        if (Dit == It + Suffix.size() - 1)
+        if (Dit == It || Dit == It + Suffix.size() - 1)
           Cand = Cand.substr(0, It);
       }
       return Cand;
-    } else if (Attr == "none") {
-      return FnName;
-    } else {
-      assert(false && "internal error: unknown suffix elision policy");
     }
+    if (Attr == "none")
+      return FnName;
+    assert(false && "internal error: unknown suffix elision policy");
     return FnName;
   }
 
-  /// Translate \p Name into its original name.
-  /// When profile doesn't use MD5, \p Name needs no translation.
-  /// When profile uses MD5, \p Name in current FunctionSamples
+  /// Translate \p Func into its original name.
+  /// When profile doesn't use MD5, \p Func needs no translation.
+  /// When profile uses MD5, \p Func in current FunctionSamples
   /// is actually GUID of the original function name. getFuncName will
-  /// translate \p Name in current FunctionSamples into its original name
+  /// translate \p Func in current FunctionSamples into its original name
   /// by looking up in the function map GUIDToFuncNameMap.
   /// If the original name doesn't exist in the map, return empty StringRef.
-  StringRef getFuncName(StringRef Name) const {
+  StringRef getFuncName(FunctionId Func) const {
     if (!UseMD5)
-      return Name;
+      return Func.stringRef();
 
     assert(GUIDToFuncNameMap && "GUIDToFuncNameMap needs to be populated first");
-    return GUIDToFuncNameMap->lookup(std::stoull(Name.data()));
+    return GUIDToFuncNameMap->lookup(Func.getHashCode());
   }
 
   /// Returns the line offset to the start line of the subprogram.
   /// We assume that a single function will not exceed 65535 LOC.
-  static unsigned getOffset(const DILocation *DIL);
+  LLVM_ABI static unsigned getOffset(const DILocation *DIL);
 
   /// Returns a unique call site identifier for a given debug location of a call
   /// instruction. This is wrapper of two scenarios, the probe-based profile and
   /// regular profile, to hide implementation details from the sample loader and
   /// the context tracker.
-  static LineLocation getCallSiteIdentifier(const DILocation *DIL,
-                                            bool ProfileIsFS = false);
+  LLVM_ABI static LineLocation getCallSiteIdentifier(const DILocation *DIL,
+                                                     bool ProfileIsFS = false);
 
   /// Returns a unique hash code for a combination of a callsite location and
   /// the callee function name.
-  static uint64_t getCallSiteHash(StringRef CalleeName,
-                                  const LineLocation &Callsite);
+  /// Guarantee MD5 and non-MD5 representation of the same function results in
+  /// the same hash.
+  static uint64_t getCallSiteHash(FunctionId Callee,
+                                  const LineLocation &Callsite) {
+    return SampleContextFrame(Callee, Callsite).getHashCode();
+  }
 
   /// Get the FunctionSamples of the inline instance where DIL originates
   /// from.
@@ -1098,45 +1297,62 @@ public:
   /// tree nodes in the profile.
   ///
   /// \returns the FunctionSamples pointer to the inlined instance.
-  /// If \p Remapper is not nullptr, it will be used to find matching
-  /// FunctionSamples with not exactly the same but equivalent name.
-  const FunctionSamples *findFunctionSamples(
+  /// If \p Remapper or \p FuncNameToProfNameMap is not nullptr, it will be used
+  /// to find matching FunctionSamples with not exactly the same but equivalent
+  /// name.
+  LLVM_ABI const FunctionSamples *findFunctionSamples(
       const DILocation *DIL,
-      SampleProfileReaderItaniumRemapper *Remapper = nullptr) const;
+      SampleProfileReaderItaniumRemapper *Remapper = nullptr,
+      const HashKeyMap<std::unordered_map, FunctionId, FunctionId>
+          *FuncNameToProfNameMap = nullptr) const;
 
-  static bool ProfileIsProbeBased;
+  LLVM_ABI static bool ProfileIsProbeBased;
 
-  static bool ProfileIsCS;
+  LLVM_ABI static bool ProfileIsCS;
 
-  static bool ProfileIsPreInlined;
+  LLVM_ABI static bool ProfileIsPreInlined;
 
   SampleContext &getContext() const { return Context; }
 
   void setContext(const SampleContext &FContext) { Context = FContext; }
 
   /// Whether the profile uses MD5 to represent string.
-  static bool UseMD5;
+  LLVM_ABI static bool UseMD5;
 
   /// Whether the profile contains any ".__uniq." suffix in a name.
-  static bool HasUniqSuffix;
+  LLVM_ABI static bool HasUniqSuffix;
 
   /// If this profile uses flow sensitive discriminators.
-  static bool ProfileIsFS;
+  LLVM_ABI static bool ProfileIsFS;
 
   /// GUIDToFuncNameMap saves the mapping from GUID to the symbol name, for
   /// all the function symbols defined or declared in current module.
   DenseMap<uint64_t, StringRef> *GUIDToFuncNameMap = nullptr;
 
-  // Assume the input \p Name is a name coming from FunctionSamples itself.
-  // If UseMD5 is true, the name is already a GUID and we
-  // don't want to return the GUID of GUID.
-  static uint64_t getGUID(StringRef Name) {
-    return UseMD5 ? std::stoull(Name.data()) : Function::getGUID(Name);
+  /// Return the GUID of the context's name. If the context is already using
+  /// MD5, don't hash it again.
+  uint64_t getGUID() const {
+    return getFunction().getHashCode();
   }
 
   // Find all the names in the current FunctionSamples including names in
   // all the inline instances and names of call targets.
-  void findAllNames(DenseSet<StringRef> &NameSet) const;
+  LLVM_ABI void findAllNames(DenseSet<FunctionId> &NameSet) const;
+
+  bool operator==(const FunctionSamples &Other) const {
+    return (GUIDToFuncNameMap == Other.GUIDToFuncNameMap ||
+            (GUIDToFuncNameMap && Other.GUIDToFuncNameMap &&
+             *GUIDToFuncNameMap == *Other.GUIDToFuncNameMap)) &&
+           FunctionHash == Other.FunctionHash && Context == Other.Context &&
+           TotalSamples == Other.TotalSamples &&
+           TotalHeadSamples == Other.TotalHeadSamples &&
+           BodySamples == Other.BodySamples &&
+           CallsiteSamples == Other.CallsiteSamples;
+  }
+
+  bool operator!=(const FunctionSamples &Other) const {
+    return !(*this == Other);
+  }
 
 private:
   /// CFG hash value for the function.
@@ -1180,17 +1396,96 @@ private:
   /// in the call to bar() at line offset 1, the other for all the samples
   /// collected in the call to baz() at line offset 8.
   CallsiteSampleMap CallsiteSamples;
+
+  /// Map a virtual callsite to the list of accessed vtables and vtable counts.
+  /// The callsite is referenced by its source location.
+  ///
+  /// For example, given:
+  ///
+  ///     void foo() {
+  ///       ...
+  ///  5    inlined_vcall_bar();
+  ///       ...
+  ///  5    inlined_vcall_baz();
+  ///       ...
+  ///  200  inlined_vcall_qux();
+  ///     }
+  /// This map will contain two entries. One with two types for line offset 5
+  /// and one with one type for line offset 200.
+  CallsiteTypeMap VirtualCallsiteTypeCounts;
+
+  /// IR to profile location map generated by stale profile matching.
+  ///
+  /// Each entry is a mapping from the location on current build to the matched
+  /// location in the "stale" profile. For example:
+  ///   Profiled source code:
+  ///      void foo() {
+  ///   1    bar();
+  ///      }
+  ///
+  ///   Current source code:
+  ///      void foo() {
+  ///   1    // Code change
+  ///   2    bar();
+  ///      }
+  /// Supposing the stale profile matching algorithm generated the mapping [2 ->
+  /// 1], the profile query using the location of bar on the IR which is 2 will
+  /// be remapped to 1 and find the location of bar in the profile.
+  const LocToLocMap *IRToProfileLocationMap = nullptr;
 };
 
-raw_ostream &operator<<(raw_ostream &OS, const FunctionSamples &FS);
+/// Get the proper representation of a string according to whether the
+/// current Format uses MD5 to represent the string.
+static inline FunctionId getRepInFormat(StringRef Name) {
+  if (Name.empty() || !FunctionSamples::UseMD5)
+    return FunctionId(Name);
+  return FunctionId(Function::getGUIDAssumingExternalLinkage(Name));
+}
 
-using SampleProfileMap =
-    std::unordered_map<SampleContext, FunctionSamples, SampleContext::Hash>;
+LLVM_ABI raw_ostream &operator<<(raw_ostream &OS, const FunctionSamples &FS);
 
-using NameFunctionSamples = std::pair<SampleContext, const FunctionSamples *>;
+/// This class provides operator overloads to the map container using MD5 as the
+/// key type, so that existing code can still work in most cases using
+/// SampleContext as key.
+/// Note: when populating container, make sure to assign the SampleContext to
+/// the mapped value immediately because the key no longer holds it.
+class SampleProfileMap
+    : public HashKeyMap<std::unordered_map, SampleContext, FunctionSamples> {
+public:
+  // Convenience method because this is being used in many places. Set the
+  // FunctionSamples' context if its newly inserted.
+  mapped_type &create(const SampleContext &Ctx) {
+    auto Ret = try_emplace(Ctx, FunctionSamples());
+    if (Ret.second)
+      Ret.first->second.setContext(Ctx);
+    return Ret.first->second;
+  }
 
-void sortFuncProfiles(const SampleProfileMap &ProfileMap,
-                      std::vector<NameFunctionSamples> &SortedProfiles);
+  iterator find(const SampleContext &Ctx) {
+    return HashKeyMap<std::unordered_map, SampleContext, FunctionSamples>::find(
+        Ctx);
+  }
+
+  const_iterator find(const SampleContext &Ctx) const {
+    return HashKeyMap<std::unordered_map, SampleContext, FunctionSamples>::find(
+        Ctx);
+  }
+
+  size_t erase(const SampleContext &Ctx) {
+    return HashKeyMap<std::unordered_map, SampleContext, FunctionSamples>::
+        erase(Ctx);
+  }
+
+  size_t erase(const key_type &Key) { return base_type::erase(Key); }
+
+  iterator erase(iterator It) { return base_type::erase(It); }
+};
+
+using NameFunctionSamples = std::pair<hash_code, const FunctionSamples *>;
+
+LLVM_ABI void
+sortFuncProfiles(const SampleProfileMap &ProfileMap,
+                 std::vector<NameFunctionSamples> &SortedProfiles);
 
 /// Sort a LocationT->SampleT map by LocationT.
 ///
@@ -1228,26 +1523,28 @@ public:
   // mainly to honor the preinliner decsion. Note that when MergeColdContext is
   // true, preinliner decsion is not honored anyway so TrimBaseProfileOnly will
   // be ignored.
-  void trimAndMergeColdContextProfiles(uint64_t ColdCountThreshold,
-                                       bool TrimColdContext,
-                                       bool MergeColdContext,
-                                       uint32_t ColdContextFrameLength,
-                                       bool TrimBaseProfileOnly);
-  // Canonicalize context profile name and attributes.
-  void canonicalizeContextProfiles();
+  LLVM_ABI void trimAndMergeColdContextProfiles(uint64_t ColdCountThreshold,
+                                                bool TrimColdContext,
+                                                bool MergeColdContext,
+                                                uint32_t ColdContextFrameLength,
+                                                bool TrimBaseProfileOnly);
 
 private:
   SampleProfileMap &ProfileMap;
 };
 
-// CSProfileConverter converts a full context-sensitive flat sample profile into
-// a nested context-sensitive sample profile.
-class CSProfileConverter {
+/// Helper class for profile conversion.
+///
+/// It supports full context-sensitive profile to nested profile conversion,
+/// nested profile to flatten profile conversion, etc.
+class ProfileConverter {
 public:
-  CSProfileConverter(SampleProfileMap &Profiles);
-  void convertProfiles();
+  LLVM_ABI ProfileConverter(SampleProfileMap &Profiles);
+  // Convert a full context-sensitive flat sample profile into a nested sample
+  // profile.
+  LLVM_ABI void convertCSProfiles();
   struct FrameNode {
-    FrameNode(StringRef FName = StringRef(),
+    FrameNode(FunctionId FName = FunctionId(),
               FunctionSamples *FSamples = nullptr,
               LineLocation CallLoc = {0, 0})
         : FuncName(FName), FuncSamples(FSamples), CallSiteLoc(CallLoc){};
@@ -1255,19 +1552,95 @@ public:
     // Map line+discriminator location to child frame
     std::map<uint64_t, FrameNode> AllChildFrames;
     // Function name for current frame
-    StringRef FuncName;
+    FunctionId FuncName;
     // Function Samples for current frame
     FunctionSamples *FuncSamples;
     // Callsite location in parent context
     LineLocation CallSiteLoc;
 
-    FrameNode *getOrCreateChildFrame(const LineLocation &CallSite,
-                                     StringRef CalleeName);
+    LLVM_ABI FrameNode *getOrCreateChildFrame(const LineLocation &CallSite,
+                                              FunctionId CalleeName);
   };
 
+  static void flattenProfile(SampleProfileMap &ProfileMap,
+                             bool ProfileIsCS = false) {
+    SampleProfileMap TmpProfiles;
+    flattenProfile(ProfileMap, TmpProfiles, ProfileIsCS);
+    ProfileMap = std::move(TmpProfiles);
+  }
+
+  static void flattenProfile(const SampleProfileMap &InputProfiles,
+                             SampleProfileMap &OutputProfiles,
+                             bool ProfileIsCS = false) {
+    if (ProfileIsCS) {
+      for (const auto &I : InputProfiles) {
+        // Retain the profile name and clear the full context for each function
+        // profile.
+        FunctionSamples &FS = OutputProfiles.create(I.second.getFunction());
+        FS.merge(I.second);
+      }
+    } else {
+      for (const auto &I : InputProfiles)
+        flattenNestedProfile(OutputProfiles, I.second);
+    }
+  }
+
 private:
+  static void flattenNestedProfile(SampleProfileMap &OutputProfiles,
+                                   const FunctionSamples &FS) {
+    // To retain the context, checksum, attributes of the original profile, make
+    // a copy of it if no profile is found.
+    SampleContext &Context = FS.getContext();
+    auto Ret = OutputProfiles.try_emplace(Context, FS);
+    FunctionSamples &Profile = Ret.first->second;
+    if (Ret.second) {
+      // Clear nested inlinees' samples for the flattened copy. These inlinees
+      // will have their own top-level entries after flattening.
+      Profile.removeAllCallsiteSamples();
+      // We recompute TotalSamples later, so here set to zero.
+      Profile.setTotalSamples(0);
+    } else {
+      for (const auto &[LineLocation, SampleRecord] : FS.getBodySamples()) {
+        Profile.addSampleRecord(LineLocation, SampleRecord);
+      }
+    }
+
+    assert(Profile.getCallsiteSamples().empty() &&
+           "There should be no inlinees' profiles after flattening.");
+
+    // TotalSamples might not be equal to the sum of all samples from
+    // BodySamples and CallsiteSamples. So here we use "TotalSamples =
+    // Original_TotalSamples - All_of_Callsite_TotalSamples +
+    // All_of_Callsite_HeadSamples" to compute the new TotalSamples.
+    uint64_t TotalSamples = FS.getTotalSamples();
+
+    for (const auto &I : FS.getCallsiteSamples()) {
+      for (const auto &Callee : I.second) {
+        const auto &CalleeProfile = Callee.second;
+        // Add body sample.
+        Profile.addBodySamples(I.first.LineOffset, I.first.Discriminator,
+                               CalleeProfile.getHeadSamplesEstimate());
+        // Add callsite sample.
+        Profile.addCalledTargetSamples(
+            I.first.LineOffset, I.first.Discriminator,
+            CalleeProfile.getFunction(),
+            CalleeProfile.getHeadSamplesEstimate());
+        // Update total samples.
+        TotalSamples = TotalSamples >= CalleeProfile.getTotalSamples()
+                           ? TotalSamples - CalleeProfile.getTotalSamples()
+                           : 0;
+        TotalSamples += CalleeProfile.getHeadSamplesEstimate();
+        // Recursively convert callee profile.
+        flattenNestedProfile(OutputProfiles, CalleeProfile);
+      }
+    }
+    Profile.addTotalSamples(TotalSamples);
+
+    Profile.setHeadSamples(Profile.getHeadSamplesEstimate());
+  }
+
   // Nest all children profiles into the profile of Node.
-  void convertProfiles(FrameNode &Node);
+  void convertCSProfiles(FrameNode &Node);
   FrameNode *getOrCreateContextPath(const SampleContext &Context);
 
   SampleProfileMap &ProfileMap;
@@ -1282,8 +1655,8 @@ class ProfileSymbolList {
 public:
   /// copy indicates whether we need to copy the underlying memory
   /// for the input Name.
-  void add(StringRef Name, bool copy = false) {
-    if (!copy) {
+  void add(StringRef Name, bool Copy = false) {
+    if (!Copy) {
       Syms.insert(Name);
       return;
     }
@@ -1298,13 +1671,14 @@ public:
   }
 
   unsigned size() { return Syms.size(); }
+  void reserve(size_t Size) { Syms.reserve(Size); }
 
   void setToCompress(bool TC) { ToCompress = TC; }
   bool toCompress() { return ToCompress; }
 
-  std::error_code read(const uint8_t *Data, uint64_t ListSize);
-  std::error_code write(raw_ostream &OS);
-  void dump(raw_ostream &OS = dbgs()) const;
+  LLVM_ABI std::error_code read(const uint8_t *Data, uint64_t ListSize);
+  LLVM_ABI std::error_code write(raw_ostream &OS);
+  LLVM_ABI void dump(raw_ostream &OS = dbgs()) const;
 
 private:
   // Determine whether or not to compress the symbol list when
@@ -1322,7 +1696,9 @@ using namespace sampleprof;
 template <> struct DenseMapInfo<SampleContext> {
   static inline SampleContext getEmptyKey() { return SampleContext(); }
 
-  static inline SampleContext getTombstoneKey() { return SampleContext("@"); }
+  static inline SampleContext getTombstoneKey() {
+    return SampleContext(FunctionId(~1ULL));
+  }
 
   static unsigned getHashValue(const SampleContext &Val) {
     return Val.getHashCode();
@@ -1336,7 +1712,7 @@ template <> struct DenseMapInfo<SampleContext> {
 // Prepend "__uniq" before the hash for tools like profilers to understand
 // that this symbol is of internal linkage type.  The "__uniq" is the
 // pre-determined prefix that is used to tell tools that this symbol was
-// created with -funique-internal-linakge-symbols and the tools can strip or
+// created with -funique-internal-linkage-symbols and the tools can strip or
 // keep the prefix as needed.
 inline std::string getUniqueInternalLinkagePostfix(const StringRef &FName) {
   llvm::MD5 Md5;

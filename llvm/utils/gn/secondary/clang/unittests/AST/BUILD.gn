@@ -1,4 +1,4 @@
-import("//llvm/utils/unittest/unittest.gni")
+import("//third-party/unittest/unittest.gni")
 
 unittest("ASTTests") {
   configs += [ "//llvm/utils/gn/build:clang_code" ]
@@ -11,10 +11,14 @@ unittest("ASTTests") {
     "//clang/lib/Testing",
     "//clang/lib/Tooling",
     "//llvm/lib/Support",
+    "//llvm/lib/TargetParser",
+    "//llvm/lib/Testing/Annotations",
     "//llvm/lib/Testing/Support",
   ]
   sources = [
     "ASTContextParentMapTest.cpp",
+    "ASTDumperTest.cpp",
+    "ASTExprTest.cpp",
     "ASTImporterFixtures.cpp",
     "ASTImporterGenericRedeclTest.cpp",
     "ASTImporterODRStrategiesTest.cpp",
@@ -28,13 +32,18 @@ unittest("ASTTests") {
     "CommentLexer.cpp",
     "CommentParser.cpp",
     "CommentTextTest.cpp",
+    "ConceptPrinterTest.cpp",
     "DataCollectionTest.cpp",
+    "DeclBaseTest.cpp",
     "DeclPrinterTest.cpp",
     "DeclTest.cpp",
     "EvaluateAsRValueTest.cpp",
     "ExternalASTSourceTest.cpp",
     "NamedDeclPrinterTest.cpp",
+    "ProfilingTest.cpp",
+    "QualTypeNamesTest.cpp",
     "RandstructTest.cpp",
+    "RawCommentForDeclTest.cpp",
     "RecursiveASTVisitorTest.cpp",
     "SizelessTypesTest.cpp",
     "SourceLocationTest.cpp",
@@ -42,5 +51,6 @@ unittest("ASTTests") {
     "StructuralEquivalenceTest.cpp",
     "TemplateNameTest.cpp",
     "TypePrinterTest.cpp",
+    "UnresolvedSetTest.cpp",
   ]
 }

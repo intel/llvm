@@ -13,7 +13,6 @@
 #ifndef LLVM_LIB_TARGET_AARCH64_MCTARGETDESC_AARCH64ADDRESSINGMODES_H
 #define LLVM_LIB_TARGET_AARCH64_MCTARGETDESC_AARCH64ADDRESSINGMODES_H
 
-#include "AArch64ExpandImm.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/bit.h"
@@ -98,7 +97,7 @@ static inline unsigned getShiftValue(unsigned Imm) {
 ///   {5-0}  = imm
 static inline unsigned getShifterImm(AArch64_AM::ShiftExtendType ST,
                                      unsigned Imm) {
-  assert((Imm & 0x3f) == Imm && "Illegal shifted immedate value!");
+  assert((Imm & 0x3f) == Imm && "Illegal shifted immediate value!");
   unsigned STEnc = 0;
   switch (ST) {
   default:  llvm_unreachable("Invalid shift requested");
@@ -170,7 +169,7 @@ inline unsigned getExtendEncoding(AArch64_AM::ShiftExtendType ET) {
 ///   {2-0}  = imm3
 static inline unsigned getArithExtendImm(AArch64_AM::ShiftExtendType ET,
                                          unsigned Imm) {
-  assert((Imm & 0x7) == Imm && "Illegal shifted immedate value!");
+  assert((Imm & 0x7) == Imm && "Illegal shifted immediate value!");
   return (getExtendEncoding(ET) << 3) | (Imm & 0x7);
 }
 
@@ -237,17 +236,17 @@ static inline bool processLogicalImmediate(uint64_t Imm, unsigned RegSize,
   Imm &= Mask;
 
   if (isShiftedMask_64(Imm)) {
-    I = countTrailingZeros(Imm);
+    I = llvm::countr_zero(Imm);
     assert(I < 64 && "undefined behavior");
-    CTO = countTrailingOnes(Imm >> I);
+    CTO = llvm::countr_one(Imm >> I);
   } else {
     Imm |= ~Mask;
     if (!isShiftedMask_64(~Imm))
       return false;
 
-    unsigned CLO = countLeadingOnes(Imm);
+    unsigned CLO = llvm::countl_one(Imm);
     I = 64 - CLO;
-    CTO = CLO + countTrailingOnes(Imm) - (64 - Size);
+    CTO = CLO + llvm::countr_one(Imm) - (64 - Size);
   }
 
   // Encode in Immr the number of RORs it would take to get *from* 0^m 1^n
@@ -298,7 +297,7 @@ static inline uint64_t decodeLogicalImmediate(uint64_t val, unsigned regSize) {
   unsigned imms = val & 0x3f;
 
   assert((regSize == 64 || N == 0) && "undefined logical immediate encoding");
-  int len = 31 - countLeadingZeros((N << 6) | (~imms & 0x3f));
+  int len = 31 - llvm::countl_zero((N << 6) | (~imms & 0x3f));
   assert(len >= 0 && "undefined logical immediate encoding");
   unsigned size = (1 << len);
   unsigned R = immr & (size - 1);
@@ -327,7 +326,7 @@ static inline bool isValidDecodeLogicalImmediate(uint64_t val,
 
   if (regSize == 32 && N != 0) // undefined logical immediate encoding
     return false;
-  int len = 31 - countLeadingZeros((N << 6) | (~imms & 0x3f));
+  int len = 31 - llvm::countl_zero((N << 6) | (~imms & 0x3f));
   if (len < 0) // undefined logical immediate encoding
     return false;
   unsigned size = (1 << len);
@@ -592,6 +591,27 @@ static inline uint64_t decodeAdvSIMDModImmType9(uint8_t Imm) {
 // aaaaaaaa bbbbbbbb cccccccc dddddddd eeeeeeee ffffffff gggggggg hhhhhhhh
 // cmode: 1110, op: 1
 static inline bool isAdvSIMDModImmType10(uint64_t Imm) {
+#if defined(_MSC_VER) && _MSC_VER == 1937 && !defined(__clang__) &&            \
+    defined(_M_ARM64)
+  // The MSVC compiler 19.37 for ARM64 has an optimization bug that
+  // causes an incorrect behavior with the original version. Work around
+  // by using a slightly different variation.
+  // https://developercommunity.visualstudio.com/t/C-ARM64-compiler-optimization-bug/10481261
+  constexpr uint64_t Mask = 0xFFULL;
+  uint64_t ByteA = (Imm >> 56) & Mask;
+  uint64_t ByteB = (Imm >> 48) & Mask;
+  uint64_t ByteC = (Imm >> 40) & Mask;
+  uint64_t ByteD = (Imm >> 32) & Mask;
+  uint64_t ByteE = (Imm >> 24) & Mask;
+  uint64_t ByteF = (Imm >> 16) & Mask;
+  uint64_t ByteG = (Imm >> 8) & Mask;
+  uint64_t ByteH = Imm & Mask;
+
+  return (ByteA == 0ULL || ByteA == Mask) && (ByteB == 0ULL || ByteB == Mask) &&
+         (ByteC == 0ULL || ByteC == Mask) && (ByteD == 0ULL || ByteD == Mask) &&
+         (ByteE == 0ULL || ByteE == Mask) && (ByteF == 0ULL || ByteF == Mask) &&
+         (ByteG == 0ULL || ByteG == Mask) && (ByteH == 0ULL || ByteH == Mask);
+#else
   uint64_t ByteA = Imm & 0xff00000000000000ULL;
   uint64_t ByteB = Imm & 0x00ff000000000000ULL;
   uint64_t ByteC = Imm & 0x0000ff0000000000ULL;
@@ -609,6 +629,7 @@ static inline bool isAdvSIMDModImmType10(uint64_t Imm) {
          (ByteF == 0ULL || ByteF == 0x0000000000ff0000ULL) &&
          (ByteG == 0ULL || ByteG == 0x000000000000ff00ULL) &&
          (ByteH == 0ULL || ByteH == 0x00000000000000ffULL);
+#endif
 }
 
 static inline uint8_t encodeAdvSIMDModImmType10(uint64_t Imm) {
@@ -848,6 +869,64 @@ inline static bool isAnyMOVWMovAlias(uint64_t Value, int RegWidth) {
     Value &= 0xffffffffULL;
 
   return isAnyMOVZMovAlias(Value, RegWidth);
+}
+
+static inline bool isSVECpyDupImm(int SizeInBits, int64_t Val, int32_t &Imm,
+                                  int32_t &Shift) {
+  switch (SizeInBits) {
+  case 8:
+    // All immediates are supported.
+    Shift = 0;
+    Imm = Val & 0xFF;
+    return true;
+  case 16:
+  case 32:
+  case 64:
+    // Support 8bit signed immediates.
+    if (Val >= -128 && Val <= 127) {
+      Shift = 0;
+      Imm = Val & 0xFF;
+      return true;
+    }
+    // Support 16bit signed immediates that are a multiple of 256.
+    if (Val >= -32768 && Val <= 32512 && Val % 256 == 0) {
+      Shift = 8;
+      Imm = (Val >> 8) & 0xFF;
+      return true;
+    }
+    break;
+  default:
+    break;
+  }
+  return false;
+}
+
+static inline bool isSVELogicalImm(unsigned SizeInBits, uint64_t ImmVal,
+                                   uint64_t &Encoding) {
+  // Shift mask depending on type size.
+  switch (SizeInBits) {
+  case 8:
+    ImmVal &= 0xFF;
+    ImmVal |= ImmVal << 8;
+    ImmVal |= ImmVal << 16;
+    ImmVal |= ImmVal << 32;
+    break;
+  case 16:
+    ImmVal &= 0xFFFF;
+    ImmVal |= ImmVal << 16;
+    ImmVal |= ImmVal << 32;
+    break;
+  case 32:
+    ImmVal &= 0xFFFFFFFF;
+    ImmVal |= ImmVal << 32;
+    break;
+  case 64:
+    break;
+  default:
+    llvm_unreachable("Unexpected size");
+  }
+
+  return processLogicalImmediate(ImmVal, 64, Encoding);
 }
 
 } // end namespace AArch64_AM

@@ -1,7 +1,6 @@
 // Test various levels of coverage
 //
-// FIXME: Port the environment variable logic below for the lit shell.
-// REQUIRES: shell
+// UNSUPPORTED: system-windows
 //
 // RUN: rm -rf %t-dir && mkdir %t-dir
 // RUN: %clangxx -fsanitize=shift                        -DGOOD_SHIFT=1 -O1 -fsanitize-coverage=func,trace-pc-guard  %s -o %t
@@ -20,15 +19,16 @@
 // RUN: %clangxx -fsanitize=shift -O1 -fsanitize-coverage=edge,trace-pc-guard  %s -o %t
 // RUN: %env_ubsan_opts=coverage=1:verbosity=1:coverage_dir='"%t-dir"' %run %t 2>&1 | FileCheck %s --check-prefix=CHECK3 --check-prefix=CHECK_WARN
 
-// Coverage is not yet implemented in TSan.
+// Coverage is not yet implemented in TSan or TySan.
 // XFAIL: ubsan-tsan
+// XFAIL: ubsan-tysan
 // UNSUPPORTED: ubsan-standalone-static
 // No coverage support
-// UNSUPPORTED: openbsd
+// UNSUPPORTED: target={{.*openbsd.*}}
 
 volatile int sink;
 int main(int argc, char **argv) {
-  int shift = argc * 32;
+  int shift = argc * 33;
 #if GOOD_SHIFT
   shift = 3;
 #endif
@@ -37,7 +37,7 @@ int main(int argc, char **argv) {
   return 0;
 }
 
-// CHECK_WARN: shift exponent 32 is too large
+// CHECK_WARN: shift exponent 33 is too large
 // CHECK_NOWARN-NOT: ERROR
 // FIXME: Currently, coverage instrumentation kicks in after ubsan, so we get
 // more than the minimal number of instrumented blocks.

@@ -16,7 +16,11 @@
 #define LLVM_TRANSFORMS_INSTRUMENTATION_PGOINSTRUMENTATION_H
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/IntrusiveRefCntPtr.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Compiler.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include <cstdint>
 #include <string>
 
@@ -35,38 +39,46 @@ class Module;
 class PGOInstrumentationGenCreateVar
     : public PassInfoMixin<PGOInstrumentationGenCreateVar> {
 public:
-  PGOInstrumentationGenCreateVar(std::string CSInstrName = "")
-      : CSInstrName(CSInstrName) {}
-  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
+  PGOInstrumentationGenCreateVar(std::string CSInstrName = "",
+                                 bool Sampling = false)
+      : CSInstrName(CSInstrName), ProfileSampling(Sampling) {}
+  LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 
 private:
   std::string CSInstrName;
+  bool ProfileSampling;
 };
 
+enum class PGOInstrumentationType { Invalid = 0, FDO, CSFDO, CTXPROF };
 /// The instrumentation (profile-instr-gen) pass for IR based PGO.
 class PGOInstrumentationGen : public PassInfoMixin<PGOInstrumentationGen> {
 public:
-  PGOInstrumentationGen(bool IsCS = false) : IsCS(IsCS) {}
-  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
+  PGOInstrumentationGen(
+      PGOInstrumentationType InstrumentationType = PGOInstrumentationType ::FDO)
+      : InstrumentationType(InstrumentationType) {}
+  LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 
 private:
   // If this is a context sensitive instrumentation.
-  bool IsCS;
+  const PGOInstrumentationType InstrumentationType;
 };
 
 /// The profile annotation (profile-instr-use) pass for IR based PGO.
 class PGOInstrumentationUse : public PassInfoMixin<PGOInstrumentationUse> {
 public:
+  LLVM_ABI
   PGOInstrumentationUse(std::string Filename = "",
-                        std::string RemappingFilename = "", bool IsCS = false);
+                        std::string RemappingFilename = "", bool IsCS = false,
+                        IntrusiveRefCntPtr<vfs::FileSystem> FS = nullptr);
 
-  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
+  LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 
 private:
   std::string ProfileFileName;
   std::string ProfileRemappingFileName;
   // If this is a context sensitive instrumentation.
   bool IsCS;
+  IntrusiveRefCntPtr<vfs::FileSystem> FS;
 };
 
 /// The indirect function call promotion pass.
@@ -75,7 +87,7 @@ public:
   PGOIndirectCallPromotion(bool IsInLTO = false, bool SamplePGO = false)
       : InLTO(IsInLTO), SamplePGO(SamplePGO) {}
 
-  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
+  LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 
 private:
   bool InLTO;
@@ -87,13 +99,14 @@ class PGOMemOPSizeOpt : public PassInfoMixin<PGOMemOPSizeOpt> {
 public:
   PGOMemOPSizeOpt() = default;
 
-  PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+  LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &MAM);
 };
 
-void setProfMetadata(Module *M, Instruction *TI, ArrayRef<uint64_t> EdgeCounts,
-                     uint64_t MaxCount);
+LLVM_ABI void setProfMetadata(Instruction *TI, ArrayRef<uint64_t> EdgeCounts,
+                              uint64_t MaxCount);
 
-void setIrrLoopHeaderMetadata(Module *M, Instruction *TI, uint64_t Count);
+LLVM_ABI void setIrrLoopHeaderMetadata(Module *M, Instruction *TI,
+                                       uint64_t Count);
 
 } // end namespace llvm
 

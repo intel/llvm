@@ -1,11 +1,10 @@
 ; RUN: llc -mtriple=i686-pc-windows-msvc < %s | FileCheck %s
+; RUN: llc -mtriple=i686-pc-windows-msvc -filetype=obj < %s -o %t
 
 declare void @may_throw_or_crash()
 declare i32 @_except_handler3(...)
 declare i32 @_except_handler4(...)
 declare i32 @__CxxFrameHandler3(...)
-declare void @llvm.eh.begincatch(ptr, ptr)
-declare void @llvm.eh.endcatch()
 declare i32 @llvm.eh.typeid.for(ptr)
 
 define internal i32 @catchall_filt() {
@@ -202,13 +201,21 @@ catch:
 ; CHECK-LABEL: L__ehtable$use_CxxFrameHandler3:
 ; CHECK-NEXT:  .long   429065506
 ; CHECK-NEXT:  .long   2
-; CHECK-NEXT:  .long   ($stateUnwindMap$use_CxxFrameHandler3)
+; CHECK-NEXT:  .long   $stateUnwindMap$use_CxxFrameHandler3
 ; CHECK-NEXT:  .long   1
-; CHECK-NEXT:  .long   ($tryMap$use_CxxFrameHandler3)
+; CHECK-NEXT:  .long   $tryMap$use_CxxFrameHandler3
 ; CHECK-NEXT:  .long   0
 ; CHECK-NEXT:  .long   0
 ; CHECK-NEXT:  .long   0
 ; CHECK-NEXT:  .long   1
+
+; CHECK-LABEL: inlineasm:
+; CHECK: .safeseh my_handler
+define i32 @inlineasm() {
+entry:
+  call void asm sideeffect ".safeseh my_handler", "~{dirflag},~{fpsr},~{flags}"()
+  ret i32 0
+}
 
 ; CHECK-LABEL: ___ehhandler$use_CxxFrameHandler3:
 ; CHECK: movl $L__ehtable$use_CxxFrameHandler3, %eax

@@ -25,6 +25,8 @@
 #include "llvm/PassRegistry.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Compiler.h"
+#include "llvm/Support/GenericDomTreeConstruction.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <cassert>
@@ -48,10 +50,9 @@ static constexpr bool ExpensiveChecksEnabled = false;
 #endif
 
 bool BasicBlockEdge::isSingleEdge() const {
-  const Instruction *TI = Start->getTerminator();
   unsigned NumEdgesToEnd = 0;
-  for (unsigned int i = 0, n = TI->getNumSuccessors(); i < n; ++i) {
-    if (TI->getSuccessor(i) == End)
+  for (const BasicBlock *Succ : successors(Start)) {
+    if (Succ == End)
       ++NumEdgesToEnd;
     if (NumEdgesToEnd >= 2)
       return false;
@@ -70,43 +71,55 @@ bool BasicBlockEdge::isSingleEdge() const {
 //
 //===----------------------------------------------------------------------===//
 
-template class llvm::DomTreeNodeBase<BasicBlock>;
-template class llvm::DominatorTreeBase<BasicBlock, false>; // DomTreeBase
-template class llvm::DominatorTreeBase<BasicBlock, true>; // PostDomTreeBase
+template class LLVM_EXPORT_TEMPLATE llvm::DomTreeNodeBase<BasicBlock>;
+template class LLVM_EXPORT_TEMPLATE
+    llvm::DominatorTreeBase<BasicBlock, false>; // DomTreeBase
+template class LLVM_EXPORT_TEMPLATE
+    llvm::DominatorTreeBase<BasicBlock, true>; // PostDomTreeBase
 
 template class llvm::cfg::Update<BasicBlock *>;
 
-template void llvm::DomTreeBuilder::Calculate<DomTreeBuilder::BBDomTree>(
+template LLVM_EXPORT_TEMPLATE void
+llvm::DomTreeBuilder::Calculate<DomTreeBuilder::BBDomTree>(
     DomTreeBuilder::BBDomTree &DT);
-template void
+template LLVM_EXPORT_TEMPLATE void
 llvm::DomTreeBuilder::CalculateWithUpdates<DomTreeBuilder::BBDomTree>(
     DomTreeBuilder::BBDomTree &DT, BBUpdates U);
 
-template void llvm::DomTreeBuilder::Calculate<DomTreeBuilder::BBPostDomTree>(
+template LLVM_EXPORT_TEMPLATE void
+llvm::DomTreeBuilder::Calculate<DomTreeBuilder::BBPostDomTree>(
     DomTreeBuilder::BBPostDomTree &DT);
 // No CalculateWithUpdates<PostDomTree> instantiation, unless a usecase arises.
 
-template void llvm::DomTreeBuilder::InsertEdge<DomTreeBuilder::BBDomTree>(
+template LLVM_EXPORT_TEMPLATE void
+llvm::DomTreeBuilder::InsertEdge<DomTreeBuilder::BBDomTree>(
     DomTreeBuilder::BBDomTree &DT, BasicBlock *From, BasicBlock *To);
-template void llvm::DomTreeBuilder::InsertEdge<DomTreeBuilder::BBPostDomTree>(
+template LLVM_EXPORT_TEMPLATE void
+llvm::DomTreeBuilder::InsertEdge<DomTreeBuilder::BBPostDomTree>(
     DomTreeBuilder::BBPostDomTree &DT, BasicBlock *From, BasicBlock *To);
 
-template void llvm::DomTreeBuilder::DeleteEdge<DomTreeBuilder::BBDomTree>(
+template LLVM_EXPORT_TEMPLATE void
+llvm::DomTreeBuilder::DeleteEdge<DomTreeBuilder::BBDomTree>(
     DomTreeBuilder::BBDomTree &DT, BasicBlock *From, BasicBlock *To);
-template void llvm::DomTreeBuilder::DeleteEdge<DomTreeBuilder::BBPostDomTree>(
+template LLVM_EXPORT_TEMPLATE void
+llvm::DomTreeBuilder::DeleteEdge<DomTreeBuilder::BBPostDomTree>(
     DomTreeBuilder::BBPostDomTree &DT, BasicBlock *From, BasicBlock *To);
 
-template void llvm::DomTreeBuilder::ApplyUpdates<DomTreeBuilder::BBDomTree>(
+template LLVM_EXPORT_TEMPLATE void
+llvm::DomTreeBuilder::ApplyUpdates<DomTreeBuilder::BBDomTree>(
     DomTreeBuilder::BBDomTree &DT, DomTreeBuilder::BBDomTreeGraphDiff &,
     DomTreeBuilder::BBDomTreeGraphDiff *);
-template void llvm::DomTreeBuilder::ApplyUpdates<DomTreeBuilder::BBPostDomTree>(
+template LLVM_EXPORT_TEMPLATE void
+llvm::DomTreeBuilder::ApplyUpdates<DomTreeBuilder::BBPostDomTree>(
     DomTreeBuilder::BBPostDomTree &DT, DomTreeBuilder::BBPostDomTreeGraphDiff &,
     DomTreeBuilder::BBPostDomTreeGraphDiff *);
 
-template bool llvm::DomTreeBuilder::Verify<DomTreeBuilder::BBDomTree>(
+template LLVM_EXPORT_TEMPLATE bool
+llvm::DomTreeBuilder::Verify<DomTreeBuilder::BBDomTree>(
     const DomTreeBuilder::BBDomTree &DT,
     DomTreeBuilder::BBDomTree::VerificationLevel VL);
-template bool llvm::DomTreeBuilder::Verify<DomTreeBuilder::BBPostDomTree>(
+template LLVM_EXPORT_TEMPLATE bool
+llvm::DomTreeBuilder::Verify<DomTreeBuilder::BBPostDomTree>(
     const DomTreeBuilder::BBPostDomTree &DT,
     DomTreeBuilder::BBPostDomTree::VerificationLevel VL);
 
@@ -190,13 +203,6 @@ bool DominatorTree::dominates(const Instruction *Def,
   // exceptional destination.
   if (const auto *II = dyn_cast<InvokeInst>(Def)) {
     BasicBlock *NormalDest = II->getNormalDest();
-    BasicBlockEdge E(DefBB, NormalDest);
-    return dominates(E, UseBB);
-  }
-
-  // Callbr results are similarly only usable in the default destination.
-  if (const auto *CBI = dyn_cast<CallBrInst>(Def)) {
-    BasicBlock *NormalDest = CBI->getDefaultDest();
     BasicBlockEdge E(DefBB, NormalDest);
     return dominates(E, UseBB);
   }
@@ -311,13 +317,6 @@ bool DominatorTree::dominates(const Value *DefV, const Use &U) const {
     return dominates(E, U);
   }
 
-  // Callbr results are similarly only usable in the default destination.
-  if (const auto *CBI = dyn_cast<CallBrInst>(Def)) {
-    BasicBlock *NormalDest = CBI->getDefaultDest();
-    BasicBlockEdge E(DefBB, NormalDest);
-    return dominates(E, U);
-  }
-
   // If the def and use are in different blocks, do a simple CFG dominator
   // tree query.
   if (DefBB != UseBB)
@@ -353,6 +352,24 @@ bool DominatorTree::dominates(const BasicBlockEdge &BBE1,
   if (BBE1.getStart() == BBE2.getStart() && BBE1.getEnd() == BBE2.getEnd())
     return true;
   return dominates(BBE1, BBE2.getStart());
+}
+
+Instruction *DominatorTree::findNearestCommonDominator(Instruction *I1,
+                                                       Instruction *I2) const {
+  BasicBlock *BB1 = I1->getParent();
+  BasicBlock *BB2 = I2->getParent();
+  if (BB1 == BB2)
+    return I1->comesBefore(I2) ? I1 : I2;
+  if (!isReachableFromEntry(BB2))
+    return I1;
+  if (!isReachableFromEntry(BB1))
+    return I2;
+  BasicBlock *DomBB = findNearestCommonDominator(BB1, BB2);
+  if (BB1 == DomBB)
+    return I1;
+  if (BB2 == DomBB)
+    return I2;
+  return DomBB->getTerminator();
 }
 
 //===----------------------------------------------------------------------===//

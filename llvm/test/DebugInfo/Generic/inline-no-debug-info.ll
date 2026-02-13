@@ -1,4 +1,4 @@
-; RUN: opt < %s -inline -S | FileCheck %s
+; RUN: opt < %s -passes='cgscc(inline)' -S | FileCheck %s
 
 ; This was generated from the following source:
 ; int a, b;
@@ -37,8 +37,8 @@ target triple = "x86_64-unknown-linux-gnu"
 ; Function Attrs: nounwind uwtable
 define void @callee() #0 {
 entry:
-  store i32 1, i32* @a, align 4
-  store i32 2, i32* @b, align 4, !dbg !11
+  store i32 1, ptr @a, align 4
+  store i32 2, ptr @b, align 4, !dbg !11
   ret void
 }
 
@@ -49,7 +49,7 @@ entry:
   ret void, !dbg !12
 }
 
-attributes #0 = { nounwind uwtable "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind uwtable "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "use-soft-float"="false" }
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!8, !9}

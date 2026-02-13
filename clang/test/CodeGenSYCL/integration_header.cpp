@@ -3,23 +3,30 @@
 //
 // CHECK: #include <sycl/detail/kernel_desc.hpp>
 //
+// CHECK: // Forward declarations of templated kernel function types:
 // CHECK: class first_kernel;
+// CHECK-NEXT: template <typename T> struct point;
 // CHECK-NEXT: namespace second_namespace {
-// CHECK-NEXT: template <typename T> class second_kernel;
+// CHECK-NEXT: template <typename T, template <typename> typename U> class second_kernel;
 // CHECK-NEXT: }
 // CHECK-NEXT: namespace template_arg_ns {
 // CHECK-NEXT: template <int DimX> struct namespaced_arg;
 // CHECK-NEXT: }
 // CHECK-NEXT: template <typename ...Ts> class fourth_kernel;
+// CHECK: class FinalClass final;
 //
 // CHECK: static constexpr
 // CHECK-NEXT: const char* const kernel_names[] = {
 // CHECK-NEXT:   "_ZTSZ4mainE12first_kernel",
-// CHECK-NEXT:   "_ZTSN16second_namespace13second_kernelIcEE",
+// CHECK-NEXT:   "_ZTSN16second_namespace13second_kernelIc5pointEE",
 // CHECK-NEXT:   "_ZTS13fourth_kernelIJN15template_arg_ns14namespaced_argILi1EEEEE"
 // CHECK-NEXT:   "_ZTSZ4mainE16accessor_in_base"
 // CHECK-NEXT:   "_ZTSZ4mainE15annotated_types"
+// CHECK-NEXT:   "_ZTS10FinalClass"
+// CHECK-NEXT:   ""
 // CHECK-NEXT: };
+//
+// CHECK: static constexpr unsigned kernel_args_sizes[] = {5, 3, 2, 8, 3, 0, 4294967295,
 //
 // CHECK: static constexpr
 // CHECK-NEXT: const kernel_param_desc_t kernel_signatures[] = {
@@ -30,7 +37,7 @@
 // CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 6112, 24 },
 // CHECK-NEXT:   { kernel_param_kind_t::kind_sampler, 8, 40 },
 // CHECK-EMPTY:
-// CHECK-NEXT:   //--- _ZTSN16second_namespace13second_kernelIcEE
+// CHECK-NEXT:   //--- _ZTSN16second_namespace13second_kernelIc5pointEE
 // CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0 },
 // CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 6112, 4 },
 // CHECK-NEXT:   { kernel_param_kind_t::kind_sampler, 8, 16 },
@@ -54,11 +61,13 @@
 // CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 8 },
 // CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 16 },
 // CHECK-EMPTY:
+// CHECK-NEXT:  //--- _ZTS10FinalClass
+// CHECK-EMPTY:
 // CHECK-NEXT:  { kernel_param_kind_t::kind_invalid, -987654321, -987654321 },
 // CHECK-NEXT: };
 //
 // CHECK: template <> struct KernelInfo<first_kernel> {
-// CHECK: template <> struct KernelInfo<::second_namespace::second_kernel<char>> {
+// CHECK: template <> struct KernelInfo<::second_namespace::second_kernel<char, point>> {
 // CHECK: template <> struct KernelInfo<::fourth_kernel<::template_arg_ns::namespaced_arg<1>>> {
 
 #include "Inputs/sycl.hpp"
@@ -71,7 +80,7 @@ struct x {};
 template <typename T>
 struct point {};
 namespace second_namespace {
-template <typename T = int>
+template <typename T = int, template <typename> typename U = point>
 class second_kernel;
 }
 
@@ -109,6 +118,8 @@ struct captured : base, base2 {
 }; // namespace accessor_in_base
 
 struct MockProperty {};
+
+class FinalClass final {};
 
 int main() {
 
@@ -159,6 +170,8 @@ int main() {
     (void)AP2;
     (void)AP3;
   });
+
+  kernel_single_task<class FinalClass>([=]() { });
 
   return 0;
 }

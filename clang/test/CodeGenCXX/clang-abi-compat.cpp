@@ -1,26 +1,26 @@
-// RUN: %clang_cc1 -no-opaque-pointers -std=c++98 -triple x86_64-linux-gnu -fenable-matrix -fclang-abi-compat=3.0 %s -emit-llvm -o - -Wno-c++11-extensions \
+// RUN: %clang_cc1 -std=c++98 -triple x86_64-linux-gnu -fenable-matrix -fclang-abi-compat=3.0 %s -emit-llvm -o - -Wno-c++11-extensions \
 // RUN:     | FileCheck --check-prefixes=CHECK,PRE39,PRE5,PRE12,PRE15 %s
-// RUN: %clang_cc1 -no-opaque-pointers -std=c++17 -triple x86_64-linux-gnu -fenable-matrix -fclang-abi-compat=3.0 %s -emit-llvm -o - \
+// RUN: %clang_cc1 -std=c++17 -triple x86_64-linux-gnu -fenable-matrix -fclang-abi-compat=3.0 %s -emit-llvm -o - \
 // RUN:     | FileCheck --check-prefixes=CHECK,PRE39,PRE5,PRE12,PRE15 %s
-// RUN: %clang_cc1 -no-opaque-pointers -std=c++17 -triple x86_64-linux-gnu -fenable-matrix -fclang-abi-compat=3.8 %s -emit-llvm -o - \
+// RUN: %clang_cc1 -std=c++17 -triple x86_64-linux-gnu -fenable-matrix -fclang-abi-compat=3.8 %s -emit-llvm -o - \
 // RUN:     | FileCheck --check-prefixes=CHECK,PRE39,PRE5,PRE12,PRE15 %s
-// RUN: %clang_cc1 -no-opaque-pointers -std=c++17 -triple x86_64-linux-gnu -fenable-matrix -fclang-abi-compat=3.9 %s -emit-llvm -o - \
+// RUN: %clang_cc1 -std=c++17 -triple x86_64-linux-gnu -fenable-matrix -fclang-abi-compat=3.9 %s -emit-llvm -o - \
 // RUN:     | FileCheck --check-prefixes=CHECK,V39,PRE5,PRE12,PRE15 %s
-// RUN: %clang_cc1 -no-opaque-pointers -std=c++17 -triple x86_64-linux-gnu -fenable-matrix -fclang-abi-compat=4.0 %s -emit-llvm -o - \
+// RUN: %clang_cc1 -std=c++17 -triple x86_64-linux-gnu -fenable-matrix -fclang-abi-compat=4.0 %s -emit-llvm -o - \
 // RUN:     | FileCheck --check-prefixes=CHECK,V39,PRE5,PRE12,PRE15 %s
-// RUN: %clang_cc1 -no-opaque-pointers -std=c++17 -triple x86_64-linux-gnu -fenable-matrix -fclang-abi-compat=5 %s -emit-llvm -o - \
+// RUN: %clang_cc1 -std=c++17 -triple x86_64-linux-gnu -fenable-matrix -fclang-abi-compat=5 %s -emit-llvm -o - \
 // RUN:     | FileCheck --check-prefixes=CHECK,V39,V5,PRE12,PRE12-CXX17,PRE15 %s
-// RUN: %clang_cc1 -no-opaque-pointers -std=c++17 -triple x86_64-linux-gnu -fenable-matrix -fclang-abi-compat=11 %s -emit-llvm -o - \
+// RUN: %clang_cc1 -std=c++17 -triple x86_64-linux-gnu -fenable-matrix -fclang-abi-compat=11 %s -emit-llvm -o - \
 // RUN:     | FileCheck --check-prefixes=CHECK,V39,V5,PRE12,PRE12-CXX17,PRE15 %s
-// RUN: %clang_cc1 -no-opaque-pointers -std=c++20 -triple x86_64-linux-gnu -fenable-matrix -fclang-abi-compat=11 %s -emit-llvm -o - \
+// RUN: %clang_cc1 -std=c++20 -triple x86_64-linux-gnu -fenable-matrix -fclang-abi-compat=11 %s -emit-llvm -o - \
 // RUN:     | FileCheck --check-prefixes=CHECK,V39,V5,PRE12,PRE12-CXX17,PRE12-CXX20,PRE13-CXX20,PRE15 %s
-// RUN: %clang_cc1 -no-opaque-pointers -std=c++20 -triple x86_64-linux-gnu -fenable-matrix -fclang-abi-compat=12 %s -emit-llvm -o - \
+// RUN: %clang_cc1 -std=c++20 -triple x86_64-linux-gnu -fenable-matrix -fclang-abi-compat=12 %s -emit-llvm -o - \
 // RUN:     | FileCheck --check-prefixes=CHECK,V39,V5,V12,V12-CXX17,V12-CXX20,PRE13-CXX20,PRE15 %s
-// RUN: %clang_cc1 -no-opaque-pointers -std=c++20 -triple x86_64-linux-gnu -fenable-matrix -fclang-abi-compat=14 %s -emit-llvm -o - \
+// RUN: %clang_cc1 -std=c++20 -triple x86_64-linux-gnu -fenable-matrix -fclang-abi-compat=14 %s -emit-llvm -o - \
 // RUN:     | FileCheck --check-prefixes=CHECK,V39,V5,V12,V12-CXX17,V12-CXX20,V13-CXX20,PRE15 %s
-// RUN: %clang_cc1 -no-opaque-pointers -std=c++98 -triple x86_64-linux-gnu -fenable-matrix -fclang-abi-compat=latest %s -emit-llvm -o - -Wno-c++11-extensions \
+// RUN: %clang_cc1 -std=c++98 -triple x86_64-linux-gnu -fenable-matrix -fclang-abi-compat=latest %s -emit-llvm -o - -Wno-c++11-extensions \
 // RUN:     | FileCheck --check-prefixes=CHECK,V39,V5,V12,V15 %s
-// RUN: %clang_cc1 -no-opaque-pointers -std=c++20 -triple x86_64-linux-gnu -fenable-matrix -fclang-abi-compat=latest %s -emit-llvm -o - \
+// RUN: %clang_cc1 -std=c++20 -triple x86_64-linux-gnu -fenable-matrix -fclang-abi-compat=latest %s -emit-llvm -o - \
 // RUN:     | FileCheck --check-prefixes=CHECK,V39,V5,V12,V12-CXX17,V12-CXX20,V13-CXX20,V15 %s
 
 typedef __attribute__((vector_size(8))) long long v1xi64;
@@ -34,7 +34,7 @@ struct A {
 };
 void clang5(A) {}
 // PRE5: @_Z6clang51A()
-// V5: @_Z6clang51A(%{{.*}}*
+// V5: @_Z6clang51A(ptr
 
 namespace mangle_template_prefix {
   // PRE12: @_ZN22mangle_template_prefix1fINS_1TEEEvNT_1UIiE1VIiEENS4_S5_IfEE(
@@ -160,3 +160,15 @@ template <typename T> void test10(typename T::Y::a, typename T::Y::b, float*, fl
 // PRE15: @_Z6test10I1XEvNT_1Y1aENS1_1Y1bEPfS4_
 // V15:   @_Z6test10I1XEvNT_1Y1aENS2_1bEPfS5_
 template void test10<X>(int, int, float*, float*);
+
+namespace test_substitution {
+struct S { int f(void *, void *); };
+
+typedef int (S::*s_func)(void *, void *);
+
+// clang used to incorrectly emit 'S0_' for the second 'void *' parameter type
+// when targeting older ABIs because of a bug in the mangler.
+
+// CHECK-LABEL: define dso_local void @_ZN17test_substitution4foo1EMNS_1SEFiPvS1_E(
+void foo1(s_func s) {}
+}

@@ -12,6 +12,9 @@ endif()
 if (LLVM_TARGETS_TO_BUILD MATCHES "Mips")
   list(APPEND LLVM_EXEGESIS_TARGETS "Mips")
 endif()
+if(LLVM_TARGETS_TO_BUILD MATCHES "RISCV")
+  list(APPEND LLVM_EXEGESIS_TARGETS "RISCV")
+endif()
 
 set(LLVM_EXEGESIS_TARGETS ${LLVM_EXEGESIS_TARGETS} PARENT_SCOPE)
 
@@ -22,22 +25,28 @@ endforeach()
 set(LLVM_LINK_COMPONENTS
   Analysis
   CodeGen
+  CodeGenTypes
   Core
   ExecutionEngine
   GlobalISel
   MC
+  MCA
   MCDisassembler
-  MCJIT
   MCParser
   Object
   ObjectYAML
+  OrcJIT
   RuntimeDyld
   Support
+  TargetParser
   )
 
 set(libs)
 if(LLVM_ENABLE_LIBPFM AND HAVE_LIBPFM)
   list(APPEND libs pfm)
+endif()
+if(HAVE_LIBRT)
+  list(APPEND libs rt)
 endif()
 
 add_llvm_library(LLVMExegesis
@@ -49,6 +58,7 @@ add_llvm_library(LLVMExegesis
   BenchmarkRunner.cpp
   Clustering.cpp
   CodeTemplate.cpp
+  DisassemblerHelper.cpp
   Error.cpp
   LatencyBenchmarkRunner.cpp
   LlvmState.cpp
@@ -57,13 +67,16 @@ add_llvm_library(LLVMExegesis
   PerfHelper.cpp
   RegisterAliasing.cpp
   RegisterValue.cpp
+  ResultAggregator.cpp
   SchedClassResolution.cpp
   SerialSnippetGenerator.cpp
   SnippetFile.cpp
   SnippetGenerator.cpp
   SnippetRepetitor.cpp
+  SubprocessMemory.cpp
   Target.cpp
   UopsBenchmarkRunner.cpp
+  ValidationEvent.cpp
 
   LINK_LIBS ${libs}
 

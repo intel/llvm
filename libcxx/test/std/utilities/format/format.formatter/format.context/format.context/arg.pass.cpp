@@ -1,4 +1,5 @@
 //===----------------------------------------------------------------------===//
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -6,13 +7,14 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-has-no-incomplete-format
+// UNSUPPORTED: GCC-ALWAYS_INLINE-FIXME
 
 // <format>
 
 // basic_format_arg<basic_format_context> arg(size_t id) const;
 
 #include <format>
+#include <iterator>
 #include <cassert>
 
 #include "test_basic_format_arg.h"
@@ -22,17 +24,18 @@
 
 template <class OutIt, class CharT>
 void test() {
+  bool b                          = true;
+  CharT c                         = CharT('a');
+  int a                           = 42;
   std::basic_string<CharT> string = MAKE_STRING(CharT, "string");
-  auto store = std::make_format_args<std::basic_format_context<OutIt, CharT>>(
-      true, CharT('a'), 42, string);
+  auto store                      = std::make_format_args<std::basic_format_context<OutIt, CharT>>(b, c, a, string);
   std::basic_format_args args = store;
 
   std::basic_string<CharT> output;
-  const std::basic_format_context<OutIt, CharT> context =
-      test_format_context_create(OutIt{output}, args);
+  const std::basic_format_context context = test_format_context_create(OutIt{output}, args);
   LIBCPP_ASSERT(args.__size() == 4);
   ASSERT_NOEXCEPT(context.arg(0));
-  for (size_t i = 0, e = args.__size(); i != e; ++i) {
+  for (std::size_t i = 0, e = args.__size(); i != e; ++i) {
     assert(context.arg(i));
   }
   assert(!context.arg(args.__size()));

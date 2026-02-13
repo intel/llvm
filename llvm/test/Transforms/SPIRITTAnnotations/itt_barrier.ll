@@ -1,12 +1,13 @@
 ;; The test serves a purpose to check if barrier instruction is being annotated
 ;; by SPIRITTAnnotations pass
 ;;
-;; Compiled from https://github.com/intel/llvm-test-suite/blob/intel/SYCL/KernelAndProgram/kernel-and-program.cpp
+;; Compiled from the SYCL End-to-End test KernelAndProgram/kernel-and-program.cpp last available in
+;; https://github.com/intel/llvm-test-suite/blob/3be0c4dae326f187664cdaa1b9730b446ec4ae29/SYCL/KernelAndProgram/kernel-and-program.cpp
 ;; with following commands:
 ;; clang++ -fsycl -fsycl-device-only kernel-and-program.cpp -o kernel_and_program_optimized.bc
 
-; RUN: opt < %s --SPIRITTAnnotations -S | FileCheck %s
-; RUN: opt < %s --SPIRITTAnnotations -enable-new-pm=1 -S | FileCheck %s
+; RUN: opt < %s -passes=SPIRITTAnnotations -S | FileCheck %s
+; RUN: opt < %s -passes=SPIRITTAnnotations -S | FileCheck %s
 
 ; ModuleID = 'kernel_and_program_optimized.bc'
 source_filename = "llvm-link"
@@ -30,7 +31,7 @@ define weak_odr dso_local spir_kernel void @_ZTSZ4mainE10SingleTask(i32 addrspac
 entry:
 ; CHECK-LABEL: _ZTSZ4mainE10SingleTask(
 ; CHECK-NEXT: entry:
-; CHECK-NEXT: call void @__itt_offload_wi_start_wrapper()
+; CHECK-NEXT: call spir_func void @__itt_offload_wi_start_wrapper()
   %0 = getelementptr inbounds %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range", %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range"* %_arg_3, i64 0, i32 0, i32 0, i64 0
   %1 = addrspacecast i64* %0 to i64 addrspace(4)*
   %2 = load i64, i64 addrspace(4)* %1, align 8
@@ -39,7 +40,7 @@ entry:
   %3 = load i32, i32 addrspace(4)* %ptridx.ascast.i9.i, align 4, !tbaa !5
   %add.i = add nsw i32 %3, 1
   store i32 %add.i, i32 addrspace(4)* %ptridx.ascast.i9.i, align 4, !tbaa !5
-; CHECK: call void @__itt_offload_wi_finish_wrapper()
+; CHECK: call spir_func void @__itt_offload_wi_finish_wrapper()
 ; CHECK-NEXT: ret void
   ret void
 }
@@ -49,7 +50,7 @@ define weak_odr dso_local spir_kernel void @_ZTSZ4mainE11ParallelFor(i32 addrspa
 entry:
 ; CHECK-LABEL: _ZTSZ4mainE11ParallelFor(
 ; CHECK-NEXT: entry:
-; CHECK-NEXT: call void @__itt_offload_wi_start_wrapper()
+; CHECK-NEXT: call spir_func void @__itt_offload_wi_start_wrapper()
   %0 = getelementptr inbounds %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range", %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range"* %_arg_3, i64 0, i32 0, i32 0, i64 0
   %1 = addrspacecast i64* %0 to i64 addrspace(4)*
   %2 = load i64, i64 addrspace(4)* %1, align 8
@@ -61,7 +62,7 @@ entry:
   %5 = load i32, i32 addrspace(4)* %ptridx.ascast.i.i, align 4, !tbaa !5
   %add.i = add nsw i32 %5, 1
   store i32 %add.i, i32 addrspace(4)* %ptridx.ascast.i.i, align 4, !tbaa !5
-; CHECK: call void @__itt_offload_wi_finish_wrapper()
+; CHECK: call spir_func void @__itt_offload_wi_finish_wrapper()
 ; CHECK-NEXT: ret void
   ret void
 }
@@ -71,7 +72,7 @@ define weak_odr dso_local spir_kernel void @_ZTSZ4mainE13ParallelForND(i32 addrs
 entry:
 ; CHECK-LABEL: _ZTSZ4mainE13ParallelForND(
 ; CHECK-NEXT: entry:
-; CHECK-NEXT: call void @__itt_offload_wi_start_wrapper()
+; CHECK-NEXT: call spir_func void @__itt_offload_wi_start_wrapper()
   %0 = getelementptr inbounds %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range", %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range"* %_arg_8, i64 0, i32 0, i32 0, i64 0
   %1 = addrspacecast i64* %0 to i64 addrspace(4)*
   %2 = load i64, i64 addrspace(4)* %1, align 8
@@ -91,16 +92,16 @@ entry:
   %ptridx.i23.i = getelementptr inbounds i32, i32 addrspace(3)* %_arg_, i64 %9
   %ptridx.ascast.i24.i = addrspacecast i32 addrspace(3)* %ptridx.i23.i to i32 addrspace(4)*
   store i32 %8, i32 addrspace(4)* %ptridx.ascast.i24.i, align 4, !tbaa !5
-; CHECK: call void @__itt_offload_wg_barrier_wrapper()
+; CHECK: call spir_func void @__itt_offload_wg_barrier_wrapper()
 ; CHECK-NEXT: tail call void @_Z22__spirv_ControlBarrierjjj
-; CHECK-NEXT: call void @__itt_offload_wi_resume_wrapper()
+; CHECK-NEXT: call spir_func void @__itt_offload_wi_resume_wrapper()
   tail call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272) #3
   %conv6.i = zext i32 %xor.i to i64
   %ptridx.i17.i = getelementptr inbounds i32, i32 addrspace(3)* %_arg_, i64 %conv6.i
   %ptridx.ascast.i18.i = addrspacecast i32 addrspace(3)* %ptridx.i17.i to i32 addrspace(4)*
   %10 = load i32, i32 addrspace(4)* %ptridx.ascast.i18.i, align 4, !tbaa !5
   store i32 %10, i32 addrspace(4)* %ptridx.ascast.i28.i, align 4, !tbaa !5
-; CHECK: call void @__itt_offload_wi_finish_wrapper()
+; CHECK: call spir_func void @__itt_offload_wi_finish_wrapper()
 ; CHECK-NEXT: ret void
   ret void
 }
@@ -108,10 +109,10 @@ entry:
 ; Function Attrs: convergent
 declare dso_local void @_Z22__spirv_ControlBarrierjjj(i32, i32, i32) local_unnamed_addr #2
 
-; CHECK: declare void @__itt_offload_wi_start_wrapper()
-; CHECK: declare void @__itt_offload_wi_finish_wrapper()
-; CHECK: declare void @__itt_offload_wg_barrier_wrapper()
-; CHECK: declare void @__itt_offload_wi_resume_wrapper()
+; CHECK: declare spir_func void @__itt_offload_wi_start_wrapper()
+; CHECK: declare spir_func void @__itt_offload_wi_finish_wrapper()
+; CHECK: declare spir_func void @__itt_offload_wg_barrier_wrapper()
+; CHECK: declare spir_func void @__itt_offload_wi_resume_wrapper()
 
 attributes #0 = { norecurse willreturn "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="llvm-test-suite/SYCL/KernelAndProgram/kernel-and-program.cpp" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { convergent norecurse "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="llvm-test-suite/SYCL/KernelAndProgram/kernel-and-program.cpp" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }

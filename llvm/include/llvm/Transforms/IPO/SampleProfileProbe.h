@@ -15,14 +15,14 @@
 #ifndef LLVM_TRANSFORMS_IPO_SAMPLEPROFILEPROBE_H
 #define LLVM_TRANSFORMS_IPO_SAMPLEPROFILEPROBE_H
 
-#include "llvm/ADT/DenseMap.h"
 #include "llvm/Analysis/LazyCallGraph.h"
+#include "llvm/IR/PassInstrumentation.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/ProfileData/SampleProf.h"
+#include "llvm/Support/Compiler.h"
 #include <unordered_map>
 
 namespace llvm {
-class Any;
 class BasicBlock;
 class Function;
 class Instruction;
@@ -41,18 +41,6 @@ using ProbeFactorMap = std::unordered_map<std::pair<uint64_t, uint64_t>, float,
                                           pair_hash<uint64_t, uint64_t>>;
 using FuncProbeFactorMap = StringMap<ProbeFactorMap>;
 
-enum class PseudoProbeReservedId { Invalid = 0, Last = Invalid };
-
-class PseudoProbeDescriptor {
-  uint64_t FunctionGUID;
-  uint64_t FunctionHash;
-
-public:
-  PseudoProbeDescriptor(uint64_t GUID, uint64_t Hash)
-      : FunctionGUID(GUID), FunctionHash(Hash) {}
-  uint64_t getFunctionGUID() const { return FunctionGUID; }
-  uint64_t getFunctionHash() const { return FunctionHash; }
-};
 
 // A pseudo probe verifier that can be run after each IR passes to detect the
 // violation of updating probe factors. In principle, the sum of distribution
@@ -60,10 +48,10 @@ public:
 // function pass, the factor sum for a probe would be typically 100%.
 class PseudoProbeVerifier {
 public:
-  void registerCallbacks(PassInstrumentationCallbacks &PIC);
+  LLVM_ABI void registerCallbacks(PassInstrumentationCallbacks &PIC);
 
   // Implementation of pass instrumentation callbacks for new pass manager.
-  void runAfterPass(StringRef PassID, Any IR);
+  LLVM_ABI void runAfterPass(StringRef PassID, Any IR);
 
 private:
   // Allow a little bias due the rounding to integral factors.
@@ -81,37 +69,30 @@ private:
                           const ProbeFactorMap &ProbeFactors);
 };
 
-// This class serves sample counts correlation for SampleProfileLoader by
-// analyzing pseudo probes and their function descriptors injected by
-// SampleProfileProber.
-class PseudoProbeManager {
-  DenseMap<uint64_t, PseudoProbeDescriptor> GUIDToProbeDescMap;
-
-  const PseudoProbeDescriptor *getDesc(const Function &F) const;
-
-public:
-  PseudoProbeManager(const Module &M);
-  bool moduleIsProbed(const Module &M) const;
-  bool profileIsValid(const Function &F, const FunctionSamples &Samples) const;
-};
-
 /// Sample profile pseudo prober.
 ///
 /// Insert pseudo probes for block sampling and value sampling.
 class SampleProfileProber {
 public:
   // Give an empty module id when the prober is not used for instrumentation.
-  SampleProfileProber(Function &F, const std::string &CurModuleUniqueId);
-  void instrumentOneFunc(Function &F, TargetMachine *TM);
+  LLVM_ABI SampleProfileProber(Function &F);
+  LLVM_ABI void instrumentOneFunc(Function &F, TargetMachine *TM);
 
 private:
   Function *getFunction() const { return F; }
   uint64_t getFunctionHash() const { return FunctionHash; }
   uint32_t getBlockId(const BasicBlock *BB) const;
   uint32_t getCallsiteId(const Instruction *Call) const;
-  void computeCFGHash();
-  void computeProbeIdForBlocks();
-  void computeProbeIdForCallsites();
+  void findUnreachableBlocks(DenseSet<BasicBlock *> &BlocksToIgnore);
+  void findInvokeNormalDests(DenseSet<BasicBlock *> &InvokeNormalDests);
+  void computeBlocksToIgnore(DenseSet<BasicBlock *> &BlocksToIgnore,
+                             DenseSet<BasicBlock *> &BlocksAndCallsToIgnore);
+  const Instruction *
+  getOriginalTerminator(const BasicBlock *Head,
+                        const DenseSet<BasicBlock *> &BlocksToIgnore);
+  void computeCFGHash(const DenseSet<BasicBlock *> &BlocksToIgnore);
+  void computeProbeId(const DenseSet<BasicBlock *> &BlocksToIgnore,
+                      const DenseSet<BasicBlock *> &BlocksAndCallsToIgnore);
 
   Function *F;
 
@@ -137,7 +118,7 @@ class SampleProfileProbePass : public PassInfoMixin<SampleProfileProbePass> {
 
 public:
   SampleProfileProbePass(TargetMachine *TM) : TM(TM) {}
-  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
+  LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 
 // Pseudo probe distribution factor updater.
@@ -157,7 +138,7 @@ class PseudoProbeUpdatePass : public PassInfoMixin<PseudoProbeUpdatePass> {
 
 public:
   PseudoProbeUpdatePass() = default;
-  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
+  LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 
 } // end namespace llvm

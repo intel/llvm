@@ -5,8 +5,8 @@ define float @frem32(float %a, float %b) {
 ; CHECK-LABEL: frem32:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    mflr 0
-; CHECK-NEXT:    std 0, 16(1)
 ; CHECK-NEXT:    stdu 1, -32(1)
+; CHECK-NEXT:    std 0, 48(1)
 ; CHECK-NEXT:    .cfi_def_cfa_offset 32
 ; CHECK-NEXT:    .cfi_offset lr, 16
 ; CHECK-NEXT:    bl fmodf
@@ -24,8 +24,8 @@ define double @frem64(double %a, double %b) {
 ; CHECK-LABEL: frem64:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    mflr 0
-; CHECK-NEXT:    std 0, 16(1)
 ; CHECK-NEXT:    stdu 1, -32(1)
+; CHECK-NEXT:    std 0, 48(1)
 ; CHECK-NEXT:    .cfi_def_cfa_offset 32
 ; CHECK-NEXT:    .cfi_offset lr, 16
 ; CHECK-NEXT:    bl fmod
@@ -43,8 +43,8 @@ define <4 x float> @frem4x32(<4 x float> %a, <4 x float> %b) {
 ; CHECK-LABEL: frem4x32:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    mflr 0
-; CHECK-NEXT:    std 0, 16(1)
 ; CHECK-NEXT:    stdu 1, -96(1)
+; CHECK-NEXT:    std 0, 112(1)
 ; CHECK-NEXT:    .cfi_def_cfa_offset 96
 ; CHECK-NEXT:    .cfi_offset lr, 16
 ; CHECK-NEXT:    .cfi_offset v28, -64
@@ -70,7 +70,6 @@ define <4 x float> @frem4x32(<4 x float> %a, <4 x float> %b) {
 ; CHECK-NEXT:    xscvspdpn 2, 0
 ; CHECK-NEXT:    bl fmodf
 ; CHECK-NEXT:    nop
-; CHECK-NEXT:    # kill: def $f1 killed $f1 def $vsl1
 ; CHECK-NEXT:    xxmrghd 0, 1, 61
 ; CHECK-NEXT:    xscvspdpn 1, 62
 ; CHECK-NEXT:    xscvspdpn 2, 63
@@ -84,7 +83,6 @@ define <4 x float> @frem4x32(<4 x float> %a, <4 x float> %b) {
 ; CHECK-NEXT:    xscvspdpn 2, 0
 ; CHECK-NEXT:    bl fmodf
 ; CHECK-NEXT:    nop
-; CHECK-NEXT:    # kill: def $f1 killed $f1 def $vsl1
 ; CHECK-NEXT:    xxmrghd 0, 61, 1
 ; CHECK-NEXT:    lxv 63, 80(1) # 16-byte Folded Reload
 ; CHECK-NEXT:    lxv 62, 64(1) # 16-byte Folded Reload
@@ -105,8 +103,8 @@ define <2 x double> @frem2x64(<2 x double> %a, <2 x double> %b) {
 ; CHECK-LABEL: frem2x64:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    mflr 0
-; CHECK-NEXT:    std 0, 16(1)
 ; CHECK-NEXT:    stdu 1, -80(1)
+; CHECK-NEXT:    std 0, 96(1)
 ; CHECK-NEXT:    .cfi_def_cfa_offset 80
 ; CHECK-NEXT:    .cfi_offset lr, 16
 ; CHECK-NEXT:    .cfi_offset v29, -48
@@ -124,11 +122,8 @@ define <2 x double> @frem2x64(<2 x double> %a, <2 x double> %b) {
 ; CHECK-NEXT:    xscpsgndp 61, 1, 1
 ; CHECK-NEXT:    xxswapd 1, 62
 ; CHECK-NEXT:    xxswapd 2, 63
-; CHECK-NEXT:    # kill: def $f1 killed $f1 killed $vsl1
-; CHECK-NEXT:    # kill: def $f2 killed $f2 killed $vsl2
 ; CHECK-NEXT:    bl fmod
 ; CHECK-NEXT:    nop
-; CHECK-NEXT:    # kill: def $f1 killed $f1 def $vsl1
 ; CHECK-NEXT:    xxmrghd 34, 61, 1
 ; CHECK-NEXT:    lxv 63, 64(1) # 16-byte Folded Reload
 ; CHECK-NEXT:    lxv 62, 48(1) # 16-byte Folded Reload

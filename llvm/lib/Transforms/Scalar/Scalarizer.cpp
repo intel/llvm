@@ -6,8 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This pass converts vector operations into scalar operations, in order
-// to expose optimization opportunities on the individual scalar operations.
+// This pass converts vector operations into scalar operations (or, optionally,
+// operations on smaller vector widths), in order to expose optimization
+// opportunities on the individual scalar operations.
 // It is mainly intended for targets that do not have vector units, but it
 // may also be useful for revectorizing code to different vector widths.
 //
@@ -17,6 +18,7 @@
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Analysis/VectorUtils.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/BasicBlock.h"
@@ -36,9 +38,7 @@
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
 #include "llvm/InitializePasses.h"
-#include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
-#include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include <cassert>
 #include <cstdint>
@@ -50,21 +50,7 @@ using namespace llvm;
 
 #define DEBUG_TYPE "scalarizer"
 
-static cl::opt<bool> ClScalarizeVariableInsertExtract(
-    "scalarize-variable-insert-extract", cl::init(true), cl::Hidden,
-    cl::desc("Allow the scalarizer pass to scalarize "
-             "insertelement/extractelement with variable index"));
-
-// This is disabled by default because having separate loads and stores
-// makes it more likely that the -combiner-alias-analysis limits will be
-// reached.
-static cl::opt<bool> ClScalarizeLoadStore(
-    "scalarize-load-store", cl::init(false), cl::Hidden,
-    cl::desc("Allow the scalarizer pass to scalarize loads and store"));
-
-namespace {
-
-BasicBlock::iterator skipPastPhiNodesAndDbg(BasicBlock::iterator Itr) {
+static BasicBlock::iterator skipPastPhiNodesAndDbg(BasicBlock::iterator Itr) {
   BasicBlock *BB = Itr->getParent();
   if (isa<PHINode>(Itr))
     Itr = BB->getFirstInsertionPt();
@@ -76,14 +62,42 @@ BasicBlock::iterator skipPastPhiNodesAndDbg(BasicBlock::iterator Itr) {
 // Used to store the scattered form of a vector.
 using ValueVector = SmallVector<Value *, 8>;
 
-// Used to map a vector Value to its scattered form.  We use std::map
-// because we want iterators to persist across insertion and because the
-// values are relatively large.
-using ScatterMap = std::map<Value *, ValueVector>;
+// Used to map a vector Value and associated type to its scattered form.
+// The associated type is only non-null for pointer values that are "scattered"
+// when used as pointer operands to load or store.
+//
+// We use std::map because we want iterators to persist across insertion and
+// because the values are relatively large.
+using ScatterMap = std::map<std::pair<Value *, Type *>, ValueVector>;
 
 // Lists Instructions that have been replaced with scalar implementations,
 // along with a pointer to their scattered forms.
 using GatherList = SmallVector<std::pair<Instruction *, ValueVector *>, 16>;
+
+namespace {
+
+struct VectorSplit {
+  // The type of the vector.
+  FixedVectorType *VecTy = nullptr;
+
+  // The number of elements packed in a fragment (other than the remainder).
+  unsigned NumPacked = 0;
+
+  // The number of fragments (scalars or smaller vectors) into which the vector
+  // shall be split.
+  unsigned NumFragments = 0;
+
+  // The type of each complete fragment.
+  Type *SplitTy = nullptr;
+
+  // The type of the remainder (last) fragment; null if all fragments are
+  // complete.
+  Type *RemainderTy = nullptr;
+
+  Type *getFragmentType(unsigned I) const {
+    return RemainderTy && I == NumFragments - 1 ? RemainderTy : SplitTy;
+  }
+};
 
 // Provides a very limited vector-like interface for lazily accessing one
 // component of a scattered vector or vector pointer.
@@ -94,26 +108,26 @@ public:
   // Scatter V into Size components.  If new instructions are needed,
   // insert them before BBI in BB.  If Cache is nonnull, use it to cache
   // the results.
-  Scatterer(BasicBlock *bb, BasicBlock::iterator bbi, Value *v, Type *PtrElemTy,
-            ValueVector *cachePtr = nullptr);
+  Scatterer(BasicBlock *bb, BasicBlock::iterator bbi, Value *v,
+            const VectorSplit &VS, ValueVector *cachePtr = nullptr);
 
   // Return component I, creating a new Value for it if necessary.
   Value *operator[](unsigned I);
 
   // Return the number of components.
-  unsigned size() const { return Size; }
+  unsigned size() const { return VS.NumFragments; }
 
 private:
   BasicBlock *BB;
   BasicBlock::iterator BBI;
   Value *V;
-  Type *PtrElemTy;
+  VectorSplit VS;
+  bool IsPointer;
   ValueVector *CachePtr;
   ValueVector Tmp;
-  unsigned Size;
 };
 
-// FCmpSpliiter(FCI)(Builder, X, Y, Name) uses Builder to create an FCmp
+// FCmpSplitter(FCI)(Builder, X, Y, Name) uses Builder to create an FCmp
 // called Name that compares X and Y in the same way as FCI.
 struct FCmpSplitter {
   FCmpSplitter(FCmpInst &fci) : FCI(fci) {}
@@ -126,7 +140,7 @@ struct FCmpSplitter {
   FCmpInst &FCI;
 };
 
-// ICmpSpliiter(ICI)(Builder, X, Y, Name) uses Builder to create an ICmp
+// ICmpSplitter(ICI)(Builder, X, Y, Name) uses Builder to create an ICmp
 // called Name that compares X and Y in the same way as ICI.
 struct ICmpSplitter {
   ICmpSplitter(ICmpInst &ici) : ICI(ici) {}
@@ -139,7 +153,7 @@ struct ICmpSplitter {
   ICmpInst &ICI;
 };
 
-// UnarySpliiter(UO)(Builder, X, Name) uses Builder to create
+// UnarySplitter(UO)(Builder, X, Name) uses Builder to create
 // a unary operator like UO called Name with operand X.
 struct UnarySplitter {
   UnarySplitter(UnaryOperator &uo) : UO(uo) {}
@@ -151,7 +165,7 @@ struct UnarySplitter {
   UnaryOperator &UO;
 };
 
-// BinarySpliiter(BO)(Builder, X, Y, Name) uses Builder to create
+// BinarySplitter(BO)(Builder, X, Y, Name) uses Builder to create
 // a binary operator like BO called Name with operands X and Y.
 struct BinarySplitter {
   BinarySplitter(BinaryOperator &bo) : BO(bo) {}
@@ -168,42 +182,109 @@ struct BinarySplitter {
 struct VectorLayout {
   VectorLayout() = default;
 
-  // Return the alignment of element I.
-  Align getElemAlign(unsigned I) {
-    return commonAlignment(VecAlign, I * ElemSize);
+  // Return the alignment of fragment Frag.
+  Align getFragmentAlign(unsigned Frag) {
+    return commonAlignment(VecAlign, Frag * SplitSize);
   }
 
-  // The type of the vector.
-  VectorType *VecTy = nullptr;
-
-  // The type of each element.
-  Type *ElemTy = nullptr;
+  // The split of the underlying vector type.
+  VectorSplit VS;
 
   // The alignment of the vector.
   Align VecAlign;
 
-  // The size of each element.
-  uint64_t ElemSize = 0;
+  // The size of each (non-remainder) fragment in bytes.
+  uint64_t SplitSize = 0;
 };
+} // namespace
 
-template <typename T>
-T getWithDefaultOverride(const cl::opt<T> &ClOption,
-                         const llvm::Optional<T> &DefaultOverride) {
-  return ClOption.getNumOccurrences() ? ClOption
-                                      : DefaultOverride.value_or(ClOption);
+static bool isStructOfMatchingFixedVectors(Type *Ty) {
+  if (!isa<StructType>(Ty))
+    return false;
+  unsigned StructSize = Ty->getNumContainedTypes();
+  if (StructSize < 1)
+    return false;
+  FixedVectorType *VecTy = dyn_cast<FixedVectorType>(Ty->getContainedType(0));
+  if (!VecTy)
+    return false;
+  unsigned VecSize = VecTy->getNumElements();
+  for (unsigned I = 1; I < StructSize; I++) {
+    VecTy = dyn_cast<FixedVectorType>(Ty->getContainedType(I));
+    if (!VecTy || VecSize != VecTy->getNumElements())
+      return false;
+  }
+  return true;
 }
 
+/// Concatenate the given fragments to a single vector value of the type
+/// described in @p VS.
+static Value *concatenate(IRBuilder<> &Builder, ArrayRef<Value *> Fragments,
+                          const VectorSplit &VS, Twine Name) {
+  unsigned NumElements = VS.VecTy->getNumElements();
+  SmallVector<int> ExtendMask;
+  SmallVector<int> InsertMask;
+
+  if (VS.NumPacked > 1) {
+    // Prepare the shufflevector masks once and re-use them for all
+    // fragments.
+    ExtendMask.resize(NumElements, -1);
+    for (unsigned I = 0; I < VS.NumPacked; ++I)
+      ExtendMask[I] = I;
+
+    InsertMask.resize(NumElements);
+    for (unsigned I = 0; I < NumElements; ++I)
+      InsertMask[I] = I;
+  }
+
+  Value *Res = PoisonValue::get(VS.VecTy);
+  for (unsigned I = 0; I < VS.NumFragments; ++I) {
+    Value *Fragment = Fragments[I];
+
+    unsigned NumPacked = VS.NumPacked;
+    if (I == VS.NumFragments - 1 && VS.RemainderTy) {
+      if (auto *RemVecTy = dyn_cast<FixedVectorType>(VS.RemainderTy))
+        NumPacked = RemVecTy->getNumElements();
+      else
+        NumPacked = 1;
+    }
+
+    if (NumPacked == 1) {
+      Res = Builder.CreateInsertElement(Res, Fragment, I * VS.NumPacked,
+                                        Name + ".upto" + Twine(I));
+    } else {
+      if (NumPacked < VS.NumPacked) {
+        // If last pack of remained bits not match current ExtendMask size.
+        ExtendMask.truncate(NumPacked);
+        ExtendMask.resize(NumElements, -1);
+      }
+
+      Fragment = Builder.CreateShuffleVector(
+          Fragment, PoisonValue::get(Fragment->getType()), ExtendMask);
+      if (I == 0) {
+        Res = Fragment;
+      } else {
+        for (unsigned J = 0; J < NumPacked; ++J)
+          InsertMask[I * VS.NumPacked + J] = NumElements + J;
+        Res = Builder.CreateShuffleVector(Res, Fragment, InsertMask,
+                                          Name + ".upto" + Twine(I));
+        for (unsigned J = 0; J < NumPacked; ++J)
+          InsertMask[I * VS.NumPacked + J] = I * VS.NumPacked + J;
+      }
+    }
+  }
+
+  return Res;
+}
+
+namespace {
 class ScalarizerVisitor : public InstVisitor<ScalarizerVisitor, bool> {
 public:
-  ScalarizerVisitor(unsigned ParallelLoopAccessMDKind, DominatorTree *DT,
+  ScalarizerVisitor(DominatorTree *DT, const TargetTransformInfo *TTI,
                     ScalarizerPassOptions Options)
-      : ParallelLoopAccessMDKind(ParallelLoopAccessMDKind), DT(DT),
-        ScalarizeVariableInsertExtract(
-            getWithDefaultOverride(ClScalarizeVariableInsertExtract,
-                                   Options.ScalarizeVariableInsertExtract)),
-        ScalarizeLoadStore(getWithDefaultOverride(ClScalarizeLoadStore,
-                                                  Options.ScalarizeLoadStore)) {
-  }
+      : DT(DT), TTI(TTI),
+        ScalarizeVariableInsertExtract(Options.ScalarizeVariableInsertExtract),
+        ScalarizeLoadStore(Options.ScalarizeLoadStore),
+        ScalarizeMinBits(Options.ScalarizeMinBits) {}
 
   bool visit(Function &F);
 
@@ -220,20 +301,23 @@ public:
   bool visitBitCastInst(BitCastInst &BCI);
   bool visitInsertElementInst(InsertElementInst &IEI);
   bool visitExtractElementInst(ExtractElementInst &EEI);
+  bool visitExtractValueInst(ExtractValueInst &EVI);
   bool visitShuffleVectorInst(ShuffleVectorInst &SVI);
   bool visitPHINode(PHINode &PHI);
   bool visitLoadInst(LoadInst &LI);
   bool visitStoreInst(StoreInst &SI);
   bool visitCallInst(CallInst &ICI);
+  bool visitFreezeInst(FreezeInst &FI);
 
 private:
-  Scatterer scatter(Instruction *Point, Value *V, Type *PtrElemTy = nullptr);
-  void gather(Instruction *Op, const ValueVector &CV);
+  Scatterer scatter(Instruction *Point, Value *V, const VectorSplit &VS);
+  void gather(Instruction *Op, const ValueVector &CV, const VectorSplit &VS);
   void replaceUses(Instruction *Op, Value *CV);
   bool canTransferMetadata(unsigned Kind);
   void transferMetadataAndIRFlags(Instruction *Op, const ValueVector &CV);
-  Optional<VectorLayout> getVectorLayout(Type *Ty, Align Alignment,
-                                         const DataLayout &DL);
+  std::optional<VectorSplit> getVectorSplit(Type *Ty);
+  std::optional<VectorLayout> getVectorLayout(Type *Ty, Align Alignment,
+                                              const DataLayout &DL);
   bool finish();
 
   template<typename T> bool splitUnary(Instruction &, const T &);
@@ -247,31 +331,34 @@ private:
 
   SmallVector<WeakTrackingVH, 32> PotentiallyDeadInstrs;
 
-  unsigned ParallelLoopAccessMDKind;
-
   DominatorTree *DT;
+  const TargetTransformInfo *TTI;
 
   const bool ScalarizeVariableInsertExtract;
   const bool ScalarizeLoadStore;
+  const unsigned ScalarizeMinBits;
 };
 
 class ScalarizerLegacyPass : public FunctionPass {
 public:
   static char ID;
-
-  ScalarizerLegacyPass() : FunctionPass(ID) {
-    initializeScalarizerLegacyPassPass(*PassRegistry::getPassRegistry());
-  }
-
+  ScalarizerPassOptions Options;
+  ScalarizerLegacyPass() : FunctionPass(ID), Options() {}
+  ScalarizerLegacyPass(const ScalarizerPassOptions &Options);
   bool runOnFunction(Function &F) override;
-
-  void getAnalysisUsage(AnalysisUsage& AU) const override {
-    AU.addRequired<DominatorTreeWrapperPass>();
-    AU.addPreserved<DominatorTreeWrapperPass>();
-  }
+  void getAnalysisUsage(AnalysisUsage &AU) const override;
 };
 
 } // end anonymous namespace
+
+ScalarizerLegacyPass::ScalarizerLegacyPass(const ScalarizerPassOptions &Options)
+    : FunctionPass(ID), Options(Options) {}
+
+void ScalarizerLegacyPass::getAnalysisUsage(AnalysisUsage &AU) const {
+  AU.addRequired<DominatorTreeWrapperPass>();
+  AU.addRequired<TargetTransformInfoWrapperPass>();
+  AU.addPreserved<DominatorTreeWrapperPass>();
+}
 
 char ScalarizerLegacyPass::ID = 0;
 INITIALIZE_PASS_BEGIN(ScalarizerLegacyPass, "scalarizer",
@@ -281,42 +368,47 @@ INITIALIZE_PASS_END(ScalarizerLegacyPass, "scalarizer",
                     "Scalarize vector operations", false, false)
 
 Scatterer::Scatterer(BasicBlock *bb, BasicBlock::iterator bbi, Value *v,
-                     Type *PtrElemTy, ValueVector *cachePtr)
-    : BB(bb), BBI(bbi), V(v), PtrElemTy(PtrElemTy), CachePtr(cachePtr) {
-  Type *Ty = V->getType();
-  if (Ty->isPointerTy()) {
-    assert(cast<PointerType>(Ty)->isOpaqueOrPointeeTypeMatches(PtrElemTy) &&
-           "Pointer element type mismatch");
-    Ty = PtrElemTy;
+                     const VectorSplit &VS, ValueVector *cachePtr)
+    : BB(bb), BBI(bbi), V(v), VS(VS), CachePtr(cachePtr) {
+  IsPointer = V->getType()->isPointerTy();
+  if (!CachePtr) {
+    Tmp.resize(VS.NumFragments, nullptr);
+  } else {
+    assert((CachePtr->empty() || VS.NumFragments == CachePtr->size() ||
+            IsPointer) &&
+           "Inconsistent vector sizes");
+    if (VS.NumFragments > CachePtr->size())
+      CachePtr->resize(VS.NumFragments, nullptr);
   }
-  Size = cast<FixedVectorType>(Ty)->getNumElements();
-  if (!CachePtr)
-    Tmp.resize(Size, nullptr);
-  else if (CachePtr->empty())
-    CachePtr->resize(Size, nullptr);
-  else
-    assert(Size == CachePtr->size() && "Inconsistent vector sizes");
 }
 
-// Return component I, creating a new Value for it if necessary.
-Value *Scatterer::operator[](unsigned I) {
-  ValueVector &CV = (CachePtr ? *CachePtr : Tmp);
+// Return fragment Frag, creating a new Value for it if necessary.
+Value *Scatterer::operator[](unsigned Frag) {
+  ValueVector &CV = CachePtr ? *CachePtr : Tmp;
   // Try to reuse a previous value.
-  if (CV[I])
-    return CV[I];
+  if (CV[Frag])
+    return CV[Frag];
   IRBuilder<> Builder(BB, BBI);
-  if (PtrElemTy) {
-    Type *VectorElemTy = cast<VectorType>(PtrElemTy)->getElementType();
-    if (!CV[0]) {
-      Type *NewPtrTy = PointerType::get(
-          VectorElemTy, V->getType()->getPointerAddressSpace());
-      CV[0] = Builder.CreateBitCast(V, NewPtrTy, V->getName() + ".i0");
-    }
-    if (I != 0)
-      CV[I] = Builder.CreateConstGEP1_32(VectorElemTy, CV[0], I,
-                                         V->getName() + ".i" + Twine(I));
+  if (IsPointer) {
+    if (Frag == 0)
+      CV[Frag] = V;
+    else
+      CV[Frag] = Builder.CreateConstGEP1_32(VS.SplitTy, V, Frag,
+                                            V->getName() + ".i" + Twine(Frag));
+    return CV[Frag];
+  }
+
+  Type *FragmentTy = VS.getFragmentType(Frag);
+
+  if (auto *VecTy = dyn_cast<FixedVectorType>(FragmentTy)) {
+    SmallVector<int> Mask;
+    for (unsigned J = 0; J < VecTy->getNumElements(); ++J)
+      Mask.push_back(Frag * VS.NumPacked + J);
+    CV[Frag] =
+        Builder.CreateShuffleVector(V, PoisonValue::get(V->getType()), Mask,
+                                    V->getName() + ".i" + Twine(Frag));
   } else {
-    // Search through a chain of InsertElementInsts looking for element I.
+    // Search through a chain of InsertElementInsts looking for element Frag.
     // Record other elements in the cache.  The new V is still suitable
     // for all uncached indices.
     while (true) {
@@ -328,36 +420,38 @@ Value *Scatterer::operator[](unsigned I) {
         break;
       unsigned J = Idx->getZExtValue();
       V = Insert->getOperand(0);
-      if (I == J) {
-        CV[J] = Insert->getOperand(1);
-        return CV[J];
-      } else if (!CV[J]) {
+      if (Frag * VS.NumPacked == J) {
+        CV[Frag] = Insert->getOperand(1);
+        return CV[Frag];
+      }
+
+      if (VS.NumPacked == 1 && !CV[J]) {
         // Only cache the first entry we find for each index we're not actively
         // searching for. This prevents us from going too far up the chain and
         // caching incorrect entries.
         CV[J] = Insert->getOperand(1);
       }
     }
-    CV[I] = Builder.CreateExtractElement(V, Builder.getInt32(I),
-                                         V->getName() + ".i" + Twine(I));
+    CV[Frag] = Builder.CreateExtractElement(V, Frag * VS.NumPacked,
+                                            V->getName() + ".i" + Twine(Frag));
   }
-  return CV[I];
+
+  return CV[Frag];
 }
 
 bool ScalarizerLegacyPass::runOnFunction(Function &F) {
   if (skipFunction(F))
     return false;
 
-  Module &M = *F.getParent();
-  unsigned ParallelLoopAccessMDKind =
-      M.getContext().getMDKindID("llvm.mem.parallel_loop_access");
   DominatorTree *DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
-  ScalarizerVisitor Impl(ParallelLoopAccessMDKind, DT, ScalarizerPassOptions());
+  const TargetTransformInfo *TTI =
+      &getAnalysis<TargetTransformInfoWrapperPass>().getTTI(F);
+  ScalarizerVisitor Impl(DT, TTI, Options);
   return Impl.visit(F);
 }
 
-FunctionPass *llvm::createScalarizerPass() {
-  return new ScalarizerLegacyPass();
+FunctionPass *llvm::createScalarizerPass(const ScalarizerPassOptions &Options) {
+  return new ScalarizerLegacyPass(Options);
 }
 
 bool ScalarizerVisitor::visit(Function &F) {
@@ -373,8 +467,10 @@ bool ScalarizerVisitor::visit(Function &F) {
       Instruction *I = &*II;
       bool Done = InstVisitor::visit(I);
       ++II;
-      if (Done && I->getType()->isVoidTy())
+      if (Done && I->getType()->isVoidTy()) {
         I->eraseFromParent();
+        Scalarized = true;
+      }
     }
   }
   return finish();
@@ -383,13 +479,13 @@ bool ScalarizerVisitor::visit(Function &F) {
 // Return a scattered form of V that can be accessed by Point.  V must be a
 // vector or a pointer to a vector.
 Scatterer ScalarizerVisitor::scatter(Instruction *Point, Value *V,
-                                     Type *PtrElemTy) {
+                                     const VectorSplit &VS) {
   if (Argument *VArg = dyn_cast<Argument>(V)) {
     // Put the scattered form of arguments in the entry block,
     // so that it can be used everywhere.
     Function *F = VArg->getParent();
     BasicBlock *BB = &F->getEntryBlock();
-    return Scatterer(BB, BB->begin(), V, PtrElemTy, &Scattered[V]);
+    return Scatterer(BB, BB->begin(), V, VS, &Scattered[{V, VS.SplitTy}]);
   }
   if (Instruction *VOp = dyn_cast<Instruction>(V)) {
     // When scalarizing PHI nodes we might try to examine/rewrite InsertElement
@@ -400,29 +496,30 @@ Scatterer ScalarizerVisitor::scatter(Instruction *Point, Value *V,
     // need to analyse them further.
     if (!DT->isReachableFromEntry(VOp->getParent()))
       return Scatterer(Point->getParent(), Point->getIterator(),
-                       PoisonValue::get(V->getType()), PtrElemTy);
+                       PoisonValue::get(V->getType()), VS);
     // Put the scattered form of an instruction directly after the
     // instruction, skipping over PHI nodes and debug intrinsics.
     BasicBlock *BB = VOp->getParent();
     return Scatterer(
-        BB, skipPastPhiNodesAndDbg(std::next(BasicBlock::iterator(VOp))), V,
-        PtrElemTy, &Scattered[V]);
+        BB, skipPastPhiNodesAndDbg(std::next(BasicBlock::iterator(VOp))), V, VS,
+        &Scattered[{V, VS.SplitTy}]);
   }
   // In the fallback case, just put the scattered before Point and
   // keep the result local to Point.
-  return Scatterer(Point->getParent(), Point->getIterator(), V, PtrElemTy);
+  return Scatterer(Point->getParent(), Point->getIterator(), V, VS);
 }
 
 // Replace Op with the gathered form of the components in CV.  Defer the
 // deletion of Op and creation of the gathered form to the end of the pass,
 // so that we can avoid creating the gathered form if all uses of Op are
 // replaced with uses of CV.
-void ScalarizerVisitor::gather(Instruction *Op, const ValueVector &CV) {
+void ScalarizerVisitor::gather(Instruction *Op, const ValueVector &CV,
+                               const VectorSplit &VS) {
   transferMetadataAndIRFlags(Op, CV);
 
   // If we already have a scattered form of Op (created from ExtractElements
   // of Op itself), replace them with the new form.
-  ValueVector &SV = Scattered[Op];
+  ValueVector &SV = Scattered[{Op, VS.SplitTy}];
   if (!SV.empty()) {
     for (unsigned I = 0, E = SV.size(); I != E; ++I) {
       Value *V = SV[I];
@@ -458,7 +555,7 @@ bool ScalarizerVisitor::canTransferMetadata(unsigned Tag) {
           || Tag == LLVMContext::MD_invariant_load
           || Tag == LLVMContext::MD_alias_scope
           || Tag == LLVMContext::MD_noalias
-          || Tag == ParallelLoopAccessMDKind
+          || Tag == LLVMContext::MD_mem_parallel_loop_access
           || Tag == LLVMContext::MD_access_group);
 }
 
@@ -468,8 +565,8 @@ void ScalarizerVisitor::transferMetadataAndIRFlags(Instruction *Op,
                                                    const ValueVector &CV) {
   SmallVector<std::pair<unsigned, MDNode *>, 4> MDs;
   Op->getAllMetadataOtherThanDebugLoc(MDs);
-  for (unsigned I = 0, E = CV.size(); I != E; ++I) {
-    if (Instruction *New = dyn_cast<Instruction>(CV[I])) {
+  for (Value *V : CV) {
+    if (Instruction *New = dyn_cast<Instruction>(V)) {
       for (const auto &MD : MDs)
         if (canTransferMetadata(MD.first))
           New->setMetadata(MD.first, MD.second);
@@ -480,22 +577,57 @@ void ScalarizerVisitor::transferMetadataAndIRFlags(Instruction *Op,
   }
 }
 
+// Determine how Ty is split, if at all.
+std::optional<VectorSplit> ScalarizerVisitor::getVectorSplit(Type *Ty) {
+  VectorSplit Split;
+  Split.VecTy = dyn_cast<FixedVectorType>(Ty);
+  if (!Split.VecTy)
+    return {};
+
+  unsigned NumElems = Split.VecTy->getNumElements();
+  Type *ElemTy = Split.VecTy->getElementType();
+
+  if (NumElems == 1 || ElemTy->isPointerTy() ||
+      2 * ElemTy->getScalarSizeInBits() > ScalarizeMinBits) {
+    Split.NumPacked = 1;
+    Split.NumFragments = NumElems;
+    Split.SplitTy = ElemTy;
+  } else {
+    Split.NumPacked = ScalarizeMinBits / ElemTy->getScalarSizeInBits();
+    if (Split.NumPacked >= NumElems)
+      return {};
+
+    Split.NumFragments = divideCeil(NumElems, Split.NumPacked);
+    Split.SplitTy = FixedVectorType::get(ElemTy, Split.NumPacked);
+
+    unsigned RemainderElems = NumElems % Split.NumPacked;
+    if (RemainderElems > 1)
+      Split.RemainderTy = FixedVectorType::get(ElemTy, RemainderElems);
+    else if (RemainderElems == 1)
+      Split.RemainderTy = ElemTy;
+  }
+
+  return Split;
+}
+
 // Try to fill in Layout from Ty, returning true on success.  Alignment is
-// the alignment of the vector, or None if the ABI default should be used.
-Optional<VectorLayout>
+// the alignment of the vector, or std::nullopt if the ABI default should be
+// used.
+std::optional<VectorLayout>
 ScalarizerVisitor::getVectorLayout(Type *Ty, Align Alignment,
                                    const DataLayout &DL) {
+  std::optional<VectorSplit> VS = getVectorSplit(Ty);
+  if (!VS)
+    return {};
+
   VectorLayout Layout;
-  // Make sure we're dealing with a vector.
-  Layout.VecTy = dyn_cast<VectorType>(Ty);
-  if (!Layout.VecTy)
-    return None;
-  // Check that we're dealing with full-byte elements.
-  Layout.ElemTy = Layout.VecTy->getElementType();
-  if (!DL.typeSizeEqualsStoreSize(Layout.ElemTy))
-    return None;
+  Layout.VS = *VS;
+  // Check that we're dealing with full-byte fragments.
+  if (!DL.typeSizeEqualsStoreSize(VS->SplitTy) ||
+      (VS->RemainderTy && !DL.typeSizeEqualsStoreSize(VS->RemainderTy)))
+    return {};
   Layout.VecAlign = Alignment;
-  Layout.ElemSize = DL.getTypeStoreSize(Layout.ElemTy);
+  Layout.SplitSize = DL.getTypeStoreSize(VS->SplitTy);
   return Layout;
 }
 
@@ -503,19 +635,27 @@ ScalarizerVisitor::getVectorLayout(Type *Ty, Align Alignment,
 // to create an instruction like I with operand X and name Name.
 template<typename Splitter>
 bool ScalarizerVisitor::splitUnary(Instruction &I, const Splitter &Split) {
-  VectorType *VT = dyn_cast<VectorType>(I.getType());
-  if (!VT)
+  std::optional<VectorSplit> VS = getVectorSplit(I.getType());
+  if (!VS)
     return false;
 
-  unsigned NumElems = cast<FixedVectorType>(VT)->getNumElements();
+  std::optional<VectorSplit> OpVS;
+  if (I.getOperand(0)->getType() == I.getType()) {
+    OpVS = VS;
+  } else {
+    OpVS = getVectorSplit(I.getOperand(0)->getType());
+    if (!OpVS || VS->NumPacked != OpVS->NumPacked)
+      return false;
+  }
+
   IRBuilder<> Builder(&I);
-  Scatterer Op = scatter(&I, I.getOperand(0));
-  assert(Op.size() == NumElems && "Mismatched unary operation");
+  Scatterer Op = scatter(&I, I.getOperand(0), *OpVS);
+  assert(Op.size() == VS->NumFragments && "Mismatched unary operation");
   ValueVector Res;
-  Res.resize(NumElems);
-  for (unsigned Elem = 0; Elem < NumElems; ++Elem)
-    Res[Elem] = Split(Builder, Op[Elem], I.getName() + ".i" + Twine(Elem));
-  gather(&I, Res);
+  Res.resize(VS->NumFragments);
+  for (unsigned Frag = 0; Frag < VS->NumFragments; ++Frag)
+    Res[Frag] = Split(Builder, Op[Frag], I.getName() + ".i" + Twine(Frag));
+  gather(&I, Res, *VS);
   return true;
 }
 
@@ -523,43 +663,46 @@ bool ScalarizerVisitor::splitUnary(Instruction &I, const Splitter &Split) {
 // to create an instruction like I with operands X and Y and name Name.
 template<typename Splitter>
 bool ScalarizerVisitor::splitBinary(Instruction &I, const Splitter &Split) {
-  VectorType *VT = dyn_cast<VectorType>(I.getType());
-  if (!VT)
+  std::optional<VectorSplit> VS = getVectorSplit(I.getType());
+  if (!VS)
     return false;
 
-  unsigned NumElems = cast<FixedVectorType>(VT)->getNumElements();
-  IRBuilder<> Builder(&I);
-  Scatterer VOp0 = scatter(&I, I.getOperand(0));
-  Scatterer VOp1 = scatter(&I, I.getOperand(1));
-  assert(VOp0.size() == NumElems && "Mismatched binary operation");
-  assert(VOp1.size() == NumElems && "Mismatched binary operation");
-  ValueVector Res;
-  Res.resize(NumElems);
-  for (unsigned Elem = 0; Elem < NumElems; ++Elem) {
-    Value *Op0 = VOp0[Elem];
-    Value *Op1 = VOp1[Elem];
-    Res[Elem] = Split(Builder, Op0, Op1, I.getName() + ".i" + Twine(Elem));
+  std::optional<VectorSplit> OpVS;
+  if (I.getOperand(0)->getType() == I.getType()) {
+    OpVS = VS;
+  } else {
+    OpVS = getVectorSplit(I.getOperand(0)->getType());
+    if (!OpVS || VS->NumPacked != OpVS->NumPacked)
+      return false;
   }
-  gather(&I, Res);
+
+  IRBuilder<> Builder(&I);
+  Scatterer VOp0 = scatter(&I, I.getOperand(0), *OpVS);
+  Scatterer VOp1 = scatter(&I, I.getOperand(1), *OpVS);
+  assert(VOp0.size() == VS->NumFragments && "Mismatched binary operation");
+  assert(VOp1.size() == VS->NumFragments && "Mismatched binary operation");
+  ValueVector Res;
+  Res.resize(VS->NumFragments);
+  for (unsigned Frag = 0; Frag < VS->NumFragments; ++Frag) {
+    Value *Op0 = VOp0[Frag];
+    Value *Op1 = VOp1[Frag];
+    Res[Frag] = Split(Builder, Op0, Op1, I.getName() + ".i" + Twine(Frag));
+  }
+  gather(&I, Res, *VS);
   return true;
-}
-
-static bool isTriviallyScalariable(Intrinsic::ID ID) {
-  return isTriviallyVectorizable(ID);
-}
-
-// All of the current scalarizable intrinsics only have one mangled type.
-static Function *getScalarIntrinsicDeclaration(Module *M,
-                                               Intrinsic::ID ID,
-                                               ArrayRef<Type*> Tys) {
-  return Intrinsic::getDeclaration(M, ID, Tys);
 }
 
 /// If a call to a vector typed intrinsic function, split into a scalar call per
 /// element if possible for the intrinsic.
 bool ScalarizerVisitor::splitCall(CallInst &CI) {
-  VectorType *VT = dyn_cast<VectorType>(CI.getType());
-  if (!VT)
+  Type *CallType = CI.getType();
+  bool AreAllVectorsOfMatchingSize = isStructOfMatchingFixedVectors(CallType);
+  std::optional<VectorSplit> VS;
+  if (AreAllVectorsOfMatchingSize)
+    VS = getVectorSplit(CallType->getContainedType(0));
+  else
+    VS = getVectorSplit(CallType);
+  if (!VS)
     return false;
 
   Function *F = CI.getCalledFunction();
@@ -567,79 +710,131 @@ bool ScalarizerVisitor::splitCall(CallInst &CI) {
     return false;
 
   Intrinsic::ID ID = F->getIntrinsicID();
-  if (ID == Intrinsic::not_intrinsic || !isTriviallyScalariable(ID))
+
+  if (ID == Intrinsic::not_intrinsic || !isTriviallyScalarizable(ID, TTI))
     return false;
 
-  unsigned NumElems = cast<FixedVectorType>(VT)->getNumElements();
+  // unsigned NumElems = VT->getNumElements();
   unsigned NumArgs = CI.arg_size();
 
   ValueVector ScalarOperands(NumArgs);
   SmallVector<Scatterer, 8> Scattered(NumArgs);
-
-  Scattered.resize(NumArgs);
+  SmallVector<int> OverloadIdx(NumArgs, -1);
 
   SmallVector<llvm::Type *, 3> Tys;
-  Tys.push_back(VT->getScalarType());
+  // Add return type if intrinsic is overloaded on it.
+  if (isVectorIntrinsicWithOverloadTypeAtArg(ID, -1, TTI))
+    Tys.push_back(VS->SplitTy);
 
+  if (AreAllVectorsOfMatchingSize) {
+    for (unsigned I = 1; I < CallType->getNumContainedTypes(); I++) {
+      std::optional<VectorSplit> CurrVS =
+          getVectorSplit(cast<FixedVectorType>(CallType->getContainedType(I)));
+      // It is possible for VectorSplit.NumPacked >= NumElems. If that happens a
+      // VectorSplit is not returned and we will bailout of handling this call.
+      // The secondary bailout case is if NumPacked does not match. This can
+      // happen if ScalarizeMinBits is not set to the default. This means with
+      // certain ScalarizeMinBits intrinsics like frexp will only scalarize when
+      // the struct elements have the same bitness.
+      if (!CurrVS || CurrVS->NumPacked != VS->NumPacked)
+        return false;
+      if (isVectorIntrinsicWithStructReturnOverloadAtField(ID, I, TTI))
+        Tys.push_back(CurrVS->SplitTy);
+    }
+  }
   // Assumes that any vector type has the same number of elements as the return
   // vector type, which is true for all current intrinsics.
   for (unsigned I = 0; I != NumArgs; ++I) {
     Value *OpI = CI.getOperand(I);
-    if (OpI->getType()->isVectorTy()) {
-      Scattered[I] = scatter(&CI, OpI);
-      assert(Scattered[I].size() == NumElems && "mismatched call operands");
-      if (isVectorIntrinsicWithOverloadTypeAtArg(ID, I))
-        Tys.push_back(OpI->getType()->getScalarType());
+    if ([[maybe_unused]] auto *OpVecTy =
+            dyn_cast<FixedVectorType>(OpI->getType())) {
+      assert(OpVecTy->getNumElements() == VS->VecTy->getNumElements());
+      std::optional<VectorSplit> OpVS = getVectorSplit(OpI->getType());
+      if (!OpVS || OpVS->NumPacked != VS->NumPacked) {
+        // The natural split of the operand doesn't match the result. This could
+        // happen if the vector elements are different and the ScalarizeMinBits
+        // option is used.
+        //
+        // We could in principle handle this case as well, at the cost of
+        // complicating the scattering machinery to support multiple scattering
+        // granularities for a single value.
+        return false;
+      }
+
+      Scattered[I] = scatter(&CI, OpI, *OpVS);
+      if (isVectorIntrinsicWithOverloadTypeAtArg(ID, I, TTI)) {
+        OverloadIdx[I] = Tys.size();
+        Tys.push_back(OpVS->SplitTy);
+      }
     } else {
       ScalarOperands[I] = OpI;
-      if (isVectorIntrinsicWithOverloadTypeAtArg(ID, I))
+      if (isVectorIntrinsicWithOverloadTypeAtArg(ID, I, TTI))
         Tys.push_back(OpI->getType());
     }
   }
 
-  ValueVector Res(NumElems);
+  ValueVector Res(VS->NumFragments);
   ValueVector ScalarCallOps(NumArgs);
 
-  Function *NewIntrin = getScalarIntrinsicDeclaration(F->getParent(), ID, Tys);
+  Function *NewIntrin =
+      Intrinsic::getOrInsertDeclaration(F->getParent(), ID, Tys);
   IRBuilder<> Builder(&CI);
 
   // Perform actual scalarization, taking care to preserve any scalar operands.
-  for (unsigned Elem = 0; Elem < NumElems; ++Elem) {
+  for (unsigned I = 0; I < VS->NumFragments; ++I) {
+    bool IsRemainder = I == VS->NumFragments - 1 && VS->RemainderTy;
     ScalarCallOps.clear();
 
+    if (IsRemainder)
+      Tys[0] = VS->RemainderTy;
+
     for (unsigned J = 0; J != NumArgs; ++J) {
-      if (isVectorIntrinsicWithScalarOpAtArg(ID, J))
+      if (isVectorIntrinsicWithScalarOpAtArg(ID, J, TTI)) {
         ScalarCallOps.push_back(ScalarOperands[J]);
-      else
-        ScalarCallOps.push_back(Scattered[J][Elem]);
+      } else {
+        ScalarCallOps.push_back(Scattered[J][I]);
+        if (IsRemainder && OverloadIdx[J] >= 0)
+          Tys[OverloadIdx[J]] = Scattered[J][I]->getType();
+      }
     }
 
-    Res[Elem] = Builder.CreateCall(NewIntrin, ScalarCallOps,
-                                   CI.getName() + ".i" + Twine(Elem));
+    if (IsRemainder)
+      NewIntrin = Intrinsic::getOrInsertDeclaration(F->getParent(), ID, Tys);
+
+    Res[I] = Builder.CreateCall(NewIntrin, ScalarCallOps,
+                                CI.getName() + ".i" + Twine(I));
   }
 
-  gather(&CI, Res);
+  gather(&CI, Res, *VS);
   return true;
 }
 
 bool ScalarizerVisitor::visitSelectInst(SelectInst &SI) {
-  VectorType *VT = dyn_cast<VectorType>(SI.getType());
-  if (!VT)
+  std::optional<VectorSplit> VS = getVectorSplit(SI.getType());
+  if (!VS)
     return false;
 
-  unsigned NumElems = cast<FixedVectorType>(VT)->getNumElements();
-  IRBuilder<> Builder(&SI);
-  Scatterer VOp1 = scatter(&SI, SI.getOperand(1));
-  Scatterer VOp2 = scatter(&SI, SI.getOperand(2));
-  assert(VOp1.size() == NumElems && "Mismatched select");
-  assert(VOp2.size() == NumElems && "Mismatched select");
-  ValueVector Res;
-  Res.resize(NumElems);
+  std::optional<VectorSplit> CondVS;
+  if (isa<FixedVectorType>(SI.getCondition()->getType())) {
+    CondVS = getVectorSplit(SI.getCondition()->getType());
+    if (!CondVS || CondVS->NumPacked != VS->NumPacked) {
+      // This happens when ScalarizeMinBits is used.
+      return false;
+    }
+  }
 
-  if (SI.getOperand(0)->getType()->isVectorTy()) {
-    Scatterer VOp0 = scatter(&SI, SI.getOperand(0));
-    assert(VOp0.size() == NumElems && "Mismatched select");
-    for (unsigned I = 0; I < NumElems; ++I) {
+  IRBuilder<> Builder(&SI);
+  Scatterer VOp1 = scatter(&SI, SI.getOperand(1), *VS);
+  Scatterer VOp2 = scatter(&SI, SI.getOperand(2), *VS);
+  assert(VOp1.size() == VS->NumFragments && "Mismatched select");
+  assert(VOp2.size() == VS->NumFragments && "Mismatched select");
+  ValueVector Res;
+  Res.resize(VS->NumFragments);
+
+  if (CondVS) {
+    Scatterer VOp0 = scatter(&SI, SI.getOperand(0), *CondVS);
+    assert(VOp0.size() == CondVS->NumFragments && "Mismatched select");
+    for (unsigned I = 0; I < VS->NumFragments; ++I) {
       Value *Op0 = VOp0[I];
       Value *Op1 = VOp1[I];
       Value *Op2 = VOp2[I];
@@ -648,14 +843,14 @@ bool ScalarizerVisitor::visitSelectInst(SelectInst &SI) {
     }
   } else {
     Value *Op0 = SI.getOperand(0);
-    for (unsigned I = 0; I < NumElems; ++I) {
+    for (unsigned I = 0; I < VS->NumFragments; ++I) {
       Value *Op1 = VOp1[I];
       Value *Op2 = VOp2[I];
       Res[I] = Builder.CreateSelect(Op0, Op1, Op2,
                                     SI.getName() + ".i" + Twine(I));
     }
   }
-  gather(&SI, Res);
+  gather(&SI, Res, *VS);
   return true;
 }
 
@@ -676,146 +871,194 @@ bool ScalarizerVisitor::visitBinaryOperator(BinaryOperator &BO) {
 }
 
 bool ScalarizerVisitor::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
-  VectorType *VT = dyn_cast<VectorType>(GEPI.getType());
-  if (!VT)
+  std::optional<VectorSplit> VS = getVectorSplit(GEPI.getType());
+  if (!VS)
     return false;
 
   IRBuilder<> Builder(&GEPI);
-  unsigned NumElems = cast<FixedVectorType>(VT)->getNumElements();
   unsigned NumIndices = GEPI.getNumIndices();
 
-  // The base pointer might be scalar even if it's a vector GEP. In those cases,
-  // splat the pointer into a vector value, and scatter that vector.
-  Value *Op0 = GEPI.getOperand(0);
-  if (!Op0->getType()->isVectorTy())
-    Op0 = Builder.CreateVectorSplat(NumElems, Op0);
-  Scatterer Base = scatter(&GEPI, Op0);
+  // The base pointer and indices might be scalar even if it's a vector GEP.
+  SmallVector<Value *, 8> ScalarOps{1 + NumIndices};
+  SmallVector<Scatterer, 8> ScatterOps{1 + NumIndices};
 
-  SmallVector<Scatterer, 8> Ops;
-  Ops.resize(NumIndices);
-  for (unsigned I = 0; I < NumIndices; ++I) {
-    Value *Op = GEPI.getOperand(I + 1);
-
-    // The indices might be scalars even if it's a vector GEP. In those cases,
-    // splat the scalar into a vector value, and scatter that vector.
-    if (!Op->getType()->isVectorTy())
-      Op = Builder.CreateVectorSplat(NumElems, Op);
-
-    Ops[I] = scatter(&GEPI, Op);
+  for (unsigned I = 0; I < 1 + NumIndices; ++I) {
+    if (auto *VecTy =
+            dyn_cast<FixedVectorType>(GEPI.getOperand(I)->getType())) {
+      std::optional<VectorSplit> OpVS = getVectorSplit(VecTy);
+      if (!OpVS || OpVS->NumPacked != VS->NumPacked) {
+        // This can happen when ScalarizeMinBits is used.
+        return false;
+      }
+      ScatterOps[I] = scatter(&GEPI, GEPI.getOperand(I), *OpVS);
+    } else {
+      ScalarOps[I] = GEPI.getOperand(I);
+    }
   }
 
   ValueVector Res;
-  Res.resize(NumElems);
-  for (unsigned I = 0; I < NumElems; ++I) {
-    SmallVector<Value *, 8> Indices;
-    Indices.resize(NumIndices);
-    for (unsigned J = 0; J < NumIndices; ++J)
-      Indices[J] = Ops[J][I];
-    Res[I] = Builder.CreateGEP(GEPI.getSourceElementType(), Base[I], Indices,
+  Res.resize(VS->NumFragments);
+  for (unsigned I = 0; I < VS->NumFragments; ++I) {
+    SmallVector<Value *, 8> SplitOps;
+    SplitOps.resize(1 + NumIndices);
+    for (unsigned J = 0; J < 1 + NumIndices; ++J) {
+      if (ScalarOps[J])
+        SplitOps[J] = ScalarOps[J];
+      else
+        SplitOps[J] = ScatterOps[J][I];
+    }
+    Res[I] = Builder.CreateGEP(GEPI.getSourceElementType(), SplitOps[0],
+                               ArrayRef(SplitOps).drop_front(),
                                GEPI.getName() + ".i" + Twine(I));
     if (GEPI.isInBounds())
       if (GetElementPtrInst *NewGEPI = dyn_cast<GetElementPtrInst>(Res[I]))
         NewGEPI->setIsInBounds();
   }
-  gather(&GEPI, Res);
+  gather(&GEPI, Res, *VS);
   return true;
 }
 
 bool ScalarizerVisitor::visitCastInst(CastInst &CI) {
-  VectorType *VT = dyn_cast<VectorType>(CI.getDestTy());
-  if (!VT)
+  std::optional<VectorSplit> DestVS = getVectorSplit(CI.getDestTy());
+  if (!DestVS)
     return false;
 
-  unsigned NumElems = cast<FixedVectorType>(VT)->getNumElements();
+  std::optional<VectorSplit> SrcVS = getVectorSplit(CI.getSrcTy());
+  if (!SrcVS || SrcVS->NumPacked != DestVS->NumPacked)
+    return false;
+
   IRBuilder<> Builder(&CI);
-  Scatterer Op0 = scatter(&CI, CI.getOperand(0));
-  assert(Op0.size() == NumElems && "Mismatched cast");
+  Scatterer Op0 = scatter(&CI, CI.getOperand(0), *SrcVS);
+  assert(Op0.size() == SrcVS->NumFragments && "Mismatched cast");
   ValueVector Res;
-  Res.resize(NumElems);
-  for (unsigned I = 0; I < NumElems; ++I)
-    Res[I] = Builder.CreateCast(CI.getOpcode(), Op0[I], VT->getElementType(),
-                                CI.getName() + ".i" + Twine(I));
-  gather(&CI, Res);
+  Res.resize(DestVS->NumFragments);
+  for (unsigned I = 0; I < DestVS->NumFragments; ++I)
+    Res[I] =
+        Builder.CreateCast(CI.getOpcode(), Op0[I], DestVS->getFragmentType(I),
+                           CI.getName() + ".i" + Twine(I));
+  gather(&CI, Res, *DestVS);
   return true;
 }
 
 bool ScalarizerVisitor::visitBitCastInst(BitCastInst &BCI) {
-  VectorType *DstVT = dyn_cast<VectorType>(BCI.getDestTy());
-  VectorType *SrcVT = dyn_cast<VectorType>(BCI.getSrcTy());
-  if (!DstVT || !SrcVT)
+  std::optional<VectorSplit> DstVS = getVectorSplit(BCI.getDestTy());
+  std::optional<VectorSplit> SrcVS = getVectorSplit(BCI.getSrcTy());
+  if (!DstVS || !SrcVS || DstVS->RemainderTy || SrcVS->RemainderTy)
     return false;
 
-  unsigned DstNumElems = cast<FixedVectorType>(DstVT)->getNumElements();
-  unsigned SrcNumElems = cast<FixedVectorType>(SrcVT)->getNumElements();
-  IRBuilder<> Builder(&BCI);
-  Scatterer Op0 = scatter(&BCI, BCI.getOperand(0));
-  ValueVector Res;
-  Res.resize(DstNumElems);
+  const bool isPointerTy = DstVS->VecTy->getElementType()->isPointerTy();
 
-  if (DstNumElems == SrcNumElems) {
-    for (unsigned I = 0; I < DstNumElems; ++I)
-      Res[I] = Builder.CreateBitCast(Op0[I], DstVT->getElementType(),
+  // Vectors of pointers are always fully scalarized.
+  assert(!isPointerTy || (DstVS->NumPacked == 1 && SrcVS->NumPacked == 1));
+
+  IRBuilder<> Builder(&BCI);
+  Scatterer Op0 = scatter(&BCI, BCI.getOperand(0), *SrcVS);
+  ValueVector Res;
+  Res.resize(DstVS->NumFragments);
+
+  unsigned DstSplitBits = DstVS->SplitTy->getPrimitiveSizeInBits();
+  unsigned SrcSplitBits = SrcVS->SplitTy->getPrimitiveSizeInBits();
+
+  if (isPointerTy || DstSplitBits == SrcSplitBits) {
+    assert(DstVS->NumFragments == SrcVS->NumFragments);
+    for (unsigned I = 0; I < DstVS->NumFragments; ++I) {
+      Res[I] = Builder.CreateBitCast(Op0[I], DstVS->getFragmentType(I),
                                      BCI.getName() + ".i" + Twine(I));
-  } else if (DstNumElems > SrcNumElems) {
-    // <M x t1> -> <N*M x t2>.  Convert each t1 to <N x t2> and copy the
-    // individual elements to the destination.
-    unsigned FanOut = DstNumElems / SrcNumElems;
-    auto *MidTy = FixedVectorType::get(DstVT->getElementType(), FanOut);
+    }
+  } else if (SrcSplitBits % DstSplitBits == 0) {
+    // Convert each source fragment to the same-sized destination vector and
+    // then scatter the result to the destination.
+    VectorSplit MidVS;
+    MidVS.NumPacked = DstVS->NumPacked;
+    MidVS.NumFragments = SrcSplitBits / DstSplitBits;
+    MidVS.VecTy = FixedVectorType::get(DstVS->VecTy->getElementType(),
+                                       MidVS.NumPacked * MidVS.NumFragments);
+    MidVS.SplitTy = DstVS->SplitTy;
+
     unsigned ResI = 0;
-    for (unsigned Op0I = 0; Op0I < SrcNumElems; ++Op0I) {
-      Value *V = Op0[Op0I];
-      Instruction *VI;
+    for (unsigned I = 0; I < SrcVS->NumFragments; ++I) {
+      Value *V = Op0[I];
+
       // Look through any existing bitcasts before converting to <N x t2>.
       // In the best case, the resulting conversion might be a no-op.
+      Instruction *VI;
       while ((VI = dyn_cast<Instruction>(V)) &&
              VI->getOpcode() == Instruction::BitCast)
         V = VI->getOperand(0);
-      V = Builder.CreateBitCast(V, MidTy, V->getName() + ".cast");
-      Scatterer Mid = scatter(&BCI, V);
-      for (unsigned MidI = 0; MidI < FanOut; ++MidI)
-        Res[ResI++] = Mid[MidI];
+
+      V = Builder.CreateBitCast(V, MidVS.VecTy, V->getName() + ".cast");
+
+      Scatterer Mid = scatter(&BCI, V, MidVS);
+      for (unsigned J = 0; J < MidVS.NumFragments; ++J)
+        Res[ResI++] = Mid[J];
+    }
+  } else if (DstSplitBits % SrcSplitBits == 0) {
+    // Gather enough source fragments to make up a destination fragment and
+    // then convert to the destination type.
+    VectorSplit MidVS;
+    MidVS.NumFragments = DstSplitBits / SrcSplitBits;
+    MidVS.NumPacked = SrcVS->NumPacked;
+    MidVS.VecTy = FixedVectorType::get(SrcVS->VecTy->getElementType(),
+                                       MidVS.NumPacked * MidVS.NumFragments);
+    MidVS.SplitTy = SrcVS->SplitTy;
+
+    unsigned SrcI = 0;
+    SmallVector<Value *, 8> ConcatOps;
+    ConcatOps.resize(MidVS.NumFragments);
+    for (unsigned I = 0; I < DstVS->NumFragments; ++I) {
+      for (unsigned J = 0; J < MidVS.NumFragments; ++J)
+        ConcatOps[J] = Op0[SrcI++];
+      Value *V = concatenate(Builder, ConcatOps, MidVS,
+                             BCI.getName() + ".i" + Twine(I));
+      Res[I] = Builder.CreateBitCast(V, DstVS->getFragmentType(I),
+                                     BCI.getName() + ".i" + Twine(I));
     }
   } else {
-    // <N*M x t1> -> <M x t2>.  Convert each group of <N x t1> into a t2.
-    unsigned FanIn = SrcNumElems / DstNumElems;
-    auto *MidTy = FixedVectorType::get(SrcVT->getElementType(), FanIn);
-    unsigned Op0I = 0;
-    for (unsigned ResI = 0; ResI < DstNumElems; ++ResI) {
-      Value *V = PoisonValue::get(MidTy);
-      for (unsigned MidI = 0; MidI < FanIn; ++MidI)
-        V = Builder.CreateInsertElement(V, Op0[Op0I++], Builder.getInt32(MidI),
-                                        BCI.getName() + ".i" + Twine(ResI)
-                                        + ".upto" + Twine(MidI));
-      Res[ResI] = Builder.CreateBitCast(V, DstVT->getElementType(),
-                                        BCI.getName() + ".i" + Twine(ResI));
-    }
+    return false;
   }
-  gather(&BCI, Res);
+
+  gather(&BCI, Res, *DstVS);
   return true;
 }
 
 bool ScalarizerVisitor::visitInsertElementInst(InsertElementInst &IEI) {
-  VectorType *VT = dyn_cast<VectorType>(IEI.getType());
-  if (!VT)
+  std::optional<VectorSplit> VS = getVectorSplit(IEI.getType());
+  if (!VS)
     return false;
 
-  unsigned NumElems = cast<FixedVectorType>(VT)->getNumElements();
   IRBuilder<> Builder(&IEI);
-  Scatterer Op0 = scatter(&IEI, IEI.getOperand(0));
+  Scatterer Op0 = scatter(&IEI, IEI.getOperand(0), *VS);
   Value *NewElt = IEI.getOperand(1);
   Value *InsIdx = IEI.getOperand(2);
 
   ValueVector Res;
-  Res.resize(NumElems);
+  Res.resize(VS->NumFragments);
 
   if (auto *CI = dyn_cast<ConstantInt>(InsIdx)) {
-    for (unsigned I = 0; I < NumElems; ++I)
-      Res[I] = CI->getValue().getZExtValue() == I ? NewElt : Op0[I];
+    unsigned Idx = CI->getZExtValue();
+    unsigned Fragment = Idx / VS->NumPacked;
+    for (unsigned I = 0; I < VS->NumFragments; ++I) {
+      if (I == Fragment) {
+        bool IsPacked = VS->NumPacked > 1;
+        if (Fragment == VS->NumFragments - 1 && VS->RemainderTy &&
+            !VS->RemainderTy->isVectorTy())
+          IsPacked = false;
+        if (IsPacked) {
+          Res[I] =
+              Builder.CreateInsertElement(Op0[I], NewElt, Idx % VS->NumPacked);
+        } else {
+          Res[I] = NewElt;
+        }
+      } else {
+        Res[I] = Op0[I];
+      }
+    }
   } else {
-    if (!ScalarizeVariableInsertExtract)
+    // Never split a variable insertelement that isn't fully scalarized.
+    if (!ScalarizeVariableInsertExtract || VS->NumPacked > 1)
       return false;
 
-    for (unsigned I = 0; I < NumElems; ++I) {
+    for (unsigned I = 0; I < VS->NumFragments; ++I) {
       Value *ShouldReplace =
           Builder.CreateICmpEQ(InsIdx, ConstantInt::get(InsIdx->getType(), I),
                                InsIdx->getName() + ".is." + Twine(I));
@@ -825,31 +1068,89 @@ bool ScalarizerVisitor::visitInsertElementInst(InsertElementInst &IEI) {
     }
   }
 
-  gather(&IEI, Res);
+  gather(&IEI, Res, *VS);
+  return true;
+}
+
+bool ScalarizerVisitor::visitExtractValueInst(ExtractValueInst &EVI) {
+  Value *Op = EVI.getOperand(0);
+  Type *OpTy = Op->getType();
+  ValueVector Res;
+  if (!isStructOfMatchingFixedVectors(OpTy))
+    return false;
+  if (CallInst *CI = dyn_cast<CallInst>(Op)) {
+    Function *F = CI->getCalledFunction();
+    if (!F)
+      return false;
+    Intrinsic::ID ID = F->getIntrinsicID();
+    if (ID == Intrinsic::not_intrinsic || !isTriviallyScalarizable(ID, TTI))
+      return false;
+    // Note: Fall through means Operand is a`CallInst` and it is defined in
+    // `isTriviallyScalarizable`.
+  } else
+    return false;
+  Type *VecType = cast<FixedVectorType>(OpTy->getContainedType(0));
+  std::optional<VectorSplit> VS = getVectorSplit(VecType);
+  if (!VS)
+    return false;
+  for (unsigned I = 1; I < OpTy->getNumContainedTypes(); I++) {
+    std::optional<VectorSplit> CurrVS =
+        getVectorSplit(cast<FixedVectorType>(OpTy->getContainedType(I)));
+    // It is possible for VectorSplit.NumPacked >= NumElems. If that happens a
+    // VectorSplit is not returned and we will bailout of handling this call.
+    // The secondary bailout case is if NumPacked does not match. This can
+    // happen if ScalarizeMinBits is not set to the default. This means with
+    // certain ScalarizeMinBits intrinsics like frexp will only scalarize when
+    // the struct elements have the same bitness.
+    if (!CurrVS || CurrVS->NumPacked != VS->NumPacked)
+      return false;
+  }
+  IRBuilder<> Builder(&EVI);
+  Scatterer Op0 = scatter(&EVI, Op, *VS);
+  assert(!EVI.getIndices().empty() && "Make sure an index exists");
+  // Note for our use case we only care about the top level index.
+  unsigned Index = EVI.getIndices()[0];
+  for (unsigned OpIdx = 0; OpIdx < Op0.size(); ++OpIdx) {
+    Value *ResElem = Builder.CreateExtractValue(
+        Op0[OpIdx], Index, EVI.getName() + ".elem" + Twine(Index));
+    Res.push_back(ResElem);
+  }
+
+  Type *ActualVecType = cast<FixedVectorType>(OpTy->getContainedType(Index));
+  std::optional<VectorSplit> AVS = getVectorSplit(ActualVecType);
+  gather(&EVI, Res, *AVS);
   return true;
 }
 
 bool ScalarizerVisitor::visitExtractElementInst(ExtractElementInst &EEI) {
-  VectorType *VT = dyn_cast<VectorType>(EEI.getOperand(0)->getType());
-  if (!VT)
+  std::optional<VectorSplit> VS = getVectorSplit(EEI.getOperand(0)->getType());
+  if (!VS)
     return false;
 
-  unsigned NumSrcElems = cast<FixedVectorType>(VT)->getNumElements();
   IRBuilder<> Builder(&EEI);
-  Scatterer Op0 = scatter(&EEI, EEI.getOperand(0));
+  Scatterer Op0 = scatter(&EEI, EEI.getOperand(0), *VS);
   Value *ExtIdx = EEI.getOperand(1);
 
   if (auto *CI = dyn_cast<ConstantInt>(ExtIdx)) {
-    Value *Res = Op0[CI->getValue().getZExtValue()];
+    unsigned Idx = CI->getZExtValue();
+    unsigned Fragment = Idx / VS->NumPacked;
+    Value *Res = Op0[Fragment];
+    bool IsPacked = VS->NumPacked > 1;
+    if (Fragment == VS->NumFragments - 1 && VS->RemainderTy &&
+        !VS->RemainderTy->isVectorTy())
+      IsPacked = false;
+    if (IsPacked)
+      Res = Builder.CreateExtractElement(Res, Idx % VS->NumPacked);
     replaceUses(&EEI, Res);
     return true;
   }
 
-  if (!ScalarizeVariableInsertExtract)
+  // Never split a variable extractelement that isn't fully scalarized.
+  if (!ScalarizeVariableInsertExtract || VS->NumPacked > 1)
     return false;
 
-  Value *Res = UndefValue::get(VT->getElementType());
-  for (unsigned I = 0; I < NumSrcElems; ++I) {
+  Value *Res = PoisonValue::get(VS->VecTy->getElementType());
+  for (unsigned I = 0; I < VS->NumFragments; ++I) {
     Value *ShouldExtract =
         Builder.CreateICmpEQ(ExtIdx, ConstantInt::get(ExtIdx->getType(), I),
                              ExtIdx->getName() + ".is." + Twine(I));
@@ -862,51 +1163,52 @@ bool ScalarizerVisitor::visitExtractElementInst(ExtractElementInst &EEI) {
 }
 
 bool ScalarizerVisitor::visitShuffleVectorInst(ShuffleVectorInst &SVI) {
-  VectorType *VT = dyn_cast<VectorType>(SVI.getType());
-  if (!VT)
+  std::optional<VectorSplit> VS = getVectorSplit(SVI.getType());
+  std::optional<VectorSplit> VSOp =
+      getVectorSplit(SVI.getOperand(0)->getType());
+  if (!VS || !VSOp || VS->NumPacked > 1 || VSOp->NumPacked > 1)
     return false;
 
-  unsigned NumElems = cast<FixedVectorType>(VT)->getNumElements();
-  Scatterer Op0 = scatter(&SVI, SVI.getOperand(0));
-  Scatterer Op1 = scatter(&SVI, SVI.getOperand(1));
+  Scatterer Op0 = scatter(&SVI, SVI.getOperand(0), *VSOp);
+  Scatterer Op1 = scatter(&SVI, SVI.getOperand(1), *VSOp);
   ValueVector Res;
-  Res.resize(NumElems);
+  Res.resize(VS->NumFragments);
 
-  for (unsigned I = 0; I < NumElems; ++I) {
+  for (unsigned I = 0; I < VS->NumFragments; ++I) {
     int Selector = SVI.getMaskValue(I);
     if (Selector < 0)
-      Res[I] = UndefValue::get(VT->getElementType());
+      Res[I] = PoisonValue::get(VS->VecTy->getElementType());
     else if (unsigned(Selector) < Op0.size())
       Res[I] = Op0[Selector];
     else
       Res[I] = Op1[Selector - Op0.size()];
   }
-  gather(&SVI, Res);
+  gather(&SVI, Res, *VS);
   return true;
 }
 
 bool ScalarizerVisitor::visitPHINode(PHINode &PHI) {
-  VectorType *VT = dyn_cast<VectorType>(PHI.getType());
-  if (!VT)
+  std::optional<VectorSplit> VS = getVectorSplit(PHI.getType());
+  if (!VS)
     return false;
 
-  unsigned NumElems = cast<FixedVectorType>(VT)->getNumElements();
   IRBuilder<> Builder(&PHI);
   ValueVector Res;
-  Res.resize(NumElems);
+  Res.resize(VS->NumFragments);
 
   unsigned NumOps = PHI.getNumOperands();
-  for (unsigned I = 0; I < NumElems; ++I)
-    Res[I] = Builder.CreatePHI(VT->getElementType(), NumOps,
+  for (unsigned I = 0; I < VS->NumFragments; ++I) {
+    Res[I] = Builder.CreatePHI(VS->getFragmentType(I), NumOps,
                                PHI.getName() + ".i" + Twine(I));
+  }
 
   for (unsigned I = 0; I < NumOps; ++I) {
-    Scatterer Op = scatter(&PHI, PHI.getIncomingValue(I));
+    Scatterer Op = scatter(&PHI, PHI.getIncomingValue(I), *VS);
     BasicBlock *IncomingBlock = PHI.getIncomingBlock(I);
-    for (unsigned J = 0; J < NumElems; ++J)
+    for (unsigned J = 0; J < VS->NumFragments; ++J)
       cast<PHINode>(Res[J])->addIncoming(Op[J], IncomingBlock);
   }
-  gather(&PHI, Res);
+  gather(&PHI, Res, *VS);
   return true;
 }
 
@@ -916,22 +1218,22 @@ bool ScalarizerVisitor::visitLoadInst(LoadInst &LI) {
   if (!LI.isSimple())
     return false;
 
-  Optional<VectorLayout> Layout = getVectorLayout(
-      LI.getType(), LI.getAlign(), LI.getModule()->getDataLayout());
+  std::optional<VectorLayout> Layout = getVectorLayout(
+      LI.getType(), LI.getAlign(), LI.getDataLayout());
   if (!Layout)
     return false;
 
-  unsigned NumElems = cast<FixedVectorType>(Layout->VecTy)->getNumElements();
   IRBuilder<> Builder(&LI);
-  Scatterer Ptr = scatter(&LI, LI.getPointerOperand(), LI.getType());
+  Scatterer Ptr = scatter(&LI, LI.getPointerOperand(), Layout->VS);
   ValueVector Res;
-  Res.resize(NumElems);
+  Res.resize(Layout->VS.NumFragments);
 
-  for (unsigned I = 0; I < NumElems; ++I)
-    Res[I] = Builder.CreateAlignedLoad(Layout->VecTy->getElementType(), Ptr[I],
-                                       Align(Layout->getElemAlign(I)),
+  for (unsigned I = 0; I < Layout->VS.NumFragments; ++I) {
+    Res[I] = Builder.CreateAlignedLoad(Layout->VS.getFragmentType(I), Ptr[I],
+                                       Align(Layout->getFragmentAlign(I)),
                                        LI.getName() + ".i" + Twine(I));
-  gather(&LI, Res);
+  }
+  gather(&LI, Res, Layout->VS);
   return true;
 }
 
@@ -942,22 +1244,22 @@ bool ScalarizerVisitor::visitStoreInst(StoreInst &SI) {
     return false;
 
   Value *FullValue = SI.getValueOperand();
-  Optional<VectorLayout> Layout = getVectorLayout(
-      FullValue->getType(), SI.getAlign(), SI.getModule()->getDataLayout());
+  std::optional<VectorLayout> Layout = getVectorLayout(
+      FullValue->getType(), SI.getAlign(), SI.getDataLayout());
   if (!Layout)
     return false;
 
-  unsigned NumElems = cast<FixedVectorType>(Layout->VecTy)->getNumElements();
   IRBuilder<> Builder(&SI);
-  Scatterer VPtr = scatter(&SI, SI.getPointerOperand(), FullValue->getType());
-  Scatterer VVal = scatter(&SI, FullValue);
+  Scatterer VPtr = scatter(&SI, SI.getPointerOperand(), Layout->VS);
+  Scatterer VVal = scatter(&SI, FullValue, Layout->VS);
 
   ValueVector Stores;
-  Stores.resize(NumElems);
-  for (unsigned I = 0; I < NumElems; ++I) {
+  Stores.resize(Layout->VS.NumFragments);
+  for (unsigned I = 0; I < Layout->VS.NumFragments; ++I) {
     Value *Val = VVal[I];
     Value *Ptr = VPtr[I];
-    Stores[I] = Builder.CreateAlignedStore(Val, Ptr, Layout->getElemAlign(I));
+    Stores[I] =
+        Builder.CreateAlignedStore(Val, Ptr, Layout->getFragmentAlign(I));
   }
   transferMetadataAndIRFlags(&SI, Stores);
   return true;
@@ -965,6 +1267,12 @@ bool ScalarizerVisitor::visitStoreInst(StoreInst &SI) {
 
 bool ScalarizerVisitor::visitCallInst(CallInst &CI) {
   return splitCall(CI);
+}
+
+bool ScalarizerVisitor::visitFreezeInst(FreezeInst &FI) {
+  return splitUnary(FI, [](IRBuilder<> &Builder, Value *Op, const Twine &Name) {
+    return Builder.CreateFreeze(Op, Name);
+  });
 }
 
 // Delete the instructions that we scalarized.  If a full vector result
@@ -979,18 +1287,49 @@ bool ScalarizerVisitor::finish() {
     ValueVector &CV = *GMI.second;
     if (!Op->use_empty()) {
       // The value is still needed, so recreate it using a series of
-      // InsertElements.
-      Value *Res = PoisonValue::get(Op->getType());
-      if (auto *Ty = dyn_cast<VectorType>(Op->getType())) {
+      // insertelements and/or shufflevectors.
+      Value *Res;
+      if (auto *Ty = dyn_cast<FixedVectorType>(Op->getType())) {
         BasicBlock *BB = Op->getParent();
-        unsigned Count = cast<FixedVectorType>(Ty)->getNumElements();
         IRBuilder<> Builder(Op);
         if (isa<PHINode>(Op))
           Builder.SetInsertPoint(BB, BB->getFirstInsertionPt());
-        for (unsigned I = 0; I < Count; ++I)
-          Res = Builder.CreateInsertElement(Res, CV[I], Builder.getInt32(I),
-                                            Op->getName() + ".upto" + Twine(I));
+
+        VectorSplit VS = *getVectorSplit(Ty);
+        assert(VS.NumFragments == CV.size());
+
+        Res = concatenate(Builder, CV, VS, Op->getName());
+
         Res->takeName(Op);
+      } else if (auto *Ty = dyn_cast<StructType>(Op->getType())) {
+        BasicBlock *BB = Op->getParent();
+        IRBuilder<> Builder(Op);
+        if (isa<PHINode>(Op))
+          Builder.SetInsertPoint(BB, BB->getFirstInsertionPt());
+
+        // Iterate over each element in the struct
+        unsigned NumOfStructElements = Ty->getNumElements();
+        SmallVector<ValueVector, 4> ElemCV(NumOfStructElements);
+        for (unsigned I = 0; I < NumOfStructElements; ++I) {
+          for (auto *CVelem : CV) {
+            Value *Elem = Builder.CreateExtractValue(
+                CVelem, I, Op->getName() + ".elem" + Twine(I));
+            ElemCV[I].push_back(Elem);
+          }
+        }
+        Res = PoisonValue::get(Ty);
+        for (unsigned I = 0; I < NumOfStructElements; ++I) {
+          Type *ElemTy = Ty->getElementType(I);
+          assert(isa<FixedVectorType>(ElemTy) &&
+                 "Only Structs of all FixedVectorType supported");
+          VectorSplit VS = *getVectorSplit(ElemTy);
+          assert(VS.NumFragments == CV.size());
+
+          Value *ConcatenatedVector =
+              concatenate(Builder, ElemCV[I], VS, Op->getName());
+          Res = Builder.CreateInsertValue(Res, ConcatenatedVector, I,
+                                          Op->getName() + ".insert");
+        }
       } else {
         assert(CV.size() == 1 && Op->getType() == CV[0]->getType());
         Res = CV[0];
@@ -1011,11 +1350,9 @@ bool ScalarizerVisitor::finish() {
 }
 
 PreservedAnalyses ScalarizerPass::run(Function &F, FunctionAnalysisManager &AM) {
-  Module &M = *F.getParent();
-  unsigned ParallelLoopAccessMDKind =
-      M.getContext().getMDKindID("llvm.mem.parallel_loop_access");
   DominatorTree *DT = &AM.getResult<DominatorTreeAnalysis>(F);
-  ScalarizerVisitor Impl(ParallelLoopAccessMDKind, DT, Options);
+  const TargetTransformInfo *TTI = &AM.getResult<TargetIRAnalysis>(F);
+  ScalarizerVisitor Impl(DT, TTI, Options);
   bool Changed = Impl.visit(F);
   PreservedAnalyses PA;
   PA.preserve<DominatorTreeAnalysis>();

@@ -1,9 +1,10 @@
 // RUN: %clangxx_asan %s -o %t && %run %t
-// RUN: %clangxx_asan %s -o %t %linux_static_libstdcplusplus && %run %t
+// RUN: %clangxx_asan %s -o %t -static-libstdc++ && %run %t
 
 // Investigate why it fails with NDK 21.
-// UNSUPPORTED: android
+// UNSUPPORTED: android, MSVC
 
+#include "defines.h"
 #include <stdio.h>
 static volatile int zero = 0;
 inline void pretend_to_do_something(void *x) {
@@ -34,7 +35,7 @@ void Throw() {
   ReallyThrow();
 }
 
-__attribute__((noinline))
+ATTRIBUTE_NOINLINE
 void CheckStack() {
   int ar[100];
   pretend_to_do_something(ar);

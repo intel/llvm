@@ -7,19 +7,20 @@
 //===----------------------------------------------------------------------===//
 
 #include "src/signal/sigaddset.h"
+
+#include "hdr/types/sigset_t.h"
 #include "src/__support/common.h"
+#include "src/__support/libc_errno.h"
+#include "src/__support/macros/config.h"
 #include "src/signal/linux/signal_utils.h"
 
-#include <errno.h>
-#include <signal.h>
-
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE_DECL {
 
 LLVM_LIBC_FUNCTION(int, sigaddset, (sigset_t * set, int signum)) {
   if (set != nullptr && add_signal(*set, signum))
     return 0;
-  errno = EINVAL;
+  libc_errno = EINVAL;
   return -1;
 }
 
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE_DECL

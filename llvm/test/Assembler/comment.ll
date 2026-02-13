@@ -1,5 +1,5 @@
-; RUN: llvm-as -opaque-pointers < %s | llvm-dis -show-annotations | FileCheck -check-prefix=ANNOT %s
-; RUN: llvm-as -opaque-pointers < %s | llvm-dis | FileCheck -check-prefix=BARE %s
+; RUN: llvm-as < %s | llvm-dis -show-annotations | FileCheck -check-prefix=ANNOT %s
+; RUN: llvm-as < %s | llvm-dis | FileCheck -check-prefix=BARE %s
 ; RUN: verify-uselistorder %s
 
 ; The bare version of this file should not have any #uses lines.

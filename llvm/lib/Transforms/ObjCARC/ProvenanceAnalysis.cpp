@@ -28,7 +28,6 @@
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/ObjCARCAnalysisUtils.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/Module.h"
 #include "llvm/IR/Use.h"
 #include "llvm/IR/User.h"
 #include "llvm/IR/Value.h"
@@ -79,6 +78,9 @@ bool ProvenanceAnalysis::relatedPHI(const PHINode *A,
 /// Test if the value of P, or any value covered by its provenance, is ever
 /// stored within the function (not counting callees).
 static bool IsStoredObjCPointer(const Value *P) {
+  if (!P->hasUseList())
+    return true; // Assume the worst for a constant pointer.
+
   SmallPtrSet<const Value *, 8> Visited;
   SmallVector<const Value *, 8> Worklist;
   Worklist.push_back(P);
@@ -167,7 +169,6 @@ bool ProvenanceAnalysis::related(const Value *A, const Value *B) {
   // Begin by inserting a conservative value into the map. If the insertion
   // fails, we have the answer already. If it succeeds, leave it there until we
   // compute the real answer to guard against recursive queries.
-  if (A > B) std::swap(A, B);
   std::pair<CachedResultsTy::iterator, bool> Pair =
     CachedResults.insert(std::make_pair(ValuePairTy(A, B), true));
   if (!Pair.second)

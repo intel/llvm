@@ -1,4 +1,4 @@
-; RUN: llc -mtriple=arm-eabi -mcpu=cortex-a9 -enable-unsafe-fp-math %s -o /dev/null
+; RUN: llc -mtriple=arm-eabi -mcpu=cortex-a9 %s -o /dev/null
 ;target datalayout = "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:64:128-a0:0:64-n32-S64"
 ;target triple = "armv7-none-linux-gnueabi"
 
@@ -20,7 +20,7 @@ bb5:                                              ; preds = %bb4
   %tmp15 = shufflevector <2 x float> %tmp14, <2 x float> undef, <4 x i32> zeroinitializer
   %tmp16 = fmul <4 x float> zeroinitializer, %tmp15
   %tmp17 = fadd <4 x float> %tmp16, %arg
-  store <4 x float> %tmp17, <4 x float>* undef, align 8
+  store <4 x float> %tmp17, ptr undef, align 8
   br label %bb18
 
 bb18:                                             ; preds = %bb5, %bb4

@@ -7,12 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
 #include "llvm/DebugInfo/DWARF/DWARFDebugFrame.h"
 #include "llvm/DebugInfo/DWARF/DWARFDie.h"
-#include "llvm/DebugInfo/DWARF/DWARFExpression.h"
+#include "llvm/DebugInfo/DWARF/LowLevel/DWARFExpression.h"
 #include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCCodeEmitter.h"
@@ -30,6 +29,7 @@
 #include "llvm/Support/LEB128.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/TargetSelect.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Testing/Support/Error.h"
 #include "gtest/gtest.h"
 
@@ -45,25 +45,27 @@ namespace {
 /// debug info from input to output binary.
 class DWARFExpressionCopyBytesTest : public ::testing::Test {
 public:
-  const char *TripleName = "x86_64-pc-linux";
+  static constexpr char TripleName[] = "x86_64-pc-linux";
+  Triple TheTriple;
+
   std::unique_ptr<MCRegisterInfo> MRI;
   std::unique_ptr<MCAsmInfo> MAI;
   std::unique_ptr<const MCSubtargetInfo> STI;
   const Target *TheTarget;
 
-  DWARFExpressionCopyBytesTest() {
+  DWARFExpressionCopyBytesTest() : TheTriple(TripleName) {
     InitializeAllTargets();
     InitializeAllTargetMCs();
     InitializeAllAsmPrinters();
 
     std::string ErrorStr;
-    TheTarget = TargetRegistry::lookupTarget(TripleName, ErrorStr);
+    TheTarget = TargetRegistry::lookupTarget(TheTriple, ErrorStr);
     if (!TheTarget)
       return;
 
-    MRI.reset(TheTarget->createMCRegInfo(TripleName));
-    MAI.reset(TheTarget->createMCAsmInfo(*MRI, TripleName, MCTargetOptions()));
-    STI.reset(TheTarget->createMCSubtargetInfo(TripleName, "", ""));
+    MRI.reset(TheTarget->createMCRegInfo(TheTriple));
+    MAI.reset(TheTarget->createMCAsmInfo(*MRI, TheTriple, MCTargetOptions()));
+    STI.reset(TheTarget->createMCSubtargetInfo(TheTriple, "", ""));
   }
 
   struct StreamerContext {
@@ -101,7 +103,7 @@ DWARFExpressionCopyBytesTest::createStreamer(raw_pwrite_stream &OS) {
   Res.Ctx =
       std::make_unique<MCContext>(Triple(TripleName), MAI.get(), MRI.get(),
                                   /*MSTI=*/nullptr);
-  Res.MOFI.reset(TheTarget->createMCObjectFileInfo(*Res.Ctx.get(),
+  Res.MOFI.reset(TheTarget->createMCObjectFileInfo(*Res.Ctx,
                                                    /*PIC=*/false));
   Res.Ctx->setObjectFileInfo(Res.MOFI.get());
 
@@ -112,10 +114,7 @@ DWARFExpressionCopyBytesTest::createStreamer(raw_pwrite_stream &OS) {
   std::unique_ptr<MCObjectWriter> OW = MAB->createObjectWriter(OS);
   Res.Streamer.reset(TheTarget->createMCObjectStreamer(
       Triple(TripleName), *Res.Ctx, std::unique_ptr<MCAsmBackend>(MAB),
-      std::move(OW), std::unique_ptr<MCCodeEmitter>(MCE), *STI,
-      /* RelaxAll */ false,
-      /* IncrementalLinkerCompatible */ false,
-      /* DWARFMustBeAtTheEnd */ false));
+      std::move(OW), std::unique_ptr<MCCodeEmitter>(MCE), *STI));
   return Res;
 }
 
@@ -147,8 +146,8 @@ SmallString<0> DWARFExpressionCopyBytesTest::emitObjFile(StringRef ExprBytes) {
 
 void DWARFExpressionCopyBytesTest::parseCFIsAndCheckExpression(
     const llvm::object::ObjectFile &E, ArrayRef<uint8_t> Expected) {
-  auto FetchFirstCfaExpression =
-      [](const DWARFDebugFrame &EHFrame) -> Optional<CFIProgram::Instruction> {
+  auto FetchFirstCfaExpression = [](const DWARFDebugFrame &EHFrame)
+      -> std::optional<CFIProgram::Instruction> {
     for (const dwarf::FrameEntry &Entry : EHFrame.entries()) {
       const auto *CurFDE = dyn_cast<dwarf::FDE>(&Entry);
       if (!CurFDE)
@@ -159,7 +158,7 @@ void DWARFExpressionCopyBytesTest::parseCFIsAndCheckExpression(
         return Instr;
       }
     }
-    return NoneType();
+    return std::nullopt;
   };
 
   std::unique_ptr<DWARFContext> Ctx = DWARFContext::create(E);

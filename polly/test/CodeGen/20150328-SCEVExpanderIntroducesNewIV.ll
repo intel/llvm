@@ -1,4 +1,4 @@
-; RUN: opt %loadPolly -polly-codegen -S < %s | FileCheck %s
+; RUN: opt %loadNPMPolly '-passes=polly<no-default-opts>' -S < %s | FileCheck %s
 
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
@@ -28,8 +28,8 @@ unreachableA:
 
 for.body121:
   %indvar = phi i32 [ 0, %switchbb ], [ %indvar.next, %for.body121 ]
-  %ptr = getelementptr [1536 x float], [1536 x float]* @A, i64 0, i32 %indvar
-  store float undef, float* %ptr
+  %ptr = getelementptr [1536 x float], ptr @A, i64 0, i32 %indvar
+  store float undef, ptr %ptr
   %indvar.next = add nsw i32 %indvar, 1
   br i1 false, label %for.body121, label %while.cond.loopexit3
 

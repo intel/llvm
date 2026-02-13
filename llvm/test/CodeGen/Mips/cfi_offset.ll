@@ -1,9 +1,9 @@
-; RUN: llc -march=mips -mattr=+o32 < %s | FileCheck %s --check-prefixes=CHECK,CHECK-EB
-; RUN: llc -march=mipsel -mattr=+o32 < %s | FileCheck %s --check-prefixes=CHECK,CHECK-EL
-; RUN: llc -march=mips -mattr=+o32,+fpxx < %s | FileCheck %s --check-prefixes=CHECK,CHECK-EB
-; RUN: llc -march=mipsel -mattr=+o32,+fpxx < %s | FileCheck %s --check-prefixes=CHECK,CHECK-EL
-; RUN: llc -march=mips -mattr=+o32,+fp64,+mips32r2 < %s | FileCheck %s --check-prefixes=CHECK,CHECK-EB
-; RUN: llc -march=mipsel -mattr=+o32,+fp64,+mips32r2 < %s | FileCheck %s --check-prefixes=CHECK,CHECK-EL
+; RUN: llc -mtriple=mips-elf -mattr=+o32 < %s | FileCheck %s --check-prefixes=CHECK,CHECK-EB
+; RUN: llc -mtriple=mipsel-elf -mattr=+o32 < %s | FileCheck %s --check-prefixes=CHECK,CHECK-EL
+; RUN: llc -mtriple=mips-elf -mattr=+o32,+fpxx < %s | FileCheck %s --check-prefixes=CHECK,CHECK-EB
+; RUN: llc -mtriple=mipsel-elf -mattr=+o32,+fpxx < %s | FileCheck %s --check-prefixes=CHECK,CHECK-EL
+; RUN: llc -mtriple=mips-elf -mattr=+o32,+fp64,+mips32r2 < %s | FileCheck %s --check-prefixes=CHECK,CHECK-EB
+; RUN: llc -mtriple=mipsel-elf -mattr=+o32,+fp64,+mips32r2 < %s | FileCheck %s --check-prefixes=CHECK,CHECK-EL
 
 @var = global double 0.0
 
@@ -32,10 +32,10 @@ define void @bar() {
 ; CHECK:  .cfi_offset 31, -20
 ; CHECK:  .cfi_offset 16, -24
 
-    %val1 = load volatile double, double* @var
-    %val2 = load volatile double, double* @var
+    %val1 = load volatile double, ptr @var
+    %val2 = load volatile double, ptr @var
     call void (...) @foo() nounwind
-    store volatile double %val1, double* @var
-    store volatile double %val2, double* @var
+    store volatile double %val1, ptr @var
+    store volatile double %val2, ptr @var
     ret void
 }

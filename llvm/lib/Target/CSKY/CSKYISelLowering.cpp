@@ -35,7 +35,7 @@ static const MCPhysReg GPRArgRegs[] = {CSKY::R0, CSKY::R1, CSKY::R2, CSKY::R3};
 
 CSKYTargetLowering::CSKYTargetLowering(const TargetMachine &TM,
                                        const CSKYSubtarget &STI)
-    : TargetLowering(TM), Subtarget(STI) {
+    : TargetLowering(TM, STI), Subtarget(STI) {
   // Register Class
   addRegisterClass(MVT::i32, &CSKY::GPRRegClass);
 
@@ -51,15 +51,14 @@ CSKYTargetLowering::CSKYTargetLowering(const TargetMachine &TM,
       addRegisterClass(MVT::f64, &CSKY::FPR64RegClass);
   }
 
-  setOperationAction(ISD::ADDCARRY, MVT::i32, Legal);
-  setOperationAction(ISD::SUBCARRY, MVT::i32, Legal);
+  setOperationAction(ISD::UADDO_CARRY, MVT::i32, Legal);
+  setOperationAction(ISD::USUBO_CARRY, MVT::i32, Legal);
   setOperationAction(ISD::BITREVERSE, MVT::i32, Legal);
 
   setOperationAction(ISD::SREM, MVT::i32, Expand);
   setOperationAction(ISD::UREM, MVT::i32, Expand);
   setOperationAction(ISD::UDIVREM, MVT::i32, Expand);
   setOperationAction(ISD::SDIVREM, MVT::i32, Expand);
-  setOperationAction(ISD::CTTZ, MVT::i32, Expand);
   setOperationAction(ISD::CTPOP, MVT::i32, Expand);
   setOperationAction(ISD::ROTR, MVT::i32, Expand);
   setOperationAction(ISD::SHL_PARTS, MVT::i32, Expand);
@@ -87,6 +86,9 @@ CSKYTargetLowering::CSKYTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::ExternalSymbol, MVT::i32, Custom);
   setOperationAction(ISD::GlobalTLSAddress, MVT::i32, Custom);
   setOperationAction(ISD::BlockAddress, MVT::i32, Custom);
+  if (!Subtarget.hasE2()) {
+    setOperationAction(ISD::ConstantPool, MVT::i32, Custom);
+  }
   setOperationAction(ISD::JumpTable, MVT::i32, Custom);
   setOperationAction(ISD::VASTART, MVT::Other, Custom);
 
@@ -100,6 +102,7 @@ CSKYTargetLowering::CSKYTargetLowering(const TargetMachine &TM,
   if (!Subtarget.has2E3()) {
     setOperationAction(ISD::ABS, MVT::i32, Expand);
     setOperationAction(ISD::BITREVERSE, MVT::i32, Expand);
+    setOperationAction(ISD::CTTZ, MVT::i32, Expand);
     setOperationAction(ISD::SDIV, MVT::i32, Expand);
     setOperationAction(ISD::UDIV, MVT::i32, Expand);
   }
@@ -113,15 +116,16 @@ CSKYTargetLowering::CSKYTargetLowering(const TargetMachine &TM,
       ISD::SETUGE, ISD::SETULT, ISD::SETULE,
   };
 
-  ISD::NodeType FPOpToExpand[] = {ISD::FSIN, ISD::FCOS, ISD::FSINCOS,
-                                  ISD::FPOW, ISD::FREM, ISD::FCOPYSIGN};
+  ISD::NodeType FPOpToExpand[] = {
+      ISD::FSIN,      ISD::FCOS,       ISD::FSINCOS,   ISD::FPOW,
+      ISD::FCOPYSIGN, ISD::FP16_TO_FP, ISD::FP_TO_FP16};
 
   if (STI.useHardFloat()) {
 
     MVT AllVTy[] = {MVT::f32, MVT::f64};
 
     for (auto VT : AllVTy) {
-      setOperationAction(ISD::FREM, VT, Expand);
+      setOperationAction(ISD::FREM, VT, LibCall);
       setOperationAction(ISD::SELECT_CC, VT, Expand);
       setOperationAction(ISD::BR_CC, VT, Expand);
 
@@ -133,10 +137,14 @@ CSKYTargetLowering::CSKYTargetLowering(const TargetMachine &TM,
 
     if (STI.hasFPUv2SingleFloat() || STI.hasFPUv3SingleFloat()) {
       setOperationAction(ISD::ConstantFP, MVT::f32, Legal);
+      setLoadExtAction(ISD::EXTLOAD, MVT::f32, MVT::f16, Expand);
+      setTruncStoreAction(MVT::f32, MVT::f16, Expand);
     }
     if (STI.hasFPUv2DoubleFloat() || STI.hasFPUv3DoubleFloat()) {
       setLoadExtAction(ISD::EXTLOAD, MVT::f64, MVT::f32, Expand);
       setTruncStoreAction(MVT::f64, MVT::f32, Expand);
+      setLoadExtAction(ISD::EXTLOAD, MVT::f64, MVT::f16, Expand);
+      setTruncStoreAction(MVT::f64, MVT::f16, Expand);
     }
   }
 
@@ -150,8 +158,7 @@ CSKYTargetLowering::CSKYTargetLowering(const TargetMachine &TM,
   setMaxAtomicSizeInBitsSupported(0);
 
   setStackPointerRegisterToSaveRestore(CSKY::R14);
-  const Align FunctionAlignment(2);
-  setMinFunctionAlignment(FunctionAlignment);
+  setMinFunctionAlignment(Align(2));
   setSchedulingPreference(Sched::Source);
 }
 
@@ -170,6 +177,8 @@ SDValue CSKYTargetLowering::LowerOperation(SDValue Op,
     return LowerJumpTable(Op, DAG);
   case ISD::BlockAddress:
     return LowerBlockAddress(Op, DAG);
+  case ISD::ConstantPool:
+    return LowerConstantPool(Op, DAG);
   case ISD::VASTART:
     return LowerVASTART(Op, DAG);
   case ISD::FRAMEADDR:
@@ -359,7 +368,7 @@ SDValue CSKYTargetLowering::LowerFormalArguments(
     const unsigned XLenInBytes = 4;
     const MVT XLenVT = MVT::i32;
 
-    ArrayRef<MCPhysReg> ArgRegs = makeArrayRef(GPRArgRegs);
+    ArrayRef<MCPhysReg> ArgRegs = ArrayRef(GPRArgRegs);
     unsigned Idx = CCInfo.getFirstUnallocated(ArgRegs);
     const TargetRegisterClass *RC = &CSKY::GPRRegClass;
     MachineFrameInfo &MFI = MF.getFrameInfo();
@@ -374,7 +383,7 @@ SDValue CSKYTargetLowering::LowerFormalArguments(
     // If all registers are allocated, then all varargs must be passed on the
     // stack and we don't need to save any argregs.
     if (ArgRegs.size() == Idx) {
-      VaArgOffset = CCInfo.getNextStackOffset();
+      VaArgOffset = CCInfo.getStackSize();
       VarArgsSaveSize = 0;
     } else {
       VarArgsSaveSize = XLenInBytes * (ArgRegs.size() - Idx);
@@ -417,7 +426,8 @@ SDValue CSKYTargetLowering::LowerFormalArguments(
 
 bool CSKYTargetLowering::CanLowerReturn(
     CallingConv::ID CallConv, MachineFunction &MF, bool IsVarArg,
-    const SmallVectorImpl<ISD::OutputArg> &Outs, LLVMContext &Context) const {
+    const SmallVectorImpl<ISD::OutputArg> &Outs, LLVMContext &Context,
+    const Type *RetTy) const {
   SmallVector<CCValAssign, 16> CSKYLocs;
   CCState CCInfo(CallConv, IsVarArg, MF, CSKYLocs, Context);
   return CCInfo.CheckReturn(Outs, CCAssignFnForReturn(CallConv, IsVarArg));
@@ -527,7 +537,7 @@ SDValue CSKYTargetLowering::LowerCall(CallLoweringInfo &CLI,
                        "site marked musttail");
 
   // Get a count of how many bytes are to be pushed on the stack.
-  unsigned NumBytes = ArgCCInfo.getNextStackOffset();
+  unsigned NumBytes = ArgCCInfo.getStackSize();
 
   // Create local copies for byval args
   SmallVector<SDValue, 8> ByValArgs;
@@ -547,7 +557,7 @@ SDValue CSKYTargetLowering::LowerCall(CallLoweringInfo &CLI,
 
     Chain = DAG.getMemcpy(Chain, DL, FIPtr, Arg, SizeNode, Alignment,
                           /*IsVolatile=*/false,
-                          /*AlwaysInline=*/false, IsTailCall,
+                          /*AlwaysInline=*/false, /*CI=*/nullptr, IsTailCall,
                           MachinePointerInfo(), MachinePointerInfo());
     ByValArgs.push_back(FIPtr);
   }
@@ -640,8 +650,7 @@ SDValue CSKYTargetLowering::LowerCall(CallLoweringInfo &CLI,
 
   if (GlobalAddressSDNode *S = dyn_cast<GlobalAddressSDNode>(Callee)) {
     const GlobalValue *GV = S->getGlobal();
-    bool IsLocal =
-        getTargetMachine().shouldAssumeDSOLocal(*GV->getParent(), GV);
+    bool IsLocal = getTargetMachine().shouldAssumeDSOLocal(GV);
 
     if (isPositionIndependent() || !Subtarget.has2E3()) {
       IsRegCall = true;
@@ -653,8 +662,7 @@ SDValue CSKYTargetLowering::LowerCall(CallLoweringInfo &CLI,
           cast<GlobalAddressSDNode>(Callee), Ty, DAG, CSKYII::MO_None));
     }
   } else if (ExternalSymbolSDNode *S = dyn_cast<ExternalSymbolSDNode>(Callee)) {
-    bool IsLocal = getTargetMachine().shouldAssumeDSOLocal(
-        *MF.getFunction().getParent(), nullptr);
+    bool IsLocal = getTargetMachine().shouldAssumeDSOLocal(nullptr);
 
     if (isPositionIndependent() || !Subtarget.has2E3()) {
       IsRegCall = true;
@@ -876,13 +884,13 @@ CSKYTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
                                .Case("{t4}", CSKY::R20)
                                .Case("{t5}", CSKY::R21)
                                .Case("{t6}", CSKY::R22)
-                               .Cases("{t7}", "{fp}", CSKY::R23)
-                               .Cases("{t8}", "{top}", CSKY::R24)
-                               .Cases("{t9}", "{bsp}", CSKY::R25)
+                               .Cases({"{t7}", "{fp}"}, CSKY::R23)
+                               .Cases({"{t8}", "{top}"}, CSKY::R24)
+                               .Cases({"{t9}", "{bsp}"}, CSKY::R25)
                                .Case("{r26}", CSKY::R26)
                                .Case("{r27}", CSKY::R27)
-                               .Cases("{gb}", "{rgb}", "{rdb}", CSKY::R28)
-                               .Cases("{tb}", "{rtb}", CSKY::R29)
+                               .Cases({"{gb}", "{rgb}", "{rdb}"}, CSKY::R28)
+                               .Cases({"{tb}", "{rtb}"}, CSKY::R29)
                                .Case("{svbr}", CSKY::R30)
                                .Case("{tls}", CSKY::R31)
                                .Default(CSKY::NoRegister);
@@ -899,38 +907,38 @@ CSKYTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
   // use the ABI names in register constraint lists.
   if (Subtarget.useHardFloat()) {
     unsigned FReg = StringSwitch<unsigned>(Constraint.lower())
-                        .Cases("{fr0}", "{vr0}", CSKY::F0_32)
-                        .Cases("{fr1}", "{vr1}", CSKY::F1_32)
-                        .Cases("{fr2}", "{vr2}", CSKY::F2_32)
-                        .Cases("{fr3}", "{vr3}", CSKY::F3_32)
-                        .Cases("{fr4}", "{vr4}", CSKY::F4_32)
-                        .Cases("{fr5}", "{vr5}", CSKY::F5_32)
-                        .Cases("{fr6}", "{vr6}", CSKY::F6_32)
-                        .Cases("{fr7}", "{vr7}", CSKY::F7_32)
-                        .Cases("{fr8}", "{vr8}", CSKY::F8_32)
-                        .Cases("{fr9}", "{vr9}", CSKY::F9_32)
-                        .Cases("{fr10}", "{vr10}", CSKY::F10_32)
-                        .Cases("{fr11}", "{vr11}", CSKY::F11_32)
-                        .Cases("{fr12}", "{vr12}", CSKY::F12_32)
-                        .Cases("{fr13}", "{vr13}", CSKY::F13_32)
-                        .Cases("{fr14}", "{vr14}", CSKY::F14_32)
-                        .Cases("{fr15}", "{vr15}", CSKY::F15_32)
-                        .Cases("{fr16}", "{vr16}", CSKY::F16_32)
-                        .Cases("{fr17}", "{vr17}", CSKY::F17_32)
-                        .Cases("{fr18}", "{vr18}", CSKY::F18_32)
-                        .Cases("{fr19}", "{vr19}", CSKY::F19_32)
-                        .Cases("{fr20}", "{vr20}", CSKY::F20_32)
-                        .Cases("{fr21}", "{vr21}", CSKY::F21_32)
-                        .Cases("{fr22}", "{vr22}", CSKY::F22_32)
-                        .Cases("{fr23}", "{vr23}", CSKY::F23_32)
-                        .Cases("{fr24}", "{vr24}", CSKY::F24_32)
-                        .Cases("{fr25}", "{vr25}", CSKY::F25_32)
-                        .Cases("{fr26}", "{vr26}", CSKY::F26_32)
-                        .Cases("{fr27}", "{vr27}", CSKY::F27_32)
-                        .Cases("{fr28}", "{vr28}", CSKY::F28_32)
-                        .Cases("{fr29}", "{vr29}", CSKY::F29_32)
-                        .Cases("{fr30}", "{vr30}", CSKY::F30_32)
-                        .Cases("{fr31}", "{vr31}", CSKY::F31_32)
+                        .Cases({"{fr0}", "{vr0}"}, CSKY::F0_32)
+                        .Cases({"{fr1}", "{vr1}"}, CSKY::F1_32)
+                        .Cases({"{fr2}", "{vr2}"}, CSKY::F2_32)
+                        .Cases({"{fr3}", "{vr3}"}, CSKY::F3_32)
+                        .Cases({"{fr4}", "{vr4}"}, CSKY::F4_32)
+                        .Cases({"{fr5}", "{vr5}"}, CSKY::F5_32)
+                        .Cases({"{fr6}", "{vr6}"}, CSKY::F6_32)
+                        .Cases({"{fr7}", "{vr7}"}, CSKY::F7_32)
+                        .Cases({"{fr8}", "{vr8}"}, CSKY::F8_32)
+                        .Cases({"{fr9}", "{vr9}"}, CSKY::F9_32)
+                        .Cases({"{fr10}", "{vr10}"}, CSKY::F10_32)
+                        .Cases({"{fr11}", "{vr11}"}, CSKY::F11_32)
+                        .Cases({"{fr12}", "{vr12}"}, CSKY::F12_32)
+                        .Cases({"{fr13}", "{vr13}"}, CSKY::F13_32)
+                        .Cases({"{fr14}", "{vr14}"}, CSKY::F14_32)
+                        .Cases({"{fr15}", "{vr15}"}, CSKY::F15_32)
+                        .Cases({"{fr16}", "{vr16}"}, CSKY::F16_32)
+                        .Cases({"{fr17}", "{vr17}"}, CSKY::F17_32)
+                        .Cases({"{fr18}", "{vr18}"}, CSKY::F18_32)
+                        .Cases({"{fr19}", "{vr19}"}, CSKY::F19_32)
+                        .Cases({"{fr20}", "{vr20}"}, CSKY::F20_32)
+                        .Cases({"{fr21}", "{vr21}"}, CSKY::F21_32)
+                        .Cases({"{fr22}", "{vr22}"}, CSKY::F22_32)
+                        .Cases({"{fr23}", "{vr23}"}, CSKY::F23_32)
+                        .Cases({"{fr24}", "{vr24}"}, CSKY::F24_32)
+                        .Cases({"{fr25}", "{vr25}"}, CSKY::F25_32)
+                        .Cases({"{fr26}", "{vr26}"}, CSKY::F26_32)
+                        .Cases({"{fr27}", "{vr27}"}, CSKY::F27_32)
+                        .Cases({"{fr28}", "{vr28}"}, CSKY::F28_32)
+                        .Cases({"{fr29}", "{vr29}"}, CSKY::F29_32)
+                        .Cases({"{fr30}", "{vr30}"}, CSKY::F30_32)
+                        .Cases({"{fr31}", "{vr31}"}, CSKY::F31_32)
                         .Default(CSKY::NoRegister);
     if (FReg != CSKY::NoRegister) {
       assert(CSKY::F0_32 <= FReg && FReg <= CSKY::F31_32 && "Unknown fp-reg");
@@ -1058,9 +1066,21 @@ SDValue CSKYTargetLowering::getTargetConstantPoolValue(BlockAddressSDNode *N,
                                                        EVT Ty,
                                                        SelectionDAG &DAG,
                                                        unsigned Flags) const {
+  assert(N->getOffset() == 0);
   CSKYConstantPoolValue *CPV = CSKYConstantPoolConstant::Create(
       N->getBlockAddress(), CSKYCP::CPBlockAddress, 0, getModifier(Flags),
       false);
+  return DAG.getTargetConstantPool(CPV, Ty);
+}
+
+SDValue CSKYTargetLowering::getTargetConstantPoolValue(ConstantPoolSDNode *N,
+                                                       EVT Ty,
+                                                       SelectionDAG &DAG,
+                                                       unsigned Flags) const {
+  assert(N->getOffset() == 0);
+  CSKYConstantPoolValue *CPV = CSKYConstantPoolConstant::Create(
+      N->getConstVal(), Type::getInt32Ty(*DAG.getContext()),
+      CSKYCP::CPConstPool, 0, getModifier(Flags), false);
   return DAG.getTargetConstantPool(CPV, Ty);
 }
 
@@ -1089,31 +1109,12 @@ SDValue CSKYTargetLowering::getTargetNode(BlockAddressSDNode *N, SDLoc DL,
                                    Flags);
 }
 
-const char *CSKYTargetLowering::getTargetNodeName(unsigned Opcode) const {
-  switch (Opcode) {
-  default:
-    llvm_unreachable("unknown CSKYISD node");
-  case CSKYISD::NIE:
-    return "CSKYISD::NIE";
-  case CSKYISD::NIR:
-    return "CSKYISD::NIR";
-  case CSKYISD::RET:
-    return "CSKYISD::RET";
-  case CSKYISD::CALL:
-    return "CSKYISD::CALL";
-  case CSKYISD::CALLReg:
-    return "CSKYISD::CALLReg";
-  case CSKYISD::TAIL:
-    return "CSKYISD::TAIL";
-  case CSKYISD::TAILReg:
-    return "CSKYISD::TAILReg";
-  case CSKYISD::LOAD_ADDR:
-    return "CSKYISD::LOAD_ADDR";
-  case CSKYISD::BITCAST_TO_LOHI:
-    return "CSKYISD::BITCAST_TO_LOHI";
-  case CSKYISD::BITCAST_FROM_LOHI:
-    return "CSKYISD::BITCAST_FROM_LOHI";
-  }
+SDValue CSKYTargetLowering::getTargetNode(ConstantPoolSDNode *N, SDLoc DL,
+                                          EVT Ty, SelectionDAG &DAG,
+                                          unsigned Flags) const {
+
+  return DAG.getTargetConstantPool(N->getConstVal(), Ty, N->getAlign(),
+                                   N->getOffset(), Flags);
 }
 
 SDValue CSKYTargetLowering::LowerGlobalAddress(SDValue Op,
@@ -1124,7 +1125,7 @@ SDValue CSKYTargetLowering::LowerGlobalAddress(SDValue Op,
   int64_t Offset = N->getOffset();
 
   const GlobalValue *GV = N->getGlobal();
-  bool IsLocal = getTargetMachine().shouldAssumeDSOLocal(*GV->getParent(), GV);
+  bool IsLocal = getTargetMachine().shouldAssumeDSOLocal(GV);
   SDValue Addr = getAddr<GlobalAddressSDNode, false>(N, DAG, IsLocal);
 
   // In order to maximise the opportunity for common subexpression elimination,
@@ -1158,6 +1159,14 @@ SDValue CSKYTargetLowering::LowerBlockAddress(SDValue Op,
   return getAddr(N, DAG);
 }
 
+SDValue CSKYTargetLowering::LowerConstantPool(SDValue Op,
+                                              SelectionDAG &DAG) const {
+  assert(!Subtarget.hasE2());
+  ConstantPoolSDNode *N = cast<ConstantPoolSDNode>(Op);
+
+  return getAddr(N, DAG);
+}
+
 SDValue CSKYTargetLowering::LowerVASTART(SDValue Op, SelectionDAG &DAG) const {
   MachineFunction &MF = DAG.getMachineFunction();
   CSKYMachineFunctionInfo *FuncInfo = MF.getInfo<CSKYMachineFunctionInfo>();
@@ -1182,7 +1191,7 @@ SDValue CSKYTargetLowering::LowerFRAMEADDR(SDValue Op,
 
   EVT VT = Op.getValueType();
   SDLoc dl(Op);
-  unsigned Depth = cast<ConstantSDNode>(Op.getOperand(0))->getZExtValue();
+  unsigned Depth = Op.getConstantOperandVal(0);
   Register FrameReg = RI.getFrameRegister(MF);
   SDValue FrameAddr = DAG.getCopyFromReg(DAG.getEntryNode(), dl, FrameReg, VT);
   while (Depth--)
@@ -1198,12 +1207,9 @@ SDValue CSKYTargetLowering::LowerRETURNADDR(SDValue Op,
   MachineFrameInfo &MFI = MF.getFrameInfo();
   MFI.setReturnAddressIsTaken(true);
 
-  if (verifyReturnAddressArgumentIsConstant(Op, DAG))
-    return SDValue();
-
   EVT VT = Op.getValueType();
   SDLoc dl(Op);
-  unsigned Depth = cast<ConstantSDNode>(Op.getOperand(0))->getZExtValue();
+  unsigned Depth = Op.getConstantOperandVal(0);
   if (Depth) {
     SDValue FrameAddr = LowerFRAMEADDR(Op, DAG);
     SDValue Offset = DAG.getConstant(4, dl, MVT::i32);
@@ -1323,10 +1329,7 @@ SDValue CSKYTargetLowering::getDynamicTLSAddr(GlobalAddressSDNode *N,
 
   // Prepare argument list to generate call.
   ArgListTy Args;
-  ArgListEntry Entry;
-  Entry.Node = Load;
-  Entry.Ty = CallTy;
-  Args.push_back(Entry);
+  Args.emplace_back(Load, CallTy);
 
   // Setup call to __tls_get_addr.
   TargetLowering::CallLoweringInfo CLI(DAG);
@@ -1338,4 +1341,44 @@ SDValue CSKYTargetLowering::getDynamicTLSAddr(GlobalAddressSDNode *N,
   SDValue V = LowerCallTo(CLI).first;
 
   return V;
+}
+
+bool CSKYTargetLowering::decomposeMulByConstant(LLVMContext &Context, EVT VT,
+                                                SDValue C) const {
+  if (!VT.isScalarInteger())
+    return false;
+
+  // Omit if data size exceeds.
+  if (VT.getSizeInBits() > Subtarget.XLen)
+    return false;
+
+  if (auto *ConstNode = dyn_cast<ConstantSDNode>(C.getNode())) {
+    const APInt &Imm = ConstNode->getAPIntValue();
+    // Break MULT to LSLI + ADDU/SUBU.
+    if ((Imm + 1).isPowerOf2() || (Imm - 1).isPowerOf2() ||
+        (1 - Imm).isPowerOf2())
+      return true;
+    // Only break MULT for sub targets without MULT32, since an extra
+    // instruction will be generated against the above 3 cases. We leave it
+    // unchanged on sub targets with MULT32, since not sure it is better.
+    if (!Subtarget.hasE2() && (-1 - Imm).isPowerOf2())
+      return true;
+    // Break (MULT x, imm) to ([IXH32|IXW32|IXD32] (LSLI32 x, i0), x) when
+    // imm=(1<<i0)+[2|4|8] and imm has to be composed via a MOVIH32/ORI32 pair.
+    if (Imm.ugt(0xffff) && ((Imm - 2).isPowerOf2() || (Imm - 4).isPowerOf2()) &&
+        Subtarget.hasE2())
+      return true;
+    if (Imm.ugt(0xffff) && (Imm - 8).isPowerOf2() && Subtarget.has2E3())
+      return true;
+  }
+
+  return false;
+}
+
+bool CSKYTargetLowering::isCheapToSpeculateCttz(Type *Ty) const {
+  return Subtarget.has2E3();
+}
+
+bool CSKYTargetLowering::isCheapToSpeculateCtlz(Type *Ty) const {
+  return Subtarget.hasE2();
 }

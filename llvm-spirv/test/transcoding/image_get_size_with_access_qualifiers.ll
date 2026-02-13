@@ -3,7 +3,7 @@
 ; RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV: TypeInt [[IntTyID:[0-9]+]]
@@ -13,7 +13,7 @@
 ; CHECK-SPIRV: FunctionParameter [[ImageTyID]] [[ImageArgID:[0-9]+]]
 ; CHECK-SPIRV: ImageQuerySizeLod [[VectorTyID]] {{[0-9]+}} [[ImageArgID]]
 
-; CHECK-LLVM: call spir_func <2 x i32> @_Z13get_image_dim20ocl_image2d_array_ro(ptr addrspace(1)
+; CHECK-LLVM: call spir_func <2 x i32> @_Z13get_image_dim20ocl_image2d_array_ro(target("spirv.Image", void, 1, 0, 1, 0, 0, 0, 0)
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64"
@@ -21,14 +21,14 @@ target triple = "spir64"
 %opencl.image2d_array_ro_t = type opaque
 
 ; Function Attrs: nounwind
-define spir_kernel void @sample_kernel(%opencl.image2d_array_ro_t addrspace(1)* %input) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
+define spir_kernel void @sample_kernel(ptr addrspace(1) %input) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
 entry:
-  %call = call spir_func i32 @_Z15get_image_width20ocl_image2d_array_ro(%opencl.image2d_array_ro_t addrspace(1)* %input) #2
+  %call = call spir_func i32 @_Z15get_image_width20ocl_image2d_array_ro(ptr addrspace(1) %input) #2
   ret void
 }
 
 ; Function Attrs: nounwind readnone
-declare spir_func i32 @_Z15get_image_width20ocl_image2d_array_ro(%opencl.image2d_array_ro_t addrspace(1)*) #1
+declare spir_func i32 @_Z15get_image_width20ocl_image2d_array_ro(ptr addrspace(1)) #1
 
 attributes #0 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }

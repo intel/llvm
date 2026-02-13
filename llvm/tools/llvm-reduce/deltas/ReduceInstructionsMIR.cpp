@@ -12,12 +12,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "ReduceInstructionsMIR.h"
-#include "Delta.h"
-
 #include "llvm/ADT/SetVector.h"
 #include "llvm/CodeGen/MachineDominators.h"
 #include "llvm/CodeGen/MachineFunction.h"
-#include "llvm/CodeGen/MachineFunctionPass.h"
+#include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 
@@ -36,7 +34,7 @@ static Register getPrevDefOfRCInMBB(MachineBasicBlock &MBB,
       if (!MO.isReg() || !MO.isDef() || MO.isDead())
         continue;
       auto Reg = MO.getReg();
-      if (Register::isPhysicalRegister(Reg))
+      if (Reg.isPhysical())
         continue;
 
       if (MRI->getRegClassOrRegBank(Reg) == RC && MRI->getType(Reg) == Ty &&
@@ -64,7 +62,7 @@ static bool shouldNotRemoveInstruction(const TargetInstrInfo &TII,
 
 static void extractInstrFromFunction(Oracle &O, MachineFunction &MF) {
   MachineDominatorTree MDT;
-  MDT.runOnMachineFunction(MF);
+  MDT.recalculate(MF);
 
   auto MRI = &MF.getRegInfo();
   SetVector<MachineInstr *> ToDelete;
@@ -92,7 +90,7 @@ static void extractInstrFromFunction(Oracle &O, MachineFunction &MF) {
       if (!MO.isReg() || !MO.isDef() || MO.isDead())
         continue;
       auto Reg = MO.getReg();
-      if (Register::isPhysicalRegister(Reg))
+      if (Reg.isPhysical())
         continue;
       auto UI = MRI->use_begin(Reg);
       auto UE = MRI->use_end();
@@ -150,14 +148,10 @@ static void extractInstrFromFunction(Oracle &O, MachineFunction &MF) {
     MI->eraseFromParent();
 }
 
-static void extractInstrFromModule(Oracle &O, ReducerWorkItem &WorkItem) {
+void llvm::reduceInstructionsMIRDeltaPass(Oracle &O,
+                                          ReducerWorkItem &WorkItem) {
   for (const Function &F : WorkItem.getModule()) {
     if (MachineFunction *MF = WorkItem.MMI->getMachineFunction(F))
       extractInstrFromFunction(O, *MF);
   }
-}
-
-void llvm::reduceInstructionsMIRDeltaPass(TestRunner &Test) {
-  outs() << "*** Reducing Instructions...\n";
-  runDeltaPass(Test, extractInstrFromModule);
 }

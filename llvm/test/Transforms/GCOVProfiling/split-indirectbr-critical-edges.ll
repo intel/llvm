@@ -10,39 +10,37 @@
 ; CHECK-NEXT:    load {{.*}} @__llvm_gcov_ctr
 ; CHECK-NOT:     load {{.*}} @__llvm_gcov_ctr
 
-define dso_local i32 @cannot_split(i8* nocapture readonly %p) #0 !dbg !7 {
+define dso_local i32 @cannot_split(ptr nocapture readonly %p) !dbg !7 {
 entry:
-  %targets = alloca <2 x i8*>, align 16
-  store <2 x i8*> <i8* blockaddress(@cannot_split, %indirect), i8* blockaddress(@cannot_split, %end)>, <2 x i8*>* %targets, align 16, !dbg !9
+  %targets = alloca <2 x ptr>, align 16
+  store <2 x ptr> <ptr blockaddress(@cannot_split, %indirect), ptr blockaddress(@cannot_split, %end)>, ptr %targets, align 16, !dbg !9
   br label %for.cond, !dbg !14
 
 for.cond:                                         ; preds = %for.cond, %entry
-  %p.addr.0 = phi i8* [ %p, %entry ], [ %incdec.ptr, %for.cond ]
-  %0 = load i8, i8* %p.addr.0, align 1, !dbg !15
+  %p.addr.0 = phi ptr [ %p, %entry ], [ %incdec.ptr, %for.cond ]
+  %0 = load i8, ptr %p.addr.0, align 1, !dbg !15
   %cmp = icmp eq i8 %0, 7, !dbg !17
-  %incdec.ptr = getelementptr inbounds i8, i8* %p.addr.0, i64 1, !dbg !18
+  %incdec.ptr = getelementptr inbounds i8, ptr %p.addr.0, i64 1, !dbg !18
   br i1 %cmp, label %indirect.preheader, label %for.cond, !dbg !15, !llvm.loop !19
 
 indirect.preheader:                               ; preds = %for.cond
-  %1 = load i8, i8* %incdec.ptr, align 1, !dbg !21
+  %1 = load i8, ptr %incdec.ptr, align 1, !dbg !21
   %idxprom = sext i8 %1 to i64, !dbg !21
-  %arrayidx4 = getelementptr inbounds <2 x i8*>, <2 x i8*>* %targets, i64 0, i64 %idxprom, !dbg !21
-  %2 = load i8*, i8** %arrayidx4, align 8, !dbg !21
+  %arrayidx4 = getelementptr inbounds <2 x ptr>, ptr %targets, i64 0, i64 %idxprom, !dbg !21
+  %2 = load ptr, ptr %arrayidx4, align 8, !dbg !21
   br label %indirect
 
 indirect:                                         ; preds = %indirect.preheader, %indirect
-  indirectbr i8* %2, [label %indirect, label %end]
+  indirectbr ptr %2, [label %indirect, label %end]
 
 indirect2:
   ; For this test we do not want critical edges split. Adding a 2nd `indirectbr`
   ; does the trick.
-  indirectbr i8* %2, [label %indirect, label %end]
+  indirectbr ptr %2, [label %indirect, label %end]
 
 end:                                              ; preds = %indirect
   ret i32 0, !dbg !22
 }
-
-attributes #0 = { norecurse nounwind readonly uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="none" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!3, !4, !5}

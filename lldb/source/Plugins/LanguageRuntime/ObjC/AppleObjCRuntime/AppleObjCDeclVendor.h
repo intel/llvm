@@ -11,15 +11,15 @@
 
 #include "lldb/lldb-private.h"
 
-#include "Plugins/ExpressionParser/Clang/ClangDeclVendor.h"
 #include "Plugins/LanguageRuntime/ObjC/ObjCLanguageRuntime.h"
 #include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
+#include "lldb/Symbol/DeclVendor.h"
 
 namespace lldb_private {
 
 class AppleObjCExternalASTSource;
 
-class AppleObjCDeclVendor : public ClangDeclVendor {
+class AppleObjCDeclVendor : public DeclVendor {
 public:
   AppleObjCDeclVendor(ObjCLanguageRuntime &runtime);
 
@@ -37,7 +37,7 @@ private:
   bool FinishDecl(clang::ObjCInterfaceDecl *decl);
 
   ObjCLanguageRuntime &m_runtime;
-  TypeSystemClang m_ast_ctx;
+  std::shared_ptr<TypeSystemClang> m_ast_ctx;
   ObjCLanguageRuntime::EncodingToTypeSP m_type_realizer_sp;
   AppleObjCExternalASTSource *m_external_source;
 

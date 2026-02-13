@@ -1,5 +1,5 @@
 // clang-format off
-// RUN:  %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -O0 -opaque-pointers -emit-llvm %s -o - | FileCheck %s
+// RUN:  %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -O0 -emit-llvm %s -o - | FileCheck %s
 
 // This test checks SYCL device compiler code generation for the __regcall
 // functions. This calling convention makes return values and function arguments
@@ -333,7 +333,7 @@ struct NonCopyable {
 // CHECK-DAG: %struct.NonCopyable = type { i32 }
 
 SYCL_DEVICE int __regcall bar(NonCopyable x) {
-// CHECK-DAG: define dso_local x86_regcallcc noundef i32 @_Z15__regcall3__bar11NonCopyable(ptr noundef %x)
+// CHECK-DAG: define dso_local x86_regcallcc noundef i32 @_Z15__regcall3__bar11NonCopyable(ptr dead_on_return noundef %x)
   return x.a;
 }
 

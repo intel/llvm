@@ -1,3 +1,4 @@
+// XFAIL: target={{.*}}-aix{{.*}}
 // RUN: %clang_profgen -DCHECK_SYMBOLS -O3 -o %t.symbols %s
 // RUN: llvm-nm %t.symbols | FileCheck %s --check-prefix=CHECK-SYMBOLS
 // RUN: %clang_profgen -O3 -o %t %s
@@ -7,7 +8,10 @@
 
 // This usage of llvm-nm assumes executables have symbol tables. They do not in
 // an MSVC environment, so we can't make this test portable.
-// UNSUPPORTED: msvc
+// UNSUPPORTED: target={{.*msvc.*}}
+
+// The MinGW CRT init files do reference malloc etc, so this test fails.
+// UNSUPPORTED: target={{.*windows-gnu.*}}
 
 #include <stdint.h>
 #include <stdlib.h>

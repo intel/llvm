@@ -1,4 +1,4 @@
-; RUN: opt %s -indvars -loop-instsimplify -loop-reduce
+; RUN: opt %s -passes=indvars,loop-instsimplify,loop-reduce
 ; We are only checking that there is no crash!
 
 ; https://bugs.llvm.org/show_bug.cgi?id=37936
@@ -18,19 +18,19 @@ target datalayout = "n16"
 
 @a = external global i16, align 1
 
-define void @f1() {
+define void @f1(i1 %arg) {
 entry:
   br label %for.cond
 
 for.cond:                                         ; preds = %land.end, %entry
   %c.0 = phi i16 [ 0, %entry ], [ %dec, %land.end ]
-  br i1 undef, label %for.body, label %for.cond.cleanup
+  br i1 %arg, label %for.body, label %for.cond.cleanup
 
 for.cond.cleanup:                                 ; preds = %for.cond
   ret void
 
 for.body:                                         ; preds = %for.cond
-  %0 = load i16, i16* @a, align 1
+  %0 = load i16, ptr @a, align 1
   %cmp = icmp sgt i16 %0, %c.0
   br i1 %cmp, label %land.rhs, label %land.end
 

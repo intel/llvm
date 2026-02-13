@@ -1,4 +1,4 @@
-; RUN: opt -LowerESIMD -S < %s | FileCheck %s
+; RUN: opt -passes=LowerESIMD -S < %s | FileCheck %s
 
 ; This test checks that LowerESIMD pass correctly lowers some llvm intrinsics
 ; which can't be handled by the VC BE.
@@ -11,7 +11,7 @@ declare double @llvm.fmuladd.f64(double %x, double %y, double %z)
 define spir_func float @test_fmuladd_f32(float %x, float %y, float %z) {
   %1 = call float @llvm.fmuladd.f32(float %x, float %y, float %z)
 ; CHECK: %[[A:[0-9a-zA-Z\._]+]] = fmul float %x, %y
-; CHECK: %[[B:[0-9a-zA-Z\._]+]] = fadd float %[[A]], %z
+; CHECK: %[[B:[0-9a-zA-Z\._]+]] = fadd float %[[A]], %z  
   ret float %1
 ; CHECK: ret float %[[B]]
 }

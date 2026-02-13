@@ -7,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Target/LLVMIR/TypeToLLVM.h"
+#include "mlir/Dialect/LLVMIR/LLVMAttrs.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/IR/BuiltinTypes.h"
-#include "mlir/IR/MLIRContext.h"
 
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/IR/DataLayout.h"
@@ -58,9 +58,6 @@ public:
             .Case([this](LLVM::LLVMPPCFP128Type) {
               return llvm::Type::getPPC_FP128Ty(context);
             })
-            .Case([this](LLVM::LLVMX86MMXType) {
-              return llvm::Type::getX86_MMXTy(context);
-            })
             .Case([this](LLVM::LLVMTokenType) {
               return llvm::Type::getTokenTy(context);
             })
@@ -70,14 +67,14 @@ public:
             .Case([this](LLVM::LLVMMetadataType) {
               return llvm::Type::getMetadataTy(context);
             })
+            .Case([this](LLVM::LLVMX86AMXType) {
+              return llvm::Type::getX86_AMXTy(context);
+            })
             .Case<LLVM::LLVMArrayType, IntegerType, LLVM::LLVMFunctionType,
-                  LLVM::LLVMPointerType, LLVM::LLVMStructType,
-                  LLVM::LLVMFixedVectorType, LLVM::LLVMScalableVectorType,
-                  VectorType>(
+                  LLVM::LLVMPointerType, LLVM::LLVMStructType, VectorType,
+                  LLVM::LLVMTargetExtType, PtrLikeTypeInterface>(
                 [this](auto type) { return this->translate(type); })
-            .Default([](Type t) -> llvm::Type * {
-              llvm_unreachable("unknown LLVM dialect type");
-            });
+            .DefaultUnreachable("unknown LLVM dialect type");
 
     // Cache the result of the conversion and return.
     knownTranslations.try_emplace(type, translated);
@@ -106,10 +103,7 @@ private:
 
   /// Translates the given pointer type.
   llvm::Type *translate(LLVM::LLVMPointerType type) {
-    if (type.isOpaque())
-      return llvm::PointerType::get(context, type.getAddressSpace());
-    return llvm::PointerType::get(translateType(type.getElementType()),
-                                  type.getAddressSpace());
+    return llvm::PointerType::get(context, type.getAddressSpace());
   }
 
   /// Translates the given structure type, supports both identified and literal
@@ -146,16 +140,21 @@ private:
                                       type.getNumElements());
   }
 
-  /// Translates the given fixed-vector type.
-  llvm::Type *translate(LLVM::LLVMFixedVectorType type) {
-    return llvm::FixedVectorType::get(translateType(type.getElementType()),
-                                      type.getNumElements());
+  /// Translates the given target extension type.
+  llvm::Type *translate(LLVM::LLVMTargetExtType type) {
+    SmallVector<llvm::Type *> typeParams;
+    translateTypes(type.getTypeParams(), typeParams);
+    return llvm::TargetExtType::get(context, type.getExtTypeName(), typeParams,
+                                    type.getIntParams());
   }
 
-  /// Translates the given scalable-vector type.
-  llvm::Type *translate(LLVM::LLVMScalableVectorType type) {
-    return llvm::ScalableVectorType::get(translateType(type.getElementType()),
-                                         type.getMinNumElements());
+  /// Translates the given ptr type.
+  llvm::Type *translate(PtrLikeTypeInterface type) {
+    auto memSpace =
+        dyn_cast<LLVM::LLVMAddrSpaceAttrInterface>(type.getMemorySpace());
+    assert(memSpace && "expected pointer with an LLVM address space");
+    assert(!type.hasPtrMetadata() && "expected pointer without metadata");
+    return llvm::PointerType::get(context, memSpace.getAddressSpace());
   }
 
   /// Translates a list of types.
@@ -190,5 +189,5 @@ llvm::Type *LLVM::TypeToLLVMIRTranslator::translateType(Type type) {
 
 unsigned LLVM::TypeToLLVMIRTranslator::getPreferredAlignment(
     Type type, const llvm::DataLayout &layout) {
-  return layout.getPrefTypeAlignment(translateType(type));
+  return layout.getPrefTypeAlign(translateType(type)).value();
 }

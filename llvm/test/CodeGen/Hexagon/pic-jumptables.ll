@@ -1,4 +1,4 @@
-; RUN: llc -march=hexagon -relocation-model=pic < %s | FileCheck %s
+; RUN: llc -mtriple=hexagon -relocation-model=pic < %s | FileCheck %s
 
 ; CHECK: r{{[0-9]+}} = add({{pc|PC}},##
 ; CHECK: r{{[0-9]+}} = memw(r{{[0-9]+}}+r{{[0-9]+}}<<#2)
@@ -16,7 +16,7 @@ entry:
   ]
 
 sw.bb:                                            ; preds = %entry
-  tail call void bitcast (void (...)* @baz1 to void ()*)() nounwind
+  tail call void @baz1() nounwind
   br label %sw.epilog
 
 sw.bb1:                                           ; preds = %entry

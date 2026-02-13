@@ -1,9 +1,9 @@
 
-; RUN: llc -mtriple powerpc-ibm-aix-xcoff -filetype=obj -o %t.o < %s
+; RUN: llc -mtriple powerpc-ibm-aix-xcoff -mcpu=ppc -filetype=obj -o %t.o < %s
 ; RUN: llvm-readobj --section-headers %t.o | FileCheck %s --check-prefixes=SEC,SEC32
 ; RUN: llvm-objdump -r %t.o | FileCheck %s --check-prefix=RELO
 
-; RUN: llc -mtriple powerpc64-ibm-aix-xcoff -filetype=obj -o %t64.o < %s
+; RUN: llc -mtriple powerpc64-ibm-aix-xcoff -mcpu=ppc -filetype=obj -o %t64.o < %s
 ; RUN: llvm-readobj --section-headers %t64.o | FileCheck %s --check-prefixes=SEC,SEC64
 ; RUN: llvm-objdump -r %t64.o | FileCheck %s --check-prefix=RELO64
 
@@ -18,7 +18,7 @@ target datalayout = "E-m:a-p:32:32-i64:64-n32"
 define i32 @main() #0 !dbg !8 {
 entry:
   %retval = alloca i32, align 4
-  store i32 0, i32* %retval, align 4
+  store i32 0, ptr %retval, align 4
   ret i32 0, !dbg !12
 }
 
@@ -84,6 +84,7 @@ entry:
 ; SEC-NEXT:      NumberOfRelocations: 0
 ; SEC-NEXT:      NumberOfLineNumbers: 0
 ; SEC-NEXT:      Type: STYP_DWARF (0x10)
+; SEC-NEXT:      DWARFSubType: SSUBTYP_DWABREV (0x60000)
 ; SEC-NEXT:    }
 ; SEC-NEXT:    Section {
 ; SEC-NEXT:      Index: 4
@@ -100,6 +101,7 @@ entry:
 ; SEC-NEXT:      NumberOfRelocations: 4
 ; SEC-NEXT:      NumberOfLineNumbers: 0
 ; SEC-NEXT:      Type: STYP_DWARF (0x10)
+; SEC-NEXT:      DWARFSubType: SSUBTYP_DWINFO (0x10000)
 ; SEC-NEXT:    }
 ; SEC-NEXT:    Section {
 ; SEC-NEXT:      Index: 5
@@ -116,6 +118,7 @@ entry:
 ; SEC-NEXT:      NumberOfRelocations: 1
 ; SEC-NEXT:      NumberOfLineNumbers: 0
 ; SEC-NEXT:      Type: STYP_DWARF (0x10)
+; SEC-NEXT:      DWARFSubType: SSUBTYP_DWLINE (0x20000)
 ; SEC-NEXT:    }
 ; SEC-NEXT:  ]
 
@@ -123,18 +126,18 @@ entry:
 ; RELO-NEXT:  OFFSET   TYPE                     VALUE
 ; RELO-NEXT:  00000006 R_POS                    .dwabrev
 ; RELO-NEXT:  00000027 R_POS                    .dwline
-; RELO-NEXT:  00000009 R_POS                    .text
-; RELO-NEXT:  0000003a R_POS                    .text
+; RELO-NEXT:  00000009 R_POS                    
+; RELO-NEXT:  0000003a R_POS                    
 ; RELO:       RELOCATION RECORDS FOR [.dwline]:
 ; RELO-NEXT:  OFFSET   TYPE                     VALUE
-; RELO-NEXT:  00000000 R_POS                    .text
+; RELO-NEXT:  00000000 R_POS                    
 
 ; RELO64:      RELOCATION RECORDS FOR [.dwinfo]:
 ; RELO64-NEXT: OFFSET           TYPE                     VALUE
 ; RELO64-NEXT: 000000000000000e R_POS                    .dwabrev
 ; RELO64-NEXT: 000000000000000b R_POS                    .dwline
-; RELO64-NEXT: 0000000000000041 R_POS                    .text
-; RELO64-NEXT: 000000000000004e R_POS                    .text
+; RELO64-NEXT: 0000000000000041 R_POS                    
+; RELO64-NEXT: 000000000000004e R_POS                    
 ; RELO64:      RELOCATION RECORDS FOR [.dwline]:
 ; RELO64-NEXT: OFFSET           TYPE                     VALUE
-; RELO64-NEXT: 000000000000000c R_POS                    .text
+; RELO64-NEXT: 000000000000000c R_POS                    

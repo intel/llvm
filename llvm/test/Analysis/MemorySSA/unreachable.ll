@@ -1,4 +1,4 @@
-; RUN: opt -licm -verify-memoryssa %s -S | FileCheck %s
+; RUN: opt -passes=licm -verify-memoryssa %s -S | FileCheck %s
 ; REQUIRES: asserts
 ; Ensure verification doesn't fail with unreachable blocks.
 
@@ -8,9 +8,9 @@ target triple = "x86_64-grtev4-linux-gnu"
 declare dso_local void @f()
 
 ; CHECK-LABEL: @foo
-define dso_local void @foo() {
+define dso_local void @foo(i1 %arg) {
 entry:
-  br i1 undef, label %if.then, label %if.end
+  br i1 %arg, label %if.then, label %if.end
 
 if.then:                                          ; preds = %entry
   br label %try.cont

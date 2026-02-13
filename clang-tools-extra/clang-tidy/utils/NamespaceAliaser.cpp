@@ -1,4 +1,4 @@
-//===---------- NamespaceAliaser.cpp - clang-tidy -------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,30 +12,30 @@
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/Lex/Lexer.h"
-namespace clang {
-namespace tidy {
-namespace utils {
+#include <optional>
+namespace clang::tidy::utils {
 
 using namespace ast_matchers;
+namespace {
+AST_MATCHER_P(NamespaceAliasDecl, hasTargetNamespace,
+              ast_matchers::internal::Matcher<NamespaceDecl>, InnerMatcher) {
+  return InnerMatcher.matches(*Node.getNamespace(), Finder, Builder);
+}
+} // namespace
 
 NamespaceAliaser::NamespaceAliaser(const SourceManager &SourceMgr)
     : SourceMgr(SourceMgr) {}
 
-AST_MATCHER_P(NamespaceAliasDecl, hasTargetNamespace,
-              ast_matchers::internal::Matcher<NamespaceDecl>, innerMatcher) {
-  return innerMatcher.matches(*Node.getNamespace(), Finder, Builder);
-}
-
-Optional<FixItHint>
+std::optional<FixItHint>
 NamespaceAliaser::createAlias(ASTContext &Context, const Stmt &Statement,
                               StringRef Namespace,
                               const std::vector<std::string> &Abbreviations) {
   const FunctionDecl *Function = getSurroundingFunction(Context, Statement);
   if (!Function || !Function->hasBody())
-    return None;
+    return std::nullopt;
 
-  if (AddedAliases[Function].count(Namespace.str()) != 0)
-    return None;
+  if (AddedAliases[Function].contains(Namespace.str()))
+    return std::nullopt;
 
   // FIXME: Doesn't consider the order of declarations.
   // If we accidentally pick an alias defined later in the function,
@@ -51,11 +51,11 @@ NamespaceAliaser::createAlias(ASTContext &Context, const Stmt &Statement,
 
   if (ExistingAlias != nullptr) {
     AddedAliases[Function][Namespace.str()] = ExistingAlias->getName().str();
-    return None;
+    return std::nullopt;
   }
 
   for (const auto &Abbreviation : Abbreviations) {
-    DeclarationMatcher ConflictMatcher = namedDecl(hasName(Abbreviation));
+    const DeclarationMatcher ConflictMatcher = namedDecl(hasName(Abbreviation));
     const auto HasConflictingChildren =
         !match(findAll(ConflictMatcher), *Function, Context).empty();
     const auto HasConflictingAncestors =
@@ -65,17 +65,17 @@ NamespaceAliaser::createAlias(ASTContext &Context, const Stmt &Statement,
     if (HasConflictingAncestors || HasConflictingChildren)
       continue;
 
-    std::string Declaration =
+    const std::string Declaration =
         (llvm::Twine("\nnamespace ") + Abbreviation + " = " + Namespace + ";")
             .str();
-    SourceLocation Loc =
+    const SourceLocation Loc =
         Lexer::getLocForEndOfToken(Function->getBody()->getBeginLoc(), 0,
                                    SourceMgr, Context.getLangOpts());
     AddedAliases[Function][Namespace.str()] = Abbreviation;
     return FixItHint::CreateInsertion(Loc, Declaration);
   }
 
-  return None;
+  return std::nullopt;
 }
 
 std::string NamespaceAliaser::getNamespaceName(ASTContext &Context,
@@ -84,13 +84,10 @@ std::string NamespaceAliaser::getNamespaceName(ASTContext &Context,
   const auto *Function = getSurroundingFunction(Context, Statement);
   auto FunctionAliases = AddedAliases.find(Function);
   if (FunctionAliases != AddedAliases.end()) {
-    if (FunctionAliases->second.count(Namespace) != 0) {
+    if (FunctionAliases->second.contains(Namespace))
       return FunctionAliases->second.find(Namespace)->getValue();
-    }
   }
   return Namespace.str();
 }
 
-} // namespace utils
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::utils

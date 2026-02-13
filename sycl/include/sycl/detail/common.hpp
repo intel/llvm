@@ -8,21 +8,20 @@
 
 #pragma once
 
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/defines_elementary.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/pi.hpp>
-#include <sycl/detail/stl_type_traits.hpp>
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 
+#include <array>   // for array
+#include <cassert> // for assert
+#include <cstddef> // for size_t
 #include <cstdint>
-#include <string>
+#include <type_traits> // for enable_if_t
+#include <utility>     // for index_sequence, make_i...
 
 // Default signature enables the passing of user code location information to
-// public methods as a default argument. If the end-user wants to disable the
-// code location information, they must compile the code with
-// -DDISABLE_SYCL_INSTRUMENTATION_METADATA flag
+// public methods as a default argument.
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 // The check for output iterator is commented out as it blocks set_final_data
@@ -30,12 +29,12 @@ namespace detail {
 // TODO: Align these checks with the SYCL specification when the behaviour
 // with void * is clarified.
 template <typename DataT>
-using EnableIfOutputPointerT = detail::enable_if_t<
-    /*is_output_iterator<DataT>::value &&*/ std::is_pointer<DataT>::value>;
+using EnableIfOutputPointerT = std::enable_if_t<
+    /*is_output_iterator<DataT>::value &&*/ std::is_pointer_v<DataT>>;
 
 template <typename DataT>
-using EnableIfOutputIteratorT = detail::enable_if_t<
-    /*is_output_iterator<DataT>::value &&*/ !std::is_pointer<DataT>::value>;
+using EnableIfOutputIteratorT = std::enable_if_t<
+    /*is_output_iterator<DataT>::value &&*/ !std::is_pointer_v<DataT>>;
 
 #if !defined(NDEBUG) && (_MSC_VER > 1929 || __has_builtin(__builtin_FILE))
 #define __CODELOC_FILE_NAME __builtin_FILE()
@@ -67,8 +66,8 @@ struct code_location {
   static constexpr code_location
   current(const char *fileName = __CODELOC_FILE_NAME,
           const char *funcName = __CODELOC_FUNCTION,
-          unsigned long lineNo = __CODELOC_LINE,
-          unsigned long columnNo = __CODELOC_COLUMN) noexcept {
+          uint32_t lineNo = __CODELOC_LINE,
+          uint32_t columnNo = __CODELOC_COLUMN) noexcept {
     return code_location(fileName, funcName, lineNo, columnNo);
   }
 
@@ -77,65 +76,94 @@ struct code_location {
 #undef __CODELOC_LINE
 #undef __CODELOC_COLUMN
 
-  constexpr code_location(const char *file, const char *func, int line,
-                          int col) noexcept
+  constexpr code_location(const char *file, const char *func, uint32_t line,
+                          uint32_t col) noexcept
       : MFileName(file), MFunctionName(func), MLineNo(line), MColumnNo(col) {}
 
   constexpr code_location() noexcept
-      : MFileName(nullptr), MFunctionName(nullptr), MLineNo(0), MColumnNo(0) {}
+      : MFileName(nullptr), MFunctionName(nullptr), MLineNo(0u), MColumnNo(0u) {
+  }
 
-  constexpr unsigned long lineNumber() const noexcept { return MLineNo; }
-  constexpr unsigned long columnNumber() const noexcept { return MColumnNo; }
+  constexpr uint32_t lineNumber() const noexcept {
+    return static_cast<uint32_t>(MLineNo);
+  }
+  constexpr uint32_t columnNumber() const noexcept {
+    return static_cast<uint32_t>(MColumnNo);
+  }
   constexpr const char *fileName() const noexcept { return MFileName; }
   constexpr const char *functionName() const noexcept { return MFunctionName; }
 
 private:
   const char *MFileName;
   const char *MFunctionName;
-  unsigned long MLineNo;
-  unsigned long MColumnNo;
+  uint32_t MLineNo;
+  uint32_t MColumnNo;
 };
 
-// The C++ FE may instrument user calls with code location metadata.
-// If it does then that will appear as an extra last argument.
-// Having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
-// Here we simplify the &CodeLoc declaration to be _CODELOCPARAM(&CodeLoc) and
-// _CODELOCARG(&CodeLoc).
+/// @brief Data type that manages the code_location information in TLS
+/// @details As new SYCL features are added, they all enable the propagation of
+/// the code location information where the SYCL API was called by the
+/// application layer. In order to facilitate this, the tls_code_loc_t object
+/// assists in managing the data in TLS :
+///   (1) Populate the information when you at the top level function in the
+///   call chain. This is usually the end-user entry point function into SYCL.
+///   (2) Remove the information when the object goes out of scope in the top
+///   level function.
+///
+/// Usage:-
+///   void bar() {
+///     tls_code_loc_t p;
+///     // Print the source information of where foo() was called in main()
+///     std::cout << p.query().fileName() << ":" << p.query().lineNumber() <<
+///     std::endl;
+///   }
+///   // Will work for arbitrary call chain lengths.
+///   void bar1() {bar();}
+///
+///   // Foo() is equivalent to a SYCL end user entry point such as
+///   // queue.memcpy() or queue.copy()
+///   void foo(const code_location &loc) {
+///     tls_code_loc_t tp(loc);
+///     bar1();
+///   }
+///
+///   void main() {
+///     foo(const code_location &loc = code_location::current());
+///   }
+class __SYCL_EXPORT tls_code_loc_t {
+public:
+  /// @brief Consructor that checks to see if a TLS entry already exists
+  /// @details If a previous populated TLS entry exists, this constructor will
+  /// capture the informationa and allow you to query the information later.
+  tls_code_loc_t();
+  /// @brief Iniitializes TLS with CodeLoc if a TLS entry not present
+  /// @param CodeLoc The code location information to set up the TLS slot with.
+  tls_code_loc_t(const detail::code_location &CodeLoc);
 
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-#define _CODELOCONLYPARAM(a)                                                   \
-  const detail::code_location a = detail::code_location::current()
-#define _CODELOCPARAM(a)                                                       \
-  , const detail::code_location a = detail::code_location::current()
-#define _CODELOCPARAMDEF(a) , const detail::code_location a
+  // Used to maintain global state (GCodeLocTLS), so we do not want to copy
+  tls_code_loc_t(const tls_code_loc_t &) = delete;
+  tls_code_loc_t &operator=(const tls_code_loc_t &) = delete;
 
-#define _CODELOCARG(a)
-#define _CODELOCFW(a) , a
-#else
-#define _CODELOCONLYPARAM(a)
-#define _CODELOCPARAM(a)
+  /// If the code location is set up by this instance, reset it.
+  ~tls_code_loc_t();
+  /// @brief  Query the information in the TLS slot
+  /// @return The code location information saved in the TLS slot. If not TLS
+  /// entry has been set up, a default coe location is returned.
+  const detail::code_location &query();
+  /// @brief Returns true if the TLS slot was cleared when this object was
+  /// constructed.
+  bool isToplevel() const { return !MLocalScope; }
 
-#define _CODELOCARG(a) const detail::code_location a = {}
-#define _CODELOCFW(a)
-#endif
+private:
+  // Cache the TLS location to decrease amount of TLS accesses.
+  detail::code_location &CodeLocTLSRef;
+  // The flag that is used to determine if the object is in a local scope or in
+  // the top level scope.
+  bool MLocalScope = true;
+};
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
-} // namespace sycl
-
-namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace detail {
-
-__SYCL_EXPORT const char *stringifyErrorCode(pi_int32 error);
-
-static inline std::string codeToString(pi_int32 code) {
-  return std::string(std::to_string(code) + " (" + stringifyErrorCode(code) +
-                     ")");
-}
-
-} // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -145,120 +173,9 @@ static inline std::string codeToString(pi_int32 code) {
 #define __SYCL_ASSERT(x) assert(x)
 #endif // #ifdef __SYCL_DEVICE_ONLY__
 
-#define __SYCL_PI_ERROR_REPORT                                                 \
-  "Native API failed. " /*__FILE__*/                                           \
-  /* TODO: replace __FILE__ to report only relative path*/                     \
-  /* ":" __SYCL_STRINGIFY(__LINE__) ": " */                                    \
-                          "Native API returns: "
-
-#ifndef __SYCL_SUPPRESS_PI_ERROR_REPORT
-#include <sycl/detail/iostream_proxy.hpp>
-// TODO: rename all names with direct use of OCL/OPENCL to be backend agnostic.
-#define __SYCL_REPORT_PI_ERR_TO_STREAM(expr)                                   \
-  {                                                                            \
-    auto code = expr;                                                          \
-    if (code != PI_SUCCESS) {                                                  \
-      std::cerr << __SYCL_PI_ERROR_REPORT << sycl::detail::codeToString(code)  \
-                << std::endl;                                                  \
-    }                                                                          \
-  }
-#endif
-
-#ifndef SYCL_SUPPRESS_EXCEPTIONS
-#include <sycl/exception.hpp>
-// SYCL 1.2.1 exceptions
-#define __SYCL_REPORT_PI_ERR_TO_EXC(expr, exc, str)                            \
-  {                                                                            \
-    auto code = expr;                                                          \
-    if (code != PI_SUCCESS) {                                                  \
-      std::string err_str =                                                    \
-          str ? "\n" + std::string(str) + "\n" : std::string{};                \
-      throw exc(__SYCL_PI_ERROR_REPORT + sycl::detail::codeToString(code) +    \
-                    err_str,                                                   \
-                code);                                                         \
-    }                                                                          \
-  }
-#define __SYCL_REPORT_PI_ERR_TO_EXC_THROW(code, exc, str)                      \
-  __SYCL_REPORT_PI_ERR_TO_EXC(code, exc, str)
-#define __SYCL_REPORT_PI_ERR_TO_EXC_BASE(code)                                 \
-  __SYCL_REPORT_PI_ERR_TO_EXC(code, sycl::runtime_error, nullptr)
-#else
-#define __SYCL_REPORT_PI_ERR_TO_EXC_BASE(code)                                 \
-  __SYCL_REPORT_PI_ERR_TO_STREAM(code)
-#endif
-// SYCL 2020 exceptions
-#define __SYCL_REPORT_ERR_TO_EXC_VIA_ERRC(expr, errc)                          \
-  {                                                                            \
-    auto code = expr;                                                          \
-    if (code != PI_SUCCESS) {                                                  \
-      throw sycl::exception(sycl::make_error_code(errc),                       \
-                            __SYCL_PI_ERROR_REPORT +                           \
-                                sycl::detail::codeToString(code));             \
-    }                                                                          \
-  }
-#define __SYCL_REPORT_ERR_TO_EXC_THROW_VIA_ERRC(code, errc)                    \
-  __SYCL_REPORT_ERR_TO_EXC_VIA_ERRC(code, errc)
-
-#ifdef __SYCL_SUPPRESS_PI_ERROR_REPORT
-// SYCL 1.2.1 exceptions
-#define __SYCL_CHECK_OCL_CODE(X) (void)(X)
-#define __SYCL_CHECK_OCL_CODE_THROW(X, EXC, STR)                               \
-  {                                                                            \
-    (void)(X);                                                                 \
-    (void)(STR);                                                               \
-  }
-#define __SYCL_CHECK_OCL_CODE_NO_EXC(X) (void)(X)
-// SYCL 2020 exceptions
-#define __SYCL_CHECK_CODE_THROW_VIA_ERRC(X, ERRC) (void)(X)
-#else
-// SYCL 1.2.1 exceptions
-#define __SYCL_CHECK_OCL_CODE(X) __SYCL_REPORT_PI_ERR_TO_EXC_BASE(X)
-#define __SYCL_CHECK_OCL_CODE_THROW(X, EXC, STR)                               \
-  __SYCL_REPORT_PI_ERR_TO_EXC_THROW(X, EXC, STR)
-#define __SYCL_CHECK_OCL_CODE_NO_EXC(X) __SYCL_REPORT_PI_ERR_TO_STREAM(X)
-// SYCL 2020 exceptions
-#define __SYCL_CHECK_CODE_THROW_VIA_ERRC(X, ERRC)                              \
-  __SYCL_REPORT_ERR_TO_EXC_THROW_VIA_ERRC(X, ERRC)
-#endif
-
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
-
-// Helper function for extracting implementation from SYCL's interface objects.
-// Note! This function relies on the fact that all SYCL interface classes
-// contain "impl" field that points to implementation object. "impl" field
-// should be accessible from this function.
-//
-// Note that due to a bug in MSVC compilers (including MSVC2019 v19.20), it
-// may not recognize the usage of this function in friend member declarations
-// if the template parameter name there is not equal to the name used here,
-// i.e. 'Obj'. For example, using 'Obj' here and 'T' in such declaration
-// would trigger that error in MSVC:
-//   template <class T>
-//   friend decltype(T::impl) detail::getSyclObjImpl(const T &SyclObject);
-template <class Obj> decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject) {
-  assert(SyclObject.impl && "every constructor should create an impl");
-  return SyclObject.impl;
-}
-
-// Returns the raw pointer to the impl object of given face object. The caller
-// must make sure the returned pointer is not captured in a field or otherwise
-// stored - i.e. must live only as on-stack value.
-template <class T>
-typename detail::add_pointer_t<typename decltype(T::impl)::element_type>
-getRawSyclObjImpl(const T &SyclObject) {
-  return SyclObject.impl.get();
-}
-
-// Helper function for creation SYCL interface objects from implementations.
-// Note! This function relies on the fact that all SYCL interface classes
-// contain "impl" field that points to implementation object. "impl" field
-// should be accessible from this function.
-template <class T> T createSyclObjFromImpl(decltype(T::impl) ImplObj) {
-  return T(ImplObj);
-}
-
 // Produces N-dimensional object of type T whose all components are initialized
 // to given integer value.
 template <int N, template <int> class T> struct InitializedVal {
@@ -377,21 +294,6 @@ size_t getLinearIndex(const T<Dims> &Index, const U<Dims> &Range) {
   return LinearIndex;
 }
 
-// Kernel set ID, used to group kernels (represented by OSModule & kernel name
-// pairs) into disjoint sets based on the kernel distribution among device
-// images.
-using KernelSetId = size_t;
-// Kernel set ID for kernels contained within the SPIR-V file specified via
-// environment.
-constexpr KernelSetId SpvFileKSId = 0;
-constexpr KernelSetId LastKSId = SpvFileKSId;
-
-template <typename T> struct InlineVariableHelper {
-  static constexpr T value{};
-};
-
-template <typename T> constexpr T InlineVariableHelper<T>::value;
-
 // The function extends or truncates number of dimensions of objects of id
 // or ranges classes. When extending the new values are filled with
 // DefaultValue, truncation just removes extra values.
@@ -406,6 +308,61 @@ static T<NewDim> convertToArrayOfN(T<OldDim> OldObj) {
   return NewObj;
 }
 
+// Helper function for concatenating two std::array.
+template <typename T, std::size_t... Is1, std::size_t... Is2>
+constexpr std::array<T, sizeof...(Is1) + sizeof...(Is2)>
+ConcatArrays(const std::array<T, sizeof...(Is1)> &A1,
+             const std::array<T, sizeof...(Is2)> &A2,
+             std::index_sequence<Is1...>, std::index_sequence<Is2...>) {
+  return {A1[Is1]..., A2[Is2]...};
+}
+template <typename T, std::size_t N1, std::size_t N2>
+constexpr std::array<T, N1 + N2> ConcatArrays(const std::array<T, N1> &A1,
+                                              const std::array<T, N2> &A2) {
+  return ConcatArrays(A1, A2, std::make_index_sequence<N1>(),
+                      std::make_index_sequence<N2>());
+}
+
+// Utility for creating an std::array from the results of flattening the
+// arguments using a flattening functor.
+template <typename DataT, template <typename, typename> typename FlattenF,
+          typename... ArgTN>
+struct ArrayCreator;
+template <typename DataT, template <typename, typename> typename FlattenF,
+          typename ArgT, typename... ArgTN>
+struct ArrayCreator<DataT, FlattenF, ArgT, ArgTN...> {
+  static constexpr auto Create(const ArgT &Arg, const ArgTN &...Args) {
+    auto ImmArray = FlattenF<DataT, ArgT>()(Arg);
+    // Due to a bug in MSVC narrowing size_t to a bool in an if constexpr causes
+    // warnings. To avoid this we add the comparison to 0.
+    if constexpr (sizeof...(Args) > 0)
+      return ConcatArrays(
+          ImmArray, ArrayCreator<DataT, FlattenF, ArgTN...>::Create(Args...));
+    else
+      return ImmArray;
+  }
+};
+template <typename DataT, template <typename, typename> typename FlattenF>
+struct ArrayCreator<DataT, FlattenF> {
+  static constexpr auto Create() { return std::array<DataT, 0>{}; }
+};
+
+// to output exceptions caught in ~destructors
+#ifndef NDEBUG
+#define __SYCL_REPORT_EXCEPTION_TO_STREAM(str, e)                              \
+  {                                                                            \
+    std::cerr << str << " " << e.what() << std::endl;                          \
+    assert(false);                                                             \
+  }
+#else
+#define __SYCL_REPORT_EXCEPTION_TO_STREAM(str, e) (void)e;
+#endif
+
+// Tag to help create CTAD definition to avoid ctad-maybe-unsupported warning
+// in GCC when relying on default deductions on non-template ctors in template
+// classes.
+struct AllowCTADTag;
+
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

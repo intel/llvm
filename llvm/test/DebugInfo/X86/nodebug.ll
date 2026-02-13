@@ -31,11 +31,11 @@
 ; Function Attrs: uwtable
 define void @_Z2f2v() #0 {
 entry:
-  store i32 3, i32* @i, align 4, !dbg !11
+  store i32 3, ptr @i, align 4, !dbg !11
   ret void
 }
 
-attributes #0 = { uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "use-soft-float"="false" }
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!8, !9}

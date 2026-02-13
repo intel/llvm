@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <mutex>
+#include <optional>
 
 using namespace lldb_private;
 
@@ -29,8 +30,6 @@ namespace {
 struct HostInfoLinuxFields {
   llvm::once_flag m_distribution_once_flag;
   std::string m_distribution_id;
-  llvm::once_flag m_os_version_once_flag;
-  llvm::VersionTuple m_os_version;
 };
 } // namespace
 
@@ -47,33 +46,6 @@ void HostInfoLinux::Terminate() {
   delete g_fields;
   g_fields = nullptr;
   HostInfoBase::Terminate();
-}
-
-llvm::VersionTuple HostInfoLinux::GetOSVersion() {
-  assert(g_fields && "Missing call to Initialize?");
-  llvm::call_once(g_fields->m_os_version_once_flag, []() {
-    struct utsname un;
-    if (uname(&un) != 0)
-      return;
-
-    llvm::StringRef release = un.release;
-    // The kernel release string can include a lot of stuff (e.g.
-    // 4.9.0-6-amd64). We're only interested in the numbered prefix.
-    release = release.substr(0, release.find_first_not_of("0123456789."));
-    g_fields->m_os_version.tryParse(release);
-  });
-
-  return g_fields->m_os_version;
-}
-
-llvm::Optional<std::string> HostInfoLinux::GetOSBuildString() {
-  struct utsname un;
-  ::memset(&un, 0, sizeof(utsname));
-
-  if (uname(&un) < 0)
-    return llvm::None;
-
-  return std::string(un.release);
 }
 
 llvm::StringRef HostInfoLinux::GetDistributionId() {
@@ -122,7 +94,7 @@ llvm::StringRef HostInfoLinux::GetDistributionId() {
         if (strstr(distribution_id, distributor_id_key)) {
           // strip newlines
           std::string id_string(distribution_id + strlen(distributor_id_key));
-          llvm::erase_value(id_string, '\n');
+          llvm::erase(id_string, '\n');
 
           // lower case it and convert whitespace to underscores
           std::transform(
@@ -166,50 +138,17 @@ FileSpec HostInfoLinux::GetProgramFileSpec() {
   return g_program_filespec;
 }
 
-bool HostInfoLinux::ComputeSupportExeDirectory(FileSpec &file_spec) {
-  if (HostInfoPosix::ComputeSupportExeDirectory(file_spec) &&
-      file_spec.IsAbsolute() && FileSystem::Instance().Exists(file_spec))
-    return true;
-  file_spec.SetDirectory(GetProgramFileSpec().GetDirectory());
-  return !file_spec.GetDirectory().IsEmpty();
-}
-
-bool HostInfoLinux::ComputeSystemPluginsDirectory(FileSpec &file_spec) {
-  FileSpec temp_file("/usr/" LLDB_INSTALL_LIBDIR_BASENAME "/lldb/plugins");
-  FileSystem::Instance().Resolve(temp_file);
-  file_spec.SetDirectory(temp_file.GetPath());
-  return true;
-}
-
-bool HostInfoLinux::ComputeUserPluginsDirectory(FileSpec &file_spec) {
-  // XDG Base Directory Specification
-  // http://standards.freedesktop.org/basedir-spec/basedir-spec-latest.html If
-  // XDG_DATA_HOME exists, use that, otherwise use ~/.local/share/lldb.
-  const char *xdg_data_home = getenv("XDG_DATA_HOME");
-  if (xdg_data_home && xdg_data_home[0]) {
-    std::string user_plugin_dir(xdg_data_home);
-    user_plugin_dir += "/lldb";
-    file_spec.SetDirectory(user_plugin_dir.c_str());
-  } else
-    file_spec.SetDirectory("~/.local/share/lldb");
-  return true;
-}
-
 void HostInfoLinux::ComputeHostArchitectureSupport(ArchSpec &arch_32,
                                                    ArchSpec &arch_64) {
   HostInfoPosix::ComputeHostArchitectureSupport(arch_32, arch_64);
 
-  const char *distribution_id = GetDistributionId().data();
-
   // On Linux, "unknown" in the vendor slot isn't what we want for the default
   // triple.  It's probably an artifact of config.guess.
   if (arch_32.IsValid()) {
-    arch_32.SetDistributionId(distribution_id);
     if (arch_32.GetTriple().getVendor() == llvm::Triple::UnknownVendor)
       arch_32.GetTriple().setVendorName(llvm::StringRef());
   }
   if (arch_64.IsValid()) {
-    arch_64.SetDistributionId(distribution_id);
     if (arch_64.GetTriple().getVendor() == llvm::Triple::UnknownVendor)
       arch_64.GetTriple().setVendorName(llvm::StringRef());
   }

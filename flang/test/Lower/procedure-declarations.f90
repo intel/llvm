@@ -1,10 +1,10 @@
-! RUN: bbc -emit-fir %s -o - | FileCheck %s
+! RUN: bbc -emit-fir -hlfir=false %s -o - | FileCheck %s
 
 ! Test procedure declarations. Change appearance order of definition and usages
 ! (passing a procedure and calling it), with and without definitions.
 ! Check that the definition type prevail if available and that casts are inserted to
 ! accommodate for the signature mismatch in the different location due to implicit
-! typing rules and Fortran loose interface compatibility rule history. 
+! typing rules and Fortran loose interface compatibility rule history.
 
 
 ! Note: all the cases where their is a definition are exactly the same,
@@ -23,9 +23,9 @@ end subroutine
 subroutine call_foo(i)
   integer :: i(10)
   ! %[[argconvert:*]] = fir.convert %arg0 :
-  ! fir.call @_QPfoo(%[[argconvert]]) : (!fir.ref<!fir.array<2x5xi32>>) -> ()
+  ! fir.call @_QPfoo(%[[argconvert]]) {{.*}}: (!fir.ref<!fir.array<2x5xi32>>) -> ()
   call foo(i)
-end subroutine 
+end subroutine
 ! CHECK-LABEL: func @_QPfoo(
 ! CHECK-SAME: %{{.*}}: !fir.ref<!fir.array<2x5xi32>>{{.*}}) {
 subroutine foo(i)
@@ -39,9 +39,9 @@ end subroutine
 subroutine call_foo2(i)
   integer :: i(10)
   ! %[[argconvert:*]] = fir.convert %arg0 :
-  ! fir.call @_QPfoo2(%[[argconvert]]) : (!fir.ref<!fir.array<2x5xi32>>) -> ()
+  ! fir.call @_QPfoo2(%[[argconvert]]) {{.*}}: (!fir.ref<!fir.array<2x5xi32>>) -> ()
   call foo2(i)
-end subroutine 
+end subroutine
 ! CHECK-LABEL: func @_QPpass_foo2() {
 subroutine pass_foo2()
   external :: foo2
@@ -62,9 +62,9 @@ end subroutine
 subroutine call_foo3(i)
   integer :: i(10)
   ! %[[argconvert:*]] = fir.convert %arg0 :
-  ! fir.call @_QPfoo3(%[[argconvert]]) : (!fir.ref<!fir.array<2x5xi32>>) -> ()
+  ! fir.call @_QPfoo3(%[[argconvert]]) {{.*}}: (!fir.ref<!fir.array<2x5xi32>>) -> ()
   call foo3(i)
-end subroutine 
+end subroutine
 ! CHECK-LABEL: func @_QPfoo3(
 ! CHECK-SAME: %{{.*}}: !fir.ref<!fir.array<2x5xi32>>{{.*}}) {
 subroutine foo3(i)
@@ -91,9 +91,9 @@ end subroutine
 subroutine call_foo4(i)
   integer :: i(10)
   ! %[[argconvert:*]] = fir.convert %arg0 :
-  ! fir.call @_QPfoo4(%[[argconvert]]) : (!fir.ref<!fir.array<2x5xi32>>) -> ()
+  ! fir.call @_QPfoo4(%[[argconvert]]) {{.*}}: (!fir.ref<!fir.array<2x5xi32>>) -> ()
   call foo4(i)
-end subroutine 
+end subroutine
 ! CHECK-LABEL: func @_QPpass_foo4() {
 subroutine pass_foo4()
   external :: foo4
@@ -121,9 +121,9 @@ end subroutine
 subroutine call_foo5(i)
   integer :: i(10)
   ! %[[argconvert:*]] = fir.convert %arg0 :
-  ! fir.call @_QPfoo5(%[[argconvert]]) : (!fir.ref<!fir.array<2x5xi32>>) -> ()
+  ! fir.call @_QPfoo5(%[[argconvert]]) {{.*}}: (!fir.ref<!fir.array<2x5xi32>>) -> ()
   call foo5(i)
-end subroutine 
+end subroutine
 
 
 ! Test when there is no definition (declaration at the end of the mlir module)
@@ -136,7 +136,7 @@ subroutine call_foo6(i)
   integer :: i(10)
   ! CHECK-NOT: convert
   call foo6(i)
-end subroutine 
+end subroutine
 ! CHECK-LABEL: func @_QPpass_foo6() {
 subroutine pass_foo6()
   external :: foo6
@@ -158,9 +158,9 @@ function call_foo7(i)
   integer :: i(10)
   ! CHECK: %[[f:.*]] = fir.address_of(@_QPfoo7) : () -> ()
   ! CHECK: %[[funccast:.*]] = fir.convert %[[f]] : (() -> ()) -> ((!fir.ref<!fir.array<10xi32>>) -> f32)
-  ! CHECK: fir.call %[[funccast]](%arg0) : (!fir.ref<!fir.array<10xi32>>) -> f32
+  ! CHECK: fir.call %[[funccast]](%arg0) {{.*}}: (!fir.ref<!fir.array<10xi32>>) -> f32
   call_foo7 =  foo7(i)
-end function 
+end function
 
 
 ! call, call with different type
@@ -170,14 +170,14 @@ subroutine call_foo8(i)
   integer :: i(10)
   ! CHECK-NOT: convert
   call foo8(i)
-end subroutine 
+end subroutine
 ! CHECK-LABEL: func @_QPcall_foo8_2(
 ! CHECK-SAME: %{{.*}}: !fir.ref<!fir.array<2x5xi32>>{{.*}}) {
 subroutine call_foo8_2(i)
   integer :: i(2, 5)
   ! %[[argconvert:*]] = fir.convert %arg0 :
   call foo8(i)
-end subroutine 
+end subroutine
 
 ! Test that target attribute is lowered in declaration of functions that are
 ! not defined in this file.

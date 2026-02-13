@@ -6,10 +6,12 @@ lldb_tablegen(TargetPropertiesEnum.inc -gen-lldb-property-enum-defs
   SOURCE TargetProperties.td
   TARGET LLDBTargetPropertiesEnumGen)
 
+# TODO: Add property `NO_PLUGIN_DEPENDENCIES` to lldbTarget
 add_lldb_library(lldbTarget
   ABI.cpp
   AssertFrameRecognizer.cpp
   DynamicRegisterInfo.cpp
+  CoreFileMemoryRanges.cpp
   ExecutionContext.cpp
   InstrumentationRuntime.cpp
   InstrumentationRuntimeStopInfo.cpp
@@ -32,10 +34,14 @@ add_lldb_library(lldbTarget
   QueueList.cpp
   RegisterContext.cpp
   RegisterContextUnwind.cpp
+  RegisterFlags.cpp
   RegisterNumber.cpp
   RemoteAwarePlatform.cpp
+  ScriptedThreadPlan.cpp
+  SyntheticFrameProvider.cpp
   SectionLoadHistory.cpp
   SectionLoadList.cpp
+  BorrowedStackFrame.cpp
   StackFrame.cpp
   StackFrameList.cpp
   StackFrameRecognizer.cpp
@@ -55,8 +61,8 @@ add_lldb_library(lldbTarget
   ThreadPlanCallFunctionUsingABI.cpp
   ThreadPlanCallOnFunctionExit.cpp
   ThreadPlanCallUserExpression.cpp
-  ThreadPlanPython.cpp
   ThreadPlanRunToAddress.cpp
+  ThreadPlanSingleThreadTimeout.cpp
   ThreadPlanShouldStopHere.cpp
   ThreadPlanStepInRange.cpp
   ThreadPlanStepInstruction.cpp
@@ -77,6 +83,11 @@ add_lldb_library(lldbTarget
   UnwindAssembly.cpp
   UnwindLLDB.cpp
 
+  ADDITIONAL_HEADER_DIRS
+    ${LLDB_INCLUDE_DIR}/lldb/Target
+  LINK_COMPONENTS
+    Support
+    MC
   LINK_LIBS
     lldbBreakpoint
     lldbCore
@@ -85,11 +96,8 @@ add_lldb_library(lldbTarget
     lldbInterpreter
     lldbSymbol
     lldbUtility
+    lldbValueObject
     lldbPluginProcessUtility
-
-  LINK_COMPONENTS
-    Support
-    MC
   )
 
 add_dependencies(lldbTarget

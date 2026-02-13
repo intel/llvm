@@ -7,8 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/IR/BuiltinTypes.h"
-#include "mlir/IR/Diagnostics.h"
-#include "llvm/ADT/Sequence.h"
+#include "llvm/ADT/APFloat.h"
 
 using namespace mlir;
 using namespace mlir::detail;
@@ -20,11 +19,20 @@ using namespace mlir::detail;
 #include "mlir/IR/BuiltinTypeInterfaces.cpp.inc"
 
 //===----------------------------------------------------------------------===//
-// ShapedType
+// FloatType
 //===----------------------------------------------------------------------===//
 
-constexpr int64_t ShapedType::kDynamicSize;
-constexpr int64_t ShapedType::kDynamicStrideOrOffset;
+unsigned FloatType::getWidth() {
+  return APFloat::semanticsSizeInBits(getFloatSemantics());
+}
+
+unsigned FloatType::getFPMantissaWidth() {
+  return APFloat::semanticsPrecision(getFloatSemantics());
+}
+
+//===----------------------------------------------------------------------===//
+// ShapedType
+//===----------------------------------------------------------------------===//
 
 int64_t ShapedType::getNumElements(ArrayRef<int64_t> shape) {
   int64_t num = 1;
@@ -33,19 +41,4 @@ int64_t ShapedType::getNumElements(ArrayRef<int64_t> shape) {
     assert(num >= 0 && "integer overflow in element count computation");
   }
   return num;
-}
-
-int64_t ShapedType::getSizeInBits() const {
-  assert(hasStaticShape() &&
-         "cannot get the bit size of an aggregate with a dynamic shape");
-
-  auto elementType = getElementType();
-  if (elementType.isIntOrFloat())
-    return elementType.getIntOrFloatBitWidth() * getNumElements();
-
-  if (auto complexType = elementType.dyn_cast<ComplexType>()) {
-    elementType = complexType.getElementType();
-    return elementType.getIntOrFloatBitWidth() * getNumElements() * 2;
-  }
-  return getNumElements() * elementType.cast<ShapedType>().getSizeInBits();
 }

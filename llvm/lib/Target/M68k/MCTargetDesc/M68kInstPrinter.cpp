@@ -27,6 +27,7 @@
 #include "M68kBaseInfo.h"
 
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstrInfo.h"
@@ -41,8 +42,8 @@ using namespace llvm;
 #define PRINT_ALIAS_INSTR
 #include "M68kGenAsmWriter.inc"
 
-void M68kInstPrinter::printRegName(raw_ostream &OS, unsigned RegNo) const {
-  OS << "%" << getRegisterName(RegNo);
+void M68kInstPrinter::printRegName(raw_ostream &OS, MCRegister Reg) {
+  OS << "%" << getRegisterName(Reg);
 }
 
 void M68kInstPrinter::printInst(const MCInst *MI, uint64_t Address,
@@ -68,7 +69,7 @@ void M68kInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
   }
 
   assert(MO.isExpr() && "Unknown operand kind in printOperand");
-  MO.getExpr()->print(O, &MAI);
+  MAI.printExpr(O, *MO.getExpr());
 }
 
 void M68kInstPrinter::printImmediate(const MCInst *MI, unsigned opNum,
@@ -78,7 +79,7 @@ void M68kInstPrinter::printImmediate(const MCInst *MI, unsigned opNum,
     O << '#' << MO.getImm();
   else if (MO.isExpr()) {
     O << '#';
-    MO.getExpr()->print(O, &MAI);
+    MAI.printExpr(O, *MO.getExpr());
   } else
     llvm_unreachable("Unknown immediate kind");
 }
@@ -144,48 +145,7 @@ void M68kInstPrinter::printDisp(const MCInst *MI, unsigned opNum,
     return;
   }
   assert(Op.isExpr() && "Unknown operand kind in printOperand");
-  Op.getExpr()->print(O, &MAI);
-}
-
-void M68kInstPrinter::printARIMem(const MCInst *MI, unsigned opNum,
-                                  raw_ostream &O) {
-  O << '(';
-  printOperand(MI, opNum, O);
-  O << ')';
-}
-
-void M68kInstPrinter::printARIPIMem(const MCInst *MI, unsigned opNum,
-                                    raw_ostream &O) {
-  O << "(";
-  printOperand(MI, opNum, O);
-  O << ")+";
-}
-
-void M68kInstPrinter::printARIPDMem(const MCInst *MI, unsigned opNum,
-                                    raw_ostream &O) {
-  O << "-(";
-  printOperand(MI, opNum, O);
-  O << ")";
-}
-
-void M68kInstPrinter::printARIDMem(const MCInst *MI, unsigned opNum,
-                                   raw_ostream &O) {
-  O << '(';
-  printDisp(MI, opNum + M68k::MemDisp, O);
-  O << ',';
-  printOperand(MI, opNum + M68k::MemBase, O);
-  O << ')';
-}
-
-void M68kInstPrinter::printARIIMem(const MCInst *MI, unsigned opNum,
-                                   raw_ostream &O) {
-  O << '(';
-  printDisp(MI, opNum + M68k::MemDisp, O);
-  O << ',';
-  printOperand(MI, opNum + M68k::MemBase, O);
-  O << ',';
-  printOperand(MI, opNum + M68k::MemIndex, O);
-  O << ')';
+  MAI.printExpr(O, *Op.getExpr());
 }
 
 // NOTE forcing (W,L) size available since M68020 only
@@ -194,26 +154,10 @@ void M68kInstPrinter::printAbsMem(const MCInst *MI, unsigned opNum,
   const MCOperand &MO = MI->getOperand(opNum);
 
   if (MO.isExpr()) {
-    MO.getExpr()->print(O, &MAI);
+    MAI.printExpr(O, *MO.getExpr());
     return;
   }
 
   assert(MO.isImm() && "absolute memory addressing needs an immediate");
   O << format("$%0" PRIx64, (uint64_t)MO.getImm());
-}
-
-void M68kInstPrinter::printPCDMem(const MCInst *MI, uint64_t Address,
-                                  unsigned opNum, raw_ostream &O) {
-  O << '(';
-  printDisp(MI, opNum + M68k::PCRelDisp, O);
-  O << ",%pc)";
-}
-
-void M68kInstPrinter::printPCIMem(const MCInst *MI, uint64_t Address,
-                                  unsigned opNum, raw_ostream &O) {
-  O << '(';
-  printDisp(MI, opNum + M68k::PCRelDisp, O);
-  O << ",%pc,";
-  printOperand(MI, opNum + M68k::PCRelIndex, O);
-  O << ')';
 }

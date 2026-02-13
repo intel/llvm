@@ -241,7 +241,7 @@ bool LoopExtractor::extractLoop(Loop *L, LoopInfo &LI, DominatorTree &DT) {
   Function &Func = *L->getHeader()->getParent();
   AssumptionCache *AC = LookupAssumptionCache(Func);
   CodeExtractorAnalysisCache CEAC(Func);
-  CodeExtractor Extractor(DT, *L, false, nullptr, nullptr, AC);
+  CodeExtractor Extractor(L->getBlocks(), &DT, false, nullptr, nullptr, AC);
   if (Extractor.extractCodeRegion(CEAC)) {
     LI.erase(L);
     --NumLoops;
@@ -283,8 +283,8 @@ void LoopExtractorPass::printPipeline(
     raw_ostream &OS, function_ref<StringRef(StringRef)> MapClassName2PassName) {
   static_cast<PassInfoMixin<LoopExtractorPass> *>(this)->printPipeline(
       OS, MapClassName2PassName);
-  OS << "<";
+  OS << '<';
   if (NumLoops == 1)
     OS << "single";
-  OS << ">";
+  OS << '>';
 }

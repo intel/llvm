@@ -11,8 +11,6 @@ add_integration_test(
     libc-support-threads-integration-tests
   SRCS
     thread_detach_test.cpp
-  LOADER
-    libc.loader.linux.crt1
   DEPENDS
     libc.src.__support.threads.mutex
     libc.src.__support.threads.thread
@@ -24,8 +22,27 @@ add_integration_test(
     libc-support-threads-integration-tests
   SRCS
     thread_tls_test.cpp
-  LOADER
-    libc.loader.linux.crt1
   DEPENDS
     libc.src.__support.threads.thread
+)
+
+add_integration_test(
+  main_exit_test
+  SUITE
+    libc-support-threads-integration-tests
+  SRCS
+    main_exit_test.cpp
+  DEPENDS
+    libc.src.__support.threads.thread
+)
+
+add_integration_test(
+  double_exit_test
+  SUITE
+    libc-support-threads-integration-tests
+  SRCS
+    double_exit_test.cpp
+  DEPENDS
+    libc.src.__support.threads.thread
+    libc.src.stdlib.exit
 )

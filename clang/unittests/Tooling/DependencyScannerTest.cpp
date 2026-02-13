@@ -1,4 +1,4 @@
-//===- unittest/Tooling/ToolingTest.cpp - Tooling unit tests --------------===//
+//===- DependencyScannerTest.cpp ------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,12 +9,14 @@
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclGroup.h"
+#include "clang/DependencyScanning/DependencyScanningWorker.h"
 #include "clang/Frontend/ASTUnit.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Frontend/FrontendActions.h"
+#include "clang/Frontend/TextDiagnosticBuffer.h"
 #include "clang/Tooling/CompilationDatabase.h"
-#include "clang/Tooling/DependencyScanning/DependencyScanningTool.h"
+#include "clang/Tooling/DependencyScanningTool.h"
 #include "clang/Tooling/Tooling.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/MC/TargetRegistry.h"
@@ -41,13 +43,15 @@ public:
 
   void finishedMainFile(DiagnosticsEngine &Diags) override {
     auto NewDeps = getDependencies();
-    Deps.insert(Deps.end(), NewDeps.begin(), NewDeps.end());
+    llvm::append_range(Deps, NewDeps);
   }
 
 private:
   std::vector<std::string> &Deps;
 };
 
+// FIXME: Use the regular Service/Worker/Collector APIs instead of
+//        reimplementing the action.
 class TestDependencyScanningAction : public tooling::ToolAction {
 public:
   TestDependencyScanningAction(std::vector<std::string> &Deps) : Deps(Deps) {}
@@ -56,15 +60,12 @@ public:
                      FileManager *FileMgr,
                      std::shared_ptr<PCHContainerOperations> PCHContainerOps,
                      DiagnosticConsumer *DiagConsumer) override {
-    CompilerInstance Compiler(std::move(PCHContainerOps));
-    Compiler.setInvocation(std::move(Invocation));
+    CompilerInstance Compiler(std::move(Invocation),
+                              std::move(PCHContainerOps));
+    Compiler.setVirtualFileSystem(FileMgr->getVirtualFileSystemPtr());
     Compiler.setFileManager(FileMgr);
-
     Compiler.createDiagnostics(DiagConsumer, /*ShouldOwnClient=*/false);
-    if (!Compiler.hasDiagnostics())
-      return false;
-
-    Compiler.createSourceManager(*FileMgr);
+    Compiler.createSourceManager();
     Compiler.addDependencyCollector(std::make_shared<TestFileCollector>(
         Compiler.getInvocation().getDependencyOutputOpts(), Deps));
 
@@ -83,7 +84,7 @@ TEST(DependencyScanner, ScanDepsReuseFilemanager) {
   StringRef CWD = "/root";
   FixedCompilationDatabase CDB(CWD, Compilation);
 
-  auto VFS = new llvm::vfs::InMemoryFileSystem();
+  auto VFS = llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
   VFS->setCurrentWorkingDirectory(CWD);
   auto Sept = llvm::sys::path::get_separator();
   std::string HeaderPath =
@@ -132,7 +133,7 @@ TEST(DependencyScanner, ScanDepsReuseFilemanagerSkippedFile) {
   StringRef CWD = "/root";
   FixedCompilationDatabase CDB(CWD, Compilation);
 
-  auto VFS = new llvm::vfs::InMemoryFileSystem();
+  auto VFS = llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
   VFS->setCurrentWorkingDirectory(CWD);
   auto Sept = llvm::sys::path::get_separator();
   std::string HeaderPath =
@@ -174,7 +175,7 @@ TEST(DependencyScanner, ScanDepsReuseFilemanagerHasInclude) {
   StringRef CWD = "/root";
   FixedCompilationDatabase CDB(CWD, Compilation);
 
-  auto VFS = new llvm::vfs::InMemoryFileSystem();
+  auto VFS = llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
   VFS->setCurrentWorkingDirectory(CWD);
   auto Sept = llvm::sys::path::get_separator();
   std::string HeaderPath =
@@ -216,7 +217,7 @@ TEST(DependencyScanner, ScanDepsWithFS) {
                                           "test.cpp.o"};
   StringRef CWD = "/root";
 
-  auto VFS = new llvm::vfs::InMemoryFileSystem();
+  auto VFS = llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
   VFS->setCurrentWorkingDirectory(CWD);
   auto Sept = llvm::sys::path::get_separator();
   std::string HeaderPath =
@@ -231,11 +232,71 @@ TEST(DependencyScanner, ScanDepsWithFS) {
                                     ScanningOutputFormat::Make);
   DependencyScanningTool ScanTool(Service, VFS);
 
-  std::string DepFile;
-  ASSERT_THAT_ERROR(
-      ScanTool.getDependencyFile(CommandLine, CWD).moveInto(DepFile),
-      llvm::Succeeded());
-  using llvm::sys::path::convert_to_slash;
-  EXPECT_EQ(convert_to_slash(DepFile),
+  TextDiagnosticBuffer DiagConsumer;
+  std::optional<std::string> DepFile =
+      ScanTool.getDependencyFile(CommandLine, CWD, DiagConsumer);
+  ASSERT_TRUE(DepFile.has_value());
+  EXPECT_EQ(llvm::sys::path::convert_to_slash(*DepFile),
             "test.cpp.o: /root/test.cpp /root/header.h\n");
+}
+
+TEST(DependencyScanner, ScanDepsWithModuleLookup) {
+  std::vector<std::string> CommandLine = {
+      "clang",
+      "-target",
+      "x86_64-apple-macosx10.7",
+      "-c",
+      "test.m",
+      "-o"
+      "test.m.o",
+      "-fmodules",
+      "-I/root/SomeSources",
+  };
+  StringRef CWD = "/root";
+
+  auto VFS = llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
+  VFS->setCurrentWorkingDirectory(CWD);
+  auto Sept = llvm::sys::path::get_separator();
+  std::string OtherPath =
+      std::string(llvm::formatv("{0}root{0}SomeSources{0}other.h", Sept));
+  std::string TestPath = std::string(llvm::formatv("{0}root{0}test.m", Sept));
+
+  VFS->addFile(OtherPath, 0, llvm::MemoryBuffer::getMemBuffer("\n"));
+  VFS->addFile(TestPath, 0, llvm::MemoryBuffer::getMemBuffer("@import Foo;\n"));
+
+  struct InterceptorFS : llvm::vfs::ProxyFileSystem {
+    std::vector<std::string> StatPaths;
+    std::vector<std::string> ReadFiles;
+
+    InterceptorFS(IntrusiveRefCntPtr<FileSystem> UnderlyingFS)
+        : ProxyFileSystem(UnderlyingFS) {}
+
+    llvm::ErrorOr<llvm::vfs::Status> status(const Twine &Path) override {
+      StatPaths.push_back(Path.str());
+      return ProxyFileSystem::status(Path);
+    }
+
+    llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>>
+    openFileForRead(const Twine &Path) override {
+      ReadFiles.push_back(Path.str());
+      return ProxyFileSystem::openFileForRead(Path);
+    }
+  };
+
+  auto InterceptFS = llvm::makeIntrusiveRefCnt<InterceptorFS>(VFS);
+
+  DependencyScanningService Service(ScanningMode::DependencyDirectivesScan,
+                                    ScanningOutputFormat::Make);
+  DependencyScanningTool ScanTool(Service, InterceptFS);
+
+  // This will fail with "fatal error: module 'Foo' not found" but it doesn't
+  // matter, the point of the test is to check that files are not read
+  // unnecessarily.
+  TextDiagnosticBuffer DiagConsumer;
+  std::optional<std::string> DepFile =
+      ScanTool.getDependencyFile(CommandLine, CWD, DiagConsumer);
+  ASSERT_FALSE(DepFile.has_value());
+
+  EXPECT_TRUE(!llvm::is_contained(InterceptFS->StatPaths, OtherPath));
+  EXPECT_EQ(InterceptFS->ReadFiles, std::vector<std::string>{"test.m"});
 }

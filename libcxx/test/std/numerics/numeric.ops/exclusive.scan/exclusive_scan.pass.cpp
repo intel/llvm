@@ -16,12 +16,11 @@
 //                                   OutputIterator result, T init);
 //
 
-#include <numeric>
 #include <algorithm>
 #include <array>
 #include <cassert>
-#include <functional>
-#include <iterator>
+#include <cstddef>
+#include <numeric>
 
 #include "test_macros.h"
 #include "test_iterators.h"
@@ -57,33 +56,33 @@ test()
     }
 }
 
-constexpr size_t triangle(size_t n) { return n*(n+1)/2; }
+constexpr std::size_t triangle(size_t n) { return n*(n+1)/2; }
 
 //  Basic sanity
 TEST_CONSTEXPR_CXX20 void
 basic_tests()
 {
     {
-    std::array<size_t, 10> v;
+    std::array<std::size_t, 10> v;
     std::fill(v.begin(), v.end(), 3);
-    std::exclusive_scan(v.begin(), v.end(), v.begin(), size_t{50});
-    for (size_t i = 0; i < v.size(); ++i)
+    std::exclusive_scan(v.begin(), v.end(), v.begin(), std::size_t{50});
+    for (std::size_t i = 0; i < v.size(); ++i)
         assert(v[i] == 50 + i * 3);
     }
 
     {
-    std::array<size_t, 10> v;
+    std::array<std::size_t, 10> v;
     std::iota(v.begin(), v.end(), 0);
-    std::exclusive_scan(v.begin(), v.end(), v.begin(), size_t{30});
-    for (size_t i = 0; i < v.size(); ++i)
+    std::exclusive_scan(v.begin(), v.end(), v.begin(), std::size_t{30});
+    for (std::size_t i = 0; i < v.size(); ++i)
         assert(v[i] == 30 + triangle(i-1));
     }
 
     {
-    std::array<size_t, 10> v;
+    std::array<std::size_t, 10> v;
     std::iota(v.begin(), v.end(), 1);
-    std::exclusive_scan(v.begin(), v.end(), v.begin(), size_t{40});
-    for (size_t i = 0; i < v.size(); ++i)
+    std::exclusive_scan(v.begin(), v.end(), v.begin(), std::size_t{40});
+    for (std::size_t i = 0; i < v.size(); ++i)
         assert(v[i] == 40 + triangle(i));
     }
 

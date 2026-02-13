@@ -15,13 +15,13 @@
 #include "clang/Driver/Util.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Option/Option.h"
 #include <cassert>
 #include <iterator>
 #include <map>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -90,14 +90,8 @@ class Compilation {
         : TC(TC), BoundArch(BoundArch), DeviceOffloadKind(DeviceOffloadKind) {}
 
     bool operator<(const TCArgsKey &K) const {
-      if (TC < K.TC)
-        return true;
-      else if (TC == K.TC && BoundArch < K.BoundArch)
-        return true;
-      else if (TC == K.TC && BoundArch == K.BoundArch &&
-               DeviceOffloadKind < K.DeviceOffloadKind)
-        return true;
-      return false;
+      return std::tie(TC, BoundArch, DeviceOffloadKind) <
+             std::tie(K.TC, K.BoundArch, K.DeviceOffloadKind);
     }
   };
   std::map<TCArgsKey, llvm::opt::DerivedArgList *> TCArgs;
@@ -112,8 +106,11 @@ class Compilation {
   /// only be removed if we crash.
   ArgStringMap FailureResultFiles;
 
+  /// -ftime-trace result files.
+  ArgStringMap TimeTraceFiles;
+
   /// Optional redirection for stdin, stdout, stderr.
-  std::vector<Optional<StringRef>> Redirects;
+  std::vector<std::optional<StringRef>> Redirects;
 
   /// Callback called after compilation job has been finished.
   /// Arguments of the callback are the compilation job as an instance of
@@ -272,6 +269,14 @@ public:
     return Name;
   }
 
+  const char *getTimeTraceFile(const JobAction *JA) const {
+    return TimeTraceFiles.lookup(JA);
+  }
+  void addTimeTraceFile(const char *Name, const JobAction *JA) {
+    assert(!TimeTraceFiles.contains(JA));
+    TimeTraceFiles[JA] = Name;
+  }
+
   /// CleanupFile - Delete a given file.
   ///
   /// \param IssueErrors - Report failures as errors.
@@ -335,8 +340,8 @@ public:
   ///
   /// \param Redirects - array of optional paths. The array should have a size
   /// of three. The inferior process's stdin(0), stdout(1), and stderr(2) will
-  /// be redirected to the corresponding paths, if provided (not llvm::None).
-  void Redirect(ArrayRef<Optional<StringRef>> Redirects);
+  /// be redirected to the corresponding paths, if provided (not std::nullopt).
+  void Redirect(ArrayRef<std::optional<StringRef>> Redirects);
 };
 
 } // namespace driver

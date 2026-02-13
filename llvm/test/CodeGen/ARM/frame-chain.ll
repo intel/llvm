@@ -1,21 +1,23 @@
 ; RUN: llc -mtriple arm-arm-none-eabi -filetype asm -o - %s -frame-pointer=all | FileCheck %s --check-prefixes=FP,LEAF-FP
-; RUN: llc -mtriple arm-arm-none-eabi -filetype asm -o - %s -frame-pointer=all -mattr=+aapcs-frame-chain | FileCheck %s --check-prefixes=FP-AAPCS,LEAF-FP
-; RUN: llc -mtriple arm-arm-none-eabi -filetype asm -o - %s -frame-pointer=all -mattr=+aapcs-frame-chain-leaf | FileCheck %s --check-prefixes=FP-AAPCS,LEAF-FP-AAPCS
+; RUN: llc -mtriple arm-arm-none-eabi -filetype asm -o - %s -frame-pointer=all -mattr=+aapcs-frame-chain | FileCheck %s --check-prefixes=FP-AAPCS,LEAF-FP-AAPCS
 ; RUN: llc -mtriple arm-arm-none-eabi -filetype asm -o - %s -frame-pointer=non-leaf | FileCheck %s --check-prefixes=FP,LEAF-NOFP
-; RUN: llc -mtriple arm-arm-none-eabi -filetype asm -o - %s -frame-pointer=non-leaf -mattr=+aapcs-frame-chain | FileCheck %s --check-prefixes=FP-AAPCS,LEAF-NOFP
-; RUN: llc -mtriple arm-arm-none-eabi -filetype asm -o - %s -frame-pointer=non-leaf -mattr=+aapcs-frame-chain-leaf | FileCheck %s --check-prefixes=FP-AAPCS,LEAF-NOFP-AAPCS
+; RUN: llc -mtriple arm-arm-none-eabi -filetype asm -o - %s -frame-pointer=non-leaf -mattr=+aapcs-frame-chain | FileCheck %s --check-prefixes=FP-AAPCS,LEAF-NOFP-AAPCS
 ; RUN: llc -mtriple arm-arm-none-eabi -filetype asm -o - %s -frame-pointer=none | FileCheck %s --check-prefixes=NOFP,LEAF-NOFP
-; RUN: llc -mtriple arm-arm-none-eabi -filetype asm -o - %s -frame-pointer=none -mattr=+aapcs-frame-chain | FileCheck %s --check-prefixes=NOFP-AAPCS,LEAF-NOFP
-; RUN: llc -mtriple arm-arm-none-eabi -filetype asm -o - %s -frame-pointer=none -mattr=+aapcs-frame-chain-leaf | FileCheck %s --check-prefixes=NOFP-AAPCS,LEAF-NOFP-AAPCS
+; RUN: llc -mtriple arm-arm-none-eabi -filetype asm -o - %s -frame-pointer=none -mattr=+aapcs-frame-chain | FileCheck %s --check-prefixes=NOFP-AAPCS,LEAF-NOFP-AAPCS
+; RUN: llc -mtriple arm-arm-none-eabi -filetype asm -o - %s -frame-pointer=reserved | FileCheck %s --check-prefixes=NOFP,LEAF-NOFP
+; RUN: llc -mtriple arm-arm-none-eabi -filetype asm -o - %s -frame-pointer=reserved -mattr=+aapcs-frame-chain | FileCheck %s --check-prefixes=NOFP-AAPCS,LEAF-NOFP-AAPCS
 
 define dso_local noundef i32 @leaf(i32 noundef %0) {
 ; LEAF-FP-LABEL: leaf:
 ; LEAF-FP:       @ %bb.0:
-; LEAF-FP-NEXT:    .pad #4
-; LEAF-FP-NEXT:    sub sp, sp, #4
-; LEAF-FP-NEXT:    str r0, [sp]
+; LEAF-FP-NEXT:    .save {r11, lr}
+; LEAF-FP-NEXT:    push {r11, lr}
+; LEAF-FP-NEXT:    .setfp r11, sp
+; LEAF-FP-NEXT:    mov r11, sp
+; LEAF-FP-NEXT:    push {r0}
 ; LEAF-FP-NEXT:    add r0, r0, #4
-; LEAF-FP-NEXT:    add sp, sp, #4
+; LEAF-FP-NEXT:    mov sp, r11
+; LEAF-FP-NEXT:    pop {r11, lr}
 ; LEAF-FP-NEXT:    mov pc, lr
 ;
 ; LEAF-FP-AAPCS-LABEL: leaf:
@@ -48,8 +50,8 @@ define dso_local noundef i32 @leaf(i32 noundef %0) {
 ; LEAF-NOFP-AAPCS-NEXT:    add sp, sp, #4
 ; LEAF-NOFP-AAPCS-NEXT:    mov pc, lr
   %2 = alloca i32, align 4
-  store i32 %0, i32* %2, align 4
-  %3 = load i32, i32* %2, align 4
+  store i32 %0, ptr %2, align 4
+  %3 = load i32, ptr %2, align 4
   %4 = add nsw i32 %3, 4
   ret i32 %4
 }
@@ -111,14 +113,14 @@ define dso_local noundef i32 @non_leaf(i32 noundef %0) {
 ; NOFP-AAPCS-NEXT:    pop {r11, lr}
 ; NOFP-AAPCS-NEXT:    mov pc, lr
   %2 = alloca i32, align 4
-  store i32 %0, i32* %2, align 4
-  %3 = load i32, i32* %2, align 4
+  store i32 %0, ptr %2, align 4
+  %3 = load i32, ptr %2, align 4
   %4 = call noundef i32 @leaf(i32 noundef %3)
   %5 = add nsw i32 %4, 1
   ret i32 %5
 }
 
-declare i8* @llvm.stacksave()
+declare ptr @llvm.stacksave()
 define dso_local void @required_fp(i32 %0, i32 %1) {
 ; LEAF-FP-LABEL: required_fp:
 ; LEAF-FP:       @ %bb.0:
@@ -209,15 +211,45 @@ define dso_local void @required_fp(i32 %0, i32 %1) {
 ; LEAF-NOFP-AAPCS-NEXT:    mov pc, lr
   %3 = alloca i32, align 4
   %4 = alloca i32, align 4
-  %5 = alloca i8*, align 8
+  %5 = alloca ptr, align 8
   %6 = alloca i64, align 8
-  store i32 %0, i32* %3, align 4
-  store i32 %1, i32* %4, align 4
-  %7 = load i32, i32* %3, align 4
+  store i32 %0, ptr %3, align 4
+  store i32 %1, ptr %4, align 4
+  %7 = load i32, ptr %3, align 4
   %8 = zext i32 %7 to i64
-  %9 = call i8* @llvm.stacksave()
-  store i8* %9, i8** %5, align 8
+  %9 = call ptr @llvm.stacksave()
+  store ptr %9, ptr %5, align 8
   %10 = alloca i32, i64 %8, align 4
-  store i64 %8, i64* %6, align 8
+  store i64 %8, ptr %6, align 8
   ret void
+}
+
+define dso_local noundef i32 @leaf_tailcall(i32 noundef %0) {
+; LEAF-FP-LABEL: leaf_tailcall:
+; LEAF-FP:       @ %bb.0:
+; LEAF-FP-NEXT:    .save {r11, lr}
+; LEAF-FP-NEXT:    push {r11, lr}
+; LEAF-FP-NEXT:    .setfp r11, sp
+; LEAF-FP-NEXT:    mov r11, sp
+; LEAF-FP-NEXT:    pop {r11, lr}
+; LEAF-FP-NEXT:    b leaf
+;
+; LEAF-FP-AAPCS-LABEL: leaf_tailcall:
+; LEAF-FP-AAPCS:       @ %bb.0:
+; LEAF-FP-AAPCS-NEXT:    .save {r11, lr}
+; LEAF-FP-AAPCS-NEXT:    push {r11, lr}
+; LEAF-FP-AAPCS-NEXT:    .setfp r11, sp
+; LEAF-FP-AAPCS-NEXT:    mov r11, sp
+; LEAF-FP-AAPCS-NEXT:    pop {r11, lr}
+; LEAF-FP-AAPCS-NEXT:    b leaf
+;
+; LEAF-NOFP-LABEL: leaf_tailcall:
+; LEAF-NOFP:       @ %bb.0:
+; LEAF-NOFP-NEXT:    b leaf
+;
+; LEAF-NOFP-AAPCS-LABEL: leaf_tailcall:
+; LEAF-NOFP-AAPCS:       @ %bb.0:
+; LEAF-NOFP-AAPCS-NEXT:    b leaf
+  %a = tail call noundef i32 @leaf(i32 noundef %0)
+  ret i32 %a
 }
