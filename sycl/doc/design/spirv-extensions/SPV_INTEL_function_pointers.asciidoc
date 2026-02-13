@@ -291,6 +291,22 @@ in *OpConstantComposite*, but how should we specify that in this spec?
 Removed *OpFunctionPointerINTEL* instruction.
 --
 
+. Consider unification of the extension according to a
+link:https://github.com/intel/llvm/pull/17857#issuecomment-2984465908[comment]
+from Hugobros3:
++
+"Our main requirements over the Intel version is to have a notion of tail-calls,
+or alternatively calls to non-re-entrant functions (such that no stack is
+required to support the execution), and to gate regular (stackful) calls behind
+a capability.
++
+We also wanted to gate in-module and inter-modules calls between different
+capabilities."
++
+--
+*UNRESOLVED*
+--
+
 //. Issue.
 //+
 //--
