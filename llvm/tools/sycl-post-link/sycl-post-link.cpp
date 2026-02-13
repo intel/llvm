@@ -585,8 +585,8 @@ processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
     SmallVector<std::unique_ptr<module_split::ModuleDesc>, 2>
         MMsWithDefaultSpecConsts;
     Modified |=
-        handleSpecializationConstants(MMs, SCMode, MMsWithDefaultSpecConsts,
-                                      GenerateDeviceImageWithDefaultSpecConsts);
+        llvm::sycl_post_link::handleSpecializationConstants(MMs, SCMode, MMsWithDefaultSpecConsts,
+                                                            GenerateDeviceImageWithDefaultSpecConsts);
 
     if (IROutputOnly) {
       if (SplitOccurred) {

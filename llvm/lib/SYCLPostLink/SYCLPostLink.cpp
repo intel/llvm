@@ -145,7 +145,7 @@ llvm::sycl_post_link::performPostLinkProcessing(
     Modules.push_back(std::move(M));
     SmallVector<std::unique_ptr<module_split::ModuleDesc>> NewModules;
     if (Settings.SpecConstMode)
-      llvm::handleSpecializationConstants(
+      llvm::sycl_post_link::handleSpecializationConstants(
           Modules, *Settings.SpecConstMode, NewModules,
           Settings.GenerateModuleDescWithDefaultSpecConsts);
 

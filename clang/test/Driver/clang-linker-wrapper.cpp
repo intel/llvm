@@ -13,11 +13,6 @@
 //
 // RUN: touch %t.devicelib.cpp
 // RUN: %clang %t.devicelib.cpp -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver -o %t.devicelib.o
-// rUN: %clang %t.devicelib.cpp -fsycl -fsycl-targets=intel_gpu_pvc -c --offload-new-driver -o %t_aot_gpu.devicelib.o
-// rUN: %clang %t.devicelib.cpp -fsycl -fsycl-targets=spir64_x86_64 -c --offload-new-driver -o %t_aot_cpu.devicelib.o
-// rUN: %clang %t.devicelib.cpp -fsycl -fsycl-targets=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_50 -nocudalib -fno-sycl-libspirv -c --offload-new-driver -o %t_nvptx.devicelib.o
-// rUN: %clang %s -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx803 -fgpu-rdc -nogpulib -fno-sycl-libspirv -c --offload-new-driver -o %t_amdgcn.devicelib.o
-// rUN: %clang %t.devicelib.cpp -fsycl -fsycl-targets=native_cpu -fno-sycl-libspirv -c --offload-new-driver -o %t_native_cpu.devicelib.o
 
 // TODO: fix the problem that sycl-post-link and sycl-post-link-library match sycl-post-link{{.*}}
 // Run clang-linker-wrapper test

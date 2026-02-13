@@ -20,6 +20,7 @@
 #include <optional>
 
 namespace llvm {
+namespace sycl_post_link {
 
 /// Metadata and intrinsics related to SYCL specialization constants are lowered
 /// depending on the given
@@ -37,6 +38,7 @@ bool handleSpecializationConstants(
         &NewModuleDescs,
     bool GenerateModuleDescWithDefaultSpecConsts);
 
+} // namespace sycl_post_link
 } // namespace llvm
 
 #endif // LLVM_SYCL_POST_LINK_SPECIALIZATION_CONSTANTS_H

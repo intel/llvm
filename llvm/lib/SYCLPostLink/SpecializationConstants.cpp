@@ -71,7 +71,7 @@ cloneModuleWithSpecConstsReplacedByDefaultValues(const ModuleDesc &MD) {
 
 } // namespace
 
-bool llvm::handleSpecializationConstants(
+bool llvm::sycl_post_link::handleSpecializationConstants(
     SmallVectorImpl<std::unique_ptr<ModuleDesc>> &MDs,
     std::optional<SpecConstantsPass::HandlingMode> Mode,
     SmallVectorImpl<std::unique_ptr<ModuleDesc>> &NewModuleDescs,

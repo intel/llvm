@@ -801,8 +801,8 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args,
 /// \param Mode The splitting mode.
 /// \returns The vector of split modules.
 static Expected<std::vector<module_split::SplitModule>>
-runSYCLSplitLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
-                    module_split::IRSplitMode SplitMode) {
+runSYCLPostLinkLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
+                       module_split::IRSplitMode SplitMode) {
   std::vector<module_split::SplitModule> SplitModules;
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
 
@@ -2304,8 +2304,8 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
           UseSYCLPostLinkTool
               ? sycl::runSYCLPostLinkTool(InputFilesSYCL, LinkerArgs,
                                           IsDevicePassedWithSyclTargetBackend)
-              : sycl::runSYCLSplitLibrary(InputFilesSYCL, LinkerArgs,
-                                          *SYCLModuleSplitMode);
+              : sycl::runSYCLPostLinkLibrary(InputFilesSYCL, LinkerArgs,
+                                             *SYCLModuleSplitMode);
       if (!SplitModulesOrErr)
         return SplitModulesOrErr.takeError();
 
