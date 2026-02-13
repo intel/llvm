@@ -77,46 +77,45 @@ supports.
 |Initial version of this extension.
 |===
 
-=== API Additions
+=== New property - priority
 
+This extension defines the following new property that may be passed to
+the constructor of the `queue` class:
 
-This extension defines the following new property that may be passed to the
-constructor of the `queue` class:
+'''
 
-[%header,cols="1,5"]
-|===
-|Property
-|Description
+[source,c++]
+----
+namespace sycl::ext::oneapi::property::queue {
 
-| `sycl::ext::oneapi::property::queue::priority`
-|
-|===
+  class priority {
+  public:
+    priority(int priority);
+  };
 
-[%header,cols="1,5"]
-|===
-|Property Constructor
-|Description
+} // namespace sycl::ext::oneapi::property::queue
+----
 
-| `sycl::ext::oneapi::property::queue::priority(int priority=0)`
-|  Specifies that the queue should be constructed with the specified `priority`.
-Commands executed by this queue may take priority over commands with lower priority
-on this queue's device. The default priority has value `0`. If the user specifies
-`priority` outside the range returned by `sycl::ext::oneapi::queue::priority_range`,
-`priority` will be clamped down or up to the least or greatest priority in the range.
+Specifies that the queue should be constructed with the specified `priority`.
+Commands executed by this queue may take priority over commands with lower
+priority on this queue's device. If the user specifies `priority` outside the range returned by `sycl::ext::oneapi::queue::priority_range`, `priority` will be clamped down
+or up to the least or greatest priority in the range.
 
-|===
+=== New query - priority_range
 
-This extension also defines the following new query for the `queue` class:
+'''
 
-[%header,cols="1,5"]
-|===
-|Property
-|Description
+[source, c++]
+----
+namespace sycl::ext::oneapi::info::queue {
 
-| `sycl::ext::oneapi::info::queue::priority_range`
-| Returns a `std::array<int,2>` that represents the `{leastPriority,greatestPriority}`
-for this queue. Lower numbers imply greater priorities. The default priority has value `0`.
-Specifying priorities outside of this range when creating a queue will result in the specified
-priority being clamped down or up to the least priority or greatest priority, respectively.
+struct priority_range;
 
-|===
+}
+----
+
+Returns a `std::array<int,2>` that represents the `{leastPriority,
+greatestPriority}` for this queue. Lower numbers imply greater priorities.
+The default priority has value `0`. Specifying priorities outside of this
+range when creating a queue will result in the specified priority being
+clamped down or up to the least priority or greatest priority, respectively.
