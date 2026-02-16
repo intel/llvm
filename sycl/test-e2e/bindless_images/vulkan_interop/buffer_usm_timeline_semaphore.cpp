@@ -11,9 +11,9 @@
  * This test does not use any image specific APIs.
  *
  * It only tests exporting VkBuffer memory to SYCL and exporting a Vulkan
- * timeline semaphore and binary semaphore to SYCL. The data is manipulated in Vulkan. SYCL waits to
- * copy the data back to the host until the exported semaphore signals
- * that.
+ * timeline semaphore and binary semaphore to SYCL. The data is manipulated in
+ * Vulkan. SYCL waits to copy the data back to the host until the exported
+ * semaphore signals that.
  */
 
 #include "../../CommonUtils/vulkan_common.hpp"
@@ -41,23 +41,23 @@ int runTest(sycl::queue &syclQueue) {
   VkSemaphore vkCreatedSemaphore;
 
 #ifdef TEST_TIMELINE_SEMAPHORE
-  std::cout<<"Running test with timeline sempahore. \n";
+  std::cout << "Running test with timeline sempahore. \n";
   uint64_t timelineValue = 0;
   VkSemaphoreTypeCreateInfo semaphoreTypeCreateInfo = {};
   semaphoreTypeCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
   semaphoreTypeCreateInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
   semaphoreTypeCreateInfo.initialValue = timelineValue;
-#else 
-  std::cout<<"Running test with binary sempahore. \n";
+#else
+  std::cout << "Running test with binary sempahore. \n";
 #endif
 
-VkExportSemaphoreCreateInfo exportSemaphoreCreateInfo = {};
+  VkExportSemaphoreCreateInfo exportSemaphoreCreateInfo = {};
   exportSemaphoreCreateInfo.sType =
       VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO;
 
 #ifdef TEST_TIMELINE_SEMAPHORE
   exportSemaphoreCreateInfo.pNext = &semaphoreTypeCreateInfo;
-#endif 
+#endif
 
 #ifdef _WIN32
   exportSemaphoreCreateInfo.handleTypes =
@@ -140,9 +140,9 @@ VkExportSemaphoreCreateInfo exportSemaphoreCreateInfo = {};
       vkutil::getMemoryWin32Handle(vkDataBufferMemory);
 
   syclexp::external_mem_descriptor<syclexp::resource_win32_handle>
-      externalMemoryDescriptor{bufferVulkanExternalHandle,
-                               syclexp::external_mem_handle_type::win32_nt_handle,
-                               bufferSizeBytes};
+      externalMemoryDescriptor{
+          bufferVulkanExternalHandle,
+          syclexp::external_mem_handle_type::win32_nt_handle, bufferSizeBytes};
 #else
   auto bufferVulkanExternalHandle =
       vkutil::getMemoryOpaqueFD(vkDataBufferMemory);
@@ -164,32 +164,32 @@ VkExportSemaphoreCreateInfo exportSemaphoreCreateInfo = {};
   auto syclWaitSemaphoreHandle =
       vkutil::getSemaphoreWin32Handle(vkCreatedSemaphore);
 
-  #ifdef TEST_TIMELINE_SEMAPHORE
+#ifdef TEST_TIMELINE_SEMAPHORE
   syclexp::external_semaphore_descriptor<syclexp::resource_win32_handle>
       syclWaitExternalSemaphoreDesc{
           syclWaitSemaphoreHandle,
           syclexp::external_semaphore_handle_type::timeline_win32_nt_handle};
-  #else
-        syclexp::external_semaphore_descriptor<syclexp::resource_win32_handle>
+#else
+  syclexp::external_semaphore_descriptor<syclexp::resource_win32_handle>
       syclWaitExternalSemaphoreDesc{
           syclWaitSemaphoreHandle,
           syclexp::external_semaphore_handle_type::win32_nt_handle};
-  #endif
+#endif
 #else
   auto syclWaitSemaphoreHandle =
       vkutil::getSemaphoreOpaqueFD(vkCreatedSemaphore);
 
-  #ifdef TEST_TIMELINE_SEMAPHORE
+#ifdef TEST_TIMELINE_SEMAPHORE
   syclexp::external_semaphore_descriptor<syclexp::resource_fd>
       syclWaitExternalSemaphoreDesc{
           syclWaitSemaphoreHandle,
           syclexp::external_semaphore_handle_type::timeline_fd};
-  #else
-    syclexp::external_semaphore_descriptor<syclexp::resource_fd>
+#else
+  syclexp::external_semaphore_descriptor<syclexp::resource_fd>
       syclWaitExternalSemaphoreDesc{
           syclWaitSemaphoreHandle,
           syclexp::external_semaphore_handle_type::opaque_fd};
-  #endif
+#endif
 #endif
 
   syclexp::external_semaphore syclWaitExternalSemaphore =
@@ -232,7 +232,7 @@ VkExportSemaphoreCreateInfo exportSemaphoreCreateInfo = {};
 #ifdef TEST_TIMELINE_SEMAPHORE
   syclQueue.ext_oneapi_wait_external_semaphore(syclWaitExternalSemaphore,
                                                timelineValue);
-#else  
+#else
   syclQueue.ext_oneapi_wait_external_semaphore(syclWaitExternalSemaphore);
 #endif
   syclQueue.memcpy(hostPtr, externalMemPtr, bufferSizeBytes);
@@ -246,7 +246,7 @@ VkExportSemaphoreCreateInfo exportSemaphoreCreateInfo = {};
   syclexp::unmap_external_linear_memory(externalMemPtr, syclQueue);
   syclexp::release_external_memory(externalMemory, syclQueue);
   syclexp::release_external_semaphore(syclWaitExternalSemaphore, syclQueue);
-  
+
   vkDeviceWaitIdle(vk_device);
   vkDestroyBuffer(vk_device, vkDataBuffer, nullptr);
   vkFreeMemory(vk_device, vkDataBufferMemory, nullptr);
