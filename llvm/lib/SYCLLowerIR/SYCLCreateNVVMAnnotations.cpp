@@ -72,7 +72,7 @@ SYCLCreateNVVMAnnotationsPass::run(Module &M, ModuleAnalysisManager &MAM) {
 
     constexpr static std::pair<const char *, std::array<const char *, 3>>
         WGAnnotations[] = {
-            {"reqd_work_group_size", {"reqntidx", "reqntidy", "reqntidx"}},
+            {"reqd_work_group_size", {"reqntidx", "reqntidy", "reqntidz"}},
             {"max_work_group_size", {"maxntidx", "maxntidy", "maxntidz"}}};
 
     for (auto &[MDName, Annotations] : WGAnnotations) {

@@ -220,7 +220,7 @@ void ur_integrated_buffer_handle_t::copyBackToHostIfNeeded() {
     if (result2 == UR_RESULT_SUCCESS) {
       writeBackPtr = nullptr;
     } else {
-      UR_LOG(ERR, "Failed to copy-back buffer data: {}", result2);
+      UR_LOG_SAFE(ERR, "Failed to copy-back buffer data: {}", result2);
     }
   }
 }
@@ -326,8 +326,11 @@ ur_discrete_buffer_handle_t::~ur_discrete_buffer_handle_t() {
     return;
 
   auto srcPtr = getActiveDeviceAlloc();
-  synchronousZeCopy(hContext, activeAllocationDevice, writeBackPtr, srcPtr,
-                    getSize());
+  auto ret = synchronousZeCopy(hContext, activeAllocationDevice, writeBackPtr,
+                               srcPtr, getSize());
+  if (ret != UR_RESULT_SUCCESS) {
+    UR_LOG_SAFE(ERR, "Failed to copy-back buffer data: {}", ret);
+  }
 }
 
 void *ur_discrete_buffer_handle_t::getActiveDeviceAlloc(size_t offset) {

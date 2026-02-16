@@ -847,6 +847,16 @@ ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
     dev->Id = id++;
   }
 
+  // Check if platform supports device synchronization by calling
+  // zeDeviceSynchronize on the first device.
+  if (!URDevicesCache.empty()) {
+    auto ZeDevice = URDevicesCache[0]->ZeDevice;
+    auto ZeResult = ZE_CALL_NOCHECK(zeDeviceSynchronize, (ZeDevice));
+    bool Supported = (ZeResult != ZE_RESULT_ERROR_UNSUPPORTED_FEATURE &&
+                      ZeResult != ZE_RESULT_ERROR_UNSUPPORTED_VERSION);
+    ZeDeviceSynchronizeSupported = Supported;
+  }
+
   return UR_RESULT_SUCCESS;
 }
 

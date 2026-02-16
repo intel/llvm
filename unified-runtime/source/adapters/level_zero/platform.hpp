@@ -208,4 +208,9 @@ struct ur_platform_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter>,
         void *pUserData, void *pNext, ze_event_handle_t hSignalEvent,
         uint32_t numWaitEvents, ze_event_handle_t *phWaitEvents);
   } ZeHostTaskExt;
+
+  // Flag to indicate whether zeDeviceSynchronize is supported.
+  // Some platforms may not support this API due to frozen driver, eg. gen12 on
+  // Windows. For details, see https://github.com/intel/llvm/issues/20927.
+  bool ZeDeviceSynchronizeSupported{false};
 };
