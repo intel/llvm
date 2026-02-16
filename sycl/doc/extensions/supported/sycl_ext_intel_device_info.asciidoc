@@ -823,7 +823,7 @@ if (dev.has(aspect::ext_intel_device_info_luid)) {
 ----
 
 
-==== Device Node Mask
+=== Device Node Mask
 
 A new device descriptor is added which will provide the device node mask.
 
