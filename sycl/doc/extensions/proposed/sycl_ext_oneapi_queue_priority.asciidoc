@@ -98,7 +98,7 @@ namespace sycl::ext::oneapi::property::queue {
 
 _Effects:_ Specifies that the queue should be constructed with the specified
 `priority`. Commands executed by this queue may take priority over commands
-with lower priority on this queue's device. If the user specifies `priority`
+in queues with lower priority on this device. If the user specifies `priority`
 outside the range returned by `sycl::ext::oneapi::queue::priority_range`,
 `priority` will be clamped down or up to the least or greatest priority in the
 range.
