@@ -4888,7 +4888,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     auto *AT = ArrayType::get(Val->getType(), NumElements);
     SPIRVTypeArray *CompositeTy = static_cast<SPIRVTypeArray *>(transType(AT));
     SPIRVValue *Init;
-    if (cast<Constant>(Val)->isZeroValue()) {
+    if (cast<Constant>(Val)->isNullValue()) {
       Init = BM->addNullConstant(CompositeTy);
     } else {
       // On 32-bit systems, size_type of std::vector is not a 64-bit type. Let's
