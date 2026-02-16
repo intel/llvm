@@ -127,8 +127,3 @@ corresponding to the lowest (least urgent) queue priority supported by the
 device, and the second element is the numerical value corresponding to the
 highest (most urgent) queue priority supported by the device. Lower numerical
 values imply greater priorities.
-
-[_Note:_ Specifying priorities outside of this range when creating a queue will
-result in the specified priority being clamped down or up to the lowest or
-highest priority, respectively.
-_{endnote}_]
