@@ -88,10 +88,10 @@ the constructor of the `queue` class:
 ----
 namespace sycl::ext::oneapi::property::queue {
 
-  class priority {
-  public:
-    priority(int priority);
-  };
+class priority {
+public:
+  priority(int priority);
+};
 
 } // namespace sycl::ext::oneapi::property::queue
 ----
@@ -103,7 +103,7 @@ outside the range returned by `sycl::ext::oneapi::queue::priority_range`,
 `priority` will be clamped down or up to the least or greatest priority in the
 range.
 
-=== New query - priority_range
+=== New queue information descriptor
 
 '''
 
@@ -112,7 +112,7 @@ range.
 namespace sycl::ext::oneapi::info::queue {
 
 struct priority_range {
-	using return_type = std::array<int,2>;
+  using return_type = std::array<int,2>;
 };
 
 } // namespace sycl::ext::oneapi::info::queue
