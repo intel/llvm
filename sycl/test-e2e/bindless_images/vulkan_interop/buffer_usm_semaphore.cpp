@@ -1,11 +1,11 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import, aspect-ext_oneapi_external_semaphore_import
 // REQUIRES: vulkan
 
-// RUN: %{build} -DTEST_TIMELINE_SEMAPHORE %link-vulkan -o %t.timeline_semaphore.out
 // RUN: %{build} %link-vulkan -o %t.binary_semaphore.out
-
-// RUN: %{run} %t.timeline_semaphore.out
 // RUN: %{run} %t.binary_semaphore.out
+
+// RUN: %{build} -DTEST_TIMELINE_SEMAPHORE %link-vulkan -o %t.timeline_semaphore.out
+// RUN: %{run} %t.timeline_semaphore.out
 
 /**
  * This test does not use any image specific APIs.
