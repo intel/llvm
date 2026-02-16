@@ -6002,14 +6002,19 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       if (((IsDeviceOffloadAction &&
             !JA.isDeviceOffloading(Action::OFK_OpenMP) && !Triple.isAMDGPU() &&
             !IsUsingOffloadNewDriver) ||
-           (JA.isDeviceOffloading(Action::OFK_SYCL) && !IsSYCLLTOSupported)) &&
-          OffloadLTO) {
+           (JA.isDeviceOffloading(Action::OFK_SYCL) && !IsSYCLLTOSupported))) {
         D.Diag(diag::err_drv_unsupported_opt_for_target)
-            << OffloadLTO->getAsString(Args) << Triple.getTriple();
+            << Args.getLastArg(options::OPT_foffload_lto,
+                               options::OPT_foffload_lto_EQ)
+                   ->getAsString(Args)
+            << Triple.getTriple();
       } else if (Triple.isNVPTX() && !IsRDCMode &&
-                 JA.isDeviceOffloading(Action::OFK_Cuda) && OffloadLTO) {
+                 JA.isDeviceOffloading(Action::OFK_Cuda)) {
         D.Diag(diag::err_drv_unsupported_opt_for_language_mode)
-            << OffloadLTO->getAsString(Args) << "-fno-gpu-rdc";
+            << Args.getLastArg(options::OPT_foffload_lto,
+                               options::OPT_foffload_lto_EQ)
+                   ->getAsString(Args)
+            << "-fno-gpu-rdc";
       } else if (JA.isDeviceOffloading(Action::OFK_SYCL) &&
                  IsDeviceCodeSplitDisabled && LTOMode == LTOK_Thin &&
                  OffloadLTO) {
