@@ -123,6 +123,7 @@ _Remarks:_ Template parameter to `queue::get_info`.
 _Returns:_ `std::array<int,2>` that represents the `{leastPriority,
 greatestPriority}` for this queue. Lower numbers imply greater priorities.
 
-{note}Specifying priorities outside of this range when creating a queue will
+[_Note:_ Specifying priorities outside of this range when creating a queue will
 result in the specified priority being clamped down or up to the least priority
-or greatest priority, respectively.{endnote}
+or greatest priority, respectively.
+_{endnote}_]
