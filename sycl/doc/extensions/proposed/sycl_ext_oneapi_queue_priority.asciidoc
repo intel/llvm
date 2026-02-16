@@ -51,7 +51,7 @@ not rely on APIs defined in this specification.*
 
 == Overview
 
-This extension defines an additional queue property that permit a backend,
+This extension defines an additional queue property that permits a backend,
 when supported, to create command queues with different levels of priority.
 Priorities are hints from the programmer that certain command submissions
 to a device may execute before others of lesser priority.
@@ -90,40 +90,45 @@ namespace sycl::ext::oneapi::property::queue {
 
 class priority {
 public:
-  priority(int priority);
+  priority(int priority_value);
 };
 
 } // namespace sycl::ext::oneapi::property::queue
 ----
 
 _Effects:_ Specifies that the queue should be constructed with the specified
-`priority`. Commands executed by this queue may take priority over commands
-in queues with lower priority on this device. If the user specifies `priority`
-outside the range returned by `sycl::ext::oneapi::queue::priority_range`,
-`priority` will be clamped down or up to the least or greatest priority in the
-range.
+`priority_value`. Commands executed by this queue may take priority over
+commands in queues with lower priority on this device. If the user specifies
+`priority_value` outside the range returned by
+`sycl::ext::oneapi::info::device::priority_range` for the device associated
+with the queue, `priority_value` will be clamped down or up to the lowest or
+highest priority in the range. Lower numbers imply greater priorities.
 
-=== New queue information descriptor
+=== New device information descriptor
 
 '''
 
 [source, c++]
 ----
-namespace sycl::ext::oneapi::info::queue {
+namespace sycl::ext::oneapi::info::device {
 
 struct priority_range {
-  using return_type = std::array<int,2>;
+  using return_type = std::array<int, 2>;
 };
 
-} // namespace sycl::ext::oneapi::info::queue
+} // namespace sycl::ext::oneapi::info::device
 ----
 
-_Remarks:_ Template parameter to `queue::get_info`.
+_Remarks:_ Template parameter to `device::get_info`.
 
-_Returns:_ `std::array<int,2>` that represents the `{leastPriority,
-greatestPriority}` for this queue. Lower numbers imply greater priorities.
+_Returns:_ `std::array<int,2>` that represents the `{lowestPriority,
+highestPriority}` for this device. The first element is the numerical value
+corresponding to the lowest (least urgent) queue priority supported by the
+device, and the second element is the numerical value corresponding to the
+highest (most urgent) queue priority supported by the device. Lower numerical
+values imply greater priorities.
 
 [_Note:_ Specifying priorities outside of this range when creating a queue will
-result in the specified priority being clamped down or up to the least priority
-or greatest priority, respectively.
+result in the specified priority being clamped down or up to the lowest or
+highest priority, respectively.
 _{endnote}_]
