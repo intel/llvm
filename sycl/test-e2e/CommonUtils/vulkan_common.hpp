@@ -179,19 +179,19 @@ VkResult setupInstance() {
   ci.pApplicationInfo = &ai;
   ci.enabledExtensionCount = requiredInstanceExtensions.size();
   ci.ppEnabledExtensionNames = requiredInstanceExtensions.data();
-  std::vector<const char *> layers;
-  bool hasValidationLayer = std::any_of(
-      availableLayers.begin(), availableLayers.end(), [](const auto &layer) {
-        return strcmp(layer.layerName, "VK_LAYER_KHRONOS_validation") == 0;
+  const char *validationLayerName = "VK_LAYER_KHRONOS_validation";
+  bool validationLayerAvailable = std::any_of(
+      availableLayers.begin(), availableLayers.end(), [&](const auto &layer) {
+        return strcmp(layer.layerName, validationLayerName) == 0;
       });
-  if (hasValidationLayer) {
-    layers.push_back("VK_LAYER_KHRONOS_validation");
+
+  if (validationLayerAvailable) {
+    ci.enabledLayerCount = 1;
+    ci.ppEnabledLayerNames = &validationLayerName;
   } else {
-    std::cerr << "Validation layer not available!\n";
-    assert(false);
+    std::cerr
+        << "VK_LAYER_KHRONOS_validation not present, validation is disabled \n";
   }
-  ci.enabledLayerCount = layers.size();
-  ci.ppEnabledLayerNames = layers.data();
 
   VK_CHECK_CALL_RET(vkCreateInstance(&ci, nullptr, &vk_instance));
 
