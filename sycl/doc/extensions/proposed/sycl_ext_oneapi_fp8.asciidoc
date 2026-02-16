@@ -1256,22 +1256,16 @@ class fp8_e8m0 {
 
   // Construct from an array of half, bfloat16, float, double.
 
-  explicit fp8_e8m0(half const (&vals)[N], rounding r = rounding::upward,
-                    saturation s = saturation::finite);
-  explicit fp8_e8m0(bfloat16 const (&vals)[N], rounding r = rounding::upward,
-                    saturation s = saturation::finite);
-  explicit fp8_e8m0(float const (&vals)[N], rounding r = rounding::upward,
-                    saturation s = saturation::finite);
+  explicit fp8_e8m0(half const (&vals)[N], rounding r = rounding::upward);
+  explicit fp8_e8m0(bfloat16 const (&vals)[N], rounding r = rounding::upward);
+  explicit fp8_e8m0(float const (&vals)[N], rounding r = rounding::upward);
   explicit fp8_e8m0(double const (&vals)[N]);
 
   // Construct from an marray of half, bfloat16, float, double.
 
-  explicit fp8_e8m0(const marray<half,N>& vals, rounding r = rounding::upward,
-                    saturation s = saturation::finite);
-  explicit fp8_e8m0(const marray<bfloat16,N>& vals, rounding r = rounding::upward,
-                    saturation s = saturation::finite);
-  explicit fp8_e8m0(const marray<float,N>& vals, rounding r = rounding::upward,
-                    saturation s = saturation::finite);
+  explicit fp8_e8m0(const marray<half,N>& vals, rounding r = rounding::upward);
+  explicit fp8_e8m0(const marray<bfloat16,N>& vals, rounding r = rounding::upward);
+  explicit fp8_e8m0(const marray<float,N>& vals, rounding r = rounding::upward);
   explicit fp8_e8m0(const marray<double,N>& vals);
 
   // Construct from integer types.
@@ -1399,47 +1393,41 @@ Each value is converted using the `rounding::upward` rounding mode and the
 
 [source,c++]
 ----
-explicit fp8_e8m0(half const (&vals)[N], rounding r = rounding::upward,      (1)
-                  saturation s = saturation::finite);
-explicit fp8_e8m0(bfloat16 const (&vals)[N], rounding r = rounding::upward,  (2)
-                  saturation s = saturation::finite);
-explicit fp8_e8m0(float const (&vals)[N], rounding r = rounding::upward,     (3)
-                  saturation s = saturation::finite);
-explicit fp8_e8m0(double const (&vals)[N]);                                  (4)
+explicit fp8_e8m0(half const (&vals)[N], rounding r = rounding::upward);      (1)
+explicit fp8_e8m0(bfloat16 const (&vals)[N], rounding r = rounding::upward);  (2)
+explicit fp8_e8m0(float const (&vals)[N], rounding r = rounding::upward);     (3)
+explicit fp8_e8m0(double const (&vals)[N]);                                   (4)
 ----
 
 _Effects:_ Initializes each element of this `fp8_e8m0` object from the
 corresponding element in the array `vals`.
 In overloads (1) - (3), each value is converted using the `r` rounding mode and
-the `s` saturation mode.
+the `saturation::finite` saturation mode.
 In overload (4), each value is converted using the `rounding::upward` rounding
 mode and the `saturation::finite` saturation mode.
 
 _Target Support:_ Host and device code support only `rounding::upward` and
-`saturation::finite`.
+`rounding::toward_zero`.
 
 '''
 
 [source,c++]
 ----
-explicit fp8_e8m0(const marray<half,N>& vals, rounding r = rounding::upward,      (1)
-                  saturation s = saturation::finite);
-explicit fp8_e8m0(const marray<bfloat16,N>& vals, rounding r = rounding::upward,  (2)
-                  saturation s = saturation::finite);
-explicit fp8_e8m0(const marray<float,N>& vals, rounding r = rounding::upward,     (3)
-                  saturation s = saturation::finite);
-explicit fp8_e8m0(const marray<double,N>& vals);                                  (4)
+explicit fp8_e8m0(const marray<half,N>& vals, rounding r = rounding::upward);      (1)
+explicit fp8_e8m0(const marray<bfloat16,N>& vals, rounding r = rounding::upward);  (2)
+explicit fp8_e8m0(const marray<float,N>& vals, rounding r = rounding::upward);     (3)
+explicit fp8_e8m0(const marray<double,N>& vals);                                   (4)
 ----
 
 _Effects:_ Initializes each element of this `fp8_e8m0` object from the
 corresponding element in the `marray` object `vals`.
 In overloads (1) - (3), each value is converted using the `r` rounding mode and
-the `s` saturation mode.
+the `saturation::finite` saturation mode.
 In overload (4), each value is converted using the `rounding::upward` rounding
 mode and the `saturation::finite` saturation mode.
 
 _Target Support:_ Host and device code support only `rounding::upward` and
-`saturation::finite`.
+`rounding::toward_zero`.
 
 '''
 
@@ -1602,16 +1590,6 @@ Conversions to E8M0 using one of the non-stochastic rounding modes and with
 * Other values are rounded according to the rounding mode.
 * If the resulting value is larger in magnitude than the max normal value, it is
   converted to the max normal value while dropping the sign.
-
-==== Non-stochastic rounding modes without saturation
-
-Conversions to E8M0 using one of the non-stochastic rounding modes and with
-`saturation::none` work as follows:
-
-* NaN is converted to NaN while dropping the sign.
-* Other values are rounded according to the rounding mode.
-* If the resulting value is larger in magnitude than the max normal value, it is
-  converted to NaN while dropping the sign.
 
 ==== Integer conversions
 
