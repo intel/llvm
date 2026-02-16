@@ -3140,7 +3140,7 @@ static Constant *ConstantFoldScalarCall1(StringRef Name,
       break;
 
     case Intrinsic::wasm_anytrue:
-      return Op->isZeroValue() ? ConstantInt::get(Ty, 0)
+      return Op->isNullValue() ? ConstantInt::get(Ty, 0)
                                : ConstantInt::get(Ty, 1);
 
     case Intrinsic::wasm_alltrue:
@@ -3149,7 +3149,7 @@ static Constant *ConstantFoldScalarCall1(StringRef Name,
       for (unsigned I = 0; I != E; ++I) {
         Constant *Elt = Op->getAggregateElement(I);
         // Return false as soon as we find a non-true element.
-        if (Elt && Elt->isZeroValue())
+        if (Elt && Elt->isNullValue())
           return ConstantInt::get(Ty, 0);
         // Bail as soon as we find an element we cannot prove to be true.
         if (!Elt || !isa<ConstantInt>(Elt))
