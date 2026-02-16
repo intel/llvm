@@ -77,7 +77,7 @@ supports.
 |Initial version of this extension.
 |===
 
-=== New property - priority
+=== New queue property
 
 This extension defines the following new property that may be passed to
 the constructor of the `queue` class:
