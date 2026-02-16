@@ -9,21 +9,19 @@
 //===----------------------------------------------------------------------===//
 
 #include "enqueued_pool.hpp"
-#include "usm.hpp"
 
 #include <ur_api.h>
 
 EnqueuedPool::~EnqueuedPool() { cleanup(); }
 
-std::optional<EnqueuedPool::Allocation>
-EnqueuedPool::getBestFit(size_t Size, size_t Alignment, void *Queue) {
+std::optional<EnqueuedPool::Allocation> EnqueuedPool::getBestFit(size_t Size,
+                                                                 void *Queue) {
   auto Lock = std::lock_guard(Mutex);
 
-  Allocation Alloc = {nullptr, Size, nullptr, Queue, Alignment};
+  Allocation Alloc = {nullptr, Size, nullptr, Queue};
 
   auto It = Freelist.lower_bound(Alloc);
-  if (It != Freelist.end() && It->Size >= Size && It->Queue == Queue &&
-      It->Alignment >= Alignment) {
+  if (It != Freelist.end() && It->Size >= Size && It->Queue == Queue) {
     Allocation BestFit = *It;
     Freelist.erase(It);
 
@@ -35,7 +33,7 @@ EnqueuedPool::getBestFit(size_t Size, size_t Alignment, void *Queue) {
   Alloc.Queue = nullptr;
   It = Freelist.lower_bound(Alloc);
 
-  if (It != Freelist.end() && It->Size >= Size && It->Alignment >= Alignment) {
+  if (It != Freelist.end() && It->Size >= Size) {
     Allocation BestFit = *It;
     Freelist.erase(It);
 
@@ -49,10 +47,7 @@ void EnqueuedPool::insert(void *Ptr, size_t Size, ur_event_handle_t Event,
                           void *Queue) {
   auto Lock = std::lock_guard(Mutex);
 
-  uintptr_t Address = (uintptr_t)Ptr;
-  size_t Alignment = Address & (~Address + 1);
-
-  Freelist.emplace(Allocation{Ptr, Size, Event, Queue, Alignment});
+  Freelist.emplace(Allocation{Ptr, Size, Event, Queue});
 }
 
 bool EnqueuedPool::cleanup() {
@@ -75,7 +70,7 @@ bool EnqueuedPool::cleanup() {
 bool EnqueuedPool::cleanupForQueue(void *Queue) {
   auto Lock = std::lock_guard(Mutex);
 
-  Allocation Alloc = {nullptr, 0, nullptr, Queue, 0};
+  Allocation Alloc = {nullptr, 0, nullptr, Queue};
   // first allocation on the freelist with the specific queue
   auto It = Freelist.lower_bound(Alloc);
 

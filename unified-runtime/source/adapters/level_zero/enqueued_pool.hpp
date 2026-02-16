@@ -26,7 +26,6 @@ public:
     // This can either be a `ur_queue_handle_t` or a pointer to a v2 queue
     // object.
     void *Queue;
-    size_t Alignment;
   };
 
   using event_release_callback_t = ur_result_t (*)(ur_event_handle_t);
@@ -38,8 +37,7 @@ public:
         MemFreeFn(std::move(MemFreeFn)) {}
 
   ~EnqueuedPool();
-  std::optional<Allocation> getBestFit(size_t Size, size_t Alignment,
-                                       void *Queue);
+  std::optional<Allocation> getBestFit(size_t Size, void *Queue);
   void insert(void *Ptr, size_t Size, ur_event_handle_t Event, void *Queue);
   bool cleanup();
   bool cleanupForQueue(void *Queue);
@@ -49,9 +47,6 @@ private:
     bool operator()(const Allocation &lhs, const Allocation &rhs) const {
       if (lhs.Queue != rhs.Queue) {
         return lhs.Queue < rhs.Queue; // Compare by queue handle first
-      }
-      if (lhs.Alignment != rhs.Alignment) {
-        return lhs.Alignment < rhs.Alignment; // Then by alignment
       }
       if (lhs.Size != rhs.Size) {
         return lhs.Size < rhs.Size; // Then by size
