@@ -1179,6 +1179,13 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpNew(
     return checkResult;
   }
 
+  if (numArgs != hKernel->getCommonProperties().numKernelArgs) {
+    setErrorMessage("Wrong number of kernel arguments",
+                    UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX,
+                    static_cast<int32_t>(ZE_RESULT_ERROR_INVALID_ARGUMENT));
+    return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
+  }
+
   // It is needed in case of UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE
   // to launch the cooperative kernel.
   ZeStruct<ze_command_list_append_launch_kernel_param_cooperative_desc_t>
@@ -1221,6 +1228,13 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpNew(
   hKernel->kernelArgs.resize(numArgs, 0);
 
   for (uint32_t argIndex = 0; argIndex < numArgs; argIndex++) {
+    if (pArgs[argIndex].index != argIndex) {
+      setErrorMessage("Missing kernel argument",
+                      UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX,
+                      static_cast<int32_t>(ZE_RESULT_ERROR_INVALID_ARGUMENT));
+      return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
+    }
+
     switch (pArgs[argIndex].type) {
     case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
       hKernel->kernelArgs[argIndex] =

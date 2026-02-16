@@ -165,19 +165,18 @@ class ComputeBench(Suite):
                         kernel_exec_time,
                     )
                 )
-                if runtime in (RUNTIMES.SYCL, RUNTIMES.SYCL_PREVIEW, RUNTIMES.UR):
-                    # Create CPU count variant
-                    benches.append(
-                        SubmitKernel(
-                            self,
-                            runtime,
-                            in_order_queue,
-                            measure_completion,
-                            use_events,
-                            kernel_exec_time,
-                            profiler_type=PROFILERS.CPU_COUNTER,
-                        )
+                # Create CPU count variant
+                benches.append(
+                    SubmitKernel(
+                        self,
+                        runtime,
+                        in_order_queue,
+                        measure_completion,
+                        use_events,
+                        kernel_exec_time,
+                        profiler_type=PROFILERS.CPU_COUNTER,
                     )
+                )
 
         # Add SinKernelGraph benchmarks
         sin_kernel_graph_params = product(
