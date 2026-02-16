@@ -41,14 +41,11 @@ int runTest(sycl::queue &syclQueue) {
   VkSemaphore vkCreatedSemaphore;
 
 #ifdef TEST_TIMELINE_SEMAPHORE
-  std::cout << "Running test with timeline sempahore. \n";
   uint64_t timelineValue = 0;
   VkSemaphoreTypeCreateInfo semaphoreTypeCreateInfo = {};
   semaphoreTypeCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
   semaphoreTypeCreateInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
   semaphoreTypeCreateInfo.initialValue = timelineValue;
-#else
-  std::cout << "Running test with binary sempahore. \n";
 #endif
 
   VkExportSemaphoreCreateInfo exportSemaphoreCreateInfo = {};
@@ -258,6 +255,12 @@ int runTest(sycl::queue &syclQueue) {
 }
 
 int main() {
+
+#ifdef TEST_TIMELINE_SEMAPHORE
+  std::cout << "Running test with timeline sempahore. \n";
+#else
+  std::cout << "Running test with binary sempahore. \n";
+#endif
 
   sycl::device syclDevice;
   sycl::queue syclQueue{syclDevice,
