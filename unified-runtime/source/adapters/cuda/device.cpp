@@ -1185,7 +1185,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES: {
-    auto LaunchPropsSupport =
+    ur_kernel_launch_properties_flags_t LaunchPropsSupport =
         UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE |
         UR_KERNEL_LAUNCH_PROPERTIES_FLAG_WORK_GROUP_MEMORY;
     if (getAttribute(hDevice, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR) >=
@@ -1195,7 +1195,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
           UR_KERNEL_LAUNCH_PROPERTIES_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE;
     }
 
-    return ReturnValue(0);
+    return ReturnValue(LaunchPropsSupport);
   }
   case UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP:
     return ReturnValue(false);
