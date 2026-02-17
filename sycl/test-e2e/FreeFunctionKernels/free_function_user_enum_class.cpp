@@ -19,18 +19,18 @@ namespace at::native::xpu {
 enum class OP_MODE_SCOPED : uint8_t { INC, DEC, MUL, DIV };
 enum OP_MODE : uint8_t { INC, DEC, MUL, DIV };
 
-template <OP_MODE_SCOPED op, typename T> struct CC {
+template <OP_MODE_SCOPED op, typename T> struct TestStruct {
   OP_MODE_SCOPED _op = op;
 };
 
 template <typename T>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
-void freefunctionkernel(CC<static_cast<OP_MODE_SCOPED>(2), int> cc, T *data,
-                        size_t size) {
+void freefunctionkernel(TestStruct<static_cast<OP_MODE_SCOPED>(2), int> t,
+                        T *data, size_t size) {
   auto item = syclext::this_work_item::get_nd_item<1>();
   size_t idx = item.get_global_linear_id();
   if (idx < size) {
-    if (cc._op == OP_MODE_SCOPED::MUL)
+    if (t._op == OP_MODE_SCOPED::MUL)
       data[idx] *= 2;
   }
 }
@@ -102,23 +102,22 @@ void applyKernel(U callable, T *data, size_t size) {
 }
 
 template <auto *kptr, int dim, typename... Kargs>
-static inline void sycl_kernel_submit(::sycl::range<dim> global_range,
-                                      ::sycl::range<dim> local_range,
-                                      ::sycl::queue q, int slm_sz,
-                                      Kargs... args) {
+static inline void
+sycl_kernel_submit(sycl::range<dim> global_range, sycl::range<dim> local_range,
+                   sycl::queue q, int slm_sz, Kargs... args) {
   sycl::context ctxt = q.get_context();
   auto exe_bndl =
       syclexp::get_kernel_bundle<kptr, sycl::bundle_state::executable>(ctxt);
   sycl::kernel ker = exe_bndl.template ext_oneapi_get_kernel<kptr>();
   if (slm_sz != 0) {
     syclexp::launch_config cfg{
-        ::sycl::nd_range<dim>(::sycl::range<dim>(global_range),
-                              ::sycl::range<dim>(local_range)),
+        sycl::nd_range<dim>(sycl::range<dim>(global_range),
+                            sycl::range<dim>(local_range)),
         syclexp::properties{syclexp::work_group_scratch_size(slm_sz)}};
     syclexp::nd_launch(q, cfg, ker, args...);
   } else {
-    syclexp::launch_config cfg{::sycl::nd_range<dim>(
-        ::sycl::range<dim>(global_range), ::sycl::range<dim>(local_range))};
+    syclexp::launch_config cfg{sycl::nd_range<dim>(
+        sycl::range<dim>(global_range), sycl::range<dim>(local_range))};
     syclexp::nd_launch(q, cfg, ker, args...);
   }
 }
@@ -171,9 +170,9 @@ template <typename T>
 void apply_op_scoped_cast2(sycl::queue &q, int *data, size_t size,
                            size_t global_size) {
   constexpr auto kernel = freefunctionkernel<int>;
-  CC<static_cast<OP_MODE_SCOPED>(2), int> cc;
+  TestStruct<static_cast<OP_MODE_SCOPED>(2), int> t;
   sycl_kernel_submit<kernel>(sycl::range<1>(global_size), sycl::range<1>(1), q,
-                             0, cc, data, size);
+                             0, t, data, size);
 }
 
 template <typename T>
