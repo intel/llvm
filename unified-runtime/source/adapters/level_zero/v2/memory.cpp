@@ -148,10 +148,9 @@ void *ur_integrated_buffer_handle_t::mapHostPtr(
 
     if (flags & UR_MAP_FLAG_READ) {
       // Use Level Zero copy for USM HOST memory to ensure GPU visibility
-       ZE_CALL_NOCHECK(zeCommandListAppendMemoryCopy,
-             (cmdList, mappedPtr,
-                                       ur_cast<char *>(ptr.get()) + offset,
-                                       mapSize, nullptr, 0, nullptr));
+      ZE_CALL_NOCHECK(zeCommandListAppendMemoryCopy,
+                      (cmdList, mappedPtr, ur_cast<char *>(ptr.get()) + offset,
+                       mapSize, nullptr, 0, nullptr));
     }
 
     // Track this mapping for unmap
@@ -184,9 +183,10 @@ void ur_integrated_buffer_handle_t::unmapHostPtr(
     if (mappedRegion->flags &
         (UR_MAP_FLAG_WRITE | UR_MAP_FLAG_WRITE_INVALIDATE_REGION)) {
       // Use Level Zero copy for USM HOST memory to ensure GPU visibility
-      ZE_CALL_NOCHECK(zeCommandListAppendMemoryCopy,
-             (cmdList, ur_cast<char *>(ptr.get()) + mappedRegion->offset,
-          mappedRegion->ptr.get(), mappedRegion->size, nullptr, 0, nullptr));
+      ZE_CALL_NOCHECK(
+          zeCommandListAppendMemoryCopy,
+          (cmdList, ur_cast<char *>(ptr.get()) + mappedRegion->offset,
+           mappedRegion->ptr.get(), mappedRegion->size, nullptr, 0, nullptr));
     }
 
     mappedRegions.erase(mappedRegion);
