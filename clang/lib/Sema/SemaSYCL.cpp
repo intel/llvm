@@ -6929,38 +6929,6 @@ public:
   /// \param ParmList The parameter list of the function.
   void printFreeFunctionShim(const FunctionDecl *FD, const unsigned ShimCounter,
                              const std::string &ParmList) {
-    // If a free function kernel is a template, where a template parameter is a
-    // class template instantiation, then we need to forward declare this type
-    // before __sycl_shim.
-    if (FD->getPrimaryTemplate()) {
-      auto TAL = FD->getTemplateSpecializationArgs();
-      for (unsigned i = 0; i < TAL->size(); ++i) {
-        auto arg = TAL->get(i);
-        if (arg.getKind() != clang::TemplateArgument::Type)
-          continue;
-        clang::QualType QT = arg.getAsType().getCanonicalType();
-        auto RT = QT->getAs<clang::RecordType>();
-        if (!RT)
-          continue;
-        const clang::RecordDecl *RD = RT->getDecl();
-        if (RD && RD->isStruct()) {
-          const clang::TagType *TT = QT->getAs<clang::TagType>();
-          if (!TT) {
-            return;
-          };
-          const clang::TagDecl *TD = TT->getDecl()->getFirstDecl();
-          if (!TD) {
-            return;
-          }
-          if (auto *CTD = llvm::dyn_cast<clang::ClassTemplateSpecializationDecl>(TD))
-            if (auto *CTpl = CTD->getSpecializedTemplate())
-              CTpl->getTemplateParameters()->print(O, Context, false);
-
-          O << TD->getKindName() << " " << TD->getName() << ";\n";
-        }
-      }
-    }
-
     // Generate a shim function that returns the address of the free function.
     O << "static constexpr auto __sycl_shim" << ShimCounter << "() {\n";
     O << "  return (void (*)(" << ParmList << "))";
@@ -7404,7 +7372,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
   unsigned ShimCounter = 1;
   int FreeFunctionCount = 0;
-  // Structs with special types inside needs some special code generation in the
+  // Structs with special types inside need some special code generation in the
   // header and we keep this visited map to not have duplicates in case several
   // free function kernels use the same struct type as parameters.
   llvm::DenseMap<const RecordDecl *, bool> visitedStructWithSpecialType;
@@ -7420,6 +7388,12 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     Policy.SuppressDefaultTemplateArgs = false;
     FwdDeclEmitter.Visit(K.SyclKernel->getType());
     O << "\n";
+    // Forward declare template arguments as well.
+    if (const TemplateArgumentList* TAL = K.SyclKernel->getTemplateSpecializationArgs()) {
+      for (const TemplateArgument& TA : TAL->asArray()) {
+        FwdDeclEmitter.Visit(TA);
+      }
+    }
 
     if (K.SyclKernel->getLanguageLinkage() == CLanguageLinkage)
       O << "extern \"C\" ";

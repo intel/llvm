@@ -42,6 +42,11 @@ template <typename T>
 templated(ns::Arg<T, float, 3>, T end) {
 }
 
+template <typename scalar_t, typename F>
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]] void
+templated(scalar_t *) {
+}
+
 template void templated(ns::Arg<int, float, 3>, int);
 
 using namespace ns;
@@ -120,6 +125,10 @@ template void templated(float start, float end);
 struct TestStruct {
   int a;
   float b;
+};
+
+template <typename T> struct templatedTestStruct {
+  T val;
 };
 
 template void templated(ns::Arg<TestStruct, float, 3>, TestStruct);
@@ -203,6 +212,7 @@ namespace Testing::Tests {
   template void variadic_templated(int, int, int, int);
 }
 
+template void templated<float, templatedTestStruct<float>>(float *);
 
 // CHECK: namespace sycl {
 // CHECK-NEXT:  inline namespace _V1 {
@@ -238,6 +248,7 @@ namespace Testing::Tests {
 // CHECK-NEXT:    "_Z33__sycl_kernel_variadic_templated1IiJfcEEvT_DpT0_",
 // CHECK-NEXT:    "_ZN21__sycl_kernel_Testing5Tests18variadic_templatedIfJfEEEvT_DpT0_", 
 // CHECK-NEXT:    "_ZN21__sycl_kernel_Testing5Tests18variadic_templatedIiJiiiEEEvT_DpT0_", 
+// CHECK-NEXT:    "_Z23__sycl_kernel_templatedIf19templatedTestStructIfEEvPT_",
 // CHECK-NEXT:    "",
 // CHECK-NEXT:  };
 
@@ -1085,15 +1096,21 @@ namespace Testing::Tests {
 // CHECK-NEXT:  };
 // CHECK-NEXT:  }
 
+// CHECK: template <typename T> struct templatedTestStruct;
+// CHECK-NEXT: template <typename scalar_t, typename F> void templated(scalar_t *);
+// CHECK-NEXT: static constexpr auto __sycl_shim29() {
+// CHECK-NEXT:   return (void (*)(float *))templated<float, struct templatedTestStruct<float>>;
+// CHECK-NEXT: }
+
 // CHECK: #include <sycl/kernel_bundle.hpp>
 // CHECK-NEXT: #include <sycl/detail/kernel_global_info.hpp>
 // CHECK-NEXT: namespace {
 // CHECK-NEXT: struct GlobalMapUpdater {
 // CHECK-NEXT:   GlobalMapUpdater() {
-// CHECK-NEXT:     sycl::detail::free_function_info_map::add(sycl::detail::kernel_names, sycl::detail::kernel_args_sizes, 28);
+// CHECK-NEXT:     sycl::detail::free_function_info_map::add(sycl::detail::kernel_names, sycl::detail::kernel_args_sizes, 29);
 // CHECK-NEXT:   }
 // CHECK-NEXT:   ~GlobalMapUpdater() {
-// CHECK-NEXT:     sycl::detail::free_function_info_map::remove(sycl::detail::kernel_names, sycl::detail::kernel_args_sizes, 28);
+// CHECK-NEXT:     sycl::detail::free_function_info_map::remove(sycl::detail::kernel_names, sycl::detail::kernel_args_sizes, 29);
 // CHECK-NEXT:   }
 // CHECK-NEXT: };
 // CHECK-NEXT: static GlobalMapUpdater updater;
