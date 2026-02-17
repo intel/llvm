@@ -19,6 +19,24 @@ namespace at::native::xpu {
 enum class OP_MODE_SCOPED : uint8_t { INC, DEC, MUL, DIV };
 enum OP_MODE : uint8_t { INC, DEC, MUL, DIV };
 
+
+
+template <OP_MODE_SCOPED op, typename T> struct CC{
+  OP_MODE_SCOPED _op = op;
+};
+
+template <typename T>
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+void freefunctionkernel(CC<static_cast<OP_MODE_SCOPED>(2), int> cc, T *data,
+                        size_t size) {
+  auto item = syclext::this_work_item::get_nd_item<1>();
+  size_t idx = item.get_global_linear_id();
+  if (idx < size) {
+    if (cc._op == OP_MODE_SCOPED::MUL)
+      data[idx] *= 2;
+  }
+}
+
 template <typename T, ADAM_MODE adam_mode, int SIMD> struct LpMaxFunctor {
   void operator()(sycl::nd_item<1> item, T *data, size_t size) {
     size_t idx = item.get_global_linear_id();
@@ -53,6 +71,8 @@ template <typename T, OP_MODE_SCOPED op_mode> struct OpSFunctor {
         data[idx] *= 2;
       else if constexpr (op_mode == OP_MODE_SCOPED::DIV)
         data[idx] /= 2;
+      else
+        data[idx] = -1; // Invalid operation, set to -1 for testing
     }
   }
 };
@@ -112,6 +132,33 @@ void apply_op(sycl::queue &q, T callable, int *data, size_t size,
                              0, callable, data, size);
 }
 
+template <typename T>
+void apply_op_scoped_cast(sycl::queue &q, T callable, int *data, size_t size,
+                     size_t global_size) {
+  constexpr auto kernel =
+      applyKernel<OpSFunctor<int, static_cast<OP_MODE_SCOPED>(2)>, int>;
+  sycl_kernel_submit<kernel>(sycl::range<1>(global_size), sycl::range<1>(1), q,
+                             0, callable, data, size);
+}
+
+template <typename T>
+void apply_op_scoped_cast1(sycl::queue &q, T callable, int *data, size_t size,
+                     size_t global_size) {
+  constexpr auto kernel =
+      applyKernel<OpSFunctor<int, static_cast<OP_MODE_SCOPED>(32)>, int>;
+  sycl_kernel_submit<kernel>(sycl::range<1>(global_size), sycl::range<1>(1), q,
+                             0, callable, data, size);
+}
+
+template <typename T>
+void apply_op_scoped_cast2(sycl::queue &q, int *data, size_t size,
+                           size_t global_size) {
+  constexpr auto kernel = freefunctionkernel<int>;
+  CC<static_cast<OP_MODE_SCOPED>(2), int> cc;
+  sycl_kernel_submit<kernel>(sycl::range<1>(global_size), sycl::range<1>(1), q,
+                             0, cc, data, size);
+}
+
 } // namespace at::native::xpu
 
 int main() {
@@ -149,6 +196,36 @@ int main() {
 
   for (size_t i = 0; i < N; ++i) {
     assert(data[i] == (i - 1) && "DEC operation failed");
+    data[i] = i;
+  }
+
+  at::native::xpu::OpSFunctor<int,
+                              static_cast<at::native::xpu::OP_MODE_SCOPED>(2)>
+      subKernelOpSCast;
+  apply_op_scoped_cast(q, subKernelOpSCast, data, N, N);
+  q.wait_and_throw();
+
+  for (size_t i = 0; i < N; ++i) {
+    assert(data[i] == i * 2 && "MUL operation with casted enum failed");
+    data[i] = i;
+  }
+
+    at::native::xpu::OpSFunctor<int,
+                              static_cast<at::native::xpu::OP_MODE_SCOPED>(32)>
+      subKernelOpSCast1;
+  apply_op_scoped_cast1(q, subKernelOpSCast1, data, N, N);
+  q.wait_and_throw();
+
+  for (size_t i = 0; i < N; ++i) {
+    assert(data[i] == -1 && "MUL operation with casted enum failed");
+    data[i] = i;
+  }
+
+  at::native::xpu::apply_op_scoped_cast2<int>(q, data, N, N);
+  q.wait_and_throw();
+
+  for (size_t i = 0; i < N; ++i) {
+    assert(data[i] == i * 2 && "MUL operation via free function kernel failed");
     data[i] = i;
   }
 

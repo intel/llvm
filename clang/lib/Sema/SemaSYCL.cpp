@@ -6648,6 +6648,10 @@ static void PrintNSClosingBraces(raw_ostream &OS, const DeclContext *DC) {
 ///
 /// Moral of the story: drop integration header ASAP (but that is blocked
 /// by support for 3rd-party host compilers, which is important).
+static std::string stringifyTypeWithEnumValues(QualType T,
+                         PrintingPolicy &Policy,
+                         ASTContext &Ctx);
+
 class FreeFunctionTemplateKernelArgsPrinter
     : public ConstTemplateArgumentVisitor<FreeFunctionTemplateKernelArgsPrinter,
                                           void, ArrayRef<TemplateArgument>> {
@@ -6683,6 +6687,18 @@ class FreeFunctionTemplateKernelArgsPrinter
     DesugarTemplateArgument(Arg).print(Policy, O, /*IncludeType=*/false);
   }
 
+  void printEnumValue(QualType EnumTy, const llvm::APSInt &Val) {
+    O << "static_cast<";
+    if (const auto *ET = EnumTy->getAs<EnumType>())
+      ET->getOriginalDecl()->printQualifiedName(O, Policy,
+                                                /*WithGlobalNsPrefix=*/false);
+    else
+      EnumTy.print(O, Policy);
+    llvm::SmallString<8> Num;
+    Val.toString(Num, /*Radix=*/10, /*Signed=*/Val.isSigned());
+    O << ">(" << Num << ")";
+  }
+
 public:
   FreeFunctionTemplateKernelArgsPrinter(raw_ostream &O, PrintingPolicy &Policy,
                                         ASTContext &Context)
@@ -6711,7 +6727,8 @@ public:
     const auto *TST = dyn_cast<TemplateSpecializationType>(T.getTypePtr());
     const auto *CTST = dyn_cast<TemplateSpecializationType>(CT.getTypePtr());
     if (!TST || !CTST) {
-      O << T.getDesugaredType(Context).getAsString(Policy);
+      O << stringifyTypeWithEnumValues(T.getDesugaredType(Context), Policy,
+                                       Context);
       return;
     }
 
@@ -6814,11 +6831,17 @@ public:
 
   void VisitIntegralTemplateArgument(const TemplateArgument &Arg,
                                      ArrayRef<TemplateArgument>) {
+    QualType T = Arg.getIntegralType();
+    if (T->isEnumeralType())
+      return printEnumValue(T, Arg.getAsIntegral());
     PrintDesugared(Arg);
   }
 
   void VisitStructuralValueTemplateArgument(const TemplateArgument &Arg,
                                             ArrayRef<TemplateArgument>) {
+    QualType T = Arg.getIntegralType();
+    if (T->isEnumeralType())
+      return printEnumValue(T, Arg.getAsIntegral());
     PrintDesugared(Arg);
   }
 
@@ -6837,22 +6860,23 @@ public:
     Expr *E = Arg.getAsExpr();
     assert(E && "Failed to get an Expr for an Expression template arg?");
 
-    if (Arg.isInstantiationDependent() ||
-        E->getType()->isScopedEnumeralType()) {
-      // Scoped enumerations can't be implicitly cast from integers, so
-      // we don't need to evaluate them.
-      // If expression is instantiation-dependent, then we can't evaluate it
-      // either, let's fallback to default printing mechanism.
+    if (Arg.isInstantiationDependent()) {
       PrintDesugared(Arg);
       return;
     }
 
+    if (E->getType()->isEnumeralType()) {
+      Expr::EvalResult Res;
+      if (E->EvaluateAsConstantExpr(Res, Context) && !Res.Val.isAbsent() &&
+          Res.Val.isInt())
+        return printEnumValue(E->getType(), Res.Val.getInt());
+    }
+
     Expr::EvalResult Res;
-    [[maybe_unused]] bool Success =
-        Arg.getAsExpr()->EvaluateAsConstantExpr(Res, Context);
+    [[maybe_unused]] bool Success = E->EvaluateAsConstantExpr(Res, Context);
     assert(Success && "invalid non-type template argument?");
     assert(!Res.Val.isAbsent() && "couldn't read the evaulation result?");
-    Res.Val.printPretty(O, Policy, Arg.getAsExpr()->getType(), &Context);
+    Res.Val.printPretty(O, Policy, E->getType(), &Context);
   }
 
   void VisitPackTemplateArgument(const TemplateArgument &Arg,
@@ -6891,12 +6915,10 @@ class EnumValueTemplateArgPrinter
   }
 
   void printTypeWithEnumValues(QualType T) {
-    if (T.isNull())
-      return;
+    QualType DT = T.getDesugaredType(Ctx);
 
-    const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
-    if (const auto *CTSD =
-            dyn_cast_or_null<ClassTemplateSpecializationDecl>(RD)) {
+    if (const auto *CTSD = dyn_cast_or_null<ClassTemplateSpecializationDecl>(
+            DT->getAsCXXRecordDecl())) {
       if (!Policy.SuppressTagKeyword)
         OS << CTSD->getKindName() << " ";
       CTSD->printQualifiedName(OS, Policy,
@@ -6907,15 +6929,13 @@ class EnumValueTemplateArgPrinter
       return;
     }
 
-    QualType DT = T.getDesugaredType(Ctx);
     if (const auto *TST = DT->getAs<TemplateSpecializationType>()) {
       if (const auto *RT = TST->getAs<RecordType>()) {
         if (!Policy.SuppressTagKeyword)
           OS << RT->getDecl()->getKindName() << " ";
       }
 
-      TemplateDecl *TD = TST->getTemplateName().getAsTemplateDecl();
-      if (TD)
+      if (TemplateDecl *TD = TST->getTemplateName().getAsTemplateDecl())
         TD->printQualifiedName(OS, Policy,
                                /*WithGlobalNsPrefix=*/false);
       else
@@ -6960,6 +6980,15 @@ public:
       Arg.print(Policy, OS, /*IncludeType=*/false);
       return;
     }
+
+    if (E->getType()->isEnumeralType()) {
+      Expr::EvalResult Res;
+      if (E->EvaluateAsConstantExpr(Res, Ctx) && !Res.Val.isAbsent() &&
+          Res.Val.isInt()) {
+        return printEnumValue(E->getType(), Res.Val.getInt());
+      }
+    }
+
     E = E->IgnoreParenImpCasts();
     const EnumConstantDecl *ECD = nullptr;
     if (const auto *DRE = dyn_cast<DeclRefExpr>(E))
