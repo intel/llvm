@@ -35,9 +35,6 @@
 //              zeMemAllocShared = 0     \--->                     zeMemFree = 0
 //
 // clang-format on
-//
-// NOTE: The 1000 value below is to be larger than the "128" heuristic in
-// queue_impl::addSharedEvent.
 
 #include <sycl/detail/core.hpp>
 
