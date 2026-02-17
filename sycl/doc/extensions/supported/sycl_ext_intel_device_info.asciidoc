@@ -32,6 +32,19 @@ To report problems with this extension, please open a new issue at:
 
 https://github.com/intel/llvm/issues
 
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 11 specification.
+All references below to the "core SYCL specification" or to section numbers in
+the SYCL specification refer to that revision.
+
+== Status
+
+This extension is implemented and fully supported by DPC++.
+
+== Overview
+
+This extension allows to query device specific information.
 
 == Specification
 
@@ -108,7 +121,7 @@ The DPC++ default behavior would be to expose the UUIDs of all supported
 devices which enables detection of total number of unique devices.
 
 
-=== Version
+==== Version
 
 The extension supports this query in version 2 and later.
 
