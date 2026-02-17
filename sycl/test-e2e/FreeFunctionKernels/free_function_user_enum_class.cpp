@@ -19,9 +19,7 @@ namespace at::native::xpu {
 enum class OP_MODE_SCOPED : uint8_t { INC, DEC, MUL, DIV };
 enum OP_MODE : uint8_t { INC, DEC, MUL, DIV };
 
-
-
-template <OP_MODE_SCOPED op, typename T> struct CC{
+template <OP_MODE_SCOPED op, typename T> struct CC {
   OP_MODE_SCOPED _op = op;
 };
 
@@ -34,6 +32,25 @@ void freefunctionkernel(CC<static_cast<OP_MODE_SCOPED>(2), int> cc, T *data,
   if (idx < size) {
     if (cc._op == OP_MODE_SCOPED::MUL)
       data[idx] *= 2;
+  }
+}
+
+template <typename T>
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+void freefunctionkernel_enum(T *data, size_t size, OP_MODE_SCOPED op) {
+  auto item = syclext::this_work_item::get_nd_item<1>();
+  size_t idx = item.get_global_linear_id();
+  if (idx < size) {
+    if (op == OP_MODE_SCOPED::INC)
+      data[idx]++;
+    else if (op == OP_MODE_SCOPED::DEC)
+      data[idx]--;
+    else if (op == OP_MODE_SCOPED::MUL)
+      data[idx] *= 2;
+    else if (op == OP_MODE_SCOPED::DIV)
+      data[idx] /= 2;
+    else
+      data[idx] = -1;
   }
 }
 
@@ -134,7 +151,7 @@ void apply_op(sycl::queue &q, T callable, int *data, size_t size,
 
 template <typename T>
 void apply_op_scoped_cast(sycl::queue &q, T callable, int *data, size_t size,
-                     size_t global_size) {
+                          size_t global_size) {
   constexpr auto kernel =
       applyKernel<OpSFunctor<int, static_cast<OP_MODE_SCOPED>(2)>, int>;
   sycl_kernel_submit<kernel>(sycl::range<1>(global_size), sycl::range<1>(1), q,
@@ -143,7 +160,7 @@ void apply_op_scoped_cast(sycl::queue &q, T callable, int *data, size_t size,
 
 template <typename T>
 void apply_op_scoped_cast1(sycl::queue &q, T callable, int *data, size_t size,
-                     size_t global_size) {
+                           size_t global_size) {
   constexpr auto kernel =
       applyKernel<OpSFunctor<int, static_cast<OP_MODE_SCOPED>(32)>, int>;
   sycl_kernel_submit<kernel>(sycl::range<1>(global_size), sycl::range<1>(1), q,
@@ -157,6 +174,14 @@ void apply_op_scoped_cast2(sycl::queue &q, int *data, size_t size,
   CC<static_cast<OP_MODE_SCOPED>(2), int> cc;
   sycl_kernel_submit<kernel>(sycl::range<1>(global_size), sycl::range<1>(1), q,
                              0, cc, data, size);
+}
+
+template <typename T>
+void apply_op_scoped_enum_named(sycl::queue &q, OP_MODE_SCOPED op, int *data,
+                                size_t size, size_t global_size) {
+  constexpr auto kernel = freefunctionkernel_enum<int>;
+  sycl_kernel_submit<kernel>(sycl::range<1>(global_size), sycl::range<1>(1), q,
+                             0, data, size, op);
 }
 
 } // namespace at::native::xpu
@@ -210,7 +235,7 @@ int main() {
     data[i] = i;
   }
 
-    at::native::xpu::OpSFunctor<int,
+  at::native::xpu::OpSFunctor<int,
                               static_cast<at::native::xpu::OP_MODE_SCOPED>(32)>
       subKernelOpSCast1;
   apply_op_scoped_cast1(q, subKernelOpSCast1, data, N, N);
@@ -226,6 +251,26 @@ int main() {
 
   for (size_t i = 0; i < N; ++i) {
     assert(data[i] == i * 2 && "MUL operation via free function kernel failed");
+    data[i] = i;
+  }
+
+  at::native::xpu::apply_op_scoped_enum_named<int>(
+      q, at::native::xpu::OP_MODE_SCOPED::DEC, data, N, N);
+  q.wait_and_throw();
+
+  for (size_t i = 0; i < N; ++i) {
+    assert(data[i] == (i - 1) &&
+           "Named enum value via free function kernel failed");
+    data[i] = i;
+  }
+
+  at::native::xpu::apply_op_scoped_enum_named<int>(
+      q, static_cast<at::native::xpu::OP_MODE_SCOPED>(2), data, N, N);
+  q.wait_and_throw();
+
+  for (size_t i = 0; i < N; ++i) {
+    assert(data[i] == i * 2 &&
+           "Casted enum value via free function kernel failed");
     data[i] = i;
   }
 
