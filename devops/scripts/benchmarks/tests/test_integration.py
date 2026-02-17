@@ -20,9 +20,7 @@ VERBOSE_LOGS = False
 
 DataJson = namedtuple("DataJson", ["runs", "metadata", "tags", "names"])
 DataJsonRun = namedtuple("DataJsonRun", ["name", "results"])
-DataJsonResult = namedtuple(
-    "DataJsonResult", ["name", "label", "suite", "value", "unit"]
-)
+DataJsonResult = namedtuple("DataJsonResult", ["label", "suite", "value", "unit"])
 DataJsonMetatdata = namedtuple(
     "DataJsonMetatdata",
     [
@@ -112,7 +110,6 @@ class App:
                         name=run["name"],
                         results=[
                             DataJsonResult(
-                                name=r["name"],
                                 label=r["label"],
                                 suite=r["suite"],
                                 value=r["value"],
@@ -167,7 +164,7 @@ class TestE2E(unittest.TestCase):
         self.assertEqual(groupMetadata.type, "group")
 
     def _checkResultsExist(self, caseName: str, out: DataJson):
-        self.assertIn(caseName, [r.name for r in out.runs[0].results])
+        self.assertIn(caseName, [r.label for r in out.runs[0].results])
 
     def _checkExistsInProcessOutput(
         self, proc: subprocess.CompletedProcess, expected: str

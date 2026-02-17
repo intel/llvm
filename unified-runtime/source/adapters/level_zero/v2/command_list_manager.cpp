@@ -1174,16 +1174,16 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpNew(
     const ur_kernel_launch_ext_properties_t *launchPropList,
     wait_list_view &waitListView, ur_event_handle_t phEvent) {
 
+  ur_result_t checkResult = kernelLaunchChecks(hKernel, workDim);
+  if (checkResult != UR_RESULT_SUCCESS) {
+    return checkResult;
+  }
+
   if (numArgs != hKernel->getCommonProperties().numKernelArgs) {
     setErrorMessage("Wrong number of kernel arguments",
                     UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX,
                     static_cast<int32_t>(ZE_RESULT_ERROR_INVALID_ARGUMENT));
     return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
-  }
-
-  ur_result_t checkResult = kernelLaunchChecks(hKernel, workDim);
-  if (checkResult != UR_RESULT_SUCCESS) {
-    return checkResult;
   }
 
   // It is needed in case of UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE

@@ -40,7 +40,7 @@ https://github.com/intel/llvm/issues
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 10 specification.
+This extension is written against the SYCL 2020 revision 11 specification.
 All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
@@ -194,13 +194,8 @@ The following table provides the special values of the E2M1 type.
 
 This extension adds the `fp4_e2m1` type, which represents a set of packed E2M1
 values and provides various conversions to other types.
-The number of packed elements is defined by the `N` template parameter.
-
-[_Note:_ Although the `fp4_e2m1` type can be instantiated with any value of `N`,
-most operations on `fp4_e2m1` support only certain values of `N` according to
-the target device architecture.
-See the _Target Support_ clauses in the descriptions below for more details.
-_{endnote}_]
+The number of packed elements is defined by the `N` template parameter, which
+must be either 1 or 2.
 
 [source,c++]
 ----
@@ -381,13 +376,6 @@ _Effects:_ Initializes each element of this `fp4_e2m1` object from the
 corresponding value in the `vals` pack.
 Each value is converted using the `rounding::to_even` rounding mode.
 
-_Target Support:_ The number of elements in this `fp4_e2m1` (the `N` template
-parameter) has the following restrictions:
-
-* Host code supports all values of `N`.
-* Device code compiled for Intel Xe3p (CRI) supports only the
-  following `N` values: 1, 2, 3, 4, 8, 16.
-
 '''
 
 [source,c++]
@@ -410,13 +398,6 @@ _Target Support:_ The rounding mode `r` has the following restrictions:
 * Device code compiled for Intel Xe3p (CRI) supports only
   `rounding::to_even`.
 
-The number of elements in this `fp4_e2m1` (the `N` template parameter) has the
-following restrictions:
-
-* Host code supports all values of `N`.
-* Device code compiled for Intel Xe3p (CRI) supports only the
-  following `N` values: 1, 2, 3, 4, 8, 16.
-
 '''
 
 [source,c++]
@@ -438,13 +419,6 @@ _Target Support:_ The rounding mode `r` has the following restrictions:
 * Host code supports only `rounding::to_even`.
 * Device code compiled for Intel Xe3p (CRI) supports only
   `rounding::to_even`.
-
-The number of elements in this `fp4_e2m1` (the `N` template parameter) has the
-following restrictions:
-
-* Host code supports all values of `N`.
-* Device code compiled for Intel Xe3p (CRI) supports only the
-  following `N` values: 1, 2, 3, 4, 8, 16.
 
 '''
 
@@ -471,12 +445,6 @@ They are only supported in device code as follows:
 * Device code compiled for Intel Xe3p (CRI) supports these
   functions.
 
-The number of elements in this `fp4_e2m1` (the `N` template parameter) has the
-following restrictions:
-
-* Device code compiled for Intel Xe3p (CRI) supports only the
-  following `N` values: 1, 2, 3, 4, 8, 16.
-
 '''
 
 [source,c++]
@@ -501,12 +469,6 @@ They are only supported in device code as follows:
 
 * Device code compiled for Intel Xe3p (CRI) supports these
   functions.
-
-The number of elements in this `fp4_e2m1` (the `N` template parameter) has the
-following restrictions:
-
-* Device code compiled for Intel Xe3p (CRI) supports only the
-  following `N` values: 1, 2, 3, 4, 8, 16.
 
 '''
 
@@ -619,13 +581,6 @@ explicit operator marray<float,N>() const;     (3)
 _Returns:_ The values of this `fp4_e2m1` object are converted to an `marray` of
 `half`, `ext::oneapi::bfloat16`, or `float`.
 
-_Target Support:_ The number of elements in this `fp4_e2m1` (the `N` template
-parameter) has the following restrictions:
-
-* Host code supports all values of `N`.
-* Device code compiled for Intel Xe3p (CRI) supports only the
-  following `N` values: 1, 2, 3, 4, 8, 16.
-
 [_Note:_ These conversions are exact, so there is no rounding mode.
 _{endnote}_]
 
@@ -641,7 +596,7 @@ uint8_t vals[(N+1)/2];
 Provides direct access to the storage of the E2M1 values in this `fp4_e2m1`
 object.
 Element 0 is in the low 4 bits of `vals[0]`.
-Element 1 (if it exists) is in the high 4 bits of `vals[0]`, etc.
+Element 1 (if it exists) is in the high 4 bits of `vals[0]`.
 
 ==== Deduction guide
 
