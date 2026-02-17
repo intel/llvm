@@ -6649,8 +6649,8 @@ static void PrintNSClosingBraces(raw_ostream &OS, const DeclContext *DC) {
 /// Moral of the story: drop integration header ASAP (but that is blocked
 /// by support for 3rd-party host compilers, which is important).
 static std::string stringifyTypeWithEnumValues(QualType T,
-                         PrintingPolicy &Policy,
-                         ASTContext &Ctx);
+                                               PrintingPolicy &Policy,
+                                               ASTContext &Ctx);
 
 class FreeFunctionTemplateKernelArgsPrinter
     : public ConstTemplateArgumentVisitor<FreeFunctionTemplateKernelArgsPrinter,
