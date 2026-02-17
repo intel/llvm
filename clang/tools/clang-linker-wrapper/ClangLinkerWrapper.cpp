@@ -749,9 +749,9 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args,
       Arch != "*") {
     SmallVector<StringRef, 8> ArchList;
     Arch.split(ArchList, ',');
+    std::string ArchString;
     for (StringRef SingleArch : ArchList) {
       // Handle cases where arch name contains a version, such as "bmg-g21"
-      std::string ArchString;
       std::string arch = SingleArch.str();
       std::replace(arch.begin(), arch.end(), '-', '_');
       ArchString += "intel_gpu_" + arch + ",";
