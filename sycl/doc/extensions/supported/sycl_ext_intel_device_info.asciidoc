@@ -1,4 +1,4 @@
-= ext_intel_device_info
+= sycl_ext_intel_device_info
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
