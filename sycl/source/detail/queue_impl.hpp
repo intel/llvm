@@ -1002,13 +1002,6 @@ protected:
   // destroyed
   void destructorNotification();
 
-  /// queue_impl.addEvent tracks events with weak pointers
-  /// but some events have no other owners. addSharedEvent()
-  /// follows events with a shared pointer.
-  ///
-  /// \param Event is the event to be stored
-  void addSharedEvent(const event &Event);
-
   /// Stores an event that should be associated with the queue
   ///
   /// \param EventImpl is the event to be stored
