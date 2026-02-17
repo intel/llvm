@@ -7389,7 +7389,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     FwdDeclEmitter.Visit(K.SyclKernel->getType());
     O << "\n";
     // Forward declare template arguments as well.
-    if (const TemplateArgumentList* TAL = K.SyclKernel->getTemplateSpecializationArgs()) {
+    if (const TemplateArgumentList* TAL =
+            K.SyclKernel->getTemplateSpecializationArgs()) {
       for (const TemplateArgument& TA : TAL->asArray()) {
         FwdDeclEmitter.Visit(TA);
       }
