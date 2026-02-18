@@ -10,7 +10,7 @@
    (and more complete coveraage) than SFINAE based approach.
 
     IF a particular variant is having problems on some platform, please do NOT
-   just disable the whole test, instead use   RUN-IF: (SOMETHING) yadda-yadda
+   just disable the whole test, instead use   RUN~IF (SOMETHING) yadda-yadda
     to enable/disable that variant.
 
     For semaphore testing, we run just a sampling. Note, that on Linux if there
