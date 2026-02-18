@@ -117,14 +117,16 @@ class Benchmark(ABC):
         self,
         command,
         env_vars,
-        ld_library=[],
+        ld_library=None,
         add_sycl=True,
         use_stdout=True,
         run_trace: TracingType = TracingType.NONE,
         extra_trace_opt=None,
         force_trace: bool = False,
     ):
-        env_vars = env_vars.copy()
+        env_vars = dict(env_vars) if env_vars else {}
+        if ld_library is None:
+            ld_library = []
         if options.ur is not None:
             env_vars.update(
                 {"UR_ADAPTERS_FORCE_LOAD": Benchmark.get_adapter_full_path()}

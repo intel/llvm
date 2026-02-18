@@ -34,14 +34,21 @@ def sanitize_filename(name: str) -> str:
 
 def run(
     command,
-    env_vars={},
+    env_vars=None,
     cwd=None,
     add_sycl=False,
-    ld_library=[],
+    ld_library=None,
     timeout=None,
     input=None,
 ):
     try:
+        if env_vars is None:
+            env_vars = {}
+        else:
+            env_vars = dict(env_vars)
+        if ld_library is None:
+            ld_library = []
+
         if timeout is None:
             timeout = options.timeout
 
@@ -82,15 +89,12 @@ def run(
             sycl_bin_path = os.path.join(options.sycl, "bin")
             sycl_lib_path = os.path.join(options.sycl, "lib")
 
-            # add them only if not already added
-            if sycl_bin_path not in env_vars.get("PATH", ""):
-                env_vars["PATH"] = os.pathsep.join(
-                    filter(None, [sycl_bin_path, env_vars.get("PATH", "")])
-                )
-            if sycl_lib_path not in env_vars.get("LD_LIBRARY_PATH", ""):
-                env_vars["LD_LIBRARY_PATH"] = os.pathsep.join(
-                    filter(None, [sycl_lib_path, env_vars.get("LD_LIBRARY_PATH", "")])
-                )
+            env_vars["PATH"] = os.pathsep.join(
+                filter(None, [sycl_bin_path, env_vars.get("PATH", "")])
+            )
+            env_vars["LD_LIBRARY_PATH"] = os.pathsep.join(
+                filter(None, [sycl_lib_path, env_vars.get("LD_LIBRARY_PATH", "")])
+            )
 
         command_str = " ".join(command)
         env_str = " ".join(f"{key}={value}" for key, value in env_vars.items())
