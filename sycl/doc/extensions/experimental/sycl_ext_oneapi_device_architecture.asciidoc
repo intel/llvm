@@ -467,6 +467,14 @@ intel_gpu_nvl_p
 a|
 [source]
 ----
+intel_gpu_cri
+----
+|-
+|Crescent Island Intel graphics architecture.
+
+a|
+[source]
+----
 intel_gpu_8_0_0 = intel_gpu_bdw
 intel_gpu_9_0_9 = intel_gpu_skl
 intel_gpu_9_1_9 = intel_gpu_kbl
@@ -501,6 +509,7 @@ intel_gpu_30_3_0 = intel_gpu_wcl
 intel_gpu_30_4_0 = intel_gpu_nvl_s
 intel_gpu_30_5_0 = intel_gpu_nvl_u
 intel_gpu_35_10_0 = intel_gpu_nvl_p
+intel_gpu_35_11_0 = intel_gpu_cri
 ----
 |-
 |Aliases for Intel graphics architectures.
