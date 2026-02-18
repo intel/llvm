@@ -353,10 +353,9 @@ ConvertToFP8_CPU(T h, rounding R = rounding::to_even) noexcept {
   constexpr uint8_t MaxFrac = static_cast<uint8_t>((1 << Mbits) - 1);
   constexpr uint8_t MaxFracForMaxNormal =
       (Ebits == 4 && Mbits == 3) ? static_cast<uint8_t>(MaxFrac - 1u) : MaxFrac;
-    constexpr uint8_t MaxExpForMaxNormal =
-      (Ebits == 5 && Mbits == 2)
-        ? static_cast<uint8_t>(ExpAllOnes - 1u)
-        : ExpAllOnes;
+  constexpr uint8_t MaxExpForMaxNormal =
+      (Ebits == 5 && Mbits == 2) ? static_cast<uint8_t>(ExpAllOnes - 1u)
+                                 : ExpAllOnes;
   constexpr uint8_t MaxFracMask = MaxFrac;
 
   float x = static_cast<float>(h);
@@ -560,7 +559,7 @@ public:
   fp8_e4m3 &operator=(const fp8_e4m3 &) = default;
 
   // Construct from pack of half, float, double.
-    // Available only when the size of the pack is equal to N.
+  // Available only when the size of the pack is equal to N.
 
   template <typename... Types,
             typename = std::enable_if_t<
@@ -655,7 +654,8 @@ public:
       vals[i] = ConvertBF16ToFP8(v[i], r);
   }
 
-  explicit fp8_e4m3(const sycl::marray<float, N> &v, rounding r = rounding::to_even) {
+  explicit fp8_e4m3(const sycl::marray<float, N> &v,
+                    rounding r = rounding::to_even) {
 #ifdef __SYCL_DEVICE_ONLY__
     static_assert(N == 1 || N == 2,
                   "fp8_e4m3: Template argument N must be 1 or 2 on device");
@@ -691,12 +691,14 @@ public:
   // of half, bfloat16, float.
 
   // Should be removed once docs updated
-  explicit fp8_e4m3(const sycl::marray<half, N> &vals, const stochastic_seed &seed,
+  explicit fp8_e4m3(const sycl::marray<half, N> &vals,
+                    const stochastic_seed &seed,
                     saturation s = saturation::finite);
   explicit fp8_e4m3(const sycl::marray<bfloat16, N> &vals,
                     const stochastic_seed &seed,
                     saturation s = saturation::finite);
-  explicit fp8_e4m3(const sycl::marray<float, N> &vals, const stochastic_seed &seed,
+  explicit fp8_e4m3(const sycl::marray<float, N> &vals,
+                    const stochastic_seed &seed,
                     saturation s = saturation::finite);
 
   // Construct from integer types.
@@ -948,8 +950,7 @@ public:
   uint8_t vals[N];
 };
 
-template <size_t N>
-class fp8_e5m2 {
+template <size_t N> class fp8_e5m2 {
 
   uint8_t ConvertToFP8(sycl::half h, rounding r) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -1123,7 +1124,8 @@ public:
       vals[i] = ConvertBF16ToFP8(v[i], r);
   }
 
-  explicit fp8_e5m2(const sycl::marray<float, N> &v, rounding r = rounding::to_even) {
+  explicit fp8_e5m2(const sycl::marray<float, N> &v,
+                    rounding r = rounding::to_even) {
 #ifdef __SYCL_DEVICE_ONLY__
     static_assert(N == 1 || N == 2,
                   "fp8_e5m2: Template argument N must be 1 or 2 on device");
@@ -1160,12 +1162,14 @@ public:
   // of half, bfloat16, float.
 
   // should be removed once docs updated
-  explicit fp8_e5m2(const sycl::marray<half, N> &vals, const stochastic_seed &seed,
+  explicit fp8_e5m2(const sycl::marray<half, N> &vals,
+                    const stochastic_seed &seed,
                     saturation s = saturation::finite);
   explicit fp8_e5m2(const sycl::marray<bfloat16, N> &vals,
                     const stochastic_seed &seed,
                     saturation s = saturation::finite);
-  explicit fp8_e5m2(const sycl::marray<double, N> &vals, const stochastic_seed &seed,
+  explicit fp8_e5m2(const sycl::marray<double, N> &vals,
+                    const stochastic_seed &seed,
                     saturation s = saturation::finite);
 
   // Construct from integer types.
@@ -1412,7 +1416,7 @@ public:
 };
 
 static inline uint8_t ConvertToE8M0_CPU(float x, rounding R,
-                                       saturation S) noexcept {
+                                        saturation S) noexcept {
   // E8M0: unsigned 8-bit exponent code, bias 127.
   // Code 0xFF reserved for NaN. No Inf, no subnormals, no signed zero.
   constexpr int Bias = 127;
@@ -1503,8 +1507,7 @@ static inline ToT ConvertFromE8M0_CPU(uint8_t code) noexcept {
   return ConvertFloatToTarget<ToT>(v, rounding::to_even);
 }
 
-template <size_t N>
-class fp8_e8m0 {
+template <size_t N> class fp8_e8m0 {
 public:
   fp8_e8m0() = default;
   fp8_e8m0(const fp8_e8m0 &) = default;
@@ -1531,115 +1534,130 @@ public:
                                   saturation::finite);
   }
 
-  explicit fp8_e8m0(half const (&in)[N], rounding r = rounding::upward,
-                    saturation s = saturation::finite) {
+  explicit fp8_e8m0(half const (&in)[N], rounding r = rounding::upward) {
+    if (r != rounding::upward && r != rounding::toward_zero)
+      throw std::invalid_argument(
+          "fp8_e8m0 supports only rounding upward and toward_zero");
 #ifdef __SYCL_DEVICE_ONLY__
     static_assert(N == 1 || N == 2,
                   "fp8_e8m0: Template argument N must be 1 or 2 on device");
 #endif
     for (size_t i = 0; i < N; ++i)
-      vals[i] = ConvertToE8M0_CPU(static_cast<float>(in[i]), r, s);
+      vals[i] =
+          ConvertToE8M0_CPU(static_cast<float>(in[i]), r, saturation::finite);
   }
-  explicit fp8_e8m0(bfloat16 const (&in)[N], rounding r = rounding::upward,
-                    saturation s = saturation::finite) {
+
+  explicit fp8_e8m0(bfloat16 const (&in)[N], rounding r = rounding::upward) {
+    if (r != rounding::upward && r != rounding::toward_zero)
+      throw std::invalid_argument(
+          "fp8_e8m0 supports only rounding upward and toward_zero");
 #ifdef __SYCL_DEVICE_ONLY__
     static_assert(N == 1 || N == 2,
                   "fp8_e8m0: Template argument N must be 1 or 2 on device");
 #endif
     for (size_t i = 0; i < N; ++i)
-      vals[i] = ConvertToE8M0_CPU(static_cast<float>(in[i]), r, s);
+      vals[i] =
+          ConvertToE8M0_CPU(static_cast<float>(in[i]), r, saturation::finite);
   }
-  explicit fp8_e8m0(float const (&in)[N], rounding r = rounding::upward,
-                    saturation s = saturation::finite) {
+
+  explicit fp8_e8m0(float const (&in)[N], rounding r = rounding::upward) {
+    if (r != rounding::upward && r != rounding::toward_zero)
+      throw std::invalid_argument(
+          "fp8_e8m0 supports only rounding upward and toward_zero");
 #ifdef __SYCL_DEVICE_ONLY__
     static_assert(N == 1 || N == 2,
                   "fp8_e8m0: Template argument N must be 1 or 2 on device");
 #endif
     for (size_t i = 0; i < N; ++i)
-      vals[i] = ConvertToE8M0_CPU(in[i], r, s);
+      vals[i] = ConvertToE8M0_CPU(in[i], r, saturation::finite);
   }
+
   explicit fp8_e8m0(double const (&in)[N]) {
 #ifdef __SYCL_DEVICE_ONLY__
     static_assert(N == 1 || N == 2,
                   "fp8_e8m0: Template argument N must be 1 or 2 on device");
 #endif
     for (size_t i = 0; i < N; ++i)
-      vals[i] = ConvertToE8M0_CPU(static_cast<float>(in[i]),
-                                 rounding::upward, saturation::finite);
+      vals[i] = ConvertToE8M0_CPU(static_cast<float>(in[i]), rounding::upward,
+                                  saturation::finite);
   }
 
-  explicit fp8_e8m0(const marray<half, N> &vals, rounding r = rounding::upward,
-                    saturation s = saturation::finite) {
+  explicit fp8_e8m0(const marray<half, N> &vals,
+                    rounding r = rounding::upward) {
+    if (r != rounding::upward && r != rounding::toward_zero)
+      throw std::invalid_argument(
+          "fp8_e8m0 supports only rounding upward and toward_zero");
 #ifdef __SYCL_DEVICE_ONLY__
     static_assert(N == 1 || N == 2,
                   "fp8_e8m0: Template argument N must be 1 or 2 on device");
-    assert((r == rounding::upward && s == saturation::finite) &&
-           "fp8_e8m0: device supports rounding::upward and saturation::finite "
-           "only");
+    assert((r == rounding::upward) &&
+           "fp8_e8m0: device supports rounding::upward only");
 #endif
     for (size_t i = 0; i < N; ++i)
-      this->vals[i] = ConvertToE8M0_CPU(static_cast<float>(vals[i]), r, s);
+      vals[i] =
+          ConvertToE8M0_CPU(static_cast<float>(vals[i]), r, saturation::finite);
   }
 
   explicit fp8_e8m0(const marray<bfloat16, N> &vals,
-                    rounding r = rounding::upward,
-                    saturation s = saturation::finite) {
+                    rounding r = rounding::upward) {
+    if (r != rounding::upward && r != rounding::toward_zero)
+      throw std::invalid_argument(
+          "fp8_e8m0 supports only rounding upward and toward_zero");
 #ifdef __SYCL_DEVICE_ONLY__
     static_assert(N == 1 || N == 2,
                   "fp8_e8m0: Template argument N must be 1 or 2 on device");
-    assert((r == rounding::upward && s == saturation::finite) &&
-           "fp8_e8m0: device supports rounding::upward and saturation::finite "
-           "only");
 #endif
     for (size_t i = 0; i < N; ++i)
-      this->vals[i] = ConvertToE8M0_CPU(static_cast<float>(vals[i]), r, s);
+      vals[i] =
+          ConvertToE8M0_CPU(static_cast<float>(vals[i]), r, saturation::finite);
   }
 
-  explicit fp8_e8m0(const marray<float, N> &vals, rounding r = rounding::upward,
-                    saturation s = saturation::finite) {
+  explicit fp8_e8m0(const marray<float, N> &vals,
+                    rounding r = rounding::upward) {
+    if (r != rounding::upward && r != rounding::toward_zero)
+      throw std::invalid_argument(
+          "fp8_e8m0 supports only rounding upward and toward_zero");
 #ifdef __SYCL_DEVICE_ONLY__
     static_assert(N == 1 || N == 2,
                   "fp8_e8m0: Template argument N must be 1 or 2 on device");
-    assert((r == rounding::upward && s == saturation::finite) &&
-           "fp8_e8m0: device supports rounding::upward and saturation::finite "
-           "only");
+    assert((r == rounding::upward) &&
+           "fp8_e8m0: device supports rounding::upward only");
 #endif
     for (size_t i = 0; i < N; ++i)
-      this->vals[i] = ConvertToE8M0_CPU(vals[i], r, s);
+      vals[i] = ConvertToE8M0_CPU(vals[i], r, saturation::finite);
   }
 
   explicit fp8_e8m0(const marray<double, N> &vals) {
+    if (r != rounding::upward && r != rounding::toward_zero)
+      throw std::invalid_argument(
+          "fp8_e8m0 supports only rounding upward and toward_zero");
 #ifdef __SYCL_DEVICE_ONLY__
     static_assert(N == 1 || N == 2,
                   "fp8_e8m0: Template argument N must be 1 or 2 on device");
 #endif
     for (size_t i = 0; i < N; ++i)
-      this->vals[i] = ConvertToE8M0_CPU(static_cast<float>(vals[i]),
-                                        rounding::upward, saturation::finite);
+      vals[i] = ConvertToE8M0_CPU(static_cast<float>(vals[i]), rounding::upward,
+                                  saturation::finite);
   }
 
   // Construct with stochastic rounding with user provided seed from an array of
   // half, bfloat16, float.
 
   // should be removed once docs updated
-  explicit fp8_e8m0(half const (&vals)[N], const stochastic_seed &seed,
-                    saturation s = saturation::finite);
-  explicit fp8_e8m0(bfloat16 const (&vals)[N], const stochastic_seed &seed,
-                    saturation s = saturation::finite);
-  explicit fp8_e8m0(double const (&vals)[N], const stochastic_seed &seed,
-                    saturation s = saturation::finite);
+  explicit fp8_e8m0(half const (&vals)[N], const stochastic_seed &seed);
+  explicit fp8_e8m0(bfloat16 const (&vals)[N], const stochastic_seed &seed);
+  explicit fp8_e8m0(double const (&vals)[N], const stochastic_seed &seed);
 
   // Construct with stochastic rounding with user provided seed from an marray
   // of half, bfloat16, float.
 
   // should be removed once docs updated
-  explicit fp8_e8m0(const sycl::marray<half, N> &vals, const stochastic_seed &seed,
-                    saturation s = saturation::finite);
+  explicit fp8_e8m0(const sycl::marray<half, N> &vals,
+                    const stochastic_seed &seed);
   explicit fp8_e8m0(const sycl::marray<bfloat16, N> &vals,
-                    const stochastic_seed &seed,
-                    saturation s = saturation::finite);
-  explicit fp8_e8m0(const sycl::marray<double, N> &vals, const stochastic_seed &seed,
-                    saturation s = saturation::finite);
+                    const stochastic_seed &seed);
+  explicit fp8_e8m0(const sycl::marray<double, N> &vals,
+                    const stochastic_seed &seed);
 
   // Construct from integer types.
   // Available only when N==1.
@@ -1647,7 +1665,7 @@ public:
   explicit fp8_e8m0(short val) {
     assert(N == 1 && "fp8_e8m0: N must be 1 for short constructor");
     vals[0] = ConvertToE8M0_CPU(static_cast<float>(val), rounding::upward,
-                               saturation::finite);
+                                saturation::finite);
   }
   explicit fp8_e8m0(int val) : fp8_e8m0(static_cast<float>(val)) {}
   explicit fp8_e8m0(long val) : fp8_e8m0(static_cast<float>(val)) {}
@@ -1655,18 +1673,19 @@ public:
   explicit fp8_e8m0(unsigned short val) : fp8_e8m0(static_cast<float>(val)) {}
   explicit fp8_e8m0(unsigned int val) : fp8_e8m0(static_cast<float>(val)) {}
   explicit fp8_e8m0(unsigned long val) : fp8_e8m0(static_cast<float>(val)) {}
-  explicit fp8_e8m0(unsigned long long val) : fp8_e8m0(static_cast<float>(val)) {}
+  explicit fp8_e8m0(unsigned long long val)
+      : fp8_e8m0(static_cast<float>(val)) {}
 
   fp8_e8m0 &operator=(half val) {
     static_assert(N == 1, "fp8_e8m0: N must be 1 for scalar assignment");
     vals[0] = ConvertToE8M0_CPU(static_cast<float>(val), rounding::upward,
-                               saturation::finite);
+                                saturation::finite);
     return *this;
   }
   fp8_e8m0 &operator=(bfloat16 val) {
     static_assert(N == 1, "fp8_e8m0: N must be 1 for scalar assignment");
     vals[0] = ConvertToE8M0_CPU(static_cast<float>(val), rounding::upward,
-                               saturation::finite);
+                                saturation::finite);
     return *this;
   }
   fp8_e8m0 &operator=(float val) {
@@ -1678,11 +1697,15 @@ public:
   fp8_e8m0 &operator=(short val) { return (*this = static_cast<float>(val)); }
   fp8_e8m0 &operator=(int val) { return (*this = static_cast<float>(val)); }
   fp8_e8m0 &operator=(long val) { return (*this = static_cast<float>(val)); }
-  fp8_e8m0 &operator=(long long val) { return (*this = static_cast<float>(val)); }
+  fp8_e8m0 &operator=(long long val) {
+    return (*this = static_cast<float>(val));
+  }
   fp8_e8m0 &operator=(unsigned short val) {
     return (*this = static_cast<float>(val));
   }
-  fp8_e8m0 &operator=(unsigned int val) { return (*this = static_cast<float>(val)); }
+  fp8_e8m0 &operator=(unsigned int val) {
+    return (*this = static_cast<float>(val));
+  }
   fp8_e8m0 &operator=(unsigned long val) {
     return (*this = static_cast<float>(val));
   }
@@ -1711,16 +1734,36 @@ public:
     static_assert(N == 1, "fp8_e8m0: N must be 1 for scalar conversion");
     return static_cast<char>(static_cast<float>(*this));
   }
-  explicit operator signed char() const { return static_cast<signed char>(static_cast<float>(*this)); }
-  explicit operator short() const { return static_cast<short>(static_cast<float>(*this)); }
-  explicit operator int() const { return static_cast<int>(static_cast<float>(*this)); }
-  explicit operator long() const { return static_cast<long>(static_cast<float>(*this)); }
-  explicit operator long long() const { return static_cast<long long>(static_cast<float>(*this)); }
-  explicit operator unsigned char() const { return static_cast<unsigned char>(static_cast<float>(*this)); }
-  explicit operator unsigned short() const { return static_cast<unsigned short>(static_cast<float>(*this)); }
-  explicit operator unsigned int() const { return static_cast<unsigned int>(static_cast<float>(*this)); }
-  explicit operator unsigned long() const { return static_cast<unsigned long>(static_cast<float>(*this)); }
-  explicit operator unsigned long long() const { return static_cast<unsigned long long>(static_cast<float>(*this)); }
+  explicit operator signed char() const {
+    return static_cast<signed char>(static_cast<float>(*this));
+  }
+  explicit operator short() const {
+    return static_cast<short>(static_cast<float>(*this));
+  }
+  explicit operator int() const {
+    return static_cast<int>(static_cast<float>(*this));
+  }
+  explicit operator long() const {
+    return static_cast<long>(static_cast<float>(*this));
+  }
+  explicit operator long long() const {
+    return static_cast<long long>(static_cast<float>(*this));
+  }
+  explicit operator unsigned char() const {
+    return static_cast<unsigned char>(static_cast<float>(*this));
+  }
+  explicit operator unsigned short() const {
+    return static_cast<unsigned short>(static_cast<float>(*this));
+  }
+  explicit operator unsigned int() const {
+    return static_cast<unsigned int>(static_cast<float>(*this));
+  }
+  explicit operator unsigned long() const {
+    return static_cast<unsigned long>(static_cast<float>(*this));
+  }
+  explicit operator unsigned long long() const {
+    return static_cast<unsigned long long>(static_cast<float>(*this));
+  }
 
   explicit operator bool() const {
     static_assert(N == 1, "fp8_e8m0: operator bool requires size N=1");

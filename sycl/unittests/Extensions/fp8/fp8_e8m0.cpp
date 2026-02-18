@@ -54,7 +54,7 @@ TEST(FP8E8M0Test, VariadicConstructorBoundaryEncodings) {
 
 TEST(FP8E8M0Test, CArrayConstructorFloatHostUpwardFinite) {
 	const float in[5] = {1.0f, 1.1f, 3.0f, 0.0f, 1000.0f};
-	fp8_e8m0<5> a(in, rounding::upward, saturation::finite);
+	fp8_e8m0<5> a(in, rounding::upward);
 
 	EXPECT_EQ(sizeof(a.vals), 5u);
 	EXPECT_EQ(a.vals[0], 0x7F);
@@ -67,7 +67,7 @@ TEST(FP8E8M0Test, CArrayConstructorFloatHostUpwardFinite) {
 TEST(FP8E8M0Test, CArrayConstructorHalfHostUpwardFinite) {
 	const sycl::half in[4] = {sycl::half(1.0f), sycl::half(1.1f),
 														sycl::half(3.0f), sycl::half(0.0f)};
-	fp8_e8m0<4> a(in, rounding::upward, saturation::finite);
+	fp8_e8m0<4> a(in, rounding::upward);
 
 	EXPECT_EQ(sizeof(a.vals), 4u);
 	EXPECT_EQ(a.vals[0], 0x7F);
@@ -81,7 +81,7 @@ TEST(FP8E8M0Test, CArrayConstructorBFloat16HostUpwardFinite) {
 			sycl::ext::oneapi::bfloat16(1.0f),
 			sycl::ext::oneapi::bfloat16(2.0f),
 			sycl::ext::oneapi::bfloat16(0.0f)};
-	fp8_e8m0<3> a(in, rounding::upward, saturation::finite);
+	fp8_e8m0<3> a(in, rounding::upward);
 
 	EXPECT_EQ(sizeof(a.vals), 3u);
 	EXPECT_EQ(a.vals[0], 0x7F);
@@ -101,7 +101,7 @@ TEST(FP8E8M0Test, CArrayConstructorDoubleDefaultUpwardFinite) {
 
 TEST(FP8E8M0Test, MarrayConstructorAndOperatorsFloat) {
 	sycl::marray<float, 4> in = {1.0f, 2.0f, 3.0f, 0.0f};
-	fp8_e8m0<4> a(in, rounding::upward, saturation::finite);
+	fp8_e8m0<4> a(in, rounding::upward);
 
 	EXPECT_EQ(sizeof(a.vals), 4u);
 	EXPECT_EQ(a.vals[0], 0x7F);
@@ -123,8 +123,8 @@ TEST(FP8E8M0Test, MarrayConstructorHalfBFloat16Double) {
 			sycl::ext::oneapi::bfloat16(2.0f)};
 	sycl::marray<double, 2> dvals = {1.0, 3.0};
 
-	fp8_e8m0<2> ah(hvals, rounding::upward, saturation::finite);
-	fp8_e8m0<2> ab(bvals, rounding::upward, saturation::finite);
+	fp8_e8m0<2> ah(hvals, rounding::upward);
+	fp8_e8m0<2> ab(bvals, rounding::upward);
 	fp8_e8m0<2> ad(dvals);
 
 	EXPECT_EQ(sizeof(ah.vals), 2u);
