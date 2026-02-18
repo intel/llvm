@@ -380,9 +380,9 @@ namespace Testing::Tests {
 // CHECK-NEXT: }
 // CHECK-NEXT: template <typename T, typename> struct Arg1;
 
-// CHECK: void foo(Arg1<int, sycl::X<sycl::detail::Y> > arg);
+// CHECK: void foo(Arg1<int, sycl::X<sycl::detail::Y>> arg);
 // CHECK-NEXT: static constexpr auto __sycl_shim7() {
-// CHECK-NEXT:   return (void (*)(struct Arg1<int, struct sycl::X<struct sycl::detail::Y> >))foo;
+// CHECK-NEXT:   return (void (*)(struct Arg1<int, struct sycl::X<struct sycl::detail::Y>>))foo;
 // CHECK-NEXT: }
 
 // CHECK: namespace sycl {

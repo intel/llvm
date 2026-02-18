@@ -168,17 +168,18 @@ VkResult setupInstance() {
   ci.pApplicationInfo = &ai;
   ci.enabledExtensionCount = requiredInstanceExtensions.size();
   ci.ppEnabledExtensionNames = requiredInstanceExtensions.data();
-  const char* validationLayerName = "VK_LAYER_KHRONOS_validation";
+  const char *validationLayerName = "VK_LAYER_KHRONOS_validation";
   bool validationLayerAvailable = std::any_of(
       availableLayers.begin(), availableLayers.end(), [&](const auto &layer) {
         return strcmp(layer.layerName, validationLayerName) == 0;
       });
 
   if (validationLayerAvailable) {
-      ci.enabledLayerCount = 1;
-      ci.ppEnabledLayerNames = &validationLayerName;
+    ci.enabledLayerCount = 1;
+    ci.ppEnabledLayerNames = &validationLayerName;
   } else {
-    std::cerr << "VK_LAYER_KHRONOS_validation not present, validation is disabled \n";
+    std::cerr
+        << "VK_LAYER_KHRONOS_validation not present, validation is disabled \n";
   }
 
   VK_CHECK_CALL_RET(vkCreateInstance(&ci, nullptr, &vk_instance));
