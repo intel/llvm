@@ -34,7 +34,6 @@ __SYCL_STDLIB_DEVICE_FUNCTIONS lldiv_t lldiv(long long x, long long y) { return 
 __SYCL_STDLIB_DEVICE_FUNCTIONS int abs(int n) { return n < 0 ? -n : n; }
 __SYCL_STDLIB_DEVICE_FUNCTIONS long labs(long n) { return n < 0 ? -n : n; }
 __SYCL_STDLIB_DEVICE_FUNCTIONS long long llabs(long long n) { return n < 0 ? -n : n; }
-}
 
 #ifdef _LIBCPP_BEGIN_NAMESPACE_STD
 _LIBCPP_BEGIN_NAMESPACE_STD
