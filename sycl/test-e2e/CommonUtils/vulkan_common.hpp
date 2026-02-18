@@ -65,7 +65,6 @@ static VkCommandBuffer vk_transferCmdBuffers[2];
 static bool requiresDedicatedAllocation = false;
 
 static bool supportsDmaBuf = false;
-static bool enableDebugPrintf = false;
 // A static debug callback function that relays messages from the Vulkan
 // validation layer to the terminal.
 static VKAPI_ATTR VkBool32 VKAPI_CALL
