@@ -4,6 +4,7 @@
 // REQUIRES: vulkan
 
 // UNSUPPORTED: windows
+// UNSUPPORTED-TRACKER: CMPLRLLVM-73525
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 
@@ -93,9 +94,11 @@
 
 #include <optional>
 #include <string>
+#include <sycl/builtins.hpp>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/ext/oneapi/bindless_images_interop.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/image.hpp>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 

@@ -5,7 +5,7 @@
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 
 // UNSUPPORTED: linux
-// UNSUPPORTED-TRACKER:
+// UNSUPPORTED-TRACKER: GSD-12357
 
 /*
     Run ALL the vulkan formats through the gauntlet. sampled and unsampled.
@@ -122,9 +122,11 @@
 #include <algorithm>
 #include <optional>
 #include <string>
+#include <sycl/builtins.hpp>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/ext/oneapi/bindless_images_interop.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/image.hpp>
 #include <vector>
 
 namespace syclexp = sycl::ext::oneapi::experimental;

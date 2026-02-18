@@ -157,9 +157,11 @@ VK_FORMAT_R8G8B8A8_UNORM
 
 #include <optional>
 #include <string>
+#include <sycl/builtins.hpp>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/ext/oneapi/bindless_images_interop.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/image.hpp>
 
 // ---------------------------------------------------------
 // SYCL TYPE MAPPING HELPERS

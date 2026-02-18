@@ -44,8 +44,10 @@
 
 #include "vulkan_setup.hpp"
 #include <numeric>
+#include <sycl/builtins.hpp>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/image.hpp>
 #include <vector>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
