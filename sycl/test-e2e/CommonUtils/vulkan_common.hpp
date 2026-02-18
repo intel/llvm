@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
 #include <set>
 #include <sycl/ext/oneapi/bindless_images.hpp>
@@ -61,12 +62,10 @@ static VkCommandPool vk_transferCmdPool;
 static VkCommandBuffer vk_computeCmdBuffer;
 static VkCommandBuffer vk_transferCmdBuffers[2];
 
-static bool supportsDedicatedAllocation = false;
 static bool requiresDedicatedAllocation = false;
 
-static bool supportsExternalSemaphore = false;
 static bool supportsDmaBuf = false;
-
+static bool enableDebugPrintf = false;
 // A static debug callback function that relays messages from the Vulkan
 // validation layer to the terminal.
 static VKAPI_ATTR VkBool32 VKAPI_CALL
@@ -118,7 +117,7 @@ VkResult setupInstance() {
   ai.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
   ai.pEngineName = "";
   ai.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-  ai.apiVersion = VK_API_VERSION_1_0;
+  ai.apiVersion = VK_API_VERSION_1_3;
 
   // Query the number of available layers and retrieve their names. One example
   // of a layer is the validation layer, this layer allows for runtime debug
@@ -138,14 +137,9 @@ VkResult setupInstance() {
       getSupportedInstanceExtensions(supportedInstanceExtensions));
 
   // We have some instance extensions that we require for the tests to function.
-  std::vector<const char *> requiredInstanceExtensions = {
-      VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
-      VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
-      VK_KHR_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME};
+  std::vector<const char *> requiredInstanceExtensions = {VK_EXT_DEBUG_UTILS_EXTENSION_NAME};
 
-  std::vector<const char *> optionalInstanceExtensions = {
-      VK_KHR_EXTERNAL_SEMAPHORE_CAPABILITIES_EXTENSION_NAME,
-      VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME};
+  std::vector<const char *> optionalInstanceExtensions = {};
 
   // Make sure that our required instance extensions are supported by the
   // running Vulkan instance.
@@ -166,9 +160,6 @@ VkResult setupInstance() {
                   supportedInstanceExtensions.end(),
                   optionalExtension) != supportedInstanceExtensions.end()) {
       requiredInstanceExtensions.push_back(optionalInstanceExtensions[i]);
-      if (optionalExtension == VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME) {
-        supportsDedicatedAllocation = true;
-      }
     }
   }
 
@@ -178,15 +169,18 @@ VkResult setupInstance() {
   ci.pApplicationInfo = &ai;
   ci.enabledExtensionCount = requiredInstanceExtensions.size();
   ci.ppEnabledExtensionNames = requiredInstanceExtensions.data();
-  std::vector<const char *> layers;
-  if (std::any_of(availableLayers.begin(), availableLayers.end(),
-                  [](auto &layer) {
-                    return layer.layerName == "VK_LAYER_KHRONOS_validation";
-                  })) {
-    layers.push_back("VK_LAYER_KHRONOS_validation");
+  const char* validationLayerName = "VK_LAYER_KHRONOS_validation";
+  bool validationLayerAvailable = std::any_of(
+      availableLayers.begin(), availableLayers.end(), [&](const auto &layer) {
+        return strcmp(layer.layerName, validationLayerName) == 0;
+      });
+
+  if (validationLayerAvailable) {
+      ci.enabledLayerCount = 1;
+      ci.ppEnabledLayerNames = &validationLayerName;
+  } else {
+    std::cerr << "VK_LAYER_KHRONOS_validation not present, validation is disabled \n";
   }
-  ci.enabledLayerCount = layers.size();
-  ci.ppEnabledLayerNames = layers.data();
 
   VK_CHECK_CALL_RET(vkCreateInstance(&ci, nullptr, &vk_instance));
 
@@ -247,21 +241,17 @@ VkResult setupDevice(const sycl::device &dev) {
 
   // Define the required device extensions to run the tests.
   static constexpr const char *requiredExtensions[] = {
-      VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME,
-      VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
 #ifdef _WIN32
       VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME,
+      VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME
 #else
       VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
+      VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME,
 #endif
   };
 
   static constexpr const char *optionalExtensions[] = {
-      VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,
-#ifdef _WIN32
-      VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME,
-#else
-      VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME,
+#ifndef _WIN32
       VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME,
 #endif
   };
@@ -319,15 +309,31 @@ VkResult setupDevice(const sycl::device &dev) {
                              });
       if (it != std::end(supportedDeviceExtensions)) {
         enabledDeviceExtensions.push_back(optionalExt.data());
-        if (optionalExt == VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME) {
-          supportsExternalSemaphore = true;
-        }
         if (optionalExt == VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME) {
           supportsDmaBuf = true;
         }
       }
     }
 
+    
+  VkPhysicalDeviceVulkan13Features supportedFeatures13{};
+  supportedFeatures13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+
+  VkPhysicalDeviceVulkan12Features supportedFeatures12{};
+  supportedFeatures12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+  supportedFeatures12.pNext = &supportedFeatures13;
+
+  VkPhysicalDeviceFeatures2 supportedFeatures2{};
+  supportedFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+  supportedFeatures2.pNext = &supportedFeatures12;
+
+    vkGetPhysicalDeviceFeatures2(vk_physical_device, &supportedFeatures2);
+
+    if (!supportedFeatures12.timelineSemaphore){
+      std ::cout << "Vulkan Timeline Semaphore device feature is not present!\n";
+      continue;
+    }
+    
     foundDevice = true;
     std::cout << "Found suitable Vulkan device: "
               << devProps2.properties.deviceName << std::endl;
@@ -392,17 +398,27 @@ VkResult setupDevice(const sycl::device &dev) {
     qcis[1].queueCount = 1;
     qcis[1].pQueuePriorities = &queuePriority;
   }
+  
+  VkPhysicalDeviceVulkan13Features enableFeatures13{};
+  enableFeatures13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
 
-  VkPhysicalDeviceFeatures deviceFeatures = {};
+  VkPhysicalDeviceVulkan12Features enableFeatures12{};
+  enableFeatures12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+  enableFeatures12.pNext = &enableFeatures13;
+  enableFeatures12.timelineSemaphore = VK_TRUE;
+
+  VkPhysicalDeviceFeatures2 enableFeatures2{};
+  enableFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+  enableFeatures2.pNext = &enableFeatures12;
 
   // Create the Vulkan device with the above queues, extensions, and layers.
   VkDeviceCreateInfo dci = {};
   dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
   dci.pQueueCreateInfos = qcis.data();
   dci.queueCreateInfoCount = qcis.size();
-  dci.pEnabledFeatures = &deviceFeatures;
   dci.enabledExtensionCount = enabledDeviceExtensions.size();
   dci.ppEnabledExtensionNames = enabledDeviceExtensions.data();
+  dci.pNext = &enableFeatures2;
 
   VK_CHECK_CALL_RET(
       vkCreateDevice(vk_physical_device, &dci, nullptr, &vk_device));
@@ -423,7 +439,6 @@ VkResult setupDevice(const sycl::device &dev) {
         << "Could not get func pointer to \"vkGetMemoryWin32HandleKHR\"!\n";
     return VK_ERROR_UNKNOWN;
   }
-  if (supportsExternalSemaphore) {
     vk_getSemaphoreWin32HandleKHR =
         (PFN_vkGetSemaphoreWin32HandleKHR)vkGetDeviceProcAddr(
             vk_device, "vkGetSemaphoreWin32HandleKHR");
@@ -432,7 +447,6 @@ VkResult setupDevice(const sycl::device &dev) {
                    "\"vkGetSemaphoreWin32HandleKHR\"!\n";
       return VK_ERROR_UNKNOWN;
     }
-  }
 #else
   vk_getMemoryFdKHR =
       (PFN_vkGetMemoryFdKHR)vkGetDeviceProcAddr(vk_device, "vkGetMemoryFdKHR");
@@ -440,25 +454,13 @@ VkResult setupDevice(const sycl::device &dev) {
     std::cerr << "Could not get func pointer to \"vkGetMemoryFdKHR\"!\n";
     return VK_ERROR_UNKNOWN;
   }
-  if (supportsExternalSemaphore) {
     vk_getSemaphoreFdKHR = (PFN_vkGetSemaphoreFdKHR)vkGetDeviceProcAddr(
         vk_device, "vkGetSemaphoreFdKHR");
     if (!vk_getSemaphoreFdKHR) {
       std::cerr << "Could not get func pointer to \"vkGetSemaphoreFdKHR\"!\n";
       return VK_ERROR_UNKNOWN;
     }
-  }
 #endif
-
-  vk_getImageMemoryRequirements2 =
-      reinterpret_cast<PFN_vkGetImageMemoryRequirements2>(
-          vkGetDeviceProcAddr(vk_device, "vkGetImageMemoryRequirements2KHR"));
-  if (!vk_getImageMemoryRequirements2) {
-    std::cerr << "Could not get func pointer to "
-                 "\"vkGetImageMemoryRequirements2KHR\"!\n";
-    return VK_ERROR_UNKNOWN;
-  }
-
   return VK_SUCCESS;
 }
 
@@ -620,9 +622,9 @@ VkDeviceMemory allocateDeviceMemory(size_t size, uint32_t memoryTypeIndex,
   mai.allocationSize = size;
   mai.memoryTypeIndex = memoryTypeIndex;
 
-  VkMemoryDedicatedAllocateInfoKHR dedicatedInfo{};
+  VkMemoryDedicatedAllocateInfo  dedicatedInfo{};
   if (requiresDedicatedAllocation) {
-    dedicatedInfo.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR;
+    dedicatedInfo.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO;
     dedicatedInfo.image = image;
     dedicatedInfo.buffer = VK_NULL_HANDLE;
     mai.pNext = &dedicatedInfo;
@@ -724,18 +726,16 @@ uint32_t getImageMemoryTypeIndex(VkImage image, VkMemoryPropertyFlags flags,
   memoryRequirements2.sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2;
 
   VkMemoryDedicatedRequirements dedicatedRequirements{};
-  if (supportsDedicatedAllocation) {
     dedicatedRequirements.sType =
         VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS;
     memoryRequirements2.pNext = &dedicatedRequirements;
-  }
 
   VkImageMemoryRequirementsInfo2 imageRequirementsInfo{};
   imageRequirementsInfo.sType =
       VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2;
   imageRequirementsInfo.image = image;
 
-  vk_getImageMemoryRequirements2(vk_device, &imageRequirementsInfo,
+  vkGetImageMemoryRequirements2(vk_device, &imageRequirementsInfo,
                                  &memoryRequirements2);
 
   if (dedicatedRequirements.requiresDedicatedAllocation) {
@@ -838,10 +838,6 @@ HANDLE getSemaphoreWin32Handle(VkSemaphore semaphore) {
   sghwi.semaphore = semaphore;
   sghwi.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_BIT;
 
-  if (!supportsExternalSemaphore) {
-    std::cerr << "External semaphore support is not enabled!\n";
-    return 0;
-  }
 
   if (vk_getSemaphoreWin32HandleKHR != nullptr) {
     VK_CHECK_CALL(vk_getSemaphoreWin32HandleKHR(vk_device, &sghwi, &retHandle));
@@ -887,11 +883,6 @@ int getSemaphoreOpaqueFD(VkSemaphore semaphore) {
   sgfi.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
 
   int fd = 0;
-
-  if (!supportsExternalSemaphore) {
-    std::cerr << "External semaphore support is not enabled!\n";
-    return 0;
-  }
 
   if (vk_getSemaphoreFdKHR != nullptr) {
     VK_CHECK_CALL(vk_getSemaphoreFdKHR(vk_device, &sgfi, &fd));
