@@ -445,7 +445,7 @@ public:
 
     return commandListManager.lock()->appendUSMFreeExp(
         this, pPool, pMem, waitListView,
-        createEventAndRetain(eventPool.get(), phEvent, this));
+        createEventIfRequested(eventPool.get(), phEvent, this));
   }
 
   ur_result_t bindlessImagesImageCopyExp(

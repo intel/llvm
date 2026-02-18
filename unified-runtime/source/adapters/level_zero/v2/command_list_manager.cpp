@@ -891,7 +891,9 @@ ur_result_t ur_command_list_manager::appendUSMAllocHelper(
     std::tie(*ppMem, originAllocEvent) = *asyncAlloc;
   }
 
-  waitListView.addEvent(originAllocEvent);
+  if (originAllocEvent) {
+    waitListView.addEvent(originAllocEvent);
+  }
 
   ur_command_t commandType = UR_COMMAND_FORCE_UINT32;
   switch (type) {
@@ -930,8 +932,6 @@ ur_result_t ur_command_list_manager::appendUSMFreeExp(
     ur_queue_t_ *Queue, ur_usm_pool_handle_t, void *pMem,
     wait_list_view &waitListView, ur_event_handle_t phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendUSMFreeExp");
-  assert(phEvent);
-
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_ENQUEUE_USM_FREE_EXP);
   auto [pWaitEvents, numWaitEvents, _] = waitListView;
 
@@ -961,8 +961,10 @@ ur_result_t ur_command_list_manager::appendUSMFreeExp(
                (getZeCommandList(), numWaitEvents, pWaitEvents));
   }
 
-  ZE2UR_CALL(zeCommandListAppendSignalEvent,
-             (getZeCommandList(), zeSignalEvent));
+  if (zeSignalEvent) {
+    ZE2UR_CALL(zeCommandListAppendSignalEvent,
+               (getZeCommandList(), zeSignalEvent));
+  }
 
   // Insert must be done after the signal event is appended.
   usmPool->asyncPool.insert(pMem, size, phEvent, Queue);
