@@ -681,8 +681,8 @@ EventImplPtr queue_impl::submit_graph_direct_impl(
       // Here we are using the CommandGroup without passing a CommandBuffer to
       // pass the exec_graph_impl and event dependencies. Since this subgraph
       // CG will not be executed this is fine.
-      CommandGroup.reset(
-          new sycl::detail::CGExecCommandBuffer(nullptr, ExecGraph, CGData));
+      CommandGroup.reset(new sycl::detail::CGExecCommandBuffer(
+          nullptr, ExecGraph, std::move(CGData)));
       CommandGroup->MIsTopCodeLoc = IsTopCodeLoc;
       return {submit_command_to_graph(*ParentGraph, std::move(CommandGroup),
                                       detail::CGType::ExecCommandBuffer),

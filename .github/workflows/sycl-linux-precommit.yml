@@ -228,7 +228,7 @@ jobs:
       env: ${{ matrix.env || (contains(needs.detect_changes.outputs.filters, 'esimd') && '{}' || '{"LIT_FILTER_OUT":"ESIMD/"}') }}
 
   E2E-with-new-offload-model:
-    needs: [build, detect_changes]
+    needs: [build]
     if: |
       !cancelled() &&
       needs.build.outputs.build_conclusion == 'success' &&
