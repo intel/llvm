@@ -1401,7 +1401,7 @@ ur_command_list_manager::appendGraph(ur_exp_executable_graph_handle_t hGraph,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_command_list_manager::isGraphCaptureActive(bool *pResult) {
+ur_result_t ur_command_list_manager::queryGraphCaptureActive(bool *pResult) {
   if (!checkGraphExtensionSupport(hContext.get())) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }

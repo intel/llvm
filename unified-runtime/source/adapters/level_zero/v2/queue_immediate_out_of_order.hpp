@@ -49,12 +49,12 @@ private:
   std::array<ur_event_handle_t, numCommandLists> barrierEvents;
 
   uint32_t getNextCommandListId() {
-    bool isGraphCaptureActive;
+    bool captureActive;
     auto &cmdListManager =
         (*commandListManagers.get_no_lock())[captureCmdListManagerIdx];
-    cmdListManager.isGraphCaptureActive(&isGraphCaptureActive);
+    cmdListManager.queryGraphCaptureActive(&captureActive);
 
-    return isGraphCaptureActive
+    return captureActive
                ? captureCmdListManagerIdx
                : commandListIndex.fetch_add(1, std::memory_order_relaxed) %
                      numCommandLists;
@@ -628,7 +628,7 @@ public:
 
   ur_result_t queueIsGraphCapteEnabledExp(bool *pResult) override {
     return commandListManagers.lock()[captureCmdListManagerIdx]
-        .isGraphCaptureActive(pResult);
+        .queryGraphCaptureActive(pResult);
   }
 
   ur_result_t queueGetGraphExp(ur_exp_graph_handle_t *phGraph) override {
