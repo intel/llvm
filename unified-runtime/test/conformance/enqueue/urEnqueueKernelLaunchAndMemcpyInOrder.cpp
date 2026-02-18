@@ -42,6 +42,42 @@ struct urMultiQueueLaunchMemcpyTest
                              device);
     }
 
+    // Enable P2P access between all device pairs for cross-device memcpy
+    ur_bool_t usm_p2p_support = false;
+    if (devices.size() > 1) {
+      ASSERT_SUCCESS(
+          urDeviceGetInfo(devices[0], UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP,
+                          sizeof(usm_p2p_support), &usm_p2p_support, nullptr));
+      if (usm_p2p_support) {
+        for (size_t i = 0; i < devices.size(); i++) {
+          for (size_t j = 0; j < devices.size(); j++) {
+            // Skip if same device (either by index or handle)
+            if (i != j && devices[i] != devices[j]) {
+              // First check if P2P is actually supported between this pair
+              int32_t p2p_access_supported = 0;
+              auto query_result = urUsmP2PPeerAccessGetInfoExp(
+                  devices[i], devices[j], UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED,
+                  sizeof(p2p_access_supported), &p2p_access_supported, nullptr);
+              
+              if (query_result != UR_RESULT_SUCCESS || !p2p_access_supported) {
+                // P2P not supported between this pair, skip the test
+                GTEST_SKIP() << "P2P access not supported between device pair (" 
+                             << i << ", " << j << ")";
+              }
+              
+              // Enable peer access from device[i] to device[j]
+              // Ignore errors - P2P may already be enabled by another test
+              auto result = urUsmP2PEnablePeerAccessExp(devices[i], devices[j]);
+              if (result != UR_RESULT_SUCCESS &&
+                  result != UR_RESULT_ERROR_INVALID_OPERATION) {
+                ASSERT_SUCCESS(result);
+              }
+            }
+          }
+        }
+      }
+    }
+
     programs.resize(devices.size());
     kernels.resize(devices.size());
     SharedMem.resize(devices.size());
@@ -96,6 +132,12 @@ struct urMultiQueueLaunchMemcpyTest
     for (const auto &program : programs) {
       urProgramRelease(program);
     }
+
+    // NOTE: We intentionally do NOT disable P2P access here.
+    // P2P state is per-context and shared across all test instances.
+    // Disabling P2P in one test's TearDown would break other concurrent tests.
+    // P2P can safely remain enabled for the lifetime of the process.
+
     UUR_RETURN_ON_FATAL_FAILURE(
         uur::urMultiQueueMultiDeviceTestWithParam<minDevices, T>::TearDown());
   }
@@ -268,8 +310,6 @@ UUR_PLATFORM_TEST_SUITE_WITH_PARAM(
 // ... ops
 TEST_P(urEnqueueKernelLaunchIncrementMultiDeviceTest, Success) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
-  // https://github.com/intel/llvm/issues/19033
-  UUR_KNOWN_FAILURE_ON(uur::CUDA{});
 
   auto waitOnEvent = std::get<0>(getParam()).value;
   auto runBackgroundCheck = std::get<1>(getParam()).value;
