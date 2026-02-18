@@ -343,23 +343,14 @@ std::optional<std::pair<void *, ur_event_handle_t>>
 ur_usm_pool_handle_t_::allocateEnqueued(ur_context_handle_t hContext,
                                         void *hQueue, bool isInOrderQueue,
                                         ur_device_handle_t hDevice,
-                                        const ur_usm_desc_t *pUSMDesc,
                                         ur_usm_type_t type, size_t size) {
-  uint32_t alignment = pUSMDesc ? pUSMDesc->align : 0;
-  if ((alignment & (alignment - 1)) != 0) {
-    return std::nullopt;
-  }
-
-  auto deviceFlags = getDeviceFlags(pUSMDesc);
-
-  auto umfPool = getPool(usm::pool_descriptor{
-      this, hContext, hDevice, type,
-      bool(deviceFlags & UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY)});
+  auto umfPool =
+      getPool(usm::pool_descriptor{this, hContext, hDevice, type, false});
   if (!umfPool) {
     return std::nullopt;
   }
 
-  auto allocation = umfPool->asyncPool.getBestFit(size, alignment, hQueue);
+  auto allocation = umfPool->asyncPool.getBestFit(size, hQueue);
   if (!allocation) {
     return std::nullopt;
   }
