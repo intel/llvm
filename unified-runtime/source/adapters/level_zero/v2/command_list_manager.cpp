@@ -879,8 +879,8 @@ ur_result_t ur_command_list_manager::appendUSMAllocHelper(
   auto device = (type == UR_USM_TYPE_HOST) ? nullptr : hDevice.get();
 
   ur_event_handle_t originAllocEvent = nullptr;
-  auto asyncAlloc = pPool->allocateEnqueued(hContext.get(), Queue, true, device,
-                                            nullptr, type, size);
+  auto asyncAlloc =
+      pPool->allocateEnqueued(hContext.get(), Queue, true, device, type, size);
   if (!asyncAlloc) {
     auto Ret =
         pPool->allocate(hContext.get(), device, nullptr, type, size, ppMem);
