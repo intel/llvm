@@ -24,7 +24,8 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 
-#define __SYCL_STDLIB_DEVICE_FUNCTIONS [[clang::sycl_device_only, clang::always_inline]] static
+#define __SYCL_STDLIB_DEVICE_FUNCTIONS
+[[clang::sycl_device_only, clang::always_inline]] static
 
 extern "C" {
 __SYCL_STDLIB_DEVICE_FUNCTIONS div_t div(int x, int y) { return {x / y, x % y}; }
