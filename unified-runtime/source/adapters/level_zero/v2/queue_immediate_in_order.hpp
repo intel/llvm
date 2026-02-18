@@ -592,6 +592,8 @@ public:
         createEventIfRequested(eventPool.get(), phEvent, this));
   }
 
+  bool isInOrder() override { return true; }
+
   ur::RefCount RefCount;
 };
 
