@@ -57,17 +57,17 @@ jobs:
       # UR will not use the loader if there is only one target.
         include:
           - name: L0
-            runner: UR_L0
+            runner: DSS_DEVOPS_RUNNER_UR_L0
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
           - name: L0_V2
-            runner: UR_L0
+            runner: DSS_DEVOPS_RUNNER_UR_L0
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
           - name: L0
-            runner: UR_L0
+            runner: DSS_DEVOPS_RUNNER_UR_L0
             static: ON
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
           - name: L0
-            runner: UR_L0
+            runner: DSS_DEVOPS_RUNNER_UR_L0
             other_adapter: NATIVE_CPU
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
           - name: HIP
