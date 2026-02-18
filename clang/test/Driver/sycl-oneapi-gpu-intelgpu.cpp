@@ -168,6 +168,24 @@
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=wcl -DMAC_STR=WCL
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_30_3_0 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=wcl -DMAC_STR=WCL
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_nvl_s -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=nvl_s -DMAC_STR=NVL_S
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_nvl_hx -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=nvl_s -DMAC_STR=NVL_S
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_nvl_ul -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=nvl_s -DMAC_STR=NVL_S
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_30_4_0 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=nvl_s -DMAC_STR=NVL_S
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_nvl_u -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=nvl_u -DMAC_STR=NVL_U
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_nvl_h -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=nvl_u -DMAC_STR=NVL_U
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_30_5_0 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=nvl_u -DMAC_STR=NVL_U
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_nvl_p -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=nvl_p -DMAC_STR=NVL_P
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_35_10_0 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=nvl_p -DMAC_STR=NVL_P
 // MACRO: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
 // MACRO: "-D__SYCL_TARGET_INTEL_GPU_[[MAC_STR]]__"
 // MACRO: clang{{.*}} "-fsycl-is-host"

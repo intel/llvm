@@ -248,6 +248,11 @@ class TestE2E(unittest.TestCase):
             "KernelSubmitMemoryReuse Int32Large",
             {"pytorch", "L0"},
         )
+        self._checkCase(
+            "torch_benchmark_l0 KernelSubmitGraphSingleQueue kernelBatchSize 10, kernelGroupsCount 10, kernelName Add, kernelWGCount 512, kernelWGSize 256, useProfiling 0 CPU count",
+            "KernelSubmitGraphSingleQueue small, CPU count",
+            {"pytorch", "L0"},
+        )
 
     def test_torch_sycl(self):
         self._checkCase(
@@ -278,6 +283,11 @@ class TestE2E(unittest.TestCase):
         self._checkCase(
             "torch_benchmark_sycl KernelSubmitMemoryReuse kernelBatchSize 4096, kernelDataType Float",
             "KernelSubmitMemoryReuse FloatLarge",
+            {"pytorch", "SYCL"},
+        )
+        self._checkCase(
+            "torch_benchmark_sycl KernelSubmitGraphSingleQueue kernelBatchSize 32, kernelGroupsCount 32, kernelName Add, kernelWGCount 512, kernelWGSize 256, useProfiling 0",
+            "KernelSubmitGraphSingleQueue medium",
             {"pytorch", "SYCL"},
         )
 
@@ -317,7 +327,11 @@ class TestE2E(unittest.TestCase):
             "KernelSubmitMemoryReuse FloatMedium, CPU count",
             {"pytorch", "SYCL"},
         )
-
+        self._checkCase(
+            "torch_benchmark_syclpreview KernelSubmitGraphSingleQueue kernelBatchSize 64, kernelGroupsCount 64, kernelName Add, kernelWGCount 512, kernelWGSize 256, useProfiling 0",
+            "KernelSubmitGraphSingleQueue large",
+            {"pytorch", "SYCL"},
+        )
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="SYCL's benchmark test framework")
