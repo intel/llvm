@@ -22,43 +22,43 @@
 
 */
 
-// RUN: ${run} %t.out --type float --channels 1 32
-// RUN: ${run} %t.out --type float --channels 2 32
-// RUN: ${run} %t.out --type float --channels 4 32
-// RUN: ${run} %t.out --type half --channels 1 32
-// RUN: ${run} %t.out --type half --channels 2 32
-// RUN: ${run} %t.out --type half --channels 4 32
-// RUN: ${run} %t.out --type int32 --channels 1 32
-// RUN: ${run} %t.out --type int32 --channels 2 32
-// RUN: ${run} %t.out --type int32 --channels 4 32
-// RUN: ${run} %t.out --type uint32 --channels 1 32
-// RUN: ${run} %t.out --type uint32 --channels 2 32
-// RUN: ${run} %t.out --type uint32 --channels 4 32
-// RUN: ${run} %t.out --type int16 --channels 1 32
-// RUN: ${run} %t.out --type int16 --channels 2 32
-// RUN: ${run} %t.out --type int16 --channels 4 32
-// RUN: ${run} %t.out --type uint16 --channels 1 32
-// RUN: ${run} %t.out --type uint16 --channels 2 32
-// RUN: ${run} %t.out --type uint16 --channels 4 32
-// RUN: ${run} %t.out --type uint8 --channels 1 32
-// RUN: ${run} %t.out --type uint8 --channels 2 32
-// RUN: ${run} %t.out --type uint8 --channels 4 32
-// RUN: ${run} %t.out --type int8 --channels 1 32
-// RUN: ${run} %t.out --type int8 --channels 2 32
-// RUN: ${run} %t.out --type int8 --channels 4 32
-// RUN: ${run} %t.out --type unorm8 --channels 1 32
-// RUN: ${run} %t.out --type unorm8 --channels 2 32
-// RUN: ${run} %t.out --type unorm8 --channels 4 32
+// RUN: %{run} %t.out --type float --channels 1 32
+// RUN: %{run} %t.out --type float --channels 2 32
+// RUN: %{run} %t.out --type float --channels 4 32
+// RUN: %{run} %t.out --type half --channels 1 32
+// RUN: %{run} %t.out --type half --channels 2 32
+// RUN: %{run} %t.out --type half --channels 4 32
+// RUN: %{run} %t.out --type int32 --channels 1 32
+// RUN: %{run} %t.out --type int32 --channels 2 32
+// RUN: %{run} %t.out --type int32 --channels 4 32
+// RUN: %{run} %t.out --type uint32 --channels 1 32
+// RUN: %{run} %t.out --type uint32 --channels 2 32
+// RUN: %{run} %t.out --type uint32 --channels 4 32
+// RUN: %{run} %t.out --type int16 --channels 1 32
+// RUN: %{run} %t.out --type int16 --channels 2 32
+// RUN: %{run} %t.out --type int16 --channels 4 32
+// RUN: %{run} %t.out --type uint16 --channels 1 32
+// RUN: %{run} %t.out --type uint16 --channels 2 32
+// RUN: %{run} %t.out --type uint16 --channels 4 32
+// RUN: %{run} %t.out --type uint8 --channels 1 32
+// RUN: %{run} %t.out --type uint8 --channels 2 32
+// RUN: %{run} %t.out --type uint8 --channels 4 32
+// RUN: %{run} %t.out --type int8 --channels 1 32
+// RUN: %{run} %t.out --type int8 --channels 2 32
+// RUN: %{run} %t.out --type int8 --channels 4 32
+// RUN: %{run} %t.out --type unorm8 --channels 1 32
+// RUN: %{run} %t.out --type unorm8 --channels 2 32
+// RUN: %{run} %t.out --type unorm8 --channels 4 32
 
-// RUN: ${run} %t.out --type float --channels 1 32 --semaphores
-// RUN: ${run} %t.out --type half --channels 2 32 --semaphores
-// RUN: ${run} %t.out --type int32 --channels 4 32 --semaphores
-// RUN: ${run} %t.out --type uint32 --channels 1 32 --semaphores
-// RUN: ${run} %t.out --type int16 --channels 2 32 --semaphores
-// RUN: ${run} %t.out --type uint16 --channels 4 32 --semaphores
-// RUN: ${run} %t.out --type uint8 --channels 1 32 --semaphores
-// RUN: ${run} %t.out --type int8 --channels 4 32 --semaphores
-// RUN: ${run} %t.out --type unorm8 --channels 2 32 --semaphores
+// RUN: %{run} %t.out --type float --channels 1 32 --semaphores
+// RUN: %{run} %t.out --type half --channels 2 32 --semaphores
+// RUN: %{run} %t.out --type int32 --channels 4 32 --semaphores
+// RUN: %{run} %t.out --type uint32 --channels 1 32 --semaphores
+// RUN: %{run} %t.out --type int16 --channels 2 32 --semaphores
+// RUN: %{run} %t.out --type uint16 --channels 4 32 --semaphores
+// RUN: %{run} %t.out --type uint8 --channels 1 32 --semaphores
+// RUN: %{run} %t.out --type int8 --channels 4 32 --semaphores
+// RUN: %{run} %t.out --type unorm8 --channels 2 32 --semaphores
 
 /*
   Vulkan/SYCL  1D Unsampled Write Image
