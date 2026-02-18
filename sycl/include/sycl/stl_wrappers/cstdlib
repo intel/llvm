@@ -27,7 +27,6 @@
 #define __SYCL_STDLIB_DEVICE_FUNCTIONS
 [[clang::sycl_device_only, clang::always_inline]] static
 
-extern "C" {
 __SYCL_STDLIB_DEVICE_FUNCTIONS div_t div(int x, int y) { return {x / y, x % y}; }
 __SYCL_STDLIB_DEVICE_FUNCTIONS ldiv_t ldiv(long x, long y) { return {x / y, x % y}; }
 __SYCL_STDLIB_DEVICE_FUNCTIONS lldiv_t lldiv(long long x, long long y) { return {x / y, x % y}; }
