@@ -240,6 +240,9 @@ class IntelTargetInfo<string Name, list<Aspect> Aspects, list<int> subGroupSizes
 // sizes to be 16 and 32, which corresponds to PVC having 16 and 32 
 // as sub-group sizes the supported sub-group sizes. 
 
+def : IntelTargetInfo<"intel_gpu_nvl_p", Fp16Fp64Atomic64, Sg16_32>;
+def : IntelTargetInfo<"intel_gpu_nvl_u", Fp16Fp64Atomic64, Sg16_32>;
+def : IntelTargetInfo<"intel_gpu_nvl_s", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_wcl", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_ptl_u", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_ptl_h", Fp16Fp64Atomic64, Sg16_32>;
