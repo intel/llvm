@@ -90,6 +90,8 @@ private:
   // Whether any operation has been enqueued on the current batch
   uint64_t enqueuedOperationsCounter = 0;
 
+  bool isGraphCaptureActive = false;
+
 public:
   batch_manager(ur_context_handle_t context, ur_device_handle_t device,
                 v2::raii::command_list_unique_handle &&commandListRegular,
@@ -119,6 +121,13 @@ public:
 
   ur_command_list_manager &getImmediateManager() { return immediateList; }
 
+  // Returns the command list manager handle depending on the state of the graph capture.
+  // If the graph capture is active, the immediate command list manager handle is returned,
+  // otherwise the regular command list manager handle is returned.
+   ur_command_list_manager &getListManager() {
+    return isGraphCaptureActive ? immediateList : activeBatch;
+  }
+
   ur_event_generation_t getCurrentGeneration() {
     return regularGenerationNumber;
   }
@@ -146,6 +155,8 @@ public:
   bool isLimitOfEnqueuedCommandsReached() {
     return maxNumberOfEnqueuedOperations <= enqueuedOperationsCounter;
   }
+
+  bool isGraphCapture() const { return isGraphCaptureActive; }
 };
 
 struct ur_queue_batched_t : ur_object, ur_queue_t_ {
