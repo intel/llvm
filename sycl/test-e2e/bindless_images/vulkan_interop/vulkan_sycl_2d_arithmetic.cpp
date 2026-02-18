@@ -13,7 +13,7 @@
    (and more complete coveraage) than SFINAE based approach.
 
     IF a particular variant is having problems on some platform, please do NOT
-   just disable the whole test, instead use   RUN-IF (SOMETHING) yadda-yadda
+   just disable the whole test, instead use   RUN~IF (SOMETHING) yadda-yadda
     to enable/disable that variant.
 
     For semaphore testing, we run just a sampling. Note, that on Linux if there
@@ -22,79 +22,79 @@
 
 */
 
-// RUN: %t.out --type float --channels 1 32x33
-// RUN: %t.out --type float --channels 2 32x33
-// RUN: %t.out --type float --channels 4 32x33
-// RUN: %t.out --type half --channels 1 32x33
-// RUN: %t.out --type half --channels 2 32x33
-// RUN: %t.out --type half --channels 4 32x33
-// RUN: %t.out --type int32 --channels 1 32x33
-// RUN: %t.out --type int32 --channels 2 32x33
-// RUN: %t.out --type int32 --channels 4 32x33
-// RUN: %t.out --type uint32 --channels 1 32x33
-// RUN: %t.out --type uint32 --channels 2 32x33
-// RUN: %t.out --type uint32 --channels 4 32x33
-// RUN: %t.out --type int16 --channels 1 32x33
-// RUN: %t.out --type int16 --channels 2 32x33
-// RUN: %t.out --type int16 --channels 4 32x33
-// RUN: %t.out --type uint16 --channels 1 32x33
-// RUN: %t.out --type uint16 --channels 2 32x33
-// RUN: %t.out --type uint16 --channels 4 32x33
-// RUN: %t.out --type uint8 --channels 1 32x33
-// RUN: %t.out --type uint8 --channels 2 32x33
-// RUN: %t.out --type uint8 --channels 4 32x33
-// RUN: %t.out --type int8 --channels 1 32x33
-// RUN: %t.out --type int8 --channels 2 32x33
-// RUN: %t.out --type int8 --channels 4 32x33
-// RUN: %t.out --type unorm8 --channels 1 32x33
-// RUN: %t.out --type unorm8 --channels 2 32x33
-// RUN: %t.out --type unorm8 --channels 4 32x33
-// RUN: %t.out --type float --channels 1 --sampled 32x33
-// RUN: %t.out --type float --channels 2 --sampled 32x33
-// RUN: %t.out --type float --channels 4 --sampled 32x33
-// RUN: %t.out --type half --channels 1 --sampled 32x33
-// RUN: %t.out --type half --channels 2 --sampled 32x33
-// RUN: %t.out --type half --channels 4 --sampled 32x33
-// RUN: %t.out --type int32 --channels 1 --sampled 32x33
-// RUN: %t.out --type int32 --channels 2 --sampled 32x33
-// RUN: %t.out --type int32 --channels 4 --sampled 32x33
-// RUN: %t.out --type uint32 --channels 1 --sampled 32x33
-// RUN: %t.out --type uint32 --channels 2 --sampled 32x33
-// RUN: %t.out --type uint32 --channels 4 --sampled 32x33
-// RUN: %t.out --type int16 --channels 1 --sampled 32x33
-// RUN: %t.out --type int16 --channels 2 --sampled 32x33
-// RUN: %t.out --type int16 --channels 4 --sampled 32x33
-// RUN: %t.out --type uint16 --channels 1 --sampled 32x33
-// RUN: %t.out --type uint16 --channels 2 --sampled 32x33
-// RUN: %t.out --type uint16 --channels 4 --sampled 32x33
-// RUN: %t.out --type uint8 --channels 1 --sampled 32x33
-// RUN: %t.out --type uint8 --channels 2 --sampled 32x33
-// RUN: %t.out --type uint8 --channels 4 --sampled 32x33
-// RUN: %t.out --type int8 --channels 1 --sampled 32x33
-// RUN: %t.out --type int8 --channels 2 --sampled 32x33
-// RUN: %t.out --type int8 --channels 4 --sampled 32x33
-// RUN: %t.out --type unorm8 --channels 1 --sampled 32x33
-// RUN: %t.out --type unorm8 --channels 2 --sampled 32x33
-// RUN: %t.out --type unorm8 --channels 4 --sampled 32x33
+// RUN: ${run} %t.out --type float --channels 1 32x33
+// RUN: ${run} %t.out --type float --channels 2 32x33
+// RUN: ${run} %t.out --type float --channels 4 32x33
+// RUN: ${run} %t.out --type half --channels 1 32x33
+// RUN: ${run} %t.out --type half --channels 2 32x33
+// RUN: ${run} %t.out --type half --channels 4 32x33
+// RUN: ${run} %t.out --type int32 --channels 1 32x33
+// RUN: ${run} %t.out --type int32 --channels 2 32x33
+// RUN: ${run} %t.out --type int32 --channels 4 32x33
+// RUN: ${run} %t.out --type uint32 --channels 1 32x33
+// RUN: ${run} %t.out --type uint32 --channels 2 32x33
+// RUN: ${run} %t.out --type uint32 --channels 4 32x33
+// RUN: ${run} %t.out --type int16 --channels 1 32x33
+// RUN: ${run} %t.out --type int16 --channels 2 32x33
+// RUN: ${run} %t.out --type int16 --channels 4 32x33
+// RUN: ${run} %t.out --type uint16 --channels 1 32x33
+// RUN: ${run} %t.out --type uint16 --channels 2 32x33
+// RUN: ${run} %t.out --type uint16 --channels 4 32x33
+// RUN: ${run} %t.out --type uint8 --channels 1 32x33
+// RUN: ${run} %t.out --type uint8 --channels 2 32x33
+// RUN: ${run} %t.out --type uint8 --channels 4 32x33
+// RUN: ${run} %t.out --type int8 --channels 1 32x33
+// RUN: ${run} %t.out --type int8 --channels 2 32x33
+// RUN: ${run} %t.out --type int8 --channels 4 32x33
+// RUN: ${run} %t.out --type unorm8 --channels 1 32x33
+// RUN: ${run} %t.out --type unorm8 --channels 2 32x33
+// RUN: ${run} %t.out --type unorm8 --channels 4 32x33
+// RUN: ${run} %t.out --type float --channels 1 --sampled 32x33
+// RUN: ${run} %t.out --type float --channels 2 --sampled 32x33
+// RUN: ${run} %t.out --type float --channels 4 --sampled 32x33
+// RUN: ${run} %t.out --type half --channels 1 --sampled 32x33
+// RUN: ${run} %t.out --type half --channels 2 --sampled 32x33
+// RUN: ${run} %t.out --type half --channels 4 --sampled 32x33
+// RUN: ${run} %t.out --type int32 --channels 1 --sampled 32x33
+// RUN: ${run} %t.out --type int32 --channels 2 --sampled 32x33
+// RUN: ${run} %t.out --type int32 --channels 4 --sampled 32x33
+// RUN: ${run} %t.out --type uint32 --channels 1 --sampled 32x33
+// RUN: ${run} %t.out --type uint32 --channels 2 --sampled 32x33
+// RUN: ${run} %t.out --type uint32 --channels 4 --sampled 32x33
+// RUN: ${run} %t.out --type int16 --channels 1 --sampled 32x33
+// RUN: ${run} %t.out --type int16 --channels 2 --sampled 32x33
+// RUN: ${run} %t.out --type int16 --channels 4 --sampled 32x33
+// RUN: ${run} %t.out --type uint16 --channels 1 --sampled 32x33
+// RUN: ${run} %t.out --type uint16 --channels 2 --sampled 32x33
+// RUN: ${run} %t.out --type uint16 --channels 4 --sampled 32x33
+// RUN: ${run} %t.out --type uint8 --channels 1 --sampled 32x33
+// RUN: ${run} %t.out --type uint8 --channels 2 --sampled 32x33
+// RUN: ${run} %t.out --type uint8 --channels 4 --sampled 32x33
+// RUN: ${run} %t.out --type int8 --channels 1 --sampled 32x33
+// RUN: ${run} %t.out --type int8 --channels 2 --sampled 32x33
+// RUN: ${run} %t.out --type int8 --channels 4 --sampled 32x33
+// RUN: ${run} %t.out --type unorm8 --channels 1 --sampled 32x33
+// RUN: ${run} %t.out --type unorm8 --channels 2 --sampled 32x33
+// RUN: ${run} %t.out --type unorm8 --channels 4 --sampled 32x33
 
-// RUN: %t.out --type float --channels 1 32x33 --semaphores
-// RUN: %t.out --type half --channels 2 32x33 --semaphores
-// RUN: %t.out --type int32 --channels 4 32x33 --semaphores
-// RUN: %t.out --type uint32 --channels 1 32x33 --semaphores
-// RUN: %t.out --type int16 --channels 2 32x33 --semaphores
-// RUN: %t.out --type uint16 --channels 4 32x33 --semaphores
-// RUN: %t.out --type uint8 --channels 1 32x33 --semaphores
-// RUN: %t.out --type int8 --channels 2 32x33 --semaphores
-// RUN: %t.out --type unorm8 --channels 4 32x33 --semaphores
-// RUN: %t.out --type float --channels 1 --sampled 32x33 --semaphores
-// RUN: %t.out --type half --channels 2 --sampled 32x33 --semaphores
-// RUN: %t.out --type int32 --channels 4 --sampled 32x33 --semaphores
-// RUN: %t.out --type uint32 --channels 1 --sampled 32x33 --semaphores
-// RUN: %t.out --type int16 --channels 2 --sampled 32x33 --semaphores
-// RUN: %t.out --type uint16 --channels 4 --sampled 32x33 --semaphores
-// RUN: %t.out --type uint8 --channels 1 --sampled 32x33 --semaphores
-// RUN: %t.out --type int8 --channels 2 --sampled 32x33 --semaphores
-// RUN: %t.out --type unorm8 --channels 4 --sampled 32x33 --semaphores
+// RUN: ${run} %t.out --type float --channels 1 32x33 --semaphores
+// RUN: ${run} %t.out --type half --channels 2 32x33 --semaphores
+// RUN: ${run} %t.out --type int32 --channels 4 32x33 --semaphores
+// RUN: ${run} %t.out --type uint32 --channels 1 32x33 --semaphores
+// RUN: ${run} %t.out --type int16 --channels 2 32x33 --semaphores
+// RUN: ${run} %t.out --type uint16 --channels 4 32x33 --semaphores
+// RUN: ${run} %t.out --type uint8 --channels 1 32x33 --semaphores
+// RUN: ${run} %t.out --type int8 --channels 2 32x33 --semaphores
+// RUN: ${run} %t.out --type unorm8 --channels 4 32x33 --semaphores
+// RUN: ${run} %t.out --type float --channels 1 --sampled 32x33 --semaphores
+// RUN: ${run} %t.out --type half --channels 2 --sampled 32x33 --semaphores
+// RUN: ${run} %t.out --type int32 --channels 4 --sampled 32x33 --semaphores
+// RUN: ${run} %t.out --type uint32 --channels 1 --sampled 32x33 --semaphores
+// RUN: ${run} %t.out --type int16 --channels 2 --sampled 32x33 --semaphores
+// RUN: ${run} %t.out --type uint16 --channels 4 --sampled 32x33 --semaphores
+// RUN: ${run} %t.out --type uint8 --channels 1 --sampled 32x33 --semaphores
+// RUN: ${run} %t.out --type int8 --channels 2 --sampled 32x33 --semaphores
+// RUN: ${run} %t.out --type unorm8 --channels 4 --sampled 32x33 --semaphores
 
 /*
   Vulkan/SYCL 2D Arithmetic (A + B = C)
@@ -114,8 +114,8 @@
   Height (e.g. 8x4)
     --sampled
 
-  // RUN: %t.out --type float --semaphores
-  // RUN: %t.out --type unorm8 --sampled --semaphores
+  // RUN: ${run} %t.out --type float --semaphores
+  // RUN: ${run} %t.out --type unorm8 --sampled --semaphores
 */
 #include "vulkan_setup.hpp"
 
