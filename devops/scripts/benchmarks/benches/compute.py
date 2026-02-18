@@ -68,8 +68,8 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        # Feb 3, 2026
-        return "d0bbac7e9b73cad4f0621cdbfcf86a6e886e28b2"
+        # Feb 17, 2026
+        return "1ef6c0e6f3ca2e937f86a080594d268b1b895c16"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -1312,7 +1312,7 @@ class StreamMemory(ComputeBenchmark):
             f"--iterations={iters}",
             f"--type={self._type}",
             f"--size={self._size}",
-            f"--memoryPlacement={self._placement}",
+            f"--memory={self._placement}",
             "--useEvents=0",
             "--contents=Zeros",
             "--multiplier=1",
