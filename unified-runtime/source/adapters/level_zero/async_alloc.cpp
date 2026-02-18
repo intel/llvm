@@ -39,8 +39,7 @@ static ur_result_t enqueueUSMAllocHelper(
 
   std::vector<ur_event_handle_t> ExtEventWaitList;
   ur_event_handle_t OriginAllocEvent = nullptr;
-  auto AsyncAlloc =
-      UrPool->allocateEnqueued(Queue, Device, nullptr, Type, Size);
+  auto AsyncAlloc = UrPool->allocateEnqueued(Queue, Device, Type, Size);
   if (!AsyncAlloc) {
     auto Ret =
         UrPool->allocate(Queue->Context, Device, nullptr, Type, Size, RetMem);

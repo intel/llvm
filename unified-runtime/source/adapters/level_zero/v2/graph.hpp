@@ -21,6 +21,9 @@ public:
                          ze_graph_handle_t zeGraph);
   ~ur_exp_graph_handle_t_();
 
+  ur_exp_graph_handle_t_(const ur_exp_graph_handle_t_ &) = delete;
+  ur_exp_graph_handle_t_ &operator=(const ur_exp_graph_handle_t_ &) = delete;
+
   ze_graph_handle_t getZeHandle() { return zeGraph; }
   ur_context_handle_t getContext() { return hContext; }
 
@@ -34,6 +37,11 @@ public:
   ur_exp_executable_graph_handle_t_(ur_context_handle_t hContext,
                                     ur_exp_graph_handle_t hGraph);
   ~ur_exp_executable_graph_handle_t_();
+
+  ur_exp_executable_graph_handle_t_(const ur_exp_executable_graph_handle_t_ &) =
+      delete;
+  ur_exp_executable_graph_handle_t_ &
+  operator=(const ur_exp_executable_graph_handle_t_ &) = delete;
 
   ze_executable_graph_handle_t &getZeHandle() { return zeExGraph; }
   ur_context_handle_t getContext() const { return hContext; }
