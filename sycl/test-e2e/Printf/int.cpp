@@ -5,6 +5,8 @@
 // [1]: https://en.cppreference.com/w/cpp/io/c/fprintf
 //
 // UNSUPPORTED: target-amd
+// XFAIL: spirv-backend && gpu && run-mode
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21314
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
 // FIXME: Remove dedicated constant address space testing once generic AS
