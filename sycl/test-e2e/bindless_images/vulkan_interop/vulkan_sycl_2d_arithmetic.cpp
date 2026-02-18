@@ -335,8 +335,8 @@ int runTest(
         syclexp::image_type::standard, // type (default)
         1 //,                             // num_levels (default)
           // 1,                             // array_size (default)
-        // 0,                             // num_samples (default)
-        // pitchA                         // pitch
+          // 0,                             // num_samples (default)
+          // pitchA                         // pitch
     );
 
     auto imgMemA = syclexp::map_external_image_memory(
