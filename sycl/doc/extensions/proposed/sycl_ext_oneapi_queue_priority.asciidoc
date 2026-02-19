@@ -103,6 +103,8 @@ commands in queues with lower priority on this device. If the user specifies
 `sycl::ext::oneapi::info::device::priority_range` for the device associated
 with the queue, `priority_value` will be clamped down or up to the lowest or
 highest priority in the range. Lower numbers imply greater priorities.
+If the property is not set for a queue, the default priority for that queue is
+assumed to be 0.
 
 === New device information descriptor
 
