@@ -1237,7 +1237,7 @@ architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
 `architecture::intel_gpu_bmg_g21`, `architecture::intel_gpu_bmg_g31`,
 `architecture::intel_gpu_lnl_m`, `architecture::intel_gpu_ptl_h`,
 `architecture::intel_gpu_ptl_u`, `architecture::intel_gpu_wcl`,
-`architecture::intel_gpu_cri`
+and `architecture::intel_gpu_cri`
 
 - The `stride` parameter to `joint_matrix_load` and
   `joint_matrix_store` has the following restrictions:
