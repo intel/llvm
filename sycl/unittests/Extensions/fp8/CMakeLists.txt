@@ -2,7 +2,6 @@ add_sycl_unittest(FP8TypesTests OBJECT
   fp8_e4m3.cpp
   fp8_e5m2.cpp
   fp8_e8m0.cpp
-  fp8_e5m3.cpp
 )
 
 target_compile_options(FP8TypesTests_Preview_Tests PUBLIC -D__SYCL_TARGET_INTEL_GPU_CRI__)
