@@ -458,8 +458,8 @@ Driver::executeProgram(llvm::ArrayRef<llvm::StringRef> Args) const {
   return std::move(*OutputBuf);
 }
 
-static Arg *MakeInputArg(DerivedArgList &Args, const OptTable &Opts,
-                         StringRef Value, bool Claim = true) {
+Arg *clang::driver::makeInputArg(DerivedArgList &Args, const OptTable &Opts,
+                                 StringRef Value, bool Claim) {
   Arg *A = new Arg(Opts.getOption(options::OPT_INPUT), Value,
                    Args.getBaseArgs().MakeIndex(Value), Value.data());
   Args.AddSynthesizedArg(A);
@@ -548,7 +548,7 @@ DerivedArgList *Driver::TranslateInputArgs(const InputArgList &Args) const {
     if (A->getOption().matches(options::OPT__DASH_DASH)) {
       A->claim();
       for (StringRef Val : A->getValues())
-        DAL->append(MakeInputArg(*DAL, Opts, Val, false));
+        DAL->append(makeInputArg(*DAL, Opts, Val, false));
       continue;
     }
 
@@ -3604,7 +3604,7 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
       StringRef Value = A->getValue();
       if (DiagnoseInputExistence(Value, types::TY_C,
                                  /*TypoCorrect=*/false)) {
-        Arg *InputArg = MakeInputArg(Args, Opts, A->getValue());
+        Arg *InputArg = makeInputArg(Args, Opts, A->getValue());
         Inputs.push_back(
             std::make_pair(IsSYCL ? types::TY_CXX : types::TY_C, InputArg));
       }
@@ -3613,7 +3613,7 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
       StringRef Value = A->getValue();
       if (DiagnoseInputExistence(Value, types::TY_CXX,
                                  /*TypoCorrect=*/false)) {
-        Arg *InputArg = MakeInputArg(Args, Opts, A->getValue());
+        Arg *InputArg = makeInputArg(Args, Opts, A->getValue());
         Inputs.push_back(std::make_pair(types::TY_CXX, InputArg));
       }
       A->claim();
@@ -3656,7 +3656,7 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
   if (CCCIsCPP() && Inputs.empty()) {
     // If called as standalone preprocessor, stdin is processed
     // if no other input is present.
-    Arg *A = MakeInputArg(Args, Opts, "-");
+    Arg *A = makeInputArg(Args, Opts, "-");
     Inputs.push_back(std::make_pair(types::TY_C, A));
   }
 }
@@ -5792,7 +5792,7 @@ class OffloadingActionBuilder final {
           llvm::sys::path::append(LibName, DeviceLib);
           if (llvm::sys::fs::exists(LibName)) {
             ++NumOfDeviceLibLinked;
-            Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),
+            Arg *InputArg = makeInputArg(Args, C.getDriver().getOpts(),
                                          Args.MakeArgString(LibName));
             // We are using the LLVM-IR device libraries directly, no need
             // to unbundle any objects.
@@ -5828,7 +5828,7 @@ class OffloadingActionBuilder final {
         if (const char *LibSpirvFile = SYCLInstallation.findLibspirvPath(
                 TC->getTriple(), Args, *TC->getAuxTriple())) {
           Arg *LibClcInputArg =
-              MakeInputArg(Args, C.getDriver().getOpts(), LibSpirvFile);
+              makeInputArg(Args, C.getDriver().getOpts(), LibSpirvFile);
           auto *SYCLLibClcInputAction =
               C.MakeAction<InputAction>(*LibClcInputArg, types::TY_LLVM_BC);
           DeviceLinkObjects.push_back(SYCLLibClcInputAction);
@@ -5844,7 +5844,7 @@ class OffloadingActionBuilder final {
         std::string LibDeviceFile =
             CudaTC->CudaInstallation.getLibDeviceFile(BoundArch);
         if (!LibDeviceFile.empty()) {
-          Arg *CudaDeviceLibInputArg = MakeInputArg(
+          Arg *CudaDeviceLibInputArg = makeInputArg(
               Args, C.getDriver().getOpts(), Args.MakeArgString(LibDeviceFile));
           auto *SYCLDeviceLibInputAction = C.MakeAction<InputAction>(
               *CudaDeviceLibInputArg, types::TY_LLVM_BC);
@@ -6286,7 +6286,7 @@ class OffloadingActionBuilder final {
       auto makeInputAction = [&](const StringRef Name,
                                  types::ID Type) -> Action * {
         const llvm::opt::OptTable &Opts = C.getDriver().getOpts();
-        Arg *InputArg = MakeInputArg(Args, Opts, Args.MakeArgString(Name));
+        Arg *InputArg = makeInputArg(Args, Opts, Args.MakeArgString(Name));
         Action *Current = C.MakeAction<InputAction>(*InputArg, Type);
         return Current;
       };
@@ -6803,7 +6803,7 @@ public:
     SmallVector<const char *, 16> LinkArgs(getLinkerArgs(C, Args));
     const llvm::opt::OptTable &Opts = C.getDriver().getOpts();
     auto unbundleStaticLib = [&](types::ID T, const StringRef &A) {
-      Arg *InputArg = MakeInputArg(Args, Opts, Args.MakeArgString(A));
+      Arg *InputArg = makeInputArg(Args, Opts, Args.MakeArgString(A));
       Action *Current = C.MakeAction<InputAction>(*InputArg, T);
       addHostDependenceToDeviceActions(Current, InputArg, Args);
       auto PL = types::getCompilationPhases(T);
