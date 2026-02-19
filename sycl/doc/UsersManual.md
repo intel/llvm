@@ -47,6 +47,7 @@ and not recommended to use in production environment.
     Special target values specific to Intel, NVIDIA and AMD Processor Graphics
     support are accepted, providing a streamlined interface for AOT.
     A comma-separated list of valid Intel, NVIDIA and AMD Processor Graphics values are supported.
+    * intel_gpu_cri, intel_gpu_35_11_0 - Crescent Island Intel graphics architecture
     * intel_gpu_nvl_p, intel_gpu_35_10_0 - Nova Lake P Intel graphics architecture
     * intel_gpu_nvl_u, intel_gpu_nvl_h, intel_gpu_30_5_0 - Nova Lake U/H Intel graphics architecture
     * intel_gpu_nvl_s, intel_gpu_nvl_hx, intel_gpu_nvl_ul, intel_gpu_30_4_0 - Nova Lake S/HX/UL Intel graphics architecture

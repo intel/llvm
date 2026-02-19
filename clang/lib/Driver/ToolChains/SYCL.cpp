@@ -1136,6 +1136,7 @@ StringRef SYCL::gen::resolveGenDevice(StringRef DeviceName) {
           .Cases("intel_gpu_nvl_u", "intel_gpu_nvl_h", "intel_gpu_30_5_0",
                  "nvl_u")
           .Cases("intel_gpu_nvl_p", "intel_gpu_35_10_0", "nvl_p")
+          .Cases("intel_gpu_cri", "intel_gpu_35_11_0", "cri")
           .Case("nvidia_gpu_sm_50", "sm_50")
           .Case("nvidia_gpu_sm_52", "sm_52")
           .Case("nvidia_gpu_sm_53", "sm_53")
@@ -1271,6 +1272,7 @@ SmallString<64> SYCL::gen::getGenDeviceMacro(StringRef DeviceName) {
           .Case("nvl_s", "INTEL_GPU_NVL_S")
           .Case("nvl_u", "INTEL_GPU_NVL_U")
           .Case("nvl_p", "INTEL_GPU_NVL_P")
+          .Case("cri", "INTEL_GPU_CRI")
           .Case("sm_50", "NVIDIA_GPU_SM_50")
           .Case("sm_52", "NVIDIA_GPU_SM_52")
           .Case("sm_53", "NVIDIA_GPU_SM_53")
