@@ -136,7 +136,8 @@ VkResult setupInstance() {
       getSupportedInstanceExtensions(supportedInstanceExtensions));
 
   // We have some instance extensions that we require for the tests to function.
-  std::vector<const char *> requiredInstanceExtensions = {VK_EXT_DEBUG_UTILS_EXTENSION_NAME};
+  std::vector<const char *> requiredInstanceExtensions = {
+      VK_EXT_DEBUG_UTILS_EXTENSION_NAME};
 
   std::vector<const char *> optionalInstanceExtensions = {};
 
@@ -315,25 +316,27 @@ VkResult setupDevice(const sycl::device &dev) {
       }
     }
 
-    
-  VkPhysicalDeviceVulkan13Features supportedFeatures13{};
-  supportedFeatures13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+    VkPhysicalDeviceVulkan13Features supportedFeatures13{};
+    supportedFeatures13.sType =
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
 
-  VkPhysicalDeviceVulkan12Features supportedFeatures12{};
-  supportedFeatures12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
-  supportedFeatures12.pNext = &supportedFeatures13;
+    VkPhysicalDeviceVulkan12Features supportedFeatures12{};
+    supportedFeatures12.sType =
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+    supportedFeatures12.pNext = &supportedFeatures13;
 
-  VkPhysicalDeviceFeatures2 supportedFeatures2{};
-  supportedFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-  supportedFeatures2.pNext = &supportedFeatures12;
+    VkPhysicalDeviceFeatures2 supportedFeatures2{};
+    supportedFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    supportedFeatures2.pNext = &supportedFeatures12;
 
     vkGetPhysicalDeviceFeatures2(vk_physical_device, &supportedFeatures2);
 
-    if (!supportedFeatures12.timelineSemaphore){
-      std ::cout << "Vulkan Timeline Semaphore device feature is not present!\n";
+    if (!supportedFeatures12.timelineSemaphore) {
+      std ::cout
+          << "Vulkan Timeline Semaphore device feature is not present!\n";
       continue;
     }
-    
+
     foundDevice = true;
     std::cout << "Found suitable Vulkan device: "
               << devProps2.properties.deviceName << std::endl;
@@ -398,12 +401,14 @@ VkResult setupDevice(const sycl::device &dev) {
     qcis[1].queueCount = 1;
     qcis[1].pQueuePriorities = &queuePriority;
   }
-  
+
   VkPhysicalDeviceVulkan13Features enableFeatures13{};
-  enableFeatures13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+  enableFeatures13.sType =
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
 
   VkPhysicalDeviceVulkan12Features enableFeatures12{};
-  enableFeatures12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+  enableFeatures12.sType =
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
   enableFeatures12.pNext = &enableFeatures13;
   enableFeatures12.timelineSemaphore = VK_TRUE;
 
@@ -622,7 +627,7 @@ VkDeviceMemory allocateDeviceMemory(size_t size, uint32_t memoryTypeIndex,
   mai.allocationSize = size;
   mai.memoryTypeIndex = memoryTypeIndex;
 
-  VkMemoryDedicatedAllocateInfo  dedicatedInfo{};
+  VkMemoryDedicatedAllocateInfo dedicatedInfo{};
   if (requiresDedicatedAllocation) {
     dedicatedInfo.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO;
     dedicatedInfo.image = image;
@@ -736,7 +741,7 @@ uint32_t getImageMemoryTypeIndex(VkImage image, VkMemoryPropertyFlags flags,
   imageRequirementsInfo.image = image;
 
   vkGetImageMemoryRequirements2(vk_device, &imageRequirementsInfo,
-                                 &memoryRequirements2);
+                                &memoryRequirements2);
 
   if (dedicatedRequirements.requiresDedicatedAllocation) {
     requiresDedicatedAllocation = true;
