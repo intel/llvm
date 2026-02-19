@@ -19,4 +19,6 @@ struct ur_queue_extensions {
   onEventWaitListUse([[maybe_unused]] int64_t batch_generation) {
     return UR_RESULT_SUCCESS;
   }
+
+  virtual bool isInOrder() = 0;
 };
