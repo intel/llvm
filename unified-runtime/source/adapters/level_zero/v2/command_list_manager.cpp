@@ -966,6 +966,12 @@ ur_result_t ur_command_list_manager::appendUSMFreeExp(
                (getZeCommandList(), zeSignalEvent));
   }
 
+  // If event is specified, it's also going to be inserted
+  // into the async pool, so it needs to be retained.
+  if (phEvent) {
+    phEvent->retain();
+  }
+
   // Insert must be done after the signal event is appended.
   usmPool->asyncPool.insert(pMem, size, phEvent, Queue);
 
