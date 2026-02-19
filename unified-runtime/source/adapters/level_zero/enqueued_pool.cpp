@@ -28,18 +28,6 @@ std::optional<EnqueuedPool::Allocation> EnqueuedPool::getBestFit(size_t Size,
     return BestFit;
   }
 
-  // To make sure there's no match on other queues, we need to reset it to
-  // nullptr and try again.
-  Alloc.Queue = nullptr;
-  It = Freelist.lower_bound(Alloc);
-
-  if (It != Freelist.end() && It->Size >= Size) {
-    Allocation BestFit = *It;
-    Freelist.erase(It);
-
-    return BestFit;
-  }
-
   return std::nullopt;
 }
 
