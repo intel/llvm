@@ -1111,7 +1111,7 @@ This is currently available in devices with the architecture
 `architecture::intel_gpu_dg2_g10`, `architecture::intel_gpu_dg2_g11`,
 `architecture::intel_gpu_dg2_g12`, `architecture::intel_gpu_arl_h`,
 `architecture::intel_gpu_ptl_h`, `architecture::intel_gpu_ptl_u`,
-`architecture::intel_gpu_wcl`, `architecture::intel_gpu_cri`.
+`architecture::intel_gpu_wcl`, and `architecture::intel_gpu_cri`.
 
 [frame="none",options="header"]
 |======================
