@@ -736,7 +736,7 @@ if (dev.has(aspect::ext_intel_memory_clock_rate)) {
 Missing before version 6 of this extension.
 
 This extension adds the following device aspect and information descriptor,
-which allow an application to query the maximum clock rate of device's global
+which allow an application to query the maximum bus width between device and
 memory.
 
 ==== New device aspect
@@ -841,7 +841,7 @@ namespace sycl::ext::intel {
     sw_range,
     hw_range,
     other
-  }
+  };
 
 }
 
@@ -949,7 +949,7 @@ enum class aspect {
 ----
 
 `ext_intel_power_limits`: Indicates that the device supports the
-`min_power_limit` and 'max_power_limit' information descriptor.
+`min_power_limit` and `max_power_limit` information descriptor.
 
 ==== New device information descriptors
 
@@ -1099,7 +1099,7 @@ the device does not have `aspect::ext_intel_device_info_node_mask`.
 [source,c++]
 ----
 if (dev.has(aspect::ext_intel_device_info_node_mask)) {
-  auto node_mask = dev.get_info<ext::intel::info::device::node_mask>();
+  auto NodeMask = dev.get_info<ext::intel::info::device::node_mask>();
 }
 ----
 
@@ -1107,7 +1107,7 @@ if (dev.has(aspect::ext_intel_device_info_node_mask)) {
 
 === Deprecated queries
 
-The table below lists deprecated, that would soon be removed and their replacements:
+The table below lists deprecated queries, that would soon be removed and their replacements:
 
 [%header,cols="1,1"]
 |===
@@ -1115,10 +1115,10 @@ The table below lists deprecated, that would soon be removed and their replaceme
 | info::device::ext_intel_device_info_uuid  | ext::intel::info::device::uuid
 | info::device::ext_intel_pci_address        | ext::intel::info::device::pci_address
 | info::device::ext_intel_gpu_eu_simd_width  | ext::intel::info::device::gpu_eu_simd_width
-| info::device::ext_intel_gpu__eu_count       | ext::intel::info::device::gpu__eu_count
+| info::device::ext_intel_gpu_eu_count       | ext::intel::info::device::gpu_eu_count
 | info::device::ext_intel_gpu_slices               | ext::intel::info::device::gpu_slices
 | info::device::ext_intel_gpu_subslices_per_slice | ext::intel::info::device::gpu_subslices_per_slice
-|info::device::ext_intel_gpu_eu_count_per_subslice | ext::intel::info::device::gpu_eu_count_per_subslice
+| info::device::ext_intel_gpu_eu_count_per_subslice | ext::intel::info::device::gpu_eu_count_per_subslice
 | info::device::ext_intel_gpu_hw_threads_per_eu    | ext::intel::info::device::gpu_hw_threads_per_eu
 | info::device::ext_intel_max_mem_bandwidth | ext::intel::info::device::max_mem_bandwidth
 |===
