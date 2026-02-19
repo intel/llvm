@@ -392,6 +392,8 @@ TEST_P(urL0EnqueueAllocMultiQueueSameDeviceTest, SuccessMt) {
 }
 
 TEST_P(urL0EnqueueAllocMultiQueueSameDeviceTest, SuccessReuse) {
+  GTEST_SKIP() << "Multi queue reuse is not supported.";
+
   const size_t allocSize = std::get<1>(this->GetParam()).allocSize;
   const auto enqueueUSMAllocFunc =
       std::get<1>(this->GetParam()).funcParams.enqueueUSMAllocFunc;

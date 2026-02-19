@@ -429,8 +429,8 @@ ur_result_t ur_queue_batched_t::enqueueUSMFreeExp(
 
   UR_CALL(lockedBatch->getActiveBatch().appendUSMFreeExp(
       this, pPool, pMem, waitListView,
-      createEventAndRetainRegular(phEvent,
-                                  lockedBatch->getCurrentGeneration())));
+      createEventIfRequestedRegular(phEvent,
+                                    lockedBatch->getCurrentGeneration())));
 
   return queueFlushUnlocked(lockedBatch);
 }

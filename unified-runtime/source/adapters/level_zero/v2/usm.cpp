@@ -355,8 +355,9 @@ ur_usm_pool_handle_t_::allocateEnqueued(ur_context_handle_t hContext,
     return std::nullopt;
   }
 
-  if (allocation->Queue == hQueue && isInOrderQueue && allocation->Event) {
-    allocation->Event->release();
+  if (allocation->Queue == hQueue && isInOrderQueue) {
+    if (allocation->Event)
+      allocation->Event->release();
     return std::make_pair(allocation->Ptr, nullptr);
   } else {
     return std::make_pair(allocation->Ptr, allocation->Event);
