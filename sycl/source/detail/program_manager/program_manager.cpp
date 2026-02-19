@@ -3418,6 +3418,11 @@ bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
         return (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_AMDGCN) == 0 ||
                 strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_LLVM_AMDGCN) == 0);
       }
+      if (PlatformName == "LEVEL_ZERO") {
+        return (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64) == 0 ||
+                strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0);
+      }
+
       assert(false && "Unhandled liboffload platform");
       return false;
     }
