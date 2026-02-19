@@ -1,3 +1,5 @@
+// Test if a free function kernel with template args can be compiled & executed.
+
 // REQUIRES: aspect-usm_device_allocations
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
