@@ -11,7 +11,7 @@ from templates import helper as th
     handle_create_get_retain_release_funcs=th.get_handle_create_get_retain_release_functions(specs, n, tags)
 %>/*
  *
- * Copyright (C) 2023-2025 Intel Corporation
+ * Copyright (C) 2023-2026 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
  * Exceptions.
@@ -21,6 +21,8 @@ from templates import helper as th
  *
  * @file ${name}.cpp
  *
+ * NOTE: This file is auto-generated. To edit this file, modify
+ *       unified-runtime/scripts/templates/${name}.cpp.mako.
  */
 #include "${x}_leak_check.hpp"
 #include "${x}_validation_layer.hpp"
