@@ -1854,6 +1854,7 @@ public:
         {0x07814004, oneapi_exp_arch::intel_gpu_nvl_u},   // B0
         {0x08c28000, oneapi_exp_arch::intel_gpu_nvl_p},   // A0
         {0x08c28004, oneapi_exp_arch::intel_gpu_nvl_p},   // B0
+        {0x08c2c000, oneapi_exp_arch::intel_gpu_cri},     // A0
     };
 
     // Only for Intel CPU architectures

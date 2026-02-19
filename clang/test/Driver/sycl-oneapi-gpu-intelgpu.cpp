@@ -186,6 +186,10 @@
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=nvl_p -DMAC_STR=NVL_P
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_35_10_0 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=nvl_p -DMAC_STR=NVL_P
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_cri -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=cri -DMAC_STR=CRI
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_35_11_0 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=cri -DMAC_STR=CRI
 // MACRO: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
 // MACRO: "-D__SYCL_TARGET_INTEL_GPU_[[MAC_STR]]__"
 // MACRO: clang{{.*}} "-fsycl-is-host"

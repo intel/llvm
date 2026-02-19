@@ -84,6 +84,7 @@ __SYCL_ARCHITECTURE_ALIAS(intel_gpu_nvl_ul, intel_gpu_nvl_s)     // Nova Lake UL
 __SYCL_ARCHITECTURE(intel_gpu_nvl_u, 0x0000000781400400)         // Nova Lake U
 __SYCL_ARCHITECTURE_ALIAS(intel_gpu_nvl_h, intel_gpu_nvl_u)      // Nova Lake H
 __SYCL_ARCHITECTURE(intel_gpu_nvl_p, 0x00000008c2800000)         // Nova Lake P
+__SYCL_ARCHITECTURE(intel_gpu_cri, 0x00000008c2c00000)           // Crescent Island
 //
 // NVIDIA architectures
 //
@@ -187,3 +188,4 @@ __SYCL_ARCHITECTURE_ALIAS(intel_gpu_30_3_0, intel_gpu_wcl)
 __SYCL_ARCHITECTURE_ALIAS(intel_gpu_30_4_0, intel_gpu_nvl_s)
 __SYCL_ARCHITECTURE_ALIAS(intel_gpu_30_5_0, intel_gpu_nvl_u)
 __SYCL_ARCHITECTURE_ALIAS(intel_gpu_35_10_0, intel_gpu_nvl_p)
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_35_11_0, intel_gpu_cri)
