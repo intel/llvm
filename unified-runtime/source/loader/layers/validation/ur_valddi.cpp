@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2023-2025 Intel Corporation
+ * Copyright (C) 2023-2026 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
  * Exceptions.
@@ -10,6 +10,8 @@
  *
  * @file ur_valddi.cpp
  *
+ * NOTE: This file is auto-generated. To edit this file, modify
+ *       unified-runtime/scripts/templates/ur_valddi.cpp.mako.
  */
 #include "ur_leak_check.hpp"
 #include "ur_validation_layer.hpp"
