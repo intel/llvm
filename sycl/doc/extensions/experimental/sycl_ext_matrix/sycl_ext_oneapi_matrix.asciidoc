@@ -1111,7 +1111,7 @@ This is currently available in devices with the architecture
 `architecture::intel_gpu_dg2_g10`, `architecture::intel_gpu_dg2_g11`,
 `architecture::intel_gpu_dg2_g12`, `architecture::intel_gpu_arl_h`,
 `architecture::intel_gpu_ptl_h`, `architecture::intel_gpu_ptl_u`,
-and `architecture::intel_gpu_wcl`.
+`architecture::intel_gpu_wcl`, `architecture::intel_gpu_cri`.
 
 [frame="none",options="header"]
 |======================
@@ -1121,7 +1121,7 @@ and `architecture::intel_gpu_wcl`.
 |`architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
 `architecture::intel_gpu_bmg_g31`, `architecture::intel_gpu_lnl_m`,
 `architecture::intel_gpu_ptl_h`, `architecture::intel_gpu_ptl_u`,
-`architecture::intel_gpu_wcl`
+`architecture::intel_gpu_wcl`, `architecture::intel_gpu_cri`
 |8|`architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
 `architecture::intel_gpu_arl_h`
@@ -1130,7 +1130,7 @@ architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
 `architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
 `architecture::intel_gpu_bmg_g31`, `architecture::intel_gpu_lnl_m`,
 `architecture::intel_gpu_ptl_h`, `architecture::intel_gpu_ptl_u`,
-`architecture::intel_gpu_wcl`
+`architecture::intel_gpu_wcl`, `architecture::intel_gpu_cri`
 |8|`architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
 `architecture::intel_gpu_arl_h`
@@ -1139,7 +1139,7 @@ architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
 `architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
 `architecture::intel_gpu_bmg_g31`, `architecture::intel_gpu_lnl_m`,
 `architecture::intel_gpu_ptl_h`, `architecture::intel_gpu_ptl_u`,
-`architecture::intel_gpu_wcl`
+`architecture::intel_gpu_wcl`, `architecture::intel_gpu_cri`
 |8|`architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
 `architecture::intel_gpu_arl_h`
@@ -1148,7 +1148,7 @@ architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
 `architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
 `architecture::intel_gpu_bmg_g31`, `architecture::intel_gpu_lnl_m`,
 `architecture::intel_gpu_ptl_h`, `architecture::intel_gpu_ptl_u`,
-`architecture::intel_gpu_wcl`
+`architecture::intel_gpu_wcl`, `architecture::intel_gpu_cri`
 |8|`architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
 `architecture::intel_gpu_arl_h`
@@ -1157,7 +1157,7 @@ architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
 .6+|`architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
 `architecture::intel_gpu_bmg_g31`, `architecture::intel_gpu_lnl_m`,
 `architecture::intel_gpu_ptl_h`, `architecture::intel_gpu_ptl_u`,
-`architecture::intel_gpu_wcl`
+`architecture::intel_gpu_wcl`, `architecture::intel_gpu_cri`
 .2+| 1 .2+| 64 | 16 |32
 .2+| 32 .2+| 64 | 16 |32
 .2+|  +<=+ 8 |  16   .2+|  16
@@ -1170,7 +1170,7 @@ architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
 .6+| `architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
 `architecture::intel_gpu_bmg_g31`, `architecture::intel_gpu_lnl_m`,
 `architecture::intel_gpu_ptl_h`, `architecture::intel_gpu_ptl_u`,
-`architecture::intel_gpu_wcl`
+`architecture::intel_gpu_wcl`, `architecture::intel_gpu_cri`
 | 16 | 16 | 16 .2+| 1 .2+| 64 | 16 | 32
 .2+| 32 .2+| 64 | 16 | 32
 .6+|`matrix_type::fp16`       .6+|  `matrix_type::fp16`   .6+|
@@ -1178,7 +1178,7 @@ architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
 .6+|`architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
 `architecture::intel_gpu_bmg_g31`, `architecture::intel_gpu_lnl_m`,
 `architecture::intel_gpu_ptl_h`, `architecture::intel_gpu_ptl_u`,
-`architecture::intel_gpu_wcl`
+`architecture::intel_gpu_wcl`, `architecture::intel_gpu_cri`
 | 16 | 16 | 16 .2+| 1 .2+| 64 | 16 | 32
 .2+| 32 .2+| 64 |16 | 32
 .6+|`matrix_type::fp16`       .6+|  `matrix_type::fp16`   .6+|
@@ -1186,14 +1186,14 @@ architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
 .6+|`architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
 `architecture::intel_gpu_bmg_g31`, `architecture::intel_gpu_lnl_m`,
 `architecture::intel_gpu_ptl_h`, `architecture::intel_gpu_ptl_u`,
-`architecture::intel_gpu_wcl`
+`architecture::intel_gpu_wcl`, `architecture::intel_gpu_cri`
 | 16 | 16 | 16 .2+| 1 .2+| 64 | 16 |32 .2+| 32 .2+| 64 | 16 | 32
 .8+|  `matrix_type::bf16`       .8+|  `matrix_type::bf16`   .8+|
 `matrix_type::fp32` .8+| `matrix_type::fp32`  | 16 | 16 | 16
 .6+|`architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
 `architecture::intel_gpu_bmg_g31`, `architecture::intel_gpu_lnl_m`,
 `architecture::intel_gpu_ptl_h`, `architecture::intel_gpu_ptl_u`,
-`architecture::intel_gpu_wcl`
+`architecture::intel_gpu_wcl`, `architecture::intel_gpu_cri`
 .2+| 1 .2+| 64 | 16 | 32
 .2+| 32 .2+| 64 | 16 |32
 .2+|  +<=+ 8 |  16   .2+|  16
@@ -1206,7 +1206,7 @@ architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
 `architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
 `architecture::intel_gpu_bmg_g31`, `architecture::intel_gpu_lnl_m`,
 `architecture::intel_gpu_ptl_h`, `architecture::intel_gpu_ptl_u`,
-`architecture::intel_gpu_wcl`
+`architecture::intel_gpu_wcl`, `architecture::intel_gpu_cri`
 | 16 | 16 | 16 .2+| 1 .2+| 64 | 16 | 32
 .2+| 32 .2+| 64 |16 | 32
 .6+|`matrix_type::bf16`       .6+|  `matrix_type::bf16`   .6+|
@@ -1214,7 +1214,7 @@ architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
 `architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
 `architecture::intel_gpu_bmg_g31`, `architecture::intel_gpu_lnl_m`,
 `architecture::intel_gpu_ptl_h`, `architecture::intel_gpu_ptl_u`,
-`architecture::intel_gpu_wcl`
+`architecture::intel_gpu_wcl`, `architecture::intel_gpu_cri`
 | 16 | 16 | 16 .2+| 1 .2+| 64 | 16 | 32
 .2+| 32 .2+| 64 |16 | 32
 .6+|`matrix_type::bf16`       .6+|  `matrix_type::bf16`   .6+|
@@ -1222,7 +1222,7 @@ architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
 `architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
 `architecture::intel_gpu_bmg_g31`, `architecture::intel_gpu_lnl_m`,
 `architecture::intel_gpu_ptl_h`, `architecture::intel_gpu_ptl_u`,
-`architecture::intel_gpu_wcl`
+`architecture::intel_gpu_wcl`, `architecture::intel_gpu_cri`
 | 16 | 16 | 16 .2+| 1 .2+| 64 | 16 | 32
 .2+| 32 .2+| 64 |16 | 32
 |  `matrix_type::tf32`       |  `matrix_type::tf32`   |
@@ -1230,13 +1230,14 @@ architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
 `architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
 `architecture::intel_gpu_bmg_g31`, `architecture::intel_gpu_lnl_m`,
 `architecture::intel_gpu_ptl_h`, `architecture::intel_gpu_ptl_u`,
-`architecture::intel_gpu_wcl`
+`architecture::intel_gpu_wcl`, `architecture::intel_gpu_cri`
 |======================
 
 ===== Restrictions on `architecture::intel_gpu_pvc`,
 `architecture::intel_gpu_bmg_g21`, `architecture::intel_gpu_bmg_g31`,
 `architecture::intel_gpu_lnl_m`, `architecture::intel_gpu_ptl_h`,
-`architecture::intel_gpu_ptl_u`, and `architecture::intel_gpu_wcl`
+`architecture::intel_gpu_ptl_u`, `architecture::intel_gpu_wcl`,
+`architecture::intel_gpu_cri`
 
 - The `stride` parameter to `joint_matrix_load` and
   `joint_matrix_store` has the following restrictions:

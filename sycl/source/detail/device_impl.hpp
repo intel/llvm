@@ -1434,6 +1434,7 @@ public:
           arch::intel_gpu_bmg_g31, arch::intel_gpu_lnl_m,
           arch::intel_gpu_arl_h,   arch::intel_gpu_ptl_h,
           arch::intel_gpu_ptl_u,   arch::intel_gpu_wcl,
+          arch::intel_gpu_cri
       };
       try {
         return std::any_of(
@@ -1985,7 +1986,8 @@ public:
              (architecture::intel_gpu_lnl_m == DeviceArch) ||
              (architecture::intel_gpu_ptl_h == DeviceArch) ||
              (architecture::intel_gpu_ptl_u == DeviceArch) ||
-             (architecture::intel_gpu_wcl == DeviceArch)) {
+             (architecture::intel_gpu_wcl == DeviceArch) ||
+             (architecture::intel_gpu_cri == DeviceArch)) {
       std::vector<ext::oneapi::experimental::matrix::combination> pvc_combs = {
           {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::uint8,
            matrix_type::sint32, matrix_type::sint32},
