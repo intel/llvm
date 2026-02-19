@@ -2686,7 +2686,14 @@ int Driver::ExecuteCompilation(
 
     if (!FailingTool.hasGoodDiagnostics() || CommandRes != 1) {
       // FIXME: See FIXME above regarding result code interpretation.
+#if LLVM_ON_UNIX
+      // On Unix, signals are represented by return codes of 128 plus the
+      // signal number. Return code 255 is excluded because some tools,
+      // such as llvm-ifs, exit with code 255 (-1) on failure.
+      if (CommandRes > 128 && CommandRes != 255)
+#else
       if (CommandRes < 0)
+#endif
         Diag(clang::diag::err_drv_command_signalled)
             << FailingTool.getShortName();
       else
@@ -4046,7 +4053,7 @@ class OffloadingActionBuilder final {
     DerivedArgList &Args;
 
     /// The inputs associated with this builder.
-    const Driver::InputList &Inputs;
+    const InputList &Inputs;
 
     /// The associated offload kind.
     Action::OffloadKind AssociatedOffloadKind = Action::OFK_None;
@@ -4056,7 +4063,7 @@ class OffloadingActionBuilder final {
 
   public:
     DeviceActionBuilder(Compilation &C, DerivedArgList &Args,
-                        const Driver::InputList &Inputs,
+                        const InputList &Inputs,
                         Action::OffloadKind AssociatedOffloadKind,
                         OffloadingActionBuilder &OAB)
         : C(C), Args(Args), Inputs(Inputs),
@@ -4165,8 +4172,7 @@ class OffloadingActionBuilder final {
 
   public:
     CudaActionBuilderBase(Compilation &C, DerivedArgList &Args,
-                          const Driver::InputList &Inputs,
-                          Action::OffloadKind OFKind,
+                          const InputList &Inputs, Action::OffloadKind OFKind,
                           OffloadingActionBuilder &OAB)
         : DeviceActionBuilder(C, Args, Inputs, OFKind, OAB),
           CUIDOpts(C.getDriver().getCUIDOpts()) {
@@ -4338,8 +4344,7 @@ class OffloadingActionBuilder final {
   class CudaActionBuilder final : public CudaActionBuilderBase {
   public:
     CudaActionBuilder(Compilation &C, DerivedArgList &Args,
-                      const Driver::InputList &Inputs,
-                      OffloadingActionBuilder &OAB)
+                      const InputList &Inputs, OffloadingActionBuilder &OAB)
         : CudaActionBuilderBase(C, Args, Inputs, Action::OFK_Cuda, OAB) {
       DefaultOffloadArch = OffloadArch::CudaDefault;
     }
@@ -4485,8 +4490,7 @@ class OffloadingActionBuilder final {
 
   public:
     HIPActionBuilder(Compilation &C, DerivedArgList &Args,
-                     const Driver::InputList &Inputs,
-                     OffloadingActionBuilder &OAB)
+                     const InputList &Inputs, OffloadingActionBuilder &OAB)
         : CudaActionBuilderBase(C, Args, Inputs, Action::OFK_HIP, OAB) {
 
       DefaultOffloadArch = OffloadArch::HIPDefault;
@@ -4743,8 +4747,7 @@ class OffloadingActionBuilder final {
 
   public:
     OpenMPActionBuilder(Compilation &C, DerivedArgList &Args,
-                        const Driver::InputList &Inputs,
-                        OffloadingActionBuilder &OAB)
+                        const InputList &Inputs, OffloadingActionBuilder &OAB)
         : DeviceActionBuilder(C, Args, Inputs, Action::OFK_OpenMP, OAB) {}
 
     ActionBuilderReturnCode
@@ -5017,8 +5020,7 @@ class OffloadingActionBuilder final {
 
   public:
     SYCLActionBuilder(Compilation &C, DerivedArgList &Args,
-                      const Driver::InputList &Inputs,
-                      OffloadingActionBuilder &OAB)
+                      const InputList &Inputs, OffloadingActionBuilder &OAB)
         : DeviceActionBuilder(C, Args, Inputs, Action::OFK_SYCL, OAB),
           SYCLInstallation(C.getDriver()) {}
 
@@ -6363,7 +6365,7 @@ class OffloadingActionBuilder final {
 
 public:
   OffloadingActionBuilder(Compilation &C, DerivedArgList &Args,
-                          const Driver::InputList &Inputs)
+                          const InputList &Inputs)
       : C(C) {
     // Create a specialized builder for each device toolchain.
 
