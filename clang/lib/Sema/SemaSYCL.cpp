@@ -7556,7 +7556,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
   unsigned ShimCounter = 1;
   int FreeFunctionCount = 0;
-  // Structs with special types inside needs some special code generation in the
+  // Structs with special types inside need some special code generation in the
   // header and we keep this visited map to not have duplicates in case several
   // free function kernels use the same struct type as parameters.
   llvm::DenseMap<const RecordDecl *, bool> visitedStructWithSpecialType;
@@ -7572,6 +7572,11 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     Policy.SuppressDefaultTemplateArgs = false;
     FwdDeclEmitter.Visit(K.SyclKernel->getType());
     O << "\n";
+    // Forward declare template arguments as well.
+    if (const TemplateArgumentList *TAL =
+            K.SyclKernel->getTemplateSpecializationArgs())
+      for (const TemplateArgument &TA : TAL->asArray())
+        FwdDeclEmitter.Visit(TA);
 
     if (K.SyclKernel->getLanguageLinkage() == CLanguageLinkage)
       O << "extern \"C\" ";
