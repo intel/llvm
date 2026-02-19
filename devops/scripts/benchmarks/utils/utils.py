@@ -37,17 +37,12 @@ def run(
     env_vars=None,
     cwd=None,
     add_sycl=False,
-    ld_library=None,
+    ld_library=[],
     timeout=None,
     input=None,
 ):
     try:
-        if env_vars is None:
-            env_vars = {}
-        else:
-            env_vars = dict(env_vars)
-        if ld_library is None:
-            ld_library = []
+        env_vars = dict(env_vars) if env_vars else {}
 
         if timeout is None:
             timeout = options.timeout
