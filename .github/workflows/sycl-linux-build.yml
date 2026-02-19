@@ -176,6 +176,8 @@ jobs:
       with:
         sparse-checkout: |
           devops/actions
+    - name: Check nvcc
+      run: nvcc --version
     # Cleanup will be run after all actions are completed.
     - name: Register cleanup after job is finished
       uses: ./devops/actions/cleanup
