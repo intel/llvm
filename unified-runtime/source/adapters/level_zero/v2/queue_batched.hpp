@@ -477,29 +477,35 @@ public:
       uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
       ur_event_handle_t *phEvent) override;
 
+  ur_result_t enqueueGraphExp(ur_exp_executable_graph_handle_t hGraph,
+                              uint32_t numEventsInWaitList,
+                              const ur_event_handle_t *phEventWaitList,
+                              ur_event_handle_t *phEvent) override {
+    wait_list_view waitListView =
+        wait_list_view(phEventWaitList, numEventsInWaitList);
+
+    auto batchLocked = currentCmdLists.lock();
+    auto &eventPool = batchLocked->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
+    return batchLocked->getListManager().appendGraph(
+        hGraph, waitListView,
+        createEventIfRequested(eventPool.get(), phEvent, this));
+  }
+
   ur_result_t queueBeginGraphCapteExp() override {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    return currentCmdLists.lock()->getListManager().beginGraphCapture();
   }
 
   ur_result_t
-  queueBeginCapteIntoGraphExp(ur_exp_graph_handle_t /* hGraph */) override {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  queueBeginCapteIntoGraphExp(ur_exp_graph_handle_t hGraph) override {
+    return currentCmdLists.lock()->getListManager().beginCaptureIntoGraph(hGraph);
   }
 
-  ur_result_t
-  queueEndGraphCapteExp(ur_exp_graph_handle_t * /* phGraph */) override {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  ur_result_t queueEndGraphCapteExp(ur_exp_graph_handle_t *phGraph) override {
+    return currentCmdLists.lock()->getListManager().endGraphCapture(phGraph);
   }
 
-  ur_result_t enqueueGraphExp(ur_exp_executable_graph_handle_t /* hGraph */,
-                              uint32_t /* numEventsInWaitList */,
-                              const ur_event_handle_t * /* phEventWaitList */,
-                              ur_event_handle_t * /* phEvent */) override {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-  }
-
-  ur_result_t queueIsGraphCapteEnabledExp(bool * /* pResult */) override {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  ur_result_t queueIsGraphCapteEnabledExp(bool *pResult) override {
+    return currentCmdLists.lock()->getListManager().isGraphCaptureActive(pResult);
   }
 
   ur_result_t
@@ -511,9 +517,11 @@ public:
     wait_list_view waitListView =
         wait_list_view(phEventWaitList, numEventsInWaitList);
 
-    return currentCmdLists.lock()->getActiveBatch().appendHostTaskExp(
+    auto batchLocked = currentCmdLists.lock();
+    auto &eventPool = batchLocked->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
+    return batchLocked->getListManager().appendHostTaskExp(
         pfnHostTask, data, pProperties, waitListView,
-        createEventIfRequested(eventPoolRegular.get(), phEvent, this));
+        createEventIfRequested(eventPool.get(), phEvent, this));
   }
 
   ur::RefCount RefCount;
