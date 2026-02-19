@@ -171,7 +171,7 @@ template <int Ebits, int Mbits, typename ToT>
 static inline ToT ConvertFromFP8_CPU(uint8_t b,
                                      rounding R = rounding::to_even) noexcept {
   static_assert((Ebits == 4 && Mbits == 3) || (Ebits == 5 && Mbits == 2) ||
-                    (Ebits == 8 && Mbits == 0),
+                    (Ebits == 5 && Mbits == 3) || (Ebits == 8 && Mbits == 0),
                 "Unsupported FP8 (Ebits,Mbits) combination");
 
   constexpr int Bias = (1 << (Ebits - 1)) - 1;
@@ -188,6 +188,9 @@ static inline ToT ConvertFromFP8_CPU(uint8_t b,
   if constexpr (Ebits == 8 && Mbits == 0) {
     sign_bit = 0u;
     exp = b;
+  } else if constexpr (Ebits == 5 && Mbits == 3) {
+    // E5M3 is unsigned: MSB belongs to exponent, no sign bit.
+    sign_bit = 0u;
   }
 
   auto make_nan = [&]() -> ToT {
@@ -207,6 +210,11 @@ static inline ToT ConvertFromFP8_CPU(uint8_t b,
       if (frac != 0)
         return make_nan();
       // frac==00 -> normal finite
+    } else if constexpr (Ebits == 5 && Mbits == 3) {
+      // E5M3: only frac==111 -> NaN, otherwise normal.
+      if (frac == MaxFrac)
+        return make_nan();
+      // treat as normal finite
     } else // E8M0: exp all ones -> NaN
       return make_nan();
   }
@@ -255,7 +263,7 @@ static inline ToT ConvertFromFP8_CPU(uint8_t b,
 template <int Ebits, int Mbits, typename T>
 static inline uint8_t
 ConvertToFP8_CPU(T h, rounding R = rounding::to_even) noexcept {
-  // Specialized implementation for fp8_e8m0 (Ebits=8, Mbits=0)
+  // Specialized implementation for fp8_e8m0_x (Ebits=8, Mbits=0)
   if constexpr (Ebits == 8 && Mbits == 0) {
     // Format characteristics (finite-only, no zero, no infinity):
     //  - Bias: 127
@@ -352,7 +360,9 @@ ConvertToFP8_CPU(T h, rounding R = rounding::to_even) noexcept {
   constexpr uint8_t ExpAllOnes = static_cast<uint8_t>((1 << Ebits) - 1);
   constexpr uint8_t MaxFrac = static_cast<uint8_t>((1 << Mbits) - 1);
   constexpr uint8_t MaxFracForMaxNormal =
-      (Ebits == 4 && Mbits == 3) ? static_cast<uint8_t>(MaxFrac - 1u) : MaxFrac;
+      (Ebits == 4 && Mbits == 3) || (Ebits == 5 && Mbits == 3)
+          ? static_cast<uint8_t>(MaxFrac - 1u)
+          : MaxFrac;
   constexpr uint8_t MaxExpForMaxNormal =
       (Ebits == 5 && Mbits == 2) ? static_cast<uint8_t>(ExpAllOnes - 1u)
                                  : ExpAllOnes;
@@ -365,6 +375,11 @@ ConvertToFP8_CPU(T h, rounding R = rounding::to_even) noexcept {
         sign | ((ExpAllOnes << Mbits) | MaxFracMask)); // S.1111.111 -> NaN
   uint8_t sign_bit = sign ? 1u : 0u;
   float ax = std::fabs(x);
+  if constexpr (Ebits == 5 && Mbits == 3) {
+    // E5M3 is unsigned: ignore sign and treat input as magnitude.
+    sign = 0x00;
+    sign_bit = 0u;
+  }
 
   const float max_finite =
       (2.0f - std::ldexp(1.0f, 1 - Mbits)) * std::ldexp(1.0f, emax);
@@ -470,15 +485,7 @@ uint8_t round(rounding r, uint8_t b, sycl::half yi, T vi) {
   return b;
 }
 
-void CheckRoundingConstraints(rounding r) {
-#ifdef __SYCL_DEVICE_ONLY__
-#else
-  if (r != rounding::to_even)
-    throw std::invalid_argument("Host code supports only rounding to_even");
-#endif
-}
-
-template <size_t N> class fp8_e4m3 {
+template <size_t N> class fp8_e4m3_x {
   static constexpr size_t NExpBits = 4;
   static constexpr size_t NFracBits = 3;
   static constexpr float MaxNormal = 448.0f;
@@ -551,12 +558,20 @@ template <size_t N> class fp8_e4m3 {
 #endif
   }
 
-public:
-  fp8_e4m3() = default;
-  fp8_e4m3(const fp8_e4m3 &) = default;
+  void CheckConstraints(rounding r) const {
+    static_assert(N == 1 || N == 2,
+                  "fp8_e4m3_x: Template argument N must be 1 or 2");
+    if (r != rounding::to_even)
+      throw std::invalid_argument(
+          "fp8_e4m3_x: only rounding::to_even is supported");
+  }
 
-  ~fp8_e4m3() = default;
-  fp8_e4m3 &operator=(const fp8_e4m3 &) = default;
+public:
+  fp8_e4m3_x() = default;
+  fp8_e4m3_x(const fp8_e4m3_x &) = default;
+
+  ~fp8_e4m3_x() = default;
+  fp8_e4m3_x &operator=(const fp8_e4m3_x &) = default;
 
   // Construct from pack of half, float, double.
   // Available only when the size of the pack is equal to N.
@@ -569,11 +584,9 @@ public:
                    std::is_same_v<std::decay_t<Types>, float> ||
                    std::is_same_v<std::decay_t<Types>, double>) &&
                   ...))>>
-  explicit fp8_e4m3(Types... v) {
-#ifdef __SYCL_DEVICE_ONLY__
+  explicit fp8_e4m3_x(Types... v) {
     static_assert(N == 1 || N == 2,
-                  "fp8_e4m3: Template argument N must be 1 or 2 on device");
-#endif
+                  "fp8_e4m3_x: Template argument N must be 1 or 2");
     if constexpr (((std::is_same_v<std::decay_t<Types>, bfloat16>) && ...)) {
       const bfloat16 in[N] = {static_cast<bfloat16>(v)...};
       for (size_t i = 0; i < N; ++i)
@@ -586,93 +599,56 @@ public:
   }
 
   // Construct from an array of half, bfloat16, float, double.
-  explicit fp8_e4m3(sycl::half const (&v)[N], rounding r = rounding::to_even) {
-#ifdef __SYCL_DEVICE_ONLY__
-    static_assert(N == 1 || N == 2,
-                  "fp8_e4m3: Template argument N must be 1 or 2 on device");
-#endif
+  explicit fp8_e4m3_x(sycl::half const (&v)[N],
+                      rounding r = rounding::to_even) {
+    CheckConstraints(r);
     // TODO: optimize with vectorized builtin calls
     for (size_t i = 0; i < N; ++i)
       vals[i] = ConvertToFP8(v[i], r);
   }
 
-  explicit fp8_e4m3(bfloat16 const (&v)[N], rounding r = rounding::to_even) {
-#ifdef __SYCL_DEVICE_ONLY__
-    static_assert(N == 1 || N == 2,
-                  "fp8_e4m3: Template argument N must be 1 or 2 on device");
-#else
-    CheckRoundingConstraints(r);
-#endif
+  explicit fp8_e4m3_x(bfloat16 const (&v)[N], rounding r = rounding::to_even) {
+    CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
       vals[i] = ConvertBF16ToFP8(v[i], r);
   }
 
-  explicit fp8_e4m3(float const (&v)[N], rounding r = rounding::to_even) {
-#ifdef __SYCL_DEVICE_ONLY__
-    static_assert(N == 1 || N == 2,
-                  "fp8_e4m3: Template argument N must be 1 or 2 on device");
-#else
-    CheckRoundingConstraints(r);
-#endif
+  explicit fp8_e4m3_x(float const (&v)[N], rounding r = rounding::to_even) {
+    CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
       vals[i] = ConvertToFP8(v[i], r);
   }
 
-  explicit fp8_e4m3(double const (&v)[N]) {
-#ifdef __SYCL_DEVICE_ONLY__
+  explicit fp8_e4m3_x(double const (&v)[N]) {
     static_assert(N == 1 || N == 2,
-                  "fp8_e4m3: Template argument N must be 1 or 2 on device");
-#else
-    CheckRoundingConstraints(r);
-#endif
+                  "fp8_e4m3_x: Template argument N must be 1 or 2");
     for (size_t i = 0; i < N; ++i)
       vals[i] = ConvertToFP8(v[i], rounding::to_even);
   }
 
   // Construct from an marray of half, bfloat16, float, double.
-  explicit fp8_e4m3(const sycl::marray<sycl::half, N> &v,
-                    rounding r = rounding::to_even) {
-#ifdef __SYCL_DEVICE_ONLY__
-    static_assert(N == 1 || N == 2,
-                  "fp8_e4m3: Template argument N must be 1 or 2 on device");
-#else
-    CheckRoundingConstraints(r);
-#endif
+  explicit fp8_e4m3_x(const sycl::marray<sycl::half, N> &v,
+                      rounding r = rounding::to_even) {
+    CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
       vals[i] = ConvertToFP8(v[i], r);
   }
 
-  explicit fp8_e4m3(const sycl::marray<bfloat16, N> &v,
-                    rounding r = rounding::to_even) {
-#ifdef __SYCL_DEVICE_ONLY__
-    static_assert(N == 1 || N == 2,
-                  "fp8_e4m3: Template argument N must be 1 or 2 on device");
-#else
-    CheckRoundingConstraints(r);
-#endif
+  explicit fp8_e4m3_x(const sycl::marray<bfloat16, N> &v,
+                      rounding r = rounding::to_even) {
+    CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
       vals[i] = ConvertBF16ToFP8(v[i], r);
   }
 
-  explicit fp8_e4m3(const sycl::marray<float, N> &v,
-                    rounding r = rounding::to_even) {
-#ifdef __SYCL_DEVICE_ONLY__
-    static_assert(N == 1 || N == 2,
-                  "fp8_e4m3: Template argument N must be 1 or 2 on device");
-#else
-    CheckRoundingConstraints(r);
-#endif
+  explicit fp8_e4m3_x(const sycl::marray<float, N> &v,
+                      rounding r = rounding::to_even) {
+    CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
       vals[i] = ConvertToFP8(v[i], r);
   }
 
-  explicit fp8_e4m3(const sycl::marray<double, N> &v) {
-#ifdef __SYCL_DEVICE_ONLY__
-    static_assert(N == 1 || N == 2,
-                  "fp8_e4m3: Template argument N must be 1 or 2 on device");
-#else
-    CheckRoundingConstraints(r);
-#endif
+  explicit fp8_e4m3_x(const sycl::marray<double, N> &v) {
     for (size_t i = 0; i < N; ++i)
       vals[i] = ConvertToFP8(v[i], rounding::to_even);
   }
@@ -680,146 +656,149 @@ public:
   // Construct with stochastic rounding with user provided seed from an array of
   // half, bfloat16, float.
   // Should be removed once docs updated
-  explicit fp8_e4m3(half const (&vals)[N], const stochastic_seed &seed,
-                    saturation s = saturation::finite);
-  explicit fp8_e4m3(bfloat16 const (&vals)[N], const stochastic_seed &seed,
-                    saturation s = saturation::finite);
-  explicit fp8_e4m3(float const (&vals)[N], const stochastic_seed &seed,
-                    saturation s = saturation::finite);
+  explicit fp8_e4m3_x(half const (&vals)[N], const stochastic_seed &seed,
+                      saturation s = saturation::finite);
+  explicit fp8_e4m3_x(bfloat16 const (&vals)[N], const stochastic_seed &seed,
+                      saturation s = saturation::finite);
+  explicit fp8_e4m3_x(float const (&vals)[N], const stochastic_seed &seed,
+                      saturation s = saturation::finite);
 
   // Construct with stochastic rounding with user provided seed from an marray
   // of half, bfloat16, float.
 
   // Should be removed once docs updated
-  explicit fp8_e4m3(const sycl::marray<half, N> &vals,
-                    const stochastic_seed &seed,
-                    saturation s = saturation::finite);
-  explicit fp8_e4m3(const sycl::marray<bfloat16, N> &vals,
-                    const stochastic_seed &seed,
-                    saturation s = saturation::finite);
-  explicit fp8_e4m3(const sycl::marray<float, N> &vals,
-                    const stochastic_seed &seed,
-                    saturation s = saturation::finite);
+  explicit fp8_e4m3_x(const sycl::marray<half, N> &vals,
+                      const stochastic_seed &seed,
+                      saturation s = saturation::finite);
+  explicit fp8_e4m3_x(const sycl::marray<bfloat16, N> &vals,
+                      const stochastic_seed &seed,
+                      saturation s = saturation::finite);
+  explicit fp8_e4m3_x(const sycl::marray<float, N> &vals,
+                      const stochastic_seed &seed,
+                      saturation s = saturation::finite);
 
   // Construct from integer types.
   // Available only when N==1.
 
-  explicit fp8_e4m3(short val) {
-    assert(N == 1 && "fp8_e4m3: N must be 1 for short constructor");
+  explicit fp8_e4m3_x(short val) {
+    assert(N == 1 && "fp8_e4m3_x: N must be 1 for short constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even);
   }
 
-  explicit fp8_e4m3(int val) {
-    assert(N == 1 && "fp8_e4m3: N must be 1 for int constructor");
+  explicit fp8_e4m3_x(int val) {
+    assert(N == 1 && "fp8_e4m3_x: N must be 1 for int constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even);
   }
 
-  explicit fp8_e4m3(long val) {
-    assert(N == 1 && "fp8_e4m3: N must be 1 for long constructor");
+  explicit fp8_e4m3_x(long val) {
+    assert(N == 1 && "fp8_e4m3_x: N must be 1 for long constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even);
   }
 
-  explicit fp8_e4m3(long long val) {
-    assert(N == 1 && "fp8_e4m3: N must be 1 for long long constructor");
+  explicit fp8_e4m3_x(long long val) {
+    assert(N == 1 && "fp8_e4m3_x: N must be 1 for long long constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even);
   }
 
-  explicit fp8_e4m3(unsigned short val) {
-    assert(N == 1 && "fp8_e4m3: N must be 1 for unsigned short constructor");
+  explicit fp8_e4m3_x(unsigned short val) {
+    assert(N == 1 && "fp8_e4m3_x: N must be 1 for unsigned short constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even);
   }
 
-  explicit fp8_e4m3(unsigned int val) {
-    assert(N == 1 && "fp8_e4m3: N must be 1 for unsigned int constructor");
+  explicit fp8_e4m3_x(unsigned int val) {
+    assert(N == 1 && "fp8_e4m3_x: N must be 1 for unsigned int constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even);
   }
 
-  explicit fp8_e4m3(unsigned long val) {
-    assert(N == 1 && "fp8_e4m3: N must be 1 for unsigned long constructor");
+  explicit fp8_e4m3_x(unsigned long val) {
+    assert(N == 1 && "fp8_e4m3_x: N must be 1 for unsigned long constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even);
   }
 
-  explicit fp8_e4m3(unsigned long long val) {
+  explicit fp8_e4m3_x(unsigned long long val) {
     assert(N == 1 &&
-           "fp8_e4m3: N must be 1 for unsigned long long constructor");
+           "fp8_e4m3_x: N must be 1 for unsigned long long constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even);
   }
 
   // Assign (operator) from half, bfloat16, float, double, and integer types.
   // Available only when N==1.
 
-  fp8_e4m3 &operator=(sycl::half val) {
-    assert(N == 1 && "fp8_e4m3: N must be 1 for half assignment operator");
+  fp8_e4m3_x &operator=(sycl::half val) {
+    assert(N == 1 && "fp8_e4m3_x: N must be 1 for half assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
-  fp8_e4m3 &operator=(bfloat16 val) {
-    assert(N == 1 && "fp8_e4m3: N must be 1 for bfloat16 assignment operator");
+  fp8_e4m3_x &operator=(bfloat16 val) {
+    assert(N == 1 &&
+           "fp8_e4m3_x: N must be 1 for bfloat16 assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
-  fp8_e4m3 &operator=(float val) {
-    assert(N == 1 && "fp8_e4m3: N must be 1 for float assignment operator");
+  fp8_e4m3_x &operator=(float val) {
+    assert(N == 1 && "fp8_e4m3_x: N must be 1 for float assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
-  fp8_e4m3 &operator=(double val) {
-    assert(N == 1 && "fp8_e4m3: N must be 1 for double assignment operator");
+  fp8_e4m3_x &operator=(double val) {
+    assert(N == 1 && "fp8_e4m3_x: N must be 1 for double assignment operator");
     vals[0] = ConvertBF16ToFP8(val, rounding::to_even);
     return *this;
   }
 
-  fp8_e4m3 &operator=(short val) {
-    assert(N == 1 && "fp8_e4m3: N must be 1 for short assignment operator");
+  fp8_e4m3_x &operator=(short val) {
+    assert(N == 1 && "fp8_e4m3_x: N must be 1 for short assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
-  fp8_e4m3 &operator=(int val) {
-    assert(N == 1 && "fp8_e4m3: N must be 1 for int assignment operator");
+  fp8_e4m3_x &operator=(int val) {
+    assert(N == 1 && "fp8_e4m3_x: N must be 1 for int assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
-  fp8_e4m3 &operator=(long val) {
-    assert(N == 1 && "fp8_e4m3: N must be 1 for long assignment operator");
+  fp8_e4m3_x &operator=(long val) {
+    assert(N == 1 && "fp8_e4m3_x: N must be 1 for long assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
-  fp8_e4m3 &operator=(long long val) {
-    assert(N == 1 && "fp8_e4m3: N must be 1 for long long assignment operator");
-    vals[0] = ConvertToFP8(val, rounding::to_even);
-    return *this;
-  }
-
-  fp8_e4m3 &operator=(unsigned short val) {
+  fp8_e4m3_x &operator=(long long val) {
     assert(N == 1 &&
-           "fp8_e4m3: N must be 1 for unsigned short assignment operator");
+           "fp8_e4m3_x: N must be 1 for long long assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
-  fp8_e4m3 &operator=(unsigned int val) {
+  fp8_e4m3_x &operator=(unsigned short val) {
     assert(N == 1 &&
-           "fp8_e4m3: N must be 1 for unsigned int assignment operator");
+           "fp8_e4m3_x: N must be 1 for unsigned short assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
-  fp8_e4m3 &operator=(unsigned long val) {
+  fp8_e4m3_x &operator=(unsigned int val) {
     assert(N == 1 &&
-           "fp8_e4m3: N must be 1 for unsigned long assignment operator");
+           "fp8_e4m3_x: N must be 1 for unsigned int assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
-  fp8_e4m3 &operator=(unsigned long long val) {
+  fp8_e4m3_x &operator=(unsigned long val) {
     assert(N == 1 &&
-           "fp8_e4m3: N must be 1 for unsigned long long assignment operator");
+           "fp8_e4m3_x: N must be 1 for unsigned long assignment operator");
+    vals[0] = ConvertToFP8(val, rounding::to_even);
+    return *this;
+  }
+
+  fp8_e4m3_x &operator=(unsigned long long val) {
+    assert(
+        N == 1 &&
+        "fp8_e4m3_x: N must be 1 for unsigned long long assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
@@ -828,20 +807,21 @@ public:
   // Available only when N==1.
 
   explicit operator half() const {
-    assert(N == 1 && "fp8_e4m3: N must be 1 for half conversion operator");
+    assert(N == 1 && "fp8_e4m3_x: N must be 1 for half conversion operator");
     return ConvertFromFP8<sycl::half>(vals[0]);
   }
 
   explicit operator bfloat16() const {
-    assert(N == 1 && "fp8_e4m3: N must be 1 for bfloat16 conversion operator");
+    assert(N == 1 &&
+           "fp8_e4m3_x: N must be 1 for bfloat16 conversion operator");
     return ConvertBF16FromFP8(vals[0]);
   }
   explicit operator float() const {
-    assert(N == 1 && "fp8_e4m3: N must be 1 for float conversion operator");
+    assert(N == 1 && "fp8_e4m3_x: N must be 1 for float conversion operator");
     return ConvertFromFP8<float>(vals[0]);
   }
   explicit operator double() const {
-    assert(N == 1 && "fp8_e4m3: N must be 1 for double conversion operator");
+    assert(N == 1 && "fp8_e4m3_x: N must be 1 for double conversion operator");
     return ConvertFromFP8<double>(vals[0]);
   }
 
@@ -849,62 +829,64 @@ public:
   // Available only when N==1.
 
   explicit operator char() const {
-    assert(N == 1 && "fp8_e4m3: N must be 1 for char conversion operator");
+    assert(N == 1 && "fp8_e4m3_x: N must be 1 for char conversion operator");
     return ConvertFromFP8<char>(vals[0]);
   }
 
   explicit operator signed char() const {
     assert(N == 1 &&
-           "fp8_e4m3: N must be 1 for signed char conversion operator");
+           "fp8_e4m3_x: N must be 1 for signed char conversion operator");
     return ConvertFromFP8<signed char>(vals[0]);
   }
 
   explicit operator short() const {
-    assert(N == 1 && "fp8_e4m3: N must be 1 for short conversion operator");
+    assert(N == 1 && "fp8_e4m3_x: N must be 1 for short conversion operator");
     return ConvertFromFP8<short>(vals[0]);
   }
 
   explicit operator int() const {
-    assert(N == 1 && "fp8_e4m3: N must be 1 for int conversion operator");
+    assert(N == 1 && "fp8_e4m3_x: N must be 1 for int conversion operator");
     return ConvertFromFP8<int>(vals[0]);
   }
 
   explicit operator long() const {
-    assert(N == 1 && "fp8_e4m3: N must be 1 for long conversion operator");
+    assert(N == 1 && "fp8_e4m3_x: N must be 1 for long conversion operator");
     return ConvertFromFP8<long>(vals[0]);
   }
 
   explicit operator long long() const {
-    assert(N == 1 && "fp8_e4m3: N must be 1 for long long conversion operator");
+    assert(N == 1 &&
+           "fp8_e4m3_x: N must be 1 for long long conversion operator");
     return ConvertFromFP8<long long>(vals[0]);
   }
   explicit operator unsigned char() const {
     assert(N == 1 &&
-           "fp8_e4m3: N must be 1 for unsigned char conversion operator");
+           "fp8_e4m3_x: N must be 1 for unsigned char conversion operator");
     return ConvertFromFP8<unsigned char>(vals[0]);
   }
 
   explicit operator unsigned short() const {
     assert(N == 1 &&
-           "fp8_e4m3: N must be 1 for unsigned short conversion operator");
+           "fp8_e4m3_x: N must be 1 for unsigned short conversion operator");
     return ConvertFromFP8<unsigned short>(vals[0]);
   }
 
   explicit operator unsigned int() const {
     assert(N == 1 &&
-           "fp8_e4m3: N must be 1 for unsigned int conversion operator");
+           "fp8_e4m3_x: N must be 1 for unsigned int conversion operator");
     return ConvertFromFP8<unsigned int>(vals[0]);
   }
 
   explicit operator unsigned long() const {
     assert(N == 1 &&
-           "fp8_e4m3: N must be 1 for unsigned long conversion operator");
+           "fp8_e4m3_x: N must be 1 for unsigned long conversion operator");
     return ConvertFromFP8<unsigned long>(vals[0]);
   }
 
   explicit operator unsigned long long() const {
-    assert(N == 1 &&
-           "fp8_e4m3: N must be 1 for unsigned long long conversion operator");
+    assert(
+        N == 1 &&
+        "fp8_e4m3_x: N must be 1 for unsigned long long conversion operator");
     return ConvertFromFP8<unsigned long long>(vals[0]);
   }
 
@@ -912,7 +894,7 @@ public:
   // Available only when N==1.
 
   explicit operator bool() const {
-    static_assert(N == 1, "fp8_e4m3: operator() requires size N=1");
+    static_assert(N == 1, "fp8_e4m3_x: operator() requires size N=1");
 #ifdef __SYCL_DEVICE_ONLY__
     // detect +0 / -0
     sycl::half h = __builtin_spirv_ConvertE4M3ToFP16EXT(vals[0]);
@@ -950,7 +932,7 @@ public:
   uint8_t vals[N];
 };
 
-template <size_t N> class fp8_e5m2 {
+template <size_t N> class fp8_e5m2_x {
 
   uint8_t ConvertToFP8(sycl::half h, rounding r) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -1015,11 +997,22 @@ template <size_t N> class fp8_e5m2 {
 #endif
   }
 
+  void CheckConstraints(rounding r, saturation s) const {
+    static_assert(N == 1 || N == 2,
+                  "fp8_e5m2_x: Template argument N must be 1 or 2");
+    if (r != rounding::to_even)
+      throw std::invalid_argument(
+          "fp8_e5m2_x: only rounding::to_even is supported");
+    if (s != saturation::finite)
+      throw std::invalid_argument(
+          "fp8_e5m2_x: only saturation::finite is supported");
+  }
+
 public:
-  fp8_e5m2() = default;
-  fp8_e5m2(const fp8_e5m2 &) = default;
-  ~fp8_e5m2() = default;
-  fp8_e5m2 &operator=(const fp8_e5m2 &) = default;
+  fp8_e5m2_x() = default;
+  fp8_e5m2_x(const fp8_e5m2_x &) = default;
+  ~fp8_e5m2_x() = default;
+  fp8_e5m2_x &operator=(const fp8_e5m2_x &) = default;
 
   // Construct from pack of half, bfloat16, float, double.
   // Available only when the size of the pack is equal to N.
@@ -1034,11 +1027,9 @@ public:
                    std::is_same_v<std::decay_t<Types>, float> ||
                    std::is_same_v<std::decay_t<Types>, double>) &&
                   ...))>>
-  explicit fp8_e5m2(Types... v) {
-#ifdef __SYCL_DEVICE_ONLY__
+  explicit fp8_e5m2_x(Types... v) {
     static_assert(N == 1 || N == 2,
-                  "fp8_e5m2: Template argument N must be 1 or 2 on device");
-#endif
+                  "fp8_e5m2_x: Template argument N must be 1 or 2 on device");
     if constexpr (((std::is_same_v<std::decay_t<Types>, bfloat16>) && ...)) {
       const bfloat16 in[N] = {static_cast<bfloat16>(v)...};
       for (size_t i = 0; i < N; ++i)
@@ -1052,97 +1043,61 @@ public:
 
   // Construct from an array of half, bfloat16, float, double.
 
-  explicit fp8_e5m2(half const (&v)[N], rounding r = rounding::to_even) {
-#ifdef __SYCL_DEVICE_ONLY__
-    static_assert(N == 1 || N == 2,
-                  "fp8_e5m2: Template argument N must be 1 or 2 on device");
-#else
-    CheckRoundingConstraints(r);
-#endif
+  explicit fp8_e5m2_x(half const (&v)[N], rounding r = rounding::to_even,
+                      saturation s = saturation::finite) {
+    CheckConstraints(r, s);
     // TODO: optimize with vectorized builtin calls
     for (size_t i = 0; i < N; ++i)
       vals[i] = ConvertToFP8(v[i], r);
   }
 
-  explicit fp8_e5m2(bfloat16 const (&v)[N], rounding r = rounding::to_even) {
-#ifdef __SYCL_DEVICE_ONLY__
-    static_assert(N == 1 || N == 2,
-                  "fp8_e5m2: Template argument N must be 1 or 2 on device");
-#else
-    CheckRoundingConstraints(r);
-#endif
+  explicit fp8_e5m2_x(bfloat16 const (&v)[N], rounding r = rounding::to_even,
+                      saturation s = saturation::finite) {
+    CheckConstraints(r, s);
     // TODO: optimize with vectorized builtin calls
     for (size_t i = 0; i < N; ++i)
       vals[i] = ConvertBF16ToFP8(v[i], r);
   }
 
-  explicit fp8_e5m2(float const (&v)[N], rounding r = rounding::to_even) {
-#ifdef __SYCL_DEVICE_ONLY__
-    static_assert(N == 1 || N == 2,
-                  "fp8_e5m2: Template argument N must be 1 or 2 on device");
-#else
-    CheckRoundingConstraints(r);
-#endif
+  explicit fp8_e5m2_x(float const (&v)[N], rounding r = rounding::to_even,
+                      saturation s = saturation::finite) {
+    CheckConstraints(r, s);
     for (size_t i = 0; i < N; ++i)
       vals[i] = ConvertToFP8(v[i], r);
   }
 
-  explicit fp8_e5m2(double const (&v)[N]) {
-#ifdef __SYCL_DEVICE_ONLY__
-    static_assert(N == 1 || N == 2,
-                  "fp8_e5m2: Template argument N must be 1 or 2 on device");
-#else
-    CheckRoundingConstraints(r);
-#endif
+  explicit fp8_e5m2_x(double const (&v)[N]) {
     for (size_t i = 0; i < N; ++i)
       vals[i] = ConvertToFP8(v[i], rounding::to_even);
   }
 
   // Construct from an marray of half, bfloat16, float, double.
 
-  explicit fp8_e5m2(const sycl::marray<sycl::half, N> &v,
-                    rounding r = rounding::to_even) {
-#ifdef __SYCL_DEVICE_ONLY__
-    static_assert(N == 1 || N == 2,
-                  "fp8_e5m2: Template argument N must be 1 or 2 on device");
-#else
-    CheckRoundingConstraints(r);
-#endif
+  explicit fp8_e5m2_x(const sycl::marray<sycl::half, N> &v,
+                      rounding r = rounding::to_even,
+                      saturation s = saturation::finite) {
+    CheckConstraints(r, s);
     for (size_t i = 0; i < N; ++i)
       vals[i] = ConvertToFP8(v[i], r);
   }
 
-  explicit fp8_e5m2(const sycl::marray<bfloat16, N> &v,
-                    rounding r = rounding::to_even) {
-#ifdef __SYCL_DEVICE_ONLY__
-    static_assert(N == 1 || N == 2,
-                  "fp8_e5m2: Template argument N must be 1 or 2 on device");
-#else
-    CheckRoundingConstraints(r);
-#endif
+  explicit fp8_e5m2_x(const sycl::marray<bfloat16, N> &v,
+                      rounding r = rounding::to_even,
+                      saturation s = saturation::finite) {
+    CheckConstraints(r, s);
     for (size_t i = 0; i < N; ++i)
       vals[i] = ConvertBF16ToFP8(v[i], r);
   }
 
-  explicit fp8_e5m2(const sycl::marray<float, N> &v,
-                    rounding r = rounding::to_even) {
-#ifdef __SYCL_DEVICE_ONLY__
-    static_assert(N == 1 || N == 2,
-                  "fp8_e5m2: Template argument N must be 1 or 2 on device");
-#else
-    CheckRoundingConstraints(r);
-#endif
+  explicit fp8_e5m2_x(const sycl::marray<float, N> &v,
+                      rounding r = rounding::to_even,
+                      saturation s = saturation::finite) {
+    CheckConstraints(r, s);
     for (size_t i = 0; i < N; ++i)
       vals[i] = ConvertToFP8(v[i], r);
   }
 
-  explicit fp8_e5m2(const sycl::marray<double, N> &v) {
-#ifdef __SYCL_DEVICE_ONLY__
-    static_assert(N == 1 || N == 2,
-                  "fp8_e5m2: Template argument N must be 1 or 2 on device");
-#else
-    CheckRoundingConstraints(r);
-#endif
+  explicit fp8_e5m2_x(const sycl::marray<double, N> &v) {
     for (size_t i = 0; i < N; ++i)
       vals[i] = ConvertToFP8(v[i], rounding::to_even);
   }
@@ -1151,146 +1106,148 @@ public:
   // half, bfloat16, float.
 
   // should be removed once docs updated
-  explicit fp8_e5m2(half const (&vals)[N], const stochastic_seed &seed,
-                    saturation s = saturation::finite);
-  explicit fp8_e5m2(bfloat16 const (&vals)[N], const stochastic_seed &seed,
-                    saturation s = saturation::finite);
-  explicit fp8_e5m2(double const (&vals)[N], const stochastic_seed &seed,
-                    saturation s = saturation::finite);
+  explicit fp8_e5m2_x(half const (&vals)[N], const stochastic_seed &seed,
+                      saturation s = saturation::finite);
+  explicit fp8_e5m2_x(bfloat16 const (&vals)[N], const stochastic_seed &seed,
+                      saturation s = saturation::finite);
+  explicit fp8_e5m2_x(double const (&vals)[N], const stochastic_seed &seed,
+                      saturation s = saturation::finite);
 
   // Construct with stochastic rounding with user provided seed from an marray
   // of half, bfloat16, float.
 
   // should be removed once docs updated
-  explicit fp8_e5m2(const sycl::marray<half, N> &vals,
-                    const stochastic_seed &seed,
-                    saturation s = saturation::finite);
-  explicit fp8_e5m2(const sycl::marray<bfloat16, N> &vals,
-                    const stochastic_seed &seed,
-                    saturation s = saturation::finite);
-  explicit fp8_e5m2(const sycl::marray<double, N> &vals,
-                    const stochastic_seed &seed,
-                    saturation s = saturation::finite);
+  explicit fp8_e5m2_x(const sycl::marray<half, N> &vals,
+                      const stochastic_seed &seed,
+                      saturation s = saturation::finite);
+  explicit fp8_e5m2_x(const sycl::marray<bfloat16, N> &vals,
+                      const stochastic_seed &seed,
+                      saturation s = saturation::finite);
+  explicit fp8_e5m2_x(const sycl::marray<double, N> &vals,
+                      const stochastic_seed &seed,
+                      saturation s = saturation::finite);
 
   // Construct from integer types.
   // Available only when N==1.
 
-  explicit fp8_e5m2(short val) {
-    assert(N == 1 && "fp8_e5m2: N must be 1 for short constructor");
+  explicit fp8_e5m2_x(short val) {
+    assert(N == 1 && "fp8_e5m2_x: N must be 1 for short constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even);
   }
 
-  explicit fp8_e5m2(int val) {
-    assert(N == 1 && "fp8_e5m2: N must be 1 for int constructor");
+  explicit fp8_e5m2_x(int val) {
+    assert(N == 1 && "fp8_e5m2_x: N must be 1 for int constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even);
   }
 
-  explicit fp8_e5m2(long val) {
-    assert(N == 1 && "fp8_e5m2: N must be 1 for long constructor");
+  explicit fp8_e5m2_x(long val) {
+    assert(N == 1 && "fp8_e5m2_x: N must be 1 for long constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even);
   }
 
-  explicit fp8_e5m2(long long val) {
-    assert(N == 1 && "fp8_e5m2: N must be 1 for long long constructor");
+  explicit fp8_e5m2_x(long long val) {
+    assert(N == 1 && "fp8_e5m2_x: N must be 1 for long long constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even);
   }
 
-  explicit fp8_e5m2(unsigned short val) {
-    assert(N == 1 && "fp8_e5m2: N must be 1 for unsigned short constructor");
+  explicit fp8_e5m2_x(unsigned short val) {
+    assert(N == 1 && "fp8_e5m2_x: N must be 1 for unsigned short constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even);
   }
 
-  explicit fp8_e5m2(unsigned int val) {
-    assert(N == 1 && "fp8_e5m2: N must be 1 for unsigned int constructor");
+  explicit fp8_e5m2_x(unsigned int val) {
+    assert(N == 1 && "fp8_e5m2_x: N must be 1 for unsigned int constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even);
   }
 
-  explicit fp8_e5m2(unsigned long val) {
-    assert(N == 1 && "fp8_e5m2: N must be 1 for unsigned long constructor");
+  explicit fp8_e5m2_x(unsigned long val) {
+    assert(N == 1 && "fp8_e5m2_x: N must be 1 for unsigned long constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even);
   }
 
-  explicit fp8_e5m2(unsigned long long val) {
+  explicit fp8_e5m2_x(unsigned long long val) {
     assert(N == 1 &&
-           "fp8_e5m2: N must be 1 for unsigned long long constructor");
+           "fp8_e5m2_x: N must be 1 for unsigned long long constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even);
   }
 
   // Assign (operator) from half, bfloat16, float, double, and integer types.
   // Available only when N==1.
 
-  fp8_e5m2 &operator=(sycl::half val) {
-    assert(N == 1 && "fp8_e5m2: N must be 1 for half assignment operator");
+  fp8_e5m2_x &operator=(sycl::half val) {
+    assert(N == 1 && "fp8_e5m2_x: N must be 1 for half assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
-  fp8_e5m2 &operator=(bfloat16 val) {
-    assert(N == 1 && "fp8_e5m2: N must be 1 for half bfloat16 operator");
+  fp8_e5m2_x &operator=(bfloat16 val) {
+    assert(N == 1 && "fp8_e5m2_x: N must be 1 for half bfloat16 operator");
     vals[0] = ConvertBF16ToFP8(val, rounding::to_even);
     return *this;
   }
 
-  fp8_e5m2 &operator=(float val) {
-    assert(N == 1 && "fp8_e5m2: N must be 1 for float assignment operator");
+  fp8_e5m2_x &operator=(float val) {
+    assert(N == 1 && "fp8_e5m2_x: N must be 1 for float assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
-  fp8_e5m2 &operator=(double val) {
-    assert(N == 1 && "fp8_e5m2: N must be 1 for double assignment operator");
+  fp8_e5m2_x &operator=(double val) {
+    assert(N == 1 && "fp8_e5m2_x: N must be 1 for double assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
-  fp8_e5m2 &operator=(short val) {
-    assert(N == 1 && "fp8_e5m2: N must be 1 for short assignment operator");
+  fp8_e5m2_x &operator=(short val) {
+    assert(N == 1 && "fp8_e5m2_x: N must be 1 for short assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
-  fp8_e5m2 &operator=(int val) {
-    assert(N == 1 && "fp8_e5m2: N must be 1 for int assignment operator");
+  fp8_e5m2_x &operator=(int val) {
+    assert(N == 1 && "fp8_e5m2_x: N must be 1 for int assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
-  fp8_e5m2 &operator=(long val) {
-    assert(N == 1 && "fp8_e5m2: N must be 1 for long assignment operator");
+  fp8_e5m2_x &operator=(long val) {
+    assert(N == 1 && "fp8_e5m2_x: N must be 1 for long assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
-  fp8_e5m2 &operator=(long long val) {
-    assert(N == 1 && "fp8_e5m2: N must be 1 for long long assignment operator");
-    vals[0] = ConvertToFP8(val, rounding::to_even);
-    return *this;
-  }
-
-  fp8_e5m2 &operator=(unsigned short val) {
+  fp8_e5m2_x &operator=(long long val) {
     assert(N == 1 &&
-           "fp8_e5m2: N must be 1 for unsigned short assignment operator");
+           "fp8_e5m2_x: N must be 1 for long long assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
-  fp8_e5m2 &operator=(unsigned int val) {
+  fp8_e5m2_x &operator=(unsigned short val) {
     assert(N == 1 &&
-           "fp8_e5m2: N must be 1 for unsigned int assignment operator");
+           "fp8_e5m2_x: N must be 1 for unsigned short assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
-  fp8_e5m2 &operator=(unsigned long val) {
+  fp8_e5m2_x &operator=(unsigned int val) {
     assert(N == 1 &&
-           "fp8_e5m2: N must be 1 for unsigned long assignment operator");
+           "fp8_e5m2_x: N must be 1 for unsigned int assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
-  fp8_e5m2 &operator=(unsigned long long val) {
+  fp8_e5m2_x &operator=(unsigned long val) {
     assert(N == 1 &&
-           "fp8_e5m2: N must be 1 for unsigned long long assignment operator");
+           "fp8_e5m2_x: N must be 1 for unsigned long assignment operator");
+    vals[0] = ConvertToFP8(val, rounding::to_even);
+    return *this;
+  }
+
+  fp8_e5m2_x &operator=(unsigned long long val) {
+    assert(
+        N == 1 &&
+        "fp8_e5m2_x: N must be 1 for unsigned long long assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
@@ -1299,22 +1256,23 @@ public:
   // Available only when N==1.
 
   explicit operator half() const {
-    assert(N == 1 && "fp8_e5m2: N must be 1 for half conversion operator");
+    assert(N == 1 && "fp8_e5m2_x: N must be 1 for half conversion operator");
     return ConvertFromFP8<sycl::half>(vals[0]);
   }
 
   explicit operator bfloat16() const {
-    assert(N == 1 && "fp8_e5m2: N must be 1 for bfloat16 conversion operator");
+    assert(N == 1 &&
+           "fp8_e5m2_x: N must be 1 for bfloat16 conversion operator");
     return ConvertFP16FromFP8(vals[0]);
   }
 
   explicit operator float() const {
-    assert(N == 1 && "fp8_e5m2: N must be 1 for float conversion operator");
+    assert(N == 1 && "fp8_e5m2_x: N must be 1 for float conversion operator");
     return ConvertFromFP8<float>(vals[0]);
   }
 
   explicit operator double() const {
-    assert(N == 1 && "fp8_e5m2: N must be 1 for double conversion operator");
+    assert(N == 1 && "fp8_e5m2_x: N must be 1 for double conversion operator");
     return ConvertFromFP8<double>(vals[0]);
   }
 
@@ -1322,63 +1280,65 @@ public:
   // Available only when N==1.
 
   explicit operator char() const {
-    assert(N == 1 && "fp8_e5m2: N must be 1 for char conversion operator");
+    assert(N == 1 && "fp8_e5m2_x: N must be 1 for char conversion operator");
     return ConvertFromFP8<char>(vals[0]);
   }
 
   explicit operator signed char() const {
     assert(N == 1 &&
-           "fp8_e5m2: N must be 1 for signed char conversion operator");
+           "fp8_e5m2_x: N must be 1 for signed char conversion operator");
     return ConvertFromFP8<signed char>(vals[0]);
   }
 
   explicit operator short() const {
-    assert(N == 1 && "fp8_e5m2: N must be 1 for short conversion operator");
+    assert(N == 1 && "fp8_e5m2_x: N must be 1 for short conversion operator");
     return ConvertFromFP8<short>(vals[0]);
   }
 
   explicit operator int() const {
-    assert(N == 1 && "fp8_e5m2: N must be 1 for int conversion operator");
+    assert(N == 1 && "fp8_e5m2_x: N must be 1 for int conversion operator");
     return ConvertFromFP8<int>(vals[0]);
   }
 
   explicit operator long() const {
-    assert(N == 1 && "fp8_e5m2: N must be 1 for long conversion operator");
+    assert(N == 1 && "fp8_e5m2_x: N must be 1 for long conversion operator");
     return ConvertFromFP8<long>(vals[0]);
   }
 
   explicit operator long long() const {
-    assert(N == 1 && "fp8_e5m2: N must be 1 for long long conversion operator");
+    assert(N == 1 &&
+           "fp8_e5m2_x: N must be 1 for long long conversion operator");
     return ConvertFromFP8<long long>(vals[0]);
   }
 
   explicit operator unsigned char() const {
     assert(N == 1 &&
-           "fp8_e5m2: N must be 1 for unsigned char conversion operator");
+           "fp8_e5m2_x: N must be 1 for unsigned char conversion operator");
     return ConvertFromFP8<unsigned char>(vals[0]);
   }
 
   explicit operator unsigned short() const {
     assert(N == 1 &&
-           "fp8_e5m2: N must be 1 for unsigned short conversion operator");
+           "fp8_e5m2_x: N must be 1 for unsigned short conversion operator");
     return ConvertFromFP8<unsigned short>(vals[0]);
   }
 
   explicit operator unsigned int() const {
     assert(N == 1 &&
-           "fp8_e5m2: N must be 1 for unsigned int conversion operator");
+           "fp8_e5m2_x: N must be 1 for unsigned int conversion operator");
     return ConvertFromFP8<unsigned int>(vals[0]);
   }
 
   explicit operator unsigned long() const {
     assert(N == 1 &&
-           "fp8_e5m2: N must be 1 for unsigned long conversion operator");
+           "fp8_e5m2_x: N must be 1 for unsigned long conversion operator");
     return ConvertFromFP8<unsigned long>(vals[0]);
   }
 
   explicit operator unsigned long long() const {
-    assert(N == 1 &&
-           "fp8_e5m2: N must be 1 for unsigned long long conversion operator");
+    assert(
+        N == 1 &&
+        "fp8_e5m2_x: N must be 1 for unsigned long long conversion operator");
     return ConvertFromFP8<unsigned long long>(vals[0]);
   }
 
@@ -1386,7 +1346,7 @@ public:
   // Available only when N==1.
 
   explicit operator bool() const {
-    static_assert(N == 1, "fp8_e5m2: operator() requires size N=1");
+    static_assert(N == 1, "fp8_e5m2_x: operator() requires size N=1");
     // false iff +0 or -0; otherwise true.
     return vals[0] != 0x00 && vals[0] != 0x80;
   }
@@ -1507,12 +1467,21 @@ static inline ToT ConvertFromE8M0_CPU(uint8_t code) noexcept {
   return ConvertFloatToTarget<ToT>(v, rounding::to_even);
 }
 
-template <size_t N> class fp8_e8m0 {
+template <size_t N> class fp8_e8m0_x {
+
+  void CheckConstraints(rounding r) const {
+    static_assert(N == 1 || N == 2,
+                  "fp8_e8m0_x: Template argument N must be 1 or 2");
+    if (r != rounding::upward && r != rounding::toward_zero)
+      throw std::invalid_argument("fp8_e8m0_x: only rounding::upward and "
+                                  "rounding::toward_zero are supported");
+  }
+
 public:
-  fp8_e8m0() = default;
-  fp8_e8m0(const fp8_e8m0 &) = default;
-  ~fp8_e8m0() = default;
-  fp8_e8m0 &operator=(const fp8_e8m0 &) = default;
+  fp8_e8m0_x() = default;
+  fp8_e8m0_x(const fp8_e8m0_x &) = default;
+  ~fp8_e8m0_x() = default;
+  fp8_e8m0_x &operator=(const fp8_e8m0_x &) = default;
 
   template <typename... Types,
             typename = std::enable_if_t<
@@ -1522,10 +1491,10 @@ public:
                    std::is_same_v<std::decay_t<Types>, float> ||
                    std::is_same_v<std::decay_t<Types>, double>) &&
                   ...))>>
-  explicit fp8_e8m0(Types... v) {
+  explicit fp8_e8m0_x(Types... v) {
 #ifdef __SYCL_DEVICE_ONLY__
     static_assert(N == 1 || N == 2,
-                  "fp8_e8m0: Template argument N must be 1 or 2 on device");
+                  "fp8_e8m0_x: Template argument N must be 1 or 2 on device");
 #endif
     using InT = std::common_type_t<std::decay_t<Types>...>;
     const InT in[N] = {v...};
@@ -1534,109 +1503,62 @@ public:
                                   saturation::finite);
   }
 
-  explicit fp8_e8m0(half const (&in)[N], rounding r = rounding::upward) {
-    if (r != rounding::upward && r != rounding::toward_zero)
-      throw std::invalid_argument(
-          "fp8_e8m0 supports only rounding upward and toward_zero");
-#ifdef __SYCL_DEVICE_ONLY__
-    static_assert(N == 1 || N == 2,
-                  "fp8_e8m0: Template argument N must be 1 or 2 on device");
-#endif
+  explicit fp8_e8m0_x(half const (&in)[N], rounding r = rounding::upward) {
+    CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
       vals[i] =
           ConvertToE8M0_CPU(static_cast<float>(in[i]), r, saturation::finite);
   }
 
-  explicit fp8_e8m0(bfloat16 const (&in)[N], rounding r = rounding::upward) {
-    if (r != rounding::upward && r != rounding::toward_zero)
-      throw std::invalid_argument(
-          "fp8_e8m0 supports only rounding upward and toward_zero");
-#ifdef __SYCL_DEVICE_ONLY__
-    static_assert(N == 1 || N == 2,
-                  "fp8_e8m0: Template argument N must be 1 or 2 on device");
-#endif
+  explicit fp8_e8m0_x(bfloat16 const (&in)[N], rounding r = rounding::upward) {
+    CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
       vals[i] =
           ConvertToE8M0_CPU(static_cast<float>(in[i]), r, saturation::finite);
   }
 
-  explicit fp8_e8m0(float const (&in)[N], rounding r = rounding::upward) {
-    if (r != rounding::upward && r != rounding::toward_zero)
-      throw std::invalid_argument(
-          "fp8_e8m0 supports only rounding upward and toward_zero");
-#ifdef __SYCL_DEVICE_ONLY__
-    static_assert(N == 1 || N == 2,
-                  "fp8_e8m0: Template argument N must be 1 or 2 on device");
-#endif
+  explicit fp8_e8m0_x(float const (&in)[N], rounding r = rounding::upward) {
+    CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
       vals[i] = ConvertToE8M0_CPU(in[i], r, saturation::finite);
   }
 
-  explicit fp8_e8m0(double const (&in)[N]) {
-#ifdef __SYCL_DEVICE_ONLY__
+  explicit fp8_e8m0_x(double const (&in)[N]) {
     static_assert(N == 1 || N == 2,
-                  "fp8_e8m0: Template argument N must be 1 or 2 on device");
-#endif
+                  "fp8_e8m0_x: Template argument N must be 1 or 2 on device");
     for (size_t i = 0; i < N; ++i)
       vals[i] = ConvertToE8M0_CPU(static_cast<float>(in[i]), rounding::upward,
                                   saturation::finite);
   }
 
-  explicit fp8_e8m0(const marray<half, N> &vals,
-                    rounding r = rounding::upward) {
-    if (r != rounding::upward && r != rounding::toward_zero)
-      throw std::invalid_argument(
-          "fp8_e8m0 supports only rounding upward and toward_zero");
-#ifdef __SYCL_DEVICE_ONLY__
-    static_assert(N == 1 || N == 2,
-                  "fp8_e8m0: Template argument N must be 1 or 2 on device");
-    assert((r == rounding::upward) &&
-           "fp8_e8m0: device supports rounding::upward only");
-#endif
+  explicit fp8_e8m0_x(const marray<half, N> &in,
+                      rounding r = rounding::upward) {
+    CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
       vals[i] =
-          ConvertToE8M0_CPU(static_cast<float>(vals[i]), r, saturation::finite);
+          ConvertToE8M0_CPU(static_cast<float>(in[i]), r, saturation::finite);
   }
 
-  explicit fp8_e8m0(const marray<bfloat16, N> &vals,
-                    rounding r = rounding::upward) {
-    if (r != rounding::upward && r != rounding::toward_zero)
-      throw std::invalid_argument(
-          "fp8_e8m0 supports only rounding upward and toward_zero");
-#ifdef __SYCL_DEVICE_ONLY__
-    static_assert(N == 1 || N == 2,
-                  "fp8_e8m0: Template argument N must be 1 or 2 on device");
-#endif
+  explicit fp8_e8m0_x(const marray<bfloat16, N> &in,
+                      rounding r = rounding::upward) {
+    CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
       vals[i] =
-          ConvertToE8M0_CPU(static_cast<float>(vals[i]), r, saturation::finite);
+          ConvertToE8M0_CPU(static_cast<float>(in[i]), r, saturation::finite);
   }
 
-  explicit fp8_e8m0(const marray<float, N> &vals,
-                    rounding r = rounding::upward) {
-    if (r != rounding::upward && r != rounding::toward_zero)
-      throw std::invalid_argument(
-          "fp8_e8m0 supports only rounding upward and toward_zero");
-#ifdef __SYCL_DEVICE_ONLY__
-    static_assert(N == 1 || N == 2,
-                  "fp8_e8m0: Template argument N must be 1 or 2 on device");
-    assert((r == rounding::upward) &&
-           "fp8_e8m0: device supports rounding::upward only");
-#endif
+  explicit fp8_e8m0_x(const marray<float, N> &in,
+                      rounding r = rounding::upward) {
+    CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
-      vals[i] = ConvertToE8M0_CPU(vals[i], r, saturation::finite);
+      vals[i] = ConvertToE8M0_CPU(in[i], r, saturation::finite);
   }
 
-  explicit fp8_e8m0(const marray<double, N> &vals) {
-    if (r != rounding::upward && r != rounding::toward_zero)
-      throw std::invalid_argument(
-          "fp8_e8m0 supports only rounding upward and toward_zero");
-#ifdef __SYCL_DEVICE_ONLY__
+  explicit fp8_e8m0_x(const marray<double, N> &in) {
     static_assert(N == 1 || N == 2,
-                  "fp8_e8m0: Template argument N must be 1 or 2 on device");
-#endif
+                  "fp8_e8m0_x: Template argument N must be 1 or 2 on device");
     for (size_t i = 0; i < N; ++i)
-      vals[i] = ConvertToE8M0_CPU(static_cast<float>(vals[i]), rounding::upward,
+      vals[i] = ConvertToE8M0_CPU(static_cast<float>(in[i]), rounding::upward,
                                   saturation::finite);
   }
 
@@ -1644,94 +1566,98 @@ public:
   // half, bfloat16, float.
 
   // should be removed once docs updated
-  explicit fp8_e8m0(half const (&vals)[N], const stochastic_seed &seed);
-  explicit fp8_e8m0(bfloat16 const (&vals)[N], const stochastic_seed &seed);
-  explicit fp8_e8m0(double const (&vals)[N], const stochastic_seed &seed);
+  explicit fp8_e8m0_x(half const (&vals)[N], const stochastic_seed &seed);
+  explicit fp8_e8m0_x(bfloat16 const (&vals)[N], const stochastic_seed &seed);
+  explicit fp8_e8m0_x(double const (&vals)[N], const stochastic_seed &seed);
 
   // Construct with stochastic rounding with user provided seed from an marray
   // of half, bfloat16, float.
 
   // should be removed once docs updated
-  explicit fp8_e8m0(const sycl::marray<half, N> &vals,
-                    const stochastic_seed &seed);
-  explicit fp8_e8m0(const sycl::marray<bfloat16, N> &vals,
-                    const stochastic_seed &seed);
-  explicit fp8_e8m0(const sycl::marray<double, N> &vals,
-                    const stochastic_seed &seed);
+  explicit fp8_e8m0_x(const sycl::marray<half, N> &vals,
+                      const stochastic_seed &seed);
+  explicit fp8_e8m0_x(const sycl::marray<bfloat16, N> &vals,
+                      const stochastic_seed &seed);
+  explicit fp8_e8m0_x(const sycl::marray<double, N> &vals,
+                      const stochastic_seed &seed);
 
   // Construct from integer types.
   // Available only when N==1.
 
-  explicit fp8_e8m0(short val) {
-    assert(N == 1 && "fp8_e8m0: N must be 1 for short constructor");
+  explicit fp8_e8m0_x(short val) {
+    assert(N == 1 && "fp8_e8m0_x: N must be 1 for short constructor");
     vals[0] = ConvertToE8M0_CPU(static_cast<float>(val), rounding::upward,
                                 saturation::finite);
   }
-  explicit fp8_e8m0(int val) : fp8_e8m0(static_cast<float>(val)) {}
-  explicit fp8_e8m0(long val) : fp8_e8m0(static_cast<float>(val)) {}
-  explicit fp8_e8m0(long long val) : fp8_e8m0(static_cast<float>(val)) {}
-  explicit fp8_e8m0(unsigned short val) : fp8_e8m0(static_cast<float>(val)) {}
-  explicit fp8_e8m0(unsigned int val) : fp8_e8m0(static_cast<float>(val)) {}
-  explicit fp8_e8m0(unsigned long val) : fp8_e8m0(static_cast<float>(val)) {}
-  explicit fp8_e8m0(unsigned long long val)
-      : fp8_e8m0(static_cast<float>(val)) {}
+  explicit fp8_e8m0_x(int val) : fp8_e8m0_x(static_cast<float>(val)) {}
+  explicit fp8_e8m0_x(long val) : fp8_e8m0_x(static_cast<float>(val)) {}
+  explicit fp8_e8m0_x(long long val) : fp8_e8m0_x(static_cast<float>(val)) {}
+  explicit fp8_e8m0_x(unsigned short val)
+      : fp8_e8m0_x(static_cast<float>(val)) {}
+  explicit fp8_e8m0_x(unsigned int val) : fp8_e8m0_x(static_cast<float>(val)) {}
+  explicit fp8_e8m0_x(unsigned long val)
+      : fp8_e8m0_x(static_cast<float>(val)) {}
+  explicit fp8_e8m0_x(unsigned long long val)
+      : fp8_e8m0_x(static_cast<float>(val)) {}
 
-  fp8_e8m0 &operator=(half val) {
-    static_assert(N == 1, "fp8_e8m0: N must be 1 for scalar assignment");
+  fp8_e8m0_x &operator=(half val) {
+    static_assert(N == 1, "fp8_e8m0_x: N must be 1 for scalar assignment");
     vals[0] = ConvertToE8M0_CPU(static_cast<float>(val), rounding::upward,
                                 saturation::finite);
     return *this;
   }
-  fp8_e8m0 &operator=(bfloat16 val) {
-    static_assert(N == 1, "fp8_e8m0: N must be 1 for scalar assignment");
+  fp8_e8m0_x &operator=(bfloat16 val) {
+    static_assert(N == 1, "fp8_e8m0_x: N must be 1 for scalar assignment");
     vals[0] = ConvertToE8M0_CPU(static_cast<float>(val), rounding::upward,
                                 saturation::finite);
     return *this;
   }
-  fp8_e8m0 &operator=(float val) {
-    static_assert(N == 1, "fp8_e8m0: N must be 1 for scalar assignment");
+  fp8_e8m0_x &operator=(float val) {
+    static_assert(N == 1, "fp8_e8m0_x: N must be 1 for scalar assignment");
     vals[0] = ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
     return *this;
   }
-  fp8_e8m0 &operator=(double val) { return (*this = static_cast<float>(val)); }
-  fp8_e8m0 &operator=(short val) { return (*this = static_cast<float>(val)); }
-  fp8_e8m0 &operator=(int val) { return (*this = static_cast<float>(val)); }
-  fp8_e8m0 &operator=(long val) { return (*this = static_cast<float>(val)); }
-  fp8_e8m0 &operator=(long long val) {
+  fp8_e8m0_x &operator=(double val) {
     return (*this = static_cast<float>(val));
   }
-  fp8_e8m0 &operator=(unsigned short val) {
+  fp8_e8m0_x &operator=(short val) { return (*this = static_cast<float>(val)); }
+  fp8_e8m0_x &operator=(int val) { return (*this = static_cast<float>(val)); }
+  fp8_e8m0_x &operator=(long val) { return (*this = static_cast<float>(val)); }
+  fp8_e8m0_x &operator=(long long val) {
     return (*this = static_cast<float>(val));
   }
-  fp8_e8m0 &operator=(unsigned int val) {
+  fp8_e8m0_x &operator=(unsigned short val) {
     return (*this = static_cast<float>(val));
   }
-  fp8_e8m0 &operator=(unsigned long val) {
+  fp8_e8m0_x &operator=(unsigned int val) {
     return (*this = static_cast<float>(val));
   }
-  fp8_e8m0 &operator=(unsigned long long val) {
+  fp8_e8m0_x &operator=(unsigned long val) {
+    return (*this = static_cast<float>(val));
+  }
+  fp8_e8m0_x &operator=(unsigned long long val) {
     return (*this = static_cast<float>(val));
   }
 
   explicit operator half() const {
-    static_assert(N == 1, "fp8_e8m0: N must be 1 for scalar conversion");
+    static_assert(N == 1, "fp8_e8m0_x: N must be 1 for scalar conversion");
     return ConvertFromE8M0_CPU<half>(vals[0]);
   }
   explicit operator bfloat16() const {
-    static_assert(N == 1, "fp8_e8m0: N must be 1 for scalar conversion");
+    static_assert(N == 1, "fp8_e8m0_x: N must be 1 for scalar conversion");
     return ConvertFromE8M0_CPU<bfloat16>(vals[0]);
   }
   explicit operator float() const {
-    static_assert(N == 1, "fp8_e8m0: N must be 1 for scalar conversion");
+    static_assert(N == 1, "fp8_e8m0_x: N must be 1 for scalar conversion");
     return ConvertFromE8M0_CPU<float>(vals[0]);
   }
   explicit operator double() const {
-    static_assert(N == 1, "fp8_e8m0: N must be 1 for scalar conversion");
+    static_assert(N == 1, "fp8_e8m0_x: N must be 1 for scalar conversion");
     return ConvertFromE8M0_CPU<double>(vals[0]);
   }
 
   explicit operator char() const {
-    static_assert(N == 1, "fp8_e8m0: N must be 1 for scalar conversion");
+    static_assert(N == 1, "fp8_e8m0_x: N must be 1 for scalar conversion");
     return static_cast<char>(static_cast<float>(*this));
   }
   explicit operator signed char() const {
@@ -1766,7 +1692,7 @@ public:
   }
 
   explicit operator bool() const {
-    static_assert(N == 1, "fp8_e8m0: operator bool requires size N=1");
+    static_assert(N == 1, "fp8_e8m0_x: operator bool requires size N=1");
     return true;
   }
 
@@ -1793,6 +1719,339 @@ public:
 
   uint8_t vals[N];
 };
+
+template <size_t N> class fp8_e5m3_x {
+private:
+  template <typename T> uint8_t ConvertToFP8(T h, rounding r) {
+    if constexpr (std::is_integral_v<T>) {
+      sycl::half hi = static_cast<sycl::half>(h);
+      return ConvertToFP8_CPU<5, 3, sycl::half>(hi, r);
+    }
+    return ConvertToFP8_CPU<5, 3, T>(h, r);
+  }
+
+  template <typename T>
+  T ConvertFromFP8(uint8_t v, rounding r = rounding::to_even) const {
+    return ConvertFromFP8_CPU<5, 3, T>(v, r);
+  }
+
+  bfloat16 ConvertBF16FromFP8(uint8_t v) const {
+    return ConvertFromFP8_CPU<5, 3, bfloat16>(v);
+  }
+
+  void CheckConstraints(rounding r) const {
+    static_assert(N == 1 || N == 2,
+                  "fp8_e5m3_x: Template argument N must be 1 or 2");
+    if (r != rounding::to_even)
+      throw std::invalid_argument(
+          "fp8_e5m3_x: only rounding::to_even is supported");
+  }
+
+public:
+  fp8_e5m3_x() = default;
+  fp8_e5m3_x(const fp8_e5m3_x &) = default;
+  ~fp8_e5m3_x() = default;
+  fp8_e5m3_x &operator=(const fp8_e5m3_x &) = default;
+
+  // Construct from pack of half, bfloat16, float, double.
+  // Available only when the size of the pack is equal to N.
+
+  template <typename... Types,
+            typename = std::enable_if_t<
+                (sizeof...(Types) == N) &&
+                (((std::is_same_v<std::decay_t<Types>, half> ||
+                   std::is_same_v<std::decay_t<Types>, bfloat16> ||
+                   std::is_same_v<std::decay_t<Types>, float> ||
+                   std::is_same_v<std::decay_t<Types>, double>) &&
+                  ...))>>
+  explicit fp8_e5m3_x(Types... v) {
+    static_assert(N == 1 || N == 2,
+                  "fp8_e5m3_x: Template argument N must be 1 or 2");
+    /*if constexpr (((std::is_same_v<std::decay_t<Types>, bfloat16>) && ...)) {
+      const bfloat16 in[N] = {static_cast<bfloat16>(v)...};
+      for (size_t i = 0; i < N; ++i)
+        vals[i] = ConvertBF16ToFP8(in[i], rounding::to_even);
+      return;
+    }*/
+    const sycl::half in[N] = {v...};
+    for (size_t i = 0; i < N; ++i)
+      vals[i] = ConvertToFP8(in[i], rounding::to_even);
+  }
+
+  // Construct from an array of half, bfloat16, float, double.
+
+  explicit fp8_e5m3_x(half const (&in)[N], rounding r = rounding::to_even) {
+    CheckConstraints(r);
+    for (size_t i = 0; i < N; ++i)
+      vals[i] = ConvertToFP8(in[i], r);
+  }
+  explicit fp8_e5m3_x(bfloat16 const (&in)[N], rounding r = rounding::to_even) {
+    CheckConstraints(r);
+    for (size_t i = 0; i < N; ++i)
+      vals[i] = ConvertToFP8(in[i], r);
+  }
+  explicit fp8_e5m3_x(float const (&in)[N], rounding r = rounding::to_even) {
+    CheckConstraints(r);
+    for (size_t i = 0; i < N; ++i)
+      vals[i] = ConvertToFP8(in[i], r);
+  }
+  explicit fp8_e5m3_x(double const (&in)[N]) {
+    for (size_t i = 0; i < N; ++i)
+      vals[i] = ConvertToFP8(in[i], rounding::to_even);
+  }
+
+  // Construct from an marray of half, bfloat16, float, double.
+
+  explicit fp8_e5m3_x(const marray<half, N> &in,
+                      rounding r = rounding::to_even) {
+    CheckConstraints(r);
+    for (size_t i = 0; i < N; ++i)
+      vals[i] = ConvertToFP8(in[i], r);
+  }
+  explicit fp8_e5m3_x(const marray<bfloat16, N> &in,
+                      rounding r = rounding::to_even) {
+    CheckConstraints(r);
+    for (size_t i = 0; i < N; ++i)
+      vals[i] = ConvertToFP8(in[i], r);
+  }
+  explicit fp8_e5m3_x(const marray<float, N> &in,
+                      rounding r = rounding::to_even) {
+    CheckConstraints(r);
+    for (size_t i = 0; i < N; ++i)
+      vals[i] = ConvertToFP8(in[i], r);
+  }
+  explicit fp8_e5m3_x(const marray<double, N> &in) {
+    for (size_t i = 0; i < N; ++i)
+      vals[i] = ConvertToFP8(in[i], rounding::to_even);
+  }
+
+  // Construct from integer types.
+  // Available only when N==1.
+
+  explicit fp8_e5m3_x(short val) {
+    assert(N == 1 && "fp8_e5m3_x: N must be 1 for short constructor");
+    vals[0] = ConvertToFP8(val, rounding::to_even);
+  }
+  explicit fp8_e5m3_x(int val) {
+    assert(N == 1 && "fp8_e5m3_x: N must be 1 for int constructor");
+    vals[0] = ConvertToFP8(val, rounding::to_even);
+  }
+  explicit fp8_e5m3_x(long val) {
+    assert(N == 1 && "fp8_e5m3_x: N must be 1 for long constructor");
+    vals[0] = ConvertToFP8(val, rounding::to_even);
+  }
+  explicit fp8_e5m3_x(long long val) {
+    assert(N == 1 && "fp8_e5m3_x: N must be 1 for long long constructor");
+    vals[0] = ConvertToFP8(val, rounding::to_even);
+  }
+  explicit fp8_e5m3_x(unsigned short val) {
+    assert(N == 1 && "fp8_e5m3_x: N must be 1 for unsigned short constructor");
+    vals[0] = ConvertToFP8(val, rounding::to_even);
+  }
+  explicit fp8_e5m3_x(unsigned int val) {
+    assert(N == 1 && "fp8_e5m3_x: N must be 1 for unsigned int constructor");
+    vals[0] = ConvertToFP8(val, rounding::to_even);
+  }
+  explicit fp8_e5m3_x(unsigned long val) {
+    assert(N == 1 && "fp8_e5m3_x: N must be 1 for unsigned long constructor");
+    vals[0] = ConvertToFP8(val, rounding::to_even);
+  }
+  explicit fp8_e5m3_x(unsigned long long val) {
+    assert(N == 1 &&
+           "fp8_e5m3_x: N must be 1 for unsigned long long constructor");
+    vals[0] = ConvertToFP8(val, rounding::to_even);
+  }
+
+  // Assign (operator) from half, bfloat16, float, double, and integer types.
+  // Available only when N==1.
+
+  fp8_e5m3_x &operator=(half val) {
+    assert(N == 1 && "fp8_e5m3_x: N must be 1 for half assignment operator");
+    vals[0] = ConvertToFP8(val, rounding::to_even);
+    return *this;
+  }
+  fp8_e5m3_x &operator=(bfloat16 val) {
+    assert(N == 1 &&
+           "fp8_e5m3_x: N must be 1 for bfloat16 assignment operator");
+    vals[0] = ConvertToFP8(val, rounding::to_even);
+    return *this;
+  }
+  fp8_e5m3_x &operator=(float val) {
+    assert(N == 1 && "fp8_e5m3_x: N must be 1 for float assignment operator");
+    vals[0] = ConvertToFP8(val, rounding::to_even);
+    return *this;
+  }
+  fp8_e5m3_x &operator=(double val) {
+    assert(N == 1 && "fp8_e5m3_x: N must be 1 for double assignment operator");
+    vals[0] = ConvertToFP8(val, rounding::to_even);
+    return *this;
+  }
+  fp8_e5m3_x &operator=(short val) {
+    assert(N == 1 && "fp8_e5m3_x: N must be 1 for short assignment operator");
+    vals[0] = ConvertToFP8(val, rounding::to_even);
+    return *this;
+  }
+  fp8_e5m3_x &operator=(int val) {
+    assert(N == 1 && "fp8_e5m3_x: N must be 1 for int assignment operator");
+    vals[0] = ConvertToFP8(val, rounding::to_even);
+    return *this;
+  }
+  fp8_e5m3_x &operator=(long val) {
+    assert(N == 1 && "fp8_e5m3_x: N must be 1 for long assignment operator");
+    vals[0] = ConvertToFP8(val, rounding::to_even);
+    return *this;
+  }
+  fp8_e5m3_x &operator=(long long val) {
+    assert(N == 1 &&
+           "fp8_e5m3_x: N must be 1 for long long assignment operator");
+    vals[0] = ConvertToFP8(val, rounding::to_even);
+    return *this;
+  }
+  fp8_e5m3_x &operator=(unsigned short val) {
+    assert(N == 1 &&
+           "fp8_e5m3_x: N must be 1 for unsigned short assignment operator");
+    vals[0] = ConvertToFP8(val, rounding::to_even);
+    return *this;
+  }
+  fp8_e5m3_x &operator=(unsigned int val) {
+    assert(N == 1 &&
+           "fp8_e5m3_x: N must be 1 for unsigned int assignment operator");
+    vals[0] = ConvertToFP8(val, rounding::to_even);
+    return *this;
+  }
+  fp8_e5m3_x &operator=(unsigned long val) {
+    assert(N == 1 &&
+           "fp8_e5m3_x: N must be 1 for unsigned long assignment operator");
+    vals[0] = ConvertToFP8(val, rounding::to_even);
+    return *this;
+  }
+  fp8_e5m3_x &operator=(unsigned long long val) {
+    assert(
+        N == 1 &&
+        "fp8_e5m3_x: N must be 1 for unsigned long long assignment operator");
+    vals[0] = ConvertToFP8(val, rounding::to_even);
+    return *this;
+  }
+
+  // Convert to half, bfloat16, float, double.
+  // Available only when N==1.
+
+  explicit operator half() const {
+    assert(N == 1 && "fp8_e5m3_x: N must be 1 for half conversion operator");
+    return ConvertFromFP8<half>(vals[0]);
+  }
+  explicit operator bfloat16() const {
+    assert(N == 1 &&
+           "fp8_e5m3_x: N must be 1 for bfloat16 conversion operator");
+    return ConvertBF16FromFP8(vals[0]);
+  }
+  explicit operator float() const {
+    assert(N == 1 && "fp8_e5m3_x: N must be 1 for float conversion operator");
+    return ConvertFromFP8<float>(vals[0]);
+  }
+  explicit operator double() const {
+    assert(N == 1 && "fp8_e5m3_x: N must be 1 for double conversion operator");
+    return ConvertFromFP8<double>(vals[0]);
+  }
+
+  // Convert to integer types.
+  // Available only when N==1.
+
+  explicit operator char() const {
+    assert(N == 1 && "fp8_e5m3_x: N must be 1 for char conversion operator");
+    return ConvertFromFP8<char>(vals[0], rounding::toward_zero);
+  }
+  explicit operator signed char() const {
+    assert(N == 1 &&
+           "fp8_e5m3_x: N must be 1 for signed char conversion operator");
+    return ConvertFromFP8<signed char>(vals[0], rounding::toward_zero);
+  }
+  explicit operator short() const {
+    assert(N == 1 && "fp8_e5m3_x: N must be 1 for short conversion operator");
+    return ConvertFromFP8<short>(vals[0], rounding::toward_zero);
+  }
+  explicit operator int() const {
+    assert(N == 1 && "fp8_e5m3_x: N must be 1 for int conversion operator");
+    return ConvertFromFP8<int>(vals[0], rounding::toward_zero);
+  }
+  explicit operator long() const {
+    assert(N == 1 && "fp8_e5m3_x: N must be 1 for long conversion operator");
+    return ConvertFromFP8<long>(vals[0], rounding::toward_zero);
+  }
+  explicit operator long long() const {
+    assert(N == 1 &&
+           "fp8_e5m3_x: N must be 1 for long long conversion operator");
+    return ConvertFromFP8<long long>(vals[0], rounding::toward_zero);
+  }
+  explicit operator unsigned char() const {
+    assert(N == 1 &&
+           "fp8_e5m3_x: N must be 1 for unsigned char conversion operator");
+    return ConvertFromFP8<unsigned char>(vals[0], rounding::toward_zero);
+  }
+  explicit operator unsigned short() const {
+    assert(N == 1 &&
+           "fp8_e5m3_x: N must be 1 for unsigned short conversion operator");
+    return ConvertFromFP8<unsigned short>(vals[0], rounding::toward_zero);
+  }
+  explicit operator unsigned int() const {
+    assert(N == 1 &&
+           "fp8_e5m3_x: N must be 1 for unsigned int conversion operator");
+    return ConvertFromFP8<unsigned int>(vals[0], rounding::toward_zero);
+  }
+  explicit operator unsigned long() const {
+    assert(N == 1 &&
+           "fp8_e5m3_x: N must be 1 for unsigned long conversion operator");
+    return ConvertFromFP8<unsigned long>(vals[0], rounding::toward_zero);
+  }
+  explicit operator unsigned long long() const {
+    assert(
+        N == 1 &&
+        "fp8_e5m3_x: N must be 1 for unsigned long long conversion operator");
+    return ConvertFromFP8<unsigned long long>(vals[0], rounding::toward_zero);
+  }
+
+  // Convert to bool
+  // Available only when N==1.
+
+  explicit operator bool() const {
+    static_assert(N == 1, "fp8_e5m3_x: operator() requires size N=1");
+    return vals[0] != 0x00 && vals[0] != 0x80;
+  }
+
+  // Convert to marray of half, bfloat16, float
+
+  explicit operator marray<half, N>() const {
+    marray<half, N> out;
+    for (size_t i = 0; i < N; ++i)
+      out[i] = ConvertFromFP8<half>(vals[i]);
+    return out;
+  }
+  explicit operator marray<bfloat16, N>() const {
+    marray<bfloat16, N> out;
+    for (size_t i = 0; i < N; ++i)
+      out[i] = ConvertBF16FromFP8(vals[i]);
+    return out;
+  }
+  explicit operator marray<float, N>() const {
+    marray<float, N> out;
+    for (size_t i = 0; i < N; ++i)
+      out[i] = ConvertFromFP8<float>(vals[i]);
+    return out;
+  }
+
+  // Intentionally public to allow access to the raw values.
+
+  uint8_t vals[N];
+};
+
+using fp8_e4m3 = fp8_e4m3_x<1>;
+using fp8_e4m3_x2 = fp8_e4m3_x<2>;
+using fp8_e5m2 = fp8_e5m2_x<1>;
+using fp8_e5m2_x2 = fp8_e5m2_x<2>;
+using fp8_e8m0 = fp8_e8m0_x<1>;
+using fp8_e8m0_x2 = fp8_e8m0_x<2>;
+using fp8_e5m3 = fp8_e5m3_x<1>;
+using fp8_e5m3_x2 = fp8_e5m3_x<2>;
 
 #endif // __SYCL_TARGET_INTEL_GPU_CRI__
 
