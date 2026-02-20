@@ -1107,16 +1107,20 @@ StringRef SYCL::gen::resolveGenDevice(StringRef DeviceName) {
           .Cases({"intel_gpu_adl_p", "intel_gpu_12_3_0"}, "adl_p")
           .Cases({"intel_gpu_adl_n", "intel_gpu_12_4_0"}, "adl_n")
           .Cases({"intel_gpu_dg1", "intel_gpu_12_10_0"}, "dg1")
-          .Cases({"intel_gpu_acm_g10", "intel_gpu_dg2_g10",
-                  "intel_gpu_12_55_8"}, "acm_g10")
-          .Cases({"intel_gpu_acm_g11", "intel_gpu_dg2_g11",
-                  "intel_gpu_12_56_5"}, "acm_g11")
-          .Cases({"intel_gpu_acm_g12", "intel_gpu_dg2_g12",
-                  "intel_gpu_12_57_0"}, "acm_g12")
+          .Cases(
+              {"intel_gpu_acm_g10", "intel_gpu_dg2_g10", "intel_gpu_12_55_8"},
+              "acm_g10")
+          .Cases(
+              {"intel_gpu_acm_g11", "intel_gpu_dg2_g11", "intel_gpu_12_56_5"},
+              "acm_g11")
+          .Cases(
+              {"intel_gpu_acm_g12", "intel_gpu_dg2_g12", "intel_gpu_12_57_0"},
+              "acm_g12")
           .Cases({"intel_gpu_pvc", "intel_gpu_12_60_7"}, "pvc")
           .Cases({"intel_gpu_pvc_vg", "intel_gpu_12_61_7"}, "pvc_vg")
           .Cases({"intel_gpu_mtl_u", "intel_gpu_mtl_s", "intel_gpu_arl_u",
-                 "intel_gpu_arl_s", "intel_gpu_12_70_4"}, "mtl_u")
+                  "intel_gpu_arl_s", "intel_gpu_12_70_4"},
+                 "mtl_u")
           .Cases({"intel_gpu_mtl_h", "intel_gpu_12_71_4"}, "mtl_h")
           .Cases({"intel_gpu_arl_h", "intel_gpu_12_74_4"}, "arl_h")
           .Cases({"intel_gpu_bmg_g21", "intel_gpu_20_1_4"}, "bmg_g21")
@@ -1126,7 +1130,8 @@ StringRef SYCL::gen::resolveGenDevice(StringRef DeviceName) {
           .Cases({"intel_gpu_ptl_u", "intel_gpu_30_1_1"}, "ptl_u")
           .Cases({"intel_gpu_wcl", "intel_gpu_30_3_0"}, "wcl")
           .Cases({"intel_gpu_nvl_s", "intel_gpu_nvl_hx", "intel_gpu_nvl_ul",
-                 "intel_gpu_30_4_0"}, "nvl_s")
+                  "intel_gpu_30_4_0"},
+                 "nvl_s")
           .Cases({"intel_gpu_nvl_u", "intel_gpu_nvl_h", "intel_gpu_30_5_0"},
                  "nvl_u")
           .Cases({"intel_gpu_nvl_p", "intel_gpu_35_10_0"}, "nvl_p")
