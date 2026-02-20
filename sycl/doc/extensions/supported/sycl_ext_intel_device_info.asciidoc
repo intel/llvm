@@ -813,6 +813,23 @@ enum class aspect {
 
 ==== Throttle reasons
 
+[source,c++]
+----
+namespace sycl::ext::intel {
+
+  enum class throttle_reason {
+    power_cap,
+    current_limit,
+    thermal_limit,
+    psu_alert,
+    sw_range,
+    hw_range,
+    other
+  };
+
+}
+----
+
 [%header,cols="1,5"]
 |===
 | Reason | Description
@@ -830,21 +847,6 @@ that has a lower frequency when it receives clocks.
 
 [source,c++]
 ----
-
-namespace sycl::ext::intel {
-
-  enum class throttle_reason {
-    power_cap,
-    current_limit,
-    thermal_limit,
-    psu_alert,
-    sw_range,
-    hw_range,
-    other
-  };
-
-}
-
 namespace sycl::ext::intel::info::device {
 struct current_clock_throttle_reasons {
   using return_type = std::vector<ext::intel::throttle_reason>;
