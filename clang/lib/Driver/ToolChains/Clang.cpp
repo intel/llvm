@@ -11608,7 +11608,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       if (!TC->getTriple().isSPIROrSPIRV())
         continue;
       ArgStringList BuildArgs;
-      std::vector<SmallString<128>> BackendOptVec;
+      SmallVector<SmallString<0>> BackendOptVec;
       SmallString<128> LinkOptString;
 
       // Construct backend options for each target passed via
@@ -11620,14 +11620,15 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         // Handle the OPT_Xsycl_backend case
         if (A->getNumValues() > 1) {
           Device = SYCL::gen::resolveGenDevice(A->getValue());
-          if (Device.empty())
+          if (Device.empty()){
             // If target is spir64_gen, the device name needs to be extracted
             // from the arguments.
             Device = SYCL::gen::extractDeviceFromArg(A->getValue(1));
-          else
+          } else {
             // If target is intel_gpu_*, "-device <arch>"
             // is appended to BackendArgs.
             appendOption(BackendArgs, "-device " + Device.str());
+          }
         }
         SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs,
                                           Device);
