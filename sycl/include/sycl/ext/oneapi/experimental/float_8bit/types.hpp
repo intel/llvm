@@ -16,58 +16,6 @@ namespace ext::oneapi::experimental {
 
 #ifdef __SYCL_TARGET_INTEL_GPU_CRI__
 
-#ifdef __SYCL_DEVICE_ONLY__
-
-// New FP8 builtins
-extern __DPCPP_SYCL_EXTERNAL sycl::half
-__builtin_spirv_ConvertE4M3ToFP16EXT(uint8_t) noexcept;
-extern __DPCPP_SYCL_EXTERNAL sycl::half
-__builtin_spirv_ConvertE5M2ToFP16EXT(uint8_t) noexcept;
-extern __DPCPP_SYCL_EXTERNAL sycl::ext::oneapi::bfloat16
-__builtin_spirv_ConvertE4M3ToBF16EXT(uint8_t) noexcept;
-extern __DPCPP_SYCL_EXTERNAL sycl::ext::oneapi::bfloat16
-__builtin_spirv_ConvertE5M2ToBF16EXT(uint8_t) noexcept;
-extern __DPCPP_SYCL_EXTERNAL
-    uint8_t __builtin_spirv_ConvertFP16ToE4M3EXT(sycl::half) noexcept;
-extern __DPCPP_SYCL_EXTERNAL
-    uint8_t __builtin_spirv_ConvertFP16ToE5M2EXT(sycl::half) noexcept;
-extern __DPCPP_SYCL_EXTERNAL uint8_t
-    __builtin_spirv_ConvertBF16ToE4M3EXT(sycl::ext::oneapi::bfloat16) noexcept;
-extern __DPCPP_SYCL_EXTERNAL uint8_t
-    __builtin_spirv_ConvertBF16ToE5M2EXT(sycl::ext::oneapi::bfloat16) noexcept;
-extern __DPCPP_SYCL_EXTERNAL
-    uint8_t __builtin_spirv_ClampConvertFP16ToE4M3INTEL(sycl::half) noexcept;
-extern __DPCPP_SYCL_EXTERNAL
-    uint8_t __builtin_spirv_ClampConvertBF16ToE4M3INTEL(
-        sycl::ext::oneapi::bfloat16) noexcept;
-extern __DPCPP_SYCL_EXTERNAL
-    uint8_t __builtin_spirv_ClampConvertFP16ToE5M2INTEL(sycl::half) noexcept;
-extern __DPCPP_SYCL_EXTERNAL
-    uint8_t __builtin_spirv_ClampConvertBF16ToE5M2INTEL(
-        sycl::ext::oneapi::bfloat16) noexcept;
-extern __DPCPP_SYCL_EXTERNAL
-    uint8_t __builtin_spirv_StochasticRoundFP16ToE5M2INTEL(sycl::half) noexcept;
-extern __DPCPP_SYCL_EXTERNAL
-    uint8_t __builtin_spirv_StochasticRoundFP16ToE4M3INTEL(sycl::half) noexcept;
-extern __DPCPP_SYCL_EXTERNAL
-    uint8_t __builtin_spirv_StochasticRoundBF16ToE5M2INTEL(
-        sycl::ext::oneapi::bfloat16) noexcept;
-extern __DPCPP_SYCL_EXTERNAL
-    uint8_t __builtin_spirv_StochasticRoundBF16ToE4M3INTEL(
-        sycl::ext::oneapi::bfloat16) noexcept;
-extern __DPCPP_SYCL_EXTERNAL uint8_t
-    __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(sycl::half) noexcept;
-extern __DPCPP_SYCL_EXTERNAL uint8_t
-    __builtin_spirv_ClampStochasticRoundFP16ToE4M3INTEL(sycl::half) noexcept;
-extern __DPCPP_SYCL_EXTERNAL
-    uint8_t __builtin_spirv_ClampStochasticRoundBF16ToE5M2INTEL(
-        sycl::ext::oneapi::bfloat16) noexcept;
-extern __DPCPP_SYCL_EXTERNAL
-    uint8_t __builtin_spirv_ClampStochasticRoundBF16ToE4M3INTEL(
-        sycl::ext::oneapi::bfloat16) noexcept;
-
-#endif // __SYCL_DEVICE_ONLY__
-
 enum class saturation { none, finite };
 
 enum class rounding {
@@ -639,29 +587,6 @@ public:
       vals[i] = ConvertToFP8(v[i], rounding::to_even);
   }
 
-  // Construct with stochastic rounding with user provided seed from an array of
-  // half, bfloat16, float.
-  // Should be removed once docs updated
-  explicit fp8_e4m3_x(half const (&vals)[N], const stochastic_seed &seed,
-                      saturation s = saturation::finite);
-  explicit fp8_e4m3_x(bfloat16 const (&vals)[N], const stochastic_seed &seed,
-                      saturation s = saturation::finite);
-  explicit fp8_e4m3_x(float const (&vals)[N], const stochastic_seed &seed,
-                      saturation s = saturation::finite);
-
-  // Construct with stochastic rounding with user provided seed from an marray
-  // of half, bfloat16, float.
-
-  // Should be removed once docs updated
-  explicit fp8_e4m3_x(const sycl::marray<half, N> &vals,
-                      const stochastic_seed &seed,
-                      saturation s = saturation::finite);
-  explicit fp8_e4m3_x(const sycl::marray<bfloat16, N> &vals,
-                      const stochastic_seed &seed,
-                      saturation s = saturation::finite);
-  explicit fp8_e4m3_x(const sycl::marray<float, N> &vals,
-                      const stochastic_seed &seed,
-                      saturation s = saturation::finite);
 
   // Construct from integer types.
   // Available only when N==1.
@@ -1015,7 +940,7 @@ public:
                   ...))>>
   explicit fp8_e5m2_x(Types... v) {
     static_assert(N == 1 || N == 2,
-                  "fp8_e5m2_x: Template argument N must be 1 or 2 on device");
+                  "fp8_e5m2_x: Template argument N must be 1 or 2");
     if constexpr (((std::is_same_v<std::decay_t<Types>, bfloat16>) && ...)) {
       const bfloat16 in[N] = {static_cast<bfloat16>(v)...};
       for (size_t i = 0; i < N; ++i)
@@ -1091,27 +1016,127 @@ public:
   // Construct with stochastic rounding with user provided seed from an array of
   // half, bfloat16, float.
 
-  // should be removed once docs updated
-  explicit fp8_e5m2_x(half const (&vals)[N], const stochastic_seed &seed,
-                      saturation s = saturation::finite);
-  explicit fp8_e5m2_x(bfloat16 const (&vals)[N], const stochastic_seed &seed,
-                      saturation s = saturation::finite);
-  explicit fp8_e5m2_x(double const (&vals)[N], const stochastic_seed &seed,
-                      saturation s = saturation::finite);
+  explicit fp8_e5m2_x(half const (&in)[N], const stochastic_seed &seed,
+                      saturation s = saturation::finite) {
+    static_assert(N == 1 || N == 2,
+                  "fp8_e5m2_x: Template argument N must be 1 or 2");
+#ifdef __SYCL_DEVICE_ONLY__
+    uint32_t current_seed = *seed.pseed;
+    for (size_t i = 0; i < N; ++i) {
+      if (s == saturation::finite) {
+        vals[i] = __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
+            in[i], static_cast<int>(current_seed), seed.pseed);
+      } else {
+        vals[i] = __builtin_spirv_StochasticRoundFP16ToE5M2INTEL(
+            in[i], static_cast<int>(current_seed), seed.pseed);
+      }
+      current_seed = *seed.pseed;
+    }
+#endif
+  }
+
+  explicit fp8_e5m2_x(bfloat16 const (&in)[N], const stochastic_seed &seed,
+                      saturation s = saturation::finite) {
+    static_assert(N == 1 || N == 2,
+                  "fp8_e5m2_x: Template argument N must be 1 or 2");
+#ifdef __SYCL_DEVICE_ONLY__
+    uint32_t current_seed = *seed.pseed;
+    for (size_t i = 0; i < N; ++i) {
+      if (s == saturation::finite) {
+        vals[i] = __builtin_spirv_ClampStochasticRoundBF16ToE5M2INTEL(
+            in[i], static_cast<int>(current_seed), seed.pseed);
+      } else {
+        vals[i] = __builtin_spirv_StochasticRoundBF16ToE5M2INTEL(
+            in[i], static_cast<int>(current_seed), seed.pseed);
+      }
+      current_seed = *seed.pseed;
+    }
+#endif
+  }
+
+  explicit fp8_e5m2_x(double const (&in)[N], const stochastic_seed &seed,
+                      saturation s = saturation::finite) {
+    static_assert(N == 1 || N == 2,
+                  "fp8_e5m2_x: Template argument N must be 1 or 2");
+#ifdef __SYCL_DEVICE_ONLY__
+    uint32_t current_seed = *seed.pseed;
+    for (size_t i = 0; i < N; ++i) {
+      sycl::half h = static_cast<sycl::half>(in[i]);
+      if (s == saturation::finite) {
+        vals[i] = __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
+            h, static_cast<int>(current_seed), seed.pseed);
+      } else {
+        vals[i] = __builtin_spirv_StochasticRoundFP16ToE5M2INTEL(
+            h, static_cast<int>(current_seed), seed.pseed);
+      }
+      current_seed = *seed.pseed;
+    }
+#endif
+  }
 
   // Construct with stochastic rounding with user provided seed from an marray
   // of half, bfloat16, float.
 
-  // should be removed once docs updated
-  explicit fp8_e5m2_x(const sycl::marray<half, N> &vals,
+  explicit fp8_e5m2_x(const sycl::marray<half, N> &in,
                       const stochastic_seed &seed,
-                      saturation s = saturation::finite);
-  explicit fp8_e5m2_x(const sycl::marray<bfloat16, N> &vals,
+                      saturation s = saturation::finite) {
+    static_assert(N == 1 || N == 2,
+                  "fp8_e5m2_x: Template argument N must be 1 or 2");
+#ifdef __SYCL_DEVICE_ONLY__
+    uint32_t current_seed = *seed.pseed;
+    for (size_t i = 0; i < N; ++i) {
+      if (s == saturation::finite) {
+        vals[i] = __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
+            in[i], static_cast<int>(current_seed), seed.pseed);
+      } else {
+        vals[i] = __builtin_spirv_StochasticRoundFP16ToE5M2INTEL(
+            in[i], static_cast<int>(current_seed), seed.pseed);
+      }
+      current_seed = *seed.pseed;
+    }
+#endif
+  }
+
+  explicit fp8_e5m2_x(const sycl::marray<bfloat16, N> &in,
                       const stochastic_seed &seed,
-                      saturation s = saturation::finite);
-  explicit fp8_e5m2_x(const sycl::marray<double, N> &vals,
+                      saturation s = saturation::finite) {
+    static_assert(N == 1 || N == 2,
+                  "fp8_e5m2_x: Template argument N must be 1 or 2");
+#ifdef __SYCL_DEVICE_ONLY__
+    uint32_t current_seed = *seed.pseed;
+    for (size_t i = 0; i < N; ++i) {
+      if (s == saturation::finite) {
+        vals[i] = __builtin_spirv_ClampStochasticRoundBF16ToE5M2INTEL(
+            in[i], static_cast<int>(current_seed), seed.pseed);
+      } else {
+        vals[i] = __builtin_spirv_StochasticRoundBF16ToE5M2INTEL(
+            in[i], static_cast<int>(current_seed), seed.pseed);
+      }
+      current_seed = *seed.pseed;
+    }
+#endif
+  }
+
+  explicit fp8_e5m2_x(const sycl::marray<double, N> &in,
                       const stochastic_seed &seed,
-                      saturation s = saturation::finite);
+                      saturation s = saturation::finite) {
+    static_assert(N == 1 || N == 2,
+                  "fp8_e5m2_x: Template argument N must be 1 or 2");
+#ifdef __SYCL_DEVICE_ONLY__
+    uint32_t current_seed = *seed.pseed;
+    for (size_t i = 0; i < N; ++i) {
+      sycl::half h = static_cast<sycl::half>(in[i]);
+      if (s == saturation::finite) {
+        vals[i] = __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
+            h, static_cast<int>(current_seed), seed.pseed);
+      } else {
+        vals[i] = __builtin_spirv_StochasticRoundFP16ToE5M2INTEL(
+            h, static_cast<int>(current_seed), seed.pseed);
+      }
+      current_seed = *seed.pseed;
+    }
+#endif
+  }
 
   // Construct from integer types.
   // Available only when N==1.
@@ -1547,25 +1572,6 @@ public:
       vals[i] = ConvertToE8M0_CPU(static_cast<float>(in[i]), rounding::upward,
                                   saturation::finite);
   }
-
-  // Construct with stochastic rounding with user provided seed from an array of
-  // half, bfloat16, float.
-
-  // should be removed once docs updated
-  explicit fp8_e8m0_x(half const (&vals)[N], const stochastic_seed &seed);
-  explicit fp8_e8m0_x(bfloat16 const (&vals)[N], const stochastic_seed &seed);
-  explicit fp8_e8m0_x(double const (&vals)[N], const stochastic_seed &seed);
-
-  // Construct with stochastic rounding with user provided seed from an marray
-  // of half, bfloat16, float.
-
-  // should be removed once docs updated
-  explicit fp8_e8m0_x(const sycl::marray<half, N> &vals,
-                      const stochastic_seed &seed);
-  explicit fp8_e8m0_x(const sycl::marray<bfloat16, N> &vals,
-                      const stochastic_seed &seed);
-  explicit fp8_e8m0_x(const sycl::marray<double, N> &vals,
-                      const stochastic_seed &seed);
 
   // Construct from integer types.
   // Available only when N==1.
