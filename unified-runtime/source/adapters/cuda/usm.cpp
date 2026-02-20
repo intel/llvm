@@ -67,7 +67,9 @@ urUSMDeviceAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
   }
 
   // Register allocation with context for cross-device operation tracking
-  hContext->registerAllocation(*ppMem, hDevice);
+  if (hContext && *ppMem && hDevice) {
+    hContext->registerAllocation(*ppMem, hDevice);
+  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -95,7 +97,9 @@ urUSMSharedAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
   }
 
   // Register allocation with context for cross-device operation tracking
-  hContext->registerAllocation(*ppMem, hDevice);
+  if (hContext && *ppMem && hDevice) {
+    hContext->registerAllocation(*ppMem, hDevice);
+  }
 
   return UR_RESULT_SUCCESS;
 }
