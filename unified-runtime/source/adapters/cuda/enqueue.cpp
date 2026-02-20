@@ -1588,23 +1588,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
         hQueue->getContext()->getAllocationDevice(pDst);
 
     if (srcDevice && dstDevice && srcDevice != dstDevice) {
-      // Cross-device copy detected for managed memory.
-      // For managed memory (USM Shared), we need to:
-      // 1. Ensure source data is flushed from source device
-      // 2. Prefetch to destination device 
-      // 3. Copy the data
-      
-      // First synchronize to ensure source writes are visible
-      UR_CHECK_ERROR(cuStreamSynchronize(CuStream));
-      
-      // Try to determine if this is managed memory and use prefetch + copy
-      // For USM Device memory, use peer copy
+      // Cross-device copy detected - use asynchronous peer copy
       CUcontext srcContext = srcDevice->getNativeContext();
       CUcontext dstContext = dstDevice->getNativeContext();
       
-      // Use synchronous peer copy after stream sync
-      UR_CHECK_ERROR(cuMemcpyPeer((CUdeviceptr)pDst, dstContext,
-                                  (CUdeviceptr)pSrc, srcContext, size));
+      // Ensure source context is active for the copy operation
+      ScopedContext ActiveContext(srcContext);
+      
+      // Use asynchronous peer copy on the current stream
+      UR_CHECK_ERROR(cuMemcpyPeerAsync((CUdeviceptr)pDst, dstContext,
+                                       (CUdeviceptr)pSrc, srcContext, size,
+                                       CuStream));
     } else {
       // Same device, host memory, or unknown - use regular cuMemcpyAsync
       UR_CHECK_ERROR(
