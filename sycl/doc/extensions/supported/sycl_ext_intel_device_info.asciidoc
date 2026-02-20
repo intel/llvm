@@ -817,15 +817,15 @@ enum class aspect {
 ----
 namespace sycl::ext::intel {
 
-  enum class throttle_reason {
-    power_cap,
-    current_limit,
-    thermal_limit,
-    psu_alert,
-    sw_range,
-    hw_range,
-    other
-  };
+enum class throttle_reason {
+  power_cap,
+  current_limit,
+  thermal_limit,
+  psu_alert,
+  sw_range,
+  hw_range,
+  other
+};
 
 }
 ----
