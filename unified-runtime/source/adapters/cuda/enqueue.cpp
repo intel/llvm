@@ -1588,13 +1588,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
         hQueue->getContext()->getAllocationDevice(pDst);
 
     if (srcDevice && dstDevice && srcDevice != dstDevice) {
-      // Cross-device copy detected. For managed memory (USM Shared), CUDA
-      // automatically handles migration, but we need proper synchronization.
-      // Since the stream belongs to the queue's device context and may not
-      // be valid for peer async operations, we synchronize and use blocking
-      // copy.
+      // Cross-device copy detected. Use cuMemcpyPeer for synchronous
+      // peer-to-peer copy between different device contexts.
+      // We must synchronize first because the stream may have pending
+      // operations, and cuMemcpyPeer is synchronous.
       UR_CHECK_ERROR(cuStreamSynchronize(CuStream));
-      UR_CHECK_ERROR(cuMemcpy((CUdeviceptr)pDst, (CUdeviceptr)pSrc, size));
+      
+      CUcontext srcContext = srcDevice->getNativeContext();
+      CUcontext dstContext = dstDevice->getNativeContext();
+      
+      UR_CHECK_ERROR(cuMemcpyPeer((CUdeviceptr)pDst, dstContext,
+                                  (CUdeviceptr)pSrc, srcContext, size));
     } else {
       // Same device, host memory, or unknown - use regular cuMemcpyAsync
       UR_CHECK_ERROR(
