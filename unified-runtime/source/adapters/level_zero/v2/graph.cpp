@@ -1,6 +1,6 @@
 //===--------- graph.cpp - Level Zero Adapter -----------------------------===//
 //
-// Copyright (C) 2025 Intel Corporation
+// Copyright (C) 2025-2026 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -124,9 +124,23 @@ ur_result_t urGraphIsEmptyExp(ur_exp_graph_handle_t hGraph, bool *pIsEmpty) {
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urGraphDumpContentsExp(ur_exp_graph_handle_t, const char *) {
-  UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+ur_result_t urGraphDumpContentsExp(ur_exp_graph_handle_t hGraph,
+                                   const char *filePath) {
+  ur_context_handle_t hContext = hGraph->getContext();
+  if (!checkGraphExtensionSupport(hContext)) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  ze_result_t zeResult = ZE_CALL_NOCHECK(
+      hContext->getPlatform()->ZeGraphExt.zeGraphDumpContentsExp,
+      (hGraph->getZeHandle(), filePath, nullptr));
+
+  // Errors related to File IO
+  if (zeResult == ZE_RESULT_ERROR_UNKNOWN) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  return UR_RESULT_SUCCESS;
 }
 
 } // namespace ur::level_zero
