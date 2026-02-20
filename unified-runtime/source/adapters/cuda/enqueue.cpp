@@ -1592,10 +1592,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
       CUcontext srcContext = srcDevice->getNativeContext();
       CUcontext dstContext = dstDevice->getNativeContext();
 
-      // Ensure source context is active for the copy operation
-      ScopedContext ActiveContext(srcContext);
-
       // Use asynchronous peer copy on the current stream
+      // cuMemcpyPeerAsync takes contexts as parameters, no need to activate
+      // them
       UR_CHECK_ERROR(cuMemcpyPeerAsync((CUdeviceptr)pDst, dstContext,
                                        (CUdeviceptr)pSrc, srcContext, size,
                                        CuStream));
