@@ -55,7 +55,7 @@ template <typename NodeTy> struct ilist_alloc_traits {
 /// struct ilist_alloc_traits<MyType> : ilist_noalloc_traits<MyType> {};
 /// \endcode
 template <typename NodeTy> struct ilist_noalloc_traits {
-  static void deleteNode(NodeTy *V) {}
+  static void deleteNode(NodeTy *) {}
 };
 
 /// Callbacks do nothing by default in iplist and ilist.

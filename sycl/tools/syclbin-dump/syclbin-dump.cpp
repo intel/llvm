@@ -62,27 +62,31 @@ std::string PropertyValueToString(const llvm::util::PropertyValue &PropVal) {
   return "!UNKNOWN PROPERTY VALUE TYPE!";
 }
 
+void PrintPropertySet(raw_ostream &OS, StringRef Name,
+                      const llvm::util::PropertySet &PropertySet) {
+  ScopedIndent Ind;
+  OS << Ind << Name << ":\n";
+  for (auto &PropertyValue : PropertySet) {
+    ScopedIndent Ind;
+    std::string PropValStr = PropertyValueToString(PropertyValue.second);
+    // If there is a newline in the value, start at next line and do
+    // proper indentation.
+    std::regex NewlineRegex{"\r\n|\r|\n"};
+    if (std::smatch Match; std::regex_search(PropValStr, Match, NewlineRegex)) {
+      ScopedIndent Ind;
+      PropValStr = "\n" + Ind.str() + PropValStr;
+      // Add indentation to newlines in the returned string.
+      PropValStr =
+          std::regex_replace(PropValStr, NewlineRegex, "\n" + Ind.str());
+    }
+    OS << Ind << PropertyValue.first << ": " << PropValStr << "\n";
+  }
+}
+
 void PrintProperties(raw_ostream &OS,
                      llvm::util::PropertySetRegistry &Properties) {
   for (auto &PropertySet : Properties) {
-    ScopedIndent Ind;
-    OS << Ind << PropertySet.first << ":\n";
-    for (auto &PropertyValue : PropertySet.second) {
-      ScopedIndent Ind;
-      std::string PropValStr = PropertyValueToString(PropertyValue.second);
-      // If there is a newline in the value, start at next line and do
-      // proper indentantion.
-      std::regex NewlineRegex{"\r\n|\r|\n"};
-      if (std::smatch Match;
-          std::regex_search(PropValStr, Match, NewlineRegex)) {
-        ScopedIndent Ind;
-        PropValStr = "\n" + Ind.str() + PropValStr;
-        // Add indentation to newlines in the returned string.
-        PropValStr =
-            std::regex_replace(PropValStr, NewlineRegex, "\n" + Ind.str());
-      }
-      OS << Ind << PropertyValue.first << ": " << PropValStr << "\n";
-    }
+    PrintPropertySet(OS, PropertySet.first, PropertySet.second);
   }
 }
 
@@ -115,32 +119,39 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  std::unique_ptr<llvm::object::OffloadBinary> ParsedOffloadBinary;
-  MemoryBufferRef SYCLBINImageBuffer = [&]() {
-    if (llvm::Error E =
-            llvm::object::OffloadBinary::create(**FileMemBufferOrError)
-                .moveInto(ParsedOffloadBinary)) {
-      // If we failed to load as an offload binary, it may still be a SYCLBIN at
-      // an outer level.
-      std::ignore = (bool)llvm::handleErrors(
-          std::move(E),
-          [](std::unique_ptr<ECError>) -> Error { return Error::success(); });
-      return MemoryBufferRef(**FileMemBufferOrError);
-    } else {
-      return MemoryBufferRef(ParsedOffloadBinary->getImage(), "");
-    }
-  }();
+  Expected<std::unique_ptr<llvm::object::SYCLBIN>> SYCLBINPtrOrErr =
+      llvm::object::SYCLBIN::read(**FileMemBufferOrError);
 
-  std::unique_ptr<llvm::object::SYCLBIN> ParsedSYCLBIN;
-  if (llvm::Error E = llvm::object::SYCLBIN::read(SYCLBINImageBuffer)
-                          .moveInto(ParsedSYCLBIN)) {
-    errs() << "Failed to parse SYCLBIN file: " << E << "\n";
-    std::abort();
+  // If direct SYCLBIN parsing failed, try parsing as OffloadBinary wrapper.
+  if (!SYCLBINPtrOrErr) {
+    Error FirstError = SYCLBINPtrOrErr.takeError();
+    auto OffloadBinaryVecOrError =
+        llvm::object::OffloadBinary::create(**FileMemBufferOrError);
+    if (!OffloadBinaryVecOrError) {
+      errs() << "Failed to parse SYCLBIN file: " << FirstError
+             << " Failed to parse Offload Binary: "
+             << OffloadBinaryVecOrError.takeError() << "\n";
+      std::abort();
+    }
+
+    consumeError(std::move(FirstError));
+
+    SYCLBINPtrOrErr = llvm::object::SYCLBIN::read(
+        MemoryBufferRef(OffloadBinaryVecOrError->front()->getImage(), ""));
+    if (!SYCLBINPtrOrErr) {
+      errs() << "Failed to parse SYCLBIN file: " << SYCLBINPtrOrErr.takeError()
+             << "\n";
+      std::abort();
+    }
   }
 
-  OS << "Version: " << ParsedSYCLBIN->Version << "\n";
+  std::unique_ptr<llvm::object::SYCLBIN> ParsedSYCLBIN =
+      std::move(*SYCLBINPtrOrErr);
+
   OS << "Global metadata:\n";
-  PrintProperties(OS, *(ParsedSYCLBIN->GlobalMetadata));
+  PrintPropertySet(OS, "SYCLBIN/global metadata",
+                   *(ParsedSYCLBIN->GlobalMetadata));
+
   OS << "Number of Abstract Modules: " << ParsedSYCLBIN->AbstractModules.size()
      << "\n";
 
@@ -159,13 +170,16 @@ int main(int argc, char **argv) {
     // IR Modules.
     OS << Ind << "Number of IR Modules: " << AM.IRModules.size() << "\n";
     for (size_t J = 0; J < AM.IRModules.size(); ++J) {
-      const llvm::object::SYCLBIN::IRModule &IRM = AM.IRModules[J];
+      const llvm::object::OffloadBinary *IRM = AM.IRModules[J];
       OS << Ind << "IR module " << J << ":\n";
       {
         ScopedIndent Ind;
-        OS << Ind << "Metadata:\n";
-        PrintProperties(OS, *IRM.Metadata);
-        OS << Ind << "Raw IR bytes: <Binary blob of " << IRM.RawIRBytes.size()
+        OS << Ind << "Image Kind: "
+           << llvm::object::getImageKindName(IRM->getImageKind()).str() << "\n";
+        OS << Ind << "Triple: " << IRM->getString("triple").str() << "\n";
+        OS << Ind << "Arch: " << IRM->getString("arch").str() << "\n";
+
+        OS << Ind << "Raw bytes: <Binary blob of " << IRM->getImage().size()
            << " bytes>\n";
       }
     }
@@ -174,15 +188,18 @@ int main(int argc, char **argv) {
     OS << Ind << "Number of Native Device Code Images: "
        << AM.NativeDeviceCodeImages.size() << "\n";
     for (size_t J = 0; J < AM.NativeDeviceCodeImages.size(); ++J) {
-      const llvm::object::SYCLBIN::NativeDeviceCodeImage &NDCI =
-          AM.NativeDeviceCodeImages[J];
+      const llvm::object::OffloadBinary *NDCI = AM.NativeDeviceCodeImages[J];
       OS << Ind << "Native device code image " << J << ":\n";
       {
         ScopedIndent Ind;
-        OS << Ind << "Metadata:\n";
-        PrintProperties(OS, *NDCI.Metadata);
-        OS << Ind << "Raw native device code image bytes: <Binary blob of "
-           << NDCI.RawDeviceCodeImageBytes.size() << " bytes>\n";
+        OS << Ind << "Image Kind: "
+           << llvm::object::getImageKindName(NDCI->getImageKind()).str()
+           << "\n";
+        OS << Ind << "Triple: " << NDCI->getString("triple").str() << "\n";
+        OS << Ind << "Arch: " << NDCI->getString("arch").str() << "\n";
+
+        OS << Ind << "Raw bytes: <Binary blob of " << NDCI->getImage().size()
+           << " bytes>\n";
       }
     }
   }

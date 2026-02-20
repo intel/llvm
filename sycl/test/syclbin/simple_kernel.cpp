@@ -2,10 +2,10 @@
 // RUN: %clangxx --offload-new-driver -fsyclbin=object -o %t.object.syclbin %s
 // RUN: %clangxx --offload-new-driver -fsyclbin=executable -o %t.executable.syclbin %s
 // RUN: %clangxx --offload-new-driver -fsyclbin -o %t.default.syclbin %s
-// RUN: syclbin-dump %t.input.syclbin | FileCheck %s --check-prefix CHECK-INPUT
-// RUN: syclbin-dump %t.object.syclbin | FileCheck %s --check-prefix CHECK-OBJECT
-// RUN: syclbin-dump %t.executable.syclbin | FileCheck %s --check-prefix CHECK-EXECUTABLE
-// RUN: syclbin-dump %t.default.syclbin | FileCheck %s --check-prefix CHECK-EXECUTABLE
+// RUN: syclbin-dump %t.input.syclbin | FileCheck %s --check-prefixes=CHECK-GENERAL,CHECK-INPUT
+// RUN: syclbin-dump %t.object.syclbin | FileCheck %s --check-prefixes=CHECK-GENERAL,CHECK-OBJECT
+// RUN: syclbin-dump %t.executable.syclbin | FileCheck %s --check-prefixes=CHECK-GENERAL,CHECK-EXECUTABLE
+// RUN: syclbin-dump %t.default.syclbin | FileCheck %s --check-prefixes=CHECK-GENERAL,CHECK-EXECUTABLE
 
 // Checks the generated SYCLBIN contents of a simple SYCL free function kernel.
 
@@ -20,50 +20,25 @@ void TestKernel(int *Ptr, int Size) {
 }
 }
 
-// CHECK-INPUT:      Version: {{[1-9]+}}
-// CHECK-INPUT-NEXT: Global metadata:
-// CHECK-INPUT-NEXT:   SYCLBIN/global metadata:
-// CHECK-INPUT-NEXT:     state: 0
-// CHECK-INPUT-NEXT: Number of Abstract Modules: 1
-// CHECK-INPUT-NEXT: Abstract Module 0:
-// CHECK-INPUT-NEXT:   Metadata:
-// CHECK-INPUT:      Number of IR Modules: 1
-// CHECK-INPUT-NEXT:   IR module 0:
-// CHECK-INPUT-NEXT:       Metadata:
-// CHECK-INPUT-NEXT:         SYCLBIN/ir module metadata:
-// CHECK-INPUT-NEXT:           type: 0
-// CHECK-INPUT-NEXT:           target:
-// CHECK-INPUT-NEXT:     Raw IR bytes: <Binary blob of {{.*}} bytes>
-// CHECK-INPUT-NEXT:   Number of Native Device Code Images: 0
-
-// CHECK-OBJECT:      Version: {{[1-9]+}}
-// CHECK-OBJECT-NEXT: Global metadata:
-// CHECK-OBJECT-NEXT:   SYCLBIN/global metadata:
-// CHECK-OBJECT-NEXT:     state: 1
-// CHECK-OBJECT-NEXT: Number of Abstract Modules: 1
-// CHECK-OBJECT-NEXT: Abstract Module 0:
-// CHECK-OBJECT-NEXT:   Metadata:
-// CHECK-OBJECT:      Number of IR Modules: 1
-// CHECK-OBJECT-NEXT:   IR module 0:
-// CHECK-OBJECT-NEXT:       Metadata:
-// CHECK-OBJECT-NEXT:         SYCLBIN/ir module metadata:
-// CHECK-OBJECT-NEXT:           type: 0
-// CHECK-OBJECT-NEXT:           target:
-// CHECK-OBJECT-NEXT:     Raw IR bytes: <Binary blob of {{.*}} bytes>
-// CHECK-OBJECT-NEXT:   Number of Native Device Code Images: 0
-
-// CHECK-EXECUTABLE:      Version: {{[1-9]+}}
-// CHECK-EXECUTABLE-NEXT: Global metadata:
-// CHECK-EXECUTABLE-NEXT:   SYCLBIN/global metadata:
-// CHECK-EXECUTABLE-NEXT:     state: 2
-// CHECK-EXECUTABLE-NEXT: Number of Abstract Modules: 1
-// CHECK-EXECUTABLE-NEXT: Abstract Module 0:
-// CHECK-EXECUTABLE-NEXT:   Metadata:
-// CHECK-EXECUTABLE:      Number of IR Modules: 1
-// CHECK-EXECUTABLE-NEXT:   IR module 0:
-// CHECK-EXECUTABLE-NEXT:       Metadata:
-// CHECK-EXECUTABLE-NEXT:         SYCLBIN/ir module metadata:
-// CHECK-EXECUTABLE-NEXT:           type: 0
-// CHECK-EXECUTABLE-NEXT:           target:
-// CHECK-EXECUTABLE-NEXT:     Raw IR bytes: <Binary blob of {{.*}} bytes>
-// CHECK-EXECUTABLE-NEXT:   Number of Native Device Code Images: 0
+// CHECK-GENERAL:      Global metadata:
+// CHECK-GENERAL-NEXT:   SYCLBIN/global metadata:
+// CHECK-INPUT:            state: 0
+// CHECK-OBJECT:           state: 1
+// CHECK-EXECUTABLE:       state: 2
+// CHECK-GENERAL:          abstract_modules_num: 1
+// CHECK-GENERAL-NEXT: Number of Abstract Modules: 1
+// CHECK-GENERAL-NEXT: Abstract Module 0:
+// CHECK-GENERAL-NEXT: Metadata:
+// CHECK-GENERAL-NEXT:   SYCL/device requirements:
+// CHECK-GENERAL-NEXT:     aspects:
+// CHECK-GENERAL-NEXT:   SYCL/kernel names:
+// CHECK-GENERAL-NEXT:     __sycl_kernel_TestKernel: 1
+// CHECK-GENERAL-NEXT:   SYCL/misc properties:
+// CHECK-GENERAL-NEXT:     optLevel: 2
+// CHECK-GENERAL-NEXT:  Number of IR Modules: 1
+// CHECK-GENERAL-NEXT:  IR module 0:
+// CHECK-GENERAL-NEXT:    Image Kind: spv
+// CHECK-GENERAL-NEXT:    Triple: spir64-unknown-unknown
+// CHECK-GENERAL-NEXT:    Arch:
+// CHECK-GENERAL-NEXT:    Raw bytes: <Binary blob of {{.*}} bytes>
+// CHECK-GENERAL-NEXT:  Number of Native Device Code Images: 0

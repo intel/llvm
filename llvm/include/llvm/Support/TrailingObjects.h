@@ -241,7 +241,7 @@ class TrailingObjects
   // TrailingObjects", and thus, only this class itself can call the
   // numTrailingObjects function.)
   static size_t
-  callNumTrailingObjects(const BaseTy *Obj,
+  callNumTrailingObjects(const BaseTy *,
                          TrailingObjectsBase::OverloadToken<BaseTy>) {
     return 1;
   }

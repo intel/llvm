@@ -36,6 +36,7 @@
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Object/OffloadBinary.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
@@ -183,18 +184,18 @@ private:
 
 /// Structure for specialization of DenseMap in PropertySetRegistry.
 struct PropertySetKeyInfo {
-  static unsigned getHashValue(const SmallString<16> &K) { return xxHash64(K); }
+  static unsigned getHashValue(StringRef K) { return xxHash64(K); }
 
-  static SmallString<16> getEmptyKey() { return SmallString<16>(""); }
+  static std::string getEmptyKey() { return std::string(); }
 
-  static SmallString<16> getTombstoneKey() { return SmallString<16>("_"); }
+  static std::string getTombstoneKey() { return std::string("_"); }
 
   static bool isEqual(StringRef L, StringRef R) { return L == R; }
 };
 
-using PropertyMapTy = DenseMap<SmallString<16>, unsigned, PropertySetKeyInfo>;
+using PropertyMapTy = DenseMap<std::string, unsigned, PropertySetKeyInfo>;
 /// A property set. Preserves insertion order when iterating elements.
-using PropertySet = MapVector<SmallString<16>, PropertyValue, PropertyMapTy>;
+using PropertySet = MapVector<std::string, PropertyValue, PropertyMapTy>;
 
 /// A registry of property sets. Maps a property set name to its
 /// content.
@@ -202,7 +203,7 @@ using PropertySet = MapVector<SmallString<16>, PropertyValue, PropertyMapTy>;
 /// The order of keys is preserved and corresponds to the order of insertion.
 class PropertySetRegistry {
 public:
-  using MapTy = MapVector<SmallString<16>, PropertySet, PropertyMapTy>;
+  using MapTy = MapVector<std::string, PropertySet, PropertyMapTy>;
 
   // Specific property category names used by tools.
   static constexpr char SYCL_SPECIALIZATION_CONSTANTS[] =
@@ -236,28 +237,30 @@ public:
   /// Function for bulk addition of an entire property set in the given
   /// \p Category .
   template <typename MapTy> void add(StringRef Category, const MapTy &Props) {
-    assert(PropSetMap.find(Category) == PropSetMap.end() &&
+    std::string Key = Category.str();
+    assert(PropSetMap.find(Key) == PropSetMap.end() &&
            "category already added");
-    auto &PropSet = PropSetMap[Category];
+    auto &PropSet = PropSetMap[std::move(Key)];
 
     for (const auto &Prop : Props)
-      PropSet.insert_or_assign(Prop.first, PropertyValue(Prop.second));
+      PropSet.insert_or_assign(std::string(Prop.first),
+                               PropertyValue(Prop.second));
   }
 
   /// Adds the given \p PropVal with the given \p PropName into the given \p
   /// Category .
   template <typename T>
   void add(StringRef Category, StringRef PropName, const T &PropVal) {
-    auto &PropSet = PropSetMap[Category];
-    PropSet.insert({PropName, PropertyValue(PropVal)});
+    auto &PropSet = PropSetMap[Category.str()];
+    PropSet.insert({PropName.str(), PropertyValue(PropVal)});
   }
 
   void remove(StringRef Category, StringRef PropName) {
-    auto PropertySetIt = PropSetMap.find(Category);
+    auto PropertySetIt = PropSetMap.find(Category.str());
     if (PropertySetIt == PropSetMap.end())
       return;
     auto &PropertySet = PropertySetIt->second;
-    auto PropIt = PropertySet.find(PropName);
+    auto PropIt = PropertySet.find(PropName.str());
     if (PropIt == PropertySet.end())
       return;
     PropertySet.erase(PropIt);
@@ -267,14 +270,24 @@ public:
   static Expected<std::unique_ptr<PropertySetRegistry>>
   read(const MemoryBuffer *Buf);
 
+  /// Parses from the given string map (from OffloadBinary) a property set
+  /// registry.
+  static Expected<std::unique_ptr<PropertySetRegistry>>
+  read(const llvm::object::OffloadBinary::string_iterator_range &StringData);
+
   /// Dumps the property set registry to the given \p Out stream.
   void write(raw_ostream &Out) const;
+  /// Dumps the property set registry to the given MapVector \p StringData
+  /// compatible with OffloadBinary StringData. Memory for \p StringData is kept
+  /// in \p BufferStorage.
+  void write(MapVector<StringRef, StringRef> &StringData,
+             SmallVectorImpl<SmallString<128>> &BufferStorage) const;
 
   MapTy::const_iterator begin() const { return PropSetMap.begin(); }
   MapTy::const_iterator end() const { return PropSetMap.end(); }
 
   /// Retrieves a property set with given \p Name .
-  PropertySet &operator[](StringRef Name) { return PropSetMap[Name]; }
+  PropertySet &operator[](StringRef Name) { return PropSetMap[Name.str()]; }
   /// Constant access to the underlying map.
   const MapTy &getPropSets() const { return PropSetMap; }
 
