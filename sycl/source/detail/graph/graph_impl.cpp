@@ -1054,15 +1054,17 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
   } else {
     // Copy nodes from GraphImpl and merge any subgraph nodes into this graph.
     duplicateNodes();
-  }
 
-  if (auto PlaceholderQueuePtr = GraphImpl->getLastRecordedQueue()) {
-    MQueueImpl = std::move(PlaceholderQueuePtr);
-  } else {
-    MQueueImpl = sycl::detail::queue_impl::create(
-        *sycl::detail::getSyclObjImpl(GraphImpl->getDevice()),
-        *sycl::detail::getSyclObjImpl(Context), sycl::async_handler{},
-        sycl::property_list{});
+    // A placeholder queue is only required for enqueueNode and update
+    // operations which are only possible with the command buffer path.
+    if (auto PlaceholderQueuePtr = GraphImpl->getLastRecordedQueue()) {
+      MQueueImpl = std::move(PlaceholderQueuePtr);
+    } else {
+      MQueueImpl = sycl::detail::queue_impl::create(
+          *sycl::detail::getSyclObjImpl(GraphImpl->getDevice()),
+          *sycl::detail::getSyclObjImpl(Context), sycl::async_handler{},
+          sycl::property_list{});
+    }
   }
 }
 
@@ -1338,11 +1340,60 @@ exec_graph_impl::enqueuePartitions(sycl::detail::queue_impl &Queue,
   return SignalEvent;
 }
 
+EventImplPtr
+exec_graph_impl::enqueueNative(sycl::detail::queue_impl &Queue,
+                               sycl::detail::CG::StorageInitHelper CGData,
+                               bool EventNeeded) {
+  // Create a list containing all the UR event handles in WaitEvents.
+  // WaitEvents is assumed to be safe for scheduler bypass and any
+  // host-task events that it contains can be ignored.
+  auto &WaitEvents = CGData.MEvents;
+  std::vector<ur_event_handle_t> UrEventHandles{};
+  UrEventHandles.reserve(WaitEvents.size());
+  for (auto &SyclWaitEvent : WaitEvents) {
+    if (auto URHandle = SyclWaitEvent->getHandle()) {
+      UrEventHandles.push_back(URHandle);
+    }
+  }
+
+  const size_t UrEnqueueWaitListSize = UrEventHandles.size();
+  ur_event_handle_t *UrEnqueueWaitList =
+      UrEnqueueWaitListSize == 0 ? nullptr : UrEventHandles.data();
+  EventImplPtr NewEvent = nullptr;
+  if (!EventNeeded) {
+    Queue.getAdapter().call<sycl::detail::UrApiKind::urEnqueueGraphExp>(
+        Queue.getHandleRef(), MNativeExecutableGraphHandle,
+        UrEnqueueWaitListSize, UrEnqueueWaitList, nullptr);
+  } else {
+    NewEvent = sycl::detail::event_impl::create_device_event(Queue);
+    NewEvent->setContextImpl(Queue.getContextImpl());
+    NewEvent->setStateIncomplete();
+    NewEvent->setSubmissionTime();
+    ur_event_handle_t UrEvent = nullptr;
+    Queue.getAdapter().call<sycl::detail::UrApiKind::urEnqueueGraphExp>(
+        Queue.getHandleRef(), MNativeExecutableGraphHandle,
+        UrEnqueueWaitListSize, UrEnqueueWaitList, &UrEvent);
+    NewEvent->setHandle(UrEvent);
+    NewEvent->setEventFromSubmittedExecCommandBuffer(true);
+    if (MEnableProfiling) {
+      NewEvent->setProfilingEnabled(MEnableProfiling);
+    }
+  }
+  return NewEvent;
+}
+
 std::pair<EventImplPtr, bool>
 exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
                          sycl::detail::CG::StorageInitHelper CGData,
                          bool EventNeeded) {
   WriteLock Lock(MMutex);
+  // Use native recording path if available
+  if (MNativeExecutableGraphHandle) {
+    return {enqueueNative(Queue, std::move(CGData), EventNeeded),
+            /*SkipScheduler=*/true};
+  }
+
+  // Command buffer path
   cleanupExecutionEvents(MSchedulerDependencies);
   CGData.MEvents.insert(CGData.MEvents.end(), MSchedulerDependencies.begin(),
                         MSchedulerDependencies.end());
@@ -1358,46 +1409,8 @@ exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
   if (!MContainsHostTask) {
     SkipScheduler = SkipScheduler && MPartitions[0]->MRequirements.empty();
     if (SkipScheduler) {
-      if (MNativeExecutableGraphHandle) {
-        // Create a list containing all the UR event handles in WaitEvents.
-        // WaitEvents is assumed to be safe for scheduler bypass and any
-        // host-task events that it contains can be ignored.
-        auto &WaitEvents = CGData.MEvents;
-        std::vector<ur_event_handle_t> UrEventHandles{};
-        UrEventHandles.reserve(WaitEvents.size());
-        for (auto &SyclWaitEvent : WaitEvents) {
-          if (auto URHandle = SyclWaitEvent->getHandle()) {
-            UrEventHandles.push_back(URHandle);
-          }
-        }
-
-        // auto CommandBuffer = Partition->MCommandBuffers[Queue.get_device()];
-        const size_t UrEnqueueWaitListSize = UrEventHandles.size();
-        ur_event_handle_t *UrEnqueueWaitList =
-            UrEnqueueWaitListSize == 0 ? nullptr : UrEventHandles.data();
-        if (!EventNeeded) {
-          Queue.getAdapter().call<sycl::detail::UrApiKind::urEnqueueGraphExp>(
-              Queue.getHandleRef(), MNativeExecutableGraphHandle,
-              UrEnqueueWaitListSize, UrEnqueueWaitList, nullptr);
-          return {nullptr, SkipScheduler};
-
-        } else {
-          auto NewEvent = sycl::detail::event_impl::create_device_event(Queue);
-          NewEvent->setContextImpl(Queue.getContextImpl());
-          NewEvent->setStateIncomplete();
-          NewEvent->setSubmissionTime();
-          ur_event_handle_t UrEvent = nullptr;
-          Queue.getAdapter().call<sycl::detail::UrApiKind::urEnqueueGraphExp>(
-              Queue.getHandleRef(), MNativeExecutableGraphHandle,
-              UrEnqueueWaitListSize, UrEnqueueWaitList, &UrEvent);
-          NewEvent->setHandle(UrEvent);
-          NewEvent->setEventFromSubmittedExecCommandBuffer(true);
-          return {NewEvent, SkipScheduler};
-        }
-      } else {
-        SignalEvent = enqueuePartitionDirectly(MPartitions[0], Queue,
-                                               CGData.MEvents, EventNeeded);
-      }
+      SignalEvent = enqueuePartitionDirectly(MPartitions[0], Queue,
+                                             CGData.MEvents, EventNeeded);
     } else {
       bool RequestSchedulerEvent = EventNeeded || MIsUpdatable;
       auto SchedulerEvent = enqueuePartitionWithScheduler(
@@ -2260,18 +2273,22 @@ executable_command_graph::executable_command_graph(
 }
 
 void executable_command_graph::finalizeImpl() {
-  impl->makePartitions();
+  // Partitions and command buffers are not used for native recording and
+  // instantiation is fully performed in the exec_graph_impl constructor.
+  if (!impl->getNativeExecutableGraphHandle()) {
+    impl->makePartitions();
 
-  // Handle any work required for graph-owned memory allocations
-  impl->finalizeMemoryAllocations();
+    // Handle any work required for graph-owned memory allocations
+    impl->finalizeMemoryAllocations();
 
-  auto Device = impl->getGraphImpl()->getDevice();
-  for (auto Partition : impl->getPartitions()) {
-    if (!Partition->MIsHostTask) {
-      impl->createCommandBuffers(Device, Partition);
+    auto Device = impl->getGraphImpl()->getDevice();
+    for (auto Partition : impl->getPartitions()) {
+      if (!Partition->MIsHostTask) {
+        impl->createCommandBuffers(Device, Partition);
+      }
     }
+    impl->buildRequirements();
   }
-  impl->buildRequirements();
 }
 
 void executable_command_graph::update(
