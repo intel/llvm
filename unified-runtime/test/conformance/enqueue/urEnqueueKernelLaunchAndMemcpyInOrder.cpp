@@ -23,7 +23,7 @@ struct urMultiQueueLaunchMemcpyTest
   std::vector<ur_program_handle_t> programs;
   std::vector<ur_kernel_handle_t> kernels;
   std::vector<void *> SharedMem;
-  
+
   // Track P2P pairs that we successfully enabled in SetUp, so we can
   // disable them in TearDown without interfering with other tests
   std::set<std::pair<ur_device_handle_t, ur_device_handle_t>> enabledP2PPairs;
@@ -59,19 +59,19 @@ struct urMultiQueueLaunchMemcpyTest
         // physical GPU pair to avoid CUDA_ERROR_PEER_ACCESS_ALREADY_ENABLED.
         // We store successfully enabled pairs in member variable so we can disable
         // them in TearDown, ensuring clean state for subsequent tests.
-        
+
         for (size_t i = 0; i < devices.size(); i++) {
           for (size_t j = i + 1; j < devices.size(); j++) {
             // Skip if same physical device (duplicate handles)
             if (devices[i] == devices[j]) {
               continue;
             }
-            
+
             // Create canonical pair (always smaller handle first) to track unique pairs
-            auto pair = devices[i] < devices[j] 
-                ? std::make_pair(devices[i], devices[j])
-                : std::make_pair(devices[j], devices[i]);
-            
+            auto pair = devices[i] < devices[j]
+                            ? std::make_pair(devices[i], devices[j])
+                            : std::make_pair(devices[j], devices[i]);
+
             // Skip if we already processed this physical device pair
             if (enabledP2PPairs.count(pair)) {
               continue;
@@ -89,12 +89,15 @@ struct urMultiQueueLaunchMemcpyTest
             }
 
             // Enable bidirectional peer access (both directions needed for memcpy)
-            auto result_ij = urUsmP2PEnablePeerAccessExp(devices[i], devices[j]);
-            auto result_ji = urUsmP2PEnablePeerAccessExp(devices[j], devices[i]);
+            auto result_ij =
+                urUsmP2PEnablePeerAccessExp(devices[i], devices[j]);
+            auto result_ji =
+                urUsmP2PEnablePeerAccessExp(devices[j], devices[i]);
 
             // Only track pairs that WE successfully enabled (not already-enabled ones)
             // This way TearDown only disables what we enabled, avoiding conflicts
-            if (result_ij == UR_RESULT_SUCCESS && result_ji == UR_RESULT_SUCCESS) {
+            if (result_ij == UR_RESULT_SUCCESS &&
+                result_ji == UR_RESULT_SUCCESS) {
               enabledP2PPairs.insert(pair);
             }
           }

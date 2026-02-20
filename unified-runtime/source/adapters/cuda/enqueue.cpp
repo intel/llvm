@@ -1580,8 +1580,30 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
                                                       hQueue, CuStream);
       UR_CHECK_ERROR(EventPtr->start());
     }
-    UR_CHECK_ERROR(
-        cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, size, CuStream));
+
+    // Check if this is a peer-to-peer copy (cross-device)
+    CUcontext srcContext = nullptr;
+    CUcontext dstContext = nullptr;
+    CUresult srcResult = cuPointerGetAttribute(
+        &srcContext, CU_POINTER_ATTRIBUTE_CONTEXT, (CUdeviceptr)pSrc);
+    CUresult dstResult = cuPointerGetAttribute(
+        &dstContext, CU_POINTER_ATTRIBUTE_CONTEXT, (CUdeviceptr)pDst);
+
+    // If both pointers have CUDA contexts and they're different, use peer copy
+    if (srcResult == CUDA_SUCCESS && dstResult == CUDA_SUCCESS &&
+        srcContext != dstContext && srcContext != nullptr &&
+        dstContext != nullptr) {
+      // This is a cross-device copy - use cuMemcpyPeerAsync which requires
+      // P2P access to be enabled via cuCtxEnablePeerAccess
+      UR_CHECK_ERROR(cuMemcpyPeerAsync((CUdeviceptr)pDst, dstContext,
+                                       (CUdeviceptr)pSrc, srcContext, size,
+                                       CuStream));
+    } else {
+      // Same device or host-device copy - use regular cuMemcpyAsync
+      UR_CHECK_ERROR(
+          cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, size, CuStream));
+    }
+
     if (phEvent) {
       UR_CHECK_ERROR(EventPtr->record());
     }
