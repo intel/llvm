@@ -291,7 +291,7 @@ _Effects_: Equivalent to:
 ----
 sycl::device d;
 sycl::context ctxt = d.get_platform().khr_get_default_context();
-ipc_memory::put(handle_data, ctxt);
+ipc_memory::put(ipc_handle, ctxt);
 ----
 
 !====
@@ -345,15 +345,14 @@ _Effects_: Equivalent to:
 [source,c++,indent=2]
 ----
 sycl::context ctxt = dev.get_platform().khr_get_default_context();
-return ipc_memory::put(handle_data, ctxt, dev);
+return ipc_memory::open(handle_data, ctxt, dev);
 ----
 
 !====
 a!
 [source]
 ----
-void *open(const handle_data_t &handle_data, const sycl::context &ctx,
-           const sycl::device &dev)
+void *open(const handle_data_t &handle_data)
 ----
 !====
 
@@ -380,7 +379,7 @@ _Effects_: Equivalent to:
 [source,c++,indent=2]
 ----
 handle_data_t handle_data{handle_data_view.begin(), handle_data_view.end()};
-return ipc_memory::put(handle_data, ctx, dev);
+return ipc_memory::open(handle_data, ctx, dev);
 ----
 
 !====
@@ -396,15 +395,14 @@ _Effects_: Equivalent to:
 [source,c++,indent=2]
 ----
 sycl::context ctxt = dev.get_platform().khr_get_default_context();
-return ipc_memory::put(handle_data_view, ctxt, dev);
+return ipc_memory::open(handle_data_view, ctxt, dev);
 ----
 
 !====
 a!
 [source]
 ----
-void *open(const handle_data_view_t &handle_data_view, const sycl::context &ctx,
-           const sycl::device &dev)
+void *open(const handle_data_view_t &handle_data_view)
 ----
 !====
 
