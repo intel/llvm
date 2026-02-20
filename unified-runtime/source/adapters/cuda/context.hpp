@@ -190,19 +190,28 @@ public:
 
   ScopedContext(CUcontext NativeContext) { setContext(NativeContext); }
 
-  ~ScopedContext() {}
+  ~ScopedContext() {
+    // Restore original context if we changed it
+    if (NeedToRestore) {
+      cuCtxSetCurrent(Original);
+    }
+  }
 
 private:
   void setContext(CUcontext Desired) {
-    CUcontext Original = nullptr;
-
     UR_CHECK_ERROR(cuCtxGetCurrent(&Original));
 
     // Make sure the desired context is active on the current thread, setting
     // it if necessary
     if (Original != Desired) {
       UR_CHECK_ERROR(cuCtxSetCurrent(Desired));
+      NeedToRestore = true;
+    } else {
+      NeedToRestore = false;
     }
   }
+
+  CUcontext Original = nullptr;
+  bool NeedToRestore = false;
 };
 } // namespace

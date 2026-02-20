@@ -1591,10 +1591,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
       // Cross-device copy detected - use asynchronous peer copy
       CUcontext srcContext = srcDevice->getNativeContext();
       CUcontext dstContext = dstDevice->getNativeContext();
-      
+
       // Ensure source context is active for the copy operation
       ScopedContext ActiveContext(srcContext);
-      
+
       // Use asynchronous peer copy on the current stream
       UR_CHECK_ERROR(cuMemcpyPeerAsync((CUdeviceptr)pDst, dstContext,
                                        (CUdeviceptr)pSrc, srcContext, size,
