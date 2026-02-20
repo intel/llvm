@@ -16,6 +16,8 @@
 #include <atomic>
 #include <mutex>
 #include <set>
+#include <shared_mutex>
+#include <unordered_map>
 #include <vector>
 
 #include "adapter.hpp"
@@ -96,6 +98,10 @@ struct ur_context_handle_t_ : ur::cuda::handle_base {
   umf_memory_provider_handle_t MemoryProviderHost = nullptr;
   umf_memory_pool_handle_t MemoryPoolHost = nullptr;
 
+  // Track which device allocated each USM pointer for cross-device operations
+  std::unordered_map<const void*, ur_device_handle_t> AllocationMetadata;
+  mutable std::shared_mutex AllocationMetadataMutex;
+
   ur_context_handle_t_(const ur_device_handle_t *Devs, uint32_t NumDevices)
       : handle_base(), Devices{Devs, Devs + NumDevices} {
     // Create UMF CUDA memory provider for the host memory
@@ -146,6 +152,25 @@ struct ur_context_handle_t_ : ur::cuda::handle_base {
   void removePool(ur_usm_pool_handle_t Pool);
 
   ur_usm_pool_handle_t getOwningURPool(umf_memory_pool_t *UMFPool);
+
+  // Register USM allocation metadata for cross-device operation tracking
+  void registerAllocation(const void *Ptr, ur_device_handle_t Device) {
+    std::unique_lock<std::shared_mutex> Lock(AllocationMetadataMutex);
+    AllocationMetadata[Ptr] = Device;
+  }
+
+  // Unregister USM allocation metadata
+  void unregisterAllocation(const void *Ptr) {
+    std::unique_lock<std::shared_mutex> Lock(AllocationMetadataMutex);
+    AllocationMetadata.erase(Ptr);
+  }
+
+  // Query which device allocated a USM pointer
+  ur_device_handle_t getAllocationDevice(const void *Ptr) const {
+    std::shared_lock<std::shared_mutex> Lock(AllocationMetadataMutex);
+    auto It = AllocationMetadata.find(Ptr);
+    return (It != AllocationMetadata.end()) ? It->second : nullptr;
+  }
 
 private:
   std::mutex Mutex;
