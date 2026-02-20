@@ -14,8 +14,28 @@
 
 #include "context.hpp"
 #include "device.hpp"
+#include "event.hpp"
 #include "queue.hpp"
 #include "ur2offload.hpp"
+
+ol_result_t ur_queue_handle_t_::nextQueueNoLock(ol_queue_handle_t &Handle) {
+  auto &Slot = OffloadQueues[(QueueOffset++) % OffloadQueues.size()];
+
+  if (!Slot) {
+    if (auto Res = olCreateQueue(OffloadDevice, &Slot)) {
+      return Res;
+    }
+
+    if (auto Event = Barrier) {
+      if (auto Res = olWaitEvents(Slot, &Event->OffloadEvent, 1)) {
+        return Res;
+      }
+    }
+  }
+
+  Handle = Slot;
+  return nullptr;
+}
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
     [[maybe_unused]] ur_context_handle_t hContext, ur_device_handle_t hDevice,
