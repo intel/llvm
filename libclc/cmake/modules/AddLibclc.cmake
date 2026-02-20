@@ -447,6 +447,7 @@ function(add_libclc_builtin_set)
   install(
     FILES ${libclc_builtins_lib}
     DESTINATION ${LIBCLC_INSTALL_DIR}/${ARG_TRIPLE}
+    COMPONENT ${ARG_PARENT_TARGET}
   )
 
   # SPIR-V targets can exit early here
@@ -493,6 +494,7 @@ function(add_libclc_builtin_set)
         install(
           FILES ${builtins_remangle_path}
           DESTINATION ${LIBCLC_INSTALL_DIR}/${ARG_TRIPLE}
+          COMPONENT ${ARG_PARENT_TARGET}
         )
       endforeach()
     endforeach()
@@ -558,6 +560,7 @@ function(add_libclc_builtin_set)
     install(
       FILES ${libclc_alias_lib}
       DESTINATION ${LIBCLC_INSTALL_DIR}/${ARG_TRIPLE}/${a}
+      COMPONENT ${ARG_PARENT_TARGET}
     )
   endforeach( a )
 endfunction(add_libclc_builtin_set)
