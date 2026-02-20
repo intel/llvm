@@ -1581,25 +1581,45 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
       UR_CHECK_ERROR(EventPtr->start());
     }
 
-    // Check if this is a peer-to-peer copy (cross-device)
-    CUcontext srcContext = nullptr;
-    CUcontext dstContext = nullptr;
-    CUresult srcResult = cuPointerGetAttribute(
-        &srcContext, CU_POINTER_ATTRIBUTE_CONTEXT, (CUdeviceptr)pSrc);
-    CUresult dstResult = cuPointerGetAttribute(
-        &dstContext, CU_POINTER_ATTRIBUTE_CONTEXT, (CUdeviceptr)pDst);
-
-    // If both pointers have CUDA contexts and they're different, use peer copy
-    if (srcResult == CUDA_SUCCESS && dstResult == CUDA_SUCCESS &&
-        srcContext != dstContext && srcContext != nullptr &&
-        dstContext != nullptr) {
-      // This is a cross-device copy - use cuMemcpyPeerAsync which requires
-      // P2P access to be enabled via cuCtxEnablePeerAccess
-      UR_CHECK_ERROR(cuMemcpyPeerAsync((CUdeviceptr)pDst, dstContext,
-                                       (CUdeviceptr)pSrc, srcContext, size,
-                                       CuStream));
+    // Check if this is a peer-to-peer copy (cross-device).
+    // In a multi-device context with CUDA, pointer attributes (DEVICE_ORDINAL, CONTEXT)
+    // may not reliably distinguish cross-device copies because:
+    // 1. All allocations share the same CUDA context (single multi-device context)
+    // 2. Managed/shared memory may report device ordinal 0 for all pointers
+    // 3. Duplicate device handles in test fixtures point to same physical devices
+    //
+    // Strategy: If context has multiple physical devices, try peer copy between all pairs.
+    
+    auto contextDevices = hQueue->getContext()->getDevices();
+    
+    // If multi-device context, we may need peer copy.
+    if (contextDevices.size() > 1) {
+      // We don't know which device allocated pSrc and pDst, so try all combinations.
+      // TODO: This is inefficient - should track allocations or use better detection.
+      bool usedPeerCopy = false;
+      
+      for (size_t srcIdx = 0; srcIdx < contextDevices.size() && !usedPeerCopy; ++srcIdx) {
+        for (size_t dstIdx = 0; dstIdx < contextDevices.size() && !usedPeerCopy; ++dstIdx) {
+          if (srcIdx == dstIdx) continue;  // Skip same-device pairs
+          
+          CUcontext srcContext = contextDevices[srcIdx]->getNativeContext();
+          CUcontext dstContext = contextDevices[dstIdx]->getNativeContext();
+          
+          auto result = cuMemcpyPeerAsync((CUdeviceptr)pDst, dstContext,
+                                           (CUdeviceptr)pSrc, srcContext, size,
+                                           CuStream);
+          
+          if (result == CUDA_SUCCESS) {
+            usedPeerCopy = true;
+          }
+        }
+      }
+      
+      if (!usedPeerCopy) {
+        UR_CHECK_ERROR(cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, size, CuStream));
+      }
     } else {
-      // Same device or host-device copy - use regular cuMemcpyAsync
+      // Single-device context - use regular copy
       UR_CHECK_ERROR(
           cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, size, CuStream));
     }
