@@ -11474,7 +11474,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // one bitcode library to link in for a specific triple. Additionally, the
     // path is *not* relative to the -sycl-device-library-location - the full
     // path must be provided.
-    SmallString<256> LibList;
     SmallVector<std::string, 4> BCLibList;
 
     auto appendToList = [](SmallString<256> &List, const Twine &Arg) {
@@ -11487,9 +11486,14 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     for (const auto &[Kind, TC] :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       llvm::Triple TargetTriple = TC->getTriple();
-      bool IsSpirAOT = TargetTriple.isSPIRAOT();
+      // SPIR or SPIR-V device libraries are compiled into the device compile
+      // step.
+      if (TargetTriple.isSPIROrSPIRV())
+        continue;
+      const toolchains::SYCLToolChain &SYCLTC =
+          static_cast<const toolchains::SYCLToolChain &>(*TC);
       SmallVector<std::string, 8> SYCLDeviceLibs =
-          SYCL::getDeviceLibraries(C, TargetTriple, IsSpirAOT);
+          SYCLTC.getDeviceLibNames(D, Args, TargetTriple);
       for (const auto &AddLib : SYCLDeviceLibs) {
         if (llvm::sys::path::extension(AddLib) == ".bc") {
           SmallString<256> LibPath(DeviceLibDir);
@@ -11498,8 +11502,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
               (Twine(TC->getTriple().str()) + "=" + LibPath).str());
           continue;
         }
-
-        appendToList(LibList, AddLib);
       }
 
       if (TC->getTriple().isNVPTX())
@@ -11509,17 +11511,10 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
               (Twine(TC->getTriple().str()) + "=" + LibSpirvFile).str());
     }
 
-    if (LibList.size())
-      CmdArgs.push_back(
-          Args.MakeArgString(Twine("-sycl-device-libraries=") + LibList));
-
     if (BCLibList.size())
       for (const std::string &Lib : BCLibList)
         CmdArgs.push_back(
             Args.MakeArgString(Twine("--bitcode-library=") + Lib));
-
-    CmdArgs.push_back(Args.MakeArgString(
-        Twine("-sycl-device-library-location=") + DeviceLibDir));
 
     if (C.getDriver().isSaveOffloadCodeEnabled()) {
       SmallString<128> DumpDir;
