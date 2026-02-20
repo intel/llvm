@@ -5993,6 +5993,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                        options::OPT_no_offload_new_driver, false);
       Arg *SYCLSplitMode =
           Args.getLastArg(options::OPT_fsycl_device_code_split_EQ);
+      Arg *OffloadLTO = Args.getLastArg(options::OPT_foffload_lto,
+                                        options::OPT_foffload_lto_EQ);
       bool IsDeviceCodeSplitDisabled =
           SYCLSplitMode && StringRef(SYCLSplitMode->getValue()) == "off";
       bool IsSYCLLTOSupported =
@@ -6014,12 +6016,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                    ->getAsString(Args)
             << "-fno-gpu-rdc";
       } else if (JA.isDeviceOffloading(Action::OFK_SYCL) &&
-                 IsDeviceCodeSplitDisabled && LTOMode == LTOK_Thin) {
+                 IsDeviceCodeSplitDisabled && LTOMode == LTOK_Thin &&
+                 OffloadLTO) {
         D.Diag(diag::err_drv_sycl_thinlto_split_off)
             << SYCLSplitMode->getAsString(Args)
-            << Args.getLastArg(options::OPT_foffload_lto,
-                               options::OPT_foffload_lto_EQ)
-                   ->getAsString(Args);
+            << OffloadLTO->getAsString(Args);
       } else {
         assert(LTOMode == LTOK_Full || LTOMode == LTOK_Thin);
         CmdArgs.push_back(Args.MakeArgString(
