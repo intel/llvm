@@ -96,10 +96,8 @@ urUSMSharedAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
     return umf::umf2urResult(umfErr);
   }
 
-  // Register allocation with context for cross-device operation tracking
-  if (hContext && *ppMem && hDevice) {
-    hContext->registerAllocation(*ppMem, hDevice);
-  }
+  // Do NOT register shared/managed memory - CUDA runtime handles migration
+  // automatically for managed memory, manual peer copies would interfere
 
   return UR_RESULT_SUCCESS;
 }
