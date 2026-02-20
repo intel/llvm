@@ -35,7 +35,7 @@ void constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
 
 // Provides a vector of device library names that are associated with the
 // given triple and AOT information.
-SmallVector<std::string, 8> getDeviceLibraries(const Compilation &C,
+SmallVector<std::string, 8> getDeviceLibraries(const llvm::opt::ArgList &Args,
                                                const llvm::Triple &TargetTriple,
                                                bool IsSpirvAOT);
 
@@ -188,6 +188,10 @@ public:
   void AddClangCXXStdlibIncludeArgs(
       const llvm::opt::ArgList &Args,
       llvm::opt::ArgStringList &CC1Args) const override;
+
+  llvm::SmallVector<BitCodeLibraryInfo, 12>
+  getDeviceLibs(const llvm::opt::ArgList &Args,
+                const Action::OffloadKind DeviceOffloadingKind) const override;
 
   SanitizerMask getSupportedSanitizers() const override;
 
