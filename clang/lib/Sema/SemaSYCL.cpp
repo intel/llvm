@@ -7284,7 +7284,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   // Disable printing anonymous tag locations because on Windows
   // file path separators are treated as escape sequences and cause errors
   // when integration header is compiled with host compiler.
-  Policy.AnonymousTagLocations = 0;
+  Policy.AnonymousTagNameStyle =
+            llvm::to_underlying(PrintingPolicy::AnonymousTagMode::Plain);
   SYCLFwdDeclEmitter FwdDeclEmitter(O, S.getLangOpts());
 
   // Predefines which need to be set for custom host compilation
