@@ -686,6 +686,16 @@ public:
   enqueue(sycl::detail::queue_impl &Queue,
           sycl::detail::CG::StorageInitHelper CGData, bool EventNeeded);
 
+  /// Enqueue a native UR graph (used when native recording is enabled).
+  /// @param Queue Command-queue to schedule execution on.
+  /// @param CGData Command-group data for waitlist event dependencies.
+  /// @param EventNeeded Whether an event signalling the completion of this
+  /// operation needs to be returned.
+  /// @return Returns an event if requested and nullptr otherwise.
+  EventImplPtr enqueueNative(sycl::detail::queue_impl &Queue,
+                             sycl::detail::CG::StorageInitHelper CGData,
+                             bool EventNeeded);
+
   /// Iterates through all the nodes in the graph to build the list of
   /// accessor requirements for the whole graph and for each partition.
   void buildRequirements();
@@ -713,6 +723,13 @@ public:
   /// Query the graph_impl.
   /// @return pointer to the graph_impl MGraphImpl
   const std::shared_ptr<graph_impl> &getGraphImpl() const { return MGraphImpl; }
+
+  /// Query the native executable graph handle.
+  /// @return Native UR executable graph handle, or nullptr if not using native
+  /// recording.
+  ur_exp_executable_graph_handle_t getNativeExecutableGraphHandle() const {
+    return MNativeExecutableGraphHandle;
+  }
 
   /// Query the vector of the partitions composing the exec_graph.
   /// @return Vector of partitions in execution order.
