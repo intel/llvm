@@ -11489,7 +11489,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       llvm::Triple TargetTriple = TC->getTriple();
       bool IsSpirAOT = TargetTriple.isSPIRAOT();
       SmallVector<std::string, 8> SYCLDeviceLibs =
-          SYCL::getDeviceLibraries(Args, TargetTriple, IsSpirAOT);
+          SYCL::getDeviceLibraries(D, Args, TargetTriple, IsSpirAOT);
       for (const auto &AddLib : SYCLDeviceLibs) {
         if (llvm::sys::path::extension(AddLib) == ".bc") {
           SmallString<256> LibPath(DeviceLibDir);

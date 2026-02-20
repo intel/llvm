@@ -5764,8 +5764,8 @@ class OffloadingActionBuilder final {
 
       SmallVector<std::string, 8> DeviceLibraries;
       DeviceLibraries =
-          tools::SYCL::getDeviceLibraries(C.getArgs(), TC->getTriple(),
-                                          isSpirvAOT);
+          tools::SYCL::getDeviceLibraries(C.getDriver(), C.getArgs(),
+                                          TC->getTriple(), isSpirvAOT);
 
       for (const auto &DeviceLib : DeviceLibraries) {
         for (const auto &LLCandidate : LibLocCandidates) {

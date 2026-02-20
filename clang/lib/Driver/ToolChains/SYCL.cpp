@@ -229,15 +229,13 @@ bool SYCL::shouldDoPerObjectFileLinking(const Compilation &C) {
 }
 
 // Return whether to use native bfloat16 library.
-static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
-                             bool &UseNative) {
-
+static bool selectBfloatLibs(const llvm::opt::ArgList &Args,
+    const llvm::Triple &Triple, const ToolChain &TC, bool &UseNative) {
   static llvm::SmallSet<StringRef, 8> GPUArchsWithNBF16{
       "intel_gpu_pvc",     "intel_gpu_acm_g10", "intel_gpu_acm_g11",
       "intel_gpu_acm_g12", "intel_gpu_dg2_g10", "intel_gpu_dg2_g11",
       "intel_dg2_g12",     "intel_gpu_bmg_g21", "intel_gpu_lnl_m",
       "intel_gpu_ptl_h",   "intel_gpu_ptl_u",   "intel_gpu_wcl"};
-  const llvm::opt::ArgList &Args = C.getArgs();
   bool NeedLibs = false;
 
   // spir64 target is actually JIT compilation, so we defer selection of
@@ -246,21 +244,11 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
   NeedLibs = Triple.getSubArch() != llvm::Triple::NoSubArch &&
              !Triple.isNVPTX() && !Triple.isAMDGCN();
   UseNative = false;
-  if (NeedLibs && Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
-      C.hasOffloadToolChain<Action::OFK_SYCL>()) {
+  if (NeedLibs && Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
     ArgStringList TargArgs;
-    auto ToolChains = C.getOffloadToolChains<Action::OFK_SYCL>();
-    // Match up the toolchain with the incoming Triple so we are grabbing the
-    // expected arguments to scrutinize.
-    for (auto TI = ToolChains.first, TE = ToolChains.second; TI != TE; ++TI) {
-      llvm::Triple SYCLTriple = TI->second->getTriple();
-      if (SYCLTriple == Triple) {
-        const toolchains::SYCLToolChain *SYCLTC =
-            static_cast<const toolchains::SYCLToolChain *>(TI->second);
-        SYCLTC->TranslateBackendTargetArgs(Triple, Args, TargArgs);
-        break;
-      }
-    }
+    const toolchains::SYCLToolChain &SYCLTC =
+        static_cast<const toolchains::SYCLToolChain &>(TC);
+    SYCLTC.TranslateBackendTargetArgs(Triple, Args, TargArgs);
 
     // We need to select fallback/native bfloat16 devicelib in AOT compilation
     // targetting for Intel GPU devices. Users have 2 ways to apply AOT,
@@ -416,7 +404,7 @@ static bool checkPVCDevice(std::string SingleArg, std::string &DevArg) {
 
 #if !defined(_WIN32)
 static void
-addSYCLDeviceSanitizerLibs(const llvm::opt::Arglist &Args, bool IsSpirvAOT,
+addSYCLDeviceSanitizerLibs(const llvm::opt::ArgList &Args, bool IsSpirvAOT,
                            StringRef LibSuffix,
                            SmallVector<std::string, 8> &LibraryList) {
   enum { JIT = 0, AOT_CPU, AOT_DG2, AOT_PVC };
@@ -549,7 +537,7 @@ addSYCLDeviceSanitizerLibs(const llvm::opt::Arglist &Args, bool IsSpirvAOT,
 
 // Get the list of SYCL device libraries to link with user's device image.
 SmallVector<std::string, 8>
-SYCL::getDeviceLibraries(const llvm::opt::ArgList &Args,
+SYCL::getDeviceLibraries(const Driver &D, const llvm::opt::ArgList &Args,
                          const llvm::Triple &TargetTriple, bool IsSpirvAOT) {
   SmallVector<std::string, 8> LibraryList;
   bool NoOffloadLib =
@@ -595,8 +583,8 @@ SYCL::getDeviceLibraries(const llvm::opt::ArgList &Args,
                                              "libsycl-fallback-imf",
                                              "libsycl-fallback-imf-fp64",
                                              "libsycl-fallback-imf-bf16"};
-  bool IsWindowsMSVCEnv = getTriple().isWindowsMSVCEnvironment();
-  bool IsNewOffload = getDriver().getUseNewOffloadingDriver();
+  bool IsWindowsMSVCEnv = HostTC.isWindowsMSVCEnvironment();
+  bool IsNewOffload = D.getUseNewOffloadingDriver();
   StringRef LibSuffix = ".bc";
   if (IsNewOffload)
     // For new offload model, we use packaged .bc files.
@@ -624,7 +612,9 @@ SYCL::getDeviceLibraries(const llvm::opt::ArgList &Args,
   const SYCLDeviceLibsList SYCLDeviceBfloat16NativeLib = {
       "libsycl-native-bfloat16"};
   bool NativeBfloatLibs;
-  bool NeedBfloatLibs = selectBfloatLibs(TargetTriple, C, NativeBfloatLibs);
+  bool NeedBfloatLibs = selectBfloatLibs(Args, TargetTriple,
+                                         this->getToolChain(),
+                                         NativeBfloatLibs);
   if (NeedBfloatLibs && !NoOffloadLib) {
     // Add native or fallback bfloat16 library.
     if (NativeBfloatLibs)
@@ -637,7 +627,7 @@ SYCL::getDeviceLibraries(const llvm::opt::ArgList &Args,
   // Linux platform only, so compiler only provides device sanitizer libraries
   // on Linux platform.
 #if !defined(_WIN32)
-  addSYCLDeviceSanitizerLibs(C, IsSpirvAOT, LibSuffix, LibraryList);
+  addSYCLDeviceSanitizerLibs(Args, IsSpirvAOT, LibSuffix, LibraryList);
 #endif
 
   return LibraryList;
@@ -1455,10 +1445,10 @@ void SYCLToolChain::addClangTargetOptions(
   }
   // Add device libraries.
   llvm::SmallVector<BitCodeLibraryInfo, 12> BCLibs;
-  BCLibs.append(SYCLToolChain::getDeviceLibs());
+  BCLibs.append(SYCLToolChain::getDeviceLibs(DriverArgs, DeviceOffloadingKind));
   for (auto BCFile : BCLibs) {
     CC1Args.push_back("-mlink-builtin-bitcode");
-    CC1Args.push_back(BCFile);
+    CC1Args.push_back(DriverArgs.MakeArgString(BCFile.Path));
   }
 }
 
@@ -1910,7 +1900,7 @@ SYCLToolChain::getDeviceLibs(
 
   // Formulate all of the device libraries needed for this compilation.
   SmallVector<std::string, 8> DeviceLibs = 
-      clang::driver::tools::SYCL::getDeviceLibraries(DriverArgs,
+      clang::driver::tools::SYCL::getDeviceLibraries(getDriver(), DriverArgs,
           getTriple(), /*IsSpirvAOT*/false);
 
   // Create full path names to each device library.
