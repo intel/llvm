@@ -449,6 +449,19 @@ ipc::memory::close(ptr, ctxt);
 
 |====
 
+=== Backward compatibility
+
+To provide backward compatibility of the extension API, the extension defines
+the following namespace:
+
+[source,c++,indent=2]
+----
+namespace sycl::ext::oneapi::experimental::ipc_memory {
+  using namespace ipc;
+  using namespace ipc::memory;
+}
+----
+
 
 == Issues
 
