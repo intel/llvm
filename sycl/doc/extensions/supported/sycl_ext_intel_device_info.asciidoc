@@ -78,119 +78,6 @@ supports.
 | 8     | Device LUID and device node mask is supported
 |===
 
-=== Device ID
-
-Missing before version 5 of this extension.
-
-This extension adds the following device aspect and information descriptor,
-which allow an application to query a device's ID.
-
-==== New device aspect
-
-[source,c++]
-----
-namespace sycl {
-
-enum class aspect {
-  ext_intel_device_id
-  // ...
-};
-
-} // namespace sycl
-----
-
-`ext_intel_device_id`: Indicates that the device supports the `device_id`
-information descriptor.
-
-==== New device information descriptor
-
-[source,c++]
-----
-namespace sycl::ext::intel::info::device {
-struct device_id {
-  using return_type = uint32_t;
-};
-} // namespace sycl::ext::intel::info::device
-----
-
-_Remarks:_ Template parameter to `device::get_info`.
-
-_Returns:_ If the implementation is driven primarily by a PCI device with a PCI
-device ID, returns that PCI device ID.
-Otherwise, the choice of what to return is determined by operating system or
-platform policies - but should uniquely identify both the device version and any
-major configuration options (for example, core count in the case of multi-core
-devices).
-
-_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
-the device does not have `aspect::ext_intel_device_id`.
-
-==== Example Usage
-
-[source,c++]
-----
-if (dev.has(aspect::ext_intel_device_id)) {
-  auto deviceID = dev.get_info<ext::intel::info::device::device_id>();
-}
-----
-
-'''
-
-=== Device UUID
-
-Missing before version 2 of this extension.
-
-This extension adds the following device aspect and information descriptor,
-which allow an application to query a device's UUID.
-
-==== New device aspect
-
-[source,c++]
-----
-namespace sycl {
-
-enum class aspect {
-  ext_intel_device_info_uuid
-  // ...
-};
-
-} // namespace sycl
-----
-
-`ext_intel_device_info_uuid`: Indicates that the device supports the `uuid`
-information descriptor.
-
-==== New device information descriptor
-
-[source,c++]
-----
-namespace sycl::ext::intel::info::device {
-struct uuid {
-  using return_type = std::array<unsigned char, 16>;
-};
-} // namespace sycl::ext::intel::info::device
-----
-
-_Remarks:_ Template parameter to `device::get_info`.
-
-_Returns:_ Returns the device UUID. The DPC++ default behavior would be to
-expose the UUIDs of all supported devices which enables detection of total
-number of unique devices.
-
-_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
-the device does not have `aspect::ext_intel_device_info_uuid`.
-
-==== Example Usage
-
-[source,c++]
-----
-if (dev.has(aspect::ext_intel_device_info_uuid)) {
-  auto UUID = dev.get_info<ext::intel::info::device::uuid>();
-}
-----
-
-'''
-
 === PCI Address
 
 This extension adds the following device aspect and information descriptor,
@@ -510,6 +397,113 @@ if (dev.has(aspect::ext_intel_gpu_eu_count_per_subslice)) {
 
 '''
 
+=== Maximum Memory Bandwidth
+
+This extension adds the following device aspect and information descriptor,
+which allow an application to query the device maximum memory bandwidth.
+
+==== New device aspect
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  ext_intel_max_mem_bandwidth
+  // ...
+};
+
+} // namespace sycl
+----
+
+`ext_intel_max_mem_bandwidth`: Indicates that the device supports the
+`max_mem_bandwidth` information descriptor.
+
+==== New device information descriptor
+
+[source,c++]
+----
+namespace sycl::ext::intel::info::device {
+struct max_mem_bandwidth {
+  using return_type = uint32_t;
+};
+} // namespace sycl::ext::intel::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ The maximum memory bandwidth in units of bytes/second. If the device
+is a subdevice, then the maximum bandwidth of the subdevice is returned.
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+the device does not have `aspect::ext_intel_max_mem_bandwidth`.
+
+==== Example Usage
+
+[source,c++]
+----
+if (dev.has(aspect::ext_intel_max_mem_bandwidth)) {
+  auto maxBW = dev.get_info<ext::intel::info::device::max_mem_bandwidth>();
+}
+----
+
+'''
+
+=== Device UUID
+
+Missing before version 2 of this extension.
+
+This extension adds the following device aspect and information descriptor,
+which allow an application to query a device's UUID.
+
+==== New device aspect
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  ext_intel_device_info_uuid
+  // ...
+};
+
+} // namespace sycl
+----
+
+`ext_intel_device_info_uuid`: Indicates that the device supports the `uuid`
+information descriptor.
+
+==== New device information descriptor
+
+[source,c++]
+----
+namespace sycl::ext::intel::info::device {
+struct uuid {
+  using return_type = std::array<unsigned char, 16>;
+};
+} // namespace sycl::ext::intel::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ Returns the device UUID. The DPC++ default behavior would be to
+expose the UUIDs of all supported devices which enables detection of total
+number of unique devices.
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+the device does not have `aspect::ext_intel_device_info_uuid`.
+
+==== Example Usage
+
+[source,c++]
+----
+if (dev.has(aspect::ext_intel_device_info_uuid)) {
+  auto UUID = dev.get_info<ext::intel::info::device::uuid>();
+}
+----
+
+'''
+
 === Intel GPU Number of hardware threads per EU
 
 Missing before version 3 of this extension.
@@ -560,58 +554,6 @@ the device does not have `aspect::ext_intel_gpu_hw_threads_per_eu`.
 ----
 if (dev.has(aspect::ext_intel_gpu_hw_threads_per_eu)) {
   auto threadsCount = dev.get_info<ext::intel::info::device::gpu_hw_threads_per_eu>();
-}
-----
-
-'''
-
-=== Maximum Memory Bandwidth
-
-This extension adds the following device aspect and information descriptor,
-which allow an application to query the device maximum memory bandwidth.
-
-==== New device aspect
-
-[source,c++]
-----
-namespace sycl {
-
-enum class aspect {
-  ext_intel_max_mem_bandwidth
-  // ...
-};
-
-} // namespace sycl
-----
-
-`ext_intel_max_mem_bandwidth`: Indicates that the device supports the
-`max_mem_bandwidth` information descriptor.
-
-==== New device information descriptor
-
-[source,c++]
-----
-namespace sycl::ext::intel::info::device {
-struct max_mem_bandwidth {
-  using return_type = uint32_t;
-};
-} // namespace sycl::ext::intel::info::device
-----
-
-_Remarks:_ Template parameter to `device::get_info`.
-
-_Returns:_ The maximum memory bandwidth in units of bytes/second. If the device
-is a subdevice, then the maximum bandwidth of the subdevice is returned.
-
-_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
-the device does not have `aspect::ext_intel_max_mem_bandwidth`.
-
-==== Example Usage
-
-[source,c++]
-----
-if (dev.has(aspect::ext_intel_max_mem_bandwidth)) {
-  auto maxBW = dev.get_info<ext::intel::info::device::max_mem_bandwidth>();
 }
 ----
 
@@ -670,6 +612,64 @@ the device does not have `aspect::ext_intel_free_memory`.
 ----
 if (dev.has(aspect::ext_intel_free_memory)) {
   auto FreeMemory = dev.get_info<ext::intel::info::device::free_memory>();
+}
+----
+
+'''
+
+=== Device ID
+
+Missing before version 5 of this extension.
+
+This extension adds the following device aspect and information descriptor,
+which allow an application to query a device's ID.
+
+==== New device aspect
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  ext_intel_device_id
+  // ...
+};
+
+} // namespace sycl
+----
+
+`ext_intel_device_id`: Indicates that the device supports the `device_id`
+information descriptor.
+
+==== New device information descriptor
+
+[source,c++]
+----
+namespace sycl::ext::intel::info::device {
+struct device_id {
+  using return_type = uint32_t;
+};
+} // namespace sycl::ext::intel::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ If the implementation is driven primarily by a PCI device with a PCI
+device ID, returns that PCI device ID.
+Otherwise, the choice of what to return is determined by operating system or
+platform policies - but should uniquely identify both the device version and any
+major configuration options (for example, core count in the case of multi-core
+devices).
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+the device does not have `aspect::ext_intel_device_id`.
+
+==== Example Usage
+
+[source,c++]
+----
+if (dev.has(aspect::ext_intel_device_id)) {
+  auto deviceID = dev.get_info<ext::intel::info::device::device_id>();
 }
 ----
 
