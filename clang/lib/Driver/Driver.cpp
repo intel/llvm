@@ -8882,17 +8882,12 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
       // The trace file is ${dumpdir}${basename}.json. Note that dumpdir may not
       // end with a path separator.
       Path = DumpDir->getValue();
-      Path += llvm::sys::path::filename(BaseInput);
+      if(JA->isDeviceOffloading(Action::OFK_SYCL))
+        Path = Result.getFilename();
+      else 
+        Path += llvm::sys::path::filename(BaseInput);
     } else {
       Path = Result.getFilename();
-    }
-
-    if (JA->isDeviceOffloading(Action::OFK_SYCL)) {
-      llvm::StringRef OrginalFileName = llvm::sys::path::stem(Path);
-      llvm::SmallString<128> NewFileName(OrginalFileName);
-      NewFileName += "-sycl";
-      llvm::sys::path::remove_filename(Path);
-      llvm::sys::path::append(Path, NewFileName);
     }
     llvm::sys::path::replace_extension(Path, "json");
   }
@@ -9298,7 +9293,7 @@ InputInfoList Driver::BuildJobsForActionNoCache(
                                              AtTopLevel, MultipleArchs,
                                              OffloadingPrefix),
                        BaseInput);
-    // Enable time tracing capability for SYCL applications as well.
+    // Enable time tracing capability for SYCL host and device compilations as well.
     if (T->canEmitIR() &&
         (OffloadingPrefix.empty() || A->isOffloading(Action::OFK_SYCL)))
       handleTimeTrace(C, Args, JA, BaseInput, Result);
@@ -9592,17 +9587,15 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     return GetModuleOutputPath(C, JA, BaseInput);
   }
 
+  const bool IsBackendJobAction = isa<BackendJobAction>(JA);
+  const bool SaveTempsEnabled = isSaveTempsEnabled();
+  const bool HasFo = C.getArgs().hasArg(options::OPT__SLASH_Fo);
+  const bool IsHostOffloading = JA.isOffloading(Action::OFK_None);
+  const bool FoInvalidForOffload = HasFo && (!IsHostOffloading || isa<OffloadUnbundlingJobAction>(JA) || JA.getOffloadingHostActiveKinds() > Action::OFK_Host);
+
   // Output to a temporary file?
-  if ((!AtTopLevel && !isSaveTempsEnabled() &&
-       (!C.getArgs().hasArg(options::OPT__SLASH_Fo) ||
-        // FIXME - The use of /Fo is limited when offloading is enabled.  When
-        // compiling to exe use of /Fo does not produce the named obj.  We also
-        // should not use the named output when performing unbundling.
-        (C.getArgs().hasArg(options::OPT__SLASH_Fo) &&
-         (!JA.isOffloading(Action::OFK_None) ||
-          isa<OffloadUnbundlingJobAction>(JA) ||
-          JA.getOffloadingHostActiveKinds() > Action::OFK_Host)))) ||
-      CCGenDiagnostics) {
+  if ((!AtTopLevel && !IsBackendJobAction && !SaveTempsEnabled &&
+       (!HasFo || FoInvalidForOffload)) || CCGenDiagnostics) {
     StringRef Name = llvm::sys::path::filename(BaseInput);
     std::pair<StringRef, StringRef> Split = Name.split('.');
     const char *Suffix =
