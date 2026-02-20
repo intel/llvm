@@ -191,8 +191,10 @@ public:
   ScopedContext(CUcontext NativeContext) { setContext(NativeContext); }
 
   ~ScopedContext() {
-    // Restore original context if we changed it
-    if (NeedToRestore) {
+    // Restore original context if we changed it and there was a previous context
+    // If Original was nullptr, leave the current context active to maintain
+    // compatibility with code that expects context to remain set
+    if (NeedToRestore && Original != nullptr) {
       cuCtxSetCurrent(Original);
     }
   }
