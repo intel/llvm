@@ -1588,17 +1588,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
         hQueue->getContext()->getAllocationDevice(pDst);
 
     if (srcDevice && dstDevice && srcDevice != dstDevice) {
-      // Cross-device copy detected. Use cuMemcpyPeer for synchronous
-      // peer-to-peer copy between different device contexts.
-      // We must synchronize first because the stream may have pending
-      // operations, and cuMemcpyPeer is synchronous.
-      UR_CHECK_ERROR(cuStreamSynchronize(CuStream));
-      
+      // Cross-device copy detected - use cuMemcpyPeerAsync
       CUcontext srcContext = srcDevice->getNativeContext();
       CUcontext dstContext = dstDevice->getNativeContext();
       
-      UR_CHECK_ERROR(cuMemcpyPeer((CUdeviceptr)pDst, dstContext,
-                                  (CUdeviceptr)pSrc, srcContext, size));
+      UR_CHECK_ERROR(cuMemcpyPeerAsync((CUdeviceptr)pDst, dstContext,
+                                       (CUdeviceptr)pSrc, srcContext, size,
+                                       CuStream));
     } else {
       // Same device, host memory, or unknown - use regular cuMemcpyAsync
       UR_CHECK_ERROR(
