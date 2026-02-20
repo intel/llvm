@@ -1582,11 +1582,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     }
 
     // Check if this is a cross-device copy by querying allocation metadata
-    ur_device_handle_t srcDevice = hQueue->getContext()->getAllocationDevice(pSrc);
-    ur_device_handle_t dstDevice = hQueue->getContext()->getAllocationDevice(pDst);
+    ur_device_handle_t srcDevice =
+        hQueue->getContext()->getAllocationDevice(pSrc);
+    ur_device_handle_t dstDevice =
+        hQueue->getContext()->getAllocationDevice(pDst);
 
     if (srcDevice && dstDevice && srcDevice != dstDevice) {
-      // Cross-device copy detected - use cuMemcpyPeerAsync with explicit contexts
+      // Cross-device copy detected - use cuMemcpyPeerAsync with explicit
+      // contexts
       CUcontext srcContext = srcDevice->getNativeContext();
       CUcontext dstContext = dstDevice->getNativeContext();
       UR_CHECK_ERROR(cuMemcpyPeerAsync((CUdeviceptr)pDst, dstContext,

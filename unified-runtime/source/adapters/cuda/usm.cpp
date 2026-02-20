@@ -102,7 +102,8 @@ urUSMSharedAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
 
 /// USM: Frees the given USM pointer associated with the context.
 ///
-UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t hContext, void *pMem) {
+UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t hContext,
+                                              void *pMem) {
   // Unregister allocation metadata before freeing
   if (hContext && pMem) {
     hContext->unregisterAllocation(pMem);

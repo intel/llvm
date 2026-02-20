@@ -99,7 +99,7 @@ struct ur_context_handle_t_ : ur::cuda::handle_base {
   umf_memory_pool_handle_t MemoryPoolHost = nullptr;
 
   // Track which device allocated each USM pointer for cross-device operations
-  std::unordered_map<const void*, ur_device_handle_t> AllocationMetadata;
+  std::unordered_map<const void *, ur_device_handle_t> AllocationMetadata;
   mutable std::shared_mutex AllocationMetadataMutex;
 
   ur_context_handle_t_(const ur_device_handle_t *Devs, uint32_t NumDevices)
