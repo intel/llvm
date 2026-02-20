@@ -499,7 +499,7 @@ public:
     auto commandListId = getNextCommandListId();
     return commandListManagers.lock()[commandListId].appendUSMFreeExp(
         this, pPool, pMem, waitListView,
-        createEventAndRetain(eventPool.get(), phEvent, this));
+        createEvent(eventPool.get(), phEvent, this));
   }
 
   ur_result_t bindlessImagesImageCopyExp(
