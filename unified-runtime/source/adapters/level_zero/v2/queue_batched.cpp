@@ -75,25 +75,31 @@ ur_queue_batched_t::ur_queue_batched_t(
 }
 
 ur_event_handle_t ur_queue_batched_t::createEventIfRequestedRegular(
-    ur_event_handle_t *phEvent, ur_event_generation_t batch_generation) {
+    event_pool *pool, ur_event_handle_t *phEvent,
+    std::optional<ur_event_generation_t> batch_generation) {
   TRACK_SCOPE_LATENCY("ur_queue_batched_t::createEventIfRequested");
 
   if (phEvent == nullptr) {
     return nullptr;
   }
 
-  (*phEvent) = eventPoolRegular->allocate();
+  (*phEvent) = pool->allocate();
   (*phEvent)->setQueue(this);
-  (*phEvent)->setBatch(batch_generation);
+  if (batch_generation.has_value()) {
+    (*phEvent)->setBatch(batch_generation.value());
+  }
 
   return (*phEvent);
 }
 
 ur_event_handle_t ur_queue_batched_t::createEventAndRetainRegular(
-    ur_event_handle_t *phEvent, ur_event_generation_t batch_generation) {
-  auto hEvent = eventPoolRegular->allocate();
+    event_pool *pool, ur_event_handle_t *phEvent,
+    std::optional<ur_event_generation_t> batch_generation) {
+  auto hEvent = pool->allocate();
   hEvent->setQueue(this);
-  hEvent->setBatch(batch_generation);
+  if (batch_generation.has_value()) {
+    hEvent->setBatch(batch_generation.value());
+  }
 
   if (phEvent) {
     (*phEvent) = hEvent;
@@ -189,14 +195,19 @@ ur_result_t ur_queue_batched_t::enqueueKernelLaunch(
 
   TRACK_SCOPE_LATENCY("ur_queue_batched_t::enqueueKernelLaunch");
   auto currentRegular = currentCmdLists.lock();
+  auto &eventPool =
+      currentRegular->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(currentRegular);
 
-  UR_CALL(currentRegular->getActiveBatch().appendKernelLaunch(
+  UR_CALL(currentRegular->getListManager().appendKernelLaunch(
       hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
       launchPropList, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    currentRegular->getCurrentGeneration())));
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          currentRegular->isGraphCapture()
+              ? std::nullopt
+              : std::optional(currentRegular->getCurrentGeneration()))));
 
   return UR_RESULT_SUCCESS;
 }
@@ -285,13 +296,18 @@ ur_result_t ur_queue_batched_t::enqueueMemBufferRead(
         wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
     auto lockedBatches = currentCmdLists.lock();
+    auto &eventPool =
+        lockedBatches->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
     markIssuedCommandInBatch(lockedBatches);
 
-    UR_CALL(lockedBatches->getActiveBatch().appendMemBufferRead(
+    UR_CALL(lockedBatches->getListManager().appendMemBufferRead(
         hBuffer, false, offset, size, pDst, waitListView,
-        createEventIfRequestedRegular(phEvent,
-                                      lockedBatches->getCurrentGeneration())));
+        createEventIfRequestedRegular(
+            eventPool.get(), phEvent,
+            lockedBatches->isGraphCapture()
+                ? std::nullopt
+                : std::optional(lockedBatches->getCurrentGeneration()))));
 
     if (blockingRead) {
       UR_CALL(queueFinishUnlocked(lockedBatches));
@@ -313,13 +329,18 @@ ur_result_t ur_queue_batched_t::enqueueMemBufferWrite(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatches = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatches->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatches);
 
-  UR_CALL(lockedBatches->getActiveBatch().appendMemBufferWrite(
+  UR_CALL(lockedBatches->getListManager().appendMemBufferWrite(
       hBuffer, false, offset, size, pSrc, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatches->getCurrentGeneration())));
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          lockedBatches->isGraphCapture()
+              ? std::nullopt
+              : std::optional(lockedBatches->getCurrentGeneration()))));
 
   if (blockingWrite) {
     UR_CALL(queueFinishUnlocked(lockedBatches));
@@ -338,13 +359,18 @@ ur_result_t ur_queue_batched_t::enqueueDeviceGlobalVariableWrite(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatch->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatch);
 
   UR_CALL(lockedBatch->getListManager().appendDeviceGlobalVariableWrite(
       hProgram, name, false, count, offset, pSrc, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration())));
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          lockedBatch->isGraphCapture()
+              ? std::nullopt
+              : std::optional(lockedBatch->getCurrentGeneration()))));
 
   if (blockingWrite) {
     UR_CALL(queueFinishUnlocked(lockedBatch));
@@ -360,13 +386,18 @@ ur_result_t ur_queue_batched_t::enqueueDeviceGlobalVariableRead(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatch->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendDeviceGlobalVariableRead(
+  UR_CALL(lockedBatch->getListManager().appendDeviceGlobalVariableRead(
       hProgram, name, false, count, offset, pDst, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration())));
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          lockedBatch->isGraphCapture()
+              ? std::nullopt
+              : std::optional(lockedBatch->getCurrentGeneration()))));
 
   if (blockingRead) {
     UR_CALL(queueFinishUnlocked(lockedBatch));
@@ -384,13 +415,18 @@ ur_result_t ur_queue_batched_t::enqueueMemBufferFill(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatch->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getActiveBatch().appendMemBufferFill(
+  return lockedBatch->getListManager().appendMemBufferFill(
       hBuffer, pPattern, patternSize, offset, size, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()));
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          lockedBatch->isGraphCapture()
+              ? std::nullopt
+              : std::optional(lockedBatch->getCurrentGeneration())));
 
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -403,13 +439,18 @@ ur_result_t ur_queue_batched_t::enqueueUSMMemcpy(
   wait_list_view waitListView =
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
   auto lockedBatch = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatch->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendUSMMemcpy(
+  UR_CALL(lockedBatch->getListManager().appendUSMMemcpy(
       false, pDst, pSrc, size, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration())));
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          lockedBatch->isGraphCapture()
+              ? std::nullopt
+              : std::optional(lockedBatch->getCurrentGeneration()))));
 
   if (blocking) {
     UR_CALL(queueFinishUnlocked(lockedBatch));
@@ -424,13 +465,18 @@ ur_result_t ur_queue_batched_t::enqueueUSMFreeExp(
   wait_list_view waitListView =
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
   auto lockedBatch = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatch->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendUSMFreeExp(
+  UR_CALL(lockedBatch->getListManager().appendUSMFreeExp(
       this, pPool, pMem, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration())));
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          lockedBatch->isGraphCapture()
+              ? std::nullopt
+              : std::optional(lockedBatch->getCurrentGeneration()))));
 
   return queueFlushUnlocked(lockedBatch);
 }
@@ -444,13 +490,18 @@ ur_result_t ur_queue_batched_t::enqueueMemBufferMap(
   wait_list_view waitListView =
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
   auto lockedBatch = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatch->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendMemBufferMap(
+  UR_CALL(lockedBatch->getListManager().appendMemBufferMap(
       hBuffer, false, mapFlags, offset, size, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()),
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          lockedBatch->isGraphCapture()
+              ? std::nullopt
+              : std::optional(lockedBatch->getCurrentGeneration())),
       ppRetMap));
 
   if (blockingMap) {
@@ -466,13 +517,18 @@ ur_result_t ur_queue_batched_t::enqueueMemUnmap(
   wait_list_view waitListView =
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
   auto lockedBatch = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatch->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getActiveBatch().appendMemUnmap(
+  return lockedBatch->getListManager().appendMemUnmap(
       hMem, pMappedPtr, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()));
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          lockedBatch->isGraphCapture()
+              ? std::nullopt
+              : std::optional(lockedBatch->getCurrentGeneration())));
 }
 
 ur_result_t ur_queue_batched_t::enqueueMemBufferReadRect(
@@ -484,14 +540,19 @@ ur_result_t ur_queue_batched_t::enqueueMemBufferReadRect(
   wait_list_view waitListView =
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
   auto lockedBatch = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatch->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendMemBufferReadRect(
+  UR_CALL(lockedBatch->getListManager().appendMemBufferReadRect(
       hBuffer, false, bufferOrigin, hostOrigin, region, bufferRowPitch,
       bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration())));
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          lockedBatch->isGraphCapture()
+              ? std::nullopt
+              : std::optional(lockedBatch->getCurrentGeneration()))));
 
   if (blockingRead) {
     UR_CALL(queueFinishUnlocked(lockedBatch));
@@ -510,14 +571,19 @@ ur_result_t ur_queue_batched_t::enqueueMemBufferWriteRect(
   wait_list_view waitListView =
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
   auto lockedBatch = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatch->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendMemBufferWriteRect(
+  UR_CALL(lockedBatch->getListManager().appendMemBufferWriteRect(
       hBuffer, false, bufferOrigin, hostOrigin, region, bufferRowPitch,
       bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration())));
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          lockedBatch->isGraphCapture()
+              ? std::nullopt
+              : std::optional(lockedBatch->getCurrentGeneration()))));
 
   if (blockingWrite) {
     UR_CALL(queueFinishUnlocked(lockedBatch));
@@ -532,13 +598,18 @@ ur_result_t ur_queue_batched_t::enqueueUSMAdvise(const void *pMem, size_t size,
   wait_list_view emptyWaitList = wait_list_view(nullptr, 0, this);
 
   auto lockedBatch = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatch->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getActiveBatch().appendUSMAdvise(
+  return lockedBatch->getListManager().appendUSMAdvise(
       pMem, size, advice, emptyWaitList,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()));
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          lockedBatch->isGraphCapture()
+              ? std::nullopt
+              : std::optional(lockedBatch->getCurrentGeneration())));
 }
 
 ur_result_t ur_queue_batched_t::enqueueUSMMemcpy2D(
@@ -548,13 +619,18 @@ ur_result_t ur_queue_batched_t::enqueueUSMMemcpy2D(
   wait_list_view waitListView =
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
   auto lockedBatch = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatch->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendUSMMemcpy2D(
+  UR_CALL(lockedBatch->getListManager().appendUSMMemcpy2D(
       false, pDst, dstPitch, pSrc, srcPitch, width, height, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration())));
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          lockedBatch->isGraphCapture()
+              ? std::nullopt
+              : std::optional(lockedBatch->getCurrentGeneration()))));
 
   if (blocking) {
     UR_CALL(queueFinishUnlocked(lockedBatch));
@@ -570,13 +646,18 @@ ur_result_t ur_queue_batched_t::enqueueUSMFill2D(
   wait_list_view waitListView =
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
   auto lockedBatch = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatch->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getActiveBatch().appendUSMFill2D(
+  return lockedBatch->getListManager().appendUSMFill2D(
       pMem, pitch, patternSize, pPattern, width, height, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()));
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          lockedBatch->isGraphCapture()
+              ? std::nullopt
+              : std::optional(lockedBatch->getCurrentGeneration())));
 }
 
 ur_result_t ur_queue_batched_t::enqueueUSMPrefetch(
@@ -586,13 +667,18 @@ ur_result_t ur_queue_batched_t::enqueueUSMPrefetch(
   wait_list_view waitListView =
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
   auto lockedBatch = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatch->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getActiveBatch().appendUSMPrefetch(
+  return lockedBatch->getListManager().appendUSMPrefetch(
       pMem, size, flags, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()));
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          lockedBatch->isGraphCapture()
+              ? std::nullopt
+              : std::optional(lockedBatch->getCurrentGeneration())));
 }
 
 ur_result_t ur_queue_batched_t::enqueueMemBufferCopyRect(
@@ -605,14 +691,19 @@ ur_result_t ur_queue_batched_t::enqueueMemBufferCopyRect(
   wait_list_view waitListView =
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
   auto lockedBatch = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatch->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getActiveBatch().appendMemBufferCopyRect(
+  return lockedBatch->getListManager().appendMemBufferCopyRect(
       hBufferSrc, hBufferDst, srcOrigin, dstOrigin, region, srcRowPitch,
       srcSlicePitch, dstRowPitch, dstSlicePitch, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()));
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          lockedBatch->isGraphCapture()
+              ? std::nullopt
+              : std::optional(lockedBatch->getCurrentGeneration())));
 }
 
 ur_result_t ur_queue_batched_t::enqueueEventsWaitWithBarrier(
@@ -621,17 +712,27 @@ ur_result_t ur_queue_batched_t::enqueueEventsWaitWithBarrier(
   wait_list_view waitListView =
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
   auto lockedBatch = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatch->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatch);
 
   if ((flags & UR_QUEUE_FLAG_PROFILING_ENABLE) != 0) {
-    UR_CALL(lockedBatch->getActiveBatch().appendEventsWaitWithBarrier(
-        waitListView, createEventIfRequestedRegular(
-                          phEvent, lockedBatch->getCurrentGeneration())));
+    UR_CALL(lockedBatch->getListManager().appendEventsWaitWithBarrier(
+        waitListView,
+        createEventIfRequestedRegular(
+            eventPool.get(), phEvent,
+            lockedBatch->isGraphCapture()
+                ? std::nullopt
+                : std::optional(lockedBatch->getCurrentGeneration()))));
   } else {
-    UR_CALL(lockedBatch->getActiveBatch().appendEventsWait(
-        waitListView, createEventIfRequestedRegular(
-                          phEvent, lockedBatch->getCurrentGeneration())));
+    UR_CALL(lockedBatch->getListManager().appendEventsWait(
+        waitListView,
+        createEventIfRequestedRegular(
+            eventPool.get(), phEvent,
+            lockedBatch->isGraphCapture()
+                ? std::nullopt
+                : std::optional(lockedBatch->getCurrentGeneration()))));
   }
 
   return queueFlushUnlocked(lockedBatch);
@@ -645,12 +746,18 @@ ur_queue_batched_t::enqueueEventsWait(uint32_t numEventsInWaitList,
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatch->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendEventsWait(
-      waitListView, createEventIfRequestedRegular(
-                        phEvent, lockedBatch->getCurrentGeneration())));
+  UR_CALL(lockedBatch->getListManager().appendEventsWait(
+      waitListView,
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          lockedBatch->isGraphCapture()
+              ? std::nullopt
+              : std::optional(lockedBatch->getCurrentGeneration()))));
 
   return queueFlushUnlocked(lockedBatch);
 }
@@ -663,13 +770,18 @@ ur_result_t ur_queue_batched_t::enqueueMemBufferCopy(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatch->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getActiveBatch().appendMemBufferCopy(
+  return lockedBatch->getListManager().appendMemBufferCopy(
       hBufferSrc, hBufferDst, srcOffset, dstOffset, size, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()));
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          lockedBatch->isGraphCapture()
+              ? std::nullopt
+              : std::optional(lockedBatch->getCurrentGeneration())));
 }
 
 ur_result_t ur_queue_batched_t::enqueueUSMFill(
@@ -680,13 +792,18 @@ ur_result_t ur_queue_batched_t::enqueueUSMFill(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatch->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getActiveBatch().appendUSMFill(
+  return lockedBatch->getListManager().appendUSMFill(
       pMem, patternSize, pPattern, size, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()));
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          lockedBatch->isGraphCapture()
+              ? std::nullopt
+              : std::optional(lockedBatch->getCurrentGeneration())));
 }
 
 ur_result_t ur_queue_batched_t::enqueueMemImageRead(
@@ -698,13 +815,18 @@ ur_result_t ur_queue_batched_t::enqueueMemImageRead(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatch->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendMemImageRead(
+  UR_CALL(lockedBatch->getListManager().appendMemImageRead(
       hImage, false, origin, region, rowPitch, slicePitch, pDst, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration())));
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          lockedBatch->isGraphCapture()
+              ? std::nullopt
+              : std::optional(lockedBatch->getCurrentGeneration()))));
 
   if (blockingRead) {
     UR_CALL(queueFinishUnlocked(lockedBatch));
@@ -722,13 +844,18 @@ ur_result_t ur_queue_batched_t::enqueueMemImageWrite(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatch->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendMemImageWrite(
+  UR_CALL(lockedBatch->getListManager().appendMemImageWrite(
       hImage, false, origin, region, rowPitch, slicePitch, pSrc, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration())));
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          lockedBatch->isGraphCapture()
+              ? std::nullopt
+              : std::optional(lockedBatch->getCurrentGeneration()))));
 
   if (blockingWrite) {
     UR_CALL(queueFinishUnlocked(lockedBatch));
@@ -745,13 +872,18 @@ ur_result_t ur_queue_batched_t::enqueueMemImageCopy(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatch->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getActiveBatch().appendMemImageCopy(
+  return lockedBatch->getListManager().appendMemImageCopy(
       hImageSrc, hImageDst, srcOrigin, dstOrigin, region, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()));
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          lockedBatch->isGraphCapture()
+              ? std::nullopt
+              : std::optional(lockedBatch->getCurrentGeneration())));
 }
 
 ur_result_t ur_queue_batched_t::enqueueReadHostPipe(
@@ -762,13 +894,18 @@ ur_result_t ur_queue_batched_t::enqueueReadHostPipe(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatch->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendReadHostPipe(
+  UR_CALL(lockedBatch->getListManager().appendReadHostPipe(
       hProgram, pipe_symbol, false, pDst, size, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration())));
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          lockedBatch->isGraphCapture()
+              ? std::nullopt
+              : std::optional(lockedBatch->getCurrentGeneration()))));
 
   if (blocking) {
     UR_CALL(queueFinishUnlocked(lockedBatch));
@@ -785,13 +922,18 @@ ur_result_t ur_queue_batched_t::enqueueWriteHostPipe(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatch->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendWriteHostPipe(
+  UR_CALL(lockedBatch->getListManager().appendWriteHostPipe(
       hProgram, pipe_symbol, false, pSrc, size, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration())));
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          lockedBatch->isGraphCapture()
+              ? std::nullopt
+              : std::optional(lockedBatch->getCurrentGeneration()))));
 
   if (blocking) {
     UR_CALL(queueFinishUnlocked(lockedBatch));
@@ -809,13 +951,18 @@ ur_result_t ur_queue_batched_t::enqueueUSMDeviceAllocExp(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatch->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendUSMAllocHelper(
+  UR_CALL(lockedBatch->getListManager().appendUSMAllocHelper(
       this, pPool, size, pProperties, waitListView, ppMem,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()),
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          lockedBatch->isGraphCapture()
+              ? std::nullopt
+              : std::optional(lockedBatch->getCurrentGeneration())),
       UR_USM_TYPE_DEVICE));
 
   return queueFlushUnlocked(lockedBatch);
@@ -831,13 +978,18 @@ ur_result_t ur_queue_batched_t::enqueueUSMSharedAllocExp(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatch->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendUSMAllocHelper(
+  UR_CALL(lockedBatch->getListManager().appendUSMAllocHelper(
       this, pPool, size, pProperties, waitListView, ppMem,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()),
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          lockedBatch->isGraphCapture()
+              ? std::nullopt
+              : std::optional(lockedBatch->getCurrentGeneration())),
       UR_USM_TYPE_SHARED));
 
   return queueFlushUnlocked(lockedBatch);
@@ -852,13 +1004,18 @@ ur_result_t ur_queue_batched_t::enqueueUSMHostAllocExp(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatch->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendUSMAllocHelper(
+  UR_CALL(lockedBatch->getListManager().appendUSMAllocHelper(
       this, pPool, size, pProperties, waitListView, ppMem,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()),
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          lockedBatch->isGraphCapture()
+              ? std::nullopt
+              : std::optional(lockedBatch->getCurrentGeneration())),
       UR_USM_TYPE_HOST));
 
   return queueFlushUnlocked(lockedBatch);
@@ -879,15 +1036,20 @@ ur_result_t ur_queue_batched_t::bindlessImagesImageCopyExp(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatch->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getActiveBatch().bindlessImagesImageCopyExp(
+  return lockedBatch->getListManager().bindlessImagesImageCopyExp(
       pSrc, pDst, pSrcImageDesc, pDstImageDesc, pSrcImageFormat,
       pDstImageFormat, pCopyRegion, imageCopyFlags, imageCopyInputTypes,
       waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()));
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          lockedBatch->isGraphCapture()
+              ? std::nullopt
+              : std::optional(lockedBatch->getCurrentGeneration())));
 }
 
 ur_result_t ur_queue_batched_t::bindlessImagesWaitExternalSemaphoreExp(
@@ -898,13 +1060,18 @@ ur_result_t ur_queue_batched_t::bindlessImagesWaitExternalSemaphoreExp(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatch->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getActiveBatch().bindlessImagesWaitExternalSemaphoreExp(
+  return lockedBatch->getListManager().bindlessImagesWaitExternalSemaphoreExp(
       hSemaphore, hasWaitValue, waitValue, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()));
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          lockedBatch->isGraphCapture()
+              ? std::nullopt
+              : std::optional(lockedBatch->getCurrentGeneration())));
 }
 
 ur_result_t ur_queue_batched_t::bindlessImagesSignalExternalSemaphoreExp(
@@ -915,13 +1082,18 @@ ur_result_t ur_queue_batched_t::bindlessImagesSignalExternalSemaphoreExp(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatch->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getActiveBatch().bindlessImagesSignalExternalSemaphoreExp(
+  return lockedBatch->getListManager().bindlessImagesSignalExternalSemaphoreExp(
       hSemaphore, hasSignalValue, signalValue, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()));
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          lockedBatch->isGraphCapture()
+              ? std::nullopt
+              : std::optional(lockedBatch->getCurrentGeneration())));
 }
 
 // In case of queues with batched submissions, which use regular command lists
@@ -942,13 +1114,18 @@ ur_result_t ur_queue_batched_t::enqueueTimestampRecordingExp(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatch->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendTimestampRecordingExp(
+  UR_CALL(lockedBatch->getListManager().appendTimestampRecordingExp(
       false, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration())));
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          lockedBatch->isGraphCapture()
+              ? std::nullopt
+              : std::optional(lockedBatch->getCurrentGeneration()))));
 
   if (blocking) {
     UR_CALL(queueFinishUnlocked(lockedBatch));
@@ -989,14 +1166,19 @@ ur_result_t ur_queue_batched_t::enqueueNativeCommandExp(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatch->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getActiveBatch().appendNativeCommandExp(
+  return lockedBatch->getListManager().appendNativeCommandExp(
       pfnNativeEnqueue, data, numMemsInMemList, phMemList, pProperties,
       waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()));
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          lockedBatch->isGraphCapture()
+              ? std::nullopt
+              : std::optional(lockedBatch->getCurrentGeneration())));
 }
 
 ur_result_t ur_queue_batched_t::enqueueKernelLaunchWithArgsExp(
@@ -1012,14 +1194,19 @@ ur_result_t ur_queue_batched_t::enqueueKernelLaunchWithArgsExp(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
+  auto &eventPool =
+      lockedBatch->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
 
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getActiveBatch().appendKernelLaunchWithArgsExp(
+  return lockedBatch->getListManager().appendKernelLaunchWithArgsExp(
       hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
       numArgs, pArgs, launchPropList, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration()));
+      createEventIfRequestedRegular(
+          eventPool.get(), phEvent,
+          lockedBatch->isGraphCapture()
+              ? std::nullopt
+              : std::optional(lockedBatch->getCurrentGeneration())));
 }
 
 ur_result_t ur_queue_batched_t::queueGetInfo(ur_queue_info_t propName,

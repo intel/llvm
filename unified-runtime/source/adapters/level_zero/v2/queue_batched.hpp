@@ -199,13 +199,13 @@ private:
 
   ur_result_t renewBatchUnlocked(locked<batch_manager> &batchLocked);
 
-  ur_event_handle_t
-  createEventIfRequestedRegular(ur_event_handle_t *phEvent,
-                                ur_event_generation_t generation_number);
+  ur_event_handle_t createEventIfRequestedRegular(
+      event_pool *pool, ur_event_handle_t *phEvent,
+      std::optional<ur_event_generation_t> generation_number);
 
-  ur_event_handle_t
-  createEventAndRetainRegular(ur_event_handle_t *phEvent,
-                              ur_event_generation_t batch_generation);
+  ur_event_handle_t createEventAndRetainRegular(
+      event_pool *pool, ur_event_handle_t *phEvent,
+      std::optional<ur_event_generation_t> batch_generation);
 
   ur_result_t queueFinishPoolsUnlocked();
 
@@ -490,7 +490,11 @@ public:
         batchLocked->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
     return batchLocked->getListManager().appendGraph(
         hGraph, waitListView,
-        createEventIfRequested(eventPool.get(), phEvent, this));
+        createEventIfRequestedRegular(
+            eventPool.get(), phEvent,
+            batchLocked->isGraphCapture()
+                ? std::nullopt
+                : std::optional(batchLocked->getCurrentGeneration())));
   }
 
   ur_result_t queueBeginGraphCapteExp() override {
@@ -526,7 +530,11 @@ public:
         batchLocked->isGraphCapture() ? eventPoolImmediate : eventPoolRegular;
     return batchLocked->getListManager().appendHostTaskExp(
         pfnHostTask, data, pProperties, waitListView,
-        createEventIfRequested(eventPool.get(), phEvent, this));
+        createEventIfRequestedRegular(
+            eventPool.get(), phEvent,
+            batchLocked->isGraphCapture()
+                ? std::nullopt
+                : std::optional(batchLocked->getCurrentGeneration())));
   }
 
   bool isInOrder() override { return true; }
