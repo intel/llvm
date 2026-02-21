@@ -107,9 +107,15 @@ TEST_F(FreeFunctionCommandsEventsTests, LaunchTaskShortcutNoEvent) {
   mock::getCallbacks().set_replace_callback(
       "urEnqueueKernelLaunchWithArgsExp",
       &redefined_urEnqueueKernelLaunchWithArgsExp);
-  sycl::khr::launch_task(Queue, TestFunctor());
 
-  ASSERT_EQ(counter_urEnqueueKernelLaunchWithArgsExp, size_t{1});
+  sycl::event e = sycl::khr::submit_tracked(Queue, [&](sycl::handler &Handler) {
+    sycl::khr::launch_task(Handler, TestFunctor());
+  });
+
+  sycl::khr::launch_task(Queue, TestFunctor(),
+    sycl::ext::oneapi::experimental::properties{sycl::khr::wait_event(e)});
+
+  ASSERT_EQ(counter_urEnqueueKernelLaunchWithArgsExp, size_t{2});
 }
 
 TEST_F(FreeFunctionCommandsEventsTests, SubmitLaunchTaskKernelNoEvent) {
