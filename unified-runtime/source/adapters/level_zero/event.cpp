@@ -886,12 +886,34 @@ ur_result_t
 
 urEventRelease(/** [in] handle of the event object */ ur_event_handle_t Event) {
   Event->RefCountExternal--;
-  bool isEventsWaitCompleted =
-      (Event->CommandType == UR_COMMAND_EVENTS_WAIT ||
-       Event->CommandType == UR_COMMAND_EVENTS_WAIT_WITH_BARRIER) &&
-      Event->Completed;
+  bool isEventsWaitCommand =
+      Event->CommandType == UR_COMMAND_EVENTS_WAIT ||
+      Event->CommandType == UR_COMMAND_EVENTS_WAIT_WITH_BARRIER;
+  bool isEventsWaitCompleted = isEventsWaitCommand && Event->Completed;
   bool isEventDeleted = false;
   UR_CALL(urEventReleaseInternal(Event, &isEventDeleted));
+
+  // Event wait / barrier events are created frequently by runtime internals
+  // and can complete quickly. If completion was not marked before release,
+  // proactively query status and perform cleanup so the queue-held reference
+  // is dropped without waiting for later command-list recycling.
+  if (isEventsWaitCommand && !isEventDeleted && !isEventsWaitCompleted) {
+    ze_result_t QueryRes = ZE_RESULT_NOT_READY;
+    {
+      std::shared_lock<ur_shared_mutex> EventLock(Event->Mutex);
+      auto HostVisibleEvent = Event->HostVisibleEvent;
+      if (checkL0LoaderTeardown() && HostVisibleEvent) {
+        QueryRes =
+            ZE_CALL_NOCHECK(zeEventQueryStatus, (HostVisibleEvent->ZeEvent));
+      }
+    }
+
+    if (QueryRes == ZE_RESULT_SUCCESS) {
+      isEventsWaitCompleted = true;
+      Event->Completed = true;
+    }
+  }
+
   // If this is a Completed Event Wait Out Event, then we need to cleanup the
   // event at user release and not at the time of completion.
   // If the event is labelled as completed and no additional references are
