@@ -9587,15 +9587,17 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     return GetModuleOutputPath(C, JA, BaseInput);
   }
 
-  const bool IsBackendJobAction = isa<BackendJobAction>(JA);
+  const bool IsSYCLBackendJobAction =
+      JA.isDeviceOffloading(Action::OFK_SYCL) && isa<BackendJobAction>(JA);
   const bool SaveTempsEnabled = isSaveTempsEnabled();
   const bool HasFo = C.getArgs().hasArg(options::OPT__SLASH_Fo);
   const bool IsHostOffloading = JA.isOffloading(Action::OFK_None);
   const bool FoInvalidForOffload = HasFo && (!IsHostOffloading || isa<OffloadUnbundlingJobAction>(JA) || JA.getOffloadingHostActiveKinds() > Action::OFK_Host);
 
   // Output to a temporary file?
-  if ((!AtTopLevel && !IsBackendJobAction && !SaveTempsEnabled &&
-       (!HasFo || FoInvalidForOffload)) || CCGenDiagnostics) {
+  if ((!AtTopLevel && !IsSYCLBackendJobAction && !SaveTempsEnabled &&
+       (!HasFo || FoInvalidForOffload)) ||
+      CCGenDiagnostics) {
     StringRef Name = llvm::sys::path::filename(BaseInput);
     std::pair<StringRef, StringRef> Split = Name.split('.');
     const char *Suffix =
