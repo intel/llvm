@@ -6,7 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// RUN: %clang -emit-llvm -S -o - %s | FileCheck %s
+// RUN: %clang %link-libspirv -emit-llvm -S -o - %s | FileCheck %s
+// RUN: %clang %link-remangled-libspirv -DSKIP_FP16 -emit-llvm -S -o - %s | FileCheck %s
 
 #include <libspirv/spirv_types.h>
 
