@@ -52,6 +52,15 @@
 // Arguments: Result Type, Result, Image, Coords
 // CHECK-SPIRV-NEXT: ImageSampleExplicitLod [[PIXELTYPE]] {{[0-9]+}} [[SAMPIMAGEVAR]] {{[0-9]+}}
 
+// Convert handle to SPIR-V sampled image again
+// Arguments: Result Type, Result, Handle
+// CHECK-SPIRV: ConvertHandleToSampledImageINTEL [[SAMPIMAGETYPE]] [[SAMPIMAGEVAR:[0-9]+]] {{[0-9]+}}
+
+// Read sampled image with scalar return type
+// The result type of the SPIR-V instruction should still be a vector of four components
+// Arguments: Result Type, Result, Image, Coords
+// CHECK-SPIRV-NEXT: ImageSampleExplicitLod [[PIXELTYPE]] {{[0-9]+}} [[SAMPIMAGEVAR]] {{[0-9]+}}
+
 // Convert handle to SPIR-V image
 // Arguments: Result Type, Result, Handle
 // CHECK-SPIRV: ConvertHandleToImageINTEL [[IMAGETYPEREAD]] [[IMAGEVARTWO:[0-9]+]] {{[0-9]+}}
@@ -70,6 +79,8 @@ image_read(sycl::ext::oneapi::experimental::unsampled_image_handle imgHandle1,
   auto px1 = fetch_image<sycl::float4>(imgHandle1, int(id[0]));
 
   auto px2 = sample_image<sycl::float4>(imgHandle2, float(id[0]));
+
+  auto px3 = sample_image<float>(imgHandle2, float(id[0]));
 
   write_image(imgHandle1, int(id[0]), px1 + px2);
 
