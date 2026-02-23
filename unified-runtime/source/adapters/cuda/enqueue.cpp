@@ -1581,26 +1581,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
       UR_CHECK_ERROR(EventPtr->start());
     }
 
-    // Check if this is a cross-device copy by querying allocation metadata
-    ur_device_handle_t srcDevice =
-        hQueue->getContext()->getAllocationDevice(pSrc);
-    ur_device_handle_t dstDevice =
-        hQueue->getContext()->getAllocationDevice(pDst);
-
-    if (srcDevice && dstDevice && srcDevice != dstDevice) {
-      // Cross-device copy for Device Memory (not Managed/Shared)
-      // Use peer-to-peer copy with explicit contexts
-      CUcontext srcContext = srcDevice->getNativeContext();
-      CUcontext dstContext = dstDevice->getNativeContext();
-      UR_CHECK_ERROR(cuMemcpyPeerAsync((CUdeviceptr)pDst, dstContext,
-                                       (CUdeviceptr)pSrc, srcContext, size,
-                                       CuStream));
-    } else {
-      // Same device, host memory, or Managed Memory - use regular cuMemcpyAsync
-      // For Managed Memory, CUDA runtime handles migration automatically
-      UR_CHECK_ERROR(
-          cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, size, CuStream));
-    }
+    // For Managed Memory cross-device, we cannot detect it (not tracked)
+    // Just use cuMemcpyAsync and let CUDA runtime handle it
+    UR_CHECK_ERROR(
+        cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, size, CuStream));
 
     if (phEvent) {
       UR_CHECK_ERROR(EventPtr->record());
