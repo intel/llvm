@@ -1588,16 +1588,30 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
         hQueue->getContext()->getAllocationDevice(pDst);
 
     if (srcDevice && dstDevice && srcDevice != dstDevice) {
-      // Cross-device copy detected - use asynchronous peer copy
-      CUcontext srcContext = srcDevice->getNativeContext();
-      CUcontext dstContext = dstDevice->getNativeContext();
-
-      // Use asynchronous peer copy on the current stream
-      // cuMemcpyPeerAsync takes contexts as parameters, no need to activate
-      // them
-      UR_CHECK_ERROR(cuMemcpyPeerAsync((CUdeviceptr)pDst, dstContext,
-                                       (CUdeviceptr)pSrc, srcContext, size,
-                                       CuStream));
+      // Cross-device copy detected
+      // Check if this is Managed Memory (USM Shared) or Device Memory
+      unsigned int srcMemType = 0;
+      CUresult srcTypeResult = cuPointerGetAttribute(
+          &srcMemType, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr)pSrc);
+      
+      // CU_MEMORYTYPE_UNIFIED = Managed Memory (USM Shared)
+      // CU_MEMORYTYPE_DEVICE = Device Memory (USM Device)
+      bool isManagedMemory = (srcTypeResult == CUDA_SUCCESS && 
+                               srcMemType == CU_MEMORYTYPE_UNIFIED);
+      
+      if (isManagedMemory) {
+        // For Managed Memory cross-device copies, use standard cuMemcpyAsync
+        // CUDA runtime will handle page migration automatically
+        UR_CHECK_ERROR(cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, 
+                                      size, CuStream));
+      } else {
+        // For Device Memory, use peer-to-peer copy
+        CUcontext srcContext = srcDevice->getNativeContext();
+        CUcontext dstContext = dstDevice->getNativeContext();
+        UR_CHECK_ERROR(cuMemcpyPeerAsync((CUdeviceptr)pDst, dstContext,
+                                         (CUdeviceptr)pSrc, srcContext, size,
+                                         CuStream));
+      }
     } else {
       // Same device, host memory, or unknown - use regular cuMemcpyAsync
       UR_CHECK_ERROR(
