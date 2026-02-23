@@ -3231,6 +3231,7 @@ void EnqueueVisitor::VisitStmt(const Stmt *S) { EnqueueChildren(S); }
 void EnqueueVisitor::VisitSwitchStmt(const SwitchStmt *S) {
   AddStmt(S->getBody());
   AddStmt(S->getCond());
+  AddStmt(S->getInit());
   AddDecl(S->getConditionVariable());
 }
 
@@ -10186,7 +10187,7 @@ cxindex::Logger::~Logger() {
 }
 
 CXString clang_getBinaryOperatorKindSpelling(enum CXBinaryOperatorKind kind) {
-  if (kind > CXBinaryOperator_Last)
+  if (kind <= CXBinaryOperator_Invalid || kind > CXBinaryOperator_Last)
     return cxstring::createEmpty();
 
   return cxstring::createDup(
@@ -10208,6 +10209,9 @@ enum CXBinaryOperatorKind clang_getCursorBinaryOperatorKind(CXCursor cursor) {
 }
 
 CXString clang_getUnaryOperatorKindSpelling(enum CXUnaryOperatorKind kind) {
+  if (kind <= CXUnaryOperator_Invalid || kind > CXUnaryOperator_Last)
+    return cxstring::createEmpty();
+
   return cxstring::createRef(
       UnaryOperator::getOpcodeStr(static_cast<UnaryOperatorKind>(kind - 1)));
 }

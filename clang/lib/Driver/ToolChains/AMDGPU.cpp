@@ -81,19 +81,6 @@ RocmInstallationDetector::CommonBitcodeLibsPreferences::
                     DriverArgs.hasFlag(options::OPT_ffast_math,
                                        options::OPT_fno_fast_math, false);
 
-  const bool DefaultSqrt = IsKnownOffloading ? true : false;
-
-  if (DeviceOffloadingKind == Action::OFK_SYCL)
-    // When using SYCL, sqrt is only correctly rounded if the flag is specified.
-    CorrectSqrt = DriverArgs.hasArg(options::OPT_foffload_fp32_prec_sqrt);
-  else
-    CorrectSqrt =
-        DriverArgs.hasArg(options::OPT_cl_fp32_correctly_rounded_divide_sqrt) ||
-        DriverArgs.hasFlag(
-            options::OPT_fhip_fp32_correctly_rounded_divide_sqrt,
-            options::OPT_fno_hip_fp32_correctly_rounded_divide_sqrt,
-            DefaultSqrt);
-
   // GPU Sanitizer currently only supports ASan and is enabled through host
   // ASan.
   GPUSan = (DriverArgs.hasFlag(options::OPT_fgpu_sanitize,
@@ -138,10 +125,6 @@ void RocmInstallationDetector::scanLibDevicePath(llvm::StringRef Path) {
       DenormalsAreZero.On = FilePath;
     } else if (BaseName == "oclc_daz_opt_off") {
       DenormalsAreZero.Off = FilePath;
-    } else if (BaseName == "oclc_correctly_rounded_sqrt_on") {
-      CorrectlyRoundedSqrt.On = FilePath;
-    } else if (BaseName == "oclc_correctly_rounded_sqrt_off") {
-      CorrectlyRoundedSqrt.Off = FilePath;
     } else if (BaseName == "oclc_unsafe_math_on") {
       UnsafeMath.On = FilePath;
     } else if (BaseName == "oclc_unsafe_math_off") {
@@ -1066,7 +1049,6 @@ RocmInstallationDetector::getCommonBitcodeLibs(
   AddBCLib(getDenormalsAreZeroPath(Pref.DAZ));
   AddBCLib(getUnsafeMathPath(Pref.UnsafeMathOpt || Pref.FastRelaxedMath));
   AddBCLib(getFiniteOnlyPath(Pref.FiniteOnly || Pref.FastRelaxedMath));
-  AddBCLib(getCorrectlyRoundedSqrtPath(Pref.CorrectSqrt));
   AddBCLib(getWavefrontSize64Path(Pref.Wave64));
   AddBCLib(LibDeviceFile);
   auto ABIVerPath = getABIVersionPath(Pref.ABIVer);
