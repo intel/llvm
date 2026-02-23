@@ -57,7 +57,8 @@
 // CHECK-SPIRV: ConvertHandleToSampledImageINTEL [[SAMPIMAGETYPE]] [[SAMPIMAGEVAR:[0-9]+]] {{[0-9]+}}
 
 // Read sampled image with scalar return type
-// The result type of the SPIR-V instruction should still be a vector of four components
+// The result type of the SPIR-V instruction should still be a vector of four
+// components
 // Arguments: Result Type, Result, Image, Coords
 // CHECK-SPIRV-NEXT: ImageSampleExplicitLod [[PIXELTYPE]] {{[0-9]+}} [[SAMPIMAGEVAR]] {{[0-9]+}}
 
