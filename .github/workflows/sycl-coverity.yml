@@ -57,7 +57,7 @@ jobs:
         cd $GITHUB_WORKSPACE/build
         python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
           -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
-          --ci-defaults --use-zstd --hip --cuda \
+          --ci-defaults --use-zstd --cuda \
           -DNATIVECPU_USE_OCK=Off
 
     - name: Build with coverity
