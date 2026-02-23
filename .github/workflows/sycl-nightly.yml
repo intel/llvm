@@ -150,7 +150,7 @@ jobs:
       toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
 
-  ubuntu2204_test_intel_opencl_cpu:
+  ubuntu2204_test_amd_intel_opencl_cpu:
     needs: [ubuntu2204_build]
     name: E2E OpenCL CPU for Intel with ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
     permissions:
