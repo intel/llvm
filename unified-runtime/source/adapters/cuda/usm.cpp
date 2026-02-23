@@ -96,12 +96,9 @@ urUSMSharedAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
     return umf::umf2urResult(umfErr);
   }
 
-  // Register allocation for cross-device copy detection
-  // Even though CUDA Managed Memory migrates automatically on kernel access,
-  // explicit cross-device copies need cuMemcpyPeerAsync for proper synchronization
-  if (hContext && *ppMem && hDevice) {
-    hContext->registerAllocation(*ppMem, hDevice);
-  }
+  // Do NOT register Managed Memory allocations
+  // CUDA Unified Memory system handles migration automatically.
+  // Manual tracking interferes with automatic page migration.
 
   return UR_RESULT_SUCCESS;
 }
