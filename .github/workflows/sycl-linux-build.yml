@@ -114,7 +114,7 @@ on:
       build_configure_extra_args:
         type: choice
         options:
-          - "--hip --cuda --native_cpu"
+          - "--cuda --native_cpu"
       # Cache properties need to match CC/CXX/CMake opts. Any additional choices
       # would need extra care.
       build_cache_root:
@@ -327,7 +327,7 @@ jobs:
         target_devices: all
         binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
         sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
-        extra_lit_opts: --param sycl_build_targets="spir;nvidia;amd"
+        extra_lit_opts: --param sycl_build_targets="spir;nvidia"
 
     - name: Build E2E tests with NewOffloadModel
       if: |
@@ -342,7 +342,7 @@ jobs:
         target_devices: all
         binaries_artifact: ${{ inputs.e2e_binaries_new_offload_model_artifact }}
         sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
-        extra_lit_opts: --param sycl_build_targets="spir;nvidia;amd" --param enable_new_offload_model=True
+        extra_lit_opts: --param sycl_build_targets="spir;nvidia" --param enable_new_offload_model=True
 
     - name: Build E2E tests with SPIR-V Backend
       if: ${{ inputs.e2e_binaries_spirv_backend_artifact && !cancelled() && steps.build.conclusion == 'success' }}

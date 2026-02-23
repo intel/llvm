@@ -288,9 +288,6 @@ jobs:
           - name: Intel Arc A-Series Graphics system
             runner: '["Linux", "arc"]'
             image_extra_opts: --device=/dev/dri
-          - name: AMD system
-            runner: '["Linux", "amdgpu"]'
-            image_extra_opts: --device=/dev/dri --device=/dev/kfd
           - name: CUDA system
             runner: '["Linux", "cuda"]'
             image_extra_opts: --gpus all
