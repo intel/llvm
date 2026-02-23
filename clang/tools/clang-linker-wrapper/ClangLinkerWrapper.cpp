@@ -720,12 +720,8 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
 /// 'Args' encompasses all arguments required for linking and wrapping device
 /// code and will be parsed to generate options required to be passed into the
 /// sycl-post-link tool.
-/// 'IsDevicePassedWithSyclTargetBackend' indicates whether the device
-/// architecture is already specified through -Xsycl-target-backend=spir64_gen
-/// "-device <arch>" format.
 static Expected<std::vector<module_split::SplitModule>>
-runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args,
-                    bool IsDevicePassedWithSyclTargetBackend) {
+runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
   Expected<std::string> SYCLPostLinkPath =
       findProgram("sycl-post-link", {getMainExecutable("sycl-post-link")});
   if (!SYCLPostLinkPath)
@@ -2297,14 +2293,9 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       SmallVector<StringRef> InputFilesSYCL;
       InputFilesSYCL.emplace_back(*TmpOutputOrErr);
 
-      SmallVector<StringRef, 16> Args;
-      StringRef(CompileLinkOptionsOrErr->first).split(Args, ' ');
-      bool IsDevicePassedWithSyclTargetBackend =
-          std::find(Args.begin(), Args.end(), "-device") != Args.end();
       auto SplitModulesOrErr =
           UseSYCLPostLinkTool
-              ? sycl::runSYCLPostLinkTool(InputFilesSYCL, LinkerArgs,
-                                          IsDevicePassedWithSyclTargetBackend)
+              ? sycl::runSYCLPostLinkTool(InputFilesSYCL, LinkerArgs)
               : sycl::runSYCLSplitLibrary(InputFilesSYCL, LinkerArgs,
                                           *SYCLModuleSplitMode);
       if (!SplitModulesOrErr)

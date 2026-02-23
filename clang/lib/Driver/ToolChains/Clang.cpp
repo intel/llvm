@@ -11608,7 +11608,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       if (!TC->getTriple().isSPIROrSPIRV())
         continue;
       ArgStringList BuildArgs;
-      SmallVector<SmallString<0>> BackendOptVec;
+      SmallVector<SmallString<128>> BackendOptVec;
       SmallString<128> LinkOptString;
 
       // Construct backend options for each target passed via
@@ -11617,12 +11617,13 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
                                         options::OPT_Xsycl_backend)) {
         StringRef Device = "";
         SmallString<128> BackendArgs;
-        // Handle the OPT_Xsycl_backend case
+        // Handle the OPT_Xsycl_backend_EQ case
         if (A->getNumValues() > 1) {
           Device = SYCL::gen::resolveGenDevice(A->getValue());
           if (Device.empty()){
-            // If target is spir64_gen, the device name needs to be extracted
-            // from the arguments.
+            // If the target is spir64_gen, the device name needs to be extracted
+            // from the backend arguments. If the target is spir64_x86_64, the
+            // Device value returned by extractDeviceFromArg will be an empty string.
             Device = SYCL::gen::extractDeviceFromArg(A->getValue(1));
           } else {
             // If target is intel_gpu_*, "-device <arch>"
