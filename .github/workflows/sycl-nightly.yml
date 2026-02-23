@@ -161,7 +161,7 @@ jobs:
       fail-fast: false
       matrix:
         enable_new_offload_model: ['False', 'True']
-        arch: ['gen12', 'arc']
+        arch: ['amdcpu', 'gen12', 'arc']
         include:
           - arch: 'gen12'
             image_options: --privileged --cap-add SYS_ADMIN
