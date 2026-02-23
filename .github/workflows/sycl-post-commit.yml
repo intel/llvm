@@ -39,7 +39,7 @@ jobs:
     with:
       build_cache_root: "/__w/llvm"
       build_cache_suffix: default
-      build_configure_extra_args: --no-assertions --hip --cuda --native_cpu -DSYCL_ENABLE_STACK_PRINTING=ON -DSYCL_LIB_WITH_DEBUG_SYMBOL=ON
+      build_configure_extra_args: --no-assertions --cuda --native_cpu -DSYCL_ENABLE_STACK_PRINTING=ON -DSYCL_LIB_WITH_DEBUG_SYMBOL=ON
 
       toolchain_artifact: sycl_linux_default
       e2e_binaries_spirv_backend_artifact: e2e_bin_spirv_backend

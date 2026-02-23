@@ -40,7 +40,7 @@ jobs:
     secrets: inherit
     with:
       build_cache_root: "/__w/"
-      build_configure_extra_args: '--hip --cuda -DSYCL_BUILD_INFO="Nightly ${{ needs.get_date.outputs.date }}"'
+      build_configure_extra_args: '--cuda -DSYCL_BUILD_INFO="Nightly ${{ needs.get_date.outputs.date }}"'
       build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
 
       retention-days: 90
@@ -57,7 +57,7 @@ jobs:
     with:
       build_cache_root: "/__w/"
       build_cache_suffix: sprod_shared
-      build_configure_extra_args: '--shared-libs --hip --cuda --native_cpu --no-assertions'
+      build_configure_extra_args: '--shared-libs --cuda --native_cpu --no-assertions'
       build_target: all
 
       toolchain_artifact: sycl_linux_sprod_shared
@@ -101,17 +101,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: AMD/HIP
-            runner: '["Linux", "amdgpu"]'
-            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
-            target_devices: hip:gpu
-
-          - name: Preview mode on AMD/HIP
-            runner: '["Linux", "amdgpu"]'
-            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
-            target_devices: hip:gpu
-            extra_lit_opts: --param test-preview-mode=True
-
           - name: NVIDIA/CUDA
             runner: '["Linux", "cuda"]'
             image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
