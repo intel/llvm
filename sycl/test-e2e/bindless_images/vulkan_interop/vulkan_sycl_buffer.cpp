@@ -9,6 +9,7 @@
 // RUN: %{run} %t.out --dmabuf
 // RUN: %{run} %t.out --semaphores --dmabuf
 
+// clang-format off
 /*
   Vulkan/SYCL Buffer Interop Test (USM)
 
@@ -17,13 +18,13 @@
   mapping the VkBuffer memory into SYCL device memory. The imported SYCL device
   memory is then manipulated purely through pointers inside the kernel.
 
-
-  clang++ -fsycl  -o vsb.bin vulkan_sycl_buffer.cpp -lvulkan
-  -I$VULKAN_SDK/include -L$VULKAN_SDK/lib
+  Note that this test just checks the basics.  We have others that push the system harder. 
 
 
-  clang++ -fsycl  -o vsb.exe vulkan_sycl_buffer.cpp -Wno-ignored-attributes
-  -lvulkan-1 -I$VULKAN_SDK/Include -L$VULKAN_SDK/Lib
+  clang++ -fsycl  -o vsb.bin vulkan_sycl_buffer.cpp -lvulkan -I$VULKAN_SDK/include -L$VULKAN_SDK/lib
+
+
+  clang++ -fsycl  -o vsb.exe vulkan_sycl_buffer.cpp -Wno-ignored-attributes -lvulkan-1 -I$VULKAN_SDK/Include -L$VULKAN_SDK/Lib
 
 
 
@@ -41,6 +42,7 @@
     ./vsb.bin --dmabuf              # note dmabuf is Linux only.
     ./vsb.bin --size 1024
 */
+// clang-format on
 
 #include "vulkan_setup.hpp"
 #include <numeric>
@@ -51,91 +53,6 @@
 #include <vector>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
-
-// ---------------------------------------------------------
-// BUFFER HELPERS (Locally modified for Dynamic Handle Type)
-// ---------------------------------------------------------
-
-struct BufferResources {
-  VkBuffer buffer;
-  VkDeviceMemory memory;
-  VkDeviceSize size;
-};
-
-inline BufferResources
-createExportableBuffer(VulkanContext &ctx, VkDeviceSize size,
-                       VkBufferUsageFlags usage,
-                       VkExternalMemoryHandleTypeFlagBits handleType) {
-  VkBufferCreateInfo bufferInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
-  bufferInfo.size = size;
-  bufferInfo.usage = usage;
-  bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-  // External Memory Info
-  VkExternalMemoryBufferCreateInfo extMemInfo = {
-      VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO};
-  extMemInfo.handleTypes = handleType;
-  bufferInfo.pNext = &extMemInfo;
-
-  BufferResources res;
-  res.size = size;
-
-  VK_CHECK(vkCreateBuffer(ctx.device, &bufferInfo, nullptr, &res.buffer));
-
-  VkMemoryRequirements memRequirements;
-  vkGetBufferMemoryRequirements(ctx.device, res.buffer, &memRequirements);
-
-  // Allocation Info
-  VkExportMemoryAllocateInfo exportAllocInfo = {
-      VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO};
-  exportAllocInfo.handleTypes = handleType;
-
-  // Dedicated Allocation (Important for Interop!)
-  VkMemoryDedicatedAllocateInfo dedicatedAllocInfo = {
-      VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO};
-  dedicatedAllocInfo.image = VK_NULL_HANDLE;
-  dedicatedAllocInfo.buffer = res.buffer;
-  dedicatedAllocInfo.pNext = &exportAllocInfo;
-
-  VkMemoryAllocateInfo allocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
-  allocInfo.pNext = &dedicatedAllocInfo;
-  allocInfo.allocationSize = memRequirements.size;
-  allocInfo.memoryTypeIndex =
-      findMemoryType(ctx.physicalDevice, memRequirements.memoryTypeBits,
-                     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-  VK_CHECK(vkAllocateMemory(ctx.device, &allocInfo, nullptr, &res.memory));
-  VK_CHECK(vkBindBufferMemory(ctx.device, res.buffer, res.memory, 0));
-
-  return res;
-}
-
-void cleanupBuffer(VulkanContext &ctx, BufferResources &res) {
-  vkDestroyBuffer(ctx.device, res.buffer, nullptr);
-  vkFreeMemory(ctx.device, res.memory, nullptr);
-}
-
-// ---------------------------------------------------------
-// PLATFORM SPECIFIC GETTERS (Dynamic)
-// ---------------------------------------------------------
-#ifndef _WIN32
-// Replaces generic getMemFd to allow switching between OPAQUE_FD and DMA_BUF
-inline int getExportFd(VulkanContext &ctx, VkDeviceMemory memory,
-                       VkExternalMemoryHandleTypeFlagBits handleType) {
-  VkMemoryGetFdInfoKHR getFdInfo{};
-  getFdInfo.sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR;
-  getFdInfo.memory = memory;
-  getFdInfo.handleType = handleType;
-
-  int fd;
-  auto func =
-      (PFN_vkGetMemoryFdKHR)vkGetDeviceProcAddr(ctx.device, "vkGetMemoryFdKHR");
-  if (!func)
-    throw std::runtime_error("Failed to load vkGetMemoryFdKHR");
-  VK_CHECK(func(ctx.device, &getFdInfo, &fd));
-  return fd;
-}
-#endif
 
 // ---------------------------------------------------------
 // DATA HELPERS
@@ -362,7 +279,7 @@ int main(int argc, char **argv) {
         inHandle, syclexp::external_mem_handle_type::win32_nt_handle,
         bufferSize};
 #else
-    int inFd = getExportFd(vkCtx, inBuf.memory, currentHandleType);
+    int inFd = getMemFd(vkCtx, inBuf.memory, currentHandleType);
     auto syclHandleType = useDmaBuf
                               ? syclexp::external_mem_handle_type::dma_buf
                               : syclexp::external_mem_handle_type::opaque_fd;
@@ -379,7 +296,7 @@ int main(int argc, char **argv) {
         outHandle, syclexp::external_mem_handle_type::win32_nt_handle,
         bufferSize};
 #else
-    int outFd = getExportFd(vkCtx, outBuf.memory, currentHandleType);
+    int outFd = getMemFd(vkCtx, outBuf.memory, currentHandleType);
     syclexp::external_mem_descriptor<syclexp::resource_fd> outDesc{
         outFd, syclHandleType, bufferSize};
 #endif

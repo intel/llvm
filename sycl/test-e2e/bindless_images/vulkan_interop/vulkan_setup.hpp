@@ -41,7 +41,8 @@ const std::vector<const char *> PLATFORM_EXTENSIONS = {
     VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
     VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME,
     VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,
-    VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME};
+    VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME,
+    VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME};
 const auto PLATFORM_MEM_HANDLE_TYPE =
     VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
 const auto PLATFORM_SEM_HANDLE_TYPE =
@@ -51,7 +52,8 @@ const std::vector<const char *> PLATFORM_EXTENSIONS = {
     VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
     VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
     VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,
-    VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME};
+    VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME,
+    VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME};
 const auto PLATFORM_MEM_HANDLE_TYPE =
     VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
 const auto PLATFORM_SEM_HANDLE_TYPE =
@@ -75,6 +77,12 @@ struct ImageResources {
   VkDeviceMemory memory;
   VkDeviceSize allocationSize;
   VkExtent3D extent;
+};
+
+struct BufferResources {
+  VkBuffer buffer;
+  VkDeviceMemory memory;
+  VkDeviceSize size;
 };
 
 #define VK_CHECK(f)                                                            \
@@ -341,8 +349,15 @@ inline VulkanContext createVulkanContext() {
   float queuePriority = 1.0f;
   queueCreateInfo.pQueuePriorities = &queuePriority;
 
+  // Enable timeline semaphore feature (Vulkan 1.2 core)
+  VkPhysicalDeviceTimelineSemaphoreFeatures timelineFeatures{};
+  timelineFeatures.sType =
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES;
+  timelineFeatures.timelineSemaphore = VK_TRUE;
+
   VkDeviceCreateInfo deviceCreateInfo{};
   deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+  deviceCreateInfo.pNext = &timelineFeatures;
   deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
   deviceCreateInfo.queueCreateInfoCount = 1;
 
@@ -432,16 +447,121 @@ inline VkSemaphore createExportableSemaphore(VulkanContext &ctx) {
   return semaphore;
 }
 
+inline VkSemaphore
+createExportableTimelineSemaphore(VulkanContext &ctx,
+                                  uint64_t initialValue = 0) {
+  VkSemaphoreTypeCreateInfo typeInfo{};
+  typeInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+  typeInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+  typeInfo.initialValue = initialValue;
+
+  VkExportSemaphoreCreateInfo exportInfo{};
+  exportInfo.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO;
+  exportInfo.handleTypes = PLATFORM_SEM_HANDLE_TYPE;
+  exportInfo.pNext = &typeInfo;
+
+  VkSemaphoreCreateInfo semaphoreInfo{};
+  semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+  semaphoreInfo.pNext = &exportInfo;
+
+  VkSemaphore semaphore;
+  VK_CHECK(vkCreateSemaphore(ctx.device, &semaphoreInfo, nullptr, &semaphore));
+  return semaphore;
+}
+
+// ---------------------------------------------------------
+// BUFFER HELPERS
+// ---------------------------------------------------------
+
+inline BufferResources createExportableBuffer(
+    VulkanContext &ctx, VkDeviceSize size, VkBufferUsageFlags usage,
+    VkExternalMemoryHandleTypeFlagBits handleType = PLATFORM_MEM_HANDLE_TYPE) {
+  VkExternalMemoryBufferCreateInfo extMemInfo{};
+  extMemInfo.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO;
+  extMemInfo.handleTypes = handleType;
+
+  VkBufferCreateInfo bufferInfo{};
+  bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+  bufferInfo.pNext = &extMemInfo;
+  bufferInfo.size = size;
+  bufferInfo.usage = usage;
+  bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+  BufferResources res;
+  res.size = size;
+  VK_CHECK(vkCreateBuffer(ctx.device, &bufferInfo, nullptr, &res.buffer));
+
+  VkMemoryRequirements memRequirements;
+  vkGetBufferMemoryRequirements(ctx.device, res.buffer, &memRequirements);
+
+  VkExportMemoryAllocateInfo exportAllocInfo{};
+  exportAllocInfo.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO;
+  exportAllocInfo.handleTypes = handleType;
+
+  VkMemoryDedicatedAllocateInfo dedicatedAllocInfo{};
+  dedicatedAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO;
+  dedicatedAllocInfo.buffer = res.buffer;
+  dedicatedAllocInfo.pNext = &exportAllocInfo;
+
+  VkMemoryAllocateInfo allocInfo{};
+  allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+  allocInfo.pNext = &dedicatedAllocInfo;
+  allocInfo.allocationSize = memRequirements.size;
+  allocInfo.memoryTypeIndex =
+      findMemoryType(ctx.physicalDevice, memRequirements.memoryTypeBits,
+                     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+  VK_CHECK(vkAllocateMemory(ctx.device, &allocInfo, nullptr, &res.memory));
+  VK_CHECK(vkBindBufferMemory(ctx.device, res.buffer, res.memory, 0));
+  return res;
+}
+
+inline BufferResources createStagingBuffer(VulkanContext &ctx,
+                                           VkDeviceSize size,
+                                           VkBufferUsageFlags usage) {
+  BufferResources res;
+  res.size = size;
+
+  VkBufferCreateInfo bufferInfo{};
+  bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+  bufferInfo.size = size;
+  bufferInfo.usage = usage;
+  VK_CHECK(vkCreateBuffer(ctx.device, &bufferInfo, nullptr, &res.buffer));
+
+  VkMemoryRequirements req;
+  vkGetBufferMemoryRequirements(ctx.device, res.buffer, &req);
+
+  VkMemoryAllocateInfo allocInfo{};
+  allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+  allocInfo.allocationSize = req.size;
+  allocInfo.memoryTypeIndex =
+      findMemoryType(ctx.physicalDevice, req.memoryTypeBits,
+                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                         VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+  VK_CHECK(vkAllocateMemory(ctx.device, &allocInfo, nullptr, &res.memory));
+  VK_CHECK(vkBindBufferMemory(ctx.device, res.buffer, res.memory, 0));
+  return res;
+}
+
+inline void cleanupBuffer(VulkanContext &ctx, BufferResources &res) {
+  vkDestroyBuffer(ctx.device, res.buffer, nullptr);
+  vkFreeMemory(ctx.device, res.memory, nullptr);
+}
+
 // ---------------------------------------------------------
 // PLATFORM SPECIFIC GETTERS
 // ---------------------------------------------------------
 
 #ifdef _WIN32
-inline HANDLE getMemHandle(VulkanContext &ctx, VkDeviceMemory memory) {
+inline HANDLE
+getMemHandle(VulkanContext &ctx, VkDeviceMemory memory,
+             VkExternalMemoryHandleTypeFlagBits handleType =
+                 VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT) {
   VkMemoryGetWin32HandleInfoKHR getHandleInfo{};
   getHandleInfo.sType = VK_STRUCTURE_TYPE_MEMORY_GET_WIN32_HANDLE_INFO_KHR;
   getHandleInfo.memory = memory;
-  getHandleInfo.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+  getHandleInfo.handleType = handleType;
 
   HANDLE handle;
   auto func = (PFN_vkGetMemoryWin32HandleKHR)vkGetDeviceProcAddr(
@@ -467,8 +587,12 @@ inline HANDLE getSemaphoreHandle(VulkanContext &ctx, VkSemaphore semaphore) {
   return handle;
 }
 
-// Stub for compile compat if you have sloppy ifdefs elsewhere
+// Stubs for compile compat if you have sloppy ifdefs elsewhere
 inline int getMemFd(VulkanContext &ctx, VkDeviceMemory memory) {
+  throw std::runtime_error("getMemFd called on Windows!");
+}
+inline int getMemFd(VulkanContext &ctx, VkDeviceMemory memory,
+                    VkExternalMemoryHandleTypeFlagBits) {
   throw std::runtime_error("getMemFd called on Windows!");
 }
 inline int getSemaphoreFd(VulkanContext &ctx, VkSemaphore semaphore) {
@@ -482,6 +606,23 @@ inline int getMemFd(VulkanContext &ctx, VkDeviceMemory memory) {
   getFdInfo.sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR;
   getFdInfo.memory = memory;
   getFdInfo.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
+
+  int fd;
+  auto func =
+      (PFN_vkGetMemoryFdKHR)vkGetDeviceProcAddr(ctx.device, "vkGetMemoryFdKHR");
+  if (!func)
+    throw std::runtime_error("Failed to load vkGetMemoryFdKHR");
+  VK_CHECK(func(ctx.device, &getFdInfo, &fd));
+  return fd;
+}
+
+// Overload with explicit handle type (for DMA_BUF support)
+inline int getMemFd(VulkanContext &ctx, VkDeviceMemory memory,
+                    VkExternalMemoryHandleTypeFlagBits handleType) {
+  VkMemoryGetFdInfoKHR getFdInfo{};
+  getFdInfo.sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR;
+  getFdInfo.memory = memory;
+  getFdInfo.handleType = handleType;
 
   int fd;
   auto func =
