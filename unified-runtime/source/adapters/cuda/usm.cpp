@@ -80,6 +80,8 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urUSMSharedAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
                  const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t hPool,
                  size_t size, void **ppMem) {
+  // hContext not used - Shared memory doesn't need allocation tracking
+  (void)hContext;
   auto alignment = pUSMDesc ? pUSMDesc->align : 0u;
 
   ScopedContext SC(hDevice);
