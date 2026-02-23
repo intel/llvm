@@ -1581,10 +1581,34 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
       UR_CHECK_ERROR(EventPtr->start());
     }
 
-    // For Managed Memory cross-device, we cannot detect it (not tracked)
-    // Just use cuMemcpyAsync and let CUDA runtime handle it
-    UR_CHECK_ERROR(
-        cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, size, CuStream));
+    // Check memory types to handle Managed Memory correctly
+    CUmemorytype SrcType = CU_MEMORYTYPE_HOST;
+    CUmemorytype DstType = CU_MEMORYTYPE_HOST;
+    cuPointerGetAttribute(&SrcType, CU_POINTER_ATTRIBUTE_MEMORY_TYPE,
+                          (CUdeviceptr)pSrc);
+    cuPointerGetAttribute(&DstType, CU_POINTER_ATTRIBUTE_MEMORY_TYPE,
+                          (CUdeviceptr)pDst);
+
+    // For Managed Memory (CUDA Unified Memory), use prefetch hints
+    // to guide migration before copy
+    if (SrcType == CU_MEMORYTYPE_UNIFIED || DstType == CU_MEMORYTYPE_UNIFIED) {
+      int QueueDevice = hQueue->getDevice()->get();
+
+      // Prefetch pDst to queue's device to enable coherent copy
+      UR_CHECK_ERROR(
+          cuMemPrefetchAsync((CUdeviceptr)pDst, size, QueueDevice, CuStream));
+
+      // Copy the data using regular memcpy
+      // CUDA runtime will handle migration for Managed Memory
+      UR_CHECK_ERROR(
+          cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, size, CuStream));
+    } else {
+      // For Device memory and other types, use regular copy
+      // TODO: Optimize cross-device Device memory copies with cuMemcpyPeerAsync
+      // (requires obtaining CUcontext for both src and dst devices)
+      UR_CHECK_ERROR(
+          cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, size, CuStream));
+    }
 
     if (phEvent) {
       UR_CHECK_ERROR(EventPtr->record());
