@@ -7738,6 +7738,10 @@ ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 ///         pDstImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     /// [in] handle of the queue object
     ur_queue_handle_t hQueue,

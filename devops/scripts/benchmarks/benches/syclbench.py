@@ -151,6 +151,7 @@ class SyclBenchmark(Benchmark):
         ]
 
         command += self.bin_args()
+        env_vars = dict(env_vars) if env_vars else {}
         env_vars.update(self.extra_env_vars())
 
         # no output to stdout, all in outputfile
