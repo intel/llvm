@@ -5305,7 +5305,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       (JA.isHostOffloading(C.getActiveOffloadKinds()) &&
        Args.hasFlag(options::OPT_offload_new_driver,
                     options::OPT_no_offload_new_driver,
-                    C.isOffloadingHostKind(Action::OFK_Cuda)));
+                    C.getActiveOffloadKinds() != Action::OFK_None));
 
   bool IsRDCMode =
       Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc, IsSYCL);
@@ -7645,7 +7645,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.append({"--offload-new-driver", "-foffload-via-llvm"});
   } else if (Args.hasFlag(options::OPT_offload_new_driver,
                           options::OPT_no_offload_new_driver,
-                          C.isOffloadingHostKind(Action::OFK_Cuda))) {
+                          C.getActiveOffloadKinds() != Action::OFK_None)) {
     CmdArgs.push_back("--offload-new-driver");
   }
 
@@ -11399,8 +11399,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       OPT_flto,
       OPT_flto_partitions_EQ,
       OPT_flto_EQ,
+      OPT_hipspv_pass_plugin_EQ,
       OPT_use_spirv_backend};
-
   const llvm::DenseSet<unsigned> LinkerOptions{OPT_mllvm, OPT_Zlinker_input};
   auto ShouldForwardForToolChain = [&](Arg *A, const ToolChain &TC) {
     // Don't forward -mllvm to toolchains that don't support LLVM.
@@ -11470,8 +11470,10 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         LinkerArgs.emplace_back("-lompdevice");
 
       // For SPIR-V some functions will be defined by the runtime so allow
-      // unresolved symbols.
-      if (TC->getTriple().isSPIRV())
+      // unresolved symbols in `spirv-link`. `spirv-link` isn't called in LTO
+      // mode so restrict this flag to normal compilation.
+      if (TC->getTriple().isSPIRV() && !C.getDriver().isUsingLTO() &&
+          !C.getDriver().isUsingOffloadLTO())
         LinkerArgs.emplace_back("--allow-partial-linkage");
 
       // Forward all of these to the appropriate toolchain.
