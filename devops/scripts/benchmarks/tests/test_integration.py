@@ -230,12 +230,12 @@ class TestE2E(unittest.TestCase):
         )
         self._checkCase(
             "torch_benchmark_l0 KernelSubmitMultiQueue kernelWGCount 4096, kernelWGSize 512, kernelsPerQueue 20, measureCompletion 1, useProfiling 0 CPU count",
-            "KernelSubmitMultiQueue large, CPU count",
+            "KernelSubmitMultiQueue large with measure completion, CPU count",
             {"pytorch", "L0"},
         )
         self._checkCase(
             "torch_benchmark_l0 KernelSubmitSlmSize kernelBatchSize 512, measureCompletion 1, slmNum 1, useProfiling 0",
-            "KernelSubmitSlmSize small",
+            "KernelSubmitSlmSize small with measure completion",
             {"pytorch", "L0"},
         )
         self._checkCase(
@@ -262,7 +262,7 @@ class TestE2E(unittest.TestCase):
         )
         self._checkCase(
             "torch_benchmark_sycl KernelSubmitMultiQueue kernelWGCount 512, kernelWGSize 256, kernelsPerQueue 10, measureCompletion 1, useProfiling 0",
-            "KernelSubmitMultiQueue medium",
+            "KernelSubmitMultiQueue medium with measure completion",
             {"pytorch", "SYCL"},
         )
         self._checkCase(
@@ -272,7 +272,7 @@ class TestE2E(unittest.TestCase):
         )
         self._checkCase(
             "torch_benchmark_sycl KernelSubmitSlmSize kernelBatchSize 512, measureCompletion 1, slmNum 16384, useProfiling 0 CPU count",
-            "KernelSubmitSlmSize large, CPU count",
+            "KernelSubmitSlmSize large with measure completion, CPU count",
             {"pytorch", "SYCL"},
         )
         self._checkCase(
@@ -299,12 +299,12 @@ class TestE2E(unittest.TestCase):
         )
         self._checkCase(
             "torch_benchmark_syclpreview KernelSubmitMultiQueue kernelWGCount 256, kernelWGSize 128, kernelsPerQueue 4, measureCompletion 1, useProfiling 0",
-            "KernelSubmitMultiQueue small",
+            "KernelSubmitMultiQueue small with measure completion",
             {"pytorch", "SYCL"},
         )
         self._checkCase(
             "torch_benchmark_syclpreview KernelSubmitSlmSize kernelBatchSize 512, measureCompletion 1, slmNum 1024, useProfiling 0",
-            "KernelSubmitSlmSize medium",
+            "KernelSubmitSlmSize medium with measure completion",
             {"pytorch", "SYCL"},
         )
         self._checkCase(
@@ -332,6 +332,7 @@ class TestE2E(unittest.TestCase):
             "KernelSubmitGraphSingleQueue large",
             {"pytorch", "SYCL"},
         )
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="SYCL's benchmark test framework")
