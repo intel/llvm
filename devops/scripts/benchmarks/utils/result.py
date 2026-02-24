@@ -1,4 +1,4 @@
-# Copyright (C) 2024-2025 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -11,12 +11,10 @@ from datetime import datetime
 @dataclass_json
 @dataclass
 class Platform:
-    timestamp: str = ""
     os: str = ""
     python: str = ""
     cpu_count: int = 0
     cpu_info: str = ""
-    gpu_count: int = 0
     gpu_info: list[str] = field(default_factory=list)
     gpu_driver_version: str = ""  # Add GPU driver version
     gcc_version: str = ""
@@ -39,7 +37,6 @@ class Result:
     git_url: str = ""
     git_hash: str = ""
     # values below should not be set by the benchmark
-    name: str = ""
     lower_is_better: bool = True
     suite: str = "Unknown"
 

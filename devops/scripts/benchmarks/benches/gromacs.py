@@ -178,6 +178,7 @@ class GromacsBenchmark(Benchmark):
     ) -> list[Result]:
         model_dir = self.grappa_dir / self.model
 
+        env_vars = dict(env_vars) if env_vars else {}
         env_vars.update({"SYCL_CACHE_PERSISTENT": "1"})
 
         if self.option == "graphs":

@@ -73,6 +73,7 @@ on:
         options:
           - 'level_zero:gpu'
           - 'level_zero_v2:gpu'
+        default: 'level_zero_v2:gpu'
       exit_on_failure:
         description: Fail benchmark script on any error. If true, limit number of iterations to just test correctness.
         type: choice

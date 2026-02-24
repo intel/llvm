@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2023-2024 Corporation
+ * Copyright (C) 2023-2026 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
  * Exceptions. See LICENSE.TXT

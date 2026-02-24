@@ -7209,9 +7209,6 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
   if (!LinkerInputs.empty()) {
     if (!UseNewOffloadingDriver)
       OffloadBuilder->makeHostLinkAction(LinkerInputs);
-    types::ID LinkType(types::TY_Image);
-    if (Args.hasArg(options::OPT_fsycl_link_EQ))
-      LinkType = types::TY_Archive;
     Action *LA;
     // Check if this Linker Job should emit a static library.
     if (ShouldEmitStaticLibrary(Args)) {

@@ -239,7 +239,7 @@ template <> ze_structure_type_t getZeStructureType<ze_driver_properties_t>() {
   return ZE_STRUCTURE_TYPE_DRIVER_PROPERTIES;
 }
 template <> ze_structure_type_t getZeStructureType<ze_device_properties_t>() {
-  return ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+  return ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES_1_2;
 }
 template <>
 ze_structure_type_t getZeStructureType<ze_device_p2p_properties_t>() {
