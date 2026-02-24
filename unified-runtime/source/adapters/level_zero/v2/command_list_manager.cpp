@@ -879,8 +879,8 @@ ur_result_t ur_command_list_manager::appendUSMAllocHelper(
   auto device = (type == UR_USM_TYPE_HOST) ? nullptr : hDevice.get();
 
   ur_event_handle_t originAllocEvent = nullptr;
-  auto asyncAlloc = pPool->allocateEnqueued(hContext.get(), Queue, true, device,
-                                            nullptr, type, size);
+  auto asyncAlloc = pPool->allocateEnqueued(
+      hContext.get(), Queue, Queue->isInOrder(), device, type, size);
   if (!asyncAlloc) {
     auto Ret =
         pPool->allocate(hContext.get(), device, nullptr, type, size, ppMem);
@@ -891,7 +891,9 @@ ur_result_t ur_command_list_manager::appendUSMAllocHelper(
     std::tie(*ppMem, originAllocEvent) = *asyncAlloc;
   }
 
-  waitListView.addEvent(originAllocEvent);
+  if (originAllocEvent) {
+    waitListView.addEvent(originAllocEvent);
+  }
 
   ur_command_t commandType = UR_COMMAND_FORCE_UINT32;
   switch (type) {
@@ -930,8 +932,6 @@ ur_result_t ur_command_list_manager::appendUSMFreeExp(
     ur_queue_t_ *Queue, ur_usm_pool_handle_t, void *pMem,
     wait_list_view &waitListView, ur_event_handle_t phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendUSMFreeExp");
-  assert(phEvent);
-
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_ENQUEUE_USM_FREE_EXP);
   auto [pWaitEvents, numWaitEvents, _] = waitListView;
 
@@ -961,8 +961,16 @@ ur_result_t ur_command_list_manager::appendUSMFreeExp(
                (getZeCommandList(), numWaitEvents, pWaitEvents));
   }
 
-  ZE2UR_CALL(zeCommandListAppendSignalEvent,
-             (getZeCommandList(), zeSignalEvent));
+  if (zeSignalEvent) {
+    ZE2UR_CALL(zeCommandListAppendSignalEvent,
+               (getZeCommandList(), zeSignalEvent));
+  }
+
+  // If event is specified, it's also going to be inserted
+  // into the async pool, so it needs to be retained.
+  if (phEvent) {
+    phEvent->retain();
+  }
 
   // Insert must be done after the signal event is appended.
   usmPool->asyncPool.insert(pMem, size, phEvent, Queue);
@@ -1174,16 +1182,16 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpNew(
     const ur_kernel_launch_ext_properties_t *launchPropList,
     wait_list_view &waitListView, ur_event_handle_t phEvent) {
 
+  ur_result_t checkResult = kernelLaunchChecks(hKernel, workDim);
+  if (checkResult != UR_RESULT_SUCCESS) {
+    return checkResult;
+  }
+
   if (numArgs != hKernel->getCommonProperties().numKernelArgs) {
     setErrorMessage("Wrong number of kernel arguments",
                     UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX,
                     static_cast<int32_t>(ZE_RESULT_ERROR_INVALID_ARGUMENT));
     return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
-  }
-
-  ur_result_t checkResult = kernelLaunchChecks(hKernel, workDim);
-  if (checkResult != UR_RESULT_SUCCESS) {
-    return checkResult;
   }
 
   // It is needed in case of UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE

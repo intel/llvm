@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2023-2025 Intel Corporation
+ * Copyright (C) 2023-2026 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
  * Exceptions.
@@ -10,6 +10,8 @@
  *
  * @file ur_valddi.cpp
  *
+ * NOTE: This file is auto-generated. To edit this file, modify
+ *       unified-runtime/scripts/templates/ur_valddi.cpp.mako.
  */
 #include "ur_leak_check.hpp"
 #include "ur_validation_layer.hpp"
@@ -7947,6 +7949,12 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
 
     if (pDstImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pDstImageDesc->type)
       return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
+
+    if (phEventWaitList == NULL && numEventsInWaitList > 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+
+    if (phEventWaitList != NULL && numEventsInWaitList == 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
 
     if (phEventWaitList != NULL && numEventsInWaitList > 0) {
       for (uint32_t i = 0; i < numEventsInWaitList; ++i) {

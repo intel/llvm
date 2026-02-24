@@ -19,6 +19,13 @@
 
 #include <cmath>
 #include <cuda.h>
+
+// CUDA 13 headers expose cuMemAdvise as the v2 entrypoint; for older CUDA
+// versions, alias cuMemAdvise to cuMemAdvise_v2 explicitly.
+#if CUDA_VERSION < 13000
+#define cuMemAdvise cuMemAdvise_v2
+#endif
+
 #include <ur/ur.hpp>
 
 ur_result_t enqueueEventsWait(ur_queue_handle_t CommandQueue, CUstream Stream,
@@ -47,14 +54,9 @@ ur_result_t enqueueEventsWait(ur_queue_handle_t CommandQueue, CUstream Stream,
   }
 }
 
-#if CUDA_VERSION >= 13000
-using CuLocationType = CUmemLocation;
-#else
-using CuLocationType = CUdevice;
-#endif
 void setCuMemAdvise(CUdeviceptr DevPtr, size_t Size,
                     ur_usm_advice_flags_t URAdviceFlags,
-                    CuLocationType Location) {
+                    CUmemLocation Location) {
   std::unordered_map<ur_usm_advice_flags_t, CUmem_advise>
       URToCUMemAdviseDeviceFlagsMap = {
           {UR_USM_ADVICE_FLAG_SET_READ_MOSTLY, CU_MEM_ADVISE_SET_READ_MOSTLY},
@@ -89,13 +91,9 @@ void setCuMemAdvise(CUdeviceptr DevPtr, size_t Size,
 
   for (auto &FlagPair : URToCUMemAdviseHostFlagsMap) {
     if (URAdviceFlags & FlagPair.first) {
-#if CUDA_VERSION >= 13000
       CUmemLocation LocationHost;
-      LocationHost.id = 0; // ignored with HOST_NUMA_CURRENT
-      LocationHost.type = CU_MEM_LOCATION_TYPE_HOST_NUMA_CURRENT;
-#else
-      int LocationHost = CU_DEVICE_CPU;
-#endif
+      LocationHost.type = CU_MEM_LOCATION_TYPE_HOST;
+      LocationHost.id = 0;
       UR_CHECK_ERROR(cuMemAdvise(DevPtr, Size, FlagPair.second, LocationHost));
     }
   }
@@ -1748,13 +1746,9 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
       return UR_RESULT_SUCCESS;
     }
 
-#if CUDA_VERSION >= 13000
     CUmemLocation Location;
     Location.id = hQueue->getDevice()->get();
     Location.type = CU_MEM_LOCATION_TYPE_DEVICE;
-#else
-    int Location = hQueue->getDevice()->get();
-#endif
 
     if (advice & UR_USM_ADVICE_FLAG_DEFAULT) {
       UR_CHECK_ERROR(cuMemAdvise((CUdeviceptr)pMem, size,

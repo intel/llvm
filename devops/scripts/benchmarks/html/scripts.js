@@ -1,4 +1,4 @@
-// Copyright (C) 2024-2025 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -1939,7 +1939,7 @@ function displaySelectedRunsPlatformInfo() {
         .map(runName => {
             const run = loadedBenchmarkRuns.find(r => r.name === runName);
             if (run && run.platform) {
-                return { name: runName, platform: run.platform };
+                return { name: runName, platform: run.platform, date: run.date };
             }
             return null;
         })
@@ -1959,7 +1959,7 @@ function displaySelectedRunsPlatformInfo() {
         const platform = runData.platform;
         const detailsContainer = document.createElement('div');
         detailsContainer.className = 'platform-details-compact';
-        detailsContainer.innerHTML = createPlatformDetailsHTML(platform);
+        detailsContainer.innerHTML = createPlatformDetailsHTML(platform, runData.date);
         runSection.appendChild(detailsContainer);
         container.appendChild(runSection);
     });
@@ -1967,9 +1967,9 @@ function displaySelectedRunsPlatformInfo() {
 
 // Platform Information Functions
 
-function createPlatformDetailsHTML(platform) {
-    const formattedTimestamp = platform.timestamp ?
-        new Date(platform.timestamp).toLocaleString('en-US', {
+function createPlatformDetailsHTML(platform, run_date) {
+    const formattedTimestamp = run_date ?
+        new Date(run_date).toLocaleString('en-US', {
             year: 'numeric',
             month: 'short',
             day: 'numeric',
