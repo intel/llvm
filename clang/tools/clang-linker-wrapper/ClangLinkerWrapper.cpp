@@ -808,16 +808,17 @@ runSYCLPostLinkLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
 
   sycl_post_link::PostLinkSettings Settings;
   Settings.SplitMode = SplitMode;
-  bool SpecConstsSupported = (!Triple.isNVPTX() && !Triple.isAMDGCN() &&
-                              !Triple.isSPIRAOT() && !Triple.isNativeCPU());
-  Settings.SpecConstMode = SpecConstsSupported
-                               ? SpecConstantsPass::HandlingMode::native
-                               : SpecConstantsPass::HandlingMode::emulation;
 
-  bool IsAOT = Triple.isNVPTX() || Triple.isAMDGCN() || Triple.isSPIRAOT();
+  bool IsAOTTarget =
+      Triple.isNVPTX() || Triple.isAMDGCN() || Triple.isSPIRAOT();
+  bool UseEmulationSpecConstMode = IsAOTTarget || Triple.isNativeCPU();
+  Settings.SpecConstMode = UseEmulationSpecConstMode
+                               ? SpecConstantsPass::HandlingMode::emulation
+                               : SpecConstantsPass::HandlingMode::native;
+
   if (Args.hasFlag(OPT_sycl_add_default_spec_consts_image,
                    OPT_no_sycl_add_default_spec_consts_image, false) &&
-      IsAOT)
+      IsAOTTarget)
     Settings.GenerateModuleDescWithDefaultSpecConsts = true;
 
   if (DryRun) {

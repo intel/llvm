@@ -171,8 +171,7 @@ llvm::sycl_post_link::performPostLinkProcessing(
   module_split::ModuleSplitterSettings SplitSettings;
   SplitSettings.Mode = Settings.SplitMode;
   if (Error E = module_split::splitSYCLModule(std::move(M), SplitSettings,
-                                              PostSplitCallback);
-      !E)
+                                              PostSplitCallback))
     return createStringError(
         formatv("sycl post link processing failed. {0}", E));
 
