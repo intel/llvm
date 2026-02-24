@@ -63,8 +63,6 @@ jobs:
             drivers:
               - devops/dependencies.json
               - devops/scripts/install_drivers.sh
-            devigccfg:
-              - devops/dependencies-igc-dev.json
             benchmarks:
               - 'devops/scripts/benchmarks/**'
               - 'devops/actions/run-tests/benchmark/**'

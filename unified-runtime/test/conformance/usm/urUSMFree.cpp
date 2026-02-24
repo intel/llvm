@@ -1,14 +1,16 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include "ur_api.h"
+#include "gtest/gtest.h"
 #include <uur/fixtures.h>
 #include <uur/known_failure.h>
 
-using urUSMFreeTest = uur::urQueueTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urUSMFreeTest);
+using urUSMFreeTest = uur::urMultiQueueTypeTest;
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(urUSMFreeTest);
 
 TEST_P(urUSMFreeTest, SuccessDeviceAlloc) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
@@ -118,7 +120,8 @@ struct urUSMFreeDuringExecutionTest : uur::urKernelExecutionTest {
   uint32_t data = 42;
   size_t wg_offset = 0;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urUSMFreeDuringExecutionTest);
+
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(urUSMFreeDuringExecutionTest);
 
 TEST_P(urUSMFreeDuringExecutionTest, SuccessHost) {
   // Causes an abort in liboffload
@@ -137,7 +140,7 @@ TEST_P(urUSMFreeDuringExecutionTest, SuccessHost) {
   ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, allocation));
   ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(data), nullptr, &data));
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &wg_offset,
-                                       &array_size, nullptr, 0, nullptr, 0,
+                                       &array_size, nullptr, nullptr, 0,
                                        nullptr, nullptr));
   ASSERT_SUCCESS(urUSMFree(context, allocation));
   ASSERT_SUCCESS(urQueueFinish(queue));
@@ -161,7 +164,7 @@ TEST_P(urUSMFreeDuringExecutionTest, SuccessDevice) {
   ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(data), nullptr, &data));
 
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &wg_offset,
-                                       &array_size, nullptr, 0, nullptr, 0,
+                                       &array_size, nullptr, nullptr, 0,
                                        nullptr, nullptr));
   ASSERT_SUCCESS(urUSMFree(context, allocation));
   ASSERT_SUCCESS(urQueueFinish(queue));
@@ -185,7 +188,7 @@ TEST_P(urUSMFreeDuringExecutionTest, SuccessShared) {
   ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, allocation));
   ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(data), nullptr, &data));
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &wg_offset,
-                                       &array_size, nullptr, 0, nullptr, 0,
+                                       &array_size, nullptr, nullptr, 0,
                                        nullptr, nullptr));
   ASSERT_SUCCESS(urUSMFree(context, allocation));
   ASSERT_SUCCESS(urQueueFinish(queue));

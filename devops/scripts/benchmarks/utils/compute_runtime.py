@@ -1,4 +1,4 @@
-# Copyright (C) 2024-2025 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -56,7 +56,7 @@ class ComputeRuntime:
         project = GitProject(repo, commit, Path(options.workdir), "gmmlib")
         rebuilt = False
         if project.needs_rebuild():
-            project.configure()
+            project.configure(extra_args=["-DRUN_TEST_SUITE=0"])
             project.build()
             project.install()
             rebuilt = True
@@ -94,15 +94,14 @@ class ComputeRuntime:
             # Repos with commit hashes as refs can't be cloned shallowly.
             GitProject(
                 "https://github.com/intel/vc-intrinsics",
-                "9d255266e1df8f1dc5d11e1fbb03213acfaa4fc7",
+                "v0.24.2",
                 Path(options.workdir),
                 "vc-intrinsics",
                 no_suffix_src=True,
-                shallow_clone=False,
             )
             llvm_project = GitProject(
                 "https://github.com/llvm/llvm-project",
-                "llvmorg-15.0.7",
+                "llvmorg-16.0.6",
                 Path(options.workdir),
                 "llvm-project",
                 no_suffix_src=True,
@@ -110,21 +109,21 @@ class ComputeRuntime:
             llvm_projects = llvm_project.src_dir / "llvm" / "projects"
             GitProject(
                 "https://github.com/intel/opencl-clang",
-                "ocl-open-150",
+                "ocl-open-160",
                 llvm_projects,
                 "opencl-clang",
                 no_suffix_src=True,
             )
             GitProject(
                 "https://github.com/KhronosGroup/SPIRV-LLVM-Translator",
-                "llvm_release_150",
+                "llvm_release_160",
                 llvm_projects,
                 "llvm-spirv",
                 no_suffix_src=True,
             )
             GitProject(
                 "https://github.com/KhronosGroup/SPIRV-Tools.git",
-                "f289d047f49fb60488301ec62bafab85573668cc",
+                "28a883ba4c67f58a9540fb0651c647bb02883622",
                 Path(options.workdir),
                 "SPIRV-Tools",
                 no_suffix_src=True,
@@ -132,7 +131,7 @@ class ComputeRuntime:
             )
             GitProject(
                 "https://github.com/KhronosGroup/SPIRV-Headers.git",
-                "0e710677989b4326ac974fd80c5308191ed80965",
+                "01e0577914a75a2569c846778c2f93aa8e6feddd",
                 Path(options.workdir),
                 "SPIRV-Headers",
                 no_suffix_src=True,
@@ -211,7 +210,6 @@ class ComputeRuntime:
 
             log.info("Building Compute Runtime...")
             extra_config_args = [
-                "-DNEO_ENABLE_i915_PRELIM_DETECTION=1",
                 "-DNEO_ENABLE_I915_PRELIM_DETECTION=1",
                 "-DNEO_SKIP_UNIT_TESTS=1",
                 f"-DGMM_DIR={self.gmmlib}",

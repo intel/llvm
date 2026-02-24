@@ -9,6 +9,7 @@
 #include <detail/device_impl.hpp>
 #include <detail/jit_compiler.hpp>
 #include <detail/platform_impl.hpp>
+#include <detail/scheduler/scheduler.hpp>
 #include <detail/ur_info_code.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
@@ -22,14 +23,14 @@ namespace detail {
 /// Constructs a SYCL device instance using the provided
 /// UR device instance.
 device_impl::device_impl(ur_device_handle_t Device, platform_impl &Platform,
-                         device_impl::private_tag)
+                         device_impl::private_tag, size_t idx)
     : MDevice(Device), MPlatform(Platform),
       // No need to set MRootDevice when MAlwaysRootDevice is true
       MRootDevice(Platform.MAlwaysRootDevice
                       ? nullptr
                       : get_info_impl<UR_DEVICE_INFO_PARENT_DEVICE>()),
       // TODO catch an exception and put it to list of asynchronous exceptions:
-      MCache{*this} {
+      MCache{*this}, MIndexWithinPlatform(idx) {
   // Interoperability Constructor already calls DeviceRetain in
   // urDeviceCreateWithNativeHandle.
   getAdapter().call<UrApiKind::urDeviceRetain>(MDevice);
@@ -62,48 +63,6 @@ cl_device_id device_impl::get() const {
 platform device_impl::get_platform() const {
   return createSyclObjFromImpl<platform>(MPlatform);
 }
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::platform::version::return_type
-device_impl::get_backend_info<info::platform::version>() const {
-  if (getBackend() != backend::opencl) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::platform::version info descriptor can "
-                          "only be queried with an OpenCL backend");
-  }
-  return get_platform().get_info<info::platform::version>();
-}
-#endif
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::device::version::return_type
-device_impl::get_backend_info<info::device::version>() const {
-  if (getBackend() != backend::opencl) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::device::version info descriptor can only "
-                          "be queried with an OpenCL backend");
-  }
-  return get_info<info::device::version>();
-}
-#endif
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::device::backend_version::return_type
-device_impl::get_backend_info<info::device::backend_version>() const {
-  if (getBackend() != backend::ext_oneapi_level_zero) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::device::backend_version info descriptor "
-                          "can only be queried with a Level Zero backend");
-  }
-  return "";
-  // Currently The Level Zero backend does not define the value of this
-  // information descriptor and implementations are encouraged to return the
-  // empty string as per specification.
-}
-#endif
 
 bool device_impl::has_extension(const std::string &ExtensionName) const {
   if (ExtensionName.empty())
@@ -171,8 +130,17 @@ std::vector<device> device_impl::create_sub_devices(
   // incremented. Each device_impl wrapper increments the reference count and
   // decrements it on destruction (shared ownership). So, we have to decrement
   // the reference count once here to release temporary handles.
-  for (ur_device_handle_t &SubDevice : SubDevices)
-    Adapter.call<UrApiKind::urDeviceRelease>(SubDevice);
+#ifdef _WIN32
+  // On Windows OpenCL backend, releasing the sub-devices here leads to a crash
+  // during late shutdown. There have been issues observed with premature
+  // unloading of opencl related dlls and seems like that might be the case. So,
+  // intentionally leak sub-devices on Windows OpenCL backend for now.
+  // TODO: Remove this workaround.
+  if (getAdapter().getBackend() != backend::opencl)
+#endif
+    for (ur_device_handle_t &SubDevice : SubDevices)
+      Adapter.call<UrApiKind::urDeviceRelease>(SubDevice);
+
   return res;
 }
 
@@ -509,61 +477,26 @@ device_impl::getImmediateProgressGuarantee(
   return forward_progress_guarantee::weakly_parallel;
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-#define EXPORT_GET_INFO(PARAM)                                                 \
-  template <>                                                                  \
-  __SYCL_EXPORT PARAM::return_type device_impl::get_info<PARAM>() const {      \
-    return get_info_abi_workaround<PARAM>();                                   \
+void device_impl::wait() {
+  // Firstly, all associated queues should be cleaned through of all
+  // not-yet-enqueued commands and host_task.
+  {
+    std::lock_guard<std::mutex> Lock(MQueuesMutex);
+    for (const std::weak_ptr<queue_impl> &WQueue : MQueues) {
+      std::shared_ptr<queue_impl> Queue = WQueue.lock();
+      assert(Queue && "Queue should never be dangling in the list of queues "
+                      "associated with the device!");
+      Queue->waitForRuntimeLevelCmdsAndClear();
+    }
   }
 
-// clang-format off
-EXPORT_GET_INFO(ext::intel::info::device::device_id)
-EXPORT_GET_INFO(ext::intel::info::device::pci_address)
-EXPORT_GET_INFO(ext::intel::info::device::gpu_eu_count)
-EXPORT_GET_INFO(ext::intel::info::device::gpu_eu_simd_width)
-EXPORT_GET_INFO(ext::intel::info::device::gpu_slices)
-EXPORT_GET_INFO(ext::intel::info::device::gpu_subslices_per_slice)
-EXPORT_GET_INFO(ext::intel::info::device::gpu_eu_count_per_subslice)
-EXPORT_GET_INFO(ext::intel::info::device::gpu_hw_threads_per_eu)
-EXPORT_GET_INFO(ext::intel::info::device::max_mem_bandwidth)
-EXPORT_GET_INFO(ext::intel::info::device::uuid)
-EXPORT_GET_INFO(ext::intel::info::device::free_memory)
-EXPORT_GET_INFO(ext::intel::info::device::memory_clock_rate)
-EXPORT_GET_INFO(ext::intel::info::device::memory_bus_width)
-EXPORT_GET_INFO(ext::intel::info::device::max_compute_queue_indices)
-EXPORT_GET_INFO(ext::intel::esimd::info::device::has_2d_block_io_support)
-EXPORT_GET_INFO(ext::intel::info::device::current_clock_throttle_reasons)
-EXPORT_GET_INFO(ext::intel::info::device::fan_speed)
-EXPORT_GET_INFO(ext::intel::info::device::min_power_limit)
-EXPORT_GET_INFO(ext::intel::info::device::max_power_limit)
+  // Then we synchronize the entire device.
+  getAdapter().call<detail::UrApiKind::urDeviceWaitExp>(getHandleRef());
+}
 
-EXPORT_GET_INFO(ext::codeplay::experimental::info::device::supports_fusion)
-EXPORT_GET_INFO(ext::codeplay::experimental::info::device::max_registers_per_work_group)
-
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_global_work_groups)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_work_groups<1>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_work_groups<2>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_work_groups<3>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::work_group_progress_capabilities<ext::oneapi::experimental::execution_scope::root_group>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::sub_group_progress_capabilities<ext::oneapi::experimental::execution_scope::root_group>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::sub_group_progress_capabilities<ext::oneapi::experimental::execution_scope::work_group>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::work_item_progress_capabilities<ext::oneapi::experimental::execution_scope::root_group>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::work_item_progress_capabilities<ext::oneapi::experimental::execution_scope::work_group>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::work_item_progress_capabilities<ext::oneapi::experimental::execution_scope::sub_group>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::architecture)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::matrix_combinations)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::image_row_pitch_align)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_image_linear_row_pitch)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_image_linear_width)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_image_linear_height)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::mipmap_max_anisotropy)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::component_devices)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::composite_device)
-EXPORT_GET_INFO(ext::oneapi::info::device::num_compute_units)
-// clang-format on
-
-#undef EXPORT_GET_INFO
-#endif
+void device_impl::throwAsynchronous() {
+  Scheduler::getInstance().flushAsyncExceptions();
+}
 
 } // namespace detail
 } // namespace _V1

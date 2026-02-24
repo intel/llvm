@@ -9,7 +9,6 @@
 #pragma once
 
 #include <sycl/detail/impl_utils.hpp>
-#include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/detail/type_traits.hpp>
 
 #include <ur_api.h>
@@ -18,6 +17,7 @@
 #include <iterator>
 #include <memory>
 #include <queue>
+#include <string_view>
 #include <tuple>
 #include <variant>
 #include <vector>
@@ -30,9 +30,11 @@ namespace detail {
 class CGExecKernel;
 class queue_impl;
 class RTDeviceBinaryImage;
+class event_impl;
+using EventImplPtr = std::shared_ptr<event_impl>;
 
 const RTDeviceBinaryImage *
-retrieveKernelBinary(queue_impl &Queue, KernelNameStrRefT KernelName,
+retrieveKernelBinary(queue_impl &Queue, std::string_view KernelName,
                      CGExecKernel *CGKernel = nullptr);
 
 template <typename SyclTy, typename... Iterators> class variadic_iterator {
@@ -107,6 +109,10 @@ public:
   template <typename IterTy>
   iterator_range(IterTy Begin, IterTy End, size_t Size)
       : Begin(Begin), End(End), Size(Size) {}
+
+  template <typename IterTy>
+  iterator_range(IterTy Begin, IterTy End)
+      : iterator_range(Begin, End, std::distance(Begin, End)) {}
 
   iterator_range() : iterator_range(iterator{}, iterator{}, 0) {}
 
@@ -189,6 +195,13 @@ private:
     return std::none_of(R.begin(), R.end(), std::forward<Pred>(P));
   }
 };
+
+// Collect UR events from EventImpls and filter out some of them in case of
+// in order queue. Does blocking enqueue if event is expected to produce ur
+// event but has empty native handle.
+std::vector<ur_event_handle_t>
+getUrEventsBlocking(std::vector<EventImplPtr> &Events, bool HasEventMode,
+                    queue_impl &queue, bool isHostTask);
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

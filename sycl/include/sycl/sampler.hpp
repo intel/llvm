@@ -63,6 +63,8 @@ class sampler_impl;
 ///
 /// \ingroup sycl_api
 class __SYCL_EXPORT __SYCL_SPECIAL_CLASS __SYCL_TYPE(sampler) sampler {
+  friend sycl::detail::ImplUtils;
+
 public:
   sampler(coordinate_normalization_mode normalizationMode,
           addressing_mode addressingMode, filtering_mode filteringMode,
@@ -119,9 +121,6 @@ public:
 private:
 #else
   std::shared_ptr<detail::sampler_impl> impl;
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
 #endif
   template <typename DataT, int Dimensions, sycl::access::mode AccessMode,
             sycl::access::target AccessTarget,

@@ -109,9 +109,10 @@ struct SPIRVTypeImageDescriptor;
 
 class SPIRVModule {
 public:
-  typedef std::map<SPIRVCapabilityKind, SPIRVCapability *> SPIRVCapMap;
+  typedef std::map<SPIRVCapabilityKind, std::unique_ptr<SPIRVCapability>>
+      SPIRVCapMap;
   typedef std::map<std::pair<SPIRVId, SPIRVCapabilityKind>,
-                   SPIRVConditionalCapabilityINTEL *>
+                   std::unique_ptr<SPIRVConditionalCapabilityINTEL>>
       SPIRVConditionalCapMap;
   typedef std::vector<SPIRVConditionalEntryPointINTEL *>
       SPIRVConditionalEntryPointVec;
@@ -288,8 +289,6 @@ public:
   virtual SPIRVEntry *addTypeStructContinuedINTEL(unsigned NumMembers) = 0;
   virtual void closeStructType(SPIRVTypeStruct *, bool) = 0;
   virtual SPIRVTypeVector *addVectorType(SPIRVType *, SPIRVWord) = 0;
-  virtual SPIRVTypeJointMatrixINTEL *
-  addJointMatrixINTELType(SPIRVType *, std::vector<SPIRVValue *>) = 0;
   virtual SPIRVTypeCooperativeMatrixKHR *
   addCooperativeMatrixKHRType(SPIRVType *, std::vector<SPIRVValue *>) = 0;
   virtual SPIRVTypeTaskSequenceINTEL *addTaskSequenceINTELType() = 0;
@@ -494,7 +493,8 @@ public:
                                              SPIRVId TheMatrix,
                                              SPIRVBasicBlock *BB) = 0;
   virtual SPIRVInstruction *addUnaryInst(Op, SPIRVType *, SPIRVValue *,
-                                         SPIRVBasicBlock *) = 0;
+                                         SPIRVBasicBlock *,
+                                         SPIRVInstruction * = nullptr) = 0;
   virtual SPIRVInstruction *addVariable(SPIRVType *, SPIRVType *, bool,
                                         SPIRVLinkageTypeKind, SPIRVValue *,
                                         const std::string &,

@@ -17,8 +17,8 @@ target triple = "spir64-unknown-unknown"
 ; CHECK: Constant [[#Int8]] [[#]] 1
 ; CHECK: Constant [[#Int8]] [[#]] 0
 
-; CHECK-DAG: Constant [[#Int32]] [[#]] 0
 ; CHECK-DAG: Constant [[#Int32]] [[#]] 1
+; CHECK-DAG: Constant [[#Int32]] [[#]] 0
 
 ; CHECK-LLVM: %conv17.i = sext i8 1 to i64
 

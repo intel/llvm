@@ -17,7 +17,7 @@ using device_has_all =
              aspect::ext_intel_gpu_eu_simd_width, aspect::ext_intel_gpu_slices,
              aspect::ext_intel_gpu_subslices_per_slice,
              aspect::ext_intel_gpu_eu_count_per_subslice,
-             aspect::ext_intel_max_mem_bandwidth, aspect::ext_intel_mem_channel,
+             aspect::ext_intel_max_mem_bandwidth,
              aspect::usm_atomic_host_allocations,
              aspect::usm_atomic_shared_allocations, aspect::atomic64,
              aspect::ext_intel_device_info_uuid, aspect::ext_oneapi_srgb,
@@ -132,7 +132,6 @@ int main() {
   singleAspectDeviceHasChecks<aspect::ext_intel_gpu_subslices_per_slice>();
   singleAspectDeviceHasChecks<aspect::ext_intel_gpu_eu_count_per_subslice>();
   singleAspectDeviceHasChecks<aspect::ext_intel_max_mem_bandwidth>();
-  singleAspectDeviceHasChecks<aspect::ext_intel_mem_channel>();
   singleAspectDeviceHasChecks<aspect::usm_atomic_host_allocations>();
   singleAspectDeviceHasChecks<aspect::usm_atomic_shared_allocations>();
   singleAspectDeviceHasChecks<aspect::atomic64>();
@@ -153,7 +152,7 @@ int main() {
 
   static_assert(is_property_value<device_has_all>::value);
   static_assert(std::is_same_v<device_has_key, device_has_all::key_t>);
-  static_assert(device_has_all::value.size() == 35);
+  static_assert(device_has_all::value.size() == 34);
   static_assert(device_has_all::value[0] == aspect::cpu);
   static_assert(device_has_all::value[1] == aspect::gpu);
   static_assert(device_has_all::value[2] == aspect::accelerator);
@@ -179,26 +178,25 @@ int main() {
                 aspect::ext_intel_gpu_eu_count_per_subslice);
   static_assert(device_has_all::value[20] ==
                 aspect::ext_intel_max_mem_bandwidth);
-  static_assert(device_has_all::value[21] == aspect::ext_intel_mem_channel);
-  static_assert(device_has_all::value[22] ==
+  static_assert(device_has_all::value[21] ==
                 aspect::usm_atomic_host_allocations);
-  static_assert(device_has_all::value[23] ==
+  static_assert(device_has_all::value[22] ==
                 aspect::usm_atomic_shared_allocations);
-  static_assert(device_has_all::value[24] == aspect::atomic64);
-  static_assert(device_has_all::value[25] ==
+  static_assert(device_has_all::value[23] == aspect::atomic64);
+  static_assert(device_has_all::value[24] ==
                 aspect::ext_intel_device_info_uuid);
-  static_assert(device_has_all::value[26] == aspect::ext_oneapi_srgb);
-  static_assert(device_has_all::value[27] == aspect::ext_oneapi_native_assert);
-  static_assert(device_has_all::value[28] == aspect::host_debuggable);
-  static_assert(device_has_all::value[29] ==
+  static_assert(device_has_all::value[25] == aspect::ext_oneapi_srgb);
+  static_assert(device_has_all::value[26] == aspect::ext_oneapi_native_assert);
+  static_assert(device_has_all::value[27] == aspect::host_debuggable);
+  static_assert(device_has_all::value[28] ==
                 aspect::ext_intel_gpu_hw_threads_per_eu);
-  static_assert(device_has_all::value[30] ==
+  static_assert(device_has_all::value[29] ==
                 aspect::ext_oneapi_cuda_async_barrier);
-  static_assert(device_has_all::value[31] == aspect::ext_intel_free_memory);
-  static_assert(device_has_all::value[32] == aspect::ext_intel_device_id);
-  static_assert(device_has_all::value[33] ==
+  static_assert(device_has_all::value[30] == aspect::ext_intel_free_memory);
+  static_assert(device_has_all::value[31] == aspect::ext_intel_device_id);
+  static_assert(device_has_all::value[32] ==
                 aspect::ext_intel_memory_clock_rate);
-  static_assert(device_has_all::value[34] ==
+  static_assert(device_has_all::value[33] ==
                 aspect::ext_intel_memory_bus_width);
   return 0;
 }

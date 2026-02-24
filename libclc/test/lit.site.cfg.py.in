@@ -6,7 +6,6 @@ import sys
 config.llvm_src_root = "@LLVM_SOURCE_DIR@"
 config.llvm_obj_root = "@LLVM_BINARY_DIR@"
 config.llvm_tools_dir = "@LLVM_TOOLS_DIR@"
-config.llvm_libs_dir = "@LLVM_LIBS_DIR@"
 config.llvm_shlib_dir = "@SHLIBDIR@"
 config.llvm_plugin_ext = "@LLVM_PLUGIN_EXT@"
 config.lit_tools_dir = "@LLVM_LIT_TOOLS_DIR@"
@@ -15,8 +14,8 @@ config.target_triple = "@LLVM_TARGET_TRIPLE@"
 config.host_arch = "@HOST_ARCH@"
 config.python_executable = "@PYTHON_EXECUTABLE@"
 config.libclc_root = "@LIBCLC_SOURCE_DIR@"
-config.libclc_binary_dir = "@LIBCLC_BINARY_DIR@"
 config.libclc_targets_to_test = "@LIBCLC_TARGET_TO_TEST@".split(";")
+config.libclc_output_dir = "@LIBCLC_OUTPUT_LIBRARY_DIR@"
 config.libclc_pertarget_test_dir = "@LIBCLC_PERTARGET_TEST_DIR@"
 
 import lit.llvm

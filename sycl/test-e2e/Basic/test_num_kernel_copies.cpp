@@ -23,7 +23,8 @@ int main(int argc, char **argv) {
 
   kernel<0> krn0;
   q.parallel_for(sycl::range<1>{1}, krn0);
-  assert(copy_count == 1);
+  // The kernel is copied on the scheduler-based path only
+  assert(copy_count == 0);
   assert(move_count == 0);
   copy_count = 0;
 

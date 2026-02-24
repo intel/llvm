@@ -119,5 +119,5 @@
 
 // TARGET-TRIPLE-GPU: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
 // TARGET-TRIPLE-GPU: "-D__SYCL_TARGET_INTEL_GPU_[[MAC_STR]]__"
-// CLANG-OFFLOAD-PACKAGER-GPU: clang-offload-packager{{.*}} "--image={{.*}}triple=spir64_gen-unknown-unknown,arch=[[DEV_STR]],kind=sycl"
-// CLANG-OFFLOAD-PACKAGER-GPU-OPTS: clang-offload-packager{{.*}} "--image={{.*}}triple=spir64_gen-unknown-unknown,arch=[[DEV_STR]],kind=sycl{{.*}}"
+// CLANG-OFFLOAD-PACKAGER-GPU: llvm-offload-binary{{.*}} "--image={{.*}}triple=spir64_gen-unknown-unknown,arch=[[DEV_STR]],kind=sycl"
+// CLANG-OFFLOAD-PACKAGER-GPU-OPTS: llvm-offload-binary{{.*}} "--image={{.*}}triple=spir64_gen-unknown-unknown,arch=[[DEV_STR]],kind=sycl{{.*}}"

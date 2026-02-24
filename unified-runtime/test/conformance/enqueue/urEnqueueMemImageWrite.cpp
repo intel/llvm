@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -11,7 +11,7 @@ struct urEnqueueMemImageWriteTest : uur::urMemImageQueueTest {
     UUR_RETURN_ON_FATAL_FAILURE(uur::urMemImageQueueTest::SetUp());
   }
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueMemImageWriteTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(urEnqueueMemImageWriteTest);
 
 TEST_P(urEnqueueMemImageWriteTest, Success1D) {
   std::vector<uint32_t> input(width * 4, 42);

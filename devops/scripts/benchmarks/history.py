@@ -1,4 +1,4 @@
-# Copyright (C) 2024-2025 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -58,8 +58,8 @@ class BenchmarkHistory:
             except IndexError:
                 return ""
 
-        baseline_drop_after = options.archive_baseline_days * 3
-        pr_drop_after = options.archive_pr_days * 3
+        baseline_drop_after = options.archive_baseline_days * 2
+        pr_drop_after = options.archive_pr_days * 2
         baseline_cutoff_date = datetime.now(timezone.utc) - timedelta(
             days=baseline_drop_after
         )
@@ -67,7 +67,7 @@ class BenchmarkHistory:
         pr_cutoff_date = datetime.now(timezone.utc) - timedelta(days=pr_drop_after)
         log.debug(f"PR cutoff date: {pr_cutoff_date}")
 
-        # Filter out files that exceed archiving criteria three times the specified days
+        # Filter out files that exceed archiving criteria two times the specified days
         def is_file_too_old(file_path: Path) -> bool:
             try:
                 if file_path.stem.startswith("Baseline_"):
@@ -141,7 +141,7 @@ class BenchmarkHistory:
 
         if options.git_commit_override is None or options.github_repo_override is None:
             if options.detect_versions.sycl:
-                log.info(f"Auto-detecting sycl version...")
+                log.info("Auto-detecting sycl version...")
                 github_repo, git_hash = DetectVersion.instance().get_dpcpp_git_info()
             else:
                 git_hash, github_repo = git_info_from_path(
@@ -155,15 +155,13 @@ class BenchmarkHistory:
 
         # Check if RUNNER_NAME environment variable has been declared.
         #
-        # Github runners obfusicate hostnames, thus running socket.gethostname()
+        # Github runners obfuscate hostnames, thus running socket.gethostname()
         # twice produces two different hostnames. Since github runners always
         # define a RUNNER_NAME variable, use RUNNER_NAME instead if it exists:
         hostname = os.getenv("RUNNER_NAME")
         if hostname is None:
             hostname = socket.gethostname()
         else:
-            # Ensure RUNNER_NAME has not been tampered with:
-            # TODO is this overkill?
             Validate.runner_name(
                 hostname,
                 throw=ValueError("Illegal characters found in specified RUNNER_NAME."),
@@ -173,7 +171,7 @@ class BenchmarkHistory:
         if options.build_compute_runtime:
             compute_runtime = options.compute_runtime_tag
         elif options.detect_versions.compute_runtime:
-            log.info(f"Auto-detecting compute_runtime version...")
+            log.info("Auto-detecting compute_runtime version...")
             detect_res = DetectVersion.instance()
             compute_runtime = detect_res.get_compute_runtime_ver()
             if detect_res.get_compute_runtime_ver_cached() is None:
@@ -183,8 +181,14 @@ class BenchmarkHistory:
         else:
             compute_runtime = "unknown"
 
+        log.debug(f"Compute runtime version read: {compute_runtime}")
+        log.debug(f"Sycl repository info read: {github_repo}, ref: {git_hash}")
+
         # Get platform information
         platform_info = get_platform_info()
+        if platform_info.gpu_info is None:
+            log.warning("GPU information detection failed.")
+            platform_info.gpu_info = []
 
         return BenchmarkRun(
             name=name,

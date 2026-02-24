@@ -1,4 +1,4 @@
-# Copyright (C) 2024-2025 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -28,7 +28,8 @@ class VelocityBench(Suite):
         return "https://github.com/oneapi-src/Velocity-Bench/"
 
     def git_hash(self) -> str:
-        return "b22215c16f789100449c34bf4eaa3fb178983d69"
+        # 8 May, 2025
+        return "2b1479123ea3300062921228b99192eb3747904f"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -50,9 +51,9 @@ class VelocityBench(Suite):
             Easywave(self),
             QuickSilver(self),
             # SobelFilter(self), # FIXME: configure fails, OpenCV not present
-            DLCifar(self),
-            DLMnist(self),
-            SVM(self),
+            # DLCifar(self), # FIXME: verification failed, SIGSEV
+            # DLMnist(self), # FIXME: verification failed, SIGSEV
+            # SVM(self), # FIXME: verification failed, SIGSEV
         ]
 
 
@@ -106,6 +107,10 @@ class VelocityBase(Benchmark):
         return []
 
     def setup(self):
+        if options.offline:
+            log.info(f"Rebuilding Velocity {self.bench_name} skipped")
+            return
+
         self.download_deps()
         if not self.benchmark_bin.is_file():
             self.configure()
@@ -155,6 +160,7 @@ class VelocityBase(Benchmark):
         run_trace: TracingType = TracingType.NONE,
         force_trace: bool = False,
     ) -> list[Result]:
+        env_vars = dict(env_vars) if env_vars else {}
         env_vars.update(self.extra_env_vars())
 
         command = [
@@ -181,9 +187,6 @@ class VelocityBase(Benchmark):
                 git_hash=self.suite.git_hash(),
             )
         ]
-
-    def teardown(self):
-        return
 
 
 class Hashtable(VelocityBase):

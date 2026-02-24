@@ -1,9 +1,6 @@
 // RUN: %{build} -o %t1.out
 // RUN: %{run} %t1.out
 
-// UNSUPPORTED: igc-dev
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17008
-
 #include "imf_utils.hpp"
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/math.hpp>

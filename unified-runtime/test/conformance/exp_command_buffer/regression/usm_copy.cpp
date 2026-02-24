@@ -1,10 +1,11 @@
-// Copyright (C) 2025 Intel Corporation
+// Copyright (C) 2025-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "../fixtures.h"
+#include "uur/fixtures.h"
 
 // UR reproducer for SYCL-Graph E2E test "RecordReplay/usm_copy_in_order.cpp"
 // Note that the kernel code is different, in that this test uses the
@@ -76,7 +77,9 @@ struct urCommandBufferUSMCopyInOrderTest
   std::array<void *, 4> device_ptrs = {nullptr, nullptr, nullptr, nullptr};
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urCommandBufferUSMCopyInOrderTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(
+    urCommandBufferUSMCopyInOrderTest);
+
 TEST_P(urCommandBufferUSMCopyInOrderTest, Success) {
   // https://github.com/intel/llvm/issues/19604
   UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
@@ -86,7 +89,7 @@ TEST_P(urCommandBufferUSMCopyInOrderTest, Success) {
   // D[0] = 42 * 1 + 2
   // D[0] = 44
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                       &global_offset, &global_size, nullptr, 0,
+                                       &global_offset, &global_size, nullptr,
                                        nullptr, 0, nullptr, nullptr));
 
   // command-buffer sync point used to enforce linear dependencies when

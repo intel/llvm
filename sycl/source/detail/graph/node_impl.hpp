@@ -297,8 +297,6 @@ public:
       return createCGCopy<sycl::detail::CGCopyToDeviceGlobal>();
     case sycl::detail::CGType::CopyFromDeviceGlobal:
       return createCGCopy<sycl::detail::CGCopyFromDeviceGlobal>();
-    case sycl::detail::CGType::ReadWriteHostPipe:
-      return createCGCopy<sycl::detail::CGReadWriteHostPipe>();
     case sycl::detail::CGType::CopyImage:
       return createCGCopy<sycl::detail::CGCopyImage>();
     case sycl::detail::CGType::SemaphoreSignal:
@@ -701,9 +699,6 @@ private:
             static_cast<sycl::detail::CGMemset2DUSM *>(MCommandGroup.get());
         Stream << "Dst: " << Memset2DUSM->getDst() << "\\n";
       }
-      break;
-    case sycl::detail::CGType::ReadWriteHostPipe:
-      Stream << "CGReadWriteHostPipe \\n";
       break;
     case sycl::detail::CGType::CopyToDeviceGlobal:
       Stream << "CGCopyToDeviceGlobal \\n";

@@ -117,6 +117,7 @@ public:
   enum SubArchType {
     NoSubArch,
 
+    ARMSubArch_v9_7a,
     ARMSubArch_v9_6a,
     ARMSubArch_v9_5a,
     ARMSubArch_v9_4a,
@@ -154,6 +155,7 @@ public:
 
     AArch64SubArch_arm64e,
     AArch64SubArch_arm64ec,
+    AArch64SubArch_lfi,
 
     KalimbaSubArch_v3,
     KalimbaSubArch_v4,
@@ -249,7 +251,10 @@ public:
     AMDPAL,     // AMD PAL Runtime
     HermitCore, // HermitCore Unikernel/Multikernel
     Hurd,       // GNU/Hurd
-    WASI,       // Experimental WebAssembly OS
+    WASI,       // Deprecated alias of WASI 0.1; in the future will be WASI 1.0.
+    WASIp1,     // WASI 0.1
+    WASIp2,     // WASI 0.2
+    WASIp3,     // WASI 0.3
     Emscripten,
     ShaderModel, // DirectX ShaderModel
     LiteOS,
@@ -286,6 +291,7 @@ public:
     MuslF32,
     MuslSF,
     MuslX32,
+    MuslWALI,
     LLVM,
 
     MSVC,
@@ -561,14 +567,28 @@ public:
     return getOSVersion() < VersionTuple(Major, Minor, Micro);
   }
 
+  bool isOSVersionGE(unsigned Major, unsigned Minor = 0,
+                     unsigned Micro = 0) const {
+    return !isOSVersionLT(Major, Minor, Micro);
+  }
+
   bool isOSVersionLT(const Triple &Other) const {
     return getOSVersion() < Other.getOSVersion();
+  }
+
+  bool isOSVersionGE(const Triple &Other) const {
+    return getOSVersion() >= Other.getOSVersion();
   }
 
   /// Comparison function for checking OS X version compatibility, which handles
   /// supporting skewed version numbering schemes used by the "darwin" triples.
   LLVM_ABI bool isMacOSXVersionLT(unsigned Major, unsigned Minor = 0,
                                   unsigned Micro = 0) const;
+
+  bool isMacOSXVersionGE(unsigned Major, unsigned Minor = 0,
+                         unsigned Micro = 0) const {
+    return !isMacOSXVersionLT(Major, Minor, Micro);
+  }
 
   /// Is this a Mac OS X triple. For legacy reasons, we support both "darwin"
   /// and "osx" as OS X triples.
@@ -750,7 +770,8 @@ public:
 
   /// Tests whether the OS is WASI.
   bool isOSWASI() const {
-    return getOS() == Triple::WASI;
+    return getOS() == Triple::WASI || getOS() == Triple::WASIp1 ||
+           getOS() == Triple::WASIp2 || getOS() == Triple::WASIp3;
   }
 
   /// Tests whether the OS is Emscripten.
@@ -762,7 +783,7 @@ public:
   bool isOSGlibc() const {
     return (getOS() == Triple::Linux || getOS() == Triple::KFreeBSD ||
             getOS() == Triple::Hurd) &&
-           !isAndroid();
+           !isAndroid() && !isMusl() && getEnvironment() != Triple::PAuthTest;
   }
 
   /// Tests whether the OS is AIX.
@@ -807,6 +828,12 @@ public:
     return getObjectFormat() == Triple::DXContainer;
   }
 
+  /// Tests whether the target uses WALI Wasm
+  bool isWALI() const {
+    return getArch() == Triple::wasm32 && isOSLinux() &&
+           getEnvironment() == Triple::MuslWALI;
+  }
+
   /// Tests whether the target is the PS4 platform.
   bool isPS4() const {
     return getArch() == Triple::x86_64 &&
@@ -849,6 +876,7 @@ public:
            getEnvironment() == Triple::MuslF32 ||
            getEnvironment() == Triple::MuslSF ||
            getEnvironment() == Triple::MuslX32 ||
+           getEnvironment() == Triple::MuslWALI ||
            getEnvironment() == Triple::OpenHOS || isOSLiteOS();
   }
 
@@ -931,6 +959,12 @@ public:
     return getArch() == Triple::arm || getArch() == Triple::armeb;
   }
 
+  /// Tests whether the target is LFI.
+  bool isLFI() const {
+    return getArch() == Triple::aarch64 &&
+           getSubArch() == Triple::AArch64SubArch_lfi;
+  }
+
   /// Tests whether the target supports the EHABI exception
   /// handling standard.
   bool isTargetEHABICompatible() const {
@@ -943,7 +977,8 @@ public:
             getEnvironment() == Triple::GNUEABIHF ||
             getEnvironment() == Triple::GNUEABIHFT64 ||
             getEnvironment() == Triple::OpenHOS ||
-            getEnvironment() == Triple::MuslEABIHF || isAndroid()) &&
+            getEnvironment() == Triple::MuslEABIHF || isOSFuchsia() ||
+            isAndroid()) &&
            isOSBinFormatELF() && !isOSNetBSD();
   }
 

@@ -1,4 +1,4 @@
-# Copyright (C) 2024-2025 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -8,6 +8,7 @@ import csv
 from pathlib import Path
 
 from .base import Benchmark, Suite, TracingType
+from utils.logger import log
 from utils.result import Result
 from options import options
 from git_project import GitProject
@@ -24,6 +25,7 @@ class SyclBench(Suite):
         return "https://github.com/unisa-hpc/sycl-bench.git"
 
     def git_hash(self) -> str:
+        # 21 Feb, 2025
         return "31fc70be6266193c4ba60eb1fe3ce26edee4ca5b"
 
     def setup(self) -> None:
@@ -149,6 +151,7 @@ class SyclBenchmark(Benchmark):
         ]
 
         command += self.bin_args()
+        env_vars = dict(env_vars) if env_vars else {}
         env_vars.update(self.extra_env_vars())
 
         # no output to stdout, all in outputfile
@@ -180,9 +183,6 @@ class SyclBenchmark(Benchmark):
 
     def name(self):
         return f"{self.suite.name()} {self.test}"
-
-    def teardown(self):
-        return
 
 
 # multi benchmarks

@@ -144,6 +144,7 @@ class GBench(Benchmark):
         all_names = self.get_names_of_benchmarks_to_be_run(command, env_vars)
 
         command += self.bin_args()
+        env_vars = dict(env_vars) if env_vars else {}
         env_vars.update(self.extra_env_vars())
 
         results = []
@@ -203,9 +204,6 @@ class GBench(Benchmark):
                 raise ValueError(f"Error parsing output: {e}")
 
         return results
-
-    def teardown(self):
-        return
 
 
 class GBenchPreloaded(GBench):

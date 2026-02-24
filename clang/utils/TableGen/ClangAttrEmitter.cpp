@@ -130,7 +130,7 @@ static std::string ReadPCHRecord(StringRef type) {
       .EndsWith("Decl *", "Record.readDeclAs<" + type.drop_back().str() + ">()")
       .Case("TypeSourceInfo *", "Record.readTypeSourceInfo()")
       .Case("Expr *", "Record.readExpr()")
-      .Case("IdentifierInfo *", "Record.readIdentifier()")
+      .Case("const IdentifierInfo *", "Record.readIdentifier()")
       .Case("StringRef", "Record.readString()")
       .Case("ParamIdx", "ParamIdx::deserialize(Record.readInt())")
       .Case("OMPTraitInfo *", "Record.readOMPTraitInfo()")
@@ -152,7 +152,7 @@ static std::string WritePCHRecord(StringRef type, StringRef name) {
              .Case("TypeSourceInfo *",
                    "AddTypeSourceInfo(" + name.str() + ");\n")
              .Case("Expr *", "AddStmt(" + name.str() + ");\n")
-             .Case("IdentifierInfo *",
+             .Case("const IdentifierInfo *",
                    "AddIdentifierRef(" + name.str() + ");\n")
              .Case("StringRef", "AddString(" + name.str() + ");\n")
              .Case("ParamIdx", "push_back(" + name.str() + ".serialize());\n")
@@ -341,7 +341,7 @@ namespace {
         return ((subject == list) || ...);
       };
 
-      if (IsOneOf(type, "IdentifierInfo *", "Expr *"))
+      if (IsOneOf(type, "const IdentifierInfo *", "Expr *"))
         return "!get" + getUpperName().str() + "()";
       if (IsOneOf(type, "TypeSourceInfo *"))
         return "!get" + getUpperName().str() + "Loc()";
@@ -357,7 +357,7 @@ namespace {
       if (type == "FunctionDecl *")
         OS << "\" << get" << getUpperName()
            << "()->getNameInfo().getAsString() << \"";
-      else if (type == "IdentifierInfo *")
+      else if (type == "const IdentifierInfo *")
         // Some non-optional (comma required) identifier arguments can be the
         // empty string but are then recorded as a nullptr.
         OS << "\" << (get" << getUpperName() << "() ? get" << getUpperName()
@@ -376,7 +376,7 @@ namespace {
       if (StringRef(type).ends_with("Decl *")) {
         OS << "    OS << \" \";\n";
         OS << "    dumpBareDeclRef(SA->get" << getUpperName() << "());\n";
-      } else if (type == "IdentifierInfo *") {
+      } else if (type == "const IdentifierInfo *") {
         // Some non-optional (comma required) identifier arguments can be the
         // empty string but are then recorded as a nullptr.
         OS << "    if (SA->get" << getUpperName() << "())\n"
@@ -1372,8 +1372,7 @@ namespace {
   class VariadicIdentifierArgument : public VariadicArgument {
   public:
     VariadicIdentifierArgument(const Record &Arg, StringRef Attr)
-      : VariadicArgument(Arg, Attr, "IdentifierInfo *")
-    {}
+        : VariadicArgument(Arg, Attr, "const IdentifierInfo *") {}
   };
 
   class VariadicStringArgument : public VariadicArgument {
@@ -1482,7 +1481,7 @@ createArgument(const Record &Arg, StringRef Attr,
     Ptr = std::make_unique<SimpleArgument>(
         Arg, Attr, (Arg.getValueAsDef("Kind")->getName() + "Decl *").str());
   else if (ArgName == "IdentifierArgument")
-    Ptr = std::make_unique<SimpleArgument>(Arg, Attr, "IdentifierInfo *");
+    Ptr = std::make_unique<SimpleArgument>(Arg, Attr, "const IdentifierInfo *");
   else if (ArgName == "DefaultBoolArgument")
     Ptr = std::make_unique<DefaultSimpleArgument>(
         Arg, Attr, "bool", Arg.getValueAsBit("Default"));
@@ -2736,7 +2735,6 @@ static void emitAttributes(const RecordKeeper &Records, raw_ostream &OS,
     assert(!Supers.empty() && "Forgot to specify a superclass for the attr");
     std::string SuperName;
     bool Inheritable = false;
-    bool HLSLSemantic = false;
     for (const Record *R : reverse(Supers)) {
       if (R->getName() != "TargetSpecificAttr" &&
           R->getName() != "LanguageOptionsSpecificAttr" &&
@@ -2744,8 +2742,6 @@ static void emitAttributes(const RecordKeeper &Records, raw_ostream &OS,
         SuperName = R->getName().str();
       if (R->getName() == "InheritableAttr")
         Inheritable = true;
-      if (R->getName() == "HLSLSemanticAttr")
-        HLSLSemantic = true;
     }
 
     if (Header)
@@ -3069,8 +3065,6 @@ static void emitAttributes(const RecordKeeper &Records, raw_ostream &OS,
            << (R.getValueAsBit("InheritEvenIfAlreadyPresent") ? "true"
                                                               : "false");
       }
-      if (HLSLSemantic)
-        OS << ", " << (R.getValueAsBit("SemanticIndexable") ? "true" : "false");
       OS << ")\n";
 
       for (auto const &ai : Args) {
@@ -3288,7 +3282,7 @@ static const AttrClassDescriptor AttrClassDescriptors[] = {
     {"INHERITABLE_PARAM_OR_STMT_ATTR", "InheritableParamOrStmtAttr"},
     {"PARAMETER_ABI_ATTR", "ParameterABIAttr"},
     {"HLSL_ANNOTATION_ATTR", "HLSLAnnotationAttr"},
-    {"HLSL_SEMANTIC_ATTR", "HLSLSemanticAttr"}};
+    {"HLSL_SEMANTIC_ATTR", "HLSLSemanticBaseAttr"}};
 
 static void emitDefaultDefine(raw_ostream &OS, StringRef name,
                               const char *superName) {
@@ -5092,6 +5086,26 @@ void EmitClangAttrParsedAttrKinds(const RecordKeeper &Records,
   OS << "  }\n";
   OS << "  return AttributeCommonInfo::UnknownAttribute;\n"
      << "}\n";
+}
+
+// Emits Sema calls for type dependent attributes
+void EmitClangAttrIsTypeDependent(const RecordKeeper &Records,
+                                  raw_ostream &OS) {
+  emitSourceFileHeader("Attribute is type dependent", OS, Records);
+
+  OS << "void checkAttrIsTypeDependent(Decl *D, const Attr *A) {\n";
+  OS << "  switch (A->getKind()) {\n";
+  OS << "  default:\n";
+  OS << "    break;\n";
+  for (const auto *A : Records.getAllDerivedDefinitions("Attr")) {
+    if (A->getValueAsBit("IsTypeDependent")) {
+      OS << "  case attr::" << A->getName() << ":\n";
+      OS << "    ActOn" << A->getName() << "Attr(D, A);\n";
+      OS << "    break;\n";
+    }
+  }
+  OS << "  }\n";
+  OS << "}\n";
 }
 
 // Emits the code to dump an attribute.

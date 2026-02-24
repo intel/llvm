@@ -12,9 +12,9 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.spv.bc
 ; RUN: llvm-dis < %t.spv.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
-; CHECK-SPIRV-DAG: Name [[#SimpleF:]] "lifetime_simple"
-; CHECK-SPIRV-DAG: Name [[#SizedF:]] "lifetime_sized"
-; CHECK-SPIRV-DAG: Name [[#GenericF:]] "lifetime_generic"
+; CHECK-SPIRV-DAG: EntryPoint [[#]] [[#SimpleF:]] "lifetime_simple"
+; CHECK-SPIRV-DAG: EntryPoint [[#]] [[#SizedF:]] "lifetime_sized"
+; CHECK-SPIRV-DAG: EntryPoint [[#]] [[#GenericF:]] "lifetime_generic"
 ; CHECK-SPIRV-DAG: TypeStruct [[#StructTy:]] [[#]]
 ; CHECK-SPIRV-DAG: TypePointer [[#PrivatePtrTy:]] 7 [[#StructTy]]
 

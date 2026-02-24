@@ -1,4 +1,6 @@
 // REQUIRES: windows
+// REQUIRES-INTEL-DRIVER: win: 101.8247
+//
 // RUN: %{build} -o %t.out %threads_lib
 //
 // Since this is a multi-threaded application enable memory tracking and

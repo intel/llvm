@@ -63,10 +63,10 @@
 
 // TARGET-TRIPLE-CPU: clang{{.*}} "-triple" "spir64_x86_64-unknown-unknown"
 // TARGET-TRIPLE-CPU: "-D__SYCL_TARGET_INTEL_X86_64__"
-// CLANG-OFFLOAD-PACKAGER-CPU: clang-offload-packager{{.*}} "--image={{.*}}triple=spir64_x86_64-unknown-unknown,arch=[[DEV_STR]],kind=sycl"
+// CLANG-OFFLOAD-PACKAGER-CPU: llvm-offload-binary{{.*}} "--image={{.*}}triple=spir64_x86_64-unknown-unknown,arch=[[DEV_STR]],kind=sycl"
 
 // TARGET-TRIPLE-DEFAULT: clang{{.*}} "-triple" "spir64-unknown-unknown"
-// CLANG-OFFLOAD-PACKAGER-DEFAULT: clang-offload-packager{{.*}} "--image={{.*}}triple=spir64-unknown-unknown,arch=generic,kind=sycl{{.*}}"
+// CLANG-OFFLOAD-PACKAGER-DEFAULT: llvm-offload-binary{{.*}} "--image={{.*}}triple=spir64-unknown-unknown,arch=generic,kind=sycl{{.*}}"
 
 // Tests for handling a incorrect architecture.
 //

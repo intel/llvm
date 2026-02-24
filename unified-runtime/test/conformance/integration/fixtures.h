@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -11,16 +11,9 @@
 
 namespace uur {
 
-struct IntegrationQueueTestWithParam
-    : uur::urKernelExecutionTestWithParam<ur_queue_flag_t> {
+struct IntegrationQueueTest : uur::urKernelExecutionTest {
   void SetUp() override {
-    UUR_RETURN_ON_FATAL_FAILURE(
-        uur::urKernelExecutionTestWithParam<ur_queue_flag_t>::SetUp());
-
-    QueueFlags = getParam();
-    ur_queue_properties_t queue_properties = {
-        UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr, QueueFlags};
-    ASSERT_SUCCESS(urQueueCreate(context, device, &queue_properties, &Queue));
+    UUR_RETURN_ON_FATAL_FAILURE(uur::urKernelExecutionTest::SetUp());
   }
 
   void TearDown() override {
@@ -28,28 +21,25 @@ struct IntegrationQueueTestWithParam
       ASSERT_SUCCESS(urEventRelease(Event));
     }
 
-    UUR_RETURN_ON_FATAL_FAILURE(
-        uur::urKernelExecutionTestWithParam<ur_queue_flag_t>::TearDown());
+    UUR_RETURN_ON_FATAL_FAILURE(uur::urKernelExecutionTest::TearDown());
   }
 
   void submitBarrierIfNeeded(std::vector<ur_event_handle_t> &(Events)) {
-    if (QueueFlags == UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
-      ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrier(Queue, Events.size(),
+    if (getQueueMode() == UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
+      ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, Events.size(),
                                                     Events.data(), nullptr));
       AllEvents.insert(AllEvents.end(), Events.begin(), Events.end());
     }
   }
 
   void submitBarrierIfNeeded(ur_event_handle_t Event) {
-    if (QueueFlags == UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
-      ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrier(Queue, 1, &Event, nullptr));
+    if (getQueueMode() == UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
+      ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 1, &Event, nullptr));
       AllEvents.push_back(Event);
     }
   }
 
   std::vector<ur_event_handle_t> AllEvents;
-  ur_queue_flags_t QueueFlags{};
-  ur_queue_handle_t Queue{};
   static constexpr size_t ArraySize = 100;
   static constexpr uint32_t InitialValue = 100;
 
@@ -57,14 +47,15 @@ struct IntegrationQueueTestWithParam
       const ::testing::TestParamInfo<std::tuple<DeviceTuple, ur_queue_flag_t>>
           &info) {
     auto device = std::get<0>(info.param).device;
-    auto param = std::get<1>(info.param);
+    auto queueMode = std::get<1>(info.param);
 
     std::stringstream ss;
-    if (param == 0) {
+    if (queueMode == 0) {
       ss << "IN_ORDER_QUEUE";
-    }
-    if (param == UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
+    } else if (queueMode == UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
       ss << "OUT_OF_ORDER_QUEUE";
+    } else {
+      ss << queueMode;
     }
 
     return uur::GetPlatformAndDeviceName(device) + "__" + ss.str();

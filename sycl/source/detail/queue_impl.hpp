@@ -64,9 +64,6 @@ enum QueueOrder { Ordered, OOO };
 
 // Implementation of the submission information storage.
 struct SubmissionInfoImpl {
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  std::shared_ptr<detail::queue_impl> MSecondaryQueue = nullptr;
-#endif
   ext::oneapi::experimental::event_mode_enum MEventMode =
       ext::oneapi::experimental::event_mode_enum::none;
 };
@@ -241,8 +238,10 @@ public:
   // `std::shared_ptr` allocations.
   template <typename... Ts>
   static std::shared_ptr<queue_impl> create(Ts &&...args) {
-    return std::make_shared<queue_impl>(std::forward<Ts>(args)...,
-                                        private_tag{});
+    auto ImplPtr =
+        std::make_shared<queue_impl>(std::forward<Ts>(args)..., private_tag{});
+    ImplPtr->getDeviceImpl().registerQueue(ImplPtr);
+    return ImplPtr;
   }
 
   ~queue_impl() {
@@ -287,12 +286,6 @@ public:
 
   adapter_impl &getAdapter() const { return MContext->getAdapter(); }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  const std::shared_ptr<context_impl> &getContextImplPtr() const {
-    return MContext;
-  }
-#endif
-
   context_impl &getContextImpl() const { return *MContext; }
 
   std::weak_ptr<context_impl> getContextImplWeakPtr() const { return MContext; }
@@ -301,9 +294,6 @@ public:
 
   /// \return an associated SYCL device.
   device get_device() const { return createSyclObjFromImpl<device>(MDevice); }
-
-  /// \return true if this queue allows for discarded events.
-  bool supportsDiscardingPiEvents() const { return MIsInorder; }
 
   bool isInOrder() const { return MIsInorder; }
 
@@ -352,41 +342,66 @@ public:
   /// \param StoreAdditionalInfo makes additional info be stored in event_impl
   /// \return a SYCL event object for the submitted command group.
   event submit_with_event(const detail::type_erased_cgfo_ty &CGF,
-                          const v1::SubmissionInfo &SubmitInfo,
+                          const detail::SubmissionInfo &SubmitInfo,
                           const detail::code_location &Loc, bool IsTopCodeLoc) {
 
     detail::EventImplPtr ResEvent = submit_impl(CGF, /*CallerNeedsEvent=*/true,
                                                 Loc, IsTopCodeLoc, SubmitInfo);
-    return createSyclObjFromImpl<event>(ResEvent);
+    return createSyclObjFromImpl<event>(std::move(ResEvent));
   }
 
-  template <int Dims>
   event submit_kernel_direct_with_event(
-      const nd_range<Dims> &Range, detail::HostKernelRefBase &HostKernel,
+      const detail::nd_range_view &RangeView,
+      detail::HostKernelRefBase &HostKernel,
       detail::DeviceKernelInfo *DeviceKernelInfo,
       sycl::span<const event> DepEvents,
       const detail::KernelPropertyHolderStructTy &Props,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
     detail::EventImplPtr EventImpl = submit_kernel_direct_impl(
-        NDRDescT{Range}, HostKernel, DeviceKernelInfo,
+        NDRDescT(RangeView), HostKernel, DeviceKernelInfo,
         /*CallerNeedsEvent*/ true, DepEvents, Props, CodeLoc, IsTopCodeLoc);
-    return createSyclObjFromImpl<event>(EventImpl);
+    return createSyclObjFromImpl<event>(std::move(EventImpl));
   }
 
-  template <int Dims>
   void submit_kernel_direct_without_event(
-      const nd_range<Dims> &Range, detail::HostKernelRefBase &HostKernel,
+      const detail::nd_range_view &RangeView,
+      detail::HostKernelRefBase &HostKernel,
       detail::DeviceKernelInfo *DeviceKernelInfo,
       sycl::span<const event> DepEvents,
       const detail::KernelPropertyHolderStructTy &Props,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
-    submit_kernel_direct_impl(NDRDescT{Range}, HostKernel, DeviceKernelInfo,
+    submit_kernel_direct_impl(NDRDescT(RangeView), HostKernel, DeviceKernelInfo,
                               /*CallerNeedsEvent*/ false, DepEvents, Props,
                               CodeLoc, IsTopCodeLoc);
   }
 
+  event submit_barrier_direct_with_event(sycl::span<const event> DepEvents,
+                                         const detail::code_location &CodeLoc) {
+    detail::EventImplPtr EventImpl =
+        submit_barrier_direct_impl(DepEvents, CodeLoc);
+    return createSyclObjFromImpl<event>(std::move(EventImpl));
+  }
+
+  void submit_graph_direct_without_event(
+      const std::shared_ptr<ext::oneapi::experimental::detail::exec_graph_impl>
+          &ExecGraph,
+      sycl::span<const event> DepEvents, const detail::code_location &CodeLoc,
+      bool IsTopCodeLoc) {
+    submit_graph_direct_impl(ExecGraph, false, DepEvents, CodeLoc,
+                             IsTopCodeLoc);
+  }
+
+  event submit_graph_direct_with_event(
+      const std::shared_ptr<ext::oneapi::experimental::detail::exec_graph_impl>
+          &ExecGraph,
+      sycl::span<const event> DepEvents, const detail::code_location &CodeLoc,
+      bool IsTopCodeLoc) {
+    return createSyclObjFromImpl<event>(submit_graph_direct_impl(
+        ExecGraph, true, DepEvents, CodeLoc, IsTopCodeLoc));
+  }
+
   void submit_without_event(const detail::type_erased_cgfo_ty &CGF,
-                            const v1::SubmissionInfo &SubmitInfo,
+                            const detail::SubmissionInfo &SubmitInfo,
                             const detail::code_location &Loc,
                             bool IsTopCodeLoc) {
     submit_impl(CGF, /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc, SubmitInfo);
@@ -602,7 +617,8 @@ public:
                                bool CallerNeedsEvent);
 
   void setCommandGraphUnlocked(
-      std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
+      const std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+          &Graph) {
     MGraph = Graph;
     MExtGraphDeps.reset();
 
@@ -614,7 +630,8 @@ public:
   }
 
   void setCommandGraph(
-      std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
+      const std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+          &Graph) {
     std::lock_guard<std::mutex> Lock(MMutex);
     setCommandGraphUnlocked(Graph);
   }
@@ -687,34 +704,24 @@ public:
     return ResEvent;
   }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // CMPLRLLVM-66082
-  // These methods are for accessing a member that should live in the
-  // sycl::interop_handle class and will be moved on next ABI breaking window.
-  ur_exp_command_buffer_handle_t getInteropGraph() const {
-    return MInteropGraph;
-  }
-
-  void setInteropGraph(ur_exp_command_buffer_handle_t Graph) {
-    MInteropGraph = Graph;
-  }
-#endif
-
   /// Returns the async_handler associated with the queue.
   const async_handler &getAsynchHandler() const noexcept {
     return MAsyncHandler;
   }
 
+  /// Waits for all not-yet-enqueued and host_task commands in the queue and
+  /// clears the events associated with the queue (if out-of-order.)
+  /// Note: This should only be called if the queue is guaranteed to be
+  /// synchronized by the caller.
+  void waitForRuntimeLevelCmdsAndClear();
+
 protected:
+  EventImplPtr insertHelperBarrier();
+
   template <typename HandlerType = handler>
   EventImplPtr insertHelperBarrier(const HandlerType &Handler) {
     queue_impl &Queue = Handler.impl->get_queue();
-    auto ResEvent = detail::event_impl::create_device_event(Queue);
-    ur_event_handle_t UREvent = nullptr;
-    getAdapter().call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
-        Queue.getHandleRef(), 0, nullptr, &UREvent);
-    ResEvent->setHandle(UREvent);
-    return ResEvent;
+    return Queue.insertHelperBarrier();
   }
 
   template <typename HandlerType = handler>
@@ -727,18 +734,11 @@ protected:
       Handler.depends_on(*ExternalEvent);
   }
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   inline const detail::EventImplPtr &
   parseEvent(const detail::EventImplPtr &Event) {
     assert(!Event || !Event->isDiscarded());
     return Event;
   }
-#else
-  inline detail::EventImplPtr parseEvent(const event &Event) {
-    const detail::EventImplPtr &EventImpl = getSyclObjImpl(Event);
-    return EventImpl->isDiscarded() ? nullptr : EventImpl;
-  }
-#endif
 
   bool trySwitchingToNoEventsMode() {
     if (MNoLastEventMode.load(std::memory_order_relaxed))
@@ -901,7 +901,7 @@ protected:
                                    bool CallerNeedsEvent,
                                    const detail::code_location &Loc,
                                    bool IsTopCodeLoc,
-                                   const v1::SubmissionInfo &SubmitInfo);
+                                   const detail::SubmissionInfo &SubmitInfo);
 
   /// Performs kernel submission to the queue.
   ///
@@ -910,6 +910,7 @@ protected:
   /// \param DeviceKernelInfo is a structure aggregating kernel related data
   /// \param CallerNeedsEvent is a boolean indicating whether the event is
   ///        required by the user after the call.
+  /// \param DepEvents is a vector of dependencies of the operation.
   /// \param CodeLoc is the code location of the submit call
   /// \param IsTopCodeLoc Used to determine if the object is in a local
   ///        scope or in the top level scope.
@@ -922,10 +923,37 @@ protected:
       const detail::KernelPropertyHolderStructTy &Props,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
+  /// Performs graph submission to the queue.
+  ///
+  /// \param ExecGraph is an executable graph
+  /// \param CallerNeedsEvent is a boolean indicating whether the event is
+  ///        required by the user after the call.
+  /// \param DepEvents is a vector of dependencies of the operation.
+  /// \param CodeLoc is the code location of the submit call
+  /// \param IsTopCodeLoc Used to determine if the object is in a local
+  ///        scope or in the top level scope.
+  ///
+  /// \return a SYCL event representing submitted command group or nullptr.
+  EventImplPtr submit_graph_direct_impl(
+      std::shared_ptr<ext::oneapi::experimental::detail::exec_graph_impl>
+          ExecGraph,
+      bool CallerNeedsEvent, sycl::span<const event> DepEvents,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc);
+
   template <typename SubmitCommandFuncType>
-  EventImplPtr submit_direct(bool CallerNeedsEvent,
-                             sycl::span<const event> DepEvents,
-                             SubmitCommandFuncType &SubmitCommandFunc);
+  EventImplPtr
+  submit_direct(bool CallerNeedsEvent, sycl::span<const event> DepEvents,
+                SubmitCommandFuncType &SubmitCommandFunc, detail::CGType Type,
+                bool InsertBarrierForInOrderCommand);
+
+  /// Performs barrier submission to the queue.
+  ///
+  /// \param DepEvents is a vector of dependencies of the operation.
+  /// \param CodeLoc is the code location of the submit call
+  ///
+  /// \return a SYCL event representing submitted command group or nullptr.
+  EventImplPtr submit_barrier_direct_impl(sycl::span<const event> DepEvents,
+                                          const detail::code_location &CodeLoc);
 
   /// Helper function for submitting a memory operation with a handler.
   /// \param DepEvents is a vector of dependencies of the operation.
@@ -974,17 +1002,16 @@ protected:
   // destroyed
   void destructorNotification();
 
-  /// queue_impl.addEvent tracks events with weak pointers
-  /// but some events have no other owners. addSharedEvent()
-  /// follows events with a shared pointer.
-  ///
-  /// \param Event is the event to be stored
-  void addSharedEvent(const event &Event);
-
   /// Stores an event that should be associated with the queue
   ///
   /// \param EventImpl is the event to be stored
   void addEvent(const detail::EventImplPtr &EventImpl);
+
+  /// Stores an event that should be associated with the queue with
+  /// the queue lock already acquired by caller.
+  ///
+  /// \param EventImpl is the event to be stored
+  void addEventUnlocked(const detail::EventImplPtr &EventImpl);
 
   /// Protects all the fields that can be changed by class' methods.
   mutable std::mutex MMutex;
@@ -1082,14 +1109,6 @@ protected:
   // Command graph which is associated with this queue for the purposes of
   // recording commands to it.
   std::weak_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph{};
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // CMPLRLLVM-66082
-  // This member should be part of the sycl::interop_handle class, but it
-  // is an API breaking change. So member lives here temporarily where it can
-  // be accessed through the queue member of the interop_handle
-  ur_exp_command_buffer_handle_t MInteropGraph{};
-#endif
 
   unsigned long long MQueueID;
   static std::atomic<unsigned long long> MNextAvailableQueueID;

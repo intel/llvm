@@ -1,8 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-
-// XFAIL: run-mode && linux && arch-intel_gpu_pvc && level_zero_v2_adapter
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19585
+// RUN: %if level_zero %{ env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 UR_L0_V2_FORCE_BATCHED=1 %{run} %t.out %}
 
 //==-- queue_shortcut_functions.cpp - SYCL queue shortcut functions test ---==//
 //

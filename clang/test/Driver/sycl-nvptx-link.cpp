@@ -10,29 +10,29 @@
 // correctly versioned libdevice. We use Inputs/CUDA_80 which has a full set of
 // libdevice files.
 
-// DEFINE: %{install_dir}  = %/S/Inputs/SYCL/bin
+// DEFINE: %{resource_dir} = %/S/Inputs/SYCL/lib/clang/resource_dir
 
-// RUN: %clang -### -ccc-install-dir %{install_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
+// RUN: %clang -### -resource-dir %{resource_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
 // RUN:    -Xsycl-target-backend --cuda-gpu-arch=sm_30 \
 // RUN:    --sysroot=%S/Inputs/SYCL --cuda-path=%S/Inputs/CUDA_80/usr/local/cuda %s 2>&1 \
 // RUN:    | FileCheck %s --check-prefixes=CHECK,LIBDEVICE30
-// RUN: %clang -### -ccc-install-dir %{install_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
+// RUN: %clang -### -resource-dir %{resource_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
 // RUN:    -Xsycl-target-backend --cuda-gpu-arch=sm_35 \
 // RUN:    --sysroot=%S/Inputs/SYCL --cuda-path=%S/Inputs/CUDA_80/usr/local/cuda %s 2>&1 \
 // RUN:    | FileCheck %s --check-prefixes=CHECK,LIBDEVICE35
-// RUN: %clang -### -ccc-install-dir %{install_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
+// RUN: %clang -### -resource-dir %{resource_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
 // RUN:    -Xsycl-target-backend --cuda-gpu-arch=sm_50 \
 // RUN:    --sysroot=%S/Inputs/SYCL --cuda-path=%S/Inputs/CUDA_80/usr/local/cuda %s 2>&1 \
 // RUN:    | FileCheck %s --check-prefixes=CHECK,LIBDEVICE50
 
 // CUDA-9+ uses the same libdevice for all GPU variants
-// RUN: %clang -### -ccc-install-dir %{install_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
+// RUN: %clang -### -resource-dir %{resource_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
 // RUN:    -Xsycl-target-backend --cuda-gpu-arch=sm_35 \
 // RUN:    --sysroot=%S/Inputs/SYCL --cuda-path=%S/Inputs/CUDA_90/usr/local/cuda %s 2>&1 \
 // RUN:    | FileCheck %s --check-prefixes=CHECK,LIBDEVICE10
 
 // Check also that -nocudalib is obeyed
-// RUN: %clang -### -ccc-install-dir %{install_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda -nocudalib \
+// RUN: %clang -### -resource-dir %{resource_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda -nocudalib \
 // RUN:    -Xsycl-target-backend --cuda-gpu-arch=sm_35 \
 // RUN:    --sysroot=%S/Inputs/SYCL --cuda-path=%S/Inputs/CUDA_90/usr/local/cuda %s 2>&1 \
 // RUN:    | FileCheck %s --check-prefixes=CHECK,NOLIBDEVICE

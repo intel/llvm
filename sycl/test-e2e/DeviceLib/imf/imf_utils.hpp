@@ -1,6 +1,7 @@
 #pragma once
 #include <cassert>
 #include <climits>
+#include <cmath>
 #include <cstdint>
 #include <initializer_list>
 #include <iostream>
@@ -51,6 +52,58 @@ public:
   }
 };
 
+template <class Ty> class imf_utils_fp_equ {
+public:
+  bool operator()(Ty x, Ty y) { return x == y; }
+};
+
+template <> class imf_utils_fp_equ<float> {
+public:
+  bool operator()(float x, float y) {
+    if ((__builtin_isinf_sign(x) * __builtin_isinf_sign(y)) == 1)
+      return true;
+    if (__builtin_isnan(x) || __builtin_isnan(y))
+      return false;
+    // Simple check for 2 fp32
+    const float relative_eps = 1e-4f;
+    return std::fabs(x - y) <
+           relative_eps * std::fmax(std::fabs(x), std::fabs(y));
+  }
+};
+
+template <> class imf_utils_fp_equ<sycl::half> {
+public:
+  bool operator()(sycl::half x, sycl::half y) {
+    float xf = static_cast<float>(x);
+    float yf = static_cast<float>(y);
+    if ((__builtin_isinf_sign(xf) * __builtin_isinf_sign(yf)) == 1)
+      return true;
+    if (__builtin_isnan(xf) || __builtin_isnan(yf))
+      return false;
+    // Simple check for 2 fp16
+    const float relative_eps = 1e-3f;
+    return std::fabs(xf - yf) <
+           relative_eps * std::fmax(std::fabs(xf), std::fabs(yf));
+  }
+};
+
+template <> class imf_utils_fp_equ<sycl::ext::oneapi::bfloat16> {
+public:
+  bool operator()(sycl::ext::oneapi::bfloat16 x,
+                  sycl::ext::oneapi::bfloat16 y) {
+    float xf = static_cast<float>(x);
+    float yf = static_cast<float>(y);
+    if ((__builtin_isinf_sign(xf) * __builtin_isinf_sign(yf)) == 1)
+      return true;
+    if (__builtin_isnan(xf) || __builtin_isnan(yf))
+      return false;
+    // Simple check for 2 bf16
+    const float relative_eps = 1e-3f;
+    return std::fabs(xf - yf) <
+           relative_eps * std::fmax(std::fabs(xf), std::fabs(yf));
+  }
+};
+
 // Used to test half precision utils
 template <class InputTy, class OutputTy, class FuncTy,
           class EquTy = imf_utils_default_equ<OutputTy>>
@@ -68,6 +121,42 @@ void test_host(std::initializer_list<InputTy> Input,
 
     std::cout << "Mismatch at line " << Line << "[" << i << "]: " << Res
               << " != " << Expected << std::endl;
+    assert(false);
+  }
+}
+
+template <class InputTy, class FuncTy, class EquTy = imf_utils_fp_equ<InputTy>>
+void test(sycl::queue &q, std::initializer_list<InputTy> Input, FuncTy Func,
+          int Line = __builtin_LINE()) {
+  auto Size = Input.size();
+  std::vector<InputTy> HostRef(Size);
+  for (size_t Idx = 0; Idx < Size; ++Idx) {
+    HostRef[Idx] = Func(*(std::begin(Input) + Idx));
+  }
+
+  sycl::buffer<InputTy> InBuf(Size);
+  {
+    sycl::host_accessor InAcc(InBuf, sycl::write_only);
+    int i = 0;
+    for (auto x : Input)
+      InAcc[i++] = x;
+  }
+
+  sycl::buffer<InputTy> OutBuf(Size);
+  q.submit([&](sycl::handler &CGH) {
+     sycl::accessor InAcc(InBuf, CGH, sycl::read_only);
+     sycl::accessor OutAcc(OutBuf, CGH, sycl::write_only);
+     CGH.parallel_for(Size,
+                      [=](sycl::id<1> Id) { OutAcc[Id] = Func(InAcc[Id]); });
+   }).wait();
+
+  sycl::host_accessor Acc(OutBuf, sycl::read_only);
+  for (size_t Idx = 0; Idx < Size; ++Idx) {
+    if (EquTy()(HostRef[Idx], Acc[Idx]))
+      continue;
+    std::cout << "Mismatch at line " << Line << "[" << Idx << "]: " << Acc[Idx]
+              << " != " << HostRef[Idx] << ", input was "
+              << *(std::begin(Input) + Idx) << std::endl;
     assert(false);
   }
 }

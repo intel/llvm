@@ -1,8 +1,6 @@
 // REQUIRES: cuda
 
 // RUN: %clangxx -fsycl -fsycl-targets=nvptx64-nvidia-cuda -S -Xclang -emit-llvm %s -o -| FileCheck %s
-// XFAIL: cuda
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20109
 
 #include <sycl/sycl.hpp>
 

@@ -28,10 +28,10 @@ def builtin_bitcode_EQ : Joined<["--"], "builtin-bitcode=">,
   HelpText<"Perform a special internalizing link on the bitcode file. "
            "This is necessary for some vendor libraries to be linked correctly">;
 def device_linker_args_EQ : Joined<["--"], "device-linker=">,
-  Flags<[WrapperOnlyOption]>, MetaVarName<"<value> or <triple>=<value>">,
+  Flags<[WrapperOnlyOption]>, MetaVarName<"[<kind>:][<triple>=]<value>">,
   HelpText<"Arguments to pass to the device linker invocation">;
 def device_compiler_args_EQ : Joined<["--"], "device-compiler=">,
-  Flags<[WrapperOnlyOption]>, MetaVarName<"<value> or <triple>=<value>">,
+  Flags<[WrapperOnlyOption]>, MetaVarName<"[<kind>:][<triple>=]<value>">,
   HelpText<"Arguments to pass to the device compiler invocation">;
 def clang_backend : Flag<["--"], "clang-backend">,
   Flags<[WrapperOnlyOption]>,
@@ -63,7 +63,8 @@ def wrapper_time_trace_granularity : Joined<["--"], "wrapper-time-trace-granular
 
 def wrapper_jobs : Joined<["--"], "wrapper-jobs=">,
   Flags<[WrapperOnlyOption]>, MetaVarName<"<number>">,
-  HelpText<"Sets the number of parallel jobs to use for device linking">;
+  HelpText<"Sets the number of parallel jobs for device linking. Can be a "
+            "positive integer or 'jobserver'.">;
 
 def override_image : Joined<["--"], "override-image=">,
   Flags<[WrapperOnlyOption]>, MetaVarName<"<kind=file>">,
@@ -76,6 +77,11 @@ def should_extract : CommaJoined<["--"], "should-extract=">,
 def preview_breaking_changes : Flag<["-"], "fpreview-breaking-changes">,
   Flags<[WrapperOnlyOption]>,
   HelpText<"Enables preview of breaking changes in the wrapper">;
+
+def emit_fatbin_only
+    : Flag<["--"], "emit-fatbin-only">,
+      Flags<[WrapperOnlyOption]>,
+      HelpText<"Emit fat binary directly without wrapping or host linking">;
 
 // Flags passed to the device linker.
 def arch_EQ : Joined<["--"], "arch=">,
@@ -197,16 +203,6 @@ def sycl_add_default_spec_consts_image : Flag<["--", "-"], "sycl-add-default-spe
   Flags<[WrapperOnlyOption, HelpHidden]>;
 def no_sycl_add_default_spec_consts_image : Flag<["--", "-"], "no-sycl-add-default-spec-consts-image">,
   Flags<[WrapperOnlyOption, HelpHidden]>;
-
-// Special options to pass backend options required for AOT compilation
-def gpu_tool_arg_EQ :
-  Joined<["--", "-"], "gpu-tool-arg=">,
-  Flags<[WrapperOnlyOption]>,
-  HelpText<"Options that are passed to the backend of target device compiler for Intel GPU during AOT compilation">;
-def cpu_tool_arg_EQ :
-  Joined<["--", "-"], "cpu-tool-arg=">,
-  Flags<[WrapperOnlyOption]>,
-  HelpText<"Options that are passed to the backend of target device compiler for Intel CPU during AOT compilation">;
 
 def sycl_thin_lto : Flag<["--", "-"], "sycl-thin-lto">,
 Flags<[WrapperOnlyOption]>,  HelpText<"Link SYCL device code using thinLTO">;

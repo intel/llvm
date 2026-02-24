@@ -7,6 +7,7 @@
 		urGetEnqueueProcAddrTable;
 		urGetEnqueueExpProcAddrTable;
 		urGetEventProcAddrTable;
+		urGetGraphExpProcAddrTable;
 		urGetIPCExpProcAddrTable;
 		urGetKernelProcAddrTable;
 		urGetMemProcAddrTable;
@@ -16,6 +17,7 @@
 		urGetProgramProcAddrTable;
 		urGetProgramExpProcAddrTable;
 		urGetQueueProcAddrTable;
+		urGetQueueExpProcAddrTable;
 		urGetSamplerProcAddrTable;
 		urGetUSMProcAddrTable;
 		urGetUSMExpProcAddrTable;

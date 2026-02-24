@@ -2,9 +2,6 @@
 
 // RUN: %{build} %{mathflags} -o %t.out
 // RUN: %{run} %t.out
-//
-// XFAIL: target-native_cpu
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
 #include <cmath>
 #include <sycl/detail/core.hpp>

@@ -4,19 +4,14 @@ set(obj-new-offload_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 if (MSVC)
   set(obj-suffix obj)
   set(obj-new-offload-suffix new.obj)
-  set(spv_binary_dir "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
-  set(install_dest_spv bin)
   set(devicelib_host_static_obj sycl-devicelib-host.lib)
   set(devicelib_host_static_obj-new-offload sycl-devicelib-host.new.lib)
 else()
   set(obj-suffix o)
   set(obj-new-offload-suffix new.o)
-  set(spv_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
-  set(install_dest_spv lib${LLVM_LIBDIR_SUFFIX})
   set(devicelib_host_static_obj libsycl-devicelib-host.a)
   set(devicelib_host_static_obj-new-offload libsycl-devicelib-host.new.a)
 endif()
-set(spv-suffix spv)
 set(bc-suffix bc)
 set(bc_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 set(install_dest_obj lib${LLVM_LIBDIR_SUFFIX})
@@ -80,8 +75,7 @@ endif()
 
 add_custom_target(libsycldevice)
 
-set(filetypes obj obj-new-offload spv bc)
-set(filetypes_no_spv obj obj-new-offload bc)
+set(filetypes obj obj-new-offload bc)
 
 foreach(filetype IN LISTS filetypes)
   add_custom_target(libsycldevice-${filetype})
@@ -93,10 +87,11 @@ endforeach()
 # library.
 # Additional compilation options are needed for compiling each device library.
 set(full_build_archs)
+set(imf_build_archs)
 if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
   list(APPEND full_build_archs nvptx64-nvidia-cuda)
   set(compile_opts_nvptx64-nvidia-cuda "-fsycl-targets=nvptx64-nvidia-cuda"
-  "-Xsycl-target-backend" "--cuda-gpu-arch=sm_50" "-nocudalib" "-fno-sycl-libspirv" "-Wno-unsafe-libspirv-not-linked")
+  "-Xsycl-target-backend" "--cuda-gpu-arch=sm_75" "-nocudalib" "-fno-sycl-libspirv" "-Wno-unsafe-libspirv-not-linked")
   set(opt_flags_nvptx64-nvidia-cuda "-O3" "--nvvm-reflect-enable=false")
 endif()
 if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
@@ -107,7 +102,6 @@ if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
 endif()
 
 
-set(spv_device_compile_opts -fsycl-device-only -fsycl-device-obj=spirv)
 set(bc_device_compile_opts -fsycl-device-only -fsycl-device-obj=llvmir)
 set(obj-new-offload_device_compile_opts -fsycl -c --offload-new-driver
   -foffload-lto=thin ${sycl_targets_opt})
@@ -228,7 +222,7 @@ function(link_bc)
   )
 endfunction()
 
-# Runs opt and prepare-builtins on a bitcode file specified by lib_tgt
+# Runs opt on a bitcode file specified by lib_tgt
 #
 # ARGUMENTS:
 # * LIB_TGT string
@@ -242,34 +236,18 @@ endfunction()
 function(process_bc out_file)
   cmake_parse_arguments(ARG
     ""
-    "LIB_TGT;IN_FILE;OUT_DIR"
+    "IN_FILE;OUT_DIR"
     "OPT_FLAGS;DEPENDENCIES"
     ${ARGN})
-  add_custom_command( OUTPUT ${ARG_LIB_TGT}.bc
-    COMMAND ${opt_exe} ${ARG_OPT_FLAGS} -o ${ARG_LIB_TGT}.bc
+  add_custom_command( OUTPUT ${ARG_OUT_DIR}/${out_file}
+    COMMAND ${opt_exe} ${ARG_OPT_FLAGS} -o ${ARG_OUT_DIR}/${out_file}
     ${ARG_IN_FILE}
     DEPENDS ${opt_target} ${ARG_IN_FILE} ${ARG_DEPENDENCIES}
   )
-  add_custom_target( ${ARG_LIB_TGT}
-    ALL DEPENDS ${ARG_LIB_TGT}.bc
-  )
-  set_target_properties( ${ARG_LIB_TGT}
-    PROPERTIES TARGET_FILE ${ARG_LIB_TGT}.bc
-  )
-
-  set( builtins_opt_lib $<TARGET_PROPERTY:${ARG_LIB_TGT},TARGET_FILE> )
-
-  # Add prepare target
-  # FIXME: prepare_builtins_exe comes from having included libclc before this.
-  # This is brittle.
-  add_custom_command( OUTPUT ${ARG_OUT_DIR}/${out_file}
-    COMMAND ${prepare_builtins_exe} -o ${ARG_OUT_DIR}/${out_file}
-      ${builtins_opt_lib}
-      DEPENDS ${builtins_opt_lib} ${ARG_LIB_TGT} ${prepare_builtins_target} )
-  add_custom_target( prepare-${out_file} ALL
+  add_custom_target( opt-${out_file} ALL
     DEPENDS ${ARG_OUT_DIR}/${out_file}
   )
-  set_target_properties( prepare-${out_file}
+  set_target_properties( opt-${out_file}
     PROPERTIES TARGET_FILE ${ARG_OUT_DIR}/${out_file}
   )
 endfunction()
@@ -340,7 +318,7 @@ endfunction()
 # For cross builds, we also need native versions of the tools.
 set(sycl-compiler_deps
   sycl-compiler ${clang_target} ${append-file_target}
-  ${clang-offload-bundler_target} ${clang-offload-packager_target}
+  ${clang-offload-bundler_target} ${llvm-offload-binary_target}
   ${file-table-tform_target} ${llvm-foreach_target} ${llvm-spirv_target}
   ${sycl-post-link_target})
 set(crt_obj_deps wrapper.h device.h spirv_vars.h ${sycl-compiler_deps})
@@ -446,7 +424,6 @@ if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
     VERBATIM)
   add_custom_target(nativecpu_utils-bc DEPENDS ${bc_binary_dir}/nativecpu_utils.bc)
   process_bc(libsycl-nativecpu_utils.bc
-    LIB_TGT libsycl-nativecpu_utils
     IN_FILE ${bc_binary_dir}/nativecpu_utils.bc
     OUT_DIR ${bc_binary_dir})
   add_custom_target(libsycl-nativecpu_utils-bc DEPENDS ${bc_binary_dir}/libsycl-nativecpu_utils.bc)
@@ -494,7 +471,6 @@ add_devicelibs(libsycl-cmath-fp64
   SRC cmath_wrapper_fp64.cpp
   BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${cmath_obj_deps} )
-set(imf_build_archs)
 add_devicelibs(libsycl-imf
   SRC imf_wrapper.cpp
   DEPENDENCIES ${imf_obj_deps}
@@ -524,7 +500,6 @@ else()
       SRC sanitizer/asan_rtl.cpp
       DEPENDENCIES ${asan_obj_deps}
       BUILD_ARCHS ${sanitizer_build_archs}
-      FILETYPES "${filetypes_no_spv}"
       EXTRA_OPTS -fno-sycl-instrument-device-code
                  -I${UR_SANITIZER_INCLUDE_DIR}
                  -I${CMAKE_CURRENT_SOURCE_DIR})
@@ -532,7 +507,7 @@ else()
     # asan aot
     set(asan_devicetypes pvc cpu dg2)
 
-    foreach(asan_ft IN LISTS filetypes_no_spv)
+    foreach(asan_ft IN LISTS filetypes)
       foreach(asan_device IN LISTS asan_devicetypes)
         compile_lib_ext(libsycl-asan-${asan_device}
                         SRC sanitizer/asan_rtl.cpp
@@ -547,7 +522,6 @@ else()
       SRC sanitizer/msan_rtl.cpp
       DEPENDENCIES ${msan_obj_deps}
       BUILD_ARCHS ${sanitizer_build_archs}
-      FILETYPES "${filetypes_no_spv}"
       EXTRA_OPTS -fno-sycl-instrument-device-code
                  -I${UR_SANITIZER_INCLUDE_DIR}
                  -I${CMAKE_CURRENT_SOURCE_DIR})
@@ -555,7 +529,7 @@ else()
     # msan aot
     set(msan_devicetypes pvc cpu)
 
-    foreach(msan_ft IN LISTS filetypes_no_spv)
+    foreach(msan_ft IN LISTS filetypes)
       foreach(msan_device IN LISTS msan_devicetypes)
         compile_lib_ext(libsycl-msan-${msan_device}
                         SRC sanitizer/msan_rtl.cpp
@@ -570,14 +544,13 @@ else()
       SRC sanitizer/tsan_rtl.cpp
       DEPENDENCIES ${tsan_obj_deps}
       BUILD_ARCHS ${sanitizer_build_archs}
-      FILETYPES "${filetypes_no_spv}"
       EXTRA_OPTS -fno-sycl-instrument-device-code
                  -I${UR_SANITIZER_INCLUDE_DIR}
                  -I${CMAKE_CURRENT_SOURCE_DIR})
 
     set(tsan_devicetypes pvc cpu)
 
-    foreach(tsan_ft IN LISTS filetypes_no_spv)
+    foreach(tsan_ft IN LISTS filetypes)
       foreach(tsan_device IN LISTS tsan_devicetypes)
         compile_lib_ext(libsycl-tsan-${tsan_device}
                         SRC sanitizer/tsan_rtl.cpp
@@ -590,11 +563,6 @@ else()
   endif()
 endif()
 
-add_devicelibs(libsycl-fallback-cassert
-  SRC fallback-cassert.cpp
-  BUILD_ARCHS ${full_build_archs}
-  DEPENDENCIES ${crt_obj_deps}
-  EXTRA_OPTS -fno-sycl-instrument-device-code)
 add_devicelibs(libsycl-fallback-cstring
   SRC fallback-cstring.cpp
   BUILD_ARCHS ${full_build_archs}
@@ -816,19 +784,16 @@ foreach(arch IN LISTS full_build_archs)
   set( builtins_link_lib_${arch}
     $<TARGET_PROPERTY:device_lib_device_${arch},TARGET_FILE>)
   add_dependencies(libsycldevice-bc device_lib_device_${arch})
-  set( builtins_opt_lib_tgt_${arch} builtins_${arch}.opt)
 
-  # Run the optimizer on the resulting bitcode file and call prepare_builtins
-  # on it, which strips away debug and arch information.
+  # Run the optimizer on the resulting bitcode file.
   process_bc(devicelib-${arch}.bc
-    LIB_TGT builtins_${arch}.opt
     IN_FILE ${builtins_link_lib_${arch}}
     OUT_DIR ${bc_binary_dir}
     OPT_FLAGS ${opt_flags_${arch}}
     DEPENDENCIES device_lib_device_${arch})
-  add_dependencies(libsycldevice-bc prepare-devicelib-${arch}.bc)
+  add_dependencies(libsycldevice-bc opt-devicelib-${arch}.bc)
   set(complete_${arch}_libdev
-    $<TARGET_PROPERTY:prepare-devicelib-${arch}.bc,TARGET_FILE>)
+    $<TARGET_PROPERTY:opt-devicelib-${arch}.bc,TARGET_FILE>)
   install( FILES ${complete_${arch}_libdev}
            DESTINATION ${install_dest_bc}
            COMPONENT libsycldevice)

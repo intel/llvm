@@ -39,6 +39,7 @@ enum class OffloadArch {
   SM_80,
   SM_86,
   SM_87,
+  SM_88,
   SM_89,
   SM_90,
   SM_90a,
@@ -48,6 +49,8 @@ enum class OffloadArch {
   SM_101a,
   SM_103,
   SM_103a,
+  SM_110,
+  SM_110a,
   SM_120,
   SM_120a,
   SM_121,
@@ -167,7 +170,7 @@ enum class OffloadArch {
   LNL_M,
   LAST,
 
-  CudaDefault = OffloadArch::SM_52,
+  CudaDefault = OffloadArch::SM_75,
   HIPDefault = OffloadArch::GFX906,
 };
 

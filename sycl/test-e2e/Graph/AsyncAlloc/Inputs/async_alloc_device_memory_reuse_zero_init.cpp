@@ -9,8 +9,6 @@
 #include <sycl/ext/oneapi/experimental/async_alloc/memory_pool.hpp>
 #include <sycl/ext/oneapi/experimental/async_alloc/memory_pool_properties.hpp>
 
-#define __SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__
-
 using T = int;
 void add_nodes_to_graph(
     exp_ext::command_graph<exp_ext::graph_state::modifiable> &Graph,

@@ -55,7 +55,7 @@ void SemaSYCL::handleKernelAttr(Decl *D, const ParsedAttr &AL) {
     return;
   }
 
-  handleSimpleAttribute<DeviceKernelAttr>(*this, D, AL);
+  handleSimpleAttribute<SYCLKernelAttr>(*this, D, AL);
 }
 
 // Returns a DupArgResult value; Same means the args have the same value,
@@ -1540,16 +1540,32 @@ void SemaSYCL::addSYCLAddIRAttributesFunctionAttr(
 
   // There could be multiple of the same attribute applied to the same
   // declaration. If so, we want to merge them.
-  // If there are still dependent expressions in the attribute, we delay merging
-  // till after instantiation.
-  if (!hasDependentExpr(Attr->args_begin(), Attr->args_size()) &&
-      D->hasAttr<SYCLAddIRAttributesFunctionAttr>()) {
-    Attr = mergeSYCLAddIRAttributesFunctionAttr(D, *Attr);
+  if (D->hasAttr<SYCLAddIRAttributesFunctionAttr>()) {
+    // Check if any of the existing attributes have dependent expressions.
+    bool ExistingAttrHasDependent = false;
+    for (const auto *ExistingAttr :
+         D->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
+      if (hasDependentExpr(ExistingAttr->args_begin(),
+                           ExistingAttr->args_size())) {
+        ExistingAttrHasDependent = true;
+        break;
+      }
+    }
 
-    // If null is returned, the attribute did not change after merge and we can
-    // exit.
-    if (!Attr)
-      return;
+    // Check if the new attribute has dependent expressions.
+    bool NewAttrHasDependent =
+        hasDependentExpr(Attr->args_begin(), Attr->args_size());
+
+    // If there are still dependent expressions in either attribute, we delay
+    // merging till after instantiation.
+    if (!ExistingAttrHasDependent && !NewAttrHasDependent) {
+      Attr = mergeSYCLAddIRAttributesFunctionAttr(D, *Attr);
+
+      // If null is returned, the attribute did not change after merge and we
+      // can exit.
+      if (!Attr)
+        return;
+    }
   }
   D->addAttr(Attr);
 
@@ -3256,14 +3272,19 @@ void SemaSYCL::checkSYCLAddIRAttributesFunctionAttrConflicts(Decl *D) {
   }
 
   // If there are potentially conflicting attributes, we issue a warning.
-  for (const auto *Attr : std::vector<AttributeCommonInfo *>{
-           D->getAttr<SYCLReqdWorkGroupSizeAttr>(),
-           D->getAttr<IntelReqdSubGroupSizeAttr>(),
-           D->getAttr<SYCLWorkGroupSizeHintAttr>(),
-           D->getAttr<SYCLDeviceHasAttr>()})
+  for (const auto [Attr, PotentialConflictProp] :
+       std::vector<std::pair<AttributeCommonInfo *, StringRef>>{
+           {D->getAttr<SYCLReqdWorkGroupSizeAttr>(),
+            "sycl::ext::oneapi::experimental::work_group_size"},
+           {D->getAttr<IntelReqdSubGroupSizeAttr>(),
+            "sycl::ext::oneapi::experimental::sub_group_size"},
+           {D->getAttr<SYCLWorkGroupSizeHintAttr>(),
+            "sycl::ext::oneapi::experimental::work_group_size_hint"},
+           {D->getAttr<SYCLDeviceHasAttr>(),
+            "sycl::ext::oneapi::experimental::device_has"}})
     if (Attr)
       Diag(Attr->getLoc(), diag::warn_sycl_old_and_new_kernel_attributes)
-          << Attr;
+          << Attr << PotentialConflictProp;
 }
 
 void SemaSYCL::handleSYCLRegisteredKernels(Decl *D, const ParsedAttr &A) {

@@ -23,7 +23,8 @@ class OneDnnBench(Suite):
         return "https://github.com/uxlfoundation/oneDNN.git"
 
     def git_tag(self):
-        return "v3.8"
+        # 7 Nov, 2025
+        return "v3.10"
 
     def name(self):
         return "BenchDNN"
@@ -93,9 +94,6 @@ class OneDnnBench(Suite):
             + self.oneapi.ld_libraries(),
             timeout=60 * 20,
         )
-
-    def teardown(self):
-        pass
 
 
 class OneDnnBenchmark(Benchmark):
@@ -210,6 +208,3 @@ class OneDnnBenchmark(Benchmark):
         if values:
             return sum(values)
         return 0.0
-
-    def teardown(self):
-        pass

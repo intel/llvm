@@ -63,12 +63,19 @@
 // CHK-CMDS-AOT-GEN: spirv-to-ir-wrapper{{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
 // CHK-CMDS-AOT-GEN-NEXT: llvm-link{{.*}} --suppress-warnings [[FIRSTLLVMLINKIN]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc
 // CHK-CMDS-AOT-GEN-NEXT: llvm-link{{.*}} -only-needed --suppress-warnings [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc
-// CHK-CMDS-AOT-GEN-NEXT: sycl-post-link{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[SECONDLLVMLINKOUT]].bc
+// Check that target specified by -fsycl-targets is passed to sycl-post-link for filtering.
+// CHK-CMDS-AOT-GEN-NEXT: sycl-post-link{{.*}} SYCL_POST_LINK_OPTIONS -o intel_gpu_pvc,[[SYCLPOSTLINKOUT:.*]].table [[SECONDLLVMLINKOUT]].bc
 // CHK-CMDS-AOT-GEN-NEXT: llvm-spirv{{.*}} LLVM_SPIRV_OPTIONS -o {{.*}}
 // CHK-CMDS-AOT-GEN-NEXT: ocloc{{.*}} -output_no_suffix -spirv_input -device pvc{{.*}} -output {{.*}} -file {{.*}}
 // CHK-CMDS-AOT-GEN-NEXT: offload-wrapper: output: [[WRAPPEROUT:.*]].bc, input: {{.*}}, compile-opts: , link-opts:
 // CHK-CMDS-AOT-GEN-NEXT: clang{{.*}} -c -o [[LLCOUT:.*]].o [[WRAPPEROUT]].bc
 // CHK-CMDS-AOT-GEN-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]].o HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
+
+// Check that when "--device-compiler=triple=-device pvc" is specified in clang-linker-wrapper
+// (happen when AOT device is specified via -Xsycl-target-backend '-device pvc' in clang), 
+// the target is not passed to sycl-post-link for filtering.
+// RUN: clang-linker-wrapper -sycl-embed-ir -sycl-device-libraries=%t1.devicelib.o -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-unknown-linux-gnu" "--device-compiler=spir64_gen-unknown-unknown=-device pvc" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %t1.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-NO-CMDS-AOT-GEN %s
+// CHK-NO-CMDS-AOT-GEN: sycl-post-link{{.*}} SYCL_POST_LINK_OPTIONS -o {{[^,]*}}.table {{.*}}.bc
 
 /// Check for list of commands for standalone clang-linker-wrapper run for sycl (AOT for Intel CPU)
 // -------
@@ -114,7 +121,7 @@
 // CHK-CMDS-AOT-NV-NEXT: sycl-post-link{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[SECONDLLVMLINKOUT]].bc
 // CHK-CMDS-AOT-NV-NEXT: clang{{.*}} -o [[CLANGOUT:.*]] -dumpdir a.out.nvptx64.sm_50.img. --target=nvptx64-nvidia-cuda -march={{.*}}
 // CHK-CMDS-AOT-NV-NEXT: ptxas{{.*}} --output-file [[PTXASOUT:.*]] [[CLANGOUT]]
-// CHK-CMDS-AOT-NV-NEXT: fatbinary{{.*}} --create [[FATBINOUT:.*]] --image=profile={{.*}},file=[[CLANGOUT]] --image=profile={{.*}},file=[[PTXASOUT]]
+// CHK-CMDS-AOT-NV-NEXT: fatbinary{{.*}} --create [[FATBINOUT:.*]] --image3=kind=ptx,sm=50,file=[[CLANGOUT]] --image3=kind=elf,sm=50,file=[[PTXASOUT]]
 // CHK-CMDS-AOT-NV-NEXT: offload-wrapper: output: [[WRAPPEROUT:.*]].bc, input: [[FATBINOUT]]
 // CHK-CMDS-AOT-NV-NEXT: clang{{.*}} -c -o [[LLCOUT:.*]] [[WRAPPEROUT]]
 // CHK-CMDS-AOT-NV-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]] HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
@@ -159,7 +166,7 @@
 // CHK-CMDS-AOT-NV-EMBED-IR-NEXT: clang{{.*}} -c -o [[LLCOUT1:.*]] [[WRAPPEROUT1]]
 // CHK-CMDS-AOT-NV-EMBED-IR-NEXT: clang{{.*}} -o [[CLANGOUT:.*]] -dumpdir a.out.nvptx64.sm_50.img. --target=nvptx64-nvidia-cuda -march={{.*}}
 // CHK-CMDS-AOT-NV-EMBED-IR-NEXT: ptxas{{.*}} --output-file [[PTXASOUT:.*]] [[CLANGOUT]]
-// CHK-CMDS-AOT-NV-EMBED-IR-NEXT: fatbinary{{.*}} --create [[FATBINOUT:.*]] --image=profile={{.*}},file=[[CLANGOUT]] --image=profile={{.*}},file=[[PTXASOUT]]
+// CHK-CMDS-AOT-NV-EMBED-IR-NEXT: fatbinary{{.*}} --create [[FATBINOUT:.*]] --image3=kind=ptx,sm=50,file=[[CLANGOUT]] --image3=kind=elf,sm=50,file=[[PTXASOUT]]
 // CHK-CMDS-AOT-NV-EMBED-IR-NEXT: offload-wrapper: output: [[WRAPPEROUT:.*]].bc, input: [[FATBINOUT]]
 // CHK-CMDS-AOT-NV-EMBED-IR-NEXT: clang{{.*}} -c -o [[LLCOUT2:.*]] [[WRAPPEROUT]]
 // CHK-CMDS-AOT-NV-EMBED-IR-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT1]] [[LLCOUT2]] HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
@@ -241,8 +248,8 @@
 
 // Check that clang-linker-wrapper errors out in case when it observes different compilation options encoded in images with the same triple and arch.
 // This case tests the case of multi-step compilation.
-// RUN: clang-offload-packager -o %t.packaged_1.fat "--image=file=%t.o,triple=spir64-unknown-unknown,arch=generic,kind=sycl,compile-opts=aaa,link-opts=bbb"
-// RUN: clang-offload-packager -o %t.packaged_2.fat "--image=file=%t.o,triple=spir64-unknown-unknown,arch=generic,kind=sycl,compile-opts=ccc,link-opts=ddd"
+// RUN: llvm-offload-binary -o %t.packaged_1.fat "--image=file=%t.o,triple=spir64-unknown-unknown,arch=generic,kind=sycl,compile-opts=aaa,link-opts=bbb"
+// RUN: llvm-offload-binary -o %t.packaged_2.fat "--image=file=%t.o,triple=spir64-unknown-unknown,arch=generic,kind=sycl,compile-opts=ccc,link-opts=ddd"
 //
 // RUN: %clang -cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.embeded.o -fembed-offload-object=%t.packaged_1.fat -fembed-offload-object=%t.packaged_2.fat
 //
@@ -255,8 +262,8 @@
 
 // Check that clang-linker-wrapper recognizes compile/link options and passes them
 // over into offload wrapper and ocloc.
-// RUN: clang-offload-packager -o %t.packaged_jit.fat "--image=file=%t.o,triple=spir64-unknown-unknown,arch=generic,kind=sycl,compile-opts=aaa aaa,link-opts=bbb bbb"
-// RUN: clang-offload-packager -o %t.packaged_aot.fat "--image=file=%t.o,triple=spir64_gen-unknown-unknown,arch=pvc,kind=sycl,compile-opts=ccc ccc,link-opts=ddd ddd"
+// RUN: llvm-offload-binary -o %t.packaged_jit.fat "--image=file=%t.o,triple=spir64-unknown-unknown,arch=generic,kind=sycl,compile-opts=aaa aaa,link-opts=bbb bbb"
+// RUN: llvm-offload-binary -o %t.packaged_aot.fat "--image=file=%t.o,triple=spir64_gen-unknown-unknown,arch=pvc,kind=sycl,compile-opts=ccc ccc,link-opts=ddd ddd"
 //
 // RUN: %clang -cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.jit.o -fembed-offload-object=%t.packaged_jit.fat
 // RUN: clang-linker-wrapper --verbose --dry-run -host-triple=x86_64-unknown-linux-gnu \
@@ -288,7 +295,7 @@
 // cHECK-COMPILE-LINK-OPTS-JIT-AND-AOT: offload-wrapper: {{.*}} compile-opts: , link-opts:
 
 // Check that missed triple in image causes an error.
-// RUN: clang-offload-packager -o %t.without_triple.fat "--image=file=%t.o,triple=,arch=pvc,kind=sycl"
+// RUN: llvm-offload-binary -o %t.without_triple.fat "--image=file=%t.o,triple=,arch=pvc,kind=sycl"
 // RUN: %clang -cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.without_triple.o -fembed-offload-object=%t.without_triple.fat
 // RUN: not clang-linker-wrapper --verbose --dry-run -host-triple=x86_64-unknown-linux-gnu \
 // RUN:                      -sycl-device-libraries=%t1.devicelib.o \

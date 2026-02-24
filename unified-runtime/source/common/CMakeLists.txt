@@ -72,7 +72,7 @@ endif()
 set(UR_USE_EXTERNAL_UMF ON CACHE BOOL "Use a pre-built UMF if available")
 
 if(UR_USE_EXTERNAL_UMF)
-  find_package(umf 1.0.0 QUIET)
+  find_package(umf 1.1.0 QUIET)
 endif()
 if(umf_FOUND)
   message(STATUS "Using preinstalled UMF at ${umf_DIR}, ignoring UMF build related options")
@@ -80,12 +80,12 @@ if(umf_FOUND)
   add_library(umf::headers ALIAS umf::umf_headers)
 else()
   set(UMF_REPO "https://github.com/oneapi-src/unified-memory-framework.git")
-
-  # commit 1209db2c5702b5de773ffc117b03e62f57f9554f
-  # Author: Łukasz Ślusarczyk <lukasz.slusarczyk@intel.com>
-  # Date:   Mon Aug 25 13:35:07 2025 +0200
-  # Add resident device change call
-  set(UMF_TAG v1.1.0-dev3)
+  
+  # commit 6c97f3de424fa5d852f2e1c0d8f0dfbbc9b419b6 
+  # Author: Łukasz Stolarczuk <lukasz.stolarczuk@intel.com>
+  # Date:   Tue Feb 3 14:28:16 2026 +0100
+  # 1.1.0 release
+  set(UMF_TAG v1.1.0)
 
   if(NOT FETCHCONTENT_SOURCE_DIR_UNIFIED-MEMORY-FRAMEWORK)
     message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")

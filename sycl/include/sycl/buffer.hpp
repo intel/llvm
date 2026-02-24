@@ -93,6 +93,8 @@ struct BufferInterop;
 
 // The non-template base for the sycl::buffer class
 class __SYCL_EXPORT buffer_plain {
+  friend sycl::detail::ImplUtils;
+
 protected:
   buffer_plain(size_t SizeInBytes, size_t, const property_list &Props,
                std::unique_ptr<detail::SYCLMemObjAllocator> Allocator);
@@ -149,10 +151,6 @@ protected:
   std::vector<ur_native_handle_t> getNativeVector(backend BackendName) const;
 
   const std::unique_ptr<SYCLMemObjAllocator> &get_allocator_internal() const;
-
-  void deleteAccProps(const sycl::detail::PropWithDataKind &Kind);
-
-  void addOrReplaceAccessorProperties(const property_list &PropertyList);
 
   size_t getSize() const;
 
@@ -730,9 +728,6 @@ protected:
   }
 
 private:
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
   template <typename A, int dims, typename C, typename Enable>
   friend class buffer;
   template <typename DataT, int dims, access::mode mode, access::target target,
@@ -768,14 +763,6 @@ private:
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), &MemObject, (const void *)typeid(T).name(),
         dimensions, sizeof(T), detail::rangeToArray(Range).data());
-  }
-
-  void addOrReplaceAccessorProperties(const property_list &PropertyList) {
-    buffer_plain::addOrReplaceAccessorProperties(PropertyList);
-  }
-
-  void deleteAccProps(const sycl::detail::PropWithDataKind &Kind) {
-    buffer_plain::deleteAccProps(Kind);
   }
 
   // Reinterpret contructor

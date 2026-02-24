@@ -216,14 +216,12 @@ public:
   const PropertyRange &getSpecConstantsDefaultValues() const {
     return SpecConstDefaultValuesMap;
   }
-  const PropertyRange &getDeviceLibReqMask() const { return DeviceLibReqMask; }
   const PropertyRange &getDeviceLibMetadata() const {
     return DeviceLibMetadata;
   }
   const PropertyRange &getKernelParamOptInfo() const {
     return KernelParamOptInfo;
   }
-  const PropertyRange &getAssertUsed() const { return AssertUsed; }
   const PropertyRange &getProgramMetadata() const { return ProgramMetadata; }
   const std::vector<ur_program_metadata_t> &getProgramMetadataUR() const {
     return ProgramMetadataUR;
@@ -235,7 +233,6 @@ public:
   const PropertyRange &getDeviceRequirements() const {
     return DeviceRequirements;
   }
-  const PropertyRange &getHostPipes() const { return HostPipes; }
   const PropertyRange &getVirtualFunctions() const { return VirtualFunctions; }
   const PropertyRange &getImplicitLocalArg() const { return ImplicitLocalArg; }
   const PropertyRange &getRegisteredKernels() const {
@@ -256,17 +253,14 @@ protected:
   ur::DeviceBinaryType Format = SYCL_DEVICE_BINARY_TYPE_NONE;
   RTDeviceBinaryImage::PropertyRange SpecConstIDMap;
   RTDeviceBinaryImage::PropertyRange SpecConstDefaultValuesMap;
-  RTDeviceBinaryImage::PropertyRange DeviceLibReqMask;
   RTDeviceBinaryImage::PropertyRange DeviceLibMetadata;
   RTDeviceBinaryImage::PropertyRange KernelParamOptInfo;
-  RTDeviceBinaryImage::PropertyRange AssertUsed;
   RTDeviceBinaryImage::PropertyRange ProgramMetadata;
   RTDeviceBinaryImage::PropertyRange KernelNames;
   RTDeviceBinaryImage::PropertyRange ExportedSymbols;
   RTDeviceBinaryImage::PropertyRange ImportedSymbols;
   RTDeviceBinaryImage::PropertyRange DeviceGlobals;
   RTDeviceBinaryImage::PropertyRange DeviceRequirements;
-  RTDeviceBinaryImage::PropertyRange HostPipes;
   RTDeviceBinaryImage::PropertyRange VirtualFunctions;
   RTDeviceBinaryImage::PropertyRange ImplicitLocalArg;
   RTDeviceBinaryImage::PropertyRange RegisteredKernels;

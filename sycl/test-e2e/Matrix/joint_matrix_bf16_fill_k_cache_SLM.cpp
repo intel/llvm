@@ -9,8 +9,8 @@
 
 // REQUIRES: aspect-ext_intel_matrix, gpu
 
-// XFAIL: linux && gpu-intel-dg2 && !igc-dev
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20595
+// XFAIL: arch-intel_gpu_pvc
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21094
 
 // RUN: %{build} -o %t_gpu_vnni.out %fp-model-precise -DSLM -DVNNI
 // RUN: %{run} %t_gpu_vnni.out

@@ -15,6 +15,12 @@
 namespace sycl {
 inline namespace _V1 {
 
+namespace detail {
+inline namespace nd_range_view_v1 {
+class nd_range_view;
+}
+} // namespace detail
+
 /// Defines the iteration domain of both the work-groups and the overall
 /// dispatch.
 ///
@@ -65,6 +71,8 @@ public:
   bool operator!=(const nd_range<Dimensions> &rhs) const {
     return !(*this == rhs);
   }
+
+  friend class sycl::_V1::detail::nd_range_view;
 };
 
 } // namespace _V1

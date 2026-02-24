@@ -103,6 +103,9 @@ public:
   /// Tuning option to enable a subset of optimizations in O0 optimization
   /// mode for non-user SYCL code.
   bool OptimizeSYCLFramework = false;
+  // Tuning option to enable/disable speculative devirtualization.
+  // Its default value is false.
+  bool DevirtualizeSpeculatively;
 };
 
 /// This class provides access to building LLVM's passes.
@@ -750,7 +753,7 @@ private:
   void addRequiredLTOPreLinkPasses(ModulePassManager &MPM);
 
   void addVectorPasses(OptimizationLevel Level, FunctionPassManager &FPM,
-                       bool IsFullLTO);
+                       ThinOrFullLTOPhase LTOPhase);
 
   static std::optional<std::vector<PipelineElement>>
   parsePipelineText(StringRef Text);

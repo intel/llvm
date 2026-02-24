@@ -506,7 +506,7 @@ Value *TargetInfo::createMaskedGatherLoad(IRBuilder<> &B, Type *Ty, Value *Ptr,
         Mask = applyEVLToMask(B, EVL, Mask);
         VECZ_FAIL_IF(!Mask);
         // Create the call to the function
-        Value *Args[] = {Ptr, B.getInt32(Alignment), Mask,
+        Value *Args[] = {Ptr, Mask,
                          PoisonValue::get(Ty)};
         CallInst *CI = B.CreateCall(MaskedGather, Args);
         if (CI) {
@@ -607,7 +607,7 @@ Value *TargetInfo::createMaskedScatterStore(IRBuilder<> &B, Value *Data,
         Mask = applyEVLToMask(B, EVL, Mask);
         VECZ_FAIL_IF(!Mask);
         // Create the call to the function
-        Value *Args[] = {Data, Ptr, B.getInt32(Alignment), Mask};
+        Value *Args[] = {Data, Ptr, Mask};
         CallInst *CI = B.CreateCall(MaskedScatter, Args);
         if (CI) {
           CI->setCallingConv(MaskedScatter->getCallingConv());

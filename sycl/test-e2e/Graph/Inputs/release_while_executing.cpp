@@ -16,7 +16,7 @@ int main() {
 
   T *PtrA = malloc_device<T>(Size, Queue);
 
-  // Create the command_graph in a seperate scope so that it's destroyed before
+  // Create the command_graph in a separate scope so that it's destroyed before
   // Queue.wait()
   {
     exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};

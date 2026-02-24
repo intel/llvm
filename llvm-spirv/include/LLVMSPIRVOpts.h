@@ -47,6 +47,7 @@
 #include <map>
 #include <optional>
 #include <unordered_map>
+#include <vector>
 
 namespace llvm {
 class IntrinsicInst;

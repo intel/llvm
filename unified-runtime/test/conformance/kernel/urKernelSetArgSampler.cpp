@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -61,7 +61,7 @@ struct urKernelSetArgSamplerTestWithParam
   ur_sampler_handle_t sampler = nullptr;
 };
 
-UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+UUR_MULTI_QUEUE_TYPE_TEST_SUITE_WITH_PARAM(
     urKernelSetArgSamplerTestWithParam,
     ::testing::Combine(
         ::testing::Values(true, false),
@@ -72,7 +72,7 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
                           UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT),
         ::testing::Values(UR_SAMPLER_FILTER_MODE_NEAREST,
                           UR_SAMPLER_FILTER_MODE_LINEAR)),
-    uur::deviceTestWithParamPrinter<uur::SamplerCreateParamT>);
+    uur::deviceTestWithParamPrinterMulti<uur::SamplerCreateParamT>);
 
 TEST_P(urKernelSetArgSamplerTestWithParam, Success) {
   uint32_t arg_index = 2;
@@ -86,7 +86,7 @@ struct urKernelSetArgSamplerTest : uur::urBaseKernelTest {
     // the non-existant image_copy kernel)
     bool image_support = false;
     ASSERT_SUCCESS(
-        uur::GetDeviceImageSupport(GetParam().device, image_support));
+        uur::GetDeviceImageSupport(getParam().device, image_support));
     if (!image_support) {
       GTEST_SKIP() << "Device doesn't support images";
     }
@@ -123,7 +123,7 @@ struct urKernelSetArgSamplerTest : uur::urBaseKernelTest {
   ur_sampler_handle_t sampler = nullptr;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelSetArgSamplerTest);
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(urKernelSetArgSamplerTest);
 
 TEST_P(urKernelSetArgSamplerTest, SuccessWithProps) {
   ur_kernel_arg_sampler_properties_t props{

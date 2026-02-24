@@ -2779,9 +2779,7 @@ bool Sema::LookupParsedName(LookupResult &R, Scope *S, CXXScopeSpec *SS,
     IsDependent = !DC && ObjectType->isDependentType();
     assert(((!DC && ObjectType->isDependentType()) ||
             !ObjectType->isIncompleteType() || !ObjectType->getAs<TagType>() ||
-            ObjectType->castAs<TagType>()
-                ->getOriginalDecl()
-                ->isEntityBeingDefined()) &&
+            ObjectType->castAs<TagType>()->getDecl()->isEntityBeingDefined()) &&
            "Caller should have completed object type");
   } else if (SS && SS->isNotEmpty()) {
     // This nested-name-specifier occurs after another nested-name-specifier,
@@ -3243,9 +3241,8 @@ addAssociatedClassesAndNamespaces(AssociatedLookup &Result, QualType Ty) {
     //        namespaces of its associated classes.
     case Type::Record: {
       // FIXME: This should use the original decl.
-      CXXRecordDecl *Class =
-          cast<CXXRecordDecl>(cast<RecordType>(T)->getOriginalDecl())
-              ->getDefinitionOrSelf();
+      auto *Class = cast<CXXRecordDecl>(cast<RecordType>(T)->getDecl())
+                        ->getDefinitionOrSelf();
       addAssociatedClassesAndNamespaces(Result, Class);
       break;
     }
@@ -3982,7 +3979,8 @@ void Sema::ArgumentDependentLookup(DeclarationName Name, SourceLocation Loc,
             break;
           }
 
-          if (!getLangOpts().CPlusPlusModules)
+          if (!D->getOwningModule() ||
+              !D->getOwningModule()->getTopLevelModule()->isNamedModule())
             continue;
 
           if (D->isInExportDeclContext()) {
@@ -4014,7 +4012,9 @@ void Sema::ArgumentDependentLookup(DeclarationName Name, SourceLocation Loc,
               break;
             }
           }
-        } else if (D->getFriendObjectKind()) {
+        }
+
+        if (D->getFriendObjectKind()) {
           auto *RD = cast<CXXRecordDecl>(D->getLexicalDeclContext());
           // [basic.lookup.argdep]p4:
           //   Argument-dependent lookup finds all declarations of functions and
@@ -4658,7 +4658,7 @@ static void getNestedNameSpecifierIdentifiers(
       case Type::InjectedClassName: {
         auto *TT = cast<TagType>(T);
         getNestedNameSpecifierIdentifiers(TT->getQualifier(), Identifiers);
-        Identifiers.push_back(TT->getOriginalDecl()->getIdentifier());
+        Identifiers.push_back(TT->getDecl()->getIdentifier());
         return;
       }
       case Type::Typedef: {

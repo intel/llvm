@@ -7,7 +7,7 @@
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20223
 
 // RUN: %{build} -o %t.out
-// RUN: %{run-unfiltered-devices} %t.out
+// RUN: %{run} %t.out
 
 // Print test names and pass status
 // #define VERBOSE_LV1

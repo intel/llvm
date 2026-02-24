@@ -19,7 +19,7 @@
 #include <llvm/Support/MemoryBuffer.h>
 #include <llvm/Support/TimeProfiler.h>
 
-#include <clang/Driver/Options.h>
+#include <clang/Options/Options.h>
 
 #include <chrono>
 
@@ -45,7 +45,7 @@ JIT_EXPORT_SYMBOL RTCHashResult calculateHash(InMemoryFile SourceFile,
   }
   auto Stop = std::chrono::high_resolution_clock::now();
 
-  if (UserArgList.hasArg(clang::driver::options::OPT_ftime_trace_EQ)) {
+  if (UserArgList.hasArg(clang::options::OPT_ftime_trace_EQ)) {
     std::chrono::duration<double, std::milli> HashTime = Stop - Start;
     llvm::dbgs() << "Hashing of " << SourceFile.Path << " took "
                  << int(HashTime.count()) << " ms\n";
@@ -72,19 +72,19 @@ JIT_EXPORT_SYMBOL RTCResult compileSYCL(InMemoryFile SourceFile,
 
   llvm::StringRef TraceFileName;
   if (auto *Arg =
-          UserArgList.getLastArg(clang::driver::options::OPT_ftime_trace_EQ)) {
+          UserArgList.getLastArg(clang::options::OPT_ftime_trace_EQ)) {
     TraceFileName = Arg->getValue();
     unsigned Granularity =
         500; // microseconds. Same default as in `clang::FrontendOptions`.
     if (auto *Arg = UserArgList.getLastArg(
-            clang::driver::options::OPT_ftime_trace_granularity_EQ)) {
+            clang::options::OPT_ftime_trace_granularity_EQ)) {
       if (!llvm::to_integer(Arg->getValue(), Granularity)) {
         BuildLog += "warning: ignoring malformed argument: '" +
                     Arg->getAsString(UserArgList) + "'\n";
       }
     }
     bool Verbose =
-        UserArgList.hasArg(clang::driver::options::OPT_ftime_trace_verbose);
+        UserArgList.hasArg(clang::options::OPT_ftime_trace_verbose);
 
     llvm::timeTraceProfilerInitialize(Granularity, /*ProcName=*/"sycl-rtc",
                                       Verbose);

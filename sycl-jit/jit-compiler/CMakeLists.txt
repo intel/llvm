@@ -9,14 +9,21 @@ else()
 set(SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT "/sycl-jit-toolchain/")
 endif()
 
-set(SYCL_JIT_RESOURCE_INSTALL_COMPONENTS sycl-headers OpenCL-Headers clang-resource-headers)
 
-if ("libclc" IN_LIST LLVM_ENABLE_PROJECTS)
-  list(APPEND SYCL_JIT_RESOURCE_INSTALL_COMPONENTS libspirv-builtins)
+if (NOT "libdevice" IN_LIST LLVM_ENABLE_PROJECTS)
+  message(FATAL_ERROR "libdevice is required for jit-compiler but not present in LLVM_ENABLE_PROJECTS")
 endif()
 
-if ("libdevice" IN_LIST LLVM_ENABLE_PROJECTS)
-  list(APPEND SYCL_JIT_RESOURCE_INSTALL_COMPONENTS libsycldevice)
+set(SYCL_JIT_RESOURCE_INSTALL_COMPONENTS
+  sycl-headers
+  OpenCL-Headers
+  clang-resource-headers
+  libsycldevice)
+
+if ("libclc" IN_LIST LLVM_ENABLE_PROJECTS)
+  # If some targets required `libclc` then we should embed it for the
+  # `sycl-jit`.
+  list(APPEND SYCL_JIT_RESOURCE_INSTALL_COMPONENTS libspirv-builtins)
 endif()
 
 set(SYCL_JIT_RESOURCE_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/rtc-resources-install)
@@ -141,6 +148,7 @@ add_llvm_library(sycl-jit
    LINK_LIBS
    clangBasic
    clangDriver
+   clangOptions
    clangFrontend
    clangCodeGen
    clangTooling

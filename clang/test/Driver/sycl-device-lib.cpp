@@ -17,7 +17,6 @@
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-imf.new.o
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-imf-fp64.new.o
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-imf-bf16.new.o
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-fallback-cassert.new.o
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-fallback-cstring.new.o
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-fallback-complex.new.o
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-fallback-complex-fp64.new.o
@@ -59,7 +58,6 @@
 // SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-imf.new.o
 // SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-imf-fp64.new.o
 // SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-imf-bf16.new.o
-// SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-fallback-cassert.new.o
 // SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-fallback-cstring.new.o
 // SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-fallback-complex.new.o
 // SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-fallback-complex-fp64.new.o
@@ -102,7 +100,6 @@
 // SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-imf.new.o
 // SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-imf-fp64.new.o
 // SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-imf-bf16.new.o
-// SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-fallback-cassert.new.o
 // SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-fallback-cstring.new.o
 // SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-fallback-complex.new.o
 // SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-fallback-complex-fp64.new.o
@@ -126,7 +123,6 @@
 // SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-imf.new.o
 // SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-imf-fp64.new.o
 // SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-imf-bf16.new.o
-// SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-fallback-cassert.new.o
 // SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-fallback-cstring.new.o
 // SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-fallback-complex.new.o
 // SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-fallback-complex-fp64.new.o
@@ -159,7 +155,6 @@
 // SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-imf.new.o
 // SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-imf-fp64.new.o
 // SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-imf-bf16.new.o
-// SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-fallback-cassert.new.o
 // SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-fallback-cstring.new.o
 // SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-fallback-complex.new.o
 // SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-fallback-complex-fp64.new.o
@@ -188,7 +183,6 @@
 // SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-imf.new.o
 // SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-imf-fp64.new.o
 // SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-imf-bf16.new.o
-// SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-fallback-cassert.new.o
 // SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-fallback-cstring.new.o
 // SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-fallback-complex.new.o
 // SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-fallback-complex-fp64.new.o
@@ -223,7 +217,6 @@
 // SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-imf.new.o
 // SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-imf-fp64.new.o
 // SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-imf-bf16.new.o
-// SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-fallback-cassert.new.o
 // SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-fallback-cstring.new.o
 // SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-fallback-complex.new.o
 // SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-fallback-complex-fp64.new.o
@@ -272,7 +265,6 @@
 // SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-imf.new.o
 // SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-imf-fp64.new.o
 // SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-imf-bf16.new.o
-// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-fallback-cassert.new.o
 // SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-fallback-cstring.new.o
 // SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-fallback-complex.new.o
 // SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-fallback-complex-fp64.new.o

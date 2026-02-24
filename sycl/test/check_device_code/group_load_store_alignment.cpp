@@ -22,7 +22,7 @@ using plain_ptr = typename sycl::detail::DecoratedType<
 
 // CHECK-GLOBAL-LABEL: @_Z32test_load_without_alignment_hintRN4sycl3_V19sub_groupEPU3AS1sRs(
 // CHECK-GLOBAL-NEXT:  entry:
-// CHECK-GLOBAL-NEXT:    [[CMP_I_I_I:%.*]] = icmp ne ptr addrspace(1) [[P:%.*]], null
+// CHECK-GLOBAL-NEXT:    [[CMP_I_I_I:%.*]] = icmp ne ptr addrspace(1) [[P:%.*]], addrspacecast (ptr addrspace(4) null to ptr addrspace(1))
 // CHECK-GLOBAL-NEXT:    tail call void @llvm.assume(i1 [[CMP_I_I_I]])
 // CHECK-GLOBAL-NEXT:    [[TMP0:%.*]] = ptrtoint ptr addrspace(1) [[P]] to i64
 // CHECK-GLOBAL-NEXT:    [[REM_I_I_I:%.*]] = and i64 [[TMP0]], 3
@@ -38,14 +38,14 @@ using plain_ptr = typename sycl::detail::DecoratedType<
 // CHECK-GLOBAL-NEXT:    [[CALL_I_I_I_I_I_I:%.*]] = tail call spir_func noundef i32 @_Z40__spirv_BuiltInSubgroupLocalInvocationIdv() #[[ATTR5:[0-9]+]]
 // CHECK-GLOBAL-NEXT:    [[IDXPROM_I_I_I:%.*]] = sext i32 [[CALL_I_I_I_I_I_I]] to i64
 // CHECK-GLOBAL-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds i16, ptr addrspace(1) [[P]], i64 [[IDXPROM_I_I_I]]
-// CHECK-GLOBAL-NEXT:    [[TMP1:%.*]] = load i16, ptr addrspace(1) [[ARRAYIDX_I_I_I]], align 2, !tbaa [[TBAA7:![0-9]+]]
-// CHECK-GLOBAL-NEXT:    store i16 [[TMP1]], ptr addrspace(4) [[OUT:%.*]], align 2, !tbaa [[TBAA7]]
-// CHECK-GLOBAL-NEXT:    br label [[FOR_COND_I_I_I]], !llvm.loop [[LOOP11:![0-9]+]]
+// CHECK-GLOBAL-NEXT:    [[TMP1:%.*]] = load i16, ptr addrspace(1) [[ARRAYIDX_I_I_I]], align 2, !tbaa [[TBAA11:![0-9]+]]
+// CHECK-GLOBAL-NEXT:    store i16 [[TMP1]], ptr addrspace(4) [[OUT:%.*]], align 2, !tbaa [[TBAA11]]
+// CHECK-GLOBAL-NEXT:    br label [[FOR_COND_I_I_I]], !llvm.loop [[LOOP13:![0-9]+]]
 // CHECK-GLOBAL:       _ZN4sycl3_V13ext6oneapi12experimental6detail15group_load_implINS0_9sub_groupEPU3AS1ssLm1ENS3_10propertiesINS4_20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEENSB_INS4_9naive_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE17verify_load_typesIT0_T1_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESR_SP_NS0_4spanISQ_XT2_EEESS_.exit.i.i:
 // CHECK-GLOBAL-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrieriii(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR4]]
 // CHECK-GLOBAL-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL10GROUP_LOADINS0_9SUB_GROUPEPU3AS1SSNS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEEEEEEEEENST9ENABLE_IFIXAAAASR6DETAILE17VERIFY_LOAD_TYPESIT0_T1_ESR6DETAILE18IS_GENERIC_GROUP_VIT_E18IS_PROPERTY_LIST_VIT2_EEVE4TYPEESP_SN_RSO_SQ__EXIT:%.*]]
 // CHECK-GLOBAL:       if.end.i.i:
-// CHECK-GLOBAL-NEXT:    [[CALL6_I_I:%.*]] = tail call spir_func noundef zeroext i16 @_Z30__spirv_SubgroupBlockReadINTELItET_PU3AS1Kt(ptr addrspace(1) noundef nonnull [[P]]) #[[ATTR4]]
+// CHECK-GLOBAL-NEXT:    [[CALL6_I_I:%.*]] = tail call spir_func noundef zeroext i16 @_Z30__spirv_SubgroupBlockReadINTELItET_PU3AS1Kt(ptr addrspace(1) noundef [[P]]) #[[ATTR4]]
 // CHECK-GLOBAL-NEXT:    store i16 [[CALL6_I_I]], ptr addrspace(4) [[OUT]], align 2
 // CHECK-GLOBAL-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL10GROUP_LOADINS0_9SUB_GROUPEPU3AS1SSNS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEEEEEEEEENST9ENABLE_IFIXAAAASR6DETAILE17VERIFY_LOAD_TYPESIT0_T1_ESR6DETAILE18IS_GENERIC_GROUP_VIT_E18IS_PROPERTY_LIST_VIT2_EEVE4TYPEESP_SN_RSO_SQ__EXIT]]
 // CHECK-GLOBAL:       _ZN4sycl3_V13ext6oneapi12experimental10group_loadINS0_9sub_groupEPU3AS1ssNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE17verify_load_typesIT0_T1_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT2_EEvE4typeESP_SN_RSO_SQ_.exit:
@@ -59,9 +59,9 @@ SYCL_EXTERNAL void test_load_without_alignment_hint(sycl::sub_group &sg,
 
 // CHECK-GLOBAL-LABEL: @_Z29test_load_with_alignment_hintRN4sycl3_V19sub_groupEPU3AS1sRs(
 // CHECK-GLOBAL-NEXT:  entry:
-// CHECK-GLOBAL-NEXT:    [[CMP_I_I_I:%.*]] = icmp ne ptr addrspace(1) [[P:%.*]], null
+// CHECK-GLOBAL-NEXT:    [[CMP_I_I_I:%.*]] = icmp ne ptr addrspace(1) [[P:%.*]], addrspacecast (ptr addrspace(4) null to ptr addrspace(1))
 // CHECK-GLOBAL-NEXT:    tail call void @llvm.assume(i1 [[CMP_I_I_I]])
-// CHECK-GLOBAL-NEXT:    [[CALL6_I_I:%.*]] = tail call spir_func noundef zeroext i16 @_Z30__spirv_SubgroupBlockReadINTELItET_PU3AS1Kt(ptr addrspace(1) noundef nonnull [[P]]) #[[ATTR4]]
+// CHECK-GLOBAL-NEXT:    [[CALL6_I_I:%.*]] = tail call spir_func noundef zeroext i16 @_Z30__spirv_SubgroupBlockReadINTELItET_PU3AS1Kt(ptr addrspace(1) noundef [[P]]) #[[ATTR4]]
 // CHECK-GLOBAL-NEXT:    store i16 [[CALL6_I_I]], ptr addrspace(4) [[OUT:%.*]], align 2
 // CHECK-GLOBAL-NEXT:    ret void
 //
@@ -73,7 +73,7 @@ SYCL_EXTERNAL void test_load_with_alignment_hint(sycl::sub_group &sg,
 
 // CHECK-GLOBAL-LABEL: @_Z33test_store_without_alignment_hintRN4sycl3_V19sub_groupEiPU3AS1i(
 // CHECK-GLOBAL-NEXT:  entry:
-// CHECK-GLOBAL-NEXT:    [[CMP_I_I_I:%.*]] = icmp ne ptr addrspace(1) [[P:%.*]], null
+// CHECK-GLOBAL-NEXT:    [[CMP_I_I_I:%.*]] = icmp ne ptr addrspace(1) [[P:%.*]], addrspacecast (ptr addrspace(4) null to ptr addrspace(1))
 // CHECK-GLOBAL-NEXT:    tail call void @llvm.assume(i1 [[CMP_I_I_I]])
 // CHECK-GLOBAL-NEXT:    [[TMP0:%.*]] = ptrtoint ptr addrspace(1) [[P]] to i64
 // CHECK-GLOBAL-NEXT:    [[REM_I_I_I:%.*]] = and i64 [[TMP0]], 15
@@ -89,7 +89,7 @@ SYCL_EXTERNAL void test_load_with_alignment_hint(sycl::sub_group &sg,
 // CHECK-GLOBAL-NEXT:    [[CALL_I_I_I_I_I_I:%.*]] = tail call spir_func noundef i32 @_Z40__spirv_BuiltInSubgroupLocalInvocationIdv() #[[ATTR5]]
 // CHECK-GLOBAL-NEXT:    [[IDXPROM_I_I_I:%.*]] = sext i32 [[CALL_I_I_I_I_I_I]] to i64
 // CHECK-GLOBAL-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds i32, ptr addrspace(1) [[P]], i64 [[IDXPROM_I_I_I]]
-// CHECK-GLOBAL-NEXT:    store i32 [[V:%.*]], ptr addrspace(1) [[ARRAYIDX_I_I_I]], align 4, !tbaa [[TBAA13:![0-9]+]]
+// CHECK-GLOBAL-NEXT:    store i32 [[V:%.*]], ptr addrspace(1) [[ARRAYIDX_I_I_I]], align 4, !tbaa [[TBAA6:![0-9]+]]
 // CHECK-GLOBAL-NEXT:    br label [[FOR_COND_I_I_I]], !llvm.loop [[LOOP15:![0-9]+]]
 // CHECK-GLOBAL:       _ZN4sycl3_V13ext6oneapi12experimental6detail16group_store_implINS0_9sub_groupEKiLm1EPU3AS1iNS3_10propertiesINS4_20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSC_INS3_21contiguous_memory_keyEJEEENSC_INS3_14full_group_keyEJEEENSC_INS4_9naive_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESS_NS0_4spanISQ_XT1_EEESR_ST_.exit.i.i:
 // CHECK-GLOBAL-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrieriii(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR4]]
@@ -98,7 +98,7 @@ SYCL_EXTERNAL void test_load_with_alignment_hint(sycl::sub_group &sg,
 // CHECK-GLOBAL-NEXT:    [[I_0_I_I:%.*]] = phi i1 [ false, [[FOR_COND_I_I]] ], [ true, [[ENTRY:%.*]] ]
 // CHECK-GLOBAL-NEXT:    br i1 [[I_0_I_I]], label [[FOR_COND_I_I]], label [[FOR_COND_CLEANUP_I_I:%.*]], !llvm.loop [[LOOP16:![0-9]+]]
 // CHECK-GLOBAL:       for.cond.cleanup.i.i:
-// CHECK-GLOBAL-NEXT:    tail call spir_func void @_Z31__spirv_SubgroupBlockWriteINTELPU3AS1jj(ptr addrspace(1) noundef nonnull [[P]], i32 noundef [[V]]) #[[ATTR4]]
+// CHECK-GLOBAL-NEXT:    tail call spir_func void @_Z31__spirv_SubgroupBlockWriteINTELPU3AS1jj(ptr addrspace(1) noundef [[P]], i32 noundef [[V]]) #[[ATTR4]]
 // CHECK-GLOBAL-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEIPU3AS1INS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEEEEEEEEENST9ENABLE_IFIXAAAASR6DETAILE18VERIFY_STORE_TYPESIT0_T1_ESR6DETAILE18IS_GENERIC_GROUP_VIT_E18IS_PROPERTY_LIST_VIT2_EEVE4TYPEESP_RKSN_SO_SQ__EXIT]]
 // CHECK-GLOBAL:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T1_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT2_EEvE4typeESP_RKSN_SO_SQ_.exit:
 // CHECK-GLOBAL-NEXT:    ret void
@@ -110,14 +110,14 @@ SYCL_EXTERNAL void test_store_without_alignment_hint(sycl::sub_group &sg, int v,
 
 // CHECK-GLOBAL-LABEL: @_Z30test_store_with_alignment_hintRN4sycl3_V19sub_groupEiPU3AS1i(
 // CHECK-GLOBAL-NEXT:  entry:
-// CHECK-GLOBAL-NEXT:    [[CMP_I_I_I:%.*]] = icmp ne ptr addrspace(1) [[P:%.*]], null
+// CHECK-GLOBAL-NEXT:    [[CMP_I_I_I:%.*]] = icmp ne ptr addrspace(1) [[P:%.*]], addrspacecast (ptr addrspace(4) null to ptr addrspace(1))
 // CHECK-GLOBAL-NEXT:    tail call void @llvm.assume(i1 [[CMP_I_I_I]])
 // CHECK-GLOBAL-NEXT:    br label [[FOR_COND_I_I:%.*]]
 // CHECK-GLOBAL:       for.cond.i.i:
 // CHECK-GLOBAL-NEXT:    [[I_0_I_I:%.*]] = phi i1 [ true, [[ENTRY:%.*]] ], [ false, [[FOR_COND_I_I]] ]
 // CHECK-GLOBAL-NEXT:    br i1 [[I_0_I_I]], label [[FOR_COND_I_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEIPU3AS1INS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_13ALIGNMENT_KEYEJST17INTEGRAL_CONSTANTIILI16EEEEENSB_INS3_18DATA_PLACEMENT_KEYEJSD_IILI0EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEEEEEEEEENST9ENABLE_IFIXAAAASR6DETAILE18VERIFY_STORE_TYPESIT0_T1_ESR6DETAILE18IS_GENERIC_GROUP_VIT_E18IS_PROPERTY_LIST_VIT2_EEVE4TYPEESS_RKSQ_SR_ST__EXIT:%.*]], !llvm.loop [[LOOP17:![0-9]+]]
 // CHECK-GLOBAL:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_13alignment_keyEJSt17integral_constantIiLi16EEEEENSB_INS3_18data_placement_keyEJSD_IiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T1_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT2_EEvE4typeESS_RKSQ_SR_ST_.exit:
-// CHECK-GLOBAL-NEXT:    tail call spir_func void @_Z31__spirv_SubgroupBlockWriteINTELPU3AS1jj(ptr addrspace(1) noundef nonnull [[P]], i32 noundef [[V:%.*]]) #[[ATTR4]]
+// CHECK-GLOBAL-NEXT:    tail call spir_func void @_Z31__spirv_SubgroupBlockWriteINTELPU3AS1jj(ptr addrspace(1) noundef [[P]], i32 noundef [[V:%.*]]) #[[ATTR4]]
 // CHECK-GLOBAL-NEXT:    ret void
 //
 SYCL_EXTERNAL void test_store_with_alignment_hint(sycl::sub_group &sg, int v,

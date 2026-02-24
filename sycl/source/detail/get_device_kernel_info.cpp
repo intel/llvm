@@ -15,14 +15,8 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-KernelNameBasedCacheT *createKernelNameBasedCache() {
-  return GlobalHandler::instance().createKernelNameBasedCache();
-}
-#endif
-
 DeviceKernelInfo &getDeviceKernelInfo(const CompileTimeKernelInfoTy &Info) {
-  return ProgramManager::getInstance().getOrCreateDeviceKernelInfo(Info);
+  return ProgramManager::getInstance().getDeviceKernelInfo(Info);
 }
 
 } // namespace detail

@@ -1,17 +1,9 @@
 // REQUIRES: level_zero
 // REQUIRES: aspect-ext_intel_device_id
+// REQUIRES: arch-intel_gpu_pvc
 
 // XFAIL: gpu-intel-pvc-1T
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/15699
-
-// XFAIL: gpu-intel-dg2
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/18576
-
-// XFAIL: linux && run-mode && arch-intel_gpu_bmg_g21 && !igc-dev
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/18576
-
-// XFAIL: windows && arch-intel_gpu_bmg_g21
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/18576
 
 // RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 

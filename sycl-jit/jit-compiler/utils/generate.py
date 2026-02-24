@@ -1,6 +1,7 @@
 import os
 import argparse
 import glob
+import re
 
 
 def main():
@@ -33,6 +34,9 @@ const resource_file ToolchainFiles[] = {"""
         )
 
         def process_file(file_path):
+            # We only need .bc files from libdevice:
+            if re.search(r"[/\\]libsycl-.*\.(o|obj|spv)$", file_path):
+                return
             out.write(
                 f"""
 {{

@@ -27,6 +27,7 @@
 
 // Compressed main executable, while dependencies are not compressed.
 
+// RUN: %if !windows %{%{run-aux}%} \
 // RUN: %clangxx -fsycl --offload-compress %{sycl_target_opts} \
 // RUN:   -fsycl-allow-device-image-dependencies -fsycl-device-code-split=per_kernel      \
 // RUN:   %S/Inputs/basic.cpp -o %t.out                                                   \

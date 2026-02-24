@@ -40,6 +40,7 @@
 
 // This file needs to be included before anything that declares
 // llvm::PointerType to avoid a compilation bug on MSVC.
+#include "llvm/Demangle/Demangle.h"
 #include "llvm/Demangle/ItaniumDemangle.h"
 
 #include "FunctionDescriptor.h"
@@ -267,6 +268,12 @@ bool isSYCLBfloat16Type(llvm::Type *Ty) {
   return false;
 }
 
+bool isLLVMCooperativeMatrixType(llvm::Type *Ty) {
+  if (auto *TargetTy = dyn_cast<TargetExtType>(Ty))
+    return TargetTy->getName() == "spirv.CooperativeMatrixKHR";
+  return false;
+}
+
 Function *getOrCreateFunction(Module *M, Type *RetTy, ArrayRef<Type *> ArgTypes,
                               StringRef Name, BuiltinFuncMangleInfo *Mangle,
                               AttributeList *Attrs, bool TakeName) {
@@ -439,7 +446,7 @@ bool getSPIRVBuiltin(const std::string &OrigName, spv::BuiltIn &B) {
   return getByName(R.str(), B);
 }
 
-// Demangled name is a substring of the name. The DemangledName is updated only
+// DemangledName is a substring of Name. The DemangledName is updated only
 // if true is returned
 bool oclIsBuiltin(StringRef Name, StringRef &DemangledName, bool IsCpp) {
   if (Name == "printf") {
@@ -484,6 +491,21 @@ bool oclIsBuiltin(StringRef Name, StringRef &DemangledName, bool IsCpp) {
   }
   SPIRVDBG(errs() << "Error in extracting integer value");
   return false;
+}
+
+// DemangledName is a substring of Name. The DemangledName is updated only
+// if true is returned.
+bool isInternalSPIRVBuiltin(StringRef Name, StringRef &DemangledName) {
+  if (!Name.starts_with("_Z"))
+    return false;
+  constexpr unsigned DemangledNameLenStart = 2;
+  size_t Start = Name.find_first_not_of("0123456789", DemangledNameLenStart);
+  if (!Name.substr(Start, Name.size() - 1)
+           .starts_with(kSPIRVName::InternalBuiltinPrefix))
+    return false;
+  DemangledName = llvm::itaniumDemangle(Name.data(), false);
+  DemangledName.consume_front(kSPIRVName::InternalBuiltinPrefix);
+  return true;
 }
 
 // Check if a mangled type Name is unsigned
@@ -600,11 +622,11 @@ static std::string demangleBuiltinOpenCLTypeName(StringRef MangledStructName) {
 /// floating point type.
 static Type *parsePrimitiveType(LLVMContext &Ctx, StringRef Name) {
   return StringSwitch<Type *>(Name)
-      .Cases("char", "signed char", "unsigned char", Type::getInt8Ty(Ctx))
-      .Cases("short", "unsigned short", Type::getInt16Ty(Ctx))
-      .Cases("int", "unsigned int", Type::getInt32Ty(Ctx))
-      .Cases("long", "unsigned long", Type::getInt64Ty(Ctx))
-      .Cases("long long", "unsigned long long", Type::getInt64Ty(Ctx))
+      .Cases({"char", "signed char", "unsigned char"}, Type::getInt8Ty(Ctx))
+      .Cases({"short", "unsigned short"}, Type::getInt16Ty(Ctx))
+      .Cases({"int", "unsigned int"}, Type::getInt32Ty(Ctx))
+      .Cases({"long", "unsigned long"}, Type::getInt64Ty(Ctx))
+      .Cases({"long long", "unsigned long long"}, Type::getInt64Ty(Ctx))
       .Case("half", Type::getHalfTy(Ctx))
       .Case("float", Type::getFloatTy(Ctx))
       .Case("double", Type::getDoubleTy(Ctx))
@@ -1553,7 +1575,7 @@ Value *getScalarOrArray(Value *V, unsigned Size, BasicBlock::iterator Pos) {
 
 Constant *getScalarOrVectorConstantInt(Type *T, uint64_t V, bool IsSigned) {
   if (auto *IT = dyn_cast<IntegerType>(T))
-    return ConstantInt::get(IT, V);
+    return ConstantInt::get(IT, V, IsSigned);
   if (auto *VT = dyn_cast<FixedVectorType>(T)) {
     std::vector<Constant *> EV(
         VT->getNumElements(),
@@ -2085,13 +2107,15 @@ static void replaceUsesOfBuiltinVar(Value *V, const APInt &AccumulatedOffset,
     } else if (auto *Load = dyn_cast<LoadInst>(U)) {
       // Figure out which index the accumulated offset corresponds to. If we
       // have a weird offset (e.g., trying to load byte 7), bail out.
-      Type *ScalarTy = ReplacementFunc->getReturnType();
       APInt Index;
-      uint64_t Remainder;
-      APInt::udivrem(AccumulatedOffset, ScalarTy->getScalarSizeInBits() / 8,
-                     Index, Remainder);
-      if (Remainder != 0)
-        llvm_unreachable("Illegal GEP of a SPIR-V builtin variable");
+      Type *ScalarTy = ReplacementFunc->getReturnType();
+      if (!ScalarTy->isIntegerTy(1)) {
+        uint64_t Remainder;
+        APInt::udivrem(AccumulatedOffset, ScalarTy->getScalarSizeInBits() / 8,
+                       Index, Remainder);
+        if (Remainder != 0)
+          llvm_unreachable("Illegal GEP of a SPIR-V builtin variable");
+      }
 
       IRBuilder<> Builder(Load);
       Value *Replacement;
@@ -2472,6 +2496,7 @@ public:
       addUnsignedArg(3);
       break;
     case OpGroupAsyncCopy:
+      setArgAttr(2, SPIR::ATTR_CONST);
       addUnsignedArg(3);
       addUnsignedArg(4);
       break;
@@ -2615,6 +2640,9 @@ public:
     case internal::OpConvertHandleToSampledImageINTEL:
       addUnsignedArg(0);
       break;
+    case OpGenericPtrMemSemantics:
+      setArgAttr(0, SPIR::ATTR_CONST);
+      break;
     default:;
       // No special handling is needed
     }
@@ -2685,6 +2713,22 @@ public:
       break;
     case OpenCLLIB::Shuffle2:
       addUnsignedArg(2);
+      break;
+    case OpenCLLIB::Vloadn:
+    case OpenCLLIB::Vload_half:
+    case OpenCLLIB::Vload_halfn:
+    case OpenCLLIB::Vloada_halfn:
+      addUnsignedArg(0);
+      setArgAttr(1, SPIR::ATTR_CONST);
+      break;
+    case OpenCLLIB::Vstoren:
+    case OpenCLLIB::Vstore_half:
+    case OpenCLLIB::Vstore_half_r:
+    case OpenCLLIB::Vstore_halfn:
+    case OpenCLLIB::Vstore_halfn_r:
+    case OpenCLLIB::Vstorea_halfn:
+    case OpenCLLIB::Vstorea_halfn_r:
+      addUnsignedArg(1);
       break;
     default:;
       // No special handling is needed

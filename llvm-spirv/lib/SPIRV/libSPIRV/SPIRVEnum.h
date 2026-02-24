@@ -206,15 +206,11 @@ template <> inline void SPIRVMap<SPIRVCapabilityKind, SPIRVCapVec>::init() {
   ADD_VEC_INIT(CapabilitySubgroupAvcMotionEstimationChromaINTEL,
                {CapabilitySubgroupAvcMotionEstimationIntraINTEL});
   ADD_VEC_INIT(internal::CapabilityJointMatrixWIInstructionsINTEL,
-               {internal::CapabilityJointMatrixINTEL});
-  ADD_VEC_INIT(internal::CapabilityJointMatrixTF32ComponentTypeINTEL,
-               {internal::CapabilityJointMatrixINTEL});
-  ADD_VEC_INIT(internal::CapabilityJointMatrixBF16ComponentTypeINTEL,
-               {internal::CapabilityJointMatrixINTEL});
-  ADD_VEC_INIT(internal::CapabilityJointMatrixPackedInt2ComponentTypeINTEL,
-               {internal::CapabilityJointMatrixINTEL});
-  ADD_VEC_INIT(internal::CapabilityJointMatrixPackedInt4ComponentTypeINTEL,
-               {internal::CapabilityJointMatrixINTEL});
+               {CapabilityCooperativeMatrixKHR});
+  ADD_VEC_INIT(internal::CapabilityCooperativeMatrixTF32ComponentTypeINTEL,
+               {CapabilityCooperativeMatrixKHR});
+  ADD_VEC_INIT(internal::CapabilityCooperativeMatrixBFloat16ComponentTypeINTEL,
+               {CapabilityCooperativeMatrixKHR});
   ADD_VEC_INIT(internal::CapabilityCooperativeMatrixPrefetchINTEL,
                {CapabilityCooperativeMatrixKHR});
   ADD_VEC_INIT(internal::CapabilityCooperativeMatrixInvocationInstructionsINTEL,
@@ -229,6 +225,16 @@ template <> inline void SPIRVMap<SPIRVCapabilityKind, SPIRVCapVec>::init() {
   ADD_VEC_INIT(CapabilityInt4CooperativeMatrixINTEL,
                {CapabilityInt4TypeINTEL, CapabilityCooperativeMatrixKHR});
   ADD_VEC_INIT(internal::CapabilityBFloat16ArithmeticINTEL,
+               {CapabilityBFloat16TypeKHR});
+  ADD_VEC_INIT(internal::CapabilityAtomicInt16CompareExchangeINTEL,
+               {CapabilityInt16});
+  ADD_VEC_INIT(internal::CapabilityInt16AtomicsINTEL,
+               {internal::CapabilityAtomicInt16CompareExchangeINTEL});
+  ADD_VEC_INIT(internal::CapabilityAtomicBFloat16LoadStoreINTEL,
+               {CapabilityBFloat16TypeKHR});
+  ADD_VEC_INIT(internal::CapabilityAtomicBFloat16AddINTEL,
+               {CapabilityBFloat16TypeKHR});
+  ADD_VEC_INIT(internal::CapabilityAtomicBFloat16MinMaxINTEL,
                {CapabilityBFloat16TypeKHR});
 }
 
@@ -578,6 +584,8 @@ template <> inline void SPIRVMap<BuiltIn, SPIRVCapVec>::init() {
                {internal::CapabilityHWThreadQueryINTEL});
   ADD_VEC_INIT(internal::BuiltInGlobalHWThreadIDINTEL,
                {internal::CapabilityHWThreadQueryINTEL});
+  ADD_VEC_INIT(internal::BuiltInDeviceBarrierValidINTEL,
+               {internal::CapabilityDeviceBarrierINTEL});
 }
 
 template <> inline void SPIRVMap<MemorySemanticsMask, SPIRVCapVec>::init() {

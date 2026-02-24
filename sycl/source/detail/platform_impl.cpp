@@ -30,6 +30,20 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
+platform_impl::platform_impl(ur_platform_handle_t APlatform,
+                             adapter_impl &Adapter)
+    : MPlatform(APlatform), MAdapter(&Adapter) {
+
+  // Find out backend of the platform
+  ur_backend_t UrBackend = UR_BACKEND_UNKNOWN;
+  Adapter.call_nocheck<UrApiKind::urPlatformGetInfo>(
+      APlatform, UR_PLATFORM_INFO_BACKEND, sizeof(ur_backend_t), &UrBackend,
+      nullptr);
+  MBackend = convertUrBackend(UrBackend);
+}
+
+platform_impl::~platform_impl() = default;
+
 platform_impl &
 platform_impl::getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
                                      adapter_impl &Adapter) {
@@ -266,8 +280,8 @@ device_impl &platform_impl::getOrMakeDeviceImpl(ur_device_handle_t UrDevice) {
     return *Result;
 
   // Otherwise make the impl
-  MDevices.emplace_back(std::make_shared<device_impl>(
-      UrDevice, *this, device_impl::private_tag{}));
+  MDevices.emplace_back(std::make_unique<device_impl>(
+      UrDevice, *this, device_impl::private_tag{}, MDevices.size()));
 
   return *MDevices.back();
 }
@@ -417,6 +431,9 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   if (DeviceType == info::device_type::host)
     return std::vector<device>{};
 
+  if (DeviceType == info::device_type::accelerator)
+    return std::vector<device>{};
+
   // For custom devices, UR has additional type enums.
   if (DeviceType == info::device_type::custom) {
     getDevicesImplHelper(UR_DEVICE_TYPE_CUSTOM, Res);
@@ -442,8 +459,6 @@ platform_impl::get_devices(info::device_type DeviceType) const {
       return UR_DEVICE_TYPE_GPU;
     case info::device_type::cpu:
       return UR_DEVICE_TYPE_CPU;
-    case info::device_type::accelerator:
-      return UR_DEVICE_TYPE_FPGA;
     case info::device_type::automatic:
       return UR_DEVICE_TYPE_DEFAULT;
     default:
@@ -554,56 +569,8 @@ ur_native_handle_t platform_impl::getNative() const {
   return Handle;
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::platform::version::return_type
-platform_impl::get_backend_info<info::platform::version>() const {
-  if (getBackend() != backend::opencl) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::platform::version info descriptor can "
-                          "only be queried with an OpenCL backend");
-  }
-  return get_info<info::platform::version>();
-}
-#endif
-
 device select_device(DSelectorInvocableType DeviceSelectorInvocable,
                      std::vector<device> &Devices);
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::device::version::return_type
-platform_impl::get_backend_info<info::device::version>() const {
-  if (getBackend() != backend::opencl) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::device::version info descriptor can only "
-                          "be queried with an OpenCL backend");
-  }
-  auto Devices = get_devices();
-  if (Devices.empty()) {
-    return "No available device";
-  }
-  // Use default selector to pick a device.
-  return select_device(default_selector_v, Devices)
-      .get_info<info::device::version>();
-}
-#endif
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::device::backend_version::return_type
-platform_impl::get_backend_info<info::device::backend_version>() const {
-  if (getBackend() != backend::ext_oneapi_level_zero) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::device::backend_version info descriptor "
-                          "can only be queried with a Level Zero backend");
-  }
-  return "";
-  // Currently The Level Zero backend does not define the value of this
-  // information descriptor and implementations are encouraged to return the
-  // empty string as per specification.
-}
-#endif
 
 // All devices on the platform must have the given aspect.
 bool platform_impl::has(aspect Aspect) const {
@@ -616,7 +583,7 @@ bool platform_impl::has(aspect Aspect) const {
 }
 
 device_impl *platform_impl::getDeviceImplHelper(ur_device_handle_t UrDevice) {
-  for (const std::shared_ptr<device_impl> &Device : MDevices) {
+  for (const std::unique_ptr<device_impl> &Device : MDevices) {
     if (Device->getHandleRef() == UrDevice)
       return Device.get();
   }

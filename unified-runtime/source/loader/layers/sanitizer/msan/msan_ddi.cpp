@@ -367,8 +367,11 @@ ur_result_t urProgramLink(
 
   auto UrRes = pfnProgramLink(hContext, count, phPrograms, pOptions, phProgram);
   if (UrRes != UR_RESULT_SUCCESS) {
-    auto Devices = GetDevices(hContext);
-    PrintUrBuildLogIfError(UrRes, *phProgram, Devices.data(), Devices.size());
+    if (*phProgram) {
+      auto Devices = GetDevices(hContext);
+      PrintUrBuildLogIfError(UrRes, *phProgram, Devices.data(), Devices.size());
+      UR_CALL(getMsanInterceptor()->insertProgram(*phProgram));
+    }
     return UrRes;
   }
 
@@ -404,7 +407,10 @@ ur_result_t urProgramLinkExp(
   auto UrRes = pfnProgramLinkExp(hContext, numDevices, phDevices, flags, count,
                                  phPrograms, pOptions, phProgram);
   if (UrRes != UR_RESULT_SUCCESS) {
-    PrintUrBuildLogIfError(UrRes, *phProgram, phDevices, numDevices);
+    if (*phProgram) {
+      PrintUrBuildLogIfError(UrRes, *phProgram, phDevices, numDevices);
+      UR_CALL(getMsanInterceptor()->insertProgram(*phProgram));
+    }
     return UrRes;
   }
 
@@ -474,11 +480,8 @@ ur_result_t urEnqueueKernelLaunch(
     /// execute the kernel function. If nullptr, the runtime implementation will
     /// choose the work-group size.
     const size_t *pLocalWorkSize,
-    /// [in] size of the launch prop list
-    uint32_t numPropsInLaunchPropList,
-    /// [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
-    /// properties
-    const ur_kernel_launch_property_t *launchPropList,
+    /// [in][optional] pointer to a single linked list of launch properties
+    const ur_kernel_launch_ext_properties_t *launchPropList,
     /// [in] size of the event wait list
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -506,8 +509,8 @@ ur_result_t urEnqueueKernelLaunch(
 
   UR_CALL(getContext()->urDdiTable.Enqueue.pfnKernelLaunch(
       hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      LaunchInfo.LocalWorkSize.data(), numPropsInLaunchPropList, launchPropList,
-      numEventsInWaitList, phEventWaitList, phEvent));
+      LaunchInfo.LocalWorkSize.data(), launchPropList, numEventsInWaitList,
+      phEventWaitList, phEvent));
 
   UR_CALL(getMsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));
 
@@ -649,8 +652,8 @@ ur_result_t urMemBufferCreate(
       // Update shadow memory
       std::shared_ptr<DeviceInfo> DeviceInfo =
           getMsanInterceptor()->getDeviceInfo(hDevice);
-      UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(InternalQueue,
-                                                      (uptr)Handle, size, 0));
+      UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(
+          InternalQueue, (uptr)Handle, size, &kMemInitializedMagic));
     }
   }
 
@@ -1549,8 +1552,8 @@ ur_result_t urEnqueueUSMFill(
     uptr MemShadow = DeviceInfo->Shadow->MemToShadow((uptr)pMem);
 
     ur_event_handle_t Event = nullptr;
-    UR_CALL(EnqueueUSMSet(hQueue, (void *)MemShadow, (char)0, size, 0, nullptr,
-                          &Event));
+    UR_CALL(
+        EnqueueUSMSetZero(hQueue, (void *)MemShadow, size, 0, nullptr, &Event));
     Events.push_back(Event);
   }
 
@@ -1642,8 +1645,8 @@ ur_result_t urEnqueueUSMMemcpy(
     {
       const auto DstShadow = DstDI->Shadow->MemToShadow((uptr)pDst);
       ur_event_handle_t Event = nullptr;
-      UR_CALL(EnqueueUSMSet(hQueue, (void *)DstShadow, (char)0, size, 0,
-                            nullptr, &Event));
+      UR_CALL(EnqueueUSMSetZero(hQueue, (void *)DstShadow, size, 0, nullptr,
+                                &Event));
       Events.push_back(Event);
     }
   }
@@ -1859,11 +1862,8 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
     /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
     /// properties.
     const ur_exp_kernel_arg_properties_t *pArgs,
-    /// [in] size of the launch prop list
-    uint32_t numPropsInLaunchPropList,
-    /// [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
-    /// properties
-    const ur_kernel_launch_property_t *launchPropList,
+    /// [in][optional] pointer to a single linked list of launch properties
+    const ur_kernel_launch_ext_properties_t *launchPropList,
     /// [in] size of the event wait list
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -1943,14 +1943,14 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
     UR_CALL(getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchWithArgsExp(
         hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
         LaunchInfo.LocalWorkSize.data(), numArgs, pArgs,
-    numPropsInLaunchPropList, launchPropList, numEventsInWaitList,
+    launchPropList, numEventsInWaitList,
     phEventWaitList, phEvent));
   */
 
   UR_CALL(getContext()->urDdiTable.Enqueue.pfnKernelLaunch(
       hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      LaunchInfo.LocalWorkSize.data(), numPropsInLaunchPropList, launchPropList,
-      numEventsInWaitList, phEventWaitList, phEvent));
+      LaunchInfo.LocalWorkSize.data(), launchPropList, numEventsInWaitList,
+      phEventWaitList, phEvent));
 
   UR_CALL(getMsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));
 

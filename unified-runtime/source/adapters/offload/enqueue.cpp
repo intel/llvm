@@ -154,7 +154,7 @@ UR_APIEXPORT ur_result_t urEnqueueEventsWaitWithBarrierExt(
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t, const ur_kernel_launch_property_t *,
+    const size_t *pLocalWorkSize, const ur_kernel_launch_ext_properties_t *,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
@@ -490,8 +490,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
     const size_t *pLocalWorkSize, uint32_t numArgs,
     const ur_exp_kernel_arg_properties_t *pArgs,
-    uint32_t numPropsInLaunchPropList,
-    const ur_kernel_launch_property_t *launchPropList,
+    const ur_kernel_launch_ext_properties_t *launchPropList,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
   for (uint32_t i = 0; i < numArgs; i++) {
@@ -517,7 +516,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
   }
 
   return urEnqueueKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
-                               pGlobalWorkSize, pLocalWorkSize,
-                               numPropsInLaunchPropList, launchPropList,
+                               pGlobalWorkSize, pLocalWorkSize, launchPropList,
                                numEventsInWaitList, phEventWaitList, phEvent);
 }

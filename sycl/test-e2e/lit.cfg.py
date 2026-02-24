@@ -55,6 +55,7 @@ config.recursiveExpansionLimit = 10
 # To be filled by lit.local.cfg files.
 config.required_features = []
 config.unsupported_features = []
+config.xfail_features = []
 
 # test-mode: Set if tests should run normally or only build/run
 config.test_mode = lit_config.params.get("test-mode", "full")
@@ -69,7 +70,7 @@ elif config.test_mode == "build-only":
     lit_config.note("build-only test mode enabled, only compiling tests")
     config.available_features.add("build-mode")
     config.sycl_devices = []
-    if not config.amd_arch:
+    if not getattr(config, "amd_arch", None):
         config.amd_arch = "gfx1030"
 else:
     lit_config.error("Invalid argument for test-mode")
@@ -234,9 +235,6 @@ if lit_config.params.get("gpu-intel-dg2", False):
 if lit_config.params.get("gpu-intel-pvc-vg", False):
     config.available_features.add("gpu-intel-pvc-vg")
 
-if lit_config.params.get("igc-dev", False):
-    config.available_features.add("igc-dev")
-
 # Map between device family and architecture types.
 device_family_arch_map = {
     # <Family name> : Set of architectures types (and aliases)
@@ -275,8 +273,6 @@ def check_igc_tag_and_add_feature():
     if os.path.isfile(config.igc_tag_file):
         with open(config.igc_tag_file, "r") as tag_file:
             contents = tag_file.read()
-            if "igc-dev" in contents:
-                config.available_features.add("igc-dev")
 
 
 def quote_path(path):
@@ -576,7 +572,7 @@ if cl_options:
         (
             "%sycl_options",
             " "
-            + os.path.normpath(os.path.join(config.sycl_libs_dir + "/../lib/sycl8.lib"))
+            + os.path.normpath(os.path.join(config.sycl_libs_dir + "/../lib/sycl9.lib"))
             + " -Xclang -isystem -Xclang "
             + config.sycl_include
             + " -Xclang -isystem -Xclang "
@@ -594,7 +590,7 @@ else:
     config.substitutions.append(
         (
             "%sycl_options",
-            (" -lsycl8" if platform.system() == "Windows" else " -lsycl")
+            (" -lsycl9" if platform.system() == "Windows" else " -lsycl")
             + " -isystem "
             + config.sycl_include
             + " -isystem "
@@ -704,7 +700,7 @@ def remove_level_zero_suffix(devices):
 
 
 available_devices = {
-    "opencl": ("cpu", "gpu", "fpga"),
+    "opencl": ("cpu", "gpu"),
     "cuda": "gpu",
     "level_zero": "gpu",
     "hip": "gpu",
@@ -849,6 +845,8 @@ tools = [
     ToolSubst("sycl-post-link", unresolved="fatal"),
     ToolSubst("file-table-tform", unresolved="fatal"),
     ToolSubst("llvm-foreach", unresolved="fatal"),
+    ToolSubst("llvm-profdata", unresolved="ignore"),
+    ToolSubst("llvm-cov", unresolved="ignore"),
 ] + feature_tools
 
 # Try and find each of these tools in the DPC++ bin directory, in the llvm tools directory
@@ -917,12 +915,14 @@ for sycl_device in config.sycl_devices:
 
     env = copy.copy(llvm_config.config.environment)
 
+    backend_for_selector = backend.replace("_v2", "").replace("_v1", "")
+
     # Find all available devices under the backend
-    env["ONEAPI_DEVICE_SELECTOR"] = backend + ":*"
+    env["ONEAPI_DEVICE_SELECTOR"] = backend_for_selector + ":*"
 
     detected_architectures = []
 
-    platform_devices = remove_level_zero_suffix(backend + ":*")
+    platform_devices = backend_for_selector + ":*"
 
     for line in get_sycl_ls_verbose(platform_devices, env).stdout.splitlines():
         if re.match(r" *Architecture:", line):
@@ -983,6 +983,11 @@ if config.test_mode != "build-only":
         lit_config.note(
             "sycl-jit was not found. Tests requiring sycl-jit will be skipped."
         )
+
+# Check for enabled NewOffloadModel
+if lit_config.params.get("enable_new_offload_model", "False") != "False":
+    config.available_features.add("new-offload-model")
+    config.cxx_flags += " --offload-new-driver "
 
 # That has to be executed last so that all device-independent features have been
 # discovered already.
@@ -1070,24 +1075,17 @@ for full_name, sycl_device in zip(
     sg_sizes = set(dev_sg_sizes[0]).intersection(*dev_sg_sizes)
     lit_config.note("SG sizes for {}: {}".format(sycl_device, ", ".join(sg_sizes)))
 
-    # Currently, for fpga, the architecture reported by sycl-ls will always
-    # be unknown, as there are currently no architectures specified for fpga
-    # in sycl_ext_oneapi_device_architecture. Skip adding architecture features
-    # in this case.
-    if sycl_device == "opencl:fpga":
-        architectures = set()
-    else:
-        lit_config.note(
-            "Architectures for {}: {}".format(sycl_device, ", ".join(architectures))
-        )
-        if len(architectures) != 1 or "unknown" in architectures:
-            if not config.allow_unknown_arch:
-                lit_config.error(
-                    "Cannot detect architecture for {}\nstdout:\n{}\nstderr:\n{}".format(
-                        sycl_device, sycl_ls_sp.stdout, sycl_ls_sp.stderr
-                    )
+    lit_config.note(
+        "Architectures for {}: {}".format(sycl_device, ", ".join(architectures))
+    )
+    if len(architectures) != 1 or "unknown" in architectures:
+        if not config.allow_unknown_arch:
+            lit_config.error(
+                "Cannot detect architecture for {}\nstdout:\n{}\nstderr:\n{}".format(
+                    sycl_device, sycl_ls_sp.stdout, sycl_ls_sp.stderr
                 )
-            architectures = set()
+            )
+        architectures = set()
 
     aspect_features = set("aspect-" + a for a in aspects)
     sg_size_features = set("sg-" + s for s in sg_sizes)
@@ -1114,7 +1112,14 @@ for full_name, sycl_device in zip(
     features.update(device_family)
 
     be, dev = sycl_device.split(":")
-    features.add(dev.replace("fpga", "accelerator"))
+    if dev.isdigit():
+        backend_devices = available_devices.get(be, "gpu")
+        if isinstance(backend_devices, tuple):
+            # arch-selection is typically used to select gpu device
+            dev = "gpu"
+        else:
+            dev = backend_devices
+    features.add(dev)
     if "level_zero_v2" in full_name:
         features.add("level_zero_v2_adapter")
     elif "level_zero_v1" in full_name:
@@ -1145,6 +1150,16 @@ for full_name, sycl_device in zip(
         config.intel_driver_ver[full_name] = intel_driver_ver
     else:
         config.intel_driver_ver[full_name] = {}
+
+# Add AMD architecture flags for HIP backend compilation.
+# Uses detected GPU architecture or defaults to gfx1030 in build-only mode.
+amd_arch_flags = ""
+amd_arch = getattr(config, "amd_arch", None)
+if amd_arch:
+    amd_arch_flags = (
+        f"-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch={amd_arch}"
+    )
+config.substitutions.append(("%amd_arch_options", amd_arch_flags))
 
 if lit_config.params.get("compatibility_testing", "False") != "False":
     config.substitutions.append(("%clangxx", " true "))

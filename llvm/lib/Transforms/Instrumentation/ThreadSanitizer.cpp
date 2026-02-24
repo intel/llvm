@@ -497,6 +497,10 @@ bool ThreadSanitizerOnSpirv::isUnsupportedDeviceGlobal(
     return true;
   if (G.getName().starts_with("__usid_str"))
     return true;
+  // Globals with __profd/__profc prefix are inserted by profiling pass, we
+  // don't neeed to instrument them.
+  if (G.getName().starts_with("__profd") || G.getName().starts_with("__profc"))
+    return true;
   // Global variables have constant address space will not trigger race
   // condition.
   if (G.getAddressSpace() == kSpirOffloadConstantAS)
@@ -909,12 +913,14 @@ static bool isVtableAccess(Instruction *I) {
 }
 
 // Do not instrument known races/"benign races" that come from compiler
-// instrumentatin. The user has no way of suppressing them.
+// instrumentation. The user has no way of suppressing them.
 static bool shouldInstrumentReadWriteFromAddress(const Module *M, Value *Addr) {
   // Peel off GEPs and BitCasts.
-  Addr = Addr->stripInBoundsOffsets();
+  // Note: This also peels AddrspaceCasts, so this should not be used when
+  // checking the address space below.
+  Value *PeeledAddr = Addr->stripInBoundsOffsets();
 
-  if (GlobalVariable *GV = dyn_cast<GlobalVariable>(Addr)) {
+  if (GlobalVariable *GV = dyn_cast<GlobalVariable>(PeeledAddr)) {
     if (GV->hasSection()) {
       StringRef SectionName = GV->getSection();
       // Check if the global is in the PGO counters section.
@@ -927,11 +933,9 @@ static bool shouldInstrumentReadWriteFromAddress(const Module *M, Value *Addr) {
 
   // Do not instrument accesses from different address spaces; we cannot deal
   // with them.
-  if (Addr) {
-    Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
-    if (PtrTy->getPointerAddressSpace() != 0)
-      return false;
-  }
+  Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
+  if (PtrTy->getPointerAddressSpace() != 0)
+    return false;
 
   return true;
 }

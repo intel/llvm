@@ -389,12 +389,11 @@ ur_result_t urProgramLinkExp(
     *phProgram = reinterpret_cast<ur_program_handle_t>(UrProgram);
     return UR_RESULT_ERROR_PROGRAM_LINK_FAILURE;
   }
-
   ur_result_t UrResult = UR_RESULT_SUCCESS;
   try {
     // Acquire a "shared" lock on each of the input programs, and also
-    // validate that they are all in Object state for each device in the input
-    // list.
+    // validate that they are all in Object or Native state for each device in
+    // the input list.
     //
     // There is no danger of deadlock here even if two threads call
     // urProgramLink simultaneously with the same input programs in a
@@ -405,32 +404,47 @@ ur_result_t urProgramLinkExp(
     // one of these locks simultaneously with "exclusive" access.  However,
     // there is no such code like that, so this is also not a danger.
     std::vector<std::shared_lock<ur_shared_mutex>> Guards(count);
+    const ur_program_handle_t_::state CommonState =
+        phPrograms[0]->getState(phDevices[0]->ZeDevice);
+    if (CommonState != ur_program_handle_t_::Object &&
+        CommonState != ur_program_handle_t_::Native) {
+      return UR_RESULT_ERROR_INVALID_OPERATION;
+    }
+    bool NativeInput = CommonState == ur_program_handle_t_::Native;
     const ur_program_handle_t_::CodeFormat CommonCodeFormat =
-        phPrograms[0]->getCodeFormat();
+        phPrograms[0]->getCodeFormat(NativeInput ? phDevices[0]->ZeDevice
+                                                 : nullptr);
+    // Native programs are passed to this function to resolve external
+    // symbols, which requires multiple input programs.
+    if (NativeInput && count == 1) {
+      return UR_RESULT_ERROR_INVALID_OPERATION;
+    }
     for (uint32_t I = 0; I < count; I++) {
       std::shared_lock<ur_shared_mutex> Guard(phPrograms[I]->Mutex);
       Guards[I].swap(Guard);
+
       for (uint32_t DeviceIndex = 0; DeviceIndex < numDevices; DeviceIndex++) {
         auto Device = phDevices[DeviceIndex];
-        if (phPrograms[I]->getState(Device->ZeDevice) !=
-            ur_program_handle_t_::Object) {
+        if (phPrograms[I]->getState(Device->ZeDevice) != CommonState) {
           return UR_RESULT_ERROR_INVALID_OPERATION;
         }
-      }
-
-      // The L0 API has no way to represent mixed format modules,
-      // even though it could be possible to implement linking
-      // of mixed format modules.
-      if (phPrograms[I]->getCodeFormat() != CommonCodeFormat) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        // The L0 API has no way to represent mixed format modules,
+        // even though it could be possible to implement linking
+        // of mixed format modules.
+        if (phPrograms[I]->getCodeFormat(
+                NativeInput ? Device->ZeDevice : nullptr) != CommonCodeFormat) {
+          return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        }
       }
     }
 
-    // Previous calls to urProgramCompile did not actually compile the SPIR-V.
-    // Instead, we postpone compilation until this point, when all the modules
-    // are linked together.  By doing compilation and linking together, the
-    // JIT compiler is able see all modules and do cross-module optimizations.
-    //
+    // For SPIR-V input programs, previous calls to urProgramCompile did not
+    // actually compile the SPIR-V. Instead, we postpone compilation until this
+    // point, when all the modules are linked together.  By doing compilation
+    // and linking together, the JIT compiler is able see all modules and do
+    // cross-module optimizations. This means that both SPIR-V and native
+    // programs can be passed to the module program extension directly.
+
     // Construct a ze_module_program_exp_desc_t which contains information
     // about all of the modules that will be linked together.
     ZeStruct<ze_module_program_exp_desc_t> ZeExtModuleDesc;
@@ -445,20 +459,27 @@ ur_result_t urProgramLinkExp(
       ur_program_handle_t Program = phPrograms[I];
       CodeSizes[I] = Program->getCodeSize();
       CodeBufs[I] = Program->getCode();
-      SpecConstShims.emplace_back(Program);
-      SpecConstPtrs[I] = SpecConstShims[I].ze();
+      if (!NativeInput) {
+        SpecConstShims.emplace_back(Program);
+        SpecConstPtrs[I] = SpecConstShims[I].ze();
+      }
     }
 
     ZeExtModuleDesc.count = count;
     ZeExtModuleDesc.inputSizes = CodeSizes.data();
     ZeExtModuleDesc.pInputModules = CodeBufs.data();
-    ZeExtModuleDesc.pConstants = SpecConstPtrs.data();
+    if (!NativeInput) {
+      ZeExtModuleDesc.pConstants = SpecConstPtrs.data();
+    }
 
     ZeStruct<ze_module_desc_t> ZeModuleDesc;
     ZeModuleDesc.pNext = &ZeExtModuleDesc;
     switch (CommonCodeFormat) {
     case ur_program_handle_t_::CodeFormat::SPIRV:
       ZeModuleDesc.format = ZE_MODULE_FORMAT_IL_SPIRV;
+      break;
+    case ur_program_handle_t_::CodeFormat::Native:
+      ZeModuleDesc.format = ZE_MODULE_FORMAT_NATIVE;
       break;
     default:
       ur::unreachable();
@@ -506,12 +527,18 @@ ur_result_t urProgramLinkExp(
     ur_program_handle_t_ *UrProgram = new ur_program_handle_t_(hContext);
     *phProgram = reinterpret_cast<ur_program_handle_t>(UrProgram);
     for (uint32_t i = 0; i < numDevices; i++) {
-
       // Call the Level Zero API to compile, link, and create the module.
       ze_device_handle_t ZeDevice = phDevices[i]->ZeDevice;
       ze_context_handle_t ZeContext = hContext->getZeHandle();
       ze_module_handle_t ZeModule = nullptr;
       ze_module_build_log_handle_t ZeBuildLog = nullptr;
+
+      if (NativeInput) {
+        for (uint32_t I = 0; I < count; I++) {
+          CodeSizes[I] = phPrograms[I]->getCodeSize(ZeDevice);
+          CodeBufs[I] = phPrograms[I]->getCode(ZeDevice);
+        }
+      }
 
       // Build flags may be different for different devices, so handle them
       // here. Clear values of the previous device first.

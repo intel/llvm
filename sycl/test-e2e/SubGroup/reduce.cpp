@@ -1,6 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: linux && gpu && !hip && !cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20757
+
 //==--------------- reduce.cpp - SYCL sub_group reduce test ----*- C++ -*---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

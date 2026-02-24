@@ -28,14 +28,15 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/IgnoreExpr.h"
 #include "clang/AST/StmtCXX.h"
 #include "clang/AST/StmtObjC.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/CodeGenOptions.h"
+#include "clang/Basic/DiagnosticFrontend.h"
 #include "clang/Basic/TargetBuiltins.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
-#include "clang/Frontend/FrontendDiagnostic.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/ADT/ScopeExit.h"
@@ -214,11 +215,6 @@ void CodeGenFunction::CGFPOptionsRAII::ConstructorHelper(FPOptions FPFeatures) {
   mergeFnAttrValue("no-infs-fp-math", FPFeatures.getNoHonorInfs());
   mergeFnAttrValue("no-nans-fp-math", FPFeatures.getNoHonorNaNs());
   mergeFnAttrValue("no-signed-zeros-fp-math", FPFeatures.getNoSignedZero());
-  mergeFnAttrValue(
-      "unsafe-fp-math",
-      FPFeatures.getAllowFPReassociate() && FPFeatures.getAllowReciprocal() &&
-          FPFeatures.getAllowApproxFunc() && FPFeatures.getNoSignedZero() &&
-          FPFeatures.allowFPContractAcrossStatement());
 }
 
 CodeGenFunction::CGFPOptionsRAII::~CGFPOptionsRAII() {
@@ -777,7 +773,7 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
   }
 
   bool IsKernelOrDevice =
-      FD->hasAttr<DeviceKernelAttr>() || FD->hasAttr<SYCLDeviceAttr>();
+      FD->hasAttr<SYCLKernelAttr>() || FD->hasAttr<SYCLDeviceAttr>();
   const IntelReqdSubGroupSizeAttr *ReqSubGroup =
       FD->getAttr<IntelReqdSubGroupSizeAttr>();
 
@@ -1084,6 +1080,8 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
       Fn->addFnAttr(llvm::Attribute::SanitizeNumericalStability);
     if (SanOpts.hasOneOf(SanitizerKind::Memory | SanitizerKind::KernelMemory))
       Fn->addFnAttr(llvm::Attribute::SanitizeMemory);
+    if (SanOpts.has(SanitizerKind::AllocToken))
+      Fn->addFnAttr(llvm::Attribute::SanitizeAllocToken);
   }
   if (SanOpts.has(SanitizerKind::SafeStack))
     Fn->addFnAttr(llvm::Attribute::SafeStack);
@@ -1323,7 +1321,8 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
 
   // If we are checking function types, emit a function type signature as
   // prologue data.
-  if (FD && SanOpts.has(SanitizerKind::Function)) {
+  if (FD && SanOpts.has(SanitizerKind::Function) &&
+      !FD->getType()->isCFIUncheckedCalleeFunctionType()) {
     if (llvm::Constant *PrologueSig = getPrologueSignature(CGM, FD)) {
       llvm::LLVMContext &Ctx = Fn->getContext();
       llvm::MDBuilder MDB(Ctx);
@@ -1805,7 +1804,7 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
     DebugInfo = nullptr;
   }
   // Finalize function debug info on exit.
-  auto Cleanup = llvm::make_scope_exit([this] {
+  llvm::scope_exit Cleanup([this] {
     if (CGDebugInfo *DI = getDebugInfo())
       DI->completeFunction();
   });
@@ -2128,12 +2127,13 @@ bool CodeGenFunction::ConstantFoldsToSimpleInteger(const Expr *Cond,
 
 /// Strip parentheses and simplistic logical-NOT operators.
 const Expr *CodeGenFunction::stripCond(const Expr *C) {
-  while (const UnaryOperator *Op = dyn_cast<UnaryOperator>(C->IgnoreParens())) {
-    if (Op->getOpcode() != UO_LNot)
-      break;
-    C = Op->getSubExpr();
+  while (true) {
+    const Expr *SC =
+        IgnoreExprNodes(C, IgnoreParensSingleStep, IgnoreUOpLNotSingleStep);
+    if (C == SC)
+      return SC;
+    C = SC;
   }
-  return C->IgnoreParens();
 }
 
 /// Determine whether the given condition is an instrumentable condition
@@ -2496,6 +2496,23 @@ void CodeGenFunction::EmitBranchOnBoolExpr(
   case HLSLControlFlowHintAttr::SpellingNotCalculated:
     break;
   }
+}
+
+llvm::Value *CodeGenFunction::EmitScalarOrConstFoldImmArg(unsigned ICEArguments,
+                                                          unsigned Idx,
+                                                          const CallExpr *E) {
+  llvm::Value *Arg = nullptr;
+  if ((ICEArguments & (1 << Idx)) == 0) {
+    Arg = EmitScalarExpr(E->getArg(Idx));
+  } else {
+    // If this is required to be a constant, constant fold it so that we
+    // know that the generated intrinsic gets a ConstantInt.
+    std::optional<llvm::APSInt> Result =
+        E->getArg(Idx)->getIntegerConstantExpr(getContext());
+    assert(Result && "Expected argument to be a constant");
+    Arg = llvm::ConstantInt::get(getLLVMContext(), *Result);
+  }
+  return Arg;
 }
 
 /// ErrorUnsupported - Print out an error that codegen doesn't support the
@@ -3559,6 +3576,10 @@ void CodeGenFunction::EmitAArch64MultiVersionResolver(
       AArch64CpuInitialized = true;
       Builder.SetInsertPoint(CurBlock);
     }
+
+    // Skip unreachable versions.
+    if (RO.Function == nullptr)
+      continue;
 
     llvm::BasicBlock *RetBlock = createBasicBlock("resolver_return", Resolver);
     CGBuilderTy RetBuilder(*this, RetBlock);

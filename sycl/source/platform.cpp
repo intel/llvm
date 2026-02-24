@@ -82,14 +82,6 @@ platform::get_backend_info() const {
   return impl->get_backend_info<Param>();
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, Picode)              \
-  template __SYCL_EXPORT ReturnT                                               \
-  platform::get_backend_info<info::DescType::Desc>() const;
-
-#include <sycl/info/sycl_backend_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
-
 context platform::khr_get_default_context() const {
   return detail::createSyclObjFromImpl<context>(
       impl->khr_get_default_context());
@@ -136,6 +128,15 @@ std::vector<device> platform::ext_oneapi_get_composite_devices() const {
       Result.push_back(Composite);
   }
   return Result;
+}
+
+device platform::ext_oneapi_device_at_index(size_t index) const {
+  auto devices = get_devices();
+  if (index < devices.size())
+    return devices[index];
+  else
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "index is out of range");
 }
 
 namespace detail {

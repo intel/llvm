@@ -1,6 +1,6 @@
 //===----------- queue.cpp - LLVM Offload Adapter  ------------------------===//
 //
-// Copyright (C) 2025 Intel Corporation
+// Copyright (C) 2025-2026 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -123,4 +123,43 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(ur_queue_handle_t) {
   return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urQueueBeginGraphCaptureExp(ur_queue_handle_t /* hQueue */) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urQueueBeginCaptureIntoGraphExp(
+    ur_queue_handle_t /* hQueue */, ur_exp_graph_handle_t /* hGraph */) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urQueueEndGraphCaptureExp(
+    ur_queue_handle_t /* hQueue */, ur_exp_graph_handle_t * /* phGraph */) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urEnqueueGraphExp(ur_queue_handle_t /* hQueue */,
+                  ur_exp_executable_graph_handle_t /* hGraph */,
+                  uint32_t /* numEventsInWaitList */,
+                  const ur_event_handle_t * /* phEventWaitList */,
+                  ur_event_handle_t * /* phEvent */) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urQueueIsGraphCaptureEnabledExp(
+    ur_queue_handle_t /* hQueue */, bool * /* hResult */) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueHostTaskExp(
+    ur_queue_handle_t /* hQueue */,
+    ur_exp_host_task_function_t /* pfnHostTask */, void * /* data */,
+    const ur_exp_host_task_properties_t * /* pProperties */,
+    uint32_t /* numEventsInWaitList */,
+    const ur_event_handle_t * /* phEventWaitList */,
+    ur_event_handle_t * /* phEvent */) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
