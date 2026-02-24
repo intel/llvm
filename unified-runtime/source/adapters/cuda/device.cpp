@@ -1174,8 +1174,49 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(true);
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
     return ReturnValue(true);
-  case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
-    return ReturnValue(true);
+  case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP: {
+    // P2P support requires compute capability >= 2.0
+    // Check if device supports Unified Virtual Addressing (UVA)
+    int Major = 0;
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &Major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, hDevice->get()));
+
+    // Compute capability 2.0+ supports UVA which is required for P2P
+    if (Major < 2) {
+      return ReturnValue(false);
+    }
+
+    // Check if device can actually access peers
+    // We need to check against other devices in the platform
+    int canAccessPeer = 0;
+    int deviceCount = 0;
+    UR_CHECK_ERROR(cuDeviceGetCount(&deviceCount));
+
+    // If there's only one device, P2P is not applicable
+    if (deviceCount < 2) {
+      return ReturnValue(false);
+    }
+
+    // Check if this device can access at least one other device
+    CUdevice currentDevice = hDevice->get();
+    bool hasP2PCapability = false;
+
+    for (int i = 0; i < deviceCount; ++i) {
+      CUdevice peerDevice;
+      UR_CHECK_ERROR(cuDeviceGet(&peerDevice, i));
+
+      if (peerDevice != currentDevice) {
+        UR_CHECK_ERROR(
+            cuDeviceCanAccessPeer(&canAccessPeer, currentDevice, peerDevice));
+        if (canAccessPeer) {
+          hasP2PCapability = true;
+          break;
+        }
+      }
+    }
+
+    return ReturnValue(hasP2PCapability);
+  }
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP:

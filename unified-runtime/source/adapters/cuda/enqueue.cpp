@@ -1581,7 +1581,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
       UR_CHECK_ERROR(EventPtr->start());
     }
 
-    // Check memory types to handle Managed Memory correctly
+    // Check memory types and device ownership
     CUmemorytype SrcType = CU_MEMORYTYPE_HOST;
     CUmemorytype DstType = CU_MEMORYTYPE_HOST;
     cuPointerGetAttribute(&SrcType, CU_POINTER_ATTRIBUTE_MEMORY_TYPE,
@@ -1589,25 +1589,61 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     cuPointerGetAttribute(&DstType, CU_POINTER_ATTRIBUTE_MEMORY_TYPE,
                           (CUdeviceptr)pDst);
 
-    // For Managed Memory (CUDA Unified Memory), use prefetch hints
-    // to guide migration before copy
-    if (SrcType == CU_MEMORYTYPE_UNIFIED || DstType == CU_MEMORYTYPE_UNIFIED) {
-      int QueueDevice = hQueue->getDevice()->get();
+    // Detect cross-device copy for Managed Memory
+    bool isManagedMemory =
+        (SrcType == CU_MEMORYTYPE_UNIFIED || DstType == CU_MEMORYTYPE_UNIFIED);
 
-      // Prefetch pDst to queue's device to enable coherent copy
-      UR_CHECK_ERROR(
-          cuMemPrefetchAsync((CUdeviceptr)pDst, size, QueueDevice, CuStream));
+    if (isManagedMemory) {
+      // For Managed Memory cross-device copies without P2P:
+      // CUDA driver automatically stages through CPU memory.
+      // We just need to ensure the queue's device can access both pointers.
+      // Prefetch both to CPU to enable staging, then let CUDA handle migration.
 
-      // Copy the data using regular memcpy
-      // CUDA runtime will handle migration for Managed Memory
+      // Prefetch SRC to CPU (system memory) if it's Managed
+      if (SrcType == CU_MEMORYTYPE_UNIFIED) {
+        UR_CHECK_ERROR(cuMemPrefetchAsync((CUdeviceptr)pSrc, size,
+                                          CU_DEVICE_CPU, CuStream));
+      }
+
+      // Prefetch DST to CPU if it's Managed
+      if (DstType == CU_MEMORYTYPE_UNIFIED) {
+        UR_CHECK_ERROR(cuMemPrefetchAsync((CUdeviceptr)pDst, size,
+                                          CU_DEVICE_CPU, CuStream));
+      }
+
+      // Wait for prefetches to complete
+      UR_CHECK_ERROR(cuStreamSynchronize(CuStream));
+
+      // Now copy - CUDA will handle cross-device migration via CPU
       UR_CHECK_ERROR(
           cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, size, CuStream));
+
     } else {
-      // For Device memory and other types, use regular copy
-      // TODO: Optimize cross-device Device memory copies with cuMemcpyPeerAsync
-      // (requires obtaining CUcontext for both src and dst devices)
-      UR_CHECK_ERROR(
-          cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, size, CuStream));
+      // For Device memory: try to detect cross-device copy
+      int SrcDevice = -1;
+      int DstDevice = -1;
+
+      // Get device ordinals (ignore errors for host memory)
+      cuPointerGetAttribute(&SrcDevice, CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL,
+                            (CUdeviceptr)pSrc);
+      cuPointerGetAttribute(&DstDevice, CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL,
+                            (CUdeviceptr)pDst);
+
+      bool isCrossDevice =
+          (SrcDevice != -1 && DstDevice != -1 && SrcDevice != DstDevice);
+
+      if (isCrossDevice) {
+        // Cross-device Device memory copy
+        // This requires P2P or staging through host
+        // cuMemcpyAsync will handle this - with P2P it's direct,
+        // without P2P driver stages through host (slower)
+        UR_CHECK_ERROR(cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, size,
+                                     CuStream));
+      } else {
+        // Same device or host-device copy
+        UR_CHECK_ERROR(cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, size,
+                                     CuStream));
+      }
     }
 
     if (phEvent) {

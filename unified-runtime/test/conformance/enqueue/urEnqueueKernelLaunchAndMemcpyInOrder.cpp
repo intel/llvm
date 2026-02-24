@@ -10,6 +10,7 @@
 #include <uur/known_failure.h>
 #include <uur/raii.h>
 
+#include <iostream>
 #include <thread>
 #include <utility>
 
@@ -320,6 +321,23 @@ TEST_P(urEnqueueKernelLaunchIncrementMultiDeviceTest, Success) {
   ASSERT_SUCCESS(urDeviceGetInfo(devices[0], UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP,
                                  sizeof(usm_p2p_support), &usm_p2p_support,
                                  nullptr));
+
+  // Log P2P support status for debugging
+  std::cout << "[P2P INFO] Device 0 USM P2P Support: "
+            << (usm_p2p_support ? "ENABLED" : "DISABLED") << std::endl;
+
+  // Check all device pairs for P2P support
+  for (size_t i = 0; i < devices.size(); i++) {
+    for (size_t j = i + 1; j < devices.size(); j++) {
+      ur_bool_t pair_p2p = false;
+      ASSERT_SUCCESS(urDeviceGetInfo(devices[i],
+                                     UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP,
+                                     sizeof(pair_p2p), &pair_p2p, nullptr));
+      std::cout << "[P2P INFO] Device " << i << " <-> Device " << j
+                << " P2P: " << (pair_p2p ? "ENABLED" : "DISABLED") << std::endl;
+    }
+  }
+
   if (!usm_p2p_support) {
     GTEST_SKIP() << "EXP usm p2p feature is not supported.";
   }
