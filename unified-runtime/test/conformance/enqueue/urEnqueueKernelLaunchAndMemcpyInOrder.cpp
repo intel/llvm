@@ -24,6 +24,10 @@ struct urMultiQueueLaunchMemcpyTest
   std::vector<ur_kernel_handle_t> kernels;
   std::vector<void *> SharedMem;
 
+  // Track P2P pairs that we successfully enabled in SetUp, so we can
+  // disable them in TearDown without interfering with other tests
+  std::set<std::pair<ur_device_handle_t, ur_device_handle_t>> enabledP2PPairs;
+
   static constexpr char ProgramName[] = "increment";
   static constexpr size_t ArraySize = 100;
   static constexpr uint32_t InitialValue = 1;
@@ -40,6 +44,65 @@ struct urMultiQueueLaunchMemcpyTest
     for (auto &device : devices) {
       SKIP_IF_DRIVER_TOO_OLD("Level-Zero", minL0DriverVersion, platform,
                              device);
+    }
+
+    // Enable P2P access between all device pairs for cross-device memcpy
+    ur_bool_t usm_p2p_support = false;
+    if (devices.size() > 1) {
+      ASSERT_SUCCESS(
+          urDeviceGetInfo(devices[0], UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP,
+                          sizeof(usm_p2p_support), &usm_p2p_support, nullptr));
+      if (usm_p2p_support) {
+        // Track unique physical device pairs to avoid enabling P2P multiple times.
+        // Important: When devices are duplicated (same physical GPU appears multiple
+        // times in the devices vector), we must only enable P2P once per unique
+        // physical GPU pair to avoid CUDA_ERROR_PEER_ACCESS_ALREADY_ENABLED.
+        // We store successfully enabled pairs in member variable so we can disable
+        // them in TearDown, ensuring clean state for subsequent tests.
+
+        for (size_t i = 0; i < devices.size(); i++) {
+          for (size_t j = i + 1; j < devices.size(); j++) {
+            // Skip if same physical device (duplicate handles)
+            if (devices[i] == devices[j]) {
+              continue;
+            }
+
+            // Create canonical pair (always smaller handle first) to track unique pairs
+            auto pair = devices[i] < devices[j]
+                            ? std::make_pair(devices[i], devices[j])
+                            : std::make_pair(devices[j], devices[i]);
+
+            // Skip if we already processed this physical device pair
+            if (enabledP2PPairs.count(pair)) {
+              continue;
+            }
+
+            // First check if P2P is actually supported between this physical pair
+            int32_t p2p_access_supported = 0;
+            auto query_result = urUsmP2PPeerAccessGetInfoExp(
+                devices[i], devices[j], UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORT,
+                sizeof(p2p_access_supported), &p2p_access_supported, nullptr);
+
+            if (query_result != UR_RESULT_SUCCESS || !p2p_access_supported) {
+              GTEST_SKIP() << "P2P access not supported between device pair ("
+                           << i << ", " << j << ")";
+            }
+
+            // Enable bidirectional peer access (both directions needed for memcpy)
+            auto result_ij =
+                urUsmP2PEnablePeerAccessExp(devices[i], devices[j]);
+            auto result_ji =
+                urUsmP2PEnablePeerAccessExp(devices[j], devices[i]);
+
+            // Only track pairs that WE successfully enabled (not already-enabled ones)
+            // This way TearDown only disables what we enabled, avoiding conflicts
+            if (result_ij == UR_RESULT_SUCCESS &&
+                result_ji == UR_RESULT_SUCCESS) {
+              enabledP2PPairs.insert(pair);
+            }
+          }
+        }
+      }
     }
 
     programs.resize(devices.size());
@@ -96,6 +159,19 @@ struct urMultiQueueLaunchMemcpyTest
     for (const auto &program : programs) {
       urProgramRelease(program);
     }
+
+    // Disable P2P access for pairs that WE enabled in SetUp.
+    // This ensures clean state for subsequent tests and prevents race conditions
+    // where multiple test instances try to enable the same P2P pairs.
+    // We only disable pairs we successfully enabled (tracked in enabledP2PPairs).
+    for (const auto &pair : enabledP2PPairs) {
+      // Disable bidirectionally (both directions)
+      // Ignore errors - pair might already be disabled by another test
+      urUsmP2PDisablePeerAccessExp(pair.first, pair.second);
+      urUsmP2PDisablePeerAccessExp(pair.second, pair.first);
+    }
+    enabledP2PPairs.clear();
+
     UUR_RETURN_ON_FATAL_FAILURE(
         uur::urMultiQueueMultiDeviceTestWithParam<minDevices, T>::TearDown());
   }
@@ -268,8 +344,6 @@ UUR_PLATFORM_TEST_SUITE_WITH_PARAM(
 // ... ops
 TEST_P(urEnqueueKernelLaunchIncrementMultiDeviceTest, Success) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
-  // https://github.com/intel/llvm/issues/19033
-  UUR_KNOWN_FAILURE_ON(uur::CUDA{});
 
   auto waitOnEvent = std::get<0>(getParam()).value;
   auto runBackgroundCheck = std::get<1>(getParam()).value;
