@@ -87,7 +87,7 @@
     ./vsw_1d_test.bin --semaphores --channels 2 --linear 64x
 
  */
- // clang-format on
+// clang-format on
 
 #include "vulkan_setup.hpp"
 
