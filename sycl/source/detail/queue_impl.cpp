@@ -831,7 +831,7 @@ event queue_impl::submitMemOpHelper(const std::vector<event> &DepEvents,
         NestedCallsTracker tracker;
         MemOpFunc(std::forward<MemOpArgTs>(MemOpArgs)...,
                   getUrEvents(ExpandedDepEvents),
-                  /*PiEvent*/ nullptr);
+                  /*UrEvent*/ nullptr);
 
         return createSyclObjFromImpl<event>(
             event_impl::create_discarded_event());
