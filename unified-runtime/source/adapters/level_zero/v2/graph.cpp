@@ -131,12 +131,10 @@ ur_result_t urGraphDumpContentsExp(ur_exp_graph_handle_t hGraph,
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
-  ze_result_t zeResult = ZE_CALL_NOCHECK(
-      hContext->getPlatform()->ZeGraphExt.zeGraphDumpContentsExp,
-      (hGraph->getZeHandle(), filePath, nullptr));
+  ZE2UR_CALL(hContext->getPlatform()->ZeGraphExt.zeGraphDumpContentsExp,
+             (hGraph->getZeHandle(), filePath, nullptr));
 
-  // Level-zero returns ZE_RESULT_ERROR_UNKNOWN with errors related to file IO
-  return ze2urResult(zeResult);
+  return UR_RESULT_SUCCESS;
 }
 
 } // namespace ur::level_zero
