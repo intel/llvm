@@ -1068,7 +1068,9 @@ class TorchBenchmark(ComputeBenchmark):
         **kwargs,
     ):
         self._variant_name = variant_name
-        self._measure_completion_str = " with measure completion" if measure_completion else ""
+        self._measure_completion_str = (
+            " with measure completion" if measure_completion else ""
+        )
         self._torch_params = kwargs
         self._iterations_regular = 1000
         self._iterations_trace = 10
@@ -1131,7 +1133,13 @@ class TorchSingleQueue(TorchBenchmark):
 
 class TorchMultiQueue(TorchBenchmark):
     def __init__(
-        self, suite, runtime: RUNTIMES, variant_name: str, profiler_type, measure_completion: int = 0, **kwargs
+        self,
+        suite,
+        runtime: RUNTIMES,
+        variant_name: str,
+        profiler_type,
+        measure_completion: int = 0,
+        **kwargs,
     ):
         super().__init__(
             suite,
@@ -1146,7 +1154,13 @@ class TorchMultiQueue(TorchBenchmark):
 
 class TorchSlmSize(TorchBenchmark):
     def __init__(
-        self, suite, runtime: RUNTIMES, variant_name: str, profiler_type, measure_completion: int = 0, **kwargs
+        self,
+        suite,
+        runtime: RUNTIMES,
+        variant_name: str,
+        profiler_type,
+        measure_completion: int = 0,
+        **kwargs,
     ):
         super().__init__(
             suite,
@@ -1199,6 +1213,7 @@ class TorchGraphSingleQueue(TorchBenchmark):
             profiler_type,
             **kwargs,
         )
+
 
 class QueueInOrderMemcpy(ComputeBenchmark):
     def __init__(self, bench, isCopyOnly, source, destination, size, profiler_type):
