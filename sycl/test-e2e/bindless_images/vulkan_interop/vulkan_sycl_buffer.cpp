@@ -1,13 +1,16 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import
 // REQUIRES: vulkan
 
+// On Linux L0, there are problem with semaphores and latest drivers.
+// GSD-12371 GSD-12339
+
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.out
-// RUN: %{run} %t.out --semaphores
+// RUN-IF: windows, %{run} %t.out --semaphores
 
-// DMABUF not on Windows.
-// RUN: %{run} %t.out --dmabuf
-// RUN: %{run} %t.out --semaphores --dmabuf
+// DMABUF not available on Windows.
+// RUN-IF: linux, %{run} %t.out --dmabuf
+// RUN-IF: !level_zero %{run} %t.out --semaphores --dmabuf
 
 // clang-format off
 /*
