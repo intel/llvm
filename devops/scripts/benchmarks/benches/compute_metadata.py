@@ -109,16 +109,23 @@ class ComputeMetadataGenerator:
         Returns:
             Dictionary mapping group names to their metadata
         """
-        metadata = {}
-        # Discover all group names from actual benchmarks
+        # Collect all unique group names and their associated tags from the benchmarks
+        group_tags: dict[str, set] = {}
         for benchmark in benchmarks:
             group_name = benchmark.explicit_group()
-            if group_name and group_name not in metadata:
-                metadata[group_name] = self._generate_metadata(group_name)
+            if not group_name:
+                continue
+            group_tags.setdefault(group_name, set()).update(benchmark.get_tags())
+
+        # Generate metadata for each unique group name
+        metadata = {}
+        for group_name, tags in group_tags.items():
+            if group_name not in metadata:
+                metadata[group_name] = self._generate_metadata(group_name, tags)
 
         return metadata
 
-    def _generate_metadata(self, group_name: str) -> BenchmarkMetadata:
+    def _generate_metadata(self, group_name: str, tags: set) -> BenchmarkMetadata:
         """
         Generate metadata for a specific benchmark group.
 
@@ -132,12 +139,14 @@ class ComputeMetadataGenerator:
         base_metadata = self._base_group_metadata.get(
             base_group_name, BaseGroupMetadata()
         )
+        # Combine tags from the base metadata and the benchmark-specific tags
+        merged_tags = list(set(base_metadata.tags).union(tags))
         return BenchmarkMetadata(
             type="group",
             description=base_metadata.description,
             notes=base_metadata.notes,
             unstable=base_metadata.unstable,
-            tags=base_metadata.tags,
+            tags=merged_tags,
             range_min=base_metadata.range_min,
             range_max=base_metadata.range_max,
             explicit_group=group_name,
