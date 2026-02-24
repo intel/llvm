@@ -21,6 +21,7 @@
   will fail. This is being tracked as a separate issue.
 
 */
+// clang-format off
 
 // RUN: %{run} %t.out --type float --channels 1 32
 // RUN: %{run} %t.out --type float --channels 2 32
@@ -64,7 +65,7 @@
 // CUDA doesn't support unorm8, level_zero has issues with semaphores
 // XXX-IF: !cuda, %{run} %t.out --type unorm8 --channels 2 32 --semaphores
 
-// clang-format off
+
 /*
   Vulkan/SYCL  1D Unsampled Write Image
 

@@ -18,6 +18,7 @@
    will fail. This is being tracked as a separate issue.
 
 */
+// clang-format off
 // RUN: %{run} %t.out --type float --channels 1 32
 // RUN: %{run} %t.out --type float --channels 2 32
 // RUN: %{run} %t.out --type float --channels 4 32
@@ -127,11 +128,9 @@ VK_FORMAT_R8G8B8A8_UNORM
 /*
   Vulkan/SYCL 1D Image Read Test (Sampled + Unsampled)
 
-  clang++ -fsycl -o vsr_1d_test.bin vulkan_sycl_image_interop_read_1d.cpp
-  -lvulkan -I$VULKAN_SDK/include -L$VULKAN_SDK/lib
+  clang++ -fsycl -o vsr_1d_test.bin vulkan_sycl_image_interop_read_1d.cpp -lvulkan -I$VULKAN_SDK/include -L$VULKAN_SDK/lib
 
-  clang++ -fsycl -o vsr_1d_test.exe vulkan_sycl_image_interop_read_1d.cpp
-  -Wno-ignored-attributes  -lvulkan-1 -I$VULKAN_SDK/Include -L$VULKAN_SDK/Lib
+  clang++ -fsycl -o vsr_1d_test.exe vulkan_sycl_image_interop_read_1d.cpp -Wno-ignored-attributes  -lvulkan-1 -I$VULKAN_SDK/Include -L$VULKAN_SDK/Lib
 
   USAGE:
     ./vsr_1d_test.bin [FLAGS] [Wx]
@@ -141,9 +140,8 @@ VK_FORMAT_R8G8B8A8_UNORM
     --semaphores   Use Vulkan Semaphores for SYCL Interop Sync
     --linear       Use LINEAR tiling for the Vulkan Image (default is OPTIMAL)
     --channels X   Set number of channels (1, 2, or 4). Default is 4 (RGBA)
-    --type XXX     Set data type (float, half, uint32, int32, uint16, int16,
-  uint8, int8, unorm8). Default is float Wx             Set custom Width (e.g.
-  64x)
+    --type XXX     Set data type (float, half, uint32, int32, uint16, int16, uint8, int8, unorm8). Default is float 
+    Wx             Set custom Width (e.g. 64x)
 
   EXAMPLES:
     ./vsr_1d_test.bin
@@ -152,6 +150,7 @@ VK_FORMAT_R8G8B8A8_UNORM
     ./vsr_1d_test.bin --type half --channels 2
     ./vsr_1d_test.bin --linear --type unorm8 128x
 */
+// clang-format on
 
 #include "vulkan_setup.hpp"
 

@@ -1,6 +1,8 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import
 // REQUIRES: vulkan
 
+// clang-format off
+
 // On Linux L0, there are problem with semaphores and latest drivers.
 // GSD-12371 GSD-12339
 
@@ -12,7 +14,7 @@
 // RUN-IF: linux, %{run} %t.out --dmabuf
 // RUN-IF: !level_zero %{run} %t.out --semaphores --dmabuf
 
-// clang-format off
+
 /*
   Vulkan/SYCL Buffer Interop Test (USM)
 
