@@ -135,12 +135,8 @@ ur_result_t urGraphDumpContentsExp(ur_exp_graph_handle_t hGraph,
       hContext->getPlatform()->ZeGraphExt.zeGraphDumpContentsExp,
       (hGraph->getZeHandle(), filePath, nullptr));
 
-  // Errors related to File IO
-  if (zeResult == ZE_RESULT_ERROR_UNKNOWN) {
-    return UR_RESULT_ERROR_UNKNOWN;
-  }
-
-  return UR_RESULT_SUCCESS;
+  // Level-zero returns ZE_RESULT_ERROR_UNKNOWN with errors related to file IO
+  return ze2urResult(zeResult);
 }
 
 } // namespace ur::level_zero
