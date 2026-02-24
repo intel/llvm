@@ -5,7 +5,7 @@
 #  See LICENSE.TXT
 #  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-# get_system_info.sh - Script for printing system info
+# get_system_info.sh - Script for 'debug' printing all the system info.
 
 ur_build_dir="$(dirname "$(readlink -f "$0")")/../../build"
 
