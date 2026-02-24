@@ -21,6 +21,7 @@
 #include "adapter.hpp"
 #include "common.hpp"
 #include "common/ur_ref_count.hpp"
+#include "cuda_call_logger.hpp"
 #include "device.hpp"
 #include "umf_helpers.hpp"
 
@@ -171,11 +172,13 @@ private:
   void setContext(CUcontext Desired) {
     CUcontext Original = nullptr;
 
+    CUDA_CALL_TRACE_CTX_GET(&Original);
     UR_CHECK_ERROR(cuCtxGetCurrent(&Original));
 
     // Make sure the desired context is active on the current thread, setting
     // it if necessary
     if (Original != Desired) {
+      CUDA_CALL_TRACE_CTX_SET(Desired);
       UR_CHECK_ERROR(cuCtxSetCurrent(Desired));
     }
   }

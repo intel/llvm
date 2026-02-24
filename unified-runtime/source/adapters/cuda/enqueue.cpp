@@ -11,6 +11,7 @@
 #include "enqueue.hpp"
 #include "common.hpp"
 #include "context.hpp"
+#include "cuda_call_logger.hpp"
 #include "event.hpp"
 #include "kernel.hpp"
 #include "memory.hpp"
@@ -434,6 +435,10 @@ enqueueKernelLaunch(ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel,
     }
 
     auto &ArgPointers = hKernel->getArgPointers();
+    CUDA_CALL_TRACE_KERNEL_LAUNCH(CuFunc, BlocksPerGrid[0], BlocksPerGrid[1],
+                                  BlocksPerGrid[2], ThreadsPerBlock[0],
+                                  ThreadsPerBlock[1], ThreadsPerBlock[2],
+                                  LocalSize, CuStream);
     UR_CHECK_ERROR(cuLaunchKernel(
         CuFunc, BlocksPerGrid[0], BlocksPerGrid[1], BlocksPerGrid[2],
         ThreadsPerBlock[0], ThreadsPerBlock[1], ThreadsPerBlock[2], LocalSize,
@@ -918,6 +923,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     auto Dst = std::get<BufferMem>(hBufferDst->Mem)
                    .getPtrWithOffset(hQueue->getDevice(), dstOffset);
 
+    CUDA_CALL_TRACE_MEMCPY_ASYNC(Dst, Src, size, Stream);
     UR_CHECK_ERROR(cuMemcpyDtoDAsync(Dst, Src, size, Stream));
 
     if (phEvent) {
@@ -1578,6 +1584,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
                                                       hQueue, CuStream);
       UR_CHECK_ERROR(EventPtr->start());
     }
+    CUDA_CALL_TRACE_MEMCPY_GENERIC((CUdeviceptr)pDst, (CUdeviceptr)pSrc, size,
+                                   CuStream);
     UR_CHECK_ERROR(
         cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, size, CuStream));
     if (phEvent) {
