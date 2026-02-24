@@ -101,7 +101,7 @@ jobs:
       - name: Build and run E2E tests
         uses: ./devops/actions/run-tests/linux/e2e
         with:
-          ref: ${{ inputs.ref || github.sha }}
+          ref: ${{ github.ref || github.sha }}
           testing_mode: full
           target_devices: native_cpu:cpu
           sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
