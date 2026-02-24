@@ -322,7 +322,7 @@ jobs:
       if: ${{ inputs.e2e_binaries_artifact && !cancelled() && steps.build.conclusion == 'success' }}
       uses: ./devops/actions/run-tests/linux/e2e
       with:
-        ref: ${{ inputs.ref || github.sha }}
+        ref: ${{ inputs.build_ref || github.sha }}
         testing_mode: build-only
         target_devices: all
         binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
@@ -337,7 +337,7 @@ jobs:
         contains(github.event.pull_request.labels.*.name, 'new-offload-model')
       uses: ./devops/actions/run-tests/linux/e2e
       with:
-        ref: ${{ inputs.ref || github.sha }}
+        ref: ${{ inputs.build_ref || github.sha }}
         testing_mode: build-only
         target_devices: all
         binaries_artifact: ${{ inputs.e2e_binaries_new_offload_model_artifact }}
@@ -348,7 +348,7 @@ jobs:
       if: ${{ inputs.e2e_binaries_spirv_backend_artifact && !cancelled() && steps.build.conclusion == 'success' }}
       uses: ./devops/actions/run-tests/linux/e2e
       with:
-        ref: ${{ inputs.ref || github.sha }}
+        ref: ${{ inputs.build_ref || github.sha }}
         testing_mode: build-only
         target_devices: all
         binaries_artifact: ${{ inputs.e2e_binaries_spirv_backend_artifact }}
@@ -359,7 +359,7 @@ jobs:
       if: ${{ inputs.e2e_binaries_preview_artifact && !cancelled() && steps.build.conclusion == 'success' && !startsWith(github.base_ref, 'sycl-rel-') }}
       uses: ./devops/actions/run-tests/linux/e2e
       with:
-        ref: ${{ inputs.ref || github.sha }}
+        ref: ${{ inputs.build_ref || github.sha }}
         testing_mode: build-only
         target_devices: all
         binaries_artifact: ${{ inputs.e2e_binaries_preview_artifact }}
