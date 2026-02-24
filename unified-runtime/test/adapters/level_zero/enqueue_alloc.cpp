@@ -345,10 +345,6 @@ TEST_P(urL0EnqueueAllocMultiQueueSameDeviceTest, SuccessMt) {
   const auto checkUSMSupportFunc =
       std::get<1>(this->GetParam()).funcParams.checkUSMSupportFunc;
 
-  if (numQueues > 0) {
-    SKIP_IF_BATCHED_QUEUE(queues[0]);
-  }
-
   ur_device_usm_access_capability_flags_t USMSupport = 0;
   ASSERT_SUCCESS(checkUSMSupportFunc(device, USMSupport));
   if (!(USMSupport & UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS)) {
