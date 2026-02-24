@@ -38,7 +38,7 @@ TEST_P(urGraphDumpContentsExpTest, SuccessEmptyGraph) {
 
   ur_exp_graph_handle_t emptyGraph = nullptr;
   ASSERT_SUCCESS(urGraphCreateExp(context, &emptyGraph));
-  ASSERT_SUCCESS(urGraphDumpContentsExp(graph, filePath));
+  ASSERT_SUCCESS(urGraphDumpContentsExp(emptyGraph, filePath));
 
   std::ifstream file(filePath);
   ASSERT_TRUE(file.good());
