@@ -12,7 +12,7 @@
 
 // DMABUF not available on Windows.
 // RUN-IF: linux, %{run} %t.out --dmabuf
-// RUN-IF: !level_zero %{run} %t.out --semaphores --dmabuf
+// RUN-IF: !level_zero, %{run} %t.out --semaphores --dmabuf
 
 
 /*
