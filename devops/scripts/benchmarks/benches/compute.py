@@ -708,6 +708,7 @@ class ComputeBenchmark(Benchmark):
         # include the proper --iterations token computed from this class's
         # iteration fields.
         command += self._bin_args(run_trace)
+        env_vars = dict(env_vars) if env_vars else {}
         env_vars.update(self._extra_env_vars())
 
         result = self.run_bench(

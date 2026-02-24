@@ -586,8 +586,7 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(static_cast<ur_bool_t>(
         Device->ZeDeviceProperties->flags & ZE_DEVICE_PROPERTY_FLAG_ECC));
   case UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION:
-    return ReturnValue(
-        static_cast<size_t>(Device->ZeDeviceProperties->timerResolution));
+    return ReturnValue(static_cast<size_t>(Device->getTimerResolution()));
   case UR_DEVICE_INFO_LOCAL_MEM_TYPE:
     return ReturnValue(UR_DEVICE_LOCAL_MEM_TYPE_LOCAL);
   case UR_DEVICE_INFO_MAX_CONSTANT_ARGS:
@@ -1774,8 +1773,7 @@ ur_result_t urDeviceGetGlobalTimestamps(
 #endif
   }
 
-  const uint64_t &ZeTimerResolution =
-      Device->ZeDeviceProperties->timerResolution;
+  const double ZeTimerResolution = Device->getTimerResolution();
   const uint64_t TimestampMaxCount = Device->getTimestampMask();
   uint64_t DeviceClockCount, Dummy;
 
