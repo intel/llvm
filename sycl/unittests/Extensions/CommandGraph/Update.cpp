@@ -449,8 +449,8 @@ TEST_F(CommandGraphTest, CheckFinalizeBehavior) {
       &redefinedCommandBufferAppendKernelLaunchWithArgsExpAfter);
 
   ASSERT_NO_THROW(Graph.finalize(experimental::property::graph::updatable{}));
-  // GetInfo and AppendKernelLaunch should be called once each time a node is
-  // added to a command buffer during finalization
+  // GetInfo and AppendKernelLaunchWithArgs should be called once each time a
+  // node is added to a command buffer during finalization
   ASSERT_EQ(GetInfoCount, 1);
   ASSERT_EQ(AppendKernelLaunchWithArgsCount, 1);
 
