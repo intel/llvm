@@ -1068,7 +1068,7 @@ class TorchBenchmark(ComputeBenchmark):
         **kwargs,
     ):
         self._variant_name = variant_name
-        self._measure_completion_str = f" with measure completion" if measure_completion else ""
+        self._measure_completion_str = " with measure completion" if measure_completion else ""
         self._torch_params = kwargs
         self._iterations_regular = 1000
         self._iterations_trace = 10
@@ -1095,7 +1095,7 @@ class TorchBenchmark(ComputeBenchmark):
         )
 
     def display_name(self) -> str:
-        return f"{self._runtime.value.upper()} {self._test} {self._variant_name}{self._measure_completion_str}{self._cpu_count_str(separator=',')}"
+        return f"{self._runtime.value.upper()} {self.explicit_group()}"
 
     def explicit_group(self):
         return f"{self._test} {self._variant_name}{self._measure_completion_str}{self._cpu_count_str(separator=',')}"
