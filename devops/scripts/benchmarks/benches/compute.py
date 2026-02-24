@@ -403,6 +403,7 @@ class ComputeBench(Suite):
                         runtime,
                         variant_name,
                         profiler_type,
+                        measure_completion,
                         **kwargs,
                     )
 
@@ -443,6 +444,7 @@ class ComputeBench(Suite):
                         runtime,
                         variant_name,
                         profiler_type,
+                        measure_completion,
                         **kwargs,
                     )
 
@@ -1062,9 +1064,11 @@ class TorchBenchmark(ComputeBenchmark):
         bench_name: str,
         variant_name: str,
         profiler_type,
+        measure_completion: int = 0,
         **kwargs,
     ):
         self._variant_name = variant_name
+        self._measure_completion_str = f" with measure completion" if measure_completion else ""
         self._torch_params = kwargs
         self._iterations_regular = 1000
         self._iterations_trace = 10
@@ -1091,10 +1095,10 @@ class TorchBenchmark(ComputeBenchmark):
         )
 
     def display_name(self) -> str:
-        return f"{self.explicit_group()} {self._runtime.value}{self._cpu_count_str(separator=',')}"
+        return f"{self._runtime.value.upper()} {self._test} {self._variant_name}{self._measure_completion_str}{self._cpu_count_str(separator=',')}"
 
     def explicit_group(self):
-        return f"{self._test} {self._variant_name}{self._cpu_count_str(separator=',')}"
+        return f"{self._test} {self._variant_name}{self._measure_completion_str}{self._cpu_count_str(separator=',')}"
 
     def get_tags(self):
         return ["pytorch", runtime_to_tag_name(self._runtime)]
@@ -1127,7 +1131,7 @@ class TorchSingleQueue(TorchBenchmark):
 
 class TorchMultiQueue(TorchBenchmark):
     def __init__(
-        self, suite, runtime: RUNTIMES, variant_name: str, profiler_type, **kwargs
+        self, suite, runtime: RUNTIMES, variant_name: str, profiler_type, measure_completion: int = 0, **kwargs
     ):
         super().__init__(
             suite,
@@ -1135,13 +1139,14 @@ class TorchMultiQueue(TorchBenchmark):
             "KernelSubmitMultiQueue",
             variant_name,
             profiler_type,
+            measure_completion=measure_completion,
             **kwargs,
         )
 
 
 class TorchSlmSize(TorchBenchmark):
     def __init__(
-        self, suite, runtime: RUNTIMES, variant_name: str, profiler_type, **kwargs
+        self, suite, runtime: RUNTIMES, variant_name: str, profiler_type, measure_completion: int = 0, **kwargs
     ):
         super().__init__(
             suite,
@@ -1149,6 +1154,7 @@ class TorchSlmSize(TorchBenchmark):
             "KernelSubmitSlmSize",
             variant_name,
             profiler_type,
+            measure_completion=measure_completion,
             **kwargs,
         )
 
