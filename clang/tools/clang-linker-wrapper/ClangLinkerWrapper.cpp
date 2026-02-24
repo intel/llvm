@@ -890,6 +890,7 @@ getTripleBasedSPIRVTransOpts(const ArgList &Args,
       ",+SPV_INTEL_long_composites"
       ",+SPV_INTEL_arithmetic_fence"
       ",+SPV_INTEL_global_variable_decorations"
+      ",+SPV_INTEL_global_variable_host_access"
       ",+SPV_INTEL_cache_controls"
       ",+SPV_INTEL_fpga_buffer_location"
       ",+SPV_INTEL_fpga_argument_interfaces"

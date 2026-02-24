@@ -35,10 +35,10 @@ constexpr StringRef SpirvDecorCacheControlMdKind =
     "spirv.DecorationCacheControlINTEL";
 constexpr StringRef SpirvParamDecorMdKind = "spirv.ParameterDecorations";
 // The corresponding SPIR-V OpCode for the host_access property is documented
-// in the SPV_INTEL_global_variable_decorations design document:
-// https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/DeviceGlobal/SPV_INTEL_global_variable_decorations.asciidoc#decoration
-constexpr uint32_t SpirvHostAccessDecor = 6147;
-constexpr uint32_t SpirvHostAccessDefaultValue = 2; // Read/Write
+// in the SPV_INTEL_global_variable_host_access extension:
+// https://github.com/KhronosGroup/SPIRV-Registry/blob/main/extensions/INTEL/SPV_INTEL_global_variable_host_access.asciidoc#decoration
+constexpr uint32_t SpirvHostAccessDecor = 6188;
+constexpr uint32_t SpirvHostAccessDefaultValue = 3; // Read/Write
 
 constexpr uint32_t SpirvInitiationIntervalDecor = 5917;
 constexpr uint32_t SpirvPipelineEnableDecor = 5919;
@@ -559,6 +559,28 @@ void getUserListIgnoringCast(
   }
 }
 
+// Map the "host access mode" enumeration values as defined by
+// sycl_ext_oneapi_device_global and encoded in the "sycl-host-access" attribute
+// to the SPIR-V decoration values as defined by
+// SPV_INTEL_global_variable_host_access
+int32_t mapSYCLHostAccessToSPIRV(int32_t HostAccess) {
+  // The mapping is as follows:
+  // 0 (read) -> 1 (ReadINTEL)
+  // 1 (write) -> 2 (WriteINTEL)
+  // 2 (read_write) -> 3 (ReadWriteINTEL)
+  // 3 (none) -> 0 (NoneINTEL)
+  if (HostAccess < 3)
+    return HostAccess + 1;
+
+  if (HostAccess == 3)
+    return 0;
+
+  // For values outside the defined range, keep whatever was in the IR
+  // attribute. This matches our previous behaviour when we used
+  // the deprecated SPV_INTEL_global_variable_decorations extension.
+  return HostAccess;
+}
+
 } // anonymous namespace
 
 PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
@@ -589,7 +611,8 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
     if (isDeviceGlobalVariable(GV)) {
       auto HostAccessDecorValue =
           GV.hasAttribute(SyclHostAccessAttr)
-              ? getAttributeAsInteger<uint32_t>(GV, SyclHostAccessAttr)
+              ? mapSYCLHostAccessToSPIRV(
+                    getAttributeAsInteger<uint32_t>(GV, SyclHostAccessAttr))
               : SpirvHostAccessDefaultValue;
       auto VarName = getGlobalVariableUniqueId(GV);
       MDOps.push_back(buildSpirvDecorMetadata(Ctx, SpirvHostAccessDecor,
