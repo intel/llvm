@@ -7,22 +7,28 @@
 
 # get_system_info.sh - Script for printing system info
 
-builddir="$(dirname "$(readlink -f "$0")")/../../../build"
+ur_build_dir="$(dirname "$(readlink -f "$0")")/../../build"
 
 function check_L0_version {
     if command -v dpkg &> /dev/null; then
-        dpkg -l | grep level-zero && return
+        dpkg -l | grep level-zero || \
+        dpkg -l | grep libze && \
+        return
     fi
 
     if command -v rpm &> /dev/null; then
-        rpm -qa | grep level-zero && return
+        rpm -qa | grep level-zero || \
+        rpm -qa | grep libze && \
+        return
     fi
 
     if command -v zypper &> /dev/null; then
-        zypper se level-zero && return
+        zypper se level-zero || \
+        zypper se libze && \
+        return
     fi
 
-    echo "level-zero not installed"
+    echo "libze / level-zero not installed"
 }
 
 function system_info {
@@ -30,10 +36,14 @@ function system_info {
 	cat /etc/os-release | grep -oP "PRETTY_NAME=\K.*"
 	cat /proc/version
 	echo "**********SYCL-LS**********"
-	source /opt/intel/oneapi/setvars.sh
-	sycl-ls
+	# first find libsycl.so and set LD_LIBRARY_PATH, then run sycl-ls
+	sycl_found_dirs=$(find -name "libsycl.so" -exec sh -c 'echo $(dirname ${1})' _ {} \;)
+	for dir in $sycl_found_dirs; do
+		export LD_LIBRARY_PATH="$dir:$LD_LIBRARY_PATH"
+	done
+	find -name sycl-ls -executable -type f -print -exec sh -c '"$1"' _ {} \; 2>/dev/null || echo "sycl-ls not found"
 	echo "**********VGA**********"
-	lspci | grep VGA
+	lspci | grep -iE 'vga|display'
 	echo "**********CUDA Version**********"
 	if command -v nvidia-smi &> /dev/null; then
 		nvidia-smi
@@ -48,14 +58,8 @@ function system_info {
 	else
 		echo "ROCm not installed"
 	fi
-	echo "**********/proc/cmdline**********"
-	cat /proc/cmdline
-	echo "**********CPU info**********"
-	lscpu
-	echo "**********/proc/meminfo**********"
-	cat /proc/meminfo
 	echo "**********urinfo**********"
-	LD_LIBRARY_PATH=$builddir/lib $builddir/bin/urinfo --no-linear-ids --verbose || true
+	LD_LIBRARY_PATH=$ur_build_dir/lib $ur_build_dir/bin/urinfo --no-linear-ids --verbose || true
 	echo "******OpenCL*******"
 	# The driver version of OpenCL Graphics is the compute-runtime version
 	clinfo || echo "OpenCL not installed"
@@ -78,6 +82,12 @@ function system_info {
 	make --version 2>/dev/null || true
 	echo "**********/proc/modules**********"
 	cat /proc/modules
+	echo "**********/proc/cmdline**********"
+	cat /proc/cmdline
+	echo "**********CPU info**********"
+	lscpu
+	echo "**********/proc/meminfo**********"
+	cat /proc/meminfo
 	echo "***************installed-packages***************"
 	# Instructions below will return some minor errors, as they are dependent on the Linux distribution.
 	zypper se --installed-only 2>/dev/null || true
