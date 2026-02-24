@@ -10,9 +10,9 @@
 // RUN: %{run} %t.out
 // RUN-IF: windows, %{run} %t.out --semaphores
 
-// DMABUF not available on Windows.
-// RUN-IF: linux, %{run} %t.out --dmabuf
-// RUN-IF: !level_zero, %{run} %t.out --semaphores --dmabuf
+// DMABUF  technically is linux only, but running on Windows won't hurt us 
+// RUN-IF: level_zero, %{run} %t.out --dmabuf
+// RUN-IF: level_zero, %{run} %t.out --semaphores --dmabuf
 
 
 /*
