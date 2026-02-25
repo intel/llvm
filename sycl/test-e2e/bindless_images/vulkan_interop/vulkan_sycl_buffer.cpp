@@ -1,6 +1,9 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import
 // REQUIRES: vulkan
 
+// UNSUPPORTED: windows && gpu-intel-gen12
+// UNSUPPORTED-TRACKER: URLZA-723
+
 // clang-format off
 
 // On Linux L0, there are problem with semaphores and latest drivers.
@@ -8,12 +11,12 @@
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.out
-// RUN-IF: windows, %{run} %t.out --semaphores
+// RUN-IF: (windows && ext_oneapi_external_semaphore_import), %{run} %t.out --semaphores
 
 // DMABUF  technically is linux only, but running on Windows won't hurt us...
 // except for semaphores which are having trouble on Linux. (see above)
 // RUN-IF: level_zero, %{run} %t.out --dmabuf
-// XXX-IF: level_zero, %{run} %t.out --semaphores --dmabuf
+// XXX-IF: (level_zero && ext_oneapi_external_semaphore_import), %{run} %t.out --semaphores --dmabuf
 
 
 /*

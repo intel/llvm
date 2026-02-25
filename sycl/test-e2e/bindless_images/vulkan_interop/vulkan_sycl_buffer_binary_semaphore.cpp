@@ -5,6 +5,9 @@
 // UNSUPPORTED: linux
 // UNSUPPORTED-TRACKER: GSD-12371
 
+// UNSUPPORTED: windows && gpu-intel-gen12
+// UNSUPPORTED-TRACKER: URLZA-723
+
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.out --no-sem
 // RUN: %{run} %t.out --dual-sem
