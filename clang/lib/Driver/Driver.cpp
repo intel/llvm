@@ -8882,16 +8882,21 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
       // The trace file is ${dumpdir}${basename}.json. Note that dumpdir may not
       // end with a path separator.
       Path = DumpDir->getValue();
-      if(JA->isDeviceOffloading(Action::OFK_SYCL))
-        Path = Result.getFilename();
+      if(JA->isOffloading(Action::OFK_SYCL))
+        Path += Result.getFilename();
       else 
-        Path += llvm::sys::path::filename(BaseInput);
-    } else {
+        llvm::sys::path::append(Path,
+                        llvm::sys::path::filename(BaseInput));
+    } else if (Arg *OutPutDir = C.getArgs().getLastArg(options::OPT_o)) {
+        BaseInput = OutPutDir->getValue();
+        Path = llvm::sys::path::parent_path(BaseInput);
+        llvm::sys::path::append(Path, Result.getFilename());
+    }
+    else {
       Path = Result.getFilename();
     }
     llvm::sys::path::replace_extension(Path, "json");
   }
-
   const char *ResultFile = C.getArgs().MakeArgString(Path);
   C.addTimeTraceFile(ResultFile, JA);
   C.addResultFile(ResultFile, JA);
@@ -9274,11 +9279,13 @@ InputInfoList Driver::BuildJobsForActionNoCache(
     } else {
       // We only have to generate a prefix for the host if this is not a
       // top-level action.
+      const bool IsSYCLHost = JA->isHostOffloading(Action::OFK_SYCL);
+      const bool CreatePrefixForHost = isa<OffloadPackagerJobAction>(A) ||
+                                      (A->getOffloadingHostActiveKinds() != Action::OFK_None
+                                      && (!AtTopLevel || IsSYCLHost));
       OffloadingPrefix = Action::GetOffloadingFileNamePrefix(
         A->getOffloadingDeviceKind(), EffectiveTriple.normalize(),
-        /*CreatePrefixForHost=*/isa<OffloadPackagerJobAction>(A) ||
-            !(A->getOffloadingHostActiveKinds() == Action::OFK_None ||
-              AtTopLevel));
+        CreatePrefixForHost);
     }
     if (isa<OffloadWrapperJobAction>(JA)) {
       if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
@@ -9448,7 +9455,8 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
   std::string BoundArch = sanitizeTargetIDInFileName(OrigBoundArch);
   llvm::PrettyStackTraceString CrashInfo("Computing output path");
   // Output to a user requested destination?
-  if (AtTopLevel && !isa<DsymutilJobAction>(JA) && !isa<VerifyJobAction>(JA)) {
+  const bool IsSYCLHostCompilation = isa<AssembleJobAction>(JA);
+  if (AtTopLevel && !IsSYCLHostCompilation && !isa<DsymutilJobAction>(JA) && !isa<VerifyJobAction>(JA)) {
     if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
       return C.addResultFile(FinalOutput->getValue(), &JA);
     // Output to destination for -fsycl-device-only/-fsyclbin and Windows -o
@@ -9587,15 +9595,17 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     return GetModuleOutputPath(C, JA, BaseInput);
   }
 
-  const bool IsSYCLBackendJobAction =
+  const bool IsSYCLDeviceBackendJobAction =
       JA.isDeviceOffloading(Action::OFK_SYCL) && isa<BackendJobAction>(JA);
+  const bool IsSYCLHostOffloading =
+      JA.isHostOffloading(Action::OFK_SYCL) && isa<AssembleJobAction>(JA);
   const bool SaveTempsEnabled = isSaveTempsEnabled();
   const bool HasFo = C.getArgs().hasArg(options::OPT__SLASH_Fo);
   const bool IsHostOffloading = JA.isOffloading(Action::OFK_None);
   const bool FoInvalidForOffload = HasFo && (!IsHostOffloading || isa<OffloadUnbundlingJobAction>(JA) || JA.getOffloadingHostActiveKinds() > Action::OFK_Host);
 
   // Output to a temporary file?
-  if ((!AtTopLevel && !IsSYCLBackendJobAction && !SaveTempsEnabled &&
+  if ((!AtTopLevel && !IsSYCLDeviceBackendJobAction && !IsSYCLHostOffloading && !SaveTempsEnabled &&
        (!HasFo || FoInvalidForOffload)) ||
       CCGenDiagnostics) {
     StringRef Name = llvm::sys::path::filename(BaseInput);
