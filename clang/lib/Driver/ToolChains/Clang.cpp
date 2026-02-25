@@ -11611,8 +11611,10 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       SmallVector<SmallString<128>> BackendOptVec;
       SmallString<128> LinkOptString;
 
-      // Construct backend options for each target passed via
-      // -Xsycl-target-backend in the form: "-device <arch> <backend_opt>"
+      // Build backend options for each target passed via
+      // -Xsycl-target-backend or
+      // -Xsycl-target-backend=spir64_gen, spir64_x86_64, intel_gpu_*
+      // in the form: "-device <arch> <backend_opt>"
       for (const Arg *A : Args.filtered(options::OPT_Xsycl_backend_EQ,
                                         options::OPT_Xsycl_backend)) {
         StringRef Device = "";
