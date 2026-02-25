@@ -55,8 +55,9 @@ if(MSVC)
   include(CheckLinkerFlag)
   check_linker_flag(CXX "LINKER:/DEBUG" LINKER_SUPPORTS_DEBUG)
   if(LINKER_SUPPORTS_DEBUG)
-    # sccache is not compatible with /Zi flag
-    if (CMAKE_CXX_COMPILER_LAUNCHER STREQUAL "sccache")
+    # (s)ccache is not compatible with /Zi flag
+    if (CMAKE_CXX_COMPILER_LAUNCHER STREQUAL "ccache" OR
+	CMAKE_CXX_COMPILER_LAUNCHER STREQUAL "sccache")
       # CMake may put /Zi by default
       if(CMAKE_BUILD_TYPE STREQUAL "Debug")
         string(REPLACE "/Zi" "/Z7" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
