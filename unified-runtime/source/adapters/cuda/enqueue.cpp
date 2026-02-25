@@ -44,18 +44,24 @@ ur_result_t enqueueEventsWait(ur_queue_handle_t CommandQueue, CUstream Stream,
             return UR_RESULT_SUCCESS;
           }
           
-          // CUDA limitation: cuStreamWaitEvent cannot synchronize streams from
-          // different devices. For cross-device events, we must use host
-          // synchronization (cuEventSynchronize) instead of stream wait.
-          // See: CUDA documentation - cuStreamWaitEvent requires same device.
+          // CUDA limitation: cuStreamWaitEvent may not work reliably across
+          // different contexts/devices. For cross-device events, we use
+          // host synchronization then record a barrier in the target stream.
           if (Event->getQueue() && 
-              Event->getQueue()->getDevice() != CommandQueue->getDevice()) {
+              Event->getQueue()->getContext() != CommandQueue->getContext()) {
             // Cross-device: use host synchronization
+            // 1. Wait for the cross-device event to complete (blocks CPU)
             UR_CHECK_ERROR(cuEventSynchronize(Event->get()));
+            // 2. Record a barrier event in target stream to establish ordering
+            //    Future work in Stream will happen after this barrier
+            CUevent BarrierEvent;
+            UR_CHECK_ERROR(cuEventCreate(&BarrierEvent, CU_EVENT_DISABLE_TIMING));
+            UR_CHECK_ERROR(cuEventRecord(BarrierEvent, Stream));
+            UR_CHECK_ERROR(cuEventDestroy(BarrierEvent));
             return UR_RESULT_SUCCESS;
           }
           
-          // Same device: use asynchronous stream wait
+          // Same context: use asynchronous stream wait
           UR_CHECK_ERROR(cuStreamWaitEvent(Stream, Event->get(), 0));
           return UR_RESULT_SUCCESS;
         });
