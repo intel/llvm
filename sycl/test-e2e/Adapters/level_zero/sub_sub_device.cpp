@@ -1,5 +1,9 @@
 // REQUIRES:  arch-intel_gpu_pvc, level_zero
 
+// UNSUPPORTED: gpu-intel-pvc-1T
+// UNSUPPORTED-TRACKER: URLZA-437
+// Note: it will never be supported on 1T.
+
 // RUN: %{build} -o %t.out
 
 // TODO - at this time ZEX_NUMBER_OF_CCS is not working with FLAT hierachy,
@@ -9,9 +13,7 @@
 // DEFINE: %{setup_env} = env ZE_FLAT_DEVICE_HIERARCHY=COMPOSITE ZE_AFFINITY_MASK=0 ZEX_NUMBER_OF_CCS=0:4
 
 // The output from UR_L0_DEBUG=1 is 2GB for some reason. So trying to filter it.
-// xUN: %{setup_env} env UR_L0_DEBUG=1 %{run} %t.out 2>&1 | grep "getZeQueue" |
-// FileCheck %s
-// RUN: %{setup_env} env UR_L0_DEBUG=1 %{run} %t.out 2>&1 | tail -n 1000
+// RUN: %{setup_env} env UR_L0_DEBUG=1 %{run} %t.out 2>&1 | grep "getZeQueue" | FileCheck %s
 
 // RUN: %{setup_env} %{run} %t.out
 
