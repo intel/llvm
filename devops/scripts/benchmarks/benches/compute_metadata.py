@@ -131,6 +131,7 @@ class ComputeMetadataGenerator:
 
         Args:
             group_name: Name of the benchmark group
+            tags: Set of tags associated with benchmarks in this group
 
         Returns:
             BenchmarkMetadata: Metadata object describing the specified benchmark group.
