@@ -570,7 +570,7 @@ class ComputeBench(Suite):
                         kernelName=kernel_name.value,
                         kernelWGCount=100,
                         kernelWGSize=50,
-                        kernelGroupsCount=10,
+                        kernelGroupsCount=2,
                         kernelBatchSize=10,
                         useProfiling=0,
                     ),
