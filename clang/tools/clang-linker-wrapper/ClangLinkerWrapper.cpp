@@ -933,8 +933,10 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   if (ActiveOffloadKindMask & OFK_SYCL) {
     llvm::errs() << "[DEBUG] add the sycl-link";
     CmdArgs.push_back("--sycl-link");
+    // CmdArgs.append(
+    //     {"-Xlinker", Args.MakeArgString("-triple=" + Triple.getTriple())});
     CmdArgs.append(
-        {"-Xlinker", Args.MakeArgString("-triple=" + Triple.getTriple())});
+        {"-Xlinker", Args.MakeArgString("-triple=spir64")});
     CmdArgs.append({"-Xlinker", Args.MakeArgString("-arch=" + Arch)});
   }
 
