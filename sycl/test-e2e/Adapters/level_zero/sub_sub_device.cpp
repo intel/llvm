@@ -1,13 +1,6 @@
 // REQUIRES:  arch-intel_gpu_pvc, level_zero
 
-// XFAIL: arch-intel_gpu_pvc && run-mode
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/15602
-
 // RUN: %{build} %level_zero_options -o %t.out
-
-// TODO - at this time PVC 1T systems aren't correctly supporting affinity
-// subdomain partitioning so this test is marked as UNSUPPORTED on those
-// systems.
 
 // TODO - at this time ZEX_NUMBER_OF_CCS is not working with FLAT hierachy,
 // which is the new default on PVC.  Once it is supported, we'll test on both.
