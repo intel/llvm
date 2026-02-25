@@ -6,6 +6,7 @@
 import csv
 import io
 import math
+import os
 from enum import Enum
 from itertools import product
 from pathlib import Path
@@ -29,6 +30,12 @@ class RUNTIMES(Enum):
 class PROFILERS(Enum):
     TIMER = "timer"
     CPU_COUNTER = "cpuCounter"
+
+
+class KERNEL_NAME(Enum):
+    ADD = "Add"
+    ADD_SEQUENCE = "AddSequence"
+    EMPTY = "Empty"
 
 
 def runtime_to_name(runtime: RUNTIMES) -> str:
@@ -61,8 +68,8 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        # Jan 13, 2026
-        return "ca382c152aa54931acb868c2624386277266da3c"
+        # Feb 17, 2026
+        return "1ef6c0e6f3ca2e937f86a080594d268b1b895c16"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -89,6 +96,13 @@ class ComputeBench(Suite):
             f"-DCMAKE_CXX_COMPILER=clang++",
             f"-DCMAKE_C_COMPILER=clang",
         ]
+
+        is_gdb_mode = os.environ.get("LLVM_BENCHMARKS_USE_GDB", "") == "1"
+        if is_gdb_mode:
+            extra_args += [
+                f"-DCMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=-O2 -g -DNDEBUG -fdebug-info-for-profiling",
+            ]
+
         if options.ur_adapter == "cuda":
             extra_args += [
                 "-DBUILD_SYCL_WITH_CUDA=ON",
@@ -157,19 +171,18 @@ class ComputeBench(Suite):
                         kernel_exec_time,
                     )
                 )
-                if runtime in (RUNTIMES.SYCL, RUNTIMES.SYCL_PREVIEW, RUNTIMES.UR):
-                    # Create CPU count variant
-                    benches.append(
-                        SubmitKernel(
-                            self,
-                            runtime,
-                            in_order_queue,
-                            measure_completion,
-                            use_events,
-                            kernel_exec_time,
-                            profiler_type=PROFILERS.CPU_COUNTER,
-                        )
+                # Create CPU count variant
+                benches.append(
+                    SubmitKernel(
+                        self,
+                        runtime,
+                        in_order_queue,
+                        measure_completion,
+                        use_events,
+                        kernel_exec_time,
+                        profiler_type=PROFILERS.CPU_COUNTER,
                     )
+                )
 
         # Add SinKernelGraph benchmarks
         sin_kernel_graph_params = product(
@@ -269,14 +282,10 @@ class ComputeBench(Suite):
             )
             benches.append(QueueMemcpy(self, "Device", "Device", 1024, profiler_type))
             benches.append(
-                ExecImmediateCopyQueue(
-                    self, 0, 1, "Device", "Device", 1024, profiler_type
-                )
+                ExecImmCopy(self, 0, 1, "Device", "Device", 1024, profiler_type)
             )
             benches.append(
-                ExecImmediateCopyQueue(
-                    self, 1, 1, "Device", "Host", 1024, profiler_type
-                )
+                ExecImmCopy(self, 1, 1, "Device", "Host", 1024, profiler_type)
             )
 
         # Add RecordAndReplay benchmarks
@@ -386,7 +395,7 @@ class ComputeBench(Suite):
 
         # Add TorchMultiQueue benchmarks
         for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
-            for profiler_type in list(PROFILERS):
+            for profiler_type, measure_completion in product(list(PROFILERS), [0, 1]):
 
                 def createTorchMultiQueueBench(variant_name: str, **kwargs):
                     return TorchMultiQueue(
@@ -394,6 +403,7 @@ class ComputeBench(Suite):
                         runtime,
                         variant_name,
                         profiler_type,
+                        measure_completion,
                         **kwargs,
                     )
 
@@ -403,24 +413,30 @@ class ComputeBench(Suite):
                         kernelWGCount=4096,
                         kernelWGSize=512,
                         kernelsPerQueue=20,
+                        useProfiling=0,
+                        measureCompletion=measure_completion,
                     ),
                     createTorchMultiQueueBench(
                         "medium",
                         kernelWGCount=512,
                         kernelWGSize=256,
                         kernelsPerQueue=10,
+                        useProfiling=0,
+                        measureCompletion=measure_completion,
                     ),
                     createTorchMultiQueueBench(
                         "small",
                         kernelWGCount=256,
                         kernelWGSize=128,
                         kernelsPerQueue=4,
+                        useProfiling=0,
+                        measureCompletion=measure_completion,
                     ),
                 ]
 
         # Add TorchSlmSize benchmarks
         for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
-            for profiler_type in list(PROFILERS):
+            for profiler_type, measure_completion in product(list(PROFILERS), [0, 1]):
 
                 def createTorchSlmSizeBench(variant_name: str, **kwargs):
                     return TorchSlmSize(
@@ -428,6 +444,7 @@ class ComputeBench(Suite):
                         runtime,
                         variant_name,
                         profiler_type,
+                        measure_completion,
                         **kwargs,
                     )
 
@@ -436,16 +453,22 @@ class ComputeBench(Suite):
                         "small",
                         kernelBatchSize=512,
                         slmNum=1,
+                        useProfiling=0,
+                        measureCompletion=measure_completion,
                     ),
                     createTorchSlmSizeBench(
                         "medium",
                         kernelBatchSize=512,
                         slmNum=1024,
+                        useProfiling=0,
+                        measureCompletion=measure_completion,
                     ),
                     createTorchSlmSizeBench(
                         "large",
                         kernelBatchSize=512,
                         slmNum=16384,
+                        useProfiling=0,
+                        measureCompletion=measure_completion,
                     ),
                 ]
 
@@ -523,6 +546,51 @@ class ComputeBench(Suite):
                         "array5120",
                         kernelBatchSize=512,
                         kernelSize=5120,
+                    ),
+                ]
+
+        # Add TorchGraphSingleQueue benchmarks
+        for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
+            for profiler_type, kernel_name in product(
+                list(PROFILERS), list(KERNEL_NAME)
+            ):
+
+                def createTorchGraphSingleQueueBench(variant_name: str, **kwargs):
+                    return TorchGraphSingleQueue(
+                        self,
+                        runtime,
+                        variant_name,
+                        profiler_type,
+                        **kwargs,
+                    )
+
+                benches += [
+                    createTorchGraphSingleQueueBench(
+                        "small",
+                        kernelName=kernel_name.value,
+                        kernelWGCount=512,
+                        kernelWGSize=256,
+                        kernelGroupsCount=10,
+                        kernelBatchSize=10,
+                        useProfiling=0,
+                    ),
+                    createTorchGraphSingleQueueBench(
+                        "medium",
+                        kernelName=kernel_name.value,
+                        kernelWGCount=512,
+                        kernelWGSize=256,
+                        kernelGroupsCount=32,
+                        kernelBatchSize=32,
+                        useProfiling=0,
+                    ),
+                    createTorchGraphSingleQueueBench(
+                        "large",
+                        kernelName=kernel_name.value,
+                        kernelWGCount=512,
+                        kernelWGSize=256,
+                        kernelGroupsCount=64,
+                        kernelBatchSize=64,
+                        useProfiling=0,
                     ),
                 ]
 
@@ -642,6 +710,7 @@ class ComputeBenchmark(Benchmark):
         # include the proper --iterations token computed from this class's
         # iteration fields.
         command += self._bin_args(run_trace)
+        env_vars = dict(env_vars) if env_vars else {}
         env_vars.update(self._extra_env_vars())
 
         result = self.run_bench(
@@ -738,6 +807,12 @@ class ComputeBenchmark(Benchmark):
         return runtimes
 
     def __parse_output(self, output: str) -> list[tuple[float, float]]:
+        is_gdb_mode = os.environ.get("LLVM_BENCHMARKS_USE_GDB", "") == "1"
+
+        if is_gdb_mode:
+            log.info(output)
+            return [(0.0, 0.0)]
+
         csv_file = io.StringIO(output)
         reader = csv.reader(csv_file)
         next(reader, None)
@@ -885,7 +960,7 @@ class SubmitKernel(ComputeBenchmark):
         ]
 
 
-class ExecImmediateCopyQueue(ComputeBenchmark):
+class ExecImmCopy(ComputeBenchmark):
     def __init__(
         self, bench, ioq, isCopyOnly, source, destination, size, profiler_type
     ):
@@ -900,17 +975,17 @@ class ExecImmediateCopyQueue(ComputeBenchmark):
         super().__init__(
             bench,
             "api_overhead_benchmark_sycl",
-            "ExecImmediateCopyQueue",
+            "ExecImmCopy",
             profiler_type=profiler_type,
         )
 
     def name(self):
         order = "in order" if self._ioq else "out of order"
-        return f"api_overhead_benchmark_sycl ExecImmediateCopyQueue {order} from {self._source} to {self._destination}, size {self._size}{self._cpu_count_str()}"
+        return f"api_overhead_benchmark_sycl ExecImmCopy {order} from {self._source} to {self._destination}, size {self._size}{self._cpu_count_str()}"
 
     def display_name(self) -> str:
         order = "in order" if self._ioq else "out of order"
-        return f"SYCL ExecImmediateCopyQueue {order} from {self._source} to {self._destination}, size {self._size}{self._cpu_count_str(separator=',')}"
+        return f"SYCL ExecImmCopy {order} from {self._source} to {self._destination}, size {self._size}{self._cpu_count_str(separator=',')}"
 
     def description(self) -> str:
         order = "in-order" if self._ioq else "out-of-order"
@@ -933,7 +1008,7 @@ class ExecImmediateCopyQueue(ComputeBenchmark):
             f"--src={self._source}",
             f"--dst={self._destination}",
             f"--size={self._size}",
-            "--withCopyOffload=0",
+            "--CopyOffload=0",
             f"--profilerType={self._profiler_type.value}",
         ]
 
@@ -989,9 +1064,13 @@ class TorchBenchmark(ComputeBenchmark):
         bench_name: str,
         variant_name: str,
         profiler_type,
+        measure_completion: int = 0,
         **kwargs,
     ):
         self._variant_name = variant_name
+        self._measure_completion_str = (
+            " with measure completion" if measure_completion else ""
+        )
         self._torch_params = kwargs
         self._iterations_regular = 1000
         self._iterations_trace = 10
@@ -1018,10 +1097,10 @@ class TorchBenchmark(ComputeBenchmark):
         )
 
     def display_name(self) -> str:
-        return f"{self.explicit_group()} {self._runtime.value}{self._cpu_count_str(separator=',')}"
+        return f"{self._runtime.value.upper()} {self.explicit_group()}"
 
     def explicit_group(self):
-        return f"{self._test} {self._variant_name}{self._cpu_count_str(separator=',')}"
+        return f"{self._test} {self._variant_name}{self._measure_completion_str}{self._cpu_count_str(separator=',')}"
 
     def get_tags(self):
         return ["pytorch", runtime_to_tag_name(self._runtime)]
@@ -1054,7 +1133,13 @@ class TorchSingleQueue(TorchBenchmark):
 
 class TorchMultiQueue(TorchBenchmark):
     def __init__(
-        self, suite, runtime: RUNTIMES, variant_name: str, profiler_type, **kwargs
+        self,
+        suite,
+        runtime: RUNTIMES,
+        variant_name: str,
+        profiler_type,
+        measure_completion: int = 0,
+        **kwargs,
     ):
         super().__init__(
             suite,
@@ -1062,13 +1147,20 @@ class TorchMultiQueue(TorchBenchmark):
             "KernelSubmitMultiQueue",
             variant_name,
             profiler_type,
+            measure_completion=measure_completion,
             **kwargs,
         )
 
 
 class TorchSlmSize(TorchBenchmark):
     def __init__(
-        self, suite, runtime: RUNTIMES, variant_name: str, profiler_type, **kwargs
+        self,
+        suite,
+        runtime: RUNTIMES,
+        variant_name: str,
+        profiler_type,
+        measure_completion: int = 0,
+        **kwargs,
     ):
         super().__init__(
             suite,
@@ -1076,6 +1168,7 @@ class TorchSlmSize(TorchBenchmark):
             "KernelSubmitSlmSize",
             variant_name,
             profiler_type,
+            measure_completion=measure_completion,
             **kwargs,
         )
 
@@ -1102,6 +1195,20 @@ class TorchMemoryReuse(TorchBenchmark):
             suite,
             runtime,
             "KernelSubmitMemoryReuse",
+            variant_name,
+            profiler_type,
+            **kwargs,
+        )
+
+
+class TorchGraphSingleQueue(TorchBenchmark):
+    def __init__(
+        self, suite, runtime: RUNTIMES, variant_name: str, profiler_type, **kwargs
+    ):
+        super().__init__(
+            suite,
+            runtime,
+            "KernelSubmitGraphSingleQueue",
             variant_name,
             profiler_type,
             **kwargs,
@@ -1227,13 +1334,12 @@ class StreamMemory(ComputeBenchmark):
             f"--iterations={iters}",
             f"--type={self._type}",
             f"--size={self._size}",
-            f"--memoryPlacement={self._placement}",
+            f"--memory={self._placement}",
             "--useEvents=0",
             "--contents=Zeros",
             "--multiplier=1",
             "--vectorSize=1",
             "--lws=256",
-            "--prefetch=0",
         ]
 
 
@@ -1440,7 +1546,12 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         self._use_events = useEvents
         self._use_host_tasks = useHostTasks
         self._emulate_graphs = emulate_graphs
-        self._emulate_str = " with graph emulation" if self._emulate_graphs else ""
+        self._native_str = (
+            " native recording"
+            if self._emulate_graphs == 0
+            and (runtime == RUNTIMES.UR or runtime == RUNTIMES.LEVEL_ZERO)
+            else ""
+        )
         self._ioq_str = "in order" if self._in_order_queue else "out of order"
         self._measure_str = (
             " with measure completion" if self._measure_completion_time else ""
@@ -1459,13 +1570,13 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         )
 
     def name(self):
-        return f"graph_api_benchmark_{self._runtime.value} SubmitGraph{self._use_events_str}{self._host_tasks_str}{self._emulate_str} numKernels:{self._num_kernels} ioq {self._in_order_queue} measureCompletion {self._measure_completion_time}{self._cpu_count_str()}"
+        return f"graph_api_benchmark_{self._runtime.value} SubmitGraph{self._native_str}{self._use_events_str}{self._host_tasks_str} numKernels:{self._num_kernels} ioq {self._in_order_queue} measureCompletion {self._measure_completion_time}{self._cpu_count_str()}"
 
     def display_name(self) -> str:
-        return f"{self._runtime.value.upper()} SubmitGraph {self._ioq_str}{self._measure_str}{self._use_events_str}{self._host_tasks_str}{self._emulate_str}, {self._num_kernels} kernels{self._cpu_count_str(separator=',')}"
+        return f"{self._runtime.value.upper()} SubmitGraph{self._native_str} {self._ioq_str}{self._measure_str}{self._use_events_str}{self._host_tasks_str}, {self._num_kernels} kernels{self._cpu_count_str(separator=',')}"
 
     def explicit_group(self):
-        return f"SubmitGraph {self._ioq_str}{self._measure_str}{self._use_events_str}{self._host_tasks_str}, {self._num_kernels} kernels{self._cpu_count_str(separator=',')}"
+        return f"SubmitGraph{self._native_str} {self._ioq_str}{self._measure_str}{self._use_events_str}{self._host_tasks_str}, {self._num_kernels} kernels{self._cpu_count_str(separator=',')}"
 
     def description(self) -> str:
         return (

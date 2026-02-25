@@ -41,7 +41,7 @@
 #include "llvm/Option/ArgList.h"
 #include "llvm/Option/OptTable.h"
 #include "llvm/Option/Option.h"
-#include "llvm/Passes/PassPlugin.h"
+#include "llvm/Plugins/PassPlugin.h"
 #include "llvm/Remarks/HotnessThresholdParser.h"
 #include "llvm/SYCLPostLink/ModuleSplitter.h"
 #include "llvm/Support/CommandLine.h"
@@ -481,9 +481,19 @@ fatbinary(ArrayRef<std::pair<StringRef, StringRef>> InputFiles,
   CmdArgs.push_back(Triple.isArch64Bit() ? "-64" : "-32");
   CmdArgs.push_back("--create");
   CmdArgs.push_back(*TempFileOrErr);
-  for (const auto &[File, Arch] : InputFiles)
-    CmdArgs.push_back(
-        Args.MakeArgString("--image=profile=" + Arch + ",file=" + File));
+  for (const auto &[File, Arch] : InputFiles) {
+    StringRef Kind = "elf";
+    StringRef ArchId = Arch;
+    if (Arch.starts_with("sm_")) {
+      ArchId = Arch.drop_front(3);
+    } else if (Arch.starts_with("compute_")) {
+      Kind = "ptx";
+      ArchId = Arch.drop_front(8);
+    }
+
+    CmdArgs.push_back(Args.MakeArgString("--image3=kind=" + Kind +
+                                         ",sm=" + ArchId + ",file=" + File));
+  }
 
   if (Error Err = executeCommands(*FatBinaryPath, CmdArgs))
     return std::move(Err);
@@ -664,17 +674,6 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
   // TODO: If we ever pass -ir-output-only based on the triple,
   // make sure we don't pass -properties.
   PostLinkArgs.push_back("-properties");
-
-  // See if device code splitting is already requested. If not requested, then
-  // set -split=auto for non-FPGA targets.
-  bool NoSplit = true;
-  for (auto Arg : PostLinkArgs)
-    if (Arg.contains("-split=")) {
-      NoSplit = false;
-      break;
-    }
-  if (NoSplit && (Triple.getSubArch() != llvm::Triple::SPIRSubArch_fpga))
-    PostLinkArgs.push_back("-split=auto");
 
   // On Intel targets we don't need non-kernel functions as entry points,
   // because it only increases amount of code for device compiler to handle,
@@ -1313,9 +1312,8 @@ runWrapperAndCompile(std::vector<module_split::SplitModule> &SplitModules,
 /// 'Args' encompasses all arguments required for linking and wrapping device
 /// code and will be parsed to generate options required to be passed into the
 /// llvm-link tool.
-static Expected<StringRef>
-linkDeviceInputFiles(SmallVectorImpl<StringRef> &InputFiles,
-                     const ArgList &Args) {
+static Expected<StringRef> linkDeviceInputFiles(ArrayRef<StringRef> InputFiles,
+                                                const ArgList &Args) {
   llvm::TimeTraceScope TimeScope("SYCL LinkDeviceInputFiles");
 
   const char *LinkerExecutable = "llvm-link";
@@ -1403,16 +1401,10 @@ linkDeviceLibFiles(SmallVectorImpl<StringRef> &InputFiles,
 /// llvm-link tool.
 static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
                                       const ArgList &Args) {
-  SmallVector<StringRef, 16> InputFilesVec;
-  for (StringRef InputFile : InputFiles)
-    InputFilesVec.emplace_back(InputFile);
   // First llvm-link step.
-  auto LinkedFile = sycl::linkDeviceInputFiles(InputFilesVec, Args);
+  auto LinkedFile = sycl::linkDeviceInputFiles(InputFiles, Args);
   if (!LinkedFile)
     reportError(LinkedFile.takeError());
-
-  InputFilesVec.clear();
-  InputFilesVec.emplace_back(*LinkedFile);
 
   // Gathering device library files
   SmallVector<std::string, 16> DeviceLibFiles;
@@ -1468,6 +1460,9 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
     return *LinkedFile;
   }
 
+  SmallVector<StringRef, 16> InputFilesVec;
+  InputFilesVec.reserve(ExtractedDeviceLibFiles.size() + 1 /*LinkedFile*/);
+  InputFilesVec.emplace_back(*LinkedFile);
   for (auto &File : ExtractedDeviceLibFiles)
     InputFilesVec.emplace_back(File);
   // second llvm-link step

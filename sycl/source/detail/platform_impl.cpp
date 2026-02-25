@@ -281,7 +281,7 @@ device_impl &platform_impl::getOrMakeDeviceImpl(ur_device_handle_t UrDevice) {
 
   // Otherwise make the impl
   MDevices.emplace_back(std::make_unique<device_impl>(
-      UrDevice, *this, device_impl::private_tag{}));
+      UrDevice, *this, device_impl::private_tag{}, MDevices.size()));
 
   return *MDevices.back();
 }

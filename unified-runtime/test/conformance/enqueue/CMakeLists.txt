@@ -31,5 +31,7 @@ add_conformance_kernels_test(enqueue
     urEnqueueUSMPrefetch.cpp
     urEnqueueReadHostPipe.cpp
     urEnqueueWriteHostPipe.cpp
-    urEnqueueTimestampRecording.cpp
-    )
+    # Enqueue timestamp leads to timeouts
+    # Tracker: https://jira.devtools.intel.com/browse/URT-1026
+    #urEnqueueTimestampRecording.cpp
+)

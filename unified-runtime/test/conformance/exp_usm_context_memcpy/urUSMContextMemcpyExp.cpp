@@ -7,12 +7,12 @@
 #include "uur/utils.h"
 #include <uur/fixtures.h>
 
-struct urUSMContextMemcpyExpTest : uur::urQueueTest {
+struct urUSMContextMemcpyExpTest : uur::urMultiQueueTypeTest {
   void SetUp() override {
     // https://github.com/intel/llvm/issues/19604
     // this test uses urEnqueueUSMFill which looks to be bugged with latest driver
     UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
-    UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
+    UUR_RETURN_ON_FATAL_FAILURE(uur::urMultiQueueTypeTest::SetUp());
 
     bool context_memcpy_support = false;
     ASSERT_SUCCESS(
@@ -30,7 +30,7 @@ struct urUSMContextMemcpyExpTest : uur::urQueueTest {
       EXPECT_SUCCESS(urUSMFree(context, dst_ptr));
     }
 
-    UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::TearDown());
+    UUR_RETURN_ON_FATAL_FAILURE(uur::urMultiQueueTypeTest::TearDown());
   }
 
   void initAllocations() {
@@ -78,7 +78,7 @@ struct urUSMContextMemcpyExpTestDevice : urUSMContextMemcpyExpTest {
   }
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urUSMContextMemcpyExpTestDevice);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(urUSMContextMemcpyExpTestDevice);
 
 TEST_P(urUSMContextMemcpyExpTestDevice, Success) {
   ASSERT_SUCCESS(

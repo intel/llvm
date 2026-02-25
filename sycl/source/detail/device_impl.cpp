@@ -23,14 +23,14 @@ namespace detail {
 /// Constructs a SYCL device instance using the provided
 /// UR device instance.
 device_impl::device_impl(ur_device_handle_t Device, platform_impl &Platform,
-                         device_impl::private_tag)
+                         device_impl::private_tag, size_t idx)
     : MDevice(Device), MPlatform(Platform),
       // No need to set MRootDevice when MAlwaysRootDevice is true
       MRootDevice(Platform.MAlwaysRootDevice
                       ? nullptr
                       : get_info_impl<UR_DEVICE_INFO_PARENT_DEVICE>()),
       // TODO catch an exception and put it to list of asynchronous exceptions:
-      MCache{*this} {
+      MCache{*this}, MIndexWithinPlatform(idx) {
   // Interoperability Constructor already calls DeviceRetain in
   // urDeviceCreateWithNativeHandle.
   getAdapter().call<UrApiKind::urDeviceRetain>(MDevice);
@@ -130,8 +130,17 @@ std::vector<device> device_impl::create_sub_devices(
   // incremented. Each device_impl wrapper increments the reference count and
   // decrements it on destruction (shared ownership). So, we have to decrement
   // the reference count once here to release temporary handles.
-  for (ur_device_handle_t &SubDevice : SubDevices)
-    Adapter.call<UrApiKind::urDeviceRelease>(SubDevice);
+#ifdef _WIN32
+  // On Windows OpenCL backend, releasing the sub-devices here leads to a crash
+  // during late shutdown. There have been issues observed with premature
+  // unloading of opencl related dlls and seems like that might be the case. So,
+  // intentionally leak sub-devices on Windows OpenCL backend for now.
+  // TODO: Remove this workaround.
+  if (getAdapter().getBackend() != backend::opencl)
+#endif
+    for (ur_device_handle_t &SubDevice : SubDevices)
+      Adapter.call<UrApiKind::urDeviceRelease>(SubDevice);
+
   return res;
 }
 

@@ -46,6 +46,7 @@ benchmark_tags = [
     BenchmarkTag("inference", "Tests ML/AI inference performance"),
     BenchmarkTag("image", "Image processing benchmark"),
     BenchmarkTag("simulation", "Physics or scientific simulation benchmark"),
+    BenchmarkTag("pytorch", "Tests workloads close to Pytorch ones"),
 ]
 
 benchmark_tags_dict = {tag.name: tag for tag in benchmark_tags}
@@ -123,7 +124,7 @@ class Benchmark(ABC):
         extra_trace_opt=None,
         force_trace: bool = False,
     ):
-        env_vars = env_vars.copy()
+        env_vars = dict(env_vars) if env_vars else {}
         if options.ur is not None:
             env_vars.update(
                 {"UR_ADAPTERS_FORCE_LOAD": Benchmark.get_adapter_full_path()}

@@ -3,6 +3,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: arch-intel_gpu_pvc
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21095
+
 // This test submits same kernel via multiple threads to the same queue.
 // It's a regression test for CMPLRLLVM-72408
 

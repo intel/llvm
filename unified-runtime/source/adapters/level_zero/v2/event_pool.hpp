@@ -74,20 +74,31 @@ createEventIfRequested(event_pool *eventPool, ur_event_handle_t *phEvent,
 }
 
 // Always creates an event (used in functions that need to store the event
-// internally). If event was requested by the user, also increase ref count of
-// that event to avoid pre-mature release.
-static inline ur_event_handle_t createEventAndRetain(event_pool *eventPool,
-                                                     ur_event_handle_t *phEvent,
-                                                     ur_queue_t_ *queue) {
+// internally).
+static inline ur_event_handle_t createEvent(event_pool *eventPool,
+                                            ur_event_handle_t *phEvent,
+                                            ur_queue_t_ *queue) {
   auto hEvent = eventPool->allocate();
   hEvent->setQueue(queue);
 
   if (phEvent) {
     (*phEvent) = hEvent;
-    hEvent->retain();
   }
 
   return hEvent;
+}
+
+// Always creates an event (used in functions that need to store the event
+// internally). If event was requested by the user, also increase ref count of
+// that event to avoid pre-mature release.
+static inline ur_event_handle_t createEventAndRetain(event_pool *eventPool,
+                                                     ur_event_handle_t *phEvent,
+                                                     ur_queue_t_ *queue) {
+  auto *event = createEvent(eventPool, phEvent, queue);
+  if (phEvent) {
+    (*phEvent)->retain();
+  }
+  return event;
 }
 
 } // namespace v2

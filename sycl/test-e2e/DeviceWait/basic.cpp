@@ -3,9 +3,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL: windows && run-mode
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20927
-
 #include <sycl/detail/core.hpp>
 #include <sycl/properties/all_properties.hpp>
 

@@ -4198,9 +4198,11 @@ void CXXNameMangler::mangleRISCVFixedRVVVectorType(const VectorType *T) {
     TypeNameOS << "uint32";
     break;
   case BuiltinType::Long:
+  case BuiltinType::LongLong:
     TypeNameOS << "int64";
     break;
   case BuiltinType::ULong:
+  case BuiltinType::ULongLong:
     TypeNameOS << "uint64";
     break;
   case BuiltinType::Float16:
@@ -4211,6 +4213,9 @@ void CXXNameMangler::mangleRISCVFixedRVVVectorType(const VectorType *T) {
     break;
   case BuiltinType::Double:
     TypeNameOS << "float64";
+    break;
+  case BuiltinType::BFloat16:
+    TypeNameOS << "bfloat16";
     break;
   default:
     llvm_unreachable("unexpected element type for fixed-length RVV vector!");
@@ -5491,6 +5496,15 @@ recurse:
     Out << "ix";
     mangleExpression(AE->getLHS());
     mangleExpression(AE->getRHS());
+    break;
+  }
+
+  case Expr::MatrixSingleSubscriptExprClass: {
+    NotPrimaryExpr();
+    const MatrixSingleSubscriptExpr *ME = cast<MatrixSingleSubscriptExpr>(E);
+    Out << "ix";
+    mangleExpression(ME->getBase());
+    mangleExpression(ME->getRowIdx());
     break;
   }
 

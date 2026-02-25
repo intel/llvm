@@ -1188,16 +1188,16 @@ typedef ur_result_t(UR_APICALL *ur_pfnEnqueueUSMFreeExp_t)(
     const ur_event_handle_t *, ur_event_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urEnqueueCommandBufferExp
-typedef ur_result_t(UR_APICALL *ur_pfnEnqueueCommandBufferExp_t)(
-    ur_queue_handle_t, ur_exp_command_buffer_handle_t, uint32_t,
-    const ur_event_handle_t *, ur_event_handle_t *);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urEnqueueTimestampRecordingExp
 typedef ur_result_t(UR_APICALL *ur_pfnEnqueueTimestampRecordingExp_t)(
     ur_queue_handle_t, bool, uint32_t, const ur_event_handle_t *,
     ur_event_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urEnqueueCommandBufferExp
+typedef ur_result_t(UR_APICALL *ur_pfnEnqueueCommandBufferExp_t)(
+    ur_queue_handle_t, ur_exp_command_buffer_handle_t, uint32_t,
+    const ur_event_handle_t *, ur_event_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urEnqueueHostTaskExp
@@ -1228,8 +1228,8 @@ typedef struct ur_enqueue_exp_dditable_t {
   ur_pfnEnqueueUSMSharedAllocExp_t pfnUSMSharedAllocExp;
   ur_pfnEnqueueUSMHostAllocExp_t pfnUSMHostAllocExp;
   ur_pfnEnqueueUSMFreeExp_t pfnUSMFreeExp;
-  ur_pfnEnqueueCommandBufferExp_t pfnCommandBufferExp;
   ur_pfnEnqueueTimestampRecordingExp_t pfnTimestampRecordingExp;
+  ur_pfnEnqueueCommandBufferExp_t pfnCommandBufferExp;
   ur_pfnEnqueueHostTaskExp_t pfnHostTaskExp;
   ur_pfnEnqueueNativeCommandExp_t pfnNativeCommandExp;
   ur_pfnEnqueueGraphExp_t pfnGraphExp;

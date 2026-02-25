@@ -155,6 +155,7 @@ public:
 
     AArch64SubArch_arm64e,
     AArch64SubArch_arm64ec,
+    AArch64SubArch_lfi,
 
     KalimbaSubArch_v3,
     KalimbaSubArch_v4,
@@ -250,7 +251,10 @@ public:
     AMDPAL,     // AMD PAL Runtime
     HermitCore, // HermitCore Unikernel/Multikernel
     Hurd,       // GNU/Hurd
-    WASI,       // Experimental WebAssembly OS
+    WASI,       // Deprecated alias of WASI 0.1; in the future will be WASI 1.0.
+    WASIp1,     // WASI 0.1
+    WASIp2,     // WASI 0.2
+    WASIp3,     // WASI 0.3
     Emscripten,
     ShaderModel, // DirectX ShaderModel
     LiteOS,
@@ -766,7 +770,8 @@ public:
 
   /// Tests whether the OS is WASI.
   bool isOSWASI() const {
-    return getOS() == Triple::WASI;
+    return getOS() == Triple::WASI || getOS() == Triple::WASIp1 ||
+           getOS() == Triple::WASIp2 || getOS() == Triple::WASIp3;
   }
 
   /// Tests whether the OS is Emscripten.
@@ -778,7 +783,7 @@ public:
   bool isOSGlibc() const {
     return (getOS() == Triple::Linux || getOS() == Triple::KFreeBSD ||
             getOS() == Triple::Hurd) &&
-           !isAndroid() && !isMusl();
+           !isAndroid() && !isMusl() && getEnvironment() != Triple::PAuthTest;
   }
 
   /// Tests whether the OS is AIX.
@@ -952,6 +957,12 @@ public:
   /// Tests whether the target is ARM (little and big endian).
   bool isARM() const {
     return getArch() == Triple::arm || getArch() == Triple::armeb;
+  }
+
+  /// Tests whether the target is LFI.
+  bool isLFI() const {
+    return getArch() == Triple::aarch64 &&
+           getSubArch() == Triple::AArch64SubArch_lfi;
   }
 
   /// Tests whether the target supports the EHABI exception

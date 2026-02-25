@@ -152,7 +152,7 @@ static CanQual<FunctionProtoType> GetFormalType(const CXXMethodDecl *MD) {
 /// and it makes ABI code a little easier to be able to assume that
 /// all parameter and return types are top-level unqualified.
 static CanQualType GetReturnType(QualType RetTy) {
-  return RetTy->getCanonicalTypeUnqualified().getUnqualifiedType();
+  return RetTy->getCanonicalTypeUnqualified();
 }
 
 /// Arrange the argument and result information for a value of the given
@@ -1997,7 +1997,7 @@ void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
       assert(!FPAccuracyVal.empty() && "A valid accuracy value is expected");
       FuncAttrs.addAttribute("fpbuiltin-max-error", FPAccuracyVal);
       MD = llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
-          Int32Ty, convertFPAccuracyToAspect(FuncMapIt->second)));
+          Int32Ty, convertFPAccuracyToAspect(FuncMapIt->second), true));
     }
   }
   if (FuncAttrs.attrs().size() == 0) {
@@ -2013,7 +2013,8 @@ void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
       assert(!FPAccuracyVal.empty() && "A valid accuracy value is expected");
       FuncAttrs.addAttribute("fpbuiltin-max-error", FPAccuracyVal);
       MD = llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
-          Int32Ty, convertFPAccuracyToAspect(getLangOpts().FPAccuracyVal)));
+          Int32Ty, convertFPAccuracyToAspect(getLangOpts().FPAccuracyVal),
+          true));
     } else {
       if (!getLangOpts().OffloadFP32PrecDiv && Name == "fdiv") {
         FuncAttrs.addAttribute("fpbuiltin-max-error", "2.5");

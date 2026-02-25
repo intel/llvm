@@ -15,6 +15,7 @@
 #include "event_pool_cache.hpp"
 #include "queue_api.hpp"
 #include "ur_api.h"
+#include <unordered_set>
 #include <ze_api.h>
 
 struct ur_mem_buffer_t;
@@ -331,7 +332,7 @@ private:
   v2::raii::ur_context_handle_t hContext;
   v2::raii::ur_device_handle_t hDevice;
 
-  std::vector<ur_kernel_handle_t> submittedKernels;
+  std::unordered_set<ur_kernel_handle_t> submittedKernels;
   v2::raii::command_list_unique_handle zeCommandList;
   std::vector<ze_event_handle_t> waitList;
 

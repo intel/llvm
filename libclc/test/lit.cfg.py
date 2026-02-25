@@ -67,7 +67,7 @@ clang_flags = [
     "-nogpulib",
 ]
 
-if config.libclc_target == "amdgcn--amdhsa":
+if config.libclc_target == "amdgcn-amd-amdhsa":
     # libclc for amdgcn is currently built for tahiti which doesn't support
     # fp16 so disable the extension for the tests
     clang_flags += ["-Xclang", "-cl-ext=-cl_khr_fp16"]

@@ -1,0 +1,274 @@
+:extension_name: SPV_INTEL_{zwsp}subgroup_{zwsp}matrix_{zwsp}multiply_{zwsp}accumulate_{zwsp}float8
+
+:MatrixResultBFloat16INTEL: Matrix{zwsp}Result{zwsp}BFloat16{zwsp}INTEL
+
+:MatrixAPackedFloat8E4M3INTEL: MatrixA{zwsp}Packed{zwsp}Float8{zwsp}E4M3{zwsp}INTEL
+:MatrixAPackedFloat8E5M2INTEL: MatrixA{zwsp}Packed{zwsp}Float8{zwsp}E5M2{zwsp}INTEL
+
+:MatrixBPackedFloat8E4M3INTEL: MatrixB{zwsp}Packed{zwsp}Float8{zwsp}E4M3{zwsp}INTEL
+:MatrixBPackedFloat8E5M2INTEL: MatrixB{zwsp}Packed{zwsp}Float8{zwsp}E5M2{zwsp}INTEL
+
+:MatrixCBFloat16INTEL: MatrixC{zwsp}BFloat16{zwsp}INTEL
+
+{extension_name}
+================
+
+== Name Strings
+
+{extension_name}
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm
+
+== Contributors
+
+// spell-checker: disable
+* Ben Ashbaugh, Intel
+// spell-checker: enable
+
+== Notice
+
+Copyright (c) 2025 Intel Corporation. All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a
+feature for review and community feedback. When the feature matures, this
+specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products. If you are interested in using this feature in your software product,
+please let us know!
+
+== Version
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | 2025-11-13
+| Revision           | 1
+|========================================
+
+== Dependencies
+
+This extension is written against the SPIR-V Specification,
+Version 1.6, Revision 6.
+
+This extension requires SPIR-V 1.0.
+
+This extension depends on and extends the *SPV_INTEL_subgroup_matrix_multiply_accumulate* extension.
+
+== Overview
+
+This extension extends the *SPV_INTEL_subgroup_matrix_multiply_accumulate* extension by adding support for matrix elements that are 8-bit floating-point values, also known as _float8_ or _fp8_ matrix elements.
+Using 8-bit floating-point reduces memory bandwidth and storage requirements, which can enable the use of larger models or improve performance for some artificial intelligence (AI) applications on some devices.
+
+This extension adds support for 8-bit floating point matrix elements by adding additional 8-bit floating-point type interpretations to the optional _Matrix Multiply Accumulate Operands_ used by *OpSubgroupMatrixMultiplyAccumulateINTEL*.
+This means that this extension does *not* require support for 8-bit floating-point encodings, such as *Float8E4M3EXT* or *Float8E5M2EXT* added by *SPV_EXT_float8*.
+
+== Extension Name
+
+To use this extension within a SPIR-V module, the appropriate *OpExtension* must
+be present in the module:
+
+[subs="attributes"]
+----
+OpExtension "{extension_name}"
+----
+
+== Modifications to the SPIR-V Specification, Version 1.6
+
+=== Matrix Multiply Accumulate Operands
+
+Modify Section 3.2.53, Matrix Multiply Accumulate Operands, which may also be found in the *SPV_INTEL_subgroup_matrix_multiply_accumulate* extension specification, adding rows to the table:
+
+[cols="^.^4,16,15",options="header",width = "100%"]
+|====
+2+^.^| Matrix Multiply Accumulate Operands | Enabling Capabilities
+
+// Only valid for integer operand types:
+| 0x4000 | *MatrixAPackedFloat8E4M3INTEL* +
+The components of matrix A are interpreted as packed fp8 E4M3 (hf8) data. |
+| 0x8000 | *MatrixBPackedFloat8E4M3INTEL* +
+The components of matrix B are interpreted as packed fp8 E4M3 (hf8) data. |
+
+// Only valid for integer operand types:
+| 0x10000 | *MatrixAPackedFloat8E5M2INTEL* +
+The components of matrix A are interpreted as packed fp8 E5M2 (bf8) data. |
+| 0x20000 | *MatrixBPackedFloat8E5M2INTEL* +
+The components of matrix B are interpreted as packed fp8 E5M2 (bf8) data. |
+
+|====
+
+== Supported Matrix Dimensions and Types
+
+[NOTE]
+====
+This section will be moved to a client API specification before final publication, but is included in this SPIR-V extension for now for ease of review.
+====
+
+For devices where the minimum subgroup size is 16, the following matrix dimensions and types are supported when the subgroup size is 16.
+Behavior is undefined if these combinations are used on other devices or from kernels with a different subgroup size:
+
+[cols="^1a,^2a,^1a,^1a,^2a,^2a,^2a,^2a",width="100%"]
+[options="header"]
+|=====
+| Sub-group Size | M Dim | N Dim | K Dim | Result Type | Matrix A Type | Matrix B Type | Matrix C Type
+
+// f32 = hf8 x hf8 + f32
+// f32 = hf8 x bf8 + f32
+// f32 = bf8 x hf8 + f32
+// f32 = bf8 x bf8 + f32
+8+<| *fp8 matrix sources (e4m3 and e5m2), fp32 accumulator*:
+| 16 | 1, 2, 4, 8 | 16 | 32 | `M x float32_t`
+| `M x int16_t` with *{MatrixAPackedFloat8E4M3INTEL}*
+| `8 x int32_t` with *{MatrixBPackedFloat8E4M3INTEL}*
+| `M x float32_t`
+
+| 16 | 1, 2, 4, 8 | 16 | 32 | `M x float32_t`
+| `M x int16_t` with *{MatrixAPackedFloat8E4M3INTEL}*
+| `8 x int32_t` with *{MatrixBPackedFloat8E5M2INTEL}*
+| `M x float32_t`
+
+| 16 | 1, 2, 4, 8 | 16 | 32 | `M x float32_t`
+| `M x int16_t` with *{MatrixAPackedFloat8E5M2INTEL}*
+| `8 x int32_t` with *{MatrixBPackedFloat8E4M3INTEL}*
+| `M x float32_t`
+
+| 16 | 1, 2, 4, 8 | 16 | 32 | `M x float32_t`
+| `M x int16_t` with *{MatrixAPackedFloat8E5M2INTEL}*
+| `8 x int32_t` with *{MatrixBPackedFloat8E5M2INTEL}*
+| `M x float32_t`
+
+// bf16 = hf8 x hf8 + bf16
+// bf16 = hf8 x bf8 + bf16
+// bf16 = bf8 x hf8 + bf16
+// bf16 = bf8 x bf8 + bf16
+8+<| *fp8 matrix sources (e4m3 and e5m2), bf16 accumulator*:
+| 16 | 1, 2, 4, 8 | 16 | 32 | `M x int16_t` with *{MatrixResultBFloat16INTEL}*
+| `M x int16_t` with *{MatrixAPackedFloat8E4M3INTEL}*
+| `8 x int32_t` with *{MatrixBPackedFloat8E4M3INTEL}*
+| `M x int16_t` with *{MatrixCBFloat16INTEL}*
+
+| 16 | 1, 2, 4, 8 | 16 | 32 | `M x int16_t` with *{MatrixResultBFloat16INTEL}*
+| `M x int16_t` with *{MatrixAPackedFloat8E4M3INTEL}*
+| `8 x int32_t` with *{MatrixBPackedFloat8E5M2INTEL}*
+| `M x int16_t` with *{MatrixCBFloat16INTEL}*
+
+| 16 | 1, 2, 4, 8 | 16 | 32 | `M x int16_t` with *{MatrixResultBFloat16INTEL}*
+| `M x int16_t` with *{MatrixAPackedFloat8E5M2INTEL}*
+| `8 x int32_t` with *{MatrixBPackedFloat8E4M3INTEL}*
+| `M x int16_t` with *{MatrixCBFloat16INTEL}*
+
+| 16 | 1, 2, 4, 8 | 16 | 32 | `M x int16_t` with *{MatrixResultBFloat16INTEL}*
+| `M x int16_t` with *{MatrixAPackedFloat8E5M2INTEL}*
+| `8 x int32_t` with *{MatrixBPackedFloat8E5M2INTEL}*
+| `M x int16_t` with *{MatrixCBFloat16INTEL}*
+
+|=====
+
+For devices where the minimum subgroup size is 16, the following matrix dimensions and types are supported when the subgroup size is 32.
+
+When the subgroup size is 32, each invocation is responsible for either the even or odd rows of the matrix sources or result matrix, therefore the number of matrix rows M must be even.
+The 16 invocations with the smallest subgroup local invocation IDs are responsible for the even matrix rows, starting from row zero, and the 16 invocations with the largest subgroup local invocation IDs are responsible for the odd matrix rows, starting from row one:
+
+Behavior is undefined if these combinations are used on other devices or from kernels with a different subgroup size:
+
+[cols="^1a,^2a,^1a,^1a,^2a,^2a,^2a,^2a",width="100%"]
+[options="header"]
+|=====
+| Sub-group Size | M Dim | N Dim | K Dim | Result Type | Matrix A Type | Matrix B Type | Matrix C Type
+
+// f32 = hf8 x hf8 + f32
+// f32 = hf8 x bf8 + f32
+// f32 = bf8 x hf8 + f32
+// f32 = bf8 x bf8 + f32
+8+<| *fp8 matrix sources (e4m3 and e5m2), fp32 accumulator*:
+| 32 | 2, 4, 8 | 16 | 32 | `M/2 x float32_t`
+| `M/2 x int16_t` with *{MatrixAPackedFloat8E4M3INTEL}*
+| `4 x int32_t` with *{MatrixBPackedFloat8E4M3INTEL}*
+| `M/2 x float32_t`
+
+| 32 | 2, 4, 8 | 16 | 32 | `M/2 x float32_t`
+| `M/2 x int16_t` with *{MatrixAPackedFloat8E4M3INTEL}*
+| `4 x int32_t` with *{MatrixBPackedFloat8E5M2INTEL}*
+| `M/2 x float32_t`
+
+| 32 | 2, 4, 8 | 16 | 32 | `M/2 x float32_t`
+| `M/2 x int16_t` with *{MatrixAPackedFloat8E5M2INTEL}*
+| `4 x int32_t` with *{MatrixBPackedFloat8E4M3INTEL}*
+| `M/2 x float32_t`
+
+| 32 | 2, 4, 8 | 16 | 32 | `M/2 x float32_t`
+| `M x int16_t` with *{MatrixAPackedFloat8E5M2INTEL}*
+| `8 x int32_t` with *{MatrixBPackedFloat8E5M2INTEL}*
+| `M x float32_t`
+
+// bf16 = hf8 x hf8 + bf16
+// bf16 = hf8 x bf8 + bf16
+// bf16 = bf8 x hf8 + bf16
+// bf16 = bf8 x bf8 + bf16
+8+<| *fp8 matrix sources (e4m3 and e5m2), bf16 accumulator*:
+| 32 | 2, 4, 8 | 16 | 32 | `M/2 x int16_t` with *{MatrixResultBFloat16INTEL}*
+| `M/2 x int16_t` with *{MatrixAPackedFloat8E4M3INTEL}*
+| `4 x int32_t` with *{MatrixBPackedFloat8E4M3INTEL}*
+| `M/2 x int16_t` with *{MatrixCBFloat16INTEL}*
+
+| 32 | 2, 4, 8 | 16 | 32 | `M/2 x int16_t` with *{MatrixResultBFloat16INTEL}*
+| `M/2 x int16_t` with *{MatrixAPackedFloat8E4M3INTEL}*
+| `4 x int32_t` with *{MatrixBPackedFloat8E5M2INTEL}*
+| `M/2 x int16_t` with *{MatrixCBFloat16INTEL}*
+
+| 32 | 2, 4, 8 | 16 | 32 | `M/2 x int16_t` with *{MatrixResultBFloat16INTEL}*
+| `M/2 x int16_t` with *{MatrixAPackedFloat8E5M2INTEL}*
+| `4 x int32_t` with *{MatrixBPackedFloat8E4M3INTEL}*
+| `M/2 x int16_t` with *{MatrixCBFloat16INTEL}*
+
+| 32 | 2, 4, 8 | 16 | 32 | `M/2 x int16_t` with *{MatrixResultBFloat16INTEL}*
+| `M/2 x int16_t` with *{MatrixAPackedFloat8E5M2INTEL}*
+| `4 x int32_t` with *{MatrixBPackedFloat8E5M2INTEL}*
+| `M/2 x int16_t` with *{MatrixCBFloat16INTEL}*
+
+|=====
+
+== Issues
+
+. Do we need a new extension for this functionality, or can we simply update the existing *SPV_INTEL_subgroup_matrix_multiply_accumulate* extension?
++
+--
+*RESOLVED*: Adding this functionality as a new extension is helpful to tooling because it indicates that additional _Matrix Multiply Accumulate Operands_ may be present beyond those added by the *SPV_INTEL_subgroup_matrix_multiply_accumulate* extension.
+--
+
+. Should we consider a shorter extension name?
++
+--
+*UNRESOLVED*: The current name *SPV_INTEL_subgroup_matrix_multiply_accumulate_float8* is 52 characters long, and is long enough that the document title wraps when it is rendered to HTML.
+This would be the longest extension name on the SPIR-V registry, but by less than 10 characters.
+
+Because there is nothing in this extension specific to "subgroups", we could consider dropping "subgroup" from the name, which would reduce the length of the name to 43 characters, though it would also be less obvious that the extension is related to the *SPV_INTEL_subgroup_matrix_multiply_accumulate* extension.
+
+I could not think of any other shorter names that are compatible with existing SPIR-V naming conventions, but I am open to suggestions.
+--
+
+. Do we need a new capability to gate the new 8-bit floating-point type interpretations?
++
+--
+*RESOLVED*: No, following similar logic why we did not add different capabilities for each of the type interpretations in the base *SPV_INTEL_subgroup_matrix_multiply_accumulate* extension, we do not need a capability for the type interpretations added by this extension, either.
+
+It will always be undefined behavior to use an unsupported matrix dimension or type, therefore adding additional capabilities for each type interpretation is not necessary.
+--
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2025-11-13|Ben Ashbaugh|Initial revision for publication
+|========================================

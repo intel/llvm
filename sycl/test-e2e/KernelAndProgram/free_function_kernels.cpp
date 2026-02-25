@@ -1,8 +1,7 @@
 // REQUIRES: aspect-usm_shared_allocations
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// UNSUPPORTED: run-mode && (gpu-intel-gen12 || gpu-intel-dg2 || gpu-intel-pvc-1T)
-// UNSUPPORTED: run-mode && (arch-intel_gpu_bmg_g21 || arch-intel_gpu_mtl_u)
+// UNSUPPORTED: windows
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20244
 // This test tests free function kernel code generation and execution.
 

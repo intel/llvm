@@ -2516,7 +2516,11 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
       Function *Fun = Branch->getFunction();
       DominatorTree DomTree(*Fun);
       LoopInfo LI(DomTree);
-      for (const auto *LoopObj : LI.getLoopsInPreorder()) {
+      // Find the innermost loop that contains the current basic block.
+      BasicBlock *CurrentBB = Branch->getParent();
+      const Loop *ContainingLoop = LI.getLoopFor(CurrentBB);
+
+      if (ContainingLoop) {
         // Check whether SuccessorFalse or SuccessorTrue is the loop header BB.
         // For example consider following LLVM IR:
         // br i1 %compare, label %for.body, label %for.end
@@ -2525,12 +2529,12 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
         //   <- SuccessorTrue is 'for.end' aka successor(1)
         // meanwhile the true successor (by definition) should be a loop header
         // aka 'for.body'
-        if (LoopObj->getHeader() == Branch->getSuccessor(1))
+        if (ContainingLoop->getHeader() == Branch->getSuccessor(1))
           // SuccessorFalse is the loop header BB.
           BM->addLoopMergeInst(SuccessorTrue->getId(), // Merge Block
                                BB->getId(),            // Continue Target
                                LoopControl, Parameters, SuccessorFalse);
-        else
+        else if (ContainingLoop->getHeader() == Branch->getSuccessor(0))
           // SuccessorTrue is the loop header BB.
           BM->addLoopMergeInst(SuccessorFalse->getId(), // Merge Block
                                BB->getId(),             // Continue Target
@@ -5769,7 +5773,7 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
             transScavengedType(CI),
             BM->getIds(transValue(getArguments(CI), BB)), BB);
       }
-    } else if (DemangledName.find("__spirv_ocl_fma") != StringRef::npos) {
+    } else if (DemangledName == "__spirv_ocl_fma") {
       if (BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_fma))
         return BM->addInstTemplate(OpFmaKHR,
                                    BM->getIds(transValue(getArguments(CI), BB)),

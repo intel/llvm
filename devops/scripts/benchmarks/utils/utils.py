@@ -1,4 +1,4 @@
-# Copyright (C) 2024-2025 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -34,7 +34,7 @@ def sanitize_filename(name: str) -> str:
 
 def run(
     command,
-    env_vars={},
+    env_vars=None,
     cwd=None,
     add_sycl=False,
     ld_library=[],
@@ -42,11 +42,33 @@ def run(
     input=None,
 ):
     try:
+        env_vars = dict(env_vars) if env_vars else {}
+
         if timeout is None:
             timeout = options.timeout
 
         if isinstance(command, str):
             command = command.split()
+
+        is_gdb_mode = os.environ.get("LLVM_BENCHMARKS_USE_GDB", "") == "1"
+        if any("/compute-benchmarks-build/bin/" in x for x in command) and is_gdb_mode:
+            command = [
+                "gdb",
+                "-return-child-result",
+                "--batch",
+                "--ex",
+                "set auto-load safe-path /",
+                "--ex",
+                "set confirm off",
+                "--ex",
+                "run",
+                "--ex",
+                "bt",
+                "--ex",
+                "quit",
+                "--args",
+            ] + command
+            log.info(f"Running in gdb mode")
 
         env = os.environ.copy()
         for ldlib in ld_library:
@@ -60,10 +82,11 @@ def run(
         # order is important, we want provided sycl rt libraries to be first
         if add_sycl:
             sycl_bin_path = os.path.join(options.sycl, "bin")
+            sycl_lib_path = os.path.join(options.sycl, "lib")
+
             env_vars["PATH"] = os.pathsep.join(
                 filter(None, [sycl_bin_path, env_vars.get("PATH", "")])
             )
-            sycl_lib_path = os.path.join(options.sycl, "lib")
             env_vars["LD_LIBRARY_PATH"] = os.pathsep.join(
                 filter(None, [sycl_lib_path, env_vars.get("LD_LIBRARY_PATH", "")])
             )
@@ -156,29 +179,34 @@ def calculate_checksum(file_path):
 
 def download(dir, url, file, untar=False, unzip=False, checksum=""):
     data_file = os.path.join(dir, file)
-    if not Path(data_file).exists():
-        log.info(f"{data_file} does not exist, downloading")
-        with urlopen(url) as in_stream, open(data_file, "wb") as out_file:
-            copyfileobj(in_stream, out_file)
+    if options.offline:
+        log.debug("Skipping download due to --offline option.")
+        return data_file
 
-        calculated_checksum = calculate_checksum(data_file)
-        if calculated_checksum != checksum:
-            log.critical(
-                f"Checksum mismatch: expected {checksum}, got {calculated_checksum}. Refusing to continue."
-            )
-            exit(1)
-
-        if untar:
-            file = tarfile.open(data_file)
-            file.extractall(dir)
-            file.close()
-        if unzip:
-            [stripped_gz, _] = os.path.splitext(data_file)
-            with gzip.open(data_file, "rb") as f_in, open(stripped_gz, "wb") as f_out:
-                # copyfileobj expects binary file-like objects; type checker may complain about union types
-                shutil.copyfileobj(f_in, f_out)  # type: ignore[arg-type]
-    else:
+    if Path(data_file).exists():
         log.debug(f"{data_file} exists, skipping...")
+        return data_file
+
+    log.info(f"{data_file} does not exist, downloading")
+    with urlopen(url) as in_stream, open(data_file, "wb") as out_file:
+        copyfileobj(in_stream, out_file)
+
+    calculated_checksum = calculate_checksum(data_file)
+    if calculated_checksum != checksum:
+        log.critical(
+            f"Checksum mismatch: expected {checksum}, got {calculated_checksum}. Refusing to continue."
+        )
+        exit(1)
+
+    if untar:
+        file = tarfile.open(data_file)
+        file.extractall(dir)
+        file.close()
+    if unzip:
+        [stripped_gz, _] = os.path.splitext(data_file)
+        with gzip.open(data_file, "rb") as f_in, open(stripped_gz, "wb") as f_out:
+            # copyfileobj expects binary file-like objects; type checker may complain about union types
+            shutil.copyfileobj(f_in, f_out)  # type: ignore[arg-type]
     return data_file
 
 

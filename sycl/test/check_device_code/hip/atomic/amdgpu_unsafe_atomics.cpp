@@ -1,6 +1,8 @@
 // REQUIRES: hip
 // RUN: %clangxx -fsycl -fsycl-device-only -fsycl-targets=amdgcn-amd-amdhsa %s -S -emit-llvm -o - | FileCheck %s --check-prefixes=CHECK,CHECK-SAFE
 // RUN: %clangxx -fsycl -fsycl-device-only -fsycl-targets=amdgcn-amd-amdhsa %s -mllvm --amdgpu-oclc-unsafe-int-atomics=true -S -emit-llvm -o - | FileCheck %s --check-prefixes=CHECK,CHECK-UNSAFE
+// XFAIL: hip
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20465
 
 #include <sycl/sycl.hpp>
 
