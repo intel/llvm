@@ -1725,9 +1725,12 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   // clang-sycl-linker. Additional linker flags required by clang-sycl-linker
   // will be communicated via the -Xlinker option.
   if (ActiveOffloadKindMask & OFK_SYCL) {
+    llvm::errs() << "[DEBUG] add the sycl-link";
     CmdArgs.push_back("--sycl-link");
+    // CmdArgs.append(
+    //     {"-Xlinker", Args.MakeArgString("-triple=" + Triple.getTriple())});
     CmdArgs.append(
-        {"-Xlinker", Args.MakeArgString("-triple=" + Triple.getTriple())});
+        {"-Xlinker", Args.MakeArgString("-triple=spir64")});
     CmdArgs.append({"-Xlinker", Args.MakeArgString("-arch=" + Arch)});
   }
 
@@ -2058,37 +2061,43 @@ DerivedArgList getLinkerArgs(ArrayRef<OffloadFile> Input,
   if (llvm::all_of(Input, ContainsBitcode))
     DAL.AddFlagArg(nullptr, Tbl.getOption(OPT_whole_program));
 
-  // Forward '-Xoffload-linker' options to the appropriate backend.
-  for (StringRef Arg : Args.getAllArgValues(OPT_device_linker_args_EQ)) {
-    auto [Triple, Value] = Arg.split('=');
-    llvm::Triple TT(Triple);
-    // If this isn't a recognized triple then it's an `arg=value` option.
-    if (TT.getArch() == Triple::ArchType::UnknownArch)
-      DAL.AddJoinedArg(nullptr, Tbl.getOption(OPT_linker_arg_EQ),
-                       Args.MakeArgString(Arg));
-    else if (Value.empty())
-      DAL.AddJoinedArg(nullptr, Tbl.getOption(OPT_linker_arg_EQ),
-                       Args.MakeArgString(Triple));
-    else if (Triple == DAL.getLastArgValue(OPT_triple_EQ))
-      DAL.AddJoinedArg(nullptr, Tbl.getOption(OPT_linker_arg_EQ),
-                       Args.MakeArgString(Value));
-  }
+// This function filters the SYCL device compiler and linker options by target
+  // triple and offload kind.
+  // The device_linker_args and device_compiler_args options accept values
+  // in the form [<kind>:][<triple>=]<value>.
+  // An example of passing such an option to clang-linker-wrapper is:
+  // --device-compiler=spir64_gen-unknown-unknown=opt_val.
+  const StringRef TripleStr = DAL.getLastArgValue(OPT_triple_EQ);
+  auto ProcessDeviceArgs = [&](unsigned DeviceArgsOptionID,
+                               unsigned ForwardedOptionID) {
+    for (StringRef DeviceArgValue : Args.getAllArgValues(DeviceArgsOptionID)) {
+      size_t ColonPos = DeviceArgValue.find(':');
+      if (ColonPos != StringRef::npos) {
+        StringRef Kind = DeviceArgValue.take_front(ColonPos);
+        if (getOffloadKind(Kind) != OFK_SYCL)
+          continue;
+        DeviceArgValue = DeviceArgValue.drop_front(ColonPos + 1);
+      }
+      size_t EqPos = DeviceArgValue.find('=');
+      if (EqPos != StringRef::npos) {
+        StringRef TargetTriple = DeviceArgValue.take_front(EqPos);
+        llvm::Triple TT(TargetTriple);
+        // If this isn't a recognized triple then it's an `arg=value` option.
+        if (TT.getArch() != Triple::ArchType::UnknownArch) {
+          if (TargetTriple != TripleStr)
+            continue;
+          DeviceArgValue = DeviceArgValue.drop_front(EqPos + 1);
+        }
+      }
+      if (DeviceArgValue.empty())
+        continue;
+      DAL.AddJoinedArg(nullptr, Tbl.getOption(ForwardedOptionID),
+                       Args.MakeArgString(DeviceArgValue));
+    }
+  };
 
-  // Forward '-Xoffload-compiler' options to the appropriate backend.
-  for (StringRef Arg : Args.getAllArgValues(OPT_device_compiler_args_EQ)) {
-    auto [Triple, Value] = Arg.split('=');
-    llvm::Triple TT(Triple);
-    // If this isn't a recognized triple then it's an `arg=value` option.
-    if (TT.getArch() == Triple::ArchType::UnknownArch)
-      DAL.AddJoinedArg(nullptr, Tbl.getOption(OPT_compiler_arg_EQ),
-                       Args.MakeArgString(Arg));
-    else if (Value.empty())
-      DAL.AddJoinedArg(nullptr, Tbl.getOption(OPT_compiler_arg_EQ),
-                       Args.MakeArgString(Triple));
-    else if (Triple == DAL.getLastArgValue(OPT_triple_EQ))
-      DAL.AddJoinedArg(nullptr, Tbl.getOption(OPT_compiler_arg_EQ),
-                       Args.MakeArgString(Value));
-  }
+  ProcessDeviceArgs(OPT_device_linker_args_EQ, OPT_linker_arg_EQ);
+  ProcessDeviceArgs(OPT_device_compiler_args_EQ, OPT_compiler_arg_EQ);
 
   return DAL;
 }
