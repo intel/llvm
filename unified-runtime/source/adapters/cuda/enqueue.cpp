@@ -50,10 +50,13 @@ ur_result_t enqueueEventsWait(ur_queue_handle_t CommandQueue, CUstream Stream,
           if (Event->getQueue() && 
               Event->getQueue()->getDevice()->getNativeContext() != 
               CommandQueue->getDevice()->getNativeContext()) {
-            // Cross-device: synchronize on host. This blocks the CPU thread
-            // until the event completes. Subsequent operations enqueued to
-            // Stream will execute after the event has already completed.
+            // Cross-device synchronization requires host involvement:
+            // 1. Wait for cross-device event to complete (blocks CPU)
             UR_CHECK_ERROR(cuEventSynchronize(Event->get()));
+            // 2. Synchronize target stream to create ordering barrier
+            //    This ensures work enqueued after this call happens after
+            //    the cross-device event has completed
+            UR_CHECK_ERROR(cuStreamSynchronize(Stream));
             return UR_RESULT_SUCCESS;
           }
           
