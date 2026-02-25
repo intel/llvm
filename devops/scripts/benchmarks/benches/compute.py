@@ -568,8 +568,8 @@ class ComputeBench(Suite):
                     createTorchGraphSingleQueueBench(
                         "small",
                         kernelName=kernel_name.value,
-                        kernelWGCount=512,
-                        kernelWGSize=256,
+                        kernelWGCount=100,
+                        kernelWGSize=50,
                         kernelGroupsCount=10,
                         kernelBatchSize=10,
                         useProfiling=0,
