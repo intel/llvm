@@ -166,11 +166,16 @@ public:
 
   ScopedContext(CUcontext NativeContext) { setContext(NativeContext); }
 
-  ~ScopedContext() {}
+  ~ScopedContext() {
+    if (NeedToRecover) {
+      CUDA_CALL_TRACE_CTX_SET(Original);
+      (void)cuCtxSetCurrent(Original);
+    }
+  }
 
 private:
   void setContext(CUcontext Desired) {
-    CUcontext Original = nullptr;
+    Original = nullptr;
 
     CUDA_CALL_TRACE_CTX_GET(&Original);
     UR_CHECK_ERROR(cuCtxGetCurrent(&Original));
@@ -180,7 +185,11 @@ private:
     if (Original != Desired) {
       CUDA_CALL_TRACE_CTX_SET(Desired);
       UR_CHECK_ERROR(cuCtxSetCurrent(Desired));
+      NeedToRecover = true;
     }
   }
+
+  CUcontext Original = nullptr;
+  bool NeedToRecover = false;
 };
 } // namespace

@@ -39,13 +39,25 @@ ur_result_t enqueueEventsWait(ur_queue_handle_t CommandQueue, CUstream Stream,
 
     auto Result = forLatestEvents(
         EventWaitList, NumEventsInWaitList,
-        [Stream](ur_event_handle_t Event) -> ur_result_t {
+        [Stream, CommandQueue](ur_event_handle_t Event) -> ur_result_t {
           if (Event->getStream() == Stream) {
             return UR_RESULT_SUCCESS;
-          } else {
-            UR_CHECK_ERROR(cuStreamWaitEvent(Stream, Event->get(), 0));
+          }
+          
+          // CUDA limitation: cuStreamWaitEvent cannot synchronize streams from
+          // different devices. For cross-device events, we must use host
+          // synchronization (cuEventSynchronize) instead of stream wait.
+          // See: CUDA documentation - cuStreamWaitEvent requires same device.
+          if (Event->getQueue() && 
+              Event->getQueue()->getDevice() != CommandQueue->getDevice()) {
+            // Cross-device: use host synchronization
+            UR_CHECK_ERROR(cuEventSynchronize(Event->get()));
             return UR_RESULT_SUCCESS;
           }
+          
+          // Same device: use asynchronous stream wait
+          UR_CHECK_ERROR(cuStreamWaitEvent(Stream, Event->get(), 0));
+          return UR_RESULT_SUCCESS;
         });
     return Result;
   } catch (ur_result_t Err) {
