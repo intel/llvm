@@ -6,7 +6,9 @@
 
 #include "fixtures.h"
 #include <cstdio>
+#include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <iterator>
 #include <string>
 
@@ -18,9 +20,10 @@ UUR_DEVICE_TEST_SUITE_WITH_QUEUE_TYPES(
                       UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE));
 
 TEST_P(urGraphDumpContentsExpTest, Success) {
-  const char *filePath = "test_graph_dump.dot";
+  auto tempDir = std::filesystem::temp_directory_path();
+  auto filePath = tempDir / "test_graph_dump.dot";
 
-  ASSERT_SUCCESS(urGraphDumpContentsExp(graph, filePath));
+  ASSERT_SUCCESS(urGraphDumpContentsExp(graph, filePath.string().c_str()));
 
   std::ifstream file(filePath);
   ASSERT_TRUE(file.good());
@@ -30,15 +33,16 @@ TEST_P(urGraphDumpContentsExpTest, Success) {
   ASSERT_NE(content.find("digraph"), std::string::npos);
 
   file.close();
-  std::remove(filePath);
+  std::filesystem::remove(filePath);
 }
 
 TEST_P(urGraphDumpContentsExpTest, SuccessEmptyGraph) {
-  const char *filePath = "test_empty_graph_dump.dot";
+  auto tempDir = std::filesystem::temp_directory_path();
+  auto filePath = tempDir / "test_empty_graph_dump.dot";
 
   ur_exp_graph_handle_t emptyGraph = nullptr;
   ASSERT_SUCCESS(urGraphCreateExp(context, &emptyGraph));
-  ASSERT_SUCCESS(urGraphDumpContentsExp(emptyGraph, filePath));
+  ASSERT_SUCCESS(urGraphDumpContentsExp(emptyGraph, filePath.string().c_str()));
 
   std::ifstream file(filePath);
   ASSERT_TRUE(file.good());
@@ -48,8 +52,7 @@ TEST_P(urGraphDumpContentsExpTest, SuccessEmptyGraph) {
   ASSERT_NE(content.find("digraph"), std::string::npos);
 
   file.close();
-
-  std::remove(filePath);
+  std::filesystem::remove(filePath);
   ASSERT_SUCCESS(urGraphDestroyExp(emptyGraph));
 }
 
