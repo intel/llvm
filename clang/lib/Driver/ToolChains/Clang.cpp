@@ -11622,10 +11622,11 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         // Handle the OPT_Xsycl_backend_EQ case
         if (A->getNumValues() > 1) {
           Device = SYCL::gen::resolveGenDevice(A->getValue());
-          if (Device.empty()){
-            // If the target is spir64_gen, the device name needs to be extracted
-            // from the backend arguments. If the target is spir64_x86_64, the
-            // Device value returned by extractDeviceFromArg will be an empty string.
+          if (Device.empty()) {
+            // If the target is spir64_gen, the device name needs to be
+            // extracted from the backend arguments. If the target is
+            // spir64_x86_64, the Device value returned by extractDeviceFromArg
+            // will be an empty string.
             Device = SYCL::gen::extractDeviceFromArg(A->getValue(1));
           } else {
             // If target is intel_gpu_*, "-device <arch>"
