@@ -660,8 +660,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 #endif // CUDA_VERSION >= 11080
 }
 
-// const ur_kernel_launch_ext_properties_t *launchPropList,
-
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,

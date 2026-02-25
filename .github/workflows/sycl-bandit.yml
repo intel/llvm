@@ -1,10 +1,17 @@
-name: Scan Python code with Bandit
+name: Bandit
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 3 * * *'
-
+  pull_request:
+    branches:
+    - sycl
+    paths:
+    - '**/*.py'
+  push:
+    branches:
+    - sycl
+    paths:
+    - '**/*.py'
 
 permissions:
   contents: read
@@ -19,7 +26,7 @@ jobs:
 
     steps:
       - name: Clone the git repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install Bandit
         run: pip install bandit bandit-sarif-formatter
@@ -28,6 +35,6 @@ jobs:
         run: |
           bandit -c devops/bandit.config -r . --exit-zero -f sarif -o bandit_results.sarif
 
-      - uses: github/codeql-action/upload-sarif@v4
+      - uses: github/codeql-action/upload-sarif@89a39a4e59826350b863aa6b6252a07ad50cf83e # v4.32.4
         with:
           sarif_file: bandit_results.sarif
