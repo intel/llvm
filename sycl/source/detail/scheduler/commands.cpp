@@ -2135,9 +2135,9 @@ void ExecCGCommand::emitInstrumentationData() {
         auto KernelCG =
             reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
         instrumentationAddExtraKernelMetadata(
-            CmdTraceEvent, KernelCG->MNDRDesc, KernelCG->getKernelBundle().get(),
-            KernelCG->MDeviceKernelInfo, KernelCG->MSyclKernel.get(),
-            MQueue.get(), KernelCG->MArgs);
+            CmdTraceEvent, KernelCG->MNDRDesc,
+            KernelCG->getKernelBundle().get(), KernelCG->MDeviceKernelInfo,
+            KernelCG->MSyclKernel.get(), MQueue.get(), KernelCG->MArgs);
       }
     }
 
