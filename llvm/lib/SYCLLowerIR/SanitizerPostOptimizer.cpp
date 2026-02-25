@@ -24,7 +24,10 @@ using namespace llvm;
 namespace llvm {
 
 constexpr StringRef SPIRV_DECOR_MD_KIND = "spirv.Decorations";
+
+// Values as defined by SPV_INTEL_global_variable_host_access extension:
 constexpr uint32_t SPIRV_HOST_ACCESS_DECOR = 6188;
+constexpr uint32_t SPIRV_HOST_ACCESS_READ = 1; // ReadINTEL
 
 struct EliminateDeadCheck : public InstVisitor<EliminateDeadCheck> {
   void visitCallInst(CallInst &CI) {
@@ -102,8 +105,8 @@ static bool FixSanitizerKernelMetadata(Module &M) {
   auto *Ty = Type::getInt32Ty(Ctx);
   MD.push_back(ConstantAsMetadata::get(
       Constant::getIntegerValue(Ty, APInt(32, SPIRV_HOST_ACCESS_DECOR))));
-  MD.push_back(
-      ConstantAsMetadata::get(Constant::getIntegerValue(Ty, APInt(32, 1))));
+  MD.push_back(ConstantAsMetadata::get(
+      Constant::getIntegerValue(Ty, APInt(32, SPIRV_HOST_ACCESS_READ))));
   MD.push_back(MDString::get(Ctx, "_Z20__SanitizerKernelMetadata"));
 
   MDOps.push_back(MDNode::get(Ctx, MD));

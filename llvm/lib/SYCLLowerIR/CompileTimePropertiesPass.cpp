@@ -563,7 +563,7 @@ void getUserListIgnoringCast(
 // sycl_ext_oneapi_device_global and encoded in the "sycl-host-access" attribute
 // to the SPIR-V decoration values as defined by
 // SPV_INTEL_global_variable_host_access
-int32_t mapSYCLHostAccessToSPIRV(int32_t HostAccess) {
+uint32_t mapSYCLHostAccessToSPIRV(uint32_t HostAccess) {
   // The mapping is as follows:
   // 0 (read) -> 1 (ReadINTEL)
   // 1 (write) -> 2 (WriteINTEL)
@@ -575,9 +575,9 @@ int32_t mapSYCLHostAccessToSPIRV(int32_t HostAccess) {
   if (HostAccess == 3)
     return 0;
 
-  // For values outside the defined range, keep whatever was in the IR
-  // attribute. This matches our previous behaviour when we used
-  // the deprecated SPV_INTEL_global_variable_decorations extension.
+  // For values outside the defined range, keep input value to match previous
+  // behavior when the deprecated SPV_INTEL_global_variable_decorations
+  // extension was used.
   return HostAccess;
 }
 
