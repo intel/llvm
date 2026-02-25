@@ -158,10 +158,9 @@ namespace {
 class ScopedContext {
 public:
   ScopedContext(ur_device_handle_t Device) {
-    if (!Device) {
-      throw UR_RESULT_ERROR_INVALID_DEVICE;
+    if (Device) {
+      setContext(Device->getNativeContext());
     }
-    setContext(Device->getNativeContext());
   }
 
   ScopedContext(CUcontext NativeContext) { setContext(NativeContext); }
@@ -185,7 +184,11 @@ private:
     if (Original != Desired) {
       CUDA_CALL_TRACE_CTX_SET(Desired);
       UR_CHECK_ERROR(cuCtxSetCurrent(Desired));
-      NeedToRecover = true;
+      // Only restore context if we had a valid one before
+      // (don't restore to nullptr)
+      if (Original != nullptr) {
+        NeedToRecover = true;
+      }
     }
   }
 
