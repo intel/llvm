@@ -68,8 +68,8 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        # Feb 17, 2026
-        return "1ef6c0e6f3ca2e937f86a080594d268b1b895c16"
+        # Feb 20, 2026
+        return "27a3133d298a95af35e69173b06f6030ae33d742"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -351,6 +351,7 @@ class ComputeBench(Suite):
                             "kernelName": "Add",
                             "kernelParamsNum": 5,
                             "kernelSubmitPattern": "Single",
+                            "UseEvents": 0,
                         },
                     )
 
@@ -415,6 +416,7 @@ class ComputeBench(Suite):
                         kernelsPerQueue=20,
                         useProfiling=0,
                         measureCompletion=measure_completion,
+                        UseEvents=0,
                     ),
                     createTorchMultiQueueBench(
                         "medium",
@@ -423,6 +425,7 @@ class ComputeBench(Suite):
                         kernelsPerQueue=10,
                         useProfiling=0,
                         measureCompletion=measure_completion,
+                        UseEvents=0,
                     ),
                     createTorchMultiQueueBench(
                         "small",
@@ -431,6 +434,7 @@ class ComputeBench(Suite):
                         kernelsPerQueue=4,
                         useProfiling=0,
                         measureCompletion=measure_completion,
+                        UseEvents=0,
                     ),
                 ]
 
@@ -490,21 +494,25 @@ class ComputeBench(Suite):
                         "Int32Large",
                         kernelBatchSize=4096,
                         kernelDataType="Int32",
+                        UseEvents=0,
                     ),
                     createTorchMemoryReuseBench(
                         "Int32Medium",
                         kernelBatchSize=512,
                         kernelDataType="Int32",
+                        UseEvents=0,
                     ),
                     createTorchMemoryReuseBench(
                         "FloatLarge",
                         kernelBatchSize=4096,
                         kernelDataType="Float",
+                        UseEvents=0,
                     ),
                     createTorchMemoryReuseBench(
                         "FloatMedium",
                         kernelBatchSize=512,
                         kernelDataType="Float",
+                        UseEvents=0,
                     ),
                 ]
 
@@ -573,6 +581,7 @@ class ComputeBench(Suite):
                         kernelGroupsCount=10,
                         kernelBatchSize=10,
                         useProfiling=0,
+                        UseEvents=0,
                     ),
                     createTorchGraphSingleQueueBench(
                         "medium",
@@ -582,6 +591,7 @@ class ComputeBench(Suite):
                         kernelGroupsCount=32,
                         kernelBatchSize=32,
                         useProfiling=0,
+                        UseEvents=0,
                     ),
                     createTorchGraphSingleQueueBench(
                         "large",
@@ -591,6 +601,41 @@ class ComputeBench(Suite):
                         kernelGroupsCount=64,
                         kernelBatchSize=64,
                         useProfiling=0,
+                        UseEvents=0,
+                    ),
+                ]
+
+        # Add TorchGraphMultiQueue benchmarks
+        for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
+            for profiler_type in list(PROFILERS):
+
+                def createTorchGraphMultiQueueBench(variant_name: str, **kwargs):
+                    return TorchGraphMultiQueue(
+                        self,
+                        runtime,
+                        variant_name,
+                        profiler_type,
+                        **{
+                            **kwargs,
+                            "workgroupCount": 512,
+                            "workgroupSize": 256,
+                            "Profiling": 0,
+                            "UseEvents": 0,
+                        },
+                    )
+
+                benches += [
+                    createTorchGraphMultiQueueBench(
+                        "small",
+                        kernelsPerQueue=10,
+                    ),
+                    createTorchGraphMultiQueueBench(
+                        "medium",
+                        kernelsPerQueue=32,
+                    ),
+                    createTorchGraphMultiQueueBench(
+                        "large",
+                        kernelsPerQueue=64,
                     ),
                 ]
 
@@ -1214,6 +1259,19 @@ class TorchGraphSingleQueue(TorchBenchmark):
             **kwargs,
         )
 
+
+class TorchGraphMultiQueue(TorchBenchmark):
+    def __init__(
+        self, suite, runtime: RUNTIMES, variant_name: str, profiler_type, **kwargs
+    ):
+        super().__init__(
+            suite,
+            runtime,
+            "KernelSubmitGraphMultiQueue",
+            variant_name,
+            profiler_type,
+            **kwargs,
+        )
 
 class QueueInOrderMemcpy(ComputeBenchmark):
     def __init__(self, bench, isCopyOnly, source, destination, size, profiler_type):
