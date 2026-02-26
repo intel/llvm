@@ -6,7 +6,6 @@
 
 #include "fixtures.h"
 #include <cstdio>
-#include <filesystem>
 #include <fstream>
 #include <iterator>
 #include <sstream>
