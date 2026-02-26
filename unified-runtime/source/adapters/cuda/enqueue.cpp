@@ -1587,14 +1587,30 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
         &DstDeviceOrdinal, CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL,
         (CUdeviceptr)pDst);
 
+    fprintf(stderr,
+            "[P2P DEBUG] urEnqueueUSMMemcpy: pSrc=%p pDst=%p size=%zu\n", pSrc,
+            pDst, size);
+    fprintf(stderr,
+            "[P2P DEBUG] SrcResult=%d SrcOrdinal=%u, DstResult=%d "
+            "DstOrdinal=%u\n",
+            SrcResult, SrcDeviceOrdinal, DstResult, DstDeviceOrdinal);
+
     // If both pointers are device pointers and on different devices, use P2P
     bool UseP2P = (SrcResult == CUDA_SUCCESS && DstResult == CUDA_SUCCESS &&
                    SrcDeviceOrdinal != DstDeviceOrdinal);
+
+    fprintf(stderr, "[P2P DEBUG] UseP2P decision: %s\n",
+            UseP2P ? "TRUE" : "FALSE");
 
     if (UseP2P) {
       // Get device handles from context
       auto Context = hQueue->getContext();
       const auto &Devices = Context->getDevices();
+
+      fprintf(stderr,
+              "[P2P DEBUG] Context has %zu devices, looking for "
+              "SrcOrdinal=%u DstOrdinal=%u\n",
+              Devices.size(), SrcDeviceOrdinal, DstDeviceOrdinal);
 
       ur_device_handle_t SrcDevice = nullptr;
       ur_device_handle_t DstDevice = nullptr;
@@ -1613,12 +1629,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
       }
 
       if (SrcDevice && DstDevice) {
+        fprintf(stderr,
+                "[P2P DEBUG] Found devices: SrcDevice=%p (idx=%u) "
+                "DstDevice=%p (idx=%u)\n",
+                (void *)SrcDevice, SrcDevice->getIndex(), (void *)DstDevice,
+                DstDevice->getIndex());
+
         // Check if P2P access is supported between these devices
         int CanAccessPeer = 0;
         UR_CHECK_ERROR(cuDeviceCanAccessPeer(&CanAccessPeer, DstDevice->get(),
                                              SrcDevice->get()));
 
+        fprintf(stderr, "[P2P DEBUG] cuDeviceCanAccessPeer result: %d\n",
+                CanAccessPeer);
+
         if (CanAccessPeer) {
+          fprintf(stderr, "[P2P DEBUG] P2P supported, enabling access...\n");
+
           // Enable P2P access in both directions if not already enabled
           // Note: cuCtxEnablePeerAccess returns
           // CUDA_ERROR_PEER_ACCESS_ALREADY_ENABLED if already enabled, which we
@@ -1627,6 +1654,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
             ScopedContext DstActive(DstDevice);
             CUresult EnableResult =
                 cuCtxEnablePeerAccess(SrcDevice->getNativeContext(), 0);
+            fprintf(stderr,
+                    "[P2P DEBUG] Enable Dst->Src access result: %d "
+                    "(0=success, 704=already_enabled)\n",
+                    EnableResult);
             if (EnableResult != CUDA_SUCCESS &&
                 EnableResult != CUDA_ERROR_PEER_ACCESS_ALREADY_ENABLED) {
               UR_CHECK_ERROR(EnableResult);
@@ -1637,12 +1668,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
             ScopedContext SrcActive(SrcDevice);
             CUresult EnableResult =
                 cuCtxEnablePeerAccess(DstDevice->getNativeContext(), 0);
+            fprintf(stderr,
+                    "[P2P DEBUG] Enable Src->Dst access result: %d "
+                    "(0=success, 704=already_enabled)\n",
+                    EnableResult);
             if (EnableResult != CUDA_SUCCESS &&
                 EnableResult != CUDA_ERROR_PEER_ACCESS_ALREADY_ENABLED) {
               UR_CHECK_ERROR(EnableResult);
             }
           }
 
+          fprintf(stderr,
+                  "[P2P DEBUG] Using cuMemcpyPeerAsync for P2P transfer\n");
           // Restore original context and use peer-to-peer memcpy
           // The context should match the queue's device (already set by
           // ScopedContext Active above) cuMemcpyPeerAsync can use a stream from
@@ -1652,16 +1689,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
               (CUdeviceptr)pSrc, SrcDevice->getNativeContext(), size,
               CuStream));
         } else {
+          fprintf(stderr,
+                  "[P2P DEBUG] P2P NOT supported, using regular memcpy\n");
           // P2P not supported, fall back to regular memcpy
           UR_CHECK_ERROR(cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc,
                                        size, CuStream));
         }
       } else {
+        fprintf(stderr,
+                "[P2P DEBUG] Could not find device handles (SrcDevice=%p, "
+                "DstDevice=%p), using regular memcpy\n",
+                (void *)SrcDevice, (void *)DstDevice);
         // Couldn't find device handles, fall back to regular memcpy
         UR_CHECK_ERROR(cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, size,
                                      CuStream));
       }
     } else {
+      fprintf(stderr, "[P2P DEBUG] Regular memcpy path (not P2P)\n");
       // Regular memcpy (same device or host memory involved)
       UR_CHECK_ERROR(
           cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, size, CuStream));
