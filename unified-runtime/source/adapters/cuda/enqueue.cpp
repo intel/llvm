@@ -1699,13 +1699,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
           // device's context and stream. This matches the CUDA documentation
           // pattern.
           CUstream DstStream = nullptr;
+          CUevent P2PCompleteEvent = nullptr;
           {
             ScopedContext DstContextActive(DstDevice);
             UR_CHECK_ERROR(cuStreamCreate(&DstStream, CU_STREAM_NON_BLOCKING));
+            UR_CHECK_ERROR(cuEventCreate(&P2PCompleteEvent, CU_EVENT_DEFAULT));
 
             fprintf(stderr,
-                    "[P2P DEBUG] Created stream %p on DST device idx=%u\n",
-                    (void *)DstStream, DstDevice->getIndex());
+                    "[P2P DEBUG] Created stream %p and event %p on DST device "
+                    "idx=%u\n",
+                    (void *)DstStream, (void *)P2PCompleteEvent,
+                    DstDevice->getIndex());
 
             // CRITICAL: Make DstStream wait for all events in wait list
             // (especially kernelEvent from source device)
@@ -1726,13 +1730,33 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
                 (CUdeviceptr)pSrc, SrcDevice->getNativeContext(), size,
                 DstStream));
 
-            // Synchronize to ensure transfer completes
-            UR_CHECK_ERROR(cuStreamSynchronize(DstStream));
-            UR_CHECK_ERROR(cuStreamDestroy(DstStream));
-
+            // Record completion of P2P transfer on DstStream
+            UR_CHECK_ERROR(cuEventRecord(P2PCompleteEvent, DstStream));
             fprintf(
                 stderr,
-                "[P2P DEBUG] P2P transfer completed and stream destroyed\n");
+                "[P2P DEBUG] Recorded P2P completion event %p on DstStream\n",
+                (void *)P2PCompleteEvent);
+          }
+
+          // Make CuStream (SRC stream) wait for P2P completion
+          // This allows us to record the final event on CuStream (which lives
+          // longer)
+          {
+            ScopedContext SrcActive(hQueue->getDevice());
+            UR_CHECK_ERROR(cuStreamWaitEvent(CuStream, P2PCompleteEvent, 0));
+            fprintf(stderr,
+                    "[P2P DEBUG] CuStream %p now waiting for P2P event %p\n",
+                    (void *)CuStream, (void *)P2PCompleteEvent);
+          }
+
+          // Now we can safely destroy DstStream and the temporary event
+          {
+            ScopedContext DstContextActive(DstDevice);
+            UR_CHECK_ERROR(cuStreamSynchronize(DstStream));
+            UR_CHECK_ERROR(cuStreamDestroy(DstStream));
+            UR_CHECK_ERROR(cuEventDestroy(P2PCompleteEvent));
+            fprintf(stderr, "[P2P DEBUG] P2P transfer completed, stream and "
+                            "event destroyed\n");
           }
         } else {
           fprintf(stderr,
