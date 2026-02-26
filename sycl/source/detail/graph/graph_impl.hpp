@@ -299,6 +299,7 @@ public:
 
   nodes_range roots() const { return MRoots; }
   nodes_range nodes() const { return MNodeStorage; }
+  bool empty() const;
 
   /// Find the last node added to this graph from an in-order queue.
   /// @param Queue In-order queue to find the last node added to the graph from.
@@ -524,10 +525,6 @@ public:
     }
   }
 
-  /// Get whether native recording is enabled for this graph.
-  /// @return True if native recording is enabled, false otherwise.
-  bool isNativeRecordingEnabled() const { return MEnableNativeRecording; }
-
   /// Get the native UR graph handle for this graph.
   /// @return Native UR graph handle, or nullptr if native recording is not
   /// enabled.
@@ -608,17 +605,14 @@ private:
   /// presence of the assume_buffer_outlives_graph property.
   bool MAllowBuffers = false;
 
-  /// Controls whether native recording is enabled for improved performance.
-  /// Set by the SYCL_GRAPH_ENABLE_NATIVE_RECORDING environment variable.
-  /// Note: Native recording only works with immediate command lists. Queues
-  /// must either be created with
-  /// ext::intel::property::queue::immediate_command_list or the global
-  /// environment variable SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 must
-  /// be set.
-  bool MEnableNativeRecording = false;
-
-  /// Native UR graph handle for native recording mode
-  /// Only valid when MEnableNativeRecording is true
+  /// Native UR graph handle used for native recording mode.
+  ///
+  /// This handle is non-null only when native recording is enabled via the
+  /// SYCL_GRAPH_ENABLE_NATIVE_RECORDING environment variable.
+  ///
+  /// @note Native recording requires immediate command lists. Queues must be
+  /// created with ext::intel::property::queue::immediate_command_list, or
+  /// SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 must be set globally.
   ur_exp_graph_handle_t MNativeGraphHandle = nullptr;
 
   /// Mapping from queues to barrier nodes. For each queue the last barrier
@@ -638,6 +632,12 @@ private:
   // modifiable graph
   std::atomic<size_t> MExecGraphCount = 0;
 };
+
+/// Get whether native recording is enabled for this graph.
+/// @return True if native recording is enabled, false otherwise.
+inline bool isNativeRecordingEnabledForGraph(graph_impl const &graph) {
+  return graph.getNativeGraphHandle() != nullptr;
+}
 
 /// Class representing the implementation of command_graph<executable>.
 class exec_graph_impl {

@@ -317,7 +317,6 @@ graph_impl::graph_impl(const sycl::context &SyclContext,
   }
   // Check environment variable for native recording mode
   if (SYCLConfig<SYCL_GRAPH_ENABLE_NATIVE_RECORDING>::get()) {
-    MEnableNativeRecording = true;
     // Create native UR graph when native recording is enabled
     // Note: Native recording only works with immediate command lists,
     // this is validated when recording begins
@@ -347,6 +346,9 @@ graph_impl::graph_impl(const sycl::context &SyclContext,
       throw sycl::exception(sycl::make_error_code(errc::runtime),
                             "Failed to create native UR graph");
     }
+    assert(MNativeGraphHandle != nullptr &&
+           "Native UR graph handle should not be null if graph creation "
+           "succeeded");
   }
 
   if (!SyclDevice.has(aspect::ext_oneapi_limited_graph) &&
@@ -625,7 +627,7 @@ void graph_impl::clearQueues(bool NeedsLock) {
 
   for (auto &Queue : SwappedQueues) {
     if (auto ValidQueue = Queue.lock(); ValidQueue) {
-      if (MEnableNativeRecording && MNativeGraphHandle) {
+      if (MNativeGraphHandle) {
         // End native UR graph capture
         auto UrQueue = ValidQueue->getHandleRef();
         ur_exp_graph_handle_t CapturedGraph = nullptr;
@@ -646,6 +648,23 @@ void graph_impl::clearQueues(bool NeedsLock) {
       // AnyQueuesCleared = true;
     }
   }
+}
+
+bool graph_impl::empty() const {
+
+  if (!MNativeGraphHandle) {
+    return MNodeStorage.empty();
+  }
+
+  bool IsEmptyResult = true;
+  if (getSyclObjImpl(MContext)
+          ->getAdapter()
+          .call_nocheck<UrApiKind::urGraphIsEmptyExp>(
+              MNativeGraphHandle, &IsEmptyResult) != UR_RESULT_SUCCESS) {
+    throw sycl::exception(sycl::make_error_code(errc::runtime),
+                          "Failed to check if graph is empty");
+  }
+  return IsEmptyResult;
 }
 
 bool graph_impl::checkForCycles() {
@@ -767,7 +786,7 @@ void graph_impl::beginRecordingImpl(sycl::detail::queue_impl &Queue,
   if (!Queue.hasCommandGraph()) {
 
     // Use native UR graph recording if enabled
-    if (MEnableNativeRecording && MNativeGraphHandle) {
+    if (MNativeGraphHandle) {
       // Native recording only works with immediate command lists
       // Check if the queue is actually using immediate command lists
       ur_queue_flags_t queueFlags = 0;
@@ -1037,7 +1056,7 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
 
   // Create native UR executable graph if the modifiable graph uses native
   // recording
-  if (GraphImpl->isNativeRecordingEnabled()) {
+  if (isNativeRecordingEnabledForGraph(*GraphImpl)) {
     context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
     sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
     ur_result_t Result =
@@ -2159,7 +2178,7 @@ void modifiable_command_graph::end_recording(queue &RecordingQueue) {
   // Check if this queue is recording to this graph
   bool IsRecordingToThisGraph = false;
 
-  if (impl->isNativeRecordingEnabled()) {
+  if (isNativeRecordingEnabledForGraph(*impl)) {
     // For native recording, check if queue is in our recording queue list
     graph_impl::WriteLock Lock(impl->MMutex);
     IsRecordingToThisGraph = impl->isQueueRecording(QueueImpl);
@@ -2226,6 +2245,11 @@ std::vector<node> modifiable_command_graph::get_nodes() const {
 std::vector<node> modifiable_command_graph::get_root_nodes() const {
   graph_impl::ReadLock Lock(impl->MMutex);
   return impl->roots().to<std::vector<node>>();
+}
+
+bool modifiable_command_graph::empty() const {
+  graph_impl::ReadLock Lock(impl->MMutex);
+  return impl->empty();
 }
 
 void modifiable_command_graph::checkNodePropertiesAndThrow(
