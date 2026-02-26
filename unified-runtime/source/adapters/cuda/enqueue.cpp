@@ -1678,6 +1678,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
             }
           }
 
+          // Restore original queue context before doing the transfer
+          // The stream belongs to hQueue's device, so we need that context
+          // active
+          ScopedContext RestoreQueueContext(hQueue->getDevice());
+          fprintf(stderr,
+                  "[P2P DEBUG] Restored queue context (device idx=%u)\n",
+                  hQueue->getDevice()->getIndex());
+
           fprintf(stderr,
                   "[P2P DEBUG] Using cuMemcpyPeerAsync for P2P transfer\n");
           // Restore original context and use peer-to-peer memcpy
