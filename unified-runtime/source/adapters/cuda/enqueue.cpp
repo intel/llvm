@@ -1687,24 +1687,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
             }
           }
 
-          // Restore original queue context before doing the transfer
-          // The stream belongs to hQueue's device, so we need that context
-          // active
-          ScopedContext RestoreQueueContext(hQueue->getDevice());
-          fprintf(stderr,
-                  "[P2P DEBUG] Restored queue context (device idx=%u)\n",
-                  hQueue->getDevice()->getIndex());
-
           fprintf(stderr,
                   "[P2P DEBUG] Using cuMemcpyPeerAsync for P2P transfer\n");
-          // Restore original context and use peer-to-peer memcpy
-          // The context should match the queue's device (already set by
-          // ScopedContext Active above) cuMemcpyPeerAsync can use a stream from
-          // any device when P2P is enabled
+          // Use peer-to-peer memcpy
+          // cuMemcpyPeerAsync doesn't require a specific context to be active
+          // when P2P is enabled - it uses the contexts passed as parameters
           UR_CHECK_ERROR(cuMemcpyPeerAsync(
               (CUdeviceptr)pDst, DstDevice->getNativeContext(),
               (CUdeviceptr)pSrc, SrcDevice->getNativeContext(), size,
               CuStream));
+          fprintf(stderr, "[P2P DEBUG] P2P transfer enqueued, stream=%p\n",
+                  (void *)CuStream);
+          // TEMPORARY: Synchronize to ensure transfer completes
+          // This helps diagnose async issues
+          UR_CHECK_ERROR(cuStreamSynchronize(CuStream));
+          fprintf(stderr, "[P2P DEBUG] Stream synchronized after P2P\n");
         } else {
           fprintf(stderr,
                   "[P2P DEBUG] P2P NOT supported, using regular memcpy\n");
