@@ -97,7 +97,7 @@ cl::opt<std::string> DeviceLibDir{
     cl::value_desc("dirname"), cl::cat(PostLinkCat)};
 
 struct TargetFilenamePair {
-  std::vector<std::string> Targets;
+  std::string Target;
   std::string Filename;
 };
 
@@ -105,13 +105,10 @@ struct TargetFilenamePairParser : public cl::basic_parser<TargetFilenamePair> {
   using cl::basic_parser<TargetFilenamePair>::basic_parser;
   bool parse(cl::Option &O, StringRef ArgName, StringRef &ArgValue,
              TargetFilenamePair &Val) const {
-    SmallVector<StringRef, 8> ArgList;
-    ArgValue.split(ArgList, ",");
-    Val.Filename = ArgList.back().str();
-    for (size_t i = 0; i + 1 < ArgList.size(); ++i) {
-      llvm::errs() << "  Target: " << ArgList[i] << "\n";
-      Val.Targets.push_back(ArgList[i].str());
-    }
+    auto [Target, Filename] = ArgValue.split(",");
+    if (Filename == "")
+      std::swap(Target, Filename);
+    Val = {Target.str(), Filename.str()};
     return false;
   }
 };
@@ -304,8 +301,7 @@ void saveModuleIR(Module &M, const StringRef Filename) {
 
 void saveModuleProperties(const module_split::ModuleDesc &MD,
                           const GlobalBinImageProps &GlobProps,
-                          const StringRef Filename,
-                          const std::vector<std::string> &Targets) {
+                          const StringRef Filename, StringRef Target = "") {
 
   PropSetRegTy PropSet;
 
@@ -328,8 +324,9 @@ void saveModuleProperties(const module_split::ModuleDesc &MD,
     PropSet.remove(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS,
                    PropSetRegTy::PROPERTY_REQD_WORK_GROUP_SIZE);
 
-  for (const auto &T : Targets)
-    PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS, "compile_target", T);
+  if (!Target.empty())
+    PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS, "compile_target",
+                Target);
 
   std::error_code EC;
   raw_fd_ostream SCOut(Filename, EC);
@@ -344,7 +341,7 @@ void saveModuleSymbolTable(const module_split::ModuleDesc &MD,
   writeToFile(Filename, SymT);
 }
 
-bool isTargetCompatibleWithModule(const std::vector<std::string> &Targets,
+bool isTargetCompatibleWithModule(const std::string &Target,
                                   module_split::ModuleDesc &IrMD);
 
 void addTableRow(util::SimpleTable &Table,
@@ -388,25 +385,21 @@ void saveModule(
   }
 
   for (const auto &[Table, OutputFile] : zip_equal(OutTables, OutputFiles)) {
-    if (!isTargetCompatibleWithModule(OutputFile.Targets, MD))
+    if (!isTargetCompatibleWithModule(OutputFile.Target, MD))
       continue;
     auto CopyTriple = BaseTriple;
     if (DoPropGen) {
       GlobalBinImageProps Props = {EmitKernelParamInfo, EmitProgramMetadata,
                                    EmitKernelNames,     EmitExportedSymbols,
                                    EmitImportedSymbols, DeviceGlobals};
-      std::vector<std::string> Targets = OutputFile.Targets;
+      StringRef Target = OutputFile.Target;
       std::string NewSuff = Suffix.str();
-      if (!Targets.empty()) {
-        std::string Joined;
-        for (auto &T : Targets)
-          Joined += "_" + T;
-        NewSuff = Joined;
-      }
+      if (!Target.empty())
+        NewSuff = (Twine("_") + Target).str();
 
       CopyTriple.Prop =
           (OutputPrefix + NewSuff + "_" + Twine(I) + ".prop").str();
-      saveModuleProperties(MD, Props, CopyTriple.Prop, Targets);
+      saveModuleProperties(MD, Props, CopyTriple.Prop, Target);
     }
     addTableRow(*Table, CopyTriple);
   }
@@ -459,45 +452,44 @@ void addTableRow(util::SimpleTable &Table,
 // information comes from the device config file (DeviceConfigFile.td).
 // For example, the intel_gpu_tgllp target does not support fp64 - therefore,
 // a module using fp64 would *not* be compatible with intel_gpu_tgllp.
-bool isTargetCompatibleWithModule(const std::vector<std::string> &Targets,
+bool isTargetCompatibleWithModule(const std::string &Target,
                                   module_split::ModuleDesc &IrMD) {
   // When the user does not specify a target,
   // (e.g. -o out.table compared to -o intel_gpu_pvc,out-pvc.table)
   // Target will be empty and we will not want to perform any filtering, so
   // we return true here.
-  if (Targets.empty())
+  if (Target.empty())
     return true;
 
-  for (const std::string Target : Targets) {
-    // TODO: If a target not found in the device config file is passed,
-    // to sycl-post-link, then we should probably throw an error. However,
-    // since not all the information for all the targets is filled out
-    // right now, we return true, having the affect that unrecognized
-    // targets have no filtering applied to them.
-    if (!is_contained(DeviceConfigFile::TargetTable, Target))
-      continue;
+  // TODO: If a target not found in the device config file is passed,
+  // to sycl-post-link, then we should probably throw an error. However,
+  // since not all the information for all the targets is filled out
+  // right now, we return true, having the affect that unrecognized
+  // targets have no filtering applied to them.
+  if (!is_contained(DeviceConfigFile::TargetTable, Target))
+    continue;
 
-    const DeviceConfigFile::TargetInfo &TargetInfo =
-        DeviceConfigFile::TargetTable[Target];
-    const SYCLDeviceRequirements &ModuleReqs =
-        IrMD.getOrComputeDeviceRequirements();
+  const DeviceConfigFile::TargetInfo &TargetInfo =
+      DeviceConfigFile::TargetTable[Target];
+  const SYCLDeviceRequirements &ModuleReqs =
+      IrMD.getOrComputeDeviceRequirements();
 
-    // Check to see if all the requirements of the input module
-    // are compatbile with the target.
-    for (const auto &Aspect : ModuleReqs.Aspects) {
-      if (!is_contained(TargetInfo.aspects, Aspect.Name))
-        return false;
-    }
-
-    // Check if module sub group size is compatible with the target.
-    // For ESIMD, the reqd_sub_group_size will be 1; this is not
-    // a supported by any backend (e.g. no backend can support a kernel
-    // with sycl::reqd_sub_group_size(1)), but for ESIMD, this is
-    // a special case.
-    if (!IrMD.isESIMD() && ModuleReqs.SubGroupSize.has_value() &&
-        !is_contained(TargetInfo.subGroupSizes, *ModuleReqs.SubGroupSize))
+  // Check to see if all the requirements of the input module
+  // are compatbile with the target.
+  for (const auto &Aspect : ModuleReqs.Aspects) {
+    if (!is_contained(TargetInfo.aspects, Aspect.Name))
       return false;
   }
+
+  // Check if module sub group size is compatible with the target.
+  // For ESIMD, the reqd_sub_group_size will be 1; this is not
+  // a supported by any backend (e.g. no backend can support a kernel
+  // with sycl::reqd_sub_group_size(1)), but for ESIMD, this is
+  // a special case.
+  if (!IrMD.isESIMD() && ModuleReqs.SubGroupSize.has_value() &&
+      !is_contained(TargetInfo.subGroupSizes, *ModuleReqs.SubGroupSize))
+    return false;
+}
 
   return true;
 }
