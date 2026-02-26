@@ -40,8 +40,16 @@ ur_result_t enqueueEventsWait(ur_queue_handle_t CommandQueue, CUstream Stream,
         EventWaitList, NumEventsInWaitList,
         [Stream](ur_event_handle_t Event) -> ur_result_t {
           if (Event->getStream() == Stream) {
+            fprintf(stderr,
+                    "[P2P DEBUG] enqueueEventsWait: Event stream matches "
+                    "queue stream %p, skipping wait\n",
+                    (void *)Stream);
             return UR_RESULT_SUCCESS;
           } else {
+            fprintf(stderr,
+                    "[P2P DEBUG] enqueueEventsWait: Event stream %p != queue "
+                    "stream %p, calling cuStreamWaitEvent\n",
+                    (void *)Event->getStream(), (void *)Stream);
             UR_CHECK_ERROR(cuStreamWaitEvent(Stream, Event->get(), 0));
             return UR_RESULT_SUCCESS;
           }
@@ -1687,21 +1695,33 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
             }
           }
 
-          fprintf(stderr,
-                  "[P2P DEBUG] Using cuMemcpyPeerAsync for P2P transfer\n");
-          // Use peer-to-peer memcpy
-          // cuMemcpyPeerAsync doesn't require a specific context to be active
-          // when P2P is enabled - it uses the contexts passed as parameters
-          UR_CHECK_ERROR(cuMemcpyPeerAsync(
-              (CUdeviceptr)pDst, DstDevice->getNativeContext(),
-              (CUdeviceptr)pSrc, SrcDevice->getNativeContext(), size,
-              CuStream));
-          fprintf(stderr, "[P2P DEBUG] P2P transfer enqueued, stream=%p\n",
-                  (void *)CuStream);
-          // TEMPORARY: Synchronize to ensure transfer completes
-          // This helps diagnose async issues
-          UR_CHECK_ERROR(cuStreamSynchronize(CuStream));
-          fprintf(stderr, "[P2P DEBUG] Stream synchronized after P2P\n");
+          // CRITICAL: For P2P transfers, pure CUDA uses the DESTINATION
+          // device's context and stream. This matches the CUDA documentation
+          // pattern.
+          CUstream DstStream = nullptr;
+          {
+            ScopedContext DstContextActive(DstDevice);
+            UR_CHECK_ERROR(cuStreamCreate(&DstStream, CU_STREAM_NON_BLOCKING));
+
+            fprintf(stderr,
+                    "[P2P DEBUG] Created stream %p on DST device idx=%u\n",
+                    (void *)DstStream, DstDevice->getIndex());
+            fprintf(stderr,
+                    "[P2P DEBUG] Using cuMemcpyPeerAsync for P2P transfer\n");
+
+            UR_CHECK_ERROR(cuMemcpyPeerAsync(
+                (CUdeviceptr)pDst, DstDevice->getNativeContext(),
+                (CUdeviceptr)pSrc, SrcDevice->getNativeContext(), size,
+                DstStream));
+
+            // Synchronize to ensure transfer completes
+            UR_CHECK_ERROR(cuStreamSynchronize(DstStream));
+            UR_CHECK_ERROR(cuStreamDestroy(DstStream));
+
+            fprintf(
+                stderr,
+                "[P2P DEBUG] P2P transfer completed and stream destroyed\n");
+          }
         } else {
           fprintf(stderr,
                   "[P2P DEBUG] P2P NOT supported, using regular memcpy\n");
