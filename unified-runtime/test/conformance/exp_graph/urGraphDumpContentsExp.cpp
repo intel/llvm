@@ -8,7 +8,10 @@
 #include <cstdio>
 #include <fstream>
 #include <iterator>
+#include <sstream>
 #include <string>
+#include <thread>
+#include <ur_util.hpp>
 
 using urGraphDumpContentsExpTest = uur::urGraphPopulatedExpTest;
 
@@ -17,12 +20,21 @@ UUR_DEVICE_TEST_SUITE_WITH_QUEUE_TYPES(
     ::testing::Values(0 /* In-Order */,
                       UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE));
 
+// Lit runs in parallel, so embedding pid + thread id prevents concurrent
+// read / write to the same file.
+std::string getUniqueTestFilename(const std::string &base_name) {
+  std::stringstream ss;
+  ss << base_name << "_" << ur_getpid() << "_" << std::this_thread::get_id()
+     << ".dot";
+  return ss.str();
+}
+
 TEST_P(urGraphDumpContentsExpTest, Success) {
-  const char *filePath = "test_graph_dump.dot";
+  std::string filename = getUniqueTestFilename("graph_dump");
 
-  ASSERT_SUCCESS(urGraphDumpContentsExp(graph, filePath));
+  ASSERT_SUCCESS(urGraphDumpContentsExp(graph, filename.c_str()));
 
-  std::ifstream file(filePath);
+  std::ifstream file(filename);
   ASSERT_TRUE(file.good());
 
   std::string content((std::istreambuf_iterator<char>(file)),
@@ -30,17 +42,18 @@ TEST_P(urGraphDumpContentsExpTest, Success) {
   ASSERT_NE(content.find("digraph"), std::string::npos);
 
   file.close();
-  std::remove(filePath);
+  std::remove(filename.c_str());
 }
 
 TEST_P(urGraphDumpContentsExpTest, SuccessEmptyGraph) {
-  const char *filePath = "test_empty_graph_dump.dot";
+  std::string filename = getUniqueTestFilename("empty_graph_dump");
 
   ur_exp_graph_handle_t emptyGraph = nullptr;
   ASSERT_SUCCESS(urGraphCreateExp(context, &emptyGraph));
-  ASSERT_SUCCESS(urGraphDumpContentsExp(emptyGraph, filePath));
 
-  std::ifstream file(filePath);
+  ASSERT_SUCCESS(urGraphDumpContentsExp(emptyGraph, filename.c_str()));
+
+  std::ifstream file(filename);
   ASSERT_TRUE(file.good());
 
   std::string content((std::istreambuf_iterator<char>(file)),
@@ -48,8 +61,7 @@ TEST_P(urGraphDumpContentsExpTest, SuccessEmptyGraph) {
   ASSERT_NE(content.find("digraph"), std::string::npos);
 
   file.close();
-
-  std::remove(filePath);
+  std::remove(filename.c_str());
   ASSERT_SUCCESS(urGraphDestroyExp(emptyGraph));
 }
 
