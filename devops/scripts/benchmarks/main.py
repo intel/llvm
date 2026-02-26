@@ -10,7 +10,7 @@ import re
 import statistics
 import os
 
-from benches.compute import *
+from benches.compute.compute import *
 from benches.gromacs import GromacsBench
 from benches.velocity import VelocityBench
 from benches.syclbench import *

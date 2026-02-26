@@ -14,7 +14,7 @@ from options import options
 from utils.logger import log
 from utils.result import Result
 
-from .base import Benchmark, Suite, TracingType
+from ..base import Benchmark, Suite, TracingType
 from .compute_enums import RUNTIMES, PROFILERS
 
 

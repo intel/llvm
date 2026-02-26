@@ -3,7 +3,7 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from .base import TracingType
+from ..base import TracingType
 from .compute_benchmark import ComputeBenchmark
 from .compute_enums import RUNTIMES, PROFILERS, runtime_to_tag_name
 
