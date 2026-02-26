@@ -1040,7 +1040,15 @@ bool uploadAndVerify(VulkanContext &ctx, ImageResources &imgRes,
                        nullptr, 1, &barrier4);
 
   vkEndCommandBuffer(commandBuffer);
-  VK_CHECK(vkQueueSubmit(ctx.queue, 1, &submitInfo, VK_NULL_HANDLE));
+
+  // Use a separate submit for readback — do NOT re-signal the binary
+  // semaphore.  The first submit already signaled it; a second signal
+  // without an intervening wait is invalid for binary semaphores.
+  VkSubmitInfo readbackSubmit{};
+  readbackSubmit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+  readbackSubmit.commandBufferCount = 1;
+  readbackSubmit.pCommandBuffers = &commandBuffer;
+  VK_CHECK(vkQueueSubmit(ctx.queue, 1, &readbackSubmit, VK_NULL_HANDLE));
   vkQueueWaitIdle(ctx.queue);
 
   vkMapMemory(ctx.device, stagingBufferMemory, 0, imageSize, 0, &data);

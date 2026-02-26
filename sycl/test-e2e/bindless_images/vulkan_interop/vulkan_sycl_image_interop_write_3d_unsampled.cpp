@@ -8,33 +8,28 @@
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 
+// clang-format off
 /*
-  Vulkan/SYCL Test: VK_FORMAT_XXXX_SFLOAT 3D UnSampled Image Write
+  3D UnSampled Image Write
 
-  $VULKAN_SDK/bin/glslangValidator -V vulkan_shader_3d.comp -o
-  vulkan_shader_3d.spv
-
-  clang++ -fsycl  -o vsw_3d_test.bin
-  vulkan_sycl_image_interop_write_3d_unsampled.cpp -lvulkan
-  -I$VULKAN_SDK/include -L$VULKAN_SDK/lib
+  clang++ -fsycl  -o vsw_3d_test.bin vulkan_sycl_image_interop_write_3d_unsampled.cpp -lvulkan -I$VULKAN_SDK/include -L$VULKAN_SDK/lib
 
 
-  clang++ -fsycl  -o vsw_3d_test.exe
-  vulkan_sycl_image_interop_write_3d_unsampled.cpp -Wno-ignored-attributes
-  -lvulkan-1 -I$VULKAN_SDK/Include -L$VULKAN_SDK/Lib
+  clang++ -fsycl  -o vsw_3d_test.exe vulkan_sycl_image_interop_write_3d_unsampled.cpp -Wno-ignored-attributes -lvulkan-1 -I$VULKAN_SDK/Include -L$VULKAN_SDK/Lib
 
   FLAGS
     --sampled      ERROR: Sampled image writes are not supported
     --semaphores   Use Vulkan Semaphores for SYCL Interop Sync
     --linear       Use LINEAR tiling for the Vulkan Image (default is OPTIMAL)
     --channels  X  Set number of channels (1, 2, or 4). Default is 4 (RGBA)
-    --type  XXX    Set data type (float, half, uint32, int32, uint16, int16,
-  uint8, int8, unorm8). Default is float WxHxD          Set custom Width x
-  Height x Depth (e.g. 8x4x2)
+    --type  XXX    Set data type (float, half, uint32, int32, uint16, int16, uint8, int8, unorm8). 
+                   Default is float
+    WxHxD          Set custom Width x Height x Depth (e.g. 8x4x2)
 
     ./vsw_3d_test.bin
     ./vsw_3d_test.bin --semaphores --linear --channels 2 128x128x16
  */
+// clang-format on
 
 #include "vulkan_setup.hpp"
 

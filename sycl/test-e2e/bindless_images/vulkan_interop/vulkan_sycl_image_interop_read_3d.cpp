@@ -7,14 +7,13 @@
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 
+// clang-format off
 /*
   Vulkan/SYCL 3D Image Read Test (Sampled + Unsampled)
 
-  clang++ -fsycl -o vsr_3d_test.bin vulkan_sycl_image_interop_read_3d.cpp
-  -lvulkan -I$VULKAN_SDK/include -L$VULKAN_SDK/lib
+  clang++ -fsycl -o vsr_3d_test.bin vulkan_sycl_image_interop_read_3d.cpp -lvulkan -I$VULKAN_SDK/include -L$VULKAN_SDK/lib
 
-  clang++ -fsycl -o vsr_3d_test.exe vulkan_sycl_image_interop_read_3d.cpp
-  -Wno-ignored-attributes -lvulkan-1 -I$VULKAN_SDK/Include -L$VULKAN_SDK/Lib
+  clang++ -fsycl -o vsr_3d_test.exe vulkan_sycl_image_interop_read_3d.cpp -Wno-ignored-attributes -lvulkan-1 -I$VULKAN_SDK/Include -L$VULKAN_SDK/Lib
 
   USAGE:
     ./vsr_3d_test.bin [FLAGS] [WxHxD]
@@ -24,9 +23,9 @@
     --semaphores   Use Vulkan Semaphores for SYCL Interop Sync
     --linear       Use LINEAR tiling for the Vulkan Image (default is OPTIMAL)
     --channels X   Set number of channels (1, 2, or 4). Default is 4 (RGBA)
-    --type XXX     Set data type (float, half, uint32, int32, uint16, int16,
-  uint8, int8, unorm8). Default is float WxHxD          Set custom Width x
-  Height x Depth (e.g. 8x4x2)
+    --type XXX     Set data type (float, half, uint32, int32, uint16, int16, uint8, int8, unorm8). 
+                   Default is float 
+    WxHxD          Set custom Width x Height x Depth (e.g. 8x4x2)
 
   EXAMPLES:
     ./vsr_3d_test.bin
@@ -35,7 +34,7 @@
     ./vsr_3d_test.bin --type half --channels 2
     ./vsr_3d_test.bin --linear --type unorm8 16x16x16
 */
-
+// clang-format on
 #include "vulkan_setup.hpp"
 
 #include <optional>

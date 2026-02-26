@@ -89,14 +89,13 @@
 // RUN: %{run} %t.out --type uint8 --channels 2 --sampled 32x33 --semaphores
 // RUN: %{run} %t.out --type unorm8 --channels 4 --sampled 32x33 --semaphores
 
+// clang-format off
 /*
   Vulkan/SYCL 2D Image Read Test (Sampled + Unsampled)
 
-  clang++ -fsycl  -o vsr_2d_test.bin vulkan_sycl_image_interop_read_2d.cpp
-  -lvulkan -I$VULKAN_SDK/include -L$VULKAN_SDK/lib
+  clang++ -fsycl  -o vsr_2d_test.bin vulkan_sycl_image_interop_read_2d.cpp -lvulkan -I$VULKAN_SDK/include -L$VULKAN_SDK/lib
 
-  clang++ -fsycl  -o vsr_2d_test.exe vulkan_sycl_image_interop_read_2d.cpp
-  -Wno-ignored-attributes  -lvulkan-1 -I$VULKAN_SDK/Include -L$VULKAN_SDK/Lib
+  clang++ -fsycl  -o vsr_2d_test.exe vulkan_sycl_image_interop_read_2d.cpp -Wno-ignored-attributes  -lvulkan-1 -I$VULKAN_SDK/Include -L$VULKAN_SDK/Lib
 
   USAGE:
     ./vsr_2d_test.bin [FLAGS] [WxH]
@@ -106,9 +105,9 @@
     --semaphores   Use Vulkan Semaphores for SYCL Interop Sync
     --linear       Use LINEAR tiling for the Vulkan Image (default is OPTIMAL)
     --channels X   Set number of channels (1, 2, or 4). Default is 4 (RGBA)
-    --type XXX     Set data type (float, half, uint32, int32, uint16, int16,
-  uint8, int8, unorm8). Default is float WxH            Set custom Width x
-  Height (e.g. 8x4)
+    --type XXX     Set data type (float, half, uint32, int32, uint16, int16, uint8, int8, unorm8). 
+                   Default is float 
+    WxH            Set custom Width x Height (e.g. 8x4)
 
   EXAMPLES:
     ./vsr_2d_test.bin
@@ -119,6 +118,7 @@
 
   NOTE: --linear is not currently working with 2D images on Linux
 */
+// clang-format on
 
 #include "vulkan_setup.hpp"
 
