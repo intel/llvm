@@ -377,36 +377,28 @@ class ComputeBench(Suite):
                         variant_name,
                         profiler_type,
                         measure_completion,
-                        **kwargs,
+                        **{
+                            **kwargs,
+                            "kernelWGCount": 512,
+                            "kernelWGSize": 256,
+                            "useProfiling": 0,
+                            "measureCompletion": measure_completion,
+                            "UseEvents": 0,
+                        },
                     )
 
                 benches += [
                     createTorchMultiQueueBench(
                         "large",
-                        kernelWGCount=4096,
-                        kernelWGSize=512,
                         kernelsPerQueue=20,
-                        useProfiling=0,
-                        measureCompletion=measure_completion,
-                        UseEvents=0,
                     ),
                     createTorchMultiQueueBench(
                         "medium",
-                        kernelWGCount=512,
-                        kernelWGSize=256,
                         kernelsPerQueue=10,
-                        useProfiling=0,
-                        measureCompletion=measure_completion,
-                        UseEvents=0,
                     ),
                     createTorchMultiQueueBench(
                         "small",
-                        kernelWGCount=256,
-                        kernelWGSize=128,
                         kernelsPerQueue=4,
-                        useProfiling=0,
-                        measureCompletion=measure_completion,
-                        UseEvents=0,
                     ),
                 ]
 
@@ -421,30 +413,26 @@ class ComputeBench(Suite):
                         variant_name,
                         profiler_type,
                         measure_completion,
-                        **kwargs,
+                        **{
+                            **kwargs,
+                            "kernelBatchSize": 512,
+                            "measureCompletion": measure_completion,
+                            "useProfiling": 0,
+                        },
                     )
 
                 benches += [
                     createTorchSlmSizeBench(
                         "small",
-                        kernelBatchSize=512,
                         slmNum=1,
-                        useProfiling=0,
-                        measureCompletion=measure_completion,
                     ),
                     createTorchSlmSizeBench(
                         "medium",
-                        kernelBatchSize=512,
                         slmNum=1024,
-                        useProfiling=0,
-                        measureCompletion=measure_completion,
                     ),
                     createTorchSlmSizeBench(
                         "large",
-                        kernelBatchSize=512,
                         slmNum=16384,
-                        useProfiling=0,
-                        measureCompletion=measure_completion,
                     ),
                 ]
 
@@ -498,33 +486,31 @@ class ComputeBench(Suite):
                         runtime,
                         variant_name,
                         profiler_type,
-                        **kwargs,
+                        **{
+                            **kwargs,
+                            "kernelBatchSize": 512,
+                        },
                     )
 
                 benches += [
                     createTorchLinearKernelSizeBench(
                         "array32",
-                        kernelBatchSize=512,
                         kernelSize=32,
                     ),
                     createTorchLinearKernelSizeBench(
                         "array128",
-                        kernelBatchSize=512,
                         kernelSize=128,
                     ),
                     createTorchLinearKernelSizeBench(
                         "array512",
-                        kernelBatchSize=512,
                         kernelSize=512,
                     ),
                     createTorchLinearKernelSizeBench(
                         "array1024",
-                        kernelBatchSize=512,
                         kernelSize=1024,
                     ),
                     createTorchLinearKernelSizeBench(
                         "array5120",
-                        kernelBatchSize=512,
                         kernelSize=5120,
                     ),
                 ]
@@ -541,39 +527,31 @@ class ComputeBench(Suite):
                         runtime,
                         variant_name,
                         profiler_type,
-                        **kwargs,
+                        **{
+                            **kwargs,
+                            "kernelName": kernel_name.value,
+                            "kernelWGCount": 512,
+                            "kernelWGSize": 256,
+                            "useProfiling": 0,
+                            "UseEvents": 0,
+                        },
                     )
 
                 benches += [
                     createTorchGraphSingleQueueBench(
                         "small",
-                        kernelName=kernel_name.value,
-                        kernelWGCount=512,
-                        kernelWGSize=256,
                         kernelGroupsCount=10,
                         kernelBatchSize=10,
-                        useProfiling=0,
-                        UseEvents=0,
                     ),
                     createTorchGraphSingleQueueBench(
                         "medium",
-                        kernelName=kernel_name.value,
-                        kernelWGCount=512,
-                        kernelWGSize=256,
                         kernelGroupsCount=32,
                         kernelBatchSize=32,
-                        useProfiling=0,
-                        UseEvents=0,
                     ),
                     createTorchGraphSingleQueueBench(
                         "large",
-                        kernelName=kernel_name.value,
-                        kernelWGCount=512,
-                        kernelWGSize=256,
                         kernelGroupsCount=64,
                         kernelBatchSize=64,
-                        useProfiling=0,
-                        UseEvents=0,
                     ),
                 ]
 
