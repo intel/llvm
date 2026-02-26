@@ -82,8 +82,8 @@ command_list_cache_t::command_list_cache_t(
           supportedExtensions.ZeCopyOffloadExtensionSupported},
       ZeMutableCmdListExtentionSupported{
           supportedExtensions.ZeMutableCmdListExtentionSupported},
-      ZeCopyOffloadFlagSupported{
-          supportedExtensions.ZeCopyOffloadFlagSupported} {}
+      ZeCopyOffloadQueueFlagSupported{
+          supportedExtensions.ZeCopyOffloadQueueFlagSupported} {}
 
 static bool ForceDisableCopyOffload = [] {
   return getenv_tobool("UR_L0_V2_FORCE_DISABLE_COPY_OFFLOAD");
@@ -123,8 +123,8 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
       QueueDesc.index = ImmCmdDesc->Index.value();
     }
 
-    // ZeCopyOffloadFlagSupported is set during platform initialization
-    if (requestedCopyOffload && ZeCopyOffloadFlagSupported) {
+    // ZeCopyOffloadQueueFlagSupported is set during platform initialization
+    if (requestedCopyOffload && ZeCopyOffloadQueueFlagSupported) {
       QueueDesc.flags |= ZE_COMMAND_QUEUE_FLAG_COPY_OFFLOAD_HINT;
       QueueDesc.pNext = nullptr;
     } else {
