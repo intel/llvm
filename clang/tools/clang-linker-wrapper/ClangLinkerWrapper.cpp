@@ -720,12 +720,8 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
 /// 'Args' encompasses all arguments required for linking and wrapping device
 /// code and will be parsed to generate options required to be passed into the
 /// sycl-post-link tool.
-/// 'IsDevicePassedWithSyclTargetBackend' indicates whether the device
-/// architecture is already specified through -Xsycl-target-backend=spir64_gen
-/// "-device <arch>" format.
 static Expected<std::vector<module_split::SplitModule>>
-runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args,
-                    bool IsDevicePassedWithSyclTargetBackend) {
+runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
   Expected<std::string> SYCLPostLinkPath =
       findProgram("sycl-post-link", {getMainExecutable("sycl-post-link")});
   if (!SYCLPostLinkPath)
@@ -743,10 +739,21 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
 
+  // Prefix the output path with the target architectures,
+  // e.g. intel_gpu_dg2,intel_gpu_pvc for arch = "dg2,pvc".
   if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen && !Arch.empty() &&
-      !IsDevicePassedWithSyclTargetBackend && Arch != "*")
-    OutputPathWithArch = "intel_gpu_" + Arch.str() + "," + OutputPathWithArch;
-  else if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
+      Arch != "*") {
+    SmallVector<StringRef, 8> ArchList;
+    Arch.split(ArchList, ',');
+    std::string ArchString;
+    for (StringRef SingleArch : ArchList) {
+      // Handle cases where arch name contains a version, such as "bmg-g21"
+      std::string arch = SingleArch.str();
+      std::replace(arch.begin(), arch.end(), '-', '_');
+      ArchString += "intel_gpu_" + arch + ",";
+    }
+    OutputPathWithArch = ArchString + OutputPathWithArch;
+  } else if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
     OutputPathWithArch = "spir64_x86_64," + OutputPathWithArch;
 
   SmallVector<StringRef, 8> CmdArgs;
@@ -2169,7 +2176,7 @@ extractSYCLCompileLinkOptions(ArrayRef<OffloadFile> OffloadFiles) {
 }
 
 // Append SYCL device compiler and linker options specified at link time,
-// filtering by target triple and offload kind.
+// filtering by target triple, offload kind, and device architecture.
 // TODO: Consider how to refactor this function to merge it with getLinkerArgs()
 // and determine if it's possible to use OPT_compiler_arg_EQ and
 // OPT_linker_arg_EQ to handle device compiler/linker options
@@ -2177,8 +2184,14 @@ static void appendSYCLDeviceOptionsAtLinkTime(const DerivedArgList &LinkerArgs,
                                               std::string &CompileOptions,
                                               std::string &LinkOptions) {
   const StringRef TripleStr = LinkerArgs.getLastArgValue(OPT_triple_EQ);
-  auto processDeviceArgs = [&](unsigned OptID, std::string &Options) {
+  auto processDeviceArgs = [&](unsigned OptID, std::string &Options,
+                               StringRef TargetArch = StringRef()) {
     for (StringRef Arg : LinkerArgs.getAllArgValues(OptID)) {
+      if (!TargetArch.empty()) {
+        std::string DeviceArchPattern = "-device " + TargetArch.str();
+        if (Arg.find(DeviceArchPattern) == StringRef::npos)
+          continue;
+      }
       size_t ColonPos = Arg.find(':');
       if (ColonPos != StringRef::npos) {
         StringRef Kind = Arg.substr(0, ColonPos);
@@ -2200,7 +2213,8 @@ static void appendSYCLDeviceOptionsAtLinkTime(const DerivedArgList &LinkerArgs,
     }
   };
 
-  processDeviceArgs(OPT_device_compiler_args_EQ, CompileOptions);
+  processDeviceArgs(OPT_device_compiler_args_EQ, CompileOptions,
+                    LinkerArgs.getLastArgValue(OPT_arch_EQ));
   processDeviceArgs(OPT_device_linker_args_EQ, LinkOptions);
 }
 
@@ -2279,14 +2293,9 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       SmallVector<StringRef> InputFilesSYCL;
       InputFilesSYCL.emplace_back(*TmpOutputOrErr);
 
-      SmallVector<StringRef, 16> Args;
-      StringRef(CompileLinkOptionsOrErr->first).split(Args, ' ');
-      bool IsDevicePassedWithSyclTargetBackend =
-          std::find(Args.begin(), Args.end(), "-device") != Args.end();
       auto SplitModulesOrErr =
           UseSYCLPostLinkTool
-              ? sycl::runSYCLPostLinkTool(InputFilesSYCL, LinkerArgs,
-                                          IsDevicePassedWithSyclTargetBackend)
+              ? sycl::runSYCLPostLinkTool(InputFilesSYCL, LinkerArgs)
               : sycl::runSYCLSplitLibrary(InputFilesSYCL, LinkerArgs,
                                           *SYCLModuleSplitMode);
       if (!SplitModulesOrErr)

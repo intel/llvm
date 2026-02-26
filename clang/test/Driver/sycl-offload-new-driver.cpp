@@ -162,6 +162,15 @@
 // WRAPPER_OPTIONS_BACKEND_AOT-SAME: "--device-compiler=sycl:spir64_gen-unknown-unknown=-backend-gen-opt"
 // WRAPPER_OPTIONS_BACKEND_AOT-SAME: "--device-compiler=sycl:spir64_x86_64-unknown-unknown=-backend-cpu-opt"
 
+// Check that AOT backend compiler options passed via 
+// -Xsycl-target-backend=<target>,<option> are passed to clang-linker-wrapper in the form: "-device <arch> <backend_opt>"
+// RUN:  %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
+// RUN:           -fsycl-targets=intel_gpu_dg1,spir64_gen \
+// RUN:           -Xsycl-target-backend=intel_gpu_dg1 "-options -extraopt_dg1" \
+// RUN:           -Xsycl-target-backend=spir64_gen "-device pvc -options -extraopt_pvc" %s -### 2>&1 \
+// RUN:    | FileCheck -check-prefixes=MULTI_TARGETS_OPTIONS_BACKEND_AOT %s
+// MULTI_TARGETS_OPTIONS_BACKEND_AOT: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64_gen-unknown-unknown=-device dg1 -options -extraopt_dg1" "--device-compiler=sycl:spir64_gen-unknown-unknown=-device pvc -options -extraopt_pvc"
+
 /// Verify arch settings for nvptx and amdgcn targets
 // RUN: %clangxx -fsycl -### -fsycl-targets=amdgcn-amd-amdhsa -fno-sycl-libspirv \
 // RUN:          -nocudalib --offload-new-driver \
