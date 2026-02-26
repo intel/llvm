@@ -43,7 +43,7 @@ TEST_P(urGraphDumpContentsExpTest, Success) {
   ASSERT_NE(content.find("digraph"), std::string::npos);
 
   file.close();
-  std::filesystem::remove(filename);
+  std::remove(filename.c_str());
 }
 
 TEST_P(urGraphDumpContentsExpTest, SuccessEmptyGraph) {
@@ -62,7 +62,7 @@ TEST_P(urGraphDumpContentsExpTest, SuccessEmptyGraph) {
   ASSERT_NE(content.find("digraph"), std::string::npos);
 
   file.close();
-  std::filesystem::remove(filename);
+  std::remove(filename.c_str());
   ASSERT_SUCCESS(urGraphDestroyExp(emptyGraph));
 }
 
