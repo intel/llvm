@@ -1603,6 +1603,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
             UseP2P ? "TRUE" : "FALSE");
 
     if (UseP2P) {
+      fprintf(stderr,
+              "[P2P DEBUG] hQueue belongs to device idx=%u, SrcOrdinal=%u, "
+              "DstOrdinal=%u\n",
+              hQueue->getDevice()->getIndex(), SrcDeviceOrdinal,
+              DstDeviceOrdinal);
+
       // Get device handles from context
       auto Context = hQueue->getContext();
       const auto &Devices = Context->getDevices();
@@ -1634,6 +1640,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
                 "DstDevice=%p (idx=%u)\n",
                 (void *)SrcDevice, SrcDevice->getIndex(), (void *)DstDevice,
                 DstDevice->getIndex());
+        fprintf(stderr, "[P2P DEBUG] Contexts: SrcCtx=%p DstCtx=%p\n",
+                (void *)SrcDevice->getNativeContext(),
+                (void *)DstDevice->getNativeContext());
 
         // Check if P2P access is supported between these devices
         int CanAccessPeer = 0;
