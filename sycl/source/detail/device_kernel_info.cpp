@@ -8,9 +8,39 @@
 #include <detail/device_kernel_info.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
+#ifdef __has_include
+#if __has_include(<cxxabi.h>)
+#define __SYCL_ENABLE_GNU_DEMANGLING
+#include <cstdlib>
+#include <cxxabi.h>
+#include <memory>
+#endif
+#endif
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
+
+#ifdef __SYCL_ENABLE_GNU_DEMANGLING
+struct DemangleHandle {
+  char *p;
+  DemangleHandle(char *ptr) : p(ptr) {}
+
+  DemangleHandle(const DemangleHandle &) = delete;
+  DemangleHandle &operator=(const DemangleHandle &) = delete;
+
+  ~DemangleHandle() { std::free(p); }
+};
+static std::string demangleKernelName(const std::string_view Name) {
+  int Status = -1; // some arbitrary value to eliminate the compiler warning
+  DemangleHandle result(abi::__cxa_demangle(Name.data(), NULL, NULL, &Status));
+  return (Status == 0) ? result.p : std::string(Name);
+}
+#else
+static std::string demangleKernelName(const std::string_view Name) {
+  return std::string(Name);
+}
+#endif
 
 DeviceKernelInfo::DeviceKernelInfo(const CompileTimeKernelInfoTy &Info,
                                    std::optional<sycl::kernel_id> KernelID)
@@ -48,6 +78,13 @@ void DeviceKernelInfo::setImplicitLocalArgPos(int Pos) {
   assert(!MImplicitLocalArgPos.has_value() || MImplicitLocalArgPos == Pos);
   MImplicitLocalArgPos = Pos;
 }
+
+std::string_view DeviceKernelInfo::getDemangledName() const {
+  std::call_once(MDemangledNameInitFlag,
+                 [&]() { MDemangledName = demangleKernelName(Name); });
+  return MDemangledName;
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
