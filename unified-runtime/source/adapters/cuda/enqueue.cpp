@@ -1706,6 +1706,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
             fprintf(stderr,
                     "[P2P DEBUG] Created stream %p on DST device idx=%u\n",
                     (void *)DstStream, DstDevice->getIndex());
+
+            // CRITICAL: Make DstStream wait for all events in wait list
+            // (especially kernelEvent from source device)
+            for (uint32_t i = 0; i < numEventsInWaitList; i++) {
+              fprintf(stderr,
+                      "[P2P DEBUG] Adding cuStreamWaitEvent for event %p on "
+                      "DstStream %p\n",
+                      (void *)phEventWaitList[i]->get(), (void *)DstStream);
+              UR_CHECK_ERROR(
+                  cuStreamWaitEvent(DstStream, phEventWaitList[i]->get(), 0));
+            }
+
             fprintf(stderr,
                     "[P2P DEBUG] Using cuMemcpyPeerAsync for P2P transfer\n");
 
