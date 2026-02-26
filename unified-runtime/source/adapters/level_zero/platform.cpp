@@ -849,7 +849,10 @@ ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
 
   // Check if platform supports device synchronization by calling
   // zeDeviceSynchronize on the first device.
-  if (!URDevicesCache.empty()) {
+  // Don't call zeDeviceSynchronize if driver version is older than 1.13.36015,
+  // it may cause a crash on older drivers.
+  if (this->isDriverVersionNewerOrSimilar(1, 13, 36015) &&
+      !URDevicesCache.empty()) {
     auto ZeDevice = URDevicesCache[0]->ZeDevice;
     auto ZeResult = ZE_CALL_NOCHECK(zeDeviceSynchronize, (ZeDevice));
     bool Supported = (ZeResult != ZE_RESULT_ERROR_UNSUPPORTED_FEATURE &&
