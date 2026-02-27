@@ -8881,14 +8881,14 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
     if (Arg *DumpDir = Args.getLastArgNoClaim(options::OPT_dumpdir)) {
       // The trace file is ${dumpdir}${basename}.json. Note that dumpdir may not
       // end with a path separator.
-      Path = DumpDir->getValue();
+      Path = DumpDir->getValue(); // e/x-
       if(JA->isOffloading(Action::OFK_SYCL))
         Path += Result.getFilename();
       else 
         llvm::sys::path::append(Path,
                         llvm::sys::path::filename(BaseInput));
-    } else if (Arg *OutPutDir = C.getArgs().getLastArg(options::OPT_o)) {
-        BaseInput = OutPutDir->getValue();
+    } else if (JA->isOffloading(Action::OFK_SYCL) && C.getArgs().getLastArg(options::OPT_o)) {
+        BaseInput = C.getArgs().getLastArg(options::OPT_o)->getValue();
         Path = llvm::sys::path::parent_path(BaseInput);
         llvm::sys::path::append(Path, Result.getFilename());
     }
@@ -9456,7 +9456,8 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
   llvm::PrettyStackTraceString CrashInfo("Computing output path");
   // Output to a user requested destination?
   const bool IsSYCLHostCompilation = isa<AssembleJobAction>(JA);
-  if (AtTopLevel && !IsSYCLHostCompilation && !isa<DsymutilJobAction>(JA) && !isa<VerifyJobAction>(JA)) {
+  // SYCL host compilation call a-host-x86_64 when passed -c
+  if (AtTopLevel && !isa<DsymutilJobAction>(JA) && !isa<VerifyJobAction>(JA)) {
     if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
       return C.addResultFile(FinalOutput->getValue(), &JA);
     // Output to destination for -fsycl-device-only/-fsyclbin and Windows -o
