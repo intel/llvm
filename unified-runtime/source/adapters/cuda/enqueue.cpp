@@ -1700,19 +1700,34 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
             UR_CHECK_ERROR(EnableResult);
           }
 
-          // CRITICAL: Restore original context before executing transfer
-          UR_CHECK_ERROR(cuCtxSetCurrent(OriginalContext));
-          fprintf(stderr, "[P2P DEBUG] Restored original context: %p\n",
-                  (void *)OriginalContext);
-
-          // Use cuMemcpyPeerAsync with explicit contexts
-          // This is the pattern used by working pure CUDA code
+          // CRITICAL: Pure CUDA uses DST context + DST stream for P2P.
+          // Set DST context active for the transfer (like pure CUDA does).
+          UR_CHECK_ERROR(cuCtxSetCurrent(DstDevice->getNativeContext()));
           fprintf(stderr,
-                  "[P2P DEBUG] Using cuMemcpyPeerAsync for P2P transfer\n");
+                  "[P2P DEBUG] Set DST context active: %p (device idx=%u)\n",
+                  (void *)DstDevice->getNativeContext(), DstDevice->getIndex());
+
+          // Use cuMemcpyPeerAsync with DST context active and default stream
+          // Pure CUDA pattern: DST context + DST stream
+          // We use NULL (default stream) since we don't have access to DST
+          // queue
+          fprintf(stderr,
+                  "[P2P DEBUG] Using cuMemcpyPeerAsync with DST context + "
+                  "default stream\n");
           UR_CHECK_ERROR(cuMemcpyPeerAsync(
               (CUdeviceptr)pDst, DstDevice->getNativeContext(),
               (CUdeviceptr)pSrc, SrcDevice->getNativeContext(), size,
-              CuStream));
+              0)); // NULL stream = default stream on DST device
+
+          // Synchronize default stream to ensure transfer completes
+          UR_CHECK_ERROR(cuStreamSynchronize(0));
+          fprintf(stderr, "[P2P DEBUG] P2P transfer completed on default "
+                          "stream, synchronized\n");
+
+          // Restore original context
+          UR_CHECK_ERROR(cuCtxSetCurrent(OriginalContext));
+          fprintf(stderr, "[P2P DEBUG] Restored original context: %p\n",
+                  (void *)OriginalContext);
         } else {
           fprintf(stderr,
                   "[P2P DEBUG] P2P NOT supported, using regular memcpy\n");
