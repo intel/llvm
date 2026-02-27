@@ -1575,6 +1575,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
   std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
 
   try {
+    // RAII helper to ensure CUDA context is always restored
+    struct ContextRestorer {
+      CUcontext saved = nullptr;
+      ContextRestorer() { cuCtxGetCurrent(&saved); }
+      ~ContextRestorer() {
+        if (saved) {
+          cuCtxSetCurrent(saved);
+        }
+      }
+      CUcontext get() const { return saved; }
+    };
+
     ScopedContext Active(hQueue->getDevice());
     CUstream CuStream = hQueue->getNextTransferStream();
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
@@ -1610,12 +1622,32 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     fprintf(stderr, "[P2P DEBUG] UseP2P decision: %s\n",
             UseP2P ? "TRUE" : "FALSE");
 
+    // Track if we actually used P2P and need to synchronize streams
+    bool UsedP2P = false;
+    CUevent P2PCompleteEvent = nullptr;
+
     if (UseP2P) {
       fprintf(stderr,
               "[P2P DEBUG] hQueue belongs to device idx=%u, SrcOrdinal=%u, "
               "DstOrdinal=%u\n",
               hQueue->getDevice()->getIndex(), SrcDeviceOrdinal,
               DstDeviceOrdinal);
+
+      // RAII helper to ensure context is restored even on error
+      class ContextRestorer {
+        CUcontext SavedContext;
+
+      public:
+        ContextRestorer() : SavedContext(nullptr) {
+          cuCtxGetCurrent(&SavedContext);
+        }
+        ~ContextRestorer() {
+          if (SavedContext) {
+            cuCtxSetCurrent(SavedContext);
+          }
+        }
+        CUcontext get() const { return SavedContext; }
+      };
 
       // Get device handles from context
       auto Context = hQueue->getContext();
@@ -1663,11 +1695,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
         if (CanAccessPeer) {
           fprintf(stderr, "[P2P DEBUG] P2P supported, enabling access...\n");
 
-          // Save current context to restore it after P2P setup
-          CUcontext OriginalContext = nullptr;
-          UR_CHECK_ERROR(cuCtxGetCurrent(&OriginalContext));
+          // Save current context - RAII ensures it's restored even on error
+          ContextRestorer restorer;
           fprintf(stderr, "[P2P DEBUG] Saved original context: %p\n",
-                  (void *)OriginalContext);
+                  (void *)restorer.get());
 
           // Enable P2P access in both directions if not already enabled
           // Note: cuCtxEnablePeerAccess returns
@@ -1719,15 +1750,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
               (CUdeviceptr)pSrc, SrcDevice->getNativeContext(), size,
               0)); // NULL stream = default stream on DST device
 
-          // Synchronize default stream to ensure transfer completes
-          UR_CHECK_ERROR(cuStreamSynchronize(0));
-          fprintf(stderr, "[P2P DEBUG] P2P transfer completed on default "
-                          "stream, synchronized\n");
+          // Record event on DST default stream to mark P2P completion
+          // We'll make SRC stream wait for this event later
+          UR_CHECK_ERROR(cuEventCreate(&P2PCompleteEvent, CU_EVENT_DEFAULT));
+          UR_CHECK_ERROR(cuEventRecord(P2PCompleteEvent, 0));
+          UsedP2P = true;
+          fprintf(stderr,
+                  "[P2P DEBUG] Recorded P2P completion event %p on DST "
+                  "default stream\n",
+                  (void *)P2PCompleteEvent);
 
-          // Restore original context
-          UR_CHECK_ERROR(cuCtxSetCurrent(OriginalContext));
-          fprintf(stderr, "[P2P DEBUG] Restored original context: %p\n",
-                  (void *)OriginalContext);
+          // Context will be auto-restored by ContextRestorer destructor
+          fprintf(stderr, "[P2P DEBUG] Context will be auto-restored to: %p\n",
+                  (void *)restorer.get());
         } else {
           fprintf(stderr,
                   "[P2P DEBUG] P2P NOT supported, using regular memcpy\n");
@@ -1749,6 +1784,26 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
       // Regular memcpy (same device or host memory involved)
       UR_CHECK_ERROR(
           cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, size, CuStream));
+    }
+
+    // CRITICAL: If we used P2P, make SRC stream wait for P2P completion event
+    // This ensures EventPtr->record() on CuStream waits for actual P2P finish
+    if (UsedP2P && P2PCompleteEvent) {
+      fprintf(stderr,
+              "[P2P DEBUG] Making SRC stream %p wait for P2P event %p\n",
+              (void *)CuStream, (void *)P2PCompleteEvent);
+      UR_CHECK_ERROR(cuStreamWaitEvent(CuStream, P2PCompleteEvent, 0));
+
+      // Synchronize on the event to ensure it's safe to destroy
+      // This blocks CPU until the event completes (both DST stream records it
+      // and SRC stream finishes waiting on it)
+      fprintf(stderr,
+              "[P2P DEBUG] Synchronizing on P2P event before destroy\n");
+      UR_CHECK_ERROR(cuEventSynchronize(P2PCompleteEvent));
+
+      // Clean up P2P event
+      UR_CHECK_ERROR(cuEventDestroy(P2PCompleteEvent));
+      fprintf(stderr, "[P2P DEBUG] P2P event synchronized and destroyed\n");
     }
 
     if (phEvent) {
