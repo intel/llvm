@@ -90,7 +90,7 @@ private:
   // Whether any operation has been enqueued on the current batch
   uint64_t enqueuedOperationsCounter = 0;
 
-  bool isGraphCaptureActive = false;
+  bool graphCaptureActive = false;
 
 public:
   batch_manager(ur_context_handle_t context, ur_device_handle_t device,
@@ -117,16 +117,14 @@ public:
 
   ur_result_t enqueueCurrentBatchUnlocked();
 
-  ur_command_list_manager &getActiveBatch() { return activeBatch; }
-
   ur_command_list_manager &getImmediateManager() { return immediateList; }
 
-  // Graph recording can be performed only on immediate command lists.
+  // Graph recording can be performed only on immediate command list.
   // When graph capture is active, the batch manager should return the immediate
   // command list manager for enqueueing operations, otherwise the regular
   // command list manager is returned.
   ur_command_list_manager &getListManager() {
-    return isGraphCaptureActive ? immediateList : activeBatch;
+    return isGraphCaptureActive() ? immediateList : activeBatch;
   }
 
   ur_event_generation_t getCurrentGeneration() {
@@ -157,7 +155,7 @@ public:
     return maxNumberOfEnqueuedOperations <= enqueuedOperationsCounter;
   }
 
-  bool isGraphCapture() const { return isGraphCaptureActive; }
+  bool isGraphCaptureActive() const { return graphCaptureActive; }
 };
 
 struct ur_queue_batched_t : ur_object, ur_queue_t_ {
@@ -487,48 +485,23 @@ public:
   ur_result_t enqueueGraphExp(ur_exp_executable_graph_handle_t hGraph,
                               uint32_t numEventsInWaitList,
                               const ur_event_handle_t *phEventWaitList,
-                              ur_event_handle_t *phEvent) override {
-    wait_list_view waitListView =
-        wait_list_view(phEventWaitList, numEventsInWaitList);
+                              ur_event_handle_t *phEvent) override;
 
-    auto batchLocked = currentCmdLists.lock();
-    return batchLocked->getListManager().appendGraph(
-        hGraph, waitListView, getEvent(batchLocked, phEvent));
-  }
-
-  ur_result_t queueBeginGraphCapteExp() override {
-    return currentCmdLists.lock()->getListManager().beginGraphCapture();
-  }
+  ur_result_t queueBeginGraphCapteExp() override;
 
   ur_result_t
-  queueBeginCapteIntoGraphExp(ur_exp_graph_handle_t hGraph) override {
-    return currentCmdLists.lock()->getListManager().beginCaptureIntoGraph(
-        hGraph);
-  }
+  queueBeginCapteIntoGraphExp(ur_exp_graph_handle_t hGraph) override;
 
-  ur_result_t queueEndGraphCapteExp(ur_exp_graph_handle_t *phGraph) override {
-    return currentCmdLists.lock()->getListManager().endGraphCapture(phGraph);
-  }
+  ur_result_t queueEndGraphCapteExp(ur_exp_graph_handle_t *phGraph) override;
 
-  ur_result_t queueIsGraphCapteEnabledExp(bool *pResult) override {
-    return currentCmdLists.lock()->getListManager().isGraphCaptureActive(
-        pResult);
-  }
+  ur_result_t queueIsGraphCapteEnabledExp(bool *pResult) override;
 
   ur_result_t
   enqueueHostTaskExp(ur_exp_host_task_function_t pfnHostTask, void *data,
                      const ur_exp_host_task_properties_t *pProperties,
                      uint32_t numEventsInWaitList,
                      const ur_event_handle_t *phEventWaitList,
-                     ur_event_handle_t *phEvent) override {
-    wait_list_view waitListView =
-        wait_list_view(phEventWaitList, numEventsInWaitList);
-
-    auto batchLocked = currentCmdLists.lock();
-    return batchLocked->getListManager().appendHostTaskExp(
-        pfnHostTask, data, pProperties, waitListView,
-        this->getEvent(batchLocked, phEvent));
-  }
+                     ur_event_handle_t *phEvent) override;
 
   bool isInOrder() override { return true; }
 

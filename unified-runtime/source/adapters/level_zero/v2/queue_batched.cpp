@@ -106,7 +106,7 @@ ur_event_handle_t ur_queue_batched_t::createEventAndRetainRegular(
 ur_event_handle_t
 ur_queue_batched_t::getEvent(locked<batch_manager> &batchLocked,
                              ur_event_handle_t *phEvent) {
-  if (batchLocked->isGraphCapture()) {
+  if (batchLocked->isGraphCaptureActive()) {
     return createEventIfRequested(eventPoolImmediate.get(), phEvent, this);
   } else {
     return createEventIfRequestedRegular(phEvent,
@@ -117,12 +117,11 @@ ur_queue_batched_t::getEvent(locked<batch_manager> &batchLocked,
 ur_event_handle_t
 ur_queue_batched_t::getEventAndRetain(locked<batch_manager> &batchLocked,
                                       ur_event_handle_t *phEvent) {
-  if (batchLocked->isGraphCapture()) {
+  if (batchLocked->isGraphCaptureActive()) {
     return createEventAndRetain(eventPoolImmediate.get(), phEvent, this);
-  } else {
-    return createEventAndRetainRegular(phEvent,
-                                       batchLocked->getCurrentGeneration());
   }
+  return createEventAndRetainRegular(phEvent,
+                                     batchLocked->getCurrentGeneration());
 }
 
 ur_result_t batch_manager::renewRegularUnlocked(
@@ -210,12 +209,12 @@ ur_result_t ur_queue_batched_t::enqueueKernelLaunch(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   TRACK_SCOPE_LATENCY("ur_queue_batched_t::enqueueKernelLaunch");
-  auto currentRegular = currentCmdLists.lock();
-  markIssuedCommandInBatch(currentRegular);
+  auto lockedBatch = currentCmdLists.lock();
+  markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(currentRegular->getListManager().appendKernelLaunch(
+  UR_CALL(lockedBatch->getListManager().appendKernelLaunch(
       hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
-      launchPropList, waitListView, getEvent(currentRegular, phEvent)));
+      launchPropList, waitListView, getEvent(lockedBatch, phEvent)));
 
   return UR_RESULT_SUCCESS;
 }
@@ -1029,6 +1028,50 @@ ur_result_t ur_queue_batched_t::queueFlush() {
   } else {
     return queueFlushUnlocked(batchLocked);
   }
+}
+
+ur_result_t ur_queue_batched_t::enqueueGraphExp(
+    ur_exp_executable_graph_handle_t hGraph, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  wait_list_view waitListView =
+      wait_list_view(phEventWaitList, numEventsInWaitList);
+
+  auto batchLocked = currentCmdLists.lock();
+  return batchLocked->getListManager().appendGraph(
+      hGraph, waitListView, getEvent(batchLocked, phEvent));
+}
+
+ur_result_t ur_queue_batched_t::queueBeginGraphCapteExp() {
+  return currentCmdLists.lock()->getListManager().beginGraphCapture();
+}
+
+ur_result_t
+ur_queue_batched_t::queueBeginCapteIntoGraphExp(ur_exp_graph_handle_t hGraph) {
+  return currentCmdLists.lock()->getListManager().beginCaptureIntoGraph(hGraph);
+}
+
+ur_result_t
+ur_queue_batched_t::queueEndGraphCapteExp(ur_exp_graph_handle_t *phGraph) {
+  return currentCmdLists.lock()->getListManager().endGraphCapture(phGraph);
+}
+
+ur_result_t ur_queue_batched_t::queueIsGraphCapteEnabledExp(bool *pResult) {
+  return currentCmdLists.lock()->getListManager().isGraphCaptureActive(pResult);
+}
+
+ur_result_t ur_queue_batched_t::enqueueHostTaskExp(
+    ur_exp_host_task_function_t pfnHostTask, void *data,
+    const ur_exp_host_task_properties_t *pProperties,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  wait_list_view waitListView =
+      wait_list_view(phEventWaitList, numEventsInWaitList);
+
+  auto batchLocked = currentCmdLists.lock();
+
+  return batchLocked->getListManager().appendHostTaskExp(
+      pfnHostTask, data, pProperties, waitListView,
+      this->getEvent(batchLocked, phEvent));
 }
 
 } // namespace v2
