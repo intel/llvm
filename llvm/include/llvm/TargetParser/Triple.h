@@ -264,7 +264,8 @@ public:
     OpenCL,
     ChipStar,
     Firmware,
-    LastOSType = Firmware
+    QURT,
+    LastOSType = QURT
   };
   enum EnvironmentType {
     UnknownEnvironment,
@@ -803,6 +804,9 @@ public:
   bool isOSSerenity() const {
     return getOS() == Triple::Serenity;
   }
+
+  /// Tests whether the OS is QURT.
+  bool isOSQurt() const { return getOS() == Triple::QURT; }
 
   /// Tests whether the OS uses the ELF binary format.
   bool isOSBinFormatELF() const {

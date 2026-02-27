@@ -1039,7 +1039,7 @@ RocmInstallationDetector::getCommonBitcodeLibs(
   };
   auto AddSanBCLibs = [&]() {
     if (Pref.GPUSan)
-      AddBCLib(getAsanRTLPath(), false);
+      AddBCLib(getAsanRTLPath());
   };
 
   AddSanBCLibs();
@@ -1047,7 +1047,7 @@ RocmInstallationDetector::getCommonBitcodeLibs(
   if (!Pref.IsOpenMP)
     AddBCLib(getOCKLPath());
   else if (Pref.GPUSan && Pref.IsOpenMP)
-    AddBCLib(getOCKLPath(), false);
+    AddBCLib(getOCKLPath());
   AddBCLib(getDenormalsAreZeroPath(Pref.DAZ));
   AddBCLib(getUnsafeMathPath(Pref.UnsafeMathOpt || Pref.FastRelaxedMath));
   AddBCLib(getFiniteOnlyPath(Pref.FiniteOnly || Pref.FastRelaxedMath));

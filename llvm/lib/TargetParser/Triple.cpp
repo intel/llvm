@@ -352,6 +352,8 @@ StringRef Triple::getOSTypeName(OSType Kind) {
     return "chipstar";
   case Firmware:
     return "firmware";
+  case QURT:
+    return "qurt";
   }
 
   llvm_unreachable("Invalid OSType");
@@ -772,6 +774,7 @@ static Triple::OSType parseOS(StringRef OSName) {
       .StartsWith("opencl", Triple::OpenCL)
       .StartsWith("chipstar", Triple::ChipStar)
       .StartsWith("firmware", Triple::Firmware)
+      .StartsWith("qurt", Triple::QURT)
       .Default(Triple::UnknownOS);
 }
 
