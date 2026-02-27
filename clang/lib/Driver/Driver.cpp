@@ -185,6 +185,7 @@ Driver::Driver(StringRef ClangExecutable, StringRef TargetTriple,
       TargetTriple(TargetTriple), Saver(Alloc), PrependArg(nullptr),
       PreferredLinker(CLANG_DEFAULT_LINKER), CheckInputsExist(true),
       ProbePrecompiled(true), SuppressMissingInputWarning(false) {
+  llvm::errs() <<  "[DEBUG] driver is called \n";
   // Provide a sane fallback if no VFS is specified.
   if (!this->VFS)
     this->VFS = llvm::vfs::getRealFileSystem();
@@ -219,9 +220,11 @@ Driver::Driver(StringRef ClangExecutable, StringRef TargetTriple,
 
   // Compute the path to the resource directory.
   ResourceDir = GetResourcesPath(ClangExecutable);
+  llvm::errs() <<  "[DEBUG] driver is called 2" << ClangExecutable << "\n";
 }
 
 void Driver::setDriverMode(StringRef Value) {
+  llvm::errs() << "[DEBUG] setting driver mode \n";
   static StringRef OptName =
       getOpts().getOption(options::OPT_driver_mode).getPrefixedName();
   if (auto M = llvm::StringSwitch<std::optional<DriverMode>>(Value)
@@ -7999,6 +8002,7 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
 Action *Driver::ConstructPhaseAction(
     Compilation &C, const ArgList &Args, phases::ID Phase, Action *Input,
     Action::OffloadKind TargetDeviceOffloadKind) const {
+  llvm::errs() << "[DEBUG] Driver::ConstructPhaseAction is called \n";
   llvm::PrettyStackTraceString CrashInfo("Constructing phase actions");
 
   // Some types skip the assembler phase (e.g., llvm-bc), but we can't
@@ -8009,6 +8013,10 @@ Action *Driver::ConstructPhaseAction(
 
   // Use of --sycl-link will only allow for the link phase to occur. This is
   // for all input files.
+  llvm::errs() << "[DEBUG] Driver::ConstructPhaseAction is called \n";
+  if(Args.hasArg(options::OPT_sycl_link)) {
+    llvm::errs() << "[DEBUG] Found the sycl-link flag \n ";
+  }
   if (Args.hasArg(options::OPT_sycl_link) && Phase != phases::Link)
     return Input;
 
@@ -8348,12 +8356,14 @@ void Driver::BuildJobs(Compilation &C) const {
         LinkingOutput = getDefaultImageName();
     }
 
+    llvm::errs() << "[DEBUG] BuildJobsForAction 1 \n";
     BuildJobsForAction(C, A, &C.getDefaultToolChain(),
                        /*BoundArch*/ StringRef(),
                        /*AtTopLevel*/ true,
                        /*MultipleArchs*/ ArchNames.size() > 1,
                        /*LinkingOutput*/ LinkingOutput, CachedResults,
                        /*TargetDeviceOffloadKind*/ Action::OFK_None);
+    llvm::errs() << "[DEBUG] BuildJobsForAction 2 \n";
   }
 
   // If we have more than one job, then disable integrated-cc1 for now. Do this
@@ -8849,8 +8859,11 @@ InputInfoList Driver::BuildJobsForAction(
     std::map<std::pair<const Action *, std::string>, InputInfoList>
         &CachedResults,
     Action::OffloadKind TargetDeviceOffloadKind) const {
+  llvm::errs() << "[DEBUG] LinkingOutput " << LinkingOutput << "\n";
+  llvm::errs() << "[DEBUG] calling GetTriplePlusArchString \n";
   std::pair<const Action *, std::string> ActionTC = {
       A, GetTriplePlusArchString(TC, BoundArch, TargetDeviceOffloadKind)};
+  llvm::errs() << "[DEBUG] calling GetTriplePlusArchString done \n";
   auto CachedResult = CachedResults.find(ActionTC);
   if (CachedResult != CachedResults.end()) {
     return CachedResult->second;
@@ -8939,10 +8952,12 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       InputInfoList DevA;
       OA->doOnEachDeviceDependence([&](Action *DepA, const ToolChain *DepTC,
                                        const char *DepBoundArch) {
+        llvm::errs() << "[DEBUG] BuildJobsForAction 3 \n";
         DevA.append(BuildJobsForAction(C, DepA, DepTC, DepBoundArch, AtTopLevel,
                                        /*MultipleArchs*/ !!DepBoundArch,
                                        LinkingOutput, CachedResults,
                                        DepA->getOffloadingDeviceKind()));
+        llvm::errs() << "[DEBUG] BuildJobsForAction 4 \n";
       });
       return DevA;
     }
@@ -8954,10 +8969,12 @@ InputInfoList Driver::BuildJobsForActionNoCache(
     OA->doOnEachDependence(
         /*IsHostDependence=*/BuildingForOffloadDevice,
         [&](Action *DepA, const ToolChain *DepTC, const char *DepBoundArch) {
+          llvm::errs() << "[DEBUG] BuildJobsForAction 5 \n";
           OffloadDependencesInputInfo.append(BuildJobsForAction(
               C, DepA, DepTC, DepBoundArch, /*AtTopLevel=*/false,
               /*MultipleArchs*/ !!DepBoundArch, LinkingOutput, CachedResults,
               DepA->getOffloadingDeviceKind()));
+          llvm::errs() << "[DEBUG] BuildJobsForAction 6 \n";
         });
 
     A = BuildingForOffloadDevice
@@ -9020,6 +9037,7 @@ InputInfoList Driver::BuildJobsForActionNoCache(
 
     // Build commands for the TFormInput then take any command added after as
     // needing a llvm-foreach wrapping.
+    llvm::errs() << "[DEBUG] BuildJobsForAction 7 \n";
     BuildJobsForAction(C, FEA->getTFormInput(), TC, BoundArch,
                        /*AtTopLevel=*/false, MultipleArchs, LinkingOutput,
                        CachedResults, TargetDeviceOffloadKind);
@@ -9027,6 +9045,7 @@ InputInfoList Driver::BuildJobsForActionNoCache(
     BuildJobsForAction(C, FEA->getJobAction(), TC, BoundArch,
                        /*AtTopLevel=*/false, MultipleArchs, LinkingOutput,
                        CachedResults, TargetDeviceOffloadKind);
+    llvm::errs() << "[DEBUG] BuildJobsForAction 8 \n";
 
     auto begin = C.getJobs().getJobsForOverride().begin() + OffsetIdx;
     auto end = C.getJobs().getJobsForOverride().end();
@@ -9085,10 +9104,12 @@ InputInfoList Driver::BuildJobsForActionNoCache(
     cast<OffloadAction>(OA)->doOnEachDependence(
         /*IsHostDependence=*/BuildingForOffloadDevice,
         [&](Action *DepA, const ToolChain *DepTC, const char *DepBoundArch) {
+          llvm::errs() << "[DEBUG] BuildJobsForAction 10 \n";
           OffloadDependencesInputInfo.append(BuildJobsForAction(
               C, DepA, DepTC, DepBoundArch, /* AtTopLevel */ false,
               /*MultipleArchs=*/!!DepBoundArch, LinkingOutput, CachedResults,
               DepA->getOffloadingDeviceKind()));
+          llvm::errs() << "[DEBUG] BuildJobsForAction 11 \n";
         });
 
   // Only use pipes when there is exactly one input.
@@ -9099,10 +9120,12 @@ InputInfoList Driver::BuildJobsForActionNoCache(
     // FIXME: Clean this up.
     bool SubJobAtTopLevel =
         AtTopLevel && (isa<DsymutilJobAction>(A) || isa<VerifyJobAction>(A));
+    llvm::errs() << "[DEBUG] BuildJobsForAction 12 \n";
     InputInfos.append(BuildJobsForAction(
         C, Input, JATC, DA ? DA->getOffloadingArch() : BoundArch,
         SubJobAtTopLevel, MultipleArchs, LinkingOutput, CachedResults,
         A->getOffloadingDeviceKind()));
+    llvm::errs() << "[DEBUG] BuildJobsForAction 13 \n";
   }
 
   // Always use the first file input as the base input.
@@ -9182,6 +9205,7 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       }
       // Save the unbundling result.
       UnbundlingResults.push_back(CurI);
+      llvm::errs() << "[DEBUG] checking location 1 \n";
 
       // Get the unique string identifier for this dependence and cache the
       // result.
@@ -9249,6 +9273,7 @@ InputInfoList Driver::BuildJobsForActionNoCache(
                                                 DI.DependentOffloadKind)}] = {
           CurI};
     }
+    llvm::errs() << "[DEBUG] checking location 2 \n";
 
     // Now that we have all the results generated, select the one that should be
     // returned for the current depending action.
@@ -9319,6 +9344,7 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       T->ConstructJobMultipleOutputs(C, *JA, UnbundlingResults, InputInfos,
                                      Args, LinkingOutput);
   }
+  llvm::errs() << "[DEBUG] checking location 3 \n";
   return {Result};
 }
 

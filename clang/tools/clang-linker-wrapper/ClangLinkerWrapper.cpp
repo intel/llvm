@@ -1727,10 +1727,8 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   if (ActiveOffloadKindMask & OFK_SYCL) {
     llvm::errs() << "[DEBUG] add the sycl-link";
     CmdArgs.push_back("--sycl-link");
-    // CmdArgs.append(
-    //     {"-Xlinker", Args.MakeArgString("-triple=" + Triple.getTriple())});
     CmdArgs.append(
-        {"-Xlinker", Args.MakeArgString("-triple=spir64")});
+        {"-Xlinker", Args.MakeArgString("-triple=" + Triple.getTriple())});
     CmdArgs.append({"-Xlinker", Args.MakeArgString("-arch=" + Arch)});
   }
 
@@ -1784,8 +1782,10 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
     CmdArgs.append({"-mllvm", "-openmp-opt-disable"});
 
   //TO REMOVE 2
+  llvm::errs() << "[DEBUG] calling clang \n";
   if (Error Err = executeCommands(*ClangPath, CmdArgs))
     return std::move(Err);
+  llvm::errs() << "[DEBUG] clang call finish successfully \n";
 
   return *TempFileOrErr;
 }

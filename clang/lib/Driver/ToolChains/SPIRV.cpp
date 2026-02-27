@@ -140,6 +140,7 @@ void SPIRV::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                                  const InputInfoList &Inputs,
                                  const ArgList &Args,
                                  const char *LinkingOutput) const {
+  llvm::errs() << "[DEBUG] linker construct job is called \n";
   if (JA.getType() == types::TY_LLVM_BC) {
     constructLLVMLinkCommand(C, *this, JA, Output, Inputs, Args);
     return;

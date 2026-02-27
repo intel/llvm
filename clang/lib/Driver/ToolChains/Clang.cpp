@@ -4962,6 +4962,7 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
                                      const InputInfo &Output,
                                      const InputInfoList &Inputs,
                                      const llvm::opt::ArgList &TCArgs) const {
+  llvm::errs() << "[DEBUG] Clang::ConstructHostCompilerJob is called";
 
   // The Host compilation step that occurs here is constructed based on the
   // input from the user.  This consists of the compiler to call and the
