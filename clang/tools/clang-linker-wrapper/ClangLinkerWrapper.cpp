@@ -1631,6 +1631,10 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   if (!TempFileOrErr)
     return TempFileOrErr.takeError();
 
+  std::string TargetTriple = (Triple.isNativeCPU() ? HostTriple : Triple).getTriple();
+  if (TargetTriple == "spir64_gen-unknown-unknown") {
+    TargetTriple = "spirv64-unknown-unknown";
+  }
   SmallVector<StringRef, 16> CmdArgs{
       *ClangPath,
       "--no-default-config",
@@ -1642,9 +1646,7 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
       // Clang to instead place them alongside the final executable.
       "-dumpdir",
       Args.MakeArgString(ExecutableName + OutputFileBase + ".img."),
-      Args.MakeArgString(
-          "--target=" +
-          (Triple.isNativeCPU() ? HostTriple : Triple).getTriple()),
+      Args.MakeArgString("--target=" + TargetTriple),
   };
 
   if (!Arch.empty())
@@ -1652,6 +1654,7 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
                       : CmdArgs.push_back(Args.MakeArgString("-march=" + Arch));
 
   // AMDGPU is always in LTO mode currently.
+  CmdArgs.push_back("-fsycl");
   if (Triple.isAMDGPU())
     CmdArgs.push_back("-flto");
 
