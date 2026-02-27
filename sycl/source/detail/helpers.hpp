@@ -11,7 +11,7 @@
 #include <sycl/detail/impl_utils.hpp>
 #include <sycl/detail/type_traits.hpp>
 
-#include <ur_api.h>
+#include <ur/ur_api.h>
 
 #include <algorithm>
 #include <iterator>

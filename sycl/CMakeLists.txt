@@ -260,9 +260,9 @@ string(REPLACE "${sycl_inc_dir}" "${SYCL_INCLUDE_BUILD_DIR}"
   OUT_HEADERS_IN_SYCLCOMPAT_DIR "${HEADERS_IN_SYCLCOMPAT_DIR}")
 
 set(OUT_UR_HEADERS
-  ${SYCL_INCLUDE_BUILD_DIR}/ur_api.h
-  ${SYCL_INCLUDE_BUILD_DIR}/ur_api_funcs.def
-  ${SYCL_INCLUDE_BUILD_DIR}/ur_print.hpp)
+  ${SYCL_INCLUDE_BUILD_DIR}/ur/ur_api.h
+  ${SYCL_INCLUDE_BUILD_DIR}/ur/ur_api_funcs.def
+  ${SYCL_INCLUDE_BUILD_DIR}/ur/ur_print.hpp)
 set(UR_HEADERS_TO_COPY
   ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h
   ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api_funcs.def
@@ -292,18 +292,19 @@ add_custom_command(
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/sycl ${SYCL_INCLUDE_BUILD_DIR}/sycl
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/CL ${SYCL_INCLUDE_BUILD_DIR}/CL
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/std ${SYCL_INCLUDE_BUILD_DIR}/std
-  COMMAND ${CMAKE_COMMAND} -E copy ${UR_HEADERS_TO_COPY} ${SYCL_INCLUDE_BUILD_DIR}
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${SYCL_INCLUDE_BUILD_DIR}/ur
+  COMMAND ${CMAKE_COMMAND} -E copy ${UR_HEADERS_TO_COPY} ${SYCL_INCLUDE_BUILD_DIR}/ur
   COMMENT "Copying SYCL headers ...")
 
 # Copy SYCL headers from source to install directory
 install(DIRECTORY "${sycl_inc_dir}/sycl" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
-install(DIRECTORY "${sycl_inc_dir}/CL" DESTINATION ${SYCL_INCLUDE_DIR}/ COMPONENT sycl-headers)
+install(DIRECTORY "${sycl_inc_dir}/CL" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(DIRECTORY "${sycl_inc_dir}/std" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
-install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h" DESTINATION ${SYCL_INCLUDE_DIR}
+install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h" DESTINATION ${SYCL_INCLUDE_DIR}/ur
   COMPONENT sycl-headers)
-install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api_funcs.def" DESTINATION ${SYCL_INCLUDE_DIR}
+install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api_funcs.def" DESTINATION ${SYCL_INCLUDE_DIR}/ur
   COMPONENT sycl-headers)
-install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_print.hpp" DESTINATION ${SYCL_INCLUDE_DIR}
+install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_print.hpp" DESTINATION ${SYCL_INCLUDE_DIR}/ur
   COMPONENT sycl-headers)
 
 if (WIN32)

@@ -24,7 +24,7 @@
 #include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/version.hpp>
-#include <ur_api.h>
+#include <ur/ur_api.h>
 
 #include <bitset>
 #include <cstdarg>

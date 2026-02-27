@@ -1,6 +1,6 @@
 #include <sycl/sycl.hpp>
 
-#include "ur_api.h"
+#include "ur/ur_api.h"
 
 #include <gtest/gtest.h>
 #include <helpers/UrMock.hpp>

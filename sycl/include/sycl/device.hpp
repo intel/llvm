@@ -20,7 +20,7 @@
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
-#include <ur_api.h>
+#include <ur/ur_api.h>
 
 #ifdef __SYCL_INTERNAL_API
 #include <sycl/detail/cl.h>

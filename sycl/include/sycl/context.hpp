@@ -16,7 +16,7 @@
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
 #include <sycl/property_list.hpp>             // for property_list
 #include <sycl/usm/usm_enums.hpp>             // for usm::alloc
-#include <ur_api.h>                           // for ur_native_handle_t
+#include <ur/ur_api.h>                           // for ur_native_handle_t
 
 #ifdef __SYCL_INTERNAL_API
 #include <sycl/detail/cl.h>

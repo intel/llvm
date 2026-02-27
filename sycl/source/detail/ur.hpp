@@ -14,7 +14,7 @@
 
 #pragma once
 
-#include <ur_api.h>
+#include <ur/ur_api.h>
 
 #include <sycl/detail/export.hpp>
 

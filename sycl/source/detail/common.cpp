@@ -8,7 +8,7 @@
 
 #include <sycl/detail/common.hpp>
 
-#include <ur_api.h>
+#include <ur/ur_api.h>
 
 namespace sycl {
 inline namespace _V1 {

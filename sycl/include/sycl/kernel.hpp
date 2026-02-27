@@ -15,7 +15,7 @@
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
 #include <sycl/detail/util.hpp>
 #include <sycl/kernel_bundle_enums.hpp> // for bundle_state
-#include <ur_api.h>                     // for ur_native_handle_t
+#include <ur/ur_api.h>                     // for ur_native_handle_t
 
 #include <cstddef> // for size_t
 #include <memory>  // for shared_ptr, hash, opera...
