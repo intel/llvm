@@ -524,39 +524,39 @@ class ComputeBench(Suite):
                     list(PROFILERS), list(KERNEL_NAME)
                 ):
 
-                def createTorchGraphSingleQueueBench(variant_name: str, **kwargs):
-                    return TorchGraphSingleQueue(
-                        self,
-                        runtime,
-                        variant_name,
-                        profiler_type,
-                        **{
-                            **kwargs,
-                            "kernelName": kernel_name.value,
-                            "kernelWGCount": 512,
-                            "kernelWGSize": 256,
-                            "useProfiling": 0,
-                            "UseEvents": 0,
-                        },
-                    )
+                    def createTorchGraphSingleQueueBench(variant_name: str, **kwargs):
+                        return TorchGraphSingleQueue(
+                            self,
+                            runtime,
+                            variant_name,
+                            profiler_type,
+                            **{
+                                **kwargs,
+                                "kernelName": kernel_name.value,
+                                "kernelWGCount": 512,
+                                "kernelWGSize": 256,
+                                "useProfiling": 0,
+                                "UseEvents": 0,
+                            },
+                        )
 
-                benches += [
-                    createTorchGraphSingleQueueBench(
-                        "small",
-                        kernelGroupsCount=10,
-                        kernelBatchSize=10,
-                    ),
-                    createTorchGraphSingleQueueBench(
-                        "medium",
-                        kernelGroupsCount=32,
-                        kernelBatchSize=32,
-                    ),
-                    createTorchGraphSingleQueueBench(
-                        "large",
-                        kernelGroupsCount=64,
-                        kernelBatchSize=64,
-                    ),
-                ]
+                    benches += [
+                        createTorchGraphSingleQueueBench(
+                            "small",
+                            kernelGroupsCount=10,
+                            kernelBatchSize=10,
+                        ),
+                        createTorchGraphSingleQueueBench(
+                            "medium",
+                            kernelGroupsCount=32,
+                            kernelBatchSize=32,
+                        ),
+                        createTorchGraphSingleQueueBench(
+                            "large",
+                            kernelGroupsCount=64,
+                            kernelBatchSize=64,
+                        ),
+                    ]
 
             # Add TorchGraphMultiQueue benchmarks
             for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
