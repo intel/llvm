@@ -1533,7 +1533,23 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
     ReturnValue = Address(Addr, ConvertType(RetTy),
                           CGM.getNaturalTypeAlignment(RetTy), KnownNonNull);
   } else {
-    ReturnValue = CreateIRTempWithoutCast(RetTy, "retval");
+    // On SPIR targets, regcall functions may call spir_func functions that use
+    // sret with generic address space (ptr addrspace(4)). In this case, we need
+    // the ReturnValue temporary to have the correct address space to be passed
+    // as an sret argument. Check if we need address space cast.
+    bool NeedsAddrSpaceCast =
+        (CGM.getTarget().getTriple().isSPIR() ||
+         CGM.getTarget().getTriple().isSPIRV()) &&
+        CurFnInfo->getCallingConvention() == llvm::CallingConv::X86_RegCall;
+
+    if (NeedsAddrSpaceCast) {
+      // Create temp with address space cast (inline CreateIRTemp
+      // implementation)
+      CharUnits Align = getContext().getTypeAlignInChars(RetTy);
+      ReturnValue = CreateTempAlloca(ConvertType(RetTy), Align, "retval");
+    } else {
+      ReturnValue = CreateIRTempWithoutCast(RetTy, "retval");
+    }
 
     // Tell the epilog emitter to autorelease the result.  We do this
     // now so that various specialized functions can suppress it

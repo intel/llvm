@@ -2131,12 +2131,14 @@ void ExecCGCommand::emitInstrumentationData() {
                                  getQueueID(MQueue));
     MTraceEvent = static_cast<void *>(CmdTraceEvent);
     if (MCommandGroup->getType() == detail::CGType::Kernel) {
-      auto KernelCG =
-          reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
-      instrumentationAddExtraKernelMetadata(
-          CmdTraceEvent, KernelCG->MNDRDesc, KernelCG->getKernelBundle().get(),
-          KernelCG->MDeviceKernelInfo, KernelCG->MSyclKernel.get(),
-          MQueue.get(), KernelCG->MArgs);
+      if (detail::isDebugStream(MStreamID)) {
+        auto KernelCG =
+            reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
+        instrumentationAddExtraKernelMetadata(
+            CmdTraceEvent, KernelCG->MNDRDesc,
+            KernelCG->getKernelBundle().get(), KernelCG->MDeviceKernelInfo,
+            KernelCG->MSyclKernel.get(), MQueue.get(), KernelCG->MArgs);
+      }
     }
 
     xptiNotifySubscribers(

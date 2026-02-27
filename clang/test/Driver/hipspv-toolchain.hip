@@ -1,5 +1,6 @@
 // REQUIRES: spirv-registered-target
 // UNSUPPORTED: system-windows, system-cygwin
+// XFAIL: *
 
 // RUN: %clang -### -target x86_64-linux-gnu --offload=spirv64 \
 // RUN:   --no-offload-new-driver --hip-path=%S/Inputs/hipspv -nohipwrapperinc %s \

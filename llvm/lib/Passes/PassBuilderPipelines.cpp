@@ -521,17 +521,10 @@ PassBuilder::buildO1FunctionSimplificationPipeline(OptimizationLevel Level,
     // TODO: Investigate promotion cap for O1.
     LPM1.addPass(LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap,
                           /*AllowSpeculation=*/false));
-  LPM1.addPass(
-      LoopRotatePass(/*EnableHeaderDuplication=*/true, isLTOPreLink(Phase)));
-  // TODO: Investigate promotion cap for O1.
-  LPM1.addPass(LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap,
-                        /*AllowSpeculation=*/true));
-  LPM1.addPass(SimpleLoopUnswitchPass());
-  if (EnableLoopFlatten)
-    LPM1.addPass(LoopFlattenPass());
 
-    LPM1.addPass(LoopRotatePass(/* Disable header duplication */ true,
-                                isLTOPreLink(Phase)));
+    LPM1.addPass(
+      LoopRotatePass(/*EnableHeaderDuplication=*/true, isLTOPreLink(Phase)));
+
     // TODO: Investigate promotion cap for O1.
     LPM1.addPass(LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap,
                           /*AllowSpeculation=*/true));
