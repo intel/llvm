@@ -109,10 +109,10 @@ private:
   /// processing twice.
   llvm::DenseMap<Function *, Value *> ProcessedFunctions;
   /// A type of implicit argument added to the kernel signature.
-  llvm::Type *KernelImplicitArgumentType = nullptr;
+  llvm::ArrayType *KernelImplicitArgumentType = nullptr;
   /// A type used for the alloca holding the values of global offsets.
   llvm::Type *ImplicitOffsetPtrType = nullptr;
-  /// Track newly created DISUbprograms (that are attached to cloned
+  /// Track newly created DISubprograms (that are attached to cloned
   /// functions), for ease of mapping, use the old function's name as the key.
   llvm::DenseMap<StringRef, DISubprogram *> DISubprogramMap;
 

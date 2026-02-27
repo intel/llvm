@@ -14,12 +14,12 @@ entry:
 
 define void @call_1() !dbg !5 {
 entry:
-  %0 = call ptr @llvm.nvvm.implicit.offset()
+  %0 = call i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 0)
     #dbg_declare(!8, !9, !DIExpression(), !11)
   ret void
 }
 
-declare ptr @llvm.nvvm.implicit.offset() #0
+declare i64 @_Z27__spirv_BuiltInGlobalOffseti(i32)
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!2, !3, !12}
@@ -61,12 +61,15 @@ declare ptr @llvm.nvvm.implicit.offset() #0
 ; CHECK-LABEL: define void @call_1_with_offset(
 ; CHECK-SAME: ptr [[TMP0:%.*]]) !dbg [[DBG13:![0-9]+]] {
 ; CHECK-NEXT:  [[ENTRY:.*:]]
+; CHECK-NEXT:    [[TMP1:%.*]] = getelementptr inbounds i32, ptr [[TMP0]], i32 0
+; CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr [[TMP1]], align 4
+; CHECK-NEXT:    [[TMP3:%.*]] = zext i32 [[TMP2]] to i64
 ; CHECK-NEXT:      #dbg_declare([[META9]], [[META14:![0-9]+]], !DIExpression(), [[META15:![0-9]+]])
 ; CHECK-NEXT:    ret void
 ;
 ;.
 ; CHECK: [[META0:![0-9]+]] = distinct !DICompileUnit(language: DW_LANG_C_plus_plus, file: [[META1:![0-9]+]], producer: "{{.*}}clang version {{.*}}", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug, nameTableKind: None)
-; CHECK: [[META1]] = !DIFile(filename: "test.cpp", directory: {{.*}})
+; CHECK: [[META1]] = !DIFile(filename: "{{.*}}test.cpp", directory: {{.*}})
 ; CHECK: [[META2:![0-9]+]] = !{i32 7, !"Dwarf Version", i32 5}
 ; CHECK: [[META3:![0-9]+]] = !{i32 2, !"Debug Info Version", i32 3}
 ; CHECK: [[META4:![0-9]+]] = !{i32 1, !"sycl-device", i32 1}

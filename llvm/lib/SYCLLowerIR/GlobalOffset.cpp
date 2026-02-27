@@ -10,9 +10,6 @@
 #include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/Intrinsics.h"
-#include "llvm/IR/IntrinsicsAMDGPU.h"
-#include "llvm/IR/IntrinsicsNVPTX.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/SYCLLowerIR/TargetHelpers.h"
 #include "llvm/TargetParser/Triple.h"
@@ -60,55 +57,6 @@ ModulePass *llvm::createGlobalOffsetPassLegacy() {
   return new GlobalOffsetLegacy();
 }
 
-// Helper function to collect all Uses of Load's pointer operand in post-order.
-static void collectGlobalOffsetUses(Function *ImplicitOffsetIntrinsic,
-                                    SmallVectorImpl<Instruction *> &LoadPtrUses,
-                                    SmallVectorImpl<Instruction *> &Loads) {
-  SmallVector<Instruction *, 4> WorkList;
-  SmallPtrSet<Value *, 4> Visited;
-
-  // Find load instructions.
-  for (auto *U : ImplicitOffsetIntrinsic->users()) {
-    for (auto *U2 : cast<CallInst>(U)->users()) {
-      auto *I = cast<Instruction>(U2);
-      WorkList.push_back(I);
-      Visited.insert(I);
-    }
-  }
-  while (!WorkList.empty()) {
-    Instruction *I = WorkList.pop_back_val();
-    if (isa<PHINode>(I) || isa<GetElementPtrInst>(I)) {
-      for (User *U : I->users())
-        if (Visited.insert(U).second)
-          WorkList.push_back(cast<Instruction>(U));
-    }
-    if (isa<LoadInst>(I))
-      Loads.push_back(I);
-  }
-
-  // For each load, find its defs by post-order walking operand use.
-  Visited.clear();
-  for (auto *LI : Loads) {
-    Use *OpUse0 = &LI->getOperandUse(0);
-    auto PostOrderTraveral = [&](auto &Self, Use &U) -> void {
-      auto *I = cast<Instruction>(U.get());
-      Visited.insert(I);
-      for (auto &Op : I->operands()) {
-        auto *OpI = dyn_cast<Instruction>(Op.get());
-        if (!OpI || isa<CallInst>(OpI))
-          continue;
-        if (!Visited.contains(OpI))
-          Self(Self, Op);
-      }
-      if (!isa<CallInst>(I))
-        LoadPtrUses.push_back(I);
-    };
-    Visited.insert(LI);
-    if (!Visited.contains(OpUse0->get()))
-      PostOrderTraveral(PostOrderTraveral, *OpUse0);
-  }
-}
-
 static void validateKernels(Module &M, TargetHelpers::KernelCache &KCache) {
   SmallVector<GlobalValue *, 4> Vec;
   collectUsedGlobalVariables(M, Vec, /*CompilerUsed=*/false);
@@ -128,10 +76,9 @@ static void validateKernels(Module &M, TargetHelpers::KernelCache &KCache) {
 }
 
 void GlobalOffsetPass::createClonesAndPopulateVMap(
-    const TargetHelpers::KernelCache &KCache,
-    Function *ImplicitOffsetIntrinsic) {
+    const TargetHelpers::KernelCache &KCache, Function *GlobalOffsetFunc) {
   std::deque<User *> WorkList;
-  for (auto *U : ImplicitOffsetIntrinsic->users())
+  for (auto *U : GlobalOffsetFunc->users())
     WorkList.emplace_back(U);
 
   while (!WorkList.empty()) {
@@ -156,8 +103,7 @@ void GlobalOffsetPass::createClonesAndPopulateVMap(
     for (const auto &A : Func->args())
       Arguments.push_back(A.getType());
 
-    // Add the offset argument. Must be the same type as returned by
-    // `llvm.{amdgcn|nvvm}.implicit.offset`.
+    // Add the offset argument.
     Arguments.push_back(ImplicitArgumentType);
 
     // Build the new function.
@@ -204,66 +150,39 @@ PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
   if (!T.isNVPTX() && !T.isAMDGCN())
     return PreservedAnalyses::all();
 
-  Function *ImplicitOffsetIntrinsic = M.getFunction(Intrinsic::getName(
-      T.isNVPTX() ? static_cast<unsigned>(Intrinsic::nvvm_implicit_offset)
-                  : static_cast<unsigned>(Intrinsic::amdgcn_implicit_offset)));
+  Function *GlobalOffsetFunc =
+      M.getFunction("_Z27__spirv_BuiltInGlobalOffseti");
 
-  if (!ImplicitOffsetIntrinsic || ImplicitOffsetIntrinsic->use_empty())
+  if (!GlobalOffsetFunc || GlobalOffsetFunc->use_empty())
     return PreservedAnalyses::all();
 
   if (EnableGlobalOffset) {
     // For AMD allocas and pointers have to be to CONSTANT_PRIVATE (5), NVVM is
     // happy with ADDRESS_SPACE_GENERIC (0).
     TargetAS = T.isNVPTX() ? 0 : 5;
-    /// The value for NVVM's adDRESS_SPACE_SHARED and AMD's LOCAL_ADDRESS happen
-    /// to be 3, use it for the implicit argument pointer type.
     KernelImplicitArgumentType =
         ArrayType::get(Type::getInt32Ty(M.getContext()), 3);
-    ImplicitOffsetPtrType =
-        PointerType::get(Type::getInt32Ty(M.getContext()), TargetAS);
-    assert(
-        (ImplicitOffsetIntrinsic->getReturnType() == ImplicitOffsetPtrType) &&
-        "Implicit offset intrinsic does not return the expected type");
+    ImplicitOffsetPtrType = PointerType::get(M.getContext(), TargetAS);
 
     TargetHelpers::KernelCache KCache;
     KCache.populateKernels(M);
     // Validate kernels
     validateKernels(M, KCache);
 
-    createClonesAndPopulateVMap(KCache, ImplicitOffsetIntrinsic);
+    createClonesAndPopulateVMap(KCache, GlobalOffsetFunc);
 
     // Add implicit parameters to all direct and indirect users of the offset
-    addImplicitParameterToCallers(M, ImplicitOffsetIntrinsic, nullptr, KCache);
+    addImplicitParameterToCallers(M, GlobalOffsetFunc, nullptr, KCache);
   }
-  SmallVector<Instruction *, 4> Loads;
-  SmallVector<Instruction *, 4> PtrUses;
-
-  collectGlobalOffsetUses(ImplicitOffsetIntrinsic, PtrUses, Loads);
 
   // Replace each use of a collected Load with a Constant 0
-  for (Instruction *L : Loads) {
-    L->replaceAllUsesWith(ConstantInt::get(L->getType(), 0));
-    L->eraseFromParent();
+  for (auto *U : make_early_inc_range(GlobalOffsetFunc->users())) {
+    auto *CI = cast<CallInst>(U);
+    CI->replaceAllUsesWith(ConstantInt::get(CI->getType(), 0));
+    CI->eraseFromParent();
   }
 
-  // Try to remove all collected Loads and their Defs from the kernel.
-  // PtrUses is returned by `collectGlobalOffsetUses` in topological order.
-  // Walk it backwards so we don't violate users.
-  for (auto *I : reverse(PtrUses)) {
-    // A Def might not be a GEP. Remove it if it has no use.
-    if (I->use_empty())
-      I->eraseFromParent();
-  }
-
-  // Remove all collected CallInsts from the kernel.
-  for (auto *U : make_early_inc_range(ImplicitOffsetIntrinsic->users()))
-    cast<Instruction>(U)->eraseFromParent();
-
-  // Assert that all uses of `ImplicitOffsetIntrinsic` are removed and delete
-  // it.
-  assert(ImplicitOffsetIntrinsic->use_empty() &&
-         "Not all uses of intrinsic removed");
-  ImplicitOffsetIntrinsic->eraseFromParent();
+  GlobalOffsetFunc->eraseFromParent();
 
   return PreservedAnalyses::none();
 }
@@ -335,8 +254,17 @@ void GlobalOffsetPass::addImplicitParameterToCallers(
     }
     CallToOld = cast<CallInst>(GlobalVMap[CallToOld]);
     if (!CalleeWithImplicitParam) {
-      // Replace intrinsic call with parameter.
-      CallToOld->replaceAllUsesWith(ImplicitOffset);
+      // Replace __spirv_BuiltInGlobalOffset call with load from parameter.
+      IRBuilder<> Builder(CallToOld);
+      Value *Index = CallToOld->getArgOperand(0);
+      Value *OffsetPtr = Builder.CreateInBoundsGEP(
+          KernelImplicitArgumentType->getElementType(), ImplicitOffset,
+          {Index});
+      Value *Offset = Builder.CreateLoad(
+          KernelImplicitArgumentType->getElementType(), OffsetPtr);
+      Value *OffsetCast = Builder.CreateIntCast(Offset, CallToOld->getType(),
+                                                /*isSigned*/ false);
+      CallToOld->replaceAllUsesWith(OffsetCast);
     } else {
       // Build up a list of arguments to call the modified function using.
       SmallVector<Value *, 8> ImplicitOffsets;
@@ -376,7 +304,6 @@ void GlobalOffsetPass::addImplicitParameterToCallers(
 std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
     Module &M, Function *Func, Type *ImplicitArgumentType, bool KeepOriginal,
     bool IsKernel) {
-  FunctionType *FuncTy = Func->getFunctionType();
   const AttributeList &FuncAttrs = Func->getAttributes();
   ImplicitArgumentType =
       ImplicitArgumentType ? ImplicitArgumentType : ImplicitOffsetPtrType;
@@ -389,8 +316,7 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
     ArgumentAttributes.push_back(FuncAttrs.getParamAttrs(I.index()));
   }
 
-  // Add the offset argument. Must be the same type as returned by
-  // `llvm.{amdgcn|nvvm}.implicit.offset`.
+  // Add the offset argument.
   Arguments.push_back(ImplicitArgumentType);
   ArgumentAttributes.push_back(AttributeSet());
 
@@ -403,7 +329,6 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
   Function *NewFunc = dyn_cast<Function>(GlobalVMap[Func]);
 
   Value *ImplicitOffset = nullptr;
-  bool ImplicitOffsetAllocaInserted = false;
   if (KeepOriginal) {
     SmallVector<ReturnInst *, 8> Returns;
     CloneFunctionInto(NewFunc, Func, GlobalVMap,
@@ -437,7 +362,6 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
           AllocByteSize);
       ImplicitOffset = ImplicitOffsetAlloca;
       ImplicitArgumentType = ImplicitOffset->getType();
-      ImplicitOffsetAllocaInserted = true;
     } else {
       ImplicitOffset = std::prev(NewFunc->arg_end());
     }
@@ -466,19 +390,6 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
     ImplicitOffset = std::prev(NewFunc->arg_end());
   }
   assert(ImplicitOffset && "Value of implicit offset must be set.");
-
-  // Add bitcast to match the return type of the intrinsic if needed.
-  if (ImplicitArgumentType != ImplicitOffsetPtrType) {
-    BasicBlock *EntryBlock = &NewFunc->getEntryBlock();
-    // Make sure bitcast is inserted after alloca, if present.
-    BasicBlock::iterator InsertionPt =
-        ImplicitOffsetAllocaInserted
-            ? std::next(cast<AllocaInst>(ImplicitOffset)->getIterator())
-            : EntryBlock->getFirstInsertionPt();
-    IRBuilder<> Builder(EntryBlock, InsertionPt);
-    ImplicitOffset = Builder.CreateBitCast(
-        ImplicitOffset, llvm::PointerType::get(M.getContext(), TargetAS));
-  }
 
   ProcessedFunctions[Func] = ImplicitOffset;
   Clones.insert(NewFunc);

@@ -10,34 +10,26 @@ target triple = "nvptx64-nvidia-cuda"
 ; multiple calls to other functions that have a clone as well will have
 ; all calls redirected to the corresponding variants.
 
-declare ptr @llvm.nvvm.implicit.offset()
-; CHECK-NOT: declare ptr @llvm.nvvm.implicit.offset()
+declare i64 @_Z27__spirv_BuiltInGlobalOffseti(i32)
 
 define i64 @_ZTS14other_function() {
 ; CHECK: define i64 @_ZTS14other_function() {
-  %1 = tail call ptr @llvm.nvvm.implicit.offset()
-; CHECK-NOT: tail call ptr @llvm.nvvm.implicit.offset()
-  %2 = getelementptr inbounds i32, ptr %1, i64 2
-  %3 = load i32, ptr %2, align 4
-  %4 = zext i32 %3 to i64
-; CHECK %1 = zext i32 0 to i64
+  %1 = tail call i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 2)
+; CHECK-NOT: tail call i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 2)
+; CHECK zext i32 0 to i64
 
-  %5 = tail call ptr @llvm.nvvm.implicit.offset()
-; CHECK-NOT: tail call ptr @llvm.nvvm.implicit.offset()
-  %6 = getelementptr inbounds i32, ptr %5, i64 2
-  %7 = load i32, ptr %6, align 4
-  %8 = zext i32 %7 to i64
-; CHECK: %2 = zext i32 0 to i64
+  %5 = tail call i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 2)
+; CHECK-NOT: tail call i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 2)
 
-  ret i64 %4
-; CHECK: ret i64 %1
+  ret i64 %1
+; CHECK: ret i64 0
 }
 
 ; CHECK: define i64 @_ZTS14other_function_with_offset(ptr %0) {
-; CHECK: %2 = getelementptr inbounds i32, ptr %0, i64 2
+; CHECK: %2 = getelementptr inbounds i32, ptr %0, i32 2
 ; CHECK: %3 = load i32, ptr %2, align 4
 ; CHECK: %4 = zext i32 %3 to i64
-; CHECK: %5 = getelementptr inbounds i32, ptr %0, i64 2
+; CHECK: %5 = getelementptr inbounds i32, ptr %0, i32 2
 ; CHECK: %6 = load i32, ptr %5, align 4
 ; CHECK: %7 = zext i32 %6 to i64
 ; CHECK: ret i64 %4
