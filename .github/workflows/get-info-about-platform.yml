@@ -48,7 +48,7 @@ jobs:
 
     steps:
       - name: System and GPU info
-        shell: pwsh
+        shell: powershell
         run: |
           Write-Host "=== HOSTNAME ==="
           hostname
