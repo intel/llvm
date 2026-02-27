@@ -126,7 +126,7 @@ class ComputeBenchmark(Benchmark):
         return [r for r in RUNTIMES if r != RUNTIMES.SYCL_PREVIEW]
 
     def _extra_env_vars(self) -> dict:
-        return {}
+        return {"SYCL_GRAPH_ENABLE_NATIVE_RECORDING": "1"}
 
     def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
         # Subclasses must implement this and include all flags except --iterations;

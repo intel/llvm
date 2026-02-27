@@ -155,7 +155,7 @@ runs:
       echo "ZE_AFFINITY_MASK=$NUMA_NODE" >> $GITHUB_ENV
       echo "NUMA_NODE=$NUMA_NODE" >> $GITHUB_ENV
   - name: Update benchmark scripts to build_ref
-    if: ${{ inputs.build_ref != '' }}
+    if: false
     shell: bash
     env:
       BUILD_REF: ${{ inputs.build_ref }}

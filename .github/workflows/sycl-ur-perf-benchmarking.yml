@@ -25,34 +25,25 @@ on:
           - SYCL
           - Minimal
           - Core
+          - CBNative
           - Normal
           - Test
           - OneDNN
           - Gromacs
           - LLama
-        default: 'Minimal'  # Only compute-benchmarks
+        default: 'CBNative'  # Compute-benchmarks, torch subset
       pr_no:
         type: string
         description: |
           PR no. to build SYCL from - it will be built from HEAD of incoming branch.
-
-          Leave both pr_no and commit_hash empty to use the latest commit from branch/tag this workflow started from.
-        required: false
-        default: ''
-      commit_hash:
-        type: string
-        description: |
-          Commit hash (within intel/llvm) to build SYCL from.
-
-          Leave both pr_no and commit_hash empty to use the latest commit from branch/tag this workflow started from.
-        required: false
-        default: ''
+        required: true
+        default: '21375'
       save_name:
         type: string
         description: |
           Name to use for the benchmark result
-        required: false
-        default: ''
+        required: true
+        default: 'Baseline_Native'
       upload_results:
         description: Save and upload results (to https://intel.github.io/llvm/benchmarks)
         type: choice
@@ -67,6 +58,7 @@ on:
           - '["PVC_PERF"]'
           - '["BMG_PERF"]'
           - '["TEST_PERF"]'
+        default: '["BMG_PERF"]'
       backend:
         description: Backend to use
         type: choice
@@ -74,6 +66,20 @@ on:
           - 'level_zero:gpu'
           - 'level_zero_v2:gpu'
         default: 'level_zero_v2:gpu'
+      gdb_mode:
+        description: Whether or not to run benchmarks under gdb.
+        type: choice
+        options:
+          - '0'
+          - '1'
+        default: '0'
+      custom_cr:
+        description: Custom Compute Runtime to use in benchmarks.
+        type: string
+        required: false
+        default: ''
+
+      # redundant inputs for this workflow
       exit_on_failure:
         description: Fail benchmark script on any error. If true, limit number of iterations to just test correctness.
         type: choice
@@ -89,16 +95,12 @@ on:
           - 'false'
           - 'true'
         default: 'false'
-      gdb_mode:
-        description: Whether or not to run benchmarks under gdb.
-        type: choice
-        options:
-          - '0'
-          - '1'
-        default: '0'
-      custom_cr:
-        description: Custom Compute Runtime to use in benchmarks.
+      commit_hash:
         type: string
+        description: |
+          Commit hash (within intel/llvm) to build SYCL from.
+
+          Leave both pr_no and commit_hash empty to use the latest commit from branch/tag this workflow started from.
         required: false
         default: ''
 
