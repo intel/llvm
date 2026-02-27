@@ -20,8 +20,8 @@ from templates import helper as th
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include <${n}_api.h>
-#include <${n}_ddi.h>
+#include <unified-runtime/${n}_api.h>
+#include <unified-runtime/${n}_ddi.h>
 
 namespace ${n}::${adapter} {
 %for s in specs:

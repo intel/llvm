@@ -19,8 +19,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include <unified-runtime/ur_ddi.h>
 #include <ur/ur.hpp>
-#include <ur_ddi.h>
 #include <ze_api.h>
 #include <zes_api.h>
 
