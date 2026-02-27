@@ -30,6 +30,9 @@ presets: dict[str, list[str]] = {
     "Core": [
         "Compute Benchmarks Core",
     ],
+    "CBNative": [
+        "Compute Benchmarks Native",
+    ],
     "Normal": [
         "BenchDNN",
         "Compute Benchmarks",
