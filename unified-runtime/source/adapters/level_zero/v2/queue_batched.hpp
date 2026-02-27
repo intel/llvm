@@ -121,10 +121,10 @@ public:
 
   ur_command_list_manager &getImmediateManager() { return immediateList; }
 
-  // Returns the command list manager handle depending on the state of the graph
-  // capture. If the graph capture is active, the immediate command list manager
-  // handle is returned, otherwise the regular command list manager handle is
-  // returned.
+  // Graph recording can be performed only on immediate command lists.
+  // When graph capture is active, the batch manager should return the immediate
+  // command list manager for enqueueing operations, otherwise the regular
+  // command list manager is returned.
   ur_command_list_manager &getListManager() {
     return isGraphCaptureActive ? immediateList : activeBatch;
   }
