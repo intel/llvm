@@ -224,12 +224,12 @@ class TestE2E(unittest.TestCase):
             "--test=KernelSubmitSingleQueue.*--profilerType=cpuCounter",
         )
         self._checkCase(
-            "torch_benchmark_l0 KernelSubmitMultiQueue UseEvents 0, kernelWGCount 4096, kernelWGSize 512, kernelsPerQueue 20, measureCompletion 0, useProfiling 0",
+            "torch_benchmark_l0 KernelSubmitMultiQueue UseEvents 0, kernelWGCount 512, kernelWGSize 256, kernelsPerQueue 20, measureCompletion 0, useProfiling 0",
             "KernelSubmitMultiQueue large",
             {"pytorch", "L0"},
         )
         self._checkCase(
-            "torch_benchmark_l0 KernelSubmitMultiQueue UseEvents 0, kernelWGCount 4096, kernelWGSize 512, kernelsPerQueue 20, measureCompletion 1, useProfiling 0 CPU count",
+            "torch_benchmark_l0 KernelSubmitMultiQueue UseEvents 0, kernelWGCount 512, kernelWGSize 256, kernelsPerQueue 20, measureCompletion 1, useProfiling 0 CPU count",
             "KernelSubmitMultiQueue large with measure completion, CPU count",
             {"pytorch", "L0"},
         )
@@ -308,7 +308,7 @@ class TestE2E(unittest.TestCase):
             {"pytorch", "SYCL"},
         )
         self._checkCase(
-            "torch_benchmark_syclpreview KernelSubmitMultiQueue UseEvents 0, kernelWGCount 256, kernelWGSize 128, kernelsPerQueue 4, measureCompletion 1, useProfiling 0",
+            "torch_benchmark_syclpreview KernelSubmitMultiQueue UseEvents 0, kernelWGCount 512, kernelWGSize 256, kernelsPerQueue 4, measureCompletion 1, useProfiling 0",
             "KernelSubmitMultiQueue small with measure completion",
             {"pytorch", "SYCL"},
         )

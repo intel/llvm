@@ -217,7 +217,7 @@ class Benchmark(ABC):
         self.data_path = self.create_data_path(name, skip_data_dir)
         return download(self.data_path, url, file, untar, unzip, checksum)
 
-    def lower_is_better(self):
+    def lower_is_better(self) -> bool:
         return True
 
     def stddev_threshold(self):
@@ -226,7 +226,7 @@ class Benchmark(ABC):
     def get_suite_name(self) -> str:
         return self.suite.name()
 
-    def description(self):
+    def description(self) -> str:
         return ""
 
     def notes(self) -> str:

@@ -15,7 +15,7 @@ from typing import Dict, List
 
 from utils.result import BenchmarkMetadata
 
-from .base import Benchmark
+from ..base import Benchmark
 
 
 def string_consts(cls):
