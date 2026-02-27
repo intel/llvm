@@ -249,7 +249,7 @@ class TestE2E(unittest.TestCase):
             "KernelSubmitMemoryReuse Int32Large",
             {"pytorch", "L0"},
         )
-        # Graph benchmarks segfault on pvc
+        # FIXME: Graph benchmarks segfault on pvc
         if not ("pvc" in self.device_arch.lower()):
             self._checkCase(
                 "torch_benchmark_l0 KernelSubmitGraphSingleQueue UseEvents 0, kernelBatchSize 10, kernelGroupsCount 10, kernelName Add, kernelWGCount 512, kernelWGSize 256, useProfiling 0 CPU count",
@@ -293,7 +293,7 @@ class TestE2E(unittest.TestCase):
             "KernelSubmitMemoryReuse FloatLarge",
             {"pytorch", "SYCL"},
         )
-        # Graph benchmarks segfault on pvc
+        # FIXME: Graph benchmarks segfault on pvc
         if not ("pvc" in self.device_arch.lower()):
             self._checkCase(
                 "torch_benchmark_sycl KernelSubmitGraphSingleQueue UseEvents 0, kernelBatchSize 32, kernelGroupsCount 32, kernelName Add, kernelWGCount 512, kernelWGSize 256, useProfiling 0",
@@ -342,7 +342,7 @@ class TestE2E(unittest.TestCase):
             "KernelSubmitMemoryReuse FloatMedium, CPU count",
             {"pytorch", "SYCL"},
         )
-        # Graph benchmarks segfault on pvc
+        # FIXME: Graph benchmarks segfault on pvc
         if not ("pvc" in self.device_arch.lower()):
             self._checkCase(
                 "torch_benchmark_syclpreview KernelSubmitGraphSingleQueue UseEvents 0, kernelBatchSize 64, kernelGroupsCount 64, kernelName Add, kernelWGCount 512, kernelWGSize 256, useProfiling 0",
