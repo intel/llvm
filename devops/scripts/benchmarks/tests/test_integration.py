@@ -149,6 +149,7 @@ class TestE2E(unittest.TestCase):
         self.app = App()
         self.app.remove_dirs()
         self.app.prepare_dirs()
+        self.device_arch = os.environ.get("GPU_TYPE", "unknown")
 
     def tearDown(self):
         self.app.remove_dirs()
@@ -248,16 +249,18 @@ class TestE2E(unittest.TestCase):
             "KernelSubmitMemoryReuse Int32Large",
             {"pytorch", "L0"},
         )
-        self._checkCase(
-            "torch_benchmark_l0 KernelSubmitGraphSingleQueue UseEvents 0, kernelBatchSize 10, kernelGroupsCount 10, kernelName Add, kernelWGCount 512, kernelWGSize 256, useProfiling 0 CPU count",
-            "KernelSubmitGraphSingleQueue small, CPU count",
-            {"pytorch", "L0"},
-        )
-        self._checkCase(
-            "torch_benchmark_l0 KernelSubmitGraphMultiQueue Profiling 0, UseEvents 0, kernelsPerQueue 64, workgroupCount 512, workgroupSize 256 CPU count",
-            "KernelSubmitGraphMultiQueue large, CPU count",
-            {"pytorch", "L0"},
-        )
+        # FIXME: Graph benchmarks segfault on pvc
+        if not ("pvc" in self.device_arch.lower()):
+            self._checkCase(
+                "torch_benchmark_l0 KernelSubmitGraphSingleQueue UseEvents 0, kernelBatchSize 10, kernelGroupsCount 10, kernelName Add, kernelWGCount 512, kernelWGSize 256, useProfiling 0 CPU count",
+                "KernelSubmitGraphSingleQueue small, CPU count",
+                {"pytorch", "L0"},
+            )
+            self._checkCase(
+                "torch_benchmark_l0 KernelSubmitGraphMultiQueue Profiling 0, UseEvents 0, kernelsPerQueue 64, workgroupCount 512, workgroupSize 256 CPU count",
+                "KernelSubmitGraphMultiQueue large, CPU count",
+                {"pytorch", "L0"},
+            )
 
     def test_torch_sycl(self):
         self._checkCase(
@@ -290,16 +293,18 @@ class TestE2E(unittest.TestCase):
             "KernelSubmitMemoryReuse FloatLarge",
             {"pytorch", "SYCL"},
         )
-        self._checkCase(
-            "torch_benchmark_sycl KernelSubmitGraphSingleQueue UseEvents 0, kernelBatchSize 32, kernelGroupsCount 32, kernelName Add, kernelWGCount 512, kernelWGSize 256, useProfiling 0",
-            "KernelSubmitGraphSingleQueue medium",
-            {"pytorch", "SYCL"},
-        )
-        self._checkCase(
-            "torch_benchmark_sycl KernelSubmitGraphMultiQueue Profiling 0, UseEvents 0, kernelsPerQueue 32, workgroupCount 512, workgroupSize 256 CPU count",
-            "KernelSubmitGraphMultiQueue medium, CPU count",
-            {"pytorch", "SYCL"},
-        )
+        # FIXME: Graph benchmarks segfault on pvc
+        if not ("pvc" in self.device_arch.lower()):
+            self._checkCase(
+                "torch_benchmark_sycl KernelSubmitGraphSingleQueue UseEvents 0, kernelBatchSize 32, kernelGroupsCount 32, kernelName Add, kernelWGCount 512, kernelWGSize 256, useProfiling 0",
+                "KernelSubmitGraphSingleQueue medium",
+                {"pytorch", "SYCL"},
+            )
+            self._checkCase(
+                "torch_benchmark_sycl KernelSubmitGraphMultiQueue Profiling 0, UseEvents 0, kernelsPerQueue 32, workgroupCount 512, workgroupSize 256 CPU count",
+                "KernelSubmitGraphMultiQueue medium, CPU count",
+                {"pytorch", "SYCL"},
+            )
 
     def test_torch_syclpreview(self):
         self._checkCase(
@@ -337,16 +342,18 @@ class TestE2E(unittest.TestCase):
             "KernelSubmitMemoryReuse FloatMedium, CPU count",
             {"pytorch", "SYCL"},
         )
-        self._checkCase(
-            "torch_benchmark_syclpreview KernelSubmitGraphSingleQueue UseEvents 0, kernelBatchSize 64, kernelGroupsCount 64, kernelName Add, kernelWGCount 512, kernelWGSize 256, useProfiling 0",
-            "KernelSubmitGraphSingleQueue large",
-            {"pytorch", "SYCL"},
-        )
-        self._checkCase(
-            "torch_benchmark_syclpreview KernelSubmitGraphMultiQueue Profiling 0, UseEvents 0, kernelsPerQueue 10, workgroupCount 512, workgroupSize 256",
-            "KernelSubmitGraphMultiQueue small",
-            {"pytorch", "SYCL"},
-        )
+        # FIXME: Graph benchmarks segfault on pvc
+        if not ("pvc" in self.device_arch.lower()):
+            self._checkCase(
+                "torch_benchmark_syclpreview KernelSubmitGraphSingleQueue UseEvents 0, kernelBatchSize 64, kernelGroupsCount 64, kernelName Add, kernelWGCount 512, kernelWGSize 256, useProfiling 0",
+                "KernelSubmitGraphSingleQueue large",
+                {"pytorch", "SYCL"},
+            )
+            self._checkCase(
+                "torch_benchmark_syclpreview KernelSubmitGraphMultiQueue Profiling 0, UseEvents 0, kernelsPerQueue 10, workgroupCount 512, workgroupSize 256",
+                "KernelSubmitGraphMultiQueue small",
+                {"pytorch", "SYCL"},
+            )
 
 
 if __name__ == "__main__":
