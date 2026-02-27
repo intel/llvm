@@ -33,13 +33,6 @@ void constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
                                  StringRef Increment, StringRef Ext = "out",
                                  StringRef ParallelJobs = "");
 
-// Provides a vector of device library names that are associated with the
-// given triple and AOT information.
-SmallVector<std::string, 8> getDeviceLibraries(const Driver &D,
-                                               const llvm::opt::ArgList &Args,
-                                               const llvm::Triple &TargetTriple,
-                                               bool IsSpirvAOT);
-
 // Populates the SYCL device traits macros.
 void populateSYCLDeviceTraitsMacrosArgs(
     Compilation &C, const llvm::opt::ArgList &Args,
@@ -161,6 +154,11 @@ public:
                           llvm::opt::OptSpecifier Opt,
                           llvm::opt::OptSpecifier Opt_EQ,
                           StringRef Device) const;
+  // Provides a vector of device library names that are associated with the
+  // given triple and AOT information.
+  SmallVector<std::string, 8>
+  getDeviceLibNames(const Driver &D, const llvm::opt::ArgList &Args,
+                    const llvm::Triple &TargetTriple) const;
 
   bool useIntegratedAs() const override { return true; }
   bool isPICDefault() const override {

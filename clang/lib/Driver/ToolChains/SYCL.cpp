@@ -404,12 +404,11 @@ static bool checkPVCDevice(std::string SingleArg, std::string &DevArg) {
 
 #if !defined(_WIN32)
 static void
-addSYCLDeviceSanitizerLibs(const llvm::opt::ArgList &Args, bool IsSpirvAOT,
-                           StringRef LibSuffix,
+addSYCLDeviceSanitizerLibs(const llvm::opt::ArgList &Args,
                            SmallVector<std::string, 8> &LibraryList) {
   enum { JIT = 0, AOT_CPU, AOT_DG2, AOT_PVC };
   auto addSingleLibrary = [&](StringRef DeviceLibName) {
-    LibraryList.push_back(Args.MakeArgString(Twine(DeviceLibName) + LibSuffix));
+    LibraryList.push_back(Args.MakeArgString(Twine(DeviceLibName) + ".bc"));
   };
 
   // This function is used to check whether there is only one GPU device
@@ -432,9 +431,6 @@ addSYCLDeviceSanitizerLibs(const llvm::opt::ArgList &Args, bool IsSpirvAOT,
   };
 
   auto getSingleBuildTarget = [&]() -> size_t {
-    if (!IsSpirvAOT)
-      return JIT;
-
     llvm::opt::Arg *SYCLTarget =
         Args.getLastArg(options::OPT_offload_targets_EQ);
     if (!SYCLTarget || (SYCLTarget->getValues().size() != 1))
@@ -535,10 +531,10 @@ addSYCLDeviceSanitizerLibs(const llvm::opt::ArgList &Args, bool IsSpirvAOT,
 }
 #endif
 
-// Get the list of SYCL device libraries to link with user's device image.
+// Get the list of SYCL device library names to link with user's device image.
 SmallVector<std::string, 8>
-SYCL::getDeviceLibraries(const Driver &D, const llvm::opt::ArgList &Args,
-                         const llvm::Triple &TargetTriple, bool IsSpirvAOT) {
+SYCLToolChain::getDeviceLibNames(const Driver &D,
+    const llvm::opt::ArgList &Args, const llvm::Triple &TargetTriple) const {
   SmallVector<std::string, 8> LibraryList;
   bool NoOffloadLib =
       !Args.hasFlag(options::OPT_offloadlib, options::OPT_no_offloadlib, true);
@@ -583,16 +579,9 @@ SYCL::getDeviceLibraries(const Driver &D, const llvm::opt::ArgList &Args,
                                              "libsycl-fallback-imf",
                                              "libsycl-fallback-imf-fp64",
                                              "libsycl-fallback-imf-bf16"};
-  bool IsWindowsMSVCEnv = HostTC.isWindowsMSVCEnvironment();
-  bool IsNewOffload = D.getUseNewOffloadingDriver();
-  StringRef LibSuffix = ".bc";
-  if (IsNewOffload)
-    // For new offload model, we use packaged .bc files.
-    LibSuffix = IsWindowsMSVCEnv ? ".new.obj" : ".new.o";
   auto addLibraries = [&](const SYCLDeviceLibsList &LibsList) {
-    for (const StringRef &Lib : LibsList) {
-      LibraryList.push_back(Args.MakeArgString(Twine(Lib) + LibSuffix));
-    }
+    for (const StringRef &Lib : LibsList)
+      LibraryList.push_back(Args.MakeArgString(Twine(Lib) + ".bc"));
   };
 
   if (!NoOffloadLib)
@@ -613,7 +602,7 @@ SYCL::getDeviceLibraries(const Driver &D, const llvm::opt::ArgList &Args,
       "libsycl-native-bfloat16"};
   bool NativeBfloatLibs;
   bool NeedBfloatLibs = selectBfloatLibs(Args, TargetTriple,
-                                         this->getToolChain(),
+                                         *this,
                                          NativeBfloatLibs);
   if (NeedBfloatLibs && !NoOffloadLib) {
     // Add native or fallback bfloat16 library.
@@ -627,7 +616,7 @@ SYCL::getDeviceLibraries(const Driver &D, const llvm::opt::ArgList &Args,
   // Linux platform only, so compiler only provides device sanitizer libraries
   // on Linux platform.
 #if !defined(_WIN32)
-  addSYCLDeviceSanitizerLibs(Args, IsSpirvAOT, LibSuffix, LibraryList);
+  addSYCLDeviceSanitizerLibs(Args, LibraryList);
 #endif
 
   return LibraryList;
@@ -1443,7 +1432,13 @@ void SYCLToolChain::addClangTargetOptions(
     SYCLInstallation.addLibspirvLinkArgs(getEffectiveTriple(), DriverArgs,
                                          HostTC.getTriple(), CC1Args);
   }
+  // mtoguchi
   // Add device libraries.
+  // This is currently only done with the new offloading model, to better fit
+  // with community expectations
+  if (!getDriver().getUseNewOffloadingDriver())
+    return;
+
   llvm::SmallVector<BitCodeLibraryInfo, 12> BCLibs;
   BCLibs.append(SYCLToolChain::getDeviceLibs(DriverArgs, DeviceOffloadingKind));
   for (auto BCFile : BCLibs) {
@@ -1891,21 +1886,24 @@ SYCLToolChain::getDeviceLibs(
     const llvm::opt::ArgList &DriverArgs,
     const Action::OffloadKind DeviceOffloadingKind) const {
   llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12> BCLibs;
-  if (!DriverArgs.hasFlag(options::OPT_offloadlib, options::OPT_no_offloadlib,
-                          true))
-    return {};
 
   SmallVector<SmallString<128>, 4> LibraryPaths;
   SYCLInstallation.getSYCLDeviceLibPath(LibraryPaths);
 
   // Formulate all of the device libraries needed for this compilation.
   SmallVector<std::string, 8> DeviceLibs = 
-      clang::driver::tools::SYCL::getDeviceLibraries(getDriver(), DriverArgs,
-          getTriple(), /*IsSpirvAOT*/false);
+      getDeviceLibNames(getDriver(), DriverArgs, getTriple());
 
-  // Create full path names to each device library.
+  // Create full path names to each device library.  If found, add to the list
+  // of device libraries that will be linked against.
   for (auto DeviceLib : DeviceLibs) {
     for (auto LibraryPath : LibraryPaths) {
+      SmallString<1208> FullLibName(LibraryPath);
+      llvm::sys::path::append(FullLibName, DeviceLib);
+      if (llvm::sys::fs::exists(FullLibName)) {
+        BCLibs.emplace_back(FullLibName);
+        break;
+      }
     }
   }
   return BCLibs;

@@ -5527,8 +5527,7 @@ class OffloadingActionBuilder final {
         bool SYCLDeviceLibLinked = false;
         Action *NativeCPULib = nullptr;
         if (IsSPIR || IsNVPTX || IsAMDGCN || IsNativeCPU) {
-          SYCLDeviceLibLinked = addSYCLDeviceLibs(
-              TC, SYCLDeviceLibs, IsSpirvAOT,
+          SYCLDeviceLibLinked = addSYCLDeviceLibs(TC, SYCLDeviceLibs,
               C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment(),
               IsNativeCPU, NativeCPULib, BoundArch);
         }
@@ -5756,47 +5755,36 @@ class OffloadingActionBuilder final {
     }
 
     bool addSYCLDeviceLibs(const ToolChain *TC, ActionList &DeviceLinkObjects,
-                           bool isSpirvAOT, bool isMSVCEnv, bool isNativeCPU,
+                           bool isMSVCEnv, bool isNativeCPU,
                            Action *&NativeCPULib, const char *BoundArch) {
-      int NumOfDeviceLibLinked = 0;
-      SmallVector<SmallString<128>, 4> LibLocCandidates;
-      SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
 
       SmallVector<std::string, 8> DeviceLibraries;
-      DeviceLibraries =
-          tools::SYCL::getDeviceLibraries(C.getDriver(), C.getArgs(),
-                                          TC->getTriple(), isSpirvAOT);
+      const toolchains::SYCLToolChain &SYCLTC =
+          static_cast<const toolchains::SYCLToolChain &>(*TC);
+      DeviceLibraries = SYCLTC.getDeviceLibNames(
+          TC->getDriver(), C.getArgs(), TC->getTriple());
 
       for (const auto &DeviceLib : DeviceLibraries) {
-        for (const auto &LLCandidate : LibLocCandidates) {
-          SmallString<128> LibName(LLCandidate);
-          llvm::sys::path::append(LibName, DeviceLib);
-          if (llvm::sys::fs::exists(LibName)) {
-            ++NumOfDeviceLibLinked;
-            Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),
-                                         Args.MakeArgString(LibName));
-            // We are using the LLVM-IR device libraries directly, no need
-            // to unbundle any objects.
-            auto *SYCLDeviceLibsInputAction =
-                C.MakeAction<InputAction>(*InputArg, types::TY_LLVM_BC);
-            DeviceLinkObjects.push_back(SYCLDeviceLibsInputAction);
+        Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),
+                                     Args.MakeArgString(DeviceLib));
+        // We are using the LLVM-IR device libraries directly, no need
+        // to unbundle any objects.
+        auto *SYCLDeviceLibsInputAction =
+            C.MakeAction<InputAction>(*InputArg, types::TY_LLVM_BC);
+        DeviceLinkObjects.push_back(SYCLDeviceLibsInputAction);
 
-            // The device link stage may remove symbols not referenced in the
-            // source code. Since libsycl-nativecpu_utils contains such symbols
-            // which are later needed by the NativeCPU backend passes we link
-            // that library separately afterwards without --only-needed.
-            if (isNativeCPU) {
-              assert(!NativeCPULib);
-              NativeCPULib = DeviceLinkObjects.back();
-              DeviceLinkObjects.pop_back();
-            }
-
-            break;
-          }
+        // The device link stage may remove symbols not referenced in the
+        // source code. Since libsycl-nativecpu_utils contains such symbols
+        // which are later needed by the NativeCPU backend passes we link
+        // that library separately afterwards without --only-needed.
+        if (isNativeCPU) {
+          assert(!NativeCPULib);
+          NativeCPULib = DeviceLinkObjects.back();
+          DeviceLinkObjects.pop_back();
         }
       }
 
-      if (!NumOfDeviceLibLinked && !TC->getTriple().isNVPTX())
+      if (DeviceLibraries.empty() && !TC->getTriple().isNVPTX())
         return false;
 
       // For NVPTX we need to also link libclc at the same stage that we link
