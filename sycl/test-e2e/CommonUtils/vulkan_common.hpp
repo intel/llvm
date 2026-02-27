@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
 #include <set>
 #include <sycl/ext/oneapi/bindless_images.hpp>
@@ -178,15 +179,19 @@ VkResult setupInstance() {
   ci.pApplicationInfo = &ai;
   ci.enabledExtensionCount = requiredInstanceExtensions.size();
   ci.ppEnabledExtensionNames = requiredInstanceExtensions.data();
-  std::vector<const char *> layers;
-  if (std::any_of(availableLayers.begin(), availableLayers.end(),
-                  [](auto &layer) {
-                    return layer.layerName == "VK_LAYER_KHRONOS_validation";
-                  })) {
-    layers.push_back("VK_LAYER_KHRONOS_validation");
+  const char *validationLayerName = "VK_LAYER_KHRONOS_validation";
+  bool validationLayerAvailable = std::any_of(
+      availableLayers.begin(), availableLayers.end(), [&](const auto &layer) {
+        return strcmp(layer.layerName, validationLayerName) == 0;
+      });
+
+  if (validationLayerAvailable) {
+    ci.enabledLayerCount = 1;
+    ci.ppEnabledLayerNames = &validationLayerName;
+  } else {
+    std::cerr
+        << "VK_LAYER_KHRONOS_validation not present, validation is disabled \n";
   }
-  ci.enabledLayerCount = layers.size();
-  ci.ppEnabledLayerNames = layers.data();
 
   VK_CHECK_CALL_RET(vkCreateInstance(&ci, nullptr, &vk_instance));
 

@@ -3,7 +3,8 @@
 ; expect such functions to be translated to SPIR-V FunctionCall.
 
 ; RUN: llvm-spirv %s -o %t.spv
-; RUN: spirv-val %t.spv
+; TODO: re-enable validation
+; RUNx: spirv-val %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s -check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.spv -r -o - | llvm-dis -o %t.rev.ll

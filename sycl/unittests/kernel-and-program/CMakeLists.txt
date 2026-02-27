@@ -12,4 +12,6 @@ add_sycl_unittest(KernelAndProgramTests OBJECT
   KernelInfoShortcuts.cpp
 )
 target_compile_definitions(KernelAndProgramTests_Non_Preview_Tests PRIVATE __SYCL_INTERNAL_API)
-target_compile_definitions(KernelAndProgramTests_Preview_Tests PRIVATE __SYCL_INTERNAL_API __INTEL_PREVIEW_BREAKING_CHANGES)
+if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
+  target_compile_definitions(KernelAndProgramTests_Preview_Tests PRIVATE __SYCL_INTERNAL_API __INTEL_PREVIEW_BREAKING_CHANGES)
+endif()

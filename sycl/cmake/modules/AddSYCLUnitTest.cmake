@@ -163,5 +163,7 @@ endfunction()
 #   `config.test_format = lit.formats.GoogleTest(config.llvm_build_mode, <...>)`
 macro(add_sycl_unittest test_name_prefix link_variant)
   add_sycl_unittest_internal(${test_name_prefix}_Non_Preview_Tests ${link_variant} FALSE ${ARGN})
-  add_sycl_unittest_internal(${test_name_prefix}_Preview_Tests ${link_variant} TRUE ${ARGN})
+  if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
+    add_sycl_unittest_internal(${test_name_prefix}_Preview_Tests ${link_variant} TRUE ${ARGN})
+  endif()
 endmacro()

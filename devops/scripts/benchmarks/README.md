@@ -124,7 +124,7 @@ The available benchmarks options are:
 
 For example `--filter "graph_api_*"`
 
-`--no-rebuild` - disables rebuilding of git projects. When specified, the scripts will skip fetching updates from git repositories and rebuilding benchmark dependencies. This is useful when you want to run benchmarks with existing builds without checking for updates or recompiling. Note that if build artifacts don't exist, the benchmarks will fail to run.
+`--offline` - skips rebuilding projects, oneAPI updates, and benchmark data downloads. This is useful when you want to run benchmarks with existing builds and data without fetching updates or recompiling. Note that if build artifacts or data don't exist, the benchmarks will fail to run.
 
 ## Running in CI
 

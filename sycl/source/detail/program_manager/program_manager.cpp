@@ -474,8 +474,6 @@ ProgramManager::getOrCreateURProgram(
     const std::vector<const RTDeviceBinaryImage *> &AllImages,
     context_impl &ContextImpl, devices_range Devices,
     const std::string &CompileAndLinkOptions, SerializedObj SpecConsts) {
-  Managed<ur_program_handle_t> NativePrg;
-
   // Get binaries for each device (1:1 correpsondence with input Devices).
   auto Binaries = PersistentDeviceCodeCache::getItemFromDisc(
       Devices, AllImages, SpecConsts, CompileAndLinkOptions);
@@ -1720,9 +1718,8 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
     m_KernelIDs2BinImage.insert(
         std::make_pair(It->second.getKernelID(), Img.get()));
     KernelIDs->push_back(It->second.getKernelID());
-
     // Keep track of image to kernel name reference count for cleanup.
-    m_KernelNameRefCount[name]++;
+    ++It->second.getRefCount();
   }
 
   // check if kernel uses sanitizer
@@ -1852,18 +1849,12 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
       removeFromMultimapByVal(m_KernelIDs2BinImage, DKIIt->second.getKernelID(),
                               Img);
 
-      auto RefCountIt = m_KernelNameRefCount.find(Name);
-      assert(RefCountIt != m_KernelNameRefCount.end());
-      int &RefCount = RefCountIt->second;
+      int &RefCount = DKIIt->second.getRefCount();
       assert(RefCount > 0);
-
-      // Remove everything associated with this KernelName if this is the last
+      // Clean up the device kernel info instance if this is the last
       // image referencing it.
       if (--RefCount == 0) {
-        // TODO aggregate all these maps into a single one since their entries
-        // share lifetime.
         m_DeviceKernelInfoMap.erase(DKIIt);
-        m_KernelNameRefCount.erase(RefCountIt);
       }
     }
 
@@ -3425,6 +3416,11 @@ bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
         return (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_AMDGCN) == 0 ||
                 strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_LLVM_AMDGCN) == 0);
       }
+      if (PlatformName == "LEVEL_ZERO") {
+        return (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64) == 0 ||
+                strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0);
+      }
+
       assert(false && "Unhandled liboffload platform");
       return false;
     }

@@ -24,6 +24,7 @@
 ; SPIRV-O0-NEXT:    Pre-ISel Intrinsic Lowering
 ; SPIRV-O0-NEXT:    FunctionPass Manager
 ; SPIRV-O0-NEXT:      Expand IR instructions
+; SPIRV-O0-NEXT:      Expand Atomic instructions
 ; SPIRV-O0-NEXT:      Lower Garbage Collection Instructions
 ; SPIRV-O0-NEXT:      Shadow Stack GC Lowering
 ; SPIRV-O0-NEXT:      Remove unreachable blocks from the CFG
@@ -33,6 +34,7 @@
 ; SPIRV-O0-NEXT:      SPIR-V Regularizer
 ; SPIRV-O0-NEXT:    SPIRV prepare functions
 ; SPIRV-O0-NEXT:    SPIRV prepare global variables
+; SPIRV-O0-NEXT:    Expand variadic functions
 ; SPIRV-O0-NEXT:    FunctionPass Manager
 ; SPIRV-O0-NEXT:      FPBuiltin Function Selection
 ; SPIRV-O0-NEXT:      Lower invoke and unwind, for unwindless code generators
@@ -102,6 +104,7 @@
 ; SPIRV-Opt-NEXT:    Pre-ISel Intrinsic Lowering
 ; SPIRV-Opt-NEXT:    FunctionPass Manager
 ; SPIRV-Opt-NEXT:      Expand IR instructions
+; SPIRV-Opt-NEXT:      Expand Atomic instructions
 ; SPIRV-Opt-NEXT:      Dominator Tree Construction
 ; SPIRV-Opt-NEXT:      Basic Alias Analysis (stateless AA impl)
 ; SPIRV-Opt-NEXT:      Natural Loop Information
@@ -137,6 +140,7 @@
 ; SPIRV-Opt-NEXT:      SPIR-V Regularizer
 ; SPIRV-Opt-NEXT:    SPIRV prepare functions
 ; SPIRV-Opt-NEXT:    SPIRV prepare global variables
+; SPIRV-Opt-NEXT:    Expand variadic functions
 ; SPIRV-Opt-NEXT:    FunctionPass Manager
 ; SPIRV-Opt-NEXT:      FPBuiltin Function Selection
 ; SPIRV-Opt-NEXT:      Dominator Tree Construction

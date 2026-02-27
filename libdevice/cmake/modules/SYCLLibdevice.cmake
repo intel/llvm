@@ -236,34 +236,18 @@ endfunction()
 function(process_bc out_file)
   cmake_parse_arguments(ARG
     ""
-    "LIB_TGT;IN_FILE;OUT_DIR"
+    "IN_FILE;OUT_DIR"
     "OPT_FLAGS;DEPENDENCIES"
     ${ARGN})
-  add_custom_command( OUTPUT ${ARG_LIB_TGT}.bc
-    COMMAND ${opt_exe} ${ARG_OPT_FLAGS} -o ${ARG_LIB_TGT}.bc
+  add_custom_command( OUTPUT ${ARG_OUT_DIR}/${out_file}
+    COMMAND ${opt_exe} ${ARG_OPT_FLAGS} -o ${ARG_OUT_DIR}/${out_file}
     ${ARG_IN_FILE}
     DEPENDS ${opt_target} ${ARG_IN_FILE} ${ARG_DEPENDENCIES}
   )
-  add_custom_target( ${ARG_LIB_TGT}
-    ALL DEPENDS ${ARG_LIB_TGT}.bc
-  )
-  set_target_properties( ${ARG_LIB_TGT}
-    PROPERTIES TARGET_FILE ${ARG_LIB_TGT}.bc
-  )
-
-  set( builtins_opt_lib $<TARGET_PROPERTY:${ARG_LIB_TGT},TARGET_FILE> )
-
-  # Copy the optimized library to the output directory
-  # Note: prepare_builtins utility was removed upstream as it's no longer
-  # necessary - linkage is handled by -mlink-builtin-bitcode and metadata
-  # deduplication is handled by llvm-link
-  add_custom_command( OUTPUT ${ARG_OUT_DIR}/${out_file}
-    COMMAND ${CMAKE_COMMAND} -E copy ${builtins_opt_lib} ${ARG_OUT_DIR}/${out_file}
-      DEPENDS ${builtins_opt_lib} ${ARG_LIB_TGT} )
-  add_custom_target( library-${out_file} ALL
+  add_custom_target( opt-${out_file} ALL
     DEPENDS ${ARG_OUT_DIR}/${out_file}
   )
-  set_target_properties( library-${out_file}
+  set_target_properties( opt-${out_file}
     PROPERTIES TARGET_FILE ${ARG_OUT_DIR}/${out_file}
   )
 endfunction()
@@ -440,7 +424,6 @@ if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
     VERBATIM)
   add_custom_target(nativecpu_utils-bc DEPENDS ${bc_binary_dir}/nativecpu_utils.bc)
   process_bc(libsycl-nativecpu_utils.bc
-    LIB_TGT libsycl-nativecpu_utils
     IN_FILE ${bc_binary_dir}/nativecpu_utils.bc
     OUT_DIR ${bc_binary_dir})
   add_custom_target(libsycl-nativecpu_utils-bc DEPENDS ${bc_binary_dir}/libsycl-nativecpu_utils.bc)
@@ -801,19 +784,16 @@ foreach(arch IN LISTS full_build_archs)
   set( builtins_link_lib_${arch}
     $<TARGET_PROPERTY:device_lib_device_${arch},TARGET_FILE>)
   add_dependencies(libsycldevice-bc device_lib_device_${arch})
-  set( builtins_opt_lib_tgt_${arch} builtins_${arch}.opt)
 
-  # Run the optimizer on the resulting bitcode file and call prepare_builtins
-  # on it, which strips away debug and arch information.
+  # Run the optimizer on the resulting bitcode file.
   process_bc(devicelib-${arch}.bc
-    LIB_TGT builtins_${arch}.opt
     IN_FILE ${builtins_link_lib_${arch}}
     OUT_DIR ${bc_binary_dir}
     OPT_FLAGS ${opt_flags_${arch}}
     DEPENDENCIES device_lib_device_${arch})
-  add_dependencies(libsycldevice-bc library-devicelib-${arch}.bc)
+  add_dependencies(libsycldevice-bc opt-devicelib-${arch}.bc)
   set(complete_${arch}_libdev
-    $<TARGET_PROPERTY:library-devicelib-${arch}.bc,TARGET_FILE>)
+    $<TARGET_PROPERTY:opt-devicelib-${arch}.bc,TARGET_FILE>)
   install( FILES ${complete_${arch}_libdev}
            DESTINATION ${install_dest_bc}
            COMPONENT libsycldevice)

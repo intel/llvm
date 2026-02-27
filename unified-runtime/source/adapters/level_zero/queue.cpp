@@ -1618,7 +1618,7 @@ ur_result_t ur_queue_handle_t_::active_barriers::clear() {
 }
 
 void ur_queue_handle_t_::clearEndTimeRecordings() {
-  uint64_t ZeTimerResolution = Device->ZeDeviceProperties->timerResolution;
+  const double ZeTimerResolution = Device->getTimerResolution();
   const uint64_t TimestampMaxValue = Device->getTimestampMask();
 
   for (auto Entry : EndTimeRecordings) {
