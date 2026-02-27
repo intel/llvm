@@ -1,25 +1,17 @@
 name: Collect GPU and system info
 
-on: [push, pull_request]
+on:
+  workflow_dispatch:
 
 jobs:
-  collect:
-    name: Collect info from ${{ matrix.runner }}
-    runs-on: [self-hosted, "${{ matrix.runner }}"]
-
-    strategy:
-      fail-fast: false
-      matrix:
-        runner: [test1, test2]
+  collect-linux:
+    name: Collect info from test1 (Linux)
+    runs-on: [self-hosted, test1]
 
     steps:
       - name: System and GPU info
         shell: bash
         run: |
-          echo "=== RUNNER LABEL ==="
-          echo "${{ matrix.runner }}"
-
-          echo
           echo "=== HOSTNAME ==="
           hostname
 
@@ -50,3 +42,38 @@ jobs:
           echo
           echo "=== dmesg (GPU/DRM related, last 50 lines) ==="
           dmesg | grep -iE "drm|i915|amdgpu|nvidia" | tail -n 50 || true
+
+  collect-windows:
+    name: Collect info from test2 (Windows)
+    runs-on: [self-hosted, test2]
+
+    steps:
+      - name: System and GPU info
+        shell: pwsh
+        run: |
+          Write-Host "=== HOSTNAME ==="
+          hostname
+
+          Write-Host "`n=== OS ==="
+          Get-CimInstance Win32_OperatingSystem | Select-Object Caption, Version, BuildNumber, OSArchitecture | Format-List
+
+          Write-Host "`n=== CPU ==="
+          Get-CimInstance Win32_Processor | Select-Object Name, NumberOfCores, NumberOfLogicalProcessors | Format-List
+
+          Write-Host "`n=== GPU ==="
+          Get-CimInstance Win32_VideoController | Select-Object Name, DriverVersion, VideoModeDescription, AdapterRAM | Format-List
+
+          Write-Host "`n=== OpenCL devices (if clinfo available) ==="
+          if (Get-Command clinfo -ErrorAction SilentlyContinue) {
+            clinfo | Select-Object -First 200
+          } else {
+            Write-Host "clinfo not installed"
+          }
+
+          Write-Host "`n=== DirectX Diagnostic (GPU section) ==="
+          $dxdiag = "$env:TEMP\dxdiag.txt"
+          Start-Process dxdiag -ArgumentList "/t $dxdiag" -Wait
+          if (Test-Path $dxdiag) {
+            Get-Content $dxdiag | Select-String -Pattern "Card name|Driver Version|Display Memory|Dedicated Memory" | Select-Object -First 20
+            Remove-Item $dxdiag
+          }
