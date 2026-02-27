@@ -47,7 +47,7 @@ urUSMHostAlloc(ur_context_handle_t hContext, const ur_usm_desc_t *pUSMDesc,
 /// USM: Implements USM device allocations using a normal CUDA device pointer
 ///
 UR_APIEXPORT ur_result_t UR_APICALL
-urUSMDeviceAlloc(ur_context_handle_t, ur_device_handle_t hDevice,
+urUSMDeviceAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
                  const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t hPool,
                  size_t size, void **ppMem) {
   auto alignment = pUSMDesc ? pUSMDesc->align : 0u;
@@ -65,15 +65,23 @@ urUSMDeviceAlloc(ur_context_handle_t, ur_device_handle_t hDevice,
     auto umfErr = umfPoolGetLastAllocationError(pool);
     return umf::umf2urResult(umfErr);
   }
+
+  // Register allocation with context for cross-device operation tracking
+  if (hContext && *ppMem && hDevice) {
+    hContext->registerAllocation(*ppMem, hDevice);
+  }
+
   return UR_RESULT_SUCCESS;
 }
 
 /// USM: Implements USM Shared allocations using CUDA Managed Memory
 ///
 UR_APIEXPORT ur_result_t UR_APICALL
-urUSMSharedAlloc(ur_context_handle_t, ur_device_handle_t hDevice,
+urUSMSharedAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
                  const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t hPool,
                  size_t size, void **ppMem) {
+  // hContext unused - Shared memory not tracked (CUDA handles migration)
+  (void)hContext;
   auto alignment = pUSMDesc ? pUSMDesc->align : 0u;
 
   ScopedContext SC(hDevice);
@@ -89,12 +97,23 @@ urUSMSharedAlloc(ur_context_handle_t, ur_device_handle_t hDevice,
     auto umfErr = umfPoolGetLastAllocationError(pool);
     return umf::umf2urResult(umfErr);
   }
+
+  // Do NOT register Managed Memory allocations
+  // CUDA Unified Memory system handles migration automatically.
+  // Manual tracking interferes with automatic page migration.
+
   return UR_RESULT_SUCCESS;
 }
 
 /// USM: Frees the given USM pointer associated with the context.
 ///
-UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t, void *pMem) {
+UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t hContext,
+                                              void *pMem) {
+  // Unregister allocation metadata before freeing
+  if (hContext && pMem) {
+    hContext->unregisterAllocation(pMem);
+  }
+
   umf_memory_pool_handle_t hPool = NULL;
   umf_result_t ret = umfPoolByPtr(pMem, &hPool);
   if (ret == UMF_RESULT_SUCCESS) {

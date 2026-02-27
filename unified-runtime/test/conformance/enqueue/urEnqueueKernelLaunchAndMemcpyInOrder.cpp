@@ -10,6 +10,7 @@
 #include <uur/known_failure.h>
 #include <uur/raii.h>
 
+#include <iostream>
 #include <thread>
 #include <utility>
 
@@ -23,6 +24,8 @@ struct urMultiQueueLaunchMemcpyTest
   std::vector<ur_program_handle_t> programs;
   std::vector<ur_kernel_handle_t> kernels;
   std::vector<void *> SharedMem;
+  std::vector<void *> HostMem; // For CUDA: host-accessible verification buffer
+  bool useCudaDeviceMemory = false;
 
   static constexpr char ProgramName[] = "increment";
   static constexpr size_t ArraySize = 100;
@@ -45,6 +48,16 @@ struct urMultiQueueLaunchMemcpyTest
     programs.resize(devices.size());
     kernels.resize(devices.size());
     SharedMem.resize(devices.size());
+
+    // Check if we're on CUDA backend
+    ur_platform_backend_t backend;
+    ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
+                                     sizeof(backend), &backend, nullptr));
+    useCudaDeviceMemory = (backend == UR_PLATFORM_BACKEND_CUDA);
+
+    if (useCudaDeviceMemory) {
+      HostMem.resize(devices.size());
+    }
 
     std::shared_ptr<std::vector<char>> il_binary;
     std::vector<ur_program_metadata_t> metadatas{};
@@ -71,10 +84,25 @@ struct urMultiQueueLaunchMemcpyTest
       ASSERT_SUCCESS(
           urKernelCreate(programs[i], KernelName.data(), &kernels[i]));
 
-      ASSERT_SUCCESS(urUSMSharedAlloc(context, devices[i], nullptr, nullptr,
+      // CUDA: Use USM Device memory for multi-GPU peer transfers
+      // Other backends: Use USM Shared memory
+      if (useCudaDeviceMemory) {
+        ASSERT_SUCCESS(urUSMDeviceAlloc(context, devices[i], nullptr, nullptr,
+                                        ArraySize * sizeof(uint32_t),
+                                        &SharedMem[i]));
+        ASSERT_NE(SharedMem[i], nullptr);
+
+        // Also allocate host-accessible buffer for verification
+        ASSERT_SUCCESS(urUSMHostAlloc(context, nullptr, nullptr,
                                       ArraySize * sizeof(uint32_t),
-                                      &SharedMem[i]));
-      ASSERT_NE(SharedMem[i], nullptr);
+                                      &HostMem[i]));
+        ASSERT_NE(HostMem[i], nullptr);
+      } else {
+        ASSERT_SUCCESS(urUSMSharedAlloc(context, devices[i], nullptr, nullptr,
+                                        ArraySize * sizeof(uint32_t),
+                                        &SharedMem[i]));
+        ASSERT_NE(SharedMem[i], nullptr);
+      }
 
       ASSERT_SUCCESS(urEnqueueUSMFill(
           queues[i], SharedMem[i], sizeof(uint32_t), &InitialValue,
@@ -89,6 +117,11 @@ struct urMultiQueueLaunchMemcpyTest
   void TearDown() override {
     for (auto &Ptr : SharedMem) {
       urUSMFree(context, Ptr);
+    }
+    if (useCudaDeviceMemory) {
+      for (auto &Ptr : HostMem) {
+        urUSMFree(context, Ptr);
+      }
     }
     for (const auto &kernel : kernels) {
       urKernelRelease(kernel);
@@ -112,9 +145,21 @@ struct urMultiQueueLaunchMemcpyTest
         } while (status != UR_EVENT_STATUS_COMPLETE);
 
         auto ExpectedValue = InitialValue + i + 1;
-        for (uint32_t j = 0; j < ArraySize; ++j) {
-          ASSERT_EQ(reinterpret_cast<uint32_t *>(SharedMem[i])[j],
-                    ExpectedValue);
+
+        // CUDA: Copy from device to host buffer before verification
+        if (useCudaDeviceMemory) {
+          ASSERT_SUCCESS(urEnqueueUSMMemcpy(
+              queues[i], true, HostMem[i], SharedMem[i],
+              ArraySize * sizeof(uint32_t), 0, nullptr, nullptr));
+          for (uint32_t j = 0; j < ArraySize; ++j) {
+            ASSERT_EQ(reinterpret_cast<uint32_t *>(HostMem[i])[j],
+                      ExpectedValue);
+          }
+        } else {
+          for (uint32_t j = 0; j < ArraySize; ++j) {
+            ASSERT_EQ(reinterpret_cast<uint32_t *>(SharedMem[i])[j],
+                      ExpectedValue);
+          }
         }
       });
     }
@@ -268,8 +313,6 @@ UUR_PLATFORM_TEST_SUITE_WITH_PARAM(
 // ... ops
 TEST_P(urEnqueueKernelLaunchIncrementMultiDeviceTest, Success) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
-  // https://github.com/intel/llvm/issues/19033
-  UUR_KNOWN_FAILURE_ON(uur::CUDA{});
 
   auto waitOnEvent = std::get<0>(getParam()).value;
   auto runBackgroundCheck = std::get<1>(getParam()).value;
@@ -278,6 +321,23 @@ TEST_P(urEnqueueKernelLaunchIncrementMultiDeviceTest, Success) {
   ASSERT_SUCCESS(urDeviceGetInfo(devices[0], UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP,
                                  sizeof(usm_p2p_support), &usm_p2p_support,
                                  nullptr));
+
+  // Log P2P support status for debugging
+  std::cout << "[P2P INFO] Device 0 USM P2P Support: "
+            << (usm_p2p_support ? "ENABLED" : "DISABLED") << std::endl;
+
+  // Check all device pairs for P2P support
+  for (size_t i = 0; i < devices.size(); i++) {
+    for (size_t j = i + 1; j < devices.size(); j++) {
+      ur_bool_t pair_p2p = false;
+      ASSERT_SUCCESS(urDeviceGetInfo(devices[i],
+                                     UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP,
+                                     sizeof(pair_p2p), &pair_p2p, nullptr));
+      std::cout << "[P2P INFO] Device " << i << " <-> Device " << j
+                << " P2P: " << (pair_p2p ? "ENABLED" : "DISABLED") << std::endl;
+    }
+  }
+
   if (!usm_p2p_support) {
     GTEST_SKIP() << "EXP usm p2p feature is not supported.";
   }
@@ -324,11 +384,22 @@ TEST_P(urEnqueueKernelLaunchIncrementMultiDeviceTest, Success) {
     ASSERT_SUCCESS(urQueueFinish(queues.back()));
   }
 
+  // CUDA: Copy device buffers to host for verification
+  if (this->useCudaDeviceMemory) {
+    for (size_t i = 0; i < devices.size(); i++) {
+      ASSERT_SUCCESS(urEnqueueUSMMemcpy(
+          queues[i], true, this->HostMem[i], this->SharedMem[i],
+          ArraySize * sizeof(uint32_t), 0, nullptr, nullptr));
+    }
+  }
+
   size_t ExpectedValue = InitialValue;
   for (size_t i = 0; i < devices.size(); i++) {
     ExpectedValue++;
+    void *verifyPtr =
+        this->useCudaDeviceMemory ? this->HostMem[i] : this->SharedMem[i];
     for (uint32_t j = 0; j < ArraySize; ++j) {
-      ASSERT_EQ(reinterpret_cast<uint32_t *>(SharedMem[i])[j], ExpectedValue);
+      ASSERT_EQ(reinterpret_cast<uint32_t *>(verifyPtr)[j], ExpectedValue);
     }
   }
 }
