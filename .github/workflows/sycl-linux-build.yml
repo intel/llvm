@@ -32,7 +32,7 @@ on:
       build_configure_extra_args:
         type: string
         required: false
-        default: "--hip --cuda --native_cpu"
+        default: "--cuda --native_cpu"
       build_target:
         type: string
         required: false

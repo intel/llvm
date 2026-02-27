@@ -1,0 +1,53 @@
+name: Collect GPU and system info
+
+on:
+  workflow_dispatch:
+
+jobs:
+  collect:
+    name: Collect info from ${{ matrix.runner }}
+    runs-on: [self-hosted, ${{ matrix.runner }}]
+
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [test1, test2]
+
+    steps:
+      - name: System and GPU info
+        shell: bash
+        run: |
+          echo "=== RUNNER LABEL ==="
+          echo "${{ matrix.runner }}"
+
+          echo
+          echo "=== HOSTNAME ==="
+          hostname
+
+          echo
+          echo "=== KERNEL ==="
+          uname -a
+
+          echo
+          echo "=== OS ==="
+          cat /etc/os-release || true
+
+          echo
+          echo "=== GPU (lspci) ==="
+          lspci -nnk | grep -A3 -E "VGA|3D|Display" || true
+
+          echo
+          echo "=== Loaded GPU modules ==="
+          lsmod | grep -E "i915|amdgpu|nouveau|nvidia" || true
+
+          echo
+          echo "=== OpenCL devices (if available) ==="
+          if command -v clinfo >/dev/null 2>&1; then
+            clinfo | sed -n '1,200p'
+          else
+            echo "clinfo not installed"
+          fi
+
+          echo
+          echo "=== dmesg (GPU/DRM related, last 50 lines) ==="
+          dmesg | grep -iE "drm|i915|amdgpu|nvidia" | tail -n 50 || true
