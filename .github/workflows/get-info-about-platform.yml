@@ -6,7 +6,7 @@ on:
 jobs:
   collect:
     name: Collect info from ${{ matrix.runner }}
-    runs-on: [self-hosted, ${{ matrix.runner }}]
+    runs-on: [self-hosted, "${{ matrix.runner }}"]
 
     strategy:
       fail-fast: false
