@@ -5527,7 +5527,8 @@ class OffloadingActionBuilder final {
         bool SYCLDeviceLibLinked = false;
         Action *NativeCPULib = nullptr;
         if (IsSPIR || IsNVPTX || IsAMDGCN || IsNativeCPU) {
-          SYCLDeviceLibLinked = addSYCLDeviceLibs(TC, SYCLDeviceLibs,
+          SYCLDeviceLibLinked = addSYCLDeviceLibs(
+              TC, SYCLDeviceLibs,
               C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment(),
               IsNativeCPU, NativeCPULib, BoundArch);
         }
@@ -5761,8 +5762,8 @@ class OffloadingActionBuilder final {
       SmallVector<std::string, 8> DeviceLibraries;
       const toolchains::SYCLToolChain &SYCLTC =
           static_cast<const toolchains::SYCLToolChain &>(*TC);
-      DeviceLibraries = SYCLTC.getDeviceLibNames(
-          TC->getDriver(), C.getArgs(), TC->getTriple());
+      DeviceLibraries = SYCLTC.getDeviceLibNames(TC->getDriver(), C.getArgs(),
+                                                 TC->getTriple());
 
       for (const auto &DeviceLib : DeviceLibraries) {
         Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),

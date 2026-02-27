@@ -230,7 +230,8 @@ bool SYCL::shouldDoPerObjectFileLinking(const Compilation &C) {
 
 // Return whether to use native bfloat16 library.
 static bool selectBfloatLibs(const llvm::opt::ArgList &Args,
-    const llvm::Triple &Triple, const ToolChain &TC, bool &UseNative) {
+                             const llvm::Triple &Triple, const ToolChain &TC,
+                             bool &UseNative) {
   static llvm::SmallSet<StringRef, 8> GPUArchsWithNBF16{
       "intel_gpu_pvc",     "intel_gpu_acm_g10", "intel_gpu_acm_g11",
       "intel_gpu_acm_g12", "intel_gpu_dg2_g10", "intel_gpu_dg2_g11",
@@ -534,7 +535,8 @@ addSYCLDeviceSanitizerLibs(const llvm::opt::ArgList &Args,
 // Get the list of SYCL device library names to link with user's device image.
 SmallVector<std::string, 8>
 SYCLToolChain::getDeviceLibNames(const Driver &D,
-    const llvm::opt::ArgList &Args, const llvm::Triple &TargetTriple) const {
+                                 const llvm::opt::ArgList &Args,
+                                 const llvm::Triple &TargetTriple) const {
   SmallVector<std::string, 8> LibraryList;
   bool NoOffloadLib =
       !Args.hasFlag(options::OPT_offloadlib, options::OPT_no_offloadlib, true);
@@ -601,9 +603,8 @@ SYCLToolChain::getDeviceLibNames(const Driver &D,
   const SYCLDeviceLibsList SYCLDeviceBfloat16NativeLib = {
       "libsycl-native-bfloat16"};
   bool NativeBfloatLibs;
-  bool NeedBfloatLibs = selectBfloatLibs(Args, TargetTriple,
-                                         *this,
-                                         NativeBfloatLibs);
+  bool NeedBfloatLibs =
+      selectBfloatLibs(Args, TargetTriple, *this, NativeBfloatLibs);
   if (NeedBfloatLibs && !NoOffloadLib) {
     // Add native or fallback bfloat16 library.
     if (NativeBfloatLibs)
@@ -1891,7 +1892,7 @@ SYCLToolChain::getDeviceLibs(
   SYCLInstallation.getSYCLDeviceLibPath(LibraryPaths);
 
   // Formulate all of the device libraries needed for this compilation.
-  SmallVector<std::string, 8> DeviceLibs = 
+  SmallVector<std::string, 8> DeviceLibs =
       getDeviceLibNames(getDriver(), DriverArgs, getTriple());
 
   // Create full path names to each device library.  If found, add to the list
