@@ -515,11 +515,14 @@ class ComputeBench(Suite):
                     ),
                 ]
 
-        # Add TorchGraphSingleQueue benchmarks
-        for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
-            for profiler_type, kernel_name in product(
-                list(PROFILERS), list(KERNEL_NAME)
-            ):
+        # Graph benchmarks segfault on pvc
+        device_arch = getattr(options, "device_architecture", "")
+        if not ("pvc" in device_arch):
+            # Add TorchGraphSingleQueue benchmarks
+            for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
+                for profiler_type, kernel_name in product(
+                    list(PROFILERS), list(KERNEL_NAME)
+                ):
 
                 def createTorchGraphSingleQueueBench(variant_name: str, **kwargs):
                     return TorchGraphSingleQueue(
@@ -555,39 +558,39 @@ class ComputeBench(Suite):
                     ),
                 ]
 
-        # Add TorchGraphMultiQueue benchmarks
-        for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
-            for profiler_type in list(PROFILERS):
+            # Add TorchGraphMultiQueue benchmarks
+            for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
+                for profiler_type in list(PROFILERS):
 
-                def createTorchGraphMultiQueueBench(variant_name: str, **kwargs):
-                    return TorchGraphMultiQueue(
-                        self,
-                        runtime,
-                        variant_name,
-                        profiler_type,
-                        **{
-                            **kwargs,
-                            "workgroupCount": 512,
-                            "workgroupSize": 256,
-                            "Profiling": 0,
-                            "UseEvents": 0,
-                        },
-                    )
+                    def createTorchGraphMultiQueueBench(variant_name: str, **kwargs):
+                        return TorchGraphMultiQueue(
+                            self,
+                            runtime,
+                            variant_name,
+                            profiler_type,
+                            **{
+                                **kwargs,
+                                "workgroupCount": 512,
+                                "workgroupSize": 256,
+                                "Profiling": 0,
+                                "UseEvents": 0,
+                            },
+                        )
 
-                benches += [
-                    createTorchGraphMultiQueueBench(
-                        "small",
-                        kernelsPerQueue=10,
-                    ),
-                    createTorchGraphMultiQueueBench(
-                        "medium",
-                        kernelsPerQueue=32,
-                    ),
-                    createTorchGraphMultiQueueBench(
-                        "large",
-                        kernelsPerQueue=64,
-                    ),
-                ]
+                    benches += [
+                        createTorchGraphMultiQueueBench(
+                            "small",
+                            kernelsPerQueue=10,
+                        ),
+                        createTorchGraphMultiQueueBench(
+                            "medium",
+                            kernelsPerQueue=32,
+                        ),
+                        createTorchGraphMultiQueueBench(
+                            "large",
+                            kernelsPerQueue=64,
+                        ),
+                    ]
 
         # Add UR-specific benchmarks
         benches += [
