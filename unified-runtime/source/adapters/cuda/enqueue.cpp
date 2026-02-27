@@ -1738,6 +1738,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
                   "[P2P DEBUG] Set DST context active: %p (device idx=%u)\n",
                   (void *)DstDevice->getNativeContext(), DstDevice->getIndex());
 
+          // CRITICAL: Make DST default stream wait for all events in wait list
+          // (e.g., kernel completion on SRC device). Without this, P2P copy
+          // races with kernel execution and copies stale data!
+          fprintf(stderr, "[P2P DEBUG] Making DST stream wait for %u events\n",
+                  numEventsInWaitList);
+          for (uint32_t i = 0; i < numEventsInWaitList; i++) {
+            UR_CHECK_ERROR(cuStreamWaitEvent(0, phEventWaitList[i]->get(), 0));
+            fprintf(stderr,
+                    "[P2P DEBUG]   DST stream waiting for event %u: %p\n", i,
+                    (void *)phEventWaitList[i]->get());
+          }
+
           // Use cuMemcpyPeerAsync with DST context active and default stream
           // Pure CUDA pattern: DST context + DST stream
           // We use NULL (default stream) since we don't have access to DST
