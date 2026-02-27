@@ -1663,101 +1663,56 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
         if (CanAccessPeer) {
           fprintf(stderr, "[P2P DEBUG] P2P supported, enabling access...\n");
 
+          // Save current context to restore it after P2P setup
+          CUcontext OriginalContext = nullptr;
+          UR_CHECK_ERROR(cuCtxGetCurrent(&OriginalContext));
+          fprintf(stderr, "[P2P DEBUG] Saved original context: %p\n",
+                  (void *)OriginalContext);
+
           // Enable P2P access in both directions if not already enabled
           // Note: cuCtxEnablePeerAccess returns
           // CUDA_ERROR_PEER_ACCESS_ALREADY_ENABLED if already enabled, which we
           // need to handle gracefully
-          {
-            ScopedContext DstActive(DstDevice);
-            CUresult EnableResult =
-                cuCtxEnablePeerAccess(SrcDevice->getNativeContext(), 0);
-            fprintf(stderr,
-                    "[P2P DEBUG] Enable Dst->Src access result: %d "
-                    "(0=success, 704=already_enabled)\n",
-                    EnableResult);
-            if (EnableResult != CUDA_SUCCESS &&
-                EnableResult != CUDA_ERROR_PEER_ACCESS_ALREADY_ENABLED) {
-              UR_CHECK_ERROR(EnableResult);
-            }
+
+          // Enable DstDevice -> SrcDevice access
+          UR_CHECK_ERROR(cuCtxSetCurrent(DstDevice->getNativeContext()));
+          CUresult EnableResult =
+              cuCtxEnablePeerAccess(SrcDevice->getNativeContext(), 0);
+          fprintf(stderr,
+                  "[P2P DEBUG] Enable Dst->Src access result: %d "
+                  "(0=success, 704=already_enabled)\n",
+                  EnableResult);
+          if (EnableResult != CUDA_SUCCESS &&
+              EnableResult != CUDA_ERROR_PEER_ACCESS_ALREADY_ENABLED) {
+            UR_CHECK_ERROR(EnableResult);
           }
 
-          {
-            ScopedContext SrcActive(SrcDevice);
-            CUresult EnableResult =
-                cuCtxEnablePeerAccess(DstDevice->getNativeContext(), 0);
-            fprintf(stderr,
-                    "[P2P DEBUG] Enable Src->Dst access result: %d "
-                    "(0=success, 704=already_enabled)\n",
-                    EnableResult);
-            if (EnableResult != CUDA_SUCCESS &&
-                EnableResult != CUDA_ERROR_PEER_ACCESS_ALREADY_ENABLED) {
-              UR_CHECK_ERROR(EnableResult);
-            }
+          // Enable SrcDevice -> DstDevice access
+          UR_CHECK_ERROR(cuCtxSetCurrent(SrcDevice->getNativeContext()));
+          EnableResult =
+              cuCtxEnablePeerAccess(DstDevice->getNativeContext(), 0);
+          fprintf(stderr,
+                  "[P2P DEBUG] Enable Src->Dst access result: %d "
+                  "(0=success, 704=already_enabled)\n",
+                  EnableResult);
+          if (EnableResult != CUDA_SUCCESS &&
+              EnableResult != CUDA_ERROR_PEER_ACCESS_ALREADY_ENABLED) {
+            UR_CHECK_ERROR(EnableResult);
           }
 
-          // CRITICAL: For P2P transfers, pure CUDA uses the DESTINATION
-          // device's context and stream. This matches the CUDA documentation
-          // pattern.
-          CUstream DstStream = nullptr;
-          CUevent P2PCompleteEvent = nullptr;
-          {
-            ScopedContext DstContextActive(DstDevice);
-            UR_CHECK_ERROR(cuStreamCreate(&DstStream, CU_STREAM_NON_BLOCKING));
-            UR_CHECK_ERROR(cuEventCreate(&P2PCompleteEvent, CU_EVENT_DEFAULT));
+          // CRITICAL: Restore original context before executing transfer
+          UR_CHECK_ERROR(cuCtxSetCurrent(OriginalContext));
+          fprintf(stderr, "[P2P DEBUG] Restored original context: %p\n",
+                  (void *)OriginalContext);
 
-            fprintf(stderr,
-                    "[P2P DEBUG] Created stream %p and event %p on DST device "
-                    "idx=%u\n",
-                    (void *)DstStream, (void *)P2PCompleteEvent,
-                    DstDevice->getIndex());
-
-            // CRITICAL: Make DstStream wait for all events in wait list
-            // (especially kernelEvent from source device)
-            for (uint32_t i = 0; i < numEventsInWaitList; i++) {
-              fprintf(stderr,
-                      "[P2P DEBUG] Adding cuStreamWaitEvent for event %p on "
-                      "DstStream %p\n",
-                      (void *)phEventWaitList[i]->get(), (void *)DstStream);
-              UR_CHECK_ERROR(
-                  cuStreamWaitEvent(DstStream, phEventWaitList[i]->get(), 0));
-            }
-
-            fprintf(stderr,
-                    "[P2P DEBUG] Using cuMemcpyPeerAsync for P2P transfer\n");
-
-            UR_CHECK_ERROR(cuMemcpyPeerAsync(
-                (CUdeviceptr)pDst, DstDevice->getNativeContext(),
-                (CUdeviceptr)pSrc, SrcDevice->getNativeContext(), size,
-                DstStream));
-
-            // Record completion of P2P transfer on DstStream
-            UR_CHECK_ERROR(cuEventRecord(P2PCompleteEvent, DstStream));
-            fprintf(
-                stderr,
-                "[P2P DEBUG] Recorded P2P completion event %p on DstStream\n",
-                (void *)P2PCompleteEvent);
-          }
-
-          // Make CuStream (SRC stream) wait for P2P completion
-          // This allows us to record the final event on CuStream (which lives
-          // longer)
-          {
-            ScopedContext SrcActive(hQueue->getDevice());
-            UR_CHECK_ERROR(cuStreamWaitEvent(CuStream, P2PCompleteEvent, 0));
-            fprintf(stderr,
-                    "[P2P DEBUG] CuStream %p now waiting for P2P event %p\n",
-                    (void *)CuStream, (void *)P2PCompleteEvent);
-          }
-
-          // Now we can safely destroy DstStream and the temporary event
-          {
-            ScopedContext DstContextActive(DstDevice);
-            UR_CHECK_ERROR(cuStreamSynchronize(DstStream));
-            UR_CHECK_ERROR(cuStreamDestroy(DstStream));
-            UR_CHECK_ERROR(cuEventDestroy(P2PCompleteEvent));
-            fprintf(stderr, "[P2P DEBUG] P2P transfer completed, stream and "
-                            "event destroyed\n");
-          }
+          // Use cuMemcpyPeerAsync with explicit contexts
+          // This is the pattern used by working pure CUDA code
+          fprintf(stderr,
+                  "[P2P DEBUG] Using cuMemcpyPeerAsync for P2P transfer\n");
+          UR_CHECK_ERROR(cuMemcpyPeerAsync(
+              (CUdeviceptr)pDst, DstDevice->getNativeContext(),
+              (CUdeviceptr)pSrc, SrcDevice->getNativeContext(), size,
+              CuStream));
         } else {
           fprintf(stderr,
                   "[P2P DEBUG] P2P NOT supported, using regular memcpy\n");
