@@ -18,6 +18,7 @@
 #include "kernel.hpp"
 #include "memory.hpp"
 #include "queue.hpp"
+#include "sampler.hpp"
 
 #include <cstring>
 
@@ -301,6 +302,76 @@ urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
   return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urCommandBufferAppendKernelLaunchWithArgsExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer, ur_kernel_handle_t hKernel,
+    uint32_t workDim, const size_t *pGlobalWorkOffset,
+    const size_t *pGlobalWorkSize, const size_t *pLocalWorkSize,
+    uint32_t numArgs, const ur_exp_kernel_arg_properties_t *pArgs,
+    uint32_t numKernelAlternatives, ur_kernel_handle_t *phKernelAlternatives,
+    uint32_t numSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    uint32_t /*numEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    ur_event_handle_t * /*phEvent*/,
+    ur_exp_command_buffer_command_handle_t *phCommand) {
+  // Preconditions
+  // Command handles can only be obtained from updatable command-buffers
+  UR_ASSERT(!(phCommand && !hCommandBuffer->IsUpdatable),
+            UR_RESULT_ERROR_INVALID_OPERATION);
+  UR_ASSERT(hCommandBuffer->Context == hKernel->getContext(),
+            UR_RESULT_ERROR_INVALID_KERNEL);
+  UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+  UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+
+  try {
+    for (uint32_t i = 0; i < numArgs; i++) {
+      switch (pArgs[i].type) {
+      case UR_EXP_KERNEL_ARG_TYPE_LOCAL: {
+        hKernel->setKernelLocalArg(pArgs[i].index, pArgs[i].size);
+        break;
+      }
+      case UR_EXP_KERNEL_ARG_TYPE_VALUE: {
+        hKernel->setKernelArg(pArgs[i].index, pArgs[i].size,
+                              pArgs[i].value.value);
+        break;
+      }
+      case UR_EXP_KERNEL_ARG_TYPE_POINTER: {
+        // setKernelArg is expecting a pointer to our argument
+        hKernel->setKernelArg(pArgs[i].index, pArgs[i].size,
+                              &pArgs[i].value.pointer);
+        break;
+      }
+      case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
+        ur_kernel_arg_mem_obj_properties_t Props = {
+            UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES, nullptr,
+            pArgs[i].value.memObjTuple.flags};
+        UR_CALL(urKernelSetArgMemObj(hKernel, pArgs[i].index, &Props,
+                                     pArgs[i].value.memObjTuple.hMem));
+        break;
+      }
+      case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
+        uint32_t SamplerProps = pArgs[i].value.sampler->Props;
+        hKernel->setKernelArg(pArgs[i].index, sizeof(uint32_t),
+                              (void *)&SamplerProps);
+        break;
+      }
+      default:
+        return UR_RESULT_ERROR_INVALID_ENUMERATION;
+      }
+    }
+  } catch (ur_result_t Err) {
+    return Err;
+  }
+
+  return urCommandBufferAppendKernelLaunchExp(
+      hCommandBuffer, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+      pLocalWorkSize, numKernelAlternatives, phKernelAlternatives,
+      numSyncPointsInWaitList, pSyncPointWaitList, 0 /*numEventsInWaitList*/,
+      nullptr /*phEventWaitList*/, pSyncPoint, nullptr /*phEvent*/, phCommand);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(

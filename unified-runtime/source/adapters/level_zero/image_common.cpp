@@ -815,7 +815,7 @@ ur_result_t bindlessImagesHandleCopyFlags(
     uint32_t numWaitEvents, ze_event_handle_t *phWaitEvents) {
 
   ZeStruct<ze_image_desc_t> zeSrcImageDesc;
-  ur2zeImageDesc(pSrcImageFormat, pSrcImageDesc, zeSrcImageDesc);
+  UR_CALL(ur2zeImageDesc(pSrcImageFormat, pSrcImageDesc, zeSrcImageDesc));
   uint32_t SrcPixelSizeInBytes = getPixelSizeBytes(pSrcImageFormat);
   uint32_t DstPixelSizeInBytes = getPixelSizeBytes(pDstImageFormat);
 

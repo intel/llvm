@@ -84,7 +84,7 @@
 /// offload action used for compilation and backend compilation.
 // RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_50 --no-offloadlib \
 // RUN:   -fno-sycl-instrument-device-code --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
-// RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/lib/clang/resource_dir/lib/libclc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
+// RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/lib/clang/resource_dir/lib/nvptx64-nvidia-cuda/remangled-l64-signed_char.libspirv.bc \
 // RUN:   -target x86_64-unknown-linux-gnu -ccc-print-phases %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=NVIDIA_CHECK_PHASES
 // NVIDIA_CHECK_PHASES: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
@@ -97,7 +97,7 @@
 // NVIDIA_CHECK_PHASES: 7: backend, {6}, assembler, (host-sycl)
 // NVIDIA_CHECK_PHASES: 8: assembler, {7}, object, (host-sycl)
 // NVIDIA_CHECK_PHASES: 9: linker, {4}, ir, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 10: input, "{{.*}}libspirv-nvptx64{{.*}}", ir, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 10: input, "{{.*}}libspirv{{.*}}", ir, (device-sycl, sm_50)
 // NVIDIA_CHECK_PHASES: 11: linker, {9, 10}, ir, (device-sycl, sm_50)
 // NVIDIA_CHECK_PHASES: 12: sycl-post-link, {11}, ir, (device-sycl, sm_50)
 // NVIDIA_CHECK_PHASES: 13: file-table-tform, {12}, ir, (device-sycl, sm_50)

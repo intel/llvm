@@ -1540,6 +1540,15 @@ ur_result_t urPrintCommandBufferAppendKernelLaunchExpParams(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintCommandBufferAppendKernelLaunchWithArgsExpParams(
+    const struct ur_command_buffer_append_kernel_launch_with_args_exp_params_t
+        *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintCommandBufferAppendUsmMemcpyExpParams(
     const struct ur_command_buffer_append_usm_memcpy_exp_params_t *params,
     char *buffer, const size_t buff_size, size_t *out_size) {

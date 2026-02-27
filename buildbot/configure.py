@@ -81,7 +81,7 @@ def do_configure(args, passthrough_args):
 
     libclc_enabled = args.cuda or args.hip or args.native_cpu
     if libclc_enabled:
-        llvm_enable_projects += ";libclc"
+        llvm_enable_runtimes += ";libclc"
 
     # DeviceRTL uses -fuse-ld=lld, so enable lld.
     if args.offload:
@@ -149,21 +149,16 @@ def do_configure(args, passthrough_args):
 
         # For clang-format, clang-tidy and code coverage
         llvm_enable_projects += ";clang-tools-extra"
-        llvm_enable_runtimes += "compiler-rt"
+        llvm_enable_runtimes += ";compiler-rt"
         if sys.platform != "darwin":
             # libclc is required for CI validation
             libclc_enabled = True
-            if "libclc" not in llvm_enable_projects:
-                llvm_enable_projects += ";libclc"
+            if "libclc" not in llvm_enable_runtimes:
+                llvm_enable_runtimes += ";libclc"
             # libclc passes `--nvvm-reflect-enable=false`, build NVPTX to enable it
             if "NVPTX" not in llvm_targets_to_build:
                 llvm_targets_to_build += ";NVPTX"
-            # since we are building AMD libclc target we must have AMDGPU target
-            if "AMDGPU" not in llvm_targets_to_build:
-                llvm_targets_to_build += ";AMDGPU"
-            # Add both NVIDIA and AMD libclc targets
-            if libclc_amd_target_names not in libclc_targets_to_build:
-                libclc_targets_to_build += libclc_amd_target_names
+            # Add NVIDIA libclc targets
             if libclc_nvidia_target_names not in libclc_targets_to_build:
                 libclc_targets_to_build += libclc_nvidia_target_names
             libclc_gen_remangled_variants = "ON"
@@ -221,7 +216,7 @@ def do_configure(args, passthrough_args):
     if llvm_enable_runtimes:
         cmake_cmd.extend(
             [
-                "-DLLVM_ENABLE_RUNTIMES={}".format(llvm_enable_runtimes),
+                "-DLLVM_ENABLE_RUNTIMES={}".format(llvm_enable_runtimes.lstrip(";")),
             ]
         )
 

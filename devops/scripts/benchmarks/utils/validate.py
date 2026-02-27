@@ -18,7 +18,7 @@ class Validate:
         If `throw` argument is not None: return val as-is if val matches regex,
         otherwise raise error defined by throw.
         """
-        is_matching: bool = re.compile(regex).match(val) is not None
+        is_matching: bool = re.compile(regex).match(val.strip()) is not None
 
         if throw is None:
             return is_matching
@@ -28,11 +28,11 @@ class Validate:
             return val
 
     @staticmethod
-    def runner_name(runner_name: str, throw: Exception = None):
+    def clean_name(clean_name: str, throw: Exception = None):
         """
-        Returns True if runner_name is clean (no illegal characters).
+        Returns True if clean_name is clean (no illegal characters).
         """
-        return Validate.on_re(runner_name, r"^[a-zA-Z0-9_-]+$", throw=throw)
+        return Validate.on_re(clean_name, r"^[a-zA-Z0-9_-]+$", throw=throw)
 
     @staticmethod
     def timestamp(t: str, throw: Exception = None):

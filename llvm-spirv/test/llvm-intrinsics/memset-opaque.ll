@@ -51,8 +51,8 @@
 ; CHECK-SPIRV: FunctionParameter [[#]] [[#Volatile:]]
 
 ; CHECK-SPIRV: Label [[#Entry:]]
-; CHECK-SPIRV: IEqual [[#]] [[#IsZeroLen:]] [[#Zero:]] [[#Len]]
-; CHECK-SPIRV: BranchConditional [[#IsZeroLen]] [[#End:]] [[#WhileBody:]]
+; CHECK-SPIRV: INotEqual [[#]] [[#IsZeroLen:]] [[#Len]] [[#Zero:]]
+; CHECK-SPIRV: BranchConditional [[#IsZeroLen]] [[#WhileBody:]] [[#End:]]
 
 ; CHECK-SPIRV: Label [[#WhileBody]]
 ; CHECK-SPIRV: Phi [[#]] [[#Offset:]] [[#Zero]] [[#Entry]] [[#OffsetInc:]] [[#WhileBody]]
