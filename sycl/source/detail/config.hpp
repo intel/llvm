@@ -193,6 +193,28 @@ public:
   }
 };
 
+template <> class SYCLConfig<SYCL_GRAPH_ENABLE_NATIVE_RECORDING> {
+  using BaseT = SYCLConfigBase<SYCL_GRAPH_ENABLE_NATIVE_RECORDING>;
+
+public:
+  static const char *getName() { return BaseT::MConfigName; }
+  static bool get() {
+    constexpr bool DefaultValue = false;
+    static const char *ValStr = BaseT::getRawValue();
+
+    if (!ValStr) {
+      return DefaultValue;
+    } else if (strlen(ValStr) != 1 || (ValStr[0] != '0' && ValStr[0] != '1')) {
+      std::string Msg =
+          std::string{"Invalid value for bool configuration variable "} +
+          getName() + std::string{": "} + ValStr;
+      throw exception(make_error_code(errc::runtime), Msg);
+    }
+
+    return ValStr[0] == '1';
+  }
+};
+
 template <> class SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS> {
   using BaseT = SYCLConfigBase<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS>;
 

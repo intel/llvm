@@ -23,6 +23,12 @@
 #include <shared_mutex> // for shared_mutex
 #include <vector>       // for vector
 
+// Forward declare UR types
+struct ur_exp_graph_handle_t_;
+using ur_exp_graph_handle_t = ur_exp_graph_handle_t_ *;
+struct ur_exp_executable_graph_handle_t_;
+using ur_exp_executable_graph_handle_t = ur_exp_executable_graph_handle_t_ *;
+
 // For testing of graph internals
 class GraphImplTest;
 
@@ -293,6 +299,7 @@ public:
 
   nodes_range roots() const { return MRoots; }
   nodes_range nodes() const { return MNodeStorage; }
+  bool empty() const;
 
   /// Find the last node added to this graph from an in-order queue.
   /// @param Queue In-order queue to find the last node added to the graph from.
@@ -518,7 +525,24 @@ public:
     }
   }
 
+  /// Get the native UR graph handle for this graph.
+  /// @return Native UR graph handle, or nullptr if native recording is not
+  /// enabled.
+  ur_exp_graph_handle_t getNativeGraphHandle() const {
+    return MNativeGraphHandle;
+  }
+
+  /// Check if a queue is currently recording to this graph.
+  /// @param Queue The queue to check.
+  /// @return True if the queue is recording to this graph, false otherwise.
+  bool isQueueRecording(sycl::detail::queue_impl &Queue);
+
 private:
+  /// Common implementation for beginRecording and beginRecordingUnlockedQueue.
+  /// @param[in] Queue The queue to be recorded from.
+  /// @param[in] LockQueue Whether to lock the queue when setting command graph.
+  void beginRecordingImpl(sycl::detail::queue_impl &Queue, bool LockQueue);
+
   template <typename... Ts> node_impl &createNode(Ts &&...Args) {
     MNodeStorage.push_back(
         std::make_shared<node_impl>(std::forward<Ts>(Args)...));
@@ -581,6 +605,16 @@ private:
   /// presence of the assume_buffer_outlives_graph property.
   bool MAllowBuffers = false;
 
+  /// Native UR graph handle used for native recording mode.
+  ///
+  /// This handle is non-null only when native recording is enabled via the
+  /// SYCL_GRAPH_ENABLE_NATIVE_RECORDING environment variable.
+  ///
+  /// @note Native recording requires immediate command lists. Queues must be
+  /// created with ext::intel::property::queue::immediate_command_list, or
+  /// SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 must be set globally.
+  ur_exp_graph_handle_t MNativeGraphHandle = nullptr;
+
   /// Mapping from queues to barrier nodes. For each queue the last barrier
   /// node recorded to the graph from the queue is stored.
   std::map<std::weak_ptr<sycl::detail::queue_impl>, node_impl *,
@@ -598,6 +632,12 @@ private:
   // modifiable graph
   std::atomic<size_t> MExecGraphCount = 0;
 };
+
+/// Get whether native recording is enabled for this graph.
+/// @return True if native recording is enabled, false otherwise.
+inline bool isNativeRecordingEnabledForGraph(graph_impl const &graph) {
+  return graph.getNativeGraphHandle() != nullptr;
+}
 
 /// Class representing the implementation of command_graph<executable>.
 class exec_graph_impl {
@@ -646,6 +686,16 @@ public:
   enqueue(sycl::detail::queue_impl &Queue,
           sycl::detail::CG::StorageInitHelper CGData, bool EventNeeded);
 
+  /// Enqueue a native UR graph (used when native recording is enabled).
+  /// @param Queue Command-queue to schedule execution on.
+  /// @param CGData Command-group data for waitlist event dependencies.
+  /// @param EventNeeded Whether an event signalling the completion of this
+  /// operation needs to be returned.
+  /// @return Returns an event if requested and nullptr otherwise.
+  EventImplPtr enqueueNative(sycl::detail::queue_impl &Queue,
+                             sycl::detail::CG::StorageInitHelper CGData,
+                             bool EventNeeded);
+
   /// Iterates through all the nodes in the graph to build the list of
   /// accessor requirements for the whole graph and for each partition.
   void buildRequirements();
@@ -673,6 +723,13 @@ public:
   /// Query the graph_impl.
   /// @return pointer to the graph_impl MGraphImpl
   const std::shared_ptr<graph_impl> &getGraphImpl() const { return MGraphImpl; }
+
+  /// Query the native executable graph handle.
+  /// @return Native UR executable graph handle, or nullptr if not using native
+  /// recording.
+  ur_exp_executable_graph_handle_t getNativeExecutableGraphHandle() const {
+    return MNativeExecutableGraphHandle;
+  }
 
   /// Query the vector of the partitions composing the exec_graph.
   /// @return Vector of partitions in execution order.
@@ -945,6 +1002,11 @@ private:
   bool MIsUpdatable;
   /// If true, the graph profiling is enabled.
   bool MEnableProfiling;
+
+  /// Native UR executable graph handle for native recording mode
+  /// Only valid when the original modifiable graph was created with native
+  /// recording enabled
+  ur_exp_executable_graph_handle_t MNativeExecutableGraphHandle = nullptr;
 
   // Stores a cache of node ids from modifiable graph nodes to the companion
   // node(s) in this graph. Used for quick access when updating this graph.
