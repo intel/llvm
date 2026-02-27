@@ -485,14 +485,14 @@ int main(int argc, char **argv) {
     } else if (arg == "--linear") {
       useLinear = true;
     } else if (arg == "--channels" && i + 1 < argc) {
-      channels = std::atoi(argv[++i]);
+      channels = std::stoi(argv[++i]);
     } else if (arg == "--type" && i + 1 < argc) {
       type = argv[++i];
     } else if (arg.find('x') != std::string::npos) {
       // Parse WxH
       size_t pos = arg.find('x');
-      width = std::atoi(arg.substr(0, pos).c_str());
-      height = std::atoi(arg.substr(pos + 1).c_str());
+      width = std::stoi(arg.substr(0, pos));
+      height = std::stoi(arg.substr(pos + 1));
     }
   }
 

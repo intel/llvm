@@ -239,10 +239,10 @@ int main(int argc, char **argv) {
       timelineInfo.pSignalSemaphoreValues = &vkSignalVal;
 
       VkSubmitInfo uploadSub = {VK_STRUCTURE_TYPE_SUBMIT_INFO};
-      uploadSub.pNext = &timelineInfo;
       uploadSub.commandBufferCount = 1;
       uploadSub.pCommandBuffers = &cmd;
       if (useSemaphores) {
+        uploadSub.pNext = &timelineInfo;
         uploadSub.signalSemaphoreCount = 1;
         uploadSub.pSignalSemaphores = &sem;
       }

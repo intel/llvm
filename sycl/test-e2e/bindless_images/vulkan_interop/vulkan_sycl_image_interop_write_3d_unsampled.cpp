@@ -130,7 +130,7 @@ int runTest(
     bar.srcAccessMask = 0;
     bar.dstAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
     vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                         VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                         VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0,
                          nullptr, 1, &bar);
     vkEndCommandBuffer(cmd);
     VkSubmitInfo si = {VK_STRUCTURE_TYPE_SUBMIT_INFO};

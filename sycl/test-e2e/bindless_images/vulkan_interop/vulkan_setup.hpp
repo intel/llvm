@@ -995,7 +995,7 @@ bool uploadAndVerify(VulkanContext &ctx, ImageResources &imgRes,
       VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
 
   vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                       VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                       VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0,
                        nullptr, 1, &barrier2);
 
   vkEndCommandBuffer(commandBuffer);
@@ -1022,7 +1022,7 @@ bool uploadAndVerify(VulkanContext &ctx, ImageResources &imgRes,
   barrier3.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
   barrier3.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
   barrier3.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-  vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+  vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
                        VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
                        nullptr, 1, &barrier3);
 
@@ -1036,7 +1036,7 @@ bool uploadAndVerify(VulkanContext &ctx, ImageResources &imgRes,
   barrier4.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
   barrier4.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
   vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                       VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                       VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0,
                        nullptr, 1, &barrier4);
 
   vkEndCommandBuffer(commandBuffer);
