@@ -586,7 +586,13 @@ ur_result_t ur_platform_handle_t_::initialize() {
   ZeHostTaskExt.Supported =
       ZeHostTaskExt.zeCommandListAppendHostFunction != nullptr;
 
-  ZeCopyOffloadFlagSupported = this->isDriverVersionNewerOrSimilar(1, 14, 0);
+  // ZE_COMMAND_QUEUE_FLAG_COPY_OFFLOAD_HINT flag is support since L0 v1.14.0
+  ZeCopyOffloadQueueFlagSupported =
+      this->isDriverVersionNewerOrSimilar(1, 14, 0);
+
+  // ZE_COMMAND_LIST_FLAG_COPY_OFFLOAD_HINT flag is support since L0 v1.15.0
+  ZeCopyOffloadListFlagSupported =
+      this->isDriverVersionNewerOrSimilar(1, 15, 0);
 
   return UR_RESULT_SUCCESS;
 }
