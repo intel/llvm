@@ -1,0 +1,70 @@
+//===----------------------------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#include <libspirv/spirv.h>
+
+#pragma OPENCL EXTENSION __cl_clang_non_kernel_scope_local_memory : enable
+
+__attribute__((always_inline)) local char* __clc__get_group_scratch_char() {
+  local char a[32];
+  return a;
+}
+
+__attribute__((always_inline)) local bool* __clc__get_group_scratch_bool() {
+  return (local bool*)__clc__get_group_scratch_char();
+}
+
+__attribute__((always_inline)) local short* __clc__get_group_scratch_short() {
+  local short a[32];
+  return a;
+}
+
+__attribute__((always_inline)) local int* __clc__get_group_scratch_int() {
+  local int a[32];
+  return a;
+}
+
+__attribute__((always_inline)) local long* __clc__get_group_scratch_long() {
+  local long a[32];
+  return a;
+}
+
+#ifdef cl_khr_fp16
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+
+__attribute__((always_inline)) local half* __clc__get_group_scratch_half() {
+  return (local half*)__clc__get_group_scratch_short();
+}
+
+#endif // cl_khr_fp16
+
+__attribute__((always_inline)) local float* __clc__get_group_scratch_float() {
+  return (local float*)__clc__get_group_scratch_int();
+}
+
+#ifdef cl_khr_fp64
+#pragma OPENCL EXTENSION cl_khr_fp64 : enable
+
+__attribute__((always_inline)) local double* __clc__get_group_scratch_double() {
+  return (local double*)__clc__get_group_scratch_long();
+}
+
+#endif // cl_khr_fp64
+
+__attribute__((always_inline)) local complex_half* __clc__get_group_scratch_complex_half() {
+  return (local complex_half*)__clc__get_group_scratch_int();
+}
+
+__attribute__((always_inline)) local complex_float* __clc__get_group_scratch_complex_float() {
+  return (local complex_float*)__clc__get_group_scratch_long();
+}
+
+__attribute__((always_inline)) local complex_double* __clc__get_group_scratch_complex_double() {
+  local __int128 a[32];
+  return (local complex_double*)a;
+}

@@ -5,7 +5,7 @@ atomic/atomic_or.cl
 atomic/atomic_xor.cl
 group/group_ballot.cl
 group/collectives.cl
-group/collectives_helpers.ll
+group/collectives_helpers.cl
 conversion/GenericCastToPtrExplicit.cl
 synchronization/barrier.cl
 images/image_common.cl
