@@ -89,7 +89,7 @@ jobs:
 
       # download build artefact
       - name: Download toolchain
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: sycl_linux_default
       - name: Extract SYCL toolchain
