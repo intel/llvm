@@ -3,12 +3,12 @@
 ## Overview
 By default, SYCL allows device code to be relocatable, where function calls outside
 of the current translation unit are allowed using the `SYCL_EXTERNAL` attribute.
-To implement this, the compiler linkes all device code together, resolving all
+To implement this, the compiler links all device code together, resolving all
 dependencies during the device linking process. This results in one large LLVM
 module that subsequent steps of device linking use. For more information,
 see [Compiler And Runtime Design](https://github.com/intel/llvm/blob/sycl/sycl/doc/design/CompilerAndRuntimeDesign.md).
 
-The tradeoff with this apporach is that having a single module may increase
+The tradeoff with this approach is that having a single module may increase
 memory usage or run time of the compiler.
 
 In the case where device code does not have any `SYCL_EXTERNAL` functions,
@@ -25,7 +25,7 @@ the device linking flow will look like the following:
 Diagram 1. No-RDC Device object file link flows.
 
 Device code is not linked together,
-and is processed seperately by the device linking backend
+and is processed separately by the device linking backend
 
 ## Device code linking with fat static archives
 Next, let's consider the case where the device compiler has a single input file,
@@ -36,7 +36,7 @@ In this case, the device linking flow will look like the following:
 
 Diagram 2. No-RDC Device fat static archive link flows.
 
-Each object file inside the static archive is processed seperately.
+Each object file inside the static archive is processed separately.
 `llvm-foreach` calls `sycl-post-link` once per object file. Since `llvm-spirv`
 is only called once per compiler input, here only once for the static archive,
 its input needs to be a single `TY_tempfilelist` containing
