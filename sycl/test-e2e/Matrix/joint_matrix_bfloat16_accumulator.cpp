@@ -11,17 +11,11 @@
 
 // REQUIRES: target-spir
 
-// REQUIRES: aspect-ext_intel_matrix
-// REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
-
 // XFAIL: gpu-intel-dg2
 // XFAIL-TRACKER: GSD-10112
 
 // XFAIL: windows && intel_gpu_lnl_m && O0
 // XFAIL-TRACKER: CMPLRLLVM-72111
-
-// UNSUPPORTED: linux && arch-intel_gpu_bmg_g21
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21096
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
