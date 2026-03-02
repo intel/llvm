@@ -190,7 +190,7 @@ jobs:
       env:
         ZE_ENABLE_LOADER_DEBUG_TRACE: 1
         LIT_OPTS: "--timeout 120 -j 50"
-      run: cmake --build build -j $(($(nproc)/3)) -- check-unified-runtime-conformance --verbose
+      run: cmake --build build -j $(($(nproc)/3)) -- check-unified-runtime-conformance VERBOSE=1
 
     - name: Get information about platform
       if: ${{ always() }}
