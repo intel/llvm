@@ -5759,15 +5759,15 @@ class OffloadingActionBuilder final {
                            bool isMSVCEnv, bool isNativeCPU,
                            Action *&NativeCPULib, const char *BoundArch) {
 
-      SmallVector<std::string, 8> DeviceLibraries;
+      SmallVector<ToolChain::BitCodeLibraryInfo, 12> DeviceLibraries;
       const toolchains::SYCLToolChain &SYCLTC =
           static_cast<const toolchains::SYCLToolChain &>(*TC);
-      DeviceLibraries = SYCLTC.getDeviceLibNames(TC->getDriver(), C.getArgs(),
-                                                 TC->getTriple());
+      DeviceLibraries.append(SYCLTC.getDeviceLibs(C.getArgs(),
+                                                  Action::OFK_SYCL));
 
       for (const auto &DeviceLib : DeviceLibraries) {
         Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),
-                                     Args.MakeArgString(DeviceLib));
+                                     Args.MakeArgString(DeviceLib.Path));
         // We are using the LLVM-IR device libraries directly, no need
         // to unbundle any objects.
         auto *SYCLDeviceLibsInputAction =
