@@ -111,12 +111,19 @@ public:
   // function allows setting it as more images are added.
   void setImplicitLocalArgPos(int Pos);
 
+  // Returns the demangled kernel name, caching the result to avoid repeated
+  // demangling overhead.
+  std::string_view getDemangledName() const;
+
 private:
   bool isCompileTimeInfoSet() const { return KernelSize != 0; }
 
   FastKernelSubcacheT MFastKernelSubcache;
   std::optional<int> MImplicitLocalArgPos;
   const std::optional<sycl::kernel_id> MKernelID;
+  // Cached demangled kernel name for instrumentation
+  mutable std::string MDemangledName;
+  mutable std::once_flag MDemangledNameInitFlag;
 };
 
 } // namespace detail
