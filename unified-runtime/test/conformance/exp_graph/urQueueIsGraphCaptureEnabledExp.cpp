@@ -34,7 +34,10 @@ struct urQueueIsGraphCaptureEnabledExpTest : uur::urGraphSupportedExpTest {
   ur_exp_graph_handle_t graph = nullptr;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urQueueIsGraphCaptureEnabledExpTest);
+UUR_DEVICE_TEST_SUITE_WITH_QUEUE_TYPES(
+    urQueueIsGraphCaptureEnabledExpTest,
+    ::testing::Values(0 /* In-Order */,
+                      UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE));
 
 TEST_P(urQueueIsGraphCaptureEnabledExpTest, SuccessEnabled) {
   bool isEnabled = false;

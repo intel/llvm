@@ -41,7 +41,7 @@
 #include "llvm/Option/ArgList.h"
 #include "llvm/Option/OptTable.h"
 #include "llvm/Option/Option.h"
-#include "llvm/Passes/PassPlugin.h"
+#include "llvm/Plugins/PassPlugin.h"
 #include "llvm/Remarks/HotnessThresholdParser.h"
 #include "llvm/SYCLPostLink/ModuleSplitter.h"
 #include "llvm/Support/CommandLine.h"
@@ -481,9 +481,19 @@ fatbinary(ArrayRef<std::pair<StringRef, StringRef>> InputFiles,
   CmdArgs.push_back(Triple.isArch64Bit() ? "-64" : "-32");
   CmdArgs.push_back("--create");
   CmdArgs.push_back(*TempFileOrErr);
-  for (const auto &[File, Arch] : InputFiles)
-    CmdArgs.push_back(
-        Args.MakeArgString("--image=profile=" + Arch + ",file=" + File));
+  for (const auto &[File, Arch] : InputFiles) {
+    StringRef Kind = "elf";
+    StringRef ArchId = Arch;
+    if (Arch.starts_with("sm_")) {
+      ArchId = Arch.drop_front(3);
+    } else if (Arch.starts_with("compute_")) {
+      Kind = "ptx";
+      ArchId = Arch.drop_front(8);
+    }
+
+    CmdArgs.push_back(Args.MakeArgString("--image3=kind=" + Kind +
+                                         ",sm=" + ArchId + ",file=" + File));
+  }
 
   if (Error Err = executeCommands(*FatBinaryPath, CmdArgs))
     return std::move(Err);

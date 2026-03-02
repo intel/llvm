@@ -119,11 +119,11 @@ jobs:
       - name: Build
         run: |
           cd build
-          make llvm-spirv -j2
+          make llvm-spirv -j$(nproc)
       - name: Build tests & test
         run: |
           cd build
-          make check-llvm-spirv -j2
+          make check-llvm-spirv -j$(nproc)
 
   build_windows:
     name: Windows
@@ -218,7 +218,7 @@ jobs:
       - name: Build
         run: |
           cd build
-          make llvm-spirv -j2
+          make llvm-spirv -j$(sysctl -n hw.logicalcpu)
           # FIXME: Testing is disabled at the moment as it requires clang to be present
           # - name: Build tests & test
           #   run: |

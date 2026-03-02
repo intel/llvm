@@ -8,7 +8,10 @@
 
 using urGraphInstantiateGraphExpTest = uur::urGraphExpTest;
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urGraphInstantiateGraphExpTest);
+UUR_DEVICE_TEST_SUITE_WITH_QUEUE_TYPES(
+    urGraphInstantiateGraphExpTest,
+    ::testing::Values(0 /* In-Order */,
+                      UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE));
 
 TEST_P(urGraphInstantiateGraphExpTest, InvalidEmptyGraph) {
   ur_exp_executable_graph_handle_t exGraph = nullptr;
@@ -29,7 +32,10 @@ TEST_P(urGraphInstantiateGraphExpTest, InvalidNullPtrExGraph) {
 
 using urGraphInstantiatePopulatedGraphExpTest = uur::urGraphPopulatedExpTest;
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urGraphInstantiatePopulatedGraphExpTest);
+UUR_DEVICE_TEST_SUITE_WITH_QUEUE_TYPES(
+    urGraphInstantiatePopulatedGraphExpTest,
+    ::testing::Values(0 /* In-Order */,
+                      UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE));
 
 TEST_P(urGraphInstantiatePopulatedGraphExpTest, SuccessMultipleInstantiations) {
   const size_t numInstances = 5;

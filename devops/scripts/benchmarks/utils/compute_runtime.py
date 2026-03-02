@@ -1,4 +1,4 @@
-# Copyright (C) 2024-2025 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -56,7 +56,7 @@ class ComputeRuntime:
         project = GitProject(repo, commit, Path(options.workdir), "gmmlib")
         rebuilt = False
         if project.needs_rebuild():
-            project.configure()
+            project.configure(extra_args=["-DRUN_TEST_SUITE=0"])
             project.build()
             project.install()
             rebuilt = True
@@ -211,7 +211,6 @@ class ComputeRuntime:
 
             log.info("Building Compute Runtime...")
             extra_config_args = [
-                "-DNEO_ENABLE_i915_PRELIM_DETECTION=1",
                 "-DNEO_ENABLE_I915_PRELIM_DETECTION=1",
                 "-DNEO_SKIP_UNIT_TESTS=1",
                 f"-DGMM_DIR={self.gmmlib}",

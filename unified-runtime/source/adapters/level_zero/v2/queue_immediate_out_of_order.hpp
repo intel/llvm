@@ -32,6 +32,10 @@ private:
   // This might need to be changed for future hardware.
   static constexpr size_t numCommandLists = 4;
 
+  // The out of order queue always uses just the first command list manager
+  // to capture commands when the graph capture is active.
+  static constexpr uint32_t captureCmdListManagerIdx = 0;
+
   ur_context_handle_t hContext;
   ur_device_handle_t hDevice;
 
@@ -46,8 +50,15 @@ private:
   std::array<ur_event_handle_t, numCommandLists> barrierEvents;
 
   uint32_t getNextCommandListId() {
-    return commandListIndex.fetch_add(1, std::memory_order_relaxed) %
-           numCommandLists;
+    bool isGraphCaptureActive;
+    auto &cmdListManager =
+        (*commandListManagers.get_no_lock())[captureCmdListManagerIdx];
+    cmdListManager.isGraphCaptureActive(&isGraphCaptureActive);
+
+    return isGraphCaptureActive
+               ? captureCmdListManagerIdx
+               : commandListIndex.fetch_add(1, std::memory_order_relaxed) %
+                     numCommandLists;
   }
 
 public:
@@ -604,28 +615,39 @@ public:
   }
 
   ur_result_t queueBeginGraphCapteExp() override {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    auto commandListId = getNextCommandListId();
+    return commandListManagers.lock()[commandListId].beginGraphCapture();
   }
 
   ur_result_t
-  queueBeginCapteIntoGraphExp(ur_exp_graph_handle_t /* hGraph */) override {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  queueBeginCapteIntoGraphExp(ur_exp_graph_handle_t hGraph) override {
+    auto commandListId = getNextCommandListId();
+    return commandListManagers.lock()[commandListId].beginCaptureIntoGraph(
+        hGraph);
   }
 
-  ur_result_t
-  queueEndGraphCapteExp(ur_exp_graph_handle_t * /* phGraph */) override {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  ur_result_t queueEndGraphCapteExp(ur_exp_graph_handle_t *phGraph) override {
+    auto commandListId = getNextCommandListId();
+    return commandListManagers.lock()[commandListId].endGraphCapture(phGraph);
   }
 
-  ur_result_t enqueueGraphExp(ur_exp_executable_graph_handle_t /* hGraph */,
-                              uint32_t /* numEventsInWaitList */,
-                              const ur_event_handle_t * /* phEventWaitList */,
-                              ur_event_handle_t * /* phEvent */) override {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  ur_result_t enqueueGraphExp(ur_exp_executable_graph_handle_t hGraph,
+                              uint32_t numEventsInWaitList,
+                              const ur_event_handle_t *phEventWaitList,
+                              ur_event_handle_t *phEvent) override {
+    wait_list_view waitListView =
+        wait_list_view(phEventWaitList, numEventsInWaitList);
+
+    auto commandListId = getNextCommandListId();
+    return commandListManagers.lock()[commandListId].appendGraph(
+        hGraph, waitListView,
+        createEventIfRequested(eventPool.get(), phEvent, this));
   }
 
-  ur_result_t queueIsGraphCapteEnabledExp(bool * /* pResult */) override {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  ur_result_t queueIsGraphCapteEnabledExp(bool *pResult) override {
+    auto commandListId = getNextCommandListId();
+    return commandListManagers.lock()[commandListId].isGraphCaptureActive(
+        pResult);
   }
 
   ur_result_t

@@ -118,7 +118,7 @@ jobs:
       build_configure_extra_args: -DCMAKE_C_FLAGS="/fp:precise /clang:-Wno-nonportable-include-path /clang:-Wno-cast-function-type-mismatch" -DCMAKE_CXX_FLAGS="/fp:precise /clang:-Wno-nonportable-include-path /clang:-Wno-cast-function-type-mismatch" -DCMAKE_EXE_LINKER_FLAGS=/manifest:no -DCMAKE_MODULE_LINKER_FLAGS=/manifest:no -DCMAKE_SHARED_LINKER_FLAGS=/manifest:no
       build_cache_suffix: icx
 
-  e2e-win:
+  e2e-win-gen12:
     needs: build-win
     # Continue if build was successful.
     if: |
@@ -128,6 +128,22 @@ jobs:
     with:
       name: Intel GEN12 Graphics with Level Zero
       runner: '["Windows","gen12"]'
+      target_devices: "level_zero:gpu"
+      toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
+      cxx: icx
+      # https://github.com/intel/llvm/issues/18458
+      env: "{'LIT_FILTER_OUT':'std_array.cpp|compile_on_win_with_mdd.cpp'}"
+
+  e2e-win-bmg:
+    needs: build-win
+    # Continue if build was successful.
+    if: |
+      !cancelled() &&
+      needs.build-win.outputs.build_conclusion == 'success'
+    uses: ./.github/workflows/sycl-windows-run-tests.yml
+    with:
+      name: Intel Battlemage Graphics with Level Zero
+      runner: '["Windows","bmg"]'
       target_devices: "level_zero:gpu"
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
       cxx: icx
