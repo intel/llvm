@@ -29,7 +29,7 @@ ur_exp_graph_handle_t_::~ur_exp_graph_handle_t_() {
     ze_result_t ZeResult = ZE_CALL_NOCHECK(
         hContext->getPlatform()->ZeGraphExt.zeGraphDestroyExp, (zeGraph));
     if (ZeResult != ZE_RESULT_SUCCESS) {
-      UR_LOG(WARN, "Failed to destroy graph handle: {}", ZeResult);
+      UR_LOG_SAFE(WARN, "Failed to destroy graph handle: {}", ZeResult);
     }
   }
 }
@@ -48,7 +48,8 @@ ur_exp_executable_graph_handle_t_::~ur_exp_executable_graph_handle_t_() {
         hContext->getPlatform()->ZeGraphExt.zeExecutableGraphDestroyExp,
         (zeExGraph));
     if (ZeResult != ZE_RESULT_SUCCESS) {
-      UR_LOG(WARN, "Failed to destroy executable graph handle: {}", ZeResult);
+      UR_LOG_SAFE(WARN, "Failed to destroy executable graph handle: {}",
+                  ZeResult);
     }
   }
 }

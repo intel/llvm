@@ -58,8 +58,8 @@ class BenchmarkHistory:
             except IndexError:
                 return ""
 
-        baseline_drop_after = options.archive_baseline_days * 3
-        pr_drop_after = options.archive_pr_days * 3
+        baseline_drop_after = options.archive_baseline_days * 2
+        pr_drop_after = options.archive_pr_days * 2
         baseline_cutoff_date = datetime.now(timezone.utc) - timedelta(
             days=baseline_drop_after
         )
@@ -67,7 +67,7 @@ class BenchmarkHistory:
         pr_cutoff_date = datetime.now(timezone.utc) - timedelta(days=pr_drop_after)
         log.debug(f"PR cutoff date: {pr_cutoff_date}")
 
-        # Filter out files that exceed archiving criteria three times the specified days
+        # Filter out files that exceed archiving criteria two times the specified days
         def is_file_too_old(file_path: Path) -> bool:
             try:
                 if file_path.stem.startswith("Baseline_"):
@@ -162,7 +162,7 @@ class BenchmarkHistory:
         if hostname is None:
             hostname = socket.gethostname()
         else:
-            Validate.runner_name(
+            Validate.clean_name(
                 hostname,
                 throw=ValueError("Illegal characters found in specified RUNNER_NAME."),
             )
@@ -186,6 +186,9 @@ class BenchmarkHistory:
 
         # Get platform information
         platform_info = get_platform_info()
+        if platform_info.gpu_info is None:
+            log.warning("GPU information detection failed.")
+            platform_info.gpu_info = []
 
         return BenchmarkRun(
             name=name,

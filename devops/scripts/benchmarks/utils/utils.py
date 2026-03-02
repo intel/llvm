@@ -34,7 +34,7 @@ def sanitize_filename(name: str) -> str:
 
 def run(
     command,
-    env_vars={},
+    env_vars=None,
     cwd=None,
     add_sycl=False,
     ld_library=[],
@@ -42,6 +42,8 @@ def run(
     input=None,
 ):
     try:
+        env_vars = dict(env_vars) if env_vars else {}
+
         if timeout is None:
             timeout = options.timeout
 
@@ -80,10 +82,11 @@ def run(
         # order is important, we want provided sycl rt libraries to be first
         if add_sycl:
             sycl_bin_path = os.path.join(options.sycl, "bin")
+            sycl_lib_path = os.path.join(options.sycl, "lib")
+
             env_vars["PATH"] = os.pathsep.join(
                 filter(None, [sycl_bin_path, env_vars.get("PATH", "")])
             )
-            sycl_lib_path = os.path.join(options.sycl, "lib")
             env_vars["LD_LIBRARY_PATH"] = os.pathsep.join(
                 filter(None, [sycl_lib_path, env_vars.get("LD_LIBRARY_PATH", "")])
             )

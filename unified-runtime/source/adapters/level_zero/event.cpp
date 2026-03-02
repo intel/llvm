@@ -539,7 +539,7 @@ ur_result_t urEventGetProfilingInfo(
   ur_device_handle_t Device =
       Event->UrQueue ? Event->UrQueue->Device : Event->Context->Devices[0];
 
-  uint64_t ZeTimerResolution = Device->ZeDeviceProperties->timerResolution;
+  const double ZeTimerResolution = Device->getTimerResolution();
   const uint64_t TimestampMaxValue = Device->getTimestampMask();
 
   UrReturnHelper ReturnValue(PropValueSize, PropValue, PropValueSizeRet);

@@ -58,6 +58,7 @@
 ; GCN-O0-NEXT:    SYCL Add Implicit Global Offset
 ; GCN-O0-NEXT:    FunctionPass Manager
 ; GCN-O0-NEXT:      FPBuiltin Function Selection
+; GCN-O0-NEXT:      Dominator Tree Construction
 ; GCN-O0-NEXT:      AMDGPU Lower Kernel Arguments
 ; GCN-O0-NEXT:    Lower buffer fat pointer operations to buffer resources
 ; GCN-O0-NEXT:    AMDGPU lower intrinsics
@@ -252,8 +253,8 @@
 ; GCN-O1-NEXT:      FPBuiltin Function Selection
 ; GCN-O1-NEXT:    AMDGPU Preload Kernel Arguments
 ; GCN-O1-NEXT:    FunctionPass Manager
-; GCN-O1-NEXT:      AMDGPU Lower Kernel Arguments
 ; GCN-O1-NEXT:      Dominator Tree Construction
+; GCN-O1-NEXT:      AMDGPU Lower Kernel Arguments
 ; GCN-O1-NEXT:      Natural Loop Information
 ; GCN-O1-NEXT:      CodeGen Prepare
 ; GCN-O1-NEXT:    Lower buffer fat pointer operations to buffer resources
@@ -563,8 +564,8 @@
 ; GCN-O1-OPTS-NEXT:      FPBuiltin Function Selection
 ; GCN-O1-OPTS-NEXT:    AMDGPU Preload Kernel Arguments
 ; GCN-O1-OPTS-NEXT:    FunctionPass Manager
-; GCN-O1-OPTS-NEXT:      AMDGPU Lower Kernel Arguments
 ; GCN-O1-OPTS-NEXT:      Dominator Tree Construction
+; GCN-O1-OPTS-NEXT:      AMDGPU Lower Kernel Arguments
 ; GCN-O1-OPTS-NEXT:      Natural Loop Information
 ; GCN-O1-OPTS-NEXT:      CodeGen Prepare
 ; GCN-O1-OPTS-NEXT:      Dominator Tree Construction
@@ -668,7 +669,6 @@
 ; GCN-O1-OPTS-NEXT:        GCN DPP Combine
 ; GCN-O1-OPTS-NEXT:        SI Load Store Optimizer
 ; GCN-O1-OPTS-NEXT:        SI Peephole SDWA
-; GCN-O1-OPTS-NEXT:        Machine Block Frequency Analysis
 ; GCN-O1-OPTS-NEXT:        MachineDominator Tree Construction
 ; GCN-O1-OPTS-NEXT:        Early Machine Loop Invariant Code Motion
 ; GCN-O1-OPTS-NEXT:        MachineDominator Tree Construction
@@ -891,8 +891,8 @@
 ; GCN-O2-NEXT:      FPBuiltin Function Selection
 ; GCN-O2-NEXT:    AMDGPU Preload Kernel Arguments
 ; GCN-O2-NEXT:    FunctionPass Manager
-; GCN-O2-NEXT:      AMDGPU Lower Kernel Arguments
 ; GCN-O2-NEXT:      Dominator Tree Construction
+; GCN-O2-NEXT:      AMDGPU Lower Kernel Arguments
 ; GCN-O2-NEXT:      Natural Loop Information
 ; GCN-O2-NEXT:      CodeGen Prepare
 ; GCN-O2-NEXT:      Dominator Tree Construction
@@ -997,7 +997,6 @@
 ; GCN-O2-NEXT:        GCN DPP Combine
 ; GCN-O2-NEXT:        SI Load Store Optimizer
 ; GCN-O2-NEXT:        SI Peephole SDWA
-; GCN-O2-NEXT:        Machine Block Frequency Analysis
 ; GCN-O2-NEXT:        MachineDominator Tree Construction
 ; GCN-O2-NEXT:        Early Machine Loop Invariant Code Motion
 ; GCN-O2-NEXT:        MachineDominator Tree Construction
@@ -1234,8 +1233,8 @@
 ; GCN-O3-NEXT:      FPBuiltin Function Selection
 ; GCN-O3-NEXT:    AMDGPU Preload Kernel Arguments
 ; GCN-O3-NEXT:    FunctionPass Manager
-; GCN-O3-NEXT:      AMDGPU Lower Kernel Arguments
 ; GCN-O3-NEXT:      Dominator Tree Construction
+; GCN-O3-NEXT:      AMDGPU Lower Kernel Arguments
 ; GCN-O3-NEXT:      Natural Loop Information
 ; GCN-O3-NEXT:      CodeGen Prepare
 ; GCN-O3-NEXT:      Dominator Tree Construction
@@ -1340,7 +1339,6 @@
 ; GCN-O3-NEXT:        GCN DPP Combine
 ; GCN-O3-NEXT:        SI Load Store Optimizer
 ; GCN-O3-NEXT:        SI Peephole SDWA
-; GCN-O3-NEXT:        Machine Block Frequency Analysis
 ; GCN-O3-NEXT:        MachineDominator Tree Construction
 ; GCN-O3-NEXT:        Early Machine Loop Invariant Code Motion
 ; GCN-O3-NEXT:        MachineDominator Tree Construction

@@ -192,7 +192,7 @@ The following table provides the special values of the E2M1 type.
 
 |====
 
-This extension adds the `fp4_e2m1` type, which represents a set of packed E2M1
+This extension adds the `fp4_e2m1_x` type, which represents a set of packed E2M1
 values and provides various conversions to other types.
 The number of packed elements is defined by the `N` template parameter, which
 must be either 1 or 2.
@@ -202,87 +202,87 @@ must be either 1 or 2.
 namespace sycl::ext::oneapi::experimental {
 
 template<size_t N>
-class fp4_e2m1 {
+class fp4_e2m1_x {
  public:
-  fp4_e2m1() = default;
-  fp4_e2m1(const fp4_e2m1 &) = default;
-  ~fp4_e2m1() = default;
-  fp4_e2m1& operator=(const fp4_e2m1&) = default;
+  fp4_e2m1_x() = default;
+  fp4_e2m1_x(const fp4_e2m1_x &) = default;
+  ~fp4_e2m1_x() = default;
+  fp4_e2m1_x& operator=(const fp4_e2m1_x&) = default;
 
   // Construct from pack of half, bfloat16, float, double.
   // Available only when the size of the pack is equal to N.
 
   // Available only when each type in the pack is half.
   template<typename... Halfs>
-  explicit fp4_e2m1(Halfs... vals);
+  explicit fp4_e2m1_x(Halfs... vals);
 
   // Available only when each type in the pack is bfloat16.
   template<typename... Bfloats>
-  explicit fp4_e2m1(Bfloats... vals);
+  explicit fp4_e2m1_x(Bfloats... vals);
 
   // Available only when each type in the pack is float.
   template<typename... Floats>
-  explicit fp4_e2m1(Floats... vals);
+  explicit fp4_e2m1_x(Floats... vals);
 
   // Available only when each type in the pack is double.
   template<typename... Doubles>
-  explicit fp4_e2m1(Doubles... vals);
+  explicit fp4_e2m1_x(Doubles... vals);
 
   // Construct from an array of half, bfloat16, float, double.
 
-  explicit fp4_e2m1(half const (&vals)[N], rounding r = rounding::to_even);
-  explicit fp4_e2m1(bfloat16 const (&vals)[N], rounding r = rounding::to_even);
-  explicit fp4_e2m1(float const (&vals)[N], rounding r = rounding::to_even);
-  explicit fp4_e2m1(double const (&vals)[N]);
+  explicit fp4_e2m1_x(half const (&vals)[N], rounding r = rounding::to_even);
+  explicit fp4_e2m1_x(bfloat16 const (&vals)[N], rounding r = rounding::to_even);
+  explicit fp4_e2m1_x(float const (&vals)[N], rounding r = rounding::to_even);
+  explicit fp4_e2m1_x(double const (&vals)[N]);
 
   // Construct from an marray of half, bfloat16, float, double.
 
-  explicit fp4_e2m1(const marray<half,N>& vals, rounding r = rounding::to_even);
-  explicit fp4_e2m1(const marray<bfloat16,N>& vals, rounding r = rounding::to_even);
-  explicit fp4_e2m1(const marray<float,N>& vals, rounding r = rounding::to_even);
-  explicit fp4_e2m1(const marray<double,N>& vals);
+  explicit fp4_e2m1_x(const marray<half,N>& vals, rounding r = rounding::to_even);
+  explicit fp4_e2m1_x(const marray<bfloat16,N>& vals, rounding r = rounding::to_even);
+  explicit fp4_e2m1_x(const marray<float,N>& vals, rounding r = rounding::to_even);
+  explicit fp4_e2m1_x(const marray<double,N>& vals);
 
   // Construct with stochastic rounding with user provided seed from an array of
   // half, bfloat16, float.
 
-  explicit fp4_e2m1(half const (&vals)[N], const stochastic_seed& seed);
-  explicit fp4_e2m1(bfloat16 const (&vals)[N], const stochastic_seed& seed);
-  explicit fp4_e2m1(float const (&vals)[N], const stochastic_seed& seed);
+  explicit fp4_e2m1_x(half const (&vals)[N], const stochastic_seed& seed);
+  explicit fp4_e2m1_x(bfloat16 const (&vals)[N], const stochastic_seed& seed);
+  explicit fp4_e2m1_x(float const (&vals)[N], const stochastic_seed& seed);
 
   // Construct with stochastic rounding with user provided seed from an marray
   // of half, bfloat16, float.
 
-  explicit fp4_e2m1(const marray<half,N>& vals, const stochastic_seed& seed);
-  explicit fp4_e2m1(const marray<bfloat16,N>& vals, const stochastic_seed& seed);
-  explicit fp4_e2m1(const marray<float,N>& vals, const stochastic_seed& seed);
+  explicit fp4_e2m1_x(const marray<half,N>& vals, const stochastic_seed& seed);
+  explicit fp4_e2m1_x(const marray<bfloat16,N>& vals, const stochastic_seed& seed);
+  explicit fp4_e2m1_x(const marray<float,N>& vals, const stochastic_seed& seed);
 
   // Construct from integer types.
   // Available only when N==1.
 
-  explicit fp4_e2m1(short val);
-  explicit fp4_e2m1(int val);
-  explicit fp4_e2m1(long val);
-  explicit fp4_e2m1(long long val);
-  explicit fp4_e2m1(unsigned short val);
-  explicit fp4_e2m1(unsigned int val);
-  explicit fp4_e2m1(unsigned long val);
-  explicit fp4_e2m1(unsigned long long val);
+  explicit fp4_e2m1_x(short val);
+  explicit fp4_e2m1_x(int val);
+  explicit fp4_e2m1_x(long val);
+  explicit fp4_e2m1_x(long long val);
+  explicit fp4_e2m1_x(unsigned short val);
+  explicit fp4_e2m1_x(unsigned int val);
+  explicit fp4_e2m1_x(unsigned long val);
+  explicit fp4_e2m1_x(unsigned long long val);
 
   // Assign (operator) from half, bfloat16, float, double, and integer types.
   // Available only when N==1.
 
-  fp4_e2m1& operator=(half val);
-  fp4_e2m1& operator=(bfloat16 val);
-  fp4_e2m1& operator=(float val);
-  fp4_e2m1& operator=(double val);
-  fp4_e2m1& operator=(short val);
-  fp4_e2m1& operator=(int val);
-  fp4_e2m1& operator=(long val);
-  fp4_e2m1& operator=(long long val);
-  fp4_e2m1& operator=(unsigned short val);
-  fp4_e2m1& operator=(unsigned int val);
-  fp4_e2m1& operator=(unsigned long val);
-  fp4_e2m1& operator=(unsigned long long val);
+  fp4_e2m1_x& operator=(half val);
+  fp4_e2m1_x& operator=(bfloat16 val);
+  fp4_e2m1_x& operator=(float val);
+  fp4_e2m1_x& operator=(double val);
+  fp4_e2m1_x& operator=(short val);
+  fp4_e2m1_x& operator=(int val);
+  fp4_e2m1_x& operator=(long val);
+  fp4_e2m1_x& operator=(long long val);
+  fp4_e2m1_x& operator=(unsigned short val);
+  fp4_e2m1_x& operator=(unsigned int val);
+  fp4_e2m1_x& operator=(unsigned long val);
+  fp4_e2m1_x& operator=(unsigned long long val);
 
   // Convert to half, bfloat16, float, double.
   // Available only when N==1.
@@ -325,7 +325,11 @@ class fp4_e2m1 {
 
 // Deduction guide available only when the size of the pack is greater than zero.
 template<typename... Ts>
-fp4_e2m1(Ts...) -> fp4_e2m1<sizeof...(Ts)>;
+fp4_e2m1_x(Ts...) -> fp4_e2m1_x<sizeof...(Ts)>;
+
+// Convenience aliases
+using fp4_e2m1 = fp4_e2m1_x<1>;
+using fp4_e2m1_x2 = fp4_e2m1_x<2>;
 
 } // namespace sycl::ext::oneapi::experimental
 ----
@@ -334,10 +338,10 @@ fp4_e2m1(Ts...) -> fp4_e2m1<sizeof...(Ts)>;
 
 [source,c++]
 ----
-fp4_e2m1() = default;
-fp4_e2m1(const fp4_e2m1 &) = default;
-~fp4_e2m1() = default;
-fp4_e2m1& operator=(const fp4_e2m1&) = default;
+fp4_e2m1_x() = default;
+fp4_e2m1_x(const fp4_e2m1_x &) = default;
+~fp4_e2m1_x() = default;
+fp4_e2m1_x& operator=(const fp4_e2m1_x&) = default;
 ----
 
 The default constructor, copy constructor, destructor, and copy assignment
@@ -347,17 +351,17 @@ operator are all trivial.
 
 [source,c++]
 ----
-template<typename... Halfs>          (1)
-explicit fp4_e2m1(Halfs... vals);
+template<typename... Halfs>            (1)
+explicit fp4_e2m1_x(Halfs... vals);
 
-template<typename... Bfloats>        (2)
-explicit fp4_e2m1(Bfloats... vals);
+template<typename... Bfloats>          (2)
+explicit fp4_e2m1_x(Bfloats... vals);
 
-template<typename... Floats>         (3)
-explicit fp4_e2m1(Floats... vals);
+template<typename... Floats>           (3)
+explicit fp4_e2m1_x(Floats... vals);
 
-template<typename... Doubles>        (4)
-explicit fp4_e2m1(Doubles... vals);
+template<typename... Doubles>          (4)
+explicit fp4_e2m1_x(Doubles... vals);
 ----
 
 _Constraints_ (1): The size of the `Halfs` pack is `N` and each type in this
@@ -372,7 +376,7 @@ pack is `float`.
 _Constraints_ (4): The size of the `Doubles` pack is `N` and each type in this
 pack is `double`.
 
-_Effects:_ Initializes each element of this `fp4_e2m1` object from the
+_Effects:_ Initializes each element of this `fp4_e2m1_x` object from the
 corresponding value in the `vals` pack.
 Each value is converted using the `rounding::to_even` rounding mode.
 
@@ -380,13 +384,13 @@ Each value is converted using the `rounding::to_even` rounding mode.
 
 [source,c++]
 ----
-explicit fp4_e2m1(half const (&vals)[N], rounding r = rounding::to_even);      (1)
-explicit fp4_e2m1(bfloat16 const (&vals)[N], rounding r = rounding::to_even);  (2)
-explicit fp4_e2m1(float const (&vals)[N], rounding r = rounding::to_even);     (3)
-explicit fp4_e2m1(double const (&vals)[N]);                                    (4)
+explicit fp4_e2m1_x(half const (&vals)[N], rounding r = rounding::to_even);      (1)
+explicit fp4_e2m1_x(bfloat16 const (&vals)[N], rounding r = rounding::to_even);  (2)
+explicit fp4_e2m1_x(float const (&vals)[N], rounding r = rounding::to_even);     (3)
+explicit fp4_e2m1_x(double const (&vals)[N]);                                    (4)
 ----
 
-_Effects:_ Initializes each element of this `fp4_e2m1` object from the
+_Effects:_ Initializes each element of this `fp4_e2m1_x` object from the
 corresponding element in the array `vals`.
 In overloads (1) - (3), each value is converted using the `r` rounding mode.
 In overload (4), each value is converted using the `rounding::to_even` rounding
@@ -402,13 +406,13 @@ _Target Support:_ The rounding mode `r` has the following restrictions:
 
 [source,c++]
 ----
-explicit fp4_e2m1(const marray<half,N>& vals, rounding r = rounding::to_even);      (1)
-explicit fp4_e2m1(const marray<bfloat16,N>& vals, rounding r = rounding::to_even);  (2)
-explicit fp4_e2m1(const marray<float,N>& vals, rounding r = rounding::to_even);     (3)
-explicit fp4_e2m1(const marray<double,N>& vals);                                    (4)
+explicit fp4_e2m1_x(const marray<half,N>& vals, rounding r = rounding::to_even);      (1)
+explicit fp4_e2m1_x(const marray<bfloat16,N>& vals, rounding r = rounding::to_even);  (2)
+explicit fp4_e2m1_x(const marray<float,N>& vals, rounding r = rounding::to_even);     (3)
+explicit fp4_e2m1_x(const marray<double,N>& vals);                                    (4)
 ----
 
-_Effects:_ Initializes each element of this `fp4_e2m1` object from the
+_Effects:_ Initializes each element of this `fp4_e2m1_x` object from the
 corresponding element in the `marray` object `vals`.
 In overloads (1) - (3), each value is converted using the `r` rounding mode.
 In overload (4), each value is converted using the `rounding::to_even` rounding
@@ -424,12 +428,12 @@ _Target Support:_ The rounding mode `r` has the following restrictions:
 
 [source,c++]
 ----
-explicit fp4_e2m1(half const (&vals)[N], const stochastic_seed& seed);
-explicit fp4_e2m1(bfloat16 const (&vals)[N], const stochastic_seed& seed);
-explicit fp4_e2m1(float const (&vals)[N], const stochastic_seed& seed);
+explicit fp4_e2m1_x(half const (&vals)[N], const stochastic_seed& seed);
+explicit fp4_e2m1_x(bfloat16 const (&vals)[N], const stochastic_seed& seed);
+explicit fp4_e2m1_x(float const (&vals)[N], const stochastic_seed& seed);
 ----
 
-_Effects:_ Initializes each element of this `fp4_e2m1` object from the
+_Effects:_ Initializes each element of this `fp4_e2m1_x` object from the
 corresponding value in the array `vals` using stochastic rounding.
 The pseudo-random biases are created deterministically using the seed value
 referenced by the helper object `seed`.
@@ -449,12 +453,12 @@ They are only supported in device code as follows:
 
 [source,c++]
 ----
-explicit fp4_e2m1(const marray<half,N>& vals, const stochastic_seed& seed);
-explicit fp4_e2m1(const marray<bfloat16,N>& vals, const stochastic_seed& seed);
-explicit fp4_e2m1(const marray<float,N>& vals, const stochastic_seed& seed);
+explicit fp4_e2m1_x(const marray<half,N>& vals, const stochastic_seed& seed);
+explicit fp4_e2m1_x(const marray<bfloat16,N>& vals, const stochastic_seed& seed);
+explicit fp4_e2m1_x(const marray<float,N>& vals, const stochastic_seed& seed);
 ----
 
-_Effects:_ Initializes each element of this `fp4_e2m1` object from the
+_Effects:_ Initializes each element of this `fp4_e2m1_x` object from the
 corresponding value in the `marray` object `vals` using stochastic rounding.
 The pseudo-random biases are created deterministically using the seed value
 referenced by the helper object `seed`.
@@ -474,19 +478,19 @@ They are only supported in device code as follows:
 
 [source,c++]
 ----
-explicit fp4_e2m1(short val);
-explicit fp4_e2m1(int val);
-explicit fp4_e2m1(long val);
-explicit fp4_e2m1(long long val);
-explicit fp4_e2m1(unsigned short val);
-explicit fp4_e2m1(unsigned int val);
-explicit fp4_e2m1(unsigned long val);
-explicit fp4_e2m1(unsigned long long val);
+explicit fp4_e2m1_x(short val);
+explicit fp4_e2m1_x(int val);
+explicit fp4_e2m1_x(long val);
+explicit fp4_e2m1_x(long long val);
+explicit fp4_e2m1_x(unsigned short val);
+explicit fp4_e2m1_x(unsigned int val);
+explicit fp4_e2m1_x(unsigned long val);
+explicit fp4_e2m1_x(unsigned long long val);
 ----
 
 _Constraints:_ `N == 1`.
 
-_Effects:_ Initializes the single element of this `fp4_e2m1` object from `val`.
+_Effects:_ Initializes the single element of this `fp4_e2m1_x` object from `val`.
 The value `val` is converted using the `rounding::to_even` rounding mode.
 
 '''
@@ -495,26 +499,26 @@ The value `val` is converted using the `rounding::to_even` rounding mode.
 
 [source,c++]
 ----
-fp4_e2m1& operator=(half val);
-fp4_e2m1& operator=(bfloat16 val);
-fp4_e2m1& operator=(float val);
-fp4_e2m1& operator=(double val);
-fp4_e2m1& operator=(short val);
-fp4_e2m1& operator=(int val);
-fp4_e2m1& operator=(long val);
-fp4_e2m1& operator=(long long val);
-fp4_e2m1& operator=(unsigned short val);
-fp4_e2m1& operator=(unsigned int val);
-fp4_e2m1& operator=(unsigned long val);
-fp4_e2m1& operator=(unsigned long long val);
+fp4_e2m1_x& operator=(half val);
+fp4_e2m1_x& operator=(bfloat16 val);
+fp4_e2m1_x& operator=(float val);
+fp4_e2m1_x& operator=(double val);
+fp4_e2m1_x& operator=(short val);
+fp4_e2m1_x& operator=(int val);
+fp4_e2m1_x& operator=(long val);
+fp4_e2m1_x& operator=(long long val);
+fp4_e2m1_x& operator=(unsigned short val);
+fp4_e2m1_x& operator=(unsigned int val);
+fp4_e2m1_x& operator=(unsigned long val);
+fp4_e2m1_x& operator=(unsigned long long val);
 ----
 
 _Constraints:_ `N == 1`.
 
-_Effects:_ Assigns the single element of this `fp4_e2m1` object to `val`.
+_Effects:_ Assigns the single element of this `fp4_e2m1_x` object to `val`.
 The value `val` is converted using the `rounding::to_even` rounding mode.
 
-_Returns:_ A reference to this `fp4_e2m1` object.
+_Returns:_ A reference to this `fp4_e2m1_x` object.
 
 ==== Conversion operators
 
@@ -528,7 +532,7 @@ explicit operator double() const;
 
 _Constraints:_ `N == 1`.
 
-_Returns_: The single element of this `fp4_e2m1` object is converted to the
+_Returns_: The single element of this `fp4_e2m1_x` object is converted to the
 operator's respective type.
 
 [_Note:_ These conversions are exact, so there is no rounding mode.
@@ -553,7 +557,7 @@ explicit operator unsigned long long() const;
 
 _Constraints:_ `N == 1`.
 
-_Returns_: The single element of this `fp4_e2m1` object is converted to the
+_Returns_: The single element of this `fp4_e2m1_x` object is converted to the
 operator's respective type using the `rounding::toward_zero` rounding mode.
 
 '''
@@ -565,7 +569,7 @@ explicit operator bool() const;
 
 _Constraints:_ `N == 1`.
 
-_Returns_: The value `false` if the single element of this `fp4_e2m1` is either
+_Returns_: The value `false` if the single element of this `fp4_e2m1_x` is either
 +0 or -0.
 Otherwise, returns the value `true`.
 
@@ -578,7 +582,7 @@ explicit operator marray<bfloat16,N>() const;  (2)
 explicit operator marray<float,N>() const;     (3)
 ----
 
-_Returns:_ The values of this `fp4_e2m1` object are converted to an `marray` of
+_Returns:_ The values of this `fp4_e2m1_x` object are converted to an `marray` of
 `half`, `ext::oneapi::bfloat16`, or `float`.
 
 [_Note:_ These conversions are exact, so there is no rounding mode.
@@ -593,7 +597,7 @@ _{endnote}_]
 uint8_t vals[(N+1)/2];
 ----
 
-Provides direct access to the storage of the E2M1 values in this `fp4_e2m1`
+Provides direct access to the storage of the E2M1 values in this `fp4_e2m1_x`
 object.
 Element 0 is in the low 4 bits of `vals[0]`.
 Element 1 (if it exists) is in the high 4 bits of `vals[0]`.
@@ -603,10 +607,20 @@ Element 1 (if it exists) is in the high 4 bits of `vals[0]`.
 [source,c++]
 ----
 template<typename... Ts>
-fp4_e2m1(Ts...) -> fp4_e2m1<sizeof...(Ts)>;
+fp4_e2m1_x(Ts...) -> fp4_e2m1_x<sizeof...(Ts)>;
 ----
 
 _Constraints:_ The size of the `Ts` pack is greater than zero.
+
+==== Convenience aliases
+
+[source,c++]
+----
+using fp4_e2m1 = fp4_e2m1_x<1>;
+using fp4_e2m1_x2 = fp4_e2m1_x<2>;
+----
+
+These aliases provide less verbose syntax for common use cases.
 
 ==== Non-stochastic rounding modes
 
