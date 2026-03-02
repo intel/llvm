@@ -558,7 +558,7 @@ void Command::emitEdgeEventForCommandDependence(
     std::optional<access::mode> AccMode) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Bail early if either the source or the target node for the given
-  // dependency is undefined or NULL
+  // dependency is undefined or NULL, or if no one is subscribed to edge_create
   constexpr uint16_t NotificationTraceType = xpti::trace_edge_create;
   if (!(xptiCheckTraceEnabled(MStreamID, NotificationTraceType) &&
         MTraceEvent && Cmd && Cmd->MTraceEvent))
@@ -641,6 +641,11 @@ void Command::emitEdgeEventForEventDependence(Command *Cmd,
                             detail::GSYCLGraphEvent, NodeEvent, VNodeInstanceNo,
                             nullptr);
     }
+    // Bail early if no one is subscribed to edge_create to avoid unnecessary
+    // work
+    if (!(xptiCheckTraceEnabled(MStreamID, xpti::trace_edge_create)))
+      return;
+
     // Create a new event for the edge
     std::string EdgeName = SH.nameWithAddressString("Event", AddressStr);
     xpti_tracepoint_t *EEvent =
@@ -914,7 +919,9 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
 void Command::resolveReleaseDependencies(std::set<Command *> &DepList) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   assert(MType == CommandType::RELEASE && "Expected release command");
-  if (!MTraceEvent)
+  // Bail early if no one is subscribed to edge_create to avoid unnecessary work
+  if (!(xptiCheckTraceEnabled(MStreamID, xpti::trace_edge_create) &&
+        MTraceEvent))
     return;
   // The current command is the target node for all dependencies as the source
   // nodes have to be completed first before the current node can begin to
