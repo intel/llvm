@@ -317,8 +317,7 @@ class ComputeBench(Suite):
                         runtime,
                         variant_name,
                         profiler_type,
-                        **{
-                            **kwargs,
+                        common_args={
                             "KernelBatchSize": 512,
                             "KernelName": "Add",
                             "KernelParamsNum": 5,
@@ -326,6 +325,7 @@ class ComputeBench(Suite):
                             "Profiling": 0,
                             "UseEvents": 0,
                         },
+                        **kwargs,
                     )
 
                 benches += [
@@ -378,28 +378,31 @@ class ComputeBench(Suite):
                         variant_name,
                         profiler_type,
                         measure_completion,
-                        **{
-                            **kwargs,
+                        common_args={
                             "KernelWGCount": 512,
                             "KernelWGSize": 256,
-                            "MeasureCompletionTime": measure_completion,
                             "Profiling": 0,
+                            "MeasureCompletionTime": measure_completion,
                             "UseEvents": 0,
                         },
+                        **kwargs,
                     )
 
                 benches += [
                     createTorchMultiQueueBench(
                         "large",
                         KernelsPerQueue=20,
+                        measureCompletion=measure_completion,
                     ),
                     createTorchMultiQueueBench(
                         "medium",
                         KernelsPerQueue=10,
+                        measureCompletion=measure_completion,
                     ),
                     createTorchMultiQueueBench(
                         "small",
                         KernelsPerQueue=4,
+                        measureCompletion=measure_completion,
                     ),
                 ]
 
@@ -414,26 +417,29 @@ class ComputeBench(Suite):
                         variant_name,
                         profiler_type,
                         measure_completion,
-                        **{
-                            **kwargs,
+                        common_args={
                             "KernelBatchSize": 512,
                             "MeasureCompletionTime": measure_completion,
                             "Profiling": 0,
                         },
+                        **kwargs,
                     )
 
                 benches += [
                     createTorchSlmSizeBench(
                         "small",
                         SlmNum=1,
+                        measureCompletion=measure_completion,
                     ),
                     createTorchSlmSizeBench(
                         "medium",
                         SlmNum=1024,
+                        measureCompletion=measure_completion,
                     ),
                     createTorchSlmSizeBench(
                         "large",
                         SlmNum=16384,
+                        measureCompletion=measure_completion,
                     ),
                 ]
 
@@ -491,11 +497,11 @@ class ComputeBench(Suite):
                         runtime,
                         variant_name,
                         profiler_type,
-                        **{
-                            **kwargs,
+                        common_args={
                             "KernelBatchSize": 512,
                             "Profiling": 0,
                         },
+                        **kwargs,
                     )
 
                 benches += [
@@ -536,29 +542,32 @@ class ComputeBench(Suite):
                             runtime,
                             variant_name,
                             profiler_type,
-                            **{
-                                **kwargs,
+                            common_args={
                                 "KernelName": kernel_name.value,
                                 "KernelWGCount": 512,
                                 "KernelWGSize": 256,
                                 "Profiling": 0,
                                 "UseEvents": 0,
                             },
+                            **kwargs,
                         )
 
                     benches += [
                         createTorchGraphSingleQueueBench(
                             "small",
+                            kernelName=kernel_name.value,
                             KernelsPerQueue=10,
                             KernelBatchSize=10,
                         ),
                         createTorchGraphSingleQueueBench(
                             "medium",
+                            kernelName=kernel_name.value,
                             KernelsPerQueue=32,
                             KernelBatchSize=32,
                         ),
                         createTorchGraphSingleQueueBench(
                             "large",
+                            kernelName=kernel_name.value,
                             KernelsPerQueue=64,
                             KernelBatchSize=64,
                         ),
@@ -574,13 +583,13 @@ class ComputeBench(Suite):
                             runtime,
                             variant_name,
                             profiler_type,
-                            **{
-                                **kwargs,
+                            common_args={
                                 "workgroupCount": 512,
                                 "workgroupSize": 256,
                                 "Profiling": 0,
                                 "UseEvents": 0,
                             },
+                            **kwargs,
                         )
 
                     benches += [
