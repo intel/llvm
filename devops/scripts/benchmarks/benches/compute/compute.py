@@ -36,6 +36,7 @@ class ComputeBench(Suite):
     def name(self) -> str:
         return "Compute Benchmarks"
 
+    # TODO: Change after merging benchmarks
     def git_url(self) -> str:
         return "https://github.com/intel/compute-benchmarks.git"
 
