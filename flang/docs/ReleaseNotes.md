@@ -30,6 +30,20 @@ page](https://llvm.org/releases/).
 ## Major New Features
 
 * Support for LOWER= argument for C_F_POINTER.
+* Experimental support for multi-image program launch, collective subroutines,
+  synchronization, teams, and image enumeration.
+
+### `do concurrent` mapping to OpenMP
+
+Flang now has better support for `do concurrent` parallelization on the CPU and
+GPU. On the CPU, we validated the feature using
+[FIATS'](https://github.com/BerkeleyLab/fiats) inference and training codes. On
+the GPU, we have basic support that is still in progress; we have offload tests
+for 1D and 2D saxpy. We also validated using codes that do not use extensive
+user-defined types and/or allocatables.
+
+To use the feature, use `-fdo-concurrent-to-openmp=[none|host|device]`. OpenMP
+must be enabled as well, for example: `-fopenmp [--offload-arch=<target_arch>]`.
 
 ## Bug Fixes
 
@@ -38,6 +52,7 @@ page](https://llvm.org/releases/).
 ## New Compiler Flags
 
 * -fexperimental-loop-fusion is now recognized by flang.
+* -fcoarray activates experimental multi-image support in flang.
 
 ## Windows Support
 

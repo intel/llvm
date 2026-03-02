@@ -139,7 +139,11 @@ WebAssemblyTargetLowering::WebAssemblyTargetLowering(
     // Expand floating-point library function operators.
     for (auto Op : {ISD::FSIN, ISD::FCOS, ISD::FSINCOS, ISD::FPOW, ISD::FMA})
       setOperationAction(Op, T, Expand);
-    setOperationAction(ISD::FREM, T, LibCall);
+    // Expand vector FREM, but use a libcall rather than an expansion for scalar
+    if (MVT(T).isVector())
+      setOperationAction(ISD::FREM, T, Expand);
+    else
+      setOperationAction(ISD::FREM, T, LibCall);
     // Note supported floating-point library function operators that otherwise
     // default to expand.
     for (auto Op : {ISD::FCEIL, ISD::FFLOOR, ISD::FTRUNC, ISD::FNEARBYINT,
@@ -1665,6 +1669,7 @@ void WebAssemblyTargetLowering::ReplaceNodeResults(
     // SIGN_EXTEND_INREG, but for non-vector sign extends the result might be an
     // illegal type.
     break;
+  case ISD::ANY_EXTEND_VECTOR_INREG:
   case ISD::SIGN_EXTEND_VECTOR_INREG:
   case ISD::ZERO_EXTEND_VECTOR_INREG:
     // Do not add any results, signifying that N should not be custom lowered.
@@ -3554,9 +3559,8 @@ static SDValue performMulCombine(SDNode *N,
     return Res;
 
   // We don't natively support v16i8 or v8i8 mul, but we do support v8i16. So,
-  // extend them to v8i16. Only do this before legalization in case a narrow
-  // vector is widened and may be simplified later.
-  if (!DCI.isBeforeLegalize() || (VT != MVT::v8i8 && VT != MVT::v16i8))
+  // extend them to v8i16.
+  if (VT != MVT::v8i8 && VT != MVT::v16i8)
     return SDValue();
 
   SDLoc DL(N);

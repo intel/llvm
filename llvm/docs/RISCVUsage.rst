@@ -172,6 +172,7 @@ on support follow.
      ``Zaamo``         Assembly Support
      ``Zabha``         Supported
      ``Zacas``         Supported (`See note <#riscv-zacas-note>`__)
+     ``Zalasr``        Supported
      ``Zalrsc``        Assembly Support
      ``Zama16b``       Supported (`See note <#riscv-profiles-extensions-note>`__)
      ``Zawrs``         Assembly Support
@@ -336,9 +337,6 @@ The primary goal of experimental support is to assist in the process of ratifica
 ``experimental-p``
   LLVM implements the `018 draft specification <https://www.jhauser.us/RISCV/ext-P/>`__.
 
-``experimental-zalasr``
-  LLVM implements the `0.9 draft specification <https://github.com/riscv/riscv-zalasr/releases/tag/v0.9>`__.
-
 ``experimental-zibi``
   LLVM implements the `0.1 release specification <https://github.com/riscv/zibi/releases/tag/v0.1.0>`__.
 
@@ -460,7 +458,7 @@ The current vendor extensions supported are:
 ``Xwchc``
   LLVM implements `the custom compressed opcodes present in some QingKe cores` by WCH / Nanjing Qinheng Microelectronics. The vendor refers to these opcodes by the name "XW".
 
-``experimental-Xqccmp``
+``Xqccmp``
   LLVM implements `version 0.3 of the 16-bit Push/Pop instructions and double-moves extension specification <https://github.com/quic/riscv-unified-db/releases/tag/Xqccmp_extension-0.3.0>`__ by Qualcomm. All instructions are prefixed with `qc.` as described in the specification.
 
 ``Xqci``

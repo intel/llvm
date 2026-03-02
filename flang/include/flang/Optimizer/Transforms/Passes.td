@@ -417,7 +417,8 @@ def FunctionAttr : Pass<"function-attr", "mlir::func::FuncOp"> {
             clEnumValN(mlir::LLVM::framePointerKind::FramePointerKind::None, "None", ""),
             clEnumValN(mlir::LLVM::framePointerKind::FramePointerKind::NonLeaf, "NonLeaf", ""),
             clEnumValN(mlir::LLVM::framePointerKind::FramePointerKind::All, "All", ""),
-            clEnumValN(mlir::LLVM::framePointerKind::FramePointerKind::Reserved, "Reserved", "")
+            clEnumValN(mlir::LLVM::framePointerKind::FramePointerKind::Reserved, "Reserved", ""),
+            clEnumValN(mlir::LLVM::framePointerKind::FramePointerKind::NonLeafNoReserve, "NonLeafNoReserve", "")
           )}]>,
        Option<"instrumentFunctionEntry", "instrument-function-entry",
               "std::string", /*default=*/"",
@@ -523,6 +524,41 @@ def CUFComputeSharedMemoryOffsetsAndSize
   ];
 }
 
+def CUFDeviceFuncTransform
+    : Pass<"cuf-transform-device-func", "::mlir::ModuleOp"> {
+  let summary = "Transform device function to GPU func";
+  let dependentDialects = ["mlir::gpu::GPUDialect",
+                           "mlir::cf::ControlFlowDialect",
+                           "mlir::NVVM::NVVMDialect"];
+  let options = [Option<"computeCap", "compute-capability", "int",
+                        /*default=*/"0", "CUDA compute capability version">];
+}
+
+def CUFFunctionRewrite : Pass<"cuf-function-rewrite", ""> {
+  let summary = "Convert some CUDA Fortran specific call";
+  let dependentDialects = ["fir::FIROpsDialect"];
+}
+
+def CUFLaunchAttachAttr : Pass<"cuf-launch-attach-attr", ""> {
+  let summary = "Attach CUDA attribute to CUF kernel generated launch";
+  let description = [{
+    CUF kernel is generated via gpu.launch and then outlined. The resulting
+    launch operation needs to hava a CUDA attribute attached so it will
+    be distinguishable from other launch.
+  }];
+  let dependentDialects = ["cuf::CUFDialect"];
+}
+
+def CUFPredefinedVarToGPU
+    : Pass<"cuf-predefined-var-to-gpu", "::mlir::func::FuncOp"> {
+  let summary = "Transform predefined variables to GPU operations";
+  let description = [{
+    Change the predefined variables injected in the device function to their
+    corresponding NVVM dialect operations.
+  }];
+  let dependentDialects = ["mlir::NVVM::NVVMDialect"];
+}
+
 def SetRuntimeCallAttributes
     : Pass<"set-runtime-call-attrs", "mlir::func::FuncOp"> {
   let summary = "Set Fortran runtime fir.call attributes targeting LLVM IR";
@@ -594,6 +630,17 @@ def OptimizeArrayRepacking
 def MIFOpConversion : Pass<"mif-convert", "mlir::ModuleOp"> {
   let summary = "Convert some MIF operations to runtime calls";
   let dependentDialects = ["fir::FIROpsDialect", "mlir::LLVM::LLVMDialect"];
+}
+
+def LoopInvariantCodeMotion : Pass<"flang-licm", "::mlir::func::FuncOp"> {
+  let summary = "Hoist invariants from loops";
+  let description = [{
+    Hoist invariants from loops. This is a FIR-specific version of loop
+    invariant code motion, which relies on FIR types, operations (such as
+    fir.declare) and interfaces such as FortranObjectViewOpInterface.
+    The pass only moves existing operations, so there are no dependent
+    dialects.
+  }];
 }
 
 #endif // FLANG_OPTIMIZER_TRANSFORMS_PASSES

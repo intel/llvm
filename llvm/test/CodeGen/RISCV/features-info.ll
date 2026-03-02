@@ -23,18 +23,17 @@
 ; CHECK-NEXT:   disable-postmisched-store-clustering - Disable PostRA store clustering in the machine scheduler.
 ; CHECK-NEXT:   dlen-factor-2                    - Vector unit DLEN(data path width) is half of VLEN.
 ; CHECK-NEXT:   e                                - 'E' (Embedded Instruction Set with 16 GPRs).
+; CHECK-NEXT:   enable-vsetvli-sched-heuristic   - Enable vsetvli-based scheduling heuristic.
 ; CHECK-NEXT:   exact-asm                        - Enable Exact Assembly (Disables Compression and Relaxation).
 ; CHECK-NEXT:   experimental                     - Experimental intrinsics.
 ; CHECK-NEXT:   experimental-p                   - 'P' ('Base P' (Packed SIMD)).
 ; CHECK-NEXT:   experimental-rvm23u32            - RISC-V experimental-rvm23u32 profile.
 ; CHECK-NEXT:   experimental-smpmpmt             - 'Smpmpmt' (PMP-based Memory Types Extension).
 ; CHECK-NEXT:   experimental-svukte              - 'Svukte' (Address-Independent Latency of User-Mode Faults to Supervisor Addresses).
-; CHECK-NEXT:   experimental-xqccmp              - 'Xqccmp' (Qualcomm 16-bit Push/Pop and Double Moves).
 ; CHECK-NEXT:   experimental-xrivosvisni         - 'XRivosVisni' (Rivos Vector Integer Small New).
 ; CHECK-NEXT:   experimental-xrivosvizip         - 'XRivosVizip' (Rivos Vector Register Zips).
 ; CHECK-NEXT:   experimental-xsfmclic            - 'XSfmclic' (SiFive CLIC Machine-mode CSRs).
 ; CHECK-NEXT:   experimental-xsfsclic            - 'XSfsclic' (SiFive CLIC Supervisor-mode CSRs).
-; CHECK-NEXT:   experimental-zalasr              - 'Zalasr' (Load-Acquire and Store-Release Instructions).
 ; CHECK-NEXT:   experimental-zibi                - 'Zibi' (Branch with Immediate).
 ; CHECK-NEXT:   experimental-zicfilp             - 'Zicfilp' (Landing pad).
 ; CHECK-NEXT:   experimental-zicfiss             - 'Zicfiss' (Shadow stack).
@@ -192,6 +191,7 @@
 ; CHECK-NEXT:   xmipscmov                        - 'XMIPSCMov' (MIPS conditional move instruction (mips.ccmov)).
 ; CHECK-NEXT:   mipsexectl                       - 'XMIPSEXECTL' (MIPS execution control).
 ; CHECK-NEXT:   xmipslsp                         - 'XMIPSLSP' (MIPS optimization for hardware load-store bonding).
+; CHECK-NEXT:   xqccmp                           - 'Xqccmp' (Qualcomm 16-bit Push/Pop and Double Moves).
 ; CHECK-NEXT:   xqci                             - 'Xqci' (Qualcomm uC Extension).
 ; CHECK-NEXT:   xqcia                            - 'Xqcia' (Qualcomm uC Arithmetic Extension).
 ; CHECK-NEXT:   xqciac                           - 'Xqciac' (Qualcomm uC Load-Store Address Calculation Extension).
@@ -253,6 +253,7 @@
 ; CHECK-NEXT:   zaamo                            - 'Zaamo' (Atomic Memory Operations).
 ; CHECK-NEXT:   zabha                            - 'Zabha' (Byte and Halfword Atomic Memory Operations).
 ; CHECK-NEXT:   zacas                            - 'Zacas' (Atomic Compare-And-Swap Instructions).
+; CHECK-NEXT:   zalasr                           - 'Zalasr' (Load-Acquire and Store-Release Instructions).
 ; CHECK-NEXT:   zalrsc                           - 'Zalrsc' (Load-Reserved/Store-Conditional).
 ; CHECK-NEXT:   zama16b                          - 'Zama16b' (Atomic 16-byte misaligned loads, stores and AMOs).
 ; CHECK-NEXT:   zawrs                            - 'Zawrs' (Wait on Reservation Set).

@@ -844,7 +844,12 @@ void tools::gnutools::Assembler::ConstructJob(Compilation &C,
 
     break;
   }
-  // TODO: handle loongarch32.
+  case llvm::Triple::loongarch32: {
+    StringRef ABIName =
+        loongarch::getLoongArchABI(D, Args, getToolChain().getTriple());
+    CmdArgs.push_back(Args.MakeArgString("-mabi=" + ABIName));
+    break;
+  }
   case llvm::Triple::loongarch64: {
     StringRef ABIName =
         loongarch::getLoongArchABI(D, Args, getToolChain().getTriple());
@@ -2386,6 +2391,7 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
       D.getVFS().exists("/opt/rh")) {
     // TODO: We may want to remove this, since the functionality
     //   can be achieved using config files.
+    Prefixes.push_back("/opt/rh/gcc-toolset-13/root/usr");
     Prefixes.push_back("/opt/rh/gcc-toolset-12/root/usr");
     Prefixes.push_back("/opt/rh/gcc-toolset-11/root/usr");
     Prefixes.push_back("/opt/rh/gcc-toolset-10/root/usr");
@@ -2460,6 +2466,12 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
       "i386-redhat-linux6E", "i686-redhat-linux",     "i386-redhat-linux",
       "i586-suse-linux",     "i686-montavista-linux",
   };
+
+  static const char *const LoongArch32LibDirs[] = {"/lib32", "/lib"};
+  static const char *const LoongArch32Triples[] = {
+      "loongarch32-linux-gnu",    "loongarch32-unknown-linux-gnu",
+      "loongarch32-linux-gnuf32", "loongarch32-unknown-linux-gnuf32",
+      "loongarch32-linux-gnusf",  "loongarch32-unknown-linux-gnusf"};
 
   static const char *const LoongArch64LibDirs[] = {"/lib64", "/lib"};
   static const char *const LoongArch64Triples[] = {
@@ -2731,7 +2743,10 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
       BiarchTripleAliases.append(begin(X32Triples), end(X32Triples));
     }
     break;
-  // TODO: Handle loongarch32.
+  case llvm::Triple::loongarch32:
+    LibDirs.append(begin(LoongArch32LibDirs), end(LoongArch32LibDirs));
+    TripleAliases.append(begin(LoongArch32Triples), end(LoongArch32Triples));
+    break;
   case llvm::Triple::loongarch64:
     LibDirs.append(begin(LoongArch64LibDirs), end(LoongArch64LibDirs));
     TripleAliases.append(begin(LoongArch64Triples), end(LoongArch64Triples));

@@ -1278,6 +1278,12 @@ public:
                                                  SDValue Size,
                                                  const CallInst *CI);
 
+  /// Lower a strcpy operation into a target library call and return the
+  /// resulting chain and call result as SelectionDAG SDValues.
+  LLVM_ABI std::pair<SDValue, SDValue> getStrcpy(SDValue Chain, const SDLoc &dl,
+                                                 SDValue Dst, SDValue Src,
+                                                 const CallInst *CI);
+
   /// Lower a strlen operation into a target library call and return the
   /// resulting chain and call result as SelectionDAG SDValues.
   LLVM_ABI std::pair<SDValue, SDValue>
@@ -1716,6 +1722,11 @@ public:
 
   /// Return a freeze using the SDLoc of the value operand.
   LLVM_ABI SDValue getFreeze(SDValue V);
+
+  /// Return a freeze of V if any of the demanded elts may be undef or poison.
+  /// If \p PoisonOnly is true, then only check for poison elements.
+  LLVM_ABI SDValue getFreeze(SDValue V, const APInt &DemandedElts,
+                             bool PoisonOnly = false);
 
   /// Return an AssertAlignSDNode.
   LLVM_ABI SDValue getAssertAlign(const SDLoc &DL, SDValue V, Align A);

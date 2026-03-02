@@ -75,15 +75,26 @@ Changes to the LLVM IR
   the requirements of each call. Currently only `float` is supported; this can
   keep floating point support out of printf if it can be proven unused.
 * Case values are no longer operands of `SwitchInst`.
+* Allow metadata to be attached to IFuncs.
 
 Changes to LLVM infrastructure
 ------------------------------
+* On AIX, fixed the OS version in target triples on PASE.
+* On AIX, automatically raise soft memory limits to hard limits on tool startup ([#167928](https://github.com/llvm/llvm-project/pull/167928)).
 
 Changes to building LLVM
 ------------------------
 
+* On AIX, remove default flag `-fno-semantic-interposition`.
+* On AIX, LLVM shared libraries are now built as shared library archives by default ([#155686](https://github.com/llvm/llvm-project/pull/155686)).
+* On AIX, enable building with CMake 4.0 and above ([#154537](https://github.com/llvm/llvm-project/pull/154537)).
+* On AIX, enable building with the AIX form of the lto cache dir option ([#168868](https://github.com/llvm/llvm-project/pull/168868)).
+
 Changes to TableGen
 -------------------
+
+* The `!getop` and `!setop` bang operators have been removed in favor of
+  `!getdagop` and `!setdagop`.
 
 Changes to Interprocedural Optimizations
 ----------------------------------------
@@ -91,6 +102,9 @@ Changes to Interprocedural Optimizations
 * Added `-enable-machine-outliner={optimistic-pgo,conservative-pgo}` to read
   profile data to guide the machine outliner
   ([#154437](https://github.com/llvm/llvm-project/pull/154437)).
+* Fixed static resolution of indirect calls to versioned functions on AArch64,
+  by separating unrelated caller versions which were previously mixed together.
+  Also improved the accuracy of the algorithm for low version counts.
 
 Changes to Vectorizers
 ----------------------------------------
@@ -114,6 +128,8 @@ Changes to the AArch64 Backend
 
 * Added support for C1-Nano, C1-Pro, C1-Premium, and C1-Ultra CPUs.
 
+* Added support for Ampere1C cores.
+
 Changes to the AMDGPU Backend
 -----------------------------
 
@@ -136,11 +152,48 @@ Changes to the Hexagon Backend
 Changes to the LoongArch Backend
 --------------------------------
 
+* RuntimeDyld now supports the `Large` code model for LoongArch64.
+* The `PreserveMost` calling convention is now supported.
+* An option named `loongarch-enable-merge-offset` is added to allow disabling the `MergeBaseOffset` pass.
+* A macro instruction named `ud` is added.
+* `la.abs` now generates `R_LARCH_MARK_LA` relocation.
+* LASX and LSX conversion intrinsics are added.
+* Tail calls for `sret` and `byval` functions are now supported.
+* Always emit symbol-based relocations regardless of relaxation.
+* DWARF fission is now compatible with linker relaxations, allowing `-gsplit-dwarf` and `-mrelax`
+  to be used together when building for the LoongArch platform.
+* Improved LoongArch32 support by adding LA32R/LA32S relocations, PC-relative address materialization, and `call`/`tail` macro instructions.
+* Assorted codegen improvements.
+
 Changes to the MIPS Backend
 ---------------------------
 
 Changes to the PowerPC Backend
 ------------------------------
+
+* `half` now uses a soft float ABI, which works correctly in more cases.
+* Add ``mtpidr`` alias introduced in ISA3.0.
+* Update `tlbie` instruction implementation for ISA3.0+.
+* Update ``strlen``, ``strcpy`` and ``memcmp`` to use milicode calls instead of library calls.
+* Prototyped intrinsic for xvrlw and load/store with right length left-justified.
+* Prototyped Elliptic Curve Cryptography (ECC) Instructions.
+* Prototyped VSX Vector Integer Arithmetic Instructions.
+* Prototyped AES Acceleration Instructions.
+* Prototyped vector uncompress instructions.
+* Prototyped vector unpack instructions.
+* Prototyped 32-byte indexed paired load and store instructions.
+* Prototyped Context Switch instruction ``mtlpl``.
+* Prototyped VSX rotate left word instruction.
+* Prototyped paddis.
+* Prototyped eTCE instructions.
+* Prototyped Dense Math Facility and DMR COPY support.
+* Implement the trampoline intrinsics and nest parameter for AIX.
+* Introduced a minimum threshold for the largest number of comparisons needed to trigger bit test generation during switch lowering.
+* Relax strictfp to constrain only ``libm`` libcalls, permitting non-FP optimizations.
+* Use ``bne-`` for atomic operations after store conditional.
+* Consolidated predicate definitions into ``PPC.td``.
+* Cleanup asm parser code to use template functions for the various versions of
+  ``getImm*Encoding()`` and ``is*Imm()`` used in ``PPCRegisterInfo.td``.
 
 Changes to the RISC-V Backend
 -----------------------------
@@ -158,10 +211,18 @@ Changes to the RISC-V Backend
 * Adds assembler support for the Andes `XAndesvsinth` (Andes Vector Small Int Handling Extension).
 * DWARF fission is now compatible with linker relaxations, allowing `-gsplit-dwarf` and `-mrelax`
   to be used together when building for the RISC-V platform.
-* The Xqci Qualcomm uC Vendor Extension is no longger marked as experimental.
+* The Xqci Qualcomm uC Vendor Extension is no longer marked as experimental.
+* The Xqccmp Qualcomm Vendor Extension is no longer marked as experimental.
 
 Changes to the WebAssembly Backend
 ----------------------------------
+
+* `half` now uses a soft float lowering, which resolves various precision and
+  bitcast issues.
+
+- The `wasm32-wasi` target has been renamed to `wasm32-wasip1`. The old
+  option is still recognized, though by default will emit a deprecation
+  warning.
 
 Changes to the Windows Target
 -----------------------------
@@ -177,6 +238,12 @@ Changes to the X86 Backend
 Changes to the OCaml bindings
 -----------------------------
 
+* The IR reader bindings renamed `parse_ir` to
+  `parse_ir_bitcode_or_assembly` to clarify that the parser accepts both
+  textual IR and bitcode. This rename is intentional to force existing code to
+  update because the ownership semantics changed: the function no longer takes
+  ownership of the input memory buffer.
+
 Changes to the Python bindings
 ------------------------------
 
@@ -186,6 +253,10 @@ Changes to the C API
 * Add `LLVMGetOrInsertFunction` to get or insert a function, replacing the combination of `LLVMGetNamedFunction` and `LLVMAddFunction`.
 * Allow `LLVMGetVolatile` to work with any kind of Instruction.
 * Add `LLVMConstFPFromBits` to get a constant floating-point value from an array of 64 bit values.
+* Add `LLVMParseIRInContext2`, which is equivalent to `LLVMParseIRInContext`
+  but does not take ownership of the input `LLVMMemoryBufferRef`. This matches
+  the underlying C++ API and avoids ownership surprises in language bindings
+  and examples.
 * Functions working on the global context have been deprecated. Use the
   functions that work on a specific context instead.
 
@@ -272,9 +343,19 @@ Changes to LLDB
   LLDB's build configuration is included in the command's output. This includes
   all the supported targets, along with the presence of (or lack of) optional
   features like XML parsing.
+* LLDB now includes formatters for many types from the MSVC STL.
+* DIL (the new `frame variable` implementation) now uses ':' as a bitfield
+  extraction range character. '-' is deprecated and will output an error when used.
+* LLDB 22 is the last release supporting FreeBSD 13 and below. As a result,
+  LLDB 23 will remove support for FreeBSD on MIPS64 and assume that FreeBSD targets
+  have watchpoint support.
 
 Changes to BOLT
 ---------------------------------
+
+*	Added support for lite mode on AArch64. It can be enabled with -lite=1. When
+  used, BOLT avoids duplicating cold code by reusing the original code, which
+  reduces output binary size.
 
 Changes to Sanitizers
 ---------------------
@@ -290,6 +371,27 @@ Other Changes
 * Introduces the `AllocToken` pass, an instrumentation pass providing tokens to
   memory allocators enabling various heap organization strategies, such as heap
   partitioning.
+
+* Integrated Distributed ThinLTO (DTLTO) aims to support distribution of ThinLTO
+  backend compilations for any in-process ThinLTO invocation. To enable this,
+  support for the ThinLTO cache (for incremental builds) has been added in this
+  release, and support for additional input file types has been implemented.
+
+  Bitcode objects contained in static libraries and archives (e.g. libc.a) are
+  now handled transparently by temporarily extracting referenced objects for
+  distribution. When thin archives are used (supported since LLVM 21), no
+  extraction is required.
+  
+  DTLTO creates a number of temporary files during operation, which are now
+  cleaned up correctly when the process exits abnormally, for example due to
+  Ctrl+C or similar termination events.
+  
+  A new DTLTO linker option, --thinlto-remote-compiler-prepend-arg, has been
+  added to support multi-call LLVM drivers. This option allows specifying an
+  additional argument to select the desired subcommand, for example
+  `llvm clang ....`
+  
+  Note that ELF and COFF remain the only supported platforms.
 
 External Open Source Projects Using LLVM {{env.config.release}}
 ===============================================================

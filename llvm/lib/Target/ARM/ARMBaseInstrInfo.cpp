@@ -619,6 +619,11 @@ unsigned ARMBaseInstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
     return MCID.getSize();
   case TargetOpcode::BUNDLE:
     return getInstBundleLength(MI);
+  case TargetOpcode::COPY:
+    if (!MF->getInfo<ARMFunctionInfo>()->isThumbFunction())
+      return 4;
+    else
+      return 2;
   case ARM::CONSTPOOL_ENTRY:
   case ARM::JUMPTABLE_INSTS:
   case ARM::JUMPTABLE_ADDRS:
@@ -1212,7 +1217,7 @@ void ARMBaseInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
                                             MachineBasicBlock::iterator I,
                                             Register DestReg, int FI,
                                             const TargetRegisterClass *RC,
-                                            Register VReg,
+                                            Register VReg, unsigned SubReg,
                                             MachineInstr::MIFlag Flags) const {
   DebugLoc DL;
   if (I != MBB.end()) DL = I->getDebugLoc();

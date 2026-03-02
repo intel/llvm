@@ -3640,6 +3640,30 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
     }
     break;
   }
+
+  case Builtin::BI__builtin_allow_sanitize_check: {
+    Expr *Arg = TheCall->getArg(0);
+    // Check if the argument is a string literal.
+    const StringLiteral *SanitizerName =
+        dyn_cast<StringLiteral>(Arg->IgnoreParenImpCasts());
+    if (!SanitizerName) {
+      Diag(TheCall->getBeginLoc(), diag::err_expr_not_string_literal)
+          << Arg->getSourceRange();
+      return ExprError();
+    }
+    // Validate the sanitizer name.
+    if (!llvm::StringSwitch<bool>(SanitizerName->getString())
+             .Cases({"address", "thread", "memory", "hwaddress",
+                     "kernel-address", "kernel-memory", "kernel-hwaddress"},
+                    true)
+             .Default(false)) {
+      Diag(TheCall->getBeginLoc(), diag::err_invalid_builtin_argument)
+          << SanitizerName->getString() << "__builtin_allow_sanitize_check"
+          << Arg->getSourceRange();
+      return ExprError();
+    }
+    break;
+  }
   case Builtin::BI__builtin_counted_by_ref:
     if (BuiltinCountedByRef(TheCall))
       return ExprError();
@@ -4897,6 +4921,8 @@ ExprResult Sema::BuildAtomicExpr(SourceRange CallRange, SourceRange ExprRange,
   case AtomicExpr::AO__atomic_or_fetch:
   case AtomicExpr::AO__atomic_xor_fetch:
   case AtomicExpr::AO__atomic_nand_fetch:
+  case AtomicExpr::AO__atomic_fetch_uinc:
+  case AtomicExpr::AO__atomic_fetch_udec:
   case AtomicExpr::AO__scoped_atomic_fetch_and:
   case AtomicExpr::AO__scoped_atomic_fetch_or:
   case AtomicExpr::AO__scoped_atomic_fetch_xor:
@@ -4905,8 +4931,8 @@ ExprResult Sema::BuildAtomicExpr(SourceRange CallRange, SourceRange ExprRange,
   case AtomicExpr::AO__scoped_atomic_or_fetch:
   case AtomicExpr::AO__scoped_atomic_xor_fetch:
   case AtomicExpr::AO__scoped_atomic_nand_fetch:
-  case AtomicExpr::AO__scoped_atomic_uinc_wrap:
-  case AtomicExpr::AO__scoped_atomic_udec_wrap:
+  case AtomicExpr::AO__scoped_atomic_fetch_uinc:
+  case AtomicExpr::AO__scoped_atomic_fetch_udec:
     Form = Arithmetic;
     break;
 

@@ -1188,7 +1188,18 @@ static bool getGEPIndicesToField(CodeGenFunction &CGF, const RecordDecl *RD,
 
 llvm::Value *CodeGenFunction::GetCountedByFieldExprGEP(
     const Expr *Base, const FieldDecl *FAMDecl, const FieldDecl *CountDecl) {
-  const RecordDecl *RD = CountDecl->getParent()->getOuterLexicalRecordContext();
+  // Find the record containing the count field. Walk up through anonymous
+  // structs/unions (which are transparent in C) but stop at named records.
+  // Using getOuterLexicalRecordContext() here would be wrong because it walks
+  // past named nested structs to the outermost record, causing a crash when a
+  // struct with a counted_by FAM is defined nested inside another struct.
+  const RecordDecl *RD = CountDecl->getParent();
+  while (RD->isAnonymousStructOrUnion()) {
+    const auto *Parent = dyn_cast<RecordDecl>(RD->getLexicalParent());
+    if (!Parent)
+      break;
+    RD = Parent;
+  }
 
   // Find the base struct expr (i.e. p in p->a.b.c.d).
   const Expr *StructBase = StructAccessBase(RD).Visit(Base);
@@ -1702,14 +1713,6 @@ LValue CodeGenFunction::EmitLValue(const Expr *E,
   return LV;
 }
 
-static QualType getConstantExprReferredType(const FullExpr *E,
-                                            const ASTContext &Ctx) {
-  const Expr *SE = E->getSubExpr()->IgnoreImplicit();
-  if (isa<OpaqueValueExpr>(SE))
-    return SE->getType();
-  return cast<CallExpr>(SE)->getCallReturnType(Ctx)->getPointeeType();
-}
-
 LValue CodeGenFunction::EmitLValueHelper(const Expr *E,
                                          KnownNonNull_t IsKnownNonNull) {
   ApplyDebugLocation DL(*this, E);
@@ -1747,10 +1750,8 @@ LValue CodeGenFunction::EmitLValueHelper(const Expr *E,
     return EmitDeclRefLValue(cast<DeclRefExpr>(E));
   case Expr::ConstantExprClass: {
     const ConstantExpr *CE = cast<ConstantExpr>(E);
-    if (llvm::Value *Result = ConstantEmitter(*this).tryEmitConstantExpr(CE)) {
-      QualType RetType = getConstantExprReferredType(CE, getContext());
-      return MakeNaturalAlignAddrLValue(Result, RetType);
-    }
+    if (llvm::Value *Result = ConstantEmitter(*this).tryEmitConstantExpr(CE))
+      return MakeNaturalAlignPointeeAddrLValue(Result, CE->getType());
     return EmitLValue(cast<ConstantExpr>(E)->getSubExpr(), IsKnownNonNull);
   }
   case Expr::ParenExprClass:
@@ -2217,7 +2218,7 @@ llvm::Value *CodeGenFunction::EmitToMemory(llvm::Value *Value, QualType Ty) {
   if (auto *AtomicTy = Ty->getAs<AtomicType>())
     Ty = AtomicTy->getValueType();
 
-  if (Ty->isExtVectorBoolType()) {
+  if (Ty->isExtVectorBoolType() || Ty->isConstantMatrixBoolType()) {
     llvm::Type *StoreTy = convertTypeForLoadStore(Ty, Value->getType());
     if (StoreTy->isVectorTy() && StoreTy->getScalarSizeInBits() >
                                      Value->getType()->getScalarSizeInBits())
@@ -2472,17 +2473,28 @@ RValue CodeGenFunction::EmitLoadOfLValue(LValue LV, SourceLocation Loc) {
 
     unsigned NumRows = MT->getNumRows();
     unsigned NumCols = MT->getNumColumns();
-
+    unsigned NumLanes = NumCols;
     llvm::Value *MatrixVec = EmitLoadOfScalar(LV, Loc);
     llvm::Value *Row = LV.getMatrixRowIdx();
     llvm::Type *ElemTy = ConvertType(MT->getElementType());
-    llvm::Type *RowTy = llvm::FixedVectorType::get(ElemTy, MT->getNumColumns());
-    llvm::Value *Result = llvm::PoisonValue::get(RowTy); // <NumCols x T>
-
+    llvm::Constant *ColConstsIndices = nullptr;
     llvm::MatrixBuilder MB(Builder);
 
-    for (unsigned Col = 0; Col < NumCols; ++Col) {
-      llvm::Value *ColIdx = llvm::ConstantInt::get(Row->getType(), Col);
+    if (LV.isMatrixRowSwizzle()) {
+      ColConstsIndices = LV.getMatrixRowElts();
+      NumLanes = llvm::cast<llvm::FixedVectorType>(ColConstsIndices->getType())
+                     ->getNumElements();
+    }
+
+    llvm::Type *RowTy = llvm::FixedVectorType::get(ElemTy, NumLanes);
+    llvm::Value *Result = llvm::PoisonValue::get(RowTy); // <NumLanes x T>
+
+    for (unsigned Col = 0; Col < NumLanes; ++Col) {
+      llvm::Value *ColIdx;
+      if (ColConstsIndices)
+        ColIdx = ColConstsIndices->getAggregateElement(Col);
+      else
+        ColIdx = llvm::ConstantInt::get(Row->getType(), Col);
       bool IsMatrixRowMajor = getLangOpts().getDefaultMatrixMemoryLayout() ==
                               LangOptions::MatrixMemoryLayout::MatrixRowMajor;
       llvm::Value *EltIndex =
@@ -2727,6 +2739,7 @@ void CodeGenFunction::EmitStoreThroughLValue(RValue Src, LValue Dst,
 
       unsigned NumRows = MT->getNumRows();
       unsigned NumCols = MT->getNumColumns();
+      unsigned NumLanes = NumCols;
 
       llvm::Value *MatrixVec =
           Builder.CreateLoad(Dst.getAddress(), "matrix.load");
@@ -2735,8 +2748,20 @@ void CodeGenFunction::EmitStoreThroughLValue(RValue Src, LValue Dst,
       llvm::Value *RowVal = Src.getScalarVal(); // <NumCols x T>
       llvm::MatrixBuilder MB(Builder);
 
-      for (unsigned Col = 0; Col < NumCols; ++Col) {
-        llvm::Value *ColIdx = llvm::ConstantInt::get(Row->getType(), Col);
+      llvm::Constant *ColConstsIndices = nullptr;
+      if (Dst.isMatrixRowSwizzle()) {
+        ColConstsIndices = Dst.getMatrixRowElts();
+        NumLanes =
+            llvm::cast<llvm::FixedVectorType>(ColConstsIndices->getType())
+                ->getNumElements();
+      }
+
+      for (unsigned Col = 0; Col < NumLanes; ++Col) {
+        llvm::Value *ColIdx;
+        if (ColConstsIndices)
+          ColIdx = ColConstsIndices->getAggregateElement(Col);
+        else
+          ColIdx = llvm::ConstantInt::get(Row->getType(), Col);
         bool IsMatrixRowMajor = getLangOpts().getDefaultMatrixMemoryLayout() ==
                                 LangOptions::MatrixMemoryLayout::MatrixRowMajor;
         llvm::Value *EltIndex =
@@ -5003,11 +5028,9 @@ LValue CodeGenFunction::EmitMatrixSingleSubscriptExpr(
     const MatrixSingleSubscriptExpr *E) {
   LValue Base = EmitLValue(E->getBase());
   llvm::Value *RowIdx = EmitMatrixIndexExpr(E->getRowIdx());
-  const auto *MatTy = E->getBase()->getType()->castAs<ConstantMatrixType>();
   return LValue::MakeMatrixRow(
       MaybeConvertMatrixAddress(Base.getAddress(), *this), RowIdx,
-      MatTy->getNumColumns(), MatTy->getNumRows(), E->getBase()->getType(),
-      Base.getBaseInfo(), TBAAAccessInfo());
+      E->getBase()->getType(), Base.getBaseInfo(), TBAAAccessInfo());
 }
 
 LValue CodeGenFunction::EmitMatrixSubscriptExpr(const MatrixSubscriptExpr *E) {
@@ -5289,8 +5312,10 @@ EmitExtVectorElementExpr(const ExtVectorElementExpr *E) {
     if (auto *RowIdx =
             llvm::dyn_cast<llvm::ConstantInt>(Base.getMatrixRowIdx())) {
       llvm::SmallVector<llvm::Constant *> MatIndices;
-      unsigned NumCols = Base.getMatrixNumCols();
-      unsigned NumRows = Base.getMatrixNumRows();
+      QualType MatTy = Base.getType();
+      const ConstantMatrixType *MT = MatTy->castAs<ConstantMatrixType>();
+      unsigned NumCols = MT->getNumColumns();
+      unsigned NumRows = MT->getNumRows();
       MatIndices.reserve(NumCols);
 
       unsigned Row = RowIdx->getZExtValue();
@@ -5305,7 +5330,15 @@ EmitExtVectorElementExpr(const ExtVectorElementExpr *E) {
                                       E->getBase()->getType(),
                                       Base.getBaseInfo(), TBAAAccessInfo());
     }
-    return EmitUnsupportedLValue(E, "Matrix single index swizzle");
+    llvm::Constant *Cols =
+        llvm::ConstantDataVector::get(getLLVMContext(), Indices);
+    // Note: intentionally not using E.getType() so we can reuse isMatrixRow()
+    // implementations in EmitLoadOfLValue & EmitStoreThroughLValue and don't
+    // need the LValue to have its own number of rows and columns when the
+    // type is a vector.
+    return LValue::MakeMatrixRowSwizzle(
+        Base.getMatrixAddress(), Base.getMatrixRowIdx(), Cols, Base.getType(),
+        Base.getBaseInfo(), TBAAAccessInfo());
   }
 
   assert(Base.isExtVectorElt() && "Can only subscript lvalue vec elts here!");

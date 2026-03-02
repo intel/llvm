@@ -3028,6 +3028,10 @@ static void handleSentinelAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
                                    : Ty->castAs<BlockPointerType>()
                                          ->getPointeeType()
                                          ->castAs<FunctionType>();
+      if (isa<FunctionNoProtoType>(FT)) {
+        S.Diag(AL.getLoc(), diag::warn_attribute_sentinel_named_arguments);
+        return;
+      }
       if (!cast<FunctionProtoType>(FT)->isVariadic()) {
         int m = Ty->isFunctionPointerType() ? 0 : 1;
         S.Diag(AL.getLoc(), diag::warn_attribute_sentinel_not_variadic) << m;
@@ -7099,6 +7103,11 @@ ModularFormatAttr *Sema::mergeModularFormatAttr(
 
 static void handleModularFormat(Sema &S, Decl *D, const ParsedAttr &AL) {
   bool Valid = true;
+  if (!AL.isArgIdent(0)) {
+    S.Diag(AL.getLoc(), diag::err_attribute_argument_n_type)
+        << AL << 1 << AANT_ArgumentIdentifier;
+    Valid = false;
+  }
   StringRef ImplName;
   if (!S.checkStringLiteralArgumentAttr(AL, 1, ImplName))
     Valid = false;

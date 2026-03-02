@@ -910,8 +910,9 @@ HexagonTargetLowering::buildHvxVectorReg(ArrayRef<SDValue> Values,
                             (Constant**)Consts.end());
     Constant *CV = ConstantVector::get(Tmp);
     Align Alignment(HwLen);
-    SDValue CP =
-        LowerConstantPool(DAG.getConstantPool(CV, VecTy, Alignment), DAG);
+    SDValue CP = LowerConstantPool(
+        DAG.getConstantPool(CV, getPointerTy(DAG.getDataLayout()), Alignment),
+        DAG);
     return DAG.getLoad(VecTy, dl, DAG.getEntryNode(), CP,
                        MachinePointerInfo::getConstantPool(MF), Alignment);
   }
@@ -1623,8 +1624,9 @@ HexagonTargetLowering::compressHvxPred(SDValue VecQ, const SDLoc &dl,
   }
   Constant *CV = ConstantVector::get(Tmp);
   Align Alignment(HwLen);
-  SDValue CP =
-      LowerConstantPool(DAG.getConstantPool(CV, ByteTy, Alignment), DAG);
+  SDValue CP = LowerConstantPool(
+      DAG.getConstantPool(CV, getPointerTy(DAG.getDataLayout()), Alignment),
+      DAG);
   SDValue Bytes =
       DAG.getLoad(ByteTy, dl, DAG.getEntryNode(), CP,
                   MachinePointerInfo::getConstantPool(MF), Alignment);
@@ -3653,6 +3655,15 @@ HexagonTargetLowering::LegalizeHvxResize(SDValue Op, SelectionDAG &DAG) const {
     SDValue T = ExpandHvxResizeIntoSteps(S, DAG);
     return extractSubvector(T, typeLegalize(ResTy, DAG), 0, DAG);
   } else if (shouldSplitToHvx(InpWidth < ResWidth ? ResTy : InpTy, DAG)) {
+    // For multi-step extends/truncates (e.g., i8->i32), expand into
+    // single-step operations first. Splitting a multi-step TL_EXTEND
+    // would halve the operand type to a sub-HVX size (e.g., v128i8 ->
+    // v64i8), creating illegal types that cause issues in the type
+    // legalizer's map tracking. Single-step operations (e.g., i16->i32)
+    // are safe to split because their halved operand types remain legal.
+    SDValue T = ExpandHvxResizeIntoSteps(Op, DAG);
+    if (T != Op)
+      return T;
     return opJoin(SplitVectorOp(Op, DAG), SDLoc(Op), DAG);
   } else {
     assert(isTypeLegal(InpTy) && isTypeLegal(ResTy));
