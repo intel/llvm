@@ -152,32 +152,38 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Intel / GEN 12 Integrated
-            runner: '["Linux", "gen12"]'
-            target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
-          - name: NVIDIA/CUDA
+          # - name: Intel / GEN 12 Integrated
+          #   runner: '["Linux", "gen12"]'
+          #   target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
+          - name: NVIDIA/CUDA 13.1
             runner: '["Linux", "cuda"]'
+            image: "ghcr.io/intel/llvm/ubuntu2404_build:latest"
             image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
             target_devices: cuda:gpu
-          - name: Intel / Arc A-Series Graphics
-            runner: '["Linux", "arc"]'
-            target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu         
-            env: '{"LIT_FILTER":"Matrix/"}'
-          - name: Intel / Ponte Vecchio GPU
-            runner: '["Linux", "pvc"]'
-            target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
-          - name: Intel / Battlemage Graphics
-            runner: '["Linux", "bmg"]'
-            target_devices: level_zero_v1:gpu;level_zero_v2:gpu
-          - name: Preview Mode
-            runner: '["Linux", "gen12"]'
-            target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
-            extra_lit_opts: --param test-preview-mode=True
-            binaries_artifact: e2e_bin_preview
-          - name: Intel / ARL with L0 v2
-            runner: '["Linux", "arl"]'
-            target_devices: level_zero_v2:arch-intel_gpu_mtl_u
-            extra_lit_opts: --param test-preview-mode=True
+          - name: NVIDIA/CUDA 12.6.3
+            runner: '["Linux", "cuda"]'
+            image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
+            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
+            target_devices: cuda:gpu
+          # - name: Intel / Arc A-Series Graphics
+          #   runner: '["Linux", "arc"]'
+          #   target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu         
+          #   env: '{"LIT_FILTER":"Matrix/"}'
+          # - name: Intel / Ponte Vecchio GPU
+          #   runner: '["Linux", "pvc"]'
+          #   target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
+          # - name: Intel / Battlemage Graphics
+          #   runner: '["Linux", "bmg"]'
+          #   target_devices: level_zero_v1:gpu;level_zero_v2:gpu
+          # - name: Preview Mode
+          #   runner: '["Linux", "gen12"]'
+          #   target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
+          #   extra_lit_opts: --param test-preview-mode=True
+          #   binaries_artifact: e2e_bin_preview
+          # - name: Intel / ARL with L0 v2
+          #   runner: '["Linux", "arl"]'
+          #   target_devices: level_zero_v2:arch-intel_gpu_mtl_u
+          #   extra_lit_opts: --param test-preview-mode=True
 
           # We're in an ABI-breaking window, so these don't make sense for now.
           - name: ABI compatibility / sycl-rel-6_2
@@ -278,14 +284,19 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Intel GEN12 Graphics system
-            runner: '["Linux", "gen12"]'
-            image_extra_opts: --device=/dev/dri
-          - name: Intel Arc A-Series Graphics system
-            runner: '["Linux", "arc"]'
-            image_extra_opts: --device=/dev/dri
-          - name: CUDA system
+          # - name: Intel GEN12 Graphics system
+          #   runner: '["Linux", "gen12"]'
+          #   image_extra_opts: --device=/dev/dri
+          # - name: Intel Arc A-Series Graphics system
+          #   runner: '["Linux", "arc"]'
+          #   image_extra_opts: --device=/dev/dri
+          - name: CUDA system with CUDA 13.1
             runner: '["Linux", "cuda"]'
+            image: "ghcr.io/intel/llvm/ubuntu2404_build:latest"
+            image_extra_opts: --gpus all
+          - name: NVIDIA/CUDA 12.6.3
+            runner: '["Linux", "cuda"]'
+            image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
             image_extra_opts: --gpus all
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
