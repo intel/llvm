@@ -14,7 +14,7 @@ find_package(PkgConfig QUIET)
 # just try to search for the path.
 if(NOT UR_FORCE_FETCH_LEVEL_ZERO)
   if(PkgConfig_FOUND)
-    pkg_check_modules(level-zero level-zero>=1.26.0)
+    pkg_check_modules(level-zero level-zero>=1.28.0)
     if(level-zero_FOUND)
       set(LEVEL_ZERO_INCLUDE_DIR "${level-zero_INCLUDEDIR}/level_zero")
       set(LEVEL_ZERO_LIBRARY_SRC "${level-zero_LIBDIR}")
