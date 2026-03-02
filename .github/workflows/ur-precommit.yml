@@ -70,9 +70,11 @@ jobs:
             runner: UR_L0
             other_adapter: NATIVE_CPU
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-          - name: CUDA
+          - name: NVIDIA/CUDA 13.1
             runner: UR_CUDA
             image_options: -u 1001 --privileged --cap-add SYS_ADMIN --gpus all
+          - name: NVIDIA/CUDA 12.6.3
+            image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
           - name: OPENCL
             runner: UR_OPENCL
             docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
