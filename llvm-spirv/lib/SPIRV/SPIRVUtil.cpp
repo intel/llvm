@@ -628,6 +628,7 @@ static Type *parsePrimitiveType(LLVMContext &Ctx, StringRef Name) {
       .Cases({"long", "unsigned long"}, Type::getInt64Ty(Ctx))
       .Cases({"long long", "unsigned long long"}, Type::getInt64Ty(Ctx))
       .Case("half", Type::getHalfTy(Ctx))
+      .Case("std::bfloat16_t", Type::getBFloatTy(Ctx))
       .Case("float", Type::getFloatTy(Ctx))
       .Case("double", Type::getDoubleTy(Ctx))
       .Case("void", Type::getInt8Ty(Ctx))
@@ -807,6 +808,10 @@ parseNode(Module *M, const llvm::itanium_demangle::Node *ParamType,
       // struct types were are looking for here.
     }
   } else if (auto *VendorTy = dyn_cast<VendorExtQualType>(ParamType)) {
+    if (auto *NameTy = dyn_cast<NameType>(VendorTy->getTy())) {
+      if (NameTy->getName() == "std::bfloat16_t")
+        PointeeTy = llvm::Type::getBFloatTy(M->getContext());
+    }
     // This is a block parameter. Decode the pointee type as if it were a
     // void (*)(void) function pointer type.
     if (VendorTy->getExt() == "block_pointer") {

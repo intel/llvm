@@ -154,6 +154,17 @@ runs:
       NUMA_NODE=0
       echo "ZE_AFFINITY_MASK=$NUMA_NODE" >> $GITHUB_ENV
       echo "NUMA_NODE=$NUMA_NODE" >> $GITHUB_ENV
+  - name: Update benchmark scripts to build_ref
+    if: ${{ inputs.build_ref != '' }}
+    shell: bash
+    env:
+      BUILD_REF: ${{ inputs.build_ref }}
+    run: |
+      # Update benchmark scripts to build_ref
+      git fetch origin "$BUILD_REF"
+      git checkout FETCH_HEAD -- devops/scripts/benchmarks
+      echo "Benchmark scripts checked out at ref:"
+      git -C devops/scripts/benchmarks show FETCH_HEAD --no-patch --format='%H %s'
   - name: Establish results branch, repo path, and workdir
     id: establish_outputs
     shell: bash

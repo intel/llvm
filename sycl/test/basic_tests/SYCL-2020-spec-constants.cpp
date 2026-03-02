@@ -3,7 +3,7 @@
 // RUN: cat %t-split1_0.prop | FileCheck %s -check-prefixes=CHECK,CHECK-RT
 // RUN: sycl-post-link -split=none -properties %t.bc -spec-const=emulation -o %t-split2.txt
 // RUN: cat %t-split2_0.prop | FileCheck %s -check-prefixes=CHECK,CHECK-DEF
-// RUN: llvm-spirv -o %t-split1_0.spv -spirv-max-version=1.1 -spirv-ext=+all %t-split1_0.bc
+// RUN: llvm-spirv -o %t-split1_0.spv -spirv-max-version=1.1 -spirv-ext=+all,-SPV_KHR_float_controls2 %t-split1_0.bc
 // RUN: llvm-spirv -o - --to-text %t-split1_0.spv | FileCheck %s -check-prefixes=CHECK-SPV
 //
 //==----------- SYCL-2020-spec-constants.cpp -------------------------------==//

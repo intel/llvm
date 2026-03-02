@@ -29,13 +29,16 @@ using command_list_unique_handle =
 struct supported_extensions_descriptor_t {
   supported_extensions_descriptor_t(bool ZeCopyOffloadExtensionSupported,
                                     bool ZeMutableCmdListExtentionSupported,
-                                    bool ZeCopyOffloadFlagSupported)
+                                    bool ZeCopyOffloadQueueFlagSupported,
+                                    bool ZeCopyOffloadListFlagSupported)
       : ZeCopyOffloadExtensionSupported(ZeCopyOffloadExtensionSupported),
         ZeMutableCmdListExtentionSupported(ZeMutableCmdListExtentionSupported),
-        ZeCopyOffloadFlagSupported(ZeCopyOffloadFlagSupported) {}
+        ZeCopyOffloadQueueFlagSupported(ZeCopyOffloadQueueFlagSupported),
+        ZeCopyOffloadListFlagSupported(ZeCopyOffloadListFlagSupported) {}
   bool ZeCopyOffloadExtensionSupported;
   bool ZeMutableCmdListExtentionSupported;
-  bool ZeCopyOffloadFlagSupported;
+  bool ZeCopyOffloadQueueFlagSupported;
+  bool ZeCopyOffloadListFlagSupported;
 };
 
 struct command_list_desc_t {
@@ -100,7 +103,8 @@ private:
   ze_context_handle_t ZeContext;
   bool ZeCopyOffloadExtensionSupported;
   bool ZeMutableCmdListExtentionSupported;
-  bool ZeCopyOffloadFlagSupported;
+  bool ZeCopyOffloadQueueFlagSupported;
+  bool ZeCopyOffloadListFlagSupported;
   std::unordered_map<command_list_descriptor_t,
                      std::stack<raii::ze_command_list_handle_t>,
                      command_list_descriptor_hash_t>

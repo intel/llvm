@@ -1111,6 +1111,85 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t urCommandBufferAppendKernelLaunchWithArgsExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer, ur_kernel_handle_t hKernel,
+    uint32_t workDim, const size_t *pGlobalWorkOffset,
+    const size_t *pGlobalWorkSize, const size_t *pLocalWorkSize,
+    uint32_t numArgs, const ur_exp_kernel_arg_properties_t *pArgs,
+    uint32_t numKernelAlternatives, ur_kernel_handle_t *phKernelAlternatives,
+    uint32_t numSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    uint32_t /* numEventsInWaitList */,
+    const ur_event_handle_t * /* phEventWaitList */,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    ur_event_handle_t * /* phEvent */,
+    ur_exp_command_buffer_command_handle_t *phCommand) {
+
+  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hKernel->Program, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  // Command handles can only be obtained from updatable command-buffers
+  UR_ASSERT(!(phCommand && !hCommandBuffer->IsUpdatable),
+            UR_RESULT_ERROR_INVALID_OPERATION);
+
+  if (numArgs != hKernel->ZeKernelProperties->numKernelArgs) {
+    setErrorMessage("Wrong number of kernel arguments",
+                    UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX,
+                    static_cast<int32_t>(ZE_RESULT_ERROR_INVALID_ARGUMENT));
+    return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
+  }
+
+  {
+    std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> Lock(
+        hKernel->Mutex, hKernel->Program->Mutex, hCommandBuffer->Mutex);
+
+    for (uint32_t i = 0; i < numArgs; i++) {
+      if (pArgs[i].index != i) {
+        setErrorMessage("Missing kernel argument",
+                        UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX,
+                        static_cast<int32_t>(ZE_RESULT_ERROR_INVALID_ARGUMENT));
+        return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
+      }
+
+      switch (pArgs[i].type) {
+      case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
+        UR_CALL(urKernelSetArgValueHelper(hKernel, pArgs[i].index,
+                                          pArgs[i].size, nullptr));
+        break;
+      case UR_EXP_KERNEL_ARG_TYPE_VALUE:
+        UR_CALL(urKernelSetArgValueHelper(hKernel, pArgs[i].index,
+                                          pArgs[i].size, pArgs[i].value.value));
+        break;
+      case UR_EXP_KERNEL_ARG_TYPE_POINTER:
+        UR_CALL(urKernelSetArgValueHelper(
+            hKernel, pArgs[i].index, pArgs[i].size, &pArgs[i].value.pointer));
+        break;
+      case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
+        ur_kernel_arg_mem_obj_properties_t Properties = {
+            UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES, nullptr,
+            pArgs[i].value.memObjTuple.flags};
+        UR_CALL(urKernelSetArgMemObjHelper(hKernel, pArgs[i].index, &Properties,
+                                           pArgs[i].value.memObjTuple.hMem));
+        break;
+      }
+      case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
+        UR_CALL(urKernelSetArgValueHelper(hKernel, pArgs[i].index,
+                                          pArgs[i].size,
+                                          &pArgs[i].value.sampler->ZeSampler));
+        break;
+      }
+      default:
+        return UR_RESULT_ERROR_INVALID_ENUMERATION;
+      }
+    }
+  }
+
+  return ur::level_zero::urCommandBufferAppendKernelLaunchExp(
+      hCommandBuffer, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+      pLocalWorkSize, numKernelAlternatives, phKernelAlternatives,
+      numSyncPointsInWaitList, pSyncPointWaitList, 0 /*numEventsInWaitList*/,
+      nullptr /*phEventWaitList*/, pSyncPoint, nullptr /*phEvent*/, phCommand);
+}
+
 ur_result_t urCommandBufferAppendUSMMemcpyExp(
     ur_exp_command_buffer_handle_t CommandBuffer, void *Dst, const void *Src,
     size_t Size, uint32_t NumSyncPointsInWaitList,

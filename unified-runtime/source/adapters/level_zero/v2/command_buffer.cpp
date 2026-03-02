@@ -342,6 +342,55 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
   return exceptionToResult(std::current_exception());
 }
 
+ur_result_t urCommandBufferAppendKernelLaunchWithArgsExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer, ur_kernel_handle_t hKernel,
+    uint32_t workDim, const size_t *pGlobalWorkOffset,
+    const size_t *pGlobalWorkSize, const size_t *pLocalWorkSize,
+    uint32_t numArgs, const ur_exp_kernel_arg_properties_t *pArgs,
+    uint32_t numKernelAlternatives, ur_kernel_handle_t *phKernelAlternatives,
+    uint32_t numSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    uint32_t /* numEventsInWaitList */,
+    const ur_event_handle_t * /* phEventWaitList */,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    ur_event_handle_t * /* phEvent */,
+    ur_exp_command_buffer_command_handle_t *phCommand) try {
+
+  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hKernel->getProgramHandle(), UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+  UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+
+  if (phCommand != nullptr && !hCommandBuffer->isUpdatable) {
+    return UR_RESULT_ERROR_INVALID_OPERATION;
+  }
+
+  if (numKernelAlternatives > 0 && phKernelAlternatives == nullptr) {
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  }
+
+  auto commandListLocked = hCommandBuffer->commandListManager.lock();
+  if (phCommand != nullptr) {
+    UR_CALL(hCommandBuffer->createCommandHandle(
+        commandListLocked, hKernel, workDim, pGlobalWorkSize,
+        numKernelAlternatives, phKernelAlternatives, phCommand));
+  }
+  auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
+      pSyncPointWaitList, numSyncPointsInWaitList);
+
+  wait_list_view waitListView =
+      wait_list_view(eventsWaitList, numSyncPointsInWaitList);
+
+  UR_CALL(commandListLocked->appendKernelLaunchWithArgsExp(
+      hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
+      numArgs, pArgs, nullptr, waitListView,
+      hCommandBuffer->createEventIfRequested(pSyncPoint)));
+
+  return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
 ur_result_t urCommandBufferAppendUSMMemcpyExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, void *pDst, const void *pSrc,
     size_t size, uint32_t numSyncPointsInWaitList,

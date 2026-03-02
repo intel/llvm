@@ -474,8 +474,6 @@ ProgramManager::getOrCreateURProgram(
     const std::vector<const RTDeviceBinaryImage *> &AllImages,
     context_impl &ContextImpl, devices_range Devices,
     const std::string &CompileAndLinkOptions, SerializedObj SpecConsts) {
-  Managed<ur_program_handle_t> NativePrg;
-
   // Get binaries for each device (1:1 correpsondence with input Devices).
   auto Binaries = PersistentDeviceCodeCache::getItemFromDisc(
       Devices, AllImages, SpecConsts, CompileAndLinkOptions);
@@ -3418,6 +3416,11 @@ bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
         return (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_AMDGCN) == 0 ||
                 strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_LLVM_AMDGCN) == 0);
       }
+      if (PlatformName == "LEVEL_ZERO") {
+        return (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64) == 0 ||
+                strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0);
+      }
+
       assert(false && "Unhandled liboffload platform");
       return false;
     }

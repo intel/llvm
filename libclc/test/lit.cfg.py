@@ -63,7 +63,7 @@ clang_flags = [
     "-Xclang",
     "-mlink-builtin-bitcode",
     "-Xclang",
-    os.path.join(config.libclc_output_dir, f"libspirv-{config.libclc_target}.bc"),
+    os.path.join(config.libclc_output_dir, config.libclc_target, f"libspirv.bc"),
     "-nogpulib",
 ]
 
