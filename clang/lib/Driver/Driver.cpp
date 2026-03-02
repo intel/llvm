@@ -5762,8 +5762,8 @@ class OffloadingActionBuilder final {
       SmallVector<ToolChain::BitCodeLibraryInfo, 12> DeviceLibraries;
       const toolchains::SYCLToolChain &SYCLTC =
           static_cast<const toolchains::SYCLToolChain &>(*TC);
-      DeviceLibraries.append(SYCLTC.getDeviceLibs(C.getArgs(),
-                                                  Action::OFK_SYCL));
+      DeviceLibraries.append(
+          SYCLTC.getDeviceLibs(C.getArgs(), Action::OFK_SYCL));
 
       for (const auto &DeviceLib : DeviceLibraries) {
         Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),
