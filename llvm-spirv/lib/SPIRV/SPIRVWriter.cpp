@@ -4178,6 +4178,8 @@ static SPIRVWord getBuiltinIdForIntrinsic(Intrinsic::ID IID) {
     return OpenCLLIB::Floor;
   case Intrinsic::fma:
     return OpenCLLIB::Fma;
+  case Intrinsic::ldexp:
+    return OpenCLLIB::Ldexp;
   case Intrinsic::frexp:
     return OpenCLLIB::Frexp;
   case Intrinsic::log:
@@ -4478,6 +4480,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   // Binary FP intrinsics
   case Intrinsic::atan2:
   case Intrinsic::copysign:
+  case Intrinsic::ldexp:
   case Intrinsic::pow:
   case Intrinsic::powi:
   case Intrinsic::maximumnum:
