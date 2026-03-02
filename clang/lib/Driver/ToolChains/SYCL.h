@@ -141,7 +141,7 @@ public:
   addClangTargetOptions(const llvm::opt::ArgList &DriverArgs,
                         llvm::opt::ArgStringList &CC1Args,
                         Action::OffloadKind DeviceOffloadKind) const override;
-  void AddImpliedTargetArgs(const llvm::Triple &Triple,
+  void AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
                             const llvm::opt::ArgList &Args,
                             llvm::opt::ArgStringList &CmdArgs,
                             const JobAction &JA, const ToolChain &HostTC,

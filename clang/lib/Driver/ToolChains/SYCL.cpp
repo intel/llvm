@@ -1057,7 +1057,7 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
   const toolchains::SYCLToolChain &TC =
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
   const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
-  TC.AddImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs, JA,
+  TC.AddSPIRVImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs, JA,
                           *HostTC, Device);
   TC.TranslateBackendTargetArgs(getToolChain().getTriple(), Args, CmdArgs,
                                 Device);

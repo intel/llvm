@@ -11409,14 +11409,14 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
           A->render(Args, LinkerArgs);
       }
 
-      if (Kind == Action::OFK_SYCL) {
+      if (Kind == Action::OFK_SYCL && TC->getTriple().isSPIROrSPIRV()) {
         // Add implied SYCL target arguments to `CompilerArgs`
         // based on the selected target.
         const toolchains::SYCLToolChain &SYCLTC =
             static_cast<const toolchains::SYCLToolChain &>(*TC);
         const ToolChain *HostTC =
             C.getSingleOffloadToolChain<Action::OFK_Host>();
-        SYCLTC.AddImpliedTargetArgs(SYCLTC.getTriple(), BaseCompilerArgs,
+        SYCLTC.AddSPIRVImpliedTargetArgs(SYCLTC.getTriple(), BaseCompilerArgs,
                                     CompilerArgs, JA, *HostTC);
       } else {
         // For non-SYCL offload kinds (CUDA, OpenMP, HIP), directly convert
