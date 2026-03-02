@@ -21,27 +21,6 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-#ifdef __SYCL_ENABLE_GNU_DEMANGLING
-struct DemangleHandle {
-  char *p;
-  DemangleHandle(char *ptr) : p(ptr) {}
-
-  DemangleHandle(const DemangleHandle &) = delete;
-  DemangleHandle &operator=(const DemangleHandle &) = delete;
-
-  ~DemangleHandle() { std::free(p); }
-};
-static std::string demangleKernelName(const std::string_view Name) {
-  int Status = -1; // some arbitrary value to eliminate the compiler warning
-  DemangleHandle result(abi::__cxa_demangle(Name.data(), NULL, NULL, &Status));
-  return (Status == 0) ? result.p : std::string(Name);
-}
-#else
-static std::string demangleKernelName(const std::string_view Name) {
-  return std::string(Name);
-}
-#endif
-
 DeviceKernelInfo::DeviceKernelInfo(const CompileTimeKernelInfoTy &Info,
                                    std::optional<sycl::kernel_id> KernelID)
     : CompileTimeKernelInfoTy{Info}, MKernelID{std::move(KernelID)} {}
@@ -80,8 +59,21 @@ void DeviceKernelInfo::setImplicitLocalArgPos(int Pos) {
 }
 
 std::string_view DeviceKernelInfo::getDemangledName() const {
-  std::call_once(MDemangledNameInitFlag,
-                 [&]() { MDemangledName = demangleKernelName(Name); });
+  std::call_once(MDemangledNameInitFlag, [&]() {
+#ifdef __SYCL_ENABLE_GNU_DEMANGLING
+    int Status = -1; // some arbitrary value to eliminate the compiler warning
+    char *Demangled =
+        abi::__cxa_demangle(Name.data(), nullptr, nullptr, &Status);
+    if (Status == 0 && Demangled) {
+      std::unique_ptr<char, void (*)(void *)> Guard(Demangled, std::free);
+      MDemangledName = std::string(Guard.get());
+    } else {
+      MDemangledName = std::string(Name);
+    }
+#else
+    MDemangledName = std::string(Name);
+#endif
+  });
   return MDemangledName;
 }
 
