@@ -499,7 +499,7 @@ public:
     auto commandListId = getNextCommandListId();
     return commandListManagers.lock()[commandListId].appendUSMFreeExp(
         this, pPool, pMem, waitListView,
-        createEventAndRetain(eventPool.get(), phEvent, this));
+        createEvent(eventPool.get(), phEvent, this));
   }
 
   ur_result_t bindlessImagesImageCopyExp(
@@ -664,6 +664,8 @@ public:
         pfnHostTask, data, pProperties, waitListView,
         createEventIfRequested(eventPool.get(), phEvent, this));
   }
+
+  bool isInOrder() override { return false; }
 
   ur::RefCount RefCount;
 };

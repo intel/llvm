@@ -1,4 +1,4 @@
-# Copyright (C) 2025 Intel Corporation
+# Copyright (C) 2025-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -64,6 +64,9 @@ class GromacsBench(Suite):
         # TODO: Detect the GPU architecture and set the appropriate flags
 
         # Build GROMACS
+        if options.offline:
+            log.info(f"Rebuilding {self.project.name} skipped")
+            return
 
         self.oneapi = get_oneapi()
 
@@ -175,6 +178,7 @@ class GromacsBenchmark(Benchmark):
     ) -> list[Result]:
         model_dir = self.grappa_dir / self.model
 
+        env_vars = dict(env_vars) if env_vars else {}
         env_vars.update({"SYCL_CACHE_PERSISTENT": "1"})
 
         if self.option == "graphs":

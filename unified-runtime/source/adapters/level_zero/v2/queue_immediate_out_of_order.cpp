@@ -187,7 +187,7 @@ ur_result_t ur_queue_immediate_out_of_order_t::enqueueEventsWaitWithBarrier(
   }
 
   for (size_t id = phEvent ? 1 : 0; id < numCommandLists; id++) {
-    UR_CALL(std::invoke(barrierFn, commandListManagersLocked[0],
+    UR_CALL(std::invoke(barrierFn, commandListManagersLocked[id],
                         barrierEventsWaitList, nullptr));
   }
 

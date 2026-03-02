@@ -48,7 +48,8 @@ private:
   uint64_t recordEventEndTimestamp = 0;
   uint64_t adjustedEventEndTimestamp = 0;
 
-  uint64_t zeTimerResolution = 0;
+  // Timer resolution in nanoseconds (converted from cycles/sec)
+  double zeTimerResolution = 0;
   uint64_t timestampMaxValue = 0;
 
   bool timestampRecorded = false;
