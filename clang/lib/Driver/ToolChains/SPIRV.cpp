@@ -140,6 +140,7 @@ void SPIRV::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                                  const InputInfoList &Inputs,
                                  const ArgList &Args,
                                  const char *LinkingOutput) const {
+  llvm::errs() << "[DEBUG] linker construct job is called \n";
   if (JA.getType() == types::TY_LLVM_BC) {
     constructLLVMLinkCommand(C, *this, JA, Output, Inputs, Args);
     return;
@@ -154,6 +155,7 @@ void SPIRV::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Use of --sycl-link will call the clang-sycl-linker instead of
   // the default linker (spirv-link).
+  llvm::errs() << "[DEBUG] Linker::ConstructJo  is called \n";
   if (Args.hasArg(options::OPT_sycl_link))
     Linker = ToolChain.GetProgramPath("clang-sycl-linker");
   else if (!llvm::sys::fs::can_execute(Linker) &&
