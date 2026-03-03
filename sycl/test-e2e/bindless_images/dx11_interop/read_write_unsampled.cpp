@@ -279,9 +279,11 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
   pDevice->QueryInterface(IID_PPV_ARGS(&device3));
   device3->CreateTexture2D1(&texDesc, NULL, &texture);
 
+  // Create the keyed mutex for synchronising the shared resource.
   ComPtr<IDXGIKeyedMutex> keyedMutex;
   ThrowIfFailed(texture.As(&keyedMutex));
   d3d11ProgramState.key = 0;
+
   // Create an NT handle to a shared resource referring to our texture.
   // Opening the shared resource gives access to it for use on the SYCL device.
   ComPtr<IDXGIResource1> sharedResource;
@@ -370,7 +372,8 @@ int main() {
   D3D11ProgramState d3d11ProgramState{syclDevice};
 
   int errors = 0;
-  // Test 1D texture interop
+
+// Test 1D texture interop
 #ifdef TEST_SMALL_IMAGE_SIZE
   const sycl::range<1> globalSize1D{1024};
 #else
