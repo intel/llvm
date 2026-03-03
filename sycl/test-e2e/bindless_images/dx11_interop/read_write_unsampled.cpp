@@ -12,12 +12,10 @@
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20384
 
 // RUN: %{build} %link-directx -o %t.out
-// RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1
-// UseExternalAllocatorForSshAndDsh=1 %t.out
+// RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 #include "dx11_interop.h"
 #include <sycl/ext/oneapi/bindless_images.hpp>
-#include <sycl/sycl.hpp>
 
 #include <d3d11_3.h>
 
@@ -192,6 +190,7 @@ bool verifyResult(D3D11ProgramState &d3d11ProgramState,
     auto expected = inputData[i] * 2;
     if (value != expected) {
       mismatch = true;
+#ifdef VERBOSE_PRINT
       std::cerr << value << " not matching " << expected << "\n";
       std::cerr << "Pixel value[" << bufferIndex << "] = "
                 << static_cast<std::conditional_t<
@@ -204,6 +203,7 @@ bool verifyResult(D3D11ProgramState &d3d11ProgramState,
                 << "\n";
 
       break;
+#endif
     }
   }
   // Unmap the staging texture
@@ -264,7 +264,7 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
   texDesc.Format = texFormat;
   texDesc.SampleDesc = {.Count = 1, .Quality = 0};
   texDesc.Usage = D3D11_USAGE_DEFAULT;
-  texDesc.BindFlags = 0;
+  texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
   texDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE | D3D11_CPU_ACCESS_READ;
   // Note: Direct3D 11 does not support the
   // D3D11_RESOURCE_MISC_SHARED_NTHANDLE flag for 3D or 1D textures. This flag
@@ -377,7 +377,7 @@ int main() {
 #endif
   errors += runTest<1, uint32_t, 1>(d3d11ProgramState, syclQueue,
                                     sycl::image_channel_type::unsigned_int32,
-                                    globalSize1D, sycl::range{16});
+                                    globalSize1D, sycl::range{256});
   errors += runTest<1, uint8_t, 4>(d3d11ProgramState, syclQueue,
                                    sycl::image_channel_type::unorm_int8,
                                    globalSize1D, sycl::range{256});
