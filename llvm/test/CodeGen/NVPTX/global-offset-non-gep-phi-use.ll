@@ -30,6 +30,19 @@ entry:
   ret i64 %offset
 }
 
+; CHECK-LABEL: define i64 @test_non_gep_phi_use_with_offset(
+; CHECK-SAME: i32 [[X:%.*]], ptr [[PTR:%.*]]) {
+; CHECK-NEXT:  [[ENTRY:.*:]]
+; CHECK-NEXT:    [[TRUNC:%.*]] = trunc nuw i32 [[X]] to i1
+; CHECK-NEXT:    [[CTAID_X:%.*]] = tail call i32 @llvm.nvvm.read.ptx.sreg.ctaid.x()
+; CHECK-NEXT:    [[CTAID_Y:%.*]] = tail call i32 @llvm.nvvm.read.ptx.sreg.ctaid.y()
+; CHECK-NEXT:    [[CTAID_XY:%.*]] = select i1 [[TRUNC]], i32 [[CTAID_Y]], i32 [[CTAID_X]]
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[TRUNC]], i64 4, i64 0
+; CHECK-NEXT:    [[IDX:%.*]] = trunc i64 [[SEL]] to i32
+; CHECK-NEXT:    [[GEP:%.*]] = getelementptr inbounds i32, ptr [[PTR]], i32 [[IDX]]
+; CHECK-NEXT:    [[LOAD:%.*]] = load i32, ptr [[GEP]], align 4
+; CHECK-NEXT:    [[RES:%.*]] = zext i32 [[LOAD]] to i64
+; CHECK-NEXT:    ret i64 [[RES]]
 
 !llvm.module.flags = !{!0}
 
