@@ -15,6 +15,7 @@
 // RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 #include "dx11_interop.h"
+
 #include <sycl/ext/oneapi/bindless_images.hpp>
 
 #include <d3d11_3.h>
