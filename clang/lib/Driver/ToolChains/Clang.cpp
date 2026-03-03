@@ -10501,8 +10501,8 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
       const toolchains::SYCLToolChain &SYCLTC =
           static_cast<const toolchains::SYCLToolChain &>(*TC);
-      SYCLTC.AddSPIRVImpliedTargetArgs(TC->getTriple(), Args, BuildArgs, JA, *HostTC,
-                                  Arch);
+      SYCLTC.AddSPIRVImpliedTargetArgs(TC->getTriple(), Args, BuildArgs, JA,
+                                       *HostTC, Arch);
       SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
       createArgString("compile-opts=");
       BuildArgs.clear();

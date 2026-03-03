@@ -1350,7 +1350,7 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
   const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
   TC.AddSPIRVImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs, JA,
-                          *HostTC);
+                               *HostTC);
   TC.TranslateBackendTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
   TC.TranslateLinkerTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
   SmallString<128> ExecPath(
@@ -1607,11 +1607,11 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::Triple &Triple,
 }
 
 void SYCLToolChain::AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
-                                         const llvm::opt::ArgList &Args,
-                                         llvm::opt::ArgStringList &CmdArgs,
-                                         const JobAction &JA,
-                                         const ToolChain &HostTC,
-                                         StringRef Device) const {
+                                              const llvm::opt::ArgList &Args,
+                                              llvm::opt::ArgStringList &CmdArgs,
+                                              const JobAction &JA,
+                                              const ToolChain &HostTC,
+                                              StringRef Device) const {
   // Current implied args are for debug information and disabling of
   // optimizations.  They are passed along to the respective areas as follows:
   // Default device AOT: -g -cl-opt-disable
