@@ -150,18 +150,22 @@ different combinations of device and backend.
 
 |CPU
 |OpenCL
-|Number of logical cores.
+|Number of logical cores
 
 |Intel GPU
 |Any
-|Number of Xe cores.
+|Number of Xe cores
 
 |NVIDIA GPU
 |Any
-|Number of streaming multiprocessors (SMs).
+|Number of streaming multiprocessors (SMs)[1]
 
+|AMD GPU
+|Any
+|Number of compute units (CUs)[1]
 |===
 
+[1]: https://docs.modular.com/glossary/gpu/streaming-multiprocessor/
 
 == Issues
 
