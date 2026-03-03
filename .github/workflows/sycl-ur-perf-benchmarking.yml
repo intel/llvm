@@ -64,9 +64,10 @@ on:
         description: Self-hosted runner to use for the benchmarks
         type: choice
         options:
-          - '["PVC_PERF"]'
           - '["BMG_PERF"]'
+          - '["PVC_PERF"]'
           - '["TEST_PERF"]'
+        default: '["BMG_PERF"]'
       backend:
         description: Backend to use
         type: choice
@@ -273,7 +274,6 @@ jobs:
   # END nightly benchmarking path
 
   # BEGIN benchmark framework builds and runs on PRs path
-  # TODO: When we have stable BMG runner(s), consider moving this job to that runner.
   test_benchmark_framework:
     name: '[PR] Benchmark suite testing'
     permissions:
