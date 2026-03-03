@@ -270,10 +270,7 @@ getDeviceUsableMemSizeFromCore(ur_device_handle_t Device) {
 
   uint64_t FreeMemory = 0;
   for (uint32_t I = 0; I < MemCount; ++I) {
-    if (!Device->isSubDevice() || Device->ZeDeviceProperties->subdeviceId ==
-                                      MemProperties[I].subdeviceId) {
-      FreeMemory += UsableMemProperties[I].currUsableMemSize;
-    }
+    FreeMemory += UsableMemProperties[I].currUsableMemSize;
   }
 
   return FreeMemory;
