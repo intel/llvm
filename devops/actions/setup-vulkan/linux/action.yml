@@ -13,7 +13,6 @@ runs:
         else
           echo "Could not find Vulkan environment setup script"
         fi
-        export VK_LAYER_PATH=/opt/vulkan/x86_64/share/vulkan/explicit_layer.d
         env | sort > env_after
-        comm -13 env_before env_after >> $GITHUB_ENV
+        diff env_before env_after | grep '^>' | sed 's/^> //' >> $GITHUB_ENV
         rm env_before env_after
