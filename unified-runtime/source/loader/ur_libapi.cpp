@@ -8565,7 +8565,8 @@ ur_result_t UR_APICALL urProgramDynamicLinkExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Enqueue a command to execute a kernel
+/// @brief Enqueue a command to execute a kernel and set args at kernel launch
+///        time.
 ///
 /// @remarks
 ///   _Analogues_
@@ -9653,8 +9654,8 @@ ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Append a kernel execution command to a command-buffer object with
-///        setting args at kernel launch.
+/// @brief Append a kernel execution command to a command-buffer object and set
+///        args at kernel launch time.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
