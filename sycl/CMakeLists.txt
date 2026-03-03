@@ -417,10 +417,6 @@ add_custom_target( sycl-toolchain ALL
   COMMENT "Building SYCL compiler toolchain..."
 )
 
-if (WIN32)
-  add_dependencies(sycl-toolchain ur_win_proxy_loader unified-runtimed-build)
-endif()
-
 if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
   add_dependencies(sycl-toolchain clang-nvlink-wrapper)
 endif()
@@ -446,10 +442,6 @@ if(NOT "${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "")
 endif()
 
 add_subdirectory(tools)
-
-if (WIN32)
-  add_subdirectory(ur_win_proxy_loader)
-endif()
 
 if(SYCL_INCLUDE_TESTS)
   if(NOT LLVM_INCLUDE_TESTS)
@@ -501,10 +493,6 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
 
 if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS clang-nvlink-wrapper)
-endif()
-
-if (WIN32)
-  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS ur_win_proxy_loader)
 endif()
 
 if (TARGET sycl-prof)

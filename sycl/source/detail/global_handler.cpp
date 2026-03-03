@@ -406,7 +406,13 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
       // != NULL if library is unloaded during process termination. In this case
       // Windows terminates threads but leave them in signalled state, prevents
       // DLL_THREAD_DETACH notification and we can call join() as NOP.
-      shutdown_early(lpReserved != NULL);
+
+      // When handling DLL_PROCESS_DETACH, a DLL should free resources such as
+      // heap memory only if the DLL is being unloaded dynamically
+      // (the lpvReserved parameter is NULL)
+      // https://learn.microsoft.com/en-us/windows/win32/dlls/dllmain
+      if (lpReserved != NULL)
+        shutdown_early(true);
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in DLL_PROCESS_DETACH", e);
       return FALSE;

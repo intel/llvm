@@ -14,15 +14,10 @@
 #include <winreg.h>
 
 #include "detail/windows_os_utils.hpp"
-#include "ur_win_proxy_loader.hpp"
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-
-void *GetWinProcAddress(void *module, const char *funcName) {
-  return (void *)GetProcAddress((HMODULE)module, funcName);
-}
 
 namespace ur {
 
@@ -56,7 +51,7 @@ void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName) {
       GetProcAddress((HMODULE)Library, FunctionName.c_str()));
 }
 
-void *getURLoaderLibrary() { return getPreloadedURLib(); }
+void *getURLoaderLibrary() { return nullptr; }
 
 } // namespace ur
 } // namespace detail

@@ -53,11 +53,6 @@ public:
   adapter_impl(ur_adapter_handle_t adapter, backend UseBackend)
       : MAdapter(adapter), MBackend(UseBackend),
         MAdapterMutex(std::make_shared<std::mutex>()) {
-
-#ifdef _WIN32
-    UrLoaderHandle = ur::getURLoaderLibrary();
-    PopulateUrFuncPtrTable(&UrFuncPtrs, UrLoaderHandle);
-#endif
   }
 
   // Disallow accidental copies of adapters

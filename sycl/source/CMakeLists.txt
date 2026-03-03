@@ -101,7 +101,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     PRIVATE
       ${CMAKE_DL_LIBS}
       ${CMAKE_THREAD_LIBS_INIT}
-      $<$<NOT:$<BOOL:${WIN32}>>:UnifiedRuntimeLoader>
+      UnifiedRuntimeLoader
       $<$<BOOL:${WIN32}>:shlwapi>
   )
 
@@ -165,22 +165,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   endif()
 
   target_link_libraries(${LIB_OBJ_NAME} PRIVATE emhash::emhash)
-
-  # ur_win_proxy_loader
-  if (WIN32)
-    include_directories(${LLVM_EXTERNAL_SYCL_SOURCE_DIR}/ur_win_proxy_loader)
-    if(WIN_DUPE)
-      target_link_libraries(${LIB_NAME} PUBLIC ur_win_proxy_loaderd)
-      set(MANIFEST_FILE_NAME "sycld.manifest")
-    else()
-      target_link_libraries(${LIB_NAME} PUBLIC ur_win_proxy_loader)
-      set(MANIFEST_FILE_NAME "sycl.manifest")
-    endif()
-    # Embed manifest into the sycl.dll where ur_win_proxy_loader.dll is described as sycl.dll's private dll and will always be loaded from the same directory.
-    # 0x2000: LOAD_LIBRARY_SAFE_CURRENT_DIRS flag. Using this flag means that loading dependency DLLs (of sycl.dll)
-    # from the current directory is only allowed if it is under a directory in the Safe load list.
-    target_link_options(${LIB_NAME} PRIVATE "LINKER:/DEPENDENTLOADFLAG:0x2000" "LINKER:/MANIFEST:NO" "LINKER:/MANIFEST:EMBED" "LINKER:/MANIFESTINPUT:${CMAKE_CURRENT_SOURCE_DIR}/${MANIFEST_FILE_NAME}")
-  endif()
 
   if (WIN32)
     if (ARG_IMPLIB_NAME)
