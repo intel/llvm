@@ -432,7 +432,7 @@ int main() {
 #else
   const sycl::range<3> globalSize3D[] = {
       sycl::range{256, 256, 32}, sycl::range{1920, 1080, 8},
-      sycl::range{512, 256, 8}, sycl::range{640, 352, 2},
+      sycl::range{512, 256, 8}, sycl::range{1280, 720, 2},
       sycl::range{1280, 720, 2}};
 #endif
   errors += runTest<3, uint32_t, 1>(d3d11ProgramState, syclQueue,
