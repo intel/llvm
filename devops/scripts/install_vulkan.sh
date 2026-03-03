@@ -17,3 +17,8 @@ rm vulkan.tar.xz
 sudo rm /etc/apt/apt.conf.d/90forceyes
 sudo mv vulkan /opt/
 sudo bash -c 'echo "CMAKE_PREFIX_PATH=/opt/vulkan/x86_64/lib/cmake/" >> /etc/environment'
+sudo mkdir -p /etc/vulkan/explicit_layer.d
+sudo ln -sf /opt/vulkan/x86_64/etc/vulkan/explicit_layer.d/VkLayer_khronos_validation.json \
+  /etc/vulkan/explicit_layer.d/VkLayer_khronos_validation.json
+echo "/opt/vulkan/x86_64/lib" | sudo tee /etc/ld.so.conf.d/vulkan-sdk.conf >/dev/null
+sudo ldconfig
