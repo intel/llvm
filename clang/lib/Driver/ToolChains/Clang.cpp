@@ -11419,8 +11419,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         SYCLTC.AddSPIRVImpliedTargetArgs(SYCLTC.getTriple(), BaseCompilerArgs,
                                          CompilerArgs, JA, *HostTC);
       } else {
-        // For non-SPIR-V SYCL targets or other offload kinds (CUDA, OpenMP, HIP),
-        // directly convert the BaseCompilerArgs to CompilerArgs without additional processing.
+        // For non-SPIR-V SYCL targets or other offload kinds (CUDA, OpenMP,
+        // HIP), directly convert the BaseCompilerArgs to CompilerArgs without
+        // additional processing.
         for (Arg *A : BaseCompilerArgs) {
           A->render(BaseCompilerArgs, CompilerArgs);
         }
