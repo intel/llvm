@@ -25,7 +25,8 @@ if [ -f "${VALIDATION_LAYER_MANIFEST}" ]; then
   sudo ln -sf "${VALIDATION_LAYER_MANIFEST}" \
     /etc/vulkan/explicit_layer.d/VkLayer_khronos_validation.json
 else
-  echo "Warning: Vulkan validation layer manifest not found at ${VALIDATION_LAYER_MANIFEST}. Validation layers will not be available. Verify the ${VULKAN_VER} SDK install completed and uses the expected layout." >&2
+  echo "Warning: Vulkan validation layer manifest not found at ${VALIDATION_LAYER_MANIFEST}." >&2
+  echo "Validation layers will not be available. Verify the ${VULKAN_VER} SDK install." >&2
 fi
 echo "${VULKAN_SDK_PATH}/lib" | sudo tee /etc/ld.so.conf.d/vulkan-sdk.conf >/dev/null
 sudo ldconfig
