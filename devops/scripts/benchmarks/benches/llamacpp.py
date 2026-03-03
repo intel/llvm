@@ -5,7 +5,6 @@
 
 import csv
 import io
-import os
 from pathlib import Path
 
 from utils.utils import download

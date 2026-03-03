@@ -83,7 +83,6 @@ jobs:
   run:
     name: ${{ inputs.name }}
     runs-on: ${{ fromJSON(inputs.runner) }}
-    environment: WindowsCILock
     env: ${{ fromJSON(inputs.env) }}
     steps:
     - name:  Detect hung tests

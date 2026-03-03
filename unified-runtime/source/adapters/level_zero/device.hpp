@@ -226,6 +226,13 @@ struct ur_device_handle_t_ : ur_object {
     return ValidBits == 64 ? ~0ULL : (1ULL << ValidBits) - 1ULL;
   }
 
+  // Get timer resolution in nanoseconds.
+  // With ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES_1_2, timerResolution is in
+  // cycles/sec, so we convert to nanoseconds.
+  double getTimerResolution() {
+    return 1000000000.0 / ZeDeviceProperties->timerResolution;
+  }
+
   // Cache of the immutable device properties.
   ZeCache<ZeStruct<ze_device_properties_t>> ZeDeviceProperties;
   ZeCache<ZeStruct<ze_device_compute_properties_t>> ZeDeviceComputeProperties;

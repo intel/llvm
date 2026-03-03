@@ -10,7 +10,7 @@ import re
 import statistics
 import os
 
-from benches.compute import *
+from benches.compute.compute import *
 from benches.gromacs import GromacsBench
 from benches.velocity import VelocityBench
 from benches.syclbench import *
@@ -527,9 +527,10 @@ if __name__ == "__main__":
         default="level_zero",
     )
     parser.add_argument(
-        "--no-rebuild",
-        help="Disable rebuilding of git projects.",
+        "--offline",
+        help="Skip rebuilding projects, oneAPI updates, and benchmark data downloads.",
         action="store_true",
+        default=False,
     )
     parser.add_argument(
         "--redownload",
@@ -545,7 +546,12 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--save",
-        type=str,
+        type=lambda save: Validate.clean_name(
+            save,
+            throw=argparse.ArgumentTypeError(
+                "Specified save name is not within characters [a-zA-Z0-9_-]."
+            ),
+        ),
         help="Save the results for comparison under a specified name.",
     )
     parser.add_argument(
@@ -792,7 +798,7 @@ if __name__ == "__main__":
     additional_env_vars = validate_and_parse_env_args(args.env)
 
     options.workdir = args.benchmark_directory
-    options.no_rebuild = args.no_rebuild
+    options.offline = args.offline
     options.redownload = args.redownload
     options.sycl = args.sycl
     options.iterations = args.iterations

@@ -1008,7 +1008,7 @@ llvm::Value *TargetInfo::createVectorSlideUp(llvm::IRBuilder<> &B,
     return B.CreateInsertElement(rotate, insert, B.getInt64(0), "slide_in");
   }
 
-  auto *const rotate = B.CreateVectorSplice(poison, src, -1, "slide_up");
+  auto *const rotate = B.CreateVectorSpliceRight(poison, src, 1, "slide_up");
   return B.CreateInsertElement(rotate, insert, B.getInt64(0), "slide_in");
 }
 

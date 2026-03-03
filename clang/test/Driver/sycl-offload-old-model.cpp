@@ -605,7 +605,7 @@
 /// Verify that triple-boundarch pairs are correct with multi-targetting
 // RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib \
 // RUN:    -fsycl-targets=nvptx64-nvidia-cuda,spir64 -ccc-print-phases --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
-// RUN:    -fsycl-libspirv-path=%S/Inputs/SYCL/lib/clang/resource_dir/lib/libclc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc %s 2>&1 \
+// RUN:    -fsycl-libspirv-path=%S/Inputs/SYCL/lib/clang/resource_dir/lib/nvptx64-nvidia-cuda/remangled-l64-signed_char.libspirv.bc %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHK-PHASE-MULTI-TARG-BOUND-ARCH %s
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -620,7 +620,7 @@
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 10: preprocessor, {9}, c++-cpp-output, (device-sycl, sm_75)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 11: compiler, {10}, ir, (device-sycl, sm_75)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 12: linker, {11}, ir, (device-sycl, sm_75)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 13: input, "{{.*}}libspirv-nvptx64{{.*}}", ir, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 13: input, "{{.*}}libspirv{{.*}}", ir, (device-sycl, sm_75)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 14: linker, {12, 13}, ir, (device-sycl, sm_75)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 15: sycl-post-link, {14}, ir, (device-sycl, sm_75)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 16: file-table-tform, {15}, ir, (device-sycl, sm_75)
@@ -644,7 +644,7 @@
 // RUN:    -fno-sycl-instrument-device-code --no-offloadlib \
 // RUN:    -fsycl-targets=nvptx64-nvidia-cuda,spir64_gen \
 // RUN:    --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
-// RUN:    -fsycl-libspirv-path=%S/Inputs/SYCL/lib/clang/resource_dir/lib/libclc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
+// RUN:    -fsycl-libspirv-path=%S/Inputs/SYCL/lib/clang/resource_dir/lib/nvptx64-nvidia-cuda/remangled-l64-signed_char.libspirv.bc \
 // RUN:     -Xsycl-target-backend=spir64_gen "-device skl" \
 // RUN:     -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASE-MULTI-TARG-BOUND-ARCH2 %s
@@ -661,7 +661,7 @@
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 10: preprocessor, {9}, c++-cpp-output, (device-sycl, sm_75)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 11: compiler, {10}, ir, (device-sycl, sm_75)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 12: linker, {11}, ir, (device-sycl, sm_75)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 13: input, "{{.*}}libspirv-nvptx64{{.*}}", ir, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 13: input, "{{.*}}libspirv{{.*}}", ir, (device-sycl, sm_75)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 14: linker, {12, 13}, ir, (device-sycl, sm_75)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 15: sycl-post-link, {14}, ir, (device-sycl, sm_75)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 16: file-table-tform, {15}, ir, (device-sycl, sm_75)
@@ -686,7 +686,7 @@
 // RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver \
 // RUN:    -fno-sycl-instrument-device-code --no-offloadlib \
 // RUN:    --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
-// RUN:    -fsycl-libspirv-path=%S/Inputs/SYCL/lib/clang/resource_dir/lib/libclc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
+// RUN:    -fsycl-libspirv-path=%S/Inputs/SYCL/lib/clang/resource_dir/lib/nvptx64-nvidia-cuda/remangled-l64-signed_char.libspirv.bc \
 // RUN:    -fsycl-targets=spir64,nvptx64-nvidia-cuda -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED %s
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
@@ -709,7 +709,7 @@
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 17: clang-offload-wrapper, {16}, object, (device-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 18: offload, "device-sycl (spir64-unknown-unknown)" {17}, object
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 19: linker, {4}, ir, (device-sycl, sm_75)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 20: input, "{{.*}}libspirv-nvptx64{{.*}}", ir, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 20: input, "{{.*}}libspirv{{.*}}", ir, (device-sycl, sm_75)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 21: linker, {19, 20}, ir, (device-sycl, sm_75)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 22: sycl-post-link, {21}, ir, (device-sycl, sm_75)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 23: file-table-tform, {22}, ir, (device-sycl, sm_75)
@@ -728,7 +728,7 @@
 // RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver \
 // RUN:    -fno-sycl-instrument-device-code --no-offloadlib \
 // RUN:    --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
-// RUN:    -fsycl-libspirv-path=%S/Inputs/SYCL/lib/clang/resource_dir/lib/libclc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
+// RUN:    -fsycl-libspirv-path=%S/Inputs/SYCL/lib/clang/resource_dir/lib/nvptx64-nvidia-cuda/remangled-l64-signed_char.libspirv.bc \
 // RUN:    -fsycl-targets=spir64,nvptx64-nvidia-cuda,amdgcn-amd-amdhsa \
 // RUN:    -Xsycl-target-backend=nvptx64-nvidia-cuda --offload-arch=sm_75 \
 // RUN:    -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx908 -ccc-print-phases %s 2>&1 \
@@ -756,7 +756,7 @@
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 20: preprocessor, {19}, c++-cpp-output, (device-sycl, sm_75)
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 21: compiler, {20}, ir, (device-sycl, sm_75)
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 22: linker, {21}, ir, (device-sycl, sm_75)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 23: input, "{{.*}}libspirv-nvptx64{{.*}}", ir, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 23: input, "{{.*}}libspirv{{.*}}", ir, (device-sycl, sm_75)
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 24: linker, {22, 23}, ir, (device-sycl, sm_75)
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 25: sycl-post-link, {24}, ir, (device-sycl, sm_75)
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 26: file-table-tform, {25}, ir, (device-sycl, sm_75)

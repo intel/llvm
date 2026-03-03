@@ -505,6 +505,8 @@ public:
         createEventIfRequested(eventPoolRegular.get(), phEvent, this));
   }
 
+  bool isInOrder() override { return true; }
+
   ur::RefCount RefCount;
 };
 

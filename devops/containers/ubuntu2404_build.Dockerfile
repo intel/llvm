@@ -8,6 +8,7 @@ USER root
 RUN apt-get update -qq && apt-get install --no-install-recommends -yqq curl ca-certificates
 RUN curl -sSL https://apt.llvm.org/llvm-snapshot.gpg.key -o /etc/apt/trusted.gpg.d/apt.llvm.org.asc
 RUN echo 'deb http://apt.llvm.org/noble/ llvm-toolchain-noble main' > /etc/apt/sources.list.d/llvm.list
+RUN echo 'deb http://apt.llvm.org/noble/ llvm-toolchain-noble-22 main' > /etc/apt/sources.list.d/llvm.list
 
 # Install SYCL prerequisites
 COPY scripts/install_build_tools.sh /install.sh
@@ -30,7 +31,7 @@ SHELL ["/bin/bash", "-ec"]
 RUN mkdir --parents --mode=0755 /etc/apt/keyrings
 # Download the key, convert the signing-key to a full
 # keyring required by apt and store in the keyring directory
-RUN wget https://repo.radeon.com/rocm/rocm.gpg.key -O - | \
+RUN curl -sSL https://repo.radeon.com/rocm/rocm.gpg.key | \
 gpg --dearmor | tee /etc/apt/keyrings/rocm.gpg > /dev/null && \
 # Add rocm repo
 echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/amdgpu/6.3/ubuntu noble main" \
@@ -49,6 +50,7 @@ RUN apt update && apt install -yqq rocm-dev && \
 # Fix Vulkan install inside container
 # https://stackoverflow.com/questions/74965945/vulkan-is-unable-to-detect-nvidia-gpu-from-within-a-docker-container-when-using
 RUN apt-get update && \
+    apt-get install -y libegl1 && \
     apt-get install -y --no-install-recommends --download-only libnvidia-gl-565 && \
     dpkg-deb --extract /var/cache/apt/archives/libnvidia-gl-565_*.deb extracted && \
     cp -R ./extracted/usr/* /usr/ && \
