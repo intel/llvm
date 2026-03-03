@@ -317,7 +317,7 @@ class ComputeBench(Suite):
                         runtime,
                         variant_name,
                         profiler_type,
-                        common_args={
+                        fixed_args={
                             "KernelBatchSize": 512,
                             "KernelName": "Add",
                             "KernelParamsNum": 5,
@@ -378,7 +378,7 @@ class ComputeBench(Suite):
                         variant_name,
                         profiler_type,
                         measure_completion,
-                        common_args={
+                        fixed_args={
                             "KernelWGCount": 512,
                             "KernelWGSize": 256,
                             "Profiling": 0,
@@ -417,7 +417,7 @@ class ComputeBench(Suite):
                         variant_name,
                         profiler_type,
                         measure_completion,
-                        common_args={
+                        fixed_args={
                             "KernelBatchSize": 512,
                             "MeasureCompletionTime": measure_completion,
                             "Profiling": 0,
@@ -497,7 +497,7 @@ class ComputeBench(Suite):
                         runtime,
                         variant_name,
                         profiler_type,
-                        common_args={
+                        fixed_args={
                             "KernelBatchSize": 512,
                             "Profiling": 0,
                         },
@@ -542,7 +542,7 @@ class ComputeBench(Suite):
                             runtime,
                             variant_name,
                             profiler_type,
-                            common_args={
+                            fixed_args={
                                 "KernelName": kernel_name.value,
                                 "KernelWGCount": 512,
                                 "KernelWGSize": 256,
@@ -583,7 +583,7 @@ class ComputeBench(Suite):
                             runtime,
                             variant_name,
                             profiler_type,
-                            common_args={
+                            fixed_args={
                                 "workgroupCount": 512,
                                 "workgroupSize": 256,
                                 "Profiling": 0,
