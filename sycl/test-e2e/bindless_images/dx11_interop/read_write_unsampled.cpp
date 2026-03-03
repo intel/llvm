@@ -96,7 +96,7 @@ void callSyclKernel(sycl::queue syclQueue,
                   size_t dim1 = it.get_global_id(1);
                   size_t dim2 = it.get_global_id(2);
                   // We simulate 3d textures through very tall 2D textures where
-                  // the depth dimension has been collapsed into the height
+                  // the depth dimension has been collapsed onto the height
                   // dimension.
                   // So, logically speaking, the texture has
                   // dimensions Width x Height x Depth but practically speaking,
@@ -150,8 +150,10 @@ bool verifyResult(D3D11ProgramState &d3d11ProgramState,
   assert(d3d11ProgramState.device && d3d11ProgramState.deviceContext);
   auto *pDevice = d3d11ProgramState.device;
   auto *pDeviceContext = d3d11ProgramState.deviceContext;
+
   ComPtr<ID3D11Device3> device3;
   ThrowIfFailed(pDevice->QueryInterface(IID_PPV_ARGS(&device3)));
+
   static constexpr UINT bindFlags = 0;
   static constexpr UINT miscFlags = 0;
 
@@ -223,6 +225,7 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
   assert(d3d11ProgramState.device && d3d11ProgramState.deviceContext);
   auto *pDevice = d3d11ProgramState.device;
   auto *pDeviceContext = d3d11ProgramState.deviceContext;
+
   syclexp::image_descriptor syclImageDesc{globalSize, NChannels, channelType};
   // Verify ability to allocate the above image descriptor.
   // E.g. LevelZero does not support `unorm` channel types.
@@ -373,7 +376,7 @@ int main() {
 
   int errors = 0;
 
-// Test 1D texture interop
+  // Test 1D texture interop
 #ifdef TEST_SMALL_IMAGE_SIZE
   const sycl::range<1> globalSize1D{1024};
 #else
