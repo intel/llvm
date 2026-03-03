@@ -24,6 +24,7 @@ TEST_P(urQueueEndGraphCaptureExpTest, SuccessSameGraph) {
 // would use different command lists.
 TEST_P(urQueueEndGraphCaptureExpTest, SuccessAfterQueueOperations) {
   ASSERT_SUCCESS(urEnqueueEventsWait(queue, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urQueueFinish(queue));
 
   ASSERT_SUCCESS(urQueueBeginCaptureIntoGraphExp(queue, graph));
   ur_exp_graph_handle_t capturedGraph = nullptr;
