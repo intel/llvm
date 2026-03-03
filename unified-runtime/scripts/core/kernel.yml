@@ -10,7 +10,7 @@
 --- #--------------------------------------------------------------------------
 type: header
 desc: "Intel $OneApi Unified Runtime APIs for Program"
-ordinal: "7"
+ordinal: "12"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Create kernel object from a program."
