@@ -5,8 +5,6 @@ set -e
 set -o pipefail
 VULKAN_VER="1.4.335.0"
 VULKAN_SDK_ROOT="/opt/vulkan"
-VULKAN_SDK_PATH="${VULKAN_SDK_ROOT}/x86_64"
-VALIDATION_LAYER_MANIFEST="${VULKAN_SDK_PATH}/etc/vulkan/explicit_layer.d/VkLayer_khronos_validation.json"
 wget https://sdk.lunarg.com/sdk/download/$VULKAN_VER/linux/vulkansdk-linux-x86_64-$VULKAN_VER.tar.xz -O vulkan.tar.xz
 tar xf vulkan.tar.xz
 mv $VULKAN_VER vulkan
@@ -19,13 +17,15 @@ cd ..
 rm vulkan.tar.xz
 sudo rm /etc/apt/apt.conf.d/90forceyes
 sudo mv vulkan "${VULKAN_SDK_ROOT}"
+VULKAN_SDK_PATH="${VULKAN_SDK_ROOT}/x86_64"
+VALIDATION_LAYER_MANIFEST="${VULKAN_SDK_PATH}/etc/vulkan/explicit_layer.d/VkLayer_khronos_validation.json"
 sudo bash -c "echo \"CMAKE_PREFIX_PATH=${VULKAN_SDK_PATH}/lib/cmake/\" >> /etc/environment"
 sudo mkdir -p /etc/vulkan/explicit_layer.d
 if [ -f "${VALIDATION_LAYER_MANIFEST}" ]; then
   sudo ln -sf "${VALIDATION_LAYER_MANIFEST}" \
     /etc/vulkan/explicit_layer.d/VkLayer_khronos_validation.json
 else
-  echo "Warning: Vulkan validation layer manifest not found at ${VALIDATION_LAYER_MANIFEST}. Validation layers will not be available." >&2
+  echo "Warning: Vulkan validation layer manifest not found at ${VALIDATION_LAYER_MANIFEST}. Validation layers will not be available. Verify the ${VULKAN_VER} SDK install completed and uses the expected layout." >&2
 fi
 echo "${VULKAN_SDK_PATH}/lib" | sudo tee /etc/ld.so.conf.d/vulkan-sdk.conf >/dev/null
 sudo ldconfig
