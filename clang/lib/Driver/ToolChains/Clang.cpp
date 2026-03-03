@@ -11410,8 +11410,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       }
 
       if (Kind == Action::OFK_SYCL && TC->getTriple().isSPIROrSPIRV()) {
-        // Add implied SYCL target arguments to `CompilerArgs`
-        // based on the selected target.
+        // For SYCL offloading with SPIR-V targets, add implied backend compiler
+        // arguments depending on the target device and compilation mode.
         const toolchains::SYCLToolChain &SYCLTC =
             static_cast<const toolchains::SYCLToolChain &>(*TC);
         const ToolChain *HostTC =
@@ -11419,8 +11419,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         SYCLTC.AddSPIRVImpliedTargetArgs(SYCLTC.getTriple(), BaseCompilerArgs,
                                          CompilerArgs, JA, *HostTC);
       } else {
-        // For non-SYCL offload kinds (CUDA, OpenMP, HIP), directly convert
-        // the BaseCompilerArgs to CompilerArgs without additional processing.
+        // For non-SPIR-V SYCL targets or other offload kinds (CUDA, OpenMP, HIP),
+        // directly convert the BaseCompilerArgs to CompilerArgs without additional processing.
         for (Arg *A : BaseCompilerArgs) {
           A->render(BaseCompilerArgs, CompilerArgs);
         }
