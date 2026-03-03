@@ -10185,7 +10185,7 @@ static void addRunTimeWrapperOpts(Compilation &C,
     const ArgList &Args = C.getArgsForToolChain(nullptr, StringRef(),
                                                 DeviceOffloadKind);
     const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
-    SYCLTC.AddImpliedTargetArgs(TT, Args, BuildArgs, JA, *HostTC);
+    SYCLTC.AddSPIRVImpliedTargetArgs(TT, Args, BuildArgs, JA, *HostTC);
     SYCLTC.TranslateBackendTargetArgs(TT, Args, BuildArgs);
     createArgString("-compile-opts=");
     BuildArgs.clear();
@@ -10501,7 +10501,7 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
       const toolchains::SYCLToolChain &SYCLTC =
           static_cast<const toolchains::SYCLToolChain &>(*TC);
-      SYCLTC.AddImpliedTargetArgs(TC->getTriple(), Args, BuildArgs, JA, *HostTC,
+      SYCLTC.AddSPIRVImpliedTargetArgs(TC->getTriple(), Args, BuildArgs, JA, *HostTC,
                                   Arch);
       SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
       createArgString("compile-opts=");
@@ -11417,7 +11417,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         const ToolChain *HostTC =
             C.getSingleOffloadToolChain<Action::OFK_Host>();
         SYCLTC.AddSPIRVImpliedTargetArgs(SYCLTC.getTriple(), BaseCompilerArgs,
-                                    CompilerArgs, JA, *HostTC);
+                                         CompilerArgs, JA, *HostTC);
       } else {
         // For non-SYCL offload kinds (CUDA, OpenMP, HIP), directly convert
         // the BaseCompilerArgs to CompilerArgs without additional processing.

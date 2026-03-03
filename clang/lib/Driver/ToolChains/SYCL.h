@@ -142,10 +142,10 @@ public:
                         llvm::opt::ArgStringList &CC1Args,
                         Action::OffloadKind DeviceOffloadKind) const override;
   void AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
-                            const llvm::opt::ArgList &Args,
-                            llvm::opt::ArgStringList &CmdArgs,
-                            const JobAction &JA, const ToolChain &HostTC,
-                            StringRef Device = "") const;
+                                 const llvm::opt::ArgList &Args,
+                                 llvm::opt::ArgStringList &CmdArgs,
+                                 const JobAction &JA, const ToolChain &HostTC,
+                                 StringRef Device = "") const;
   void TranslateBackendTargetArgs(const llvm::Triple &Triple,
                                   const llvm::opt::ArgList &Args,
                                   llvm::opt::ArgStringList &CmdArgs,
