@@ -658,11 +658,7 @@ static bool mustPreserveGV(const GlobalValue &GV,
     // cannot be imported which also means that there is no point of having it
     // visible outside of the current module.
     if (AllowDeviceImageDependencies) {
-      const auto CC = F->getCallingConv();
-      const bool SpirOrGPU = CC == CallingConv::SPIR_KERNEL ||
-                             CC == CallingConv::AMDGPU_KERNEL ||
-                             CC == CallingConv::PTX_Kernel;
-      return SpirOrGPU ||
+      return F.hasKernelCallingConv() ||
              canBeImportedFunction(*F, AllowDeviceImageDependencies);
     }
 
