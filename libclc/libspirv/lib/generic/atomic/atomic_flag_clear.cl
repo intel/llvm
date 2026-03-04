@@ -6,15 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/atomic/clc_atomic_flag_clear.h>
-#include <libspirv/atomic/atomic_helper.h>
 #include <libspirv/spirv.h>
 
 #define __CLC_DEFINE_ATOMIC_FLAG_CLEAR(ADDRSPACE)                              \
   _CLC_OVERLOAD _CLC_DEF void __spirv_AtomicFlagClear(                         \
-      ADDRSPACE int *Ptr, int Scope, int Semantics) {                          \
-    __clc_atomic_flag_clear(Ptr, __spirv_get_clang_memory_order(Semantics),    \
-                            __spirv_get_clang_memory_scope(Scope));            \
+      ADDRSPACE int *Pointer, int Scope, int Semantics) {                      \
+    __spirv_AtomicStore(Pointer, Scope, Semantics, 0);                         \
   }
 
 __CLC_DEFINE_ATOMIC_FLAG_CLEAR(global)
