@@ -49,6 +49,7 @@ SPIRV::TranslatorOpts &SPIRVLLVMTranslator::translatorOpts() {
       SPIRV::ExtensionID::SPV_INTEL_long_composites,
       SPIRV::ExtensionID::SPV_INTEL_arithmetic_fence,
       SPIRV::ExtensionID::SPV_INTEL_global_variable_decorations,
+      SPIRV::ExtensionID::SPV_INTEL_global_variable_host_access,
       SPIRV::ExtensionID::SPV_INTEL_cache_controls,
       SPIRV::ExtensionID::SPV_INTEL_fpga_buffer_location,
       SPIRV::ExtensionID::SPV_INTEL_fpga_argument_interfaces,
