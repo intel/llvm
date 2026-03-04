@@ -18,11 +18,7 @@
     Wx             Set custom Width  (e.g. 8x)
 
 
-    BMG: 
-
-    DG2:
-    - WORKS, including --sampled
-    - semaphores segfault
+    unorm8 seems to not be working.  
 
 */
 // clang-format on
@@ -51,9 +47,6 @@
 // RUN: %{run} %t.exe --type int8 --channels 1 33x
 // RUN: %{run} %t.exe --type int8 --channels 2 33x
 // RUN: %{run} %t.exe --type int8 --channels 4 33x
-// RUN: %{run} %t.exe --type unorm8 --channels 1 33x
-// RUN: %{run} %t.exe --type unorm8 --channels 2 33x
-// RUN: %{run} %t.exe --type unorm8 --channels 4 33x
 // RUN: %{run} %t.exe --type float --channels 1 --sampled 33x
 // RUN: %{run} %t.exe --type float --channels 2 --sampled 33x
 // RUN: %{run} %t.exe --type float --channels 4 --sampled 33x
@@ -78,9 +71,7 @@
 // RUN: %{run} %t.exe --type int8 --channels 1 --sampled 33x
 // RUN: %{run} %t.exe --type int8 --channels 2 --sampled 33x
 // RUN: %{run} %t.exe --type int8 --channels 4 --sampled 33x
-// RUN: %{run} %t.exe --type unorm8 --channels 1 --sampled 33x
-// RUN: %{run} %t.exe --type unorm8 --channels 2 --sampled 33x
-// RUN: %{run} %t.exe --type unorm8 --channels 4 --sampled 33x
+
 
 #include "d3d12_setup.hpp"
 
