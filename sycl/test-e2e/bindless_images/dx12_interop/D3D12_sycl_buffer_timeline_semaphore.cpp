@@ -3,7 +3,7 @@
 // REQUIRES: windows
 
 // UNSUPPORTED: windows
-// UNSUPPORTED-TRACKER: 
+// UNSUPPORTED-TRACKER:
 
 // RUN: %{build} -ld3d12 -ldxgi -ld3dcompiler -o %t.exe %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.exe --no-sem
@@ -35,9 +35,6 @@
 */
 // clang-format on
 
-
-
-
 #include "d3d12_setup.hpp"
 #include <iostream>
 #include <string>
@@ -57,9 +54,12 @@ int main(int argc, char **argv) {
 
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
-    if (arg == "--no-sem") useSemaphores = false;
-    if (arg == "--iterations" && i + 1 < argc) iterations = std::stoi(argv[++i]);
-    if (arg == "--size" && i + 1 < argc) numElements = std::stoi(argv[++i]);
+    if (arg == "--no-sem")
+      useSemaphores = false;
+    if (arg == "--iterations" && i + 1 < argc)
+      iterations = std::stoi(argv[++i]);
+    if (arg == "--size" && i + 1 < argc)
+      numElements = std::stoi(argv[++i]);
   }
 
   size_t bufferSize = numElements * sizeof(uint32_t);
@@ -85,7 +85,8 @@ int main(int argc, char **argv) {
     extFence = createExportableFence(d3dCtx);
   }
 
-  // Set initial buffer states explicitly to COPY_DEST to avoid generic read promotion issues
+  // Set initial buffer states explicitly to COPY_DEST to avoid generic read
+  // promotion issues
   d3dCtx.cmdAlloc->Reset();
   d3dCtx.cmdList->Reset(d3dCtx.cmdAlloc.Get(), nullptr);
   D3D12_RESOURCE_BARRIER initialBarriers[2] = {};
@@ -93,13 +94,16 @@ int main(int argc, char **argv) {
   initialBarriers[0].Transition.pResource = inBuf.resource.Get();
   initialBarriers[0].Transition.StateBefore = D3D12_RESOURCE_STATE_COMMON;
   initialBarriers[0].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
-  initialBarriers[0].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-  
+  initialBarriers[0].Transition.Subresource =
+      D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+
   initialBarriers[1].Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
   initialBarriers[1].Transition.pResource = outBuf.resource.Get();
   initialBarriers[1].Transition.StateBefore = D3D12_RESOURCE_STATE_COMMON;
-  initialBarriers[1].Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-  initialBarriers[1].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+  initialBarriers[1].Transition.StateAfter =
+      D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+  initialBarriers[1].Transition.Subresource =
+      D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
   d3dCtx.cmdList->ResourceBarrier(2, initialBarriers);
   d3dCtx.cmdList->Close();
   executeAndWait(d3dCtx);
@@ -110,29 +114,39 @@ int main(int argc, char **argv) {
     auto device = q.get_device();
     auto context = q.get_context();
 
-    std::cout << "[SYCL] Device: " << device.get_info<sycl::info::device::name>() << "\n";
+    std::cout << "[SYCL] Device: "
+              << device.get_info<sycl::info::device::name>() << "\n";
 
     // Import buffers
     syclexp::external_mem_descriptor<syclexp::resource_win32_handle> inDesc{
-        inBuf.sharedHandle, syclexp::external_mem_handle_type::win32_nt_handle, bufferSize};
-    syclexp::external_mem inExtMem = syclexp::import_external_memory(inDesc, device, context);
+        inBuf.sharedHandle, syclexp::external_mem_handle_type::win32_nt_handle,
+        bufferSize};
+    syclexp::external_mem inExtMem =
+        syclexp::import_external_memory(inDesc, device, context);
 
     syclexp::external_mem_descriptor<syclexp::resource_win32_handle> outDesc{
-        outBuf.sharedHandle, syclexp::external_mem_handle_type::win32_nt_handle, bufferSize};
-    syclexp::external_mem outExtMem = syclexp::import_external_memory(outDesc, device, context);
+        outBuf.sharedHandle, syclexp::external_mem_handle_type::win32_nt_handle,
+        bufferSize};
+    syclexp::external_mem outExtMem =
+        syclexp::import_external_memory(outDesc, device, context);
 
     // Import timeline fence
     syclexp::external_semaphore syclSem{};
     if (useSemaphores) {
-      auto semDesc = syclexp::external_semaphore_descriptor<syclexp::resource_win32_handle>{
-          extFence.sharedHandle, syclexp::external_semaphore_handle_type::win32_nt_dx12_fence};
+      auto semDesc = syclexp::external_semaphore_descriptor<
+          syclexp::resource_win32_handle>{
+          extFence.sharedHandle,
+          syclexp::external_semaphore_handle_type::win32_nt_dx12_fence};
       syclSem = syclexp::import_external_semaphore(semDesc, device, context);
     }
 
-    uint32_t *inPtr = static_cast<uint32_t *>(syclexp::map_external_linear_memory(inExtMem, 0, bufferSize, q));
-    uint32_t *outPtr = static_cast<uint32_t *>(syclexp::map_external_linear_memory(outExtMem, 0, bufferSize, q));
+    uint32_t *inPtr = static_cast<uint32_t *>(
+        syclexp::map_external_linear_memory(inExtMem, 0, bufferSize, q));
+    uint32_t *outPtr = static_cast<uint32_t *>(
+        syclexp::map_external_linear_memory(outExtMem, 0, bufferSize, q));
 
-    std::cout << "[Test] Starting " << iterations << " iteration stress test...\n";
+    std::cout << "[Test] Starting " << iterations
+              << " iteration stress test...\n";
 
     for (int i = 1; i <= iterations; ++i) {
       uint64_t d3dSignalVal = (uint64_t)(2 * i - 1);
@@ -142,13 +156,15 @@ int main(int argc, char **argv) {
       void *mapped;
       inStaging.resource->Map(0, nullptr, &mapped);
       auto *data = static_cast<uint32_t *>(mapped);
-      for (size_t j = 0; j < numElements; ++j) data[j] = (uint32_t)i;
+      for (size_t j = 0; j < numElements; ++j)
+        data[j] = (uint32_t)i;
       inStaging.resource->Unmap(0, nullptr);
 
       d3dCtx.cmdAlloc->Reset();
       d3dCtx.cmdList->Reset(d3dCtx.cmdAlloc.Get(), nullptr);
 
-      d3dCtx.cmdList->CopyBufferRegion(inBuf.resource.Get(), 0, inStaging.resource.Get(), 0, bufferSize);
+      d3dCtx.cmdList->CopyBufferRegion(inBuf.resource.Get(), 0,
+                                       inStaging.resource.Get(), 0, bufferSize);
 
       // Barrier: CopyDest -> UAV
       D3D12_RESOURCE_BARRIER barrier = {};
@@ -160,19 +176,19 @@ int main(int argc, char **argv) {
       d3dCtx.cmdList->ResourceBarrier(1, &barrier);
 
       d3dCtx.cmdList->Close();
-      ID3D12CommandList* ppCommandLists[] = { d3dCtx.cmdList.Get() };
+      ID3D12CommandList *ppCommandLists[] = {d3dCtx.cmdList.Get()};
       d3dCtx.cmdQueue->ExecuteCommandLists(1, ppCommandLists);
 
       if (useSemaphores) {
         d3dCtx.cmdQueue->Signal(extFence.fence.Get(), d3dSignalVal);
       }
-      
+
       // Host wait for upload to finish using the generic context fence
       d3dCtx.fenceValue++;
       d3dCtx.cmdQueue->Signal(d3dCtx.fence.Get(), d3dCtx.fenceValue);
       d3dCtx.fence->SetEventOnCompletion(d3dCtx.fenceValue, d3dCtx.fenceEvent);
       WaitForSingleObject(d3dCtx.fenceEvent, INFINITE);
-      
+
       std::cout << "  [" << i << "] D3D12 upload done" << std::flush;
 
       // SYCL: Wait, execute, signal
@@ -190,7 +206,8 @@ int main(int argc, char **argv) {
       });
 
       if (useSemaphores) {
-        std::cout << ", SYCL sem-signal(" << syclSignalVal << ")..." << std::flush;
+        std::cout << ", SYCL sem-signal(" << syclSignalVal << ")..."
+                  << std::flush;
         q.ext_oneapi_signal_external_semaphore(syclSem, syclSignalVal);
         std::cout << "ok" << std::flush;
       }
@@ -211,13 +228,14 @@ int main(int argc, char **argv) {
       barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
       d3dCtx.cmdList->ResourceBarrier(1, &barrier);
 
-      d3dCtx.cmdList->CopyBufferRegion(outStaging.resource.Get(), 0, outBuf.resource.Get(), 0, bufferSize);
-      
+      d3dCtx.cmdList->CopyBufferRegion(outStaging.resource.Get(), 0,
+                                       outBuf.resource.Get(), 0, bufferSize);
+
       // Barrier: revert outBuf back to UAV for next iteration
       barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
       barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
       d3dCtx.cmdList->ResourceBarrier(1, &barrier);
-      
+
       d3dCtx.cmdList->Close();
       d3dCtx.cmdQueue->ExecuteCommandLists(1, ppCommandLists);
 
@@ -226,7 +244,7 @@ int main(int argc, char **argv) {
       d3dCtx.fenceValue++;
       d3dCtx.cmdQueue->Signal(d3dCtx.fence.Get(), d3dCtx.fenceValue);
       d3dCtx.fence->SetEventOnCompletion(d3dCtx.fenceValue, d3dCtx.fenceEvent);
-      
+
       if (WaitForSingleObject(d3dCtx.fenceEvent, 5000) == WAIT_TIMEOUT) {
         std::cerr << "\nTIMEOUT on host wait!\n";
         return 1;
@@ -241,13 +259,15 @@ int main(int argc, char **argv) {
       for (size_t j = 0; j < numElements; ++j) {
         if (outData[j] != expected) {
           if (errors++ < 5)
-            std::cerr << "  [" << j << "]: got " << outData[j] << " expected " << expected << "\n";
+            std::cerr << "  [" << j << "]: got " << outData[j] << " expected "
+                      << expected << "\n";
         }
       }
       outStaging.resource->Unmap(0, nullptr);
-      
+
       if (errors > 0) {
-        std::cerr << "\nFAILURE at iteration " << i << ": " << errors << " mismatches\n";
+        std::cerr << "\nFAILURE at iteration " << i << ": " << errors
+                  << " mismatches\n";
         return 1;
       }
 
@@ -261,8 +281,10 @@ int main(int argc, char **argv) {
       d3dCtx.cmdList->Close();
       executeAndWait(d3dCtx); // Use generic helper to submit and wait
 
-      if (i % 25 == 0 || i == 1) std::cout << " PASS\n";
-      else std::cout << " ok\n";
+      if (i % 25 == 0 || i == 1)
+        std::cout << " PASS\n";
+      else
+        std::cout << " ok\n";
     }
 
     std::cout << "SUCCESS! All " << iterations << " iterations passed.\n";
@@ -270,7 +292,8 @@ int main(int argc, char **argv) {
     // SYCL Cleanup
     syclexp::unmap_external_linear_memory(inPtr, q);
     syclexp::unmap_external_linear_memory(outPtr, q);
-    if (useSemaphores) syclexp::release_external_semaphore(syclSem, device, context);
+    if (useSemaphores)
+      syclexp::release_external_semaphore(syclSem, device, context);
     syclexp::release_external_memory(inExtMem, device, context);
     syclexp::release_external_memory(outExtMem, device, context);
 
@@ -280,13 +303,15 @@ int main(int argc, char **argv) {
   }
 
   // D3D12 Cleanup
-  if (useSemaphores) cleanupExportableFence(extFence);
+  if (useSemaphores)
+    cleanupExportableFence(extFence);
   cleanupBuffer(inBuf);
   cleanupBuffer(outBuf);
   cleanupBuffer(inStaging);
   cleanupBuffer(outStaging);
   // Clean up the generic context event directly
-  if (d3dCtx.fenceEvent) CloseHandle(d3dCtx.fenceEvent);
+  if (d3dCtx.fenceEvent)
+    CloseHandle(d3dCtx.fenceEvent);
 
   return 0;
 }
