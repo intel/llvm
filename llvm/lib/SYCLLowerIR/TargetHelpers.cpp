@@ -52,65 +52,51 @@ void KernelCache::handleNewCloneOf(Function &OldF, Function &NewF,
 }
 
 void KernelCache::populateKernels(Module &M) {
-  Triple T(M.getTargetTriple());
+  auto *AnnotationMetadata = M.getNamedMetadata("nvvm.annotations");
+  assert((M.getTargetTriple().isNVPTX() || !AnnotationMetadata) &&
+         "Unexpected nvvm annotation metadata for non-PTX target");
 
-  // AMDGPU kernels are identified by their calling convention, and don't have
-  // any annotations.
-  if (T.isAMDGCN()) {
-    for (auto &F : M) {
-      if (F.getCallingConv() == CallingConv::AMDGPU_KERNEL) {
-        Kernels.push_back(&F);
-        KernelData[&F] = KernelPayload{};
-      }
+  for (auto &F : M) {
+    if (F.hasKernelCallingConv()) {
+      Kernels.push_back(&F);
+      KernelData[&F] = KernelPayload{AnnotationMetadata};
     }
-    return;
   }
 
-  // NVPTX kernels are identified by their calling convention, and may have
-  // annotations.
-  if (T.isNVPTX()) {
-    auto *AnnotationMetadata = M.getNamedMetadata("nvvm.annotations");
-    for (auto &F : M) {
-      if (F.getCallingConv() == CallingConv::PTX_Kernel) {
-        Kernels.push_back(&F);
-	KernelData[&F] = KernelPayload{AnnotationMetadata};
-      }
-    }
-    // Early-exiting as there are no DependentMDNodes when no AnnotationMetadata.
-    if (!AnnotationMetadata)
-      return;
+  // Early-exiting as there are no DependentMDNodes when no AnnotationMetadata.
+  if (!AnnotationMetadata)
+    return;
 
-    // It is possible that the annotations node contains multiple pointers to
-    // the same metadata, recognise visited ones.
-    SmallSet<MDNode *, 4> Visited;
-    DenseMap<Function *, SmallVector<MDNode *, 4>> DependentMDNodes;
+  // It is possible that the annotations node contains multiple pointers to
+  // the same metadata, recognise visited ones.
+  SmallPtrSet<MDNode *, 4> Visited;
+  DenseMap<Function *, SmallVector<MDNode *, 4>> DependentMDNodes;
 
-    for (auto *MDN : AnnotationMetadata->operands()) {
-      if (Visited.contains(MDN) || MDN->getNumOperands() % 2 != 1)
-        continue;
+  for (auto *MDN : AnnotationMetadata->operands()) {
+    if (Visited.contains(MDN) || MDN->getNumOperands() % 2 != 1)
+      continue;
 
-      Visited.insert(MDN);
+    Visited.insert(MDN);
 
-      // Get a pointer to the entry point function from the metadata.
-      const MDOperand &FuncOperand = MDN->getOperand(0);
-      if (!FuncOperand)
-        continue;
+    // Get a pointer to the entry point function from the metadata.
+    const MDOperand &FuncOperand = MDN->getOperand(0);
+    if (!FuncOperand)
+      continue;
 
-      if (auto *FuncConstant = dyn_cast<ConstantAsMetadata>(FuncOperand))
-        if (auto *Func = dyn_cast<Function>(FuncConstant->getValue()))
-          if (Func->getCallingConv() == CallingConv::PTX_Kernel)
-             DependentMDNodes[Func].push_back(MDN);
-    }
-      
-    // We need to match non-kernel metadata nodes using the kernel name to the
-    // kernel nodes. To avoid checking matched nodes multiple times keep track
-    // of handled entries.
-    SmallPtrSet<MDNode *, 4> HandledNodes;
-    for (auto &[F, KP] : KernelData) {
-      for (MDNode *DepMDN : DependentMDNodes[F]) {
-        if (HandledNodes.insert(DepMDN).second)
-          KP.DependentMDs.push_back(DepMDN);
-      }
+    if (auto *FuncConstant = dyn_cast<ConstantAsMetadata>(FuncOperand))
+      if (auto *Func = dyn_cast<Function>(FuncConstant->getValue()))
+        if (Func->getCallingConv() == CallingConv::PTX_Kernel)
+          DependentMDNodes[Func].push_back(MDN);
+  }
+
+  // We need to match non-kernel metadata nodes using the kernel name to the
+  // kernel nodes. To avoid checking matched nodes multiple times keep track
+  // of handled entries.
+  SmallPtrSet<MDNode *, 4> HandledNodes;
+  for (auto &[F, KP] : KernelData) {
+    for (MDNode *DepMDN : DependentMDNodes[F]) {
+      if (HandledNodes.insert(DepMDN).second)
+        KP.DependentMDs.push_back(DepMDN);
     }
   }
 }
