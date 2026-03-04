@@ -384,8 +384,8 @@ int main(int argc, char **argv) {
   cleanupBuffer(vkCtx, outBuf);
   cleanupBuffer(vkCtx, inStaging);
   cleanupBuffer(vkCtx, outStaging);
-  vkDestroyDevice(vkCtx.device, nullptr);
-  vkDestroyInstance(vkCtx.instance, nullptr);
+
+  cleanupVulkanContext(vkCtx);
 
   return 0;
 }

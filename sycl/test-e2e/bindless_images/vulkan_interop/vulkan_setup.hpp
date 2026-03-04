@@ -333,10 +333,6 @@ inline VulkanContext createVulkanContext() {
   appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
   appInfo.apiVersion = VK_API_VERSION_1_2;
 
-  VkInstanceCreateInfo createInfo{};
-  createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-  createInfo.pApplicationInfo = &appInfo;
-
   std::vector<const char *> instanceExtensions;
   uint32_t instanceExtensionCount = 0;
   VK_CHECK(vkEnumerateInstanceExtensionProperties(
@@ -354,8 +350,10 @@ inline VulkanContext createVulkanContext() {
       break;
     }
   }
-  createInfo.enabledExtensionCount = (uint32_t)instanceExtensions.size();
-  createInfo.ppEnabledExtensionNames = instanceExtensions.data();
+
+  if (!debugUtils) {
+    throw std::runtime_error("failed to find Vulkan debug utils extension!");
+  }
 
   const char *validationLayerName = "VK_LAYER_KHRONOS_validation";
   uint32_t instanceLayerCount;
@@ -371,40 +369,47 @@ inline VulkanContext createVulkanContext() {
       break;
     }
   }
-  if (validationPresent) {
-    createInfo.ppEnabledLayerNames = &validationLayerName;
-    createInfo.enabledLayerCount = 1;
-  } else {
+  if (!validationPresent) {
     throw std::runtime_error("failed to find Vulkan validation layer!");
   }
 
+  VkInstanceCreateInfo createInfo{};
+  createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+  createInfo.pApplicationInfo = &appInfo;
+  createInfo.ppEnabledLayerNames = &validationLayerName;
+  createInfo.enabledLayerCount = 1;
+  createInfo.enabledExtensionCount = (uint32_t)instanceExtensions.size();
+  createInfo.ppEnabledExtensionNames = instanceExtensions.data();
+
+  VkDebugUtilsMessengerCreateInfoEXT debugUtilsMessengerInfo{};
+  debugUtilsMessengerInfo.sType =
+      VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+  debugUtilsMessengerInfo.messageSeverity =
+      VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+      VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+  debugUtilsMessengerInfo.messageType =
+      VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+      VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+      VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+  debugUtilsMessengerInfo.pfnUserCallback = debugUtilsMessageCallback;
+
+  // Chain the debugUtilsMessengerInfo into the instance to capture events
+  // that occur while creating the instance itself. This debug util messangegr
+  // will be alive only during instance creation.
+  createInfo.pNext = debugUtils ? &debugUtilsMessengerInfo : nullptr;
   VK_CHECK(vkCreateInstance(&createInfo, nullptr, &ctx.instance));
 
-  if (debugUtils) {
-    VkDebugUtilsMessengerCreateInfoEXT debugUtilsMessengerCI{};
-    debugUtilsMessengerCI.sType =
-        VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-    debugUtilsMessengerCI.messageSeverity =
-        VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-        VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-    debugUtilsMessengerCI.messageType =
-        VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-        VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-        VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-    debugUtilsMessengerCI.pfnUserCallback = debugUtilsMessageCallback;
-
-    auto vkCreateDebugUtilsMessengerFuncPtr =
-        (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
-            ctx.instance, "vkCreateDebugUtilsMessengerEXT");
-    if (vkCreateDebugUtilsMessengerFuncPtr != nullptr) {
-      VK_CHECK(vkCreateDebugUtilsMessengerFuncPtr(
-          ctx.instance, &debugUtilsMessengerCI, nullptr, &ctx.debugMessenger));
-    } else {
-      throw std::runtime_error(
-          "Failed to fetch vkCreateDebugUtilsMessengerEXT function pointer!");
-    }
+  // Create a persistent debug messenger that stays alive for the application's
+  // lifetime to capture all subsequent events.
+  auto vkCreateDebugUtilsMessengerFuncPtr =
+      (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
+          ctx.instance, "vkCreateDebugUtilsMessengerEXT");
+  if (vkCreateDebugUtilsMessengerFuncPtr != nullptr) {
+    VK_CHECK(vkCreateDebugUtilsMessengerFuncPtr(
+        ctx.instance, &debugUtilsMessengerInfo, nullptr, &ctx.debugMessenger));
   } else {
-    throw std::runtime_error("failed to find Vulkan debug utils extension!");
+    throw std::runtime_error(
+        "Failed to fetch vkCreateDebugUtilsMessengerEXT function pointer!");
   }
 
   uint32_t deviceCount = 0;
@@ -457,6 +462,18 @@ inline VulkanContext createVulkanContext() {
   vkGetDeviceQueue(ctx.device, ctx.queueFamilyIndex, 0, &ctx.queue);
 
   return ctx;
+}
+
+inline void cleanupVulkanContext(VulkanContext &ctx) {
+  vkDestroyDevice(ctx.device, nullptr);
+  auto vkDestroyDebugUtilsMessengerFuncPtr =
+      (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
+          ctx.instance, "vkDestroyDebugUtilsMessengerEXT");
+  if (vkDestroyDebugUtilsMessengerFuncPtr != nullptr) {
+    vkDestroyDebugUtilsMessengerFuncPtr(ctx.instance, ctx.debugMessenger,
+                                        nullptr);
+  }
+  vkDestroyInstance(ctx.instance, nullptr);
 }
 
 inline ImageResources createExportableImage(
