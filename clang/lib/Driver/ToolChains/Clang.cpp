@@ -10185,7 +10185,7 @@ static void addRunTimeWrapperOpts(Compilation &C,
     const ArgList &Args = C.getArgsForToolChain(nullptr, StringRef(),
                                                 DeviceOffloadKind);
     const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
-    SYCLTC.AddImpliedTargetArgs(TT, Args, BuildArgs, JA, *HostTC);
+    SYCLTC.AddSPIRVImpliedTargetArgs(TT, Args, BuildArgs, JA, *HostTC);
     SYCLTC.TranslateBackendTargetArgs(TT, Args, BuildArgs);
     createArgString("-compile-opts=");
     BuildArgs.clear();
@@ -10501,8 +10501,8 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
       const toolchains::SYCLToolChain &SYCLTC =
           static_cast<const toolchains::SYCLToolChain &>(*TC);
-      SYCLTC.AddImpliedTargetArgs(TC->getTriple(), Args, BuildArgs, JA, *HostTC,
-                                  Arch);
+      SYCLTC.AddSPIRVImpliedTargetArgs(TC->getTriple(), Args, BuildArgs, JA,
+                                       *HostTC, Arch);
       SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
       createArgString("compile-opts=");
       BuildArgs.clear();
@@ -11408,18 +11408,19 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
           A->render(Args, LinkerArgs);
       }
 
-      if (Kind == Action::OFK_SYCL) {
-        // Add implied SYCL target arguments to `CompilerArgs`
-        // based on the selected target.
+      if (Kind == Action::OFK_SYCL && TC->getTriple().isSPIROrSPIRV()) {
+        // For SYCL offloading with SPIR-V targets, add implied backend compiler
+        // arguments depending on the target device and compilation mode.
         const toolchains::SYCLToolChain &SYCLTC =
             static_cast<const toolchains::SYCLToolChain &>(*TC);
         const ToolChain *HostTC =
             C.getSingleOffloadToolChain<Action::OFK_Host>();
-        SYCLTC.AddImpliedTargetArgs(SYCLTC.getTriple(), BaseCompilerArgs,
-                                    CompilerArgs, JA, *HostTC);
+        SYCLTC.AddSPIRVImpliedTargetArgs(SYCLTC.getTriple(), BaseCompilerArgs,
+                                         CompilerArgs, JA, *HostTC);
       } else {
-        // For non-SYCL offload kinds (CUDA, OpenMP, HIP), directly convert
-        // the BaseCompilerArgs to CompilerArgs without additional processing.
+        // For non-SPIR-V SYCL targets or other offload kinds (CUDA, OpenMP,
+        // HIP), directly convert the BaseCompilerArgs to CompilerArgs without
+        // additional processing.
         for (Arg *A : BaseCompilerArgs) {
           A->render(BaseCompilerArgs, CompilerArgs);
         }
