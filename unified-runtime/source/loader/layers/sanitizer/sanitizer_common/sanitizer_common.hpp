@@ -137,11 +137,12 @@ struct SourceInfo {
 
 bool IsInASanContext();
 
-uptr MmapFixedNoReserve(uptr Addr, uptr Size);
+bool MmapFixedNoReserve(uptr Addr, uptr Size);
 uptr MmapNoReserve(uptr Addr, uptr Size);
 bool Munmap(uptr Addr, uptr Size);
-uptr ProtectMemoryRange(uptr Addr, uptr Size);
+bool ProtectMemoryRange(uptr Addr, uptr Size);
 bool DontCoredumpRange(uptr Addr, uptr Size);
+void ReExec();
 
 void *GetMemFunctionPointer(const char *);
 

@@ -16,6 +16,7 @@
 #include "sanitizer_common/sanitizer_utils.hpp"
 #include "ur_api.h"
 #include "ur_sanitizer_layer.hpp"
+#include <sys/personality.h>
 
 namespace ur_sanitizer_layer {
 namespace msan {
@@ -82,7 +83,7 @@ GetMsanShadowMemory(ur_context_handle_t Context, ur_device_handle_t Device,
 }
 
 ur_result_t MsanShadowMemoryCPU::Setup() {
-  static ur_result_t Result = [this]() {
+  static bool Initialized = []() {
     for (unsigned i = 0; i < kMemoryLayoutSize; ++i) {
       uptr Start = kMemoryLayout[i].start;
       uptr End = kMemoryLayout[i].end;
@@ -93,22 +94,46 @@ ur_result_t MsanShadowMemoryCPU::Setup() {
       bool IsProtect = Type == MappingDesc::INVALID;
 
       if (IsMap) {
-        if (MmapFixedNoReserve(Start, Size) == 0) {
-          return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+        if (!MmapFixedNoReserve(Start, Size)) {
+          UR_LOG_L(getContext()->logger, DEBUG,
+                   "Failed to mmap shadow memory: {} - {}", (void *)Start,
+                   (void *)End);
+          return false;
         }
         DontCoredumpRange(Start, Size);
       }
       if (IsProtect) {
-        if (ProtectMemoryRange(Start, Size) == 0) {
-          return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+        if (!ProtectMemoryRange(Start, Size)) {
+          UR_LOG_L(getContext()->logger, DEBUG,
+                   "Failed to protect memory range: {} - {}", (void *)Start,
+                   (void *)End);
+          return false;
         }
       }
     }
-    ShadowBegin = kMemoryLayout[1].start;
-    ShadowEnd = kMemoryLayout[9].end;
-    return UR_RESULT_SUCCESS;
+    return true;
   }();
-  return Result;
+
+  if (!Initialized) {
+    // If failed to reserve shadow memory, check if ASLR is on. If ASLR is on,
+    // re-exec with ASLR off.
+    int OldPersonality = personality(0xffffffff);
+    if ((OldPersonality != -1) && ((OldPersonality & ADDR_NO_RANDOMIZE) == 0)) {
+      UR_LOG_L(getContext()->logger, DEBUG,
+               "memory layout is incompatible, possibly due to high-entropy "
+               "ASLR. Re-execing with fixed virtual address space.");
+      if (personality(OldPersonality | ADDR_NO_RANDOMIZE) == -1) {
+        die("Unable to disable ASLR, Device MemorySanitizer can't work "
+            "properly.");
+      }
+      ReExec();
+    }
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  }
+
+  ShadowBegin = kMemoryLayout[1].start;
+  ShadowEnd = kMemoryLayout[9].end;
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t MsanShadowMemoryCPU::Destory() {
