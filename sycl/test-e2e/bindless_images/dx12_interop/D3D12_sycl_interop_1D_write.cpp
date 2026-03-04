@@ -156,13 +156,18 @@ int runTest(
                                                   q.get_context());
     }
 
-    sycl::event kernelEvent;
+    // Wait on the Fence
+    sycl::event dependencyEvent;
+    if (useSemaphores) {
+      dependencyEvent = q.submit([&](sycl::handler &h) {
+        h.ext_oneapi_wait_external_semaphore(extSem, extFence.fenceValue);
+      });
+    }
 
     // SYCL KERNEL: Write Image 1D
-    kernelEvent = q.submit([&](sycl::handler &h) {
-      if (useSemaphores) {
-        h.ext_oneapi_wait_external_semaphore(extSem, extFence.fenceValue);
-      }
+    sycl::event kernelEvent = q.submit([&](sycl::handler &h) {
+      if (useSemaphores)
+        h.depends_on(dependencyEvent);
 
       h.parallel_for(sycl::range<1>(width), [=](sycl::item<1> item) {
         int x = item.get_id(0);
