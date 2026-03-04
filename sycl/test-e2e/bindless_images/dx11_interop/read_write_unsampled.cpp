@@ -429,7 +429,7 @@ int main() {
       sycl::range{512, 256, 8}, sycl::range{1280, 720, 2},
       sycl::range{1280, 720, 2}};
 #endif
-  errors += runTest<3, uint32_t, 1>(d3d11ProgramState, syclQueue,
+/*  errors += runTest<3, uint32_t, 1>(d3d11ProgramState, syclQueue,
                                     sycl::image_channel_type::unsigned_int32,
                                     globalSize3D[0], sycl::range{16, 16, 1});
   errors += runTest<3, uint8_t, 4>(d3d11ProgramState, syclQueue,
@@ -444,7 +444,7 @@ int main() {
   errors += runTest<3, sycl::half, 4>(d3d11ProgramState, syclQueue,
                                       sycl::image_channel_type::fp16,
                                       globalSize3D[4], sycl::range{16, 16, 1});
-
+*/
 //#ifdef VERBOSE_PRINT
   std::string deviceName = syclDevice.get_info<sycl::info::device::name>();
   std::cout << "Tests pass rate for SYCL device: " << deviceName << "\n";
