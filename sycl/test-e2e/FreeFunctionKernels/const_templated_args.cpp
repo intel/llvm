@@ -23,11 +23,6 @@ struct KernelConfig {
   ValueT value;
 };
 
-struct HelperStruct {
-  int a;
-  float b;
-};
-
 template <typename Config>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
 void launch_kernel(Config cfg, int *ptr) {
@@ -82,12 +77,14 @@ int main() {
   KernelConfig<int> cfg{42};
   const KernelConfig<int> cfg_ro{7};
 
+  const int testInt = 5;
+  KernelConfig<decltype(testInt)> cfg_ro1{5};
 
   static_assert(std::is_const_v<decltype(cfg_ro)>);
   int rc = 0;
   rc |= test_declarations<decltype(cfg)>(q, ctxt, cfg);
   rc |= test_declarations<decltype(cfg_ro)>(q, ctxt, cfg_ro);
-
+  rc |= test_declarations<decltype(cfg_ro1)>(q, ctxt, cfg_ro1);
 
   return rc;
 }
