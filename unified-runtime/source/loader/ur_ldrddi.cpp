@@ -3596,6 +3596,45 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelGetSuggestedLocalWorkSizeWithArgs
+__urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSizeWithArgs(
+    /// [in] handle of the kernel
+    ur_kernel_handle_t hKernel,
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] number of dimensions, from 1 to 3, to specify the global
+    /// and work-group work-items
+    uint32_t numWorkDim,
+    /// [in] pointer to an array of numWorkDim unsigned values that specify
+    /// the offset used to calculate the global ID of a work-item
+    const size_t *pGlobalWorkOffset,
+    /// [in] pointer to an array of numWorkDim unsigned values that specify
+    /// the number of global work-items in workDim that will execute the
+    /// kernel function
+    const size_t *pGlobalWorkSize,
+    /// [in] Number of entries in pArgs
+    uint32_t numArgs,
+    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
+    /// properties.
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    /// [out] pointer to an array of numWorkDim unsigned values that specify
+    /// suggested local work size that will contain the result of the query
+    size_t *pSuggestedLocalWorkSize) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
+
+  auto *pfnGetSuggestedLocalWorkSizeWithArgs =
+      dditable->Kernel.pfnGetSuggestedLocalWorkSizeWithArgs;
+  if (nullptr == pfnGetSuggestedLocalWorkSizeWithArgs)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnGetSuggestedLocalWorkSizeWithArgs(
+      hKernel, hQueue, numWorkDim, pGlobalWorkOffset, pGlobalWorkSize, numArgs,
+      pArgs, pSuggestedLocalWorkSize);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelSuggestMaxCooperativeGroupCount
 __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
     /// [in] handle of the kernel object
@@ -7004,6 +7043,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
           ur_loader::urKernelCreateWithNativeHandle;
       pDdiTable->pfnGetSuggestedLocalWorkSize =
           ur_loader::urKernelGetSuggestedLocalWorkSize;
+      pDdiTable->pfnGetSuggestedLocalWorkSizeWithArgs =
+          ur_loader::urKernelGetSuggestedLocalWorkSizeWithArgs;
       pDdiTable->pfnSetArgValue = ur_loader::urKernelSetArgValue;
       pDdiTable->pfnSetArgLocal = ur_loader::urKernelSetArgLocal;
       pDdiTable->pfnSetArgPointer = ur_loader::urKernelSetArgPointer;
