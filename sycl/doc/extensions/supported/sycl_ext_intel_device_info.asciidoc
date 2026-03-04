@@ -242,7 +242,8 @@ if (dev.has(aspect::ext_intel_gpu_eu_count)) {
 === Intel GPU Number of Slices
 
 This extension adds the following device aspect and information descriptor,
-which allow an application to query the number of slices on an Intel GPU.
+which allow an application to query the maximum number of slices on an Intel
+GPU.
 
 ==== New device aspect
 
@@ -274,8 +275,8 @@ struct gpu_slices {
 
 _Remarks:_ Template parameter to `device::get_info`.
 
-_Returns:_ The number of slices. If the device is a subdevice, then the number
-of slices in the subdevice is returned.
+_Returns:_ The maximum number of slices. If the device is a subdevice, then the
+maximum number of slices in the subdevice is returned.
 
 _Throws:_ An `exception` with the `errc::feature_not_supported` error code if
 the device does not have `aspect::ext_intel_gpu_slices`.
@@ -294,8 +295,8 @@ if (dev.has(aspect::ext_intel_gpu_slices)) {
 === Intel GPU Number of Subslices per Slice
 
 This extension adds the following device aspect and information descriptor,
-which allow an application to query the number of subslices per slice on an
-Intel GPU.
+which allow an application to query the maximum number of subslices per slice
+on an Intel GPU.
 
 ==== New device aspect
 
@@ -327,8 +328,9 @@ struct gpu_subslices_per_slice {
 
 _Remarks:_ Template parameter to `device::get_info`.
 
-_Returns:_ The number of subslices per slice. If the device is a subdevice,
-then the number of subslices per slice in the subdevice is returned.
+_Returns:_ The maximum number of subslices per slice. If the device is a
+subdevice, then the maximum number of subslices per slice in the subdevice is
+returned.
 
 _Throws:_ An `exception` with the `errc::feature_not_supported` error code if
 the device does not have `aspect::ext_intel_gpu_subslices_per_slice`.
@@ -347,8 +349,8 @@ if (dev.has(aspect::ext_intel_gpu_subslices_per_slice)) {
 === Intel GPU Number of Execution Units (EUs) per Subslice
 
 This extension adds the following device aspect and information descriptor,
-which allow an application to query the number of EUs per subslice on an Intel
-GPU.
+which allow an application to query the maximum number of EUs per subslice on
+an Intel GPU.
 
 ==== New device aspect
 
@@ -380,8 +382,9 @@ struct gpu_eu_count_per_subslice {
 
 _Remarks:_ Template parameter to `device::get_info`.
 
-_Returns:_ The number of EUs in a subslice. If the device is a subdevice, then
-the number of EUs per subslice in the subdevice is returned.
+_Returns:_ The maximum number of EUs in a subslice. If the device is a
+subdevice, then the maximum number of EUs per subslice in the subdevice is
+returned.
 
 _Throws:_ An `exception` with the `errc::feature_not_supported` error code if
 the device does not have `aspect::ext_intel_gpu_eu_count_per_subslice`.
@@ -509,8 +512,8 @@ if (dev.has(aspect::ext_intel_device_info_uuid)) {
 Missing before version 3 of this extension.
 
 This extension adds the following device aspect and information descriptor,
-which allow an application to query the number of hardware threads per EU on an
-Intel GPU.
+which allow an application to query the maximum number of hardware threads per
+EU on an Intel GPU.
 
 ==== New device aspect
 
@@ -542,8 +545,9 @@ struct gpu_hw_threads_per_eu {
 
 _Remarks:_ Template parameter to `device::get_info`.
 
-_Returns:_ The number of hardware threads in EU. If the device is a subdevice,
-then the number of hardware threads per EU in the subdevice is returned.
+_Returns:_ The maximum number of hardware threads in EU. If the device is a
+subdevice, then the maximum number of hardware threads per EU in the subdevice
+is returned.
 
 _Throws:_ An `exception` with the `errc::feature_not_supported` error code if
 the device does not have `aspect::ext_intel_gpu_hw_threads_per_eu`.
