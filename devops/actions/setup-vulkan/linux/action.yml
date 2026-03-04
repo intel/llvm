@@ -14,5 +14,5 @@ runs:
           echo "Could not find Vulkan environment setup script"
         fi
         env | sort > env_after
-        diff env_before env_after | grep '^>' | sed 's/^> //' >> $GITHUB_ENV
+        comm -13 env_before env_after >> $GITHUB_ENV
         rm env_before env_after
