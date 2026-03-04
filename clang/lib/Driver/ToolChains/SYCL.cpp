@@ -1437,7 +1437,7 @@ void SYCLToolChain::addClangTargetOptions(
   // Add device libraries.
   // This is currently only done with the new offloading model, to better fit
   // with community expectations
-  if (!getDriver().getUseNewOffloadingDriver())
+  if (!getDriver().getUseNewOffloadingDriver() || !getTriple().isSPIROrSPIRV())
     return;
 
   llvm::SmallVector<BitCodeLibraryInfo, 12> BCLibs;
