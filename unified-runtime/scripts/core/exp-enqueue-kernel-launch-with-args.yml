@@ -10,7 +10,7 @@
 --- #--------------------------------------------------------------------------
 type: header
 desc: "Intel $OneApi Unified Runtime Experimental API for setting args at kernel launch"
-ordinal: "99"
+ordinal: "11"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "What kind of kernel arg is this"
@@ -93,7 +93,7 @@ etors:
       value: "0x5000"
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Enqueue a command to execute a kernel"
+desc: "Enqueue a command to execute a kernel and set args at kernel launch time."
 class: $xEnqueue
 name: KernelLaunchWithArgsExp
 ordinal: "0"
