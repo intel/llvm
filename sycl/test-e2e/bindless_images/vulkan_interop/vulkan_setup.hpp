@@ -66,11 +66,13 @@ const auto PLATFORM_SEM_HANDLE_TYPE =
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL debugUtilsMessageCallback(
     VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-    VkDebugUtilsMessageTypeFlagsEXT messageType,
+    [[maybe_unused]] VkDebugUtilsMessageTypeFlagsEXT messageType,
     const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
-    void *pUserData) {
-  if (messageSeverity & (VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)) {
-    std::cerr << pCallbackData->pMessage << "\n\n";
+    [[maybe_unused]] void *pUserData) {
+  if (messageSeverity & (VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+                         VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)) {
+    std::cerr << "[Vulkan Validation Layer]: " << pCallbackData->pMessage
+              << std::endl;
   }
   return VK_FALSE;
 };
@@ -85,6 +87,7 @@ struct VulkanContext {
   VkDevice device;
   VkQueue queue;
   uint32_t queueFamilyIndex;
+  VkDebugUtilsMessengerEXT debugMessenger;
 };
 
 struct ImageResources {
@@ -351,6 +354,8 @@ inline VulkanContext createVulkanContext() {
       break;
     }
   }
+  createInfo.enabledExtensionCount = (uint32_t)instanceExtensions.size();
+  createInfo.ppEnabledExtensionNames = instanceExtensions.data();
 
   const char *validationLayerName = "VK_LAYER_KHRONOS_validation";
   uint32_t instanceLayerCount;
@@ -373,6 +378,8 @@ inline VulkanContext createVulkanContext() {
     throw std::runtime_error("failed to find Vulkan validation layer!");
   }
 
+  VK_CHECK(vkCreateInstance(&createInfo, nullptr, &ctx.instance));
+
   if (debugUtils) {
     VkDebugUtilsMessengerCreateInfoEXT debugUtilsMessengerCI{};
     debugUtilsMessengerCI.sType =
@@ -382,14 +389,23 @@ inline VulkanContext createVulkanContext() {
         VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
     debugUtilsMessengerCI.messageType =
         VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-        VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT;
+        VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+        VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
     debugUtilsMessengerCI.pfnUserCallback = debugUtilsMessageCallback;
-    createInfo.pNext = &debugUtilsMessengerCI;
-  }
-  createInfo.enabledExtensionCount = (uint32_t)instanceExtensions.size();
-  createInfo.ppEnabledExtensionNames = instanceExtensions.data();
 
-  VK_CHECK(vkCreateInstance(&createInfo, nullptr, &ctx.instance));
+    auto vkCreateDebugUtilsMessengerFuncPtr =
+        (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
+            ctx.instance, "vkCreateDebugUtilsMessengerEXT");
+    if (vkCreateDebugUtilsMessengerFuncPtr != nullptr) {
+      VK_CHECK(vkCreateDebugUtilsMessengerFuncPtr(
+          ctx.instance, &debugUtilsMessengerCI, nullptr, &ctx.debugMessenger));
+    } else {
+      throw std::runtime_error(
+          "Failed to fetch vkCreateDebugUtilsMessengerEXT function pointer!");
+    }
+  } else {
+    throw std::runtime_error("failed to find Vulkan debug utils extension!");
+  }
 
   uint32_t deviceCount = 0;
   vkEnumeratePhysicalDevices(ctx.instance, &deviceCount, nullptr);
@@ -1195,5 +1211,12 @@ inline void cleanupVulkan(VulkanContext &ctx, ImageResources &res) {
   vkDestroyImage(ctx.device, res.image, nullptr);
   vkFreeMemory(ctx.device, res.memory, nullptr);
   vkDestroyDevice(ctx.device, nullptr);
+  auto vkDestroyDebugUtilsMessengerFuncPtr =
+      (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
+          ctx.instance, "vkDestroyDebugUtilsMessengerEXT");
+  if (vkDestroyDebugUtilsMessengerFuncPtr != nullptr) {
+    vkDestroyDebugUtilsMessengerFuncPtr(ctx.instance, ctx.debugMessenger,
+                                        nullptr);
+  }
   vkDestroyInstance(ctx.instance, nullptr);
 }
