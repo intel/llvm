@@ -396,7 +396,7 @@ inline VulkanContext createVulkanContext() {
   // Chain the debugUtilsMessengerInfo into the instance to capture events
   // that occur while creating the instance itself. This debug util messangegr
   // will be alive only during instance creation.
-  createInfo.pNext = debugUtils ? &debugUtilsMessengerInfo : nullptr;
+  createInfo.pNext = &debugUtilsMessengerInfo;
   VK_CHECK(vkCreateInstance(&createInfo, nullptr, &ctx.instance));
 
   // Create a persistent debug messenger that stays alive for the application's
