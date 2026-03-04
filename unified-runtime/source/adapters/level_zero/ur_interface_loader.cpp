@@ -315,6 +315,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
       ur::level_zero::urKernelCreateWithNativeHandle;
   pDdiTable->pfnGetSuggestedLocalWorkSize =
       ur::level_zero::urKernelGetSuggestedLocalWorkSize;
+  pDdiTable->pfnGetSuggestedLocalWorkSizeWithArgs =
+      ur::level_zero::urKernelGetSuggestedLocalWorkSizeWithArgs;
   pDdiTable->pfnSetArgValue = ur::level_zero::urKernelSetArgValue;
   pDdiTable->pfnSetArgLocal = ur::level_zero::urKernelSetArgLocal;
   pDdiTable->pfnSetArgPointer = ur::level_zero::urKernelSetArgPointer;
