@@ -33,60 +33,60 @@
 */
 // clang-format on
 
-// RUN: %{run} %t.out --type float --channels 1 32x33
-// RUN: %{run} %t.out --type float --channels 2 32x33
-// RUN: %{run} %t.out --type float --channels 4 32x33
-// RUN: %{run} %t.out --type half --channels 1 32x33
-// RUN: %{run} %t.out --type half --channels 2 32x33
-// RUN: %{run} %t.out --type half --channels 4 32x33
-// RUN: %{run} %t.out --type int32 --channels 1 32x33
-// RUN: %{run} %t.out --type int32 --channels 2 32x33
-// RUN: %{run} %t.out --type int32 --channels 4 32x33
-// RUN: %{run} %t.out --type uint32 --channels 1 32x33
-// RUN: %{run} %t.out --type uint32 --channels 2 32x33
-// RUN: %{run} %t.out --type uint32 --channels 4 32x33
-// RUN: %{run} %t.out --type int16 --channels 1 32x33
-// RUN: %{run} %t.out --type int16 --channels 2 32x33
-// RUN: %{run} %t.out --type int16 --channels 4 32x33
-// RUN: %{run} %t.out --type uint16 --channels 1 32x33
-// RUN: %{run} %t.out --type uint16 --channels 2 32x33
-// RUN: %{run} %t.out --type uint16 --channels 4 32x33
-// RUN: %{run} %t.out --type uint8 --channels 1 32x33
-// RUN: %{run} %t.out --type uint8 --channels 2 32x33
-// RUN: %{run} %t.out --type uint8 --channels 4 32x33
-// RUN: %{run} %t.out --type int8 --channels 1 32x33
-// RUN: %{run} %t.out --type int8 --channels 2 32x33
-// RUN: %{run} %t.out --type int8 --channels 4 32x33
-// RUN: %{run} %t.out --type unorm8 --channels 1 32x33
-// RUN: %{run} %t.out --type unorm8 --channels 2 32x33
-// RUN: %{run} %t.out --type unorm8 --channels 4 32x33
-// RUN: %{run} %t.out --type float --channels 1 --sampled 32x33
-// RUN: %{run} %t.out --type float --channels 2 --sampled 32x33
-// RUN: %{run} %t.out --type float --channels 4 --sampled 32x33
-// RUN: %{run} %t.out --type half --channels 1 --sampled 32x33
-// RUN: %{run} %t.out --type half --channels 2 --sampled 32x33
-// RUN: %{run} %t.out --type half --channels 4 --sampled 32x33
-// RUN: %{run} %t.out --type int32 --channels 1 --sampled 32x33
-// RUN: %{run} %t.out --type int32 --channels 2 --sampled 32x33
-// RUN: %{run} %t.out --type int32 --channels 4 --sampled 32x33
-// RUN: %{run} %t.out --type uint32 --channels 1 --sampled 32x33
-// RUN: %{run} %t.out --type uint32 --channels 2 --sampled 32x33
-// RUN: %{run} %t.out --type uint32 --channels 4 --sampled 32x33
-// RUN: %{run} %t.out --type int16 --channels 1 --sampled 32x33
-// RUN: %{run} %t.out --type int16 --channels 2 --sampled 32x33
-// RUN: %{run} %t.out --type int16 --channels 4 --sampled 32x33
-// RUN: %{run} %t.out --type uint16 --channels 1 --sampled 32x33
-// RUN: %{run} %t.out --type uint16 --channels 2 --sampled 32x33
-// RUN: %{run} %t.out --type uint16 --channels 4 --sampled 32x33
-// RUN: %{run} %t.out --type uint8 --channels 1 --sampled 32x33
-// RUN: %{run} %t.out --type uint8 --channels 2 --sampled 32x33
-// RUN: %{run} %t.out --type uint8 --channels 4 --sampled 32x33
-// RUN: %{run} %t.out --type int8 --channels 1 --sampled 32x33
-// RUN: %{run} %t.out --type int8 --channels 2 --sampled 32x33
-// RUN: %{run} %t.out --type int8 --channels 4 --sampled 32x33
-// RUN: %{run} %t.out --type unorm8 --channels 1 --sampled 32x33
-// RUN: %{run} %t.out --type unorm8 --channels 2 --sampled 32x33
-// RUN: %{run} %t.out --type unorm8 --channels 4 --sampled 32x33
+// RUN: %{run} %t.exe --type float --channels 1 32x33
+// RUN: %{run} %t.exe --type float --channels 2 32x33
+// RUN: %{run} %t.exe --type float --channels 4 32x33
+// RUN: %{run} %t.exe --type half --channels 1 32x33
+// RUN: %{run} %t.exe --type half --channels 2 32x33
+// RUN: %{run} %t.exe --type half --channels 4 32x33
+// RUN: %{run} %t.exe --type int32 --channels 1 32x33
+// RUN: %{run} %t.exe --type int32 --channels 2 32x33
+// RUN: %{run} %t.exe --type int32 --channels 4 32x33
+// RUN: %{run} %t.exe --type uint32 --channels 1 32x33
+// RUN: %{run} %t.exe --type uint32 --channels 2 32x33
+// RUN: %{run} %t.exe --type uint32 --channels 4 32x33
+// RUN: %{run} %t.exe --type int16 --channels 1 32x33
+// RUN: %{run} %t.exe --type int16 --channels 2 32x33
+// RUN: %{run} %t.exe --type int16 --channels 4 32x33
+// RUN: %{run} %t.exe --type uint16 --channels 1 32x33
+// RUN: %{run} %t.exe --type uint16 --channels 2 32x33
+// RUN: %{run} %t.exe --type uint16 --channels 4 32x33
+// RUN: %{run} %t.exe --type uint8 --channels 1 32x33
+// RUN: %{run} %t.exe --type uint8 --channels 2 32x33
+// RUN: %{run} %t.exe --type uint8 --channels 4 32x33
+// RUN: %{run} %t.exe --type int8 --channels 1 32x33
+// RUN: %{run} %t.exe --type int8 --channels 2 32x33
+// RUN: %{run} %t.exe --type int8 --channels 4 32x33
+// RUN: %{run} %t.exe --type unorm8 --channels 1 32x33
+// RUN: %{run} %t.exe --type unorm8 --channels 2 32x33
+// RUN: %{run} %t.exe --type unorm8 --channels 4 32x33
+// RUN: %{run} %t.exe --type float --channels 1 --sampled 32x33
+// RUN: %{run} %t.exe --type float --channels 2 --sampled 32x33
+// RUN: %{run} %t.exe --type float --channels 4 --sampled 32x33
+// RUN: %{run} %t.exe --type half --channels 1 --sampled 32x33
+// RUN: %{run} %t.exe --type half --channels 2 --sampled 32x33
+// RUN: %{run} %t.exe --type half --channels 4 --sampled 32x33
+// RUN: %{run} %t.exe --type int32 --channels 1 --sampled 32x33
+// RUN: %{run} %t.exe --type int32 --channels 2 --sampled 32x33
+// RUN: %{run} %t.exe --type int32 --channels 4 --sampled 32x33
+// RUN: %{run} %t.exe --type uint32 --channels 1 --sampled 32x33
+// RUN: %{run} %t.exe --type uint32 --channels 2 --sampled 32x33
+// RUN: %{run} %t.exe --type uint32 --channels 4 --sampled 32x33
+// RUN: %{run} %t.exe --type int16 --channels 1 --sampled 32x33
+// RUN: %{run} %t.exe --type int16 --channels 2 --sampled 32x33
+// RUN: %{run} %t.exe --type int16 --channels 4 --sampled 32x33
+// RUN: %{run} %t.exe --type uint16 --channels 1 --sampled 32x33
+// RUN: %{run} %t.exe --type uint16 --channels 2 --sampled 32x33
+// RUN: %{run} %t.exe --type uint16 --channels 4 --sampled 32x33
+// RUN: %{run} %t.exe --type uint8 --channels 1 --sampled 32x33
+// RUN: %{run} %t.exe --type uint8 --channels 2 --sampled 32x33
+// RUN: %{run} %t.exe --type uint8 --channels 4 --sampled 32x33
+// RUN: %{run} %t.exe --type int8 --channels 1 --sampled 32x33
+// RUN: %{run} %t.exe --type int8 --channels 2 --sampled 32x33
+// RUN: %{run} %t.exe --type int8 --channels 4 --sampled 32x33
+// RUN: %{run} %t.exe --type unorm8 --channels 1 --sampled 32x33
+// RUN: %{run} %t.exe --type unorm8 --channels 2 --sampled 32x33
+// RUN: %{run} %t.exe --type unorm8 --channels 4 --sampled 32x33
 
 #include "d3d12_setup.hpp"
 
