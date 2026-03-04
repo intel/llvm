@@ -201,10 +201,6 @@ private:
   createEventIfRequestedRegular(ur_event_handle_t *phEvent,
                                 ur_event_generation_t generation_number);
 
-  ur_event_handle_t
-  createEventAndRetainRegular(ur_event_handle_t *phEvent,
-                              ur_event_generation_t batch_generation);
-
   ur_event_handle_t getEvent(locked<batch_manager> &batchLocked,
                              ur_event_handle_t *phEvent);
 
