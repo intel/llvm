@@ -598,6 +598,21 @@ class ComputeBench(Suite):
                         ),
                     ]
 
+        # Add TorchSubmitEventRecordWait benchmarks
+        for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
+            for profiler_type in list(PROFILERS):
+                benches.append(
+                    TorchSubmitEventRecordWait(
+                        self,
+                        runtime,
+                        "medium",
+                        profiler_type,
+                        Profiling=0,
+                        KernelWGCount=256,
+                        KernelWGSize=512,
+                    )
+                )
+
         # Add UR-specific benchmarks
         benches += [
             # TODO: multithread_benchmark_ur fails with segfault
