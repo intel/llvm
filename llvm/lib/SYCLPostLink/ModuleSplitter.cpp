@@ -658,7 +658,7 @@ static bool mustPreserveGV(const GlobalValue &GV,
     // cannot be imported which also means that there is no point of having it
     // visible outside of the current module.
     if (AllowDeviceImageDependencies) {
-      return F.hasKernelCallingConv() ||
+      return F->hasKernelCallingConv() ||
              canBeImportedFunction(*F, AllowDeviceImageDependencies);
     }
 
