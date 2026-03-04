@@ -22,7 +22,7 @@ __kernel void test_atomic_cmpxchg(__global int *p, int cmp, int val) {
   atomic_cmpxchg(up, ucmp, uval);
 }
 
-// CHECK-SPIRV: Name [[TEST:[0-9]+]] "test_atomic_cmpxchg"
+// CHECK-SPIRV: EntryPoint [[#]] [[TEST:[0-9]+]] "test_atomic_cmpxchg"
 // CHECK-SPIRV-DAG: TypeInt [[UINT:[0-9]+]] 32 0
 // CHECK-SPIRV-TYPED-PTRS-DAG: TypePointer [[UINT_PTR:[0-9]+]] 5 [[UINT]]
 // CHECK-SPIRV-UNTYPED-PTRS-DAG: TypeUntypedPointerKHR [[UINT_PTR:[0-9]+]] 5
@@ -35,9 +35,8 @@ __kernel void test_atomic_cmpxchg(__global int *p, int cmp, int val) {
 // 0x2 Workgroup
 // CHECK-SPIRV-DAG: Constant [[UINT]] [[WORKGROUP_SCOPE:[0-9]+]] 2
 //
-// 0x0 Relaxed
-// TODO: do we need CrossWorkgroupMemory here as well?
-// CHECK-SPIRV-DAG: Constant [[UINT]] [[RELAXED:[0-9]+]] 0
+// 0x0 Relaxed | 0x200 CrossWorkgroupMemory
+// CHECK-SPIRV-DAG: Constant [[UINT]] [[RELAXED:[0-9]+]] 512
 //
 // CHECK-SPIRV: Function {{[0-9]+}} [[TEST]]
 // CHECK-SPIRV: FunctionParameter [[UINT_PTR]] [[PTR:[0-9]+]]

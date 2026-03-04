@@ -11,7 +11,7 @@
 ; CHECK-SPIRV: 4 GenericPtrMemSemantics {{[0-9]+}} [[ResID:[0-9]+]] {{[0-9]+}}
 ; CHECK-SPIRV-NEXT: 5 ShiftRightLogical {{[0-9]+}} {{[0-9]+}} [[ResID]] {{[0-9]+}}
 
-; CHECK-SPV-IR: call spir_func i32 @_Z30__spirv_GenericPtrMemSemanticsPU3AS4c(ptr addrspace(4) {{.*}})
+; CHECK-SPV-IR: call spir_func i32 @_Z30__spirv_GenericPtrMemSemanticsPU3AS4Kc(ptr addrspace(4) {{.*}})
 ; CHECK-SPV-IR: lshr
 
 ; Note that round-trip conversion replaces 'get_fence (gentype *ptr)' built-in function with 'get_fence (const gentype *ptr)'.
@@ -48,7 +48,7 @@ entry:
 declare spir_func i32 @_Z9get_fencePU3AS4v(ptr addrspace(4)) #2
 
 ; Function Attrs: nounwind
-define spir_kernel void @testKernel(ptr addrspace(1) nocapture %results) #1 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
+define spir_kernel void @testKernel(ptr addrspace(1) captures(none) %results) #1 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
 entry:
   %call = tail call spir_func i32 @_Z13get_global_idj(i32 0) #3
   %0 = load i32, ptr addrspace(1) @gint, align 4

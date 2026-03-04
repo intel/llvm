@@ -10,6 +10,7 @@
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
+#include <sycl/platform.hpp>
 
 using namespace sycl;
 using namespace std;
@@ -36,15 +37,6 @@ int main() {
       return -1;
     } catch (...) {
       cout << "Expectedly, cpu device is not found." << std::endl;
-    }
-  }
-  {
-    try {
-      device d(accelerator_selector_v);
-      cerr << "ACC device is found in error: " << d.is_accelerator()
-           << std::endl;
-    } catch (...) {
-      cout << "Expectedly, ACC device is not found." << std::endl;
     }
   }
 

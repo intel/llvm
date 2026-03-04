@@ -47,9 +47,12 @@ class LLVM_LIBRARY_VISIBILITY HIPSPVToolChain final : public ToolChain {
 public:
   HIPSPVToolChain(const Driver &D, const llvm::Triple &Triple,
                   const ToolChain &HostTC, const llvm::opt::ArgList &Args);
+  HIPSPVToolChain(const Driver &D, const llvm::Triple &Triple,
+                  const llvm::opt::ArgList &Args);
 
   const llvm::Triple *getAuxTriple() const override {
-    return &HostTC.getTriple();
+    assert(HostTC);
+    return &HostTC->getTriple();
   }
 
   void
@@ -68,9 +71,9 @@ public:
                            llvm::opt::ArgStringList &CC1Args) const override;
   void AddHIPIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                          llvm::opt::ArgStringList &CC1Args) const override;
-  llvm::SmallVector<BitCodeLibraryInfo, 12> getDeviceLibs(
-      const llvm::opt::ArgList &Args,
-      const Action::OffloadKind DeviceOffloadingKind) const override;
+  llvm::SmallVector<BitCodeLibraryInfo, 12>
+  getDeviceLibs(const llvm::opt::ArgList &Args,
+                const Action::OffloadKind DeviceOffloadKind) const override;
 
   SanitizerMask getSupportedSanitizers() const override;
 
@@ -90,7 +93,7 @@ public:
   bool isPICDefaultForced() const override { return false; }
   bool SupportsProfiling() const override { return false; }
 
-  const ToolChain &HostTC;
+  const ToolChain *HostTC = nullptr;
 
 protected:
   Tool *buildLinker() const override;

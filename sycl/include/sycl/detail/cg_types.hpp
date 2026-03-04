@@ -58,13 +58,14 @@ enum class CGType : unsigned int {
   Memset2DUSM = 18,
   CopyToDeviceGlobal = 19,
   CopyFromDeviceGlobal = 20,
-  ReadWriteHostPipe = 21,
-  ExecCommandBuffer = 22,
-  CopyImage = 23,
-  SemaphoreWait = 24,
-  SemaphoreSignal = 25,
-  ProfilingTag = 26,
-  EnqueueNativeCommand = 27,
+  ExecCommandBuffer = 21,
+  CopyImage = 22,
+  SemaphoreWait = 23,
+  SemaphoreSignal = 24,
+  ProfilingTag = 25,
+  EnqueueNativeCommand = 26,
+  AsyncAlloc = 27,
+  AsyncFree = 28,
 };
 
 template <typename, typename T> struct check_fn_signature {
@@ -122,32 +123,25 @@ struct KernelLambdaHasKernelHandlerArgT {
 
 // Helpers for running kernel lambda on the host device
 
-template <typename KernelType>
-typename std::enable_if_t<KernelLambdaHasKernelHandlerArgT<KernelType>::value>
-runKernelWithoutArg(KernelType KernelName) {
-  kernel_handler KH;
-  KernelName(KH);
+template <typename KernelType, bool HasKernelHandlerArg>
+void runKernelWithoutArg(KernelType KernelName,
+                         const std::bool_constant<HasKernelHandlerArg> &) {
+  if constexpr (HasKernelHandlerArg) {
+    kernel_handler KH;
+    KernelName(KH);
+  } else {
+    KernelName();
+  }
 }
-
-template <typename KernelType>
-typename std::enable_if_t<!KernelLambdaHasKernelHandlerArgT<KernelType>::value>
-runKernelWithoutArg(KernelType KernelName) {
-  KernelName();
-}
-
-template <typename ArgType, typename KernelType>
-typename std::enable_if_t<
-    KernelLambdaHasKernelHandlerArgT<KernelType, ArgType>::value>
-runKernelWithArg(KernelType KernelName, ArgType Arg) {
-  kernel_handler KH;
-  KernelName(Arg, KH);
-}
-
-template <typename ArgType, typename KernelType>
-typename std::enable_if_t<
-    !KernelLambdaHasKernelHandlerArgT<KernelType, ArgType>::value>
-runKernelWithArg(KernelType KernelName, ArgType Arg) {
-  KernelName(Arg);
+template <typename ArgType, typename KernelType, bool HasKernelHandlerArg>
+void runKernelWithArg(KernelType KernelName, ArgType Arg,
+                      const std::bool_constant<HasKernelHandlerArg> &) {
+  if constexpr (HasKernelHandlerArg) {
+    kernel_handler KH;
+    KernelName(Arg, KH);
+  } else {
+    KernelName(Arg);
+  }
 }
 
 // The pure virtual class aimed to store lambda/functors of any type.
@@ -156,79 +150,94 @@ public:
   // Return pointer to the lambda object.
   // Used to extract captured variables.
   virtual char *getPtr() = 0;
-  virtual ~HostKernelBase() = default;
-  // NOTE: InstatiateKernelOnHost() should not be called.
-  virtual void InstantiateKernelOnHost() = 0;
+  virtual ~HostKernelBase() noexcept = default;
 };
 
 // Class which stores specific lambda object.
 template <class KernelType, class KernelArgType, int Dims>
 class HostKernel : public HostKernelBase {
-  using IDBuilder = sycl::detail::Builder;
   KernelType MKernel;
-  // Allowing accessing MKernel from 'ResetHostKernelHelper' method of
-  // 'sycl::handler'
-  friend class sycl::handler;
 
 public:
-  HostKernel(KernelType Kernel) : MKernel(Kernel) {}
+  HostKernel(const KernelType &Kernel) : MKernel(Kernel) {}
+  HostKernel(KernelType &&Kernel) : MKernel(std::move(Kernel)) {}
 
   char *getPtr() override { return reinterpret_cast<char *>(&MKernel); }
 
-  ~HostKernel() = default;
-
-  // This function is needed for host-side compilation to keep kernels
-  // instantitated. This is important for debuggers to be able to associate
-  // kernel code instructions with source code lines.
-  // NOTE: InstatiateKernelOnHost() should not be called.
-  void InstantiateKernelOnHost() override {
-    if constexpr (std::is_same_v<KernelArgType, void>) {
-      runKernelWithoutArg(MKernel);
-    } else if constexpr (std::is_same_v<KernelArgType, sycl::id<Dims>>) {
-      sycl::id ID = InitializedVal<Dims, id>::template get<0>();
-      runKernelWithArg<const KernelArgType &>(MKernel, ID);
-    } else if constexpr (std::is_same_v<KernelArgType, item<Dims, true>> ||
-                         std::is_same_v<KernelArgType, item<Dims, false>>) {
-      constexpr bool HasOffset =
-          std::is_same_v<KernelArgType, item<Dims, true>>;
-      if constexpr (!HasOffset) {
-        KernelArgType Item = IDBuilder::createItem<Dims, HasOffset>(
-            InitializedVal<Dims, range>::template get<1>(),
-            InitializedVal<Dims, id>::template get<0>());
-        runKernelWithArg<KernelArgType>(MKernel, Item);
-      } else {
-        KernelArgType Item = IDBuilder::createItem<Dims, HasOffset>(
-            InitializedVal<Dims, range>::template get<1>(),
-            InitializedVal<Dims, id>::template get<0>(),
-            InitializedVal<Dims, id>::template get<0>());
-        runKernelWithArg<KernelArgType>(MKernel, Item);
-      }
-    } else if constexpr (std::is_same_v<KernelArgType, nd_item<Dims>>) {
-      sycl::range<Dims> Range = InitializedVal<Dims, range>::template get<1>();
-      sycl::id<Dims> ID = InitializedVal<Dims, id>::template get<0>();
-      sycl::group<Dims> Group =
-          IDBuilder::createGroup<Dims>(Range, Range, Range, ID);
-      sycl::item<Dims, true> GlobalItem =
-          IDBuilder::createItem<Dims, true>(Range, ID, ID);
-      sycl::item<Dims, false> LocalItem =
-          IDBuilder::createItem<Dims, false>(Range, ID);
-      KernelArgType NDItem =
-          IDBuilder::createNDItem<Dims>(GlobalItem, LocalItem, Group);
-      runKernelWithArg<const KernelArgType>(MKernel, NDItem);
-    } else if constexpr (std::is_same_v<KernelArgType, sycl::group<Dims>>) {
-      sycl::range<Dims> Range = InitializedVal<Dims, range>::template get<1>();
-      sycl::id<Dims> ID = InitializedVal<Dims, id>::template get<0>();
-      KernelArgType Group =
-          IDBuilder::createGroup<Dims>(Range, Range, Range, ID);
-      runKernelWithArg<KernelArgType>(MKernel, Group);
-    } else {
-      // Assume that anything else can be default-constructed. If not, this
-      // should fail to compile and the implementor should implement a generic
-      // case for the new argument type.
-      runKernelWithArg<KernelArgType>(MKernel, KernelArgType{});
-    }
-  }
+  ~HostKernel() noexcept override = default;
 };
+
+// the class keeps reference to a lambda allocated externally on stack
+class HostKernelRefBase : public HostKernelBase {
+public:
+  HostKernelRefBase() = default;
+  HostKernelRefBase(const HostKernelRefBase &) = delete;
+  HostKernelRefBase &operator=(const HostKernelRefBase &) = delete;
+  ~HostKernelRefBase() = default;
+
+  virtual std::unique_ptr<HostKernelBase> takeOrCopyOwnership() const = 0;
+};
+
+// Primary template for movable objects.
+template <class KernelType, class KernelTypeUniversalRef, class KernelArgType,
+          int Dims>
+class HostKernelRef : public HostKernelRefBase {
+  KernelType &&MKernel;
+
+public:
+  HostKernelRef(KernelType &&Kernel) : MKernel(std::move(Kernel)) {}
+  HostKernelRef(const KernelType &Kernel) = delete;
+
+  virtual char *getPtr() override { return reinterpret_cast<char *>(&MKernel); }
+  virtual std::unique_ptr<HostKernelBase> takeOrCopyOwnership() const override {
+    std::unique_ptr<HostKernelBase> Kernel;
+    Kernel.reset(
+        new HostKernel<KernelType, KernelArgType, Dims>(std::move(MKernel)));
+    return Kernel;
+  }
+
+  ~HostKernelRef() noexcept override = default;
+};
+
+// Specialization for copyable objects.
+template <class KernelType, class KernelTypeUniversalRef, class KernelArgType,
+          int Dims>
+class HostKernelRef<KernelType, KernelTypeUniversalRef &, KernelArgType, Dims>
+    : public HostKernelRefBase {
+  const KernelType &MKernel;
+
+public:
+  HostKernelRef(const KernelType &Kernel) : MKernel(Kernel) {}
+
+  virtual char *getPtr() override {
+    return const_cast<char *>(reinterpret_cast<const char *>(&MKernel));
+  }
+  virtual std::unique_ptr<HostKernelBase> takeOrCopyOwnership() const override {
+    std::unique_ptr<HostKernelBase> Kernel;
+    Kernel.reset(new HostKernel<KernelType, KernelArgType, Dims>(MKernel));
+    return Kernel;
+  }
+
+  ~HostKernelRef() noexcept override = default;
+};
+
+// This function is needed for host-side compilation to keep kernels
+// instantiated. This is important for debuggers to be able to associate
+// kernel code instructions with source code lines.
+template <class KernelType, class KernelArgType, int Dims>
+constexpr void *GetInstantiateKernelOnHostPtr() {
+  if constexpr (std::is_same_v<KernelArgType, void>) {
+    constexpr bool HasKernelHandlerArg =
+        KernelLambdaHasKernelHandlerArgT<KernelType>::value;
+    return reinterpret_cast<void *>(
+        &runKernelWithoutArg<KernelType, HasKernelHandlerArg>);
+  } else {
+    constexpr bool HasKernelHandlerArg =
+        KernelLambdaHasKernelHandlerArgT<KernelType, KernelArgType>::value;
+    return reinterpret_cast<void *>(
+        &runKernelWithArg<KernelArgType, KernelType, HasKernelHandlerArg>);
+  }
+}
 
 } // namespace detail
 } // namespace _V1

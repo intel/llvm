@@ -1,36 +1,43 @@
+// INTEL_CUSTOMIZATION
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown -ffp-builtin-accuracy=high \
-// RUN: -Wno-return-type -Wno-implicit-function-declaration -emit-llvm -o - %s \
+// RUN: -Wno-return-type -Wno-implicit-function-declaration \
+// RUN: -Wno-incompatible-pointer-types -emit-llvm -o - %s \
 // RUN: | FileCheck --check-prefixes=CHECK %s
 
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown \
 // RUN: "-ffp-builtin-accuracy=high:[acosf,cos,pow] low:[tan] medium:[sincos,log10]" \
 // RUN:  -Wno-return-type -Wno-implicit-function-declaration \
-// RUN: -emit-llvm -o - %s | FileCheck --check-prefix=CHECK-F1 %s
+// RUN: -Wno-incompatible-pointer-types -emit-llvm -o - %s \
+// RUN: | FileCheck --check-prefix=CHECK-F1 %s
 
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown \
 // RUN: "-ffp-builtin-accuracy=medium high:[tan] cuda:[cos]" \
-// RUN: -Wno-return-type -Wno-implicit-function-declaration -emit-llvm -o - %s \
+// RUN: -Wno-return-type -Wno-implicit-function-declaration \
+// RUN: -Wno-incompatible-pointer-types -emit-llvm -o - %s \
 // RUN: | FileCheck --check-prefix=CHECK-F2 %s
 
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown \
 // RUN: "-ffp-builtin-accuracy=high low:[tan] medium:[sincos,log10]" \
-// RUN: -Wno-return-type -Wno-implicit-function-declaration -emit-llvm -o - %s \
+// RUN: -Wno-return-type -Wno-implicit-function-declaration \
+// RUN: -Wno-incompatible-pointer-types -emit-llvm -o - %s \
 // RUN: | FileCheck --check-prefix=CHECK-F3 %s
 
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown \
 // RUN: "-ffp-builtin-accuracy=high:sin medium" -Wno-return-type \
-// RUN: -Wno-implicit-function-declaration -emit-llvm -o - %s \
-// RUN: | FileCheck --check-prefixes=CHECK-F4 %s
+// RUN: -Wno-implicit-function-declaration -Wno-incompatible-pointer-types \
+// RUN: -emit-llvm -o - %s | FileCheck --check-prefixes=CHECK-F4 %s
 
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown \
 // RUN: "-ffp-builtin-accuracy=medium:[sin,cos] high:[sin,tan]" \
 // RUN: -Wno-return-type -Wno-implicit-function-declaration \
-// RUN: -emit-llvm -o - %s | FileCheck --check-prefixes=CHECK-F5 %s
+// RUN: -Wno-incompatible-pointer-types  -emit-llvm -o - %s \
+// RUN: | FileCheck --check-prefixes=CHECK-F5 %s
 
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown \
 // RUN: "-ffp-builtin-accuracy=medium high:[sin,atan] low:[atan2]" \
 // RUN: -Wno-return-type -Wno-implicit-function-declaration \
-// RUN: -emit-llvm -o - %s | FileCheck --check-prefixes=CHECK-F6 %s
+// RUN: -Wno-incompatible-pointer-types -emit-llvm -o - %s \
+// RUN: | FileCheck --check-prefixes=CHECK-F6 %s
 
 // RUN: %clang_cc1 -triple spir64-unknown-unknown -ffp-builtin-accuracy=sycl \
 // RUN: -D SPIR -Wno-implicit-function-declaration -emit-llvm -o - %s \
@@ -38,13 +45,15 @@
 
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown \
 // RUN: "-ffp-builtin-accuracy=default:[acosf,cos,pow]" \
-// RUN: -Wno-return-type -Wno-implicit-function-declaration -emit-llvm -o - %s \
+// RUN: -Wno-return-type -Wno-implicit-function-declaration \
+// RUN: -Wno-incompatible-pointer-types -emit-llvm -o - %s \
 // RUN: | FileCheck --check-prefixes=CHECK-DEFAULT %s
 
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown \
-// RUN: -Wno-return-type -Wno-implicit-function-declaration -emit-llvm -o - %s \
+// RUN: -Wno-return-type -Wno-implicit-function-declaration \
+// RUN: -Wno-incompatible-pointer-types -emit-llvm -o - %s \
 // RUN: | FileCheck --check-prefixes=CHECK-DEFAULT %s
-
+// end INTEL_CUSTOMIZATION
 #ifdef SPIR
 // This is a declaration when compiling with -fsycl to avoid
 // the compilation error "function with no prototype cannot use
@@ -90,7 +99,7 @@ double rsqrt(double);
 // CHECK: call double @llvm.fpbuiltin.pow.f64(double {{.*}}, double {{.*}}) #[[ATTR_HIGH]]
 // CHECK: call double @llvm.fpbuiltin.rsqrt.f64(double {{.*}}) #[[ATTR_HIGH]]
 // CHECK: call double @llvm.fpbuiltin.sin.f64(double {{.*}}) #[[ATTR_HIGH]]
-// CHECK: call void @llvm.fpbuiltin.sincos.f64(double {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_HIGH]]
+// CHECK: call { double, double } @llvm.sincos.f64(double {{.*}})
 // CHECK: call double @llvm.fpbuiltin.sinh.f64(double {{.*}}) #[[ATTR_HIGH]]
 // CHECK: call double @llvm.fpbuiltin.sqrt.f64(double {{.*}}) #[[ATTR_HIGH]]
 // CHECK: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_HIGH]]
@@ -125,7 +134,7 @@ double rsqrt(double);
 // CHECK-F1: call double @llvm.fpbuiltin.pow.f64(double {{.*}}, double {{.*}}) #[[ATTR_F1_HIGH]]
 // CHECK-F1: call i32 (double, ...) @rsqrt(double {{.*}})
 // CHECK-F1: call double @llvm.sin.f64(double {{.*}})
-// CHECK-F1: call void @llvm.fpbuiltin.sincos.f64(double {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_F1_MEDIUM]]
+// CHECK-F1: call { double, double } @llvm.sincos.f64(double {{.*}})
 // CHECK-F1: call double @llvm.sinh.f64(double {{.*}})
 // CHECK-F1: call double @llvm.sqrt.f64(double {{.*}})
 // CHECK-F1: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F1_LOW:[0-9]+]]
@@ -161,7 +170,7 @@ double rsqrt(double);
 // CHECK-F2: call double @llvm.fpbuiltin.pow.f64(double {{.*}}, double {{.*}}) #[[ATTR_F2_MEDIUM]]
 // CHECK-F2: call double @llvm.fpbuiltin.rsqrt.f64(double {{.*}}) #[[ATTR_F2_MEDIUM]]
 // CHECK-F2: call double @llvm.fpbuiltin.sin.f64(double {{.*}}) #[[ATTR_F2_MEDIUM]]
-// CHECK-F2:    call void @llvm.fpbuiltin.sincos.f64(double {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_F2_MEDIUM]]
+// CHECK-F2: call { double, double } @llvm.sincos.f64(double {{.*}})
 // CHECK-F2: call double @llvm.fpbuiltin.sinh.f64(double {{.*}}) #[[ATTR_F2_MEDIUM]]
 // CHECK-F2: call double @llvm.fpbuiltin.sqrt.f64(double {{.*}}) #[[ATTR_F2_MEDIUM]]
 // CHECK-F2: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F2_HIGH:[0-9]+]]
@@ -197,7 +206,7 @@ double rsqrt(double);
 // CHECK-F3: call double @llvm.fpbuiltin.pow.f64(double {{.*}}, double {{.*}}) #[[ATTR_F3_HIGH]]
 // CHECK-F3: call double @llvm.fpbuiltin.rsqrt.f64(double {{.*}}) #[[ATTR_F3_HIGH]]
 // CHECK-F3: call double @llvm.fpbuiltin.sin.f64(double {{.*}}) #[[ATTR_F3_HIGH]]
-// CHECK-F3: call void @llvm.fpbuiltin.sincos.f64(double {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_F3_MEDIUM]]
+// CHECK-F3: call { double, double } @llvm.sincos.f64(double {{.*}})
 // CHECK-F3: call double @llvm.fpbuiltin.sinh.f64(double {{.*}}) #[[ATTR_F3_HIGH]]
 // CHECK-F3: call double @llvm.fpbuiltin.sqrt.f64(double {{.*}}) #[[ATTR_F3_HIGH]]
 // CHECK-F3: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F3_LOW:[0-9]+]]
@@ -208,7 +217,7 @@ double rsqrt(double);
 // CHECK-F3: call float @llvm.fpbuiltin.sin.f32(float {{.*}}) #[[ATTR_F3_HIGH]]
 // CHECK-F3: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F3_LOW]]
 // CHECK-F3: call double @llvm.fpbuiltin.log10.f64(double {{.*}}) #[[ATTR_F3_MEDIUM]]
-// CHECK-F3: call void @llvm.fpbuiltin.sincos.f64(double {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_F3_MEDIUM]]
+// CHECK-F3: call { double, double } @llvm.sincos.f64(double {{.*}})
 // CHECK-F3: call float @llvm.fpbuiltin.tan.f32(float {{.*}}) #[[ATTR_F3_HIGH]]
 // CHECK-F3: call float @llvm.fpbuiltin.hypot.f32(float {{.*}}, float {{.*}}) #[[ATTR_F3_HIGH]]
 
@@ -252,7 +261,7 @@ double rsqrt(double);
 // CHECK-F4: call double @llvm.fpbuiltin.pow.f64(double {{.*}}, double {{.*}}) #[[ATTR_F4_MEDIUM]]
 // CHECK-F4: call double @llvm.fpbuiltin.rsqrt.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
 // CHECK-F4: call double @llvm.fpbuiltin.sin.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
-// CHECK-F4: call void @llvm.fpbuiltin.sincos.f64(double {{.*}}, ptr {{.*}}, ptr {{.*}})
+// CHECK-F4: call { double, double } @llvm.sincos.f64(double {{.*}})
 // CHECK-F4: call double @llvm.fpbuiltin.sinh.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
 // CHECK-F4: call double @llvm.fpbuiltin.sqrt.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
 // CHECK-F4: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
@@ -288,7 +297,7 @@ double rsqrt(double);
 // CHECK-F5: call double @llvm.pow.f64(double {{.*}}, double {{.*}})
 // CHECK-F5: call i32 (double, ...) @rsqrt(double {{.*}})
 // CHECK-F5: call double @llvm.fpbuiltin.sin.f64(double {{.*}}) #[[ATTR_F5_HIGH:[0-9]+]]
-// CHECK-F5: call i32 (double, ptr, ptr, ...) @sincos(double {{.*}}, ptr {{.*}}, ptr {{.*}})
+// CHECK-F5: call { double, double } @llvm.sincos.f64(double {{.*}})
 // CHECK-F5: call double @llvm.sinh.f64(double {{.*}})
 // CHECK-F5: call double @llvm.sqrt.f64(double {{.*}})
 // CHECK-F5: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F5_HIGH]]
@@ -325,7 +334,7 @@ double rsqrt(double);
 // CHECK-F6: call double @llvm.fpbuiltin.pow.f64(double {{.*}}, double {{.*}}) #[[ATTR_F6_MEDIUM]]
 // CHECK-F6: call double @llvm.fpbuiltin.rsqrt.f64(double {{.*}}) #[[ATTR_F6_MEDIUM]]
 // CHECK-F6: call double @llvm.fpbuiltin.sin.f64(double {{.*}}) #[[ATTR_F6_HIGH]]
-// CHECK-F6: call void @llvm.fpbuiltin.sincos.f64(double {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_F6_MEDIUM]]
+// CHECK-F6: call { double, double } @llvm.sincos.f64(double {{.*}})
 // CHECK-F6: call double @llvm.fpbuiltin.sinh.f64(double {{.*}}) #[[ATTR_F6_MEDIUM]]
 // CHECK-F6: call double @llvm.fpbuiltin.sqrt.f64(double {{.*}}) #[[ATTR_F6_MEDIUM]]
 // CHECK-F6: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F6_MEDIUM]]
@@ -410,7 +419,7 @@ void f1(float a, float b) {
 // CHECK: call float @llvm.fpbuiltin.sin.f32(float {{.*}}) #[[ATTR_HIGH]]
 // CHECK: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_HIGH]]
 // CHECK: call double @llvm.fpbuiltin.log10.f64(double {{.*}}) #[[ATTR_HIGH]]
-// CHECK: call void @llvm.fpbuiltin.sincos.f64(double {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_HIGH]]
+// CHECK: call { double, double } @llvm.sincos.f64(double {{.*}})
 // CHECK: call float @llvm.fpbuiltin.tan.f32(float {{.*}}) #[[ATTR_HIGH]]
 // CHECK: call float @llvm.fpbuiltin.hypot.f32(float {{.*}}, float {{.*}}) #[[ATTR_HIGH]]
 // CHECK: call float @llvm.fpbuiltin.ldexp.f32(float {{.*}}, i32 {{.*}}) #[[ATTR_HIGH]]
@@ -420,7 +429,7 @@ void f1(float a, float b) {
 // CHECK-F1: call float @llvm.sin.f32(float {{.*}})
 // CHECK-F1: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F1_LOW]]
 // CHECK-F1: call double @llvm.fpbuiltin.log10.f64(double {{.*}}) #[[ATTR_F1_MEDIUM]]
-// CHECK-F1: call void @llvm.fpbuiltin.sincos.f64(double {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_F1_MEDIUM]]
+// CHECK-F1: call { double, double } @llvm.sincos.f64(double {{.*}})
 // CHECK-F1: call float @llvm.tan.f32(float {{.*}})
 // CHECK-F1: call float @hypotf(float {{.*}}, float {{.*}})
 // CHECK-F1: call float @ldexpf(float {{.*}}, i32 {{.*}})
@@ -430,7 +439,7 @@ void f1(float a, float b) {
 // CHECK-F2: call float @llvm.fpbuiltin.sin.f32(float {{.*}}) #[[ATTR_F2_MEDIUM]]
 // CHECK-F2: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F2_HIGH]]
 // CHECK-F2: call double @llvm.fpbuiltin.log10.f64(double {{.*}}) #[[ATTR_F2_MEDIUM]]
-// CHECK-F2: call void @llvm.fpbuiltin.sincos.f64(double {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_F2_MEDIUM]]
+// CHECK-F2: call { double, double } @llvm.sincos.f64(double {{.*}})
 // CHECK-F2: call float @llvm.fpbuiltin.tan.f32(float {{.*}}) #[[ATTR_F2_MEDIUM]]
 // CHECK-F2: call float @llvm.fpbuiltin.hypot.f32(float {{.*}}, float {{.*}}) #[[ATTR_F2_MEDIUM]]
 // CHECK-F2: call float @llvm.fpbuiltin.ldexp.f32(float {{.*}}, i32 {{.*}}) #[[ATTR_F2_MEDIUM]]
@@ -440,7 +449,7 @@ void f1(float a, float b) {
 // CHECK-F4: call float @llvm.fpbuiltin.sin.f32(float {{.*}}) #[[ATTR_F4_MEDIUM]]
 // CHECK-F4: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
 // CHECK-F4: call double @llvm.fpbuiltin.log10.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
-// CHECK-F4: call void @llvm.fpbuiltin.sincos.f64(double {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call { double, double } @llvm.sincos.f64(double {{.*}})
 // CHECK-F4: call float @llvm.fpbuiltin.tan.f32(float {{.*}}) #[[ATTR_F4_MEDIUM]]
 // CHECK-F4: call float @llvm.fpbuiltin.hypot.f32(float {{.*}}, float {{.*}}) #[[ATTR_F4_MEDIUM]]
 // CHECK-F4: call float @llvm.fpbuiltin.ldexp.f32(float {{.*}}, i32 {{.*}}) #[[ATTR_F4_MEDIUM]]
@@ -461,7 +470,7 @@ void f1(float a, float b) {
 // CHECK-F5: call float @llvm.sin.f32(float {{.*}})
 // CHECK-F5: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F5_HIGH]]
 // CHECK-F5: call double @llvm.log10.f64(double {{.*}})
-// CHECK-F5: call i32 (double, ptr, ptr, ...) @sincos(double {{.*}}, ptr {{.*}}, ptr {{.*}})
+// CHECK-F5: call { double, double } @llvm.sincos.f64(double {{.*}})
 // CHECK-F5: call float @llvm.tan.f32(float {{.*}})
 // CHECK-F5: call float @hypotf(float {{.*}}, float {{.*}})
 // CHECK-F5: call float @ldexpf(float {{.*}}, i32 {{.*}})
@@ -483,7 +492,7 @@ void f1(float a, float b) {
 // CHECK-F6: call float @llvm.fpbuiltin.sin.f32(float {{.*}}) #[[ATTR_F6_MEDIUM]]
 // CHECK-F6: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F6_MEDIUM]]
 // CHECK-F6: call double @llvm.fpbuiltin.log10.f64(double {{.*}}) #[[ATTR_F6_MEDIUM]]
-// CHECK-F6: call void @llvm.fpbuiltin.sincos.f64(double {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_F6_MEDIUM]]
+// CHECK-F6: call { double, double } @llvm.sincos.f64(double {{.*}})
 // CHECK-F6: call float @llvm.fpbuiltin.tan.f32(float {{.*}}) #[[ATTR_F6_MEDIUM]]
 // CHECK-F6: call float @llvm.fpbuiltin.hypot.f32(float {{.*}}, float {{.*}}) #[[ATTR_F6_MEDIUM]]
 // CHECK-F6: call float @llvm.fpbuiltin.ldexp.f32(float {{.*}}, i32 {{.*}}) #[[ATTR_F6_MEDIUM]]
@@ -590,7 +599,7 @@ void f1(float a, float b) {
 // CHECK-DEFAULT: call double @llvm.pow.f64(double {{.*}}, double {{.*}})
 // CHECK-DEFAULT: call i32 (double, ...) @rsqrt(double {{.*}})
 // CHECK-DEFAULT: call double @llvm.sin.f64(double {{.*}})
-// CHECK-DEFAULT: call i32 (double, ptr, ptr, ...) @sincos(double {{.*}}, ptr {{.*}}, ptr {{.*}})
+// CHECK-DEFAULT: call { double, double } @llvm.sincos.f64(double {{.*}})
 // CHECK-DEFAULT: call double @llvm.sinh.f64(double {{.*}})
 // CHECK-DEFAULT: call double @llvm.sqrt.f64(double {{.*}})
 // CHECK-DEFAULT: call double @llvm.tan.f64(double {{.*}})
@@ -601,7 +610,7 @@ void f1(float a, float b) {
 // CHECK-DEFAULT: call float @llvm.sin.f32(float {{.*}})
 // CHECK-DEFAULT: call double @llvm.tan.f64(double {{.*}})
 // CHECK-DEFAULT: call double @llvm.log10.f64(double {{.*}})
-// CHECK-DEFAULT: call i32 (double, ptr, ptr, ...) @sincos(double {{.*}}, ptr {{.*}}, ptr {{.*}})
+// CHECK-DEFAULT: call { double, double } @llvm.sincos.f64(double {{.*}})
 // CHECK-DEFAULT: call float @llvm.tan.f32(float {{.*}})
 // CHECK-DEFAULT: call float @hypotf(float {{.*}}, float {{.*}})
 //

@@ -16,7 +16,7 @@ void runKernelsFromFile2() {
 
     Q.submit([&](sycl::handler &Cgh) {
       auto Acc = Buf.get_access<sycl::access::mode::read_write>(Cgh);
-      Cgh.single_task<File2Kern1>(Krn, [=]() { Acc[0] = 3; });
+      Cgh.single_task<File2Kern1>([=]() { Acc[0] = 3; });
     });
   }
   assert(Data == 3);

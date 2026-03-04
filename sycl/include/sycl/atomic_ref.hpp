@@ -9,7 +9,8 @@
 #pragma once
 
 #include <sycl/access/access.hpp> // for address_space
-#include <sycl/bit_cast.hpp>      // for bit_cast
+#include <sycl/aspects.hpp>
+#include <sycl/bit_cast.hpp>
 #include <sycl/ext/oneapi/experimental/address_cast.hpp>
 #include <sycl/memory_enums.hpp> // for getStdMemoryOrder, memory_order
 
@@ -48,11 +49,9 @@ template <typename T> struct IsValidAtomicRefType {
 };
 
 template <sycl::access::address_space AS> struct IsValidAtomicRefAddressSpace {
-  static constexpr bool value =
-      (AS == access::address_space::global_space ||
-       AS == access::address_space::local_space ||
-       AS == access::address_space::ext_intel_global_device_space ||
-       AS == access::address_space::generic_space);
+  static constexpr bool value = (AS == access::address_space::global_space ||
+                                 AS == access::address_space::local_space ||
+                                 AS == access::address_space::generic_space);
 };
 
 // DefaultOrder parameter is limited to read-modify-write orders
@@ -128,8 +127,7 @@ class atomic_ref_base {
       "and pointer types");
   static_assert(detail::IsValidAtomicRefAddressSpace<AddressSpace>::value,
                 "Invalid atomic address_space.  Valid address spaces are: "
-                "global_space, local_space, ext_intel_global_device_space, "
-                "generic_space");
+                "global_space, local_space, generic_space");
   static_assert(
       detail::IsValidDefaultOrder<DefaultOrder>::value,
       "Invalid default memory_order for atomics.  Valid defaults are: "
@@ -158,16 +156,9 @@ public:
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
-#if defined(__SPIR__)
   explicit atomic_ref_base(T &ref)
       : ptr(ext::oneapi::experimental::static_address_cast<AddressSpace>(
             &ref)) {}
-#else
-  // CUDA/HIP don't support `ext::oneapi::experimental::static_address_cast`
-  // yet.
-  explicit atomic_ref_base(T &ref)
-      : ptr(address_space_cast<AddressSpace, access::decorated::no>(&ref)) {}
-#endif
 #else
   // FIXME: This reinterpret_cast is UB, but happens to work for now
   explicit atomic_ref_base(T &ref)
@@ -239,7 +230,14 @@ public:
   compare_exchange_strong(T &expected, T desired,
                           memory_order order = default_read_modify_write_order,
                           memory_scope scope = default_scope) const noexcept {
-    return compare_exchange_strong(expected, desired, order, order, scope);
+    memory_order success = order;
+    memory_order failure = order;
+    if (order == memory_order::acq_rel) {
+      failure = memory_order::acquire;
+    } else if (order == memory_order::release) {
+      failure = memory_order::relaxed;
+    }
+    return compare_exchange_strong(expected, desired, success, failure, scope);
   }
 
   bool
@@ -263,7 +261,14 @@ public:
   compare_exchange_weak(T &expected, T desired,
                         memory_order order = default_read_modify_write_order,
                         memory_scope scope = default_scope) const noexcept {
-    return compare_exchange_weak(expected, desired, order, order, scope);
+    memory_order success = order;
+    memory_order failure = order;
+    if (order == memory_order::acq_rel) {
+      failure = memory_order::acquire;
+    } else if (order == memory_order::release) {
+      failure = memory_order::relaxed;
+    }
+    return compare_exchange_weak(expected, desired, success, failure, scope);
   }
 
 protected:
@@ -462,9 +467,7 @@ public:
 
   T fetch_add(T operand, memory_order order = default_read_modify_write_order,
               memory_scope scope = default_scope) const noexcept {
-// TODO: Remove the "native atomics" macro check once implemented for all
-// backends
-#if defined(__SYCL_DEVICE_ONLY__) && defined(SYCL_USE_NATIVE_FP_ATOMICS)
+#if defined(__SYCL_DEVICE_ONLY__)
     return detail::spirv::AtomicFAdd(ptr, scope, order, operand);
 #else
     auto load_order = detail::getLoadOrder(order);
@@ -485,9 +488,7 @@ public:
 
   T fetch_sub(T operand, memory_order order = default_read_modify_write_order,
               memory_scope scope = default_scope) const noexcept {
-// TODO: Remove the "native atomics" macro check once implemented for all
-// backends
-#if defined(__SYCL_DEVICE_ONLY__) && defined(SYCL_USE_NATIVE_FP_ATOMICS)
+#if defined(__SYCL_DEVICE_ONLY__)
     return detail::spirv::AtomicFAdd(ptr, scope, order, -operand);
 #else
     auto load_order = detail::getLoadOrder(order);
@@ -506,9 +507,7 @@ public:
 
   T fetch_min(T operand, memory_order order = default_read_modify_write_order,
               memory_scope scope = default_scope) const noexcept {
-// TODO: Remove the "native atomics" macro check once implemented for all
-// backends
-#if defined(__SYCL_DEVICE_ONLY__) && defined(SYCL_USE_NATIVE_FP_ATOMICS)
+#if defined(__SYCL_DEVICE_ONLY__)
     return detail::spirv::AtomicMin(ptr, scope, order, operand);
 #else
     auto load_order = detail::getLoadOrder(order);
@@ -522,9 +521,7 @@ public:
 
   T fetch_max(T operand, memory_order order = default_read_modify_write_order,
               memory_scope scope = default_scope) const noexcept {
-// TODO: Remove the "native atomics" macro check once implemented for all
-// backends
-#if defined(__SYCL_DEVICE_ONLY__) && defined(SYCL_USE_NATIVE_FP_ATOMICS)
+#if defined(__SYCL_DEVICE_ONLY__)
     return detail::spirv::AtomicMax(ptr, scope, order, operand);
 #else
     auto load_order = detail::getLoadOrder(order);

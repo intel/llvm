@@ -30,7 +30,7 @@ inline ur_result_t redefinedAdapterGetLastError(void *) {
   return UR_RESULT_ERROR_INVALID_VALUE;
 }
 
-ur_result_t redefinedEnqueueKernelLaunch(void *) {
+ur_result_t redefinedEnqueueKernelLaunchWithArgsExp(void *) {
   return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
 }
 
@@ -78,8 +78,7 @@ public:
       FileName, FunctionName, LineNumber, ColumnNumber};
   const sycl::detail::code_location ExtraTestCodeLocation = {
       FileName, ExtraFunctionName, ExtraLineNumber, ColumnNumber};
-  static constexpr size_t KernelSize = 1;
-  using TestKI = detail::KernelInfo<TestKernel<KernelSize>>;
+  using TestKI = detail::KernelInfo<TestKernel>;
 
   const std::string TestCodeLocationMessage = BuildCodeLocationMessage(
       FileName, FunctionName, LineNumber, ColumnNumber);
@@ -88,23 +87,21 @@ public:
   const std::string TestKernelLocationMessage = BuildCodeLocationMessage(
       TestKI::getFileName(), TestKI::getFunctionName(), TestKI::getLineNumber(),
       TestKI::getColumnNumber());
-  const std::string URLevelFailMessage = "Native API failed";
+  const std::string URLevelFailMessage = " backend failed with error: ";
   const std::string SYCLLevelFailMessage = "Enqueue process failed";
 };
 
 TEST_F(QueueApiFailures, QueueSubmit) {
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefinedEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefinedEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_replace_callback("urAdapterGetLastError",
                                             &redefinedAdapterGetLastError);
   sycl::queue Q;
   bool ExceptionCaught = false;
   try {
-    Q.submit(
-        [&](handler &Cgh) {
-          Cgh.single_task<TestKernel<KernelSize>>([=]() {});
-        },
-        TestCodeLocation);
+    Q.submit([&](handler &Cgh) { Cgh.single_task<TestKernel>([=]() {}); },
+             TestCodeLocation);
   } catch (sycl::exception &e) {
     std::ignore = e;
     ExceptionCaught = true;
@@ -120,14 +117,15 @@ TEST_F(QueueApiFailures, QueueSubmit) {
 }
 
 TEST_F(QueueApiFailures, QueueSingleTask) {
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefinedEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefinedEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_replace_callback("urAdapterGetLastError",
                                             &redefinedAdapterGetLastError);
   sycl::queue Q;
   bool ExceptionCaught = false;
   try {
-    Q.single_task<TestKernel<KernelSize>>([=]() {}, TestCodeLocation);
+    Q.single_task<TestKernel>([=]() {}, TestCodeLocation);
   } catch (sycl::exception &e) {
     std::ignore = e;
     ExceptionCaught = true;
@@ -323,15 +321,16 @@ TEST_F(QueueApiFailures, QueueMemAdvise) {
 }
 
 TEST_F(QueueApiFailures, QueueParallelFor) {
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefinedEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefinedEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_replace_callback("urAdapterGetLastError",
                                             &redefinedAdapterGetLastError);
   sycl::queue Q;
   bool ExceptionCaught = false;
   const int globalWIs{512};
   try {
-    Q.parallel_for<TestKernel<KernelSize>>(globalWIs, [=](sycl::id<1> idx) {});
+    Q.parallel_for<TestKernel>(globalWIs, [=](sycl::id<1> idx) {});
   } catch (sycl::exception &e) {
     std::ignore = e;
     ExceptionCaught = true;
@@ -362,8 +361,7 @@ TEST_F(QueueApiFailures, QueueHostTaskWaitFail) {
   bool ExceptionCaught = false;
   event EventToDepend;
   try {
-    EventToDepend =
-        Q.single_task<TestKernel<KernelSize>>([=]() {}, TestCodeLocation);
+    EventToDepend = Q.single_task<TestKernel>([=]() {}, TestCodeLocation);
   } catch (sycl::exception &e) {
     std::ignore = e;
     ExceptionCaught = true;
@@ -383,7 +381,7 @@ TEST_F(QueueApiFailures, QueueHostTaskWaitFail) {
     ExceptionCaught = true;
   }
   EXPECT_FALSE(ExceptionCaught);
-  Q.wait();
+  Q.wait_and_throw();
 
   uint16_t TraceType = 0;
   std::string Message;
@@ -403,8 +401,7 @@ TEST_F(QueueApiFailures, QueueHostTaskFail) {
     event EventToDepend;
     const std::string HostTaskExeptionStr = "Host task exception";
     try {
-      EventToDepend =
-          Q.single_task<TestKernel<KernelSize>>([=]() {}, TestCodeLocation);
+      EventToDepend = Q.single_task<TestKernel>([=]() {}, TestCodeLocation);
     } catch (sycl::exception &e) {
       std::ignore = e;
       ExceptionCaught = true;
@@ -428,7 +425,7 @@ TEST_F(QueueApiFailures, QueueHostTaskFail) {
       ExceptionCaught = true;
     }
     EXPECT_FALSE(ExceptionCaught);
-    Q.wait();
+    Q.wait_and_throw();
 
     uint16_t TraceType = 0;
     std::string Message;
@@ -457,7 +454,8 @@ ur_result_t redefinedEnqueueKernelLaunchWithStatus(void *) {
 
 TEST_F(QueueApiFailures, QueueKernelAsync) {
   mock::getCallbacks().set_replace_callback(
-      "urEnqueueKernelLaunch", &redefinedEnqueueKernelLaunchWithStatus);
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefinedEnqueueKernelLaunchWithStatus);
   mock::getCallbacks().set_replace_callback("urAdapterGetLastError",
                                             &redefinedAdapterGetLastError);
 
@@ -488,7 +486,7 @@ TEST_F(QueueApiFailures, QueueKernelAsync) {
     Q.submit(
         [&](handler &Cgh) {
           Cgh.depends_on(EventToDepend);
-          Cgh.single_task<TestKernel<KernelSize>>([=]() {});
+          Cgh.single_task<TestKernel>([=]() {});
         },
         ExtraTestCodeLocation);
   } catch (sycl::exception &e) {
@@ -505,7 +503,7 @@ TEST_F(QueueApiFailures, QueueKernelAsync) {
   }
 
   try {
-    Q.wait();
+    Q.wait_and_throw();
   } catch (...) {
     // kernel enqueue leads to exception throw
   }

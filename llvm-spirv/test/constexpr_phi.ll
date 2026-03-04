@@ -1,5 +1,4 @@
-; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_function_pointers -o %t.spv
+; RUN: llvm-spirv %s --spirv-ext=+SPV_INTEL_function_pointers -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv -r %t.spv -o %t.r.bc
@@ -41,7 +40,7 @@ define dso_local i32 @_Z2f2i(i32 %0) {
   ret i32 %2
 }
 
-define dso_local i64 @_Z3runiiPi(i32 %0, i32 %1, ptr nocapture %2) local_unnamed_addr {
+define dso_local i64 @_Z3runiiPi(i32 %0, i32 %1, ptr captures(none) %2) local_unnamed_addr {
   %4 = icmp slt i32 %0, 10
   br i1 %4, label %5, label %7
 

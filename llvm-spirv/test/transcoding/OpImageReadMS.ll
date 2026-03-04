@@ -5,7 +5,7 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
-; CHECK-LLVM: call spir_func <4 x float> @_Z11read_imagef19ocl_image2d_msaa_roDv2_ii(ptr
+; CHECK-LLVM: call spir_func <4 x float> @_Z11read_imagef19ocl_image2d_msaa_roDv2_ii(target("spirv.Image", void, 1, 0, 0, 1, 0, 0, 0)
 
 ; CHECK-SPIRV: 7 ImageRead {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} 64 {{[0-9]+}}
 
@@ -15,7 +15,7 @@ target triple = "spir-unknown-unknown"
 %opencl.image2d_msaa_ro_t = type opaque
 
 ; Function Attrs: nounwind
-define spir_kernel void @sample_test(ptr addrspace(1) %source, i32 %sampler, ptr addrspace(1) nocapture %results) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
+define spir_kernel void @sample_test(ptr addrspace(1) %source, i32 %sampler, ptr addrspace(1) captures(none) %results) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
 entry:
   %call = tail call spir_func i32 @_Z13get_global_idj(i32 0) #2
   %call1 = tail call spir_func i32 @_Z13get_global_idj(i32 1) #2

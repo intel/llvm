@@ -298,6 +298,12 @@ the returned pointer is accessible after the call as read-only or read-write
 respectively. Otherwise, it is considered inaccessible and accessing it will
 result in undefined behavior.
 
+If other devices in the context associated with this instance of `physical_mem`
+have enabled peer-to-peer access with the device associated with this instance
+of `physical_mem` via link:../supported/sycl_ext_oneapi_peer_access.asciidoc[
+sycl_ext_oneapi_peer_access], those other devices also have access to this
+mapped memory, and the access mode applies to accesses from those devices also.
+
 The returned pointer is equivalent to `reinterpret_cast<void *>(ptr)`.
 
 Writing to any address in the virtual memory range with access mode set to
@@ -353,6 +359,12 @@ If `mode` is `address_access_mode::read` or `address_access_mode::read_write`
 respectively. Otherwise, it is considered inaccessible and accessing it will
 result in undefined behavior.
 
+If other devices in `syclContext` have enabled peer-to-peer access with the
+device on which the memory referenced by `ptr` resides via
+link:../supported/sycl_ext_oneapi_peer_access.asciidoc[
+sycl_ext_oneapi_peer_access], those other devices also have access to this
+mapped memory, and the access mode applies to accesses from those devices also.
+
 The virtual memory range specified by `ptr` and `numBytes` must be a sub-range
 of virtual memory ranges previously mapped to `physical_mem`. `ptr`
 must be aligned to the minimum memory granularity of the device associated with
@@ -377,7 +389,7 @@ the `physical_mem` the range is mapped to and `numBytes` must be a multiple of
 the minimum memory granularity of the device associated with the `physical_mem`
 the range is mapped to.
 
-|`void unmap(const void *ptr, size_t numBytes, const device &syclDevice, const context &syclContext)` |
+|`void unmap(const void *ptr, size_t numBytes, const context &syclContext)` |
 Unmaps the range specified by `ptr` and `numBytes`. The range must have been
 mapped through a call to `physical_mem::map()` prior to calling this. The range
 must not be a proper sub-range of a previously mapped range. `syclContext` must

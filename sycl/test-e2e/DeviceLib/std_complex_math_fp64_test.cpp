@@ -1,10 +1,6 @@
 // REQUIRES: aspect-fp64
-// UNSUPPORTED: hip || cuda
 // RUN: %{build} -o %t1.out
 // RUN: %{run} %t1.out
-
-// RUN: %{build} -fsycl-device-lib-jit-link -o %t2.out
-// RUN: %{run} %t2.out
 
 #include <array>
 #include <cassert>

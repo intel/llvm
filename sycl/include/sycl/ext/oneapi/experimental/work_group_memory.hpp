@@ -9,6 +9,7 @@
 
 #include <sycl/access/access.hpp>
 #include <sycl/detail/defines.hpp>
+#include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/multi_ptr.hpp>
 
@@ -17,9 +18,10 @@
 
 namespace sycl {
 inline namespace _V1 {
-class handler;
 
 namespace detail {
+class KernelData;
+
 template <typename T> struct is_unbounded_array : std::false_type {};
 
 template <typename T> struct is_unbounded_array<T[]> : std::true_type {};
@@ -37,7 +39,7 @@ public:
 
 private:
   size_t buffer_size;
-  friend class sycl::handler;
+  friend class KernelData;
 };
 
 } // namespace detail
@@ -115,6 +117,9 @@ private:
   friend class sycl::handler; // needed in order for handler class to be aware
                               // of the private inheritance with
                               // work_group_memory_impl as base class
+
+  template <typename, typename> friend class dynamic_work_group_memory;
+
   decoratedPtr ptr = nullptr;
 };
 } // namespace ext::oneapi::experimental

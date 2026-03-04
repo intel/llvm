@@ -28,6 +28,8 @@ enum class address_access_mode : char { none = 0, read = 1, read_write = 2 };
 
 class __SYCL_EXPORT physical_mem
     : public sycl::detail::OwnerLessBase<physical_mem> {
+  friend sycl::detail::ImplUtils;
+
 public:
   physical_mem(const device &SyclDevice, const context &SyclContext,
                size_t NumBytes);
@@ -57,25 +59,13 @@ public:
 
 private:
   std::shared_ptr<sycl::detail::physical_mem_impl> impl;
-
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  sycl::detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T sycl::detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 };
 
 } // namespace ext::oneapi::experimental
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
-template <> struct hash<sycl::ext::oneapi::experimental::physical_mem> {
-  size_t operator()(
-      const sycl::ext::oneapi::experimental::physical_mem &PhysicalMem) const {
-    return hash<std::shared_ptr<sycl::detail::physical_mem_impl>>()(
-        sycl::detail::getSyclObjImpl(PhysicalMem));
-  }
-};
-} // namespace std
+template <>
+struct std::hash<sycl::ext::oneapi::experimental::physical_mem>
+    : public sycl::detail::sycl_obj_hash<
+          sycl::ext::oneapi::experimental::physical_mem> {};

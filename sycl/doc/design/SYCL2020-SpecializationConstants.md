@@ -80,7 +80,7 @@ as:
 [sycl-2020-spec-constant-glossary]: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#specialization-constant
 [sycl-2020-glossary]: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#glossary
 
-And implementation is based on [SPIR-V speficiation][spirv-spec] support
+And implementation is based on [SPIR-V specification][spirv-spec] support
 for [Specialization][spirv-specialization]. However, the specification also
 states the following:
 
@@ -172,7 +172,7 @@ Based on those limitations, the following mapping design is proposed:
   ```
   namespace detail {
     // assuming user defined the following specialization_id:
-    // constexpr specialiation_id<int> int_const;
+    // constexpr specialization_id<int> int_const;
     // class Wrapper {
     // public:
     //   static constexpr specialization_id<float> float_const;
@@ -341,7 +341,7 @@ used to identify the specialization constants at SPIR-V level.
 As noted above one symbolic ID can have several numeric IDs assigned to it -
 such 1:N mapping comes from the fact that at SPIR-V level, composite
 specialization constants don't have dedicated IDs and they are being identified
-and specialized through their scalar leafs and corresponding numeric IDs.
+and specialized through their scalar leaves and corresponding numeric IDs.
 
 For example, the following code:
 ```
@@ -375,7 +375,7 @@ unique_symbolic_id_for_id_A -> { 1, 2, 3 }
 
 As it is shown in the example above, if a composite specialization constant
 contains another composite within it, that nested composite is also being
-"flattened" and its leafs are considered to be leafs of the parent
+"flattened" and its leaves are considered to be leaves of the parent
 specialization constants. This done by depth-first search through the composite
 elements.
 
@@ -509,8 +509,8 @@ constant in that buffer:
 ```
 [
   0, // for id_int, the first constant is at the beginning of the buffer
-  4, // sizeof(int) == 4, the second constant is located right after the fisrt one
-  16, // sizeof(int) + sizezof(A) == 4, the same approach for the third constant
+  4, // sizeof(int) == 4, the second constant is located right after the first one
+  16, // sizeof(int) + sizeof(A) == 4, the same approach for the third constant
 ]
 ```
 
@@ -661,9 +661,9 @@ While transforming SYCL kernel function into an OpenCL kernel, DPC++ FE should
 - Communicate to DPC++ RT which kernel argument should be used for passing
   a buffer with specialization constant values when they are emulated.
 
-DPC++ FE provides implementation of `__builtin_sycl_unique_id` built-in function and
-it also populates special integration footer with the content required by DPC++
-RT for access to right device image properties describing specialization
+DPC++ FE provides implementation of `__builtin_sycl_unique_id` built-in function
+and it also populates special integration footer with the content required by
+DPC++ RT for access to right device image properties describing specialization
 constants.
 
 #### SYCL Kernel function transformations
@@ -763,7 +763,7 @@ struct A {
 };
 
 constexpr specialization_id<int> id_int;
-struct Wraper {
+struct Wrapper {
 public:
   static constexpr specialization_id<A> id_A;
 };
@@ -839,10 +839,10 @@ constexpr sycl::specialization_id<int> same_name{1};
 
 namespace {
   constexpr sycl::specialization_id<int> same_name{2}:
-  /* application code that referenes ::(unnamed)::same_name */
+  /* application code that references ::(unnamed)::same_name */
   namespace {
     constexpr sycl::specialization_id<int> same_name{3}:
-    /* application code that referenes ::(unnamed)::(unnamed)::same_name */
+    /* application code that references ::(unnamed)::(unnamed)::same_name */
   }
 }
 
@@ -899,7 +899,7 @@ namespace {
 
   namespace __sycl_detail {
     // Sometimes we need a 'shim', which points to another 'shim' in order to
-    // "extract" a variable from an anonymous namespace unambiguosly
+    // "extract" a variable from an anonymous namespace unambiguously
     static constexpr decltype(__sycl_detail::__shim_1()) &__shim_2() {
       // still address of ::(unnamed)::(unnamed)::same_name;
       return __sycl_detail::__shim_1();
@@ -972,7 +972,7 @@ address of the specialization constant provided by user and `offset` field of
 the descriptor as `(char*)(SpecConstantValuesMap[SymbolicID]) + offset`.
 
 That calculation is required, because at SPIR-V level composite
-specialization constants are respresented by several specialization constants
+specialization constants are represented by several specialization constants
 for each element of a composite, whilst on a SYCL level, the whole composite
 is passed by user as a single blob of data. `offset` field from properties is
 used to specify which exact piece of that blob should be extracted to perform
@@ -1053,7 +1053,7 @@ the translator will generate `OpSpecConstant` SPIR-V instructions with proper
               OpDecorate %A.float SpecId 44                        ; ID of the 2nd member
      %A.i32 = OpSpecConstant %int.type 0                           ; 1st member with default value
    %A.float = OpSpecConstant %float.type 0.0                       ; 2nd member with default value
-    %struct = OpSpecConstantComposite %struct.type %A.i32 %A.float ; Composite doens't need IDs or default value
+    %struct = OpSpecConstantComposite %struct.type %A.i32 %A.float ; Composite doesn't need IDs or default value
          %1 = OpTypeFunction %int
 
        %get = OpFunction %int None %1

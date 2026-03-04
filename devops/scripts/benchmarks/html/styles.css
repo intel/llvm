@@ -1,0 +1,745 @@
+/* ========================================
+   CSS VARIABLES FOR CONSISTENT THEMING
+   ======================================== */
+:root {
+    /* Core Color Palette - only used colors from scripts.js */
+    /* Provide RGB component vars to allow reuse in rgba() backgrounds */
+    --color-red-rgb: 255, 50, 80;
+    --color-orange-rgb: 255, 145, 15;
+    --color-red: rgb(var(--color-red-rgb));
+    --color-orange: rgb(var(--color-orange-rgb));
+    --color-yellow: rgb(255, 220, 0);
+    --color-green: rgb(20, 200, 50);
+    --color-blue: rgb(0, 130, 255);
+    --color-purple: rgb(180, 60, 255);
+    --color-pink: rgb(255, 40, 200);
+    --color-teal: rgb(0, 210, 180);
+    --color-cyan: #00C7FD;
+
+    /* Text colors - consolidated similar shades */
+    --text-dark: #212529;
+    --text-muted: #555;        /* Replaces text-disabled, text-secondary, text-light */
+    --text-white: #333;
+    --text-info: #084298;
+    --text-danger: var(--color-red);    /* Use palette red for errors */
+    --text-warning: var(--color-orange); /* Use palette orange for warnings */
+
+    /* Backgrounds - consolidated similar grays */
+    --bg-body: #f8f9fa;       /* Replaces bg-lighter, bg-light-gray */
+    --bg-white: white;
+    --bg-hover: #f5f5f5; /* used for hover states (was fallback) */
+    --bg-light: #e9ecef;      /* Replaces bg-disabled */
+    --bg-summary: #dee2e6;
+    --bg-summary-hover: #ced4da;
+    --bg-info: #cfe2ff;
+    --bg-warning: rgba(var(--color-orange-rgb), 0.1);  /* Light orange background for warnings */
+    --bg-danger: rgba(var(--color-red-rgb), 0.1);       /* Light red background for errors */
+    background: var(--bg-white);
+
+    /* Borders - simplified */
+    --border-light: #ccc;
+    --border-medium: #ddd;    /* Replaces border-gray */
+
+    /* Shadows */
+    --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.1);
+    --shadow-dropdown: 0 2px 5px rgba(0,0,0,0.15);
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    margin: 0;
+    padding: 16px;
+    background: var(--bg-body);
+}
+.container {
+    max-width: 1100px;
+    margin: 0 auto;
+}
+h1, h2 {
+    color: var(--text-dark);
+    text-align: center;
+    margin-bottom: 24px;
+    font-weight: 500;
+}
+.chart-container {
+    /* Removed direct literal 'white'; using themed hover background */
+    background: var(--bg-hover);
+    padding: 24px;
+    box-shadow: var(--shadow-subtle);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    min-height: fit-content;
+    margin: 10px 0;
+    overflow: visible;
+}
+.chart-header {
+    padding: 10px;
+    border-radius: 6px 6px 0 0;
+}
+.chart-content {
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    min-height: fit-content;
+}
+@media (max-width: 768px) {
+    body {
+        padding: 12px;
+    }
+    .chart-container {
+        padding: 16px;
+        border-radius: 6px;
+    }
+    h1 {
+        font-size: 24px;
+        margin-bottom: 16px;
+    }
+}
+.filter-container {
+    text-align: center;
+    margin-bottom: 24px;
+}
+.filter-container input {
+    padding: 8px;
+    font-size: 16px;
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    width: 400px;
+    max-width: 100%;
+}
+.suite-filter-container {
+    text-align: center;
+    margin-bottom: 24px;
+    padding: 16px;
+    background: var(--bg-light);
+    border-radius: 8px;
+}
+.suite-checkbox {
+    margin: 0 8px;
+}
+details {
+    margin-bottom: 24px;
+}
+summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 12px 16px;
+    background: var(--bg-summary);
+    border-radius: 8px;
+    user-select: none;
+}
+summary:hover {
+    background: var(--bg-summary-hover);
+}
+summary::marker {
+    display: none;
+}
+summary::-webkit-details-marker {
+    display: none;
+}
+summary::after {
+    content: "▼";
+    font-size: 12px;
+    margin-left: 8px;
+    transition: transform 0.3s;
+}
+details[open] summary::after {
+    transform: rotate(180deg);
+}
+.extra-info {
+    padding: 8px;
+    background: var(--bg-body);
+    border-radius: 8px;
+    margin-top: 8px;
+}
+.run-selector {
+    text-align: center;
+    margin-bottom: 24px;
+    padding: 16px;
+    background: var(--bg-light);
+    border-radius: 8px;
+}
+.run-selector select {
+    width: 300px;
+    padding: 8px;
+    margin-right: 8px;
+}
+.run-selector button {
+    padding: 8px 16px;
+    background: var(--color-blue);
+    color: var(--bg-white);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.run-selector button:hover {
+    background: var(--color-cyan);
+}
+.selected-runs {
+    margin-top: 12px;
+}
+.selected-run {
+    display: inline-block;
+    padding: 4px 8px;
+    margin: 4px;
+    background: var(--bg-light);
+    border-radius: 4px;
+}
+.selected-run button {
+    margin-left: 8px;
+    padding: 0 4px;
+    background: none;
+    border: none;
+    color: var(--color-red);
+    cursor: pointer;
+}
+.download-button {
+    background: none;
+    border: none;
+    color: var(--color-blue);
+    cursor: pointer;
+    font-size: 16px;
+    padding: 4px;
+    margin-left: 8px;
+}
+.download-button:hover {
+    color: var(--color-cyan);
+}
+
+.download-button:disabled {
+    color: var(--text-muted);
+    cursor: not-allowed;
+}
+
+.download-list {
+    position: absolute;
+    z-index: 1000;
+    background: var(--bg-white);
+    border: 1px solid var(--border-medium);
+    border-radius: 4px;
+    padding: 4px;
+    min-width: 200px;
+    max-width: 300px;
+    box-shadow: var(--shadow-dropdown);
+    font-size: 0.9rem;
+}
+
+/* Support both legacy .download-list-link and generic anchors inside list */
+.download-list a,
+.download-list-link {
+    display: block;
+    padding: 8px 12px;
+    text-decoration: none;
+    color: var(--text-dark);
+    border-radius: 2px;
+    font-size: 14px;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.download-list a:hover,
+.download-list a:focus,
+.download-list-link:hover,
+.download-list-link:focus {
+    background: var(--bg-light);
+    outline: none;
+}
+
+.chart-download-button {
+    margin-right: 8px;
+}
+.loading-indicator {
+    text-align: center;
+    font-size: 18px;
+    color: var(--color-blue);
+    margin-bottom: 20px;
+}
+.extra-info-entry {
+    border: 1px solid var(--border-medium);
+    padding: 10px;
+    margin-bottom: 10px;
+    background-color: var(--bg-body);
+    border-radius: 5px;
+}
+.extra-info-entry strong {
+    display: block;
+    margin-bottom: 5px;
+}
+.extra-info-entry em {
+    color: var(--text-muted);
+}
+.display-options-container {
+    text-align: center;
+    margin-bottom: 24px;
+    padding: 16px;
+    background: var(--bg-light);
+    border-radius: 8px;
+}
+.display-options-container label {
+    margin: 0 12px;
+    cursor: pointer;
+}
+.display-options-container input {
+    margin-right: 8px;
+}
+.benchmark-note {
+    background-color: var(--bg-info);
+    color: var(--text-info);
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 5px;
+    border-left: 4px solid var(--text-info);
+    white-space: pre-line;
+}
+.benchmark-unstable {
+    background-color: var(--bg-warning);
+    color: var(--text-warning);
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 5px;
+    border-left: 4px solid var(--text-warning);
+    white-space: pre-line;
+}
+.note-text {
+    color: var(--text-info);
+}
+.unstable-warning {
+    color: var(--text-warning);
+    font-weight: bold;
+}
+.unstable-text {
+    color: var(--text-warning);
+}
+.options-container {
+    margin-bottom: 24px;
+    background: var(--bg-light);
+    border-radius: 8px;
+    overflow: hidden;
+}
+.options-container summary {
+    padding: 12px 16px;
+    font-weight: 500;
+    cursor: pointer;
+    background: var(--bg-summary);
+    user-select: none;
+}
+.options-container summary:hover {
+    background: var(--bg-summary-hover);
+}
+.options-content {
+    padding: 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+}
+.filter-section {
+    flex: 1;
+    min-width: 300px;
+}
+.filter-section h3 {
+    margin-top: 0;
+    margin-bottom: 12px;
+    font-size: 18px;
+    font-weight: 500;
+    text-align: left;
+    display: flex;
+    align-items: center;
+}
+#suite-filters {
+    display: flex;
+    flex-wrap: wrap;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    padding: 8px;
+    background-color: var(--bg-body);
+}
+.display-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.display-options label {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+.display-options input {
+    margin-right: 8px;
+}
+.benchmark-description {
+    background-color: var(--bg-body);
+    color: var(--text-white);
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 5px;
+    border-left: 4px solid var(--text-muted);
+    white-space: pre-line;
+    font-style: italic;
+}
+/* Tag styles */
+.benchmark-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 10px;
+}
+.tag {
+    display: inline-block;
+    background-color: var(--bg-light);
+    color: var(--text-muted);
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    cursor: help;
+}
+.tag-filter {
+    display: inline-flex;
+    align-items: center;
+    margin: 4px;
+}
+.tag-filter label {
+    margin-left: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+}
+.tag-info {
+    color: var(--color-blue);
+    margin-left: 4px;
+    cursor: help;
+    font-size: 12px;
+}
+
+/* Flamegraph link area styles (used by scripts.js) */
+.chart-flamegraph-links {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 8px;
+    /* small margin below links to separate from any gray bar or footer */
+    margin-bottom: 6px;
+}
+.flamegraph-label {
+    color: var(--text-dark);
+    font-weight: 600;
+}
+.flamegraph-links-inline {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.flamegraph-link {
+    color: var(--text-warning);
+    text-decoration: none;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.flamegraph-link:hover {
+    text-decoration: underline;
+}
+.flame-icon {
+    font-size: 16px;
+    line-height: 1;
+    display: inline-block;
+}
+.flame-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 220px;
+    display: inline-block;
+}
+#tag-filters {
+    display: flex;
+    flex-wrap: wrap;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    padding: 8px;
+    background-color: var(--bg-body);
+}
+.tag-action-button {
+    padding: 2px 8px;
+    background: var(--bg-light);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+.tag-action-button:hover {
+    background: var(--bg-summary-hover);
+}
+.remove-tag {
+    background: none;
+    border: none;
+    color: var(--bg-white);
+    margin-left: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 0 4px;
+}
+.remove-tag:hover {
+    color: var(--text-danger);
+}
+.platform {
+    padding: 16px;
+    background: var(--bg-white);
+    border-radius: 8px;
+    margin-top: 8px;
+}
+.platform-run-section {
+    background: var(--bg-body);
+    border: 1px solid var(--bg-light);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 24px;
+}
+.platform-run-section:last-child {
+    margin-bottom: 0;
+}
+.platform-run-title {
+    color: var(--text-muted);
+    font-size: 18px;
+    margin: 0 0 16px 0;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--bg-summary);
+    font-weight: 600;
+}
+.platform-item {
+    display: flex;
+    align-items: flex-start;
+    padding: 2px 0;
+    margin-bottom: 4px;
+    font-size: 13px;
+    line-height: 1.3;
+}
+.platform-label {
+    font-weight: 500;
+    color: var(--text-muted);
+    min-width: 80px;
+    flex-shrink: 0;
+    margin-right: 8px;
+    font-size: 12px;
+}
+.platform-value {
+    color: var(--text-dark);
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.3;
+    text-align: left;
+    flex-grow: 1;
+}
+.platform-value.multiple {
+    flex-direction: column;
+    align-items: flex-start;
+}
+.platform-gpu-item {
+    font-size: 11px;
+    line-height: 1.2;
+    margin: 1px 0;
+}
+.platform-details-compact {
+    margin-top: 8px;
+}
+@media (max-width: 768px) {
+    .platform-run-section {
+        padding: 16px;
+        margin-bottom: 16px;
+    }
+    .platform-run-title {
+        font-size: 16px;
+        margin-bottom: 12px;
+    }
+    .platform-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .platform-value {
+        margin-left: 0;
+        margin-top: 4px;
+    }
+}
+/* FlameGraph specific styles */
+.flamegraph-error,
+.flamegraph-unavailable {
+    background-color: var(--bg-body);
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    padding: 20px;
+    text-align: center;
+    color: var(--text-muted);
+    font-style: italic;
+    margin: 10px 0;
+}
+
+.flamegraph-error {
+    /* Repurposed to use dedicated danger background */
+    background-color: var(--bg-danger);
+    border-color: var(--text-danger);
+    color: var(--text-danger);
+}
+
+/* ========================================
+   CHART AND BENCHMARK CONTAINER STYLES
+   ======================================== */
+
+/* Consolidated margin styles for benchmark elements */
+.benchmark-description,
+.benchmark-note,
+.benchmark-unstable {
+    margin-bottom: 5px;
+}
+
+.benchmark-canvas {
+    width: 100%;
+    height: 1200px;
+    margin-bottom: 10px;
+}
+
+/* ========================================
+   FLAMEGRAPH STYLES
+   ======================================== */
+
+/* Flamegraph iframe base styles */
+.flamegraph-iframe {
+    width: 100%;
+    height: 500px;
+    min-height: 500px;
+    border: 1px solid var(--border-medium);
+    border-radius: 4px;
+    display: block;
+    margin: 0 0 10px 0;
+    transition: all 0.3s ease;
+    box-sizing: border-box;
+    overflow: hidden;
+    /* Ensure maximum width utilization */
+    max-width: none;
+    min-width: 0;
+}
+
+/* Flamegraph container styles - gives each flamegraph its own space */
+.flamegraph-container {
+    margin-bottom: 20px;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background-color: transparent;
+    width: 100%;
+    /* Ensure no width constraints */
+    max-width: none;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.flamegraph-container:last-child {
+    margin-bottom: 0;
+}
+
+.flamegraph-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-dark);
+    margin: 0 0 10px 0;
+    padding: 8px 12px;
+    background-color: var(--bg-light);
+    border-radius: 4px;
+    border-left: 4px solid var(--color-blue);
+}
+
+/* Ensure flamegraph containers have proper spacing and fit within container */
+.chart-container .flamegraph-container {
+    margin-bottom: 20px;
+    width: 100%;
+}
+
+/* Reduce padding for chart containers that contain flamegraphs to maximize space */
+.chart-container.flamegraph-chart {
+    padding: 8px;
+}
+
+/* Ensure chart content doesn't constrain flamegraphs */
+.chart-container.flamegraph-chart .chart-content {
+    padding: 0;
+}
+
+/* Handle multiple flamegraphs displayed vertically - now handled by container */
+.flamegraph-container:not(:last-child) {
+    margin-bottom: 20px;
+}
+
+/* Floating flamegraph download list */
+.flamegraph-download-list {
+    position: absolute;
+    z-index: 1000;
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    background-color: var(--bg-white);
+    box-shadow: var(--shadow-dropdown);
+    padding: 5px;
+    margin-top: 5px;
+}
+
+.flamegraph-download-list a {
+    display: block;
+    padding: 8px 12px;
+    text-decoration: none;
+    color: var(--text-white);
+    cursor: pointer;
+}
+
+.flamegraph-download-list a:hover {
+    background-color: var(--bg-body);
+}
+
+/* ========================================
+   UTILITY CLASSES
+   ======================================== */
+
+/* Show/hide utility classes */
+.hidden {
+    display: none !important;
+}
+
+.visible {
+    display: block !important;
+}
+
+.disabled-text {
+    color: var(--text-muted) !important;
+}
+
+/* ========================================
+   COLOR UTILITY CLASSES
+   ======================================== */
+.color-red { color: var(--color-red) !important; }
+.color-orange { color: var(--color-orange) !important; }
+.color-yellow { color: var(--color-yellow) !important; }
+.color-green { color: var(--color-green) !important; }
+.color-blue { color: var(--color-blue) !important; }
+.color-purple { color: var(--color-purple) !important; }
+.color-pink { color: var(--color-pink) !important; }
+.color-teal { color: var(--color-teal) !important; }
+
+.bg-red { background-color: var(--color-red) !important; }
+.bg-orange { background-color: var(--color-orange) !important; }
+.bg-yellow { background-color: var(--color-yellow) !important; }
+.bg-green { background-color: var(--color-green) !important; }
+.bg-blue { background-color: var(--color-blue) !important; }
+.bg-purple { background-color: var(--color-purple) !important; }
+.bg-pink { background-color: var(--color-pink) !important; }
+.bg-teal { background-color: var(--color-teal) !important; }

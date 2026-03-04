@@ -26,7 +26,6 @@
 /// various "spir64_*" triples for specific 64-bit OpenCL devices
 #define __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64 "spir64_x86_64"
 #define __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN "spir64_gen"
-#define __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA "spir64_fpga"
 /// PTX 64-bit image <-> "nvptx64", 64-bit NVIDIA PTX device
 #define __SYCL_DEVICE_BINARY_TARGET_NVPTX64 "nvptx64"
 #define __SYCL_DEVICE_BINARY_TARGET_AMDGCN "amdgcn"
@@ -44,16 +43,16 @@
 /// PropertySetIO.h
 #define __SYCL_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP                      \
   "SYCL/specialization constants default values"
-/// PropertySetRegistry::SYCL_DEVICELIB_REQ_MASK defined in PropertySetIO.h
-#define __SYCL_PROPERTY_SET_DEVICELIB_REQ_MASK "SYCL/devicelib req mask"
+/// PropertySetRegistry::SYCL_DEVICELIB_METADATA defined in PropertySetIO.h
+#define __SYCL_PROPERTY_SET_DEVICELIB_METADATA "SYCL/devicelib metadata"
 /// PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO defined in PropertySetIO.h
 #define __SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO "SYCL/kernel param opt"
 /// PropertySetRegistry::SYCL_KERNEL_PROGRAM_METADATA defined in PropertySetIO.h
 #define __SYCL_PROPERTY_SET_PROGRAM_METADATA "SYCL/program metadata"
 /// PropertySetRegistry::SYCL_MISC_PROP defined in PropertySetIO.h
 #define __SYCL_PROPERTY_SET_SYCL_MISC_PROP "SYCL/misc properties"
-/// PropertySetRegistry::SYCL_ASSERT_USED defined in PropertySetIO.h
-#define __SYCL_PROPERTY_SET_SYCL_ASSERT_USED "SYCL/assert used"
+/// PropertySetRegistry::SYCL_KERNEL_NAMES defined in PropertySetIO.h
+#define __SYCL_PROPERTY_SET_SYCL_KERNEL_NAMES "SYCL/kernel names"
 /// PropertySetRegistry::SYCL_EXPORTED_SYMBOLS defined in PropertySetIO.h
 #define __SYCL_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS "SYCL/exported symbols"
 /// PropertySetRegistry::SYCL_IMPORTED_SYMBOLS defined in PropertySetIO.h
@@ -62,12 +61,12 @@
 #define __SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS "SYCL/device globals"
 /// PropertySetRegistry::SYCL_DEVICE_REQUIREMENTS defined in PropertySetIO.h
 #define __SYCL_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS "SYCL/device requirements"
-/// PropertySetRegistry::SYCL_HOST_PIPES defined in PropertySetIO.h
-#define __SYCL_PROPERTY_SET_SYCL_HOST_PIPES "SYCL/host pipes"
 /// PropertySetRegistry::SYCL_VIRTUAL_FUNCTIONS defined in PropertySetIO.h
 #define __SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS "SYCL/virtual functions"
 /// PropertySetRegistry::SYCL_IMPLICIT_LOCAL_ARG defined in PropertySetIO.h
 #define __SYCL_PROPERTY_SET_SYCL_IMPLICIT_LOCAL_ARG "SYCL/implicit local arg"
+/// PropertySetRegistry::SYCL_REGISTERED_KERNELS defined in PropertySetIO.h
+#define __SYCL_PROPERTY_SET_SYCL_REGISTERED_KERNELS "SYCL/registered kernels"
 
 /// Program metadata tags recognized by the PI backends. For kernels the tag
 /// must appear after the kernel name.
@@ -76,6 +75,32 @@
 
 #define __SYCL_PROGRAM_METADATA_TAG_NEED_FINALIZATION "Requires finalization"
 
+// New entry type after
+// https://github.com/llvm/llvm-project/pull/124018
+// This is a replica of the EntryTy data structure in
+// llvm/include/llvm/Frontend/Offloading/Utility.h.
+struct _sycl_offload_entry_struct_new {
+  /// Reserved bytes used to detect an older version of the struct, always zero.
+  uint64_t Reserved;
+  /// The current version of the struct for runtime forward compatibility.
+  uint16_t Version;
+  /// The expected consumer of this entry, e.g. CUDA or OpenMP.
+  uint16_t Kind;
+  /// Flags associated with the global.
+  uint32_t Flags;
+  /// The address of the global to be registered by the runtime.
+  void *Address;
+  /// The name of the symbol in the device image.
+  char *SymbolName;
+  /// The number of bytes the symbol takes.
+  uint64_t Size;
+  /// Extra generic data used to register this entry.
+  uint64_t Data;
+  /// An extra pointer, usually null.
+  void *AuxAddr;
+};
+using sycl_offload_entry_new = _sycl_offload_entry_struct_new *;
+
 // Entry type, matches OpenMP for compatibility
 struct _sycl_offload_entry_struct {
   void *addr;
@@ -83,6 +108,38 @@ struct _sycl_offload_entry_struct {
   size_t size;
   int32_t flags;
   int32_t reserved;
+
+  inline bool IsNewOffloadEntryType() {
+    // Assume this is the new version of the struct.
+    auto newStruct = reinterpret_cast<sycl_offload_entry_new>(this);
+    // See llvm/include/llvm/Object/OffloadBinary.h
+    // #define OFK_SYCL  (1 << 3)
+    // Check if first 64 bits is equal to 0, next 16 bits is equal to 1, next 16
+    // bits is equal to 8 (OFK_SYCL), and check if Flags are zero. If all these
+    // conditions are met, then this is a newer version of the struct.
+    // We can not just rely on checking the first 64 bits, because even for the
+    // older version of the struct, the first 64 bits (void* addr) are zero.
+    return newStruct->Reserved == 0 && newStruct->Version == 1 &&
+           newStruct->Kind == 8 && newStruct->Flags == 0;
+  }
+
+  // Name is the only field that's used in SYCL.
+  inline char *GetName() {
+    if (IsNewOffloadEntryType())
+      return reinterpret_cast<sycl_offload_entry_new>(this)->SymbolName;
+
+    return name;
+  }
+
+  // Increment the pointer to the next entry. A mix of old and new offload entry
+  // types is not supported.
+  inline _sycl_offload_entry_struct *Increment() {
+    if (IsNewOffloadEntryType())
+      return reinterpret_cast<_sycl_offload_entry_struct *>(
+          reinterpret_cast<sycl_offload_entry_new>(this) + 1);
+
+    return this + 1;
+  }
 };
 using sycl_offload_entry = _sycl_offload_entry_struct *;
 
@@ -125,14 +182,15 @@ enum sycl_device_binary_type : uint8_t {
 };
 
 // Device binary descriptor version supported by this library.
-static const uint16_t SYCL_DEVICE_BINARY_VERSION = 1;
+static const uint16_t SYCL_DEVICE_BINARY_VERSION = 3;
 
 // The kind of offload model the binary employs; must be 4 for SYCL
 static const uint8_t SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 
 /// This struct is a record of the device binary information. If the Kind field
 /// denotes a portable binary type (SPIR-V or LLVM IR), the DeviceTargetSpec
-/// field can still be specific and denote e.g. FPGA target. It must match the
+/// field can still be specific and denote e.g. GEN GPU device target. It must
+/// match the
 /// __tgt_device_image structure generated by the clang-offload-wrapper tool
 /// when their Version field match.
 struct sycl_device_binary_struct {
@@ -154,7 +212,6 @@ struct sycl_device_binary_struct {
   /// __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64 - 64-bit OpenCL CPU device
   /// __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN - GEN GPU device (64-bit
   /// OpenCL)
-  /// __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA - 64-bit OpenCL FPGA device
   const char *DeviceTargetSpec;
   /// a null-terminated string; target- and compiler-specific options
   /// which are suggested to use to "compile" program at runtime
@@ -162,10 +219,6 @@ struct sycl_device_binary_struct {
   /// a null-terminated string; target- and compiler-specific options
   /// which are suggested to use to "link" program at runtime
   const char *LinkOptions;
-  /// Pointer to the manifest data start
-  const char *ManifestStart;
-  /// Pointer to the manifest data end
-  const char *ManifestEnd;
   /// Pointer to the target code start
   const unsigned char *BinaryStart;
   /// Pointer to the target code end

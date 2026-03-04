@@ -32,7 +32,11 @@ template <typename T, int N>
 __ESIMD_API std::enable_if_t<std::is_integral_v<T> && sizeof(T) < 8,
                              __ESIMD_NS::simd<T, N>>
 popcount(__ESIMD_NS::simd<T, N> vec) {
-  return __spirv_ocl_popcount<T, N>(vec.data());
+#ifdef __SYCL_DEVICE_ONLY__
+  return __spirv_ocl_popcount(vec.data());
+#else
+  return vec;
+#endif
 }
 
 /// Count the number of leading zeros.
@@ -44,7 +48,11 @@ template <typename T, int N>
 __ESIMD_API std::enable_if_t<std::is_integral_v<T> && sizeof(T) < 8,
                              __ESIMD_NS::simd<T, N>>
 clz(__ESIMD_NS::simd<T, N> vec) {
-  return __spirv_ocl_clz<T, N>(vec.data());
+#ifdef __SYCL_DEVICE_ONLY__
+  return __spirv_ocl_clz(vec.data());
+#else
+  return vec;
+#endif
 }
 
 /// Count the number of trailing zeros.
@@ -55,7 +63,11 @@ template <typename T, int N>
 __ESIMD_API std::enable_if_t<std::is_integral_v<T> && sizeof(T) < 8,
                              __ESIMD_NS::simd<T, N>>
 ctz(__ESIMD_NS::simd<T, N> vec) {
-  return __spirv_ocl_ctz<T, N>(vec.data());
+#ifdef __SYCL_DEVICE_ONLY__
+  return __spirv_ocl_ctz(vec.data());
+#else
+  return vec;
+#endif
 }
 
 /// @} sycl_esimd_bitmanip
@@ -752,7 +764,7 @@ ESIMD_INLINE __ESIMD_NS::simd<T, N> fma(__ESIMD_NS::simd<T, N> a,
   static_assert(__ESIMD_DNS::is_generic_floating_point_v<T>,
                 "fma only supports floating point types");
   using CppT = __ESIMD_DNS::element_type_traits<T>::EnclosingCppT;
-  auto Ret = __spirv_ocl_fma<__ESIMD_DNS::__raw_t<CppT>, N>(
+  auto Ret = __esimd_fmadd<__ESIMD_DNS::__raw_t<CppT>, N>(
       __ESIMD_DNS::convert_vector<CppT, T, N>(a.data()),
       __ESIMD_DNS::convert_vector<CppT, T, N>(b.data()),
       __ESIMD_DNS::convert_vector<CppT, T, N>(c.data()));

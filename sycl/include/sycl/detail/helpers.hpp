@@ -18,11 +18,9 @@
 #endif
 
 #include <cstddef>     // for size_t
-#include <memory>      // for shared_ptr
 #include <stdint.h>    // for uint32_t
 #include <type_traits> // for enable_if_t, integral_constant
 #include <utility>     // for forward, integer_sequence, mak...
-#include <vector>      // for vector
 
 namespace sycl {
 inline namespace _V1 {
@@ -38,15 +36,6 @@ template <typename Type, std::size_t NumElements> class marray;
 enum class memory_order;
 
 namespace detail {
-class buffer_impl;
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-__SYCL_EXPORT void waitEvents(std::vector<sycl::event> DepEvents);
-#endif
-
-__SYCL_EXPORT void
-markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl);
-
 template <typename T> T *declptr() { return static_cast<T *>(nullptr); }
 
 // Function to get or store id, item, nd_item, group for the host implementation
@@ -128,44 +117,48 @@ public:
 
   template <int Dims> static const id<Dims> getElement(id<Dims> *) {
     static_assert(is_valid_dimensions<Dims>, "invalid dimensions");
-    return __spirv::initGlobalInvocationId<Dims, id<Dims>>();
+    return __spirv::initBuiltInGlobalInvocationId<Dims, id<Dims>>();
   }
 
   template <int Dims> static const group<Dims> getElement(group<Dims> *) {
     static_assert(is_valid_dimensions<Dims>, "invalid dimensions");
-    range<Dims> GlobalSize{__spirv::initGlobalSize<Dims, range<Dims>>()};
-    range<Dims> LocalSize{__spirv::initWorkgroupSize<Dims, range<Dims>>()};
-    range<Dims> GroupRange{__spirv::initNumWorkgroups<Dims, range<Dims>>()};
-    id<Dims> GroupId{__spirv::initWorkgroupId<Dims, id<Dims>>()};
+    range<Dims> GlobalSize{__spirv::initBuiltInGlobalSize<Dims, range<Dims>>()};
+    range<Dims> LocalSize{
+        __spirv::initBuiltInWorkgroupSize<Dims, range<Dims>>()};
+    range<Dims> GroupRange{
+        __spirv::initBuiltInNumWorkgroups<Dims, range<Dims>>()};
+    id<Dims> GroupId{__spirv::initBuiltInWorkgroupId<Dims, id<Dims>>()};
     return createGroup<Dims>(GlobalSize, LocalSize, GroupRange, GroupId);
   }
 
   template <int Dims, bool WithOffset>
   static std::enable_if_t<WithOffset, const item<Dims, WithOffset>> getItem() {
     static_assert(is_valid_dimensions<Dims>, "invalid dimensions");
-    id<Dims> GlobalId{__spirv::initGlobalInvocationId<Dims, id<Dims>>()};
-    range<Dims> GlobalSize{__spirv::initGlobalSize<Dims, range<Dims>>()};
-    id<Dims> GlobalOffset{__spirv::initGlobalOffset<Dims, id<Dims>>()};
+    id<Dims> GlobalId{__spirv::initBuiltInGlobalInvocationId<Dims, id<Dims>>()};
+    range<Dims> GlobalSize{__spirv::initBuiltInGlobalSize<Dims, range<Dims>>()};
+    id<Dims> GlobalOffset{__spirv::initBuiltInGlobalOffset<Dims, id<Dims>>()};
     return createItem<Dims, true>(GlobalSize, GlobalId, GlobalOffset);
   }
 
   template <int Dims, bool WithOffset>
   static std::enable_if_t<!WithOffset, const item<Dims, WithOffset>> getItem() {
     static_assert(is_valid_dimensions<Dims>, "invalid dimensions");
-    id<Dims> GlobalId{__spirv::initGlobalInvocationId<Dims, id<Dims>>()};
-    range<Dims> GlobalSize{__spirv::initGlobalSize<Dims, range<Dims>>()};
+    id<Dims> GlobalId{__spirv::initBuiltInGlobalInvocationId<Dims, id<Dims>>()};
+    range<Dims> GlobalSize{__spirv::initBuiltInGlobalSize<Dims, range<Dims>>()};
     return createItem<Dims, false>(GlobalSize, GlobalId);
   }
 
   template <int Dims> static const nd_item<Dims> getElement(nd_item<Dims> *) {
     static_assert(is_valid_dimensions<Dims>, "invalid dimensions");
-    range<Dims> GlobalSize{__spirv::initGlobalSize<Dims, range<Dims>>()};
-    range<Dims> LocalSize{__spirv::initWorkgroupSize<Dims, range<Dims>>()};
-    range<Dims> GroupRange{__spirv::initNumWorkgroups<Dims, range<Dims>>()};
-    id<Dims> GroupId{__spirv::initWorkgroupId<Dims, id<Dims>>()};
-    id<Dims> GlobalId{__spirv::initGlobalInvocationId<Dims, id<Dims>>()};
-    id<Dims> LocalId{__spirv::initLocalInvocationId<Dims, id<Dims>>()};
-    id<Dims> GlobalOffset{__spirv::initGlobalOffset<Dims, id<Dims>>()};
+    range<Dims> GlobalSize{__spirv::initBuiltInGlobalSize<Dims, range<Dims>>()};
+    range<Dims> LocalSize{
+        __spirv::initBuiltInWorkgroupSize<Dims, range<Dims>>()};
+    range<Dims> GroupRange{
+        __spirv::initBuiltInNumWorkgroups<Dims, range<Dims>>()};
+    id<Dims> GroupId{__spirv::initBuiltInWorkgroupId<Dims, id<Dims>>()};
+    id<Dims> GlobalId{__spirv::initBuiltInGlobalInvocationId<Dims, id<Dims>>()};
+    id<Dims> LocalId{__spirv::initBuiltInLocalInvocationId<Dims, id<Dims>>()};
+    id<Dims> GlobalOffset{__spirv::initBuiltInGlobalOffset<Dims, id<Dims>>()};
     group<Dims> Group =
         createGroup<Dims>(GlobalSize, LocalSize, GroupRange, GroupId);
     item<Dims, true> GlobalItem =

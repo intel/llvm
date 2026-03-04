@@ -1,5 +1,7 @@
-// UNSUPPORTED: cuda || hip
-// CUDA and HIP don't support SPIR-V.
+// XFAIL: new-offload-model
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20797
+
+// REQUIRES: target-spir
 //
 // FIXME Disabled fallback assert as it'll require either online linking or
 // explicit offline linking step here
@@ -48,12 +50,11 @@
 // RUN: clang-offload-wrapper -o wrapper.bc -host=x86_64 -kind=sycl -target=spir64 -batch test_spv.table
 //
 // >> compile .bc to .o
-// RUN: %clangxx -Wno-error=override-module -c wrapper.bc -o wrapper.o
+// RUN: %clangxx -Wno-error=override-module -c wrapper.bc -o wrapper.o %if preview-mode %{-Wno-unused-command-line-argument%}
 //
 // >> ---- link the full hetero app
 // RUN: %clangxx wrapper.o a.o b.o -Wno-unused-command-line-argument -o app.exe %sycl_options
-// RUN: %{run} ./app.exe | FileCheck %s
-// CHECK: pass
+// RUN: %{run} ./app.exe
 
 //==----------- test.cpp - Tests SYCL separate compilation -----------------==//
 //
@@ -126,9 +127,6 @@ int main(int argc, char **argv) {
     pass = false;
   }
 
-  if (pass) {
-    std::cout << "pass\n";
-  }
   return pass ? 0 : 1;
 }
 #endif // !B_CPP

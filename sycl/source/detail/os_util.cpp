@@ -13,10 +13,10 @@
 #include <limits>
 
 // For GCC versions less than 8, use experimental/filesystem.
-#if defined(__has_include) && __has_include(<filesystem>)
+#if __has_include(<filesystem>)
 #include <filesystem>
 namespace fs = std::filesystem;
-#elif defined(__has_include) && __has_include(<experimental/filesystem>)
+#elif __has_include(<experimental/filesystem>)
 #include <experimental/filesystem>
 namespace fs = std::experimental::filesystem;
 #else
@@ -58,12 +58,7 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-[[maybe_unused]] static std::string getDirName(const char *Path)
-#else
-std::string OSUtil::getDirName(const char *Path)
-#endif
-{
+[[maybe_unused]] static std::string getDirName(const char *Path) {
   return fs::path(Path).parent_path().string();
 }
 
@@ -289,6 +284,47 @@ size_t getDirectorySize(const std::string &Path, bool ignoreErrors) {
   fileTreeWalk(Path, CollectFIleSize, ignoreErrors);
 
   return DirSizeVar;
+}
+
+// Look up a function name from the given list of shared libraries.
+//
+// These library must already have been loaded (perhaps by UR), otherwise this
+// function throws a SYCL runtime exception.
+void *dynLookup(const char *const *LibNames, size_t LibNameSizes,
+                const char *FunName) {
+#ifdef __SYCL_RT_OS_WINDOWS
+  HMODULE handle = nullptr;
+  auto GetHandleF = [](const char *LibName) {
+    return GetModuleHandleA(LibName);
+  };
+  auto GetProcF = [&]() { return GetProcAddress(handle, FunName); };
+#else
+  void *handle = nullptr;
+  auto GetHandleF = [](const char *LibName) {
+    return dlopen(LibName, RTLD_LAZY | RTLD_NOLOAD);
+  };
+  auto GetProcF = [&]() {
+    auto *retVal = dlsym(handle, FunName);
+    dlclose(handle);
+    return retVal;
+  };
+#endif
+
+  // Iterate over the list of libraries and try to find one that is loaded.
+  size_t LibNameIterator = 0;
+  while (!handle && LibNameIterator < LibNameSizes)
+    handle = GetHandleF(LibNames[LibNameIterator++]);
+  if (!handle)
+    throw sycl::exception(make_error_code(errc::runtime),
+                          "Libraries could not be loaded");
+
+  // Look up the function in the loaded library.
+  auto *retVal = GetProcF();
+  if (!retVal)
+    throw sycl::exception(make_error_code(errc::runtime),
+                          "Symbol " + std::string(FunName) +
+                              " could not be found");
+  return reinterpret_cast<void *>(retVal);
 }
 
 } // namespace detail

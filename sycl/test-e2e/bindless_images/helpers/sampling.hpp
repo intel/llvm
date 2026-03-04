@@ -55,7 +55,7 @@ template <int NChannels, typename DType>
 static sycl::vec<DType, NChannels>
 linearOp(sycl::vec<DType, NChannels> pix1, sycl::vec<DType, NChannels> pix2,
          sycl::vec<DType, NChannels> pix3, sycl::vec<DType, NChannels> pix4,
-         float weight1, float weight2) {
+         float weight1, float weight2, sycl::backend backend) {
 
   sycl::vec<float, NChannels> weightArr1(weight1);
   sycl::vec<float, NChannels> weightArr2(weight2);
@@ -73,14 +73,41 @@ linearOp(sycl::vec<DType, NChannels> pix1, sycl::vec<DType, NChannels> pix2,
              (one - weightArr1) * weightArr2 * Ti0j1 +
              weightArr1 * weightArr2 * Ti1j1));
 
-  // Round to nearest whole number.
-  // There is no option to do this via sycl::rounding_mode.
-  if constexpr (std::is_same_v<DType, short> ||
-                std::is_same_v<DType, unsigned short> ||
-                std::is_same_v<DType, signed char> ||
-                std::is_same_v<DType, unsigned char>) {
-    for (int i = 0; i < NChannels; i++) {
-      result[i] = std::round(result[i]);
+  if (backend == sycl::backend::ext_oneapi_cuda) {
+    // On Nvidia devices, if the image being accessed contains smaller than
+    // 32-bit integer data, then the fractional result of linear interpolation
+    // is rounded to the nearest number.
+    if constexpr (std::is_same_v<DType, short> ||
+                  std::is_same_v<DType, unsigned short> ||
+                  std::is_same_v<DType, signed char> ||
+                  std::is_same_v<DType, unsigned char>) {
+      for (int i = 0; i < NChannels; i++) {
+        result[i] = std::round(result[i]);
+      }
+    }
+
+    // On Nvidia devices, if the image being accessed contains 32-bit integer
+    // data, then the fractional result of linear interpolation is rounded down.
+    if constexpr (std::is_same_v<DType, int> ||
+                  std::is_same_v<DType, unsigned int>) {
+      for (int i = 0; i < NChannels; i++) {
+        result[i] = std::floor(result[i]);
+      }
+    }
+  }
+
+  if (backend == sycl::backend::ext_oneapi_level_zero) {
+    // On Intel devices, if the image being accessed contains integer data, then
+    // the fractional result of linear interpolation is rounded down.
+    if constexpr (std::is_same_v<DType, short> ||
+                  std::is_same_v<DType, unsigned short> ||
+                  std::is_same_v<DType, signed char> ||
+                  std::is_same_v<DType, unsigned char> ||
+                  std::is_same_v<DType, int> ||
+                  std::is_same_v<DType, unsigned int>) {
+      for (int i = 0; i < NChannels; i++) {
+        result[i] = std::floor(result[i]);
+      }
     }
   }
 
@@ -360,7 +387,8 @@ struct InterpolRes {
 template <typename DType, int NChannels>
 static sycl::vec<DType, NChannels>
 clampLinear(sycl::vec<float, 2> coords, sycl::range<2> globalSize,
-            const std::vector<sycl::vec<DType, NChannels>> &inputImage) {
+            const std::vector<sycl::vec<DType, NChannels>> &inputImage,
+            sycl::backend backend) {
   using VecType = sycl::vec<DType, NChannels>;
 
   float coordX = coords[0];
@@ -391,14 +419,16 @@ clampLinear(sycl::vec<float, 2> coords, sycl::range<2> globalSize,
       clampLinearCheckBounds<VecType>(i1, j1, width, height, inputImage);
 
   // Perform linear sampling
-  return linearOp<NChannels, DType>(pix1, pix2, pix3, pix4, weightX, weightY);
+  return linearOp<NChannels, DType>(pix1, pix2, pix3, pix4, weightX, weightY,
+                                    backend);
 }
 
 // Out of range coords are clamped to the extent.
 template <typename DType, int NChannels>
 static sycl::vec<DType, NChannels>
 clampToEdgeLinear(sycl::vec<float, 2> coords, sycl::range<2> globalSize,
-                  const std::vector<sycl::vec<DType, NChannels>> &inputImage) {
+                  const std::vector<sycl::vec<DType, NChannels>> &inputImage,
+                  sycl::backend backend) {
   using VecType = sycl::vec<DType, NChannels>;
 
   float coordX = coords[0];
@@ -428,7 +458,8 @@ clampToEdgeLinear(sycl::vec<float, 2> coords, sycl::range<2> globalSize,
   VecType pix4 = inputImage[i1 + (width * j1)];
 
   // Perform linear sampling
-  return linearOp<NChannels, DType>(pix1, pix2, pix3, pix4, weightX, weightY);
+  return linearOp<NChannels, DType>(pix1, pix2, pix3, pix4, weightX, weightY,
+                                    backend);
 }
 
 // Out of range coords return a border color
@@ -451,7 +482,8 @@ static InterpolRes repeatLinearCoord(float coord, int dimSize) {
 template <typename DType, int NChannels>
 static sycl::vec<DType, NChannels>
 repeatLinear(sycl::vec<float, 2> coords, sycl::range<2> globalSize,
-             const std::vector<sycl::vec<DType, NChannels>> &inputImage) {
+             const std::vector<sycl::vec<DType, NChannels>> &inputImage,
+             sycl::backend backend) {
   using VecType = sycl::vec<DType, NChannels>;
 
   float coordX = coords[0];
@@ -482,7 +514,8 @@ repeatLinear(sycl::vec<float, 2> coords, sycl::range<2> globalSize,
   VecType pix4 = inputImage[i1 + (width * j1)];
 
   // Perform linear sampling
-  return linearOp<NChannels, DType>(pix1, pix2, pix3, pix4, weightX, weightY);
+  return linearOp<NChannels, DType>(pix1, pix2, pix3, pix4, weightX, weightY,
+                                    backend);
 }
 
 // Out of range coordinates are flipped at every integer junction
@@ -517,9 +550,10 @@ static InterpolRes mirroredRepeatLinearCoord(float coord, int dimSize) {
 
 // Out of range coordinates are flipped at every integer junction
 template <typename DType, int NChannels>
-static sycl::vec<DType, NChannels> mirroredRepeatLinear(
-    sycl::vec<float, 2> coords, sycl::range<2> globalSize,
-    const std::vector<sycl::vec<DType, NChannels>> &inputImage) {
+static sycl::vec<DType, NChannels>
+mirroredRepeatLinear(sycl::vec<float, 2> coords, sycl::range<2> globalSize,
+                     const std::vector<sycl::vec<DType, NChannels>> &inputImage,
+                     sycl::backend backend) {
   using VecType = sycl::vec<DType, NChannels>;
 
   float coordX = coords[0];
@@ -551,7 +585,8 @@ static sycl::vec<DType, NChannels> mirroredRepeatLinear(
   VecType pix4 = inputImage[i1 + (width * j1)];
 
   // Perform linear sampling
-  return linearOp<NChannels, DType>(pix1, pix2, pix3, pix4, weightX, weightY);
+  return linearOp<NChannels, DType>(pix1, pix2, pix3, pix4, weightX, weightY,
+                                    backend);
 }
 
 // Some vector sizes here are hardcoded because the sampling functions are
@@ -560,7 +595,8 @@ template <int NDims, typename DType, int NChannels>
 static sycl::vec<DType, NChannels>
 read(sycl::range<2> globalSize, sycl::vec<float, 2> coords, float offset,
      const sycl::ext::oneapi::experimental::bindless_image_sampler &samp,
-     const std::vector<sycl::vec<DType, NChannels>> &inputImage) {
+     const std::vector<sycl::vec<DType, NChannels>> &inputImage,
+     sycl::backend backend) {
   using VecType = sycl::vec<DType, NChannels>;
 
   // Add offset to coords
@@ -624,18 +660,20 @@ read(sycl::range<2> globalSize, sycl::vec<float, 2> coords, float offset,
   } else { // linear
     sycl::addressing_mode SampAddrMode = samp.addressing[0];
     if (SampAddrMode == sycl::addressing_mode::ext_oneapi_clamp_to_border) {
-      return clampLinear<DType, NChannels>(coords, globalSize, inputImage);
+      return clampLinear<DType, NChannels>(coords, globalSize, inputImage,
+                                           backend);
     }
     if (SampAddrMode == sycl::addressing_mode::clamp_to_edge) {
-      return clampToEdgeLinear<DType, NChannels>(coords, globalSize,
-                                                 inputImage);
+      return clampToEdgeLinear<DType, NChannels>(coords, globalSize, inputImage,
+                                                 backend);
     }
     if (SampAddrMode == sycl::addressing_mode::repeat) {
       if (SampNormMode == sycl::coordinate_normalization_mode::unnormalized) {
         assert(false &&
                "Repeat addressing mode must be used with normalized coords");
       }
-      return repeatLinear<DType, NChannels>(coords, globalSize, inputImage);
+      return repeatLinear<DType, NChannels>(coords, globalSize, inputImage,
+                                            backend);
     }
     if (SampAddrMode == sycl::addressing_mode::mirrored_repeat) {
       if (SampNormMode == sycl::coordinate_normalization_mode::unnormalized) {
@@ -643,7 +681,7 @@ read(sycl::range<2> globalSize, sycl::vec<float, 2> coords, float offset,
                         "normalized coords");
       }
       return mirroredRepeatLinear<DType, NChannels>(coords, globalSize,
-                                                    inputImage);
+                                                    inputImage, backend);
     }
     if (SampAddrMode == sycl::addressing_mode::none) {
       // Ensure no access out of bounds when addressing_mode is none

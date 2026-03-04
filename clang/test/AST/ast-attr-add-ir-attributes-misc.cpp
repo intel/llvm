@@ -68,7 +68,7 @@ void OverloadedFunction1(bool) {}
 // CHECK-NEXT:     ParmVarDecl {{.*}} 'const ClassWithSpecials1 &'
 // CHECK-NEXT:     SYCLAddIRAttributesFunctionAttr
 // CHECK-NEXT:       ConstantExpr {{.*}} 'const char[6]' lvalue
-// CHECK-NEXT:         value: LValue <todo>
+// CHECK-NEXT:         value: LValue
 // CHECK-NEXT:         StringLiteral {{.*}} 'const char[6]' lvalue "Attr3"
 // CHECK-NEXT:       ConstantExpr {{.*}} 'int'
 // CHECK-NEXT:         value: Int 3
@@ -106,7 +106,7 @@ class ClassWithSpecials1 {
 // CHECK-NEXT:   private 'BaseClass1'
 // CHECK-NEXT:   SYCLAddIRAttributesGlobalVariableAttr
 // CHECK-NEXT:     ConstantExpr {{.*}} 'const char[6]' lvalue
-// CHECK-NEXT:       value: LValue <todo>
+// CHECK-NEXT:       value: LValue
 // CHECK-NEXT:       StringLiteral {{.*}} 'const char[6]' lvalue "Attr2"
 // CHECK-NEXT:     ConstantExpr {{.*}} 'bool'
 // CHECK-NEXT:       value: Int 1

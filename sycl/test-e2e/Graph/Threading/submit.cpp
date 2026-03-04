@@ -1,8 +1,6 @@
 // RUN: %{build} %threads_lib -o %t.out
 // RUN: %{run} %t.out
-// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
-// Extra run to check for immediate-command-list in Level Zero
-// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+// RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
 // Test submitting a graph multiple times in a threaded situation.
 // According to spec: If graph is submitted multiple times, dependencies are

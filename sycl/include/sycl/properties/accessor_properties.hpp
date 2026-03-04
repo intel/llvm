@@ -12,6 +12,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/fwd/accessor.hpp>
 #include <sycl/detail/property_helper.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
 #include <sycl/properties/property_traits.hpp>
@@ -31,27 +32,6 @@ inline namespace _V1 {
 #define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
   __SYCL_DATA_LESS_PROP_DEPRECATED_ALIAS(NS_QUALIFIER, PROP_NAME, ENUM_VAL, )
 #include <sycl/properties/runtime_accessor_properties.def>
-
-namespace ext::intel {
-namespace property {
-struct __SYCL_TYPE(buffer_location) buffer_location {
-  template <int A = 0> struct instance {
-    template <int B>
-    constexpr bool operator==(const buffer_location::instance<B> &) const {
-      return A == B;
-    }
-    template <int B>
-    constexpr bool operator!=(const buffer_location::instance<B> &) const {
-      return A != B;
-    }
-    int get_location() { return A; }
-  };
-};
-} // namespace property
-
-template <int A>
-inline constexpr property::buffer_location::instance<A> buffer_location{};
-} // namespace ext::intel
 
 namespace ext::oneapi {
 namespace property {
@@ -86,32 +66,7 @@ struct is_compile_time_property<ext::oneapi::property::no_offset>
 template <>
 struct is_compile_time_property<ext::oneapi::property::no_alias>
     : std::true_type {};
-template <>
-struct is_compile_time_property<sycl::ext::intel::property::buffer_location>
-    : std::true_type {};
 } // namespace ext::oneapi
-
-// Forward declaration
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder,
-          typename PropertyListT>
-class accessor;
-template <typename DataT, int Dimensions, access::mode AccessMode>
-class host_accessor;
-template <typename DataT, int Dimensions>
-class __SYCL_EBO
-    __SYCL_SPECIAL_CLASS __SYCL_TYPE(local_accessor) local_accessor;
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder>
-class image_accessor;
-template <typename DataT, int Dimensions, access_mode AccessMode,
-          image_target AccessTarget>
-class unsampled_image_accessor;
-template <typename DataT, int Dimensions, image_target AccessTarget>
-class sampled_image_accessor;
-template <typename DataT, int Dimensions, access_mode AccessMode>
-class host_unsampled_image_accessor;
-template <typename DataT, int Dimensions> class host_sampled_image_accessor;
 
 namespace detail::acc_properties {
 template <typename T> struct is_accessor : std::false_type {};
@@ -183,13 +138,11 @@ template <>
 struct is_property<ext::oneapi::property::no_offset> : std::true_type {};
 template <>
 struct is_property<ext::oneapi::property::no_alias> : std::true_type {};
-template <>
-struct is_property<ext::intel::property::buffer_location> : std::true_type {};
 
 template <typename T>
 struct is_property_of<property::noinit, T>
-    : std::bool_constant<detail::acc_properties::is_accessor<T>::value ||
-                         detail::acc_properties::is_host_accessor<T>::value> {};
+    : std::bool_constant<detail::acc_properties::is_accessor_v<T> ||
+                         detail::acc_properties::is_host_accessor_v<T>> {};
 
 template <typename T>
 struct is_property_of<property::no_init, T>
@@ -201,20 +154,13 @@ struct is_property_of<property::no_init, T>
 
 template <typename T>
 struct is_property_of<ext::oneapi::property::no_offset, T>
-    : std::bool_constant<detail::acc_properties::is_accessor<T>::value> {};
+    : std::bool_constant<detail::acc_properties::is_accessor_v<T>> {};
 
 template <typename T>
 struct is_property_of<ext::oneapi::property::no_alias, T>
-    : std::bool_constant<detail::acc_properties::is_accessor<T>::value> {};
-
-template <typename T>
-struct is_property_of<ext::intel::property::buffer_location, T>
-    : std::bool_constant<detail::acc_properties::is_accessor<T>::value> {};
+    : std::bool_constant<detail::acc_properties::is_accessor_v<T>> {};
 
 namespace detail {
-template <int I>
-struct IsCompileTimePropertyInstance<
-    ext::intel::property::buffer_location::instance<I>> : std::true_type {};
 template <>
 struct IsCompileTimePropertyInstance<
     ext::oneapi::property::no_alias::instance<>> : std::true_type {};

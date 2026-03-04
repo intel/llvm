@@ -1,6 +1,5 @@
 ; REQUIRES: spirv-dis
-; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: llvm-spirv %s -o %t.spv
 ; RUN: spirv-dis --raw-id %t.spv -o %t.spvasm 
 ; RUN: FileCheck < %t.spvasm --check-prefix CHECK-SPIRV %s
 ; RUN: spirv-val %t.spv

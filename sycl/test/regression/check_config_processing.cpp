@@ -5,6 +5,9 @@
 // RUN: ls *.dot
 // RUN: rm *.dot
 
+// XFAIL: libcxx
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19616
+
 #include <iostream>
 #include <regex>
 #include <sycl/sycl.hpp>

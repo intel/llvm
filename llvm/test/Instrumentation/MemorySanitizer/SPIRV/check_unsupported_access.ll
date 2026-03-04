@@ -1,4 +1,4 @@
-; RUN: opt < %s -passes=msan -msan-instrumentation-with-call-threshold=0 -msan-eager-checks=1 -S | FileCheck %s
+; RUN: opt < %s -passes=msan -msan-instrumentation-with-call-threshold=0 -msan-eager-checks=1 -msan-spir-privates=0 -S | FileCheck %s
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64-G1"
 target triple = "spir64-unknown-unknown"
 
@@ -10,7 +10,7 @@ entry:
   %_arg_array1.addr.ascast = addrspacecast ptr %_arg_array1.addr to ptr addrspace(4)
 ; CHECK: %_arg_array1.addr.ascast = addrspacecast ptr %_arg_array1.addr to ptr addrspace(4){{.*!nosanitize}}
   call void @llvm.lifetime.start.p0(i64 64, ptr %__SYCLKernel)
-; CHECK: call void @llvm.lifetime.start.p0(i64 64, ptr %__SYCLKernel){{.*!nosanitize}}
+; CHECK-NOT: call void @llvm.lifetime.start.p0
   ret void
 }
 

@@ -395,24 +395,27 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
     if (BM->isAllowedToUseExtension(
             ExtensionID::SPV_INTEL_arbitrary_precision_integers) ||
         BM->getErrorLog().checkError(
-            BitWidth == 8 || BitWidth == 16 || BitWidth == 32 || BitWidth == 64,
+            (BitWidth == 4 &&
+             BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_int4)) ||
+                BitWidth == 8 || BitWidth == 16 || BitWidth == 32 ||
+                BitWidth == 64,
             SPIRVEC_InvalidBitWidth, std::to_string(BitWidth))) {
       return mapType(T, BM->addIntegerType(T->getIntegerBitWidth()));
     }
   }
 
+  if (T->isBFloatTy()) {
+    BM->getErrorLog().checkError(
+        BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_bfloat16),
+        SPIRVEC_RequiresExtension,
+        "SPV_KHR_bfloat16\n"
+        "NOTE: LLVM module contains bfloat type, translation of which "
+        "requires this extension");
+    return mapType(T, BM->addFloatType(16, FPEncodingBFloat16KHR));
+  }
+
   if (T->isFloatingPointTy())
     return mapType(T, BM->addFloatType(T->getPrimitiveSizeInBits()));
-
-  if (T->isTokenTy()) {
-    BM->getErrorLog().checkError(
-        BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_token_type),
-        SPIRVEC_RequiresExtension,
-        "SPV_INTEL_token_type\n"
-        "NOTE: LLVM module contains token type, which doesn't have analogs in "
-        "SPIR-V without extensions");
-    return mapType(T, BM->addTokenTypeINTEL());
-  }
 
   // A pointer to image or pipe type in LLVM is translated to a SPIRV
   // (non-pointer) image or pipe type.
@@ -462,11 +465,13 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
             ConstantInt::get(getSizetType(), ArraySize, false), nullptr)));
     mapType(T, TransType);
     if (ElTy->isPointerTy()) {
-      mapType(
+      Type *ArrTy =
           ArrayType::get(TypedPointerType::get(Type::getInt8Ty(*Ctx),
                                                ElTy->getPointerAddressSpace()),
-                         ArraySize),
-          TransType);
+                         ArraySize);
+      LLVMToSPIRVTypeMap::iterator Loc = TypeMap.find(ArrTy);
+      if (Loc == TypeMap.end())
+        mapType(ArrTy, TransType);
     }
     return TransType;
   }
@@ -496,11 +501,10 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
     const size_t NumElements = ST->getNumElements();
     size_t SPIRVStructNumElements = NumElements;
     // In case number of elements is greater than maximum WordCount and
-    // SPV_INTEL_long_constant_composite is not enabled, the error will be
+    // SPV_INTEL_long_composites is not enabled, the error will be
     // emitted by validate functionality of SPIRVTypeStruct class.
     if (NumElements > MaxNumElements &&
-        BM->isAllowedToUseExtension(
-            ExtensionID::SPV_INTEL_long_constant_composite)) {
+        BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_long_composites)) {
       SPIRVStructNumElements = MaxNumElements;
     }
 
@@ -508,8 +512,7 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
     mapType(T, Struct);
 
     if (NumElements > MaxNumElements &&
-        BM->isAllowedToUseExtension(
-            ExtensionID::SPV_INTEL_long_constant_composite)) {
+        BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_long_composites)) {
       uint64_t NumOfContinuedInstructions = NumElements / MaxNumElements - 1;
       for (uint64_t J = 0; J < NumOfContinuedInstructions; J++) {
         auto *Continued = BM->addTypeStructContinuedINTEL(MaxNumElements);
@@ -593,18 +596,6 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
         ArrayRef<unsigned> Ops = TargetTy->int_params();
         return mapType(T, BM->addBufferSurfaceINTELType(CastAccess(Ops[0])));
       }
-      case internal::OpTypeJointMatrixINTEL: {
-        // The expected representation is:
-        // target("spirv.JointMatrixINTEL", %element_type, %rows%, %cols%,
-        //        %layout%, %scope%, %use%,
-        //        (optional) %element_type_interpretation%)
-        auto *ElemTy = transType(TargetTy->getTypeParameter(0));
-        ArrayRef<unsigned> Ops = TargetTy->int_params();
-        std::vector<SPIRVValue *> Args;
-        for (const auto &Op : Ops)
-          Args.emplace_back(transConstant(getUInt32(M, Op)));
-        return mapType(T, BM->addJointMatrixINTELType(ElemTy, Args));
-      }
       case OpTypeCooperativeMatrixKHR: {
         // The expected representation is:
         // target("spirv.CooperativeMatrixKHR", %element_type, %scope%, %rows%,
@@ -626,12 +617,20 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
     }
   }
 
+  if (T->isTokenTy()) {
+    BM->getErrorLog().checkError(
+        false, SPIRVEC_InvalidModule,
+        "LLVM module contains token type, which doesn't have a counterpart in "
+        "SPIR-V");
+    return nullptr;
+  }
+
   llvm_unreachable("Not implemented!");
   return 0;
 }
 
 SPIRVType *LLVMToSPIRVBase::transPointerType(Type *ET, unsigned AddrSpc) {
-  Type *T = PointerType::get(ET, AddrSpc);
+  Type *T = PointerType::get(ET->getContext(), AddrSpc);
   if (ET->isFunctionTy() &&
       !BM->checkExtension(ExtensionID::SPV_INTEL_function_pointers,
                           SPIRVEC_FunctionPointers, toString(T)))
@@ -733,8 +732,9 @@ SPIRVType *LLVMToSPIRVBase::transPointerType(Type *ET, unsigned AddrSpc) {
     SPIRVType *TranslatedTy = nullptr;
     if (ET->isPointerTy() &&
         BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_untyped_pointers)) {
-      TranslatedTy = BM->addUntypedPointerKHRType(
-          SPIRSPIRVAddrSpaceMap::map(static_cast<SPIRAddressSpace>(AddrSpc)));
+      TranslatedTy = BM->addPointerType(
+          SPIRSPIRVAddrSpaceMap::map(static_cast<SPIRAddressSpace>(AddrSpc)),
+          nullptr);
     } else {
       ElementType = transType(ET);
       TranslatedTy = transPointerType(ElementType, AddrSpc);
@@ -759,8 +759,9 @@ SPIRVType *LLVMToSPIRVBase::transPointerType(SPIRVType *ET, unsigned AddrSpc) {
     return transPointerType(ET, SPIRAS_Private);
   if (BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_untyped_pointers) &&
       !(ET->isTypeArray() || ET->isTypeVector() || ET->isSPIRVOpaqueType())) {
-    TranslatedTy = BM->addUntypedPointerKHRType(
-        SPIRSPIRVAddrSpaceMap::map(static_cast<SPIRAddressSpace>(AddrSpc)));
+    TranslatedTy = BM->addPointerType(
+        SPIRSPIRVAddrSpaceMap::map(static_cast<SPIRAddressSpace>(AddrSpc)),
+        nullptr);
   } else {
     TranslatedTy = BM->addPointerType(
         SPIRSPIRVAddrSpaceMap::map(static_cast<SPIRAddressSpace>(AddrSpc)), ET);
@@ -857,6 +858,20 @@ SPIRVType *LLVMToSPIRVBase::transScavengedType(Value *V) {
       if (!Ty) {
         Ty = FnTy->getParamType(Arg.getArgNo());
       }
+      // Preserve element type for byval/sret arguments even when
+      // SPV_KHR_untyped_pointers is enabled. Losing pointee type would make it
+      // impossible to reconstruct the original parameter and will lead to
+      // OpenCL runtime failure due to mismatched memory object semantics.
+      if (BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_untyped_pointers) &&
+          (Arg.hasByValAttr() || Arg.hasStructRetAttr())) {
+        TypedPointerType *TPT = cast<TypedPointerType>(Ty);
+        auto *NewType = BM->addPointerType(
+            SPIRSPIRVAddrSpaceMap::map(
+                static_cast<SPIRAddressSpace>(TPT->getAddressSpace())),
+            transType(TPT->getElementType()));
+        PT.push_back(NewType);
+        continue;
+      }
       PT.push_back(transType(Ty));
     }
 
@@ -900,25 +915,39 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
     return nullptr;
   }
 
+  // Don't translate FP conversion translator builtins as function declarations.
+  auto MangledName = F->getName();
+  StringRef DemangledName;
+  if (isInternalSPIRVBuiltin(MangledName, DemangledName)) {
+    if (SPIRV::FPConvertToEncodingMap::find(DemangledName)) {
+      // Create an early exit here if none of the extensions are enabled.
+      // Proper checks for the required extensions will be done during TypeFloat
+      // generation.
+      if (!BM->isAllowedToUseExtension(ExtensionID::SPV_EXT_float8) &&
+          !BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_int4) &&
+          !BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_float4)) {
+        std::string ErrorStr =
+            "One of the following extensions: SPV_EXT_float8, SPV_INTEL_float4"
+            "SPV_INTEL_int4 should be enabled to process "
+            "conversion builtins";
+        getErrorLog().checkError(false, SPIRVEC_RequiresExtension, F, ErrorStr);
+      }
+      return nullptr;
+    }
+  }
+
   SPIRVTypeFunction *BFT =
       static_cast<SPIRVTypeFunction *>(transScavengedType(F));
   SPIRVFunction *BF =
       static_cast<SPIRVFunction *>(mapValue(F, BM->addFunction(BFT)));
   BF->setFunctionControlMask(transFunctionControlMask(F));
   if (F->hasName()) {
-    if (isKernel(F)) {
-      /* strip the prefix as the runtime will be looking for this name */
-      std::string Prefix = kSPIRVName::EntrypointPrefix;
-      std::string Name = F->getName().str();
-      BM->setName(BF, Name.substr(Prefix.size()));
-    } else {
-      if (isUniformGroupOperation(F))
-        BM->getErrorLog().checkError(
-            BM->isAllowedToUseExtension(
-                ExtensionID::SPV_KHR_uniform_group_instructions),
-            SPIRVEC_RequiresExtension, "SPV_KHR_uniform_group_instructions\n");
-      BM->setName(BF, F->getName().str());
-    }
+    if (isUniformGroupOperation(F))
+      BM->getErrorLog().checkError(
+          BM->isAllowedToUseExtension(
+              ExtensionID::SPV_KHR_uniform_group_instructions),
+          SPIRVEC_RequiresExtension, "SPV_KHR_uniform_group_instructions\n");
+    BM->setName(BF, F->getName().str());
   }
   if (!isKernel(F) && F->getLinkage() != GlobalValue::InternalLinkage)
     BF->setLinkageType(transLinkageType(F));
@@ -1010,11 +1039,6 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
     assert(!isKernel(F) &&
            "kernel function was marked as referenced-indirectly");
     BF->addDecorate(DecorationReferencedIndirectlyINTEL);
-  }
-
-  if (Attrs.hasFnAttr(kVCMetadata::VCCallable) &&
-      BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fast_composite)) {
-    BF->addDecorate(internal::DecorationCallableFunctionINTEL);
   }
 
   if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute))
@@ -1472,6 +1496,18 @@ SPIRVValue *LLVMToSPIRVBase::transConstant(Value *V) {
   if (auto *ConstUE = dyn_cast<ConstantExpr>(V)) {
     if (auto *GEP = dyn_cast<GEPOperator>(ConstUE)) {
       auto *TransPointerOperand = transValue(GEP->getPointerOperand(), nullptr);
+      // Determine the expected pointer type from the GEP source element type.
+      Type *GepSourceElemTy = GEP->getSourceElementType();
+      SPIRVType *ExpectedPtrTy =
+          transPointerType(GepSourceElemTy, GEP->getPointerAddressSpace());
+
+      // Ensure the base pointer's type matches the GEP's effective source
+      // element type.
+      if (TransPointerOperand->getType() != ExpectedPtrTy) {
+        TransPointerOperand = BM->addUnaryInst(OpBitcast, ExpectedPtrTy,
+                                               TransPointerOperand, nullptr);
+      }
+
       std::vector<SPIRVWord> Ops = {TransPointerOperand->getId()};
       for (unsigned I = 0, E = GEP->getNumIndices(); I != E; ++I)
         Ops.push_back(transValue(GEP->getOperand(I + 1), nullptr)->getId());
@@ -1633,6 +1669,10 @@ SPIRVValue *LLVMToSPIRVBase::transUnaryInst(UnaryInstruction *U,
       } else {
         BOC = OpCrossWorkgroupCastToPtrINTEL;
       }
+    } else if (isa<ConstantPointerNull>(Cast->getPointerOperand()) &&
+               SrcAddrSpace != SPIRAS_Generic) {
+      SPIRVType *TransTy = transScavengedType(U);
+      return BM->addNullConstant(bcast<SPIRVTypePointer>(TransTy));
     } else {
       getErrorLog().checkError(
           SrcAddrSpace == SPIRAS_Generic, SPIRVEC_InvalidModule, U,
@@ -2054,7 +2094,7 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
         BVarInit = I->second;
     } else if (Init && !isa<UndefValue>(Init)) {
       if (!BM->isAllowedToUseExtension(
-              ExtensionID::SPV_INTEL_long_constant_composite)) {
+              ExtensionID::SPV_INTEL_long_composites)) {
         if (auto *ArrTy = dyn_cast_or_null<ArrayType>(Init->getType())) {
           // First 3 words of OpConstantComposite encode: 1) word count &
           // opcode, 2) Result Type and 3) Result Id. Max length of SPIRV
@@ -2069,7 +2109,10 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
                << "have (" << MaxNumElements << "). Should the array be "
                << "split?\n Original LLVM value:\n"
                << toString(GV);
-            getErrorLog().checkError(false, SPIRVEC_InvalidWordCount, SS.str());
+            getErrorLog().checkError(false, SPIRVEC_InvalidWordCount,
+                                     "Can't encode instruction with word count "
+                                     "greater than 65535:\n" +
+                                         SS.str());
           }
         }
       }
@@ -2172,7 +2215,43 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     unsigned ArgNo = Arg->getArgNo();
     SPIRVFunction *BF = BB->getParent();
     // assert(BF->existArgument(ArgNo));
-    return mapValue(V, BF->getArgument(ArgNo));
+    auto *SPVArg = BF->getArgument(ArgNo);
+
+    if (BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_untyped_pointers) &&
+        (Arg->hasByValAttr() || Arg->hasStructRetAttr()) &&
+        SPVArg->getType()->isTypePointer() &&
+        !SPVArg->getType()->isTypeUntypedPointerKHR()) {
+      // When SPV_KHR_untyped_pointers extension is enabled, bitcast typed
+      // pointer function arguments to untyped pointers for further usage in the
+      // untyped pointers paradigm.
+      // Do this only for safe cases where it would not require tracking uses of
+      // the original typed pointer argument. Otherwise, just keep the original
+      // typed pointer argument to avoid complex transformations later that may
+      // break SPIR-V validity.
+
+      auto PerformBitcastForArg =
+          [&](SPIRVFunctionParameter *BA) -> SPIRVValue * {
+        // Position to insert bitcast should be right after variable insertion
+        // point in the entry basic block.
+        auto *InsertBB = BF->getBasicBlock(0);
+        auto *InsertPoint = InsertBB->getVariableInsertionPoint();
+        auto *UntypedPtrType = BM->addPointerType(
+            BA->getType()->getPointerStorageClass(), nullptr);
+
+        auto *Bitcast = BM->addUnaryInst(OpBitcast, UntypedPtrType, BA,
+                                         InsertBB, InsertPoint);
+        return Bitcast;
+      };
+
+      for (auto *U : V->users()) {
+        auto *Inst = U->stripPointerCasts();
+        if (isa<LoadInst>(Inst) || isa<StoreInst>(Inst) ||
+            isa<MemCpyInst>(Inst)) {
+          return mapValue(V, PerformBitcastForArg(SPVArg));
+        }
+      }
+    }
+    return mapValue(V, SPVArg);
   }
 
   if (CreateForward)
@@ -2342,10 +2421,8 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     }
     SPIRVType *VarTy = TranslatedTy;
     if (V->getType()->getPointerAddressSpace() == SPIRAS_Generic) {
-      // TODO: refactor addPointerType and addUntypedPointerKHRType in one
-      // method if possible.
       if (TranslatedTy->isTypeUntypedPointerKHR())
-        VarTy = BM->addUntypedPointerKHRType(StorageClassFunction);
+        VarTy = BM->addPointerType(StorageClassFunction, nullptr);
       else
         VarTy = BM->addPointerType(StorageClassFunction,
                                    TranslatedTy->getPointerElementType());
@@ -2439,7 +2516,11 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
       Function *Fun = Branch->getFunction();
       DominatorTree DomTree(*Fun);
       LoopInfo LI(DomTree);
-      for (const auto *LoopObj : LI.getLoopsInPreorder()) {
+      // Find the innermost loop that contains the current basic block.
+      BasicBlock *CurrentBB = Branch->getParent();
+      const Loop *ContainingLoop = LI.getLoopFor(CurrentBB);
+
+      if (ContainingLoop) {
         // Check whether SuccessorFalse or SuccessorTrue is the loop header BB.
         // For example consider following LLVM IR:
         // br i1 %compare, label %for.body, label %for.end
@@ -2448,12 +2529,12 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
         //   <- SuccessorTrue is 'for.end' aka successor(1)
         // meanwhile the true successor (by definition) should be a loop header
         // aka 'for.body'
-        if (LoopObj->getHeader() == Branch->getSuccessor(1))
+        if (ContainingLoop->getHeader() == Branch->getSuccessor(1))
           // SuccessorFalse is the loop header BB.
           BM->addLoopMergeInst(SuccessorTrue->getId(), // Merge Block
                                BB->getId(),            // Continue Target
                                LoopControl, Parameters, SuccessorFalse);
-        else
+        else if (ContainingLoop->getHeader() == Branch->getSuccessor(0))
           // SuccessorTrue is the loop header BB.
           BM->addLoopMergeInst(SuccessorFalse->getId(), // Merge Block
                                BB->getId(),             // Continue Target
@@ -2691,12 +2772,9 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
 
 SPIRVType *LLVMToSPIRVBase::mapType(Type *T, SPIRVType *BT) {
   assert(!T->isPointerTy() && "Pointer types cannot be stored in the type map");
-  auto EmplaceStatus = TypeMap.try_emplace(T, BT);
-  // TODO: Uncomment the assertion, once the type mapping issue is resolved
-  // assert(EmplaceStatus.second && "The type was already added to the map");
+  [[maybe_unused]] auto EmplaceStatus = TypeMap.try_emplace(T, BT);
+  assert(EmplaceStatus.second && "The type was already added to the map");
   SPIRVDBG(dbgs() << "[mapType] " << *T << " => "; spvdbgs() << *BT << '\n');
-  if (!EmplaceStatus.second)
-    return TypeMap[T];
   return BT;
 }
 
@@ -2743,6 +2821,10 @@ bool LLVMToSPIRVBase::shouldTryToAddMemAliasingDecoration(Instruction *Inst) {
 void addFuncPointerCallArgumentAttributes(CallInst *CI,
                                           SPIRVValue *FuncPtrCall) {
   for (unsigned ArgNo = 0; ArgNo < CI->arg_size(); ++ArgNo) {
+    if (CI->doesNotCapture(ArgNo))
+      FuncPtrCall->addDecorate(new SPIRVDecorate(
+          spv::internal::DecorationArgumentAttributeINTEL, FuncPtrCall, ArgNo,
+          FunctionParameterAttributeNoCapture));
     for (const auto &I : CI->getAttributes().getParamAttrs(ArgNo)) {
       spv::FunctionParameterAttribute Attr = spv::FunctionParameterAttributeMax;
       SPIRSPIRVFuncParamAttrMap::find(I.getKindAsEnum(), &Attr);
@@ -3044,6 +3126,13 @@ static void transMetadataDecorations(Metadata *MD, SPIRVValue *Target) {
           static_cast<StoreCacheControl>(CacheControl->getZExtValue())));
       break;
     }
+    case DecorationFPFastMathMode: {
+      // Ignore this decoration. FPFastMathMode is set through the LLVM-IR
+      // fast-math flags (e.g. reassoc, contract) associated with the
+      // instruction. It should not be set through metadata, since LLVM passes
+      // are free to ignore it.
+      break;
+    }
     default: {
       if (NumOperands == 1) {
         Target->addDecorate(new SPIRVDecorate(DecoKind, Target));
@@ -3105,11 +3194,26 @@ bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
         ((Opcode == Instruction::FNeg || Opcode == Instruction::FCmp ||
           BV->isExtInst()) &&
          BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_6))) {
+      bool AllowFloatControls2 =
+          BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_float_controls2);
+      bool AllowIntelFpFastMathMode =
+          BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fp_fast_math_mode);
       FastMathFlags FMF = BVF->getFastMathFlags();
       SPIRVWord M{0};
-      if (FMF.isFast())
-        M |= FPFastMathModeFastMask;
-      else {
+      if (FMF.isFast()) {
+        if (AllowFloatControls2) {
+          // When SPV_KHR_float_controls2 is used, setting the fast math flag
+          // bit is deprecated. Set the rest of the bits instead.
+          M |= FPFastMathModeNotNaNMask | FPFastMathModeNotInfMask |
+               FPFastMathModeNSZMask | FPFastMathModeAllowRecipMask |
+               FPFastMathModeAllowTransformMask |
+               FPFastMathModeAllowReassocMask | FPFastMathModeAllowContractMask;
+          BM->addCapability(CapabilityFloatControls2);
+          BM->addExtension(ExtensionID::SPV_KHR_float_controls2);
+        } else {
+          M |= FPFastMathModeFastMask;
+        }
+      } else {
         if (FMF.noNaNs())
           M |= FPFastMathModeNotNaNMask;
         if (FMF.noInfs())
@@ -3118,15 +3222,34 @@ bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
           M |= FPFastMathModeNSZMask;
         if (FMF.allowReciprocal())
           M |= FPFastMathModeAllowRecipMask;
-        if (BM->isAllowedToUseExtension(
-                ExtensionID::SPV_INTEL_fp_fast_math_mode)) {
-          if (FMF.allowContract()) {
-            M |= FPFastMathModeAllowContractFastINTELMask;
-            BM->addCapability(CapabilityFPFastMathModeINTEL);
+        if (FMF.allowContract()) {
+          if (AllowFloatControls2 || AllowIntelFpFastMathMode) {
+            static_assert(FPFastMathModeAllowContractFastINTELMask ==
+                          FPFastMathModeAllowContractMask);
+            M |= FPFastMathModeAllowContractMask;
+            BM->addCapability(AllowFloatControls2
+                                  ? CapabilityFloatControls2
+                                  : CapabilityFPFastMathModeINTEL);
+            BM->addExtension(AllowFloatControls2
+                                 ? ExtensionID::SPV_KHR_float_controls2
+                                 : ExtensionID::SPV_INTEL_fp_fast_math_mode);
           }
-          if (FMF.allowReassoc()) {
+        }
+        if (FMF.allowReassoc()) {
+          if (AllowFloatControls2) {
+            // LLVM reassoc maps to SPIRV transform, see
+            // https://github.com/KhronosGroup/SPIRV-Registry/issues/326 for
+            // details. Because we are enabling AllowTransform, we must enable
+            // AllowReassoc and AllowContract too, as required by SPIRV spec.
+            M |= FPFastMathModeAllowTransformMask |
+                 FPFastMathModeAllowReassocMask |
+                 FPFastMathModeAllowContractMask;
+            BM->addCapability(CapabilityFloatControls2);
+            BM->addExtension(ExtensionID::SPV_KHR_float_controls2);
+          } else if (AllowIntelFpFastMathMode) {
             M |= FPFastMathModeAllowReassocINTELMask;
             BM->addCapability(CapabilityFPFastMathModeINTEL);
+            BM->addExtension(ExtensionID::SPV_INTEL_fp_fast_math_mode);
           }
         }
       }
@@ -3913,10 +4036,12 @@ bool LLVMToSPIRVBase::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::log:
   case Intrinsic::log10:
   case Intrinsic::log2:
+  case Intrinsic::maximumnum:
   case Intrinsic::maximum:
   case Intrinsic::maxnum:
   case Intrinsic::smax:
   case Intrinsic::umax:
+  case Intrinsic::minimumnum:
   case Intrinsic::minimum:
   case Intrinsic::minnum:
   case Intrinsic::smin:
@@ -3974,6 +4099,21 @@ bool LLVMToSPIRVBase::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::arithmetic_fence:
   case Intrinsic::masked_gather:
   case Intrinsic::masked_scatter:
+  case Intrinsic::modf:
+  case Intrinsic::fake_use:
+  // INTEL_CUSTOMIZATION begin
+  // fpbuiltin intrinsics are not part of upstream LLVM, yet we have to register
+  // them as known.
+  case Intrinsic::fpbuiltin_fadd:
+  case Intrinsic::fpbuiltin_fsub:
+  case Intrinsic::fpbuiltin_fmul:
+  case Intrinsic::fpbuiltin_fdiv:
+  case Intrinsic::fpbuiltin_frem:
+  case Intrinsic::fpbuiltin_sqrt:
+  case Intrinsic::fpbuiltin_ldexp:
+    // INTEL_CUSTOMIZATION end
+  case Intrinsic::stacksave:
+  case Intrinsic::stackrestore:
     return true;
   default:
     // Unknown intrinsics' declarations should always be translated
@@ -4042,12 +4182,12 @@ static SPIRVWord getBuiltinIdForIntrinsic(Intrinsic::ID IID) {
     return OpenCLLIB::Log10;
   case Intrinsic::log2:
     return OpenCLLIB::Log2;
+  case Intrinsic::maximumnum:
   case Intrinsic::maximum:
-    return OpenCLLIB::Fmax;
   case Intrinsic::maxnum:
     return OpenCLLIB::Fmax;
+  case Intrinsic::minimumnum:
   case Intrinsic::minimum:
-    return OpenCLLIB::Fmin;
   case Intrinsic::minnum:
     return OpenCLLIB::Fmin;
   case Intrinsic::nearbyint:
@@ -4074,6 +4214,8 @@ static SPIRVWord getBuiltinIdForIntrinsic(Intrinsic::ID IID) {
     return OpenCLLIB::Tanh;
   case Intrinsic::trunc:
     return OpenCLLIB::Trunc;
+  case Intrinsic::modf:
+    return OpenCLLIB::Modf;
   default:
     assert(false && "Builtin ID requested for Unhandled intrinsic!");
     return 0;
@@ -4180,6 +4322,20 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   // -spirv-allow-unknown-intrinsics work correctly.
   auto IID = II->getIntrinsicID();
   switch (IID) {
+  case Intrinsic::fabs:
+  case Intrinsic::fma:
+  case Intrinsic::maxnum:
+  case Intrinsic::minnum:
+  case Intrinsic::fmuladd: {
+    Type *Ty = II->getType();
+    if (Ty->isBFloatTy())
+      BM->addCapability(internal::CapabilityBFloat16ArithmeticINTEL);
+    break;
+  }
+  default:
+    break;
+  }
+  switch (IID) {
   case Intrinsic::assume: {
     // llvm.assume translation is currently supported only within
     // SPV_KHR_expect_assume extension, ignore it otherwise, since it's
@@ -4271,13 +4427,59 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     return BM->addExtInst(FTy, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp, Ops,
                           BB);
   }
+  case Intrinsic::modf: {
+    // llvm.modf has a single arg --the number to be decomposed-- and returns a
+    // struct { double, double }, while OpenCLLIB::modf has two args --the
+    // number to be decomposed and a pointer--, returns the fractional part and
+    // the integral part is stored in the pointer argument. Therefore, we can't
+    // use directly the OpenCLLIB::modf intrinsic. However, we can do some
+    // scaffolding to make it work. The idea is to create an alloca instruction
+    // to get a ptr, pass this ptr to OpenCLLIB::modf, and then load the value
+    // from this ptr to place it in the struct.
+
+    // llvm.modf returns the fractional part as the first element of the result,
+    // and the integral part as the second element of the result. Therefore, the
+    // first element is the return value of OpenCLLIB::modf, and the second
+    // element is the value loaded from the ptr of the alloca we created.
+
+    // Create the alloca instruction.
+    SPIRVType *IntegralTy = transType(II->getType()->getStructElementType(1));
+    // IntegralTy is the type of the result. We want to create a pointer to this
+    // that we can pass to OpenCLLIB::modf to store the integral part.
+    SPIRVType *GenericPtrTy = BM->addPointerType(StorageClassFunction, IntegralTy);
+    auto *IntegralPtrTy = dyn_cast<SPIRVTypePointer>(GenericPtrTy);
+    // We need to use the entry BB of the function calling llvm.modf.*, instead
+    // of the current BB. For that, we'll find current BB's parent and get its
+    // first BB, which is the entry BB of the function.
+    SPIRVBasicBlock *EntryBB = BB->getParent()->getBasicBlock(0);
+    SPIRVValue *Ptr = BM->addVariable(
+        IntegralPtrTy, nullptr, false, spv::internal::LinkageTypeInternal,
+        nullptr, "", StorageClassFunction, EntryBB);
+
+    // Create the OpenCLLIB::modf instruction.
+    SPIRVType *FTy = transType(II->getType()->getStructElementType(0));
+    SPIRVValue *Arg = transValue(II->getArgOperand(0), BB);
+    std::vector<SPIRVValue *> Ops{Arg, Ptr};
+    SPIRVValue *Modf = BM->addExtInst(FTy, BM->getExtInstSetId(SPIRVEIS_OpenCL),
+                                      OpenCLLIB::Modf, Ops, BB);
+
+    // Load the value from the ptr.
+    SPIRVValue *IntegralVal = BM->addLoadInst(Ptr, {}, BB, IntegralTy);
+
+    // Create the struct.
+    SPIRVType *STy = transType(II->getType());
+    std::vector<SPIRVId> StructVals{Modf->getId(), IntegralVal->getId()};
+    return BM->addCompositeConstructInst(STy, StructVals, BB);
+  }
   // Binary FP intrinsics
   case Intrinsic::atan2:
   case Intrinsic::copysign:
   case Intrinsic::pow:
   case Intrinsic::powi:
+  case Intrinsic::maximumnum:
   case Intrinsic::maximum:
   case Intrinsic::maxnum:
+  case Intrinsic::minimumnum:
   case Intrinsic::minimum:
   case Intrinsic::minnum: {
     if (!checkTypeForSPIRVExtendedInstLowering(II, BM))
@@ -4359,13 +4561,14 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   case Intrinsic::fma: {
     if (!checkTypeForSPIRVExtendedInstLowering(II, BM))
       break;
-    SPIRVWord ExtOp = OpenCLLIB::Fma;
     SPIRVType *STy = transType(II->getType());
     std::vector<SPIRVValue *> Ops{transValue(II->getArgOperand(0), BB),
                                   transValue(II->getArgOperand(1), BB),
                                   transValue(II->getArgOperand(2), BB)};
-    return BM->addExtInst(STy, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp, Ops,
-                          BB);
+    if (BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_fma))
+      return BM->addInstTemplate(OpFmaKHR, BM->getIds(Ops), BB, STy);
+    return BM->addExtInst(STy, BM->getExtInstSetId(SPIRVEIS_OpenCL),
+                          OpenCLLIB::Fma, Ops, BB);
   }
   case Intrinsic::abs: {
     if (!checkTypeForSPIRVExtendedInstLowering(II, BM))
@@ -4436,9 +4639,14 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     std::vector<SPIRVValue *> Args{transValue(II->getArgOperand(0), BB),
                                    transValue(II->getArgOperand(1), BB),
                                    transValue(II->getArgOperand(2), BB)};
-    auto *BI = BM->addExtInst(transType(II->getType()),
-                              BM->getExtInstSetId(SPIRVEIS_OpenCL),
-                              OpenCLLIB::Fma, Args, BB);
+    SPIRVInstruction *BI;
+    if (BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_fma))
+      BI = BM->addInstTemplate(OpFmaKHR, BM->getIds(Args), BB,
+                               transType(II->getType()));
+    else
+      BI = BM->addExtInst(transType(II->getType()),
+                          BM->getExtInstSetId(SPIRVEIS_OpenCL), OpenCLLIB::Fma,
+                          Args, BB);
     return applyRoundingModeConstraint(II->getOperand(3), BI);
   }
   case Intrinsic::experimental_constrained_fptoui: {
@@ -4719,7 +4927,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     auto *AT = ArrayType::get(Val->getType(), NumElements);
     SPIRVTypeArray *CompositeTy = static_cast<SPIRVTypeArray *>(transType(AT));
     SPIRVValue *Init;
-    if (cast<Constant>(Val)->isZeroValue()) {
+    if (cast<Constant>(Val)->isNullValue()) {
       Init = BM->addNullConstant(CompositeTy);
     } else {
       // On 32-bit systems, size_type of std::vector is not a 64-bit type. Let's
@@ -4731,16 +4939,17 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
       std::vector<SPIRVValue *> Elts(TNumElts, transValue(Val, BB));
       Init = BM->addCompositeConstant(CompositeTy, Elts);
     }
-    SPIRVType *VarTy = transPointerType(AT, SPIRV::SPIRAS_Constant);
-    SPIRVValue *Var = BM->addVariable(VarTy, nullptr, /*isConstant*/ true,
+    SPIRVType *VarTy = transPointerType(AT, SPIRV::SPIRAS_Private);
+    SPIRVBasicBlock *EntryBB = BB->getParent()->getBasicBlock(0);
+    SPIRVValue *Var = BM->addVariable(VarTy, nullptr, /*isConstant*/ false,
                                       spv::internal::LinkageTypeInternal, Init,
-                                      "", StorageClassUniformConstant, nullptr);
+                                      "", StorageClassFunction, EntryBB);
     std::vector<SPIRVWord> MemAccess = GetMemoryAccess(
         MSI, BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_4));
     if (!MemAccess.empty() && MemAccess[0] == MemoryAccessAlignedMask)
       Var->setAlignment(MemAccess[1]);
     SPIRVType *SourceTy =
-        transPointerType(Val->getType(), SPIRV::SPIRAS_Constant);
+        transPointerType(Val->getType(), SPIRV::SPIRAS_Private);
     SPIRVValue *Source = BM->addUnaryInst(OpBitcast, SourceTy, Var, BB);
     SPIRVValue *Target = transValue(MSI->getRawDest(), BB);
     return BM->addCopyMemorySizedInst(Target, Source, CompositeTy->getLength(),
@@ -4758,27 +4967,36 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     Op OC = (II->getIntrinsicID() == Intrinsic::lifetime_start)
                 ? OpLifetimeStart
                 : OpLifetimeStop;
-    int64_t Size = dyn_cast<ConstantInt>(II->getOperand(0))->getSExtValue();
-    if (Size == -1)
-      Size = 0;
-    Value *LLVMPtrOp = II->getOperand(1);
+    int64_t Size = 0;
+    Value *LLVMPtrOp = II->getOperand(0);
+    auto *Alloca = cast<AllocaInst>(LLVMPtrOp);
+    if (Alloca->getAllocatedType()->isSized())
+      Size = M->getDataLayout().getTypeAllocSize(Alloca->getAllocatedType());
+
     unsigned PtrAS = cast<PointerType>(LLVMPtrOp->getType())->getAddressSpace();
     auto *PtrOp = transValue(LLVMPtrOp, BB);
-    if (PtrAS == SPIRAS_Private)
+    // INTEL_CUSTOMIZATION begin
+    // Workaround to make older versions of SPIRVReader working with new
+    // rules of LLVM lifetime intrinsics.
+    // TODO: to remove the W/A.
+    if (PtrAS == SPIRAS_Private) {
+      auto *Int8PtrTy =
+          transPointerType(Type::getInt8Ty(M->getContext()), SPIRAS_Private);
+      PtrOp = BM->addUnaryInst(OpBitcast, Int8PtrTy, PtrOp, BB);
       return BM->addLifetimeInst(OC, PtrOp, Size, BB);
-    // If pointer address space is Generic - cast to private first
+    }
+    // If pointer address space is Generic - use original allocation.
     BM->getErrorLog().checkError(
         PtrAS == SPIRAS_Generic, SPIRVEC_InvalidInstruction, II,
         "lifetime intrinsic pointer operand must be in private or generic AS");
-    auto *SrcTy = PtrOp->getType();
-    SPIRVType *DstTy = nullptr;
-    if (SrcTy->isTypeUntypedPointerKHR())
-      DstTy = BM->addUntypedPointerKHRType(StorageClassFunction);
-    else
-      DstTy = BM->addPointerType(StorageClassFunction,
-                                 SrcTy->getPointerElementType());
-    PtrOp = BM->addUnaryInst(OpGenericCastToPtr, DstTy, PtrOp, BB);
-    ValueMap[LLVMPtrOp] = PtrOp;
+    if (PtrOp->getOpCode() == OpPtrCastToGeneric) {
+      auto *UI = static_cast<SPIRVUnary *>(PtrOp);
+      PtrOp = UI->getOperand(0);
+      auto *Int8PtrTy =
+          transPointerType(Type::getInt8Ty(M->getContext()), SPIRAS_Private);
+      PtrOp = BM->addUnaryInst(OpBitcast, Int8PtrTy, PtrOp, BB);
+    }
+    // INTEL_CUSTOMIZATION end
     return BM->addLifetimeInst(OC, PtrOp, Size, BB);
   }
   // We don't want to mix translation of regular code and debug info, because
@@ -4916,6 +5134,8 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   case Intrinsic::trap:
   case Intrinsic::ubsantrap:
   case Intrinsic::debugtrap:
+  // Just ignore llvm.fake.use intrinsic, as it has no translation in SPIRV.
+  case Intrinsic::fake_use:
   // llvm.instrprof.* intrinsics are not supported
   case Intrinsic::instrprof_increment:
   case Intrinsic::instrprof_increment_step:
@@ -4931,10 +5151,17 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   case Intrinsic::arithmetic_fence: {
     SPIRVType *Ty = transType(II->getType());
     SPIRVValue *Op = transValue(II->getArgOperand(0), BB);
+    if (BM->isAllowedToUseExtension(ExtensionID::SPV_EXT_arithmetic_fence)) {
+      BM->addCapability(CapabilityArithmeticFenceEXT);
+      BM->addExtension(ExtensionID::SPV_EXT_arithmetic_fence);
+      return BM->addUnaryInst(OpArithmeticFenceEXT, Ty, Op, BB);
+    }
     if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_arithmetic_fence)) {
-      BM->addCapability(internal::CapabilityFPArithmeticFenceINTEL);
+      // Note: SPV_INTEL_arithmetic_fence was unpublished and superseded by
+      // SPV_EXT_arithmetic_fence.
+      BM->addCapability(CapabilityArithmeticFenceEXT);
       BM->addExtension(ExtensionID::SPV_INTEL_arithmetic_fence);
-      return BM->addUnaryInst(internal::OpArithmeticFenceINTEL, Ty, Op, BB);
+      return BM->addUnaryInst(OpArithmeticFenceEXT, Ty, Op, BB);
     }
     return Op;
   }
@@ -4950,10 +5177,9 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     }
     SPIRVType *Ty = transScavengedType(II);
     auto *PtrVector = transValue(II->getArgOperand(0), BB);
-    uint32_t Alignment =
-        cast<ConstantInt>(II->getArgOperand(1))->getZExtValue();
-    auto *Mask = transValue(II->getArgOperand(2), BB);
-    auto *FillEmpty = transValue(II->getArgOperand(3), BB);
+    uint32_t Alignment = II->getParamAlign(0).valueOrOne().value();
+    auto *Mask = transValue(II->getArgOperand(1), BB);
+    auto *FillEmpty = transValue(II->getArgOperand(2), BB);
     std::vector<SPIRVWord> Ops = {PtrVector->getId(), Alignment, Mask->getId(),
                                   FillEmpty->getId()};
     return BM->addInstTemplate(internal::OpMaskedGatherINTEL, Ops, BB, Ty);
@@ -4970,9 +5196,8 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     }
     auto *InputVector = transValue(II->getArgOperand(0), BB);
     auto *PtrVector = transValue(II->getArgOperand(1), BB);
-    uint32_t Alignment =
-        cast<ConstantInt>(II->getArgOperand(2))->getZExtValue();
-    auto *Mask = transValue(II->getArgOperand(3), BB);
+    uint32_t Alignment = II->getParamAlign(1).valueOrOne().value();
+    auto *Mask = transValue(II->getArgOperand(2), BB);
     std::vector<SPIRVWord> Ops = {InputVector->getId(), PtrVector->getId(),
                                   Alignment, Mask->getId()};
     return BM->addInstTemplate(internal::OpMaskedScatterINTEL, Ops, BB,
@@ -5028,7 +5253,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     const APInt Inf = APFloat::getInf(Semantics).bitcastToAPInt();
     const APInt AllOneMantissa =
         APFloat::getLargest(Semantics).bitcastToAPInt() & ~Inf;
-
+    const APInt OneValue = APInt(BitSize, 1);
     // Some checks can be inverted tests for simple cases, for example
     // simultaneous check for inf, normal, subnormal and zero is a check for
     // non nan.
@@ -5137,8 +5362,10 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
           BM->addUnaryInst(OpBitcast, OpSPIRVTy, InputFloat, BB);
       auto *MantissaConst = transValue(
           Constant::getIntegerValue(IntOpLLVMTy, AllOneMantissa), BB);
+      auto *ConstOne =
+          transValue(Constant::getIntegerValue(IntOpLLVMTy, OneValue), BB);
       auto *MinusOne =
-          BM->addBinaryInst(OpISub, OpSPIRVTy, BitCastToInt, MantissaConst, BB);
+          BM->addBinaryInst(OpISub, OpSPIRVTy, BitCastToInt, ConstOne, BB);
       auto *TestIsSubnormal =
           BM->addCmpInst(OpULessThan, ResTy, MinusOne, MantissaConst, BB);
       if (FPClass & fcPosSubnormal && FPClass & fcNegSubnormal)
@@ -5225,16 +5452,16 @@ LLVMToSPIRVBase::getFPBuiltinType(IntrinsicInst *II, StringRef &OpName) {
   OpName = Name.split('.').first;
   FPBuiltinType Type =
       StringSwitch<FPBuiltinType>(OpName)
-          .Cases("fadd", "fsub", "fmul", "fdiv", "frem",
+          .Cases({"fadd", "fsub", "fmul", "fdiv", "frem"},
                  FPBuiltinType::REGULAR_MATH)
-          .Cases("sin", "cos", "tan", FPBuiltinType::EXT_1OPS)
-          .Cases("sinh", "cosh", "tanh", FPBuiltinType::EXT_1OPS)
-          .Cases("asin", "acos", "atan", FPBuiltinType::EXT_1OPS)
-          .Cases("asinh", "acosh", "atanh", FPBuiltinType::EXT_1OPS)
-          .Cases("exp", "exp2", "exp10", "expm1", FPBuiltinType::EXT_1OPS)
-          .Cases("log", "log2", "log10", "log1p", FPBuiltinType::EXT_1OPS)
-          .Cases("sqrt", "rsqrt", "erf", "erfc", FPBuiltinType::EXT_1OPS)
-          .Cases("atan2", "pow", "hypot", "ldexp", FPBuiltinType::EXT_2OPS)
+          .Cases({"sin", "cos", "tan"}, FPBuiltinType::EXT_1OPS)
+          .Cases({"sinh", "cosh", "tanh"}, FPBuiltinType::EXT_1OPS)
+          .Cases({"asin", "acos", "atan"}, FPBuiltinType::EXT_1OPS)
+          .Cases({"asinh", "acosh", "atanh"}, FPBuiltinType::EXT_1OPS)
+          .Cases({"exp", "exp2", "exp10", "expm1"}, FPBuiltinType::EXT_1OPS)
+          .Cases({"log", "log2", "log10", "log1p"}, FPBuiltinType::EXT_1OPS)
+          .Cases({"sqrt", "rsqrt", "erf", "erfc"}, FPBuiltinType::EXT_1OPS)
+          .Cases({"atan2", "pow", "hypot", "ldexp"}, FPBuiltinType::EXT_2OPS)
           .Case("sincos", FPBuiltinType::EXT_3OPS)
           .Default(FPBuiltinType::UNKNOWN);
   return Type;
@@ -5386,6 +5613,49 @@ SPIRVValue *LLVMToSPIRVBase::transCallInst(CallInst *CI, SPIRVBasicBlock *BB) {
   return transDirectCallInst(CI, BB);
 }
 
+// Helper function to process mini-float or int4 types for FP conversions.
+// Processes type width, packing, and creates the appropriate SPIRV type.
+// Returns the SPIRV type and outputs vector size information.
+static SPIRVType *
+processMiniFPOrInt4Type(Type *LLVMTy, FPEncodingWrap Encoding,
+                        std::function<Type *(Type *)> GetScalarTy,
+                        SPIRVModule *BM, unsigned &OutVecSize) {
+  Type *ScalarTy = GetScalarTy(LLVMTy);
+  unsigned TyWidth = cast<IntegerType>(ScalarTy)->getBitWidth();
+  unsigned VecSize = 0;
+
+  if (TyWidth == 32) {
+    // Int4 or FP4 packed in 32-bit integer, change type and vector size.
+    assert((Encoding == FPEncodingWrap::E2M1 ||
+            Encoding == FPEncodingWrap::Integer) &&
+           "Unknown FP encoding");
+    assert(!isLLVMCooperativeMatrixType(LLVMTy) &&
+           "FP4 and Int4 matrices must not be packed");
+    VecSize = 8;
+    TyWidth = 4;
+  } else if (TyWidth == 8 && (Encoding == FPEncodingWrap::E2M1 ||
+                              Encoding == FPEncodingWrap::Integer)) {
+    assert(!isLLVMCooperativeMatrixType(LLVMTy) &&
+           "FP4 and Int4 matrices must not be packed");
+    // Int4 or FP4 packed in 8-bit integer, change type and vector size.
+    VecSize = 2;
+    TyWidth = 4;
+  } else {
+    if (LLVMTy->isVectorTy())
+      VecSize = cast<VectorType>(LLVMTy)->getElementCount().getFixedValue();
+  }
+
+  SPIRVType *Ty;
+  if (Encoding == FPEncodingWrap::Integer) {
+    Ty = BM->addIntegerType(TyWidth);
+  } else {
+    Ty = BM->addFloatType(TyWidth, Encoding);
+  }
+
+  OutVecSize = VecSize;
+  return Ty;
+}
+
 SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
                                                  SPIRVBasicBlock *BB) {
   SPIRVExtInstSetKind ExtSetKind = SPIRVEIS_Count;
@@ -5405,9 +5675,120 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
       return BV;
   }
 
+  if (isInternalSPIRVBuiltin(MangledName, DemangledName)) {
+    // Logic of the code below is described in
+    // docs/SPIRVMiniFloatsRepresentationInLLVM.rst
+    // A quick recap of the document:
+    // For FP4 and FP8 types (which don't have appropriate counterparts in LLVM)
+    // the translator expect to see external function calls with __builtin_spirv
+    // prefix, names of the functions encode the used in the conversion
+    // FP types and will be used by the translator for proper TypeFloat values
+    // generation. Since in LLVM IR FP8 types are represented by
+    // integer type, we have to insert bitcasts for dependent values that expect
+    // integer inputs or produces integer output that is used in the conversion.
+    if (SPIRV::FPConvertToEncodingMap::find(DemangledName)) {
+      FPConversionDesc FPDesc =
+          SPIRV::FPConvertToEncodingMap::map(DemangledName);
+      Value *Src = CI->getOperand(0);
+      Type *LLVMSrcTy = Src->getType();
+      Type *LLVMDstTy = CI->getType();
+      SPIRVType *SrcTy = nullptr;
+      SPIRVType *DstTy = nullptr;
+
+      auto GetScalarTy = [&](Type *Ty) -> Type * {
+        if (isLLVMCooperativeMatrixType(Ty))
+          return cast<TargetExtType>(Ty)->getTypeParameter(0);
+        return Ty->getScalarType();
+      };
+
+      // FP types representable in LLVM IR, no need for special handling
+      // Also, int4 matrices remain the same.
+      if (FPDesc.SrcEncoding == FPEncodingWrap::IEEE754 ||
+          FPDesc.SrcEncoding == FPEncodingWrap::BF16 ||
+          (FPDesc.SrcEncoding == FPEncodingWrap::Integer &&
+           isLLVMCooperativeMatrixType(LLVMDstTy)))
+        SrcTy = transType(LLVMSrcTy);
+      if (FPDesc.DstEncoding == FPEncodingWrap::IEEE754 ||
+          FPDesc.DstEncoding == FPEncodingWrap::BF16 ||
+          (FPDesc.DstEncoding == FPEncodingWrap::Integer &&
+           (isLLVMCooperativeMatrixType(LLVMDstTy) ||
+            FPDesc.SrcEncoding == FPEncodingWrap::Integer)))
+        DstTy = transType(LLVMDstTy);
+
+      SPIRVValue *SrcOp = transValue(Src, BB);
+
+      if (!SrcTy) {
+        // Src type is 'mini' float or int4.
+        unsigned SrcVecSize = 0;
+        SrcTy = processMiniFPOrInt4Type(LLVMSrcTy, FPDesc.SrcEncoding,
+                                        GetScalarTy, BM, SrcVecSize);
+
+        if (SrcVecSize > 0)
+          SrcTy = BM->addVectorType(SrcTy, SrcVecSize);
+
+        if (isLLVMCooperativeMatrixType(LLVMSrcTy)) {
+          // Create FP4/FP8 matrix with a new type and insert a bitcast.
+          SrcTy = BM->addCooperativeMatrixKHRType(
+              SrcTy,
+              static_cast<SPIRVTypeCooperativeMatrixKHR *>(transType(LLVMSrcTy))
+                  ->getArgs());
+          SrcOp = BM->addUnaryInst(OpBitcast, SrcTy, SrcOp, BB);
+        } else if (FPDesc.SrcEncoding != FPEncodingWrap::Integer ||
+                   (SrcTy->isTypeVector() && !LLVMSrcTy->isVectorTy())) {
+          // Create bitcast for FP4, FP8 and packed Int4.
+          SrcOp = BM->addUnaryInst(OpBitcast, SrcTy, SrcOp, BB);
+        }
+      }
+      if (!DstTy) {
+        // Dst type is 'mini' float or int4.
+        unsigned DstVecSize = 0;
+        DstTy = processMiniFPOrInt4Type(LLVMDstTy, FPDesc.DstEncoding,
+                                        GetScalarTy, BM, DstVecSize);
+
+        if (isLLVMCooperativeMatrixType(LLVMDstTy))
+          // Create FP8 matrix with a new type.
+          DstTy = BM->addCooperativeMatrixKHRType(
+              DstTy,
+              static_cast<SPIRVTypeCooperativeMatrixKHR *>(transType(LLVMDstTy))
+                  ->getArgs());
+
+        if (DstVecSize > 0)
+          DstTy = BM->addVectorType(DstTy, DstVecSize);
+      }
+
+      std::vector<SPIRVValue *> Ops = {SrcOp};
+      const auto OC = static_cast<Op>(FPDesc.ConvOpCode);
+
+      // Translate operands for stochastic roundings.
+      for (size_t I = 1; I != CI->arg_size(); ++I)
+        Ops.push_back(transValue(CI->getOperand(I), BB));
+
+      SPIRVValue *Conv = BM->addInstTemplate(OC, BM->getIds(Ops), BB, DstTy);
+
+      // Representable in LLVM FP types: bitcast is not needed.
+      if (FPDesc.DstEncoding == FPEncodingWrap::IEEE754 ||
+          FPDesc.DstEncoding == FPEncodingWrap::BF16)
+        return Conv;
+      // Originally not-packed integer.
+      if (FPDesc.DstEncoding == FPEncodingWrap::Integer &&
+          (DstTy->isTypeVector() == LLVMDstTy->isVectorTy() ||
+           isLLVMCooperativeMatrixType(LLVMDstTy)))
+        return Conv;
+      // Need to adjust types: create bitcast for FP8 and packed Int4.
+      SPIRVValue *BitCast =
+          BM->addUnaryInst(OpBitcast, transType(CI->getType()), Conv, BB);
+      return BitCast;
+    }
+  }
+
   SmallVector<std::string, 2> Dec;
   if (isBuiltinTransToExtInst(CI->getCalledFunction(), &ExtSetKind, &ExtOp,
                               &Dec)) {
+    if (const auto *FirstArg = F->getArg(0)) {
+      const auto *Type = FirstArg->getType();
+      if (Type->isBFloatTy())
+        BM->addCapability(internal::CapabilityBFloat16ArithmeticINTEL);
+    }
     if (DemangledName.find("__spirv_ocl_printf") != StringRef::npos) {
       auto *FormatStrPtr = cast<PointerType>(CI->getArgOperand(0)->getType());
       if (FormatStrPtr->getAddressSpace() !=
@@ -5431,11 +5812,42 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
             transScavengedType(CI),
             BM->getIds(transValue(getArguments(CI), BB)), BB);
       }
+    } else if (DemangledName == "__spirv_ocl_fma") {
+      if (BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_fma))
+        return BM->addInstTemplate(OpFmaKHR,
+                                   BM->getIds(transValue(getArguments(CI), BB)),
+                                   BB, transScavengedType(CI));
+    }
+
+    SPIRVType *Ty = transScavengedType(CI);
+    SPIRVId ExtSetId = BM->getExtInstSetId(ExtSetKind);
+
+    bool IsFMinMaxCommon =
+        ExtSetKind == SPIRVEIS_OpenCL &&
+        (ExtOp == OpenCLLIB::FMin_common || ExtOp == OpenCLLIB::FMax_common);
+    if (IsFMinMaxCommon &&
+        BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_float_controls2)) {
+      // Acording to float_controls2 spec:
+      // This extension deprecates the following features: [...]
+      // * The OpenCL.std instructions fmin_common, fmax_common. Use fmin, fmax
+      // with NInf and NNaN instead.
+      BM->addCapability(CapabilityFloatControls2);
+      BM->addExtension(ExtensionID::SPV_KHR_float_controls2);
+      ExtOp =
+          ExtOp == OpenCLLIB::FMin_common ? OpenCLLIB::Fmin : OpenCLLIB::Fmax;
+      SPIRVInstruction *ExtInst = BM->addExtInst(
+          Ty, ExtSetId, ExtOp,
+          transArguments(CI, BB,
+                         SPIRVEntry::createUnique(ExtSetKind, ExtOp).get()),
+          BB);
+      ExtInst->setFPFastMathMode(FPFastMathModeNotInfMask |
+                                 FPFastMathModeNotNaNMask);
+      return addDecorations(ExtInst, Dec);
     }
 
     return addDecorations(
         BM->addExtInst(
-            transScavengedType(CI), BM->getExtInstSetId(ExtSetKind), ExtOp,
+            Ty, ExtSetId, ExtOp,
             transArguments(CI, BB,
                            SPIRVEntry::createUnique(ExtSetKind, ExtOp).get()),
             BB),
@@ -5482,12 +5894,12 @@ SPIRVValue *LLVMToSPIRVBase::transAsmINTEL(InlineAsm *IA) {
   // TODO: intention here is to provide information about actual target
   //       but in fact spir-64 is substituted as triple when translator works
   //       eventually we need to fix it (not urgent)
-  StringRef TripleStr(M->getTargetTriple());
+  StringRef TripleStr(M->getTargetTriple().str());
   auto *AsmTarget = static_cast<SPIRVAsmTargetINTEL *>(
       BM->getOrAddAsmTargetINTEL(TripleStr.str()));
   auto *SIA = BM->addAsmINTEL(
       static_cast<SPIRVTypeFunction *>(transType(IA->getFunctionType())),
-      AsmTarget, IA->getAsmString(), IA->getConstraintString());
+      AsmTarget, IA->getAsmString().str(), IA->getConstraintString().str());
   if (IA->hasSideEffects())
     SIA->addDecorate(DecorationSideEffectsINTEL);
   return SIA;
@@ -5917,7 +6329,7 @@ void LLVMToSPIRVBase::transFunction(Function *I) {
 
   if (isKernel(I)) {
     auto Interface = collectEntryPointInterfaces(BF, I);
-    BM->addEntryPoint(ExecutionModelKernel, BF->getId(), BF->getName(),
+    BM->addEntryPoint(ExecutionModelKernel, BF->getId(), I->getName().str(),
                       Interface);
   }
 }
@@ -6077,7 +6489,25 @@ SPIRVInstruction *LLVMToSPIRVBase::transBuiltinToInst(StringRef DemangledName,
   return Inst;
 }
 
+void LLVMToSPIRVBase::setExecutionModeFPFastMathDefault(
+    SPIRVFunction *BF, ArrayRef<SPIRVTypeFloat *> FloatSPIRVTypes,
+    SPIRVWord FlagsLiteral) {
+  assert(BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_float_controls2));
+
+  SPIRVConstant *Flags = BM->getLiteralAsConstant(FlagsLiteral);
+  for (SPIRVTypeFloat *FloatSPIRVType : FloatSPIRVTypes) {
+    BF->addExecutionMode(
+        new SPIRVExecutionModeId(BF, spv::ExecutionModeFPFastMathDefault,
+                                 FloatSPIRVType->getId(), Flags->getId()));
+  }
+
+  BM->addCapability(CapabilityFloatControls2);
+  BM->addExtension(ExtensionID::SPV_KHR_float_controls2);
+}
+
 bool LLVMToSPIRVBase::transExecutionMode() {
+  transFPContract();
+
   if (auto NMD = SPIRVMDWalker(*M).getNamedMD(kSPIRVMD::ExecutionMode)) {
     while (!NMD.atEnd()) {
       unsigned EMode = ~0U;
@@ -6099,8 +6529,35 @@ bool LLVMToSPIRVBase::transExecutionMode() {
 
       switch (EMode) {
       case spv::ExecutionModeContractionOff:
-        BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
-            OpExecutionMode, BF, static_cast<ExecutionMode>(EMode))));
+        // With SPV_KHR_float_controls2 this execution mode is deprecated.
+        // We cannot set only the contract flag to 0, so we set all flags to 0.
+        if (BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_float_controls2)) {
+          SmallVector<SPIRVTypeFloat *> FloatSPIRVTypes;
+          for (auto [_, FloatSPIRVType] : TypeMap)
+            if (FloatSPIRVType->isTypeFloat())
+              FloatSPIRVTypes.push_back(
+                  static_cast<SPIRVTypeFloat *>(FloatSPIRVType));
+
+          // Sort the types to ensure they are always emited in a consistent
+          // order.
+          auto SortByFloatBitWidthAndEncoding = [](SPIRVTypeFloat *A,
+                                                   SPIRVTypeFloat *B) {
+            unsigned BitWidthA = A->getFloatBitWidth();
+            unsigned BitWidthB = B->getFloatBitWidth();
+            if (BitWidthA < BitWidthB)
+              return true;
+            if (BitWidthA > BitWidthB)
+              return false;
+            return A->getFloatingPointEncoding() <
+                   B->getFloatingPointEncoding();
+          };
+          llvm::sort(FloatSPIRVTypes, SortByFloatBitWidthAndEncoding);
+
+          setExecutionModeFPFastMathDefault(BF, FloatSPIRVTypes, 0);
+        } else {
+          BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
+              OpExecutionMode, BF, static_cast<ExecutionMode>(EMode))));
+        }
         break;
       case spv::ExecutionModeInitializer:
       case spv::ExecutionModeFinalizer:
@@ -6187,9 +6644,21 @@ bool LLVMToSPIRVBase::transExecutionMode() {
         BM->addCapability(CapabilityVectorComputeINTEL);
       } break;
 
+      case spv::ExecutionModeSignedZeroInfNanPreserve:
+        // With SPV_KHR_float_controls2 this execution mode is deprecated.
+        // Map this execution mode to the FPFastMathDefault with all flags set
+        // to 0.
+        if (BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_float_controls2)) {
+          unsigned BitWidth;
+          N.get(BitWidth);
+
+          SPIRVTypeFloat *FloatSPIRVType = BM->addFloatType(BitWidth);
+          setExecutionModeFPFastMathDefault(BF, FloatSPIRVType, 0);
+          break;
+        }
+        [[fallthrough]];
       case spv::ExecutionModeDenormPreserve:
       case spv::ExecutionModeDenormFlushToZero:
-      case spv::ExecutionModeSignedZeroInfNanPreserve:
       case spv::ExecutionModeRoundingModeRTE:
       case spv::ExecutionModeRoundingModeRTZ: {
         if (BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_4)) {
@@ -6210,24 +6679,32 @@ bool LLVMToSPIRVBase::transExecutionMode() {
           break;
         AddSingleArgExecutionMode(static_cast<ExecutionMode>(EMode));
       } break;
-      case spv::internal::ExecutionModeFastCompositeKernelINTEL: {
-        if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fast_composite))
-          BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
-              OpExecutionMode, BF, static_cast<ExecutionMode>(EMode))));
-      } break;
       case spv::internal::ExecutionModeNamedSubgroupSizeINTEL: {
         if (!BM->isAllowedToUseExtension(
                 ExtensionID::SPV_INTEL_subgroup_requirements))
           break;
         AddSingleArgExecutionMode(static_cast<ExecutionMode>(EMode));
       } break;
+      case spv::ExecutionModeFPFastMathDefault: {
+        if (!BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_float_controls2))
+          break;
+        assert(F);
+        BM->addCapability(CapabilityFloatControls2);
+        BM->addExtension(ExtensionID::SPV_KHR_float_controls2);
+        PoisonValue *V = nullptr;
+        unsigned FlagsLiteral;
+        N.get(V).get(FlagsLiteral);
+        assert(V && V->getType()->isFloatingPointTy());
+        SPIRVTypeFloat *FloatSPIRVType =
+            static_cast<SPIRVTypeFloat *>(transType(V->getType()));
+        setExecutionModeFPFastMathDefault(BF, FloatSPIRVType, FlagsLiteral);
+        break;
+      }
       default:
         llvm_unreachable("invalid execution mode");
       }
     }
   }
-
-  transFPContract();
 
   return true;
 }
@@ -6235,6 +6712,7 @@ bool LLVMToSPIRVBase::transExecutionMode() {
 void LLVMToSPIRVBase::transFPContract() {
   FPContractMode Mode = BM->getFPContractMode();
 
+  LLVMContext &C = M->getContext();
   for (Function &F : *M) {
     SPIRVValue *TranslatedF = getTranslatedValue(&F);
     if (!TranslatedF) {
@@ -6243,7 +6721,7 @@ void LLVMToSPIRVBase::transFPContract() {
     SPIRVFunction *BF = static_cast<SPIRVFunction *>(TranslatedF);
 
     bool IsKernelEntryPoint =
-        BF->getModule()->isEntryPoint(spv::ExecutionModelKernel, BF->getId());
+        BM->isEntryPoint(spv::ExecutionModelKernel, BF->getId());
     if (!IsKernelEntryPoint)
       continue;
 
@@ -6264,8 +6742,12 @@ void LLVMToSPIRVBase::transFPContract() {
     }
 
     if (DisableContraction) {
-      BF->addExecutionMode(BF->getModule()->add(new SPIRVExecutionMode(
-          OpExecutionMode, BF, spv::ExecutionModeContractionOff)));
+      NamedMDNode *ExecModeMD =
+          M->getOrInsertNamedMetadata(kSPIRVMD::ExecutionMode);
+      Metadata *ContractionOff[2] = {ConstantAsMetadata::get(&F),
+                                     ConstantAsMetadata::get(getUInt32(
+                                         M, spv::ExecutionModeContractionOff))};
+      ExecModeMD->addOperand(MDNode::get(C, ContractionOff));
     }
   }
 }
@@ -6284,9 +6766,8 @@ bool LLVMToSPIRVBase::transMetadata() {
 // Work around to translate kernel_arg_type and kernel_arg_type_qual metadata
 static void transKernelArgTypeMD(SPIRVModule *BM, Function *F, MDNode *MD,
                                  std::string MDName) {
-  std::string Prefix = kSPIRVName::EntrypointPrefix;
-  std::string Name = F->getName().str().substr(Prefix.size());
-  std::string KernelArgTypesMDStr = std::string(MDName) + "." + Name + ".";
+  std::string KernelArgTypesMDStr =
+      std::string(MDName) + "." + F->getName().str() + ".";
   for (const auto &TyOp : MD->operands())
     KernelArgTypesMDStr += cast<MDString>(TyOp)->getString().str() + ",";
   BM->getString(KernelArgTypesMDStr);
@@ -6780,7 +7261,10 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
                                       transValue(CI->getArgOperand(2), BB), BB);
     return BM->addStoreInst(transValue(CI->getArgOperand(0), BB), V, {}, BB);
   }
-  case OpGroupNonUniformShuffleDown: {
+  case OpGroupNonUniformShuffle:
+  case OpGroupNonUniformShuffleDown:
+  case OpGroupNonUniformShuffleUp:
+  case OpGroupNonUniformShuffleXor: {
     Function *F = CI->getCalledFunction();
     if (F->arg_size() && F->getArg(0)->hasStructRetAttr()) {
       StructType *St = cast<StructType>(F->getParamStructRetType(0));
@@ -6797,9 +7281,8 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
       SPIRVType *ElementTy = transType(MemberTy);
       SPIRVValue *Element0 =
           BM->addCompositeExtractInst(ElementTy, Composite0, {0}, BB);
-      SPIRVValue *Src =
-          BM->addGroupInst(OpGroupNonUniformShuffleDown, ElementTy,
-                           static_cast<Scope>(ScopeId), {Element0, Delta}, BB);
+      SPIRVValue *Src = BM->addGroupInst(
+          OC, ElementTy, static_cast<Scope>(ScopeId), {Element0, Delta}, BB);
       SPIRVValue *Composite1 =
           BM->addCompositeInsertInst(Src, Composite0, {0}, BB);
       return BM->addStoreInst(InValue, Composite1, {}, BB);
@@ -6841,6 +7324,18 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
       return BM->addBinaryInst(OC, transScavengedType(CI),
                                transValue(CI->getArgOperand(0), BB),
                                transValue(CI->getArgOperand(1), BB), BB);
+    } else if (OC == OpSubgroupBlockReadINTEL) {
+      SPIRVType *RetTy = transScavengedType(CI);
+      SPIRVValue *Ptr = transValue(CI->getArgOperand(0), BB);
+
+      if (Ptr->getType()->getPointerElementType() != RetTy &&
+          Ptr->getType()->getPointerElementType()->isTypeUntypedPointerKHR()) {
+        // Bitcast untyped pointer to typed pointer.
+        SPIRVType *ExpectedType = BM->addPointerType(
+            Ptr->getType()->getPointerStorageClass(), RetTy->getScalarType());
+        Ptr = BM->addUnaryInst(OpBitcast, ExpectedType, Ptr, BB);
+      }
+      return BM->addUnaryInst(OC, RetTy, Ptr, BB);
     } else if (CI->arg_size() == 1 && !CI->getType()->isVoidTy() &&
                !hasExecScope(OC) && !isAtomicOpCode(OC)) {
       return BM->addUnaryInst(OC, transScavengedType(CI),
@@ -6890,6 +7385,22 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
           SPArgs.push_back(Val->getId());
         } else {
           SPArgs.push_back(cast<ConstantInt>(Args[I])->getZExtValue());
+        }
+      }
+      if (OC == OpSubgroupBlockWriteINTEL) {
+        // First argument should be a pointer to the same scalar type as the
+        // second argument's component type is. Do the bitcast if the pointer is
+        // untyped.
+        if (BM->getValue(SPArgs[0])->getType()->isTypeUntypedPointerKHR()) {
+          // TODO: rewrite vector of IDs to vector of values?
+          SPIRVType *ScalarTy =
+              BM->getValue(SPArgs[1])->getType()->getScalarType();
+          SPIRVType *NewPtrTy = BM->addPointerType(
+              BM->getValue(SPArgs[0])->getType()->getPointerStorageClass(),
+              ScalarTy);
+          SPIRVValue *NewPtr = BM->addUnaryInst(OpBitcast, NewPtrTy,
+                                                BM->getValue(SPArgs[0]), BB);
+          SPArgs[0] = NewPtr->getId();
         }
       }
       BM->addInstTemplate(SPI, SPArgs, BB, SPRetTy);
@@ -6984,7 +7495,8 @@ bool isValidLLVMModule(Module *M, SPIRVErrorLog &ErrorLog) {
 
   Triple TT(M->getTargetTriple());
   if (!ErrorLog.checkError(isSupportedTriple(TT), SPIRVEC_InvalidTargetTriple,
-                           "Actual target triple is " + M->getTargetTriple()))
+                           "Actual target triple is " +
+                               M->getTargetTriple().str()))
     return false;
 
   return true;
@@ -7028,6 +7540,11 @@ static inline Triple::SubArchType spirvVersionToSubArch(VersionNumber VN) {
   return Triple::NoSubArch;
 }
 
+// TODO:
+// - consider exposing user facing options that are to set explicitly a Triple
+//   value and an optimization level for the LLVM SPIR-V Backend
+// - switch to the new API call: see
+//   https://github.com/llvm/llvm-project/pull/124745
 bool runSpirvBackend(Module *M, std::string &Result, std::string &ErrMsg,
                      const SPIRV::TranslatorOpts &TranslatorOpts) {
   // A list of known extensions supported by SPIR-V Backend: it's to be updated
@@ -7036,13 +7553,18 @@ bool runSpirvBackend(Module *M, std::string &Result, std::string &ErrMsg,
       SPIRV::ExtensionID::SPV_EXT_shader_atomic_float_add,
       SPIRV::ExtensionID::SPV_EXT_shader_atomic_float16_add,
       SPIRV::ExtensionID::SPV_EXT_shader_atomic_float_min_max,
+      SPIRV::ExtensionID::SPV_EXT_arithmetic_fence,
       SPIRV::ExtensionID::SPV_INTEL_arbitrary_precision_integers,
       SPIRV::ExtensionID::SPV_INTEL_cache_controls,
+      SPIRV::ExtensionID::SPV_INTEL_float_controls2,
       SPIRV::ExtensionID::SPV_INTEL_global_variable_fpga_decorations,
       SPIRV::ExtensionID::SPV_INTEL_global_variable_host_access,
       SPIRV::ExtensionID::SPV_INTEL_optnone,
       SPIRV::ExtensionID::SPV_INTEL_usm_storage_classes,
+      SPIRV::ExtensionID::SPV_INTEL_split_barrier,
       SPIRV::ExtensionID::SPV_INTEL_subgroups,
+      SPIRV::ExtensionID::SPV_INTEL_media_block_io,
+      SPIRV::ExtensionID::SPV_INTEL_joint_matrix,
       SPIRV::ExtensionID::SPV_KHR_uniform_group_instructions,
       SPIRV::ExtensionID::SPV_KHR_no_integer_wrap_decoration,
       SPIRV::ExtensionID::SPV_KHR_float_controls,
@@ -7059,13 +7581,6 @@ bool runSpirvBackend(Module *M, std::string &Result, std::string &ErrMsg,
       SPIRV::ExtensionID::SPV_KHR_non_semantic_info};
   // The fallback for the Triple value.
   static const std::string DefaultTriple = "spirv64-unknown-unknown";
-  // SPIR-V backend uses the following command line options to conform with
-  // Translator's way to generate SPIR-V or with requirements of the Compute
-  // flavor of SPIR-V. This list is subject to changes and may become empty
-  // eventually.
-  static const std::vector<std::string> Opts{"--avoid-spirv-capabilities",
-                                             "Shader",
-                                             "--translator-compatibility-mode"};
 
   std::function<bool(SPIRV::ExtensionID)> Filter =
       [](SPIRV::ExtensionID Ext) -> bool {
@@ -7081,7 +7596,7 @@ bool runSpirvBackend(Module *M, std::string &Result, std::string &ErrMsg,
                              ? Triple::spirv64
                              : Triple::spirv32,
                          TargetTriple.getSubArch());
-    M->setTargetTriple(TargetTriple.str());
+    M->setTargetTriple(TargetTriple);
     // We need to reset Data Layout to conform with the TargetMachine
     M->setDataLayout("");
   }
@@ -7090,11 +7605,11 @@ bool runSpirvBackend(Module *M, std::string &Result, std::string &ErrMsg,
       TargetTriple.setTriple(DefaultTriple);
     TargetTriple.setArch(TargetTriple.getArch(),
                          spirvVersionToSubArch(TranslatorOpts.getMaxVersion()));
-    M->setTargetTriple(TargetTriple.str());
+    M->setTargetTriple(std::move(TargetTriple));
   }
 
   // Translate the Module into SPIR-V
-  return llvm::SPIRVTranslateModule(M, Result, ErrMsg, AllowExtNames, Opts);
+  return llvm::SPIRVTranslateModule(M, Result, ErrMsg, AllowExtNames, {});
 }
 
 bool runSpirvBackend(Module *M, std::ostream *OS, std::string &ErrMsg,

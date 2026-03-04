@@ -21,26 +21,11 @@ test___spirv_SConvert_Rshort3_sat(__clc_vec3_int8_t args_0) {
 }
 
 __attribute__((overloadable)) __clc_vec3_int16_t
-test___spirv_SConvert_Rshort3_sat(__clc_vec3_uint8_t args_0) {
-  return __spirv_SConvert_Rshort3_sat(args_0);
-}
-
-__attribute__((overloadable)) __clc_vec3_int16_t
 test___spirv_SConvert_Rshort3_sat(__clc_vec3_int32_t args_0) {
   return __spirv_SConvert_Rshort3_sat(args_0);
 }
 
 __attribute__((overloadable)) __clc_vec3_int16_t
-test___spirv_SConvert_Rshort3_sat(__clc_vec3_uint32_t args_0) {
-  return __spirv_SConvert_Rshort3_sat(args_0);
-}
-
-__attribute__((overloadable)) __clc_vec3_int16_t
 test___spirv_SConvert_Rshort3_sat(__clc_vec3_int64_t args_0) {
-  return __spirv_SConvert_Rshort3_sat(args_0);
-}
-
-__attribute__((overloadable)) __clc_vec3_int16_t
-test___spirv_SConvert_Rshort3_sat(__clc_vec3_uint64_t args_0) {
   return __spirv_SConvert_Rshort3_sat(args_0);
 }

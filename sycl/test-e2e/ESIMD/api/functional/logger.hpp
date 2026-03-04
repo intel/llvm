@@ -166,7 +166,7 @@ template <typename... argsT> inline void debug(const argsT &...args) {
 #endif
 }
 
-// Syntax sugar for tracing test cases; could be usefull in case of test crash
+// Syntax sugar for tracing test cases; could be useful in case of test crash
 // or freeze
 template <typename TestCaseDescriptionT, typename... argsT>
 inline void trace(const argsT &...args) {

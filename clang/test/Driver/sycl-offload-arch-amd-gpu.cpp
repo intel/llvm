@@ -50,12 +50,6 @@
 // RUN: %clangxx -### --offload-new-driver -fsycl --offload-arch=gfx90c -nogpulib -fno-sycl-libspirv %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-AMD-GPU,CLANG-OFFLOAD-PACKAGER-AMD -DDEV_STR=gfx90c -DMAC_STR=GFX90C
 
-// RUN: %clangxx -### --offload-new-driver -fsycl --offload-arch=gfx940 -nogpulib -fno-sycl-libspirv %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-AMD-GPU,CLANG-OFFLOAD-PACKAGER-AMD -DDEV_STR=gfx940 -DMAC_STR=GFX940
-
-// RUN: %clangxx -### --offload-new-driver -fsycl --offload-arch=gfx941 -nogpulib -fno-sycl-libspirv %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-AMD-GPU,CLANG-OFFLOAD-PACKAGER-AMD -DDEV_STR=gfx941 -DMAC_STR=GFX941
-
 // RUN: %clangxx -### --offload-new-driver -fsycl --offload-arch=gfx942 -nogpulib -fno-sycl-libspirv %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-AMD-GPU,CLANG-OFFLOAD-PACKAGER-AMD -DDEV_STR=gfx942 -DMAC_STR=GFX942
 
@@ -118,7 +112,7 @@
 
 // TARGET-TRIPLE-AMD-GPU: clang{{.*}} "-triple" "amdgcn-amd-amdhsa"
 // TARGET-TRIPLE-AMD-GPU: "-D__SYCL_TARGET_AMD_GPU_[[MAC_STR]]__"
-// CLANG-OFFLOAD-PACKAGER-AMD: clang-offload-packager{{.*}} "--image={{.*}}triple=amdgcn-amd-amdhsa,arch=[[DEV_STR]],kind=sycl"
+// CLANG-OFFLOAD-PACKAGER-AMD: llvm-offload-binary{{.*}} "--image={{.*}}triple=amdgcn-amd-amdhsa,arch=[[DEV_STR]],kind=sycl"
 
 // Tests for handling an invalid architecture.
 //
@@ -127,6 +121,4 @@
 // RUN: not %clang_cl --offload-new-driver -fsycl --offload-arch=gfx10_3_generic %s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix=ERROR %s
 
-// ERROR: error: SYCL target is invalid: 'gfx10_3_generic'
-
-
+// ERROR: error: unsupported offload gpu architecture: gfx10_3_generic

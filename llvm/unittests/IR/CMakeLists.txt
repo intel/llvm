@@ -30,6 +30,7 @@ add_llvm_unittest(IRTests
   FPAccuracyTest.cpp
   DroppedVariableStatsIRTest.cpp
   FunctionTest.cpp
+  GlobalObjectTest.cpp
   PassBuilderCallbacksTest.cpp
   IRBuilderTest.cpp
   InstructionsTest.cpp
@@ -45,6 +46,7 @@ add_llvm_unittest(IRTests
   PatternMatch.cpp
   ShuffleVectorInstTest.cpp
   StructuralHashTest.cpp
+  RuntimeLibcallsTest.cpp
   TimePassesTest.cpp
   TypesTest.cpp
   UseTest.cpp
@@ -52,7 +54,6 @@ add_llvm_unittest(IRTests
   ValueHandleTest.cpp
   ValueMapTest.cpp
   ValueTest.cpp
-  VectorBuilderTest.cpp
   VectorTypeUtilsTest.cpp
   VectorTypesTest.cpp
   VerifierTest.cpp

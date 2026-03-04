@@ -1,7 +1,8 @@
 // REQUIRES: aspect-fp16, aspect-ext_intel_legacy_image
 
-// UNSUPPORTED: cuda, hip
-// CUDA cannot support SYCL 1.2.1 images.
+// UNSUPPORTED: cuda
+// UNSUPPORTED-INTENDED: CUDA doesn't fully support SYCL 1.2.1 images. Bindless
+// images should be used instead.
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

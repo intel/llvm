@@ -25,7 +25,7 @@ int main() {
 }
 
 // Check declaration of the kernel
-// CHECK: wrapped_access{{.*}} 'void (__global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'
+// CHECK: wrapped_access{{.*}} 'void (__global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>) __attribute__((device_kernel))'
 
 // Check parameters of the kernel
 // CHECK: ParmVarDecl {{.*}} used _arg_accessor '__global int *'
@@ -52,13 +52,13 @@ int main() {
 // CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_accessor' '__global int *'
 
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'range<1>':'sycl::range<1>'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const range<1>':'const sycl::range<1>' lvalue <NoOp>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const range<1>' lvalue <NoOp>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::range<1>' lvalue ParmVar {{.*}} '[[_arg_AccessRange]]' 'sycl::range<1>'
 
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'range<1>':'sycl::range<1>'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const range<1>':'const sycl::range<1>' lvalue <NoOp>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const range<1>' lvalue <NoOp>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::range<1>' lvalue ParmVar {{.*}} '[[_arg_MemRange]]' 'sycl::range<1>'
 
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'id<1>':'sycl::id<1>'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const id<1>':'const sycl::id<1>' lvalue <NoOp>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const id<1>' lvalue <NoOp>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::id<1>' lvalue ParmVar {{.*}} '[[_arg_Offset]]' 'sycl::id<1>'

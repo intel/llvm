@@ -17,14 +17,14 @@
 
 using namespace llvm;
 
-static void addNVVMMetadata(GlobalValue &GV, StringRef Name, int Operand) {
-  Module *M = GV.getParent();
+static void addNVVMMetadata(Function &F, StringRef Name, int Operand) {
+  Module *M = F.getParent();
   LLVMContext &Ctx = M->getContext();
 
   // Get "nvvm.annotations" metadata node
   NamedMDNode *MD = M->getOrInsertNamedMetadata("nvvm.annotations");
 
-  Metadata *MDVals[] = {ConstantAsMetadata::get(&GV), MDString::get(Ctx, Name),
+  Metadata *MDVals[] = {ConstantAsMetadata::get(&F), MDString::get(Ctx, Name),
                         ConstantAsMetadata::get(
                             ConstantInt::get(Type::getInt32Ty(Ctx), Operand))};
   // Append metadata to nvvm.annotations
@@ -72,7 +72,7 @@ SYCLCreateNVVMAnnotationsPass::run(Module &M, ModuleAnalysisManager &MAM) {
 
     constexpr static std::pair<const char *, std::array<const char *, 3>>
         WGAnnotations[] = {
-            {"reqd_work_group_size", {"reqntidx", "reqntidy", "reqntidx"}},
+            {"reqd_work_group_size", {"reqntidx", "reqntidy", "reqntidz"}},
             {"max_work_group_size", {"maxntidx", "maxntidy", "maxntidz"}}};
 
     for (auto &[MDName, Annotations] : WGAnnotations) {

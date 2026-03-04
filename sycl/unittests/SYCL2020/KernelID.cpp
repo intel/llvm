@@ -17,7 +17,6 @@
 class TestKernel1;
 class TestKernel2;
 class TestKernel3;
-class ServiceKernel1;
 
 namespace sycl {
 inline namespace _V1 {
@@ -36,13 +35,6 @@ template <>
 struct KernelInfo<TestKernel3> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "KernelID_TestKernel3"; }
 };
-
-template <>
-struct KernelInfo<ServiceKernel1> : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() {
-    return "_ZTSN2cl4sycl6detail23__sycl_service_kernel__14ServiceKernel1";
-  }
-};
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
@@ -50,9 +42,7 @@ struct KernelInfo<ServiceKernel1> : public unittest::MockKernelInfoBase {
 static sycl::unittest::MockDeviceImage Imgs[2] = {
     sycl::unittest::generateDefaultImage(
         {"KernelID_TestKernel1", "KernelID_TestKernel3"}),
-    sycl::unittest::generateDefaultImage(
-        {"KernelID_TestKernel2",
-         "_ZTSN2cl4sycl6detail23__sycl_service_kernel__14ServiceKernel1"})};
+    sycl::unittest::generateDefaultImage({"KernelID_TestKernel2"})};
 static sycl::unittest::MockDeviceImageArray<2> ImgArray{Imgs};
 
 TEST(KernelID, AllProgramKernelIds) {
@@ -72,20 +62,6 @@ TEST(KernelID, AllProgramKernelIds) {
         std::find(AllKernelIDs.begin(), AllKernelIDs.end(), TestKernelID);
     EXPECT_NE(FoundKernelID, AllKernelIDs.end());
   }
-}
-
-TEST(KernelID, NoServiceKernelIds) {
-  const char *ServiceKernel1Name =
-      sycl::detail::KernelInfo<ServiceKernel1>::getName();
-
-  std::vector<sycl::kernel_id> AllKernelIDs = sycl::get_kernel_ids();
-
-  auto NoFoundServiceKernelID = std::none_of(
-      AllKernelIDs.begin(), AllKernelIDs.end(), [=](sycl::kernel_id KernelID) {
-        return strcmp(KernelID.get_name(), ServiceKernel1Name) == 0;
-      });
-
-  EXPECT_TRUE(NoFoundServiceKernelID);
 }
 
 TEST(KernelID, FreeKernelIDEqualsKernelBundleId) {

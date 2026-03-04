@@ -1,2 +1,0 @@
-This extension has been deprecated, but the specification is still available
-link:../deprecated/sycl_ext_intel_online_compiler.asciidoc[here].

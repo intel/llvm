@@ -1,13 +1,5 @@
-// FIXME: Investigate OS-agnostic failures
-// UNSUPPORTED: true
-// UNSUPPORTED: cuda || hip
-// CUDA and HIP compilation and runtime do not yet support sub-groups.
-//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-
-// UNSUPPORTED: windows
-// The failure is caused by intel/llvm#5213
 
 //==- free_function_queries_sub_group.cpp - SYCL free queries for sub group -=//
 //
@@ -31,15 +23,11 @@ int main() {
   int counter{0};
   {
     constexpr int checks_number{4};
-    int results[checks_number]{};
+    int results[checks_number]{41, 42, 43, 44};
     {
       sycl::buffer<int> buf(data, sycl::range<1>(n));
       sycl::buffer<int> results_buf(results, sycl::range<1>(checks_number));
       sycl::queue q;
-      if (!core_sg_supported(q.get_device())) {
-        std::cout << "Skipping test" << std::endl;
-        return 0;
-      }
       sycl::nd_range<1> NDR(sycl::range<1>{n}, sycl::range<1>{2});
       q.submit([&](sycl::handler &cgh) {
         sycl::accessor<int, 1, sycl::access::mode::write,

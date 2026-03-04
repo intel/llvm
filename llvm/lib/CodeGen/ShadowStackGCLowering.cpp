@@ -109,7 +109,7 @@ public:
 PreservedAnalyses ShadowStackGCLoweringPass::run(Module &M,
                                                  ModuleAnalysisManager &MAM) {
   auto &Map = MAM.getResult<CollectorMetadataAnalysis>(M);
-  if (Map.StrategyMap.contains("shadow-stack"))
+  if (!Map.contains("shadow-stack"))
     return PreservedAnalyses::all();
 
   ShadowStackGCLoweringImpl Impl;
@@ -141,9 +141,7 @@ INITIALIZE_PASS_END(ShadowStackGCLowering, DEBUG_TYPE,
 
 FunctionPass *llvm::createShadowStackGCLoweringPass() { return new ShadowStackGCLowering(); }
 
-ShadowStackGCLowering::ShadowStackGCLowering() : FunctionPass(ID) {
-  initializeShadowStackGCLoweringPass(*PassRegistry::getPassRegistry());
-}
+ShadowStackGCLowering::ShadowStackGCLowering() : FunctionPass(ID) {}
 
 Constant *ShadowStackGCLoweringImpl::GetFrameMap(Function &F) {
   // doInitialization creates the abstract type of this value.
@@ -233,7 +231,7 @@ bool ShadowStackGCLoweringImpl::doInitialization(Module &M) {
   // Specifies length of variable length array.
   EltTys.push_back(Type::getInt32Ty(M.getContext()));
   FrameMapTy = StructType::create(EltTys, "gc_map");
-  PointerType *FrameMapPtrTy = PointerType::getUnqual(FrameMapTy);
+  PointerType *FrameMapPtrTy = PointerType::getUnqual(M.getContext());
 
   // struct StackEntry {
   //   ShadowStackEntry *Next; // Caller's stack entry.

@@ -1,0 +1,490 @@
+= sycl_ext_oneapi_reusable_events
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2025 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 11 specification.
+All references below to the "core SYCL specification" or to section numbers in
+the SYCL specification refer to that revision.
+
+This extension also depends on the following other SYCL extensions:
+
+* link:../experimental/sycl_ext_oneapi_properties.asciidoc[
+  sycl_ext_oneapi_properties]
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.
+Interfaces defined in this specification may not be implemented yet or may be in
+a preliminary state.
+The specification itself may also change in incompatible ways before it is
+finalized.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+
+== Overview
+
+This extension adds the ability to reuse the same `event` object to track
+completion of multiple command submissions, rather than creating a new event for
+each submission.
+An `event` object is still only able to track one command at a time, but this
+extension allows an `event` to track a new command once the application no
+longer needs to track the previous one.
+This pattern may perform better on some implementations because fewer event
+objects need to be created and destroyed.
+This pattern may also be more familiar to users porting CUDA code to SYCL.
+
+This extension also adds a way to construct an event that enables profiling
+timing without enabling profiling on the entire queue.
+This is more efficient on some platforms because only a subset of the events are
+required to contain timestamp information.
+It is also more convenient for use in libraries when the library wants to get
+timing information for some commands, but the library does not control the
+construction of the queue.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.
+An implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_REUSABLE_EVENTS` to one of the values defined in the table
+below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's value
+to determine which of the extension's features the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== New functions to create an event
+
+This extension adds the following factory functions which can create an event
+with a specific context.
+
+'''
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template<typename PropertyListT = empty_properties_t>
+event make_event(const context &ctxt, PropertyListT props = {});
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+_Constraints:_
+
+* `PropertyListT` is one of the properties listed below in section "New property
+  for creating an event"; or
+* `is_property_list_v<PropertyListT>` is `true` and contains no properties other
+  than those listed below in section "New property for creating an event".
+
+_Returns:_ An event that is associated with context `ctxt`.
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+`PropertyListT` contains an `enable_profiling` property that enables profiling
+timestamps and if the platform containing `context` does not support creation
+of such events as reported by the `event_profiling` information descriptor.
+
+'''
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template<typename PropertyListT = empty_properties_t>
+event make_event(PropertyListT props = {});
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+_Constraints:_
+
+* `PropertyListT` is one of the properties listed below in section "New property
+  for creating an event"; or
+* `is_property_list_v<PropertyListT>` is `true` and contains no properties other
+  than those listed below in section "New property for creating an event".
+
+_Effects:_ Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::device d;
+sycl::context ctxt = d.get_platform().khr_get_default_context();
+return sycl::ext::oneapi::experimental::make_event(ctxt, props);
+----
+
+'''
+
+=== New property for creating an event
+
+This extension adds the following property, which can be used with `make_event`:
+
+'''
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+struct enable_profiling {
+  enable_profiling(bool enable);  (1)
+};
+using enable_profiling_key = enable_profiling;
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+This property controls whether the event captures profiling timestamps.
+
+_Effects_ (1): Creates a new `enable_profiling` property with a boolean value
+indicating whether the event captures profiling timestamp information.
+
+'''
+
+=== New information descriptor for the platform class
+
+This extension adds the following information descriptor that can be used as the
+`Param` template parameter to `platform::get_info`.
+
+'''
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental::info::platform {
+
+struct event_profiling {
+  using return_type = bool;
+};
+
+} // namespace sycl::ext::oneapi::experimental::info::platform
+----
+
+_Remarks:_ Template parameter to `platform::get_info`.
+
+_Returns:_ The value `true` if this platform allows events to be created with
+profiling enabled via `make_event`.
+
+'''
+
+=== New functions to enqueue event operations
+
+This extension adds the following free functions which submit operations related
+to events onto a queue.
+
+'''
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+void enqueue_wait_event(queue q, const event& evt);
+void enqueue_wait_events(queue q, const std::vector<event>& evts);
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+_Effects:_ Enqueues a special barrier to `q` with the following semantic.
+Any commands submitted to the queue after this barrier cannot begin execution
+until all commands associated with `evt` or `evts` have completed.
+
+_Remarks:_ The event `evt` and the events in `evts` do _not_ need to have the
+same context as `q`.
+
+'''
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+void enqueue_signal_event(queue q, event& evt);
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+_Effects:_ The event `evt` is immediately disassociated with any previous
+command, and its status is set to `info::event_command_status::submitted`.
+
+If the queue `q` is in-order (i.e. was constructed with
+`property::queue::in_order`), this function enqueues a lightweight "tag"
+operation that marks the current head of the queue.
+The status of `evt` becomes `info::event_command_status::complete` when all
+commands submitted prior to the tag have completed.
+
+If the queue `q` is out-of-order, it enqueues a command barrier, and any
+commands submitted after this barrier cannot begin execution until all
+previously submitted commands have completed.
+After the barrier completes, a "tag" operation sets the status of `evt` to
+`info::event_command_status::complete`.
+
+The event's timestamp information is also set if the queue `q` was created with
+the `property::queue::enable_profiling` property or if the event `e` was created
+with the `ext::oneapi::experimental::enable_profiling` property.
+The event's `info::event_profiling::command_submit` timestamp reflects the time
+at which `enqueue_signal_event` is called.
+The event's `info::event_profiling::command_end` timestamp reflects the time at
+which the event enters the "complete" state.
+The event's `info::event_profiling::command_start` timestamp reflects the time
+that the tag operation starts executing.
+This timestamp is between the `info::event_profiling::command_submit` and
+`info::event_profiling::command_end` timestamps.
+
+It is unspecified whether the event ever has the
+`info::event_command_status::running` status.
+Implementations are encouraged to transition the event directly from the
+"submitted" status to the "complete" status and are encouraged to set the
+"command_start" timestamp to the same value as the "command_end" timestamp.
+
+[_Note:_ In order to understand why the "command_start" and "command_end"
+timestamps are encouraged to be the same, think of the tag operation as an empty
+kernel with an implicit set of dependencies on all previous commands in the
+same queue.
+This theoretical kernel starts executing when the dependencies are resolved.
+Since the kernel is empty, the end time is the same as the start time.
+The "command_start" and "command_end" timestamps are not required to be the
+same, though, in order to accommodate an implementation where the tag operation
+is implemented by submitting an actual kernel, which has non-zero execution
+time.
+_{endnote}_]
+
+_Throws:_ An `exception` with the `errc::invalid` error code if `evt` and `q`
+don't have the same context.
+
+=== Interaction with other event APIs
+
+An event _E_ created via `make_event` can be used as a command dependency (e.g.
+via `handler::depends_on`) for a command submitted to some queue _Q_.
+It is _not_ necessary for the context of _E_ to match the context of _Q_.
+
+If an event _E_ is used as a command dependency for some command _C_ (e.g. via
+`handler::depends_on`), the dependency is captured at the point when _C_ is
+submitted.
+It is legal to reassociated the event _E_ to a new command via
+`enqueue_signal_event` even before command _C_ completes.
+Doing so does _not_ change the dependency for command _C_.
+
+If another host thread is blocked waiting for event _E_ to complete via
+`event:wait` or `event::wait_and_throw` when event _E_ is reassociated with a
+new command via `enqueue_signal_event`, the behavior of the `event:wait` or
+`event::wait_and_throw` call is undefined.
+
+
+== Examples
+
+=== Recording cross queue dependencies
+
+[source,c++]
+----
+#include <sycl/sycl.hpp>
+namespace syclex = sycl::ext::oneapi::experimental;
+
+static constexpr size_t N = 1024;
+
+int main() {
+  sycl::queue q1{sycl::property::queue::in_order{}};
+  sycl::queue q2{sycl::property::queue::in_order{}};
+  sycl::event e = syclex::make_event();
+
+  // Launch a kernel on `q1` and then signal an event when the kernel completes.
+  syclex::parallel_for(q1, {N}, [=](sycl::item<> it) { /* ... */ });
+  syclex::enqueue_signal_event(q1, e);
+
+  // Add a dependency on `q2` which waits for the kernel on `q1` to complete.
+  // Then launch a kernel on `q2`.
+  syclex::enqueue_wait_event(q2, e);
+  syclex::parallel_for(q2, {N}, [=](sycl::item<> it) { /* ... */ });
+
+  // Reassociate the same event with the kernel on `q2`.
+  syclex::enqueue_signal_event(q2, e);
+
+  // Wait for both commands to complete.
+  e.wait();
+}
+----
+
+=== Timing a sequence of kernels
+
+[source,c++]
+----
+#include <iostream>
+#include <sycl/sycl.hpp>
+namespace syclex = sycl::ext::oneapi::experimental;
+
+static constexpr size_t N = 1024;
+
+int main() {
+  sycl::queue q;
+
+  // This example creates a queue that does not enable profiling and then
+  // creates events that do enable profiling.  This is an optional feature, so
+  // check if the platform supports this.
+  sycl::platform p = q.get_platform();
+  if (!p.get_info<syclex::info::platform::event_profiling>) {
+    std::cout << "Cannot time kernels without enabling profiling on queue\n";
+    return;
+  }
+
+  sycl::event start = syclex::make_event(syclex::enable_profiling{true});
+  sycl::event end = syclex::make_event(syclex::enable_profiling{true});
+
+  syclex::enqueue_signal_event(q, start);
+  sycl::parallel_for(q, {N}, [=](auto i) { /* first kernel */ });
+  sycl::parallel_for(q, {N}, [=](auto i) { /* second kernel */ });
+  syclex::enqueue_signal_event(q, end);
+
+  q.wait();
+
+  uint64_t elapsed =
+    end.get_profiling_info<sycl::info::event_profiling::command_start>() -
+    start.get_profiling_info<sycl::info::event_profiling::command_end>();
+  std::cout << "Execution time: " << elapsed << " (nanoseconds)\n";
+}
+----
+
+
+== Implementation notes
+
+=== Mapping on Level Zero
+
+The APIs in this extension have a straightforward mapping to Level Zero when
+using counter-based events:
+
+* The `make_event` function maps to `zeEventPoolCreate` and `zeEventCreate`.
+  If the `enable_profiling` property is specified to `make_event`, the event
+  should be created from a pool that has the
+  `ZE_EVENT_POOL_FLAG_KERNEL_TIMESTAMP` flag.
+* Platforms on the Level Zero backend can return `true` for the
+  `event_profiling` information descriptor.
+* The `enqueue_wait_event` function maps to `zeCommandListAppendWaitOnEvents`.
+* The `enqueue_signal_event` function maps to `zeCommandListAppendSignalEvent`.
+* The SYCL `event` passed to `enqueue_signal_event` will contain a
+  `ze_event_handle_t`.
+  Each call to `zeCommandListAppendSignalEvent` can pass this same
+  `ze_event_handle_t`, thus reusing the backend event across many calls.
+
+However, standard events do not directly map because a standard Level Zero event
+_E_ cannot be passed to `zeCommandListAppendSignalEvent` until all previous
+"signal" operations on _E_ have completed and all previous commands using _E_
+as a "wait event" (i.e. dependency) have completed.
+To compensate for this, the runtime can track the lifetime of the backend event.
+If the backend event associated with `enqueue_signal_event` is still in use,
+the runtime can disassociate that backend event from the SYCL event, and
+allocate a new backend event.
+
+A counter-based event, however, cannot be used to signal a command in an
+out-of-order queue.
+Therefore, the implementation currently uses standard events for out-of-order
+queues and counter-based events for in-order queues.
+This presents a problem for the `make_event` function because we do not know
+whether the event will be used with an in-order vs. an out-of-order queue at the
+point when it is created.
+One option is to require the application to pass a property to `make_event`
+telling whether the event will be used to signal an in-order vs. an out-of-order
+queue.
+Doing this is less convenient for the user, though.
+Instead, `make_event` can always create a counter-based event when the backend
+is Level Zero.
+If the application later uses the SYCL event to signal a command from an
+out-of-order queue, the implementation can release the backend counter-based
+event and allocate a standard-event instead.
+This optimizes for the case of in-order queues and adds a bit of overhead to
+the case when the queue is out-of-order.
+However, this is consistent with our strategy to favor in-order queues as the
+optimal path.
+Alternatively, `make_event` could simply not allocate any backend event,
+delaying this until the first time the event is used to signal a command.
+At that point, we do know whether the event will signal an out-of-order vs. an
+in order queue, so we can create the right type of backend event.
+
+=== Mapping on OpenCL
+
+The mapping is not so straightforward for OpenCL because OpenCL APIs return an
+event when a command is submitted, rather than taking an event as input.
+
+* The `make_event` function has no direct mapping to OpenCL.
+  Instead, this function just creates SYCL `event` object with no underlying
+  OpenCL event.
+* Platforms on the OpenCL backend are expected to return `false` for the
+  `event_profiling` information descriptor, unless we create some OpenCL
+  extension that makes this possible.
+* The `enqueue_wait_event` function maps to either `clEnqueueMarkerWithWaitList`
+  (for in-order queues) or to `clEnqueueBarrierWithWaitList` (for out-of-order
+  queues).
+  In either case, the output `event` parameter should be NULL.
+  It would also be legal to call `clEnqueueBarrierWithWaitList` for both
+  in-order and out-of-order queues.
+* The `enqueue_signal_event` function also maps to either
+  `clEnqueueMarkerWithWaitList` or `clEnqueueBarrierWithWaitList`, but in this
+  case the input `event_wait_list` parameter is empty and the output `event`
+  parameter is non-NULL.
+  These OpenCL functions return an output `cl_event`, and the SYCL runtime will
+  store this in the SYCL `event`.
+* Because OpenCL is unable to reuse a `cl_event`, subsequent calls to
+  `enqueue_signal_event` first check to see if there is a `cl_event` from a
+  previous call attached to the SYCL `event`.
+  If so, the `cl_event` is released before calling `clEnqueueMarkerWithWaitList`
+  or `clEnqueueBarrierWithWaitList`.
+
+=== Host tasks
+
+Because host tasks are executed by the SYCL runtime, there can be cases where
+a command _C_ is submitted at the SYCL level, but the command remains pending
+inside the SYCL runtime until a host task completes.
+(E.g. when command _C_ has a dependency on the host task.)
+As a result, there may be cases when `enqueue_signal_event` must also leave the
+"event signal" operation pending in the SYCL runtime, or when
+`enqueue_wait_event` must leave the "event wait" operation pending in the SYCL
+runtime.
+In these cases, we expect that a backend event may not be associated with the
+SYCL event until the pending operations are resolved in the runtime library.
+This will likely cause the handling of events to be less efficient when host
+tasks are submitted to the same queue as "native" commands like kernels or
+copy operations, or when there are dependencies between host tasks and native
+commands.

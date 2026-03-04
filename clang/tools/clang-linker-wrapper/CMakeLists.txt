@@ -8,6 +8,7 @@ set(LLVM_LINK_COMPONENTS
   TransformUtils
   Analysis
   Passes
+  Plugins
   IRReader
   Object
   Option
@@ -17,6 +18,7 @@ set(LLVM_LINK_COMPONENTS
   LTO
   FrontendOffloading
   SYCLLowerIR
+  SYCLPostLink
   )
 
 set(LLVM_TARGET_DEFINITIONS LinkerWrapperOpts.td)

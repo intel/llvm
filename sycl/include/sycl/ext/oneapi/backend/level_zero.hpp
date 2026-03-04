@@ -113,7 +113,8 @@ inline device make_device<backend::ext_oneapi_level_zero>(
       continue;
 
     for (auto &d : p.get_devices()) {
-      if (auto maybe_device = find_matching_descendent_device(d, BackendObject))
+      if (auto maybe_device =
+              detail::find_matching_descendent_device(d, BackendObject))
         return *maybe_device;
     }
   }
@@ -185,7 +186,7 @@ make_kernel_bundle<backend::ext_oneapi_level_zero, bundle_state::executable>(
           BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep,
           bundle_state::executable, backend::ext_oneapi_level_zero);
   return detail::createSyclObjFromImpl<kernel_bundle<bundle_state::executable>>(
-      KBImpl);
+      std::move(KBImpl));
 }
 
 // Specialization of sycl::make_kernel for Level-Zero backend.

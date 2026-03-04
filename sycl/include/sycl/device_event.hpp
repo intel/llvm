@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <sycl/__spirv/spirv_ops.hpp>
 #include <sycl/__spirv/spirv_types.hpp>
 
 namespace sycl {
@@ -31,7 +30,12 @@ public:
 
   device_event(__ocl_event_t Event) : m_Event(Event) {}
 
-  void wait() { __spirv_GroupWaitEvents(__spv::Scope::Workgroup, 1, &m_Event); }
+  void wait() {
+    (void)m_Event;
+#ifdef __SYCL_DEVICE_ONLY__
+    __spirv_GroupWaitEvents(__spv::Scope::Workgroup, 1, &m_Event);
+#endif
+  }
 };
 
 } // namespace _V1

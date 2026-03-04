@@ -6,19 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clcmacro.h>
+#include <clc/math/clc_nextafter.h>
 #include <libspirv/spirv.h>
 
-_CLC_DEFINE_BINARY_BUILTIN(float, __spirv_ocl_nextafter, __builtin_nextafterf,
-                           float, float)
-
-#ifdef cl_khr_fp64
-
-#pragma OPENCL EXTENSION cl_khr_fp64 : enable
-
-_CLC_DEFINE_BINARY_BUILTIN(double, __spirv_ocl_nextafter, __builtin_nextafter,
-                           double, double)
-
-#endif
-
-#include <libspirv/generic/math/half_nextafter.inc>
+#define __CLC_FUNCTION __spirv_ocl_nextafter
+#define __CLC_IMPL_FUNCTION(x) __clc_nextafter
+#define __CLC_BODY <clc/shared/binary_def.inc>
+#include <clc/math/gentype.inc>

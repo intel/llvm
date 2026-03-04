@@ -46,6 +46,11 @@ static const unsigned NVPTXAddrSpaceMap[] = {
     0, // ptr32_uptr
     0, // ptr64
     0, // hlsl_groupshared
+    0, // hlsl_constant
+    0, // hlsl_private
+    0, // hlsl_device
+    0, // hlsl_input
+    0, // hlsl_push_constant
     // Wasm address space values for this target are dummy values,
     // as it is only enabled for Wasm targets.
     20, // wasm_funcref
@@ -74,7 +79,7 @@ public:
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override;
 
-  ArrayRef<Builtin::Info> getTargetBuiltins() const override;
+  llvm::SmallVector<Builtin::InfosShard> getTargetBuiltins() const override;
 
   bool useFP16ConversionIntrinsics() const override { return false; }
 
@@ -84,7 +89,10 @@ public:
                  const std::vector<std::string> &FeaturesVec) const override {
     if (GPU != OffloadArch::UNUSED)
       Features[OffloadArchToString(GPU)] = true;
-    Features["ptx" + std::to_string(PTXVersion)] = true;
+    // Only add PTX feature if explicitly requested. Otherwise, let the backend
+    // use the minimum required PTX version for the target SM.
+    if (PTXVersion != 0)
+      Features["ptx" + std::to_string(PTXVersion)] = true;
     return TargetInfo::initFeatureMap(Features, Diags, CPU, FeaturesVec);
   }
 
@@ -175,6 +183,8 @@ public:
     Opts["cl_khr_int64_extended_atomics"] = true;
     Opts["cl_khr_fp16"] = true;
     Opts["cl_khr_3d_image_writes"] = true;
+
+    Opts["__opencl_c_generic_address_space"] = true;
   }
 
   const llvm::omp::GV &getGridValue() const override {
@@ -202,11 +212,12 @@ public:
     // a host function.
     if (HostTarget)
       return HostTarget->checkCallingConvention(CC);
-    return CCCR_Warning;
+    return CC == CC_DeviceKernel ? CCCR_OK : CCCR_Warning;
   }
 
-  void adjust(DiagnosticsEngine &Diags, LangOptions &Opts) override {
-    TargetInfo::adjust(Diags, Opts);
+  void adjust(DiagnosticsEngine &Diags, LangOptions &Opts,
+              const TargetInfo *Aux) override {
+    TargetInfo::adjust(Diags, Opts, Aux);
     // FIXME: Needed for compiling SYCL to PTX.
     TLSSupported = TLSSupported || Opts.SYCLIsDevice;
   }

@@ -5,8 +5,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// REQUIRES: target-spir
+
 // REQUIRES: aspect-fp16
 // REQUIRES: aspect-ext_intel_matrix
+
+// XFAIL: windows && intel_gpu_lnl_m && O0
+// XFAIL-TRACKER: CMPLRLLVM-72111
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

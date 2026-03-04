@@ -22,13 +22,29 @@ struct bitselect_elem_type
           (!is_vec_or_swizzle_v<T> &&
            check_type_in_v<get_elem_type_t<T>, INTEGER_TYPES>)> {};
 
-template <typename T>
-struct rel_ret_traits
-    : std::conditional<is_scalar_arithmetic_v<T>, bool,
-                       std::conditional_t<
-                           is_marray_v<T>, marray<bool, num_elements<T>::value>,
-                           same_size_signed_int_t<simplify_if_swizzle_t<T>>>> {
+template <typename T, typename = void> struct rel_ret_traits_impl {
+  // Return type trait is instantiated even if the arguments don't pass
+  // requirements check. Make sure it doesn't cause an error.
+  using type = void;
 };
+
+template <typename T>
+struct rel_ret_traits_impl<T, std::enable_if_t<is_scalar_arithmetic_v<T>>> {
+  using type = bool;
+};
+
+template <typename T>
+struct rel_ret_traits_impl<T, std::enable_if_t<is_marray_v<T>>> {
+  using type = marray<bool, T::size()>;
+};
+
+template <typename T>
+struct rel_ret_traits_impl<T, std::enable_if_t<is_vec_or_swizzle_v<T>>> {
+  using type =
+      vec<fixed_width_signed<sizeof(typename T::element_type)>, T::size()>;
+};
+
+template <typename T> using rel_ret_traits = rel_ret_traits_impl<T>;
 } // namespace detail
 
 BUILTIN_CREATE_ENABLER(builtin_enable_bitselect, default_ret_type,
@@ -47,7 +63,7 @@ auto builtin_device_rel_impl(FuncTy F, const Ts &...xs) {
     // the relation builtin (vector of int16_t/int32_t/int64_t depending on the
     // arguments' element type).
     auto ret = F(builtins::convert_arg(xs)...);
-    vec<signed char, num_elements<T>::value> tmp{ret};
+    auto tmp = bit_cast<vec<signed char, num_elements<T>::value>>(ret);
     using res_elem_type = fixed_width_signed<sizeof(get_elem_type_t<T>)>;
     static_assert(is_scalar_arithmetic_v<res_elem_type>);
     return tmp.template convert<res_elem_type>();
@@ -67,7 +83,7 @@ auto builtin_delegate_rel_impl(FuncTy F, const Ts &...x) {
     return F(simplify_if_swizzle_t<T>{x}...);
   } else if constexpr (is_vec_v<T>) {
     // TODO: using Res{} to avoid Werror. Not sure if ok.
-    vec<same_size_signed_int_t<get_elem_type_t<T>>, T::size()> Res{};
+    vec<fixed_width_signed<sizeof(typename T::element_type)>, T::size()> Res{};
     detail::loop<T::size()>(
         [&](auto idx) { Res[idx] = F(x[idx]...) ? -1 : 0; });
     return Res;

@@ -67,6 +67,8 @@ template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
 ///
 /// \ingroup sycl_api
 class __SYCL_EXPORT kernel : public detail::OwnerLessBase<kernel> {
+  friend sycl::detail::ImplUtils;
+
 public:
   /// Constructs a SYCL kernel instance from an OpenCL cl_kernel
   ///
@@ -131,12 +133,7 @@ public:
   /// Queries the kernel object for SYCL backend-specific information.
   ///
   /// The return type depends on information being queried.
-  template <typename Param
-#if defined(_GLIBCXX_USE_CXX11_ABI) && _GLIBCXX_USE_CXX11_ABI == 0
-            ,
-            int = detail::emit_get_backend_info_error<kernel, Param>()
-#endif
-            >
+  template <typename Param>
   typename detail::is_backend_info_desc<Param>::return_type
   get_backend_info() const;
 
@@ -212,22 +209,44 @@ public:
   ext_oneapi_get_info(queue Queue, const range<3> &WorkGroupSize,
                       size_t DynamicLocalMemorySize) const;
 
+  /// Query queue/launch-specific information from a kernel using the
+  /// info::kernel_queue_specific descriptor for a specific Queue and values.
+  ///
+  /// \param Queue is a valid SYCL queue.
+  /// \param WG workgroup
+  /// \return depends on information being queried.
+  template <typename Param>
+  typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
+  ext_oneapi_get_info(queue Queue, const range<3> &WG) const;
+
+  /// Query queue/launch-specific information from a kernel using the
+  /// info::kernel_queue_specific descriptor for a specific Queue and values.
+  ///
+  /// \param Queue is a valid SYCL queue.
+  /// \param WG workgroup
+  /// \return depends on information being queried.
+  template <typename Param>
+  typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
+  ext_oneapi_get_info(queue Queue, const range<2> &WG) const;
+
+  /// Query queue/launch-specific information from a kernel using the
+  /// info::kernel_queue_specific descriptor for a specific Queue and values.
+  ///
+  /// \param Queue is a valid SYCL queue.
+  /// \param WG workgroup
+  /// \return depends on information being queried.
+  template <typename Param>
+  typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
+  ext_oneapi_get_info(queue Queue, const range<1> &WG) const;
+
 private:
   /// Constructs a SYCL kernel object from a valid kernel_impl instance.
   kernel(std::shared_ptr<detail::kernel_impl> Impl);
 
   ur_native_handle_t getNative() const;
 
-  __SYCL_DEPRECATED("Use getNative() member function")
-  ur_native_handle_t getNativeImpl() const;
-
   std::shared_ptr<detail::kernel_impl> impl;
 
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
-  template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)
       -> backend_return_t<BackendName, SyclObjectT>;
@@ -239,11 +258,6 @@ private:
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
-template <> struct hash<sycl::kernel> {
-  size_t operator()(const sycl::kernel &Kernel) const {
-    return hash<std::shared_ptr<sycl::detail::kernel_impl>>()(
-        sycl::detail::getSyclObjImpl(Kernel));
-  }
-};
-} // namespace std
+template <>
+struct std::hash<sycl::kernel>
+    : public sycl::detail::sycl_obj_hash<sycl::kernel> {};

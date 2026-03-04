@@ -6,12 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/math/clc_copysign.h>
+#include <clc/math/clc_fmod.h>
 #include <libspirv/spirv.h>
 
-#include <math/clc_fmod.h>
-
-#define __CLC_FUNC __spirv_ocl_fmod
-#define __CLC_SW_FUNC __clc_fmod
-#define __CLC_BODY <clc_sw_binary.inc>
+#define __CLC_FUNCTION __spirv_ocl_fmod
+#define __CLC_IMPL_FUNCTION(x) __clc_fmod
+#define __CLC_BODY <clc/shared/binary_def.inc>
 #include <clc/math/gentype.inc>
-#undef __CLC_SW_FUNC
+
+#define __CLC_BODY <fmod.inc>
+#include <clc/math/gentype.inc>

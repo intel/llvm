@@ -6,9 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 // This file contains tests covering eviction in in-memory program cache.
-
-#define SYCL2020_DISABLE_DEPRECATION_WARNINGS
-
 #include "../thread_safety/ThreadUtils.h"
 #include "detail/context_impl.hpp"
 #include "detail/kernel_program_cache.hpp"
@@ -112,7 +109,7 @@ TEST(InMemCacheEvictionTests, TestBasicEvictionAndLRU) {
 
   sycl::platform Plt{sycl::platform()};
   sycl::context Ctx{Plt};
-  auto CtxImpl = detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
   queue q(Ctx, default_selector_v);
 
   // One program is of 10000 bytes, so 20005 eviction threshold can
@@ -122,11 +119,11 @@ TEST(InMemCacheEvictionTests, TestBasicEvictionAndLRU) {
   // Cache is empty, so one urProgramCreateWithIL call.
   q.single_task<class Kernel1>([] {});
   EXPECT_EQ(NumProgramBuild, 1);
-  CheckNumberOfEntriesInCacheAndEvictionList(*CtxImpl, 1);
+  CheckNumberOfEntriesInCacheAndEvictionList(CtxImpl, 1);
 
   q.single_task<class Kernel2>([] {});
   EXPECT_EQ(NumProgramBuild, 2);
-  CheckNumberOfEntriesInCacheAndEvictionList(*CtxImpl, 2);
+  CheckNumberOfEntriesInCacheAndEvictionList(CtxImpl, 2);
 
   // Move first program to end of eviction list.
   q.single_task<class Kernel1>([] {});
@@ -138,19 +135,19 @@ TEST(InMemCacheEvictionTests, TestBasicEvictionAndLRU) {
   // Kernel2's program should have been evicted.
   q.single_task<class Kernel3>([] {});
   EXPECT_EQ(NumProgramBuild, 3);
-  CheckNumberOfEntriesInCacheAndEvictionList(*CtxImpl, 2);
+  CheckNumberOfEntriesInCacheAndEvictionList(CtxImpl, 2);
 
   // Calling Kernel2 again should trigger urProgramCreateWithIL and
   // should evict Kernel1's program.
   q.single_task<class Kernel2>([] {});
   EXPECT_EQ(NumProgramBuild, 3);
-  CheckNumberOfEntriesInCacheAndEvictionList(*CtxImpl, 2);
+  CheckNumberOfEntriesInCacheAndEvictionList(CtxImpl, 2);
 
   // Calling Kernel1 again should trigger urProgramCreateWithIL and
   // should evict Kernel3's program.
   q.single_task<class Kernel1>([] {});
   EXPECT_EQ(NumProgramBuild, 4);
-  CheckNumberOfEntriesInCacheAndEvictionList(*CtxImpl, 2);
+  CheckNumberOfEntriesInCacheAndEvictionList(CtxImpl, 2);
 }
 
 // Test to verify eviction using concurrent kernel invocation.
@@ -164,7 +161,7 @@ TEST(InMemCacheEvictionTests, TestConcurrentEvictionSameQueue) {
 
   sycl::platform Plt{sycl::platform()};
   context Ctx{Plt};
-  auto CtxImpl = detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
   queue q(Ctx, default_selector_v);
 
   // One program is of 10000 bytes, so 20005 eviction threshold can
@@ -185,7 +182,7 @@ TEST(InMemCacheEvictionTests, TestConcurrentEvictionSameQueue) {
   }
   q.wait_and_throw();
 
-  CheckNumberOfEntriesInCacheAndEvictionList(*CtxImpl, 2);
+  CheckNumberOfEntriesInCacheAndEvictionList(CtxImpl, 2);
 }
 
 // Test to verify eviction using concurrent kernel invocation when
@@ -199,7 +196,7 @@ TEST(InMemCacheEvictionTests, TestConcurrentEvictionSmallCache) {
                                           &redefinedProgramGetInfoAfter);
 
   context Ctx{platform()};
-  auto CtxImpl = detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
   queue q(Ctx, default_selector_v);
 
   // One program is of 10000 bytes, so 100 eviction threshold will
@@ -221,5 +218,5 @@ TEST(InMemCacheEvictionTests, TestConcurrentEvictionSmallCache) {
   }
   q.wait_and_throw();
 
-  CheckNumberOfEntriesInCacheAndEvictionList(*CtxImpl, 0);
+  CheckNumberOfEntriesInCacheAndEvictionList(CtxImpl, 0);
 }

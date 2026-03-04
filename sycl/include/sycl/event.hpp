@@ -42,6 +42,8 @@ class event_impl;
 ///
 /// \ingroup sycl_api
 class __SYCL_EXPORT event : public detail::OwnerLessBase<event> {
+  friend sycl::detail::ImplUtils;
+
 public:
   /// Constructs a ready SYCL event.
   ///
@@ -111,12 +113,7 @@ public:
   /// Queries this SYCL event for SYCL backend-specific information.
   ///
   /// \return depends on information being queried.
-  template <typename Param
-#if defined(_GLIBCXX_USE_CXX11_ABI) && _GLIBCXX_USE_CXX11_ABI == 0
-            ,
-            int = detail::emit_get_backend_info_error<event, Param>()
-#endif
-            >
+  template <typename Param>
   typename detail::is_backend_info_desc<Param>::return_type
   get_backend_info() const;
 
@@ -149,13 +146,6 @@ private:
 
   std::shared_ptr<detail::event_impl> impl;
 
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
-
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)
       -> backend_return_t<BackendName, SyclObjectT>;
@@ -164,11 +154,6 @@ private:
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
-template <> struct hash<sycl::event> {
-  size_t operator()(const sycl::event &e) const {
-    return hash<std::shared_ptr<sycl::detail::event_impl>>()(
-        sycl::detail::getSyclObjImpl(e));
-  }
-};
-} // namespace std
+template <>
+struct std::hash<sycl::event>
+    : public sycl::detail::sycl_obj_hash<sycl::event> {};

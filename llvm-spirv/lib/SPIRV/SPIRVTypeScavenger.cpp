@@ -453,6 +453,7 @@ bool SPIRVTypeScavenger::typeIntrinsicCall(
     case OpAtomicLoad:
     case OpAtomicExchange:
     case OpAtomicCompareExchange:
+    case OpAtomicCompareExchangeWeak:
     case OpAtomicIAdd:
     case OpAtomicISub:
     case OpAtomicFAddEXT:
@@ -499,6 +500,8 @@ bool SPIRVTypeScavenger::typeIntrinsicCall(
       break;
     case Intrinsic::lifetime_start:
     case Intrinsic::lifetime_end:
+      // Translate the types properly.
+      break;
     case Intrinsic::invariant_start:
       // These intrinsics were stored as i8* as typed pointers, and the SPIR-V
       // writer will expect these to be i8*, even if they can be any pointer

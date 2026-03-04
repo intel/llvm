@@ -1,13 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// Windows doesn't yet have full shutdown().
-// UNSUPPORTED: ze_debug && windows
-
-// Depends on SPIR-V Backend & run-time drivers version.
-// XFAIL: spirv-backend && gpu
-// XFAIL-TRACKER: CMPLRLLVM-64705
-
 // This test checks handling of parallel_for() accepting nd_range and
 // two or more reductions.
 

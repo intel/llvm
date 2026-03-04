@@ -6,7 +6,8 @@
 ; On LLVM level, we'll check that the intrinsics were generated again in reverse
 ; translation, replacing the SPIR-V level implementations.
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM \
-; RUN:   "--implicit-check-not=declare {{.*}} @spirv.llvm_umul_with_overflow_{{.*}}"
+; RUN:   "--implicit-check-not=declare {{.*}} @spirv.llvm_umul_with_overflow_{{.*}}" \
+; RUN:   "--implicit-check-not=old_llvm.umul.with.overflow.{{.*}}"
 
 ; CHECK-SPIRV: Name [[NAME_UMUL_FUNC_8:[0-9]+]] "spirv.llvm_umul_with_overflow_i8"
 ; CHECK-SPIRV: Name [[NAME_UMUL_FUNC_32:[0-9]+]] "spirv.llvm_umul_with_overflow_i32"
@@ -16,7 +17,7 @@ target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:2
 target triple = "spir"
 
 ; Function Attrs: nofree nounwind writeonly
-define dso_local spir_func void @_Z4foo8hhPh(i8 zeroext %a, i8 zeroext %b, ptr nocapture %c) local_unnamed_addr #0 {
+define dso_local spir_func void @_Z4foo8hhPh(i8 zeroext %a, i8 zeroext %b, ptr captures(none) %c) local_unnamed_addr #0 {
 entry:
   ; CHECK-LLVM: call { i8, i1 } @llvm.umul.with.overflow.i8
   ; CHECK-SPIRV: FunctionCall [[#]] [[#]] [[NAME_UMUL_FUNC_8]]
@@ -25,6 +26,8 @@ entry:
   %umul.value = extractvalue { i8, i1 } %umul, 0
   %storemerge = select i1 %cmp, i8 0, i8 %umul.value
   store i8 %storemerge, ptr %c, align 1, !tbaa !2
+  ; This test case verifies we don't leave any artifact calls behind (e.g. old_llvm.umul.with.overflow.i8).
+  %umul2 = tail call { i8, i1 } @llvm.umul.with.overflow.i8(i8 %a, i8 %b)
   ret void
 }
 
@@ -39,7 +42,7 @@ entry:
 ; CHECK-SPIRV: ReturnValue [[INSERT_RES_1]]
 
 ; Function Attrs: nofree nounwind writeonly
-define dso_local spir_func void @_Z5foo32jjPj(i32 %a, i32 %b, ptr nocapture %c) local_unnamed_addr #0 {
+define dso_local spir_func void @_Z5foo32jjPj(i32 %a, i32 %b, ptr captures(none) %c) local_unnamed_addr #0 {
 entry:
   ; CHECK-LLVM: call { i32, i1 } @llvm.umul.with.overflow.i32
   ; CHECK-SPIRV: FunctionCall [[#]] [[#]] [[NAME_UMUL_FUNC_32]]

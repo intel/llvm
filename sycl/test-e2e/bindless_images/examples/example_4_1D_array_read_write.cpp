@@ -1,7 +1,11 @@
-// REQUIRES: cuda
+// REQUIRES: aspect-ext_oneapi_bindless_images
+// REQUIRES: aspect-ext_oneapi_image_array
+
+// UNSUPPORTED: hip
+// UNSUPPORTED-INTENDED: Undetermined issue in 'create_image' in this test.
 
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{run} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
@@ -61,31 +65,37 @@ int main() {
       sycl::ext::oneapi::experimental::create_image(outMem, desc, dev, ctxt);
 
   q.submit([&](sycl::handler &cgh) {
-    cgh.parallel_for<class kernel>(N, [=](sycl::id<1> id) {
-      float sum1 = 0;
-      float sum2 = 0;
+    cgh.parallel_for<class kernel>(
+        sycl::nd_range<1>{{N}, {N}}, [=](sycl::nd_item<1> it) {
+          size_t dim0 = it.get_local_id(0);
+          float sum1 = 0;
+          float sum2 = 0;
 
-      // Extension: read image layers 0 and 1
-      VecType px1 = sycl::ext::oneapi::experimental::fetch_image_array<VecType>(
-          arrayHandle1, int(id[0]), 0);
-      VecType px2 = sycl::ext::oneapi::experimental::fetch_image_array<VecType>(
-          arrayHandle1, int(id[0]), 1);
+          // Extension: read image layers 0 and 1
+          VecType px1 =
+              sycl::ext::oneapi::experimental::fetch_image_array<VecType>(
+                  arrayHandle1, int(dim0), 0);
+          VecType px2 =
+              sycl::ext::oneapi::experimental::fetch_image_array<VecType>(
+                  arrayHandle1, int(dim0), 1);
 
-      // Extension: read image layers 0 and 1
-      VecType px3 = sycl::ext::oneapi::experimental::fetch_image_array<VecType>(
-          arrayHandle2, int(id[0]), 0);
-      VecType px4 = sycl::ext::oneapi::experimental::fetch_image_array<VecType>(
-          arrayHandle2, int(id[0]), 1);
+          // Extension: read image layers 0 and 1
+          VecType px3 =
+              sycl::ext::oneapi::experimental::fetch_image_array<VecType>(
+                  arrayHandle2, int(dim0), 0);
+          VecType px4 =
+              sycl::ext::oneapi::experimental::fetch_image_array<VecType>(
+                  arrayHandle2, int(dim0), 1);
 
-      sum1 = px1[0] + px3[0];
-      sum2 = px2[0] + px4[0];
+          sum1 = px1[0] + px3[0];
+          sum2 = px2[0] + px4[0];
 
-      // Extension: write to image layers with handle
-      sycl::ext::oneapi::experimental::write_image_array<VecType>(
-          outHandle, int(id[0]), 0, VecType(sum1));
-      sycl::ext::oneapi::experimental::write_image_array<VecType>(
-          outHandle, int(id[0]), 1, VecType(sum2));
-    });
+          // Extension: write to image layers with handle
+          sycl::ext::oneapi::experimental::write_image_array<VecType>(
+              outHandle, int(dim0), 0, VecType(sum1));
+          sycl::ext::oneapi::experimental::write_image_array<VecType>(
+              outHandle, int(dim0), 1, VecType(sum2));
+        });
   });
 
   q.wait_and_throw();

@@ -38,6 +38,7 @@ namespace sycl {
 inline namespace _V1 {
 // Forward declarations
 class platform;
+class context;
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>;
@@ -56,14 +57,16 @@ enum class peer_access {
   access_supported = 0x0,
   atomics_supported = 0x1,
 };
-
+template <typename SYCLObjT> class weak_object;
 } // namespace ext::oneapi
 
 /// The SYCL device class encapsulates a single SYCL device on which kernels
 /// may be executed.
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT device : public detail::OwnerLessBase<device> {
+class __SYCL_STANDALONE_DEBUG __SYCL_EXPORT device {
+  friend sycl::detail::ImplUtils;
+
 public:
   /// Constructs a SYCL device instance using the default device.
   device();
@@ -89,6 +92,12 @@ public:
   /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that
   /// takes a device and returns an int
   template <typename DeviceSelector,
+            // `device_impl` (used as a parameter in private ctor) is incomplete
+            // so would result in a error trying to instantiate
+            // `EnableIfSYCL2020DeviceSelectorInvocable` below. Filter it out
+            // before trying to do that.
+            typename = std::enable_if_t<
+                !std::is_same_v<DeviceSelector, detail::device_impl>>,
             typename =
                 detail::EnableIfSYCL2020DeviceSelectorInvocable<DeviceSelector>>
   explicit device(const DeviceSelector &deviceSelector)
@@ -98,9 +107,9 @@ public:
 
   bool operator!=(const device &rhs) const { return !(*this == rhs); }
 
-  device(const device &rhs) = default;
+  device(const device &rhs);
 
-  device(device &&rhs) = default;
+  device(device &&rhs);
 
   device &operator=(const device &rhs) = default;
 
@@ -208,10 +217,6 @@ public:
   /// Queries this SYCL device for information requested by the template
   /// parameter param
   ///
-  /// Specializations of info::param_traits must be defined in accordance with
-  /// the info parameters in Table 4.20 of SYCL Spec to facilitate returning the
-  /// type associated with the param parameter.
-  ///
   /// \return device info of type described in Table 4.20.
   template <typename Param>
   typename detail::is_device_info_desc<Param>::return_type get_info() const {
@@ -221,12 +226,7 @@ public:
   /// Queries this SYCL device for SYCL backend-specific information.
   ///
   /// The return type depends on information being queried.
-  template <typename Param
-#if defined(_GLIBCXX_USE_CXX11_ABI) && _GLIBCXX_USE_CXX11_ABI == 0
-            ,
-            int = detail::emit_get_backend_info_error<device, Param>()
-#endif
-            >
+  template <typename Param>
   typename detail::is_backend_info_desc<Param>::return_type
   get_backend_info() const;
 
@@ -292,14 +292,27 @@ public:
 
   /// kernel_compiler extension
 
+  /// Indicates if the device can build a kernel for the given language.
+  ///
+  /// \param Language is one of the values from the
+  /// kernel_bundle::source_language enumeration described in the
+  /// sycl_ext_oneapi_kernel_compiler specification
+  ///
+  /// \return The value true only if the device supports the
+  /// ext::oneapi::experimental::build function on kernel bundles written in
+  /// the source language \p Language.
+  bool
+  ext_oneapi_can_build(ext::oneapi::experimental::source_language Language);
+
   /// Indicates if the device can compile a kernel for the given language.
   ///
   /// \param Language is one of the values from the
   /// kernel_bundle::source_language enumeration described in the
   /// sycl_ext_oneapi_kernel_compiler specification
   ///
-  /// \return true only if the device supports kernel bundles written in the
-  /// source language `lang`.
+  /// \return The value true only if the device supports the
+  /// ext::oneapi::experimental::compile function on kernel bundles written in
+  /// the source language \p Language.
   bool
   ext_oneapi_can_compile(ext::oneapi::experimental::source_language Language);
 
@@ -348,23 +361,53 @@ public:
     return profile.c_str();
   }
 
+  /// Shortcut for get_platform().khr_get_default_context().
+  ///
+  /// \return the default context
+  context ext_oneapi_get_default_context();
+
+  /// If this device is a root device as defined by the core SYCL specification,
+  /// returns the index that it has in the std::vector that is returned when
+  /// calling platform::get_devices() on the platform that contains this device,
+  /// otherwise throws an exception.
+  ///
+  /// \return the index that it has in the std::vector that is returned when
+  /// calling platform::get_devices() on the platform that contains this device.
+  size_t ext_oneapi_index_within_platform() const;
+
+  // Definitions are in `<sycl/ext/oneapi/weak_object.hpp>` to avoid circular
+  // dependencies:
+  inline bool ext_oneapi_owner_before(const device &Other) const noexcept;
+  inline bool ext_oneapi_owner_before(
+      const ext::oneapi::weak_object<device> &Other) const noexcept;
+
+  /// Synchronizes with all queues associated with the device.
+  void ext_oneapi_wait();
+
+  /// Dispatches all unconsumed asynchronous exceptions for all queues or
+  /// contexts associated with the queues.
+  void ext_oneapi_throw_asynchronous();
+
+  /// Synchronizes with all queues associated with the device, then dispatches
+  /// all unconsumed asynchronous exceptions for all queues or contexts
+  /// associated with the queues.
+  void ext_oneapi_wait_and_throw() {
+    ext_oneapi_wait();
+    ext_oneapi_throw_asynchronous();
+  }
+
 // TODO: Remove this diagnostics when __SYCL_WARN_IMAGE_ASPECT is removed.
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #endif // defined(__clang__)
 
 private:
-  std::shared_ptr<detail::device_impl> impl;
-  device(std::shared_ptr<detail::device_impl> impl) : impl(impl) {}
+  // `device_impl`s are owned by the parent platform, user-visible
+  // `sycl::device` is non-owning and thus very cheap.
+  detail::device_impl *impl = nullptr;
+  device(detail::device_impl &impl) : impl(&impl) {}
 
   ur_native_handle_t getNative() const;
-
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)
@@ -386,11 +429,6 @@ private:
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
-template <> struct hash<sycl::device> {
-  size_t operator()(const sycl::device &Device) const {
-    return hash<std::shared_ptr<sycl::detail::device_impl>>()(
-        sycl::detail::getSyclObjImpl(Device));
-  }
-};
-} // namespace std
+template <>
+struct std::hash<sycl::device>
+    : public sycl::detail::sycl_obj_hash<sycl::device> {};

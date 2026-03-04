@@ -16,6 +16,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/detail/core.hpp>
+#include <sycl/platform.hpp>
 
 #include <cassert>
 #include <iostream>
@@ -94,12 +95,6 @@ int main(int argc, char **argv) {
           // not supported yet
           long m = dev.get_info<ext::intel::info::device::max_mem_bandwidth>();
           std::cout << "Maximum memory bandwidth = " << m << std::endl;
-        }
-        // This is the only data we can verify.
-        if (totalEUs != numSlices * numSubslices * numEUsPerSubslice) {
-          std::cout << "Error: EU Count is incorrect!" << std::endl;
-          std::cout << "Failed!" << std::endl;
-          return 1;
         }
         if (dev.has(aspect::ext_intel_free_memory)) {
           auto TotalMemory = dev.get_info<info::device::global_mem_size>();

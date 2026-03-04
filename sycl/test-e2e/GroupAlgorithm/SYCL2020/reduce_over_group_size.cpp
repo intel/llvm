@@ -1,5 +1,3 @@
-// Windows doesn't yet have full shutdown().
-// UNSUPPORTED: ze_debug && windows
 // REQUIRES: aspect-usm_shared_allocations
 
 // RUN: %{build} -o %t.out
@@ -7,9 +5,6 @@
 
 // RUN: %{build} %O0 -o %t_O0.out
 // RUN: %{run} %t_O0.out
-
-// XFAIL: spirv-backend
-// XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/122075
 
 /*
     test performs a lattice reduction.

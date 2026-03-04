@@ -112,7 +112,7 @@ private:
    * specialization constant values, device code SPIR-V images.
    */
   static void
-  writeSourceItem(const std::string &FileName, const device &Device,
+  writeSourceItem(const std::string &FileName, device_impl &Device,
                   const std::vector<const RTDeviceBinaryImage *> &SortedImgs,
                   const SerializedObj &SpecConsts,
                   const std::string &BuildOptionsString);
@@ -120,12 +120,12 @@ private:
   /* Check that cache item key sources are equal to the current program
    */
   static bool isCacheItemSrcEqual(
-      const std::string &FileName, const device &Device,
+      const std::string &FileName, device_impl &Device,
       const std::vector<const RTDeviceBinaryImage *> &SortedImgs,
       const SerializedObj &SpecConsts, const std::string &BuildOptionsString);
 
   /* Form string representing device version */
-  static std::string getDeviceIDString(const device &Device);
+  static std::string getDeviceIDString(device_impl &Device);
 
   /* Returns true if specified images should be cached on disk. It checks if
    * cache is enabled, images have SPIRV type and match thresholds. */
@@ -165,7 +165,7 @@ public:
   /* Get directory name for storing current cache item
    */
   static std::string
-  getCacheItemPath(const device &Device,
+  getCacheItemPath(device_impl &Device,
                    const std::vector<const RTDeviceBinaryImage *> &SortedImgs,
                    const SerializedObj &SpecConsts,
                    const std::string &BuildOptionsString);
@@ -174,44 +174,56 @@ public:
    * kernel_compiler ).
    */
   static std::string
-  getCompiledKernelItemPath(const device &Device,
+  getCompiledKernelItemPath(device_impl &Device,
                             const std::string &BuildOptionsString,
                             const std::string &SourceString);
+
+  /* Get directory name when storing runtime compiled device code IR (via
+   * kernel_compiler, sycl language). The key is computed in the sycl-jit
+   * library, and encompasses the preprocesses source code, build options and
+   * compiler location. The frontend invocation (whose output we cache here) is
+   * device-agnostic, hence the device (list) is not part of the lookup.
+   */
+  static std::string getDeviceCodeIRPath(const std::string &Key);
 
   /* Program binaries built for one or more devices are read from persistent
    * cache and returned in form of vector of programs. Each binary program is
    * stored in vector of chars.
    */
   static std::vector<std::vector<char>>
-  getItemFromDisc(const std::vector<device> &Devices,
+  getItemFromDisc(devices_range Devices,
                   const std::vector<const RTDeviceBinaryImage *> &Imgs,
                   const SerializedObj &SpecConsts,
                   const std::string &BuildOptionsString);
 
   static std::vector<std::vector<char>>
-  getCompiledKernelFromDisc(const std::vector<device> &Devices,
+  getCompiledKernelFromDisc(devices_range Devices,
                             const std::string &BuildOptionsString,
                             const std::string &SourceStr);
+
+  static std::vector<char> getDeviceCodeIRFromDisc(const std::string &Key);
 
   /* Stores build program in persistent cache
    */
   static void
-  putItemToDisc(const std::vector<device> &Devices,
+  putItemToDisc(devices_range Devices,
                 const std::vector<const RTDeviceBinaryImage *> &Imgs,
                 const SerializedObj &SpecConsts,
                 const std::string &BuildOptionsString,
                 const ur_program_handle_t &NativePrg);
 
-  static void putCompiledKernelToDisc(const std::vector<device> &Devices,
+  static void putCompiledKernelToDisc(devices_range Devices,
                                       const std::string &BuildOptionsString,
                                       const std::string &SourceStr,
                                       const ur_program_handle_t &NativePrg);
 
+  static void putDeviceCodeIRToDisc(const std::string &Key,
+                                    const std::vector<char> &IR);
+
   /* Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is set*/
   static void trace(const std::string &msg, const std::string &path = "") {
-    static const bool traceEnabled =
-        SYCLConfig<SYCL_CACHE_TRACE>::isTraceDiskCache();
-    if (traceEnabled) {
+    if (__builtin_expect(SYCLConfig<SYCL_CACHE_TRACE>::isTraceDiskCache(),
+                         false)) {
       auto outputPath = path;
       std::replace(outputPath.begin(), outputPath.end(), '\\', '/');
       std::cerr << "[Persistent Cache]: " << msg << outputPath << std::endl;
@@ -219,9 +231,8 @@ public:
   }
   static void trace_KernelCompiler(const std::string &msg,
                                    const std::string &path = "") {
-    static const bool traceEnabled =
-        SYCLConfig<SYCL_CACHE_TRACE>::isTraceKernelCompiler();
-    if (traceEnabled) {
+    if (__builtin_expect(SYCLConfig<SYCL_CACHE_TRACE>::isTraceKernelCompiler(),
+                         false)) {
       auto outputPath = path;
       std::replace(outputPath.begin(), outputPath.end(), '\\', '/');
       std::cerr << "[kernel_compiler Persistent Cache]: " << msg << outputPath

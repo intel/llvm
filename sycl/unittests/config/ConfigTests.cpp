@@ -28,8 +28,8 @@ TEST(ConfigTests, CheckConfigProcessing) {
     File.close();
   }
   try {
-    sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
-    throw std::logic_error("sycl::exception didn't throw");
+    sycl::detail::readConfig(true);
+    throw std::logic_error("sycl::exception didn't throw 1");
   } catch (sycl::exception &e) {
     EXPECT_EQ(
         std::string(
@@ -46,8 +46,8 @@ TEST(ConfigTests, CheckConfigProcessing) {
     File.close();
   }
   try {
-    sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
-    throw std::logic_error("sycl::exception didn't throw");
+    sycl::detail::readConfig(true);
+    throw std::logic_error("sycl::exception didn't throw 2");
   } catch (sycl::exception &e) {
     EXPECT_EQ(
         std::string(
@@ -64,8 +64,8 @@ TEST(ConfigTests, CheckConfigProcessing) {
     File.close();
   }
   try {
-    sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
-    throw std::logic_error("sycl::exception didn't throw");
+    sycl::detail::readConfig(true);
+    throw std::logic_error("sycl::exception didn't throw 3");
   } catch (sycl::exception &e) {
     EXPECT_EQ(
         std::string(
@@ -82,8 +82,8 @@ TEST(ConfigTests, CheckConfigProcessing) {
     File.close();
   }
   try {
-    sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
-    throw std::logic_error("sycl::exception didn't throw");
+    sycl::detail::readConfig(true);
+    throw std::logic_error("sycl::exception didn't throw 4");
   } catch (sycl::exception &e) {
     EXPECT_EQ(
         std::string(
@@ -103,8 +103,8 @@ TEST(ConfigTests, CheckConfigProcessing) {
     File.close();
   }
   try {
-    sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
-    throw std::logic_error("sycl::exception didn't throw");
+    sycl::detail::readConfig(true);
+    throw std::logic_error("sycl::exception didn't throw 5");
   } catch (sycl::exception &e) {
     EXPECT_TRUE(std::regex_match(
         e.what(),
@@ -121,8 +121,8 @@ TEST(ConfigTests, CheckConfigProcessing) {
     File.close();
   }
   try {
-    sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
-    throw std::logic_error("sycl::exception didn't throw");
+    sycl::detail::readConfig(true);
+    throw std::logic_error("sycl::exception didn't throw 6");
   } catch (sycl::exception &e) {
     EXPECT_TRUE(std::regex_match(
         e.what(), std::regex("Variable name is more than ([\\d]+) or less "
@@ -142,8 +142,8 @@ TEST(ConfigTests, CheckConfigProcessing) {
     File.close();
   }
   try {
-    sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
-    throw std::logic_error("sycl::exception didn't throw");
+    sycl::detail::readConfig(true);
+    throw std::logic_error("sycl::exception didn't throw 7");
   } catch (sycl::exception &e) {
     EXPECT_TRUE(std::regex_match(
         e.what(), std::regex("The value contains more than ([\\d]+) characters "
@@ -159,8 +159,8 @@ TEST(ConfigTests, CheckConfigProcessing) {
     File.close();
   }
   try {
-    sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
-    throw std::logic_error("sycl::exception didn't throw");
+    sycl::detail::readConfig(true);
+    throw std::logic_error("sycl::exception didn't throw 8");
   } catch (sycl::exception &e) {
     EXPECT_TRUE(std::regex_match(
         e.what(), std::regex("The value contains more than ([\\d]+) characters "
@@ -176,8 +176,8 @@ TEST(ConfigTests, CheckConfigProcessing) {
     File.close();
   }
   try {
-    sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
-    throw std::logic_error("sycl::exception didn't throw");
+    sycl::detail::readConfig(true);
+    throw std::logic_error("sycl::exception didn't throw 9");
   } catch (sycl::exception &e) {
     EXPECT_TRUE(std::regex_match(
         e.what(), std::regex("The value contains more than ([\\d]+) characters "
@@ -448,4 +448,70 @@ TEST(ConfigTests, CheckPersistentCacheEvictionThresholdTest) {
 #endif
   OnDiskEvicType::reset();
   TestConfig(0);
+}
+
+// SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS accepts ...
+TEST(ConfigTests, CheckParallelForRangeRoundingParams) {
+
+  // Lambda to set SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS.
+  auto SetRoundingParams = [](const char *value) {
+#ifdef _WIN32
+    _putenv_s("SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS", value);
+#else
+    setenv("SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS", value, 1);
+#endif
+    sycl::detail::readConfig(true);
+  };
+
+  // Lambda to assert test parameters are as expected.
+  auto AssertRoundingParams = [](size_t MF, size_t GF, size_t MR,
+                                 const char *errMsg, bool ForceUpdate = false) {
+    size_t ResultMF = 0, ResultGF = 0, ResultMR = 0;
+    SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS>::GetSettings(
+        ResultMF, ResultGF, ResultMR, ForceUpdate);
+    EXPECT_EQ(MF, ResultMF) << errMsg;
+    EXPECT_EQ(GF, ResultGF) << errMsg;
+    EXPECT_EQ(MR, ResultMR) << errMsg;
+  };
+
+  // Lambda to test invalid input -- factors should remain unchanged.
+  auto TestBadInput = [&](const char *value, const char *errMsg) {
+    // Original factor values are stored as its own variable as size of size_t
+    // varies depending on system and architecture:
+    constexpr size_t MF = 1, GF = 2, MR = 3;
+    size_t TestMF = MF, TestGF = GF, TestMR = MR;
+    SetRoundingParams(value);
+    SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS>::GetSettings(
+        TestMF, TestGF, TestMR, true);
+    EXPECT_EQ(TestMF, MF) << errMsg;
+    EXPECT_EQ(TestGF, GF) << errMsg;
+    EXPECT_EQ(TestMR, MR) << errMsg;
+  };
+
+  // Test malformed input:
+  constexpr char MalformedErr[] =
+      "Rounding parameters should be ignored on malformed input";
+  TestBadInput("abc", MalformedErr);
+  TestBadInput("42", MalformedErr);
+  TestBadInput(":7", MalformedErr);
+  TestBadInput("7:", MalformedErr);
+  TestBadInput("1:2", MalformedErr);
+  TestBadInput("1:2:", MalformedErr);
+  TestBadInput("1:abc:3", MalformedErr);
+
+  // Test well-formed input, but bad parameters:
+  constexpr char BadParamsErr[] = "Rounding parameters should be ignored if "
+                                  "parameters provided are invalid";
+  TestBadInput("0:1:2", BadParamsErr);
+  TestBadInput("1:0:2", BadParamsErr);
+  TestBadInput("-1:2:3", BadParamsErr);
+  TestBadInput("1:2:31415926535897932384626433832795028841971", BadParamsErr);
+
+  // Test valid values.
+  SetRoundingParams("8:16:32");
+  AssertRoundingParams(8, 16, 32,
+                       "Failed to read rounding parameters properly");
+  SetRoundingParams("8:16:0");
+  AssertRoundingParams(8, 16, 0, "0 is a valid value for MinRange",
+                       /*ForceUpdate =*/true);
 }

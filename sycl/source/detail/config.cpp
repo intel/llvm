@@ -166,17 +166,50 @@ void dumpConfig() {
 // ONEAPI_DEVICE_SELECTOR
 // TODO: host device type will be removed once sycl_ext_oneapi_filter_selector
 // is removed.
-const std::array<std::pair<std::string, backend>, 7> &getSyclBeMap() {
-  static const std::array<std::pair<std::string, backend>, 7> SyclBeMap = {
+const std::array<std::pair<std::string, backend>, 8> &getSyclBeMap() {
+  static const std::array<std::pair<std::string, backend>, 8> SyclBeMap = {
       {{"host", backend::host},
        {"opencl", backend::opencl},
        {"level_zero", backend::ext_oneapi_level_zero},
        {"cuda", backend::ext_oneapi_cuda},
        {"hip", backend::ext_oneapi_hip},
        {"native_cpu", backend::ext_oneapi_native_cpu},
+       // Note: Offload is intentionally excluded from our documentation - it's
+       // only used for internal testing
+       {"offload", backend::ext_oneapi_offload},
        {"*", backend::all}}};
   return SyclBeMap;
 }
+namespace {
+
+unsigned int parseLevel(const char *ValStr) {
+  unsigned int intVal = 0;
+
+  if (ValStr) {
+    try {
+      intVal = std::stoul(ValStr);
+    } catch (...) {
+      // If the value is not null and not a number, it is considered
+      // to enable disk cache tracing. This is the legacy behavior.
+      intVal = 1;
+    }
+  }
+
+  // Legacy behavior.
+  if (intVal > 7)
+    intVal = 1;
+
+  return intVal;
+}
+
+} // namespace
+
+void SYCLConfig<SYCL_CACHE_TRACE>::reset() {
+  Level = parseLevel(BaseT::getRawValue());
+}
+
+unsigned int SYCLConfig<SYCL_CACHE_TRACE>::Level =
+    parseLevel(BaseT::getRawValue());
 
 } // namespace detail
 } // namespace _V1

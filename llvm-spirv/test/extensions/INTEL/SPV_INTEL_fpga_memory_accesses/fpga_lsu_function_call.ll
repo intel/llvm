@@ -1,5 +1,4 @@
-; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_fpga_memory_accesses -o %t.spv
+; RUN: llvm-spirv %s --spirv-ext=+SPV_INTEL_fpga_memory_accesses -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
@@ -12,7 +11,7 @@
 
 ; CHECK-LLVM: [[#GV:]] = private unnamed_addr constant [11 x i8] c"{params:1}\00"
 ; CHECK-LLVM: %[[Call:[a-z0-9_.]+]] = call spir_func ptr addrspace(4) @accessor
-; CHECK-LLVM: %[[#Ann:]] = call ptr addrspace(4) @llvm.ptr.annotation.p4.p0(ptr addrspace(4) %call, ptr @[[#GV]], ptr undef, i32 undef, ptr undef)
+; CHECK-LLVM: %[[#Ann:]] = call ptr addrspace(4) @llvm.ptr.annotation.p4.p0(ptr addrspace(4) %call, ptr @[[#GV]], ptr poison, i32 poison, ptr poison)
 ; CHECK-LLVM: call spir_func ptr addrspace(4) @_ZN8MyStructaSERKS_(ptr addrspace(4) %[[#Ann]]
 
 ; ModuleID = 'test.bc'

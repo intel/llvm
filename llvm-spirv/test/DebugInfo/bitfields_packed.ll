@@ -79,7 +79,7 @@ define dso_local spir_func noundef i32 @_Z3fooii(i32 noundef %0, i32 noundef %1)
 declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
 
 ; Function Attrs: nocallback nofree nounwind willreturn memory(argmem: readwrite)
-declare void @llvm.memcpy.p4.p1.i64(ptr addrspace(4) noalias nocapture writeonly, ptr addrspace(1) noalias nocapture readonly, i64, i1 immarg) #2
+declare void @llvm.memcpy.p4.p1.i64(ptr addrspace(4) noalias captures(none) writeonly, ptr addrspace(1) noalias captures(none) readonly, i64, i1 immarg) #2
 
 attributes #0 = { convergent mustprogress noinline norecurse nounwind optnone "approx-func-fp-math"="true" "frame-pointer"="all" "min-legal-vector-width"="0" "no-infs-fp-math"="true" "no-nans-fp-math"="true" "no-signed-zeros-fp-math"="true" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="bitfields-packed.cpp" "unsafe-fp-math"="true" }
 attributes #1 = { nocallback nofree nosync nounwind speculatable willreturn memory(none) }

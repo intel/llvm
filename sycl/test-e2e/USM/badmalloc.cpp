@@ -1,6 +1,8 @@
 // RUN: %{build} -o %t1.out
 // RUN: %{run} %t1.out
 // UNSUPPORTED: ze_debug
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
 //==----------------- badmalloc.cpp - Bad Mallocs test ---------------------==//
 //

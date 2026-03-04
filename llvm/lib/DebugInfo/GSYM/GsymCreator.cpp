@@ -275,8 +275,9 @@ llvm::Error GsymCreator::finalize(OutputAggregator &Out) {
   // object.
   if (!IsSegment) {
     if (NumBefore > 1) {
-      // Sort function infos so we can emit sorted functions.
-      llvm::sort(Funcs);
+      // Sort function infos so we can emit sorted functions. Use stable sort to
+      // ensure determinism.
+      llvm::stable_sort(Funcs);
       std::vector<FunctionInfo> FinalizedFuncs;
       FinalizedFuncs.reserve(Funcs.size());
       FinalizedFuncs.emplace_back(std::move(Funcs.front()));
@@ -551,7 +552,7 @@ llvm::Error GsymCreator::saveSegments(StringRef Path,
         createSegment(SegmentSize, FuncIdx);
     if (ExpectedGC) {
       GsymCreator *GC = ExpectedGC->get();
-      if (GC == NULL)
+      if (!GC)
         break; // We had not more functions to encode.
       // Don't collect any messages at all
       OutputAggregator Out(nullptr);
@@ -563,7 +564,6 @@ llvm::Error GsymCreator::saveSegments(StringRef Path,
       std::optional<uint64_t> FirstFuncAddr = GC->getFirstFunctionAddress();
       if (FirstFuncAddr) {
         SGP << Path << "-" << llvm::format_hex(*FirstFuncAddr, 1);
-        SGP.flush();
         Err = GC->save(SegmentedGsymPath, ByteOrder, std::nullopt);
         if (Err)
           return Err;

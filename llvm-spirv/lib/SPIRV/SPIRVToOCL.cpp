@@ -219,8 +219,7 @@ void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
     visitCallSPIRVReadClockKHR(&CI);
     return;
   }
-  if (OC == internal::OpConvertFToBF16INTEL ||
-      OC == internal::OpConvertBF16ToFINTEL) {
+  if (OC == OpConvertFToBF16INTEL || OC == OpConvertBF16ToFINTEL) {
     visitCallSPIRVBFloat16Conversions(&CI, OC);
     return;
   }
@@ -248,13 +247,17 @@ void SPIRVToOCLBase::visitCastInst(CastInst &Cast) {
       DstVecTy->getScalarSizeInBits() == 1)
     return;
 
+  // We don't have OpenCL builtins for 4-bit conversions.
+  if (DstVecTy->getScalarSizeInBits() == 4 || SrcTy->getScalarSizeInBits() == 4)
+    return;
+
   // Assemble built-in name -> convert_gentypeN
   std::string CastBuiltInName(kOCLBuiltinName::ConvertPrefix);
   // Check if this is 'floating point -> unsigned integer' cast
   CastBuiltInName += mapLLVMTypeToOCLType(DstVecTy, !isa<FPToUIInst>(Cast));
 
   // Replace LLVM conversion instruction with call to conversion built-in
-  BuiltinFuncMangleInfo Mangle;
+  OCLBuiltinFuncMangleInfo Mangle;
   // It does matter if the source is unsigned integer or not. SExt is for
   // signed source, ZExt and UIToFPInst are for unsigned source.
   if (isa<ZExtInst>(Cast) || isa<UIToFPInst>(Cast))
@@ -276,7 +279,7 @@ void SPIRVToOCLBase::visitCallSPIRVImageQuerySize(CallInst *CI) {
   bool ImgArray = Desc.Arrayed;
 
   AttributeList Attributes = CI->getCalledFunction()->getAttributes();
-  BuiltinFuncMangleInfo Mangle;
+  OCLBuiltinFuncMangleInfo Mangle;
   Mangle.getTypeMangleInfo(0).PointerTy = ImgTy;
   Type *Int32Ty = Type::getInt32Ty(*Ctx);
   Instruction *GetImageSize = nullptr;
@@ -326,7 +329,7 @@ void SPIRVToOCLBase::visitCallSPIRVImageQuerySize(CallInst *CI) {
       assert(ImgQuerySizeRetEls == 2 &&
              "OpImageQuerySize[Lod] must return <2 x iN> vector type");
       GetImageSize = InsertElementInst::Create(
-          UndefValue::get(VecTy), GetImageSize, ConstantInt::get(Int32Ty, 0),
+          PoisonValue::get(VecTy), GetImageSize, ConstantInt::get(Int32Ty, 0),
           CI->getName(), CI->getIterator());
     } else {
       // get_image_dim and OpImageQuerySize returns different vector
@@ -337,7 +340,7 @@ void SPIRVToOCLBase::visitCallSPIRVImageQuerySize(CallInst *CI) {
       Constant *Mask = ConstantVector::get(MaskEls);
 
       GetImageSize = new ShuffleVectorInst(
-          GetImageSize, UndefValue::get(GetImageSize->getType()), Mask,
+          GetImageSize, PoisonValue::get(GetImageSize->getType()), Mask,
           CI->getName(), CI->getIterator());
     }
   }
@@ -584,7 +587,7 @@ void SPIRVToOCLBase::visitCallSPIRVPipeBuiltin(CallInst *CI, Op OC) {
       assert(isa<PointerType>(T));
       auto *NewTy = Builder.getPtrTy(SPIRAS_Generic);
       if (T != NewTy) {
-        P = Builder.CreatePointerBitCastOrAddrSpaceCast(P, NewTy);
+        P = Builder.CreateAddrSpaceCast(P, NewTy);
       }
       return std::make_pair(
           P, TypedPointerType::get(Builder.getInt8Ty(), SPIRAS_Generic));
@@ -644,7 +647,7 @@ void SPIRVToOCLBase::visitCallGenericCastToPtrBuiltIn(CallInst *CI, Op OC) {
   Value *PtrArg = CI->getArgOperand(0);
   auto AddrSpace =
       static_cast<SPIRAddressSpace>(CI->getType()->getPointerAddressSpace());
-  Type *NewTy = PointerType::get(PtrArg->getType(), AddrSpace);
+  Type *NewTy = PointerType::get(CI->getContext(), AddrSpace);
   Value *ASC = Builder.CreateAddrSpaceCast(PtrArg, NewTy);
   CI->replaceAllUsesWith(ASC);
   CI->eraseFromParent();
@@ -677,6 +680,13 @@ void SPIRVToOCLBase::visitCallGenericCastToPtrExplicitBuiltIn(CallInst *CI,
 
 void SPIRVToOCLBase::visitCallSPIRVCvtBuiltin(CallInst *CI, Op OC,
                                               StringRef DemangledName) {
+  if (auto *TET =
+          dyn_cast<TargetExtType>(CI->getFunctionType()->getReturnType())) {
+    // Preserve any cooperative matrix type conversions as SPIR-V calls.
+    if (TET->getName() == "spirv.CooperativeMatrixKHR") {
+      return;
+    }
+  }
   std::string CastBuiltInName;
   if (isCvtFromUnsignedOpCode(OC))
     CastBuiltInName = "u";
@@ -753,11 +763,29 @@ SPIRVToOCLBase::mutateCallImageOperands(CallInst *CI, StringRef NewFuncName,
       ConstantFP *LodVal = dyn_cast<ConstantFP>(Mutator.getArg(ImOpArgIndex));
       // If the image operand is LOD and its value is zero, drop it too.
       if (LodVal && LodVal->isNullValue() &&
-          ImOpValue == ImageOperandsMask::ImageOperandsLodMask)
+          ImOpValue & ImageOperandsMask::ImageOperandsLodMask) {
         Mutator.removeArgs(ImOpArgIndex, Mutator.arg_size() - ImOpArgIndex);
+        ImOpValue &= ~ImageOperandsMask::ImageOperandsLodMask;
+      }
     }
   }
   return Mutator;
+}
+
+static bool isOCLDepthImage(Type *Ty) {
+  if (auto *TET = dyn_cast<TargetExtType>(Ty)) {
+    if (TET->getName() != "spirv.Image")
+      return false;
+    assert(TET->getNumIntParameters() > 2 &&
+           "unexpected image TargetExtType parameter count");
+    return TET->getIntParameter(1);
+  }
+
+  StringRef ImageTypeName;
+  if (isOCLImageType(Ty, &ImageTypeName))
+    return ImageTypeName.contains("_depth_");
+
+  return false;
 }
 
 void SPIRVToOCLBase::visitCallSPIRVImageSampleExplicitLodBuiltIn(CallInst *CI,
@@ -771,15 +799,11 @@ void SPIRVToOCLBase::visitCallSPIRVImageSampleExplicitLodBuiltIn(CallInst *CI,
   CallInst *CallSampledImg = cast<CallInst>(CI->getArgOperand(0));
   auto Img = getCallValue(CallSampledImg, 0);
   auto Sampler = getCallValue(CallSampledImg, 1);
-  bool IsDepthImage = false;
+  const bool IsDepthImage = isOCLDepthImage(Img.second);
   Mutator.mapArg(0, [&](Value *SampledImg) {
-    StringRef ImageTypeName;
-    if (isOCLImageType(Img.second, &ImageTypeName))
-      IsDepthImage = ImageTypeName.contains("_depth_");
-
     if (CallSampledImg->hasOneUse()) {
       CallSampledImg->replaceAllUsesWith(
-          UndefValue::get(CallSampledImg->getType()));
+          PoisonValue::get(CallSampledImg->getType()));
       CallSampledImg->dropAllReferences();
       CallSampledImg->eraseFromParent();
     }
@@ -871,7 +895,7 @@ void SPIRVToOCLBase::visitCallSPIRVAvcINTELEvaluateBuiltIn(CallInst *CI,
 
   auto EraseVmeImageCall = [](CallInst *CI) {
     if (CI->hasOneUse()) {
-      CI->replaceAllUsesWith(UndefValue::get(CI->getType()));
+      CI->replaceAllUsesWith(PoisonValue::get(CI->getType()));
       CI->dropAllReferences();
       CI->eraseFromParent();
     }
@@ -928,10 +952,10 @@ void SPIRVToOCLBase::visitCallSPIRVBFloat16Conversions(CallInst *CI, Op OC) {
           : "";
   std::string Name;
   switch (static_cast<uint32_t>(OC)) {
-  case internal::OpConvertFToBF16INTEL:
+  case OpConvertFToBF16INTEL:
     Name = "intel_convert_bfloat16" + N + "_as_ushort" + N;
     break;
-  case internal::OpConvertBF16ToFINTEL:
+  case OpConvertBF16ToFINTEL:
     Name = "intel_convert_as_bfloat16" + N + "_float" + N;
     break;
   default:

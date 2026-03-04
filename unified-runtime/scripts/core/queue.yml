@@ -1,0 +1,338 @@
+#
+# Copyright (C) 2022 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime APIs"
+ordinal: "8"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Query queue info"
+class: $xQueue
+name: $x_queue_info_t
+typed_etors: True
+etors:
+    - name: CONTEXT
+      desc: "[$x_context_handle_t] context associated with this queue."
+    - name: DEVICE
+      desc: "[$x_device_handle_t] device associated with this queue."
+    - name: DEVICE_DEFAULT
+      desc: "[$x_queue_handle_t] the current default queue of the underlying device."
+    - name: FLAGS
+      desc: "[$x_queue_flags_t] the properties associated with $x_queue_properties_t::flags."
+    - name: REFERENCE_COUNT
+      desc: |
+            [uint32_t] Reference count of the queue object.
+            The reference count returned should be considered immediately stale.
+            It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
+    - name: SIZE
+      desc: |
+            [uint32_t] The size of the queue on the device. Only a valid query
+            if the queue was created with the `ON_DEVICE` queue flag, otherwise
+            `$xQueueGetInfo` will return `$X_RESULT_ERROR_INVALID_QUEUE`.
+    - name: EMPTY
+      desc: "[$x_bool_t][optional-query] return true if the queue was empty at the time of the query."
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Queue property flags"
+class: $xQueue
+name: $x_queue_flags_t
+etors:
+    - name: OUT_OF_ORDER_EXEC_MODE_ENABLE
+      value: "$X_BIT(0)"
+      desc: "Enable/disable out of order execution"
+    - name: PROFILING_ENABLE
+      value: "$X_BIT(1)"
+      desc: "Enable/disable profiling"
+    - name: ON_DEVICE
+      value: "$X_BIT(2)"
+      desc: "Is a device queue. If this is enabled `OUT_OF_ORDER_EXEC_MODE_ENABLE` must also be enabled."
+    - name: ON_DEVICE_DEFAULT
+      value: "$X_BIT(3)"
+      desc: "Is the default queue for a device"
+    - name: DISCARD_EVENTS
+      value: "$X_BIT(4)"
+      desc: "Events will be discarded"
+    - name: PRIORITY_LOW
+      value: "$X_BIT(5)"
+      desc: "Low priority queue"
+    - name: PRIORITY_HIGH
+      value: "$X_BIT(6)"
+      desc: "High priority queue"
+    - name: SUBMISSION_BATCHED
+      value: "$X_BIT(7)"
+      desc: "Hint: enqueue and submit in a batch later. No change in queue semantics. Implementation chooses submission mode."
+    - name: SUBMISSION_IMMEDIATE
+      value: "$X_BIT(8)"
+      desc: "Hint: enqueue and submit immediately. No change in queue semantics. Implementation chooses submission mode."
+    - name: USE_DEFAULT_STREAM
+      desc: "Use the default stream. Only meaningful for CUDA. Other platforms may ignore this flag."
+      value: "$X_BIT(9)"
+    - name: SYNC_WITH_DEFAULT_STREAM
+      desc: "Synchronize with the default stream. Only meaningful for CUDA. Other platforms may ignore this flag."
+      value: "$X_BIT(10)"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Query information about a command queue"
+class: $xQueue
+name: GetInfo
+ordinal: "0"
+analogue:
+    - "**clGetCommandQueueInfo**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: "$x_queue_info_t"
+      name: propName
+      desc: "[in] name of the queue property to query"
+    - type: "size_t"
+      name: propSize
+      desc: "[in] size in bytes of the queue property value provided"
+    - type: "void*"
+      name: pPropValue
+      desc: "[out][optional][typename(propName, propSize)] value of the queue property"
+    - type: "size_t*"
+      name: pPropSizeRet
+      desc: "[out][optional] size in bytes returned in queue property value"
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
+        - "If `propName` is not supported by the adapter."
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`propSize == 0 && pPropValue != NULL`"
+        - "If `propSize` is less than the real number of bytes needed to return the info."
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`propSize != 0 && pPropValue == NULL`"
+        - "`pPropValue == NULL && pPropSizeRet == NULL`"
+    - $X_RESULT_ERROR_INVALID_QUEUE
+        - "If `hQueue` isn't a valid queue handle or if `propName` isn't supported by `hQueue`."
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Queue creation properties"
+class: $xQueue
+name: $x_queue_properties_t
+base: $x_base_properties_t
+members:
+    - type: $x_queue_flags_t
+      name: flags
+      desc: "[in] Bitfield of queue creation flags"
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Queue index creation properties"
+details:
+    - Specify these properties in $xQueueCreate via $x_queue_properties_t as
+      part of a `pNext` chain.
+class: $xQueue
+name: $x_queue_index_properties_t
+base: $x_base_properties_t
+members:
+    - type: uint32_t
+      name: computeIndex
+      desc: >
+            [in] Specifies the compute index as described in the
+            sycl_ext_intel_queue_index extension.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create a command queue for a device in a context"
+class: $xQueue
+name: Create
+details:
+    - See also $x_queue_index_properties_t.
+ordinal: "0"
+analogue:
+    - "**clCreateCommandQueueWithProperties**"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: const $x_queue_properties_t*
+      name: pProperties
+      desc: "[in][optional] pointer to queue creation properties."
+    - type: $x_queue_handle_t*
+      name: phQueue
+      desc: "[out][alloc] pointer to handle of queue object created"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_DEVICE
+    - $X_RESULT_ERROR_INVALID_QUEUE_PROPERTIES:
+        - "`pProperties != NULL && pProperties->flags & UR_QUEUE_FLAG_PRIORITY_HIGH && pProperties->flags & UR_QUEUE_FLAG_PRIORITY_LOW`"
+        - "`pProperties != NULL && pProperties->flags & UR_QUEUE_FLAG_SUBMISSION_BATCHED && pProperties->flags & UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE`"
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Get a reference to the command queue handle. Increment the command queue's reference count"
+class: $xQueue
+name: Retain
+decl: static
+ordinal: "0"
+analogue:
+    - "**clRetainCommandQueue**"
+details:
+    - "Useful in library function to retain access to the command queue after the caller released the queue."
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in][retain] handle of the queue object to get access"
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Decrement the command queue's reference count and delete the command queue if the reference count becomes zero."
+class: $xQueue
+name: Release
+decl: static
+ordinal: "0"
+analogue:
+    - "**clReleaseCommandQueue**"
+details:
+    - "After the command queue reference count becomes zero and all queued commands in the queue have finished, the queue is deleted."
+    - "It also performs an implicit flush to issue all previously queued commands in the queue."
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in][release] handle of the queue object to release"
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Descriptor for $xQueueGetNativeHandle and $xQueueCreateWithNativeHandle."
+details:
+    - Specify this descriptor in $xQueueGetNativeHandle directly or
+      $xQueueCreateWithNativeHandle via $x_queue_native_properties_t
+      as part of a `pNext` chain.
+class: $xQueue
+name: $x_queue_native_desc_t
+base: $x_base_desc_t
+members:
+    - type: "void*"
+      name: pNativeData
+      desc: |
+            [in][optional] Adapter-specific metadata needed to create the handle.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Return queue native queue handle."
+class: $xQueue
+name: GetNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - "Retrieved native handle can be used for direct interaction with the native platform driver."
+    - "Use interoperability queue extensions to convert native handle to native type."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: "$x_queue_handle_t"
+      name: hQueue
+      desc: |
+            [in] handle of the queue.
+    - type: $x_queue_native_desc_t*
+      name: pDesc
+      desc: |
+            [in][optional] pointer to native descriptor
+    - type: $x_native_handle_t*
+      name: phNativeQueue
+      desc: |
+            [out] a pointer to the native handle of the queue.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Properties for for $xQueueCreateWithNativeHandle."
+class: $xQueue
+name: $x_queue_native_properties_t
+base: $x_base_properties_t
+members:
+    - type: bool
+      name: isNativeHandleOwned
+      desc: |
+            [in] If true then ownership of the native handle is transferred to
+            the resultant object. This means the object will be responsible for
+            releasing the native resources at the end of its lifetime.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create runtime queue object from native queue handle."
+class: $xQueue
+name: CreateWithNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - "Creates runtime queue handle from native driver queue handle."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: $x_native_handle_t
+      name: hNativeQueue
+      desc: |
+            [in][nocheck] the native handle of the queue.
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in][optional] handle of the device object"
+    - type: "const $x_queue_native_properties_t*"
+      name: pProperties
+      desc: "[in][optional] pointer to native queue properties struct"
+    - type: "$x_queue_handle_t*"
+      name: phQueue
+      desc: |
+            [out][alloc] pointer to the handle of the queue object created.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Blocks until all previously issued commands to the command queue are finished."
+class: $xQueue
+name: Finish
+decl: static
+ordinal: "0"
+analogue:
+    - "**clFinish**"
+details:
+    - "Blocks until all previously issued commands to the command queue are issued and completed."
+    - "$xQueueFinish does not return until all enqueued commands have been processed and finished."
+    - "$xQueueFinish acts as a synchronization point."
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue to be finished."
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Issues all previously enqueued commands in a command queue to the device."
+class: $xQueue
+name: Flush
+decl: static
+ordinal: "0"
+analogue:
+    - "**clFlush**"
+details:
+  - "Guarantees that all enqueued commands will be issued to the appropriate device."
+  - "There is no guarantee that they will be completed after $xQueueFlush returns."
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue to be flushed."
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY

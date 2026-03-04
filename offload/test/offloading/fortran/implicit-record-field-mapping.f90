@@ -3,7 +3,7 @@
 ! REQUIRES: flang, amdgpu
 
 ! This fails only because it needs the Fortran runtime built for device. If this
-! is avaialbe, this test succeeds when run.
+! is available, this test succeeds when run.
 ! XFAIL: *
 
 ! RUN: %libomptarget-compile-fortran-generic
@@ -48,5 +48,5 @@ program test_implicit_field_mapping
   endif
 end program
 
-! CHECK: "PluginInterface" device {{[0-9]+}} info: Launching kernel {{.*}}
+! CHECK: PluginInterface device {{[0-9]+}} info: Launching kernel {{.*}}
 ! CHECK: Test succeeded!

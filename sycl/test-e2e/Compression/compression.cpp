@@ -1,3 +1,6 @@
+// XFAIL: new-offload-model && target-amd
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20797
+
 // End-to-End test for testing device image compression.
 // REQUIRES: zstd
 
@@ -6,6 +9,3 @@
 // RUN: %{run} %t_not_compress.out
 // RUN: %{run} %t_compress.out
 // RUN: not diff %t_not_compress.out %t_compress.out
-
-// XFAIL: spirv-backend
-// XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/122075

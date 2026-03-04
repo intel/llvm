@@ -3,12 +3,17 @@
 // Test requires at least this version of the Intel GPU driver on Arc.
 // REQUIRES-INTEL-DRIVER: lin: 32370
 
+// UNSUPPORTED: target-amd || level_zero
+// UNSUPPORTED-INTENDED: Unimplemented in the HIP adapter yet.
+// Also, the feature is not fully implemented in the Level Zero stack.
+
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
 
+#include "helpers/common.hpp"
 #include <sycl/ext/oneapi/bindless_images.hpp>
 
 // Uncomment to print additional test information
@@ -41,14 +46,26 @@ int main() {
     syclexp::image_descriptor desc({width}, 3,
                                    sycl::image_channel_type::unsigned_int16);
 
+    // Verify ability to allocate the above image descriptor
+    if (!bindless_helpers::memoryAllocationSupported(
+            desc, syclexp::image_memory_handle_type::opaque_handle, q)) {
+      // We cannot allocate the opaque `image_mem` below
+      // Skip the test
+      if (ctxt.get_backend() == sycl::backend::ext_oneapi_cuda) {
+        std::cout << "CUDA doesn't support 3-channel formats. Skipping test.\n";
+      } else {
+        std::cout << "Memory allocation unsupported. Skipping test.\n";
+      }
+      return 0;
+    }
+
     syclexp::image_mem imgMem(desc, dev, ctxt);
 
     q.ext_oneapi_copy(dataIn.data(), imgMem.get_handle(), desc);
     q.wait_and_throw();
 
-    // Some backends don't support 3-channel formats
-    // We still try to create the image,
-    // but we expect it to fail with UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT
+    // Backends which do not support 3-channel formats will have been skipped
+    // with the check above.
     syclexp::unsampled_image_handle imgHandle =
         sycl::ext::oneapi::experimental::create_image(imgMem, desc, dev, ctxt);
 
@@ -73,14 +90,6 @@ int main() {
 
   } catch (const sycl::exception &ex) {
     const std::string_view errMsg(ex.what());
-    if (ctxt.get_backend() == sycl::backend::ext_oneapi_cuda) {
-      if (errMsg.find("UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT") !=
-          std::string::npos) {
-        std::cout << "CUDA doesn't support 3-channel formats, test passed."
-                  << std::endl;
-        return 0;
-      }
-    }
     std::cerr << "Unexpected SYCL exception: " << errMsg << "\n";
     return 1;
   } catch (...) {

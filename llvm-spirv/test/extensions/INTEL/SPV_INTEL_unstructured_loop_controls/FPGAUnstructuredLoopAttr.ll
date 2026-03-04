@@ -5,16 +5,16 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
-; CHECK-SPIRV: Capability UnstructuredLoopControlsINTEL
-; CHECK-SPIRV: Capability FPGALoopControlsINTEL
-; CHECK-SPIRV: Extension "SPV_INTEL_fpga_loop_controls"
-; CHECK-SPIRV: Extension "SPV_INTEL_unstructured_loop_controls"
-; CHECK-SPIRV: Name [[FOO:[0-9]+]] "foo"
-; CHECK-SPIRV: Name [[ENTRY_1:[0-9]+]] "entry"
-; CHECK-SPIRV: Name [[FOR:[0-9]+]] "for.cond"
-; CHECK-SPIRV: Name [[BOO:[0-9]+]] "boo"
-; CHECK-SPIRV: Name [[ENTRY_2:[0-9]+]] "entry"
-; CHECK-SPIRV: Name [[WHILE:[0-9]+]] "while.body"
+; CHECK-SPIRV: 2 Capability UnstructuredLoopControlsINTEL
+; CHECK-SPIRV: 2 Capability FPGALoopControlsINTEL
+; CHECK-SPIRV: 9 Extension "SPV_INTEL_fpga_loop_controls"
+; CHECK-SPIRV: 11 Extension "SPV_INTEL_unstructured_loop_controls"
+; CHECK-SPIRV: EntryPoint [[#]] [[FOO:[0-9]+]] "foo"
+; CHECK-SPIRV: EntryPoint [[#]] [[BOO:[0-9]+]] "boo"
+; CHECK-SPIRV: 4 Name [[ENTRY_1:[0-9]+]] "entry"
+; CHECK-SPIRV: 5 Name [[FOR:[0-9]+]] "for.cond"
+; CHECK-SPIRV: 4 Name [[ENTRY_2:[0-9]+]] "entry"
+; CHECK-SPIRV: 5 Name [[WHILE:[0-9]+]] "while.body"
 
 ; CHECK-SPIRV: Function [[#]] [[FOO]] {{[0-9]+}} {{[0-9]+}}
 ; CHECK-SPIRV: Label [[ENTRY_1]]

@@ -90,10 +90,10 @@ template <> struct ABINeutralT<std::vector<std::string>> {
 template <typename T> using ABINeutralT_t = typename ABINeutralT<T>::type;
 
 template <typename ParamT> auto convert_to_abi_neutral(ParamT &&Info) {
-  using ParamNoRef = std::remove_reference_t<ParamT>;
-  if constexpr (std::is_same_v<ParamNoRef, std::string>) {
+  using ParamDecayT = std::decay_t<ParamT>;
+  if constexpr (std::is_same_v<ParamDecayT, std::string>) {
     return detail::string{Info};
-  } else if constexpr (std::is_same_v<ParamNoRef, std::vector<std::string>>) {
+  } else if constexpr (std::is_same_v<ParamDecayT, std::vector<std::string>>) {
     std::vector<detail::string> Res;
     Res.reserve(Info.size());
     for (std::string &Str : Info) {

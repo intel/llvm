@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/context_impl.hpp>
+#include <detail/split_string.hpp>
 #include <gtest/gtest.h>
 #include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>

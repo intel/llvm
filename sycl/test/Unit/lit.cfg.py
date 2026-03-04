@@ -21,7 +21,12 @@ config.test_exec_root = os.path.join(config.sycl_obj_root, "unittests")
 config.test_source_root = config.test_exec_root
 
 # testFormat: The test format to use to interpret tests.
-config.test_format = lit.formats.GoogleTest(config.llvm_build_mode, "Tests")
+# TODO: CMPLRTST-28093: currently only non-preview SYCL unit tests are executed
+# as part of `check-sycl` and `check-all`. Change the second argument to just
+# "Tests" after the concurrency problem with non-preview and preview versions of
+# SYCL unit tests is fixed, so both non-review and preview versions of SYCL unit
+# tests will be executed as part of `check-sycl` and `check-all`.
+config.test_format = lit.formats.GoogleTest(config.llvm_build_mode, "Non_Preview_Tests")
 
 # Propagate the temp directory. Windows requires this because it uses \Windows\
 # if none of these are present.
@@ -70,8 +75,11 @@ def find_shlibpath_var():
 for shlibpath_var in find_shlibpath_var():
     # in stand-alone builds, shlibdir is clang's build tree
     # while llvm_libs_dir is installed LLVM (and possibly older clang)
+    # For unit tests, we have a "mock" OpenCL which needs to have
+    # priority and so is at the start of the shlibpath list
     shlibpath = os.path.pathsep.join(
         (
+            os.path.join(config.test_exec_root, "lib"),
             config.shlibdir,
             config.llvm_libs_dir,
             config.environment.get(shlibpath_var, ""),
@@ -92,3 +100,6 @@ lit_config.note("Using Mock Adapter.")
 
 config.environment["SYCL_CACHE_DIR"] = config.llvm_obj_root + "/sycl_cache"
 lit_config.note("SYCL cache directory: {}".format(config.environment["SYCL_CACHE_DIR"]))
+
+# Disable the UR logger callback sink during test runs as output to SYCL RT can interfere with some tests relying on standard input/output
+config.environment["UR_LOG_CALLBACK"] = "disabled"

@@ -6,57 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/atomic/clc_atomic_load.h>
+#include <libspirv/atomic/atomic_helper.h>
 #include <libspirv/spirv.h>
 
-// TODO: Stop manually mangling this name. Need C++ namespaces to get the exact mangling.
+#define __CLC_FUNCTION __spirv_AtomicLoad
+#define __CLC_IMPL_FUNCTION __clc_atomic_load
+#define __CLC_NO_VALUE_ARG
 
-#define FDECL(TYPE, PREFIX, AS, BYTE_SIZE, MEM_ORDER) \
-TYPE __clc__atomic_##PREFIX##load_##AS##_##BYTE_SIZE##_##MEM_ORDER(volatile AS const TYPE *);
+#define __CLC_BODY <atomic_def.inc>
+#include <clc/integer/gentype.inc>
 
-#define IMPL(TYPE, TYPE_MANGLED, AS, AS_MANGLED, PREFIX, BYTE_SIZE)                                             \
-  FDECL(TYPE, PREFIX, AS, BYTE_SIZE, unordered)                                                                 \
-  FDECL(TYPE, PREFIX, AS, BYTE_SIZE, acquire)                                                                   \
-  FDECL(TYPE, PREFIX, AS, BYTE_SIZE, seq_cst)                                                                   \
-  _CLC_DEF TYPE                                                                                                 \
-      _Z18__spirv_AtomicLoadP##AS_MANGLED##K##TYPE_MANGLED##N5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE( \
-          volatile AS const TYPE *p, enum Scope scope,                                                          \
-          enum MemorySemanticsMask semantics) {                                                                 \
-    if (semantics & Acquire) {                                                                                  \
-      return __clc__atomic_##PREFIX##load_##AS##_##BYTE_SIZE##_acquire(p);                                      \
-    }                                                                                                           \
-    if (semantics & SequentiallyConsistent) {                                                                   \
-      return __clc__atomic_##PREFIX##load_##AS##_##BYTE_SIZE##_seq_cst(p);                                      \
-    }                                                                                                           \
-    return __clc__atomic_##PREFIX##load_##AS##_##BYTE_SIZE##_unordered(p);                                      \
-  }
-
-#define IMPL_AS(TYPE, TYPE_MANGLED, PREFIX, BYTE_SIZE)                         \
-  IMPL(TYPE, TYPE_MANGLED, global, U3AS1, PREFIX, BYTE_SIZE)                   \
-  IMPL(TYPE, TYPE_MANGLED, local, U3AS3, PREFIX, BYTE_SIZE)
-
-IMPL_AS(int, i, , 4)
-IMPL_AS(unsigned int, j, u, 4)
-
-#ifdef cl_khr_int64_base_atomics
-IMPL_AS(long, l, , 8)
-IMPL_AS(unsigned long, m, u, 8)
-#endif
-
-#if _CLC_GENERIC_AS_SUPPORTED
-
-#define IMPL_GENERIC(TYPE, TYPE_MANGLED, PREFIX, BYTE_SIZE)                    \
-  IMPL(TYPE, TYPE_MANGLED, , , PREFIX, BYTE_SIZE)
-
-IMPL_GENERIC(int, i, , 4)
-IMPL_GENERIC(unsigned int, j, u, 4)
-
-#ifdef cl_khr_int64_base_atomics
-IMPL_GENERIC(long, l, , 8)
-IMPL_GENERIC(unsigned long, m, u, 8)
-#endif
-
-#endif //_CLC_GENERIC_AS_SUPPORTED
-
-#undef FDECL
-#undef IMPL_AS
-#undef IMPL
+#define __CLC_BODY <atomic_def.inc>
+#include <clc/math/gentype.inc>

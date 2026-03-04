@@ -11,8 +11,8 @@
 
 #include "kernel_compiler_opencl.hpp"
 
-#include "../online_compiler/ocloc_api.h"
 #include "../split_string.hpp"
+#include "ocloc_api.h"
 
 #include <cstring>    // strlen
 #include <functional> // for std::function
@@ -24,6 +24,10 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 namespace detail {
+
+// forward declaration
+std::string InvokeOclocQuery(const std::vector<uint32_t> &IPVersionVec,
+                             const char *identifier);
 
 // ensures the OclocLibrary has the right version, etc.
 void checkOclocLibrary(void *OclocLibrary) {
@@ -64,35 +68,53 @@ static std::unique_ptr<void, std::function<void(void *)>>
       std::ignore = sycl::detail::ur::unloadOsLibrary(StoredPtr);
     });
 
-// load the ocloc shared library, check it.
-void loadOclocLibrary() {
+void loadOclocLibrary(const std::vector<uint32_t> &IPVersionVec) {
 #ifdef __SYCL_RT_OS_WINDOWS
-  static const std::string OclocLibraryName = "ocloc64.dll";
+  // first the environment, if not compatible will move on to absolute path.
+  static const std::vector<std::string_view> OclocPaths = {
+      "ocloc64.dll",
+      "C:\\Program Files (x86)\\Intel\\oneAPI\\ocloc\\latest\\ocloc64.dll"};
 #else
-  static const std::string OclocLibraryName = "libocloc.so";
+  static const std::vector<std::string_view> OclocPaths = {"libocloc.so"};
 #endif
-  void *tempPtr = OclocLibrary.get();
-  if (tempPtr == nullptr) {
-    tempPtr = sycl::detail::ur::loadOsLibrary(OclocLibraryName);
 
-    if (tempPtr == nullptr)
-      throw sycl::exception(make_error_code(errc::build),
-                            "Unable to load ocloc library " + OclocLibraryName);
+  // attemptLoad() sets OclocLibrary value by side effect.
+  auto attemptLoad = [&](std::string_view OclocPath_sv) {
+    std::string OclocPath(OclocPath_sv);
+    try {
+      // Load then perform checks. Each check throws.
+      void *tempPtr = sycl::detail::ur::loadOsLibrary(OclocPath);
+      OclocLibrary.reset(tempPtr);
 
-    checkOclocLibrary(tempPtr);
+      if (tempPtr == nullptr)
+        throw sycl::exception(make_error_code(errc::build),
+                              "Unable to load ocloc from " + OclocPath);
 
-    OclocLibrary.reset(tempPtr);
+      checkOclocLibrary(tempPtr);
+
+      InvokeOclocQuery(IPVersionVec, "CL_DEVICE_OPENCL_C_ALL_VERSIONS");
+    } catch (const sycl::exception &) {
+      OclocLibrary.reset(nullptr);
+      return false;
+    }
+    return true;
+  };
+  for (const std::string_view &result : OclocPaths) {
+    if (attemptLoad(result))
+      return; // exit on successful attempt
   }
+  // If we haven't exited yet, then throw to indicate failure.
+  throw sycl::exception(make_error_code(errc::build), "Unable to load ocloc");
 }
 
-bool OpenCLC_Compilation_Available() {
+bool OpenCLC_Compilation_Available(const std::vector<uint32_t> &IPVersionVec) {
   // Already loaded?
   if (OclocLibrary != nullptr)
     return true;
 
   try {
     // loads and checks version
-    loadOclocLibrary();
+    loadOclocLibrary(IPVersionVec);
     return true;
   } catch (...) {
     return false;
@@ -102,11 +124,12 @@ bool OpenCLC_Compilation_Available() {
 using voidPtr = void *;
 
 void SetupLibrary(voidPtr &oclocInvokeHandle, voidPtr &oclocFreeOutputHandle,
-                  std::error_code the_errc) {
-  if (!oclocInvokeHandle) {
-    if (OclocLibrary == nullptr)
-      loadOclocLibrary();
+                  std::error_code the_errc,
+                  const std::vector<uint32_t> &IPVersionVec) {
+  if (OclocLibrary == nullptr)
+    loadOclocLibrary(IPVersionVec);
 
+  if (!oclocInvokeHandle) {
     oclocInvokeHandle = sycl::detail::ur::getOsLibraryFuncAddress(
         OclocLibrary.get(), "oclocInvoke");
     if (!oclocInvokeHandle)
@@ -121,6 +144,7 @@ void SetupLibrary(voidPtr &oclocInvokeHandle, voidPtr &oclocFreeOutputHandle,
 
 std::string IPVersionsToString(const std::vector<uint32_t> IPVersionVec) {
   std::stringstream ss;
+  ss.imbue(std::locale::classic());
   bool amFirst = true;
   for (uint32_t ipVersion : IPVersionVec) {
     // if any device is not intelGPU, bail.
@@ -145,7 +169,8 @@ std::string InvokeOclocQuery(const std::vector<uint32_t> &IPVersionVec,
   static void *oclocFreeOutputHandle = nullptr;
   std::error_code the_errc = make_error_code(errc::runtime);
 
-  SetupLibrary(oclocInvokeHandle, oclocFreeOutputHandle, the_errc);
+  SetupLibrary(oclocInvokeHandle, oclocFreeOutputHandle, the_errc,
+               IPVersionVec);
 
   uint32_t NumOutputs = 0;
   uint8_t **Outputs = nullptr;
@@ -193,26 +218,25 @@ std::string InvokeOclocQuery(const std::vector<uint32_t> &IPVersionVec,
   return QueryLog;
 }
 
-spirv_vec_t OpenCLC_to_SPIRV(const std::string &Source,
-                             const std::vector<uint32_t> &IPVersionVec,
-                             const std::vector<std::string> &UserArgs,
-                             std::string *LogPtr) {
-  std::vector<std::string> CMUserArgs = UserArgs;
-  CMUserArgs.push_back("-cmc");
-
+spirv_vec_t
+OpenCLC_to_SPIRV(const std::string &Source,
+                 const std::vector<uint32_t> &IPVersionVec,
+                 const std::vector<sycl::detail::string_view> &UserArgs,
+                 std::string *LogPtr) {
   // handles into ocloc shared lib
   static void *oclocInvokeHandle = nullptr;
   static void *oclocFreeOutputHandle = nullptr;
   std::error_code build_errc = make_error_code(errc::build);
 
-  SetupLibrary(oclocInvokeHandle, oclocFreeOutputHandle, build_errc);
+  SetupLibrary(oclocInvokeHandle, oclocFreeOutputHandle, build_errc,
+               IPVersionVec);
 
   // assemble ocloc args
-  std::string CombinedUserArgs =
-      std::accumulate(UserArgs.begin(), UserArgs.end(), std::string(""),
-                      [](const std::string &acc, const std::string &s) {
-                        return acc + s + " ";
-                      });
+  std::string CombinedUserArgs = "";
+  for (const sycl::detail::string_view &UserArg : UserArgs) {
+    CombinedUserArgs += UserArg.data();
+    CombinedUserArgs += " ";
+  }
 
   std::vector<const char *> Args = {"ocloc", "-q", "-spv_only", "-options",
                                     CombinedUserArgs.c_str()};

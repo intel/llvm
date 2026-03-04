@@ -60,7 +60,7 @@ design/CompilerAndRuntimeDesign.md) document.
 ### Q: What happens if I run my SYCL application on a machine without a supported backend?
 **A:** If a SYCL application is unable to find a suitable device, the SYCL
 objects (`sycl::context`, `sycl::queue`, etc.) or the SYCL device selector (See
-[SYCL 2020 specificaion 4.6.1.1](https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:device-selection))
+[SYCL 2020 specification 4.6.1.1](https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:device-selection))
 will throw a `sycl::exception` with `errc::runtime` error code.
 
 

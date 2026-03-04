@@ -250,7 +250,7 @@ the filetable to get a new filetable:
 construct a wrapper object which embeds all those files.
 
 Note that the graph does not change when more rows (clusters) or columns
-(e.g. a "manifest" file) are added to the table.
+ are added to the table.
 
 #### Enable SYCL offload
 
@@ -566,11 +566,11 @@ passed to `-fsycl-targets`.
 Unlike other AOT targets, the bitcode module linked from intermediate compiled
 objects never goes through SPIR-V. Instead it is passed directly in bitcode form
 down to the NVPTX Back End. All produced bitcode depends on two libraries,
-`libdevice.bc` (provided by the CUDA SDK) and `libspirv-nvptx64--nvidiacl.bc` variants
-(built by the libclc project). `libspirv-nvptx64--nvidiacl.bc` is not used directly.
+`libdevice.bc` (provided by the CUDA SDK) and `libspirv.bc` variants
+(built by the libclc project). `libspirv.bc` is not used directly.
 Instead it is used to generate remangled variants
-`remangled-l64-signed_char.libspirv-nvptx64--nvidiacl.bc` and
-`remangled-l32-signed_char.libspirv-nvptx64--nvidiacl.bc` to handle primitive type
+`remangled-l64-signed_char.libspirv.bc` and
+`remangled-l32-signed_char.libspirv.bc` to handle primitive type
 differences between Linux and Windows.
 
 ##### Device code post-link step for CUDA
@@ -580,7 +580,7 @@ code post-link step](#device-code-post-link-step), the llvm bitcode
 objects for the CUDA target are linked together during the common
 `llvm-link` step and then split using the `sycl-post-link` tool.
 For each temporary bitcode file, clang is invoked for the temporary file to link
-`libspirv-nvptx64--nvidiacl.bc` and `libdevice.bc` and compile the resulting
+`libspirv.bc` and `libdevice.bc` and compile the resulting
 module to PTX using the NVPTX backend. The resulting PTX file is assembled
 into a cubin using the `ptxas` tool (part of the CUDA SDK). The PTX file and
 cubin are assembled together using `fatbinary` to produce a CUDA fatbin.
@@ -608,9 +608,9 @@ incompatible libclc built-ins. A remangler creates multiple libspirv files
 with different remangled function names to support both Windows and Linux.
 When building a SYCL application targeting the CUDA backend the driver
 will link the device code with
-`remangled-l32-signed_char.libspirv-nvptx64--nvidiacl.bc` if the host target is
+`remangled-l32-signed_char.libspirv.bc` if the host target is
 Windows or it will link the device code with
-`remangled-l64-signed_char.libspirv-nvptx64--nvidiacl.bc` if the host target is
+`remangled-l64-signed_char.libspirv.bc` if the host target is
 Linux.
 
 When the SYCL compiler is in device mode and targeting the NVPTX backend, the
@@ -773,32 +773,26 @@ entry:
 
 Note: Kernel naming is not fully stable for now.
 
-##### Kernel Fusion Support
+##### JIT compilation support
 
-The [experimental kernel fusion
-extension](../extensions/removed/sycl_ext_codeplay_kernel_fusion.asciidoc)
-also supports the CUDA and HIP backends. However, as the CUBIN, PTX and AMD assembly
-are not suitable input formats for the [kernel fusion JIT compiler](KernelFusionJIT.md), a
-suitable IR has to be added as an additional device binary.
-
-Therefore, in case kernel fusion should be performed for the CUDA or HIP backends, the
-user needs to specify the additional flag `-fsycl-embed-ir` during compilation,
-to add LLVM IR as an additional device binary. When the flag `-fsycl-embed-ir`
-is specified, the LLVM IR produced by Clang for the CUDA/HIP backend device
-compilation is added to the fat binary file. To this end, the resulting
-file-table from `sycl-post-link` is additionally passed to the
-`clang-offload-wrapper`, creating a wrapper object with target `llvm_nvptx64`
-for the CUDA backend and `llvm_amdgcn` for the HIP backend.
+CUBIN, PTX and AMDGCN assembly cannot be loaded as input formats for JIT
+compilation for the CUDA or HIP backends. Hence, the user needs to specify the
+additional flag `-fsycl-embed-ir` during compilation, to add LLVM IR as an
+additional device binary. When the flag `-fsycl-embed-ir` is specified, the LLVM
+IR produced by Clang for the CUDA/HIP backend device compilation is added to the
+fat binary file. To this end, the resulting file-table from `sycl-post-link` is
+additionally passed to the `clang-offload-wrapper`, creating a wrapper object
+with target `llvm_nvptx64` for the CUDA backend and `llvm_amdgcn` for the HIP
+backend.
 
 This device binary in LLVM IR format can be retrieved by the SYCL runtime and
-used by the kernel fusion JIT compiler. For the CUDA backend, the resulting fused
-kernel is compiled to PTX assembly by the kernel fusion JIT compiler at runtime.
-For the HIP backend, the resulting fused kernel is compiled to an AMDGCN binary
-by the kernel fusion JIT compiler at runtime, however this output requires
-finalization by `lld`. Rather than adding another dependancy to the fusion jit,
-a `Requires finalization` property is added the binary. The HIP
-UR adapter will then use the AMD Compiler Object Manager library
-(`comgr`, part of the ROCm package) in order to finalize it into
+used by the JIT compiler. For the CUDA backend, the resulting LLVM module is
+compiled to PTX assembly by the JIT compiler at runtime. For the HIP backend,
+the resulting LLVM module is compiled to an AMDGCN binary by the JIT compiler
+at runtime, however this output requires finalization by `lld`. Rather than
+adding another dependency to the JIT library, a `Requires finalization` property
+is added the binary. The HIP UR adapter will then use the AMD Compiler Object
+Manager library (`comgr`, part of the ROCm package) in order to finalize it into
 a loadable format.
 
 Note that the device binary in LLVM IR does not replace the device binary in
@@ -896,9 +890,6 @@ The SPIR-V specific C++ enumerators and classes are declared in the file:
 The SPIR-V specific C++ function declarations are in the file:
 `sycl/include/CL/__spirv/spirv_ops.hpp`.
 
-The SPIR-V specific functions are implemented in for the SYCL host device here:
-`sycl/source/spirv_ops.cpp`.
-
 ### Address spaces handling
 
 SYCL specification uses C++ classes to represent pointers to disjoint memory
@@ -992,8 +983,6 @@ space attributes in SYCL mode:
 | Address space attribute | SYCL address_space enumeration |
 |-------------------------|--------------------------------|
 | `__attribute__((opencl_global))` | global_space, constant_space |
-| `__attribute__((opencl_global_host))` | ext_intel_global_host_space |
-| `__attribute__((opencl_global_device))` | ext_intel_global_device_space |
 | `__attribute__((opencl_local))` | local_space |
 | `__attribute__((opencl_private))` | private_space |
 | `__attribute__((opencl_constant))` | N/A

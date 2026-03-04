@@ -23,6 +23,10 @@ backend interop_handle::get_backend() const noexcept {
   return detail::getImplBackend(MQueue);
 }
 
+bool interop_handle::ext_codeplay_has_graph() const noexcept {
+  return MGraph != nullptr;
+}
+
 ur_native_handle_t
 interop_handle::getNativeMem(detail::Requirement *Req) const {
   auto Iter = std::find_if(std::begin(MMemObjs), std::end(MMemObjs),
@@ -33,19 +37,20 @@ interop_handle::getNativeMem(detail::Requirement *Req) const {
                     "Invalid memory object used inside interop");
   }
 
-  auto Adapter = MQueue->getAdapter();
+  detail::adapter_impl &Adapter = MQueue->getAdapter();
+  detail::device_impl &Device = MQueue->getDeviceImpl();
   ur_native_handle_t Handle;
-  Adapter->call<detail::UrApiKind::urMemGetNativeHandle>(
-      Iter->second, MDevice->getHandleRef(), &Handle);
+  Adapter.call<detail::UrApiKind::urMemGetNativeHandle>(
+      Iter->second, Device.getHandleRef(), &Handle);
   return Handle;
 }
 
 ur_native_handle_t interop_handle::getNativeDevice() const {
-  return MDevice->getNative();
+  return MQueue->getDeviceImpl().getNative();
 }
 
 ur_native_handle_t interop_handle::getNativeContext() const {
-  return MContext->getNative();
+  return MQueue->getContextImpl().getNative();
 }
 
 ur_native_handle_t
@@ -53,5 +58,20 @@ interop_handle::getNativeQueue(int32_t &NativeHandleDesc) const {
   return MQueue->getNative(NativeHandleDesc);
 }
 
+ur_native_handle_t interop_handle::getNativeGraph() const {
+  auto Graph = MGraph;
+
+  if (!Graph) {
+    throw exception(
+        make_error_code(errc::invalid),
+        "No backend graph object is available for the command-group");
+  }
+
+  detail::adapter_impl &Adapter = MQueue->getAdapter();
+  ur_native_handle_t Handle = 0;
+  Adapter.call<detail::UrApiKind::urCommandBufferGetNativeHandleExp>(Graph,
+                                                                     &Handle);
+  return Handle;
+}
 } // namespace _V1
 } // namespace sycl

@@ -13,7 +13,8 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IRReader/IRReader.h"
-#include "llvm/SYCLLowerIR/ModuleSplitter.h"
+#include "llvm/SYCLPostLink/ModuleSplitter.h"
+#include "llvm/SYCLPostLink/SYCLPostLink.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/PropertySetIO.h"
@@ -51,6 +52,11 @@ cl::opt<IRSplitMode> SplitMode(
                clEnumValN(module_split::SPLIT_AUTO, "auto",
                           "Choose split mode automatically")),
     cl::cat(SplitCategory));
+
+cl::opt<bool> AllowDeviceImageDependencies{
+    "allow-device-image-dependencies",
+    cl::desc("Allow dependencies between device images"),
+    cl::cat(SplitCategory), cl::init(false)};
 
 void writeStringToFile(const std::string &Content, StringRef Path) {
   std::error_code EC;
@@ -118,13 +124,29 @@ int main(int argc, char *argv[]) {
 
   ModuleSplitterSettings Settings;
   Settings.Mode = SplitMode;
-  Settings.OutputAssembly = OutputAssembly;
-  Settings.OutputPrefix = OutputFilenamePrefix;
-  auto SplitModulesOrErr = splitSYCLModule(std::move(M), Settings);
-  if (!SplitModulesOrErr) {
+  bool OutputAssemblyAfterSplit = OutputAssembly;
+  StringRef OutputPrefix = OutputFilenamePrefix;
+  Settings.AllowDeviceImageDependencies = AllowDeviceImageDependencies;
+  std::vector<SplitModule> SplitModules;
+  auto PostSplitCallback =
+      [&SplitModules, Settings, OutputAssemblyAfterSplit,
+       OutputPrefix](std::unique_ptr<ModuleDesc> MD) -> Error {
+    size_t ID = SplitModules.size();
+    std::string OutIRFileName = (OutputPrefix + "_" + Twine(ID)).str();
+    Expected<SplitModule> SplitImageOrErr = sycl_post_link::saveModuleDesc(
+        *MD, OutIRFileName, OutputAssemblyAfterSplit);
+    if (!SplitImageOrErr)
+      return SplitImageOrErr.takeError();
+
+    SplitModules.emplace_back(std::move(*SplitImageOrErr));
+    return Error::success();
+  };
+
+  Error E = splitSYCLModule(std::move(M), Settings, PostSplitCallback);
+  if (E) {
     Err.print(argv[0], errs());
     return 1;
   }
 
-  dumpModulesAsTable(*SplitModulesOrErr, OutputFilenamePrefix);
+  dumpModulesAsTable(SplitModules, OutputFilenamePrefix);
 }

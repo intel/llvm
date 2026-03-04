@@ -10,6 +10,7 @@
 
 #include <sycl/detail/property_helper.hpp>     // for DataLessPropKind
 #include <sycl/properties/property_traits.hpp> // for is_property_of
+#include <sycl/property_list.hpp>              // for property_list
 
 #include <type_traits> // for true_type
 
@@ -36,10 +37,30 @@ class node;
 namespace property::node {
 class depends_on;
 } // namespace property::node
-// Graph property trait specializations.
+
 enum class graph_state;
 template <graph_state State> class command_graph;
 
+namespace detail {
+inline void checkGraphPropertiesAndThrow(const property_list &Properties) {
+  auto CheckDataLessProperties = [](int PropertyKind) {
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
+  case NS_QUALIFIER::PROP_NAME::getKind():                                     \
+    return true;
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
+    switch (PropertyKind) {
+#include <sycl/ext/oneapi/experimental/detail/properties/graph_properties.def>
+
+    default:
+      return false;
+    }
+  };
+  // No properties with data for graph now.
+  auto NoAllowedPropertiesCheck = [](int) { return false; };
+  sycl::detail::PropertyValidator::checkPropsAndThrow(
+      Properties, CheckDataLessProperties, NoAllowedPropertiesCheck);
+}
+} // namespace detail
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/async/common.h>
+#include <libspirv/async/common.h>
 #include <libspirv/spirv.h>
 
 #define __CLC_BODY <../../generic/async/async_work_group_strided_copy.inc>
@@ -18,7 +18,7 @@ int __clc_nvvm_reflect_arch();
 
 #define __CLC_GROUP_CP_ASYNC_DST_GLOBAL(TYPE)                                  \
   _CLC_OVERLOAD _CLC_DEF event_t __spirv_GroupAsyncCopy(                       \
-      unsigned int scope, __attribute__((address_space(1))) TYPE *dst,         \
+      int scope, __attribute__((address_space(1))) TYPE *dst,                  \
       const __attribute__((address_space(3))) TYPE *src, size_t num_gentypes,  \
       size_t stride, event_t event) {                                          \
     STRIDED_COPY(__attribute__((address_space(1))),                            \
@@ -53,9 +53,6 @@ __CLC_GROUP_CP_ASYNC_DST_GLOBAL(ushort8);
 __CLC_GROUP_CP_ASYNC_DST_GLOBAL(char4);
 __CLC_GROUP_CP_ASYNC_DST_GLOBAL(char8);
 __CLC_GROUP_CP_ASYNC_DST_GLOBAL(char16);
-__CLC_GROUP_CP_ASYNC_DST_GLOBAL(schar4);
-__CLC_GROUP_CP_ASYNC_DST_GLOBAL(schar8);
-__CLC_GROUP_CP_ASYNC_DST_GLOBAL(schar16);
 __CLC_GROUP_CP_ASYNC_DST_GLOBAL(uchar4);
 __CLC_GROUP_CP_ASYNC_DST_GLOBAL(uchar8);
 __CLC_GROUP_CP_ASYNC_DST_GLOBAL(uchar16);
@@ -64,7 +61,7 @@ __CLC_GROUP_CP_ASYNC_DST_GLOBAL(uchar16);
 
 #define __CLC_GROUP_CP_ASYNC_4(TYPE)                                           \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT event_t __spirv_GroupAsyncCopy(       \
-      unsigned int scope, __attribute__((address_space(3))) TYPE *dst,         \
+      int scope, __attribute__((address_space(3))) TYPE *dst,                  \
       const __attribute__((address_space(1))) TYPE *src, size_t num_gentypes,  \
       size_t stride, event_t event) {                                          \
     if (__clc_nvvm_reflect_arch() >= 800) {                                    \
@@ -88,14 +85,13 @@ __CLC_GROUP_CP_ASYNC_4(short2);
 __CLC_GROUP_CP_ASYNC_4(ushort2);
 __CLC_GROUP_CP_ASYNC_4(half2);
 __CLC_GROUP_CP_ASYNC_4(char4);
-__CLC_GROUP_CP_ASYNC_4(schar4);
 __CLC_GROUP_CP_ASYNC_4(uchar4);
 
 #undef __CLC_GROUP_CP_ASYNC_4
 
 #define __CLC_GROUP_CP_ASYNC_8(TYPE)                                           \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT event_t __spirv_GroupAsyncCopy(       \
-      unsigned int scope, __attribute__((address_space(3))) TYPE *dst,         \
+      int scope, __attribute__((address_space(3))) TYPE *dst,                  \
       const __attribute__((address_space(1))) TYPE *src, size_t num_gentypes,  \
       size_t stride, event_t event) {                                          \
     if (__clc_nvvm_reflect_arch() >= 800) {                                    \
@@ -122,14 +118,13 @@ __CLC_GROUP_CP_ASYNC_8(int2);
 __CLC_GROUP_CP_ASYNC_8(uint2);
 __CLC_GROUP_CP_ASYNC_8(float2);
 __CLC_GROUP_CP_ASYNC_8(char8);
-__CLC_GROUP_CP_ASYNC_8(schar8);
 __CLC_GROUP_CP_ASYNC_8(uchar8);
 
 #undef __CLC_GROUP_CP_ASYNC_8
 
 #define __CLC_GROUP_CP_ASYNC_16(TYPE)                                          \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT event_t __spirv_GroupAsyncCopy(       \
-      unsigned int scope, __attribute__((address_space(3))) TYPE *dst,         \
+      int scope, __attribute__((address_space(3))) TYPE *dst,                  \
       const __attribute__((address_space(1))) TYPE *src, size_t num_gentypes,  \
       size_t stride, event_t event) {                                          \
     if (__clc_nvvm_reflect_arch() >= 800) {                                    \
@@ -157,6 +152,5 @@ __CLC_GROUP_CP_ASYNC_8(uchar8);
   __CLC_GROUP_CP_ASYNC_16(half8);
   __CLC_GROUP_CP_ASYNC_16(char16);
   __CLC_GROUP_CP_ASYNC_16(uchar16);
-  __CLC_GROUP_CP_ASYNC_16(schar16);
 
 #undef __CLC_GROUP_CP_ASYNC_16

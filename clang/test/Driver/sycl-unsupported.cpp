@@ -6,18 +6,19 @@
 // RUN:  | FileCheck %s -DARCH=spir64 -DOPT=-fcf-protection
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -fcf-protection -### %s 2>&1 \
 // RUN:  | FileCheck %s -DARCH=spir64_gen -DOPT=-fcf-protection
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_fpga -fcf-protection -### %s 2>&1 \
-// RUN:  | FileCheck %s -DARCH=spir64_fpga -DOPT=-fcf-protection
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fcf-protection -### %s 2>&1 \
 // RUN:  | FileCheck %s -DARCH=spir64_x86_64 -DOPT=-fcf-protection
 
-// RUN: %clangxx -fsycl -fprofile-instr-generate -### %s 2>&1 \
-// RUN:  | FileCheck %s -DARCH=spir64 -DOPT=-fprofile-instr-generate \
-// RUN:    -DOPT_CC1=-fprofile-instrument=clang \
+// Check to make sure -gline-tables-only is passed to -fsycl-is-host invocation only.
+// RUN: %clangxx -### -fsycl -gline-tables-only %s 2>&1 \
+// RUN:  | FileCheck %s -DARCH=spir64 -DOPT=-gline-tables-only \
+// RUN:    -DOPT_CC1=-debug-info-kind=line-tables-only \
 // RUN:    -check-prefixes=UNSUPPORTED_OPT_DIAG,UNSUPPORTED_OPT
-// RUN: %clangxx -fsycl -fcoverage-mapping \
-// RUN:          -fprofile-instr-generate -### %s 2>&1 \
-// RUN:  | FileCheck %s -DARCH=spir64 -DOPT=-fcoverage-mapping
+// RUN: %clang_cl -### -fsycl -gline-tables-only %s 2>&1 \
+// RUN:  | FileCheck %s -DARCH=spir64 -DOPT=-gline-tables-only \
+// RUN:    -DOPT_CC1=-debug-info-kind=line-tables-only \
+// RUN:    -check-prefixes=UNSUPPORTED_OPT_DIAG,UNSUPPORTED_OPT
+
 // RUN: %clangxx -fsycl -ftest-coverage -### %s 2>&1 \
 // RUN:  | FileCheck %s -DARCH=spir64 -DOPT=-ftest-coverage \
 // RUN:    -DOPT_CC1=-coverage-notes-file \
@@ -33,8 +34,6 @@
 // RUN:  | FileCheck %s -DARCH=spir64 -DOPT=-fcs-profile-generate \
 // RUN:    -DOPT_CC1=-fprofile-instrument=csllvm \
 // RUN:    -check-prefixes=UNSUPPORTED_OPT_DIAG,UNSUPPORTED_OPT
-// RUN: %clangxx -fsycl -forder-file-instrumentation -### %s 2>&1 \
-// RUN:  | FileCheck %s -DARCH=spir64 -DOPT=-forder-file-instrumentation
 // RUN: %clangxx -fsycl --coverage -### %s 2>&1 \
 // RUN:  | FileCheck %s -DARCH=spir64 -DOPT=--coverage \
 // RUN:    -DOPT_CC1=-coverage-notes-file \
@@ -43,17 +42,47 @@
 // RUN:  | FileCheck %s -DARCH=spir64 -DOPT=--coverage \
 // RUN:    -DOPT_CC1=-coverage-notes-file \
 // RUN:    -check-prefixes=UNSUPPORTED_OPT_DIAG,UNSUPPORTED_OPT
-// Check to make sure our '-fsanitize=address' exception isn't triggered by a
-// different option
-// RUN: %clangxx -fsycl -fprofile-instr-generate=address -### %s 2>&1 \
-// RUN:  | FileCheck %s -DARCH=spir64 -DOPT=-fprofile-instr-generate=address \
-// RUN:    -DOPT_CC1=-fprofile-instrument=clang \
-// RUN:    -check-prefixes=UNSUPPORTED_OPT_DIAG,UNSUPPORTED_OPT
 
-// CHECK: ignoring '[[OPT]]' option as it is not currently supported for target '[[ARCH]]{{.*}}' [-Woption-ignored]
+// CHECK: ignoring '[[OPT]]' option as it is not currently supported for target '[[ARCH]]{{.*}}'; only supported for host compilation [-Woption-ignored]
 // CHECK-NOT: clang{{.*}} "-fsycl-is-device"{{.*}} "[[OPT]]{{.*}}"
 // CHECK: clang{{.*}} "-fsycl-is-host"{{.*}} "[[OPT]]{{.*}}"
 
-// UNSUPPORTED_OPT_DIAG: ignoring '[[OPT]]' option as it is not currently supported for target '[[ARCH]]{{.*}}' [-Woption-ignored]
+// UNSUPPORTED_OPT_DIAG: ignoring '[[OPT]]' option as it is not currently supported for target '[[ARCH]]{{.*}}'; only supported for host compilation [-Woption-ignored]
 // UNSUPPORTED_OPT-NOT: clang{{.*}} "-fsycl-is-device"{{.*}} "[[OPT_CC1]]{{.*}}"
 // UNSUPPORTED_OPT: clang{{.*}} "-fsycl-is-host"{{.*}} "[[OPT_CC1]]{{.*}}"
+
+// Options that should only be enabled for SYCL RTC compilations, regular driver
+// shouldn't know about them:
+//
+// RUN: not %clangxx                    -### %s --auto-pch 2>&1 | FileCheck %s --check-prefix AUTO_PCH
+// RUN: not %clangxx -fsycl-device-only -### %s --auto-pch 2>&1 | FileCheck %s --check-prefix AUTO_PCH
+// RUN: not %clangxx -fsycl             -### %s --auto-pch 2>&1 | FileCheck %s --check-prefix AUTO_PCH
+//
+// AUTO_PCH: error: unknown argument: '--auto-pch'
+//
+// RUN: not %clangxx                    -### %s --persistent-auto-pch="%t.dir" 2>&1 | FileCheck %s --check-prefix PERSISTENT_AUTO_PCH
+// RUN: not %clangxx -fsycl-device-only -### %s --persistent-auto-pch="%t.dir" 2>&1 | FileCheck %s --check-prefix PERSISTENT_AUTO_PCH
+// RUN: not %clangxx -fsycl             -### %s --persistent-auto-pch="%t.dir" 2>&1 | FileCheck %s --check-prefix PERSISTENT_AUTO_PCH
+//
+// PERSISTENT_AUTO_PCH: error: unknown argument: '--persistent-auto-pch={{.*}}'
+
+// FPGA support has been removed, usage of any FPGA specific options and any
+// options that have FPGA specific arguments should emit a specific error
+// diagnostic.
+// RUN: not %clangxx -fintelfpga -### %s 2>&1 \
+// RUN:  | FileCheck %s -check-prefix UNSUPPORTED_FPGA -DBADOPT=-fintelfpga
+// RUN: not %clangxx -fsycl -fsycl-targets=spir64_fpga -### %s 2>&1 \
+// RUN:  | FileCheck %s -check-prefix UNSUPPORTED_FPGA -DBADOPT=-fsycl-targets=spir64_fpga
+// RUN: not %clangxx -fsycl -fsycl-targets=spir64_fpga-unknown-unknown -### %s 2>&1 \
+// RUN:  | FileCheck %s -check-prefix UNSUPPORTED_FPGA -DBADOPT=-fsycl-targets=spir64_fpga-unknown-unknown
+// RUN: not %clangxx -fsycl -reuse-exe=exe -### %s 2>&1 \
+// RUN:  | FileCheck %s -check-prefix UNSUPPORTED_FPGA -DBADOPT=-reuse-exe=exe
+// RUN: not %clangxx -fsycl-help=fpga -### %s 2>&1 \
+// RUN:  | FileCheck %s -check-prefix UNSUPPORTED_FPGA -DBADOPT=-fsycl-help=fpga
+// RUN: not %clangxx -fsycl -fintelfpga -Xsycl-target-backend=spir64_fpga "-backend_opts" -### %s 2>&1 \
+// RUN:  | FileCheck %s -check-prefix UNSUPPORTED_FPGA -DBADOPT=-Xsycl-target-backend=spir64_fpga
+// RUN: not %clangxx -fsycl -fsycl-link=early -### %s 2>&1 \
+// RUN:  | FileCheck %s -check-prefix UNSUPPORTED_FPGA -DBADOPT=-fsycl-link=early
+// RUN: not %clangxx -fsycl -fsycl-link=image -### %s 2>&1 \
+// RUN:  | FileCheck %s -check-prefix UNSUPPORTED_FPGA -DBADOPT=-fsycl-link=image
+// UNSUPPORTED_FPGA: option '[[BADOPT]]' is not supported and has been removed from the compiler. Please see the compiler documentation for more details

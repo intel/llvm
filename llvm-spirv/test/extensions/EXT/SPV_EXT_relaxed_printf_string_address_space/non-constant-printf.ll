@@ -9,6 +9,12 @@
 ; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
 
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_EXT_relaxed_printf_string_address_space,+SPV_KHR_untyped_pointers
+; RUN: llvm-spirv -to-text %t.spv -o %t.spt
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
+; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
+
 ; CHECK-WO-EXT: RequiresExtension: Feature requires the following SPIR-V extension:
 ; CHECK-WO-EXT: SPV_EXT_relaxed_printf_string_address_space extension should be allowed to translate this module, because this LLVM module contains the printf function with format string, whose address space is not equal to 2 (constant).
 
@@ -82,7 +88,7 @@ declare spir_func i32 @_Z18__spirv_ocl_printfPU3AS3c(ptr addrspace(3)) #0
 declare spir_func i32 @_Z18__spirv_ocl_printfPU3AS4c(ptr addrspace(4)) #0
 
 ; Function Attrs: nounwind
-declare void @llvm.memcpy.p0.p2.i64(ptr nocapture, ptr addrspace(2) nocapture readonly, i64, i1) #0
+declare void @llvm.memcpy.p0.p2.i64(ptr captures(none), ptr addrspace(2) captures(none) readonly, i64, i1) #0
 
 attributes #0 = { nounwind }
 

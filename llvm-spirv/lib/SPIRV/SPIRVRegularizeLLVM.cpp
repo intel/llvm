@@ -101,7 +101,7 @@ void SPIRVRegularizeLLVMBase::lowerIntrinsicToFunction(
     Intrinsic->setCalledFunction(F);
     return;
   }
-  // TODO copy arguments attributes: nocapture writeonly.
+  // TODO copy arguments attributes: captures(none) writeonly.
   FunctionCallee FC =
       M->getOrInsertFunction(FuncName, Intrinsic->getFunctionType());
   auto IntrinsicID = Intrinsic->getIntrinsicID();
@@ -231,7 +231,7 @@ void SPIRVRegularizeLLVMBase::buildUMulWithOverflowFunc(Function *UMulFunc) {
   // umul.with.overflow intrinsic return a structure, where the first element
   // is the multiplication result, and the second is an overflow bit.
   auto *StructTy = UMulFunc->getReturnType();
-  auto *Agg = Builder.CreateInsertValue(UndefValue::get(StructTy), Mul, {0});
+  auto *Agg = Builder.CreateInsertValue(PoisonValue::get(StructTy), Mul, {0});
   auto *Res = Builder.CreateInsertValue(Agg, Overflow, {1});
   Builder.CreateRet(Res);
 }
@@ -421,6 +421,42 @@ void SPIRVRegularizeLLVMBase::cleanupConversionToNonStdIntegers(Module *M) {
   }
 }
 
+void SPIRVRegularizeLLVMBase::replacePrivateConstGlobalsWithAllocas(Module *M) {
+  SmallVector<GlobalVariable *> GlobalsToRemove;
+  for (auto &GV : M->globals()) {
+
+    if (!GV.isConstant() || !GV.hasInternalLinkage() ||
+        !(GV.getAddressSpace() == SPIRAS_Private) || !GV.hasInitializer() ||
+        GV.getName().starts_with("llvm.compiler.used") ||
+        GV.getName().starts_with("llvm.used"))
+      continue;
+
+    SmallVector<User *> Users(GV.users());
+    // TODO: Handle other llvm::User types, for example, constant expressions.
+    if (llvm::any_of(Users, [](User *U) { return !isa<Instruction>(U); }))
+      continue;
+
+    DenseMap<Function *, AllocaInst *> LocalCopies;
+    for (User *U : Users) {
+      Instruction *Inst = cast<Instruction>(U);
+      Function *F = Inst->getFunction();
+      AllocaInst *&AI = LocalCopies[F];
+      if (!AI) {
+        IRBuilder<> Builder(&*F->getEntryBlock().getFirstInsertionPt());
+        AI = Builder.CreateAlloca(GV.getValueType(), nullptr, GV.getName());
+        if (GV.getAlign())
+          AI->setAlignment(GV.getAlign().value());
+        Builder.CreateStore(GV.getInitializer(), AI);
+      }
+      Inst->replaceUsesOfWith(&GV, AI);
+    }
+    GlobalsToRemove.push_back(&GV);
+  }
+
+  for (GlobalVariable *GV : GlobalsToRemove)
+    GV->eraseFromParent();
+}
+
 bool SPIRVRegularizeLLVMBase::runRegularizeLLVM(Module &Module) {
   M = &Module;
   Ctx = &M->getContext();
@@ -487,7 +523,7 @@ void regularizeWithOverflowInstrinsics(StringRef MangledName, CallInst *Call,
   Value *V2 = Builder.CreateICmpNE(V1, ConstZero);
   Type *StructI32I1Ty =
       StructType::create(Call->getContext(), {RetTy, V2->getType()});
-  Value *Undef = UndefValue::get(StructI32I1Ty);
+  Value *Undef = PoisonValue::get(StructI32I1Ty);
   Value *V3 = Builder.CreateInsertValue(Undef, V0, {0});
   Value *V4 = Builder.CreateInsertValue(V3, V2, {1});
   SmallVector<User *> Users(Call->users());
@@ -579,9 +615,9 @@ void prepareCacheControlsTranslation(Metadata *MD, Instruction *Inst) {
 /// Remove entities not representable by SPIR-V
 bool SPIRVRegularizeLLVMBase::regularize() {
   eraseUselessFunctions(M);
-  addKernelEntryPoint(M);
   expandSYCLTypeUsing(M);
   cleanupConversionToNonStdIntegers(M);
+  replacePrivateConstGlobalsWithAllocas(M);
 
   // Kernels called by other kernels
   std::vector<Function *> CalledKernels;
@@ -753,7 +789,7 @@ bool SPIRVRegularizeLLVMBase::regularize() {
           IRBuilder<> Builder(Cmpxchg);
           auto *Cmp = Builder.CreateICmpEQ(Res, Comparator, "cmpxchg.success");
           auto *V1 = Builder.CreateInsertValue(
-              UndefValue::get(Cmpxchg->getType()), Res, 0);
+              PoisonValue::get(Cmpxchg->getType()), Res, 0);
           auto *V2 = Builder.CreateInsertValue(V1, Cmp, 1, Cmpxchg->getName());
           Cmpxchg->replaceAllUsesWith(V2);
           ToErase.push_back(Cmpxchg);
@@ -769,69 +805,6 @@ bool SPIRVRegularizeLLVMBase::regularize() {
   if (SPIRVDbgSaveRegularizedModule)
     saveLLVMModule(M, RegularizedModuleTmpFile);
   return true;
-}
-
-void SPIRVRegularizeLLVMBase::addKernelEntryPoint(Module *M) {
-  std::vector<Function *> Work;
-
-  // Get a list of all functions that have SPIR kernel calling conv
-  for (auto &F : *M) {
-    if (F.getCallingConv() == CallingConv::SPIR_KERNEL)
-      Work.push_back(&F);
-  }
-  for (auto &F : Work) {
-    // for declarations just make them into SPIR functions.
-    F->setCallingConv(CallingConv::SPIR_FUNC);
-    if (F->isDeclaration())
-      continue;
-
-    // Otherwise add a wrapper around the function to act as an entry point.
-    FunctionType *FType = F->getFunctionType();
-    std::string WrapName =
-        kSPIRVName::EntrypointPrefix + static_cast<std::string>(F->getName());
-    Function *WrapFn =
-        getOrCreateFunction(M, F->getReturnType(), FType->params(), WrapName);
-
-    auto *CallBB = BasicBlock::Create(M->getContext(), "", WrapFn);
-    IRBuilder<> Builder(CallBB);
-
-    Function::arg_iterator DestI = WrapFn->arg_begin();
-    for (const Argument &I : F->args()) {
-      DestI->setName(I.getName());
-      DestI++;
-    }
-    SmallVector<Value *, 1> Args;
-    for (Argument &I : WrapFn->args()) {
-      Args.emplace_back(&I);
-    }
-    auto *CI = CallInst::Create(F, ArrayRef<Value *>(Args), "", CallBB);
-    CI->setCallingConv(F->getCallingConv());
-    CI->setAttributes(F->getAttributes());
-
-    // copy over all the metadata (should it be removed from F?)
-    SmallVector<std::pair<unsigned, MDNode *>> MDs;
-    F->getAllMetadata(MDs);
-    WrapFn->setAttributes(F->getAttributes());
-    for (auto MD = MDs.begin(), End = MDs.end(); MD != End; ++MD) {
-      WrapFn->addMetadata(MD->first, *MD->second);
-    }
-    WrapFn->setCallingConv(CallingConv::SPIR_KERNEL);
-    WrapFn->setLinkage(llvm::GlobalValue::InternalLinkage);
-
-    Builder.CreateRet(F->getReturnType()->isVoidTy() ? nullptr : CI);
-
-    // Have to find the spir-v metadata for execution mode and transfer it to
-    // the wrapper.
-    if (auto NMD = SPIRVMDWalker(*M).getNamedMD(kSPIRVMD::ExecutionMode)) {
-      while (!NMD.atEnd()) {
-        Function *MDF = nullptr;
-        auto N = NMD.nextOp(); /* execution mode MDNode */
-        N.get(MDF);
-        if (MDF == F)
-          N.M->replaceOperandWith(0, ValueAsMetadata::get(WrapFn));
-      }
-    }
-  }
 }
 
 } // namespace SPIRV

@@ -4,9 +4,6 @@
 // This test only checks that the method queue::parallel_for() accepting
 // reduction, can be properly translated into queue::submit + parallel_for().
 
-// Windows doesn't yet have full shutdown().
-// UNSUPPORTED: ze_debug && windows
-
 #include "reduction_utils.hpp"
 
 using namespace sycl;

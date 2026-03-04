@@ -1,9 +1,12 @@
 // REQUIRES: opencl-aot, cpu
-// REQUIRES: build-and-run-mode
 
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 %S/Inputs/common.cpp -o %t.out \
+// CPU AOT targets host isa, so we compile on the run system instead.
+// RUN: %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 %S/Inputs/common.cpp -o %t.out \
 // RUN:          -fsycl-dead-args-optimization
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s
+
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
 
 #include <sycl/detail/core.hpp>
 

@@ -6,6 +6,7 @@
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/group_barrier.hpp>
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/usm.hpp>
 
 using namespace sycl;

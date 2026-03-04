@@ -1,5 +1,4 @@
 // REQUIRES: aspect-ext_intel_legacy_image
-// UNSUPPORTED: hip
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -14,10 +13,6 @@
     ONEAPI_DEVICE_SELECTOR=opencl:gpu ./binx.bin
     ONEAPI_DEVICE_SELECTOR=level_zero:gpu ./binx.bin
     ONEAPI_DEVICE_SELECTOR=opencl:cpu ./binx.bin
-
-    ONEAPI_DEVICE_SELECTOR=opencl:fpga ../binx.bin    <--  does not support
-   image operations at this time.
-
 */
 
 #include "common.hpp"

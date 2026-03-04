@@ -20,7 +20,7 @@ int main() {
   return 0;
 }
 
-// CHECK: FunctionDecl {{.*}}kernel{{.*}} 'void (__local int *)'
+// CHECK: FunctionDecl {{.*}}kernel{{.*}} 'void (__local int *) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}}used _arg__base '__local int *'
 // CHECK-NEXT: CompoundStmt {{.*}}
 // CHECK-NEXT: DeclStmt {{.*}}

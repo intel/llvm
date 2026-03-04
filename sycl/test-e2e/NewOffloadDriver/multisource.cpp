@@ -5,8 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// XFAIL: cuda
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16413
 // Separate kernel sources and host code sources
 // Test with `--offload-new-driver`
 // RUN: %{build} --offload-new-driver -c -o %t.kernel.o -DINIT_KERNEL -DCALC_KERNEL
@@ -39,8 +37,8 @@
 // RUN: %clangxx -Wno-error=unused-command-line-argument -fsycl %{sycl_target_opts} --offload-new-driver %t.main.o %t.a -o %t4.fat
 // RUN: %{run} %t4.fat
 
-// XFAIL: spirv-backend
-// XFAIL-TRACKER: CMPLRLLVM-64059
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
 #include <sycl/detail/core.hpp>
 

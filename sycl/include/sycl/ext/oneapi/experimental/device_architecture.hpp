@@ -30,7 +30,7 @@ enum class architecture : uint64_t {
 //   - new value for -fsycl-targets option to the compiler driver in
 //     accordance with changes from sycl/doc/UsersManual.md and update the
 //     compiler driver tests
-//   - ___SYCL_TARGET_<ARCH>__ to the compiler driver and to all places below
+//   - __SYCL_TARGET_<ARCH>__ to the compiler driver and to all places below
 //   - the unique ID of the new architecture to the SYCL RT source code to
 //     support querying the device architecture through
 //     device::get_info<ext::oneapi::experimental::info::device::architecture>
@@ -72,7 +72,7 @@ static constexpr ext::oneapi::experimental::architecture
         ext::oneapi::experimental::architecture::intel_gpu_bdw;
 static constexpr ext::oneapi::experimental::architecture
     max_intel_gpu_architecture =
-        ext::oneapi::experimental::architecture::intel_gpu_ptl_u;
+        ext::oneapi::experimental::architecture::intel_gpu_cri;
 
 static constexpr ext::oneapi::experimental::architecture
     min_nvidia_gpu_architecture =
@@ -169,6 +169,9 @@ static constexpr ext::oneapi::experimental::architecture
 #ifndef __SYCL_TARGET_INTEL_GPU_BMG_G21__
 #define __SYCL_TARGET_INTEL_GPU_BMG_G21__ 0
 #endif
+#ifndef __SYCL_TARGET_INTEL_GPU_BMG_G31__
+#define __SYCL_TARGET_INTEL_GPU_BMG_G31__ 0
+#endif
 #ifndef __SYCL_TARGET_INTEL_GPU_LNL_M__
 #define __SYCL_TARGET_INTEL_GPU_LNL_M__ 0
 #endif
@@ -177,6 +180,21 @@ static constexpr ext::oneapi::experimental::architecture
 #endif
 #ifndef __SYCL_TARGET_INTEL_GPU_PTL_U__
 #define __SYCL_TARGET_INTEL_GPU_PTL_U__ 0
+#endif
+#ifndef __SYCL_TARGET_INTEL_GPU_WCL__
+#define __SYCL_TARGET_INTEL_GPU_WCL__ 0
+#endif
+#ifndef __SYCL_TARGET_INTEL_GPU_NVL_S__
+#define __SYCL_TARGET_INTEL_GPU_NVL_S__ 0
+#endif
+#ifndef __SYCL_TARGET_INTEL_GPU_NVL_U__
+#define __SYCL_TARGET_INTEL_GPU_NVL_U__ 0
+#endif
+#ifndef __SYCL_TARGET_INTEL_GPU_NVL_P__
+#define __SYCL_TARGET_INTEL_GPU_NVL_P__ 0
+#endif
+#ifndef __SYCL_TARGET_INTEL_GPU_CRI__
+#define __SYCL_TARGET_INTEL_GPU_CRI__ 0
 #endif
 #ifndef __SYCL_TARGET_NVIDIA_GPU_SM_50__
 #define __SYCL_TARGET_NVIDIA_GPU_SM_50__ 0
@@ -377,9 +395,15 @@ static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_INTEL_GPU_MTL_H__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_ARL_H__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_BMG_G21__ == 1) ||
+    (__SYCL_TARGET_INTEL_GPU_BMG_G31__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_LNL_M__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_PTL_H__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_PTL_U__ == 1) ||
+    (__SYCL_TARGET_INTEL_GPU_WCL__ == 1) ||
+    (__SYCL_TARGET_INTEL_GPU_NVL_S__ == 1) ||
+    (__SYCL_TARGET_INTEL_GPU_NVL_U__ == 1) ||
+    (__SYCL_TARGET_INTEL_GPU_NVL_P__ == 1) ||
+    (__SYCL_TARGET_INTEL_GPU_CRI__ == 1) ||
     (__SYCL_TARGET_NVIDIA_GPU_SM_50__ == 1) ||
     (__SYCL_TARGET_NVIDIA_GPU_SM_52__ == 1) ||
     (__SYCL_TARGET_NVIDIA_GPU_SM_53__ == 1) ||
@@ -524,6 +548,9 @@ get_current_architecture_aot() {
 #if __SYCL_TARGET_INTEL_GPU_BMG_G21__
   return ext::oneapi::experimental::architecture::intel_gpu_bmg_g21;
 #endif
+#if __SYCL_TARGET_INTEL_GPU_BMG_G31__
+  return ext::oneapi::experimental::architecture::intel_gpu_bmg_g31;
+#endif
 #if __SYCL_TARGET_INTEL_GPU_LNL_M__
   return ext::oneapi::experimental::architecture::intel_gpu_lnl_m;
 #endif
@@ -532,6 +559,21 @@ get_current_architecture_aot() {
 #endif
 #if __SYCL_TARGET_INTEL_GPU_PTL_U__
   return ext::oneapi::experimental::architecture::intel_gpu_ptl_u;
+#endif
+#if __SYCL_TARGET_INTEL_GPU_WCL__
+  return ext::oneapi::experimental::architecture::intel_gpu_wcl;
+#endif
+#if __SYCL_TARGET_INTEL_GPU_NVL_S__
+  return ext::oneapi::experimental::architecture::intel_gpu_nvl_s;
+#endif
+#if __SYCL_TARGET_INTEL_GPU_NVL_U__
+  return ext::oneapi::experimental::architecture::intel_gpu_nvl_u;
+#endif
+#if __SYCL_TARGET_INTEL_GPU_NVL_P__
+  return ext::oneapi::experimental::architecture::intel_gpu_nvl_p;
+#endif
+#if __SYCL_TARGET_INTEL_GPU_CRI__
+  return ext::oneapi::experimental::architecture::intel_gpu_cri;
 #endif
 #if __SYCL_TARGET_NVIDIA_GPU_SM_50__
   return ext::oneapi::experimental::architecture::nvidia_gpu_sm_50;

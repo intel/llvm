@@ -1,5 +1,4 @@
-//==-- properties.hpp - SYCL properties associated with
-// annotated_arg/ptr --==//
+//==-- properties.hpp - SYCL properties associated with annotated_ptr --==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -20,11 +19,10 @@ namespace ext {
 namespace oneapi {
 namespace experimental {
 
-template <typename T, typename PropertyListT> class annotated_arg;
 template <typename T, typename PropertyListT> class annotated_ptr;
 
 //===----------------------------------------------------------------------===//
-//   Utility type trait for annotated_arg/annotated_ptr deduction guide
+//   Utility type trait for annotated_ptr deduction guide
 //===----------------------------------------------------------------------===//
 template <typename T, typename PropertyValueT>
 struct is_valid_property : std::false_type {};
@@ -64,14 +62,14 @@ struct propagateToPtrAnnotation<property_value<PropKeyT, PropValuesTs...>>
     : propagateToPtrAnnotation<PropKeyT> {};
 
 //===----------------------------------------------------------------------===//
-//        Common properties of annotated_arg/annotated_ptr
+//        Properties of annotated_ptr
 //===----------------------------------------------------------------------===//
-struct restrict_key
-    : detail::compile_time_property_key<detail::PropKind::Restrict> {
-  using value_t = property_value<restrict_key>;
+struct unaliased_key
+    : detail::compile_time_property_key<detail::PropKind::Unaliased> {
+  using value_t = property_value<unaliased_key>;
 };
 
-inline constexpr restrict_key::value_t restrict;
+inline constexpr unaliased_key::value_t unaliased;
 
 struct alignment_key
     : detail::compile_time_property_key<detail::PropKind::Alignment> {
@@ -82,7 +80,7 @@ struct alignment_key
 template <int K> inline constexpr alignment_key::value_t<K> alignment;
 
 template <typename T>
-struct is_valid_property<T, restrict_key::value_t>
+struct is_valid_property<T, unaliased_key::value_t>
     : std::bool_constant<std::is_pointer<T>::value> {};
 
 template <typename T, int W>
@@ -90,19 +88,11 @@ struct is_valid_property<T, alignment_key::value_t<W>>
     : std::bool_constant<std::is_pointer<T>::value> {};
 
 template <typename T, typename PropertyListT>
-struct is_property_key_of<restrict_key, annotated_ptr<T, PropertyListT>>
+struct is_property_key_of<unaliased_key, annotated_ptr<T, PropertyListT>>
     : std::true_type {};
 
 template <typename T, typename PropertyListT>
 struct is_property_key_of<alignment_key, annotated_ptr<T, PropertyListT>>
-    : std::true_type {};
-
-template <typename T, typename PropertyListT>
-struct is_property_key_of<alignment_key, annotated_arg<T, PropertyListT>>
-    : std::true_type {};
-
-template <typename T, typename PropertyListT>
-struct is_property_key_of<restrict_key, annotated_arg<T, PropertyListT>>
     : std::true_type {};
 
 template <> struct propagateToPtrAnnotation<alignment_key> : std::true_type {};
@@ -113,8 +103,8 @@ template <int N> struct PropertyMetaInfo<alignment_key::value_t<N>> {
   static constexpr int value = N;
 };
 
-template <> struct PropertyMetaInfo<restrict_key::value_t> {
-  static constexpr const char *name = "sycl-restrict";
+template <> struct PropertyMetaInfo<unaliased_key::value_t> {
+  static constexpr const char *name = "sycl-unaliased";
   static constexpr std::nullptr_t value = nullptr;
 };
 

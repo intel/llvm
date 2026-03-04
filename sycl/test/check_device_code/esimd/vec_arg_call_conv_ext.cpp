@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -Xclang -emit-llvm -o %t.comp.ll %s
-// RUN: sycl-post-link -ir-output-only -lower-esimd -S %t.comp.ll -o %t.out.ll
+// RUN: sycl-post-link -split=none -ir-output-only -lower-esimd -S %t.comp.ll -o %t.out.ll
 // RUN: FileCheck --input-file=%t.out.ll %s
 
 // Checks that ESIMDOptimizeVecArgCallConv does the right job as
@@ -62,7 +62,7 @@ SYCL_EXTERNAL void callee_void__noopt_opt(simd<int, 8>& x, simd<int, 8> y) SYCL_
 
 __attribute__((noinline))
 SYCL_EXTERNAL simd<int, 8> test__sret__noopt_opt(simd<int, 8> x) SYCL_ESIMD_FUNCTION {
-// CHECK: define dso_local spir_func <8 x i32> @_Z21test__sret__noopt_opt{{.*}}(ptr noundef %{{.*}})
+// CHECK: define dso_local spir_func <8 x i32> @_Z21test__sret__noopt_opt{{.*}}(ptr noundef dead_on_return %{{.*}})
   callee_void__noopt_opt(x, x);
 // CHECK:  call spir_func void @_Z22callee_void__noopt_opt{{.*}}(ptr addrspace(4) %{{.*}}, <8 x i32> %{{.*}})
   return x;

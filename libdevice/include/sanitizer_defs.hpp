@@ -7,7 +7,11 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include "atomic.hpp"
+#include "device.h"
 #include "spir_global_var.hpp"
+#include "spirv_vars.h"
+
 #include <cstdint>
 
 using uptr = uintptr_t;
@@ -28,51 +32,35 @@ enum ADDRESS_SPACE : uint32_t {
   ADDRESS_SPACE_GENERIC = 4,
 };
 
+#define __SYCL_GLOBAL__ __attribute__((opencl_global))
+#define __SYCL_LOCAL__ __attribute__((opencl_local))
+#define __SYCL_PRIVATE__ __attribute__((opencl_private))
+#define __SYCL_CONSTANT__ __attribute__((opencl_constant))
+
 #define LIKELY(x) __builtin_expect(!!(x), 1)
 #define UNLIKELY(x) __builtin_expect(!!(x), 0)
 #define NORETURN __declspec(noreturn)
 
 #if defined(__SPIR__) || defined(__SPIRV__)
 
-#if defined(__SYCL_DEVICE_ONLY__)
-
-#define __USE_SPIR_BUILTIN__ 1
-
 #ifndef SYCL_EXTERNAL
 #define SYCL_EXTERNAL
 #endif // SYCL_EXTERNAL
 
-#else // __SYCL_DEVICE_ONLY__
-
-#define __USE_SPIR_BUILTIN__ 0
-
-#endif // __SYCL_DEVICE_ONLY__
-
-#if __USE_SPIR_BUILTIN__
 extern SYCL_EXTERNAL int
 __spirv_ocl_printf(const __SYCL_CONSTANT__ char *Format, ...);
 
 extern SYCL_EXTERNAL __SYCL_GLOBAL__ void *
-__spirv_GenericCastToPtrExplicit_ToGlobal(void *, int);
+__spirv_GenericCastToPtrExplicit_ToGlobal(void *, int) noexcept;
 extern SYCL_EXTERNAL __SYCL_LOCAL__ void *
-__spirv_GenericCastToPtrExplicit_ToLocal(void *, int);
+__spirv_GenericCastToPtrExplicit_ToLocal(void *, int) noexcept;
 extern SYCL_EXTERNAL __SYCL_PRIVATE__ void *
-__spirv_GenericCastToPtrExplicit_ToPrivate(void *, int);
+__spirv_GenericCastToPtrExplicit_ToPrivate(void *, int) noexcept;
 
 extern SYCL_EXTERNAL __attribute__((convergent)) void
-__spirv_ControlBarrier(uint32_t Execution, uint32_t Memory, uint32_t Semantics);
+__spirv_ControlBarrier(int32_t Execution, int32_t Memory,
+                       int32_t Semantics) noexcept;
 
 extern "C" SYCL_EXTERNAL void __devicelib_exit();
-#endif // __USE_SPIR_BUILTIN__
-
-__SYCL_GLOBAL__ void *ToGlobal(void *ptr) {
-  return __spirv_GenericCastToPtrExplicit_ToGlobal(ptr, 5);
-}
-__SYCL_LOCAL__ void *ToLocal(void *ptr) {
-  return __spirv_GenericCastToPtrExplicit_ToLocal(ptr, 4);
-}
-__SYCL_PRIVATE__ void *ToPrivate(void *ptr) {
-  return __spirv_GenericCastToPtrExplicit_ToPrivate(ptr, 7);
-}
 
 #endif // __SPIR__ || __SPIRV__

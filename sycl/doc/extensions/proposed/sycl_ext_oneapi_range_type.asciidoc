@@ -1,0 +1,211 @@
+= sycl_ext_oneapi_range_type
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2024 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 9 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+This extension also depends on the following other SYCL extensions:
+
+* link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
+  sycl_ext_oneapi_kernel_properties]
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+
+== Overview
+
+The maximum number of work-items that can be launched in a single kernel
+depends on multiple factors.
+SYCL 2020 says that the total number of work-items must be representable as a
+`size_t`, but several implementations (including {dpcpp}) provide optimization
+options to assert that kernels will not require the full range of a `size_t`.
+
+This extension proposes a new kernel property that allows developers to declare
+the range requirements of individual kernels, providing more fine-grained
+control than existing compiler options and improved error behavior.
+
+The property described in this extension is an advanced feature that most
+applications should not need to use.
+In most cases, applications get the best performance without using this
+property.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_RANGE_TYPE` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== New property
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+
+struct range_type_key {
+  template <typename T>
+  using value_t = property_value<range_type_key, T>;
+};
+
+template <typename T>
+inline constexpr range_type_key::value_t<T> range_type;
+
+} // namespace sycl::ext::oneapi::experimental
+```
+
+|===
+|Property|Description
+
+|`range_type`
+|The `range_type` property is an assertion by the application that the kernel
+will never be launched with more than `std::numeric_limits<T>::max()`
+work-items.
+If the kernel is launched with more than this many work-items, the
+implementation must throw a synchronous `exception` with the `errc::nd_range`
+error code.
+
+`T` must be an integral type.
+
+|===
+
+This property can also be associated with a device function using the
+`SYCL_EXT_ONEAPI_FUNCTION_PROPERTY` macro.
+
+There are special requirements whenever a device function defined in one
+translation unit makes a call to a device function that is defined in a second
+translation unit.
+In such a case, the second device function is always declared using
+`SYCL_EXTERNAL`.
+If the kernel calling these device functions is defined using a `range_type`
+property, the functions declared using `SYCL_EXTERNAL` must be similarly
+decorated to ensure that a compatible `range_type` is used.
+This decoration must exist in both the translation unit making the call and
+also in the translation unit that defines the function.
+If the `range_type` property is missing in the translation unit that makes the
+call, or if the `range_type` of the called function is not compatible with the
+`range_type` of the calling function, the program is ill-formed and the
+compiler must raise a diagnostic.
+Two `range_type` properties are considered compatible if all values that can be
+represented by the `range_type` of the caller function can be represented by
+the `range_type` of the called function.
+
+== Usage example
+
+```c++
+namespace syclex = sycl::ext::oneapi::experimental;
+
+struct SmallKernel
+{
+  // Declare that this kernel supports at most 2^31-1 work-items.
+  auto get(syclex::properties_tag) const {
+    return syclex::properties{syclex::range_type<int>};
+  }
+};
+
+...
+
+// Throws an exception with errc::nd_range error code.
+// (because 2147483648 > 2147483647)
+q.parallel_for(2147483648, SmallKernel());
+```
+
+== Interaction with the {dpcpp} "-fsycl-id-queries-fit-in-int" option
+
+The `-fsycl-id-queries-fit-in-int` option is specific to the {dpcpp}
+implementation.
+Therefore, this section that describes the interaction between this extension
+and that option is non-normative and does not apply to other SYCL
+implementations that may support this extension.
+
+If a translation unit is compiled with the `-fsycl-id-queries-fit-in-int`
+option, all kernels and `SYCL_EXTERNAL` functions without an explicitly
+specified `range_type` property are compiled as-if `range_type<int>` was
+specified as a property of that kernel or function.
+
+
+== Implementation notes
+
+This non-normative section provides information about one possible
+implementation of this extension.
+It is not part of the specification of the extension's API.
+
+There are several ways this extension could be implemented:
+
+- A dedicated LLVM-IR pass could recognize functions that compute an ID (e.g.,
+  `nd_item::get_global_id`), check whether the static call tree comes from a
+  kernel or function decorated with `range_type`, and then conditionally insert
+  an equivalent of `__builtin_assume`.
+
+- The existing `+__builtin_assume+` intrinsic in `+__SYCL_ASSUME_INT+` could be
+  replaced by a new (but similar) SPIR-V intrinsic, shifting range-type
+  optimizations to the device compiler.
+  This could take the form of a dedicated `+__spirv_AssumeInRange+` intrinsic,
+  or a general `+__spirv_Assume+` intrinsic coupled with a `+__spirv_MaxRange+`
+  value.
+
+Ideally, the solution should not generate SPIR-V modules that require new
+extensions if `range_type` is not used.
+
+
+== Issues
+
+None.

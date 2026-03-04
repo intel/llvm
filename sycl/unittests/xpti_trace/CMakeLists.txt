@@ -6,4 +6,7 @@ add_sycl_unittest(XptiTraceTests OBJECT
     NodeCreation.cpp
     QueueIDCheck.cpp
 )
-target_link_libraries(XptiTraceTests PRIVATE xpti xptitest_subscriber)
+target_link_libraries(XptiTraceTests_Non_Preview_Tests PRIVATE xpti xptitest_subscriber)
+if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
+    target_link_libraries(XptiTraceTests_Preview_Tests PRIVATE xpti xptitest_subscriber)
+endif()

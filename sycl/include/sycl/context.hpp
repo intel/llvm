@@ -14,8 +14,8 @@
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/info_desc_helpers.hpp>  // for is_context_info_desc
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
-#include <sycl/platform.hpp>                  // for platform
 #include <sycl/property_list.hpp>             // for property_list
+#include <sycl/usm/usm_enums.hpp>             // for usm::alloc
 #include <ur_api.h>                           // for ur_native_handle_t
 
 #ifdef __SYCL_INTERNAL_API
@@ -36,6 +36,10 @@ inline namespace _V1 {
 class device;
 class platform;
 
+namespace ext::oneapi::experimental {
+class memory_pool;
+} // namespace ext::oneapi::experimental
+
 namespace detail {
 class context_impl;
 }
@@ -47,6 +51,8 @@ auto get_native(const SyclT &Obj) -> backend_return_t<Backend, SyclT>;
 ///
 /// \ingroup sycl_api
 class __SYCL_EXPORT context : public detail::OwnerLessBase<context> {
+  friend sycl::detail::ImplUtils;
+
 public:
   /// Constructs a SYCL context instance using an instance of default_selector.
   ///
@@ -176,12 +182,7 @@ public:
   /// Queries this SYCL context for SYCL backend-specific information.
   ///
   /// The return type depends on information being queried.
-  template <typename Param
-#if defined(_GLIBCXX_USE_CXX11_ABI) && _GLIBCXX_USE_CXX11_ABI == 0
-            ,
-            int = detail::emit_get_backend_info_error<context, Param>()
-#endif
-            >
+  template <typename Param>
   typename detail::is_backend_info_desc<Param>::return_type
   get_backend_info() const;
 
@@ -238,6 +239,13 @@ public:
   /// \return a vector of valid SYCL device instances.
   std::vector<device> get_devices() const;
 
+  /// Gets default memory pool associated with a device and context.
+  ///
+  /// \return a memory pool for a particular device and context.
+  sycl::ext::oneapi::experimental::memory_pool
+  ext_oneapi_get_default_memory_pool(const device &dev,
+                                     sycl::usm::alloc kind) const;
+
 private:
   /// Constructs a SYCL context object from a valid context_impl instance.
   context(std::shared_ptr<detail::context_impl> Impl);
@@ -248,13 +256,6 @@ private:
 
   template <backend Backend, class SyclT>
   friend auto get_native(const SyclT &Obj) -> backend_return_t<Backend, SyclT>;
-
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 
   const property_list &getPropList() const;
 };
@@ -289,11 +290,6 @@ inline exception::exception(context Ctx, int EV,
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
-template <> struct hash<sycl::context> {
-  size_t operator()(const sycl::context &Context) const {
-    return hash<std::shared_ptr<sycl::detail::context_impl>>()(
-        sycl::detail::getSyclObjImpl(Context));
-  }
-};
-} // namespace std
+template <>
+struct std::hash<sycl::context>
+    : public sycl::detail::sycl_obj_hash<sycl::context> {};
