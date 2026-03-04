@@ -5,18 +5,47 @@
 // RUN: %{build} -o %t.exe -ld3d12 -ldxgi -ld3dcompiler
 // RUN: %{run} %t.exe --type float --channels 4 8x8x8
 
+// RUN: %{run} %t.out --type float --channels 1 33x32x31
+// RUN: %{run} %t.out --type float --channels 2 32x33x31
+// RUN: %{run} %t.out --type float --channels 4 31x32x33
+// RUN: %{run} %t.out --type half --channels 1 16x17x15
+// RUN: %{run} %t.out --type half --channels 2 17x16x15
+// RUN: %{run} %t.out --type half --channels 4 15x16x17
+// RUN: %{run} %t.out --type int32 --channels 1 9x8x7
+// RUN: %{run} %t.out --type int32 --channels 2 8x9x7
+// RUN: %{run} %t.out --type int32 --channels 4 7x8x9
+// RUN: %{run} %t.out --type uint32 --channels 1 33x31x32
+// RUN: %{run} %t.out --type uint32 --channels 2 31x33x32
+// RUN: %{run} %t.out --type uint32 --channels 4 32x31x33
+// RUN: %{run} %t.out --type int16 --channels 1 17x15x16
+// RUN: %{run} %t.out --type int16 --channels 2 15x17x16
+// RUN: %{run} %t.out --type int16 --channels 4 16x15x17
+// RUN: %{run} %t.out --type uint16 --channels 1 9x7x8
+// RUN: %{run} %t.out --type uint16 --channels 2 7x9x8
+// RUN: %{run} %t.out --type uint16 --channels 4 8x7x9
+// RUN: %{run} %t.out --type uint8 --channels 1 33x32x31
+// RUN: %{run} %t.out --type uint8 --channels 2 32x31x33
+// RUN: %{run} %t.out --type uint8 --channels 4 31x33x32
+// RUN: %{run} %t.out --type int8 --channels 1 17x16x15
+// RUN: %{run} %t.out --type int8 --channels 2 16x15x17
+// RUN: %{run} %t.out --type int8 --channels 4 15x17x16
+// RUN: %{run} %t.out --type unorm8 --channels 1 9x8x7
+// RUN: %{run} %t.out --type unorm8 --channels 2 8x7x9
+// RUN: %{run} %t.out --type unorm8 --channels 4 7x9x8
+
+// clang-format off
 /*
-    clang++.exe -fsycl -o ds3w.exe D3D12_sycl_interop_3D_write.cpp -ld3d12
-   -ldxgi -ld3dcompiler
+    clang++.exe -fsycl -o ds3w.exe D3D12_sycl_interop_3D_write.cpp -ld3d12 -ldxgi -ld3dcompiler
 
     FLAGS:
     --sampled      ERROR: Sampled image writes are not supported
     --semaphores   Use DX12 Fences for SYCL Interop Sync
     --channels X   Set number of channels (1, 2, or 4). Default is 4 (RGBA)
-    --type XXX     Set data type (float, half, uint32, int32, uint16, int16,
-   uint8, int8, unorm8). Default is float WxHxD          Set custom Width x
-   Height x Depth (e.g. 8x4x41)
+    --type XXX     Set data type (float, half, uint32, int32, uint16, int16, uint8, int8, unorm8). 
+                   Default is float 
+   WxHxD           Set custom Width x Height x Depth (e.g. 8x4x41)
 */
+// clang-format on
 
 #include "d3d12_setup.hpp"
 

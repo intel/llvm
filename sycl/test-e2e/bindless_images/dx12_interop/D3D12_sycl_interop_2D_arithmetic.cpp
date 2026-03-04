@@ -5,19 +5,17 @@
 // RUN: %{build} -o %t.exe -ld3d12 -ldxgi -ld3dcompiler
 // RUN: %{run} %t.exe --type float --channels 4 8x8
 
+// clang-format off
 /*
-
-    clang++.exe -fsycl -o ds2A.exe D3D12_sycl_interop_2D_arithmetic.cpp -ld3d12
-   -ldxgi -ld3dcompiler
-
+    clang++.exe -fsycl -o ds2A.exe D3D12_sycl_interop_2D_arithmetic.cpp -ld3d12 -ldxgi -ld3dcompiler
 
     FLAGS:
     --sampled      Use sampled image path (default: unsampled/storage)
     --semaphores   Use DX12 Fences for SYCL Interop Sync
     --channels X   Set number of channels (1, 2, or 4). Default is 4 (RGBA)
-    --type XXX     Set data type (float, half, uint32, int32, uint16, int16,
-   uint8, int8, unorm8). Default is float WxH            Set custom Width x
-   Height (e.g. 8x4)
+    --type XXX     Set data type (float, half, uint32, int32, uint16, int16, uint8, int8, unorm8). 
+                   Default is float 
+    WxH            Set custom Width x Height (e.g. 8x4)
 
 
     BMG:
@@ -33,6 +31,62 @@
    Graphics OpenCL 3.0 NEO  [32.0.101.8132]
 
 */
+// clang-format on
+
+// RUN: %{run} %t.out --type float --channels 1 32x33
+// RUN: %{run} %t.out --type float --channels 2 32x33
+// RUN: %{run} %t.out --type float --channels 4 32x33
+// RUN: %{run} %t.out --type half --channels 1 32x33
+// RUN: %{run} %t.out --type half --channels 2 32x33
+// RUN: %{run} %t.out --type half --channels 4 32x33
+// RUN: %{run} %t.out --type int32 --channels 1 32x33
+// RUN: %{run} %t.out --type int32 --channels 2 32x33
+// RUN: %{run} %t.out --type int32 --channels 4 32x33
+// RUN: %{run} %t.out --type uint32 --channels 1 32x33
+// RUN: %{run} %t.out --type uint32 --channels 2 32x33
+// RUN: %{run} %t.out --type uint32 --channels 4 32x33
+// RUN: %{run} %t.out --type int16 --channels 1 32x33
+// RUN: %{run} %t.out --type int16 --channels 2 32x33
+// RUN: %{run} %t.out --type int16 --channels 4 32x33
+// RUN: %{run} %t.out --type uint16 --channels 1 32x33
+// RUN: %{run} %t.out --type uint16 --channels 2 32x33
+// RUN: %{run} %t.out --type uint16 --channels 4 32x33
+// RUN: %{run} %t.out --type uint8 --channels 1 32x33
+// RUN: %{run} %t.out --type uint8 --channels 2 32x33
+// RUN: %{run} %t.out --type uint8 --channels 4 32x33
+// RUN: %{run} %t.out --type int8 --channels 1 32x33
+// RUN: %{run} %t.out --type int8 --channels 2 32x33
+// RUN: %{run} %t.out --type int8 --channels 4 32x33
+// RUN: %{run} %t.out --type unorm8 --channels 1 32x33
+// RUN: %{run} %t.out --type unorm8 --channels 2 32x33
+// RUN: %{run} %t.out --type unorm8 --channels 4 32x33
+// RUN: %{run} %t.out --type float --channels 1 --sampled 32x33
+// RUN: %{run} %t.out --type float --channels 2 --sampled 32x33
+// RUN: %{run} %t.out --type float --channels 4 --sampled 32x33
+// RUN: %{run} %t.out --type half --channels 1 --sampled 32x33
+// RUN: %{run} %t.out --type half --channels 2 --sampled 32x33
+// RUN: %{run} %t.out --type half --channels 4 --sampled 32x33
+// RUN: %{run} %t.out --type int32 --channels 1 --sampled 32x33
+// RUN: %{run} %t.out --type int32 --channels 2 --sampled 32x33
+// RUN: %{run} %t.out --type int32 --channels 4 --sampled 32x33
+// RUN: %{run} %t.out --type uint32 --channels 1 --sampled 32x33
+// RUN: %{run} %t.out --type uint32 --channels 2 --sampled 32x33
+// RUN: %{run} %t.out --type uint32 --channels 4 --sampled 32x33
+// RUN: %{run} %t.out --type int16 --channels 1 --sampled 32x33
+// RUN: %{run} %t.out --type int16 --channels 2 --sampled 32x33
+// RUN: %{run} %t.out --type int16 --channels 4 --sampled 32x33
+// RUN: %{run} %t.out --type uint16 --channels 1 --sampled 32x33
+// RUN: %{run} %t.out --type uint16 --channels 2 --sampled 32x33
+// RUN: %{run} %t.out --type uint16 --channels 4 --sampled 32x33
+// RUN: %{run} %t.out --type uint8 --channels 1 --sampled 32x33
+// RUN: %{run} %t.out --type uint8 --channels 2 --sampled 32x33
+// RUN: %{run} %t.out --type uint8 --channels 4 --sampled 32x33
+// RUN: %{run} %t.out --type int8 --channels 1 --sampled 32x33
+// RUN: %{run} %t.out --type int8 --channels 2 --sampled 32x33
+// RUN: %{run} %t.out --type int8 --channels 4 --sampled 32x33
+// RUN: %{run} %t.out --type unorm8 --channels 1 --sampled 32x33
+// RUN: %{run} %t.out --type unorm8 --channels 2 --sampled 32x33
+// RUN: %{run} %t.out --type unorm8 --channels 4 --sampled 32x33
 
 #include "d3d12_setup.hpp"
 

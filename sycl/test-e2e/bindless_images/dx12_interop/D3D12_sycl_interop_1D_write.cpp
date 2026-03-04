@@ -5,18 +5,47 @@
 // RUN: %{build} -o %t.exe -ld3d12 -ldxgi -ld3dcompiler
 // RUN: %{run} %t.exe --type float --channels 4 1024x
 
+// clang-format off
 /*
-    clang++.exe -fsycl -o ds1w.exe D3D12_sycl_interop_1D_write.cpp -ld3d12
-   -ldxgi -ld3dcompiler
+    clang++.exe -fsycl -o ds1w.exe D3D12_sycl_interop_1D_write.cpp -ld3d12 -ldxgi -ld3dcompiler
 
     FLAGS:
     --sampled      ERROR: Sampled image writes are not supported
     --semaphores   Use DX12 Fences for SYCL Interop Sync
     --channels X   Set number of channels (1, 2, or 4). Default is 4 (RGBA)
-    --type XXX     Set data type (float, half, uint32, int32, uint16, int16,
-   uint8, int8, unorm8). Default is float Wx             Set custom Width (e.g.
-   8x)
+    --type XXX     Set data type (float, half, uint32, int32, uint16, int16, uint8, int8, unorm8). 
+                  Default is float 
+    Wx             Set custom Width (e.g. 8x)
 */
+// clang-format on
+
+// RUN: %{run} %t.out --type float --channels 1 33x
+// RUN: %{run} %t.out --type float --channels 2 33x
+// RUN: %{run} %t.out --type float --channels 4 33x
+// RUN: %{run} %t.out --type half --channels 1 33x
+// RUN: %{run} %t.out --type half --channels 2 33x
+// RUN: %{run} %t.out --type half --channels 4 33x
+// RUN: %{run} %t.out --type int32 --channels 1 33x
+// RUN: %{run} %t.out --type int32 --channels 2 33x
+// RUN: %{run} %t.out --type int32 --channels 4 33x
+// RUN: %{run} %t.out --type uint32 --channels 1 33x
+// RUN: %{run} %t.out --type uint32 --channels 2 33x
+// RUN: %{run} %t.out --type uint32 --channels 4 33x
+// RUN: %{run} %t.out --type int16 --channels 1 33x
+// RUN: %{run} %t.out --type int16 --channels 2 33x
+// RUN: %{run} %t.out --type int16 --channels 4 33x
+// RUN: %{run} %t.out --type uint16 --channels 1 33x
+// RUN: %{run} %t.out --type uint16 --channels 2 33x
+// RUN: %{run} %t.out --type uint16 --channels 4 33x
+// RUN: %{run} %t.out --type uint8 --channels 1 33x
+// RUN: %{run} %t.out --type uint8 --channels 2 33x
+// RUN: %{run} %t.out --type uint8 --channels 4 33x
+// RUN: %{run} %t.out --type int8 --channels 1 33x
+// RUN: %{run} %t.out --type int8 --channels 2 33x
+// RUN: %{run} %t.out --type int8 --channels 4 33x
+// RUN: %{run} %t.out --type unorm8 --channels 1 33x
+// RUN: %{run} %t.out --type unorm8 --channels 2 33x
+// RUN: %{run} %t.out --type unorm8 --channels 4 33x
 
 #include "d3d12_setup.hpp"
 

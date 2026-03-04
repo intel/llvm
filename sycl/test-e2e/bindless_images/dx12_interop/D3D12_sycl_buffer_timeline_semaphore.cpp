@@ -2,8 +2,8 @@
 // REQUIRES: aspect-ext_oneapi_external_semaphore_import
 // REQUIRES: windows
 
-// UNSUPPORTED: windows
-// UNSUPPORTED-TRACKER:
+// xNSUPPORTED: windows
+// xNSUPPORTED-TRACKER:
 
 // RUN: %{build} -ld3d12 -ldxgi -ld3dcompiler -o %t.exe %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.exe --no-sem
