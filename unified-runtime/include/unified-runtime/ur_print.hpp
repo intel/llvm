@@ -1165,6 +1165,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP:
     os << "UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP";
     break;
+  case UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE_WITH_ARGS:
+    os << "UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE_WITH_ARGS";
+    break;
   case UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE:
     os << "UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE";
     break;
@@ -14924,6 +14927,67 @@ operator<<(std::ostream &os, [[maybe_unused]] const struct
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the
+/// ur_kernel_get_suggested_local_work_size_with_args_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_kernel_get_suggested_local_work_size_with_args_params_t *params) {
+
+  os << ".hKernel = ";
+
+  ur::details::printPtr(os, *(params->phKernel));
+
+  os << ", ";
+  os << ".hQueue = ";
+
+  ur::details::printPtr(os, *(params->phQueue));
+
+  os << ", ";
+  os << ".numWorkDim = ";
+
+  os << *(params->pnumWorkDim);
+
+  os << ", ";
+  os << ".pGlobalWorkOffset = ";
+
+  ur::details::printPtr(os, *(params->ppGlobalWorkOffset));
+
+  os << ", ";
+  os << ".pGlobalWorkSize = ";
+
+  ur::details::printPtr(os, *(params->ppGlobalWorkSize));
+
+  os << ", ";
+  os << ".numArgs = ";
+
+  os << *(params->pnumArgs);
+
+  os << ", ";
+  os << ".pArgs = ";
+  ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->ppArgs)));
+  if (*(params->ppArgs) != NULL) {
+    os << " {";
+    for (size_t i = 0; i < *params->pnumArgs; ++i) {
+      if (i != 0) {
+        os << ", ";
+      }
+
+      os << (*(params->ppArgs))[i];
+    }
+    os << "}";
+  }
+
+  os << ", ";
+  os << ".pSuggestedLocalWorkSize = ";
+
+  ur::details::printPtr(os, *(params->ppSuggestedLocalWorkSize));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_kernel_set_arg_value_params_t type
 /// @returns
 ///     std::ostream &
@@ -22581,6 +22645,10 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   case UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE: {
     os << (const struct ur_kernel_get_suggested_local_work_size_params_t *)
             params;
+  } break;
+  case UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE_WITH_ARGS: {
+    os << (const struct
+           ur_kernel_get_suggested_local_work_size_with_args_params_t *)params;
   } break;
   case UR_FUNCTION_KERNEL_SET_ARG_VALUE: {
     os << (const struct ur_kernel_set_arg_value_params_t *)params;
