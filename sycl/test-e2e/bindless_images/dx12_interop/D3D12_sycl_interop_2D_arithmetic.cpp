@@ -421,19 +421,19 @@ int runTest(
           syclexp::external_semaphore_descriptor<
               syclexp::resource_win32_handle>{
               extFenceA.sharedHandle,
-              syclexp::external_semaphore_handle_type::win32_nt_handle},
+              syclexp::external_semaphore_handle_type::win32_nt_dx12_fence},
           q.get_device(), q.get_context());
       extSemB = syclexp::import_external_semaphore(
           syclexp::external_semaphore_descriptor<
               syclexp::resource_win32_handle>{
               extFenceB.sharedHandle,
-              syclexp::external_semaphore_handle_type::win32_nt_handle},
+              syclexp::external_semaphore_handle_type::win32_nt_dx12_fence},
           q.get_device(), q.get_context());
       extSemOut = syclexp::import_external_semaphore(
           syclexp::external_semaphore_descriptor<
               syclexp::resource_win32_handle>{
               extFenceOut.sharedHandle,
-              syclexp::external_semaphore_handle_type::win32_nt_handle},
+              syclexp::external_semaphore_handle_type::win32_nt_dx12_fence},
           q.get_device(), q.get_context());
     }
 

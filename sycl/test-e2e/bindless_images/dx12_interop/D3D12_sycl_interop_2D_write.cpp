@@ -190,8 +190,9 @@ int runTest(
     syclexp::external_semaphore extSem;
     if (useSemaphores) {
       syclexp::external_semaphore_descriptor<syclexp::resource_win32_handle>
-          extSemDesc{extFence.sharedHandle,
-                     syclexp::external_semaphore_handle_type::win32_nt_handle};
+          extSemDesc{
+              extFence.sharedHandle,
+              syclexp::external_semaphore_handle_type::win32_nt_dx12_fence};
       extSem = syclexp::import_external_semaphore(extSemDesc, q.get_device(),
                                                   q.get_context());
     }
