@@ -4,29 +4,29 @@ name: Unified Runtime Pre Commit
 # Over time it will be most likely integrated more into existing workflows.
 
 # Note: the trigger is copy-pasted from sycl-linux-precommit.yml - probably to be fine-tuned.
-on:
+on: [push, pull_request]
   # We rely on "Fork pull request workflows from outside collaborators" -
   # "Require approval for all outside collaborators" at
   # https://github.com/intel/llvm/settings/actions for security.
-  pull_request:
-    branches:
-    - sycl
-    - sycl-rel-**
-    # Do not run builds if changes are only in the following locations
-    paths-ignore:
-    - '.github/ISSUE_TEMPLATE/**'
-    - '.github/CODEOWNERS'
-    - 'sycl/doc/**'
-    - 'sycl/gdb/**'
-    - 'clang/docs/**'
-    - '**.md'
-    - '**.rst'
-    - '.github/workflows/sycl-windows-*.yml'
-    - '.github/workflows/sycl-macos-*.yml'
-    - '.github/workflows/sycl-nightly.yml'
-    - '.github/workflows/sycl-rel-nightly.yml'
-    - 'devops/containers/**'
-    - 'devops/actions/build_container/**'
+  # pull_request:
+  #   branches:
+  #   - sycl
+  #   - sycl-rel-**
+  #   # Do not run builds if changes are only in the following locations
+  #   paths-ignore:
+  #   - '.github/ISSUE_TEMPLATE/**'
+  #   - '.github/CODEOWNERS'
+  #   - 'sycl/doc/**'
+  #   - 'sycl/gdb/**'
+  #   - 'clang/docs/**'
+  #   - '**.md'
+  #   - '**.rst'
+  #   - '.github/workflows/sycl-windows-*.yml'
+  #   - '.github/workflows/sycl-macos-*.yml'
+  #   - '.github/workflows/sycl-nightly.yml'
+  #   - '.github/workflows/sycl-rel-nightly.yml'
+  #   - 'devops/containers/**'
+  #   - 'devops/actions/build_container/**'
 
 concurrency:
   #  Cancel a currently running workflow from the same PR, branch or tag.
