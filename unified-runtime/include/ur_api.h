@@ -11139,7 +11139,8 @@ typedef struct ur_exp_kernel_arg_properties_t {
 } ur_exp_kernel_arg_properties_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Enqueue a command to execute a kernel
+/// @brief Enqueue a command to execute a kernel and set args at kernel launch
+///        time.
 ///
 /// @remarks
 ///   _Analogues_
@@ -12303,8 +12304,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     ur_exp_command_buffer_command_handle_t *phCommand);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Append a kernel execution command to a command-buffer object with
-///        setting args at kernel launch.
+/// @brief Append a kernel execution command to a command-buffer object and set
+///        args at kernel launch time.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
