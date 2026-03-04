@@ -75,7 +75,7 @@ jobs:
           - name: Intel Arc Graphics with Level Zero
             runner: '["Windows","arc"]'
           - name: Intel Battlemage Graphics with Level Zero
-            runner: '["Windows","bmg"]'
+            runner: '["Windows","bmg-test"]'
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
       name: ${{ matrix.name }}
@@ -101,7 +101,7 @@ jobs:
           - name: New Offload Model / Intel Arc Graphics with Level Zero
             runner: '["Windows","arc"]'
           - name: New Offload Model / Intel Battlemage Graphics with Level Zero
-            runner: '["Windows","bmg"]'
+            runner: '["Windows","bmg-test"]'
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
       name: ${{ matrix.name }}

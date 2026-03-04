@@ -164,10 +164,10 @@ jobs:
             target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu         
             env: '{"LIT_FILTER":"Matrix/"}'
           - name: Intel / Ponte Vecchio GPU
-            runner: '["Linux", "pvc"]'
+            runner: '["Linux", "pvc-test"]'
             target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
           - name: Intel / Battlemage Graphics
-            runner: '["Linux", "bmg"]'
+            runner: '["Linux", "bmg-test"]'
             target_devices: level_zero_v1:gpu;level_zero_v2:gpu
           - name: Preview Mode
             runner: '["Linux", "gen12"]'
@@ -181,14 +181,14 @@ jobs:
 
           # We're in an ABI-breaking window, so these don't make sense for now.
           - name: ABI compatibility / sycl-rel-6_2
-            runner: '["Linux", "pvc"]'
+            runner: '["Linux", "pvc-test"]'
             image: ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_2
             target_devices: level_zero:gpu
             extra_lit_opts: '--param test-preview-mode=False --filter-out "${{ needs.compat_read_exclude.outputs.FILTER_6_2 }}"'
             binaries_artifact: 'in-container'
             skip_run: true
           - name: ABI compatibility / sycl-rel-6_3
-            runner: '["Linux", "pvc"]'
+            runner: '["Linux", "pvc-test"]'
             image: ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_3
             target_devices: level_zero:gpu
             extra_lit_opts: '--param test-preview-mode=False --filter-out "${{ needs.compat_read_exclude.outputs.FILTER_6_3 }}"'
@@ -238,10 +238,10 @@ jobs:
             runner: '["Linux", "arc"]'
             target_devices: level_zero:gpu
           - name: Intel / Ponte Vecchio GPU
-            runner: '["Linux", "pvc"]'
+            runner: '["Linux", "pvc-test"]'
             target_devices: level_zero:gpu
           - name: Intel / Battlemage Graphics
-            runner: '["Linux", "bmg"]'
+            runner: '["Linux", "bmg-test"]'
             target_devices: level_zero_v2:gpu
           - name: NVIDIA/CUDA
             runner: '["Linux", "cuda"]'
