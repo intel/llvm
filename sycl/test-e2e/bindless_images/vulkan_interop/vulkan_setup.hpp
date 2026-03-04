@@ -60,22 +60,20 @@ const auto PLATFORM_SEM_HANDLE_TYPE =
     VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
 #endif
 
-
 // ---------------------------------------------------------
 // VULKAN DEBUG CALLBACK
 // ---------------------------------------------------------
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL debugUtilsMessageCallback(
-			VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-			VkDebugUtilsMessageTypeFlagsEXT messageType,
-			const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
-			void* pUserData)
-		{
-      if (messageSeverity & (VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)) {
-          std::cerr << pCallbackData->pMessage << "\n\n";
-      }
-      return VK_FALSE;
-    };
+    VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+    VkDebugUtilsMessageTypeFlagsEXT messageType,
+    const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
+    void *pUserData) {
+  if (messageSeverity & (VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)) {
+    std::cerr << pCallbackData->pMessage << "\n\n";
+  }
+  return VK_FALSE;
+};
 
 // ---------------------------------------------------------
 // VULKAN HELPERS & TYPES
@@ -336,53 +334,61 @@ inline VulkanContext createVulkanContext() {
   createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
   createInfo.pApplicationInfo = &appInfo;
 
-  std::vector<const char*> instanceExtensions;
+  std::vector<const char *> instanceExtensions;
   uint32_t instanceExtensionCount = 0;
-  VK_CHECK(vkEnumerateInstanceExtensionProperties(nullptr, &instanceExtensionCount, nullptr));
-  std::vector<VkExtensionProperties> availableInstancneExtensions(instanceExtensionCount);
-  VK_CHECK(vkEnumerateInstanceExtensionProperties(nullptr, &instanceExtensionCount, availableInstancneExtensions.data()));
+  VK_CHECK(vkEnumerateInstanceExtensionProperties(
+      nullptr, &instanceExtensionCount, nullptr));
+  std::vector<VkExtensionProperties> availableInstancneExtensions(
+      instanceExtensionCount);
+  VK_CHECK(vkEnumerateInstanceExtensionProperties(
+      nullptr, &instanceExtensionCount, availableInstancneExtensions.data()));
   bool debugUtils = false;
-  for (auto &extension : availableInstancneExtensions)
-  {
-    if (strcmp(extension.extensionName, VK_EXT_DEBUG_UTILS_EXTENSION_NAME) == 0)
-    {
-        debugUtils = true;
-        instanceExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-        break;
+  for (auto &extension : availableInstancneExtensions) {
+    if (strcmp(extension.extensionName, VK_EXT_DEBUG_UTILS_EXTENSION_NAME) ==
+        0) {
+      debugUtils = true;
+      instanceExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+      break;
     }
   }
 
   const char *validationLayerName = "VK_LAYER_KHRONOS_validation";
   uint32_t instanceLayerCount;
-	VK_CHECK(vkEnumerateInstanceLayerProperties(&instanceLayerCount, nullptr));
+  VK_CHECK(vkEnumerateInstanceLayerProperties(&instanceLayerCount, nullptr));
   std::vector<VkLayerProperties> instanceLayerProperties(instanceLayerCount);
-	VK_CHECK(vkEnumerateInstanceLayerProperties(&instanceLayerCount, instanceLayerProperties.data()));
+  VK_CHECK(vkEnumerateInstanceLayerProperties(&instanceLayerCount,
+                                              instanceLayerProperties.data()));
   bool validationPresent = false;
-  
-  for (auto& layerProps : instanceLayerProperties) {
-			if (std::strcmp(layerProps.layerName, validationLayerName) == 0) {
-				validationPresent = true;
-				break;
-			}
-	}
+
+  for (auto &layerProps : instanceLayerProperties) {
+    if (std::strcmp(layerProps.layerName, validationLayerName) == 0) {
+      validationPresent = true;
+      break;
+    }
+  }
   if (validationPresent) {
     createInfo.ppEnabledLayerNames = &validationLayerName;
-		createInfo.enabledLayerCount = 1;
-  }else{
+    createInfo.enabledLayerCount = 1;
+  } else {
     throw std::runtime_error("failed to find Vulkan validation layer!");
   }
 
   if (debugUtils) {
     VkDebugUtilsMessengerCreateInfoEXT debugUtilsMessengerCI{};
-    debugUtilsMessengerCI.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-	  debugUtilsMessengerCI.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-	  debugUtilsMessengerCI.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT;
-	  debugUtilsMessengerCI.pfnUserCallback = debugUtilsMessageCallback;
+    debugUtilsMessengerCI.sType =
+        VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+    debugUtilsMessengerCI.messageSeverity =
+        VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+        VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+    debugUtilsMessengerCI.messageType =
+        VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+        VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT;
+    debugUtilsMessengerCI.pfnUserCallback = debugUtilsMessageCallback;
     createInfo.pNext = &debugUtilsMessengerCI;
   }
   createInfo.enabledExtensionCount = (uint32_t)instanceExtensions.size();
-	createInfo.ppEnabledExtensionNames = instanceExtensions.data();
-  
+  createInfo.ppEnabledExtensionNames = instanceExtensions.data();
+
   VK_CHECK(vkCreateInstance(&createInfo, nullptr, &ctx.instance));
 
   uint32_t deviceCount = 0;
