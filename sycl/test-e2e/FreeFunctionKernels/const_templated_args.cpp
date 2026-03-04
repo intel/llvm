@@ -18,8 +18,7 @@ namespace syclexp = sycl::ext::oneapi::experimental;
 static constexpr size_t NUM = 1024;
 static constexpr size_t WGSIZE = 16;
 
-template <typename ValueT>
-struct KernelConfig {
+template <typename ValueT> struct KernelConfig {
   ValueT value;
 };
 
@@ -50,10 +49,10 @@ int test_declarations(sycl::queue &q, sycl::context &ctxt, Config &cfg) {
       exe_bndl.template ext_oneapi_get_kernel<&launch_kernel<Config>>();
 
   q.submit([&](sycl::handler &cgh) {
-    cgh.set_args(cfg, ptr);
-    sycl::nd_range ndr{{NUM}, {WGSIZE}};
-    cgh.parallel_for(ndr, k_func);
-  }).wait();
+     cgh.set_args(cfg, ptr);
+     sycl::nd_range ndr{{NUM}, {WGSIZE}};
+     cgh.parallel_for(ndr, k_func);
+   }).wait();
 
   int expected0 = 0;
   using ConfigValueT = std::remove_reference_t<decltype(cfg.value)>;
