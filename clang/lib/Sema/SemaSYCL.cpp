@@ -6917,6 +6917,13 @@ class EnumValueTemplateArgPrinter
   void printTypeWithEnumValues(QualType T) {
     QualType DT = T.getDesugaredType(Ctx);
 
+    auto PrintCVQualifiers = [&]() {
+      if (T.isLocalConstQualified())
+        OS << "const ";
+      if (T.isLocalVolatileQualified())
+        OS << "volatile ";
+    };
+
     if (const auto *CTSD = dyn_cast_or_null<ClassTemplateSpecializationDecl>(
             DT->getAsCXXRecordDecl())) {
       if (!Policy.SuppressTagKeyword)
@@ -6930,6 +6937,7 @@ class EnumValueTemplateArgPrinter
     }
 
     if (const auto *TST = DT->getAs<TemplateSpecializationType>()) {
+      PrintCVQualifiers();
       if (const auto *RT = TST->getAs<RecordType>()) {
         if (!Policy.SuppressTagKeyword)
           OS << RT->getDecl()->getKindName() << " ";
