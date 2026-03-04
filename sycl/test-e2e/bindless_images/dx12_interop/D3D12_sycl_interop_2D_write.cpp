@@ -47,6 +47,20 @@
 // RUN: %{run} %t.exe --type unorm8 --channels 2 32x33
 // RUN: %{run} %t.exe --type unorm8 --channels 4 32x33
 
+// Semaphore coverage tests
+// RUN: %{run} %t.exe --type float --channels 4 --semaphores 32x33
+// RUN: %{run} %t.exe --type float --channels 1 --semaphores 32x33
+// RUN: %{run} %t.exe --type half --channels 2 --semaphores 32x33
+// RUN: %{run} %t.exe --type int32 --channels 4 --semaphores 32x33
+// RUN: %{run} %t.exe --type uint32 --channels 1 --semaphores 32x33
+// RUN: %{run} %t.exe --type int16 --channels 2 --semaphores 32x33
+// RUN: %{run} %t.exe --type uint16 --channels 4 --semaphores 32x33
+// RUN: %{run} %t.exe --type uint8 --channels 1 --semaphores 32x33
+// RUN: %{run} %t.exe --type int8 --channels 2 --semaphores 32x33
+// RUN: %{run} %t.exe --type unorm8 --channels 4 --semaphores 32x33
+// RUN: %{run} %t.exe --type half --channels 4 --semaphores 32x33
+// RUN: %{run} %t.exe --type uint32 --channels 2 --semaphores 32x33
+
 #include "d3d12_setup.hpp"
 
 #include <optional>
