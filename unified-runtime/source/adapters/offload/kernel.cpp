@@ -152,6 +152,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSizeWithArgs(
+    ur_kernel_handle_t, ur_queue_handle_t, uint32_t, const size_t *,
+    const size_t *, uint32_t, const ur_exp_kernel_arg_properties_t *,
+    size_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgSampler(
     ur_kernel_handle_t, uint32_t, const ur_kernel_arg_sampler_properties_t *,
     ur_sampler_handle_t) {

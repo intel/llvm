@@ -267,6 +267,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSizeWithArgs(
+    [[maybe_unused]] ur_kernel_handle_t hKernel,
+    [[maybe_unused]] ur_queue_handle_t hQueue,
+    [[maybe_unused]] uint32_t workDim,
+    [[maybe_unused]] const size_t *pGlobalWorkOffset,
+    [[maybe_unused]] const size_t *pGlobalWorkSize,
+    [[maybe_unused]] uint32_t numArgs,
+    [[maybe_unused]] const ur_exp_kernel_arg_properties_t *pArgs,
+    [[maybe_unused]] size_t *pSuggestedLocalWorkSize) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
     [[maybe_unused]] ur_kernel_handle_t hKernel,
     [[maybe_unused]] ur_device_handle_t hDevice,
