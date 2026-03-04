@@ -1689,7 +1689,13 @@ SPIRVValue *LLVMToSPIRVBase::transUnaryInst(UnaryInstruction *U,
     }
   } else {
     auto OpCode = U->getOpcode();
-    BOC = OpCodeMap::map(OpCode);
+    // PtrToAddr extracts only the address bits from a pointer, unlike PtrToInt
+    // which converts all pointer representation bits. In SPIR-V, both map to
+    // OpConvertPtrToU since SPIR-V targets use flat address spaces.
+    if (OpCode == Instruction::PtrToAddr)
+      BOC = OpConvertPtrToU;
+    else
+      BOC = OpCodeMap::map(OpCode);
   }
 
   auto *Op = transValue(U->getOperand(0), BB, true, FuncTransMode::Pointer);
