@@ -67,15 +67,6 @@ runs:
     shell: bash
     run: |
       cmake -GNinja -B./build-e2e -S./llvm/sycl/test-e2e -DCMAKE_CXX_COMPILER="${{ inputs.sycl_compiler || '$(which clang++)'}}" -DLLVM_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ steps.cmake_opts.outputs.opts }}
-  
-  - name: Check Vulkan validation layer visibility
-    shell: bash
-    run: |
-      echo "VK_INSTANCE_LAYERS=$VK_INSTANCE_LAYERS"
-      echo "VK_ADD_LAYER_PATH=$VK_ADD_LAYER_PATH"
-      which vulkaninfo || true
-      vulkaninfo --summary || vulkaninfo || true
-
   - name: SYCL End-to-end tests
     id: run_e2e
     continue-on-error: true
