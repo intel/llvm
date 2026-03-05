@@ -312,7 +312,9 @@ public:
   ur_result_t unregisterProgram(ur_program_handle_t Program);
 
   ur_result_t preLaunchKernel(ur_kernel_handle_t Kernel,
-                              ur_queue_handle_t Queue, LaunchInfo &LaunchInfo);
+                              ur_queue_handle_t Queue, LaunchInfo &LaunchInfo,
+                              uint32_t numArgs,
+                              const ur_exp_kernel_arg_properties_t *pArgs);
 
   ur_result_t postLaunchKernel(ur_kernel_handle_t Kernel,
                                ur_queue_handle_t Queue, LaunchInfo &LaunchInfo);
@@ -394,7 +396,8 @@ private:
   ur_result_t prepareLaunch(std::shared_ptr<ContextInfo> &ContextInfo,
                             std::shared_ptr<DeviceInfo> &DeviceInfo,
                             ur_queue_handle_t Queue, ur_kernel_handle_t Kernel,
-                            LaunchInfo &LaunchInfo);
+                            LaunchInfo &LaunchInfo, uint32_t numArgs,
+                            const ur_exp_kernel_arg_properties_t *pArgs);
 
   ur_result_t registerDeviceGlobals(ur_program_handle_t Program);
   ur_result_t registerSpirKernels(ur_program_handle_t Program);
