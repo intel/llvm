@@ -213,6 +213,11 @@ class TestE2E(unittest.TestCase):
 
     def test_torch_l0(self):
         self._checkCase(
+            "torch_benchmark_l0 KernelSubmitGraphVllmMock AllocCount 128, GraphScenario 3, KernelWGCount 512, KernelWGSize 256, Profiling 0, UseEvents 0",
+            "KernelSubmitGraphVllmMock large",
+            {"pytorch", "L0"},
+        )
+        self._checkCase(
             "torch_benchmark_l0 KernelSubmitSingleQueue KernelBatchSize 512, KernelDataType Int32, KernelName Add, KernelParamsNum 5, KernelSubmitPattern Single, KernelWGCount 4096, KernelWGSize 512, Profiling 0, UseEvents 0",
             "KernelSubmitSingleQueue Int32Large",
             {"pytorch", "L0"},
@@ -264,6 +269,11 @@ class TestE2E(unittest.TestCase):
 
     def test_torch_sycl(self):
         self._checkCase(
+            "torch_benchmark_sycl KernelSubmitGraphVllmMock AllocCount 32, GraphScenario 2, KernelWGCount 512, KernelWGSize 256, Profiling 0, UseEvents 0",
+            "KernelSubmitGraphVllmMock small",
+            {"pytorch", "SYCL"},
+        )
+        self._checkCase(
             "torch_benchmark_sycl KernelSubmitSingleQueue KernelBatchSize 512, KernelDataType Mixed, KernelName Add, KernelParamsNum 5, KernelSubmitPattern Single, KernelWGCount 512, KernelWGSize 256, Profiling 0, UseEvents 0",
             "KernelSubmitSingleQueue MixedMedium",
             {"pytorch", "SYCL"},
@@ -307,6 +317,11 @@ class TestE2E(unittest.TestCase):
             )
 
     def test_torch_syclpreview(self):
+        self._checkCase(
+            "torch_benchmark_syclpreview KernelSubmitGraphVllmMock AllocCount 128, GraphScenario 1, KernelWGCount 512, KernelWGSize 256, Profiling 0, UseEvents 0 CPU count",
+            "KernelSubmitGraphVllmMock large, CPU count",
+            {"pytorch", "SYCL"},
+        )
         self._checkCase(
             "torch_benchmark_syclpreview KernelSubmitSingleQueue KernelBatchSize 512, KernelDataType Mixed, KernelName Add, KernelParamsNum 5, KernelSubmitPattern Single, KernelWGCount 256, KernelWGSize 128, Profiling 0, UseEvents 0",
             "KernelSubmitSingleQueue MixedSmall",

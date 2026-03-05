@@ -211,3 +211,22 @@ class TorchGraphMultiQueue(TorchBenchmark):
             profiler_type,
             **kwargs,
         )
+
+
+class TorchKernelSubmitGraphVllmMock(TorchBenchmark):
+    def __init__(
+        self,
+        suite,
+        runtime: RUNTIMES,
+        variant_name: str,
+        profiler_type: PROFILERS,
+        **kwargs,
+    ):
+        super().__init__(
+            suite,
+            runtime,
+            "KernelSubmitGraphVllmMock",
+            variant_name,
+            profiler_type,
+            **kwargs,
+        )

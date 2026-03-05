@@ -36,12 +36,13 @@ class ComputeBench(Suite):
     def name(self) -> str:
         return "Compute Benchmarks"
 
+    # TODO: Change after merging benchmarks
     def git_url(self) -> str:
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        # Mar 03, 2026
-        return "48504d2957a83ad32deff78563e855eeb6855dae"
+        # Mar 04, 2026
+        return "0893fdcecb64ca98e8d9cf8d1f7cb7dd7bbeca58"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -597,6 +598,31 @@ class ComputeBench(Suite):
                             kernelsPerQueue=64,
                         ),
                     ]
+
+        # Add TorchKernelSubmitGraphVllmMock benchmarks
+        for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
+            for profiler_type, graph_scenario in product(list(PROFILERS), [1, 2, 3]):
+
+                def createTorchKernelGraphVllmMock(variant_name: str, **kwargs):
+                    return TorchKernelSubmitGraphVllmMock(
+                        self,
+                        runtime,
+                        variant_name,
+                        profiler_type,
+                        **{
+                            **kwargs,
+                            "KernelWGCount": 512,
+                            "KernelWGSize": 256,
+                            "GraphScenario": graph_scenario,
+                            "Profiling": 0,
+                            "UseEvents": 0,
+                        },
+                    )
+
+                benches += [
+                    createTorchKernelGraphVllmMock("small", AllocCount=32),
+                    createTorchKernelGraphVllmMock("large", AllocCount=128),
+                ]
 
         # Add UR-specific benchmarks
         benches += [
