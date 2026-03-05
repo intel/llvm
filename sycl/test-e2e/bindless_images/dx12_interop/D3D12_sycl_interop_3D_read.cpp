@@ -5,6 +5,9 @@
 // UNSUPPORTED: arch-intel_gpu_bmg_g21
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20384
 
+// UNSUPPORTED: gpu-intel-dg2
+// UNSUPPORTED-TRACKER: show
+
 // RUN: %{build} -o %t.exe -ld3d12 -ldxgi -ld3dcompiler
 // RUN: %{run} %t.exe --type float --channels 4 8x8x8
 

@@ -2,6 +2,9 @@
 // REQUIRES: aspect-ext_oneapi_external_semaphore_import
 // REQUIRES: windows
 
+// UNSUPPORTED: gpu-intel-dg2
+// UNSUPPORTED-TRACKER: wouldnt-you-like-to-know
+
 // RUN: %{build} -ld3d12 -ldxgi -ld3dcompiler -o %t.exe %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.exe --no-sem
 // RUN: %{run} %t.exe
