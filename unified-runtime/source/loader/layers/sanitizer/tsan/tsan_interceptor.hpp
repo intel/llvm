@@ -166,6 +166,8 @@ struct TsanRuntimeDataWrapper {
 
   TsanRuntimeData *getDevicePtr();
 
+  VectorClock *getClockPtr();
+
   ur_result_t syncFromDevice(ur_queue_handle_t Queue);
 
   ur_result_t syncToDevice(ur_queue_handle_t Queue);
@@ -336,6 +338,8 @@ private:
 
   std::unordered_set<ur_adapter_handle_t> m_Adapters;
   ur_shared_mutex m_AdaptersMutex;
+
+  VectorClock GlobalClock[kThreadSlotCount + 1];
 };
 
 } // namespace tsan
