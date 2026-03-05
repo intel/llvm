@@ -1057,8 +1057,8 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
   const toolchains::SYCLToolChain &TC =
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
   const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
-  TC.AddImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs, JA,
-                          *HostTC, Device);
+  TC.AddSPIRVImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs, JA,
+                               *HostTC, Device);
   TC.TranslateBackendTargetArgs(getToolChain().getTriple(), Args, CmdArgs,
                                 Device);
   TC.TranslateLinkerTargetArgs(getToolChain().getTriple(), Args, CmdArgs,
@@ -1349,8 +1349,8 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(
   const toolchains::SYCLToolChain &TC =
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
   const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
-  TC.AddImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs, JA,
-                          *HostTC);
+  TC.AddSPIRVImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs, JA,
+                               *HostTC);
   TC.TranslateBackendTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
   TC.TranslateLinkerTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
   SmallString<128> ExecPath(
@@ -1606,12 +1606,12 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::Triple &Triple,
   }
 }
 
-void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
-                                         const llvm::opt::ArgList &Args,
-                                         llvm::opt::ArgStringList &CmdArgs,
-                                         const JobAction &JA,
-                                         const ToolChain &HostTC,
-                                         StringRef Device) const {
+void SYCLToolChain::AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
+                                              const llvm::opt::ArgList &Args,
+                                              llvm::opt::ArgStringList &CmdArgs,
+                                              const JobAction &JA,
+                                              const ToolChain &HostTC,
+                                              StringRef Device) const {
   // Current implied args are for debug information and disabling of
   // optimizations.  They are passed along to the respective areas as follows:
   // Default device AOT: -g -cl-opt-disable

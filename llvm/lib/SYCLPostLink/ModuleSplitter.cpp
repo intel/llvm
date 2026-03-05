@@ -113,12 +113,6 @@ bool isGenericBuiltin(StringRef FName) {
   return FName.starts_with("__builtin_");
 }
 
-bool isKernel(const Function &F) {
-  const auto CC = F.getCallingConv();
-  return CC == CallingConv::SPIR_KERNEL || CC == CallingConv::AMDGPU_KERNEL ||
-         CC == CallingConv::PTX_Kernel;
-}
-
 bool isEntryPoint(const Function &F, bool EmitOnlyKernelsAsEntryPoints) {
   // Skip declarations, if any: they should not be included into a vector of
   // entry points groups or otherwise we will end up with incorrectly generated
@@ -127,7 +121,7 @@ bool isEntryPoint(const Function &F, bool EmitOnlyKernelsAsEntryPoints) {
     return false;
 
   // Kernels are always considered to be entry points
-  if (isKernel(F))
+  if (F.hasKernelCallingConv())
     return true;
 
   if (!EmitOnlyKernelsAsEntryPoints) {
@@ -177,7 +171,7 @@ public:
         FuncTypeToFuncsMap;
     for (const auto &F : M.functions()) {
       // Kernels can't be called (either directly or indirectly) in SYCL
-      if (isKernel(F))
+      if (F.hasKernelCallingConv())
         continue;
 
       // Only functions which are marked with "referenced-indireclty" attribute
@@ -664,11 +658,7 @@ static bool mustPreserveGV(const GlobalValue &GV,
     // cannot be imported which also means that there is no point of having it
     // visible outside of the current module.
     if (AllowDeviceImageDependencies) {
-      const auto CC = F->getCallingConv();
-      const bool SpirOrGPU = CC == CallingConv::SPIR_KERNEL ||
-                             CC == CallingConv::AMDGPU_KERNEL ||
-                             CC == CallingConv::PTX_Kernel;
-      return SpirOrGPU ||
+      return F->hasKernelCallingConv() ||
              canBeImportedFunction(*F, AllowDeviceImageDependencies);
     }
 
