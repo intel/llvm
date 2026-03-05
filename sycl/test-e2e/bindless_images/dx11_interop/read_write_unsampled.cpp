@@ -450,7 +450,7 @@ int main() {
   errors += runTest<3, sycl::half, 4>(d3d11ProgramState, syclQueue,
                                       sycl::image_channel_type::fp16,
                                       globalSize3D[4], sycl::range{16, 16, 1});
-  
+
 #ifdef VERBOSE_PRINT
   std::string deviceName = syclDevice.get_info<sycl::info::device::name>();
   std::cout << "Tests pass rate for SYCL device: " << deviceName << "\n";
