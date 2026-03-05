@@ -382,7 +382,6 @@ class ComputeBench(Suite):
                             "KernelWGCount": 512,
                             "KernelWGSize": 256,
                             "Profiling": 0,
-                            "MeasureCompletionTime": measure_completion,
                             "UseEvents": 0,
                         },
                         **kwargs,
@@ -392,17 +391,17 @@ class ComputeBench(Suite):
                     createTorchMultiQueueBench(
                         "large",
                         KernelsPerQueue=20,
-                        measureCompletion=measure_completion,
+                        MeasureCompletionTime=measure_completion,
                     ),
                     createTorchMultiQueueBench(
                         "medium",
                         KernelsPerQueue=10,
-                        measureCompletion=measure_completion,
+                        MeasureCompletionTime=measure_completion,
                     ),
                     createTorchMultiQueueBench(
                         "small",
                         KernelsPerQueue=4,
-                        measureCompletion=measure_completion,
+                        MeasureCompletionTime=measure_completion,
                     ),
                 ]
 
@@ -419,7 +418,6 @@ class ComputeBench(Suite):
                         measure_completion,
                         fixed_args={
                             "KernelBatchSize": 512,
-                            "MeasureCompletionTime": measure_completion,
                             "Profiling": 0,
                         },
                         **kwargs,
@@ -429,17 +427,17 @@ class ComputeBench(Suite):
                     createTorchSlmSizeBench(
                         "small",
                         SlmNum=1,
-                        measureCompletion=measure_completion,
+                        MeasureCompletionTime=measure_completion,
                     ),
                     createTorchSlmSizeBench(
                         "medium",
                         SlmNum=1024,
-                        measureCompletion=measure_completion,
+                        MeasureCompletionTime=measure_completion,
                     ),
                     createTorchSlmSizeBench(
                         "large",
                         SlmNum=16384,
-                        measureCompletion=measure_completion,
+                        MeasureCompletionTime=measure_completion,
                     ),
                 ]
 
@@ -543,7 +541,6 @@ class ComputeBench(Suite):
                             variant_name,
                             profiler_type,
                             fixed_args={
-                                "KernelName": kernel_name.value,
                                 "KernelWGCount": 512,
                                 "KernelWGSize": 256,
                                 "Profiling": 0,
@@ -555,19 +552,19 @@ class ComputeBench(Suite):
                     benches += [
                         createTorchGraphSingleQueueBench(
                             "small",
-                            kernelName=kernel_name.value,
+                            KernelName=kernel_name.value,
                             KernelsPerQueue=10,
                             KernelBatchSize=10,
                         ),
                         createTorchGraphSingleQueueBench(
                             "medium",
-                            kernelName=kernel_name.value,
+                            KernelName=kernel_name.value,
                             KernelsPerQueue=32,
                             KernelBatchSize=32,
                         ),
                         createTorchGraphSingleQueueBench(
                             "large",
-                            kernelName=kernel_name.value,
+                            KernelName=kernel_name.value,
                             KernelsPerQueue=64,
                             KernelBatchSize=64,
                         ),
