@@ -6801,7 +6801,7 @@ static QualType TryToFixInvalidVariablyModifiedType(QualType T,
           ? ConstantArrayType::getNumAddressingBits(Context, ElemTy, Res)
           : Res.getActiveBits();
   if (ActiveSizeBits > ConstantArrayType::getMaxSizeBits(Context)) {
-    Oversized = Res;
+    Oversized = std::move(Res);
     return QualType();
   }
 
@@ -14023,6 +14023,12 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit) {
   }
 
   this->CheckAttributesOnDeducedType(RealDecl);
+
+  // we don't initialize groupshared variables so warn and return
+  if (VDecl->hasAttr<HLSLGroupSharedAddressSpaceAttr>()) {
+    Diag(VDecl->getLocation(), diag::warn_hlsl_groupshared_init);
+    return;
+  }
 
   // dllimport cannot be used on variable definitions.
   if (VDecl->hasAttr<DLLImportAttr>() && !VDecl->isStaticDataMember()) {

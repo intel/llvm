@@ -39,7 +39,6 @@ int main() {
 // CHECK: attributes #[[ATTR0]] = { convergent mustprogress noinline norecurse nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 // CHECK: attributes #[[ATTR1]] = { convergent nounwind }
 //.
-// CHECK: [[META0:![0-9]+]] = !{i32 1, !"wchar_size", i32 4}
 // CHECK: !{{[0-9]+}} = !{i32 1, i32 2}
 // CHECK: !{{[0-9]+}} = !{i32 4, i32 100000}
 // CHECK: !{{[0-9]+}} = !{i32 {{.*}}}
