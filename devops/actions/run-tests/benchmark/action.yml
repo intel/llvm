@@ -248,6 +248,21 @@ runs:
       cd -
 
       echo "::endgroup::"
+  - name: Print contents of UR build and install dirs
+    shell: bash
+    run: |
+      # Print contents of UR build and install dirs for debugging purposes
+      echo "::group::print_llvm_ur_build_and_install_dirs"
+      echo "###############"
+      echo "UR build dir contents:"
+      ls -alR ur/build
+      echo "###############"
+      echo "###############"
+      echo "###############"
+      echo "UR install dir contents:"
+      ls -alR ur/install
+      echo "###############"
+      echo "::endgroup::"
   - name: Install dependencies
     shell: bash
     env:
