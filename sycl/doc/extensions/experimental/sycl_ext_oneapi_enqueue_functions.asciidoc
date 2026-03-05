@@ -317,36 +317,6 @@ order.
 |====
 
 
-==== Host tasks
-
-|====
-a|
-[frame=all,grid=none]
-!====
-a!
-[source,c++]
-----
-namespace sycl::ext::oneapi::experimental {
-
-template <typename T>
-void host_task(sycl::queue q, T&& hostTaskCallable);
-
-template <typename T>
-void host_task(sycl::handler &h, T&& hostTaskCallable);
-
-}
-----
-!====
-_Preconditions_: The callable function `hostTaskCallable` does not call any
-function in the `sycl` namespace.
-
-_Effects_: Enqueues an implementation-defined command to the SYCL runtime to
-invoke hostTaskCallable exactly once.
-
-
-|====
-
-
 ==== Basic kernels
 
 |====
@@ -572,6 +542,35 @@ _Effects_: Enqueues a kernel object to the `sycl::queue` or `sycl::handler`
 as a basic kernel, using the launch configuration specified by a
 `launch_config`. The arguments in `args` are passed to the kernel in the same
 order.
+
+|====
+
+
+==== Host tasks
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename T>
+void host_task(sycl::queue q, T&& hostTaskCallable);
+
+template <typename T>
+void host_task(sycl::handler &h, T&& hostTaskCallable);
+
+}
+----
+!====
+_Preconditions_: The callable function `hostTaskCallable` does not call any
+function in the `sycl` namespace.
+
+_Effects_: Enqueues a command to the `sycl::queue` or `sycl::handler` that
+executes `hostTaskCallable` exactly once on an unspecified host thread.
 
 |====
 
