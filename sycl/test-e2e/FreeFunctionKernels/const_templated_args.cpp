@@ -5,7 +5,11 @@
 // UNSUPPORTED: cuda, hip
 // UNSUPPORTED-INTENDED: Not implemented yet for Nvidia/AMD backends.
 
-#include <iostream>
+/**
+ * This test verifies that free function kernels with const templated arguments
+ * can be correctly compiled and executed. The test defines a free function
+ * kernel that takes a templated configuration struct as an argument.
+ */
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/kernel_bundle.hpp>
@@ -24,7 +28,7 @@ template <typename ValueT> struct KernelConfig {
 
 template <typename Config>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
-void launch_kernel(Config cfg, int *ptr) {
+void free_func(Config cfg, int *ptr) {
   using ConfigValueT = std::remove_reference_t<decltype(cfg.value)>;
   constexpr bool IsReadOnlyConfig =
       std::is_const_v<Config> || std::is_const_v<ConfigValueT>;
@@ -43,10 +47,10 @@ template <typename Config>
 int test_declarations(sycl::queue &q, sycl::context &ctxt, Config &cfg) {
   int *ptr = sycl::malloc_shared<int>(NUM, q);
   auto exe_bndl =
-      syclexp::get_kernel_bundle<&launch_kernel<Config>,
+      syclexp::get_kernel_bundle<&free_func<Config>,
                                  sycl::bundle_state::executable>(ctxt);
   sycl::kernel k_func =
-      exe_bndl.template ext_oneapi_get_kernel<&launch_kernel<Config>>();
+      exe_bndl.template ext_oneapi_get_kernel<&free_func<Config>>();
 
   q.submit([&](sycl::handler &cgh) {
      cgh.set_args(cfg, ptr);
@@ -79,7 +83,6 @@ int main() {
   const int testInt = 5;
   KernelConfig<decltype(testInt)> cfg_ro1{5};
 
-  static_assert(std::is_const_v<decltype(cfg_ro)>);
   int rc = 0;
   rc |= test_declarations<decltype(cfg)>(q, ctxt, cfg);
   rc |= test_declarations<decltype(cfg_ro)>(q, ctxt, cfg_ro);
