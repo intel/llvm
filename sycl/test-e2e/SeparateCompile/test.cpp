@@ -1,12 +1,12 @@
 // REQUIRES: target-spir
 //
-+// UNSUPPORTED: new-offload-model
-+// This test is not supported with the new offloading model because
-+// clang-offload-bundler only works with the old model for extracting
-+// device code from libraries.
-+//
-+// A modified test can be found at NewOffloadDriver/separate_compile.cpp
-+//
+// UNSUPPORTED: new-offload-model
+// This test is not supported with the new offloading model because
+// clang-offload-bundler only works with the old model for extracting
+// device code from libraries.
+//
+// A modified test can be found at NewOffloadDriver/separate_compile.cpp
+//
 // FIXME Disabled fallback assert as it'll require either online linking or
 // explicit offline linking step here
 // FIXME separate compilation requires -fno-sycl-dead-args-optimization
