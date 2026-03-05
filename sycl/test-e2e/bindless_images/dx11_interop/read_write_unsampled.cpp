@@ -5,6 +5,12 @@
 // UNSUPPORTED-INTENDED: Unknown issue with integrated GPU failing
 //                       when importing memory
 
+// UNSUPPORTED: gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21159
+
+// XFAIL: windows && arch-intel_gpu_bmg_g21
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20384
+
 // RUN: %{build} %link-directx -o %t.out
 // RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
@@ -429,7 +435,7 @@ int main() {
       sycl::range{512, 256, 8}, sycl::range{1280, 720, 2},
       sycl::range{1280, 720, 2}};
 #endif
-/*  errors += runTest<3, uint32_t, 1>(d3d11ProgramState, syclQueue,
+  errors += runTest<3, uint32_t, 1>(d3d11ProgramState, syclQueue,
                                     sycl::image_channel_type::unsigned_int32,
                                     globalSize3D[0], sycl::range{16, 16, 1});
   errors += runTest<3, uint8_t, 4>(d3d11ProgramState, syclQueue,
@@ -444,15 +450,15 @@ int main() {
   errors += runTest<3, sycl::half, 4>(d3d11ProgramState, syclQueue,
                                       sycl::image_channel_type::fp16,
                                       globalSize3D[4], sycl::range{16, 16, 1});
-*/
-//#ifdef VERBOSE_PRINT
+  
+#ifdef VERBOSE_PRINT
   std::string deviceName = syclDevice.get_info<sycl::info::device::name>();
   std::cout << "Tests pass rate for SYCL device: " << deviceName << "\n";
   const auto numPassedTests = (TotalNumVerifiedTests - errors);
   std::cerr << ((errors > 0) ? errors : numPassedTests) << " out of "
             << TotalNumVerifiedTests << " tested configurations were "
             << ((errors > 0) ? "unsuccessful" : "successful") << ".\n";
-//#endif
+#endif
 
   return errors;
 }
