@@ -17,7 +17,6 @@
                    Default is float 
    WxH             Set custom Width x Height (e.g. 8x4)
 */
-// clang-format on
 
 // RUN: %{run} %t.exe --type float --channels 1 32x33
 // RUN: %{run} %t.exe --type float --channels 2 32x33
@@ -60,6 +59,8 @@
 // RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type unorm8 --channels 4 --semaphores 32x33
 // RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type half --channels 4 --semaphores 32x33
 // RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type uint32 --channels 2 --semaphores 32x33
+
+// clang-format on
 
 #include "d3d12_setup.hpp"
 

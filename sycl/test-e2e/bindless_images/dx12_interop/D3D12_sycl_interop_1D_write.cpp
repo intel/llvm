@@ -17,7 +17,6 @@
                   Default is float 
     Wx             Set custom Width (e.g. 8x)
 */
-// clang-format on
 
 // RUN: %{run} %t.exe --type float --channels 1 33x
 // RUN: %{run} %t.exe --type float --channels 2 33x
@@ -60,6 +59,8 @@
 // RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type unorm8 --channels 4 --semaphores 33x
 // RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type half --channels 4 --semaphores 33x
 // RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type uint32 --channels 2 --semaphores 33x
+
+// clang-format on
 
 #include "d3d12_setup.hpp"
 

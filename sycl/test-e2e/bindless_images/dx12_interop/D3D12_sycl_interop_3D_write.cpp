@@ -5,6 +5,8 @@
 // RUN: %{build} -o %t.exe -ld3d12 -ldxgi -ld3dcompiler
 // RUN: %{run} %t.exe --type float --channels 4 8x8x8
 
+// clang-format off
+
 // RUN: %{run} %t.exe --type float --channels 1 33x32x31
 // RUN: %{run} %t.exe --type float --channels 2 32x33x31
 // RUN: %{run} %t.exe --type float --channels 4 31x32x33
@@ -47,7 +49,6 @@
 // RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type half --channels 4 --semaphores 15x16x17
 // RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type uint32 --channels 2 --semaphores 32x31x33
 
-// clang-format off
 /*
     clang++.exe -fsycl -o ds3w.exe D3D12_sycl_interop_3D_write.cpp -ld3d12 -ldxgi -ld3dcompiler
 

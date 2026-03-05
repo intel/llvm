@@ -46,7 +46,6 @@
    unorm8 seems to not be working. 
 
 */
-// clang-format on
 
 // RUN: %{run} %t.exe --type float --channels 1 32x33
 // RUN: %{run} %t.exe --type float --channels 2 32x33
@@ -111,6 +110,7 @@
 // RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type int32 --channels 1 --sampled --semaphores 32x33
 // RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type uint32 --channels 4 --sampled --semaphores 32x33
 
+// clang-format on
 
 #include "d3d12_setup.hpp"
 
