@@ -256,7 +256,7 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
   // import it from SYCL side. Hence, in light of this restriction, instead of
   // using ArraySize > 1 to simulate 3D textures, we simulate them by simply
   // collapsing the depth dimension onto the height dimension and set ArraySize
-  // to 1. 
+  // to 1.
   // Create a shared texture
   ComPtr<ID3D11Texture2D1> texture;
   // Initialize the texture description.
