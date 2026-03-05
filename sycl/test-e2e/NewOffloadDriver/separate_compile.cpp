@@ -22,20 +22,18 @@
 // RUN:%{run-aux} %clangxx  --offload-new-driver -Wno-error=ignored-attributes %sycl_include -Wno-error=unused-command-line-argument -DSYCL_DISABLE_FALLBACK_ASSERT -DB_CPP=1 %cxx_std_optionc++17 %include_option sycl_ihdr_b.h %debug_option -c %s -o b.o %sycl_options -fno-sycl-dead-args-optimization -Wno-sycl-strict
 //
 // >> ---- link device code
-// RUN: llvm-link -o=app.bc a_kernel.bc b_kernel.bc %sycl_static_libs_dir/libsycl-itt-compiler-wrappers.bc %sycl_static_libs_dir/libsycl-itt-stubs.bc %sycl_static_libs_dir/libsycl-itt-user-wrappers.bc
-
-
+// RUN: %{run-aux} llvm-link -o=app.bc a_kernel.bc b_kernel.bc %sycl_static_libs_dir/libsycl-itt-compiler-wrappers.bc %sycl_static_libs_dir/libsycl-itt-stubs.bc %sycl_static_libs_dir/libsycl-itt-user-wrappers.bc
 // >> ---- produce entries data
-// RUN: sycl-post-link -split=auto -emit-param-info -symbols -emit-exported-symbols -o test.table app.bc
+// RUN: %{run-aux} sycl-post-link -split=auto -emit-param-info -symbols -emit-exported-symbols -o test.table app.bc
 //
 // >> ---- do table transformations from bc to spv entries
-// RUN: file-table-tform -extract=Code -drop_titles -o test_spv_in.table test.table
-// RUN: llvm-foreach --in-file-list=test_spv_in.table --in-replace=test_spv_in.table --out-ext=spv --out-file-list=test_spv_out.table --out-replace=test_spv_out.table -- llvm-spirv -o test_spv_out.table -spirv-allow-extra-diexpressions -spirv-allow-unknown-intrinsics=llvm.genx. -spirv-ext=-all test_spv_in.table
-// RUN: file-table-tform -replace=Code,Code -o test_spv.table test.table test_spv_out.table
+// RUN: %{run-aux} file-table-tform -extract=Code -drop_titles -o test_spv_in.table test.table
+// RUN: %{run-aux} llvm-foreach --in-file-list=test_spv_in.table --in-replace=test_spv_in.table --out-ext=spv --out-file-list=test_spv_out.table --out-replace=test_spv_out.table -- llvm-spirv -o test_spv_out.table -spirv-allow-extra-diexpressions -spirv-allow-unknown-intrinsics=llvm.genx. -spirv-ext=-all test_spv_in.table
+// RUN: %{run-aux} file-table-tform -replace=Code,Code -o test_spv.table test.table test_spv_out.table
 //
 // >> ---- wrap device binary
 // >> produce .bc
-// RUN: clang-offload-wrapper -o wrapper.bc -host=x86_64 -kind=sycl -target=spir64 -batch test_spv.table
+// RUN: %{run-aux} clang-offload-wrapper -o wrapper.bc -host=x86_64 -kind=sycl -target=spir64 -batch test_spv.table
 //
 // >> compile .bc to .o
 // RUN: %{run-aux} %clangxx --offload-new-driver -Wno-error=override-module -c wrapper.bc -o wrapper.o %if preview-mode %{-Wno-unused-command-line-argument%}
