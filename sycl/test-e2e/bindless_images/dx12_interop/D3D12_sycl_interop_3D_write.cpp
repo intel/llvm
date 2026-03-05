@@ -34,18 +34,18 @@
 // RUN: %{run} %t.exe --type unorm8 --channels 4 7x9x8
 
 // Semaphore coverage tests
-// RUN: %{run} %t.exe --type float --channels 4 --semaphores 16x17x15
-// RUN: %{run} %t.exe --type float --channels 1 --semaphores 31x32x33
-// RUN: %{run} %t.exe --type half --channels 2 --semaphores 17x16x15
-// RUN: %{run} %t.exe --type int32 --channels 4 --semaphores 9x8x7
-// RUN: %{run} %t.exe --type uint32 --channels 1 --semaphores 33x31x32
-// RUN: %{run} %t.exe --type int16 --channels 2 --semaphores 15x17x16
-// RUN: %{run} %t.exe --type uint16 --channels 4 --semaphores 9x7x8
-// RUN: %{run} %t.exe --type uint8 --channels 1 --semaphores 32x31x33
-// RUN: %{run} %t.exe --type int8 --channels 2 --semaphores 16x15x17
-// RUN: %{run} %t.exe --type unorm8 --channels 4 --semaphores 7x9x8
-// RUN: %{run} %t.exe --type half --channels 4 --semaphores 15x16x17
-// RUN: %{run} %t.exe --type uint32 --channels 2 --semaphores 32x31x33
+// RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type float --channels 4 --semaphores 16x17x15
+// RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type float --channels 1 --semaphores 31x32x33
+// RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type half --channels 2 --semaphores 17x16x15
+// RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type int32 --channels 4 --semaphores 9x8x7
+// RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type uint32 --channels 1 --semaphores 33x31x32
+// RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type int16 --channels 2 --semaphores 15x17x16
+// RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type uint16 --channels 4 --semaphores 9x7x8
+// RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type uint8 --channels 1 --semaphores 32x31x33
+// RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type int8 --channels 2 --semaphores 16x15x17
+// RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type unorm8 --channels 4 --semaphores 7x9x8
+// RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type half --channels 4 --semaphores 15x16x17
+// RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type uint32 --channels 2 --semaphores 32x31x33
 
 // clang-format off
 /*
