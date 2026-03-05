@@ -203,6 +203,8 @@ def err_drv_incompatible_unwindlib : Error<
 def err_drv_incompatible_fp_accuracy_options : Error<
   "floating point accuracy requirements cannot be guaranteed when '-fmath-errno' "
   "is enabled; use '-fno-math-errno' to enable floating point accuracy control">;
+def err_drv_invalid_cstdlib_name : Error<
+  "invalid C library name in argument '%0'">;
 def err_drv_invalid_stdlib_name : Error<
   "invalid library name in argument '%0'">;
 def err_drv_invalid_output_with_multiple_archs : Error<
