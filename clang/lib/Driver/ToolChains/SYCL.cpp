@@ -1446,6 +1446,9 @@ void SYCLToolChain::addClangTargetOptions(
     CC1Args.push_back("-mlink-builtin-bitcode");
     CC1Args.push_back(DriverArgs.MakeArgString(BCFile.Path));
   }
+  // FIXME: Turn off potential linker warnings when linking in device library
+  // files that are built for spir64, but we are compiling for AOT.
+  CC1Args.push_back("-Wno-linker-warnings");
 }
 
 llvm::opt::DerivedArgList *
