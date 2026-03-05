@@ -595,9 +595,9 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
   bool IsNewOffload = C.getDriver().getUseNewOffloadingDriver();
   StringRef LibSuffix = ".bc";
-  if (IsNewOffload)
+  /* if (IsNewOffload)
     // For new offload model, we use packaged .bc files.
-    LibSuffix = IsWindowsMSVCEnv ? ".new.obj" : ".new.o";
+    LibSuffix = IsWindowsMSVCEnv ? ".new.obj" : ".new.o";*/
   auto addLibraries = [&](const SYCLDeviceLibsList &LibsList) {
     for (const StringRef &Lib : LibsList) {
       LibraryList.push_back(Args.MakeArgString(Twine(Lib) + LibSuffix));
