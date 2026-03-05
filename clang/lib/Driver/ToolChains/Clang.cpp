@@ -10271,7 +10271,7 @@ static void addRunTimeWrapperOpts(Compilation &C,
     const ArgList &Args = C.getArgsForToolChain(nullptr, StringRef(),
                                                 DeviceOffloadKind);
     const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
-    SYCLTC.AddImpliedTargetArgs(TT, Args, BuildArgs, JA, *HostTC);
+    SYCLTC.AddSPIRVImpliedTargetArgs(TT, Args, BuildArgs, JA, *HostTC);
     SYCLTC.TranslateBackendTargetArgs(TT, Args, BuildArgs);
     createArgString("-compile-opts=");
     BuildArgs.clear();
@@ -10587,8 +10587,8 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
       const toolchains::SYCLToolChain &SYCLTC =
           static_cast<const toolchains::SYCLToolChain &>(*TC);
-      SYCLTC.AddImpliedTargetArgs(TC->getTriple(), Args, BuildArgs, JA, *HostTC,
-                                  Arch);
+      SYCLTC.AddSPIRVImpliedTargetArgs(TC->getTriple(), Args, BuildArgs, JA,
+                                       *HostTC, Arch);
       SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
       createArgString("compile-opts=");
       BuildArgs.clear();
@@ -10839,7 +10839,6 @@ static void getTripleBasedSPIRVTransOpts(Compilation &C,
       ",+SPV_INTEL_io_pipes,+SPV_INTEL_inline_assembly"
       ",+SPV_INTEL_arbitrary_precision_integers"
       ",+SPV_INTEL_float_controls2,+SPV_INTEL_vector_compute"
-      ",+SPV_INTEL_fast_composite"
       ",+SPV_INTEL_arbitrary_precision_fixed_point"
       ",+SPV_INTEL_arbitrary_precision_floating_point"
       ",+SPV_INTEL_variable_length_array,+SPV_INTEL_fp_fast_math_mode"
@@ -11495,18 +11494,19 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
           A->render(Args, LinkerArgs);
       }
 
-      if (Kind == Action::OFK_SYCL) {
-        // Add implied SYCL target arguments to `CompilerArgs`
-        // based on the selected target.
+      if (Kind == Action::OFK_SYCL && TC->getTriple().isSPIROrSPIRV()) {
+        // For SYCL offloading with SPIR-V targets, add implied backend compiler
+        // arguments depending on the target device and compilation mode.
         const toolchains::SYCLToolChain &SYCLTC =
             static_cast<const toolchains::SYCLToolChain &>(*TC);
         const ToolChain *HostTC =
             C.getSingleOffloadToolChain<Action::OFK_Host>();
-        SYCLTC.AddImpliedTargetArgs(SYCLTC.getTriple(), BaseCompilerArgs,
-                                    CompilerArgs, JA, *HostTC);
+        SYCLTC.AddSPIRVImpliedTargetArgs(SYCLTC.getTriple(), BaseCompilerArgs,
+                                         CompilerArgs, JA, *HostTC);
       } else {
-        // For non-SYCL offload kinds (CUDA, OpenMP, HIP), directly convert
-        // the BaseCompilerArgs to CompilerArgs without additional processing.
+        // For non-SPIR-V SYCL targets or other offload kinds (CUDA, OpenMP,
+        // HIP), directly convert the BaseCompilerArgs to CompilerArgs without
+        // additional processing.
         for (Arg *A : BaseCompilerArgs) {
           A->render(BaseCompilerArgs, CompilerArgs);
         }

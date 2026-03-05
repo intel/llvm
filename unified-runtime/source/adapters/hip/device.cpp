@@ -1056,8 +1056,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP:
     return ReturnValue(false);
   default:
-    break;
+    UR_LOG(ERR, "Unsupported ParamName in urDeviceGetInfo");
+    UR_LOG(ERR, "ParamName={}(0x{})", propName, logger::toHex(propName));
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
+
+  // Unreachable - all cases return, but compiler needs this
   return UR_RESULT_ERROR_INVALID_ENUMERATION;
 }
 

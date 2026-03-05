@@ -34,15 +34,6 @@
 #include <string>
 #include <vector>
 
-#ifdef __has_include
-#if __has_include(<cxxabi.h>)
-#define __SYCL_ENABLE_GNU_DEMANGLING
-#include <cstdlib>
-#include <cxxabi.h>
-#include <memory>
-#endif
-#endif
-
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 #include <detail/xpti_registry.hpp>
 #endif
@@ -131,27 +122,6 @@ static context_impl *getContext(queue_impl *Queue) {
 static context_impl *getContext(const std::shared_ptr<queue_impl> &Queue) {
   return getContext(Queue.get());
 }
-
-#ifdef __SYCL_ENABLE_GNU_DEMANGLING
-struct DemangleHandle {
-  char *p;
-  DemangleHandle(char *ptr) : p(ptr) {}
-
-  DemangleHandle(const DemangleHandle &) = delete;
-  DemangleHandle &operator=(const DemangleHandle &) = delete;
-
-  ~DemangleHandle() { std::free(p); }
-};
-static std::string demangleKernelName(const std::string_view Name) {
-  int Status = -1; // some arbitrary value to eliminate the compiler warning
-  DemangleHandle result(abi::__cxa_demangle(Name.data(), NULL, NULL, &Status));
-  return (Status == 0) ? result.p : std::string(Name);
-}
-#else
-static std::string demangleKernelName(const std::string_view Name) {
-  return std::string(Name);
-}
-#endif
 
 static std::string accessModeToString(access::mode Mode) {
   switch (Mode) {
@@ -545,7 +515,7 @@ void Command::emitEdgeEventForCommandDependence(
     std::optional<access::mode> AccMode) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Bail early if either the source or the target node for the given
-  // dependency is undefined or NULL
+  // dependency is undefined or NULL, or if no one is subscribed to edge_create
   constexpr uint16_t NotificationTraceType = xpti::trace_edge_create;
   if (!(xptiCheckTraceEnabled(MStreamID, NotificationTraceType) &&
         MTraceEvent && Cmd && Cmd->MTraceEvent))
@@ -628,6 +598,11 @@ void Command::emitEdgeEventForEventDependence(Command *Cmd,
                             detail::GSYCLGraphEvent, NodeEvent, VNodeInstanceNo,
                             nullptr);
     }
+    // Bail early if no one is subscribed to edge_create to avoid unnecessary
+    // work
+    if (!(xptiCheckTraceEnabled(MStreamID, xpti::trace_edge_create)))
+      return;
+
     // Create a new event for the edge
     std::string EdgeName = SH.nameWithAddressString("Event", AddressStr);
     xpti_tracepoint_t *EEvent =
@@ -901,7 +876,9 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
 void Command::resolveReleaseDependencies(std::set<Command *> &DepList) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   assert(MType == CommandType::RELEASE && "Expected release command");
-  if (!MTraceEvent)
+  // Bail early if no one is subscribed to edge_create to avoid unnecessary work
+  if (!(xptiCheckTraceEnabled(MStreamID, xpti::trace_edge_create) &&
+        MTraceEvent))
     return;
   // The current command is the target node for all dependencies as the source
   // nodes have to be completed first before the current node can begin to
@@ -1915,7 +1892,7 @@ ExecCGCommand::ExecCGCommand(
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 std::string instrumentationGetKernelName(const kernel_impl *SyclKernel,
                                          const std::string_view FunctionName,
-                                         const std::string_view SyclKernelName,
+                                         DeviceKernelInfo &DeviceKernelInfo,
                                          void *&Address,
                                          std::optional<bool> &FromSource) {
   std::string KernelName;
@@ -1926,7 +1903,7 @@ std::string instrumentationGetKernelName(const kernel_impl *SyclKernel,
     KernelName = FunctionName;
   } else {
     FromSource = false;
-    KernelName = demangleKernelName(SyclKernelName);
+    KernelName = DeviceKernelInfo.getDemangledName();
   }
   return KernelName;
 }
@@ -2050,7 +2027,7 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
   std::optional<bool> FromSource;
   std::string KernelName =
       instrumentationGetKernelName(SyclKernel, CodeLoc.functionName(),
-                                   DeviceKernelInfo.Name, Address, FromSource);
+                                   DeviceKernelInfo, Address, FromSource);
 
   auto &[CmdTraceEvent, InstanceID] = XptiObjects;
 
@@ -2107,7 +2084,7 @@ void ExecCGCommand::emitInstrumentationData() {
         reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
     KernelName = instrumentationGetKernelName(
         KernelCG->MSyclKernel.get(), MCommandGroup->MFunctionName,
-        KernelCG->getKernelName(), MAddress, FromSource);
+        KernelCG->MDeviceKernelInfo, MAddress, FromSource);
   } break;
   default:
     KernelName = getTypeString();
@@ -2163,7 +2140,7 @@ void ExecCGCommand::printDot(std::ostream &Stream) const {
     if (KernelCG->MSyclKernel && KernelCG->MSyclKernel->isCreatedFromSource())
       Stream << "created from source";
     else
-      Stream << demangleKernelName(KernelCG->getKernelName());
+      Stream << KernelCG->MDeviceKernelInfo.getDemangledName();
     Stream << "\\n";
     break;
   }
