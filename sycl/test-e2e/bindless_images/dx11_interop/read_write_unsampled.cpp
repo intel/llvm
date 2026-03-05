@@ -253,10 +253,11 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
   // DirectX 11 does not allow us to specify a row major layout for 2D textures
   // that have ArraySize > 1 and we would like to specify it in order to
   // accurately calculate the allocation size for the texture so that we can
-  // import it from SYCL side. Hence, in light of this restriction, instea of
+  // import it from SYCL side. Hence, in light of this restriction, instead of
   // using ArraySize > 1 to simulate 3D textures, we simulate them by simply
   // collapsing the depth dimension onto the height dimension and set ArraySize
-  // to 1. Create a shared texture
+  // to 1. 
+  // Create a shared texture
   ComPtr<ID3D11Texture2D1> texture;
   // Initialize the texture description.
   D3D11_TEXTURE2D_DESC1 texDesc{};
