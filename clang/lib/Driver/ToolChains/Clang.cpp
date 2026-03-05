@@ -11516,6 +11516,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back(
             Args.MakeArgString(Twine("--bitcode-library=") + Lib));
 
+    CmdArgs.push_back(Args.MakeArgString(
+      Twine("-sycl-device-library-location=") + DeviceLibDir));
+
     if (C.getDriver().isSaveOffloadCodeEnabled()) {
       SmallString<128> DumpDir;
       Arg *A = C.getArgs().getLastArg(options::OPT_save_offload_code_EQ);
