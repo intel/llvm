@@ -72,6 +72,7 @@
 // RUN: %{run} %t.exe --type int8 --channels 2 --sampled 33x
 // RUN: %{run} %t.exe --type int8 --channels 4 --sampled 33x
 
+
 // Semaphore coverage tests
 // RUN: %{run} %t.exe --type float --channels 4 --semaphores 33x
 // RUN: %{run} %t.exe --type half --channels 2 --semaphores 33x
