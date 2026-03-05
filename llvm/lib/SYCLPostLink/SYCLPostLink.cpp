@@ -15,6 +15,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassInstrumentation.h"
 #include "llvm/IRPrinter/IRPrintingPasses.h"
+#include "llvm/SYCLPostLink/ESIMDPostSplitProcessing.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FormatVariadic.h"
@@ -124,10 +125,12 @@ std::string llvm::sycl_post_link::convertSettingsToString(
 
   return formatv(
       "output_assembly: {0}, split_mode: {1}, specialization_constant_mode: "
-      "{2}, generate_module_with_default_spec_const_values: {3}",
+      "{2}, generate_module_with_default_spec_const_values: {3}, "
+      "{4}",
       Settings.OutputAssembly,
       module_split::convertSplitModeToString(Settings.SplitMode), SpecConstMode,
-      Settings.GenerateModuleDescWithDefaultSpecConsts);
+      Settings.GenerateModuleDescWithDefaultSpecConsts,
+      sycl::convertESIMDOptionsToString(Settings.ESIMDOptions));
 }
 
 Expected<std::vector<module_split::SplitModule>>
@@ -139,10 +142,19 @@ llvm::sycl_post_link::performPostLinkProcessing(
       [&SplitModules,
        Settings](std::unique_ptr<module_split::ModuleDesc> M) -> Error {
     M->fixupLinkageOfDirectInvokeSimdTargets();
-    // TODO: add ESIMD handling.
 
-    SmallVector<std::unique_ptr<module_split::ModuleDesc>> Modules;
-    Modules.push_back(std::move(M));
+    bool Modified = false;
+    bool SplitOccurred = false;
+    auto ModulesOrErr = sycl::handleESIMD(std::move(M), Settings.ESIMDOptions,
+                                          Modified, SplitOccurred);
+    if (!ModulesOrErr)
+      return ModulesOrErr.takeError();
+
+    SmallVector<std::unique_ptr<module_split::ModuleDesc>, 2> &Modules =
+        *ModulesOrErr;
+    assert(Modules.size() &&
+           "at least one module is expected after ESIMD split");
+
     SmallVector<std::unique_ptr<module_split::ModuleDesc>> NewModules;
     if (Settings.SpecConstMode)
       llvm::sycl_post_link::handleSpecializationConstants(
@@ -154,8 +166,9 @@ llvm::sycl_post_link::performPostLinkProcessing(
 
     for (std::unique_ptr<module_split::ModuleDesc> &MD : Modules) {
       size_t ID = SplitModules.size();
+      StringRef Suffix = MD.isESIMD() ? "_esimd" : "";
       std::string OutIRFilename =
-          (Settings.OutputPrefix + "_" + Twine(ID)).str();
+          (Settings.OutputPrefix + Suffix + "_" + Twine(ID)).str();
       Expected<module_split::SplitModule> SplitImageOrErr =
           saveModuleDesc(*MD, OutIRFilename, Settings.OutputAssembly);
       if (!SplitImageOrErr)

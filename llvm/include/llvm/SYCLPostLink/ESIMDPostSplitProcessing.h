@@ -33,6 +33,9 @@ struct ESIMDProcessingOptions {
   bool ForceDisableESIMDOpt = false;
 };
 
+SmallString<0>
+convertESIMDOptionsToString(const ESIMDProcessingOptions &Options);
+
 /// Lowers ESIMD constructs after separation from regular SYCL code.
 /// \p Options.SplitESIMD identifies that ESIMD splitting is requested in the
 /// compilation. Returns true if the given \p MD has been modified.
