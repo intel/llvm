@@ -154,18 +154,20 @@ different combinations of device and backend.
 
 |Intel GPU
 |Any
-|Number of Xe cores
+|Number of Xe cores [1]
 
 |NVIDIA GPU
 |Any
-|Number of streaming multiprocessors (SMs)[1]
+|Number of streaming multiprocessors (SMs) [2]
 
 |AMD GPU
 |Any
-|Number of compute units (CUs)[1]
+|Number of compute units (CUs) [3]
 |===
 
-[1]: https://docs.modular.com/glossary/gpu/streaming-multiprocessor/
+[1]: https://www.intel.com/content/www/us/en/docs/oneapi/optimization-guide-gpu/2025-2/intel-xe-gpu-architecture.html#INTEL-R-XE-GPU-BUILDING-BLOCKS +
+[2]: https://docs.nvidia.com/deeplearning/performance/dl-performance-gpu-background/index.html#gpu-arch +
+[3]: https://rocm.docs.amd.com/projects/HIP/en/latest/understand/hardware_implementation.html#hierarchical-organization +
 
 == Issues
 
