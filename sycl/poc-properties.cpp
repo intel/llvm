@@ -230,7 +230,7 @@ class properties {
  public:
   template<typename... Properties>
   requires(is_property_v<Properties> && ...)
-  properties(Properties... props)
+  constexpr properties(Properties... props)
   :
   stored_properties{
     // Find the subset of properties in `props` that have runtime values and
@@ -316,14 +316,14 @@ namespace khr {
 
 // Example runtime property with a single value.
 struct enable_profiling : detail::runtime_property<enable_profiling> {
-  enable_profiling(bool v) : value{v} {}
+  constexpr enable_profiling(bool v) : value{v} {}
   bool value;
 };
 template<> struct is_property_for<enable_profiling, queue> : std::true_type {};
 
 // Example runtime property with two values.
 struct twoarg : detail::runtime_property<twoarg> {
-  twoarg(int x, int y) : one{x}, two{y} {}
+  constexpr twoarg(int x, int y) : one{x}, two{y} {}
   int one;
   int two;
 };
@@ -413,7 +413,7 @@ struct hybrid_key : detail::hybrid_property_key_base {};
 
 template<int X>
 struct hybrid : detail::hybrid_property_base {
-  hybrid(int y) : y{y} {}
+  constexpr hybrid(int y) : y{y} {}
   using __detail_key_t = hybrid_key;
   static constexpr int x = X;
   int y;
@@ -662,5 +662,15 @@ int main() {
     sycl::khr::properties p2{c};
     static_assert(p1.has_property<copy_check>() == true);
     assert(p2.get_property<copy_check>().copy_count == 2);
+  }
+
+  // Check that we can create a constexpr property list of runtime properties
+  // when the runtime property values are constants.
+  {
+    constexpr sycl::khr::properties p{
+      sycl::khr::enable_profiling{false},
+      sycl::khr::twoarg{1, 2},
+      sycl::khr::hybrid<1>{2}
+    };
   }
 }
