@@ -11,6 +11,7 @@
 #include "enqueue.hpp"
 #include "common.hpp"
 #include "context.hpp"
+#include "cuda_call_logger.hpp"
 #include "event.hpp"
 #include "kernel.hpp"
 #include "memory.hpp"
@@ -38,13 +39,30 @@ ur_result_t enqueueEventsWait(ur_queue_handle_t CommandQueue, CUstream Stream,
 
     auto Result = forLatestEvents(
         EventWaitList, NumEventsInWaitList,
-        [Stream](ur_event_handle_t Event) -> ur_result_t {
+        [Stream, CommandQueue](ur_event_handle_t Event) -> ur_result_t {
           if (Event->getStream() == Stream) {
             return UR_RESULT_SUCCESS;
-          } else {
-            UR_CHECK_ERROR(cuStreamWaitEvent(Stream, Event->get(), 0));
+          }
+          
+          // CUDA limitation: cuStreamWaitEvent fails when event and stream are
+          // from different native CUDA contexts (different physical devices).
+          // Compare the native CUcontext of the devices to detect this case.
+          if (Event->getQueue() && 
+              Event->getQueue()->getDevice()->getNativeContext() != 
+              CommandQueue->getDevice()->getNativeContext()) {
+            // Cross-device synchronization requires host involvement:
+            // 1. Wait for cross-device event to complete (blocks CPU)
+            UR_CHECK_ERROR(cuEventSynchronize(Event->get()));
+            // 2. Synchronize target stream to create ordering barrier
+            //    This ensures work enqueued after this call happens after
+            //    the cross-device event has completed
+            UR_CHECK_ERROR(cuStreamSynchronize(Stream));
             return UR_RESULT_SUCCESS;
           }
+          
+          // Same native context: use asynchronous stream wait
+          UR_CHECK_ERROR(cuStreamWaitEvent(Stream, Event->get(), 0));
+          return UR_RESULT_SUCCESS;
         });
     return Result;
   } catch (ur_result_t Err) {
@@ -434,6 +452,10 @@ enqueueKernelLaunch(ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel,
     }
 
     auto &ArgPointers = hKernel->getArgPointers();
+    CUDA_CALL_TRACE_KERNEL_LAUNCH(CuFunc, BlocksPerGrid[0], BlocksPerGrid[1],
+                                  BlocksPerGrid[2], ThreadsPerBlock[0],
+                                  ThreadsPerBlock[1], ThreadsPerBlock[2],
+                                  LocalSize, CuStream);
     UR_CHECK_ERROR(cuLaunchKernel(
         CuFunc, BlocksPerGrid[0], BlocksPerGrid[1], BlocksPerGrid[2],
         ThreadsPerBlock[0], ThreadsPerBlock[1], ThreadsPerBlock[2], LocalSize,
@@ -916,6 +938,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     auto Dst = std::get<BufferMem>(hBufferDst->Mem)
                    .getPtrWithOffset(hQueue->getDevice(), dstOffset);
 
+    CUDA_CALL_TRACE_MEMCPY_ASYNC(Dst, Src, size, Stream);
     UR_CHECK_ERROR(cuMemcpyDtoDAsync(Dst, Src, size, Stream));
 
     if (phEvent) {
@@ -1576,6 +1599,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
                                                       hQueue, CuStream);
       UR_CHECK_ERROR(EventPtr->start());
     }
+    CUDA_CALL_TRACE_MEMCPY_GENERIC((CUdeviceptr)pDst, (CUdeviceptr)pSrc, size,
+                                   CuStream);
     UR_CHECK_ERROR(
         cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, size, CuStream));
     if (phEvent) {

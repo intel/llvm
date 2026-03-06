@@ -18,6 +18,8 @@
 #include <umf/memory_provider.h>
 #include <umf/providers/provider_cuda.h>
 
+#include "cuda_call_logger.hpp"
+
 ur_result_t mapErrorUR(CUresult Result);
 
 /// Converts CUDA error into UR error codes, and outputs error information
@@ -36,8 +38,22 @@ void checkErrorUR(nvmlReturn_t Result, const char *Function, int Line,
 void checkErrorUR(ur_result_t Result, const char *Function, int Line,
                   const char *File);
 
-#define UR_CHECK_ERROR(Result)                                                 \
-  checkErrorUR(Result, __func__, __LINE__, __FILE__)
+// Enhanced UR_CHECK_ERROR that automatically logs CUDA calls when tracing is
+// enabled
+#define UR_CHECK_ERROR(expr)                                                   \
+  do {                                                                         \
+    if (::ur::cuda::call_logger::isEnabled()) {                                \
+      constexpr const char *__call_str = #expr;                                \
+      if (__call_str[0] == 'c' && __call_str[1] == 'u') {                      \
+        CUDA_CALL_TRACE_GENERIC(__call_str);                                   \
+      }                                                                        \
+    }                                                                          \
+    auto __result = (expr);                                                    \
+    if (::ur::cuda::call_logger::isEnabled()) {                                \
+      CUDA_CALL_TRACE_RESULT(__result);                                        \
+    }                                                                          \
+    checkErrorUR(__result, __func__, __LINE__, __FILE__);                      \
+  } while (0)
 
 std::string getCudaVersionString();
 

@@ -13,6 +13,7 @@
 #include "adapter.hpp"
 #include "common.hpp"
 #include "context.hpp"
+#include "cuda_call_logger.hpp"
 #include "device.hpp"
 #include "event.hpp"
 #include "platform.hpp"
@@ -578,6 +579,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(ur_context_handle_t,
                                                           void *pDst,
                                                           const void *pSrc,
                                                           size_t Size) {
+  CUDA_CALL_TRACE_GENERIC("cuMemcpy (synchronous)");
   UR_CHECK_ERROR(cuMemcpy((CUdeviceptr)pDst, (CUdeviceptr)pSrc, Size));
   return UR_RESULT_SUCCESS;
 }

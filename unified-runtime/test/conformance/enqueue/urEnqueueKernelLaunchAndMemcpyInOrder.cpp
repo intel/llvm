@@ -268,19 +268,9 @@ UUR_PLATFORM_TEST_SUITE_WITH_PARAM(
 // ... ops
 TEST_P(urEnqueueKernelLaunchIncrementMultiDeviceTest, Success) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
-  // https://github.com/intel/llvm/issues/19033
-  UUR_KNOWN_FAILURE_ON(uur::CUDA{});
 
   auto waitOnEvent = std::get<0>(getParam()).value;
   auto runBackgroundCheck = std::get<1>(getParam()).value;
-
-  ur_bool_t usm_p2p_support = false;
-  ASSERT_SUCCESS(urDeviceGetInfo(devices[0], UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP,
-                                 sizeof(usm_p2p_support), &usm_p2p_support,
-                                 nullptr));
-  if (!usm_p2p_support) {
-    GTEST_SKIP() << "EXP usm p2p feature is not supported.";
-  }
 
   constexpr size_t global_offset = 0;
   constexpr size_t n_dimensions = 1;

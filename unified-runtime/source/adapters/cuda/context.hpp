@@ -21,6 +21,7 @@
 #include "adapter.hpp"
 #include "common.hpp"
 #include "common/ur_ref_count.hpp"
+#include "cuda_call_logger.hpp"
 #include "device.hpp"
 #include "umf_helpers.hpp"
 
@@ -157,27 +158,41 @@ namespace {
 class ScopedContext {
 public:
   ScopedContext(ur_device_handle_t Device) {
-    if (!Device) {
-      throw UR_RESULT_ERROR_INVALID_DEVICE;
+    if (Device) {
+      setContext(Device->getNativeContext());
     }
-    setContext(Device->getNativeContext());
   }
 
   ScopedContext(CUcontext NativeContext) { setContext(NativeContext); }
 
-  ~ScopedContext() {}
+  ~ScopedContext() {
+    if (NeedToRecover) {
+      CUDA_CALL_TRACE_CTX_SET(Original);
+      (void)cuCtxSetCurrent(Original);
+    }
+  }
 
 private:
   void setContext(CUcontext Desired) {
-    CUcontext Original = nullptr;
+    Original = nullptr;
 
+    CUDA_CALL_TRACE_CTX_GET(&Original);
     UR_CHECK_ERROR(cuCtxGetCurrent(&Original));
 
     // Make sure the desired context is active on the current thread, setting
     // it if necessary
     if (Original != Desired) {
+      CUDA_CALL_TRACE_CTX_SET(Desired);
       UR_CHECK_ERROR(cuCtxSetCurrent(Desired));
+      // Only restore context if we had a valid one before
+      // (don't restore to nullptr)
+      if (Original != nullptr) {
+        NeedToRecover = true;
+      }
     }
   }
+
+  CUcontext Original = nullptr;
+  bool NeedToRecover = false;
 };
 } // namespace
