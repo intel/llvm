@@ -40,8 +40,8 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        # Feb 20, 2026
-        return "27a3133d298a95af35e69173b06f6030ae33d742"
+        # Mar 03, 2026
+        return "48504d2957a83ad32deff78563e855eeb6855dae"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -319,10 +319,11 @@ class ComputeBench(Suite):
                         profiler_type,
                         **{
                             **kwargs,
-                            "kernelBatchSize": 512,
-                            "kernelName": "Add",
-                            "kernelParamsNum": 5,
-                            "kernelSubmitPattern": "Single",
+                            "KernelBatchSize": 512,
+                            "KernelName": "Add",
+                            "KernelParamsNum": 5,
+                            "KernelSubmitPattern": "Single",
+                            "Profiling": 0,
                             "UseEvents": 0,
                         },
                     )
@@ -330,39 +331,39 @@ class ComputeBench(Suite):
                 benches += [
                     createTorchSingleQueueBench(
                         "Int32Large",
-                        kernelDataType="Int32",
-                        kernelWGCount=4096,
-                        kernelWGSize=512,
+                        KernelDataType="Int32",
+                        KernelWGCount=4096,
+                        KernelWGSize=512,
                     ),
                     createTorchSingleQueueBench(
                         "Int32Medium",
-                        kernelDataType="Int32",
-                        kernelWGCount=512,
-                        kernelWGSize=256,
+                        KernelDataType="Int32",
+                        KernelWGCount=512,
+                        KernelWGSize=256,
                     ),
                     createTorchSingleQueueBench(
                         "Int32Small",
-                        kernelDataType="Int32",
-                        kernelWGCount=256,
-                        kernelWGSize=128,
+                        KernelDataType="Int32",
+                        KernelWGCount=256,
+                        KernelWGSize=128,
                     ),
                     createTorchSingleQueueBench(
                         "MixedLarge",
-                        kernelDataType="Mixed",
-                        kernelWGCount=4096,
-                        kernelWGSize=512,
+                        KernelDataType="Mixed",
+                        KernelWGCount=4096,
+                        KernelWGSize=512,
                     ),
                     createTorchSingleQueueBench(
                         "MixedMedium",
-                        kernelDataType="Mixed",
-                        kernelWGCount=512,
-                        kernelWGSize=256,
+                        KernelDataType="Mixed",
+                        KernelWGCount=512,
+                        KernelWGSize=256,
                     ),
                     createTorchSingleQueueBench(
                         "MixedSmall",
-                        kernelDataType="Mixed",
-                        kernelWGCount=256,
-                        kernelWGSize=128,
+                        KernelDataType="Mixed",
+                        KernelWGCount=256,
+                        KernelWGSize=128,
                     ),
                 ]
 
@@ -379,10 +380,10 @@ class ComputeBench(Suite):
                         measure_completion,
                         **{
                             **kwargs,
-                            "kernelWGCount": 512,
-                            "kernelWGSize": 256,
-                            "useProfiling": 0,
-                            "measureCompletion": measure_completion,
+                            "KernelWGCount": 512,
+                            "KernelWGSize": 256,
+                            "MeasureCompletionTime": measure_completion,
+                            "Profiling": 0,
                             "UseEvents": 0,
                         },
                     )
@@ -390,15 +391,15 @@ class ComputeBench(Suite):
                 benches += [
                     createTorchMultiQueueBench(
                         "large",
-                        kernelsPerQueue=20,
+                        KernelsPerQueue=20,
                     ),
                     createTorchMultiQueueBench(
                         "medium",
-                        kernelsPerQueue=10,
+                        KernelsPerQueue=10,
                     ),
                     createTorchMultiQueueBench(
                         "small",
-                        kernelsPerQueue=4,
+                        KernelsPerQueue=4,
                     ),
                 ]
 
@@ -415,24 +416,24 @@ class ComputeBench(Suite):
                         measure_completion,
                         **{
                             **kwargs,
-                            "kernelBatchSize": 512,
-                            "measureCompletion": measure_completion,
-                            "useProfiling": 0,
+                            "KernelBatchSize": 512,
+                            "MeasureCompletionTime": measure_completion,
+                            "Profiling": 0,
                         },
                     )
 
                 benches += [
                     createTorchSlmSizeBench(
                         "small",
-                        slmNum=1,
+                        SlmNum=1,
                     ),
                     createTorchSlmSizeBench(
                         "medium",
-                        slmNum=1024,
+                        SlmNum=1024,
                     ),
                     createTorchSlmSizeBench(
                         "large",
-                        slmNum=16384,
+                        SlmNum=16384,
                     ),
                 ]
 
@@ -452,27 +453,31 @@ class ComputeBench(Suite):
                 benches += [
                     createTorchMemoryReuseBench(
                         "Int32Large",
-                        kernelBatchSize=4096,
-                        kernelDataType="Int32",
+                        KernelBatchSize=4096,
+                        KernelDataType="Int32",
                         UseEvents=0,
+                        Profiling=0,
                     ),
                     createTorchMemoryReuseBench(
                         "Int32Medium",
-                        kernelBatchSize=512,
-                        kernelDataType="Int32",
+                        KernelBatchSize=512,
+                        KernelDataType="Int32",
                         UseEvents=0,
+                        Profiling=0,
                     ),
                     createTorchMemoryReuseBench(
                         "FloatLarge",
-                        kernelBatchSize=4096,
-                        kernelDataType="Float",
+                        KernelBatchSize=4096,
+                        KernelDataType="Float",
                         UseEvents=0,
+                        Profiling=0,
                     ),
                     createTorchMemoryReuseBench(
                         "FloatMedium",
-                        kernelBatchSize=512,
-                        kernelDataType="Float",
+                        KernelBatchSize=512,
+                        KernelDataType="Float",
                         UseEvents=0,
+                        Profiling=0,
                     ),
                 ]
 
@@ -488,30 +493,31 @@ class ComputeBench(Suite):
                         profiler_type,
                         **{
                             **kwargs,
-                            "kernelBatchSize": 512,
+                            "KernelBatchSize": 512,
+                            "Profiling": 0,
                         },
                     )
 
                 benches += [
                     createTorchLinearKernelSizeBench(
                         "array32",
-                        kernelSize=32,
+                        KernelSize=32,
                     ),
                     createTorchLinearKernelSizeBench(
                         "array128",
-                        kernelSize=128,
+                        KernelSize=128,
                     ),
                     createTorchLinearKernelSizeBench(
                         "array512",
-                        kernelSize=512,
+                        KernelSize=512,
                     ),
                     createTorchLinearKernelSizeBench(
                         "array1024",
-                        kernelSize=1024,
+                        KernelSize=1024,
                     ),
                     createTorchLinearKernelSizeBench(
                         "array5120",
-                        kernelSize=5120,
+                        KernelSize=5120,
                     ),
                 ]
 
@@ -532,10 +538,10 @@ class ComputeBench(Suite):
                             profiler_type,
                             **{
                                 **kwargs,
-                                "kernelName": kernel_name.value,
-                                "kernelWGCount": 512,
-                                "kernelWGSize": 256,
-                                "useProfiling": 0,
+                                "KernelName": kernel_name.value,
+                                "KernelWGCount": 512,
+                                "KernelWGSize": 256,
+                                "Profiling": 0,
                                 "UseEvents": 0,
                             },
                         )
@@ -543,18 +549,18 @@ class ComputeBench(Suite):
                     benches += [
                         createTorchGraphSingleQueueBench(
                             "small",
-                            kernelGroupsCount=10,
-                            kernelBatchSize=10,
+                            KernelsPerQueue=10,
+                            KernelBatchSize=10,
                         ),
                         createTorchGraphSingleQueueBench(
                             "medium",
-                            kernelGroupsCount=32,
-                            kernelBatchSize=32,
+                            KernelsPerQueue=32,
+                            KernelBatchSize=32,
                         ),
                         createTorchGraphSingleQueueBench(
                             "large",
-                            kernelGroupsCount=64,
-                            kernelBatchSize=64,
+                            KernelsPerQueue=64,
+                            KernelBatchSize=64,
                         ),
                     ]
 
@@ -591,6 +597,21 @@ class ComputeBench(Suite):
                             kernelsPerQueue=64,
                         ),
                     ]
+
+        # Add TorchSubmitEventRecordWait benchmarks
+        for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
+            for profiler_type in list(PROFILERS):
+                benches.append(
+                    TorchSubmitEventRecordWait(
+                        self,
+                        runtime,
+                        "medium",
+                        profiler_type,
+                        Profiling=0,
+                        KernelWGCount=256,
+                        KernelWGSize=512,
+                    )
+                )
 
         # Add UR-specific benchmarks
         benches += [
@@ -1229,7 +1250,7 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         )
 
     def name(self):
-        return f"graph_api_benchmark_{self._runtime.value} SubmitGraph{self._native_str}{self._use_events_str}{self._host_tasks_str} numKernels:{self._num_kernels} ioq {self._in_order_queue} measureCompletion {self._measure_completion_time}{self._cpu_count_str()}"
+        return f"graph_api_benchmark_{self._runtime.value} SubmitGraph{self._native_str}{self._use_events_str}{self._host_tasks_str} numKernels:{self._num_kernels} ioq {self._in_order_queue} MeasureCompletionTime {self._measure_completion_time}{self._cpu_count_str()}"
 
     def display_name(self) -> str:
         return f"{self._runtime.value.upper()} SubmitGraph{self._native_str} {self._ioq_str}{self._measure_str}{self._use_events_str}{self._host_tasks_str}, {self._num_kernels} kernels{self._cpu_count_str(separator=',')}"

@@ -126,6 +126,11 @@ struct ur_queue_t_ : ur_queue_extensions {
                                            bool, void *, size_t, uint32_t,
                                            const ur_event_handle_t *,
                                            ur_event_handle_t *) = 0;
+  virtual ur_result_t enqueueKernelLaunchWithArgsExp(
+      ur_kernel_handle_t, uint32_t, const size_t *, const size_t *,
+      const size_t *, uint32_t, const ur_exp_kernel_arg_properties_t *,
+      const ur_kernel_launch_ext_properties_t *, uint32_t,
+      const ur_event_handle_t *, ur_event_handle_t *) = 0;
   virtual ur_result_t
   enqueueUSMDeviceAllocExp(ur_usm_pool_handle_t, const size_t,
                            const ur_exp_async_usm_alloc_properties_t *,
@@ -155,11 +160,6 @@ struct ur_queue_t_ : ur_queue_extensions {
       const ur_event_handle_t *, ur_event_handle_t *) = 0;
   virtual ur_result_t bindlessImagesSignalExternalSemaphoreExp(
       ur_exp_external_semaphore_handle_t, bool, uint64_t, uint32_t,
-      const ur_event_handle_t *, ur_event_handle_t *) = 0;
-  virtual ur_result_t enqueueKernelLaunchWithArgsExp(
-      ur_kernel_handle_t, uint32_t, const size_t *, const size_t *,
-      const size_t *, uint32_t, const ur_exp_kernel_arg_properties_t *,
-      const ur_kernel_launch_ext_properties_t *, uint32_t,
       const ur_event_handle_t *, ur_event_handle_t *) = 0;
   virtual ur_result_t enqueueTimestampRecordingExp(bool, uint32_t,
                                                    const ur_event_handle_t *,
