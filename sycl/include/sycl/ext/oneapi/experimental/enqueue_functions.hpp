@@ -379,14 +379,16 @@ void nd_launch(queue Q, nd_range<Dimensions> Range,
                [[maybe_unused]] kernel_function_s<Func> KernelFunc,
                ArgsT &&...Args) {
   detail::submit_kernel_direct_parallel_for(
-      std::move(Q), Range, [Args...](sycl::nd_item<>) { Func(Args...); });
+      std::move(Q), Range,
+      [Args...](sycl::nd_item<Dimensions>) { Func(Args...); });
 }
 
 template <auto *Func, int Dimensions, typename... ArgsT>
 void nd_launch(handler &CGH, nd_range<Dimensions> Range,
                [[maybe_unused]] kernel_function_s<Func> KernelFunc,
                ArgsT &&...Args) {
-  CGH.parallel_for(Range, [Args...](sycl::nd_item<>) { Func(Args...); });
+  CGH.parallel_for(Range,
+                   [Args...](sycl::nd_item<Dimensions>) { Func(Args...); });
 }
 
 template <auto *Func, int Dimensions, typename Properties, typename... ArgsT>
@@ -399,7 +401,7 @@ void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
       ConfigAccess(Config);
   detail::submit_kernel_direct_parallel_for(
       std::move(Q), ConfigAccess.getRange(),
-      [Args...](sycl::nd_item<>) { Func(Args...); }, {},
+      [Args...](sycl::nd_item<Dimensions>) { Func(Args...); }, {},
       ConfigAccess.getProperties());
 }
 
@@ -412,7 +414,7 @@ void nd_launch(handler &CGH,
                                                         Properties>
       ConfigAccess(Config);
   CGH.parallel_for(ConfigAccess.getRange(), ConfigAccess.getProperties(),
-                   [Args...](sycl::nd_item<>) { Func(Args...); });
+                   [Args...](sycl::nd_item<Dimensions>) { Func(Args...); });
 }
 
 inline void memcpy(handler &CGH, void *Dest, const void *Src, size_t NumBytes) {
