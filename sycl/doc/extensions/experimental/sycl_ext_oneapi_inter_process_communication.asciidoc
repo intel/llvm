@@ -57,6 +57,10 @@ there to be a per-platform default context even if the core SYCL specification
 does not provide a convenient way to get it.
 _{endnote}_]
 
+This extension also depends on the following other SYCL extensions:
+
+* link:../proposed/sycl_ext_oneapi_reusable_events.asciidoc[
+  sycl_ext_oneapi_reusable_events]
 
 == Status
 
@@ -460,12 +464,12 @@ ipc::memory::close(ptr, ctxt);
 === Inter-process exchange of events
 
 This extension allows for the exchange of an event object between processes.
-The event object can then be signaled in one of the processes, and waited on in
+The event object can then be signaled in one of the processes and waited on in
 another process.
 The following aspect and set of free functions are specific to event object
 sharing feature.
 
-==== Extension to `enum class aspect` for USM memory
+==== Extension to `enum class aspect` for events
 
 [source]
 ----
@@ -479,6 +483,32 @@ enum class aspect {
 
 If a SYCL device has this aspect, that device supports the functions in the
 `ipc::event` namespace specified in the following section.
+
+==== New property for the make_event function
+
+This extension adds the following property, which can be used with `make_event`
+(from the sycl_ext_oneapi_reusable_events extension):
+
+'''
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+struct enable_ipc {
+  enable_ipc(bool enable);  (1)
+};
+using enable_ipc_key = enable_ipc;
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+This property controls whether the event can be shared across processes.
+
+_Effects_ (1): Creates a new `enable_ipc` property with a boolean value
+indicating whether the event can be shared across processes.
+
+'''
 
 ==== New functions associated with event object
 
