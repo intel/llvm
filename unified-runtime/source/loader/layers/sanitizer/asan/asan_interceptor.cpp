@@ -246,9 +246,9 @@ ur_result_t AsanInterceptor::releaseMemory(ur_context_handle_t Context,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t AsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
-                                             ur_queue_handle_t Queue,
-                                             LaunchInfo &LaunchInfo) {
+ur_result_t AsanInterceptor::preLaunchKernel(
+    ur_kernel_handle_t Kernel, ur_queue_handle_t Queue, LaunchInfo &LaunchInfo,
+    uint32_t numArgs, const ur_exp_kernel_arg_properties_t *pArgs) {
   auto Context = GetContext(Queue);
   auto Device = GetDevice(Queue);
   auto ContextInfo = getContextInfo(Context);
@@ -271,7 +271,7 @@ ur_result_t AsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
   UR_CALL(updateShadowMemory(DeviceInfo, InternalQueue));
 
   UR_CALL(prepareLaunch(ContextInfo, DeviceInfo, InternalQueue, Kernel,
-                        LaunchInfo));
+                        LaunchInfo, numArgs, pArgs));
 
   UR_CALL(getContext()->urDdiTable.Queue.pfnFinish(InternalQueue));
 
@@ -724,7 +724,8 @@ AsanInterceptor::getMemBuffer(ur_mem_handle_t MemHandle) {
 ur_result_t AsanInterceptor::prepareLaunch(
     std::shared_ptr<ContextInfo> &ContextInfo,
     std::shared_ptr<DeviceInfo> &DeviceInfo, ur_queue_handle_t Queue,
-    ur_kernel_handle_t Kernel, LaunchInfo &LaunchInfo) {
+    ur_kernel_handle_t Kernel, LaunchInfo &LaunchInfo, uint32_t numArgs,
+    const ur_exp_kernel_arg_properties_t *pArgs) {
   auto &KernelInfo = getOrCreateKernelInfo(Kernel);
   std::shared_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
 
@@ -784,6 +785,13 @@ ur_result_t AsanInterceptor::prepareLaunch(
 
     ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
         Kernel, ArgNums - 1, nullptr, LaunchInfo.Data.getDevicePtr());
+    KernelInfo.ArgProps.push_back(ur_exp_kernel_arg_properties_t{
+        UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+        nullptr,
+        UR_EXP_KERNEL_ARG_TYPE_POINTER,
+        ArgNums - 1,
+        sizeof(void *),
+        {LaunchInfo.Data.getDevicePtr()}});
     if (URes != UR_RESULT_SUCCESS) {
       UR_LOG_L(getContext()->logger, ERR, "Failed to set launch info: {}",
                URes);
@@ -793,9 +801,11 @@ ur_result_t AsanInterceptor::prepareLaunch(
 
   if (LaunchInfo.LocalWorkSize.empty()) {
     LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
-    auto URes = getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize(
-        Kernel, Queue, LaunchInfo.WorkDim, LaunchInfo.GlobalWorkOffset.data(),
-        LaunchInfo.GlobalWorkSize, LaunchInfo.LocalWorkSize.data());
+    auto URes =
+        getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSizeWithArgs(
+            Kernel, Queue, LaunchInfo.WorkDim,
+            LaunchInfo.GlobalWorkOffset.data(), LaunchInfo.GlobalWorkSize,
+            numArgs, pArgs, LaunchInfo.LocalWorkSize.data());
     if (URes != UR_RESULT_SUCCESS) {
       if (URes != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
         return URes;
