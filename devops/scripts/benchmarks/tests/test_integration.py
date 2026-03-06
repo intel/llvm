@@ -85,6 +85,8 @@ class App:
                 "20240102_030405",
                 "--stddev-threshold",
                 "999999999.9",
+                "--iterations",
+                "1",
                 "--exit-on-failure",
                 "--verbose" if VERBOSE_LOGS else "--log-level=info",
                 *args,
