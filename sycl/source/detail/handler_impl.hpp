@@ -93,19 +93,6 @@ public:
   sycl::ext::oneapi::experimental::prefetch_type MPrefetchType =
       sycl::ext::oneapi::experimental::prefetch_type::device;
 
-  // Program scope pipe information.
-
-  // Pipe name that uniquely identifies a pipe.
-  std::string HostPipeName;
-  // Pipe host pointer, the address of its constexpr __pipe member.
-  void *HostPipePtr = nullptr;
-  // Host pipe read write operation is blocking.
-  bool HostPipeBlocking = false;
-  // The size of returned type for each read.
-  size_t HostPipeTypeSize = 0;
-  // If the pipe operation is read or write, 1 for read 0 for write.
-  bool HostPipeRead = true;
-
   // Extra information for bindless image copy
   ur_image_desc_t MSrcImageDesc = {};
   ur_image_desc_t MDstImageDesc = {};

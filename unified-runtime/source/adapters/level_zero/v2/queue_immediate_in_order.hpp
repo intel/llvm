@@ -1,6 +1,6 @@
 //===--------- queue_immediate_in_order.hpp - Level Zero Adapter ---------===//
 //
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -16,6 +16,7 @@
 #include "context.hpp"
 #include "event.hpp"
 #include "event_pool_cache.hpp"
+#include "graph.hpp"
 #include "memory.hpp"
 #include "queue_api.hpp"
 
@@ -444,7 +445,7 @@ public:
 
     return commandListManager.lock()->appendUSMFreeExp(
         this, pPool, pMem, waitListView,
-        createEventAndRetain(eventPool.get(), phEvent, this));
+        createEventIfRequested(eventPool.get(), phEvent, this));
   }
 
   ur_result_t bindlessImagesImageCopyExp(
@@ -548,30 +549,50 @@ public:
         createEventIfRequested(eventPool.get(), phEvent, this));
   }
 
+  ur_result_t enqueueGraphExp(ur_exp_executable_graph_handle_t hGraph,
+                              uint32_t numEventsInWaitList,
+                              const ur_event_handle_t *phEventWaitList,
+                              ur_event_handle_t *phEvent) override {
+    wait_list_view waitListView =
+        wait_list_view(phEventWaitList, numEventsInWaitList);
+
+    return commandListManager.lock()->appendGraph(
+        hGraph, waitListView,
+        createEventIfRequested(eventPool.get(), phEvent, this));
+  }
+
   ur_result_t queueBeginGraphCapteExp() override {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    return commandListManager.lock()->beginGraphCapture();
   }
 
   ur_result_t
-  queueBeginCapteIntoGraphExp(ur_exp_graph_handle_t /* hGraph */) override {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  queueBeginCapteIntoGraphExp(ur_exp_graph_handle_t hGraph) override {
+    return commandListManager.lock()->beginCaptureIntoGraph(hGraph);
+  }
+
+  ur_result_t queueEndGraphCapteExp(ur_exp_graph_handle_t *phGraph) override {
+    return commandListManager.lock()->endGraphCapture(phGraph);
+  }
+
+  ur_result_t queueIsGraphCapteEnabledExp(bool *pResult) override {
+    return commandListManager.lock()->isGraphCaptureActive(pResult);
   }
 
   ur_result_t
-  queueEndGraphCapteExp(ur_exp_graph_handle_t * /* phGraph */) override {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  enqueueHostTaskExp(ur_exp_host_task_function_t pfnHostTask, void *data,
+                     const ur_exp_host_task_properties_t *pProperties,
+                     uint32_t numEventsInWaitList,
+                     const ur_event_handle_t *phEventWaitList,
+                     ur_event_handle_t *phEvent) override {
+    wait_list_view waitListView =
+        wait_list_view(phEventWaitList, numEventsInWaitList);
+
+    return commandListManager.lock()->appendHostTaskExp(
+        pfnHostTask, data, pProperties, waitListView,
+        createEventIfRequested(eventPool.get(), phEvent, this));
   }
 
-  ur_result_t enqueueGraphExp(ur_exp_executable_graph_handle_t /* hGraph */,
-                              uint32_t /* numEventsInWaitList */,
-                              const ur_event_handle_t * /* phEventWaitList */,
-                              ur_event_handle_t * /* phEvent */) override {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-  }
-
-  ur_result_t queueIsGraphCapteEnabledExp(bool * /* pResult */) override {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-  }
+  bool isInOrder() override { return true; }
 
   ur::RefCount RefCount;
 };

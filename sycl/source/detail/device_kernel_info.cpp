@@ -8,12 +8,22 @@
 #include <detail/device_kernel_info.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
+#ifdef __has_include
+#if __has_include(<cxxabi.h>)
+#define __SYCL_ENABLE_GNU_DEMANGLING
+#include <cstdlib>
+#include <cxxabi.h>
+#include <memory>
+#endif
+#endif
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-DeviceKernelInfo::DeviceKernelInfo(const CompileTimeKernelInfoTy &Info)
-    : CompileTimeKernelInfoTy(Info) {}
+DeviceKernelInfo::DeviceKernelInfo(const CompileTimeKernelInfoTy &Info,
+                                   std::optional<sycl::kernel_id> KernelID)
+    : CompileTimeKernelInfoTy{Info}, MKernelID{std::move(KernelID)} {}
 
 template <typename OtherTy>
 inline constexpr bool operator==(const CompileTimeKernelInfoTy &LHS,
@@ -47,6 +57,26 @@ void DeviceKernelInfo::setImplicitLocalArgPos(int Pos) {
   assert(!MImplicitLocalArgPos.has_value() || MImplicitLocalArgPos == Pos);
   MImplicitLocalArgPos = Pos;
 }
+
+std::string_view DeviceKernelInfo::getDemangledName() const {
+  std::call_once(MDemangledNameInitFlag, [&]() {
+#ifdef __SYCL_ENABLE_GNU_DEMANGLING
+    int Status = -1; // some arbitrary value to eliminate the compiler warning
+    char *Demangled =
+        abi::__cxa_demangle(Name.data(), nullptr, nullptr, &Status);
+    if (Status == 0 && Demangled) {
+      std::unique_ptr<char, void (*)(void *)> Guard(Demangled, std::free);
+      MDemangledName = std::string(Guard.get());
+    } else {
+      MDemangledName = std::string(Name);
+    }
+#else
+    MDemangledName = std::string(Name);
+#endif
+  });
+  return MDemangledName;
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

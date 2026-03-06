@@ -24,6 +24,8 @@ SET_SOURCE_FILES_PROPERTIES( ToolChains/MSVC.cpp ToolChains/Clang.cpp
 add_clang_library(clangDriver
   Action.cpp
   Compilation.cpp
+  CreateASTUnitFromArgs.cpp
+  CreateInvocationFromArgs.cpp
   Distro.cpp
   Driver.cpp
   Job.cpp
@@ -70,6 +72,7 @@ add_clang_library(clangDriver
   ToolChains/Hexagon.cpp
   ToolChains/HLSL.cpp
   ToolChains/Hurd.cpp
+  ToolChains/LFILinux.cpp
   ToolChains/Linux.cpp
   ToolChains/Managarm.cpp
   ToolChains/MipsLinux.cpp
@@ -105,6 +108,8 @@ add_clang_library(clangDriver
 
   LINK_LIBS
   clangBasic
+  clangFrontend
+  clangSerialization
   clangLex
   clangOptions
   ${system_libs}

@@ -36,23 +36,6 @@ struct host_access_key
                      std::integral_constant<host_access_enum, Access>>;
 };
 
-enum class init_mode_enum : std::uint16_t { reprogram, reset };
-
-struct init_mode_key
-    : detail::compile_time_property_key<detail::PropKind::InitMode> {
-  template <init_mode_enum Trigger>
-  using value_t =
-      property_value<init_mode_key,
-                     std::integral_constant<init_mode_enum, Trigger>>;
-};
-
-struct implement_in_csr_key
-    : detail::compile_time_property_key<detail::PropKind::ImplementInCSR> {
-  template <bool Enable>
-  using value_t =
-      property_value<implement_in_csr_key, std::bool_constant<Enable>>;
-};
-
 inline constexpr device_image_scope_key::value_t device_image_scope;
 
 template <host_access_enum Access>
@@ -66,28 +49,11 @@ inline constexpr host_access_key::value_t<host_access_enum::read_write>
 inline constexpr host_access_key::value_t<host_access_enum::none>
     host_access_none;
 
-template <init_mode_enum Trigger>
-inline constexpr init_mode_key::value_t<Trigger> init_mode;
-inline constexpr init_mode_key::value_t<init_mode_enum::reprogram>
-    init_mode_reprogram;
-inline constexpr init_mode_key::value_t<init_mode_enum::reset> init_mode_reset;
-
-template <bool Enable>
-inline constexpr implement_in_csr_key::value_t<Enable> implement_in_csr;
-inline constexpr implement_in_csr_key::value_t<true> implement_in_csr_on;
-inline constexpr implement_in_csr_key::value_t<false> implement_in_csr_off;
-
 template <typename T, typename PropertyListT>
 struct is_property_key_of<device_image_scope_key,
                           device_global<T, PropertyListT>> : std::true_type {};
 template <typename T, typename PropertyListT>
 struct is_property_key_of<host_access_key, device_global<T, PropertyListT>>
-    : std::true_type {};
-template <typename T, typename PropertyListT>
-struct is_property_key_of<init_mode_key, device_global<T, PropertyListT>>
-    : std::true_type {};
-template <typename T, typename PropertyListT>
-struct is_property_key_of<implement_in_csr_key, device_global<T, PropertyListT>>
     : std::true_type {};
 
 namespace detail {
@@ -99,16 +65,6 @@ template <host_access_enum Access>
 struct PropertyMetaInfo<host_access_key::value_t<Access>> {
   static constexpr const char *name = "sycl-host-access";
   static constexpr host_access_enum value = Access;
-};
-template <init_mode_enum Trigger>
-struct PropertyMetaInfo<init_mode_key::value_t<Trigger>> {
-  static constexpr const char *name = "sycl-init-mode";
-  static constexpr init_mode_enum value = Trigger;
-};
-template <bool Enable>
-struct PropertyMetaInfo<implement_in_csr_key::value_t<Enable>> {
-  static constexpr const char *name = "sycl-implement-in-csr";
-  static constexpr bool value = Enable;
 };
 
 // Filter allowing additional conditions for selecting when to include meta

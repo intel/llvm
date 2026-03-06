@@ -32,8 +32,8 @@ struct OffloadBinaryHeaderType {
   uint8_t Magic[4];
   uint32_t Version;
   uint64_t Size;
-  uint64_t EntryOffset;
-  uint64_t EntrySize;
+  uint64_t EntriesOffset; // V2: Renamed from EntryOffset
+  uint64_t EntriesCount;  // V2: Renamed from EntrySize, now stores count
 };
 struct OffloadBinaryEntryType {
   uint16_t ImageKind;
@@ -98,22 +98,29 @@ std::pair<const char *, size_t> getImageInOffloadBinary(const char *Data,
     throw sycl::exception(make_error_code(errc::invalid),
                           "Incorrect Offload Binary magic number.");
 
-  if (Header->Version != 1)
+  // Support both v1 and v2 formats
+  if (Header->Version == 0 || Header->Version > 2)
     throw sycl::exception(make_error_code(errc::invalid),
                           "Unsupported Offload Binary version number.");
 
-  if (Header->EntrySize != sizeof(OffloadBinaryEntryType))
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Unexpected number of offload entries.");
+  // V1: EntriesCount was EntrySize and stored sizeof(Entry)
+  // V2: EntriesCount stores the number of entries
+  uint64_t EntriesCount = (Header->Version == 1) ? 1 : Header->EntriesCount;
+  uint64_t EntriesSize = sizeof(OffloadBinaryEntryType) * EntriesCount;
 
-  if (Header->EntryOffset + sizeof(OffloadBinaryEntryType) > Size)
+  if (Header->Version == 1 &&
+      Header->EntriesCount != sizeof(OffloadBinaryEntryType))
     throw sycl::exception(make_error_code(errc::invalid),
-                          "Invalid entry offset.");
+                          "Unexpected entry size for v1 format.");
 
-  // Read the table entry.
+  if (Header->EntriesOffset + EntriesSize > Size)
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Invalid entries offset.");
+
+  // Read the first entry (for SYCLBIN, we expect a single entry)
   const OffloadBinaryEntryType *Entry =
       reinterpret_cast<const OffloadBinaryEntryType *>(Data +
-                                                       Header->EntryOffset);
+                                                       Header->EntriesOffset);
 
   if (Entry->ImageKind != /*IMG_SYCLBIN*/ 7)
     throw sycl::exception(make_error_code(errc::invalid),
@@ -143,8 +150,6 @@ const char *getDeviceTargetSpecFromTriple(std::string_view Triple) {
     return __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64;
   if (Target == __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN)
     return __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN;
-  if (Target == __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA)
-    return __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA;
   if (Target == __SYCL_DEVICE_BINARY_TARGET_NVPTX64)
     return __SYCL_DEVICE_BINARY_TARGET_NVPTX64;
   if (Target == __SYCL_DEVICE_BINARY_TARGET_AMDGCN)

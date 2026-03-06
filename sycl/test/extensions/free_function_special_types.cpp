@@ -10,7 +10,6 @@ using namespace sycl;
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (ext::oneapi::experimental::nd_range_kernel<1>))
 void foo(accessor<int, 1> acc, local_accessor<int, 1> lacc, sampler S,
-         stream str, ext::oneapi::experimental::annotated_arg<int> arg,
          ext::oneapi::experimental::annotated_ptr<int> ptr) {}
 
 int main() {
@@ -26,9 +25,8 @@ int main() {
                     sycl::addressing_mode::clamp,
                     sycl::filtering_mode::nearest);
     ext::oneapi::experimental::annotated_ptr<int> ptr;
-    ext::oneapi::experimental::annotated_arg<int> arg;
     sycl::stream str(8192, 1024, h);
-    h.set_args(acc, lacc, S, str, arg, ptr);
+    h.set_args(acc, lacc, S, str, ptr);
     h.parallel_for(nd_range{{1}, {1}}, Kernel);
   });
   return 0;

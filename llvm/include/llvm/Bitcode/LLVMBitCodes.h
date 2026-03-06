@@ -265,6 +265,7 @@ enum GlobalValueSummarySymtabCodes {
   // strings in strtab.
   // [n * name]
   FS_CFI_FUNCTION_DECLS = 18,
+  // Deprecated, but still needed to read old bitcode files.
   // Per-module summary that also adds relative block frequency to callee info.
   // PERMODULE_RELBF: [valueid, flags, instcount, numrefs,
   //                   numrefs x valueid,
@@ -437,6 +438,8 @@ enum ConstantsCodes {
   CST_CODE_CE_GEP_WITH_INRANGE = 31,  // [opty, flags, range, n x operands]
   CST_CODE_CE_GEP = 32,               // [opty, flags, n x operands]
   CST_CODE_PTRAUTH = 33,              // [ptr, key, disc, addrdisc]
+  CST_CODE_PTRAUTH2 = 34,             // [ptr, key, disc, addrdisc,
+                                      //  deactivation_symbol]
 };
 
 /// CastOpcodes - These are values used in the bitcode files to encode which
@@ -804,6 +807,8 @@ enum AttributeKindCodes {
   ATTR_KIND_DEAD_ON_RETURN = 103,
   ATTR_KIND_SANITIZE_ALLOC_TOKEN = 104,
   ATTR_KIND_NO_CREATE_UNDEF_OR_POISON = 105,
+  ATTR_KIND_DENORMAL_FPENV = 106,
+  ATTR_KIND_NOOUTLINE = 107,
 };
 
 enum ComdatSelectionKindCodes {

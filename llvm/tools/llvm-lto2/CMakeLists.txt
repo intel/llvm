@@ -12,6 +12,7 @@ set(LLVM_LINK_COMPONENTS
   Object
   Passes
   SYCLLowerIR
+  Plugins
   Support
   Target
   TargetParser

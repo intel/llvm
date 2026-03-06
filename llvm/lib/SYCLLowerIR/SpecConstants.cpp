@@ -840,6 +840,19 @@ void createStoreInstructionIntoSpecConstValue(Value *Dst, Value *V,
 
 } // namespace
 
+StringRef SpecConstantsPass::convertHandlingModeToString(HandlingMode Mode) {
+  switch (Mode) {
+  case SpecConstantsPass::HandlingMode::native:
+    return "native";
+  case SpecConstantsPass::HandlingMode::emulation:
+    return "emulation";
+  case SpecConstantsPass::HandlingMode::default_values:
+    return "default_values";
+  default:
+    llvm_unreachable("unknown value");
+  }
+}
+
 PreservedAnalyses SpecConstantsPass::run(Module &M,
                                          ModuleAnalysisManager &MAM) {
   ID NextID = {0, false};

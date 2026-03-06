@@ -121,6 +121,7 @@ class callSubtarget<string SubtargetMethod> : Predicate<"Subtarget->" # Subtarge
 def hasAtomAddF64 : Predicate<"Subtarget->hasAtomAddF64()">;
 def hasAtomScope : Predicate<"Subtarget->hasAtomScope()">;
 def hasAtomSemantics : Predicate<"Subtarget->hasAtomSemantics()">;
+def hasMemoryOrdering : Predicate<"Subtarget->hasMemoryOrdering()">;
 def hasAtomBitwise64 : Predicate<"Subtarget->hasAtomBitwise64()">;
 def hasAtomMinMax64 : Predicate<"Subtarget->hasAtomMinMax64()">;
 def hasAtomSwap128 : Predicate<"Subtarget->hasAtomSwap128()">;
@@ -129,6 +130,7 @@ def hasPTXASUnreachableBug : Predicate<"Subtarget->hasPTXASUnreachableBug()">;
 def noPTXASUnreachableBug : Predicate<"!Subtarget->hasPTXASUnreachableBug()">;
 def hasOptEnabled : Predicate<"TM.getOptLevel() != CodeGenOptLevel::None">;
 def hasArchAccelFeatures : Predicate<"Subtarget->hasArchAccelFeatures()">;
+def hasFamilySpecificFeatures : Predicate<"Subtarget->hasFamilySpecificFeatures()">;
 
 def doF32FTZ : Predicate<"useF32FTZ()">;
 def doNoF32FTZ : Predicate<"!useF32FTZ()">;
@@ -138,8 +140,6 @@ def doMADWideOpt : Predicate<"doMADWideOpt()">;
 def hasHWROT32 : Predicate<"Subtarget->hasHWROT32()">;
 def noHWROT32 : Predicate<"!Subtarget->hasHWROT32()">;
 def hasDotInstructions : Predicate<"Subtarget->hasDotInstructions()">;
-def hasTcgen05Instructions : Predicate<"Subtarget->hasTcgen05Instructions()">;
-def hasTcgen05MMAScaleInputDImm : Predicate<"Subtarget->hasTcgen05MMAScaleInputDImm()">;
 def hasF32x2Instructions : Predicate<"Subtarget->hasF32x2Instructions()">;
 
 class hasPTX<int version>: Predicate<"Subtarget->getPTXVersion() >= " # version>;
@@ -1240,10 +1240,31 @@ def COS_APPROX_f32 :
   BasicFlagsNVPTXInst<(outs B32:$dst), (ins B32:$src), (ins FTZFlag:$ftz),
                       "cos.approx$ftz.f32",
                       [(set f32:$dst, (UnaryOpAllowsApproxFn<fcos> f32:$src))]>;
-def TANH_APPROX_f32 :
-  BasicNVPTXInst<(outs B32:$dst), (ins B32:$src), "tanh.approx.f32",
-                 [(set f32:$dst, (UnaryOpAllowsApproxFn<ftanh> f32:$src))]>,
+
+// NOTE: tanh.approx doesn't support the FTZ flag for f16/f16x2
+def TANH_APPROX_f16 :
+  BasicNVPTXInst<(outs B16:$dst), (ins B16:$src), "tanh.approx.f16",
+                 [(set f16:$dst, (UnaryOpAllowsApproxFn<ftanh> f16:$src))]>,
                  Requires<[hasPTX<70>, hasSM<75>]>;
+
+def TANH_APPROX_f16x2 :
+  BasicNVPTXInst<(outs B32:$dst), (ins B32:$src), "tanh.approx.f16x2",
+                 [(set v2f16:$dst, (UnaryOpAllowsApproxFn<ftanh> v2f16:$src))]>,
+                 Requires<[hasPTX<70>, hasSM<75>]>;
+
+def TANH_APPROX_f32 :
+  BasicFlagsNVPTXInst<(outs B32:$dst), (ins B32:$src), (ins FTZFlag:$ftz),
+                      "tanh.approx$ftz.f32",
+                      [(set f32:$dst, (UnaryOpAllowsApproxFn<ftanh> f32:$src))]>,
+                      Requires<[hasPTX<70>, hasSM<75>]>;
+
+// Patterns for NVVM tanh intrinsics
+def : Pat<(f16 (int_nvvm_tanh_approx_f16 f16:$a)),
+          (TANH_APPROX_f16 f16:$a)>;
+def : Pat<(v2f16 (int_nvvm_tanh_approx_f16x2 v2f16:$a)),
+          (TANH_APPROX_f16x2 v2f16:$a)>;
+def : Pat<(f32 (int_nvvm_tanh_approx_f f32:$a)),
+          (TANH_APPROX_f32 f32:$a, 0)>;
 
 //-----------------------------------
 // Bitwise operations
@@ -1323,6 +1344,15 @@ multiclass SHIFT<string OpcStr, SDNode OpNode> {
 defm SHL : SHIFT<"shl.b", shl>;
 defm SRA : SHIFT<"shr.s", sra>;
 defm SRL : SHIFT<"shr.u", srl>;
+
+// Shift with clamping semantics - these have defined behavior for shift amounts
+// >= BitWidth (returning 0 for logical shifts). Used to optimize guarded shift
+// patterns like `shift >= 32 ? 0 : x >> shift`.
+def shl_clamp : SDNode<"NVPTXISD::SHL_CLAMP", SDTIntShiftOp, []>;
+def srl_clamp : SDNode<"NVPTXISD::SRL_CLAMP", SDTIntShiftOp, []>;
+
+defm SHL_CLAMP : SHIFT<"shl.b", shl_clamp>;
+defm SRL_CLAMP : SHIFT<"shr.u", srl_clamp>;
 
 // Bit-reverse
 foreach t = [I64RT, I32RT] in
@@ -2393,36 +2423,17 @@ foreach t = [I32RT, I64RT] in {
 // BRX
 //
 
-def SDTBrxStartProfile : SDTypeProfile<0, 1, [SDTCisInt<0>]>;
-def SDTBrxItemProfile : SDTypeProfile<0, 1, [SDTCisVT<0, OtherVT>]>;
-def SDTBrxEndProfile : SDTypeProfile<0, 3, [SDTCisVT<0, OtherVT>, SDTCisInt<1>, SDTCisInt<2>]>;
-
-def brx_start :
-  SDNode<"NVPTXISD::BrxStart", SDTBrxStartProfile,
-         [SDNPHasChain, SDNPOutGlue, SDNPSideEffect]>;
-def brx_item :
-  SDNode<"NVPTXISD::BrxItem", SDTBrxItemProfile,
-         [SDNPHasChain, SDNPOutGlue, SDNPInGlue, SDNPSideEffect]>;
-def brx_end :
-  SDNode<"NVPTXISD::BrxEnd", SDTBrxEndProfile,
-         [SDNPHasChain, SDNPInGlue, SDNPSideEffect]>;
-
 let isTerminator = 1, isBranch = 1, isIndirectBranch = 1, isNotDuplicable = 1 in {
 
   def BRX_START :
-    NVPTXInst<(outs), (ins i32imm:$id),
-              "$$L_brx_$id: .branchtargets",
-              [(brx_start (i32 imm:$id))]>;
+    NVPTXInst<(outs), (ins i32imm:$id), "$$L_brx_$id: .branchtargets">;
 
   def BRX_ITEM :
-    NVPTXInst<(outs), (ins brtarget:$target),
-              "\t$target,",
-              [(brx_item bb:$target)]>;
+    NVPTXInst<(outs), (ins brtarget:$target), "\t$target,">;
 
   def BRX_END :
     NVPTXInst<(outs), (ins brtarget:$target, B32:$val, i32imm:$id),
-              "\t$target;\n\tbrx.idx \t$val, $$L_brx_$id;",
-              [(brx_end bb:$target, i32:$val, (i32 imm:$id))]> {
+              "\t$target;\n\tbrx.idx \t$val, $$L_brx_$id;"> {
       let isBarrier = 1;
     }
 }
@@ -2511,7 +2522,7 @@ def NVPTX_fma_oneuse_and_nnan : PatFrag<(ops node:$a, node:$b, node:$c),
 // PatFrag is for a fmaxnum node with nsz
 def NVPTX_fmaxnum_nsz : PatFrag<(ops node:$a, node:$b),
                                   (fmaxnum node:$a, node:$b), [{
-  return N->getFlags().hasNoSignedZeros() || TM.Options.NoSignedZerosFPMath;
+  return N->getFlags().hasNoSignedZeros();
 }]>;
 
 class FMARELUInst<RegTyInfo t, bit allow_ftz, PatFrag zero_pat>

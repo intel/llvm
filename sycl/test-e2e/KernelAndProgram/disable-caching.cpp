@@ -112,12 +112,13 @@ int main() {
 // of these UR objects. So, we currently shutdown without releasing them and
 // windows should handle the memory cleanup.
 
-// (Program cache releases)
+// (Program cache releases during early shutdown)
+// CHECK-RELEASE: <--- urQueueRelease
+// CHECK-RELEASE: <--- urProgramRelease
+// CHECK-RELEASE: <--- urProgramRelease
 // CHECK-RELEASE: <--- urProgramRelease
 // CHECK-RELEASE: <--- urKernelRelease
 // CHECK-RELEASE: <--- urKernelRelease
 // CHECK-RELEASE: <--- urKernelRelease
+// CHECK-RELEASE: <--- urProgramRelease
 // CHECK-RELEASE: <--- urKernelRelease
-// CHECK-RELEASE: <--- urProgramRelease
-// CHECK-RELEASE: <--- urProgramRelease
-// CHECK-RELEASE: <--- urProgramRelease

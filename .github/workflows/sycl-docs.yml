@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.repository == 'intel/llvm'
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
       with:
         path: repo
     - name: Install deps

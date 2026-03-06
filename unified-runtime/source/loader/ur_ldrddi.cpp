@@ -1834,417 +1834,6 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelCreate
-__urdlllocal ur_result_t UR_APICALL urKernelCreate(
-    /// [in] handle of the program instance
-    ur_program_handle_t hProgram,
-    /// [in] pointer to null-terminated string.
-    const char *pKernelName,
-    /// [out][alloc] pointer to handle of kernel object created.
-    ur_kernel_handle_t *phKernel) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hProgram);
-
-  auto *pfnCreate = dditable->Kernel.pfnCreate;
-  if (nullptr == pfnCreate)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnCreate(hProgram, pKernelName, phKernel);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgValue
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in] size of argument type
-    size_t argSize,
-    /// [in][optional] pointer to value properties.
-    const ur_kernel_arg_value_properties_t *pProperties,
-    /// [in] argument value represented as matching arg type.
-    /// The data pointed to will be copied and therefore can be reused on
-    /// return.
-    const void *pArgValue) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
-
-  auto *pfnSetArgValue = dditable->Kernel.pfnSetArgValue;
-  if (nullptr == pfnSetArgValue)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnSetArgValue(hKernel, argIndex, argSize, pProperties, pArgValue);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgLocal
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in] size of the local buffer to be allocated by the runtime
-    size_t argSize,
-    /// [in][optional] pointer to local buffer properties.
-    const ur_kernel_arg_local_properties_t *pProperties) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
-
-  auto *pfnSetArgLocal = dditable->Kernel.pfnSetArgLocal;
-  if (nullptr == pfnSetArgLocal)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnSetArgLocal(hKernel, argIndex, argSize, pProperties);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelGetInfo
-__urdlllocal ur_result_t UR_APICALL urKernelGetInfo(
-    /// [in] handle of the Kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] name of the Kernel property to query
-    ur_kernel_info_t propName,
-    /// [in] the size of the Kernel property value.
-    size_t propSize,
-    /// [in,out][optional][typename(propName, propSize)] array of bytes
-    /// holding the kernel info property.
-    /// If propSize is not equal to or greater than the real number of bytes
-    /// needed to return
-    /// the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
-    /// pPropValue is not used.
-    void *pPropValue,
-    /// [out][optional] pointer to the actual size in bytes of data being
-    /// queried by propName.
-    size_t *pPropSizeRet) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
-
-  auto *pfnGetInfo = dditable->Kernel.pfnGetInfo;
-  if (nullptr == pfnGetInfo)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnGetInfo(hKernel, propName, propSize, pPropValue, pPropSizeRet);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelGetGroupInfo
-__urdlllocal ur_result_t UR_APICALL urKernelGetGroupInfo(
-    /// [in] handle of the Kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] handle of the Device object
-    ur_device_handle_t hDevice,
-    /// [in] name of the work Group property to query
-    ur_kernel_group_info_t propName,
-    /// [in] size of the Kernel Work Group property value
-    size_t propSize,
-    /// [in,out][optional][typename(propName, propSize)] value of the Kernel
-    /// Work Group property.
-    void *pPropValue,
-    /// [out][optional] pointer to the actual size in bytes of data being
-    /// queried by propName.
-    size_t *pPropSizeRet) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
-
-  auto *pfnGetGroupInfo = dditable->Kernel.pfnGetGroupInfo;
-  if (nullptr == pfnGetGroupInfo)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnGetGroupInfo(hKernel, hDevice, propName, propSize, pPropValue,
-                         pPropSizeRet);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelGetSubGroupInfo
-__urdlllocal ur_result_t UR_APICALL urKernelGetSubGroupInfo(
-    /// [in] handle of the Kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] handle of the Device object
-    ur_device_handle_t hDevice,
-    /// [in] name of the SubGroup property to query
-    ur_kernel_sub_group_info_t propName,
-    /// [in] size of the Kernel SubGroup property value
-    size_t propSize,
-    /// [in,out][optional][typename(propName, propSize)] value of the Kernel
-    /// SubGroup property.
-    void *pPropValue,
-    /// [out][optional] pointer to the actual size in bytes of data being
-    /// queried by propName.
-    size_t *pPropSizeRet) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
-
-  auto *pfnGetSubGroupInfo = dditable->Kernel.pfnGetSubGroupInfo;
-  if (nullptr == pfnGetSubGroupInfo)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnGetSubGroupInfo(hKernel, hDevice, propName, propSize, pPropValue,
-                            pPropSizeRet);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelRetain
-__urdlllocal ur_result_t UR_APICALL urKernelRetain(
-    /// [in][retain] handle for the Kernel to retain
-    ur_kernel_handle_t hKernel) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
-
-  auto *pfnRetain = dditable->Kernel.pfnRetain;
-  if (nullptr == pfnRetain)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnRetain(hKernel);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelRelease
-__urdlllocal ur_result_t UR_APICALL urKernelRelease(
-    /// [in][release] handle for the Kernel to release
-    ur_kernel_handle_t hKernel) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
-
-  auto *pfnRelease = dditable->Kernel.pfnRelease;
-  if (nullptr == pfnRelease)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnRelease(hKernel);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgPointer
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to USM pointer properties.
-    const ur_kernel_arg_pointer_properties_t *pProperties,
-    /// [in][optional] Pointer obtained by USM allocation or virtual memory
-    /// mapping operation. If null then argument value is considered null.
-    const void *pArgValue) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
-
-  auto *pfnSetArgPointer = dditable->Kernel.pfnSetArgPointer;
-  if (nullptr == pfnSetArgPointer)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnSetArgPointer(hKernel, argIndex, pProperties, pArgValue);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetExecInfo
-__urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] name of the execution attribute
-    ur_kernel_exec_info_t propName,
-    /// [in] size in byte the attribute value
-    size_t propSize,
-    /// [in][optional] pointer to execution info properties.
-    const ur_kernel_exec_info_properties_t *pProperties,
-    /// [in][typename(propName, propSize)] pointer to memory location holding
-    /// the property value.
-    const void *pPropValue) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
-
-  auto *pfnSetExecInfo = dditable->Kernel.pfnSetExecInfo;
-  if (nullptr == pfnSetExecInfo)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnSetExecInfo(hKernel, propName, propSize, pProperties, pPropValue);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgSampler
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgSampler(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to sampler properties.
-    const ur_kernel_arg_sampler_properties_t *pProperties,
-    /// [in] handle of Sampler object.
-    ur_sampler_handle_t hArgValue) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
-
-  auto *pfnSetArgSampler = dditable->Kernel.pfnSetArgSampler;
-  if (nullptr == pfnSetArgSampler)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnSetArgSampler(hKernel, argIndex, pProperties, hArgValue);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgMemObj
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to Memory object properties.
-    const ur_kernel_arg_mem_obj_properties_t *pProperties,
-    /// [in][optional] handle of Memory object.
-    ur_mem_handle_t hArgValue) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
-
-  auto *pfnSetArgMemObj = dditable->Kernel.pfnSetArgMemObj;
-  if (nullptr == pfnSetArgMemObj)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnSetArgMemObj(hKernel, argIndex, pProperties, hArgValue);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetSpecializationConstants
-__urdlllocal ur_result_t UR_APICALL urKernelSetSpecializationConstants(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] the number of elements in the pSpecConstants array
-    uint32_t count,
-    /// [in] array of specialization constant value descriptions
-    const ur_specialization_constant_info_t *pSpecConstants) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
-
-  auto *pfnSetSpecializationConstants =
-      dditable->Kernel.pfnSetSpecializationConstants;
-  if (nullptr == pfnSetSpecializationConstants)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnSetSpecializationConstants(hKernel, count, pSpecConstants);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelGetNativeHandle
-__urdlllocal ur_result_t UR_APICALL urKernelGetNativeHandle(
-    /// [in] handle of the kernel.
-    ur_kernel_handle_t hKernel,
-    /// [out] a pointer to the native handle of the kernel.
-    ur_native_handle_t *phNativeKernel) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
-
-  auto *pfnGetNativeHandle = dditable->Kernel.pfnGetNativeHandle;
-  if (nullptr == pfnGetNativeHandle)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnGetNativeHandle(hKernel, phNativeKernel);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelCreateWithNativeHandle
-__urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
-    /// [in][nocheck] the native handle of the kernel.
-    ur_native_handle_t hNativeKernel,
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in][optional] handle of the program associated with the kernel
-    ur_program_handle_t hProgram,
-    /// [in][optional] pointer to native kernel properties struct
-    const ur_kernel_native_properties_t *pProperties,
-    /// [out][alloc] pointer to the handle of the kernel object created.
-    ur_kernel_handle_t *phKernel) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
-
-  auto *pfnCreateWithNativeHandle = dditable->Kernel.pfnCreateWithNativeHandle;
-  if (nullptr == pfnCreateWithNativeHandle)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnCreateWithNativeHandle(hNativeKernel, hContext, hProgram,
-                                   pProperties, phKernel);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelGetSuggestedLocalWorkSize
-__urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
-    /// [in] handle of the kernel
-    ur_kernel_handle_t hKernel,
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] number of dimensions, from 1 to 3, to specify the global
-    /// and work-group work-items
-    uint32_t numWorkDim,
-    /// [in] pointer to an array of numWorkDim unsigned values that specify
-    /// the offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkOffset,
-    /// [in] pointer to an array of numWorkDim unsigned values that specify
-    /// the number of global work-items in workDim that will execute the
-    /// kernel function
-    const size_t *pGlobalWorkSize,
-    /// [out] pointer to an array of numWorkDim unsigned values that specify
-    /// suggested local work size that will contain the result of the query
-    size_t *pSuggestedLocalWorkSize) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
-
-  auto *pfnGetSuggestedLocalWorkSize =
-      dditable->Kernel.pfnGetSuggestedLocalWorkSize;
-  if (nullptr == pfnGetSuggestedLocalWorkSize)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnGetSuggestedLocalWorkSize(hKernel, hQueue, numWorkDim,
-                                      pGlobalWorkOffset, pGlobalWorkSize,
-                                      pSuggestedLocalWorkSize);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSuggestMaxCooperativeGroupCount
-__urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] handle of the device object
-    ur_device_handle_t hDevice,
-    /// [in] number of dimensions, from 1 to 3, to specify the work-group
-    /// work-items
-    uint32_t workDim,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of local work-items forming a work-group that will execute the
-    /// kernel function.
-    const size_t *pLocalWorkSize,
-    /// [in] size of dynamic shared memory, for each work-group, in bytes,
-    /// that will be used when the kernel is launched
-    size_t dynamicSharedMemorySize,
-    /// [out] pointer to maximum number of groups
-    uint32_t *pGroupCountRet) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
-
-  auto *pfnSuggestMaxCooperativeGroupCount =
-      dditable->Kernel.pfnSuggestMaxCooperativeGroupCount;
-  if (nullptr == pfnSuggestMaxCooperativeGroupCount)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnSuggestMaxCooperativeGroupCount(
-      hKernel, hDevice, workDim, pLocalWorkSize, dynamicSharedMemorySize,
-      pGroupCountRet);
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urQueueGetInfo
 __urdlllocal ur_result_t UR_APICALL urQueueGetInfo(
     /// [in] handle of the queue object
@@ -3573,6 +3162,473 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueKernelLaunchWithArgsExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] number of dimensions, from 1 to 3, to specify the global and
+    /// work-group work-items
+    uint32_t workDim,
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the offset used to calculate the global ID of a work-item
+    const size_t *pGlobalWorkOffset,
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// number of global work-items in workDim that will execute the kernel
+    /// function
+    const size_t *pGlobalWorkSize,
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the number of local work-items forming a work-group that will
+    /// execute the kernel function.
+    /// If nullptr, the runtime implementation will choose the work-group size.
+    const size_t *pLocalWorkSize,
+    /// [in] Number of entries in pArgs
+    uint32_t numArgs,
+    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
+    /// properties.
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    /// [in][optional] pointer to a single linked list of launch properties
+    const ur_kernel_launch_ext_properties_t *launchPropList,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
+    /// event.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular kernel execution instance. If phEventWaitList and phEvent
+    /// are not NULL, phEvent must not refer to an element of the
+    /// phEventWaitList array.
+    ur_event_handle_t *phEvent) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+
+  auto *pfnKernelLaunchWithArgsExp =
+      dditable->EnqueueExp.pfnKernelLaunchWithArgsExp;
+  if (nullptr == pfnKernelLaunchWithArgsExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnKernelLaunchWithArgsExp(hQueue, hKernel, workDim, pGlobalWorkOffset,
+                                    pGlobalWorkSize, pLocalWorkSize, numArgs,
+                                    pArgs, launchPropList, numEventsInWaitList,
+                                    phEventWaitList, phEvent);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelCreate
+__urdlllocal ur_result_t UR_APICALL urKernelCreate(
+    /// [in] handle of the program instance
+    ur_program_handle_t hProgram,
+    /// [in] pointer to null-terminated string.
+    const char *pKernelName,
+    /// [out][alloc] pointer to handle of kernel object created.
+    ur_kernel_handle_t *phKernel) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hProgram);
+
+  auto *pfnCreate = dditable->Kernel.pfnCreate;
+  if (nullptr == pfnCreate)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnCreate(hProgram, pKernelName, phKernel);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSetArgValue
+__urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t argIndex,
+    /// [in] size of argument type
+    size_t argSize,
+    /// [in][optional] pointer to value properties.
+    const ur_kernel_arg_value_properties_t *pProperties,
+    /// [in] argument value represented as matching arg type.
+    /// The data pointed to will be copied and therefore can be reused on
+    /// return.
+    const void *pArgValue) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
+
+  auto *pfnSetArgValue = dditable->Kernel.pfnSetArgValue;
+  if (nullptr == pfnSetArgValue)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnSetArgValue(hKernel, argIndex, argSize, pProperties, pArgValue);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSetArgLocal
+__urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t argIndex,
+    /// [in] size of the local buffer to be allocated by the runtime
+    size_t argSize,
+    /// [in][optional] pointer to local buffer properties.
+    const ur_kernel_arg_local_properties_t *pProperties) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
+
+  auto *pfnSetArgLocal = dditable->Kernel.pfnSetArgLocal;
+  if (nullptr == pfnSetArgLocal)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnSetArgLocal(hKernel, argIndex, argSize, pProperties);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelGetInfo
+__urdlllocal ur_result_t UR_APICALL urKernelGetInfo(
+    /// [in] handle of the Kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] name of the Kernel property to query
+    ur_kernel_info_t propName,
+    /// [in] the size of the Kernel property value.
+    size_t propSize,
+    /// [in,out][optional][typename(propName, propSize)] array of bytes
+    /// holding the kernel info property.
+    /// If propSize is not equal to or greater than the real number of bytes
+    /// needed to return
+    /// the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+    /// pPropValue is not used.
+    void *pPropValue,
+    /// [out][optional] pointer to the actual size in bytes of data being
+    /// queried by propName.
+    size_t *pPropSizeRet) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
+
+  auto *pfnGetInfo = dditable->Kernel.pfnGetInfo;
+  if (nullptr == pfnGetInfo)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnGetInfo(hKernel, propName, propSize, pPropValue, pPropSizeRet);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelGetGroupInfo
+__urdlllocal ur_result_t UR_APICALL urKernelGetGroupInfo(
+    /// [in] handle of the Kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] handle of the Device object
+    ur_device_handle_t hDevice,
+    /// [in] name of the work Group property to query
+    ur_kernel_group_info_t propName,
+    /// [in] size of the Kernel Work Group property value
+    size_t propSize,
+    /// [in,out][optional][typename(propName, propSize)] value of the Kernel
+    /// Work Group property.
+    void *pPropValue,
+    /// [out][optional] pointer to the actual size in bytes of data being
+    /// queried by propName.
+    size_t *pPropSizeRet) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
+
+  auto *pfnGetGroupInfo = dditable->Kernel.pfnGetGroupInfo;
+  if (nullptr == pfnGetGroupInfo)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnGetGroupInfo(hKernel, hDevice, propName, propSize, pPropValue,
+                         pPropSizeRet);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelGetSubGroupInfo
+__urdlllocal ur_result_t UR_APICALL urKernelGetSubGroupInfo(
+    /// [in] handle of the Kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] handle of the Device object
+    ur_device_handle_t hDevice,
+    /// [in] name of the SubGroup property to query
+    ur_kernel_sub_group_info_t propName,
+    /// [in] size of the Kernel SubGroup property value
+    size_t propSize,
+    /// [in,out][optional][typename(propName, propSize)] value of the Kernel
+    /// SubGroup property.
+    void *pPropValue,
+    /// [out][optional] pointer to the actual size in bytes of data being
+    /// queried by propName.
+    size_t *pPropSizeRet) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
+
+  auto *pfnGetSubGroupInfo = dditable->Kernel.pfnGetSubGroupInfo;
+  if (nullptr == pfnGetSubGroupInfo)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnGetSubGroupInfo(hKernel, hDevice, propName, propSize, pPropValue,
+                            pPropSizeRet);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelRetain
+__urdlllocal ur_result_t UR_APICALL urKernelRetain(
+    /// [in][retain] handle for the Kernel to retain
+    ur_kernel_handle_t hKernel) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
+
+  auto *pfnRetain = dditable->Kernel.pfnRetain;
+  if (nullptr == pfnRetain)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnRetain(hKernel);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelRelease
+__urdlllocal ur_result_t UR_APICALL urKernelRelease(
+    /// [in][release] handle for the Kernel to release
+    ur_kernel_handle_t hKernel) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
+
+  auto *pfnRelease = dditable->Kernel.pfnRelease;
+  if (nullptr == pfnRelease)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnRelease(hKernel);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSetArgPointer
+__urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t argIndex,
+    /// [in][optional] pointer to USM pointer properties.
+    const ur_kernel_arg_pointer_properties_t *pProperties,
+    /// [in][optional] Pointer obtained by USM allocation or virtual memory
+    /// mapping operation. If null then argument value is considered null.
+    const void *pArgValue) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
+
+  auto *pfnSetArgPointer = dditable->Kernel.pfnSetArgPointer;
+  if (nullptr == pfnSetArgPointer)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnSetArgPointer(hKernel, argIndex, pProperties, pArgValue);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSetExecInfo
+__urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] name of the execution attribute
+    ur_kernel_exec_info_t propName,
+    /// [in] size in byte the attribute value
+    size_t propSize,
+    /// [in][optional] pointer to execution info properties.
+    const ur_kernel_exec_info_properties_t *pProperties,
+    /// [in][typename(propName, propSize)] pointer to memory location holding
+    /// the property value.
+    const void *pPropValue) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
+
+  auto *pfnSetExecInfo = dditable->Kernel.pfnSetExecInfo;
+  if (nullptr == pfnSetExecInfo)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnSetExecInfo(hKernel, propName, propSize, pProperties, pPropValue);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSetArgSampler
+__urdlllocal ur_result_t UR_APICALL urKernelSetArgSampler(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t argIndex,
+    /// [in][optional] pointer to sampler properties.
+    const ur_kernel_arg_sampler_properties_t *pProperties,
+    /// [in] handle of Sampler object.
+    ur_sampler_handle_t hArgValue) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
+
+  auto *pfnSetArgSampler = dditable->Kernel.pfnSetArgSampler;
+  if (nullptr == pfnSetArgSampler)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnSetArgSampler(hKernel, argIndex, pProperties, hArgValue);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSetArgMemObj
+__urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t argIndex,
+    /// [in][optional] pointer to Memory object properties.
+    const ur_kernel_arg_mem_obj_properties_t *pProperties,
+    /// [in][optional] handle of Memory object.
+    ur_mem_handle_t hArgValue) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
+
+  auto *pfnSetArgMemObj = dditable->Kernel.pfnSetArgMemObj;
+  if (nullptr == pfnSetArgMemObj)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnSetArgMemObj(hKernel, argIndex, pProperties, hArgValue);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSetSpecializationConstants
+__urdlllocal ur_result_t UR_APICALL urKernelSetSpecializationConstants(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] the number of elements in the pSpecConstants array
+    uint32_t count,
+    /// [in] array of specialization constant value descriptions
+    const ur_specialization_constant_info_t *pSpecConstants) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
+
+  auto *pfnSetSpecializationConstants =
+      dditable->Kernel.pfnSetSpecializationConstants;
+  if (nullptr == pfnSetSpecializationConstants)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnSetSpecializationConstants(hKernel, count, pSpecConstants);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelGetNativeHandle
+__urdlllocal ur_result_t UR_APICALL urKernelGetNativeHandle(
+    /// [in] handle of the kernel.
+    ur_kernel_handle_t hKernel,
+    /// [out] a pointer to the native handle of the kernel.
+    ur_native_handle_t *phNativeKernel) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
+
+  auto *pfnGetNativeHandle = dditable->Kernel.pfnGetNativeHandle;
+  if (nullptr == pfnGetNativeHandle)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnGetNativeHandle(hKernel, phNativeKernel);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelCreateWithNativeHandle
+__urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
+    /// [in][nocheck] the native handle of the kernel.
+    ur_native_handle_t hNativeKernel,
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in][optional] handle of the program associated with the kernel
+    ur_program_handle_t hProgram,
+    /// [in][optional] pointer to native kernel properties struct
+    const ur_kernel_native_properties_t *pProperties,
+    /// [out][alloc] pointer to the handle of the kernel object created.
+    ur_kernel_handle_t *phKernel) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnCreateWithNativeHandle = dditable->Kernel.pfnCreateWithNativeHandle;
+  if (nullptr == pfnCreateWithNativeHandle)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnCreateWithNativeHandle(hNativeKernel, hContext, hProgram,
+                                   pProperties, phKernel);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelGetSuggestedLocalWorkSize
+__urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
+    /// [in] handle of the kernel
+    ur_kernel_handle_t hKernel,
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] number of dimensions, from 1 to 3, to specify the global
+    /// and work-group work-items
+    uint32_t numWorkDim,
+    /// [in] pointer to an array of numWorkDim unsigned values that specify
+    /// the offset used to calculate the global ID of a work-item
+    const size_t *pGlobalWorkOffset,
+    /// [in] pointer to an array of numWorkDim unsigned values that specify
+    /// the number of global work-items in workDim that will execute the
+    /// kernel function
+    const size_t *pGlobalWorkSize,
+    /// [out] pointer to an array of numWorkDim unsigned values that specify
+    /// suggested local work size that will contain the result of the query
+    size_t *pSuggestedLocalWorkSize) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
+
+  auto *pfnGetSuggestedLocalWorkSize =
+      dditable->Kernel.pfnGetSuggestedLocalWorkSize;
+  if (nullptr == pfnGetSuggestedLocalWorkSize)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnGetSuggestedLocalWorkSize(hKernel, hQueue, numWorkDim,
+                                      pGlobalWorkOffset, pGlobalWorkSize,
+                                      pSuggestedLocalWorkSize);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSuggestMaxCooperativeGroupCount
+__urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] number of dimensions, from 1 to 3, to specify the work-group
+    /// work-items
+    uint32_t workDim,
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// number of local work-items forming a work-group that will execute the
+    /// kernel function.
+    const size_t *pLocalWorkSize,
+    /// [in] size of dynamic shared memory, for each work-group, in bytes,
+    /// that will be used when the kernel is launched
+    size_t dynamicSharedMemorySize,
+    /// [out] pointer to maximum number of groups
+    uint32_t *pGroupCountRet) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
+
+  auto *pfnSuggestMaxCooperativeGroupCount =
+      dditable->Kernel.pfnSuggestMaxCooperativeGroupCount;
+  if (nullptr == pfnSuggestMaxCooperativeGroupCount)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnSuggestMaxCooperativeGroupCount(
+      hKernel, hDevice, workDim, pLocalWorkSize, dynamicSharedMemorySize,
+      pGroupCountRet);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueUSMDeviceAllocExp
 __urdlllocal ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
     /// [in] handle of the queue object
@@ -4553,6 +4609,455 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urDeviceWaitExp
+__urdlllocal ur_result_t UR_APICALL urDeviceWaitExp(
+    /// [in] handle of the device instance.
+    ur_device_handle_t hDevice) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hDevice);
+
+  auto *pfnWaitExp = dditable->DeviceExp.pfnWaitExp;
+  if (nullptr == pfnWaitExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnWaitExp(hDevice);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramDynamicLinkExp
+__urdlllocal ur_result_t UR_APICALL urProgramDynamicLinkExp(
+    /// [in] handle of the context instance.
+    ur_context_handle_t hContext,
+    /// [in] number of program handles in `phPrograms`.
+    uint32_t count,
+    /// [in][range(0, count)] pointer to array of program handles.
+    const ur_program_handle_t *phPrograms) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnDynamicLinkExp = dditable->ProgramExp.pfnDynamicLinkExp;
+  if (nullptr == pfnDynamicLinkExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnDynamicLinkExp(hContext, count, phPrograms);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueTimestampRecordingExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] indicates whether the call to this function should block until
+    /// until the device timestamp recording command has executed on the
+    /// device.
+    bool blocking,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [in,out] return an event object that identifies this particular kernel
+    /// execution instance. Profiling information can be queried
+    /// from this event as if `hQueue` had profiling enabled. Querying
+    /// `UR_PROFILING_INFO_COMMAND_QUEUED` or `UR_PROFILING_INFO_COMMAND_SUBMIT`
+    /// reports the timestamp at the time of the call to this function.
+    /// Querying `UR_PROFILING_INFO_COMMAND_START` or
+    /// `UR_PROFILING_INFO_COMMAND_END` reports the timestamp recorded when the
+    /// command is executed on the device. If phEventWaitList and phEvent are
+    /// not NULL, phEvent must not refer to an element of the phEventWaitList
+    /// array.
+    ur_event_handle_t *phEvent) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+
+  auto *pfnTimestampRecordingExp =
+      dditable->EnqueueExp.pfnTimestampRecordingExp;
+  if (nullptr == pfnTimestampRecordingExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnTimestampRecordingExp(hQueue, blocking, numEventsInWaitList,
+                                  phEventWaitList, phEvent);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCGetMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] pointer to device USM memory
+    void *pMem,
+    /// [out][optional] a pointer to the IPC memory handle data
+    void **ppIPCMemHandleData,
+    /// [out][optional] size of the resulting IPC memory handle data
+    size_t *pIPCMemHandleDataSizeRet) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnGetMemHandleExp = dditable->IPCExp.pfnGetMemHandleExp;
+  if (nullptr == pfnGetMemHandleExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnGetMemHandleExp(hContext, pMem, ppIPCMemHandleData,
+                            pIPCMemHandleDataSizeRet);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCPutMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCPutMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] a pointer to the IPC memory handle data
+    void *pIPCMemHandleData) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnPutMemHandleExp = dditable->IPCExp.pfnPutMemHandleExp;
+  if (nullptr == pfnPutMemHandleExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnPutMemHandleExp(hContext, pIPCMemHandleData);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCOpenMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCOpenMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object the corresponding USM device memory
+    /// was allocated on
+    ur_device_handle_t hDevice,
+    /// [in] the IPC memory handle data
+    void *pIPCMemHandleData,
+    /// [in] size of the IPC memory handle data
+    size_t ipcMemHandleDataSize,
+    /// [out] pointer to a pointer to device USM memory
+    void **ppMem) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnOpenMemHandleExp = dditable->IPCExp.pfnOpenMemHandleExp;
+  if (nullptr == pfnOpenMemHandleExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnOpenMemHandleExp(hContext, hDevice, pIPCMemHandleData,
+                             ipcMemHandleDataSize, ppMem);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCCloseMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCCloseMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] pointer to device USM memory opened through urIPCOpenMemHandleExp
+    void *pMem) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnCloseMemHandleExp = dditable->IPCExp.pfnCloseMemHandleExp;
+  if (nullptr == pfnCloseMemHandleExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnCloseMemHandleExp(hContext, pMem);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemoryExportAllocExportableMemoryExp
+__urdlllocal ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
+    /// [in] Handle to context in which to allocate memory.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which to allocate memory.
+    ur_device_handle_t hDevice,
+    /// [in] Requested alignment of the allocation.
+    size_t alignment,
+    /// [in] Requested size of the allocation.
+    size_t size,
+    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
+    /// or win32 NT handle).
+    ur_exp_external_mem_type_t handleTypeToExport,
+    /// [out][alloc] Pointer to allocated exportable memory.
+    void **ppMem) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnAllocExportableMemoryExp =
+      dditable->MemoryExportExp.pfnAllocExportableMemoryExp;
+  if (nullptr == pfnAllocExportableMemoryExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnAllocExportableMemoryExp(hContext, hDevice, alignment, size,
+                                     handleTypeToExport, ppMem);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemoryExportFreeExportableMemoryExp
+__urdlllocal ur_result_t UR_APICALL urMemoryExportFreeExportableMemoryExp(
+    /// [in] Handle to context in which to free memory.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which to free memory.
+    ur_device_handle_t hDevice,
+    /// [in][release] Pointer to exportable memory to be deallocated.
+    void *pMem) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnFreeExportableMemoryExp =
+      dditable->MemoryExportExp.pfnFreeExportableMemoryExp;
+  if (nullptr == pfnFreeExportableMemoryExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnFreeExportableMemoryExp(hContext, hDevice, pMem);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemoryExportExportMemoryHandleExp
+__urdlllocal ur_result_t UR_APICALL urMemoryExportExportMemoryHandleExp(
+    /// [in] Handle to context in which the exportable memory was allocated.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which the exportable memory was allocated.
+    ur_device_handle_t hDevice,
+    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
+    /// or win32 NT handle).
+    ur_exp_external_mem_type_t handleTypeToExport,
+    /// [in] Pointer to exportable memory handle.
+    void *pMem,
+    /// [out] Returned exportable handle to memory allocated in `pMem`
+    void *pMemHandleRet) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnExportMemoryHandleExp =
+      dditable->MemoryExportExp.pfnExportMemoryHandleExp;
+  if (nullptr == pfnExportMemoryHandleExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnExportMemoryHandleExp(hContext, hDevice, handleTypeToExport, pMem,
+                                  pMemHandleRet);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramBuildExp
+__urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
+    /// [in] Handle of the program to build.
+    ur_program_handle_t hProgram,
+    /// [in] number of devices
+    uint32_t numDevices,
+    /// [in][range(0, numDevices)] pointer to array of device handles
+    ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
+    /// [in][optional] pointer to build options null-terminated string.
+    const char *pOptions) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hProgram);
+
+  auto *pfnBuildExp = dditable->ProgramExp.pfnBuildExp;
+  if (nullptr == pfnBuildExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnBuildExp(hProgram, numDevices, phDevices, flags, pOptions);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramCompileExp
+__urdlllocal ur_result_t UR_APICALL urProgramCompileExp(
+    /// [in][out] handle of the program to compile.
+    ur_program_handle_t hProgram,
+    /// [in] number of devices
+    uint32_t numDevices,
+    /// [in][range(0, numDevices)] pointer to array of device handles
+    ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
+    /// [in][optional] pointer to build options null-terminated string.
+    const char *pOptions) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hProgram);
+
+  auto *pfnCompileExp = dditable->ProgramExp.pfnCompileExp;
+  if (nullptr == pfnCompileExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnCompileExp(hProgram, numDevices, phDevices, flags, pOptions);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramLinkExp
+__urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
+    /// [in] handle of the context instance.
+    ur_context_handle_t hContext,
+    /// [in] number of devices
+    uint32_t numDevices,
+    /// [in][range(0, numDevices)] pointer to array of device handles
+    ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
+    /// [in] number of program handles in `phPrograms`.
+    uint32_t count,
+    /// [in][range(0, count)] pointer to array of program handles.
+    const ur_program_handle_t *phPrograms,
+    /// [in][optional] pointer to linker options null-terminated string.
+    const char *pOptions,
+    /// [out][alloc] pointer to handle of program object created.
+    ur_program_handle_t *phProgram) {
+  if (nullptr != phProgram) {
+    *phProgram = nullptr;
+  }
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnLinkExp = dditable->ProgramExp.pfnLinkExp;
+  if (nullptr == pfnLinkExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnLinkExp(hContext, numDevices, phDevices, flags, count, phPrograms,
+                    pOptions, phProgram);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMContextMemcpyExp
+__urdlllocal ur_result_t UR_APICALL urUSMContextMemcpyExp(
+    /// [in] Context associated with the device(s) that own the allocations
+    /// `pSrc` and `pDst`.
+    ur_context_handle_t hContext,
+    /// [in] Destination pointer to copy to.
+    void *pDst,
+    /// [in] Source pointer to copy from.
+    const void *pSrc,
+    /// [in] Size in bytes to be copied.
+    size_t size) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnContextMemcpyExp = dditable->USMExp.pfnContextMemcpyExp;
+  if (nullptr == pfnContextMemcpyExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnContextMemcpyExp(hContext, pDst, pSrc, size);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMImportExp
+__urdlllocal ur_result_t UR_APICALL urUSMImportExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] pointer to host memory object
+    void *pMem,
+    /// [in] size in bytes of the host memory object to be imported
+    size_t size) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnImportExp = dditable->USMExp.pfnImportExp;
+  if (nullptr == pfnImportExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnImportExp(hContext, pMem, size);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMReleaseExp
+__urdlllocal ur_result_t UR_APICALL urUSMReleaseExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] pointer to host memory object
+    void *pMem) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnReleaseExp = dditable->USMExp.pfnReleaseExp;
+  if (nullptr == pfnReleaseExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnReleaseExp(hContext, pMem);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUsmP2PEnablePeerAccessExp
+__urdlllocal ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
+    /// [in] handle of the command device object
+    ur_device_handle_t commandDevice,
+    /// [in] handle of the peer device object
+    ur_device_handle_t peerDevice) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(commandDevice);
+
+  auto *pfnEnablePeerAccessExp = dditable->UsmP2PExp.pfnEnablePeerAccessExp;
+  if (nullptr == pfnEnablePeerAccessExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnEnablePeerAccessExp(commandDevice, peerDevice);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUsmP2PDisablePeerAccessExp
+__urdlllocal ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
+    /// [in] handle of the command device object
+    ur_device_handle_t commandDevice,
+    /// [in] handle of the peer device object
+    ur_device_handle_t peerDevice) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(commandDevice);
+
+  auto *pfnDisablePeerAccessExp = dditable->UsmP2PExp.pfnDisablePeerAccessExp;
+  if (nullptr == pfnDisablePeerAccessExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnDisablePeerAccessExp(commandDevice, peerDevice);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUsmP2PPeerAccessGetInfoExp
+__urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
+    /// [in] handle of the command device object
+    ur_device_handle_t commandDevice,
+    /// [in] handle of the peer device object
+    ur_device_handle_t peerDevice,
+    /// [in] type of the info to retrieve
+    ur_exp_peer_info_t propName,
+    /// [in] the number of bytes pointed to by pPropValue.
+    size_t propSize,
+    /// [out][optional][typename(propName, propSize)] array of bytes holding
+    /// the info.
+    /// If propSize is not equal to or greater than the real number of bytes
+    /// needed to return the info
+    /// then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+    /// pPropValue is not used.
+    void *pPropValue,
+    /// [out][optional] pointer to the actual size in bytes of the queried
+    /// propName.
+    size_t *pPropSizeRet) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(commandDevice);
+
+  auto *pfnPeerAccessGetInfoExp = dditable->UsmP2PExp.pfnPeerAccessGetInfoExp;
+  if (nullptr == pfnPeerAccessGetInfoExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnPeerAccessGetInfoExp(commandDevice, peerDevice, propName, propSize,
+                                 pPropValue, pPropSizeRet);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urCommandBufferCreateExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferCreateExp(
     /// [in] Handle of the context object.
@@ -4682,6 +5187,74 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
       pLocalWorkSize, numKernelAlternatives, phKernelAlternatives,
       numSyncPointsInWaitList, pSyncPointWaitList, numEventsInWaitList,
       phEventWaitList, pSyncPoint, phEvent, phCommand);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendKernelLaunchWithArgsExp
+__urdlllocal ur_result_t UR_APICALL
+urCommandBufferAppendKernelLaunchWithArgsExp(
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [in] Kernel to append.
+    ur_kernel_handle_t hKernel,
+    /// [in] Dimension of the kernel execution.
+    uint32_t workDim,
+    /// [in][optional] Offset to use when executing kernel.
+    const size_t *pGlobalWorkOffset,
+    /// [in] Global work size to use when executing kernel.
+    const size_t *pGlobalWorkSize,
+    /// [in][optional] Local work size to use when executing kernel. If this
+    /// parameter is nullptr, then a local work size will be generated by the
+    /// implementation.
+    const size_t *pLocalWorkSize,
+    /// [in] Number of entries in pArgs
+    uint32_t numArgs,
+    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
+    /// properties.
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    /// [in] The number of kernel alternatives provided in
+    /// phKernelAlternatives.
+    uint32_t numKernelAlternatives,
+    /// [in][optional][range(0, numKernelAlternatives)] List of kernel handles
+    /// that might be used to update the kernel in this
+    /// command after the command-buffer is finalized. The default kernel
+    /// `hKernel` is implicitly marked as an alternative. It's
+    /// invalid to specify it as part of this list.
+    ur_kernel_handle_t *phKernelAlternatives,
+    /// [in] The number of sync points in the provided dependency list.
+    uint32_t numSyncPointsInWaitList,
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    /// [in] Size of the event wait list.
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the command execution. If nullptr,
+    /// the numEventsInWaitList must be 0, indicating no wait events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional] Sync point associated with this command.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    /// [out][optional][alloc] return an event object that will be signaled by
+    /// the completion of this command in the next execution of the
+    /// command-buffer.
+    ur_event_handle_t *phEvent,
+    /// [out][optional][alloc] Handle to this command. Only available if the
+    /// command-buffer is updatable.
+    ur_exp_command_buffer_command_handle_t *phCommand) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hCommandBuffer);
+
+  auto *pfnAppendKernelLaunchWithArgsExp =
+      dditable->CommandBufferExp.pfnAppendKernelLaunchWithArgsExp;
+  if (nullptr == pfnAppendKernelLaunchWithArgsExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnAppendKernelLaunchWithArgsExp(
+      hCommandBuffer, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+      pLocalWorkSize, numArgs, pArgs, numKernelAlternatives,
+      phKernelAlternatives, numSyncPointsInWaitList, pSyncPointWaitList,
+      numEventsInWaitList, phEventWaitList, pSyncPoint, phEvent, phCommand);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5416,50 +5989,16 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urDeviceWaitExp
-__urdlllocal ur_result_t UR_APICALL urDeviceWaitExp(
-    /// [in] handle of the device instance.
-    ur_device_handle_t hDevice) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hDevice);
-
-  auto *pfnWaitExp = dditable->DeviceExp.pfnWaitExp;
-  if (nullptr == pfnWaitExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnWaitExp(hDevice);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urProgramDynamicLinkExp
-__urdlllocal ur_result_t UR_APICALL urProgramDynamicLinkExp(
-    /// [in] handle of the context instance.
-    ur_context_handle_t hContext,
-    /// [in] number of program handles in `phPrograms`.
-    uint32_t count,
-    /// [in][range(0, count)] pointer to array of program handles.
-    const ur_program_handle_t *phPrograms) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
-
-  auto *pfnDynamicLinkExp = dditable->ProgramExp.pfnDynamicLinkExp;
-  if (nullptr == pfnDynamicLinkExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnDynamicLinkExp(hContext, count, phPrograms);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urEnqueueTimestampRecordingExp
-__urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
+/// @brief Intercept function for urEnqueueHostTaskExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueHostTaskExp(
     /// [in] handle of the queue object
     ur_queue_handle_t hQueue,
-    /// [in] indicates whether the call to this function should block until
-    /// until the device timestamp recording command has executed on the
-    /// device.
-    bool blocking,
+    /// [in] Host task callback function. Must not call any UR functions.
+    ur_exp_host_task_function_t pfnHostTask,
+    /// [in][optional] data used by pfnHostTask
+    void *data,
+    /// [in][optional] pointer to the host task properties
+    const ur_exp_host_task_properties_t *pProperties,
     /// [in] size of the event wait list
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -5467,457 +6006,22 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
     /// events.
     const ur_event_handle_t *phEventWaitList,
-    /// [in,out] return an event object that identifies this particular kernel
-    /// execution instance. Profiling information can be queried
-    /// from this event as if `hQueue` had profiling enabled. Querying
-    /// `UR_PROFILING_INFO_COMMAND_QUEUED` or `UR_PROFILING_INFO_COMMAND_SUBMIT`
-    /// reports the timestamp at the time of the call to this function.
-    /// Querying `UR_PROFILING_INFO_COMMAND_START` or
-    /// `UR_PROFILING_INFO_COMMAND_END` reports the timestamp recorded when the
-    /// command is executed on the device. If phEventWaitList and phEvent are
+    /// [out][optional][alloc] return an event object that identifies the work
+    /// that has
+    /// been enqueued in nativeEnqueueFunc. If phEventWaitList and phEvent are
     /// not NULL, phEvent must not refer to an element of the phEventWaitList
     /// array.
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
 
-  auto *pfnTimestampRecordingExp =
-      dditable->EnqueueExp.pfnTimestampRecordingExp;
-  if (nullptr == pfnTimestampRecordingExp)
+  auto *pfnHostTaskExp = dditable->EnqueueExp.pfnHostTaskExp;
+  if (nullptr == pfnHostTaskExp)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnTimestampRecordingExp(hQueue, blocking, numEventsInWaitList,
-                                  phEventWaitList, phEvent);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urIPCGetMemHandleExp
-__urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] pointer to device USM memory
-    void *pMem,
-    /// [out][optional] a pointer to the IPC memory handle data
-    void **ppIPCMemHandleData,
-    /// [out][optional] size of the resulting IPC memory handle data
-    size_t *pIPCMemHandleDataSizeRet) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
-
-  auto *pfnGetMemHandleExp = dditable->IPCExp.pfnGetMemHandleExp;
-  if (nullptr == pfnGetMemHandleExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnGetMemHandleExp(hContext, pMem, ppIPCMemHandleData,
-                            pIPCMemHandleDataSizeRet);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urIPCPutMemHandleExp
-__urdlllocal ur_result_t UR_APICALL urIPCPutMemHandleExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] a pointer to the IPC memory handle data
-    void *pIPCMemHandleData) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
-
-  auto *pfnPutMemHandleExp = dditable->IPCExp.pfnPutMemHandleExp;
-  if (nullptr == pfnPutMemHandleExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnPutMemHandleExp(hContext, pIPCMemHandleData);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urIPCOpenMemHandleExp
-__urdlllocal ur_result_t UR_APICALL urIPCOpenMemHandleExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] handle of the device object the corresponding USM device memory
-    /// was allocated on
-    ur_device_handle_t hDevice,
-    /// [in] the IPC memory handle data
-    void *pIPCMemHandleData,
-    /// [in] size of the IPC memory handle data
-    size_t ipcMemHandleDataSize,
-    /// [out] pointer to a pointer to device USM memory
-    void **ppMem) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
-
-  auto *pfnOpenMemHandleExp = dditable->IPCExp.pfnOpenMemHandleExp;
-  if (nullptr == pfnOpenMemHandleExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnOpenMemHandleExp(hContext, hDevice, pIPCMemHandleData,
-                             ipcMemHandleDataSize, ppMem);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urIPCCloseMemHandleExp
-__urdlllocal ur_result_t UR_APICALL urIPCCloseMemHandleExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] pointer to device USM memory opened through urIPCOpenMemHandleExp
-    void *pMem) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
-
-  auto *pfnCloseMemHandleExp = dditable->IPCExp.pfnCloseMemHandleExp;
-  if (nullptr == pfnCloseMemHandleExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnCloseMemHandleExp(hContext, pMem);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urMemoryExportAllocExportableMemoryExp
-__urdlllocal ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
-    /// [in] Handle to context in which to allocate memory.
-    ur_context_handle_t hContext,
-    /// [in] Handle to device on which to allocate memory.
-    ur_device_handle_t hDevice,
-    /// [in] Requested alignment of the allocation.
-    size_t alignment,
-    /// [in] Requested size of the allocation.
-    size_t size,
-    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
-    /// or win32 NT handle).
-    ur_exp_external_mem_type_t handleTypeToExport,
-    /// [out][alloc] Pointer to allocated exportable memory.
-    void **ppMem) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
-
-  auto *pfnAllocExportableMemoryExp =
-      dditable->MemoryExportExp.pfnAllocExportableMemoryExp;
-  if (nullptr == pfnAllocExportableMemoryExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnAllocExportableMemoryExp(hContext, hDevice, alignment, size,
-                                     handleTypeToExport, ppMem);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urMemoryExportFreeExportableMemoryExp
-__urdlllocal ur_result_t UR_APICALL urMemoryExportFreeExportableMemoryExp(
-    /// [in] Handle to context in which to free memory.
-    ur_context_handle_t hContext,
-    /// [in] Handle to device on which to free memory.
-    ur_device_handle_t hDevice,
-    /// [in][release] Pointer to exportable memory to be deallocated.
-    void *pMem) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
-
-  auto *pfnFreeExportableMemoryExp =
-      dditable->MemoryExportExp.pfnFreeExportableMemoryExp;
-  if (nullptr == pfnFreeExportableMemoryExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnFreeExportableMemoryExp(hContext, hDevice, pMem);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urMemoryExportExportMemoryHandleExp
-__urdlllocal ur_result_t UR_APICALL urMemoryExportExportMemoryHandleExp(
-    /// [in] Handle to context in which the exportable memory was allocated.
-    ur_context_handle_t hContext,
-    /// [in] Handle to device on which the exportable memory was allocated.
-    ur_device_handle_t hDevice,
-    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
-    /// or win32 NT handle).
-    ur_exp_external_mem_type_t handleTypeToExport,
-    /// [in] Pointer to exportable memory handle.
-    void *pMem,
-    /// [out] Returned exportable handle to memory allocated in `pMem`
-    void *pMemHandleRet) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
-
-  auto *pfnExportMemoryHandleExp =
-      dditable->MemoryExportExp.pfnExportMemoryHandleExp;
-  if (nullptr == pfnExportMemoryHandleExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnExportMemoryHandleExp(hContext, hDevice, handleTypeToExport, pMem,
-                                  pMemHandleRet);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urProgramBuildExp
-__urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
-    /// [in] Handle of the program to build.
-    ur_program_handle_t hProgram,
-    /// [in] number of devices
-    uint32_t numDevices,
-    /// [in][range(0, numDevices)] pointer to array of device handles
-    ur_device_handle_t *phDevices,
-    /// [in] program information flags
-    ur_exp_program_flags_t flags,
-    /// [in][optional] pointer to build options null-terminated string.
-    const char *pOptions) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hProgram);
-
-  auto *pfnBuildExp = dditable->ProgramExp.pfnBuildExp;
-  if (nullptr == pfnBuildExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnBuildExp(hProgram, numDevices, phDevices, flags, pOptions);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urProgramCompileExp
-__urdlllocal ur_result_t UR_APICALL urProgramCompileExp(
-    /// [in][out] handle of the program to compile.
-    ur_program_handle_t hProgram,
-    /// [in] number of devices
-    uint32_t numDevices,
-    /// [in][range(0, numDevices)] pointer to array of device handles
-    ur_device_handle_t *phDevices,
-    /// [in] program information flags
-    ur_exp_program_flags_t flags,
-    /// [in][optional] pointer to build options null-terminated string.
-    const char *pOptions) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hProgram);
-
-  auto *pfnCompileExp = dditable->ProgramExp.pfnCompileExp;
-  if (nullptr == pfnCompileExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnCompileExp(hProgram, numDevices, phDevices, flags, pOptions);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urProgramLinkExp
-__urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
-    /// [in] handle of the context instance.
-    ur_context_handle_t hContext,
-    /// [in] number of devices
-    uint32_t numDevices,
-    /// [in][range(0, numDevices)] pointer to array of device handles
-    ur_device_handle_t *phDevices,
-    /// [in] program information flags
-    ur_exp_program_flags_t flags,
-    /// [in] number of program handles in `phPrograms`.
-    uint32_t count,
-    /// [in][range(0, count)] pointer to array of program handles.
-    const ur_program_handle_t *phPrograms,
-    /// [in][optional] pointer to linker options null-terminated string.
-    const char *pOptions,
-    /// [out][alloc] pointer to handle of program object created.
-    ur_program_handle_t *phProgram) {
-  if (nullptr != phProgram) {
-    *phProgram = nullptr;
-  }
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
-
-  auto *pfnLinkExp = dditable->ProgramExp.pfnLinkExp;
-  if (nullptr == pfnLinkExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnLinkExp(hContext, numDevices, phDevices, flags, count, phPrograms,
-                    pOptions, phProgram);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urUSMContextMemcpyExp
-__urdlllocal ur_result_t UR_APICALL urUSMContextMemcpyExp(
-    /// [in] Context associated with the device(s) that own the allocations
-    /// `pSrc` and `pDst`.
-    ur_context_handle_t hContext,
-    /// [in] Destination pointer to copy to.
-    void *pDst,
-    /// [in] Source pointer to copy from.
-    const void *pSrc,
-    /// [in] Size in bytes to be copied.
-    size_t size) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
-
-  auto *pfnContextMemcpyExp = dditable->USMExp.pfnContextMemcpyExp;
-  if (nullptr == pfnContextMemcpyExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnContextMemcpyExp(hContext, pDst, pSrc, size);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urUSMImportExp
-__urdlllocal ur_result_t UR_APICALL urUSMImportExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] pointer to host memory object
-    void *pMem,
-    /// [in] size in bytes of the host memory object to be imported
-    size_t size) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
-
-  auto *pfnImportExp = dditable->USMExp.pfnImportExp;
-  if (nullptr == pfnImportExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnImportExp(hContext, pMem, size);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urUSMReleaseExp
-__urdlllocal ur_result_t UR_APICALL urUSMReleaseExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] pointer to host memory object
-    void *pMem) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
-
-  auto *pfnReleaseExp = dditable->USMExp.pfnReleaseExp;
-  if (nullptr == pfnReleaseExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnReleaseExp(hContext, pMem);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urUsmP2PEnablePeerAccessExp
-__urdlllocal ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
-    /// [in] handle of the command device object
-    ur_device_handle_t commandDevice,
-    /// [in] handle of the peer device object
-    ur_device_handle_t peerDevice) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(commandDevice);
-
-  auto *pfnEnablePeerAccessExp = dditable->UsmP2PExp.pfnEnablePeerAccessExp;
-  if (nullptr == pfnEnablePeerAccessExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnEnablePeerAccessExp(commandDevice, peerDevice);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urUsmP2PDisablePeerAccessExp
-__urdlllocal ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
-    /// [in] handle of the command device object
-    ur_device_handle_t commandDevice,
-    /// [in] handle of the peer device object
-    ur_device_handle_t peerDevice) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(commandDevice);
-
-  auto *pfnDisablePeerAccessExp = dditable->UsmP2PExp.pfnDisablePeerAccessExp;
-  if (nullptr == pfnDisablePeerAccessExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnDisablePeerAccessExp(commandDevice, peerDevice);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urUsmP2PPeerAccessGetInfoExp
-__urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
-    /// [in] handle of the command device object
-    ur_device_handle_t commandDevice,
-    /// [in] handle of the peer device object
-    ur_device_handle_t peerDevice,
-    /// [in] type of the info to retrieve
-    ur_exp_peer_info_t propName,
-    /// [in] the number of bytes pointed to by pPropValue.
-    size_t propSize,
-    /// [out][optional][typename(propName, propSize)] array of bytes holding
-    /// the info.
-    /// If propSize is not equal to or greater than the real number of bytes
-    /// needed to return the info
-    /// then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
-    /// pPropValue is not used.
-    void *pPropValue,
-    /// [out][optional] pointer to the actual size in bytes of the queried
-    /// propName.
-    size_t *pPropSizeRet) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(commandDevice);
-
-  auto *pfnPeerAccessGetInfoExp = dditable->UsmP2PExp.pfnPeerAccessGetInfoExp;
-  if (nullptr == pfnPeerAccessGetInfoExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnPeerAccessGetInfoExp(commandDevice, peerDevice, propName, propSize,
-                                 pPropValue, pPropSizeRet);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urEnqueueKernelLaunchWithArgsExp
-__urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] number of dimensions, from 1 to 3, to specify the global and
-    /// work-group work-items
-    uint32_t workDim,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkOffset,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of global work-items in workDim that will execute the kernel
-    /// function
-    const size_t *pGlobalWorkSize,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the number of local work-items forming a work-group that will
-    /// execute the kernel function.
-    /// If nullptr, the runtime implementation will choose the work-group size.
-    const size_t *pLocalWorkSize,
-    /// [in] Number of entries in pArgs
-    uint32_t numArgs,
-    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
-    /// properties.
-    const ur_exp_kernel_arg_properties_t *pArgs,
-    /// [in][optional] pointer to a single linked list of launch properties
-    const ur_kernel_launch_ext_properties_t *launchPropList,
-    /// [in] size of the event wait list
-    uint32_t numEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution.
-    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    /// event.
-    const ur_event_handle_t *phEventWaitList,
-    /// [out][optional][alloc] return an event object that identifies this
-    /// particular kernel execution instance. If phEventWaitList and phEvent
-    /// are not NULL, phEvent must not refer to an element of the
-    /// phEventWaitList array.
-    ur_event_handle_t *phEvent) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
-
-  auto *pfnKernelLaunchWithArgsExp =
-      dditable->EnqueueExp.pfnKernelLaunchWithArgsExp;
-  if (nullptr == pfnKernelLaunchWithArgsExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnKernelLaunchWithArgsExp(hQueue, hKernel, workDim, pGlobalWorkOffset,
-                                    pGlobalWorkSize, pLocalWorkSize, numArgs,
-                                    pArgs, launchPropList, numEventsInWaitList,
-                                    phEventWaitList, phEvent);
+  return pfnHostTaskExp(hQueue, pfnHostTask, data, pProperties,
+                        numEventsInWaitList, phEventWaitList, phEvent);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6418,6 +6522,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
       pDdiTable->pfnFinalizeExp = ur_loader::urCommandBufferFinalizeExp;
       pDdiTable->pfnAppendKernelLaunchExp =
           ur_loader::urCommandBufferAppendKernelLaunchExp;
+      pDdiTable->pfnAppendKernelLaunchWithArgsExp =
+          ur_loader::urCommandBufferAppendKernelLaunchWithArgsExp;
       pDdiTable->pfnAppendUSMMemcpyExp =
           ur_loader::urCommandBufferAppendUSMMemcpyExp;
       pDdiTable->pfnAppendUSMFillExp =
@@ -6652,9 +6758,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
       pDdiTable->pfnUSMSharedAllocExp = ur_loader::urEnqueueUSMSharedAllocExp;
       pDdiTable->pfnUSMHostAllocExp = ur_loader::urEnqueueUSMHostAllocExp;
       pDdiTable->pfnUSMFreeExp = ur_loader::urEnqueueUSMFreeExp;
-      pDdiTable->pfnCommandBufferExp = ur_loader::urEnqueueCommandBufferExp;
       pDdiTable->pfnTimestampRecordingExp =
           ur_loader::urEnqueueTimestampRecordingExp;
+      pDdiTable->pfnCommandBufferExp = ur_loader::urEnqueueCommandBufferExp;
+      pDdiTable->pfnHostTaskExp = ur_loader::urEnqueueHostTaskExp;
       pDdiTable->pfnNativeCommandExp = ur_loader::urEnqueueNativeCommandExp;
       pDdiTable->pfnGraphExp = ur_loader::urEnqueueGraphExp;
     } else {

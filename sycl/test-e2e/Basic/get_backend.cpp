@@ -1,7 +1,5 @@
 // RUN: %{build} -o %t.out
-// FPGA RT returns random CL_INVALID_CONTEXT in some configurations, tracked
-// internally. Avoid FPGA devices until that is fixed.
-// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu;*:cpu" %{run-unfiltered-devices} %t.out
+// RUN: %{run-unfiltered-devices} %t.out
 //
 //==----------------- get_backend.cpp ------------------------==//
 // This is a test of get_backend().

@@ -62,11 +62,11 @@ namespace context {
 enum class device_type : uint32_t {
   cpu = UR_DEVICE_TYPE_CPU,
   gpu = UR_DEVICE_TYPE_GPU,
-  accelerator = UR_DEVICE_TYPE_FPGA,
+  accelerator = 0x10000,
   // TODO: evaluate the need for equivalent UR enums for these types
-  custom,
-  automatic,
-  host,
+  custom = 0x10001,
+  automatic = 0x10002,
+  host = 0x10003,
   all = UR_DEVICE_TYPE_ALL
 };
 

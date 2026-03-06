@@ -23,13 +23,9 @@ AMDGPU_ATOMIC_FP_MINMAX_IMPL(Max, >, float, int, local)
 AMDGPU_ATOMIC_FP_MINMAX_IMPL(Max, >, float, int, )
 
 #ifdef cl_khr_int64_base_atomics
-AMDGPU_ATOMIC_FP_MINMAX_IMPL_CHECK(Max, >, double, long, global,
-                                   AMDGPU_ARCH_BETWEEN(9010, 10000),
-                                   __builtin_amdgcn_global_atomic_fmax_f64)
+AMDGPU_ATOMIC_FP_MINMAX_IMPL(Max, >, double, long, global)
 AMDGPU_ATOMIC_FP_MINMAX_IMPL(Max, >, double, long, local)
-AMDGPU_ATOMIC_FP_MINMAX_IMPL_CHECK(Max, >, double, long, ,
-                                   AMDGPU_ARCH_BETWEEN(9010, 10000),
-                                   __builtin_amdgcn_flat_atomic_fmax_f64)
+AMDGPU_ATOMIC_FP_MINMAX_IMPL(Max, >, double, long, )
 #endif
 
 #undef AMDGPU_ATOMIC

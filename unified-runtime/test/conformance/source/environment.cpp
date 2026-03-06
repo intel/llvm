@@ -33,15 +33,15 @@ AdapterEnvironment::AdapterEnvironment() {
   instance = this;
 
   ur_loader_config_handle_t config;
-  if (urLoaderConfigCreate(&config) == UR_RESULT_SUCCESS) {
-    if (urLoaderConfigEnableLayer(config, "UR_LAYER_FULL_VALIDATION") !=
-        UR_RESULT_SUCCESS) {
-      urLoaderConfigRelease(config);
-      error = "Failed to enable validation layer";
-      return;
-    }
-  } else {
+  if (urLoaderConfigCreate(&config) != UR_RESULT_SUCCESS) {
     error = "Failed to create loader config handle";
+    return;
+  }
+
+  if (urLoaderConfigEnableLayer(config, "UR_LAYER_FULL_VALIDATION") !=
+      UR_RESULT_SUCCESS) {
+    urLoaderConfigRelease(config);
+    error = "Failed to enable validation layer";
     return;
   }
 
@@ -88,9 +88,8 @@ void uur::PlatformEnvironment::populatePlatforms() {
     std::vector<ur_platform_handle_t> platform_list(count);
     ASSERT_SUCCESS(urPlatformGet(a, count, platform_list.data(), nullptr));
 
-    for (auto p : platform_list) {
-      platforms.push_back(p);
-    }
+    platforms.insert(platforms.end(), platform_list.begin(),
+                     platform_list.end());
   }
 
   ASSERT_FALSE(platforms.empty())
@@ -194,10 +193,8 @@ KernelsEnvironment::parseKernelOptions(int argc, char **argv,
 std::string
 KernelsEnvironment::getKernelSourcePath(const std::string &kernel_name,
                                         const std::string &target_name) {
-  std::stringstream path;
-  path << kernel_options.kernel_directory << "/" << kernel_name << "/"
-       << target_name << ".bin.0";
-  return path.str();
+  return kernel_options.kernel_directory + "/" + kernel_name + "/" +
+         target_name + ".bin.0";
 }
 
 void KernelsEnvironment::LoadSource(
@@ -216,7 +213,7 @@ void KernelsEnvironment::LoadSource(
     FAIL() << "GetPlatformTriple failed with error " << Err << "\n";
   }
 
-  return LoadSource(kernel_name, triple_name, binary_out);
+  LoadSource(kernel_name, triple_name, binary_out);
 }
 
 void KernelsEnvironment::LoadSource(
@@ -225,8 +222,9 @@ void KernelsEnvironment::LoadSource(
   std::string source_path =
       instance->getKernelSourcePath(kernel_name, target_name);
 
-  if (cached_kernels.find(source_path) != cached_kernels.end()) {
-    binary_out = cached_kernels[source_path];
+  auto cached = cached_kernels.find(source_path);
+  if (cached != cached_kernels.end()) {
+    binary_out = cached->second;
     return;
   }
 
@@ -270,18 +268,18 @@ void KernelsEnvironment::CreateProgram(
   ur_backend_t backend;
   ASSERT_SUCCESS(urPlatformGetInfo(hPlatform, UR_PLATFORM_INFO_BACKEND,
                                    sizeof(ur_backend_t), &backend, nullptr));
+  size_t size = binary.size();
+  const char *data = binary.data();
   if (backend == UR_BACKEND_HIP || backend == UR_BACKEND_CUDA ||
       backend == UR_BACKEND_OFFLOAD) {
     // The CUDA and HIP adapters do not support urProgramCreateWithIL so we
     // need to use urProgramCreateWithBinary instead.
-    auto size = binary.size();
-    auto data = binary.data();
-    ASSERT_SUCCESS(urProgramCreateWithBinary(
-        hContext, 1, &hDevice, &size, reinterpret_cast<const uint8_t **>(&data),
-        properties, phProgram));
+    const uint8_t *u8data = reinterpret_cast<const uint8_t *>(data);
+    ASSERT_SUCCESS(urProgramCreateWithBinary(hContext, 1, &hDevice, &size,
+                                             &u8data, properties, phProgram));
   } else {
-    ASSERT_SUCCESS(urProgramCreateWithIL(hContext, binary.data(), binary.size(),
-                                         properties, phProgram));
+    ASSERT_SUCCESS(
+        urProgramCreateWithIL(hContext, data, size, properties, phProgram));
   }
 }
 

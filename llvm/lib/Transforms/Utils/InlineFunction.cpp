@@ -1555,6 +1555,8 @@ static AttrBuilder IdentifyValidPoisonGeneratingAttributes(CallBase &CB) {
     Valid.addAlignmentAttr(CB.getRetAlign());
   if (std::optional<ConstantRange> Range = CB.getRange())
     Valid.addRangeAttr(*Range);
+  if (CB.hasRetAttr(Attribute::NoFPClass))
+    Valid.addNoFPClassAttr(CB.getRetNoFPClass());
   return Valid;
 }
 
@@ -1660,6 +1662,14 @@ static void AddReturnAttributes(CallBase &CB, ValueToValueMapTy &VMap,
               CBRange.getRange().intersectWith(NewRange.getRange()));
         }
       }
+
+      Attribute CBNoFPClass = ValidPG.getAttribute(Attribute::NoFPClass);
+      if (CBNoFPClass.isValid() && AL.hasRetAttr(Attribute::NoFPClass)) {
+        ValidPG.addNoFPClassAttr(
+            CBNoFPClass.getNoFPClass() |
+            AL.getRetAttr(Attribute::NoFPClass).getNoFPClass());
+      }
+
       // Three checks.
       // If the callsite has `noundef`, then a poison due to violating the
       // return attribute will create UB anyways so we can always propagate.
@@ -2841,6 +2851,15 @@ void llvm::InlineFunctionImpl(CallBase &CB, InlineFunctionInfo &IFI,
 
     // Propagate metadata on the callsite if necessary.
     PropagateCallSiteMetadata(CB, FirstNewBlock, Caller->end());
+
+    // Propagate implicit ref metadata.
+    if (CalledFunc->hasMetadata(LLVMContext::MD_implicit_ref)) {
+      SmallVector<MDNode *> MDs;
+      CalledFunc->getMetadata(LLVMContext::MD_implicit_ref, MDs);
+      for (MDNode *MD : MDs) {
+        Caller->addMetadata(LLVMContext::MD_implicit_ref, *MD);
+      }
+    }
 
     // Register any cloned assumptions.
     if (IFI.GetAssumptionCache)

@@ -18,6 +18,3 @@
 // entry points for them even if newer version of the headers stops using those
 // old entry points. Others were exported unnecessarily but only actually used
 // inside DSO, yet we have to keep the entry points as well.
-
-// https://github.com/intel/llvm/pull/16178
-// CHECK:_ZN4sycl3_V13ext5intel12experimental9pipe_base13get_pipe_nameB5cxx11EPKv

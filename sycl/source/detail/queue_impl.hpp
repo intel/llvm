@@ -238,8 +238,10 @@ public:
   // `std::shared_ptr` allocations.
   template <typename... Ts>
   static std::shared_ptr<queue_impl> create(Ts &&...args) {
-    return std::make_shared<queue_impl>(std::forward<Ts>(args)...,
-                                        private_tag{});
+    auto ImplPtr =
+        std::make_shared<queue_impl>(std::forward<Ts>(args)..., private_tag{});
+    ImplPtr->getDeviceImpl().registerQueue(ImplPtr);
+    return ImplPtr;
   }
 
   ~queue_impl() {
@@ -292,9 +294,6 @@ public:
 
   /// \return an associated SYCL device.
   device get_device() const { return createSyclObjFromImpl<device>(MDevice); }
-
-  /// \return true if this queue allows for discarded events.
-  bool supportsDiscardingPiEvents() const { return MIsInorder; }
 
   bool isInOrder() const { return MIsInorder; }
 
@@ -376,9 +375,16 @@ public:
                               CodeLoc, IsTopCodeLoc);
   }
 
+  event submit_barrier_direct_with_event(sycl::span<const event> DepEvents,
+                                         const detail::code_location &CodeLoc) {
+    detail::EventImplPtr EventImpl =
+        submit_barrier_direct_impl(DepEvents, CodeLoc);
+    return createSyclObjFromImpl<event>(std::move(EventImpl));
+  }
+
   void submit_graph_direct_without_event(
-      std::shared_ptr<ext::oneapi::experimental::detail::exec_graph_impl>
-          ExecGraph,
+      const std::shared_ptr<ext::oneapi::experimental::detail::exec_graph_impl>
+          &ExecGraph,
       sycl::span<const event> DepEvents, const detail::code_location &CodeLoc,
       bool IsTopCodeLoc) {
     submit_graph_direct_impl(ExecGraph, false, DepEvents, CodeLoc,
@@ -386,8 +392,8 @@ public:
   }
 
   event submit_graph_direct_with_event(
-      std::shared_ptr<ext::oneapi::experimental::detail::exec_graph_impl>
-          ExecGraph,
+      const std::shared_ptr<ext::oneapi::experimental::detail::exec_graph_impl>
+          &ExecGraph,
       sycl::span<const event> DepEvents, const detail::code_location &CodeLoc,
       bool IsTopCodeLoc) {
     return createSyclObjFromImpl<event>(submit_graph_direct_impl(
@@ -703,6 +709,12 @@ public:
     return MAsyncHandler;
   }
 
+  /// Waits for all not-yet-enqueued and host_task commands in the queue and
+  /// clears the events associated with the queue (if out-of-order.)
+  /// Note: This should only be called if the queue is guaranteed to be
+  /// synchronized by the caller.
+  void waitForRuntimeLevelCmdsAndClear();
+
 protected:
   EventImplPtr insertHelperBarrier();
 
@@ -934,6 +946,15 @@ protected:
                 SubmitCommandFuncType &SubmitCommandFunc, detail::CGType Type,
                 bool InsertBarrierForInOrderCommand);
 
+  /// Performs barrier submission to the queue.
+  ///
+  /// \param DepEvents is a vector of dependencies of the operation.
+  /// \param CodeLoc is the code location of the submit call
+  ///
+  /// \return a SYCL event representing submitted command group or nullptr.
+  EventImplPtr submit_barrier_direct_impl(sycl::span<const event> DepEvents,
+                                          const detail::code_location &CodeLoc);
+
   /// Helper function for submitting a memory operation with a handler.
   /// \param DepEvents is a vector of dependencies of the operation.
   /// \param HandlerFunc is a function that submits the operation with a
@@ -980,13 +1001,6 @@ protected:
   // We need to emit a queue_destroy notification when a queue object is
   // destroyed
   void destructorNotification();
-
-  /// queue_impl.addEvent tracks events with weak pointers
-  /// but some events have no other owners. addSharedEvent()
-  /// follows events with a shared pointer.
-  ///
-  /// \param Event is the event to be stored
-  void addSharedEvent(const event &Event);
 
   /// Stores an event that should be associated with the queue
   ///

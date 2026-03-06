@@ -54,19 +54,53 @@ template <typename KernelType>
 void launch(const queue &q, range<1> r, const KernelType &k,
             const sycl::detail::code_location &codeLoc =
                 sycl::detail::code_location::current()) {
-  submit(q, [&](handler &h) { launch<KernelType>(h, r, k); }, codeLoc);
+  using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<1>>;
+  using TransformedArgType = std::conditional_t<
+      std::is_integral<LambdaArgType>::value, item<1>,
+      typename detail::TransformUserItemType<1, LambdaArgType>::type>;
+
+  // TODO The handler-less path does not support kernel functions with the
+  // kernel_handler type argument yet.
+  if constexpr (!(detail::KernelLambdaHasKernelHandlerArgT<
+                    KernelType, TransformedArgType>::value)) {
+    detail::submit_kernel_direct_parallel_for(q, r, k);
+  } else {
+    submit(q, [&](handler &h) { launch<KernelType>(h, r, k); }, codeLoc);
+  }
 }
 template <typename KernelType>
 void launch(const queue &q, range<2> r, const KernelType &k,
             const sycl::detail::code_location &codeLoc =
                 sycl::detail::code_location::current()) {
-  submit(q, [&](handler &h) { launch<KernelType>(h, r, k); }, codeLoc);
+  using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<2>>;
+  using TransformedArgType =
+      typename detail::TransformUserItemType<2, LambdaArgType>::type;
+
+  // TODO The handler-less path does not support kernel functions with the
+  // kernel_handler type argument yet.
+  if constexpr (!(detail::KernelLambdaHasKernelHandlerArgT<
+                    KernelType, TransformedArgType>::value)) {
+    detail::submit_kernel_direct_parallel_for(q, r, k);
+  } else {
+    submit(q, [&](handler &h) { launch<KernelType>(h, r, k); }, codeLoc);
+  }
 }
 template <typename KernelType>
 void launch(const queue &q, range<3> r, const KernelType &k,
             const sycl::detail::code_location &codeLoc =
                 sycl::detail::code_location::current()) {
-  submit(q, [&](handler &h) { launch<KernelType>(h, r, k); }, codeLoc);
+  using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<3>>;
+  using TransformedArgType =
+      typename detail::TransformUserItemType<3, LambdaArgType>::type;
+
+  // TODO The handler-less path does not support kernel functions with the
+  // kernel_handler type argument yet.
+  if constexpr (!(detail::KernelLambdaHasKernelHandlerArgT<
+                    KernelType, TransformedArgType>::value)) {
+    detail::submit_kernel_direct_parallel_for(q, r, k);
+  } else {
+    submit(q, [&](handler &h) { launch<KernelType>(h, r, k); }, codeLoc);
+  }
 }
 
 template <typename... ArgsT>

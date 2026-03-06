@@ -260,6 +260,13 @@ public:
     FEM_UnsetOnCommandLine = 3
   };
 
+  enum class MatrixMemoryLayout : unsigned {
+    // Use column-major layout for matrices
+    MatrixColMajor = 0,
+    // Use row-major layout for matrices
+    MatrixRowMajor = 1,
+  };
+
   enum ExcessPrecisionKind { FPP_Standard, FPP_Fast, FPP_None };
 
   enum FPAccuracyKind {
@@ -433,6 +440,16 @@ public:
     None,
   };
 
+  enum class LayoutCompatibilityKind {
+    /// Use default layout rules of the target.
+    Default = 0,
+    /// Use Itanium rules for bit-field layout and fundamental types alignment.
+    Itanium = 1,
+    /// Use Microsoft C++ ABI rules for bit-field layout and fundamental types
+    /// alignment.
+    Microsoft = 2,
+  };
+
   // Define simple language options (with no accessors).
 #define LANGOPT(Name, Bits, Default, Compatibility, Description)               \
   unsigned Name : Bits;
@@ -460,6 +477,9 @@ public:
   SanitizerSet Sanitize;
   /// Is at least one coverage instrumentation type enabled.
   bool SanitizeCoverage = false;
+  /// Set of (UBSan) sanitizers that when enabled do not cause
+  /// `__has_feature(undefined_behavior_sanitizer)` to evaluate true.
+  SanitizerSet UBSanFeatureIgnoredSanitize;
 
   /// Paths to files specifying which objects
   /// (files, functions, variables) should not be instrumented.
@@ -661,6 +681,8 @@ public:
     return ObjCRuntime.isSubscriptPointerArithmetic() &&
            !ObjCSubscriptingLegacyRuntime;
   }
+
+  bool isCompatibleWithMSVC() const { return MSCompatibilityVersion > 0; }
 
   bool isCompatibleWithMSVC(MSVCMajorVersion MajorVersion) const {
     return MSCompatibilityVersion >= MajorVersion * 100000U;

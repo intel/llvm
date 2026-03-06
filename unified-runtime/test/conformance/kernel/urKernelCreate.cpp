@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -26,7 +26,8 @@ struct urKernelCreateTest : uur::urProgramTest {
   std::string kernel_name;
   ur_kernel_handle_t kernel = nullptr;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelCreateTest);
+
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(urKernelCreateTest);
 
 TEST_P(urKernelCreateTest, Success) {
   ASSERT_SUCCESS(urKernelCreate(program, kernel_name.data(), &kernel));

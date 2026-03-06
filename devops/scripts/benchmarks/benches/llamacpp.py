@@ -1,11 +1,10 @@
-# Copyright (C) 2024-2025 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import csv
 import io
-import os
 from pathlib import Path
 
 from utils.utils import download
@@ -28,8 +27,8 @@ class LlamaCppBench(Suite):
         return "https://github.com/ggerganov/llama.cpp"
 
     def git_hash(self) -> str:
-        # 12 Nov, 2025
-        return "78010a0d52ad03cd469448df89101579b225582c"
+        # 28 Jan, 2026
+        return "0cd7032ca4f1f2ac0c9527a62a76ed4dc6ad26fe"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -76,6 +75,11 @@ class LlamaCppBench(Suite):
         return [LlamaBench(self)]
 
 
+# FIXME: This benchmark is disabled in "Full" and "Normal" presets due to CI issues:
+# - for a reason curl cannot be found on the machine, consider adding: "-DLLAMA_CURL=OFF"
+# - syclcompat headers couldn't be found (should we source oneapi setvars?)
+#
+# If you wish to run this benchmark (e.g. for debugging), use preset "LLama".
 class LlamaBench(Benchmark):
     def __init__(self, suite: LlamaCppBench):
         super().__init__(suite)

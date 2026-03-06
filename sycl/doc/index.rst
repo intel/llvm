@@ -42,7 +42,6 @@ Design Documents for the oneAPI DPC++ Compiler
    design/DeviceCodeCoverage
    design/DeviceGlobal
    design/CompileTimeProperties
-   design/HostPipes
    design/ESIMDStatelesAccessors
    design/ESIMDDesignNotes
    design/DeviceIf
@@ -51,6 +50,7 @@ Design Documents for the oneAPI DPC++ Compiler
    design/DeviceConfigFile
    design/PropagateCompilerFlagsToRuntime
    design/SYCLNativeCPU
+   design/VirtualFunctions
    design/SYCLNativeCPUPipeline
    design/SYCLNativeCPUPipelinePasses
    design/SYCLNativeCPUVecz

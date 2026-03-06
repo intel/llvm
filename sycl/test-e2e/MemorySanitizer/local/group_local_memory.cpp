@@ -1,6 +1,6 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
 // RUN: %{build} %device_msan_flags -mllvm -msan-spir-privates=0 -g -O0 -o %t1.out
-// RUN: %{run} not %t1.out 2>&1 | FileCheck %s --check-prefixes CHECK-O0
+// RUN: %{run} not --crash %t1.out 2>&1 | FileCheck %s --check-prefixes CHECK-O0
 // RUN: %{build} %device_msan_flags -g -O2 -o %t2.out
 // RUN: %{run} %t2.out 2>&1 | FileCheck %s
 

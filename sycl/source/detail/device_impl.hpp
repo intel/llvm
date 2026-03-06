@@ -74,8 +74,6 @@ inline info::device_type ConvertDeviceType(ur_device_type_t UrDevType) {
     return info::device_type::gpu;
   case UR_DEVICE_TYPE_CPU:
     return info::device_type::cpu;
-  case UR_DEVICE_TYPE_FPGA:
-    return info::device_type::accelerator;
   case UR_DEVICE_TYPE_MCA:
   case UR_DEVICE_TYPE_VPU:
   case UR_DEVICE_TYPE_CUSTOM:
@@ -129,7 +127,7 @@ template <ur_device_info_t Desc>
 using ur_ret_type = decltype(ur_ret_type_impl<Desc>());
 
 // TODO: Make code thread-safe
-class device_impl : public std::enable_shared_from_this<device_impl> {
+class device_impl {
   struct private_tag {
     explicit private_tag() = default;
   };
@@ -426,9 +424,14 @@ public:
   // Must be called through `platform_impl::getOrMakeDeviceImpl` only.
   // `private_tag` ensures that is true.
   explicit device_impl(ur_device_handle_t Device, platform_impl &Platform,
-                       private_tag);
+                       private_tag, size_t idx);
 
   ~device_impl();
+
+  /// Get the index of the device within the device vector of its platform.
+  ///
+  /// \return the index if the device
+  size_t getIndexWithinPlatform() const { return MIndexWithinPlatform; }
 
   /// Get instance of OpenCL device
   ///
@@ -468,7 +471,8 @@ public:
   ///
   /// \return true if SYCL device is an accelerator device
   bool is_accelerator() const {
-    return get_info_impl<UR_DEVICE_INFO_TYPE>() == UR_DEVICE_TYPE_FPGA;
+    // This implementation doesn't support accelerator-type devices.
+    return false;
   }
 
   /// Get associated SYCL platform
@@ -806,22 +810,6 @@ public:
 
     CASE(info::device::image_support) {
       // No devices currently support SYCL 2020 images.
-      return false;
-    }
-
-    CASE(info::device::kernel_kernel_pipe_support) {
-      // We claim, that all Intel FPGA devices support kernel to kernel pipe
-      // feature (at least at the scope of SYCL_INTEL_data_flow_pipes
-      // extension).
-      std::string platform_name = MPlatform.get_info<info::platform::name>();
-      if (platform_name == "Intel(R) FPGA Emulation Platform for OpenCL(TM)" ||
-          platform_name == "Intel(R) FPGA SDK for OpenCL(TM)")
-        return true;
-
-      // TODO: a better way is to query for supported SPIR-V capabilities when
-      // it's started to be possible. Also, if a device's backend supports
-      // SPIR-V 1.1 (where Pipe Storage feature was defined), than it supports
-      // the feature as well.
       return false;
     }
 
@@ -1204,10 +1192,7 @@ public:
     CASE(cpu) { return is_cpu(); }
     CASE(gpu) { return is_gpu(); }
     CASE(accelerator) { return is_accelerator(); }
-    CASE(custom) {
-      return false;
-      // TODO: Implement this for FPGA emulator.
-    }
+    CASE(custom) { return false; }
     CASE(emulated) { return false; }
     CASE(host_debuggable) { return false; }
     CASE(fp16) { return has_extension("cl_khr_fp16"); }
@@ -1232,9 +1217,6 @@ public:
     }
     CASE(usm_host_allocations) {
       return get_info<info::device::usm_host_allocations>();
-    }
-    CASE(ext_intel_mem_channel) {
-      return get_info<info::device::ext_intel_mem_channel>();
     }
     CASE(ext_oneapi_cuda_cluster_group) {
       return get_info<info::device::ext_oneapi_cuda_cluster_group>();
@@ -1452,7 +1434,7 @@ public:
           arch::intel_gpu_bmg_g31, arch::intel_gpu_lnl_m,
           arch::intel_gpu_arl_h,   arch::intel_gpu_ptl_h,
           arch::intel_gpu_ptl_u,   arch::intel_gpu_wcl,
-      };
+          arch::intel_gpu_cri};
       try {
         return std::any_of(
             std::begin(supported_archs), std::end(supported_archs),
@@ -1524,7 +1506,6 @@ public:
       return get_info_impl_nocheck<UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT>()
           .value_or(0);
     }
-    CASE(ext_intel_fpga_task_sequence) { return is_accelerator(); }
     CASE(ext_oneapi_atomic16) {
       // Likely L0 doesn't check it properly. Need to double-check.
       return has_extension("cl_ext_float_atomics");
@@ -1571,6 +1552,10 @@ public:
     }
     CASE(ext_oneapi_ipc_memory) {
       return get_info_impl_nocheck<UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_device_wait) {
+      return get_info_impl_nocheck<UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP>()
           .value_or(0);
     }
     else {
@@ -1863,6 +1848,13 @@ public:
         {0x07804000, oneapi_exp_arch::intel_gpu_ptl_u},   // A0
         {0x07804001, oneapi_exp_arch::intel_gpu_ptl_u},   // A1
         {0x0780c000, oneapi_exp_arch::intel_gpu_wcl},     // A0
+        {0x07810000, oneapi_exp_arch::intel_gpu_nvl_s},   // A0
+        {0x07810004, oneapi_exp_arch::intel_gpu_nvl_s},   // B0
+        {0x07814000, oneapi_exp_arch::intel_gpu_nvl_u},   // A0
+        {0x07814004, oneapi_exp_arch::intel_gpu_nvl_u},   // B0
+        {0x08c28000, oneapi_exp_arch::intel_gpu_nvl_p},   // A0
+        {0x08c28004, oneapi_exp_arch::intel_gpu_nvl_p},   // B0
+        {0x08c2c000, oneapi_exp_arch::intel_gpu_cri},     // A0
     };
 
     // Only for Intel CPU architectures
@@ -1993,7 +1985,8 @@ public:
              (architecture::intel_gpu_lnl_m == DeviceArch) ||
              (architecture::intel_gpu_ptl_h == DeviceArch) ||
              (architecture::intel_gpu_ptl_u == DeviceArch) ||
-             (architecture::intel_gpu_wcl == DeviceArch)) {
+             (architecture::intel_gpu_wcl == DeviceArch) ||
+             (architecture::intel_gpu_cri == DeviceArch)) {
       std::vector<ext::oneapi::experimental::matrix::combination> pvc_combs = {
           {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::uint8,
            matrix_type::sint32, matrix_type::sint32},
@@ -2235,6 +2228,22 @@ public:
     return {};
   }
 
+  /// Synchronizes with all queues on the device.
+  void wait();
+
+  // Dispatch all unconsumed asynchronous exception to the appropriate handlers.
+  void throwAsynchronous();
+
+  void registerQueue(const std::weak_ptr<queue_impl> &Q) {
+    std::lock_guard<std::mutex> Lock(MQueuesMutex);
+    MQueues.insert(Q);
+  }
+
+  void unregisterQueue(const std::weak_ptr<queue_impl> &Q) {
+    std::lock_guard<std::mutex> Lock(MQueuesMutex);
+    MQueues.erase(Q);
+  }
+
 private:
   ur_device_handle_t MDevice = 0;
   // This is used for getAdapter so should be above other properties.
@@ -2244,6 +2253,13 @@ private:
   std::pair<uint64_t, uint64_t> MDeviceHostBaseTime{0, 0};
 
   const ur_device_handle_t MRootDevice;
+
+  // Devices track a list of active queues on it, to allow for synchronization
+  // with host_task and not-yet-enqueued commands.
+  std::mutex MQueuesMutex;
+  std::set<std::weak_ptr<queue_impl>,
+           std::owner_less<std::weak_ptr<queue_impl>>>
+      MQueues;
 
   // Order of caches matters! UR must come before SYCL info descriptors (because
   // get_info calls get_info_impl but the opposite never happens) and both
@@ -2288,6 +2304,8 @@ private:
           aspect::ext_oneapi_bindless_images_2d_usm,
           aspect::ext_oneapi_is_composite, aspect::ext_oneapi_is_component>>
       MCache;
+
+  const size_t MIndexWithinPlatform = 0;
 
 }; // class device_impl
 

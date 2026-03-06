@@ -165,7 +165,7 @@ private:
   // Fields below are used (and changed to be non-zero) only if we deal with
   // a ranged accessor.
   //
-  // TODO: consider making their existance dependable on Dimensions template
+  // TODO: consider making their existence dependable on Dimensions template
   // parameter, because not all of them are needed for all possible dimensions.
 
   // Three field below allow us to calculate an absolute offset to an accessor's

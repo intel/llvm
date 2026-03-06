@@ -13,6 +13,7 @@
 #include <sycl/detail/compile_time_kernel_info.hpp>
 #include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/ur.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 #include <mutex>
 #include <optional>
@@ -84,12 +85,10 @@ struct FastKernelSubcacheT {
 // information that is uniform between different submissions of the same
 // kernel). Pointers to instances of this class are stored in header function
 // templates as a static variable to avoid repeated runtime lookup overhead.
-// TODO Currently this class duplicates information fetched from the program
-// manager. Instead, we should merge all of this information
-// into this structure and get rid of the other KernelName -> * maps.
 class DeviceKernelInfo : public CompileTimeKernelInfoTy {
 public:
-  DeviceKernelInfo(const CompileTimeKernelInfoTy &Info);
+  DeviceKernelInfo(const CompileTimeKernelInfoTy &Info,
+                   std::optional<sycl::kernel_id> KernelID = std::nullopt);
 
   void init(std::string_view KernelName);
   void setCompileTimeInfoIfNeeded(const CompileTimeKernelInfoTy &Info);
@@ -100,15 +99,37 @@ public:
     return MImplicitLocalArgPos;
   }
 
+  const sycl::kernel_id &getKernelID() const {
+    // Expected to be called only for DeviceKernelInfo instances created by
+    // program manager (as opposed to allocated by sycl::kernel with
+    // origins other than SYCL offline compilation).
+    assert(MKernelID);
+    return *MKernelID;
+  }
+
   // Implicit local argument position is used only for some backends, so this
   // function allows setting it as more images are added.
   void setImplicitLocalArgPos(int Pos);
+
+  int &getRefCount() { return RefCount; }
+
+  // Returns the demangled kernel name, caching the result to avoid repeated
+  // demangling overhead.
+  std::string_view getDemangledName() const;
 
 private:
   bool isCompileTimeInfoSet() const { return KernelSize != 0; }
 
   FastKernelSubcacheT MFastKernelSubcache;
   std::optional<int> MImplicitLocalArgPos;
+  const std::optional<sycl::kernel_id> MKernelID;
+  // Keeps track of binary image to kernel name reference count.
+  // Used for checking if the last image referencing the kernel name
+  // is removed in order to trigger cleanup of this struct.
+  int RefCount = 0;
+  // Cached demangled kernel name for instrumentation
+  mutable std::string MDemangledName;
+  mutable std::once_flag MDemangledNameInitFlag;
 };
 
 } // namespace detail

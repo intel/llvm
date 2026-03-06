@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Intel Corporation
+// Copyright (C) 2025-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -24,9 +24,9 @@ struct urCommandBufferWriteCommandsTest
         uur::command_buffer::urCommandBufferExpTestWithParam<
             testParametersWrite>::SetUp());
 
-    size = std::get<1>(GetParam()).size;
-    offset = std::get<1>(GetParam()).offset;
-    write_size = std::get<1>(GetParam()).write_size;
+    size = getParam().size;
+    offset = getParam().offset;
+    write_size = getParam().write_size;
     assert(size >= offset + write_size);
     // Allocate USM pointers
     ASSERT_SUCCESS(
@@ -91,14 +91,18 @@ static std::string printWriteTestString(
   const auto platform_device_name =
       uur::GetPlatformAndDeviceName(device_handle);
   std::stringstream test_name;
-  test_name << platform_device_name << "__size__"
-            << std::get<1>(info.param).size << "__offset__"
-            << std::get<1>(info.param).offset << "__write_size__"
-            << std::get<1>(info.param).write_size;
+
+  auto paramTuple = std::get<1>(info.param);
+  auto param = std::get<0>(paramTuple);
+  auto queueMode = std::get<1>(paramTuple);
+
+  test_name << platform_device_name << "__size__" << param.size << "__offset__"
+            << param.offset << "__write_size__" << param.write_size << "__"
+            << queueMode;
   return test_name.str();
 }
 
-UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+UUR_MULTI_QUEUE_TYPE_TEST_SUITE_WITH_PARAM(
     urCommandBufferWriteCommandsTest, testing::ValuesIn(test_cases),
     printWriteTestString<urCommandBufferWriteCommandsTest>);
 

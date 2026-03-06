@@ -39,7 +39,6 @@ add_llvm_component_library(LLVMSYCLLowerIR
   DeviceGlobals.cpp
   ESIMD/LowerESIMDVLoadVStore.cpp
   ESIMD/LowerESIMDSlmReservation.cpp
-  HostPipes.cpp
   LowerInvokeSimd.cpp
   LowerWGLocalMemory.cpp
   LowerWGScope.cpp

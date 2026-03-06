@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -9,20 +9,20 @@
 #include <thread>
 #include <uur/known_failure.h>
 
-struct QueueBufferTestWithParam : uur::IntegrationQueueTestWithParam {
+struct QueueBufferTest : uur::IntegrationQueueTest {
   void SetUp() override {
     UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{},
                          uur::NativeCPU{});
 
     program_name = "cpy_and_mult";
-    UUR_RETURN_ON_FATAL_FAILURE(uur::IntegrationQueueTestWithParam::SetUp());
+    UUR_RETURN_ON_FATAL_FAILURE(uur::IntegrationQueueTest::SetUp());
   }
 
-  void TearDown() override { uur::IntegrationQueueTestWithParam::TearDown(); }
+  void TearDown() override { uur::IntegrationQueueTest::TearDown(); }
 
   void verifyResults(ur_mem_handle_t Buffer, uint32_t ExpectedValue) {
     uint32_t HostMem[ArraySize] = {};
-    ASSERT_SUCCESS(urEnqueueMemBufferRead(Queue, Buffer, true, 0,
+    ASSERT_SUCCESS(urEnqueueMemBufferRead(queue, Buffer, true, 0,
                                           sizeof(uint32_t) * ArraySize, HostMem,
                                           0, nullptr, nullptr));
 
@@ -35,11 +35,11 @@ struct QueueBufferTestWithParam : uur::IntegrationQueueTestWithParam {
   ur_mem_handle_t Buffer2 = nullptr;
 };
 
-UUR_DEVICE_TEST_SUITE_WITH_PARAM(
-    QueueBufferTestWithParam,
+UUR_DEVICE_TEST_SUITE_WITH_QUEUE_TYPES_PRINTER(
+    QueueBufferTest,
     testing::Values(0, /* In-Order */
                     UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE),
-    uur::IntegrationQueueTestWithParam::paramPrinter);
+    uur::IntegrationQueueTest::paramPrinter);
 
 /* Submits multiple kernels that interact with each other by accessing and
  * writing to the same buffers.
@@ -47,7 +47,7 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
  * between calls to urEnqueueKernelLaunch.
  * Checks that when using an OUT_OF_ORDER queue, synchronizing using only
  * event barriers is enough. */
-TEST_P(QueueBufferTestWithParam, QueueBufferTest) {
+TEST_P(QueueBufferTest, QueueBufferTest) {
 
   std::vector<ur_event_handle_t> EventsFill;
   ur_event_handle_t Event;
@@ -60,12 +60,12 @@ TEST_P(QueueBufferTestWithParam, QueueBufferTest) {
       AddBuffer1DArg(ArraySize * sizeof(uint32_t), &Buffer2, &Buffer2Index));
 
   ASSERT_SUCCESS(
-      urEnqueueMemBufferFill(Queue, Buffer1, &InitialValue, sizeof(uint32_t), 0,
+      urEnqueueMemBufferFill(queue, Buffer1, &InitialValue, sizeof(uint32_t), 0,
                              ArraySize * sizeof(uint32_t), 0, nullptr, &Event));
   EventsFill.push_back(Event);
 
   ASSERT_SUCCESS(
-      urEnqueueMemBufferFill(Queue, Buffer2, &InitialValue, sizeof(uint32_t), 0,
+      urEnqueueMemBufferFill(queue, Buffer2, &InitialValue, sizeof(uint32_t), 0,
                              ArraySize * sizeof(uint32_t), 0, nullptr, &Event));
   EventsFill.push_back(Event);
 
@@ -85,7 +85,7 @@ TEST_P(QueueBufferTestWithParam, QueueBufferTest) {
     ASSERT_SUCCESS(
         urKernelSetArgMemObj(kernel, Buffer1Index, nullptr, Buffer1));
 
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(Queue, kernel, NDimensions,
+    ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, NDimensions,
                                          &GlobalOffset, &ArraySize, nullptr,
                                          nullptr, 0, nullptr, &Event));
     ASSERT_NO_FATAL_FAILURE(submitBarrierIfNeeded(Event));
@@ -98,7 +98,7 @@ TEST_P(QueueBufferTestWithParam, QueueBufferTest) {
     ASSERT_SUCCESS(
         urKernelSetArgMemObj(kernel, Buffer2Index, nullptr, Buffer1));
 
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(Queue, kernel, NDimensions,
+    ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, NDimensions,
                                          &GlobalOffset, &ArraySize, nullptr,
                                          nullptr, 0, nullptr, &Event));
     ASSERT_NO_FATAL_FAILURE(submitBarrierIfNeeded(Event));
@@ -106,7 +106,7 @@ TEST_P(QueueBufferTestWithParam, QueueBufferTest) {
     CurValueMem1 = CurValueMem2 * 2;
   }
 
-  ASSERT_SUCCESS(urQueueFinish(Queue));
+  ASSERT_SUCCESS(urQueueFinish(queue));
 
   ASSERT_NO_FATAL_FAILURE(verifyResults(Buffer1, CurValueMem1));
   ASSERT_NO_FATAL_FAILURE(verifyResults(Buffer2, CurValueMem2));

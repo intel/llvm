@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -30,7 +30,7 @@ struct urProgramLinkTest : uur::urProgramTest {
 
   ur_program_handle_t linked_program = nullptr;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urProgramLinkTest);
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(urProgramLinkTest);
 
 TEST_P(urProgramLinkTest, Success) {
   // This entry point isn't implemented for HIP.
@@ -77,11 +77,11 @@ TEST_P(urProgramLinkTest, SetOutputOnZeroCount) {
             reinterpret_cast<ur_program_handle_t>(&invalid_pointer));
 }
 
-struct urProgramLinkErrorTest : uur::urQueueTest {
+struct urProgramLinkErrorTest : uur::urMultiQueueTypeTest {
   const std::string linker_error_program_name = "linker_error";
 
   void SetUp() override {
-    UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
+    UUR_RETURN_ON_FATAL_FAILURE(urMultiQueueTypeTest::SetUp());
     // TODO: This should use a query for urProgramCreateWithIL support or
     // rely on UR_RESULT_ERROR_UNSUPPORTED_FEATURE being returned.
     ur_backend_t backend;
@@ -112,13 +112,13 @@ struct urProgramLinkErrorTest : uur::urQueueTest {
     if (linked_program) {
       EXPECT_SUCCESS(urProgramRelease(linked_program));
     }
-    UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::TearDown());
+    UUR_RETURN_ON_FATAL_FAILURE(urMultiQueueTypeTest::TearDown());
   }
 
   ur_program_handle_t program = nullptr;
   ur_program_handle_t linked_program = nullptr;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urProgramLinkErrorTest);
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(urProgramLinkErrorTest);
 
 TEST_P(urProgramLinkErrorTest, LinkFailure) {
   ASSERT_EQ_RESULT(
