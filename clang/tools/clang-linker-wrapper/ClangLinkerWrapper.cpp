@@ -155,6 +155,9 @@ static SYCLBIN::BundleState SYCLBINState = SYCLBIN::BundleState::Input;
 
 static SmallString<128> OffloadImageDumpDir;
 
+/// Whether or not to look through symlinks when resolving binaries.
+static bool CanonicalPrefixes = true;
+
 using OffloadingImage = OffloadBinary::OffloadingImage;
 
 namespace llvm {
@@ -258,6 +261,8 @@ Expected<OffloadFile> getInputBitcodeLibrary(StringRef Input) {
 }
 
 std::string getExecutableDir(const char *Name) {
+  if (!CanonicalPrefixes)
+    return sys::path::parent_path(LinkerExecutable).str();
   void *Ptr = reinterpret_cast<void *>(&getExecutableDir);
   return sys::path::parent_path(sys::fs::getMainExecutable(Name, Ptr)).str();
 }
@@ -2755,6 +2760,7 @@ int main(int Argc, char **Argv) {
   DryRun = Args.hasArg(OPT_dry_run);
   SaveTemps = Args.hasArg(OPT_save_temps);
   CudaBinaryPath = Args.getLastArgValue(OPT_cuda_path_EQ).str();
+  CanonicalPrefixes = !Args.hasArg(OPT_no_canonical_prefixes);
 
   llvm::Triple Triple(
       Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple()));

@@ -11447,6 +11447,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       OPT_save_temps_EQ,
       OPT_mcode_object_version_EQ,
       OPT_load,
+      OPT_no_canonical_prefixes,
       OPT_fno_lto,
       OPT_flto,
       OPT_flto_partitions_EQ,
@@ -11913,6 +11914,10 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   // For example, changes in offload binary descriptor format.
   if (Args.hasArg(options::OPT_fpreview_breaking_changes))
     CmdArgs.push_back("-fpreview-breaking-changes");
+
+  // Propagate -no-canonical-prefixes.
+  if (Args.hasArg(options::OPT_no_canonical_prefixes))
+    CmdArgs.push_back("--no-canonical-prefixes");
 
   const char *Exec =
       Args.MakeArgString(getToolChain().GetProgramPath("clang-linker-wrapper"));
